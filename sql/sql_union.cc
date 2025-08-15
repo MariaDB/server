@@ -474,21 +474,30 @@ int select_unit::update_counter(Field* counter, longlong value)
     Try to disable index
   
   @retval
-    true    index is disabled this time
+    true    index is disabled and unfold is needed
     false   this time did not disable the index
 */
 
 bool select_unit_ext::disable_index_if_needed(SELECT_LEX *curr_sl)
 { 
+  const bool oracle_mode= thd->variables.sql_mode & MODE_ORACLE;
   if (is_index_enabled && 
-      (curr_sl == curr_sl->master_unit()->union_distinct || 
+      ((!oracle_mode &&
+        curr_sl == curr_sl->master_unit()->union_distinct) ||
         !curr_sl->next_select()) )
   {
     is_index_enabled= false;
-    if (table->file->ha_disable_indexes(key_map(0), false))
+    int error= table->file->ha_disable_indexes(key_map(0), false);
+    if (error)
+    {
+      table->file->print_error(error, MYF(0));
+      DBUG_ASSERT(0);
       return false;
+    }
     table->no_keyread=1;
-    return true;
+    /* In case of Oracle mode we unfold at the last operator */
+    DBUG_ASSERT(!oracle_mode || !curr_sl->next_select());
+    return oracle_mode || !curr_sl->distinct;
   }
   return false;
 }
@@ -547,7 +556,7 @@ int select_unit::delete_record()
   tables of JOIN - exec_tmp_table_[1 | 2].
 */
 
-void select_unit::cleanup()
+void select_unit::reset_for_next_ps_execution()
 {
   table->file->extra(HA_EXTRA_RESET_STATE);
   table->file->ha_delete_all_rows();
@@ -772,8 +781,7 @@ bool select_unit_ext::send_eof()
                         next_sl &&
                         next_sl->get_linkage() == INTERSECT_TYPE &&
                         !next_sl->distinct;
-  bool need_unfold= (disable_index_if_needed(curr_sl) &&
-                    !curr_sl->distinct);
+  bool need_unfold= disable_index_if_needed(curr_sl);
 
   if (((curr_sl->distinct && !is_next_distinct) ||
       curr_op_type == INTERSECT_ALL ||
@@ -781,7 +789,8 @@ bool select_unit_ext::send_eof()
       !need_unfold)
   {
     if (!next_sl)
-      DBUG_ASSERT(curr_op_type != INTERSECT_ALL);
+      DBUG_ASSERT((thd->variables.sql_mode & MODE_ORACLE) ||
+                  curr_op_type != INTERSECT_ALL);
     bool need_update_row;
     if (unlikely(table->file->ha_rnd_init_with_error(1)))
       return 1;
@@ -902,11 +911,11 @@ bool select_unit_ext::send_eof()
   return (MY_TEST(error));
 }
 
-void select_union_recursive::cleanup()
+void select_union_recursive::reset_for_next_ps_execution()
 {
   if (table)
   {
-    select_unit::cleanup();
+    select_unit::reset_for_next_ps_execution();
     free_tmp_table(thd, table);
   }
 
@@ -1026,7 +1035,8 @@ bool select_union_direct::send_eof()
   // Reset for each SELECT_LEX, so accumulate here
   limit_found_rows+= thd->limit_found_rows;
 
-  if (unit->thd->lex->current_select == last_select_lex)
+  if (unit->thd->lex->current_select == last_select_lex ||
+      thd->killed == ABORT_QUERY)
   {
     thd->limit_found_rows= limit_found_rows;
 
@@ -1294,8 +1304,8 @@ bool st_select_lex_unit::prepare(TABLE_LIST *derived_arg,
   uint union_part_count= 0;
   select_result *tmp_result;
   bool is_union_select;
-  bool have_except= false, have_intersect= false,
-    have_except_all_or_intersect_all= false;
+  bool have_except= false, have_intersect= false;
+  have_except_all_or_intersect_all= false;
   bool instantiate_tmp_table= false;
   bool single_tvc= !first_sl->next_select() && first_sl->tvc;
   bool single_tvc_wo_order= single_tvc && !first_sl->order_list.elements;
@@ -2159,6 +2169,7 @@ bool st_select_lex_unit::exec()
   bool first_execution= !executed;
   DBUG_ENTER("st_select_lex_unit::exec");
   bool was_executed= executed;
+  int error;
 
   if (executed && !uncacheable && !describe)
     DBUG_RETURN(FALSE);
@@ -2191,7 +2202,7 @@ bool st_select_lex_unit::exec()
   if (uncacheable || !item || !item->assigned() || describe)
   {
     if (!fake_select_lex && !(with_element && with_element->is_recursive))
-      union_result->cleanup();
+      union_result->reset_for_next_ps_execution();
     for (SELECT_LEX *sl= select_cursor; sl; sl= sl->next_select())
     {
       ha_rows records_at_start= 0;
@@ -2242,17 +2253,32 @@ bool st_select_lex_unit::exec()
       if (likely(!saved_error))
       {
 	records_at_start= table->file->stats.records;
+
+        /* select_unit::send_data() writes rows to (temporary) table */
 	if (sl->tvc)
 	  sl->tvc->exec(sl);
 	else
 	  sl->join->exec();
+        /*
+          Allow UNION ALL to work: disable unique key. We cannot disable indexes
+          in the middle of the query because enabling indexes requires table to be empty
+          (see heap_enable_indexes()). So there is special union_distinct property
+          which is the rightmost distinct UNION in the expression and we release
+          the unique key after the last (rightmost) distinct UNION, therefore only the
+          subsequent UNION ALL work as non-distinct.
+        */
         if (sl == union_distinct && !have_except_all_or_intersect_all &&
             !(with_element && with_element->is_recursive))
 	{
           // This is UNION DISTINCT, so there should be a fake_select_lex
           DBUG_ASSERT(fake_select_lex != NULL);
-	  if (table->file->ha_disable_indexes(key_map(0), false))
+          error= table->file->ha_disable_indexes(key_map(0), false);
+          if (error)
+          {
+            table->file->print_error(error, MYF(0));
+            DBUG_ASSERT(0);
 	    DBUG_RETURN(TRUE);
+          }
 	  table->no_keyread=1;
 	}
 	if (!sl->tvc)
@@ -2410,8 +2436,8 @@ bool st_select_lex_unit::exec()
       fake_select_lex->table_list.empty();
       if (likely(!saved_error))
       {
-	thd->limit_found_rows = (ulonglong)table->file->stats.records + add_rows;
-        thd->inc_examined_row_count(examined_rows);
+        thd->limit_found_rows=
+            (ulonglong) table->file->stats.records + add_rows;
       }
       /*
 	Mark for slow query log if any of the union parts didn't use
@@ -2422,6 +2448,8 @@ bool st_select_lex_unit::exec()
   thd->lex->current_select= lex_select_save;
 err:
   thd->lex->set_limit_rows_examined();
+  if (likely(!saved_error))
+    thd->inc_examined_row_count(examined_rows);
   DBUG_RETURN(saved_error);
 }
 
@@ -2633,7 +2661,7 @@ bool st_select_lex_unit::cleanup()
   {
     if (union_result)
     {
-      ((select_union_recursive *) union_result)->cleanup();
+      ((select_union_recursive *) union_result)->reset_for_next_ps_execution();
       delete union_result;
       union_result= 0;
     }

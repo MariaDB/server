@@ -546,35 +546,6 @@ void Item_sum::fix_num_length_and_dec()
   max_length=float_length(decimals);
 }
 
-Item *Item_sum::get_tmp_table_item(THD *thd)
-{
-  Item_sum* sum_item= (Item_sum *) copy_or_same(thd);
-  if (sum_item && sum_item->result_field)	   // If not a const sum func
-  {
-    Field *result_field_tmp= sum_item->result_field;
-    for (uint i=0 ; i < sum_item->arg_count ; i++)
-    {
-      Item *arg= sum_item->args[i];
-      if (!arg->const_item())
-      {
-        if (arg->type() == Item::FIELD_ITEM)
-        {
-          ((Item_field*) arg)->field= result_field_tmp++;
-        }
-        else
-        {
-          auto item_field=
-            new (thd->mem_root) Item_field(thd, result_field_tmp++);
-          if (item_field)
-            item_field->set_refers_to_temp_table();
-          sum_item->args[i]= item_field;
-        }
-      }
-    }
-  }
-  return sum_item;
-}
-
 
 void Item_sum::update_used_tables ()
 {
@@ -1394,8 +1365,16 @@ Item_sum_sp::fix_fields(THD *thd, Item **ref)
     return TRUE;
   }
 
-  if (init_result_field(thd, max_length, maybe_null(), &null_value, &name))
-    return TRUE;
+  Query_arena *arena, backup;
+  arena= thd->activate_stmt_arena_if_needed(&backup);
+
+  bool ret= init_result_field(thd, max_length, maybe_null(),
+                              &null_value, &name);
+  if (arena)
+    thd->restore_active_arena(arena, &backup);
+
+  if(ret)
+    return true;
 
   for (uint i= 0 ; i < arg_count ; i++)
   {

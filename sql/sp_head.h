@@ -1286,16 +1286,7 @@ public:
   {
     lex->sp_lex_in_use= TRUE;
   }
-  virtual ~sp_lex_keeper()
-  {
-    if (m_lex_resp)
-    {
-      /* Prevent endless recursion. */
-      m_lex->sphead= NULL;
-      lex_end(m_lex);
-      delete m_lex;
-    }
-  }
+  virtual ~sp_lex_keeper();
 
   /**
     Prepare execution of instruction using LEX, if requested check whenever

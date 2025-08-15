@@ -1,23 +1,115 @@
-
-# MDEV-27037 mysqlbinlog emits a warning when reaching EOF before stop-datetime
-
-set timestamp=1000000000;
-CREATE TABLE t1(word VARCHAR(20));
-set timestamp=1000000010;
-INSERT INTO t1 VALUES ("abirvalg");
-set timestamp=1000000020;
-INSERT INTO t1 SELECT * FROM t1;
-flush logs;
-Case: Default, must not see warning.
-# MYSQL_BINLOG --short-form MYSQLD_DATADIR/master-bin.000001 --result-file=ignored_output_file
-Case: Stop datetime before EOF, must not see warning.
-# MYSQL_BINLOG --short-form --stop-datetime='2001-09-08 21:46:50' MYSQLD_DATADIR/master-bin.000001 --result-file=ignored_output_file
-Case: Stop datetime between records, must not see warning.
-# MYSQL_BINLOG --short-form --stop-datetime='2001-09-08 21:46:55' MYSQLD_DATADIR/master-bin.000001 --result-file=ignored_output_file
-Case: Stop datetime at EOF, must not see warning.
-# MYSQL_BINLOG --short-form --stop-datetime='2001-09-08 21:46:55' MYSQLD_DATADIR/master-bin.000001 --result-file=ignored_output_file
-Case: Stop datetime after EOF, must see warning.
-# MYSQL_BINLOG --short-form --stop-datetime='2035-01-19 03:14:05' MYSQLD_DATADIR/master-bin.000001 --result-file=ignored_output_file
-WARNING: Did not reach stop datetime '2035-01-19 03:14:05' before end of input
-DROP TABLE t1;
+SET TIMESTAMP= UNIX_TIMESTAMP('2024-12-01 10:20:30.123456');
+#
+# Clear the existing binary log state, and start fresh using
+# the timestamp variable set above
+#
+RESET MASTER;
+create table t1 (a int);
+insert into t1 values (1);
+SET TIMESTAMP= UNIX_TIMESTAMP('2024-12-02 10:20:30.123456');
+insert into t1 values (2);
+SET TIMESTAMP= UNIX_TIMESTAMP('2024-12-03 10:20:30.123456');
+flush binary logs;
+SET TIMESTAMP= UNIX_TIMESTAMP('2024-12-04 10:20:30.123456');
+insert into t1 values (3);
+insert into t1 values (4);
+SET TIMESTAMP= UNIX_TIMESTAMP('2024-12-05 10:20:30.123456');
+insert into t1 values (5);
+insert into t1 values (6);
+insert into t1 values (7);
+SET TIMESTAMP=UNIX_TIMESTAMP('2024-12-06 10:20:30.123456');
+flush binary logs;
+drop table t1;
+# Ensuring binary log order is correct
+#
+#
+# Test using --read-from-remote-server
+#
+connection default;
+#
+# --stop-datetime tests
+# Note: MDEV-35528 reported that mysqlbinlog would fail on tests cases
+# 2.a, 2.b, and 2.c.
+#
+#  Case 1.a) With one binlog file, a --stop-datetime before the end of
+# the file should not result in a warning
+# MYSQL_BINLOG --read-from-remote-server --stop-datetime='2024-12-02 10:20:30.123456' binlog_f1_full --result-file=tmp/warn_datetime_test_file.out 2>&1
+#
+#  Case 1.b) With one binlog file, a --stop-datetime at the end of the
+# file should not result in a warning
+# MYSQL_BINLOG --read-from-remote-server --stop-datetime='2024-12-03 10:20:30.123456' binlog_f1_full --result-file=tmp/warn_datetime_test_file.out 2>&1
+#
+#  Case 1.c) With one binlog file, a --stop-datetime beyond the end of
+# the file should(!) result in a warning
+# MYSQL_BINLOG --read-from-remote-server --stop-datetime='2024-12-04 10:20:30.123456' binlog_f1_full --result-file=tmp/warn_datetime_test_file.out 2>&1
+WARNING: Did not reach stop datetime '2024-12-04 10:20:30.123456' before end of input
+#
+#  Case 2.a) With two binlog files, a --stop-datetime within the
+# timespan of binlog 2 should:
+#    1) not provide any warnings
+#    2) not prevent binlog 1 or 2 from outputting the desired events
+# MYSQL_BINLOG --read-from-remote-server --stop-datetime='2024-12-04 10:20:30.123456' binlog_f1_full binlog_f2_full --result-file=tmp/warn_datetime_test_file.out 2>&1
+include/assert_grep.inc [Ensure all intended GTIDs are present]
+include/assert_grep.inc [Ensure the next GTID binlogged is _not_ present]
+#
+#  Case 2.b) With two binlog files, a --stop-datetime at the end of
+# binlog 2 should:
+#    1) not provide any warnings
+#    2) not prevent binlog 1 or 2 from outputting all events
+# MYSQL_BINLOG --read-from-remote-server --stop-datetime='2024-12-06 10:20:30.123456' binlog_f1_full binlog_f2_full --result-file=tmp/warn_datetime_test_file.out 2>&1
+include/assert_grep.inc [Ensure a GTID exists for each transaction]
+#
+#  Case 2.c) With two binlog files, a --stop-datetime beyond the end of
+# binlog 2 should:
+#    1) provide a warning that the stop datetime was not reached
+#    2) not prevent binlog 1 or 2 from outputting all events
+# MYSQL_BINLOG --read-from-remote-server --stop-datetime='2024-12-07 10:20:30.123456' binlog_f1_full binlog_f2_full --result-file=tmp/warn_datetime_test_file.out 2>&1
+WARNING: Did not reach stop datetime '2024-12-07 10:20:30.123456' before end of input
+include/assert_grep.inc [Ensure a GTID exists for each transaction]
+#
+#
+# Test using local binlog files
+#
+connection default;
+#
+# --stop-datetime tests
+# Note: MDEV-35528 reported that mysqlbinlog would fail on tests cases
+# 2.a, 2.b, and 2.c.
+#
+#  Case 1.a) With one binlog file, a --stop-datetime before the end of
+# the file should not result in a warning
+# MYSQL_BINLOG  --stop-datetime='2024-12-02 10:20:30.123456' binlog_f1_full --result-file=tmp/warn_datetime_test_file.out 2>&1
+#
+#  Case 1.b) With one binlog file, a --stop-datetime at the end of the
+# file should not result in a warning
+# MYSQL_BINLOG  --stop-datetime='2024-12-03 10:20:30.123456' binlog_f1_full --result-file=tmp/warn_datetime_test_file.out 2>&1
+#
+#  Case 1.c) With one binlog file, a --stop-datetime beyond the end of
+# the file should(!) result in a warning
+# MYSQL_BINLOG  --stop-datetime='2024-12-04 10:20:30.123456' binlog_f1_full --result-file=tmp/warn_datetime_test_file.out 2>&1
+WARNING: Did not reach stop datetime '2024-12-04 10:20:30.123456' before end of input
+#
+#  Case 2.a) With two binlog files, a --stop-datetime within the
+# timespan of binlog 2 should:
+#    1) not provide any warnings
+#    2) not prevent binlog 1 or 2 from outputting the desired events
+# MYSQL_BINLOG  --stop-datetime='2024-12-04 10:20:30.123456' binlog_f1_full binlog_f2_full --result-file=tmp/warn_datetime_test_file.out 2>&1
+include/assert_grep.inc [Ensure all intended GTIDs are present]
+include/assert_grep.inc [Ensure the next GTID binlogged is _not_ present]
+#
+#  Case 2.b) With two binlog files, a --stop-datetime at the end of
+# binlog 2 should:
+#    1) not provide any warnings
+#    2) not prevent binlog 1 or 2 from outputting all events
+# MYSQL_BINLOG  --stop-datetime='2024-12-06 10:20:30.123456' binlog_f1_full binlog_f2_full --result-file=tmp/warn_datetime_test_file.out 2>&1
+include/assert_grep.inc [Ensure a GTID exists for each transaction]
+#
+#  Case 2.c) With two binlog files, a --stop-datetime beyond the end of
+# binlog 2 should:
+#    1) provide a warning that the stop datetime was not reached
+#    2) not prevent binlog 1 or 2 from outputting all events
+# MYSQL_BINLOG  --stop-datetime='2024-12-07 10:20:30.123456' binlog_f1_full binlog_f2_full --result-file=tmp/warn_datetime_test_file.out 2>&1
+WARNING: Did not reach stop datetime '2024-12-07 10:20:30.123456' before end of input
+include/assert_grep.inc [Ensure a GTID exists for each transaction]
+#
 # End of binlog_mysqlbinlog_warn_stop_datetime.test

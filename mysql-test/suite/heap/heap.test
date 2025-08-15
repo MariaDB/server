@@ -546,7 +546,7 @@ CREATE TABLE t1 (
 );
 
 INSERT INTO t1 VALUES (19,5,'h'),(20,5,'h');
-  
+
 CREATE TABLE t2 (col_int_nokey INT);
 
 INSERT INTO t2 VALUES (1),(2);
@@ -566,58 +566,6 @@ WHERE ('h', 0) NOT IN ( SELECT * FROM v1);
 DROP TABLE t1,t2,h1;
 DROP VIEW v1;
 # End of 5.1 tests
-
-#
-# Show that MIN_ROWS and MAX_ROWS have an effect on how data_length
-# and index_length are allocated.
-# Result is different for 32 / 64 bit machines as pointer lengths are different
-#
-
-CREATE TABLE t1 (a int, index(a)) engine=heap min_rows=10 max_rows=100;
-insert into t1 values(1);
---replace_result 800 1600 1200 2400
-select data_length,index_length from information_schema.tables where table_schema="test" and table_name="t1";
-drop table t1;
-CREATE TABLE t1 (a int, index(a)) engine=heap min_rows=10 max_rows=10000;
-insert into t1 values(1);
---replace_result 8000 16000 12000 24000
-select data_length,index_length from information_schema.tables where table_schema="test" and table_name="t1";
-drop table t1;
-CREATE TABLE t1 (a int, index(a)) engine=heap min_rows=3000 max_rows=3000;
-insert into t1 values(1);
---replace_result 24000 48000 36000 72000
-select data_length,index_length from information_schema.tables where table_schema="test" and table_name="t1";
-drop table t1;
-CREATE TABLE t1 (a int, index(a)) engine=heap max_rows=15000;
-insert into t1 values(1);
---replace_result 12000 24000 18000 36000
-select data_length,index_length from information_schema.tables where table_schema="test" and table_name="t1";
-drop table t1;
-
-create table t1 (c1 int, index(c1)) engine=heap max_rows=10000;
-insert into t1 select rand(100000000);
-insert into t1 select rand(100000000) from t1;
-insert into t1 select rand(100000000) from t1;
-insert into t1 select rand(100000000) from t1;
-insert into t1 select rand(100000000) from t1;
-insert into t1 select rand(100000000) from t1;
-insert into t1 select rand(100000000) from t1;
-insert into t1 select rand(100000000) from t1;
-insert into t1 select rand(100000000) from t1;
-insert into t1 select rand(100000000) from t1;
-insert into t1 select rand(100000000) from t1 limit 488;
---replace_result 8000 16000 12000 24000
-select data_length,index_length from information_schema.tables where table_schema="test" and table_name="t1";
-insert into t1 select rand(100000000) from t1 limit 1;
---replace_result 16512 33024 24512 49024
-select data_length,index_length from information_schema.tables where table_schema="test" and table_name="t1";
-insert into t1 select rand(100000000) from t1 limit 1000;
---replace_result 24512 49024 36512 73024
-select data_length,index_length from information_schema.tables where table_schema="test" and table_name="t1";
-insert into t1 select rand(100000000) from t1;
---replace_result 40512 81024 60512 121024
-select data_length,index_length from information_schema.tables where table_schema="test" and table_name="t1";
-drop table t1;
 
 #
 # MDEV-5905 Creating tmp. memory table kills the server
@@ -659,3 +607,22 @@ INSERT INTO t1 VALUES("7","GREEN", 2);
 DELETE FROM t1 WHERE ts = 1 AND color = 'GREEN';
 SELECT * from t1 WHERE ts = 1 AND color = 'GREEN';
 DROP TABLE t1;
+
+--echo #
+--echo # MDEV-22695 Server crashes in heap_rnext upon DELETE from a HEAP table
+--echo #
+CREATE TABLE t1 (a VARCHAR(128), b VARCHAR(32), KEY(a) USING BTREE, KEY(b) USING BTREE) ENGINE=HEAP;
+INSERT INTO t1 VALUES ('foo',NULL),('m','b'),(6,'j'),('bar','qux'),(NULL,NULL);
+DELETE FROM t1 WHERE a <=> 'm' OR b <=> NULL;
+# Cleanup
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-28130 MariaDB SEGV issue at tree_search_next
+--echo #
+CREATE TABLE v(t1 INT, pk INT, KEY(t1), KEY pk using btree (pk), KEY v using btree(t1, pk)) engine=memory;
+HANDLER v OPEN;
+HANDLER v READ t1=(2) limit 3;
+HANDLER v READ pk PREV;
+HANDLER v READ pk PREV;
+drop table v;

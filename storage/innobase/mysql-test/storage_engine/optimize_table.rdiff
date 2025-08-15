@@ -1,5 +1,5 @@
---- suite/storage_engine/optimize_table.result	2012-07-12 19:13:53.741428591 +0400
-+++ suite/storage_engine/optimize_table.reject	2012-07-15 17:50:30.843102510 +0400
+--- suite/storage_engine/optimize_table.result
++++ suite/storage_engine/optimize_table.reject
 @@ -5,25 +5,32 @@
  INSERT INTO t1 (a,b) VALUES (3,'c'),(4,'d');
  OPTIMIZE TABLE t1;

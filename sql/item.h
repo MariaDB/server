@@ -757,6 +757,17 @@ public:
   virtual const String *const_ptr_string() const { return NULL; }
 };
 
+struct subselect_table_finder_param
+{
+  THD *thd;
+  /*
+    We're searching for different TABLE_LIST objects referring to the same
+    table as this one
+  */
+  const TABLE_LIST *find;
+  /* NUL - not found, ERROR_TABLE - search error, or the found table reference */
+  TABLE_LIST *dup;
+};
 
 /****************************************************************************/
 
@@ -1954,6 +1965,19 @@ public:
   */
   virtual Item *clone_item(THD *thd) const { return nullptr; }
 
+  /*
+    @detail
+    The meaning of this function seems to be:
+      Check what the item would return if it was provided with two identical
+      non-NULL arguments.
+    It is not clear why it is defined for generic class Item or what its other
+    uses are.
+
+    @return
+       COND_TRUE   Would return true
+       COND_FALSE  Would return false
+       COND_OK     May return either, depending on the argument type.
+  */
   virtual cond_result eq_cmp_result() const { return COND_OK; }
   inline uint float_length(uint decimals_par) const
   { return decimals < FLOATING_POINT_DECIMALS ? (DBL_DIG+2+decimals_par) : DBL_DIG+8;}
@@ -2292,6 +2316,7 @@ public:
     set_extraction_flag(*(int16*)arg);
     return 0;
   }
+  virtual bool subselect_table_finder_processor(void *arg) { return 0; };
 
   /* 
     TRUE if the expression depends only on the table indicated by tab_map
@@ -2372,6 +2397,7 @@ public:
   virtual bool check_partition_func_processor(void *arg) { return true; }
   virtual bool post_fix_fields_part_expr_processor(void *arg) { return 0; }
   virtual bool rename_fields_processor(void *arg) { return 0; }
+  virtual bool rename_table_processor(void *arg) { return 0; }
   /*
     TRUE if the function is knowingly TRUE or FALSE.
     Not to be used for AND/OR formulas.
@@ -2400,6 +2426,13 @@ public:
     LEX_CSTRING table_name;
     List<Create_field> fields;
   };
+  struct func_processor_rename_table
+  {
+    Lex_ident_db old_db;
+    Lex_ident_table old_table;
+    Lex_ident_db new_db;
+    Lex_ident_table new_table;
+  };
   virtual bool check_vcol_func_processor(void *arg)
   {
     return mark_unsupported_function(full_name(), arg, VCOL_IMPOSSIBLE);
@@ -2422,6 +2455,7 @@ public:
     If there is some, sets a bit for this key in the proper key map.
   */
   virtual bool check_index_dependence(void *arg) { return 0; }
+  virtual bool check_sequence_privileges(void *arg) { return 0; }
   /*============== End of Item processor list ======================*/
 
   /*
@@ -3266,8 +3300,9 @@ public:
 
   bool append_for_log(THD *thd, String *str) override;
 
-  Item *do_get_copy(THD *) const override { return nullptr; }
-  Item *do_build_clone(THD *thd) const override { return nullptr; }
+  Item *do_get_copy(THD *thd) const override
+  { return get_item_copy<Item_splocal>(thd, this); }
+  Item *do_build_clone(THD *thd) const override { return get_copy(thd); }
 
   /*
     Override the inherited create_field_for_create_select(),
@@ -3857,6 +3892,7 @@ public:
   bool switch_to_nullable_fields_processor(void *arg) override;
   bool update_vcol_processor(void *arg) override;
   bool rename_fields_processor(void *arg) override;
+  bool rename_table_processor(void *arg) override;
   bool check_vcol_func_processor(void *arg) override;
   bool set_fields_as_dependent_processor(void *arg) override
   {
@@ -5780,6 +5816,11 @@ public:
   Field *sp_result_field;
   Item_sp(THD *thd, Name_resolution_context *context_arg, sp_name *name_arg);
   Item_sp(THD *thd, Item_sp *item);
+  virtual ~Item_sp()
+  {
+    delete sp_result_field;
+    sp_result_field= NULL;
+  }
   LEX_CSTRING func_name_cstring(THD *thd, bool is_package_function) const;
   void cleanup();
   bool sp_check_access(THD *thd);
@@ -6469,6 +6510,19 @@ public:
   { return get_item_copy<Item_direct_view_ref>(thd, this); }
   Item *field_transformer_for_having_pushdown(THD *, uchar *) override
   { return this; }
+  /*
+    Do the same thing as Item_field: if we were referring to a local view,
+    now we refer to somewhere outside of our SELECT.
+  */
+  bool set_fields_as_dependent_processor(void *arg) override
+  {
+    if (!(used_tables() & OUTER_REF_TABLE_BIT))
+    {
+      depended_from= (st_select_lex *) arg;
+      item_equal= NULL;
+    }
+    return 0;
+  }
 };
 
 
@@ -6663,7 +6717,14 @@ protected:
     Type_std_attributes::set(item);
     name= item->name;
     set_handler(item->type_handler());
+#ifndef DBUG_OFF
+    copied_in= 0;
+#endif
   }
+
+#ifndef DBUG_OFF
+  bool copied_in;
+#endif
 
 public:
 
@@ -6730,7 +6791,10 @@ public:
   double val_real() override;
   longlong val_int() override;
   bool get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate) override
-  { return get_date_from_string(thd, ltime, fuzzydate); }
+  {
+    DBUG_ASSERT(copied_in);
+    return get_date_from_string(thd, ltime, fuzzydate);
+  }
   void copy() override;
   int save_in_field(Field *field, bool no_conversions) override;
   Item *do_get_copy(THD *thd) const override
@@ -6760,9 +6824,13 @@ public:
     null_value= tmp.is_null();
     m_value= tmp.is_null() ? Timestamp_or_zero_datetime() :
                              Timestamp_or_zero_datetime(tmp);
+#ifndef DBUG_OFF
+    copied_in=1;
+#endif
   }
   int save_in_field(Field *field, bool) override
   {
+    DBUG_ASSERT(copied_in);
     DBUG_ASSERT(sane());
     if (null_value)
       return set_field_to_null(field);
@@ -6771,30 +6839,35 @@ public:
   }
   longlong val_int() override
   {
+    DBUG_ASSERT(copied_in);
     DBUG_ASSERT(sane());
     return null_value ? 0 :
            m_value.to_datetime(current_thd).to_longlong();
   }
   double val_real() override
   {
+    DBUG_ASSERT(copied_in);
     DBUG_ASSERT(sane());
     return null_value ? 0e0 :
            m_value.to_datetime(current_thd).to_double();
   }
   String *val_str(String *to) override
   {
+    DBUG_ASSERT(copied_in);
     DBUG_ASSERT(sane());
     return null_value ? NULL :
            m_value.to_datetime(current_thd).to_string(to, decimals);
   }
   my_decimal *val_decimal(my_decimal *to) override
   {
+    DBUG_ASSERT(copied_in);
     DBUG_ASSERT(sane());
     return null_value ? NULL :
            m_value.to_datetime(current_thd).to_decimal(to);
   }
   bool get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate) override
   {
+    DBUG_ASSERT(copied_in);
     DBUG_ASSERT(sane());
     bool res= m_value.to_TIME(thd, ltime, fuzzydate);
     DBUG_ASSERT(!res);
@@ -6802,6 +6875,7 @@ public:
   }
   bool val_native(THD *thd, Native *to) override
   {
+    DBUG_ASSERT(copied_in);
     DBUG_ASSERT(sane());
     return null_value || m_value.to_native(to, decimals);
   }

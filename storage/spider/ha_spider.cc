@@ -199,7 +199,6 @@ int ha_spider::open(
   DBUG_PRINT("info",("spider this=%p", this));
 
   dup_key_idx = (uint) -1;
-  conn_kinds = SPIDER_CONN_KIND_MYSQL;
   table->file->get_no_parts("", &part_num);
   if (part_num)
   {
@@ -469,6 +468,28 @@ static void spider_update_current_trx_ha_with_freed_share(SPIDER_SHARE *share)
   }
 }
 
+/*
+  Given an ha_spider that is being closed, reset the queued ping info
+  of SPIDER_CONN of the current spider trx that has the given
+  ha_spider as the queued_ping_spider.
+*/
+static void spider_reset_conn_queued_ping(ha_spider *spider)
+{
+  SPIDER_TRX *trx= spider_current_trx;
+  if (trx)
+  {
+    for (uint i= 0; i < trx->trx_conn_hash.records; i++)
+    {
+      SPIDER_CONN *conn= (SPIDER_CONN *) my_hash_element(&trx->trx_conn_hash, i);
+      if (conn->queued_ping_spider == spider)
+      {
+        conn->queued_ping= FALSE;
+        conn->queued_ping_spider= NULL;
+      }
+    }
+  }
+}
+
 int ha_spider::close()
 {
   int error_num= 0, roop_count;
@@ -563,6 +584,7 @@ int ha_spider::close()
     result_list.tmp_sqls = NULL;
   }
 
+  spider_reset_conn_queued_ping(this);
   spider_update_current_trx_ha_with_freed_share(share);
   spider_free_share(share);
   is_clone = FALSE;
@@ -580,22 +602,7 @@ int ha_spider::check_access_kind_for_connection(
   int error_num, roop_count;
   DBUG_ENTER("ha_spider::check_access_kind_for_connection");
   DBUG_PRINT("info",("spider this=%p", this));
-  conn_kinds = 0;
-  switch (wide_handler->sql_command)
-  {
-    case SQLCOM_UPDATE:
-    case SQLCOM_UPDATE_MULTI:
-    case SQLCOM_DELETE:
-    case SQLCOM_DELETE_MULTI:
-    default:
-      conn_kinds |= SPIDER_CONN_KIND_MYSQL;
-      for (roop_count = 0; roop_count < (int) share->link_count; roop_count++)
-      {
-        conn_kind[roop_count] = SPIDER_CONN_KIND_MYSQL;
-      }
-      break;
-  }
-  if ((error_num = spider_check_trx_and_get_conn(thd, this, TRUE)))
+  if ((error_num= spider_check_trx_and_get_conn(thd, this)))
   {
     DBUG_RETURN(error_num);
   }
@@ -911,7 +918,7 @@ int ha_spider::external_lock(
     }
   }
 
-  if ((error_num= spider_check_trx_and_get_conn(thd, this, FALSE)))
+  if ((error_num= spider_check_trx_and_get_conn(thd, this)))
     DBUG_RETURN(error_num);
   if (!partition_handler || !partition_handler->handlers)
   {
@@ -951,9 +958,6 @@ int ha_spider::reset()
   THD *thd = ha_thd();
   SPIDER_TRX *tmp_trx, *trx_bak;
   SPIDER_CONDITION *tmp_cond;
-/*
-  char first_byte, first_byte_bak;
-*/
   backup_error_status();
   DBUG_ENTER("ha_spider::reset");
   DBUG_PRINT("info",("spider this=%p", this));
@@ -1032,8 +1036,6 @@ int ha_spider::reset()
     for (roop_count = share->link_count - 1; roop_count >= 0; roop_count--)
     {
       result_list.update_sqls[roop_count].length(0);
-
-      conn_kind[roop_count] = SPIDER_CONN_KIND_MYSQL;
     }
     result_list.bulk_update_mode = 0;
     result_list.bulk_update_size = 0;
@@ -1059,7 +1061,6 @@ int ha_spider::reset()
   result_list.use_union = FALSE;
   result_list.use_both_key = FALSE;
   pt_clone_last_searcher = NULL;
-  conn_kinds = SPIDER_CONN_KIND_MYSQL;
   use_index_merge = FALSE;
   init_rnd_handler = FALSE;
   if (multi_range_keys)
@@ -4149,10 +4150,6 @@ int ha_spider::rnd_init(
     }
   }
   pushed_pos = NULL;
-/*
-  if (wide_handler->external_lock_type == F_WRLCK)
-    check_and_start_bulk_update(SPD_BU_START_BY_INDEX_OR_RND_INIT);
-*/
   rnd_scan_and_first = scan;
   if (
     scan &&
@@ -4451,7 +4448,7 @@ int ha_spider::rnd_next(
       DBUG_RETURN(error_num);
     use_pre_call = FALSE;
   }
-  if ((error_num= spider_check_trx_and_get_conn(ha_thd(), this, FALSE)))
+  if ((error_num= spider_check_trx_and_get_conn(ha_thd(), this)))
     DBUG_RETURN(error_num);
   DBUG_RETURN(rnd_next_internal(buf));
 }
@@ -4984,8 +4981,7 @@ int ha_spider::info(
             pthread_mutex_lock(&share->sts_mutex);
           if (difftime(tmp_time, share->sts_get_time) >= sts_interval)
           {
-            if ((error_num = spider_check_trx_and_get_conn(ha_thd(), this,
-              FALSE)))
+            if ((error_num= spider_check_trx_and_get_conn(ha_thd(), this)))
             {
               pthread_mutex_unlock(&share->sts_mutex);
               if (!share->sts_init)
@@ -5522,7 +5518,7 @@ int ha_spider::check_crd()
   }
   if (crd_mode == 3)
     crd_mode = 1;
-  if ((error_num = spider_check_trx_and_get_conn(ha_thd(), this, FALSE)))
+  if ((error_num= spider_check_trx_and_get_conn(ha_thd(), this)))
   {
     DBUG_RETURN(check_error_mode(error_num));
   }
@@ -6664,7 +6660,7 @@ int ha_spider::truncate()
     DBUG_RETURN(ER_SPIDER_READ_ONLY_NUM);
   }
   wide_handler->sql_command = SQLCOM_TRUNCATE;
-  if ((error_num = spider_check_trx_and_get_conn(thd, this, FALSE)))
+  if ((error_num= spider_check_trx_and_get_conn(thd, this)))
   {
     DBUG_RETURN(error_num);
   }
@@ -10203,8 +10199,7 @@ int ha_spider::append_lock_tables_list()
 
   if (!(wide_handler->trx = spider_get_trx(ha_thd(), TRUE, &error_num)))
     DBUG_RETURN(error_num);
-  if ((error_num = spider_check_trx_and_get_conn(wide_handler->trx->thd, this,
-    FALSE)))
+  if ((error_num = spider_check_trx_and_get_conn(wide_handler->trx->thd, this)))
   {
     DBUG_RETURN(error_num);
   }

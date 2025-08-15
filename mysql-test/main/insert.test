@@ -596,11 +596,7 @@ CREATE ALGORITHM = MERGE VIEW v1 AS SELECT f1, f2 FROM t1 WHERE f1 = cast('' as 
 REPLACE INTO v1 SET f2 = 1;
 SELECT * from t1;
 drop view v1;
---disable_cursor_protocol
---disable_ps2_protocol
 SELECT 0,0 INTO OUTFILE 't1.txt';
---enable_ps2_protocol
---enable_cursor_protocol
 CREATE ALGORITHM = MERGE VIEW v1 AS SELECT f1, f2 FROM t1 WHERE f1 = 'x' WITH CHECK OPTION;
 --error ER_TRUNCATED_WRONG_VALUE
 LOAD DATA INFILE 't1.txt' INTO TABLE v1;
@@ -675,5 +671,59 @@ select * from t1;
 drop table t1;
 
 --echo #
---echo # End of 10.5 tests
+--echo # MDEV-32086 Server crash when inserting from derived table containing insert target table
+--echo # (part 2)
 --echo #
+
+create table t1 (pk int, id int);
+insert into t1 values (2,2), (3,3), (4,4);
+select * from t1;
+select 101+count(*)
+   from
+   (
+      select dt2.id
+      from (select id from t1) dt2, t1 t where t.id=dt2.id
+   ) dt
+   where dt.id<1000;
+prepare s from '
+insert into t1 values(
+  (select 101+count(*)
+   from
+   (
+      select dt2.id
+      from (select id from t1) dt2, t1 t where t.id=dt2.id
+   ) dt
+   where dt.id<1000
+  ), 123
+)
+';
+execute s;
+select * from t1;
+select 101+count(*)
+   from
+   (
+      select dt2.id
+      from (select id from t1) dt2, t1 t where t.id=dt2.id
+   ) dt
+   where dt.id<1000;
+execute s;
+select * from t1;
+
+drop table t1;
+
+--echo #
+--echo # Try this: INSERT INTO t1 VALUES ... reference to t1
+--echo #           RETURNING (subquery not touching t1)
+create table t1 (a int, b int);
+create table t2 (a int, b int);
+
+--echo # This is accepted:
+insert into t1 (a) values 
+  (3),
+  ((select max(a) from t1)) 
+returning 
+  a, b, (select max(a) from t2);
+
+drop table t1,t2;
+
+--echo # End of 10.5 tests

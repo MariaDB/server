@@ -4,17 +4,18 @@ connection slave;
 include/stop_slave.inc
 CHANGE MASTER TO MASTER_USE_GTID=NO;
 include/start_slave.inc
-include/stop_slave.inc
-SET @save_dbug= @@GLOBAL.debug_dbug;
-SET @@global.debug_dbug="+d,pause_sql_thread_on_relay_fde_after_trans";
-SET @@global.debug_dbug="+d,negate_clock_diff_with_master";
-include/start_slave.inc
 # Future events must be logged at least 2 seconds after
 # the slave starts
 connection master;
 # Write events to ensure slave will be consistent with master
 create table t1 (a int);
 insert into t1 values (1);
+connection slave;
+# Enable breakpoints
+SET @save_dbug= @@GLOBAL.debug_dbug;
+SET @@GLOBAL.debug_dbug=
+'+d,pause_sql_thread_on_fde,negate_clock_diff_with_master';
+connection master;
 # Flush logs on master forces slave to generate a Format description
 # event in its relay log
 flush logs;
@@ -26,8 +27,8 @@ count(*)=1
 1
 # The relay log FDE has been processed - here we check to ensure it was
 # not considered in Seconds_Behind_Master calculation
-connection slave1;
-# Safely resume slave SQL thread
+Seconds_Behind_Master = '0'
+# Safely resume slave SQL (worker) thread
 # Prove SQL thread is in state "debug sync point: now"
 SET @@global.debug_dbug="-d,pause_sql_thread_on_fde";
 SET DEBUG_SYNC='now SIGNAL sql_thread_continue';

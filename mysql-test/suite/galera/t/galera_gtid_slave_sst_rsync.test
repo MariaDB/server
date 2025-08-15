@@ -13,10 +13,11 @@
 # As node #3 is not a Galera node, and galera_cluster.inc does not open connetion to it
 # we open the node_3 connection here
 --connect node_3, 127.0.0.1, root, , test, $NODE_MYPORT_3
+
 --echo #Connection 2
 --connection node_2
 --disable_query_log
---eval CHANGE MASTER TO MASTER_HOST='127.0.0.1', MASTER_USER='root', MASTER_PORT=$NODE_MYPORT_3,master_use_gtid=slave_pos;
+--eval CHANGE MASTER TO MASTER_HOST='127.0.0.1', MASTER_USER='root', MASTER_PORT=$NODE_MYPORT_3, master_use_gtid=slave_pos;
 --enable_query_log
 START SLAVE;
 --sleep 1
@@ -30,6 +31,7 @@ INSERT INTO t2 VALUES(3,33);
 
 SELECT @@global.gtid_binlog_state;
 --source include/save_master_gtid.inc
+
 --echo #Connection 2
 --connection node_2
 --source include/sync_with_master_gtid.inc
@@ -39,6 +41,7 @@ INSERT INTO t2 VALUES(4,44);
 INSERT INTO t2 VALUES(5,55);
 INSERT INTO t2 VALUES(6,66);
 SELECT @@global.gtid_binlog_state;
+
 --echo #Connection 1
 --connection node_1
 --let $wait_condition = SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME= 't2';
@@ -60,6 +63,7 @@ INSERT INTO t1 VALUES ('node1_committed_before');
 INSERT INTO t1 VALUES ('node1_committed_before');
 COMMIT;
 --source include/save_master_gtid.inc
+
 --echo #Connection 2
 --connection node_2
 --source include/sync_with_master_gtid.inc
@@ -68,6 +72,7 @@ START TRANSACTION;
 INSERT INTO t1 VALUES ('node2_committed_before');
 INSERT INTO t1 VALUES ('node2_committed_before');
 COMMIT;
+
 --echo #Connection 1
 --connection node_1
 --let $wait_condition = SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME= 't1';
@@ -77,10 +82,12 @@ COMMIT;
 --let $node_1= node_1
 --let $node_2= node_2
 --source include/auto_increment_offset_save.inc
+
 --echo #Connection 2
 --connection node_2
 --echo Shutting down server ...
 --source include/shutdown_mysqld.inc
+
 --echo #Connection 1
 --connection node_1
 --let $wait_condition = SELECT VARIABLE_VALUE = 1 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size'
@@ -90,6 +97,7 @@ START TRANSACTION;
 INSERT INTO t1 VALUES ('node1_committed_during');
 INSERT INTO t1 VALUES ('node1_committed_during');
 COMMIT;
+
 --echo #Connection 2
 --connection node_2
 --echo Starting server ...
@@ -103,11 +111,13 @@ START TRANSACTION;
 INSERT INTO t1 VALUES ('node2_committed_after');
 INSERT INTO t1 VALUES ('node2_committed_after');
 COMMIT;
+
 --echo #Connection 1
 --connection node_1
 --let $wait_condition = SELECT COUNT(*) = 8 FROM t1;
 --source include/wait_condition.inc
 Select * from t1 order by f1;
+
 --echo #Connection 2
 --connection node_2
 Select * from t1 order by f1;
@@ -153,12 +163,14 @@ start slave;
 INSERT INTO t1 VALUES ('node2_slave_started');
 SELECT count(*) from t1;
 SELECT @@global.gtid_binlog_state;
+
 --echo #Connection 1
 --connection node_1
 --let $wait_condition = SELECT COUNT(*) = 12 FROM t1;
 --source include/wait_condition.inc
 SELECT count(*) from t1;
 SELECT @@global.gtid_binlog_state;
+
 --echo #Connection 3
 --connection node_3
 DROP TABLE t2,t1;
@@ -173,10 +185,12 @@ DROP TABLE t2,t1;
 --connection node_2
 --let $wait_condition = SELECT COUNT(*) = 0 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 't2';
 --source include/wait_condition.inc
+
 --echo #Connection 1
 --connection node_1
 --let $wait_condition = SELECT COUNT(*) = 0 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 't1';
 --source include/wait_condition.inc
+
 --echo #Connection 2
 --connection node_2
 STOP SLAVE;
@@ -194,6 +208,7 @@ set global gtid_slave_pos="";
 set global wsrep_on=OFF;
 reset master;
 set global wsrep_on=ON;
+
 --echo #Connection 3
 --connection node_3
 reset master;

@@ -56,7 +56,6 @@ C_MODE_END
 #include "sql_statistics.h"
 
 /* fmtlib include (https://fmt.dev/). */
-#define FMT_STATIC_THOUSANDS_SEPARATOR ','
 #define FMT_HEADER_ONLY 1
 #include "fmt/args.h"
 
@@ -1403,6 +1402,13 @@ namespace fmt {
   };
 };
 
+struct fmt_locale_comma : std::numpunct<char>
+{
+  char do_thousands_sep() const override { return ','; }
+  std::string do_grouping() const override { return "\3"; }
+};
+static std::locale fmt_locale(std::locale(), new fmt_locale_comma);
+
 /*
   SFORMAT(format_string, ...)
   This function receives a formatting specification string and N parameters
@@ -1455,7 +1461,7 @@ String *Item_func_sformat::val_str(String *res)
   /* Create the string output  */
   try
   {
-    auto text = fmt::vformat(fmt_arg->c_ptr_safe(), arg_store);
+    auto text = fmt::vformat(fmt_locale, fmt_arg->c_ptr_safe(), arg_store);
     res->length(0);
     res->set_charset(collation.collation);
     res->append(text.c_str(), text.size(), fmt_arg->charset());
@@ -2490,7 +2496,7 @@ String *Item_func_password::val_str_ascii(String *str)
     if (args[0]->null_value || res->length() == 0)
       return make_empty_result(str);
     my_make_scrambled_password(tmp_value, res->ptr(), res->length());
-    str->set(tmp_value, SCRAMBLED_PASSWORD_CHAR_LENGTH, &my_charset_latin1);
+    str->copy(tmp_value, SCRAMBLED_PASSWORD_CHAR_LENGTH, &my_charset_latin1);
     break;
   case OLD:
     if ((null_value=args[0]->null_value))
@@ -2498,7 +2504,7 @@ String *Item_func_password::val_str_ascii(String *str)
     if (res->length() == 0)
       return make_empty_result(str);
     my_make_scrambled_password_323(tmp_value, res->ptr(), res->length());
-    str->set(tmp_value, SCRAMBLED_PASSWORD_CHAR_LENGTH_323, &my_charset_latin1);
+    str->copy(tmp_value, SCRAMBLED_PASSWORD_CHAR_LENGTH_323, &my_charset_latin1);
     break;
   default:
     DBUG_ASSERT(0);
@@ -5907,7 +5913,7 @@ String *Item_func_wsrep_last_written_gtid::val_str_ascii(String *str)
 {
   if (gtid_str.alloc(WSREP_MAX_WSREP_SERVER_GTID_STR_LEN+1))
   {
-    my_error(ER_OUTOFMEMORY, WSREP_MAX_WSREP_SERVER_GTID_STR_LEN);
+    my_error(ER_OUTOFMEMORY, MYF(0), WSREP_MAX_WSREP_SERVER_GTID_STR_LEN);
     null_value= TRUE;
     return 0;
   }
@@ -5932,7 +5938,7 @@ String *Item_func_wsrep_last_seen_gtid::val_str_ascii(String *str)
 {
   if (gtid_str.alloc(WSREP_MAX_WSREP_SERVER_GTID_STR_LEN+1))
   {
-    my_error(ER_OUTOFMEMORY, WSREP_MAX_WSREP_SERVER_GTID_STR_LEN);
+    my_error(ER_OUTOFMEMORY, MYF(0), WSREP_MAX_WSREP_SERVER_GTID_STR_LEN);
     null_value= TRUE;
     return 0;
   }
@@ -5977,7 +5983,7 @@ longlong Item_func_wsrep_sync_wait_upto::val_int()
   if (!(gtid_list= gtid_parse_string_to_list(gtid_str->ptr(), gtid_str->length(),
                                              &count)))
   {
-    my_error(ER_INCORRECT_GTID_STATE, MYF(0), func_name());
+    my_error(ER_INCORRECT_GTID_STATE, MYF(0));
     null_value= TRUE;
     return 0;
   }
@@ -5989,12 +5995,12 @@ longlong Item_func_wsrep_sync_wait_upto::val_int()
       wait_gtid_ret= wsrep_gtid_server.wait_gtid_upto(gtid_list[0].seq_no, timeout);
       if ((wait_gtid_ret == ETIMEDOUT) || (wait_gtid_ret == ETIME))
       {
-        my_error(ER_LOCK_WAIT_TIMEOUT, MYF(0), func_name());
+        my_error(ER_LOCK_WAIT_TIMEOUT, MYF(0));
         ret= 0;
       }
       else if (wait_gtid_ret == ENOMEM)
       {
-        my_error(ER_OUTOFMEMORY, MYF(0), func_name());
+        my_error(ER_OUTOFMEMORY, MYF(0), sizeof(std::pair<uint64, mysql_cond_t*>));
         ret= 0;
       }
     }

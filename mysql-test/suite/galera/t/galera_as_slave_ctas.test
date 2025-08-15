@@ -16,7 +16,7 @@ SELECT @@wsrep_on;
 
 --connection node_1
 --disable_query_log
---eval CHANGE MASTER TO  MASTER_HOST='127.0.0.1', MASTER_USER='root', MASTER_PORT=$NODE_MYPORT_3;
+--eval CHANGE MASTER TO MASTER_HOST='127.0.0.1', MASTER_USER='root', MASTER_PORT=$NODE_MYPORT_3;
 --enable_query_log
 START SLAVE;
 
@@ -34,11 +34,13 @@ CREATE TABLE target AS SELECT * FROM source;
 
 --connection node_1
 --let $wait_condition = SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 'target';
---source include/wait_condition.inc
+--let $wait_condition_on_error_output = SELECT * FROM INFORMATION_SCHEMA.TABLES
+--source include/wait_condition_with_debug.inc
 
 --connection node_2
 --let $wait_condition = SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 'target';
---source include/wait_condition.inc
+--let $wait_condition_on_error_output = SELECT * FROM INFORMATION_SCHEMA.TABLES
+--source include/wait_condition_with_debug.inc
 
 #
 # test phase two, issue CTAS with populated source table
@@ -71,4 +73,3 @@ RESET SLAVE ALL;
 
 --connection node_3
 RESET MASTER;
-

@@ -16,8 +16,8 @@
 long long spider_direct_sql_body(
   UDF_INIT *initid,
   UDF_ARGS *args,
-  char *is_null,
-  char *error,
+  unsigned char *is_null,
+  unsigned char *error,
   my_bool bg
 );
 
@@ -43,8 +43,8 @@ long long spider_direct_sql_bg_end(
 long long spider_ping_table_body(
   UDF_INIT *initid,
   UDF_ARGS *args,
-  char *is_null,
-  char *error
+  unsigned char *is_null,
+  unsigned char *error
 );
 
 my_bool spider_ping_table_init_body(
@@ -62,8 +62,8 @@ long long spider_flush_table_mon_cache_body();
 long long spider_copy_tables_body(
   UDF_INIT *initid,
   UDF_ARGS *args,
-  char *is_null,
-  char *error
+  unsigned char *is_null,
+  unsigned char *error
 );
 
 my_bool spider_copy_tables_init_body(

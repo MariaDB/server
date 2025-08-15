@@ -2,7 +2,7 @@
 # Test the behavior of a Galera async slave if it goes non-prim. Async replication
 # should abort with an error but it should be possible to restart it.
 #
-# The galera/galera_2node_slave.cnf describes the setup of the nodes
+# The galera_3nodes_as_slave.cnf describes the setup of the nodes
 #
 
 --source include/have_innodb.inc
@@ -15,12 +15,12 @@
 # we open the node_4 connection here
 --connect node_4, 127.0.0.1, root, , test, $NODE_MYPORT_4
 
-
 --connection node_2
 --disable_query_log
---eval CHANGE MASTER TO MASTER_HOST='127.0.0.1', MASTER_PORT=$NODE_MYPORT_4, MASTER_USER='root';
+--eval CHANGE MASTER TO MASTER_HOST='127.0.0.1', MASTER_USER='root', MASTER_PORT=$NODE_MYPORT_4;
 --enable_query_log
 START SLAVE;
+
 SET SESSION wsrep_sync_wait = 0;
 
 --connection node_4
@@ -45,9 +45,8 @@ SET GLOBAL wsrep_provider_options = 'gmcast.isolate=1';
 INSERT INTO t1 VALUES (1),(2),(3),(4),(5);
 
 --connection node_2
---sleep 5
+wait_for_slave_to_stop;
 --let $value = query_get_value(SHOW SLAVE STATUS, Last_SQL_Error, 1)
---connection node_1
 --disable_query_log
 --eval SELECT "$value" IN ("Error 'Unknown command' on query. Default database: 'test'. Query: 'BEGIN'", "Node has dropped from cluster") AS expected_error
 --enable_query_log
@@ -75,7 +74,6 @@ START SLAVE;
 --connection node_4
 DROP TABLE t1;
 
---sleep 2
 --connection node_2
 --let $wait_condition = SELECT COUNT(*) = 0 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 't1';
 --source include/wait_condition.inc
@@ -85,7 +83,7 @@ RESET SLAVE ALL;
 
 CALL mtr.add_suppression("Slave SQL: Error 'Unknown command' on query");
 CALL mtr.add_suppression("Slave: Unknown command Error_code: 1047");
-CALL mtr.add_suppression("Transport endpoint is not connected");
+CALL mtr.add_suppression("(Transport endpoint|Socket) is not connected");
 CALL mtr.add_suppression("Slave SQL: Error in Xid_log_event: Commit could not be completed, 'Deadlock found when trying to get lock; try restarting transaction', Error_code: 1213");
 CALL mtr.add_suppression("Slave SQL: Node has dropped from cluster, Error_code: 1047");
 

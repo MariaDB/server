@@ -608,7 +608,7 @@ select c1, c2 from t3 order by c2, c1 LIMIT ROWS EXAMINED 2;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	5	Using filesort
 select c1, c2 from t3 order by c2, c1 LIMIT ROWS EXAMINED 2;
-ERROR HY000: Sort aborted: 
+ERROR HY000: Sort aborted: LIMIT ROWS EXAMINED
 explain
 select c1, c2 from t3i order by c2, c1 LIMIT ROWS EXAMINED 2;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
@@ -624,7 +624,7 @@ select c1, c2 from t3i order by c2, c1 desc LIMIT ROWS EXAMINED 2;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t3i	index	NULL	it3j	8	NULL	5	Using index; Using filesort
 select c1, c2 from t3i order by c2, c1 desc LIMIT ROWS EXAMINED 2;
-ERROR HY000: Sort aborted: 
+ERROR HY000: Sort aborted: LIMIT ROWS EXAMINED
 drop table t3,t3i;
 =========================================================================
 INSERT/DELETE/UPDATE
@@ -895,3 +895,46 @@ Warnings:
 Note	1003	select `test`.`t1`.`c1` AS `c1`,`test`.`t2`.`c2` AS `c2` from `test`.`t1` join `test`.`t2` where `test`.`t2`.`c2` = `test`.`t1`.`c1`
 drop table t1,t2;
 # End of 10.4 tests
+#
+# MDEV-35571: Connection hangs after query on a partitioned table with UNION and LIMIT ROWS EXAMINED
+#
+create table t1 (a int);
+insert into t1 values (1), (2);
+select * from t1 UNION ALL select * from t1 LIMIT ROWS EXAMINED 1;
+a
+1
+Warnings:
+Warning	1931	Query execution was interrupted. The query exceeded LIMIT ROWS EXAMINED 1. The query result may be incomplete
+select * from t1 UNION DISTINCT select * from t1 LIMIT ROWS EXAMINED 1;
+a
+1
+Warnings:
+Warning	1931	Query execution was interrupted. The query exceeded LIMIT ROWS EXAMINED 1. The query result may be incomplete
+DROP TABLE t1;
+create table t1 (a int);
+insert into t1 values (1), (2);
+(select a from t1 UNION ALL select a from t1) order by a desc LIMIT ROWS EXAMINED 2;
+a
+1
+Warnings:
+Warning	1931	Query execution was interrupted. The query exceeded LIMIT ROWS EXAMINED 2. The query result may be incomplete
+(select a from t1 UNION DISTINCT select a from t1) order by a desc LIMIT ROWS EXAMINED 2;
+a
+1
+Warnings:
+Warning	1931	Query execution was interrupted. The query exceeded LIMIT ROWS EXAMINED 2. The query result may be incomplete
+DROP TABLE t1;
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 SELECT seq%25 FROM seq_1_to_100;
+CREATE TABLE t2 (b INT, c INT, KEY(b)) PARTITION BY HASH(c) PARTITIONS 12;
+INSERT INTO t2 SELECT seq, seq FROM seq_1_to_10;
+SELECT COUNT(*) FROM t1 JOIN t2 ON (b = a) UNION ALL SELECT COUNT(*) FROM t1 JOIN t2 ON (b = a) LIMIT ROWS EXAMINED 100;
+COUNT(*)
+Warnings:
+Warning	1931	Query execution was interrupted. The query exceeded LIMIT ROWS EXAMINED 100. The query result may be incomplete
+SELECT COUNT(*) FROM t1 JOIN t2 ON (b = a) UNION DISTINCT SELECT COUNT(*) FROM t1 JOIN t2 ON (b = a) LIMIT ROWS EXAMINED 100;
+COUNT(*)
+Warnings:
+Warning	1931	Query execution was interrupted. The query exceeded LIMIT ROWS EXAMINED 100. The query result may be incomplete
+DROP TABLE t1, t2;
+# End of 10.5 tests

@@ -5,6 +5,7 @@ for child3
 MDEV-26345 SELECT MIN on Spider table returns more rows than expected
 
 set spider_same_server_link= 1;
+set global spider_same_server_link= 1;
 CREATE SERVER srv FOREIGN DATA WRAPPER mysql
 OPTIONS (SOCKET "$MASTER_1_MYSOCK", DATABASE 'test',user 'root');
 create table t2 (a int, b int, PRIMARY KEY (a, b));
@@ -12,6 +13,9 @@ create table t1 (a int, b int, PRIMARY KEY (a, b)) ENGINE=Spider
 COMMENT='WRAPPER "mysql", srv "srv",TABLE "t2"';
 insert into t1 VALUES (1,4), (1,2), (2,11);
 SELECT MIN(b), a FROM t1 WHERE a=1;
+MIN(b)	a
+2	1
+select * from (SELECT MIN(b), a FROM t1 WHERE a=1) as v;
 MIN(b)	a
 2	1
 SELECT MAX(b), a FROM t1 WHERE a<3;

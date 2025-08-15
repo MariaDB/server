@@ -194,7 +194,7 @@ int spider_udf_direct_sql_create_conn_key(
         spider_dbton[roop_count2].wrapper : "NULL"));
     if (
       spider_dbton[roop_count2].wrapper &&
-      !strcmp(direct_sql->tgt_wrapper, spider_dbton[roop_count2].wrapper)
+      !strcasecmp(direct_sql->tgt_wrapper, spider_dbton[roop_count2].wrapper)
     ) {
         if (spider_dbton[roop_count2].db_access_type ==
           SPIDER_DB_ACCESS_TYPE_SQL)
@@ -429,7 +429,6 @@ SPIDER_CONN *spider_udf_direct_sql_create_conn(
   conn->semi_trx_isolation = -2;
   conn->semi_trx_isolation_chk = FALSE;
   conn->semi_trx_chk = FALSE;
-    conn->conn_kind = SPIDER_CONN_KIND_MYSQL;
 
   if (mysql_mutex_init(spd_key_mutex_mta_conn, &conn->mta_conn_mutex,
     MY_MUTEX_INIT_FAST))
@@ -574,7 +573,6 @@ SPIDER_CONN *spider_udf_direct_sql_get_conn(
     conn->queued_ping = FALSE;
 
   DBUG_PRINT("info",("spider conn=%p", conn));
-  DBUG_PRINT("info",("spider conn->conn_kind=%u", conn->conn_kind));
   DBUG_RETURN(conn);
 
 error:
@@ -1033,7 +1031,7 @@ int spider_udf_set_direct_sql_param_default(
             spider_dbton[roop_count].wrapper : "NULL"));
         if (
           spider_dbton[roop_count].wrapper &&
-          !strcmp(direct_sql->tgt_wrapper,
+          !strcasecmp(direct_sql->tgt_wrapper,
             spider_dbton[roop_count].wrapper)
         ) {
           if (spider_dbton[roop_count].db_access_type ==
@@ -1299,8 +1297,8 @@ void spider_udf_free_direct_sql_alloc(
 long long spider_direct_sql_body(
   UDF_INIT *initid,
   UDF_ARGS *args,
-  char *is_null,
-  char *error,
+  unsigned char *is_null,
+  unsigned char *error,
   my_bool bg
 ) {
   int error_num, roop_count;

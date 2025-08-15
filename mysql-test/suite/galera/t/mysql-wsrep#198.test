@@ -1,6 +1,5 @@
 --source include/galera_cluster.inc
 --source include/have_innodb.inc
---source include/force_restart.inc
 
 CREATE TABLE t1 (id INT PRIMARY KEY) ENGINE=InnoDB;
 CREATE TABLE t2 (id INT PRIMARY KEY) ENGINE=InnoDB;
@@ -11,20 +10,33 @@ SELECT 1 FROM DUAL;
 
 LOCK TABLE t2 WRITE;
 
+--connect node_2_ctrl, 127.0.0.1, root, , test, $NODE_MYPORT_2
+--connection node_2_ctrl
+SET SESSION wsrep_sync_wait=0;
+
 --connect node_2a, 127.0.0.1, root, , test, $NODE_MYPORT_2
 --connection node_2a
 --send OPTIMIZE TABLE t1,t2;
+
+--connection node_2_ctrl
+SET SESSION wsrep_sync_wait = 0;
+--let $wait_condition = SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE STATE LIKE 'Waiting for table metadata lock%' OR STATE LIKE 'acquiring total order isolation%' OR STATE LIKE 'Waiting to execute in isolation%';
+--let $wait_condition_on_error_output = SELECT * FROM INFORMATION_SCHEMA.PROCESSLIST
+--source include/wait_condition_with_debug_and_kill.inc
 
 --connect node_2b, 127.0.0.1, root, , test, $NODE_MYPORT_2
 --connection node_2b
 --send REPAIR TABLE t1,t2;
 
---connection node_2
-SET SESSION wsrep_sync_wait = 0;
---let $wait_condition = SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE STATE = 'Waiting for table metadata lock'
---source include/wait_condition.inc
+--connection node_2_ctrl
+--let $wait_condition = SELECT COUNT(*) = 2 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE STATE LIKE 'Waiting for table metadata lock%' OR STATE LIKE 'acquiring total order isolation%' OR STATE LIKE 'Waiting to execute in isolation%';
+--let $wait_condition_on_error_output = SELECT * FROM INFORMATION_SCHEMA.PROCESSLIST
+--source include/wait_condition_with_debug_and_kill.inc
 
 --connection node_1
+# We have LOCK TABLE in node_2 so this could fail on lock wait
+# or next statement is fast enought and succeed
+--error 0,ER_LOCK_WAIT_TIMEOUT
 INSERT INTO t2 VALUES (1);
 
 --connection node_2
@@ -38,3 +50,9 @@ UNLOCK TABLES;
 
 DROP TABLE t1;
 DROP TABLE t2;
+
+--connection node_1
+
+--disconnect node_2a
+--disconnect node_2b
+--disconnect node_2_ctrl

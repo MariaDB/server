@@ -121,15 +121,13 @@ private:
   @param id the new owner of the U or X lock */
   void set_new_owner(pthread_t id)
   {
-    IF_DBUG(DBUG_ASSERT(writer.exchange(id, std::memory_order_relaxed)),
-            writer.store(id, std::memory_order_relaxed));
+    writer.store(id, std::memory_order_relaxed);
   }
   /** Assign the ownership of a write lock to a thread
   @param id the owner of the U or X lock */
   void set_first_owner(pthread_t id)
   {
-    IF_DBUG(DBUG_ASSERT(!writer.exchange(id, std::memory_order_relaxed)),
-            writer.store(id, std::memory_order_relaxed));
+    writer.store(id, std::memory_order_relaxed);
   }
 #ifdef UNIV_DEBUG
   /** Register the current thread as a holder of a shared lock */

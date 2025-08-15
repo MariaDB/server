@@ -155,7 +155,6 @@ INSERT INTO parent SET a=0;
 FLUSH TABLES;
 # restart
 disconnect incomplete;
-SET @save_stats_persistent = @@GLOBAL.innodb_stats_persistent;
 SET GLOBAL innodb_stats_persistent = 0;
 INSERT INTO child SET a=0;
 INSERT INTO child SET a=1;
@@ -163,9 +162,6 @@ ERROR 23000: Cannot add or update a child row: a foreign key constraint fails (`
 DELETE FROM parent;
 ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (`test`.`child`, CONSTRAINT `child_ibfk_1` FOREIGN KEY (`a`) REFERENCES `parent` (`a`) ON DELETE CASCADE)
 ALTER TABLE child ADD INDEX(a);
-DELETE FROM parent;
-ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (`test`.`child`, CONSTRAINT `child_ibfk_1` FOREIGN KEY (`a`) REFERENCES `parent` (`a`) ON DELETE CASCADE)
-ALTER TABLE child FORCE;
 DELETE FROM parent;
 DROP TABLE child,parent;
 SELECT unique_constraint_name FROM information_schema.referential_constraints
@@ -1023,6 +1019,23 @@ t2	CREATE TABLE `t2` (
   CONSTRAINT `t2_ibfk_1` FOREIGN KEY (`a`) REFERENCES `t1` (`a`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 drop tables t2, t1;
+#
+# MDEV-29182 Assertion fld->field_no < table->n_v_def failed on cascade
+#
+CREATE TABLE t1(a INT PRIMARY KEY, b VARCHAR(3), c INT AS (LENGTH(b)) VIRTUAL,
+INDEX(c)) ENGINE=InnoDB;
+CREATE TABLE t2(a INT REFERENCES t1(a) ON UPDATE CASCADE,
+b INT GENERATED ALWAYS AS(a) VIRTUAL, INDEX(b)) ENGINE=InnoDB;
+INSERT INTO t1 SET a=1,b='fu';
+INSERT INTO t2 SET a=1;
+UPDATE t1 SET a=2,b='bar';
+SELECT * FROM t1;
+a	b	c
+2	bar	3
+SELECT * FROM t2;
+a	b
+2	2
+DROP TABLE t2,t1;
 # End of 10.5 tests
 #
 # MDEV-26554 Table-rebuilding DDL on parent table causes crash
@@ -1118,6 +1131,75 @@ test.binaries	check	status	OK
 test.collections	check	status	OK
 disconnect con1;
 DROP TABLE binaries, collections;
+CREATE SCHEMA `#mysql50##mysql50#d-b`;
+CREATE TABLE `#mysql50##mysql50#d-b`.t1 (a INT PRIMARY KEY, b INT UNIQUE) engine=InnoDB;
+USE `#mysql50##mysql50#d-b`;
+CREATE TABLE t2 (a INT PRIMARY KEY, b INT UNIQUE REFERENCES t1(b)) ENGINE=InnoDB;
+SET STATEMENT foreign_key_checks=0 FOR
+ALTER TABLE t2 ADD FOREIGN KEY (a) REFERENCES t1(a);
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `a` int(11) NOT NULL,
+  `b` int(11) DEFAULT NULL,
+  PRIMARY KEY (`a`),
+  UNIQUE KEY `b` (`b`),
+  CONSTRAINT `t2_ibfk_1` FOREIGN KEY (`b`) REFERENCES `t1` (`b`),
+  CONSTRAINT `t2_ibfk_2` FOREIGN KEY (`a`) REFERENCES `t1` (`a`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+INSERT INTO t1 SET a=1;
+INSERT INTO t2 SET a=1;
+DELETE FROM t1;
+ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (`#mysql50#d-b`.`t2`, CONSTRAINT `t2_ibfk_2` FOREIGN KEY (`a`) REFERENCES `t1` (`a`))
+DELETE FROM t2;
+DELETE FROM t1;
+DROP DATABASE `#mysql50##mysql50#d-b`;
+USE test;
+#
+# MDEV-35962 CREATE INDEX fails to heal a FOREIGN KEY constraint
+#
+CREATE TABLE t2 (b INT, FOREIGN KEY (b) REFERENCES t1(a)) ENGINE=InnoDB;
+ERROR HY000: Can't create table `test`.`t2` (errno: 150 "Foreign key constraint is incorrectly formed")
+SET STATEMENT foreign_key_checks=0 FOR
+CREATE TABLE t2 (b INT, FOREIGN KEY (b) REFERENCES t1(a)) ENGINE=InnoDB;
+CREATE TABLE t1 (a INT) ENGINE=InnoDB;
+ERROR HY000: Can't create table `test`.`t1` (errno: 150 "Foreign key constraint is incorrectly formed")
+SET STATEMENT foreign_key_checks=0 FOR
+CREATE TABLE t1 (a INT) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1);
+INSERT INTO t2 VALUES (1);
+ERROR 23000: Cannot add or update a child row: a foreign key constraint fails (`test`.`t2`, CONSTRAINT `t2_ibfk_1` FOREIGN KEY (`b`) REFERENCES `t1` (`a`))
+ALTER TABLE t1 ADD KEY(a), ALGORITHM=NOCOPY;
+INSERT INTO t2 VALUES (1);
+DROP INDEX b ON t2;
+ERROR HY000: Cannot drop index 'b': needed in a foreign key constraint
+SET STATEMENT foreign_key_checks=0 FOR
+DROP INDEX b ON t2;
+DELETE FROM t2;
+DELETE FROM t1;
+ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (`test`.`t2`, CONSTRAINT `t2_ibfk_1` FOREIGN KEY (`b`) REFERENCES `t1` (`a`))
+ALTER TABLE t2 ADD KEY(b), ALGORITHM=NOCOPY;
+DELETE FROM t1;
+DROP TABLE t2, t1;
+#
+# MDEV-33167 ASAN errors after failing to load foreign key
+#   relation for the table
+#
+call mtr.add_suppression("InnoDB: Load table `test`.`t3` failed, the table has missing foreign key indexes. Turn off 'foreign_key_checks' and try again.");
+SET STATEMENT FOREIGN_KEY_CHECKS = 0 FOR
+CREATE TABLE t1(f1 VARCHAR(8),
+FOREIGN KEY(f1) REFERENCES test.t3(f1))ENGINE=InnoDB;
+SET STATEMENT FOREIGN_KEY_CHECKS = 0 FOR
+CREATE TABLE t2(f1 VARCHAR(8),
+FOREIGN KEY(f1) REFERENCES test.t3(f1))
+ENGINE=InnoDB DEFAULT CHARSET=utf8mb3;
+SET STATEMENT FOREIGN_KEY_CHECKS = 0 FOR
+CREATE TABLE t3(f1 VARCHAR(8) PRIMARY KEY)
+ENGINE=InnoDB DEFAULT CHARSET=latin1;
+set GLOBAL innodb_fast_shutdown=0;
+# restart
+ALTER TABLE t2 FORCE;
+DROP TABLE t2, t1, t3;
 # End of 10.6 tests
 CREATE TABLE t1
 (
@@ -1140,5 +1222,4 @@ ALTER TABLE t2 ADD FOREIGN KEY (f2) REFERENCES t2 (f2),
 ADD UNIQUE INDEX(f3);
 ERROR HY000: Cannot delete rows from table which is parent in a foreign key constraint 't1_ibfk_1' of table 't1'
 drop table t1, t2;
-SET GLOBAL innodb_stats_persistent = @save_stats_persistent;
 # End of 10.11 tests

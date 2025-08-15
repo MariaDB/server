@@ -273,6 +273,7 @@ public:
   {
     return TRUE;
   }
+  bool subselect_table_finder_processor(void *arg) override;
 
   void register_as_with_rec_ref(With_element *with_elem);
   void init_expr_cache_tracker(THD *thd);
@@ -638,6 +639,7 @@ public:
     value= 0;
     null_value= 0;
     was_null= 0;
+    is_jtbm_const_tab= 0;
   }
   bool select_transformer(JOIN *join) override;
   bool create_in_to_exists_cond(JOIN *join_arg);

@@ -1,5 +1,5 @@
---- main/myisam_mrr.result	2019-05-14 15:44:52.232663568 +0530
-+++ main/myisam_mrr.reject	2019-05-14 15:51:37.123563538 +0530
+--- main/myisam_mrr.result
++++ main/myisam_mrr.reject
 @@ -617,8 +617,8 @@
  show status like 'handler_mrr%';
  Variable_name	Value

@@ -619,7 +619,7 @@ static int heap_prepare_hp_create_info(TABLE *table_arg, bool internal_table,
     case HA_KEY_ALG_UNDEF:
     case HA_KEY_ALG_HASH:
       keydef[key].algorithm= HA_KEY_ALG_HASH;
-      mem_per_row+= sizeof(char*) * 2; // = sizeof(HASH_INFO)
+      mem_per_row+= sizeof(HASH_INFO);
       break;
     case HA_KEY_ALG_BTREE:
       keydef[key].algorithm= HA_KEY_ALG_BTREE;
@@ -688,7 +688,6 @@ static int heap_prepare_hp_create_info(TABLE *table_arg, bool internal_table,
       }
     }
   }
-  mem_per_row+= MY_ALIGN(MY_MAX(share->reclength, sizeof(char*)) + 1, sizeof(char*));
   if (table_arg->found_next_number_field)
   {
     keydef[share->next_number_index].flag|= HA_AUTO_KEY;
@@ -696,11 +695,18 @@ static int heap_prepare_hp_create_info(TABLE *table_arg, bool internal_table,
   }
   hp_create_info->auto_key= auto_key;
   hp_create_info->auto_key_type= auto_key_type;
-  hp_create_info->max_table_size=current_thd->variables.max_heap_table_size;
+  hp_create_info->max_table_size= MY_MAX(current_thd->variables.max_heap_table_size, sizeof(HP_PTRS));
   hp_create_info->with_auto_increment= found_real_auto_increment;
   hp_create_info->internal_table= internal_table;
 
-  max_rows= (ha_rows) (hp_create_info->max_table_size / mem_per_row);
+  max_rows= hp_rows_in_memory(share->reclength, mem_per_row,
+                              hp_create_info->max_table_size);
+#ifdef GIVE_ERROR_IF_NOT_MEMORY_TO_INSERT_ONE_ROW
+  /* We do not give the error now but instead give an error on first insert */
+  if (!max_rows)
+    return HA_WRONG_CREATE_OPTION;
+#endif
+
   if (share->max_rows && share->max_rows < max_rows)
     max_rows= share->max_rows;
 

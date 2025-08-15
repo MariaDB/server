@@ -38,6 +38,20 @@ ALTER TABLE v1 EXCHANGE PARTITION p2 WITH TABLE t2 ;
 ERROR 42000: Can't open table
 DROP VIEW v1;
 DROP TABLE t1, t2;
+#
+# MDEV-34813 ALGORITHM=INSTANT does not work for partitioned tables on indexed column
+#
+CREATE TABLE `t1` (
+`f1` datetime ,
+`f2` VARCHAR(2)  ,
+`f3` VARCHAR(200) ,
+`f4` VARCHAR(100)  ,
+INDEX `i3` (`f4`)  )
+PARTITION BY RANGE COLUMNS(`f2`)
+(PARTITION `p_01` VALUES LESS THAN ('02') ENGINE = InnoDB,
+PARTITION `p_31` VALUES LESS THAN (MAXVALUE) ENGINE = InnoDB);
+ALTER online TABLE t1 MODIFY COLUMN `f4`  VARCHAR(500) , ALGORITHM=INSTANT, LOCK=NONE;
+drop table t1;
 # End of 10.5 tests
 #
 # MDEV-22165 CONVERT PARTITION: move in partition from existing table
@@ -369,4 +383,15 @@ disconnect con1;
 connection default;
 drop user u@localhost;
 drop database db;
+#
+# MDEV-37328 Assertion failure in make_empty_rec upon CONVERT PARTITION
+#
+create table t (f1 int, f2 int, f3 int, f4 int, f5 int, f6 int, f7 int) engine=myisam
+partition by list (f3) (
+partition p0 values in (null,0),
+partition p1 values in (1,2,3),
+partition p2 default
+);
+alter table t convert partition p0 to table tp;
+drop table if exists tp, t;
 # End of 10.11 tests

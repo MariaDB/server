@@ -38,7 +38,6 @@ SET debug_sync = 'now SIGNAL signal.wsrep_retry_event_group';
 --let $wait_condition = SELECT COUNT(*) = 1 FROM t1;
 --source include/wait_condition.inc
 
-
 --connection node_1
 SET debug_sync = 'RESET';
 

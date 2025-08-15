@@ -56,6 +56,7 @@
 #include "sql_test.h"         // mysql_print_status
 #include "sql_select.h"       // handle_select, mysql_select,
                               // mysql_explain_union
+#include "sql_cursor.h"       // Select_materialzie
 #include "sql_load.h"         // mysql_load
 #include "sql_servers.h"      // create_servers, alter_servers,
                               // drop_servers, servers_reload
@@ -441,7 +442,6 @@ bool stmt_causes_implicit_commit(THD *thd, uint mask)
   case SQLCOM_DROP_TABLE:
   case SQLCOM_DROP_SEQUENCE:
   case SQLCOM_CREATE_TABLE:
-  case SQLCOM_CREATE_SEQUENCE:
     /*
       If CREATE TABLE of non-temporary table and the table is not part
       if a BEGIN GTID ... COMMIT group, do a implicit commit.
@@ -1155,8 +1155,7 @@ static bool wsrep_command_no_result(char command)
 {
   return (command == COM_STMT_FETCH            ||
           command == COM_STMT_SEND_LONG_DATA   ||
-          command == COM_STMT_CLOSE            ||
-          command == COM_STMT_PREPARE);
+          command == COM_STMT_CLOSE);
 }
 #endif /* WITH_WSREP */
 #ifndef EMBEDDED_LIBRARY
@@ -2400,13 +2399,23 @@ resume:
     {
       DEBUG_SYNC(thd, "wsrep_at_dispatch_end_before_result");
     }
-    wsrep_after_command_before_result(thd);
-    if (wsrep_current_error(thd) && !wsrep_command_no_result(command))
+    if (thd->wsrep_cs().state() == wsrep::client_state::s_exec)
     {
-      /* todo: Pass wsrep client state current error to override */
-      wsrep_override_error(thd, wsrep_current_error(thd),
-                           wsrep_current_error_status(thd));
-      WSREP_LOG_THD(thd, "leave");
+      wsrep_after_command_before_result(thd);
+      if (wsrep_current_error(thd) && !wsrep_command_no_result(command))
+      {
+        /* todo: Pass wsrep client state current error to override */
+        wsrep_override_error(thd, wsrep_current_error(thd),
+                             wsrep_current_error_status(thd));
+        WSREP_LOG_THD(thd, "leave");
+      }
+    }
+    else
+    {
+      /* wsrep_after_command_before_result() already called elsewhere
+         or not necessary to call it */
+      assert(thd->wsrep_cs().state() == wsrep::client_state::s_none ||
+             thd->wsrep_cs().state() == wsrep::client_state::s_result);
     }
     if (WSREP(thd))
     {
@@ -3063,11 +3072,6 @@ static bool do_execute_sp(THD *thd, sp_head *sp)
   ha_rows select_limit= thd->variables.select_limit;
   thd->variables.select_limit= HA_POS_ERROR;
 
-  /*
-    Reset current_select as it may point to random data as a
-    result of previous parsing.
-  */
-  thd->lex->current_select= NULL;
   thd->lex->in_sum_func= 0;                     // For Item_field::fix_fields()
 
   /*
@@ -4795,6 +4799,7 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
       select_lex->context.table_list=
         select_lex->context.first_name_resolution_table= second_table;
       res= mysql_insert_select_prepare(thd, result);
+      Write_record write;
       if (!res &&
           (sel_result= new (thd->mem_root)
                        select_insert(thd, first_table,
@@ -4804,7 +4809,8 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
                                     &lex->value_list,
                                     lex->duplicates,
                                     lex->ignore,
-                                    result)))
+                                    result,
+                                    &write)))
       {
         if (lex->analyze_stmt)
           ((select_result_interceptor*)sel_result)->disable_my_ok_calls();
@@ -5043,17 +5049,18 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
       lex->create_info.set(DDL_options_st::OPT_IF_EXISTS);
 
 #ifdef WITH_WSREP
-    if (WSREP(thd))
+    if (WSREP(thd) && !lex->tmp_table() && wsrep_thd_is_local(thd) &&
+        (!thd->is_current_stmt_binlog_format_row() ||
+         wsrep_table_list_has_non_temp_tables(thd, all_tables)))
     {
-      for (TABLE_LIST *table= all_tables; table; table= table->next_global)
+      wsrep::key_array keys;
+      if (wsrep_append_fk_parent_table(thd, all_tables, &keys))
       {
-        if (!lex->tmp_table() &&
-           (!thd->is_current_stmt_binlog_format_row() ||
-	    !is_temporary_table(table)))
-        {
-          WSREP_TO_ISOLATION_BEGIN(NULL, NULL, all_tables);
-          break;
-        }
+        goto wsrep_error_label;
+      }
+      if (wsrep_to_isolation_begin(thd, NULL, NULL, all_tables, NULL, &keys))
+      {
+        goto wsrep_error_label;
       }
     }
 #endif /* WITH_WSREP */
@@ -6238,6 +6245,9 @@ finish:
       one of storage engines (e.g. due to deadlock). Rollback transaction in
       all storage engines including binary log.
     */
+    auto &xid_state= thd->transaction->xid_state;
+    if (xid_state.is_explicit_XA())
+      xid_state.set_rollback_only();
     trans_rollback_implicit(thd);
     thd->release_transactional_locks();
   }
@@ -6434,7 +6444,7 @@ static bool execute_sqlcom_select(THD *thd, TABLE_LIST *all_tables)
     }
   }
   /* Count number of empty select queries */
-  if (!thd->get_sent_row_count() && !res)
+  if (!thd->is_cursor_execution() && !thd->get_sent_row_count() && !res)
     status_var_increment(thd->status_var.empty_queries);
   else
     status_var_add(thd->status_var.rows_sent, thd->get_sent_row_count());
@@ -7287,17 +7297,8 @@ check_table_access(THD *thd, privilege_t requirements, TABLE_LIST *tables,
     DBUG_PRINT("info", ("derived: %d  view: %d", table_ref->derived != 0,
                         table_ref->view != 0));
 
-    if (table_ref->is_anonymous_derived_table())
+    if (table_ref->is_anonymous_derived_table() || table_ref->sequence)
       continue;
-
-    if (table_ref->sequence)
-    {
-      /* We want to have either SELECT or INSERT rights to sequences depending
-         on how they are accessed
-      */
-      want_access= ((table_ref->lock_type >= TL_FIRST_WRITE) ?
-                    INSERT_ACL : SELECT_ACL);
-    }
 
     if (check_access(thd, want_access, table_ref->get_db_name().str,
                      &table_ref->grant.privilege,
@@ -10380,7 +10381,13 @@ bool check_string_char_length(const LEX_CSTRING *str, uint err_msg,
 
 bool check_ident_length(const LEX_CSTRING *ident)
 {
-  if (check_string_char_length(ident, 0, NAME_CHAR_LEN, system_charset_info, 1))
+  /*
+    string_char_length desite the names, goes into Well_formed_prefix_status
+    so this is more than just a length comparison. Things like a primary key
+    doesn't have a name, therefore no length. Also the ident grammar allows
+    empty backtick. Check quickly the length, and if 0, accept that.
+  */
+  if (ident->length && check_string_char_length(ident, 0, NAME_CHAR_LEN, system_charset_info, 1))
   {
     my_error(ER_TOO_LONG_IDENT, MYF(0), ident->str);
     return 1;

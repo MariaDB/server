@@ -37,16 +37,10 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111 - 1301 USA*/
 
 namespace tpool
 {
-
 #ifdef __linux__
-#if defined(HAVE_URING) || defined(LINUX_NATIVE_AIO)
-  extern aio* create_linux_aio(thread_pool* tp, int max_io);
-#else
-  aio *create_linux_aio(thread_pool *, int) { return nullptr; };
-#endif
-#endif
-#ifdef _WIN32
-  extern aio* create_win_aio(thread_pool* tp, int max_io);
+  aio *create_linux_aio(thread_pool* tp, int max_io, aio_implementation);
+#elif defined _WIN32
+  aio *create_win_aio(thread_pool* tp, int max_io);
 #endif
 
   static const std::chrono::milliseconds LONG_TASK_DURATION = std::chrono::milliseconds(500);
@@ -218,7 +212,6 @@ class thread_pool_generic : public thread_pool
 
   /** Overall number of enqueues*/
   unsigned long long m_tasks_enqueued;
-  unsigned long long m_group_enqueued;
   /** Overall number of dequeued tasks. */
   unsigned long long m_tasks_dequeued;
 
@@ -300,16 +293,15 @@ public:
   void wait_begin() override;
   void wait_end() override;
   void submit_task(task *task) override;
-  aio *create_native_aio(int max_io) override
-  {
 #ifdef _WIN32
-    return create_win_aio(this, max_io);
-#elif defined(__linux__)
-    return create_linux_aio(this,max_io);
+  aio *create_native_aio(int max_io, aio_implementation) override
+  { return create_win_aio(this, max_io); }
+#elif defined __linux__
+  aio *create_native_aio(int max_io, aio_implementation impl) override
+  { return create_linux_aio(this, max_io, impl); }
 #else
-    return nullptr;
+  aio *create_native_aio(int, aio_implementation) override { return nullptr; }
 #endif
-  }
 
   class timer_generic : public thr_timer_t, public timer
   {
@@ -564,8 +556,7 @@ void thread_pool_generic::worker_main(worker_data *thread_var)
 {
   task* task;
   set_tls_pool(this);
-  if(m_worker_init_callback)
-   m_worker_init_callback();
+  m_worker_init_callback();
 
   tls_worker_data = thread_var;
   m_thread_creation_pending.clear();
@@ -575,8 +566,7 @@ void thread_pool_generic::worker_main(worker_data *thread_var)
     task->execute();
   }
 
-  if (m_worker_destroy_callback)
-    m_worker_destroy_callback();
+  m_worker_destroy_callback();
 
   worker_end(thread_var);
 }

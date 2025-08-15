@@ -2259,6 +2259,8 @@ INSERT INTO t3 VALUES ('Miami');
 SET @save_optimizer_switch=@@optimizer_switch;
 SET optimizer_switch = 'derived_with_keys=on';
 SET @@tmp_table_size=1024*4;
+Warnings:
+Warning	1292	Truncated incorrect tmp_table_size value: '4096'
 explain SELECT * FROM (SELECT t1.* FROM t1, t2) AS t JOIN t3 ON t3.a = t.b;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t3	system	NULL	NULL	NULL	NULL	1	
@@ -2457,6 +2459,8 @@ a
 EXECUTE stmt;
 SELECT * FROM t1;
 a
+1
+1
 1
 1
 drop table t1,t2;

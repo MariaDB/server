@@ -375,7 +375,7 @@ ibuf_size_update(
 	ibuf.free_list_len = flst_get_len(root + PAGE_HEADER
 					   + PAGE_BTR_IBUF_FREE_LIST);
 
-	ibuf.height = 1 + btr_page_get_level(root);
+	ibuf.height = uint8_t(1 + btr_page_get_level(root));
 
 	/* the '1 +' is the ibuf header page */
 	ibuf.size = ibuf.seg_size - (1 + ibuf.free_list_len);
@@ -443,18 +443,11 @@ err_exit:
 		goto err_exit;
 	}
 
-	/* At startup we intialize ibuf to have a maximum of
-	CHANGE_BUFFER_DEFAULT_SIZE in terms of percentage of the
-	buffer pool size. Once ibuf struct is initialized this
-	value is updated with the user supplied size by calling
-	ibuf_max_size_update(). */
-	ibuf.max_size = ((buf_pool_get_curr_size() >> srv_page_size_shift)
-			  * CHANGE_BUFFER_DEFAULT_SIZE) / 100;
-
 	mysql_mutex_init(ibuf_mutex_key, &ibuf_mutex, nullptr);
 	mysql_mutex_init(ibuf_pessimistic_insert_mutex_key,
 			 &ibuf_pessimistic_insert_mutex, nullptr);
 
+	ibuf_max_size_update(CHANGE_BUFFER_DEFAULT_SIZE);
 	mysql_mutex_lock(&ibuf_mutex);
 	ibuf_size_update(root);
 	mysql_mutex_unlock(&ibuf_mutex);
@@ -506,10 +499,10 @@ ibuf_max_size_update(
 				percentage of the buffer pool size */
 {
 	if (UNIV_UNLIKELY(!ibuf.index)) return;
-	ulint	new_size = ((buf_pool_get_curr_size() >> srv_page_size_shift)
-			    * new_val) / 100;
+	ulint	new_size = std::min<ulint>(
+		buf_pool.curr_size() * new_val / 100, uint32_t(~0U));
 	mysql_mutex_lock(&ibuf_mutex);
-	ibuf.max_size = new_size;
+	ibuf.max_size = uint32_t(new_size);
 	mysql_mutex_unlock(&ibuf_mutex);
 }
 
@@ -738,13 +731,15 @@ ibuf_set_free_bits_func(
   mtr.start();
   const page_id_t id(block->page.id());
   const fil_space_t *space= mtr.set_named_space_id(id.space());
+  /* all callers of ibuf_update_free_bits_if_full() or ibuf_reset_free_bits()
+  check this */
+  ut_ad(!space->is_temporary());
 
   if (buf_block_t *bitmap_page=
       ibuf_bitmap_get_map_page(id, block->zip_size(), &mtr))
   {
-    if (space->purpose != FIL_TYPE_TABLESPACE)
+    if (space->is_being_imported()) /* IndexPurge may invoke this */
       mtr.set_log_mode(MTR_LOG_NO_REDO);
-
 #ifdef UNIV_IBUF_DEBUG
     if (max_val != ULINT_UNDEFINED)
     {
@@ -925,8 +920,7 @@ ibuf_page_low(
 		return(false);
 	}
 
-	compile_time_assert(IBUF_SPACE_ID == 0);
-	ut_ad(fil_system.sys_space->purpose == FIL_TYPE_TABLESPACE);
+	static_assert(IBUF_SPACE_ID == 0, "compatiblity");
 
 #ifdef UNIV_DEBUG
 	if (x_latch) {
@@ -1856,12 +1850,17 @@ corrupted:
 	return true;
 }
 
-/*********************************************************************//**
-Removes a page from the free list and frees it to the fsp system. */
-static void ibuf_remove_free_page()
+/** Removes a page from the free list and frees it to the fsp system.
+@param all Free all freed page. This should be useful only during slow
+shutdown
+@return error code when InnoDB fails to free the page
+@retval DB_SUCCESS_LOCKED_REC if all free pages are freed
+@retval DB_SUCCESS if page is freed */
+static dberr_t ibuf_remove_free_page(bool all = false)
 {
 	mtr_t	mtr;
 	page_t*	header_page;
+	dberr_t err = DB_SUCCESS;
 
 	log_free_check();
 
@@ -1877,17 +1876,17 @@ static void ibuf_remove_free_page()
 	mysql_mutex_lock(&ibuf_pessimistic_insert_mutex);
 	mysql_mutex_lock(&ibuf_mutex);
 
-	if (!header_page || !ibuf_data_too_much_free()) {
+	if (!header_page || (!all && !ibuf_data_too_much_free())) {
 early_exit:
 		mysql_mutex_unlock(&ibuf_mutex);
 		mysql_mutex_unlock(&ibuf_pessimistic_insert_mutex);
-
+exit:
 		ibuf_mtr_commit(&mtr);
 
-		return;
+		return err;
 	}
 
-	buf_block_t* root = ibuf_tree_root_get(&mtr);
+	buf_block_t* root = ibuf_tree_root_get(&mtr, &err);
 
 	if (UNIV_UNLIKELY(!root)) {
 		goto early_exit;
@@ -1898,7 +1897,10 @@ early_exit:
 					       + PAGE_BTR_IBUF_FREE_LIST
 					       + root->page.frame).page;
 
+	/* If all the freed pages are removed during slow shutdown
+	then exit early with DB_SUCCESS_LOCKED_REC */
 	if (page_no >= fil_system.sys_space->free_limit) {
+		err = DB_SUCCESS_LOCKED_REC;
 		goto early_exit;
 	}
 
@@ -1920,7 +1922,7 @@ early_exit:
 	compile_time_assert(IBUF_SPACE_ID == 0);
 	const page_id_t	page_id{IBUF_SPACE_ID, page_no};
 	buf_block_t* bitmap_page = nullptr;
-	dberr_t err = fseg_free_page(
+	err = fseg_free_page(
 		header_page + IBUF_HEADER + IBUF_TREE_SEG_HEADER,
 		fil_system.sys_space, page_no, &mtr);
 
@@ -1965,7 +1967,7 @@ func_exit:
 		buf_page_free(fil_system.sys_space, page_no, &mtr);
 	}
 
-	ibuf_mtr_commit(&mtr);
+        goto exit;
 }
 
 /***********************************************************************//**
@@ -2060,8 +2062,7 @@ corruption:
 		}
 	}
 
-	limit = ut_min(IBUF_MAX_N_PAGES_MERGED,
-		       buf_pool_get_curr_size() / 4);
+	limit = std::min(IBUF_MAX_N_PAGES_MERGED, buf_pool.curr_size() / 4);
 
 	first_page_no = ibuf_rec_get_page_no(mtr, rec);
 	first_space_id = ibuf_rec_get_space(mtr, rec);
@@ -2434,7 +2435,9 @@ ATTRIBUTE_COLD ulint ibuf_contract()
 		      == page_id_t(IBUF_SPACE_ID, FSP_IBUF_TREE_ROOT_PAGE_NO));
 
 		ibuf_mtr_commit(&mtr);
-
+		/* Remove all free page from free list and
+		frees it to system tablespace */
+		while (ibuf_remove_free_page(true) == DB_SUCCESS);
 		return(0);
 	}
 
@@ -4482,17 +4485,17 @@ ibuf_print(
     return;
   }
 
-  const ulint size= ibuf.size;
-  const ulint free_list_len= ibuf.free_list_len;
-  const ulint seg_size= ibuf.seg_size;
+  const uint32_t size= ibuf.size;
+  const uint32_t free_list_len= ibuf.free_list_len;
+  const uint32_t seg_size= ibuf.seg_size;
   mysql_mutex_unlock(&ibuf_mutex);
 
   fprintf(file,
           "-------------\n"
           "INSERT BUFFER\n"
           "-------------\n"
-          "size " ULINTPF ", free list len " ULINTPF ","
-          " seg size " ULINTPF ", " ULINTPF " merges\n",
+          "size %" PRIu32 ", free list len %" PRIu32 ","
+          " seg size %" PRIu32 ", " ULINTPF " merges\n",
           size, free_list_len, seg_size, ulint{ibuf.n_merges});
   ibuf_print_ops("merged operations:\n", ibuf.n_merged_ops, file);
   ibuf_print_ops("discarded operations:\n", ibuf.n_discarded_ops, file);
@@ -4505,7 +4508,7 @@ ibuf_print(
 dberr_t ibuf_check_bitmap_on_import(const trx_t* trx, fil_space_t* space)
 {
 	ut_ad(trx->mysql_thd);
-	ut_ad(space->purpose == FIL_TYPE_IMPORT);
+	ut_ad(space->is_being_imported());
 
 	const unsigned zip_size = space->zip_size();
 	const unsigned physical_size = space->physical_size();

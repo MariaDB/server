@@ -1,5 +1,5 @@
---- suite/storage_engine/lock_concurrent.result	2012-06-24 23:55:19.539380000 +0400
-+++ suite/storage_engine/lock_concurrent.reject	2012-07-15 17:50:21.279222746 +0400
+--- suite/storage_engine/lock_concurrent.result
++++ suite/storage_engine/lock_concurrent.reject
 @@ -4,6 +4,14 @@
  connect  con1,localhost,root,,;
  SET lock_wait_timeout = 1;

@@ -205,3 +205,19 @@ UPDATE ft2 SET copy = UPPER(copy),
                copy2= copy;
 SELECT * FROM ft2;
 DROP TABLE ft2;
+
+--echo #
+--echo # MDEV-27769 Assertion failed in Field::ptr_in_record upon UPDATE
+--echo # (duplicate) MDEV-35404 Assertion failed in Field::ptr_in_record
+--echo #
+CREATE TABLE t (s geometry, t text);
+
+INSERT INTO t () VALUES ();
+--error ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION
+UPDATE t SET t = '', s = 0;
+--error ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION
+UPDATE t SET t = '', s = 0;
+
+ALTER TABLE t force;
+
+DROP TABLE t;

@@ -3338,3 +3338,9 @@ Table	Op	Msg_type	Msg_text
 test.t1	check	status	OK
 ALTER TABLE t1 FORCE;
 DROP TABLE t1;
+#
+# MDEV-35723: applying zero offset to null pointer on INSERT
+#
+CREATE TABLE t1(c TEXT(1) NOT NULL, INDEX (c)) ENGINE=InnoDB;
+INSERT INTO t1 SET c='';
+DROP TABLE t1;

@@ -970,8 +970,10 @@ void dict_check_tablespaces_and_store_max_id(const std::set<uint32_t> *spaces)
 		const bool not_dropped{!rec_get_deleted_flag(rec, 0)};
 
 		/* Check that the .ibd file exists. */
-		if (fil_ibd_open(not_dropped, FIL_TYPE_TABLESPACE,
-				 space_id, dict_tf_to_fsp_flags(flags),
+		if (fil_ibd_open(space_id, dict_tf_to_fsp_flags(flags),
+				 not_dropped
+				 ? fil_space_t::VALIDATE_NOTHING
+				 : fil_space_t::MAYBE_MISSING,
 				 name, filepath)) {
 		} else if (!not_dropped) {
 		} else if (srv_operation == SRV_OPERATION_NORMAL
@@ -2289,8 +2291,8 @@ dict_load_tablespace(
 	}
 
 	table->space = fil_ibd_open(
-		2, FIL_TYPE_TABLESPACE, table->space_id,
-		dict_tf_to_fsp_flags(table->flags),
+		table->space_id, dict_tf_to_fsp_flags(table->flags),
+		fil_space_t::VALIDATE_SPACE_ID,
 		{table->name.m_name, strlen(table->name.m_name)}, filepath);
 
 	if (!table->space) {
@@ -2511,10 +2513,12 @@ corrupted:
 	if (!table->is_readable()) {
 		/* Don't attempt to load the indexes from disk. */
 	} else if (err == DB_SUCCESS) {
+		auto i = fk_tables.size();
 		err = dict_load_foreigns(table->name.m_name, nullptr,
 					 0, true, ignore_err, fk_tables);
 
 		if (err != DB_SUCCESS) {
+			fk_tables.erase(fk_tables.begin() + i, fk_tables.end());
 			ib::warn() << "Load table " << table->name
 				<< " failed, the table has missing"
 				" foreign key indexes. Turn off"

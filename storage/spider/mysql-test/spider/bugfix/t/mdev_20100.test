@@ -58,23 +58,33 @@ TRUNCATE TABLE mysql.general_log;
 
 --connection master_1
 --disable_ps2_protocol
+--disable_view_protocol
 SELECT a, b, c FROM tbl_a PARTITION (pt2) WHERE b = 'c';
+--enable_view_protocol
 SELECT a, b, c FROM tbl_a PARTITION (pt1,pt2);
+--disable_view_protocol
 SELECT a, b, c FROM tbl_a PARTITION (pt3) WHERE b = 'c';
+--enable_view_protocol
 SELECT a, b, c FROM tbl_a PARTITION (pt1,pt2);
+--disable_view_protocol
 SELECT a, b, c FROM tbl_a PARTITION (pt1) WHERE b = 'c';
+--enable_view_protocol
 SELECT a, b, c FROM tbl_a PARTITION (pt1,pt3);
+--disable_view_protocol
 SELECT a, b, c FROM tbl_a PARTITION (pt1) WHERE b = 'c';
+--enable_view_protocol
 SELECT a, b, c FROM tbl_a PARTITION (pt2,pt3);
 --enable_ps2_protocol
 
 --connection child2_1
+--disable_view_protocol
 --disable_ps2_protocol
 eval $CHILD2_1_SELECT_ARGUMENT1;
 --enable_ps2_protocol
 --disable_ps_protocol
 eval $CHILD2_1_SELECT_TABLES;
 --enable_ps_protocol
+--enable_view_protocol
 
 --echo
 --echo deinit

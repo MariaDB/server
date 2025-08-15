@@ -37,6 +37,7 @@ Full Text Search interface
 #include "fts0plugin.h"
 #include "dict0stats.h"
 #include "btr0pcur.h"
+#include "log.h"
 
 static const ulint FTS_MAX_ID_LEN = 32;
 
@@ -1392,7 +1393,7 @@ static dberr_t fts_drop_table(trx_t *trx, const char *table_name, bool rename)
       char *tmp= dict_mem_create_temporary_tablename(heap, table->name.m_name,
                                                      table->id);
       dberr_t err= row_rename_table_for_mysql(table->name.m_name, tmp, trx,
-                                              false);
+                                              RENAME_IGNORE_FK);
       mem_heap_free(heap);
       if (err != DB_SUCCESS)
       {
@@ -1450,7 +1451,7 @@ fts_rename_one_aux_table(
 	fts_table_new_name[table_new_name_len] = 0;
 
 	return row_rename_table_for_mysql(
-		fts_table_old_name, fts_table_new_name, trx, false);
+		fts_table_old_name, fts_table_new_name, trx, RENAME_IGNORE_FK);
 }
 
 /****************************************************************//**
@@ -1870,8 +1871,10 @@ fts_create_one_common_table(
 		}
 	}
 
-	ib::warn() << "Failed to create FTS common table " << fts_table_name;
-	trx->error_state = error;
+	ut_ad(trx->state == TRX_STATE_NOT_STARTED
+	      || trx->error_state == error);
+	sql_print_warning("InnoDB: Failed to create FTS common table %s: %s",
+			  fts_table_name, ut_strerr(error));
 	return NULL;
 }
 
@@ -2055,8 +2058,10 @@ fts_create_one_index_table(
 		}
 	}
 
-	ib::warn() << "Failed to create FTS index table " << table_name;
-	trx->error_state = error;
+	ut_ad(trx->state == TRX_STATE_NOT_STARTED
+	      || trx->error_state == error);
+	sql_print_warning("InnoDB: Failed to create FTS index table %s: %s",
+			  table_name, ut_strerr(error));
 	return NULL;
 }
 
@@ -2211,7 +2216,7 @@ fts_savepoint_t*
 fts_savepoint_create(
 /*=================*/
 	ib_vector_t*	savepoints,		/*!< out: InnoDB transaction */
-	const char*	name,			/*!< in: savepoint name */
+	const void*	name,			/*!< in: savepoint */
 	mem_heap_t*	heap)			/*!< in: heap */
 {
 	fts_savepoint_t*	savepoint;
@@ -2220,11 +2225,7 @@ fts_savepoint_create(
 		ib_vector_push(savepoints, NULL));
 
 	memset(savepoint, 0x0, sizeof(*savepoint));
-
-	if (name) {
-		savepoint->name = mem_heap_strdup(heap, name);
-	}
-
+	savepoint->name = name;
 	static_assert(!offsetof(fts_trx_table_t, table), "ABI");
 	savepoint->tables = rbt_create(sizeof(fts_trx_table_t*), fts_ptr2_cmp);
 
@@ -2243,7 +2244,6 @@ fts_trx_create(
 	fts_trx_t*		ftt;
 	ib_alloc_t*		heap_alloc;
 	mem_heap_t*		heap = mem_heap_create(1024);
-	trx_named_savept_t*	savep;
 
 	ut_a(trx->fts_trx == NULL);
 
@@ -2262,14 +2262,6 @@ fts_trx_create(
 	/* Default instance has no name and no heap. */
 	fts_savepoint_create(ftt->savepoints, NULL, NULL);
 	fts_savepoint_create(ftt->last_stmt, NULL, NULL);
-
-	/* Copy savepoints that already set before. */
-	for (savep = UT_LIST_GET_FIRST(trx->trx_savepoints);
-	     savep != NULL;
-	     savep = UT_LIST_GET_NEXT(trx_savepoints, savep)) {
-
-		fts_savepoint_take(ftt, savep->name);
-	}
 
 	return(ftt);
 }
@@ -5410,7 +5402,7 @@ void
 fts_savepoint_take(
 /*===============*/
 	fts_trx_t*	fts_trx,	/*!< in: fts transaction */
-	const char*	name)		/*!< in: savepoint name */
+	const void*	name)		/*!< in: savepoint */
 {
 	mem_heap_t*		heap;
 	fts_savepoint_t*	savepoint;
@@ -5433,31 +5425,21 @@ fts_savepoint_take(
 }
 
 /*********************************************************************//**
-Lookup a savepoint instance by name.
-@return ULINT_UNDEFINED if not found */
-UNIV_INLINE
+Lookup a savepoint instance.
+@return 0 if not found */
+static
 ulint
 fts_savepoint_lookup(
 /*==================*/
 	ib_vector_t*	savepoints,	/*!< in: savepoints */
-	const char*	name)		/*!< in: savepoint name */
+	const void*	name)		/*!< in: savepoint */
 {
-	ulint			i;
-
-	ut_a(ib_vector_size(savepoints) > 0);
-
-	for (i = 1; i < ib_vector_size(savepoints); ++i) {
-		fts_savepoint_t*	savepoint;
-
-		savepoint = static_cast<fts_savepoint_t*>(
-			ib_vector_get(savepoints, i));
-
-		if (strcmp(name, savepoint->name) == 0) {
-			return(i);
-		}
-	}
-
-	return(ULINT_UNDEFINED);
+  ut_a(ib_vector_size(savepoints) > 0);
+  for (ulint i= 1; i < ib_vector_size(savepoints); ++i)
+    if (name == static_cast<const fts_savepoint_t*>
+        (ib_vector_get(savepoints, i))->name)
+      return i;
+  return 0;
 }
 
 /*********************************************************************//**
@@ -5468,7 +5450,7 @@ void
 fts_savepoint_release(
 /*==================*/
 	trx_t*		trx,		/*!< in: transaction */
-	const char*	name)		/*!< in: savepoint name */
+	const void*	name)		/*!< in: savepoint name */
 {
 	ut_a(name != NULL);
 
@@ -5476,10 +5458,7 @@ fts_savepoint_release(
 
 	ut_a(ib_vector_size(savepoints) > 0);
 
-	ulint   i = fts_savepoint_lookup(savepoints, name);
-	if (i != ULINT_UNDEFINED) {
-		ut_a(i >= 1);
-
+	if (ulint i = fts_savepoint_lookup(savepoints, name)) {
 		fts_savepoint_t*        savepoint;
 		savepoint = static_cast<fts_savepoint_t*>(
 			ib_vector_get(savepoints, i));
@@ -5634,9 +5613,8 @@ void
 fts_savepoint_rollback(
 /*===================*/
 	trx_t*		trx,		/*!< in: transaction */
-	const char*	name)		/*!< in: savepoint name */
+	const void*	name)		/*!< in: savepoint */
 {
-	ulint		i;
 	ib_vector_t*	savepoints;
 
 	ut_a(name != NULL);
@@ -5645,16 +5623,19 @@ fts_savepoint_rollback(
 
 	/* We pop all savepoints from the the top of the stack up to
 	and including the instance that was found. */
-	i = fts_savepoint_lookup(savepoints, name);
+	ulint i = fts_savepoint_lookup(savepoints, name);
 
-	if (i != ULINT_UNDEFINED) {
+	if (i == 0) {
+		/* fts_trx_create() must have been invoked after
+		this savepoint had been created, and we must roll back
+		everything. */
+		i = 1;
+	}
+
+	{
 		fts_savepoint_t*	savepoint;
 
-		ut_a(i > 0);
-
 		while (ib_vector_size(savepoints) > i) {
-			fts_savepoint_t*	savepoint;
-
 			savepoint = static_cast<fts_savepoint_t*>(
 				ib_vector_pop(savepoints));
 

@@ -130,6 +130,8 @@ our $path_language;
 our $path_current_testlog;
 our $path_testlog;
 
+our $opt_open_files_limit;
+
 our $default_vardir;
 our $opt_vardir;                # Path to use for var/ dir
 our $plugindir;
@@ -268,6 +270,9 @@ our $opt_force= 0;
 our $opt_skip_not_found= 0;
 our $opt_mem= $ENV{'MTR_MEM'};
 our $opt_clean_vardir= $ENV{'MTR_CLEAN_VARDIR'};
+our $opt_catalogs= 0;
+our $opt_catalog_name="";
+our $catalog_name="def";
 
 our $opt_gcov;
 our $opt_gprof;
@@ -1274,6 +1279,7 @@ sub command_line_setup {
 	     'list-options'             => \$opt_list_options,
              'skip-test-list=s'         => \@opt_skip_test_list,
              'xml-report=s'             => \$opt_xml_report,
+             'open-files-limit=i',      => \$opt_open_files_limit,
 
              My::Debugger::options(),
              My::CoreDump::options(),
@@ -2170,6 +2176,7 @@ sub environment_setup {
   $ENV{'LC_CTYPE'}=           "C";
   $ENV{'LC_COLLATE'}=         "C";
 
+  $ENV{'GNUTLS_SYSTEM_PRIORITY_FILE'}='/dev/null';
   $ENV{'OPENSSL_CONF'}= $mysqld_variables{'version-ssl-library'} gt 'OpenSSL 1.1.1'
                        ? "$glob_mysql_test_dir/lib/openssl.cnf" : '/dev/null';
 
@@ -2223,6 +2230,9 @@ sub environment_setup {
   {
      $ENV{'MYSQL_INSTALL_DB_EXE'}=  mtr_exe_exists("$bindir/sql$multiconfig/mariadb-install-db",
        "$bindir/bin/mariadb-install-db");
+     $ENV{'MARIADB_UPGRADE_SERVICE_EXE'}= mtr_exe_exists("$bindir/sql$multiconfig/mariadb-upgrade-service",
+      "$bindir/bin/mariadb-upgrade-service");
+     $ENV{'MARIADB_UPGRADE_EXE'}= mtr_exe_exists("$path_client_bindir/mariadb-upgrade");
   }
 
   my $client_config_exe=
@@ -3945,6 +3955,23 @@ sub run_testcase ($$) {
       }
     }
 
+    # Set up things for catalogs
+    # The values of MARIADB_TOPDIR and MARIAD_DATADIR should
+    # be taken from the values used by the default (first)
+    # connection that is used by mariadb-test.
+    my ($mysqld, @servers);
+    @servers= all_servers();
+    $mysqld= $servers[0];
+    $ENV{'MARIADB_TOPDIR'}= $mysqld->value('datadir');
+    if (!$opt_catalogs)
+    {
+      $ENV{'MARIADB_DATADIR'}= $mysqld->value('datadir');
+    }
+    else
+    {
+      $ENV{'MARIADB_DATADIR'}= $mysqld->value('datadir') . "/" . $catalog_name;
+    }
+
     # Write start of testcase to log
     mark_log($path_current_testlog, $tinfo);
 
@@ -4458,14 +4485,13 @@ sub extract_warning_lines ($$) {
     (
      @global_suppressions,
      qr/error .*connecting to master/,
-     qr/InnoDB: Error: in ALTER TABLE `test`.`t[12]`/,
-     qr/InnoDB: Error: table `test`.`t[12]` .*does not exist in the InnoDB internal/,
-     qr/InnoDB: Warning: a long semaphore wait:/,
      qr/InnoDB: Dumping buffer pool.*/,
      qr/InnoDB: Buffer pool.*/,
      qr/InnoDB: Could not free any blocks in the buffer pool!/,
-     qr/InnoDB: Warning: Writer thread is waiting this semaphore:/,
      qr/InnoDB: innodb_open_files .* should not be greater than/,
+     qr/InnoDB: Trying to delete tablespace.*but there are.*pending/,
+     qr/InnoDB: Tablespace 1[0-9]* was not found at .*, and innodb_force_recovery was set/,
+     qr/InnoDB: Long wait \([0-9]+ seconds\) for double-write buffer flush/,
      qr/Slave: Unknown table 't1' .* 1051/,
      qr/Slave SQL:.*(Internal MariaDB error code: [[:digit:]]+|Query:.*)/,
      qr/slave SQL thread aborted/,
@@ -4523,10 +4549,10 @@ sub extract_warning_lines ($$) {
      qr|InnoDB: io_setup\(\) attempt|,
      qr|InnoDB: io_setup\(\) failed with EAGAIN|,
      qr|io_uring_queue_init\(\) failed with|,
-     qr|InnoDB: liburing disabled|,
+     qr|InnoDB: io_uring failed: falling back to libaio|,
      qr/InnoDB: Failed to set O_DIRECT on file/,
      qr|setrlimit could not change the size of core files to 'infinity';|,
-     qr|feedback plugin: failed to retrieve the MAC address|,
+     qr|failed to retrieve the MAC address|,
      qr|Plugin 'FEEDBACK' init function returned error|,
      qr|Plugin 'FEEDBACK' registration as a INFORMATION SCHEMA failed|,
      qr|'log-bin-use-v1-row-events' is MySQL .* compatible option|,
@@ -5745,6 +5771,7 @@ sub start_mysqltest ($) {
      append        => 1,
      error         => $path_current_testlog,
      verbose       => $opt_verbose,
+     open_files_limit => $opt_open_files_limit,
     );
   mtr_verbose("Started $proc");
   return $proc;
@@ -6043,6 +6070,8 @@ Misc options
   timediff              With --timestamp, also print time passed since
                         *previous* test started
   max-connections=N     Max number of open connection to server in mysqltest
+  open-files-limit=N    Max number of open files allowed for any of the children
+                        of my_safe_process. Default is 1024.
   report-times          Report how much time has been spent on different
                         phases of test execution.
   stress=ARGS           Run stress test, providing options to

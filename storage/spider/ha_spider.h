@@ -60,8 +60,6 @@ public:
   const char         *mem_calc_file_name;
   ulong              mem_calc_line_no;
   ulonglong          *connection_ids;
-  uint               conn_kinds;
-  uint               *conn_kind;
   char               *conn_keys_first_ptr;
   char               **conn_keys;
   SPIDER_CONN        **conns;

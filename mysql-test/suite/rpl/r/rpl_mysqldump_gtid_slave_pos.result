@@ -32,6 +32,7 @@ insert into t1 set a = 2;
 insert into t1 set a = 1;
 include/save_master_gtid.inc
 connection slave;
+SET @@global.gtid_cleanup_batch_size = $val;
 CHANGE MASTER TO master_use_gtid= no;
 include/start_slave.inc
 include/sync_with_master_gtid.inc
@@ -50,12 +51,12 @@ after initial slave got in sync
 include/stop_slave.inc
 # 3. A
 include/stop_slave.inc
-include/stop_slave.inc
 # 4.
 set statement sql_log_bin=0 for delete from mysql.gtid_slave_pos;
 insert into mysql.gtid_slave_pos values (99 + 2, 1, 1, 1);
 # 5.
 include/rpl_restart_server.inc [server_number=2]
+SET @@global.gtid_cleanup_batch_size = $val;
 select * from mysql.gtid_slave_pos;
 domain_id	sub_id	server_id	seq_no
 101	1	1	1
@@ -100,6 +101,7 @@ set statement sql_log_bin=0 for delete from mysql.gtid_slave_pos;
 insert into mysql.gtid_slave_pos values (99 + 1, 1, 1, 1);
 # 5.
 include/rpl_restart_server.inc [server_number=2]
+SET @@global.gtid_cleanup_batch_size = $val;
 select * from mysql.gtid_slave_pos;
 domain_id	sub_id	server_id	seq_no
 100	1	1	1
@@ -146,5 +148,6 @@ connection master;
 DROP TABLE t1;
 include/save_master_gtid.inc
 connection slave;
+SET @@global.gtid_cleanup_batch_size= $old_gtid_cleanup_batch_size;
 include/sync_with_master_gtid.inc
 include/rpl_end.inc

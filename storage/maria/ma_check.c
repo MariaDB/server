@@ -5448,7 +5448,7 @@ static int sort_get_next_record(MARIA_SORT_PARAM *sort_param)
 	if (! searching)
 	  _ma_check_print_info(param,
                                "Found block with wrong recordlength: %lu "
-                               "at %s\n",
+                               "at %s",
                                block_info.rec_len,
                                llstr(sort_param->pos,llbuff));
 	continue;
@@ -6456,7 +6456,7 @@ void _ma_update_auto_increment_key(HA_CHECK *param, MARIA_HA *info,
   {
     if (!(param->testflag & T_VERY_SILENT))
       _ma_check_print_info(param,
-			  "Table: %s doesn't have an auto increment key\n",
+			  "Table: %s doesn't have an auto increment key",
 			  param->isam_file_name);
     DBUG_VOID_RETURN;
   }

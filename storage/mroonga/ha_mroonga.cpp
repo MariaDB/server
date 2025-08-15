@@ -337,7 +337,7 @@ static int mrn_change_encoding(grn_ctx *ctx, const CHARSET_INFO *charset)
   return mrn::encoding::set(ctx, charset);
 }
 
-#if defined DBUG_TRACE && !defined(_lint)
+#if defined DBUG_TRACE
 static const char *mrn_inspect_thr_lock_type(enum thr_lock_type lock_type)
 {
   const char *inspected = "<unknown>";
@@ -558,6 +558,9 @@ static const char *mrn_inspect_extra_function(enum ha_extra_function operation)
   case HA_EXTRA_END_ALTER_COPY:
     inspected = "HA_EXTRA_END_ALTER_COPY";
     break;
+  case HA_EXTRA_ABORT_ALTER_COPY:
+    inspected = "HA_EXTRA_ABORT_ALTER_COPY";
+    break;
 #ifdef MRN_HAVE_HA_EXTRA_EXPORT
   case HA_EXTRA_EXPORT:
     inspected = "HA_EXTRA_EXPORT";
@@ -591,6 +594,11 @@ static const char *mrn_inspect_extra_function(enum ha_extra_function operation)
 #ifdef MRN_HAVE_HA_EXTRA_END_ALTER_COPY
   case HA_EXTRA_END_ALTER_COPY:
     inspected = "HA_EXTRA_END_ALTER_COPY";
+    break;
+#endif
+#ifdef MRN_HAVE_HA_EXTRA_ABORT_ALTER_COPY
+  case HA_EXTRA_ABORT_ALTER_COPY:
+    inspected = "HA_EXTRA_ABORT_ALTER_COPY";
     break;
 #endif
 #ifdef MRN_HAVE_HA_EXTRA_NO_AUTOINC_LOCKING

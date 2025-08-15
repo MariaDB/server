@@ -207,9 +207,11 @@ create database `a
 b`;
 use `a
 b`;
+create table t1 (a int);
+insert t1 values (1),(2),(3),(4),(5),(6),(7);
 --disable_ps_protocol
 --disable_view_protocol
-select count(*) from mysql.global_priv where length(priv)>2;
+select count(*) from t1 where a>2;
 --enable_view_protocol
 --enable_ps_protocol
 drop database `a
@@ -224,6 +226,21 @@ let SEARCH_FILE=`select @@slow_query_log_file`;
 let SEARCH_PATTERN= use \`a\n.*2;
 let SEARCH_OUTPUT=matches;
 source include/search_pattern_in_file.inc;
+
+--echo #
+--echo # MDEV-31366 Assertion `thd->start_time' failed in bool LOGGER::slow_log_print(THD*, const char*, size_t, ulonglong)
+--echo #
+
+TRUNCATE mysql.slow_log;
+SET global log_output='TABLE';
+SET timestamp=0.99;
+SET long_query_time=0.00001;
+SELECT SLEEP(0.1);
+SELECT COUNT(*)>0 AS c1 FROM mysql.slow_log;
+SET global log_output=default;
+SET timestamp=default;
+SET long_query_time=default;
+TRUNCATE mysql.slow_log;
 
 --echo # End of 10.5 tests
 

@@ -1054,7 +1054,7 @@ static void fetch_data_into_cache(trx_i_s_cache_t *cache)
         &trx != (purge_sys.query ? purge_sys.query->trx : nullptr))
     {
       trx.mutex_lock();
-      if (trx.state != TRX_STATE_NOT_STARTED)
+      if (trx.is_started())
         fetch_data_into_cache_low(cache, &trx);
       trx.mutex_unlock();
     }

@@ -1,0 +1,241 @@
+--source include/have_innodb.inc
+--source include/have_debug.inc
+--source include/not_embedded.inc
+--source include/have_file_key_management_plugin.inc
+call mtr.add_suppression("InnoDB: Encrypted page \\[page id: space=[1-9][0-9]*, page number=3\\] in file .*test.t[12]\\.ibd looks corrupted");
+call mtr.add_suppression("InnoDB: Unable to apply log to corrupted page ");
+call mtr.add_suppression("InnoDB: Plugin initialization aborted");
+call mtr.add_suppression("Plugin 'InnoDB' init function returned error");
+call mtr.add_suppression("Plugin 'InnoDB' registration as a STORAGE ENGINE failed");
+
+let INNODB_PAGE_SIZE=`select @@innodb_page_size`;
+let MYSQLD_DATADIR=`select @@datadir`;
+let ALGO=`select @@innodb_checksum_algorithm`;
+
+create table t1 (f1 int primary key, f2 blob)page_compressed=1 engine=innodb encrypted=yes stats_persistent=0;
+create table t2(f1 int primary key, f2 blob)engine=innodb encrypted=yes stats_persistent=0;
+create table t3(f1 int primary key, f2 blob)page_compressed=1 engine=innodb encrypted=no stats_persistent=0;
+
+start transaction;
+insert into t1 values(1, repeat('#',12));
+insert into t1 values(2, repeat('+',12));
+insert into t1 values(3, repeat('/',12));
+insert into t1 values(4, repeat('-',12));
+insert into t1 values(5, repeat('.',12));
+insert into t2 select * from t1;
+insert into t3 select * from t1;
+commit work;
+
+# Slow shutdown and restart to make sure ibuf merge is finished
+SET GLOBAL innodb_fast_shutdown = 0;
+let $shutdown_timeout=;
+let $restart_parameters=--debug_dbug=+d,ib_log_checkpoint_avoid_hard --innodb_flush_sync=0;
+--source include/restart_mysqld.inc
+--source ../../suite/innodb/include/no_checkpoint_start.inc
+
+select space into @t1_space_id from information_schema.innodb_sys_tablespaces where name='test/t1';
+select space into @t2_space_id from information_schema.innodb_sys_tablespaces where name='test/t2';
+select space into @t3_space_id from information_schema.innodb_sys_tablespaces where name='test/t3';
+
+begin;
+insert into t1 values (6, repeat('%', 400));
+insert into t2 values (6, repeat('%', 400));
+insert into t3 values (6, repeat('%', 400));
+
+# Copy the t1.ibd, t2.ibd, t3.ibd file
+let $targetdir=$MYSQLTEST_VARDIR/tmp/backup_1;
+--disable_result_log
+exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --backup --skip-innodb-log-checkpoint-now --target-dir=$targetdir;
+--enable_result_log
+
+echo # xtrabackup prepare;
+--disable_result_log
+exec $XTRABACKUP  --prepare --target-dir=$targetdir;
+
+set global innodb_saved_page_number_debug = 3;
+set global innodb_fil_make_page_dirty_debug = @t1_space_id;
+
+set global innodb_saved_page_number_debug = 3;
+set global innodb_fil_make_page_dirty_debug = @t2_space_id;
+
+set global innodb_saved_page_number_debug = 3;
+set global innodb_fil_make_page_dirty_debug = @t3_space_id;
+
+set global innodb_buf_flush_list_now = 1;
+--let CLEANUP_IF_CHECKPOINT=drop table t1, t2, t3, unexpected_checkpoint;
+--source ../../suite/innodb/include/no_checkpoint_end.inc
+# Corrupt the page 3 in t1.ibd, t2.ibd file
+perl;
+use IO::Handle;
+do "$ENV{MTR_SUITE_DIR}/include/crc32.pl";
+my $polynomial = 0x82f63b78; # CRC-32C
+my $algo = $ENV{ALGO};
+die "Unsupported innodb_checksum_algorithm=$algo\n" unless $algo =~ /crc32/;
+
+my $fname= "$ENV{'MYSQLD_DATADIR'}test/t1.ibd";
+my $page_size = $ENV{INNODB_PAGE_SIZE};
+my $page;
+do "$ENV{MTR_SUITE_DIR}/../innodb/include/crc32.pl";
+open(FILE, "+<", $fname) or die;
+sysseek(FILE, 3*$page_size, 0);
+sysread(FILE, $page, $page_size)==$page_size||die "Unable to read $name\n";
+sysseek(FILE, 3*$page_size, 0)||die "Unable to seek $fname\n";
+my $corrupted = $page;
+# Set FIL_PAGE_LSN to the maximum
+substr($corrupted, 16, 8) = chr(255) x 8;
+substr($corrupted, $page_size - 8, 8) = chr(255) x 8;
+if ($algo =~ /full_crc32/)
+{
+    my $ck = mycrc32(substr($corrupted, 0, $page_size - 4), 0, $polynomial);
+    substr($corrupted, $page_size - 4, 4) = pack("N", $ck);
+}
+else
+{
+    # Replace the innodb_checksum_algorithm=crc32 checksum
+    my $ck= pack("N",
+                 mycrc32(substr($corrupted, 4, 22), 0, $polynomial) ^
+                 mycrc32(substr($corrupted_, 38, $page_size - 38 - 8), 0,
+                         $polynomial));
+    substr ($corrupted, 0, 4) = $ck;
+    substr ($corrupted, $page_size - 8, 4) = $ck;
+}
+syswrite(FILE, $corrupted);
+close FILE;
+
+# Zero the complete page
+my $fname= "$ENV{'MYSQLD_DATADIR'}test/t2.ibd";
+open(FILE, "+<", $fname) or die;
+FILE->autoflush(1);
+binmode FILE;
+sysseek(FILE, 3*$page_size, 0);
+print FILE chr(0) x ($ENV{'INNODB_PAGE_SIZE'});
+close FILE;
+
+# Zero the complete page
+my $fname= "$ENV{'MYSQLD_DATADIR'}test/t3.ibd";
+open(FILE, "+<", $fname) or die;
+FILE->autoflush(1);
+binmode FILE;
+sysseek(FILE, 3*$page_size, 0);
+print FILE chr(0) x ($ENV{'INNODB_PAGE_SIZE'});
+close FILE;
+EOF
+
+# Successful recover from doublewrite buffer
+let $restart_parameters=;
+--source include/start_mysqld.inc
+let SEARCH_FILE= $MYSQLTEST_VARDIR/log/mysqld.1.err;
+let SEARCH_PATTERN=InnoDB: Recovered page \\[page id: space=[1-9]*, page number=3\\];
+--source include/search_pattern_in_file.inc
+
+check table t1;
+check table t2;
+check table t3;
+select f1, f2 from t1;
+select f1, f2 from t2;
+select f1, f2 from t3;
+
+SET GLOBAL innodb_fast_shutdown = 0;
+let $shutdown_timeout=;
+let $restart_parameters=--debug_dbug=+d,ib_log_checkpoint_avoid_hard --innodb_flush_sync=0;
+--source ../../mariabackup/include/restart_and_restore.inc
+--source ../../suite/innodb/include/no_checkpoint_start.inc
+select space into @t1_space_id from information_schema.innodb_sys_tablespaces where name='test/t1';
+
+begin;
+insert into t1 values (6, repeat('%', 400));
+
+set global innodb_saved_page_number_debug = 3;
+set global innodb_fil_make_page_dirty_debug = @t1_space_id;
+
+set global innodb_buf_flush_list_now = 1;
+--let CLEANUP_IF_CHECKPOINT=drop table t1, unexpected_checkpoint;
+--source ../../suite/innodb/include/no_checkpoint_end.inc
+
+--echo # Corrupt the page 3 in t1.ibd file
+--echo # Assign the maximum value to lsn in doublewrite buffer page
+perl;
+use IO::Handle;
+do "$ENV{MTR_SUITE_DIR}/include/crc32.pl";
+my $polynomial = 0x82f63b78; # CRC-32C
+my $algo = $ENV{ALGO};
+die "Unsupported innodb_checksum_algorithm=$algo\n" unless $algo =~ /crc32/;
+
+my $fname= "$ENV{'MYSQLD_DATADIR'}test/t1.ibd";
+my $page_size = $ENV{INNODB_PAGE_SIZE};
+my $page;
+do "$ENV{MTR_SUITE_DIR}/../innodb/include/crc32.pl";
+open(FILE, "+<", $fname) or die;
+sysseek(FILE, 3*$page_size, 0);
+sysread(FILE, $page, $page_size)==$page_size||die "Unable to read $name\n";
+sysseek(FILE, 3*$page_size, 0)||die "Unable to seek $fname\n";
+my $corrupted = $page;
+# Set FIL_PAGE_LSN to the maximum
+substr($corrupted, 16, 8) = chr(255) x 8;
+substr($corrupted, $page_size - 8, 8) = chr(255) x 8;
+if ($algo =~ /full_crc32/)
+{
+    my $ck = mycrc32(substr($corrupted, 0, $page_size - 4), 0, $polynomial);
+    substr($corrupted, $page_size - 4, 4) = pack("N", $ck);
+}
+else
+{
+    # Replace the innodb_checksum_algorithm=crc32 checksum
+    my $ck= pack("N",
+                 mycrc32(substr($corrupted, 4, 22), 0, $polynomial) ^
+                 mycrc32(substr($corrupted_, 38, $page_size - 38 - 8), 0,
+                         $polynomial));
+    substr ($corrupted, 0, 4) = $ck;
+    substr ($corrupted, $page_size - 8, 4) = $ck;
+}
+syswrite(FILE, $corrupted);
+close FILE;
+
+# Change the page lsn to maximum value
+open(FILE, "+<", "$ENV{MYSQLD_DATADIR}ibdata1")||die "cannot open ibdata1\n";
+sysseek(FILE, 6 * $page_size - 190, 0)||die "Unable to seek ibdata1\n";
+sysread(FILE, $_, 12) == 12||die "Unable to read TRX_SYS\n";
+my($magic,$d1,$d2)=unpack "NNN", $_;
+die "magic=$magic, $d1, $d2\n" unless $magic == 536853855 && $d2 >= $d1 + 64;
+sysseek(FILE, $d1 * $page_size, 0)||die "Unable to seek ibdata1\n";
+# Find the page in the doublewrite buffer
+for (my $d = $d1; $d < $d2 + 64; $d++)
+{
+    sysread(FILE, $_, $page_size)==$page_size||die "Cannot read doublewrite\n";
+    next unless $_ eq $page;
+    sysseek(FILE, $d * $page_size, 0)||die "Unable to seek ibdata1\n";
+    substr($_, 16, 8) = chr(255) x 8;
+    if ($algo =~ /full_crc32/)
+    {
+        my $ck = mycrc32(substr($_, 0, $page_size - 4), 0, $polynomial);
+        substr($_, $page_size - 4, 4) = pack("N", $ck);
+    }
+    else
+    {
+        # Replace the innodb_checksum_algorithm=crc32 checksum
+        my $ck= pack("N",
+                     mycrc32(substr($_, 4, 22), 0, $polynomial) ^
+                     mycrc32(substr($_, 38, $page_size - 38 - 8), 0,
+                             $polynomial));
+        substr ($_, 0, 4) = $ck;
+        substr ($_, $page_size - 8, 4) = $ck;
+    }
+    syswrite(FILE, $_, $page_size)==$page_size||die;
+    close(FILE);
+    exit 0;
+}
+die "Did not find the page in the doublewrite buffer ($d1,$d2)\n";
+EOF
+
+let $restart_parameters=;
+--source include/start_mysqld.inc
+let SEARCH_FILE= $MYSQLTEST_VARDIR/log/mysqld.1.err;
+let SEARCH_PATTERN=InnoDB: Encrypted page \\[page id: space=[1-9]*, page number=3\\] in file .*test.t1.ibd looks corrupted;
+--source include/search_pattern_in_file.inc
+
+--error ER_UNKNOWN_STORAGE_ENGINE
+select * from t1;
+
+--source ../../mariabackup/include/restart_and_restore.inc
+select * from t1;
+drop table t3, t2, t1;

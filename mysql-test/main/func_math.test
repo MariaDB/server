@@ -4,10 +4,6 @@
 
 --source include/default_charset.inc
 
---disable_warnings                                                              
-drop table if exists t1;                                                        
---enable_warnings                                                               
-
 select floor(5.5),floor(-5.5);
 explain extended select floor(5.5),floor(-5.5);
 select ceiling(5.5),ceiling(-5.5);
@@ -1992,7 +1988,13 @@ SELECT (TRUNCATE(EXP(-1.e-2),-1.e+30) % RADIANS(-1)) AS c1;
 SELECT (TRUNCATE(EXP(-1.e-2),-1.e+30) % RADIANS(-1)) * (LAST_DAY('1-03-30 1:29:12') MOD 1 + COS(-1)) AS c1;
 SELECT(ASIN(-1)+ LN(-1)) % (ATAN(-1) MOD FLOOR(1)) * (TRUNCATE(EXP(-1.e-2),-1.e+30) % RADIANS(-1)) * (LAST_DAY('1-03-30 1:29:12') MOD 1 + COS(-1)) AS c1;
 
+--echo #
+--echo # MDEV-35651 NO_UNSIGNED_SUBTRACTION does not work for multiple unsigned integers
+--echo #
+set sql_mode=no_unsigned_subtraction;
+select cast(0 as unsigned) - 1;
+select 2-cast(3 as unsigned);
+select cast(1 as unsigned) - cast(2 as unsigned);
+set sql_mode=default;
 
---echo #
 --echo # End of 10.5 tests
---echo #

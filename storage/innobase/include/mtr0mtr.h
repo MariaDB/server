@@ -690,7 +690,7 @@ private:
 
   /** Write a FILE_MODIFY record when a non-predefined persistent
   tablespace was modified for the first time since fil_names_clear(). */
-  ATTRIBUTE_NOINLINE ATTRIBUTE_COLD void name_write();
+  ATTRIBUTE_NOINLINE ATTRIBUTE_COLD void name_write() noexcept;
 
   /** Encrypt the log */
   ATTRIBUTE_NOINLINE void encrypt();
@@ -700,19 +700,19 @@ private:
   @param mtr   mini-transaction
   @param lsns  {start_lsn,flush_ahead} */
   template<bool pmem>
-  static void commit_log(mtr_t *mtr, std::pair<lsn_t,page_flush_ahead> lsns);
+  static void commit_log(mtr_t *mtr, std::pair<lsn_t,page_flush_ahead> lsns)
+    noexcept;
 
   /** Append the redo log records to the redo log buffer.
   @return {start_lsn,flush_ahead} */
   std::pair<lsn_t,page_flush_ahead> do_write();
 
   /** Append the redo log records to the redo log buffer.
-  @tparam spin whether to use the spin-only log_sys.lock_lsn()
   @tparam mmap log_sys.is_mmap()
   @param mtr   mini-transaction
   @param len   number of bytes to write
   @return {start_lsn,flush_ahead} */
-  template<bool spin,bool mmap> static
+  template<bool mmap> static
   std::pair<lsn_t,page_flush_ahead> finish_writer(mtr_t *mtr, size_t len);
 
   /** The applicable variant of commit_log() */
@@ -723,9 +723,6 @@ private:
   std::pair<lsn_t,page_flush_ahead> finish_write(size_t len)
   { return finisher(this, len); }
 public:
-  /** Poll interval in log_sys.lock_lsn(); 0 to use log_sys.lsn_lock.
-  Protected by LOCK_global_system_variables and log_sys.latch. */
-  static unsigned spin_wait_delay;
   /** Update finisher when spin_wait_delay is changing to or from 0. */
   static void finisher_update();
 private:

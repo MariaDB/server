@@ -1150,8 +1150,6 @@ public:
   TABLE_LIST *embedding;          /* table embedding to the above list   */
   table_value_constr *tvc;
 
-  /* The interface employed to execute the select query by a foreign engine */
-  select_handler *select_h;
   /* The object used to organize execution of the query by a foreign engine */
   select_handler *pushdown_select;
   List<TABLE_LIST> *join_list;    /* list for the currently parsed join  */
@@ -1690,6 +1688,10 @@ public:
   void lex_start(LEX *plex);
   bool is_unit_nest() { return (nest_flags & UNIT_NEST_FL); }
   void mark_as_unit_nest() { nest_flags= UNIT_NEST_FL; }
+
+  TABLE_LIST *find_table(THD *thd,
+                         const LEX_CSTRING *db_name,
+                         const LEX_CSTRING *table_name);
 };
 typedef class st_select_lex SELECT_LEX;
 
@@ -4671,13 +4673,17 @@ public:
       case SQLCOM_LOAD:
         return duplicates == DUP_REPLACE;
       default:
-        return false;
+        /*
+          Row injections (i.e. row binlog events and BINLOG statements) should
+          generate history.
+        */
+        return is_stmt_row_injection();
     }
   }
 
   int add_period(Lex_ident name, Lex_ident_sys_st start, Lex_ident_sys_st end)
   {
-    if (check_period_name(name.str)) {
+    if (check_column_name(name)) {
       my_error(ER_WRONG_COLUMN_NAME, MYF(0), name.str);
       return 1;
     }

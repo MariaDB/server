@@ -957,9 +957,7 @@ FROM (SELECT * FROM json_test) AS json_test_values;
 json_object("a", json_compact(a), "b", json_compact(b))
 {"a": [1,2,3], "b": {"a":"foo"}}
 DROP TABLE json_test;
-#
 # End of 10.2 tests
-#
 #
 # MDEV-12854 Synchronize CREATE..SELECT data type and result set metadata data type for INT functions
 #
@@ -1492,9 +1490,7 @@ JSON_VALID(' {"number": 01E-4}')
 select JSON_VALID(' {"number": 0E-4.0}');
 JSON_VALID(' {"number": 0E-4.0}')
 0
-#
 # End of 10.4 tests
-#
 #
 # MDEV-16620 JSON_ARRAYAGG
 #
@@ -1727,9 +1723,7 @@ NULL
 Warnings:
 Warning	4036	Character disallowed in JSON in argument 1 to function 'json_extract' at position 2
 SET @@collation_connection= @save_collation_connection;
-#
 # End of 10.5 tests
-#
 #
 # MDEV-26054 Server crashes in Item_func_json_arrayagg::get_str_from_field
 #
@@ -1766,8 +1760,51 @@ FROM JSON_TABLE (@data, '$[*]' COLUMNS (data text PATH '$.Data')) AS t;
 data
 <root language="de"></root>
 #
+# MDEV-21530: json_extract STILL crashes in Item_func_json_extract::read_json
+#
+select null<=>json_extract('1',json_object(null,'{ }',null,null),'{}');
+null<=>json_extract('1',json_object(null,'{ }',null,null),'{}')
+1
+Warnings:
+Warning	4042	Syntax error in JSON path in argument 2 to function 'json_extract' at position 1
 # End of 10.6 tests
 #
+# MDEV-35614 JSON_UNQUOTE doesn't work with emojis
+#
+SELECT HEX(JSON_UNQUOTE('"\\ud83d\\ude0a"')) as hex_smiley;
+hex_smiley
+F09F988A
+set names utf8mb4;
+SELECT JSON_UNQUOTE('"\\ud83d\\ude0a"') as smiley;
+smiley
+😊
+SELECT JSON_UNQUOTE('"\\ud83d\\ude0a"') = JSON_UNQUOTE('"\\ud83d\\ude0a"') as equal_smileys;
+equal_smileys
+1
+SELECT JSON_UNQUOTE('"\\ud83d\\ude0a"') <= JSON_UNQUOTE('"\\ud83d\\ude0a"') as less_or_equal_smileys;
+less_or_equal_smileys
+1
+set @v='{ "color":"😊" }';
+select @v as v, collation(@v) as collation_v;
+v	collation_v
+{ "color":"😊" }	utf8mb4_general_ci
+select json_valid(@v) as valid;
+valid
+1
+select json_extract(@v,'$.color') as color_extraction, collation(json_extract(@v,'$.color')) as color_extraction_collation;
+color_extraction	color_extraction_collation
+"😊"	utf8mb4_general_ci
+select json_unquote(json_extract(@v,'$.color')) as unquoted, collation(json_unquote(json_extract(@v,'$.color'))) as unquoted_collation;
+unquoted	unquoted_collation
+😊	utf8mb4_bin
+SELECT JSON_UNQUOTE('"\\uc080\\ude0a"') as invalid_utf8mb4;
+invalid_utf8mb4
+"\uc080\ude0a"
+Warnings:
+Warning	4035	Broken JSON string in argument 1 to function 'json_unquote' at position 13
+show warnings;
+Level	Code	Message
+Warning	4035	Broken JSON string in argument 1 to function 'json_unquote' at position 13
 #
 # MDEV-31147 json_normalize does not work correctly with MSAN build
 #
@@ -1778,9 +1815,7 @@ SELECT * FROM t1;
 val	normalized_json
 15	1.5E1
 DROP TABLE t1;
-#
 # End of 10.8 tests
-#
 #
 # MDEV-27677: Implement JSON_OVERLAPS()
 #
@@ -2633,6 +2668,4 @@ SELECT JSON_VALUE(@json,'$.A[last-1][last-1].key1');
 JSON_VALUE(@json,'$.A[last-1][last-1].key1')
 NULL
 SET @@collation_connection= @save_collation_connection;
-#
 # End of 10.9 Test
-#

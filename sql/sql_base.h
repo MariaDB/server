@@ -157,7 +157,7 @@ thr_lock_type read_lock_type_for_table(THD *thd,
 my_bool mysql_rm_tmp_tables(void);
 void close_tables_for_reopen(THD *thd, TABLE_LIST **tables,
                              const MDL_savepoint &start_of_statement_svp,
-                             bool remove_implicit_dependencies);
+                             bool remove_indirect);
 bool table_already_fk_prelocked(TABLE_LIST *tl, LEX_CSTRING *db,
                                 LEX_CSTRING *table, thr_lock_type lock_type);
 TABLE_LIST *find_table_in_list(TABLE_LIST *table,
@@ -296,6 +296,8 @@ bool open_and_lock_internal_tables(TABLE *table, bool lock);
 bool lock_tables(THD *thd, TABLE_LIST *tables, uint counter, uint flags);
 int decide_logging_format(THD *thd, TABLE_LIST *tables);
 void close_thread_table(THD *thd, TABLE **table_ptr);
+TABLE_LIST*
+unique_table_in_insert_returning_subselect(THD *thd, TABLE_LIST *table, SELECT_LEX *sel);
 TABLE_LIST *unique_table(THD *thd, TABLE_LIST *table, TABLE_LIST *table_list,
                          uint check_flag);
 bool is_equal(const LEX_CSTRING *a, const LEX_CSTRING *b);
@@ -360,6 +362,7 @@ inline void setup_table_map(TABLE *table, TABLE_LIST *table_list, uint tablenr)
     table->maybe_null= embedding->outer_join;
     embedding= embedding->embedding;
   }
+  DBUG_ASSERT(tablenr <= MAX_TABLES);
   table->tablenr= tablenr;
   table->map= (table_map) 1 << tablenr;
   table->force_index= table_list->force_index;
@@ -565,23 +568,6 @@ public:
   inline ulong get_timeout() const
   {
     return m_timeout;
-  }
-
-  /**
-    Return true in case tables and routines the statement implicilty
-    dependent on should be removed, else return false.
-
-    @note The use case when routines and tables the statement implicitly
-    dependent on shouldn't be removed is the one when a new partition be
-    created on handling the INSERT statement against a versioning partitioned
-    table. For this case re-opening a versioning table would result in adding
-    implicitly dependent routines (e.g. table's triggers) that lead to
-    allocation of memory on PS mem_root and so leaking a memory until the PS
-    statement be deallocated.
-  */
-  bool remove_implicitly_used_deps() const
-  {
-    return m_action != OT_ADD_HISTORY_PARTITION;
   }
 
   uint get_flags() const { return m_flags; }

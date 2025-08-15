@@ -20,3 +20,42 @@ SELECT * FROM t1;
 
 SET sort_buffer_size=@save_sort_buffer_size;
 DROP TABLE t1;
+
+--echo #
+--echo # MDEV-35944 DELETE fails to notice transaction abort, violating ACID
+--echo #
+
+CREATE TABLE t1 (id INT PRIMARY KEY, col_varchar VARCHAR(8)) ENGINE=InnoDB;
+INSERT INTO t1 (id) VALUES (1),(2);
+CREATE TABLE t2 (id INT, f INT, s DATE, e DATE, PERIOD FOR p(s,e), PRIMARY KEY(id, p WITHOUT OVERLAPS)) ENGINE=InnoDB;
+INSERT INTO t2 VALUES (1,0,'2000-01-01','2000-01-02');
+CREATE TABLE t3 (id INT, f BLOB, UNIQUE(f)) ENGINE=InnoDB;
+
+--connection default
+SET innodb_lock_wait_timeout=1;
+START TRANSACTION;
+DELETE FROM t1;
+
+--connect (con1,localhost,root,,)
+START TRANSACTION;
+UPDATE t2 SET f = 20;
+
+--connection default
+--send
+  DELETE FROM t2 FOR PORTION OF p FROM '2000-01-01' TO '2000-01-02';
+
+--connection con1
+INSERT INTO t3 (id) VALUES (1), (2);
+UPDATE t1 SET col_varchar = 'bar';
+COMMIT;
+
+--connection default
+--error ER_LOCK_DEADLOCK
+--reap
+COMMIT;
+UPDATE t3 SET f = 'foo' ORDER BY f LIMIT 1;
+
+# Cleanup
+DROP TABLE t1, t2, t3;
+
+--echo # End of 10.5 tests

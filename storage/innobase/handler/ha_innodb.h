@@ -101,6 +101,9 @@ public:
 
 	int open(const char *name, int mode, uint test_if_locked) override;
 
+	/** Fetch or recalculate InnoDB table statistics */
+	dberr_t statistics_init(dict_table_t *table, bool recalc);
+
 	handler* clone(const char *name, MEM_ROOT *mem_root) override;
 
 	int close(void) override;
@@ -465,8 +468,13 @@ protected:
 	@see build_template() */
 	void reset_template();
 
-	/** @return whether the table is read-only */
-	bool is_read_only(bool altering_to_supported= false) const;
+	/** Check the transaction is valid.
+        @param altering_to_supported  whether an ALTER TABLE is being run
+        to something else than ROW_FORMAT=COMPRESSED
+        @retval 0 if the transaction is valid for the current operation
+        @retval HA_ERR_TABLE_READONLY  if the table is read-only
+        @retval HA_ERR_ROLLBACK        if the transaction has been aborted */
+	int is_valid_trx(bool altering_to_supported= false) const noexcept;
 
 	inline void update_thd(THD* thd);
 	void update_thd();
@@ -937,12 +945,3 @@ ib_push_frm_error(
 @return true if index column length exceeds limit */
 MY_ATTRIBUTE((warn_unused_result))
 bool too_big_key_part_length(size_t max_field_len, const KEY& key);
-
-/** This function is used to rollback one X/Open XA distributed transaction
-which is in the prepared state
-
-@param[in] hton InnoDB handlerton
-@param[in] xid X/Open XA transaction identification
-
-@return 0 or error number */
-int innobase_rollback_by_xid(handlerton* hton, XID* xid);

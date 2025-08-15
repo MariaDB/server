@@ -977,8 +977,9 @@ page_delete_rec_list_end(
       size+= s;
       n_recs++;
 
-      if (scrub)
-        mtr->memset(block, rec2 - page, rec_offs_data_size(offsets), 0);
+      if (UNIV_LIKELY(!scrub));
+      else if (size_t size= rec_offs_data_size(offsets))
+        mtr->memset(block, rec2 - page, size, 0);
 
       rec2= page_rec_get_next(rec2);
     }

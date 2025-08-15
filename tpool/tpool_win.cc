@@ -45,9 +45,7 @@ class thread_pool_win : public thread_pool
       if (!m_pool)
         return;
 
-      if (m_pool->m_worker_destroy_callback)
-        m_pool->m_worker_destroy_callback();
-
+      m_pool->m_worker_destroy_callback();
       m_pool->m_thread_count--;
     }
     /** This needs to be called before every IO or simple task callback.*/
@@ -63,8 +61,7 @@ class thread_pool_win : public thread_pool
       m_pool = pool;
       m_pool->m_thread_count++;
       // Call the thread init function.
-      if (m_pool->m_worker_init_callback)
-        m_pool->m_worker_init_callback();
+      m_pool->m_worker_init_callback();
     }
   };
 
@@ -209,6 +206,11 @@ class thread_pool_win : public thread_pool
         CloseThreadpoolIo(fd.m_ptp_io);
       return 0;
     }
+
+    /**
+     Expose implementation.
+    */
+    const char *get_implementation() const override { return "ThreadPool"; }
   };
 
   PTP_POOL m_ptp_pool;
@@ -271,7 +273,7 @@ public:
       abort();
   }
 
-  aio *create_native_aio(int max_io) override
+  aio *create_native_aio(int max_io, aio_implementation) override
   {
     return new native_aio(*this, max_io);
   }

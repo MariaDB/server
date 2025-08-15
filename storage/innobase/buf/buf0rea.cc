@@ -44,7 +44,7 @@ Created 11/5/1995 Heikki Tuuri
 #include "log.h"
 #include "mariadb_stats.h"
 
-/** If there are buf_pool.curr_size per the number below pending reads, then
+/** If there are buf_pool.curr_size() per the number below pending reads, then
 read-ahead is not done: this is to prevent flooding the buffer pool with
 i/o-fixed buffer blocks */
 #define BUF_READ_AHEAD_PEND_LIMIT	2
@@ -57,12 +57,12 @@ that the block has been replaced with the real block.
 @return           w->state() */
 inline uint32_t buf_pool_t::watch_remove(buf_page_t *w,
                                          buf_pool_t::hash_chain &chain)
+  noexcept
 {
   mysql_mutex_assert_owner(&buf_pool.mutex);
   ut_ad(xtest() || page_hash.lock_get(chain).is_write_locked());
   ut_ad(w >= &watch[0]);
   ut_ad(w < &watch[array_elements(watch)]);
-  ut_ad(!w->in_zip_hash);
   ut_ad(!w->zip.data);
 
   uint32_t s{w->state()};
@@ -95,7 +95,7 @@ and the lock released later.
 @retval	NULL	in case of an error */
 TRANSACTIONAL_TARGET
 static buf_page_t* buf_page_init_for_read(ulint mode, const page_id_t page_id,
-                                          ulint zip_size, bool unzip)
+                                          ulint zip_size, bool unzip) noexcept
 {
   mtr_t mtr;
 
@@ -266,7 +266,7 @@ buf_read_page_low(
 	ulint			mode,
 	const page_id_t		page_id,
 	ulint			zip_size,
-	bool			unzip)
+	bool			unzip) noexcept
 {
 	buf_page_t*	bpage;
 
@@ -357,7 +357,7 @@ wants to access
 pages, it may happen that the page at the given page number does not
 get read even if we return a positive value! */
 TRANSACTIONAL_TARGET
-ulint buf_read_ahead_random(const page_id_t page_id, bool ibuf)
+ulint buf_read_ahead_random(const page_id_t page_id, bool ibuf) noexcept
 {
   if (!srv_random_read_ahead || page_id.space() >= SRV_TMP_SPACE_ID)
     /* Disable the read-ahead for temporary tablespace */
@@ -371,7 +371,7 @@ ulint buf_read_ahead_random(const page_id_t page_id, bool ibuf)
     return 0;
 
   if (os_aio_pending_reads_approx() >
-      buf_pool.curr_size / BUF_READ_AHEAD_PEND_LIMIT)
+      buf_pool.curr_size() / BUF_READ_AHEAD_PEND_LIMIT)
     return 0;
 
   fil_space_t* space= fil_space_t::get(page_id.space());
@@ -447,7 +447,7 @@ read_ahead:
   return count;
 }
 
-dberr_t buf_read_page(const page_id_t page_id, bool unzip)
+dberr_t buf_read_page(const page_id_t page_id, bool unzip) noexcept
 {
   fil_space_t *space= fil_space_t::get(page_id.space());
   if (UNIV_UNLIKELY(!space))
@@ -473,7 +473,7 @@ released by the i/o-handler thread.
 @param[in]	page_id		page id
 @param[in]	zip_size	ROW_FORMAT=COMPRESSED page size, or 0 */
 void buf_read_page_background(fil_space_t *space, const page_id_t page_id,
-                              ulint zip_size)
+                              ulint zip_size) noexcept
 {
 	buf_read_page_low(space, false, BUF_READ_ANY_PAGE,
 			  page_id, zip_size, false);
@@ -512,7 +512,7 @@ which could result in a deadlock if the OS does not support asynchronous io.
 @param[in]	ibuf		whether if we are inside ibuf routine
 @return number of page read requests issued */
 TRANSACTIONAL_TARGET
-ulint buf_read_ahead_linear(const page_id_t page_id, bool ibuf)
+ulint buf_read_ahead_linear(const page_id_t page_id, bool ibuf) noexcept
 {
   /* check if readahead is disabled.
   Disable the read ahead logic for temporary tablespace */
@@ -524,7 +524,7 @@ ulint buf_read_ahead_linear(const page_id_t page_id, bool ibuf)
     return 0;
 
   if (os_aio_pending_reads_approx() >
-      buf_pool.curr_size / BUF_READ_AHEAD_PEND_LIMIT)
+      buf_pool.curr_size() / BUF_READ_AHEAD_PEND_LIMIT)
     return 0;
 
   const uint32_t buf_read_ahead_area= buf_pool.read_ahead_area;
@@ -689,7 +689,7 @@ failed:
 @param recs     log records
 @param init     page initialization, or nullptr if the page needs to be read */
 void buf_read_recover(fil_space_t *space, const page_id_t page_id,
-                      page_recv_t &recs, recv_init *init)
+                      page_recv_t &recs, recv_init *init) noexcept
 {
   ut_ad(space->id == page_id.space());
   space->reacquire();

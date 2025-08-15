@@ -1366,12 +1366,13 @@ srv_mon_process_existing_counter(
 
 	/* innodb_buffer_pool_pages_total */
 	case MONITOR_OVLD_BUF_POOL_PAGE_TOTAL:
-		value = buf_pool.get_n_pages();
+	case MONITOR_OVLD_BUFFER_POOL_SIZE:
+		value = buf_pool.curr_size();
 		break;
 
 	/* innodb_buffer_pool_pages_misc */
 	case MONITOR_OVLD_BUF_POOL_PAGE_MISC:
-		value = buf_pool.get_n_pages()
+		value = buf_pool.curr_size()
 			- UT_LIST_GET_LEN(buf_pool.LRU)
 			- UT_LIST_GET_LEN(buf_pool.free);
 		break;
@@ -1453,7 +1454,7 @@ srv_mon_process_existing_counter(
 
 	/* innodb_os_log_written */
 	case MONITOR_OVLD_OS_LOG_WRITTEN:
-		value = log_sys.get_lsn() - recv_sys.lsn;
+		value = log_get_lsn() - recv_sys.lsn;
 		break;
 
 	/* innodb_log_waits */
@@ -1488,10 +1489,6 @@ srv_mon_process_existing_counter(
 	/* innodb_page_size */
 	case MONITOR_OVLD_SRV_PAGE_SIZE:
 		value = srv_page_size;
-		break;
-
-	case MONITOR_OVLD_BUFFER_POOL_SIZE:
-		value = srv_buf_pool_size;
 		break;
 
 	/* innodb_row_lock_current_waits */
@@ -1590,7 +1587,7 @@ srv_mon_process_existing_counter(
 		break;
 
 	case MONITOR_OVLD_LSN_CURRENT:
-		value = log_sys.get_lsn();
+		value = log_get_lsn();
 		break;
 
         case MONITOR_OVLD_CHECKPOINTS:
@@ -1598,10 +1595,10 @@ srv_mon_process_existing_counter(
 		break;
 
 	case MONITOR_LSN_CHECKPOINT_AGE:
-		log_sys.latch.rd_lock(SRW_LOCK_CALL);
+		log_sys.latch.wr_lock(SRW_LOCK_CALL);
 		value = static_cast<mon_type_t>(log_sys.get_lsn()
 						- log_sys.last_checkpoint_lsn);
-		log_sys.latch.rd_unlock();
+		log_sys.latch.wr_unlock();
 		break;
 
 	case MONITOR_OVLD_BUF_OLDEST_LSN:

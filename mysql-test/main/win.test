@@ -3001,6 +3001,18 @@ eval $q3;
 DROP VIEW v1;
 DROP TABLE t1;
 
+--echo #
+--echo # MDEV-35869: degenerated subquery with window function
+--echo #
+
+CREATE TABLE t1 (a int DEFAULT 10);
+INSERT INTO t1 VALUES (7), (2), (3);
+SELECT * FROM t1 WHERE (SELECT AVG(3)) > 2;
+SELECT * FROM t1 WHERE (SELECT AVG(3) OVER ()) > 2;
+INSERT INTO t1 VALUES((SELECT avg(4) OVER ()));
+SELECT * FROM t1;
+DROP TABLE t1;
+
 --echo # End of 10.5 tests
 
 --echo #

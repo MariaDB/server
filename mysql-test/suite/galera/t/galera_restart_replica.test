@@ -1,77 +1,116 @@
 #
-# Test Galera as a replica to a MySQL async replication
+# Test Galera as a replica to a MariaDB async replication
+#
+#   MariaDB
+#    primary ---async replication--->galera node_2 (replica)<----galera replication---> galera node1
+#
+#  Test outline:
+#
+#  - Create user for async replication
+#  - Create table and some data in primary
+#  - Verify that table and data is replicated to galera nodes
+#  - Verify that mysql.gtid_slave_pos has some rows in all Galera nodes
+#  - Verify that gtid_slave_pos, gtid_binlog_pos and gtid_current_pos are
+#    same in all Galera nodes
+#  - Verify that we can shutdown and restart Galera replica (node #2)
+#  - Verify that gtid_slave_pos, gtid_binlog_pos and gtid_current_pos are
+#    same in all Galera nodes
+#  - Verify that mysql.gtid_slave_pos table has limited amount of rows
+#  - Veruft that ddl works (drop table)
+#
+#  Similar test is done so that new rows are added to table in
+#  primary while async replica (node #2) is down.
 #
 # The galera/galera_2node_slave.cnf describes the setup of the nodes
 #
 --source include/force_restart.inc
 --source include/galera_cluster.inc
 --source include/have_innodb.inc
---source include/have_sequence.inc
+
+# In this test we mark node #2 as replica
+--connect replica, 127.0.0.1, root, , test, $NODE_MYPORT_2
 
 # As node #3 is not a Galera node, and galera_cluster.inc does not open connetion to it
-# we open the node_3 connection here
---connect node_3, 127.0.0.1, root, , test, $NODE_MYPORT_3
+# we open the primary connection her
+--connect primary, 127.0.0.1, root, , test, $NODE_MYPORT_3
 
 create user repl@'%' identified by 'repl';
 grant all on *.* to  repl@'%';
 ALTER TABLE mysql.gtid_slave_pos ENGINE=InnoDB;
 
 --let $node_1 = node_1
---let $node_2 = node_2
+--let $node_2 = replica
+--let $node_3 = primary
 --source include/auto_increment_offset_save.inc
 
---connection node_2
+--connection replica
 --disable_query_log
 --eval CHANGE MASTER TO master_host='127.0.0.1', master_user='repl', master_password='repl', master_port=$NODE_MYPORT_3, master_use_gtid=slave_pos;
 --enable_query_log
 START SLAVE;
 
---connection node_3
+--connection primary
+CREATE TABLE t1 (id bigint auto_increment primary key, msg varchar(100)) engine=innodb;
 
-CREATE TABLE t1 (id bigint primary key, msg varchar(100)) engine=innodb;
+--echo # Intentionally generate 1k GTID-events
+--let $inserts=1000
+--let $count=0
 --disable_query_log
-INSERT INTO t1 SELECT seq, 'test' from seq_1_to_10000;
+while($count < $inserts)
+{
+  --eval insert into t1 values (NULL,'test1')
+  --inc $count
+}
 --enable_query_log
-SELECT COUNT(*) AS EXPECT_10000 FROM t1;
 
---connection node_2
+SELECT COUNT(*) AS EXPECT_1000 FROM t1;
+
+--connection replica
 --let $wait_condition = SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 't1';
 --source include/wait_condition.inc
 
---let $wait_condition = SELECT COUNT(*) = 10000 FROM t1;
+--let $wait_condition = SELECT COUNT(*) = 1000 FROM t1;
 --source include/wait_condition.inc
 
+--let $wait_condition = SELECT COUNT(*) < 1000 FROM mysql.gtid_slave_pos;
+--source include/wait_condition.inc
 SELECT COUNT(*) > 0 AS EXPECT_1 FROM mysql.gtid_slave_pos;
-SELECT COUNT(*) AS EXPECT_10000 FROM t1;
+SELECT COUNT(*) < 1000 AS EXPECT_1 FROM mysql.gtid_slave_pos;
+SELECT @@gtid_slave_pos,@@gtid_binlog_pos,@@gtid_current_pos;
+SELECT COUNT(*) AS EXPECT_1000 FROM t1;
 
 --connection node_1
 --let $wait_condition = SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 't1';
 --source include/wait_condition.inc
 
---let $wait_condition = SELECT COUNT(*) = 10000 FROM t1;
+--let $wait_condition = SELECT COUNT(*) = 1000 FROM t1;
 --source include/wait_condition.inc
 
+--let $wait_condition = SELECT COUNT(*) < 1000 FROM mysql.gtid_slave_pos;
+--source include/wait_condition.inc
 SELECT COUNT(*) > 0 AS EXPECT_1 FROM mysql.gtid_slave_pos;
-SELECT COUNT(*) AS EXPECT_10000 FROM t1;
+SELECT COUNT(*) < 1000 AS EXPECT_1 FROM mysql.gtid_slave_pos;
+SELECT @@gtid_slave_pos,@@gtid_binlog_pos,@@gtid_current_pos;
+SELECT COUNT(*) AS EXPECT_1000 FROM t1;
 
---connection node_2
---echo # Verify that graceful shutdown succeeds.
+--connection replica
+--echo # Verify that graceful shutdown succeeds in replica.
 --source include/shutdown_mysqld.inc
 --echo # Force SST
 --remove_file $MYSQLTEST_VARDIR/mysqld.2/data/grastate.dat
 
 --connection node_1
---echo # Waiting until node_2 is not part of cluster anymore
+--echo # Waiting until replica is not part of cluster anymore
 --let $wait_condition = SELECT VARIABLE_VALUE = 1 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
 --source include/wait_condition.inc
 --let $wait_condition = SELECT VARIABLE_VALUE = 'Primary' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_status';
 --source include/wait_condition.inc
 
---connection node_2
---echo # Start node_2 again
+--connection replica
+--echo # Start replica again
 --source include/start_mysqld.inc
 
---echo ¤ Wait until node_2 is back on cluster
+--echo # Wait until replica is back on cluster
 --let $wait_condition = SELECT VARIABLE_VALUE = 'Primary' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_status';
 --source include/wait_condition.inc
 --let $wait_condition = SELECT VARIABLE_VALUE = 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
@@ -79,24 +118,30 @@ SELECT COUNT(*) AS EXPECT_10000 FROM t1;
 --let $wait_condition = SELECT VARIABLE_VALUE = 'ON' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_ready';
 --source include/wait_condition.inc
 
---connection node_2
+--let $wait_condition = SELECT COUNT(*) < 1000 FROM mysql.gtid_slave_pos;
+--source include/wait_condition.inc
 SELECT COUNT(*) > 0 AS EXPECT_1 FROM mysql.gtid_slave_pos;
-SELECT COUNT(*) AS EXPECT_10000 FROM t1;
+SELECT COUNT(*) < 1000 AS EXPECT_1 FROM mysql.gtid_slave_pos;
+SELECT @@gtid_slave_pos,@@gtid_binlog_pos,@@gtid_current_pos;
+SELECT COUNT(*) AS EXPECT_1000 FROM t1;
 
 --connection node_1
+--let $wait_condition = SELECT COUNT(*) < 1000 FROM mysql.gtid_slave_pos;
+--source include/wait_condition.inc
 SELECT COUNT(*) > 0 AS EXPECT_1 FROM mysql.gtid_slave_pos;
-SELECT COUNT(*) AS EXPECT_10000 FROM t1;
+SELECT COUNT(*) < 1000 AS EXPECT_1 FROM mysql.gtid_slave_pos;
+SELECT @@gtid_slave_pos,@@gtid_binlog_pos,@@gtid_current_pos;
+SELECT COUNT(*) AS EXPECT_1000 FROM t1;
 
---connection node_3
-SELECT COUNT(*) AS EXPECT_10000 FROM t1;
+--connection primary
+SELECT COUNT(*) AS EXPECT_1000 FROM t1;
 
 #
 # Cleanup
 #
---connection node_3
 drop table t1;
 
---connection node_2
+--connection replica
 --let $wait_condition = SELECT COUNT(*) = 0 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 't1';
 --source include/wait_condition.inc
 
@@ -108,59 +153,80 @@ drop table t1;
 # Case 2 : While slave is down add writes to master
 #
 
---connection node_3
-
-CREATE TABLE t1 (id bigint primary key, msg varchar(100)) engine=innodb;
+--connection primary
+CREATE TABLE t1 (id bigint auto_increment primary key, msg varchar(100)) engine=innodb;
+--echo # Intentionally generate 1k GTID-events
+--let $inserts=1000
+--let $count=0
 --disable_query_log
-INSERT INTO t1 SELECT seq, 'test' from seq_1_to_10000;
+while($count < $inserts)
+{
+  --eval insert into t1 values (NULL,'test1')
+  --inc $count
+}
 --enable_query_log
-SELECT COUNT(*) AS EXPECT_10000 FROM t1;
+SELECT COUNT(*) AS EXPECT_1000 FROM t1;
 
---connection node_2
+--connection replica
 --let $wait_condition = SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 't1';
 --source include/wait_condition.inc
 
---let $wait_condition = SELECT COUNT(*) = 10000 FROM t1;
+--let $wait_condition = SELECT COUNT(*) = 1000 FROM t1;
 --source include/wait_condition.inc
 
+--let $wait_condition = SELECT COUNT(*) < 1000 FROM mysql.gtid_slave_pos;
+--source include/wait_condition.inc
 SELECT COUNT(*) > 0 AS EXPECT_1 FROM mysql.gtid_slave_pos;
-SELECT COUNT(*) AS EXPECT_10000 FROM t1;
+SELECT COUNT(*) < 1000 AS EXPECT_1 FROM mysql.gtid_slave_pos;
+SELECT @@gtid_slave_pos,@@gtid_binlog_pos,@@gtid_current_pos;
+SELECT COUNT(*) AS EXPECT_1000 FROM t1;
 
 --connection node_1
 --let $wait_condition = SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 't1';
 --source include/wait_condition.inc
 
---let $wait_condition = SELECT COUNT(*) = 10000 FROM t1;
+--let $wait_condition = SELECT COUNT(*) = 1000 FROM t1;
 --source include/wait_condition.inc
 
+--let $wait_condition = SELECT COUNT(*) < 1000 FROM mysql.gtid_slave_pos;
+--source include/wait_condition.inc
 SELECT COUNT(*) > 0 AS EXPECT_1 FROM mysql.gtid_slave_pos;
-SELECT COUNT(*) AS EXPECT_10000 FROM t1;
+SELECT COUNT(*) < 1000 AS EXPECT_1 FROM mysql.gtid_slave_pos;
+SELECT @@gtid_slave_pos,@@gtid_binlog_pos,@@gtid_current_pos;
 
---connection node_2
---echo # Verify that graceful shutdown succeeds.
+--connection replica
+--echo # Verify that graceful shutdown succeeds in replica.
 --source include/shutdown_mysqld.inc
 --echo # Force SST
 --remove_file $MYSQLTEST_VARDIR/mysqld.2/data/grastate.dat
 
 --connection node_1
---echo # Waiting until node_2 is not part of cluster anymore
+--echo # Waiting until replica is not part of cluster anymore
 --let $wait_condition = SELECT VARIABLE_VALUE = 1 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
 --source include/wait_condition.inc
 --let $wait_condition = SELECT VARIABLE_VALUE = 'Primary' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_status';
 --source include/wait_condition.inc
 
-# Add writes to master
---connection node_3
+--echo # Add writes to primary
+--connection primary
+--echo # Intentionally generate 1k GTID-events
+--let $inserts=1000
+--let $count=0
 --disable_query_log
-INSERT INTO t1 SELECT seq, 'test' from seq_20001_to_30000;
+while($count < $inserts)
+{
+  --eval insert into t1 values (NULL,'test1')
+  --inc $count
+}
 --enable_query_log
-SELECT COUNT(*) AS EXPECT_20000 FROM t1;
 
---connection node_2
---echo # Start node_2 again
+SELECT COUNT(*) AS EXPECT_2000 FROM t1;
+
+--connection replica
+--echo # Start replica again
 --source include/start_mysqld.inc
 
---echo ¤ Wait until node_2 is back on cluster
+--echo # Wait until replica is back on cluster
 --let $wait_condition = SELECT VARIABLE_VALUE = 'Primary' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_status';
 --source include/wait_condition.inc
 --let $wait_condition = SELECT VARIABLE_VALUE = 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
@@ -168,28 +234,34 @@ SELECT COUNT(*) AS EXPECT_20000 FROM t1;
 --let $wait_condition = SELECT VARIABLE_VALUE = 'ON' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_ready';
 --source include/wait_condition.inc
 
---connection node_2
---let $wait_condition = SELECT COUNT(*) = 20000 FROM t1;
+--let $wait_condition = SELECT COUNT(*) = 2000 FROM t1;
+--source include/wait_condition.inc
+--let $wait_condition = SELECT COUNT(*) < 1000 FROM mysql.gtid_slave_pos;
 --source include/wait_condition.inc
 SELECT COUNT(*) > 0 AS EXPECT_1 FROM mysql.gtid_slave_pos;
-SELECT COUNT(*) AS EXPECT_20000 FROM t1;
+SELECT COUNT(*) < 1000 AS EXPECT_1 FROM mysql.gtid_slave_pos;
+SELECT @@gtid_slave_pos,@@gtid_binlog_pos,@@gtid_current_pos;
+SELECT COUNT(*) AS EXPECT_2000 FROM t1;
 
 --connection node_1
---let $wait_condition = SELECT COUNT(*) = 20000 FROM t1;
+--let $wait_condition = SELECT COUNT(*) = 2000 FROM t1;
+--source include/wait_condition.inc
+--let $wait_condition = SELECT COUNT(*) < 1000 FROM mysql.gtid_slave_pos;
 --source include/wait_condition.inc
 SELECT COUNT(*) > 0 AS EXPECT_1 FROM mysql.gtid_slave_pos;
-SELECT COUNT(*) AS EXPECT_20000 FROM t1;
+SELECT COUNT(*) < 1000 AS EXPECT_1 FROM mysql.gtid_slave_pos;
+SELECT @@gtid_slave_pos,@@gtid_binlog_pos,@@gtid_current_pos;
+SELECT COUNT(*) AS EXPECT_2000 FROM t1;
 
---connection node_3
-SELECT COUNT(*) AS EXPECT_20000 FROM t1;
+--connection primary
+SELECT COUNT(*) AS EXPECT_2000 FROM t1;
 
 #
 # Cleanup
 #
---connection node_3
 drop table t1;
 
---connection node_2
+--connection replica
 --let $wait_condition = SELECT COUNT(*) = 0 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 't1';
 --source include/wait_condition.inc
 
@@ -197,16 +269,18 @@ drop table t1;
 --let $wait_condition = SELECT COUNT(*) = 0 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 't1';
 --source include/wait_condition.inc
 
---connection node_2
+--connection replica
 STOP SLAVE;
 RESET SLAVE ALL;
 
---connection node_3
+--connection primary
 RESET MASTER;
 
---connection node_1
---disconnect node_3
-
 --source include/auto_increment_offset_restore.inc
+
+--connection node_1
+--disconnect primary
+--disconnect replica
+
 --source include/galera_end.inc
 --echo # End of test

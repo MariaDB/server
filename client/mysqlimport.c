@@ -657,7 +657,6 @@ error:
   pthread_cond_signal(&count_threshhold);
   pthread_mutex_unlock(&counter_mutex);
   mysql_thread_end();
-  pthread_exit(0);
   return 0;
 }
 

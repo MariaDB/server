@@ -198,7 +198,9 @@ create database `a
 b`;
 use `a
 b`;
-select count(*) from mysql.global_priv where length(priv)>2;
+create table t1 (a int);
+insert t1 values (1),(2),(3),(4),(5),(6),(7);
+select count(*) from t1 where a>2;
 count(*)
 5
 drop database `a
@@ -211,7 +213,24 @@ set timestamp=default;
 use `a
 b`;
 SET timestamp=1234567890;
-select count(*) from mysql.global_priv where length(priv)>2
+select count(*) from t1 where a>2
+#
+# MDEV-31366 Assertion `thd->start_time' failed in bool LOGGER::slow_log_print(THD*, const char*, size_t, ulonglong)
+#
+TRUNCATE mysql.slow_log;
+SET global log_output='TABLE';
+SET timestamp=0.99;
+SET long_query_time=0.00001;
+SELECT SLEEP(0.1);
+SLEEP(0.1)
+0
+SELECT COUNT(*)>0 AS c1 FROM mysql.slow_log;
+c1
+1
+SET global log_output=default;
+SET timestamp=default;
+SET long_query_time=default;
+TRUNCATE mysql.slow_log;
 # End of 10.5 tests
 #
 # MDEV-34251 Conditional jump or move depends on uninitialised value in

@@ -1075,6 +1075,8 @@ col1 POINT,
 col2 POINT
 );
 CREATE SPATIAL INDEX idx0 ON t2 (col1, col2);
+ERROR 42000: Key column 'col1' doesn't exist in table
+CREATE SPATIAL INDEX idx0 ON t2 (col0, col2);
 ERROR HY000: Incorrect arguments to SPATIAL INDEX
 CREATE TABLE t4 (
 col0 INTEGER NOT NULL,

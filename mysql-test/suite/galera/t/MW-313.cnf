@@ -7,6 +7,3 @@ log-slave-updates
 [mysqld.2]
 log-bin
 log-slave-updates
-
-
-

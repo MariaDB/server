@@ -318,18 +318,16 @@ Diagnostics_area::reset_diagnostics_area()
 #endif
   get_warning_info()->clear_error_condition();
   set_is_sent(false);
-  /** Tiny reset in debug mode to see garbage right away */
-  if (!is_bulk_op())
-    /*
-      For BULK DML operations (e.g. UPDATE) the data member m_status
-      has the value DA_OK_BULK. Keep this value in order to handle
-      m_affected_rows, m_statement_warn_count in correct way. Else,
-      the number of rows and the number of warnings affected by
-      the last statement executed as part of a trigger fired by the dml
-      (e.g. UPDATE statement fires a trigger on AFTER UPDATE) would counts
-      rows modified by trigger's statement.
-    */
-    m_status= DA_EMPTY;
+  /*
+    For BULK DML operations (e.g. UPDATE) the data member m_status
+    has the value DA_OK_BULK. Keep this value in order to handle
+    m_affected_rows, m_statement_warn_count in correct way. Else,
+    the number of rows and the number of warnings affected by
+    the last statement executed as part of a trigger fired by the dml
+    (e.g. UPDATE statement fires a trigger on AFTER UPDATE) would counts
+    rows modified by trigger's statement.
+  */
+  m_status= is_bulk_op() ? DA_OK_BULK : DA_EMPTY;
   DBUG_VOID_RETURN;
 }
 
@@ -752,6 +750,7 @@ void push_warning(THD *thd, Sql_condition::enum_warning_level level,
   if (level == Sql_condition::WARN_LEVEL_ERROR)
     level= Sql_condition::WARN_LEVEL_WARN;
 
+  DBUG_ASSERT(msg[strlen(msg)-1] != '\n');
   (void) thd->raise_condition(code, "\0\0\0\0\0", level, msg);
 
   /* Make sure we also count warnings pushed after calling set_ok_status(). */

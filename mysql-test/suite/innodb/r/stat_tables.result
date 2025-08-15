@@ -101,3 +101,13 @@ DROP TABLE t1;
 CREATE TABLE t1 (c1 INT) ENGINE=InnoDB STATS_PERSISTENT 1;
 DROP TABLE t1;
 # End of 10.6 tests
+#
+# MDEV-36373 Warning: ... persistent statistics storage is corrupted
+#
+CREATE TABLE t1 (c INT) ENGINE=InnoDB;
+SET STATEMENT tx_read_only=1 FOR ANALYZE TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+DROP TABLE t1;
+# End of 10.11 tests

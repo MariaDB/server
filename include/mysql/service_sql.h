@@ -68,9 +68,12 @@ extern struct sql_service_st {
   int (STDCALL *mysql_set_character_set_func)(MYSQL *mysql, const char *cs_name);
   unsigned int (STDCALL *mysql_num_fields_func)(MYSQL_RES *res);
   int (STDCALL *mysql_select_db_func)(MYSQL *mysql, const char *db);
+  MYSQL_RES *(STDCALL *mysql_use_result_func)(MYSQL *mysql);
+  MYSQL_FIELD *(STDCALL *mysql_fetch_fields_func)(MYSQL_RES *res);
+  unsigned long (STDCALL *mysql_real_escape_string_func)(MYSQL *mysql, char *to,
+                                        const char *from, unsigned long length);
   my_bool (STDCALL *mysql_ssl_set_func)(MYSQL *mysql, const char *key,
-                                        const char *cert, const char *ca,
-                                        const char *capath, const char *cipher);
+      const char *cert, const char *ca, const char *capath, const char *cipher);
 } *sql_service;
 
 #ifdef MYSQL_DYNAMIC_PLUGIN
@@ -92,7 +95,10 @@ extern struct sql_service_st {
 #define mysql_set_character_set(M,C) sql_service->mysql_set_character_set_func(M,C)
 #define mysql_num_fields(R) sql_service->mysql_num_fields_func(R)
 #define mysql_select_db(M,D) sql_service->mysql_select_db_func(M,D)
-#define mysql_ssl_set(M,K,C,A,P,H) sql_service->mysql_ssl_set_func(M,K,C,A,P,H)
+#define mysql_use_result(M) sql_service->mysql_use_result_func(M)
+#define mysql_fetch_fields(R) sql_service->mysql_fetch_fields_func(R)
+#define mysql_real_escape_string(M,T,F,L) sql_service->mysql_real_escape_string_func(M,T,F,L)
+#define mysql_ssl_set(M,K,C1,C2,C3,C4) sql_service->mysql_ssl_set_func(M,K,C1,C2,C3,C4)
 
 #else
 

@@ -67,11 +67,6 @@ int spider_create_trx_alter_table(
   bool now_create
 );
 
-bool spider_cmp_trx_alter_table(
-  SPIDER_ALTER_TABLE *cmp1,
-  SPIDER_ALTER_TABLE *cmp2
-);
-
 SPIDER_TRX *spider_get_trx(
   THD *thd,
   bool regist_allocated_thds,
@@ -227,11 +222,7 @@ int spider_end_trx(
   SPIDER_CONN *conn
 );
 
-int spider_check_trx_and_get_conn(
-  THD *thd,
-  ha_spider *spider,
-  bool use_conn_kind
-);
+int spider_check_trx_and_get_conn(THD *thd, ha_spider *spider);
 
 THD *spider_create_tmp_thd();
 

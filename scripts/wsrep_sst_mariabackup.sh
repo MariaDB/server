@@ -439,17 +439,30 @@ get_transfer()
 get_footprint()
 {
     cd "$DATA_DIR"
-    local payload_data=$(find $findopt . \
-        -regex '.*undo[0-9]+$\|.*\.ibd$\|.*\.MYI$\|.*\.MYD$\|.*ibdata1$' \
-        -type f -print0 | du --files0-from=- --block-size=1 -c -s | \
-        awk 'END { print $1 }')
+    local payload_data
+    if [ "$OS" = 'Linux' ]; then
+        payload_data=$(find $findopt . \
+            -regex '.*undo[0-9]+$\|.*\.ibd$\|.*\.MYI$\|.*\.MYD$\|.*ibdata1$' \
+            -type f -print0 | du --files0-from=- --bytes -c -s | \
+            awk 'END { print $1 }')
+    else
+        payload_data=$(find $findopt . \
+            -regex '.*undo[0-9]+$|.*\.ibd$|.*\.MYI$\.*\.MYD$|.*ibdata1$' \
+            -type f -print0 | xargs -0 stat -f '%z' | \
+            awk '{ sum += $1 } END { print sum }')
+    fi
     local payload_undo=0
     if [ -n "$ib_undo_dir" -a "$ib_undo_dir" != '.' -a \
          "$ib_undo_dir" != "$DATA_DIR" -a -d "$ib_undo_dir" ]
     then
         cd "$ib_undo_dir"
-        payload_undo=$(find . -regex '.*undo[0-9]+$' -type f -print0 | \
-            du --files0-from=- --block-size=1 -c -s | awk 'END { print $1 }')
+        if [ "$OS" = 'Linux' ]; then
+            payload_undo=$(find . -regex '.*undo[0-9]+$' -type f -print0 | \
+                du --files0-from=- --bytes -c -s | awk 'END { print $1 }')
+        else
+            payload_undo=$(find . -regex '.*undo[0-9]+$' -type f -print0 | \
+                xargs -0 stat -f '%z' | awk '{ sum += $1 } END { print sum }')
+        fi
     fi
     cd "$OLD_PWD"
 
@@ -527,7 +540,8 @@ adjust_progress()
     fi
 }
 
-encgroups='--mysqld|sst|xtrabackup'
+bkgroups='sst|xtrabackup|mariabackup'
+encgroups="--mysqld|$bkgroups"
 
 read_cnf()
 {
@@ -583,26 +597,34 @@ read_cnf()
         ssl_dhparams=$(parse_cnf "$encgroups" 'ssl-dhparams')
     fi
 
-    sockopt=$(parse_cnf sst sockopt "")
-    progress=$(parse_cnf sst progress "")
+    sockopt=$(parse_cnf sst sockopt)
+    progress=$(parse_cnf sst progress)
     ttime=$(parse_cnf sst time 0)
     cpat='.*\.pem$\|.*galera\.cache$\|.*sst_in_progress$\|.*\.sst$\|.*gvwstate\.dat$\|.*grastate\.dat$\|.*\.err$\|.*\.log$\|.*RPM_UPGRADE_MARKER$\|.*RPM_UPGRADE_HISTORY$'
     [ "$OS" = 'FreeBSD' ] && cpat=$(echo "$cpat" | sed 's/\\|/|/g')
     cpat=$(parse_cnf sst cpat "$cpat")
-    scomp=$(parse_cnf sst compressor "")
-    sdecomp=$(parse_cnf sst decompressor "")
+    scomp=$(parse_cnf sst compressor)
+    sdecomp=$(parse_cnf sst decompressor)
 
-    rlimit=$(parse_cnf sst rlimit "")
+    rlimit=$(parse_cnf sst rlimit)
     uextra=$(parse_cnf sst use-extra 0)
-    speciald=$(parse_cnf sst sst-special-dirs 1)
-    iopts=$(parse_cnf sst inno-backup-opts "")
-    iapts=$(parse_cnf sst inno-apply-opts "")
-    impts=$(parse_cnf sst inno-move-opts "")
-    stimeout=$(parse_cnf sst sst-initial-timeout 300)
-    ssyslog=$(parse_cnf sst sst-syslog 0)
-    ssystag=$(parse_cnf mysqld_safe syslog-tag "${SST_SYSLOG_TAG:-}")
+    speciald=$(parse_cnf sst 'sst-special-dirs' 1)
+    iopts=$(parse_cnf "$bkgroups" 'inno-backup-opts')
+    iapts=$(parse_cnf "$bkgroups" 'inno-apply-opts')
+    impts=$(parse_cnf "$bkgroups" 'inno-move-opts')
+    use_memory=$(parse_cnf "$bkgroups" 'use-memory')
+    if [ -z "$use_memory" ]; then
+        if [ -n "$INNODB_BUFFER_POOL_SIZE" ]; then
+            use_memory="$INNODB_BUFFER_POOL_SIZE"
+        else
+            use_memory=$(parse_cnf '--mysqld' 'innodb-buffer-pool-size')
+        fi
+    fi
+    stimeout=$(parse_cnf sst 'sst-initial-timeout' 300)
+    ssyslog=$(parse_cnf sst 'sst-syslog' 0)
+    ssystag=$(parse_cnf mysqld_safe 'syslog-tag' "${SST_SYSLOG_TAG:-}")
     ssystag="$ssystag-"
-    sstlogarchive=$(parse_cnf sst sst-log-archive 1)
+    sstlogarchive=$(parse_cnf sst 'sst-log-archive' 1)
     sstlogarchivedir=""
     if [ $sstlogarchive -ne 0 ]; then
         sstlogarchivedir=$(parse_cnf sst sst-log-archive-dir \
@@ -676,24 +698,25 @@ cleanup_at_exit()
 
     [ "$(pwd)" != "$OLD_PWD" ] && cd "$OLD_PWD"
 
-    if [ $estatus -ne 0 ]; then
-        wsrep_log_error "Removing $MAGIC_FILE file due to signal"
+    if [ "$WSREP_SST_OPT_ROLE" = 'donor' -o $estatus -ne 0 ]; then
+        if [ $estatus -ne 0 ]; then
+            wsrep_log_error "Removing $MAGIC_FILE file due to signal"
+        fi
         [ -f "$MAGIC_FILE" ] && rm -f "$MAGIC_FILE" || :
         [ -f "$DONOR_MAGIC_FILE" ] && rm -f "$DONOR_MAGIC_FILE" || :
+        [ -f "$DATA/$IST_FILE" ] && rm -f "$DATA/$IST_FILE" || :
     fi
 
     if [ "$WSREP_SST_OPT_ROLE" = 'joiner' ]; then
         if [ -n "$BACKUP_PID" ]; then
             if ps -p $BACKUP_PID >/dev/null 2>&1; then
                 wsrep_log_error \
-                    "mariadb-backup process is still running. Killing..."
-                cleanup_pid $CHECK_PID
+                    "SST streaming process is still running. Killing..."
+                cleanup_pid $BACKUP_PID
             fi
         fi
         wsrep_log_info "Removing the sst_in_progress file"
         wsrep_cleanup_progress_file
-    else
-        [ -f "$DATA/$IST_FILE" ] && rm -f "$DATA/$IST_FILE" || :
     fi
 
     if [ -n "$progress" -a -p "$progress" ]; then
@@ -1039,6 +1062,9 @@ setup_commands()
     if [ -n "$INNODB_FORCE_RECOVERY" ]; then
         recovery=" --innodb-force-recovery=$INNODB_FORCE_RECOVERY"
     fi
+    if [ -n "$use_memory" ]; then
+        INNOEXTRA="$INNOEXTRA --use-memory=$use_memory"
+    fi
     INNOAPPLY="$BACKUP_BIN --prepare$disver$recovery${iapts:+ }$iapts$INNOEXTRA --target-dir='$DATA' --datadir='$DATA'$mysqld_args $INNOAPPLY"
     INNOMOVE="$BACKUP_BIN$WSREP_SST_OPT_CONF --move-back$disver${impts:+ }$impts$INNOEXTRA --galera-info --force-non-empty-directories --target-dir='$DATA' --datadir='${TDATA:-$DATA}' $INNOMOVE"
     INNOBACKUP="$BACKUP_BIN$WSREP_SST_OPT_CONF --backup$disver${iopts:+ }$iopts$tmpopts$INNOEXTRA --galera-info --stream=$sfmt --target-dir='$itmpdir' --datadir='$DATA'$mysqld_args $INNOBACKUP"
@@ -1340,6 +1366,7 @@ else # joiner
         [ -f "$DATA/xtrabackup_checkpoints" ] && rm -f "$DATA/xtrabackup_checkpoints"
         [ -f "$DATA/xtrabackup_info" ]        && rm -f "$DATA/xtrabackup_info"
         [ -f "$DATA/xtrabackup_slave_info" ]  && rm -f "$DATA/xtrabackup_slave_info"
+        [ -f "$DATA/xtrabackup_binlog_info" ] && rm -f "$DATA/xtrabackup_binlog_info"
         [ -f "$DATA/xtrabackup_binlog_pos_innodb" ] && rm -f "$DATA/xtrabackup_binlog_pos_innodb"
 
         TDATA="$DATA"
@@ -1485,6 +1512,8 @@ else # joiner
                         "not found or not readable"
         exit 2
     fi
+
+    simulate_long_sst
 
     # use donor magic file, if present
     # if IST was used, donor magic file was not created

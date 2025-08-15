@@ -350,7 +350,7 @@ xdes_get_descriptor_with_space_hdr(
 	ut_ad(limit == space->free_limit
 	      || (space->free_limit == 0
 		  && (init_space
-		      || space->purpose == FIL_TYPE_TEMPORARY
+		      || space->is_temporary()
 		      || (srv_startup_is_before_trx_rollback_phase
 			  && (space->id == TRX_SYS_SPACE
 			      || srv_is_undo_tablespace(space->id))))));
@@ -486,14 +486,15 @@ void fil_space_t::modify_check(const mtr_t& mtr) const
   case MTR_LOG_NONE:
     /* These modes are only allowed within a non-bitmap page
        when there is a higher-level redo log record written. */
-    ut_ad(purpose == FIL_TYPE_TABLESPACE || purpose == FIL_TYPE_TEMPORARY);
+    ut_ad(!is_being_imported());
     break;
   case MTR_LOG_NO_REDO:
-    ut_ad(purpose == FIL_TYPE_TEMPORARY || purpose == FIL_TYPE_IMPORT);
+    ut_ad(is_temporary() || is_being_imported());
     break;
   default:
     /* We may only write redo log for a persistent tablespace. */
-    ut_ad(purpose == FIL_TYPE_TABLESPACE);
+    ut_ad(!is_temporary());
+    ut_ad(!is_being_imported());
     ut_ad(mtr.is_named_space(id));
   }
 }
@@ -852,7 +853,7 @@ fsp_fill_free_list(
                       FIL_PAGE_TYPE_XDES);
       }
 
-      if (space->purpose != FIL_TYPE_TEMPORARY)
+      if (!space->is_temporary())
       {
         buf_block_t *f= buf_LRU_get_free_block(false);
         buf_block_t *block=
@@ -1643,12 +1644,11 @@ fseg_find_last_used_frag_page_slot(
 /** Calculate reserved fragment page slots.
 @param inode  file segment index
 @return number of fragment pages */
-static ulint fseg_get_n_frag_pages(const fseg_inode_t *inode)
+static uint32_t fseg_get_n_frag_pages(const fseg_inode_t *inode) noexcept
 {
-	ulint	i;
-	ulint	count	= 0;
+	uint32_t count = 0;
 
-	for (i = 0; i < FSEG_FRAG_ARR_N_SLOTS; i++) {
+	for (ulint i = 0; i < FSEG_FRAG_ARR_N_SLOTS; i++) {
 		if (FIL_NULL != fseg_get_nth_frag_page_no(inode, i)) {
 			count++;
 		}
@@ -1793,21 +1793,24 @@ Calculates the number of pages reserved by a segment, and how many pages are
 currently used.
 @return number of reserved pages */
 static
-ulint
+uint32_t
 fseg_n_reserved_pages_low(
 /*======================*/
 	const fseg_inode_t*	inode,	/*!< in: segment inode */
-	ulint*		used)	/*!< out: number of pages used (not
+	uint32_t*		used)	/*!< out: number of pages used (not
 				more than reserved) */
+	noexcept
 {
+	const uint32_t extent_size = FSP_EXTENT_SIZE;
+
 	*used = mach_read_from_4(inode + FSEG_NOT_FULL_N_USED)
-		+ FSP_EXTENT_SIZE * flst_get_len(inode + FSEG_FULL)
+		+ extent_size * flst_get_len(inode + FSEG_FULL)
 		+ fseg_get_n_frag_pages(inode);
 
 	return fseg_get_n_frag_pages(inode)
-		+ FSP_EXTENT_SIZE * flst_get_len(inode + FSEG_FREE)
-		+ FSP_EXTENT_SIZE * flst_get_len(inode + FSEG_NOT_FULL)
-		+ FSP_EXTENT_SIZE * flst_get_len(inode + FSEG_FULL);
+		+ extent_size * flst_get_len(inode + FSEG_FREE)
+		+ extent_size * flst_get_len(inode + FSEG_NOT_FULL)
+		+ extent_size * flst_get_len(inode + FSEG_FULL);
 }
 
 /** Calculate the number of pages reserved by a segment,
@@ -1817,9 +1820,9 @@ and how many pages are currently used.
 @param[out]     used    number of pages that are used (not more than reserved)
 @param[in,out]  mtr     mini-transaction
 @return number of reserved pages */
-ulint fseg_n_reserved_pages(const buf_block_t &block,
-                            const fseg_header_t *header, ulint *used,
-                            mtr_t *mtr)
+uint32_t fseg_n_reserved_pages(const buf_block_t &block,
+                               const fseg_header_t *header, uint32_t *used,
+                               mtr_t *mtr) noexcept
 {
   ut_ad(page_align(header) == block.page.frame);
   buf_block_t *iblock;
@@ -1844,7 +1847,7 @@ static dberr_t fseg_fill_free_list(const fseg_inode_t *inode,
                                    buf_block_t *iblock, fil_space_t *space,
                                    uint32_t hint, mtr_t *mtr)
 {
-  ulint	used;
+  uint32_t used;
 
   ut_ad(!((page_offset(inode) - FSEG_ARR_OFFSET) % FSEG_INODE_SIZE));
   ut_d(space->modify_check(*mtr));
@@ -1995,8 +1998,7 @@ fseg_alloc_free_page_low(
 	dberr_t*		err)
 {
 	ib_id_t		seg_id;
-	ulint		used;
-	ulint		reserved;
+	uint32_t	used, reserved;
 	xdes_t*		descr;		/*!< extent of the hinted page */
 	uint32_t	ret_page;	/*!< the allocated page offset, FIL_NULL
 					if could not be allocated */

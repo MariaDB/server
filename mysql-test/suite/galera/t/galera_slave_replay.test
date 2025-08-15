@@ -6,6 +6,7 @@
 # or rollback and replay (depending on the nature of lock conflict).
 #
 
+--source include/galera_cluster.inc
 --source include/have_innodb.inc
 --source include/have_log_bin.inc
 --source include/have_debug.inc
@@ -13,9 +14,7 @@
 --source include/galera_have_debug_sync.inc
 
 --connect node_2a, 127.0.0.1, root, , test, $NODE_MYPORT_2
-
 --connection node_2a
---source include/galera_cluster.inc
 
 ALTER TABLE mysql.gtid_slave_pos ENGINE=InnoDB;
 
@@ -31,7 +30,6 @@ RESET MASTER;
 # count the number of wsrep replay's done in the node
 #
 --let $wsrep_local_replays_old = `SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_local_replays'`
-
 
 #
 # nodes 1 and 2 form a galera cluster, node 2 operates as slave for native MariaDB master in node 3
@@ -134,7 +132,7 @@ SELECT *  FROM t1;
 SET DEBUG_SYNC = "RESET";
 
 #********************************************************************************
-#	test phase 2
+#       test phase 2
 #********************************************************************************
 
 --echo #
@@ -197,3 +195,7 @@ DROP TABLE t1;
 --connection node_3
 DROP TABLE t1;
 RESET MASTER;
+
+--connection node_1
+--disconnect node_2a
+--disconnect node_3

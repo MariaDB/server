@@ -1,5 +1,5 @@
---- suite/storage_engine/trx/insert.result	2012-07-12 23:09:44.663527407 +0400
-+++ suite/storage_engine/trx/insert.reject	2012-07-15 16:55:46.676390078 +0400
+--- suite/storage_engine/trx/insert.result
++++ suite/storage_engine/trx/insert.reject
 @@ -1,3 +1,15 @@
 +# -- WARNING ----------------------------------------------------------------
 +# According to I_S.ENGINES, MyISAM does not support transactions.

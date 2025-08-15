@@ -17,7 +17,7 @@
 # License along with this library; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA
 
-cmake_minimum_required(VERSION 2.8.12)
+cmake_minimum_required(VERSION 2.8...3.12)
 project(mroonga)
 
 if("${CMAKE_SOURCE_DIR}" STREQUAL "${CMAKE_CURRENT_SOURCE_DIR}")
@@ -49,6 +49,14 @@ if(MSVC)
       message(FATAL_ERROR ${MRN_OLD_MSVC_MESSAGE})
     endif()
   endif()
+else()
+  STRING(REGEX REPLACE "-Wframe-larger-than=[0-9]*" ""
+         CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
+  STRING(REGEX REPLACE "-Wframe-larger-than=[0-9]*" ""
+         CMAKE_CXX_FLAGS_RELWITHDEBINFO "${CMAKE_CXX_FLAGS_RELWITHDEBINFO}")
+  STRING(REGEX REPLACE "-Wframe-larger-than=[0-9]*" ""
+         CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG}")
+  MY_CHECK_AND_SET_COMPILER_FLAG(-Wframe-larger-than=49152)
 endif()
 
 if(MRN_BUNDLED)
@@ -318,7 +326,7 @@ else()
   if(WITH_DEBUG)
     set_property(TARGET mroonga APPEND PROPERTY
       COMPILE_DEFINITIONS "SAFE_MUTEX")
-    if(CMAKE_COMPILER_IS_GNUCXX)
+    if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
       set(MRN_C_COMPILE_FLAGS "${MRN_C_COMPILE_FLAGS} -g3 -O0")
       set(MRN_CXX_COMPILE_FLAGS "${MRN_CXX_COMPILE_FLAGS} -g3 -O0")
     endif()
@@ -345,7 +353,7 @@ else()
       COMPILE_DEFINITIONS "MY_PTHREAD_FASTMUTEX")
   endif()
 
-  if(CMAKE_COMPILER_IS_GNUCXX)
+  if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
     MY_CHECK_AND_SET_COMPILER_FLAG("-Wall")
     MY_CHECK_AND_SET_COMPILER_FLAG("-Wextra")
     MY_CHECK_AND_SET_COMPILER_FLAG("-Wno-unused-parameter")

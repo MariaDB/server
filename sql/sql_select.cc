@@ -1283,6 +1283,7 @@ int SELECT_LEX::vers_setup_conds(THD *thd, TABLE_LIST *tables)
     }
 
     bool timestamps_only= table->table->versioned(VERS_TIMESTAMP);
+    bool update_this= update_conds;
 
     if (vers_conditions.is_set() && vers_conditions.type != SYSTEM_TIME_HISTORY)
     {
@@ -1299,9 +1300,22 @@ int SELECT_LEX::vers_setup_conds(THD *thd, TABLE_LIST *tables)
         my_error(ER_VERS_ENGINE_UNSUPPORTED, MYF(0), table->table_name.str);
         DBUG_RETURN(-1);
       }
+      if (vers_conditions.has_param)
+      {
+        /*
+          PS parameter in history expression requires processing at execution
+          stage when parameters has values substituted. So at prepare continue
+          the loop, but at execution enter update_this. The second execution
+          is skipped on vers_conditions.type == SYSTEM_TIME_ALL condition.
+        */
+        if (thd->stmt_arena->is_stmt_prepare())
+          continue;
+        DBUG_ASSERT(thd->stmt_arena->is_stmt_execute());
+        update_this= true;
+      }
     }
 
-    if (update_conds)
+    if (update_this)
     {
       vers_conditions.period = &table->table->s->vers;
       Item *cond= period_get_condition(thd, table, this, &vers_conditions,
@@ -1318,6 +1332,8 @@ int SELECT_LEX::vers_setup_conds(THD *thd, TABLE_LIST *tables)
         else
           where= and_items(thd, where, cond);
         table->where= and_items(thd, table->where, cond);
+        if (where && vers_conditions.has_param && vers_conditions.delete_history)
+          prep_where= where->copy_andor_structure(thd);
       }
 
       table->vers_conditions.set_all();
@@ -2158,6 +2174,7 @@ JOIN::optimize_inner()
     /* Merge all mergeable derived tables/views in this SELECT. */
     if (select_lex->handle_derived(thd->lex, DT_MERGE))
       DBUG_RETURN(TRUE);  
+    table_count= select_lex->leaf_tables.elements;
   }
 
   if (select_lex->first_cond_optimization &&
@@ -2205,6 +2222,8 @@ JOIN::optimize_inner()
   
   eval_select_list_used_tables();
 
+  table_count= select_lex->leaf_tables.elements;
+
   if (select_lex->options & OPTION_SCHEMA_TABLE &&
       optimize_schema_tables_memory_usage(select_lex->leaf_tables))
     DBUG_RETURN(1);
@@ -2244,6 +2263,7 @@ JOIN::optimize_inner()
   SELECT_LEX *sel= select_lex;
   if (sel->first_cond_optimization)
   {
+    bool error= false;
     /*
       The following code will allocate the new items in a permanent
       MEMROOT for prepared statements and stored procedures.
@@ -2261,7 +2281,7 @@ JOIN::optimize_inner()
     /* Convert all outer joins to inner joins if possible */
     conds= simplify_joins(this, join_list, conds, TRUE, FALSE);
 
-    add_table_function_dependencies(join_list, table_map(-1));
+    add_table_function_dependencies(join_list, table_map(-1), &error);
 
     if (thd->is_error() ||
         (!select_lex->leaf_tables_saved && select_lex->save_leaf_tables(thd)))
@@ -3578,7 +3598,14 @@ bool JOIN::add_fields_for_current_rowid(JOIN_TAB *cur, List<Item> *table_fields)
       continue;
     Item *item= new (thd->mem_root) Item_temptable_rowid(tab->table);
     item->fix_fields(thd, 0);
-    table_fields->push_back(item, thd->mem_root);
+    /*
+      table_fields points to JOIN::all_fields or JOIN::tmp_all_fields_*.
+      These lists start with "added" fields and then their suffix is shared
+      with JOIN::fields_list or JOIN::tmp_fields_list*.
+      Because of that, new elements can only be added to the front of the list,
+      not to the back.
+    */
+    table_fields->push_front(item, thd->mem_root);
     cur->tmp_table_param->func_count++;
   }
   return 0;
@@ -4770,11 +4797,6 @@ void JOIN::exec_inner()
         UNION temp table.
   */
 
-  Json_writer_object trace_wrapper(thd);
-  Json_writer_object trace_exec(thd, "join_execution");
-  trace_exec.add_select_number(select_lex->select_number);
-  Json_writer_array trace_steps(thd, "steps");
-
   if (!select_lex->outer_select() &&                            // (1)
       select_lex != select_lex->master_unit()->fake_select_lex) // (2)
     thd->lex->set_limit_rows_examined();
@@ -4843,7 +4865,6 @@ void JOIN::exec_inner()
     }
     /* Single select (without union) always returns 0 or 1 row */
     thd->limit_found_rows= send_records;
-    thd->set_examined_row_count(0);
     DBUG_VOID_RETURN;
   }
 
@@ -5991,7 +6012,10 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
         s->table->opt_range_condition_rows=s->records;
       }
       else
+      {
+        /* Update s->records and s->read_time */
         s->scan_time();
+      }
 
       if (s->table->is_splittable())
         s->add_keyuses_for_splitting();
@@ -7130,7 +7154,13 @@ add_key_part(DYNAMIC_ARRAY *keyuse_array, KEY_FIELD *key_field)
         }
       }
     }
-    if (field->hash_join_is_possible() &&
+    /*
+      Compressed field cannot be part of a key. For optimizer temporary table
+      compressed fields are replaced by uncompressed, see
+      is_optimizer_tmp_table() and Field_*_compressed::make_new_field().
+    */
+    if (!field->compression_method() &&
+        field->hash_join_is_possible() &&
         (key_field->optimize & KEY_OPTIMIZE_EQ) &&
         key_field->val->used_tables())
     {
@@ -8813,8 +8843,11 @@ best_access_path(JOIN      *join,
         if (!(records < s->worst_seeks &&
               records <= thd->variables.max_seeks_for_key))
         {
-          // Don't use rowid filter
-          trace_access_idx.add("rowid_filter_skipped", "worst/max seeks clipping");
+          if (table->range_rowid_filter_cost_info_elems)
+          {
+            // Don't use rowid filter
+            trace_access_idx.add("rowid_filter_skipped", "worst/max seeks clipping");
+          }
           filter= NULL;
         }
         else
@@ -14043,6 +14076,36 @@ bool generate_derived_keys_for_table(KEYUSE *keyuse, uint count, uint keys)
 }
    
 
+/*
+  Procedure of keys generation for result tables of materialized derived
+  tables/views.
+
+  A key is generated for each equi-join pair {derived_table, some_other_table}.
+  Each generated key consists of fields of derived table used in equi-join.
+  Example:
+
+    SELECT * FROM (SELECT * FROM t1 GROUP BY 1) tt JOIN
+                  t1 ON tt.f1=t1.f3 and tt.f2.=t1.f4;
+  In this case for the derived table tt one key will be generated. It will
+  consist of two parts f1 and f2.
+  Example:
+
+    SELECT * FROM (SELECT * FROM t1 GROUP BY 1) tt JOIN
+                  t1 ON tt.f1=t1.f3 JOIN
+                  t2 ON tt.f2=t2.f4;
+  In this case for the derived table tt two keys will be generated.
+  One key over f1 field, and another key over f2 field.
+  Currently optimizer may choose to use only one such key, thus the second
+  one will be dropped after range optimizer is finished.
+  See also JOIN::drop_unused_derived_keys function.
+  Example:
+
+    SELECT * FROM (SELECT * FROM t1 GROUP BY 1) tt JOIN
+                  t1 ON tt.f1=a_function(t1.f3);
+  In this case for the derived table tt one key will be generated. It will
+  consist of one field - f1.
+*/
+
 static
 bool generate_derived_keys(DYNAMIC_ARRAY *keyuse_array)
 {
@@ -14753,7 +14816,7 @@ uint check_join_cache_usage(JOIN_TAB *tab,
       }
       goto no_join_cache;
     }
-    if (cache_level > 4 && no_bka_cache)
+    if (cache_level < 5 || no_bka_cache)
       goto no_join_cache;
     
     if ((flags & HA_MRR_NO_ASSOCIATION) &&
@@ -15455,6 +15518,7 @@ void JOIN_TAB::cleanup()
 double JOIN_TAB::scan_time()
 {
   double res;
+  THD *thd= join->thd;
   if (table->is_created())
   {
     if (table->is_filled_at_execution())
@@ -15475,10 +15539,53 @@ double JOIN_TAB::scan_time()
     }
     res= read_time;
   }
+  else if (!(thd->variables.optimizer_adjust_secondary_key_costs &
+             OPTIMIZER_ADJ_FIX_DERIVED_TABLE_READ_COST))
+  {
+    /*
+      Old code, do not merge into 11.0+:
+    */
+    found_records= records=table->stat_records();
+    read_time= found_records ? (double)found_records: 10.0;
+    res= read_time;
+  }
   else
   {
-    found_records= records=table->stat_records();
-    read_time= found_records ? (double)found_records: 10.0;// TODO:fix this stub
+    bool using_heap= 0;
+    TABLE_SHARE *share= table->s;
+    found_records= records= table->stat_records();
+
+    if (share->db_type() == heap_hton)
+    {
+      /* Check that the rows will fit into the heap table */
+      ha_rows max_rows;
+      max_rows= (ha_rows) ((MY_MIN(thd->variables.tmp_memory_table_size,
+                                   thd->variables.max_heap_table_size)) /
+                           MY_ALIGN(share->reclength, sizeof(char*)));
+      if (records <= max_rows)
+      {
+        /* The rows will fit into the heap table */
+        using_heap= 1;
+      }
+    }
+
+    /*
+      Code for the following is taken from the heap and aria storage engine.
+      In 11.# this is done without explict engine code
+    */
+    if (using_heap)
+      read_time= (records / 20.0) + 1;
+    else
+    {
+      handler *file= table->file;
+      file->stats.data_file_length= share->reclength * records;
+      /*
+        Call the default scan_time() method as this is the cost for the
+        scan when heap is converted to Aria
+      */
+      read_time= file->handler::scan_time();
+      file->stats.data_file_length= 0;
+    }
     res= read_time;
   }
   return res;
@@ -15812,6 +15919,7 @@ void JOIN::cleanup(bool full)
     /* Free the original optimized join created for the group_by_handler */
     join_tab= original_join_tab;
     original_join_tab= 0;
+    table_count= original_table_count;
   }
 
   if (join_tab)
@@ -18537,6 +18645,8 @@ simplify_joins(JOIN *join, List<TABLE_LIST> *join_list, COND *conds, bool top,
         prev_table->dep_tables|= used_tables;
       if (prev_table->on_expr)
       {
+        /* If the ON expression is still there, it's an outer join */
+        DBUG_ASSERT(prev_table->outer_join);
         prev_table->dep_tables|= table->on_expr_dep_tables;
         table_map prev_used_tables= prev_table->nested_join ?
 	                            prev_table->nested_join->used_tables :
@@ -18551,11 +18661,59 @@ simplify_joins(JOIN *join, List<TABLE_LIST> *join_list, COND *conds, bool top,
           prevents update of inner table dependences.
           For example it might happen if RAND() function
           is used in JOIN ON clause.
-	*/  
-        if (!((prev_table->on_expr->used_tables() &
-               ~(OUTER_REF_TABLE_BIT | RAND_TABLE_BIT)) &
-              ~prev_used_tables))
+	*/
+        table_map prev_on_expr_deps= prev_table->on_expr->used_tables() &
+                                     ~(OUTER_REF_TABLE_BIT | RAND_TABLE_BIT);
+        prev_on_expr_deps&= ~prev_used_tables;
+
+        if (!prev_on_expr_deps)
           prev_table->dep_tables|= used_tables;
+        else
+        {
+          /*
+            Another possible case is when prev_on_expr_deps!=0 but it depends
+            on a table outside this join nest. SQL name resolution don't allow
+            this but it is possible when LEFT JOIN is inside a subquery which
+            is converted into a semi-join nest, Example:
+
+              t1 SEMI JOIN (
+                t2
+                LEFT JOIN (t3 LEFT JOIN t4 ON t4.col=t1.col) ON expr
+              ) ON ...
+
+            here, we would have prev_table=t4, table=t3.  The condition
+            "ON t4.col=t1.col" depends on tables {t1, t4}. To make sure the
+            optimizer puts t3 before t4 we need to make sure t4.dep_tables
+            includes t3.
+          */
+
+          DBUG_ASSERT(table->embedding == prev_table->embedding);
+          if (table->embedding)
+          {
+            /*
+              Find what are the "peers" of "table" in the join nest. Normally,
+              it is table->embedding->nested_join->used_tables, but here we are
+              in the process of recomputing that value.
+              So, we walk the join list and collect the bitmap of peers:
+            */
+            table_map peers= 0;
+            List_iterator_fast<TABLE_LIST> li(*join_list);
+            TABLE_LIST *peer;
+            while ((peer= li++))
+            {
+              table_map curmap= peer->nested_join
+                                    ? peer->nested_join->used_tables
+                                    : peer->get_map();
+              peers|= curmap;
+            }
+            /*
+              If prev_table doesn't depend on any of its peers, add a
+              dependency on nearest peer, that is, on 'table'.
+            */
+            if (!(prev_on_expr_deps & peers))
+              prev_table->dep_tables|= used_tables;
+          }
+        }
       }
     }
     prev_table= table;
@@ -20523,8 +20681,8 @@ TABLE *Create_tmp_table::start(THD *thd,
     copy_func_count+= param->sum_func_count;
   param->copy_func_count= copy_func_count;
   
-  init_sql_alloc(key_memory_TABLE, &own_root, TABLE_ALLOC_BLOCK_SIZE, 0,
-                 MYF(MY_THREAD_SPECIFIC));
+  init_sql_alloc(key_memory_TABLE, &own_root, TMP_TABLE_BLOCK_SIZE,
+                 TMP_TABLE_PREALLOC_SIZE, MYF(MY_THREAD_SPECIFIC));
 
   if (!multi_alloc_root(&own_root,
                         &table, sizeof(*table),
@@ -21052,7 +21210,7 @@ bool Create_tmp_table::finalize(THD *thd,
                                  MY_MIN(thd->variables.tmp_memory_table_size,
                                      thd->variables.max_heap_table_size) :
                                  thd->variables.tmp_disk_table_size) /
-                                share->reclength);
+                                MY_ALIGN(share->reclength, sizeof(char*)));
   set_if_bigger(share->max_rows,1);		// For dummy start options
   /*
     Push the LIMIT clause to the temporary table creation, so that we
@@ -22347,6 +22505,8 @@ do_select(JOIN *join, Procedure *procedure)
         */
         clear_tables(join, &cleared_tables);
       }
+      if (join->tmp_table_param.copy_funcs.elements)
+        copy_fields(&join->tmp_table_param);
       if (!join->having || join->having->val_bool())
       {
         List<Item> *columns_list= (procedure ? &join->procedure_fields_list :
@@ -23791,6 +23951,13 @@ test_if_quick_select(JOIN_TAB *tab)
     tab->table->file->ha_index_or_rnd_end();
 
   quick_select_return res;
+  Json_writer_object wrapper(tab->join->thd);
+  Json_writer_object range_fer(tab->join->thd,
+                               "range-checked-for-each-record");
+  range_fer.add_select_number(tab->join->select_lex->select_number);
+  range_fer.add("loop", tab->join->explain->time_tracker.get_loops());
+
+  Json_writer_array rows_est(tab->join->thd, "rows_estimation");
   res= tab->select->test_quick_select(tab->join->thd, tab->keys,
                                       (table_map) 0, HA_POS_ERROR, 0,
                                       FALSE, /*remove where parts*/FALSE,
@@ -27014,9 +27181,13 @@ find_order_in_list(THD *thd, Ref_ptr_array ref_pointer_array,
       original field name, we should additionally check if we have conflict
       for this name (in case if we would perform lookup in all tables).
     */
-    if (resolution == RESOLVED_BEHIND_ALIAS &&
-        order_item->fix_fields_if_needed_for_order_by(thd, order->item))
-      return TRUE;
+    if (resolution == RESOLVED_BEHIND_ALIAS)
+    {
+      if (order_item->fix_fields_if_needed_for_order_by(thd, order->item))
+        return TRUE;
+      // fix_fields may have replaced order->item, reset local variable.
+      order_item= *order->item;
+    }
 
     /* Lookup the current GROUP field in the FROM clause. */
     order_item_type= order_item->type();
@@ -30482,7 +30653,7 @@ void st_select_lex::print_item_list(THD *thd, String *str,
       */
       if (top_level ||
           item->is_explicit_name() ||
-          !check_column_name(item->name.str))
+          !check_column_name(item->name))
         item->print_item_w_name(str, query_type);
       else
         item->print(str, query_type);
@@ -30647,6 +30818,8 @@ void st_select_lex::print(THD *thd, String *str, enum_query_type query_type)
       }
     }
     str->append(STRING_WITH_LEN(" */ "));
+    if (join && join->cleaned) // if this join has been cleaned
+      return;                  // the select_number printed above is all we have
   }
 
   if (sel_type == SELECT_CMD ||
@@ -30661,9 +30834,10 @@ void st_select_lex::print(THD *thd, String *str, enum_query_type query_type)
       because temporary tables they pointed on could be freed.
     */
     str->append('#');
-    str->append(select_number);
+    str->append_ulonglong(select_number);
     return;
   }
+
 
   /* First add options */
   if (options & SELECT_STRAIGHT_JOIN)

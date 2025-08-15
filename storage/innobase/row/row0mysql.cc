@@ -69,7 +69,7 @@ Created 9/17/2000 Heikki Tuuri
 
 
 /** Delay an INSERT, DELETE or UPDATE operation if the purge is lagging. */
-static void row_mysql_delay_if_needed()
+static void row_mysql_delay_if_needed() noexcept
 {
   const auto delay= srv_dml_needed_delay;
   if (UNIV_UNLIKELY(delay != 0))
@@ -78,8 +78,8 @@ static void row_mysql_delay_if_needed()
     log_sys.latch.rd_lock(SRW_LOCK_CALL);
     const lsn_t last= log_sys.last_checkpoint_lsn,
       max_age= log_sys.max_checkpoint_age;
+    const lsn_t lsn= log_sys.get_flushed_lsn();
     log_sys.latch.rd_unlock();
-    const lsn_t lsn= log_sys.get_lsn();
     if ((lsn - last) / 4 >= max_age / 5)
       buf_flush_ahead(last + max_age / 5, false);
     purge_sys.wake_if_not_active();
@@ -210,6 +210,14 @@ row_mysql_read_blob_ref(
 	byte*	data;
 
 	*len = mach_read_from_n_little_endian(ref, col_len - 8);
+
+	if (!*len) {
+		/* Field_blob::store() if (!length) would encode both
+		the length and the pointer in the same area. An empty
+		string must be a valid (nonnull) pointer in the
+		collation functions that cmp_data() may invoke. */
+		return ref;
+	}
 
 	memcpy(&data, ref + col_len - 8, sizeof data);
 
@@ -625,7 +633,7 @@ row_mysql_handle_errors(
 				function */
 	trx_t*		trx,	/*!< in: transaction */
 	que_thr_t*	thr,	/*!< in: query thread, or NULL */
-	trx_savept_t*	savept)	/*!< in: savepoint, or NULL */
+	const undo_no_t*savept)	/*!< in: pointer to savepoint, or nullptr */
 {
 	dberr_t	err;
 
@@ -679,10 +687,13 @@ handle_new_error:
 			/* MariaDB will roll back the latest SQL statement */
 			break;
 		}
-		/* MariaDB will roll back the entire transaction. */
-		trx->bulk_insert = false;
-		trx->last_sql_stat_start.least_undo_no = 0;
-		trx->savepoints_discard();
+		/* For DML, InnoDB does partial rollback and clear
+		bulk buffer in row_mysql_handle_errors().
+		For ALTER TABLE ALGORITHM=COPY & CREATE TABLE...SELECT,
+		the bulk insert transaction will be rolled back inside
+		ha_innobase::extra(HA_EXTRA_ABORT_ALTER_COPY) */
+		trx->bulk_insert &= TRX_DDL_BULK;
+		trx->last_stmt_start = 0;
 		break;
 	case DB_LOCK_WAIT:
 		err = lock_wait(thr);
@@ -697,10 +708,10 @@ handle_new_error:
 	case DB_DEADLOCK:
 	case DB_RECORD_CHANGED:
 	case DB_LOCK_TABLE_FULL:
+	case DB_TEMP_FILE_WRITE_FAIL:
 	rollback:
 		/* Roll back the whole transaction; this resolution was added
 		to version 3.23.43 */
-
 		trx->rollback();
 		break;
 
@@ -975,7 +986,7 @@ void row_prebuilt_free(row_prebuilt_t *prebuilt)
 		rtr_clean_rtr_info(prebuilt->rtr_info, true);
 	}
 	if (prebuilt->table) {
-		dict_table_close(prebuilt->table);
+		prebuilt->table->release();
 	}
 
 	mem_heap_free(prebuilt->heap);
@@ -1137,7 +1148,7 @@ row_lock_table_autoinc_for_mysql(
 
 		trx->error_state = err;
 	} while (err != DB_SUCCESS
-		 && row_mysql_handle_errors(&err, trx, thr, NULL));
+		 && row_mysql_handle_errors(&err, trx, thr, nullptr));
 
 	trx->op_info = "";
 
@@ -1179,7 +1190,7 @@ row_lock_table(row_prebuilt_t* prebuilt)
 					 prebuilt->select_lock_type), thr);
 		trx->error_state = err;
 	} while (err != DB_SUCCESS
-		 && row_mysql_handle_errors(&err, trx, thr, NULL));
+		 && row_mysql_handle_errors(&err, trx, thr, nullptr));
 
 	trx->op_info = "";
 
@@ -1218,7 +1229,6 @@ row_insert_for_mysql(
 	row_prebuilt_t*	prebuilt,
 	ins_mode_t	ins_mode)
 {
-	trx_savept_t	savept;
 	que_thr_t*	thr;
 	dberr_t		err;
 	ibool		was_lock_wait;
@@ -1272,7 +1282,7 @@ row_insert_for_mysql(
 	roll back to the start of the transaction. For correctness, it
 	would suffice to roll back to the start of the first insert
 	into this empty table, but we will keep it simple and efficient. */
-	savept.least_undo_no = trx->bulk_insert ? 0 : trx->undo_no;
+	const undo_no_t savept{trx->bulk_insert ? 0 : trx->undo_no};
 
 	thr = que_fork_get_first_thr(prebuilt->ins_graph);
 
@@ -1580,7 +1590,6 @@ init_fts_doc_id_for_ref(
 dberr_t
 row_update_for_mysql(row_prebuilt_t* prebuilt)
 {
-	trx_savept_t	savept;
 	dberr_t		err;
 	que_thr_t*	thr;
 	dict_index_t*	clust_index;
@@ -1595,7 +1604,7 @@ row_update_for_mysql(row_prebuilt_t* prebuilt)
 	ut_a(prebuilt->magic_n == ROW_PREBUILT_ALLOCATED);
 	ut_a(prebuilt->magic_n2 == ROW_PREBUILT_ALLOCATED);
 	ut_a(prebuilt->template_type == ROW_MYSQL_WHOLE_ROW);
-	ut_ad(table->stat_initialized);
+	ut_ad(table->stat_initialized());
 
 	if (!table->is_readable()) {
 		return row_mysql_get_table_error(trx, table);
@@ -1637,7 +1646,7 @@ row_update_for_mysql(row_prebuilt_t* prebuilt)
 	generated for the table: MySQL does not know anything about
 	the row id used as the clustered index key */
 
-	savept.least_undo_no = trx->undo_no;
+	undo_no_t savept = trx->undo_no;
 
 	thr = que_fork_get_first_thr(prebuilt->upd_graph);
 
@@ -2155,11 +2164,9 @@ row_create_index_for_mysql(
 
 		index = node->index;
 
-		ut_ad(!index == (err != DB_SUCCESS));
-
 		que_graph_free((que_t*) que_node_get_parent(thr));
 
-		if (index && (index->type & DICT_FTS)) {
+		if (err == DB_SUCCESS && (index->type & DICT_FTS)) {
 			err = fts_create_index_tables(trx, index, table->id);
 		}
 
@@ -2528,7 +2535,7 @@ row_rename_table_for_mysql(
 	const char*	old_name,	/*!< in: old table name */
 	const char*	new_name,	/*!< in: new table name */
 	trx_t*		trx,		/*!< in/out: transaction */
-	bool		use_fk)		/*!< in: whether to parse and enforce
+	rename_fk	fk)		/*!< in: how to handle
 					FOREIGN KEY constraints */
 {
 	dict_table_t*	table			= NULL;
@@ -2552,6 +2559,8 @@ row_rename_table_for_mysql(
 
 	old_is_tmp = dict_table_t::is_temporary_name(old_name);
 	new_is_tmp = dict_table_t::is_temporary_name(new_name);
+
+	ut_ad(fk != RENAME_IGNORE_FK || !new_is_tmp);
 
 	table = dict_table_open_on_name(old_name, true,
 					DICT_ERR_IGNORE_FK_NOKEY);
@@ -2582,7 +2591,7 @@ row_rename_table_for_mysql(
 		memcpy(par_case_name, old_name,
 			strlen(old_name));
 		par_case_name[strlen(old_name)] = 0;
-		innobase_casedn_str(par_case_name);
+		my_casedn_str(system_charset_info, par_case_name);
 #else
 		/* On Windows platfrom, check
 		whether there exists table name in
@@ -2612,10 +2621,9 @@ row_rename_table_for_mysql(
 			<< TROUBLESHOOTING_MSG;
 
 		goto funct_exit;
-
-	} else if (use_fk && !old_is_tmp && new_is_tmp) {
-		/* MySQL is doing an ALTER TABLE command and it renames the
-		original table to a temporary table name. We want to preserve
+	} else if (fk == RENAME_ALTER_COPY && !old_is_tmp && new_is_tmp) {
+		/* Non-native ALTER TABLE is renaming the
+		original table to a temporary name. We want to preserve
 		the original foreign key constraint definitions despite the
 		name change. An exception is those constraints for which
 		the ALTER TABLE contained DROP FOREIGN KEY <foreign key id>.*/
@@ -2659,7 +2667,7 @@ row_rename_table_for_mysql(
 		goto rollback_and_exit;
 	}
 
-	if (!new_is_tmp) {
+	if (/* fk == RENAME_IGNORE_FK || */ !new_is_tmp) {
 		/* Rename all constraints. */
 		char	new_table_name[MAX_TABLE_NAME_LEN + 1];
 		char	old_table_utf8[MAX_TABLE_NAME_LEN + 1];
@@ -2833,7 +2841,7 @@ row_rename_table_for_mysql(
 		err = dict_load_foreigns(
 			new_name, nullptr, trx->id,
 			!old_is_tmp || trx->check_foreigns,
-			use_fk
+			fk == RENAME_ALTER_COPY
 			? DICT_ERR_IGNORE_NONE
 			: DICT_ERR_IGNORE_FK_NOKEY,
 			fk_tables);

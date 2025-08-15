@@ -1,6 +1,10 @@
 source suite/versioning/engines.inc;
 source suite/versioning/common.inc;
 
+--disable_query_log
+call mtr.add_suppression("InnoDB: Transaction was aborted due to ");
+--enable_query_log
+
 replace_result $sys_datatype_expl SYS_DATATYPE;
 eval create table t1(
     x int unsigned,

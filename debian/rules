@@ -4,9 +4,15 @@
 # https://wiki.debian.org/Hardening
 export DEB_BUILD_MAINT_OPTIONS = hardening=+all
 
+# LTO is generally enabled. Only ColumnStore doesn't support it (MCOL-5819)
+# and disables it in storage/columnstore/CMakeLists.txt
+
 DPKG_EXPORT_BUILDFLAGS = 1
 # Include all defaults, including buildflags.mk
 include /usr/share/dpkg/default.mk
+# Include package notes in built executables
+include /usr/share/debhelper/dh_package_notes/package-notes.mk
+
 # CPPFLAGS are nor read by CMake, so copy them to CXXFLAGS
 # See why at https://cmake.org/Bug/view.php?id=12928
 # This is needed for e.g. all automatic Debian hardening flags to apply on all cmake builds.
@@ -81,9 +87,6 @@ endif
 	# quality standards in Debian. Also building it requires an extra 4 GB of disk
 	# space which makes native Debian builds fail as the total disk space needed
 	# for MariaDB becomes over 10 GB. Only build CS via autobake-deb.sh.
-	#
-	# Note: Don't use '-DWITH_URING=ON' as some Buildbot builders are missing it
-	# and would fail permanently.
 	PATH=$${MYSQL_BUILD_PATH:-"/usr/lib/ccache:/usr/local/bin:/usr/bin:/bin"} \
 	    dh_auto_configure --builddirectory=$(BUILDDIR) -- \
 	    -DCMAKE_BUILD_TYPE=RelWithDebInfo \
@@ -97,6 +100,8 @@ endif
 	    -DPLUGIN_AWS_KEY_MANAGEMENT=NO \
 	    -DPLUGIN_COLUMNSTORE=NO \
 	    -DIGNORE_AIO_CHECK=ON \
+	    -DWITH_URING=ON \
+	    -DWITH_LIBAIO=ON \
 	    -DDEB=$(DEB_VENDOR)
 
 # This is needed, otherwise 'make test' will run before binaries have been built

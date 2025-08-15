@@ -1,5 +1,5 @@
---- suite/storage_engine/type_float_indexes.result	2012-07-12 19:37:27.031661128 +0400
-+++ suite/storage_engine/type_float_indexes.reject	2012-07-15 17:52:12.189828410 +0400
+--- suite/storage_engine/type_float_indexes.result
++++ suite/storage_engine/type_float_indexes.reject
 @@ -60,7 +60,7 @@
  ALTER TABLE t1 ADD UNIQUE KEY(d);
  EXPLAIN SELECT d FROM t1 WHERE r > 0 and d > 0 ORDER BY d;

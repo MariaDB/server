@@ -1,4 +1,3 @@
-DROP TABLE IF EXISTS t1;
 SET @test_character_set= 'ucs2';
 SET @test_collation= 'ucs2_general_ci';
 SET @safe_character_set_server= @@character_set_server;
@@ -4226,7 +4225,7 @@ GROUP_CONCAT(CASE WHEN a THEN a ELSE '' END)
 1234567
 SELECT COALESCE(a,'') FROM t1 GROUP BY 1;
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					COALESCE(a,'')	253	9	7	Y	0	39	8
+def					COALESCE(a,'')	253	9	7	N	1	39	8
 COALESCE(a,'')
 1234567
 # All columns must be VARCHAR(9) with the same length:
@@ -4245,7 +4244,7 @@ t2	CREATE TABLE `t2` (
   `IFNULL(a,'')` varchar(9) CHARACTER SET ucs2 COLLATE ucs2_general_ci NOT NULL,
   `IF(a,a,'')` varchar(9) CHARACTER SET ucs2 COLLATE ucs2_general_ci DEFAULT NULL,
   `CASE WHEN a THEN a ELSE '' END` varchar(9) CHARACTER SET ucs2 COLLATE ucs2_general_ci DEFAULT NULL,
-  `COALESCE(a,'')` varchar(9) CHARACTER SET ucs2 COLLATE ucs2_general_ci DEFAULT NULL
+  `COALESCE(a,'')` varchar(9) CHARACTER SET ucs2 COLLATE ucs2_general_ci NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t2;
 CREATE TABLE t2 AS SELECT CONCAT_WS(1,2,3) FROM t1;
@@ -6554,6 +6553,15 @@ DROP TABLE t1;
 SELECT CAST(CONVERT('-9223372036854775808' USING ucs2) AS SIGNED) AS c1;
 c1
 -9223372036854775808
+#
+# MDEV-30111 InnoDB: Failing assertion: update->n_fields == 0 in row_ins_sec_index_entry_by_modify
+#
+select strcmp(_ucs2'' collate ucs2_general_nopad_ci, _ucs2 0x00000001000500000001) as c1;
+c1
+-1
+select strcmp(_ucs2'' collate ucs2_nopad_bin, _ucs2 0x00000001000500000001) as c1;
+c1
+-1
 #
 # End of 10.5 tests
 #

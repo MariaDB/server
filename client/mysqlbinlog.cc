@@ -160,6 +160,14 @@ static Server_gtid_event_filter *server_id_gtid_filter= NULL;
 
 static char *start_datetime_str, *stop_datetime_str;
 static my_time_t start_datetime= 0, stop_datetime= MY_TIME_T_MAX;
+
+typedef struct _last_processed_ev_t
+{
+  ulonglong position;
+  my_time_t datetime;
+} last_processed_ev_t;
+static last_processed_ev_t last_processed_ev= {0, MY_TIME_T_MAX};
+
 static ulonglong rec_count= 0;
 static MYSQL* mysql = NULL;
 static const char* dirname_for_local_load= 0;
@@ -1034,6 +1042,7 @@ Exit_status process_event(PRINT_EVENT_INFO *print_event_info, Log_event *ev,
   DBUG_ENTER("process_event");
   Exit_status retval= OK_CONTINUE;
   IO_CACHE *const head= &print_event_info->head_cache;
+  my_time_t ev_when= ev->when;
 
   /*
     We use Gtid_list_log_event information to determine if there is missing
@@ -1192,9 +1201,16 @@ Exit_status process_event(PRINT_EVENT_INFO *print_event_info, Log_event *ev,
         binlog, even if they have a server_id.  Also, we have to read
         the format_description event so that we can parse subsequent
         events.
+        Don't skip Unknown events either since we don't know their `server_id`s.
       */
-      if (ev_type != ROTATE_EVENT && is_server_id_excluded(ev->server_id))
-        goto end;
+      switch (ev_type) {
+      case ROTATE_EVENT:
+      case UNKNOWN_EVENT:
+        break;
+      default:
+        if (is_server_id_excluded(ev->server_id))
+          goto end;
+      }
     }
     if ((ev->when >= stop_datetime)
         || (pos >= stop_position_mot))
@@ -1608,6 +1624,19 @@ err:
 end:
   rec_count++;
 end_skip_count:
+  /*
+    Update the last_processed_ev, unless the event is a fake event (i.e. format
+    description (ev pointer is reset to 0) or rotate event (ev->when is 0)), or
+    the event is encrypted (i.e. type is Unknown).
+  */
+  if (ev &&
+      !(ev_type == UNKNOWN_EVENT &&
+        ((Unknown_log_event *) ev)->what == Unknown_log_event::ENCRYPTED) &&
+      !(ev_type == ROTATE_EVENT && !ev->when))
+  {
+    last_processed_ev.position= pos + ev->data_written;
+    last_processed_ev.datetime= ev_when;
+  }
 
   DBUG_PRINT("info", ("end event processing"));
   /*
@@ -2921,6 +2950,9 @@ static Exit_status handle_event_text_mode(PRINT_EVENT_INFO *print_event_info,
       if (old_off != BIN_LOG_HEADER_SIZE)
         *len= 1;         // fake event, don't increment old_off
     }
+    DBUG_ASSERT(old_off + ev->data_written == old_off + (*len - 1) ||
+                (*len == 1 &&
+                 (type == ROTATE_EVENT || type == FORMAT_DESCRIPTION_EVENT)));
     Exit_status retval= process_event(print_event_info, ev, old_off, logname);
     if (retval != OK_CONTINUE)
       DBUG_RETURN(retval);
@@ -2939,6 +2971,9 @@ static Exit_status handle_event_text_mode(PRINT_EVENT_INFO *print_event_info,
       DBUG_RETURN(ERROR_STOP);
     }
 
+    DBUG_ASSERT(old_off + ev->data_written == old_off + (*len - 1) ||
+                (*len == 1 &&
+                 (type == ROTATE_EVENT || type == FORMAT_DESCRIPTION_EVENT)));
     retval= process_event(print_event_info, ev, old_off, logname);
     if (retval != OK_CONTINUE)
     {
@@ -3220,6 +3255,7 @@ static Exit_status check_header(IO_CACHE* file,
   uchar buf[PROBE_HEADER_LEN];
   my_off_t tmp_pos, pos;
   MY_STAT my_file_stat;
+  int read_error;
 
   delete glob_description_event;
   if (!(glob_description_event= new Format_description_log_event(3)))
@@ -3320,7 +3356,8 @@ static Exit_status check_header(IO_CACHE* file,
         Format_description_log_event *new_description_event;
         my_b_seek(file, tmp_pos); /* seek back to event's start */
         if (!(new_description_event= (Format_description_log_event*) 
-              Log_event::read_log_event(file, glob_description_event,
+              Log_event::read_log_event(file, &read_error,
+                                        glob_description_event,
                                         opt_verify_binlog_checksum)))
           /* EOF can't be hit here normally, so it's a real error */
         {
@@ -3336,6 +3373,8 @@ static Exit_status check_header(IO_CACHE* file,
             the new one, so we should not do it ourselves in this
             case.
           */
+          DBUG_ASSERT(tmp_pos + new_description_event->data_written ==
+                      my_b_tell(file));
           Exit_status retval= process_event(print_event_info,
                                             new_description_event, tmp_pos,
                                             logname);
@@ -3353,7 +3392,8 @@ static Exit_status check_header(IO_CACHE* file,
       {
         Log_event *ev;
         my_b_seek(file, tmp_pos); /* seek back to event's start */
-        if (!(ev= Log_event::read_log_event(file, glob_description_event,
+        if (!(ev= Log_event::read_log_event(file, &read_error,
+                                            glob_description_event,
                                             opt_verify_binlog_checksum)))
         {
           /* EOF can't be hit here normally, so it's a real error */
@@ -3393,7 +3433,6 @@ static Exit_status dump_local_log_entries(PRINT_EVENT_INFO *print_event_info,
   IO_CACHE cache,*file= &cache;
   uchar tmp_buff[BIN_LOG_HEADER_SIZE];
   Exit_status retval= OK_CONTINUE;
-  my_time_t last_ev_when= MY_TIME_T_MAX;
 
   if (logname && strcmp(logname, "-") != 0)
   {
@@ -3467,8 +3506,10 @@ static Exit_status dump_local_log_entries(PRINT_EVENT_INFO *print_event_info,
   {
     char llbuff[21];
     my_off_t old_off = my_b_tell(file);
+    int read_error;
 
-    Log_event* ev = Log_event::read_log_event(file, glob_description_event,
+    Log_event* ev = Log_event::read_log_event(file, &read_error,
+                                              glob_description_event,
                                               opt_verify_binlog_checksum);
     if (!ev)
     {
@@ -3477,43 +3518,27 @@ static Exit_status dump_local_log_entries(PRINT_EVENT_INFO *print_event_info,
         about a corruption, but treat it as EOF and move to the next binlog.
       */
       if (glob_description_event->flags & LOG_EVENT_BINLOG_IN_USE_F)
-        file->error= 0;
-      else if (file->error)
+        read_error= 0;
+      else if (read_error)
       {
         error("Could not read entry at offset %s: "
               "Error in log format or read error.",
               llstr(old_off,llbuff));
         goto err;
       }
-      // else file->error == 0 means EOF, that's OK, we break in this case
-
-      /*
-        Emit a warning in the event that we finished processing input
-        before reaching the boundary indicated by --stop-position.
-      */
-      if (((longlong)stop_position != stop_position_default) &&
-          stop_position > my_b_tell(file))
-      {
-          retval = OK_STOP;
-          warning("Did not reach stop position %llu before "
-                  "end of input", stop_position);
-      }
-
-      /*
-        Emit a warning in the event that we finished processing input
-        before reaching the boundary indicated by --stop-datetime.
-      */
-      if (stop_datetime != MY_TIME_T_MAX &&
-          stop_datetime > last_ev_when)
-      {
-          retval = OK_STOP;
-          warning("Did not reach stop datetime '%s' "
-                  "before end of input", stop_datetime_str);
-      }
+      // else read_error == 0 means EOF, that's OK, we break in this case
 
       goto end;
     }
-    last_ev_when= ev->when;
+
+    /*
+      The real location that we have read up to in the file should align with
+      the size of the event, unless the event is encrypted.
+    */
+    DBUG_ASSERT(
+        ((ev->get_type_code() == UNKNOWN_EVENT &&
+          ((Unknown_log_event *) ev)->what == Unknown_log_event::ENCRYPTED)) ||
+        old_off + ev->data_written == my_b_tell(file));
     if ((retval= process_event(print_event_info, ev, old_off, logname)) !=
         OK_CONTINUE)
       goto end;
@@ -3691,6 +3716,22 @@ int main(int argc, char** argv)
     // For next log, --start-position does not apply
     start_position= BIN_LOG_HEADER_SIZE;
   }
+
+  /*
+    Emit warning(s) (in Gtid_event_filter::verify_completed_state() for GTID(s))
+    if we finished processing input before reaching the stop
+    boundaries indicated by --stop-datetime or --stop-position.
+  */
+  if (stop_datetime != MY_TIME_T_MAX &&
+      stop_datetime > last_processed_ev.datetime)
+    warning("Did not reach stop datetime '%s' before end of input",
+            stop_datetime_str);
+  if ((static_cast<longlong>(stop_position) != stop_position_default) &&
+      stop_position > last_processed_ev.position)
+    warning("Did not reach stop position %llu before end of input",
+            stop_position);
+  if (position_gtid_filter)
+    position_gtid_filter->verify_final_state();
 
   /*
     If enable flashback, need to print the events from the end to the

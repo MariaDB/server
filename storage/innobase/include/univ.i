@@ -169,9 +169,6 @@ using the call command. */
 #define UNIV_INLINE static inline
 
 #define UNIV_WORD_SIZE		SIZEOF_SIZE_T
-#if SIZEOF_SIZE_T == 8
-# define HAVE_INNODB_MMAP
-#endif
 
 /** The following alignment is used in memory allocations in memory heap
 management to ensure correct alignment for doubles etc. */

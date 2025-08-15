@@ -451,7 +451,7 @@ hstcpsvr_worker::run_one_nb()
   {
     pollfd& pfd = pfds[nfds - 1];
     if ((pfd.revents & mask_in) != 0) {
-      std::auto_ptr<hstcpsvr_conn> c(new hstcpsvr_conn());
+      std::unique_ptr<hstcpsvr_conn> c(new hstcpsvr_conn());
       c->nonblocking = true;
       c->readsize = cshared.readsize;
       c->accept(cshared);
@@ -498,7 +498,7 @@ hstcpsvr_worker::run_one_ep()
       /* listener */
       ++accept_count;
       DBG_EP(fprintf(stderr, "IN listener\n"));
-      std::auto_ptr<hstcpsvr_conn> c(new hstcpsvr_conn());
+      std::unique_ptr<hstcpsvr_conn> c(new hstcpsvr_conn());
       c->nonblocking = true;
       c->readsize = cshared.readsize;
       c->accept(cshared);

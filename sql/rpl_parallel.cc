@@ -104,6 +104,17 @@ handle_queued_pos_update(THD *thd, rpl_parallel_thread::queued_event *qev)
       (e->force_abort && !rli->stop_for_until))
     return;
 
+  #ifdef ENABLED_DEBUG_SYNC
+    DBUG_EXECUTE_IF("pause_sql_thread_on_fde",
+      DBUG_ASSERT(!debug_sync_set_action(thd, STRING_WITH_LEN(
+        "now SIGNAL paused_on_fde WAIT_FOR sql_thread_continue"
+      )));
+      DBUG_ASSERT(!debug_sync_set_action(thd, STRING_WITH_LEN(
+        "now SIGNAL main_sql_thread_continue"
+      )));
+    );
+  #endif
+
   mysql_mutex_lock(&rli->data_lock);
   cmp= compare_log_name(rli->group_relay_log_name, qev->event_relay_log_name);
   if (cmp < 0)
@@ -124,8 +135,8 @@ handle_queued_pos_update(THD *thd, rpl_parallel_thread::queued_event *qev)
   else if (cmp == 0
            && rli->group_master_log_pos < qev->future_event_master_log_pos)
     rli->group_master_log_pos= qev->future_event_master_log_pos;
-  mysql_mutex_unlock(&rli->data_lock);
   mysql_cond_broadcast(&rli->data_cond);
+  mysql_mutex_unlock(&rli->data_lock);
 }
 
 
@@ -153,14 +164,12 @@ static void
 finish_event_group(rpl_parallel_thread *rpt, uint64 sub_id,
                    rpl_parallel_entry *entry, rpl_group_info *rgi)
 {
-  THD *thd= rpt->thd;
-  wait_for_commit *wfc= &rgi->commit_orderer;
-  int err;
-
   if (rgi->get_finish_event_group_called())
     return;
 
-  thd->get_stmt_da()->set_overwrite_status(true);
+  THD *thd= rpt->thd;
+  wait_for_commit *wfc= &rgi->commit_orderer;
+  int err;
 
   if (unlikely(rgi->worker_error))
   {
@@ -320,10 +329,6 @@ finish_event_group(rpl_parallel_thread *rpt, uint64 sub_id,
     wait_for_pending_deadlock_kill(thd, rgi);
   thd->clear_error();
   thd->reset_killed();
-  /*
-    Would do thd->get_stmt_da()->set_overwrite_status(false) here, but
-    reset_diagnostics_area() already does that.
-  */
   thd->get_stmt_da()->reset_diagnostics_area();
   wfc->wakeup_subsequent_commits(rgi->worker_error);
   rgi->did_mark_start_commit= false;
@@ -1067,14 +1072,15 @@ do_retry:
     /* The loop is here so we can try again the next relay log file on EOF. */
     for (;;)
     {
+      int error;
       old_offset= cur_offset;
-      ev= Log_event::read_log_event(&rlog, description_event,
+      ev= Log_event::read_log_event(&rlog, &error, description_event,
                                     opt_slave_sql_verify_checksum);
       cur_offset= my_b_tell(&rlog);
 
       if (ev)
         break;
-      if (unlikely(rlog.error < 0))
+      if (unlikely(error))
       {
         errmsg= "slave SQL thread aborted because of I/O error";
         err= 1;
@@ -1542,6 +1548,14 @@ handle_rpl_parallel_thread(void *arg)
           else
             rgi->mark_start_commit();
           DEBUG_SYNC(thd, "rpl_parallel_after_mark_start_commit");
+#ifdef ENABLED_DEBUG_SYNC
+          DBUG_EXECUTE_IF("halt_past_mark_start_commit",
+          {
+            DBUG_ASSERT(!debug_sync_set_action
+                        (thd, STRING_WITH_LEN("now WAIT_FOR past_mark_continue")));
+            DBUG_SET_INITIAL("-d,halt_past_mark_start_commit");
+          };);
+#endif
         }
       }
 
@@ -1596,9 +1610,7 @@ handle_rpl_parallel_thread(void *arg)
       else
       {
         delete qev->ev;
-        thd->get_stmt_da()->set_overwrite_status(true);
         err= thd->wait_for_prior_commit();
-        thd->get_stmt_da()->set_overwrite_status(false);
       }
 
       end_of_group=
@@ -3057,13 +3069,21 @@ rpl_parallel::stop_during_until()
 }
 
 
-bool
-rpl_parallel::workers_idle(Relay_log_info *rli)
+bool Relay_log_info::are_sql_threads_caught_up()
 {
-  mysql_mutex_assert_owner(&rli->data_lock);
-  return !rli->last_inuse_relaylog ||
-    rli->last_inuse_relaylog->queued_count ==
-    rli->last_inuse_relaylog->dequeued_count;
+  mysql_mutex_assert_owner(&data_lock);
+  if (!sql_thread_caught_up)
+    return false;
+  /*
+    The SQL thread sets @ref worker_threads_caught_up to `false` but not `true`.
+    Therefore, this place needs to check if it can now be `true`.
+  */
+  if (!worker_threads_caught_up && ( // No need to re-check if already `true`.
+    !last_inuse_relaylog || // `nullptr` case
+      last_inuse_relaylog->queued_count == last_inuse_relaylog->dequeued_count
+  ))
+    worker_threads_caught_up= true; // Refresh
+  return worker_threads_caught_up;
 }
 
 

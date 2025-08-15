@@ -1,0 +1,15 @@
+#
+# wsrep_replicate_myisam
+#
+# save the initial value
+SET @wsrep_mode_saved = @@global.wsrep_mode;
+
+# scope and valid values
+SET @@global.wsrep_mode=REPLICATE_MYISAM;
+SELECT @@global.wsrep_mode;
+@@global.wsrep_mode
+REPLICATE_MYISAM
+
+# restore the initial value
+SET @@global.wsrep_mode = @wsrep_mode_saved;
+# End of test

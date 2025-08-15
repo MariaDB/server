@@ -173,9 +173,15 @@ extern void my_free(void *ptr);
 extern void *my_memdup(PSI_memory_key key, const void *from,size_t length,myf MyFlags);
 extern char *my_strdup(PSI_memory_key key, const char *from,myf MyFlags);
 extern char *my_strndup(PSI_memory_key key, const char *from, size_t length, myf MyFlags);
+extern my_bool my_use_large_pages;
 
-int my_init_large_pages(my_bool super_large_pages);
+int my_init_large_pages(void);
 uchar *my_large_malloc(size_t *size, myf my_flags);
+#ifdef _WIN32
+/* On Windows, use my_virtual_mem_reserve() and my_virtual_mem_commit(). */
+#else
+char *my_large_virtual_alloc(size_t *size);
+#endif
 void my_large_free(void *ptr, size_t size);
 void my_large_page_truncate(size_t *size);
 
@@ -257,9 +263,9 @@ extern void (*my_sigtstp_cleanup)(void),
 					/* Executed before jump to shell */
 	    (*my_sigtstp_restart)(void);
 					/* Executed when coming from shell */
-extern MYSQL_PLUGIN_IMPORT int my_umask;		/* Default creation mask  */
-extern int my_umask_dir,
-	   my_recived_signals,	/* Signals we have got */
+extern MYSQL_PLUGIN_IMPORT mode_t my_umask;	/* Default creation mask  */
+extern mode_t my_umask_dir;
+extern int my_recived_signals,	/* Signals we have got */
 	   my_safe_to_handle_signal, /* Set when allowed to SIGTSTP */
 	   my_dont_interrupt;	/* call remember_intr when set */
 #ifdef _WIN32
@@ -625,7 +631,7 @@ extern File my_open(const char *FileName,int Flags,myf MyFlags);
 extern File my_register_filename(File fd, const char *FileName,
 				 enum file_type type_of_file,
 				 uint error_message_number, myf MyFlags);
-extern File my_create(const char *FileName,int CreateFlags,
+extern File my_create(const char *FileName, mode_t CreateFlags,
 		      int AccessFlags, myf MyFlags);
 extern int my_close(File Filedes,myf MyFlags);
 extern int my_mkdir(const char *dir, int Flags, myf MyFlags);
@@ -633,7 +639,7 @@ extern int my_readlink(char *to, const char *filename, myf MyFlags);
 extern int my_is_symlink(const char *filename);
 extern int my_realpath(char *to, const char *filename, myf MyFlags);
 extern File my_create_with_symlink(const char *linkname, const char *filename,
-				   int createflags, int access_flags,
+				   mode_t createflags, int access_flags,
 				   myf MyFlags);
 extern int my_rename_with_symlink(const char *from,const char *to,myf MyFlags);
 extern int my_symlink(const char *content, const char *linkname, myf MyFlags);
@@ -879,6 +885,7 @@ extern void my_free_lock(void *ptr);
 #define my_free_lock(A) my_free((A))
 #endif
 #define alloc_root_inited(A) ((A)->min_malloc != 0)
+#define DEFAULT_ROOT_BLOCK_SIZE 1024
 #define clear_alloc_root(A) do { (A)->free= (A)->used= (A)->pre_alloc= 0; (A)->min_malloc=0;} while(0)
 extern void init_alloc_root(PSI_memory_key key, MEM_ROOT *mem_root,
                             size_t block_size, size_t pre_alloc_size,

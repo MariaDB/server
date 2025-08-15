@@ -1,5 +1,5 @@
---- select2.result	2018-06-29 17:51:17.142172085 +0200
-+++ select2,trx_id.reject	2018-06-29 18:03:49.034273090 +0200
+--- select2.result
++++ select2,trx_id.reject
 @@ -26,6 +26,8 @@
  select sys_start from t1 where x = 3 and y = 33 into @t1;
  Warnings:

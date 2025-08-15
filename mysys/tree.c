@@ -494,6 +494,9 @@ void *tree_search_next(TREE *tree, TREE_ELEMENT ***last_pos, int l_offs,
                        int r_offs)
 {
   TREE_ELEMENT *x= **last_pos;
+
+  if (x == &null_element)
+    return NULL;
   
   if (ELEMENT_CHILD(x, r_offs) != &null_element)
   {

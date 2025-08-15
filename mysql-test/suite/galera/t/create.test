@@ -86,4 +86,3 @@ DROP TABLE t1, t2;
 
 --source include/galera_end.inc
 --echo # End of tests
-

@@ -281,10 +281,6 @@ C_MODE_END
 #error "Please add -fno-exceptions to CXXFLAGS and reconfigure/recompile"
 #endif
 
-#if defined(_lint) && !defined(lint)
-#define lint
-#endif
-
 #ifndef stdin
 #include <stdio.h>
 #endif
@@ -448,20 +444,17 @@ extern "C" int madvise(void *addr, size_t len, int behav);
 /*
    Suppress uninitialized variable warning without generating code.
 */
-#if defined(__GNUC__)
-/* GCC specific self-initialization which inhibits the warning. */
+#if defined(__GNUC__) && !defined(WITH_UBSAN)
+/*
+  GCC specific self-initialization which inhibits the warning.
+  clang and static analysis will complain loudly about this
+  so compile those under WITH_UBSAN.
+*/
 #define UNINIT_VAR(x) x= x
-#elif defined(_lint) || defined(FORCE_INIT_OF_VARS)
+#elif defined(FORCE_INIT_OF_VARS)
 #define UNINIT_VAR(x) x= 0
 #else
 #define UNINIT_VAR(x) x
-#endif
-
-/* This is only to be used when resetting variables in a class constructor */
-#if defined(_lint) || defined(FORCE_INIT_OF_VARS)
-#define LINT_INIT(x) x= 0
-#else
-#define LINT_INIT(x)
 #endif
 
 #if !defined(HAVE_UINT)
@@ -505,7 +498,7 @@ C_MODE_END
 #endif
 
 /* We might be forced to turn debug off, if not turned off already */
-#if (defined(FORCE_DBUG_OFF) || defined(_lint)) && !defined(DBUG_OFF)
+#if defined(FORCE_DBUG_OFF) && !defined(DBUG_OFF)
 #  define DBUG_OFF
 #  ifdef DBUG_ON
 #    undef DBUG_ON
@@ -527,7 +520,7 @@ typedef int	my_socket;	/* File descriptor for sockets */
 #endif
 /* Type for functions that handles signals */
 #define sig_handler RETSIGTYPE
-#if defined(__GNUC__) && !defined(_lint)
+#if defined(__GNUC__)
 typedef char	pchar;		/* Mixed prototypes can take char */
 typedef char	puchar;		/* Mixed prototypes can take char */
 typedef char	pbool;		/* Mixed prototypes can take char */
@@ -678,10 +671,10 @@ typedef SOCKET_SIZE_TYPE size_socket;
 */
 #define IO_SIZE			4096U
 /*
-  How much overhead does malloc have. The code often allocates
+  How much overhead does malloc/my_malloc have. The code often allocates
   something like 1024-MALLOC_OVERHEAD bytes
 */
-#define MALLOC_OVERHEAD 8
+#define MALLOC_OVERHEAD (8+24)
 
 	/* get memory in huncs */
 #define ONCE_ALLOC_INIT		(uint) 4096

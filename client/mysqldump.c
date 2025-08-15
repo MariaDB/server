@@ -184,7 +184,7 @@ static DYNAMIC_STRING extended_row;
 static DYNAMIC_STRING dynamic_where;
 static MYSQL_RES *get_table_name_result= NULL;
 static MEM_ROOT glob_root;
-static MYSQL_RES *routine_res, *routine_list_res;
+static MYSQL_RES *routine_res, *routine_list_res, *slave_status_res= NULL;
 
 
 #include <sslopt-vars.h>
@@ -1908,6 +1908,8 @@ static void free_resources()
     mysql_free_result(routine_res);
   if (routine_list_res)
     mysql_free_result(routine_list_res);
+  if (slave_status_res)
+    mysql_free_result(slave_status_res);
   if (mysql)
   {
     mysql_close(mysql);
@@ -2158,7 +2160,7 @@ static char *quote_for_equal(const char *name, char *buff)
       *to++='\\';
     }
     if (*name == '\'')
-      *to++= '\\';
+      *to++= '\'';
     *to++= *name++;
   }
   to[0]= '\'';
@@ -3259,7 +3261,7 @@ static uint get_table_structure(const char *table, const char *db, char *table_t
 
           fprintf(sql_file,
                   "SET @saved_cs_client     = @@character_set_client;\n"
-                  "SET character_set_client = utf8;\n"
+                  "SET character_set_client = utf8mb4;\n"
                   "/*!50001 CREATE VIEW %s AS SELECT\n",
                   result_table);
 
@@ -3327,7 +3329,7 @@ static uint get_table_structure(const char *table, const char *db, char *table_t
       {
         fprintf(sql_file,
                 "/*!40101 SET @saved_cs_client     = @@character_set_client */;\n"
-                "/*!40101 SET character_set_client = utf8 */;\n"
+                "/*!40101 SET character_set_client = utf8mb4 */;\n"
                 "%s%s;\n"
                 "/*!40101 SET character_set_client = @saved_cs_client */;\n",
                 is_log_table ? "CREATE TABLE IF NOT EXISTS " : "",
@@ -3713,7 +3715,7 @@ static void dump_trigger_old(FILE *sql_file, MYSQL_RES *show_triggers_rs,
 
   fprintf(sql_file,
           "DELIMITER ;;\n"
-          "/*!50003 SET SESSION SQL_MODE=\"%s\" */;;\n"
+          "/*!50003 SET SESSION SQL_MODE='%s' */;;\n"
           "/*!50003 CREATE */ ",
           (*show_trigger_row)[6]);
 
@@ -4730,17 +4732,19 @@ static int dump_all_users_roles_and_grants()
     return 1;
   while ((row= mysql_fetch_row(tableres)))
   {
+    char buf[200];
     if (opt_replace_into)
       /* Protection against removing the current import user */
       /* MySQL-8.0 export capability */
       fprintf(md_result_file,
         "DELIMITER |\n"
-        "/*M!100101 IF current_user()=\"%s\" THEN\n"
+        "/*M!100101 IF current_user()=%s THEN\n"
         "  SIGNAL SQLSTATE '45000' SET MYSQL_ERRNO=30001,"
         " MESSAGE_TEXT=\"Don't remove current user %s'\";\n"
         "END IF */|\n"
         "DELIMITER ;\n"
-        "/*!50701 DROP USER IF EXISTS %s */;\n", row[0], row[0], row[0]);
+        "/*!50701 DROP USER IF EXISTS %s */;\n",
+        quote_for_equal(row[0],buf), row[0], row[0]);
     if (dump_create_user(row[0]))
       result= 1;
     /* if roles exist, defer dumping grants until after roles created */
@@ -6255,17 +6259,19 @@ static int do_show_master_status(MYSQL *mysql_con, int consistent_binlog_pos,
 
 static int do_stop_slave_sql(MYSQL *mysql_con)
 {
-  MYSQL_RES *slave;
   MYSQL_ROW row;
+  DBUG_ASSERT(
+    !slave_status_res // do_stop_slave_sql() should only be called once
+  );
 
-  if (mysql_query_with_error_report(mysql_con, &slave,
+  if (mysql_query_with_error_report(mysql_con, &slave_status_res,
                                     multi_source ?
                                     "SHOW ALL SLAVES STATUS" :
                                     "SHOW SLAVE STATUS"))
     return(1);
 
   /* Loop over all slaves */
-  while ((row= mysql_fetch_row(slave)))
+  while ((row= mysql_fetch_row(slave_status_res)))
   {
     if (row[11 + multi_source])
     {
@@ -6280,13 +6286,11 @@ static int do_stop_slave_sql(MYSQL *mysql_con)
 
         if (mysql_query_with_error_report(mysql_con, 0, query))
         {
-          mysql_free_result(slave);
           return 1;
         }
       }
     }
   }
-  mysql_free_result(slave);
   return(0);
 }
 
@@ -6410,32 +6414,35 @@ static int do_show_slave_status(MYSQL *mysql_con, int have_mariadb_gtid,
 
 static int do_start_slave_sql(MYSQL *mysql_con)
 {
-  MYSQL_RES *slave;
   MYSQL_ROW row;
   int error= 0;
   DBUG_ENTER("do_start_slave_sql");
 
-  /* We need to check if the slave sql is stopped in the first place */
-  if (mysql_query_with_error_report(mysql_con, &slave,
-                                    multi_source ?
-                                    "SHOW ALL SLAVES STATUS" :
-                                    "SHOW SLAVE STATUS"))
-    DBUG_RETURN(1);
+  /*
+    do_start_slave_sql() should normally be called
+    sometime after do_stop_slave_sql() succeeds
+  */
+  if (!slave_status_res)
+    DBUG_RETURN(error);
+  mysql_data_seek(slave_status_res, 0);
 
-  while ((row= mysql_fetch_row(slave)))
+  while ((row= mysql_fetch_row(slave_status_res)))
   {
     DBUG_PRINT("info", ("Connection: '%s'  status: '%s'",
                         multi_source ? row[0] : "", row[11 + multi_source]));
     if (row[11 + multi_source])
     {
-      /* if SLAVE SQL is not running, we don't start it */
-      if (strcmp(row[11 + multi_source], "Yes"))
+      /*
+        If SLAVE_SQL was not running but is now,
+        we start it anyway to warn the unexpected state change.
+      */
+      if (strcmp(row[11 + multi_source], "No"))
       {
         char query[160];
         if (multi_source)
-          sprintf(query, "START SLAVE '%.80s'", row[0]);
+          sprintf(query, "START SLAVE '%.80s' SQL_THREAD", row[0]);
         else
-          strmov(query, "START SLAVE");
+          strmov(query, "START SLAVE SQL_THREAD");
 
         if (mysql_query_with_error_report(mysql_con, 0, query))
         {
@@ -6446,7 +6453,6 @@ static int do_start_slave_sql(MYSQL *mysql_con)
       }
     }
   }
-  mysql_free_result(slave);
   DBUG_RETURN(error);
 }
 
@@ -6858,6 +6864,7 @@ static my_bool get_view_structure(char *table, char* db)
   char       *result_table, *opt_quoted_table;
   char       table_buff[NAME_LEN*2+3];
   char       table_buff2[NAME_LEN*2+3];
+  char       temp_buff[NAME_LEN*2 + 3], temp_buff2[NAME_LEN*2 + 3];
   char       query[QUERY_LENGTH];
   FILE       *sql_file= md_result_file;
   DBUG_ENTER("get_view_structure");
@@ -6918,7 +6925,9 @@ static my_bool get_view_structure(char *table, char* db)
               "SELECT CHECK_OPTION, DEFINER, SECURITY_TYPE, "
               "       CHARACTER_SET_CLIENT, COLLATION_CONNECTION "
               "FROM information_schema.views "
-              "WHERE table_name=\"%s\" AND table_schema=\"%s\"", table, db);
+              "WHERE table_name=%s AND table_schema=%s",
+              quote_for_equal(table, temp_buff2),
+              quote_for_equal(db, temp_buff));
 
   if (mysql_query(mysql, query))
   {

@@ -566,7 +566,7 @@ ATTRIBUTE_NOINLINE void mtr_t::encrypt()
 
   alignas(8) byte iv[MY_AES_BLOCK_SIZE];
 
-  m_commit_lsn= log_sys.get_lsn();
+  m_commit_lsn= log_sys.get_flushed_lsn();
   ut_ad(m_commit_lsn);
   byte *tmp= static_cast<byte*>(alloca(srv_page_size)), *t= tmp;
   byte *dst= static_cast<byte*>(alloca(srv_page_size));

@@ -4,6 +4,10 @@
 --source include/have_sequence.inc
 --source include/innodb_stable_estimates.inc
 
+--disable_query_log
+call mtr.add_suppression("InnoDB: Transaction was aborted due to ");
+--enable_query_log
+
 SET SESSION DEFAULT_STORAGE_ENGINE='InnoDB';
 
 SET @save_stats_persistent=@@GLOBAL.innodb_stats_persistent;

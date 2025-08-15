@@ -92,7 +92,9 @@ public:
 
   static void aio_completion_thread_proc(tpool_generic_win_aio* aio)
   {
+    aio->m_pool->m_worker_init_callback();
     aio->completion_thread_work();
+    aio->m_pool->m_worker_destroy_callback();
   }
 
   ~tpool_generic_win_aio()
@@ -129,6 +131,7 @@ public:
       : GetLastError();
   }
   int unbind(const native_file_handle& fd) override { return 0; }
+  const char *get_implementation() const override { return "completion ports"; }
 };
 
 aio* create_win_aio(thread_pool* pool, int max_io)

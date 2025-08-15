@@ -368,7 +368,9 @@ enum chf_create_flags {
 /* Implements SELECT ... FOR UPDATE SKIP LOCKED */
 #define HA_CAN_SKIP_LOCKED  (1ULL << 61)
 
-#define HA_LAST_TABLE_FLAG HA_CAN_SKIP_LOCKED
+#define HA_CHECK_UNIQUE_AFTER_WRITE  (1ULL << 62)
+
+#define HA_LAST_TABLE_FLAG HA_CHECK_UNIQUE_AFTER_WRITE
 
 
 /* bits in index_flags(index_number) for what you can do with index */
@@ -1944,6 +1946,16 @@ public:
     DBUG_ASSERT(is_started());
     return m_flags & (int) TRX_READ_WRITE;
   }
+  void set_trx_no_rollback()
+  {
+    DBUG_ASSERT(is_started());
+    m_flags|= (int) TRX_NO_ROLLBACK;
+  }
+  bool is_trx_no_rollback() const
+  {
+    DBUG_ASSERT(is_started());
+    return m_flags & (int) TRX_NO_ROLLBACK;
+  }
   bool is_started() const { return m_ht != NULL; }
   /** Mark this transaction read-write if the argument is read-write. */
   void coalesce_trx_with(const Ha_trx_info *stmt_trx)
@@ -1968,7 +1980,7 @@ public:
     return m_ht;
   }
 private:
-  enum { TRX_READ_ONLY= 0, TRX_READ_WRITE= 1 };
+  enum { TRX_READ_ONLY= 0, TRX_READ_WRITE= 1, TRX_NO_ROLLBACK= 2 };
   /** Auxiliary, used for ha_list management */
   Ha_trx_info *m_next;
   /**
@@ -2117,8 +2129,6 @@ struct Vers_parse_info: public Table_period_info
   }
 
 protected:
-  bool is_start(const char *name) const;
-  bool is_end(const char *name) const;
   bool is_start(const Create_field &f) const;
   bool is_end(const Create_field &f) const;
   bool fix_implicit(THD *thd, Alter_info *alter_info);
@@ -2307,6 +2317,7 @@ struct HA_CREATE_INFO: public Table_scope_and_contents_source_st,
                   const Lex_table_charset_collation_attrs_st &default_cscl,
                   const Lex_table_charset_collation_attrs_st &convert_cscl,
                   const Charset_collation_context &ctx);
+  bool check_if_valid_log_table();
 };
 
 
@@ -3127,7 +3138,6 @@ protected:
   Table_flags cached_table_flags;       /* Set on init() and open() */
 
   ha_rows estimation_rows_to_insert;
-  handler *lookup_handler;
   /* Statistics for the query. Updated if handler_stats.active is set */
   ha_handler_stats active_handler_stats;
   void set_handler_stats();
@@ -3136,6 +3146,7 @@ public:
   uchar *ref;				/* Pointer to current row */
   uchar *dup_ref;			/* Pointer to duplicate row */
   uchar *lookup_buffer;
+  handler *lookup_handler;
 
   /* General statistics for the table like number of row, file sizes etc */
   ha_statistics stats;
@@ -3337,9 +3348,8 @@ public:
   handler(handlerton *ht_arg, TABLE_SHARE *share_arg)
     :table_share(share_arg), table(0),
     estimation_rows_to_insert(0),
-    lookup_handler(this),
-    ht(ht_arg), ref(0), lookup_buffer(NULL), handler_stats(NULL),
-    end_range(NULL), implicit_emptied(0),
+    ht(ht_arg), ref(0), lookup_buffer(NULL), lookup_handler(this),
+    handler_stats(NULL), end_range(NULL), implicit_emptied(0),
     mark_trx_read_write_done(0),
     check_table_binlog_row_based_done(0),
     check_table_binlog_row_based_result(0),
@@ -3532,7 +3542,6 @@ public:
   virtual void print_error(int error, myf errflag);
   virtual bool get_error_message(int error, String *buf);
   uint get_dup_key(int error);
-  bool has_dup_ref() const;
   /**
     Retrieves the names of the table and the key for which there was a
     duplicate entry in the case of HA_ERR_FOREIGN_DUPLICATE_KEY.
@@ -4816,11 +4825,11 @@ private:
 
   int create_lookup_handler();
   void alloc_lookup_buffer();
-  int check_duplicate_long_entries(const uchar *new_rec);
-  int check_duplicate_long_entries_update(const uchar *new_rec);
   int check_duplicate_long_entry_key(const uchar *new_rec, uint key_no);
   /** PRIMARY KEY/UNIQUE WITHOUT OVERLAPS check */
   int ha_check_overlaps(const uchar *old_data, const uchar* new_data);
+  int ha_check_long_uniques(const uchar *old_rec, const uchar *new_rec);
+  int ha_check_inserver_constraints(const uchar *old_data, const uchar* new_data);
 
 protected:
   /*
@@ -5438,8 +5447,12 @@ uint ha_count_rw_all(THD *thd, Ha_trx_info **ptr_ha_info);
 bool non_existing_table_error(int error);
 uint ha_count_rw_2pc(THD *thd, bool all);
 uint ha_check_and_coalesce_trx_read_only(THD *thd, Ha_trx_info *ha_list,
-                                         bool all);
+                                         bool all, bool *no_rollback);
 
 int get_select_field_pos(Alter_info *alter_info, int select_field_count,
                          bool versioned);
+
+#ifndef DBUG_OFF
+String dbug_format_row(TABLE *table, const uchar *rec, bool print_names= true);
+#endif /* DBUG_OFF */
 #endif /* HANDLER_INCLUDED */

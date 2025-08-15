@@ -285,25 +285,88 @@ int update_portion_of_time(THD *thd, TABLE *table,
   return res;
 }
 
-inline
-int TABLE::delete_row()
-{
-  if (!versioned(VERS_TIMESTAMP) || !vers_end_field()->is_max())
-    return file->ha_delete_row(record[0]);
+/**
+  Delete a record stored in:
+  replace= true: record[0]
+  replace= false: record[1]
 
-  store_record(this, record[1]);
-  vers_update_end();
-  int err= file->ha_update_row(record[1], record[0]);
-  /*
-     MDEV-23644: we get HA_ERR_FOREIGN_DUPLICATE_KEY iff we already got history
-     row with same trx_id which is the result of foreign key action, so we
-     don't need one more history row.
-  */
-  if (err == HA_ERR_FOREIGN_DUPLICATE_KEY)
-    return file->ha_delete_row(record[0]);
+  with regard to the treat_versioned flag, which can be false for a versioned
+  table in case of versioned->versioned replication.
+
+ For a versioned case, we detect a few conditions, under which we should delete
+ a row instead of updating it to a history row.
+ This includes:
+ * History deletion by user;
+ * History collision, in case of REPLACE or very fast sequence of dmls
+   so that timestamp doesn't change;
+ * History collision in the parent table
+
+ A normal delete is processed here as well.
+*/
+template <bool replace>
+int TABLE::delete_row(bool treat_versioned)
+{
+  int err= 0;
+  uchar *del_buf= record[replace ? 1 : 0];
+
+  bool delete_row= !treat_versioned
+                   || in_use->lex->vers_conditions.delete_history
+                   || versioned(VERS_TRX_ID)
+                   || !vers_end_field()->is_max(
+                           vers_end_field()->ptr_in_record(del_buf));
+  if (!delete_row)
+  {
+    if (replace)
+    {
+      store_record(this, record[2]);
+      restore_record(this, record[1]);
+    }
+    else
+    {
+      store_record(this, record[1]);
+    }
+    vers_update_end();
+
+    Field *row_start= vers_start_field();
+    Field *row_end= vers_end_field();
+    // Don't make history row with negative lifetime
+    delete_row= row_start->cmp(row_start->ptr, row_end->ptr) > 0;
+
+    if (likely(!delete_row))
+      err= file->ha_update_row(record[1], record[0]);
+    if (unlikely(err))
+    {
+      /*
+        MDEV-23644: we get HA_ERR_FOREIGN_DUPLICATE_KEY iff we already got
+        history row with same trx_id which is the result of foreign key
+        action, so we don't need one more history row.
+
+        Additionally, delete the row if versioned record already exists.
+        This happens on replace, a very fast sequence of inserts and deletes,
+        or if timestamp is frozen.
+      */
+      delete_row= err == HA_ERR_FOUND_DUPP_KEY
+                  || err == HA_ERR_FOUND_DUPP_UNIQUE
+                  || err == HA_ERR_FOREIGN_DUPLICATE_KEY;
+      if (!delete_row)
+        return err;
+    }
+
+    if (delete_row)
+      del_buf= record[1];
+
+    if (replace)
+      restore_record(this, record[2]);
+  }
+
+  if (delete_row)
+    err= file->ha_delete_row(del_buf);
+
   return err;
 }
 
+template int TABLE::delete_row<true>(bool treat_versioned);
+template int TABLE::delete_row<false>(bool treat_versioned);
 
 /**
   Implement DELETE SQL word.
@@ -393,7 +456,10 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
   }
 
   if (delete_history)
+  {
+    DBUG_ASSERT(conds);
     table->vers_write= false;
+  }
 
   if (returning)
     (void) result->prepare(returning->item_list, NULL);
@@ -749,8 +815,8 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
     table->mark_columns_needed_for_delete();
   }
 
-  if ((table->file->ha_table_flags() & HA_CAN_FORCE_BULK_DELETE) &&
-      !table->prepare_triggers_for_delete_stmt_or_event())
+  if (!table->prepare_triggers_for_delete_stmt_or_event() &&
+      table->file->ha_table_flags() & HA_CAN_FORCE_BULK_DELETE)
     will_batch= !table->file->start_bulk_delete();
 
   /*
@@ -782,27 +848,21 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
                                              MEM_STRIP_BUF_SIZE);
 
     THD_STAGE_INFO(thd, stage_searching_rows_for_update);
-    while (!(error=info.read_record()) && !thd->killed &&
-          ! thd->is_error())
+    while (!(error=info.read_record()) && !thd->killed && !thd->is_error())
     {
       if (record_should_be_deleted(thd, table, select, explain, delete_history))
       {
         table->file->position(table->record[0]);
-        if (unlikely((error=
-                      deltempfile->unique_add((char*) table->file->ref))))
-        {
-          error= 1;
-          goto terminate_delete;
-        }
+        if ((error= deltempfile->unique_add((char*) table->file->ref)))
+          break;
         if (!--tmplimit && using_limit)
           break;
       }
     }
     end_read_record(&info);
-    if (unlikely(deltempfile->get(table)) ||
-        unlikely(table->file->ha_index_or_rnd_end()) ||
-        unlikely(init_read_record(&info, thd, table, 0, &deltempfile->sort, 0,
-                                  1, false)))
+    if (table->file->ha_index_or_rnd_end() || error > 0 ||
+        deltempfile->get(table) ||
+        init_read_record(&info, thd, table, 0, &deltempfile->sort, 0, 1, 0))
     {
       error= 1;
       goto terminate_delete;
@@ -845,17 +905,13 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
                                               delete_history);
     if (delete_record)
     {
-      void *save_bulk_param= thd->bulk_param;
-      thd->bulk_param= nullptr;
       if (!delete_history && table->triggers &&
           table->triggers->process_triggers(thd, TRG_EVENT_DELETE,
                                             TRG_ACTION_BEFORE, FALSE))
       {
         error= 1;
-        thd->bulk_param= save_bulk_param;
         break;
       }
-      thd->bulk_param= save_bulk_param;
 
       // no LIMIT / OFFSET
       if (returning && result->send_data(returning->item_list) < 0)
@@ -886,16 +942,13 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
       if (likely(!error))
       {
 	deleted++;
-	thd->bulk_param= nullptr;
         if (!delete_history && table->triggers &&
             table->triggers->process_triggers(thd, TRG_EVENT_DELETE,
                                               TRG_ACTION_AFTER, FALSE))
         {
           error= 1;
-          thd->bulk_param= save_bulk_param;
           break;
         }
-        thd->bulk_param= save_bulk_param;
 	if (!--limit && using_limit)
 	{
 	  error= -1;
@@ -1463,6 +1516,13 @@ void multi_delete::abort_result_set()
 {
   DBUG_ENTER("multi_delete::abort_result_set");
 
+  /****************************************************************************
+
+    NOTE: if you change here be aware that almost the same code is in
+     multi_delete::send_eof().
+
+  ***************************************************************************/
+
   /* the error was handled or nothing deleted and no side effects return */
   if (error_handled ||
       (!thd->transaction->stmt.modified_non_trans_table && !deleted))
@@ -1615,7 +1675,7 @@ int multi_delete::do_table_deletes(TABLE *table, SORT_INFO *sort_info,
       during ha_delete_row.
       Also, don't execute the AFTER trigger if the row operation failed.
     */
-    if (unlikely(!local_error))
+    if (likely(!local_error))
     {
       deleted++;
       if (table->triggers &&
@@ -1664,6 +1724,13 @@ bool multi_delete::send_eof()
   killed_status= (local_error == 0)? NOT_KILLED : thd->killed;
   /* reset used flags */
   THD_STAGE_INFO(thd, stage_end);
+
+  /****************************************************************************
+
+    NOTE: if you change here be aware that almost the same code is in
+     multi_delete::abort_result_set().
+
+  ***************************************************************************/
 
   if (thd->transaction->stmt.modified_non_trans_table)
     thd->transaction->all.modified_non_trans_table= TRUE;

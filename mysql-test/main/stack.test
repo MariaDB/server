@@ -30,6 +30,7 @@ DROP table t1;
 --echo #
 
 set @@max_sp_recursion_depth=20;
+--disable_ps_protocol
 delimiter $$;
 create or replace procedure recursion(x int, max int, OUT res int)
 begin
@@ -40,11 +41,13 @@ begin
 end;
 $$
 
-delimiter ;$$
-
 call recursion(0,2,@s1);
 call recursion(0,3,@s2);
 call recursion(0,4,@s3);
+$$
+
+delimiter ;$$
+--enable_ps_protocol
 
 select @s1 > 0 && @s2 > 0 && @s3 > 0;
 if (`select @s2-@s1 <> @s3 - @s2`)

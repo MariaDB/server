@@ -612,7 +612,7 @@ int mysql_update(THD *thd,
       Currently they rely on the user checking DA for
       errors when unwinding the stack after calling Item::val_xxx().
     */
-    if (error || thd->is_error())
+    if (error || thd->killed || thd->is_error())
     {
       DBUG_RETURN(1);				// Error in where
     }
@@ -1009,9 +1009,9 @@ update_begin:
     goto update_end;
   }
 
-  if ((table->file->ha_table_flags() & HA_CAN_FORCE_BULK_UPDATE) &&
-      !table->prepare_triggers_for_update_stmt_or_event() &&
-      !thd->lex->with_rownum)
+  if (!table->prepare_triggers_for_update_stmt_or_event() &&
+      !thd->lex->with_rownum &&
+      table->file->ha_table_flags() & HA_CAN_FORCE_BULK_UPDATE)
     will_batch= !table->file->start_bulk_update();
 
   /*
@@ -1181,19 +1181,14 @@ error:
         rows_inserted++;
       }
 
-      void *save_bulk_param= thd->bulk_param;
-      thd->bulk_param= nullptr;
-
       if (table->triggers &&
           unlikely(table->triggers->process_triggers(thd, TRG_EVENT_UPDATE,
                                                      TRG_ACTION_AFTER, TRUE)))
       {
         error= 1;
-        thd->bulk_param= save_bulk_param;
 
         break;
       }
-      thd->bulk_param= save_bulk_param;
 
       if (!--limit && using_limit)
       {
@@ -1709,7 +1704,7 @@ static bool multi_update_check_table_access(THD *thd, TABLE_LIST *table,
       if (multi_update_check_table_access(thd, tbl, tables_for_update,
                                           &updated))
       {
-        tbl->hide_view_error(thd);
+        tbl->replace_view_error_with_generic(thd);
         return true;
       }
     }
@@ -2361,7 +2356,8 @@ multi_update::initialize_tables(JOIN *join)
   if (unlikely((thd->variables.option_bits & OPTION_SAFE_UPDATES) &&
                error_if_full_join(join)))
     DBUG_RETURN(1);
-  if (join->implicit_grouping)
+  if (join->implicit_grouping ||
+      join->select_lex->have_window_funcs())
   {
     my_error(ER_INVALID_GROUP_FUNC_USE, MYF(0));
     DBUG_RETURN(1);
@@ -2771,6 +2767,13 @@ void multi_update::abort_result_set()
                (!thd->transaction->stmt.modified_non_trans_table && !updated)))
     return;
 
+  /****************************************************************************
+
+    NOTE: if you change here be aware that almost the same code is in
+     multi_update::send_eof().
+
+  ***************************************************************************/
+
   /* Something already updated so we have to invalidate cache */
   if (updated)
     query_cache_invalidate3(thd, update_tables, 1);
@@ -3103,6 +3106,13 @@ bool multi_update::send_eof()
   */
   killed_status= (local_error == 0) ? NOT_KILLED : thd->killed;
   THD_STAGE_INFO(thd, stage_end);
+
+  /****************************************************************************
+
+    NOTE: if you change here be aware that almost the same code is in
+     multi_update::abort_result_set().
+
+  ***************************************************************************/
 
   /* We must invalidate the query cache before binlog writing and
   ha_autocommit_... */

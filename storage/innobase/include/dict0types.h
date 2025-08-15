@@ -110,7 +110,7 @@ struct table_name_t
 	table_name_t(char* name) : m_name(name) {}
 
 	/** @return the end of the schema name */
-	const char* dbend() const
+	const char* dbend() const noexcept
 	{
 		const char* sep = strchr(m_name, '/');
 		ut_ad(sep);
@@ -118,11 +118,19 @@ struct table_name_t
 	}
 
 	/** @return the length of the schema name, in bytes */
-	size_t dblen() const { return size_t(dbend() - m_name); }
+	size_t dblen() const noexcept
+	{
+		const char *end= dbend();
+		return UNIV_LIKELY(end != nullptr) ? size_t(end - m_name) : 0;
+	}
 
 	/** Determine the filename-safe encoded table name.
 	@return	the filename-safe encoded table name */
-	const char* basename() const { return dbend() + 1; }
+	const char* basename() const noexcept
+	{
+		const char *end= dbend();
+		return UNIV_LIKELY(end != nullptr) ? end + 1 : nullptr;
+	}
 
 	/** The start of the table basename suffix for partitioned tables */
 	static const char part_suffix[4];

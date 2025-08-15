@@ -43,9 +43,6 @@ backup_cleanup();
 bool
 get_mysql_vars(MYSQL *connection);
 
-bool
-detect_mysql_capabilities_for_backup();
-
 MYSQL *
 xb_mysql_connect();
 

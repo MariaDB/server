@@ -124,7 +124,6 @@ SPIDER_CONN *spider_create_conn(
   ha_spider *spider,
   int link_id,
   int base_link_id,
-  uint conn_kind,
   int *error_num
 );
 
@@ -136,7 +135,6 @@ SPIDER_CONN *spider_get_conn(
   ha_spider *spider,
   bool another,
   bool thd_chg,
-  uint conn_kind,
   int *error_num
 );
 
@@ -437,7 +435,6 @@ SPIDER_CONN* spider_get_conn_from_idle_connection
  int link_idx,
  char *conn_key,
  ha_spider *spider,
- uint conn_kind,
  int base_link_idx,
  int *error_num
  );

@@ -21,6 +21,7 @@
 #include "slave.h"
 #include "strfunc.h"
 #include "sql_repl.h"
+#include <sql_common.h>
 
 #ifdef HAVE_REPLICATION
 
@@ -1369,27 +1370,21 @@ Master_info_index::get_master_info(const LEX_CSTRING *connection_name,
                                    Sql_condition::enum_warning_level warning)
 {
   Master_info *mi;
-  char buff[MAX_CONNECTION_NAME+1], *res;
-  size_t buff_length;
   DBUG_ENTER("get_master_info");
   DBUG_PRINT("enter",
              ("connection_name: '%.*s'", (int) connection_name->length,
               connection_name->str));
 
-  /* Make name lower case for comparison */
-  res= strmake(buff, connection_name->str, connection_name->length);
-  my_casedn_str(system_charset_info, buff); 
-  buff_length= (size_t) (res-buff);
-
+  if (!connection_name->str)
+    connection_name= &empty_clex_str;
   mi= (Master_info*) my_hash_search(&master_info_hash,
-                                    (uchar*) buff, buff_length);
+                                    (uchar*) connection_name->str,
+                                    connection_name->length);
   if (!mi && warning != Sql_condition::WARN_LEVEL_NOTE)
   {
     my_error(WARN_NO_MASTER_INFO,
-             MYF(warning == Sql_condition::WARN_LEVEL_WARN ? ME_WARNING :
-                 0),
-             (int) connection_name->length,
-             connection_name->str);
+             MYF(warning == Sql_condition::WARN_LEVEL_WARN ? ME_WARNING : 0),
+             (int) connection_name->length, connection_name->str);
   }
   DBUG_RETURN(mi);
 }
@@ -2072,6 +2067,54 @@ bool Master_info_index::flush_all_relay_logs()
   }
   mysql_mutex_unlock(&LOCK_active_mi);
   DBUG_RETURN(result);
+}
+
+void setup_mysql_connection_for_master(MYSQL *mysql, Master_info *mi,
+                                       uint timeout)
+{
+  DBUG_ASSERT(mi);
+  DBUG_ASSERT(mi->mysql);
+  mysql_options(mysql, MYSQL_OPT_CONNECT_TIMEOUT, (char *) &timeout);
+  mysql_options(mysql, MYSQL_OPT_READ_TIMEOUT, (char *) &timeout);
+
+#ifdef HAVE_OPENSSL
+  if (mi->ssl)
+  {
+    mysql_ssl_set(mysql,
+                  mi->ssl_key[0]?mi->ssl_key:0,
+                  mi->ssl_cert[0]?mi->ssl_cert:0,
+                  mi->ssl_ca[0]?mi->ssl_ca:0,
+                  mi->ssl_capath[0]?mi->ssl_capath:0,
+                  mi->ssl_cipher[0]?mi->ssl_cipher:0);
+    mysql_options(mysql, MYSQL_OPT_SSL_CRL,
+                  mi->ssl_crl[0] ? mi->ssl_crl : 0);
+    mysql_options(mysql, MYSQL_OPT_SSL_CRLPATH,
+                  mi->ssl_crlpath[0] ? mi->ssl_crlpath : 0);
+    mysql_options(mysql, MYSQL_OPT_SSL_VERIFY_SERVER_CERT,
+                  &mi->ssl_verify_server_cert);
+  }
+#endif
+
+  /*
+    If server's default charset is not supported (like utf16, utf32) as client
+    charset, then set client charset to 'latin1' (default client charset).
+  */
+  if (is_supported_parser_charset(default_charset_info))
+    mysql_options(mysql, MYSQL_SET_CHARSET_NAME, default_charset_info->cs_name.str);
+  else
+  {
+    sql_print_information("'%s' can not be used as client character set. "
+                          "'%s' will be used as default client character set "
+                          "while connecting to master.",
+                          default_charset_info->cs_name.str,
+                          default_client_charset_info->cs_name.str);
+    mysql_options(mysql, MYSQL_SET_CHARSET_NAME,
+                  default_client_charset_info->cs_name.str);
+  }
+
+  /* Set MYSQL_PLUGIN_DIR in case master asks for an external authentication plugin */
+  if (opt_plugin_dir_ptr && *opt_plugin_dir_ptr)
+    mysql_options(mysql, MYSQL_PLUGIN_DIR, opt_plugin_dir_ptr);
 }
 
 #endif /* HAVE_REPLICATION */

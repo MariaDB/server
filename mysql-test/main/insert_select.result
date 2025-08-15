@@ -883,76 +883,6 @@ INSERT INTO t1 SELECT a*2 FROM t1 ORDER BY a;
 Warnings:
 Warning	1264	Out of range value for column 'a' at row 4
 DROP TABLE t1;
-CREATE TABLE t1 (a INT, b INT);
-INSERT INTO t1 (a) SELECT SUM(1);
-INSERT INTO t1 (a, b) SELECT AVG(2), MIN(3);
-INSERT INTO t1 (b) SELECT AVG('x') OVER ();
-ERROR 22007: Truncated incorrect DOUBLE value: 'x'
-INSERT INTO t1 SELECT MIN(7) OVER (), MAX(8) OVER();
-SELECT * FROM t1;
-a	b
-1	NULL
-2	3
-7	8
-PREPARE stmt FROM 'INSERT INTO t1 (a) SELECT AVG(?)';
-EXECUTE stmt USING 9;
-EXECUTE stmt USING 10;
-PREPARE stmt FROM 'INSERT INTO t1 SELECT MIN(?), MAX(?)';
-EXECUTE stmt USING 11, 12;
-EXECUTE stmt USING 13, 14;
-DEALLOCATE PREPARE stmt;
-SELECT * FROM t1;
-a	b
-1	NULL
-2	3
-7	8
-9	NULL
-10	NULL
-11	12
-13	14
-CREATE PROCEDURE p1(param_a INT, param_b INT)
-BEGIN
-INSERT INTO t1 SELECT MIN(param_a) OVER (), MAX(param_b);
-END//
-CALL p1(21, 22);
-CALL p1(23, 24);
-SELECT * FROM t1;
-a	b
-1	NULL
-2	3
-7	8
-9	NULL
-10	NULL
-11	12
-13	14
-21	22
-23	24
-CREATE TABLE t2 (
-a DECIMAL UNIQUE CHECK (CASE 0 * 27302337.000000 WHEN 34 THEN
-+ 'x' LIKE 'x' OR a NOT IN (-1 / TRUE ^ 2) ELSE 7105743.000000 END));
-INSERT INTO t2 VALUES (90),( -1),(31152443.000000),(-32768),(NULL),(NULL);
-INSERT INTO t2 SELECT AVG('x') OVER (
-PARTITION BY ((NOT AVG(76698761.000000))) IS NOT NULL);
-ERROR 22007: Truncated incorrect DOUBLE value: 'x'
-INSERT IGNORE INTO t2 () VALUES (0),('x'),(3751286.000000),
-('x'),((a = 'x' AND 0 AND 0));
-Warnings:
-Warning	1366	Incorrect decimal value: 'x' for column `test`.`t2`.`a` at row 2
-Warning	1062	Duplicate entry '0' for key 'a'
-Warning	1366	Incorrect decimal value: 'x' for column `test`.`t2`.`a` at row 4
-Warning	1062	Duplicate entry '0' for key 'a'
-Warning	1062	Duplicate entry '0' for key 'a'
-INSERT INTO t2 VALUES (127);
-INSERT INTO t2 SELECT -2147483648 END FROM t2 AS TEXT JOIN t2 JOIN t2 TABLES;
-ERROR 23000: Duplicate entry '-2147483648' for key 'a'
-ALTER TABLE t2 ADD (
-b INT UNIQUE CHECK ((a = 'x' AND ((-(+(BINARY 49730460.000000)))) = 'x' 
-BETWEEN 'x' AND 'x')));
-ERROR 22007: Truncated incorrect DECIMAL value: 'x'
-UPDATE t2 SET a = -128 WHERE a IS NULL ORDER BY 78 IN ('x','x'),a;
-ERROR 23000: Duplicate entry '-128' for key 'a'
-DROP TABLE t1, t2;
-DROP PROCEDURE p1;
 # End of 10.2 test
 #
 # MDEV-28617: INSERT ... SELECT with redundant IN subquery in GROUP BY
@@ -1054,3 +984,185 @@ drop table t1, t2;
 #
 # End of 10.3 test
 #
+#
+# MDEV-26427 MariaDB Server SEGV on INSERT .. SELECT
+#
+CREATE TABLE t1 (a int);
+INSERT INTO t1 SELECT AVG(1);
+SELECT * FROM t1;
+a
+1
+INSERT INTO t1 SELECT MIN(2) OVER ();
+SELECT * FROM t1;
+a
+1
+2
+CREATE VIEW v1 AS SELECT * FROM t1 ORDER BY a;
+INSERT INTO v1 SELECT SUM(3);
+SELECT * FROM v1;
+a
+1
+2
+3
+INSERT INTO v1 SELECT * FROM v1;
+SELECT * FROM t1;
+a
+1
+1
+2
+2
+3
+3
+INSERT INTO t1 SELECT * FROM v1;
+SELECT * FROM t1;
+a
+1
+1
+1
+1
+2
+2
+2
+2
+3
+3
+3
+3
+DROP VIEW v1;
+DROP TABLE t1;
+create table t1 (pk int, id int);
+insert into t1 values (2,2), (3,3), (4,4);
+insert into t1
+select 1,10
+from
+(
+select dt2.id from (select id from t1) dt2, t1 t where t.id=dt2.id
+) dt
+where dt.id=3;
+select * from t1;
+pk	id
+2	2
+3	3
+4	4
+1	10
+explain insert into t1
+select 1,10
+from
+(
+select dt2.id from (select id from t1) dt2, t1 t where t.id=dt2.id
+) dt
+where dt.id=3;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	4	Using where; Using temporary
+1	SIMPLE	t	ALL	NULL	NULL	NULL	NULL	4	Using where; Using join buffer (flat, BNL join)
+explain format=json insert into t1
+select 1,10
+from
+(
+select dt2.id from (select id from t1) dt2, t1 t where t.id=dt2.id
+) dt
+where dt.id=3;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "temporary_table": {
+      "nested_loop": [
+        {
+          "table": {
+            "table_name": "t1",
+            "access_type": "ALL",
+            "rows": 4,
+            "filtered": 100,
+            "attached_condition": "t1.`id` = 3"
+          }
+        },
+        {
+          "block-nl-join": {
+            "table": {
+              "table_name": "t",
+              "access_type": "ALL",
+              "rows": 4,
+              "filtered": 100,
+              "attached_condition": "t.`id` = 3"
+            },
+            "buffer_type": "flat",
+            "buffer_size": "65",
+            "join_type": "BNL"
+          }
+        }
+      ]
+    }
+  }
+}
+prepare stmt from "insert into t1
+select 1,10
+from
+(
+select dt2.id from (select id from t1) dt2, t1 t where t.id=dt2.id
+) dt
+where dt.id=3";
+execute stmt;
+select * from t1;
+pk	id
+2	2
+3	3
+4	4
+1	10
+1	10
+execute stmt;
+select * from t1;
+pk	id
+2	2
+3	3
+4	4
+1	10
+1	10
+1	10
+deallocate prepare stmt;
+create procedure p() insert into t1
+select 1,10
+from
+(
+select dt2.id from (select id from t1) dt2, t1 t where t.id=dt2.id
+) dt
+where dt.id=3;
+call p();
+select * from t1;
+pk	id
+2	2
+3	3
+4	4
+1	10
+1	10
+1	10
+1	10
+call p();
+select * from t1;
+pk	id
+2	2
+3	3
+4	4
+1	10
+1	10
+1	10
+1	10
+1	10
+drop procedure p;
+drop table t1;
+#
+# MDEV-33139: Crash of INSERT SELECT when preparing structures for
+# split optimization
+#
+CREATE TABLE v0 ( v1 INT UNIQUE ) ;
+INSERT INTO v0 ( v1 ) VALUES
+( ( SELECT 1
+FROM
+( SELECT v1
+FROM v0 GROUP BY v1 ) AS v6 NATURAL JOIN
+v0 AS v2 NATURAL JOIN
+v0 AS v4 NATURAL JOIN
+v0 AS v3 NATURAL JOIN
+( SELECT v1 FROM v0 ) AS v7 ) ) ;
+DROP TABLE v0;
+# End of 10.5 tests

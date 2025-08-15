@@ -10,9 +10,11 @@ set @old_innodb_io_capacity=@@global.innodb_io_capacity;
 set @old_innodb_io_capacity_max=@@global.innodb_io_capacity_max;
 select * from performance_schema.session_status limit 0; # discover the table
 set max_session_mem_used=32768;
---error ER_OPTION_PREVENTS_STATEMENT
+--disable_result_log
+--error 0,ER_OPTION_PREVENTS_STATEMENT
 # this used to crash, when OOM happened under LOCK_thd_kill
 select * from performance_schema.session_status;
+--enable_result_log
 # this used to cause mutex lock order violation when OOM happened under LOCK_global_system_variables
 set global innodb_io_capacity_max=100;
 set max_session_mem_used=default;

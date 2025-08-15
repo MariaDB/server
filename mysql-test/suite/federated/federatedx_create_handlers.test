@@ -7,9 +7,6 @@ connection default;
 
 set global federated_pushdown=1;
 
-#Enable after fix MDEV-31846 or in v. 10.5 and later
---disable_cursor_protocol
-
 connection slave;
 
 DROP TABLE IF EXISTS federated.t1;
@@ -170,9 +167,7 @@ select * from federated.t4;
 
 select name into @var from federated.t1 where id=3 limit 1 ;
 select @var;
---disable_ps2_protocol
 select name into outfile 'tmp.txt' from federated.t1;
---enable_ps2_protocol
 
 let $path=`select concat(@@datadir, 'test/tmp.txt')`;
 remove_file $path;
@@ -307,13 +302,13 @@ CREATE TABLE federated.t4 (a INT);
 
 connection master;
 --replace_result $SLAVE_MYPORT SLAVE_PORT
-eval CREATE SERVER fedlink FOREIGN DATA WRAPPER mysql 
+eval CREATE SERVER fedlink FOREIGN DATA WRAPPER mariadb
   OPTIONS (USER 'root', HOST '127.0.0.1', DATABASE 'federated',
   PORT $SLAVE_MYPORT);
 
 CREATE TABLE federated.t3 (a INT)
   ENGINE=FEDERATED
-  CONNECTION='mysql://root@127.0.0.1:$SLAVE_MYPORT/federated/t3'
+  CONNECTION='mariadb://root@127.0.0.1:$SLAVE_MYPORT/federated/t3'
   PARTITION BY list (a)
   (PARTITION p1 VALUES IN (1) CONNECTION='fedlink/t3',
    PARTITION p2 VALUES IN (2) CONNECTION='fedlink/t4');
@@ -438,8 +433,6 @@ DEALLOCATE PREPARE stmt;
 
 
 set global federated_pushdown=0;
-
---enable_cursor_protocol
 
 source include/federated_cleanup.inc;
 

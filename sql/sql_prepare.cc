@@ -1304,6 +1304,7 @@ static bool mysql_test_insert_common(Prepared_statement *stmt,
   THD *thd= stmt->thd;
   List_iterator_fast<List_item> its(values_list);
   List_item *values;
+  bool cache_results= FALSE;
   DBUG_ENTER("mysql_test_insert_common");
 
   if (insert_precheck(thd, table_list))
@@ -1336,7 +1337,8 @@ static bool mysql_test_insert_common(Prepared_statement *stmt,
 
     if (mysql_prepare_insert(thd, table_list, fields, values, update_fields,
                              update_values, duplic, ignore,
-                             &unused_conds, FALSE))
+                             &unused_conds, FALSE,
+                             &cache_results))
       goto error;
 
     value_count= values->elements;
@@ -1508,6 +1510,11 @@ static int mysql_test_update(Prepared_statement *stmt,
                    0, NULL, 0, THD_WHERE::SET_LIST) ||
       check_unique_table(thd, table_list))
     goto error;
+  {
+    List_iterator_fast<Item> fs(select->item_list), vs(stmt->lex->value_list);
+    while (Item *f= fs++)
+      vs++->associate_with_target_field(thd, static_cast<Item_field*>(f));
+  }
   /* TODO: here we should send types of placeholders to the client. */
   DBUG_RETURN(0);
 error:
@@ -2477,8 +2484,8 @@ static bool check_prepared_statement(Prepared_statement *stmt)
   }
 
 #ifdef WITH_WSREP
-    if (wsrep_sync_wait(thd, sql_command))
-      goto error;
+  if (wsrep_sync_wait(thd, sql_command))
+    goto error;
 #endif
   switch (sql_command) {
   case SQLCOM_REPLACE:
@@ -2702,6 +2709,20 @@ static bool check_prepared_statement(Prepared_statement *stmt)
   default:
     break;
   }
+
+#ifdef WITH_WSREP
+  if (!stmt->is_sql_prepare())
+  {
+    wsrep_after_command_before_result(thd);
+    if (wsrep_current_error(thd))
+    {
+      wsrep_override_error(thd, wsrep_current_error(thd),
+                           wsrep_current_error_status(thd));
+      goto error;
+    }
+  }
+#endif
+
   if (res == 0)
   {
     if (!stmt->is_sql_prepare())
@@ -3085,8 +3106,8 @@ void mysql_sql_stmt_execute_immediate(THD *thd)
     DBUG_VOID_RETURN;                           // out of memory
 
   // See comments on thd->free_list in mysql_sql_stmt_execute()
-  Item *free_list_backup= thd->free_list;
-  thd->free_list= NULL;
+  SCOPE_VALUE(thd->free_list, (Item *) NULL);
+  SCOPE_EXIT([thd]() mutable { thd->free_items(); });
   /*
     Make sure we call Prepared_statement::execute_immediate()
     with an empty THD::change_list. It can be non empty as the above
@@ -3109,8 +3130,6 @@ void mysql_sql_stmt_execute_immediate(THD *thd)
   Item_change_list_savepoint change_list_savepoint(thd);
   (void) stmt->execute_immediate(query.str, (uint) query.length);
   change_list_savepoint.rollback(thd);
-  thd->free_items();
-  thd->free_list= free_list_backup;
 
   /*
     stmt->execute_immediately() sets thd->query_string with the executed
@@ -3286,7 +3305,7 @@ void reinit_stmt_before_use(THD *thd, LEX *lex)
 
   if (lex->result)
   {
-    lex->result->cleanup();
+    lex->result->reset_for_next_ps_execution();
     lex->result->set_thd(thd);
   }
   lex->allow_sum_func.clear_all();
@@ -3675,8 +3694,13 @@ void mysql_sql_stmt_execute(THD *thd)
     so they don't get freed in case of re-prepare.
     See MDEV-10702 Crash in SET STATEMENT FOR EXECUTE
   */
-  Item *free_list_backup= thd->free_list;
-  thd->free_list= NULL; // Hide the external (e.g. "SET STATEMENT") Items
+  /*
+    Hide and restore at scope exit the "external" (e.g. "SET STATEMENT") Item list.
+    It will be freed normaly in THD::cleanup_after_query().
+  */
+  SCOPE_VALUE(thd->free_list, (Item *) NULL);
+  // Free items created by execute_loop() at scope exit
+  SCOPE_EXIT([thd]() mutable { thd->free_items(); });
   /*
     Make sure we call Prepared_statement::execute_loop() with an empty
     THD::change_list. It can be non-empty because the above
@@ -3700,12 +3724,6 @@ void mysql_sql_stmt_execute(THD *thd)
 
   (void) stmt->execute_loop(&expanded_query, FALSE, NULL, NULL);
   change_list_savepoint.rollback(thd);
-  thd->free_items();    // Free items created by execute_loop()
-  /*
-    Now restore the "external" (e.g. "SET STATEMENT") Item list.
-    It will be freed normaly in THD::cleanup_after_query().
-  */
-  thd->free_list= free_list_backup;
 
   stmt->lex->restore_set_statement_var();
   DBUG_VOID_RETURN;
@@ -3753,6 +3771,9 @@ void mysqld_stmt_fetch(THD *thd, char *packet, uint packet_length)
   thd->set_n_backup_statement(stmt, &stmt_backup);
 
   cursor->fetch(num_rows);
+
+  if (!thd->get_sent_row_count())
+    status_var_increment(thd->status_var.empty_queries);
 
   if (!cursor->is_open())
   {
@@ -4586,6 +4607,8 @@ Prepared_statement::set_parameters(String *expanded_query,
     res= set_params_data(this, expanded_query);
 #endif
   }
+  lex->default_used= thd->lex->default_used;
+  thd->lex->default_used= false;
   if (res)
   {
     my_error(ER_WRONG_ARGUMENTS, MYF(0),
@@ -6486,6 +6509,7 @@ extern "C" MYSQL *mysql_real_connect_local(MYSQL *mysql)
     new_thd->variables.wsrep_on= 0;
     new_thd->client_capabilities= client_flag;
     new_thd->variables.sql_log_bin= 0;
+    new_thd->affected_rows= 0;
     new_thd->set_binlog_bit();
     /*
       TOSO: decide if we should turn the auditing off

@@ -967,3 +967,16 @@ CREATE FULLTEXT INDEX i ON t1 (f2);
 SELECT * FROM t1 WHERE match(f2) against("bbb");
 # Cleanup
 DROP TABLE t1;
+
+--echo #
+--echo #  MDEV-30363  Failing assertion: trx->error_state == DB_SUCCESS
+--echo #                    in que_run_threads
+--echo #
+CREATE TABLE server_stopword (value VARCHAR(1))engine=innodb;
+SET GLOBAL innodb_ft_server_stopword_table='test/server_stopword';
+CREATE TABLE t (t VARCHAR(1) COLLATE utf8_unicode_ci,
+                FULLTEXT (t))engine=innodb;
+TRUNCATE TABLE t;
+DROP TABLE t;
+DROP TABLE server_stopword;
+SET GLOBAL innodb_ft_server_stopword_table= default;

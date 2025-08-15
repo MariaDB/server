@@ -24,9 +24,9 @@ trap 'exit 3'  INT QUIT TERM
 OS="$(uname)"
 
 # Setting the paths for some utilities on CentOS
-export PATH="${PATH:+$PATH:}/usr/local/bin:/usr/local/sbin:/usr/bin:/bin:/usr/sbin:/sbin"
+export PATH="${PATH:+$PATH:}/usr/local/bin:/usr/local/sbin:/bin:/sbin:/usr/bin:/usr/sbin"
 if [ "$OS" != 'Darwin' ]; then
-    export LD_LIBRARY_PATH="${LD_LIBRARY_PATH:+$LD_LIBRARY_PATH:}/usr/local/lib:/usr/lib:/lib:/opt/lib"
+    export LD_LIBRARY_PATH="${LD_LIBRARY_PATH:+$LD_LIBRARY_PATH:}/usr/local/lib:/lib:/usr/lib:/opt/lib"
 fi
 
 commandex()
@@ -209,6 +209,7 @@ INNODB_DATA_HOME_DIR=$(trim_dir "${INNODB_DATA_HOME_DIR:-}")
 INNODB_LOG_GROUP_HOME=$(trim_dir "${INNODB_LOG_GROUP_HOME:-}")
 INNODB_UNDO_DIR=$(trim_dir "${INNODB_UNDO_DIR:-}")
 INNODB_BUFFER_POOL=""
+INNODB_BUFFER_POOL_SIZE=""
 INNODB_FORCE_RECOVERY=""
 INNOEXTRA=""
 
@@ -327,6 +328,10 @@ case "$1" in
         ;;
     '--innodb-buffer-pool-filename')
         readonly INNODB_BUFFER_POOL=$(trim_string "$2")
+        shift
+        ;;
+    '--innodb-buffer-pool-size')
+        readonly INNODB_BUFFER_POOL_SIZE=$(trim_string "$2")
         shift
         ;;
     '--defaults-file')
@@ -607,6 +612,12 @@ case "$1" in
                        fi
                        skip_mysqld_arg=1
                        ;;
+                   '--innodb-buffer-pool-size')
+                       if [ -z "$INNODB_BUFFER_POOL_SIZE" ]; then
+                           MYSQLD_OPT_INNODB_BUFFER_POOL_SIZE=$(trim_string "$value")
+                       fi
+                       skip_mysqld_arg=1
+                       ;;
                    '--innodb-force-recovery')
                        if [ -n "$value" -a "$value" != "0" ]; then
                            INNODB_FORCE_RECOVERY=$(trim_string "$value")
@@ -696,6 +707,10 @@ if [ -n "${MYSQLD_OPT_INNODB_BUFFER_POOL:-}" -a \
      -z "$INNODB_BUFFER_POOL" ]; then
     readonly INNODB_BUFFER_POOL="$MYSQLD_OPT_INNODB_BUFFER_POOL"
 fi
+if [ -n "${MYSQLD_OPT_INNODB_BUFFER_POOL_SIZE:-}" -a \
+     -z "$INNODB_BUFFER_POOL_SIZE" ]; then
+    readonly INNODB_BUFFER_POOL_SIZE="$MYSQLD_OPT_INNODB_BUFFER_POOL_SIZE"
+fi
 if [ -n "${MYSQLD_OPT_LOG_BIN:-}" -a \
      -z "$WSREP_SST_OPT_BINLOG" ]; then
     readonly WSREP_SST_OPT_BINLOG="$MYSQLD_OPT_LOG_BIN"
@@ -751,6 +766,9 @@ if [ -n "$INNODB_UNDO_DIR" ]; then
 fi
 if [ -n "$INNODB_BUFFER_POOL" ]; then
     INNOEXTRA="$INNOEXTRA --innodb-buffer-pool-filename='$INNODB_BUFFER_POOL'"
+fi
+if [ -n "$INNODB_BUFFER_POOL_SIZE" ]; then
+    INNOEXTRA="$INNOEXTRA --innodb-buffer-pool-size='$INNODB_BUFFER_POOL_SIZE'"
 fi
 if [ -n "$WSREP_SST_OPT_BINLOG" ]; then
     INNOEXTRA="$INNOEXTRA --log-bin='$WSREP_SST_OPT_BINLOG'"
@@ -1117,7 +1135,7 @@ get_openssl()
 {
     # If the OPENSSL_BINARY variable is already defined, just return:
     if [ -n "${OPENSSL_BINARY+x}" ]; then
-        return
+        return 0
     fi
     # Let's look for openssl:
     OPENSSL_BINARY=$(commandex 'openssl')
@@ -1556,7 +1574,7 @@ cleanup_pid()
                     fi
                 done
             elif ps -p $pid >/dev/null 2>&1; then
-                wsrep_log_warning "Unable to kill PID=$pid ($pid_file)"
+                wsrep_log_warning "Unable to kill PID=$pid${pid_file:+ ($pid_file)}"
                 return 1
             fi
         fi
@@ -1775,14 +1793,14 @@ simple_cleanup()
 create_data()
 {
     OLD_PWD="$(pwd)"
+    DATA_DIR="$OLD_PWD"
 
     if [ -n "$DATA" -a "$DATA" != '.' ]; then
         [ ! -d "$DATA" ] && mkdir -p "$DATA"
         cd "$DATA"
+        DATA_DIR="$(pwd)"
+        cd "$OLD_PWD"
     fi
-    DATA_DIR="$(pwd)"
-
-    cd "$OLD_PWD"
 }
 
 create_dirs()
@@ -1863,6 +1881,8 @@ create_dirs()
         cd "$OLD_PWD"
         [ $simplify -ne 0 -a "$ar_log_dir" = "$DATA_DIR" ] && ar_log_dir=""
     fi
+
+    return 0
 }
 
 wait_previous_sst()
@@ -1889,5 +1909,18 @@ wsrep_check_datadir
 create_data
 
 SST_PID="$DATA/wsrep_sst.pid"
+
+if [ -n "${MTR_SST_JOINER_DELAY:-}" ]; then
+    MTR_SST_JOINER_DELAY=$(trim_string "$MTR_SST_JOINER_DELAY")
+fi
+
+simulate_long_sst()
+{
+    # Delay for MTR tests if needed to simulate long SST/IST:
+    if [ ${MTR_SST_JOINER_DELAY:-0} -gt 0 ]; then
+        wsrep_log_info "Sleeping $MTR_SST_JOINER_DELAY seconds for MTR test"
+        sleep $MTR_SST_JOINER_DELAY
+    fi
+}
 
 wsrep_log_info "$WSREP_METHOD $WSREP_TRANSFER_TYPE started on $WSREP_SST_OPT_ROLE"

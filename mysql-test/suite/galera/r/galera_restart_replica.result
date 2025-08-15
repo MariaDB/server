@@ -1,122 +1,170 @@
 connection node_2;
 connection node_1;
-connect node_3, 127.0.0.1, root, , test, $NODE_MYPORT_3;
+connect replica, 127.0.0.1, root, , test, $NODE_MYPORT_2;
+connect primary, 127.0.0.1, root, , test, $NODE_MYPORT_3;
 create user repl@'%' identified by 'repl';
 grant all on *.* to  repl@'%';
 ALTER TABLE mysql.gtid_slave_pos ENGINE=InnoDB;
 connection node_1;
-connection node_2;
-connection node_2;
+connection replica;
+connection primary;
+connection replica;
 START SLAVE;
-connection node_3;
-CREATE TABLE t1 (id bigint primary key, msg varchar(100)) engine=innodb;
-SELECT COUNT(*) AS EXPECT_10000 FROM t1;
-EXPECT_10000
-10000
-connection node_2;
+connection primary;
+CREATE TABLE t1 (id bigint auto_increment primary key, msg varchar(100)) engine=innodb;
+# Intentionally generate 1k GTID-events
+SELECT COUNT(*) AS EXPECT_1000 FROM t1;
+EXPECT_1000
+1000
+connection replica;
 SELECT COUNT(*) > 0 AS EXPECT_1 FROM mysql.gtid_slave_pos;
 EXPECT_1
 1
-SELECT COUNT(*) AS EXPECT_10000 FROM t1;
-EXPECT_10000
-10000
+SELECT COUNT(*) < 1000 AS EXPECT_1 FROM mysql.gtid_slave_pos;
+EXPECT_1
+1
+SELECT @@gtid_slave_pos,@@gtid_binlog_pos,@@gtid_current_pos;
+@@gtid_slave_pos	@@gtid_binlog_pos	@@gtid_current_pos
+0-3-1004	0-3-1004	0-3-1004
+SELECT COUNT(*) AS EXPECT_1000 FROM t1;
+EXPECT_1000
+1000
 connection node_1;
 SELECT COUNT(*) > 0 AS EXPECT_1 FROM mysql.gtid_slave_pos;
 EXPECT_1
 1
-SELECT COUNT(*) AS EXPECT_10000 FROM t1;
-EXPECT_10000
-10000
-connection node_2;
-# Verify that graceful shutdown succeeds.
+SELECT COUNT(*) < 1000 AS EXPECT_1 FROM mysql.gtid_slave_pos;
+EXPECT_1
+1
+SELECT @@gtid_slave_pos,@@gtid_binlog_pos,@@gtid_current_pos;
+@@gtid_slave_pos	@@gtid_binlog_pos	@@gtid_current_pos
+0-3-1004	0-3-1004	0-3-1004
+SELECT COUNT(*) AS EXPECT_1000 FROM t1;
+EXPECT_1000
+1000
+connection replica;
+# Verify that graceful shutdown succeeds in replica.
 # Force SST
 connection node_1;
-# Waiting until node_2 is not part of cluster anymore
-connection node_2;
-# Start node_2 again
-¤ Wait until node_2 is back on cluster
-connection node_2;
+# Waiting until replica is not part of cluster anymore
+connection replica;
+# Start replica again
+# Wait until replica is back on cluster
 SELECT COUNT(*) > 0 AS EXPECT_1 FROM mysql.gtid_slave_pos;
 EXPECT_1
 1
-SELECT COUNT(*) AS EXPECT_10000 FROM t1;
-EXPECT_10000
-10000
+SELECT COUNT(*) < 1000 AS EXPECT_1 FROM mysql.gtid_slave_pos;
+EXPECT_1
+1
+SELECT @@gtid_slave_pos,@@gtid_binlog_pos,@@gtid_current_pos;
+@@gtid_slave_pos	@@gtid_binlog_pos	@@gtid_current_pos
+0-3-1004	0-3-1004	0-3-1004
+SELECT COUNT(*) AS EXPECT_1000 FROM t1;
+EXPECT_1000
+1000
 connection node_1;
 SELECT COUNT(*) > 0 AS EXPECT_1 FROM mysql.gtid_slave_pos;
 EXPECT_1
 1
-SELECT COUNT(*) AS EXPECT_10000 FROM t1;
-EXPECT_10000
-10000
-connection node_3;
-SELECT COUNT(*) AS EXPECT_10000 FROM t1;
-EXPECT_10000
-10000
-connection node_3;
+SELECT COUNT(*) < 1000 AS EXPECT_1 FROM mysql.gtid_slave_pos;
+EXPECT_1
+1
+SELECT @@gtid_slave_pos,@@gtid_binlog_pos,@@gtid_current_pos;
+@@gtid_slave_pos	@@gtid_binlog_pos	@@gtid_current_pos
+0-3-1004	0-3-1004	0-3-1004
+SELECT COUNT(*) AS EXPECT_1000 FROM t1;
+EXPECT_1000
+1000
+connection primary;
+SELECT COUNT(*) AS EXPECT_1000 FROM t1;
+EXPECT_1000
+1000
 drop table t1;
-connection node_2;
+connection replica;
 connection node_1;
-connection node_3;
-CREATE TABLE t1 (id bigint primary key, msg varchar(100)) engine=innodb;
-SELECT COUNT(*) AS EXPECT_10000 FROM t1;
-EXPECT_10000
-10000
-connection node_2;
+connection primary;
+CREATE TABLE t1 (id bigint auto_increment primary key, msg varchar(100)) engine=innodb;
+# Intentionally generate 1k GTID-events
+SELECT COUNT(*) AS EXPECT_1000 FROM t1;
+EXPECT_1000
+1000
+connection replica;
 SELECT COUNT(*) > 0 AS EXPECT_1 FROM mysql.gtid_slave_pos;
 EXPECT_1
 1
-SELECT COUNT(*) AS EXPECT_10000 FROM t1;
-EXPECT_10000
-10000
+SELECT COUNT(*) < 1000 AS EXPECT_1 FROM mysql.gtid_slave_pos;
+EXPECT_1
+1
+SELECT @@gtid_slave_pos,@@gtid_binlog_pos,@@gtid_current_pos;
+@@gtid_slave_pos	@@gtid_binlog_pos	@@gtid_current_pos
+0-3-2006	0-3-2006	0-3-2006
+SELECT COUNT(*) AS EXPECT_1000 FROM t1;
+EXPECT_1000
+1000
 connection node_1;
 SELECT COUNT(*) > 0 AS EXPECT_1 FROM mysql.gtid_slave_pos;
 EXPECT_1
 1
-SELECT COUNT(*) AS EXPECT_10000 FROM t1;
-EXPECT_10000
-10000
-connection node_2;
-# Verify that graceful shutdown succeeds.
+SELECT COUNT(*) < 1000 AS EXPECT_1 FROM mysql.gtid_slave_pos;
+EXPECT_1
+1
+SELECT @@gtid_slave_pos,@@gtid_binlog_pos,@@gtid_current_pos;
+@@gtid_slave_pos	@@gtid_binlog_pos	@@gtid_current_pos
+0-3-2006	0-3-2006	0-3-2006
+connection replica;
+# Verify that graceful shutdown succeeds in replica.
 # Force SST
 connection node_1;
-# Waiting until node_2 is not part of cluster anymore
-connection node_3;
-SELECT COUNT(*) AS EXPECT_20000 FROM t1;
-EXPECT_20000
-20000
-connection node_2;
-# Start node_2 again
-¤ Wait until node_2 is back on cluster
-connection node_2;
+# Waiting until replica is not part of cluster anymore
+# Add writes to primary
+connection primary;
+# Intentionally generate 1k GTID-events
+SELECT COUNT(*) AS EXPECT_2000 FROM t1;
+EXPECT_2000
+2000
+connection replica;
+# Start replica again
+# Wait until replica is back on cluster
 SELECT COUNT(*) > 0 AS EXPECT_1 FROM mysql.gtid_slave_pos;
 EXPECT_1
 1
-SELECT COUNT(*) AS EXPECT_20000 FROM t1;
-EXPECT_20000
-20000
+SELECT COUNT(*) < 1000 AS EXPECT_1 FROM mysql.gtid_slave_pos;
+EXPECT_1
+1
+SELECT @@gtid_slave_pos,@@gtid_binlog_pos,@@gtid_current_pos;
+@@gtid_slave_pos	@@gtid_binlog_pos	@@gtid_current_pos
+0-3-3006	0-3-3006	0-3-3006
+SELECT COUNT(*) AS EXPECT_2000 FROM t1;
+EXPECT_2000
+2000
 connection node_1;
 SELECT COUNT(*) > 0 AS EXPECT_1 FROM mysql.gtid_slave_pos;
 EXPECT_1
 1
-SELECT COUNT(*) AS EXPECT_20000 FROM t1;
-EXPECT_20000
-20000
-connection node_3;
-SELECT COUNT(*) AS EXPECT_20000 FROM t1;
-EXPECT_20000
-20000
-connection node_3;
+SELECT COUNT(*) < 1000 AS EXPECT_1 FROM mysql.gtid_slave_pos;
+EXPECT_1
+1
+SELECT @@gtid_slave_pos,@@gtid_binlog_pos,@@gtid_current_pos;
+@@gtid_slave_pos	@@gtid_binlog_pos	@@gtid_current_pos
+0-3-3006	0-3-3006	0-3-3006
+SELECT COUNT(*) AS EXPECT_2000 FROM t1;
+EXPECT_2000
+2000
+connection primary;
+SELECT COUNT(*) AS EXPECT_2000 FROM t1;
+EXPECT_2000
+2000
 drop table t1;
-connection node_2;
+connection replica;
 connection node_1;
-connection node_2;
+connection replica;
 STOP SLAVE;
 RESET SLAVE ALL;
-connection node_3;
+connection primary;
 RESET MASTER;
 connection node_1;
-disconnect node_3;
+disconnect primary;
+disconnect replica;
 disconnect node_2;
 disconnect node_1;
 # End of test

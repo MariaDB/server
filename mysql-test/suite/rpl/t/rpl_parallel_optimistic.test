@@ -7,6 +7,9 @@
 call mtr.add_suppression("Deadlock found when trying to get lock; try restarting transaction");
 call mtr.add_suppression("Can't find record in 't1'");
 call mtr.add_suppression("Can't find record in 't2'");
+--disable_query_log
+call mtr.add_suppression("InnoDB: Transaction was aborted due to ");
+--enable_query_log
 
 --connection server_1
 ALTER TABLE mysql.gtid_slave_pos ENGINE=InnoDB;

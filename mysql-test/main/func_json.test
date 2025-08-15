@@ -607,9 +607,7 @@ SELECT json_object("a", json_compact(a), "b", json_compact(b))
   FROM (SELECT * FROM json_test) AS json_test_values;
 DROP TABLE json_test;
 
---echo #
 --echo # End of 10.2 tests
---echo #
 
 --echo #
 --echo # MDEV-12854 Synchronize CREATE..SELECT data type and result set metadata data type for INT functions
@@ -971,9 +969,7 @@ select JSON_VALID(' {"number": 00E-4}');
 select JSON_VALID(' {"number": 01E-4}');
 select JSON_VALID(' {"number": 0E-4.0}');
 
---echo #
 --echo # End of 10.4 tests
---echo #
 
 -- echo #
 -- echo # MDEV-16620 JSON_ARRAYAGG
@@ -1194,9 +1190,8 @@ SELECT JSON_EXTRACT('{"a": 1,"b": 2}','$.a');
 
 SET @@collation_connection= @save_collation_connection;
 
---echo #
+
 --echo # End of 10.5 tests
---echo #
 
 --echo #
 --echo # MDEV-26054 Server crashes in Item_func_json_arrayagg::get_str_from_field
@@ -1231,9 +1226,34 @@ SELECT
   data
 FROM JSON_TABLE (@data, '$[*]' COLUMNS (data text PATH '$.Data')) AS t;
 
+
 --echo #
+--echo # MDEV-21530: json_extract STILL crashes in Item_func_json_extract::read_json
+--echo #
+
+select null<=>json_extract('1',json_object(null,'{ }',null,null),'{}');
+
 --echo # End of 10.6 tests
+
 --echo #
+--echo # MDEV-35614 JSON_UNQUOTE doesn't work with emojis
+--echo #
+
+SELECT HEX(JSON_UNQUOTE('"\\ud83d\\ude0a"')) as hex_smiley;
+set names utf8mb4;
+SELECT JSON_UNQUOTE('"\\ud83d\\ude0a"') as smiley;
+
+SELECT JSON_UNQUOTE('"\\ud83d\\ude0a"') = JSON_UNQUOTE('"\\ud83d\\ude0a"') as equal_smileys;
+SELECT JSON_UNQUOTE('"\\ud83d\\ude0a"') <= JSON_UNQUOTE('"\\ud83d\\ude0a"') as less_or_equal_smileys;
+
+set @v='{ "color":"😊" }';
+select @v as v, collation(@v) as collation_v;
+select json_valid(@v) as valid;
+select json_extract(@v,'$.color') as color_extraction, collation(json_extract(@v,'$.color')) as color_extraction_collation;
+select json_unquote(json_extract(@v,'$.color')) as unquoted, collation(json_unquote(json_extract(@v,'$.color'))) as unquoted_collation;
+
+SELECT JSON_UNQUOTE('"\\uc080\\ude0a"') as invalid_utf8mb4;
+show warnings;
 
 --echo #
 --echo # MDEV-31147 json_normalize does not work correctly with MSAN build
@@ -1244,9 +1264,7 @@ INSERT INTO t1 (val) VALUES ('15');
 SELECT * FROM t1;
 DROP TABLE t1;
 
---echo #
 --echo # End of 10.8 tests
---echo #
 
 --echo #
 --echo # MDEV-27677: Implement JSON_OVERLAPS()
@@ -1920,6 +1938,4 @@ SELECT JSON_VALUE(@json,'$.A[last-1][last-1].key1');
 SET @@collation_connection= @save_collation_connection;
 
 
---echo #
 --echo # End of 10.9 Test
---echo #

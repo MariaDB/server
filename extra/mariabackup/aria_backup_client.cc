@@ -955,6 +955,7 @@ void Backup::set_post_copy_table_hook(const post_copy_table_hook_t &hook) {
 
 bool prepare(const char *target_dir) {
 	maria_data_root= (char *)target_dir;
+        maria_tmpdir= &mysql_tmpdir_list;
 
 	if (maria_init())
 		die("Can't init Aria engine (%d)", errno);

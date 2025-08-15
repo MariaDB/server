@@ -953,8 +953,7 @@ SysTablespace::open_or_create(
 		} else if (is_temp) {
 			ut_ad(space_id() == SRV_TMP_SPACE_ID);
 			space = fil_space_t::create(
-				SRV_TMP_SPACE_ID, flags(),
-				FIL_TYPE_TEMPORARY, NULL);
+				SRV_TMP_SPACE_ID, flags(), false, nullptr);
 			ut_ad(space == fil_system.temp_space);
 			if (!space) {
 				err = DB_ERROR;
@@ -965,8 +964,7 @@ SysTablespace::open_or_create(
 		} else {
 			ut_ad(space_id() == TRX_SYS_SPACE);
 			space = fil_space_t::create(
-				TRX_SYS_SPACE, it->flags(),
-				FIL_TYPE_TABLESPACE, NULL);
+				TRX_SYS_SPACE, it->flags(), false, nullptr);
 			ut_ad(space == fil_system.sys_space);
 			if (!space) {
 				err = DB_ERROR;

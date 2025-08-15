@@ -1,4 +1,5 @@
 --source include/galera_cluster.inc
+--source include/have_aria.inc
 
 call mtr.add_suppression("WSREP: ALTER TABLE isolation failure");
 

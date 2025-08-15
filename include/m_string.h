@@ -79,12 +79,6 @@ extern const char _dig_vec_lower[];
 
 extern char *strmov_overlapp(char *dest, const char *src);
 
-#if defined(_lint) || defined(FORCE_INIT_OF_VARS)
-#define LINT_INIT_STRUCT(var) bzero(&var, sizeof(var)) /* No uninitialize-warning */
-#else
-#define LINT_INIT_STRUCT(var)
-#endif
-
 /* Prototypes for string functions */
 
 extern	void bmove_upp(uchar *dst,const uchar *src,size_t len);

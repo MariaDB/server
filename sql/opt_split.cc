@@ -610,6 +610,11 @@ void TABLE::add_splitting_info_for_key_field(KEY_FIELD *key_field)
     right_item->walk(&Item::set_fields_as_dependent_processor,
                      false, join->select_lex);
     right_item->update_used_tables();
+    /*
+      We've just pushed right_item down into the child select. It may only
+      have references to outside.
+    */
+    DBUG_ASSERT(!(right_item->used_tables() & ~PSEUDO_TABLE_BITS));
     eq_item= new (thd->mem_root) Item_func_eq(thd, left_item, right_item);
   }
   if (!eq_item)
@@ -625,14 +630,7 @@ void TABLE::add_splitting_info_for_key_field(KEY_FIELD *key_field)
   added_key_field->level= 0;
   added_key_field->optimize= KEY_OPTIMIZE_EQ;
   added_key_field->eq_func= true;
-
-  Item *real= key_field->val->real_item();
-  if ((real->type() == Item::FIELD_ITEM) &&
-        ((Item_field*)real)->field->maybe_null())
-    added_key_field->null_rejecting= true;
-  else
-    added_key_field->null_rejecting= false;
-
+  added_key_field->null_rejecting= key_field->null_rejecting;
   added_key_field->cond_guard= NULL;
   added_key_field->sj_pred_no= UINT_MAX;
   return;

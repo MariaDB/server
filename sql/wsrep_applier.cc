@@ -22,6 +22,7 @@
 #include "wsrep_xid.h"
 #include "wsrep_thd.h"
 #include "wsrep_trans_observer.h"
+#include "wsrep_schema.h" // wsrep_schema
 
 #include "slave.h" // opt_log_slave_updates
 #include "debug_sync.h"
@@ -180,6 +181,10 @@ int wsrep_apply_events(THD*        thd,
         {
           thd->variables.gtid_seq_no= gtid_ev->seq_no;
         }
+
+        if (wsrep_gtid_mode)
+          wsrep_schema->store_gtid_event(thd, gtid_ev);
+
         delete ev;
       }
       continue;
@@ -195,6 +200,21 @@ int wsrep_apply_events(THD*        thd,
       if (mysql_bin_log.is_open() && wsrep_gtid_mode)
       { 
         thd->variables.gtid_seq_no= seqno;
+      }
+    }
+
+    if (LOG_EVENT_IS_WRITE_ROW(typ) ||
+        LOG_EVENT_IS_UPDATE_ROW(typ) ||
+        LOG_EVENT_IS_DELETE_ROW(typ))
+    {
+      Rows_log_event* rle = static_cast<Rows_log_event*>(ev);
+      if (thd_test_options(thd, OPTION_RELAXED_UNIQUE_CHECKS))
+      {
+        rle->set_flags(Rows_log_event::RELAXED_UNIQUE_CHECKS_F);
+      }
+      if (thd_test_options(thd, OPTION_NO_FOREIGN_KEY_CHECKS))
+      {
+        rle->set_flags(Rows_log_event::NO_FOREIGN_KEY_CHECKS_F);
       }
     }
 

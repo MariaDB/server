@@ -47,6 +47,9 @@ select NEXT VALUE FOR Seq1_1;
 NEXT VALUE FOR Seq1_1
 4
 connection node_1;
+SHOW CREATE SEQUENCE Seq1_1;
+Table	Create Table
+Seq1_1	CREATE SEQUENCE `Seq1_1` start with 1 minvalue 1 maxvalue 9223372036854775806 increment by 1 nocache nocycle ENGINE=InnoDB
 DROP SEQUENCE Seq1_1;
 connection node_1;
 CREATE TABLE t2 (d CHAR(1)KEY);
@@ -279,6 +282,9 @@ NEXTVAL(t)
 connection node_1;
 DROP TABLE t1;
 DROP SEQUENCE t;
+connection node_2;
+SET SESSION wsrep_sync_wait=15;
+connection node_1;
 CREATE SEQUENCE t INCREMENT BY 0 CACHE=20 ENGINE=INNODB;
 CREATE TABLE t1(a int not null primary key default nextval(t), b int) engine=innodb;
 BEGIN;
@@ -314,3 +320,24 @@ NEXTVAL(t)
 connection node_1;
 DROP TABLE t1;
 DROP SEQUENCE t;
+
+MDEV-33245 SIGSEGV in wsrep_check_sequence | Sql_cmd_alter_sequence::execute
+
+CREATE TABLE t (a INT) ENGINE=InnoDB;
+INSERT INTO t VALUES (0);
+CREATE TABLE t1 (c VARCHAR) ENGINE=InnoDB;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near ') ENGINE=InnoDB' at line 1
+ALTER SEQUENCE IF EXISTS t MINVALUE=1;
+ERROR 42000: This version of MariaDB doesn't yet support 'CACHE without INCREMENT BY 0 in Galera cluster'
+DROP TABLE t;
+
+MDEV-32631:
+
+CREATE OR REPLACE TABLE t1(c INT ) ENGINE=ARIA;
+SET SESSION WSREP_OSU_METHOD=RSU;
+INSERT INTO t1 SELECT seq,concat(seq,1) FROM seq_1_to_100;
+ERROR 42000: This version of MariaDB doesn't yet support 'RSU on this table engine'
+SET SESSION WSREP_OSU_METHOD=TOI;
+DROP TABLE t1;
+
+End of 10.5 tests

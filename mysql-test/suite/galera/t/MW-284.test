@@ -2,15 +2,16 @@
 # MW-284 Slave I/O retry on ER_COM_UNKNOWN_ERROR
 #
 
---source include/have_log_bin.inc
 --source include/galera_cluster.inc
+--source include/have_innodb.inc
+--source include/have_log_bin.inc
 
 --connect node_3, 127.0.0.1, root, , test, $NODE_MYPORT_3
 call mtr.add_suppression("\\[ERROR\\] Error reading packet from server: WSREP has not yet prepared node for application use ");
 call mtr.add_suppression("WSREP has not yet prepared node for application use");
 
 --disable_query_log
---eval CHANGE MASTER TO MASTER_HOST='127.0.0.1', MASTER_PORT=$NODE_MYPORT_1, MASTER_USER='root', MASTER_CONNECT_RETRY=1;
+--eval CHANGE MASTER TO MASTER_HOST='127.0.0.1', MASTER_USER='root', MASTER_PORT=$NODE_MYPORT_1, master_connect_retry=1;
 --enable_query_log
 
 --connection node_1
@@ -29,7 +30,7 @@ SET global wsrep_sync_wait=0;
 --connection node_3
 SELECT @@wsrep_on;
 --sleep 1
-call mtr.add_suppression("Error reading packet from server: WSREP has not yet prepared node for application use (server_errno=1047)");
+call mtr.add_suppression("Error reading packet from server: WSREP has not yet prepared node for application use \\(server_errno ?= ?1047\\)");
 START SLAVE;
 --let $slave_param= Slave_IO_Running
 --let $slave_param_value= Connecting

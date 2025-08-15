@@ -1347,6 +1347,8 @@ backup_files(ds_ctxt *ds_data, const char *from)
 			}
 		}
 	}
+	if (!backup_mroonga_files_from_datadir(ds_data, from))
+		goto out;
 	msg("Finished backing up non-InnoDB tables and files");
 out:
 	datadir_iter_free(it);
@@ -1509,7 +1511,9 @@ ibx_copy_incremental_over_full()
 						      "aws-kms-key")) ||
 		    !(ret = backup_files_from_datadir(ds_data,
 						      xtrabackup_incremental_dir,
-						      "aria_log")))
+						      "aria_log")) ||
+		    !(ret = backup_mroonga_files_from_datadir(ds_data,
+						      xtrabackup_incremental_dir)))
 			goto cleanup;
 
 		/* copy supplementary files */
@@ -2053,6 +2057,47 @@ bool backup_files_from_datadir(ds_ctxt_t *ds_data,
 			pname = info.name;
 
 		if (!starts_with(pname, prefix))
+			continue;
+
+		if (xtrabackup_prepare && xtrabackup_incremental_dir &&
+			file_exists(info.name))
+			unlink(info.name);
+
+		std::string full_path(dir_path);
+		full_path.append(1, '/').append(info.name);
+		if (!(ret = ds_data->copy_file(full_path.c_str() , info.name, 1)))
+			break;
+	}
+	os_file_closedir(dir);
+	return ret;
+}
+
+bool backup_mroonga_files_from_datadir(ds_ctxt_t *ds_data,
+                                       const char *dir_path)
+{
+	os_file_dir_t dir= os_file_opendir(dir_path);
+	if (dir == IF_WIN(INVALID_HANDLE_VALUE, nullptr)) return false;
+
+	os_file_stat_t info;
+	bool ret= true;
+	while (os_file_readdir_next_file(dir_path, dir, &info) == 0)
+	{
+
+		if (info.type != OS_FILE_TYPE_FILE)
+			continue;
+
+		const char *pname = strrchr(info.name, '/');
+#ifdef _WIN32
+		if (const char *last = strrchr(info.name, '\\'))
+		{
+			if (!pname || last > pname)
+				pname = last;
+		}
+#endif
+		if (!pname)
+			pname = info.name;
+
+		if (!strstr(pname, ".mrn"))
 			continue;
 
 		if (xtrabackup_prepare && xtrabackup_incremental_dir &&

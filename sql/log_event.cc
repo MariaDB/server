@@ -694,6 +694,9 @@ const char* Log_event::get_type_str(Log_event_type type)
   case TRANSACTION_CONTEXT_EVENT: return "Transaction_context";
   case VIEW_CHANGE_EVENT: return "View_change";
   case XA_PREPARE_LOG_EVENT: return "XA_prepare";
+  case PARTIAL_UPDATE_ROWS_EVENT: return "MySQL Update_rows_partial";
+  case TRANSACTION_PAYLOAD_EVENT: return "MySQL Transaction_payload";
+  case HEARTBEAT_LOG_EVENT_V2: return "MySQL Heartbeat";
   case QUERY_COMPRESSED_EVENT: return "Query_compressed";
   case WRITE_ROWS_COMPRESSED_EVENT: return "Write_rows_compressed";
   case UPDATE_ROWS_COMPRESSED_EVENT: return "Update_rows_compressed";
@@ -913,7 +916,7 @@ int Log_event::read_log_event(IO_CACHE* file, String* packet,
   DBUG_RETURN(0);
 }
 
-Log_event* Log_event::read_log_event(IO_CACHE* file,
+Log_event* Log_event::read_log_event(IO_CACHE* file, int *out_error,
                                      const Format_description_log_event *fdle,
                                      my_bool crc_check,
                                      my_bool print_errors)
@@ -924,6 +927,7 @@ Log_event* Log_event::read_log_event(IO_CACHE* file,
   const char *error= 0;
   Log_event *res= 0;
 
+  *out_error= 0;
   switch (read_log_event(file, &event, fdle, BINLOG_CHECKSUM_ALG_OFF))
   {
     case 0:
@@ -973,14 +977,22 @@ err:
 #endif
 
     /*
-      The SQL slave thread will check if file->error<0 to know
+      The SQL slave thread will check *out_error to know
       if there was an I/O error. Even if there is no "low-level" I/O errors
       with 'file', any of the high-level above errors is worrying
       enough to stop the SQL thread now ; as we are skipping the current event,
       going on with reading and successfully executing other events can
       only corrupt the slave's databases. So stop.
     */
-    file->error= -1;
+    *out_error= 1;
+    /*
+      Clear any error that might have been set in the IO_CACHE from a read
+      error, while we are still holding the relay log mutex (if reading from
+      the hot log). Otherwise the error might interfere unpredictably with
+      write operations to the same IO_CACHE in the IO thread.
+    */
+    file->error= 0;
+
 
 #ifndef MYSQL_CLIENT
     if (!print_errors)
@@ -1017,6 +1029,7 @@ Log_event* Log_event::read_log_event(const uchar *buf, uint event_len,
   DBUG_PRINT("info", ("binlog_version: %d", fdle->binlog_version));
   DBUG_DUMP_EVENT_BUF(buf, event_len);
 
+  *error= 0;
   /*
     Check the integrity; This is needed because handle_slave_io() doesn't
     check if packet is of proper length.
@@ -1237,6 +1250,7 @@ Log_event* Log_event::read_log_event(const uchar *buf, uint event_len,
     case ANONYMOUS_GTID_LOG_EVENT:
     case PREVIOUS_GTIDS_LOG_EVENT:
     case TRANSACTION_CONTEXT_EVENT:
+    case HEARTBEAT_LOG_EVENT_V2:                // MySQL 8.0
     case VIEW_CHANGE_EVENT:
       ev= new Ignorable_log_event(buf, fdle,
                                   get_type_str((Log_event_type) event_type));
@@ -1261,6 +1275,21 @@ Log_event* Log_event::read_log_event(const uchar *buf, uint event_len,
     case START_ENCRYPTION_EVENT:
       ev= new Start_encryption_log_event(buf, event_len, fdle);
       break;
+    case TRANSACTION_PAYLOAD_EVENT:             // MySQL 8.0
+      *error=
+        "Found incompatible MySQL 8.0 TRANSACTION_PAYLOAD_EVENT event. "
+        "You can avoid this event by specifying "
+        "'binlog_transaction_compression=0' in the MySQL server";
+      ev= NULL;
+      break;
+    case PARTIAL_UPDATE_ROWS_EVENT:             // MySQL 8.0
+      *error=
+        "Found incompatible MySQL 8.0 PARTIAL_UPDATE_ROWS_EVENT event. "
+        "You can avoid this event by specifying "
+        "'binlog-row-value-options=\"\"' in the MySQL server";
+      ev= NULL;
+      break;
+
     default:
       DBUG_PRINT("error",("Unknown event code: %d",
                           (uchar) buf[EVENT_TYPE_OFFSET]));
@@ -1303,12 +1332,14 @@ exit:
 #ifdef MYSQL_CLIENT
     if (!force_opt) /* then mysqlbinlog dies */
     {
-      *error= "Found invalid event in binary log";
+      if (!*error)
+        *error= "Found invalid event in binary log";
       DBUG_RETURN(0);
     }
     ev= new Unknown_log_event(buf, fdle);
 #else
-    *error= "Found invalid event in binary log";
+    if (!*error)
+      *error= "Found invalid event in binary log";
     DBUG_RETURN(0);
 #endif
   }
@@ -2141,6 +2172,9 @@ Format_description_log_event(uint8 binlog_ver, const char* server_ver)
       post_header_len[TRANSACTION_CONTEXT_EVENT-1]= 0;
       post_header_len[VIEW_CHANGE_EVENT-1]= 0;
       post_header_len[XA_PREPARE_LOG_EVENT-1]= 0;
+      post_header_len[PARTIAL_UPDATE_ROWS_EVENT-1]= ROWS_HEADER_LEN_V2;
+      post_header_len[TRANSACTION_PAYLOAD_EVENT-1]= ROWS_HEADER_LEN_V2;
+      post_header_len[HEARTBEAT_LOG_EVENT_V2-1]= ROWS_HEADER_LEN_V2;
       post_header_len[WRITE_ROWS_EVENT-1]=  ROWS_HEADER_LEN_V2;
       post_header_len[UPDATE_ROWS_EVENT-1]= ROWS_HEADER_LEN_V2;
       post_header_len[DELETE_ROWS_EVENT-1]= ROWS_HEADER_LEN_V2;

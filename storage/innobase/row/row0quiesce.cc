@@ -47,45 +47,38 @@ row_quiesce_write_index_fields(
 	FILE*			file,	/*!< in: file to write to */
 	THD*			thd)	/*!< in/out: session */
 {
-	byte			row[sizeof(ib_uint32_t) * 2];
+	byte			row[sizeof(ib_uint32_t) * 3];
 
 	for (ulint i = 0; i < index->n_fields; ++i) {
 		byte*			ptr = row;
 		const dict_field_t*	field = &index->fields[i];
 
 		mach_write_to_4(ptr, field->prefix_len);
-		ptr += sizeof(ib_uint32_t);
+		ptr += 4;
 
-		mach_write_to_4(ptr, field->fixed_len);
-
-		DBUG_EXECUTE_IF("ib_export_io_write_failure_9",
-				close(fileno(file)););
-
-		if (fwrite(row, 1, sizeof(row), file) != sizeof(row)) {
-
-			ib_senderrf(
-				thd, IB_LOG_LEVEL_WARN, ER_IO_WRITE_ERROR,
-				(ulong) errno, strerror(errno),
-				"while writing index fields.");
-
-			return(DB_IO_ERROR);
-		}
+		/* Since maximum fixed length can be
+		DICT_ANTELOPE_MAX_INDEX_COL_LEN, InnoDB
+		can use the 0th bit to store the
+		field descending information */
+		mach_write_to_4(ptr, field->fixed_len
+				     | uint32_t(field->descending) << 31);
+		ptr += 4;
 
 		const char* field_name = field->name ? field->name : "";
 		/* Include the NUL byte in the length. */
-		ib_uint32_t	len = static_cast<ib_uint32_t>(strlen(field_name) + 1);
-		mach_write_to_4(row, len);
+		uint32_t	len = uint32_t(strlen(field_name) + 1);
+		mach_write_to_4(ptr, len);
 
 		DBUG_EXECUTE_IF("ib_export_io_write_failure_10",
 				close(fileno(file)););
 
-		if (fwrite(row, 1,  sizeof(len), file) != sizeof(len)
+		if (fwrite(row, 1, sizeof(row), file) != sizeof(row)
 		    || fwrite(field_name, 1, len, file) != len) {
 
 			ib_senderrf(
 				thd, IB_LOG_LEVEL_WARN, ER_IO_WRITE_ERROR,
 				(ulong) errno, strerror(errno),
-				"while writing index column.");
+				"while writing index fields.");
 
 			return(DB_IO_ERROR);
 		}
@@ -432,9 +425,6 @@ row_quiesce_write_header(
 Write the table meta data after quiesce.
 @return DB_SUCCESS or error code */
 
-/* Stack size 20904 with clang */
-PRAGMA_DISABLE_CHECK_STACK_FRAME
-
 static	MY_ATTRIBUTE((nonnull, warn_unused_result))
 dberr_t
 row_quiesce_write_cfg(
@@ -452,9 +442,10 @@ row_quiesce_write_cfg(
 
 	FILE*	file = fopen(name, "w+b");
 
-	if (file == NULL) {
-		ib_errf(thd, IB_LOG_LEVEL_WARN, ER_CANT_CREATE_FILE,
-			 name, errno, strerror(errno));
+	if (!file) {
+fail:
+		ib_senderrf(thd, IB_LOG_LEVEL_WARN, ER_CANT_CREATE_FILE,
+			    name, errno, strerror(errno));
 
 		err = DB_IO_ERROR;
 	} else {
@@ -468,31 +459,18 @@ row_quiesce_write_cfg(
 			err = row_quiesce_write_indexes(table, file, thd);
 		}
 
-		if (fflush(file) != 0) {
-
-			char	msg[BUFSIZ];
-
-			snprintf(msg, sizeof(msg), "%s flush() failed", name);
-
-			ib_senderrf(
-				thd, IB_LOG_LEVEL_WARN, ER_IO_WRITE_ERROR,
-				(ulong) errno, strerror(errno), msg);
+		if (fflush(file)) {
+			std::ignore = fclose(file);
+			goto fail;
 		}
 
-		if (fclose(file) != 0) {
-			char	msg[BUFSIZ];
-
-			snprintf(msg, sizeof(msg), "%s flose() failed", name);
-
-			ib_senderrf(
-				thd, IB_LOG_LEVEL_WARN, ER_IO_WRITE_ERROR,
-				(ulong) errno, strerror(errno), msg);
+		if (fclose(file)) {
+			goto fail;
 		}
 	}
 
 	return(err);
 }
-PRAGMA_REENABLE_CHECK_STACK_FRAME
 
 /*********************************************************************//**
 Check whether a table has an FTS index defined on it.

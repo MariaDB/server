@@ -164,8 +164,6 @@ typedef st_spider_result SPIDER_RESULT;
 #define SPIDER_SQL_LOP_CHK_PRM_PRF_STR "spider_lc_"
 #define SPIDER_SQL_LOP_CHK_PRM_PRF_LEN (sizeof(SPIDER_SQL_LOP_CHK_PRM_PRF_STR) - 1)
 
-#define SPIDER_CONN_KIND_MYSQL (1 << 0)
-
 #define SPIDER_SQL_TYPE_SELECT_SQL (1 << 0)
 #define SPIDER_SQL_TYPE_INSERT_SQL (1 << 1)
 #define SPIDER_SQL_TYPE_UPDATE_SQL (1 << 2)
@@ -842,9 +840,6 @@ public:
   virtual void free_result() = 0;
   virtual SPIDER_DB_ROW *current_row() = 0;
   virtual SPIDER_DB_ROW *fetch_row(MY_BITMAP *skips = NULL) = 0;
-  virtual SPIDER_DB_ROW *fetch_row_from_result_buffer(
-    spider_db_result_buffer *spider_res_buf
-  ) = 0;
   virtual SPIDER_DB_ROW *fetch_row_from_tmp_table(
     TABLE *tmp_table
   ) = 0;
@@ -1690,7 +1685,7 @@ typedef struct st_spider_result
     st_spider_result   *next;
   SPIDER_POSITION      *first_position; /* for quick mode */
   int                  pos_page_size; /* for quick mode */
-  longlong             record_num;
+  longlong             record_num;    /* number of rows */
   bool                 finish_flg;
   bool                 use_position;
   bool                 first_pos_use_position;
@@ -1733,7 +1728,7 @@ typedef struct st_spider_result_list
   bool                    sorted;
   bool                    desc_flg;
   longlong                current_row_num;
-  longlong                record_num;
+  longlong                record_num; /* number of rows */
   bool                    finish_flg;
   longlong                limit_num;
   longlong                internal_offset;

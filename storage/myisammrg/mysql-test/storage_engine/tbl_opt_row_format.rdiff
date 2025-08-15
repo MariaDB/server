@@ -1,5 +1,5 @@
---- ../storage/myisammrg/mysql-test/storage_engine/tbl_opt_row_format.result~	2017-05-24 00:50:44.254192857 +0300
-+++ ../storage/myisammrg/mysql-test/storage_engine/tbl_opt_row_format.reject	2017-05-24 00:50:44.334192859 +0300
+--- ../storage/myisammrg/mysql-test/storage_engine/tbl_opt_row_format.result~
++++ ../storage/myisammrg/mysql-test/storage_engine/tbl_opt_row_format.reject
 @@ -5,26 +5,26 @@
  t1	CREATE TABLE `t1` (
    `a` int(11) DEFAULT NULL,

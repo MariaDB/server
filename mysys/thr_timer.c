@@ -330,8 +330,7 @@ static void *timer_handler(void *arg __attribute__((unused)))
   }
   mysql_mutex_unlock(&LOCK_timer);
   my_thread_end();
-  pthread_exit(0);
-  return 0;					/* Impossible */
+  return 0;
 }
 
 

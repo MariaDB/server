@@ -1782,6 +1782,8 @@ static int filter_query_type(const char *query, struct sa_keyword *kwd)
   char fword[MAX_KEYWORD + 1], nword[MAX_KEYWORD + 1];
   int len, nlen= 0;
   const struct sa_keyword *l_keywords;
+  if (!query)
+    return SQLCOM_NOTHING;
 
   while (*query && (is_space(*query) || *query == '(' || *query == '/'))
   {
@@ -2852,6 +2854,18 @@ static void update_file_path(MYSQL_THD thd,
               void *var_ptr  __attribute__((unused)), const void *save)
 {
   char *new_name= (*(char **) save) ? *(char **) save : empty_str;
+
+  if (strlen(new_name) + 4  > FN_REFLEN)
+  {
+    error_header();
+    fprintf(stderr,
+            "server_audit_file_path can't exceed %d characters.\n",
+            FN_REFLEN - 4);
+    fprintf(stderr, "Log filename remains unchanged '%s'.\n", file_path);
+    CLIENT_ERROR(1, "server_audit_file_path can't exceed %d characters.",
+                 MYF(ME_WARNING), FN_REFLEN - 4);
+    return;
+  }
 
   ADD_ATOMIC(internal_stop_logging, 1);
   error_header();

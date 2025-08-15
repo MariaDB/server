@@ -237,25 +237,13 @@ static inline void wsrep_override_error(THD* thd,
                                         wsrep::client_error ce,
                                         enum wsrep::provider::status status)
 {
-    DBUG_ASSERT(ce != wsrep::e_success);
-    switch (ce)
-    {
-    case wsrep::e_error_during_commit:
-      if (status == wsrep::provider::error_size_exceeded)
-        wsrep_override_error(thd, ER_UNKNOWN_ERROR, "Maximum writeset size exceeded");
-      else
-        wsrep_override_error(thd, ER_ERROR_DURING_COMMIT, 0, status);
-      break;
-    case wsrep::e_deadlock_error:
-      wsrep_override_error(thd, ER_LOCK_DEADLOCK);
-      break;
-    case wsrep::e_interrupted_error:
-      wsrep_override_error(thd, ER_QUERY_INTERRUPTED);
-      break;
-    case wsrep::e_size_exceeded_error:
+  DBUG_ASSERT(ce != wsrep::e_success);
+  switch (ce)
+  {
+  case wsrep::e_error_during_commit:
+    if (status == wsrep::provider::error_size_exceeded)
       wsrep_override_error(thd, ER_UNKNOWN_ERROR, "Maximum writeset size exceeded");
-      break;
-    case wsrep::e_append_fragment_error:
+    else
       /* TODO: Figure out better error number */
       if (status)
         wsrep_override_error(thd, ER_ERROR_DURING_COMMIT,
@@ -265,17 +253,45 @@ static inline void wsrep_override_error(THD* thd,
       else
         wsrep_override_error(thd, ER_ERROR_DURING_COMMIT,
                              "Error while appending streaming replication fragment");
-      break;
-    case wsrep::e_not_supported_error:
-      wsrep_override_error(thd, ER_NOT_SUPPORTED_YET);
-      break;
-    case wsrep::e_timeout_error:
-      wsrep_override_error(thd, ER_LOCK_WAIT_TIMEOUT);
+    break;
+  case wsrep::e_deadlock_error:
+    switch (thd->lex->sql_command)
+    {
+    case SQLCOM_XA_END:
+    case SQLCOM_XA_PREPARE:
+      wsrep_override_error(thd, ER_XA_RBDEADLOCK);
       break;
     default:
-      wsrep_override_error(thd, ER_UNKNOWN_ERROR);
+      wsrep_override_error(thd, ER_LOCK_DEADLOCK);
       break;
     }
+    break;
+  case wsrep::e_interrupted_error:
+    wsrep_override_error(thd, ER_QUERY_INTERRUPTED);
+    break;
+  case wsrep::e_size_exceeded_error:
+    wsrep_override_error(thd, ER_UNKNOWN_ERROR, "Maximum writeset size exceeded");
+    break;
+  case wsrep::e_append_fragment_error:
+    /* TODO: Figure out better error number */
+    if (status)
+      wsrep_override_error(thd, ER_ERROR_DURING_COMMIT,
+                           "Error while appending streaming replication fragment"
+                           "(provider status: %s)",
+                           wsrep::provider::to_string(status).c_str());
+    else
+      wsrep_override_error(thd, ER_ERROR_DURING_COMMIT,
+                           "Error while appending streaming replication fragment");
+    break;
+  case wsrep::e_not_supported_error:
+    wsrep_override_error(thd, ER_NOT_SUPPORTED_YET);
+    break;
+  case wsrep::e_timeout_error:
+    wsrep_override_error(thd, ER_LOCK_WAIT_TIMEOUT);
+    break;
+  default:
+    wsrep_override_error(thd, ER_UNKNOWN_ERROR);
+  }
 }
 
 /**

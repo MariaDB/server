@@ -1,5 +1,5 @@
-/* Copyright (c) 2000, 2019, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2022, MariaDB Corporation.
+/* Copyright (c) 2000, 2025, Oracle and/or its affiliates.
+   Copyright (c) 2009, 2025, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -2538,6 +2538,8 @@ int Lex_input_stream::lex_one_token(YYSTYPE *yylval, THD *thd)
       state=MY_LEX_CHAR;
       break;
     case MY_LEX_END:
+      /* Unclosed special comments result in a syntax error */
+      if (in_comment == DISCARD_COMMENT) return (ABORT_SYM);
       next_state= MY_LEX_END;
       return(0);                        // We found end of input last time
 
@@ -11179,7 +11181,8 @@ st_select_lex::build_pushable_cond_for_having_pushdown(THD *thd, Item *cond)
 Field_pair *get_corresponding_field_pair(Item *item,
                                          List<Field_pair> pair_list)
 {
-  DBUG_ASSERT(item->type() == Item::FIELD_ITEM ||
+  DBUG_ASSERT(item->type() == Item::DEFAULT_VALUE_ITEM ||
+              item->type() == Item::FIELD_ITEM ||
               (item->type() == Item::REF_ITEM &&
                ((((Item_ref *) item)->ref_type() == Item_ref::VIEW_REF) ||
                (((Item_ref *) item)->ref_type() == Item_ref::REF))));
@@ -12242,6 +12245,48 @@ bool SELECT_LEX_UNIT::explainable() const
                derived->is_materialized_derived() && // (3)
                  !is_derived_eliminated() :
                false;
+}
+
+/**
+  Find the real table in prepared SELECT tree
+
+  NOTE: all SELECT must be prepared (to have leaf table list).
+
+  NOTE: it looks only for real tables (not view or derived)
+
+  @param thd          the current thread handle
+  @param db_name      name of db of the table to look for
+  @param db_name      name of db of the table to look for
+
+  @return first found table, NULL or ERROR_TABLE
+*/
+
+TABLE_LIST *SELECT_LEX::find_table(THD *thd,
+                                   const LEX_CSTRING *db_name,
+                                   const LEX_CSTRING *table_name)
+{
+  uchar buff[STACK_BUFF_ALLOC];                 // Max argument in function
+  if (check_stack_overrun(thd, STACK_MIN_SIZE, buff))
+    return NULL;
+
+  List_iterator_fast <TABLE_LIST> ti(leaf_tables);
+  TABLE_LIST *table;
+  while ((table= ti++))
+  {
+    if (cmp(&table->db, db_name) == 0 &&
+        cmp(&table->table_name, table_name) == 0)
+      return table;
+  }
+
+  for (SELECT_LEX_UNIT *u= first_inner_unit(); u; u= u->next_unit())
+  {
+    for (st_select_lex *sl= u->first_select(); sl; sl=sl->next_select())
+    {
+      if ((table= sl->find_table(thd, db_name, table_name)))
+        return table;
+    }
+  }
+  return NULL;
 }
 
 

@@ -209,4 +209,7 @@ int main(int argc __attribute__((unused)), char **argv)
 
   ok(true, "sux_lock");
   sux.free();
+
+  my_end(MY_CHECK_ERROR);
+  return exit_status();
 }

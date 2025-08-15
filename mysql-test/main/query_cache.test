@@ -2,6 +2,8 @@
 -- source include/long_test.inc
 -- source include/no_valgrind_without_big.inc
 -- source include/no_view_protocol.inc
+-- source include/have_partition.inc
+-- source include/have_innodb.inc
 
 --disable_ps2_protocol
 set @save_query_cache_size=@@query_cache_size;
@@ -26,14 +28,6 @@ flush query cache; # This crashed in some versions
 flush query cache; # This crashed in some versions
 reset query cache;
 flush status;
---disable_warnings
-drop table if exists t1,t2,t3,t4,t11,t21,t1_1,t1_2,t9,t9_1,t9_2;
-drop database if exists mysqltest;
-
-# Fix possible left overs from other tests
-drop table if exists ```a`;
-drop view if exists v1;
---enable_warnings
 
 #
 # First simple test
@@ -805,9 +799,6 @@ drop table t1;
 create table t1 (a int);
 insert into t1 values (1),(2);
 
---disable_warnings
-drop procedure if exists p1;
---enable_warnings
 delimiter //;
 CREATE PROCEDURE `p1`()
 begin
@@ -1228,10 +1219,6 @@ set global query_cache_type=on;
 set session query_cache_type=on;
 
 --echo Restore default values.
- --disable_warnings
- drop database if exists db1;
- drop database if exists db2;
- --enable_warnings
  set GLOBAL query_cache_size=15*1024*1024;
  create database db1;
  use db1;
@@ -1247,10 +1234,6 @@ set session query_cache_type=on;
  drop database db2;
  set global query_cache_size=@save_query_cache_size;
 
- --disable_warnings
- drop database if exists db1;
- drop database if exists db3;
- --enable_warnings
  set GLOBAL query_cache_size=15*1024*1024;
  create database db1;
  create database db3;
@@ -1302,10 +1285,6 @@ SET GLOBAL query_cache_size= default;
 #
 # Bug#36326: nested transaction and select
 #
-
---disable_warnings
-DROP TABLE IF EXISTS t1;
---enable_warnings
 
 FLUSH STATUS;
 SET GLOBAL query_cache_size=1048576;
@@ -1428,10 +1407,6 @@ if (!` SELECT (@sleep_time_per_result_row * @row_count - @max_acceptable_delay >
    exit;
 }
 SET @@global.query_cache_size = 1024 * 64;
---disable_warnings
-DROP TEMPORARY TABLE IF EXISTS t_history;
-DROP TABLE IF EXISTS t1;
---enable_warnings
 CREATE TEMPORARY TABLE t_history (attempt SMALLINT,
 start_ts DATETIME, end_ts DATETIME,
 start_cached INTEGER, end_cached INTEGER);
@@ -1606,10 +1581,6 @@ DROP TABLE t1;
 --echo #
 --echo # Bug#51336 Assert in reload_acl_and_cache during RESET QUERY CACHE
 --echo #
-
---disable_warnings
-DROP TABLE IF EXISTS t1;
---enable_warnings
 
 CREATE TABLE t1(id INT);
 
@@ -1851,6 +1822,26 @@ SET @qc= @@query_cache_size;
 set global Query_cache_size=18446744073709547520;
 SET GLOBAL query_cache_size= @qc;
 --enable_warnings
+
+--echo #
+--echo # MDEV-34075 corruption when query cache cannot allocate block
+--echo #
+set global query_cache_type=1;
+create table t1 (c1 smallint null, c2 binary (25) not null, c3 tinyint(4) null, c4 binary (15) not null primary key, c5 smallint not null unique key,c6 decimal(10,8) not null default 3.141592) engine=innodb;
+set global query_cache_size=81920;
+--error ER_BAD_FIELD_ERROR
+select * from t1 where b=1 and c=1;
+set session query_cache_type=1;
+drop table t1;
+create table t1 (c1 int not null, c2 char(5)) engine=innodb partition by linear key(c1) partitions 99;
+select * from t1 where c1 <='1998-12-29 00:00:00' order by c1,c2;
+--error ER_BAD_FIELD_ERROR
+select group_concat(a separator '###') as names from t1 having left(names, 1)='j';
+select * from t1;
+select count(*) from t1;
+--error ER_BAD_FIELD_ERROR
+select G.a, c.a from t1 c, t1 G;
+drop table t1;
 
 --echo #
 --echo # End of 10.5 tests

@@ -20,6 +20,7 @@
 /* Classes in mysql */
 
 #include <atomic>
+#include <thread>
 #include "dur_prop.h"
 #include <waiting_threads.h>
 #include "sql_const.h"
@@ -50,6 +51,7 @@
 #include "session_tracker.h"
 #include "backup.h"
 #include "xa.h"
+#include "scope.h"
 #include "ddl_log.h"                            /* DDL_LOG_STATE */
 #include "ha_handler_stats.h"                    // ha_handler_stats */
 
@@ -459,6 +461,7 @@ public:
   bool invisible;
   bool without_overlaps;
   bool old;
+  uint length;
   Lex_ident period;
 
   Key(enum Keytype type_par, const LEX_CSTRING *name_arg,
@@ -466,7 +469,7 @@ public:
     :DDL_options(ddl_options),
      type(type_par), key_create_info(default_key_create_info),
     name(*name_arg), option_list(NULL), generated(generated_arg),
-    invisible(false), without_overlaps(false), old(false)
+    invisible(false), without_overlaps(false), old(false), length(0)
   {
     key_create_info.algorithm= algorithm_arg;
   }
@@ -477,7 +480,7 @@ public:
     :DDL_options(ddl_options),
      type(type_par), key_create_info(*key_info_arg), columns(*cols),
     name(*name_arg), option_list(create_opt), generated(generated_arg),
-    invisible(false), without_overlaps(false), old(false)
+    invisible(false), without_overlaps(false), old(false), length(0)
   {}
   Key(const Key &rhs, MEM_ROOT *mem_root);
   virtual ~Key() = default;
@@ -734,6 +737,7 @@ typedef struct system_variables
   ha_rows select_limit;
   ha_rows max_join_size;
   ha_rows expensive_subquery_limit;
+  uint analyze_max_length;
   ulong auto_increment_increment, auto_increment_offset;
 #ifdef WITH_WSREP
   /*
@@ -1045,9 +1049,8 @@ typedef struct system_status_var
   ulonglong table_open_cache_hits;
   ulonglong table_open_cache_misses;
   ulonglong table_open_cache_overflows;
-  ulonglong send_metadata_skips;
+  ulonglong cpu_time, busy_time, query_time;
   double last_query_cost;
-  double cpu_time, busy_time;
   uint32 threads_running;
   /* Don't initialize */
   /* Memory used for thread local storage */
@@ -2382,8 +2385,8 @@ struct wait_for_commit
       return wait_for_prior_commit2(thd, allow_kill);
     else
     {
-      if (wakeup_error)
-        my_error(ER_PRIOR_COMMIT_FAILED, MYF(0));
+      if (unlikely(wakeup_error))
+        prior_commit_error(thd);
       return wakeup_error;
     }
   }
@@ -2434,6 +2437,7 @@ struct wait_for_commit
   void wakeup(int wakeup_error);
 
   int wait_for_prior_commit2(THD *thd, bool allow_kill);
+  void prior_commit_error(THD *thd);
   void wakeup_subsequent_commits2(int wakeup_error);
   void unregister_wait_for_prior_commit2();
 
@@ -3246,8 +3250,8 @@ public:
     {
       bzero((char*)this, sizeof(*this));
       implicit_xid.null();
-      init_sql_alloc(key_memory_thd_transactions, &mem_root, 256,
-                     0, MYF(MY_THREAD_SPECIFIC));
+      init_sql_alloc(key_memory_thd_transactions, &mem_root,
+                     DEFAULT_ROOT_BLOCK_SIZE, 0, MYF(MY_THREAD_SPECIFIC));
     }
   } default_transaction, *transaction;
   Global_read_lock global_read_lock;
@@ -5448,6 +5452,7 @@ public:
   TMP_TABLE_SHARE *find_tmp_table_share(const char *key, size_t key_length);
 
   bool open_temporary_table(TABLE_LIST *tl);
+  bool check_and_open_tmp_table(TABLE_LIST *tl);
   bool open_temporary_tables(TABLE_LIST *tl);
 
   bool close_temporary_tables();
@@ -5548,7 +5553,6 @@ public:
   uint32                    wsrep_rand;
   rpl_group_info            *wsrep_rgi;
   bool                      wsrep_converted_lock_session;
-  char                      wsrep_info[128]; /* string for dynamic proc info */
   ulong                     wsrep_retry_counter; // of autocommit
   bool                      wsrep_PA_safe;
   char*                     wsrep_retry_query;
@@ -5846,6 +5850,17 @@ public:
       return false;
     return !is_set_timestamp_forbidden(this);
   }
+
+  /**
+    @brief
+    Return true if current statement uses cursor protocol for execution.
+
+    @details
+    Cursor protocol execution is determined by checking if lex->result is a
+    Select_materialize object, which is exclusively used by the server for
+    cursor result set materialization.
+  */
+  bool is_cursor_execution() const;
 };
 
 
@@ -5980,7 +5995,8 @@ public:
   */
   virtual int send_data(List<Item> &items)=0;
   virtual ~select_result_sink() = default;
-  void reset(THD *thd_arg) { thd= thd_arg; }
+  // Used in cursors to initialize and reset
+  void reinit(THD *thd_arg) { thd= thd_arg; }
 };
 
 class select_result_interceptor;
@@ -6054,15 +6070,11 @@ public:
   */
   virtual bool check_simple_select() const;
   virtual void abort_result_set() {}
-  /*
-    Cleanup instance of this class for next execution of a prepared
-    statement/stored procedure.
-  */
-  virtual void cleanup();
+  virtual void reset_for_next_ps_execution();
   void set_thd(THD *thd_arg) { thd= thd_arg; }
-  void reset(THD *thd_arg)
+  void reinit(THD *thd_arg)
   {
-    select_result_sink::reset(thd_arg);
+    select_result_sink::reinit(thd_arg);
     unit= NULL;
   }
 #ifdef EMBEDDED_LIBRARY
@@ -6168,9 +6180,9 @@ public:
     elsewhere. (this is used by ANALYZE $stmt feature).
   */
   void disable_my_ok_calls() { suppress_my_ok= true; }
-  void reset(THD *thd_arg)
+  void reinit(THD *thd_arg)
   {
-    select_result::reset(thd_arg);
+    select_result::reinit(thd_arg);
     suppress_my_ok= false;
   }
 protected:
@@ -6222,7 +6234,7 @@ private:
     {}
     void reset(THD *thd_arg)
     {
-      select_result_interceptor::reset(thd_arg);
+      select_result_interceptor::reinit(thd_arg);
       spvar_list= NULL;
       field_count= 0;
     }
@@ -6266,7 +6278,7 @@ public:
   void reset(THD *thd_arg, sp_lex_keeper *lex_keeper)
   {
     sp_cursor_statistics::reset();
-    result.reset(thd_arg);
+    result.reinit(thd_arg);
     m_lex_keeper= lex_keeper;
     server_side_cursor= NULL;
   }
@@ -6294,7 +6306,7 @@ public:
   bool send_eof() override;
   bool check_simple_select() const override { return FALSE; }
   void abort_result_set() override;
-  void cleanup() override;
+  void reset_for_next_ps_execution() override;
   select_result_interceptor *result_interceptor() override { return NULL; }
 };
 
@@ -6329,7 +6341,9 @@ public:
   { path[0]=0; }
   ~select_to_file();
   bool send_eof() override;
-  void cleanup() override;
+  void abort_result_set() override;
+  void reset_for_next_ps_execution() override;
+  bool free_recources();
 };
 
 
@@ -6381,6 +6395,8 @@ public:
   int send_data(List<Item> &items) override;
 };
 
+class Write_record; // defined in sql_insert.h
+
 
 class select_insert :public select_result_interceptor {
  public:
@@ -6388,13 +6404,14 @@ class select_insert :public select_result_interceptor {
   TABLE_LIST *table_list;
   TABLE *table;
   List<Item> *fields;
+  Write_record *write;
   ulonglong autoinc_value_of_last_inserted_row; // autogenerated or not
   COPY_INFO info;
   bool insert_into_view;
   select_insert(THD *thd_arg, TABLE_LIST *table_list_par, TABLE *table_par,
                 List<Item> *fields_par, List<Item> *update_fields,
                 List<Item> *update_values, enum_duplicates duplic,
-                bool ignore, select_result *sel_ret_list);
+                bool ignore, select_result *sel_ret_list, Write_record *write);
   ~select_insert();
   int prepare(List<Item> &list, SELECT_LEX_UNIT *u) override;
   int prepare2(JOIN *join) override;
@@ -6406,7 +6423,7 @@ class select_insert :public select_result_interceptor {
   bool send_eof() override;
   void abort_result_set() override;
   /* not implemented: select_insert is never re-used in prepared statements */
-  void cleanup() override;
+  void reset_for_next_ps_execution() override;
 };
 
 
@@ -6428,9 +6445,9 @@ public:
                 Table_specification_st *create_info_par,
                 Alter_info *alter_info_arg,
                 List<Item> &select_fields,enum_duplicates duplic, bool ignore,
-                TABLE_LIST *select_tables_arg):
+                TABLE_LIST *select_tables_arg, Write_record *write):
     select_insert(thd_arg, table_arg, NULL, &select_fields, 0, 0, duplic,
-                  ignore, NULL),
+                  ignore, NULL, write),
     create_info(create_info_par),
     select_tables(select_tables_arg),
     alter_info(alter_info_arg),
@@ -6632,7 +6649,7 @@ public:
   int delete_record();
   bool send_eof() override;
   virtual bool flush();
-  void cleanup() override;
+  void reset_for_next_ps_execution() override;
   virtual bool create_result_table(THD *thd, List<Item> *column_types,
                                    bool is_distinct, ulonglong options,
                                    const LEX_CSTRING *alias,
@@ -6807,9 +6824,10 @@ class select_union_recursive :public select_unit
  */
   List<TABLE_LIST> rec_table_refs;
   /*
-    The count of how many times cleanup() was called with cleaned==false
-    for the unit specifying the recursive CTE for which this object was created
-    or for the unit specifying a CTE that mutually recursive with this CTE.
+    The count of how many times reset_for_next_ps_execution() was called with
+    cleaned==false for the unit specifying the recursive CTE for which this
+    object was created or for the unit specifying a CTE that mutually
+    recursive with this CTE.
   */
   uint cleanup_count;
   long row_counter;
@@ -6828,7 +6846,7 @@ class select_union_recursive :public select_unit
                            bool create_table,
                            bool keep_row_order,
                            uint hidden) override;
-  void cleanup() override;
+  void reset_for_next_ps_execution() override;
 };
 
 /**
@@ -6898,7 +6916,7 @@ public:
   {
     result->abort_result_set(); /* purecov: inspected */
   }
-  void cleanup() override
+  void reset_for_next_ps_execution() override
   {
     send_records= 0;
   }
@@ -7001,7 +7019,7 @@ public:
                            uint hidden) override;
   bool init_result_table(ulonglong select_options);
   int send_data(List<Item> &items) override;
-  void cleanup() override;
+  void reset_for_next_ps_execution() override;
   ha_rows get_null_count_of_col(uint idx)
   {
     DBUG_ASSERT(idx < table->s->fields);
@@ -7034,7 +7052,7 @@ public:
                                   bool mx, bool all):
     select_subselect(thd_arg, item_arg), cache(0), fmax(mx), is_all(all)
   {}
-  void cleanup() override;
+  void reset_for_next_ps_execution() override;
   int send_data(List<Item> &items) override;
   bool cmp_real();
   bool cmp_int();
@@ -7451,7 +7469,7 @@ public:
   int send_data(List<Item> &items) override;
   bool send_eof() override;
   bool check_simple_select() const override;
-  void cleanup() override;
+  void reset_for_next_ps_execution() override;
 };
 
 /* Bits in sql_command_flags */

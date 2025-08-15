@@ -46,7 +46,7 @@ int heap_rprev(HP_INFO *info, uchar *record)
                               &info->last_pos, offsetof(TREE_ELEMENT, right));
       }
     }
-    else if (info->last_pos)
+    else if (info->last_pos && info->key_version == info->s->key_version)
       pos = tree_search_next(&keyinfo->rb_tree, &info->last_pos,
                              offsetof(TREE_ELEMENT, right),
                              offsetof(TREE_ELEMENT, left));
@@ -58,6 +58,7 @@ int heap_rprev(HP_INFO *info, uchar *record)
       info->last_find_flag= HA_READ_KEY_OR_PREV;
       pos = tree_search_key(&keyinfo->rb_tree, info->lastkey, info->parents, 
                            &info->last_pos, info->last_find_flag, &custom_arg);
+      info->key_version= info->s->key_version;
     }
     if (pos)
     {

@@ -51,6 +51,8 @@ let $restart_parameters=--debug_dbug=+d,ib_log_checkpoint_avoid_hard --innodb_fl
 begin;
 insert into t1 values (6, repeat('%', 400));
 
+SET GLOBAL innodb_max_dirty_pages_pct_lwm=0, innodb_max_dirty_pages_pct=0;
+
 --echo # Make the first page dirty for system tablespace
 set global innodb_saved_page_number_debug = 0;
 set global innodb_fil_make_page_dirty_debug = 0;
@@ -59,7 +61,11 @@ set global innodb_fil_make_page_dirty_debug = 0;
 set global innodb_saved_page_number_debug = 1;
 set global innodb_fil_make_page_dirty_debug = 0;
 
-set global innodb_buf_flush_list_now = 1;
+let $wait_condition =
+SELECT variable_value = 0
+FROM information_schema.global_status
+WHERE variable_name = 'INNODB_BUFFER_POOL_PAGES_DIRTY';
+--source include/wait_condition.inc
 
 --let CLEANUP_IF_CHECKPOINT=drop table t1, unexpected_checkpoint;
 --source ../include/no_checkpoint_end.inc

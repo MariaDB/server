@@ -275,8 +275,175 @@ SELECT @@general_log_file = @my_glf;
 @@general_log_file = @my_glf
 1
 SET GLOBAL general_log_file = @old_general_log_file;
+#
+# MDEV-35720 Add query_time to statistics
+#
+connect  con2,localhost,root,,;
+set @s1=(select variable_value from information_schema.session_status where
+variable_name='query_time');
+select sleep(3) into @a;
+set @s2=(select variable_value from information_schema.session_status where
+variable_name='query_time');
+set @s3=(select variable_value from information_schema.global_status where
+variable_name='query_time');
+select @s1 >= 0.00 and @s1 <= 2.00 as "should be true";
+should be true
+1
+select @s2 >= 2.00 and @s2 < 10.00 as "should be true";
+should be true
+1
+select @s3 >= 3.00 as "should be true";
+should be true
+1
+disconnect con2;
+connection default;
+create procedure p1()
+begin
+select sleep(1) into @a;
+select sleep(2) into @a;
+end|
+connect  con2,localhost,root,,;
+call p1();
+set @s1=(select variable_value from information_schema.session_status where
+variable_name='query_time');
+select @s1 > 2.00 and @s1 < 10.00 as "should be true";
+should be true
+1
+disconnect con2;
 disconnect con1;
 connection default;
+drop procedure p1;
+#
+# MDEV-35353 Rows_examined is always 0 in the slow query log 
+# for union all queries
+#
+SET GLOBAL log_output = "TABLE";
+SET GLOBAL slow_query_log = ON;
+SET GLOBAL long_query_time = 0.0;
+TRUNCATE TABLE mysql.slow_log;
+create table t1(a int, b int);
+insert into t1 select seq, seq from seq_1_to_20;
+connect  con2,localhost,root,,;
+select sum(a) from t1 
+union all
+select sum(b) from t1;
+sum(a)
+210
+210
+SELECT rows_examined,sql_text FROM mysql.slow_log where sql_text LIKE '%union all%';
+rows_examined	sql_text
+40	select sum(a) from t1 
+union all
+select sum(b) from t1
+TRUNCATE TABLE mysql.slow_log;
+select sum(a) from t1 
+union
+select sum(b) from t1;
+sum(a)
+210
+SELECT rows_examined,sql_text FROM mysql.slow_log where sql_text LIKE '%union%';
+rows_examined	sql_text
+41	select sum(a) from t1 
+union
+select sum(b) from t1
+TRUNCATE TABLE mysql.slow_log;
+select sum(a) from t1 
+except all
+select sum(b) from t1;
+sum(a)
+SELECT rows_examined,sql_text FROM mysql.slow_log where sql_text LIKE '%except all%';
+rows_examined	sql_text
+40	select sum(a) from t1 
+except all
+select sum(b) from t1
+TRUNCATE TABLE mysql.slow_log;
+select sum(a) from t1 
+except
+select sum(b) from t1;
+sum(a)
+SELECT rows_examined,sql_text FROM mysql.slow_log where sql_text LIKE '%except%';
+rows_examined	sql_text
+40	select sum(a) from t1 
+except
+select sum(b) from t1
+TRUNCATE TABLE mysql.slow_log;
+select sum(a) from t1 
+intersect all
+select sum(b) from t1;
+sum(a)
+210
+SELECT rows_examined,sql_text FROM mysql.slow_log where sql_text LIKE '%intersect all%';
+rows_examined	sql_text
+41	select sum(a) from t1 
+intersect all
+select sum(b) from t1
+TRUNCATE TABLE mysql.slow_log;
+select sum(a) from t1 
+intersect
+select sum(b) from t1;
+sum(a)
+210
+SELECT rows_examined,sql_text FROM mysql.slow_log where sql_text LIKE '%intersect%';
+rows_examined	sql_text
+41	select sum(a) from t1 
+intersect
+select sum(b) from t1
+disconnect con2;
+connection default;
+DROP TABLE t1;
+TRUNCATE TABLE mysql.slow_log;
+#
+# MDEV-37195 Rows_examined is always 0 in the slow query log 
+# for queries with a subquery and degenerate select
+#
+SET GLOBAL log_output = "TABLE";
+SET GLOBAL slow_query_log = ON;
+SET GLOBAL long_query_time = 0.0;
+TRUNCATE TABLE mysql.slow_log;
+CREATE TABLE t1 (id INT);
+INSERT INTO t1(id) SELECT seq FROM seq_1_to_10;
+connect  con2,localhost,root,,;
+SELECT 100 in (SELECT id FROM t1) AS res;
+res
+0
+SELECT rows_examined,sql_text FROM mysql.slow_log WHERE sql_text LIKE '%SELECT 100%';
+rows_examined	sql_text
+10	SELECT 100 in (SELECT id FROM t1) AS res
+TRUNCATE TABLE mysql.slow_log;
+SELECT 100 in (
+SELECT id FROM t1 
+UNION
+SELECT id FROM t1
+) AS res;
+res
+0
+SELECT rows_examined,sql_text FROM mysql.slow_log WHERE sql_text LIKE '%SELECT 100%';
+rows_examined	sql_text
+20	SELECT 100 in (
+SELECT id FROM t1 
+UNION
+SELECT id FROM t1
+) AS res
+TRUNCATE TABLE mysql.slow_log;
+SELECT 100 in (
+SELECT id FROM t1 
+UNION ALL
+SELECT id FROM t1
+) AS res;
+res
+0
+SELECT rows_examined,sql_text FROM mysql.slow_log WHERE sql_text LIKE '%SELECT 100%';
+rows_examined	sql_text
+20	SELECT 100 in (
+SELECT id FROM t1 
+UNION ALL
+SELECT id FROM t1
+) AS res
+disconnect con2;
+connection default;
+DROP TABLE t1;
+TRUNCATE TABLE mysql.slow_log;
+End of 10.11 tests
 SET GLOBAL long_query_time = @save_long_query_time;
 SET GLOBAL log_output = @old_log_output;
 SET global general_log = @old_general_log;

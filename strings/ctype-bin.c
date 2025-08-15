@@ -296,6 +296,7 @@ void my_hash_sort_bin(CHARSET_INFO *cs __attribute__((unused)),
   const uchar *end = key + len;
   ulong tmp1= *nr1;
   ulong tmp2= *nr2;
+  DBUG_ASSERT(key); /* Avoid UBSAN nullptr-with-offset */
 
   for (; key < end ; key++)
   {
@@ -316,6 +317,7 @@ void my_hash_sort_8bit_bin(CHARSET_INFO *cs __attribute__((unused)),
     'A ' and 'A' as identical
   */
   const uchar *end= skip_trailing_space(key, len);
+  DBUG_ASSERT(key); /* Avoid UBSAN nullptr-with-offset */
   my_hash_sort_bin(cs, key, end - key, nr1, nr2);
 }
 

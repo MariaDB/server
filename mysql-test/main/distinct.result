@@ -652,7 +652,6 @@ SELECT DISTINCT 2 + 2, 'Bob' INTO @v17, @v18 FROM t1 WHERE fruit_name =
 SELECT @v17, @v18;
 @v17	@v18
 4	Bob
-DROP TABLE IF EXISTS t2;
 CREATE TABLE t2 (fruit_id INT NOT NULL, fruit_name varchar(20)
 default NULL);
 SELECT DISTINCT fruit_id, fruit_name INTO OUTFILE 
@@ -1005,6 +1004,8 @@ DROP TABLE t1;
 #
 SET @tmp_table_size_save= @@tmp_table_size;
 SET @@tmp_table_size= 1024;
+Warnings:
+Warning	1292	Truncated incorrect tmp_table_size value: '1024'
 CREATE TABLE t1 (a INT);
 INSERT INTO t1 VALUES (1),(2),(3),(4),(5),(6),(7),(8);
 INSERT INTO t1 SELECT a+8 FROM t1;

@@ -29,10 +29,6 @@
 #include "rpl_rli.h"
 #include "slave.h"
 #include "log_event.h"
-#ifdef WITH_WSREP
-#include "wsrep_mysqld.h" // wsrep_thd_is_local
-#include "wsrep_trans_observer.h" // wsrep_start_trx_if_not_started
-#endif
 
 const LEX_CSTRING rpl_gtid_slave_state_table_name=
   { STRING_WITH_LEN("gtid_slave_pos") };
@@ -714,23 +710,7 @@ rpl_slave_state::record_gtid(THD *thd, const rpl_gtid *gtid, uint64 sub_id,
     goto end;
 
 #ifdef WITH_WSREP
-  /*
-    We should replicate local gtid_slave_pos updates to other nodes if
-    wsrep gtid mode is set.
-    In applier we should not append them to galera writeset.
-  */
-  if (WSREP_ON_ && wsrep_gtid_mode && wsrep_thd_is_local(thd))
-  {
-    thd->wsrep_ignore_table= false;
-    table->file->row_logging= 1; // replication requires binary logging
-    if (thd->wsrep_next_trx_id() == WSREP_UNDEFINED_TRX_ID)
-      thd->set_query_id(next_query_id());
-    wsrep_start_trx_if_not_started(thd);
-  }
-  else
-  {
-    thd->wsrep_ignore_table= true;
-  }
+  thd->wsrep_ignore_table= true; // Do not replicate mysql.gtid_slave_pos table
 #endif
 
   if (!in_transaction)
@@ -767,10 +747,6 @@ rpl_slave_state::record_gtid(THD *thd, const rpl_gtid *gtid, uint64 sub_id,
   }
 end:
 
-#ifdef WITH_WSREP
-  thd->wsrep_ignore_table= false;
-#endif
-
   if (table_opened)
   {
     if (err || (err= ha_commit_trans(thd, FALSE)))
@@ -793,6 +769,10 @@ end:
     mysql_mutex_unlock(&thd->LOCK_thd_data);
     thd->mdl_context.rollback_to_savepoint(m_start_of_statement_svp);
   }
+
+#ifdef WITH_WSREP
+  thd->wsrep_ignore_table= false;
+#endif
   thd->lex->restore_backup_query_tables_list(&lex_backup);
   thd->variables.option_bits= thd_saved_option;
   thd->resume_subsequent_commits(suspended_wfc);
@@ -906,25 +886,7 @@ rpl_slave_state::gtid_delete_pending(THD *thd,
     return;
 
 #ifdef WITH_WSREP
-  /*
-    We should replicate local gtid_slave_pos updates to other nodes if
-    wsrep gtid mode is set.
-    In applier we should not append them to galera writeset.
-  */
-  if (WSREP_ON_ && wsrep_gtid_mode &&
-      wsrep_thd_is_local(thd) &&
-      thd->wsrep_cs().state() != wsrep::client_state::s_none)
-  {
-    if (thd->wsrep_trx().active() == false)
-    {
-      if (thd->wsrep_next_trx_id() == WSREP_UNDEFINED_TRX_ID)
-        thd->set_query_id(next_query_id());
-      wsrep_start_transaction(thd, thd->wsrep_next_trx_id());
-    }
-    thd->wsrep_ignore_table= false;
-  }
-  else
-    thd->wsrep_ignore_table= true;
+  thd->wsrep_ignore_table= true; // No Galera replication for mysql.gtid_pos_table
 #endif
 
   thd_saved_option= thd->variables.option_bits;
@@ -3315,6 +3277,7 @@ struct gtid_report_ctx
   my_bool contains_err;
 };
 
+/** Iteration block for Binlog_gtid_state_validator::report() */
 static my_bool report_audit_findings(void *entry, void *report_ctx_arg)
 {
   struct Binlog_gtid_state_validator::audit_elem *audit_el=
@@ -3453,7 +3416,7 @@ my_bool Window_gtid_event_filter::exclude(rpl_gtid *gtid)
       bounds of this window.
     */
 
-    if (!m_has_start && is_gtid_at_or_before(&m_stop, gtid))
+    if (!m_has_start && m_has_stop && is_gtid_at_or_before(&m_stop, gtid))
     {
       /*
         Start GTID was not provided, so we want to include everything from here
@@ -3461,6 +3424,12 @@ my_bool Window_gtid_event_filter::exclude(rpl_gtid *gtid)
       */
       m_is_active= TRUE;
       should_exclude= FALSE;
+      if (gtid->seq_no == m_stop.seq_no)
+      {
+        m_has_passed= TRUE;
+        DBUG_PRINT("gtid-event-filter",
+                   ("Window: End %d-%d-%llu", PARAM_GTID(m_stop)));
+      }
     }
     else if ((m_has_start && is_gtid_at_or_after(&m_start, gtid)) &&
              (!m_has_stop || is_gtid_at_or_before(&m_stop, gtid)))
@@ -3468,8 +3437,7 @@ my_bool Window_gtid_event_filter::exclude(rpl_gtid *gtid)
       m_is_active= TRUE;
 
       DBUG_PRINT("gtid-event-filter",
-                 ("Window: Begin (%d-%d-%llu, %d-%d-%llu]",
-                  PARAM_GTID(m_start), PARAM_GTID(m_stop)));
+                 ("Window: Begin %d-%d-%llu", PARAM_GTID(m_start)));
 
       /*
         As the start of the range is exclusive, if this gtid is the start of
@@ -3484,8 +3452,7 @@ my_bool Window_gtid_event_filter::exclude(rpl_gtid *gtid)
       {
         m_has_passed= TRUE;
         DBUG_PRINT("gtid-event-filter",
-                   ("Window: End (%d-%d-%llu, %d-%d-%llu]",
-                    PARAM_GTID(m_start), PARAM_GTID(m_stop)));
+                   ("Window: End %d-%d-%llu", PARAM_GTID(m_stop)));
       }
     }
   } /* if (!m_is_active && !m_has_passed) */
@@ -3523,6 +3490,17 @@ my_bool Window_gtid_event_filter::exclude(rpl_gtid *gtid)
 my_bool Window_gtid_event_filter::has_finished()
 {
   return m_has_stop ? m_has_passed : FALSE;
+}
+
+bool Window_gtid_event_filter::verify_final_state()
+{
+  bool is_not_final= m_has_stop && !m_has_passed;
+  if (is_not_final)
+    Binlog_gtid_state_validator::warn(stderr,
+      "Did not reach stop position %u-%u-%llu before end of input",
+      PARAM_GTID(m_stop)
+    );
+  return is_not_final;
 }
 
 void free_u32_gtid_filter_element(void *p)
@@ -3605,6 +3583,30 @@ my_bool Id_delegating_gtid_event_filter<T>::has_finished()
   */
   return m_num_stateful_filters &&
          m_num_completed_filters == m_num_stateful_filters;
+}
+
+/**
+  Iteration block for Id_delegating_gtid_event_filter::verify_final_state()
+*/
+static my_bool
+verify_subfilter_final_state(void *entry, void *is_any_not_final)
+{
+  if (entry && static_cast<gtid_filter_element<decltype(rpl_gtid::domain_id)> *
+                           >(entry)->filter->verify_final_state())
+    *static_cast<bool *>(is_any_not_final)= true;
+  return false; // do not terminate early
+}
+
+template <typename T>
+bool Id_delegating_gtid_event_filter<T>::verify_final_state()
+{
+  if (has_finished()) // fast happy path
+    return false;
+  // If a user-defined filters is not deactivated, it may not be complete.
+  bool is_any_not_final= false;
+  my_hash_iterate(&m_filters_by_id_hash,
+    verify_subfilter_final_state, &is_any_not_final);
+  return is_any_not_final;
 }
 
 template <typename T>
@@ -4066,4 +4068,19 @@ my_bool Intersecting_gtid_event_filter::has_finished()
       return TRUE;
   }
   return FALSE;
+}
+
+bool Intersecting_gtid_event_filter::verify_final_state()
+{
+  bool is_any_not_final= false;
+  Gtid_event_filter *subfilter;
+  for (size_t i= 0; i < m_filters.elements; ++i)
+  {
+    subfilter=
+      *reinterpret_cast<Gtid_event_filter **>(dynamic_array_ptr(&m_filters, i));
+    DBUG_ASSERT(subfilter);
+    if (subfilter->verify_final_state())
+      is_any_not_final= true;
+  }
+  return is_any_not_final;
 }

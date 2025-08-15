@@ -356,7 +356,7 @@ int wsrep_to_isolation_begin(THD *thd, const char *db_, const char *table_,
                              const wsrep::key_array *fk_tables= nullptr,
                              const HA_CREATE_INFO* create_info= nullptr);
 
-bool wsrep_should_replicate_ddl(THD* thd, const handlerton *db_type);
+bool wsrep_should_replicate_ddl(THD* thd, const handlerton *hton);
 bool wsrep_should_replicate_ddl_iterate(THD* thd, const TABLE_LIST* table_list);
 
 void wsrep_to_isolation_end(THD *thd);
@@ -593,6 +593,23 @@ wsrep::key wsrep_prepare_key_for_toi(const char* db, const char* table,
 
 void wsrep_wait_ready(THD *thd);
 void wsrep_ready_set(bool ready_value);
+
+/**
+ * Returns true if the given list of tables contains at least one
+ * non-temporary table.
+ */
+bool wsrep_table_list_has_non_temp_tables(THD *thd, TABLE_LIST *tables);
+
+/**
+ * Append foreign key to wsrep.
+ *
+ * @param thd           Thread object
+ * @param fk            Foreign Key Info
+ *
+ * @return true if error, otherwise false.
+ */
+bool wsrep_foreign_key_append(THD *thd, FOREIGN_KEY_INFO *fk);
+
 #else /* !WITH_WSREP */
 
 /* These macros are needed to compile MariaDB without WSREP support
@@ -608,7 +625,6 @@ void wsrep_ready_set(bool ready_value);
 #define wsrep_thr_deinit() do {} while(0)
 #define wsrep_init_globals() do {} while(0)
 #define wsrep_create_appliers(X) do {} while(0)
-#define wsrep_should_replicate_ddl(X,Y) (1)
 #define wsrep_cluster_address_exists() (false)
 #define WSREP_MYSQL_DB (0)
 #define WSREP_TO_ISOLATION_BEGIN(db_, table_, table_list_) do { } while(0)

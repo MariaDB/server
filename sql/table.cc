@@ -87,22 +87,22 @@ static Virtual_column_info * unpack_vcol_info_from_frm(THD *,
               TABLE *, String *, Virtual_column_info **, bool *);
 
 /* INFORMATION_SCHEMA name */
-LEX_CSTRING INFORMATION_SCHEMA_NAME= {STRING_WITH_LEN("information_schema")};
+Lex_ident_db INFORMATION_SCHEMA_NAME= {STRING_WITH_LEN("information_schema")};
 
 /* PERFORMANCE_SCHEMA name */
-LEX_CSTRING PERFORMANCE_SCHEMA_DB_NAME= {STRING_WITH_LEN("performance_schema")};
+Lex_ident_db PERFORMANCE_SCHEMA_DB_NAME= {STRING_WITH_LEN("performance_schema")};
 
 /* MYSQL_SCHEMA name */
 Lex_ident_db MYSQL_SCHEMA_NAME= {STRING_WITH_LEN("mysql")};
 
 /* GENERAL_LOG name */
-LEX_CSTRING GENERAL_LOG_NAME= {STRING_WITH_LEN("general_log")};
+Lex_ident_table GENERAL_LOG_NAME= {STRING_WITH_LEN("general_log")};
 
 /* SLOW_LOG name */
-LEX_CSTRING SLOW_LOG_NAME= {STRING_WITH_LEN("slow_log")};
+Lex_ident_table SLOW_LOG_NAME= {STRING_WITH_LEN("slow_log")};
 
-LEX_CSTRING TRANSACTION_REG_NAME= {STRING_WITH_LEN("transaction_registry")};
-LEX_CSTRING MYSQL_PROC_NAME= {STRING_WITH_LEN("proc")};
+Lex_ident_table TRANSACTION_REG_NAME= {STRING_WITH_LEN("transaction_registry")};
+Lex_ident_table MYSQL_PROC_NAME= {STRING_WITH_LEN("proc")};
 
 /* 
   Keyword added as a prefix when parsing the defining expression for a
@@ -348,8 +348,8 @@ TABLE_SHARE *alloc_table_share(const char *db, const char *table_name,
 
   path_length= build_table_filename(path, sizeof(path) - 1,
                                     db, table_name, "", 0);
-  init_sql_alloc(key_memory_table_share, &mem_root, TABLE_ALLOC_BLOCK_SIZE, 0,
-                 MYF(0));
+  init_sql_alloc(key_memory_table_share, &mem_root, TABLE_ALLOC_BLOCK_SIZE,
+                 TABLE_PREALLOC_BLOCK_SIZE, MYF(0));
   if (multi_alloc_root(&mem_root,
                        &share, sizeof(*share),
                        &key_buff, key_length,
@@ -438,10 +438,12 @@ void init_tmp_table_share(THD *thd, TABLE_SHARE *share, const char *key,
   bzero((char*) share, sizeof(*share));
   /*
     This can't be MY_THREAD_SPECIFIC for slaves as they are freed
-    during cleanup() from Relay_log_info::close_temporary_tables()
+    during cleanup() from Relay_log_info::close_temporary_tables().
+    We can also not use pre-alloc here, as internal temporary tables
+    are not freeing table->share->mem_root
   */
   init_sql_alloc(key_memory_table_share, &share->mem_root,
-                 TABLE_ALLOC_BLOCK_SIZE, 0,
+                 TABLE_PREALLOC_BLOCK_SIZE, 0,
                  MYF(thd->slave_thread ? 0 : MY_THREAD_SPECIFIC));
   share->table_category=         TABLE_CATEGORY_TEMPORARY;
   share->tmp_table=              INTERNAL_TMP_TABLE;
@@ -2836,6 +2838,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
         hash_keypart->fieldnr= hash_field_used_no + 1;
         hash_field= share->field[hash_field_used_no];
         hash_field->flags|= LONG_UNIQUE_HASH_FIELD;//Used in parse_vcol_defs
+        DBUG_ASSERT(hash_field->invisible == INVISIBLE_FULL);
         keyinfo->flags|= HA_NOSAME;
         share->virtual_fields++;
         share->stored_fields--;
@@ -3682,6 +3685,27 @@ bool Virtual_column_info::cleanup_session_expr()
 }
 
 
+bool
+Virtual_column_info::is_equivalent(THD *thd, TABLE_SHARE *share, TABLE_SHARE *vcol_share,
+                                  const Virtual_column_info* vcol, bool &error) const
+{
+  error= true;
+  Item *cmp_expr= vcol->expr->build_clone(thd);
+  if (!cmp_expr)
+    return false;
+  Item::func_processor_rename_table param;
+  param.old_db=    Lex_ident_db(vcol_share->db);
+  param.old_table= Lex_ident_table(vcol_share->table_name);
+  param.new_db=    Lex_ident_db(share->db);
+  param.new_table= Lex_ident_table(share->table_name);
+  cmp_expr->walk(&Item::rename_table_processor, 1, &param);
+
+  error= false;
+  return type_handler()  == vcol->type_handler()
+      && is_stored() == vcol->is_stored()
+      && expr->eq(cmp_expr, true);
+}
+
 
 class Vcol_expr_context
 {
@@ -3734,6 +3758,19 @@ Vcol_expr_context::~Vcol_expr_context()
   thd->restore_active_arena(table->expr_arena, &backup_arena);
   thd->variables.sql_mode= save_sql_mode;
   thd->stmt_arena= stmt_arena;
+}
+
+
+bool TABLE::check_sequence_privileges(THD *thd)
+{
+  if (internal_tables)
+    for (Field **fp= field; *fp; fp++)
+    {
+      Virtual_column_info *vcol= (*fp)->default_value;
+      if (vcol && vcol->check_access(thd))
+        return 1;
+    }
+  return 0;
 }
 
 
@@ -3870,6 +3907,13 @@ bool Virtual_column_info::fix_and_check_expr(THD *thd, TABLE *table)
     table->vcol_refix_list.push_back(this, &table->mem_root);
 
   DBUG_RETURN(0);
+}
+
+
+bool Virtual_column_info::check_access(THD *thd)
+{
+  return flags & VCOL_NEXTVAL &&
+         expr->walk(&Item::check_sequence_privileges, 0, thd);
 }
 
 
@@ -4031,7 +4075,7 @@ static void print_long_unique_table(TABLE *table)
                 "table->field[%u]->offset = %" PRIdPTR "\n" // `%td` not available
                 "table->field[%u]->field_length = %d\n"
                 "table->field[%u]->null_pos wrt to record 0 = %" PRIdPTR "\n"
-                "table->field[%u]->null_bit_pos = %d\n",
+                "table->field[%u]->null_bit_pos = %d",
                 i, field->field_name.str,
                 i, field->ptr- table->record[0],
                 i, field->pack_length(),
@@ -4090,6 +4134,24 @@ bool copy_keys_from_share(TABLE *outparam, MEM_ROOT *root)
     }
   }
   return 0;
+}
+
+void TABLE::update_keypart_vcol_info()
+{
+  for (uint k= 0; k < s->keys; k++)
+  {
+    KEY &info_k= key_info[k];
+    uint parts = (s->use_ext_keys ? info_k.ext_key_parts :
+                      info_k.user_defined_key_parts);
+    for (uint p= 0; p < parts; p++)
+    {
+      KEY_PART_INFO &kp= info_k.key_part[p];
+      if (kp.field != field[kp.fieldnr - 1])
+      {
+        kp.field->vcol_info = field[kp.fieldnr - 1]->vcol_info;
+      }
+    }
+  }
 }
 
 /*
@@ -4153,7 +4215,7 @@ enum open_frm_error open_table_from_share(THD *thd, TABLE_SHARE *share,
     goto err;
   }
   init_sql_alloc(key_memory_TABLE, &outparam->mem_root, TABLE_ALLOC_BLOCK_SIZE,
-                 0, MYF(0));
+                 TABLE_PREALLOC_BLOCK_SIZE, MYF(0));
 
   /*
     We have to store the original alias in mem_root as constraints and virtual
@@ -4324,20 +4386,7 @@ enum open_frm_error open_table_from_share(THD *thd, TABLE_SHARE *share,
     /* Update to use trigger fields */
     switch_defaults_to_nullable_trigger_fields(outparam);
 
-    for (uint k= 0; k < share->keys; k++)
-    {
-      KEY &key_info= outparam->key_info[k];
-      uint parts = (share->use_ext_keys ? key_info.ext_key_parts :
-                    key_info.user_defined_key_parts);
-      for (uint p= 0; p < parts; p++)
-      {
-        KEY_PART_INFO &kp= key_info.key_part[p];
-        if (kp.field != outparam->field[kp.fieldnr - 1])
-        {
-          kp.field->vcol_info = outparam->field[kp.fieldnr - 1]->vcol_info;
-        }
-      }
-    }
+    outparam->update_keypart_vcol_info();
   }
 
 #ifdef WITH_PARTITION_STORAGE_ENGINE
@@ -4531,8 +4580,8 @@ partititon_err:
 
   thd->lex->context_analysis_only= save_context_analysis_only;
   DBUG_EXECUTE_IF("print_long_unique_internal_state",
-   print_long_unique_table(outparam););
-  DBUG_RETURN (OPEN_FRM_OK);
+                  print_long_unique_table(outparam););
+  DBUG_RETURN(OPEN_FRM_OK);
 
  err:
   if (! error_reported)
@@ -5292,9 +5341,10 @@ bool check_table_name(const char *name, size_t length, bool check_for_path_chars
 }
 
 
-bool check_column_name(const char *name)
+bool check_column_name(const Lex_ident &ident)
 {
   // name length in symbols
+  const char *name= ident.str, *end= ident.str + ident.length;
   size_t name_length= 0;
   bool last_char_is_space= TRUE;
 
@@ -5304,9 +5354,7 @@ bool check_column_name(const char *name)
     last_char_is_space= my_isspace(system_charset_info, *name);
     if (system_charset_info->use_mb())
     {
-      int len=my_ismbchar(system_charset_info, name, 
-                          name+system_charset_info->mbmaxlen);
-      if (len)
+      if (int len= my_ismbchar(system_charset_info, name,  end))
       {
         name += len;
         name_length++;
@@ -5323,12 +5371,6 @@ bool check_column_name(const char *name)
   }
   /* Error if empty or too long column name */
   return last_char_is_space || (name_length > NAME_CHAR_LEN);
-}
-
-
-bool check_period_name(const char *name)
-{
-  return check_column_name(name);
 }
 
 
@@ -6033,7 +6075,6 @@ allocate:
 
   while ((item= it++))
   {
-    DBUG_ASSERT(item->name.str && item->name.str[0]);
     transl[field_count].name.str=    thd->strmake(item->name.str, item->name.length);
     transl[field_count].name.length= item->name.length;
     transl[field_count++].item= item;
@@ -6332,9 +6373,9 @@ bool TABLE_LIST::prep_check_option(THD *thd, uint8 check_opt_type)
   @pre This method can be called only if there is an error.
 */
 
-void TABLE_LIST::hide_view_error(THD *thd)
+void TABLE_LIST::replace_view_error_with_generic(THD *thd)
 {
-  if ((thd->killed && !thd->is_error())|| thd->get_internal_handler())
+  if ((thd->killed && !thd->is_error()) || thd->get_internal_handler())
     return;
   /* Hide "Unknown column" or "Unknown function" error */
   DBUG_ASSERT(thd->is_error());
@@ -7242,6 +7283,7 @@ void Field_iterator_natural_join::next()
 {
   cur_column_ref= column_ref_it++;
   DBUG_ASSERT(!cur_column_ref || ! cur_column_ref->table_field ||
+              !cur_column_ref->table_field->field ||
               cur_column_ref->table_ref->table ==
               cur_column_ref->table_field->field->table);
 }
@@ -7626,6 +7668,11 @@ static void do_mark_index_columns(TABLE *table, uint index,
       table->s->primary_key != MAX_KEY && table->s->primary_key != index)
     do_mark_index_columns(table, table->s->primary_key, bitmap, read);
 
+  if (table->versioned(VERS_TRX_ID))
+  {
+    table->vers_start_field()->register_field_in_read_map();
+    table->vers_end_field()->register_field_in_read_map();
+  }
 }
 /*
   mark columns used by key, but don't reset other fields
@@ -7879,7 +7926,8 @@ void TABLE::mark_columns_needed_for_insert()
 }
 
 /*
-  Mark columns according the binlog row image option.
+  Mark columns according the binlog row image option
+  or mark virtual columns for slave.
 
   Columns to be written are stored in 'rpl_write_set'
 
@@ -7910,6 +7958,10 @@ void TABLE::mark_columns_needed_for_insert()
   the read_set at binlogging time (for those cases that
   we only want to log a PK and we needed other fields for
   execution).
+
+  If binlog row image is off on slave we mark virtual columns
+  for read as InnoDB requires correct field metadata which is set
+  by update_virtual_fields().
 */
 
 void TABLE::mark_columns_per_binlog_row_image()
@@ -7919,9 +7971,6 @@ void TABLE::mark_columns_per_binlog_row_image()
   DBUG_ASSERT(read_set->bitmap);
   DBUG_ASSERT(write_set->bitmap);
 
-  /* If not using row format */
-  rpl_write_set= write_set;
-
   /**
     If in RBR we may need to mark some extra columns,
     depending on the binlog-row-image command line argument.
@@ -7929,6 +7978,19 @@ void TABLE::mark_columns_per_binlog_row_image()
   if (file->row_logging &&
       !ha_check_storage_engine_flag(s->db_type(), HTON_NO_BINLOG_ROW_OPT))
   {
+#ifdef WITH_WSREP
+    /**
+     The marking of all columns will prevent update/set column values for the
+     sequence table. For the sequence table column bitmap sent from master is
+     used.
+    */
+    if (WSREP(thd) && wsrep_thd_is_applying(thd) &&
+        s->sequence && s->primary_key >= MAX_KEY)
+    {
+      DBUG_VOID_RETURN;
+    }
+#endif /* WITH_WSREP */
+
     /* if there is no PK, then mark all columns for the BI. */
     if (s->primary_key >= MAX_KEY)
     {
@@ -7995,6 +8057,12 @@ void TABLE::mark_columns_per_binlog_row_image()
         DBUG_ASSERT(FALSE);
       }
     }
+    file->column_bitmaps_signal();
+  }
+  else
+  {
+    /* If not using row format */
+    rpl_write_set= write_set;
     file->column_bitmaps_signal();
   }
 
@@ -9416,8 +9484,8 @@ void TABLE::prepare_triggers_for_insert_stmt_or_event()
 {
   if (triggers)
   {
-    if (triggers->has_triggers(TRG_EVENT_DELETE,
-                               TRG_ACTION_AFTER))
+    triggers->clear_extra_null_bitmap();
+    if (triggers->has_triggers(TRG_EVENT_DELETE, TRG_ACTION_AFTER))
     {
       /*
         The table has AFTER DELETE triggers that might access to
@@ -9426,8 +9494,7 @@ void TABLE::prepare_triggers_for_insert_stmt_or_event()
       */
       (void) file->extra(HA_EXTRA_DELETE_CANNOT_BATCH);
     }
-    if (triggers->has_triggers(TRG_EVENT_UPDATE,
-                               TRG_ACTION_AFTER))
+    if (triggers->has_triggers(TRG_EVENT_UPDATE, TRG_ACTION_AFTER))
     {
       /*
         The table has AFTER UPDATE triggers that might access to subject
@@ -9442,17 +9509,19 @@ void TABLE::prepare_triggers_for_insert_stmt_or_event()
 
 bool TABLE::prepare_triggers_for_delete_stmt_or_event()
 {
-  if (triggers &&
-      triggers->has_triggers(TRG_EVENT_DELETE,
-                             TRG_ACTION_AFTER))
+  if (triggers)
   {
-    /*
-      The table has AFTER DELETE triggers that might access to subject table
-      and therefore might need delete to be done immediately. So we turn-off
-      the batching.
-    */
-    (void) file->extra(HA_EXTRA_DELETE_CANNOT_BATCH);
-    return TRUE;
+    triggers->clear_extra_null_bitmap();
+    if (triggers->has_triggers(TRG_EVENT_DELETE, TRG_ACTION_AFTER))
+    {
+      /*
+        The table has AFTER DELETE triggers that might access to subject table
+        and therefore might need delete to be done immediately. So we turn-off
+        the batching.
+      */
+      (void) file->extra(HA_EXTRA_DELETE_CANNOT_BATCH);
+      return TRUE;
+    }
   }
   return FALSE;
 }
@@ -9460,17 +9529,19 @@ bool TABLE::prepare_triggers_for_delete_stmt_or_event()
 
 bool TABLE::prepare_triggers_for_update_stmt_or_event()
 {
-  if (triggers &&
-      triggers->has_triggers(TRG_EVENT_UPDATE,
-                             TRG_ACTION_AFTER))
+  if (triggers)
   {
-    /*
-      The table has AFTER UPDATE triggers that might access to subject
-      table and therefore might need update to be done immediately.
-      So we turn-off the batching.
-    */ 
-    (void) file->extra(HA_EXTRA_UPDATE_CANNOT_BATCH);
-    return TRUE;
+    triggers->clear_extra_null_bitmap();
+    if (triggers->has_triggers(TRG_EVENT_UPDATE, TRG_ACTION_AFTER))
+    {
+      /*
+        The table has AFTER UPDATE triggers that might access to subject
+        table and therefore might need update to be done immediately.
+        So we turn-off the batching.
+      */
+      (void) file->extra(HA_EXTRA_UPDATE_CANNOT_BATCH);
+      return TRUE;
+    }
   }
   return FALSE;
 }
@@ -9924,37 +9995,6 @@ int TABLE_LIST::fetch_number_of_rows()
   return error;
 }
 
-/*
-  Procedure of keys generation for result tables of materialized derived
-  tables/views.
-
-  A key is generated for each equi-join pair derived table-another table.
-  Each generated key consists of fields of derived table used in equi-join.
-  Example:
-
-    SELECT * FROM (SELECT * FROM t1 GROUP BY 1) tt JOIN
-                  t1 ON tt.f1=t1.f3 and tt.f2.=t1.f4;
-  In this case for the derived table tt one key will be generated. It will
-  consist of two parts f1 and f2.
-  Example:
-
-    SELECT * FROM (SELECT * FROM t1 GROUP BY 1) tt JOIN
-                  t1 ON tt.f1=t1.f3 JOIN
-                  t2 ON tt.f2=t2.f4;
-  In this case for the derived table tt two keys will be generated.
-  One key over f1 field, and another key over f2 field.
-  Currently optimizer may choose to use only one such key, thus the second
-  one will be dropped after range optimizer is finished.
-  See also JOIN::drop_unused_derived_keys function.
-  Example:
-
-    SELECT * FROM (SELECT * FROM t1 GROUP BY 1) tt JOIN
-                  t1 ON tt.f1=a_function(t1.f3);
-  In this case for the derived table tt one key will be generated. It will
-  consist of one field - f1.
-*/
-
-
 
 /*
   @brief
@@ -10102,7 +10142,14 @@ bool TABLE_LIST::is_the_same_definition(THD* thd, TABLE_SHARE *s)
       tabledef_version.length= 0;
   }
   else
+  {
     set_tabledef_version(s);
+    if (m_table_ref_type == TABLE_REF_NULL)
+    {
+      set_table_ref_id(s);
+      return TRUE;
+    }
+  }
   return FALSE;
 }
 
@@ -10519,8 +10566,8 @@ bool vers_select_conds_t::check_units(THD *thd)
 {
   DBUG_ASSERT(type != SYSTEM_TIME_UNSPECIFIED);
   DBUG_ASSERT(start.item);
-  return start.check_unit(thd) ||
-         end.check_unit(thd);
+  return start.check_unit(thd, this) ||
+         end.check_unit(thd, this);
 }
 
 bool vers_select_conds_t::eq(const vers_select_conds_t &conds) const
@@ -10546,7 +10593,7 @@ bool vers_select_conds_t::eq(const vers_select_conds_t &conds) const
 }
 
 
-bool Vers_history_point::check_unit(THD *thd)
+bool Vers_history_point::check_unit(THD *thd, vers_select_conds_t *vers_conds)
 {
   if (!item)
     return false;
@@ -10556,6 +10603,9 @@ bool Vers_history_point::check_unit(THD *thd)
              item->full_name(), "FOR SYSTEM_TIME");
     return true;
   }
+  else if (item->with_param())
+    vers_conds->has_param= true;
+
   if (item->fix_fields_if_needed(thd, &item))
     return true;
   const Type_handler *t= item->this_item()->real_type_handler();

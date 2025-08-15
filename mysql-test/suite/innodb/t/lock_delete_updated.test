@@ -3,6 +3,10 @@
 --source include/have_debug.inc
 --source include/have_debug_sync.inc
 
+--disable_query_log
+call mtr.add_suppression("InnoDB: Transaction was aborted due to ");
+--enable_query_log
+
 CREATE TABLE t(a INT PRIMARY KEY) ENGINE=InnoDB;
 INSERT INTO t VALUES (3);
 

@@ -23,6 +23,10 @@ CREATE SERVER s1 FOREIGN DATA WRAPPER mysql OPTIONS(SOCKET 'bar');
 SELECT * FROM mysql.servers;
 DROP SERVER s1;
 
+CREATE SERVER s1 FOREIGN DATA WRAPPER mysql OPTIONS(SOCKET '/tmp/1234567890_1234567890_1234567890_1234567890_1234567890_1234567890.sock');
+SELECT Socket FROM mysql.servers where Server_name = 's1';
+DROP SERVER s1;
+
 --echo #
 --echo # MDEV-33783 CREATE SERVER segfaults on wrong mysql.servers
 --echo #
@@ -36,4 +40,13 @@ alter server s1 options(host 'server.example.org');
 create server s2 foreign data wrapper foo options(user 'a');
 drop table mysql.servers;
 rename table mysql.servers_save to mysql.servers;
+drop server s1;
+
+--echo #
+--echo # MDEV-35641 foreign server "disappears" after ALTERing the servers system table to use innodb and FLUSH PRIVILEGES
+--echo #
+--source include/have_innodb.inc
+CREATE SERVER s1 FOREIGN DATA WRAPPER mysql OPTIONS (HOST '127.0.0.1');
+ALTER TABLE mysql.servers ENGINE=innodb;
+FLUSH PRIVILEGES;
 drop server s1;

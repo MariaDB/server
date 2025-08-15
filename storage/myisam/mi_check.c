@@ -1272,7 +1272,7 @@ int chk_data_link(HA_CHECK *param, MI_INFO *info, my_bool extend)
 	    (HA_OPTION_CHECKSUM | HA_OPTION_COMPRESS_RECORD)))
   {
     mi_check_print_warning(param,
-			   "Record checksum is not the same as checksum stored in the index file\n");
+			   "Record checksum is not the same as checksum stored in the index file");
     error=1;
   }
   else if (!extend)
@@ -3429,9 +3429,9 @@ static int sort_get_next_record(MI_SORT_PARAM *sort_param)
 	  {
 	    if (!searching)
 	      mi_check_print_info(param,
-				  "Found block with impossible length %u at %s; Skipped",
-				  block_info.block_len+ (uint) (block_info.filepos-pos),
-				  llstr(pos,llbuff));
+                "Found block with impossible length %lu at %s; Skipped",
+                block_info.block_len + (unsigned long) (block_info.filepos-pos),
+                llstr(pos, llbuff));
 	    if (found_record)
 	      goto try_next;
 	    searching=1;
@@ -3625,7 +3625,7 @@ static int sort_get_next_record(MI_SORT_PARAM *sort_param)
 	  block_info.rec_len > (uint) share->max_pack_length)
       {
 	if (! searching)
-	  mi_check_print_info(param,"Found block with wrong recordlength: %ld at %s\n",
+	  mi_check_print_info(param,"Found block with wrong recordlength: %ld at %s",
 			      block_info.rec_len,
 			      llstr(sort_param->pos,llbuff));
 	continue;
@@ -4135,7 +4135,7 @@ static int sort_delete_record(MI_SORT_PARAM *sort_param)
   if (info->s->options & HA_OPTION_COMPRESS_RECORD)
   {
     mi_check_print_error(param,
-			 "Recover aborted; Can't run standard recovery on compressed tables with errors in data-file. Use switch 'myisamchk --safe-recover' to fix it\n");
+			 "Recover aborted; Can't run standard recovery on compressed tables with errors in data-file. Use switch 'myisamchk --safe-recover' to fix it");
     DBUG_RETURN(1);
   }
 
@@ -4537,7 +4537,7 @@ void update_auto_increment_key(HA_CHECK *param, MI_INFO *info,
   {
     if (!(param->testflag & T_VERY_SILENT))
       mi_check_print_info(param,
-			  "Table: %s doesn't have an auto increment key\n",
+			  "Table: %s doesn't have an auto increment key",
 			  param->isam_file_name);
     DBUG_VOID_RETURN;
   }

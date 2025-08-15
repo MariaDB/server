@@ -420,7 +420,9 @@ my_bool opt_require_secure_transport= 0;
 char* opt_secure_file_priv;
 my_bool lower_case_file_system= 0;
 my_bool opt_large_pages= 0;
+#ifdef HAVE_SOLARIS_LARGE_PAGES
 my_bool opt_super_large_pages= 0;
+#endif
 my_bool opt_myisam_use_mmap= 0;
 uint   opt_large_page_size= 0;
 #if defined(ENABLED_DEBUG_SYNC)
@@ -1396,11 +1398,6 @@ bool unix_sock_is_online= false;
 static int systemd_sock_activation; /* systemd socket activation */
 
 
-
-/** wakeup listening(main) thread by writing to this descriptor */
-static int termination_event_fd= -1;
-
-
 C_MODE_START
 #ifdef WITH_PERFSCHEMA_STORAGE_ENGINE
 /**
@@ -1453,9 +1450,14 @@ static pthread_t select_thread;
 #endif
 
 /* OS specific variables */
-
+#ifndef EMBEDDED_LIBRARY
 #ifdef _WIN32
+/** wakeup main thread by signaling this event */
 HANDLE hEventShutdown;
+#else
+/** wakeup listening(main) thread by writing to this descriptor */
+static int termination_event_fd= -1;
+#endif
 #endif
 
 
@@ -2396,8 +2398,8 @@ static void activate_tcp_port(uint port,
     else 
     {
       ip_sock.address_family= a->ai_family;
-      sql_print_information("Server socket created on IP: '%s'.",
-                          (const char *) ip_addr);
+      sql_print_information("Server socket created on IP: '%s', port: '%u'.",
+                          (const char *) ip_addr, port);
 
       if (mysql_socket_getfd(ip_sock) == INVALID_SOCKET)
       {
@@ -2858,7 +2860,7 @@ void unlink_thd(THD *thd)
 }
 
 
-#if defined(_WIN32)
+#if defined(_WIN32) && !defined(EMBEDDED_LIBRARY)
 /*
   If server is started as service, the service routine will set
   the callback function.
@@ -3212,7 +3214,6 @@ pthread_handler_t signal_hand(void *)
   sigset_t set;
   int sig;
   my_thread_init();				// Init new thread
-  DBUG_ENTER("signal_hand");
   signal_thread_in_use= 1;
 
   /*
@@ -3278,7 +3279,6 @@ pthread_handler_t signal_hand(void *)
       /* switch to the old log message processing */
       logger.set_handlers(global_system_variables.sql_log_slow ? LOG_FILE:LOG_NONE,
                           opt_log ? LOG_FILE:LOG_NONE);
-      DBUG_PRINT("info",("Got signal: %d  abort_loop: %d",sig,abort_loop));
 
       break_connect_loop();
       DBUG_ASSERT(abort_loop);
@@ -3314,12 +3314,9 @@ pthread_handler_t signal_hand(void *)
       break;					/* purecov: tested */
     }
   }
-  DBUG_PRINT("quit", ("signal_handler: calling my_thread_end()"));
   my_thread_end();
-  DBUG_LEAVE; // Must match DBUG_ENTER()
   signal_thread_in_use= 0;
-  pthread_exit(0); // Safety
-  return(0);					/* purecov: deadcode */
+  return nullptr;
 }
 
 static void check_data_home(const char *path)
@@ -3346,9 +3343,12 @@ void my_message_sql(uint error, const char *str, myf MyFlags)
                        MyFlags));
 
   DBUG_ASSERT(str != NULL);
+  DBUG_ASSERT(*str != '\0');
   DBUG_ASSERT(error != 0);
   DBUG_ASSERT((MyFlags & ~(ME_BELL | ME_ERROR_LOG | ME_ERROR_LOG_ONLY |
                            ME_NOTE | ME_WARNING | ME_FATAL)) == 0);
+
+  DBUG_ASSERT(str[strlen(str)-1] != '\n');
 
   if (MyFlags & ME_NOTE)
   {
@@ -3746,12 +3746,12 @@ static void my_malloc_size_cb_func(long long size, my_bool is_thread_specific)
 #endif
 
   /*
-    When thread specific is set, both mysqld_server_initialized and thd
-    must be set, and we check that with DBUG_ASSERT.
-
-    However, do not crash, if current_thd is NULL, in release version.
+    is_thread_specific is only relevant when a THD exist and the server
+    has fully started. is_thread_specific can be set during recovery by
+    Aria for functions that are normally only run in one thread.
+    However InnoDB sets thd early, so we can use it.
   */
-  DBUG_ASSERT(!is_thread_specific || (mysqld_server_initialized && thd));
+  DBUG_ASSERT(!is_thread_specific || thd || !plugins_are_initialized);
 
   if (is_thread_specific && likely(thd))  /* If thread specific memory */
   {
@@ -3777,22 +3777,14 @@ static void my_malloc_size_cb_func(long long size, my_bool is_thread_specific)
         LOCK_thd_kill here (the limit will be enforced on the next allocation).
       */
       if (!mysql_mutex_trylock(&thd->LOCK_thd_kill)) {
-        char buf[50], *buf2;
+        char buf[50], buf2[256];
         thd->set_killed_no_mutex(KILL_QUERY);
         my_snprintf(buf, sizeof(buf), "--max-session-mem-used=%llu",
                     thd->variables.max_mem_used);
-        if ((buf2= (char*) thd->alloc(256)))
-        {
-          my_snprintf(buf2, 256,
-                      ER_THD(thd, ER_OPTION_PREVENTS_STATEMENT), buf);
-          thd->set_killed_no_mutex(KILL_QUERY,
-                                   ER_OPTION_PREVENTS_STATEMENT, buf2);
-        }
-        else
-        {
-          thd->set_killed_no_mutex(KILL_QUERY, ER_OPTION_PREVENTS_STATEMENT,
-                          "--max-session-mem-used");
-        }
+        my_snprintf(buf2, 256,
+                    ER_THD(thd, ER_OPTION_PREVENTS_STATEMENT), buf);
+        thd->set_killed_no_mutex(KILL_QUERY,
+                                 ER_OPTION_PREVENTS_STATEMENT, buf2);
         mysql_mutex_unlock(&thd->LOCK_thd_kill);
       }
     }
@@ -4128,7 +4120,7 @@ static int init_common_variables()
   if (opt_large_pages)
   {
     DBUG_PRINT("info", ("Large page set"));
-    if (my_init_large_pages(opt_super_large_pages))
+    if (my_init_large_pages())
     {
       return 1;
     }
@@ -5347,7 +5339,7 @@ static int init_server_components()
       MARIADB_REMOVED_OPTION("innodb-log-optimize-ddl"),
       MARIADB_REMOVED_OPTION("innodb-lru-flush-size"),
       MARIADB_REMOVED_OPTION("innodb-page-cleaners"),
-      MARIADB_REMOVED_OPTION("innodb-purge-truncate-frequency"),
+      MARIADB_REMOVED_OPTION("innodb-purge-rseg-truncate-frequency"),
       MARIADB_REMOVED_OPTION("innodb-replication-delay"),
       MARIADB_REMOVED_OPTION("innodb-scrub-log"),
       MARIADB_REMOVED_OPTION("innodb-scrub-log-speed"),
@@ -6918,7 +6910,6 @@ static int show_queries(THD *thd, SHOW_VAR *var, void *,
   return 0;
 }
 
-
 static int show_net_compression(THD *thd, SHOW_VAR *var, void *,
                                 system_status_var *, enum_var_type)
 {
@@ -7335,6 +7326,22 @@ static int show_memory_used(THD *thd, SHOW_VAR *var, void *buff,
   return 0;
 }
 
+static int show_max_memory_used(THD *thd, SHOW_VAR *var, void *buff,
+                                struct system_status_var *status_var,
+                                enum enum_var_type scope)
+{
+  var->type= SHOW_LONGLONG;
+  var->value= buff;
+  if (scope == OPT_GLOBAL)
+  {
+    var->type= SHOW_CHAR;
+    var->value= (char*) "NULL";                 // Emulate null value
+  }
+  else
+    *(longlong*) buff= (longlong) status_var->max_local_memory_used;
+  return 0;
+}
+
 
 static int show_stack_usage(THD *thd, SHOW_VAR *var, void *buff,
                             system_status_var *, enum_var_type scope)
@@ -7410,8 +7417,8 @@ static int show_threadpool_threads(THD *, SHOW_VAR *var, void *buff,
 #endif
 
 
-static int show_cached_thread_count(THD *thd, SHOW_VAR *var, char *buff,
-                                    enum enum_var_type scope)
+static int show_cached_thread_count(THD *thd, SHOW_VAR *var, void *buff,
+                                    system_status_var *, enum enum_var_type scope)
 {
   var->type= SHOW_LONG;
   var->value= buff;
@@ -7435,7 +7442,7 @@ SHOW_VAR status_vars[]= {
   {"Binlog_cache_use",         (char*) &binlog_cache_use,       SHOW_LONG},
   {"Binlog_stmt_cache_disk_use",(char*) &binlog_stmt_cache_disk_use,  SHOW_LONG},
   {"Binlog_stmt_cache_use",    (char*) &binlog_stmt_cache_use,       SHOW_LONG},
-  {"Busy_time",                (char*) offsetof(STATUS_VAR, busy_time), SHOW_DOUBLE_STATUS},
+  {"Busy_time",                (char*) offsetof(STATUS_VAR, busy_time), SHOW_MICROSECOND_STATUS},
   {"Bytes_received",           (char*) offsetof(STATUS_VAR, bytes_received), SHOW_LONGLONG_STATUS},
   {"Bytes_sent",               (char*) offsetof(STATUS_VAR, bytes_sent), SHOW_LONGLONG_STATUS},
   {"Column_compressions",      (char*) offsetof(STATUS_VAR, column_compressions), SHOW_LONG_STATUS},
@@ -7449,7 +7456,7 @@ SHOW_VAR status_vars[]= {
   {"Connection_errors_peer_address", (char*) &connection_errors_peer_addr, SHOW_LONG},
   {"Connection_errors_select", (char*) &connection_errors_select, SHOW_LONG},
   {"Connection_errors_tcpwrap", (char*) &connection_errors_tcpwrap, SHOW_LONG},
-  {"Cpu_time",                 (char*) offsetof(STATUS_VAR, cpu_time), SHOW_DOUBLE_STATUS},
+  {"Cpu_time",                 (char*) offsetof(STATUS_VAR, cpu_time), SHOW_MICROSECOND_STATUS},
   {"Created_tmp_disk_tables",  (char*) offsetof(STATUS_VAR, created_tmp_disk_tables_), SHOW_LONG_STATUS},
   {"Created_tmp_files",	       (char*) &my_tmp_file_created,	SHOW_LONG},
   {"Created_tmp_tables",       (char*) offsetof(STATUS_VAR, created_tmp_tables_), SHOW_LONG_STATUS},
@@ -7518,6 +7525,7 @@ SHOW_VAR status_vars[]= {
   {"Master_gtid_wait_timeouts", (char*) offsetof(STATUS_VAR, master_gtid_wait_timeouts), SHOW_LONG_STATUS},
   {"Master_gtid_wait_time",    (char*) offsetof(STATUS_VAR, master_gtid_wait_time), SHOW_LONG_STATUS},
   {"Max_used_connections",     (char*) &max_used_connections,  SHOW_LONG},
+  {"Max_memory_used",          (char*) &show_max_memory_used, SHOW_SIMPLE_FUNC},
   {"Memory_used",              (char*) &show_memory_used, SHOW_SIMPLE_FUNC},
   {"Memory_used_initial",      (char*) &start_memory_used, SHOW_LONGLONG},
   {"Resultset_metadata_skipped", (char *) offsetof(STATUS_VAR, skip_metadata_count),SHOW_LONG_STATUS},
@@ -7566,6 +7574,7 @@ SHOW_VAR status_vars[]= {
   {"Qcache_total_blocks",      (char*) &query_cache.total_blocks, SHOW_LONG_NOFLUSH},
 #endif /*HAVE_QUERY_CACHE*/
   {"Queries",                  (char*) &show_queries,            SHOW_SIMPLE_FUNC},
+  {"Query_time",               (char*) offsetof(STATUS_VAR, query_time), SHOW_MICROSECOND_STATUS},
   {"Questions",                (char*) offsetof(STATUS_VAR, questions), SHOW_LONG_STATUS},
 #ifdef HAVE_REPLICATION
   {"Rpl_status",               (char*) &show_rpl_status,          SHOW_SIMPLE_FUNC},
@@ -7865,7 +7874,9 @@ static int mysql_init_variables(void)
   bzero((char*) &global_status_var, offsetof(STATUS_VAR,
                                              last_cleared_system_status_var));
   opt_large_pages= 0;
+#ifdef HAVE_SOLARIS_LARGE_PAGES
   opt_super_large_pages= 0;
+#endif
 #if defined(ENABLED_DEBUG_SYNC)
   opt_debug_sync_timeout= 0;
 #endif /* defined(ENABLED_DEBUG_SYNC) */
@@ -8865,15 +8876,22 @@ char *set_server_version(char *buf, size_t size)
   bool is_log= opt_log || global_system_variables.sql_log_slow || opt_bin_log;
   bool is_debug= IF_DBUG(!strstr(MYSQL_SERVER_SUFFIX_STR, "-debug"), 0);
   const char *is_valgrind=
-#ifdef HAVE_VALGRIND
+#if defined(HAVE_valgrind) && !__has_feature(memory_sanitizer)
     !strstr(MYSQL_SERVER_SUFFIX_STR, "-valgrind") ? "-valgrind" :
 #endif
     "";
+  const char *is_asan=
+#ifdef __SANITIZE_ADDRESS__
+    !strstr(MYSQL_SERVER_SUFFIX_STR, "-asan") ? "-asan" :
+#endif
+    "";
+
   return strxnmov(buf, size - 1,
                   MYSQL_SERVER_VERSION,
                   MYSQL_SERVER_SUFFIX_STR,
                   IF_EMBEDDED("-embedded", ""),
                   is_valgrind,
+                  is_asan,
                   is_debug ? "-debug" : "",
                   is_log ? "-log" : "",
                   NullS);
@@ -9296,6 +9314,7 @@ PSI_stage_info stage_preparing= { 0, "Preparing", 0};
 PSI_stage_info stage_purging_old_relay_logs= { 0, "Purging old relay logs", 0};
 PSI_stage_info stage_query_end= { 0, "Query end", 0};
 PSI_stage_info stage_starting_cleanup= { 0, "Starting cleanup", 0};
+PSI_stage_info stage_slave_sql_cleanup= { 0, "Slave SQL thread ending", 0};
 PSI_stage_info stage_rollback= { 0, "Rollback", 0};
 PSI_stage_info stage_rollback_implicit= { 0, "Rollback_implicit", 0};
 PSI_stage_info stage_commit= { 0, "Commit", 0};
@@ -9537,6 +9556,7 @@ PSI_stage_info *all_server_stages[]=
   & stage_preparing,
   & stage_purging_old_relay_logs,
   & stage_starting_cleanup,
+  & stage_slave_sql_cleanup,
   & stage_query_end,
   & stage_queueing_master_event_to_the_relay_log,
   & stage_reading_event_from_the_relay_log,
@@ -9874,7 +9894,7 @@ void init_server_psi_keys(void)
 
 */
 
-static my_thread_id thread_id_max= UINT_MAX32;
+static my_thread_id thread_id_max= MY_THREAD_ID_MAX;
 
 #include <vector>
 #include <algorithm>
@@ -9965,7 +9985,7 @@ static int calculate_server_uid(char *dest)
   int2store(rawbuf, mysqld_port);
   if (my_gethwaddr(rawbuf + 2))
   {
-    sql_print_error("feedback plugin: failed to retrieve the MAC address");
+    sql_print_warning("failed to retrieve the MAC address");
     return 1;
   }
 

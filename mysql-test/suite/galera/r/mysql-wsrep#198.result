@@ -7,14 +7,18 @@ SELECT 1 FROM DUAL;
 1
 1
 LOCK TABLE t2 WRITE;
+connect node_2_ctrl, 127.0.0.1, root, , test, $NODE_MYPORT_2;
+connection node_2_ctrl;
+SET SESSION wsrep_sync_wait=0;
 connect node_2a, 127.0.0.1, root, , test, $NODE_MYPORT_2;
 connection node_2a;
 OPTIMIZE TABLE t1,t2;;
+connection node_2_ctrl;
+SET SESSION wsrep_sync_wait = 0;
 connect node_2b, 127.0.0.1, root, , test, $NODE_MYPORT_2;
 connection node_2b;
 REPAIR TABLE t1,t2;;
-connection node_2;
-SET SESSION wsrep_sync_wait = 0;
+connection node_2_ctrl;
 connection node_1;
 INSERT INTO t2 VALUES (1);
 connection node_2;
@@ -31,3 +35,7 @@ test.t1	repair	note	The storage engine for the table doesn't support repair
 test.t2	repair	note	The storage engine for the table doesn't support repair
 DROP TABLE t1;
 DROP TABLE t2;
+connection node_1;
+disconnect node_2a;
+disconnect node_2b;
+disconnect node_2_ctrl;

@@ -1,5 +1,5 @@
---- instant_alter_limit.result	2020-05-26 18:01:27.377946439 +0530
-+++ instant_alter_limit,32k.reject	2020-05-26 19:59:19.743877366 +0530
+--- instant_alter_limit.result
++++ instant_alter_limit,32k.reject
 @@ -43,5 +43,12 @@
  FROM information_schema.global_status
  WHERE variable_name = 'innodb_instant_alter_column';

@@ -644,11 +644,9 @@ SPIDER_CONN *spider_get_ping_table_tgt_conn(
 ) {
   SPIDER_CONN *conn;
   DBUG_ENTER("spider_get_ping_table_tgt_conn");
-  if (
-    !(conn = spider_get_conn(
-      share, 0, share->conn_keys[0], trx, NULL, FALSE, FALSE,
-      SPIDER_CONN_KIND_MYSQL, error_num))
-  ) {
+  if (!(conn= spider_get_conn(share, 0, share->conn_keys[0], trx, NULL, FALSE,
+                              FALSE, error_num)))
+  {
     my_error(ER_CONNECT_TO_FOREIGN_DATA_SOURCE, MYF(0),
       share->server_names[0]);
     *error_num = ER_CONNECT_TO_FOREIGN_DATA_SOURCE;
@@ -1067,8 +1065,8 @@ int spider_ping_table_cache_compare(
 long long spider_ping_table_body(
   UDF_INIT *initid,
   UDF_ARGS *args,
-  char *is_null,
-  char *error
+  unsigned char *is_null,
+  unsigned char *error
 ) {
   int error_num = 0, link_idx, flags, full_mon_count, current_mon_count,
     success_count, fault_count, tmp_error_num = 0;

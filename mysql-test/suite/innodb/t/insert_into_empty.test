@@ -484,7 +484,7 @@ ALTER TABLE t1 FORCE;
 let $page_size= `SELECT @@innodb_page_size`;
 let $error_code = 0;
 
-if ($page_size == 4096) {
+if ($page_size <= 16384) {
  let $error_code = ER_TOO_BIG_ROWSIZE;
 }
 
@@ -560,11 +560,7 @@ DROP TABLE t;
 --echo #
 CREATE TABLE t (id INT) ENGINE=InnoDB;
 --replace_result $MYSQLTEST_VARDIR VARDIR
---disable_cursor_protocol
---disable_ps2_protocol
 eval select 1 into outfile "$MYSQLTEST_VARDIR/tmp/t.outfile";
---enable_ps2_protocol
---enable_cursor_protocol
 BEGIN;
 --replace_result $MYSQLTEST_VARDIR VARDIR
 eval LOAD DATA INFILE '$MYSQLTEST_VARDIR/tmp/t.outfile' INTO TABLE t;
@@ -592,5 +588,65 @@ begin;
 INSERT INTO t1 VALUES(2,0);
 DELETE FROM t1;
 commit;
+DROP TABLE t1;
+
+
+if ($page_size >= 16384) {
+--echo #
+--echo #  MDEV-35475 Assertion `!rec_offs_nth_extern(offsets1, n)'
+--echo #               failed in cmp_rec_rec_simple_field
+--echo #
+CREATE TABLE t1(a BLOB, b VARCHAR(2048), PRIMARY KEY (b)) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (REPEAT('x',4805),'a'), (REPEAT('x',16111),'b'),
+                      (REPEAT('x',65535),'c'), (REPEAT('x',11312),'d'),
+                      (REPEAT('x',35177),'e'), (REPEAT('x',65535),'f'),
+                      (REPEAT('x',1988),'g'), (NULL,REPEAT('x',2048)),
+                      (REPEAT('x',2503),'h'), (REPEAT('x',33152),'i'),
+		      (REPEAT('x',65535),'j'), (REPEAT('x',1988),'k'),
+		      (REPEAT('x',65535),'l'), (REPEAT('x',65535),'m'),
+		      (REPEAT('x',65535),'n'), (REPEAT('x',65535),'o'),
+		      (REPEAT('x',1988),'p'), (REPEAT('x',2503),'q'),
+		      (REPEAT('x',65535),'r'), (REPEAT('x',65535),'s'),
+		      (REPEAT('x',65535),'t'), (REPEAT('x',3169),'u'),
+		      (REPEAT('x',7071),'v'), (REPEAT('x',16111),'w'),
+		      (REPEAT('x',2325),'x'), (REPEAT('x',33152),'y'),
+		      (REPEAT('x',65535),'z'), (REPEAT('x',65535),'aa'),
+		      (REPEAT('x',16111),'bb'), (REPEAT('x',4805),'cc'),
+		      (REPEAT('x',65535),'dd');
+DROP TABLE t1;
+}
+
+--echo #
+--echo #  Assertion `page_dir_get_n_heap(new_page) == 2U' failed
+--echo #                  in dberr_t PageBulk::init()
+--echo #
+CREATE TABLE t1(f1 INT)ENGINE=InnoDB PARTITION BY RANGE (f1) (PARTITION p0 VALUES LESS THAN (100));
+
+SET @old_bulk_op=
+(SELECT variable_value FROM information_schema.global_status
+WHERE variable_name = 'innodb_bulk_operations');
+
+BEGIN;
+INSERT INTO t1 SELECT seq FROM seq_1_to_1;
+COMMIT;
+
+SELECT variable_value-@old_bulk_op bulk_operations
+FROM information_schema.global_status
+WHERE variable_name = 'innodb_bulk_operations';
+DROP TABLE t1;
+
+call mtr.add_suppression("Found 1 prepared XA transactions");
+--echo #
+--echo #  MDEV-36771 Assertion `bulk_insert == TRX_NO_BULK' failed
+--echo #           in trx_t::assert_freed from innodb_shutdown
+--echo #
+CREATE TABLE t1(f1 INT)ENGINE=InnoDB;
+XA START 'a';
+INSERT INTO t1 VALUES(1);
+XA END 'a';
+XA PREPARE 'a';
+--source include/restart_mysqld.inc
+XA COMMIT 'a';
+SELECT * FROM t1;
 DROP TABLE t1;
 --echo # End of 10.11 tests

@@ -1387,9 +1387,7 @@ int main(int argc,char *argv[])
   if (opt_outfile)
     end_tee();
   mysql_end(0);
-#ifndef _lint
-  DBUG_RETURN(0);				// Keep compiler happy
-#endif
+  DBUG_RETURN(0);
 }
 
 sig_handler mysql_end(int sig)
@@ -3200,6 +3198,23 @@ static int reconnect(void)
   return 0;
 }
 
+#ifndef EMBEDDED_LIBRARY
+static void status_info_cb(void *data, enum enum_mariadb_status_info type,
+  enum enum_session_state_type state_type, MARIADB_CONST_STRING *val)
+{
+  if (type == SESSION_TRACK_TYPE && state_type == SESSION_TRACK_SCHEMA)
+  {
+    my_free(current_db);
+    if (val->length)
+      current_db= my_strndup(PSI_NOT_INSTRUMENTED, val->str, val->length, MYF(MY_FAE));
+    else
+      current_db= NULL;
+  }
+}
+#else
+#define mysql_optionsv(A,B,C,D) do { } while(0)
+#endif
+
 static void get_current_db()
 {
   MYSQL_RES *res;
@@ -3479,8 +3494,6 @@ static int com_go(String *buffer, char *)
     old_buffer.copy();
   }
 
-  /* Remove garbage for nicer messages */
-  LINT_INIT_STRUCT(buff[0]);
   remove_cntrl(*buffer);
 
   if (buffer->is_empty())
@@ -4972,6 +4985,8 @@ sql_real_connect(char *host,char *database,char *user,char *password,
     mysql_close(&mysql);
   }
   mysql_init(&mysql);
+  if (!one_database)
+    mysql_optionsv(&mysql, MARIADB_OPT_STATUS_CALLBACK, status_info_cb, NULL);
   if (opt_init_command)
     mysql_options(&mysql, MYSQL_INIT_COMMAND, opt_init_command);
   if (opt_connect_timeout)
@@ -5285,6 +5300,9 @@ put_info(const char *str,INFO_TYPE info_type, uint error, const char *sqlstate)
   }
   if (!opt_silent || info_type == INFO_ERROR)
   {
+    report_progress_end();
+    fflush(stdout);
+
     if (!inited)
     {
 #ifdef HAVE_SETUPTERM

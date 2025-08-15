@@ -23,7 +23,6 @@
 #include "sql_priv.h"
 #include "unireg.h"
 #include "sql_load.h"
-#include "sql_load.h"
 #include "sql_cache.h"                          // query_cache_*
 #include "sql_base.h"          // fill_record_n_invoke_before_triggers
 #include <my_dir.h>
@@ -685,14 +684,9 @@ int mysql_load(THD *thd, const sql_exchange *ex, TABLE_LIST *table_list,
     thd->abort_on_warning= !ignore && thd->is_strict_mode();
     thd->get_stmt_da()->reset_current_row_for_warning(1);
 
-    bool create_lookup_handler= handle_duplicates != DUP_ERROR;
-    if ((table_list->table->file->ha_table_flags() & HA_DUPLICATE_POS))
-    {
-      create_lookup_handler= true;
-      if ((error= table_list->table->file->ha_rnd_init_with_error(0)))
-        goto err;
-    }
-    table->file->prepare_for_insert(create_lookup_handler);
+    if (prepare_for_replace(table, info.handle_duplicates, info.ignore))
+      DBUG_RETURN(1);
+
     thd_progress_init(thd, 2);
     fix_rownum_pointers(thd, thd->lex->current_select, &info.copied);
     if (table_list->table->validate_default_values_of_unset_fields(thd))
@@ -713,8 +707,8 @@ int mysql_load(THD *thd, const sql_exchange *ex, TABLE_LIST *table_list,
                             set_fields, set_values, read_info,
                             *ex->enclosed, skip_lines, ignore);
 
-    if (table_list->table->file->ha_table_flags() & HA_DUPLICATE_POS)
-      table_list->table->file->ha_rnd_end();
+    if (unlikely(finalize_replace(table, handle_duplicates, ignore)))
+      DBUG_RETURN(1);
 
     thd_proc_info(thd, "End bulk insert");
     if (likely(!error))
@@ -725,7 +719,15 @@ int mysql_load(THD *thd, const sql_exchange *ex, TABLE_LIST *table_list,
       table->file->print_error(my_errno, MYF(0));
       error= 1;
     }
-    table->file->extra(HA_EXTRA_NO_IGNORE_DUP_KEY);
+    if (!error)
+    {
+      int err= table->file->extra(HA_EXTRA_NO_IGNORE_DUP_KEY);
+      if (err == HA_ERR_FOUND_DUPP_KEY)
+      {
+	error= 1;
+	my_error(ER_ERROR_DURING_COMMIT, MYF(0), 1);
+      }
+    }
     table->file->extra(HA_EXTRA_WRITE_CANNOT_REPLACE);
     table->next_number_field=0;
   }
@@ -981,6 +983,8 @@ read_fixed_length(THD *thd, COPY_INFO &info, TABLE_LIST *table_list,
   if ((thd->progress.max_counter= read_info.file_length()) == ~(my_off_t) 0)
     progress_reports= 0;
 
+  Write_record write(thd, table, &info, NULL);
+
   while (!read_info.read_fixed_length())
   {
     if (thd->killed)
@@ -1015,8 +1019,7 @@ read_fixed_length(THD *thd, COPY_INFO &info, TABLE_LIST *table_list,
     read_info.row_end[0]=0;
 #endif
 
-    restore_record(table, s->default_values);
-
+    restore_default_record_for_insert(table);
     while ((item= it++))
     {
       Load_data_outvar *dst= item->get_load_data_outvar();
@@ -1062,7 +1065,7 @@ read_fixed_length(THD *thd, COPY_INFO &info, TABLE_LIST *table_list,
       DBUG_RETURN(-1);
     }
 
-    err= write_record(thd, table, &info);
+    err= write.write_record();
     table->auto_increment_field_not_null= FALSE;
     if (err)
       DBUG_RETURN(1);
@@ -1111,6 +1114,8 @@ read_sep_field(THD *thd, COPY_INFO &info, TABLE_LIST *table_list,
   if ((thd->progress.max_counter= read_info.file_length()) == ~(my_off_t) 0)
     progress_reports= 0;
 
+  Write_record write(thd, table, &info, NULL);
+
   for (;;it.rewind())
   {
     if (thd->killed)
@@ -1129,8 +1134,8 @@ read_sep_field(THD *thd, COPY_INFO &info, TABLE_LIST *table_list,
                             thd->progress.max_counter);
       }
     }
-    restore_record(table, s->default_values);
 
+    restore_default_record_for_insert(table);
     while ((item= it++))
     {
       uint length;
@@ -1212,7 +1217,7 @@ read_sep_field(THD *thd, COPY_INFO &info, TABLE_LIST *table_list,
       DBUG_RETURN(-1);
     }
 
-    err= write_record(thd, table, &info);
+    err= write.write_record();
     table->auto_increment_field_not_null= FALSE;
     if (err)
       DBUG_RETURN(1);
@@ -1256,7 +1261,9 @@ read_xml_field(THD *thd, COPY_INFO &info, TABLE_LIST *table_list,
   DBUG_ENTER("read_xml_field");
   
   no_trans_update_stmt= !table->file->has_transactions_and_rollback();
-  
+
+  Write_record write(thd, table, &info, NULL);
+
   for ( ; ; it.rewind())
   {
     bool err;
@@ -1284,8 +1291,7 @@ read_xml_field(THD *thd, COPY_INFO &info, TABLE_LIST *table_list,
     }
 #endif
     
-    restore_record(table, s->default_values);
-    
+    restore_default_record_for_insert(table);
     while ((item= it++))
     {
       /* If this line is to be skipped we don't want to fill field or var */
@@ -1334,7 +1340,7 @@ read_xml_field(THD *thd, COPY_INFO &info, TABLE_LIST *table_list,
       DBUG_RETURN(-1);
     }
     
-    err= write_record(thd, table, &info);
+    err= write.write_record();
     table->auto_increment_field_not_null= false;
     if (err)
       DBUG_RETURN(1);

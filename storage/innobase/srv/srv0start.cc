@@ -243,7 +243,16 @@ close_and_exit:
 		srv_startup_is_before_trx_rollback_phase = false;
 	}
 
-	/* Enable checkpoints in buf_flush_page_cleaner(). */
+	/* Enable log_checkpoint() in buf_flush_page_cleaner().
+	If we are upgrading or resizing the log at startup, we must not
+	write any FILE_MODIFY or FILE_CHECKPOINT records to the old log file
+	because the ib_logfile0 could be in an old format that we can only
+	check for emptiness, or the write could lead to an overflow.
+
+	At this point, we are not holding recv_sys.mutex, but there are no
+	pending page reads, and buf_pool.flush_list is empty. Therefore,
+	we can clear the flag without risking any race condition with
+	buf_page_t::read_complete(). */
 	recv_sys.recovery_on = false;
 	log_sys.latch.wr_unlock();
 
@@ -714,8 +723,7 @@ err_exit:
   fil_set_max_space_id_if_bigger(space_id);
 
   mysql_mutex_lock(&fil_system.mutex);
-  fil_space_t *space= fil_space_t::create(space_id, fsp_flags,
-                                          FIL_TYPE_TABLESPACE, nullptr,
+  fil_space_t *space= fil_space_t::create(space_id, fsp_flags, false, nullptr,
                                           FIL_ENCRYPTION_DEFAULT, true);
   ut_ad(space);
   fil_node_t *file= space->add(name, fh, 0, false, true);
@@ -967,12 +975,19 @@ srv_open_tmp_tablespace(bool create_new_db)
 	return(err);
 }
 
-/** Shutdown background threads, except the page cleaner. */
-static void srv_shutdown_threads()
+/** Shutdown background threads, except the page cleaner.
+@param init_abort set to true when InnoDB startup aborted */
+static void srv_shutdown_threads(bool init_abort= false)
 {
 	ut_ad(!srv_undo_sources);
 	srv_master_timer.reset();
-	srv_shutdown_state = SRV_SHUTDOWN_EXIT_THREADS;
+	/* In case of InnoDB start up aborted, Don't change
+	the srv_shutdown_state. Because innodb_shutdown()
+	does call innodb_preshutdown() which changes the
+	srv_shutdown_state back to SRV_SHUTDOWN_INITIATED */
+	if (!init_abort) {
+		srv_shutdown_state = SRV_SHUTDOWN_EXIT_THREADS;
+	}
 
 	if (purge_sys.enabled()) {
 		srv_purge_shutdown();
@@ -1042,14 +1057,14 @@ srv_init_abort_low(
 	}
 
 	srv_shutdown_bg_undo_sources();
-	srv_shutdown_threads();
+	srv_shutdown_threads(true);
 	return(err);
 }
 
 /** Prepare to delete the redo log file. Flush the dirty pages from all the
 buffer pools.  Flush the redo log buffer to the redo log file.
 @return lsn upto which data pages have been flushed. */
-static lsn_t srv_prepare_to_delete_redo_log_file()
+static lsn_t srv_prepare_to_delete_redo_log_file() noexcept
 {
   DBUG_ENTER("srv_prepare_to_delete_redo_log_file");
 
@@ -1063,7 +1078,7 @@ static lsn_t srv_prepare_to_delete_redo_log_file()
 
   log_sys.latch.wr_lock(SRW_LOCK_CALL);
   const bool latest_format{log_sys.is_latest()};
-  lsn_t flushed_lsn{log_sys.get_lsn()};
+  lsn_t flushed_lsn{log_sys.get_flushed_lsn(std::memory_order_relaxed)};
 
   if (latest_format && !(log_sys.file_size & 4095) &&
       flushed_lsn != log_sys.next_checkpoint_lsn +
@@ -1071,6 +1086,11 @@ static lsn_t srv_prepare_to_delete_redo_log_file()
        ? SIZE_OF_FILE_CHECKPOINT + 8
        : SIZE_OF_FILE_CHECKPOINT))
   {
+#ifdef HAVE_PMEM
+    if (!log_sys.is_opened())
+      log_sys.buf_size= unsigned(std::min<uint64_t>(log_sys.capacity(),
+                                                    log_sys.buf_size_max));
+#endif
     fil_names_clear(flushed_lsn);
     flushed_lsn= log_sys.get_lsn();
   }
@@ -1111,7 +1131,7 @@ same_size:
   if (latest_format)
     log_write_up_to(flushed_lsn, false);
 
-  ut_ad(flushed_lsn == log_sys.get_lsn());
+  ut_ad(flushed_lsn == log_get_lsn());
   ut_ad(!os_aio_pending_reads());
   ut_d(mysql_mutex_lock(&buf_pool.flush_list_mutex));
   ut_ad(!buf_pool.get_oldest_modification(0));
@@ -1125,6 +1145,18 @@ static tpool::task_group rollback_all_recovered_group(1);
 static tpool::task rollback_all_recovered_task(trx_rollback_all_recovered,
 					       nullptr,
 					       &rollback_all_recovered_group);
+
+inline lsn_t log_t::init_lsn() noexcept
+{
+  latch.wr_lock(SRW_LOCK_CALL);
+  ut_ad(!write_lsn_offset);
+  write_lsn_offset= 0;
+  const lsn_t lsn{base_lsn.load(std::memory_order_relaxed)};
+  flushed_to_disk_lsn.store(lsn, std::memory_order_relaxed);
+  write_lsn= lsn;
+  latch.wr_unlock();
+  return lsn;
+}
 
 /** Start InnoDB.
 @param[in]	create_new_db	whether to create a new database
@@ -1262,52 +1294,18 @@ dberr_t srv_start(bool create_new_db)
 	}
 
 	if (os_aio_init()) {
-		ib::error() << "Cannot initialize AIO sub-system";
-
 		return(srv_init_abort(DB_ERROR));
 	}
-
-#ifdef LINUX_NATIVE_AIO
-	if (srv_use_native_aio) {
-		ib::info() << "Using Linux native AIO";
-	}
-#endif
-#ifdef HAVE_URING
-	if (srv_use_native_aio) {
-		ib::info() << "Using liburing";
-	}
-#endif
 
 	fil_system.create(srv_file_per_table ? 50000 : 5000);
 
-	ib::info() << "Initializing buffer pool, total size = "
-		<< ib::bytes_iec{srv_buf_pool_size}
-		<< ", chunk size = " << ib::bytes_iec{srv_buf_pool_chunk_unit};
-
 	if (buf_pool.create()) {
-		ib::error() << "Cannot allocate memory for the buffer pool";
-
 		return(srv_init_abort(DB_ERROR));
 	}
 
-	ib::info() << "Completed initialization of buffer pool";
-
-#ifdef UNIV_DEBUG
-	/* We have observed deadlocks with a 5MB buffer pool but
-	the actual lower limit could very well be a little higher. */
-
-	if (srv_buf_pool_size <= 5 * 1024 * 1024) {
-
-		ib::info() << "Small buffer pool size ("
-			<< ib::bytes_iec{srv_buf_pool_size}
-			<< "), the flst_validate() debug function can cause a"
-			<< " deadlock if the buffer pool fills up.";
-	}
-#endif /* UNIV_DEBUG */
-
 	log_sys.create();
 	recv_sys.create();
-	lock_sys.create(srv_lock_table_size);
+	lock_sys.create(srv_lock_table_size = 5 * buf_pool.curr_size());
 
 	srv_startup_is_before_trx_rollback_phase = true;
 
@@ -1472,8 +1470,6 @@ dberr_t srv_start(bool create_new_db)
 
 		err = recv_recovery_from_checkpoint_start();
 		recv_sys.close_files();
-
-		recv_sys.dblwr.pages.clear();
 
 		if (err != DB_SUCCESS) {
 			return(srv_init_abort(err));
@@ -1873,15 +1869,11 @@ skip_monitors:
 	if (srv_print_verbose_log) {
 		sql_print_information("InnoDB: "
 				      "log sequence number " LSN_PF
-#ifdef HAVE_INNODB_MMAP
 				      "%s"
-#endif
 				      "; transaction id " TRX_ID_FMT,
 				      recv_sys.lsn,
-#ifdef HAVE_INNODB_MMAP
 				      log_sys.is_mmap()
 				      ? " (memory-mapped)" : "",
-#endif
 				      trx_sys.get_max_trx_id());
 	}
 

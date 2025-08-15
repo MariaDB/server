@@ -24,6 +24,11 @@ SELECT * FROM mysql.servers;
 Server_name	Host	Db	Username	Password	Port	Socket	Wrapper	Owner
 s1					3306	bar	mysql	
 DROP SERVER s1;
+CREATE SERVER s1 FOREIGN DATA WRAPPER mysql OPTIONS(SOCKET '/tmp/1234567890_1234567890_1234567890_1234567890_1234567890_1234567890.sock');
+SELECT Socket FROM mysql.servers where Server_name = 's1';
+Socket
+/tmp/1234567890_1234567890_1234567890_1234567890_1234567890_1234567890.sock
+DROP SERVER s1;
 #
 # MDEV-33783 CREATE SERVER segfaults on wrong mysql.servers
 #
@@ -37,4 +42,11 @@ create server s2 foreign data wrapper foo options(user 'a');
 ERROR HY000: Can't read record in system table
 drop table mysql.servers;
 rename table mysql.servers_save to mysql.servers;
+drop server s1;
+#
+# MDEV-35641 foreign server "disappears" after ALTERing the servers system table to use innodb and FLUSH PRIVILEGES
+#
+CREATE SERVER s1 FOREIGN DATA WRAPPER mysql OPTIONS (HOST '127.0.0.1');
+ALTER TABLE mysql.servers ENGINE=innodb;
+FLUSH PRIVILEGES;
 drop server s1;

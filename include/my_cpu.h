@@ -94,20 +94,18 @@ static inline void MY_RELAX_CPU(void)
   __asm__ __volatile__ ("pause");
 #endif
 #elif defined(_ARCH_PWR8)
-#ifdef __FreeBSD__
-  uint64_t __tb;
-  __asm__ volatile ("mfspr %0, 268" : "=r" (__tb));
-#else
-  /* Changed from __ppc_get_timebase for musl compatibility */
+  /* Changed from __ppc_get_timebase for musl and clang compatibility */
   __builtin_ppc_get_timebase();
-#endif
-#elif defined __GNUC__ && (defined __arm__ || defined __aarch64__)
+#elif defined __GNUC__ && defined __riscv
+  /* The GCC-only __builtin_riscv_pause() or the pause instruction is
+  encoded like a fence instruction with special parameters. On RISC-V
+  implementations that do not support arch=+zihintpause this
+  instruction could be interpreted as a more expensive memory fence;
+  it should not be an illegal instruction. */
+  __asm__ volatile(".long 0x0100000f" ::: "memory");
+#elif defined __GNUC__
   /* Mainly, prevent the compiler from optimizing away delay loops */
   __asm__ __volatile__ ("":::"memory");
-#else
-  int32 var, oldval = 0;
-  my_atomic_cas32_strong_explicit(&var, &oldval, 1, MY_MEMORY_ORDER_RELAXED,
-                                  MY_MEMORY_ORDER_RELAXED);
 #endif
 }
 

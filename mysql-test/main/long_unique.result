@@ -1242,6 +1242,7 @@ t1	CREATE TABLE `t1` (
 insert into t1 value(concat(repeat('s',3000),'1'));
 insert into t1 value(concat(repeat('s',3000),'2'));
 ERROR 23000: Duplicate entry 'sssssssssssssssssssssssssssssssssssssssssssssssssssssssssssss...' for key 'a'
+update t1 set a=     concat(repeat('s',3000),'2');
 insert into t1 value(concat(repeat('a',3000),'2'));
 drop table t1;
 create table t1(a varchar(4000), b longblob , c varchar(5000), d longblob, 
@@ -1452,4 +1453,26 @@ DROP TABLE t1, t2;
 #
 CREATE TABLE t1 (pk INT, a TEXT NOT NULL DEFAULT '', PRIMARY KEY (pk), b INT AUTO_INCREMENT, UNIQUE(b), UNIQUE (a,b)) ENGINE=myisam;
 ERROR HY000: AUTO_INCREMENT column `b` cannot be used in the UNIQUE index `a`
+#
+# MDEV-35620 UBSAN: runtime error: applying zero offset to null pointer in _ma_unique_hash, skip_trailing_space, my_hash_sort_mb_nopad_bin and my_strnncollsp_utf8mb4_bin
+#
+# Disable result log. The exact result is not important.
+# We just need to make sure UBSAN nullptr-with-offset is not reported.
+SELECT DISTINCT user,authentication_string FROM mysql.user;
+SELECT DISTINCT USER,PASSWORD FROM mysql.user;
+SELECT DISTINCT USER,plugin FROM mysql.user;
+# Enabling result log again.
+create or replace table t1 (t text) engine=aria;
+insert into t1 values ('');
+insert into t1 values (NULL);
+select distinct t from t1;
+t
+
+NULL
+alter table t1 ENGINE=MyISAM;
+select distinct t from t1;
+t
+
+NULL
+DROP TABLE t1;
 # End of 10.5 tests

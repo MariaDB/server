@@ -3697,8 +3697,10 @@ btr_cur_optimistic_update(
 	*offsets = rec_get_offsets(rec, index, *offsets, index->n_core_fields,
 				   ULINT_UNDEFINED, heap);
 #if defined UNIV_DEBUG || defined UNIV_BLOB_LIGHT_DEBUG
+	/* Blob pointer can be null if InnoDB was killed or
+	ran out of space while allocating a page. */
 	ut_a(!rec_offs_any_null_extern(rec, *offsets)
-	     || thr_get_trx(thr) == trx_roll_crash_recv_trx);
+	     || thr_get_trx(thr)->in_rollback);
 #endif /* UNIV_DEBUG || UNIV_BLOB_LIGHT_DEBUG */
 
 	if (UNIV_LIKELY(!update->is_metadata())
@@ -4371,7 +4373,12 @@ btr_cur_pessimistic_update(
 					 cursor, offsets, offsets_heap,
 					 new_entry, &rec,
 					 &dummy_big_rec, n_ext, NULL, mtr);
-	ut_a(err == DB_SUCCESS);
+	if (err) {
+		/* This should happen when InnoDB tries to extend the
+		tablespace */
+		ut_ad(err == DB_OUT_OF_FILE_SPACE);
+		return err;
+	}
 	ut_a(rec);
 	ut_a(dummy_big_rec == NULL);
 	ut_ad(rec_offs_validate(rec, cursor->index(), *offsets));
@@ -6240,6 +6247,9 @@ btr_store_big_rec_extern_fields(
 					       FSP_NO_DIR, 0, &mtr, &mtr,
 					       &error);
 
+			DBUG_EXECUTE_IF("btr_page_alloc_fail",
+					block= nullptr;
+					error= DB_OUT_OF_FILE_SPACE;);
 			if (!block) {
 alloc_fail:
                                 mtr.commit();

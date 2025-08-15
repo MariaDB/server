@@ -434,7 +434,6 @@ static int send_file(THD *thd)
    Internal to mysql_binlog_send() routine that recalculates checksum for
    1. FD event (asserted) that needs additional arrangement prior sending to slave.
    2. Start_encryption_log_event whose Ignored flag is set
-TODO DBUG_ASSERT can be removed if this function is used for more general cases
 */
 
 inline void fix_checksum(enum_binlog_checksum_alg checksum_alg, String *packet,
@@ -446,13 +445,6 @@ inline void fix_checksum(enum_binlog_checksum_alg checksum_alg, String *packet,
   /* recalculate the crc for this event */
   uint data_len = uint4korr(packet->ptr() + ev_offset + EVENT_LEN_OFFSET);
   ha_checksum crc;
-  DBUG_ASSERT((data_len ==
-              LOG_EVENT_MINIMAL_HEADER_LEN + FORMAT_DESCRIPTION_HEADER_LEN +
-              BINLOG_CHECKSUM_ALG_DESC_LEN + BINLOG_CHECKSUM_LEN) ||
-              (data_len ==
-              LOG_EVENT_MINIMAL_HEADER_LEN + BINLOG_CRYPTO_SCHEME_LENGTH +
-              BINLOG_KEY_VERSION_LENGTH + BINLOG_NONCE_LENGTH +
-              BINLOG_CHECKSUM_LEN));
   crc= my_checksum(0, (uchar *)packet->ptr() + ev_offset, data_len -
                    BINLOG_CHECKSUM_LEN);
   int4store(packet->ptr() + ev_offset + data_len - BINLOG_CHECKSUM_LEN, crc);
@@ -3095,6 +3087,8 @@ err:
   }
   else if (info->errmsg != NULL)
     safe_strcpy(info->error_text, sizeof(info->error_text), info->errmsg);
+  else if (info->error_text[0] == 0)
+    safe_strcpy(info->error_text, sizeof(info->error_text), ER(info->error));
 
   my_message(info->error, info->error_text, MYF(0));
 
@@ -4246,7 +4240,7 @@ bool mysql_show_binlog_events(THD* thd)
     if (lex_mi->pos > binlog_size)
     {
       snprintf(errmsg_buf, sizeof(errmsg_buf), "Invalid pos specified. Requested from pos:%llu is "
-              "greater than actual file size:%lu\n", lex_mi->pos,
+              "greater than actual file size:%lu", lex_mi->pos,
               (ulong)s.st_size);
       errmsg= errmsg_buf;
       goto err;
@@ -4272,7 +4266,8 @@ bool mysql_show_binlog_events(THD* thd)
     my_off_t scan_pos = BIN_LOG_HEADER_SIZE;
     while (scan_pos < pos)
     {
-      ev= Log_event::read_log_event(&log, description_event,
+      int error;
+      ev= Log_event::read_log_event(&log, &error, description_event,
                                     opt_master_verify_checksum);
       scan_pos = my_b_tell(&log);
       if (ev == NULL || !ev->is_valid())
@@ -4347,8 +4342,9 @@ bool mysql_show_binlog_events(THD* thd)
       writing about this in the server log would be confusing as it isn't
       related to server operational status.
     */
+    int error;
     for (event_count = 0;
-         (ev = Log_event::read_log_event(&log,
+         (ev = Log_event::read_log_event(&log, &error,
                                          description_event,
                                          (opt_master_verify_checksum ||
                                           verify_checksum_once), false)); )
@@ -4392,7 +4388,7 @@ bool mysql_show_binlog_events(THD* thd)
 	      break;
     }
 
-    if (unlikely(event_count < unit->lim.get_select_limit() && log.error))
+    if (unlikely(event_count < unit->lim.get_select_limit() && error))
     {
       errmsg = "Wrong offset or I/O error";
       mysql_mutex_unlock(log_lock);

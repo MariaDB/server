@@ -1109,6 +1109,11 @@ struct TABLE_SHARE
     return (tmp_table == SYSTEM_TMP_TABLE) ? 0 : table_map_id;
   }
 
+  bool is_optimizer_tmp_table()
+  {
+    return tmp_table == INTERNAL_TMP_TABLE && !db.length && table_name.length;
+  }
+
   bool visit_subgraph(Wait_for_flush *waiting_ticket,
                       MDL_wait_for_graph_visitor *gvisitor);
 
@@ -1697,6 +1702,7 @@ public:
   bool is_filled_at_execution();
 
   bool update_const_key_parts(COND *conds);
+  void update_keypart_vcol_info();
 
   inline void initialize_opt_range_structures();
 
@@ -1747,10 +1753,11 @@ public:
            check_assignability_all_visible_fields(values, ignore);
   }
 
-  bool insert_all_rows_into_tmp_table(THD *thd, 
+  bool insert_all_rows_into_tmp_table(THD *thd,
                                       TABLE *tmp_table,
                                       TMP_TABLE_PARAM *tmp_table_param,
                                       bool with_cleanup);
+  bool check_sequence_privileges(THD *thd);
   bool vcol_fix_expr(THD *thd);
   bool vcol_cleanup_expr(THD *thd);
   Field *find_field_by_name(LEX_CSTRING *str) const;
@@ -1832,8 +1839,8 @@ public:
   }
 
 
-  ulonglong vers_start_id() const;
-  ulonglong vers_end_id() const;
+  ulonglong vers_start_id(const uchar *ptr) const;
+  ulonglong vers_end_id(const uchar *ptr) const;
 #ifdef WITH_PARTITION_STORAGE_ENGINE
   bool vers_switch_partition(THD *thd, TABLE_LIST *table_list,
                              Open_table_context *ot_ctx);
@@ -1846,7 +1853,9 @@ public:
                              ha_rows *rows_inserted);
   bool vers_check_update(List<Item> &items);
   static bool check_period_overlaps(const KEY &key, const uchar *lhs, const uchar *rhs);
-  int delete_row();
+  inline int delete_row(){ return delete_row<false>(versioned(VERS_TIMESTAMP)); }
+  template <bool replace>
+  int delete_row(bool versioned);
   /* Used in majority of DML (called from fill_record()) */
   bool vers_update_fields();
   /* Used in DELETE, DUP REPLACE and insert history row */
@@ -2139,6 +2148,8 @@ struct vers_history_point_t
   Item *item;
 };
 
+struct vers_select_conds_t;
+
 class Vers_history_point : public vers_history_point_t
 {
   void fix_item();
@@ -2159,7 +2170,8 @@ public:
   }
   void empty() { unit= VERS_TIMESTAMP; item= NULL; }
   void print(String *str, enum_query_type, const char *prefix, size_t plen) const;
-  bool check_unit(THD *thd);
+  bool check_unit(THD *thd, vers_select_conds_t *vers_conds);
+  bool has_param() const;
   bool eq(const vers_history_point_t &point) const;
 };
 
@@ -2169,6 +2181,7 @@ struct vers_select_conds_t
   vers_system_time_t orig_type;
   bool used:1;
   bool delete_history:1;
+  bool has_param:1;
   Vers_history_point start;
   Vers_history_point end;
   Lex_ident name;
@@ -2184,6 +2197,7 @@ struct vers_select_conds_t
     orig_type= SYSTEM_TIME_UNSPECIFIED;
     used= false;
     delete_history= false;
+    has_param= false;
     start.empty();
     end.empty();
   }
@@ -2191,13 +2205,14 @@ struct vers_select_conds_t
   void init(vers_system_time_t _type,
             Vers_history_point _start= Vers_history_point(),
             Vers_history_point _end= Vers_history_point(),
-            Lex_ident          _name= "SYSTEM_TIME")
+            Lex_ident          _name= { STRING_WITH_LEN("SYSTEM_TIME") })
   {
     type= _type;
     orig_type= _type;
     used= false;
     delete_history= (type == SYSTEM_TIME_HISTORY ||
       type == SYSTEM_TIME_BEFORE);
+    has_param= false;
     start= _start;
     end= _end;
     name= _name;
@@ -2206,7 +2221,7 @@ struct vers_select_conds_t
   void set_all()
   {
     type= SYSTEM_TIME_ALL;
-    name= "SYSTEM_TIME";
+    name= { STRING_WITH_LEN("SYSTEM_TIME") };
   }
 
   void print(String *str, enum_query_type query_type) const;
@@ -2571,7 +2586,7 @@ struct TABLE_LIST
   List<TABLE_LIST> *view_tables;
   /* most upper view this table belongs to */
   TABLE_LIST	*belong_to_view;
-  /* A derived table this table belongs to */
+  /* A merged derived table this table belongs to */
   TABLE_LIST    *belong_to_derived;
   /*
     The view directly referencing this table
@@ -2829,7 +2844,7 @@ struct TABLE_LIST
   bool check_single_table(TABLE_LIST **table, table_map map,
                           TABLE_LIST *view);
   bool set_insert_values(MEM_ROOT *mem_root);
-  void hide_view_error(THD *thd);
+  void replace_view_error_with_generic(THD *thd);
   TABLE_LIST *find_underlying_table(TABLE *table);
   TABLE_LIST *first_leaf_for_name_resolution();
   TABLE_LIST *last_leaf_for_name_resolution();
@@ -3076,6 +3091,8 @@ private:
   /** See comments for set_table_ref_id() */
   ulonglong m_table_ref_version;
 };
+
+#define ERROR_TABLE  ((TABLE_LIST*) 0x1)
 
 class Item;
 
@@ -3387,8 +3404,7 @@ void open_table_error(TABLE_SHARE *share, enum open_frm_error error,
                       int db_errno);
 void update_create_info_from_table(HA_CREATE_INFO *info, TABLE *form);
 bool check_db_name(LEX_STRING *db);
-bool check_column_name(const char *name);
-bool check_period_name(const char *name);
+bool check_column_name(const Lex_ident &name);
 bool check_table_name(const char *name, size_t length, bool check_for_path_chars);
 int rename_file_ext(const char * from,const char * to,const char * ext);
 char *get_field(MEM_ROOT *mem, Field *field);
@@ -3417,18 +3433,18 @@ static inline int set_zone(int nr,int min_zone,int max_zone)
 }
 
 /* performance schema */
-extern LEX_CSTRING PERFORMANCE_SCHEMA_DB_NAME;
+extern Lex_ident_db PERFORMANCE_SCHEMA_DB_NAME;
 
-extern LEX_CSTRING GENERAL_LOG_NAME;
-extern LEX_CSTRING SLOW_LOG_NAME;
-extern LEX_CSTRING TRANSACTION_REG_NAME;
+extern Lex_ident_table GENERAL_LOG_NAME;
+extern Lex_ident_table SLOW_LOG_NAME;
+extern Lex_ident_table TRANSACTION_REG_NAME;
 
 /* information schema */
-extern LEX_CSTRING INFORMATION_SCHEMA_NAME;
+extern Lex_ident_db INFORMATION_SCHEMA_NAME;
 extern Lex_ident_db MYSQL_SCHEMA_NAME;
 
 /* table names */
-extern LEX_CSTRING MYSQL_PROC_NAME;
+extern Lex_ident_table MYSQL_PROC_NAME;
 
 inline bool is_infoschema_db(const LEX_CSTRING *name)
 {

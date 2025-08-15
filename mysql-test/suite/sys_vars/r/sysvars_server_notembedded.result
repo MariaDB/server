@@ -32,6 +32,16 @@ NUMERIC_BLOCK_SIZE	NULL
 ENUM_VALUE_LIST	DEFAULT,COPY,INPLACE,NOCOPY,INSTANT
 READ_ONLY	NO
 COMMAND_LINE_ARGUMENT	OPTIONAL
+VARIABLE_NAME	ANALYZE_MAX_LENGTH
+VARIABLE_SCOPE	SESSION
+VARIABLE_TYPE	INT UNSIGNED
+VARIABLE_COMMENT	Fields which length in bytes more than this are skipped by ANALYZE TABLE PERSISTENT unless explicitly listed in the FOR COLUMNS () clause
+NUMERIC_MIN_VALUE	32
+NUMERIC_MAX_VALUE	4294967295
+NUMERIC_BLOCK_SIZE	1
+ENUM_VALUE_LIST	NULL
+READ_ONLY	NO
+COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	ANALYZE_SAMPLE_PERCENTAGE
 VARIABLE_SCOPE	SESSION
 VARIABLE_TYPE	DOUBLE
@@ -226,7 +236,7 @@ VARIABLE_NAME	ARIA_SORT_BUFFER_SIZE
 VARIABLE_SCOPE	SESSION
 VARIABLE_TYPE	BIGINT UNSIGNED
 VARIABLE_COMMENT	The buffer that is allocated when sorting the index when doing a REPAIR or when creating indexes with CREATE INDEX or ALTER TABLE.
-NUMERIC_MIN_VALUE	16376
+NUMERIC_MIN_VALUE	16352
 NUMERIC_MAX_VALUE	1152921504606846975
 NUMERIC_BLOCK_SIZE	1
 ENUM_VALUE_LIST	NULL
@@ -2495,11 +2505,11 @@ COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	OPTIMIZER_ADJUST_SECONDARY_KEY_COSTS
 VARIABLE_SCOPE	SESSION
 VARIABLE_TYPE	SET
-VARIABLE_COMMENT	A bit field with the following values: adjust_secondary_key_cost = Update secondary key costs for ranges to be at least 5x of clustered primary key costs. disable_max_seek = Disable 'max_seek optimization' for secondary keys and slight adjustment of filter cost. disable_forced_index_in_group_by = Disable automatic forced index in GROUP BY. fix_innodb_cardinality = Disable doubling of the Cardinality for InnoDB secondary keys. fix_reuse_range_for_ref = Do a better job at reusing range access estimates when estimating ref access. fix_card_multiplier = Fix the computation in selectivity_for_indexes. selectivity_multiplier. This variable will be deleted in MariaDB 11.0 as it is not needed with the new 11.0 optimizer.
+VARIABLE_COMMENT	A bit field with the following values: adjust_secondary_key_cost = Update secondary key costs for ranges to be at least 5x of clustered primary key costs. disable_max_seek = Disable 'max_seek optimization' for secondary keys and slight adjustment of filter cost. disable_forced_index_in_group_by = Disable automatic forced index in GROUP BY. fix_innodb_cardinality = Disable doubling of the Cardinality for InnoDB secondary keys. fix_reuse_range_for_ref = Do a better job at reusing range access estimates when estimating ref access. fix_card_multiplier = Fix the computation in selectivity_for_indexes. fix_derived_table_read_cost = Fix the cost of reading materialized derived table. This variable will be deleted in MariaDB 11.0 as it is not needed with the new 11.0 optimizer.
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL
-ENUM_VALUE_LIST	adjust_secondary_key_cost,disable_max_seek,disable_forced_index_in_group_by,fix_innodb_cardinality,fix_reuse_range_for_ref,fix_card_multiplier
+ENUM_VALUE_LIST	adjust_secondary_key_cost,disable_max_seek,disable_forced_index_in_group_by,fix_innodb_cardinality,fix_reuse_range_for_ref,fix_card_multiplier,fix_derived_table_read_cost
 READ_ONLY	NO
 COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	OPTIMIZER_EXTRA_PRUNING_DEPTH
@@ -3157,7 +3167,7 @@ VARIABLE_SCOPE	SESSION ONLY
 VARIABLE_TYPE	BIGINT UNSIGNED
 VARIABLE_COMMENT	This variable is for internal server use
 NUMERIC_MIN_VALUE	0
-NUMERIC_MAX_VALUE	18446744073709551615
+NUMERIC_MAX_VALUE	4294967295
 NUMERIC_BLOCK_SIZE	1
 ENUM_VALUE_LIST	NULL
 READ_ONLY	NO
@@ -4608,7 +4618,7 @@ VARIABLE_TYPE	BIGINT UNSIGNED
 VARIABLE_COMMENT	If an internal in-memory temporary table exceeds this size, MariaDB will automatically convert it to an on-disk MyISAM or Aria table. Same as tmp_table_size.
 NUMERIC_MIN_VALUE	0
 NUMERIC_MAX_VALUE	18446744073709551615
-NUMERIC_BLOCK_SIZE	1
+NUMERIC_BLOCK_SIZE	16384
 ENUM_VALUE_LIST	NULL
 READ_ONLY	NO
 COMMAND_LINE_ARGUMENT	REQUIRED
@@ -4618,7 +4628,7 @@ VARIABLE_TYPE	BIGINT UNSIGNED
 VARIABLE_COMMENT	Alias for tmp_memory_table_size. If an internal in-memory temporary table exceeds this size, MariaDB will automatically convert it to an on-disk MyISAM or Aria table.
 NUMERIC_MIN_VALUE	0
 NUMERIC_MAX_VALUE	18446744073709551615
-NUMERIC_BLOCK_SIZE	1
+NUMERIC_BLOCK_SIZE	16384
 ENUM_VALUE_LIST	NULL
 READ_ONLY	NO
 COMMAND_LINE_ARGUMENT	REQUIRED

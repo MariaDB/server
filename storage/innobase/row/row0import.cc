@@ -1213,6 +1213,16 @@ row_import::match_index_columns(
 
 			err = DB_ERROR;
 		}
+
+		if (cfg_field->descending != field->descending) {
+			ib_errf(thd, IB_LOG_LEVEL_ERROR,
+				ER_TABLE_SCHEMA_MISMATCH,
+				"Index %s field %s is %s which does "
+				"not match with .cfg file",
+				index->name(), field->name(),
+				field->descending ? "DESC" : "ASC");
+			err = DB_ERROR;
+		}
 	}
 
 	return(err);
@@ -2557,7 +2567,11 @@ row_import_cfg_read_index_fields(
 		field->prefix_len = mach_read_from_4(ptr) & ((1U << 12) - 1);
 		ptr += sizeof(ib_uint32_t);
 
-		field->fixed_len = mach_read_from_4(ptr) & ((1U << 10) - 1);
+		uint32_t fixed_len = mach_read_from_4(ptr);
+
+		field->descending = bool(fixed_len >> 31);
+
+		field->fixed_len = fixed_len & ((1U << 10) - 1);
 		ptr += sizeof(ib_uint32_t);
 
 		/* Include the NUL byte in the length. */
@@ -4823,9 +4837,10 @@ import_error:
 	we will not be writing any redo log for it before we have invoked
 	fil_space_t::set_imported() to declare it a persistent tablespace. */
 
-	table->space = fil_ibd_open(
-		2, FIL_TYPE_IMPORT, table->space_id,
-		dict_tf_to_fsp_flags(table->flags), name, filepath, &err);
+	table->space = fil_ibd_open(table->space_id,
+				    dict_tf_to_fsp_flags(table->flags),
+				    fil_space_t::VALIDATE_IMPORT,
+				    name, filepath, &err);
 
 	ut_ad((table->space == NULL) == (err != DB_SUCCESS));
 	DBUG_EXECUTE_IF("ib_import_open_tablespace_failure",
@@ -4927,8 +4942,6 @@ import_error:
 	}
 
 	ib::info() << "Phase IV - Flush complete";
-	/* Set tablespace purpose as FIL_TYPE_TABLESPACE,
-	so that rollback can go ahead smoothly */
 	table->space->set_imported();
 
 	err = lock_sys_tables(trx);

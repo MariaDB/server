@@ -65,6 +65,7 @@
 #include "lock.h"
 #include "wsrep_mysqld.h"
 #include "sql_connect.h"
+#include "sql_cursor.h"                         //Select_materialize
 #ifdef WITH_WSREP
 #include "wsrep_thd.h"
 #include "wsrep_trans_observer.h"
@@ -175,7 +176,8 @@ Key::Key(const Key &rhs, MEM_ROOT *mem_root)
   name(rhs.name),
   option_list(rhs.option_list),
   generated(rhs.generated), invisible(false),
-  without_overlaps(rhs.without_overlaps), old(rhs.old), period(rhs.period)
+  without_overlaps(rhs.without_overlaps), old(rhs.old), length(rhs.length),
+  period(rhs.period)
 {
   list_copy_and_replace_each_value(columns, mem_root);
 }
@@ -202,7 +204,7 @@ Foreign_key::Foreign_key(const Foreign_key &rhs, MEM_ROOT *mem_root)
 
 /*
   Test if a foreign key (= generated key) is a prefix of the given key
-  (ignoring key name, key type and order of columns)
+  (ignoring key name and type, but minding the algorithm)
 
   NOTES:
     This is only used to test if an index for a FOREIGN KEY exists
@@ -217,6 +219,16 @@ Foreign_key::Foreign_key(const Foreign_key &rhs, MEM_ROOT *mem_root)
 
 bool is_foreign_key_prefix(Key *a, Key *b)
 {
+  ha_key_alg a_alg= a->key_create_info.algorithm;
+  ha_key_alg b_alg= b->key_create_info.algorithm;
+
+  // The real algorithm in InnoDB will be BTREE if none was given by user.
+  a_alg= a_alg == HA_KEY_ALG_UNDEF ? HA_KEY_ALG_BTREE : a_alg;
+  b_alg= b_alg == HA_KEY_ALG_UNDEF ? HA_KEY_ALG_BTREE : b_alg;
+
+  if (a_alg != b_alg)
+    return false;
+
   /* Ensure that 'a' is the generated key */
   if (a->generated)
   {
@@ -802,9 +814,11 @@ THD::THD(my_thread_id id, bool is_wsrep_applier)
     Pass nominal parameters to init_alloc_root only to ensure that
     the destructor works OK in case of an error. The main_mem_root
     will be re-initialized in init_for_queries().
+    The base one will mainly be use to allocate memory during authentication.
   */
   init_sql_alloc(key_memory_thd_main_mem_root,
-                 &main_mem_root, 64, 0, MYF(MY_THREAD_SPECIFIC));
+                 &main_mem_root, DEFAULT_ROOT_BLOCK_SIZE, 0,
+                 MYF(MY_THREAD_SPECIFIC));
 
   /*
     Allocation of user variables for binary logging is always done with main
@@ -901,7 +915,6 @@ THD::THD(my_thread_id id, bool is_wsrep_applier)
 
 #ifdef WITH_WSREP
   mysql_cond_init(key_COND_wsrep_thd, &COND_wsrep_thd, NULL);
-  wsrep_info[sizeof(wsrep_info) - 1] = '\0'; /* make sure it is 0-terminated */
 #endif
   /* Call to init() below requires fully initialized Open_tables_state. */
   reset_open_tables_state();
@@ -1419,7 +1432,10 @@ void THD::update_stats(void)
 void THD::update_all_stats()
 {
   ulonglong end_cpu_time, end_utime;
-  double busy_time, cpu_time;
+  ulonglong busy_time, cpu_time;
+
+  status_var_add(status_var.query_time,
+                 (utime_after_query - utime_after_lock));
 
   /* This is set at start of query if opt_userstat_running was set */
   if (!userstat_running)
@@ -1427,10 +1443,10 @@ void THD::update_all_stats()
 
   end_cpu_time= my_getcputime();
   end_utime=    microsecond_interval_timer();
-  busy_time= (end_utime - start_utime) / 1000000.0;
-  cpu_time=  (end_cpu_time - start_cpu_time) / 10000000.0;
+  busy_time= end_utime - start_utime;
+  cpu_time=  end_cpu_time - start_cpu_time;
   /* In case there are bad values, 2629743 is the #seconds in a month. */
-  if (cpu_time > 2629743.0)
+  if (cpu_time > 2629743000000ULL)
     cpu_time= 0;
   status_var_add(status_var.cpu_time, cpu_time);
   status_var_add(status_var.busy_time, busy_time);
@@ -1853,6 +1869,7 @@ void add_to_status(STATUS_VAR *to_var, STATUS_VAR *from_var)
   to_var->table_open_cache_hits+= from_var->table_open_cache_hits;
   to_var->table_open_cache_misses+= from_var->table_open_cache_misses;
   to_var->table_open_cache_overflows+= from_var->table_open_cache_overflows;
+  to_var->query_time+=          from_var->query_time;
 
   /*
     Update global_memory_used. We have to do this with atomic_add as the
@@ -1910,6 +1927,7 @@ void add_diff_to_status(STATUS_VAR *to_var, STATUS_VAR *from_var,
                                     dec_var->table_open_cache_misses;
   to_var->table_open_cache_overflows+= from_var->table_open_cache_overflows -
                                        dec_var->table_open_cache_overflows;
+  to_var->query_time+=            from_var->query_time - dec_var->query_time;
 
   /*
     We don't need to accumulate memory_used as these are not reset or used by
@@ -3095,7 +3113,7 @@ void Item_change_list::rollback_item_tree_changes()
 ** Functions to provide a interface to select results
 *****************************************************************************/
 
-void select_result::cleanup()
+void select_result::reset_for_next_ps_execution()
 {
   /* do nothing */
 }
@@ -3164,6 +3182,7 @@ void select_send::abort_result_set()
     */
     thd->spcont->end_partial_result_set= TRUE;
   }
+  reset_for_next_ps_execution();
   DBUG_VOID_RETURN;
 }
 
@@ -3174,7 +3193,7 @@ void select_send::abort_result_set()
   stored procedure statement.
 */
 
-void select_send::cleanup()
+void select_send::reset_for_next_ps_execution()
 {
   is_result_set_started= FALSE;
 }
@@ -3212,7 +3231,7 @@ bool select_send::send_eof()
   if (unlikely(thd->is_error()))
     return TRUE;
   ::my_eof(thd);
-  is_result_set_started= 0;
+  reset_for_next_ps_execution();
   return FALSE;
 }
 
@@ -3221,10 +3240,22 @@ bool select_send::send_eof()
   Handling writing to file
 ************************************************************************/
 
+bool select_to_file::free_recources()
+{
+  if (file >= 0)
+  {
+    (void) end_io_cache(&cache);
+    bool error= mysql_file_close(file, MYF(MY_WME));
+    file= -1;
+    return error;
+  }
+  return FALSE;
+}
+
 bool select_to_file::send_eof()
 {
-  int error= MY_TEST(end_io_cache(&cache));
-  if (unlikely(mysql_file_close(file, MYF(MY_WME))) ||
+  int error= false;
+  if (unlikely(free_recources()) ||
       unlikely(thd->is_error()))
     error= true;
 
@@ -3232,20 +3263,19 @@ bool select_to_file::send_eof()
   {
     ::my_ok(thd,row_count);
   }
-  file= -1;
   return error;
 }
 
+void select_to_file::abort_result_set()
+{
+  select_result_interceptor::abort_result_set();
+  free_recources();
+}
 
-void select_to_file::cleanup()
+void select_to_file::reset_for_next_ps_execution()
 {
   /* In case of error send_eof() may be not called: close the file here. */
-  if (file >= 0)
-  {
-    (void) end_io_cache(&cache);
-    mysql_file_close(file, MYF(0));
-    file= -1;
-  }
+  free_recources();
   path[0]= '\0';
   row_count= 0;
 }
@@ -3253,12 +3283,8 @@ void select_to_file::cleanup()
 
 select_to_file::~select_to_file()
 {
-  if (file >= 0)
-  {					// This only happens in case of error
-    (void) end_io_cache(&cache);
-    mysql_file_close(file, MYF(0));
-    file= -1;
-  }
+  DBUG_ASSERT(file < 0);
+  free_recources(); // just in case
 }
 
 /***************************************************************************
@@ -3745,9 +3771,9 @@ int select_singlerow_subselect::send_data(List<Item> &items)
 }
 
 
-void select_max_min_finder_subselect::cleanup()
+void select_max_min_finder_subselect::reset_for_next_ps_execution()
 {
-  DBUG_ENTER("select_max_min_finder_subselect::cleanup");
+  DBUG_ENTER("select_max_min_finder_subselect::reset_for_next_ps_execution");
   cache= 0;
   DBUG_VOID_RETURN;
 }
@@ -3972,7 +3998,7 @@ bool select_dumpvar::check_simple_select() const
 }
 
 
-void select_dumpvar::cleanup()
+void select_dumpvar::reset_for_next_ps_execution()
 {
   row_count= 0;
 }
@@ -4402,10 +4428,10 @@ void select_materialize_with_stats::reset()
 }
 
 
-void select_materialize_with_stats::cleanup()
+void select_materialize_with_stats::reset_for_next_ps_execution()
 {
   reset();
-  select_unit::cleanup();
+  select_unit::reset_for_next_ps_execution();
 }
 
 
@@ -5798,6 +5824,20 @@ extern "C" void *thd_mdl_context(MYSQL_THD thd)
   return &thd->mdl_context;
 }
 
+
+/**
+  log_warnings accessor
+  @param thd   the current session
+
+  @return log warning level
+*/
+
+extern "C" int thd_log_warnings(const MYSQL_THD thd)
+{
+  return thd->variables.log_warnings;
+}
+
+
 /**
   Send check/repair message to the user
 
@@ -5873,7 +5913,8 @@ void THD::reset_sub_statement_state(Sub_statement_state *backup,
   if (rpl_master_erroneous_autoinc(this))
   {
     DBUG_ASSERT(backup->auto_inc_intervals_forced.nb_elements() == 0);
-    auto_inc_intervals_forced.swap(&backup->auto_inc_intervals_forced);
+    backup->auto_inc_intervals_forced.copy_shallow(&auto_inc_intervals_forced);
+    MEM_UNDEFINED(&auto_inc_intervals_forced, sizeof auto_inc_intervals_forced);
   }
 #endif
   
@@ -5921,7 +5962,7 @@ void THD::restore_sub_statement_state(Sub_statement_state *backup)
    */
   if (rpl_master_erroneous_autoinc(this))
   {
-    backup->auto_inc_intervals_forced.swap(&auto_inc_intervals_forced);
+    auto_inc_intervals_forced.copy_shallow(&backup->auto_inc_intervals_forced);
     DBUG_ASSERT(backup->auto_inc_intervals_forced.nb_elements() == 0);
   }
 #endif
@@ -7658,7 +7699,7 @@ bool THD::binlog_for_noop_dml(bool transactional_table)
 }
 
 
-#if defined(DBUG_TRACE) && !defined(_lint)
+#if defined(DBUG_TRACE)
 static const char *
 show_query_type(THD::enum_binlog_query_type qtype)
 {
@@ -7672,7 +7713,7 @@ show_query_type(THD::enum_binlog_query_type qtype)
     DBUG_ASSERT(0 <= qtype && qtype < THD::QUERY_TYPE_COUNT);
   }
   static char buf[64];
-  sprintf(buf, "UNKNOWN#%d", qtype);
+  snprintf(buf, sizeof(buf), "UNKNOWN#%d", qtype);
   return buf;
 }
 #endif
@@ -8341,6 +8382,24 @@ end:
 }
 
 
+void
+wait_for_commit::prior_commit_error(THD *thd)
+{
+  /*
+    Only raise a "prior commit failed" error if we didn't already raise
+    an error.
+
+    The ER_PRIOR_COMMIT_FAILED is just an internal mechanism to ensure that a
+    transaction does not commit successfully if a prior commit failed, so that
+    the parallel replication worker threads stop in an orderly fashion when
+    one of them get an error. Thus, if another worker already got another real
+    error, overriding it with ER_PRIOR_COMMIT_FAILED is not useful.
+  */
+  if (!thd->get_stmt_da()->is_set())
+    my_error(ER_PRIOR_COMMIT_FAILED, MYF(0));
+}
+
+
 /*
   Wakeup anyone waiting for us to have committed.
 
@@ -8466,16 +8525,19 @@ void mariadb_sleep_for_space(unsigned int seconds)
 {
   THD *thd= current_thd;
   PSI_stage_info old_stage;
+  struct timespec abstime;
   if (!thd)
   {
     sleep(seconds);
     return;
   }
- mysql_mutex_lock(&thd->LOCK_wakeup_ready);
+  set_timespec(abstime, seconds);
+  mysql_mutex_lock(&thd->LOCK_wakeup_ready);
   thd->ENTER_COND(&thd->COND_wakeup_ready, &thd->LOCK_wakeup_ready,
                   &stage_waiting_for_disk_space, &old_stage);
   if (!thd->killed)
-    mysql_cond_wait(&thd->COND_wakeup_ready, &thd->LOCK_wakeup_ready);
+    mysql_cond_timedwait(&thd->COND_wakeup_ready, &thd->LOCK_wakeup_ready,
+                         &abstime);
   thd->EXIT_COND(&old_stage);
   return;
 }
@@ -8674,4 +8736,10 @@ void Charset_loader_server::raise_not_applicable_error(const char *cs,
                                                        const char *cl) const
 {
   my_error(ER_COLLATION_CHARSET_MISMATCH, MYF(0), cl, cs);
+}
+
+
+bool THD::is_cursor_execution() const
+{
+  return dynamic_cast<Select_materialize*>(this->lex->result);
 }

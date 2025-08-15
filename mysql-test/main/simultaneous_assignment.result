@@ -220,3 +220,15 @@ INDEXES	Indexes
 TRANSACTIONS	Transactions
 TRIGGERS	Triggers
 DROP TABLE ft2;
+#
+# MDEV-27769 Assertion failed in Field::ptr_in_record upon UPDATE
+# (duplicate) MDEV-35404 Assertion failed in Field::ptr_in_record
+#
+CREATE TABLE t (s geometry, t text);
+INSERT INTO t () VALUES ();
+UPDATE t SET t = '', s = 0;
+ERROR HY000: Cannot cast 'int' as 'geometry' in assignment of `test`.`t`.`s`
+UPDATE t SET t = '', s = 0;
+ERROR HY000: Cannot cast 'int' as 'geometry' in assignment of `test`.`t`.`s`
+ALTER TABLE t force;
+DROP TABLE t;

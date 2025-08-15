@@ -1,4 +1,4 @@
-/* Copyright (C) 2015-2023 Codership Oy <info@codership.com>
+/* Copyright (C) 2015-2024 Codership Oy <info@codership.com>
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -22,7 +22,6 @@
 
 #include "mysqld.h"
 #include "wsrep_mysqld.h"
-
 /*
   Forward decls
 */
@@ -32,6 +31,7 @@ struct TABLE;
 struct TABLE_LIST;
 struct st_mysql_lex_string;
 typedef struct st_mysql_lex_string LEX_STRING;
+class Gtid_log_event;
 
 /** Name of the table in `wsrep_schema_str` used for storing streaming
 replication data. In an InnoDB full format, e.g. "database/tablename". */
@@ -133,6 +133,15 @@ class Wsrep_schema
   */
   int recover_sr_transactions(THD* orig_thd);
 
+  /**
+     Store GTID-event to mysql.gtid_slave_pos table.
+
+     @param thd  The THD object of the calling thread.
+     @param gtid GTID event from binlog.
+
+     @return Zero on success, non-zero on failure.
+  */
+  int store_gtid_event(THD* thd, const Gtid_log_event *gtid);
 
   /**
      Delete all rows on bootstrap from `wsrep_allowlist` variable

@@ -431,6 +431,7 @@ public:
   /** Name of table for the above error. */
   const char *fk_error_table= nullptr;
   bool modified_primary_key= false;
+  bool fast_alter_partition= false;
   /** Indicates that we are altering temporary table */
   bool tmp_table= false;
 

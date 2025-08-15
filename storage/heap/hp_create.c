@@ -15,10 +15,22 @@
    Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 #include "heapdef.h"
+#include <my_bit.h>
 
 static int keys_compare(void *heap_rb, const void *key1, const void *key2);
-static void init_block(HP_BLOCK *block,uint reclength,ulong min_records,
+static void init_block(HP_BLOCK *block, size_t reclength, ulong min_records,
 		       ulong max_records);
+
+
+/*
+  In how many parts are we going to do allocations of memory and indexes
+  If we assigne 1M to the heap table memory, we will allocate roughly
+  (1M/16) bytes per allocaiton
+*/
+static const int heap_allocation_parts= 16;
+
+/* min block allocation */
+static const ulong heap_min_allocation_block= 16384;
 
 /* Create a heap table */
 
@@ -170,7 +182,8 @@ int heap_create(const char *name, HP_CREATE_INFO *create_info,
     share->keydef= (HP_KEYDEF*) (share + 1);
     share->key_stat_version= 1;
     keyseg= (HA_KEYSEG*) (share->keydef + keys);
-    init_block(&share->block, visible_offset + 1, min_records, max_records);
+    init_block(&share->block, hp_memory_needed_per_row(reclength),
+               min_records, max_records);
 	/* Fix keys */
     memcpy(share->keydef, keydef, (size_t) (sizeof(keydef[0]) * keys));
     for (i= 0, keyinfo= share->keydef; i < keys; i++, keyinfo++)
@@ -266,44 +279,90 @@ static int keys_compare(void *heap_rb_, const void *key1_,
                     heap_rb->search_flag, not_used);
 }
 
-static void init_block(HP_BLOCK *block, uint reclength, ulong min_records,
+
+/*
+  Calculate length needed for storing one row
+*/
+
+size_t hp_memory_needed_per_row(size_t reclength)
+{
+  /* Data needed for storing record + pointer to records */
+  reclength= MY_MAX(reclength, sizeof(char*));
+  /* The + 1 below is for the delete marker at the end of record*/
+  reclength= MY_ALIGN(reclength+1, sizeof(char*));
+  return reclength;
+}
+
+/*
+  Calculate the number of rows that fits into a given memory size
+*/
+
+ha_rows hp_rows_in_memory(size_t reclength, size_t index_size,
+                          size_t memory_limit)
+{
+  reclength= hp_memory_needed_per_row(reclength);
+  if ((memory_limit < index_size + reclength + sizeof(HP_PTRS)))
+    return 0;                                   /* Wrong arguments */
+  return (ha_rows) ((memory_limit - sizeof(HP_PTRS)) /
+                    (index_size + reclength));
+}
+
+
+static void init_block(HP_BLOCK *block, size_t reclength, ulong min_records,
 		       ulong max_records)
 {
-  ulong i,recbuffer,records_in_block;
+  ulong i,records_in_block;
+  ulong recbuffer= (ulong) MY_ALIGN(reclength, sizeof(uchar*));
+  ulong extra;
+  ulonglong memory_needed;
+  size_t alloc_size;
 
   /*
     If not min_records and max_records are given, optimize for 1000 rows
   */
   if (!min_records)
-    min_records= MY_MIN(1000, max_records);
+    min_records= MY_MIN(1000, max_records / heap_allocation_parts);
   if (!max_records)
     max_records= MY_MAX(min_records, 1000);
+  min_records= MY_MIN(min_records, max_records);
 
-  /*
+ /*
     We don't want too few records_in_block as otherwise the overhead of
     of the HP_PTRS block will be too notable
   */
-  records_in_block= MY_MAX(1000, min_records);
-  records_in_block= MY_MIN(records_in_block, max_records);
-  /* If big max_records is given, allocate bigger blocks */
-  records_in_block= MY_MAX(records_in_block, max_records / 10);
+  records_in_block= MY_MAX(min_records, max_records / heap_allocation_parts);
+
+  /*
+    Align allocation sizes to power of 2 to get less memory fragmentation from
+    system alloc().
+    As long as we have less than 128 allocations, all but one of the
+    allocations will have an extra HP_PTRS size structure at the start
+    of the block.
+
+    We ensure that the block is not smaller than heap_min_allocation_block
+    as otherwise we get strange results when max_records <
+    heap_allocation_parts)
+  */
+  extra= sizeof(HP_PTRS) + MALLOC_OVERHEAD;
+
   /* We don't want too few blocks per row either */
   if (records_in_block < 10)
-    records_in_block= 10;
+    records_in_block= MY_MIN(10, max_records);
+  memory_needed= MY_MAX(((ulonglong) records_in_block * recbuffer + extra),
+                        (ulonglong) heap_min_allocation_block);
 
-  recbuffer= (uint) (reclength + sizeof(uchar**) - 1) & ~(sizeof(uchar**) - 1);
-  /*
-    Don't allocate more than my_default_record_cache_size per level.
-    The + 1 is there to ensure that we get at least 1 row per level (for
-    the exceptional case of very long rows)
-  */
-  if ((ulonglong) records_in_block*recbuffer >
-      (my_default_record_cache_size-sizeof(HP_PTRS)*HP_MAX_LEVELS))
-    records_in_block= (my_default_record_cache_size - sizeof(HP_PTRS) *
-                       HP_MAX_LEVELS) / recbuffer + 1;
+  /* We have to limit memory to INT_MAX32 as my_round_up_to_next_power() is 32 bit */
+  memory_needed= MY_MIN(memory_needed, (ulonglong) INT_MAX32);
+  alloc_size= my_round_up_to_next_power((uint32)memory_needed);
+  records_in_block= (ulong) ((alloc_size - extra)/ recbuffer);
+
+  DBUG_PRINT("info", ("records_in_block: %lu" ,records_in_block));
+
   block->records_in_block= records_in_block;
   block->recbuffer= recbuffer;
   block->last_allocated= 0L;
+  /* All alloctions are done with this size, if possible */
+  block->alloc_size= alloc_size - MALLOC_OVERHEAD;
 
   for (i= 0; i <= HP_MAX_LEVELS; i++)
     block->level_info[i].records_under_level=

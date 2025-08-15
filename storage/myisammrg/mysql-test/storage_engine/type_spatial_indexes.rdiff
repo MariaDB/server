@@ -1,5 +1,5 @@
---- suite/storage_engine/type_spatial_indexes.result	2013-08-05 18:08:49.000000000 +0400
-+++ suite/storage_engine/type_spatial_indexes.reject	2013-08-05 18:27:47.000000000 +0400
+--- suite/storage_engine/type_spatial_indexes.result
++++ suite/storage_engine/type_spatial_indexes.reject
 @@ -2,1399 +2,31 @@
  DROP DATABASE IF EXISTS gis_ogs;
  CREATE DATABASE gis_ogs;

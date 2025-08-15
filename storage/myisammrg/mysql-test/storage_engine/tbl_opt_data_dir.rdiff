@@ -1,5 +1,5 @@
---- suite/storage_engine/tbl_opt_data_dir.result	2017-05-24 00:21:15.550159778 +0300
-+++ ../storage/myisammrg/mysql-test/storage_engine/tbl_opt_data_dir.reject	2017-05-24 00:25:45.506164827 +0300
+--- suite/storage_engine/tbl_opt_data_dir.result
++++ ../storage/myisammrg/mysql-test/storage_engine/tbl_opt_data_dir.reject
 @@ -5,7 +5,7 @@
  t1	CREATE TABLE `t1` (
    `a` int(11) DEFAULT NULL,

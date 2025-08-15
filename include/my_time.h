@@ -230,7 +230,6 @@ static inline longlong sec_part_unshift(longlong second_part, uint digits)
 /* Date/time rounding and truncation functions */
 static inline long my_time_fraction_remainder(long nr, uint decimals)
 {
-  DBUG_ASSERT(decimals <= TIME_SECOND_PART_DIGITS);
   return nr % (long) log_10_int[TIME_SECOND_PART_DIGITS - decimals];
 }
 static inline void my_datetime_trunc(MYSQL_TIME *ltime, uint decimals)

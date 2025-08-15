@@ -606,7 +606,7 @@ sp_head::sp_head(MEM_ROOT *mem_root_arg, sp_package *parent,
   m_lex.empty();
   my_init_dynamic_array(key_memory_sp_head_main_root, &m_instr,
                         sizeof(sp_instr *), 16, 8, MYF(0));
-  my_hash_init(key_memory_sp_head_main_root, &m_sptabs, system_charset_info, 0,
+  my_hash_init(key_memory_sp_head_main_root, &m_sptabs, table_alias_charset, 0,
                0, 0, sp_table_key, 0, 0);
   my_hash_init(key_memory_sp_head_main_root, &m_sroutines, system_charset_info,
                0, 0, 0, sp_sroutine_key, 0, 0);
@@ -1531,7 +1531,7 @@ sp_head::execute(THD *thd, bool merge_da_on_success)
           thd->wsrep_cs().reset_error();
           /* Reset also thd->killed if it has been set during BF abort. */
           if (killed_mask_hard(thd->killed) == KILL_QUERY)
-            thd->killed= NOT_KILLED;
+            thd->reset_killed();
           /* if failed transaction was not replayed, must return with error from here */
           if (!must_replay) err_status = 1;
         }
@@ -2551,6 +2551,16 @@ sp_head::bind_input_param(THD *thd,
   sp_variable *spvar= m_pcont->find_variable(arg_no);
   if (!spvar)
     DBUG_RETURN(FALSE);
+
+  if (!spvar->field_def.type_handler()->is_scalar_type() &&
+      dynamic_cast<Item_param*>(arg_item))
+  {
+    // Item_param cannot store values of non-scalar data types yet
+    my_error(ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION, MYF(0),
+             spvar->field_def.type_handler()->name().ptr(),
+             "EXECUTE ... USING ?");
+    DBUG_RETURN(true);
+  }
 
   if (spvar->mode != sp_variable::MODE_IN)
   {
@@ -3747,6 +3757,17 @@ int sp_lex_keeper::cursor_reset_lex_and_exec_core(THD *thd, uint *nextp,
   return res;
 }
 
+sp_lex_keeper::~sp_lex_keeper()
+{
+  if (m_lex_resp)
+  {
+    /* Prevent endless recursion. */
+    m_lex->sphead= NULL;
+    delete m_lex->result;
+    lex_end(m_lex);
+    delete m_lex;
+  }
+}
 
 /*
   sp_instr class functions

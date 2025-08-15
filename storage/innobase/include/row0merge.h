@@ -447,12 +447,21 @@ class row_merge_bulk_t
   /** Block for encryption */
   row_merge_block_t *m_crypt_block= nullptr;
 public:
+  /** If this is false, then there will be only one
+  bulk_insert_buffered() call for the primary key followed by
+  load_one_row() and row_ins_clust_index_entry() for subsequent rows.
+  For secondary indexes or for true, bulk_insert_buffered() will be
+  invoked for each row. */
+  const bool m_sort_primary_key;
   /** Constructor.
   Create all merge files, merge buffer for all the table indexes
   expect fts indexes.
   Create a merge block which is used to write IO operation
-  @param table  table which undergoes bulk insert operation */
-  row_merge_bulk_t(dict_table_t *table);
+  @param table  table which undergoes bulk insert operation
+  @param sort_primary_key Allow primary key sort for bulk
+  operation. In case of load, InnoDB skips the
+  primary key sorting */
+  row_merge_bulk_t(dict_table_t *table, bool sort_primary_key);
 
   /** Destructor.
   Remove all merge files, merge buffer for all table indexes. */
@@ -498,4 +507,9 @@ public:
 
   /** Init temporary files for each index */
   void init_tmp_file();
+
+  /** Load one row into the primary index
+  @param trx     bulk transaction
+  @return error code */
+  dberr_t load_one_row(trx_t *trx);
 };

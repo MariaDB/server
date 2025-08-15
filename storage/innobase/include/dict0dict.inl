@@ -1076,8 +1076,8 @@ dict_table_is_file_per_table(
 /** Acquire the table handle. */
 inline void dict_table_t::acquire()
 {
-  ut_ad(dict_sys.frozen());
-  n_ref_count++;
+  ut_d(const auto old=) n_ref_count++;
+  ut_ad(old || dict_sys.frozen());
 }
 
 /** Release the table handle.

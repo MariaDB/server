@@ -36,9 +36,9 @@ Table	Op	Msg_type	Msg_text
 test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
 FLUSH LOGS;
-FOUND 1 /GTID 0-1-8 ddl/ in mysqlbinlog.out
 FOUND 1 /GTID 0-1-9 ddl/ in mysqlbinlog.out
 FOUND 1 /GTID 0-1-10 ddl/ in mysqlbinlog.out
+FOUND 1 /GTID 0-1-11 ddl/ in mysqlbinlog.out
 #
 # Clean up
 #
@@ -63,9 +63,9 @@ ALTER TABLE t1 REPAIR PARTITION p0;
 Table	Op	Msg_type	Msg_text
 test.t1	repair	status	OK
 FLUSH LOGS;
-FOUND 1 /GTID 0-1-14 ddl/ in mysqlbinlog.out
 FOUND 1 /GTID 0-1-15 ddl/ in mysqlbinlog.out
 FOUND 1 /GTID 0-1-16 ddl/ in mysqlbinlog.out
+FOUND 1 /GTID 0-1-17 ddl/ in mysqlbinlog.out
 #
 # Clean up
 #

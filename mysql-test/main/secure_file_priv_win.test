@@ -12,8 +12,6 @@ INSERT INTO t1 values ('a');
 LET $MYSQL_TMP_DIR_UCASE= `SELECT upper('$MYSQL_TMP_DIR')`;
 LET $MYSQL_TMP_DIR_LCASE= `SELECT lower('$MYSQL_TMP_DIR')`;
 
---disable_ps2_protocol
-
 #create the file
 --replace_result $MYSQL_TMP_DIR MYSQL_TMP_DIR
 eval SELECT * INTO OUTFILE '$MYSQL_TMP_DIR/B11764517.tmp' FROM t1;
@@ -79,4 +77,3 @@ eval SELECT * INTO OUTFILE '$MYSQL_TMP_DIR_LCASE/B11764517-5.tmp' FROM t1;
 --error 0,1
 --remove_file $MYSQL_TMP_DIR/B11764517-5.tmp;
 DROP TABLE t1;
---enable_ps2_protocol

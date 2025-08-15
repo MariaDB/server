@@ -445,6 +445,19 @@ static Sys_var_double Sys_analyze_sample_percentage(
        CMD_LINE(REQUIRED_ARG), VALID_RANGE(0, 100),
        DEFAULT(100));
 
+/*
+  The max length have to be UINT_MAX32 to not remove GEOMETRY fields
+  from analyze.
+*/
+
+static Sys_var_uint Sys_analyze_max_length(
+       "analyze_max_length",
+       "Fields which length in bytes more than this are skipped by ANALYZE "
+       "TABLE PERSISTENT unless explicitly listed in the FOR COLUMNS () clause",
+       SESSION_VAR(analyze_max_length),
+       CMD_LINE(REQUIRED_ARG), VALID_RANGE(32, UINT_MAX32),
+       DEFAULT(UINT_MAX32), BLOCK_SIZE(1));
+
 static Sys_var_ulong Sys_auto_increment_increment(
        "auto_increment_increment",
        "Auto-increment columns are incremented by this",
@@ -1705,7 +1718,10 @@ Sys_max_binlog_stmt_cache_size(
 
 static bool fix_max_binlog_size(sys_var *self, THD *thd, enum_var_type type)
 {
-  mysql_bin_log.set_max_size(max_binlog_size);
+  ulong saved= max_binlog_size;
+  mysql_mutex_unlock(&LOCK_global_system_variables);
+  mysql_bin_log.set_max_size(saved);
+  mysql_mutex_lock(&LOCK_global_system_variables);
   return false;
 }
 static Sys_var_on_access_global<Sys_var_ulong,
@@ -1845,7 +1861,7 @@ Sys_pseudo_thread_id(
        "pseudo_thread_id",
        "This variable is for internal server use",
        SESSION_ONLY(pseudo_thread_id),
-       NO_CMD_LINE, VALID_RANGE(0, ULONGLONG_MAX), DEFAULT(0),
+       NO_CMD_LINE, VALID_RANGE(0, MY_THREAD_ID_MAX), DEFAULT(0),
        BLOCK_SIZE(1), NO_MUTEX_GUARD, IN_BINLOG);
 
 static bool
@@ -2979,7 +2995,7 @@ static const char *adjust_secondary_key_cost[]=
 {
   "adjust_secondary_key_cost", "disable_max_seek", "disable_forced_index_in_group_by",
   "fix_innodb_cardinality", "fix_reuse_range_for_ref",
-  "fix_card_multiplier", 0
+  "fix_card_multiplier", "fix_derived_table_read_cost", 0
 };
 
 
@@ -2996,8 +3012,9 @@ static Sys_var_set Sys_optimizer_adjust_secondary_key_costs(
     "secondary keys. "
     "fix_reuse_range_for_ref = Do a better job at reusing range access estimates "
     "when estimating ref access. "
-    "fix_card_multiplier = Fix the computation in selectivity_for_indexes."
-    " selectivity_multiplier. "
+    "fix_card_multiplier = Fix the computation in selectivity_for_indexes. "
+    "fix_derived_table_read_cost = Fix the cost of reading materialized "
+    "derived table. "
 
     "This variable will be deleted in MariaDB 11.0 as it is not needed with the "
     "new 11.0 optimizer.",
@@ -3044,6 +3061,14 @@ static Sys_var_proxy_user Sys_proxy_user(
 static Sys_var_external_user Sys_exterenal_user(
        "external_user", "The external user account used when logging in");
 
+
+static bool update_record_cache(sys_var *self, THD *thd, enum_var_type type)
+{
+  if (type == OPT_GLOBAL)
+    my_default_record_cache_size= global_system_variables.read_buff_size;
+  return false;
+}
+
 static Sys_var_ulong Sys_read_buff_size(
        "read_buffer_size",
        "Each thread that does a sequential scan allocates a buffer of "
@@ -3051,7 +3076,8 @@ static Sys_var_ulong Sys_read_buff_size(
        "you may want to increase this value",
        SESSION_VAR(read_buff_size), CMD_LINE(REQUIRED_ARG),
        VALID_RANGE(IO_SIZE*2, INT_MAX32), DEFAULT(128*1024),
-       BLOCK_SIZE(IO_SIZE));
+       BLOCK_SIZE(IO_SIZE), NO_MUTEX_GUARD, NOT_IN_BINLOG,
+       ON_CHECK(0), ON_UPDATE(update_record_cache));
 
 static bool check_read_only(sys_var *self, THD *thd, set_var *var)
 {
@@ -4343,7 +4369,7 @@ static Sys_var_ulonglong Sys_tmp_table_size(
        "will automatically convert it to an on-disk MyISAM or Aria table.",
        SESSION_VAR(tmp_memory_table_size), CMD_LINE(REQUIRED_ARG),
        VALID_RANGE(0, (ulonglong)~(intptr)0), DEFAULT(16*1024*1024),
-       BLOCK_SIZE(1));
+       BLOCK_SIZE(16384));
 
 static Sys_var_ulonglong Sys_tmp_memory_table_size(
        "tmp_memory_table_size",
@@ -4352,7 +4378,7 @@ static Sys_var_ulonglong Sys_tmp_memory_table_size(
        "Same as tmp_table_size.",
        SESSION_VAR(tmp_memory_table_size), CMD_LINE(REQUIRED_ARG),
        VALID_RANGE(0, (ulonglong)~(intptr)0), DEFAULT(16*1024*1024),
-       BLOCK_SIZE(1));
+       BLOCK_SIZE(16384));
 
 static Sys_var_ulonglong Sys_tmp_disk_table_size(
        "tmp_disk_table_size",
@@ -5351,7 +5377,8 @@ static Sys_var_charptr Sys_have_santitizer(
        "have_sanitizer",
        "If the server is compiled with sanitize (compiler option), this "
        "variable is set to the sanitizer mode used. Possible values are "
-       "ASAN (Address sanitizer) or UBSAN (The Undefined Behavior Sanitizer).",
+       "ASAN (Address sanitizer) and/or UBSAN (Undefined Behavior Sanitizer),"
+       " or MSAN (memory sanitizer).",
         READ_ONLY GLOBAL_VAR(have_sanitizer), NO_CMD_LINE,
        DEFAULT(SANITIZER_MODE));
 #endif /* defined(__SANITIZE_ADDRESS__) || defined(WITH_UBSAN) */
@@ -6297,7 +6324,9 @@ static const char *wsrep_binlog_format_names[]=
 static Sys_var_enum Sys_wsrep_forced_binlog_format(
        "wsrep_forced_binlog_format", "binlog format to take effect over user's choice",
        GLOBAL_VAR(wsrep_forced_binlog_format), CMD_LINE(REQUIRED_ARG),
-       wsrep_binlog_format_names, DEFAULT(BINLOG_FORMAT_UNSPEC));
+       wsrep_binlog_format_names, DEFAULT(BINLOG_FORMAT_UNSPEC),
+       NO_MUTEX_GUARD, NOT_IN_BINLOG,
+       ON_CHECK(wsrep_forced_binlog_format_check));
 
 static Sys_var_mybool Sys_wsrep_recover_datadir(
        "wsrep_recover", "Recover database state after crash and exit",

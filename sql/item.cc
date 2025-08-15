@@ -845,6 +845,30 @@ bool Item_field::rename_fields_processor(void *arg)
   return 0;
 }
 
+/**
+   Rename table and clean field for EXCHANGE comparison
+*/
+
+bool Item_field::rename_table_processor(void *arg)
+{
+  Item::func_processor_rename_table *p= (Item::func_processor_rename_table*) arg;
+
+  /* If (db_name, table_name) matches (p->old_db, p->old_table)
+     rename to (p->new_db, p->new_table) */
+  if (((!db_name.str && !p->old_db.str) ||
+       db_name.streq(p->old_db)) &&
+      ((!table_name.str && !p->old_table.str) ||
+       table_name.streq(p->old_table)))
+  {
+    db_name= p->new_db;
+    table_name= p->new_table;
+  }
+
+  /* Item_field equality is done by field pointer if it is set, we need to avoid that */
+  field= NULL;
+  return 0;
+}
+
 
 /**
   Check if an Item_field references some field from a list of fields.
@@ -2874,8 +2898,6 @@ Item_sp::func_name_cstring(THD *thd, bool is_package_function) const
 void
 Item_sp::cleanup()
 {
-  delete sp_result_field;
-  sp_result_field= NULL;
   m_sp= NULL;
   delete func_ctx;
   func_ctx= NULL;
@@ -3047,7 +3069,6 @@ Item_sp::init_result_field(THD *thd, uint max_length, uint maybe_null,
   DBUG_ENTER("Item_sp::init_result_field");
 
   DBUG_ASSERT(m_sp != NULL);
-  DBUG_ASSERT(sp_result_field == NULL);
 
   /*
      A Field needs to be attached to a Table.
@@ -3061,23 +3082,26 @@ Item_sp::init_result_field(THD *thd, uint max_length, uint maybe_null,
   dummy_table->s->table_name= empty_clex_str;
   dummy_table->maybe_null= maybe_null;
 
-  if (!(sp_result_field= m_sp->create_result_field(max_length, name,
-                                                   dummy_table)))
-   DBUG_RETURN(TRUE);
-
-  if (sp_result_field->pack_length() > sizeof(result_buf))
+  if (!sp_result_field)
   {
-    void *tmp;
-    if (!(tmp= thd->alloc(sp_result_field->pack_length())))
-      DBUG_RETURN(TRUE);
-    sp_result_field->move_field((uchar*) tmp);
+    sp_result_field= m_sp->create_result_field(max_length, name,
+                                               dummy_table);
+    if (!sp_result_field)
+      DBUG_RETURN(true);
+
+    if (sp_result_field->pack_length() > sizeof(result_buf))
+    {
+      void *tmp;
+      if (!(tmp= thd->alloc(sp_result_field->pack_length())))
+        DBUG_RETURN(TRUE);
+      sp_result_field->move_field((uchar*) tmp);
+    }
+    else
+      sp_result_field->move_field(result_buf);
+
+    sp_result_field->null_ptr= (uchar *) null_value;
+    sp_result_field->null_bit= 1;
   }
-  else
-    sp_result_field->move_field(result_buf);
-
-  sp_result_field->null_ptr= (uchar *) null_value;
-  sp_result_field->null_bit= 1;
-
   DBUG_RETURN(FALSE);
 }
 
@@ -3988,7 +4012,7 @@ void Item_string::print(String *str, enum_query_type query_type)
     }
     else
     {
-      str_value.print(str, system_charset_info);
+      str_value.print(str, &my_charset_utf8mb4_general_ci);
     }
   }
   else
@@ -4255,6 +4279,7 @@ void Item_param::set_null(const DTCollation &c)
   decimals= 0;
   collation= c;
   state= NULL_VALUE;
+  value.set_handler(&type_handler_null);
   DBUG_VOID_RETURN;
 }
 
@@ -5073,6 +5098,7 @@ Item_param::set_param_type_and_swap_value(Item_param *src)
 void Item_param::set_default(bool set_type_handler_null)
 {
   m_is_settable_routine_parameter= false;
+  current_thd->lex->default_used= true;
   state= DEFAULT_VALUE;
   /*
     When Item_param is set to DEFAULT_VALUE:
@@ -5084,7 +5110,10 @@ void Item_param::set_default(bool set_type_handler_null)
   */
   null_value= true;
   if (set_type_handler_null)
+  {
+    value.set_handler(&type_handler_null);
     set_handler(&type_handler_null);
+  }
 }
 
 void Item_param::set_ignore(bool set_type_handler_null)
@@ -5093,7 +5122,10 @@ void Item_param::set_ignore(bool set_type_handler_null)
   state= IGNORE_VALUE;
   null_value= true;
   if (set_type_handler_null)
+  {
+    value.set_handler(&type_handler_null);
     set_handler(&type_handler_null);
+  }
 }
 
 /**
@@ -5224,14 +5256,26 @@ static Field *make_default_field(THD *thd, Field *field_arg)
     if (!newptr)
       return nullptr;
 
+    /* Don't check privileges, if it's parse_vcol_defs() */
+    if (def_field->table->pos_in_table_list &&
+        def_field->default_value->check_access(thd))
+      return nullptr;
+
     if (should_mark_column(thd->column_usage))
       def_field->default_value->expr->update_used_tables();
     def_field->move_field(newptr + 1, def_field->maybe_null() ? newptr : 0, 1);
   }
-  else
+  else if (field_arg->table && field_arg->table->s->field)
+  {
+    Field *def_val= field_arg->table->s->field[field_arg->field_index];
+    def_field->move_field(def_val->ptr, def_val->null_ptr, def_val->null_bit);
+  }
+  else /* e.g. non-updatable view */
+  {
     def_field->move_field_offset((my_ptrdiff_t)
                                  (def_field->table->s->default_values -
                                   def_field->table->record[0]));
+  }
   return def_field;
 }
 
@@ -5290,6 +5334,7 @@ bool Item_param::assign_default(Field *field)
 
 double Item_copy_string::val_real()
 {
+  DBUG_ASSERT(copied_in);
   int err_not_used;
   char *end_not_used;
   return (null_value ? 0.0 :
@@ -5300,6 +5345,7 @@ double Item_copy_string::val_real()
 
 longlong Item_copy_string::val_int()
 {
+  DBUG_ASSERT(copied_in);
   int err;
   return null_value ? 0 : str_value.charset()->strntoll(str_value.ptr(),
                                                         str_value.length(), 10,
@@ -5309,6 +5355,7 @@ longlong Item_copy_string::val_int()
 
 int Item_copy_string::save_in_field(Field *field, bool no_conversions)
 {
+  DBUG_ASSERT(copied_in);
   return save_str_value_in_field(field, &str_value);
 }
 
@@ -5319,11 +5366,15 @@ void Item_copy_string::copy()
   if (res && res != &str_value)
     str_value.copy(*res);
   null_value=item->null_value;
+#ifndef DBUG_OFF
+  copied_in= 1;
+#endif
 }
 
 /* ARGSUSED */
 String *Item_copy_string::val_str(String *str)
 {
+  DBUG_ASSERT(copied_in);
   // Item_copy_string is used without fix_fields call
   if (null_value)
     return (String*) 0;
@@ -5333,6 +5384,7 @@ String *Item_copy_string::val_str(String *str)
 
 my_decimal *Item_copy_string::val_decimal(my_decimal *decimal_value)
 {
+  DBUG_ASSERT(copied_in);
   // Item_copy_string is used without fix_fields call
   if (null_value)
     return (my_decimal *) 0;
@@ -5753,6 +5805,8 @@ resolve_ref_in_select_and_group(THD *thd, Item_ident *ref, SELECT_LEX *select)
       DBUG_ASSERT((*select_ref)->fixed());
       return &select->ref_pointer_array[counter];
     }
+    if (group_by_ref && (*group_by_ref)->type() == Item::REF_ITEM)
+      return ((Item_ref*)(*group_by_ref))->ref;
     if (group_by_ref)
       return group_by_ref;
     DBUG_ASSERT(FALSE);
@@ -10407,7 +10461,11 @@ bool Item_cache_bool::cache_value()
   if (!example)
     return false;
   value_cached= true;
+  THD *thd= current_thd;
+  const bool err= thd->is_error();
   value= example->val_bool_result();
+  if (!err && thd->is_error())
+    value_cached= false;
   null_value_inside= null_value= example->null_value;
   unsigned_flag= false;
   return true;
@@ -10419,7 +10477,11 @@ bool  Item_cache_int::cache_value()
   if (!example)
     return FALSE;
   value_cached= TRUE;
+  THD *thd= current_thd;
+  const bool err= thd->is_error();
   value= example->val_int_result();
+  if (!err && thd->is_error())
+    value_cached= false;
   null_value_inside= null_value= example->null_value;
   unsigned_flag= example->unsigned_flag;
   return TRUE;
@@ -10496,7 +10558,11 @@ bool Item_cache_temporal::cache_value()
   if (!example)
     return false;
   value_cached= true;
-  value= example->val_datetime_packed_result(current_thd);
+  THD *thd= current_thd;
+  const bool err= thd->is_error();
+  value= example->val_datetime_packed_result(thd);
+  if (!err && thd->is_error())
+    value_cached= false;
   null_value_inside= null_value= example->null_value;
   return true;
 }
@@ -10507,7 +10573,11 @@ bool Item_cache_time::cache_value()
   if (!example)
     return false;
   value_cached= true;
-  value= example->val_time_packed_result(current_thd);
+  THD *thd= current_thd;
+  const bool err= thd->is_error();
+  value= example->val_time_packed_result(thd);
+  if (!err && thd->is_error())
+    value_cached= false;
   null_value_inside= null_value= example->null_value;
   return true;
 }
@@ -10635,8 +10705,12 @@ bool Item_cache_timestamp::cache_value()
   if (!example)
     return false;
   value_cached= true;
+  THD *thd= current_thd;
+  const bool err= thd->is_error();
   null_value_inside= null_value=
-    example->val_native_with_conversion_result(current_thd, &m_native, type_handler());
+    example->val_native_with_conversion_result(thd, &m_native, type_handler());
+  if (!err && thd->is_error())
+    value_cached= false;
   return true;
 }
 
@@ -10646,7 +10720,11 @@ bool Item_cache_real::cache_value()
   if (!example)
     return FALSE;
   value_cached= TRUE;
+  THD *thd= current_thd;
+  const bool err= thd->is_error();
   value= example->val_result();
+  if (!err && thd->is_error())
+    value_cached= false;
   null_value_inside= null_value= example->null_value;
   return TRUE;
 }
@@ -10713,7 +10791,11 @@ bool Item_cache_decimal::cache_value()
   if (!example)
     return FALSE;
   value_cached= TRUE;
+  THD *thd= current_thd;
+  const bool err= thd->is_error();
   my_decimal *val= example->val_decimal_result(&decimal_value);
+  if (!err && thd->is_error())
+    value_cached= false;
   if (!(null_value_inside= null_value= example->null_value) &&
         val != &decimal_value)
     my_decimal2decimal(val, &decimal_value);
@@ -10769,8 +10851,12 @@ bool Item_cache_str::cache_value()
     return FALSE;
   }
   value_cached= TRUE;
+  THD *thd= current_thd;
+  const bool err= thd->is_error();
   value_buff.set(buffer, sizeof(buffer), example->collation.collation);
   value= example->str_result(&value_buff);
+  if (!err && thd->is_error())
+    value_cached= false;
   if ((null_value= null_value_inside= example->null_value))
     value= 0;
   else if (value != &value_buff)
@@ -11036,8 +11122,8 @@ void dummy_error_processor(THD *thd, void *data)
 {}
 
 /**
-  Wrapper of hide_view_error call for Name_resolution_context error
-  processor.
+  Wrapper of replace_view_error_with_generic call for Name_resolution_context
+  error processor.
 
   @note
     hide view underlying tables details in error messages
@@ -11045,7 +11131,7 @@ void dummy_error_processor(THD *thd, void *data)
 
 void view_error_processor(THD *thd, void *data)
 {
-  ((TABLE_LIST *)data)->hide_view_error(thd);
+  ((TABLE_LIST *)data)->replace_view_error_with_generic(thd);
 }
 
 

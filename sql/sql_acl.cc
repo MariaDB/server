@@ -54,6 +54,7 @@
 #include "sql_array.h"
 #include "sql_hset.h"
 #include "password.h"
+#include "scope.h"
 
 #include "sql_plugin_compat.h"
 #include "wsrep_mysqld.h"
@@ -1664,7 +1665,7 @@ class User_table_json: public User_table
     set_int_value("version_id", (longlong) MYSQL_VERSION_ID);
   }
   const char *unsafe_str(const char *s) const
-  { return s[0] ? s : NULL; }
+  { return s ? (s[0] ? s : NULL) : NULL; }
 
   SSL_type get_ssl_type () const override
   { return (SSL_type)get_int_value("ssl_type"); }
@@ -1763,6 +1764,8 @@ class User_table_json: public User_table
     if (get_value(key, JSV_STRING, &value_start, &value_len))
       return "";
     char *ptr= (char*)alloca(value_len);
+    if (!ptr)
+      return NULL;
     int len= json_unescape(m_table->field[2]->charset(),
                            (const uchar*)value_start,
                            (const uchar*)value_start + value_len,
@@ -2029,13 +2032,24 @@ class Grant_tables
   {
     DBUG_ENTER("Grant_tables::open_and_lock");
 
-    TABLE_LIST tables[USER_TABLE+1], *first= NULL;
+    TABLE_LIST *first= nullptr, *tables=
+      static_cast<TABLE_LIST*>(my_malloc(PSI_NOT_INSTRUMENTED,
+                                         (USER_TABLE + 1) * sizeof *tables,
+                                         MYF(MY_WME)));
+    int res= -1;
+
+    if (!tables)
+      DBUG_RETURN(res);
 
     if (build_table_list(thd, &first, which_tables, lock_type, tables))
-      DBUG_RETURN(-1);
+    {
+    func_exit:
+      my_free(tables);
+      DBUG_RETURN(res);
+    }
 
     uint counter;
-    int res= really_open(thd, first, &counter);
+    res= really_open(thd, first, &counter);
 
     /* if User_table_json wasn't found, let's try User_table_tabular */
     if (!res && (which_tables & Table_user) && !tables[USER_TABLE].table)
@@ -2061,12 +2075,15 @@ class Grant_tables
       }
     }
     if (res)
-      DBUG_RETURN(res);
+      goto func_exit;
 
     if (lock_tables(thd, first, counter,
                     MYSQL_LOCK_IGNORE_TIMEOUT |
                     MYSQL_OPEN_IGNORE_LOGGING_FORMAT))
-      DBUG_RETURN(-1);
+    {
+      res= -1;
+      goto func_exit;
+    }
 
     p_user_table->set_table(tables[USER_TABLE].table);
     m_db_table.set_table(tables[DB_TABLE].table);
@@ -2076,7 +2093,7 @@ class Grant_tables
     m_procs_priv_table.set_table(tables[PROCS_PRIV_TABLE].table);
     m_proxies_priv_table.set_table(tables[PROXIES_PRIV_TABLE].table);
     m_roles_mapping_table.set_table(tables[ROLES_MAPPING_TABLE].table);
-    DBUG_RETURN(0);
+    goto func_exit;
   }
 
   inline const User_table& user_table() const
@@ -2619,10 +2636,9 @@ static bool acl_load(THD *thd, const Grant_tables& tables)
 {
   READ_RECORD read_record_info;
   char tmp_name[SAFE_NAME_LEN+1];
-  Sql_mode_save old_mode_save(thd);
   DBUG_ENTER("acl_load");
 
-  thd->variables.sql_mode&= ~MODE_PAD_CHAR_TO_FULL_LENGTH;
+  SCOPE_CLEAR(thd->variables.sql_mode, MODE_PAD_CHAR_TO_FULL_LENGTH);
 
   grant_version++; /* Privileges updated */
 
@@ -3431,7 +3447,7 @@ end:
   switch (result)
   {
     case ER_INVALID_CURRENT_USER:
-      my_error(ER_INVALID_CURRENT_USER, MYF(0), rolename);
+      my_error(ER_INVALID_CURRENT_USER, MYF(0));
       break;
     case ER_INVALID_ROLE:
       /* Role doesn't exist at all */
@@ -4065,7 +4081,8 @@ bool acl_check_host(const char *host, const char *ip)
     return 0;
   mysql_mutex_lock(&acl_cache->lock);
 
-  if ((host && my_hash_search(&acl_check_hosts,(uchar*) host,strlen(host))) ||
+  if (allow_all_hosts ||
+      (host && my_hash_search(&acl_check_hosts,(uchar*) host,strlen(host))) ||
       (ip && my_hash_search(&acl_check_hosts,(uchar*) ip, strlen(ip))))
   {
     mysql_mutex_unlock(&acl_cache->lock);
@@ -8432,18 +8449,20 @@ bool check_grant(THD *thd, privilege_t want_access, TABLE_LIST *tables,
 
     /*
       If sequence is used as part of NEXT VALUE, PREVIOUS VALUE or SELECT,
-      we need to modify the requested access rights depending on how the
-      sequence is used.
+      the privilege will be checked in ::fix_fields().
+      Direct SELECT of a sequence table doesn't set t_ref->sequence, so
+      privileges will be checked normally, as for any table.
     */
-    if (t_ref->sequence &&
-        !(want_access & ~(SELECT_ACL | INSERT_ACL | UPDATE_ACL | DELETE_ACL)))
+    if (t_ref->sequence)
     {
+      if (!(want_access & ~(SELECT_ACL | INSERT_ACL | UPDATE_ACL | DELETE_ACL)))
+        continue;
       /*
-        We want to have either SELECT or INSERT rights to sequences depending
-        on how they are accessed
+        If it is ALTER..SET DEFAULT= nextval(sequence), also defer checks
+        until ::fix_fields().
       */
-      orig_want_access= ((t_ref->lock_type >= TL_FIRST_WRITE) ?
-                         INSERT_ACL : SELECT_ACL);
+      if (tl != tables && want_access == ALTER_ACL)
+        continue;
     }
 
     const ACL_internal_table_access *access=
@@ -8453,7 +8472,8 @@ bool check_grant(THD *thd, privilege_t want_access, TABLE_LIST *tables,
 
     if (access)
     {
-      switch(access->check(orig_want_access, &t_ref->grant.privilege))
+      switch(access->check(orig_want_access, &t_ref->grant.privilege,
+                           any_combination_will_do))
       {
       case ACL_INTERNAL_ACCESS_GRANTED:
         t_ref->grant.privilege|= orig_want_access;
@@ -13109,6 +13129,9 @@ LEX_USER *get_current_user(THD *thd, LEX_USER *user, bool lock)
       return dup;
     }
 
+    if (!initialized)
+      return dup;
+
     if (lock)
       mysql_mutex_lock(&acl_cache->lock);
     if (find_acl_role(dup->user.str, false))
@@ -14181,11 +14204,11 @@ static int server_mpvio_write_packet(MYSQL_PLUGIN_VIO *param,
     res= send_server_handshake_packet(mpvio, (char*) packet, packet_len);
   else if (mpvio->status == MPVIO_EXT::RESTART)
     res= send_plugin_request_packet(mpvio, packet, packet_len);
-  else if (packet_len > 0 && (*packet == 1 || *packet == 255 || *packet == 254))
+  else if (packet_len > 0 && (*packet < 2 || *packet > 253))
   {
     /*
-      we cannot allow plugin data packet to start from 255 or 254 -
-      as the client will treat it as an error or "change plugin" packet.
+      we cannot allow plugin data packet to start from 0, 255 or 254 -
+      as the client will treat it as an OK, ERROR or "change plugin" packet.
       We'll escape these bytes with \1. Consequently, we
       have to escape \1 byte too.
     */

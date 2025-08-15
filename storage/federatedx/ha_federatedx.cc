@@ -1484,20 +1484,20 @@ static void fill_server(MEM_ROOT *mem_root, FEDERATEDX_SERVER *server,
        sizeof(int) + 8);
   key.append(scheme);
   key.q_append('\0');
-  server->hostname= (const char *) (intptr) key.length();
+  size_t hostname_pos= key.length();
   key.append(hostname);
   key.q_append('\0');
-  server->database= (const char *) (intptr) key.length();
+  size_t database_pos= key.length();
   key.append(database);
   key.q_append('\0');
   key.q_append((uint32) share->port);
-  server->socket= (const char *) (intptr) key.length();
+  size_t socket_pos= key.length();
   key.append(socket);
   key.q_append('\0');
-  server->username= (const char *) (intptr) key.length();
+  size_t username_pos= key.length();
   key.append(username);
   key.q_append('\0');
-  server->password= (const char *) (intptr) key.length();
+  size_t password_pos= key.length();
   key.append(password);
   key.c_ptr_safe();                             // Ensure we have end \0
 
@@ -1505,13 +1505,12 @@ static void fill_server(MEM_ROOT *mem_root, FEDERATEDX_SERVER *server,
   /* Copy and add end \0 */
   server->key= (uchar *)  strmake_root(mem_root, key.ptr(), key.length());
 
-  /* pointer magic */
-  server->scheme+= (intptr) server->key;
-  server->hostname+= (intptr) server->key;
-  server->database+= (intptr) server->key;
-  server->username+= (intptr) server->key;
-  server->password+= (intptr) server->key;
-  server->socket+= (intptr) server->key;
+  server->scheme= (const char *)server->key;
+  server->hostname= (const char *)server->key + hostname_pos;
+  server->database= (const char *)server->key + database_pos;
+  server->username= (const char *)server->key + username_pos;
+  server->password= (const char *)server->key + password_pos;
+  server->socket= (const char*)server->key + socket_pos;
   server->port= share->port;
 
   if (!share->socket)

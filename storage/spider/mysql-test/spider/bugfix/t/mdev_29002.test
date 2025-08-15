@@ -4,6 +4,7 @@
 --enable_result_log
 --enable_query_log
 SET spider_same_server_link= on;
+SET global spider_same_server_link= on;
 evalp CREATE SERVER s FOREIGN DATA WRAPPER mysql
 OPTIONS (SOCKET "$MASTER_1_MYSOCK", DATABASE 'test',user 'root');
 

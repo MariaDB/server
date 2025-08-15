@@ -44,7 +44,6 @@ SET GLOBAL wsrep_sst_method='method;';
 SELECT @@global.wsrep_sst_method;
 SHOW WARNINGS;
 
-
 --disable_query_log
 SET @@global.wsrep_sst_method = @wsrep_sst_method_saved;
 --enable_query_log

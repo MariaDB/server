@@ -2372,7 +2372,7 @@ drop database dummy;
 USE test;
 CREATE VIEW v AS SELECT table_schema  AS object_schema, table_name  AS object_name, table_type AS object_type FROM information_schema.tables ORDER BY object_schema;
 SELECT * FROM v LIMIT ROWS EXAMINED 9;
-ERROR HY000: Sort aborted: 
+ERROR HY000: Sort aborted: LIMIT ROWS EXAMINED
 DROP VIEW v;
 #
 # MDEV-23408 Wrong result upon query from I_S and further Assertion `!alias_arg || strlen(alias_arg->str) == alias_arg->length' failed with certain connection charset

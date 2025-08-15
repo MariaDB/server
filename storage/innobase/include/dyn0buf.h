@@ -257,36 +257,11 @@ public:
 		while (len > 0) {
 			uint32_t n_copied = std::min(len,
 						     uint32_t(MAX_DATA_SIZE));
-			::memmove(push<byte*>(n_copied), ptr, n_copied);
+			::memcpy(push<byte*>(n_copied), ptr, n_copied);
 
 			ptr += n_copied;
 			len -= n_copied;
 		}
-	}
-
-	/**
-	Returns a pointer to an element in the buffer. const version.
-	@param pos	position of element in bytes from start
-	@return	pointer to element */
-	template <typename Type>
-	const Type at(ulint pos) const
-	{
-		block_t*	block = const_cast<block_t*>(
-			const_cast<mtr_buf_t*>(this)->find(pos));
-
-		return(reinterpret_cast<Type>(block->begin() + pos));
-	}
-
-	/**
-	Returns a pointer to an element in the buffer. non const version.
-	@param pos	position of element in bytes from start
-	@return	pointer to element */
-	template <typename Type>
-	Type at(ulint pos)
-	{
-		block_t*	block = const_cast<block_t*>(find(pos));
-
-		return(reinterpret_cast<Type>(block->begin() + pos));
 	}
 
 	/**
@@ -375,29 +350,6 @@ private:
 	bool has_space(ulint size)
 	{
 		return(back()->m_used + size <= MAX_DATA_SIZE);
-	}
-
-	/** Find the block that contains the pos.
-	@param pos	absolute offset, it is updated to make it relative
-			to the block
-	@return the block containing the pos. */
-	block_t* find(ulint& pos)
-	{
-		ut_ad(!m_list.empty());
-
-		for (list_t::iterator it = m_list.begin(), end = m_list.end();
-		     it != end; ++it) {
-
-			if (pos < it->used()) {
-				ut_ad(it->used() >= pos);
-
-				return &*it;
-			}
-
-			pos -= it->used();
-		}
-
-		return NULL;
 	}
 
 	/**
