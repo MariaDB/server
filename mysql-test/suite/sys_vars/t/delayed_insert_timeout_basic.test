@@ -95,7 +95,7 @@ SELECT @@global.delayed_insert_timeout;
 
 --Error 1229
 SET @@session.delayed_insert_timeout = 0;
---Error 1193
+--Error ER_UNKNOWN_SYSTEM_VARIABLE_SUGGESTION
 SELECT @@session.dalayed_insert_timeout;
 
 --echo '#----------------------FN_DYNVARS_025_06------------------------#'

@@ -1,4 +1,4 @@
---error ER_UNKNOWN_SYSTEM_VARIABLE
+--error ER_UNKNOWN_SYSTEM_VARIABLE,ER_UNKNOWN_SYSTEM_VARIABLE_SUGGESTION
 set global log_bin_trust_routine_creators=1;
 --error ER_UNKNOWN_SYSTEM_VARIABLE
 set table_type='MyISAM';

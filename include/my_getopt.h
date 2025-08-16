@@ -130,6 +130,7 @@ longlong getopt_ll_limit_value(longlong, const struct my_option *,
                                my_bool *fix);
 double getopt_double_limit_value(double num, const struct my_option *optp,
                                  my_bool *fix);
+unsigned int levenshtein_distance(const char *s1, const char *s2);
 
 ulonglong getopt_double2ulonglong(double);
 double getopt_ulonglong2double(ulonglong);
