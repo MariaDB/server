@@ -41,6 +41,9 @@
 #include <mysql/plugin_function.h>
 #include "sql_plugin_compat.h"
 #include "wsrep_mysqld.h"
+#include <vector>
+#include <algorithm>
+#include <string>
 
 static PSI_memory_key key_memory_plugin_mem_root;
 static PSI_memory_key key_memory_plugin_int_mem_root;
@@ -2949,6 +2952,78 @@ static void update_func_double(THD *thd, struct st_mysql_sys_var *var,
   System Variables support
 ****************************************************************************/
 
+
+std::tuple<std::vector<std::string>, size_t> get_option_names(THD *thd)
+{
+  size_t max_length = 0;
+  enum_var_type m_query_scope= SHOW_OPT_SESSION;
+  SHOW_VAR *vars= enumerate_sys_vars(thd, true, m_query_scope);
+  std::vector<std::string> names;
+  for (SHOW_VAR *v = vars; v->name != nullptr; v++) {
+    names.push_back(v->name);
+    max_length = std::max(max_length, strlen(v->name));
+  }
+
+  return {names, max_length};
+}
+
+std::tuple<std::string, uint32_t> find_closest_match(THD* thd, 
+                                                    const std::string& str) {
+  auto [option_names, max_len] = get_option_names(thd);
+  if (option_names.empty())
+      return {"", INT_MAX};
+
+  // Don't find closest match for long string, because Levenshtein distance 
+  // algorithm will create O(n^2) space. Limit the size of string to avoid  
+  // using too much space.
+  std::string truncated_str = str.substr(0, std::min(str.size(), max_len));
+  
+  uint32_t min_distance = INT_MAX;
+  std::string closest_match = option_names[0];
+
+  for (const auto& option : option_names) {
+    uint32_t distance = levenshtein_distance(option.c_str(), 
+                                            truncated_str.c_str());
+    if (distance < min_distance) {
+      min_distance = distance;
+      closest_match = option;
+    }
+  }
+  return {closest_match, min_distance};
+}
+
+// Find the first occurrence of either a half-width comma (","),
+// a full-width comma ("，"), or a Japanese period ("。") in a string.
+// Returns a pointer to the first matching character, or NULL if none are found.
+const char* find_first_comma(const char *str) {
+  if (!str) return NULL;
+
+  const char *comma_half = strchr(str, ',');    // Half-width comma
+  const char *comma_full = strstr(str, "，");   // Full-width comma
+  const char *period_jp  = strstr(str, "。");   // Japanese period
+
+  const char *result = NULL;
+
+  if (comma_half && (!result || comma_half < result)) result = comma_half;
+  if (comma_full && (!result || comma_full < result)) result = comma_full;
+  if (period_jp  && (!result || period_jp  < result)) result = period_jp;
+
+  return result;
+}
+
+char *substring_until_comma(const char *str) {
+    const char *pos = find_first_comma(str);
+    size_t len = (pos != NULL) ? static_cast<size_t> (pos - str) : strlen(str);
+
+    char *result = (char *)malloc(len + 1);
+    if (!result) return NULL;
+
+    strncpy(result, str, len);
+    result[len] = '\0';
+    return result;
+}
+
+
 sys_var *find_sys_var(THD *thd, const char *str, size_t length,
                       bool throw_error)
 {
@@ -2970,8 +3045,33 @@ sys_var *find_sys_var(THD *thd, const char *str, size_t length,
   mysql_prlock_unlock(&LOCK_system_variables_hash);
 
   if (unlikely(!throw_error && !var))
-    my_error(ER_UNKNOWN_SYSTEM_VARIABLE, MYF(0),
-             (int) (length ? length : strlen(str)), (char*) str);
+  {
+    auto [closest_match, min_dis] = find_closest_match(thd, str);
+    // Set the threadshold to 0.3, because during the test we found out the 
+    // suggestion given by the calculation is not useful sometimes, especially 
+    // when user's input is very random, not relevant to any existing variables.
+    // Set it to 0.3 because it generally means 30% of the input variable is 
+    // different than the closest. The suggestion is only given when user's 
+    // input is close to any correct variable.
+    const char *format = my_get_err_msg(ER_UNKNOWN_SYSTEM_VARIABLE);
+
+    // When format is not found, still use old my_error to throw "Unknown error" 
+    // message
+    if (static_cast<double>(min_dis) / strlen(str) <= 0.3 || !format)
+    {
+      // Variable suggestion is useful
+      my_error(ER_UNKNOWN_SYSTEM_VARIABLE, MYF(0),
+              length ? length : strlen(str), str, 
+              closest_match.length(), closest_match.c_str());
+    }
+    else
+    {
+      // Variable suggesion is not useful
+      const char *non_verbose_format = substring_until_comma(format);
+      my_printf_error(ER_UNKNOWN_SYSTEM_VARIABLE, non_verbose_format, MYF(0),
+                      length ? length : strlen(str), str);
+    }
+  }
   DBUG_RETURN(var);
 }
 

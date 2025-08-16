@@ -45,6 +45,7 @@ extern ulong dlopen_count;
 
 #include <my_sys.h>
 #include "sql_list.h"
+#include <cstdint>
 
 #ifdef DBUG_OFF
 #define plugin_ref_to_int(A) A
@@ -186,7 +187,15 @@ void plugin_opt_set_limits(struct my_option *, const struct st_mysql_sys_var *);
 extern SHOW_COMP_OPTION plugin_status(const char *name, size_t len, int type);
 extern bool check_valid_path(const char *path, size_t length);
 extern void plugin_mutex_init();
+#ifdef __cplusplus
+extern "C" {
+#endif
 
+extern uint32_t levenshtein_distance(const char *s1, const char *s2);
+
+#ifdef __cplusplus
+}
+#endif
 typedef my_bool (plugin_foreach_func)(THD *thd,
                                       plugin_ref plugin,
                                       void *arg);

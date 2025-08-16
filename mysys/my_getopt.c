@@ -23,6 +23,7 @@
 #include <mysys_err.h>
 #include <my_getopt.h>
 #include <errno.h>
+#include <stdint.h>
 
 my_bool is_file_marker(const char* arg);
 typedef void (*init_func_p)(const struct my_option *option, void *variable,
@@ -200,6 +201,154 @@ void warn_deprecated(const struct my_option *optp)
   }
 }
 
+// Functions and structures to find the closest options when an unknown variable is found.
+typedef struct {
+    char **names;       // array of option names
+    size_t count;       // number of names
+    size_t max_length;  // longest name length
+} OptionNames;
+
+typedef struct {
+    char *name;       // closest option name
+    size_t distance;  // Levenstein distance to the input option
+} ClosestMatch;
+
+// Options in the optp variable are separated by "-". However, options can only 
+// use "_". Replace them with "_" to get more precise Levenshtein distance 
+// calculation.
+char *replace_dash_with_underscore(const char *str) {
+    size_t len = 0;
+    char *result = NULL;
+    if (!str) return NULL;
+    len = strlen(str);
+    result = malloc(len + 1);
+    if (!result) return NULL;
+
+    for (size_t i = 0; i < len; i++) {
+        result[i] = (str[i] == '-') ? '_' : str[i];
+    }
+    result[len] = '\0';
+
+    return result;
+}
+
+OptionNames get_option_names(const struct my_option *optp) {
+  const struct my_option *opt;
+  size_t i = 0;
+  OptionNames result;
+  result.count = 0;
+  result.max_length = 0;
+  result.names = NULL;
+
+  // Get length of opt names.
+  for (opt = optp; opt->name != NULL; opt++) {
+    size_t len = strlen(opt->name);
+    result.count++;
+    if (len > result.max_length)
+      result.max_length = len;
+  }
+
+  result.names = (char **)malloc((result.count + 1) * sizeof(char *));
+  if (!result.names) {
+    result.count = 0;
+    result.max_length = 0;
+    return result;
+  }
+
+  for (opt = optp; opt->name != NULL; opt++) {
+    result.names[i] = strdup(opt->name);
+    i++;
+  }
+  result.names[i] = NULL;
+  return result;
+}
+
+uint32_t levenshtein_distance(const char *s1, const char *s2) {
+  size_t len1 = strlen(s1);
+  size_t len2 = strlen(s2);
+  uint32_t res = 0;
+
+  uint32_t **dp = (uint32_t **)malloc((len1 + 1) * sizeof(uint32_t *));
+  for (uint32_t i = 0; i <= len1; i++) {
+    dp[i] = (uint32_t *)malloc((len2 + 1) * sizeof(uint32_t));
+  }
+
+  for (uint32_t i = 0; i <= len1; i++) dp[i][0] = i;
+  for (uint32_t j = 0; j <= len2; j++) dp[0][j] = j;
+
+  for (uint32_t i = 1; i <= len1; i++) {
+    for (uint32_t j = 1; j <= len2; j++) {
+      if (s1[i - 1] == s2[j - 1]) {
+        dp[i][j] = dp[i - 1][j - 1];
+      } else {
+        uint32_t min = dp[i - 1][j];
+        if (dp[i][j - 1] < min) min = dp[i][j - 1];
+        if (dp[i - 1][j - 1] < min) min = dp[i - 1][j - 1];
+        dp[i][j] = 1 + min;
+      }
+    }
+  }
+
+  res = dp[len1][len2];
+
+  for (uint32_t i = 0; i <= len1; i++) free(dp[i]);
+  free(dp);
+
+  return res;
+}
+
+
+// Avoid using strndup here because Windows environment doesn't have this definition
+char *truncate_copy(const char *s, size_t n) {
+    size_t len = strnlen(s, n);
+    char *new_str = malloc(len + 1);
+    if (!new_str) return NULL;
+    memcpy(new_str, s, len);
+    new_str[len] = '\0';
+    return new_str;
+}
+
+
+ClosestMatch find_closest_match(const struct my_option *optp, const char *str) {
+  OptionNames opts = get_option_names(optp);
+  size_t str_len = 0;
+  size_t truncate_len = 0;
+  ClosestMatch result = {NULL, INT32_MAX};
+
+  if (opts.count == 0) return (ClosestMatch) {NULL, INT32_MAX};
+
+  // Don't find closest match for long string, because Levenshtein distance 
+  // algorithm will create O(n^2) space. Limit the size of string to avoid using 
+  // too much space.
+  str_len = strlen(str);
+  truncate_len = str_len < opts.max_length ? str_len : opts.max_length;
+
+  for (size_t i = 0; i < opts.count; i++) {
+    char *truncated = truncate_copy(str, truncate_len);
+    char *replaced_option = replace_dash_with_underscore(opts.names[i]);
+    size_t dist = levenshtein_distance(replaced_option, truncated);
+    free(replaced_option);
+    free(truncated);
+
+    if (dist < result.distance) {
+      result.name = opts.names[i];
+      result.distance = dist;
+    }
+  }
+
+  // Duplicate result name before cleanup to avoid being cleaned
+  if (result.name) {
+    result.name = strdup(result.name);
+  }
+
+  for (size_t i = 0; i < opts.count; i++) {
+    free(opts.names[i]);
+  }
+  free(opts.names);
+
+  return result;
+}
+
 /**
   Handle command line options.
   Sort options.
@@ -258,6 +407,13 @@ void warn_deprecated(const struct my_option *optp)
   @return error in case of ambiguous or unknown options,
           0 on success.
 */
+
+// Global variables for finding the closest match of given option.
+// Use Global variable because option matching goes through several
+// rounds. We should find the closest match of all rounds.
+static ClosestMatch closest_match = {NULL, INT_MAX32};
+static ClosestMatch cur_match = {NULL, INT_MAX32};
+
 int handle_options(int *argc, char ***argv, const struct my_option *longopts,
                    my_get_one_option get_one_option)
 {
@@ -401,6 +557,12 @@ int handle_options(int *argc, char ***argv, const struct my_option *longopts,
 	  }
 	  if (!opt_found)
 	  {
+      // There are several rounds of comparisons. Choose the closest one.
+      cur_match = find_closest_match(optp, cur_arg);
+      if (cur_match.distance < closest_match.distance) {
+        closest_match.distance = cur_match.distance;
+        closest_match.name = cur_match.name;
+      }
             if (my_getopt_skip_unknown)
             {
               /* Preserve all the components of this unknown option. */
@@ -412,10 +574,32 @@ int handle_options(int *argc, char ***argv, const struct my_option *longopts,
 	    if (must_be_var)
 	    {
 	      if (my_getopt_print_errors)
-                my_getopt_error_reporter(option_is_loose ? 
-                                           WARNING_LEVEL : ERROR_LEVEL,
-                                         "%s: unknown variable '%s'",
-                                         my_progname, cur_arg);
+        {
+          // Set the threadshold to 0.3, because during the test we found out 
+          // the suggestion given by the calculation is not useful sometimes, 
+          // especially when user's input is very random, not relevant to any
+          // existing variables.
+          // Set it to 0.3 because it generally means 30% of the input variable 
+          // is different than the closest. The suggestion is only given when 
+          // user's input is close to any correct variable.
+          if (closest_match.name && (double) closest_match.distance / 
+              strlen(cur_arg) <= 0.3)
+          {
+            char *replaced_option = replace_dash_with_underscore(closest_match.name);
+            my_getopt_error_reporter(option_is_loose ? 
+                                      WARNING_LEVEL : ERROR_LEVEL,
+                                      "%s: unknown variable '%s', do you mean '%s'?",
+                                      my_progname, cur_arg, replaced_option);
+            free(replaced_option);
+            closest_match = (ClosestMatch) {NULL, INT_MAX32};
+            cur_match = (ClosestMatch) {NULL, INT_MAX32};
+          }
+          else
+            my_getopt_error_reporter(option_is_loose ? 
+                                    WARNING_LEVEL : ERROR_LEVEL,
+                                    "%s: unknown variable '%s'", 
+                                    my_progname, cur_arg);
+        }
 	      if (!option_is_loose)
 		SET_HO_ERROR_AND_CONTINUE(EXIT_UNKNOWN_VARIABLE)
 	    }
