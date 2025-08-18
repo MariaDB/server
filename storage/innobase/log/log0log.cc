@@ -928,6 +928,7 @@ void log_t::persist(lsn_t lsn) noexcept
 
   if (old >= lsn)
     return;
+  arch_sys->log_sys()->wait_archiver(lsn);
 
   const size_t start(calc_lsn_offset(old));
   const size_t end(calc_lsn_offset(lsn));
@@ -951,6 +952,7 @@ void log_t::persist(lsn_t lsn) noexcept
   base_lsn.store(new_base_lsn, std::memory_order_release);
   flushed_to_disk_lsn.store(lsn, std::memory_order_relaxed);
   log_flush_notify(lsn);
+  arch_sys->signal_archiver();
   DBUG_EXECUTE_IF("crash_after_log_write_upto", DBUG_SUICIDE(););
 }
 
@@ -1118,6 +1120,7 @@ lsn_t log_t::write_buf() noexcept
       service_manager_extend_timeout(INNODB_EXTEND_TIMEOUT_INTERVAL,
                                      "InnoDB log write: " LSN_PF, write_lsn);
     }
+    arch_sys->signal_archiver();
   }
 
   set_check_for_checkpoint(false);
