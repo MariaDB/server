@@ -241,6 +241,7 @@ create user mysqltest1 identified via mysql_native_password as password("good") 
 grant select on test.* to mysqltest1;
 show create user mysqltest1;
 --echo #name match, no password = not ok
+--replace_result $USER USER
 --error 1
 --exec $try_auth -u $USER
 --echo # name does not match, password good = not ok
@@ -273,4 +274,11 @@ alter user mysqltest1 identified via mysql_native_password as password("better")
 show create user mysqltest1;
 flush privileges;
 show create user mysqltest1;
+alter user mysqltest1 identified via mysql_native_password as password("better") AND unix_socket;
+flush privileges;
+show create user mysqltest1;
+alter user mysqltest1 identified via mysql_native_password as password("better");
+flush privileges;
+show create user mysqltest1;
+
 drop user mysqltest1;

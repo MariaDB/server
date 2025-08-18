@@ -214,7 +214,7 @@ show create user mysqltest1;
 CREATE USER for mysqltest1@%
 CREATE USER `mysqltest1`@`%` IDENTIFIED VIA mysql_native_password USING '*8409037B3E362D6DAE24C8E667F4D3B66716144E' AND unix_socket
 #name match, no password = not ok
-mysqltest: Could not open connection 'default': 1045 Access denied for user 'wlad'@'localhost' (using password: NO)
+mysqltest: Could not open connection 'default': 1045 Access denied for user 'USER'@'localhost' (using password: NO)
 # name does not match, password good = not ok
 mysqltest: Could not open connection 'default': 1698 Access denied for user 'mysqltest1'@'localhost'
 #name match, password good = ok
@@ -237,6 +237,16 @@ alter user mysqltest1 identified via mysql_native_password as password("better")
 show create user mysqltest1;
 CREATE USER for mysqltest1@%
 CREATE USER `mysqltest1`@`%` IDENTIFIED BY PASSWORD '*6E6CABC9967AB586F009616BA69DAC2953849C88'
+flush privileges;
+show create user mysqltest1;
+CREATE USER for mysqltest1@%
+CREATE USER `mysqltest1`@`%` IDENTIFIED BY PASSWORD '*6E6CABC9967AB586F009616BA69DAC2953849C88'
+alter user mysqltest1 identified via mysql_native_password as password("better") AND unix_socket;
+flush privileges;
+show create user mysqltest1;
+CREATE USER for mysqltest1@%
+CREATE USER `mysqltest1`@`%` IDENTIFIED VIA mysql_native_password USING '*6E6CABC9967AB586F009616BA69DAC2953849C88' AND unix_socket
+alter user mysqltest1 identified via mysql_native_password as password("better");
 flush privileges;
 show create user mysqltest1;
 CREATE USER for mysqltest1@%
