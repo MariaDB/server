@@ -2812,7 +2812,7 @@ ignore_block:
 ignore_unfixed:
 			ut_ad(mode == BUF_GET_POSSIBLY_FREED
 			      || mode == BUF_PEEK_IF_IN_POOL);
-			if (err) {
+			if (err && mode != BUF_GET_POSSIBLY_FREED) {
 				*err = DB_CORRUPTION;
 			}
 			return nullptr;

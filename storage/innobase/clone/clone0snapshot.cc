@@ -816,6 +816,7 @@ int Clone_Snapshot::get_page_for_write(const page_id_t &page_id,
       return 0;
     }
     /* In case of corruption, return error */
+    my_error(ER_INTERNAL_ERROR, MYF(0), "Innodb Clone Corrupt Page");
     return ER_INTERNAL_ERROR;
   }
   auto bpage = &block->page;
