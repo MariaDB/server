@@ -324,7 +324,7 @@ IF (ENABLE_GCOV)
   IF (CMAKE_CXX_COMPILER_ID STREQUAL "AppleClang")
     MY_CHECK_AND_SET_COMPILER_FLAG("--coverage" DEBUG)
   ELSE()
-    MY_CHECK_AND_SET_COMPILER_FLAG("-DHAVE_gcov -fprofile-arcs -ftest-coverage -lgcov" DEBUG)
+    MY_CHECK_AND_SET_COMPILER_FLAG("-DHAVE_gcov -fprofile-arcs -ftest-coverage -fprofile-update=atomic -lgcov" DEBUG)
   ENDIF()
 ENDIF()
 
