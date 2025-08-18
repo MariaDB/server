@@ -205,6 +205,29 @@ select user(), current_user(), database();
 user()	current_user()	database()
 mysqltest1@localhost	mysqltest1@%	test
 drop user mysqltest1;
+# MFA password, socket
+create user 'USER'         identified via mysql_native_password as password("GOOD") AND unix_socket;
+grant select on test.* to 'USER' ;
+create user mysqltest1 identified via mysql_native_password as password("good") AND unix_socket;
+grant select on test.* to mysqltest1;
+show create user mysqltest1;
+CREATE USER for mysqltest1@%
+CREATE USER `mysqltest1`@`%` IDENTIFIED VIA mysql_native_password USING '*8409037B3E362D6DAE24C8E667F4D3B66716144E' AND unix_socket
+#name match, no password = not ok
+mysqltest: Could not open connection 'default': 1045 Access denied for user 'wlad'@'localhost' (using password: NO)
+# name does not match, password good = not ok
+mysqltest: Could not open connection 'default': 1698 Access denied for user 'mysqltest1'@'localhost'
+#name match, password good = ok
+select user(), current_user(), database();
+user()	current_user()	database()
+USER@localhost	USER@%	test
+drop user 'USER', mysqltest1;
+create user 'USER' identified via unix_socket AND ed25519 as password("GOOD");
+#name match, password match = ok
+connect  con1,localhost,$USER,GOOD;
+disconnect con1;
+connection default;
+drop user 'USER';
 uninstall soname 'auth_ed25519';
 create user mysqltest1 identified via mysql_native_password as password("good") OR unix_socket;
 show create user mysqltest1;
