@@ -1,0 +1,30 @@
+--source include/big_test.inc
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+--source include/have_mariabackup.inc
+
+# Save original auto_increment_offset values.
+--let $node_1=node_1
+--let $node_2=node_2
+--source include/auto_increment_offset_save.inc
+
+--source suite/galera/include/galera_st_shutdown_slave.inc
+--source suite/galera/include/galera_st_clean_slave.inc
+
+--source suite/galera/include/galera_st_kill_slave.inc
+--source suite/galera/include/galera_st_kill_slave_ddl.inc
+
+# Restore original auto_increment_offset values.
+--source include/auto_increment_offset_restore.inc
+
+--let $assert_text = Creating temporary directory for SST:
+--let $assert_select = Creating temporary directory for SST:
+--let $assert_count = 2
+if (`select version() like '%debug%'`)
+{
+   --let $assert_count = 3
+}
+--let $assert_file = $MYSQLTEST_VARDIR/log/mysqld.2.err
+--source include/assert_grep.inc
+
+--source include/galera_end.inc

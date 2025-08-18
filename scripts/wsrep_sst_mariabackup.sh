@@ -84,6 +84,8 @@ STATDIR=""
 tmpopts=""
 itmpdir=""
 xtmpdir=""
+sstdirtype=0
+sstdir=""
 
 scomp=""
 sdecomp=""
@@ -728,6 +730,7 @@ cleanup_at_exit()
 
     if [ "$WSREP_SST_OPT_ROLE" = 'joiner' ]; then
         [ -n "$STATDIR" -a -d "$STATDIR" ] && rm -rf "$STATDIR" || :
+        [ $sstdirtype -ne 0 -a -d "$sstdir" ] && rm -rf "$sstdir" || :
     else
         [ -n "$xtmpdir" -a -d "$xtmpdir" ] && rm -rf "$xtmpdir" || :
         [ -n "$itmpdir" -a -d "$itmpdir" ] && rm -rf "$itmpdir" || :
@@ -1315,17 +1318,42 @@ else # joiner
             fi
         fi
 
-        if [ -d "$DATA/.sst" ]; then
-            wsrep_log_info \
-                "WARNING: Stale temporary SST directory:" \
-                "'$DATA/.sst' from previous state transfer, removing..."
-            rm -rf "$DATA/.sst"
-        fi
-        mkdir -p "$DATA/.sst"
-        (recv_joiner "$DATA/.sst" "$stagemsg-SST" 0 0 0) &
-        BACKUP_PID=$!
-        wsrep_log_info "Proceeding with SST"
+        sstdir=$(parse_cnf 'sst' 'sstdir')
+        [ -n "$sstdir" ] && sstdir=$(trim_dir "$sstdir")
 
+        if [ -z "$sstdir" ]; then
+            sstdir="$DATA/.sst"
+            wsrep_log_info "Use default directory for SST: '$sstdir'"
+        else
+            sstdirlow=$(echo "$sstdir" | tr '[[:upper:]]' '[[:lower:]]')
+            if [ "$sstdirlow" = 'mktemp' ]; then
+                tmpdir=$(parse_cnf "$encgroups" 'tmpdir')
+                if [ -z "$tmpdir" ]; then
+                    sstdir="$(mktemp -d)"
+                elif [ "$OS" = 'Linux' ]; then
+                    sstdir=$(mktemp -d "--tmpdir=$tmpdir")
+                else
+                    sstdir=$(TMPDIR="$tmpdir"; mktemp -d)
+                fi
+                sstdirtype=1
+                wsrep_log_info "Creating temporary directory for SST: '$sstdir'"
+            else
+                wsrep_log_info "Use user-specified directory for SST: '$sstdir'"
+            fi
+        fi
+
+        if [ $sstdirtype -eq 0 ]; then
+            if [ -d "$sstdir" ]; then
+                wsrep_log_info \
+                    "WARNING: Stale temporary SST directory:" \
+                    "'$sstdir' from previous state transfer, removing..."
+                rm -rf "$sstdir"
+            fi
+            mkdir -p "$sstdir"
+        fi
+
+delete_current()
+{
         get_binlog
 
         if [ -n "$WSREP_SST_OPT_BINLOG" ]; then
@@ -1375,13 +1403,42 @@ else # joiner
         [ -f "$DATA/xtrabackup_binlog_info" ] && rm -f "$DATA/xtrabackup_binlog_info"
         [ -f "$DATA/xtrabackup_binlog_pos_innodb" ] && rm -f "$DATA/xtrabackup_binlog_pos_innodb"
 
+        return 0
+}
+
+        cleaning=$(parse_cnf 'sst' 'cleaning')
+        if [ -n "$cleaning" ]; then
+            cleaning=$(echo "$cleaning" | tr '[[:upper:]]' '[[:lower:]]')
+        fi
+
+        if [ "$cleaning" = 'before' ]; then
+            wsrep_log_info "Cleaning current state before SST..."
+            delete_current
+        fi
+
+        (recv_joiner "$sstdir" "$stagemsg-SST" 0 0 0) &
+        BACKUP_PID=$!
+        wsrep_log_info "Proceeding with SST"
+
+        if [ -z "$cleaning" -o "$cleaning" = 'parallel' ]; then
+            wsrep_log_info "Cleaning current state in parallel with SST..."
+            delete_current
+        fi
+
         TDATA="$DATA"
-        DATA="$DATA/.sst"
+        DATA="$sstdir"
         MAGIC_FILE="$DATA/$INFO_FILE"
 
         wsrep_log_info "Waiting for SST streaming to complete!"
         monitor_process $BACKUP_PID
         BACKUP_PID=""
+
+        if [ "$cleaning" = 'after' ]; then
+            wsrep_log_info "Cleaning current state after SST..."
+            DATA="$TDATA"
+            delete_current
+            DATA="$sstdir"
+        fi
 
         if [ ! -s "$DATA/xtrabackup_checkpoints" ]; then
             wsrep_log_error "xtrabackup_checkpoints missing," \

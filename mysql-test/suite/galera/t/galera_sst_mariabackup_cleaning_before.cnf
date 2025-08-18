@@ -1,0 +1,4 @@
+!include galera_sst_mariabackup.cnf
+
+[sst]
+cleaning=before

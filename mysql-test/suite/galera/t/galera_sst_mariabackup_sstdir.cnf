@@ -1,0 +1,4 @@
+!include galera_sst_mariabackup.cnf
+
+[sst]
+sstdir=../sst-temp-dir
