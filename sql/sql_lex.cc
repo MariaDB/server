@@ -3043,15 +3043,20 @@ void st_select_lex::init_query()
   cond_count= between_count= with_wild= 0;
   max_equal_elems= 0;
   ref_pointer_array.reset();
+  save_ref_ptrs.reset();
   select_n_where_fields= 0;
   order_group_num= 0;
   select_n_reserved= 0;
+  select_n_eq= 0;
   select_n_having_items= 0;
   n_sum_items= 0;
   n_child_sum_items= 0;
+  card_of_ref_ptrs_slice= 0;
   hidden_bit_fields= 0;
   fields_in_window_functions= 0;
   changed_elements= 0;
+  save_uncacheable= 0;
+  save_master_uncacheable= 0;
   parsing_place= NO_MATTER;
   save_parsing_place= NO_MATTER;
   context_analysis_place= NO_MATTER;
@@ -3060,6 +3065,7 @@ void st_select_lex::init_query()
   prep_leaf_list_state= UNINIT;
   bzero((char*) expr_cache_may_be_used, sizeof(expr_cache_may_be_used));
   select_list_tables= 0;
+  merged_into= 0;
   rownum_in_field_list= 0;
 
   window_specs.empty();
@@ -3069,6 +3075,7 @@ void st_select_lex::init_query()
   versioned_tables= 0;
   pushdown_select= 0;
   orig_names_of_item_list_elems= 0;
+  outer_references_resolved_here.empty();
 }
 
 void st_select_lex::init_select()
@@ -3121,6 +3128,8 @@ void st_select_lex::init_select()
   is_tvc_wrapper= false;
   nest_flags= 0;
   orig_names_of_item_list_elems= 0;
+  fields_added_by_fix_inner_refs= 0;
+  outer_references_resolved_here.empty();
 }
 
 /*
@@ -3348,6 +3357,18 @@ void st_select_lex_unit::exclude_level()
     SELECT_LEX_UNIT **last= 0;
     for (SELECT_LEX_UNIT *u= sl->first_inner_unit(); u; u= u->next_unit())
     {
+      for (SELECT_LEX *inner_sel= u->first_select();
+           inner_sel; inner_sel= inner_sel->next_select())
+      {
+        for (SELECT_LEX *s= u->first_select(); s; s= s->next_select())
+        {
+          if (&sl->context == inner_sel->context.outer_context)
+            inner_sel->context.outer_context = &sl->outer_select()->context;
+        }
+      }
+      if (u->fake_select_lex &&
+          u->fake_select_lex->context.outer_context == &sl->context)
+        u->fake_select_lex->context.outer_context= &sl->outer_select()->context;
       u->master= master;
       last= (SELECT_LEX_UNIT**)&(u->next);
     }
@@ -3425,6 +3446,8 @@ bool st_select_lex::mark_as_dependent(THD *thd, st_select_lex *last,
 
   DBUG_ASSERT(this != last);
 
+  if (dependency)
+    last->add_outer_reference_resolved_here(thd, dependency);
   /*
     Mark all selects from resolved to 1 before select where was
     found table as depended (of select where was found table)
@@ -3608,6 +3631,8 @@ List<Item>* st_select_lex::get_item_list()
 
 uint st_select_lex::get_cardinality_of_ref_ptrs_slice(uint order_group_num_arg)
 {
+  if (card_of_ref_ptrs_slice)
+    return card_of_ref_ptrs_slice;
   if (!((options & SELECT_DISTINCT) && !group_list.elements))
     hidden_bit_fields= 0;
 
@@ -3627,20 +3652,23 @@ uint st_select_lex::get_cardinality_of_ref_ptrs_slice(uint order_group_num_arg)
           order_group_num * 2 +
           hidden_bit_fields +
           fields_in_window_functions;
+  card_of_ref_ptrs_slice= n;
   return n;
 }
 
 
-bool st_select_lex::setup_ref_array(THD *thd, uint order_group_num)
+static
+bool setup_ref_ptrs_array(THD *thd, Ref_ptr_array *ref_ptrs, uint n_elems)
 {
-  uint n_elems= get_cardinality_of_ref_ptrs_slice(order_group_num) * 5;
-  if (!ref_pointer_array.is_null())
-    return false;
-
+  if (!ref_ptrs->is_null())
+  {
+    if (ref_ptrs->size() >= n_elems)
+      return false;
+  }
   Item **array= static_cast<Item**>(
     thd->active_stmt_arena_to_use()->calloc(sizeof(Item*) * n_elems));
   if (likely(array != NULL))
-    ref_pointer_array= Ref_ptr_array(array, n_elems);
+    *ref_ptrs= Ref_ptr_array(array, n_elems);
   return array == NULL;
 }
 
@@ -3748,6 +3776,44 @@ void LEX::print(String *str, enum_query_type query_type)
   else
     DBUG_ASSERT(0); // Not implemented yet
 }
+
+
+bool st_select_lex::setup_ref_array(THD *thd, uint order_group_num)
+{
+  /*
+    We have to create array in prepared statement memory if it is a
+    prepared statement
+  */
+  uint slice_card= (thd->stmt_arena->state != Query_arena::STMT_EXECUTED) ?
+                    get_cardinality_of_ref_ptrs_slice(order_group_num) :
+                    card_of_ref_ptrs_slice;
+  uint n_elems= slice_card * 5;
+  DBUG_ASSERT(n_elems % 5 == 0);
+  return setup_ref_ptrs_array(thd, &ref_pointer_array, n_elems);
+}
+
+
+bool st_select_lex::save_ref_ptrs_after_persistent_rewrites(THD *thd)
+{
+  uint n_elems= card_of_ref_ptrs_slice;
+  if (setup_ref_ptrs_array(thd, &save_ref_ptrs, n_elems))
+    return true;
+  if (!ref_pointer_array.is_null())
+    join->copy_ref_ptr_array(save_ref_ptrs, join->ref_ptr_array_slice(0));
+  return false;
+}
+
+
+bool st_select_lex::save_ref_ptrs_if_needed(THD *thd)
+{
+  if (thd->is_first_query_execution())
+  {
+    if (save_ref_ptrs_after_persistent_rewrites(thd))
+      return true;
+  }
+  return false;
+}
+
 
 void st_select_lex_unit::print(String *str, enum_query_type query_type)
 {
@@ -5235,6 +5301,12 @@ void st_select_lex::remap_tables(TABLE_LIST *derived, table_map map,
   }
 }
 
+
+extern
+void remove_outer_references_to(List<Item_ident>*list,
+                                 SELECT_LEX *remove_me);
+
+
 /**
   @brief
   Merge a subquery into this select.
@@ -5300,7 +5372,62 @@ bool SELECT_LEX::merge_subquery(THD *thd, TABLE_LIST *derived,
   /* Walk through child's tables and adjust table map, tablenr,
    * parent_lex */
   subq_select->remap_tables(derived, map, table_no, this);
+
+  /*
+    We rely on nest_level_base being the same within everything inside
+    this->unit.  Now that we have merged subq_select into this select,
+    we need to walk into subq_select, correcting this for all enclosed
+    select_lex
+  */
+  nest_updater update;
+  update.inc= nest_level;
+  update.base= nest_level_base;
+
+  if (subq_select->nest_level_base != nest_level_base)
+  {
+    subq_select->nest_level_base= nest_level_base;
+    subq_select->nest_level+= nest_level;
+  }
+  List_iterator_fast<Item> it(subq_select->item_list);
+  Item *item;
+  ORDER *order;
+  while ((item= it++))
+    item->walk(&Item::select_update_base_processor, TRUE, (void*) &update);
+
+  if (subq_select->where)
+    subq_select->where->walk(&Item::select_update_base_processor, TRUE,
+                             (void*) &update);
+
+  if (subq_select->having)
+    subq_select->having->walk(&Item::select_update_base_processor, TRUE,
+                              (void*) &update);
+
+  for (order= subq_select->order_list.first ; order; order= order->next)
+    (*order->item)->walk(&Item::select_update_base_processor, TRUE,
+                         (void*) &update);
+
+  for (order= subq_select->group_list.first ; order; order= order->next)
+    (*order->item)->walk(&Item::select_update_base_processor, TRUE,
+                         (void*) &update);
+
+  // walk_items_for_table_list ???
+
   subq_select->merged_into= this;
+
+  /*
+    References in this->outer_references_resolved_here that are resolved in
+    subq_select need to be removed as they are no longer outer references
+  */
+  remove_outer_references_to(&this->outer_references_resolved_here, subq_select);
+  if (subq_select->outer_references_resolved_here.elements)
+  {
+    DBUG_PRINT("info",
+        ("shifting outer_references_resolved_here from select #%d to #%d",
+          subq_select->select_number,
+          this->select_number) );
+    this->outer_references_resolved_here.append(
+                                  &subq_select->outer_references_resolved_here);
+  }
 
   replace_leaf_table(derived, subq_select->leaf_tables);
 
@@ -5855,53 +5982,6 @@ void st_select_lex::set_unique_exclude()
   }
 }
 
-
-/*
-  Return true if this select_lex has been converted into a semi-join nest
-  within 'ancestor'.
-
-  We need a loop to check this because there could be several nested
-  subselects, like
-
-    SELECT ... FROM grand_parent 
-      WHERE expr1 IN (SELECT ... FROM parent 
-                        WHERE expr2 IN ( SELECT ... FROM child)
-
-  which were converted into:
-  
-    SELECT ... 
-    FROM grand_parent SEMI_JOIN (parent JOIN child) 
-    WHERE 
-      expr1 AND expr2
-
-  In this case, both parent and child selects were merged into the parent.
-*/
-
-bool st_select_lex::is_merged_child_of(st_select_lex *ancestor)
-{
-  bool all_merged= TRUE;
-  for (SELECT_LEX *sl= this; sl && sl!=ancestor;
-       sl=sl->outer_select())
-  {
-    Item *subs= sl->master_unit()->item;
-    Item_in_subselect *in_subs= (subs ? subs->get_IN_subquery() : NULL);
-    if (in_subs &&
-        ((Item_subselect*)subs)->substype() == Item_subselect::IN_SUBS &&
-        in_subs->test_strategy(SUBS_SEMI_JOIN))
-    {
-      continue;
-    }
-
-    if (sl->master_unit()->derived &&
-      sl->master_unit()->derived->is_merged_derived())
-    {
-      continue;
-    }
-    all_merged= FALSE;
-    break;
-  }
-  return all_merged;
-}
 
 /* 
   This is used by SHOW EXPLAIN|ANALYZE. It assumes query plan has been already
@@ -12310,4 +12390,46 @@ bool SELECT_LEX_UNIT::is_derived_eliminated() const
   if (!derived->table)
     return true;
   return derived->table->map & outer_select()->join->eliminated_tables;
+}
+
+
+/**
+  Add an outer reference to the SELECT_LEX in which it is resolved.
+
+  @param        thd           Thread Handle
+                original      Item on which we are calling fix_outer_field
+                translated    Item that is used to fetch data for results.
+
+  @details
+  Adds an Item pointer to the maintained list of outer references that are
+  resolved in this SELECT_LEX.  We pass in both the item which causes the
+  outer reference (on which fix_outer_field is called) and the result of
+  name resolution on this item.  We need both as we need an item we can call
+  real_item() on to get Field information, as well as contextual information
+  which for an Item_ref will need saving.
+
+  @retval FALSE  no error
+          TRUE   an error occurred
+*/
+
+bool SELECT_LEX::add_outer_reference_resolved_here(THD *thd,
+                                                   Item_ident *dependency)
+{
+  bool ret= FALSE;
+
+  /*
+    Only populate outer reference during either conventional execution or
+    on first execution of a prepared statement/stored procedure
+  */
+  if (thd->stmt_arena->state == Query_arena::STMT_CONVENTIONAL_EXECUTION ||
+      thd->stmt_arena->state == Query_arena::STMT_INITIALIZED_FOR_SP ||
+      thd->stmt_arena->state == Query_arena::STMT_PREPARED)
+  {
+    Query_arena *arena, backup;
+    arena= thd->activate_stmt_arena_if_needed(&backup);
+    ret= outer_references_resolved_here.push_back(dependency, thd->mem_root);
+    if (arena)
+      thd->restore_active_arena(arena, &backup);
+  }
+  return ret;
 }

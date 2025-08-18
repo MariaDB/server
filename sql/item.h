@@ -2277,6 +2277,7 @@ public:
   bool cleanup_excluding_immutables_processor (void *arg);
   virtual bool cleanup_excluding_const_fields_processor (void *arg)
   { return cleanup_processor(arg); }
+  virtual bool select_update_base_processor(void *arg) { return 0; }
   virtual bool collect_item_field_processor(void *arg) { return 0; }
   virtual bool unknown_splocal_processor(void *arg) { return 0; }
   virtual bool collect_outer_ref_processor(void *arg) {return 0; }
@@ -3041,6 +3042,17 @@ public:
   virtual ~Field_enumerator() = default;;             /* purecov: inspected */
   Field_enumerator() = default;                       /* Remove gcc warning */
 };
+
+
+class Field_fixer: public Field_enumerator
+{
+public:
+  table_map used_tables;             /* Collect used_tables here */
+  st_select_lex *select;             /* the select_lex we're confined to */
+  bool not_ready;                    /* if we hit an unfixed field, set this */
+  void visit_field(Item_field *item) override;
+};
+
 
 class Item_string;
 
@@ -8294,6 +8306,7 @@ public:
       if (!copy)
         return 0;
       copy->set_item(clone_item);
+      copy->ref= &copy->m_item;
       return copy;
     }
     return 0;

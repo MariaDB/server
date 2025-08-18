@@ -962,8 +962,13 @@ bool JOIN::transform_max_min_subquery()
   if (!subselect || (subselect->substype() != Item_subselect::ALL_SUBS &&
                      subselect->substype() != Item_subselect::ANY_SUBS))
     DBUG_RETURN(0);
-  DBUG_RETURN(((Item_allany_subselect *) subselect)->
-              transform_into_max_min(this));
+  bool rc= false;
+  Query_arena *arena, backup;
+  arena= thd->activate_stmt_arena_if_needed(&backup);
+  rc= (((Item_allany_subselect *) subselect)->transform_into_max_min(this));
+  if (arena)
+    thd->restore_active_arena(arena, &backup);
+  DBUG_RETURN(rc);
 }
 
 
@@ -1605,6 +1610,38 @@ static void reset_equality_number_for_subq_conds(Item * cond)
   return;
 }
 
+
+/**
+  Remove Item_field elements of list that have been resolved in 'remove'.
+
+  @param     list    A list of item (idents) that contain contextual information
+                        (where they are defined).
+             remove  A SELECT_LEX pointer for items that need to be removed.
+  @details
+  During optimization we can merge two SELECT_LEXs together.  Each SELECT_LEX
+  contains a list of items that are resolved within that select_lex.  Before
+  we merge a query into it's new parent, we need to remove items that are
+  resolved in the new parent, but are defined within the query being merged.
+  This function does that.
+*/
+
+void remove_outer_references_to(List<Item_ident> *list,
+                                SELECT_LEX *remove)
+{
+  if (list)
+  {
+    List_iterator<Item_ident>  it( *list );
+    Item_ident *item;
+
+    while ((item= it++))
+    {
+      if (item->context->select_lex == remove)
+        it.remove();
+    }
+  }
+}
+
+
 /*
   Convert a subquery predicate into a TABLE_LIST semi-join nest
 
@@ -1902,7 +1939,7 @@ static bool convert_subq_to_sj(JOIN *parent_join, Item_in_subselect *subq_pred)
          with thd->change_item_tree
     */
     Item_func_eq *item_eq=
-      new (thd->mem_root) Item_func_eq(thd, left_exp_orig,
+      new (thd->mem_root) Item_func_eq(thd, left_exp,
                                        subq_lex->ref_pointer_array[0]);
     if (!item_eq)
       goto restore_tl_and_exit;
@@ -1960,6 +1997,25 @@ static bool convert_subq_to_sj(JOIN *parent_join, Item_in_subselect *subq_pred)
     item_eq->in_equality_no= 0;
     sj_nest->sj_on_expr= and_items(thd, sj_nest->sj_on_expr, item_eq);
   }
+
+  /*
+    References in parent_lex->outer_references_resolved_here that are
+    resolved in subq_lex need to be removed as they are no longer outer
+    references
+  */
+  remove_outer_references_to(&parent_lex->outer_references_resolved_here,
+                             subq_lex);
+  if (subq_lex->outer_references_resolved_here.elements)
+  {
+    DBUG_PRINT("info",
+          ("shifting outer_references_resolved_here from select #%d to #%d",
+            subq_lex->select_number,
+            parent_lex->select_number));
+    parent_lex->outer_references_resolved_here.
+                              append(&subq_lex->outer_references_resolved_here);
+    subq_lex->outer_references_resolved_here.empty();
+  }
+
   /*
     Fix the created equality and AND
 
@@ -1971,6 +2027,9 @@ static bool convert_subq_to_sj(JOIN *parent_join, Item_in_subselect *subq_pred)
   */
   if (sj_nest->sj_on_expr->fix_fields_if_needed(thd, &sj_nest->sj_on_expr))
     goto restore_tl_and_exit;
+
+  /* We may need this during fix_after_pullout below */
+  subq_lex->merged_into= parent_lex;
 
   /*
     Walk through sj nest's WHERE and ON expressions and call
@@ -6548,6 +6607,10 @@ bool JOIN::choose_subquery_plan(table_map join_tables)
   if (is_in_subquery())
   {
     in_subs= unit->item->get_IN_subquery();
+    if (in_subs->test_set_strategy(SUBS_MAXMIN_INJECTED))
+      return false;
+    if (in_subs->test_set_strategy(SUBS_MAXMIN_ENGINE))
+      return false;
     if (in_subs->create_in_to_exists_cond(this))
       return true;
   }

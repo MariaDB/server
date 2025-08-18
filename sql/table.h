@@ -231,6 +231,25 @@ private:
 
 typedef int (*fast_field_copier)(Field *to, Field *from);
 
+/*
+  This enumeration type is used only by the function find_item_in_list
+  to return the info on how an item has been resolved against a list
+  of possibly aliased items.
+  The item can be resolved:
+   - against an alias name of the list's element (RESOLVED_AGAINST_ALIAS)
+   - against non-aliased field name of the list  (RESOLVED_WITH_NO_ALIAS)
+   - against an aliased field name of the list   (RESOLVED_BEHIND_ALIAS)
+   - ignoring the alias name in cases when SQL requires to ignore aliases
+     (e.g. when the resolved field reference contains a table name or
+     when the resolved item is an expression)   (RESOLVED_IGNORING_ALIAS)
+*/
+enum enum_resolution_type {
+  NOT_RESOLVED=0,
+  RESOLVED_IGNORING_ALIAS,
+  RESOLVED_BEHIND_ALIAS,
+  RESOLVED_WITH_NO_ALIAS,
+  RESOLVED_AGAINST_ALIAS
+};
 
 typedef struct st_order {
   struct st_order *next;
@@ -258,6 +277,10 @@ typedef struct st_order {
   char	 *buff;				/* If tmp-table group */
   table_map used; /* NOTE: the below is only set to 0 but is still used by eq_ref_table */
   table_map depend_map;
+  enum_resolution_type resolution;
+  Item **select_item;
+  Item *view_ref;
+  Field *from_field;
 } ORDER;
 
 /**

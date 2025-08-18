@@ -9341,6 +9341,8 @@ boolean_test:
             $$= (*$2)(0)->create(thd, $1, $3);
             if (unlikely($$ == NULL))
               MYSQL_YYABORT;
+            if ($2 == &comp_eq_creator)
+              Lex->current_select->select_n_eq++;
           }
         | boolean_test comp_op all_or_any '(' subselect ')' %prec '='
           {

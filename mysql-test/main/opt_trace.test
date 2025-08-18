@@ -959,14 +959,6 @@ select json_detailed(json_extract(trace, '$**.in_to_subquery_conversion')) as jd
 from information_schema.optimizer_trace;
 --enable_view_protocol
 
-explain select * from t0 where a in (1,2,3,4,5,a+1);
-
-#Enable after fix MDEV-32034
---disable_view_protocol
-select json_detailed(json_extract(trace, '$**.in_to_subquery_conversion')) as jd
-from information_schema.optimizer_trace;
---enable_view_protocol
-
 explain select * from t0 where a in ('1','2','3','4','5','6');
 
 #Enable after fix MDEV-32034

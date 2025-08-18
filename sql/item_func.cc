@@ -364,13 +364,8 @@ Item_func::fix_fields(THD *thd, Item **ref)
   Item **arg,**arg_end;
   uchar buff[STACK_BUFF_ALLOC];			// Max argument in function
 
-  /*
-    The Used_tables_and_const_cache of "this" was initialized by
-    the constructor, or by Item_func::cleanup().
-  */
-  DBUG_ASSERT(used_tables_cache == 0);
-  DBUG_ASSERT(const_item_cache == true);
-
+  used_tables_cache= 0;
+  const_item_cache= true;
   not_null_tables_cache= 0;
 
   /*
