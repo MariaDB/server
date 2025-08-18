@@ -546,6 +546,13 @@ class Clone_Snapshot {
   @return true if snapshot is for copy */
   bool is_copy() const { return (m_snapshot_handle_type == CLONE_HDL_COPY); }
 
+  /** Get file offset while applying data. Currently, we use a single
+  redo log file during apply and offset is adjusted here.
+  @param[in] index  file index from donor
+  @param[in] offset file offset from donor
+  @return adjusted file offset to write to. */
+  uint64_t get_apply_file_offset(uint32_t index, uint64_t offset);
+
   /** Update file size when file is extended during page copy
   @param[in]    file_index      current file index
   @param[in]    file_size       new file size */

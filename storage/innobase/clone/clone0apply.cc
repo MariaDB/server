@@ -218,6 +218,11 @@ int Clone_Snapshot::handle_existing_file(bool replace, bool undo_file,
                                          uint32_t data_file_index,
                                          const std::string &data_file,
                                          Clone_file_ctx::Extension &extn) {
+  /* We create one single redo log file at index 0. All other file data is
+  appended to it. For all other indexes no duplicate action is needed. */
+  if (redo_file && data_file_index > 0) {
+    return 0;
+  }
   extn = Clone_file_ctx::Extension::NONE;
   /* For undo tablespace, check for duplicate file name. Currently it
   is possible to create multiple undo tablespaces of same name under
@@ -359,7 +364,6 @@ int Clone_Snapshot::build_file_path(const char *data_dir,
   /* Add file name. For redo file use standard name. */
   if (redo_file)
   {
-    /* TODO: Append all data to sinlgle redo log file. */
     /* This is redo file. Use standard name. */
     built_path+= LOG_FILE_NAME;
     return 0;
@@ -1316,6 +1320,9 @@ int Clone_Handle::receive_data(Clone_Task *task, uint64_t offset,
   auto file_ctx = snapshot->get_file_ctx_by_index(task->m_current_file_index);
   auto file_meta = file_ctx->get_file_meta();
 
+  /* For redo log, offset is adjusted for single redo file. */
+  offset = snapshot->get_apply_file_offset(file_meta->m_file_index, offset);
+
   std::string file_name;
   file_ctx->get_file_name(file_name);
 
@@ -1553,6 +1560,21 @@ int Clone_Handle::restart_apply(THD *, const byte *&loc, uint &loc_len) {
   auto err = close_file(master_task);
 
   return (err);
+}
+
+uint64_t Clone_Snapshot::get_apply_file_offset(uint32_t index, uint64_t offset)
+{
+  /* Adjustment needed only for multiple redo files being copied. */
+  if (m_snapshot_state != CLONE_SNAPSHOT_REDO_COPY || index == 0) {
+    return offset;
+  }
+  for (uint32_t i = 0; i < index; ++i)
+  {
+    auto file_ctx = m_redo_file_vector[i];
+    auto file_meta = file_ctx->get_file_meta();
+    offset += (file_meta->m_file_size - log_t::START_OFFSET);
+  }
+  return offset;
 }
 
 void Clone_Snapshot::update_file_size(uint32_t file_index, uint64_t file_size) {

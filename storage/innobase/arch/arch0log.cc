@@ -167,9 +167,7 @@ int Log_Arch_Client_Ctx::get_files(Log_Arch_Cbk *cbk_func, void *ctx)
 
     if (err != 0)
       break;
-
-    /* offset could be non-zero only for first file. */
-    offset= 0;
+    offset= log_t::START_OFFSET;
   }
 
   return err;

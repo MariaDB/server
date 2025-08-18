@@ -406,10 +406,8 @@ int Clone_Snapshot::get_next_block(uint chunk_num, uint &block_num,
 
     /* This is not header or trailer chunk. Need to get redo
     data from archived file. */
-    if (file_meta->m_begin_chunk == 1) {
-      /* Set start offset for the first file. */
-      start_offset = m_redo_start_offset;
-    }
+    start_offset = (file_meta->m_begin_chunk == 1) ?
+        m_redo_start_offset : log_t::START_OFFSET;
 
     /* Dummy redo file entry. Need to send metadata. */
     if (file_meta->m_file_size == 0) {

@@ -761,7 +761,7 @@ int Clone_Snapshot::add_redo_file(char *file_name, uint64_t file_size,
   if (num_redo_files() == 0) {
     m_redo_start_offset = file_offset;
   } else {
-    ut_ad(file_offset == 0);
+    ut_ad(file_offset == log_t::START_OFFSET);
   }
 
   file_meta->m_alloc_size = 0;
