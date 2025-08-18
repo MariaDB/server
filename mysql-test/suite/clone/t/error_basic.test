@@ -12,13 +12,13 @@
 --error ER_SP_DOES_NOT_EXIST
 UNINSTALL PLUGIN clone;
 
---replace_result $CLONE_PLUGIN CLONE_PLUGIN
---eval INSTALL PLUGIN clone SONAME '$CLONE_PLUGIN'
+--replace_result $MARIADB_CLONE_SO CLONE_PLUGIN
+--eval INSTALL PLUGIN clone SONAME '$MARIADB_CLONE_SO'
 
 --echo # 1B. PLUGIN already loaded - Install plugin
---replace_result $CLONE_PLUGIN CLONE_PLUGIN
---error ER_UDF_EXISTS
---eval INSTALL PLUGIN clone SONAME '$CLONE_PLUGIN'
+--replace_result $MARIADB_CLONE_SO CLONE_PLUGIN
+--error ER_PLUGIN_INSTALLED
+--eval INSTALL PLUGIN clone SONAME '$MARIADB_CLONE_SO'
 
 if($remote_clone) {
 --echo # 1B-a. Incorrect PORT number for remote clone
@@ -47,7 +47,7 @@ SET GLOBAL MAX_ALLOWED_PACKET = 2 * 1024 * 1024;
 
 --connection default
 --disconnect con1
---force-rmdir $CLONE_DATADIR
+--rmdir $CLONE_DATADIR
 
 SET GLOBAL MAX_ALLOWED_PACKET = DEFAULT;
 }
@@ -84,4 +84,4 @@ SET GLOBAL MAX_ALLOWED_PACKET = DEFAULT;
 --echo #Cleanup
 UNINSTALL PLUGIN clone;
 
---force-rmdir $CLONE_DATADIR
+--rmdir $CLONE_DATADIR

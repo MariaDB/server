@@ -145,7 +145,8 @@ int hton_clone_begin(THD *thd, Storage_Vector &clone_loc_vec,
     /* Make sure to start with Innodb SE. Changing the order doesn't have
     functional impact but it could affect concurrency. */
     auto innodb_hton= ha_resolve_by_legacy_type(thd, DB_TYPE_INNODB);
-    run_clone_begin(thd, innodb_hton, &clone_args);
+    if (innodb_hton)
+      run_clone_begin(thd, innodb_hton, &clone_args);
 
     if (!clone_args.m_err)
       plugin_foreach(thd, run_hton_clone_begin, MYSQL_STORAGE_ENGINE_PLUGIN,

@@ -221,8 +221,9 @@ void Client_Stat::update(bool reset, const Thread_Vector &threads,
     reset_history(false);
   }
 
-  /* Set targets for all tasks. */
-  set_target_bandwidth(num_workers, reset, data_speed, net_speed);
+  if (num_workers != 0)
+    /* Set targets for all tasks. */
+    set_target_bandwidth(num_workers, reset, data_speed, net_speed);
 }
 
 uint64_t Client_Stat::task_target(uint64_t target_speed, uint64_t current_speed,

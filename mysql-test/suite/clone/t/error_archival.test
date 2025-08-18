@@ -1,26 +1,16 @@
 # Test clone with debug sync point to simulate archiving error in different stage
 
---source include/linux.inc
---source include/have_innodb_16k.inc
---source include/no_valgrind_without_big.inc
+--source include/have_innodb.inc
 --source include/have_debug_sync.inc
 --source include/count_sessions.inc
 
-# Needed for the hypergraph optimizer only; since it does not support indexes yet,
-# it needs to sort some rows involving fairly large blobs.
-set sort_buffer_size=1048576;
-
 call mtr.add_suppression("\\[ERROR\\] .*MY-\\d+.* The redo log archiver is aborted as it was lagging behind at LSN = .*");
-
---disable_query_log
-RESET BINARY LOGS AND GTIDS;
---enable_query_log
 
 ## Install plugin
 --let $CLONE_DATADIR = $MYSQL_TMP_DIR/data_new
 
---replace_result $CLONE_PLUGIN CLONE_PLUGIN
---eval INSTALL PLUGIN clone SONAME '$CLONE_PLUGIN'
+--replace_result $MARIADB_CLONE_SO CLONE_PLUGIN
+--eval INSTALL PLUGIN clone SONAME '$MARIADB_CLONE_SO'
 
 ## Create test schema
 --source ../include/create_schema.inc
@@ -69,7 +59,7 @@ connection default;
 --echo # In connection default - Cloning database
 --error ER_INTERNAL_ERROR
 --reap
---force-rmdir $CLONE_DATADIR
+--rmdir $CLONE_DATADIR
 SET GLOBAL DEBUG = '-d,clone_redo_archive_error';
 SET DEBUG_SYNC = 'RESET';
 
@@ -99,7 +89,7 @@ connection default;
 --echo # In connection default - Cloning database
 --error ER_INTERNAL_ERROR
 --reap
---force-rmdir $CLONE_DATADIR
+--rmdir $CLONE_DATADIR
 SET GLOBAL DEBUG = '-d,clone_redo_no_archive';
 SET DEBUG_SYNC = 'RESET';
 
@@ -134,7 +124,7 @@ disconnect con1;
 
 --echo # Restart cloned database
 --replace_result $CLONE_DATADIR CLONE_DATADIR
---let restart_parameters="restart: --datadir=$CLONE_DATADIR"
+--let restart_parameters=--datadir=$CLONE_DATADIR
 --source include/restart_mysqld.inc
 
 # Check table in cloned database
@@ -159,7 +149,7 @@ SELECT col1, col2, col3, SUBSTRING(col4, 1000, 32) FROM t2 ORDER BY col1 LIMIT 1
 SELECT col1, col2, col3, SUBSTRING(col4, 1000, 32) FROM t2 ORDER BY col1 DESC LIMIT 10;
 
 #Cleanup
---let restart_parameters="restart:"
+--let restart_parameters=
 --source include/restart_mysqld.inc
 
 --source ../include/drop_schema.inc
@@ -167,7 +157,5 @@ SELECT col1, col2, col3, SUBSTRING(col4, 1000, 32) FROM t2 ORDER BY col1 DESC LI
 UNINSTALL PLUGIN clone;
 SET DEBUG_SYNC = 'RESET';
 
-set sort_buffer_size=DEFAULT;
-
 --source include/wait_until_count_sessions.inc
---force-rmdir $CLONE_DATADIR
+--rmdir $CLONE_DATADIR

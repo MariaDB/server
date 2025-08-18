@@ -1,2 +1,0 @@
-# Test clone with concurrent DML on table stored in multi file system tablespace
---source remote_stage.test
