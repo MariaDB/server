@@ -34,8 +34,7 @@ INSERT INTO t2 VALUES (1, 'row in t2');
 --let $binlog_file= SELECT @@global.log_bin_basename
 --let $binlog_index= query_get_value(SHOW MASTER STATUS, File, 1)
 
---echo # Sync master and slave
---source include/sync_slave_sql_with_master.inc
+SET @@default_storage_engine='innodb';
 
 --echo # Find relay log file on slave
 connection slave;
@@ -62,14 +61,14 @@ connection slave;
 --source include/assert_grep.inc
 
 --echo # Validate that 'INSERT INTO t1' is in the slave relaylog
---let $assert_file= $MYSQLTEST_VARDIR/tmp/master_binlog.txt
+--let $assert_file= $MYSQLTEST_VARDIR/tmp/slave_relaylog.txt
 --let $assert_text= INSERT INTO t1 must be present in relaylog
 --let $assert_select= INSERT INTO t1
 --let $assert_count= 1
 --source include/assert_grep.inc
 
 --echo # Validate that 'INSERT INTO t2' is not in the slave relaylog
---let $assert_file= $MYSQLTEST_VARDIR/tmp/master_binlog.txt
+--let $assert_file= $MYSQLTEST_VARDIR/tmp/slave_relaylog.txt
 --let $assert_text= INSERT INTO t2 must not be present in the Slave's relaylog
 --let $assert_select= INSERT INTO t2
 --let $assert_count= 0
@@ -79,5 +78,4 @@ connection slave;
 connection master;
 DROP TABLE t1;
 DROP TABLE t2;
---source include/sync_slave_sql_with_master.inc
 --source include/rpl_end.inc

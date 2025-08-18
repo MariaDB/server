@@ -128,6 +128,8 @@ public:
     status= 0;
     incident= FALSE;
     before_stmt_pos= MY_OFF_T_UNDEF;
+    // Since the cache_data is reused so we should reset it to not conflict 
+    skip_cache_status= CACHE_SKIP_UNDECIDED;    
     DBUG_ASSERT(empty());
   }
 
@@ -301,6 +303,23 @@ public:
   */
   enum_binlog_checksum_alg checksum_opt;
 
+  /*
+    Enum used to track whether all events inside the transaction cache
+    have the LOG_EVENT_SKIP_REPLICATION_F flag. This determines
+    whether the entire transaction/event group can be skipped when writing to the binary log
+    
+    - CACHE_SKIP_UNDECIDED: Initial state, typically before any events are cached. e.g: The first GTID_EVENT
+    - CACHE_SKIP_ALL: All cached events have the LOG_EVENT_SKIP_REPLICATION_F flag.
+    - CACHE_SKIP_NONE: At least one cached event does not have the skip flag,
+                       so the transaction must not be skipped.
+  */
+  enum skip_cache_status {
+      CACHE_SKIP_UNDECIDED= 0,
+      CACHE_SKIP_ALL= 1,
+      CACHE_SKIP_NONE= 2
+  };
+  skip_cache_status skip_cache_status= CACHE_SKIP_UNDECIDED;
+
 private:
   /*
     This indicates that some events did not get into the cache and most likely
@@ -383,4 +402,86 @@ private:
 
   binlog_cache_data& operator=(const binlog_cache_data& info);
   binlog_cache_data(const binlog_cache_data& info);
+};
+
+class binlog_cache_mngr {
+public:
+  binlog_cache_mngr(my_off_t param_max_binlog_stmt_cache_size,
+                    my_off_t param_max_binlog_cache_size,
+                    ulong *param_ptr_binlog_stmt_cache_use,
+                    ulong *param_ptr_binlog_stmt_cache_disk_use,
+                    ulong *param_ptr_binlog_cache_use,
+                    ulong *param_ptr_binlog_cache_disk_use,
+                    bool precompute_checksums)
+    : stmt_cache(precompute_checksums), trx_cache(precompute_checksums),
+      last_commit_pos_offset(0), using_xa(FALSE), xa_xid(0)
+  {
+     stmt_cache.set_binlog_cache_info(param_max_binlog_stmt_cache_size,
+                                      param_ptr_binlog_stmt_cache_use,
+                                      param_ptr_binlog_stmt_cache_disk_use);
+     trx_cache.set_binlog_cache_info(param_max_binlog_cache_size,
+                                     param_ptr_binlog_cache_use,
+                                     param_ptr_binlog_cache_disk_use);
+     last_commit_pos_file[0]= 0;
+  }
+
+  void reset(bool do_stmt, bool do_trx)
+  {
+    if (do_stmt)
+      stmt_cache.reset();
+    if (do_trx)
+    {
+      trx_cache.reset();
+      using_xa= FALSE;
+      last_commit_pos_file[0]= 0;
+      last_commit_pos_offset= 0;
+    }
+  }
+
+  binlog_cache_data* get_binlog_cache_data(bool is_transactional)
+  {
+    return (is_transactional ? &trx_cache : &stmt_cache);
+  }
+
+  IO_CACHE* get_binlog_cache_log(bool is_transactional)
+  {
+    return (is_transactional ? &trx_cache.cache_log : &stmt_cache.cache_log);
+  }
+
+  binlog_cache_data stmt_cache;
+
+  binlog_cache_data trx_cache;
+
+  /*
+    Binlog position for current transaction.
+    For START TRANSACTION WITH CONSISTENT SNAPSHOT, this is the binlog
+    position corresponding to the snapshot taken. During (and after) commit,
+    this is set to the binlog position corresponding to just after the
+    commit (so storage engines can store it in their transaction log).
+  */
+  char last_commit_pos_file[FN_REFLEN];
+  my_off_t last_commit_pos_offset;
+
+  /*
+    Flag set true if this transaction is committed with log_xid() as part of
+    XA, false if not.
+  */
+  bool using_xa;
+  my_xid xa_xid;
+  bool need_unlog;
+  /*
+    Id of binlog that transaction was written to; only needed if need_unlog is
+    true.
+  */
+  ulong binlog_id;
+  /* Set if we get an error during commit that must be returned from unlog(). */
+  bool delayed_error;
+
+  //Will be reset when gtid is written into binlog
+  uchar  gtid_flags3;
+  decltype (rpl_gtid::seq_no) sa_seq_no;
+private:
+
+  binlog_cache_mngr& operator=(const binlog_cache_mngr& info);
+  binlog_cache_mngr(const binlog_cache_mngr& info);
 };

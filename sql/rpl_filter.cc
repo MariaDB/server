@@ -92,6 +92,37 @@ Rpl_filter::~Rpl_filter()
 */
 
 bool 
+Rpl_filter::table_ok(const char* db, const char* table_name)
+{
+  char hash_key[SAFE_NAME_LEN*2+2];
+  char *end;
+  uint len;
+
+  end= strmov(hash_key, db);
+  *end++= '.';
+  len= (uint) (strmov(end, table_name) - hash_key);
+
+  if (do_table_inited) // if there are any do's
+  {
+    if (my_hash_search(&do_table, (uchar*) hash_key, len))
+      return true;
+  }
+  if (ignore_table_inited) // if there are any ignores
+  {
+    if (my_hash_search(&ignore_table, (uchar*) hash_key, len))
+      return false; 
+  }
+  if (wild_do_table_inited && 
+      find_wild(&wild_do_table, hash_key, len))
+    return true;
+  if (wild_ignore_table_inited && 
+      find_wild(&wild_ignore_table, hash_key, len))
+    return false;
+
+  return false; // Default to not replicate if no rules match
+}
+
+bool 
 Rpl_filter::tables_ok(const char* db, TABLE_LIST* tables)
 {
   bool some_tables_updating= 0;
@@ -99,32 +130,12 @@ Rpl_filter::tables_ok(const char* db, TABLE_LIST* tables)
   
   for (; tables; tables= tables->next_global)
   {
-    char hash_key[SAFE_NAME_LEN*2+2];
-    char *end;
-    uint len;
-
     if (!tables->updating) 
       continue;
     some_tables_updating= 1;
-    end= strmov(hash_key, tables->db.str ? tables->db.str : db);
-    *end++= '.';
-    len= (uint) (strmov(end, tables->table_name.str) - hash_key);
-    if (do_table_inited) // if there are any do's
-    {
-      if (my_hash_search(&do_table, (uchar*) hash_key, len))
-	DBUG_RETURN(1);
-    }
-    if (ignore_table_inited) // if there are any ignores
-    {
-      if (my_hash_search(&ignore_table, (uchar*) hash_key, len))
-	DBUG_RETURN(0); 
-    }
-    if (wild_do_table_inited && 
-	find_wild(&wild_do_table, hash_key, len))
+
+    if (table_ok(tables->db.str ? tables->db.str : db, tables->table_name.str))
       DBUG_RETURN(1);
-    if (wild_ignore_table_inited && 
-	find_wild(&wild_ignore_table, hash_key, len))
-      DBUG_RETURN(0);
   }
 
   /*
