@@ -1522,13 +1522,17 @@ class User_table_json: public User_table
 
   bool set_auth(const ACL_USER &u) const override
   {
-    size_t array_len;
-    const char *array;
-    if (u.nauth == 1  &&
-        get_value("auth_or", JSV_ARRAY, &array, &array_len))
+    if (u.nauth == 1)
     {
+      DBUG_ASSERT(u.auth_pred == USER_AUTH::LOGICAL_PREDICATE::NONE);
+      /* Remove possible "auth_or" and "auth_and" left from before ALTER USER */
+      remove_key("auth_or");
+      remove_key("auth_and");
       return set_auth1(u, 0);
     }
+
+    DBUG_ASSERT(u.auth_pred != USER_AUTH::LOGICAL_PREDICATE::NONE);
+
     StringBuffer<JSON_SIZE> json(m_table->field[2]->charset());
     bool top_done = false;
     json.append('[');
@@ -1562,9 +1566,21 @@ class User_table_json: public User_table
       json.append('}');
     }
     json.append(']');
-    return set_value(u.auth_pred == USER_AUTH::LOGICAL_PREDICATE::OR ? "auth_or" : "auth_and", json.ptr(),
-                     json.length(),
-                     false) == JSV_BAD_JSON;
+
+    const char *predicate_key;
+    switch (u.auth_pred)
+    {
+      case USER_AUTH::LOGICAL_PREDICATE::AND:
+        predicate_key= "auth_and";
+        break;
+      case USER_AUTH::LOGICAL_PREDICATE::OR:
+        predicate_key= "auth_or";
+        break;
+      default:
+        DBUG_ASSERT(0);
+        return 1;
+    }
+    return set_value(predicate_key,json.ptr(), json.length(), false) == JSV_BAD_JSON;
   }
   bool set_auth1(const ACL_USER &u, uint i) const
   {
@@ -1824,6 +1840,36 @@ class User_table_json: public User_table
       return false;
     return true;
   }
+
+  /**
+    Remove key from auth.json. Used with "auth_or" and "auth_and"
+    when they disappear as a result of ALTER USER, that converts
+    multi-plugin authentication to single-plugin.
+  */
+  bool remove_key(const char* key) const
+  {
+    String str, *res= m_table->field[2]->val_str(&str);
+    if (!res || !res->length())
+      return false;
+    const char *key_start, *key_end;
+    int comma_pos;
+    if (json_locate_key(res->ptr(), res->ptr() + res->length(), key,
+        &key_start, &key_end, &comma_pos))
+    {
+      DBUG_ASSERT(0);
+      return true;
+    }
+    if (!key_start)
+      return false;
+    String new_val;
+    new_val.set_charset(res->charset());
+    new_val.append(res->ptr(), key_start - res->ptr());
+    if (key_end != res->ptr() + res->length())
+      new_val.append(key_end, res->ptr() + res->length() - key_end);
+    m_table->field[2]->store(new_val.ptr(), new_val.length(), new_val.charset());
+    return false;
+  }
+
   enum json_types set_value(const char *key,
                             const char *val, size_t vlen, bool string) const
   {
