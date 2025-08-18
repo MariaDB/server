@@ -1362,10 +1362,10 @@ class Arch_Log_Sys
   @param[out]   group           log archive group
   @param[out]   stop_lsn        stop lsn for client
   @param[out]   log_blk         redo log trailer block
-  @param[in]    blk_len         length in bytes
+  @param[in,out] blk_len        length in bytes
   @return error code */
   int stop(Arch_Group *group, lsn_t &stop_lsn, byte *log_blk,
-           uint32_t blk_len);
+           uint32_t &blk_len);
 
   /** Force to abort the archiver (state becomes ARCH_STATE_IDLE or
   ARCH_STATE_ABORT). */

@@ -72,10 +72,10 @@ int Log_Arch_Client_Ctx::start(byte *header, uint len)
 /** Stop redo log archiving. Exact trailer length is returned as out
 parameter which could be less than the redo block size.
 @param[out]     trailer redo trailer. Caller must allocate buffer.
-@param[in]      len     trailer length
+@param[in,out]  len     trailer length
 @param[out]     offset  trailer block offset
 @return error code */
-int Log_Arch_Client_Ctx::stop(byte *trailer, uint32_t len, uint64_t &offset)
+int Log_Arch_Client_Ctx::stop(byte *trailer, uint32_t &len, uint64_t &offset)
 {
   ut_ad(m_state == ARCH_CLIENT_STATE_STARTED);
   ut_ad(trailer == nullptr || len >= OS_FILE_LOG_BLOCK_SIZE);
@@ -337,9 +337,12 @@ int Arch_Log_Sys::start(Arch_Group *&group, lsn_t &start_lsn, byte *header,
       return ER_OUTOFMEMORY;
     }
 
+    os_offset_t file_size = get_recommended_file_size();
+    DBUG_EXECUTE_IF("clone_arch_log_stop_file_end",
+                    file_size = 4 * 1024 * 1024;);
     auto db_err=
         m_current_group->init_file_ctx(ARCH_DIR, ARCH_LOG_DIR, ARCH_LOG_FILE, 0,
-                                       get_recommended_file_size(), 0);
+                                       file_size, 0);
 
     if (db_err != DB_SUCCESS)
     {
@@ -415,10 +418,10 @@ the current group.
 @param[out]     group           log archive group
 @param[out]     stop_lsn        stop lsn for client
 @param[out]     log_blk         redo log trailer block
-@param[in]      blk_len         length in bytes
+@param[in,out]  blk_len         length in bytes
 @return error code */
 int Arch_Log_Sys::stop(Arch_Group *group, lsn_t &stop_lsn, byte *log_blk,
-                       uint32_t blk_len)
+                       uint32_t &blk_len)
 {
   int err= 0;
   stop_lsn= m_archived_lsn.load();
