@@ -46,12 +46,15 @@ const char *clone_plugin_name = "clone";
 /** Clone system variable: buffer size for data transfer */
 uint clone_buffer_size;
 
+/** Clone system variable: Maximum IO bandwidth in MiB/sec */
+uint clone_max_io_bandwidth;
+
+#if 0
 /** Clone system variable: If clone should block concurrent DDL */
 my_bool clone_block_ddl;
 
 /** Clone system variable: timeout for DDL lock */
 uint clone_ddl_timeout;
-
 /** Clone system variable: If concurrency is automatically tuned */
 my_bool clone_autotune_concurrency;
 
@@ -60,9 +63,6 @@ uint clone_max_concurrency;
 
 /** Clone system variable: Maximum network bandwidth in MiB/sec */
 uint clone_max_network_bandwidth;
-
-/** Clone system variable: Maximum IO bandwidth in MiB/sec */
-uint clone_max_io_bandwidth;
 
 /** Clone system variable: If network compression is enabled */
 my_bool clone_enable_compression;
@@ -84,7 +84,7 @@ uint clone_restart_timeout;
 
 /** Clone system variable: time delay after removing data */
 uint clone_delay_after_data_drop;
-
+#endif
 /** Key for registering clone allocations with performance schema */
 PSI_memory_key clone_mem_key;
 
@@ -302,6 +302,7 @@ static int match_valid_donor_address(MYSQL_THD thd, const char *host,
 
 using SYS_VAR = struct st_mysql_sys_var;
 
+#if 0
 /** Check valid_donor_list format "<HOST1>:<PORT1>,<HOST2:PORT2,..."
 @param[in]	thd	user session THD
 @param[in]	var	system variable
@@ -345,6 +346,7 @@ static int check_donor_addr_format(MYSQL_THD thd, SYS_VAR *var [[maybe_unused]],
   *(const char **)save = addrs_cstring;
   return 0;
 }
+#endif
 
 /** Initialize clone plugin
 @param[in]	plugin_info	server plugin handle
@@ -491,6 +493,16 @@ static MYSQL_SYSVAR_UINT(buffer_size, clone_buffer_size, PLUGIN_VAR_RQCMDARG,
                          CLONE_MIN_BLOCK * 256,        /* Maximum = 256M */
                          CLONE_MIN_BLOCK);             /* Block   =   1M */
 
+/** Maximum IO bandwidth for clone */
+static MYSQL_SYSVAR_UINT(max_data_bandwidth, clone_max_io_bandwidth,
+                         PLUGIN_VAR_RQCMDARG,
+                         "Maximum File data bandwidth for clone in MiB/sec",
+                         nullptr, nullptr, 0, /* Default =   0 unlimited */
+                         0,                   /* Minimum =   0 unlimited */
+                         1024 * 1024,         /* Maximum =   1 TiB/sec */
+                         1);                  /* Step    =   1 MiB/sec */
+
+#if 0
 /** If clone should block concurrent DDL */
 static MYSQL_SYSVAR_BOOL(block_ddl, clone_block_ddl, PLUGIN_VAR_NOCMDARG,
                          "If clone should block concurrent DDL", nullptr,
@@ -525,15 +537,6 @@ static MYSQL_SYSVAR_UINT(max_concurrency, clone_max_concurrency,
 static MYSQL_SYSVAR_UINT(max_network_bandwidth, clone_max_network_bandwidth,
                          PLUGIN_VAR_RQCMDARG,
                          "Maximum network bandwidth for clone in MiB/sec",
-                         nullptr, nullptr, 0, /* Default =   0 unlimited */
-                         0,                   /* Minimum =   0 unlimited */
-                         1024 * 1024,         /* Maximum =   1 TiB/sec */
-                         1);                  /* Step    =   1 MiB/sec */
-
-/** Maximum IO bandwidth for clone */
-static MYSQL_SYSVAR_UINT(max_data_bandwidth, clone_max_io_bandwidth,
-                         PLUGIN_VAR_RQCMDARG,
-                         "Maximum File data bandwidth for clone in MiB/sec",
                          nullptr, nullptr, 0, /* Default =   0 unlimited */
                          0,                   /* Minimum =   0 unlimited */
                          1024 * 1024,         /* Maximum =   1 TiB/sec */
@@ -597,15 +600,17 @@ static MYSQL_SYSVAR_UINT(delay_after_data_drop, clone_delay_after_data_drop,
                          0,                   /* Minimum =  0 no wait */
                          60 * 60,             /* Maximum =  1 hour */
                          1);                  /* Step    =  1 sec */
+#endif
 
 /** Clone system variables */
 static SYS_VAR *clone_system_variables[] = {
     MYSQL_SYSVAR(buffer_size),
+    MYSQL_SYSVAR(max_data_bandwidth),
+#if 0
     MYSQL_SYSVAR(block_ddl),
     MYSQL_SYSVAR(ddl_timeout),
     MYSQL_SYSVAR(max_concurrency),
     MYSQL_SYSVAR(max_network_bandwidth),
-    MYSQL_SYSVAR(max_data_bandwidth),
     MYSQL_SYSVAR(enable_compression),
     MYSQL_SYSVAR(autotune_concurrency),
     MYSQL_SYSVAR(valid_donor_list),
@@ -614,6 +619,7 @@ static SYS_VAR *clone_system_variables[] = {
     MYSQL_SYSVAR(ssl_ca),
     MYSQL_SYSVAR(donor_timeout_after_network_failure),
     MYSQL_SYSVAR(delay_after_data_drop),
+#endif
     nullptr};
 
 /** Declare clone plugin */

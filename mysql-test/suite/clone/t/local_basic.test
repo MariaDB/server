@@ -10,10 +10,6 @@ call mtr.add_suppression("\\[Warning\\] .*MY-\\d+.* Non innodb table: .* is not 
 call mtr.add_suppression("\\[Warning\\] .*MY-\\d+.* Clone removing all user data for provisioning: .*");
 --enable_query_log
 
-select @@innodb_data_home_dir;
-let DATA_HOME_DIR= `select @@innodb_data_home_dir`;
-echo $DATA_HOME_DIR;
-
 CREATE TABLE t1(col1 INT PRIMARY KEY, col2 char(64), FULLTEXT KEY fts_index(col2))ENGINE=InnoDB;
 
 INSERT INTO t1 VALUES(10, 'clone row 1');

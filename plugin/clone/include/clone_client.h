@@ -356,7 +356,7 @@ struct Client_Share
         m_passwd(passwd),
         m_data_dir(dir),
         m_ssl_mode(mode),
-        m_max_concurrency(clone_max_concurrency),
+        m_max_concurrency(1),
         m_protocol_version(CLONE_PROTOCOL_VERSION)
   {
     m_storage_vec.reserve(MAX_CLONE_STORAGE_ENGINE);

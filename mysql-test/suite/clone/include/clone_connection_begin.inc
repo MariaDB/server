@@ -112,12 +112,6 @@ if ($inst_monitor) {
 # For non default server, we have already created the first connection
 if ($SERVER_ID != 1) {
   --let $conn_nummber = 2
-
-  # Create some local table and tablespace in recipient
-  CREATE TABLE t_recipient(col1 INT PRIMARY KEY, col2 int);
-  INSERT INTO t_recipient VALUES(1, 10);
-  CREATE UNDO TABLESPACE undo_005 ADD DATAFILE 'undo_005.ibu';
-  CREATE TABLESPACE tbs1_recipient ADD DATAFILE 'tbs1_data1.ibd';
 }
 
 while ($conn_nummber <= $clone_connections)

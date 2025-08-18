@@ -1760,6 +1760,13 @@ bool Sql_cmd_clone::execute(THD *thd)
 {
   const bool is_replace= (m_data_dir.str == nullptr);
 
+  if (is_replace || !is_local())
+  {
+    my_error(ER_NOT_SUPPORTED_YET, MYF(0),
+             "Remote clone or REPLACE clone");
+    return true;
+  }
+
   if (is_local())
     DBUG_PRINT("admin", ("CLONE type = local, DIR = %s", m_data_dir.str));
   else

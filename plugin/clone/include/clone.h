@@ -63,6 +63,10 @@ extern PSI_statement_key clone_stmt_server_key;
 file to network or destination file. */
 extern uint clone_buffer_size;
 
+/** Clone system variable: Maximum IO bandwidth in MiB/sec */
+extern uint clone_max_io_bandwidth;
+
+#if 0
 /** Clone system variable: If clone should block concurrent DDL */
 extern my_bool clone_block_ddl;
 
@@ -77,9 +81,6 @@ extern uint clone_max_concurrency;
 
 /** Clone system variable: Maximum network bandwidth in MiB/sec */
 extern uint clone_max_network_bandwidth;
-
-/** Clone system variable: Maximum IO bandwidth in MiB/sec */
-extern uint clone_max_io_bandwidth;
 
 /** Clone system variable: If network compression is enabled */
 extern my_bool clone_enable_compression;
@@ -96,6 +97,7 @@ extern char *clone_client_ssl_certficate_authority;
 /** Clone system variable: time delay after removing data */
 extern uint clone_delay_after_data_drop;
 
+#endif
 /** Number of storage engines supporting clone. */
 const uint MAX_CLONE_STORAGE_ENGINE = 16;
 

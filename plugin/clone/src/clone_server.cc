@@ -164,19 +164,15 @@ int Server::init_storage(Ha_clone_mode mode, uchar *com_buf, size_t com_len) {
 
   /* Work around to use client DDL timeout while waiting for backup
   lock in clone_init_tablespaces if required. */
-  auto saved_donor_timeout = clone_ddl_timeout;
-  clone_ddl_timeout = m_client_ddl_timeout;
-
+  auto saved_donor_timeout = 0;
   /* Get server locators */
   err = hton_clone_begin(get_thd(), get_storage_vector(), m_tasks,
                          HA_CLONE_HYBRID, mode);
   if (err != 0) {
-    clone_ddl_timeout = saved_donor_timeout;
     m_storage_initialized= !m_tasks.empty();
     return (err);
   }
   m_storage_initialized = true;
-  clone_ddl_timeout = saved_donor_timeout;
 
   if (m_is_master && mode == HA_CLONE_MODE_START) {
     /* Validate local configurations. */

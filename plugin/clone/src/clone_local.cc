@@ -86,8 +86,8 @@ int Local::clone_exec() {
   auto thd = m_clone_client.get_thd();
   auto dir_name = m_clone_client.get_data_dir();
   auto is_master = m_clone_client.is_master();
-  auto acquire_backup_lock = (is_master && clone_block_ddl);
-  auto num_workers = m_clone_client.get_max_concurrency() - 1;
+  //auto acquire_backup_lock = (is_master && clone_block_ddl);
+  //auto num_workers = m_clone_client.get_max_concurrency() - 1;
 
   auto &client_vector = m_clone_client.get_storage_vector();
   auto &client_tasks = m_clone_client.get_task_vector();
@@ -95,16 +95,6 @@ int Local::clone_exec() {
 
   Task_Vector server_tasks;
   server_tasks.reserve(MAX_CLONE_STORAGE_ENGINE);
-
-  /* Acquire DDL lock. Wait for 5 minutes by default. */
-  if (acquire_backup_lock) {
-    bool failed = false; // mysql_service_mysql_backup_lock->acquire(
-        // thd, BACKUP_LOCK_SERVICE_DEFAULT, clone_ddl_timeout);
-
-    if (failed) {
-      return (ER_LOCK_WAIT_TIMEOUT);
-    }
-  }
 
   auto begin_mode = is_master ? HA_CLONE_MODE_START : HA_CLONE_MODE_ADD_TASK;
 
@@ -115,10 +105,6 @@ int Local::clone_exec() {
   {
     if (!server_tasks.empty())
       hton_clone_end(thd, server_vector, server_tasks, error);
-    /* Release DDL lock */
-    if (acquire_backup_lock) {
-      // mysql_service_mysql_backup_lock->release(thd);
-    }
     return (error);
   }
 
@@ -135,15 +121,9 @@ int Local::clone_exec() {
       if (!client_tasks.empty())
         hton_clone_apply_end(thd, client_vector, client_tasks, error);
       hton_clone_end(thd, server_vector, server_tasks, error);
-
-      /* Release DDL lock */
-      if (acquire_backup_lock)
-      {
-        // mysql_service_mysql_backup_lock->release(thd);
-      }
       return error;
     }
-
+#if 0
     /* Spawn concurrent client tasks if auto tuning is OFF. */
     if (!clone_autotune_concurrency) {
       /* Limit number of workers based on other configurations. */
@@ -152,6 +132,7 @@ int Local::clone_exec() {
       auto func = std::bind(clone_local, _1, m_clone_server, _2);
       m_clone_client.spawn_workers(to_spawn, func);
     }
+#endif
 
   } else {
     /* Begin clone apply to destination. For auxiliary threads,
@@ -204,10 +185,6 @@ int Local::clone_exec() {
   /* End clone copy from source. */
   hton_clone_end(thd, server_vector, server_tasks, error);
 
-  /* Release DDL lock */
-  if (acquire_backup_lock) {
-    // mysql_service_mysql_backup_lock->release(thd);
-  }
   return (error);
 }
 

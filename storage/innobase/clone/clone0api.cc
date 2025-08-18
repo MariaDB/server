@@ -364,6 +364,7 @@ static bool get_clone_timeout_config(THD *thd, const std::string &config_name,
   return true;
 }
 
+#if 0
 /** Timeout while waiting for DDL commands.
 @param[in,out]  thd     server thread handle
 @return donor timeout in seconds. */
@@ -378,6 +379,7 @@ static int get_ddl_timeout(THD *thd)
 
   return timeout;
 }
+#endif
 
 int innodb_clone_begin(THD *thd, const byte *&loc, uint &loc_len,
                        uint &task_id, Ha_clone_type type, Ha_clone_mode mode)
@@ -485,11 +487,12 @@ int innodb_clone_begin(THD *thd, const byte *&loc, uint &loc_len,
     /* Check and wait if clone is marked for wait. */
     if (err == 0)
     {
+#if 0
       auto timeout= get_ddl_timeout(thd);
       /* zero timeout is special mode when DDL can abort running clone. */
       if (timeout == 0)
         clone_hdl->set_ddl_abort();
-
+#endif
       err= clone_sys->wait_for_free(thd);
     }
 

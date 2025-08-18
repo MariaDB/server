@@ -258,6 +258,12 @@ uint64_t Client_Stat::task_target(uint64_t target_speed, uint64_t current_speed,
 void Client_Stat::set_target_bandwidth(uint32_t num_workers, bool is_reset,
                                        uint64_t data_speed, uint64_t net_speed)
 {
+  uint64_t data_target= clone_max_io_bandwidth * 1024 * 1024;
+  if (!is_reset)
+    data_target=
+        task_target(data_target, data_speed, m_target_data_speed, num_workers);
+  m_target_data_speed.store(data_target);
+#if 0
   ++num_workers;
 
   uint64_t data_target= clone_max_io_bandwidth * 1024 * 1024;
@@ -274,6 +280,7 @@ void Client_Stat::set_target_bandwidth(uint32_t num_workers, bool is_reset,
 
   m_target_data_speed.store(data_target);
   m_target_network_speed.store(net_target);
+#endif
 }
 
 void Client_Stat::reset_history(bool init)
@@ -298,6 +305,8 @@ void Client_Stat::reset_history(bool init)
 
 bool Client_Stat::is_bandwidth_saturated()
 {
+  return false;
+#if 0
   if (m_current_history_index == 0)
     return false;
 
@@ -326,6 +335,7 @@ bool Client_Stat::is_bandwidth_saturated()
       return true;
   }
   return false;
+#endif
 }
 
 bool Client_Stat::tune_has_improved(uint32_t num_threads)
@@ -719,6 +729,9 @@ uint32_t Client::limit_buffer(uint32_t buffer_size)
 
 uint32_t Client::limit_workers(uint32_t num_workers)
 {
+  return 0;
+}
+#if 0
   /* Adjust if network bandwidth is limited. Currently 64 M
   minimum per task is ensured before spawning task. */
   if (clone_max_network_bandwidth > 0)
@@ -744,6 +757,7 @@ uint32_t Client::limit_workers(uint32_t num_workers)
   }
   return num_workers;
 }
+#endif
 
 const char *sub_command_str(Sub_Command sub_com)
 {
@@ -993,6 +1007,7 @@ int Client::clone()
     /* Execute clone command */
     if (err == 0)
     {
+#if 0
       /* Spawn concurrent client tasks if auto tuning is off. */
       if (!clone_autotune_concurrency)
       {
@@ -1002,6 +1017,7 @@ int Client::clone()
         auto func= std::bind(clone_client, _1, _2);
         spawn_workers(to_spawn, func);
       }
+#endif
       auto exec_callback= [&](Sub_Command sub_state)
       {
         int err= remote_command(COM_EXECUTE, sub_state, false);
@@ -1128,6 +1144,7 @@ int Client::clone()
 
 int Client::connect_remote(bool is_restart, bool use_aux)
 {
+#if 0
   MYSQL_SOCKET conn_socket;
   mysql_clone_ssl_context ssl_context;
 
@@ -1233,6 +1250,7 @@ int Client::connect_remote(bool is_restart, bool use_aux)
   }
 
   m_ext_link.set_socket(conn_socket);
+#endif
   return 0;
 }
 
@@ -1619,11 +1637,12 @@ int Client::serialize_init_cmd(size_t &buf_len)
   buf_ptr+= 4;
 
   /* Store DDL timeout value. Default is no lock. */
-  uint32_t timeout_value= clone_ddl_timeout;
-
+  uint32_t timeout_value= NO_BACKUP_LOCK_FLAG;
+  //clone_ddl_timeout;
+#if 0
   if (!clone_block_ddl)
     timeout_value|= NO_BACKUP_LOCK_FLAG;
-
+#endif
   int4store(buf_ptr, timeout_value);
   buf_ptr+= 4;
 
@@ -1672,7 +1691,7 @@ int Client::receive_response(Command_RPC com, bool use_aux)
   need to load the tablespaces [clone_init_tablespaces] and check
   through all tables for compression in donor[clone_init_compression]. */
   if (com == COM_INIT)
-    timeout_sec= clone_ddl_timeout + 300;
+    timeout_sec= 300;
 
   while (!last_packet)
   {
@@ -2099,10 +2118,13 @@ int Client::delay_if_needed()
   /* Delay only if replacing current data directory. */
   if (get_data_dir() != nullptr)
     return 0;
+  return 1;
+#if 0
   if (clone_delay_after_data_drop == 0)
     return 0;
   auto err= wait(Time_Sec(clone_delay_after_data_drop));
   return err;
+#endif
 }
 
 int Client_Cbk::file_cbk(Ha_clone_file from_file [[maybe_unused]],
