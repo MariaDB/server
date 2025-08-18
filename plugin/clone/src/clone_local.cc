@@ -153,12 +153,15 @@ int Local::clone_exec() {
     Ha_clone_stage exec_stage= HA_CLONE_STAGE_MAX;
     int error= m_clone_server->get_stage_and_lock(sub_state, exec_stage,
                                                   is_master);
+    if (error != 0)
+      return error;
+
     if (is_master)
     {
       auto share= m_clone_client.get_share();
-      share->m_state.update_current_state(error ? SUBCOM_MAX : sub_state);
+      share->m_state.update_current_state(sub_state);
     }
-    if (!error && sub_state >= SUBCOM_EXEC_BLOCK_DDL)
+    if (sub_state >= SUBCOM_EXEC_BLOCK_DDL)
     {
       Ha_clone_cbk *clone_callback = new Local_Callback(this);
 
@@ -185,6 +188,12 @@ int Local::clone_exec() {
   /* End clone copy from source. */
   hton_clone_end(thd, server_vector, server_tasks, error);
 
+  /* Release backup lock, if needed. */
+  if (error && is_master)
+  {
+    Ha_clone_stage exec_stage= HA_CLONE_STAGE_MAX;
+    m_clone_server->get_stage_and_lock(SUBCOM_EXEC_END, exec_stage, true);
+  }
   return (error);
 }
 

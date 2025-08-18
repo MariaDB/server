@@ -931,9 +931,8 @@ int Client::execute(std::function<int(Sub_Command)> cbk)
     /* In case of any error, jump to the final state. */
     if (local_err)
     {
-      if (err)
-        return err;
-      cur_st= end_st - 1;
+      assert(!err);
+      cur_st= end_st;
       err= local_err;
     }
     ++cur_st;
@@ -948,7 +947,7 @@ int Client::clone()
   uint restart_count= 0;
   char info_mesg[MESG_SZ];
 
-  auto num_workers= get_max_concurrency() - 1;
+  // auto num_workers= get_max_concurrency() - 1;
 
   /* Begin PFS state if no concurrent clone in progress. */
   auto err= pfs_begin_state();
