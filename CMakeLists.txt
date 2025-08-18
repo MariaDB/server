@@ -298,7 +298,7 @@ ENDIF()
 
 OPTION(ENABLE_GCOV "Enable gcov (debug, Linux builds only)" OFF)
 IF (ENABLE_GCOV)
-  MY_CHECK_AND_SET_COMPILER_FLAG("-DHAVE_gcov -fprofile-arcs -ftest-coverage -lgcov" DEBUG)
+  MY_CHECK_AND_SET_COMPILER_FLAG("-DHAVE_gcov -fprofile-arcs -ftest-coverage -fprofile-update=atomic -lgcov" DEBUG)
 ENDIF()
 
 OPTION(WITHOUT_PACKED_SORT_KEYS "disable packed sort keys"  OFF)
