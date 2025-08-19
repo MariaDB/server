@@ -640,6 +640,6 @@ maria_declare_plugin(clone_plugin){
     nullptr,                                /* status variables */
     clone_system_variables,                 /* system variables */
     "1.0",                                  /* config options */
-    MariaDB_PLUGIN_MATURITY_EXPERIMENTAL    /* flags */
+    MariaDB_PLUGIN_MATURITY_BETA            /* flags */
 } /** Declare clone plugin */
 mysql_declare_plugin_end;

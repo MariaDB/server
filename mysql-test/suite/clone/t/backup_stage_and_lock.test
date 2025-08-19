@@ -31,6 +31,7 @@ let $clone_err= ER_BACKUP_WRONG_STAGE;
 
 rmdir $CLONE_DATADIR;
 let $clone_err=0;
+BACKUP STAGE END;
 # backup lock wait for clone backup lock
 SET DEBUG_SYNC="clone_backup_lock SIGNAL con1_wait WAIT_FOR res_clone2";
 --source ../include/clone_command_send.inc

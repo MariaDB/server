@@ -924,11 +924,11 @@ void log_t::persist(lsn_t lsn) noexcept
   ut_ad(!flush_lock.is_owner());
   ut_ad(latch_have_wr());
 
+  arch_sys->log_sys()->wait_archiver(lsn);
   lsn_t old= flushed_to_disk_lsn.load(std::memory_order_relaxed);
 
   if (old >= lsn)
     return;
-  arch_sys->log_sys()->wait_archiver(lsn);
 
   const size_t start(calc_lsn_offset(old));
   const size_t end(calc_lsn_offset(lsn));

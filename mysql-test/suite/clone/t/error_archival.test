@@ -4,7 +4,7 @@
 --source include/have_debug_sync.inc
 --source include/count_sessions.inc
 
-call mtr.add_suppression("\\[ERROR\\] .*MY-\\d+.* The redo log archiver is aborted as it was lagging behind at LSN = .*");
+call mtr.add_suppression("\\[ERROR\\] InnoDB: Log writer waited too long for archiver");
 
 ## Install plugin
 --let $CLONE_DATADIR = $MYSQL_TMP_DIR/data_new
@@ -121,9 +121,8 @@ connection default;
 SET DEBUG_SYNC = 'RESET';
 
 disconnect con1;
-
---echo # Restart cloned database
---replace_result $CLONE_DATADIR CLONE_DATADIR
+--echo # Restart server on cloned data directory
+--let $restart_noprint=1
 --let restart_parameters=--datadir=$CLONE_DATADIR
 --source include/restart_mysqld.inc
 

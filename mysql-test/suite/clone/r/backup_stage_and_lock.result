@@ -12,6 +12,7 @@ BACKUP STAGE START;
 SET lock_wait_timeout=1;
 CLONE LOCAL DATA DIRECTORY = 'CLONE_DATADIR';
 ERROR HY000: Backup stage 'START' is same or before current backup stage 'START'
+BACKUP STAGE END;
 SET DEBUG_SYNC="clone_backup_lock SIGNAL con1_wait WAIT_FOR res_clone2";
 CLONE LOCAL DATA DIRECTORY = 'CLONE_DATADIR';
 connection con1;

@@ -157,7 +157,7 @@ connection default;
 SET GLOBAL DEBUG ="-d,clone_no_zero_copy";
 disconnect con1;
 # Restart cloned database
-# restart: --datadir=MYSQLTEST_VARDIR/tmp/data_new
+# restart: with restart_parameters
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
