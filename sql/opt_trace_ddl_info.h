@@ -28,8 +28,15 @@
    Currently we store the interval's text representation, like
    "1 < (key1) < 2"
 */
-struct trace_range_context{
+struct Range_record : public Sql_alloc
+{
    char *range;
+};
+
+class Range_list_recorder : public Sql_alloc
+{
+ public:
+  void add_range(MEM_ROOT *mem_root, const char *range);
 };
 
 /*
@@ -38,26 +45,28 @@ struct trace_range_context{
    - number of records
    - list of ranges.
 */
-struct trace_index_range_context {
-   char *idx_name;
-   size_t num_records;
-   List<trace_range_context> range_list;
+class Multi_range_read_const_call_record : public Range_list_recorder
+{
+public:
+  char *idx_name;
+  size_t num_records;
+  List<Range_record> range_list;
 };
 
-struct trace_table_index_range_context
+
+class trace_table_index_range_context : public Sql_alloc
 {
+public:
   /*
      full name of the table or view
      i.e db_name.[table/view]_name
   */
   char *name;
   size_t name_len;
-  List<trace_index_range_context> index_list;
+  List<Multi_range_read_const_call_record> index_list;
 };
 
 bool store_tables_context_in_trace(THD *thd);
-
-char *create_new_copy(THD *thd, const char *buf);
 
 /*
    This class is used to buffer the range stats for indexes,
@@ -86,10 +95,30 @@ public:
   trace_table_index_range_context *search(uchar *tbl_name,
                                           size_t tbl_name_len);
 
-  void record_ranges_for_tbl(THD *thd, TABLE_LIST *tbl, size_t found_records,
-                             const char *index_name, List<char> range_list);
+  Range_list_recorder*
+  start_range_list_record(THD *thd, MEM_ROOT *mem_root,
+                          TABLE_LIST *tbl, size_t found_records,
+                          const char *index_name);
 
   static const uchar *get_tbl_trace_ctx_key(const void *entry_, size_t *length,
                                             my_bool flags);
 };
+
+/* Optionally create and get the statistics context recorder for this query */
+Optimizer_Stats_Context_Recorder * get_current_stats_recorder(THD *thd);
+
+/* Get the range list recorder if we need one. */
+inline Range_list_recorder*
+get_range_list_recorder(THD *thd, MEM_ROOT *mem_root,
+                        TABLE_LIST *tbl, const char* index_name,
+                        ha_rows records)
+{
+  Optimizer_Stats_Context_Recorder *ctx= get_current_stats_recorder(thd);
+  if (ctx)
+    return ctx->start_range_list_record(thd, mem_root, tbl, records, index_name);
+  return nullptr;
+}
+
+
+
 #endif

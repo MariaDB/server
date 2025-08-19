@@ -22,6 +22,9 @@
 #include "mysql.h"
 #include "hash.h"
 
+#include "sql_select.h"
+#include "sql_explain.h"
+
 /**
   @file
 
@@ -145,13 +148,13 @@ static void dump_index_range_stats_to_trace(THD *thd, uchar *tbl_name,
 
   Json_writer_array list_ranges_wrapper(thd, "list_ranges");
   List_iterator irc_li(context->index_list);
-  while (trace_index_range_context *irc= irc_li++)
+  while (Multi_range_read_const_call_record *irc= irc_li++)
   {
     Json_writer_object irc_wrapper(thd);
     irc_wrapper.add("index_name", irc->idx_name);
     List_iterator rc_li(irc->range_list);
     Json_writer_array ranges_wrapper(thd, "ranges");
-    while (trace_range_context *rc= rc_li++)
+    while (Range_record *rc= rc_li++)
     {
       ranges_wrapper.add(rc->range, strlen(rc->range));
     }
@@ -299,7 +302,7 @@ bool store_tables_context_in_trace(THD *thd)
       }
     }
 
-    ddl_key->name= create_new_copy(thd, name.c_ptr());
+    ddl_key->name= strdup_root(thd->mem_root, name.c_ptr());
     ddl_key->name_len= name.length();
     my_hash_insert(&hash, (uchar *) ddl_key);
     Json_writer_object ctx_wrapper(thd);
@@ -331,7 +334,7 @@ Optimizer_Stats_Context_Recorder::Optimizer_Stats_Context_Recorder()
 
 Optimizer_Stats_Context_Recorder::~Optimizer_Stats_Context_Recorder()
 {
-   my_hash_free(&tbl_trace_ctx_hash);
+  my_hash_free(&tbl_trace_ctx_hash);
 }
 
 bool Optimizer_Stats_Context_Recorder::has_records()
@@ -346,25 +349,35 @@ Optimizer_Stats_Context_Recorder::search(uchar *tbl_name, size_t tbl_name_len)
       &tbl_trace_ctx_hash, tbl_name, tbl_name_len);
 }
 
-void Optimizer_Stats_Context_Recorder::record_ranges_for_tbl(
-    THD *thd, TABLE_LIST *tbl, size_t found_records, const char *index_name,
-    List<char> range_list)
+
+/*
+  @detail
+    Do not use thd->mem_root, allocate memory only on the passed mem_root.
+*/
+void Range_list_recorder::add_range(MEM_ROOT *mem_root, const char *range)
+{
+  Range_record *trc= new (mem_root) Range_record;
+  trc->range= strdup_root(mem_root, range);
+  ((Multi_range_read_const_call_record*)this)->range_list.push_back(trc, mem_root);
+}
+
+/*
+  @brief
+    Start recording a range list for tbl.index_name
+
+  @return
+    Pointer one can use to add ranges.
+*/
+Range_list_recorder*
+Optimizer_Stats_Context_Recorder::start_range_list_record(
+  THD *thd, MEM_ROOT *mem_root,
+  TABLE_LIST *tbl, size_t found_records, const char *index_name)
 {
   String tbl_name;
 
-  trace_index_range_context *index_ctx=
-      (trace_index_range_context *) thd->calloc(
-          sizeof(trace_index_range_context));
-  index_ctx->range_list.empty();
-  List_iterator<char> li(range_list);
-  char *range;
-  while ((range=li++))
-  {
-    trace_range_context *trc=
-        (trace_range_context *) thd->calloc(sizeof(trace_range_context));
-    trc->range= range;
-    index_ctx->range_list.push_back(trc);
-  }
+  Multi_range_read_const_call_record *index_ctx=
+    new (mem_root) Multi_range_read_const_call_record;
+
   /*
     Create a new table context if it is not already present in the
     hash.
@@ -374,22 +387,22 @@ void Optimizer_Stats_Context_Recorder::record_ranges_for_tbl(
     used later for dumping all the context infomation into the trace.
   */
   store_full_table_name(thd, tbl, &tbl_name);
-  trace_table_index_range_context *table_ctx= thd->stats_ctx_recorder->search(
-      (uchar *) tbl_name.c_ptr(), tbl_name.length());
+  trace_table_index_range_context *table_ctx=
+    search((uchar *) tbl_name.c_ptr(), tbl_name.length());
 
   if (!table_ctx)
   {
-    table_ctx= (trace_table_index_range_context *) thd->calloc(
-        sizeof(trace_table_index_range_context));
-    table_ctx->name= create_new_copy(thd, tbl_name.c_ptr());
+    table_ctx= new (mem_root) trace_table_index_range_context;
+    table_ctx->name= strdup_root(mem_root, tbl_name.c_ptr());
     table_ctx->name_len= tbl_name.length();
     table_ctx->index_list.empty();
     my_hash_insert(&tbl_trace_ctx_hash, (uchar *) table_ctx);
   }
 
-  index_ctx->idx_name= create_new_copy(thd, index_name);
+  index_ctx->idx_name= strdup_root(mem_root, index_name);
   index_ctx->num_records= found_records;
-  table_ctx->index_list.push_back(index_ctx);
+  table_ctx->index_list.push_back(index_ctx, mem_root);
+  return index_ctx;
 }
 
 /*
@@ -407,6 +420,7 @@ const uchar *Optimizer_Stats_Context_Recorder::get_tbl_trace_ctx_key(
 /*
   store full table name i.e. "db_name.table_name",
   into the supplied variable buf
+  TODO: why does this need THD???
 */
 static void store_full_table_name(THD *thd, TABLE_LIST *tbl, String *buf)
 {
@@ -426,3 +440,16 @@ char *create_new_copy(THD *thd, const char *buf)
   strcpy(name_copy, buf);
   return name_copy;
 }
+
+Optimizer_Stats_Context_Recorder * get_current_stats_recorder(THD *thd)
+{
+  if (thd->variables.optimizer_record_context &&
+      !thd->lex->explain->is_query_plan_ready())
+  {
+    if (!thd->stats_ctx_recorder)
+      thd->stats_ctx_recorder= new Optimizer_Stats_Context_Recorder();
+    return thd->stats_ctx_recorder;
+  }
+  return nullptr;
+}
+

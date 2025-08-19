@@ -53,6 +53,8 @@ it into the slow query log.
 #ifndef SQL_EXPLAIN_INCLUDED
 #define SQL_EXPLAIN_INCLUDED
 
+#include "opt_range.h"
+
 class String_list: public List<char>
 {
 public:

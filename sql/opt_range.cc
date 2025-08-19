@@ -448,7 +448,7 @@ static void print_keyparts_name(String *out, const KEY_PART_INFO *key_part,
 static void trace_ranges(Json_writer_array *range_trace, PARAM *param,
                          uint idx, SEL_ARG *keypart,
                          const KEY_PART_INFO *key_parts,
-                         size_t found_records= 0, bool record_ranges= false);
+                         Range_list_recorder *recorder=NULL);
 
 static
 void print_range(String *out, const KEY_PART_INFO *key_part,
@@ -7885,18 +7885,15 @@ static TRP_RANGE *get_key_scans_params(PARAM *param, SEL_TREE *tree,
         index_scan->sel_arg= key;
         *tree->index_scans_end++= index_scan;
 
+        // thd->old_root.
+
         if (unlikely(thd->trace_started()))
 	{
-          if (thd->variables.optimizer_record_context &&
-              !thd->lex->explain->is_query_plan_ready())
-          {
-            /*
-              compute the ranges, and persist them in the context recorder
-            */
-            trace_ranges(&trace_range, param, idx, key, key_part, found_records, true);
-          }
-          else
-            trace_ranges(&trace_range, param, idx, key, key_part);
+          Range_list_recorder *recorder=
+            get_range_list_recorder(thd, param->old_root, param->table->pos_in_table_list,
+                                    param->table->key_info[keynr].name.str,
+                                    found_records);
+          trace_ranges(&trace_range, param, idx, key, key_part, recorder);
         }
         trace_range.end();
 
@@ -17375,8 +17372,8 @@ void print_range_for_non_indexed_field(String *out, Field *field,
 */
 static void trace_ranges(Json_writer_array *range_trace, PARAM *param,
                          uint idx, SEL_ARG *keypart,
-                         const KEY_PART_INFO *key_parts, size_t found_records,
-                         bool record_ranges)
+                         const KEY_PART_INFO *key_parts,
+                         Range_list_recorder *recorder)
 {
   SEL_ARG_RANGE_SEQ seq;
   KEY_MULTI_RANGE range;
@@ -17387,7 +17384,6 @@ static void trace_ranges(Json_writer_array *range_trace, PARAM *param,
   KEY *keyinfo= param->table->key_info + param->real_keynr[idx];
   uint n_key_parts= param->table->actual_n_key_parts(keyinfo);
   DBUG_ASSERT(range_trace->trace_started());
-  uint keynr= param->real_keynr[idx];
   seq.keyno= idx;
   seq.key_parts= param->key[idx];
   seq.real_keyno= param->real_keynr[idx];
@@ -17402,42 +17398,16 @@ static void trace_ranges(Json_writer_array *range_trace, PARAM *param,
   seq_it= seq_if.init((void *) &seq, 0, flags);
 
   List<char> range_list;
-  MEM_ROOT *tmp_root= param->mem_root;
   range_list.empty();
-  if (record_ranges)
-  {
-    /*
-      Set the thd's mem_root to that of the top level statement.
-      Required to persist the ranges that are created for each index
-      until the end of the query execution.
-    */
-    param->thd->mem_root= param->old_root;
-
-    if (!param->thd->stats_ctx_recorder)
-      param->thd->stats_ctx_recorder=
-          new Optimizer_Stats_Context_Recorder();
-  }
 
   while (!seq_if.next(seq_it, &range))
   {
     StringBuffer<128> range_info(system_charset_info);
     print_range(&range_info, cur_key_part, &range, n_key_parts);
     range_trace->add(range_info.c_ptr_safe(), range_info.length());
-    if (record_ranges)
-    {
-      range_list.push_back(
-          create_new_copy(param->thd, range_info.c_ptr_safe()));
-    }
+    if (recorder)
+      recorder->add_range(param->old_root, range_info.c_ptr_safe());
   }
-
-  if (record_ranges)
-  {
-    param->thd->stats_ctx_recorder->record_ranges_for_tbl(
-        param->thd, param->table->pos_in_table_list, found_records,
-        param->table->key_info[keynr].name.str, range_list);
-  }
-  // restore the mem_root value
-  param->thd->mem_root= tmp_root;
 }
 
 /**
