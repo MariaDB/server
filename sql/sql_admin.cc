@@ -1777,10 +1777,12 @@ bool Sql_cmd_clone::execute(THD *thd)
   if (is_replace)
   {
     /* TODO: Check for CLONE_ADMIN equivalent privilege. */
-    if (check_global_access(thd, RELOAD_ACL))
+    if (check_global_access(thd, RELOAD_ACL) ||
+        check_global_access(thd, LOCK_TABLES_ACL))
       return true;
   }
-  else if (check_global_access(thd, RELOAD_ACL))
+  else if (check_global_access(thd, RELOAD_ACL) ||
+           check_global_access(thd, LOCK_TABLES_ACL))
     return true;
 
   assert(m_clone == nullptr);
