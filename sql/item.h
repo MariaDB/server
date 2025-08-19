@@ -873,8 +873,24 @@ class Item :public Value_source,
   static void *operator new(size_t size);
 
 public:
+#ifndef DBUG_OFF
+  /*
+    This is used to confirm where any particular item is allocated in memory
+    debug builds only
+  */
+  MEM_ROOT *dbug_mem_root;
+  THD      *dbug_thd;
+#define _DBUG_HAVE_ITEM_THD
+  static void *operator new(size_t size, MEM_ROOT *mem_root) throw ()
+  {
+    void *item= alloc_root(mem_root, size);
+    ((Item *)item)->dbug_mem_root= mem_root;
+    return item;
+  }
+#else
   static void *operator new(size_t size, MEM_ROOT *mem_root) throw ()
   { return alloc_root(mem_root, size); }
+#endif
   static void operator delete(void *ptr,size_t size) { TRASH_FREE(ptr, size); }
   static void operator delete(void *ptr, MEM_ROOT *mem_root) {}
 

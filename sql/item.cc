@@ -419,6 +419,9 @@ Item::Item(THD *thd):
   name(null_clex_str), orig_name(0), is_expensive_cache(-1)
 {
   DBUG_ASSERT(thd);
+#ifdef _DBUG_HAVE_ITEM_THD
+  dbug_thd= thd;
+#endif  
   base_flags= item_base_t::FIXED;
   with_flags= item_with_t::NONE;
   null_value= 0;
@@ -452,6 +455,9 @@ Item::Item():
   name(null_clex_str), orig_name(0), is_expensive_cache(-1)
 {
   DBUG_ASSERT(!mysqld_server_started);          // Created early
+#ifdef _DBUG_HAVE_ITEM_THD
+  dbug_thd= 0;
+#endif
   base_flags= item_base_t::FIXED;
   with_flags= item_with_t::NONE;
   null_value= 0;
@@ -488,6 +494,9 @@ Item::Item(THD *thd, Item *item):
   is_expensive_cache(-1),
   join_tab_idx(item->join_tab_idx)
 {
+#ifdef _DBUG_HAVE_ITEM_THD
+  dbug_thd= thd;
+#endif
   next= thd->free_list;				// Put in free list
   thd->free_list= this;
 }
@@ -11361,3 +11370,4 @@ bool ignored_list_includes_table(ignored_tables_list_t list, TABLE_LIST *tbl)
   }
   return false;
 }
+#include "dbp.cc"
