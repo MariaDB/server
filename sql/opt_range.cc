@@ -295,6 +295,22 @@ public:
 
   bool without_ranges() { return keys_map.is_clear_all(); }
   bool without_imerges() { return merges.is_empty(); }
+#ifndef DBUG_OFF
+  key_map get_keys_map()
+  {
+    return keys_map;
+  }
+
+  SEL_ARG *get_key(uint keyno)
+  {
+    return keys[keyno];
+  }
+
+  uint get_type()
+  {
+    return (uint)type;
+  }
+#endif
 };
 
 
@@ -17669,3 +17685,78 @@ void print_keyparts_name(String *out, const KEY_PART_INFO *key_part,
   }
   out->append(STRING_WITH_LEN(")"));
 }
+
+#ifndef DBUG_OFF
+#include "dbp.h"
+
+void dbug_add_print_sel_arg(SEL_ARG *arg, KEY_PART *part)
+{
+  if (!(arg->min_flag & NO_MIN_RANGE))
+  {
+    store_key_image_to_rec(part->field, arg->min_value, part->length);
+    dbug_add_print_field( part->field );
+    if (arg->min_flag & NEAR_MIN)
+      DBUG_CAT(" < ");
+    else
+      DBUG_CAT(" <= ");
+  }
+
+  DBUG_SPRINTF_CAT("%s", part->field->field_name.str);
+
+  if (!(arg->max_flag & NO_MAX_RANGE))
+  {
+    if (arg->max_flag & NEAR_MAX)
+      DBUG_CAT(" < ");
+    else
+      DBUG_CAT(" <= ");
+    store_key_image_to_rec(part->field, arg->max_value, part->length);
+    dbug_add_print_field( part->field );
+  }
+}
+
+
+const char *DBUG_PRINT_FUNCTION(SEL_ARG *arg, KEY_PART *part)
+{
+  *dbug_big_buffer= (char)0;
+  dbug_add_print_sel_arg(arg, part);
+  return dbug_big_buffer;
+}
+
+
+const char *DBUG_PRINT_FUNCTION(SEL_TREE *arg, KEY_PART *parts)
+{
+  *dbug_big_buffer= (char)0;
+  DBUG_CAT( "(SEL_TREE *) type:");
+  switch (arg->type)
+  {
+    case 0:
+    DBUG_CAT( "IMPOSSIBLE" );
+    break;
+    case 1:
+    DBUG_CAT( "ALWAYS" );
+    break;
+    case 2:
+    DBUG_CAT( "MAYBE" );
+    break;
+    case 3:
+    DBUG_CAT( "KEY" );
+    break;
+    case 4:
+    DBUG_CAT( "KEY_SMALLER" );
+    break;
+    default:
+    DBUG_CAT( "UNKNOWN" );
+    break;
+  }
+  key_map::Iterator it(arg->keys_map);
+  int key_no;
+  while ((key_no= it++) != key_map::Iterator::BITMAP_END)
+  {
+    SEL_ARG *key1= arg->get_key(key_no);
+    dbug_add_print_sel_arg( key1, parts+key1->part );
+  }
+
+  return dbug_big_buffer;
+}
+
+#endif

@@ -436,6 +436,9 @@ Item::Item(THD *thd):
   with_flags= item_with_t::NONE;
   null_value= 0;
   marker= MARKER_UNUSED;
+#ifdef _DBUG_HAVE_ITEM_THD
+  dbug_thd= thd;
+#endif
 
    /* Initially this item is not attached to any JOIN_TAB. */
   join_tab_idx= MAX_TABLES;
@@ -469,6 +472,9 @@ Item::Item():
   with_flags= item_with_t::NONE;
   null_value= 0;
   marker= MARKER_UNUSED;
+#ifdef _DBUG_HAVE_ITEM_THD
+  dbug_thd= 0;
+#endif
   join_tab_idx= MAX_TABLES;
 }
 
@@ -501,6 +507,9 @@ Item::Item(THD *thd, Item *item):
   is_expensive_cache(-1),
   join_tab_idx(item->join_tab_idx)
 {
+#ifdef _DBUG_HAVE_ITEM_THD
+  dbug_thd= thd;
+#endif
   next= thd->free_list;				// Put in free list
   thd->free_list= this;
 }
@@ -11815,3 +11824,5 @@ bool ignored_list_includes_table(ignored_tables_list_t list, TABLE_LIST *tbl)
   }
   return false;
 }
+
+#include "dbp.cc"
