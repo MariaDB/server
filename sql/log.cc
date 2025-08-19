@@ -6004,6 +6004,13 @@ int MYSQL_BIN_LOG::new_file_impl(bool commit_by_rotate)
     goto end;
   }
   update_binlog_end_pos();
+
+  DBUG_EXECUTE_IF("stop_after_rotate_written", {
+    DBUG_ASSERT(!debug_sync_set_action(
+        current_thd,
+        STRING_WITH_LEN("now SIGNAL rotate_written WAIT_FOR finish_rotate")));
+  });
+
   old_name=name;
   name=0;				// Don't free name
   close_flag= LOG_CLOSE_TO_BE_OPENED | LOG_CLOSE_INDEX;

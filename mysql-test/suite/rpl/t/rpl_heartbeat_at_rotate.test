@@ -1,0 +1,75 @@
+#
+# Test ensures that a heartbeat event can be replicated from master to slave
+# during a slow rotation. MDEV-29981 reported two bugs where the slave could
+# stop in error during a slow rotation because of incorrect checks.
+#
+# To simulate a slow rotation, this test pauses (via debug_sync) after a rotate
+# event has been written and synced to disk, but before the new binary log has
+# been created. After the rotate event has been received and processed by the
+# slave, the test then waits for the next heartbeat event to be sent to the
+# slave. Once the heartbeat has been sent, the rotation is completed, and then
+# the test ensures replication is ok by creating transactions and ensuring they
+# are able to be replicated by the slave. Note that the heartbeat period is set
+# to 2 seconds.
+#
+#
+# References:
+#   MDEV-29881: Replica stops with "Found invalid event in binary log"
+#
+--source include/have_debug.inc
+--source include/have_debug_sync.inc
+--source include/have_innodb.inc
+
+--echo # Binlog format independent
+--source include/have_binlog_format_row.inc
+--source include/master-slave.inc
+
+
+--echo #
+--echo # Initialize test data
+--connection slave
+--source include/stop_slave.inc
+change master to master_heartbeat_period=2;
+--source include/start_slave.inc
+
+--echo # Rotating master logs and pausing after Rotate_event is written..
+--connection master
+set @old_dbug= @@global.debug_dbug;
+set @@global.debug_dbug= "+d,stop_after_rotate_written";
+--send flush binary logs
+
+--echo # Waiting for Rotate event to write/sync to disk
+--connection server_1
+set debug_sync="now wait_for rotate_written";
+
+--echo # Sleep 3s so the master sends a heartbeat event to the slave
+--sleep 3
+
+--connection server_1
+set debug_sync="now signal finish_rotate";
+
+--connection master
+--reap
+set @@global.debug_dbug= @old_dbug;
+
+--echo #
+--echo # Ensure replication continues without error..
+--connection master
+create table t1 (a int);
+insert into t1 values (1);
+--sync_slave_with_master
+--let $diff_tables=master:test.t1,slave:test.t1
+--source include/diff_tables.inc
+
+
+--echo #
+--echo # Cleanup
+--connection master
+drop table t1;
+--source include/save_master_gtid.inc
+
+--connection slave
+--source include/sync_with_master_gtid.inc
+
+--source include/rpl_end.inc
+--echo # End of rpl_heartbeat_at_rotate.test

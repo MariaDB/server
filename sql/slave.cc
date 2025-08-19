@@ -6126,17 +6126,31 @@ static int queue_event(Master_info* mi, const uchar *buf, ulong event_len)
        
        Heartbeat is sent only after an event corresponding to the coordinates
        the heartbeat carries.
-       Slave can not have a higher coordinate except in the only
-       special case when mi->master_log_name, master_log_pos have never
-       been updated by Rotate event i.e when slave does not have any history
-       with the master (and thereafter mi->master_log_pos is NULL).
+
+       Slave can not have a higher coordinate except when rotating logs. That
+       is, either
+         1. when mi->master_log_name, master_log_pos have never been updated by
+            Rotate event i.e when slave does not have any history with the
+            master (and thereafter mi->master_log_pos is NULL)
+         2. if a heartbeat is sent during a slow rotation, the master can send
+            its Rotate event (thereby increasing the mi->master_log_name); yet
+            the sent heartbeat may still be for the old log file.
+
+       Therefore, state comparison is only valid when the log file names match,
+       otherwise the heartbeat is ignored.
 
        Slave can have lower coordinates, if some event from master was omitted.
 
        TODO: handling `when' for SHOW SLAVE STATUS' seconds behind
+
+       TODO: Extend heartbeat events to use GTIDs instead of binlog
+         coordinates. This would alleviate the strange exceptions during log
+         rotation.
     */
-    if (memcmp(mi->master_log_name, hb.get_log_ident(), hb.get_ident_len()) ||
-        mi->master_log_pos > hb.log_pos) {
+    if (mi->master_log_pos &&
+        !memcmp(mi->master_log_name, hb.get_log_ident(), hb.get_ident_len()) &&
+        mi->master_log_pos > hb.log_pos)
+    {
       /* missed events of heartbeat from the past */
       error= ER_SLAVE_HEARTBEAT_FAILURE;
       error_msg.append(STRING_WITH_LEN("heartbeat is not compatible with local info;"));
