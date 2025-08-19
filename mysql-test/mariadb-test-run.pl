@@ -219,6 +219,7 @@ my @DEFAULT_SUITES= qw(
     versioning-
     period-
     sysschema-
+    clone-
   );
 my $opt_suites;
 

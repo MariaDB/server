@@ -156,8 +156,6 @@ call execute_dml(1, 51, 25, 100, 200, 1);
 connection clone_conn_1;
 CLONE LOCAL DATA DIRECTORY = 'CLONE_DATADIR';
 # In connection default - Finished Cloning
-show variables like 'clone_autotune_concurrency';
-Variable_name	Value
 # In connection con1 - Waiting
 connection con1;
 # In connection con2 - Waiting

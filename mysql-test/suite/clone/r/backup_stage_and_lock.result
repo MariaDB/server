@@ -1,0 +1,23 @@
+INSTALL PLUGIN clone SONAME 'CLONE_PLUGIN';
+SET DEBUG_SYNC="backup_stage_start SIGNAL start_con1 WAIT_FOR res_clone1";
+CLONE LOCAL DATA DIRECTORY = 'CLONE_DATADIR';
+connect con1,localhost,root,,,;
+SET DEBUG_SYNC="now WAIT_FOR start_con1";
+SET lock_wait_timeout=1;
+BACKUP STAGE START;
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+SET DEBUG_SYNC="now SIGNAL res_clone1";
+connection default;
+BACKUP STAGE START;
+SET lock_wait_timeout=1;
+CLONE LOCAL DATA DIRECTORY = 'CLONE_DATADIR';
+ERROR HY000: Backup stage 'START' is same or before current backup stage 'START'
+SET DEBUG_SYNC="clone_backup_lock SIGNAL con1_wait WAIT_FOR res_clone2";
+CLONE LOCAL DATA DIRECTORY = 'CLONE_DATADIR';
+connection con1;
+set DEBUG_SYNC="now WAIT_FOR con1_wait";
+BACKUP LOCK mysql.table_stats;
+BACKUP UNLOCK;
+SET DEBUG_SYNC="now SIGNAL res_clone2";
+connection default;
+UNINSTALL PLUGIN clone;

@@ -223,13 +223,14 @@ int Server::get_stage_and_lock(Sub_Command sub_cmd, Ha_clone_stage &stage,
         log_error(thd, false, 0, "Acquiring locks for BACKUP STAGE "
                                  "START");
         err= clone_set_backup_stage(thd, START);
-	if (err)
-	{
+        if (err)
+        {
           err_msg= "Failed to acquire locks for BACKUP STAGE START";
           goto err_exit;
-	}
-	log_error(thd, false, 0, "Acquired locks for BACKUP STAGE "
+        }
+        log_error(thd, false, 0, "Acquired locks for BACKUP STAGE "
                                  "START");
+        DEBUG_SYNC_C("backup_stage_start");
       }
       stage= HA_CLONE_STAGE_CONCURRENT;
       break;

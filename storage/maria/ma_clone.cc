@@ -354,6 +354,10 @@ int Table::open(THD *thd, bool no_lock)
   }
   else
     locked= !no_lock;
+#ifndef DBUG_OFF
+  if (strcmp(m_table.c_str(), "table_stats") == 0)
+    DEBUG_SYNC_C("clone_backup_lock");
+#endif
 
   for (Partition &partition : m_partitions)
   {

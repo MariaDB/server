@@ -82,8 +82,6 @@ if (!$clone_ddl) {
 --source ../include/clone_command.inc
 --echo # In connection default - Finished Cloning
 
-show variables like 'clone_autotune_concurrency';
-
 --echo # In connection con1 - Waiting
 connection con1;
 --reap

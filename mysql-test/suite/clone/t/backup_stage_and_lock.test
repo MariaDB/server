@@ -1,0 +1,49 @@
+# Test clone with different table types with debug sync
+--source include/have_innodb.inc
+--source include/have_debug_sync.inc
+--source include/count_sessions.inc
+
+## Install plugin
+--let $CLONE_DATADIR = $MYSQL_TMP_DIR/data_new
+
+--replace_result $MARIADB_CLONE_SO CLONE_PLUGIN
+--eval INSTALL PLUGIN clone SONAME '$MARIADB_CLONE_SO'
+
+SET DEBUG_SYNC="backup_stage_start SIGNAL start_con1 WAIT_FOR res_clone1";
+--source ../include/clone_command_send.inc
+
+connect(con1,localhost,root,,,);
+SET DEBUG_SYNC="now WAIT_FOR start_con1";
+SET lock_wait_timeout=1;
+--error ER_LOCK_WAIT_TIMEOUT
+BACKUP STAGE START;
+SET DEBUG_SYNC="now SIGNAL res_clone1";
+
+connection default;
+reap;
+
+# Clone wait for backup stage
+BACKUP STAGE START;
+rmdir $CLONE_DATADIR;
+SET lock_wait_timeout=1;
+let $clone_err= ER_BACKUP_WRONG_STAGE;
+--source ../include/clone_command.inc
+
+rmdir $CLONE_DATADIR;
+let $clone_err=0;
+# backup lock wait for clone backup lock
+SET DEBUG_SYNC="clone_backup_lock SIGNAL con1_wait WAIT_FOR res_clone2";
+--source ../include/clone_command_send.inc
+
+connection con1;
+set DEBUG_SYNC="now WAIT_FOR con1_wait";
+# BACKUP LOCK should succeed
+BACKUP LOCK mysql.table_stats;
+BACKUP UNLOCK;
+SET DEBUG_SYNC="now SIGNAL res_clone2";
+
+connection default;
+reap;
+
+UNINSTALL PLUGIN clone;
+rmdir $CLONE_DATADIR;
