@@ -38,7 +38,8 @@ count(*)	max(a)
 select count(*), max(a) from t2;
 count(*)	max(a)
 70	200
-# restart: --datadir=MYSQLTEST_VARDIR/tmp/data_new
+# Restart server on cloned data directory
+# restart: with restart_parameters
 select count(*), max(a) from t1;
 count(*)	max(a)
 70	100

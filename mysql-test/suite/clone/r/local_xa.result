@@ -89,7 +89,7 @@ col1	col2	col3	SUBSTRING(col4, 1000, 32)
 8	100	Clone Test Row - 8	umn Data Large Column Data Large
 9	100	Clone Test Row - 9	umn Data Large Column Data Large
 # Restart cloned database
-# restart: --datadir=MYSQLTEST_VARDIR/tmp/data_new
+# restart: with restart_parameters
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (

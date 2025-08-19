@@ -58,7 +58,7 @@ connection default;
 disconnect con1;
 
 --echo # Restart cloned database
---replace_result $CLONE_DATADIR CLONE_DATADIR
+--let restart_noprint=1
 --let restart_parameters=--datadir=$CLONE_DATADIR
 --source include/restart_mysqld.inc
 

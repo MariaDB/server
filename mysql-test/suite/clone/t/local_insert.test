@@ -66,8 +66,8 @@ if (!$remote_clone) {
 select count(*), max(a) from t1;
 select count(*), max(a) from t2;
 
-# Restart server on cloned data directory
---replace_result $CLONE_DATADIR CLONE_DATADIR
+--echo # Restart server on cloned data directory
+--let restart_noprint=1
 --let restart_parameters=--datadir=$CLONE_DATADIR
 --source include/restart_mysqld.inc
 

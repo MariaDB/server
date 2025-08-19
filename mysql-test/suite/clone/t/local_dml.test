@@ -113,7 +113,7 @@ disconnect con4;
 
 if (!$clone_remote_replace) {
   --echo # Restart cloned database
-  --replace_result $CLONE_DATADIR CLONE_DATADIR
+  --let restart_noprint=1
   --let restart_parameters=--datadir=$CLONE_DATADIR
   --source include/restart_mysqld.inc
 }
@@ -150,7 +150,6 @@ SELECT col1, col2, col3 FROM t2 ORDER BY col1 DESC LIMIT 10;
 
 if (!$clone_remote_replace) {
   --echo # Restart cloned database
-  --replace_result $CLONE_DATADIR1 CLONE_DATADIR1
   --let restart_parameters=--datadir=$CLONE_DATADIR1
   --source include/restart_mysqld.inc
 }

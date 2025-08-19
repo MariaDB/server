@@ -1,7 +1,3 @@
-select @@innodb_data_home_dir;
-@@innodb_data_home_dir
-NULL
-
 CREATE TABLE t1(col1 INT PRIMARY KEY, col2 char(64), FULLTEXT KEY fts_index(col2))ENGINE=InnoDB;
 INSERT INTO t1 VALUES(10, 'clone row 1');
 INSERT INTO t1 VALUES(20, 'clone row 2');
@@ -54,7 +50,8 @@ clone	ACTIVE
 connection clone_conn_1;
 CLONE LOCAL DATA DIRECTORY = 'CLONE_DATADIR';
 connection default;
-# restart: --datadir=MYSQLTEST_VARDIR/tmp/data_new
+# Restart server on cloned data directory
+# restart: with restart_parameters
 SELECT * from t1 ORDER BY col1;
 col1	col2
 10	clone row 1

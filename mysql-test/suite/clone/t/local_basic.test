@@ -57,8 +57,8 @@ WHERE PLUGIN_NAME LIKE '%clone%';
 
 if (!$clone_remote_replace) {
   --connection default
-  # Restart server on cloned data directory
-  --replace_result $CLONE_DATADIR CLONE_DATADIR
+  --echo # Restart server on cloned data directory
+  --let $restart_noprint=1
   --let restart_parameters=--datadir=$CLONE_DATADIR
   --source include/restart_mysqld.inc
 }
@@ -112,7 +112,7 @@ DROP TABLE non_innodb.t_csv;
 DROP SCHEMA non_innodb;
 
 if (!$clone_remote_replace) {
-#  --rmdir $CLONE_DATADIR
+  --rmdir $CLONE_DATADIR
 }
 
 # Clean recipient by cloning the cleaned up donor
