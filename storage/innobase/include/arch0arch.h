@@ -832,13 +832,16 @@ class Arch_Group
 {
  public:
   /** Constructor: Initialize members
+  @param[in]    first_lsn       aligned start LSN for the group
   @param[in]    start_lsn       start LSN for the group
   @param[in]    header_len      length of header for archived files
   @param[in]    mutex           archive system mutex from caller */
-  Arch_Group(lsn_t start_lsn, uint header_len, mysql_mutex_t *mutex)
-      : m_begin_lsn(start_lsn),
+  Arch_Group(lsn_t first_lsn, lsn_t start_lsn, uint header_len,
+             mysql_mutex_t *mutex)
+      : m_first_lsn(first_lsn), m_begin_lsn(start_lsn),
         m_header_len(header_len) IF_DEBUG(, m_arch_mutex(mutex))
   {
+    ut_ad(first_lsn <= start_lsn);
     m_active_file.m_file= OS_FILE_CLOSED;
     m_durable_file.m_file= OS_FILE_CLOSED;
     m_stop_pos.init();
@@ -1159,6 +1162,10 @@ class Arch_Group
   @return file size in bytes */
   uint64_t get_file_size() const { return m_file_size; }
 
+  /** Get aligned start LSN for this group
+  @return aligned start LSN */
+  lsn_t get_first_lsn() const { return (m_first_lsn); }
+
   /** Get start LSN for this group
   @return start LSN */
   lsn_t get_begin_lsn() const { return (m_begin_lsn); }
@@ -1189,6 +1196,31 @@ class Arch_Group
   @param[in]  create_new  create new file if file not present
   @return error code. */
   dberr_t open_file(Arch_Page_Pos write_pos, bool create_new);
+
+  /** Align down LSN value to multiples of OS_FILE_LOG_BLOCK_SIZE with respect
+  to a reference LSN value.
+  @param[in] lsn LSN value to align
+  @param[in] ref_lsn reference LSN
+  @return aligned LSN value. */
+  static lsn_t align_lsn(lsn_t lsn, lsn_t ref_lsn)
+  {
+    lsn_t lsn_diff = (ref_lsn <= lsn) ? (lsn - ref_lsn) :
+        (ref_lsn - lsn + OS_FILE_LOG_BLOCK_SIZE);
+    lsn_diff = ut_uint64_align_down(lsn_diff, OS_FILE_LOG_BLOCK_SIZE);
+    lsn_t r = (ref_lsn <= lsn) ? (ref_lsn + lsn_diff) : (ref_lsn - lsn_diff);
+    ut_ad(r <= lsn);
+    return r;
+  }
+
+  /** Align down LSN value to multiples of OS_FILE_LOG_BLOCK_SIZE with respect
+  to groups first LSN value.
+  @param[in] lsn LSN value to align
+  @return aligned LSN value. */
+  lsn_t align_lsn(lsn_t lsn) const
+  {
+    ut_ad(m_first_lsn <= lsn);
+    return Arch_Group::align_lsn(lsn, m_first_lsn);
+  }
 
   /** Disable copy construction */
   Arch_Group(Arch_Group const &) = delete;
@@ -1248,7 +1280,14 @@ class Arch_Group
   /** Number of clients for which archiving is in progress */
   uint m_num_active{};
 
-  /** Start LSN for the archive group */
+  /** Start LSN aligned with log_sys.first_lsn in multiples of
+  OS_FILE_LOG_BLOCK_SIZE. Archived logs for the group starts at
+  this LSN. We don't currently support concurrent redo log resize
+  which could change the alignment of first_lsn. */
+  lsn_t m_first_lsn{LSN_MAX};
+
+  /** Desired start LSN for the archive group. This is typically a
+  checkpoint LSN. */
   lsn_t m_begin_lsn{LSN_MAX};
 
   /** End lsn for this archive group */
@@ -1329,12 +1368,7 @@ class Arch_Log_Sys
   @return last archived redo LSN */
   lsn_t get_archived_lsn() const
   {
-    lsn_t archived_lsn = m_archived_lsn.load();
-    ut_ad(archived_lsn == LSN_MAX ||
-          archived_lsn % OS_FILE_LOG_BLOCK_SIZE == 0);
-    if (archived_lsn != LSN_MAX && archived_lsn % OS_FILE_LOG_BLOCK_SIZE != 0)
-      archived_lsn = ut_uint64_align_down(archived_lsn, OS_FILE_LOG_BLOCK_SIZE);
-    return archived_lsn;
+    return m_archived_lsn.load();
   }
 
   /** Get recommended archived redo file size
@@ -1428,9 +1462,11 @@ class Arch_Log_Sys
   /** Update checkpoint LSN and related information in redo
   log header block.
   @param[in,out] header          redo log header buffer
+  @param[in]     first_lsn       first LSN of the archived log
   @param[in]     checkpoint_lsn  LSN of the checkpoint
   @param[in]     end_lsn         LSN of the checkpoint record */
-  void update_header(byte *header, lsn_t checkpoint_lsn, lsn_t end_lsn);
+  void update_header(byte *header, lsn_t first_lsn, lsn_t checkpoint_lsn,
+                     lsn_t end_lsn);
 
   /** Check and set log archive system state and output the
   amount of redo log available for archiving.

@@ -2362,8 +2362,8 @@ int Arch_Page_Sys::start(Arch_Group **group, lsn_t *start_lsn,
     m_last_reset_file_index= 0;
 
     m_current_group=
-        UT_NEW(Arch_Group(log_sys_lsn, ARCH_PAGE_FILE_HDR_SIZE, &m_mutex),
-               mem_key_archive);
+        UT_NEW(Arch_Group(0, log_sys_lsn, ARCH_PAGE_FILE_HDR_SIZE,
+                          &m_mutex), mem_key_archive);
     if (m_current_group == nullptr)
     {
       acquired_oper_mutex= false;

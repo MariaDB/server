@@ -81,22 +81,16 @@ int Log_Arch_Client_Ctx::stop(byte *trailer, uint32_t &len, uint64_t &offset)
   ut_ad(trailer == nullptr || len >= OS_FILE_LOG_BLOCK_SIZE);
 
   auto err= arch_sys->log_sys()->stop(m_group, m_end_lsn, trailer, len);
-
-  lsn_t start_lsn= m_group->get_begin_lsn();
-
-  start_lsn= ut_uint64_align_down(start_lsn, OS_FILE_LOG_BLOCK_SIZE);
-  lsn_t stop_lsn= ut_uint64_align_down(m_end_lsn, OS_FILE_LOG_BLOCK_SIZE);
+  lsn_t start_lsn= m_group->get_first_lsn();
+  lsn_t stop_lsn= m_group->align_lsn(m_end_lsn);
 
   lsn_t file_capacity= m_group->get_file_size();
-
   file_capacity-= log_t::START_OFFSET;
 
   offset= (stop_lsn - start_lsn) % file_capacity;
-
   offset+= log_t::START_OFFSET;
 
   m_state= ARCH_CLIENT_STATE_STOPPED;
-
   ib::info() << "Clone Stop  LOG ARCH : end LSN : " << m_end_lsn;
 
   return err;
@@ -109,16 +103,13 @@ int Log_Arch_Client_Ctx::stop(byte *trailer, uint32_t &len, uint64_t &offset)
 int Log_Arch_Client_Ctx::get_files(Log_Arch_Cbk *cbk_func, void *ctx)
 {
   ut_ad(m_state == ARCH_CLIENT_STATE_STOPPED);
-
   int err= 0;
-
   auto size= m_group->get_file_size();
 
   /* Check if the archived redo log is less than one block size. In this
   case we send the data in trailer buffer. */
-  auto low_begin= ut_uint64_align_down(m_begin_lsn, OS_FILE_LOG_BLOCK_SIZE);
-
-  auto low_end= ut_uint64_align_down(m_end_lsn, OS_FILE_LOG_BLOCK_SIZE);
+  auto low_begin= m_group->align_lsn(m_begin_lsn);
+  auto low_end= m_group->align_lsn(m_end_lsn);
 
   if (low_begin == low_end)
   {
@@ -127,9 +118,7 @@ int Log_Arch_Client_Ctx::get_files(Log_Arch_Cbk *cbk_func, void *ctx)
   }
 
   /* Get the start lsn of the group */
-  auto start_lsn= m_group->get_begin_lsn();
-  start_lsn= ut_uint64_align_down(start_lsn, OS_FILE_LOG_BLOCK_SIZE);
-
+  auto start_lsn= m_group->get_first_lsn();
   ut_ad(m_begin_lsn >= start_lsn);
 
   /* Calculate first file index and offset for this client. */
@@ -213,13 +202,13 @@ os_offset_t Arch_Log_Sys::get_recommended_file_size() const
   return log_sys.file_size;
 }
 
-void Arch_Log_Sys::update_header(byte *header, lsn_t checkpoint_lsn,
-                                 lsn_t end_lsn)
+void Arch_Log_Sys::update_header(byte *header, lsn_t first_lsn,
+                                 lsn_t checkpoint_lsn, lsn_t end_lsn)
 {
   /* Copy Header information. */
   /* TODO: Synchronize with Key rotation or block it. */
-  auto start_lsn= ut_uint64_align_down(checkpoint_lsn, OS_FILE_LOG_BLOCK_SIZE);
-  log_t::header_write(header, start_lsn, log_sys.is_encrypted(), true);
+  ut_ad(first_lsn <= checkpoint_lsn);
+  log_t::header_write(header, first_lsn, log_sys.is_encrypted(), true);
 
   /* Write checkpoint information */
   for (int i= 0; i < 2; i++)
@@ -304,14 +293,14 @@ int Arch_Log_Sys::start(Arch_Group *&group, lsn_t &start_lsn, byte *header,
   start_lsn= log_sys.last_checkpoint_lsn;
   lsn_t checkpoint_end_lsn= log_sys.last_checkpoint_end_lsn;
 
-  auto aligned_lsn= ut_uint64_align_down(start_lsn, OS_FILE_LOG_BLOCK_SIZE);
+  auto first_lsn= Arch_Group::align_lsn(start_lsn, log_sys.get_first_lsn());
   const auto start_index= 0;
-  const auto start_offset= log_sys.calc_lsn_offset(aligned_lsn);
+  const auto start_offset= log_sys.calc_lsn_offset(first_lsn);
 
   /* Need to create a new group if archiving is not in progress. */
   if (m_state == ARCH_STATE_IDLE || m_state == ARCH_STATE_INIT)
   {
-    m_archived_lsn.store(aligned_lsn);
+    m_archived_lsn.store(first_lsn);
     create_new_group= true;
   }
 
@@ -327,8 +316,9 @@ int Arch_Log_Sys::start(Arch_Group *&group, lsn_t &start_lsn, byte *header,
   /* Create a new group. */
   if (create_new_group)
   {
-    m_current_group = UT_NEW(Arch_Group(start_lsn, log_t::START_OFFSET, &m_mutex),
-                             mem_key_archive);
+    m_current_group = UT_NEW(
+        Arch_Group(first_lsn, start_lsn, log_t::START_OFFSET, &m_mutex),
+        mem_key_archive);
     if (!m_current_group)
     {
       arch_mutex_exit();
@@ -369,7 +359,7 @@ int Arch_Log_Sys::start(Arch_Group *&group, lsn_t &start_lsn, byte *header,
   /* Update header with checkpoint LSN. Note, that arch mutex is released
   and m_current_group should no longer be accessed. The group cannot be
   freed as we have already attached to it. */
-  update_header(header, start_lsn, checkpoint_end_lsn);
+  update_header(header, first_lsn, start_lsn, checkpoint_end_lsn);
 
   return 0;
 }
@@ -377,8 +367,7 @@ int Arch_Log_Sys::start(Arch_Group *&group, lsn_t &start_lsn, byte *header,
 #ifdef UNIV_DEBUG
 void Arch_Group::adjust_end_lsn(lsn_t &stop_lsn, uint32_t &blk_len)
 {
-  stop_lsn= ut_uint64_align_down(get_begin_lsn(), OS_FILE_LOG_BLOCK_SIZE);
-
+  stop_lsn= get_first_lsn();
   stop_lsn+= get_file_size() - log_t::START_OFFSET;
   blk_len= 0;
 
@@ -429,9 +418,7 @@ int Arch_Log_Sys::stop(Arch_Group *group, lsn_t &stop_lsn, byte *log_blk,
   if (log_blk != nullptr)
   {
     /* Get the current LSN and trailer block. */
-    /* TODO: Log archiving for mmap */
     /* TODO: Block concurrent log file resize. */
-    /* TODO: Test log archiving across file boundary. */
     log_sys.get_last_block(stop_lsn, log_blk, blk_len);
 
     DBUG_EXECUTE_IF("clone_arch_log_stop_file_end",
@@ -439,7 +426,7 @@ int Arch_Log_Sys::stop(Arch_Group *group, lsn_t &stop_lsn, byte *log_blk,
 
     /* Will throw error, if shutdown. We still continue
     with detach but return the error. */
-    err= wait_archive_complete(stop_lsn);
+    err= wait_archive_complete(group->align_lsn(stop_lsn));
   }
 
   arch_mutex_enter();
@@ -788,8 +775,6 @@ We need to wait till current log sys LSN during archive stop.
 @return error code */
 int Arch_Log_Sys::wait_archive_complete(lsn_t target_lsn)
 {
-  target_lsn= ut_uint64_align_down(target_lsn, OS_FILE_LOG_BLOCK_SIZE);
-
   /* Check and wait for archiver thread if needed. */
   if (m_archived_lsn.load() < target_lsn)
   {

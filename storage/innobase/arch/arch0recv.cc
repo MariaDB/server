@@ -421,8 +421,9 @@ dberr_t Arch_Page_Sys::Recovery::recover()
     auto &group_info= info->second;
 
     Arch_Group *group=
-        UT_NEW(Arch_Group(group_info.m_start_lsn, ARCH_PAGE_FILE_HDR_SIZE,
-                          m_page_sys->get_mutex()), mem_key_archive);
+        UT_NEW(Arch_Group(0, group_info.m_start_lsn,
+               ARCH_PAGE_FILE_HDR_SIZE, m_page_sys->get_mutex()),
+               mem_key_archive);
 
     if (group == nullptr)
       return DB_OUT_OF_MEMORY;
