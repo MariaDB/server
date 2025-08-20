@@ -630,5 +630,34 @@ replace delayed t values (1);
 drop table t;
 set global binlog_format=@save_binlog_format;
 
+--echo # MDEV-37381 SIGSEGV in mysql_ha_close_table after HANDLER OPEN of GTT
+
+create global temporary table t (c int);
+start transaction ;
+handler t open as t;
+insert t values(1),(2);
+handler t read first;
+commit;
+--error ER_UNKNOWN_TABLE
+handler t close;
+drop table t;
+
+create global temporary table t (c int);
+start transaction ;
+handler t open as t;
+insert t values(1),(2);
+handler t read first;
+handler t close;
+commit;
+drop table t;
+
+create global temporary table t (c int);
+handler t open as t;
+--error ER_TABLE_EXISTS_ERROR
+create table t (c int);
+--echo # The handler was closed on implicit commit after HANDLER OPEN
+--error ER_UNKNOWN_TABLE
+handler t close;
+drop table t;
 
 --disconnect con1
