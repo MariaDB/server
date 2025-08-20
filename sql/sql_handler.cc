@@ -218,7 +218,6 @@ static void mysql_ha_close_table(SQL_HANDLER *handler)
     close_thread_table(thd, &table);
     if (current_table_list)
       mysql_ha_close_childs(thd, current_table_list, &next_global);
-    thd->mdl_context.release_lock(handler->mdl_request.ticket);
   }
   else
   {
@@ -228,6 +227,8 @@ static void mysql_ha_close_table(SQL_HANDLER *handler)
       mysql_ha_close_childs(thd, current_table_list, &next_global);
     thd->mark_tmp_table_as_free_for_reuse(table);
   }
+  if (handler->mdl_request.ticket)
+    thd->mdl_context.release_lock(handler->mdl_request.ticket);
   my_free(handler->lock);
   handler->init();
   DBUG_VOID_RETURN;
