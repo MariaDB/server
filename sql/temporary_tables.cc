@@ -1465,9 +1465,33 @@ int THD::commit_global_tmp_tables()
   All_tmp_tables_list::Iterator it(*temporary_tables);
   while (TMP_TABLE_SHARE *share= it++)
   {
-    if (share->on_commit_delete())
-      if (int local_error= drop_tmp_table_share(NULL, share, true))
-        error= local_error;
+    if (!share->on_commit_delete())
+      continue;
+
+    All_share_tables_list::Iterator tab_it(share->all_tmp_tables);
+    while (TABLE *table= tab_it++)
+    {
+      if (table->open_by_handler)
+      {
+        Diagnostics_area new_stmt_da(query_id, false, true);
+        Diagnostics_area *old_stmt_da= get_stmt_da();
+        // Avoid error reporting on COMMIT/ROLLBACK
+        set_stmt_da(&new_stmt_da);
+
+        TABLE_LIST tl(table, TL_WRITE);
+        if (int local_error= mysql_ha_close(this, &tl))
+          error= local_error;
+
+        set_stmt_da(old_stmt_da);
+        push_warning_printf(this, Sql_condition::WARN_LEVEL_NOTE,
+                            ER_ILLEGAL_HA,
+                            "Global temporary table %s.%s HANDLER is closed.",
+                            table->s->db.str, table->s->table_name.str);
+      }
+    }
+
+    if (int local_error= drop_tmp_table_share(NULL, share, true))
+      error= local_error;
   }
   return error;
 }
