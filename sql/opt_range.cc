@@ -445,10 +445,10 @@ static void print_key_value(String *out, const KEY_PART_INFO *key_part,
 static void print_keyparts_name(String *out, const KEY_PART_INFO *key_part,
                                 uint n_keypart, key_part_map keypart_map);
 
-static void trace_ranges(Json_writer_array *range_trace,
-                         PARAM *param, uint idx,
-                         SEL_ARG *keypart,
-                         const KEY_PART_INFO *key_parts);
+static void trace_ranges(Json_writer_array *range_trace, PARAM *param,
+                         uint idx, SEL_ARG *keypart,
+                         const KEY_PART_INFO *key_parts,
+                         Range_list_recorder *recorder= NULL);
 
 static
 void print_range(String *out, const KEY_PART_INFO *key_part,
@@ -7886,7 +7886,12 @@ static TRP_RANGE *get_key_scans_params(PARAM *param, SEL_TREE *tree,
         *tree->index_scans_end++= index_scan;
 
         if (unlikely(thd->trace_started()))
-          trace_ranges(&trace_range, param, idx, key, key_part);
+        {
+          Range_list_recorder *recorder= get_range_list_recorder(
+              thd, param->old_root, param->table->pos_in_table_list,
+              param->table->key_info[keynr].name.str, found_records);
+          trace_ranges(&trace_range, param, idx, key, key_part, recorder);
+        }
         trace_range.end();
 
         if (unlikely(trace_idx.trace_started()))
@@ -17349,8 +17354,6 @@ void print_range_for_non_indexed_field(String *out, Field *field,
   dbug_tmp_restore_column_maps(&table->read_set, &table->write_set, old_sets);
 }
 
-
-
 /*
 
   Add ranges to the trace
@@ -17360,12 +17363,12 @@ void print_range_for_non_indexed_field(String *out, Field *field,
     so we create a range:
       (2,4) <= (a,b) <= (2,4)
     this is added to the trace
+  Also, record the created ranges if record_ranges is enabled
 */
-
-static void trace_ranges(Json_writer_array *range_trace,
-                         PARAM *param, uint idx,
-                         SEL_ARG *keypart,
-                         const KEY_PART_INFO *key_parts)
+static void trace_ranges(Json_writer_array *range_trace, PARAM *param,
+                         uint idx, SEL_ARG *keypart,
+                         const KEY_PART_INFO *key_parts,
+                         Range_list_recorder *recorder)
 {
   SEL_ARG_RANGE_SEQ seq;
   KEY_MULTI_RANGE range;
@@ -17389,11 +17392,16 @@ static void trace_ranges(Json_writer_array *range_trace,
   const KEY_PART_INFO *cur_key_part= key_parts + keypart->part;
   seq_it= seq_if.init((void *) &seq, 0, flags);
 
+  List<char> range_list;
+  range_list.empty();
+
   while (!seq_if.next(seq_it, &range))
   {
     StringBuffer<128> range_info(system_charset_info);
     print_range(&range_info, cur_key_part, &range, n_key_parts);
     range_trace->add(range_info.c_ptr_safe(), range_info.length());
+    if (recorder)
+      recorder->add_range(param->old_root, range_info.c_ptr_safe());
   }
 }
 

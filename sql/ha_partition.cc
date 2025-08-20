@@ -2382,7 +2382,7 @@ void ha_partition::update_create_info(HA_CREATE_INFO *create_info)
         DBUG_ASSERT(m_file[part]);
         dummy_info.data_file_name= dummy_info.index_file_name = NULL;
         /*
-          store_table_definitions_in_trace()/show_create_table() may attempt
+          store_tables_context_in_trace()/show_create_table() may attempt
           to produce DDL for a table which has only some partitions open.
 
           We can't get options for unopened partitions. They are not relevant
@@ -2402,7 +2402,7 @@ void ha_partition::update_create_info(HA_CREATE_INFO *create_info)
       dummy_info.data_file_name= dummy_info.index_file_name= NULL;
       /*
         A partition might not be open, see above note about
-        store_table_definitions_in_trace()
+        store_tables_context_in_trace()
       */
       if (m_file[i]->is_open())
         m_file[i]->update_create_info(&dummy_info);
