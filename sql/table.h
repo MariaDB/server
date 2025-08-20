@@ -2127,8 +2127,6 @@ public:
   KEY *foreign_idx;
 
 private:
-  unsigned char *fields_nullable= nullptr;
-
   /**
     Get the number of fields exist in foreign key relationship
   */
@@ -2140,68 +2138,12 @@ private:
     return n_fields;
   }
 
-  /**
-    Assign nullable field for referenced and foreign fields
-    based on number of fields. This nullable fields
-    should be allocated by engine for passing the
-    foreign key information
-    @param thd thread to allocate the memory
-    @param num_fields number of fields
-  */
-  void assign_nullable(THD *thd, unsigned num_fields) noexcept
-  {
-    fields_nullable=
-      (unsigned char *)thd_calloc(thd,
-                                  my_bits_in_bytes(2 * num_fields));
-  }
-
 public:
   FK_info() :
     update_method(FK_OPTION_UNDEF),
     delete_method(FK_OPTION_UNDEF),
     foreign_idx(NULL)
   {}
-
-  /**
-    Set nullable bit for the field in the given field
-    @param referenced set null bit for referenced column
-    @param field field number
-    @param n_fields number of fields
-  */
-  void set_nullable(THD *thd, bool referenced,
-                    unsigned field, unsigned n_fields) noexcept
-  {
-    if (!fields_nullable)
-      assign_nullable(thd, n_fields);
-    DBUG_ASSERT(fields_nullable);
-    DBUG_ASSERT(field < n_fields);
-    size_t bit= size_t{field} + referenced * n_fields;
-#if defined __GNUC__ && !defined __clang__ && __GNUC__ < 6
-# pragma GCC diagnostic push
-# pragma GCC diagnostic ignored "-Wconversion"
-#endif
-    fields_nullable[bit / 8]|= static_cast<unsigned char>(1 << (bit % 8));
-#if defined __GNUC__ && !defined __clang__ && __GNUC__ < 6
-# pragma GCC diagnostic pop
-#endif
-  }
-
-  /**
-    Check whether the given field_no in foreign key field or
-    referenced key field
-    @param referenced check referenced field nullable value
-    @param field  field number
-    @return true if the field is nullable or false if it is not
-  */
-  bool is_nullable(bool referenced, unsigned field) const noexcept
-  {
-    if (!fields_nullable)
-      return false;
-    unsigned n_field= get_n_fields();
-    DBUG_ASSERT(field < n_field);
-    size_t bit= size_t{field} + referenced * n_field;
-    return fields_nullable[bit / 8] & (1U << (bit % 8));
-  }
 
   Lex_ident_db ref_db() const
   {

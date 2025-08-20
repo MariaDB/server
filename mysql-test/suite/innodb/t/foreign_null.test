@@ -184,15 +184,9 @@ replace_result ,ALGORITHM=COPY '' ,ALGORITHM=INPLACE '';
 eval ALTER TABLE `t#2` DROP INDEX f1,ALGORITHM=$algorithm;
 SET FOREIGN_KEY_CHECKS=1;
 
-let $error_code=0;
-if ($algorithm == "COPY")
-{
-  let $error_code= ER_ERROR_ON_RENAME;
-}
-
 --replace_regex /#sql-alter-[0-9a-f_\-]*/#sql-alter/
 replace_result ,ALGORITHM=COPY '' ,ALGORITHM=INPLACE '' $MYSQLD_DATADIR ./;
---error $error_code
+--error ER_FK_COLUMN_CANNOT_CHANGE_CHILD
 eval ALTER TABLE `t#1` MODIFY COLUMN f2 INT,ALGORITHM=$algorithm;
 DROP TABLE `t#2`, `t#1`;
 
@@ -207,7 +201,7 @@ SET FOREIGN_KEY_CHECKS=1;
 
 --replace_regex /#sql-alter-[0-9a-f_\-]*/#sql-alter/
 replace_result ,ALGORITHM=COPY '' ,ALGORITHM=INPLACE '' $MYSQLD_DATADIR ./;
---error $error_code
+--error ER_FK_COLUMN_NOT_NULL
 eval ALTER TABLE `t#2` MODIFY COLUMN f1 INT NOT NULL,ALGORITHM=$algorithm;
 DROP TABLE `t#2`, `t#1`;
 

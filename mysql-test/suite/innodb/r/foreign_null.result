@@ -139,6 +139,7 @@ SET FOREIGN_KEY_CHECKS=0;
 ALTER TABLE `t#2` DROP INDEX f1;
 SET FOREIGN_KEY_CHECKS=1;
 ALTER TABLE `t#1` MODIFY COLUMN f2 INT;
+ERROR HY000: Cannot change column 'f2': used in a foreign key constraint '1' of table 'test.t#2'
 DROP TABLE `t#2`, `t#1`;
 # Drop referenced index and modify column
 CREATE TABLE `t#1`(f1 INT, f2 INT, PRIMARY KEY(f1), KEY(f2))ENGINE=InnoDB;
@@ -147,6 +148,7 @@ SET FOREIGN_KEY_CHECKS=0;
 ALTER TABLE `t#1` DROP INDEX f2;
 SET FOREIGN_KEY_CHECKS=1;
 ALTER TABLE `t#2` MODIFY COLUMN f1 INT NOT NULL;
+ERROR HY000: Column 'f1' cannot be NOT NULL: needed in a foreign key constraint '1' SET NULL
 DROP TABLE `t#2`, `t#1`;
 # Self referential modifying column
 CREATE TABLE t1(f1 INT, f2 INT, index(f2), foreign key(f1) references t1(f2) ON UPDATE CASCADE)engine=innodb;
