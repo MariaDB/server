@@ -90,7 +90,7 @@ dberr_t Arch_Dblwr_Ctx::init(const char *dblwr_path,
 {
   m_file_size= dblwr_file_size;
 
-  m_buf= static_cast<byte *>(ut_zalloc_nokey(m_file_size));
+  m_buf= static_cast<byte *>(ut_zalloc_nokey(static_cast<uint>(m_file_size)));
 
   if (m_buf == nullptr)
     return DB_OUT_OF_MEMORY;

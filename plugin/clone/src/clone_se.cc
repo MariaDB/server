@@ -333,7 +333,7 @@ exit:
     mysql_file_close(frm_file, MYF(0));
   }
 
-  if (locked && !clone_backup_unlock(thd))
+  if (locked && clone_backup_unlock(thd))
   {
     my_printf_error(ER_INTERNAL_ERROR, "Error on BACKUP UNLOCK for table %s",
                     ME_ERROR_LOG, full_tname.c_str());

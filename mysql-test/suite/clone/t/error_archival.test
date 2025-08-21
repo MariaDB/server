@@ -3,6 +3,7 @@
 --source include/have_innodb.inc
 --source include/have_debug_sync.inc
 --source include/count_sessions.inc
+--source include/not_embedded.inc
 
 call mtr.add_suppression("\\[ERROR\\] InnoDB: Log writer waited too long for archiver");
 

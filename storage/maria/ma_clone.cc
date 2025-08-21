@@ -38,6 +38,8 @@ and plugin/clone/src/clone_se.cc
 #include <queue>
 #include <unordered_set>
 #include <vector>
+#include <sstream>
+#include <iomanip>
 
 namespace aria_engine
 {
