@@ -126,7 +126,7 @@ public:
    */
   double scan_time() override { return (double) (stats.records+stats.deleted) / 20.0+10; }
   /* The next method will never be called */
-  virtual bool fast_key_read() { return 1;}
+  bool fast_key_read() { return 1;}
   /* 
     TODO: return actual upper bound of number of records in the table.
     (e.g. save number of records seen on full table scan and/or use file size
