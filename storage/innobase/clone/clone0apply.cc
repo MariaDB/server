@@ -1700,9 +1700,13 @@ int Clone_Snapshot::extend_and_flush_files(bool flush_redo) {
       }
     }
 
-    if (file_size < file_meta->m_file_size) {
-      success = os_file_set_size(file_name.c_str(), file,
-                                 file_meta->m_file_size);
+    if (file_size < file_meta->m_file_size || flush_redo) {
+      auto new_size = std::max<os_offset_t>(file_meta->m_file_size, file_size);
+      if (flush_redo) {
+        new_size = ut_uint64_align_up(file_size, UNIV_PAGE_SIZE_DEF);
+        new_size += UNIV_PAGE_SIZE_DEF;
+      }
+      success = os_file_set_size(file_name.c_str(), file, new_size);
     } else if (file_size < aligned_size) {
       success = os_file_set_size(file_name.c_str(), file, aligned_size);
     } else {

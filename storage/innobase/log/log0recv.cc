@@ -4003,7 +4003,7 @@ void recv_sys_t::apply(bool last_batch)
     buf_pool_invalidate();
     log_sys.latch.wr_lock(SRW_LOCK_CALL);
   }
-  else if (srv_operation == SRV_OPERATION_RESTORE ||
+  else if (is_cloned_db || srv_operation == SRV_OPERATION_RESTORE ||
            srv_operation == SRV_OPERATION_RESTORE_EXPORT)
     buf_flush_sync_batch(lsn);
   else

@@ -1106,7 +1106,11 @@ ATTRIBUTE_COLD static lsn_t srv_prepare_to_delete_redo_log_file() noexcept
   const bool latest_format{log_sys.is_latest()};
   lsn_t flushed_lsn{log_sys.get_flushed_lsn(std::memory_order_relaxed)};
 
-  if (latest_format && !(log_sys.file_size & 4095) &&
+  /* For clone recovery, we should not need to log file names before deleting
+  creating new logs. All logs are applied at this point and dirty pages are
+  flushed. If no new checkpoint is created, the DB should recover fine in case
+  of a crash before new logs are created. */
+  if (!recv_sys.is_cloned_db && latest_format && !(log_sys.file_size & 4095) &&
       flushed_lsn != log_sys.next_checkpoint_lsn +
       (log_sys.is_encrypted()
        ? SIZE_OF_FILE_CHECKPOINT + 8
