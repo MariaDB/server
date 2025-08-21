@@ -1,0 +1,205 @@
+###
+# Test for mix of online/offline backup tables
+#####
+CREATE TABLE t_default(i INT PRIMARY KEY)
+ENGINE ARIA;
+INSERT INTO t_default VALUES (1);
+CREATE TABLE t_tr_p_ch(i INT PRIMARY KEY)
+ENGINE ARIA TRANSACTIONAL=1 ROW_FORMAT=PAGE PAGE_CHECKSUM=1;
+INSERT INTO t_tr_p_ch VALUES (1);
+CREATE TABLE t_tr_p_nch(i INT PRIMARY KEY)
+ENGINE ARIA TRANSACTIONAL=1 ROW_FORMAT=PAGE PAGE_CHECKSUM=0;
+INSERT INTO t_tr_p_nch VALUES (1);
+CREATE TABLE t_p_ch(i INT PRIMARY KEY)
+ENGINE ARIA TRANSACTIONAL=0 ROW_FORMAT=PAGE PAGE_CHECKSUM=1;
+INSERT INTO t_p_ch VALUES (1);
+CREATE TABLE t_p_nch(i INT PRIMARY KEY)
+ENGINE ARIA TRANSACTIONAL=0 ROW_FORMAT=PAGE PAGE_CHECKSUM=0;
+INSERT INTO t_p_nch VALUES (1);
+CREATE TABLE t_fixed(i INT PRIMARY KEY)
+ENGINE ARIA TRANSACTIONAL=0 ROW_FORMAT=FIXED PAGE_CHECKSUM=1;
+INSERT INTO t_fixed VALUES (1);
+CREATE TABLE t_dyn(i INT PRIMARY KEY)
+ENGINE ARIA TRANSACTIONAL=0 ROW_FORMAT=DYNAMIC PAGE_CHECKSUM=1;
+INSERT INTO t_dyn VALUES (1);
+# Test for partitioned table
+CREATE TABLE t_part_online(i INT PRIMARY KEY)
+ENGINE ARIA TRANSACTIONAL = 1 PAGE_CHECKSUM = 1
+PARTITION BY RANGE( i ) (
+PARTITION p0 VALUES LESS THAN (10),
+PARTITION p1 VALUES LESS THAN (20),
+PARTITION p2 VALUES LESS THAN (30)
+);
+INSERT INTO t_part_online VALUES(5);
+INSERT INTO t_part_online VALUES(15);
+INSERT INTO t_part_online VALUES(25);
+SELECT * FROM t_part_online;
+i
+5
+15
+25
+CREATE TABLE t_part_offline(i INT)
+ENGINE ARIA TRANSACTIONAL = 0 PAGE_CHECKSUM = 0
+PARTITION BY RANGE( i ) (
+PARTITION p0 VALUES LESS THAN (10),
+PARTITION p1 VALUES LESS THAN (20),
+PARTITION p2 VALUES LESS THAN (30)
+);
+INSERT INTO t_part_offline VALUES(5);
+INSERT INTO t_part_offline VALUES(15);
+INSERT INTO t_part_offline VALUES(25);
+# Test for filename to tablename mapping
+CREATE TABLE `t 1 t-1`(i INT PRIMARY KEY)
+ENGINE ARIA TRANSACTIONAL=1 ROW_FORMAT=PAGE PAGE_CHECKSUM=1;
+INSERT INTO `t 1 t-1` VALUES (1);
+CREATE TABLE `t-part online`(i INT PRIMARY KEY)
+ENGINE ARIA TRANSACTIONAL = 1 PAGE_CHECKSUM = 1
+PARTITION BY RANGE( i ) (
+PARTITION p0 VALUES LESS THAN (10),
+PARTITION p1 VALUES LESS THAN (20),
+PARTITION p2 VALUES LESS THAN (30)
+);
+INSERT INTO `t-part online` VALUES(5);
+INSERT INTO `t-part online` VALUES(15);
+INSERT INTO `t-part online` VALUES(25);
+###
+# Test for redo log files backup;
+#####
+CREATE TABLE t_logs_1(i INT)
+ENGINE ARIA TRANSACTIONAL=1 ROW_FORMAT=PAGE PAGE_CHECKSUM=1;
+CREATE TABLE t_logs_2 LIKE t_logs_1;
+CREATE TABLE t_bulk_ins LIKE t_logs_1;
+INSERT INTO t_logs_1 VALUES
+(0), (1), (2), (3), (4), (5), (6), (7), (8), (9),
+(0), (1), (2), (3), (4), (5), (6), (7), (8), (9),
+(0), (1), (2), (3), (4), (5), (6), (7), (8), (9),
+(0), (1), (2), (3), (4), (5), (6), (7), (8), (9),
+(0), (1), (2), (3), (4), (5), (6), (7), (8), (9),
+(0), (1), (2), (3), (4), (5), (6), (7), (8), (9),
+(0), (1), (2), (3), (4), (5), (6), (7), (8), (9),
+(0), (1), (2), (3), (4), (5), (6), (7), (8), (9),
+(0), (1), (2), (3), (4), (5), (6), (7), (8), (9),
+(0), (1), (2), (3), (4), (5), (6), (7), (8), (9);
+# Generate several log files
+INSERT INTO t_logs_1 SELECT * FROM t_logs_1;
+INSERT INTO t_logs_1 SELECT * FROM t_logs_1;
+INSERT INTO t_logs_1 SELECT * FROM t_logs_1;
+INSERT INTO t_logs_1 SELECT * FROM t_logs_1;
+INSERT INTO t_logs_1 SELECT * FROM t_logs_1;
+INSERT INTO t_logs_1 SELECT * FROM t_logs_1;
+INSERT INTO t_logs_1 SELECT * FROM t_logs_1;
+INSERT INTO t_logs_1 SELECT * FROM t_logs_1;
+INSERT INTO t_logs_1 SELECT * FROM t_logs_1;
+INSERT INTO t_logs_1 SELECT * FROM t_logs_1;
+INSERT INTO t_logs_1 SELECT * FROM t_logs_1;
+INSERT INTO t_logs_1 SELECT * FROM t_logs_1;
+INSERT INTO t_logs_1 SELECT * FROM t_logs_1;
+INSERT INTO t_logs_1 SELECT * FROM t_logs_1;
+###
+# Test for DML during backup for online backup
+#####
+CREATE TABLE t_dml_ins(i INT PRIMARY KEY)
+ENGINE ARIA TRANSACTIONAL=1 ROW_FORMAT=PAGE PAGE_CHECKSUM=1;
+INSERT INTO t_dml_ins VALUES(1);
+CREATE TABLE t_dml_upd(i INT PRIMARY KEY)
+ENGINE ARIA TRANSACTIONAL=1 ROW_FORMAT=PAGE PAGE_CHECKSUM=1;
+INSERT INTO t_dml_upd VALUES(1);
+CREATE TABLE t_dml_del(i INT PRIMARY KEY)
+ENGINE ARIA TRANSACTIONAL=1 ROW_FORMAT=PAGE PAGE_CHECKSUM=1;
+INSERT INTO t_dml_del VALUES(1);
+SET SESSION debug_dbug="+d,maria_flush_whole_log";
+SET GLOBAL aria_checkpoint_interval=10000;
+INSTALL PLUGIN clone SONAME 'CLONE_PLUGIN';
+connection clone_conn_1;
+SET DEBUG_SYNC= 'after_aria_table_copy_t_dml_del SIGNAL dml_del WAIT_FOR aria_1';
+SET DEBUG_SYNC= 'after_aria_table_copy_t_dml_upd SIGNAL dml_upd WAIT_FOR aria_2';
+SET DEBUG_SYNC= 'after_aria_table_copy_t_dml_ins SIGNAL dml_del WAIT_FOR aria_3';
+CLONE LOCAL DATA DIRECTORY = 'CLONE_DATADIR';
+connection default;
+set DEBUG_SYNC="now WAIT_FOR dml_del";
+DELETE FROM test.t_dml_del;
+set DEBUG_SYNC="now SIGNAL aria_1 WAIT_FOR dml_upd";
+UPDATE test.t_dml_upd SET i = 2;
+set DEBUG_SYNC="now SIGNAL aria_2 WAIT_FOR dml_del";
+INSERT INTO test.t_dml_ins VALUES(2);
+SET DEBUG_SYNC="now SIGNAL aria_3";
+connection clone_conn_1;
+connection default;
+# Restart server on cloned data directory
+# restart: with restart_parameters
+### Result for DML test
+SELECT * FROM t_dml_ins;
+i
+1
+2
+SELECT * FROM t_dml_upd;
+i
+2
+SELECT * FROM t_dml_del;
+i
+### Result for redo log files backup
+# ok
+# ok
+# ok
+# restart
+### Clean up for DML test
+DROP TABLE t_dml_ins;
+DROP TABLE t_dml_upd;
+DROP TABLE t_dml_del;
+### Cleanup for redo log files backup
+DROP TABLE t_logs_1;
+DROP TABLE t_logs_2;
+DROP TABLE t_bulk_ins;
+### Result for online/offline tables test
+SELECT * FROM t_default;
+i
+1
+SELECT * FROM t_tr_p_ch;
+i
+1
+SELECT * FROM t_tr_p_nch;
+i
+1
+SELECT * FROM t_p_ch;
+i
+1
+SELECT * FROM t_p_nch;
+i
+1
+SELECT * FROM t_fixed;
+i
+1
+SELECT * FROM t_dyn;
+i
+1
+SELECT * FROM t_part_online;
+i
+5
+15
+25
+SELECT * FROM t_part_offline;
+i
+5
+15
+25
+SELECT * FROM `t 1 t-1`;
+i
+1
+SELECT * FROM `t-part online`;
+i
+5
+15
+25
+### Cleanup for online/offline tables test
+DROP TABLE t_default;
+DROP TABLE t_tr_p_ch;
+DROP TABLE t_tr_p_nch;
+DROP TABLE t_p_ch;
+DROP TABLE t_p_nch;
+DROP TABLE t_fixed;
+DROP TABLE t_dyn;
+DROP TABLE t_part_online;
+DROP TABLE t_part_offline;
+DROP TABLE `t 1 t-1`;
+DROP TABLE `t-part online`;
+UNINSTALL PLUGIN clone;

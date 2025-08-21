@@ -1009,6 +1009,18 @@ int Clone_Handle::copy_table_job(Table *table_ptr, bool online_only,
     m_offline_tables.push_back(std::move(table));
     return 0;
   }
+
+#ifndef DBUG_OFF
+if (strcmp(table->get_table().c_str(), "t_dml_ins") == 0)
+  DEBUG_SYNC_C("after_aria_table_copy_t_dml_ins");
+
+if (strcmp(table->get_table().c_str(), "t_dml_upd") == 0)
+  DEBUG_SYNC_C("after_aria_table_copy_t_dml_upd");
+
+if (strcmp(table->get_table().c_str(), "t_dml_del") == 0)
+  DEBUG_SYNC_C("after_aria_table_copy_t_dml_del");
+#endif /* DBUG_OFF */
+
   /* TODO: Post Copy Hook for DDL */
   // if (!err && m_table_post_copy_hook)
   //   m_table_post_copy_hook(table->get_db(), table->get_table(),
@@ -1080,6 +1092,8 @@ int Clone_Handle::scan(bool no_lock)
                   MYF(ME_NOTE | ME_ERROR_LOG_ONLY), last_file_num);
 
   Log_Files logs(m_log_dir.c_str(), last_file_num);
+
+  DEBUG_SYNC_C("after_scanning_log_files");
 
   for (auto i= logs.first(); i < logs.last(); ++i)
   {

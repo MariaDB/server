@@ -1,0 +1,34 @@
+# Restart mariadbd with the test specific parameters
+# restart: with restart_parameters
+# Create and populate an Aria table (and Aria logs)
+CREATE TABLE t1 (id INT, txt LONGTEXT) ENGINE=Aria;
+BEGIN NOT ATOMIC
+FOR id IN 0..9 DO
+INSERT INTO test.t1 (id, txt) VALUES (id, REPEAT(id,1024*1024));
+END FOR;
+END;
+$$
+# Testing aria log files before --backup
+SET @@global.aria_checkpoint_interval=DEFAULT /*Force checkpoint*/;
+SHOW ENGINE aria logs;
+Type	Name	Status
+Aria	aria_log.00000001	free
+Aria	aria_log.00000002	in use
+INSTALL PLUGIN clone SONAME 'CLONE_PLUGIN';
+CLONE LOCAL DATA DIRECTORY = 'CLONE_DATADIR';
+# restart: with restart_parameters
+# Check that the table is there after cloning
+SELECT COUNT(*) from t1;
+COUNT(*)
+10
+DROP TABLE t1;
+# Testing aria log files after clone
+SET @@global.aria_checkpoint_interval=DEFAULT /*Force checkpoint*/;
+SHOW ENGINE aria logs;
+Type	Name	Status
+Aria	aria_log.00000001	free
+Aria	aria_log.00000002	in use
+# Restarting mariadbd with default parameters
+# restart
+DROP TABLE t1;
+UNINSTALL PLUGIN clone;
