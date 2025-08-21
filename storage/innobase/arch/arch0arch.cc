@@ -494,7 +494,8 @@ dberr_t Arch_File_Ctx::resize_and_overwrite_with_zeros(uint64_t file_size)
 {
   ut_ad(m_size <= file_size);
   m_size= file_size;
-  byte *buf= static_cast<byte *>(ut_zalloc(file_size, mem_key_archive));
+  byte *buf=
+    static_cast<byte *>(ut_zalloc((uint)file_size, mem_key_archive));
 
   /* Make sure that the physical file size is the same as logical by filling
   the file with all-zeroes. Page archiver recovery expects that the physical

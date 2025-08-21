@@ -924,7 +924,9 @@ void log_t::persist(lsn_t lsn) noexcept
   ut_ad(!flush_lock.is_owner());
   ut_ad(latch_have_wr());
 
-  arch_sys->log_sys()->wait_archiver(lsn);
+  if (arch_sys)
+    arch_sys->log_sys()->wait_archiver(lsn);
+
   lsn_t old= flushed_to_disk_lsn.load(std::memory_order_relaxed);
 
   if (old >= lsn)
@@ -952,7 +954,8 @@ void log_t::persist(lsn_t lsn) noexcept
   base_lsn.store(new_base_lsn, std::memory_order_release);
   flushed_to_disk_lsn.store(lsn, std::memory_order_relaxed);
   log_flush_notify(lsn);
-  arch_sys->signal_archiver();
+  if (arch_sys)
+    arch_sys->signal_archiver();
   DBUG_EXECUTE_IF("crash_after_log_write_upto", DBUG_SUICIDE(););
 }
 
@@ -1100,7 +1103,8 @@ lsn_t log_t::write_buf() noexcept
 
     ut_ad(base + (write_lsn_offset & (WRITE_TO_BUF - 1)) == lsn);
     write_to_log++;
-    arch_sys->log_sys()->wait_archiver(lsn);
+    if (arch_sys)
+      arch_sys->log_sys()->wait_archiver(lsn);
 
     if (resizing != RETAIN_LATCH)
       latch.wr_unlock();

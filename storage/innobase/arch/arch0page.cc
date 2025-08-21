@@ -1129,11 +1129,11 @@ uint Arch_Block::get_file_index(uint64_t block_num, Arch_Blk_Type type)
   switch (type)
   {
     case ARCH_RESET_BLOCK:
-      file_index= block_num;
+      file_index= static_cast<size_t>(block_num);
       break;
 
     case ARCH_DATA_BLOCK:
-      file_index= block_num / ARCH_PAGE_FILE_DATA_CAPACITY;
+      file_index= static_cast<size_t>(block_num) / ARCH_PAGE_FILE_DATA_CAPACITY;
       break;
 
     default:
