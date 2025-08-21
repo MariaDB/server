@@ -1124,7 +1124,8 @@ lsn_t log_t::write_buf() noexcept
       service_manager_extend_timeout(INNODB_EXTEND_TIMEOUT_INTERVAL,
                                      "InnoDB log write: " LSN_PF, write_lsn);
     }
-    arch_sys->signal_archiver();
+    if (arch_sys)
+      arch_sys->signal_archiver();
   }
 
   set_check_for_checkpoint(false);
