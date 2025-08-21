@@ -1,4 +1,5 @@
 --source include/have_aria.inc
+--source include/have_debug.inc
 --source ../include/clone_connection_begin.inc
 --let $CLONE_DATADIR = $MYSQL_TMP_DIR/data_new
 --echo ###
@@ -223,5 +224,6 @@ DROP TABLE t_part_online;
 DROP TABLE t_part_offline;
 DROP TABLE `t 1 t-1`;
 DROP TABLE `t-part online`;
+--source ../include/clone_connection_end.inc
 rmdir $CLONE_DATADIR;
 UNINSTALL PLUGIN clone;
