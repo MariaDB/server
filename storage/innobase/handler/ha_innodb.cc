@@ -18782,6 +18782,10 @@ static void innodb_log_file_size_update(THD *thd, st_mysql_sys_var*,
                     " innodb_log_buffer_size=%u", MYF(0), log_sys.buf_size);
   else
   {
+    Clone_notify notifier(Clone_notify::Type::SYSTEM_REDO_RESIZE,
+                          UINT32_MAX, true);
+    if (notifier.failed())
+      goto err_exit;
     switch (log_sys.resize_start(*static_cast<const ulonglong*>(save), thd)) {
     case log_t::RESIZE_NO_CHANGE:
       break;
@@ -18829,6 +18833,7 @@ static void innodb_log_file_size_update(THD *thd, st_mysql_sys_var*,
       }
     }
   }
+err_exit:
   mysql_mutex_lock(&LOCK_global_system_variables);
 }
 

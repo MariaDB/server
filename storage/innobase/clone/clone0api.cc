@@ -1709,7 +1709,7 @@ Clone_notify::Clone_notify(Clone_notify::Type type, space_id_t space,
     return;
   }
 
-  if (type == Type::SYSTEM_REDO_DISABLE || type == Type::SPACE_IMPORT)
+  if (type == Type::SYSTEM_REDO_RESIZE || type == Type::SPACE_IMPORT)
   {
     if (clone_active)
     {
@@ -1854,22 +1854,21 @@ void Clone_notify::get_mesg(bool begin, std::string &mesg)
     case Type::SPACE_ALTER_INPLACE_BULK:
       mesg.append("[SPACE_ALTER_INPLACE_BULK] ");
       break;
-    case Type::SPACE_UNDO_DDL:
-      mesg.append("[SPACE_UNDO_DDL] ");
+    case Type::SYSTEM_REDO_RESIZE:
+      mesg.append("[SYSTEM_REDO_RESIZE] ");
       break;
-    case Type::SYSTEM_REDO_DISABLE:
-      mesg.append("[SYSTEM_REDO_DISABLE] Space ID");
-      break;
+    case Type::SPACE_UNDO_TRUNCATE:
+      mesg.append("[SPACE_UNDO_TRUNCATE] ");
     default:
       mesg.append("[UNKNOWN] ");
       break;
   }
 
-  mesg.append("Space ID: ");
-  mesg.append(std::to_string(m_space_id));
-
   if (m_space_id == UINT32_MAX)
     return;
+
+  mesg.append("Space ID: ");
+  mesg.append(std::to_string(m_space_id));
 
   auto fil_space = fil_space_get(m_space_id);
   if (fil_space == nullptr)

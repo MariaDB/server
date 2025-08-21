@@ -187,9 +187,9 @@ class Clone_notify {
     SPACE_ALTER_INPLACE_BULK,
     /* Special consideration is needed for UNDO as these DDLs
     don't use DDL log and needs special consideration during recovery. */
-    SPACE_UNDO_DDL,
-    /* Redo logging is being disabled. */
-    SYSTEM_REDO_DISABLE
+    SPACE_UNDO_TRUNCATE,
+    /* Redo log resizing */
+    SYSTEM_REDO_RESIZE
   };
 
 #ifdef UNIV_HOTBACKUP

@@ -1313,13 +1313,10 @@ bool Clone_Snapshot::block_state_change(Clone_notify::Type type,
                                         bool check_intr, int &error) {
   mysql_mutex_assert_owner(&m_snapshot_mutex);
 
-  bool undo_ddl_ntfn = (type == Clone_notify::Type::SPACE_UNDO_DDL);
-  bool undo_space= srv_is_undo_tablespace(space);
-
   /* For undo DDL, there could be recursive notification for file create
   and drop which are !undo_ddl_ntfn. For such notifications we don't need
   to wait for clone as we must have already blocked it. */
-  bool wait_clone = (!undo_space || undo_ddl_ntfn);
+  bool wait_clone= !srv_is_undo_tablespace(space);
 
   /* If no wait option is used, override any waiting clone. Used for undo
   truncate background currently. We don't want to block purge threads. */
