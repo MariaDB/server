@@ -26,9 +26,11 @@ reap;
 BACKUP STAGE START;
 rmdir $CLONE_DATADIR;
 SET lock_wait_timeout=1;
-let $clone_err= ER_BACKUP_WRONG_STAGE;
+connection con1;
+let $clone_err= ER_LOCK_WAIT_TIMEOUT;
 --source ../include/clone_command.inc
 
+connection default;
 rmdir $CLONE_DATADIR;
 let $clone_err=0;
 BACKUP STAGE END;
@@ -45,6 +47,7 @@ SET DEBUG_SYNC="now SIGNAL res_clone2";
 
 connection default;
 reap;
+disconnect con1;
 
 UNINSTALL PLUGIN clone;
 rmdir $CLONE_DATADIR;
