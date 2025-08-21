@@ -1851,6 +1851,7 @@ bool Sql_cmd_clone::execute(THD *thd)
     return true;
   }
 
+#ifndef EMBEDDED_LIBRARY
   /* Restart server after successfully cloning to current data directory. */
   if (is_replace)
   {
@@ -1866,6 +1867,7 @@ bool Sql_cmd_clone::execute(THD *thd)
     thd->set_stmt_da(stmt_da);
     return true;
   }
+#endif
 
   my_ok(thd);
   return false;
