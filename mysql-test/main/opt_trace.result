@@ -12129,7 +12129,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	5	
 1	PRIMARY	t2	ref	a	a	5	test.t1.b	2	Using where
 1	PRIMARY	t3	ref	a	a	5	test.t1.b	3	Using where
-1	PRIMARY	<derived2>	ref	key0	key0	5	test.t1.b	10	Using where
+1	PRIMARY	<derived2>	ref	key0	key0	5	test.t1.b	1	Using where
 2	LATERAL DERIVED	t10	ref	grp_id	grp_id	5	test.t1.b	100	
 2	LATERAL DERIVED	t11	ALL	NULL	NULL	NULL	NULL	10	Using where; Using join buffer (flat, BNL join)
 select json_detailed(json_extract(trace, '$**.check_split_materialized')) as JS

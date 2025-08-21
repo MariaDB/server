@@ -1242,7 +1242,7 @@ SELECT * FROM t1, t2, v1 WHERE t2.a=t1.a AND t2.a=v1.a AND t2.a=v1.b;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t1	system	NULL	NULL	NULL	NULL	1	
 1	PRIMARY	t2	ref	a	a	4	const	1	Using index
-1	PRIMARY	<derived2>	ref	key0	key0	8	const,const	1	
+1	PRIMARY	<derived2>	ref	key1	key1	8	func,func	1	
 2	DERIVED	t3	ALL	NULL	NULL	NULL	NULL	12	Using temporary; Using filesort
 SELECT * FROM t1, t2, v1 WHERE t2.a=t1.a AND t2.a=v1.a AND t2.a=v1.b;
 a	a	a	b
@@ -2431,7 +2431,7 @@ GROUP BY TABLE_SCHEMA) AS UNIQUES
 ON ( COLUMNS.TABLE_SCHEMA = UNIQUES.TABLE_SCHEMA);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	COLUMNS	ALL	NULL	NULL	NULL	NULL	NULL	Open_frm_only; Scanned all databases
-1	PRIMARY	<derived2>	ref	key0	key0	194	information_schema.COLUMNS.TABLE_SCHEMA	10	
+1	PRIMARY	<derived2>	ref	key0	key0	194	information_schema.COLUMNS.TABLE_SCHEMA	1	
 2	DERIVED	STATISTICS	ALL	NULL	NULL	NULL	NULL	NULL	Open_frm_only; Scanned all databases; Using filesort
 SELECT COUNT(*) > 0
 FROM INFORMATION_SCHEMA.COLUMNS
