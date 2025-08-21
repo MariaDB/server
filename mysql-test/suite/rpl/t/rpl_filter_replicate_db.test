@@ -67,7 +67,7 @@ connection slave;
 --source include/assert_grep.inc
 
 --echo # Validate that 'INSERT INTO t1' is in the slave relaylog
---let $assert_file= $MYSQLTEST_VARDIR/tmp/master_binlog.txt
+--let $assert_file= $MYSQLTEST_VARDIR/tmp/slave_relaylog.txt
 --let $assert_text= INSERT INTO t1 must be present in master binlog
 --let $assert_select= INSERT INTO t1
 --let $assert_count= 1

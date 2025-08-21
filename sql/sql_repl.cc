@@ -2232,16 +2232,18 @@ send_event_to_slave(binlog_send_info *info, Log_event_type event_type,
   }
 
   /*
-    Skip events with the LOG_EVENT_SKIP_REPLICATION_F flag set,
-    this flag is set using either the primary with @@skip_replication (skips all events)
-    or set during binlogging (set using binlog_dump_* filter) 
+    Skip events that have either
+      1) @@skip_replication flag set (it has a negation value with @@skip_parallel so only one of them should be used)
+      2) Set during binlogging (set using binlog_dump_* filter) 
+
   */
-
-  uint16 event_flags= uint2korr(&((*packet)[FLAGS_OFFSET + ev_offset]));
-
-  if (event_flags & LOG_EVENT_SKIP_REPLICATION_F)
-    return NULL;
-
+  if (info->thd->variables.option_bits & OPTION_SKIP_REPLICATION || !binlog_dump_filter->is_db_empty() || binlog_dump_filter->is_on())
+  {
+      uint16 event_flags= uint2korr(&((*packet)[FLAGS_OFFSET + ev_offset]));
+  
+      if (event_flags & LOG_EVENT_SKIP_REPLICATION_F)
+        return NULL;
+  }
 
   THD_STAGE_INFO(info->thd, stage_sending_binlog_event_to_slave);
 
