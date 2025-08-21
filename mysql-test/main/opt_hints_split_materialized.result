@@ -375,7 +375,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	5	
 1	PRIMARY	t2	ref	a	a	5	test.t1.b	2	Using where
 1	PRIMARY	t3	ref	a	a	5	test.t1.b	3	Using where
-1	PRIMARY	<derived2>	ref	key0	key0	5	test.t1.b	10	Using where
+1	PRIMARY	<derived2>	ref	key0	key0	5	test.t1.b	1	Using where
 2	LATERAL DERIVED	t22	const	PRIMARY	PRIMARY	4	const	1	Using index
 2	LATERAL DERIVED	t10	ref	grp_id	grp_id	5	test.t1.b	100	
 2	LATERAL DERIVED	t11	ALL	NULL	NULL	NULL	NULL	10	Using where; Using join buffer (flat, BNL join)
@@ -443,7 +443,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	5	
 1	PRIMARY	t2	ref	a	a	5	test.t1.b	2	Using where
 1	PRIMARY	t3	ref	a	a	5	test.t1.b	3	Using where
-1	PRIMARY	<derived2>	ref	key0	key0	5	test.t1.b	10	Using where
+1	PRIMARY	<derived2>	ref	key0	key0	5	test.t1.b	1	Using where
 2	DERIVED	t22	const	PRIMARY	PRIMARY	4	const	1	Using index; Using temporary; Using filesort
 2	DERIVED	t10	ALL	NULL	NULL	NULL	NULL	10000	
 2	DERIVED	t11	ALL	NULL	NULL	NULL	NULL	10	Using where; Using join buffer (flat, BNL join)
@@ -513,7 +513,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	5	
 1	PRIMARY	t2	ref	a	a	5	test.t1.b	2	Using where
 1	PRIMARY	t3	ref	a	a	5	test.t1.b	3	Using where
-1	PRIMARY	<derived2>	ref	key0	key0	5	test.t1.b	10	Using where
+1	PRIMARY	<derived2>	ref	key0	key0	5	test.t1.b	1	Using where
 2	DERIVED	t22	const	PRIMARY	PRIMARY	4	const	1	Using index; Using temporary; Using filesort
 2	DERIVED	t10	ALL	NULL	NULL	NULL	NULL	10000	
 2	DERIVED	t11	ALL	NULL	NULL	NULL	NULL	10	Using where; Using join buffer (flat, BNL join)
@@ -581,7 +581,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	5	
 1	PRIMARY	t2	ref	a	a	5	test.t1.b	2	Using where
 1	PRIMARY	t3	ref	a	a	5	test.t1.b	3	Using where
-1	PRIMARY	<derived2>	ref	key0	key0	5	test.t1.b	10	Using where
+1	PRIMARY	<derived2>	ref	key0	key0	5	test.t1.b	1	Using where
 2	LATERAL DERIVED	t22	const	PRIMARY	PRIMARY	4	const	1	Using index
 2	LATERAL DERIVED	t10	ref	grp_id	grp_id	5	test.t1.b	100	
 2	LATERAL DERIVED	t11	ALL	NULL	NULL	NULL	NULL	10	Using where; Using join buffer (flat, BNL join)
@@ -762,7 +762,7 @@ from
 one_k T1, (select grp, count(*) from t1000 group by grp) TBL where TBL.grp=T1.a;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	T1	ALL	NULL	NULL	NULL	NULL	1000	Using where
-1	PRIMARY	<derived2>	ref	key0	key0	5	test.T1.a	10	
+1	PRIMARY	<derived2>	ref	key0	key0	5	test.T1.a	1	
 2	DERIVED	t1000	index	grp	grp	5	NULL	1000	Using index; Using temporary; Using filesort
 explain
 select /*+ SPLIT_MATERIALIZED(TBL) */ *

@@ -17,8 +17,13 @@
 /**
   @file
 
-    Contains estimate_post_group_cardinality() which estimates cardinality
-    after GROUP BY operation is applied.
+    Contains
+    - estimate_post_group_cardinality() which estimates cardinality
+      after GROUP BY operation is applied.
+
+    - infer_derived_key_statistics() to infer index statistics for
+      potential indexes on derived tables that have data produced with
+      a GROUP BY operation.
 */
 
 #include "mariadb.h"
@@ -26,6 +31,8 @@
 #include "sql_select.h"
 #include "sql_statistics.h"
 #include "opt_trace.h"
+#include "sql_lex.h"
+#include "opt_group_by_cardinality.h"
 
 static
 double estimate_table_group_cardinality(JOIN *join, Item ***group_list,
@@ -372,5 +379,150 @@ normal_exit:
 whole_table:
   card= table_records_after_where;
   goto normal_exit;
+}
+
+
+/**
+  @brief
+    Return the number of keypart that matches the item, -1 if there is no match
+*/
+
+static int item_index_in_key(Item *item, const KEY *keyinfo, uint key_parts)
+{
+  if (item->type() == Item::FIELD_ITEM)
+  {
+    for (uint i= 0; i < key_parts; i++)
+    {
+      if (!cmp(item->name, keyinfo->key_part[i].field->field_name))
+        return (int)i;
+    }
+  }
+  return -1;
+}
+
+
+/**
+  @brief
+    Return TRUE if every item in the list appears in our key
+*/
+
+static
+bool all_list_contained_in_keyparts(const KEY *keyinfo,
+                                    uint key_parts,
+                                    SQL_I_List<st_order> *list)
+{
+  for (ORDER *grp= list->first; grp; grp= grp->next)
+  {
+    if (item_index_in_key((*grp->item), keyinfo, key_parts) < 0)
+      return FALSE;
+  }
+  return TRUE;
+}
+
+
+/**
+  @brief
+  When adding a key to a materialized derived table, we can determine some
+  key statistics from the query block.
+
+  @detail
+  Currently, we can infer this
+
+  1) rec_per_key[n-1]  (# records for each full key value), when :-
+       a) the last query set operation in the chain is not a UNION ALL, implying
+          that duplicate rows are removed, so if the select list matches the
+          key, we will have one record per distinct key
+       b) the query within the block has the DISTINCT flag set, and the select
+          list matches our key, we will have one record per distinct key.
+       c) The group by list in the query is a subset of our key, we will have
+          one record per key.
+ 
+  @todo
+    It is also possible to use predicates combined with existing key or
+    histogram statistics on the base tables in our derived table to fill in
+    this and other attributes of our generated key
+*/
+
+void infer_derived_key_statistics(st_select_lex_unit* derived,
+                                  KEY *keyinfo,
+                                  uint key_parts)
+{
+  st_select_lex* select= derived->first_select();
+  Json_writer_object wrapper(derived->thd);
+  Json_writer_object trace(derived->thd, "infer_derived_key_statistics");
+
+
+  trace.add("table_alias", keyinfo->table->alias.c_ptr());
+  trace.add("key_name", keyinfo->name);
+  trace.add("key_parts", key_parts);
+  /*
+    This whole union/intersect of selects does NOT have the ALL flag, so if
+    we have the same number of select list items as key parts, we can guarantee
+    that each line in the result set is unique
+  */
+  if (key_parts == select->item_list.elements &&
+      derived->check_distinct_in_union())
+  {
+    trace.add("distinct_in_query_expression", TRUE);
+    keyinfo->rec_per_key[key_parts - 1]= 1;
+  }
+  else
+  {
+    Json_writer_array select_proc(derived->thd, "select");
+    ulong rec_per_key= 0;
+    bool all_selects_covered= TRUE;
+    do
+    {
+      bool this_select_covered= FALSE;
+      /*
+        This is a SELECT DISTINCT query with $key_parts elements in the
+        select list.  This select in the union will produce one record
+        per key.
+        @todo
+        If we come across multiple SELECT DISTINCT selects in this union
+        have a problem in that we do not know anything about how they might
+        intersect
+      */
+      if (key_parts == select->item_list.elements &&
+          select->options & SELECT_DISTINCT)
+      {
+        select_proc.add("distinct_in_query_block");
+        this_select_covered= TRUE;
+        rec_per_key++;
+      }
+
+      /*
+        This is a grouping select and the group list is a subset of our key.
+        Our key can have additional fields, the rows will still be unique.
+      */
+      if (select->group_list.elements &&
+          all_list_contained_in_keyparts(keyinfo,
+                                         key_parts,
+                                         &select->group_list))
+      {
+        select_proc.add("group_list_in_key");
+        this_select_covered= TRUE;
+        rec_per_key++;
+      }
+
+      if (!this_select_covered)
+      {
+        select_proc.add("unhandled query");
+        all_selects_covered= FALSE;
+      }
+
+    } while ((select= select->next_select()));
+    select_proc.end();
+
+    /*
+      If we do not cover all selects here, do not update
+      keyinfo->rec_per_key[key_parts - 1] at all
+    */
+    if (all_selects_covered)
+    {
+      keyinfo->rec_per_key[key_parts - 1]= rec_per_key;
+      trace.add("rec_per_key_estimate", rec_per_key);
+    }
+  }
 }
 
