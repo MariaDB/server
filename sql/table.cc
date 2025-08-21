@@ -48,6 +48,7 @@
 #include "sql_db.h"              // get_default_db_collation
 #include "sql_update.h"          // class Sql_cmd_update
 #include "sql_delete.h"          // class Sql_cmd_delete
+#include "opt_group_by_cardinality.h"
 
 
 #ifdef WITH_WSREP
@@ -8585,6 +8586,7 @@ bool TABLE::check_tmp_key(uint key, uint key_parts,
   return key_len <= MI_MAX_KEY_LENGTH;
 }
 
+
 /**
   @brief
   Add one key to a temporary table
@@ -8663,25 +8665,10 @@ bool TABLE::add_tmp_key(uint key, uint key_parts,
   */
   keyinfo->index_flags= file->index_flags(key, 0, 1);
 
-  /*
-    For the case when there is a derived table that would give distinct rows,
-    the index statistics are passed to the join optimizer to tell that a ref
-    access to all the fields of the derived table will produce only one row.
-  */
-
   st_select_lex_unit* derived= pos_in_table_list ?
                                pos_in_table_list->derived: NULL;
   if (derived)
-  {
-    st_select_lex* first= derived->first_select();
-    uint select_list_items= first->get_item_list()->elements;
-    if (key_parts == select_list_items)
-    {
-      if ((!first->is_part_of_union() && (first->options & SELECT_DISTINCT)) ||
-          derived->check_distinct_in_union())
-        keyinfo->rec_per_key[key_parts - 1]= 1;
-    }
-  }
+    infer_derived_key_statistics(derived, keyinfo, key_parts);
 
   set_if_bigger(s->max_key_length, keyinfo->key_length);
   s->keys++;

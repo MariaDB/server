@@ -1930,7 +1930,7 @@ a	b	max_c	avg_c	a	b	c	d
 explain select * from v1,t2 where (v1.a=v1.b) and (v1.a=t2.a);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where
-1	PRIMARY	<derived2>	ref	key0	key0	10	test.t2.a,test.t2.a	2	
+1	PRIMARY	<derived2>	ref	key0	key0	10	test.t2.a,test.t2.a	1	
 2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
 explain format=json select * from v1,t2 where (v1.a=v1.b) and (v1.a=t2.a);
 EXPLAIN
@@ -1960,7 +1960,7 @@ EXPLAIN
           "used_key_parts": ["a", "b"],
           "ref": ["test.t2.a", "test.t2.a"],
           "loops": 9,
-          "rows": 2,
+          "rows": 1,
           "cost": "COST_REPLACED",
           "filtered": 100,
           "materialized": {
@@ -2993,7 +2993,7 @@ where t1.a>5 group by a,b having max_c < 707) v1,
 t2 where (v1.a=t2.a) and (v1.max_c>300) and (v1.a=v1.b);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where
-1	PRIMARY	<derived2>	ref	key0	key0	10	test.t2.a,test.t2.a	2	Using where
+1	PRIMARY	<derived2>	ref	key0	key0	10	test.t2.a,test.t2.a	1	Using where
 2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
 explain format=json select * from
 (select a, b, max(c) as max_c, avg(c) as avg_c from t1
@@ -3026,7 +3026,7 @@ EXPLAIN
           "used_key_parts": ["a", "b"],
           "ref": ["test.t2.a", "test.t2.a"],
           "loops": 9,
-          "rows": 2,
+          "rows": 1,
           "cost": "COST_REPLACED",
           "filtered": 100,
           "attached_condition": "v1.max_c > 300",
@@ -3155,7 +3155,7 @@ a	b	max_c	avg_c	a	b	c	d
 explain select * from v1,t2 where (v1.a=t2.a) and (v1.b=t2.b);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where
-1	PRIMARY	<derived2>	ref	key0	key0	10	test.t2.a,test.t2.b	2	
+1	PRIMARY	<derived2>	ref	key0	key0	10	test.t2.a,test.t2.b	1	
 2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using temporary; Using filesort
 explain format=json select * from v1,t2 where (v1.a=t2.a) and (v1.b=t2.b);
 EXPLAIN
@@ -3185,7 +3185,7 @@ EXPLAIN
           "used_key_parts": ["a", "b"],
           "ref": ["test.t2.a", "test.t2.b"],
           "loops": 9,
-          "rows": 2,
+          "rows": 1,
           "cost": "COST_REPLACED",
           "filtered": 100,
           "materialized": {
@@ -4041,7 +4041,7 @@ explain select * from v1,v2,t2 where
 (v1.a=t2.a) and (v1.a=v1.b) and (v1.a=v2.a) and (v2.max_c<300);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where
-1	PRIMARY	<derived2>	ref	key1	key1	10	test.t2.a,test.t2.a	2	
+1	PRIMARY	<derived2>	ref	key1	key1	10	test.t2.a,test.t2.a	1	
 1	PRIMARY	<derived3>	ref	key0	key0	5	test.t2.a	2	Using where
 3	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
 2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
@@ -4074,7 +4074,7 @@ EXPLAIN
           "used_key_parts": ["a", "b"],
           "ref": ["test.t2.a", "test.t2.a"],
           "loops": 9,
-          "rows": 2,
+          "rows": 1,
           "cost": "COST_REPLACED",
           "filtered": 100,
           "materialized": {
@@ -4113,7 +4113,7 @@ EXPLAIN
           "key_length": "5",
           "used_key_parts": ["a"],
           "ref": ["test.t2.a"],
-          "loops": 18,
+          "loops": 9,
           "rows": 2,
           "cost": "COST_REPLACED",
           "filtered": 100,
@@ -8165,8 +8165,8 @@ a	b	min_c	a	b	max_c	avg_c
 explain select * from v4,v2 where
 (v4.a=v2.b) and (v4.a=v4.b) and (v4.min_c<100);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	20	Using where
-1	PRIMARY	<derived4>	ref	key0	key0	5	v4.a	2	
+1	PRIMARY	<derived4>	ALL	NULL	NULL	NULL	NULL	20	Using where
+1	PRIMARY	<derived2>	ref	key0	key0	10	v2.b,v2.b	1	Using where
 4	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
 2	DERIVED	<derived3>	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
 3	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
@@ -8180,13 +8180,54 @@ EXPLAIN
     "nested_loop": [
       {
         "table": {
-          "table_name": "<derived2>",
+          "table_name": "<derived4>",
           "access_type": "ALL",
           "loops": 1,
           "rows": 20,
           "cost": "COST_REPLACED",
           "filtered": 100,
-          "attached_condition": "v4.b = v4.a and v4.min_c < 100 and v4.a is not null",
+          "attached_condition": "v2.b is not null and v2.b is not null",
+          "materialized": {
+            "query_block": {
+              "select_id": 4,
+              "cost": "COST_REPLACED",
+              "having_condition": "max_c < 707",
+              "filesort": {
+                "sort_key": "t1.a, t1.b",
+                "temporary_table": {
+                  "nested_loop": [
+                    {
+                      "table": {
+                        "table_name": "t1",
+                        "access_type": "ALL",
+                        "loops": 1,
+                        "rows": 20,
+                        "cost": "COST_REPLACED",
+                        "filtered": 100,
+                        "attached_condition": "t1.a > 5"
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      },
+      {
+        "table": {
+          "table_name": "<derived2>",
+          "access_type": "ref",
+          "possible_keys": ["key0"],
+          "key": "key0",
+          "key_length": "10",
+          "used_key_parts": ["a", "b"],
+          "ref": ["v2.b", "v2.b"],
+          "loops": 20,
+          "rows": 1,
+          "cost": "COST_REPLACED",
+          "filtered": 100,
+          "attached_condition": "v4.min_c < 100",
           "materialized": {
             "query_block": {
               "select_id": 2,
@@ -8238,46 +8279,6 @@ EXPLAIN
             }
           }
         }
-      },
-      {
-        "table": {
-          "table_name": "<derived4>",
-          "access_type": "ref",
-          "possible_keys": ["key0"],
-          "key": "key0",
-          "key_length": "5",
-          "used_key_parts": ["b"],
-          "ref": ["v4.a"],
-          "loops": 20,
-          "rows": 2,
-          "cost": "COST_REPLACED",
-          "filtered": 100,
-          "materialized": {
-            "query_block": {
-              "select_id": 4,
-              "cost": "COST_REPLACED",
-              "having_condition": "max_c < 707",
-              "filesort": {
-                "sort_key": "t1.a, t1.b",
-                "temporary_table": {
-                  "nested_loop": [
-                    {
-                      "table": {
-                        "table_name": "t1",
-                        "access_type": "ALL",
-                        "loops": 1,
-                        "rows": 20,
-                        "cost": "COST_REPLACED",
-                        "filtered": 100,
-                        "attached_condition": "t1.a > 5"
-                      }
-                    }
-                  ]
-                }
-              }
-            }
-          }
-        }
       }
     ]
   }
@@ -8296,8 +8297,8 @@ a	b	min_c	a	b	max_c	avg_c
 explain select * from v4,v2 where
 (v4.a=v2.b) and (v4.a=v4.b) and (v2.b<30);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	20	Using where
-1	PRIMARY	<derived4>	ref	key0	key0	5	v4.a	2	
+1	PRIMARY	<derived4>	ALL	NULL	NULL	NULL	NULL	20	Using where
+1	PRIMARY	<derived2>	ref	key0	key0	10	v2.b,v2.b	1	
 4	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
 2	DERIVED	<derived3>	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
 3	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
@@ -8311,13 +8312,53 @@ EXPLAIN
     "nested_loop": [
       {
         "table": {
-          "table_name": "<derived2>",
+          "table_name": "<derived4>",
           "access_type": "ALL",
           "loops": 1,
           "rows": 20,
           "cost": "COST_REPLACED",
           "filtered": 100,
-          "attached_condition": "v4.b = v4.a and v4.a < 30 and v4.a is not null",
+          "attached_condition": "v2.b < 30 and v2.b is not null and v2.b is not null",
+          "materialized": {
+            "query_block": {
+              "select_id": 4,
+              "cost": "COST_REPLACED",
+              "having_condition": "max_c < 707",
+              "filesort": {
+                "sort_key": "t1.a, t1.b",
+                "temporary_table": {
+                  "nested_loop": [
+                    {
+                      "table": {
+                        "table_name": "t1",
+                        "access_type": "ALL",
+                        "loops": 1,
+                        "rows": 20,
+                        "cost": "COST_REPLACED",
+                        "filtered": 100,
+                        "attached_condition": "t1.a > 5 and t1.b < 30"
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      },
+      {
+        "table": {
+          "table_name": "<derived2>",
+          "access_type": "ref",
+          "possible_keys": ["key0"],
+          "key": "key0",
+          "key_length": "10",
+          "used_key_parts": ["a", "b"],
+          "ref": ["v2.b", "v2.b"],
+          "loops": 20,
+          "rows": 1,
+          "cost": "COST_REPLACED",
+          "filtered": 100,
           "materialized": {
             "query_block": {
               "select_id": 2,
@@ -8368,46 +8409,6 @@ EXPLAIN
             }
           }
         }
-      },
-      {
-        "table": {
-          "table_name": "<derived4>",
-          "access_type": "ref",
-          "possible_keys": ["key0"],
-          "key": "key0",
-          "key_length": "5",
-          "used_key_parts": ["b"],
-          "ref": ["v4.a"],
-          "loops": 20,
-          "rows": 2,
-          "cost": "COST_REPLACED",
-          "filtered": 100,
-          "materialized": {
-            "query_block": {
-              "select_id": 4,
-              "cost": "COST_REPLACED",
-              "having_condition": "max_c < 707",
-              "filesort": {
-                "sort_key": "t1.a, t1.b",
-                "temporary_table": {
-                  "nested_loop": [
-                    {
-                      "table": {
-                        "table_name": "t1",
-                        "access_type": "ALL",
-                        "loops": 1,
-                        "rows": 20,
-                        "cost": "COST_REPLACED",
-                        "filtered": 100,
-                        "attached_condition": "t1.a > 5 and t1.b < 30"
-                      }
-                    }
-                  ]
-                }
-              }
-            }
-          }
-        }
       }
     ]
   }
@@ -8426,8 +8427,8 @@ a	b	min_c	a	b	max_c	avg_c
 explain select * from v4,v2 where
 (v4.a=v2.b) and (v4.a=v4.b) and ((v2.b<30) or (v4.a>2));
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	20	Using where
-1	PRIMARY	<derived4>	ref	key0	key0	5	v4.a	2	
+1	PRIMARY	<derived4>	ALL	NULL	NULL	NULL	NULL	20	Using where
+1	PRIMARY	<derived2>	ref	key0	key0	10	v2.b,v2.b	1	
 4	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
 2	DERIVED	<derived3>	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
 3	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
@@ -8441,13 +8442,53 @@ EXPLAIN
     "nested_loop": [
       {
         "table": {
-          "table_name": "<derived2>",
+          "table_name": "<derived4>",
           "access_type": "ALL",
           "loops": 1,
           "rows": 20,
           "cost": "COST_REPLACED",
           "filtered": 100,
-          "attached_condition": "v4.b = v4.a and (v4.a < 30 or v4.a > 2) and v4.a is not null",
+          "attached_condition": "(v2.b < 30 or v2.b > 2) and v2.b is not null and v2.b is not null",
+          "materialized": {
+            "query_block": {
+              "select_id": 4,
+              "cost": "COST_REPLACED",
+              "having_condition": "max_c < 707",
+              "filesort": {
+                "sort_key": "t1.a, t1.b",
+                "temporary_table": {
+                  "nested_loop": [
+                    {
+                      "table": {
+                        "table_name": "t1",
+                        "access_type": "ALL",
+                        "loops": 1,
+                        "rows": 20,
+                        "cost": "COST_REPLACED",
+                        "filtered": 100,
+                        "attached_condition": "t1.a > 5 and (t1.b < 30 or t1.b > 2)"
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      },
+      {
+        "table": {
+          "table_name": "<derived2>",
+          "access_type": "ref",
+          "possible_keys": ["key0"],
+          "key": "key0",
+          "key_length": "10",
+          "used_key_parts": ["a", "b"],
+          "ref": ["v2.b", "v2.b"],
+          "loops": 20,
+          "rows": 1,
+          "cost": "COST_REPLACED",
+          "filtered": 100,
           "materialized": {
             "query_block": {
               "select_id": 2,
@@ -8490,46 +8531,6 @@ EXPLAIN
                             }
                           }
                         }
-                      }
-                    }
-                  ]
-                }
-              }
-            }
-          }
-        }
-      },
-      {
-        "table": {
-          "table_name": "<derived4>",
-          "access_type": "ref",
-          "possible_keys": ["key0"],
-          "key": "key0",
-          "key_length": "5",
-          "used_key_parts": ["b"],
-          "ref": ["v4.a"],
-          "loops": 20,
-          "rows": 2,
-          "cost": "COST_REPLACED",
-          "filtered": 100,
-          "materialized": {
-            "query_block": {
-              "select_id": 4,
-              "cost": "COST_REPLACED",
-              "having_condition": "max_c < 707",
-              "filesort": {
-                "sort_key": "t1.a, t1.b",
-                "temporary_table": {
-                  "nested_loop": [
-                    {
-                      "table": {
-                        "table_name": "t1",
-                        "access_type": "ALL",
-                        "loops": 1,
-                        "rows": 20,
-                        "cost": "COST_REPLACED",
-                        "filtered": 100,
-                        "attached_condition": "t1.a > 5 and (t1.b < 30 or t1.b > 2)"
                       }
                     }
                   ]
@@ -17860,7 +17861,7 @@ a	b	c	a	b	c
 explain select * from v1,t2 where (v1.a=t2.a) and (v1.a>1) and (v1.b > 12) and (v1.c>400);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where
-1	PRIMARY	<derived2>	ref	key1,distinct_key	key1	5	test.t2.a	3	Using where
+1	PRIMARY	<derived2>	ref	key1,distinct_key	key1	5	test.t2.a	1	Using where
 2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
 3	INTERSECT	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
 4	UNION	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
@@ -17893,7 +17894,7 @@ EXPLAIN
           "used_key_parts": ["a"],
           "ref": ["test.t2.a"],
           "loops": 9,
-          "rows": 3,
+          "rows": 1,
           "cost": "COST_REPLACED",
           "filtered": 100,
           "attached_condition": "v1.b > 12 and v1.c > 400",
@@ -18227,7 +18228,7 @@ a	b	c	a	b	c
 explain select * from v1,t2 where (v1.b=t2.b) and (v1.a<3);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where
-1	PRIMARY	<derived2>	ref	key1,distinct_key	key1	5	test.t2.b	2	Using where
+1	PRIMARY	<derived2>	ref	key1,distinct_key	key1	5	test.t2.b	1	Using where
 2	DERIVED	t3	range	i1	i1	5	NULL	1	Using index condition
 3	UNION	t3	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
 NULL	UNION RESULT	<union2,3>	ALL	NULL	NULL	NULL	NULL	NULL	
@@ -18259,7 +18260,7 @@ EXPLAIN
           "used_key_parts": ["b"],
           "ref": ["test.t2.b"],
           "loops": 9,
-          "rows": 2,
+          "rows": 1,
           "cost": "COST_REPLACED",
           "filtered": 100,
           "attached_condition": "v1.a < 3",
@@ -20148,7 +20149,7 @@ where t2.b < 40 and t2.a=t3.a and t3.c=t.c;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	90	60.00	Using where
 1	PRIMARY	t3	ref	idx_a	idx_a	5	test.t2.a	1	100.00	Using where
-1	PRIMARY	<derived2>	ref	key0	key0	128	test.t3.c	5	100.00	
+1	PRIMARY	<derived2>	ref	key0	key0	128	test.t3.c	1	100.00	
 2	DERIVED	t4	ALL	idx_c	NULL	NULL	NULL	160	100.00	Using temporary; Using filesort
 Warnings:
 Note	1003	/* select#1 */ select `test`.`t2`.`a` AS `a`,`test`.`t2`.`b` AS `b`,`test`.`t2`.`c` AS `c`,`t`.`c` AS `t_c`,`t`.`max` AS `max`,`t`.`min` AS `min` from `test`.`t2` join `test`.`t3` join (/* select#2 */ select `test`.`t4`.`c` AS `c`,max(`test`.`t4`.`b`) AS `max`,min(`test`.`t4`.`b`) AS `min` from `test`.`t4` group by `test`.`t4`.`c`) `t` where `test`.`t3`.`a` = `test`.`t2`.`a` and `t`.`c` = `test`.`t3`.`c` and `test`.`t2`.`b` < 40
@@ -20198,7 +20199,7 @@ EXPLAIN
           "used_key_parts": ["c"],
           "ref": ["test.t3.c"],
           "loops": 80.99999987,
-          "rows": 5,
+          "rows": 1,
           "cost": "COST_REPLACED",
           "filtered": 100,
           "materialized": {
@@ -21318,7 +21319,7 @@ id	a
 explain extended select id, a from t1 where  id in (select id from v1);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t1	ALL	PRIMARY	NULL	NULL	NULL	20	100.00	
-1	PRIMARY	<derived3>	ref	key0	key0	4	test.t1.id	2	50.00	FirstMatch(t1)
+1	PRIMARY	<derived3>	ref	key0	key0	4	test.t1.id	1	100.00	FirstMatch(t1)
 3	DERIVED	t1	ALL	PRIMARY	NULL	NULL	NULL	20	100.00	Using temporary; Using filesort
 3	DERIVED	t2	ref	ro_id	ro_id	4	test.t1.id	1	100.00	Using where
 Warnings:
@@ -21356,7 +21357,7 @@ on (t1.id = t2.ro_id AND t2.flag = 1)
 group by t1.id) dt);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t1	ALL	PRIMARY	NULL	NULL	NULL	20	100.00	
-1	PRIMARY	<derived3>	ref	key1,distinct_key	key1	4	test.t1.id	2	50.00	FirstMatch(t1)
+1	PRIMARY	<derived3>	ref	key1,distinct_key	key1	4	test.t1.id	1	100.00	FirstMatch(t1)
 3	DERIVED	t1	ALL	PRIMARY	NULL	NULL	NULL	20	100.00	Using temporary; Using filesort
 3	DERIVED	t2	ref	ro_id	ro_id	4	test.t1.id	1	100.00	Using where
 Warnings:
@@ -22023,7 +22024,7 @@ WHERE t1.id BETWEEN 200 AND 100000;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t3	range	t1_id	t1_id	5	NULL	47	Using where; Using index
 1	PRIMARY	t1	eq_ref	PRIMARY	PRIMARY	4	test.t3.t1_id	1	Using index
-1	PRIMARY	<derived2>	ref	key0	key0	5	test.t3.t1_id	10	
+1	PRIMARY	<derived2>	ref	key0	key0	5	test.t3.t1_id	1	
 2	DERIVED	t2	ALL	t1_id	NULL	NULL	NULL	2408	Using where; Using temporary; Using filesort
 set  optimizer_switch='split_materialized=default';
 DROP TABLE t1,t2,t3;
@@ -22300,7 +22301,7 @@ from_agg_items.ledger_id = charges.from_ledger_id
 WHERE charges.to_ledger_id = 2;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	charges	ref	PRIMARY,fk_charge_from_ledger,fk_charge_to_ledger	fk_charge_to_ledger	8	const	8	
-1	PRIMARY	<derived2>	ref	key0	key0	17	test.charges.from_ledger_id,test.charges.id	4	
+1	PRIMARY	<derived2>	ref	key0	key0	17	test.charges.from_ledger_id,test.charges.id	1	
 2	DERIVED	transaction_items	ALL	fk_items_transaction	NULL	NULL	NULL	40	Using temporary; Using filesort
 2	DERIVED	transactions	eq_ref	PRIMARY	PRIMARY	8	test.transaction_items.transaction_id	1	
 INSERT INTO charges (id, from_ledger_id, to_ledger_id, amount) VALUES
@@ -22505,7 +22506,7 @@ from_agg_items.ledger_id = charges.from_ledger_id
 WHERE charges.to_ledger_id = 2;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	charges	ref	fk_charge_to_ledger	fk_charge_to_ledger	8	const	10	
-1	PRIMARY	<derived2>	ref	key0	key0	18	test.charges.from_ledger_id,test.charges.id	4	
+1	PRIMARY	<derived2>	ref	key0	key0	18	test.charges.from_ledger_id,test.charges.id	1	
 2	DERIVED	transaction_items	ALL	fk_items_transaction	NULL	NULL	NULL	40	Using temporary; Using filesort
 2	DERIVED	transactions	eq_ref	PRIMARY	PRIMARY	8	test.transaction_items.transaction_id	1	
 set optimizer_switch='split_materialized=default';
@@ -22843,6 +22844,8 @@ INSERT INTO t1 VALUES
 (95,3290880,487,'2021-02-15 18:59:35'),(96,3290798,0,'2021-02-15 18:59:52'),
 (97,3290777,983,'2021-02-15 19:00:10'),(98,3290811,488,'2021-02-15 19:00:10'),
 (99,3290917,1283,'2021-02-15 19:00:36'),(100,3290858,482,'2021-02-15 19:00:42');
+insert into t1 select seq, 3300000+seq, 100+seq, '2021-02-09 18:31:35'
+from seq_101_to_1000;
 CREATE TABLE t2 (a int) ENGINE=MYISAM;
 INSERT INTO t2 VALUES
 (3289475),(3289496),(3289562),(3289593),(3289594),(3289595),(3289626),
@@ -22851,7 +22854,7 @@ INSERT INTO t2 VALUES
 ANALYZE TABLE t1,t2;
 Table	Op	Msg_type	Msg_text
 test.t1	analyze	status	Engine-independent statistics collected
-test.t1	analyze	status	Table is already up to date
+test.t1	analyze	status	OK
 test.t2	analyze	status	Engine-independent statistics collected
 test.t2	analyze	status	OK
 EXPLAIN SELECT t1.valdouble, t1.valint1
@@ -22863,9 +22866,9 @@ t1.valdate = dt.maxdate AND
 t1.valint1 IN (SELECT * FROM t2);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	21	Using where; Start temporary
-1	PRIMARY	t1	ref	valint1,valint1_2	valint1	5	test.t2.a	2	Using index condition; Using where; End temporary
+1	PRIMARY	t1	ref	valint1,valint1_2	valint1	5	test.t2.a	1	Using index condition; Using where; End temporary
 1	PRIMARY	<derived2>	ref	key0	key0	11	test.t1.valdate,test.t1.valint1	1	
-2	LATERAL DERIVED	t	ref	valint1,valint1_2	valint1	5	test.t2.a	2	Using index condition
+2	LATERAL DERIVED	t	ref	valint1,valint1_2	valint1	5	test.t2.a	1	Using index condition
 SELECT t1.valdouble, t1.valint1
 FROM t1,
 (SELECT max(t.valdate) AS maxdate, t.valint1 FROM t1 t GROUP BY t.valint1)

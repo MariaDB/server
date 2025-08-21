@@ -26,6 +26,8 @@
 #include "sql_select.h"
 #include "sql_statistics.h"
 #include "opt_trace.h"
+#include "sql_lex.h"
+#include "opt_group_by_cardinality.h"
 
 static
 double estimate_table_group_cardinality(JOIN *join, Item ***group_list,
@@ -374,3 +376,156 @@ whole_table:
   goto normal_exit;
 }
 
+
+/*
+  Return a key index if item present, -1 if not.
+*/
+
+int item_index_in_key(Item *item,
+                     KEY *keyinfo,
+                     uint key_parts)
+{
+  if (item->type() == Item::FIELD_ITEM)
+  {
+    for (uint i= 0; i < key_parts; i++)
+    {
+      if (!cmp(item->name, keyinfo->key_part[i].field->field_name))
+        return (int)i;
+    }
+  }
+  return -1;
+}
+
+
+/*
+  Return TRUE if the item in our select appears in our key list
+*/
+
+bool is_item_in_key(Item *item, KEY *keyinfo, uint key_parts)
+{
+  if (item->type() == Item::FIELD_ITEM)
+  {
+    for (uint i= 0; i < key_parts; i++)
+    {
+      if (!cmp(item->name, keyinfo->key_part[i].field->field_name))
+        return TRUE;
+    }
+  }
+  return FALSE;
+}
+
+
+
+/*
+   Return TRUE if every item in the list appears in our key
+*/
+
+bool all_list_contained_in_keyparts(KEY *keyinfo,
+                                    uint key_parts,
+                                    SQL_I_List<st_order> *list)
+{
+  for (ORDER *grp= list->first; grp; grp= grp->next)
+  {
+    if (!is_item_in_key((*grp->item), keyinfo, key_parts))
+      return FALSE;
+  }
+  return TRUE;
+}
+
+
+/*
+   Return true iff each key part has a corresponding item in the list and
+   vice versa
+*/
+
+bool key_parts_match(KEY *keyinfo,
+                     uint key_parts,
+                     List<Item> *list)
+{
+  if (key_parts < list->elements)       // key parts need to cover select list
+    return FALSE;
+
+  Bitmap<64>   bitmap;
+  bitmap.set_prefix(key_parts);
+
+  List_iterator_fast<Item> it(*list);
+  Item *item;
+  int i;
+  while ((item= it++))
+  {
+    if ((i= item_index_in_key(item, keyinfo, key_parts)) >= 0)
+      bitmap.clear_bit((int)i);
+  }
+
+  return bitmap.is_clear_all();
+}
+
+
+/**
+  @brief
+  When adding a key to a materialized derived table, we can determine some
+  key statistics from the query block.
+
+  @detail
+  Currently, we can infer this
+
+  1) rec_per_key[n-1]  (# records for each full key value), when :-
+       a) the last query set operation in the chain is not a UNION ALL, implying
+          that duplicate rows are removed, so if the select list matches the
+          key, we will have one record per distinct key
+       b) the query within the block has the DISTINCT flag set, and the select
+          list matches our key, we will have one record per distinct key.
+       c) The group by list in the query matches our key, we will have one
+          record per key.
+ 
+  It is also possible to use predicates combined with existing key or histogram
+  statistics on the base tables in our derived table to fill in this and other
+  attributes of our generated key. TODO.
+*/
+
+void infer_derived_key_statistics(st_select_lex_unit* derived,
+                          KEY *keyinfo, 
+                          uint key_parts)
+{
+  st_select_lex* select= derived->first_select();
+  bool distinct= derived->check_distinct_in_union();
+
+  // This is a chain not ending in UNION ALL
+  if (key_parts == select->item_list.elements &&
+      derived->check_distinct_in_union())
+    keyinfo->rec_per_key[key_parts - 1]= 1;
+  else
+  {
+    do
+    {
+      int addone= 0;
+      /*
+        This is a SELECT DISTINCT list where the list matches the key,
+        this select will produce one record per full key value
+      */
+      if (key_parts_match(keyinfo, key_parts, &select->item_list) &&
+          (select->options & SELECT_DISTINCT ||
+           distinct))
+        addone++;
+
+      /*
+        If this is a grouping select and the group list is a subset of our key
+      */
+      if (select->group_list.elements &&
+          all_list_contained_in_keyparts(keyinfo,
+                                         key_parts,
+                                         &select->group_list))
+        addone++;
+
+      /*
+        We should either add one, or if we have already added one then we
+        should at least add another one for each next select in the union all
+      */
+      if (addone || 
+          (select->get_linkage() == UNION_TYPE &&
+            !select->distinct &&
+            keyinfo->rec_per_key[key_parts - 1]))
+        keyinfo->rec_per_key[key_parts - 1]++;  //add 1 record per full key part
+    } while ((select= select->next_select()));
+  }
+}

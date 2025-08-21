@@ -566,4 +566,94 @@ DROP TABLE t1, t2;
 #
 # End of 10.3 tests
 #
+#
+# MDEV-36321 keys generated on derived tables produce wrong out_rows estimates
+#
+create table t1 (
+grp_id int,
+value int,
+index (grp_id)
+);
+insert into t1 select
+A.seq, B.seq
+from
+seq_1_to_100 A,
+seq_1_to_100 B;
+create table t2 (a int);
+insert into t2 select seq from seq_1_to_5;
+analyze table t1,t2;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	Table is already up to date
+test.t2	analyze	status	Engine-independent statistics collected
+test.t2	analyze	status	OK
+# Must produce: {table=t2}, {table=<derived2>, rows=1}
+explain select * from
+t2,
+(select max(value), grp_id from t1 group by grp_id) DT
+where
+t2.a= DT.grp_id;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	5	Using where
+1	PRIMARY	<derived2>	ref	key0	key0	5	test.t2.a	1	
+2	DERIVED	t1	ALL	grp_id	NULL	NULL	NULL	10000	Using temporary; Using filesort
+select * from
+t2,
+(select max(value), grp_id from t1 group by grp_id) DT
+where
+t2.a= DT.grp_id;
+a	max(value)	grp_id
+1	100	1
+2	100	2
+3	100	3
+4	100	4
+5	100	5
+# Same as above, but try a UNION:
+# Must produce: {table=t2}, {table=<derived2>, rows=1+1=2}
+explain
+select * from
+t2,
+(select max(value), grp_id from t1 group by grp_id
+union all
+select max(value), grp_id from t1 group by grp_id) DT
+where
+t2.a= DT.grp_id;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	5	Using where
+1	PRIMARY	<derived2>	ref	key0	key0	5	test.t2.a	2	
+2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	10000	Using temporary; Using filesort
+3	UNION	t1	ALL	NULL	NULL	NULL	NULL	10000	Using temporary; Using filesort
+# Same as the previous query.
+#  FAIL: we produce {table=t2}, {table=<derived2>, rows=1, not 1+n_rows(t1)}
+explain
+select * from
+t2,
+(select max(value), grp_id from t1 group by grp_id
+union all
+select max(value), grp_id from t1 group by grp_id+1) DT
+where
+t2.a= DT.grp_id;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	5	Using where
+1	PRIMARY	<derived2>	ref	key0	key0	5	test.t2.a	2	
+2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	10000	Using temporary; Using filesort
+3	UNION	t1	ALL	NULL	NULL	NULL	NULL	10000	Using temporary; Using filesort
+# Add another equality:
+#   and this has ref=test.t2.col2,test.t2.a  but rows=10? why??
+alter table t2 add col2 int;
+explain
+select * from
+t2,
+(select max(value) as maxval, grp_id from t1 group by grp_id) DT
+where
+t2.col2=maxval and
+t2.a= DT.grp_id;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	5	Using where
+1	PRIMARY	<derived2>	ref	key0	key0	10	test.t2.col2,test.t2.a	1	
+2	DERIVED	t1	ALL	grp_id	NULL	NULL	NULL	10000	Using temporary; Using filesort
+drop table t1, t2;
+#
+# End of 11.4 tests
+#
 set optimizer_switch=@exit_optimizer_switch;

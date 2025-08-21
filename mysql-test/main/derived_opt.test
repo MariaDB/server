@@ -439,5 +439,78 @@ DROP TABLE t1, t2;
 --echo # End of 10.3 tests
 --echo #
 
+--echo #
+--echo # MDEV-36321 keys generated on derived tables produce wrong out_rows estimates
+--echo #
+--source include/have_sequence.inc
+
+create table t1 (
+  grp_id int,
+  value int,
+  index (grp_id)
+);
+
+insert into t1 select
+  A.seq, B.seq
+from
+  seq_1_to_100 A,
+  seq_1_to_100 B;
+
+create table t2 (a int);
+insert into t2 select seq from seq_1_to_5;
+
+analyze table t1,t2;
+
+let $q=
+select * from
+  t2,
+  (select max(value), grp_id from t1 group by grp_id) DT
+where
+  t2.a= DT.grp_id;
+
+--echo # Must produce: {table=t2}, {table=<derived2>, rows=1}
+eval explain $q;
+eval $q;
+
+--echo # Same as above, but try a UNION:
+--echo # Must produce: {table=t2}, {table=<derived2>, rows=1+1=2}
+explain
+select * from
+  t2,
+  (select max(value), grp_id from t1 group by grp_id
+   union all
+   select max(value), grp_id from t1 group by grp_id) DT
+where
+  t2.a= DT.grp_id;
+
+--echo # Same as the previous query.
+--echo #  FAIL: we produce {table=t2}, {table=<derived2>, rows=1, not 1+n_rows(t1)}
+explain
+select * from
+  t2,
+  (select max(value), grp_id from t1 group by grp_id
+   union all
+   select max(value), grp_id from t1 group by grp_id+1) DT
+where
+  t2.a= DT.grp_id;
+
+--echo # Add another equality:
+--echo #   and this has ref=test.t2.col2,test.t2.a  but rows=10? why??
+alter table t2 add col2 int;
+explain
+select * from
+  t2,
+  (select max(value) as maxval, grp_id from t1 group by grp_id) DT
+where
+  t2.col2=maxval and
+  t2.a= DT.grp_id;
+
+drop table t1, t2;
+
+
+--echo #
+--echo # End of 11.4 tests
+--echo #
+
 # The following command must be the last one the file 
 set optimizer_switch=@exit_optimizer_switch;
