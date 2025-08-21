@@ -1859,6 +1859,7 @@ void Clone_notify::get_mesg(bool begin, std::string &mesg)
       break;
     case Type::SPACE_UNDO_TRUNCATE:
       mesg.append("[SPACE_UNDO_TRUNCATE] ");
+      break;
     default:
       mesg.append("[UNKNOWN] ");
       break;
