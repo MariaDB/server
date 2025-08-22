@@ -38,8 +38,11 @@ this program; if not, write to the Free Software Foundation, Inc.,
 
 extern void ignore_db_dirs_append(const char *dirname_arg);
 
+
+#ifdef UNIV_PFS_THREAD
 /** PFS thread key for log archiver background. */
 mysql_pfs_key_t archiver_thread_key;
+#endif /* UNIV_PFS_THREAD */
 
 /** Archiver system global */
 Arch_Sys *arch_sys= nullptr;

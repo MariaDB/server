@@ -495,6 +495,7 @@ extern mysql_pfs_key_t lock_latch_key;
 extern mysql_pfs_key_t log_latch_key;
 extern mysql_pfs_key_t trx_rseg_latch_key;
 # endif /* UNIV_PFS_RWLOCK */
+#endif /* HAVE_PSI_INTERFACE */
 
 /* RAII guard for mysql mutex */
 struct Mysql_mutex_guard {
@@ -537,4 +538,3 @@ struct Mysql_mutex_guard {
 #else
 #define IF_DEBUG(...)
 #endif /* UNIV_DEBUG */
-#endif /* HAVE_PSI_INTERFACE */
