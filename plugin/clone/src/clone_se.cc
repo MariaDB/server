@@ -32,6 +32,10 @@ Part of the implementation is taken from extra/mariabackup/common_engine.cc
 #include <queue>
 #include <unordered_set>
 #include <vector>
+#include <array>
+#include "mysqld.h"
+
+extern "C" PSI_file_key get_key_file_frm();
 
 namespace common_engine
 {
@@ -265,7 +269,7 @@ int Table::copy(THD *thd, Ha_clone_cbk *cbk_ctx, bool no_lock, bool)
   else
     locked= !no_lock;
 
-  frm_file= mysql_file_open(key_file_frm, (m_fs_name + ".frm").c_str(),
+  frm_file= mysql_file_open(get_key_file_frm(), (m_fs_name + ".frm").c_str(),
                             O_RDONLY | O_SHARE, MYF(0));
 
   if (frm_file < 0 && !m_fnames.empty() &&
@@ -392,7 +396,7 @@ int Log_Table::open()
     }
   }
 
-  auto frm_file= mysql_file_open(key_file_frm, (m_fs_name + ".frm").c_str(),
+  auto frm_file= mysql_file_open(get_key_file_frm(), (m_fs_name + ".frm").c_str(),
                                  O_RDONLY | O_SHARE, MYF(0));
   if (frm_file < 0 && !m_fnames.empty() &&
       !clone_common::ends_with(m_fnames[0].c_str(), ".ARZ") &&
@@ -741,6 +745,7 @@ int Clone_Handle::copy_table_job(Table *table, bool no_lock, bool delete_table,
   return err;
 }
 
+
 int Clone_Handle::scan(const std::unordered_set<table_key_t> &exclude_tables,
                        bool add_processed, bool no_lock,
                        bool collect_log_and_stats)
@@ -780,9 +785,21 @@ int Clone_Handle::scan(const std::unordered_set<table_key_t> &exclude_tables,
     //                   MYF(ME_NOTE | ME_ERROR_LOG_ONLY), file_path);
     //   return;
     // }
-
+    const char* fpath= nullptr;
+#ifdef _WIN32
+    int size= WideCharToMultiByte(CP_UTF8, 0, &wstr[0],
+                                  (int)wstr.size(), nullptr,
+                                  0, nullptr, nullptr);
+    std::string fil_path(size, 0);
+    WideCharToMultiByte(CP_UTF8, 0, &wstr[0],
+                        (int)wstr.size(), &fil_path[0],
+                        size, nullptr, nullptr);
+    fpath= fil_path.c_str();
+#else /* _WIN32 */
+    fpath= file_path.c_str();
+#endif /* _WIN32 */
     auto db_table_fs=
-      clone_common::convert_filepath_to_tablename(file_path.c_str());
+      clone_common::convert_filepath_to_tablename(fpath);
     auto tk= table_key(std::get<0>(db_table_fs), std::get<1>(db_table_fs));
 
     // log and stats tables are only collected in this function,
@@ -804,8 +821,8 @@ int Clone_Handle::scan(const std::unordered_set<table_key_t> &exclude_tables,
         }
         my_printf_error(ER_CLONE_SERVER_TRACE,
           "Common SE: Collect log table file: %s",
-          MYF(ME_NOTE | ME_ERROR_LOG_ONLY), file_path.c_str());
-        table_it->second->add_file_name(file_path.c_str());
+          MYF(ME_NOTE | ME_ERROR_LOG_ONLY), fpath);
+        table_it->second->add_file_name(fpath);
 	return;
       }
       // Aria can handle statistics tables
@@ -824,14 +841,14 @@ int Clone_Handle::scan(const std::unordered_set<table_key_t> &exclude_tables,
         }
         my_printf_error(ER_CLONE_SERVER_TRACE,
           "Common SE: Collect stats table file: %s",
-          MYF(ME_NOTE | ME_ERROR_LOG_ONLY), file_path.c_str());
-        table_it->second->add_file_name(file_path.c_str());
+          MYF(ME_NOTE | ME_ERROR_LOG_ONLY), fpath);
+        table_it->second->add_file_name(fpath);
         return;
       }
     }
     else if(is_gen)
     {
-      auto file_name= std::make_unique<std::string>(file_path);
+      auto file_name= std::make_unique<std::string>(fpath);
       using namespace std::placeholders;
       m_jobs.add_one(std::bind(&Clone_Handle::copy_file_job, this,
                                file_name.release(), _1, _2, _3, _4));
@@ -859,7 +876,7 @@ int Clone_Handle::scan(const std::unordered_set<table_key_t> &exclude_tables,
           std::unique_ptr<Table>(new Table(std::get<0>(db_table_fs),
           std::get<1>(db_table_fs), std::get<2>(db_table_fs)))).first;
     }
-    table_it->second->add_file_name(file_path.c_str());
+    table_it->second->add_file_name(fpath);
   }, ext_list);
 
   for (auto &table_it : found_tables)

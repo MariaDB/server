@@ -10189,3 +10189,7 @@ static int calculate_server_uid(char *dest)
 
   return 0;
 }
+
+extern "C" PSI_file_key get_key_file_frm() {
+  return key_file_frm;
+}

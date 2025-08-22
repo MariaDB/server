@@ -2518,7 +2518,7 @@ static dberr_t os_get_free_space_win32(const char *path, uint32_t &block_size,
 
   if (!result)
   {
-    ib::error(ER_IB_MSG_806)
+    ib::error()
         << "os_file_get_status_win32: "
         << "Failed to get the volume path name for: " << path
         << "- OS error number " << GetLastError();
@@ -2536,9 +2536,9 @@ static dberr_t os_get_free_space_win32(const char *path, uint32_t &block_size,
 
   if (!result)
   {
-    ib::error(ER_IB_MSG_807) << "GetDiskFreeSpace(" << volname << ",...) "
-                             << "failed "
-                             << "- OS error number " << GetLastError();
+    ib::error() << "GetDiskFreeSpace(" << volname << ",...) "
+                << "failed "
+                << "- OS error number " << GetLastError();
     return DB_FAIL;
   }
 

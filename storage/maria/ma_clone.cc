@@ -1032,20 +1032,6 @@ if (strcmp(table->get_table().c_str(), "t_dml_del") == 0)
   return err;
 }
 
-#ifdef _WIN32
-std::string convert_wide_to_narrow(const std::wstring& wstr)
-{
-  if (wstr.empty()) return std::string();
-  int size_needed = WideCharToMultiByte(CP_UTF8, 0, &wstr[0],
-                                        (int)wstr.size(), nullptr, 0,
-                                        nullptr, nullptr);
-  std::string str(size_needed, 0);
-  WideCharToMultiByte(CP_UTF8, 0, &wstr[0], (int)wstr.size(),
-                      &str[0], size_needed, NULL, NULL);
-  return str;
-}
-#endif /* _WIN32 */
-
 int Clone_Handle::scan(bool no_lock)
 {
   auto ctrl_file_name= std::make_unique<std::string>("aria_log_control");
@@ -1067,9 +1053,15 @@ int Clone_Handle::scan(bool no_lock)
   {
     const char* fpath= nullptr;
 #ifdef _WIN32
-    std::wstring wstr_path= file_path.wstring();
-    std::string narrow_path= convert_wide_to_narrow(wstr_path);
-    fpath= narrow_path.c_str();
+    std::strin wstr= file_path.wstring();
+    int size= WideCharToMultiByte(CP_UTF8, 0, &wstr[0],
+                                  (int)wstr.size(), nullptr,
+                                  0, nullptr, nullptr);
+    std::string fil_path(size, 0);
+    WideCharToMultiByte(CP_UTF8, 0, &wstr[0],
+                        (int)wstr.size(), &fil_path[0],
+                        size, nullptr, nullptr);
+    fpath= fil_path.c_str();
 #else /* _WIN32 */
     fpath= file_path.c_str();
 #endif /* _WIN32 */

@@ -39,6 +39,7 @@
 #include "sql_common.h"
 #include "backup.h"
 #include "mdl.h"
+#include <cctype>
 
 /** The minimum idle timeout in seconds. It is kept at 8 hours which is also
 the Server default. Currently recipient sends ACK during state transition.
