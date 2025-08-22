@@ -972,15 +972,17 @@ bool Item_field::register_field_in_write_map(void *arg)
   Returns true if any of the fields in the expression tree are in the write set
 */
 
-bool Item_field::check_field_in_write_map(void *arg)
+bool Item_field::check_field_in_map(void *arg)
 {
-  TABLE *table= (TABLE *) arg;
+  std::pair<TABLE *, MY_BITMAP *> my_arg = *static_cast<std::pair<TABLE *, MY_BITMAP *> *>(arg);
+  TABLE *table= my_arg.first;
+  MY_BITMAP *bitmap= my_arg.second;
   bool res = false;
   if (field->table == table || !table)
   {
     if (field->vcol_info)
-      res|= field->vcol_info->expr->walk(&Item::check_field_in_write_map, 1, arg);
-    return res || bitmap_is_set(field->table->write_set, field->field_index);
+      res|= field->vcol_info->expr->walk(&Item::check_field_in_map, 1, arg);
+    return res || bitmap_is_set(bitmap, field->field_index);
   }
 
   return false;

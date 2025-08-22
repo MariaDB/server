@@ -12675,6 +12675,12 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
       my_error(ER_SEQUENCE_TABLE_HAS_TOO_FEW_ROWS, MYF(0));
     goto err;
   }
+  /* 
+    Mark all columns as "changed", we use the write_set for that
+    If there is a conflict and we can't use the write_set, we can use a bitmap that lives in this function only
+    or use the has_value_set
+  */
+  bitmap_set_all(to->write_set);
   for (Field **ptr=to->field ; *ptr ; ptr++)
   {
     def=it++;
@@ -12698,6 +12704,35 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
         if ((*ptr)->check_assignability_from(def->field, ignore))
           goto err;
         (copy_end++)->set(*ptr,def->field,0);
+        // If a normal field, we can check if it is not changed by looking at def->field->eq_def(*ptr)
+        if (def->field->eq_def(*ptr))
+        {
+          std::cout << "Field not changed '" << (*ptr)->field_name.str << "' in copy data between tables" << std::endl;
+          // Remove it from the bitmap
+          bitmap_clear_bit(to->write_set, def->field->field_index);
+        }
+      }
+      /*
+        If stored and expensive, check if it can be copied directly to avoid recomputation
+        To check if the vcol can be copied, we need to check if any of the dependencies changed
+        We can do that by walking through the vcol expression
+      */
+      else if ((*ptr)->vcol_info->is_stored() && (*ptr)->vcol_info->expr->is_expensive())
+      {
+        bitmap_clear_bit(to->write_set, def->field->field_index); // Remove myself from the write set
+        /* 
+          If there is no change in the dependencies, we can copy directly
+          TODO: This check is also done in mark_virtual_columns_for_write so we can probably avoid it here if we backup and restore
+          the write_set. The problem currently is that to->use_all_columns(); is called before mark_virtual_columns_for_write, meaning
+          we lose all information stored in the write_set
+        */
+        if (!to->check_dependencies_in_write_set(*ptr)) {
+          bitmap_set_bit(from->read_set, def->field->field_index);
+          bitmap_set_bit(&to->has_value_set, def->field->field_index);
+          std::cout << "Avoiding recomputation of stored generated column '" << 
+            (*ptr)->field_name.str << "' in copy data between tables" << std::endl;
+          (copy_end++)->set(*ptr,def->field,0);
+        }
       }
     }
     else

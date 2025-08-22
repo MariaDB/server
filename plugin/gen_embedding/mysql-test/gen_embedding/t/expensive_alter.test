@@ -1,0 +1,20 @@
+source include/have_gen_embedding.inc;
+
+# --replace_result $OPENAI_PORT OPENAI_PORT
+eval set generate_embedding_openai_host="http://127.0.0.1:$OPENAI_PORT/success";
+# set generate_embedding_openai_host="http://127.0.0.1:5000/success";
+
+create table exp_test_new (
+    c text, d text, 
+    b text as (concat(c,d)),
+    embedding vector(1536) as (generate_embedding_openai(b, "text-embedding-ada-002")) stored
+) engine=MyISAM;
+
+show status like "%generate%";
+insert into exp_test_new (c,d) values ("ab", "bc");
+show status like "%generate%";
+
+alter table exp_test_new add x int;
+show status like "%generate%";
+
+drop table exp_test_new;
