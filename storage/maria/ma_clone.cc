@@ -1033,7 +1033,7 @@ if (strcmp(table->get_table().c_str(), "t_dml_del") == 0)
 }
 
 #ifdef _WIN32
-string convert_wide_to_narrow(const std::wstring& wstr)
+std::string convert_wide_to_narrow(const std::wstring& wstr)
 {
   if (wstr.empty()) return std::string();
   int size_needed = WideCharToMultiByte(CP_UTF8, 0, &wstr[0],
@@ -1044,7 +1044,7 @@ string convert_wide_to_narrow(const std::wstring& wstr)
                       &str[0], size_needed, NULL, NULL);
   return str;
 }
-#endif
+#endif /* _WIN32 */
 
 int Clone_Handle::scan(bool no_lock)
 {
@@ -1070,9 +1070,9 @@ int Clone_Handle::scan(bool no_lock)
     std::wstring wstr_path= file_path.wstring();
     std::string narrow_path= convert_wide_to_narrow(wstr_path);
     fpath= narrow_path.c_str();
-#else
+#else /* _WIN32 */
     fpath= file_path.c_str();
-#endif
+#endif /* _WIN32 */
 
     /* TODO: Partial Backup */
     // if (check_if_skip_table(file_path))

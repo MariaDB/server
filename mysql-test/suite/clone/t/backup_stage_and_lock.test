@@ -2,6 +2,7 @@
 --source include/have_innodb.inc
 --source include/have_debug_sync.inc
 --source include/count_sessions.inc
+--source include/not_embedded.inc
 
 ## Install plugin
 --let $CLONE_DATADIR = $MYSQL_TMP_DIR/data_new
