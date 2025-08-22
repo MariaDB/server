@@ -328,14 +328,12 @@ int Clone_Snapshot::init_page_copy(Snapshot_State new_state, byte *page_buffer,
   return err;
 }
 
-int Clone_Snapshot::init_redo_copy(Snapshot_State new_state,
-                                   Clone_Alert_Func cbk) {
+int Clone_Snapshot::init_redo_copy() {
   ut_ad(m_snapshot_handle_type == CLONE_HDL_COPY);
   ut_ad(m_snapshot_type != HA_CLONE_BLOCKING);
-  DEBUG_SYNC_C("clone_donor_after_saving_dynamic_metadata");
 
   /* Start transition to next state. */
-  State_transit transit_guard(this, new_state);
+  State_transit transit_guard(this, CLONE_SNAPSHOT_REDO_COPY);
 
   /* Stop redo archiving even on error. */
   auto redo_error = m_redo_ctx.stop(m_redo_trailer, m_redo_trailer_size,
@@ -1115,8 +1113,29 @@ void Clone_Handle::display_progress(
   }
 }
 
-int Clone_Handle::copy(uint task_id, Ha_clone_cbk *callback) {
+int Clone_Handle::snapshot()
+{
+  ib::info() << "Clone State BEGIN REDO COPY";
+  auto snapshot = m_clone_task_manager.get_snapshot();
+  int err = snapshot->init_redo_copy();
+  if (err != 0) {
+    return err;
+  }
+  m_clone_task_manager.reinit_state();
+  return 0;
+}
+
+int Clone_Handle::copy(uint task_id, Ha_clone_cbk *callback,
+                       bool post_snapshot) {
   ut_ad(m_clone_handle_type == CLONE_HDL_COPY);
+  Snapshot_State final_state = post_snapshot ? CLONE_SNAPSHOT_DONE :
+                                               CLONE_SNAPSHOT_REDO_COPY;
+  Snapshot_State cur_state = m_clone_task_manager.get_state();
+  if (cur_state >= final_state) {
+    return 0;
+  }
+  ut_ad(post_snapshot || cur_state < CLONE_SNAPSHOT_REDO_COPY);
+  ut_ad(!post_snapshot || cur_state == CLONE_SNAPSHOT_REDO_COPY);
 
   /* Get task from task manager. */
   auto task = m_clone_task_manager.get_task_by_index(task_id);
@@ -1126,12 +1145,14 @@ int Clone_Handle::copy(uint task_id, Ha_clone_cbk *callback) {
     return (err);
   }
 
-  /* Allow restart only after copy is started. */
-  m_allow_restart = true;
+  /* Allow restart only after copy is started. Disallow restart during redo
+  log copy. */
+  m_allow_restart = !post_snapshot;
 
   /* Send the task metadata. */
-  err = send_task_metadata(task, callback);
-
+  if (!post_snapshot) {
+    err = send_task_metadata(task, callback);
+  }
   if (err != 0) {
     return (err);
   }
@@ -1151,6 +1172,8 @@ int Clone_Handle::copy(uint task_id, Ha_clone_cbk *callback) {
              !m_clone_task_manager.is_file_metadata_transferred()) {
     ut_ad(m_clone_task_manager.is_restarted());
     err = send_all_file_metadata(task, callback);
+  } else if (post_snapshot) {
+    err = send_state_metadata(task, callback, true);
   }
 
   if (err != 0) {
@@ -1169,7 +1192,7 @@ int Clone_Handle::copy(uint task_id, Ha_clone_cbk *callback) {
   /* Loop and process data until snapshot is moved to DONE state. */
   uint32_t percent_done = 0;
 
-  while (m_clone_task_manager.get_state() != CLONE_SNAPSHOT_DONE) {
+  while (m_clone_task_manager.get_state() != final_state) {
     /* Reserve next chunk for current state from snapshot. */
     uint32_t current_chunk = 0;
     uint32_t current_block = 0;
@@ -1215,10 +1238,13 @@ int Clone_Handle::copy(uint task_id, Ha_clone_cbk *callback) {
 
       ut_d(task->m_ignore_sync = false);
 
-      if (err != 0) {
+      cur_state = m_clone_task_manager.get_state();
+      /* Before snapshot state, we need to exit immediately after moving to
+      redo copy state. The metadata can be sent only after redo archiving is
+      stopped i.e. after snapshot is taken. */
+      if (err != 0 || (!post_snapshot && cur_state == final_state)) {
         break;
       }
-
       max_chunks = snapshot->get_num_chunks();
       percent_done = 0;
       disp_time = std::chrono::steady_clock::now();

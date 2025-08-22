@@ -545,13 +545,18 @@ int innodb_clone_copy(THD *thd, const byte *loc, uint loc_len, uint task_id,
 
   auto err= clone_hdl->check_error(thd);
 
-  if (err != 0 || stage < HA_CLONE_STAGE_DDL_BLOCKED)
+  ut_ad(stage >= HA_CLONE_STAGE_DDL_BLOCKED);
+  if (err != 0)
     return err;
 
   /* Start data copy. */
-  err= clone_hdl->copy(task_id, cbk);
-  clone_hdl->save_error(err);
+  bool post_snapshot= (stage > HA_CLONE_STAGE_SNAPSHOT);
+  if (stage == HA_CLONE_STAGE_SNAPSHOT)
+    err= clone_hdl->snapshot();
+  else
+    err= clone_hdl->copy(task_id, cbk, post_snapshot);
 
+  clone_hdl->save_error(err);
   return err;
 }
 

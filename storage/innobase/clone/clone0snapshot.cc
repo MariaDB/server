@@ -589,10 +589,8 @@ int Clone_Snapshot::change_state(Clone_Desc_State *state_desc,
       break;
 
     case CLONE_SNAPSHOT_REDO_COPY:
-      ib::info() << "Clone State BEGIN REDO COPY";
-
-      err = init_redo_copy(new_state, cbk);
-
+      /* Defer Snapshot state transfer to Clone_Handle::snapshot(). */
+      DEBUG_SYNC_C("clone_donor_after_saving_dynamic_metadata");
       break;
 
     case CLONE_SNAPSHOT_DONE: {

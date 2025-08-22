@@ -1584,6 +1584,12 @@ void Clone_Task_Manager::reinit_copy_state(const byte *loc, uint loc_len) {
   print_chunk_info(&m_chunk_info);
 }
 
+void Clone_Task_Manager::reinit_state() {
+  mysql_mutex_lock(&m_state_mutex);
+  init_state();
+  mysql_mutex_unlock(&m_state_mutex);
+}
+
 void Clone_Task_Manager::init_state() {
   mysql_mutex_assert_owner(&m_state_mutex);
 

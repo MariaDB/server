@@ -312,6 +312,9 @@ class Clone_Task_Manager {
   /** Initialize task manager for current state */
   void init_state();
 
+  /** Re-initialize task manager for current state */
+  void reinit_state();
+
   /** Reinitialize state using locator
   @param[in]    loc     locator from remote client
   @param[in]    loc_len locator length in bytes */
@@ -479,7 +482,6 @@ class Clone_Task_Manager {
   bool is_network_error(int err) {
     if (err == ER_NET_ERROR_ON_WRITE || err == ER_NET_READ_ERROR ||
         err == ER_NET_WRITE_INTERRUPTED || err == ER_NET_READ_INTERRUPTED)
-        // err == ER_NET_WAIT_ERROR) {
       return true;
 
     return false;
@@ -726,8 +728,13 @@ class Clone_Handle {
   /** Transfer snapshot data via callback
   @param[in]    task_id         current task ID
   @param[in]    callback        user callback interface
+  @param[in]    post_snapshot   if called after snapshot stage
   @return error code */
-  int copy(uint task_id, Ha_clone_cbk *callback);
+  int copy(uint task_id, Ha_clone_cbk *callback, bool post_snapshot);
+
+  /** Takes SE snapshot: Finalizes the clone snapshot LSN.
+  @return error code */
+  int snapshot();
 
   /** Apply snapshot data received via callback
   @param[in]    thd             server THD

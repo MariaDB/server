@@ -566,6 +566,10 @@ class Clone_Snapshot {
   @param[in,out]        block_num       current, next block */
   void skip_deleted_blocks(uint32_t chunk_num, uint32_t &block_num);
 
+  /** Initialize snapshot state for redo copy
+  @return error code */
+  int init_redo_copy();
+
  private:
   /** Allow DDL file operation after 64 pages. */
   const static uint32_t S_MAX_PAGES_PIN = 64;
@@ -746,12 +750,6 @@ class Clone_Snapshot {
   @return error code */
   int init_page_copy(Snapshot_State new_state, byte *page_buffer,
                      uint page_buffer_len);
-
-  /** Initialize snapshot state for redo copy
-  @param[in]    new_state       state to move for apply
-  @param[in]    cbk             alert callback for long wait
-  @return error code */
-  int init_redo_copy(Snapshot_State new_state, Clone_Alert_Func cbk);
 
   /** Initialize state while applying cloned data
   @param[in]    state_desc      snapshot state descriptor
