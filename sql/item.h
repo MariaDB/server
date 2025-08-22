@@ -2289,7 +2289,7 @@ public:
   // FIXME reduce the number of "add field to bitmap" processors
   virtual bool add_field_to_set_processor(void *arg) { return 0; }
   virtual bool register_field_in_read_map(void *arg) { return 0; }
-  virtual bool check_field_in_write_map(void *arg) { return 0; }
+  virtual bool check_field_in_map(void *arg) { return 0; }
   virtual bool register_field_in_write_map(void *arg) { return 0; }
   virtual bool register_field_in_bitmap(void *arg) { return 0; }
   virtual bool update_table_bitmaps_processor(void *arg) { return 0; }
@@ -4008,7 +4008,7 @@ public:
   bool find_item_in_field_list_processor(void *arg) override;
   bool register_field_in_read_map(void *arg) override;
   bool register_field_in_write_map(void *arg) override;
-  bool check_field_in_write_map(void *arg) override;
+  bool check_field_in_map(void *arg) override;
   bool register_field_in_bitmap(void *arg) override;
   bool intersect_field_part_of_key(void *arg) override;
   bool get_context_for_vcol_processor(void *arg) override;
@@ -8948,7 +8948,8 @@ inline bool TABLE::check_dependencies_in_write_set(Field *field) {
   else
   {
     DBUG_ASSERT(field->vcol_info->expr);
-    res= field->vcol_info->expr->walk(&Item::check_field_in_write_map, 1, 0);
+    auto arg= std::make_pair(field->table, field->table->write_set);
+    res= field->vcol_info->expr->walk(&Item::check_field_in_map, 1, &arg);
   }
   return res;
 }
