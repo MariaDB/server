@@ -3247,7 +3247,7 @@ PSI_file_locker*
 pfs_get_thread_file_name_locker_v1(PSI_file_locker_state *state,
                                    PSI_file_key key,
                                    PSI_file_operation op,
-                                   const char *name, const void *identity)
+                                   const char *name, const void *)
 {
   assert(static_cast<int> (op) >= 0);
   assert(static_cast<uint> (op) < array_elements(file_operation_map));

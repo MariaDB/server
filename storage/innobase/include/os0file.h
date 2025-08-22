@@ -452,7 +452,7 @@ are used to register file deletion operations*/
 				      src_file, src_line)		\
 do {									\
 	locker = PSI_FILE_CALL(get_thread_file_name_locker)(		\
-		state, key, op, name, &locker);				\
+		state, key, op, name, nullptr);				\
 	if (locker != NULL) {						\
 		PSI_FILE_CALL(start_file_open_wait)(			\
 			locker, src_file, src_line);			\
