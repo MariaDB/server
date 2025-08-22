@@ -562,8 +562,8 @@ static struct st_mysql_show_var audit_status[]=
 };
 
 #ifdef HAVE_PSI_INTERFACE
-static PSI_mutex_key key_LOCK_operations;
-static PSI_mutex_info mutex_key_list[]=
+static PSI_rwlock_key key_LOCK_operations;
+static PSI_rwlock_info rwlock_key_list[]=
 {
   { &key_LOCK_operations, "SERVER_AUDIT_plugin::lock_operations",
     PSI_FLAG_GLOBAL}
@@ -2662,7 +2662,7 @@ static int server_audit_init(void *p __attribute__((unused)))
   logger_init_mutexes();
 #ifdef HAVE_PSI_INTERFACE
   if (PSI_server)
-    PSI_server->register_mutex("server_audit", mutex_key_list, 1);
+    PSI_server->register_rwlock("server_audit", rwlock_key_list, 1);
 #endif
   mysql_prlock_init(key_LOCK_operations, &lock_operations);
   flogger_mutex_init(key_LOCK_operations, &lock_atomic, MY_MUTEX_INIT_FAST);
