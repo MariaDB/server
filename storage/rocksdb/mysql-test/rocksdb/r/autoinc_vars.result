@@ -157,6 +157,8 @@ CREATE TABLE t1 (pk INT AUTO_INCREMENT, a INT, PRIMARY KEY(pk)) ENGINE=RocksDB;
 INSERT INTO t1 (a) VALUES (1);
 UPDATE t1 SET pk = 3;
 ALTER TABLE t1 AUTO_INCREMENT 2;
+Warnings:
+Warning	1088	Can not set AUTO_INCREMENT to 2 which is lower than the next AUTO_INCREMENT value of 4
 DROP TABLE t1;
 #----------------------------------
 # Issue #792 Crash in autoincrement
@@ -175,6 +177,8 @@ CREATE TABLE t1 (pk INT AUTO_INCREMENT, a INT, PRIMARY KEY(pk)) ENGINE=RocksDB;
 INSERT INTO t1 (a) VALUES (1);
 UPDATE t1 SET pk = 3;
 ALTER TABLE t1 AUTO_INCREMENT 2;
+Warnings:
+Warning	1088	Can not set AUTO_INCREMENT to 2 which is lower than the next AUTO_INCREMENT value of 4
 DROP TABLE t1;
 #----------------------------------
 # Issue #902 Debug assert in autoincrement with small field type

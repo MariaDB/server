@@ -23,6 +23,8 @@ a
 10
 100
 ALTER TABLE t1 AUTO_INCREMENT=50;
+Warnings:
+Warning	1088	Can not set AUTO_INCREMENT to 50 which is lower than the next AUTO_INCREMENT value of 101
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
