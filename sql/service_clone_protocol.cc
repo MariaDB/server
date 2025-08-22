@@ -96,9 +96,11 @@ THD* clone_start_statement(THD *thd, PSI_thread_key thread_key,
     my_thread_init();
     /* Create thread with input key for PFS */
     thd= create_thd();
+#ifdef HAVE_PSI_THREAD_INTERFACE
     PSI_thread *psi= PSI_CALL_new_thread(thread_key, NULL, 0);
     PSI_CALL_set_thread_os_id(psi);
     PSI_CALL_set_thread(psi);
+#endif
     my_thread_set_name(thd_name);
   }
 

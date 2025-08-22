@@ -569,7 +569,7 @@ void Arch_File_Ctx::Recovery::reset_print(uint file_start_index)
     {
       start_point= reset_file.m_start_point[i];
       DBUG_PRINT("page_archiver",
-                 ("\tReset lsn : %" PRIu64 ", reset_pos : %" PRIu64 "\t %u",
+                 ("\tReset lsn : %" PRIu64 ", reset_pos : %d \t %u",
                   start_point.lsn, start_point.pos.m_block_num,
                   start_point.pos.m_offset));
     }

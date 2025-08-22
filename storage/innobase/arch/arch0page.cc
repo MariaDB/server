@@ -832,9 +832,9 @@ void Page_Arch_Client_Ctx::print()
   DBUG_PRINT("page_archiver", ("Stop LSN - %" PRIu64 "", m_stop_lsn));
   DBUG_PRINT("page_archiver",
              ("Last Reset LSN - %" PRIu64 "", m_last_reset_lsn));
-  DBUG_PRINT("page_archiver", ("Start pos - %" PRIu64 ", %u",
+  DBUG_PRINT("page_archiver", ("Start pos -  %d , %u",
                                m_start_pos.m_block_num, m_start_pos.m_offset));
-  DBUG_PRINT("page_archiver", ("Stop pos - %" PRIu64 ", %u\n",
+  DBUG_PRINT("page_archiver", ("Stop pos - %d , %u\n",
                                m_stop_pos.m_block_num, m_stop_pos.m_offset));
 }
 #endif
@@ -1879,8 +1879,8 @@ int Arch_Page_Sys::get_pages(MYSQL_THD thd, Page_Track_Callback cbk_func,
       }
 
       DBUG_PRINT("page_archiver",
-                 ("%" PRIu64 " -> length : %u, stop lsn : %" PRIu64
-                  ", last block : %u",
+                 ("%d -> length : %u, stop lsn : %" PRIu64
+                  ", last block : %d",
                   cur_pos.m_block_num, data_len, block_stop_lsn, last_block));
     }
 
@@ -1974,7 +1974,7 @@ int Arch_Page_Sys::get_num_pages(lsn_t &start_id, lsn_t &stop_id,
                                start_id, stop_id));
   if (is_active())
     DBUG_PRINT("page_archiver",
-               ("Write_pos : %" PRIu64 ", %u", m_write_pos.m_block_num,
+               ("Write_pos : %d, %u", m_write_pos.m_block_num,
                 m_write_pos.m_offset));
   DBUG_PRINT("page_archiver",
              ("Latest stop lsn : %" PRIu64 "", m_latest_stop_lsn));
@@ -2002,7 +2002,7 @@ int Arch_Page_Sys::get_num_pages(lsn_t &start_id, lsn_t &stop_id,
 
   DBUG_PRINT(
       "page_archiver",
-      ("Start point - lsn : %" PRIu64 " \tpos : %" PRIu64 ", %u",
+      ("Start point - lsn : %" PRIu64 " \tpos : %d , %u",
        start_point.lsn, start_point.pos.m_block_num, start_point.pos.m_offset));
 
   Arch_Page_Pos start_pos = start_point.pos;
@@ -2016,7 +2016,7 @@ int Arch_Page_Sys::get_num_pages(lsn_t &start_id, lsn_t &stop_id,
 
   DBUG_PRINT(
       "page_archiver",
-      ("Stop point - lsn : %" PRIu64 " \tpos : %" PRIu64 ", %u", stop_point.lsn,
+      ("Stop point - lsn : %" PRIu64 " \tpos : %d , %u", stop_point.lsn,
        stop_point.pos.m_block_num, stop_point.pos.m_offset));
 
   arch_mutex_exit();
@@ -2279,8 +2279,8 @@ int Arch_Page_Sys::start(Arch_Group **group, lsn_t *start_lsn,
 
         if (attach_to_current)
           DBUG_PRINT("page_archiver",
-                     ("Gap is small - last pos : %" PRIu64
-                      " %u, write_pos : %" PRIu64 " %u",
+                     ("Gap is small - last pos : %d"
+                      " %u, write_pos : %d %u",
                       m_last_pos.m_block_num, m_last_pos.m_offset,
                       m_write_pos.m_block_num, m_write_pos.m_offset));
       }
@@ -2907,7 +2907,7 @@ bool Arch_Page_Sys::save_reset_point(bool is_durable)
   m_request_blk_num_with_lsn= request_blk_num_with_lsn;
 
   DBUG_PRINT("page_archiver",
-             ("Saved reset point at %u - %" PRIu64 ", %" PRIu64 ", %u\n",
+             ("Saved reset point at %u - %" PRIu64 ", %d , %u\n",
               m_last_reset_file_index, m_last_lsn, m_last_pos.m_block_num,
               m_last_pos.m_offset));
 
@@ -3047,16 +3047,16 @@ void Arch_Page_Sys::update_stop_info(Arch_Block *cur_blk)
 void Arch_Page_Sys::print()
 {
   DBUG_PRINT("page_archiver", ("State : %u", m_state));
-  DBUG_PRINT("page_archiver", ("Last pos : %" PRIu64 ", %u",
+  DBUG_PRINT("page_archiver", ("Last pos : %d , %u",
                                m_last_pos.m_block_num, m_last_pos.m_offset));
   DBUG_PRINT("page_archiver", ("Last lsn : %" PRIu64 "", m_last_lsn));
   DBUG_PRINT("page_archiver",
              ("Latest stop lsn : %" PRIu64 "", m_latest_stop_lsn));
-  DBUG_PRINT("page_archiver", ("Flush pos : %" PRIu64 ", %u",
+  DBUG_PRINT("page_archiver", ("Flush pos : %d , %u",
                                m_flush_pos.m_block_num, m_flush_pos.m_offset));
-  DBUG_PRINT("page_archiver", ("Write pos : %" PRIu64 ", %u",
+  DBUG_PRINT("page_archiver", ("Write pos : %d , %u",
                                m_write_pos.m_block_num, m_write_pos.m_offset));
-  DBUG_PRINT("page_archiver", ("Reset pos : %" PRIu64 ", %u",
+  DBUG_PRINT("page_archiver", ("Reset pos : %d , %u",
                                m_reset_pos.m_block_num, m_reset_pos.m_offset));
   DBUG_PRINT("page_archiver",
              ("Last reset file index : %u", m_last_reset_file_index));

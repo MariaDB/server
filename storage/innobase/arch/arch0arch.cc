@@ -34,6 +34,7 @@ this program; if not, write to the Free Software Foundation, Inc.,
 #include "arch0page.h"
 #include "srv0start.h"
 #include "log.h"
+#include "univ.i"
 
 extern void ignore_db_dirs_append(const char *dirname_arg);
 

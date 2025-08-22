@@ -174,8 +174,8 @@ Descriptor::Descriptor(const std::string &file_name, uint64_t offset,
 
   if (m_file_name_len)
   {
-    auto available_length= S_MAX_LENGTH - S_MAX_META_LENGTH;
-    auto cp_length= std::min<uint32_t>(m_file_name_len, available_length);
+    size_t available_length= S_MAX_LENGTH - S_MAX_META_LENGTH;
+    uint32_t cp_length= std::min<uint32_t>(m_file_name_len, available_length);
     memcpy(ptr, file_name.c_str(), cp_length);
   }
 }
@@ -202,7 +202,8 @@ static int send_data(Ha_clone_cbk *cbk_ctx, const unsigned char* data,
   cbk_ctx->set_data_desc(desc, desc_len);
   cbk_ctx->clear_flags();
   cbk_ctx->set_os_buffer_cache();
-  return cbk_ctx->buffer_cbk(const_cast<unsigned char*>(data), data_len);
+  return cbk_ctx->buffer_cbk(const_cast<unsigned char*>(data),
+                             static_cast<uint>(data_len));
 }
 
 static int send_file(File file_desc, uchar *buf, size_t buf_size,
@@ -923,7 +924,7 @@ size_t Clone_Handle::attach()
   DBUG_ASSERT(id < S_MAX_TASKS);
 
   auto &ctx= m_thread_ctxs[id];
-  ctx.m_task_id= id;
+  ctx.m_task_id= static_cast<uint32_t>(id);
   DBUG_ASSERT(ctx.m_file == -1);
 
   m_num_threads++;
@@ -1049,6 +1050,20 @@ int Clone_Handle::scan(bool no_lock)
   clone_common::foreach_file_in_dir(m_data_dir,
                                     [&](const std::filesystem::path& file_path)
   {
+    const char* fpath= nullptr;
+#ifdef _WIN32
+     int size_needed = WideCharToMultiByte(CP_UTF8, 0, &file_path[0],
+                                           (int)wstr.size(), NULL, 0,
+                                           NULL, NULL);
+    std::string path(size_needed, 0);
+    WideCharToMultiByte(CP_UTF8, 0, &file_path[0],
+                        (int)file_path.size(), &path[0], size_needed,
+                        NULL, NULL);
+    fpath= path.c_str();
+#else
+    fpath= file_path.c_str();
+#endif
+
     /* TODO: Partial Backup */
     // if (check_if_skip_table(file_path))
     // {
@@ -1057,11 +1072,11 @@ int Clone_Handle::scan(bool no_lock)
     //   return;
     // }
     auto db_table_fs=
-      clone_common::convert_filepath_to_tablename(file_path.c_str());
+      clone_common::convert_filepath_to_tablename(fpath);
     auto tk= table_key(std::get<0>(db_table_fs), std::get<1>(db_table_fs));
 
     auto table= std::make_unique<Table>(std::get<0>(db_table_fs),
-      std::get<1>(db_table_fs), std::get<2>(db_table_fs), file_path.c_str());
+      std::get<1>(db_table_fs), std::get<2>(db_table_fs), fpath);
 
     if (table->is_log())
       return;
@@ -1261,7 +1276,8 @@ int Clone_Handle::copy_log_tail(THD *thd, Ha_clone_cbk *cbk_ctx, bool finalize)
   /* Check for new log files added. */
   auto horizon= translog_get_horizon();
   uint32_t last_file_num= LSN_FILE_NO(horizon);
-  Log_Files logs(m_log_dir.c_str(), last_file_num, m_last_log_num);
+  Log_Files logs(m_log_dir.c_str(), last_file_num,
+		 static_cast<uint32_t>(m_last_log_num));
 
   if (!logs.count())
   {

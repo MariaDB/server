@@ -371,7 +371,8 @@ int Clone_Snapshot::build_file_path(const char *data_dir,
   ut_ad(!source.empty());
 
   /* Remove dot slash prefix from source, if there. */
-  std::string dot_slash= "." + OS_PATH_SEPARATOR;
+  std::string dot_slash= ".";
+  dot_slash+= OS_PATH_SEPARATOR;
   if (std::equal(dot_slash.begin(), dot_slash.end(), source.begin()))
     source.erase(0, 2);
 

@@ -401,6 +401,7 @@ static int plugin_clone_init(MYSQL_PLUGIN plugin_info [[maybe_unused]])
 @param[in]	plugin_info	server plugin handle
 @return error code */
 static int plugin_clone_deinit(MYSQL_PLUGIN plugin_info [[maybe_unused]]) {
+  deinit_clone_storage_engine();
   auto error = clone_handle_drop();
 
   if (error != ER_SERVER_SHUTDOWN) {

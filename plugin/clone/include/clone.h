@@ -113,6 +113,8 @@ const uint CLONE_MIN_NET_BLOCK = 2 * CLONE_MIN_BLOCK;
 /** Initialize clone interfaces for clone SE. */
 void init_clone_storage_engine();
 
+void deinit_clone_storage_engine();
+
 /* Namespace for all clone data types */
 namespace myclone {
 

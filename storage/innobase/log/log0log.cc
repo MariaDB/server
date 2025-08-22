@@ -1110,7 +1110,7 @@ lsn_t log_t::write_buf() noexcept
       latch.wr_unlock();
 
     DBUG_PRINT("ib_log", ("write " LSN_PF " to " LSN_PF " at " LSN_PF,
-                          write_lsn, lsn, offset));
+                          write_lsn.load(), lsn, offset));
 
     /* Do the write to the log file */
     log_write_buf(write_buf, length, offset);
@@ -1122,7 +1122,7 @@ lsn_t log_t::write_buf() noexcept
     if (UNIV_UNLIKELY(srv_shutdown_state > SRV_SHUTDOWN_INITIATED))
     {
       service_manager_extend_timeout(INNODB_EXTEND_TIMEOUT_INTERVAL,
-                                     "InnoDB log write: " LSN_PF, write_lsn);
+                                     "InnoDB log write: " LSN_PF, write_lsn.load());
     }
     if (arch_sys)
       arch_sys->signal_archiver();

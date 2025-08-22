@@ -839,7 +839,10 @@ class Arch_Group
   Arch_Group(lsn_t first_lsn, lsn_t start_lsn, uint header_len,
              mysql_mutex_t *mutex)
       : m_first_lsn(first_lsn), m_begin_lsn(start_lsn),
-        m_header_len(header_len) IF_DEBUG(, m_arch_mutex(mutex))
+        m_header_len(header_len)
+#ifdef UNIV_DEBUG
+      , m_arch_mutex(mutex)
+#endif /* UNIV_DEBUG */
   {
     ut_ad(first_lsn <= start_lsn);
     m_active_file.m_file= OS_FILE_CLOSED;
