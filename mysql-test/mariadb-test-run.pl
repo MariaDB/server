@@ -4546,8 +4546,6 @@ sub extract_warning_lines ($$) {
      qr|table.*is full|,
      qr/\[ERROR\] (mysqld|mariadbd): \Z/,  # Warning from Aria recovery
      qr|Linux Native AIO|, # warning that aio does not work on /dev/shm
-     qr|InnoDB: io_setup\(\) attempt|,
-     qr|InnoDB: io_setup\(\) failed with EAGAIN|,
      qr|io_uring_queue_init\(\) failed with|,
      qr|InnoDB: io_uring failed: falling back to libaio|,
      qr/InnoDB: Failed to set O_DIRECT on file/,
