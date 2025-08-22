@@ -145,6 +145,40 @@ static bool append_table_to_dir(THD *thd, const char **filename_ptr,
 }
 
 /**
+  Issue a note when ALTER TABLE ... AUTO_INCREMENT=N is used with N lower
+  than the next AUTO_INCREMENT value, in which case the engine keeps the
+  higher value.
+
+  @param thd           Thread handle
+  @param create_info   Create info with requested auto_increment value
+  @param table         The table being altered
+*/
+
+static void
+check_auto_increment_lower_than_next(THD *thd,
+                                     const HA_CREATE_INFO *create_info,
+                                     TABLE *table)
+{
+  if (!(create_info->used_fields & HA_CREATE_USED_AUTO) ||
+      create_info->auto_increment_value == 0 ||
+      !table->found_next_number_field)
+    return;
+
+  table->file->info(HA_STATUS_AUTO);
+  ulonglong next_auto_inc= table->file->stats.auto_increment_value;
+  if (next_auto_inc > create_info->auto_increment_value)
+  {
+    char llbuff[22], llbuff2[22];
+    push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
+                        WARN_OPTION_CHANGING,
+                        ER_THD(thd, WARN_OPTION_CHANGING),
+                        "ALTER TABLE", "AUTO_INCREMENT",
+                        llstr(create_info->auto_increment_value, llbuff),
+                        llstr(next_auto_inc, llbuff2));
+  }
+}
+
+/**
   @brief Helper function for explain_filename
   @param thd          Thread handle
   @param to_p         Explained name in system_charset_info
@@ -8266,6 +8300,8 @@ static bool mysql_inplace_alter_table(THD *thd,
     commit_succeded_with_error= 1;
   }
 
+  check_auto_increment_lower_than_next(thd, ha_alter_info->create_info, table);
+
   close_all_tables_for_name(thd, table->s,
                             alter_ctx->is_table_renamed() ?
                             HA_EXTRA_PREPARE_FOR_RENAME :
@@ -11730,6 +11766,9 @@ do_continue:;
     if (wait_for_master(thd))
       goto err_new_table_cleanup;
   }
+
+  check_auto_increment_lower_than_next(thd, create_info, new_table);
+
   if (table->s->tmp_table != NO_TMP_TABLE)
   {
     /* Release lock if this is a transactional temporary table */
