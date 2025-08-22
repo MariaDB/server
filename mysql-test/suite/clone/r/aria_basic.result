@@ -202,4 +202,6 @@ DROP TABLE t_part_online;
 DROP TABLE t_part_offline;
 DROP TABLE `t 1 t-1`;
 DROP TABLE `t-part online`;
+disconnect clone_conn_1;
+connection default;
 UNINSTALL PLUGIN clone;
