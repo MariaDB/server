@@ -23,6 +23,8 @@ Smart ALTER TABLE
 *******************************************************/
 
 /* Include necessary SQL headers */
+#include <cstdint>
+#include <cinttypes>
 #include "univ.i"
 #include <debug_sync.h>
 #include <log.h>
@@ -9972,6 +9974,16 @@ commit_set_autoinc(
 			= ha_alter_info->create_info->auto_increment_value;
 		if (autoinc == 0) {
 			autoinc = 1;
+		}
+
+		if (autoinc < ctx->old_table->autoinc) {
+			push_warning_printf(
+				ctx->prebuilt->trx->mysql_thd,
+				Sql_condition::WARN_LEVEL_WARN,
+				ER_ALTER_INFO,
+				"Can not set AUTO_INCREMENT to %" PRIu64 " which is lower than the current max value of %" PRIu64,
+				static_cast<uint64_t>(autoinc),
+				static_cast<uint64_t>(ctx->old_table->autoinc));
 		}
 
 		if (autoinc >= ctx->old_table->autoinc) {
