@@ -339,7 +339,7 @@ static int write_to_table(char *filename, MYSQL *mysql)
   DBUG_ENTER("write_to_table");
   DBUG_PRINT("enter",("filename: %s",filename));
 
-  fn_format(tablename, filename, "", "", 1 | 2); /* removes path & ext. */
+  fn_format(tablename, filename, "", "", MYF(MY_REPLACE_DIR | MY_REPLACE_EXT));
   if (!opt_local_file)
     strmov(hard_path,filename);
   else
