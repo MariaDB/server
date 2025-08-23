@@ -42,8 +42,9 @@ typedef struct st_range_seq_entry
 /*
   MRR range sequence, SEL_ARG* implementation: SEL_ARG graph traversal context
 */
-typedef struct st_sel_arg_range_seq
+class SEL_ARG_RANGE_SEQ
 {
+public:
   uint keyno;      /* index of used tree in SEL_TREE structure */
   uint real_keyno; /* Number of the index in tables */
   PARAM *param;
@@ -59,7 +60,7 @@ typedef struct st_sel_arg_range_seq
     if ranges being traversed do not allow to construct a ROR-scan"
   */
   bool is_ror_scan;
-} SEL_ARG_RANGE_SEQ;
+};
 
 
 /*

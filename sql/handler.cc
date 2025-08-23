@@ -9447,3 +9447,26 @@ void handler::set_optimizer_costs(THD *thd)
   optimizer_where_cost=      thd->variables.optimizer_where_cost;
   optimizer_scan_setup_cost= thd->variables.optimizer_scan_setup_cost;
 }
+
+/*
+  Time for a full table data scan. To be overrided by engines, should not
+  be used by the sql level.
+*/
+IO_AND_CPU_COST handler::scan_time()
+{
+  IO_AND_CPU_COST cost;
+  bool rc= current_thd->opt_ctx_replay
+               ? current_thd->opt_ctx_replay->get_read_cost(table, &cost)
+               : true;
+  if (rc)
+  {
+    ulonglong length= stats.data_file_length;
+    cost.io= (double) (length / IO_SIZE);
+    cost.cpu=
+        (!stats.block_size
+             ? 0.0
+             : (double) ((length + stats.block_size - 1) / stats.block_size) *
+                   INDEX_BLOCK_COPY_COST);
+  }
+  return cost;
+}
