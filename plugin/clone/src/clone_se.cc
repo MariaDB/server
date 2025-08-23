@@ -787,6 +787,7 @@ int Clone_Handle::scan(const std::unordered_set<table_key_t> &exclude_tables,
     // }
     const char* fpath= nullptr;
 #ifdef _WIN32
+    std::string wstr= file_path.wstring();
     int size= WideCharToMultiByte(CP_UTF8, 0, &wstr[0],
                                   (int)wstr.size(), nullptr,
                                   0, nullptr, nullptr);
