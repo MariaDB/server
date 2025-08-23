@@ -77,7 +77,7 @@ bool json_unescape_to_string(const char *val, int val_len, String* out)
     succeeds.
 */
 
-static int json_escape_to_string(const String *str, String* out)
+int json_escape_to_string(const String *str, String *out)
 {
   // Make sure 'out' has some memory allocated.
   if (!out->alloced_length() && out->alloc(128))

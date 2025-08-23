@@ -9710,3 +9710,29 @@ void handler::set_optimizer_costs(THD *thd)
   optimizer_where_cost=      thd->variables.optimizer_where_cost;
   optimizer_scan_setup_cost= thd->variables.optimizer_scan_setup_cost;
 }
+
+/*
+   Time for a full table scan
+
+   @param records   Number of records from the engine or records from
+                    status tables stored by ANALYZE TABLE.
+
+   The TABLE_SCAN_SETUP_COST is there to prefer range scans to full
+   table scans.  This is mainly to make the test suite happy as
+   many tests has very few rows. In real life tables has more than
+   a few rows and the extra cost has no practical effect.
+*/
+IO_AND_CPU_COST handler::ha_scan_time(ha_rows rows)
+{
+  IO_AND_CPU_COST cost;
+  bool rc= (table && table->in_use && table->in_use->opt_ctx_replay)
+               ? table->in_use->opt_ctx_replay->infuse_read_cost(table, &cost)
+               : true;
+  if (rc)
+  {
+    cost= scan_time();
+    cost.cpu+= (TABLE_SCAN_SETUP_COST +
+                (double) rows * (ROW_NEXT_FIND_COST + ROW_COPY_COST));
+  }
+  return cost;
+}
