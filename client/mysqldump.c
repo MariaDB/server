@@ -1841,10 +1841,19 @@ static char *cover_definer_clause(const char *stmt_str,
 static const char* build_path_for_table(char *to, const char *dir,
                                         const char *table, const char *ext)
 {
-  char tmp_path[FN_REFLEN];
+  char filename[FN_REFLEN], tmp_path[FN_REFLEN];
   convert_dirname(tmp_path, path, NULL);
   my_load_path(tmp_path, tmp_path, NULL);
-  return fn_format(to, table, tmp_path, ext, MYF(MY_UNPACK_FILENAME));
+  if (check_if_legal_tablename(table))
+    strxnmov(filename, sizeof(filename) - 1, table, "@@@", NULL);
+  else
+  {
+    uint errors, len;
+    len= my_convert(filename, sizeof(filename) - 1, &my_charset_filename,
+                    table, (uint32)strlen(table), charset_info, &errors);
+    filename[len]= 0;
+  }
+  return fn_format(to, filename, tmp_path, ext, MYF(MY_UNPACK_FILENAME));
 }
 
 

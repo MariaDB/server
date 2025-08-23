@@ -3035,3 +3035,45 @@ drop view `v'1"2`; # "'
 drop table t1;
 
 --echo # End of 10.5 tests
+
+--echo #
+--echo # MDEV-37483 mariadb-dump -T doesn't convert table names
+--echo #
+set names latin1;
+create database foo;
+use foo;
+
+create table `con_schöne_grüße` (a int) select 1 as a;
+create table `con` (b int) select 2 as b;
+create table `con/bar` (c int) select 3 as c;
+create table `con@home` (d int) select 4 as d;
+exec $MYSQL_DUMP foo --tab $MYSQLTEST_VARDIR/tmp;
+drop database foo;
+use test;
+move_file $MYSQLTEST_VARDIR/tmp/con@0040home.sql $MYSQLTEST_VARDIR/tmp/con@home.sql;
+move_file $MYSQLTEST_VARDIR/tmp/con@0040home.txt $MYSQLTEST_VARDIR/tmp/con@home.txt;
+list_files $MYSQLTEST_VARDIR/tmp con*;
+exec $MYSQL test < $MYSQLTEST_VARDIR/tmp/con@@@.sql;
+exec $MYSQL test < $MYSQLTEST_VARDIR/tmp/con@002fbar.sql;
+exec $MYSQL test < $MYSQLTEST_VARDIR/tmp/con_sch@1ine_gr@1o@1je.sql;
+exec $MYSQL test < $MYSQLTEST_VARDIR/tmp/con@home.sql;
+show tables;
+exec $MYSQL_IMPORT test $MYSQLTEST_VARDIR/tmp/con@@@.txt;
+exec $MYSQL_IMPORT test $MYSQLTEST_VARDIR/tmp/con@002fbar.txt;
+if (`select @@version like '10.6.%'`) {
+# utf8 console output on Windows is fixed in MDEV-26713, until then
+--disable_result_log
+}
+exec $MYSQL_IMPORT test $MYSQLTEST_VARDIR/tmp/con_sch@1ine_gr@1o@1je.txt;
+--enable_result_log
+exec $MYSQL_IMPORT test $MYSQLTEST_VARDIR/tmp/con@home.txt;
+select * from `con_schöne_grüße`;
+select * from `con`;
+select * from `con/bar`;
+select * from `con@home`;
+drop table `con_schöne_grüße`;
+drop table `con`;
+drop table `con/bar`;
+drop table `con@home`;
+
+--echo # End of 10.6 tests

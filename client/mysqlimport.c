@@ -340,6 +340,16 @@ static int write_to_table(char *filename, MYSQL *mysql)
   DBUG_PRINT("enter",("filename: %s",filename));
 
   fn_format(tablename, filename, "", "", MYF(MY_REPLACE_DIR | MY_REPLACE_EXT));
+  if (strchr(tablename, '@'))
+  {
+    uint errors, len;
+    const char *csname= my_default_csname(); /* see MYSQL_SET_CHARSET_NAME */
+    CHARSET_INFO *cs= get_charset_by_csname(csname,  MY_CS_PRIMARY, MYF(0));
+    len= my_convert(escaped_name, sizeof(escaped_name) - 1, cs, tablename,
+                    (uint32)strlen(tablename), &my_charset_filename, &errors);
+    if (!errors)
+      strmake(tablename, escaped_name, len);
+  }
   if (!opt_local_file)
     strmov(hard_path,filename);
   else
