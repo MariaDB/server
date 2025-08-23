@@ -866,6 +866,9 @@ The following specify which files/extra groups are read (specified before remain
  --optimizer-record-context 
  Controls storing of optmizer context of all the tables
  that are referenced in a query
+ --optimizer-replay-context=name 
+ The context for a query that is in JSON format for
+ reusing the stored stats
  --optimizer-row-copy-cost=# 
  Cost of copying a row from the engine or the join cache
  to the SQL layer
@@ -1901,6 +1904,7 @@ optimizer-max-sel-arg-weight 32000
 optimizer-max-sel-args 16000
 optimizer-prune-level 2
 optimizer-record-context FALSE
+optimizer-replay-context 
 optimizer-row-copy-cost 0.060866
 optimizer-row-lookup-cost 0.130839
 optimizer-row-next-find-cost 0.045916

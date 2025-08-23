@@ -3814,21 +3814,8 @@ public:
     return index_blocks(index, 1, stats.records);
   }
 
-  /*
-    Time for a full table data scan. To be overrided by engines, should not
-    be used by the sql level.
-  */
-protected:
-  virtual IO_AND_CPU_COST scan_time()
-  {
-    IO_AND_CPU_COST cost;
-    ulonglong length= stats.data_file_length;
-    cost.io= (double) (length / IO_SIZE);
-    cost.cpu= (!stats.block_size ? 0.0 :
-               (double) ((length + stats.block_size-1)/stats.block_size) *
-               INDEX_BLOCK_COPY_COST);
-    return cost;
-  }
+  public:
+  virtual IO_AND_CPU_COST scan_time();
 public:
 
   /*

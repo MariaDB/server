@@ -1,0 +1,119 @@
+--source include/not_embedded.inc
+--source include/have_sequence.inc
+--source include/have_innodb.inc
+
+--echo #
+--echo # In this test suite, each query is run more than once. However, between the runs
+--echo # the table is modified to either add more rows or delete rows etc. 
+--echo # During the first run of the query, optimizer_context from the trace 
+--echo # is saved to a variable "saved_opt_context", and the explain output is saved
+--echo # into "saved_explain_output".
+--echo # Once the table is modified, the saved context is used to rerun the query.
+--echo # The execution plan output along with the stats should be one and the same
+--echo # during each run of the query.
+--echo #
+
+set optimizer_record_context=ON;
+set optimizer_trace=1;
+set optimizer_replay_context="";
+
+create database db1;
+use db1;
+
+--echo #
+--echo # Range query on a single table having 1 index
+--echo #
+
+create table t1 (c1 int, c2 int, index(c1)) engine=innodb;
+
+insert into t1 select seq, seq from seq_1_to_10000;
+
+analyze table t1;
+
+let $explain_query=`explain format=json select * from t1 a, t1 b where a.c1 < 3 and b.c1 < 333`;
+
+let $table_update_query=truncate table t1;
+
+--source include/run_query_twice_and_compare_stats.inc
+
+drop table t1;
+
+--echo #
+--echo # Query on a single table having 2 indexes.
+--echo # 2 different ranges are specified on each index.
+--echo #
+
+create table t1 (
+    c1 int,
+    c2 int,
+    index(c1),
+    index(c2)
+) ENGINE=InnoDB;
+
+insert into t1 select seq, seq from seq_1_to_10000;
+
+analyze table t1;
+
+let $explain_query=`explain format=json select * from t1 a, t1 b where a.c1 < 3 and b.c1 < 333 and a.c2 < 3 and b.c2 < 333`;
+
+let $table_update_query=truncate table t1;
+
+--source include/run_query_twice_and_compare_stats.inc
+
+--echo #
+--echo # Add more data to the table and execute the query
+--echo #
+
+insert into t1 select seq, seq from seq_1_to_20000;
+
+analyze table t1;
+
+set optimizer_replay_context=@saved_opt_context;
+
+evalp set @explain_output='$explain_query';
+
+select JSON_EQUALS(@saved_explain_output, @explain_output);
+
+drop table t1;
+
+--echo #
+--echo # Query on a single table having 1 index.
+--echo # However, a non-constant ref access is used on the index.
+--echo #
+
+set optimizer_replay_context="";
+
+create table t1 (
+    c1 int,
+    c2 int,
+    index(c1)
+) ENGINE=InnoDB;
+
+insert into t1 select seq%100, seq%500 from seq_1_to_10000;
+
+analyze table t1;
+
+let $explain_query=`explain format=json select * from t1 as tt1, t1 as tt2 where tt1.c1 < tt2.c1 and tt1.c2 <= 100`;
+
+let $table_update_query=truncate table t1;
+
+--source include/run_query_twice_and_compare_stats.inc
+
+--echo #
+--echo # On the same table, test with non-constant ref access with out using an index
+--echo # Also, re-insert data
+--echo #
+
+insert into t1 select seq%100, seq%500 from seq_1_to_10000;
+
+analyze table t1;
+
+let $explain_query=`explain format=json select * from t1 as tt1, t1 as tt2 where tt1.c2 > tt2.c2 and tt1.c2 <= 100`;
+
+let $table_update_query=truncate table t1;
+
+--source include/run_query_twice_and_compare_stats.inc
+
+drop table t1;
+
+drop database db1;

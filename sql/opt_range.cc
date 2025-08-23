@@ -459,10 +459,6 @@ static void trace_ranges(Json_writer_array *range_trace, PARAM *param,
                          Range_list_recorder *recorder= NULL);
 
 static
-void print_range(String *out, const KEY_PART_INFO *key_part,
-                 KEY_MULTI_RANGE *range, uint n_key_parts);
-
-static
 void print_range_for_non_indexed_field(String *out, Field *field,
                                        KEY_MULTI_RANGE *range);
 
@@ -8022,9 +8018,11 @@ static TRP_RANGE *get_key_scans_params(PARAM *param, SEL_TREE *tree,
 
         if (unlikely(thd->trace_started()))
         {
+          TABLE::OPT_RANGE *range= param->table->opt_range + keynr;
           Range_list_recorder *recorder= get_range_list_recorder(
               thd, param->old_root, param->table->pos_in_table_list,
-              param->table->key_info[keynr].name.str, found_records);
+              param->table->key_info[keynr].name.str, found_records, cost,
+              range->max_index_blocks, range->max_row_blocks);
           trace_ranges(&trace_range, param, idx, key, key_part, recorder);
         }
         trace_range.end();
@@ -12425,6 +12423,9 @@ ha_rows check_quick_select(PARAM *param, uint idx, ha_rows limit,
   handler *file= param->table->file;
   ha_rows rows= HA_POS_ERROR;
   uint keynr= param->real_keynr[idx];
+  ha_rows replay_ctx_max_index_blocks;
+  ha_rows replay_ctx_max_row_blocks;
+  bool replay_ctx_rc;
   DBUG_ENTER("check_quick_select");
 
   /* Range not calculated yet */
@@ -12477,9 +12478,18 @@ ha_rows check_quick_select(PARAM *param, uint idx, ha_rows limit,
   if (!param->table->pos_in_table_list->is_materialized_derived())
     rows= file->multi_range_read_info_const(keynr, &seq_if, (void*)&seq, 0,
                                             bufsize, mrr_flags, limit, cost);
+
+  replay_ctx_rc=
+      param->thd->opt_ctx_replay
+          ? param->thd->opt_ctx_replay->load_range_stats_into_client(
+                param->table, keynr, &seq_if, &seq, cost, &rows,
+                &replay_ctx_max_index_blocks, &replay_ctx_max_row_blocks)
+          : true;
+
   param->quick_rows[keynr]= rows;
   if (rows != HA_POS_ERROR)
   {
+    TABLE::OPT_RANGE *range= param->table->opt_range + keynr;
     ha_rows table_records= param->table->stat_records();
     if (rows > table_records)
     {
@@ -12500,9 +12510,12 @@ ha_rows check_quick_select(PARAM *param, uint idx, ha_rows limit,
       cost->comp_cost-= file->WHERE_COST * diff;
     }
     param->possible_keys.set_bit(keynr);
+    range->max_index_blocks=
+        file->index_blocks(keynr, param->range_count, rows);
+    range->max_row_blocks=
+        MY_MIN(file->row_blocks(), rows * file->stats.block_size / IO_SIZE);
     if (update_tbl_stats)
     {
-      TABLE::OPT_RANGE *range= param->table->opt_range + keynr;
       param->table->opt_range_keys.set_bit(keynr);
       range->key_parts= param->max_key_parts;
       range->ranges= param->range_count;
@@ -12513,9 +12526,10 @@ ha_rows check_quick_select(PARAM *param, uint idx, ha_rows limit,
                            1.0);                // ok as rows is 0
       range->rows= rows;
       range->cost= *cost;
-      range->max_index_blocks= file->index_blocks(keynr, range->ranges,
-                                                  rows);
-      range->max_row_blocks= MY_MIN(file->row_blocks(), rows * file->stats.block_size / IO_SIZE);
+      if (!replay_ctx_rc) {
+        range->max_index_blocks= replay_ctx_max_index_blocks;
+        range->max_row_blocks= replay_ctx_max_row_blocks;
+      }
       range->first_key_part_has_only_one_value=
         check_if_first_key_part_has_only_one_value(tree);
     }
@@ -17439,7 +17453,6 @@ static void print_max_range_operator(String *out, const ha_rkey_function flag)
 }
 
 
-static
 void print_range(String *out, const KEY_PART_INFO *key_part,
                  KEY_MULTI_RANGE *range, uint n_key_parts)
 {
