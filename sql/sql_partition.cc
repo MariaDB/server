@@ -943,7 +943,7 @@ static bool check_primary_key(TABLE *table)
     check_fields_in_PF(table->part_info->full_part_field_array,
                         &all_fields, &some_fields);
     clear_indicator_in_key_fields(table->key_info+primary_key);
-    if (unlikely(!all_fields))
+    if (unlikely(!some_fields))
     {
       my_error(ER_UNIQUE_KEY_NEED_ALL_FIELDS_IN_PF,MYF(0),"PRIMARY KEY");
       result= TRUE;
