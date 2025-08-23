@@ -448,8 +448,6 @@ static int and_range_trees(RANGE_OPT_PARAM *param,
 static bool remove_nonrange_trees(PARAM *param, SEL_TREE *tree);
 static void restore_nonrange_trees(RANGE_OPT_PARAM *param, SEL_TREE *tree,
                                    SEL_ARG **backup);
-static void print_key_value(String *out, const KEY_PART_INFO *key_part,
-                            const uchar* key, uint length);
 static void print_keyparts_name(String *out, const KEY_PART_INFO *key_part,
                                 uint n_keypart, key_part_map keypart_map);
 
@@ -459,10 +457,6 @@ static void trace_ranges(Json_writer_array *range_trace, PARAM *param,
                          Range_list_recorder *recorder= NULL);
 
 static
-void print_range(String *out, const KEY_PART_INFO *key_part,
-                 KEY_MULTI_RANGE *range, uint n_key_parts);
-
-static
 void print_range_for_non_indexed_field(String *out, Field *field,
                                        KEY_MULTI_RANGE *range);
 
@@ -470,6 +464,12 @@ static void print_min_range_operator(String *out, const ha_rkey_function flag);
 static void print_max_range_operator(String *out, const ha_rkey_function flag);
 
 static bool is_field_an_unique_index(Field *field);
+static ha_rows hook_records_in_range(MEM_ROOT *mem_root, THD *thd,
+                                     TABLE *table,
+                                     const KEY_PART_INFO *key_part, uint keynr,
+                                     const key_range *min_range,
+                                     const key_range *max_range,
+                                     page_range *pages);
 
 /*
   SEL_IMERGE is a list of possible ways to do index merge, i.e. it is
@@ -7250,8 +7250,11 @@ static double ror_scan_selectivity(const ROR_INTERSECT_INFO *info,
       }
       min_range.length= max_range.length= (uint) (key_ptr - key_val);
       min_range.keypart_map= max_range.keypart_map= keypart_map;
-      records= (info->param->table->file->
-                records_in_range(scan->keynr, &min_range, &max_range, &pages));
+
+      records= hook_records_in_range(info->param->old_root, info->param->thd,
+                                     info->param->table, key_part, scan->keynr,
+                                     &min_range, &max_range, &pages);
+
       if (cur_covered)
       {
         /* uncovered -> covered */
@@ -8027,14 +8030,16 @@ static TRP_RANGE *get_key_scans_params(PARAM *param, SEL_TREE *tree,
       index_scan->sel_arg= key;
       *tree->index_scans_end++= index_scan;
 
-        if (unlikely(thd->trace_started()))
-        {
-          Range_list_recorder *recorder= get_range_list_recorder(
-              thd, param->old_root, param->table->pos_in_table_list,
-              param->table->key_info[keynr].name.str, found_records);
-          trace_ranges(&trace_range, param, idx, key, key_part, recorder);
-        }
-        trace_range.end();
+      if (unlikely(thd->trace_started()))
+      {
+        TABLE::OPT_RANGE *range= param->table->opt_range + keynr;
+        Range_list_recorder *recorder= get_range_list_recorder(
+            thd, param->old_root, param->table->pos_in_table_list,
+            param->table->key_info[keynr].name.str, found_records, &cost,
+            range->max_index_blocks, range->max_row_blocks);
+        trace_ranges(&trace_range, param, idx, key, key_part, recorder);
+      }
+      trace_range.end();
 
       if (unlikely(trace_idx.trace_started()))
       {
@@ -12445,6 +12450,9 @@ ha_rows check_quick_select(PARAM *param, uint idx, ha_rows limit,
   handler *file= param->table->file;
   ha_rows rows= HA_POS_ERROR;
   uint keynr= param->real_keynr[idx];
+  ha_rows replay_ctx_max_index_blocks;
+  ha_rows replay_ctx_max_row_blocks;
+  bool replay_ctx_rc;
   DBUG_ENTER("check_quick_select");
 
   /* Range not calculated yet */
@@ -12497,9 +12505,18 @@ ha_rows check_quick_select(PARAM *param, uint idx, ha_rows limit,
   if (!param->table->pos_in_table_list->is_materialized_derived())
     rows= file->multi_range_read_info_const(keynr, &seq_if, (void*)&seq, 0,
                                             bufsize, mrr_flags, limit, cost);
+
+  replay_ctx_rc=
+      param->thd->opt_ctx_replay
+          ? param->thd->opt_ctx_replay->infuse_range_stats(
+                param->table, keynr, &seq_if, &seq, cost, &rows,
+                &replay_ctx_max_index_blocks, &replay_ctx_max_row_blocks)
+          : true;
+
   param->quick_rows[keynr]= rows;
   if (rows != HA_POS_ERROR)
   {
+    TABLE::OPT_RANGE *range= param->table->opt_range + keynr;
     ha_rows table_records= param->table->stat_records();
     if (rows > table_records)
     {
@@ -12520,9 +12537,12 @@ ha_rows check_quick_select(PARAM *param, uint idx, ha_rows limit,
       cost->comp_cost-= file->WHERE_COST * diff;
     }
     param->possible_keys.set_bit(keynr);
+    range->max_index_blocks=
+        file->index_blocks(keynr, param->range_count, rows);
+    range->max_row_blocks=
+        MY_MIN(file->row_blocks(), rows * file->stats.block_size / IO_SIZE);
     if (update_tbl_stats)
     {
-      TABLE::OPT_RANGE *range= param->table->opt_range + keynr;
       param->table->opt_range_keys.set_bit(keynr);
       range->key_parts= param->max_key_parts;
       range->ranges= param->range_count;
@@ -12533,9 +12553,17 @@ ha_rows check_quick_select(PARAM *param, uint idx, ha_rows limit,
                            1.0);                // ok as rows is 0
       range->rows= rows;
       range->cost= *cost;
-      range->max_index_blocks= file->index_blocks(keynr, range->ranges,
-                                                  rows);
-      range->max_row_blocks= MY_MIN(file->row_blocks(), rows * file->stats.block_size / IO_SIZE);
+      if (!replay_ctx_rc)
+      {
+        // If an index/table is updated due to addition or deletion or
+        // truncation etc.. then the max_index_blocks, and max_row_blocks read
+        // from the handler (though accurate) would change the cost estimate
+        // calculation when we are trying to replaying the context.
+        // So, set them from the replay ctx, if no error has occured during the
+        // fetch operation.
+        range->max_index_blocks= replay_ctx_max_index_blocks;
+        range->max_row_blocks= replay_ctx_max_row_blocks;
+      }
       range->first_key_part_has_only_one_value=
         check_if_first_key_part_has_only_one_value(tree);
     }
@@ -17556,8 +17584,6 @@ static void print_max_range_operator(String *out, const ha_rkey_function flag)
     out->append(STRING_WITH_LEN(" ? "));
 }
 
-
-static
 void print_range(String *out, const KEY_PART_INFO *key_part,
                  KEY_MULTI_RANGE *range, uint n_key_parts)
 {
@@ -17671,9 +17697,6 @@ static void trace_ranges(Json_writer_array *range_trace, PARAM *param,
   const KEY_PART_INFO *cur_key_part= key_parts + keypart->part;
   seq_it= seq_if.init((void *) &seq, 0, flags);
 
-  List<char> range_list;
-  range_list.empty();
-
   while (!seq_if.next(seq_it, &range))
   {
     StringBuffer<128> range_info(system_charset_info);
@@ -17693,8 +17716,8 @@ static void trace_ranges(Json_writer_array *range_trace, PARAM *param,
   @param[in]  used_length  length of the key tuple
 */
 
-static void print_key_value(String *out, const KEY_PART_INFO *key_part,
-                            const uchar* key, uint used_length)
+void print_key_value(String *out, const KEY_PART_INFO *key_part,
+                     const uchar *key, uint used_length)
 {
   out->append(STRING_WITH_LEN("("));
   Field *field= key_part->field;
@@ -17749,4 +17772,37 @@ void print_keyparts_name(String *out, const KEY_PART_INFO *key_part,
       break;
   }
   out->append(STRING_WITH_LEN(")"));
+}
+
+/*
+  @brief
+    Call records_in_range(). If necessary,
+    - Replace its return value from Optimizer Context, and/or
+    - Save its return value in the Optimizer Context we're recording.
+
+  @detail
+    Note that currently "pages" and min/max_range->flag are not hooked.
+*/
+static ha_rows hook_records_in_range(MEM_ROOT *mem_root, THD *thd,
+                                     TABLE *table,
+                                     const KEY_PART_INFO *key_part, uint keynr,
+                                     const key_range *min_range,
+                                     const key_range *max_range,
+                                     page_range *pages)
+{
+  ha_rows records=
+      table->file->records_in_range(keynr, min_range, max_range, pages);
+
+  if (Optimizer_context_replay *repl= thd->opt_ctx_replay)
+  {
+    repl->infuse_records_in_range(table, key_part, keynr, min_range,
+                                  max_range, &records);
+  }
+
+  if (Optimizer_context_recorder *recorder= get_opt_context_recorder(thd))
+  {
+    recorder->record_records_in_range(mem_root, table, key_part, keynr,
+                                      min_range, max_range, records);
+  }
+  return records;
 }

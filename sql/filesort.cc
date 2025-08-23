@@ -736,74 +736,10 @@ static char dbug_row_print_buf[4096];
 
 String dbug_format_row(TABLE *table, const uchar *rec, bool print_names)
 {
-  Field **pfield;
-  char row_buff_tmp[512];
-  String tmp(row_buff_tmp, sizeof(row_buff_tmp), &my_charset_bin);
-  String output(dbug_row_print_buf, sizeof(dbug_row_print_buf), &my_charset_bin);
-
-  auto move_back_lambda= [table, rec]() mutable {
-    table->move_fields(table->field, table->record[0], rec);
-  };
-  auto move_back_guard= make_scope_exit(move_back_lambda, false);
-
-  if (rec != table->record[0])
-  {
-    table->move_fields(table->field, rec, table->record[0]);
-    move_back_guard.engage();
-  }
-
-  SCOPE_VALUE(table->read_set, (table->reginfo.lock_type >= TL_WRITE_ALLOW_WRITE) ?
-                                table->write_set : table->read_set);
-
+  String output(dbug_row_print_buf, sizeof(dbug_row_print_buf),
+                &my_charset_bin);
   output.length(0);
-  output.append(table->alias);
-  output.append('(');
-  bool first= true;
-  if (print_names)
-  {
-    for (pfield= table->field; *pfield ; pfield++)
-    {
-      if (table->read_set && !bitmap_is_set(table->read_set, (*pfield)->field_index))
-        continue;
-
-      if (first)
-        first= false;
-      else
-        output.append(STRING_WITH_LEN(", "));
-
-      output.append((*pfield)->field_name.str
-                    ? (*pfield)->field_name : NULL_clex_str);
-    }
-
-    output.append(STRING_WITH_LEN(")=("));
-    first= true;
-  }
-
-  for (pfield= table->field; *pfield ; pfield++)
-  {
-    Field *field=  *pfield;
-
-    if (table->read_set && !bitmap_is_set(table->read_set, (*pfield)->field_index))
-      continue;
-
-    if (first)
-      first= false;
-    else
-      output.append(STRING_WITH_LEN(", "));
-
-    if (field->is_null())
-      output.append(&NULL_clex_str);
-    else
-    {
-      if (field->type() == MYSQL_TYPE_BIT)
-        (void) field->val_int_as_str(&tmp, 1);
-      else
-        field->val_str(&tmp);
-      output.append(tmp.ptr(), tmp.length());
-    }
-  }
-  output.append(')');
-
+  format_and_store_row(table, rec, print_names, "=", true, output);
   return output;
 }
 
@@ -3086,4 +3022,123 @@ static uint make_packed_sortkey(Sort_param *param, uchar *to)
   DBUG_ASSERT(length <= param->sort_length);
   Sort_keys::store_sortkey_length(orig_to, length);
   return length;
+}
+
+/*
+  @brief
+    Format the row record and store it in the output
+
+  @detail
+    Call this function with print_names=true, reqd_table_alias="tbl",
+    separator="=" and the output would have this form:
+      tbl(col1,col2,...,coln)=(val1,val2,...,valn)
+*/
+void format_and_store_row(TABLE *table, const uchar *rec, bool print_names,
+                          const char *separator, bool reqd_table_alias,
+                          String &output)
+{
+  Field **pfield;
+  char row_buff_tmp[512];
+  String tmp(row_buff_tmp, sizeof(row_buff_tmp), &my_charset_bin);
+
+  auto move_back_lambda= [table, rec]() mutable {
+    table->move_fields(table->field, table->record[0], rec);
+  };
+  auto move_back_guard= make_scope_exit(move_back_lambda, false);
+
+  if (rec != table->record[0])
+  {
+    table->move_fields(table->field, rec, table->record[0]);
+    move_back_guard.engage();
+  }
+
+  SCOPE_VALUE(table->read_set,
+              (table->reginfo.lock_type >= TL_WRITE_ALLOW_WRITE)
+                  ? table->write_set
+                  : table->read_set);
+
+  if (reqd_table_alias)
+  {
+    output.append(table->alias);
+  }
+
+  bool first= true;
+  if (print_names)
+  {
+    output.append('(');
+    for (pfield= table->field; *pfield; pfield++)
+    {
+      if (table->read_set &&
+          !bitmap_is_set(table->read_set, (*pfield)->field_index))
+        continue;
+
+      if (first)
+        first= false;
+      else
+        output.append(STRING_WITH_LEN(", "));
+
+      output.append((*pfield)->field_name.str ? (*pfield)->field_name
+                                              : NULL_clex_str);
+    }
+
+    output.append(STRING_WITH_LEN(")"));
+    first= true;
+  }
+
+  output.append(separator, strlen(separator));
+  output.append(STRING_WITH_LEN("("));
+
+  for (pfield= table->field; *pfield; pfield++)
+  {
+    Field *field= *pfield;
+    bool require_quote= false;
+
+    if (table->read_set &&
+        !bitmap_is_set(table->read_set, (*pfield)->field_index))
+      continue;
+
+    if (first)
+      first= false;
+    else
+      output.append(STRING_WITH_LEN(", "));
+
+    if (field->is_null())
+      output.append(&NULL_clex_str);
+    else
+    {
+      if (field->type() == MYSQL_TYPE_BIT)
+        (void) field->val_int_as_str(&tmp, 1);
+      else
+      {
+        switch (field->type())
+        {
+        case MYSQL_TYPE_VARCHAR:
+        case MYSQL_TYPE_STRING:
+        case MYSQL_TYPE_VAR_STRING:
+        case MYSQL_TYPE_BLOB:
+        case MYSQL_TYPE_TIME2:
+        case MYSQL_TYPE_DATETIME2:
+        case MYSQL_TYPE_TIMESTAMP2:
+        case MYSQL_TYPE_TIME:
+        case MYSQL_TYPE_DATETIME:
+        case MYSQL_TYPE_TIMESTAMP:
+        case MYSQL_TYPE_DATE:
+        case MYSQL_TYPE_YEAR:
+        case MYSQL_TYPE_ENUM:
+        case MYSQL_TYPE_SET:
+          require_quote= true;
+          break;
+        default:
+          break;
+        }
+        field->val_str(&tmp);
+      }
+      if (require_quote)
+        output.append(STRING_WITH_LEN("'"));
+      output.append(tmp.ptr(), tmp.length());
+      if (require_quote)
+        output.append(STRING_WITH_LEN("'"));
+    }
+  }
+  output.append(')');
 }
