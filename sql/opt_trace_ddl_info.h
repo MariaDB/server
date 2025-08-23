@@ -21,6 +21,9 @@
 #include "my_global.h"
 #include "sql_list.h"
 #include "table.h"
+#include "json_lib.h"
+
+class SEL_ARG_RANGE_SEQ;
 
 class Range_list_recorder : public Sql_alloc
 {
@@ -30,6 +33,7 @@ public:
 
 class trace_table_index_range_context;
 
+bool can_rw_trace_context(THD *thd);
 bool store_tables_context_in_trace(THD *thd);
 
 /*
@@ -62,7 +66,8 @@ public:
   Range_list_recorder *start_range_list_record(THD *thd, MEM_ROOT *mem_root,
                                                TABLE_LIST *tbl,
                                                size_t found_records,
-                                               const char *index_name);
+                                               const char *index_name,
+                                               double comp_cost);
 
   static const uchar *get_tbl_trace_ctx_key(const void *entry_, size_t *length,
                                             my_bool flags);
@@ -74,12 +79,53 @@ Optimizer_Stats_Context_Recorder *get_current_stats_recorder(THD *thd);
 /* Get the range list recorder if we need one. */
 inline Range_list_recorder *
 get_range_list_recorder(THD *thd, MEM_ROOT *mem_root, TABLE_LIST *tbl,
-                        const char *index_name, ha_rows records)
+                        const char *index_name, ha_rows records,
+                        double comp_cost)
 {
   Optimizer_Stats_Context_Recorder *ctx= get_current_stats_recorder(thd);
   if (ctx)
     return ctx->start_range_list_record(thd, mem_root, tbl, records,
-                                        index_name);
+                                        index_name, comp_cost);
   return nullptr;
 }
+
+class trace_table_context_read;
+class trace_index_context_read;
+class trace_range_context_read;
+class Saved_Table_stats;
+
+/*
+  This class is used to parse the json structure
+  and also infuse read stats into the optimizer
+*/
+class Optimizer_Trace_Stored_Context_Extractor
+{
+private:
+  List<Saved_Table_stats> saved_tablestats_list;
+  char *db_name;
+  List<trace_table_context_read> ctx_list;
+  bool has_records();
+  bool parse(THD *thd);
+  int parse_table_context(THD *thd, json_engine_t *je, const char **err,
+                          trace_table_context_read *table_ctx);
+  int parse_index_context(THD *thd, json_engine_t *je, const char **err,
+                          trace_index_context_read *index_ctx);
+  int parse_range_context(THD *thd, json_engine_t *je, const char **err,
+                          trace_range_context_read *range_ctx);
+  void dbug_print_read_stats();
+  ha_rows get_table_rows(THD *thd, const TABLE *tbl);
+  List<ha_rows> *get_index_rec_per_key_list(THD *thd, const TABLE *tbl,
+                                            const char *idx_name);
+  trace_range_context_read *get_range_context(THD *thd, const TABLE *tbl,
+                                              const char *idx_name);
+public:
+  Optimizer_Trace_Stored_Context_Extractor(THD *thd);
+  void load_range_stats_into_client(THD *thd, TABLE *tbl, uint keynr,
+                                    RANGE_SEQ_IF *seq_if,
+                                    SEL_ARG_RANGE_SEQ *seq,
+                                    Cost_estimate *cost, ha_rows *rows);
+  void save_old_and_set_new_table_stats(THD *thd, TABLE *table);
+  void restore_saved_stats();
+};
+
 #endif

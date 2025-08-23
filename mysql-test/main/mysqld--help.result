@@ -886,6 +886,8 @@ The following specify which files/extra groups are read (specified before remain
  --optimizer-selectivity-sampling-limit=# 
  Controls number of record samples to check condition
  selectivity
+ --optimizer-stored-context=name 
+ The context for a query that is stored in JSON format
  --optimizer-switch=name 
  Fine-tune the optimizer behavior. Takes a comma-separated
  list of option=value pairs, where value is on, off, or
@@ -1903,6 +1905,7 @@ optimizer-rowid-copy-cost 0.002653
 optimizer-scan-setup-cost 10
 optimizer-search-depth 62
 optimizer-selectivity-sampling-limit 100
+optimizer-stored-context 
 optimizer-switch index_merge=on,index_merge_union=on,index_merge_sort_union=on,index_merge_intersection=on,index_merge_sort_intersection=off,index_condition_pushdown=on,derived_merge=on,derived_with_keys=on,firstmatch=on,loosescan=on,duplicateweedout=on,materialization=on,in_to_exists=on,semijoin=on,partial_match_rowid_merge=on,partial_match_table_scan=on,subquery_cache=on,mrr=off,mrr_cost_based=off,mrr_sort_keys=off,outer_join_with_cache=on,semijoin_with_cache=on,join_cache_incremental=on,join_cache_hashed=on,join_cache_bka=on,optimize_join_buffer_size=on,table_elimination=on,extended_keys=on,exists_to_in=on,orderby_uses_equalities=on,condition_pushdown_for_derived=on,split_materialized=on,condition_pushdown_for_subquery=on,rowid_filter=on,condition_pushdown_from_having=on,not_null_range_scan=off,hash_join_cardinality=on,cset_narrowing=on,sargable_casefold=on
 optimizer-trace 
 optimizer-trace-max-mem-size 1048576

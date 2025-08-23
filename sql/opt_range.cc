@@ -451,10 +451,6 @@ static void trace_ranges(Json_writer_array *range_trace, PARAM *param,
                          Range_list_recorder *recorder= NULL);
 
 static
-void print_range(String *out, const KEY_PART_INFO *key_part,
-                 KEY_MULTI_RANGE *range, uint n_key_parts);
-
-static
 void print_range_for_non_indexed_field(String *out, Field *field,
                                        KEY_MULTI_RANGE *range);
 
@@ -7889,7 +7885,7 @@ static TRP_RANGE *get_key_scans_params(PARAM *param, SEL_TREE *tree,
         {
           Range_list_recorder *recorder= get_range_list_recorder(
               thd, param->old_root, param->table->pos_in_table_list,
-              param->table->key_info[keynr].name.str, found_records);
+              param->table->key_info[keynr].name.str, found_records, cost.comp_cost);
           trace_ranges(&trace_range, param, idx, key, key_part, recorder);
         }
         trace_range.end();
@@ -12338,6 +12334,13 @@ ha_rows check_quick_select(PARAM *param, uint idx, ha_rows limit,
   if (!param->table->pos_in_table_list->is_materialized_derived())
     rows= file->multi_range_read_info_const(keynr, &seq_if, (void*)&seq, 0,
                                             bufsize, mrr_flags, limit, cost);
+
+  if (param->thd->trace_ctx_extractor)
+  {
+    param->thd->trace_ctx_extractor->load_range_stats_into_client(
+        param->thd, param->table, keynr, &seq_if, &seq, cost, &rows);
+  }
+
   param->quick_rows[keynr]= rows;
   if (rows != HA_POS_ERROR)
   {
@@ -17278,7 +17281,6 @@ static void print_max_range_operator(String *out, const ha_rkey_function flag)
 }
 
 
-static
 void print_range(String *out, const KEY_PART_INFO *key_part,
                  KEY_MULTI_RANGE *range, uint n_key_parts)
 {

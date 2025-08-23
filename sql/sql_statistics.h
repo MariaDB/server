@@ -590,7 +590,7 @@ public:
 
 /* Statistical data on an index prefixes */
 
-class Index_statistics
+class Index_statistics : public Sql_alloc
 {
 
 private:

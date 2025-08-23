@@ -1,0 +1,869 @@
+--source include/not_embedded.inc
+--source include/have_sequence.inc
+--echo #enable both optimizer_trace, and optimizer_record_context
+set optimizer_record_context=ON;
+set optimizer_trace=1;
+
+create database db1;
+use db1;
+
+create table t1
+(
+    a int, b int,
+    index t1_idx_a (a),
+    index t1_idx_b (b),
+    index t1_idx_ab (a, b)
+) ENGINE=MyISAM;
+
+insert into t1 select seq%5, seq%8 from seq_1_to_20;
+
+set session use_stat_tables='COMPLEMENTARY';
+analyze table t1 persistent for all;
+
+--echo #
+--echo # simple query after analyzing the table
+--echo # planner should pick the analyzed table stats
+--echo #
+select * from t1 where a < 3 and b > 6;
+
+set @trace= (select trace from information_schema.optimizer_trace);
+set @records= (select JSON_DETAILED(JSON_EXTRACT(@trace, '$**.num_of_records')));
+select * from json_table(@records, '$[*]' columns(num_of_records text path '$')) as jt;
+set @indexes=(select JSON_DETAILED(JSON_EXTRACT(@trace, '$**.indexes')));
+select * from json_table(@indexes, '$[*][*]' columns(index_name text path '$.index_name', rec_per_key json path '$.rec_per_key')) as jt;
+set @list_ranges= (select JSON_DETAILED(JSON_EXTRACT(@trace, '$**.list_ranges')));
+select * from json_table(
+    @list_ranges,
+    '$[*][*]' columns(
+        index_name text path '$.index_name',
+        ranges json path '$.ranges',
+        num_rows int path '$.num_rows',
+        comp_cost double path '$.comp_cost'
+    )
+) as jt;
+
+--echo #
+--echo # load stats in JSON format into variable optimizer_stored_context
+--echo # and rerun the query.
+--echo # These loaded stats are same as the analyzed stats
+--echo #
+set optimizer_stored_context='{
+      "current_database": "db1",
+      "list_contexts": [
+        {
+          "name": "db1.t1",
+          "ddl": "CREATE TABLE `t1` (\\n  `a` int(11) DEFAULT NULL,\\n  `b` int(11) DEFAULT NULL,\\n  KEY `t1_idx_a` (`a`),\\n  KEY `t1_idx_b` (`b`),\\n  KEY `t1_idx_ab` (`a`,`b`)\\n) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci",
+          "num_of_records": 20,
+          "indexes": [
+            {
+              "index_name": "t1_idx_a",
+              "rec_per_key": ["4"]
+            },
+            {
+              "index_name": "t1_idx_b",
+              "rec_per_key": ["3"]
+            },
+            {
+              "index_name": "t1_idx_ab",
+              "rec_per_key": ["4", "1"]
+            }
+          ],
+          "list_ranges": [
+            {
+              "index_name": "t1_idx_a",
+              "ranges": ["(NULL) < (a) < (3)"],
+              "num_rows": 12,
+              "comp_cost": 0.000384
+            },
+            {
+              "index_name": "t1_idx_b",
+              "ranges": ["(6) < (b)"],
+              "num_rows": 2,
+              "comp_cost": 0.000064
+            },
+            {
+              "index_name": "t1_idx_ab",
+              "ranges": ["(NULL) < (a) < (3)"],
+              "num_rows": 12,
+              "comp_cost": 0.000384
+            }
+          ]
+        }
+      ]
+    }';
+
+select * from t1 where a < 3 and b > 6;
+
+set @trace= (select trace from information_schema.optimizer_trace);
+set @records= (select JSON_DETAILED(JSON_EXTRACT(@trace, '$**.num_of_records')));
+select * from json_table(@records, '$[*]' columns(num_of_records text path '$')) as jt;
+set @indexes=(select JSON_DETAILED(JSON_EXTRACT(@trace, '$**.indexes')));
+select * from json_table(@indexes, '$[*][*]' columns(index_name text path '$.index_name', rec_per_key json path '$.rec_per_key')) as jt;
+set @list_ranges= (select JSON_DETAILED(JSON_EXTRACT(@trace, '$**.list_ranges')));
+select * from json_table(
+    @list_ranges,
+    '$[*][*]' columns(
+        index_name text path '$.index_name',
+        ranges json path '$.ranges',
+        num_rows int path '$.num_rows',
+        comp_cost double path '$.comp_cost'
+    )
+) as jt;
+
+--echo #
+--echo # set the variable optimizer_stored_context to blank data
+--echo # and rerun the query.
+--echo # Analyzed table stats should be used for query planning
+--echo #
+set optimizer_stored_context="";
+
+select * from t1 where a < 3 and b > 6;
+
+set @trace= (select trace from information_schema.optimizer_trace);
+set @records= (select JSON_DETAILED(JSON_EXTRACT(@trace, '$**.num_of_records')));
+select * from json_table(@records, '$[*]' columns(num_of_records text path '$')) as jt;
+set @indexes=(select JSON_DETAILED(JSON_EXTRACT(@trace, '$**.indexes')));
+select * from json_table(@indexes, '$[*][*]' columns(index_name text path '$.index_name', rec_per_key json path '$.rec_per_key')) as jt;
+set @list_ranges= (select JSON_DETAILED(JSON_EXTRACT(@trace, '$**.list_ranges')));
+select * from json_table(
+    @list_ranges,
+    '$[*][*]' columns(
+        index_name text path '$.index_name',
+        ranges json path '$.ranges',
+        num_rows int path '$.num_rows',
+        comp_cost double path '$.comp_cost'
+    )
+) as jt;
+
+--echo #
+--echo # now update the table without running analyze table, and then rerun the queries
+--echo #
+
+insert into t1 select seq%5, seq%8 from seq_1_to_20;
+
+--echo #
+--echo # Only range stats are different, as the table wasn't re-analyzed 
+--echo #
+select * from t1 where a < 3 and b > 6;
+
+set @trace= (select trace from information_schema.optimizer_trace);
+set @records= (select JSON_DETAILED(JSON_EXTRACT(@trace, '$**.num_of_records')));
+select * from json_table(@records, '$[*]' columns(num_of_records text path '$')) as jt;
+set @indexes=(select JSON_DETAILED(JSON_EXTRACT(@trace, '$**.indexes')));
+select * from json_table(@indexes, '$[*][*]' columns(index_name text path '$.index_name', rec_per_key json path '$.rec_per_key')) as jt;
+set @list_ranges= (select JSON_DETAILED(JSON_EXTRACT(@trace, '$**.list_ranges')));
+select * from json_table(
+    @list_ranges,
+    '$[*][*]' columns(
+        index_name text path '$.index_name',
+        ranges json path '$.ranges',
+        num_rows int path '$.num_rows',
+        comp_cost double path '$.comp_cost'
+    )
+) as jt;
+
+--echo #
+--echo # Now, load stats in JSON format into variable optimizer_stored_context
+--echo # and rerun the query.
+--echo # Loaded stats (including range stats) should be picked by the planner
+--echo #
+set optimizer_stored_context='{
+      "current_database": "db1",
+      "list_contexts": [
+        {
+          "name": "db1.t1",
+          "ddl": "CREATE TABLE `t1` (\\n  `a` int(11) DEFAULT NULL,\\n  `b` int(11) DEFAULT NULL,\\n  KEY `t1_idx_a` (`a`),\\n  KEY `t1_idx_b` (`b`),\\n  KEY `t1_idx_ab` (`a`,`b`)\\n) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci",
+          "num_of_records": 20,
+          "indexes": [
+            {
+              "index_name": "t1_idx_a",
+              "rec_per_key": ["4"]
+            },
+            {
+              "index_name": "t1_idx_b",
+              "rec_per_key": ["3"]
+            },
+            {
+              "index_name": "t1_idx_ab",
+              "rec_per_key": ["4", "1"]
+            }
+          ],
+          "list_ranges": [
+            {
+              "index_name": "t1_idx_a",
+              "ranges": ["(NULL) < (a) < (3)"],
+              "num_rows": 12,
+              "comp_cost": 0.000384
+            },
+            {
+              "index_name": "t1_idx_b",
+              "ranges": ["(6) < (b)"],
+              "num_rows": 2,
+              "comp_cost": 0.000064
+            },
+            {
+              "index_name": "t1_idx_ab",
+              "ranges": ["(NULL) < (a) < (3)"],
+              "num_rows": 12,
+              "comp_cost": 0.000384
+            }
+          ]
+        }
+      ]
+    }';
+
+select * from t1 where a < 3 and b > 6;
+
+set @trace= (select trace from information_schema.optimizer_trace);
+set @records= (select JSON_DETAILED(JSON_EXTRACT(@trace, '$**.num_of_records')));
+select * from json_table(@records, '$[*]' columns(num_of_records text path '$')) as jt;
+set @indexes=(select JSON_DETAILED(JSON_EXTRACT(@trace, '$**.indexes')));
+select * from json_table(@indexes, '$[*][*]' columns(index_name text path '$.index_name', rec_per_key json path '$.rec_per_key')) as jt;
+set @list_ranges= (select JSON_DETAILED(JSON_EXTRACT(@trace, '$**.list_ranges')));
+select * from json_table(
+    @list_ranges,
+    '$[*][*]' columns(
+        index_name text path '$.index_name',
+        ranges json path '$.ranges',
+        num_rows int path '$.num_rows',
+        comp_cost double path '$.comp_cost'
+    )
+) as jt;
+
+--echo #
+--echo # with optimizer_record_context OFF,
+--echo # nothing gets printed to the trace
+--echo #
+set optimizer_record_context=OFF;
+
+select * from t1 where a < 3 and b > 6;
+
+set @trace= (select trace from information_schema.optimizer_trace);
+set @records= (select JSON_DETAILED(JSON_EXTRACT(@trace, '$**.num_of_records')));
+select * from json_table(@records, '$[*]' columns(num_of_records text path '$')) as jt;
+set @indexes=(select JSON_DETAILED(JSON_EXTRACT(@trace, '$**.indexes')));
+select * from json_table(@indexes, '$[*][*]' columns(index_name text path '$.index_name', rec_per_key json path '$.rec_per_key')) as jt;
+set @list_ranges= (select JSON_DETAILED(JSON_EXTRACT(@trace, '$**.list_ranges')));
+select * from json_table(
+    @list_ranges,
+    '$[*][*]' columns(
+        index_name text path '$.index_name',
+        ranges json path '$.ranges',
+        num_rows int path '$.num_rows',
+        comp_cost double path '$.comp_cost'
+    )
+) as jt;
+
+--echo #
+--echo # with optimizer_trace OFF,
+--echo # nothing gets printed to the trace
+--echo #
+set optimizer_trace=0;
+
+select * from t1 where a < 3 and b > 6;
+
+set @trace= (select trace from information_schema.optimizer_trace);
+set @records= (select JSON_DETAILED(JSON_EXTRACT(@trace, '$**.num_of_records')));
+select * from json_table(@records, '$[*]' columns(num_of_records text path '$')) as jt;
+set @indexes=(select JSON_DETAILED(JSON_EXTRACT(@trace, '$**.indexes')));
+select * from json_table(@indexes, '$[*][*]' columns(index_name text path '$.index_name', rec_per_key json path '$.rec_per_key')) as jt;
+set @list_ranges= (select JSON_DETAILED(JSON_EXTRACT(@trace, '$**.list_ranges')));
+select * from json_table(
+    @list_ranges,
+    '$[*][*]' columns(
+        index_name text path '$.index_name',
+        ranges json path '$.ranges',
+        num_rows int path '$.num_rows',
+        comp_cost double path '$.comp_cost'
+    )
+) as jt;
+
+--echo #
+--echo # Now, after re-enabling optimizer_trace, and optimizer_record_context,
+--echo # Loaded stats should be picked by the planner instead of the analyzed table stats,
+--echo # as the optimizer_stored_context is still set to a valid json containing other stats
+--echo #
+set optimizer_trace=1;
+set optimizer_record_context=ON;
+
+select * from t1 where a < 3 and b > 6;
+
+set @trace= (select trace from information_schema.optimizer_trace);
+set @records= (select JSON_DETAILED(JSON_EXTRACT(@trace, '$**.num_of_records')));
+select * from json_table(@records, '$[*]' columns(num_of_records text path '$')) as jt;
+set @indexes=(select JSON_DETAILED(JSON_EXTRACT(@trace, '$**.indexes')));
+select * from json_table(@indexes, '$[*][*]' columns(index_name text path '$.index_name', rec_per_key json path '$.rec_per_key')) as jt;
+set @list_ranges= (select JSON_DETAILED(JSON_EXTRACT(@trace, '$**.list_ranges')));
+select * from json_table(
+    @list_ranges,
+    '$[*][*]' columns(
+        index_name text path '$.index_name',
+        ranges json path '$.ranges',
+        num_rows int path '$.num_rows',
+        comp_cost double path '$.comp_cost'
+    )
+) as jt;
+
+--echo #
+--echo # Now, set the variable optimizer_stored_context to blank data
+--echo # and rerun the query.
+--echo # Again, old analyzed stats should be picked by the planner
+--echo # However, range stats are updated
+--echo #
+set optimizer_stored_context="";
+
+select * from t1 where a < 3 and b > 6;
+
+set @trace= (select trace from information_schema.optimizer_trace);
+set @records= (select JSON_DETAILED(JSON_EXTRACT(@trace, '$**.num_of_records')));
+select * from json_table(@records, '$[*]' columns(num_of_records text path '$')) as jt;
+set @indexes=(select JSON_DETAILED(JSON_EXTRACT(@trace, '$**.indexes')));
+select * from json_table(@indexes, '$[*][*]' columns(index_name text path '$.index_name', rec_per_key json path '$.rec_per_key')) as jt;
+set @list_ranges= (select JSON_DETAILED(JSON_EXTRACT(@trace, '$**.list_ranges')));
+select * from json_table(
+    @list_ranges,
+    '$[*][*]' columns(
+        index_name text path '$.index_name',
+        ranges json path '$.ranges',
+        num_rows int path '$.num_rows',
+        comp_cost double path '$.comp_cost'
+    )
+) as jt;
+
+--echo #
+--echo # now re-analyze the table, and then rerun the queries
+--echo #
+
+analyze table t1 persistent for all;
+
+--echo #
+--echo # All the stats are updated as the table is re-analyzed 
+--echo #
+select * from t1 where a < 3 and b > 6;
+
+set @trace= (select trace from information_schema.optimizer_trace);
+set @records= (select JSON_DETAILED(JSON_EXTRACT(@trace, '$**.num_of_records')));
+select * from json_table(@records, '$[*]' columns(num_of_records text path '$')) as jt;
+set @indexes=(select JSON_DETAILED(JSON_EXTRACT(@trace, '$**.indexes')));
+select * from json_table(@indexes, '$[*][*]' columns(index_name text path '$.index_name', rec_per_key json path '$.rec_per_key')) as jt;
+set @list_ranges= (select JSON_DETAILED(JSON_EXTRACT(@trace, '$**.list_ranges')));
+select * from json_table(
+    @list_ranges,
+    '$[*][*]' columns(
+        index_name text path '$.index_name',
+        ranges json path '$.ranges',
+        num_rows int path '$.num_rows',
+        comp_cost double path '$.comp_cost'
+    )
+) as jt;
+
+--echo #
+--echo # Now, load stats in JSON format into variable optimizer_stored_context
+--echo # and rerun the query.
+--echo # Loaded stats (including range stats) should be picked by the planner
+--echo #
+set optimizer_stored_context='{
+      "current_database": "db1",
+      "list_contexts": [
+        {
+          "name": "db1.t1",
+          "ddl": "CREATE TABLE `t1` (\\n  `a` int(11) DEFAULT NULL,\\n  `b` int(11) DEFAULT NULL,\\n  KEY `t1_idx_a` (`a`),\\n  KEY `t1_idx_b` (`b`),\\n  KEY `t1_idx_ab` (`a`,`b`)\\n) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci",
+          "num_of_records": 20,
+          "indexes": [
+            {
+              "index_name": "t1_idx_a",
+              "rec_per_key": ["4"]
+            },
+            {
+              "index_name": "t1_idx_b",
+              "rec_per_key": ["3"]
+            },
+            {
+              "index_name": "t1_idx_ab",
+              "rec_per_key": ["4", "1"]
+            }
+          ],
+          "list_ranges": [
+            {
+              "index_name": "t1_idx_a",
+              "ranges": ["(NULL) < (a) < (3)"],
+              "num_rows": 12,
+              "comp_cost": 0.000384
+            },
+            {
+              "index_name": "t1_idx_b",
+              "ranges": ["(6) < (b)"],
+              "num_rows": 2,
+              "comp_cost": 0.000064
+            },
+            {
+              "index_name": "t1_idx_ab",
+              "ranges": ["(NULL) < (a) < (3)"],
+              "num_rows": 12,
+              "comp_cost": 0.000384
+            }
+          ]
+        }
+      ]
+    }';
+
+select * from t1 where a < 3 and b > 6;
+
+set @trace= (select trace from information_schema.optimizer_trace);
+set @records= (select JSON_DETAILED(JSON_EXTRACT(@trace, '$**.num_of_records')));
+select * from json_table(@records, '$[*]' columns(num_of_records text path '$')) as jt;
+set @indexes=(select JSON_DETAILED(JSON_EXTRACT(@trace, '$**.indexes')));
+select * from json_table(@indexes, '$[*][*]' columns(index_name text path '$.index_name', rec_per_key json path '$.rec_per_key')) as jt;
+set @list_ranges= (select JSON_DETAILED(JSON_EXTRACT(@trace, '$**.list_ranges')));
+select * from json_table(
+    @list_ranges,
+    '$[*][*]' columns(
+        index_name text path '$.index_name',
+        ranges json path '$.ranges',
+        num_rows int path '$.num_rows',
+        comp_cost double path '$.comp_cost'
+    )
+) as jt;
+
+--echo #
+--echo # Now, set the variable optimizer_stored_context to blank data
+--echo # and rerun the query.
+--echo # All the re-analyzed stats should be picked by the planner
+--echo #
+set optimizer_stored_context="";
+
+select * from t1 where a < 3 and b > 6;
+
+set @trace= (select trace from information_schema.optimizer_trace);
+set @records= (select JSON_DETAILED(JSON_EXTRACT(@trace, '$**.num_of_records')));
+select * from json_table(@records, '$[*]' columns(num_of_records text path '$')) as jt;
+set @indexes=(select JSON_DETAILED(JSON_EXTRACT(@trace, '$**.indexes')));
+select * from json_table(@indexes, '$[*][*]' columns(index_name text path '$.index_name', rec_per_key json path '$.rec_per_key')) as jt;
+set @list_ranges= (select JSON_DETAILED(JSON_EXTRACT(@trace, '$**.list_ranges')));
+select * from json_table(
+    @list_ranges,
+    '$[*][*]' columns(
+        index_name text path '$.index_name',
+        ranges json path '$.ranges',
+        num_rows int path '$.num_rows',
+        comp_cost double path '$.comp_cost'
+    )
+) as jt;
+
+--echo #
+--echo # The following tests check if there are any missing elements 
+--echo # in the json structure of optimizer_stored_context variable
+--echo #
+set optimizer_stored_context='{
+      "current_database": "db1",
+      "list_contexts": [
+        {
+          "ddl": "CREATE TABLE `t1` (\\n  `a` int(11) DEFAULT NULL,\\n  `b` int(11) DEFAULT NULL,\\n  KEY `t1_idx_a` (`a`),\\n  KEY `t1_idx_b` (`b`),\\n  KEY `t1_idx_ab` (`a`,`b`)\\n) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci",
+          "num_of_records": 20,
+          "indexes": [
+            {
+              "index_name": "t1_idx_a",
+              "rec_per_key": ["4"]
+            }
+          ],
+          "list_ranges": [
+            {
+              "index_name": "t1_idx_a",
+              "ranges": ["(NULL) < (a) < (3)"],
+              "num_rows": 12,
+              "comp_cost": 0.000384
+            }
+          ]
+        }
+      ]
+    }';
+
+select * from t1 where a > 10;
+
+set optimizer_stored_context='{
+      "current_database": "db1",
+      "list_contexts": [
+        {
+          "name": "db1.t1",
+          "num_of_records": 20,
+          "indexes": [
+            {
+              "index_name": "t1_idx_a",
+              "rec_per_key": ["4"]
+            }
+          ],
+          "list_ranges": [
+            {
+              "index_name": "t1_idx_a",
+              "ranges": ["(NULL) < (a) < (3)"],
+              "num_rows": 12,
+              "comp_cost": 0.000384
+            }
+          ]
+        }
+      ]
+    }';
+
+select * from t1 where a > 10;
+
+set optimizer_stored_context='{
+      "current_database": "db1",
+      "list_contexts": [
+        {
+          "name": "db1.t1",
+          "ddl": "CREATE TABLE `t1` (\\n  `a` int(11) DEFAULT NULL,\\n  `b` int(11) DEFAULT NULL,\\n  KEY `t1_idx_a` (`a`),\\n  KEY `t1_idx_b` (`b`),\\n  KEY `t1_idx_ab` (`a`,`b`)\\n) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci",
+          "indexes": [
+            {
+              "index_name": "t1_idx_a",
+              "rec_per_key": ["4"]
+            }
+          ],
+          "list_ranges": [
+            {
+              "index_name": "t1_idx_a",
+              "ranges": ["(NULL) < (a) < (3)"],
+              "num_rows": 12,
+              "comp_cost": 0.000384
+            }
+          ]
+        }
+      ]
+    }';
+
+select * from t1 where a > 10;
+
+set optimizer_stored_context='{
+      "current_database": "db1",
+      "list_contexts": [
+        {
+          "name": "db1.t1",
+          "ddl": "CREATE TABLE `t1` (\\n  `a` int(11) DEFAULT NULL,\\n  `b` int(11) DEFAULT NULL,\\n  KEY `t1_idx_a` (`a`),\\n  KEY `t1_idx_b` (`b`),\\n  KEY `t1_idx_ab` (`a`,`b`)\\n) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci",
+          "num_of_records": 20,
+          "indexes": [
+            {
+              "rec_per_key": ["4"]
+            }
+          ],
+          "list_ranges": [
+            {
+              "index_name": "t1_idx_a",
+              "ranges": ["(NULL) < (a) < (3)"],
+              "num_rows": 12,
+              "comp_cost": 0.000384
+            }
+          ]
+        }
+      ]
+    }';
+
+select * from t1 where a > 10;
+
+set optimizer_stored_context='{
+      "current_database": "db1",
+      "list_contexts": [
+        {
+          "name": "db1.t1",
+          "ddl": "CREATE TABLE `t1` (\\n  `a` int(11) DEFAULT NULL,\\n  `b` int(11) DEFAULT NULL,\\n  KEY `t1_idx_a` (`a`),\\n  KEY `t1_idx_b` (`b`),\\n  KEY `t1_idx_ab` (`a`,`b`)\\n) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci",
+          "num_of_records": 20,
+          "indexes": [
+            {
+              "index_name": "t1_idx_a"
+            }
+          ],
+          "list_ranges": [
+            {
+              "index_name": "t1_idx_a",
+              "ranges": ["(NULL) < (a) < (3)"],
+              "num_rows": 12,
+              "comp_cost": 0.000384
+            }
+          ]
+        }
+      ]
+    }';
+
+select * from t1 where a > 10;
+
+set optimizer_stored_context='{
+      "current_database": "db1",
+      "list_contexts": [
+        {
+          "name": "db1.t1",
+          "ddl": "CREATE TABLE `t1` (\\n  `a` int(11) DEFAULT NULL,\\n  `b` int(11) DEFAULT NULL,\\n  KEY `t1_idx_a` (`a`),\\n  KEY `t1_idx_b` (`b`),\\n  KEY `t1_idx_ab` (`a`,`b`)\\n) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci",
+          "num_of_records": 20,
+          "indexes": [
+            {
+              "index_name": "t1_idx_a",
+              "rec_per_key": ["4"]
+            }
+          ],
+          "list_ranges": [
+            {
+              "ranges": ["(NULL) < (a) < (3)"],
+              "num_rows": 12,
+              "comp_cost": 0.000384
+            }
+          ]
+        }
+      ]
+    }';
+
+select * from t1 where a > 10;
+
+set optimizer_stored_context='{
+      "current_database": "db1",
+      "list_contexts": [
+        {
+          "name": "db1.t1",
+          "ddl": "CREATE TABLE `t1` (\\n  `a` int(11) DEFAULT NULL,\\n  `b` int(11) DEFAULT NULL,\\n  KEY `t1_idx_a` (`a`),\\n  KEY `t1_idx_b` (`b`),\\n  KEY `t1_idx_ab` (`a`,`b`)\\n) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci",
+          "num_of_records": 20,
+          "indexes": [
+            {
+              "index_name": "t1_idx_a",
+              "rec_per_key": ["4"]
+            }
+          ],
+          "list_ranges": [
+            {
+              "index_name": "t1_idx_a",
+              "num_rows": 12,
+              "comp_cost": 0.000384
+            }
+          ]
+        }
+      ]
+    }';
+
+select * from t1 where a > 10;
+
+set optimizer_stored_context='{
+      "current_database": "db1",
+      "list_contexts": [
+        {
+          "name": "db1.t1",
+          "ddl": "CREATE TABLE `t1` (\\n  `a` int(11) DEFAULT NULL,\\n  `b` int(11) DEFAULT NULL,\\n  KEY `t1_idx_a` (`a`),\\n  KEY `t1_idx_b` (`b`),\\n  KEY `t1_idx_ab` (`a`,`b`)\\n) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci",
+          "num_of_records": 20,
+          "indexes": [
+            {
+              "index_name": "t1_idx_a",
+              "rec_per_key": ["4"]
+            }
+          ],
+          "list_ranges": [
+            {
+              "index_name": "t1_idx_a",
+              "ranges": ["(NULL) < (a) < (3)"],
+              "comp_cost": 0.000384
+            }
+          ]
+        }
+      ]
+    }';
+
+select * from t1 where a > 10;
+
+set optimizer_stored_context='{
+      "current_database": "db1",
+      "list_contexts": [
+        {
+          "name": "db1.t1",
+          "ddl": "CREATE TABLE `t1` (\\n  `a` int(11) DEFAULT NULL,\\n  `b` int(11) DEFAULT NULL,\\n  KEY `t1_idx_a` (`a`),\\n  KEY `t1_idx_b` (`b`),\\n  KEY `t1_idx_ab` (`a`,`b`)\\n) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci",
+          "num_of_records": 20,
+          "indexes": [
+            {
+              "index_name": "t1_idx_a",
+              "rec_per_key": ["4"]
+            }
+          ],
+          "list_ranges": [
+            {
+              "index_name": "t1_idx_a",
+              "ranges": ["(NULL) < (a) < (3)"],
+              "num_rows": 12
+            }
+          ]
+        }
+      ]
+    }';
+
+select * from t1 where a > 10;
+
+set optimizer_stored_context='{
+      "current_database": "db1",
+      "list_contexts": [
+        {
+          "name": "db1.t1",
+          "ddl": "CREATE TABLE `t1` (\\n  `a` int(11) DEFAULT NULL,\\n  `b` int(11) DEFAULT NULL,\\n  KEY `t1_idx_a` (`a`),\\n  KEY `t1_idx_b` (`b`),\\n  KEY `t1_idx_ab` (`a`,`b`)\\n) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci",
+          "num_of_records": 20,
+          "indexes": [
+            {
+              "index_name": "t1_idx_a",
+              "rec_per_key": ["4"]
+            },
+            {
+              "index_name": "t1_idx_b",
+              "rec_per_key": ["3"]
+            }
+          ],
+          "list_ranges": [
+            {
+              "index_name": "t1_idx_a",
+              "ranges": ["(NULL) < (a) < (3)"],
+              "num_rows": 12,
+              "comp_cost": 0.000384
+            },
+            {
+              "index_name": "t1_idx_b",
+              "ranges": ["(6) < (b)"],
+              "num_rows": 2,
+              "comp_cost": 0.000064
+            },
+            {
+              "index_name": "t1_idx_ab",
+              "ranges": ["(NULL) < (a) < (3)"],
+              "num_rows": 12,
+              "comp_cost": 0.000384
+            }
+          ]
+        }
+      ]
+    }';
+select * from t1 where a > 10;
+
+set optimizer_stored_context='{
+      "current_database": "db1",
+      "list_contexts": [
+        {
+          "name": "db1.t1",
+          "ddl": "CREATE TABLE `t1` (\\n  `a` int(11) DEFAULT NULL,\\n  `b` int(11) DEFAULT NULL,\\n  KEY `t1_idx_a` (`a`),\\n  KEY `t1_idx_b` (`b`),\\n  KEY `t1_idx_ab` (`a`,`b`)\\n) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci",
+          "num_of_records": 20,
+          "indexes": [
+            {
+              "index_name": "t1_idx_a",
+              "rec_per_key": ["4"]
+            },
+            {
+              "index_name": "t1_idx_b",
+              "rec_per_key": ["3"]
+            },
+            {
+              "index_name": "t1_idx_ab",
+              "rec_per_key": ["4", "1"]
+            }
+          ],
+          "list_ranges": [
+            {
+              "index_name": "t1_idx_a",
+              "ranges": ["(NULL) < (a) < (3)"],
+              "num_rows": 12,
+              "comp_cost": 0.000384
+            },
+            {
+              "index_name": "t1_idx_b",
+              "ranges": ["(6) < (b)"],
+              "num_rows": 2,
+              "comp_cost": 0.000064
+            }
+          ]
+        }
+      ]
+    }';
+
+select * from t1 where a > 10;
+
+set optimizer_stored_context='{
+      "current_database": "db1",
+      "list_contexts": [
+        {
+          "name": "db1.t1",
+          "ddl": "CREATE TABLE `t1` (\\n  `a` int(11) DEFAULT NULL,\\n  `b` int(11) DEFAULT NULL,\\n  KEY `t1_idx_a` (`a`),\\n  KEY `t1_idx_b` (`b`),\\n  KEY `t1_idx_ab` (`a`,`b`)\\n) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci",
+          "num_of_records": 20,
+          "indexes": [
+            {
+              "index_name": "t1_idx_a",
+              "rec_per_key": ["4"]
+            },
+            {
+              "index_name": "t1_idx_b",
+              "rec_per_key": ["3"]
+            },
+            {
+              "index_name": "t1_idx_ab",
+              "rec_per_key": ["4", "1"]
+            }
+          ],
+          "list_ranges": [
+            {
+              "index_name": "t1_idx_a",
+              "ranges": ["(NULL) < (a) < (3)"],
+              "num_rows": 12,
+              "comp_cost": 0.000384
+            },
+            {
+              "index_name": "t1_idx_b",
+              "ranges": ["(6) < (b)"],
+              "num_rows": 2,
+              "comp_cost": 0.000064
+            },
+            {
+              "index_name": "t1_idx_ab",
+              "ranges": ["(NULL) < (a) < (2)"],
+              "num_rows": 12,
+              "comp_cost": 0.000384
+            }
+          ]
+        }
+      ]
+    }';
+
+select * from t1 where t1.a > 10;
+
+set optimizer_stored_context='{
+      "current_database": "db1",
+      "list_contexts": [
+        {
+          "name": "db1.t2",
+          "ddl": "CREATE TABLE `t2` (\\n  `a` int(11) DEFAULT NULL,\\n  `b` int(11) DEFAULT NULL,\\n  KEY `t1_idx_a` (`a`),\\n  KEY `t1_idx_b` (`b`),\\n  KEY `t1_idx_ab` (`a`,`b`)\\n) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci",
+          "num_of_records": 20,
+          "indexes": [
+            {
+              "index_name": "t1_idx_a",
+              "rec_per_key": ["4"]
+            },
+            {
+              "index_name": "t1_idx_b",
+              "rec_per_key": ["3"]
+            },
+            {
+              "index_name": "t1_idx_ab",
+              "rec_per_key": ["4", "1"]
+            }
+          ],
+          "list_ranges": [
+            {
+              "index_name": "t1_idx_a",
+              "ranges": ["(NULL) < (a) < (3)"],
+              "num_rows": 12,
+              "comp_cost": 0.000384
+            },
+            {
+              "index_name": "t1_idx_b",
+              "ranges": ["(6) < (b)"],
+              "num_rows": 2,
+              "comp_cost": 0.000064
+            },
+            {
+              "index_name": "t1_idx_ab",
+              "ranges": ["(NULL) < (a) < (2)"],
+              "num_rows": 12,
+              "comp_cost": 0.000384
+            }
+          ]
+        }
+      ]
+    }';
+
+select * from t1 where t1.a > 10;
+
+drop table t1;
+drop database db1;

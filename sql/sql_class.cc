@@ -725,6 +725,7 @@ THD::THD(my_thread_id id, bool is_wsrep_applier)
    last_sql_command(SQLCOM_END), spcont(NULL),
    m_parser_state(NULL),
    stats_ctx_recorder(NULL),
+   trace_ctx_extractor(NULL),
 #ifndef EMBEDDED_LIBRARY
    audit_plugin_version(-1),
 #endif
@@ -1586,6 +1587,8 @@ void THD::change_user(void)
                HASH_THREAD_SPECIFIC);
   delete stats_ctx_recorder;
   stats_ctx_recorder= NULL;
+  delete trace_ctx_extractor;
+  trace_ctx_extractor= NULL;
   /* cannot clear caches if it'll free the currently running routine */
   DBUG_ASSERT(!spcont);
   sp_caches_clear();
@@ -1729,6 +1732,8 @@ void THD::cleanup(void)
   my_hash_free(&sequences);
   delete stats_ctx_recorder;
   stats_ctx_recorder= NULL;
+  delete trace_ctx_extractor;
+  trace_ctx_extractor= NULL;
   sp_caches_clear();
   statement_rcontext_reinit();
   auto_inc_intervals_forced.empty();
@@ -2523,6 +2528,8 @@ void THD::cleanup_after_query()
 #endif /* WITH_WSREP */
   delete stats_ctx_recorder;
   stats_ctx_recorder= NULL;
+  delete trace_ctx_extractor;
+  trace_ctx_extractor= NULL;
   DBUG_VOID_RETURN;
 }
 
