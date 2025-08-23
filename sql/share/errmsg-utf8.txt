@@ -12398,3 +12398,7 @@ ER_WARN_QB_NAME_PATH_SELECT_NOT_FOUND
         eng "Hint %s is ignored. SEL_%u required at element #%u of the path is not found in the target query block."
 ER_WARN_QB_NAME_PATH_VIEW_NOT_FOUND
         eng "Hint %s is ignored. `%s` required at element #%u of the path is not found in the target query block."
+ER_JSON_OPTIMIZER_REPLAY_CONTEXT_PARSE_FAILED
+        eng "Failed to parse saved optimizer context: %s at offset %d."
+ER_JSON_OPTIMIZER_REPLAY_CONTEXT_MATCH_FAILED
+        eng "Failed to match the stats from replay context with the optimizer stats: %s doesn't exist in %s"
