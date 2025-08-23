@@ -2039,6 +2039,8 @@ bool calculate_cond_selectivity_for_table(THD *thd, TABLE *table, Item **cond);
 
 bool eq_ranges_exceeds_limit(RANGE_SEQ_IF *seq, void *seq_init_param,
                              uint limit);
+void print_range(String *out, const KEY_PART_INFO *key_part,
+                 KEY_MULTI_RANGE *range, uint n_key_parts);
 
 #ifdef WITH_PARTITION_STORAGE_ENGINE
 bool prune_partitions(THD *thd, TABLE *table, Item *pprune_cond);

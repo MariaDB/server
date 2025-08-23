@@ -3138,6 +3138,11 @@ static Sys_var_mybool Sys_optimizer_record_context(
     SESSION_VAR(optimizer_record_context), CMD_LINE(OPT_ARG),
     DEFAULT(FALSE));
 
+static Sys_var_charptr Sys_optimizer_replay_context(
+    "optimizer_replay_context",
+    "The context for a query that is in JSON format for reusing the stored stats",
+    SESSION_VAR(optimizer_replay_context), CMD_LINE(REQUIRED_ARG), DEFAULT(""));
+
 static Sys_var_ulong Sys_optimizer_adjust_secondary_key_costs(
     "optimizer_adjust_secondary_key_costs",
     UNUSED_HELP,

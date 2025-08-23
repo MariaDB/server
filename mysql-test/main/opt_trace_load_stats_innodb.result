@@ -1,0 +1,1094 @@
+set @opt_context_schema='$opt_context_schema';
+#
+# In this test suite, each query is run more than once by
+# using run_query_twice_and_compare_stats.inc file
+#
+set session use_stat_tables='NEVER';
+set optimizer_record_context=ON;
+set optimizer_trace=1;
+set optimizer_replay_context="";
+create database db1;
+use db1;
+#
+# Range query on a single table having 1 unique index on a single column
+#
+create table t1 (c1 int, c2 int, unique (c1)) engine=innodb;
+insert into t1 select seq, seq from seq_1_to_10000;
+analyze table t1;
+Table	Op	Msg_type	Msg_text
+db1.t1	analyze	status	OK
+set optimizer_replay_context="";
+explain format=json select * from t1 a, t1 b where a.c1 < 3 and b.c1 < 333
+set @trace= (select trace from information_schema.optimizer_trace);
+set @saved_opt_context=
+(select json_pretty(json_extract(
+json_extract(@trace, "$**.optimizer_context"),
+'$[0]'
+                      )
+));
+set @explain_output='$explain_output';
+select @explain_output;
+@explain_output
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": 0.419766996,
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "a",
+          "access_type": "range",
+          "possible_keys": ["c1"],
+          "key": "c1",
+          "key_length": "5",
+          "used_key_parts": ["c1"],
+          "loops": 1,
+          "rows": 2,
+          "cost": 0.00606232,
+          "filtered": 100,
+          "index_condition": "a.c1 < 3"
+        }
+      },
+      {
+        "block-nl-join": {
+          "table": {
+            "table_name": "b",
+            "access_type": "range",
+            "possible_keys": ["c1"],
+            "key": "c1",
+            "key_length": "5",
+            "used_key_parts": ["c1"],
+            "loops": 2,
+            "rows": 332,
+            "cost": 0.413704676,
+            "filtered": 100,
+            "index_condition": "b.c1 < 333",
+            "attached_condition": "b.c1 < 333"
+          },
+          "buffer_type": "flat",
+          "buffer_size": "119",
+          "join_type": "BNL"
+        }
+      }
+    ]
+  }
+}
+set @saved_explain_output=@explain_output;
+set optimizer_replay_context="";
+delete from t1;
+analyze table t1;
+Table	Op	Msg_type	Msg_text
+db1.t1	analyze	status	OK
+set optimizer_replay_context=@saved_opt_context;
+set @explain_output='$explain_output';
+select JSON_EQUALS(@saved_explain_output, @explain_output);
+JSON_EQUALS(@saved_explain_output, @explain_output)
+1
+set optimizer_replay_context="";
+drop table t1;
+#
+# Query on a single table having 2 unique indexes.
+# 2 different ranges are specified on each index.
+#
+create table t1 (
+c1 int,
+c2 int,
+unique(c1),
+unique(c2)
+) ENGINE=InnoDB;
+insert into t1 select seq, seq from seq_1_to_10000;
+analyze table t1;
+Table	Op	Msg_type	Msg_text
+db1.t1	analyze	status	OK
+set optimizer_replay_context="";
+explain format=json select * from t1 a, t1 b where a.c1 < 3 and b.c1 < 333 and a.c2 < 3 and b.c2 < 333
+set @trace= (select trace from information_schema.optimizer_trace);
+set @saved_opt_context=
+(select json_pretty(json_extract(
+json_extract(@trace, "$**.optimizer_context"),
+'$[0]'
+                      )
+));
+set @explain_output='$explain_output';
+select @explain_output;
+@explain_output
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": 0.127560444,
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "a",
+          "access_type": "range",
+          "possible_keys": ["c1", "c2"],
+          "key": "c1",
+          "key_length": "5",
+          "used_key_parts": ["c1"],
+          "rowid_filter": {
+            "range": {
+              "key": "c2",
+              "used_key_parts": ["c2"]
+            },
+            "rows": 2,
+            "selectivity_pct": 0.019690854
+          },
+          "loops": 1,
+          "rows": 2,
+          "cost": 0.004652403,
+          "filtered": 0.019690854,
+          "index_condition": "a.c1 < 3",
+          "attached_condition": "a.c2 < 3"
+        }
+      },
+      {
+        "block-nl-join": {
+          "table": {
+            "table_name": "b",
+            "access_type": "range",
+            "possible_keys": ["c1", "c2"],
+            "key": "c1",
+            "key_length": "5",
+            "used_key_parts": ["c1"],
+            "rowid_filter": {
+              "range": {
+                "key": "c2",
+                "used_key_parts": ["c2"]
+              },
+              "rows": 332,
+              "selectivity_pct": 3.268681697
+            },
+            "loops": 1,
+            "rows": 332,
+            "cost": 0.122908041,
+            "filtered": 3.268681765,
+            "index_condition": "b.c1 < 333",
+            "attached_condition": "b.c1 < 333 and b.c2 < 333"
+          },
+          "buffer_type": "flat",
+          "buffer_size": "119",
+          "join_type": "BNL",
+          "attached_condition": "b.c2 < 333"
+        }
+      }
+    ]
+  }
+}
+set @saved_explain_output=@explain_output;
+set optimizer_replay_context="";
+delete from t1;
+analyze table t1;
+Table	Op	Msg_type	Msg_text
+db1.t1	analyze	status	OK
+set optimizer_replay_context=@saved_opt_context;
+set @explain_output='$explain_output';
+select JSON_EQUALS(@saved_explain_output, @explain_output);
+JSON_EQUALS(@saved_explain_output, @explain_output)
+1
+set optimizer_replay_context="";
+#
+# Add more data to the table and execute the query
+#
+insert into t1 select seq, seq from seq_1_to_20000;
+analyze table t1;
+Table	Op	Msg_type	Msg_text
+db1.t1	analyze	status	OK
+set optimizer_replay_context=@saved_opt_context;
+set @explain_output='$explain_output';
+select JSON_EQUALS(@saved_explain_output, @explain_output);
+JSON_EQUALS(@saved_explain_output, @explain_output)
+1
+drop table t1;
+#
+# Equi-Join query on a single table having 1 non-unique index on a single column.
+# Also, index column is used in the condition
+#
+set optimizer_replay_context="";
+create table t1 (
+c1 int,
+c2 int,
+index(c1)
+) ENGINE=InnoDB;
+insert into t1 select seq%100, seq%500 from seq_1_to_10000;
+analyze table t1;
+Table	Op	Msg_type	Msg_text
+db1.t1	analyze	status	OK
+set optimizer_replay_context="";
+explain format=json select * from t1 as tt1, t1 as tt2 where tt1.c1 = tt2.c1
+set @trace= (select trace from information_schema.optimizer_trace);
+set @saved_opt_context=
+(select json_pretty(json_extract(
+json_extract(@trace, "$**.optimizer_context"),
+'$[0]'
+                      )
+));
+set @explain_output='$explain_output';
+select @explain_output;
+@explain_output
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": 1029.238332,
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "tt1",
+          "access_type": "ALL",
+          "possible_keys": ["c1"],
+          "loops": 1,
+          "rows": 10157,
+          "cost": 1.6861062,
+          "filtered": 100,
+          "attached_condition": "tt1.c1 is not null"
+        }
+      },
+      {
+        "table": {
+          "table_name": "tt2",
+          "access_type": "ref",
+          "possible_keys": ["c1"],
+          "key": "c1",
+          "key_length": "5",
+          "used_key_parts": ["c1"],
+          "ref": ["db1.tt1.c1"],
+          "loops": 10157,
+          "rows": 101,
+          "cost": 1027.552226,
+          "filtered": 100
+        }
+      }
+    ]
+  }
+}
+set @saved_explain_output=@explain_output;
+set optimizer_replay_context="";
+delete from t1;
+analyze table t1;
+Table	Op	Msg_type	Msg_text
+db1.t1	analyze	status	OK
+set optimizer_replay_context=@saved_opt_context;
+set @explain_output='$explain_output';
+select JSON_EQUALS(@saved_explain_output, @explain_output);
+JSON_EQUALS(@saved_explain_output, @explain_output)
+1
+set optimizer_replay_context="";
+drop table t1;
+#
+# Equi-Join query on a single table having 1 primary key index on a single column.
+# Also, index column is used in the condition
+#
+create table t1 (
+c1 int,
+c2 int,
+primary key (c1)
+) ENGINE=InnoDB;
+insert into t1 select seq, seq%500 from seq_1_to_10000;
+analyze table t1;
+Table	Op	Msg_type	Msg_text
+db1.t1	analyze	status	OK
+set optimizer_replay_context="";
+explain format=json select * from t1 as tt1, t1 as tt2 where tt1.c1 = tt2.c1
+set @trace= (select trace from information_schema.optimizer_trace);
+set @saved_opt_context=
+(select json_pretty(json_extract(
+json_extract(@trace, "$**.optimizer_context"),
+'$[0]'
+                      )
+));
+set @explain_output='$explain_output';
+select @explain_output;
+@explain_output
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": 10.61788,
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "tt1",
+          "access_type": "ALL",
+          "possible_keys": ["PRIMARY"],
+          "loops": 1,
+          "rows": 10000,
+          "cost": 1.657096,
+          "filtered": 100
+        }
+      },
+      {
+        "table": {
+          "table_name": "tt2",
+          "access_type": "eq_ref",
+          "possible_keys": ["PRIMARY"],
+          "key": "PRIMARY",
+          "key_length": "4",
+          "used_key_parts": ["c1"],
+          "ref": ["db1.tt1.c1"],
+          "loops": 10000,
+          "rows": 1,
+          "cost": 8.960784,
+          "filtered": 100
+        }
+      }
+    ]
+  }
+}
+set @saved_explain_output=@explain_output;
+set optimizer_replay_context="";
+delete from t1;
+analyze table t1;
+Table	Op	Msg_type	Msg_text
+db1.t1	analyze	status	OK
+set optimizer_replay_context=@saved_opt_context;
+set @explain_output='$explain_output';
+select JSON_EQUALS(@saved_explain_output, @explain_output);
+JSON_EQUALS(@saved_explain_output, @explain_output)
+1
+set optimizer_replay_context="";
+drop table t1;
+#
+# Equi-Join query on a single table having 1 non-unique index on 2 columns.
+# Both the index columns are used in the condition
+#
+create table t1 (
+c1 int,
+c2 int,
+index(c1, c2)
+) ENGINE=InnoDB;
+insert into t1 select seq%100, seq%500 from seq_1_to_10000;
+analyze table t1;
+Table	Op	Msg_type	Msg_text
+db1.t1	analyze	status	OK
+set optimizer_replay_context="";
+explain format=json select * from t1 as tt1, t1 as tt2 where tt1.c1 = tt2.c1 and tt1.c2 = tt2.c2
+set @trace= (select trace from information_schema.optimizer_trace);
+set @saved_opt_context=
+(select json_pretty(json_extract(
+json_extract(@trace, "$**.optimizer_context"),
+'$[0]'
+                      )
+));
+set @explain_output='$explain_output';
+select @explain_output;
+@explain_output
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": 39.7136926,
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "tt1",
+          "access_type": "index",
+          "possible_keys": ["c1"],
+          "key": "c1",
+          "key_length": "10",
+          "used_key_parts": ["c1", "c2"],
+          "loops": 1,
+          "rows": 10157,
+          "cost": 1.507637865,
+          "filtered": 100,
+          "attached_condition": "tt1.c1 is not null and tt1.c2 is not null",
+          "using_index": true
+        }
+      },
+      {
+        "table": {
+          "table_name": "tt2",
+          "access_type": "ref",
+          "possible_keys": ["c1"],
+          "key": "c1",
+          "key_length": "10",
+          "used_key_parts": ["c1", "c2"],
+          "ref": ["db1.tt1.c1", "db1.tt1.c2"],
+          "loops": 10157,
+          "rows": 20,
+          "cost": 38.20605474,
+          "filtered": 100,
+          "using_index": true
+        }
+      }
+    ]
+  }
+}
+set @saved_explain_output=@explain_output;
+set optimizer_replay_context="";
+delete from t1;
+analyze table t1;
+Table	Op	Msg_type	Msg_text
+db1.t1	analyze	status	OK
+set optimizer_replay_context=@saved_opt_context;
+set @explain_output='$explain_output';
+select JSON_EQUALS(@saved_explain_output, @explain_output);
+JSON_EQUALS(@saved_explain_output, @explain_output)
+1
+set optimizer_replay_context="";
+drop table t1;
+#
+# Equi-Join query on a single table having 1 primary key index on 2 columns.
+# Both the index columns are used in the condition
+#
+create table t1 (
+c1 int,
+c2 int,
+primary key (c1, c2)
+) ENGINE=InnoDB;
+insert into t1 select seq, seq%500 from seq_1_to_10000;
+analyze table t1;
+Table	Op	Msg_type	Msg_text
+db1.t1	analyze	status	OK
+set optimizer_replay_context="";
+explain format=json select * from t1 as tt1, t1 as tt2 where tt1.c1 = tt2.c1 and tt1.c2 = tt2.c2
+set @trace= (select trace from information_schema.optimizer_trace);
+set @saved_opt_context=
+(select json_pretty(json_extract(
+json_extract(@trace, "$**.optimizer_context"),
+'$[0]'
+                      )
+));
+set @explain_output='$explain_output';
+select @explain_output;
+@explain_output
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": 10.616206,
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "tt1",
+          "access_type": "ALL",
+          "possible_keys": ["PRIMARY"],
+          "loops": 1,
+          "rows": 10000,
+          "cost": 1.6562412,
+          "filtered": 100
+        }
+      },
+      {
+        "table": {
+          "table_name": "tt2",
+          "access_type": "eq_ref",
+          "possible_keys": ["PRIMARY"],
+          "key": "PRIMARY",
+          "key_length": "8",
+          "used_key_parts": ["c1", "c2"],
+          "ref": ["db1.tt1.c1", "db1.tt1.c2"],
+          "loops": 10000,
+          "rows": 1,
+          "cost": 8.9599648,
+          "filtered": 100
+        }
+      }
+    ]
+  }
+}
+set @saved_explain_output=@explain_output;
+set optimizer_replay_context="";
+delete from t1;
+analyze table t1;
+Table	Op	Msg_type	Msg_text
+db1.t1	analyze	status	OK
+set optimizer_replay_context=@saved_opt_context;
+set @explain_output='$explain_output';
+select JSON_EQUALS(@saved_explain_output, @explain_output);
+JSON_EQUALS(@saved_explain_output, @explain_output)
+1
+set optimizer_replay_context="";
+drop table t1;
+#
+# Equi-Join query on a single table having 1 non-unique index on 2 columns.
+# However, only 1 column from the index is used in the condition
+#
+create table t1 (
+c1 int,
+c2 int,
+index(c1, c2)
+) ENGINE=InnoDB;
+insert into t1 select seq%100, seq%500 from seq_1_to_10000;
+analyze table t1;
+Table	Op	Msg_type	Msg_text
+db1.t1	analyze	status	OK
+set optimizer_replay_context="";
+explain format=json select * from t1 as tt1, t1 as tt2 where tt1.c1 = tt2.c1
+set @trace= (select trace from information_schema.optimizer_trace);
+set @saved_opt_context=
+(select json_pretty(json_extract(
+json_extract(@trace, "$**.optimizer_context"),
+'$[0]'
+                      )
+));
+set @explain_output='$explain_output';
+select @explain_output;
+@explain_output
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": 160.3939357,
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "tt1",
+          "access_type": "index",
+          "possible_keys": ["c1"],
+          "key": "c1",
+          "key_length": "10",
+          "used_key_parts": ["c1", "c2"],
+          "loops": 1,
+          "rows": 10157,
+          "cost": 1.507637865,
+          "filtered": 100,
+          "attached_condition": "tt1.c1 is not null",
+          "using_index": true
+        }
+      },
+      {
+        "table": {
+          "table_name": "tt2",
+          "access_type": "ref",
+          "possible_keys": ["c1"],
+          "key": "c1",
+          "key_length": "5",
+          "used_key_parts": ["c1"],
+          "ref": ["db1.tt1.c1"],
+          "loops": 10157,
+          "rows": 101,
+          "cost": 158.8862979,
+          "filtered": 100,
+          "using_index": true
+        }
+      }
+    ]
+  }
+}
+set @saved_explain_output=@explain_output;
+set optimizer_replay_context="";
+delete from t1;
+analyze table t1;
+Table	Op	Msg_type	Msg_text
+db1.t1	analyze	status	OK
+set optimizer_replay_context=@saved_opt_context;
+set @explain_output='$explain_output';
+select JSON_EQUALS(@saved_explain_output, @explain_output);
+JSON_EQUALS(@saved_explain_output, @explain_output)
+1
+set optimizer_replay_context="";
+drop table t1;
+#
+# Equi-Join query on a single table having 1 primary key index on 2 columns.
+# However, only 1 column from the index that has unique values is used in the condition
+#
+create table t1 (
+c1 int,
+c2 int,
+primary key (c1, c2)
+) ENGINE=InnoDB;
+insert into t1 select seq, seq%500 from seq_1_to_10000;
+analyze table t1;
+Table	Op	Msg_type	Msg_text
+db1.t1	analyze	status	OK
+set optimizer_replay_context="";
+explain format=json select * from t1 as tt1, t1 as tt2 where tt1.c1 = tt2.c1
+set @trace= (select trace from information_schema.optimizer_trace);
+set @saved_opt_context=
+(select json_pretty(json_extract(
+json_extract(@trace, "$**.optimizer_context"),
+'$[0]'
+                      )
+));
+set @explain_output='$explain_output';
+select @explain_output;
+@explain_output
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": 11.317506,
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "tt1",
+          "access_type": "ALL",
+          "possible_keys": ["PRIMARY"],
+          "loops": 1,
+          "rows": 10000,
+          "cost": 1.6562412,
+          "filtered": 100
+        }
+      },
+      {
+        "table": {
+          "table_name": "tt2",
+          "access_type": "ref",
+          "possible_keys": ["PRIMARY"],
+          "key": "PRIMARY",
+          "key_length": "4",
+          "used_key_parts": ["c1"],
+          "ref": ["db1.tt1.c1"],
+          "loops": 10000,
+          "rows": 1,
+          "cost": 9.6612648,
+          "filtered": 100
+        }
+      }
+    ]
+  }
+}
+set @saved_explain_output=@explain_output;
+set optimizer_replay_context="";
+delete from t1;
+analyze table t1;
+Table	Op	Msg_type	Msg_text
+db1.t1	analyze	status	OK
+set optimizer_replay_context=@saved_opt_context;
+set @explain_output='$explain_output';
+select JSON_EQUALS(@saved_explain_output, @explain_output);
+JSON_EQUALS(@saved_explain_output, @explain_output)
+1
+set optimizer_replay_context="";
+drop table t1;
+#
+# Equi-Join query on a single table having 1 primary key index on 2 columns.
+# However, only 1 column from the index that has non-unique values is used in the condition
+#
+create table t1 (
+c1 int,
+c2 int,
+primary key (c1, c2)
+) ENGINE=InnoDB;
+insert into t1 select seq, seq%500 from seq_1_to_10000;
+analyze table t1;
+Table	Op	Msg_type	Msg_text
+db1.t1	analyze	status	OK
+set optimizer_replay_context="";
+explain format=json select * from t1 as tt1, t1 as tt2 where tt1.c2 = tt2.c2
+set @trace= (select trace from information_schema.optimizer_trace);
+set @saved_opt_context=
+(select json_pretty(json_extract(
+json_extract(@trace, "$**.optimizer_context"),
+'$[0]'
+                      )
+));
+set @explain_output='$explain_output';
+select @explain_output;
+@explain_output
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": 9290.521142,
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "tt1",
+          "access_type": "ALL",
+          "loops": 1,
+          "rows": 10000,
+          "cost": 1.6562412,
+          "filtered": 100
+        }
+      },
+      {
+        "block-nl-join": {
+          "table": {
+            "table_name": "tt2",
+            "access_type": "ALL",
+            "loops": 10000,
+            "rows": 10000,
+            "cost": 9288.864901,
+            "filtered": 100
+          },
+          "buffer_type": "flat",
+          "buffer_size": "97Kb",
+          "join_type": "BNL",
+          "attached_condition": "tt2.c2 = tt1.c2"
+        }
+      }
+    ]
+  }
+}
+set @saved_explain_output=@explain_output;
+set optimizer_replay_context="";
+delete from t1;
+analyze table t1;
+Table	Op	Msg_type	Msg_text
+db1.t1	analyze	status	OK
+set optimizer_replay_context=@saved_opt_context;
+set @explain_output='$explain_output';
+select JSON_EQUALS(@saved_explain_output, @explain_output);
+JSON_EQUALS(@saved_explain_output, @explain_output)
+1
+set optimizer_replay_context="";
+drop table t1;
+#
+# Query on a single table having 1 non-unique index on 2 columns.
+# However, a constant literal is used in the equality predicate using only 1 column from the index.
+#
+create table t1 (
+c1 int,
+c2 int,
+index(c1)
+) ENGINE=InnoDB;
+insert into t1 select seq%100, seq%500 from seq_1_to_10000;
+analyze table t1;
+Table	Op	Msg_type	Msg_text
+db1.t1	analyze	status	OK
+set optimizer_replay_context="";
+explain format=json select * from t1 as tt1 where tt1.c1 = 5
+set @trace= (select trace from information_schema.optimizer_trace);
+set @saved_opt_context=
+(select json_pretty(json_extract(
+json_extract(@trace, "$**.optimizer_context"),
+'$[0]'
+                      )
+));
+set @explain_output='$explain_output';
+select @explain_output;
+@explain_output
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": 0.12065072,
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "tt1",
+          "access_type": "ref",
+          "possible_keys": ["c1"],
+          "key": "c1",
+          "key_length": "5",
+          "used_key_parts": ["c1"],
+          "ref": ["const"],
+          "loops": 1,
+          "rows": 100,
+          "cost": 0.12065072,
+          "filtered": 100
+        }
+      }
+    ]
+  }
+}
+set @saved_explain_output=@explain_output;
+set optimizer_replay_context="";
+delete from t1;
+analyze table t1;
+Table	Op	Msg_type	Msg_text
+db1.t1	analyze	status	OK
+set optimizer_replay_context=@saved_opt_context;
+set @explain_output='$explain_output';
+select JSON_EQUALS(@saved_explain_output, @explain_output);
+JSON_EQUALS(@saved_explain_output, @explain_output)
+1
+set optimizer_replay_context="";
+drop table t1;
+#
+# Query on a single table having 1 primary key index on 2 columns.
+# However, a constant literal is used in the equality predicate with only 1 column from the index that has unique values.
+#
+create table t1 (
+c1 int,
+c2 int,
+primary key(c1, c2)
+) ENGINE=InnoDB;
+insert into t1 select seq, seq%500 from seq_1_to_10000;
+analyze table t1;
+Table	Op	Msg_type	Msg_text
+db1.t1	analyze	status	OK
+set optimizer_replay_context="";
+explain format=json select * from t1 as tt1 where tt1.c1 = 5
+set @trace= (select trace from information_schema.optimizer_trace);
+set @saved_opt_context=
+(select json_pretty(json_extract(
+json_extract(@trace, "$**.optimizer_context"),
+'$[0]'
+                      )
+));
+set @explain_output='$explain_output';
+select @explain_output;
+@explain_output
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": 0.00183779,
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "tt1",
+          "access_type": "ref",
+          "possible_keys": ["PRIMARY"],
+          "key": "PRIMARY",
+          "key_length": "4",
+          "used_key_parts": ["c1"],
+          "ref": ["const"],
+          "loops": 1,
+          "rows": 1,
+          "cost": 0.00183779,
+          "filtered": 100
+        }
+      }
+    ]
+  }
+}
+set @saved_explain_output=@explain_output;
+set optimizer_replay_context="";
+delete from t1;
+analyze table t1;
+Table	Op	Msg_type	Msg_text
+db1.t1	analyze	status	OK
+set optimizer_replay_context=@saved_opt_context;
+set @explain_output='$explain_output';
+select JSON_EQUALS(@saved_explain_output, @explain_output);
+JSON_EQUALS(@saved_explain_output, @explain_output)
+1
+set optimizer_replay_context="";
+drop table t1;
+#
+# Query on a single table having 1 non-unique index on a single column.
+# Also, a constant literal is used in the equality predicate on the column that is in the index.
+#
+create table t1 (
+c1 int,
+c2 int,
+index(c1)
+) ENGINE=InnoDB;
+insert into t1 select seq%100, seq%500 from seq_1_to_10000;
+analyze table t1;
+Table	Op	Msg_type	Msg_text
+db1.t1	analyze	status	OK
+set optimizer_replay_context="";
+explain format=json select * from t1 as tt1 where tt1.c1 = 5
+set @trace= (select trace from information_schema.optimizer_trace);
+set @saved_opt_context=
+(select json_pretty(json_extract(
+json_extract(@trace, "$**.optimizer_context"),
+'$[0]'
+                      )
+));
+set @explain_output='$explain_output';
+select @explain_output;
+@explain_output
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": 0.12065072,
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "tt1",
+          "access_type": "ref",
+          "possible_keys": ["c1"],
+          "key": "c1",
+          "key_length": "5",
+          "used_key_parts": ["c1"],
+          "ref": ["const"],
+          "loops": 1,
+          "rows": 100,
+          "cost": 0.12065072,
+          "filtered": 100
+        }
+      }
+    ]
+  }
+}
+set @saved_explain_output=@explain_output;
+set optimizer_replay_context="";
+delete from t1;
+analyze table t1;
+Table	Op	Msg_type	Msg_text
+db1.t1	analyze	status	OK
+set optimizer_replay_context=@saved_opt_context;
+set @explain_output='$explain_output';
+select JSON_EQUALS(@saved_explain_output, @explain_output);
+JSON_EQUALS(@saved_explain_output, @explain_output)
+1
+set optimizer_replay_context="";
+drop table t1;
+#
+# Query on a single table having 1 primary key index on 2 columns.
+# However, a constant literal is used in the equality predicate with only 1 column from the index that has non-unique values.
+#
+create table t1 (
+c1 int,
+c2 int,
+primary key(c1, c2)
+) ENGINE=InnoDB;
+insert into t1 select seq, seq%500 from seq_1_to_10000;
+analyze table t1;
+Table	Op	Msg_type	Msg_text
+db1.t1	analyze	status	OK
+set optimizer_replay_context="";
+explain format=json select * from t1 as tt1 where tt1.c2 = 5
+set @trace= (select trace from information_schema.optimizer_trace);
+set @saved_opt_context=
+(select json_pretty(json_extract(
+json_extract(@trace, "$**.optimizer_context"),
+'$[0]'
+                      )
+));
+set @explain_output='$explain_output';
+select @explain_output;
+@explain_output
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": 1.6562412,
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "tt1",
+          "access_type": "ALL",
+          "loops": 1,
+          "rows": 10000,
+          "cost": 1.6562412,
+          "filtered": 100,
+          "attached_condition": "tt1.c2 = 5"
+        }
+      }
+    ]
+  }
+}
+set @saved_explain_output=@explain_output;
+set optimizer_replay_context="";
+delete from t1;
+analyze table t1;
+Table	Op	Msg_type	Msg_text
+db1.t1	analyze	status	OK
+set optimizer_replay_context=@saved_opt_context;
+set @explain_output='$explain_output';
+select JSON_EQUALS(@saved_explain_output, @explain_output);
+JSON_EQUALS(@saved_explain_output, @explain_output)
+1
+set optimizer_replay_context="";
+drop table t1;
+#
+# Query on a single table having 1 primary key index with only 1 column.
+# However, a constant literal is used in the equality predicate on the column that is not in the index.
+#
+create table t1 (
+c1 int,
+c2 int,
+primary key(c1)
+) ENGINE=InnoDB;
+insert into t1 select seq, seq%500 from seq_1_to_10000;
+analyze table t1;
+Table	Op	Msg_type	Msg_text
+db1.t1	analyze	status	OK
+set optimizer_replay_context="";
+explain format=json select * from t1 as tt1 where tt1.c2 = 5
+set @trace= (select trace from information_schema.optimizer_trace);
+set @saved_opt_context=
+(select json_pretty(json_extract(
+json_extract(@trace, "$**.optimizer_context"),
+'$[0]'
+                      )
+));
+set @explain_output='$explain_output';
+select @explain_output;
+@explain_output
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": 1.657096,
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "tt1",
+          "access_type": "ALL",
+          "loops": 1,
+          "rows": 10000,
+          "cost": 1.657096,
+          "filtered": 100,
+          "attached_condition": "tt1.c2 = 5"
+        }
+      }
+    ]
+  }
+}
+set @saved_explain_output=@explain_output;
+set optimizer_replay_context="";
+delete from t1;
+analyze table t1;
+Table	Op	Msg_type	Msg_text
+db1.t1	analyze	status	OK
+set optimizer_replay_context=@saved_opt_context;
+set @explain_output='$explain_output';
+select JSON_EQUALS(@saved_explain_output, @explain_output);
+JSON_EQUALS(@saved_explain_output, @explain_output)
+1
+set optimizer_replay_context="";
+drop table t1;
+#
+# Index-Merge query on a single table having 2 non-unique index with a single column in each.
+# Also, index column is used in the condition
+#
+set optimizer_replay_context="";
+create table t1 (
+c1 int,
+c2 int,
+index(c1),
+index(c2)
+) ENGINE=InnoDB;
+insert into t1 select seq%100, seq%500 from seq_1_to_10000;
+analyze table t1;
+Table	Op	Msg_type	Msg_text
+db1.t1	analyze	status	OK
+set optimizer_replay_context="";
+explain format=json select * from t1 as tt1 where tt1.c1 = 5 OR tt1.c2 = 10
+set @trace= (select trace from information_schema.optimizer_trace);
+set @saved_opt_context=
+(select json_pretty(json_extract(
+json_extract(@trace, "$**.optimizer_context"),
+'$[0]'
+                      )
+));
+set @explain_output='$explain_output';
+select @explain_output;
+@explain_output
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": 0.14594824,
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "tt1",
+          "access_type": "index_merge",
+          "possible_keys": ["c1", "c2"],
+          "key_length": "5,5",
+          "index_merge": {
+            "union": [
+              {
+                "range": {
+                  "key": "c1",
+                  "used_key_parts": ["c1"]
+                }
+              },
+              {
+                "range": {
+                  "key": "c2",
+                  "used_key_parts": ["c2"]
+                }
+              }
+            ]
+          },
+          "loops": 1,
+          "rows": 120,
+          "cost": 0.14594824,
+          "filtered": 100,
+          "attached_condition": "tt1.c1 = 5 or tt1.c2 = 10"
+        }
+      }
+    ]
+  }
+}
+set @saved_explain_output=@explain_output;
+set optimizer_replay_context="";
+delete from t1;
+analyze table t1;
+Table	Op	Msg_type	Msg_text
+db1.t1	analyze	status	OK
+set optimizer_replay_context=@saved_opt_context;
+set @explain_output='$explain_output';
+select JSON_EQUALS(@saved_explain_output, @explain_output);
+JSON_EQUALS(@saved_explain_output, @explain_output)
+1
+set optimizer_replay_context="";
+drop table t1;
+drop database db1;

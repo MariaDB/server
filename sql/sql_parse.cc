@@ -3516,6 +3516,19 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
   */
   thd->last_sql_command= lex->sql_command;
 
+  if (thd->variables.optimizer_replay_context &&
+      strlen(thd->variables.optimizer_replay_context) > 0 &&
+      (lex->sql_command == SQLCOM_SELECT ||
+       lex->sql_command == SQLCOM_INSERT_SELECT ||
+       lex->sql_command == SQLCOM_DELETE ||
+       lex->sql_command == SQLCOM_UPDATE ||
+       lex->sql_command == SQLCOM_DELETE_MULTI ||
+       lex->sql_command == SQLCOM_UPDATE_MULTI))
+  {
+    thd->opt_ctx_replay=
+      new Optimizer_context_replay(thd);
+  }
+
   /*
     Reset warning count for each query that uses tables
     A better approach would be to reset this for any commands
@@ -5883,6 +5896,9 @@ wsrep_error_label:
 finish:
   if (!thd->is_error() && !res)
     res= store_tables_context_in_trace(thd);
+
+  if (thd->opt_ctx_replay)
+    thd->opt_ctx_replay->restore_modified_table_stats();
 
   thd->reset_query_timer();
   DBUG_ASSERT(!thd->in_active_multi_stmt_transaction() ||

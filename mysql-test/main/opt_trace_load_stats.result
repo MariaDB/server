@@ -1,0 +1,556 @@
+#enable both optimizer_trace, and optimizer_record_context
+set optimizer_record_context=ON;
+set optimizer_trace=1;
+create database db1;
+use db1;
+create table t1
+(
+a int, b int,
+index t1_idx_a (a),
+index t1_idx_b (b),
+index t1_idx_ab (a, b)
+) ENGINE=MyISAM;
+insert into t1 select seq%5, seq%8 from seq_1_to_20;
+set session use_stat_tables='COMPLEMENTARY';
+analyze table t1 persistent for all;
+Table	Op	Msg_type	Msg_text
+db1.t1	analyze	status	Engine-independent statistics collected
+db1.t1	analyze	status	Table is already up to date
+#
+# simple query after analyzing the table
+# planner should pick the analyzed table stats
+#
+select * from t1 where a < 3 and b > 6;
+a	b
+0	7
+2	7
+set @opt_context=
+(select json_pretty(json_extract(
+json_extract(trace, "$**.optimizer_context"),
+'$[0]'
+                      ))
+from information_schema.optimizer_trace);
+set @records= (select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.num_of_records')));
+select * from json_table(@records, '$[*]' columns(num_of_records text path '$')) as jt;
+num_of_records
+20
+set @indexes=(select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.indexes')));
+select * from json_table(@indexes, '$[*][*]' columns(index_name text path '$.index_name', rec_per_key json path '$.rec_per_key')) as jt;
+index_name	rec_per_key
+t1_idx_a	["4"]
+t1_idx_b	["3"]
+t1_idx_ab	[
+                "4",
+                "1"
+            ]
+set @list_ranges= (select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.list_ranges')));
+select * from json_table(
+@list_ranges,
+'$[*][*]' columns(
+index_name text path '$.index_name',
+ranges json path '$.ranges',
+num_rows int path '$.num_rows',
+max_index_blocks int path '$.max_index_blocks',
+max_row_blocks int path '$.max_row_blocks'
+    )
+) as jt;
+index_name	ranges	num_rows	max_index_blocks	max_row_blocks
+t1_idx_a	["(NULL) < (a) < (3)"]	12	1	1
+t1_idx_b	["(6) < (b)"]	2	1	1
+t1_idx_ab	["(NULL) < (a) < (3)"]	12	1	1
+set @saved_opt_context_1=@opt_context;
+set @saved_records_1=@records;
+set @saved_indexes_1=@indexes;
+set @saved_list_ranges_1=@list_ranges;
+#
+# load stats in JSON format into variable optimizer_replay_context
+# and rerun the query.
+# These loaded stats are same as the analyzed stats
+#
+set optimizer_replay_context=@saved_opt_context_1;
+select * from t1 where a < 3 and b > 6;
+a	b
+0	7
+2	7
+set @opt_context=
+(select json_pretty(json_extract(
+json_extract(trace, "$**.optimizer_context"),
+'$[0]'
+                      ))
+from information_schema.optimizer_trace);
+select JSON_EQUALS(@saved_opt_context_1, @opt_context);
+JSON_EQUALS(@saved_opt_context_1, @opt_context)
+1
+#
+# set the variable optimizer_replay_context to blank data
+# and rerun the query.
+# Analyzed table stats should be used for query planning
+#
+set optimizer_replay_context="";
+select * from t1 where a < 3 and b > 6;
+a	b
+0	7
+2	7
+set @opt_context=
+(select json_pretty(json_extract(
+json_extract(trace, "$**.optimizer_context"),
+'$[0]'
+                      ))
+from information_schema.optimizer_trace);
+select JSON_EQUALS(@saved_opt_context_1, @opt_context);
+JSON_EQUALS(@saved_opt_context_1, @opt_context)
+1
+#
+# now update the table without running analyze table, and then rerun the queries
+#
+insert into t1 select seq%5, seq%8 from seq_1_to_20;
+#
+# Only range stats are different, as the table wasn't re-analyzed 
+#
+select * from t1 where a < 3 and b > 6;
+a	b
+0	7
+0	7
+2	7
+2	7
+set @opt_context=
+(select json_pretty(json_extract(
+json_extract(trace, "$**.optimizer_context"),
+'$[0]'
+                      ))
+from information_schema.optimizer_trace);
+select JSON_EQUALS(@saved_opt_context_1, @opt_context);
+JSON_EQUALS(@saved_opt_context_1, @opt_context)
+0
+set @records= (select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.num_of_records')));
+set @indexes=(select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.indexes')));
+set @list_ranges= (select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.list_ranges')));
+set @saved_records_2 = @records;
+set @saved_indexes_2 = @indexes;
+set @saved_list_ranges_2 = @list_ranges;
+select JSON_EQUALS(@saved_records_2, @saved_records_1);
+JSON_EQUALS(@saved_records_2, @saved_records_1)
+0
+select * from json_table(@records, '$[*]' columns(num_of_records text path '$')) as jt;
+num_of_records
+40
+select JSON_EQUALS(@saved_indexes_2, @saved_indexes_1);
+JSON_EQUALS(@saved_indexes_2, @saved_indexes_1)
+1
+select JSON_EQUALS(@saved_list_ranges_2, @saved_list_ranges_1);
+JSON_EQUALS(@saved_list_ranges_2, @saved_list_ranges_1)
+0
+select * from json_table(
+@list_ranges,
+'$[*][*]' columns(
+index_name text path '$.index_name',
+ranges json path '$.ranges',
+num_rows int path '$.num_rows',
+max_index_blocks int path '$.max_index_blocks',
+max_row_blocks int path '$.max_row_blocks'
+    )
+) as jt;
+index_name	ranges	num_rows	max_index_blocks	max_row_blocks
+t1_idx_a	["(NULL) < (a) < (3)"]	24	1	1
+t1_idx_b	["(6) < (b)"]	4	1	1
+t1_idx_ab	["(NULL) < (a) < (3)"]	24	1	1
+#
+# Now, load stats in JSON format into variable optimizer_replay_context
+# and rerun the query.
+# Loaded stats (including range stats) should be picked by the planner
+#
+set optimizer_replay_context=@saved_opt_context_1;
+select * from t1 where a < 3 and b > 6;
+a	b
+0	7
+0	7
+2	7
+2	7
+set @opt_context=
+(select json_pretty(json_extract(
+json_extract(trace, "$**.optimizer_context"),
+'$[0]'
+                      ))
+from information_schema.optimizer_trace);
+select JSON_EQUALS(@saved_opt_context_1, @opt_context);
+JSON_EQUALS(@saved_opt_context_1, @opt_context)
+1
+#
+# with optimizer_record_context OFF,
+# nothing gets printed to the trace
+#
+set optimizer_record_context=OFF;
+select * from t1 where a < 3 and b > 6;
+a	b
+0	7
+0	7
+2	7
+2	7
+set @opt_context=
+(select json_pretty(json_extract(
+json_extract(trace, "$**.optimizer_context"),
+'$[0]'
+                      ))
+from information_schema.optimizer_trace);
+select @opt_context;
+@opt_context
+NULL
+#
+# with optimizer_trace OFF,
+# nothing gets printed to the trace
+#
+set optimizer_trace=0;
+select * from t1 where a < 3 and b > 6;
+a	b
+0	7
+0	7
+2	7
+2	7
+set @opt_context=
+(select json_pretty(json_extract(
+json_extract(trace, "$**.optimizer_context"),
+'$[0]'
+                      ))
+from information_schema.optimizer_trace);
+select @opt_context;
+@opt_context
+NULL
+#
+# Now, after re-enabling optimizer_trace, and optimizer_record_context,
+# Loaded stats should be picked by the planner instead of the analyzed table stats,
+# as the optimizer_replay_context is still set to a valid json containing other stats
+#
+set optimizer_trace=1;
+set optimizer_record_context=ON;
+select * from t1 where a < 3 and b > 6;
+a	b
+0	7
+0	7
+2	7
+2	7
+set @opt_context=
+(select json_pretty(json_extract(
+json_extract(trace, "$**.optimizer_context"),
+'$[0]'
+                      ))
+from information_schema.optimizer_trace);
+select JSON_EQUALS(@saved_opt_context_1, @opt_context);
+JSON_EQUALS(@saved_opt_context_1, @opt_context)
+1
+#
+# Now, set the variable optimizer_replay_context to blank data
+# and rerun the query.
+# Analyzed stats with updated range stats should be picked by the planner
+#
+set optimizer_replay_context="";
+select * from t1 where a < 3 and b > 6;
+a	b
+0	7
+0	7
+2	7
+2	7
+set @opt_context=
+(select json_pretty(json_extract(
+json_extract(trace, "$**.optimizer_context"),
+'$[0]'
+                      ))
+from information_schema.optimizer_trace);
+select JSON_EQUALS(@saved_opt_context_1, @opt_context);
+JSON_EQUALS(@saved_opt_context_1, @opt_context)
+0
+set @records= (select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.num_of_records')));
+set @indexes=(select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.indexes')));
+set @list_ranges= (select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.list_ranges')));
+select JSON_EQUALS(@saved_records_2, @records);
+JSON_EQUALS(@saved_records_2, @records)
+1
+select JSON_EQUALS(@saved_indexes_2, @indexes);
+JSON_EQUALS(@saved_indexes_2, @indexes)
+1
+select JSON_EQUALS(@saved_list_ranges_2, @list_ranges);
+JSON_EQUALS(@saved_list_ranges_2, @list_ranges)
+1
+#
+# now re-analyze the table, and then rerun the queries
+#
+analyze table t1 persistent for all;
+Table	Op	Msg_type	Msg_text
+db1.t1	analyze	status	Engine-independent statistics collected
+db1.t1	analyze	status	OK
+#
+# All the stats are updated as the table is re-analyzed 
+#
+select * from t1 where a < 3 and b > 6;
+a	b
+0	7
+0	7
+2	7
+2	7
+set @opt_context=
+(select json_pretty(json_extract(
+json_extract(trace, "$**.optimizer_context"),
+'$[0]'
+                      ))
+from information_schema.optimizer_trace);
+set @records= (select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.num_of_records')));
+set @indexes=(select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.indexes')));
+set @list_ranges= (select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.list_ranges')));
+select JSON_EQUALS(@saved_records_2, @records);
+JSON_EQUALS(@saved_records_2, @records)
+1
+select JSON_EQUALS(@saved_indexes_2, @indexes);
+JSON_EQUALS(@saved_indexes_2, @indexes)
+0
+select * from json_table(@indexes, '$[*][*]' columns(index_name text path '$.index_name', rec_per_key json path '$.rec_per_key')) as jt;
+index_name	rec_per_key
+t1_idx_a	["8"]
+t1_idx_b	["5"]
+t1_idx_ab	[
+                "8",
+                "2"
+            ]
+select JSON_EQUALS(@saved_list_ranges_2, @list_ranges);
+JSON_EQUALS(@saved_list_ranges_2, @list_ranges)
+1
+set @saved_opt_context_2 = @opt_context;
+#
+# Now, load stats in JSON format into variable optimizer_replay_context
+# and rerun the query.
+# Loaded stats (including range stats) should be picked by the planner
+#
+set optimizer_replay_context=@saved_opt_context_1;
+select * from t1 where a < 3 and b > 6;
+a	b
+0	7
+0	7
+2	7
+2	7
+set @opt_context=
+(select json_pretty(json_extract(
+json_extract(trace, "$**.optimizer_context"),
+'$[0]'
+                      ))
+from information_schema.optimizer_trace);
+select JSON_EQUALS(@saved_opt_context_1, @opt_context);
+JSON_EQUALS(@saved_opt_context_1, @opt_context)
+1
+#
+# Now, set the variable optimizer_replay_context to blank data
+# and rerun the query.
+# All the re-analyzed stats should be picked by the planner
+#
+set optimizer_replay_context="";
+select * from t1 where a < 3 and b > 6;
+a	b
+0	7
+0	7
+2	7
+2	7
+set @opt_context=
+(select json_pretty(json_extract(
+json_extract(trace, "$**.optimizer_context"),
+'$[0]'
+                      ))
+from information_schema.optimizer_trace);
+select JSON_EQUALS(@saved_opt_context_2, @opt_context);
+JSON_EQUALS(@saved_opt_context_2, @opt_context)
+1
+#
+# The following tests check how Optimzer Context Parser reacts 
+# to JSON elements missing in the optimizer_replay_context variable
+#
+set optimizer_replay_context=json_pretty(
+json_remove(@saved_opt_context_1, '$.current_database')
+);
+select * from t1 where a > 10;
+a	b
+Warnings:
+Warning	4242	Failed to parse json structure present in the optimizer_replay_context variable: "current_database" element not present at offset 3540.
+set optimizer_replay_context=json_pretty(
+json_remove(@saved_opt_context_1, '$.list_contexts[0].name')
+);
+select * from t1 where a > 10;
+a	b
+Warnings:
+Warning	4242	Failed to parse json structure present in the optimizer_replay_context variable: "name" element not present at offset 3533.
+set optimizer_replay_context=json_pretty(
+json_remove(@saved_opt_context_1, '$.list_contexts[0].ddl')
+);
+select * from t1 where a > 10;
+a	b
+Warnings:
+Warning	4242	Failed to parse json structure present in the optimizer_replay_context variable: "ddl" element not present at offset 3313.
+set optimizer_replay_context=json_pretty(
+json_remove(@saved_opt_context_1, '$.list_contexts[0].num_of_records')
+);
+select * from t1 where a > 10;
+a	b
+Warnings:
+Warning	4242	Failed to parse json structure present in the optimizer_replay_context variable: "num_of_records" element not present at offset 3529.
+set optimizer_replay_context=json_pretty(
+json_remove(@saved_opt_context_1, '$.list_contexts[0].indexes[0].index_name')
+);
+select * from t1 where a > 10;
+a	b
+Warnings:
+Warning	4242	Failed to parse json structure present in the optimizer_replay_context variable: "index_name" element not present at offset 591.
+set optimizer_replay_context=json_pretty(
+json_remove(@saved_opt_context_1, '$.list_contexts[0].indexes[0].rec_per_key')
+);
+select * from t1 where a > 10;
+a	b
+Warnings:
+Warning	4242	Failed to parse json structure present in the optimizer_replay_context variable: "rec_per_key" element not present at offset 574.
+set optimizer_replay_context=json_pretty(
+json_remove(@saved_opt_context_1, '$.list_contexts[0].list_ranges[0].index_name')
+);
+select * from t1 where a > 10;
+a	b
+Warnings:
+Warning	4242	Failed to parse json structure present in the optimizer_replay_context variable: "index_name" element not present at offset 1825.
+set optimizer_replay_context=json_pretty(
+json_remove(@saved_opt_context_1, '$.list_contexts[0].list_ranges[0].ranges')
+);
+select * from t1 where a > 10;
+a	b
+Warnings:
+Warning	4242	Failed to parse json structure present in the optimizer_replay_context variable: "ranges" element not present at offset 1796.
+set optimizer_replay_context=json_pretty(
+json_remove(@saved_opt_context_1, '$.list_contexts[0].list_ranges[0].num_rows')
+);
+select * from t1 where a > 10;
+a	b
+Warnings:
+Warning	4242	Failed to parse json structure present in the optimizer_replay_context variable: "num_rows" element not present at offset 1835.
+set optimizer_replay_context=json_pretty(
+json_remove(@saved_opt_context_1, '$.list_contexts[0].list_ranges[0].cost')
+);
+select * from t1 where a > 10;
+a	b
+Warnings:
+Warning	4242	Failed to parse json structure present in the optimizer_replay_context variable: "cost" element not present at offset 1336.
+set optimizer_replay_context=json_pretty(
+json_remove(@saved_opt_context_1, '$.list_contexts[0].list_ranges[0].max_index_blocks')
+);
+select * from t1 where a > 10;
+a	b
+Warnings:
+Warning	4242	Failed to parse json structure present in the optimizer_replay_context variable: "max_index_blocks" element not present at offset 1828.
+set optimizer_replay_context=json_pretty(
+json_remove(@saved_opt_context_1, '$.list_contexts[0].list_ranges[0].max_row_blocks')
+);
+select * from t1 where a > 10;
+a	b
+Warnings:
+Warning	4242	Failed to parse json structure present in the optimizer_replay_context variable: "max_row_blocks" element not present at offset 1830.
+set optimizer_replay_context=json_pretty(
+json_remove(@saved_opt_context_1, '$.list_contexts[0].indexes[0]')
+);
+select * from t1 where a > 10;
+a	b
+Warnings:
+Warning	4243	Failed to match the stats from replay context with the optimizer stats: db1.t1.t1_idx_a doesn't exist in list of index contexts
+Warning	4243	Failed to match the stats from replay context with the optimizer stats: the given list of ranges i.e. [(10) < (a), ] doesn't exist in the list of ranges for table_name db1.t1 and index_name t1_idx_a
+Warning	4243	Failed to match the stats from replay context with the optimizer stats: the given list of ranges i.e. [(10) < (a), ] doesn't exist in the list of ranges for table_name db1.t1 and index_name t1_idx_ab
+set optimizer_replay_context=json_pretty(
+json_remove(@saved_opt_context_1, '$.list_contexts[0].list_ranges[0]')
+);
+select * from t1 where a > 10;
+a	b
+Warnings:
+Warning	4243	Failed to match the stats from replay context with the optimizer stats: db1.t1.t1_idx_a doesn't exist in list of range contexts
+Warning	4243	Failed to match the stats from replay context with the optimizer stats: the given list of ranges i.e. [(10) < (a), ] doesn't exist in the list of ranges for table_name db1.t1 and index_name t1_idx_ab
+set optimizer_replay_context=json_pretty(
+json_replace(@saved_opt_context_1, '$.list_contexts[0].name', 'db2.t1')
+);
+select * from t1 where a > 10;
+a	b
+Warnings:
+Warning	4243	Failed to match the stats from replay context with the optimizer stats: db1.t1 doesn't exist in list of table contexts
+Warning	4243	Failed to match the stats from replay context with the optimizer stats: db1.t1 doesn't exist in list of table contexts
+Warning	4243	Failed to match the stats from replay context with the optimizer stats: db1.t1.t1_idx_a doesn't exist in list of range contexts
+Warning	4243	Failed to match the stats from replay context with the optimizer stats: db1.t1.t1_idx_ab doesn't exist in list of range contexts
+Warning	4243	Failed to match the stats from replay context with the optimizer stats: db1.t1 doesn't exist in list of table contexts
+set optimizer_replay_context="";
+explain select tt1.a, tt2.b from t1 tt1, t1 tt2 where tt1.a = tt2.a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	tt1	index	t1_idx_a,t1_idx_ab	t1_idx_a	5	NULL	40	Using where; Using index
+1	SIMPLE	tt2	ref	t1_idx_a,t1_idx_ab	t1_idx_ab	5	db1.tt1.a	8	Using index
+set @opt_context=
+(select json_pretty(json_extract(
+json_extract(trace, "$**.optimizer_context"),
+'$[0]'
+                      ))
+from information_schema.optimizer_trace);
+set optimizer_replay_context=json_pretty(
+json_remove(@opt_context, '$.list_contexts[0].list_index_read_costs[0].key_number')
+);
+select * from t1 where a > 10;
+a	b
+Warnings:
+Warning	4242	Failed to parse json structure present in the optimizer_replay_context variable: "key_number" element not present at offset 1518.
+set optimizer_replay_context=json_pretty(
+json_remove(@opt_context, '$.list_contexts[0].list_index_read_costs[0].num_records')
+);
+select * from t1 where a > 10;
+a	b
+Warnings:
+Warning	4242	Failed to parse json structure present in the optimizer_replay_context variable: "num_records" element not present at offset 1517.
+set optimizer_replay_context=json_pretty(
+json_remove(@opt_context, '$.list_contexts[0].list_index_read_costs[0].eq_ref')
+);
+select * from t1 where a > 10;
+a	b
+Warnings:
+Warning	4242	Failed to parse json structure present in the optimizer_replay_context variable: "eq_ref" element not present at offset 1522.
+set optimizer_replay_context=json_pretty(
+json_remove(@opt_context, '$.list_contexts[0].list_index_read_costs[0].index_cost_io')
+);
+select * from t1 where a > 10;
+a	b
+Warnings:
+Warning	4242	Failed to parse json structure present in the optimizer_replay_context variable: "index_cost_io" element not present at offset 1515.
+set optimizer_replay_context=json_pretty(
+json_remove(@opt_context, '$.list_contexts[0].list_index_read_costs[0].index_cost_cpu')
+);
+select * from t1 where a > 10;
+a	b
+Warnings:
+Warning	4242	Failed to parse json structure present in the optimizer_replay_context variable: "index_cost_cpu" element not present at offset 1504.
+set optimizer_replay_context=json_pretty(
+json_remove(@opt_context, '$.list_contexts[0].list_index_read_costs[0].row_cost_io')
+);
+select * from t1 where a > 10;
+a	b
+Warnings:
+Warning	4242	Failed to parse json structure present in the optimizer_replay_context variable: "row_cost_io" element not present at offset 1517.
+set optimizer_replay_context=json_pretty(
+json_remove(@opt_context, '$.list_contexts[0].list_index_read_costs[0].row_cost_cpu')
+);
+select * from t1 where a > 10;
+a	b
+Warnings:
+Warning	4242	Failed to parse json structure present in the optimizer_replay_context variable: "row_cost_cpu" element not present at offset 1506.
+set optimizer_replay_context=json_pretty(
+json_remove(@opt_context, '$.list_contexts[0].list_index_read_costs[0].max_index_blocks')
+);
+select * from t1 where a > 10;
+a	b
+Warnings:
+Warning	4242	Failed to parse json structure present in the optimizer_replay_context variable: "max_index_blocks" element not present at offset 1512.
+set optimizer_replay_context=json_pretty(
+json_remove(@opt_context, '$.list_contexts[0].list_index_read_costs[0].max_row_blocks')
+);
+select * from t1 where a > 10;
+a	b
+Warnings:
+Warning	4242	Failed to parse json structure present in the optimizer_replay_context variable: "max_row_blocks" element not present at offset 1514.
+set optimizer_replay_context=json_pretty(
+json_remove(@opt_context, '$.list_contexts[0].list_index_read_costs[0].copy_cost')
+);
+select * from t1 where a > 10;
+a	b
+Warnings:
+Warning	4242	Failed to parse json structure present in the optimizer_replay_context variable: "copy_cost" element not present at offset 1519.
+drop table t1;
+drop database db1;
