@@ -1,7 +1,8 @@
 source include/have_gen_embedding.inc;
 
-# --replace_result $OPENAI_PORT OPENAI_PORT
+--replace_result $OPENAI_PORT OPENAI_PORT
 eval set generate_embedding_openai_host="http://127.0.0.1:$OPENAI_PORT/success";
+# set generate_embedding_openai_host="http://127.0.0.1:5000/success";
 
 drop table if exists exp_test_new;
 create table exp_test_new (
@@ -15,5 +16,6 @@ show status like "%generate%";
 
 alter table exp_test_new add x int;
 show status like "%generate%";
+select doc, x, embedding is null from exp_test_new;
 
 drop table exp_test_new;

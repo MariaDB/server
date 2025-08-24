@@ -9368,7 +9368,9 @@ int TABLE::update_virtual_fields(handler *h, enum_vcol_update_mode update_mode)
     case VCOL_UPDATE_FOR_WRITE:
       update= bitmap_is_set(read_set, vf->field_index);
       if (vcol_info->expr->is_expensive() && vcol_info->is_stored())
-        update&= !vf->has_explicit_value();
+        // update&= !vf->has_explicit_value();
+        update&= bitmap_is_set(write_set, vf->field_index);
+
       break;
     case VCOL_UPDATE_FOR_REPLACE:
       update= ((!vcol_info->is_stored() &&
