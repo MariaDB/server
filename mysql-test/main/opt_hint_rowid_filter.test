@@ -1,73 +1,91 @@
+--enable_prepare_warnings
+--disable_view_protocol # Since optimizer hints are not supported inside views
 
-# SET @stats.save= @@innodb_stats_persistent;
-# SET GLOBAL innodb_stats_persistent= ON;
-
-CREATE TABLE t1 (a INT, b VARCHAR(10), c VARCHAR(1024), KEY key_a(a), KEY key_b(b), KEY key_c(c));
+CREATE TABLE t1 (a INT, b VARCHAR(10), c VARCHAR(100), d VARCHAR(200), 
+  KEY key_a(a), KEY key_b(b), KEY key_c(c), KEY key_d(d));
 
 INSERT INTO t1 VALUES
-  (1,'w','z'), (1,'X','o'), (1,'q','c'), (5,'w','c'), (2,'j','m'),
-  (2,'Q','s'), (9,'e','J'), (2,'p','W'), (9,'o','F'), (2,'g','S'),
-  (1,'Y','a'), (NULL,'Y','p'), (NULL,'s','x'), (NULL,'i','S'),
-  (1,'l','q'), (7,'r','e'), (4,'b','h'), (NULL,'E','c'),
-  (NULL,'M','a'), (3,'e','X'), (NULL,'p','r'), (9,'e','i'),
-  (3,'g','x'), (2,'h','y');
+  (1,'w','z','F'), (1,'X','o','s'), (1,'q','c','a'), (5,'w','c','d'), (2,'j','m','k'),
+  (2,'Q','s','q'), (9,'e','J','B'), (2,'p','W','l'), (9,'o','F','Y'), (2,'g','S','M'),
+  (1,'Y','a','h'), (NULL,'Y','p','J'), (NULL,'s','x','M'), (NULL,'i','S','k'),
+  (1,'l','q','w'), (7,'r','e','_'), (4,'b','h','I'), (NULL,'E','c','z'),
+  (NULL,'M','a','j'), (3,'e','X','K'), (NULL,'p','r','R'), (9,'e','i','g'),
+  (3,'g','x','m'), (2,'h','y','p');
 
 ANALYZE TABLE t1;
 
 set optimizer_switch='rowid_filter=on';
---echo # Rowid filter is applied when there are no hints:
+--echo # range|filter `key_d|key_b` is applied by default when there are no hints:
 EXPLAIN EXTENDED
-SELECT a FROM t1 WHERE c < 'e' AND b > 't' ORDER BY a;
+SELECT a FROM t1 WHERE c < 'e' AND b > 't' and d < 'e';
 
 --echo # Sample result set to compare against later
-SELECT a FROM t1 WHERE c < 'e' AND b > 't' ORDER BY a;
+SELECT a FROM t1 WHERE c < 'e' AND b > 't' and d < 'e';
 
 --echo # Disable rowid filter for t1
 EXPLAIN EXTENDED
-SELECT /*+ no_rowid_filter(t1)*/ a FROM t1 WHERE c < 'e' AND b > 't' ORDER BY a;
+SELECT /*+ no_rowid_filter(t1)*/ a FROM t1 WHERE c < 'e' AND b > 't';
 
---echo # Disable rowid filter for a particular index (or two) of t1
+--echo # Force using rowid filter made from key_c although it is not
+--echo # as efficient as made from `key_b`
 EXPLAIN EXTENDED
-SELECT /*+ no_rowid_filter(t1 key_c)*/ a FROM t1 WHERE c < 'e' AND b > 't' ORDER BY a;
+SELECT /*+ rowid_filter(t1 key_c)*/ a FROM t1 WHERE c < 'e' AND b > 't' and d < 'e';
 
+--echo # Allow the optimizer to choose the best rowid filter from key_a,key_b,key_c,key_d
 EXPLAIN EXTENDED
-SELECT /*+ no_rowid_filter(t1 key_b, key_c)*/ a FROM t1 WHERE c < 'e' AND b > 't' ORDER BY a;
+SELECT /*+ rowid_filter(t1 key_a,key_b,key_c,key_d)*/ a FROM t1
+  WHERE c < 'e' AND b > 't' and d < 'e';
 
+--echo # Forbid `key_b` for rowid filtering, so `key_c` is used
+let $q= SELECT /*+ no_rowid_filter(t1 key_b)*/ a FROM t1 
+  WHERE c < 'e' AND b > 't' and d < 'e';
+
+eval EXPLAIN EXTENDED $q;
 --echo # Validate the result set
-SELECT /*+ no_rowid_filter(t1 key_b, key_c)*/ a FROM t1 WHERE c < 'e' AND b > 't' ORDER BY a;
+eval $q;
+
+--echo # Forbid both `key_b` and `key_c`, so no rowid filter can be applied
+EXPLAIN EXTENDED
+SELECT /*+ no_rowid_filter(t1 key_b, key_c)*/ a FROM t1
+  WHERE c < 'e' AND b > 't' and d < 'e';
 
 --echo # Disable rowid filter for indexes which would not be used anyway
 EXPLAIN EXTENDED
-SELECT /*+ no_rowid_filter(t1 key_b)*/ a FROM t1 WHERE c < 'e' AND b > 't' ORDER BY a;
+SELECT /*+ no_rowid_filter(t1 key_a)*/ a FROM t1
+  WHERE c < 'e' AND b > 't' and d < 'e';
 
 EXPLAIN EXTENDED
-SELECT /*+ no_rowid_filter(t1 key_a,key_b)*/ a FROM t1 WHERE c < 'e' AND b > 't' ORDER BY a;
+SELECT /*+ no_rowid_filter(t1 key_a,key_b)*/ a FROM t1
+  WHERE c < 'e' AND b > 't' and d < 'e';
 
 --echo # Turn rowid filtering off and enable it selectively
 set optimizer_switch='rowid_filter=off';
 
---echo # Make sure rowid filter is not applied when there are no hints:
+--echo # Make sure rowid filter is not used when there are no hints:
 EXPLAIN EXTENDED
-SELECT a FROM t1 WHERE c < 'e' AND b > 't' ORDER BY a;
+SELECT a FROM t1 WHERE c < 'e' AND b > 't' and d < 'e';
 
 --echo # Enable rowid filter for t1
 EXPLAIN EXTENDED
-SELECT /*+ rowid_filter(t1)*/ a FROM t1 WHERE c < 'e' AND b > 't' ORDER BY a;
+SELECT /*+ rowid_filter(t1)*/ a FROM t1 WHERE c < 'e' AND b > 't' and d < 'e';
 
 --echo # Enable rowid filter only for some indexes of t1
 EXPLAIN EXTENDED
-SELECT /*+ rowid_filter(t1 key_a, key_c)*/ a FROM t1 WHERE c < 'e' AND b > 't' ORDER BY a;
+SELECT /*+ rowid_filter(t1 key_a, key_c)*/ a FROM t1
+  WHERE c < 'e' AND b > 't' and d < 'e';
 
 EXPLAIN EXTENDED
-SELECT /*+ rowid_filter(t1 key_c)*/ a FROM t1 WHERE c < 'e' AND b > 't' ORDER BY a;
+SELECT /*+ rowid_filter(t1 key_c)*/ a FROM t1
+  WHERE c < 'e' AND b > 't' and d < 'e';
 
 --echo # Enable rowid filter for the same index that is used to access data (impossible)
 EXPLAIN EXTENDED
-SELECT /*+ rowid_filter(t1 key_b)*/ a FROM t1 WHERE c < 'e' AND b > 't' ORDER BY a;
+SELECT /*+ rowid_filter(t1 key_d)*/ a FROM t1 WHERE c < 'e' AND b > 't' and d < 'e';
 
 --echo # Conflicting hints
 EXPLAIN EXTENDED
-SELECT /*+ no_rowid_filter(t1) ROWID_FILTER(t1 key_a)*/a FROM t1 WHERE c < 'e' AND b > 't' ORDER BY a;
+SELECT /*+ no_rowid_filter(t1) ROWID_FILTER(t1 key_a)*/a FROM t1
+  WHERE c < 'e' AND b > 't';
 
 EXPLAIN EXTENDED
 SELECT /*+ no_rowid_filter(t1 key_a, key_b) no_rowid_filter(t1 key_c, key_b)*/a FROM t1
@@ -77,6 +95,9 @@ EXPLAIN EXTENDED
 SELECT /*+ no_rowid_filter(t1 key_a,key_b) rowid_filter(t1 key_c)*/a FROM t1
   WHERE c < 'e' AND b > 't' ORDER BY a;
 
+# Warnings "Unresolved table/index name..." are generated during both prepare
+# and execution stages. So disable PS protocol to avoid duplication
+--disable_ps_protocol
 --echo # Wrong table name
 EXPLAIN EXTENDED
 SELECT /*+ no_rowid_filter(missing_table)*/a FROM t1
@@ -86,6 +107,7 @@ SELECT /*+ no_rowid_filter(missing_table)*/a FROM t1
 EXPLAIN EXTENDED
 SELECT /*+ rowid_filter(t1 wrong_key1, key_c, wrong_key2)*/ a FROM t1
   WHERE c < 'e' AND b > 't' ORDER BY a;
+--enable_ps_protocol
 
 --echo # Test cases mixing with index hints
 EXPLAIN EXTENDED
@@ -97,7 +119,8 @@ EXPLAIN EXTENDED
 SELECT /*+ index(t1 key_a) rowid_filter(t1 key_c)*/ a FROM t1
   WHERE c < 'e' AND b > 't' ORDER BY a;
 
---echo # OLEGS: for some reason rowid filter is not applied
+--echo # OLEGS: for some reason rowid filter is not applied.
+--echo # Probably INDEX() and FORCE INDEX() hints forbid using other indexes even for rowid-filtering
 EXPLAIN EXTENDED
 SELECT /*+ index(t1 key_a, key_b) rowid_filter(t1 key_c)*/ a FROM t1
   WHERE c < 'e' AND b > 't' ORDER BY a;
@@ -117,10 +140,9 @@ SELECT /*+ index(t1) rowid_filter(t1 key_c)*/ a FROM t1
   WHERE c < 'e' AND b > 't' ORDER BY a;
 
 --echo #  (OLEGS: test probably old-style ones as well)
-
---echo # OLEGS: force rowid-filter by hint
-
-
+EXPLAIN EXTENDED
+SELECT /*+ rowid_filter(t1)*/ a FROM t1 use index(key_b)
+  WHERE c < 'e' AND b > 't' ORDER BY a;
 
 
 --echo # Test interaction with FORCE_INDEX, USE_INDEX hints

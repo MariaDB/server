@@ -2770,6 +2770,7 @@ SQL_SELECT::test_quick_select(THD *thd,
     table_rec.add("rows", records).add("cost", read_time);
   }
 
+  // OLEGS: commented this out for debug
   keys_to_use.intersect(head->keys_in_use_for_query);
   if (!keys_to_use.is_clear_all())
   {

@@ -547,7 +547,7 @@ TABLE::best_range_rowid_filter(uint access_key_no, double records,
 
   Range_rowid_filter_cost_info *best_filter= 0;
   double best_filter_gain= DBL_MAX;
-  bool forced_filter_applied= false;
+  bool is_forced_filter_applied= false;
 
   key_map no_filter_usage= key_info[access_key_no].overlapped;
   no_filter_usage.merge(key_info[access_key_no].constraint_correlated);
@@ -575,12 +575,20 @@ TABLE::best_range_rowid_filter(uint access_key_no, double records,
                       in_use->variables.optimizer_where_cost) *
                      prev_records + filter->get_setup_cost());
     
-    if (best_filter_gain > new_total_cost ||
-        (filter->forced_by_hint && !forced_filter_applied))
+    if (is_forced_filter_applied)
+    {
+      // Only other forced filters can overwrite best_filter previously set by a forced filter
+      if (filter->forced_by_hint && new_total_cost < best_filter_gain)
+      {
+        best_filter_gain= new_total_cost;
+        best_filter= filter;
+      }
+    }
+    else if (new_total_cost < best_filter_gain || filter->forced_by_hint)
     {
       best_filter_gain= new_total_cost;
       best_filter= filter;
-      forced_filter_applied= filter->forced_by_hint;
+      is_forced_filter_applied= filter->forced_by_hint;
     }
   }
   return best_filter;
