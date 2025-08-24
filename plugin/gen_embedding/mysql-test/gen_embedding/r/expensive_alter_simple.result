@@ -1,0 +1,26 @@
+set generate_embedding_openai_host="http://127.0.0.1:OPENAI_PORT/success";
+drop table if exists exp_test_new;
+Warnings:
+Note	1051	Unknown table 'test.exp_test_new'
+create table exp_test_new (
+doc text,
+embedding vector(1536) as (generate_embedding_openai(doc, "text-embedding-ada-002")) stored
+) engine=MyISAM;
+show status like "%generate%";
+Variable_name	Value
+Generate_embedding_openai_successful_http_requests	0
+Generate_embedding_openai_total_http_requests	0
+insert into exp_test_new (doc) values ("abc");
+show status like "%generate%";
+Variable_name	Value
+Generate_embedding_openai_successful_http_requests	1
+Generate_embedding_openai_total_http_requests	1
+alter table exp_test_new add x int;
+show status like "%generate%";
+Variable_name	Value
+Generate_embedding_openai_successful_http_requests	1
+Generate_embedding_openai_total_http_requests	1
+select doc, x, embedding is null from exp_test_new;
+doc	x	embedding is null
+abc	NULL	0
+drop table exp_test_new;
