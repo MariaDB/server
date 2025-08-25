@@ -1053,7 +1053,7 @@ int Clone_Handle::scan(bool no_lock)
   {
     const char* fpath= nullptr;
 #ifdef _WIN32
-    std::string wstr= file_path.wstring();
+    std::wstring wstr= file_path.wstring();
     int size= WideCharToMultiByte(CP_UTF8, 0, &wstr[0],
                                   (int)wstr.size(), nullptr,
                                   0, nullptr, nullptr);
