@@ -1,0 +1,302 @@
+--echo *** MDEV-6321: close_temporary_tables() in format description event not serialised correctly ***
+
+--connection server_2
+SET @old_parallel_threads=@@GLOBAL.slave_parallel_threads;
+--source include/stop_slave.inc
+SET GLOBAL slave_parallel_threads=5;
+--source include/start_slave.inc
+
+--connection server_1
+CREATE TABLE t1 (a INT PRIMARY KEY, b VARCHAR(100) CHARACTER SET utf8);
+--source include/save_master_gtid.inc
+
+--connection server_2
+--source include/sync_with_master_gtid.inc
+--source include/stop_slave.inc
+
+
+--connection server_1
+SET gtid_domain_id= 1;
+INSERT INTO t1 VALUES (1, 0);
+
+CREATE TEMPORARY TABLE t2 (a int);
+
+--connection default
+SET gtid_domain_id= 2;
+CREATE TEMPORARY TABLE t3 (a INT PRIMARY KEY);
+CREATE TEMPORARY TABLE t4 (a int);
+INSERT INTO t3 VALUES (100);
+INSERT INTO t4 SELECT a+1 FROM t3;
+
+--connection server_1
+INSERT INTO t2 VALUES (2), (4), (6), (8), (10), (12), (14), (16), (18), (20);
+INSERT INTO t2 VALUES (3), (6), (9), (12), (15), (18);
+INSERT INTO t2 VALUES (4), (8), (12), (16), (20);
+
+--connection default
+INSERT INTO t3 SELECT a+2 FROM t4;
+INSERT INTO t4 SELECT a+4 FROM t3;
+
+--connection server_1
+INSERT INTO t2 VALUES (5), (10), (15), (20);
+INSERT INTO t2 VALUES (6), (12), (18);
+INSERT INTO t2 VALUES (7), (14);
+INSERT INTO t2 VALUES (8), (16);
+INSERT INTO t2 VALUES (9), (18);
+INSERT INTO t2 VALUES (10), (20);
+
+--connection default
+INSERT INTO t3 SELECT a+8 FROM t4;
+INSERT INTO t4 SELECT a+16 FROM t3;
+
+--connection server_1
+INSERT INTO t2 VALUES (11);
+INSERT INTO t2 VALUES (12);
+INSERT INTO t2 VALUES (13);
+
+--connection default
+INSERT INTO t3 SELECT a+32 FROM t4;
+
+--connection server_1
+INSERT INTO t2 VALUES (14);
+INSERT INTO t2 VALUES (15);
+INSERT INTO t2 VALUES (16);
+
+--connection default
+INSERT INTO t4 SELECT a+64 FROM t3;
+
+--connection server_1
+INSERT INTO t2 VALUES (17);
+INSERT INTO t2 VALUES (18);
+INSERT INTO t2 VALUES (19);
+
+--connection default
+INSERT INTO t3 SELECT a+128 FROM t4;
+
+--connection server_1
+INSERT INTO t2 VALUES (20);
+
+--connection default
+INSERT INTO t1 SELECT a, a MOD 7 FROM t3;
+INSERT INTO t1 SELECT a, a MOD 7 FROM t4;
+
+--connection server_1
+INSERT INTO t1 SELECT a, COUNT(*) FROM t2 GROUP BY a;
+
+# Crash the master server, so that temporary tables are implicitly dropped.
+--write_file $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
+wait
+EOF
+
+FLUSH TABLES;
+SET SESSION debug_dbug="+d,crash_dispatch_command_before";
+--error 2006,2013
+SELECT 1;
+
+--source include/wait_until_disconnected.inc
+--connection default
+--source include/wait_until_disconnected.inc
+
+--append_file $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
+restart
+EOF
+
+--connection default
+--enable_reconnect
+--source include/wait_until_connected_again.inc
+
+--connection server_1
+--enable_reconnect
+--source include/wait_until_connected_again.inc
+
+INSERT INTO t1 VALUES (0, 1);
+--source include/save_master_gtid.inc
+
+--connection server_2
+# Start the slave replicating the events.
+# The bug was that the format description event written after the crash could
+# be fetched ahead of the execution of the temporary table events and executed
+# out-of-band. This would cause drop of all temporary tables and thus failure
+# for execution of remaining events.
+
+--source include/start_slave.inc
+--source include/sync_with_master_gtid.inc
+
+SELECT * FROM t1 WHERE a <= 20 ORDER BY a;
+SELECT COUNT(*) FROM t1 WHERE a BETWEEN 100+0 AND 100+256;
+SHOW STATUS LIKE 'Slave_open_temp_tables';
+
+
+--echo *** Test that if master logged partial event group before crash, we finish that group correctly before executing format description event ***
+
+--source include/stop_slave.inc
+
+--connection server_1
+CALL mtr.add_suppression("Statement accesses nontransactional table as well as transactional or temporary table, and writes to any of them");
+SET gtid_domain_id= 1;
+DELETE FROM t1;
+ALTER TABLE t1 ENGINE=InnoDB;
+CREATE TEMPORARY TABLE t2 (a INT PRIMARY KEY);
+INSERT INTO t2 VALUES (1);
+INSERT INTO t2 VALUES (2);
+
+--connection default
+SET gtid_domain_id= 2;
+CREATE TEMPORARY TABLE t3 (a INT PRIMARY KEY);
+INSERT INTO t3 VALUES (10);
+INSERT INTO t3 VALUES (20);
+
+--connection server_1
+INSERT INTO t1 SELECT a, 'server_1' FROM t2;
+
+--connection default
+INSERT INTO t1 SELECT a, 'default' FROM t3;
+
+--connection server_1
+INSERT INTO t1 SELECT a+2, '+server_1' FROM t2;
+
+# Crash the master server in the middle of writing an event group.
+--write_file $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
+wait
+EOF
+
+# Don't run this part of the test when testing binlog-in-engine.
+# Because with binlog-in-engine, partial event groups cannot result
+# from server crash, binlog writes are atomic and crash-recovered.
+if (!$binlog_in_engine) {
+  FLUSH TABLES;
+  SET SESSION debug_dbug="+d,crash_before_writing_xid";
+  --error 2006,2013
+  INSERT INTO t1 SELECT a+4, '++server_1' FROM t2;
+
+--source include/wait_until_disconnected.inc
+--connection default
+--source include/wait_until_disconnected.inc
+}
+
+--append_file $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
+restart
+EOF
+
+if (!$binlog_in_engine) {
+--connection default
+--enable_reconnect
+--source include/wait_until_connected_again.inc
+
+--connection server_1
+--enable_reconnect
+--source include/wait_until_connected_again.inc
+}
+if ($binlog_in_engine) {
+  # Drop the temporary tables manually, as we did not crash the server.
+  --connection default
+  DROP TEMPORARY TABLE t3;
+  --connection server_1
+  DROP TEMPORARY TABLE t2;
+}
+
+INSERT INTO t1 VALUES (0, 1);
+--source include/save_master_gtid.inc
+
+--connection server_2
+# Start the slave replicating the events.
+# The main thing to test here is that the slave will know that it
+# needs to abort the partially received event group, so that the
+# execution of format_description event will not wait infinitely
+# for a commit of the incomplete group that never happens.
+
+# Apart from the suppression, MDEV-27697 refinement to the original test needs
+# an allowance to one time accept malformed event group.
+set @@sql_log_bin=0;
+call mtr.add_suppression("Unexpected break of being relay-logged GTID 1-1-32 event group by the current GTID event 0-1-4");
+set @@sql_log_bin=1;
+set @@global.debug_dbug="+d,slave_discard_xid_for_gtid_0_x_1000";
+--source include/start_slave.inc
+--source include/sync_with_master_gtid.inc
+set @@global.debug_dbug="";
+
+SELECT * FROM t1 ORDER BY a;
+SHOW STATUS LIKE 'Slave_open_temp_tables';
+
+--connection server_1
+# This FLUSH can be removed once MDEV-6608 is fixed.
+FLUSH LOGS;
+
+--echo *** MDEV-7936: Assertion `!table || table->in_use == _current_thd()' failed on parallel replication in optimistic mode ***
+
+--connection server_1
+CREATE TEMPORARY TABLE t4 (a INT PRIMARY KEY) ENGINE=InnoDB;
+SET @old_dbug= @@SESSION.debug_dbug;
+SET SESSION debug_dbug="+d,binlog_force_commit_id";
+SET @commit_id= 10000;
+INSERT INTO t4 VALUES (30);
+INSERT INTO t4 VALUES (31);
+SET SESSION debug_dbug= @old_dbug;
+INSERT INTO t1 SELECT a, "conservative" FROM t4;
+DROP TEMPORARY TABLE t4;
+SELECT * FROM t1 WHERE a >= 30 ORDER BY a;
+--source include/save_master_gtid.inc
+
+--connection server_2
+--source include/sync_with_master_gtid.inc
+
+SELECT * FROM t1 WHERE a >= 30 ORDER BY a;
+
+--source include/stop_slave.inc
+SET @old_mode= @@GLOBAL.slave_parallel_mode;
+SET GLOBAL slave_parallel_mode=optimistic;
+
+--connection server_1
+CREATE TEMPORARY TABLE t4 (a INT PRIMARY KEY) ENGINE=InnoDB;
+INSERT INTO t4 VALUES (32);
+INSERT INTO t4 VALUES (33);
+INSERT INTO t1 SELECT a, "optimistic" FROM t4;
+DROP TEMPORARY TABLE t4;
+
+SELECT * FROM t1 WHERE a >= 30 ORDER BY a;
+--source include/save_master_gtid.inc
+
+--connection server_2
+--source include/start_slave.inc
+--source include/sync_with_master_gtid.inc
+
+SELECT * FROM t1 WHERE a >= 30 ORDER BY a;
+
+--source include/stop_slave.inc
+SET GLOBAL slave_parallel_mode=@old_mode;
+--source include/start_slave.inc
+
+
+--echo *** MDEV33426: Memory allocation accounting incorrect for replicated temptable
+--connection server_1
+CREATE TEMPORARY TABLE t5 (a int) ENGINE=Aria;
+CREATE TEMPORARY TABLE t6 (a int) ENGINE=Heap;
+INSERT INTO t5 VALUES (1);
+INSERT INTO t6 VALUES (2);
+--source include/save_master_gtid.inc
+
+--connection server_2
+--source include/sync_with_master_gtid.inc
+--source include/stop_slave.inc
+
+--connection server_1
+INSERT INTO t1 SELECT a+40, 5 FROM t5;
+INSERT INTO t1 SELECT a+40, 6 FROM t6;
+DROP TABLE t5, t6;
+
+--source include/save_master_gtid.inc
+
+--connection server_2
+--source include/start_slave.inc
+--source include/sync_with_master_gtid.inc
+SELECT * FROM t1 WHERE a>=40 ORDER BY a;
+
+# Clean up.
+
+--connection server_2
+--source include/stop_slave.inc
+SET GLOBAL slave_parallel_threads=@old_parallel_threads;
+--source include/start_slave.inc
+
+--connection server_1
+DROP TABLE t1;
