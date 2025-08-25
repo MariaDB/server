@@ -1,2 +1,0 @@
-usr/lib/mysql/plugin/mariadb_clone.so usr/lib/mysql/plugin/
-etc/mysql/mariadb.conf.d/50-clone.cnf etc/mysql/mariadb.conf.d/

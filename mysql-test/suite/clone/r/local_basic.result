@@ -47,7 +47,6 @@ SELECT PLUGIN_NAME, PLUGIN_STATUS FROM INFORMATION_SCHEMA.PLUGINS
 WHERE PLUGIN_NAME LIKE '%clone%';
 PLUGIN_NAME	PLUGIN_STATUS
 clone	ACTIVE
-connection clone_conn_1;
 CLONE LOCAL DATA DIRECTORY = 'CLONE_DATADIR';
 connection default;
 # Restart server on cloned data directory
@@ -105,7 +104,6 @@ count(*)
 SET GLOBAL general_log = ON;
 SET GLOBAL slow_query_log = ON;
 # restart
-connection default;
 SHOW TABLES;
 Tables_in_test
 t1
@@ -125,6 +123,4 @@ DROP TABLE t_csv;
 DROP TABLE non_innodb.t_myisam;
 DROP TABLE non_innodb.t_csv;
 DROP SCHEMA non_innodb;
-disconnect clone_conn_1;
-connection default;
 UNINSTALL PLUGIN clone;

@@ -1,14 +1,7 @@
 # Test clone command
 --source include/have_innodb.inc
---source include/have_example_plugin.inc
---source include/have_log_bin.inc
 --source ../include/clone_connection_begin.inc
 --let $CLONE_DATADIR = $MYSQL_TMP_DIR/data_new
-
---disable_query_log
-call mtr.add_suppression("\\[Warning\\] .*MY-\\d+.* Non innodb table: .* is not cloned and is empty.");
-call mtr.add_suppression("\\[Warning\\] .*MY-\\d+.* Clone removing all user data for provisioning: .*");
---enable_query_log
 
 CREATE TABLE t1(col1 INT PRIMARY KEY, col2 char(64), FULLTEXT KEY fts_index(col2))ENGINE=InnoDB;
 
@@ -52,7 +45,6 @@ SELECT PLUGIN_NAME, PLUGIN_STATUS FROM INFORMATION_SCHEMA.PLUGINS
 WHERE PLUGIN_NAME LIKE '%clone%';
 
 # Clone data
---connection clone_conn_1
 --source ../include/clone_command.inc
 
 if (!$clone_remote_replace) {
@@ -95,7 +87,6 @@ if (!$clone_remote_replace) {
   --let restart_parameters=
   --source include/restart_mysqld.inc
 }
---connection default
 
 SHOW TABLES;
 SELECT * from t1 ORDER BY col1;
@@ -114,16 +105,4 @@ DROP SCHEMA non_innodb;
 if (!$clone_remote_replace) {
   --rmdir $CLONE_DATADIR
 }
-
-# Clean recipient by cloning the cleaned up donor
-if ($clone_remote_replace) {
-  --connection clone_conn_1
-  --let $clone_err = ER_SCHEMA_READ_ONLY
-  --source ../include/clone_command.inc
-  --let $clone_err = 0
-
-  --source ../include/clone_command.inc
-}
---source ../include/clone_connection_end.inc
-
 UNINSTALL PLUGIN clone;
