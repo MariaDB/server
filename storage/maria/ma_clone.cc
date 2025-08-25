@@ -98,7 +98,7 @@ void Locator::deserialize()
 
 std::pair<const unsigned char *, uint32_t> Locator::get_locator() const
 {
-  return std::make_pair(&m_serial[0], S_MAX_LENGTH);
+  return std::make_pair(&m_serial[0], static_cast<uint32_t>(S_MAX_LENGTH));
 }
 
 bool Locator::operator==(const Locator& other) const
