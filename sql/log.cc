@@ -7076,6 +7076,19 @@ Event_log::prepare_pending_rows_event(THD *thd, TABLE* table,
       flush the pending event and replace it with the newly created
       event...
     */
+    binlog_cache_mngr *cache_mngr= thd->binlog_get_cache_mngr();
+    
+    if (cache_mngr)
+    {
+      binlog_cache_data *cache_data= (cache_mngr->get_binlog_cache_data(is_transactional));
+      /*
+        If the ANNOTATE and TABLE_MAPS have been filtered earlier using binlog_dump_* then 
+        all events including the *_ROWS_EVENTs should get filtered as well
+      */
+      if (cache_data && cache_data->skip_cache_status == binlog_cache_data::CACHE_SKIP_ALL)
+        ev->flags|= LOG_EVENT_SKIP_REPLICATION_F;
+    }
+  
     if (unlikely(flush_and_set_pending_rows_event(thd, ev, cache_data,
                                                   is_transactional)))
     {
@@ -7169,7 +7182,7 @@ MYSQL_BIN_LOG::write_gtid_event(THD *thd, bool standalone,
       if (cache_mngr) 
       {
         binlog_cache_data* cache_data= cache_mngr->get_binlog_cache_data(is_transactional);
-        if (cache_data->skip_cache_status == binlog_cache_data::CACHE_SKIP_ALL)
+        if (cache_data && cache_data->skip_cache_status == binlog_cache_data::CACHE_SKIP_ALL)
         {
           DBUG_PRINT("info", ("GTID_EVENT: skip_cache_status == CACHE_SKIP_ALL, setting LOG_EVENT_SKIP_REPLICATION_F"));
           gtid_event.flags|= LOG_EVENT_SKIP_REPLICATION_F;
@@ -8248,7 +8261,7 @@ int Event_log::write_cache(THD *thd, binlog_cache_data *cache_data)
 
   mysql_mutex_assert_owner(&LOCK_log);
 
-  if (cache_data->init_for_read())
+  if (cache_data && cache_data->init_for_read())
     DBUG_RETURN(ER_ERROR_ON_WRITE);
 
   /*
@@ -9555,7 +9568,7 @@ int MYSQL_BIN_LOG::write_transaction_or_stmt(group_commit_entry *entry,
   {
     bool skip_gtid= false;
     binlog_cache_data* cache_data= mngr->get_binlog_cache_data(entry->using_trx_cache);
-    if (cache_data->skip_cache_status == binlog_cache_data::CACHE_SKIP_ALL)
+    if (cache_data && cache_data->skip_cache_status == binlog_cache_data::CACHE_SKIP_ALL)
       skip_gtid= true;
     if (write_gtid_event(entry->thd, is_prepared_xa(entry->thd),
                          entry->using_trx_cache, commit_id,
@@ -13296,8 +13309,8 @@ inline bool Binlog_commit_by_rotate::should_commit_by_rotate(
      file. It happens in the case binlog cache buffer is larger than
      threshold
    */
-  if (cache_data->file_reserved_bytes() == 0 ||
-      cache_data->cache_log.disk_writes == 0)
+  if (cache_data && (cache_data->file_reserved_bytes() == 0 ||
+      cache_data->cache_log.disk_writes == 0))
     return false;
 
   /*
@@ -13326,7 +13339,7 @@ bool Binlog_commit_by_rotate::commit(MYSQL_BIN_LOG::group_commit_entry *entry)
     cache_data= cache_mngr->get_binlog_cache_data(false);
 
   /* Call them before enter log_lock to avoid holding the lock long */
-  if (cache_data->sync_temp_file())
+  if (cache_data && cache_data->sync_temp_file())
     return true;
 
   /*

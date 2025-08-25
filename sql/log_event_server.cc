@@ -4730,15 +4730,6 @@ Rows_log_event::Rows_log_event(THD *thd_arg, TABLE *tbl_arg,
   DBUG_ASSERT((tbl_arg && tbl_arg->s &&
                (table_id & MAX_TABLE_MAP_ID) != UINT32_MAX) ||
               (!tbl_arg && !cols && (table_id & MAX_TABLE_MAP_ID) == UINT32_MAX));
-  
-  binlog_cache_mngr *cache_mngr= thd_arg->binlog_get_cache_mngr();
-  binlog_cache_data *cache_data= (cache_mngr->get_binlog_cache_data(is_transactional));
-  /*
-    If the ANNOTATE and TABLE_MAPS have been filtered earlier using binlog_dump_* then 
-    all events including the *_ROWS_EVENTs should get filtered as well
-  */
-  if (cache_data->skip_cache_status == binlog_cache_data::CACHE_SKIP_ALL)
-    flags|= LOG_EVENT_SKIP_REPLICATION_F;
   if (thd_arg->variables.option_bits & OPTION_NO_FOREIGN_KEY_CHECKS)
     set_flags(NO_FOREIGN_KEY_CHECKS_F);
   if (thd_arg->variables.option_bits & OPTION_RELAXED_UNIQUE_CHECKS)
