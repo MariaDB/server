@@ -59,6 +59,10 @@ SELECT a, b, length(c) FROM t2 ORDER BY a;
 SELECT a, b, length(c) FROM t1 ORDER BY a;
 SELECT a, b, length(c) FROM t2 ORDER BY a;
 
+# Test that master_pos_wait() is disabled when master is binlog-in-engine.
+--error ER_NOT_AVAILABLE_WITH_ENGINE_BINLOG
+SELECT MASTER_POS_WAIT("binlog-000000.ibb", 4096);
+
 --connection master
 DROP TABLE t1, t2;
 

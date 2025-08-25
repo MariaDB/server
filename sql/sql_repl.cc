@@ -5746,6 +5746,8 @@ int compare_log_name(const char *log_1, const char *log_2) {
   int res= 1;
   const char *ext1_str= strrchr(log_1, '.');
   const char *ext2_str= strrchr(log_2, '.');
+  if (!ext1_str || !ext2_str)
+    return strcmp(log_1, log_2);
   char file_name_1[255], file_name_2[255];
   strmake(file_name_1, log_1, (ext1_str - log_1));
   strmake(file_name_2, log_2, (ext2_str - log_2));

@@ -53,4 +53,5 @@ binlog-000000.ibb	#	Xid	#	#	COMMIT /* XID */
 binlog-000000.ibb	#	Gtid	#	#	BEGIN GTID #-#-#
 binlog-000000.ibb	#	Query	#	#	use `test`; INSERT INTO t1 VALUES (7)
 binlog-000000.ibb	#	Xid	#	#	COMMIT /* XID */
+binlog-000000.ibb	#	Format_desc	#	#	SERVER_VERSION, BINLOG_VERSION
 DROP TABLE t1;

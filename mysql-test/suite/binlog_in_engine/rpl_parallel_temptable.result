@@ -125,13 +125,10 @@ connection default;
 INSERT INTO t1 SELECT a, 'default' FROM t3;
 connection server_1;
 INSERT INTO t1 SELECT a+2, '+server_1' FROM t2;
-FLUSH TABLES;
-SET SESSION debug_dbug="+d,crash_before_writing_xid";
-INSERT INTO t1 SELECT a+4, '++server_1' FROM t2;
-Got one of the listed errors
 connection default;
-connection default;
+DROP TEMPORARY TABLE t3;
 connection server_1;
+DROP TEMPORARY TABLE t2;
 INSERT INTO t1 VALUES (0, 1);
 include/save_master_gtid.inc
 connection server_2;

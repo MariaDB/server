@@ -39,7 +39,7 @@ while ($wait_counter)
     if ($_tid)
     {
         --error 0,ER_NO_SUCH_THREAD
-        eval KILL QUERY $_tid;
+        eval KILL CONNECTION $_tid;
     }
     if (!$_tid)
     {
