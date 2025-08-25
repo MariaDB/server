@@ -1,0 +1,40 @@
+# MyISAM table with 400 partitions
+INSTALL PLUGIN clone SONAME 'CLONE_PLUGIN';
+SELECT PLUGIN_NAME, PLUGIN_STATUS
+FROM INFORMATION_SCHEMA.PLUGINS
+WHERE PLUGIN_NAME LIKE '%clone%';
+PLUGIN_NAME	PLUGIN_STATUS
+clone	ACTIVE
+DROP TABLE IF EXISTS t1;
+Warnings:
+Note	1051	Unknown table 'test.t1'
+CREATE TABLE t1 (
+id BIGINT NOT NULL AUTO_INCREMENT,
+PRIMARY KEY (id)
+) ENGINE=MyISAM
+PARTITION BY HASH (id)
+PARTITIONS 400;
+insert into t1 values (1),(2),(3),(4);
+# clone Begins
+# CLONE_DATADIR=/home/satish/WORKSPACE/server/clone/bld_clone-debug/mysql-test/var/tmp/clone_partition_400
+CLONE LOCAL DATA DIRECTORY = 'CLONE_DATADIR';
+connection default;
+# Restart server on cloned data directory
+# restart: with restart_parameters
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `id` bigint(20) NOT NULL AUTO_INCREMENT,
+  PRIMARY KEY (`id`)
+) ENGINE=MyISAM AUTO_INCREMENT=5 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+ PARTITION BY HASH (`id`)
+PARTITIONS 400
+SELECT COUNT(*) FROM t1;
+COUNT(*)
+4
+# restart
+connection default;
+DROP TABLE t1;
+UNINSTALL PLUGIN clone;
+disconnect clone_conn_1;
+connection default;

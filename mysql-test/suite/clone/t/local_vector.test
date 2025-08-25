@@ -1,0 +1,89 @@
+--echo # Clone test for VECTOR data type and indexes (InnoDB + MyISAM)
+
+--source include/have_innodb.inc
+--source include/have_example_plugin.inc
+--source include/have_log_bin.inc
+--source ../include/clone_connection_begin.inc
+
+# Install Clone Plugin
+--replace_result $MARIADB_CLONE_SO CLONE_PLUGIN
+--eval INSTALL PLUGIN clone SONAME '$MARIADB_CLONE_SO'
+
+SELECT PLUGIN_NAME, PLUGIN_STATUS
+  FROM INFORMATION_SCHEMA.PLUGINS
+  WHERE PLUGIN_NAME LIKE '%clone%';
+
+# Creating donor tables
+
+DROP TABLE IF EXISTS t_innodb, t_myisam;
+
+CREATE TABLE t_innodb (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  v VECTOR(5) NOT NULL,
+  VECTOR INDEX (v)
+) ENGINE=InnoDB;
+
+INSERT INTO t_innodb (v) VALUES
+  (Vec_FromText('[0.418,0.809,0.823,0.598,0.033]')),
+  (Vec_FromText('[0.687,0.789,0.496,0.574,0.917]')),
+  (Vec_FromText('[0.333,0.962,0.467,0.448,0.475]'));
+
+CREATE TABLE t_myisam (
+  a INT,
+  v VECTOR(1) NOT NULL,
+  VECTOR(v)
+) ENGINE=MyISAM;
+
+INSERT INTO t_myisam VALUES
+  (1, 0x31313131),
+  (2, 0x32323232);
+
+# Verify queries work before clone
+SELECT * FROM t_innodb
+  ORDER BY vec_distance_euclidean(v, Vec_FromText('[1,0,0,0,0]'))
+  LIMIT 1;
+
+SELECT * FROM t_myisam
+  ORDER BY vec_distance_euclidean(v, 0x30303030)
+  LIMIT 1;
+
+# Starting a local clone
+--connection clone_conn_1
+--let $CLONE_DATADIR=$MYSQL_TMP_DIR/clone_vector_test
+--replace_result $CLONE_DATADIR CLONE_DATADIR
+--let $clone_err=0
+--source ../include/clone_command.inc
+
+--echo # Restart server on cloned data directory
+--connection default
+--let $restart_noprint=1
+--let restart_parameters=--datadir=$CLONE_DATADIR
+--source include/restart_mysqld.inc
+
+# Validate on Clone
+
+SHOW CREATE TABLE t_innodb;
+SHOW CREATE TABLE t_myisam;
+
+SELECT id, Vec_ToText(v) FROM t_innodb;
+SELECT a, Vec_ToText(v) FROM t_myisam;
+
+# Run queries again after clone
+SELECT id FROM t_innodb
+  ORDER BY vec_distance_euclidean(v, Vec_FromText('[1,0,0,0,0]'))
+  LIMIT 1;
+
+SELECT * FROM t_myisam
+  ORDER BY vec_distance_euclidean(v, 0x30303030)
+  LIMIT 1;
+
+--let restart_parameters=
+--source include/restart_mysqld.inc
+
+# Cleanup
+--connection default
+DROP TABLE t_innodb, t_myisam;
+--rmdir $CLONE_DATADIR
+
+--source ../include/clone_connection_end.inc
+UNINSTALL PLUGIN clone;
