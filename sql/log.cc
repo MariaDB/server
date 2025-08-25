@@ -4446,8 +4446,40 @@ MYSQL_BIN_LOG::open_engine(handlerton *hton, ulong max_size, const char *dir)
 {
   binlog_max_spill_size= std::min((size_t)(max_size / 2), BINLOG_SPILL_MAX);
   bool err= (*hton->binlog_init)((size_t)max_size, dir);
-  if (!err)
-    log_state= LOG_OPENED;
+  if (err)
+    goto exit_error;
+
+  log_state= LOG_OPENED;
+
+  {
+    /*
+      Write a format description event to the binlog at server restart.
+      With --binlog-storage-engine, we do not write a format description event
+      at the start of every binlog file (indeed, the "start of binlog file" is
+      mostly a meaningless concept). But we want to inform the slaves about
+      master server restarts, and sending a format description event (with the
+      `created' flag set) is a backwards-compatible way of doing so.
+    */
+    Format_description_log_event s(BINLOG_VERSION, NULL,
+                                   BINLOG_CHECKSUM_ALG_OFF);
+    s.dont_set_created= false;
+    IO_CACHE cache;
+    init_io_cache(&cache, (File)-1, binlog_cache_size, WRITE_CACHE, 0, false,
+                  MYF(MY_DONT_CHECK_FILESIZE));
+    handler_binlog_event_group_info engine_context= { nullptr, 0, 0 };
+    write_event(&s, BINLOG_CHECKSUM_ALG_OFF, 0, &cache);
+    mysql_mutex_lock(&LOCK_commit_ordered);
+    (*opt_binlog_engine_hton->binlog_write_direct_ordered) (&cache,
+                                                            &engine_context,
+                                                            nullptr);
+    mysql_mutex_unlock(&LOCK_commit_ordered);
+    (*opt_binlog_engine_hton->binlog_write_direct) (&cache,
+                                                    &engine_context,
+                                                    nullptr);
+    end_io_cache(&cache);
+  }
+
+exit_error:
   return err;
 }
 

@@ -48,8 +48,7 @@ set global rpl_semi_sync_master_enabled= 0;
 set global rpl_semi_sync_slave_enabled= 0;
 
 connection master;
---source include/kill_binlog_dump_threads.inc
-reset master;
+--source include/reset_master.inc
 set global rpl_semi_sync_master_enabled= 0;
 set global rpl_semi_sync_slave_enabled= 0;
 
@@ -104,7 +103,7 @@ show status like 'Rpl_semi_sync_master_status';
 show status like 'Rpl_semi_sync_master_yes_tx';
 
 # reset master to make sure the following test will start with a clean environment
-reset master;
+--source include/reset_master.inc
 
 connection slave;
 
@@ -355,8 +354,7 @@ source include/stop_slave.inc;
 echo [ test reset master ];
 connection master;
 
---source include/kill_binlog_dump_threads.inc
-reset master;
+--source include/reset_master.inc
 
 show status like 'Rpl_semi_sync_master_status';
 show status like 'Rpl_semi_sync_master_no_tx';
@@ -406,8 +404,7 @@ connection slave;
 source include/stop_slave.inc;
 --source include/reset_slave.inc
 connection master;
---source include/kill_binlog_dump_threads.inc
-reset master;
+--source include/reset_master.inc
 
 # Kill the dump thread on master for previous slave connection and wait for it to exit
 --source include/kill_binlog_dump_threads.inc
