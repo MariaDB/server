@@ -32,6 +32,7 @@ CALL sys.ps_setup_enable_consumer('events_statements%');
 --replace_regex /[0-9]/X/
 CALL sys.ps_setup_enable_consumer('events_stages%');
 
+--disable_ps_protocol
 SELECT *
 FROM performance_schema.setup_instruments
 WHERE name LIKE "%stage/innodb/clone%"

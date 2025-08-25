@@ -155,7 +155,8 @@ Descriptor::Descriptor(const std::string &file_name, uint64_t offset)
   if (m_file_name_len)
   {
     auto available_length= S_MAX_LENGTH - S_MAX_META_LENGTH;
-    auto cp_length= std::min<uint32_t>(m_file_name_len, available_length);
+    auto cp_length= static_cast<uint32_t>(
+      std::min(m_file_name_len, available_length));
     memcpy(ptr, file_name.c_str(), cp_length);
   }
 }

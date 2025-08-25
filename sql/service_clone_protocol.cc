@@ -111,7 +111,7 @@ THD* clone_start_statement(THD *thd, PSI_thread_key thread_key,
       thd->m_statement_psi = MYSQL_START_STATEMENT(
           &thd->m_statement_state, statement_key, thd->get_db(),
           thd->db.length, thd->charset(), nullptr);
-    } else {
+    } else if (thd->get_command() != COM_STMT_EXECUTE) {
       thd->m_statement_psi=
           MYSQL_REFINE_STATEMENT(thd->m_statement_psi, statement_key);
     }

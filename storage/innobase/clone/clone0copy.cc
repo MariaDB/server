@@ -441,7 +441,7 @@ Clone_file_ctx *Clone_Snapshot::build_file(const char *file_name,
   uint64_t aligned_size = sizeof(Clone_file_ctx);
 
   auto file_ctx = static_cast<Clone_file_ctx *>(
-      mem_heap_alloc(m_snapshot_heap, aligned_size));
+      mem_heap_alloc(m_snapshot_heap, static_cast<uint>(aligned_size)));
 
   if (file_ctx == nullptr) {
     /* purecov: begin inspected */

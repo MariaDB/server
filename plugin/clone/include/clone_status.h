@@ -406,7 +406,7 @@ class Progress_pfs : public Table_pfs
       }
       m_states[m_current_stage] = STATE_STARTED;
       m_id = id;
-      m_threads[m_current_stage] = threads;
+      m_threads[m_current_stage] = static_cast<uint32_t>(threads);
 
       /* Set time at beginning. */
       m_start_time[m_current_stage] = microsecond_interval_timer();
