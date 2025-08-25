@@ -421,8 +421,8 @@ void TABLE::init_cost_info_for_usable_range_rowid_filters(THD *thd)
   {
     *curr_ptr= curr_filter_cost_info;
     curr_filter_cost_info->init(SORTED_ARRAY_CONTAINER, this, key_no);
-    curr_filter_cost_info->forced_by_hint=
-        hint_key_state(thd, this, key_no, ROWID_FILTER_HINT_ENUM, false);
+    curr_filter_cost_info->forced_by_hint= keys_in_use_for_rowid_filter.is_set(key_no);
+        // OLEGS: hint_key_state(thd, this, key_no, ROWID_FILTER_HINT_ENUM, false);
     curr_ptr++;
     curr_filter_cost_info++;
   }

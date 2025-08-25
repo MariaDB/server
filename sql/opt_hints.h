@@ -679,6 +679,7 @@ public:
   Opt_hints_key_bitmap join_index_map;   // JOIN_INDEX(), NO_JOIN_INDEX()
   Opt_hints_key_bitmap group_index_map;  // GROUP_INDEX(), NO_GROUP_INDEX()
   Opt_hints_key_bitmap order_index_map;  // ORDER_INDEX(), NO_ORDER_INDEX()
+  Opt_hints_key_bitmap rowid_filter_map; // ROWID_FILTER(), NO_ROWID_FILTER()
 
   Opt_hints_table(const Lex_ident_sys &table_name_arg,
                   Opt_hints_qb *qb_hints_arg,

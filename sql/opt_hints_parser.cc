@@ -493,13 +493,14 @@ bool Parser::Table_level_hint::resolve(Parse_context *pc) const
     - table level hints: only table name specified but no index names
     - index level hints: both table name and index names specified
   - 2 kinds of hints:
-    - global: [NO_]INDEX
+    - global: [NO_]INDEX, [NO_]ROWID_FILTER
     - non-global: [NO_]JOIN_INDEX, [NO_]GROUP_INDEX, [NO_]ORDER_INDEX
-  - 4 types of hints:
+  - 5 types of hints:
     - [NO_]JOIN_INDEX
     - [NO_]GROUP_INDEX
     - [NO_]ORDER_INDEX
     - [NO_]INDEX
+    - [NO_]ROWID_FILTER
 
   Conflict checking
   - A conflict happens if and only if

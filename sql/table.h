@@ -1378,6 +1378,8 @@ public:
   key_map keys_in_use_for_group_by;
   /* Map of keys that can be used to calculate ORDER BY without sorting */
   key_map keys_in_use_for_order_by;
+  /* Map of keys that can be used to build ROWID filters */
+  key_map keys_in_use_for_rowid_filter;
   /* Map of keys dependent on some constraint */
   key_map constraint_dependent_keys;
   KEY  *key_info;			/* data of keys in database */
