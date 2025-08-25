@@ -1316,15 +1316,12 @@ innodb_binlog_init(size_t binlog_size, const char *directory)
   }
 
   start_binlog_prealloc_thread();
-  if (res < 0)
-  {
-    /*
-      We are creating binlogs anew from scratch.
-      Write and fsync the initial file-header, so that recovery will know where
-      to start in case of a crash.
-    */
-    binlog_sync_initial();
-  }
+  /*
+    We are creating binlogs anew from scratch.
+    Write and fsync the initial file-header, so that recovery will know where
+    to start in case of a crash.
+  */
+  binlog_sync_initial();
 
   return false;
 }
@@ -1578,7 +1575,11 @@ innodb_binlog_discover()
 
   int res= scan_for_binlogs(innodb_binlog_directory, &binlog_files, false);
   if (res <= 0)
+  {
+    if (res == 0)
+      ibb_pending_lsn_fifo.init(0);
     return res;
+  }
 
   /*
     Now, if we found any binlog files, locate the point in one of them where

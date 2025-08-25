@@ -1,11 +1,12 @@
---source include/have_innodb.inc
 --source include/have_debug.inc
---source include/have_binlog_format_statement.inc
 # Valgrind does not work well with test that crashes the server
 --source include/not_valgrind.inc
 --let $rpl_topology=1->2
 --source include/rpl_init.inc
+--source include/have_binlog_format_statement.inc
+--source include/have_innodb_binlog.inc
 
+--let $binlog_in_engine= 1
 --source include/rpl_parallel_temptable.inc
 
 --source include/rpl_end.inc

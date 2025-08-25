@@ -409,6 +409,8 @@ a	b	length(c)
 3112	2	40001
 3113	1	40000
 3114	2	40000
+SELECT MASTER_POS_WAIT("binlog-000000.ibb", 4096);
+ERROR HY000: master_pos_wait() is not available when --binlog-storage-engine is enabled
 connection master;
 DROP TABLE t1, t2;
 CALL mtr.add_suppression('Statement is unsafe because it accesses a non-transactional table after accessing a transactional table');
