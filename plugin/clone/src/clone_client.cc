@@ -179,7 +179,9 @@ void Client_Stat::update(bool reset, const Thread_Vector &threads,
 
     data_speed= (data_inc * 1000) / value_ms;
     net_speed= (net_inc * 1000) / value_ms;
-    Client::update_pfs_data(data_inc, net_inc, data_speed, net_speed,
+    Client::update_pfs_data(data_inc, net_inc,
+                            static_cast<uint32_t>(data_speed),
+                            static_cast<uint32_t>(net_speed),
                             num_workers);
   }
 
@@ -354,8 +356,8 @@ bool Client_Stat::tune_has_improved(uint32_t num_threads)
 
   assert(m_current_history_index > 0);
   auto last_index= (m_current_history_index - 1) % STAT_HISTORY_SIZE;
-  auto data_speed= m_data_speed_history[last_index];
-  auto target_speed= m_tune.m_prev_speed;
+  double data_speed= m_data_speed_history[last_index];
+  double target_speed= m_tune.m_prev_speed;
 
   if (gap_target == gap_current)
     /* We continue if at least 25% improvement after reaching target. */
@@ -375,13 +377,11 @@ bool Client_Stat::tune_has_improved(uint32_t num_threads)
 
   if (data_speed < target_speed)
     snprintf(info_mesg, MESG_SZ,
-             "Tune stop, Data: %" PRIu64 " MiB/sec, Target: %" PRIu64
-             " MiB/sec.",
+             "Tune stop, Data: %f MiB/sec, Target: %f MiB/sec.",
              data_speed, target_speed);
   else
     snprintf(info_mesg, MESG_SZ,
-             "Tune continue, Data: %" PRIu64 " MiB/sec, Target: %" PRIu64
-             " MiB/sec",
+             "Tune continue, Data: %f MiB/sec, Target: %f MiB/sec",
              data_speed, target_speed);
 
   LogPluginErr(INFORMATION_LEVEL, ER_CLONE_CLIENT_TRACE, info_mesg);
@@ -410,7 +410,7 @@ void Client_Stat::tune_set_target(uint32_t num_threads, uint32_t max_threads)
   }
   assert(m_tune.m_cur_number == num_threads);
   /* We attempt to improve performance by adding more threads in steps. */
-  m_tune.m_cur_number+= m_tune.m_step;
+  m_tune.m_cur_number+= static_cast<uint32_t>(m_tune.m_step);
   m_tune.m_last_step_speed= current_speed;
 
   /* Should not set more than the current target. */
@@ -420,7 +420,7 @@ void Client_Stat::tune_set_target(uint32_t num_threads, uint32_t max_threads)
   const size_t MESG_SZ= 128;
   char info_mesg[MESG_SZ];
   snprintf(info_mesg, MESG_SZ,
-           "Tune Threads from: %u to: %u prev: %u target: %u",
+           "Tune Threads from: %u to: %d prev: %d target: %d",
            num_threads, m_tune.m_cur_number, m_tune.m_prev_number,
            m_tune.m_next_number);
   LogPluginErr(INFORMATION_LEVEL, ER_CLONE_CLIENT_TRACE, info_mesg);
@@ -2001,7 +2001,7 @@ int Client::set_descriptor(const uchar *buffer, size_t length)
   }
   Ha_clone_cbk *clone_callback= new Client_Cbk(this);
 
-  clone_callback->set_data_desc(buffer, length);
+  clone_callback->set_data_desc(buffer, static_cast<uint>(length));
   clone_callback->clear_flags();
   clone_callback->set_hton(loc->m_hton);
   clone_callback->set_loc_index(loc_index);
@@ -2229,7 +2229,7 @@ int Client_Cbk::apply_cbk(Ha_clone_file to_file, bool apply_file,
   if (!is_os_buffer_cache())
   {
     /* Allocate aligned buffer */
-    buf_ptr= client->get_aligned_buffer(length);
+    buf_ptr= client->get_aligned_buffer(static_cast<uint32_t>(length));
 
     if (buf_ptr == nullptr)
     {
@@ -2240,7 +2240,8 @@ int Client_Cbk::apply_cbk(Ha_clone_file to_file, bool apply_file,
   }
 
   if (apply_file)
-    err= clone_os_copy_buf_to_file(buf_ptr, to_file, length, get_dest_name());
+    err= clone_os_copy_buf_to_file(buf_ptr, to_file, static_cast<uint>(length),
+                                   get_dest_name());
   else
   {
     err= 0;

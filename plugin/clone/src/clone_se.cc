@@ -94,7 +94,8 @@ void Locator::deserialize()
 
 std::pair<const unsigned char *, uint32_t> Locator::get_locator() const
 {
-  return std::make_pair(&m_serial[0], S_MAX_LENGTH);
+  return std::make_pair(&m_serial[0],
+		        static_cast<uint32_t>(S_MAX_LENGTH));
 }
 
 bool Locator::operator==(const Locator& other) const
@@ -183,7 +184,8 @@ static int send_data(Ha_clone_cbk *cbk_ctx, const unsigned char* data,
   cbk_ctx->set_data_desc(desc, desc_len);
   cbk_ctx->clear_flags();
   cbk_ctx->set_os_buffer_cache();
-  return cbk_ctx->buffer_cbk(const_cast<unsigned char*>(data), data_len);
+  return cbk_ctx->buffer_cbk(const_cast<unsigned char*>(data),
+                             static_cast<uint>(data_len));
 }
 
 static int send_file(File file_desc, uchar *buf, size_t buf_size,
@@ -680,7 +682,7 @@ size_t Clone_Handle::attach()
   assert(id < S_MAX_TASKS);
 
   auto &ctx= m_thread_ctxs[id];
-  ctx.m_task_id= id;
+  ctx.m_task_id= static_cast<uint32_t>(id);
   assert(ctx.m_file == -1);
 
   m_num_threads++;

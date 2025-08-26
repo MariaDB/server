@@ -339,7 +339,8 @@ int Local_Callback::apply_cbk(Ha_clone_file to_file, bool apply_file,
 
     if (apply_file) {
       error = clone_os_copy_buf_to_file(from_buf->m_buffer, to_file,
-                                        from_buf->m_length, get_dest_name());
+                                        static_cast<uint32_t>(from_buf->m_length),
+					get_dest_name());
     } else {
       error = 0;
       to_buffer = from_buf->m_buffer;
