@@ -5727,7 +5727,7 @@ public:
         return variables.idle_transaction_timeout;
     }
 
-    return variables.net_wait_timeout;
+    return uint(variables.net_wait_timeout);
   }
 
   /**

@@ -2029,12 +2029,12 @@ public:
   /**
     TIME or DATETIME precision of the item: 0..6
   */
-  uint time_precision(THD *thd)
+  decimal_digits_t time_precision(THD *thd)
   {
     return const_item() ? type_handler()->Item_time_precision(thd, this) :
                           MY_MIN(decimals, TIME_SECOND_PART_DIGITS);
   }
-  uint datetime_precision(THD *thd)
+  decimal_digits_t datetime_precision(THD *thd)
   {
     return const_item() ? type_handler()->Item_datetime_precision(thd, this) :
                           MY_MIN(decimals, TIME_SECOND_PART_DIGITS);

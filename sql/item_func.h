@@ -1118,8 +1118,8 @@ protected:
   inline void fix_decimals()
   {
     DBUG_ASSERT(result_type() == DECIMAL_RESULT);
-    if (decimals == NOT_FIXED_DEC)
-      set_if_smaller(decimals, max_length - 1);
+    if (decimals == NOT_FIXED_DEC && decimals >= max_length)
+      decimals= decimal_digits_t(max_length - 1);
   }
 
 public:
@@ -1507,7 +1507,8 @@ public:
   {
     return args[0]->type_handler()->Item_func_unsigned_fix_length_and_dec(this);
   }
-  decimal_digits_t decimal_precision() const override { return max_length; }
+  decimal_digits_t decimal_precision() const override
+  { return decimal_digits_t(max_length); }
   void print(String *str, enum_query_type query_type) override;
   Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_func_unsigned>(thd, this); }
@@ -1518,7 +1519,8 @@ class Item_decimal_typecast :public Item_func
 {
   my_decimal decimal_value;
 public:
-  Item_decimal_typecast(THD *thd, Item *a, uint len, decimal_digits_t dec)
+  Item_decimal_typecast(THD *thd, Item *a,
+                        decimal_digits_t len, decimal_digits_t dec)
    :Item_func(thd, a)
   {
     decimals= dec;

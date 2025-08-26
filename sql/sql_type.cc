@@ -785,7 +785,7 @@ Interval_DDhhmmssff::push_warning_wrong_or_truncated_value(THD *thd,
 }
 
 
-uint Interval_DDhhmmssff::fsp(THD *thd, Item *item)
+decimal_digits_t Interval_DDhhmmssff::fsp(THD *thd, Item *item)
 {
   switch (item->cmp_type()) {
   case INT_RESULT:
