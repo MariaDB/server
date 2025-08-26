@@ -1326,6 +1326,10 @@ sp_head::execute(THD *thd, bool merge_da_on_success)
   thd->rec_tables= 0;
   save_sql_mode= thd->variables.sql_mode;
   thd->variables.sql_mode= m_sql_mode;
+  /* If mode change to oracle, increment statistics */
+  if (thd->variables.sql_mode & MODE_ORACLE &&
+      (save_sql_mode & MODE_ORACLE) == 0)
+    thd->status_var.feature_sqlmode_oracle++;
   save_abort_on_warning= thd->abort_on_warning;
   thd->abort_on_warning= 0;
   /**

@@ -14,10 +14,12 @@ Feature_insert_returning	0
 Feature_invisible_columns	0
 Feature_json	0
 Feature_locale	0
+Feature_sql_mode_oracle	0
 Feature_subquery	0
 Feature_system_versioning	0
 Feature_timezone	0
 Feature_trigger	0
+Feature_unique_hash_index	0
 Feature_window_functions	0
 Feature_xml	0
 #
@@ -67,6 +69,24 @@ drop table t1;
 show status like "feature_fulltext";
 Variable_name	Value
 Feature_fulltext	2
+#
+# Feature unique_hash_index
+#
+CREATE TABLE t1 (a int primary key, b VARCHAR(2000), unique (b) using hash);
+INSERT INTO t1 VALUES(1, "MariaDB has support for unique hash"),
+(2, "Second promotion");
+select * from t1;
+a	b
+1	MariaDB has support for unique hash
+2	Second promotion
+select * from t1;
+a	b
+1	MariaDB has support for unique hash
+2	Second promotion
+drop table t1;
+show status like "feature_unique_hash_index";
+Variable_name	Value
+Feature_unique_hash_index	2
 #
 # Feature locale
 #
@@ -187,3 +207,40 @@ drop table t1;
 show status like "feature_insert_returning";
 Variable_name	Value
 Feature_insert_returning	1
+#
+# Feature oracle mode
+#
+set sql_mode=oracle;
+set sql_mode="";
+show status like "feature_sql_mode_oracle";
+Variable_name	Value
+Feature_sql_mode_oracle	1
+set sql_mode=oracle;
+create procedure dummy() as
+begin
+end;
+set sql_mode="";
+show create procedure dummy;
+Procedure	sql_mode	Create Procedure	character_set_client	collation_connection	Database Collation
+dummy	PIPES_AS_CONCAT,ANSI_QUOTES,IGNORE_SPACE,ORACLE,NO_KEY_OPTIONS,NO_TABLE_OPTIONS,NO_FIELD_OPTIONS,NO_AUTO_CREATE_USER,SIMULTANEOUS_ASSIGNMENT	CREATE DEFINER="root"@"localhost" PROCEDURE "dummy"()
+as
+begin
+end	latin1	latin1_swedish_ci	latin1_swedish_ci
+call dummy();
+show status like "feature_sql_mode_oracle";
+Variable_name	Value
+Feature_sql_mode_oracle	3
+call dummy();
+show status like "feature_sql_mode_oracle";
+Variable_name	Value
+Feature_sql_mode_oracle	4
+set sql_mode=oracle;
+call dummy();
+call dummy();
+call dummy();
+set sql_mode="";
+show status like "feature_sql_mode_oracle";
+Variable_name	Value
+Feature_sql_mode_oracle	5
+drop procedure dummy;
+set sql_mode="";

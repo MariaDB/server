@@ -51,3 +51,5 @@ execute stmt;
 execute stmt;
 
 deallocate prepare stmt;
+
+select * from information_schema.feedback where variable_name like "cpu%";

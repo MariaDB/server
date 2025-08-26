@@ -997,6 +997,8 @@ typedef struct system_status_var
   ulong optimizer_join_prefixes_check_calls;
 
   /* Features used */
+  ulong feature_application_time_periods;
+                                    /* +1 opening a table with application-time period */
   ulong feature_custom_aggregate_functions; /* +1 when custom aggregate
                                             functions are used */
   ulong feature_dynamic_columns;    /* +1 when creating a dynamic column */
@@ -1005,10 +1007,10 @@ typedef struct system_status_var
   ulong feature_invisible_columns;     /* +1 opening a table with invisible column */
   ulong feature_json;		    /* +1 when JSON function appears in the statement */
   ulong feature_locale;		    /* +1 when LOCALE is set */
+  ulong feature_long_hash_index;    /* +1 when hash unique index is used */
+  ulong feature_sqlmode_oracle;     /* +1 when sql_mode=oracle is used */
   ulong feature_subquery;	    /* +1 when subqueries are used */
   ulong feature_system_versioning;  /* +1 opening a table WITH SYSTEM VERSIONING */
-  ulong feature_application_time_periods;
-                                    /* +1 opening a table with application-time period */
   ulong feature_insert_returning;  /* +1 when INSERT...RETURNING is used */
   ulong feature_timezone;	    /* +1 when XPATH is used */
   ulong feature_trigger;	    /* +1 opening a table with triggers */

@@ -3856,11 +3856,17 @@ export sql_mode_t expand_sql_mode(sql_mode_t sql_mode)
                 MODE_IGNORE_SPACE);
   }
   if (sql_mode & MODE_ORACLE)
+  {
     sql_mode|= (MODE_PIPES_AS_CONCAT | MODE_ANSI_QUOTES |
                 MODE_IGNORE_SPACE |
                 MODE_NO_KEY_OPTIONS | MODE_NO_TABLE_OPTIONS |
                 MODE_NO_FIELD_OPTIONS | MODE_NO_AUTO_CREATE_USER |
                 MODE_SIMULTANEOUS_ASSIGNMENT);
+    if (current_thd)
+      current_thd->status_var.feature_sqlmode_oracle++;
+    else
+      global_status_var.feature_sqlmode_oracle++;
+  }
   if (sql_mode & MODE_MSSQL)
     sql_mode|= (MODE_PIPES_AS_CONCAT | MODE_ANSI_QUOTES |
                 MODE_IGNORE_SPACE |
@@ -3892,6 +3898,7 @@ export sql_mode_t expand_sql_mode(sql_mode_t sql_mode)
                 MODE_NO_ENGINE_SUBSTITUTION);
   return sql_mode;
 }
+
 static bool check_sql_mode(sys_var *self, THD *thd, set_var *var)
 {
   var->save_result.ulonglong_value=

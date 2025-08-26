@@ -19,6 +19,11 @@
 #include <unistd.h>
 #endif
 
+/* gcc 11.4 gets confused by strmov / stpcpy */
+#if defined(__GNUC__) && __GNUC__ >= 11
+#pragma GCC diagnostic ignored "-Wstringop-overflow";
+#endif
+
 #if defined (_WIN32)
 #define HAVE_SYS_UTSNAME_H
 
@@ -112,9 +117,9 @@ static int uname(struct utsname *buf)
   else
   {
     /* Fallback for unknown versions, e.g "Windows <major_ver>.<minor_ver>" */
-    sprintf(buf->version, "Windows %d.%d%s",
-      (int)ver.dwMajorVersion, (int)ver.dwMinorVersion,
-      (ver.wProductType == VER_NT_WORKSTATION ? "" : " Server"));
+    snprintf(buf->version, sizeof(buf->version)-1, "Windows %d.%d%s",
+             (int)ver.dwMajorVersion, (int)ver.dwMinorVersion,
+             (ver.wProductType == VER_NT_WORKSTATION ? "" : " Server"));
   }
 
 #ifdef _WIN64
@@ -255,6 +260,92 @@ int my_getncpus()
 #endif
 }
 
+/*
+  This function parses the output from /proc/cpuinfo or lscpu
+*/
+
+#ifdef TARGET_OS_LINUX
+static bool find_cpu_name(FILE *fp, char *name, uint size, uint *sockets)
+{
+  char *line= NULL, *sep, *sep2;
+  size_t length;
+  while (getline(&line, &length, fp) > 0)
+  {
+    if (((sep2= strstr(line, "model name")) && (sep= strchr(sep2, ':'))) ||
+        ((sep2= strstr(line, "Model name")) && (sep= strchr(sep2, ':'))))
+    {
+      if (! *name)                              // Use first found
+      {
+        char *end;
+        for (sep= sep+1 ; *sep == ' ' ; sep++)
+          ;
+        for (end= strend(sep);
+             end > sep && iscntrl((int) (uchar) end[-1]) ;
+             end--)
+          ;
+        strmake(name, sep, MY_MIN(size, (size_t) (end - sep)));
+      }
+    }
+    else if ((sep2= strstr(line, "physical id")) && (sep= strchr(sep2, ':')))
+      *sockets= atoi(sep + 1) + 1;
+    else if ((sep2= strstr(line, "Socket(s)")) && (sep= strchr(sep2, ':')))
+    {
+      /* We are parsing output from lscpu */
+      *sockets= atoi(sep + 1);
+    }
+  }
+  free(line);
+  return *name != 0;
+}
+#endif /* TARGET_OS_LINUX */
+
+
+#if defined(__FreeBSD__) ||  defined(__APPLE__) && defined(__MACH__)
+#include <sys/sysctl.h>
+#endif
+
+static void my_get_cpu_name_and_sockets(char *name, uint size, uint *sockets)
+{
+  *sockets= 1;                                    // If not found
+#if defined(TARGET_OS_LINUX)
+  bool found= 0;
+  FILE *fp;
+
+  *name= 0;
+  if ((fp= fopen("/proc/cpuinfo", "r")))
+  {
+    found= find_cpu_name(fp, name, size, sockets);
+    fclose(fp);
+    if (found)
+      return;
+  }
+
+  /* Try lscpu */
+  /* purecov: begin tested */
+  if ((fp= popen("/usr/bin/lscpu", "r")))
+  {
+    found= find_cpu_name(fp, name, size, sockets);
+    pclose(fp);
+    if (found)
+      return;
+  }
+ /* purecov: end */
+#elif defined(__FreeBSD__)
+  name[0]= 0;
+  sysctlbyname("hw.model", name, &size, NULL, 0);
+  if (name[0])
+    return;
+#elif defined(__APPLE__) && defined(__MACH__)
+  name[0]= 0;
+  sysctlbyname("machdep.cpu.brand_string", name, &size, NULL, 0);
+  if (name[0])
+    return;
+#endif /* TARGET_OS_LINUX */
+
+  strmov(name, "Unknown");      /* purecov:  tested */
+}
+
+
 /**
   Find the version of the kernel and the linux distribution
 */
@@ -386,8 +477,15 @@ int fill_linux_info(THD *thd, TABLE_LIST *tables)
 int fill_misc_data(THD *thd, TABLE_LIST *tables)
 {
   TABLE *table= tables->table;
+  static char cpu_name[81];
+  static uint cpu_sockets;
 
+  if (!cpu_name[0])
+    my_get_cpu_name_and_sockets(cpu_name, sizeof(cpu_name)-1, &cpu_sockets);
+  INSERT1("Cpu_name", (cpu_name, (uint) strlen(cpu_name), system_charset_info));
   INSERT1("Cpu_count", (my_getncpus(), UNSIGNED));
+  INSERT1("Cpu_sockets", (cpu_sockets, UNSIGNED));
+
   INSERT1("Mem_total", (my_getphysmem(), UNSIGNED));
   INSERT1("Now", (thd->query_start(), UNSIGNED));
 

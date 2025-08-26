@@ -2826,6 +2826,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
       /* We need set value in hash key_part */
       if (keyinfo->algorithm == HA_KEY_ALG_LONG_HASH)
       {
+        thd->status_var.feature_long_hash_index++;
         share->long_unique_table= 1;
         hash_keypart= keyinfo->key_part + keyinfo->user_defined_key_parts;
         hash_keypart->length= HA_HASH_KEY_LENGTH_WITHOUT_NULL;
