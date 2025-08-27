@@ -2,4 +2,4 @@
 
 [mysqld]
 binlog_directory=binlogs
-loose_innodb_log_file_size=96M
+loose_innodb_log_file_size=256M

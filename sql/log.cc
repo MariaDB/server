@@ -4499,7 +4499,6 @@ MYSQL_BIN_LOG::open_engine(handlerton *hton, ulong max_size, const char *dir)
     goto exit_error;
 
   log_state= LOG_OPENED;
-
   {
     /*
       Write a format description event to the binlog at server restart.
@@ -9396,7 +9395,8 @@ MYSQL_BIN_LOG::write_transaction_to_binlog(THD *thd,
   entry.need_unlog= is_preparing_xa(thd);
   ha_info= all ? thd->transaction->all.ha_list : thd->transaction->stmt.ha_list;
   entry.ro_1pc= is_ro_1pc;
-  entry.auto_binlog= false;
+  entry.no_auto_binlog= 1;
+  entry.do_binlog_group_commit_ordered= false;
   entry.end_event= end_ev;
   auto has_xid= entry.end_event->get_type_code() == XID_EVENT;
 
@@ -9408,7 +9408,7 @@ MYSQL_BIN_LOG::write_transaction_to_binlog(THD *thd,
           !ha_info->ht()->commit_checkpoint_request)
         entry.need_unlog= true;
       if (ha_info->ht() == opt_binlog_engine_hton)
-        entry.auto_binlog= true;
+        entry.no_auto_binlog= 0;
     }
     else
       break;
@@ -9420,7 +9420,7 @@ MYSQL_BIN_LOG::write_transaction_to_binlog(THD *thd,
     (This occurs when mixing transactional and non-transactional DML in the
     same event group).
   */
-  entry.auto_binlog= entry.auto_binlog && cache_mngr->using_xa;
+  entry.no_auto_binlog|= !cache_mngr->using_xa;
 
   if (cache_mngr->stmt_cache.has_incident() ||
       cache_mngr->trx_cache.has_incident())
@@ -9854,14 +9854,32 @@ MYSQL_BIN_LOG::write_transaction_to_binlog_events(group_commit_entry *entry)
 
   if (!opt_optimize_thread_scheduling)
   {
+    binlog_cache_mngr *cache_mngr= entry->cache_mngr;
+
     /* For the leader, trx_group_commit_leader() already took the lock. */
     if (!is_leader)
       mysql_mutex_lock(&LOCK_commit_ordered);
 
     DEBUG_SYNC(entry->thd, "commit_loop_entry_commit_ordered");
     ++num_commits;
-    if (entry->cache_mngr->using_xa && !entry->error)
+    if (cache_mngr->using_xa && !entry->error)
       run_commit_ordered(entry->thd, entry->all);
+
+    if (unlikely(entry->no_auto_binlog) && opt_binlog_engine_hton)
+    {
+      binlog_cache_data *cache_data=
+        cache_mngr->get_binlog_cache_data(entry->using_trx_cache);
+      IO_CACHE *file= &cache_data->cache_log;
+      handler_binlog_event_group_info *engine_context=
+        &cache_data->engine_binlog_info;
+      if (likely(!entry->error))
+      {
+        entry->error= (*opt_binlog_engine_hton->binlog_write_direct_ordered)
+          (file, engine_context, entry->thd->get_last_commit_gtid());
+        if (likely(!entry->error))
+          entry->no_auto_binlog= 2;  // Mark to call binlog_write_direct later
+      }
+    }
 
     group_commit_entry *next= entry->next;
     if (!next)
@@ -9902,6 +9920,26 @@ MYSQL_BIN_LOG::write_transaction_to_binlog_events(group_commit_entry *entry)
         checkpoint_and_purge(entry->binlog_id);
     }
 
+  }
+
+  if (unlikely(entry->no_auto_binlog == 2))
+  {
+    binlog_cache_mngr *cache_mngr= entry->cache_mngr;
+    binlog_cache_data *cache_data=
+      cache_mngr->get_binlog_cache_data(entry->using_trx_cache);
+    IO_CACHE *file= &cache_data->cache_log;
+    handler_binlog_event_group_info *engine_context=
+      &cache_data->engine_binlog_info;
+    if (likely(!entry->error))
+      entry->error= (*opt_binlog_engine_hton->binlog_write_direct)
+        (file, engine_context, entry->thd->get_last_commit_gtid());
+  }
+  if (entry->do_binlog_group_commit_ordered)
+  {
+    binlog_cache_data *cache_data=
+      entry->cache_mngr->get_binlog_cache_data(entry->using_trx_cache);
+    (*opt_binlog_engine_hton->binlog_group_commit_ordered)
+      (entry->thd, &cache_data->engine_binlog_info);
   }
 
   if (likely(!entry->error))
@@ -10062,7 +10100,7 @@ MYSQL_BIN_LOG::trx_group_commit_leader(group_commit_entry *leader)
                           current->thd->get_last_commit_gtid());
       }
       else
-        non_auto_binlog= non_auto_binlog || !current->auto_binlog;
+        non_auto_binlog= non_auto_binlog || current->no_auto_binlog;
 
       if ((cache_mngr->using_xa && cache_mngr->xa_xid) || current->need_unlog)
       {
@@ -10248,7 +10286,9 @@ MYSQL_BIN_LOG::trx_group_commit_leader(group_commit_entry *leader)
       {
         DBUG_SUICIDE();
       });
-  if (!opt_binlog_engine_hton)
+  if (opt_binlog_engine_hton)
+    last_in_queue->do_binlog_group_commit_ordered= true;
+  else
     last_commit_pos_offset= commit_offset;
 
   /*
@@ -10259,24 +10299,6 @@ MYSQL_BIN_LOG::trx_group_commit_leader(group_commit_entry *leader)
   mysql_mutex_unlock(&LOCK_after_binlog_sync);
   DEBUG_SYNC(leader->thd, "commit_after_release_LOCK_after_binlog_sync");
   ++num_group_commits;
-
-  if (unlikely(non_auto_binlog))
-  {
-    for (current= queue; current != NULL; current= current->next)
-    {
-      set_current_thd(current->thd);
-      binlog_cache_mngr *cache_mngr= current->cache_mngr;
-      binlog_cache_data *cache_data=
-        cache_mngr->get_binlog_cache_data(current->using_trx_cache);
-      IO_CACHE *file= &cache_data->cache_log;
-      handler_binlog_event_group_info *engine_context=
-        &cache_data->engine_binlog_info;
-      if (likely(!current->error))
-        current->error= (*opt_binlog_engine_hton->binlog_write_direct_ordered)
-          (file, engine_context, current->thd->get_last_commit_gtid());
-    }
-    set_current_thd(leader->thd);
-  }
 
   if (!opt_optimize_thread_scheduling)
   {
@@ -10313,13 +10335,31 @@ MYSQL_BIN_LOG::trx_group_commit_leader(group_commit_entry *leader)
   while (current != NULL)
   {
     group_commit_entry *next;
+    binlog_cache_mngr *cache_mngr= current->cache_mngr;
 
     DEBUG_SYNC(leader->thd, "commit_loop_entry_commit_ordered");
     ++num_commits;
     set_current_thd(current->thd);
-    if (current->cache_mngr->using_xa && likely(!current->error) &&
+    if (cache_mngr->using_xa && likely(!current->error) &&
         !DBUG_IF("skip_commit_ordered"))
       run_commit_ordered(current->thd, current->all);
+
+    if (unlikely(current->no_auto_binlog) && opt_binlog_storage_engine)
+    {
+      binlog_cache_data *cache_data=
+        cache_mngr->get_binlog_cache_data(current->using_trx_cache);
+      IO_CACHE *file= &cache_data->cache_log;
+      handler_binlog_event_group_info *engine_context=
+        &cache_data->engine_binlog_info;
+      if (likely(!current->error))
+      {
+        current->error= (*opt_binlog_engine_hton->binlog_write_direct_ordered)
+          (file, engine_context, current->thd->get_last_commit_gtid());
+        if (likely(!current->error))
+          current->no_auto_binlog= 2;  // Mark to call binlog_write_direct later
+      }
+    }
+
     current->thd->wakeup_subsequent_commits(current->error);
 
     /*
@@ -10341,33 +10381,7 @@ MYSQL_BIN_LOG::trx_group_commit_leader(group_commit_entry *leader)
   mysql_mutex_unlock(&LOCK_commit_ordered);
   DEBUG_SYNC(leader->thd, "commit_after_group_release_commit_ordered");
 
-  if (opt_binlog_engine_hton)
-  {
-    if (unlikely(non_auto_binlog))
-    {
-      for (current= queue; current != NULL; current= current->next)
-      {
-        set_current_thd(current->thd);
-        binlog_cache_mngr *cache_mngr= current->cache_mngr;
-        binlog_cache_data *cache_data=
-          cache_mngr->get_binlog_cache_data(current->using_trx_cache);
-        IO_CACHE *file= &cache_data->cache_log;
-        handler_binlog_event_group_info *engine_context=
-          &cache_data->engine_binlog_info;
-        if (likely(!current->error))
-          current->error= (*opt_binlog_engine_hton->binlog_write_direct)
-            (file, engine_context, current->thd->get_last_commit_gtid());
-      }
-      set_current_thd(leader->thd);
-    }
-
-    binlog_cache_data *cache_data=
-      last_in_queue->cache_mngr->get_binlog_cache_data
-      (last_in_queue->using_trx_cache);
-    (*opt_binlog_engine_hton->binlog_group_commit_ordered)
-      (last_in_queue->thd, &cache_data->engine_binlog_info);
-  }
-  else if (check_purge)
+  if (check_purge && !opt_binlog_engine_hton)
     checkpoint_and_purge(binlog_id);
 
   DBUG_VOID_RETURN;

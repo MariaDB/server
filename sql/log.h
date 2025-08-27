@@ -648,6 +648,7 @@ class MYSQL_BIN_LOG: public TC_LOG, public Event_log
     int error;
     int commit_errno;
     IO_CACHE *error_cache;
+    ulong binlog_id;
     /* This is the `all' parameter for ha_commit_ordered(). */
     bool all;
     /*
@@ -664,10 +665,21 @@ class MYSQL_BIN_LOG: public TC_LOG, public Event_log
     bool check_purge;
     /* Flag used to optimise around wait_for_prior_commit. */
     bool queued_by_other;
-    ulong binlog_id;
     bool ro_1pc;  // passes the binlog_cache_mngr::ro_1pc value to Gtid ctor
-    /* commit_ordered() will binlog transaction (--binlog-storage-engine). */
-    bool auto_binlog;
+    /*
+      Set for the last participant in group commit, it must invoke
+      binlog_group_commit_ordered (in case of --binlog-storage-engine) after
+      LOCK_commit_ordered has been released.
+    */
+    bool do_binlog_group_commit_ordered;
+    /*
+      Set to 1 when commit_ordered() will *not* binlog transaction (ie. using
+      a different storage engine than --binlog-storage-engine).
+      Set to 2 in trx_group_commit_leader() when binlog_write_direct_ordered
+      has been called and we need to also call binlog_write_direct after
+      LOCK_commit_ordered has been released.
+    */
+    uchar no_auto_binlog;
   };
 
   /*

@@ -2,7 +2,7 @@
 # Test does a lot of queries that take a lot of CPU under Valgrind.
 --source include/not_valgrind.inc
 
-RESET MASTER;
+--source include/reset_master.inc
 
 let $basedir=$MYSQLTEST_VARDIR/tmp/backup;
 
