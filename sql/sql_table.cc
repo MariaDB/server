@@ -12728,7 +12728,7 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
         /* 
           If there is no change in the dependencies and the vcol expression and type (see TODO below), we can copy directly
         */
-        if (!to->check_dependencies_in_write_set(*ptr))
+        if (!to->check_dependencies_in_write_set(*ptr) && def->field->vcol_info && (*ptr)->vcol_info->is_equal(def->field->vcol_info, true))
             /*
               TODO: What is the correct way to detect if the expression and the type are not altered?
               We probably want to detect both changes:
