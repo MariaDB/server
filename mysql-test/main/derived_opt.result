@@ -624,13 +624,13 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	10000	Using temporary; Using filesort
 3	UNION	t1	ALL	NULL	NULL	NULL	NULL	10000	Using temporary; Using filesort
 # Same as the previous query.
-#  FAIL: we produce {table=t2}, {table=<derived2>, rows=1, not 1+n_rows(t1)}
+#  Still FAIL: we produce {table=t2}, {table=<derived2>, rows=1, not (the default estimate value)}
 explain
 select * from
 t2,
 (select max(value), grp_id from t1 group by grp_id
 union all
-select max(value), grp_id from t1 group by grp_id+1) DT
+select max(value), grp_id from t1 group by MOD(grp_id,2)) DT
 where
 t2.a= DT.grp_id;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
@@ -638,8 +638,8 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	<derived2>	ref	key0	key0	5	test.t2.a	2	
 2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	10000	Using temporary; Using filesort
 3	UNION	t1	ALL	NULL	NULL	NULL	NULL	10000	Using temporary; Using filesort
-# Add another equality:
-#   and this has ref=test.t2.col2,test.t2.a  but rows=10? why??
+# Example with equalities on GROUP BY columns and other columns
+# Must produce {table=<derived2>, ref=test.t2.col2,test.t2.a, rows=1}
 alter table t2 add col2 int;
 explain
 select * from
@@ -651,6 +651,17 @@ t2.a= DT.grp_id;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	5	Using where
 1	PRIMARY	<derived2>	ref	key0	key0	10	test.t2.col2,test.t2.a	1	
+2	DERIVED	t1	ALL	grp_id	NULL	NULL	NULL	10000	Using temporary; Using filesort
+explain
+select * from
+t2,
+(select grp_id, max(value) as maxval from t1 group by grp_id) DT
+where
+t2.col2=maxval and
+t2.a= DT.grp_id;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	5	Using where
+1	PRIMARY	<derived2>	ref	key0	key0	10	test.t2.a,test.t2.col2	1	
 2	DERIVED	t1	ALL	grp_id	NULL	NULL	NULL	10000	Using temporary; Using filesort
 drop table t1, t2;
 #

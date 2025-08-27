@@ -17,8 +17,13 @@
 /**
   @file
 
-    Contains estimate_post_group_cardinality() which estimates cardinality
-    after GROUP BY operation is applied.
+    Contains
+    - estimate_post_group_cardinality() which estimates cardinality
+      after GROUP BY operation is applied.
+
+    - infer_derived_key_statistics() to infer index statistics for
+      potential indexes on derived tables that have data produced with
+      a GROUP BY operation.
 */
 
 #include "mariadb.h"
@@ -378,11 +383,13 @@ whole_table:
 
 
 /*
-  Return a key index if item present, -1 if not.
+  @brief
+    Return the number of keypart that matches the item, -1 if there is no match
 */
 
+static
 int item_index_in_key(Item *item,
-                     KEY *keyinfo,
+                     const KEY *keyinfo,
                      uint key_parts)
 {
   if (item->type() == Item::FIELD_ITEM)
@@ -398,10 +405,11 @@ int item_index_in_key(Item *item,
 
 
 /*
-  Return TRUE if the item in our select appears in our key list
+  @brief
+    Return TRUE if the item in our select appears in our key list
 */
 
-bool is_item_in_key(Item *item, KEY *keyinfo, uint key_parts)
+static bool is_item_in_key(Item *item, const KEY *keyinfo, uint key_parts)
 {
   if (item->type() == Item::FIELD_ITEM)
   {
@@ -417,10 +425,12 @@ bool is_item_in_key(Item *item, KEY *keyinfo, uint key_parts)
 
 
 /*
-   Return TRUE if every item in the list appears in our key
+  @brief
+    Return TRUE if every item in the list appears in our key
 */
 
-bool all_list_contained_in_keyparts(KEY *keyinfo,
+static
+bool all_list_contained_in_keyparts(const KEY *keyinfo,
                                     uint key_parts,
                                     SQL_I_List<st_order> *list)
 {
@@ -438,9 +448,9 @@ bool all_list_contained_in_keyparts(KEY *keyinfo,
    vice versa
 */
 
-bool key_parts_match(KEY *keyinfo,
-                     uint key_parts,
-                     List<Item> *list)
+static bool key_parts_match(KEY *keyinfo,
+                            uint key_parts,
+                            List<Item> *list)
 {
   if (key_parts < list->elements)       // key parts need to cover select list
     return FALSE;
@@ -477,15 +487,16 @@ bool key_parts_match(KEY *keyinfo,
           list matches our key, we will have one record per distinct key.
        c) The group by list in the query matches our key, we will have one
           record per key.
- 
-  It is also possible to use predicates combined with existing key or histogram
-  statistics on the base tables in our derived table to fill in this and other
-  attributes of our generated key. TODO.
+
+  @todo
+    It is also possible to use predicates combined with existing key or
+    histogram statistics on the base tables in our derived table to fill in
+    this and other attributes of our generated key
 */
 
 void infer_derived_key_statistics(st_select_lex_unit* derived,
-                          KEY *keyinfo, 
-                          uint key_parts)
+                                  KEY *keyinfo,
+                                  uint key_parts)
 {
   st_select_lex* select= derived->first_select();
   bool distinct= derived->check_distinct_in_union();
@@ -503,9 +514,8 @@ void infer_derived_key_statistics(st_select_lex_unit* derived,
         This is a SELECT DISTINCT list where the list matches the key,
         this select will produce one record per full key value
       */
-      if (key_parts_match(keyinfo, key_parts, &select->item_list) &&
-          (select->options & SELECT_DISTINCT ||
-           distinct))
+      if ((select->options & SELECT_DISTINCT || distinct) &&
+          key_parts_match(keyinfo, key_parts, &select->item_list))
         addone++;
 
       /*
@@ -521,7 +531,7 @@ void infer_derived_key_statistics(st_select_lex_unit* derived,
         We should either add one, or if we have already added one then we
         should at least add another one for each next select in the union all
       */
-      if (addone || 
+      if (addone ||
           (select->get_linkage() == UNION_TYPE &&
             !select->distinct &&
             keyinfo->rec_per_key[key_parts - 1]))
@@ -529,3 +539,4 @@ void infer_derived_key_statistics(st_select_lex_unit* derived,
     } while ((select= select->next_select()));
   }
 }
+

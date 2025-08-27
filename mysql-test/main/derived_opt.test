@@ -484,23 +484,33 @@ where
   t2.a= DT.grp_id;
 
 --echo # Same as the previous query.
---echo #  FAIL: we produce {table=t2}, {table=<derived2>, rows=1, not 1+n_rows(t1)}
+--echo #  Still FAIL: we produce {table=t2}, {table=<derived2>, rows=1, not (the default estimate value)}
 explain
 select * from
   t2,
   (select max(value), grp_id from t1 group by grp_id
    union all
-   select max(value), grp_id from t1 group by grp_id+1) DT
+   select max(value), grp_id from t1 group by MOD(grp_id,2)) DT
 where
   t2.a= DT.grp_id;
 
---echo # Add another equality:
---echo #   and this has ref=test.t2.col2,test.t2.a  but rows=10? why??
+--echo # Example with equalities on GROUP BY columns and other columns
+--echo # Must produce {table=<derived2>, ref=test.t2.col2,test.t2.a, rows=1}
 alter table t2 add col2 int;
 explain
 select * from
   t2,
   (select max(value) as maxval, grp_id from t1 group by grp_id) DT
+where
+  t2.col2=maxval and
+  t2.a= DT.grp_id;
+
+# Same as above but swap the column order.
+#  Now we'll get {table=<derived2>, ref=test.t2.a,test.t2.col2, rows=1}
+explain
+select * from
+  t2,
+  (select grp_id, max(value) as maxval from t1 group by grp_id) DT
 where
   t2.col2=maxval and
   t2.a= DT.grp_id;

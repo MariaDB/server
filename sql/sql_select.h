@@ -2712,8 +2712,6 @@ void propagate_new_equalities(THD *thd, Item *cond,
 
 #define PREV_BITS(type, N_BITS) ((type)my_set_bits(N_BITS))
 
-double estimate_post_group_cardinality(JOIN *join, double join_output_card);
-
 bool dbug_user_var_equals_str(THD *thd, const char *name, const char *value);
 
 #endif /* SQL_SELECT_INCLUDED */

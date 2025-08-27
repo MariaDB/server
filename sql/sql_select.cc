@@ -72,6 +72,7 @@
 #include "create_tmp_table.h"
 #include "optimizer_defaults.h"
 #include "derived_handler.h"
+#include "opt_group_by_cardinality.h"
 
 /*
   A key part number that means we're using a fulltext scan.
