@@ -484,13 +484,25 @@ where
   t2.a= DT.grp_id;
 
 --echo # Same as the previous query.
---echo #  Still FAIL: we produce {table=t2}, {table=<derived2>, rows=1, not (the default estimate value)}
+--echo #  Still FAIL: we produce {table=t2}, {table=<derived2>, rows=2, not (the default estimate value)}
+--echo # REVIEW-INPUT: group by MOD(gdp_id,2) ...
 explain
 select * from
   t2,
   (select max(value), grp_id from t1 group by grp_id
    union all
    select max(value), grp_id from t1 group by MOD(grp_id,2)) DT
+where
+  t2.a= DT.grp_id;
+
+--echo # REVIEW-INPUT: similar example to above. Still gives rows=2 even if
+--echo #  there can be a lot of duplicates.
+explain
+select * from
+  t2,
+  (select max(value), grp_id from t1 group by grp_id
+   union all
+   select max(value), max(value) from t1 group by grp_id) DT
 where
   t2.a= DT.grp_id;
 

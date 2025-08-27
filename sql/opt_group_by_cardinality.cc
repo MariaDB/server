@@ -441,6 +441,19 @@ bool all_list_contained_in_keyparts(const KEY *keyinfo,
     It is also possible to use predicates combined with existing key or
     histogram statistics on the base tables in our derived table to fill in
     this and other attributes of our generated key
+
+  REVIEW-INPUT:
+    Please add optimizer tracing. Can be something like:
+
+    ... // we are in an array context
+      { 
+        "infer_derived_key_statistics": {
+           "table_name": "<derived3>",
+           "columns": ["foo","bar","baz"],
+           "rec_per_key: [0,0,1]
+         }
+      }
+    ...
 */
 
 void infer_derived_key_statistics(st_select_lex_unit* derived,
@@ -451,13 +464,14 @@ void infer_derived_key_statistics(st_select_lex_unit* derived,
   bool distinct= derived->check_distinct_in_union();
 
   // This is a chain not ending in UNION ALL
-  if (key_parts == select->item_list.elements &&
-      derived->check_distinct_in_union())
+  if (key_parts == select->item_list.elements && distinct)
     keyinfo->rec_per_key[key_parts - 1]= 1;
   else
   {
     do
     {
+      // REVIEW-INPUT: why this variable is not a boolean? 
+      //   it seems, addone=2 has the same effect as addone=1. 
       int addone= 0;
       /*
         This is a SELECT DISTINCT list where the list matches the key,
@@ -470,20 +484,27 @@ void infer_derived_key_statistics(st_select_lex_unit* derived,
       /*
         If this is a grouping select and the group list is a subset of our key
       */
+      // REVIEW-INPUT: how about setting rec_per_key[] members for 
+      //  members before key_parts - 1 ? 
       if (select->group_list.elements &&
           all_list_contained_in_keyparts(keyinfo,
                                          key_parts,
                                          &select->group_list))
         addone++;
 
+      // REVIEW-INPUT: this condition needs further clarification.
+      //   addone!=0 is clear. The other part of condition is not...
+      // See the example this commit adds in the test: it shows the below
+      // code to work incorrectly. 
+      //  Please look at the suggested logic in the MDEV.
       /*
         We should either add one, or if we have already added one then we
         should at least add another one for each next select in the union all
       */
       if (addone ||
           (select->get_linkage() == UNION_TYPE &&
-            !select->distinct &&
-            keyinfo->rec_per_key[key_parts - 1]))
+           !select->distinct &&
+           keyinfo->rec_per_key[key_parts - 1]))
         keyinfo->rec_per_key[key_parts - 1]++;  //add 1 record per full key part
     } while ((select= select->next_select()));
   }
