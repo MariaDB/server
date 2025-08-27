@@ -387,10 +387,7 @@ whole_table:
     Return the number of keypart that matches the item, -1 if there is no match
 */
 
-static
-int item_index_in_key(Item *item,
-                     const KEY *keyinfo,
-                     uint key_parts)
+static int item_index_in_key(Item *item, const KEY *keyinfo, uint key_parts)
 {
   if (item->type() == Item::FIELD_ITEM)
   {
@@ -406,26 +403,6 @@ int item_index_in_key(Item *item,
 
 /*
   @brief
-    Return TRUE if the item in our select appears in our key list
-*/
-
-static bool is_item_in_key(Item *item, const KEY *keyinfo, uint key_parts)
-{
-  if (item->type() == Item::FIELD_ITEM)
-  {
-    for (uint i= 0; i < key_parts; i++)
-    {
-      if (!cmp(item->name, keyinfo->key_part[i].field->field_name))
-        return TRUE;
-    }
-  }
-  return FALSE;
-}
-
-
-
-/*
-  @brief
     Return TRUE if every item in the list appears in our key
 */
 
@@ -436,7 +413,7 @@ bool all_list_contained_in_keyparts(const KEY *keyinfo,
 {
   for (ORDER *grp= list->first; grp; grp= grp->next)
   {
-    if (!is_item_in_key((*grp->item), keyinfo, key_parts))
+    if (item_index_in_key((*grp->item), keyinfo, key_parts) == -1)
       return FALSE;
   }
   return TRUE;
@@ -444,7 +421,7 @@ bool all_list_contained_in_keyparts(const KEY *keyinfo,
 
 
 /*
-   Return true iff each key part has a corresponding item in the list and
+   Return TRUE iff each key part has a corresponding item in the list and
    vice versa
 */
 
