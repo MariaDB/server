@@ -668,12 +668,17 @@ protected:
   bool on_after_expr_parsing(THD *thd) override
   {
     DBUG_ASSERT(thd->lex->current_select->item_list.elements == 1);
+    Item *item_after_parsing= thd->lex->current_select->item_list.head();
+    sp_variable *spvar= m_ctx->find_variable(offset());
 
-    m_value= thd->lex->current_select->item_list.head();
+    m_value= item_after_parsing;
     DBUG_ASSERT(m_value != nullptr);
 
+    spvar->default_value= item_after_parsing;
+    DBUG_ASSERT(spvar->default_value != nullptr);
+
     // Return error in release version if m_value == nullptr
-    return m_value == nullptr;
+    return (m_value == nullptr || spvar->default_value == nullptr);
   }
 
   sp_rcontext *get_rcontext(THD *thd) const;
