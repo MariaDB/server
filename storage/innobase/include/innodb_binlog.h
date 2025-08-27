@@ -154,6 +154,11 @@ public:
   */
   lsn_t flushing_lsn;
   /*
+    The last added (and thus largest) lsn. Equal to cur_head().lsn when the
+    fifo is not empty (and the lsn of the previous head when it is empty).
+  */
+  lsn_t last_lsn_added;
+  /*
     The current file_no that has any durable data. Used to detect when an LSN
     moves the current durable end point to the next file, so that the previous
     file can then be marked as fully durable.
