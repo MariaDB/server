@@ -420,34 +420,6 @@ bool all_list_contained_in_keyparts(const KEY *keyinfo,
 }
 
 
-/*
-   Return TRUE iff each key part has a corresponding item in the list and
-   vice versa
-*/
-
-static bool key_parts_match(KEY *keyinfo,
-                            uint key_parts,
-                            List<Item> *list)
-{
-  if (key_parts < list->elements)       // key parts need to cover select list
-    return FALSE;
-
-  Bitmap<64>   bitmap;
-  bitmap.set_prefix(key_parts);
-
-  List_iterator_fast<Item> it(*list);
-  Item *item;
-  int i;
-  while ((item= it++))
-  {
-    if ((i= item_index_in_key(item, keyinfo, key_parts)) >= 0)
-      bitmap.clear_bit((int)i);
-  }
-
-  return bitmap.is_clear_all();
-}
-
-
 /**
   @brief
   When adding a key to a materialized derived table, we can determine some
@@ -492,7 +464,7 @@ void infer_derived_key_statistics(st_select_lex_unit* derived,
         this select will produce one record per full key value
       */
       if ((select->options & SELECT_DISTINCT || distinct) &&
-          key_parts_match(keyinfo, key_parts, &select->item_list))
+          key_parts == select->item_list.elements)
         addone++;
 
       /*
