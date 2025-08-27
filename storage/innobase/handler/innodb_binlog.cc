@@ -3289,7 +3289,8 @@ ibb_wait_durable_offset(uint64_t file_no, uint64_t wait_offset)
 
 
 pending_lsn_fifo::pending_lsn_fifo()
-  : flushing_lsn(0), cur_file_no(~(uint64_t)0), head(0), tail(0)
+  : flushing_lsn(0), last_lsn_added(0), cur_file_no(~(uint64_t)0),
+    head(0), tail(0)
 {
 }
 
@@ -3334,8 +3335,17 @@ pending_lsn_fifo::process_durable_lsn(lsn_t lsn)
   {
     uint64_t active= active_binlog_file_no.load(std::memory_order_relaxed);
     if (got->file_no + 1 >= active)
+    {
+      /*
+        We must never set the durable offset back to a prior value.
+        This should be assured by never adding a smaller lsn into the fifo than
+        any prior lsn added, and checked by this assertion.
+      */
+      ut_ad(binlog_cur_durable_offset[got->file_no & 3].
+            load(std::memory_order_relaxed) <= got->offset);
       binlog_cur_durable_offset[got->file_no & 3].store
         (got->offset, std::memory_order_relaxed);
+    }
     /*
       If we moved the durable point to the next file_no, mark the prior
       file_no as now fully durable.
@@ -3388,7 +3398,8 @@ pending_lsn_fifo::add_to_fifo(uint64_t lsn, uint64_t file_no, uint64_t offset)
     scalabitily, so can occur out-of-order. So only insert the new entry if
     it is newer than any previously inserted.
   */
-  if (is_empty() || lsn > cur_tail().lsn)
+  ut_ad(is_empty() || cur_head().lsn == last_lsn_added);
+  if (lsn > last_lsn_added)
   {
     if (is_full())
     {
@@ -3413,6 +3424,7 @@ pending_lsn_fifo::add_to_fifo(uint64_t lsn, uint64_t file_no, uint64_t offset)
     h.file_no= file_no;
     h.offset= offset;
     h.lsn= lsn;
+    last_lsn_added= lsn;
     /* Make an immediate check in case the LSN is already durable. */
     bool signalled=
       process_durable_lsn(log_sys.get_flushed_lsn(std::memory_order_relaxed));
