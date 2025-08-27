@@ -957,7 +957,7 @@ bool Item_field::check_field_in_map(void *arg)
   if (field->table == table || !table)
   {
     if (field->vcol_info)
-      res|= field->vcol_info->expr->walk(&Item::check_field_in_map, 1, arg);
+      res|= field->vcol_info->expr->walk(&Item::check_field_in_map, arg, WALK_SUBQUERY);
     return res || bitmap_is_set(bitmap, field->field_index);
   }
 

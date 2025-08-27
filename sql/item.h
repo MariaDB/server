@@ -8643,7 +8643,7 @@ inline bool TABLE::check_dependencies_in_write_set(Field *field) {
   {
     DBUG_ASSERT(field->vcol_info->expr);
     auto arg= std::make_pair(field->table, field->table->write_set);
-    res= field->vcol_info->expr->walk(&Item::check_field_in_map, 1, &arg);
+    res= field->vcol_info->expr->walk(&Item::check_field_in_map, &arg, WALK_SUBQUERY);
   }
   return res;
 }
