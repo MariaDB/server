@@ -388,4 +388,96 @@ SELECT PARAMETER_NAME, PARAMETER_DEFAULT, (PARAMETER_DEFAULT IS NULL) AS `IS_NUL
 DROP TABLE t;
 DROP PROCEDURE proc;
 
+--echo #
+--echo # MDEV-37489: SIGSEGV in get_param_default_value | store_schema_params
+--echo #
+
+--DELIMITER //
+CREATE OR REPLACE PROCEDURE p0 (x INT DEFAULT func())
+BEGIN
+  SELECT x;
+END;
+//
+--DELIMITER ;
+
+SET SESSION max_session_mem_used=8192;
+--ERROR ER_OPTION_PREVENTS_STATEMENT
+CALL p0();
+
+SET @@max_session_mem_used=DEFAULT;
+--ERROR ER_SP_DOES_NOT_EXIST
+CALL p0();
+
+SELECT * FROM information_schema.PARAMETERS where specific_name = 'p0';
+
+--echo # with func() defined
+--DELIMITER //
+CREATE FUNCTION func(x INT DEFAULT 10) RETURNS INT
+BEGIN
+    RETURN x;
+END;
+//
+
+CREATE OR REPLACE PROCEDURE p0 (x INT DEFAULT func())
+BEGIN
+  SELECT x;
+END;
+//
+--DELIMITER ;
+
+SET SESSION max_session_mem_used=8192;
+--ERROR ER_OPTION_PREVENTS_STATEMENT
+CALL p0();
+
+SET @@max_session_mem_used=DEFAULT;
+CALL p0();
+
+SELECT * FROM information_schema.PARAMETERS where specific_name = 'p0';
+
+--echo # with multiple functions
+--DELIMITER //
+CREATE FUNCTION func2(x INT DEFAULT 10) RETURNS INT
+BEGIN
+    RETURN x;
+END;
+//
+
+CREATE OR REPLACE PROCEDURE p0 (x INT DEFAULT func(), y INT DEFAULT func2())
+BEGIN
+  SELECT x, y;
+END;
+//
+--DELIMITER ;
+
+SET SESSION max_session_mem_used=8192;
+--ERROR ER_OPTION_PREVENTS_STATEMENT
+CALL p0();
+
+SET @@max_session_mem_used=DEFAULT;
+CALL p0();
+
+SELECT * FROM information_schema.PARAMETERS where specific_name = 'p0';
+
+--echo # with function and constant default param
+--DELIMITER //
+CREATE OR REPLACE PROCEDURE p0 (x INT DEFAULT func(), y INT DEFAULT func2(), z INT DEFAULT 10)
+BEGIN
+  SELECT x, y, z;
+END;
+//
+--DELIMITER ;
+
+SET SESSION max_session_mem_used=8192;
+--ERROR ER_OPTION_PREVENTS_STATEMENT
+CALL p0();
+
+SET @@max_session_mem_used=DEFAULT;
+CALL p0();
+
+SELECT * FROM information_schema.PARAMETERS where specific_name = 'p0';
+
+DROP PROCEDURE p0;
+DROP FUNCTION func;
+DROP FUNCTION func2;
+
 --echo # End of 12.2 tests
