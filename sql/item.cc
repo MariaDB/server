@@ -855,30 +855,6 @@ bool Item_field::rename_fields_processor(void *arg)
   return 0;
 }
 
-/**
-   Rename table and clean field for EXCHANGE comparison
-*/
-
-bool Item_field::rename_table_processor(void *arg)
-{
-  Item::func_processor_rename_table *p= (Item::func_processor_rename_table*) arg;
-
-  /* If (db_name, table_name) matches (p->old_db, p->old_table)
-     rename to (p->new_db, p->new_table) */
-  if (((!db_name.str && !p->old_db.str) ||
-       db_name.streq(p->old_db)) &&
-      ((!table_name.str && !p->old_table.str) ||
-       table_name.streq(p->old_table)))
-  {
-    db_name= p->new_db;
-    table_name= p->new_table;
-  }
-
-  /* Item_field equality is done by field pointer if it is set, we need to avoid that */
-  field= NULL;
-  return 0;
-}
-
 
 /**
   Check if an Item_field references some field from a list of fields.
@@ -1357,7 +1333,7 @@ void Item::set_name_no_truncate(THD *thd, const char *str, uint length,
   - When trying to find an ORDER BY/GROUP BY item in the SELECT part
 */
 
-bool Item::eq(const Item *item, bool binary_cmp) const
+bool Item::eq(const Item *item, const Eq_config &config) const
 {
   /*
     Note, that this is never TRUE if item is a Item_param:
@@ -3700,14 +3676,14 @@ bool Item_field::is_null_result()
 }
 
 
-bool Item_field::eq(const Item *item, bool binary_cmp) const
+bool Item_field::eq(const Item *item, const Eq_config &config) const
 {
   const Item *real_item2= item->real_item();
   if (real_item2->type() != FIELD_ITEM)
     return 0;
   
   Item_field *item_field= (Item_field*) real_item2;
-  if (item_field->field && field)
+  if (!config.omit_table_names && item_field->field && field)
     return item_field->field == field;
   /*
     We may come here when we are trying to find a function in a GROUP BY
@@ -3720,10 +3696,11 @@ bool Item_field::eq(const Item *item, bool binary_cmp) const
     ER_NON_UNIQ_ERROR).
   */
   return (item_field->name.streq(field_name) &&
-          (!item_field->table_name.str || !table_name.str ||
+          (config.omit_table_names ||
+           (!item_field->table_name.str || !table_name.str ||
            (item_field->table_name.streq(table_name) &&
             (!item_field->db_name.str || !db_name.str ||
-             item_field->db_name.streq(db_name)))));
+             item_field->db_name.streq(db_name))))));
 }
 
 
@@ -3871,7 +3848,7 @@ void Item_field::set_refers_to_temp_table()
 }
 
 
-bool Item_basic_value::eq(const Item *item, bool binary_cmp) const
+bool Item_basic_value::eq(const Item *item, const Eq_config &config) const
 {
   const Item_const *c0, *c1;
   const Type_handler *h0, *h1;
@@ -3909,14 +3886,14 @@ bool Item_basic_value::eq(const Item *item, bool binary_cmp) const
       res= false;
       break;
     case 0:       // Two non-NULLs
-      res= h0->Item_const_eq(c0, c1, binary_cmp);
+      res= h0->Item_const_eq(c0, c1, config.binary_cmp);
     }
   }
   DBUG_EXECUTE_IF("Item_basic_value",
                   push_warning_printf(current_thd,
                   Sql_condition::WARN_LEVEL_NOTE,
                   ER_UNKNOWN_ERROR, "%seq=%d a=%s b=%s",
-                  binary_cmp ? "bin_" : "", (int) res,
+                  config.binary_cmp ? "bin_" : "", (int) res,
                   DbugStringItemTypeValue(current_thd, this).c_ptr(),
                   DbugStringItemTypeValue(current_thd, item).c_ptr()
                   ););
@@ -9823,7 +9800,7 @@ bool Item_outer_ref::check_inner_refs_processor(void *arg)
   items are of the same type.
 
   @param item        item to compare with
-  @param binary_cmp  make binary comparison
+  @param config      comparison rules, see Item::Eq_config
 
   @retval
     TRUE    Referenced item is equal to given item
@@ -9831,7 +9808,7 @@ bool Item_outer_ref::check_inner_refs_processor(void *arg)
     FALSE   otherwise
 */
 
-bool Item_direct_view_ref::eq(const Item *item, bool binary_cmp) const
+bool Item_direct_view_ref::eq(const Item *item, const Eq_config &config) const
 {
   if (item->type() == REF_ITEM)
   {
@@ -10074,10 +10051,10 @@ bool Item_direct_view_ref::val_bool_result()
 }
 
 
-bool Item_default_value::eq(const Item *item, bool binary_cmp) const
+bool Item_default_value::eq(const Item *item, const Eq_config &config) const
 {
-  return item->type() == DEFAULT_VALUE_ITEM && 
-    ((Item_default_value *)item)->arg->eq(arg, binary_cmp);
+  return item->type() == DEFAULT_VALUE_ITEM &&
+    ((Item_default_value *)item)->arg->eq(arg, config);
 }
 
 
@@ -10476,10 +10453,10 @@ error:
 
 }
 
-bool Item_insert_value::eq(const Item *item, bool binary_cmp) const
+bool Item_insert_value::eq(const Item *item, const Eq_config &config) const
 {
   return item->type() == INSERT_VALUE_ITEM &&
-    ((Item_insert_value *)item)->arg->eq(arg, binary_cmp);
+    ((Item_insert_value *)item)->arg->eq(arg, config);
 }
 
 
@@ -10589,7 +10566,7 @@ void Item_trigger_field::setup_field(THD *thd, TABLE *table,
 }
 
 
-bool Item_trigger_field::eq(const Item *item, bool binary_cmp) const
+bool Item_trigger_field::eq(const Item *item, const Eq_config &config) const
 {
   return item->type() == TRIGGER_FIELD_ITEM &&
          row_version == ((Item_trigger_field *)item)->row_version &&

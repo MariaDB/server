@@ -1053,7 +1053,7 @@ public:
   }
   bool fix_length_and_dec(THD *thd) override;
   uint format_length(const String *format);
-  bool eq(const Item *item, bool binary_cmp) const override;
+  bool eq(const Item *item, const Eq_config &config) const override;
   bool check_vcol_func_processor(void *arg) override
   {
     if (arg_count > 2)
@@ -1245,7 +1245,7 @@ public:
     return name;
   }
   bool fix_length_and_dec(THD *thd) override;
-  bool eq(const Item *item, bool binary_cmp) const override;
+  bool eq(const Item *item, const Eq_config &config) const override;
   void print(String *str, enum_query_type query_type) override;
   enum precedence precedence() const override { return INTERVAL_PRECEDENCE; }
   bool need_parentheses_in_default() override { return true; }
@@ -1316,7 +1316,7 @@ class Item_extract :public Item_int_func,
   }
   bool check_arguments() const override;
   bool fix_length_and_dec(THD *thd) override;
-  bool eq(const Item *item, bool binary_cmp) const override;
+  bool eq(const Item *item, const Eq_config &config) const override;
   void print(String *str, enum_query_type query_type) override;
   bool check_partition_func_processor(void *int_arg) override {return FALSE;}
   bool check_vcol_func_processor(void *arg) override
@@ -1389,7 +1389,7 @@ public:
     Item_handled_func(thd, a), cast_length(length_arg), cast_cs(cs_arg),
     m_suppress_warning_to_error_escalation(false) {}
   enum Functype functype() const override { return CHAR_TYPECAST_FUNC; }
-  bool eq(const Item *item, bool binary_cmp) const override;
+  bool eq(const Item *item, const Eq_config &config) const override;
   LEX_CSTRING func_name_cstring() const override
   {
     static LEX_CSTRING name= {STRING_WITH_LEN("cast_as_char") };

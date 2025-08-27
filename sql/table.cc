@@ -3852,28 +3852,6 @@ bool Virtual_column_info::cleanup_session_expr()
 }
 
 
-bool
-Virtual_column_info::is_equivalent(THD *thd, TABLE_SHARE *share, TABLE_SHARE *vcol_share,
-                                  const Virtual_column_info* vcol, bool &error) const
-{
-  error= true;
-  Item *cmp_expr= vcol->expr->build_clone(thd);
-  if (!cmp_expr)
-    return false;
-  Item::func_processor_rename_table param;
-  param.old_db=    Lex_ident_db(vcol_share->db);
-  param.old_table= Lex_ident_table(vcol_share->table_name);
-  param.new_db=    Lex_ident_db(share->db);
-  param.new_table= Lex_ident_table(share->table_name);
-  cmp_expr->walk(&Item::rename_table_processor, &param, WALK_SUBQUERY);
-
-  error= false;
-  return type_handler()  == vcol->type_handler()
-      && is_stored() == vcol->is_stored()
-      && expr->eq(cmp_expr, true);
-}
-
-
 class Vcol_expr_context
 {
   bool inited;
