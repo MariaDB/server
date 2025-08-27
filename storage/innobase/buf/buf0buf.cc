@@ -1781,6 +1781,7 @@ ATTRIBUTE_COLD buf_pool_t::shrink_status buf_pool_t::shrink(size_t size)
     /* relocate page_hash */
     ut_ad(b == page_hash.get(id, chain));
     page_hash.replace(chain, b, &block->page);
+    b->id_.set_corrupted();
 
     if (b->zip.data)
     {
