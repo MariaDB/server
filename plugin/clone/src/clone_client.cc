@@ -356,8 +356,8 @@ bool Client_Stat::tune_has_improved(uint32_t num_threads)
 
   assert(m_current_history_index > 0);
   auto last_index= (m_current_history_index - 1) % STAT_HISTORY_SIZE;
-  double data_speed= m_data_speed_history[last_index];
-  double target_speed= m_tune.m_prev_speed;
+  double data_speed= static_cast<double_t>(m_data_speed_history[last_index]);
+  double target_speed= static_cast<double_t>(m_tune.m_prev_speed);
 
   if (gap_target == gap_current)
     /* We continue if at least 25% improvement after reaching target. */
