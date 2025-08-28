@@ -1,5 +1,9 @@
 # LSAN (Asan leaks) suppressions
 
+# MDEV-36345 Memleak on shutdown in acl_load_mutex test
+# MDEV-35772 LSAN: LeakSanitizer: detected memory leaks in operator new
+leak:_dl_catch_exception
+
 # Leaks found by main.tls_version1
 leak:gnutls_certificate_allocate_credentials
 leak:gnutls_x509_trust_list_init
