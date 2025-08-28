@@ -13138,6 +13138,7 @@ SET @var= fc_i_nt_3_tt_3_suc(370, 2);
 include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Annotate_rows	#	#	INSERT INTO nt_3(trans_id, stmt_id) VALUES ( NAME_CONST('p_trans_id',370),  NAME_CONST('in_stmt_id',1))
 master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_3)
 master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_3)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
@@ -13152,7 +13153,6 @@ COMMIT;
 include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000001	#	Annotate_rows	#	#	INSERT INTO nt_3(trans_id, stmt_id) VALUES ( NAME_CONST('p_trans_id',370),  NAME_CONST('in_stmt_id',1))
 master-bin.000001	#	Table_map	#	#	table_id: # (test.tt_3)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	#	#	use `test`; SELECT `test`.`fc_i_tt_5_suc`(370,4)
@@ -13162,12 +13162,12 @@ master-bin.000001	#	Xid	#	#	COMMIT /* XID */
 include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Annotate_rows	#	#	INSERT INTO nt_3(trans_id, stmt_id) VALUES ( NAME_CONST('p_trans_id',370),  NAME_CONST('in_stmt_id',1))
 master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_3)
 master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_3)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	#	#	COMMIT
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000001	#	Annotate_rows	#	#	INSERT INTO nt_3(trans_id, stmt_id) VALUES ( NAME_CONST('p_trans_id',370),  NAME_CONST('in_stmt_id',1))
 master-bin.000001	#	Table_map	#	#	table_id: # (test.tt_3)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	#	#	use `test`; SELECT `test`.`fc_i_tt_5_suc`(370,4)
@@ -13188,6 +13188,7 @@ SET @var= fc_i_nt_3_tt_3_suc(371, 4);
 include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Annotate_rows	#	#	INSERT INTO nt_3(trans_id, stmt_id) VALUES ( NAME_CONST('p_trans_id',371),  NAME_CONST('in_stmt_id',1))
 master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_3)
 master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_3)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
@@ -13199,7 +13200,6 @@ include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
 master-bin.000001	#	Query	#	#	use `test`; SELECT `test`.`fc_i_tt_5_suc`(371,2)
-master-bin.000001	#	Annotate_rows	#	#	INSERT INTO nt_3(trans_id, stmt_id) VALUES ( NAME_CONST('p_trans_id',371),  NAME_CONST('in_stmt_id',1))
 master-bin.000001	#	Table_map	#	#	table_id: # (test.tt_3)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Xid	#	#	COMMIT /* XID */
@@ -13208,13 +13208,13 @@ master-bin.000001	#	Xid	#	#	COMMIT /* XID */
 include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Annotate_rows	#	#	INSERT INTO nt_3(trans_id, stmt_id) VALUES ( NAME_CONST('p_trans_id',371),  NAME_CONST('in_stmt_id',1))
 master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_3)
 master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_3)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	#	#	COMMIT
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
 master-bin.000001	#	Query	#	#	use `test`; SELECT `test`.`fc_i_tt_5_suc`(371,2)
-master-bin.000001	#	Annotate_rows	#	#	INSERT INTO nt_3(trans_id, stmt_id) VALUES ( NAME_CONST('p_trans_id',371),  NAME_CONST('in_stmt_id',1))
 master-bin.000001	#	Table_map	#	#	table_id: # (test.tt_3)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Xid	#	#	COMMIT /* XID */
@@ -13230,6 +13230,7 @@ SET @var= fc_i_nt_3_tt_3_suc(372, 2);
 include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Annotate_rows	#	#	INSERT INTO nt_3(trans_id, stmt_id) VALUES ( NAME_CONST('p_trans_id',372),  NAME_CONST('in_stmt_id',1))
 master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_3)
 master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_3)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
@@ -13249,6 +13250,7 @@ include/show_binlog_events.inc
 include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Annotate_rows	#	#	INSERT INTO nt_3(trans_id, stmt_id) VALUES ( NAME_CONST('p_trans_id',372),  NAME_CONST('in_stmt_id',1))
 master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_3)
 master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_3)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
@@ -13269,6 +13271,7 @@ SET @var= fc_i_nt_3_tt_3_suc(373, 4);
 include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Annotate_rows	#	#	INSERT INTO nt_3(trans_id, stmt_id) VALUES ( NAME_CONST('p_trans_id',373),  NAME_CONST('in_stmt_id',1))
 master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_3)
 master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_3)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
@@ -13284,6 +13287,7 @@ include/show_binlog_events.inc
 include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Annotate_rows	#	#	INSERT INTO nt_3(trans_id, stmt_id) VALUES ( NAME_CONST('p_trans_id',373),  NAME_CONST('in_stmt_id',1))
 master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_3)
 master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_3)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
