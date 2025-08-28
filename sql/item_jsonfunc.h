@@ -939,5 +939,8 @@ public:
   }
 };
 
+int path_exact(const json_path_with_flags *paths_list, int n_paths,
+               const json_path_t *p, json_value_types vt,
+               const int *array_size_counter);
 
 #endif /* ITEM_JSONFUNC_INCLUDED */

@@ -20,8 +20,9 @@
 #include <sql_class.h>
 #include <mysql/plugin_function.h>
 #include <curl/curl.h>
+#include <sstream>
 #include "sql_type_vector.h"
-#include "item_jsonfunc.cc"
+#include "item_jsonfunc.h"
 #include <unordered_map>
 #include "json_lib.h"
 
@@ -366,7 +367,7 @@ String *Item_func_gen_embedding::read_json(String *str,
   }
 
 error:
-  report_json_error(js, &je, 0);
+  report_json_error_ex(js->ptr(), &je, func_name(), 0, Sql_condition::WARN_LEVEL_WARN);
 return_null:
   null_value= 1;
   return 0;
