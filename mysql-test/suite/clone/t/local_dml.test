@@ -1,8 +1,4 @@
 # Test clone with concurrent DML
-
-if (!$no_binlog) {
---source include/have_log_bin.inc
-}
 --source include/have_innodb.inc
 --source ../include/clone_connection_begin.inc
 
