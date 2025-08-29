@@ -1028,6 +1028,7 @@ typedef struct system_status_var
   ulong feature_timezone;	    /* +1 when XPATH is used */
   ulong feature_trigger;	    /* +1 opening a table with triggers */
   ulong feature_xml;		    /* +1 when XPATH is used */
+  ulong feature_vector_index;       /* +1 when open table with vector index */
   ulong feature_window_functions;   /* +1 when window functions are used */
   ulong feature_into_outfile;       /* +1 when INTO OUTFILE is used */
   ulong feature_into_variable;      /* +1 when INTO VARIABLE is used */

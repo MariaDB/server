@@ -788,7 +788,8 @@ err_not_open:
   DBUG_RETURN(share->error);
 }
 
-static bool create_key_infos(const uchar *strpos, const uchar *frm_image_end,
+static bool create_key_infos(THD *thd, const uchar *strpos,
+                             const uchar *frm_image_end,
                              uint keys, KEY *keyinfo, uint new_frm_ver,
                              uint *ext_key_parts, TABLE_SHARE *share, uint len,
                              KEY *first_keyinfo, LEX_STRING *keynames)
@@ -845,6 +846,8 @@ static bool create_key_infos(const uchar *strpos, const uchar *frm_image_end,
       keyinfo->algorithm= HA_KEY_ALG_UNDEF;
       strpos+=4;
     }
+    if (keyinfo->algorithm == HA_KEY_ALG_VECTOR)
+      thd->status_var.feature_vector_index++;
 
     if (i == 0)
     {
@@ -2100,7 +2103,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
     share->set_use_ext_keys_flag(plugin_hton(se_plugin)->flags &
                                  HTON_SUPPORTS_EXTENDED_KEYS);
 
-    if (create_key_infos(disk_buff + 6, frm_image_end, keys, keyinfo,
+    if (create_key_infos(thd, disk_buff + 6, frm_image_end, keys, keyinfo,
                          new_frm_ver, &ext_key_parts,
                          share, len, &first_keyinfo, &keynames))
       goto err;
@@ -2200,7 +2203,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
   }
   else
   {
-    if (create_key_infos(disk_buff + 6, frm_image_end, keys, keyinfo,
+    if (create_key_infos(thd, disk_buff + 6, frm_image_end, keys, keyinfo,
                          new_frm_ver, &ext_key_parts,
                          share, len, &first_keyinfo, &keynames))
       goto err;

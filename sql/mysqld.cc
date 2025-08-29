@@ -7629,6 +7629,7 @@ SHOW_VAR status_vars[]= {
   {"Feature_application_time_periods", (char*) offsetof(STATUS_VAR, feature_application_time_periods), SHOW_LONG_STATUS},
   {"Feature_timezone",         (char*) offsetof(STATUS_VAR, feature_timezone), SHOW_LONG_STATUS},
   {"Feature_trigger",          (char*) offsetof(STATUS_VAR, feature_trigger), SHOW_LONG_STATUS},
+  {"Feature_vector_index",     (char*) offsetof(STATUS_VAR, feature_vector_index), SHOW_LONG_STATUS},
   {"Feature_window_functions", (char*) offsetof(STATUS_VAR, feature_window_functions), SHOW_LONG_STATUS},
   {"Feature_xml",              (char*) offsetof(STATUS_VAR, feature_xml), SHOW_LONG_STATUS},
   {"Handler_commit",           (char*) offsetof(STATUS_VAR, ha_commit_count), SHOW_LONG_STATUS},
