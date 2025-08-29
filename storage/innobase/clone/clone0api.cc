@@ -1692,6 +1692,7 @@ Clone_notify::Clone_notify(Clone_notify::Type type, space_id_t space,
       m_blocked_state(),
       m_error()
 {
+  if (clone_sys == nullptr) return;
   DEBUG_SYNC_C("clone_notify_ddl");
 
   if (fsp_is_system_temporary(space) || m_type == Type::SPACE_ALTER_INPLACE)
@@ -1794,6 +1795,8 @@ Clone_notify::Clone_notify(Clone_notify::Type type, space_id_t space,
 
 Clone_notify::~Clone_notify()
 {
+  if (clone_sys == nullptr) return;
+
   Mysql_mutex_guard sys_mutex(clone_sys->get_mutex());
 
   switch (m_wait)

@@ -448,6 +448,7 @@ MYSQL_ADD_PLUGIN(innobase ${INNOBASE_SOURCES} STORAGE_ENGINE
 	${LIBSYSTEMD}
 	${LINKER_SCRIPT}
 	tpool
+	stdc++fs
 	)
 
 IF(NOT TARGET innobase)
