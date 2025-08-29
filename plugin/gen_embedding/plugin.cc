@@ -228,7 +228,7 @@ public:
     api_key= THDVAR(thd, api_key);
     std::string model_name;
     uint max_dimensions= 3072; // Default to the largest embedding size
-    if (args[1]->const_item()) // If a const, we can parse the model name here and determine the max dimensions
+    if (args[1]->const_item() && !args[1]->is_null()) // If a const, we can parse the model name here and determine the max dimensions
     {
       model_name= (std::string) args[1]->val_str()->c_ptr();
       if (model_dimensions.find(args[1]->val_str()->c_ptr()) != model_dimensions.end()) 

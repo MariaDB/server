@@ -6,6 +6,9 @@ NULL
 Warnings:
 Warning	1	GENERATE_EMBEDDING_OPENAI: Model wrong-model-name is not supported
 Warning	1	GENERATE_EMBEDDING_OPENAI: Model wrong-model-name is not supported
+select vec_totext(generate_embedding_openai('abc', NULL));
+vec_totext(generate_embedding_openai('abc', NULL))
+NULL
 create table t1 (doc text, model varchar(100));
 insert t1 values (@text, @wrong_model);
 insert t1 values (@text, @wrong_model);
