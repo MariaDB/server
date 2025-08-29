@@ -12,25 +12,33 @@ eval set generate_embedding_openai_host="http://127.0.0.1:$OPENAI_PORT/success";
 create table expensive_test (idx int, a text, b text, model text, 
             embedding vector(1536) as (generate_embedding_openai(concat(a,b), model)) stored);
 
-show status like "%generate_embedding_openai%";
+let $expensive_calls_begin= `$get_expensive_calls`;
 insert into expensive_test (idx, a, b, model) values (1, "a", "bc", "text-embedding-ada-002");
 select idx, a, b, model from expensive_test;
-show status like "%generate_embedding_openai%";
+let $expensive_calls= `$get_expensive_calls`;
+let $res= `select $expensive_calls - $expensive_calls_begin`;
+echo $res;
 
 # This should call the expensive function
 update expensive_test set a = "abc", b = "";
 select idx, a, b, model from expensive_test;
-show status like "%generate_embedding_openai%";
+let $expensive_calls= `$get_expensive_calls`;
+let $res= `select $expensive_calls - $expensive_calls_begin`;
+echo $res;
 
 # This should call the expensive function
 update expensive_test set model = "text-embedding-3-small";
 select idx, a, b, model from expensive_test;
-show status like "%generate_embedding_openai%";
+let $expensive_calls= `$get_expensive_calls`;
+let $res= `select $expensive_calls - $expensive_calls_begin`;
+echo $res;
 
 # This should not call the expensive function
 update expensive_test set idx = 2;
 select idx, a, b, model from expensive_test;
-show status like "%generate_embedding_openai%";
+let $expensive_calls= `$get_expensive_calls`;
+let $res= `select $expensive_calls - $expensive_calls_begin`;
+echo $res;
 
 # Cleanup
 drop table expensive_test;

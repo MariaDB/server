@@ -16,26 +16,34 @@ eval set generate_embedding_openai_host="http://127.0.0.1:$OPENAI_PORT/success";
 create table expensive_test (idx int, a text, b text, doc text as (concat(a,b)),
                     embedding vector(1536) as (generate_embedding_openai(doc, "text-embedding-ada-002")) stored);
 
-show status like "%generate_embedding_openai%";
+let $expensive_calls_begin= `$get_expensive_calls`;
 insert into expensive_test (idx, a, b) values (1, "a", "bc");
 select idx, a, b, doc from expensive_test;
-show status like "%generate_embedding_openai%";
+let $expensive_calls= `$get_expensive_calls`;
+let $res= `select $expensive_calls - $expensive_calls_begin`;
+echo $res;
 
 # This should call the expensive function
 update expensive_test set a = "a", b = "bc";
 select idx, a, b, doc from expensive_test;
-show status like "%generate_embedding_openai%";
+let $expensive_calls= `$get_expensive_calls`;
+let $res= `select $expensive_calls - $expensive_calls_begin`;
+echo $res;
 
 # Same, but only update one column
 # Should call the expensive function
 update expensive_test set a = "ab";
 select idx, a, b, doc from expensive_test;
-show status like "%generate_embedding_openai%";
+let $expensive_calls= `$get_expensive_calls`;
+let $res= `select $expensive_calls - $expensive_calls_begin`;
+echo $res;
 
 # Should not call the expensive function
 update expensive_test set idx = 2;
 select idx, a, b, doc from expensive_test;
-show status like "%generate_embedding_openai%";
+let $expensive_calls= `$get_expensive_calls`;
+let $res= `select $expensive_calls - $expensive_calls_begin`;
+echo $res;
 
 # Cleanup
 drop table expensive_test;
@@ -48,12 +56,16 @@ create table expensive_test (idx int, a text, b text, doc text as (concat(a,b)) 
 
 insert into expensive_test (idx, a, b) values (1, "a", "bc");
 select idx, a, b, doc from expensive_test;
-show status like "%generate_embedding_openai%";
+let $expensive_calls= `$get_expensive_calls`;
+let $res= `select $expensive_calls - $expensive_calls_begin`;
+echo $res;
 
 # This should call the expensive function
 update expensive_test set a = "a", b = "bc";
 select idx, a, b, doc from expensive_test;
-show status like "%generate_embedding_openai%";
+let $expensive_calls= `$get_expensive_calls`;
+let $res= `select $expensive_calls - $expensive_calls_begin`;
+echo $res;
 
 # This should call the expensive function
 # This happens because:
@@ -64,7 +76,9 @@ show status like "%generate_embedding_openai%";
 
 update expensive_test set idx = 2;
 select idx, a, b, doc from expensive_test;
-show status like "%generate_embedding_openai%";
+let $expensive_calls= `$get_expensive_calls`;
+let $res= `select $expensive_calls - $expensive_calls_begin`;
+echo $res;
 
 # Cleanup
 drop table expensive_test;
