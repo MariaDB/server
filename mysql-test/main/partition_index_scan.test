@@ -1,7 +1,7 @@
 --source include/have_partition.inc
 --source include/have_sequence.inc
 
---echo # ordered scans with range
+--echo # index scans with range
 
 CREATE TABLE t1 (
   c int,
@@ -17,6 +17,7 @@ CREATE TABLE t1 (
 
 insert into t1 select t2.seq, t3.seq from seq_100_to_200 t2, seq_1_to_50 t3;
 
+--echo # ordered scans with DESC ordering
 flush status;
 select * from t1 where c = 120 ORDER BY d DESC LIMIT 1;
 show status like 'handler_read_%';
@@ -32,6 +33,7 @@ let $out=`analyze format=json select * from t1 where c = 120 ORDER BY d DESC LIM
 evalp set @js='$out';
 select json_extract(@js,'$**.partitions_index_scan_method');
 
+--echo # unordered scans with ASC ordering
 flush status;
 select * from t1 where c = 120 ORDER BY d LIMIT 1;
 show status like 'handler_read_%';

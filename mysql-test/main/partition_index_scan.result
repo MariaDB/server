@@ -1,4 +1,4 @@
-# ordered scans with range
+# index scans with range
 CREATE TABLE t1 (
 c int,
 d INT,
@@ -11,6 +11,7 @@ PARTITION `p4` VALUES LESS THAN (40),
 PARTITION `p5` VALUES LESS THAN MAXVALUE
 );
 insert into t1 select t2.seq, t3.seq from seq_100_to_200 t2, seq_1_to_50 t3;
+# ordered scans with DESC ordering
 flush status;
 select * from t1 where c = 120 ORDER BY d DESC LIMIT 1;
 c	d
@@ -77,6 +78,7 @@ set @js='$out';
 select json_extract(@js,'$**.partitions_index_scan_method');
 json_extract(@js,'$**.partitions_index_scan_method')
 ["ordered"]
+# unordered scans with ASC ordering
 flush status;
 select * from t1 where c = 120 ORDER BY d LIMIT 1;
 c	d
@@ -84,7 +86,7 @@ c	d
 show status like 'handler_read_%';
 Variable_name	Value
 Handler_read_first	0
-Handler_read_key	5
+Handler_read_key	1
 Handler_read_last	0
 Handler_read_next	0
 Handler_read_prev	0
@@ -100,7 +102,7 @@ c	d
 show status like 'handler_read_%';
 Variable_name	Value
 Handler_read_first	0
-Handler_read_key	5
+Handler_read_key	1
 Handler_read_last	0
 Handler_read_next	1
 Handler_read_prev	0
@@ -130,7 +132,7 @@ c	d
 show status like 'handler_read_%';
 Variable_name	Value
 Handler_read_first	0
-Handler_read_key	5
+Handler_read_key	2
 Handler_read_last	0
 Handler_read_next	15
 Handler_read_prev	0
@@ -146,7 +148,7 @@ c	d
 set @js='$out';
 select json_extract(@js,'$**.partitions_index_scan_method');
 json_extract(@js,'$**.partitions_index_scan_method')
-["ordered"]
+["unordered"]
 drop table t1;
 # ordered scans with range expr
 CREATE TABLE t1 (
