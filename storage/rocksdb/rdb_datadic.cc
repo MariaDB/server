@@ -2713,7 +2713,7 @@ int Rdb_key_def::unpack_binary_or_utf8_varchar_space_pad(
 */
 
 void Rdb_key_def::make_unpack_unknown(
-    const Rdb_collation_codec *codec MY_ATTRIBUTE((__unused__)),
+    const Rdb_collation_codec *,
     const Field *const field, Rdb_pack_field_context *const pack_ctx) {
   pack_ctx->writer->write(field->ptr, field->pack_length());
 }
@@ -2727,9 +2727,9 @@ void Rdb_key_def::make_unpack_unknown(
 */
 
 void Rdb_key_def::dummy_make_unpack_info(
-    const Rdb_collation_codec *codec MY_ATTRIBUTE((__unused__)),
-    const Field *field MY_ATTRIBUTE((__unused__)),
-    Rdb_pack_field_context *pack_ctx MY_ATTRIBUTE((__unused__))) {
+    const Rdb_collation_codec *,
+    const Field *,
+    Rdb_pack_field_context *) {
   // Do nothing
 }
 
@@ -2762,7 +2762,7 @@ int Rdb_key_def::unpack_unknown(Rdb_field_packing *const fpi,
 */
 
 void Rdb_key_def::make_unpack_unknown_varchar(
-    const Rdb_collation_codec *const codec MY_ATTRIBUTE((__unused__)),
+    const Rdb_collation_codec *,
     const Field *const field, Rdb_pack_field_context *const pack_ctx) {
   const auto f = static_cast<const Field_varstring *>(field);
   uint len = f->length_bytes == 1 ? (uint)*f->ptr : uint2korr(f->ptr);
