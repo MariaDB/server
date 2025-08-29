@@ -8,11 +8,18 @@ SET global innodb_log_file_size=4*1024*1024;
 ERROR HY000: Concurrent clone in progress. Please try after clone is complete.
 SET DEBUG_SYNC= 'now SIGNAL resume_clone1';
 connection default;
+SET DEBUG_SYNC="redo_log_resizing SIGNAL clone_start WAIT_FOR redo_finish";
+SET global innodb_log_file_size=4*1024*1024;
+connection con1;
+set DEBUG_SYNC="now WAIT_FOR clone_start";
+CLONE LOCAL DATA DIRECTORY = 'CLONE_DATADIR';
+ERROR HY000: Concurrent DDL is performed during clone operation. Please try again.
+set DEBUG_SYNC="now SIGNAL redo_finish";
+connection default;
 disconnect con1;
-# restart: with restart_parameters
-# restart
 DROP TABLE t1;
 DROP TABLE t2;
 DROP PROCEDURE execute_dml;
 UNINSTALL PLUGIN clone;
+SET GLOBAL innodb_log_file_size = 10 *1024*1024;
 SET DEBUG_SYNC= 'RESET';

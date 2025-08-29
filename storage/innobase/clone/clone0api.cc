@@ -636,8 +636,9 @@ int innodb_clone_end(THD *thd, const byte *loc, uint loc_len,
   when we return from the function [RAII]. */
   Mysql_mutex_guard sys_mutex(clone_sys->get_mutex());
 
+  if (loc == nullptr) return 0;
   /* Get clone handle by locator index. */
-  auto clone_hdl= clone_sys->get_clone_by_index(loc, loc_len);
+  Clone_Handle *clone_hdl= clone_sys->get_clone_by_index(loc, loc_len);
 
   /* If thread is interrupted, then set interrupt error instead. */
   if (thd_killed(thd))
@@ -1714,7 +1715,8 @@ Clone_notify::Clone_notify(Clone_notify::Type type, space_id_t space,
     return;
   }
 
-  if (type == Type::SYSTEM_REDO_RESIZE || type == Type::SPACE_IMPORT)
+  if (type == Type::SYSTEM_REDO_RESIZE || type == Type::SPACE_IMPORT ||
+      type == Type::SPACE_UNDO_TRUNCATE)
   {
     if (clone_active)
     {

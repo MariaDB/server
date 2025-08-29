@@ -18806,6 +18806,7 @@ static void innodb_log_file_size_update(THD *thd, st_mysql_sys_var*,
           break;
         }
 
+	DEBUG_SYNC_C("redo_log_resizing");
         set_timespec(abstime, 5);
         mysql_mutex_lock(&buf_pool.flush_list_mutex);
         lsn_t resizing= log_sys.resize_in_progress();

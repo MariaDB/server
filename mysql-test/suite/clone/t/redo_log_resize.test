@@ -24,14 +24,20 @@ SET DEBUG_SYNC= 'now SIGNAL resume_clone1';
 
 connection default;
 reap;
-disconnect con1;
-let restart_noprint=1;
-let restart_parameters=--datadir=$CLONE_DATADIR;
---source include/restart_mysqld.inc
+SET DEBUG_SYNC="redo_log_resizing SIGNAL clone_start WAIT_FOR redo_finish";
+send SET global innodb_log_file_size=4*1024*1024;
 
-let restart_parameters=;
---source include/restart_mysqld.inc
---rmdir $CLONE_DATADIR
+connection con1;
+set DEBUG_SYNC="now WAIT_FOR clone_start";
+rmdir $CLONE_DATADIR;
+let $clone_err= ER_CLONE_DDL_IN_PROGRESS;
+--source include/clone_command.inc
+set DEBUG_SYNC="now SIGNAL redo_finish";
+
+connection default;
+reap;
+disconnect con1;
 --source ../include/drop_schema.inc
 UNINSTALL PLUGIN clone;
+SET GLOBAL innodb_log_file_size = 10 *1024*1024;
 SET DEBUG_SYNC= 'RESET';

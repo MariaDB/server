@@ -53,6 +53,6 @@ SELECT * FROM mysql.general_log
 
 let restart_parameters=;
 --source include/restart_mysqld.inc
-
+rmdir $CLONE_DATADIR;
 DROP TABLE t;
 UNINSTALL PLUGIN clone;
