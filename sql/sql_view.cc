@@ -1311,6 +1311,7 @@ bool mariadb_view_version_get(TABLE_SHARE *share)
   return FALSE;
 }
 
+void resolve_optimizer_hints(THD *thd, List<SELECT_LEX> &deferred_selects);
 /**
   read VIEW .frm and create structures
 
@@ -1533,6 +1534,8 @@ bool mysql_make_view(THD *thd, TABLE_SHARE *share, TABLE_LIST *view_table_alias,
     /* Parse the query. */
 
     parse_status= parse_sql(thd, & parser_state, view_table_alias->view_creation_ctx);
+
+    thd->lex->resolve_optimizer_hints(thd);
 
     view_select= view_query_lex->first_select_lex();
 

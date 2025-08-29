@@ -1452,6 +1452,27 @@ bool is_compound_hint(opt_hints_enum type_arg)
 }
 
 
+void LEX::resolve_optimizer_hints(THD *thd)
+{
+  Query_arena *arena, backup;
+  arena= thd->activate_stmt_arena_if_needed(&backup);
+  SCOPE_EXIT([&] () mutable {
+    selects_for_hint_resolution.empty();
+    if (arena)
+      thd->restore_active_arena(arena, &backup);
+  });
+
+  List_iterator<SELECT_LEX> it(selects_for_hint_resolution);
+  SELECT_LEX *sel;
+  while ((sel= it++))
+  {
+    if (!sel->parsed_optimizer_hints)
+      continue;
+    Parse_context pc(thd, sel);
+    sel->parsed_optimizer_hints->resolve(&pc);
+  }
+}
+
 #ifndef DBUG_OFF
 static char dbug_print_hint_buf[64];
 

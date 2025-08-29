@@ -4662,26 +4662,6 @@ void LEX::first_lists_tables_same()
   }
 }
 
-static void finish_hint_resolution(THD *thd, List<SELECT_LEX> &deferred_selects)
-{
-  Query_arena *arena, backup;
-  arena= thd->activate_stmt_arena_if_needed(&backup);
-  SCOPE_EXIT([&] () mutable {
-    deferred_selects.empty();
-    if (arena)
-      thd->restore_active_arena(arena, &backup);
-  });
-
-  List_iterator<SELECT_LEX> it(deferred_selects);
-  SELECT_LEX *sel;
-  while ((sel= it++))
-  {
-    if (!sel->parsed_optimizer_hints)
-      continue;
-    Parse_context pc(thd, sel);
-    sel->parsed_optimizer_hints->resolve(&pc);
-  }
-}
 
 void LEX::fix_first_select_number()
 {
@@ -4698,8 +4678,6 @@ void LEX::fix_first_select_number()
     }
     first->select_number= 1;
   }
-
-  finish_hint_resolution(thd, selects_for_hint_resolution);
 }
 
 
@@ -13467,7 +13445,7 @@ LEX::parse_optimizer_hints(const Lex_comment_st &hints_str)
 }
 
 
-void LEX::resolve_optimizer_hints_in_last_select()
+void LEX::handle_parsed_optimizer_hints_in_last_select()
 {
   if (unlikely(select_stack_top == 0))
     return;
@@ -13476,14 +13454,6 @@ void LEX::resolve_optimizer_hints_in_last_select()
 
   if (!select_lex->parsed_optimizer_hints)
     return;
-
-  if (stmt_lex != this)
-  {
-    // VIEWs have their local hints resolved now.
-    Parse_context pc(thd, select_lex);
-    select_lex->parsed_optimizer_hints->resolve(&pc);
-    return;
-  }
 
   selects_for_hint_resolution.push_back(select_lex);
 }
@@ -13494,7 +13464,7 @@ void LEX::resolve_optimizer_hints_in_last_select()
   in some scenarios (for example, ignoring hints at the INSERT part of a
   INSERT..SELECT statement).
 
-  Also see resolve_optimizer_hints_in_last_select().
+  Also see handle_parsed_optimizer_hints_in_last_select().
 
   Return value:
   - false  optimizer hints were not found

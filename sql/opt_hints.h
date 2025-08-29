@@ -36,8 +36,30 @@
   - Table-level hints are put into their Query Block's Opt_hints_qb object.
   - Index-level hints are put into their table's Opt_hints_table object.
 
-  Currently, this process is done at the parser stage. (This is one of the
-  causes why hints do not work across VIEW bounds, here or in MySQL).
+  Currently, this process is done right after the parsing. It's done before
+  the views are opened. This is why hints cannot control anything inside
+  VIEWs, either in MariaDB or in MySQL.
+
+  Occurrences of hints are resolved in the order their SELECTs are parsed.
+  This is important as query block name declarations like
+
+    / *+ QB_NAME(foo) * /
+
+  must be resolved before we try to resolve any references to foo, like
+
+    / *+ SOME_HINT(table@foo ...) * /
+
+  On the other hand, references that use implicit query block names:
+
+  / *+ SOME_HINT(table@`select#5`) * /
+
+  can only be resolved when select numbers are ready. When one uses CTEs,
+  proper select numbers are assigned in LEX::fix_first_select_number()
+  which is called after parsing has been finished.
+
+  Beause of that, LEX::handle_parsed_optimizer_hints_in_last_select() builds a
+  todo list for resolution and LEX::resolve_optimizer_hints() does the hint
+  resolution.
 
   Query-block level hints can be reached through SELECT_LEX::opt_hints_qb.
 
