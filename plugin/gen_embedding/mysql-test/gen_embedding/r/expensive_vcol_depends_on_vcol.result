@@ -1,42 +1,26 @@
 set generate_embedding_openai_host="http://127.0.0.1:OPENAI_PORT/success";
 create table expensive_test (idx int, a text, b text, doc text as (concat(a,b)),
 embedding vector(1536) as (generate_embedding_openai(doc, "text-embedding-ada-002")) stored);
-show status like "%generate_embedding_openai%";
-Variable_name	Value
-Generate_embedding_openai_successful_http_requests	0
-Generate_embedding_openai_total_http_requests	0
 insert into expensive_test (idx, a, b) values (1, "a", "bc");
 select idx, a, b, doc from expensive_test;
 idx	a	b	doc
 1	a	bc	abc
-show status like "%generate_embedding_openai%";
-Variable_name	Value
-Generate_embedding_openai_successful_http_requests	1
-Generate_embedding_openai_total_http_requests	1
+1
 update expensive_test set a = "a", b = "bc";
 select idx, a, b, doc from expensive_test;
 idx	a	b	doc
 1	a	bc	abc
-show status like "%generate_embedding_openai%";
-Variable_name	Value
-Generate_embedding_openai_successful_http_requests	2
-Generate_embedding_openai_total_http_requests	2
+2
 update expensive_test set a = "ab";
 select idx, a, b, doc from expensive_test;
 idx	a	b	doc
 1	ab	bc	abbc
-show status like "%generate_embedding_openai%";
-Variable_name	Value
-Generate_embedding_openai_successful_http_requests	3
-Generate_embedding_openai_total_http_requests	3
+3
 update expensive_test set idx = 2;
 select idx, a, b, doc from expensive_test;
 idx	a	b	doc
 2	ab	bc	abbc
-show status like "%generate_embedding_openai%";
-Variable_name	Value
-Generate_embedding_openai_successful_http_requests	3
-Generate_embedding_openai_total_http_requests	3
+3
 drop table expensive_test;
 create table expensive_test (idx int, a text, b text, doc text as (concat(a,b)) stored,
 embedding vector(1536) as (generate_embedding_openai(doc, "text-embedding-ada-002")) stored);
@@ -44,24 +28,15 @@ insert into expensive_test (idx, a, b) values (1, "a", "bc");
 select idx, a, b, doc from expensive_test;
 idx	a	b	doc
 1	a	bc	abc
-show status like "%generate_embedding_openai%";
-Variable_name	Value
-Generate_embedding_openai_successful_http_requests	4
-Generate_embedding_openai_total_http_requests	4
+4
 update expensive_test set a = "a", b = "bc";
 select idx, a, b, doc from expensive_test;
 idx	a	b	doc
 1	a	bc	abc
-show status like "%generate_embedding_openai%";
-Variable_name	Value
-Generate_embedding_openai_successful_http_requests	5
-Generate_embedding_openai_total_http_requests	5
+5
 update expensive_test set idx = 2;
 select idx, a, b, doc from expensive_test;
 idx	a	b	doc
 2	a	bc	abc
-show status like "%generate_embedding_openai%";
-Variable_name	Value
-Generate_embedding_openai_successful_http_requests	6
-Generate_embedding_openai_total_http_requests	6
+6
 drop table expensive_test;
