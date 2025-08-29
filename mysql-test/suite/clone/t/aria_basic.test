@@ -106,18 +106,10 @@ INSERT INTO t_logs_1 SELECT * FROM t_logs_1;
 --echo ###
 --echo # Test for DML during backup for online backup
 --echo #####
-CREATE TABLE t_dml_ins(i INT PRIMARY KEY)
-        ENGINE ARIA TRANSACTIONAL=1 ROW_FORMAT=PAGE PAGE_CHECKSUM=1;
-INSERT INTO t_dml_ins VALUES(1);
 
-CREATE TABLE t_dml_upd(i INT PRIMARY KEY)
+CREATE TABLE t_dml(i INT PRIMARY KEY)
         ENGINE ARIA TRANSACTIONAL=1 ROW_FORMAT=PAGE PAGE_CHECKSUM=1;
-INSERT INTO t_dml_upd VALUES(1);
-
-CREATE TABLE t_dml_del(i INT PRIMARY KEY)
-        ENGINE ARIA TRANSACTIONAL=1 ROW_FORMAT=PAGE PAGE_CHECKSUM=1;
-INSERT INTO t_dml_del VALUES(1);
-
+INSERT INTO t_dml VALUES(1), (2), (3);
 SET SESSION debug_dbug="+d,maria_flush_whole_log";
 SET GLOBAL aria_checkpoint_interval=10000;
 
@@ -126,19 +118,16 @@ SET GLOBAL aria_checkpoint_interval=10000;
 --eval INSTALL PLUGIN clone SONAME '$MARIADB_CLONE_SO'
 
 --connection clone_conn_1
-SET DEBUG_SYNC= 'after_aria_table_copy_t_dml_del SIGNAL dml_del WAIT_FOR aria_1';
-SET DEBUG_SYNC= 'after_aria_table_copy_t_dml_upd SIGNAL dml_upd WAIT_FOR aria_2';
-SET DEBUG_SYNC= 'after_aria_table_copy_t_dml_ins SIGNAL dml_del WAIT_FOR aria_3';
+SET DEBUG_SYNC= 'after_aria_table_copy_t_dml SIGNAL dml_start WAIT_FOR aria_1';
 --source ../include/clone_command_send.inc
 
 connection default;
-set DEBUG_SYNC="now WAIT_FOR dml_del";
-DELETE FROM test.t_dml_del;
-set DEBUG_SYNC="now SIGNAL aria_1 WAIT_FOR dml_upd";
-UPDATE test.t_dml_upd SET i = 2;
-set DEBUG_SYNC="now SIGNAL aria_2 WAIT_FOR dml_del";
-INSERT INTO test.t_dml_ins VALUES(2);
-SET DEBUG_SYNC="now SIGNAL aria_3";
+set DEBUG_SYNC="now WAIT_FOR dml_start";
+DELETE FROM test.t_dml where i = 3;
+UPDATE test.t_dml SET i = 4 where i = 1;
+INSERT INTO test.t_dml VALUES(5);
+SELECT * FROM test.t_dml;
+SET DEBUG_SYNC="now SIGNAL aria_1";
 
 connection clone_conn_1;
 reap;
@@ -155,9 +144,7 @@ reap;
 
 
 --echo ### Result for DML test
-SELECT * FROM t_dml_ins;
-SELECT * FROM t_dml_upd;
-SELECT * FROM t_dml_del;
+SELECT * FROM t_dml;
 
 --echo ### Result for redo log files backup
 --let $t_logs_1_records_count_after_backup=`SELECT COUNT(*) FROM t_logs_1`
@@ -186,9 +173,7 @@ if ($t_bulk_ins_records_count_after_backup != $t_bulk_ins_records_count_before_b
 --source include/restart_mysqld.inc
 
 --echo ### Clean up for DML test
-DROP TABLE t_dml_ins;
-DROP TABLE t_dml_upd;
-DROP TABLE t_dml_del;
+DROP TABLE t_dml;
 --echo ### Cleanup for redo log files backup
 DROP TABLE t_logs_1;
 DROP TABLE t_logs_2;

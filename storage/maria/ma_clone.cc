@@ -1015,14 +1015,8 @@ int Clone_Handle::copy_table_job(Table *table_ptr, bool online_only,
   }
 
 #ifndef DBUG_OFF
-if (strcmp(table->get_table().c_str(), "t_dml_ins") == 0)
-  DEBUG_SYNC_C("after_aria_table_copy_t_dml_ins");
-
-if (strcmp(table->get_table().c_str(), "t_dml_upd") == 0)
-  DEBUG_SYNC_C("after_aria_table_copy_t_dml_upd");
-
-if (strcmp(table->get_table().c_str(), "t_dml_del") == 0)
-  DEBUG_SYNC_C("after_aria_table_copy_t_dml_del");
+if (strcmp(table->get_table().c_str(), "t_dml") == 0)
+  DEBUG_SYNC_C("after_aria_table_copy_t_dml");
 #endif /* DBUG_OFF */
 
   /* TODO: Post Copy Hook for DDL */

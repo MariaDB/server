@@ -98,54 +98,43 @@ INSERT INTO t_logs_1 SELECT * FROM t_logs_1;
 ###
 # Test for DML during backup for online backup
 #####
-CREATE TABLE t_dml_ins(i INT PRIMARY KEY)
+CREATE TABLE t_dml(i INT PRIMARY KEY)
 ENGINE ARIA TRANSACTIONAL=1 ROW_FORMAT=PAGE PAGE_CHECKSUM=1;
-INSERT INTO t_dml_ins VALUES(1);
-CREATE TABLE t_dml_upd(i INT PRIMARY KEY)
-ENGINE ARIA TRANSACTIONAL=1 ROW_FORMAT=PAGE PAGE_CHECKSUM=1;
-INSERT INTO t_dml_upd VALUES(1);
-CREATE TABLE t_dml_del(i INT PRIMARY KEY)
-ENGINE ARIA TRANSACTIONAL=1 ROW_FORMAT=PAGE PAGE_CHECKSUM=1;
-INSERT INTO t_dml_del VALUES(1);
+INSERT INTO t_dml VALUES(1), (2), (3);
 SET SESSION debug_dbug="+d,maria_flush_whole_log";
 SET GLOBAL aria_checkpoint_interval=10000;
 INSTALL PLUGIN clone SONAME 'CLONE_PLUGIN';
 connection clone_conn_1;
-SET DEBUG_SYNC= 'after_aria_table_copy_t_dml_del SIGNAL dml_del WAIT_FOR aria_1';
-SET DEBUG_SYNC= 'after_aria_table_copy_t_dml_upd SIGNAL dml_upd WAIT_FOR aria_2';
-SET DEBUG_SYNC= 'after_aria_table_copy_t_dml_ins SIGNAL dml_del WAIT_FOR aria_3';
+SET DEBUG_SYNC= 'after_aria_table_copy_t_dml SIGNAL dml_start WAIT_FOR aria_1';
 CLONE LOCAL DATA DIRECTORY = 'CLONE_DATADIR';
 connection default;
-set DEBUG_SYNC="now WAIT_FOR dml_del";
-DELETE FROM test.t_dml_del;
-set DEBUG_SYNC="now SIGNAL aria_1 WAIT_FOR dml_upd";
-UPDATE test.t_dml_upd SET i = 2;
-set DEBUG_SYNC="now SIGNAL aria_2 WAIT_FOR dml_del";
-INSERT INTO test.t_dml_ins VALUES(2);
-SET DEBUG_SYNC="now SIGNAL aria_3";
+set DEBUG_SYNC="now WAIT_FOR dml_start";
+DELETE FROM test.t_dml where i = 3;
+UPDATE test.t_dml SET i = 4 where i = 1;
+INSERT INTO test.t_dml VALUES(5);
+SELECT * FROM test.t_dml;
+i
+2
+4
+5
+SET DEBUG_SYNC="now SIGNAL aria_1";
 connection clone_conn_1;
 connection default;
 # Restart server on cloned data directory
 # restart: with restart_parameters
 ### Result for DML test
-SELECT * FROM t_dml_ins;
-i
-1
-2
-SELECT * FROM t_dml_upd;
+SELECT * FROM t_dml;
 i
 2
-SELECT * FROM t_dml_del;
-i
+4
+5
 ### Result for redo log files backup
 # ok
 # ok
 # ok
 # restart
 ### Clean up for DML test
-DROP TABLE t_dml_ins;
-DROP TABLE t_dml_upd;
-DROP TABLE t_dml_del;
+DROP TABLE t_dml;
 ### Cleanup for redo log files backup
 DROP TABLE t_logs_1;
 DROP TABLE t_logs_2;

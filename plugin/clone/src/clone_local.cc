@@ -172,6 +172,10 @@ int Local::clone_exec() {
       error= hton_clone_copy(thd, server_vector, server_tasks, exec_stage,
                              clone_callback);
       delete clone_callback;
+#ifndef DBUG_OFF
+  if (sub_state == SUBCOM_EXEC_BLOCK_DDL)
+     DEBUG_SYNC_C("after_stage_block_ddl");
+#endif /* DBUG_OFF */
       log_error(thd, true, error, sub_command_str(sub_state));
     }
     return error;

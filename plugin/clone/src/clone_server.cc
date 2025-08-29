@@ -334,6 +334,10 @@ int Server::execute_phase(Sub_Command sub_cmd)
     assert(m_is_master);
     err= send_replication_state();
   }
+#ifndef DBUG_OFF
+  if (sub_cmd == SUBCOM_EXEC_BLOCK_DDL)
+     DEBUG_SYNC_C("after_stage_block_ddl");
+#endif /* DBUG_OFF */
   log_error(get_thd(), false, err, sub_command_str(sub_cmd));
   return err;
 }
