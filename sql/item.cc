@@ -954,7 +954,7 @@ bool Item_field::check_field_in_map(void *arg)
   TABLE *table= my_arg.first;
   MY_BITMAP *bitmap= my_arg.second;
   bool res = false;
-  if (field->table == table || !table)
+  DBUG_ASSERT(field->table == table || !table);
   {
     if (field->vcol_info)
       res|= field->vcol_info->expr->walk(&Item::check_field_in_map, arg, WALK_SUBQUERY);
