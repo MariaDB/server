@@ -213,7 +213,7 @@ USE_VPCLMULQDQ
 static unsigned crc32_avx512(unsigned crc, const char *buf, size_t size,
                              const crc32_tab &tab)
 {
-  const __m512i crc_in = _mm512_castsi128_si512(_mm_cvtsi32_si128(~crc)),
+  const __m512i crc_in = _mm512_zextsi128_si512(_mm_cvtsi32_si128(~crc)),
     b512 = _mm512_broadcast_i32x4(_mm_load_epi32(tab.b512));
   __m128i crc_out;
   __m512i lo;
