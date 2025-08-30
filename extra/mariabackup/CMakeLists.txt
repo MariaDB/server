@@ -43,7 +43,6 @@ ENDIF()
 
 
 ADD_DEFINITIONS(-UMYSQL_SERVER)
-ADD_DEFINITIONS(-DMARIABACKUP) # mariadb_capi_rename.h
 ########################################################################
 # xtrabackup binary
 ########################################################################
