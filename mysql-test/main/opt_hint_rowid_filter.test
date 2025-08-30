@@ -111,6 +111,14 @@ SELECT /*+ rowid_filter(t1 wrong_key1, key_c, wrong_key2)*/ a FROM t1
 
 --echo # Test cases mixing with index hints
 EXPLAIN EXTENDED
+SELECT /*+ index(t1 key_d) rowid_filter(t1 key_b)*/ a FROM t1
+  WHERE c < 'e' AND b > 't' and d < 'e';
+
+EXPLAIN EXTENDED
+SELECT /*+ index(t1 key_a,key_b,key_d) rowid_filter(t1 key_c)*/ a FROM t1
+  WHERE c < 'e' AND b > 't' and d < 'e';
+
+EXPLAIN EXTENDED
 SELECT /*+ no_index(t1) rowid_filter(t1 key_c)*/ a FROM t1
   WHERE c < 'e' AND b > 't' and d < 'e';
 

@@ -677,6 +677,7 @@ void Opt_hints_table::update_index_hint_map(Key_map *keys_to_use,
         get_key_hint_bitmap(type_arg)->get_key_map();
     if (get_switch(type_arg))
     {
+      // White-listing hints: INDEX(), ORDER_INDEX(), etc
       if (keys_specified_in_hint->is_clear_all())
       {
         /*
@@ -698,6 +699,7 @@ void Opt_hints_table::update_index_hint_map(Key_map *keys_to_use,
     }
     else
     {
+      // Black-listing hints: NO_INDEX(), NO_JOIN_INDEX(), etc
       if (keys_specified_in_hint->is_clear_all())
       {
         /*
@@ -757,13 +759,13 @@ bool Opt_hints_table::update_index_hint_maps(THD *thd, TABLE *tbl)
       tbl->keys_in_use_for_order_by= tbl->keys_in_use_for_rowid_filter=
         usable_index_map;
 
-  bool is_force= is_force_index_hint(INDEX_HINT_ENUM);
-  tbl->force_index_join=
-      (is_force || is_force_index_hint(JOIN_INDEX_HINT_ENUM));
-  tbl->force_index_group=
-      (is_force || is_force_index_hint(GROUP_INDEX_HINT_ENUM));
-  tbl->force_index_order=
-      (is_force || is_force_index_hint(ORDER_INDEX_HINT_ENUM));
+  bool is_global_white_listing= is_white_listing_index_hint(INDEX_HINT_ENUM);
+  tbl->force_index_join= (is_global_white_listing ||
+                          is_white_listing_index_hint(JOIN_INDEX_HINT_ENUM));
+  tbl->force_index_group= (is_global_white_listing ||
+                           is_white_listing_index_hint(GROUP_INDEX_HINT_ENUM));
+  tbl->force_index_order= (is_global_white_listing ||
+                           is_white_listing_index_hint(ORDER_INDEX_HINT_ENUM));
 
   if (tbl->force_index_join)
     tbl->keys_in_use_for_query.clear_all();
@@ -771,7 +773,7 @@ bool Opt_hints_table::update_index_hint_maps(THD *thd, TABLE *tbl)
     tbl->keys_in_use_for_group_by.clear_all();
   if (tbl->force_index_order)
     tbl->keys_in_use_for_order_by.clear_all();
-  if (is_force_index_hint(ROWID_FILTER_HINT_ENUM))
+  if (is_white_listing_index_hint(ROWID_FILTER_HINT_ENUM))
     tbl->keys_in_use_for_rowid_filter.clear_all();
 
   // See comment to the identical code at TABLE_LIST::process_index_hints
@@ -790,8 +792,21 @@ bool Opt_hints_table::update_index_hint_maps(THD *thd, TABLE *tbl)
                         GROUP_INDEX_HINT_ENUM);
   update_index_hint_map(&tbl->keys_in_use_for_order_by, &usable_index_map,
                         ORDER_INDEX_HINT_ENUM);
-  update_index_hint_map(&tbl->keys_in_use_for_rowid_filter, &usable_index_map,
-                        ROWID_FILTER_HINT_ENUM);
+  if (is_fixed(ROWID_FILTER_HINT_ENUM))
+  {
+    update_index_hint_map(&tbl->keys_in_use_for_rowid_filter, &usable_index_map,
+                          ROWID_FILTER_HINT_ENUM);
+  }
+  else
+  {
+    /*
+      If ROWID_FILTER/NO_ROWID_FILTER hint is not specified, then keys
+      for building ROWID filters are the same as for retrieving data
+    */
+    tbl->keys_in_use_for_rowid_filter= tbl->keys_in_use_for_query;
+  }
+  tbl->keys_in_use_for_opt_range= tbl->keys_in_use_for_query;
+  tbl->keys_in_use_for_opt_range.merge(tbl->keys_in_use_for_rowid_filter);
   /* Make sure "covering_keys" does not include indexes disabled with a hint */
   Key_map covering_keys(tbl->keys_in_use_for_query);
   covering_keys.merge(tbl->keys_in_use_for_group_by);
@@ -1397,6 +1412,9 @@ bool is_index_hint_conflicting(Opt_hints_table *table_hint,
                                Opt_hints_key *key_hint,
                                opt_hints_enum hint_type)
 {
+  if (hint_type == ROWID_FILTER_HINT_ENUM)
+    return table_or_key_hint_type_specified(table_hint, key_hint,
+                                            ROWID_FILTER_HINT_ENUM);
   if (hint_type != INDEX_HINT_ENUM)
     return table_or_key_hint_type_specified(table_hint, key_hint,
                                             INDEX_HINT_ENUM);

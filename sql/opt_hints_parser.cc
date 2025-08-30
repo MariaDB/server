@@ -601,9 +601,6 @@ bool Parser::Index_level_hint::resolve(Parse_context *pc) const
   if (!tab)
     return false;
 
-  const Lex_ident_sys key_conflict(
-      STRING_WITH_LEN("another hint was already specified for this index"));
-
   /*
     If no index names are given, this is a table level hint, for example:
     GROUP_INDEX(t1), NO_MRR(t2).

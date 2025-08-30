@@ -9002,7 +9002,7 @@ bool TABLE_LIST::process_index_hints(TABLE *tbl)
   /* initialize the result variables */
   tbl->keys_in_use_for_query= tbl->keys_in_use_for_group_by= 
     tbl->keys_in_use_for_order_by= tbl->keys_in_use_for_rowid_filter=
-      tbl->s->usable_indexes(tbl->in_use);
+      tbl->keys_in_use_for_opt_range= tbl->s->usable_indexes(tbl->in_use);
 
   /* index hint list processing */
   if (index_hints)
@@ -9127,10 +9127,11 @@ bool TABLE_LIST::process_index_hints(TABLE *tbl)
     tbl->keys_in_use_for_group_by.subtract (index_group[INDEX_HINT_IGNORE]);
   }
 
-  /*
-    make sure covering_keys and keys for ROWID filters don't include
-    indexes disabled with a hint
-  */
+  // Keys for building ROWID filters are the same as for retrieving data
+  tbl->keys_in_use_for_rowid_filter= tbl->keys_in_use_for_opt_range=
+      tbl->keys_in_use_for_query;
+
+  /* make sure covering_keys don't include indexes disabled with a hint */
   tbl->covering_keys.intersect(tbl->keys_in_use_for_query);
   return 0;
 }

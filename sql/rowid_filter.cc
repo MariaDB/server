@@ -447,8 +447,9 @@ bool TABLE::key_can_be_used_as_rowid_filter(THD *thd, uint index) const
   return (key_info[index].index_flags &
           (HA_DO_RANGE_FILTER_PUSHDOWN | HA_CLUSTERED_INDEX)) ==
              HA_DO_RANGE_FILTER_PUSHDOWN &&
-         hint_key_state(thd, this, index, ROWID_FILTER_HINT_ENUM,
-                        optimizer_flag(thd, OPTIMIZER_SWITCH_USE_ROWID_FILTER));
+          hint_key_state(thd, this, index, ROWID_FILTER_HINT_ENUM,
+                         optimizer_flag(thd, OPTIMIZER_SWITCH_USE_ROWID_FILTER));
+         //keys_in_use_for_rowid_filter.is_set(index);
 }
 
 

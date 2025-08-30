@@ -2770,8 +2770,8 @@ SQL_SELECT::test_quick_select(THD *thd,
     table_rec.add("rows", records).add("cost", read_time);
   }
 
-  // OLEGS: commented this out for debug
-  keys_to_use.intersect(head->keys_in_use_for_query);
+  //keys_to_use.intersect(head->keys_in_use_for_query);
+  keys_to_use.intersect(head->keys_in_use_for_opt_range);
   if (!keys_to_use.is_clear_all())
   {
     uchar buff[STACK_BUFF_ALLOC];
@@ -3550,7 +3550,7 @@ bool calculate_cond_selectivity_for_table(THD *thd, TABLE *table, Item **cond)
     Walk through all quick ranges in the order of least found rows.
   */
   for (ranges= keynr= 0 ; keynr < table->s->keys; keynr++)
-    if (table->opt_range_keys.is_set(keynr))
+    if (table->opt_range_keys.is_set(keynr) && table->keys_in_use_for_query.is_set(keynr))
       optimal_key_order[ranges++]= table->opt_range + keynr;
 
   my_qsort(optimal_key_order, ranges, sizeof *optimal_key_order,
@@ -12359,7 +12359,8 @@ ha_rows check_quick_select(PARAM *param, uint idx, ha_rows limit,
       /* Adjust costs */
       cost->comp_cost-= file->WHERE_COST * diff;
     }
-    param->possible_keys.set_bit(keynr);
+    if (param->table->keys_in_use_for_query.is_set(keynr))
+      param->possible_keys.set_bit(keynr); // OLEGS
     if (update_tbl_stats)
     {
       TABLE::OPT_RANGE *range= param->table->opt_range + keynr;

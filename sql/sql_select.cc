@@ -6218,6 +6218,8 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
           s->needed_reg=select->needed_reg;
           impossible_range= records == 0 && s->table->reginfo.impossible_range;
           s->table->init_cost_info_for_usable_range_rowid_filters(join->thd);
+          s->table->opt_range_keys.intersect(s->table->keys_in_use_for_query);
+          s->const_keys.intersect(s->table->keys_in_use_for_query);
         }
         if (!impossible_range)
         {
@@ -6801,6 +6803,7 @@ add_key_field(JOIN *join,
       JOIN_TAB *stat=field->table->reginfo.join_tab;
       key_map possible_keys=field->get_possible_keys();
       possible_keys.intersect(field->table->keys_in_use_for_query);
+      //possible_keys.intersect(field->table->keys_in_use_for_opt_range);
       stat[0].keys.merge(possible_keys);             // Add possible keys
 
       /*
@@ -6837,7 +6840,10 @@ add_key_field(JOIN *join,
       }
       if (is_const)
       {
-        stat[0].const_keys.merge(possible_keys);
+        key_map possible_keys2=field->get_possible_keys();
+        //possible_keys2.intersect(field->table->keys_in_use_for_query);
+        possible_keys2.intersect(field->table->keys_in_use_for_opt_range);
+        stat[0].const_keys.merge(possible_keys2);
         bitmap_set_bit(&field->table->cond_set, field->field_index);
       }
       else if (!eq_func)
@@ -9672,7 +9678,7 @@ best_access_path(JOIN      *join,
       !(s->quick &&
         s->quick->get_type() != QUICK_SELECT_I::QS_TYPE_GROUP_MIN_MAX && // (2)
         best.key && s->quick->index == best.key->key &&                  // (2)
-        table->opt_range_keys.is_set(best.key->key) &&                  // (2)
+        table->opt_range_keys.is_set(best.key->key)  &&                  // (2)
         best.max_key_part >= table->opt_range[best.key->key].key_parts) &&// (2)
       !((file->ha_table_flags() & HA_TABLE_SCAN_ON_INDEX) &&      // (3)
         !table->covering_keys.is_clear_all() && best.key && !s->quick) &&// (3)

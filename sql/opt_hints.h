@@ -740,7 +740,7 @@ public:
   bool update_index_hint_maps(THD *thd, TABLE *tbl);
 
 private:
-  bool is_force_index_hint(opt_hints_enum type_arg)
+  bool is_white_listing_index_hint(opt_hints_enum type_arg)
   {
     return (get_key_hint_bitmap(type_arg)->is_fixed() &&
             get_switch(type_arg));
