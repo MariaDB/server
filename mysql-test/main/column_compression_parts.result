@@ -127,7 +127,6 @@ ALTER TABLE t1 MODIFY COLUMN a VARCHAR(1000);
 ALTER TABLE t1 ALTER COLUMN a DROP DEFAULT;
 INSERT INTO t1 VALUES (REPEAT('b',100),11);
 INSERT INTO t1 VALUES (default,10);
-ERROR HY000: Field 'a' doesn't have a default value
 ALTER TABLE t1 MODIFY COLUMN a VARCHAR(1000) COMPRESSED;
 SHOW CREATE TABLE t1;
 Table	Create Table
@@ -139,6 +138,7 @@ t1	CREATE TABLE `t1` (
 (PARTITION `p0` VALUES LESS THAN (100,'sss') ENGINE = MyISAM)
 SELECT * from t1 ORDER BY id;
 a	id
+NULL	10
 bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb	11
 aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa	23
 zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz	24

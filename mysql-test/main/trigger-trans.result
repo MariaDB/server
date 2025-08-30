@@ -119,8 +119,9 @@ select get_lock("lock_bug26141_wait", 0);
 get_lock("lock_bug26141_wait", 0)
 1
 connection default;
-select get_lock("lock_bug26141_sync", /* must not be priorly locked */ 0);
-get_lock("lock_bug26141_sync", /* must not be priorly locked */ 0)
+# must not be priorly locked
+select get_lock("lock_bug26141_sync", 0);
+get_lock("lock_bug26141_sync", 0)
 1
 insert into t1 (c) values (2);
 connection connection_update;

@@ -4,6 +4,7 @@
 --source include/have_debug_sync.inc
 --source include/have_metadata_lock_info.inc
 --source include/have_innodb.inc
+--source include/no_view_protocol.inc
 
 #
 # Test the case of when a exclusive lock request waits for a
@@ -3994,3 +3995,54 @@ SET debug_sync='RESET';
 DROP TABLE t1;
 
 disconnect con1;
+
+--echo #
+--echo # MDEV-28567 Assertion `0' in open_tables upon function-related operation
+--echo #
+#
+# This test covers deadlock recovery code in open_tables() after
+# open_and_process_routine(). ALTER VIEW v1 connection must fall as a deadlock
+# victim to hit this code.
+#
+# default connection cannot be used since it may have deadlock weight spoiled
+# by "MDL deadlock overweight" feature from previous deadlocks. In this case
+# ALTER  VIEW v1 won't fall as a deadlock victim and the test won't cover
+# intended code.
+#
+CREATE VIEW v1 AS SELECT 1;
+CREATE FUNCTION f1() RETURNS INT RETURN (SELECT * FROM v1);
+
+connect con1, localhost, root;
+SET debug_sync='open_and_process_table SIGNAL ready1 WAIT_FOR go1';
+send ALTER VIEW v1 AS SELECT f1(); # X v1, S f1
+
+connect con2, localhost, root;
+SET debug_sync='now WAIT_FOR ready1';
+SET debug_sync='mdl_after_find_deadlock SIGNAL ready2';
+send SELECT f1(); # S f1, SR v1
+
+connect con3, localhost, root;
+SET debug_sync='now WAIT_FOR ready2';
+SET debug_sync='mdl_after_find_deadlock SIGNAL ready3';
+send DROP FUNCTION f1; # X f1
+
+connection default;
+SET debug_sync='now WAIT_FOR ready3';
+SET debug_sync='now SIGNAL go1';
+
+connection con3;
+reap;
+disconnect con3;
+
+connection con2;
+reap;
+disconnect con2;
+
+connection con1;
+--error ER_SP_DOES_NOT_EXIST
+reap;
+disconnect con1;
+
+connection default;
+DROP VIEW v1;
+SET debug_sync='reset';

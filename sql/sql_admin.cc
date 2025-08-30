@@ -74,9 +74,8 @@ static bool admin_recreate_table(THD *thd, TABLE_LIST *table_list,
   /* Ignore if there is more than one table in the list */
   save_next_global= table_list->next_global;
   table_list->next_global= 0;
-  result_code= (thd->open_temporary_tables(table_list) ||
-                mysql_recreate_table(thd, table_list, recreate_info,
-                                     table_copy));
+  result_code= thd->check_and_open_tmp_table(table_list) ||
+               mysql_recreate_table(thd, table_list, recreate_info, table_copy);
   table_list->next_global= save_next_global;
   reenable_binlog(thd);
   /*
@@ -577,6 +576,9 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
 
   Disable_wsrep_on_guard wsrep_on_guard(thd, disable_wsrep_on);
 #endif /* WITH_WSREP */
+
+  if (thd->transaction->xid_state.check_has_uncommitted_xa())
+    DBUG_RETURN(TRUE);
 
   fill_check_table_metadata_fields(thd, &field_list);
 

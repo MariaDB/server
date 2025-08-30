@@ -5823,6 +5823,7 @@ public:
   TMP_TABLE_SHARE *find_tmp_table_share(const char *key, size_t key_length);
 
   bool open_temporary_table(TABLE_LIST *tl);
+  bool check_and_open_tmp_table(TABLE_LIST *tl);
   bool open_temporary_tables(TABLE_LIST *tl);
 
   bool close_temporary_tables();
@@ -5910,6 +5911,8 @@ public:
 #ifdef WITH_WSREP
   bool                      wsrep_applier; /* dedicated slave applier thread */
   bool                      wsrep_applier_closing; /* applier marked to close */
+  bool                      wsrep_applier_in_rollback; /* applier is rolling
+                                                          back a transaction */
   bool                      wsrep_client_thread; /* to identify client threads*/
   query_id_t                wsrep_last_query_id;
   XID                       wsrep_xid;
@@ -5927,7 +5930,6 @@ public:
   uint32                    wsrep_rand;
   rpl_group_info            *wsrep_rgi;
   bool                      wsrep_converted_lock_session;
-  char                      wsrep_info[128]; /* string for dynamic proc info */
   ulong                     wsrep_retry_counter; // of autocommit
   bool                      wsrep_PA_safe;
   char*                     wsrep_retry_query;
@@ -5989,7 +5991,6 @@ public:
     return m_wsrep_client_state.transaction().id().get();
   }
 
-
   /*
     Set next trx id
    */
@@ -6029,6 +6030,8 @@ public:
   Wsrep_applier_service* wsrep_applier_service;
   /* wait_for_commit struct for binlog group commit */
   wait_for_commit wsrep_wfc;
+  bool wsrep_applier_is_in_rollback() const
+  { return wsrep_applier_in_rollback; }
 #endif /* WITH_WSREP */
 
   /* Handling of timeouts for commands */
@@ -6238,6 +6241,18 @@ public:
       return false;
     return !is_set_timestamp_forbidden(this);
   }
+
+  /**
+    @brief
+    Return true if current statement uses cursor protocol for execution.
+
+    @details
+    Cursor protocol execution is determined by checking if lex->result is a
+    Select_materialize object, which is exclusively used by the server for
+    cursor result set materialization.
+  */
+  bool is_cursor_execution() const;
+
   /*
     Return true if we are in stored procedure, not in a function or
     trigger.
@@ -6247,6 +6262,8 @@ public:
     return (lex->sphead != 0 &&
             !(in_sub_stmt & (SUB_STMT_FUNCTION | SUB_STMT_TRIGGER)));
   }
+
+  bool reparsing_sp_stmt= {false};
 
   /* Data and methods for bulk multiple unit result reporting */
   DYNAMIC_ARRAY *unit_results;

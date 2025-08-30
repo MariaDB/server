@@ -4061,13 +4061,13 @@ public:
                                 const Lex_ident_sys_st &db,
                                 const Lex_ident_sys_st &table,
                                 const Lex_ident_sys_st &name);
-  Item *create_item_ident_nosp(THD *thd, Lex_ident_sys_st *name)
+  Item *create_item_ident_nosp(THD *thd, const Lex_ident_sys_st *name)
   {
     return create_item_ident_field(thd, Lex_ident_sys(), Lex_ident_sys(), *name);
   }
   Item *create_item_ident_sp(THD *thd, Lex_ident_sys_st *name,
                              const char *start, const char *end);
-  Item *create_item_ident(THD *thd, Lex_ident_cli_st *cname)
+  Item *create_item_ident(THD *thd, const Lex_ident_cli_st *cname)
   {
     Lex_ident_sys name(thd, cname);
     if (name.is_null())
@@ -4194,6 +4194,8 @@ public:
 
     return nullptr;
   }
+
+  bool mark_item_ident_for_ora_join(THD *thd, Item *item);
 
   /*
     Create items of this kind:
@@ -5236,6 +5238,16 @@ digest_reduce_token(sql_digest_state *state, uint token_left, uint token_right);
 
 struct st_lex_local: public LEX, public Sql_alloc
 {
+  /**
+    List of Item_param instances that should be re-used on re-parsing of
+    a SP instruction's statement
+  */
+  List<Item_param> sp_statement_param_values;
+  /**
+    Iterator to the next Item_param in the list above to be processed by
+    the method LEX::add_placeholder()
+  */
+  List<Item_param>::iterator param_values_it;
 };
 
 

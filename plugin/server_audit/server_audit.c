@@ -1166,6 +1166,7 @@ static void setup_connection_initdb(struct connection_info *cn,
 
   cn->thread_id= event->general_thread_id;
   cn->query_id= 0;
+  cn->sync_statement= 0;
   cn->query_length= 0;
   cn->log_always= 0;
   get_str_n(cn->db, &cn->db_length, sizeof(cn->db),
@@ -1198,6 +1199,7 @@ static void setup_connection_table(struct connection_info *cn,
 {
   cn->thread_id= event->thread_id;
   cn->query_id= query_counter++;
+  cn->sync_statement= 0;
   cn->log_always= 0;
   cn->query_length= 0;
   get_str_n(cn->db, &cn->db_length, sizeof(cn->db),
@@ -1219,6 +1221,7 @@ static void setup_connection_query(struct connection_info *cn,
   char uh_buffer[512];
 
   cn->thread_id= event->general_thread_id;
+  cn->sync_statement= 0;
   cn->query_id= query_counter++;
   cn->log_always= 0;
   cn->query_length= 0;

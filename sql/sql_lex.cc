@@ -1,5 +1,5 @@
-/* Copyright (c) 2000, 2019, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2022, MariaDB Corporation.
+/* Copyright (c) 2000, 2025, Oracle and/or its affiliates.
+   Copyright (c) 2009, 2025, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -2582,6 +2582,8 @@ int Lex_input_stream::lex_one_token(YYSTYPE *yylval, THD *thd)
       state=MY_LEX_CHAR;
       break;
     case MY_LEX_END:
+      /* Unclosed special comments result in a syntax error */
+      if (in_comment == DISCARD_COMMENT) return (ABORT_SYM);
       next_state= MY_LEX_END;
       return(0);                        // We found end of input last time
 
@@ -5470,7 +5472,7 @@ void SELECT_LEX::update_used_tables()
     if (tl->on_expr && !is_eliminated_table(join->eliminated_tables, tl))
     {
       tl->on_expr->update_used_tables();
-      tl->on_expr->walk(&Item::eval_not_null_tables, 0, NULL);
+      tl->on_expr->walk(&Item::eval_not_null_tables, 0, 0);
     }
     /*
       - There is no need to check sj_on_expr, because merged semi-joins inject
@@ -5482,7 +5484,7 @@ void SELECT_LEX::update_used_tables()
     if (tl->jtbm_subselect)
     {
       Item *left_expr= tl->jtbm_subselect->left_exp();
-      left_expr->walk(&Item::update_table_bitmaps_processor, FALSE, NULL);
+      left_expr->walk(&Item::update_table_bitmaps_processor, 0, 0);
     }
 
     if (tl->table_function)
@@ -5497,7 +5499,7 @@ void SELECT_LEX::update_used_tables()
         if (!is_eliminated_table(join->eliminated_tables, embedding))
         {
           embedding->on_expr->update_used_tables();
-          embedding->on_expr->walk(&Item::eval_not_null_tables, 0, NULL);
+          embedding->on_expr->walk(&Item::eval_not_null_tables, 0, 0);
         }
       }
       tl= embedding;
@@ -5508,7 +5510,7 @@ void SELECT_LEX::update_used_tables()
   if (join->conds)
   {
     join->conds->update_used_tables();
-    join->conds->walk(&Item::eval_not_null_tables, 0, NULL);
+    join->conds->walk(&Item::eval_not_null_tables, 0, 0);
   }
   if (join->having)
   {
@@ -8594,9 +8596,19 @@ Item *LEX::make_item_sysvar(THD *thd,
 
 static bool param_push_or_clone(THD *thd, LEX *lex, Item_param *item)
 {
-  return !lex->clone_spec_offset ?
-         lex->param_list.push_back(item, thd->mem_root) :
-         item->add_as_clone(thd);
+  if (lex->clone_spec_offset)
+    return item->add_as_clone(thd);
+  else
+  {
+    if (thd->reparsing_sp_stmt)
+      /*
+        Don't put an instance of Item_param in case a SP statement
+        being re-parsed.
+      */
+      return false;
+
+    return lex->param_list.push_back(item, thd->mem_root);
+  }
 }
 
 
@@ -8614,8 +8626,40 @@ Item_param *LEX::add_placeholder(THD *thd, const LEX_CSTRING *name,
     return NULL;
   }
   Query_fragment pos(thd, sphead, start, end);
-  Item_param *item= new (thd->mem_root) Item_param(thd, name,
-                                                   pos.pos(), pos.length());
+  Item_param *item;
+  /*
+    Check whether re-parsing of a failed SP instruction is in progress.
+    In context of the method LEX::add_placeholder, the failed instruction
+    being re-parsed is a part of compound statement enclosed into
+    the BEGIN/END clauses.
+  */
+  if (thd->reparsing_sp_stmt)
+  {
+    /*
+      Get a saved Item_param and reuse it instead of creating a new one.
+      st_lex_local stores instances of the class Item_param that were saved
+      before cleaning up SP instruction's free_list. So, the same instance of
+      Item_param will be used on every re-parsing of failed SP instruction
+      for each specific positional parameter.
+    */
+    st_lex_local *lex= (st_lex_local*)this;
+    DBUG_ASSERT(lex->param_values_it != lex->sp_statement_param_values.end());
+    /*
+      For release build emit internal error in case the assert condition
+      fails
+    */
+    if (lex->param_values_it == lex->sp_statement_param_values.end())
+    {
+      my_error(ER_INTERNAL_ERROR, MYF(0), "no more Item_param for re-bind");
+      return nullptr;
+    }
+
+    item= lex->param_values_it.operator ->();
+    lex->param_values_it++;
+  }
+  else
+    item= new (thd->mem_root) Item_param(thd, name,
+                                         pos.pos(), pos.length());
   if (unlikely(!item) || unlikely(param_push_or_clone(thd, this, item)))
   {
     my_error(ER_OUT_OF_RESOURCES, MYF(0));
@@ -9045,6 +9089,34 @@ Item *LEX::create_item_ident_trigger_specific(THD *thd,
   }
 
   return new (thd->mem_root) Item_trigger_type_of_statement(thd, stmt_type);
+}
+
+
+/*
+  @detail
+    This is called when we've parsed Oracle's outer join syntax, that is
+
+      [[db_name.]table_name.]column_name(+)
+
+    Check if the parse context allows it, if yes, mark the Item_field with
+    ORA_JOIN flag and return it.
+*/
+
+bool LEX::mark_item_ident_for_ora_join(THD *thd, Item *item)
+{
+  Item_field *item_field;
+  DBUG_ASSERT(item);
+
+  if ((thd->variables.sql_mode & MODE_ORACLE) &&
+      current_select && current_select->parsing_place == IN_WHERE &&
+      (item_field= dynamic_cast<Item_field*>(item)))
+  {
+    item_field->with_flags|= item_with_t::ORA_JOIN;
+    return false;
+  }
+
+  thd->parse_error(ER_SYNTAX_ERROR);
+  return true;
 }
 
 
@@ -10522,6 +10594,15 @@ Item *LEX::make_item_func_call_generic(THD *thd,
                                        const Lex_ident_cli_st *cname,
                                        List<Item> *args)
 {
+  if (args && args->elements == 1 &&
+      dynamic_cast<Item_join_operator_plus*>(args->head()))
+  {
+    Item *item= create_item_ident(thd, cdb, cname);
+    if (!item || mark_item_ident_for_ora_join(thd, item))
+      return nullptr;
+    return item;
+  }
+
   Lex_ident_sys db(thd, cdb), name(thd, cname);
   if (db.is_null() || name.is_null())
     return NULL; // EOM
@@ -10617,6 +10698,15 @@ Item *LEX::make_item_func_call_generic(THD *thd,
                                        Lex_ident_cli_st *cfunc,
                                        List<Item> *args)
 {
+  if (args && args->elements == 1 &&
+      dynamic_cast<Item_join_operator_plus*>(args->head()))
+  {
+    Item *item= create_item_ident(thd, cdb, cpkg, cfunc);
+    if (!item || mark_item_ident_for_ora_join(thd, item))
+      return nullptr;
+    return item;
+  }
+
   Lex_ident_sys db(thd, cdb), pkg(thd, cpkg), func(thd, cfunc);
   Identifier_chain2 q_pkg_func(pkg, func);
   sp_name *qname;
@@ -11044,16 +11134,15 @@ bool Lex_order_limit_lock::set_to(SELECT_LEX *sel)
       return TRUE;
     }
     for (ORDER *order= order_list->first; order; order= order->next)
-      (*order->item)->walk(&Item::change_context_processor, FALSE,
-                           &sel->context);
+      (*order->item)->walk(&Item::change_context_processor, &sel->context, 0);
     sel->order_list= *(order_list);
   }
   if (limit.select_limit)
-    limit.select_limit->walk(&Item::change_context_processor, FALSE,
-                             &sel->context);
+    limit.select_limit->walk(&Item::change_context_processor,
+                             &sel->context, 0);
   if (limit.offset_limit)
-    limit.offset_limit->walk(&Item::change_context_processor, FALSE,
-                             &sel->context);
+    limit.offset_limit->walk(&Item::change_context_processor,
+                             &sel->context, 0);
   sel->is_set_query_expr_tail= true;
   return FALSE;
 }
@@ -11066,7 +11155,7 @@ static void change_item_list_context(List<Item> *list,
   Item *item;
   while((item= it++))
   {
-    item->walk(&Item::change_context_processor, FALSE, (void *)context);
+    item->walk(&Item::change_context_processor, (void *)context, 0);
   }
 }
 
@@ -12353,7 +12442,8 @@ Item *st_select_lex::pushdown_from_having_into_where(THD *thd, Item *having)
                           &Item::field_transformer_for_having_pushdown,
                           (uchar *)this);
 
-    if (item->walk(&Item::cleanup_excluding_immutables_processor, 0, STOP_PTR)
+    if (item->walk(&Item::cleanup_excluding_immutables_processor,
+                   0, WALK_NO_CACHE_PROCESS)
         || item->fix_fields(thd, NULL))
     {
       attach_to_conds.empty();
@@ -12367,7 +12457,8 @@ Item *st_select_lex::pushdown_from_having_into_where(THD *thd, Item *having)
   it.rewind();
   while ((item=it++))
   {
-    if (item->walk(&Item::remove_immutable_flag_processor, 0, STOP_PTR))
+    if (item->walk(&Item::remove_immutable_flag_processor,
+                   0, WALK_NO_CACHE_PROCESS))
     {
       attach_to_conds.empty();
       goto exit;

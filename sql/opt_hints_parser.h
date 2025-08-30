@@ -51,8 +51,13 @@ enum opt_hints_enum
   DERIVED_CONDITION_PUSHDOWN_HINT_ENUM,
   MERGE_HINT_ENUM,
   SPLIT_MATERIALIZED_HINT_ENUM,
+  INDEX_HINT_ENUM,
+  JOIN_INDEX_HINT_ENUM,
+  GROUP_INDEX_HINT_ENUM,
+  ORDER_INDEX_HINT_ENUM,
   MAX_HINT_ENUM // This one must be the last in the list
 };
+
 
 /**
   Environment data for the name resolution phase
@@ -121,7 +126,15 @@ public:
     keyword_MERGE,
     keyword_NO_MERGE,
     keyword_SPLIT_MATERIALIZED,
-    keyword_NO_SPLIT_MATERIALIZED
+    keyword_NO_SPLIT_MATERIALIZED,
+    keyword_INDEX,
+    keyword_NO_INDEX,
+    keyword_JOIN_INDEX,
+    keyword_NO_JOIN_INDEX,
+    keyword_GROUP_INDEX,
+    keyword_NO_GROUP_INDEX,
+    keyword_ORDER_INDEX,
+    keyword_NO_ORDER_INDEX
   };
 
   class Token: public Lex_cstring
@@ -389,7 +402,11 @@ private:
   };
 
 
-  // index_level_hint_type ::= MRR | NO_RANGE_OPTIMIZATION | NO_ICP | NO_MRR
+  /*
+    index_level_hint_type ::= MRR | NO_RANGE_OPTIMIZATION | NO_ICP | NO_MRR |
+      INDEX | NO_INDEX | JOIN_INDEX | NO_JOIN_INDEX | ORDER_INDEX |
+      NO_ORDER_INDEX | GROUP_INDEX | NO_GROUP_INDEX
+  */
   class Index_level_hint_type_cond
   {
   public:
@@ -398,7 +415,15 @@ private:
       return id == TokenID::keyword_MRR ||
              id == TokenID::keyword_NO_RANGE_OPTIMIZATION ||
              id == TokenID::keyword_NO_ICP ||
-             id == TokenID::keyword_NO_MRR;
+             id == TokenID::keyword_NO_MRR ||
+             id == TokenID::keyword_INDEX ||
+             id == TokenID::keyword_NO_INDEX ||
+             id == TokenID::keyword_JOIN_INDEX ||
+             id == TokenID::keyword_NO_JOIN_INDEX ||
+             id == TokenID::keyword_ORDER_INDEX ||
+             id == TokenID::keyword_NO_ORDER_INDEX ||
+             id == TokenID::keyword_GROUP_INDEX ||
+             id == TokenID::keyword_NO_GROUP_INDEX;
     }
   };
   class Index_level_hint_type: public TokenChoice<Parser,
@@ -619,18 +644,28 @@ private:
     using AND2::AND2;
   };
 
-
+public:
   // index_level_hint ::= index_level_hint_type ( index_level_hint_body )
   class Index_level_hint: public AND4<Parser,
                                       Index_level_hint_type,
                                       LParen,
                                       Index_level_hint_body,
-                                      RParen>
+                                      RParen>,
+                           public Printable_parser_rule
   {
   public:
     using AND4::AND4;
-    
+
+    /*
+      If no index names are given, this is a table level hint, for example:
+      GROUP_INDEX(t1), NO_MRR(t2).
+      Otherwise this is an index-level hints:
+      NO_INDEX(t1 idx1, idx2) NO_ICP(t2 idx_a, idx_b, idx_c)
+    */
+    bool is_table_level_hint() const { return is_empty(); }
+
     bool resolve(Parse_context *pc) const;
+    void append_args(THD *thd, String *str) const override;
   };
 
 
@@ -665,6 +700,7 @@ public:
     ulonglong get_milliseconds() const;
   };
 
+private:
   // semijoin_hint_type ::= SEMIJOIN | NO_SEMIJOIN
   class Semijoin_hint_type_cond
   {

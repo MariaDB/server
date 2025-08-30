@@ -12338,3 +12338,25 @@ ER_NULL_FOR_ASSOC_ARRAY_INDEX
         eng "NULL key used for associative array '%s'"
 ER_NEED_NAMED_ASSOCIATION
         eng "Initializing %s requires named association"
+ER_INVALID_USE_OF_ORA_JOIN
+        eng "Invalid usage of (+) operator"
+ER_INVALID_USE_OF_ORA_JOIN_CYCLE
+        eng "Invalid usage of (+) operator: cycle dependencies"
+ER_INVALID_USE_OF_ORA_JOIN_OUTER_REF
+        eng "Invalid usage of (+) operator with outer reference %s"
+ER_INVALID_USE_OF_ORA_JOIN_ONE_TABLE
+        eng "Invalid usage of (+) operator: both tables %s and %s are of %s type in the relation"
+ER_INVALID_USE_OF_ORA_JOIN_WRONG_FUNC
+        eng "Invalid usage of (+) operator: used in OR, IN or ROW operation"
+ER_INVALID_USE_OF_ORA_JOIN_MIX
+        eng "Invalid usage of (+) operator: mixed with other type of join"
+WARN_ORA_JOIN_IGNORED
+        eng "Oracle outer join operator (+) ignored in '%-.100s'"
+ER_WARN_CONFLICTING_INDEX_HINT_FOR_TABLE
+        eng "Hint %s is ignored as conflicting/duplicated (an index hint of the same type has already been specified for this table)"
+ER_WARN_CONFLICTING_INDEX_HINT_FOR_KEY
+        eng "Hint %s is ignored as conflicting/duplicated (an index hint of the same type has already been specified for this key)"
+ER_WARN_CONFLICTING_COMPOUND_INDEX_HINT_FOR_TABLE
+        eng "Hint %s is ignored as conflicting/duplicated (an index hint of the same type or opposite kind has already been specified for this table)"
+ER_WARN_CONFLICTING_COMPOUND_INDEX_HINT_FOR_KEY
+        eng "Hint %s is ignored as conflicting/duplicated (an index hint of the same type or opposite kind has already been specified for the key)"

@@ -3128,6 +3128,12 @@ int ha_federated::create(const char *name, TABLE *table_arg,
   FEDERATED_SHARE tmp_share; // Only a temporary share, to test the url
   DBUG_ENTER("ha_federated::create");
 
+  if (table_arg->s->hlindexes())
+  {
+    my_error(ER_ILLEGAL_HA_CREATE_OPTION, MYF(0), "FEDERATED", "VECTOR");
+    DBUG_RETURN(HA_ERR_UNSUPPORTED);
+  }
+
   retval= parse_url(thd->mem_root, &tmp_share, table_arg, 1);
 
   DBUG_RETURN(retval);

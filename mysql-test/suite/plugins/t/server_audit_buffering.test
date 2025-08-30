@@ -31,9 +31,6 @@ while ($counter)
 --enable_result_log
 --enable_query_log
 
-let SEARCH_COUNT=1;
---source include/wait_for_line_count_in_file.inc
-
 set global server_audit_sync_log_file=on;
 
 let SEARCH_COUNT=52;

@@ -3,6 +3,7 @@
 # Deadlock detector should resolve conflicts between FTWRL and user locks.
 
 --source include/have_debug_sync.inc
+--source include/no_view_protocol.inc
 
 CREATE TABLE t1(a INT);
 SELECT GET_LOCK("l1", 0);

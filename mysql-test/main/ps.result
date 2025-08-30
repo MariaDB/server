@@ -5965,9 +5965,145 @@ t1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VI
 # Clean up
 DEALLOCATE PREPARE stmt;
 DROP VIEW t1;
-#
 # End of 10.4 tests
 #
+# MDEV-35330: Assertion `marked_for_read()` failed in VSec9::VSec9 | Item_func_from_unixtime::get_date
+#
+CREATE TABLE t (a INT,b TIMESTAMP DEFAULT FROM_UNIXTIME(a));
+INSERT INTO t VALUES (1,'2025-07-18 18:37:10');
+SELECT * FROM t;
+a	b
+1	2025-07-18 18:37:10
+EXECUTE IMMEDIATE 'UPDATE t SET b=?' USING DEFAULT;
+SELECT * FROM t;
+a	b
+1	1970-01-01 09:00:01
+DROP TABLE t;
+CREATE TABLE t (a INT, b INT DEFAULT (a+5));
+INSERT INTO t values (1,2), (2,DEFAULT);
+EXECUTE IMMEDIATE 'INSERT INTO t VALUES (3,4), (4,?)' USING DEFAULT;
+SELECT * FROM t;
+a	b
+1	2
+2	7
+3	4
+4	9
+EXECUTE IMMEDIATE 'UPDATE t SET b=?' USING DEFAULT;
+SELECT * FROM t;
+a	b
+1	6
+2	7
+3	8
+4	9
+DROP TABLE t;
+CREATE TABLE t (a INT,b TIMESTAMP DEFAULT FROM_UNIXTIME(a));
+INSERT INTO t VALUES (1,'2025-07-18 18:37:10');
+SELECT * FROM t;
+a	b
+1	2025-07-18 18:37:10
+PREPARE s FROM 'UPDATE t SET b=?';
+EXECUTE s USING DEFAULT;
+SELECT * FROM t;
+a	b
+1	1970-01-01 09:00:01
+DROP TABLE t;
+CREATE TABLE t (a INT, b TIMESTAMP DEFAULT FROM_UNIXTIME(a), c INT DEFAULT (a+5));
+INSERT INTO t VALUES (1,'2025-07-18 18:37:10',3);
+SELECT * FROM t;
+a	b	c
+1	2025-07-18 18:37:10	3
+EXECUTE IMMEDIATE 'UPDATE t SET b=?, c=?' USING DEFAULT, DEFAULT;
+SELECT * FROM t;
+a	b	c
+1	1970-01-01 09:00:01	6
+DROP TABLE t;
+# End of 10.6 tests
+#
+# MDEV-34322: ASAN heap-buffer-overflow in Field::is_null / Item_param::assign_default or bogus ER_BAD_NULL_ERROR
+#
+CREATE TABLE t1 (a INT NOT NULL DEFAULT '0', b INT);
+INSERT INTO t1 VALUES (1,11);
+CREATE TRIGGER tr BEFORE INSERT ON t1 FOR EACH ROW SET @x = NULL;
+EXECUTE IMMEDIATE "UPDATE t1 SET a = ?" USING DEFAULT;
+DROP TABLE t1;
+CREATE TABLE t1 (a INT NOT NULL DEFAULT (30 + 100), b INT);
+INSERT INTO t1 VALUES (1,11);
+CREATE TRIGGER tr BEFORE INSERT ON t1 FOR EACH ROW SET @x = NULL;
+EXECUTE IMMEDIATE "UPDATE t1 SET a = ?" USING DEFAULT;
+DROP TABLE t1;
+CREATE TABLE t1 (a INT NOT NULL DEFAULT (b + 100), b INT);
+INSERT INTO t1 VALUES (1,11);
+CREATE TRIGGER tr BEFORE INSERT ON t1 FOR EACH ROW SET @x = NULL;
+EXECUTE IMMEDIATE "UPDATE t1 SET a = ?" USING DEFAULT;
+DROP TABLE t1;
+CREATE TABLE t1 (a INT NOT NULL DEFAULT (FLOOR(RAND()*100)), b INT);
+INSERT INTO t1 VALUES (1,11);
+CREATE TRIGGER tr BEFORE INSERT ON t1 FOR EACH ROW SET @x = NULL;
+EXECUTE IMMEDIATE "UPDATE t1 SET a = ?" USING DEFAULT;
+DROP TABLE t1;
+#
+# MDEV-32694: ASAN errors in Binary_string::alloced_length / reset_stmt_params
+#
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1), (2), (3), (4), (5), (6), (7);
+PREPARE stmt FROM 'BEGIN NOT ATOMIC SELECT * FROM t1 LIMIT ?; SELECT * FROM t1 LIMIT ?; END';
+# Expected output is row (1) produced by the first query
+# the rows (1), (2), (3) produced by the second one
+EXECUTE stmt USING 1, 3;
+a
+1
+a
+1
+2
+3
+ALTER TABLE t1 ADD COLUMN f INT;
+# Because metadata of the table t1 has been changed,
+# the second execution of the same prepared statement should result in
+# re-compilation of the first statement enclosed in the BEGIN / END block
+# and since different actual values are provided to positional parameters
+# on the second execution, the exepected output is the row (1), (2), (3)
+# produced by the first query and the rows (1), (2), (3), (4), (5)
+# produced by the second one
+EXECUTE stmt USING 3, 5;
+a	f
+1	NULL
+2	NULL
+3	NULL
+a	f
+1	NULL
+2	NULL
+3	NULL
+4	NULL
+5	NULL
+DEALLOCATE PREPARE stmt;
+DROP TABLE t1;
+# Check that the order of parameters preserved after re-compilation of a
+# failed statement inside anonymous BEGIN / END block.
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1);
+PREPARE stmt FROM 'BEGIN NOT ATOMIC SELECT a, ?, ? FROM t1; END';
+# Expected output is the row (1, 10, 20)
+EXECUTE stmt USING 10, 20;
+a	?	?
+1	10	20
+ALTER TABLE t1 ADD COLUMN b INT;
+# Expected output is the row (1, 300, 400)
+EXECUTE stmt USING 300, 400;
+a	?	?
+1	300	400
+ALTER TABLE t1 DROP COLUMN b;
+# Expected output is the row (1, 500, 700)
+EXECUTE stmt USING 500, 700;
+a	?	?
+1	500	700
+ALTER TABLE t1 ADD COLUMN b INT;
+# Expected output is the row (1, 700, 900)
+EXECUTE stmt USING 700, 900;
+a	?	?
+1	700	900
+DEALLOCATE PREPARE stmt;
+DROP TABLE t1;
+# End of 11.4 tests
 #
 # MDEV-25008 Delete query gets stuck on mariadb , same query works on MySQL 8.0.21
 #
@@ -5986,7 +6122,5 @@ execute stmt using @var2;
 delete from t1 where a=1 or b=2;
 ERROR HY000: You are using safe update mode and you tried to update a table without a WHERE that uses a KEY column
 drop table t1, t2;
-#
 # End of 11.7 tests
-#
 ALTER DATABASE test CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci;
