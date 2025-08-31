@@ -26,7 +26,6 @@
 #include <unordered_map>
 #include "json_lib.h"
 
-static char *host, *api_key;
 ulonglong curl_requests= 0; /* Number of total curl requests */
 ulonglong successful_curl_requests= 0; /* Number of successful curl requests */
 static const char *JSON_EMBEDDING_PATH = "$.data[0].embedding";
@@ -90,8 +89,7 @@ class Item_func_gen_embedding: public Item_str_func
     long http_response_code;
     size_t max_chars;
     int strLen;
-    std::string response, model_name, authorization= std::string("Authorization: Bearer ") + api_key;
-    
+    std::string response, model_name, authorization= std::string("Authorization: Bearer ") + THDVAR(current_thd, api_key);
     // Input for the OpenAI API
     String *input= args[0]->val_str(&api_response);
     if (!input)
@@ -165,7 +163,7 @@ class Item_func_gen_embedding: public Item_str_func
     slist1= curl_slist_append(slist1, "Content-Type: application/json; charset=utf-8");
     hnd= curl_easy_init();
     curl_easy_setopt(hnd, CURLOPT_BUFFERSIZE, 102400L);
-    curl_easy_setopt(hnd, CURLOPT_URL, host);
+    curl_easy_setopt(hnd, CURLOPT_URL, THDVAR(current_thd, host));
     curl_easy_setopt(hnd, CURLOPT_NOPROGRESS, 1L);
     curl_easy_setopt(hnd, CURLOPT_POSTFIELDS, post_fields.ptr());
     curl_easy_setopt(hnd, CURLOPT_POSTFIELDSIZE_LARGE, (curl_off_t)post_fields.length());
@@ -225,8 +223,6 @@ public:
 
   bool fix_length_and_dec(THD *thd) override
   {
-    host= THDVAR(thd, host);
-    api_key= THDVAR(thd, api_key);
     std::string model_name;
     uint max_dimensions= 3072; // Default to the largest embedding size
     if (args[1]->const_item() && !args[1]->is_null()) // If a const, we can parse the model name here and determine the max dimensions
