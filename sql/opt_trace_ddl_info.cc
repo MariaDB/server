@@ -76,11 +76,10 @@
 
     2. Later, when this JSON structure is given as input to the variable
     "optimizer_stored_context", it is parsed and an in-memory representation
-    of the same structure is built using the class 
-    Optimizer_Trace_Stored_Context_Extractor.
+    of the same structure is built using the class Optimizer_context_replay.
 
     3. To infuse the stats into the optimizer, the same class
-    Optimizer_Trace_Stored_Context_Extractor is used.
+    Optimizer_context_replay is used. TODO: out of date?
 */
 
 /*
@@ -202,11 +201,11 @@ static bool dump_name_ddl_to_trace(THD *thd, DDL_Key *ddl_key, String *stmt,
 static void dump_index_range_stats_to_trace(THD *thd, uchar *tbl_name,
                                             size_t tbl_name_len)
 {
-  if (!thd->stats_ctx_recorder || !thd->stats_ctx_recorder->has_records())
+  if (!thd->opt_ctx_recorder || !thd->opt_ctx_recorder->has_records())
     return;
 
   trace_table_index_range_context *context=
-      thd->stats_ctx_recorder->search(tbl_name, tbl_name_len);
+      thd->opt_ctx_recorder->search(tbl_name, tbl_name_len);
 
   if (!context)
     return;
@@ -396,26 +395,26 @@ bool store_tables_context_in_trace(THD *thd)
   return res;
 }
 
-Optimizer_Stats_Context_Recorder::Optimizer_Stats_Context_Recorder()
+Optimizer_context_recorder::Optimizer_context_recorder()
 {
   my_hash_init(key_memory_trace_ddl_info, &tbl_trace_ctx_hash,
                system_charset_info, 16, 0, 0,
-               &Optimizer_Stats_Context_Recorder::get_tbl_trace_ctx_key, 0,
+               &Optimizer_context_recorder::get_tbl_trace_ctx_key, 0,
                HASH_UNIQUE);
 }
 
-Optimizer_Stats_Context_Recorder::~Optimizer_Stats_Context_Recorder()
+Optimizer_context_recorder::~Optimizer_context_recorder()
 {
   my_hash_free(&tbl_trace_ctx_hash);
 }
 
-bool Optimizer_Stats_Context_Recorder::has_records()
+bool Optimizer_context_recorder::has_records()
 {
   return tbl_trace_ctx_hash.records > 0;
 }
 
 trace_table_index_range_context *
-Optimizer_Stats_Context_Recorder::search(uchar *tbl_name, size_t tbl_name_len)
+Optimizer_context_recorder::search(uchar *tbl_name, size_t tbl_name_len)
 {
   return (trace_table_index_range_context *) my_hash_search(
       &tbl_trace_ctx_hash, tbl_name, tbl_name_len);
@@ -440,7 +439,7 @@ void Range_list_recorder::add_range(MEM_ROOT *mem_root, const char *range)
   @return
     Pointer one can use to add ranges.
 */
-Range_list_recorder *Optimizer_Stats_Context_Recorder::start_range_list_record(
+Range_list_recorder *Optimizer_context_recorder::start_range_list_record(
     THD *thd, MEM_ROOT *mem_root, TABLE_LIST *tbl, size_t found_records,
     const char *index_name, double comp_cost)
 {
@@ -481,7 +480,7 @@ Range_list_recorder *Optimizer_Stats_Context_Recorder::start_range_list_record(
   helper function to know the key portion of the
   trace table context that is stored in hash.
 */
-const uchar *Optimizer_Stats_Context_Recorder::get_tbl_trace_ctx_key(
+const uchar *Optimizer_context_recorder::get_tbl_trace_ctx_key(
     const void *entry_, size_t *length, my_bool flags)
 {
   auto entry= static_cast<const trace_table_index_range_context *>(entry_);
@@ -500,14 +499,14 @@ static void store_full_table_name(TABLE_LIST *tbl, String *buf)
   buf->append(tbl->get_table_name().str, tbl->get_table_name().length);
 }
 
-Optimizer_Stats_Context_Recorder *get_current_stats_recorder(THD *thd)
+Optimizer_context_recorder *get_opt_context_recorder(THD *thd)
 {
   if (thd->variables.optimizer_record_context &&
       !thd->lex->explain->is_query_plan_ready())
   {
-    if (!thd->stats_ctx_recorder)
-      thd->stats_ctx_recorder= new Optimizer_Stats_Context_Recorder();
-    return thd->stats_ctx_recorder;
+    if (!thd->opt_ctx_recorder)
+      thd->opt_ctx_recorder= new Optimizer_context_recorder();
+    return thd->opt_ctx_recorder;
   }
   return nullptr;
 }
@@ -585,8 +584,8 @@ public:
   List<Saved_Index_stats> saved_indexstats_list;
 };
 
-Optimizer_Trace_Stored_Context_Extractor::
-    Optimizer_Trace_Stored_Context_Extractor(THD *thd)
+Optimizer_context_replay::
+    Optimizer_context_replay(THD *thd)
 {
   db_name= NULL;
   ctx_list.empty();
@@ -602,7 +601,7 @@ Optimizer_Trace_Stored_Context_Extractor::
   with it into the arguments passed.
 */
 void
-Optimizer_Trace_Stored_Context_Extractor::load_range_stats_into_client(
+Optimizer_context_replay::load_range_stats_into_client(
     THD *thd,
     TABLE *table,
     uint keynr,
@@ -664,7 +663,7 @@ Optimizer_Trace_Stored_Context_Extractor::load_range_stats_into_client(
     to update the table, and its associated indexes.
 */
 void
-Optimizer_Trace_Stored_Context_Extractor::save_old_and_set_new_table_stats(
+Optimizer_context_replay::save_old_and_set_new_table_stats(
     THD *thd, TABLE *table)
 {
   if (!is_base_table(table->pos_in_table_list))
@@ -725,7 +724,7 @@ Optimizer_Trace_Stored_Context_Extractor::save_old_and_set_new_table_stats(
     restore the saved stats for the tables, and indexes that were
     earlier recorded using save_old_and_set_new_table_stats()
 */
-void Optimizer_Trace_Stored_Context_Extractor::restore_saved_stats()
+void Optimizer_context_replay::restore_saved_stats()
 {
   List_iterator<Saved_Table_stats> table_li(saved_tablestats_list);
   while (Saved_Table_stats *saved_ts= table_li++)
@@ -744,7 +743,7 @@ void Optimizer_Trace_Stored_Context_Extractor::restore_saved_stats()
 /*
   does the extractor hold any records that are read from the json trace
 */
-bool Optimizer_Trace_Stored_Context_Extractor::has_records()
+bool Optimizer_context_replay::has_records()
 {
   return db_name != NULL && !ctx_list.is_empty();
 }
@@ -779,7 +778,7 @@ bool Optimizer_Trace_Stored_Context_Extractor::has_records()
     FALSE  OK
     TRUE  Parse Error
 */
-bool Optimizer_Trace_Stored_Context_Extractor::parse(THD *thd)
+bool Optimizer_context_replay::parse(THD *thd)
 {
   json_engine_t je;
   int rc;
@@ -789,7 +788,7 @@ bool Optimizer_Trace_Stored_Context_Extractor::parse(THD *thd)
   char *context= thd->variables.optimizer_stored_context;
   bool have_db_name= false;
   bool have_list_contexts= false;
-  DBUG_ENTER("Optimizer_Trace_Stored_Context_Extractor::parse");
+  DBUG_ENTER("Optimizer_context_replay::parse");
 
   json_scan_start(&je, system_charset_info,
                   (const uchar*)context,
@@ -912,7 +911,7 @@ err:
     1  Parse Error
    -1  EOF
 */
-int Optimizer_Trace_Stored_Context_Extractor::parse_table_context(
+int Optimizer_context_replay::parse_table_context(
     THD *thd, json_engine_t *je, const char **err,
     trace_table_context_read *table_ctx)
 {
@@ -1122,7 +1121,7 @@ int Optimizer_Trace_Stored_Context_Extractor::parse_table_context(
     1  Parse Error
    -1  EOF
 */
-int Optimizer_Trace_Stored_Context_Extractor::parse_index_context(
+int Optimizer_context_replay::parse_index_context(
     THD *thd, json_engine_t *je, const char **err,
     trace_index_context_read *index_ctx)
 {
@@ -1252,7 +1251,7 @@ int Optimizer_Trace_Stored_Context_Extractor::parse_index_context(
     1  Parse Error
    -1  EOF
 */
-int Optimizer_Trace_Stored_Context_Extractor::parse_range_context(
+int Optimizer_context_replay::parse_range_context(
     THD *thd, json_engine_t *je, const char **err,
     trace_range_context_read *range_ctx)
 {
@@ -1423,9 +1422,9 @@ int Optimizer_Trace_Stored_Context_Extractor::parse_range_context(
   print the contents of the stats that are read from the json trace
 */
 #ifndef DBUG_OFF
-void Optimizer_Trace_Stored_Context_Extractor::dbug_print_read_stats()
+void Optimizer_context_replay::dbug_print_read_stats()
 {
-  DBUG_ENTER("Optimizer_Trace_Stored_Context_Extractor::print()");
+  DBUG_ENTER("Optimizer_context_replay::print()");
   DBUG_PRINT("info", ("----------Printing Stored Context-------------"));
   DBUG_PRINT("info", ("current_database : %s", this->db_name));
   List_iterator<trace_table_context_read> table_itr(this->ctx_list);
@@ -1480,7 +1479,7 @@ void Optimizer_Trace_Stored_Context_Extractor::dbug_print_read_stats()
   check the extracted contents from json trace context, and
   return the number of rows that are in the given table
 */
-ha_rows Optimizer_Trace_Stored_Context_Extractor::get_table_rows(
+ha_rows Optimizer_context_replay::get_table_rows(
     THD *thd, const TABLE *tbl)
 {
   if (!has_records())
@@ -1514,7 +1513,7 @@ ha_rows Optimizer_Trace_Stored_Context_Extractor::get_table_rows(
   the given table and index
 */
 List<ha_rows> *
-Optimizer_Trace_Stored_Context_Extractor::get_index_rec_per_key_list(
+Optimizer_context_replay::get_index_rec_per_key_list(
     THD *thd, const TABLE *tbl, const char *idx_name)
 {
   if (!has_records())
@@ -1555,7 +1554,7 @@ Optimizer_Trace_Stored_Context_Extractor::get_index_rec_per_key_list(
   return the range context for the given table, and index
 */
 trace_range_context_read *
-Optimizer_Trace_Stored_Context_Extractor::get_range_context(
+Optimizer_context_replay::get_range_context(
     THD *thd, const TABLE *tbl, const char *idx_name)
 {
   if (!has_records())

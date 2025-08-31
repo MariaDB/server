@@ -4295,8 +4295,14 @@ public:
   Parser_state *m_parser_state;
 
   Locked_tables_list locked_tables_list;
-  Optimizer_Stats_Context_Recorder *stats_ctx_recorder= NULL;
-  Optimizer_Trace_Stored_Context_Extractor *trace_ctx_extractor= NULL;
+
+  /*
+    If non-NULL, used to record all the "context" (i.e. environment data) that
+    the optimizer sees. The idea is to save the context and then re-create it
+    somewhere else.
+  */
+  Optimizer_context_recorder *opt_ctx_recorder= NULL;
+  Optimizer_context_replay *opt_ctx_replay= NULL;
 
 #ifdef WITH_PARTITION_STORAGE_ENGINE
   partition_info *work_part_info;

@@ -3524,8 +3524,8 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
       thd->variables.optimizer_stored_context &&
       strlen(thd->variables.optimizer_stored_context) > 0)
   {
-    thd->trace_ctx_extractor=
-      new Optimizer_Trace_Stored_Context_Extractor(thd);
+    thd->opt_ctx_replay=
+      new Optimizer_context_replay(thd);
   }
 
   /*
@@ -5895,8 +5895,8 @@ finish:
     if (!thd->is_error() && !res)
       res= store_tables_context_in_trace(thd);
 
-    if (thd->trace_ctx_extractor)
-      thd->trace_ctx_extractor->restore_saved_stats();
+    if (thd->opt_ctx_replay)
+      thd->opt_ctx_replay->restore_saved_stats();
   }
 
   thd->reset_query_timer();

@@ -3387,7 +3387,7 @@ void plugin_thdvar_cleanup(THD *thd)
   my_free(thd->variables.redirect_url);
   thd->variables.redirect_url= 0;
   my_free(thd->variables.optimizer_stored_context);
-  thd->variables.optimizer_stored_context= 0;
+  thd->variables.optimizer_stored_context= NULL;
 #endif
   my_free((char*) thd->variables.default_master_connection.str);
   thd->variables.default_master_connection.str= 0;

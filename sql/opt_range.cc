@@ -12335,9 +12335,9 @@ ha_rows check_quick_select(PARAM *param, uint idx, ha_rows limit,
     rows= file->multi_range_read_info_const(keynr, &seq_if, (void*)&seq, 0,
                                             bufsize, mrr_flags, limit, cost);
 
-  if (param->thd->trace_ctx_extractor)
+  if (param->thd->opt_ctx_replay)
   {
-    param->thd->trace_ctx_extractor->load_range_stats_into_client(
+    param->thd->opt_ctx_replay->load_range_stats_into_client(
         param->thd, param->table, keynr, &seq_if, &seq, cost, &rows);
   }
 

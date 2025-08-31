@@ -42,7 +42,7 @@ bool store_tables_context_in_trace(THD *thd);
    so that entire tables/views contexts can be stored
    at a single place in the trace.
 */
-class Optimizer_Stats_Context_Recorder
+class Optimizer_context_recorder
 {
 private:
   /*
@@ -54,9 +54,9 @@ private:
   HASH tbl_trace_ctx_hash;
 
 public:
-  Optimizer_Stats_Context_Recorder();
+  Optimizer_context_recorder();
 
-  ~Optimizer_Stats_Context_Recorder();
+  ~Optimizer_context_recorder();
 
   bool has_records();
 
@@ -74,7 +74,7 @@ public:
 };
 
 /* Optionally create and get the statistics context recorder for this query */
-Optimizer_Stats_Context_Recorder *get_current_stats_recorder(THD *thd);
+Optimizer_context_recorder *get_opt_context_recorder(THD *thd);
 
 /* Get the range list recorder if we need one. */
 inline Range_list_recorder *
@@ -82,7 +82,7 @@ get_range_list_recorder(THD *thd, MEM_ROOT *mem_root, TABLE_LIST *tbl,
                         const char *index_name, ha_rows records,
                         double comp_cost)
 {
-  Optimizer_Stats_Context_Recorder *ctx= get_current_stats_recorder(thd);
+  Optimizer_context_recorder *ctx= get_opt_context_recorder(thd);
   if (ctx)
     return ctx->start_range_list_record(thd, mem_root, tbl, records,
                                         index_name, comp_cost);
@@ -98,7 +98,7 @@ class Saved_Table_stats;
   This class is used to parse the json structure
   and also infuse read stats into the optimizer
 */
-class Optimizer_Trace_Stored_Context_Extractor
+class Optimizer_context_replay
 {
 private:
   List<Saved_Table_stats> saved_tablestats_list;
@@ -119,7 +119,7 @@ private:
   trace_range_context_read *get_range_context(THD *thd, const TABLE *tbl,
                                               const char *idx_name);
 public:
-  Optimizer_Trace_Stored_Context_Extractor(THD *thd);
+  Optimizer_context_replay(THD *thd);
   void load_range_stats_into_client(THD *thd, TABLE *tbl, uint keynr,
                                     RANGE_SEQ_IF *seq_if,
                                     SEL_ARG_RANGE_SEQ *seq,
