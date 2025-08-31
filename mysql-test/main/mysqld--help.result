@@ -1495,9 +1495,8 @@ The following specify which files/extra groups are read (specified before remain
  --thread-pool-priority=name 
  Threadpool priority. High priority connections usually
  start executing earlier than low priority.If priority set
- to 'auto', the the actual priority(low or high) is
- determined based on whether or not connection is inside
- transaction.
+ to 'auto', the actual priority(low or high) is determined
+ based on whether or not connection is inside transaction.
  --thread-pool-size=# 
  Number of thread groups in the pool. This parameter is
  roughly equivalent to maximum number of concurrently

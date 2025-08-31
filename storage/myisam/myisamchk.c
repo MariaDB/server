@@ -172,7 +172,7 @@ static struct my_option my_long_options[] =
    0, 0, 0, GET_NO_ARG, NO_ARG, 0, 0, 0, 0, 0, 0},
   {"create-missing-keys", OPT_CREATE_MISSING_KEYS,
    "Create missing keys. This assumes that the data file is correct and that "
-   "the the number of rows stored in the index file is correct. Enables "
+   "the number of rows stored in the index file is correct. Enables "
    "--quick",
    0, 0, 0, GET_NO_ARG, NO_ARG, 0, 0, 0, 0, 0, 0},
 #ifndef DBUG_OFF

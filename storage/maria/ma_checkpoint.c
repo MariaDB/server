@@ -982,7 +982,7 @@ static int collect_tables(LEX_STRING *str, LSN checkpoint_start_log_horizon)
       Tables in a normal state have their two file descriptors open.
       In some rare cases like REPAIR, some descriptor may be closed or even
       -1. If that happened, the _ma_state_info_write() may fail. This is
-      prevented by enclosing all all places which close/change kfile.file with
+      prevented by enclosing all places which close/change kfile.file with
       intern_lock.
     */
     kfile= share->kfile;

@@ -93,7 +93,7 @@ int aria_get_capabilities(File kfile, ARIA_TABLE_CAPABILITIES *cap)
     cap->bitmap_pages_covered= aligned_bit_blocks * 16 + 1;
   }
 
-  /* Do a check that that we got things right */
+  /* Do a check that we got things right */
   if (share.state.header.data_file_type != BLOCK_RECORD &&
       cap->online_backup_safe)
     error= HA_ERR_NOT_A_TABLE;

@@ -64,7 +64,7 @@ bool mysql_rename_tables(THD *thd, TABLE_LIST *table_list, bool silent,
 
   /*
     Avoid problems with a rename on a table that we have locked or
-    if the user is trying to to do this in a transcation context
+    if the user is trying to do this in a transcation context
   */
 
   if (thd->locked_tables_mode || thd->in_active_multi_stmt_transaction())

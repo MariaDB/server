@@ -2729,7 +2729,7 @@ struct TABLE_LIST
   {
     /* Normal open. */
     OPEN_NORMAL= 0,
-    /* Associate a table share only if the the table exists. */
+    /* Associate a table share only if the table exists. */
     OPEN_IF_EXISTS,
     /* Don't associate a table share. */
     OPEN_STUB

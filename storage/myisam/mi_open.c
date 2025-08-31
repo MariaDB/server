@@ -1397,7 +1397,7 @@ int mi_indexes_are_disabled(MI_INFO *info)
 
   /*
     No keys or all are enabled. keys is the number of keys. Left shifted
-    gives us only one bit set. When decreased by one, gives us all all bits
+    gives us only one bit set. When decreased by one, gives us all bits
     up to this one set and it gets unset.
   */
   if (!share->base.keys ||

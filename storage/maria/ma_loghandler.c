@@ -1480,7 +1480,7 @@ LSN translog_get_file_max_lsn_stored(uint32 file)
 
   if (file >= limit)
   {
-    DBUG_PRINT("info", ("The file in in progress"));
+    DBUG_PRINT("info", ("The file in progress"));
     DBUG_RETURN(LSN_IMPOSSIBLE);
   }
 
@@ -4522,7 +4522,7 @@ static my_bool translog_write_parts_on_page(TRANSLOG_ADDRESS *horizon,
   if (!cursor->chaser)
     cursor->buffer->size+= length;
   /*
-    We do not not updating parts->total_record_length here because it is
+    We do not updating parts->total_record_length here because it is
     need only before writing record to have total length
   */
   DBUG_PRINT("info", ("Write parts buffer #%u: %p  "

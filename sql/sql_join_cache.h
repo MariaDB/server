@@ -1239,7 +1239,7 @@ class JOIN_TAB_SCAN_MRR: public JOIN_TAB_SCAN
   /* Number of ranges to be processed by the MRR interface */
   uint ranges;
 
-  /* Flag to to be passed to the MRR interface */ 
+  /* Flag to be passed to the MRR interface */
   uint mrr_mode;
 
   /* MRR buffer assotiated with this join cache */
@@ -1274,7 +1274,7 @@ class JOIN_CACHE_BKA :public JOIN_CACHE
 {
 private:
 
-  /* Flag to to be passed to the companion JOIN_TAB_SCAN_MRR object */
+  /* Flag to be passed to the companion JOIN_TAB_SCAN_MRR object */
   uint mrr_mode;
 
   /* 
@@ -1370,7 +1370,7 @@ class JOIN_CACHE_BKAH :public JOIN_CACHE_BNLH
 {
 
 private:
-  /* Flag to to be passed to the companion JOIN_TAB_SCAN_MRR object */
+  /* Flag to be passed to the companion JOIN_TAB_SCAN_MRR object */
   uint mrr_mode;
 
   /* 
