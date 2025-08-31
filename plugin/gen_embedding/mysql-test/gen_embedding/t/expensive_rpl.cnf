@@ -1,0 +1,15 @@
+!include include/default_my.cnf
+
+[openai]
+listen = @ENV.OPENAI_PORT
+success_filename = @ENV.MTR_SUITE_DIR/json_responses/success_responses.json
+wrong_json_path_filename = @ENV.MTR_SUITE_DIR/json_responses/wrong_json_path.json
+
+[ENV]
+OPENAI_PORT = @OPT.port
+
+[mysqld.2]
+
+[ENV]
+SERVER_MYPORT_2=     @mysqld.2.port
+SERVER_MYSOCK_2=     @mysqld.2.socket
