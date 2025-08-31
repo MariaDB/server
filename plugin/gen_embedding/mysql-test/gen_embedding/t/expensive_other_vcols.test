@@ -1,0 +1,77 @@
+source include/have_gen_embedding.inc;
+
+
+# Make sure that updating another vcol that is not related to the expensive vcol does not update the expensive vcol as well
+# We also verify that the fields that are meant to be updated, are indeed updated by executing select statements
+# We don't verify the contents of the embedding vector in those select statements, as the status variables are 
+# sufficient indications that the expensive function is (or isn't) called
+
+--replace_result $OPENAI_PORT OPENAI_PORT
+eval set generate_embedding_openai_host="http://127.0.0.1:$OPENAI_PORT/success";
+
+create table expensive_test (idx int, doc text, model text, 
+                        embedding vector(1536) as (generate_embedding_openai(doc, model)) stored, 
+                        c int as (idx+1));
+
+# This should call the expensive function
+
+show status like "%generate_embedding_openai%";
+insert into expensive_test (idx, doc, model) values (1, "abc", "text-embedding-ada-002");
+select idx, doc, model from expensive_test;
+show status like "%generate_embedding_openai%";
+
+# This should not call the expensive function
+update expensive_test set idx = 2;
+select idx, doc, model from expensive_test;
+show status like "%generate_embedding_openai%";
+
+# Cleanup
+drop table expensive_test;
+
+
+###################################
+
+# Do the same as above but now c is stored
+
+create table expensive_test (idx int, doc text, model text, 
+                        embedding vector(1536) as (generate_embedding_openai(doc, model)) stored, 
+                        c int as (idx+1) stored);
+
+# This should call the expensive function
+
+show status like "%generate_embedding_openai%";
+insert into expensive_test (idx, doc, model) values (1, "abc", "text-embedding-ada-002");
+select idx, doc, model from expensive_test;
+show status like "%generate_embedding_openai%";
+
+# This should not call the expensive function
+update expensive_test set idx = 2;
+select idx, doc, model from expensive_test;
+show status like "%generate_embedding_openai%";
+
+# Cleanup
+drop table expensive_test;
+
+
+###################################
+
+# Test that if doc affects embedding and c, and d also affects c, then updating d does not call the expensive function
+
+create table expensive_test (d text, doc text, 
+                embedding vector(1536) as (generate_embedding_openai(doc, "text-embedding-ada-002")) stored,
+                c text as (concat(doc, d)) stored);
+
+# This should call the expensive function
+
+show status like "%generate_embedding_openai%";
+insert into expensive_test (d, doc) values ("whatever", "abc");
+select d, doc, c from expensive_test;
+show status like "%generate_embedding_openai%";
+
+# This should not call the expensive function
+update expensive_test set d = "whatever2";
+select d, doc, c from expensive_test;
+show status like "%generate_embedding_openai%";
+
+# Cleanup
+drop table expensive_test;

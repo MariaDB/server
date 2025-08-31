@@ -1699,6 +1699,7 @@ public:
   int verify_constraints(bool ignore_failure);
   void free_engine_stats();
   void update_engine_independent_stats();
+  bool check_dependencies_in_write_set(Field *field);
   inline void column_bitmaps_set(MY_BITMAP *read_set_arg)
   {
     read_set= read_set_arg;

@@ -1,0 +1,36 @@
+source include/have_gen_embedding.inc;
+
+
+# Test that updating a column unrelated to the expensive vcol does not cause recalculation
+# We also verify that the fields that are meant to be updated, are indeed updated by executing select statements
+# We don't verify the contents of the embedding vector in those select statements, as the status variables are 
+# sufficient indications that the expensive function is (or isn't) called
+
+--replace_result $OPENAI_PORT OPENAI_PORT
+eval set generate_embedding_openai_host="http://127.0.0.1:$OPENAI_PORT/success";
+
+create table expensive_test (idx int, a text, b text, model text, 
+            embedding vector(1536) as (generate_embedding_openai(concat(a,b), model)) stored);
+
+show status like "%generate_embedding_openai%";
+insert into expensive_test (idx, a, b, model) values (1, "a", "bc", "text-embedding-ada-002");
+select idx, a, b, model from expensive_test;
+show status like "%generate_embedding_openai%";
+
+# This should call the expensive function
+update expensive_test set a = "abc", b = "";
+select idx, a, b, model from expensive_test;
+show status like "%generate_embedding_openai%";
+
+# This should call the expensive function
+update expensive_test set model = "text-embedding-3-small";
+select idx, a, b, model from expensive_test;
+show status like "%generate_embedding_openai%";
+
+# This should not call the expensive function
+update expensive_test set idx = 2;
+select idx, a, b, model from expensive_test;
+show status like "%generate_embedding_openai%";
+
+# Cleanup
+drop table expensive_test;

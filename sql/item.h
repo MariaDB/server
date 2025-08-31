@@ -2272,6 +2272,7 @@ public:
   // FIXME reduce the number of "add field to bitmap" processors
   virtual bool add_field_to_set_processor(void *arg) { return 0; }
   virtual bool register_field_in_read_map(void *arg) { return 0; }
+  virtual bool check_field_in_write_map(void *arg) { return 0; }
   virtual bool register_field_in_write_map(void *arg) { return 0; }
   virtual bool register_field_in_bitmap(void *arg) { return 0; }
   virtual bool update_table_bitmaps_processor(void *arg) { return 0; }
@@ -3959,6 +3960,7 @@ public:
   bool find_item_in_field_list_processor(void *arg) override;
   bool register_field_in_read_map(void *arg) override;
   bool register_field_in_write_map(void *arg) override;
+  bool check_field_in_write_map(void *arg) override;
   bool register_field_in_bitmap(void *arg) override;
   bool intersect_field_part_of_key(void *arg) override;
   bool check_partition_func_processor(void *) override {return false;}
@@ -8606,6 +8608,7 @@ inline bool TABLE::mark_virtual_column_with_deps(Field *field)
 {
   bool res;
   DBUG_ASSERT(field->vcol_info);
+  // Check if we are the first to mark this for write, if we are recursively mark our deps
   if (!(res= bitmap_fast_test_and_set(read_set, field->field_index)))
     mark_virtual_column_deps(field);
   return res;
@@ -8625,6 +8628,24 @@ inline void TABLE::use_all_stored_columns()
   if (Field **vf= vfield)
     for (; *vf; vf++)
       bitmap_clear_bit(read_set, (*vf)->field_index);
+}
+
+/*
+  Used for expensive virtual stored columns to check if any of the dependencies are in the write_set
+  Walks through the expression tree to recursively check all dependencies
+*/
+inline bool TABLE::check_dependencies_in_write_set(Field *field) {
+  bool res;
+  // Check for field in write_set and then for all its deps
+  if (bitmap_is_set(write_set, field->field_index))
+    // We already know that this field is in write_set, avoid walking
+    return true;
+  else
+  {
+    DBUG_ASSERT(field->vcol_info->expr);
+    res= field->vcol_info->expr->walk(&Item::check_field_in_write_map, 1, 0);
+  }
+  return res;
 }
 
 #endif /* SQL_ITEM_INCLUDED */

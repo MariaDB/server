@@ -966,6 +966,27 @@ bool Item_field::register_field_in_write_map(void *arg)
   return 0;
 }
 
+/*
+  Processor used in UPDATE statements for expensive virtual stored columns
+  Walks down the expression tree
+  Returns true if any of the fields in the expression tree are in the write set
+*/
+
+bool Item_field::check_field_in_write_map(void *arg)
+{
+  TABLE *table= (TABLE *) arg;
+  bool res = false;
+  if (field->table == table || !table)
+  {
+    if (field->vcol_info)
+      res|= field->vcol_info->expr->walk(&Item::check_field_in_write_map, 1, arg);
+    return res || bitmap_is_set(field->table->write_set, field->field_index);
+  }
+
+  return false;
+}
+
+
 /**
   Check that we are not referring to any not yet initialized fields
 

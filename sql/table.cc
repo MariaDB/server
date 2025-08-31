@@ -8291,9 +8291,37 @@ bool TABLE::mark_virtual_columns_for_write(bool insert_fl
              (tmp_vfield->flags & (PART_KEY_FLAG | FIELD_IN_PART_FUNC_FLAG |
                                    PART_INDIRECT_KEY_FLAG)))
     {
-      bitmap_set_bit(write_set, tmp_vfield->field_index);
-      mark_virtual_column_with_deps(tmp_vfield);
-      bitmap_updated= true;
+      /*
+        Stored expensive virtual columns should not be recomputed whenever possible
+        Instead, the stored value should be used
+        To achieve this, we only mark the column in the write_set when necessary,
+        meaning when one of its dependencies is in the write_set
+        Once we have identified that the column needs to be updated, we need
+        to walk again and mark all of its dependencies in the write_set too
+      */
+      if (
+        tmp_vfield->vcol_info->expr->is_expensive() && 
+        tmp_vfield->vcol_info->is_stored())
+      {
+        if (check_dependencies_in_write_set(tmp_vfield)) 
+        {
+          /*
+            One of the vfield's deps is in the write set, so the vfield
+            needs to be updated so we put it in the write_set
+            To update it, we need the values of all the deps, so we put them
+            in the read_set
+           */
+          bitmap_set_bit(write_set, tmp_vfield->field_index);
+          mark_virtual_column_with_deps(tmp_vfield);
+          bitmap_updated= true;
+        }
+      }
+      else 
+      {
+        bitmap_set_bit(write_set, tmp_vfield->field_index);
+        mark_virtual_column_with_deps(tmp_vfield);
+        bitmap_updated= true;
+      }
     }
   }
   if (bitmap_updated)
@@ -9338,7 +9366,10 @@ int TABLE::update_virtual_fields(handler *h, enum_vcol_update_mode update_mode)
       break;
     case VCOL_UPDATE_FOR_DELETE:
     case VCOL_UPDATE_FOR_WRITE:
-      update= bitmap_is_set(read_set, vf->field_index);
+      if (vcol_info->expr->is_expensive() && vcol_info->is_stored())
+        update= bitmap_is_set(write_set, vf->field_index);
+      else
+        update= bitmap_is_set(read_set, vf->field_index);
       break;
     case VCOL_UPDATE_FOR_REPLACE:
       update= ((!vcol_info->is_stored() &&
