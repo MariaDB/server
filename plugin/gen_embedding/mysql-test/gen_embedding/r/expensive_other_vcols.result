@@ -1,0 +1,73 @@
+set generate_embedding_openai_host="http://127.0.0.1:OPENAI_PORT/success";
+create table expensive_test (idx int, doc text, model text, 
+embedding vector(1536) as (generate_embedding_openai(doc, model)) stored, 
+c int as (idx+1));
+show status like "%generate_embedding_openai%";
+Variable_name	Value
+Generate_embedding_openai_successful_http_requests	0
+Generate_embedding_openai_total_http_requests	0
+insert into expensive_test (idx, doc, model) values (1, "abc", "text-embedding-ada-002");
+select idx, doc, model from expensive_test;
+idx	doc	model
+1	abc	text-embedding-ada-002
+show status like "%generate_embedding_openai%";
+Variable_name	Value
+Generate_embedding_openai_successful_http_requests	1
+Generate_embedding_openai_total_http_requests	1
+update expensive_test set idx = 2;
+select idx, doc, model from expensive_test;
+idx	doc	model
+2	abc	text-embedding-ada-002
+show status like "%generate_embedding_openai%";
+Variable_name	Value
+Generate_embedding_openai_successful_http_requests	1
+Generate_embedding_openai_total_http_requests	1
+drop table expensive_test;
+create table expensive_test (idx int, doc text, model text, 
+embedding vector(1536) as (generate_embedding_openai(doc, model)) stored, 
+c int as (idx+1) stored);
+show status like "%generate_embedding_openai%";
+Variable_name	Value
+Generate_embedding_openai_successful_http_requests	1
+Generate_embedding_openai_total_http_requests	1
+insert into expensive_test (idx, doc, model) values (1, "abc", "text-embedding-ada-002");
+select idx, doc, model from expensive_test;
+idx	doc	model
+1	abc	text-embedding-ada-002
+show status like "%generate_embedding_openai%";
+Variable_name	Value
+Generate_embedding_openai_successful_http_requests	2
+Generate_embedding_openai_total_http_requests	2
+update expensive_test set idx = 2;
+select idx, doc, model from expensive_test;
+idx	doc	model
+2	abc	text-embedding-ada-002
+show status like "%generate_embedding_openai%";
+Variable_name	Value
+Generate_embedding_openai_successful_http_requests	2
+Generate_embedding_openai_total_http_requests	2
+drop table expensive_test;
+create table expensive_test (d text, doc text, 
+embedding vector(1536) as (generate_embedding_openai(doc, "text-embedding-ada-002")) stored,
+c text as (concat(doc, d)) stored);
+show status like "%generate_embedding_openai%";
+Variable_name	Value
+Generate_embedding_openai_successful_http_requests	2
+Generate_embedding_openai_total_http_requests	2
+insert into expensive_test (d, doc) values ("whatever", "abc");
+select d, doc, c from expensive_test;
+d	doc	c
+whatever	abc	abcwhatever
+show status like "%generate_embedding_openai%";
+Variable_name	Value
+Generate_embedding_openai_successful_http_requests	3
+Generate_embedding_openai_total_http_requests	3
+update expensive_test set d = "whatever2";
+select d, doc, c from expensive_test;
+d	doc	c
+whatever2	abc	abcwhatever2
+show status like "%generate_embedding_openai%";
+Variable_name	Value
+Generate_embedding_openai_successful_http_requests	3
+Generate_embedding_openai_total_http_requests	3
+drop table expensive_test;
