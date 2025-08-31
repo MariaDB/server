@@ -12814,8 +12814,7 @@ interval_qualifier:
                 YYERROR;
 
             case INTERVAL_LAST:
-                my_error(ER_PARSE_ERROR, MYF(0),
-                         interval_error_message($$.type));
+                my_error(ER_INVALID_INTERVAL_RANGE_COMBO, MYF(0));
                 YYERROR;
 
             default:

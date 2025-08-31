@@ -180,19 +180,19 @@ ERROR 42000: This version of MariaDB doesn't yet support 'INTERVAL MINUTE TO MIC
 CREATE PROCEDURE sp_invalid7(IN a INTERVAL SECOND TO MICROSECOND) BEGIN END;
 ERROR 42000: This version of MariaDB doesn't yet support 'INTERVAL SECOND TO MICROSECOND'
 CREATE PROCEDURE sp_invalid8(IN a INTERVAL MICROSECOND TO SECOND) BEGIN END;
-ERROR 42000: Invalid INTERVAL range combination near '\0014' at line 0
+ERROR HY000: Invalid INTERVAL range combination
 CREATE PROCEDURE sp_invalid11(IN a INTERVAL MICROSECOND TO MINUTE) BEGIN END;
-ERROR 42000: Invalid INTERVAL range combination near '\0014' at line 0
+ERROR HY000: Invalid INTERVAL range combination
 CREATE PROCEDURE sp_invalid12(IN a INTERVAL YEAR TO SECOND) BEGIN END;
-ERROR 42000: Invalid INTERVAL range combination near '\0014' at line 0
+ERROR HY000: Invalid INTERVAL range combination
 CREATE PROCEDURE sp_invalid13(IN a INTERVAL MONTH TO DAY) BEGIN END;
-ERROR 42000: Invalid INTERVAL range combination near '\0014' at line 0
+ERROR HY000: Invalid INTERVAL range combination
 CREATE PROCEDURE sp_invalid14(IN a INTERVAL SECOND TO HOUR) BEGIN END;
-ERROR 42000: Invalid INTERVAL range combination near '\0014' at line 0
+ERROR HY000: Invalid INTERVAL range combination
 CREATE PROCEDURE sp_invalid15(IN a INTERVAL WEEK TO DAY) BEGIN END;
-ERROR 42000: Invalid INTERVAL range combination near '\0014' at line 0
+ERROR HY000: Invalid INTERVAL range combination
 CREATE PROCEDURE sp_invalid16(IN a INTERVAL YEAR TO SECOND) BEGIN END;
-ERROR 42000: Invalid INTERVAL range combination near '\0014' at line 0
+ERROR HY000: Invalid INTERVAL range combination
 Precision validation – ensuring valid start and end precisions
 CREATE PROCEDURE sp_invalid_1(IN a INTERVAL YEAR(5)) BEGIN END;
 ERROR 42000: Too big precision specified for 'a'. Maximum is 4
