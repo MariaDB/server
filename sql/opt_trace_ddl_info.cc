@@ -323,6 +323,7 @@ bool store_tables_context_in_trace(THD *thd)
     return false;
 
   Json_writer_object main_wrapper(thd);
+  Json_writer_object context(thd, "optimizer_context");
   main_wrapper.add("current_database", thd->get_db());
   Json_writer_array context_list(thd, "list_contexts");
   HASH hash;
