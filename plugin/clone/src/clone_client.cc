@@ -2046,7 +2046,8 @@ int Client::set_error(const uchar *buffer, size_t length)
   {
     char err_buf[MYSYS_ERRMSG_SIZE];
 
-    snprintf(err_buf, MYSYS_ERRMSG_SIZE, "%d : %.*s", remote_err,
+    snprintf(err_buf, MYSYS_ERRMSG_SIZE, "%d : %.*s",
+             static_cast<int>(remote_err),
              static_cast<int>(length), buffer);
 
     my_error(err, MYF(0), err_buf);

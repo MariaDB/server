@@ -1256,21 +1256,23 @@ void log_t::get_last_block(lsn_t &last_lsn, byte *last_block,
   last_lsn= get_lsn();
 
   lsn_t aligned_lsn= Arch_Group::align_lsn(last_lsn, get_first_lsn());
-  size_t data_len= last_lsn - aligned_lsn;
-  size_t offset= 0;
+  lsn_t data_len= last_lsn - aligned_lsn;
+  lsn_t offset= 0;
 
   if (is_mmap())
     offset= log_sys.calc_lsn_offset(aligned_lsn);
   else
   {
-    size_t available_len= write_lsn_offset & (WRITE_BACKOFF - 1);
+    lsn_t available_len= write_lsn_offset & (WRITE_BACKOFF - 1);
     ut_ad(available_len >= data_len);
     offset= available_len - data_len;
   }
-  std::memcpy(last_block, buf + offset, data_len);
+  std::memcpy(last_block, buf + offset,
+	      static_cast<size_t>(data_len));
 
   latch.wr_unlock();
-  std::memset(last_block + data_len, 0x00, (size_t)block_len - data_len);
+  std::memset(last_block + data_len, 0x00,
+	      static_cast<size_t>(block_len - data_len));
 }
 
 /** Prepare to invoke log_write_and_flush(), before acquiring log_sys.latch. */

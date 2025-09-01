@@ -1697,7 +1697,8 @@ int Clone_Snapshot::extend_and_flush_files(bool flush_redo) {
       auto extent_size= page_size * FSP_EXTENT_SIZE;
       /* Skip extending files smaller than one extent. */
       if (file_size > extent_size) {
-        aligned_size = ut_uint64_align_up(file_size, extent_size);
+        aligned_size =
+	  static_cast<size_t>(ut_uint64_align_up(file_size, extent_size));
       }
     }
 

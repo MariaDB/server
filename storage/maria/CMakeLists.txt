@@ -58,7 +58,7 @@ IF(CMAKE_SYSTEM_NAME MATCHES AIX)
 ENDIF()
 
 MYSQL_ADD_PLUGIN(aria ${ARIA_SOURCES} STORAGE_ENGINE MANDATORY
-                 LINK_LIBRARIES myisam mysys mysys_ssl stdc++fs
+                 LINK_LIBRARIES myisam mysys mysys_ssl
                  RECOMPILE_FOR_EMBEDDED)
 
 MYSQL_ADD_EXECUTABLE(aria_ftdump aria_ftdump.c COMPONENT Server)
