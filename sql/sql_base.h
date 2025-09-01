@@ -411,9 +411,14 @@ inline bool setup_fields_with_no_wrap(THD *thd, Ref_ptr_array ref_pointer_array,
 class Prelocking_strategy
 {
 public:
+  bool has_prelocking_list;
+
   virtual ~Prelocking_strategy() = default;
 
-  virtual void reset(THD *thd) { };
+  virtual void reset(THD *thd)
+  {
+    has_prelocking_list= thd->lex->requires_prelocking();
+  };
   virtual bool handle_routine(THD *thd, Query_tables_list *prelocking_ctx,
                               Sroutine_hash_entry *rt, sp_head *sp,
                               bool *need_prelocking) = 0;
@@ -422,6 +427,13 @@ public:
   virtual bool handle_view(THD *thd, Query_tables_list *prelocking_ctx,
                            TABLE_LIST *table_list, bool *need_prelocking)= 0;
   virtual bool handle_end(THD *thd) { return 0; };
+  virtual bool maybe_need_prelocking(THD *thd, TABLE_LIST *tables)
+  {
+    return (tables->updating && tables->lock_type >= TL_FIRST_WRITE)
+      || thd->lex->default_used;
+  }
+
+  bool extend_table_list(THD *thd, TABLE_LIST *tables);
 };
 
 
@@ -450,7 +462,6 @@ public:
 class Multiupdate_prelocking_strategy : public DML_prelocking_strategy
 {
   bool done;
-  bool has_prelocking_list;
 public:
   void reset(THD *thd) override;
   bool handle_end(THD *thd) override;
@@ -541,10 +552,6 @@ inline bool open_and_lock_tables(THD *thd, TABLE_LIST *tables,
 
 
 bool restart_trans_for_tables(THD *thd, TABLE_LIST *table);
-
-bool extend_table_list(THD *thd, TABLE_LIST *tables,
-                       Prelocking_strategy *prelocking_strategy,
-                       bool has_prelocking_list);
 
 /**
   A context of open_tables() function, used to recover

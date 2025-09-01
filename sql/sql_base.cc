@@ -3822,8 +3822,6 @@ sp_acquire_mdl(THD *thd, Sroutine_hash_entry *rt, Open_table_context *ot_ctx)
   @param[in]  prelocking_strategy   Strategy which specifies how the
                                     prelocking set should be extended when
                                     one of its elements is processed.
-  @param[in]  has_prelocking_list   Indicates that prelocking set/list for
-                                    this statement has already been built.
   @param[in]  ot_ctx                Context of open_table used to recover from
                                     locking failures.
   @param[out] need_prelocking       Set to TRUE if it was detected that this
@@ -3840,7 +3838,6 @@ static bool
 open_and_process_routine(THD *thd, Query_tables_list *prelocking_ctx,
                          Sroutine_hash_entry *rt,
                          Prelocking_strategy *prelocking_strategy,
-                         bool has_prelocking_list,
                          Open_table_context *ot_ctx,
                          bool *need_prelocking, bool *routine_modifies_data)
 {
@@ -3896,7 +3893,7 @@ open_and_process_routine(THD *thd, Query_tables_list *prelocking_ctx,
         {
           *routine_modifies_data= sp->modifies_data();
 
-          if (!has_prelocking_list)
+          if (!prelocking_strategy->has_prelocking_list)
           {
             prelocking_strategy->handle_routine(thd, prelocking_ctx, rt, sp,
                                                 need_prelocking);
@@ -3977,19 +3974,14 @@ open_and_process_routine(THD *thd, Query_tables_list *prelocking_ctx,
   tables which are only read, we do below checks only if table is going
   to be changed.
 */
-bool extend_table_list(THD *thd, TABLE_LIST *tables,
-                       Prelocking_strategy *prelocking_strategy,
-                       bool has_prelocking_list)
+bool Prelocking_strategy::extend_table_list(THD *thd, TABLE_LIST *tables)
 {
   bool error= false;
-  LEX *lex= thd->lex;
-  bool maybe_need_prelocking=
-    (tables->updating && tables->lock_type >= TL_FIRST_WRITE)
-    || thd->lex->default_used;
 
   if (thd->locked_tables_mode <= LTM_LOCK_TABLES &&
-      ! has_prelocking_list && maybe_need_prelocking)
+      ! has_prelocking_list && maybe_need_prelocking(thd, tables))
   {
+    LEX *lex= thd->lex;
     bool need_prelocking= FALSE;
     TABLE_LIST **save_query_tables_last= lex->query_tables_last;
     /*
@@ -4001,8 +3993,7 @@ bool extend_table_list(THD *thd, TABLE_LIST *tables,
       used by triggers which are going to be invoked for this element of
       table list and also add tables required for handling of foreign keys.
     */
-    error= prelocking_strategy->handle_table(thd, lex, tables,
-                                             &need_prelocking);
+    error= handle_table(thd, lex, tables, &need_prelocking);
 
     if (need_prelocking && ! lex->requires_prelocking())
       lex->mark_as_requiring_prelocking(save_query_tables_last);
@@ -4038,7 +4029,7 @@ bool extend_table_list(THD *thd, TABLE_LIST *tables,
 static bool
 open_and_process_table(THD *thd, TABLE_LIST *tables, uint *counter, uint flags,
                        Prelocking_strategy *prelocking_strategy,
-                       bool has_prelocking_list, Open_table_context *ot_ctx)
+                       Open_table_context *ot_ctx)
 {
   bool error= FALSE;
   bool safe_to_ignore_table= FALSE;
@@ -4307,7 +4298,7 @@ open_and_process_table(THD *thd, TABLE_LIST *tables, uint *counter, uint flags,
   if (unlikely(error))
     goto end;
 
-  error= extend_table_list(thd, tables, prelocking_strategy, has_prelocking_list);
+  error= prelocking_strategy->extend_table_list(thd, tables);
   if (unlikely(error))
     goto end;
 
@@ -4335,7 +4326,7 @@ process_view_routines:
   */
   if (tables->view &&
       thd->locked_tables_mode <= LTM_LOCK_TABLES &&
-      ! has_prelocking_list)
+      ! prelocking_strategy->has_prelocking_list)
   {
     bool need_prelocking= FALSE;
     TABLE_LIST **save_query_tables_last= lex->query_tables_last;
@@ -4628,7 +4619,6 @@ bool open_tables(THD *thd, const DDL_options_st &options,
   Open_table_context ot_ctx(thd, flags);
   bool error= FALSE;
   bool some_routine_modifies_data= FALSE;
-  bool has_prelocking_list;
   DBUG_ENTER("open_tables");
 
   /* Data access in XA transaction is only allowed when it is active. */
@@ -4656,7 +4646,6 @@ restart:
   if (thd->handler_tables_hash.records)
     mysql_ha_flush(thd);
 
-  has_prelocking_list= thd->lex->requires_prelocking();
   table_to_open= start;
   *counter= 0;
   THD_STAGE_INFO(thd, stage_opening_tables);
@@ -4731,8 +4720,7 @@ restart:
          table_to_open= &tables->next_global, tables= tables->next_global)
     {
       error= open_and_process_table(thd, tables, counter, flags,
-                                    prelocking_strategy, has_prelocking_list,
-                                    &ot_ctx);
+                                    prelocking_strategy, &ot_ctx);
 
       if (unlikely(error))
       {
@@ -4805,7 +4793,7 @@ restart:
         TABLE_LIST **save_query_tables_last= thd->lex->query_tables_last;
 
         error= open_and_process_routine(thd, thd->lex, rt, prelocking_strategy,
-                                        has_prelocking_list, &ot_ctx,
+                                        &ot_ctx,
                                         &need_prelocking,
                                         &routine_modifies_data);
 
