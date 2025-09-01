@@ -2210,6 +2210,7 @@ bool Sql_cmd_delete::execute_inner(THD *thd)
 
 void Multidelete_prelocking_strategy::reset(THD *thd)
 {
+  DML_prelocking_strategy::reset(thd);
   done= false;
 }
 
