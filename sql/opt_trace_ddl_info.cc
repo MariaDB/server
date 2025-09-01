@@ -283,7 +283,10 @@ bool can_rw_trace_context(THD* thd)
 {
   LEX *lex= thd->lex;
   return (thd->variables.optimizer_trace &&
-          thd->variables.optimizer_record_context &&
+          (thd->variables.optimizer_record_context ||
+           (thd->variables.optimizer_stored_context &&
+            strlen(thd->variables.optimizer_stored_context)>0)
+          ) &&
           (lex->sql_command == SQLCOM_SELECT ||
            lex->sql_command == SQLCOM_INSERT_SELECT ||
            lex->sql_command == SQLCOM_DELETE ||
@@ -445,6 +448,7 @@ void Range_list_recorder::add_range(MEM_ROOT *mem_root, const char *range)
   @return
     Pointer one can use to add ranges.
 */
+
 Range_list_recorder*
 Optimizer_context_recorder::start_range_list_record(
   MEM_ROOT *mem_root, TABLE_LIST *tbl, size_t found_records,
