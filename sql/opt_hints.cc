@@ -77,9 +77,10 @@ const LEX_CSTRING sys_qb_prefix=  {"select#", 7};
 */
 
 int cmp_lex_string(const LEX_CSTRING &s, const LEX_CSTRING &t,
-                   const CHARSET_INFO *cs) {
-    return cs->coll->strnncollsp(cs, (const uchar*)s.str, s.length,
-                                 (const uchar*)t.str, t.length);
+                   const CHARSET_INFO *cs)
+{
+  return cs->coll->strnncollsp(cs, (const uchar*)s.str, s.length,
+                                   (const uchar*)t.str, t.length);
 }
 
 
@@ -1500,7 +1501,20 @@ bool is_compound_hint(opt_hints_enum type_arg)
 }
 
 
-void LEX::resolve_optimizer_hints(THD *thd)
+/*
+  @brief
+    Perform "Hint Resolution" for Optimizer Hints (see opt_hints.h for
+    definition)
+
+  @detail
+    Hints use "Explain select numbering", so this must be called after the
+    call to LEX::fix_first_select_number().
+
+    On the other hand, this must be called before the first attempt to check
+    any hint.
+*/
+
+void LEX::resolve_optimizer_hints()
 {
   Query_arena *arena, backup;
   arena= thd->activate_stmt_arena_if_needed(&backup);
