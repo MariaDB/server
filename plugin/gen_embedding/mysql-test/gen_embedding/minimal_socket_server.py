@@ -8,7 +8,6 @@ import signal
 HOST = '127.0.0.1' # TODO: This should be configurable
 PORT = int(sys.argv[1])
 SUCCESS_RESPONSES_FILENAME = sys.argv[2]
-WRONG_JSON_PATH_FILENAME = sys.argv[3]
 
 with open(SUCCESS_RESPONSES_FILENAME, 'r') as file:
     responses = json.load(file)
@@ -38,11 +37,6 @@ def handle_request(request):
                 print(f"Input '{parsed_input}' not found in {SUCCESS_RESPONSES_FILENAME}.", flush=True)
                 # In our tests we always provide a valid input, but we can return some form of error here
                 return build_response(json.dumps({"error": "Not Found"}), 400)
-        elif path == "/errorcode" and method in ("GET", "POST"):
-            # The response body is irreleveant for this endpoint, the tests only care about the status code
-            return build_response(json.dumps({"error": "Not Found"}), 400)
-        elif path == "/wrongjsonpath" and method in ("GET", "POST"):
-            return get_response(WRONG_JSON_PATH_FILENAME, 200)
         else:
             return build_response(json.dumps({"error": "Bad API endpoint or method"}), 404)
 

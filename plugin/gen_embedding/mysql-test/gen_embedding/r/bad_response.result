@@ -1,11 +1,11 @@
 call mtr.add_suppression("GENERATE_EMBEDDING_OPENAI: Bad http response code: 400");
-set generate_embedding_openai_host="http://127.0.0.1:OPENAI_PORT/errorcode";
-select vec_totext(generate_embedding_openai('abc', 'text-embedding-ada-002'));
-vec_totext(generate_embedding_openai('abc', 'text-embedding-ada-002'))
+set generate_embedding_openai_host="http://127.0.0.1:OPENAI_PORT/success";
+select vec_totext(generate_embedding_openai('text that does not exist in responses json', 'text-embedding-ada-002'));
+vec_totext(generate_embedding_openai('text that does not exist in responses json', 'text-embedding-ada-002'))
 NULL
 Warnings:
 Warning	1	GENERATE_EMBEDDING_OPENAI: Bad http response code: 400
-set generate_embedding_openai_host="http://127.0.0.1:OPENAI_PORT/wrongjsonpath";
-select vec_totext(generate_embedding_openai('abc', 'text-embedding-ada-002'));
-vec_totext(generate_embedding_openai('abc', 'text-embedding-ada-002'))
+set generate_embedding_openai_host="http://127.0.0.1:OPENAI_PORT/success";
+select vec_totext(generate_embedding_openai('wrong_embedding_path', 'text-embedding-ada-002'));
+vec_totext(generate_embedding_openai('wrong_embedding_path', 'text-embedding-ada-002'))
 NULL
