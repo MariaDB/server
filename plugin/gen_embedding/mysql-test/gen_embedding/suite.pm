@@ -21,15 +21,13 @@ sub openai_start {
       return ;
     }
     my $python_path="python3"; # TODO: Maybe use a config option, could also be "python" or a specific path
-    my $success_file_path=$openai->value('success_filename');
-    my $wrong_json_path_file_path=$openai->value('wrong_json_path_filename');
+    my $success_file_path=$openai->value('api_response_filename');
     my $python_server_path="$ENV{MTR_SUITE_DIR}/minimal_socket_server.py";
     my $args;
     &::mtr_init_args(\$args);
     &::mtr_add_arg($args, $python_server_path);
     &::mtr_add_arg($args, "$ENV{OPENAI_PORT}");
     &::mtr_add_arg($args, $success_file_path);
-    &::mtr_add_arg($args, $wrong_json_path_file_path);
     # This can be changed to include the PORT or other info, perhaps in combination with append => 0
     $http_server_log= "openai.log"; 
 

@@ -8,12 +8,13 @@ call mtr.add_suppression("GENERATE_EMBEDDING_OPENAI: Bad http response code: 400
 # without examining the response body
 
 --replace_result $OPENAI_PORT OPENAI_PORT
-eval set generate_embedding_openai_host="http://127.0.0.1:$OPENAI_PORT/errorcode";
-select vec_totext(generate_embedding_openai('abc', 'text-embedding-ada-002'));
+eval set generate_embedding_openai_host="http://127.0.0.1:$OPENAI_PORT/success";
+select vec_totext(generate_embedding_openai('text that does not exist in responses json', 'text-embedding-ada-002'));
 
 # Test that if some element of the API response changes in the future, for example the path of the embedding
 # vector the server does not crash and a NULL value is returned
+# responses.json includes a special entry with the key "wrong_embedding_path" for this purpose
 
 --replace_result $OPENAI_PORT OPENAI_PORT
-eval set generate_embedding_openai_host="http://127.0.0.1:$OPENAI_PORT/wrongjsonpath";
-select vec_totext(generate_embedding_openai('abc', 'text-embedding-ada-002'));
+eval set generate_embedding_openai_host="http://127.0.0.1:$OPENAI_PORT/success";
+select vec_totext(generate_embedding_openai('wrong_embedding_path', 'text-embedding-ada-002'));
