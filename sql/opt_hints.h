@@ -26,7 +26,7 @@
   in the query. The result of parsing is saved in
   SELECT_LEX::parsed_optimizer_hints.
 
-  == Hint "resolution" ==
+  == Hint Resolution ==
 
   This is done using "resolve" method of parsed data structures
   This process

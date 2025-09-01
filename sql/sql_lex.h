@@ -3765,7 +3765,7 @@ public:
   }
 
   void handle_parsed_optimizer_hints_in_last_select();
-  void resolve_optimizer_hints(THD *thd);
+  void resolve_optimizer_hints();
   bool discard_optimizer_hints_in_last_select();
 
   SELECT_LEX *current_select_or_default()

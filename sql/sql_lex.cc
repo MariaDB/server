@@ -13445,6 +13445,17 @@ LEX::parse_optimizer_hints(const Lex_comment_st &hints_str)
 }
 
 
+/*
+  @brief
+    After we've finished parsing a SELECT, handle its hints.
+
+  @detail
+    The hints are already parsed. Hint Resolution will be performed
+    after the parsing is done. It will need to process SELECTs in
+    the parse order. That's why we note it here.
+    See opt_hints.h, Section "Hint Resolution" for details.
+*/
+
 void LEX::handle_parsed_optimizer_hints_in_last_select()
 {
   if (unlikely(select_stack_top == 0))
