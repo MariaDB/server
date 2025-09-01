@@ -1632,8 +1632,8 @@ static bool multi_update_check_table_access(THD *thd, TABLE_LIST *table,
 
 void Multiupdate_prelocking_strategy::reset(THD *thd)
 {
+  DML_prelocking_strategy::reset(thd);
   done= false;
-  has_prelocking_list= thd->lex->requires_prelocking();
 }
 
 /**
@@ -1729,7 +1729,7 @@ bool Multiupdate_prelocking_strategy::handle_end(THD *thd)
       tl->updating= 1;
       if (tl->belong_to_view)
         tl->belong_to_view->updating= 1;
-      if (extend_table_list(thd, tl, this, has_prelocking_list))
+      if (extend_table_list(thd, tl))
         DBUG_RETURN(1);
     }
     else
