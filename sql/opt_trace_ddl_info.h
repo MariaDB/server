@@ -63,7 +63,7 @@ public:
   trace_table_index_range_context *search(uchar *tbl_name,
                                           size_t tbl_name_len);
 
-  Range_list_recorder *start_range_list_record(THD *thd, MEM_ROOT *mem_root,
+  Range_list_recorder *start_range_list_record(MEM_ROOT *mem_root,
                                                TABLE_LIST *tbl,
                                                size_t found_records,
                                                const char *index_name,
@@ -84,8 +84,10 @@ get_range_list_recorder(THD *thd, MEM_ROOT *mem_root, TABLE_LIST *tbl,
 {
   Optimizer_context_recorder *ctx= get_opt_context_recorder(thd);
   if (ctx)
-    return ctx->start_range_list_record(thd, mem_root, tbl, records,
-                                        index_name, comp_cost);
+  {
+    return ctx->start_range_list_record(mem_root, tbl, records, index_name,
+                                        comp_cost);
+  }
   return nullptr;
 }
 
@@ -112,7 +114,9 @@ private:
                           trace_index_context_read *index_ctx);
   int parse_range_context(THD *thd, json_engine_t *je, const char **err,
                           trace_range_context_read *range_ctx);
+#ifndef DBUG_OFF  
   void dbug_print_read_stats();
+#endif
   ha_rows get_table_rows(THD *thd, const TABLE *tbl);
   List<ha_rows> *get_index_rec_per_key_list(THD *thd, const TABLE *tbl,
                                             const char *idx_name);
@@ -120,12 +124,13 @@ private:
                                               const char *idx_name);
 public:
   Optimizer_context_replay(THD *thd);
+  void set_table_stats_from_context(THD *thd, TABLE *table);
+  void restore_modified_table_stats();
+
   void load_range_stats_into_client(THD *thd, TABLE *tbl, uint keynr,
                                     RANGE_SEQ_IF *seq_if,
                                     SEL_ARG_RANGE_SEQ *seq,
                                     Cost_estimate *cost, ha_rows *rows);
-  void save_old_and_set_new_table_stats(THD *thd, TABLE *table);
-  void restore_saved_stats();
 };
 
 #endif

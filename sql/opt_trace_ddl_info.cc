@@ -169,6 +169,7 @@ static bool is_base_table(TABLE_LIST *tbl)
      tbl->table->s->tmp_table != SYSTEM_TMP_TABLE);
 }
 
+
 static bool dump_name_ddl_to_trace(THD *thd, DDL_Key *ddl_key, String *stmt,
                                    Json_writer_object &ctx_wrapper)
 {
@@ -197,6 +198,7 @@ static bool dump_name_ddl_to_trace(THD *thd, DDL_Key *ddl_key, String *stmt,
   ctx_wrapper.add("ddl", escaped_stmt);
   return false;
 }
+
 
 static void dump_index_range_stats_to_trace(THD *thd, uchar *tbl_name,
                                             size_t tbl_name_len)
@@ -290,6 +292,7 @@ bool can_rw_trace_context(THD* thd)
            lex->sql_command == SQLCOM_UPDATE_MULTI));
 }
 
+
 /*
   @brief
     Dump definitions, basic stats of all tables and views used by the
@@ -311,6 +314,7 @@ bool can_rw_trace_context(THD* thd)
   @return
     false when no error occurred during the computation
 */
+
 bool store_tables_context_in_trace(THD *thd)
 {
   LEX *lex= thd->lex;
@@ -428,9 +432,10 @@ void Range_list_recorder::add_range(MEM_ROOT *mem_root, const char *range)
 {
   Range_record *record= new (mem_root) Range_record;
   record->range= strdup_root(mem_root, range);
-  ((Multi_range_read_const_call_record *) this)
-      ->range_list.push_back(record, mem_root);
+  ((Multi_range_read_const_call_record *) this)->range_list.
+                                                 push_back(record, mem_root);
 }
+
 
 /*
   @brief
@@ -439,9 +444,10 @@ void Range_list_recorder::add_range(MEM_ROOT *mem_root, const char *range)
   @return
     Pointer one can use to add ranges.
 */
-Range_list_recorder *Optimizer_context_recorder::start_range_list_record(
-    THD *thd, MEM_ROOT *mem_root, TABLE_LIST *tbl, size_t found_records,
-    const char *index_name, double comp_cost)
+Range_list_recorder*
+Optimizer_context_recorder::start_range_list_record(
+  MEM_ROOT *mem_root, TABLE_LIST *tbl, size_t found_records,
+  const char *index_name, double comp_cost)
 {
   String tbl_name;
 
@@ -584,8 +590,8 @@ public:
   List<Saved_Index_stats> saved_indexstats_list;
 };
 
-Optimizer_context_replay::
-    Optimizer_context_replay(THD *thd)
+
+Optimizer_context_replay::Optimizer_context_replay(THD *thd)
 {
   db_name= NULL;
   ctx_list.empty();
@@ -656,15 +662,16 @@ Optimizer_context_replay::load_range_stats_into_client(
   }
 }
 
+
 /*
   @brief
     Save the current stats of the table and its associated indexes.
     And then use the trace_context stats,
     to update the table, and its associated indexes.
 */
+
 void
-Optimizer_context_replay::save_old_and_set_new_table_stats(
-    THD *thd, TABLE *table)
+Optimizer_context_replay::set_table_stats_from_context(THD *thd, TABLE *table)
 {
   if (!is_base_table(table->pos_in_table_list))
     return;
@@ -719,12 +726,13 @@ Optimizer_context_replay::save_old_and_set_new_table_stats(
   }
 }
 
+
 /*
   @brief
     restore the saved stats for the tables, and indexes that were
-    earlier recorded using save_old_and_set_new_table_stats()
+    earlier recorded using set_table_stats_from_context()
 */
-void Optimizer_context_replay::restore_saved_stats()
+void Optimizer_context_replay::restore_modified_table_stats()
 {
   List_iterator<Saved_Table_stats> table_li(saved_tablestats_list);
   while (Saved_Table_stats *saved_ts= table_li++)
@@ -778,6 +786,7 @@ bool Optimizer_context_replay::has_records()
     FALSE  OK
     TRUE  Parse Error
 */
+
 bool Optimizer_context_replay::parse(THD *thd)
 {
   json_engine_t je;
@@ -1109,6 +1118,7 @@ int Optimizer_context_replay::parse_table_context(
   return false;
 }
 
+
 /*
   Parses the index context having the following structure: -
   {
@@ -1121,6 +1131,7 @@ int Optimizer_context_replay::parse_table_context(
     1  Parse Error
    -1  EOF
 */
+
 int Optimizer_context_replay::parse_index_context(
     THD *thd, json_engine_t *je, const char **err,
     trace_index_context_read *index_ctx)
@@ -1418,10 +1429,11 @@ int Optimizer_context_replay::parse_range_context(
   return false;
 }
 
-/*
-  print the contents of the stats that are read from the json trace
-*/
 #ifndef DBUG_OFF
+/*
+  Print the contents of the stats that are read from the json trace
+*/
+
 void Optimizer_context_replay::dbug_print_read_stats()
 {
   DBUG_ENTER("Optimizer_context_replay::print()");
@@ -1506,6 +1518,7 @@ ha_rows Optimizer_context_replay::get_table_rows(
       err.c_ptr_safe(), 0);
   return 0;
 }
+
 
 /*
   check the extracted contents from json trace context, and

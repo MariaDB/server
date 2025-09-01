@@ -5896,7 +5896,7 @@ finish:
       res= store_tables_context_in_trace(thd);
 
     if (thd->opt_ctx_replay)
-      thd->opt_ctx_replay->restore_saved_stats();
+      thd->opt_ctx_replay->restore_modified_table_stats();
   }
 
   thd->reset_query_timer();

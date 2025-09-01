@@ -4163,7 +4163,7 @@ void set_statistics_for_table(THD *thd, TABLE *table)
        key_info->read_stats->get_avg_frequency(0) > 0.5);
   }
   if (thd->opt_ctx_replay)
-    thd->opt_ctx_replay->save_old_and_set_new_table_stats(thd, table);
+    thd->opt_ctx_replay->set_table_stats_from_context(thd, table);
 }
 
 
