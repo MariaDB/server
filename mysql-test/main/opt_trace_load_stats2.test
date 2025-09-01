@@ -1,0 +1,30 @@
+--source include/not_embedded.inc
+--source include/have_sequence.inc
+--source include/have_innodb.inc
+
+# TODO: const tables are not supported at the moment, so use InnoDB.
+
+create table t10 (a int, b int, index(a), index(b)) engine=innodb;
+insert into t10 select seq, seq from seq_1_to_10000;
+analyze table t10;
+
+set optimizer_record_context=ON;
+set optimizer_trace=1;
+
+explain format=json select * from t10 A, t10 B where A.a< 3 and B.b < 333;
+
+set @opt_context=
+  (select json_pretty(json_extract(
+                       json_extract(trace, "$**.optimizer_context"),
+                       '$[0]'
+                      ))
+   from information_schema.optimizer_trace);
+
+select @opt_context;
+
+truncate table t10;
+set optimizer_stored_context=@opt_context;
+explain format=json select * from t10 A, t10 B where A.a< 3 and B.a < 333;
+set optimizer_record_context=OFF;
+
+drop table t10;
