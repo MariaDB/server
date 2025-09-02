@@ -2206,7 +2206,7 @@ static bool add_table_for_trigger_internal(THD *thd,
   LEX_CSTRING tbl_name= null_clex_str;
   DBUG_ENTER("add_table_for_trigger_internal");
 
-  build_trn_path(thd, trg_name, (LEX_STRING*) &trn_path);
+  build_trn_path(trg_name, (LEX_STRING*) &trn_path);
 
   if (check_trn_exists(&trn_path))
   {
@@ -3127,7 +3127,7 @@ process_unknown_string(const char *&unknown_key, uchar* base,
   @param trn_path[out]  Variable to store constructed path
 */
 
-void build_trn_path(THD *thd, const sp_name *trg_name, LEX_STRING *trn_path)
+void build_trn_path(const sp_name *trg_name, LEX_STRING *trn_path)
 {
   /* Construct path to the TRN-file. */
 

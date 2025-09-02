@@ -80,6 +80,7 @@
 #include "sp_cache.h"
 #include "events.h"
 #include "sql_trigger.h"
+#include "sql_sys_or_ddl_trigger.h"   // is_ddl_trg_events, is_sys_trg_events
 #include "transaction.h"
 #include "sql_alter.h"
 #include "sql_audit.h"
@@ -5683,17 +5684,48 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
   case SQLCOM_CREATE_TRIGGER:
   {
     /* Conditionally writes to binlog. */
-    res= mysql_create_or_drop_trigger(thd, all_tables, 1);
-
+    if (is_dml_trg_events(thd->lex->trg_chistics.events))
+      res= mysql_create_or_drop_trigger(thd, all_tables, 1);
+    else if (is_sys_trg_events(thd->lex->trg_chistics.events))
+      res= mysql_create_sys_trigger(thd);
+    else
+      // TODO: Add implementation of triggers on DDL events
+      DBUG_ASSERT(is_ddl_trg_events(thd->lex->trg_chistics.events));
     break;
   }
   case SQLCOM_DROP_TRIGGER:
   {
+    MDL_request mdl_request_for_trn;
+
     if (thd->variables.option_bits & OPTION_IF_EXISTS)
       lex->create_info.set(DDL_options_st::OPT_IF_EXISTS);
 
+    /*
+      The DROP TRIGGER statement doesn't contain any clauses specifying
+      what kind of a trigger we are dealing with, so the kind of the trigger
+      should be extracted from its metadata.
+
+      First try to drop a system/ddl trigger with the specified name by
+      calling the function mysql_drop_sys_or_ddl_trigger(). Inside this
+      function, a mdl lock on the trigger name is acquired and check whether
+      a system/ddl trigger exists is performed by quering the system table
+      mysql.evetn. If it does, handle dropping of the trigger. If there is no
+      a system or ddl trigger with supplied name, assume that specified trigger
+      name is for dml trigger and call mysql_create_or_drop_trigger() to handle
+      dropping. The function mysql_create_or_drop_trigger() also take the same
+      mdl lock so in case the trigger name references dml trigger, we take
+      the same mdl lock twice, but overhead on taking the lock second time is
+      good compromise in comparing with modification of
+      mysql_create_or_drop_trigger that could be the source of bugs.
+    */
+    bool no_ddl_trigger_found;
+    res= mysql_drop_sys_or_ddl_trigger(thd, &no_ddl_trigger_found);
+    if (res)
+      break;
+
     /* Conditionally writes to binlog. */
-    res= mysql_create_or_drop_trigger(thd, all_tables, 0);
+    if (no_ddl_trigger_found)
+      res= mysql_create_or_drop_trigger(thd, all_tables, 0);
     break;
   }
   case SQLCOM_XA_START:

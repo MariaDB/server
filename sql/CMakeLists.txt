@@ -199,6 +199,7 @@ SET (SQL_SOURCE
                sql_type_row.cc
                sql_type_composite.cc sql_type_composite.h
                item_composite.cc item_composite.h
+               sql_sys_or_ddl_trigger.cc
                ${CMAKE_CURRENT_BINARY_DIR}/lex_hash.h
                ${CMAKE_CURRENT_BINARY_DIR}/lex_token.h
                ${GEN_SOURCES}

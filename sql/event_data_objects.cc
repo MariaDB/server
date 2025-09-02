@@ -171,6 +171,21 @@ Event_creation_ctx::load_from_db(THD *thd,
   return invalid_creation_ctx;
 }
 
+bool
+load_creation_context_for_sys_trg(THD *thd,
+                                  MEM_ROOT *event_mem_root,
+                                  const char *db_name,
+                                  const char *event_name,
+                                  TABLE *event_tbl,
+                                  Stored_program_creation_ctx **ctx)
+{
+  return Event_creation_ctx::load_from_db(thd, event_mem_root,
+                                          db_name,
+                                          event_name,
+                                          event_tbl,
+                                          ctx);
+}
+
 /*************************************************************************/
 
 /*
@@ -477,6 +492,15 @@ Event_queue_element::load_from_row(THD *thd, TABLE *table)
 
   if (table->s->fields < ET_FIELD_COUNT)
     DBUG_RETURN(TRUE);
+
+  Event_parse_data::enum_kind kind=
+    (Event_parse_data::enum_kind)table->field[ET_FIELD_KIND]->val_int();
+
+  if (kind != Event_parse_data::SCHEDULE_EVENT)
+  {
+    trigger_event= true;
+    DBUG_RETURN(false);
+  }
 
   if (load_string_fields(table->field,
                          ET_FIELD_DB, &dbname,

@@ -119,6 +119,7 @@
 #include "sp_rcontext.h"
 #include "sp_cache.h"
 #include "sql_reload.h"  // reload_acl_and_cache
+#include "sql_sys_or_ddl_trigger.h"
 #include "sp_head.h"  // init_sp_psi_keys
 #include "log_cache.h"
 #include <mysqld_default_groups.h>
@@ -5736,7 +5737,6 @@ static void test_lc_time_sz()
 }
 #endif//DBUG_OFF
 
-
 static void run_main_loop()
 {
   select_thread=pthread_self();
@@ -6158,6 +6158,8 @@ int mysqld_main(int argc, char **argv)
   }
 #endif
 
+  if (run_after_startup_triggers())
+    unireg_abort(1);
 
   /* Signal threads waiting for server to be started */
   mysql_mutex_lock(&LOCK_server_started);
@@ -6173,6 +6175,8 @@ int mysqld_main(int argc, char **argv)
   run_main_loop();
 
   /* Shutdown requested */
+  run_before_shutdown_triggers();
+
   char *user= shutdown_user.load(std::memory_order_relaxed);
   sql_print_information(ER_DEFAULT(ER_NORMAL_SHUTDOWN), my_progname,
                         user ? user : "unknown");

@@ -1,0 +1,13 @@
+--source include/not_embedded.inc
+
+--echo # MDEV-30645: CREATE TRIGGER FOR { STARTUP | SHUTDOWN }
+
+CREATE TABLE t1 (a VARCHAR(100));
+CREATE TRIGGER IF NOT EXISTS trg1 AFTER STARTUP INSERT INTO t1 VALUES('Startup');
+CREATE TRIGGER IF NOT EXISTS trg2 BEFORE SHUTDOWN INSERT INTO t1 VALUES('Shutdown');
+--source include/restart_mysqld.inc
+SELECT * FROM t1;
+--echo # Clean up
+DROP TABLE t1;
+DROP TRIGGER trg1;
+DROP TRIGGER trg2;

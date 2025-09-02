@@ -12360,3 +12360,5 @@ ER_WARN_CONFLICTING_COMPOUND_INDEX_HINT_FOR_TABLE
         eng "Hint %s is ignored as conflicting/duplicated (an index hint of the same type or opposite kind has already been specified for this table)"
 ER_WARN_CONFLICTING_COMPOUND_INDEX_HINT_FOR_KEY
         eng "Hint %s is ignored as conflicting/duplicated (an index hint of the same type or opposite kind has already been specified for the key)"
+ER_SYS_TRG_SEMANTIC_ERROR
+        eng "Incorrect definition of the trigger %s.%s: action '%s' is not compatible with event '%s'"

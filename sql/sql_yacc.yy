@@ -72,6 +72,7 @@
 #include "json_table.h"
 #include "sql_update.h"
 #include "sql_delete.h"
+#include "sql_sys_or_ddl_trigger.h"            // TRG_EVENT_STARTUP, ...
 
 /* this is to get the bison compilation windows warnings out */
 #ifdef _MSC_VER
@@ -18782,11 +18783,23 @@ trigger_tail:
 
 trigger_tail_sys:
           trg_sys_events
+          {
+            LEX *lex= Lex;
+            Lex_input_stream *lip= YYLIP;
+
+            if (unlikely(!lex->make_sp_head(thd, lex->spname,
+                                            &sp_handler_trigger,
+                                            DEFAULT_AGGREGATE)))
+              MYSQL_YYABORT;
+
+            lex->sphead->set_body_start(thd, lip->get_cpp_tok_start());
+          }
           sp_proc_stmt
           {
             LEX *lex= Lex;
 
             lex->sql_command= SQLCOM_CREATE_TRIGGER;
+
             if (lex->sp_body_finalize_trigger(thd))
               MYSQL_YYABORT;
           }

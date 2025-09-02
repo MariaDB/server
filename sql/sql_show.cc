@@ -11172,7 +11172,7 @@ TABLE_LIST *get_trigger_table(THD *thd, const sp_name *trg_name)
   LEX_CSTRING tbl_name;
   TABLE_LIST *table;
 
-  build_trn_path(thd, trg_name, (LEX_STRING*) &trn_path);
+  build_trn_path(trg_name, (LEX_STRING*) &trn_path);
 
   if (check_trn_exists(&trn_path))
   {
