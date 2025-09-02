@@ -13450,9 +13450,14 @@ LEX::parse_optimizer_hints(const Lex_comment_st &hints_str)
     After we've finished parsing a SELECT, handle its hints.
 
   @detail
-    The hints are already parsed. Hint Resolution will be performed
-    after the parsing is done. It will need to process SELECTs in
-    the parse order. That's why we note it here.
+    Hints in this SELECT have already been parsed, but not resolved.
+    Hint resoution requires that
+    A. Children SELECT have done their hint resolution.
+    B. SELECT_SELECT objects have their correct select_number.
+
+    Because of A, we have this call that is invoked at the end of each SELECT.
+    Due to B, we don't do resulution right here, we just remember the order in
+    which SELECTs must do name resolution.
     See opt_hints.h, Section "Hint Resolution" for details.
 */
 
