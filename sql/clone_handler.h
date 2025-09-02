@@ -33,7 +33,7 @@ Clone handler interface to access clone plugin
 #include <string>
 #include <set>
 #include <tuple>
-#if __GNUC__ < 9
+#if __GNUC__ < 9 && !defined(__clang__) && !defined(__WINDOWS__)
 #include <experimental/filesystem>
 #else
 #include <filesystem>
