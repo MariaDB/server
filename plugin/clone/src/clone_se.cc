@@ -770,11 +770,6 @@ int Clone_Handle::scan(const std::unordered_set<table_key_t> &exclude_tables,
     ext_list.merge(copy_gen);
   }
 
-# if __GNUC__ < 9 && !defined(__clang__) && !defined(__WINDOWS__)
-  namespace fsys= std::experimental::filesystem;
-#else
-  namespace fsys= std::filesystem;
-#endif
   clone_common::foreach_file_in_dir(m_data_dir,
                                     [&](const fsys::path& file_path)
   {

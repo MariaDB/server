@@ -547,20 +547,21 @@ int Clone_Handle::check_space(const Clone_Task *task) {
   auto snapshot = m_clone_task_manager.get_snapshot();
   auto bytes_disk = snapshot->get_disk_estimate();
 
-  std::string avaiable_space;
-  std::string clone_space;
-  ut_format_byte_value(bytes_disk, clone_space);
-  ut_format_byte_value(free_space, avaiable_space);
+  std::ostringstream avail_space;
+  std::ostringstream clone_space;
+
+  avail_space << ib::bytes_iec{free_space};
+  clone_space << ib::bytes_iec{bytes_disk};
 
   int err = 0;
   if (bytes_disk > free_space) {
     err = ER_CLONE_DISK_SPACE;
-    my_error(err, MYF(0), clone_space.c_str(), avaiable_space.c_str());
+    my_error(err, MYF(0), clone_space.str().c_str(), avail_space.str().c_str());
   }
 
   ib::info()
-      << "Clone estimated size: " << clone_space.c_str()
-      << " Available space: " << avaiable_space.c_str();
+      << "Clone estimated size: " << clone_space.str().c_str()
+      << " Available space: " << avail_space.str().c_str();
   return (err);
 }
 

@@ -33,10 +33,12 @@ Clone handler interface to access clone plugin
 #include <string>
 #include <set>
 #include <tuple>
-#if __GNUC__ < 9 && !defined(__clang__) && !defined(__WINDOWS__)
-#include <experimental/filesystem>
+# if defined __GNUC__ && __GNUC__ > 5 && __GNUC__ < 9
+  #include <experimental/filesystem>
+  namespace fsys= std::experimental::filesystem;
 #else
-#include <filesystem>
+  #include <filesystem>
+  namespace fsys= std::filesystem;
 #endif
 #include <functional>
 #include <my_global.h>
