@@ -342,6 +342,7 @@ static struct provider_service_lz4_st provider_handler_lz4=
 struct provider_service_lz4_st *provider_service_lz4= &provider_handler_lz4;
 
 static struct clone_protocol_service_st clone_protocol_handler= {
+#ifndef EMBEDDED_LIBRARY
   clone_start_statement,
   clone_finish_statement,
   clone_get_charsets,
@@ -360,6 +361,7 @@ static struct clone_protocol_service_st clone_protocol_handler= {
   clone_set_backup_stage,
   clone_backup_lock,
   clone_backup_unlock
+#endif /* EMBEDDED_LIBRARY */
 };
 
 static struct st_service_ref list_of_services[]=

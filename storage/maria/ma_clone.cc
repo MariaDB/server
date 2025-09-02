@@ -41,6 +41,25 @@ and plugin/clone/src/clone_se.cc
 #include <sstream>
 #include <iomanip>
 
+#ifdef EMBEDDED_LIBRARY
+int clone_backup_lock(THD *thd, const char *, const char*) { return 0; }
+int clone_backup_unlock(THD *thd) { return 0; }
+namespace clone_common
+{
+  std::string read_table_version_id(File f) { return ""; }
+  std::tuple<std::string, std::string, std::string>
+  convert_filepath_to_tablename(const char *filepath)
+  { return std::make_tuple("", "", ""); }
+  
+  bool is_stats_table(const char *db, const char *table)
+  { return false; }
+
+  bool is_log_table(const char *db, const char *table)
+  { return false; }
+}
+
+#endif
+
 namespace aria_engine
 {
 class Locator
@@ -1037,7 +1056,7 @@ int Clone_Handle::scan(bool no_lock)
   my_printf_error(ER_CLONE_SERVER_TRACE, "ARIA SE: Start scanning engine table"
                   "s, need backup locks: %d",
                   MYF(ME_NOTE | ME_ERROR_LOG_ONLY), no_lock);
-
+#ifndef EMBEDDED_LIBRARY
   std::set<std::string> ext_list= {".MAD"};
   std::unordered_map<std::string, std::unique_ptr<Table>> partitioned_tables;
 
@@ -1117,6 +1136,7 @@ int Clone_Handle::scan(bool no_lock)
   m_last_log_offset= 0;
   my_printf_error(ER_CLONE_SERVER_TRACE, "ARIA SE: Stop scanning engine "
                   "tables", MYF(ME_NOTE | ME_ERROR_LOG_ONLY));
+#endif /* EMBEDDED_LIBRARY */
   return 0;
 }
 
@@ -1565,6 +1585,7 @@ int Clone_Handle::clone(THD *thd, uint32_t task_id, Ha_clone_stage stage,
 }
 } // namespace aria_engine
 
+#ifndef EMBEDDED_LIBRARY
 static void clone_get_capability(Ha_clone_flagset &flags)
 {
   flags.reset();
@@ -1747,9 +1768,11 @@ static int clone_apply_end(THD *, const uchar *loc, uint loc_len,
   const std::lock_guard<std::mutex> lock(aria_engine::Clone_Sys::mutex_);
   return aria_engine::clone_sys->stop(false, clone_hdl, task_id);
 }
+#endif /* !EMBEDDED_LIBRARY */
 
 void init_maria_clone_interfaces(handlerton *aria_hton)
 {
+#ifndef EMBEDDED_LIBRARY
   auto &interface= aria_hton->clone_interface;
   interface.clone_capability= clone_get_capability;
 
@@ -1761,4 +1784,5 @@ void init_maria_clone_interfaces(handlerton *aria_hton)
   interface.clone_apply_begin= clone_apply_begin;
   interface.clone_apply= clone_apply;
   interface.clone_apply_end= clone_apply_end;
+#endif /* EMBEDDED_LIBRARY */
 }

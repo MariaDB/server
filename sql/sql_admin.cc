@@ -1758,8 +1758,12 @@ Sql_cmd_clone::Sql_cmd_clone(LEX_USER *user_info, ulong port,
 
 bool Sql_cmd_clone::execute(THD *thd)
 {
+#ifdef EMBEDDED_LIBRARY
+  my_error(ER_NOT_SUPPORTED_YET, MYF(0),
+           "Remote clone or REPLACE clone");
+  return true;
+#else
   const bool is_replace= (m_data_dir.str == nullptr);
-
   if (is_replace || !is_local())
   {
     my_error(ER_NOT_SUPPORTED_YET, MYF(0),
@@ -1851,7 +1855,6 @@ bool Sql_cmd_clone::execute(THD *thd)
     return true;
   }
 
-#ifndef EMBEDDED_LIBRARY
   /* Restart server after successfully cloning to current data directory. */
   if (is_replace)
   {
@@ -1867,14 +1870,15 @@ bool Sql_cmd_clone::execute(THD *thd)
     thd->set_stmt_da(stmt_da);
     return true;
   }
-#endif
-
   my_ok(thd);
+#endif /* EMBEDDED_LIBRARY */
   return false;
 }
 
+
 bool Sql_cmd_clone::load(THD *thd)
 {
+#ifndef EMBEDDED_LIBRARY
   assert(m_clone == nullptr);
   assert(!is_local());
 
@@ -1888,13 +1892,14 @@ bool Sql_cmd_clone::load(THD *thd)
     my_error(ER_PLUGIN_IS_NOT_LOADED, MYF(0), "clone");
     return true;
   }
-
+#endif /* EMBEDDED_SERVER */
   my_ok(thd);
   return false;
 }
 
 bool Sql_cmd_clone::execute_server(THD *thd)
 {
+#ifndef EMBEDDED_LIBRARY
   assert(!is_local());
 
   auto net= &thd->net;
@@ -1930,6 +1935,9 @@ bool Sql_cmd_clone::execute_server(THD *thd)
   m_clone = nullptr;
 
   return err != 0;
+#else
+  return 0;
+#endif /* EMBEDDED_LIBRARY */
 }
 
 /* TODO: Interface to rewrite Statement with plain-text password */

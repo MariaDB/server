@@ -4177,6 +4177,7 @@ static int innodb_init(void* p)
 
         innobase_hton->update_optimizer_costs= innobase_update_optimizer_costs;
 
+#ifndef EMBEDDED_LIBRARY
 	/* Clone interfaces. */
 	innobase_hton->clone_interface.clone_capability = innodb_clone_get_capability;
 
@@ -4188,7 +4189,7 @@ static int innodb_init(void* p)
 	innobase_hton->clone_interface.clone_apply_begin = innodb_clone_apply_begin;
 	innobase_hton->clone_interface.clone_apply = innodb_clone_apply;
 	innobase_hton->clone_interface.clone_apply_end = innodb_clone_apply_end;
-
+#endif /* EMBEDDED_LIBRARY */
 	innodb_remember_check_sysvar_funcs();
 
 	compile_time_assert(DATA_MYSQL_TRUE_VARCHAR == MYSQL_TYPE_VARCHAR);
@@ -18782,10 +18783,16 @@ static void innodb_log_file_size_update(THD *thd, st_mysql_sys_var*,
                     " innodb_log_buffer_size=%u", MYF(0), log_sys.buf_size);
   else
   {
-    Clone_notify notifier(Clone_notify::Type::SYSTEM_REDO_RESIZE,
-                          UINT32_MAX, true);
-    if (notifier.failed())
-      goto err_exit;
+#ifndef EMBEDDED_LIBRARY
+    Clone_notify *notifier= new Clone_notify(
+      Clone_notify::Type::SYSTEM_REDO_RESIZE, UINT32_MAX, true);
+    if (notifier->failed())
+    {
+      delete notifier;
+      mysql_mutex_lock(&LOCK_global_system_variables);
+      return;
+    }
+#endif /* EMBEDDED_LIBRARY */
     switch (log_sys.resize_start(*static_cast<const ulonglong*>(save), thd)) {
     case log_t::RESIZE_NO_CHANGE:
       break;
@@ -18833,8 +18840,10 @@ static void innodb_log_file_size_update(THD *thd, st_mysql_sys_var*,
         log_sys.latch.wr_unlock();
       }
     }
+#ifndef EMBEDDED_LIBRARY
+    delete notifier;
+#endif /* !EMBEDDED_LIBRARY */
   }
-err_exit:
   mysql_mutex_lock(&LOCK_global_system_variables);
 }
 

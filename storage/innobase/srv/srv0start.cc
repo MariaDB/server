@@ -1080,8 +1080,9 @@ srv_init_abort_low(
 #endif /* UNIV_DEBUG */
 			" with error " << err;
 	}
-
+#ifndef EMBEDDED_LIBRARY
 	clone_files_error();
+#endif /* EMBEDDED_LIBRARY */
 	srv_shutdown_bg_undo_sources();
 	srv_shutdown_threads(true);
 	return(err);
@@ -1339,13 +1340,14 @@ dberr_t srv_start(bool create_new_db)
 	/* Must replace clone files before opening any files. When clone
         replaces current database, cloned files are moved to data files
 	at this stage. */
+#ifndef EMBEDDED_LIBRARY
         if (srv_operation == SRV_OPERATION_NORMAL)
 	  err = clone_init();
 
 	if (err != DB_SUCCESS) {
 		return (srv_init_abort(err));
 	}
-
+#endif /* EMBEDDED_LIBRARY */
 	if (!srv_read_only_mode) {
 		if (srv_innodb_status) {
 
@@ -1626,8 +1628,9 @@ dberr_t srv_start(bool create_new_db)
 		if (err != DB_SUCCESS) {
 			return srv_init_abort(err);
 		}
+#ifndef EMBEDDED_LIBRARY
 		ut_ad(clone_check_recovery_crashpoint(recv_sys.is_cloned_db));
-
+#endif
 		if (srv_force_recovery < SRV_FORCE_NO_LOG_REDO) {
 			/* Apply the hashed log records to the
 			respective file pages, for the last batch of
@@ -2024,12 +2027,12 @@ skip_monitors:
 
 		srv_started_redo = true;
 	}
-
+#ifndef EMBEDDED_LIBRARY
 	/* Finish clone files recovery. This call is idempotent and is no op
 	if it is already done before creating new log files. */
         if (srv_operation == SRV_OPERATION_NORMAL)
 	  clone_files_recovery(true);
-
+#endif /* EMBEDDED_LIBRARY */
 	return(DB_SUCCESS);
 }
 
@@ -2189,7 +2192,9 @@ void innodb_shutdown()
 	}
 
 	if (srv_operation == SRV_OPERATION_NORMAL) {
+#ifndef EMBEDDED_LIBRARY
 	  clone_free();
+#endif /* EMBEDDED_LIBRARY */
 	  Arch_Sys::free();
 	}
 

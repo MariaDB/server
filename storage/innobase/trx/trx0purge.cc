@@ -645,11 +645,11 @@ TRANSACTIONAL_TARGET void trx_purge_truncate_history()
 
   if (head.free_history() != DB_SUCCESS)
     return;
-
+#ifndef EMBEDDED_LIBRARY
   Clone_notify notifier(Clone_notify::Type::SPACE_UNDO_TRUNCATE,
                         UINT32_MAX, true);
   if (notifier.failed()) return;
-
+#endif /* EMBEDDED_LIBRARY */
   while (fil_space_t *space= purge_sys.truncating_tablespace())
   {
     for (auto &rseg : trx_sys.rseg_array)

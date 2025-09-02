@@ -33,7 +33,7 @@ Clone handler interface to access clone plugin
 #include <string>
 #include <set>
 #include <tuple>
-# if defined __GNUC__ && __GNUC__ > 5 && __GNUC__ < 9
+# if defined __GNUC__ && __GNUC__ > 5 && __GNUC__ < 9 && !defined(_WIN32) && !defined(__APPLE__) && !defined(_clang_)
   #include <experimental/filesystem>
   namespace fsys= std::experimental::filesystem;
 #else
@@ -156,11 +156,6 @@ bool is_stats_table(const char *dbname, const char *tablename);
 
 void foreach_file_in_db_dirs(const char *dir_path,
                              std::function<bool(const char *)> func);
-# if __GNUC__ < 9
-namespace fsys= std::experimental::filesystem;
-#else
-namespace fsys= std::filesystem;
-#endif
 
 int foreach_file_in_dir(
     const fsys::path& dir_path,
