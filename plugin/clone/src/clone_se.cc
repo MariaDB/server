@@ -770,9 +770,13 @@ int Clone_Handle::scan(const std::unordered_set<table_key_t> &exclude_tables,
     ext_list.merge(copy_gen);
   }
 
+# if __GNUC__ < 9
+  namespace fsys= std::experimental::filesystem;
+#else
   namespace fsys= std::filesystem;
+#endif
   clone_common::foreach_file_in_dir(m_data_dir,
-                                    [&](const std::filesystem::path& file_path)
+                                    [&](const fsys::path& file_path)
   {
     std::string extn= file_path.extension().string();
     bool is_aria= (aria_list.find(extn) != aria_list.end());

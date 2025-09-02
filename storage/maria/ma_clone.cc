@@ -1041,9 +1041,13 @@ int Clone_Handle::scan(bool no_lock)
   std::set<std::string> ext_list= {".MAD"};
   std::unordered_map<std::string, std::unique_ptr<Table>> partitioned_tables;
 
+# if __GNUC__ < 9
+  namespace fsys= std::experimental::filesystem;
+#else
   namespace fsys= std::filesystem;
+#endif
   clone_common::foreach_file_in_dir(m_data_dir,
-                                    [&](const std::filesystem::path& file_path)
+                                    [&](const fsys::path& file_path)
   {
     const char* fpath= nullptr;
 #ifdef _WIN32
