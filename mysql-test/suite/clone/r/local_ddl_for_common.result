@@ -15,7 +15,6 @@ CREATE TABLE t3 (a INT NOT NULL) ENGINE=CSV;
 CREATE TABLE t4 LIKE t1;
 DROP TABLE t2;
 RENAME TABLE t3 TO t5;
-/home/satish/WORKSPACE/server/clone/bld_clone-debug/mysql-test/var/tmp/clone_noninnodb_3
 CLONE LOCAL DATA DIRECTORY = 'CLONE_DATADIR';
 # Restart server on cloned data directory
 # restart: with restart_parameters
@@ -54,7 +53,6 @@ ENGINE=MERGE UNION=(t3_m1, t3_m2) INSERT_METHOD=LAST;
 CREATE TABLE t4 LIKE t1;
 DROP TABLE t2;
 RENAME TABLE t3 TO t5;
-/home/satish/WORKSPACE/server/clone/bld_clone-debug/mysql-test/var/tmp/clone_noninnodb_2
 CLONE LOCAL DATA DIRECTORY = 'CLONE_DATADIR';
 # Restart server on cloned data directory
 # restart: with restart_parameters
@@ -84,7 +82,6 @@ CREATE TABLE t3 (a INT NOT NULL) ENGINE=MyISAM;
 CREATE TABLE t4 LIKE t1;
 DROP TABLE t2;
 RENAME TABLE t3 TO t5;
-/home/satish/WORKSPACE/server/clone/bld_clone-debug/mysql-test/var/tmp/clone_noninnodb_1
 CLONE LOCAL DATA DIRECTORY = 'CLONE_DATADIR';
 # Restart server on cloned data directory
 # restart: with restart_parameters

@@ -16,7 +16,6 @@ PARTITION BY HASH (id)
 PARTITIONS 400;
 insert into t1 values (1),(2),(3),(4);
 # clone Begins
-# CLONE_DATADIR=/home/satish/WORKSPACE/server/clone/bld_clone-debug/mysql-test/var/tmp/clone_partition_400
 CLONE LOCAL DATA DIRECTORY = 'CLONE_DATADIR';
 connection default;
 # Restart server on cloned data directory

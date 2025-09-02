@@ -55,7 +55,6 @@ ALTER TABLE isam_p ADD PARTITION (PARTITION p4 VALUES LESS THAN (500));
 ALTER TABLE isam_p ADD PARTITION (PARTITION p5 VALUES LESS THAN (600));
 INSERT INTO isam_p VALUES (401),(501);
 connection clone_conn_1;
-# CLONE_DATADIR=/home/satish/WORKSPACE/server/clone/bld_clone-debug/mysql-test/var/tmp/clone_ddl_partitions
 CLONE LOCAL DATA DIRECTORY = 'CLONE_DATADIR';
 connection default;
 # Restart server on cloned data directory

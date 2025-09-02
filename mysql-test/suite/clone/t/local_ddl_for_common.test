@@ -1,13 +1,6 @@
 # Test clone command (DDL for non-InnoDB: CSV, MERGE/MRG_MYISAM, MyISAM)
---source include/have_innodb.inc
---source include/have_example_plugin.inc
---source include/have_log_bin.inc
+--source include/not_embedded.inc
 --source ../include/clone_connection_begin.inc
-
---disable_query_log
-call mtr.add_suppression("\\[Warning\\] .*MY-\\d+.* Non innodb table: .* is not cloned and is empty.");
-call mtr.add_suppression("\\[Warning\\] .*MY-\\d+.* Clone removing all user data for provisioning: .*");
---enable_query_log
 
 # Install Clone Plugin
 --replace_result $MARIADB_CLONE_SO CLONE_PLUGIN
@@ -77,12 +70,7 @@ while ($e_var)
 
   # Clone to a fresh directory for this iteration
   --let $CLONE_DATADIR=$MYSQL_TMP_DIR/clone_noninnodb_$e_var
-  --replace_result $CLONE_DATADIR CLONE_DATADIR
-
-  --echo $CLONE_DATADIR
   --let $clone_err=0
-  --let $clone_remote_replace=0
-  --let $remote_clone=0
   --let $clone_remote_err=0
   --source ../include/clone_command.inc
 

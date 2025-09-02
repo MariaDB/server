@@ -1,8 +1,6 @@
 --echo # MyISAM table with 400 partitions
-
 --source include/have_partition.inc
---source include/have_example_plugin.inc
---source include/have_log_bin.inc
+--source include/not_embedded.inc
 --source ../include/clone_connection_begin.inc
 
 # Install Clone Plugin
@@ -26,11 +24,6 @@ insert into t1 values (1),(2),(3),(4);
 
 --echo # clone Begins
 --let $CLONE_DATADIR=$MYSQL_TMP_DIR/clone_partition_400
---replace_result $CLONE_DATADIR CLONE_DATADIR
---echo # CLONE_DATADIR=$CLONE_DATADIR
---let $clone_err=0
---let $clone_remote_replace=0
---let $remote_clone=0
 --source ../include/clone_command.inc
 
 # Restart with clone data
