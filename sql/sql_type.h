@@ -2678,6 +2678,10 @@ public:
   {
     return hhmmss_to_seconds() + (longlong) daynr() * 24L * 3600L;
   }
+  double to_seconds_ff() const
+  {
+    return (double) to_seconds() + (double) second_part / 1000000.0;
+  }
 
   const MYSQL_TIME *get_mysql_time() const
   {
