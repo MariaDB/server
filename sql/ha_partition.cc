@@ -7843,6 +7843,7 @@ int ha_partition::handle_unordered_scan_next_partition(uchar * buf)
   int saved_error= HA_ERR_END_OF_FILE;
   DBUG_ENTER("ha_partition::handle_unordered_scan_next_partition");
 
+  m_part_info->pi_scan_method= UNORDERED_INDEX_SCAN;
   /* Read next partition that includes start_part */
   if (i)
     i= bitmap_get_next_set(&m_part_info->read_partitions, i - 1);
@@ -7945,6 +7946,7 @@ int ha_partition::handle_ordered_index_scan(uchar *buf, bool reverse_order)
   DBUG_ENTER("ha_partition::handle_ordered_index_scan");
   DBUG_PRINT("enter", ("partition this: %p", this));
 
+  m_part_info->pi_scan_method= ORDERED_INDEX_SCAN;
    if (m_pre_calling)
      error= handle_pre_scan(reverse_order, m_pre_call_use_parallel);
    else

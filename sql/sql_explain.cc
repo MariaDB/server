@@ -40,6 +40,9 @@ const char *pushed_unit_operation_text[4]=
 
 const char *pushed_derived_text= "PUSHED DERIVED";
 const char *pushed_select_text= "PUSHED SELECT";
+/* See enum partition_index_scan_method */
+const char *partitions_index_scan_method_str[]=
+  {"none", "ordered", "unordered"};
 
 static void write_item(Json_writer *writer, Item *item);
 static void append_item_to_str(String *out, Item *item);
@@ -2018,7 +2021,12 @@ void Explain_table_access::print_explain_json(Explain_query *query,
   writer->add_member("table_name").add_str(table_name);
 
   if (used_partitions_set)
+  {
     print_json_array(writer, "partitions", used_partitions_list);
+    if (is_analyze)
+      writer->add_member("partitions_index_scan_method")
+        .add_str(partitions_index_scan_method_str[*pi_scan_method]);
+  }
 
   writer->add_member("access_type").add_str(join_type_str[type]);
 

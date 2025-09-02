@@ -30915,6 +30915,7 @@ bool JOIN_TAB::save_explain_data(Explain_table_access *eta,
     { //TODO: all thd->mem_root here should be fixed
       make_used_partitions_str(thd->mem_root, part_info, &eta->used_partitions,
                                eta->used_partitions_list);
+      eta->pi_scan_method= &part_info->pi_scan_method;
       eta->used_partitions_set= true;
     }
     else
