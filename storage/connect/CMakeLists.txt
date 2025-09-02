@@ -46,7 +46,7 @@ user_connect.h valblk.h value.h xindex.h xobject.h xtable.h)
 #
 # Definitions that are shared for all OSes
 #
-add_definitions( -DMARIADB -DFORCE_INIT_OF_VARS -Dconnect_EXPORTS)
+add_definitions( -DMARIADB -Dconnect_EXPORTS)
 add_definitions( -DHUGE_SUPPORT -DGZ_SUPPORT )
 
 macro(DISABLE_WARNING W)

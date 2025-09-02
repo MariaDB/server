@@ -8630,7 +8630,7 @@ ha_innobase::update_row(
 		if (error == DB_SUCCESS && m_prebuilt->versioned_write
 		    /* Multiple UPDATE of same rows in single transaction create
 		       historical rows only once. */
-		    && trx->id != table->vers_start_id()) {
+		    && trx->id != table->vers_start_id(new_row)) {
 			/* UPDATE is not used by ALTER TABLE. Just precaution
 			as we don't need history generation for ALTER TABLE. */
 			ut_ad(thd_sql_command(m_user_thd) != SQLCOM_ALTER_TABLE);
@@ -8745,14 +8745,18 @@ ha_innobase::delete_row(
 
 	/* This is a delete */
 	m_prebuilt->upd_node->is_delete = table->versioned_write(VERS_TRX_ID)
-		&& table->vers_end_field()->is_max()
-		&& trx->id != table->vers_start_id()
+		&& table->vers_end_field()->is_max(
+			table->vers_end_field()->ptr_in_record(record))
+		&& trx->id != table->vers_start_id(record)
 		? VERSIONED_DELETE
 		: PLAIN_DELETE;
 	trx->fts_next_doc_id = 0;
 
 	ut_ad(!trx->is_bulk_insert());
 	error = row_update_for_mysql(m_prebuilt);
+
+	ut_ad(error != DB_DUPLICATE_KEY);
+	ut_ad(error != DB_FOREIGN_DUPLICATE_KEY);
 
 #ifdef WITH_WSREP
 	if (error == DB_SUCCESS && trx->is_wsrep()

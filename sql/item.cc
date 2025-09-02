@@ -2896,8 +2896,6 @@ Item_sp::func_name_cstring(THD *thd, bool is_package_function) const
 void
 Item_sp::cleanup()
 {
-  delete sp_result_field;
-  sp_result_field= NULL;
   m_sp= NULL;
   delete func_ctx;
   func_ctx= NULL;
@@ -3069,7 +3067,6 @@ Item_sp::init_result_field(THD *thd, uint max_length, uint maybe_null,
   DBUG_ENTER("Item_sp::init_result_field");
 
   DBUG_ASSERT(m_sp != NULL);
-  DBUG_ASSERT(sp_result_field == NULL);
 
   /*
      A Field needs to be attached to a Table.
@@ -3083,23 +3080,26 @@ Item_sp::init_result_field(THD *thd, uint max_length, uint maybe_null,
   dummy_table->s->table_name= empty_clex_str;
   dummy_table->maybe_null= maybe_null;
 
-  if (!(sp_result_field= m_sp->create_result_field(max_length, name,
-                                                   dummy_table)))
-   DBUG_RETURN(TRUE);
-
-  if (sp_result_field->pack_length() > sizeof(result_buf))
+  if (!sp_result_field)
   {
-    void *tmp;
-    if (!(tmp= thd->alloc(sp_result_field->pack_length())))
-      DBUG_RETURN(TRUE);
-    sp_result_field->move_field((uchar*) tmp);
+    sp_result_field= m_sp->create_result_field(max_length, name,
+                                               dummy_table);
+    if (!sp_result_field)
+      DBUG_RETURN(true);
+
+    if (sp_result_field->pack_length() > sizeof(result_buf))
+    {
+      void *tmp;
+      if (!(tmp= thd->alloc(sp_result_field->pack_length())))
+        DBUG_RETURN(TRUE);
+      sp_result_field->move_field((uchar*) tmp);
+    }
+    else
+      sp_result_field->move_field(result_buf);
+
+    sp_result_field->null_ptr= (uchar *) null_value;
+    sp_result_field->null_bit= 1;
   }
-  else
-    sp_result_field->move_field(result_buf);
-
-  sp_result_field->null_ptr= (uchar *) null_value;
-  sp_result_field->null_bit= 1;
-
   DBUG_RETURN(FALSE);
 }
 

@@ -2411,7 +2411,7 @@ duplicate:
 						&trx_id_len);
 					ut_ad(trx_id_len == DATA_TRX_ID_LEN);
 					if (trx->id == trx_read_trx_id(trx_id)) {
-						err = DB_FOREIGN_DUPLICATE_KEY;
+						err = DB_DUPLICATE_KEY;
 					}
 				}
 				goto func_exit;

@@ -54,6 +54,7 @@
 #include "rpl_record.h"
 #include "rpl_reporting.h"
 #include "sql_class.h"                          /* THD */
+#include "sql_insert.h"
 #else
 typedef ulong enum_slave_exec_mode;
 #endif
@@ -4476,7 +4477,7 @@ public:
   enum_logged_status logged_status() override { return LOGGED_TABLE_MAP; }
   bool is_valid() const override { return m_memory != NULL; /* we check malloc */ }
 
-  int get_data_size() override { return (uint) m_data_size; } 
+  int get_data_size() override { return (uint) m_data_size; }
 #ifdef MYSQL_SERVER
 #ifdef HAVE_REPLICATION
    bool is_part_of_group() override { return 1; }
@@ -4901,7 +4902,6 @@ protected:
   uint find_key_parts(const KEY *key) const;
   bool use_pk_position() const;
   int find_row(rpl_group_info *);
-  int write_row(rpl_group_info *, const bool);
   int update_sequence();
 
   // Unpack the current row into m_table->record[0], but with
@@ -4965,7 +4965,8 @@ private:
       error code otherwise.
   */
   virtual
-  int do_before_row_operations(const rpl_group_info *) = 0;
+  int do_before_row_operations(rpl_group_info *log, COPY_INFO *,
+                                       Write_record *) = 0;
 
   /**
     @brief Primitive to clean up after a sequence of row executions.
@@ -5045,6 +5046,8 @@ public:
   {
     *rows += m_row_count;
   }
+
+  int incomplete_record_callback(rpl_group_info *rgi);
 #endif
 
 private:
@@ -5055,7 +5058,10 @@ private:
 #endif
 
 #if defined(MYSQL_SERVER) && defined(HAVE_REPLICATION)
-  int do_before_row_operations(const rpl_group_info *) override;
+  Write_record *m_write_record;
+  int write_row(rpl_group_info *, bool);
+  int do_before_row_operations(rpl_group_info *, COPY_INFO *,
+                               Write_record *) override;
   int do_after_row_operations(int) override;
   int do_exec_row(rpl_group_info *) override;
 #endif
@@ -5144,7 +5150,8 @@ protected:
 #endif
 
 #if defined(MYSQL_SERVER) && defined(HAVE_REPLICATION)
-  int do_before_row_operations(const rpl_group_info *) override;
+  int do_before_row_operations(rpl_group_info *rgi, COPY_INFO *,
+                               Write_record *) override;
   int do_after_row_operations(int) override;
   int do_exec_row(rpl_group_info *) override;
 #endif /* defined(MYSQL_SERVER) && defined(HAVE_REPLICATION) */
@@ -5235,7 +5242,8 @@ protected:
 #endif
 
 #if defined(MYSQL_SERVER) && defined(HAVE_REPLICATION)
-  int do_before_row_operations(const rpl_group_info *const) override;
+  int do_before_row_operations(rpl_group_info *rgi, COPY_INFO *,
+                               Write_record *) override;
   int do_after_row_operations(int) override;
   int do_exec_row(rpl_group_info *) override;
 #endif

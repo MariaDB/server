@@ -1790,7 +1790,7 @@ public:
            check_assignability_all_visible_fields(values, ignore);
   }
 
-  bool insert_all_rows_into_tmp_table(THD *thd, 
+  bool insert_all_rows_into_tmp_table(THD *thd,
                                       TABLE *tmp_table,
                                       TMP_TABLE_PARAM *tmp_table_param,
                                       bool with_cleanup);
@@ -1915,8 +1915,8 @@ public:
             HA_DO_RANGE_FILTER_PUSHDOWN);
   }
 
-  ulonglong vers_start_id() const;
-  ulonglong vers_end_id() const;
+  ulonglong vers_start_id(const uchar *ptr) const;
+  ulonglong vers_end_id(const uchar *ptr) const;
 #ifdef WITH_PARTITION_STORAGE_ENGINE
   bool vers_switch_partition(THD *thd, TABLE_LIST *table_list,
                              Open_table_context *ot_ctx);
@@ -1929,7 +1929,9 @@ public:
                              ha_rows *rows_inserted);
   bool vers_check_update(List<Item> &items);
   static bool check_period_overlaps(const KEY &key, const uchar *lhs, const uchar *rhs);
-  int delete_row();
+  inline int delete_row(){ return delete_row<false>(versioned(VERS_TIMESTAMP)); }
+  template <bool replace>
+  int delete_row(bool versioned);
   /* Used in majority of DML (called from fill_record()) */
   bool vers_update_fields();
   /* Used in DELETE, DUP REPLACE and insert history row */

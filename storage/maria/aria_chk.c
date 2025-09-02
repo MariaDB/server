@@ -237,9 +237,6 @@ end:
   }
   maria_end();
   my_exit(error);
-#ifndef _lint
-  return 0;				/* No compiler warning */
-#endif
 } /* main */
 
 enum options_mc {

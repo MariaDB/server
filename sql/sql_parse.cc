@@ -4648,6 +4648,7 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
       select_lex->context.table_list=
         select_lex->context.first_name_resolution_table= second_table;
       res= mysql_insert_select_prepare(thd, result);
+      Write_record write;
       if (!res &&
           (sel_result= new (thd->mem_root)
                        select_insert(thd, first_table,
@@ -4657,7 +4658,8 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
                                     &lex->value_list,
                                     lex->duplicates,
                                     lex->ignore,
-                                    result)))
+                                    result,
+                                    &write)))
       {
         if (lex->analyze_stmt)
           ((select_result_interceptor*)sel_result)->disable_my_ok_calls();
