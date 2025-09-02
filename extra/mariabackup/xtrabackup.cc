@@ -203,6 +203,8 @@ struct xb_filter_entry_t{
 
 /** whether log_copying_thread() is active; protected by recv_sys.mutex */
 static bool log_copying_running;
+/** the log parsing function for --backup */
+static recv_sys_t::parser backup_log_parse;
 /** for --backup, target LSN to copy the log to; protected by recv_sys.mutex */
 lsn_t metadata_to_lsn;
 
@@ -2640,7 +2642,10 @@ static byte log_hdr_buf[log_t::START_OFFSET + SIZE_OF_FILE_CHECKPOINT];
 static void log_hdr_init()
 {
   memset(log_hdr_buf, 0, sizeof log_hdr_buf);
-  mach_write_to_4(LOG_HEADER_FORMAT + log_hdr_buf, log_t::FORMAT_10_8);
+  /* log_t::FORMAT_ENC_10_8 is written to the file as FORMAT_10_8 */
+  mach_write_to_4(LOG_HEADER_FORMAT + log_hdr_buf,
+                  log_sys.format == log_t::FORMAT_ENC_11
+                  ? log_t::FORMAT_ENC_11 : log_t::FORMAT_10_8);
   mach_write_to_8(LOG_HEADER_START_LSN + log_hdr_buf,
                   log_sys.next_checkpoint_lsn);
   snprintf(reinterpret_cast<char*>(LOG_HEADER_CREATOR + log_hdr_buf),
@@ -3441,8 +3446,7 @@ static bool xtrabackup_copy_mmap_logfile()
   const byte *start= &log_sys.buf[recv_sys.offset];
   ut_d(recv_sys_t::parse_mtr_result r);
 
-  if ((ut_d(r=) recv_sys.parse_mmap<recv_sys_t::store::BACKUP>(false)) ==
-      recv_sys_t::OK)
+  if ((ut_d(r=) backup_log_parse(false)) == recv_sys_t::OK)
   {
     do
     {
@@ -3460,8 +3464,7 @@ static bool xtrabackup_copy_mmap_logfile()
         start = seq + 1;
       }
     }
-    while ((ut_d(r=) recv_sys.parse_mmap<recv_sys_t::store::BACKUP>(false)) ==
-           recv_sys_t::OK);
+    while ((ut_d(r=) backup_log_parse(false)) == recv_sys_t::OK);
 
     if (xtrabackup_copy_mmap_snippet(dst_log_file, start,
                                      &log_sys.buf[recv_sys.offset]))
@@ -3534,8 +3537,7 @@ static bool xtrabackup_copy_logfile(bool early_exit)
       if (log_sys.buf[recv_sys.offset] <= 1)
         break;
 
-      if (recv_sys.parse_mtr<recv_sys_t::store::BACKUP>(false) ==
-          recv_sys_t::OK)
+      if (backup_log_parse(false) == recv_sys_t::OK)
       {
         do
         {
@@ -3545,8 +3547,7 @@ static bool xtrabackup_copy_logfile(bool early_exit)
                                                  sequence_offset));
           *seq= 1;
         }
-        while ((r= recv_sys.parse_mtr<recv_sys_t::store::BACKUP>(false)) ==
-               recv_sys_t::OK);
+        while ((r= backup_log_parse(false)) == recv_sys_t::OK);
 
         if (ds_write(dst_log_file, log_sys.buf + start_offset,
                      recv_sys.offset - start_offset))
@@ -5585,6 +5586,7 @@ fail:
 	/* copy log file by current position */
 
 	mysql_mutex_lock(&recv_sys.mutex);
+	backup_log_parse = recv_sys.get_backup_parser();
 	recv_sys.lsn = log_sys.next_checkpoint_lsn;
 
 	const bool log_copy_failed = xtrabackup_copy_logfile(true);

@@ -729,6 +729,12 @@ private:
 public:
   /** Update finisher when spin_wait_delay is changing to or from 0. */
   static void finisher_update();
+
+  /** Decode the length of a record.
+  @param l     log record
+  @param size  total size of the record
+  @return the log record payload after the encoded length */
+  static const byte *parse_length(const byte *l, uint32_t *size) noexcept;
 private:
 
   /** Release all latches. */

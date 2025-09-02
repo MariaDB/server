@@ -658,22 +658,13 @@ bool mtr_t::commit_file(fil_space_t &space, const char *name)
   ut_ad(!m_latch_ex);
 
   m_latch_ex= true;
-  m_commit_lsn= 0;
 
-  size_t size{crc32c()};
+  const bool crypt{log_sys.is_encrypted()};
+  m_commit_lsn= crypt ? log_sys.get_flushed_lsn() : 0;
+  const size_t size{crypt ? 8 + encrypt() : crc32c()};
 
   log_write_and_flush_prepare();
-
   log_sys.latch.wr_lock(SRW_LOCK_CALL);
-
-  if (log_sys.is_encrypted())
-  {
-    /* We will not encrypt any FILE_ records, but we will reserve
-    a nonce at the end. */
-    size+= 8;
-    m_commit_lsn= log_sys.get_flushed_lsn();
-  }
-
   finish_write(size);
 
   if (!name && space.max_lsn)
@@ -747,7 +738,6 @@ ATTRIBUTE_COLD lsn_t mtr_t::commit_files(lsn_t checkpoint_lsn)
   ut_ad(!m_latch_ex);
 
   m_latch_ex= true;
-  m_commit_lsn= 0;
 
   if (checkpoint_lsn)
   {
@@ -757,17 +747,9 @@ ATTRIBUTE_COLD lsn_t mtr_t::commit_files(lsn_t checkpoint_lsn)
     mach_write_to_8(ptr + 3, checkpoint_lsn);
   }
 
-  size_t size{crc32c()};
-
-  if (log_sys.is_encrypted())
-  {
-    /* We will not encrypt any FILE_ records, but we will reserve
-    a nonce at the end. */
-    size+= 8;
-    m_commit_lsn= log_sys.get_flushed_lsn();
-  }
-
-  finish_write(size);
+  const bool crypt{log_sys.is_encrypted()};
+  m_commit_lsn= crypt ? log_sys.get_flushed_lsn() : 0;
+  finish_write(crypt ? 8 + encrypt() : crc32c());
   release_resources();
 
   if (checkpoint_lsn)
