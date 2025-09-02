@@ -480,7 +480,7 @@ class Opt_hints_table;
 class Opt_hints_qb : public Opt_hints
 {
   uint select_number;     // SELECT_LEX number
-  LEX_CSTRING sys_name;   // System QB name
+  LEX_CSTRING sys_name;   // System QB name, 'select#N'
   char buff[32];          // Buffer to hold sys name
 
   // Array of join order hints

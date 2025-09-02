@@ -32505,7 +32505,10 @@ void st_select_lex::print_hints(THD *thd,
     if (opt_hints_qb && opt_hints_qb->get_parent())
         opt_hints_qb->get_parent()->print(thd, str);
     else if (thd->lex->opt_hints_global)
+    {
+      // Note: currently, no global hints are supported inside VIEWs.
       thd->lex->opt_hints_global->print(thd, str);
+    }
   }
 
   // If no hints were added, then rollback the previouly added header.
