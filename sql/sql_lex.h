@@ -5074,7 +5074,7 @@ public:
 
   std::pair<bool, Optimizer_hint_parser_output *>
     parse_optimizer_hints(const Lex_comment_st &hint);
-
+  /* See resolve_optimizer_hints() */
   List<SELECT_LEX> selects_for_hint_resolution;
 };
 
