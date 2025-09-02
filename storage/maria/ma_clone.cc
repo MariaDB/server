@@ -1041,7 +1041,7 @@ int Clone_Handle::scan(bool no_lock)
   std::set<std::string> ext_list= {".MAD"};
   std::unordered_map<std::string, std::unique_ptr<Table>> partitioned_tables;
 
-# if __GNUC__ < 9
+# if __GNUC__ < 9 && !defined(__clang__) && !defined(__WINDOWS__)
   namespace fsys= std::experimental::filesystem;
 #else
   namespace fsys= std::filesystem;
