@@ -274,7 +274,7 @@ static void insert_imported(buf_block_t *block)
 void mtr_t::release_unlogged()
 {
   ut_ad(m_log_mode == MTR_LOG_NO_REDO);
-  ut_ad(m_log.size() == 0);
+  ut_ad(m_log.empty());
 
   process_freed_pages();
 
@@ -658,12 +658,13 @@ bool mtr_t::commit_file(fil_space_t &space, const char *name)
   ut_ad(!m_latch_ex);
 
   m_latch_ex= true;
+  m_commit_lsn= 0;
+
+  size_t size{crc32c()};
 
   log_write_and_flush_prepare();
 
   log_sys.latch.wr_lock(SRW_LOCK_CALL);
-
-  size_t size= m_log.size() + 5;
 
   if (log_sys.is_encrypted())
   {
@@ -672,12 +673,7 @@ bool mtr_t::commit_file(fil_space_t &space, const char *name)
     size+= 8;
     m_commit_lsn= log_sys.get_flushed_lsn();
   }
-  else
-    m_commit_lsn= 0;
 
-  m_crc= 0;
-  m_log.for_each_block([this](const mtr_buf_t::block_t *b)
-  { m_crc= my_crc32c(m_crc, b->begin(), b->used()); return true; });
   finish_write(size);
 
   if (!name && space.max_lsn)
@@ -717,6 +713,18 @@ bool mtr_t::commit_file(fil_space_t &space, const char *name)
   return success;
 }
 
+ATTRIBUTE_NOINLINE size_t mtr_t::crc32c() noexcept
+{
+  m_crc= 0;
+  size_t len= 5;
+  for (const mtr_buf_t::block_t &b : m_log)
+  {
+    len+= b.used();
+    m_crc= my_crc32c(m_crc, b.begin(), b.used());
+  }
+  return len;
+}
+
 /** Commit a mini-transaction that did not modify any pages,
 but generated some redo log on a higher level, such as
 FILE_MODIFY records and an optional FILE_CHECKPOINT marker.
@@ -739,6 +747,7 @@ ATTRIBUTE_COLD lsn_t mtr_t::commit_files(lsn_t checkpoint_lsn)
   ut_ad(!m_latch_ex);
 
   m_latch_ex= true;
+  m_commit_lsn= 0;
 
   if (checkpoint_lsn)
   {
@@ -748,7 +757,7 @@ ATTRIBUTE_COLD lsn_t mtr_t::commit_files(lsn_t checkpoint_lsn)
     mach_write_to_8(ptr + 3, checkpoint_lsn);
   }
 
-  size_t size= m_log.size() + 5;
+  size_t size{crc32c()};
 
   if (log_sys.is_encrypted())
   {
@@ -757,12 +766,7 @@ ATTRIBUTE_COLD lsn_t mtr_t::commit_files(lsn_t checkpoint_lsn)
     size+= 8;
     m_commit_lsn= log_sys.get_flushed_lsn();
   }
-  else
-    m_commit_lsn= 0;
 
-  m_crc= 0;
-  m_log.for_each_block([this](const mtr_buf_t::block_t *b)
-  { m_crc= my_crc32c(m_crc, b->begin(), b->used()); return true; });
   finish_write(size);
   release_resources();
 
@@ -1051,10 +1055,11 @@ std::pair<lsn_t,mtr_t::page_flush_ahead> mtr_t::do_write()
 {
   ut_ad(!recv_no_log_write);
   ut_ad(is_logged());
-  ut_ad(m_log.size());
+  ut_ad(!m_log.empty());
   ut_ad(!m_latch_ex || log_sys.latch_have_wr());
   ut_ad(!m_user_space ||
         (m_user_space->id > 0 && m_user_space->id < SRV_SPACE_ID_UPPER_BOUND));
+  m_commit_lsn= 0;
 
 #ifndef DBUG_OFF
   do
@@ -1072,22 +1077,7 @@ std::pair<lsn_t,mtr_t::page_flush_ahead> mtr_t::do_write()
   }
   while (0);
 #endif
-
-  size_t len= m_log.size() + 5;
-  ut_ad(len > 5);
-
-  if (log_sys.is_encrypted())
-  {
-    len+= 8;
-    encrypt();
-  }
-  else
-  {
-    m_crc= 0;
-    m_commit_lsn= 0;
-    m_log.for_each_block([this](const mtr_buf_t::block_t *b)
-    { m_crc= my_crc32c(m_crc, b->begin(), b->used()); return true; });
-  }
+  const size_t len{log_sys.is_encrypted() ? 8 + encrypt() : crc32c()};
 
   if (!m_latch_ex)
     log_sys.latch.rd_lock(SRW_LOCK_CALL);
@@ -1220,6 +1210,7 @@ mtr_t::finish_writer(mtr_t *mtr, size_t len)
   ut_ad(!recv_no_log_write);
   ut_ad(mtr->is_logged());
   ut_ad(mtr->m_latch_ex ? log_sys.latch_have_wr() : log_sys.latch_have_rd());
+  ut_ad(len < recv_sys.MTR_SIZE_MAX);
 
   const size_t size{mtr->m_commit_lsn ? 5U + 8U : 5U};
   std::pair<lsn_t, byte*> start=
@@ -1227,8 +1218,8 @@ mtr_t::finish_writer(mtr_t *mtr, size_t len)
 
   if (!mmap)
   {
-    mtr->m_log.for_each_block([&start](const mtr_buf_t::block_t *b)
-    { log_sys.append(start.second, b->begin(), b->used()); return true; });
+    for (const mtr_buf_t::block_t &b : mtr->m_log)
+      log_sys.append(start.second, b.begin(), b.used());
 
   write_trailer:
     *start.second++= log_sys.get_sequence_bit(start.first + len - size);
@@ -1245,15 +1236,15 @@ mtr_t::finish_writer(mtr_t *mtr, size_t len)
   {
     if (UNIV_LIKELY(start.second + len <= &log_sys.buf[log_sys.file_size]))
     {
-      mtr->m_log.for_each_block([&start](const mtr_buf_t::block_t *b)
-      { log_sys.append(start.second, b->begin(), b->used()); return true; });
+      for (const mtr_buf_t::block_t &b : mtr->m_log)
+        log_sys.append(start.second, b.begin(), b.used());
       goto write_trailer;
     }
-    mtr->m_log.for_each_block([&start](const mtr_buf_t::block_t *b)
+    for (const mtr_buf_t::block_t &b : mtr->m_log)
     {
-      size_t size{b->used()};
+      size_t size{b.used()};
       const size_t size_left(&log_sys.buf[log_sys.file_size] - start.second);
-      const byte *src= b->begin();
+      const byte *src= b.begin();
       if (size > size_left)
       {
         ::memcpy(start.second, src, size_left);
@@ -1263,8 +1254,7 @@ mtr_t::finish_writer(mtr_t *mtr, size_t len)
       }
       ::memcpy(start.second, src, size);
       start.second+= size;
-      return true;
-    });
+    }
     const size_t size_left(&log_sys.buf[log_sys.file_size] - start.second);
     if (size_left > size)
       goto write_trailer;
