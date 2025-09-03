@@ -2997,11 +2997,14 @@ static Exit_status check_header(IO_CACHE* file,
   if (0 == memcmp(header, INNODB_BINLOG_MAGIC, sizeof(header)))
   {
     binlog_format= INNODB_BINLOG_FORMAT;
-    engine_binlog_reader= get_binlog_reader_innodb();
     if (!engine_binlog_reader)
     {
-      error("Out of memory setting up reader for InnoDB-implemented binlog.");
-      return ERROR_STOP;
+      engine_binlog_reader= get_binlog_reader_innodb();
+      if (!engine_binlog_reader)
+      {
+        error("Out of memory setting up reader for InnoDB-implemented binlog.");
+        return ERROR_STOP;
+      }
     }
     /*
       New engine-implemented binlog always does checksum verification on the
