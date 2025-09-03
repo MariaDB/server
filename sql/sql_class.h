@@ -5390,11 +5390,6 @@ public:
   {
     parse_error(ER_SYNTAX_ERROR);
   }
-#ifdef mysqld_error_find_printf_error_used
-  void parse_error(const char *t)
-  {
-  }
-#endif
 private:
   /*
     Only the implementation of the SIGNAL and RESIGNAL statements
