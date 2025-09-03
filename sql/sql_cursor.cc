@@ -20,6 +20,7 @@
 #include "sql_cursor.h"
 #include "probes_mysql.h"
 #include "sql_parse.h"                        // mysql_execute_command
+#include "sp_instr.h"                         // sp_lex_cursor
 
 /**
   Attempt to open a materialized cursor.
@@ -46,6 +47,7 @@ int mysql_open_cursor(THD *thd, select_result *result,
   Select_materialize *result_materialize;
   LEX *lex= thd->lex;
   int rc;
+  const CSET_STRING query_backup= thd->query_string;
 
   if (!(result_materialize= new (thd->mem_root) Select_materialize(thd, result)))
     return 1;
@@ -53,6 +55,12 @@ int mysql_open_cursor(THD *thd, select_result *result,
   save_result= lex->result;
 
   lex->result= result_materialize;
+
+  if (const sp_lex_cursor *clex= lex->get_lex_for_cursor())
+  {
+    const LEX_CSTRING tmp_query= get_cursor_query(clex->get_expr_str());
+    thd->set_query((char*) tmp_query.str, tmp_query.length);
+  }
 
   MYSQL_QUERY_EXEC_START(thd->query(),
                          thd->thread_id,
@@ -67,6 +75,7 @@ int mysql_open_cursor(THD *thd, select_result *result,
   /* Mark that we can't use query cache with cursors */
   thd->query_cache_is_applicable= 0;
   rc= mysql_execute_command(thd);
+  thd->update_server_status();
   thd->lex->restore_set_statement_var();
   thd->m_digest= parent_digest;
   thd->m_statement_psi= parent_locker;
@@ -120,6 +129,8 @@ int mysql_open_cursor(THD *thd, select_result *result,
   }
 
 end:
+  log_slow_statement(thd);
+  thd->set_query(query_backup);
   delete result_materialize;
   return rc;
 }

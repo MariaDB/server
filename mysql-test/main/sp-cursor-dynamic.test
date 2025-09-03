@@ -1,0 +1,1047 @@
+--echo #
+--echo # MDEV-33830 Support for cursors on prepared statements
+--echo #
+
+--echo # OPEN with a never prepared stmt
+
+DELIMITER $$;
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE c CURSOR FOR stmt;
+  OPEN c;
+END;
+$$
+DELIMITER ;$$
+--error ER_UNKNOWN_STMT_HANDLER
+CALL p1;
+DROP PROCEDURE p1;
+
+
+--echo # OPEN with a deallocated stmt
+
+DELIMITER $$;
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE c CURSOR FOR stmt;
+  PREPARE stmt FROM 'SELECT 1';
+  DEALLOCATE PREPARE stmt;
+  OPEN c;
+END;
+$$
+DELIMITER ;$$
+--error ER_UNKNOWN_STMT_HANDLER
+CALL p1;
+DROP PROCEDURE p1;
+
+
+--echo # OPEN with a non-SELECT statement
+
+DELIMITER $$;
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE c CURSOR FOR stmt;
+  PREPARE stmt FROM 'DROP TABLE t1';
+  OPEN c;
+END;
+$$
+DELIMITER ;$$
+--error ER_SP_BAD_CURSOR_QUERY
+CALL p1;
+DROP PROCEDURE p1;
+
+--echo # An attempt to reuse an in-use statement in OPEN
+
+DELIMITER $$;
+CREATE PROCEDURE p1()
+BEGIN
+  PREPARE stmt FROM 'SELECT 1';
+END;
+$$
+DELIMITER ;$$
+PREPARE stmt FROM 'CALL p1()';
+--error ER_PS_NO_RECURSION
+EXECUTE stmt;
+DROP PROCEDURE p1;
+
+
+--echo # Bad queries in OPEN
+
+DELIMITER $$;
+CREATE PROCEDURE p1(query TEXT)
+BEGIN
+  DECLARE v TEXT;
+  DECLARE c SYS_REFCURSOR;
+  OPEN c FOR query;
+  CLOSE c;
+END;
+$$
+DELIMITER ;$$
+--error ER_PARSE_ERROR
+CALL p1('SELECT syntax error error error');
+--error ER_PARSE_ERROR
+CALL p1('BEGIN; SELECT 1; END');
+--error ER_BAD_FIELD_ERROR
+CALL p1('SELECT Unknown');
+--error ER_SP_UNDECLARED_VAR
+CALL p1('SELECT 1 INTO unknown');
+--error ER_SP_UNDECLARED_VAR
+CALL p1('SELECT 1 INTO v');
+--error ER_SP_BAD_CURSOR_SELECT
+CALL p1('SELECT 1 INTO @v');
+DROP PROCEDURE p1;
+
+
+DELIMITER $$;
+--error ER_SP_BAD_CURSOR_SELECT
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE c SYS_REFCURSOR;
+  OPEN c FOR SELECT 1 INTO @v;
+  CLOSE c;
+END;
+$$
+DELIMITER ;$$
+
+
+--echo # SET STATEMENT .. FOR OPEN is not supported
+
+DELIMITER $$;
+--error ER_PARSE_ERROR
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE v0 TEXT;
+  DECLARE c CURSOR FOR ps;
+  SET STATEMENT max_sort_length=1000 FOR OPEN c;
+  CLOSE c;
+END;
+$$
+DELIMITER ;$$
+
+
+--echo # SQL Standard cursor: Dynamic OPEN requires CLOSE before a new OPEN
+
+DELIMITER $$;
+CREATE PROCEDURE p1(cl BOOL)
+BEGIN
+  DECLARE v TEXT;
+  DECLARE c CURSOR FOR ps;
+  PREPARE ps FROM 'SELECT ?';
+  OPEN c USING 1;
+  IF (cl) THEN
+    CLOSE c;
+  END IF;
+  OPEN c USING 2;
+  FETCH c INTO v;
+  SELECT v;
+  CLOSE c;
+END;
+$$
+DELIMITER ;$$
+--error ER_SP_CURSOR_ALREADY_OPEN
+CALL p1(FALSE);
+CALL p1(TRUE);
+DROP PROCEDURE p1;
+
+
+--echo # SQL Standard cursor + max_open_cursors
+
+SET max_open_cursors=1;
+DELIMITER $$;
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE v0 TEXT;
+  DECLARE v1 TEXT;
+  DECLARE c0 CURSOR FOR ps0;
+  DECLARE c1 CURSOR FOR ps1;
+  PREPARE ps0 FROM 'SELECT ?,?';
+  PREPARE ps1 FROM 'SELECT ?,?';
+  OPEN c0 USING 10,11;
+  OPEN c1 USING 20,21;
+  FETCH c0 INTO v0, v1;
+  SELECT v0, v1;
+  FETCH c1 INTO v0, v1;
+  SELECT v0, v1;
+  CLOSE c0;
+  CLOSE c1;
+END;
+$$
+DELIMITER ;$$
+--error ER_TOO_MANY_OPEN_CURSORS
+CALL p1;
+DROP PROCEDURE p1;
+SET max_open_cursors=DEFAULT;
+
+
+--echo # Oracle style cursors + max_open_cursors
+
+SET max_open_cursors=1;
+DELIMITER $$;
+CREATE PROCEDURE p1(open_c1 BOOL)
+BEGIN
+  DECLARE v TEXT;
+  DECLARE c0 SYS_REFCURSOR;
+  DECLARE c1 SYS_REFCURSOR;
+  OPEN c0 FOR 'SELECT ?' USING 1;
+  OPEN c0 FOR 'SELECT ?' USING 2; -- Ok to reopen
+  OPEN c0 FOR 'SELECT ?' USING 3; -- Ok to reopen
+  FETCH c0 INTO v;
+  SELECT v;
+  IF (open_c1) THEN
+    OPEN c1 FOR 'SELECT ?' USING 10;
+  END IF;
+END;
+$$
+DELIMITER ;$$
+--error ER_TOO_MANY_OPEN_CURSORS
+CALL p1(TRUE);
+CALL p1(FALSE);
+DROP PROCEDURE p1;
+SET max_open_cursors=DEFAULT;
+
+--echo # SQL Standard dynamic cursor: FOR loop is not supported
+
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1),(2),(3);
+DELIMITER $$;
+--error ER_WRONG_USAGE
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE c1 CURSOR FOR stmt;
+  PREPARE stmt FROM 'SELECT a FROM t1';
+  FOR r IN c1
+  DO
+    INSERT INTO t2 VALUES(r.a);
+  END FOR;
+END;
+$$
+DELIMITER ;$$
+DROP TABLE t1;
+
+
+--echo # SQL Standard dynamic cursor: ROW TYPE OF is not supported
+
+DELIMITER $$;
+--error ER_WRONG_USAGE
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE v TEXT;
+  DECLARE c CURSOR FOR stmt;
+  BEGIN
+    DECLARE r ROW TYPE OF c;
+  END;
+END;
+$$
+DELIMITER ;$$
+
+
+--echo # Opening two SQL Stanard dynamic cursors from the same PS
+
+DELIMITER $$;
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE v0 TEXT;
+  DECLARE v1 TEXT;
+  DECLARE c0 CURSOR FOR ps;
+  DECLARE c1 CURSOR FOR ps;
+  PREPARE ps FROM 'SELECT ?,?';
+  OPEN c0 USING 10,11;
+  OPEN c1 USING 20,21;
+  FETCH c0 INTO v0, v1;
+  SELECT v0, v1;
+  FETCH c1 INTO v0, v1;
+  SELECT v0, v1;
+  CLOSE c0;
+  CLOSE c1;
+END;
+$$
+DELIMITER ;$$
+CALL p1;
+DROP PROCEDURE p1;
+
+--echo # A single FETCH from a simple SELECT without tables
+
+DELIMITER $$;
+CREATE PROCEDURE p1(dynamic_sql TEXT)
+BEGIN
+  DECLARE v1 INT;
+  DECLARE v2 TEXT;
+  DECLARE c CURSOR FOR stmt;
+  PREPARE stmt FROM dynamic_sql;
+  OPEN c;
+  FETCH c INTO v1, v2;
+  SELECT v1, v2;
+  CLOSE c;
+END;
+$$
+DELIMITER ;$$
+CALL p1('SELECT 123, ''v123''');
+CALL p1('VALUES (123, ''v123'')');
+DROP PROCEDURE p1;
+
+
+--echo # A single FETCH + SELECT without tables + OPEN in an inner block
+
+DELIMITER $$;
+CREATE PROCEDURE p1(dynamic_sql TEXT)
+BEGIN
+  PREPARE stmt FROM dynamic_sql;
+  BEGIN
+    DECLARE v1 INT;
+    DECLARE v2 TEXT;
+    DECLARE c CURSOR FOR stmt;
+    OPEN c;
+    FETCH c INTO v1, v2;
+    SELECT v1, v2;
+    CLOSE c;
+  END;
+END;
+$$
+DELIMITER ;$$
+CALL p1('SELECT 123, ''v123''');
+CALL p1('VALUES (123, ''v123'')');
+DROP PROCEDURE p1;
+
+
+--echo # A loop for FETCH with an I_S query
+
+DELIMITER $$;
+CREATE PROCEDURE p1 ()
+BEGIN
+  DECLARE dynamic_sql TEXT;
+  DECLARE v1 INT;
+  DECLARE v2 VARCHAR(64);
+  DECLARE end_of_data INT DEFAULT 0;
+  DECLARE c0 CURSOR FOR stmt1;
+  DECLARE CONTINUE HANDLER FOR NOT FOUND SET end_of_data = 1;
+
+  SET dynamic_sql='SELECT id, collation_name'
+                  ' FROM INFORMATION_SCHEMA.COLLATIONS'
+                  ' WHERE id IN(33,83,192)'
+                  ' ORDER BY id';
+
+  PREPARE stmt1 FROM dynamic_sql;
+
+  OPEN c0;
+
+  loop1: LOOP
+    FETCH FROM c0 INTO v1, v2;
+    IF end_of_data THEN LEAVE loop1; END IF;
+    SELECT v1, v2;
+  END LOOP;
+  CLOSE c0;
+END;
+$$
+DELIMITER ;$$
+CALL p1();
+CALL p1();
+DROP PROCEDURE p1;
+
+
+--echo # DECLARE..FOR stmt; OPEN..USING;
+
+DELIMITER $$;
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE v0 TEXT;
+  DECLARE v1 TEXT;
+  DECLARE v2 TEXT;
+  DECLARE v3 TEXT;
+  DECLARE c0 CURSOR FOR stmt;
+  PREPARE stmt FROM 'SELECT ?,?,? FROM DUAL';
+  OPEN c0 USING NULL,1,2;
+  FETCH c0 INTO v0, v1, v2;
+  CLOSE c0;
+  SELECT v0, v1, v2;
+END;
+$$
+DELIMITER ;$$
+CALL p1;
+DROP PROCEDURE p1;
+
+
+--echo # DECLARE..FOR stmt; -- with a LIMIT clause param
+
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1),(2),(3);
+DELIMITER $$;
+CREATE PROCEDURE p1(limit_as_text BOOL)
+BEGIN
+  DECLARE v TEXT;
+  DECLARE c SYS_REFCURSOR;
+  DECLARE end_of_data BOOL DEFAULT FALSE;
+  DECLARE CONTINUE HANDLER FOR NOT FOUND SET end_of_data = TRUE;
+  IF limit_as_text THEN
+    OPEN c FOR 'SELECT a FROM t1 LIMIT ?' USING '2';
+  ELSE
+    OPEN c FOR 'SELECT a FROM t1 LIMIT ?' USING 2;
+  END IF;
+  loop1: LOOP
+    FETCH c INTO v;
+    IF end_of_data THEN LEAVE loop1; END IF;
+    SELECT v;
+  END LOOP;
+  CLOSE c;
+END;
+$$
+DELIMITER ;$$
+CALL p1(FALSE);
+CALL p1(TRUE);
+DROP PROCEDURE p1;
+DROP TABLE t1;
+
+
+--echo # A single FETCH from a table
+
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (10);
+
+DELIMITER $$;
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE v INT;
+  DECLARE c CURSOR FOR stmt;
+  PREPARE stmt FROM 'SELECT a FROM t1';
+  OPEN c;
+  FETCH c INTO v;
+  SELECT v;
+  CLOSE c;
+END;
+$$
+DELIMITER ;$$
+CALL p1;
+DROP TABLE t1;
+DROP PROCEDURE p1;
+
+
+--echo # DEFAULT(column) as a USING expression
+
+CREATE TABLE t1 (a INT DEFAULT 10);
+INSERT INTO t1 VALUES (11);
+DELIMITER $$;
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE v TEXT;
+  DECLARE c CURSOR FOR stmt;
+  PREPARE stmt FROM 'SELECT ?';
+  OPEN c USING (SELECT DEFAULT(a) FROM t1);
+  FETCH c INTO v;
+  CLOSE c;
+  SELECT v;
+END;
+$$
+DELIMITER ;$$
+CALL p1;
+DROP PROCEDURE p1;
+DROP TABLE t1;
+
+DELIMITER $$;
+--error ER_PARSE_ERROR
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE a INT DEFAULT 10;
+  DECLARE c CURSOR FOR stmt;
+  PREPARE stmt FROM 'SELECT ?';
+  OPEN c USING DEFAULT(10);
+  CLOSE c;
+END;
+$$
+DELIMITER ;$$
+
+
+--echo # DEFAULT as a USING expression
+
+DELIMITER $$;
+--error ER_PARSE_ERROR
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE c CURSOR FOR stmt;
+  PREPARE stmt FROM 'SELECT ?';
+  OPEN c USING DEFAULT;
+  CLOSE c;
+END;
+$$
+DELIMITER ;$$
+
+
+--echo # IGNORE as a USING expression
+
+DELIMITER $$;
+--error ER_PARSE_ERROR
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE c CURSOR FOR stmt;
+  PREPARE stmt FROM 'SELECT ?';
+  OPEN c USING IGNORE;
+  CLOSE c;
+END;
+$$
+DELIMITER ;$$
+
+
+--echo # ROW type expressions are not allowed in USING
+
+CREATE FUNCTION f1() RETURNS ROW(a INT,b INT) RETURN ROW(1,2);
+
+DELIMITER $$;
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE c CURSOR FOR stmt;
+  PREPARE stmt FROM 'SELECT ?';
+  OPEN c USING ROW(1,2);
+  CLOSE c;
+END;
+$$
+DELIMITER ;$$
+--error ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION
+CALL p1;
+DROP PROCEDURE p1;
+
+
+DELIMITER $$;
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE c CURSOR FOR stmt;
+  PREPARE stmt FROM 'SELECT ?';
+  OPEN c USING f1();
+  CLOSE c;
+END;
+$$
+DELIMITER ;$$
+--error ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION
+CALL p1;
+DROP PROCEDURE p1;
+
+
+DELIMITER $$;
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE c SYS_REFCURSOR;
+  OPEN c FOR 'SELECT ?' USING ROW(1,2);
+  CLOSE c;
+END;
+$$
+DELIMITER ;$$
+--error ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION
+CALL p1;
+DROP PROCEDURE p1;
+
+
+DELIMITER $$;
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE c SYS_REFCURSOR;
+  OPEN c FOR 'SELECT ?' USING f1();
+  CLOSE c;
+END;
+$$
+DELIMITER ;$$
+--error ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION
+CALL p1;
+DROP PROCEDURE p1;
+
+DROP FUNCTION f1;
+
+
+--echo # A single FETCH from a stored function
+
+CREATE FUNCTION f1() RETURNS INT RETURN 123;
+
+DELIMITER $$;
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE v INT;
+  DECLARE c CURSOR FOR stmt;
+  PREPARE stmt FROM 'SELECT f1()';
+  OPEN c;
+  FETCH c INTO v;
+  SELECT v;
+  CLOSE c;
+END;
+$$
+DELIMITER ;$$
+CALL p1;
+DROP FUNCTION f1;
+DROP PROCEDURE p1;
+
+
+
+--echo # Fetching from an arbitrary two row dynamic SQL passed as a parameter
+
+CREATE TABLE t1 (a INT, b TEXT);
+INSERT INTO t1 VALUES (1,'b1'), (2, 'b2');
+CREATE FUNCTION f1(p INT) RETURNS INT RETURN p;
+CREATE FUNCTION f2(p TEXT) RETURNS TEXT RETURN p;
+
+DELIMITER $$;
+CREATE PROCEDURE p1 (dynamic_sql TEXT)
+BEGIN
+  DECLARE v1 INT;
+  DECLARE v2 VARCHAR(32);
+  DECLARE end_of_data INT DEFAULT 0;
+  DECLARE c0 CURSOR FOR stmt0;
+  DECLARE CONTINUE HANDLER FOR NOT FOUND SET end_of_data = 1;
+
+  PREPARE stmt0 FROM dynamic_sql;
+  OPEN c0;
+  loop1: LOOP
+    FETCH FROM c0 INTO v1, v2;
+    IF end_of_data THEN LEAVE loop1; END IF;
+    SELECT v1, v2;
+  END LOOP;
+  CLOSE c0;
+END;
+$$
+DELIMITER ;$$
+CALL p1('SELECT a,b FROM t1');
+CALL p1('SELECT f1(a),f2(b) FROM t1');
+CALL p1('SELECT a,b FROM t1 UNION ALL SELECT f1(a),f2(b) FROM t1');
+CALL p1('SELECT a,b FROM t1 UNION DISTINCT SELECT f1(a),f2(b) FROM t1');
+CALL p1('(SELECT 1,2)');
+CALL p1('(SELECT 1,2) UNION (SELECT 11,12)');
+CALL p1('WITH t AS (SELECT a, b FROM t1) SELECT * FROM t');
+DROP PROCEDURE p1;
+DROP TABLE t1;
+DROP FUNCTION f1;
+DROP FUNCTION f2;
+
+
+--echo # Metadata change
+
+CREATE TABLE t1 (a INT, b TEXT);
+INSERT INTO t1 VALUES (10,'b10');
+
+DELIMITER $$;
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE v0, v1 TEXT;
+  DECLARE c CURSOR FOR stmt;
+  PREPARE stmt FROM 'SELECT * FROM t1';
+  OPEN c;
+  FETCH c INTO v0, v1;
+  CLOSE c;
+  DEALLOCATE PREPARE stmt;
+  SELECT v0, v1;
+END;
+$$
+DELIMITER ;$$
+CALL p1;
+ALTER TABLE t1 MODIFY COLUMN b TEXT DEFAULT '' FIRST ;
+CALL p1;
+ALTER TABLE t1 MODIFY COLUMN b TEXT DEFAULT '' AFTER a;
+CALL p1;
+DROP PROCEDURE p1;
+DROP TABLE t1;
+
+
+--echo # Attempts to open a dynamic cursor with a named parameter fail
+--echo # OPEN c(10); <-- this expects a static cursor declared as e.g.:
+--echo # DECLARE c CURSOR(pa INT) FOR SELECT * FROM t1 WHERE a=pa;
+--echo # Dynamic cursors with placeholders should be opened with USING:
+--echo # DECLARE c CURSOR FOR prepared_stmt;
+--echo # PREPARE prepared_stmt FROM 'SELECT * FROM t1 WHERE a=?';
+--echo # OPEN c USING 10;
+
+DELIMITER $$;
+--error ER_WRONG_PARAMCOUNT_TO_CURSOR
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE v INT;
+  DECLARE c CURSOR FOR stmt;
+  PREPARE stmt FROM 'SELECT 1 FROM DUAL WHERE ?>0';
+  OPEN c(10);
+  CLOSE c;
+END;
+$$
+DELIMITER ;$$
+
+
+--echo # A cursor with placeholder parameters: too few USING parameters
+
+DELIMITER $$;
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE v INT;
+  DECLARE c CURSOR FOR stmt;
+  PREPARE stmt FROM 'SELECT 1 FROM DUAL WHERE ?=0';
+  OPEN c;
+  CLOSE c;
+END;
+$$
+DELIMITER ;$$
+--error ER_WRONG_ARGUMENTS
+CALL p1;
+DROP PROCEDURE p1;
+
+
+--echo # A cursor with placeholder parameters: too many USING parameters
+
+DELIMITER $$;
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE v INT;
+  DECLARE c CURSOR FOR stmt;
+  PREPARE stmt FROM 'SELECT 1 FROM DUAL';
+  OPEN c USING 1;
+  CLOSE c;
+END;
+$$
+DELIMITER ;$$
+--error ER_WRONG_ARGUMENTS
+CALL p1;
+DROP PROCEDURE p1;
+
+
+--echo # A cursor with one param - SP
+
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (10), (11), (12), (13);
+
+CREATE FUNCTION f1() RETURNS INT RETURN 11;
+
+DELIMITER $$;
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE v INT;
+  DECLARE end_of_data INT DEFAULT 0;
+  DECLARE c CURSOR FOR stmt;
+  DECLARE CONTINUE HANDLER FOR NOT FOUND SET end_of_data = 1;
+
+  PREPARE stmt FROM 'SELECT a FROM t1 WHERE a>?';
+  OPEN c USING f1();
+  FETCH c INTO v;
+  SELECT v;
+
+  loop1: LOOP
+    FETCH FROM c INTO v;
+    IF end_of_data THEN LEAVE loop1; END IF;
+    SELECT v;
+  END LOOP;
+
+  CLOSE c;
+END;
+$$
+DELIMITER ;$$
+CALL p1;
+DROP PROCEDURE p1;
+DROP FUNCTION f1;
+DROP TABLE t1;
+
+
+--echo # A cursor with one param - subselect
+
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (10), (11), (12), (13);
+
+CREATE FUNCTION f1() RETURNS INT RETURN 11;
+
+DELIMITER $$;
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE v INT;
+  DECLARE end_of_data INT DEFAULT 0;
+  DECLARE c CURSOR FOR stmt;
+  DECLARE CONTINUE HANDLER FOR NOT FOUND SET end_of_data = 1;
+
+  PREPARE stmt FROM 'SELECT a FROM t1 WHERE a>?';
+  OPEN c USING (SELECT a FROM t1 WHERE a=11);
+  FETCH c INTO v;
+  SELECT v;
+
+  loop1: LOOP
+    FETCH FROM c INTO v;
+    IF end_of_data THEN LEAVE loop1; END IF;
+    SELECT v;
+  END LOOP;
+
+  CLOSE c;
+END;
+$$
+DELIMITER ;$$
+CALL p1;
+DROP PROCEDURE p1;
+DROP FUNCTION f1;
+DROP TABLE t1;
+
+
+--echo # A cursor with multiple parameters - SP + subquery mixture
+
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (10), (11), (12), (13);
+
+CREATE FUNCTION f1() RETURNS INT RETURN 11;
+
+DELIMITER $$;
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE v INT;
+  DECLARE end_of_data INT DEFAULT 0;
+  DECLARE c CURSOR FOR stmt;
+  DECLARE CONTINUE HANDLER FOR NOT FOUND SET end_of_data = 1;
+
+  PREPARE stmt FROM 'SELECT a FROM t1 WHERE a>? AND a>? AND a>?';
+  OPEN c USING f1(), (SELECT a FROM t1 WHERE a=12), f1();
+  FETCH c INTO v;
+  SELECT v;
+
+  loop1: LOOP
+    FETCH FROM c INTO v;
+    IF end_of_data THEN LEAVE loop1; END IF;
+    SELECT v;
+  END LOOP;
+
+  CLOSE c;
+END;
+$$
+DELIMITER ;$$
+CALL p1;
+DROP PROCEDURE p1;
+DROP FUNCTION f1;
+DROP TABLE t1;
+
+
+--echo # A cursor with multiple parameters in SELECT list
+
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (10), (11), (12), (13);
+
+CREATE FUNCTION f1() RETURNS TEXT RETURN 'f1';
+
+DELIMITER $$;
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE v0 TEXT;
+  DECLARE v1 TEXT;
+  DECLARE c CURSOR FOR stmt;
+  PREPARE stmt FROM 'SELECT ?,? FROM t1';
+  OPEN c USING (SELECT MAX(a) FROM t1), f1();
+  FETCH c INTO v0, v1;
+  SELECT v0, v1;
+  CLOSE c;
+END;
+$$
+DELIMITER ;$$
+CALL p1;
+DROP PROCEDURE p1;
+DROP FUNCTION f1;
+DROP TABLE t1;
+
+
+--echo # OPEN cursor_name FOR stmt_expr
+
+DELIMITER $$;
+CREATE PROCEDURE p1 (dynamic_sql VARCHAR(256))
+BEGIN
+  DECLARE c SYS_REFCURSOR;
+  DECLARE v VARCHAR(256);
+  OPEN c FOR dynamic_sql;
+  FETCH c INTO v;
+  SELECT v;
+  CLOSE c;
+END;
+$$
+DELIMITER ;$$
+CALL p1('SELECT 1 FROM DUAL');
+DROP PROCEDURE p1;
+
+DELIMITER $$;
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE v0 TEXT;
+  DECLARE v1 TEXT;
+  DECLARE v2 TEXT;
+  DECLARE c0 SYS_REFCURSOR;
+  OPEN c0 FOR 'SELECT ?,?,? FROM DUAL' USING NULL,1,2;
+  FETCH c0 INTO v0, v1, v2;
+  CLOSE c0;
+  SELECT v0, v1, v2;
+END;
+$$
+DELIMITER ;$$
+CALL p1;
+DROP PROCEDURE p1;
+
+
+--echo # OPEN cursor_name FOR stmt_expr_subselect
+
+CREATE TABLE t1 (a VARCHAR(256));
+INSERT INTO t1 VALUES ('SELECT 1 FROM DUAL');
+DELIMITER $$;
+--error ER_SUBQUERIES_NOT_SUPPORTED
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE c SYS_REFCURSOR;
+  DECLARE v VARCHAR(256);
+  OPEN c FOR (SELECT a FROM t1);
+  FETCH c INTO v;
+  SELECT v;
+  CLOSE c;
+END;
+$$
+DELIMITER ;$$
+DROP TABLE t1;
+
+--echo # OPEN cursor_name FOR stmt_expr_sf
+
+CREATE FUNCTION f1() RETURNS TEXT RETURN 'SELECT 1 FROM DUAL';
+DELIMITER $$;
+--error ER_SUBQUERIES_NOT_SUPPORTED
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE c SYS_REFCURSOR;
+  DECLARE v VARCHAR(256);
+  OPEN c FOR f1();
+  FETCH c INTO v;
+  SELECT v;
+  CLOSE c;
+END;
+$$
+DELIMITER ;$$
+DROP FUNCTION f1;
+
+--echo # OPEN cursor_name FOR stmt_expr_sf
+
+CREATE FUNCTION f1() RETURNS TEXT RETURN 'SELECT 1 FROM DUAL';
+DELIMITER $$;
+--error ER_SUBQUERIES_NOT_SUPPORTED
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE c SYS_REFCURSOR;
+  DECLARE v VARCHAR(256);
+  OPEN c FOR f1() USING f1();
+  FETCH c INTO v;
+  SELECT v;
+  CLOSE c;
+END;
+$$
+DELIMITER ;$$
+DROP FUNCTION f1;
+
+
+--echo # Dynamic SQL is not allowed in stored functions
+
+DELIMITER $$;
+--error ER_STMT_NOT_ALLOWED_IN_SF_OR_TRG
+CREATE FUNCTION f1() RETURNS INT
+BEGIN
+  DECLARE v INT;
+  DECLARE c CURSOR FOR stmt;
+  RETURN 10;
+END;
+$$
+DELIMITER ;$$
+
+
+DELIMITER $$;
+--error ER_STMT_NOT_ALLOWED_IN_SF_OR_TRG
+CREATE FUNCTION f1() RETURNS INT
+BEGIN
+  DECLARE v INT;
+  DECLARE c SYS_REFCURSOR;
+  OPEN c FOR 'SELECT 10';
+  FETCH c INTO v;
+  CLOSE c;
+  RETURN v;
+END;
+$$
+DELIMITER ;$$
+
+
+--echo # Static OPEN is OK in SF, both for Standard cursors and SYS_REFCURSORs
+
+DELIMITER $$;
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE v INT;
+  DECLARE c CURSOR FOR SELECT f1();
+  OPEN c;
+  FETCH c INTO v;
+  CLOSE c;
+  SELECT v;
+END;
+$$
+DELIMITER ;$$
+
+DELIMITER $$;
+CREATE PROCEDURE p2()
+BEGIN
+  DECLARE v INT;
+  DECLARE c CURSOR FOR stmt;
+  PREPARE stmt FROM 'SELECT f1()';
+  OPEN c;
+  FETCH c INTO v;
+  CLOSE c;
+  SELECT v;
+END;
+$$
+DELIMITER ;$$
+
+DELIMITER $$;
+CREATE PROCEDURE p3()
+BEGIN
+  DECLARE v INT;
+  DECLARE c CURSOR FOR stmt;
+  PREPARE stmt FROM 'SELECT ?';
+  OPEN c USING f1();
+  FETCH c INTO v;
+  CLOSE c;
+  SELECT v;
+END;
+$$
+DELIMITER ;$$
+
+DELIMITER $$;
+CREATE PROCEDURE p4()
+BEGIN
+  DECLARE v INT;
+  DECLARE c SYS_REFCURSOR;
+  OPEN c FOR 'SELECT ?' USING f1();
+  FETCH c INTO v;
+  CLOSE c;
+  SELECT v;
+END;
+$$
+DELIMITER ;$$
+
+
+DELIMITER $$;
+CREATE FUNCTION f1() RETURNS INT
+BEGIN
+  DECLARE v INT;
+  DECLARE c CURSOR FOR SELECT 10;
+  OPEN c;
+  FETCH c INTO v;
+  CLOSE c;
+  RETURN v;
+END;
+$$
+DELIMITER ;$$
+CALL p1;
+CALL p2;
+CALL p3;
+CALL p4;
+DROP FUNCTION f1;
+
+
+DELIMITER $$;
+CREATE FUNCTION f1() RETURNS INT
+BEGIN
+  DECLARE v INT;
+  DECLARE c SYS_REFCURSOR;
+  OPEN c FOR SELECT 10;
+  FETCH c INTO v;
+  CLOSE c;
+  RETURN v;
+END;
+$$
+DELIMITER ;$$
+CALL p1;
+CALL p2;
+CALL p3;
+CALL p4;
+DROP FUNCTION f1;
+
+
+DROP PROCEDURE p1;
+DROP PROCEDURE p2;
+DROP PROCEDURE p3;
+DROP PROCEDURE p4;

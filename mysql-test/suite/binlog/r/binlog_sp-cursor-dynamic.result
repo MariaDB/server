@@ -1,0 +1,197 @@
+#
+# MDEV-33830 Support for cursors on prepared statements
+#
+# Make sure that dynamic OPEN per se does not produce
+# any binlog events
+CREATE TABLE t1 (a VARCHAR(64));
+INSERT INTO t1 VALUES (10),(11);
+CREATE TABLE t2 (a VARCHAR(64), b VARCHAR(64));
+#
+# SQL Standard dynamic cursor
+#
+CREATE PROCEDURE p1(lim_int INT, lim_str VARCHAR(32), b VARCHAR(32))
+BEGIN
+DECLARE end_of_data BOOL DEFAULT FALSE;
+DECLARE va INT;
+DECLARE c CURSOR FOR stmt;
+DECLARE CONTINUE HANDLER FOR NOT FOUND SET end_of_data = 1;
+PREPARE stmt FROM 'SELECT a FROM t1 ORDER BY a LIMIT ?';
+IF lim_int IS NOT NULL THEN
+OPEN c USING lim_int;
+ELSE
+OPEN c USING lim_str;
+END IF;
+loop1: LOOP
+FETCH c INTO va;
+IF end_of_data THEN LEAVE loop1; END IF;
+INSERT INTO t2 VALUES (va, b);
+END LOOP;
+CLOSE c;
+END;
+$$
+CALL p1(1, NULL, '1+NULL');
+CALL p1(2, NULL, '2+NULL');
+CALL p1(NULL, '1', 'NULL+1');
+CALL p1(NULL, '2', 'NULL+2');
+DROP PROCEDURE p1;
+#
+# Oracle style dynamic cursor
+#
+CREATE PROCEDURE p1(lim_int INT, lim_str VARCHAR(32), b VARCHAR(32))
+BEGIN
+DECLARE end_of_data BOOL DEFAULT FALSE;
+DECLARE va INT;
+DECLARE c SYS_REFCURSOR;
+DECLARE CONTINUE HANDLER FOR NOT FOUND SET end_of_data = 1;
+IF lim_int IS NOT NULL THEN
+OPEN c FOR 'SELECT a FROM t1 ORDER BY a LIMIT ?' USING lim_int;
+ELSE
+OPEN c FOR 'SELECT a FROM t1 ORDER BY a LIMIT ?' USING lim_str;
+END IF;
+loop1: LOOP
+FETCH c INTO va;
+IF end_of_data THEN LEAVE loop1; END IF;
+INSERT INTO t2 VALUES (va, b);
+END LOOP;
+CLOSE c;
+END;
+$$
+CALL p1(1, NULL, '1+NULL');
+CALL p1(2, NULL, '2+NULL');
+CALL p1(NULL, '1', 'NULL+1');
+CALL p1(NULL, '2', 'NULL+2');
+DROP PROCEDURE p1;
+#
+# Oracle style dynamic cursor - FOR select_statement
+#
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE end_of_data BOOL DEFAULT FALSE;
+DECLARE va INT;
+DECLARE c SYS_REFCURSOR;
+DECLARE CONTINUE HANDLER FOR NOT FOUND SET end_of_data = 1;
+OPEN c FOR SELECT * FROM t1 ORDER BY a;
+loop1: LOOP
+FETCH c INTO va;
+IF end_of_data THEN LEAVE loop1; END IF;
+INSERT INTO t2 VALUES (va, 'n/a');
+END LOOP;
+CLOSE c;
+END;
+$$
+CALL p1();
+DROP PROCEDURE p1;
+DROP TABLE t1, t2;
+include/show_binlog_events.inc
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+master-bin.000001	#	Gtid	#	#	GTID #-#-#
+master-bin.000001	#	Query	#	#	use `test`; CREATE TABLE t1 (a VARCHAR(64))
+master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Query	#	#	use `test`; INSERT INTO t1 VALUES (10),(11)
+master-bin.000001	#	Query	#	#	COMMIT
+master-bin.000001	#	Gtid	#	#	GTID #-#-#
+master-bin.000001	#	Query	#	#	use `test`; CREATE TABLE t2 (a VARCHAR(64), b VARCHAR(64))
+master-bin.000001	#	Gtid	#	#	GTID #-#-#
+master-bin.000001	#	Query	#	#	use `test`; CREATE DEFINER=`root`@`localhost` PROCEDURE `p1`(lim_int INT, lim_str VARCHAR(32), b VARCHAR(32))
+BEGIN
+DECLARE end_of_data BOOL DEFAULT FALSE;
+DECLARE va INT;
+DECLARE c CURSOR FOR stmt;
+DECLARE CONTINUE HANDLER FOR NOT FOUND SET end_of_data = 1;
+PREPARE stmt FROM 'SELECT a FROM t1 ORDER BY a LIMIT ?';
+IF lim_int IS NOT NULL THEN
+OPEN c USING lim_int;
+ELSE
+OPEN c USING lim_str;
+END IF;
+loop1: LOOP
+FETCH c INTO va;
+IF end_of_data THEN LEAVE loop1; END IF;
+INSERT INTO t2 VALUES (va, b);
+END LOOP;
+CLOSE c;
+END
+master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Query	#	#	use `test`; INSERT INTO t2 VALUES ( NAME_CONST('va',10),  NAME_CONST('b',_utf8mb4'1+NULL' COLLATE 'utf8mb4_uca1400_ai_ci'))
+master-bin.000001	#	Query	#	#	COMMIT
+master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Query	#	#	use `test`; INSERT INTO t2 VALUES ( NAME_CONST('va',10),  NAME_CONST('b',_utf8mb4'2+NULL' COLLATE 'utf8mb4_uca1400_ai_ci'))
+master-bin.000001	#	Query	#	#	COMMIT
+master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Query	#	#	use `test`; INSERT INTO t2 VALUES ( NAME_CONST('va',11),  NAME_CONST('b',_utf8mb4'2+NULL' COLLATE 'utf8mb4_uca1400_ai_ci'))
+master-bin.000001	#	Query	#	#	COMMIT
+master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Query	#	#	use `test`; INSERT INTO t2 VALUES ( NAME_CONST('va',10),  NAME_CONST('b',_utf8mb4'NULL+1' COLLATE 'utf8mb4_uca1400_ai_ci'))
+master-bin.000001	#	Query	#	#	COMMIT
+master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Query	#	#	use `test`; INSERT INTO t2 VALUES ( NAME_CONST('va',10),  NAME_CONST('b',_utf8mb4'NULL+2' COLLATE 'utf8mb4_uca1400_ai_ci'))
+master-bin.000001	#	Query	#	#	COMMIT
+master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Query	#	#	use `test`; INSERT INTO t2 VALUES ( NAME_CONST('va',11),  NAME_CONST('b',_utf8mb4'NULL+2' COLLATE 'utf8mb4_uca1400_ai_ci'))
+master-bin.000001	#	Query	#	#	COMMIT
+master-bin.000001	#	Gtid	#	#	GTID #-#-#
+master-bin.000001	#	Query	#	#	use `test`; DROP PROCEDURE p1
+master-bin.000001	#	Gtid	#	#	GTID #-#-#
+master-bin.000001	#	Query	#	#	use `test`; CREATE DEFINER=`root`@`localhost` PROCEDURE `p1`(lim_int INT, lim_str VARCHAR(32), b VARCHAR(32))
+BEGIN
+DECLARE end_of_data BOOL DEFAULT FALSE;
+DECLARE va INT;
+DECLARE c SYS_REFCURSOR;
+DECLARE CONTINUE HANDLER FOR NOT FOUND SET end_of_data = 1;
+IF lim_int IS NOT NULL THEN
+OPEN c FOR 'SELECT a FROM t1 ORDER BY a LIMIT ?' USING lim_int;
+ELSE
+OPEN c FOR 'SELECT a FROM t1 ORDER BY a LIMIT ?' USING lim_str;
+END IF;
+loop1: LOOP
+FETCH c INTO va;
+IF end_of_data THEN LEAVE loop1; END IF;
+INSERT INTO t2 VALUES (va, b);
+END LOOP;
+CLOSE c;
+END
+master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Query	#	#	use `test`; INSERT INTO t2 VALUES ( NAME_CONST('va',10),  NAME_CONST('b',_utf8mb4'1+NULL' COLLATE 'utf8mb4_uca1400_ai_ci'))
+master-bin.000001	#	Query	#	#	COMMIT
+master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Query	#	#	use `test`; INSERT INTO t2 VALUES ( NAME_CONST('va',10),  NAME_CONST('b',_utf8mb4'2+NULL' COLLATE 'utf8mb4_uca1400_ai_ci'))
+master-bin.000001	#	Query	#	#	COMMIT
+master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Query	#	#	use `test`; INSERT INTO t2 VALUES ( NAME_CONST('va',11),  NAME_CONST('b',_utf8mb4'2+NULL' COLLATE 'utf8mb4_uca1400_ai_ci'))
+master-bin.000001	#	Query	#	#	COMMIT
+master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Query	#	#	use `test`; INSERT INTO t2 VALUES ( NAME_CONST('va',10),  NAME_CONST('b',_utf8mb4'NULL+1' COLLATE 'utf8mb4_uca1400_ai_ci'))
+master-bin.000001	#	Query	#	#	COMMIT
+master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Query	#	#	use `test`; INSERT INTO t2 VALUES ( NAME_CONST('va',10),  NAME_CONST('b',_utf8mb4'NULL+2' COLLATE 'utf8mb4_uca1400_ai_ci'))
+master-bin.000001	#	Query	#	#	COMMIT
+master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Query	#	#	use `test`; INSERT INTO t2 VALUES ( NAME_CONST('va',11),  NAME_CONST('b',_utf8mb4'NULL+2' COLLATE 'utf8mb4_uca1400_ai_ci'))
+master-bin.000001	#	Query	#	#	COMMIT
+master-bin.000001	#	Gtid	#	#	GTID #-#-#
+master-bin.000001	#	Query	#	#	use `test`; DROP PROCEDURE p1
+master-bin.000001	#	Gtid	#	#	GTID #-#-#
+master-bin.000001	#	Query	#	#	use `test`; CREATE DEFINER=`root`@`localhost` PROCEDURE `p1`()
+BEGIN
+DECLARE end_of_data BOOL DEFAULT FALSE;
+DECLARE va INT;
+DECLARE c SYS_REFCURSOR;
+DECLARE CONTINUE HANDLER FOR NOT FOUND SET end_of_data = 1;
+OPEN c FOR SELECT * FROM t1 ORDER BY a;
+loop1: LOOP
+FETCH c INTO va;
+IF end_of_data THEN LEAVE loop1; END IF;
+INSERT INTO t2 VALUES (va, 'n/a');
+END LOOP;
+CLOSE c;
+END
+master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Query	#	#	use `test`; INSERT INTO t2 VALUES ( NAME_CONST('va',10), 'n/a')
+master-bin.000001	#	Query	#	#	COMMIT
+master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Query	#	#	use `test`; INSERT INTO t2 VALUES ( NAME_CONST('va',11), 'n/a')
+master-bin.000001	#	Query	#	#	COMMIT
+master-bin.000001	#	Gtid	#	#	GTID #-#-#
+master-bin.000001	#	Query	#	#	use `test`; DROP PROCEDURE p1
+master-bin.000001	#	Gtid	#	#	GTID #-#-#
+master-bin.000001	#	Query	#	#	use `test`; DROP TABLE `t1`,`t2` /* generated by server */

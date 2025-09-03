@@ -91,7 +91,8 @@ bool Type_handler_composite::Item_eq_value(THD *thd,
 void Type_handler_composite::
        Item_save_in_value(THD *thd, Item *item, st_value *value) const
 {
-  DBUG_ASSERT(0);
+  my_error(ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION, MYF(0),
+           name().ptr(), "<using expression>");
   value->m_type= DYN_COL_NULL;
 }
 
