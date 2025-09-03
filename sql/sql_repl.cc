@@ -5294,11 +5294,12 @@ bool show_binlog_info(THD* thd)
 
   if (mysql_bin_log.is_open())
   {
+    LOG_INFO li;
+    char buf[FN_REFLEN];
     const char *base;
     uint64_t pos;
     if (opt_binlog_engine_hton)
     {
-      char buf[FN_REFLEN];
       uint64_t file_no;
       mysql_mutex_lock(mysql_bin_log.get_log_lock());
       (*opt_binlog_engine_hton->binlog_status)(&file_no, &pos);
@@ -5308,7 +5309,6 @@ bool show_binlog_info(THD* thd)
     }
     else
     {
-      LOG_INFO li;
       mysql_bin_log.get_current_log(&li);
       pos= (uint64_t) li.pos;
       size_t dir_len = dirname_length(li.log_file_name);
