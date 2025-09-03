@@ -289,6 +289,19 @@ public:
 };
 
 
+template <typename T> class Slice
+{
+  T m_offset;
+  T m_count;
+public:
+  Slice(T offset, T count)
+   :m_offset(offset), m_count(count)
+  { }
+  T offset() const { return m_offset; }
+  T count() const { return m_count; }
+};
+
+
 class Recreate_info
 {
 public:

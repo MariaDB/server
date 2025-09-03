@@ -4570,6 +4570,19 @@ public:
     return h->Item_param_set_from_value(thd, this, attr, val);
   }
 
+  /*
+    Set "this" from st_value.
+    @param thd                    - the current THD
+    @param value                  - the st_value instance to set from
+    @param th                     - the type handler of the "value"
+    @param attr                   - the attributes of "value", i.e.
+                                    of the Item who earlier initialized "value"
+                                    by using the method save_in_value().
+  */
+  bool set_from_value(THD *thd, const st_value &value,
+                      const Type_handler *th,
+                      const Type_all_attributes &attrs);
+
   bool set_limit_clause_param(longlong nr)
   {
     value.set_handler(&type_handler_slonglong);

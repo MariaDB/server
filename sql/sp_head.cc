@@ -3873,7 +3873,8 @@ sp_head::set_local_variable_row_field_by_name(THD *thd, sp_pcontext *spcont,
 
 bool sp_head::add_open_cursor(THD *thd, sp_pcontext *spcont, uint offset,
                               sp_pcontext *param_spcont,
-                              List<sp_assignment_lex> *parameters)
+                              List<sp_assignment_lex> *parameters,
+                              List<sp_assignment_lex> *using_clause)
 {
   /*
     The caller must make sure that the number of formal parameters matches
@@ -3882,12 +3883,69 @@ bool sp_head::add_open_cursor(THD *thd, sp_pcontext *spcont, uint offset,
   DBUG_ASSERT((param_spcont ? param_spcont->context_var_count() :  0) ==
               (parameters ? parameters->elements : 0));
 
+  // Add instructions to set parameters: OPEN c(1);
   if (parameters &&
       add_set_cursor_param_variables(thd, param_spcont, parameters))
     return true;
 
+  // Add instructions to set placeholders: OPEN c USING 1;
+  const sp_rcontext_ref cursor_ref(sp_rcontext_addr(&sp_rcontext_handler_local,
+                                                    offset),
+                                   nullptr);
+  if (using_clause &&
+      add_set_cursor_placeholders(thd, spcont, cursor_ref, using_clause))
+    return true;
+
   sp_instr_copen *i= new (thd->mem_root)
                      sp_instr_copen(instructions(), spcont, offset);
+  return i == NULL || add_instr(i);
+}
+
+
+bool sp_head::add_open_cursor_for_stmt(THD *thd, sp_pcontext *spcont,
+                                      const sp_rcontext_ref &cursor_ref,
+                                      sp_lex_cursor *stmt,
+                                      List<sp_assignment_lex> *using_clause)
+{
+  // Add instructions to set placeholders: OPEN c USING 1;
+  if (using_clause &&
+      add_set_cursor_placeholders(thd, spcont, cursor_ref, using_clause))
+    return true;
+
+  uint set_ps_placeholder_count= using_clause ? using_clause->elements : 0;
+  DBUG_ASSERT(instructions() >= set_ps_placeholder_count);
+
+  auto *i= new (thd->mem_root) sp_instr_copen_by_ref(instructions(),
+                                                     spcont, cursor_ref, stmt,
+                                                     set_ps_placeholder_count);
+  return !i || add_instr(i);
+}
+
+
+/*
+  Generate an instruction to set one placeholder
+  from an actual parameter from the USING clause:
+    OPEN c USING 1,2,3;
+*/
+bool sp_head::add_set_cursor_placeholder(THD *thd,
+                                         sp_pcontext *spcont,
+                                         const sp_rcontext_ref &cur,
+                                         uint using_offset,
+                                         sp_assignment_lex *value)
+{
+  /*
+    Create the instruction in the way so it owns value->get_item()
+    and its free list, and is responsible for freeing it and clean it up.
+    See also add_set_cursor_typed_param_variable().
+  */
+  DBUG_ASSERT(m_thd->free_list == NULL);
+  m_thd->free_list= value->get_free_list();
+  sp_instr *i= new (thd->mem_root) sp_instr_set_ps_placeholder(instructions(),
+                                                               spcont, cur,
+                                                               using_offset,
+                                                               value);
+
+  value->set_item_and_free_list(NULL, NULL); // Avoid pointer aliasing
   return i == NULL || add_instr(i);
 }
 

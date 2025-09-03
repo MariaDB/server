@@ -7118,6 +7118,14 @@ LEX::sp_variable_declarations_cursor_rowtype_finalize(THD *thd, int nvars,
 {
   const sp_pcursor *pcursor= spcont->find_cursor(offset);
 
+  if (!pcursor->lex()->get_ps_name().is_null())
+  {
+    my_error(ER_WRONG_USAGE, MYF(0),
+             thd->variables.sql_mode & MODE_ORACLE ? "ROWTYPE" : "ROW TYPE OF",
+             "<dynamic cursor name>");
+    return true;
+  }
+
   // Loop through all variables in the same declaration
   for (uint i= 0 ; i < (uint) nvars; i++)
   {
@@ -7506,6 +7514,12 @@ bool LEX::sp_for_loop_cursor_declarations(THD *thd,
                pcursor->check_param_count_with_error(param_count)))
     DBUG_RETURN(true);
 
+  if (!pcursor->lex()->get_ps_name().is_null())
+  {
+    my_error(ER_WRONG_USAGE, MYF(0), "FOR..IN", "<dynamic cursor name>");
+    DBUG_RETURN(true);
+  }
+
   if (!(loop->m_index= sp_add_for_loop_cursor_variable(thd, index,
                                                        pcursor, coffs,
                                                        bounds.m_index,
@@ -7633,6 +7647,21 @@ bool LEX::sp_declare_cursor(THD *thd, const LEX_CSTRING *name,
     return true;
   }
 
+  if (!cursor_stmt->get_ps_name().is_null())
+  {
+    /*
+      This is a dynamic cursor declaration: DECLARE c CURSOR FOR stmt;
+      Reset sql_command to SQLCOM_EXECUTE to make "dynamic open cursor"
+      use the same command flags: sql_command_flags[SQLCOM_EXECUTE].
+      "dynamic open cursor" is very similar to EXECUTE.
+      This makes the reprepare observer related code work correcly in
+      Prepared_statement::execute_loop().
+    */
+    DBUG_ASSERT(cursor_stmt->sql_command == SQLCOM_END);
+    cursor_stmt->sql_command= SQLCOM_EXECUTE;
+    sphead->m_flags|= sp_head::CONTAINS_DYNAMIC_SQL;
+  }
+
   if (unlikely(spcont->add_cursor(name, param_ctx, cursor_stmt)))
     return true;
 
@@ -7649,13 +7678,15 @@ bool LEX::sp_declare_cursor(THD *thd, const LEX_CSTRING *name,
 
 /**
   Generate an SP code for an "OPEN cursor_name" statement.
-  @param thd
-  @param name       - Name of the cursor
-  @param parameters - Cursor parameters, e.g. OPEN c(1,2,3)
-  @returns          - false on success, true on error
+  @param thd          - Current THD
+  @param name         - The cursor name.
+  @param parameters   - Typed cursor parameters, e.g. OPEN c(1,2,3)
+  @param using_clause - Using cursor parameters, e.g. OPEN c USING 1,2,3;
+  @returns            - false on success, true on error
 */
 bool LEX::sp_open_cursor(THD *thd, const LEX_CSTRING *name,
-                         List<sp_assignment_lex> *parameters)
+                         List_sp_assignment_lex *parameters,
+                         List_sp_assignment_lex *using_clause)
 {
   uint offset;
   const sp_pcursor *pcursor;
@@ -7663,7 +7694,8 @@ bool LEX::sp_open_cursor(THD *thd, const LEX_CSTRING *name,
   return !(pcursor= spcont->find_cursor_with_error(name, &offset, false)) ||
          pcursor->check_param_count_with_error(param_count) ||
          sphead->add_open_cursor(thd, spcont, offset,
-                                 pcursor->param_context(), parameters);
+                                 pcursor->param_context(),
+                                 parameters, using_clause);
 }
 
 
@@ -7673,14 +7705,20 @@ bool LEX::sp_open_cursor(THD *thd, const LEX_CSTRING *name,
   It's not supported for static cursors.
 */
 bool LEX::sp_open_cursor_for_stmt(THD *thd, const LEX_CSTRING *name,
-                                  sp_lex_cursor *stmt)
+                                  sp_lex_cursor *stmt,
+                                  List_sp_assignment_lex *using_clause)
 {
   const Sp_rcontext_handler *rh;
   sp_variable *spv;
+
+  if (stmt->prepared_stmt.code() &&
+      stmt->stmt_prepare_validate("OPEN..FOR"))
+    goto error;
+
   if (!(spv= find_variable(name, &rh)))
   {
     my_error(ER_SP_UNDECLARED_VAR, MYF(0), name->str);
-    return true;
+    goto error;
   }
   if (spv->mode == sp_variable::MODE_IN &&
       spv->offset < sphead->get_parse_context()->context_var_count())
@@ -7691,17 +7729,31 @@ bool LEX::sp_open_cursor_for_stmt(THD *thd, const LEX_CSTRING *name,
       about "not supported *yet*". But we don't have a better message.
     */
     my_error(ER_NOT_SUPPORTED_YET, MYF(0), "OPEN IN_sp_parameter");
-    return true;
+    goto error;
   }
   if (check_variable_is_refcursor({STRING_WITH_LEN("OPEN")}, spv))
-    return true;
-  auto *i= new (thd->mem_root) sp_instr_copen_by_ref(
-                                 sphead->instructions(), spcont,
-                                 sp_rcontext_ref(
-                                   sp_rcontext_addr(rh, spv->offset),
-                                   &sp_rcontext_handler_statement),
-                                 stmt);
-  return i == NULL || sphead->add_instr(i);
+    goto error;
+
+  // `OPEN cursor_name FOR ps_name` is not allowed in the grammar
+  DBUG_ASSERT(stmt->get_ps_name().is_null());
+  if (stmt->prepared_stmt.code())
+  {
+    sphead->m_flags|= sp_head::CONTAINS_DYNAMIC_SQL;
+    DBUG_ASSERT(stmt->sql_command == SQLCOM_END);
+    stmt->sql_command= SQLCOM_EXECUTE;
+  }
+
+  if (!sphead->add_open_cursor_for_stmt(thd, spcont,
+                                        sp_rcontext_ref(
+                                          sp_rcontext_addr(rh, spv->offset),
+                                          &sp_rcontext_handler_statement),
+                                        stmt, using_clause))
+    return false;
+
+error:
+  delete stmt;
+  List_sp_assignment_lex::free_elements_not_in_use(using_clause);
+  return true;
 }
 
 
