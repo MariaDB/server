@@ -260,32 +260,44 @@ int my_getncpus()
 #endif
 }
 
+#ifdef TARGET_OS_LINUX
+
+static void remove_space_and_linefeed(char *to, size_t size, char *from)
+{
+  char *end;
+  for (from= from+1 ; *from == ' ' ; from++)
+    ;
+  for (end= strend(from);
+       end > from && iscntrl((int) (uchar) end[-1]) ;
+       end--)
+    ;
+  strmake(to, from, MY_MIN(size, (size_t) (end - from)));
+}
+
 /*
   This function parses the output from /proc/cpuinfo or lscpu
 */
 
-#ifdef TARGET_OS_LINUX
 static bool find_cpu_name(FILE *fp, char *name, uint size, uint *sockets)
 {
   char *line= NULL, *sep, *sep2;
   size_t length;
+  char vendor[64], architecture[64];
+  vendor[0]= 0;
+  architecture[0]= 0;
+
   while (getline(&line, &length, fp) > 0)
   {
     if (((sep2= strstr(line, "model name")) && (sep= strchr(sep2, ':'))) ||
         ((sep2= strstr(line, "Model name")) && (sep= strchr(sep2, ':'))))
     {
       if (! *name)                              // Use first found
-      {
-        char *end;
-        for (sep= sep+1 ; *sep == ' ' ; sep++)
-          ;
-        for (end= strend(sep);
-             end > sep && iscntrl((int) (uchar) end[-1]) ;
-             end--)
-          ;
-        strmake(name, sep, MY_MIN(size, (size_t) (end - sep)));
-      }
+        remove_space_and_linefeed(name, size, sep+1);
     }
+    else if ((sep2= strstr(line, "Vendor ID")) && (sep= strchr(sep2, ':')))
+      remove_space_and_linefeed(vendor, sizeof(vendor-1), sep+1);
+    else if ((sep2= strstr(line, "Architecture")) && (sep= strchr(sep2, ':')))
+      remove_space_and_linefeed(architecture, sizeof(architecture-1), sep+1);
     else if ((sep2= strstr(line, "physical id")) && (sep= strchr(sep2, ':')))
       *sockets= atoi(sep + 1) + 1;
     else if ((sep2= strstr(line, "Socket(s)")) && (sep= strchr(sep2, ':')))
@@ -295,6 +307,11 @@ static bool find_cpu_name(FILE *fp, char *name, uint size, uint *sockets)
     }
   }
   free(line);
+  if (!*name && vendor[0] && architecture[0])
+  {
+    /* If no name, return something that could be useful */
+    strxnmov(name, size, vendor, " ", architecture, NullS);
+  }
   return *name != 0;
 }
 #endif /* TARGET_OS_LINUX */
