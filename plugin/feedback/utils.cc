@@ -319,9 +319,14 @@ static bool find_cpu_name(FILE *fp, char *name, uint size, uint *sockets)
 
 #if defined(__FreeBSD__) ||  defined(__APPLE__) && defined(__MACH__)
 #include <sys/sysctl.h>
+#ifdef __FreeBSD__
+#define keyname "hw.model"
+#else
+#define keyname "machdep.cpu.brand_string"
+#endif
 #endif
 
-static void my_get_cpu_name_and_sockets(char *name, uint size, uint *sockets)
+static void my_get_cpu_name_and_sockets(char *name, size_t size, uint *sockets)
 {
   *sockets= 1;                                    // If not found
 #if defined(TARGET_OS_LINUX)
@@ -347,14 +352,9 @@ static void my_get_cpu_name_and_sockets(char *name, uint size, uint *sockets)
       return;
   }
  /* purecov: end */
-#elif defined(__FreeBSD__)
+#elif defined(keyname)
   name[0]= 0;
-  sysctlbyname("hw.model", name, &size, NULL, 0);
-  if (name[0])
-    return;
-#elif defined(__APPLE__) && defined(__MACH__)
-  name[0]= 0;
-  sysctlbyname("machdep.cpu.brand_string", name, &size, NULL, 0);
+  sysctlbyname(keyname, name, &size, NULL, 0);
   if (name[0])
     return;
 #endif /* TARGET_OS_LINUX */
