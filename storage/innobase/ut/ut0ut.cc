@@ -109,7 +109,7 @@ ut_sprintf_timestamp(
 	SYSTEMTIME cal_tm;
 	GetLocalTime(&cal_tm);
 
-	sprintf(buf, "%02u%02u%02u %2u:%02u:%02u",
+	snprintf(buf, 16, "%02u%02u%02u %2u:%02u:%02u",
 		cal_tm.wYear % 100,
 		cal_tm.wMonth,
 		cal_tm.wDay,
@@ -121,7 +121,7 @@ ut_sprintf_timestamp(
 	struct tm  cal_tm;
 	time(&tm);
 	localtime_r(&tm, &cal_tm);
-	sprintf(buf, "%02d%02d%02d %2d:%02d:%02d",
+	snprintf(buf, 16, "%02d%02d%02d %2d:%02d:%02d",
 		cal_tm.tm_year % 100,
 		cal_tm.tm_mon + 1,
 		cal_tm.tm_mday,

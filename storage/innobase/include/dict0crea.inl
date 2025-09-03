@@ -54,7 +54,7 @@ dict_create_add_foreign_id(
 		if (dict_table_t::is_temporary_name(name)) {
 
 			/* no overflow if number < 1e13 */
-			sprintf(id, "%s_ibfk_%lu", name,
+			snprintf(id, namelen + 20, "%s_ibfk_%lu", name,
 				(ulong) (*id_nr)++);
 		} else {
 			char	table_name[MAX_TABLE_NAME_LEN + 21];
