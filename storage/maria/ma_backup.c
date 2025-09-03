@@ -202,11 +202,11 @@ int aria_read_index(File kfile, ARIA_TABLE_CAPABILITIES *cap, ulonglong block,
       error= maria_page_crc_check(buffer, block, &share,
                                   MARIA_NO_CRC_NORMAL_PAGE,
                                   (int) length);
-      if (error != HA_ERR_WRONG_CRC)
+      if (error == 0 || my_errno != HA_ERR_WRONG_CRC)
         DBUG_RETURN(error);
     }
     my_sleep(100000);                              /* Sleep 0.1 seconds */
-  } while (retry < MAX_RETRY);
+  } while (retry++ < MAX_RETRY);
   DBUG_RETURN(HA_ERR_WRONG_CRC);
 }
 
@@ -264,15 +264,18 @@ int aria_read_data(File dfile, ARIA_TABLE_CAPABILITIES *cap, ulonglong block,
 
     if (length == cap->block_size)
     {
-      error= maria_page_crc_check(buffer, block, &share,
+      if (!_ma_check_if_zero(buffer, share.block_size - CRC_SIZE))
+       error= 0;
+      else
+        error= maria_page_crc_check(buffer, block, &share,
                                   ((block % cap->bitmap_pages_covered) == 0 ?
                                    MARIA_NO_CRC_BITMAP_PAGE :
                                    MARIA_NO_CRC_NORMAL_PAGE),
                                   share.block_size - CRC_SIZE);
-      if (error != HA_ERR_WRONG_CRC)
+     if (error == 0 || my_errno != HA_ERR_WRONG_CRC)
         DBUG_RETURN(error);
     }
     my_sleep(100000);                              /* Sleep 0.1 seconds */
-  } while (retry < MAX_RETRY);
+  } while (retry++ < MAX_RETRY);
     DBUG_RETURN(HA_ERR_WRONG_CRC);
 }
