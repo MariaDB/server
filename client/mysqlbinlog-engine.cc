@@ -1115,6 +1115,8 @@ open_engine_binlog(handler_binlog_reader *generic_reader,
                 "dirname_part() needs up to FN_REFLEN char buffer");
   size_t dummy;
   dirname_part(binlog_dir, filename, &dummy);
+  if (!strlen(binlog_dir))
+    strncpy(binlog_dir, ".", sizeof(binlog_dir) - 1);
   return reader->init_from_fd_pos(dup(opened_cache->file), start_position);
 }
 
