@@ -23,15 +23,15 @@ FLUSH BINARY LOGS;
 
 SELECT * FROM t1 ORDER BY a;
 
-# Test flashback.
+# Test flashback from files specified with directory path.
 --exec $MYSQL_BINLOG --flashback --start-position=$gtid_start --stop-position=$gtid_stop $datadir/binlog-000000.ibb > $MYSQLTEST_VARDIR/tmp/mysqlbinlog_1.txt
 --exec $MYSQL --abort-source-on-error -e "source $MYSQLTEST_VARDIR/tmp/mysqlbinlog_1.txt;" test
 --remove_file $MYSQLTEST_VARDIR/tmp/mysqlbinlog_1.txt
 
 SELECT * FROM t1 ORDER BY a;
 
-# Test normal apply.
---exec $MYSQL_BINLOG --start-position=$gtid_start --stop-position=$gtid_stop $datadir/binlog-000000.ibb > $MYSQLTEST_VARDIR/tmp/mysqlbinlog_2.txt
+# Test normal apply from binlog files in current directory
+--exec cd $datadir && $MYSQL_BINLOG --start-position=$gtid_start --stop-position=$gtid_stop binlog-000000.ibb > $MYSQLTEST_VARDIR/tmp/mysqlbinlog_2.txt
 --exec $MYSQL -e "source $MYSQLTEST_VARDIR/tmp/mysqlbinlog_2.txt;"
 --remove_file $MYSQLTEST_VARDIR/tmp/mysqlbinlog_2.txt
 
