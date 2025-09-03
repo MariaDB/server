@@ -292,7 +292,7 @@ void _CONCAT_UNDERSCORED(turn_parser_debug_on,yyparse)()
   List<Condition_information_item> *cond_info_list;
   List<DYNCALL_CREATE_DEF> *dyncol_def_list;
   List<Item> *item_list;
-  List<sp_assignment_lex> *sp_assignment_lex_list;
+  List_sp_assignment_lex *sp_assignment_lex_list;
   List<Statement_information_item> *stmt_info_list;
   List<String> *string_list;
   List<Lex_ident_sys> *ident_sys_list;
@@ -1385,6 +1385,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
         ident_table_alias
         ident_sysvar_name
         ident_for_loop_index
+        select_or_ps_name
 
 %type <lex_string_with_metadata>
         TEXT_STRING
@@ -1616,6 +1617,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
         opt_versioning_interval_start
         json_default_literal
         set_expr_misc
+        select_or_expr
 
 %type <num> opt_vers_auto_part
 
@@ -1652,6 +1654,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %type <sp_cursor_stmt>
         sp_cursor_stmt_lex
         sp_cursor_stmt
+        sp_cursor_stmt_for_open
 
 %type <instr_fetch_cursor>
         sp_proc_stmt_fetch_head
@@ -1727,16 +1730,7 @@ rule:
 
 %destructor
 {
-  if ($$)
-  {
-    sp_assignment_lex *elem;
-    List_iterator<sp_assignment_lex> li(*$$);
-    while ((elem= li++))
-    {
-      if (!elem->sp_lex_in_use)
-        delete elem;
-    }
-  }
+  List_sp_assignment_lex::free_elements_not_in_use($$);
 } <sp_assignment_lex_list>
 
 
@@ -1851,6 +1845,8 @@ rule:
         directly_executable_statement
         analyze_stmt_command backup backup_statements
         query verb_clause create create_routine change select select_into
+        select_no_with_clause_no_parens select_no_with_clause_parens
+        select_with_with_clause select_for_open_cursor
         do drop drop_routine insert replace insert_start stmt_end
         insert_values update delete truncate rename compound_statement
         show describe load alter optimize keycache preload flush
@@ -3760,6 +3756,16 @@ sp_cursor_stmt_lex:
           }
         ;
 
+select_or_ps_name:
+          select { $$= Lex_ident_sys(); }
+        | ident { $$= $1; }
+        ;
+
+select_or_expr:
+          select_for_open_cursor { $$= nullptr; }
+        | expr { $$= $1; }
+        ;
+
 sp_cursor_stmt:
           sp_cursor_stmt_lex
           {
@@ -3768,21 +3774,31 @@ sp_cursor_stmt:
             if (Lex->main_select_push(true))
               MYSQL_YYABORT;
           }
-          remember_name select remember_end
+          remember_name select_or_ps_name remember_end
           {
             DBUG_ASSERT(Lex == $1);
-            Lex->pop_select(); //main select
-            if (unlikely($1->stmt_finalize(thd)))
+            if ($1->sp_cursor_stmt_finalize(thd, $4, $3, $5))
               MYSQL_YYABORT;
-	    if (Lex->is_metadata_used())
-            {
-              LEX_CSTRING expr_str= make_string(thd, $3, $5);
 
-              if (expr_str.str == nullptr)
-                MYSQL_YYABORT;
-              $1->set_expr_str(expr_str);
-            }
-            if (unlikely($1->sphead->restore_lex(thd)))
+            $$= $1;
+          }
+        ;
+
+sp_cursor_stmt_for_open:
+          sp_cursor_stmt_lex
+          {
+            DBUG_ASSERT(thd->free_list == NULL);
+            Lex->sphead->reset_lex(thd, $1);
+            if (Lex->main_select_push(true))
+              MYSQL_YYABORT;
+            Lex->clause_that_disallows_subselect= "OPEN..FOR";
+          }
+          remember_name select_or_expr remember_end
+          {
+            Lex->clause_that_disallows_subselect= NULL;
+            $1->prepared_stmt.set(Lex_ident_sys(), $4, nullptr);
+            DBUG_ASSERT(Lex == $1);
+            if ($1->sp_cursor_stmt_finalize(thd, Lex_ident_sys(), $3, $5))
               MYSQL_YYABORT;
 
             $$= $1;
@@ -4465,7 +4481,7 @@ for_loop_bound_expr:
 cursor_actual_parameters:
           assignment_source_expr
           {
-            if (unlikely(!($$= new (thd->mem_root) List<sp_assignment_lex>)))
+            if (unlikely(!($$= new (thd->mem_root) List_sp_assignment_lex)))
               MYSQL_YYABORT;
             $$->push_back($1, thd->mem_root);
           }
@@ -4490,12 +4506,23 @@ sp_proc_stmt_with_cursor:
 sp_proc_stmt_open:
           OPEN_SYM ident opt_parenthesized_cursor_actual_parameters
           {
-            if (unlikely(Lex->sp_open_cursor(thd, &$2, $3)))
+            if (unlikely(Lex->sp_open_cursor(thd, &$2, $3, nullptr)))
               MYSQL_YYABORT;
           }
-        | OPEN_SYM ident FOR_SYM sp_cursor_stmt
+        | OPEN_SYM ident USING cursor_actual_parameters
           {
-            if (Lex->sp_open_cursor_for_stmt(thd, &$2, $4))
+            if (unlikely(Lex->sp_open_cursor(thd, &$2, nullptr, $4)))
+              MYSQL_YYABORT;
+          }
+        | OPEN_SYM ident FOR_SYM sp_cursor_stmt_for_open
+          {
+            if (Lex->sp_open_cursor_for_stmt(thd, &$2, $4, nullptr))
+              MYSQL_YYABORT;
+          }
+        | OPEN_SYM ident FOR_SYM sp_cursor_stmt_for_open
+          USING cursor_actual_parameters
+          {
+            if (Lex->sp_open_cursor_for_stmt(thd, &$2, $4, $6))
               MYSQL_YYABORT;
           }
         ;
@@ -9021,8 +9048,8 @@ opt_ignore_leaves:
 */
 
 
-select:
-          query_expression_no_with_clause
+select_no_with_clause_no_parens:
+          query_expression_body_ext
           {
             if (Lex->push_select($1->fake_select_lex ?
                                  $1->fake_select_lex :
@@ -9036,7 +9063,27 @@ select:
             if (Lex->select_finalize($1, $3))
               MYSQL_YYABORT;
           }
-        | with_clause query_expression_no_with_clause
+        ;
+
+select_no_with_clause_parens:
+          query_expression_body_ext_parens
+          {
+            if (Lex->push_select($1->fake_select_lex ?
+                                 $1->fake_select_lex :
+                                 $1->first_select()))
+              MYSQL_YYABORT;
+          }
+          opt_procedure_or_into
+          {
+            Lex->pop_select();
+            $1->set_with_clause(NULL);
+            if (Lex->select_finalize($1, $3))
+              MYSQL_YYABORT;
+          }
+        ;
+
+select_with_with_clause:
+          with_clause query_expression_no_with_clause
           {
             if (Lex->push_select($2->fake_select_lex ?
                                  $2->fake_select_lex :
@@ -9052,6 +9099,20 @@ select:
               MYSQL_YYABORT;
           }
         ;
+
+
+select:
+          select_no_with_clause_no_parens
+        | select_no_with_clause_parens
+        | select_with_with_clause
+        ;
+
+
+select_for_open_cursor:
+          select_no_with_clause_no_parens
+        | select_with_with_clause
+        ;
+
 
 select_into:
           select_into_query_specification

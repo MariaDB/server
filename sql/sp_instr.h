@@ -44,7 +44,7 @@ public:
 
   bool validate()
   {
-    DBUG_ASSERT(sql_command == SQLCOM_SELECT);
+    DBUG_ASSERT(sql_command == SQLCOM_SELECT || sql_command == SQLCOM_END);
     if (result)
     {
       my_error(ER_SP_BAD_CURSOR_SELECT, MYF(0));
@@ -66,6 +66,26 @@ public:
     return false;
   }
 
+  bool sp_cursor_stmt_finalize(THD *thd, const Lex_ident_sys_st &ps_name,
+                               const char *beg, const char *end)
+  {
+    m_ps_name= Lex_ident_sys(thd, &ps_name);
+    pop_select(); //main select
+    if (unlikely(stmt_finalize(thd)))
+      return true;
+    /*
+      Always make a query copy, even if is_metadata_used() is false and
+      therefore the cursor statement won't need re-prepare.
+      This is needed to properly log into the slow log simple queries like:
+       OPEN c FOR SELECT SLEEP(1);
+    */
+    LEX_CSTRING expr_str= make_string(thd, beg, end);
+    if (expr_str.str == nullptr)
+      return true;
+    set_expr_str(expr_str);
+    return sphead->restore_lex(thd);
+  }
+
   void set_expr_str(const LEX_CSTRING &expr_str)
   {
     m_expr_str= expr_str;
@@ -81,8 +101,28 @@ public:
     return this;
   }
 
+  // Set a prepared statement name
+  void set_ps_name(const Lex_ident_sys_st &ps_name)
+  {
+    m_ps_name= ps_name;
+  }
+  // Get a prepared statement name
+  const Lex_ident_sys &get_ps_name() const
+  {
+    return m_ps_name;
+  }
+
 private:
   LEX_CSTRING m_expr_str;
+  /*
+    A prepared statement name in case of a dynamic cursor,
+    e.g. "stmt" in this example:
+      DECLARE c CURSOR FOR stmt;
+      PREPARE stmt FROM 'SELECT 1';
+      OPEN c;
+     In case if the cursor is not dynamic, m_ps_name is equal to {0,0}.
+   */
+  Lex_ident_sys m_ps_name;
 };
 
 
@@ -172,7 +212,8 @@ public:
                                    const LEX_CSTRING &cmd,
                                    const LEX_CSTRING &rcontext_name,
                                    const LEX_CSTRING &array_name,
-                                   uint index_offset) const;
+                                   uint index_offset,
+                                   size_t extra_reserve= 0) const;
   void print_fetch_into(String *str, List<sp_fetch_target> list);
 
   virtual void backpatch(uint dest, sp_pcontext *dst_ctx)
@@ -351,12 +392,7 @@ public:
     m_lex->safe_to_cache_query= 0;
   }
 
-  /*
-    Return m_lex as a const pointer. "const" should be enough
-    to use in DBUG_ASSERT in sp_instr_xxx methods, e.g.:
-      DBUG_ASSERT(thd->lex == m_lex_keeper.lex());
-  */
-  const LEX *lex() const
+  LEX *lex() const
   {
     return m_lex;
   }
@@ -694,6 +730,128 @@ public:
   PSI_statement_info* get_psi_info() override { return & psi_info; }
   static PSI_statement_info psi_info;
 }; // class sp_instr_set : public sp_lex_instr
+
+
+/*
+  An instruction to set a dynamic cursor placeholder value from an expression
+  in the USING clause in a script like this:
+    DECLARE c CURSOR FOR stmt;
+    PREPARE c FROM 'SELECT ?';
+    OPEN c USING 1;
+  or
+    OPEN c FOR 'SELECT ?' USING 1;
+*/
+class sp_instr_set_ps_placeholder: public sp_lex_instr,
+                                   public sp_rcontext_ref,
+                                   public Type_handler_hybrid_field_type,
+                                   public Type_all_attributes,
+                                   public Type_extra_attributes
+{
+  // Prevent use of these
+  sp_instr_set_ps_placeholder(const sp_instr_set_ps_placeholder &) = delete;
+  void operator=(sp_instr_set_ps_placeholder &) = delete;
+
+public:
+  sp_instr_set_ps_placeholder(uint ip, sp_pcontext *ctx,
+                              const sp_rcontext_ref &cursor_ref,
+                              uint using_clause_offset,
+                              sp_assignment_lex *lex)
+   :sp_lex_instr(ip, ctx, lex, true),
+    sp_rcontext_ref(cursor_ref),
+    m_expr(lex->get_item()),
+    m_using_clause_offset(using_clause_offset),
+    m_decimal_precision(0)
+  {
+    // Only local cursors are supported until MDEV-36053 is done
+    DBUG_ASSERT((cursor_ref.rcontext_handler() == &sp_rcontext_handler_local &&
+                 cursor_ref.deref_rcontext_handler() == nullptr) ||
+                cursor_ref.deref_rcontext_handler() ==
+                  &sp_rcontext_handler_statement);
+  }
+
+  virtual ~sp_instr_set_ps_placeholder() = default;
+
+  int execute(THD *thd, uint *nextp) override;
+
+  int exec_core(THD *thd, uint *nextp) override;
+
+  void print(String *str) override;
+
+  bool is_invalid() const override
+  {
+    return m_expr == nullptr;
+  }
+
+  void invalidate() override
+  {
+    m_expr= nullptr;
+  }
+
+  bool save_in_param(THD *thd, Item_param *dst) const
+  {
+    DBUG_ASSERT(m_decimal_precision > 0); // Attributes were set
+    return dst->set_from_value(thd, m_value, type_handler(), *this);
+  }
+
+  uint using_clause_offset() const
+  {
+    return m_using_clause_offset;
+  }
+
+  void set_type_maybe_null(bool maybe_null_arg) override
+  {
+    // Nullability is not important
+  }
+  decimal_digits_t decimal_precision() const override
+  {
+    return m_decimal_precision;
+  }
+  Type_extra_attributes *type_extra_attributes_addr() override
+  {
+    return this;
+  }
+  const Type_extra_attributes type_extra_attributes() const override
+  {
+    return *this;
+  }
+
+protected:
+  LEX_CSTRING get_expr_query() const override
+  {
+    DBUG_ASSERT(dynamic_cast<const sp_assignment_lex*>(m_lex_keeper.lex()));
+    const sp_assignment_lex *tmplex=
+      static_cast<const sp_assignment_lex*>(m_lex_keeper.lex());
+    return tmplex->get_expr_str();
+  }
+
+  void adjust_sql_command(LEX *lex) override
+  {
+    DBUG_ASSERT(lex->sql_command == SQLCOM_SELECT);
+    lex->sql_command= SQLCOM_SET_OPTION;
+  }
+
+  bool on_after_expr_parsing(THD *thd) override
+  {
+    DBUG_ASSERT(thd->lex->current_select->item_list.elements == 1);
+
+    m_expr= thd->lex->current_select->item_list.head();
+    DBUG_ASSERT(m_expr != nullptr);
+
+    return m_expr == nullptr; // Error if nullptr
+  }
+
+private:
+  Value m_value;
+  Item *m_expr;
+  uint m_using_clause_offset;
+  decimal_digits_t m_decimal_precision;
+
+public:
+  PSI_statement_info* get_psi_info() override
+  {
+    return & sp_instr_set::psi_info;
+  }
+}; // class sp_instr_set_ps_placeholder
 
 
 /*
@@ -1731,9 +1889,11 @@ class sp_instr_copen_by_ref : public sp_lex_instr,
 public:
   sp_instr_copen_by_ref(uint ip, sp_pcontext *ctx,
                         const sp_rcontext_ref &ref,
-                        sp_lex_cursor *lex)
+                        sp_lex_cursor *lex,
+                        uint set_ps_placeholder_count)
    :sp_lex_instr(ip, ctx, lex, true),
     sp_rcontext_ref(ref),
+    m_set_ps_placeholder_count(set_ps_placeholder_count),
     m_metadata_changed(false),
     m_cursor_stmt(lex->get_expr_str())
   { }
@@ -1787,6 +1947,11 @@ public:
   }
 
 private:
+  /*
+    The number of sp_instr_set_ps_placeholder instructions
+    associated with this OPEN..USING statement.
+  */
+  uint m_set_ps_placeholder_count;
   bool m_metadata_changed;
   LEX_CSTRING m_cursor_stmt;
 
