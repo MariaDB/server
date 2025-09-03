@@ -739,6 +739,16 @@ const sp_pcursor *sp_pcontext::find_cursor(uint offset) const
 
 bool sp_pcursor::check_param_count_with_error(uint param_count) const
 {
+  /*
+    Here we check the number of declared parameters:
+      DECLARE c(pa INT) FOR SELECT * FROM t1 WHERE t1.a=pa;
+      OPEN c(10);
+    It has nothing to do with placeholder parameters.
+    They are passed using the <using input clause>:
+      DECLARE c FOR prepared_stmt;
+      PREPARE c FROM 'SELECT * FROM t1 WHERE a=?';
+      OPEN c USING 10;
+  */
   if (param_count != (m_param_context ?
                       m_param_context->context_var_count() : 0))
   {

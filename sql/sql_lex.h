@@ -3091,6 +3091,10 @@ public:
   {
     return m_name;
   }
+  Item *code() const
+  {
+    return m_code;
+  }
   uint param_count() const
   {
     return m_params.elements;
@@ -4028,10 +4032,46 @@ public:
                          class sp_lex_cursor *cursor_stmt,
                          sp_pcontext *param_ctx, bool add_cpush_instr);
 
+  /*
+    Generate instructions for 'OPEN cursor_name' statements:
+      1. Static cursors without parameters:
+           DECLARE c FOR SELECT 1 FROM DUAL;
+           OPEN c;
+      2. Static cursors with Oracle style parameters:
+           DECLARE c(a INT) FOR SELECT a FROM DUAL;
+           OPEN c(1);
+      3. Dynamic Standard SQL cursors:
+           DECLARE c FOR stmt;
+           PREPARE stmt FROM 'SELECT ? FROM DUAL';
+           OPEN c USING 1;
+
+    @param thd              - The current thd
+    @param name             - The cursor name
+    @param typed_parameters - The parameters inside parentheses (#2).
+                              They have declarations with data types, hence
+                              the name.
+    @param using_parameters - The parameters from the USING clause (#3).
+  */
   bool sp_open_cursor(THD *thd, const LEX_CSTRING *name,
-                      List<sp_assignment_lex> *parameters);
+                      List<sp_assignment_lex> *typed_parameters,
+                      List<sp_assignment_lex> *using_parameters);
+  /*
+    Generate instructions for 'OPEN sys_refcursor_name' statements:
+      1. Open from a select statement:
+           DECLARE c SYS_REFCURSOR;
+           OPEN c FOR SELECT 1;
+      2. Open from a dynamic SQL string:
+           DECLARE c SYS_REFCURSOR;
+           OPEN c FOR 'SELECT ? FROM DUAL' USING 1;
+
+    @param thd          - The current thd
+    @param name         - The sys_refcursor variable name
+    @param stmt         - The SELECT statement
+    @paran using_clause - The USING clause (#2)
+  */
   bool sp_open_cursor_for_stmt(THD *thd, const LEX_CSTRING *name,
-                               sp_lex_cursor *stmt);
+                               sp_lex_cursor *stmt,
+                               List<sp_assignment_lex> *using_clause);
   bool sp_close(THD *thd, const Lex_ident_sys_st &name);
 
   Item_splocal *create_item_for_sp_var(const Lex_ident_cli_st *name,

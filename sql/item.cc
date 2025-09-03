@@ -4649,18 +4649,29 @@ bool Item_param::set_from_item(THD *thd, Item *item)
     }
   }
   st_value tmp;
-  if (!item->save_in_value(thd, &tmp))
+  item->save_in_value(thd, &tmp);
+  DBUG_RETURN(set_from_value(thd, tmp, item));
+}
+
+
+/*
+  Set value from st_value.
+  @param thd   - the current THD
+  @param value - the value
+  @param item  - the Item who has set the value
+*/
+bool Item_param::set_from_value(THD *thd, const st_value &value,
+                                const Item *item)
+{
+  DBUG_ENTER("Item_param::set_from_value");
+  if (value.m_type != DYN_COL_NULL)
   {
     const Type_handler *h= item->type_handler();
     set_handler(h);
-    DBUG_RETURN(set_value(thd, item, &tmp, h));
+    DBUG_RETURN(set_value(thd, item, &value, h));
   }
-  else
-  {
-    set_null_string(item->collation);
-    set_handler(&type_handler_null);
-  }
-
+  set_null_string(item->collation);
+  set_handler(&type_handler_null);
   DBUG_RETURN(0);
 }
 

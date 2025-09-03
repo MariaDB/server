@@ -133,6 +133,7 @@ static const uint PARAMETER_FLAG_UNSIGNED= 128U << 8;
 #include "sql_audit.h"    // mysql_audit_release
 #include "xa.h"           // xa_recover_get_fields
 #include "sql_audit.h"    // mysql_audit_release
+#include "sp_instr.h"     // sp_lex_cursor
 
 /**
   A result class used to send cursor rows using the binary protocol.
@@ -220,7 +221,19 @@ public:
   bool prepare(const char *packet, uint packet_length);
   bool execute_loop(String *expanded_query,
                     bool open_cursor,
+                    select_result *result_arg,
+                    Server_side_cursor **cursor_arg,
+                    uint instr_set_placeholder_first,
+                    uint instr_set_placeholder_count,
                     uchar *packet_arg, uchar *packet_end_arg);
+  bool execute_loop(String *expanded_query,
+                    bool open_cursor,
+                    uchar *packet_arg, uchar *packet_end_arg)
+  {
+    return execute_loop(expanded_query, open_cursor,
+                        &result, &cursor, 0, 0,
+                        packet_arg, packet_end_arg);
+  }
   bool execute_bulk_loop(String *expanded_query,
                          bool open_cursor,
                          uchar *packet_arg, uchar *packet_end_arg, bool multiple_ok_request);
@@ -229,7 +242,64 @@ public:
   bool bulk_iterations() { return iterations; };
   /* Destroy this statement */
   void deallocate();
-  bool execute_immediate(const char *query, uint query_length);
+  bool execute_immediate(const char *query, uint query_length,
+                         bool open_cursor,
+                         select_result *result_arg,
+                         Server_side_cursor **cursor_arg,
+                         uint set_param_first,
+                         uint set_param_count);
+  static Prepared_statement *find_by_name_or_error(THD *thd,
+                                                   const LEX_CSTRING &name,
+                                                   const char *clause)
+  {
+    Prepared_statement *stmt= (Prepared_statement*) thd->stmt_map.
+                                                      find_by_name(&name);
+    if (!stmt)
+      my_error(ER_UNKNOWN_STMT_HANDLER, MYF(0),
+               static_cast<int>(name.length), name.str, clause);
+    return stmt;
+  }
+
+  bool set_placeholder(THD *thd, uint using_param_offset, Item *item)
+  {
+    DBUG_ASSERT(item->fixed());
+    if (using_param_offset >= param_count)
+    {
+      my_error(ER_WRONG_ARGUMENTS, MYF(0), "OPEN");
+      return true;
+    }
+    return item->save_in_param(thd, param_array[using_param_offset]);
+  }
+
+  bool set_placeholders_from_instr(uint first, uint count)
+  {
+    DBUG_ENTER("Prepared_statement::set_placeholders_from_instr");
+    for (uint i= 0; i < count; i++)
+    {
+      const sp_instr_set_ps_placeholder *src=
+        dynamic_cast<const sp_instr_set_ps_placeholder*>
+          (thd->lex->sphead->get_instr(first + i));
+      DBUG_ASSERT(src);
+      // TODO: limit_clause_param
+      if (src->save_in_param(thd, param_array[src->using_clause_offset()]))
+        DBUG_RETURN(true);
+    }
+    DBUG_RETURN(false);
+  }
+
+  bool check_all_placeholders_set() const
+  {
+    for (uint i= 0; i < param_count; i++)
+    {
+      if (param_array[i]->type() == Item_param::PARAM_ITEM)
+      {
+        my_error(ER_WRONG_ARGUMENTS, MYF(0), "OPEN");
+        return true;
+      }
+    }
+    return false;
+  }
+
 private:
   /**
     The memory root to allocate parsed tree elements (instances of Item,
@@ -254,8 +324,12 @@ private:
 private:
   bool set_db(const LEX_CSTRING *db);
   bool set_parameters(String *expanded_query,
+                      uint instr_set_placeholder_first,
+                      uint instr_set_placeholder_count,
                       uchar *packet, uchar *packet_end);
-  bool execute(String *expanded_query, bool open_cursor);
+  bool execute(String *expanded_query, bool open_cursor,
+               select_result *result_arg,
+               Server_side_cursor **cursor_arg);
   void deallocate_immediate();
   bool reprepare();
   bool validate_metadata(Prepared_statement  *copy);
@@ -2831,7 +2905,13 @@ void mysql_sql_stmt_prepare(THD *thd)
 }
 
 
-void mysql_sql_stmt_execute_immediate(THD *thd)
+static
+bool mysql_sql_stmt_execute_immediate(THD *thd,
+                                      bool open_dynamic_cursor,
+                                      select_result *result_arg,
+                                      Server_side_cursor **cursor_arg,
+                                      uint set_param_first,
+                                      uint set_param_count)
 {
   LEX *lex= thd->lex;
   CSET_STRING orig_query= thd->query_string;
@@ -2839,8 +2919,14 @@ void mysql_sql_stmt_execute_immediate(THD *thd)
   LEX_CSTRING query;
   DBUG_ENTER("mysql_sql_stmt_execute_immediate");
 
+  /*
+    Dynamic cursor placeholders are initialized from the USING clause
+    with help of sp_instr_set_ps_placeholder instructions,
+    so in case of a dynamic cursor lex->m_params should be empty.
+  */
+  DBUG_ASSERT(!lex->prepared_stmt.param_count() || !open_dynamic_cursor);
   if (lex->prepared_stmt.params_fix_fields(thd))
-    DBUG_VOID_RETURN;
+    DBUG_RETURN(true);
 
   /*
     Prepared_statement is quite large,
@@ -2853,7 +2939,7 @@ void mysql_sql_stmt_execute_immediate(THD *thd)
   StringBuffer<256> buffer;
   if (lex->prepared_stmt.get_dynamic_sql_string(thd, &query, &buffer) ||
       !(stmt= new Prepared_statement(thd)))
-    DBUG_VOID_RETURN;                           // out of memory
+    DBUG_RETURN(true);                           // out of memory
 
   // See comments on thd->free_list in mysql_sql_stmt_execute()
   SCOPE_VALUE(thd->free_list, (Item *) NULL);
@@ -2878,7 +2964,12 @@ void mysql_sql_stmt_execute_immediate(THD *thd)
     CALL p1('x');
   */
   Item_change_list_savepoint change_list_savepoint(thd);
-  (void) stmt->execute_immediate(query.str, (uint) query.length);
+  (void) stmt->execute_immediate(query.str, (uint) query.length,
+                                 open_dynamic_cursor,
+                                 result_arg ? result_arg : &stmt->result,
+                                 cursor_arg ? cursor_arg : &stmt->cursor,
+                                 set_param_first,
+                                 set_param_count);
   change_list_savepoint.rollback(thd);
 
   /*
@@ -2891,7 +2982,79 @@ void mysql_sql_stmt_execute_immediate(THD *thd)
   thd->set_query_inner(orig_query);
   stmt->lex->restore_set_statement_var();
   delete stmt;
-  DBUG_VOID_RETURN;
+  DBUG_RETURN(false);
+}
+
+
+void mysql_sql_stmt_execute_immediate(THD *thd)
+{
+  (void) mysql_sql_stmt_execute_immediate(thd, false, nullptr, nullptr, 0, 0);
+}
+
+
+int sp_cursor::open_from_query(THD *thd,
+                               uint set_param_first,
+                               uint set_param_count)
+{
+  DBUG_ENTER("sp_cursor::open_from_query");
+  if (!mysql_sql_stmt_execute_immediate(thd, true,
+                                        &result, &server_side_cursor,
+                                        set_param_first, set_param_count))
+  {
+    thd->open_cursors_counter_increment();
+    DBUG_RETURN(0);
+  }
+  DBUG_RETURN(-1);
+}
+
+
+int sp_cursor::open_from_ps(THD *thd, const Lex_ident_sys &ps_name)
+{
+  if (check_for_open(thd, true))
+    return -1;
+
+  Prepared_statement* stmt;
+  if (!(stmt= Prepared_statement::find_by_name_or_error(thd, ps_name, "OPEN")))
+    return -1;
+
+  if (stmt->lex->sql_command != SQLCOM_SELECT)
+  {
+    my_error(ER_SP_BAD_CURSOR_QUERY, MYF(0));
+    return -1;
+  }
+
+  if (stmt->is_in_use())
+  {
+    my_error(ER_PS_NO_RECURSION, MYF(0));
+    return -1;
+  }
+
+  /*
+    Check if all placeholder parameters were set by the USING list:
+      OPEN c USING expr1, expr2;
+  */
+  if (stmt->check_all_placeholders_set())
+    return -1;
+
+  String expanded_query; // Not used
+  if (stmt->execute_loop(&expanded_query, true,
+                         &result, &server_side_cursor, 0, 0,
+                         nullptr, nullptr))
+    return -1;
+
+  thd->open_cursors_counter_increment();
+  return 0;
+}
+
+
+bool
+mysql_sql_stmt_set_placeholder(THD *thd, const Lex_ident_sys &ps_name,
+                               uint using_param_offset, Item *item_expr)
+{
+  Prepared_statement* stmt;
+  if (!(stmt= Prepared_statement::find_by_name_or_error(thd, ps_name, "OPEN")))
+    return true;
+  return stmt->set_placeholder(thd, using_param_offset, item_expr);
 }
 
 
@@ -4344,6 +4507,8 @@ bool Prepared_statement::prepare(const char *packet, uint packet_len)
 
 bool
 Prepared_statement::set_parameters(String *expanded_query,
+                                   uint instr_set_placeholder_first,
+                                   uint instr_set_placeholder_count,
                                    uchar *packet, uchar *packet_end)
 {
   bool is_sql_ps= packet == NULL;
@@ -4352,8 +4517,43 @@ Prepared_statement::set_parameters(String *expanded_query,
   if (is_sql_ps)
   {
     /* SQL prepared statement */
-    res= set_params_from_actual_params(this, thd->lex->prepared_stmt.params(),
-                                       expanded_query);
+    const sp_lex_cursor *clex= thd->lex->get_lex_for_cursor();
+    if (!clex || (clex->get_ps_name().is_null() &&
+                  clex->prepared_stmt.code() == nullptr))
+    {
+      /*
+        Set placehoder values from prepared_stmt.params() only for
+        static cursors.
+        Dynamic cursors set placeholder values using a different way:
+        with help of sp_instr_set_ps_placeholder instructions.
+      */
+      res= set_params_from_actual_params(this, thd->lex->prepared_stmt.params(),
+                                         expanded_query);
+    }
+    else
+    {
+      /*
+        Set parameters from sp_instr_set_ps_placeholder's.
+        Non-zero instr_set_placeholder_count is not possible for
+        SQL Standard dynamic cursors:
+          DECLARE c CURSOR FOR stmt;
+          PREPARE stmt FROM 'SELECT ?';
+          OPEN c USING 'value';
+        It's only possibly for Oracle style dynamic cursors:
+          OPEN c FOR 'SELECT ?'
+
+        as sp_instr_set_ps_placeholder handles USING expressions as follows:
+        - whites the value directly to Prepared_statement::param_array[idx]
+          for the former
+        - caches the value in sp_instr_set_ps_placeholder for the latter.
+      */
+      DBUG_ASSERT(!instr_set_placeholder_count ||
+                  clex->prepared_stmt.code() != nullptr);
+      if (instr_set_placeholder_count &&
+          set_placeholders_from_instr(instr_set_placeholder_first,
+                                      instr_set_placeholder_count))
+        return true;
+    }
   }
   else if (param_count)
   {
@@ -4408,6 +4608,10 @@ Prepared_statement::set_parameters(String *expanded_query,
 bool
 Prepared_statement::execute_loop(String *expanded_query,
                                  bool open_cursor,
+                                 select_result *result_arg,
+                                 Server_side_cursor **cursor_arg,
+                                 uint instr_set_placeholder_first,
+                                 uint instr_set_placeholder_count,
                                  uchar *packet,
                                  uchar *packet_end)
 {
@@ -4441,7 +4645,10 @@ Prepared_statement::execute_loop(String *expanded_query,
   }
 
 reexecute:
-  if (!params_are_set && set_parameters(expanded_query, packet, packet_end))
+  if (!params_are_set && set_parameters(expanded_query,
+                                        instr_set_placeholder_first,
+                                        instr_set_placeholder_count,
+                                        packet, packet_end))
     return TRUE;
   params_are_set= true;
 #ifdef WITH_WSREP
@@ -4469,7 +4676,8 @@ reexecute:
     thd->m_reprepare_observer= &reprepare_observer;
   }
 
-  error= execute(expanded_query, open_cursor) || thd->is_error();
+  error= execute(expanded_query, open_cursor, result_arg, cursor_arg) ||
+         thd->is_error();
 
   thd->m_reprepare_observer= NULL;
 
@@ -4683,7 +4891,8 @@ reexecute:
       thd->m_reprepare_observer= &reprepare_observer;
     }
 
-    error= execute(expanded_query, open_cursor) || thd->is_error();
+    error= execute(expanded_query, open_cursor, &result, &cursor) ||
+                   thd->is_error();
 
     thd->m_reprepare_observer= NULL;
 
@@ -4962,7 +5171,9 @@ Prepared_statement::swap_prepared_statement(Prepared_statement *copy)
     TRUE		Error
 */
 
-bool Prepared_statement::execute(String *expanded_query, bool open_cursor)
+bool Prepared_statement::execute(String *expanded_query, bool open_cursor,
+                                 select_result *result_arg,
+                                 Server_side_cursor **cursor_arg)
 {
   Statement stmt_backup;
   Query_arena *old_stmt_arena;
@@ -5082,7 +5293,7 @@ bool Prepared_statement::execute(String *expanded_query, bool open_cursor)
     general_log_write(thd, COM_STMT_EXECUTE, thd->query(), thd->query_length());
 
   if (open_cursor)
-    error= mysql_open_cursor(thd, &result, &cursor);
+    error= mysql_open_cursor(thd, result_arg, cursor_arg);
   else
   {
     /*
@@ -5130,9 +5341,9 @@ bool Prepared_statement::execute(String *expanded_query, bool open_cursor)
     mysql_change_db(thd, (LEX_CSTRING*) &saved_cur_db_name, TRUE);
 
   /* Assert that if an error, no cursor is open */
-  DBUG_ASSERT(! (error && cursor));
+  DBUG_ASSERT(! (error && *cursor_arg));
 
-  if (! cursor)
+  if (! *cursor_arg)
     /*
       Pass the value false to don't restore set statement variables.
       See the next comment block for more details.
@@ -5229,12 +5440,18 @@ error:
   Prepare, execute and clean-up a statement.
   @param query  - query text
   @param length - query text length
+  @param open_cursor_from_query - if `OPEN c FOR 'SELECT ..'` is running
   @retval true  - the query was not executed (parse error, wrong parameters)
   @retval false - the query was prepared and executed
 
   Note, if some error happened during execution, it still returns "false".
 */
-bool Prepared_statement::execute_immediate(const char *query, uint query_len)
+bool Prepared_statement::execute_immediate(const char *query, uint query_len,
+                                           bool open_cursor_from_query,
+                                           select_result *result_arg,
+                                           Server_side_cursor **cursor_arg,
+                                           uint set_param_first,
+                                           uint set_param_count)
 {
   DBUG_ENTER("Prepared_statement::execute_immediate");
   String expanded_query;
@@ -5250,7 +5467,9 @@ bool Prepared_statement::execute_immediate(const char *query, uint query_len)
   if (prepare(query, query_len))
     DBUG_RETURN(true);
 
-  if (param_count != thd->lex->prepared_stmt.param_count())
+  if (open_cursor_from_query ?
+      (param_count != set_param_count) :
+      (param_count != thd->lex->prepared_stmt.param_count()))
   {
     my_error(ER_WRONG_ARGUMENTS, MYF(0), "EXECUTE");
     deallocate_immediate();
@@ -5258,7 +5477,9 @@ bool Prepared_statement::execute_immediate(const char *query, uint query_len)
   }
 
   MYSQL_EXECUTE_PS(thd->m_statement_psi, m_prepared_stmt);
-  (void) execute_loop(&expanded_query, FALSE, NULL, NULL);
+  (void) execute_loop(&expanded_query, open_cursor_from_query,
+                      result_arg, cursor_arg, set_param_first, set_param_count,
+                      NULL, NULL);
   deallocate_immediate();
   DBUG_RETURN(false);
 }

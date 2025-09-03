@@ -4572,6 +4572,9 @@ public:
     return h->Item_param_set_from_value(thd, this, attr, val);
   }
 
+  bool set_from_value(THD *thd, const st_value &value,
+                      const Item *item_who_created_value);
+
   bool set_limit_clause_param(longlong nr)
   {
     value.set_handler(&type_handler_slonglong);
