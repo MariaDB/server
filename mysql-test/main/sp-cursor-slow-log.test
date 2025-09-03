@@ -1,0 +1,89 @@
+--source include/no_valgrind_without_big.inc
+
+--echo #
+--echo # MDEV-33830 Support for cursors on prepared statements
+--echo #
+
+SET global log_output='TABLE';
+
+SET log_slow_disabled_statements='';
+
+DELIMITER $$;
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE c0 CURSOR FOR SELECT SLEEP(0.1);
+  OPEN c0;
+  CLOSE c0;
+END;
+$$
+DELIMITER ;$$
+TRUNCATE mysql.slow_log;
+SET long_query_time=0.01;
+CALL p1;
+--query_vertical SELECT sql_text FROM mysql.slow_log;
+SET long_query_time=default;
+DROP PROCEDURE p1;
+TRUNCATE mysql.slow_log;
+
+
+
+DELIMITER $$;
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE c0 SYS_REFCURSOR;
+  OPEN c0 FOR SELECT SLEEP(0.1);
+  CLOSE c0;
+END;
+$$
+DELIMITER ;$$
+TRUNCATE mysql.slow_log;
+SET long_query_time=0.01;
+CALL p1;
+--query_vertical SELECT sql_text FROM mysql.slow_log;
+SET long_query_time=default;
+DROP PROCEDURE p1;
+TRUNCATE mysql.slow_log;
+
+
+
+DELIMITER $$;
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE c0 CURSOR FOR stmt0;
+  PREPARE stmt0 FROM 'SELECT SLEEP(0.1)';
+  OPEN c0;
+  CLOSE c0;
+  DEALLOCATE PREPARE stmt0;
+END;
+$$
+DELIMITER ;$$
+TRUNCATE mysql.slow_log;
+SET long_query_time=0.01;
+CALL p1;
+--query_vertical SELECT sql_text FROM mysql.slow_log;
+SET long_query_time=default;
+DROP PROCEDURE p1;
+TRUNCATE mysql.slow_log;
+
+
+DELIMITER $$;
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE c0 SYS_REFCURSOR;
+  OPEN c0 FOR 'SELECT SLEEP(0.1)';
+  CLOSE c0;
+END;
+$$
+DELIMITER ;$$
+TRUNCATE mysql.slow_log;
+SET long_query_time=0.01;
+CALL p1;
+--query_vertical SELECT sql_text FROM mysql.slow_log;
+SET long_query_time=default;
+DROP PROCEDURE p1;
+TRUNCATE mysql.slow_log;
+
+
+SET log_slow_disabled_statements=default;
+
+SET global log_output=default;

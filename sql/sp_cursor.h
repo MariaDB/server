@@ -82,7 +82,10 @@ private:
     int send_data(List<Item> &items) override;
     int prepare(List<Item> &list, SELECT_LEX_UNIT *u) override;
     bool view_structure_only() const override { return m_view_structure_only; }
-};
+  };
+
+protected:
+  bool check_for_open(THD *thd, bool check_open_cursor_counter) const;
 
 public:
   sp_cursor()
@@ -100,6 +103,12 @@ public:
   virtual sp_lex_keeper *get_lex_keeper() { return nullptr; }
 
   int open(THD *thd, bool check_max_open_cursor_counter= true);
+
+  int open_from_ps(THD *thd, const Lex_ident_sys &ps_name);
+
+  int open_from_dynamic_string(THD *thd,
+                               uint set_placeholder_instr_first,
+                               uint set_placeholder_instr_count);
 
   int close(THD *thd);
 

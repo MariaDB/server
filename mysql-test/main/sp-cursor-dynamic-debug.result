@@ -1,0 +1,101 @@
+#
+# MDEV-33830 Support for cursors on prepared statements
+#
+#
+# Without USING clause
+#
+# SQL Standard style: DECLARE c FOR stmt; OPEN c;
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE c0 CURSOR FOR stmt0;
+PREPARE stmt0 FROM 'SELECT 1,2,3';
+OPEN c0;
+CLOSE c0;
+END;
+$$
+SHOW PROCEDURE CODE p1;
+Pos	Instruction
+0	cpush c0@0 for stmt0
+1	stmt 96 "PREPARE stmt0 FROM 'SELECT 1,2,3'"
+2	copen c0@0
+3	cclose c0@0
+4	cpop 1
+CALL p1;
+DROP PROCEDURE p1;
+# Oracle style #1: OPEN c FOR dynamic_string
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE c0 SYS_REFCURSOR;
+OPEN c0 FOR 'SELECT 1,2,3';
+CLOSE c0;
+END;
+$$
+SHOW PROCEDURE CODE p1;
+Pos	Instruction
+0	set c0@0 NULL
+1	copen STMT.cursor[c0@0]
+2	cclose STMT.cursor[c0@0]
+3	destruct sys_refcursor c0@0
+CALL p1;
+DROP PROCEDURE p1;
+# Oracle style #2: OPEN c FOR select_statement
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE c0 SYS_REFCURSOR;
+OPEN c0 FOR SELECT 1,2,3;
+CLOSE c0;
+END;
+$$
+SHOW PROCEDURE CODE p1;
+Pos	Instruction
+0	set c0@0 NULL
+1	copen STMT.cursor[c0@0]
+2	cclose STMT.cursor[c0@0]
+3	destruct sys_refcursor c0@0
+CALL p1;
+DROP PROCEDURE p1;
+#
+# With USING clause
+#
+# SQL Standard style: DECLARE c FOR stmt; OPEN c USING..;
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE c0 CURSOR FOR stmt0;
+PREPARE stmt0 FROM 'SELECT 1,2,3 FROM DUAL WHERE ?+?+?>0';
+OPEN c0 USING 1,2,3;
+CLOSE c0;
+DEALLOCATE PREPARE stmt0;
+END;
+$$
+SHOW PROCEDURE CODE p1;
+Pos	Instruction
+0	cpush c0@0 for stmt0
+1	stmt 96 "PREPARE stmt0 FROM 'SELECT 1,2,3 FROM..."
+2	set c0@0.using[0] 1
+3	set c0@0.using[1] 2
+4	set c0@0.using[2] 3
+5	copen c0@0
+6	cclose c0@0
+7	stmt 98 "DEALLOCATE PREPARE stmt0"
+8	cpop 1
+CALL p1;
+DROP PROCEDURE p1;
+# Oracle style #1: OPEN c FOR dynamic_string USING..;
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE c0 SYS_REFCURSOR;
+OPEN c0 FOR 'SELECT 1,2,3 FROM DUAL WHERE ?+?+?>0' USING 1,2,3;
+CLOSE c0;
+END;
+$$
+SHOW PROCEDURE CODE p1;
+Pos	Instruction
+0	set c0@0 NULL
+1	set STMT.cursor[c0@0].using[0] 1
+2	set STMT.cursor[c0@0].using[1] 2
+3	set STMT.cursor[c0@0].using[2] 3
+4	copen STMT.cursor[c0@0]
+5	cclose STMT.cursor[c0@0]
+6	destruct sys_refcursor c0@0
+CALL p1;
+DROP PROCEDURE p1;

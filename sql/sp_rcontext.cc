@@ -844,23 +844,8 @@ bool sp_rcontext::set_case_expr(THD *thd, int case_expr_id,
 
 int sp_cursor::open(THD *thd, bool check_open_cursor_counter)
 {
-  if (server_side_cursor)
-  {
-    my_message(ER_SP_CURSOR_ALREADY_OPEN,
-               ER_THD(thd, ER_SP_CURSOR_ALREADY_OPEN),
-               MYF(0));
-    return -1;
-  }
-
-  if (check_open_cursor_counter &&
-      thd->open_cursors_counter() >= thd->variables.max_open_cursors)
-  {
-    my_error(ER_TOO_MANY_OPEN_CURSORS, MYF(0),
-             thd->variables.max_open_cursors);
-    return -1;
-  }
-
-  if (mysql_open_cursor(thd, &result, &server_side_cursor))
+  if (check_for_open(thd, check_open_cursor_counter) ||
+      mysql_open_cursor(thd, &result, &server_side_cursor))
     return -1;
   thd->open_cursors_counter_increment();
   return 0;
