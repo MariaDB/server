@@ -4524,6 +4524,7 @@ MYSQL_BIN_LOG::open_engine(handlerton *hton, ulong max_size, const char *dir)
     (*opt_binlog_engine_hton->binlog_write_direct) (&cache,
                                                     &engine_context,
                                                     nullptr);
+    (*opt_binlog_engine_hton->binlog_oob_free)(engine_context.engine_ptr);
     end_io_cache(&cache);
   }
 
