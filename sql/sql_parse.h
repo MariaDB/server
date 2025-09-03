@@ -98,7 +98,10 @@ bool multi_delete_set_locks_and_link_aux_tables(LEX *lex);
 void create_table_set_open_action_and_adjust_tables(LEX *lex);
 int bootstrap(MYSQL_FILE *file);
 bool run_set_statement_if_requested(THD *thd, LEX *lex);
-int mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt=false);
+int mysql_execute_command(THD *thd,
+                          bool is_called_from_prepared_stmt=false,
+                          const sp_rcontext_addr &cursor_addr=
+                            sp_rcontext_addr(nullptr, 0));
 enum dispatch_command_return
 {
   DISPATCH_COMMAND_SUCCESS=0,

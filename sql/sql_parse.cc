@@ -3450,7 +3450,8 @@ bool run_set_statement_if_requested(THD *thd, LEX *lex)
 */
 
 int
-mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
+mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt,
+                      const sp_rcontext_addr &cursor_addr)
 {
   int res= 0;
   LEX  *lex= thd->lex;
@@ -3963,7 +3964,7 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
   }
   case SQLCOM_EXECUTE:
   {
-    mysql_sql_stmt_execute(thd);
+    mysql_sql_stmt_execute(thd, cursor_addr);
     break;
   }
   case SQLCOM_DEALLOCATE_PREPARE:

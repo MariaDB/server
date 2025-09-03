@@ -44,7 +44,7 @@ public:
 
   bool validate()
   {
-    DBUG_ASSERT(sql_command == SQLCOM_SELECT);
+    DBUG_ASSERT(sql_command == SQLCOM_SELECT || sql_command == SQLCOM_END);
     if (result)
     {
       my_error(ER_SP_BAD_CURSOR_SELECT, MYF(0));
@@ -81,8 +81,28 @@ public:
     return this;
   }
 
+  // Set a prepared statement name
+  void set_ps_name(const Lex_ident_sys_st &ps_name)
+  {
+    m_ps_name= ps_name;
+  }
+  // Get a prepared statement name
+  const Lex_ident_sys &get_ps_name() const
+  {
+    return m_ps_name;
+  }
+
 private:
   LEX_CSTRING m_expr_str;
+  /*
+    A prepared statement name in case of a dynamic cursor,
+    e.g. "stmt" in this example:
+      DECLARE c CURSOR FOR stmt;
+      PREPARE stmt FROM 'SELECT 1';
+      OPEN c;
+     In case if the cursor is not dynamic, m_ps_name is equal to {0,0}.
+   */
+  Lex_ident_sys m_ps_name;
 };
 
 
@@ -351,12 +371,7 @@ public:
     m_lex->safe_to_cache_query= 0;
   }
 
-  /*
-    Return m_lex as a const pointer. "const" should be enough
-    to use in DBUG_ASSERT in sp_instr_xxx methods, e.g.:
-      DBUG_ASSERT(thd->lex == m_lex_keeper.lex());
-  */
-  const LEX *lex() const
+  LEX *lex() const
   {
     return m_lex;
   }
@@ -569,11 +584,16 @@ class sp_instr_stmt : public sp_lex_instr
 
   LEX_STRING m_query;		///< For thd->query
 
+  sp_rcontext_addr m_cursor_addr;
+
 public:
-  sp_instr_stmt(uint ip, sp_pcontext *ctx, LEX *lex, const LEX_STRING& query)
+  sp_instr_stmt(uint ip, sp_pcontext *ctx, LEX *lex,
+                const LEX_STRING& query,
+                const sp_rcontext_addr &cursor_addr)
     : sp_lex_instr(ip, ctx, lex, true),
       m_valid(true),
-      m_query(query)
+      m_query(query),
+      m_cursor_addr(cursor_addr)
   {}
 
   virtual ~sp_instr_stmt() = default;
@@ -597,6 +617,11 @@ public:
   void get_query(String *sql_query) const override
   {
     sql_query->append(get_expr_query());
+  }
+
+  const sp_rcontext_addr get_cursor_addr() const
+  {
+    return m_cursor_addr;
   }
 
 protected:
@@ -1406,8 +1431,10 @@ class sp_instr_cpush : public sp_lex_instr, public sp_cursor
   void operator=(sp_instr_cpush &);
 
 public:
-  sp_instr_cpush(uint ip, sp_pcontext *ctx, sp_lex_cursor *lex, uint offset)
+  sp_instr_cpush(uint ip, const Lex_ident_sys &ps_name,
+                 sp_pcontext *ctx, sp_lex_cursor *lex, uint offset)
     : sp_lex_instr(ip, ctx, lex, true),
+      sp_cursor(ps_name),
       m_cursor(offset),
       m_metadata_changed(false),
       m_cursor_stmt(lex->get_expr_str())

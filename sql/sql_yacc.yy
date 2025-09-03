@@ -1355,6 +1355,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
         ident_table_alias
         ident_sysvar_name
         ident_for_loop_index
+        select_or_ps_name
 
 %type <lex_string_with_metadata>
         TEXT_STRING
@@ -2220,9 +2221,12 @@ prepare:
         ;
 
 execute:
-          EXECUTE_SYM ident execute_using
+          EXECUTE_SYM ident
+          { Lex->clause_that_disallows_subselect= "EXECUTE..USING"; }
+          execute_using
           {
-            if (Lex->stmt_execute($2, $3))
+            Lex->clause_that_disallows_subselect= NULL;
+            if (Lex->stmt_execute($2, $4))
               MYSQL_YYABORT;
           }
         | EXECUTE_SYM IMMEDIATE_SYM
@@ -2232,9 +2236,10 @@ execute:
             Lex->clause_that_disallows_subselect= "EXECUTE IMMEDIATE";
           }
           expr
-          { Lex->clause_that_disallows_subselect= NULL; }
+          { Lex->clause_that_disallows_subselect= "EXECUTE..USING"; }
           execute_using
           {
+            Lex->clause_that_disallows_subselect= NULL;
             if (Lex->stmt_execute_immediate($4, $6))
               MYSQL_YYABORT;
           }
@@ -2242,13 +2247,7 @@ execute:
 
 execute_using:
           /* nothing */    { $$= NULL; }
-        | USING
-          { Lex->clause_that_disallows_subselect= "EXECUTE..USING"; }
-          execute_params
-          {
-            $$= $3;
-            Lex->clause_that_disallows_subselect= NULL;
-          }
+        | USING execute_params { $$= $2; }
         ;
 
 execute_params:
@@ -3692,6 +3691,11 @@ sp_cursor_stmt_lex:
           }
         ;
 
+select_or_ps_name:
+          select { $$= Lex_ident_sys(); }
+        | ident { $$= $1; }
+        ;
+
 sp_cursor_stmt:
           sp_cursor_stmt_lex
           {
@@ -3700,10 +3704,11 @@ sp_cursor_stmt:
             if (Lex->main_select_push(true))
               MYSQL_YYABORT;
           }
-          remember_name select remember_end
+          remember_name select_or_ps_name remember_end
           {
             DBUG_ASSERT(Lex == $1);
             Lex->pop_select(); //main select
+            $1->set_ps_name($4);
             if (unlikely($1->stmt_finalize(thd)))
               MYSQL_YYABORT;
 	    if (Lex->is_metadata_used())
@@ -4422,7 +4427,18 @@ sp_proc_stmt_with_cursor:
 sp_proc_stmt_open:
           OPEN_SYM ident opt_parenthesized_cursor_actual_parameters
           {
-            if (unlikely(Lex->sp_open_cursor(thd, &$2, $3)))
+            LEX *lex= thd->lex;
+            Lex_input_stream *lip= YYLIP;
+            lex->sphead->reset_lex(thd);
+            lex->sphead->m_tmp_query= lip->get_tok_start();
+            Lex->clause_that_disallows_subselect= "OPEN..USING";
+          }
+          execute_using
+          {
+            Lex->clause_that_disallows_subselect= NULL;
+            if (unlikely(Lex->sp_open_cursor(thd, &$2, $3, $5)))
+              MYSQL_YYABORT;
+            if (Lex->sphead->restore_lex(thd))
               MYSQL_YYABORT;
           }
         | OPEN_SYM ident FOR_SYM sp_cursor_stmt

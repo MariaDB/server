@@ -87,7 +87,7 @@ void mysqld_stmt_execute_bulk(THD *thd, char *packet, uint packet_length);
 void mysqld_stmt_bulk_execute(THD *thd, char *packet, uint packet_length);
 void mysqld_stmt_close(THD *thd, char *packet);
 void mysql_sql_stmt_prepare(THD *thd);
-void mysql_sql_stmt_execute(THD *thd);
+void mysql_sql_stmt_execute(THD *thd, const sp_rcontext_addr &cursor);
 void mysql_sql_stmt_execute_immediate(THD *thd);
 void mysql_sql_stmt_close(THD *thd);
 void mysqld_stmt_fetch(THD *thd, char *packet, uint packet_length);

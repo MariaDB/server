@@ -3841,7 +3841,8 @@ public:
   bool last_field_generated_always_as_row_end();
 
   bool new_sp_instr_stmt(THD *, const LEX_CSTRING &prefix,
-                         const LEX_CSTRING &suffix);
+                         const LEX_CSTRING &suffix,
+                         const sp_rcontext_addr &cursor);
   bool sp_proc_stmt_statement_finalize_buf(THD *, const LEX_CSTRING &qbuf);
   bool sp_proc_stmt_statement_finalize(THD *, bool no_lookahead);
 
@@ -4028,8 +4029,35 @@ public:
                          class sp_lex_cursor *cursor_stmt,
                          sp_pcontext *param_ctx, bool add_cpush_instr);
 
+  /*
+    Generate instructions for 'OPEN cursor_name' stamements:
+      1. Static cursors without parameters:
+           DECLARE c FOR SELECT 1 FROM DUAL;
+           OPEN c;
+      2. Static cursors with Oracle style parameters:
+           DECLARE c(a INT) FOR SELECT a FROM DUAL;
+           OPEN c(1);
+      3. Dynamic cursors:
+           DECLARE c FOR stmt;
+           PREPARE stmt FROM 'SELECT ? FROM DUAL';
+           OPEN c USING 1;
+
+    @param thd              - The current thd
+    @param name             - The cursor name
+    @param typed_parameters - The parameters inside parentheses (#2).
+                              They have declarations with data types, hence
+                              the name.
+    @param using_parameters - The parameters from the USING clause (#3).
+  */
   bool sp_open_cursor(THD *thd, const LEX_CSTRING *name,
-                      List<sp_assignment_lex> *parameters);
+                      List<sp_assignment_lex> *typed_parameters,
+                      List<Item> *using_parameters);
+  /*
+    Generate instructions for 'OPEN sys_refcursor_name' statements.
+    @param thd  - The current thd
+    @param name - The sys_refcursor variable name
+    @param stmt - The SELECT statement
+  */
   bool sp_open_cursor_for_stmt(THD *thd, const LEX_CSTRING *name,
                                sp_lex_cursor *stmt);
   bool sp_close(THD *thd, const Lex_ident_sys_st &name);

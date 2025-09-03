@@ -220,7 +220,17 @@ public:
   bool prepare(const char *packet, uint packet_length);
   bool execute_loop(String *expanded_query,
                     bool open_cursor,
+                    select_result *result_arg,
+                    Server_side_cursor **cursor_arg,
                     uchar *packet_arg, uchar *packet_end_arg);
+  bool execute_loop(String *expanded_query,
+                    bool open_cursor,
+                    uchar *packet_arg, uchar *packet_end_arg)
+  {
+    return execute_loop(expanded_query, open_cursor,
+                        &result, &cursor,
+                        packet_arg, packet_end_arg);
+  }
   bool execute_bulk_loop(String *expanded_query,
                          bool open_cursor,
                          uchar *packet_arg, uchar *packet_end_arg, bool multiple_ok_request);
@@ -255,7 +265,9 @@ private:
   bool set_db(const LEX_CSTRING *db);
   bool set_parameters(String *expanded_query,
                       uchar *packet, uchar *packet_end);
-  bool execute(String *expanded_query, bool open_cursor);
+  bool execute(String *expanded_query, bool open_cursor,
+               select_result *result_arg,
+               Server_side_cursor **cursor_arg);
   void deallocate_immediate();
   bool reprepare();
   bool validate_metadata(Prepared_statement  *copy);
@@ -3395,7 +3407,8 @@ static void mysql_stmt_execute_common(THD *thd,
     client, otherwise an error is set in THD
 */
 
-void mysql_sql_stmt_execute(THD *thd)
+#include "sp_rcontext.h"
+void mysql_sql_stmt_execute(THD *thd, const sp_rcontext_addr &cursor_addr)
 {
   LEX *lex= thd->lex;
   Prepared_statement *stmt;
@@ -3404,6 +3417,14 @@ void mysql_sql_stmt_execute(THD *thd)
   String expanded_query;
   DBUG_ENTER("mysql_sql_stmt_execute");
   DBUG_PRINT("info", ("EXECUTE: %.*s", (int) name->length, name->str));
+
+  DBUG_ASSERT(cursor_addr.rcontext_handler() == nullptr ||
+              cursor_addr.rcontext_handler() == &sp_rcontext_handler_local);
+  sp_cursor *cursor= cursor_addr.rcontext_handler() ?
+                     thd->spcont->get_cursor(cursor_addr.offset()) :
+                     nullptr;
+  if (cursor)
+    name= &cursor->ps_name();
 
   if (!(stmt= (Prepared_statement*) thd->stmt_map.find_by_name(name)))
   {
@@ -3476,7 +3497,15 @@ void mysql_sql_stmt_execute(THD *thd)
   Item_change_list_savepoint change_list_savepoint(thd);
   MYSQL_EXECUTE_PS(thd->m_statement_psi, stmt->m_prepared_stmt);
 
-  (void) stmt->execute_loop(&expanded_query, FALSE, NULL, NULL);
+  if (cursor)
+  {
+    if (!stmt->execute_loop(&expanded_query, TRUE,
+                            &cursor->result, &cursor->server_side_cursor,
+                            NULL, NULL))
+      thd->open_cursors_counter_increment();
+  }
+  else
+    (void) stmt->execute_loop(&expanded_query, FALSE, NULL, NULL);
   change_list_savepoint.rollback(thd);
 
   stmt->lex->restore_set_statement_var();
@@ -4370,7 +4399,7 @@ Prepared_statement::set_parameters(String *expanded_query,
     res= set_params_data(this, expanded_query);
 #endif
   }
-  lex->default_used= thd->lex->default_used;
+  lex->default_used= thd->lex->default_used; // TODO
   thd->lex->default_used= false;
   if (res)
   {
@@ -4408,6 +4437,8 @@ Prepared_statement::set_parameters(String *expanded_query,
 bool
 Prepared_statement::execute_loop(String *expanded_query,
                                  bool open_cursor,
+                                 select_result *result_arg,
+                                 Server_side_cursor **cursor_arg,
                                  uchar *packet,
                                  uchar *packet_end)
 {
@@ -4465,11 +4496,12 @@ reexecute:
   if (sql_command_flags() & CF_REEXECUTION_FRAGILE)
   {
     reprepare_observer.reset_reprepare_observer();
-    DBUG_ASSERT(thd->m_reprepare_observer == NULL);
+    //DBUG_ASSERT(thd->m_reprepare_observer == NULL); // TODO
     thd->m_reprepare_observer= &reprepare_observer;
   }
 
-  error= execute(expanded_query, open_cursor) || thd->is_error();
+  error= execute(expanded_query, open_cursor, result_arg, cursor_arg) ||
+         thd->is_error();
 
   thd->m_reprepare_observer= NULL;
 
@@ -4683,7 +4715,8 @@ reexecute:
       thd->m_reprepare_observer= &reprepare_observer;
     }
 
-    error= execute(expanded_query, open_cursor) || thd->is_error();
+    error= execute(expanded_query, open_cursor, &result, &cursor) ||
+                   thd->is_error();
 
     thd->m_reprepare_observer= NULL;
 
@@ -4962,7 +4995,9 @@ Prepared_statement::swap_prepared_statement(Prepared_statement *copy)
     TRUE		Error
 */
 
-bool Prepared_statement::execute(String *expanded_query, bool open_cursor)
+bool Prepared_statement::execute(String *expanded_query, bool open_cursor,
+                                 select_result *result_arg,
+                                 Server_side_cursor **cursor_arg)
 {
   Statement stmt_backup;
   Query_arena *old_stmt_arena;
@@ -5082,7 +5117,7 @@ bool Prepared_statement::execute(String *expanded_query, bool open_cursor)
     general_log_write(thd, COM_STMT_EXECUTE, thd->query(), thd->query_length());
 
   if (open_cursor)
-    error= mysql_open_cursor(thd, &result, &cursor);
+    error= mysql_open_cursor(thd, result_arg, cursor_arg);
   else
   {
     /*
@@ -5130,9 +5165,9 @@ bool Prepared_statement::execute(String *expanded_query, bool open_cursor)
     mysql_change_db(thd, (LEX_CSTRING*) &saved_cur_db_name, TRUE);
 
   /* Assert that if an error, no cursor is open */
-  DBUG_ASSERT(! (error && cursor));
+  DBUG_ASSERT(! (error && *cursor_arg));
 
-  if (! cursor)
+  if (! *cursor_arg)
     /*
       Pass the value false to don't restore set statement variables.
       See the next comment block for more details.

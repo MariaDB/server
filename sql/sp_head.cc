@@ -2832,7 +2832,9 @@ sp_head::sp_add_instr_cpush_for_cursors(THD *thd, sp_pcontext *pcontext)
   {
     const sp_pcursor *c= pcontext->get_cursor_by_local_frame_offset(i);
     sp_instr_cpush *instr= new (thd->mem_root)
-                             sp_instr_cpush(instructions(), pcontext, c->lex(),
+                             sp_instr_cpush(instructions(),
+                                            c->lex()->get_ps_name(),
+                                            pcontext, c->lex(),
                                             pcontext->cursor_offset() + i);
     if (instr == NULL || add_instr(instr))
       return true;
@@ -3868,18 +3870,31 @@ sp_head::set_local_variable_row_field_by_name(THD *thd, sp_pcontext *spcont,
 
 
 bool sp_head::add_open_cursor(THD *thd, sp_pcontext *spcont, uint offset,
+                              const sp_pcursor *pcursor,
                               sp_pcontext *param_spcont,
-                              List<sp_assignment_lex> *parameters)
+                              List<sp_assignment_lex> *typed_parameters)
 {
   /*
     The caller must make sure that the number of formal parameters matches
     the number of actual parameters.
   */
   DBUG_ASSERT((param_spcont ? param_spcont->context_var_count() :  0) ==
-              (parameters ? parameters->elements : 0));
+              (typed_parameters ? typed_parameters->elements : 0));
 
-  if (parameters &&
-      add_set_cursor_param_variables(thd, param_spcont, parameters))
+  if (!pcursor->lex()->get_ps_name().is_null())
+  {
+    DBUG_ASSERT(!typed_parameters);
+    Lex_cstring qbuf={"COPEN",5}; // TODO
+    const sp_rcontext_addr cursor_addr(&sp_rcontext_handler_local, offset);
+    if (thd->lex->new_sp_instr_stmt(thd, empty_clex_str, qbuf, cursor_addr))
+      return true;
+    thd->lex->sql_command= SQLCOM_EXECUTE;
+    return false;
+  }
+
+  // Add a code setting typed parameters: OPEN c(1);
+  if (typed_parameters &&
+      add_set_cursor_typed_param_variables(thd, param_spcont, typed_parameters))
     return true;
 
   sp_instr_copen *i= new (thd->mem_root)

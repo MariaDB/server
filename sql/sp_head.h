@@ -456,7 +456,9 @@ protected:
                              const Table_ident &ref) const;
 private:
   /**
-    Generate a code to set a single cursor parameter variable.
+    Generate a code to set a single cursor typed parameter variable:
+      OPEN c(1);
+
     @param thd          - current thd, for mem_root allocations.
     @param param_spcont - the context of the parameter block
     @param idx          - the index of the parameter
@@ -464,9 +466,9 @@ private:
                           the assignment source expression Item,
                           its free list, and its LEX)
   */
-  bool add_set_cursor_param_variable(THD *thd,
-                                     sp_pcontext *param_spcont, uint idx,
-                                     sp_assignment_lex *prm)
+  bool add_set_cursor_typed_param_variable(THD *thd,
+                                           sp_pcontext *param_spcont, uint idx,
+                                           sp_assignment_lex *prm)
   {
     DBUG_ASSERT(idx < param_spcont->context_var_count());
     sp_variable *spvar= param_spcont->get_context_variable(idx);
@@ -495,20 +497,20 @@ private:
   }
 
   /**
-    Generate a code to set all cursor parameter variables.
+    Generate a code to set all cursor typed-parameter variables.
     This method is called only when parameters exists,
     and the number of formal parameters matches the number of actual
     parameters. See also comments to add_open_cursor().
   */
-  bool add_set_cursor_param_variables(THD *thd, sp_pcontext *param_spcont,
-                                      List<sp_assignment_lex> *parameters)
+  bool add_set_cursor_typed_param_variables(THD *thd, sp_pcontext *param_spcont,
+                                            List<sp_assignment_lex> *parameters)
   {
     DBUG_ASSERT(param_spcont->context_var_count() == parameters->elements);
     sp_assignment_lex *prm;
     List_iterator<sp_assignment_lex> li(*parameters);
     for (uint idx= 0; (prm= li++); idx++)
     {
-      if (add_set_cursor_param_variable(thd, param_spcont, idx, prm))
+      if (add_set_cursor_typed_param_variable(thd, param_spcont, idx, prm))
         return true;
     }
     return false;
@@ -540,21 +542,24 @@ private:
 public:
   /**
     Generate a code for an "OPEN cursor" statement.
-    @param thd          - current thd, for mem_root allocations
-    @param spcont       - the context of the cursor
-    @param offset       - the offset of the cursor
-    @param param_spcont - the context of the cursor parameter block
-    @param parameters   - the list of the OPEN actual parameters
+    @param thd              - current thd, for mem_root allocations
+    @param spcont           - the context of the cursor
+    @param offset           - the offset of the cursor
+    @param param_spcont     - the context of the cursor parameter block
+    @param typed_parameters - the list of the OPEN parenthesized
+                              actual parameters
+    @param using_parameters - the USING clause parameters
 
     The caller must make sure that the number of local variables
     in "param_spcont" (formal parameters) matches the number of list elements
-    in "parameters" (actual parameters).
+    in "typed_parameters" (actual parameters).
     NULL in either of them means 0 parameters.
   */
   bool add_open_cursor(THD *thd, sp_pcontext *spcont,
                        uint offset,
+                       const sp_pcursor *cursor,
                        sp_pcontext *param_spcont,
-                       List<sp_assignment_lex> *parameters);
+                       List<sp_assignment_lex> *typed_parameters);
 
   /**
     Generate an initiation code for a CURSOR FOR LOOP, e.g.:

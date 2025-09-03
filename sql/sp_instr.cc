@@ -1265,7 +1265,7 @@ sp_instr_stmt::exec_core(THD *thd, uint *nextp)
                          &thd->security_ctx->priv_user[0],
                          (char *)thd->security_ctx->host_or_ip,
                          3);
-  int res= mysql_execute_command(thd);
+  int res= mysql_execute_command(thd, false/*QQ*/, get_cursor_addr());
   MYSQL_QUERY_EXEC_DONE(res);
   *nextp= m_ip+1;
   return res;

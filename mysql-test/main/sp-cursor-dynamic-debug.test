@@ -1,0 +1,35 @@
+--source include/have_debug.inc
+
+--echo #
+--echo # MDEV-33830 Support for cursors on prepared statements
+--echo #
+
+DELIMITER $$;
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE c CURSOR FOR stmt;
+  PREPARE stmt FROM 'SELECT 1';
+  OPEN c;
+  CLOSE c;
+END;
+$$
+DELIMITER ;$$
+SHOW PROCEDURE CODE p1;
+CALL p1;
+DROP PROCEDURE p1;
+
+
+DELIMITER $$;
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE c0 CURSOR FOR stmt0;
+  PREPARE stmt0 FROM 'SELECT 1,2,3 FROM DUAL WHERE ?+?+?>0';
+  OPEN c0 USING 1,2,3;
+  CLOSE c0;
+  DEALLOCATE PREPARE stmt0;
+END;
+$$
+DELIMITER ;$$
+SHOW PROCEDURE CODE p1;
+CALL p1;
+DROP PROCEDURE p1;

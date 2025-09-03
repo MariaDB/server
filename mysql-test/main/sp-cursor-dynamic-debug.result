@@ -1,0 +1,39 @@
+#
+# MDEV-33830 Support for cursors on prepared statements
+#
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE c CURSOR FOR stmt;
+PREPARE stmt FROM 'SELECT 1';
+OPEN c;
+CLOSE c;
+END;
+$$
+SHOW PROCEDURE CODE p1;
+Pos	Instruction
+0	cpush c@0
+1	stmt 96 "PREPARE stmt FROM 'SELECT 1'"
+2	stmt 97 "COPEN"
+3	cclose c@0
+4	cpop 1
+CALL p1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE c0 CURSOR FOR stmt0;
+PREPARE stmt0 FROM 'SELECT 1,2,3 FROM DUAL WHERE ?+?+?>0';
+OPEN c0 USING 1,2,3;
+CLOSE c0;
+DEALLOCATE PREPARE stmt0;
+END;
+$$
+SHOW PROCEDURE CODE p1;
+Pos	Instruction
+0	cpush c0@0
+1	stmt 96 "PREPARE stmt0 FROM 'SELECT 1,2,3 FROM..."
+2	stmt 97 "COPEN"
+3	cclose c0@0
+4	stmt 98 "DEALLOCATE PREPARE stmt0"
+5	cpop 1
+CALL p1;
+DROP PROCEDURE p1;

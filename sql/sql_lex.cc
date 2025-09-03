@@ -497,7 +497,7 @@ bool sp_create_assignment_instr(THD *thd, bool no_lookahead,
                                  lex->option_type == OPT_GLOBAL ? setgl :
                                  need_set_keyword ?               setlc :
                                                                   null_clex_str,
-                                 qbuf))
+                                 qbuf, sp_rcontext_addr(nullptr, 0)))
         return true;
     }
     lex->pop_select();
@@ -7600,6 +7600,12 @@ bool LEX::sp_declare_cursor(THD *thd, const LEX_CSTRING *name,
   /* In some cases param_ctx can be NULL. e.g.: FOR rec IN (SELECT...) */
   if (param_ctx)
   {
+    if (param_ctx->context_var_count() &&
+        !cursor_stmt->get_ps_name().is_null())
+    {
+      my_error(ER_WRONG_USAGE, MYF(0), "<dynamic declare cursor>",
+               "<parenthesized cursor parameters>");
+    }
     for (uint prm= 0; prm < param_ctx->context_var_count(); prm++)
     {
       const sp_variable *param= param_ctx->get_context_variable(prm);
@@ -7630,7 +7636,9 @@ bool LEX::sp_declare_cursor(THD *thd, const LEX_CSTRING *name,
   if (add_cpush_instr)
   {
     i= new (thd->mem_root)
-         sp_instr_cpush(sphead->instructions(), spcont, cursor_stmt,
+         sp_instr_cpush(sphead->instructions(),
+                        cursor_stmt->get_ps_name(),
+                        spcont, cursor_stmt,
                         spcont->current_cursor_count() - 1);
     return unlikely(i == NULL) || unlikely(sphead->add_instr(i));
   }
@@ -7638,23 +7646,47 @@ bool LEX::sp_declare_cursor(THD *thd, const LEX_CSTRING *name,
 }
 
 
+static bool check_open_cursor(const sp_pcursor *pcursor,
+                              List<sp_assignment_lex> *typed_parameters)
+{
+  if (typed_parameters && !pcursor->lex()->get_ps_name().is_null())
+  {
+    /*
+      A dynamic cursor can be opened only with the USING clause.
+      It's wrong to use it with parentherised parameters:
+        OPEN dynamic_cursor(1,2,3);
+    */
+    my_error(ER_WRONG_USAGE, MYF(0), "<dynamic open cursor>",
+             "<parenthesized cursor parameters>");
+    return true;
+  }
+  return false;
+}
+
 /**
   Generate an SP code for an "OPEN cursor_name" statement.
   @param thd
-  @param name       - Name of the cursor
-  @param parameters - Cursor parameters, e.g. OPEN c(1,2,3)
-  @returns          - false on success, true on error
+  @param name             - The cursor name.
+  @param typed_parameters - Typed cursor parameters, e.g. OPEN c(1,2,3)
+  @param using_parameters - Using cursor parameters, e.g. OPEN c USING 1,2,3;
+  @returns                - false on success, true on error
 */
 bool LEX::sp_open_cursor(THD *thd, const LEX_CSTRING *name,
-                         List<sp_assignment_lex> *parameters)
+                         List<sp_assignment_lex> *typed_parameters,
+                         List<Item> *using_parameters)
 {
+  if (stmt_prepare_validate("<dynamic cursor open>"))
+    return true;
   uint offset;
   const sp_pcursor *pcursor;
-  uint param_count= parameters ? parameters->elements : 0;
+  uint param_count= typed_parameters ? typed_parameters->elements : 0;
+  prepared_stmt.set(Lex_ident_sys(name->str, name->length),
+                    nullptr, using_parameters);
   return !(pcursor= spcont->find_cursor_with_error(name, &offset, false)) ||
+         check_open_cursor(pcursor, typed_parameters) ||
          pcursor->check_param_count_with_error(param_count) ||
-         sphead->add_open_cursor(thd, spcont, offset,
-                                 pcursor->param_context(), parameters);
+         sphead->add_open_cursor(thd, spcont, offset, pcursor,
+                                 pcursor->param_context(), typed_parameters);
 }
 
 
@@ -11746,7 +11778,8 @@ bool SELECT_LEX::make_unique_derived_name(THD *thd, LEX_CSTRING *alias)
 
 bool LEX::new_sp_instr_stmt(THD *thd,
                             const LEX_CSTRING &prefix,
-                            const LEX_CSTRING &suffix)
+                            const LEX_CSTRING &suffix,
+                            const sp_rcontext_addr &cursor_addr)
 {
   LEX_STRING qbuff;
   sp_instr_stmt *i;
@@ -11777,7 +11810,7 @@ bool LEX::new_sp_instr_stmt(THD *thd,
   qbuff.str[prefix.length + suffix.length]= 0;
 
   if (!(i= new (thd->mem_root) sp_instr_stmt(sphead->instructions(),
-                                             spcont, this, qbuff)))
+                                             spcont, this, qbuff, cursor_addr)))
     return true;
 
   return sphead->add_instr(i);
@@ -11800,7 +11833,8 @@ bool LEX::sp_proc_stmt_statement_finalize_buf(THD *thd, const LEX_CSTRING &qbuf)
   */
   DBUG_ASSERT(sql_command != SQLCOM_SET_OPTION || var_list.is_empty());
   if (sql_command != SQLCOM_SET_OPTION)
-    return new_sp_instr_stmt(thd, empty_clex_str, qbuf);
+    return new_sp_instr_stmt(thd, empty_clex_str, qbuf,
+                             sp_rcontext_addr(nullptr, 0));
   return false;
 }
 

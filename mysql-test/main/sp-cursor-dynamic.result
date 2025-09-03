@@ -1,0 +1,405 @@
+#
+# MDEV-33830 Support for cursors on prepared statements
+#
+# OPEN with a never prepared stmt
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE c CURSOR FOR stmt;
+OPEN c;
+END;
+$$
+CALL p1;
+ERROR HY000: Unknown prepared statement handler (stmt) given to EXECUTE
+DROP PROCEDURE p1;
+# OPEN with a deallocated stmt
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE c CURSOR FOR stmt;
+PREPARE stmt FROM 'SELECT 1';
+DEALLOCATE PREPARE stmt;
+OPEN c;
+END;
+$$
+CALL p1;
+ERROR HY000: Unknown prepared statement handler (stmt) given to EXECUTE
+DROP PROCEDURE p1;
+# OPEN with a non-SELECT statement
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE c CURSOR FOR stmt;
+PREPARE stmt FROM 'DROP TABLE t1';
+OPEN c;
+END;
+$$
+CALL p1;
+ERROR 42S02: Unknown table 'test.t1'
+DROP PROCEDURE p1;
+# An attemp to reuse an in-use statement in OPEN
+CREATE FUNCTION f1() RETURNS INT
+BEGIN
+DECLARE c CURSOR FOR stmt;
+OPEN c;
+CLOSE c;
+RETURN 11;
+END;
+$$
+PREPARE stmt FROM 'SELECT f1()';
+EXECUTE stmt;
+ERROR HY000: The prepared statement contains a stored routine call that refers to that same statement. It's not allowed to execute a prepared statement in such a recursive manner
+DEALLOCATE PREPARE stmt;
+DROP FUNCTION f1;
+# SET STATEMENT .. FOR OPEN is not supported
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE v0 TEXT;
+DECLARE c CURSOR FOR ps;
+SET STATEMENT max_sort_length=1000 FOR OPEN c;
+CLOSE c;
+END;
+$$
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'OPEN c;
+CLOSE c;
+END' at line 5
+# A single FETCH from a simple SELECT without tables
+CREATE PROCEDURE p1(dynamic_sql TEXT)
+BEGIN
+DECLARE v1 INT;
+DECLARE v2 TEXT;
+DECLARE c CURSOR FOR stmt;
+PREPARE stmt FROM dynamic_sql;
+OPEN c;
+FETCH c INTO v1, v2;
+SELECT v1, v2;
+CLOSE c;
+END;
+$$
+CALL p1('SELECT 123, ''v123''');
+v1	v2
+123	v123
+CALL p1('VALUES (123, ''v123'')');
+v1	v2
+123	v123
+DROP PROCEDURE p1;
+# A single FETCH + SELECT without tables + OPEN in an inner block
+CREATE PROCEDURE p1(dynamic_sql TEXT)
+BEGIN
+PREPARE stmt FROM dynamic_sql;
+BEGIN
+DECLARE v1 INT;
+DECLARE v2 TEXT;
+DECLARE c CURSOR FOR stmt;
+OPEN c;
+FETCH c INTO v1, v2;
+SELECT v1, v2;
+CLOSE c;
+END;
+END;
+$$
+CALL p1('SELECT 123, ''v123''');
+v1	v2
+123	v123
+CALL p1('VALUES (123, ''v123'')');
+v1	v2
+123	v123
+DROP PROCEDURE p1;
+# A loop for FETCH with an I_S query
+CREATE PROCEDURE p1 ()
+BEGIN
+DECLARE dynamic_sql TEXT;
+DECLARE v1 INT;
+DECLARE v2 VARCHAR(64);
+DECLARE end_of_data INT DEFAULT 0;
+DECLARE c0 CURSOR FOR stmt1;
+DECLARE EXIT HANDLER FOR NOT FOUND SET end_of_data = 1;
+SET dynamic_sql='SELECT id, collation_name'
+                  ' FROM INFORMATION_SCHEMA.COLLATIONS'
+                  ' WHERE id IN(33,83,192)'
+                  ' ORDER BY id';
+PREPARE stmt1 FROM dynamic_sql;
+OPEN c0;
+WHILE (end_of_data = 0)
+DO
+FETCH FROM c0 INTO v1, v2;
+SELECT v1, v2;
+END WHILE;
+CLOSE c0;
+END;
+$$
+CALL p1();
+v1	v2
+33	utf8mb3_general_ci
+v1	v2
+83	utf8mb3_bin
+v1	v2
+192	utf8mb3_unicode_ci
+CALL p1();
+v1	v2
+33	utf8mb3_general_ci
+v1	v2
+83	utf8mb3_bin
+v1	v2
+192	utf8mb3_unicode_ci
+DROP PROCEDURE p1;
+# A single FETCH from a table
+CREATE OR REPLACE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (10);
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE v INT;
+DECLARE c CURSOR FOR stmt;
+PREPARE stmt FROM 'SELECT a FROM t1';
+OPEN c;
+FETCH c INTO v;
+SELECT v;
+CLOSE c;
+END;
+$$
+CALL p1;
+v
+10
+DROP TABLE t1;
+DROP PROCEDURE p1;
+# A single FETCH from a stored function
+CREATE FUNCTION f1() RETURNS INT RETURN 123;
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE v INT;
+DECLARE c CURSOR FOR stmt;
+PREPARE stmt FROM 'SELECT f1()';
+OPEN c;
+FETCH c INTO v;
+SELECT v;
+CLOSE c;
+END;
+$$
+CALL p1;
+v
+123
+DROP FUNCTION f1;
+DROP PROCEDURE p1;
+# Fetching from an arbitrary two row dynamic SQL passed as a parameter
+CREATE TABLE t1 (a INT, b TEXT);
+INSERT INTO t1 VALUES (1,'b1'), (2, 'b2');
+CREATE FUNCTION f1(p INT) RETURNS INT RETURN p;
+CREATE FUNCTION f2(p TEXT) RETURNS TEXT RETURN p;
+CREATE PROCEDURE p1 (dynamic_sql TEXT)
+BEGIN
+DECLARE v1 INT;
+DECLARE v2 VARCHAR(32);
+DECLARE end_of_data INT DEFAULT 0;
+DECLARE c0 CURSOR FOR stmt0;
+DECLARE EXIT HANDLER FOR NOT FOUND SET end_of_data = 1;
+PREPARE stmt0 FROM dynamic_sql;
+OPEN c0;
+WHILE (end_of_data = 0)
+DO
+FETCH FROM c0 INTO v1, v2;
+SELECT v1, v2;
+END WHILE;
+CLOSE c0;
+END;
+$$
+CALL p1('SELECT a,b FROM t1');
+v1	v2
+1	b1
+v1	v2
+2	b2
+CALL p1('SELECT f1(a),f2(b) FROM t1');
+v1	v2
+1	b1
+v1	v2
+2	b2
+CALL p1('SELECT a,b FROM t1 UNION ALL SELECT f1(a),f2(b) FROM t1');
+v1	v2
+1	b1
+v1	v2
+2	b2
+v1	v2
+1	b1
+v1	v2
+2	b2
+CALL p1('SELECT a,b FROM t1 UNION DISTINCT SELECT f1(a),f2(b) FROM t1');
+v1	v2
+1	b1
+v1	v2
+2	b2
+DROP PROCEDURE p1;
+DROP TABLE t1;
+DROP FUNCTION f1;
+DROP FUNCTION f2;
+# Metadata change
+CREATE TABLE t1 (a INT, b TEXT);
+INSERT INTO t1 VALUES (10,'b10');
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE v0, v1 TEXT;
+DECLARE c CURSOR FOR stmt;
+PREPARE stmt FROM 'SELECT * FROM t1';
+OPEN c;
+FETCH c INTO v0, v1;
+CLOSE c;
+DEALLOCATE PREPARE stmt;
+SELECT v0, v1;
+END;
+$$
+CALL p1;
+v0	v1
+10	b10
+ALTER TABLE t1 MODIFY COLUMN b TEXT DEFAULT '' FIRST ;
+CALL p1;
+v0	v1
+b10	10
+ALTER TABLE t1 MODIFY COLUMN b TEXT DEFAULT '' AFTER a;
+CALL p1;
+v0	v1
+10	b10
+DROP PROCEDURE p1;
+DROP TABLE t1;
+# A <dynamic declare cusor> with parenthesized parameters
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE v INT;
+DECLARE c CURSOR(a INT) FOR stmt;
+PREPARE stmt FROM 'SELECT ?+a';
+OPEN c(1) USING 1;
+CLOSE c;
+END;
+$$
+ERROR HY000: Incorrect usage of <dynamic declare cursor> and <parenthesized cursor parameters>
+# Attempts to open a dynamic cursor with a named parameter fail
+# OPEN c(10); <-- this expects a static cursor declared as e.g.:
+# DECLARE c CURSOR(pa INT) FOR SELECT * FROM t1 WHERE a=pa;
+# Dynamic cursors with placeholders should be opened with USING:
+# DECLARE c CURSOR FOR prepared_stmt;
+# PREPARE prepared_stmt FROM 'SELECT * FROM t1 WHERE a=?';
+# OPEN c USING 10;
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE v INT;
+DECLARE c CURSOR FOR stmt;
+PREPARE stmt FROM 'SELECT 1 FROM DUAL WHERE ?>0';
+OPEN c(10);
+CLOSE c;
+END;
+$$
+ERROR HY000: Incorrect usage of <dynamic open cursor> and <parenthesized cursor parameters>
+# A cursor with placeholder parameters: too few USING parameters
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE v INT;
+DECLARE c CURSOR FOR stmt;
+PREPARE stmt FROM 'SELECT 1 FROM DUAL WHERE ?=0';
+OPEN c;
+CLOSE c;
+END;
+$$
+CALL p1;
+ERROR HY000: Incorrect arguments to EXECUTE
+DROP PROCEDURE p1;
+# A cursor with placeholder parameters: too many USING parameters
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE v INT;
+DECLARE c CURSOR FOR stmt;
+PREPARE stmt FROM 'SELECT 1 FROM DUAL';
+OPEN c USING 1;
+CLOSE c;
+END;
+$$
+CALL p1;
+ERROR HY000: Incorrect arguments to EXECUTE
+DROP PROCEDURE p1;
+# A cursor with one param - SP
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (10), (11), (12), (13);
+CREATE FUNCTION f1() RETURNS INT RETURN 11;
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE v INT;
+DECLARE end_of_data INT DEFAULT 0;
+DECLARE c CURSOR FOR stmt;
+DECLARE EXIT HANDLER FOR NOT FOUND SET end_of_data = 1;
+PREPARE stmt FROM 'SELECT a FROM t1 WHERE a>?';
+OPEN c USING f1();
+FETCH c INTO v;
+SELECT v;
+WHILE (end_of_data = 0)
+DO
+FETCH FROM c INTO v;
+SELECT v;
+END WHILE;
+CLOSE c;
+END;
+$$
+ERROR 42000: <dynamic cursor open> does not support subqueries or stored functions
+DROP FUNCTION f1;
+DROP TABLE t1;
+# A cursor with one param - subselect
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (10), (11), (12), (13);
+CREATE FUNCTION f1() RETURNS INT RETURN 11;
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE v INT;
+DECLARE end_of_data INT DEFAULT 0;
+DECLARE c CURSOR FOR stmt;
+DECLARE EXIT HANDLER FOR NOT FOUND SET end_of_data = 1;
+PREPARE stmt FROM 'SELECT a FROM t1 WHERE a>?';
+OPEN c USING (SELECT a FROM t1 WHERE a=11);
+FETCH c INTO v;
+SELECT v;
+WHILE (end_of_data = 0)
+DO
+FETCH FROM c INTO v;
+SELECT v;
+END WHILE;
+CLOSE c;
+END;
+$$
+ERROR 42000: OPEN..USING does not support subqueries or stored functions
+DROP FUNCTION f1;
+DROP TABLE t1;
+# A cursor with multiple parameters - SP + subquery mixture
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (10), (11), (12), (13);
+CREATE FUNCTION f1() RETURNS INT RETURN 11;
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE v INT;
+DECLARE end_of_data INT DEFAULT 0;
+DECLARE c CURSOR FOR stmt;
+DECLARE EXIT HANDLER FOR NOT FOUND SET end_of_data = 1;
+PREPARE stmt FROM 'SELECT a FROM t1 WHERE a>? AND a>? AND a>?';
+OPEN c USING f1(), (SELECT a FROM t1 WHERE a=12), f1();
+FETCH c INTO v;
+SELECT v;
+WHILE (end_of_data = 0)
+DO
+FETCH FROM c INTO v;
+SELECT v;
+END WHILE;
+CLOSE c;
+END;
+$$
+ERROR 42000: OPEN..USING does not support subqueries or stored functions
+DROP FUNCTION f1;
+DROP TABLE t1;
+# A cursor with multiple parameters in SELECT list
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (10), (11), (12), (13);
+CREATE FUNCTION f1() RETURNS TEXT RETURN 'f1';
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE v0 TEXT;
+DECLARE v1 TEXT;
+DECLARE c CURSOR FOR stmt;
+PREPARE stmt FROM 'SELECT ?,? FROM t1';
+OPEN c USING (SELECT MAX(a) FROM t1), f1();
+FETCH c INTO v0, v1;
+SELECT v0, v1;
+CLOSE c;
+END;
+$$
+ERROR 42000: OPEN..USING does not support subqueries or stored functions
+DROP FUNCTION f1;
+DROP TABLE t1;

@@ -85,8 +85,9 @@ private:
 };
 
 public:
-  sp_cursor()
-   :result(NULL, false),
+  sp_cursor(const Lex_ident_sys &ps_name)
+   :m_ps_name(ps_name),
+    result(NULL, false),
     server_side_cursor(NULL)
   { }
   sp_cursor(THD *thd_arg, bool view_structure_only)
@@ -132,10 +133,15 @@ public:
     reset(thd_arg);
   }
 
+  const Lex_ident_sys & ps_name() const { return m_ps_name; }
   virtual sp_instr_cpush *get_push_instr() { return nullptr; }
+protected:
+  Lex_ident_sys m_ps_name;
 private:
+public:
   Select_fetch_into_spvars result;
   Server_side_cursor *server_side_cursor;
+private:
   void destroy();
 };
 
@@ -145,7 +151,7 @@ class sp_cursor_array_element: public sp_cursor
   uint m_ref_count;
 public:
   sp_cursor_array_element()
-   :sp_cursor(),
+   :sp_cursor(Lex_ident_sys()),
     m_ref_count(0)
   { }
   uint ref_count() const { return m_ref_count; }
