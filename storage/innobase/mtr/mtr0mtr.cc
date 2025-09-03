@@ -909,7 +909,8 @@ ATTRIBUTE_COLD void log_t::append_prepare_wait(bool late, bool ex) noexcept
     const bool is_pmem{is_mmap()};
     if (is_pmem)
     {
-      ut_ad(lsn - get_flushed_lsn(std::memory_order_relaxed) < capacity());
+      ut_ad(lsn - get_flushed_lsn(std::memory_order_relaxed) < capacity() ||
+            overwrite_warned);
       persist(lsn);
     }
 #endif
