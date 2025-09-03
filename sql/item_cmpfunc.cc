@@ -1968,7 +1968,7 @@ longlong Item_func_strcmp::val_int()
 }
 
 
-bool Item_func_opt_neg::eq(const Item *item, bool binary_cmp) const
+bool Item_func_opt_neg::eq(const Item *item, const Eq_config &config) const
 {
   /* Assume we don't have rtti */
   if (this == item)
@@ -1981,7 +1981,7 @@ bool Item_func_opt_neg::eq(const Item *item, bool binary_cmp) const
     return 0;
   if (negated != ((Item_func_opt_neg *) item_func)->negated)
     return 0;
-  return Item_args::eq(item_func, binary_cmp);
+  return Item_args::eq(item_func, config);
 }
 
 

@@ -2618,6 +2618,21 @@ static uint64_t row_parse_int(const byte *data, size_t len,
   return 0;
 }
 
+inline bool dict_table_t::can_bulk_insert(const trx_t &trx) const noexcept
+{
+  if (is_temporary() || versioned() || has_spatial_index())
+    return false;
+  /* Bulk insert is not compatible with HA_CHECK_UNIQUE_AFTER_WRITE.
+  Refuse bulk insert if HA_KEY_ALG_LONG_HASH indexes exist.
+  handler::ha_check_long_uniques() assumes that all data
+  passed to ha_innobase::write_row() is available immediately. */
+  if (const char *s= v_col_names)
+    for (auto n= n_v_cols; n--; s+= strlen(s) + 1)
+      if (!strncmp(s, C_STRING_WITH_LEN("DB_ROW_HASH_")))
+        return false; /* make_long_hash_field_name() */
+  return !trx.check_foreigns || (foreign_set.empty() && referenced_set.empty());
+}
+
 /***************************************************************//**
 Tries to insert an entry into a clustered index, ignoring foreign key
 constraints. If a record with the same unique key is found, the other
@@ -2728,13 +2743,6 @@ err_exit:
 		goto func_exit;
 	}
 
-	if (auto_inc) {
-		buf_block_t* root
-			= mtr.at_savepoint(mode != BTR_MODIFY_ROOT_AND_LEAF);
-		ut_ad(index->page == root->page.id().page_no());
-		page_set_autoinc(root, auto_inc, &mtr, false);
-	}
-
 #ifdef UNIV_DEBUG
 	{
 		page_t*	page = btr_pcur_get_page(&pcur);
@@ -2828,12 +2836,7 @@ avoid_bulk:
 		/* If foreign key exist and foreign key is enabled
 		then avoid using bulk insert for copy algorithm */
 		if (innodb_alter_copy_bulk
-		    && !index->table->is_temporary()
-		    && !index->table->versioned()
-		    && !index->table->has_spatial_index()
-		    && (!trx->check_foreigns
-                        || (index->table->foreign_set.empty()
-                            && index->table->referenced_set.empty()))) {
+		    && index->table->can_bulk_insert(*trx)) {
 			ut_ad(page_is_empty(block->page.frame));
 			/* This code path has been executed at the
 			start of the alter operation. Consecutive
@@ -2851,6 +2854,13 @@ avoid_bulk:
 	}
 
 row_level_insert:
+	if (auto_inc) {
+		buf_block_t* root =
+			mtr.at_savepoint(mode != BTR_MODIFY_ROOT_AND_LEAF);
+		ut_ad(index->page == root->page.id().page_no());
+		page_set_autoinc(root, auto_inc, &mtr, false);
+	}
+
 	if (UNIV_UNLIKELY(entry->info_bits != 0)) {
 		const rec_t* rec = btr_pcur_get_rec(&pcur);
 

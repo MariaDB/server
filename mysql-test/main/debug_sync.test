@@ -454,21 +454,20 @@ SET DEBUG_SYNC= 'RESET';
 --echo #
 create table t (c int) engine=innodb;
 --connect con1,localhost,root
-set debug_sync='get_schema_column WAIT_FOR go';
+set debug_sync='get_schema_column SIGNAL waiting WAIT_FOR go';
 send select column_name from information_schema.columns
 where table_schema='test' and table_name='t';
 
 --connection default
-let $wait_condition=select 1 from information_schema.processlist where state like 'debug sync point%';
---source include/wait_condition.inc
+set debug_sync= 'now WAIT_FOR waiting';
 let $connid=`select connection_id()`;
 lock table t write;
 send alter table t discard tablespace;
 
 --connect con2,localhost,root
---disable_query_log
---eval kill query $connid
---enable_query_log
+--let $wait_condition= SELECT COUNT(*)=1 FROM information_schema.processlist WHERE id=$connid AND state='Waiting for table metadata lock' AND INFO='alter table t discard tablespace'
+--source include/wait_condition.inc
+--evalp kill query $connid
 --disconnect con2
 
 --connection default

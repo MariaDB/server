@@ -1271,7 +1271,14 @@ public:
   {
     return type_handler()->Item_send(this, protocol, buffer);
   }
-  virtual bool eq(const Item *, bool binary_cmp) const;
+  struct Eq_config
+  {
+    bool binary_cmp;        /**< Make binary comparison */
+    bool omit_table_names;  /**< Skip table and db names comparison */
+    Eq_config(bool binary_cmp, bool omit_table_names= false)
+      : binary_cmp(binary_cmp), omit_table_names(omit_table_names) {}
+  };
+  virtual bool eq(const Item *, const Eq_config &config) const;
   enum_field_types field_type() const
   {
     return type_handler()->field_type();
@@ -2022,12 +2029,12 @@ public:
   /**
     TIME or DATETIME precision of the item: 0..6
   */
-  uint time_precision(THD *thd)
+  decimal_digits_t time_precision(THD *thd)
   {
     return const_item() ? type_handler()->Item_time_precision(thd, this) :
                           MY_MIN(decimals, TIME_SECOND_PART_DIGITS);
   }
-  uint datetime_precision(THD *thd)
+  decimal_digits_t datetime_precision(THD *thd)
   {
     return const_item() ? type_handler()->Item_datetime_precision(thd, this) :
                           MY_MIN(decimals, TIME_SECOND_PART_DIGITS);
@@ -2397,7 +2404,6 @@ public:
   virtual bool check_partition_func_processor(void *arg) { return true; }
   virtual bool post_fix_fields_part_expr_processor(void *arg) { return 0; }
   virtual bool rename_fields_processor(void *arg) { return 0; }
-  virtual bool rename_table_processor(void *arg) { return 0; }
   /*
     TRUE if the function is knowingly TRUE or FALSE.
     Not to be used for AND/OR formulas.
@@ -2425,13 +2431,6 @@ public:
     LEX_CSTRING db_name;
     LEX_CSTRING table_name;
     List<Create_field> fields;
-  };
-  struct func_processor_rename_table
-  {
-    Lex_ident_db old_db;
-    Lex_ident_table old_table;
-    Lex_ident_db new_db;
-    Lex_ident_table new_table;
   };
   virtual bool check_vcol_func_processor(void *arg)
   {
@@ -2919,11 +2918,11 @@ protected:
     return true;
   }
   bool excl_dep_on_grouping_fields(st_select_lex *sel);
-  bool eq(const Item_args *other, bool binary_cmp) const
+  bool eq(const Item_args *other, const Item::Eq_config &config) const
   {
     for (uint i= 0; i < arg_count ; i++)
     {
-      if (!args[i]->eq(other->args[i], binary_cmp))
+      if (!args[i]->eq(other->args[i], config))
         return false;
     }
     return true;
@@ -3143,7 +3142,7 @@ public:
                                             table, src, param,
                                             type() == Item::NULL_ITEM);
   }
-  bool eq(const Item *item, bool binary_cmp) const override;
+  bool eq(const Item *item, const Eq_config &config) const override;
   const Type_all_attributes *get_type_all_attributes_from_const() const
     override
   { return this; }
@@ -3750,7 +3749,7 @@ public:
   */
   Item_field(THD *thd, Field *field);
   Type type() const override { return FIELD_ITEM; }
-  bool eq(const Item *item, bool binary_cmp) const override;
+  bool eq(const Item *item, const Eq_config &config) const override;
   double val_real() override;
   longlong val_int() override;
   my_decimal *val_decimal(my_decimal *) override;
@@ -3897,7 +3896,6 @@ public:
   bool switch_to_nullable_fields_processor(void *arg) override;
   bool update_vcol_processor(void *arg) override;
   bool rename_fields_processor(void *arg) override;
-  bool rename_table_processor(void *arg) override;
   bool check_vcol_func_processor(void *arg) override;
   bool set_fields_as_dependent_processor(void *arg) override
   {
@@ -5912,10 +5910,10 @@ public:
   enum Type type() const override	{ return REF_ITEM; }
   enum Type real_type() const override
   { return ref ? (*ref)->type() : REF_ITEM; }
-  bool eq(const Item *item, bool binary_cmp) const override
+  bool eq(const Item *item, const Eq_config &config) const override
   {
     const Item *it= item->real_item();
-    return ref && (*ref)->eq(it, binary_cmp);
+    return ref && (*ref)->eq(it, config);
   }
   void save_val(Field *to) override;
   void save_result(Field *to) override;
@@ -6266,10 +6264,10 @@ public:
   { return orig_item->full_name_cstring(); }
   void make_send_field(THD *thd, Send_field *field) override
   { orig_item->make_send_field(thd, field); }
-  bool eq(const Item *item, bool binary_cmp) const override
+  bool eq(const Item *item, const Eq_config &config) const override
   {
     const Item *it= item->real_item();
-    return orig_item->eq(it, binary_cmp);
+    return orig_item->eq(it, config);
   }
   void fix_after_pullout(st_select_lex *new_parent, Item **refptr, bool merge)
     override
@@ -6378,7 +6376,7 @@ public:
   }
 
   bool fix_fields(THD *, Item **) override;
-  bool eq(const Item *item, bool binary_cmp) const override;
+  bool eq(const Item *item, const Eq_config &config) const override;
   Item *get_tmp_table_item(THD *thd) override
   {
     if (const_item())
@@ -7045,7 +7043,7 @@ public:
     m_share_field= false;
   }
   Type type() const override { return DEFAULT_VALUE_ITEM; }
-  bool eq(const Item *item, bool binary_cmp) const override;
+  bool eq(const Item *item, const Eq_config &config) const override;
   bool fix_fields(THD *, Item **) override;
   void cleanup() override;
   void print(String *str, enum_query_type query_type) override;
@@ -7136,7 +7134,7 @@ public:
   { }
   Type type() const override { return CONTEXTUALLY_TYPED_VALUE_ITEM; }
   bool vcol_assignment_allowed_value() const override { return true; }
-  bool eq(const Item *item, bool binary_cmp) const override { return false; }
+  bool eq(const Item *item, const Eq_config &config) const override { return false; }
   bool is_evaluable_expression() const override { return false; }
   Field *create_tmp_field_ex(MEM_ROOT *,
                              TABLE *, Tmp_field_src *,
@@ -7276,7 +7274,7 @@ public:
   Item_insert_value(THD *thd, Name_resolution_context *context_arg, Item *a)
     :Item_field(thd, context_arg),
      arg(a) {}
-  bool eq(const Item *item, bool binary_cmp) const override;
+  bool eq(const Item *item, const Eq_config &config) const override;
   bool fix_fields(THD *, Item **) override;
   void print(String *str, enum_query_type query_type) override;
   int save_in_field(Field *field_arg, bool no_conversions) override
@@ -7377,7 +7375,7 @@ Item_trigger_field(THD *thd, Name_resolution_context *context_arg,
   }
   void setup_field(THD *thd, TABLE *table, GRANT_INFO *table_grant_info);
   Type type() const override { return TRIGGER_FIELD_ITEM; }
-  bool eq(const Item *item, bool binary_cmp) const override;
+  bool eq(const Item *item, const Eq_config &config) const override;
   bool fix_fields(THD *, Item **) override;
   void print(String *str, enum_query_type query_type) override;
   table_map used_tables() const override { return (table_map)0L; }
@@ -7506,7 +7504,7 @@ public:
   {
     return cached_field ? cached_field->eq_def (field) : FALSE;
   }
-  bool eq(const Item *item, bool binary_cmp) const override
+  bool eq(const Item *item, const Eq_config &config) const override
   {
     return this == item;
   }
@@ -8230,11 +8228,12 @@ bool fix_escape_item(THD *thd, Item *escape_item, String *tmp_str,
                      bool escape_used_in_parsing, CHARSET_INFO *cmp_cs,
                      int *escape);
 
-inline bool Virtual_column_info::is_equal(const Virtual_column_info* vcol) const
+inline bool Virtual_column_info::is_equal(const Virtual_column_info* vcol,
+                                          bool omit_table_names) const
 {
   return type_handler()  == vcol->type_handler()
       && is_stored() == vcol->is_stored()
-      && expr->eq(vcol->expr, true);
+      && expr->eq(vcol->expr, {true, omit_table_names});
 }
 
 inline void Virtual_column_info::print(String* str)
@@ -8270,10 +8269,10 @@ public:
   { return m_item->full_name_cstring(); }
   void make_send_field(THD *thd, Send_field *field) override
   { m_item->make_send_field(thd, field); }
-  bool eq(const Item *item, bool binary_cmp) const override
+  bool eq(const Item *item, const Eq_config &config) const override
   {
     const Item *it= item->real_item();
-    return m_item->eq(it, binary_cmp);
+    return m_item->eq(it, config);
   }
   void fix_after_pullout(st_select_lex *new_parent, Item **refptr, bool merge) override
   { m_item->fix_after_pullout(new_parent, &m_item, merge); }

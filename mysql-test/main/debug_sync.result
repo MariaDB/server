@@ -325,13 +325,15 @@ SET DEBUG_SYNC= 'RESET';
 #
 create table t (c int) engine=innodb;
 connect con1,localhost,root;
-set debug_sync='get_schema_column WAIT_FOR go';
+set debug_sync='get_schema_column SIGNAL waiting WAIT_FOR go';
 select column_name from information_schema.columns
 where table_schema='test' and table_name='t';
 connection default;
+set debug_sync= 'now WAIT_FOR waiting';
 lock table t write;
 alter table t discard tablespace;
 connect con2,localhost,root;
+kill query $connid;
 disconnect con2;
 connection default;
 ERROR 70100: Query execution was interrupted

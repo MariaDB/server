@@ -2829,7 +2829,7 @@ static int wsrep_TOI_begin(THD *thd, const char *db, const char *table,
   DBUG_ASSERT(wsrep_OSU_method_get(thd) == WSREP_OSU_TOI);
 
   WSREP_DEBUG("TOI Begin: %s", wsrep_thd_query(thd));
-  DEBUG_SYNC(thd, "wsrep_before_toi_begin");
+  DEBUG_SYNC(thd, "wsrep_toi_begin");
 
   if (!wsrep_ready ||
       wsrep_can_run_in_toi(thd, db, table, table_list, create_info) == false)

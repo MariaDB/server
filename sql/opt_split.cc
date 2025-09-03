@@ -655,7 +655,7 @@ add_ext_keyuse_for_splitting(Dynamic_array<KEYUSE_EXT> *ext_keyuses,
   possible_keys.intersect(field->table->keys_usable_for_splitting);
   tab->keys.merge(possible_keys);
 
-  Item_func_eq *eq_item= (Item_func_eq *) (added_key_field->cond);
+  Item_args *eq_item= (Item_args *) (added_key_field->cond);
   keyuse_ext.table= field->table;
   keyuse_ext.val= eq_item->arguments()[1];
   keyuse_ext.key= key;

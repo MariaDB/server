@@ -1496,7 +1496,7 @@ class Interval_DDhhmmssff: public Temporal
   }
 public:
   // Get fractional second precision from an Item
-  static uint fsp(THD *thd, Item *item);
+  static decimal_digits_t fsp(THD *thd, Item *item);
   /*
     Maximum useful HOUR value:
     TIMESTAMP'0001-01-01 00:00:00' + '87649415:59:59' = '9999-12-31 23:59:59'

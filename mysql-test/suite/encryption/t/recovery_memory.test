@@ -43,3 +43,5 @@ let $restart_parameters=;
 SELECT COUNT(*) FROM t1;
 ALTER TABLE t1 FORCE;
 DROP TABLE t1;
+
+--rmdir $basedir

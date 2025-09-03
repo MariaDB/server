@@ -3773,27 +3773,6 @@ bool Virtual_column_info::cleanup_session_expr()
 }
 
 
-bool
-Virtual_column_info::is_equivalent(THD *thd, TABLE_SHARE *share, TABLE_SHARE *vcol_share,
-                                  const Virtual_column_info* vcol, bool &error) const
-{
-  error= true;
-  Item *cmp_expr= vcol->expr->build_clone(thd);
-  if (!cmp_expr)
-    return false;
-  Item::func_processor_rename_table param;
-  param.old_db=    Lex_ident_db(vcol_share->db);
-  param.old_table= Lex_ident_table(vcol_share->table_name);
-  param.new_db=    Lex_ident_db(share->db);
-  param.new_table= Lex_ident_table(share->table_name);
-  cmp_expr->walk(&Item::rename_table_processor, 1, &param);
-
-  error= false;
-  return type_handler()  == vcol->type_handler()
-      && is_stored() == vcol->is_stored()
-      && expr->eq(cmp_expr, true);
-}
-
 
 class Vcol_expr_context
 {
@@ -8079,6 +8058,19 @@ void TABLE::mark_columns_per_binlog_row_image()
   if (file->row_logging &&
       !ha_check_storage_engine_flag(s->db_type(), HTON_NO_BINLOG_ROW_OPT))
   {
+#ifdef WITH_WSREP
+    /**
+     The marking of all columns will prevent update/set column values for the
+     sequence table. For the sequence table column bitmap sent from master is
+     used.
+    */
+    if (WSREP(thd) && wsrep_thd_is_applying(thd) &&
+        s->sequence && s->primary_key >= MAX_KEY)
+    {
+      DBUG_VOID_RETURN;
+    }
+#endif /* WITH_WSREP */
+
     /* if there is no PK, then mark all columns for the BI. */
     if (s->primary_key >= MAX_KEY)
     {

@@ -1208,7 +1208,7 @@ static dberr_t srv_log_rebuild_if_needed()
 
   if (log_sys.file_size == srv_log_file_size &&
       log_sys.format ==
-      (srv_encrypt_log ? log_t::FORMAT_ENC_10_8 : log_t::FORMAT_10_8))
+      (srv_encrypt_log ? log_t::FORMAT_ENC_11 : log_t::FORMAT_10_8))
   {
     /* No need to add or remove encryption, upgrade, or resize. */
     delete_log_files();
