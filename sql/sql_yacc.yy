@@ -913,7 +913,6 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %token  <kwd>  INDEXES
 %token  <kwd>  INSERT_METHOD
 %token  <kwd>  INSTALL_SYM
-%token  <kwd>  INSTANCE_SYM                  /* MySQL */
 %token  <kwd>  INVOKER_SYM
 %token  <kwd>  IO_SYM
 %token  <kwd>  IPC_SYM
@@ -1340,7 +1339,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
         sp_opt_label BIN_NUM TEXT_STRING_filesystem
         opt_constraint constraint opt_ident
         sp_block_label sp_control_label opt_place opt_db
-        udt_name opt_datadir_ssl
+        udt_name
 
 %ifdef ORACLE
 %type <lex_str>
@@ -8963,48 +8962,6 @@ clone_stmt:
             if (Lex->m_sql_cmd == nullptr)
               MYSQL_YYABORT;
           }
-
-        | CLONE_SYM INSTANCE_SYM FROM user ':' ulong_num
-          IDENTIFIED_SYM BY TEXT_STRING
-          opt_datadir_ssl
-          {
-            Lex->sql_command= SQLCOM_CLONE;
-            /* TODO: Reject space characters around ':' */
-            $4->auth= new (thd->mem_root) USER_AUTH();
-            $4->auth->pwtext= $9;
-
-            Lex->m_sql_cmd= new (thd->mem_root)
-                Sql_cmd_clone($4, $6, $10);
-
-            if (Lex->m_sql_cmd == nullptr)
-              MYSQL_YYABORT;
-          }
-        ;
-
-opt_datadir_ssl:
-          opt_ssl
-          {
-            $$= null_clex_str;
-          }
-        | DATA_SYM DIRECTORY_SYM opt_equal TEXT_STRING_filesystem opt_ssl
-          {
-            $$= $4;
-          }
-        ;
-
-opt_ssl:
-          /* empty */
-          {
-            Lex->account_options.ssl_type= SSL_TYPE_NOT_SPECIFIED;
-          }
-        | REQUIRE_SYM SSL_SYM
-          {
-            Lex->account_options.ssl_type= SSL_TYPE_SPECIFIED;
-          }
-        | REQUIRE_SYM NO_SYM SSL_SYM
-          {
-            Lex->account_options.ssl_type= SSL_TYPE_NONE;
-          }
         ;
 
 /*
@@ -16508,7 +16465,6 @@ keyword_sp_var_not_label:
         | HELP_SYM
         | HOST_SYM
         | INSTALL_SYM
-        | INSTANCE_SYM
         | OPTION
         | OPTIONS_SYM
         | OTHERS_MARIADB_SYM

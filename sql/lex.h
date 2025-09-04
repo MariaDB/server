@@ -306,7 +306,6 @@ SYMBOL symbols[] = {
   { "INSERT",		SYM(INSERT)},
   { "INSERT_METHOD",    SYM(INSERT_METHOD)},
   { "INSTALL",          SYM(INSTALL_SYM)},
-  { "INSTANCE",         SYM(INSTANCE_SYM)},
   { "INT",		SYM(INT_SYM)},
   { "INT1",		SYM(TINYINT)},
   { "INT2",		SYM(SMALLINT)},
