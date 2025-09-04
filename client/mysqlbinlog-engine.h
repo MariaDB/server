@@ -19,6 +19,7 @@
 #include "handler_binlog_reader.h"
 
 
+static constexpr uint32_t BINLOG_HEADER_PAGE_SIZE= 512;
 extern const char *INNODB_BINLOG_MAGIC;
 
 extern handler_binlog_reader *get_binlog_reader_innodb();

@@ -21,6 +21,14 @@ FLUSH BINARY LOGS;
 --replace_regex /collation_server=[0-9]+/collation_server=X/ /character_set_client=[a-zA-Z0-9]+/character_set_client=X/ /collation_connection=[0-9]+/collation_connection=X/
 --exec $MYSQL_BINLOG --short-form --base64-output=never $datadir/binlog-000000.ibb
 
+--echo *** Test dumping the last, pre-allocated, empty file.
+--let $binlog_name= binlog-000003.ibb
+--let $binlog_size= 262144
+--source include/wait_for_engine_binlog.inc
+--replace_regex /collation_server=[0-9]+/collation_server=X/ /character_set_client=[a-zA-Z0-9]+/character_set_client=X/ /collation_connection=[0-9]+/collation_connection=X/
+--error 1
+--exec $MYSQL_BINLOG --short-form --base64-output=never $datadir/binlog-000003.ibb 2>&1
+
 SELECT * FROM t1 ORDER BY a;
 
 # Test flashback from files specified with directory path.
