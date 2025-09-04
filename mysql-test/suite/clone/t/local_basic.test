@@ -46,14 +46,11 @@ WHERE PLUGIN_NAME LIKE '%clone%';
 
 # Clone data
 --source ../include/clone_command.inc
-
-if (!$clone_remote_replace) {
-  --connection default
-  --echo # Restart server on cloned data directory
-  --let $restart_noprint=1
-  --let restart_parameters=--datadir=$CLONE_DATADIR
-  --source include/restart_mysqld.inc
-}
+--connection default
+--echo # Restart server on cloned data directory
+--let $restart_noprint=1
+--let restart_parameters=--datadir=$CLONE_DATADIR
+--source include/restart_mysqld.inc
 
 # Validate data
 SELECT * from t1 ORDER BY col1;
@@ -83,10 +80,8 @@ SET GLOBAL general_log = ON;
 SET GLOBAL slow_query_log = ON;
 
 #Cleanup
-if (!$clone_remote_replace) {
-  --let restart_parameters=
-  --source include/restart_mysqld.inc
-}
+--let restart_parameters=
+--source include/restart_mysqld.inc
 
 SHOW TABLES;
 SELECT * from t1 ORDER BY col1;
@@ -101,8 +96,5 @@ DROP TABLE non_innodb.t_myisam;
 DROP TABLE non_innodb.t_csv;
 
 DROP SCHEMA non_innodb;
-
-if (!$clone_remote_replace) {
-  --rmdir $CLONE_DATADIR
-}
+--rmdir $CLONE_DATADIR
 UNINSTALL PLUGIN clone;
