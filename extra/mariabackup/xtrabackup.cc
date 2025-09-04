@@ -2615,7 +2615,7 @@ static bool innodb_init_param()
 	}
 
 	if (!opt_binlog_directory || !xtrabackup_backup) {
-		opt_binlog_directory = (char *) ".";
+		opt_binlog_directory = ".";
 	}
 
 	compile_time_assert(SRV_FORCE_IGNORE_CORRUPT == 1);

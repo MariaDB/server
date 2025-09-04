@@ -1651,8 +1651,7 @@ static ulint buf_flush_list(ulint max_n= ULINT_UNDEFINED,
 bool buf_flush_list_space(fil_space_t *space, ulint *n_flushed) noexcept
 {
   const auto space_id= space->id;
-  ut_ad(space_id < SRV_SPACE_ID_UPPER_BOUND ||
-        space_id == SRV_SPACE_ID_BINLOG0 || space_id == SRV_SPACE_ID_BINLOG1);
+  ut_ad(space_id < SRV_SPACE_ID_UPPER_BOUND);
 
   bool may_have_skipped= false;
   ulint max_n_flush= srv_io_capacity;
@@ -2049,19 +2048,16 @@ static bool log_checkpoint_low(lsn_t oldest_lsn, lsn_t end_lsn) noexcept
   return true;
 }
 
-void mtr_t::write_binlog(bool space_id, uint32_t page_no,
-                         uint16_t offset,
+void mtr_t::write_binlog(page_id_t page_id, uint16_t offset,
                          const void *buf, size_t size) noexcept
 {
   ut_ad(!srv_read_only_mode);
   ut_ad(m_log_mode == MTR_LOG_ALL);
 
   bool alloc{size < mtr_buf_t::MAX_DATA_SIZE - (1 + 3 + 3 + 5 + 5)};
-  byte *end= log_write<WRITE>(page_id_t{LOG_BINLOG_ID_0 | (uint32_t)space_id,
-                                        page_no},
-                              nullptr, size, alloc, offset);
+  byte *end= log_write<WRITE>(page_id, nullptr, size, alloc, offset);
   if (alloc)
-          {
+  {
     ::memcpy(end, buf, size);
     m_log.close(end + size);
   }
@@ -2071,23 +2067,6 @@ void mtr_t::write_binlog(bool space_id, uint32_t page_no,
     m_log.push(static_cast<const byte*>(buf), uint32_t(size));
   }
   m_modifications= true;
-}
-
-/** Write binlog data
-@param space_id  binlog tablespace
-@param page_no   binlog page number
-@param offset    offset within the page
-@param buf       data
-@param size      size of data
-@return start LSN of the mini-transaction */
-lsn_t binlog_write_data(bool space_id, uint32_t page_no, uint16_t offset,
-                        const void *buf, size_t size) noexcept
-{
-  mtr_t mtr;
-  mtr.start();
-  mtr.write_binlog(space_id, page_no, offset, buf, size);
-  mtr.commit();
-  return mtr.commit_lsn();
 }
 
 /** Make a checkpoint. Note that this function does not flush dirty

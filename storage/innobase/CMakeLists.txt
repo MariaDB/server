@@ -89,9 +89,7 @@ ENDIF()
 IF (CMAKE_CXX_COMPILER_ID MATCHES "Clang" OR
     CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
   SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wconversion -Wno-sign-conversion")
-  # Source file innodb_binlog.cc needs to include server layer stuff that is
-  # not -Wconversion clean.
-  SET_SOURCE_FILES_PROPERTIES(fts/fts0pars.cc handler/innodb_binlog.cc
+  SET_SOURCE_FILES_PROPERTIES(fts/fts0pars.cc
     PROPERTIES COMPILE_FLAGS -Wno-conversion)
 ENDIF()
 
