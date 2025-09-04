@@ -570,9 +570,7 @@ void mtr_t::commit_shrink(fil_space_t &space, uint32_t size)
   file->size-= space.size - size;
   space.size= space.size_in_header= size;
 
-  if (space.id == TRX_SYS_SPACE ||
-      space.id == SRV_SPACE_ID_BINLOG0 ||
-      space.id == SRV_SPACE_ID_BINLOG1)
+  if (space.id == TRX_SYS_SPACE)
     srv_sys_space.set_last_file_size(file->size);
   else
     space.set_create_lsn(m_commit_lsn);
@@ -1581,9 +1579,7 @@ void mtr_t::set_modified(const buf_block_t &block)
 void mtr_t::init(buf_block_t *b)
 {
   const page_id_t id{b->page.id()};
-  ut_ad(is_named_space(id.space()) ||
-        id.space() == SRV_SPACE_ID_BINLOG0 ||
-        id.space() == SRV_SPACE_ID_BINLOG1);
+  ut_ad(is_named_space(id.space()));
   ut_ad(!m_freed_pages == !m_freed_space);
   ut_ad(memo_contains_flagged(b, MTR_MEMO_PAGE_X_FIX));
 

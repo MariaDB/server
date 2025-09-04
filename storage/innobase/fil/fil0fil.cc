@@ -1003,8 +1003,6 @@ fil_space_t *fil_space_t::create(uint32_t id, uint32_t flags,
   default:
     if (UNIV_LIKELY(id <= fil_system.max_assigned_id))
       break;
-    if (id == SRV_SPACE_ID_BINLOG0 || id == SRV_SPACE_ID_BINLOG1)
-      break;
     if (UNIV_UNLIKELY(srv_operation == SRV_OPERATION_BACKUP))
       break;
     if (!fil_system.space_id_reuse_warned)

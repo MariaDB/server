@@ -3734,9 +3734,9 @@ static int innodb_init_params()
 	    innodb_binlog_state_interval !=
 		(ulonglong)1 << (63 - my_nlz(innodb_binlog_state_interval)) ||
 	    innodb_binlog_state_interval % (ulonglong)ibb_page_size) {
-		ib::error() << "innodb_binlog_state_interval must be a "
-			"power-of-two multiple of the innodb binlog page size="
-			<< ibb_page_size;
+		sql_print_error("InnoDB: innodb_binlog_state_interval must be "
+                                "a power-of-two multiple of the innodb binlog "
+                                "page size=%lu KiB", ibb_page_size >> 10);
 		DBUG_RETURN(HA_ERR_INITIALIZATION);
 	}
 
@@ -4003,7 +4003,7 @@ static binlog_file_entry *innodb_get_binlog_file_list(MEM_ROOT *mem_root)
     char name_buf[OS_FILE_MAX_PATH];
     binlog_name_make(name_buf, i);
     e->name.length= strlen(name_buf);
-    char *str= (char *)alloc_root(mem_root, e->name.length + 1);
+    char *str= static_cast<char *>(alloc_root(mem_root, e->name.length + 1));
     if (!str)
       return nullptr;
     strcpy(str, name_buf);
