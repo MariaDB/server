@@ -1,0 +1,108 @@
+#
+# Tests for MDEV-36055 : Outer join reordering
+#
+--source include/have_sequence.inc
+
+# We need optimizer trace:
+--source include/not_embedded.inc
+
+set @join_outer_reorder_tmp=@@optimizer_switch;
+set optimizer_switch='reorder_outer_joins=on';
+
+create table t1 (a int);
+insert into t1 select seq from seq_1_to_10000;
+
+create table t2 (
+  a int,
+  b int,
+  index(a)
+);
+insert into t2
+select
+  A.seq,
+  B.seq
+from
+  seq_1_to_1000 A,
+  seq_1_to_10 B;
+
+create table t3 (
+  a int,
+  b int,
+  index(a)
+);
+insert into t3
+select
+  A.seq,
+  A.seq
+from
+  seq_1_to_1000 A;
+
+analyze table t1,t2,t3;
+
+set optimizer_trace=1;
+explain
+select *
+from
+  t1
+  left join t3 on t3.a=t1.a
+  left join t2 on t2.a=t1.a;
+
+--echo # This will show that t2 and t3 only depend on t1:
+select json_pretty(json_extract(trace, '$**.table_dependencies')) as DEPS 
+from information_schema.optimizer_trace;
+
+--echo  # This will have same join order like previous EXPLAIN
+--echo  #  as the optimizer considers the queries identical
+explain
+select *
+from
+  t1
+  left join t2 on t2.a=t1.a
+  left join t3 on t3.a=t1.a;
+
+--echo # This will show that t2 and t3 only depend on t1:
+select json_pretty(json_extract(trace, '$**.table_dependencies')) as DEPS 
+from information_schema.optimizer_trace;
+
+--echo # Make t3's ON expression depend on t2:
+explain
+select *
+from
+  t1
+  left join t2 on t2.a=t1.a
+  left join t3 on t3.a=t1.a and t3.b=t2.b;
+select json_pretty(json_extract(trace, '$**.table_dependencies')) as DEPS 
+from information_schema.optimizer_trace;
+
+
+--echo #
+--echo # Now, try a nested join:
+--echo #
+create table t4 (
+  a int,
+  b int
+);
+insert into t4 values (1,1);
+
+explain
+select *
+from
+  t1
+  left join (t2 join t4 as t4_2 on t2.b=t4_2.b) on t2.a=t1.a
+  left join (t3 join t4 as t4_3 on t3.b=t4_3.b) on t3.a=t1.a;
+select json_pretty(json_extract(trace, '$**.table_dependencies')) as DEPS 
+from information_schema.optimizer_trace;
+drop table t1,t2,t3,t4;
+
+# The below tests produce the same result regardless of the reorder_outer_joins
+# setting. Which may mean there's not a lot of meaningful coverage but let's
+# show we do not break outer join handling:
+#set optimizer_switch='reorder_outer_joins=off';
+--source join_nested.test
+--source join_outer.test
+
+# This produces one .result change where rows come in different order:
+--source suite/compat/oracle/t/ora_outer_join.test
+
+set optimizer_switch=@join_outer_reorder_tmp;
+
