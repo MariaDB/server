@@ -1,0 +1,26 @@
+SET sql_mode=ORACLE;
+
+--echo #
+--echo # MDEV-37408 Assertion `!thd->is_error()' failed in LEX::make_item_func_or_method_call upon SELECT or WITH
+--echo #
+
+--error ER_NOT_SUPPORTED_YET
+WITH w AS (SELECT *)
+SELECT * FROM t WHERE c HAVING 1 WINDOW t AS ()
+ORDER BY 1, 1=ANY(SELECT * LIMIT 1), t.t();
+
+DELIMITER $$;
+--error ER_NOT_SUPPORTED_YET
+DECLARE
+  TYPE arr_t IS TABLE OF INT INDEX BY INT;
+  arr arr_t;
+BEGIN
+  WITH w AS (SELECT *) SELECT * FROM t
+  WHERE c HAVING 1 WINDOW t AS ()
+  ORDER BY 1, 1=ANY(SELECT * LIMIT 1), arr.t();
+END;
+$$
+DELIMITER ;$$
+SHOW WARNINGS;
+
+--echo # End of 12.1 bugs

@@ -10664,7 +10664,6 @@ Item *LEX::make_item_func_or_method_call(THD *thd,
                                          List<Item> *args,
                                          const Lex_ident_cli_st &query_fragment)
 {
-  DBUG_ASSERT(!thd->is_error());
   const Lex_ident_sys sys_a(thd, &ca), sys_b(thd, &cb);
   if (sys_a.is_null() || sys_b.is_null())
     return nullptr; // EOM
