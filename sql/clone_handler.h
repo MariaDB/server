@@ -74,30 +74,11 @@ class Clone_handler {
   @return error code */
   int clone_local(THD *thd, const char *data_dir);
 
-  /** Clone handler interface for remote clone client.
-  @param[in]	thd		server thread handle
-  @param[in]	remote_host	remote host IP address
-  @param[in]	remote_port	remote server port
-  @param[in]	remote_user	remote user name
-  @param[in]	remote_passwd	remote user's password
-  @param[in]	data_dir	cloned data directory
-  @param[in]	ssl_mode	remote connection ssl mode
-  @return error code */
-  int clone_remote_client(THD *thd, const char *remote_host, uint remote_port,
-                          const char *remote_user, const char *remote_passwd,
-                          const char *data_dir, int ssl_mode);
-
   /** Clone handler interface for remote clone server.
   @param[in]	thd	server thread handle
   @param[in]	socket	network socket to remote client
   @return error code */
   int clone_remote_server(THD *thd, MYSQL_SOCKET socket);
-
-  /** Get donor error and message for ER_CLONE_DONOR error.
-  @param[out]	error	donor error number
-  @param[out]	message	error message
-  @return true, iff successful. */
-  static bool get_donor_error(int &error, const char *&message);
 
   /** @return false only if no user data is dropped yet. */
   static bool is_data_dropped() { return (s_is_data_dropped); }

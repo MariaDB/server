@@ -55,64 +55,6 @@ Clone_handler *clone_handle= nullptr;
 /** Clone plugin name */
 const char *clone_plugin_nm= "clone";
 
-bool Clone_handler::get_donor_error(int &error, const char *&message)
-{
-  error= 0;
-  message= nullptr;
-
-  /* Try to get current THD handle. */
-  THD *thd= current_thd;
-  if (thd == nullptr)
-    return false;
-
-  /* Check if DA exists. */
-  auto da= thd->get_stmt_da();
-  if (da == nullptr || !da->is_error())
-    return false;
-
-  if (da->sql_errno() != ER_CLONE_DONOR)
-    return false;
-
-  /* Assign current error from DA */
-  error= da->sql_errno();
-  message= da->message();
-
-  /* Parse and find out donor error and message. */
-  size_t err_pos= 0;
-  const std::string msg_string(message);
-
-  while (!std::isdigit(message[err_pos]))
-  {
-    /* Find position of next ":". */
-    err_pos= msg_string.find(": ", err_pos);
-
-    /* No more separator, return. */
-    if (err_pos == std::string::npos)
-    {
-      assert(false);
-      return false;
-    }
-    /* Skip ":" and space. */
-    err_pos+= 2;
-  }
-
-  error= std::atoi(message + err_pos);
-
-  if (error != 0)
-  {
-    err_pos= msg_string.find(": ", err_pos);
-    /* Should find the error message following the error code. */
-    if (err_pos == std::string::npos)
-    {
-      assert(false);
-      return false;
-    }
-    /* Skip ":" and space. */
-    err_pos+= 2;
-    message= message + err_pos;
-  }
-  return true;
-}
 
 int Clone_handler::clone_local(THD *thd, const char *data_dir)
 {
@@ -126,39 +68,6 @@ int Clone_handler::clone_local(THD *thd, const char *data_dir)
   return error;
 }
 
-int Clone_handler::clone_remote_client(THD *thd, const char *remote_host,
-    uint remote_port, const char *remote_user, const char *remote_passwd,
-    const char *data_dir, int ssl_mode)
-{
-  int error= 0;
-  char dir_name[FN_REFLEN];
-  char *dir_ptr= nullptr;
-
-  /* NULL when clone replaces current data directory. */
-  if (data_dir != nullptr) {
-    error= validate_dir(data_dir, dir_name);
-    dir_ptr= &dir_name[0];
-  }
-
-  if (error)
-    return error;
-
-  /* NULL data directory implies we are replacing current data directory
-  for provisioning this node. We never set it back to false only in case
-  of error otherwise the server would shutdown or restart at the end of
-  operation. */
-  const bool provisioning= (data_dir == nullptr);
-  if (provisioning)
-    ++s_provision_in_progress;
-
-  error= m_plugin_handle->clone_client(thd, remote_host, remote_port,
-      remote_user, remote_passwd, dir_ptr, ssl_mode);
-
-  if (error != 0 && provisioning)
-    --s_provision_in_progress;
-
-  return error;
-}
 
 int Clone_handler::clone_remote_server(THD *thd, MYSQL_SOCKET socket)
 {
