@@ -1632,7 +1632,7 @@ dberr_t clone_init()
   if (os_file_exists(CLONE_INNODB_IN_PROGRESS_FILE))
     return DB_ABORT_INCOMPLETE_CLONE;
 
-  ignore_db_dirs_append(CLONE_FILES_DIR);
+  ignore_db_dirs_append(CLONE_FILES_DIR_NAME);
   /* Initialize clone files before starting recovery. */
   clone_files_recovery(false);
 

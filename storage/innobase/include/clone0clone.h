@@ -48,7 +48,8 @@ this program; if not, write to the Free Software Foundation, Inc.,
 #include <functional>
 
 /** Directory under data directory for all clone status files. */
-#define CLONE_FILES_DIR OS_FILE_PREFIX "clone" OS_PATH_SEPARATOR_STR
+#define CLONE_FILES_DIR_NAME OS_FILE_PREFIX "clone"
+#define CLONE_FILES_DIR CLONE_FILES_DIR_NAME OS_PATH_SEPARATOR_STR
 
 /** Clone in progress file name length. */
 const size_t CLONE_INNODB_FILE_LEN = 64;

@@ -177,11 +177,6 @@ if (!$clone_remote_replace) {
 --rmdir $CLONE_DATADIR1
 }
 
-# Clean recipient by cloning the cleaned up donor
-if ($clone_remote_replace) {
-  --connection clone_conn_1
-  --source ../include/clone_command.inc
-}
 --source ../include/clone_connection_end.inc
 
 UNINSTALL PLUGIN clone;

@@ -1802,7 +1802,6 @@ bool Sql_cmd_clone::execute(THD *thd)
   {
     assert(!is_replace);
     auto err= m_clone->clone_local(thd, m_data_dir.str);
-    clone_plugin_unlock(thd, m_plugin);
 
     if (err != 0)
       return true;
