@@ -37,7 +37,7 @@ struct handler_binlog_purge_info;
 struct binlog_oob_context;
 
 
-/*
+/**
   The struct chunk_data_base is a simple encapsulation of data for a chunk that
   is to be written to the binlog. Used to separate the generic code that
   handles binlog writing with page format and so on, from the details of the
@@ -61,7 +61,7 @@ struct chunk_data_base {
 };
 
 
-/*
+/**
   Empty chunk data, used to pass a dummy record to fsp_binlog_write_rec()
   in fsp_binlog_flush().
 */
@@ -78,7 +78,7 @@ struct chunk_data_flush : public chunk_data_base {
 
 static constexpr size_t IBB_BINLOG_HEADER_SIZE= 64;
 
-/*
+/**
   Data stored at the start of each binlog file.
   (The data is stored as little-engian values in the first page of the file;
   this is just a struct to pass around the values in-memory).
@@ -129,7 +129,7 @@ struct binlog_header_data {
 };
 
 
-/*
+/**
   The class pending_lsn_fifo keeps track of pending LSNs - and their
   corresponding binlog file_no/offset - that have been mtr-committed, but have
   not yet become durable.

@@ -33,7 +33,7 @@ InnoDB implementation of binlog.
 #include "log.h"
 
 
-/*
+/**
   The page size used for binlog pages.
 
   For now, we just use a 16k page size. It could be changed later to be
@@ -51,7 +51,7 @@ uint32_t ibb_page_size_shift= 14;
 ulong ibb_page_size= (1 << ibb_page_size_shift);
 
 
-/*
+/**
   How often (in terms of pages written) to dump a (differential) binlog state
   at the start of the page, to speed up finding the initial GTID position for
   a connecting slave.
@@ -64,19 +64,19 @@ ulong ibb_page_size= (1 << ibb_page_size_shift);
 */
 uint64_t current_binlog_state_interval;
 
-/*
+/**
   Mutex protecting active_binlog_file_no.
 */
 mysql_mutex_t active_binlog_mutex;
 pthread_cond_t active_binlog_cond;
-/* Mutex protecting binlog_cur_durable_offset[] and ibb_pending_lsn_fifo. */
+/** Mutex protecting binlog_cur_durable_offset[] and ibb_pending_lsn_fifo. */
 mysql_mutex_t binlog_durable_mutex;
 mysql_cond_t binlog_durable_cond;
 
-/* The currently being written binlog tablespace. */
+/** The currently being written binlog tablespace. */
 std::atomic<uint64_t> active_binlog_file_no;
 
-/*
+/**
   The first binlog tablespace that is still open.
   This can be equal to active_binlog_file_no, if the tablespace prior to the
   active one has been fully flushed out to disk and closed.
@@ -85,7 +85,7 @@ std::atomic<uint64_t> active_binlog_file_no;
 */
 uint64_t first_open_binlog_file_no;
 
-/*
+/**
   The most recent created and open tablespace.
   This can be equal to active_binlog_file_no+1, if the next tablespace to be
   used has already been pre-allocated and opened.
@@ -94,7 +94,7 @@ uint64_t first_open_binlog_file_no;
 */
 uint64_t last_created_binlog_file_no;
 
-/*
+/**
   Point at which it is guaranteed that all data has been written out to the
   binlog file (on the OS level; not necessarily fsync()'ed yet).
 
@@ -107,7 +107,7 @@ uint64_t last_created_binlog_file_no;
   bit-wise and instead of modulo-3).
 */
 std::atomic<uint64_t> binlog_cur_durable_offset[4];
-/*
+/**
   Offset of last valid byte of data in most recent 4 binlog files.
   A value of ~0 means that file is not opened as a tablespace (and data is
   valid until the end of the file).
@@ -116,7 +116,7 @@ std::atomic<uint64_t> binlog_cur_end_offset[4];
 
 fsp_binlog_page_fifo *binlog_page_fifo;
 
-/* Object to keep track of outstanding oob references in binlog files. */
+/** Object to keep track of outstanding oob references in binlog files. */
 ibb_file_oob_refs ibb_file_hash;
 
 
@@ -281,7 +281,7 @@ fsp_binlog_page_fifo::release_page(fsp_binlog_page_entry *page)
 }
 
 
-/*
+/**
   Release a page that is part of an mtr, except that if this is the last page
   of a binlog tablespace, then delay release until mtr commit.
 
@@ -309,7 +309,7 @@ fsp_binlog_page_fifo::release_page_mtr(fsp_binlog_page_entry *page, mtr_t *mtr)
 }
 
 
-/*
+/**
   Flush (write to disk) the first unflushed page in a file.
   Returns true when the last page has been flushed.
 
@@ -521,7 +521,7 @@ fsp_binlog_page_fifo::get_fh(uint64_t file_no)
   return fh;
 }
 
-/*
+/**
   If init_page is not ~(uint32_t)0, then it is the page to continue writing
   when re-opening existing binlog at server startup.
 
@@ -786,7 +786,7 @@ crc32_pwrite_page(File fd, byte *buf, uint32_t page_no, myf MyFlags) noexcept
 }
 
 
-/*
+/**
   Read a page, with CRC check.
   Returns:
 
@@ -856,7 +856,7 @@ crc32_pread_page(pfs_os_file_t fh, byte *buf, uint32_t page_no, myf MyFlags)
 }
 
 
-/*
+/**
   Need specific constructor/initializer for struct ibb_tblspc_entry stored in
   the ibb_file_hash. This is a work-around for C++ abstractions that makes it
   non-standard behaviour to memcpy() std::atomic objects.
@@ -871,7 +871,8 @@ ibb_file_hash_constructor(uchar *arg)
 static void
 ibb_file_hash_destructor(uchar *arg)
 {
-  ibb_tblspc_entry *e= (ibb_tblspc_entry *)(arg + LF_HASH_OVERHEAD);
+  ibb_tblspc_entry *e=
+    reinterpret_cast<ibb_tblspc_entry *>(arg + LF_HASH_OVERHEAD);
   e->~ibb_tblspc_entry();
 }
 
@@ -879,8 +880,9 @@ ibb_file_hash_destructor(uchar *arg)
 static void
 ibb_file_hash_initializer(LF_HASH *hash, void *dst, const void *src)
 {
-  ibb_tblspc_entry *src_e= (ibb_tblspc_entry *)src;
-  ibb_tblspc_entry *dst_e= (ibb_tblspc_entry *)dst;
+  const ibb_tblspc_entry *src_e= static_cast<const ibb_tblspc_entry *>(src);
+  ibb_tblspc_entry *dst_e=
+    const_cast<ibb_tblspc_entry *>(static_cast<const ibb_tblspc_entry *>(dst));
   dst_e->file_no= src_e->file_no;
   dst_e->oob_refs.store(src_e->oob_refs.load(std::memory_order_relaxed),
                         std::memory_order_relaxed);
@@ -937,8 +939,8 @@ ibb_file_oob_refs::remove_up_to(uint64_t file_no, LF_PINS *pins)
 bool
 ibb_file_oob_refs::oob_ref_inc(uint64_t file_no, LF_PINS *pins)
 {
-  ibb_tblspc_entry *e=
-    (ibb_tblspc_entry *)lf_hash_search(&hash, pins, &file_no, sizeof(file_no));
+  ibb_tblspc_entry *e= static_cast<ibb_tblspc_entry *>
+    (lf_hash_search(&hash, pins, &file_no, sizeof(file_no)));
   if (!e)
     return false;
   e->oob_refs.fetch_add(1, std::memory_order_acquire);
@@ -950,8 +952,8 @@ ibb_file_oob_refs::oob_ref_inc(uint64_t file_no, LF_PINS *pins)
 bool
 ibb_file_oob_refs::oob_ref_dec(uint64_t file_no, LF_PINS *pins)
 {
-  ibb_tblspc_entry *e=
-    (ibb_tblspc_entry *)lf_hash_search(&hash, pins, &file_no, sizeof(file_no));
+  ibb_tblspc_entry *e= static_cast<ibb_tblspc_entry *>
+    (lf_hash_search(&hash, pins, &file_no, sizeof(file_no)));
   if (!e)
     return true;
   uint64_t refcnt= e->oob_refs.fetch_sub(1, std::memory_order_acquire) - 1;
@@ -970,8 +972,8 @@ ibb_file_oob_refs::do_zero_refcnt_action(uint64_t file_no, LF_PINS *pins,
 {
   for (;;)
   {
-    ibb_tblspc_entry *e=
-      (ibb_tblspc_entry *)lf_hash_search(&hash, pins, &file_no, sizeof(file_no));
+    ibb_tblspc_entry *e= static_cast<ibb_tblspc_entry *>
+      (lf_hash_search(&hash, pins, &file_no, sizeof(file_no)));
     if (!e)
       return;
     uint64_t refcnt= e->oob_refs.load(std::memory_order_acquire);
@@ -1015,8 +1017,8 @@ bool
 ibb_file_oob_refs::update_refs(uint64_t file_no, LF_PINS *pins,
                                uint64_t oob_ref, uint64_t xa_ref)
 {
-  ibb_tblspc_entry *e=
-    (ibb_tblspc_entry *)lf_hash_search(&hash, pins, &file_no, sizeof(file_no));
+  ibb_tblspc_entry *e= static_cast<ibb_tblspc_entry *>
+    (lf_hash_search(&hash, pins, &file_no, sizeof(file_no)));
   if (!e)
     return false;
   e->oob_ref_file_no.store(oob_ref, std::memory_order_relaxed);
@@ -1030,8 +1032,8 @@ bool
 ibb_file_oob_refs::get_oob_ref_file_no(uint64_t file_no, LF_PINS *pins,
                                        uint64_t *out_oob_ref_file_no)
 {
-  ibb_tblspc_entry *e=
-    (ibb_tblspc_entry *)lf_hash_search(&hash, pins, &file_no, sizeof(file_no));
+  ibb_tblspc_entry *e= static_cast<ibb_tblspc_entry *>
+    (lf_hash_search(&hash, pins, &file_no, sizeof(file_no)));
   if (!e)
   {
     *out_oob_ref_file_no= ~(uint64_t)0;
@@ -1152,7 +1154,9 @@ fsp_log_binlog_write(mtr_t *mtr, fsp_binlog_page_entry *page,
     page_offset= 0;
     page->flushed_clean= false;
   }
-  mtr->write_binlog((file_no & 1), page_no, (uint16_t)page_offset,
+  page_id_t page_id(LOG_BINLOG_ID_0 | static_cast<uint32_t>(file_no & 1),
+                    page_no);
+  mtr->write_binlog(page_id, (uint16_t)page_offset,
                     page_offset + &page->page_buf()[0], len);
 }
 
@@ -1163,11 +1167,12 @@ fsp_log_header_page(mtr_t *mtr, fsp_binlog_page_entry *page, uint64_t file_no,
   noexcept
 {
   page->complete= true;
-  mtr->write_binlog((file_no & 1), 0, 0, &page->page_buf()[0], len);
+  page_id_t page_id(LOG_BINLOG_ID_0 | static_cast<uint32_t>(file_no & 1), 0);
+  mtr->write_binlog(page_id, 0, &page->page_buf()[0], len);
 }
 
 
-/*
+/**
   Initialize the InnoDB implementation of binlog.
   Note that we do not create or open any binlog tablespaces here.
   This is only done if InnoDB binlog is enabled on the server level.
@@ -1238,7 +1243,7 @@ fsp_binlog_tablespace_close(uint64_t file_no)
 }
 
 
-/*
+/**
   Open an existing tablespace. The filehandle fh is taken over by the tablespace
   (or closed in case of error).
 */
@@ -1339,7 +1344,7 @@ dberr_t fsp_binlog_tablespace_create(uint64_t file_no, uint32_t size_in_pages,
 }
 
 
-/*
+/**
   Write out a binlog record.
   Split into chucks that each fit on a page.
   The data for the record is provided by a class derived from chunk_data_base.
@@ -1576,7 +1581,7 @@ fsp_binlog_write_rec(chunk_data_base *chunk_data, mtr_t *mtr, byte chunk_type,
 }
 
 
-/*
+/**
   Implementation of FLUSH BINARY LOGS.
   Truncate the current binlog tablespace, fill up the last page with dummy data
   (if needed), write the current GTID state to the first page in the next
@@ -1699,7 +1704,7 @@ binlog_chunk_reader::read_error_corruption(uint64_t file_no, uint64_t page_no,
 }
 
 
-/*
+/**
   Obtain the data on the page currently pointed to by the chunk reader. The
   page is either latched in the page fifo, or read from the file into the page
   buffer.

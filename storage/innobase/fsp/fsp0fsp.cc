@@ -497,8 +497,7 @@ void fil_space_t::modify_check(const mtr_t& mtr) const
     /* We may only write redo log for a persistent tablespace. */
     ut_ad(!is_temporary());
     ut_ad(!is_being_imported());
-    ut_ad(mtr.is_named_space(id) ||
-          id == SRV_SPACE_ID_BINLOG0 || id == SRV_SPACE_ID_BINLOG1);
+    ut_ad(mtr.is_named_space(id));
   }
 }
 #endif

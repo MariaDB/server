@@ -41,7 +41,7 @@ static constexpr uint32_t IBB_MAGIC= 0x010dfefe;
 static constexpr uint32_t IBB_FILE_VERS_MAJOR= 1;
 static constexpr uint32_t IBB_FILE_VERS_MINOR= 0;
 
-/*
+/**
   The size of the header page that is stored in the first page of a file.
   This is the smallest page size that can be used in a backwards compatible
   way. Having a fixed-size small header page means we can get the real page
@@ -81,13 +81,13 @@ enum fsp_binlog_chunk_types {
   FSP_BINLOG_TYPE_FILLER= 0xff
 };
 
-/*
+/**
   Bit set on the chunk type for a continuation chunk, when data needs to be
   split across pages.
 */
 static constexpr uint32_t FSP_BINLOG_FLAG_BIT_CONT= 7;
 static constexpr uint32_t FSP_BINLOG_FLAG_CONT= (1 << FSP_BINLOG_FLAG_BIT_CONT);
-/*
+/**
   Bit set on the chunk type for the last chunk (no continuation chunks
   follow)
 */
@@ -96,7 +96,7 @@ static constexpr uint32_t FSP_BINLOG_FLAG_LAST= (1 << FSP_BINLOG_FLAG_BIT_LAST);
 static constexpr uint32_t FSP_BINLOG_TYPE_MASK=
   ~(FSP_BINLOG_FLAG_CONT | FSP_BINLOG_FLAG_LAST);
 
-/*
+/**
   These are the chunk types that are allowed to occur in the middle of
   another record.
 */
@@ -116,7 +116,7 @@ extern uint32_t ibb_page_size_shift;
 extern ulong ibb_page_size;
 
 
-/*
+/**
   The object representing a binlog page that is not yet flushed to disk.
   At the end of the object is an additionally allocated byte buffer of
   size ibb_page_size, ie. the page buffer containing the data in the page.
@@ -162,7 +162,7 @@ struct fsp_binlog_page_entry {
 };
 
 
-/*
+/**
   A page FIFO, as a lower-level alternative to the buffer pool used for full
   tablespaces.
 
@@ -271,7 +271,7 @@ public:
 };
 
 
-/* Structure of an entry in the hash of binlog tablespace files. */
+/** Structure of an entry in the hash of binlog tablespace files. */
 struct ibb_tblspc_entry {
   uint64_t file_no;
   /*
@@ -304,7 +304,7 @@ struct ibb_tblspc_entry {
 };
 
 
-/*
+/**
   Class keeping reference counts of oob records starting in different binlog
   tablespace files.
   Used to keep track of which files should not be purged because they contain
@@ -479,7 +479,7 @@ public:
 };
 
 
-/* The state interval (in pages) used for active_binlog_file_no. */
+/** The state interval (in pages) used for active_binlog_file_no. */
 extern uint64_t current_binlog_state_interval;
 extern mysql_mutex_t active_binlog_mutex;
 extern pthread_cond_t active_binlog_cond;

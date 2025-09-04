@@ -368,7 +368,7 @@ bool opt_bin_log, opt_bin_log_used=0, opt_ignore_builtin_innodb= 0;
 static bool opt_bin_log_nonempty, opt_bin_log_path;
 char *opt_binlog_storage_engine= const_cast<char *>("");
 static plugin_ref opt_binlog_engine_plugin;
-char *opt_binlog_directory;
+const char *opt_binlog_directory;
 handlerton *opt_binlog_engine_hton;
 bool opt_bin_log_compress;
 uint opt_bin_log_compress_min_len;

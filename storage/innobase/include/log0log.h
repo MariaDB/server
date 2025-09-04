@@ -103,8 +103,8 @@ or the MySQL version that created the redo log file. */
 /* @} */
 
 /** Fake tablespace id for InnoDB-implemented binlog files. */
-#define LOG_BINLOG_ID_0 0xFFFFFFF0U
-#define LOG_BINLOG_ID_1 0xFFFFFFF1U
+static constexpr uint32_t LOG_BINLOG_ID_0= SRV_SPACE_ID_UPPER_BOUND;
+static constexpr uint32_t LOG_BINLOG_ID_1= SRV_SPACE_ID_UPPER_BOUND + 1;
 
 struct log_t;
 
