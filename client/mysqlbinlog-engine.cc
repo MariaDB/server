@@ -59,7 +59,6 @@ static uint32_t binlog_page_size;
      troublesome than beneficial here.
 */
 
-static constexpr uint32_t BINLOG_HEADER_PAGE_SIZE= 512;
 static constexpr uint32_t BINLOG_PAGE_SIZE_MAX= 65536;
 #define BINLOG_PAGE_DATA 0
 #define BINLOG_PAGE_CHECKSUM 4
