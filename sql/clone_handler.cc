@@ -69,12 +69,6 @@ int Clone_handler::clone_local(THD *thd, const char *data_dir)
 }
 
 
-int Clone_handler::clone_remote_server(THD *thd, MYSQL_SOCKET socket)
-{
-  auto err= m_plugin_handle->clone_server(thd, socket);
-  return err;
-}
-
 int Clone_handler::init()
 {
   const char* name= m_plugin_name.c_str();

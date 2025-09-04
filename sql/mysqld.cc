@@ -3700,8 +3700,6 @@ void init_com_statement_info()
 
   /* "statement/abstract/query" can mutate into "statement/sql/..." */
   com_statement_info[(uint) COM_QUERY].m_flags= PSI_FLAG_MUTABLE;
-  /* "statement/com/clone" will mutate to clone plugin statement */
-  com_statement_info[(uint)COM_CLONE].m_flags = PSI_FLAG_MUTABLE;
 }
 #endif
 
@@ -10024,21 +10022,14 @@ void init_server_psi_keys(void)
   mysql_statement_register(category, com_statement_info, count);
 
   /* Exclude COM_CLONE as it would mutate */
-  count = (int)COM_CLONE - (int)COM_QUERY - 1;
+  count = (int)COM_END - (int)COM_QUERY - 1;
   mysql_statement_register(category, &com_statement_info[(int)COM_QUERY + 1],
-                           count);
-  /*
-    Register [COM_CLONE + 1 .. COM_END] as "statement/com/..."
-  */
-  count= (int) COM_END - (int) COM_CLONE;
-  mysql_statement_register(category, & com_statement_info[(int) COM_CLONE + 1],
                            count);
   category= "abstract";
   /*
     Register [COM_QUERY] as "statement/abstract/com_query"
   */
   mysql_statement_register(category, & com_statement_info[(int) COM_QUERY], 1);
-  mysql_statement_register(category, & com_statement_info[(int) COM_CLONE], 1);
 
   /*
     When a new packet is received,

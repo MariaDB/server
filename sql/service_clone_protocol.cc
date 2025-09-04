@@ -132,6 +132,7 @@ MYSQL* clone_connect(THD * thd, const char *host, uint32_t port,
                      const char *user, const char *passwd,
                      mysql_clone_ssl_context *ssl_ctx, MYSQL_SOCKET *socket)
 {
+  assert(0);
   /* Set default */
   uint net_read_timeout = MIN_READ_TIME_OUT_SEC;
   uint net_write_timeout = MIN_WRITE_TIME_OUT_SEC;
@@ -226,7 +227,7 @@ MYSQL* clone_connect(THD * thd, const char *host, uint32_t port,
   }
 
   /* Load clone plugin in remote */
-  auto result= simple_command(mysql, COM_CLONE, nullptr, 0, 0);
+  auto result= nullptr;
 
   if (result) {
     if (thd != nullptr) {
@@ -252,6 +253,7 @@ MYSQL* clone_connect(THD * thd, const char *host, uint32_t port,
 int clone_send_command(THD *thd, MYSQL *connection, bool set_active,
                        uchar command, uchar *com_buffer, size_t buffer_length)
 {
+  assert(0);
   NET *net = &connection->net;
 
   if (net->last_errno != 0) {
@@ -290,6 +292,7 @@ int clone_get_response(THD *thd, MYSQL *connection, bool set_active,
                        uint32_t timeout, uchar **packet, size_t *length,
                        size_t *net_length)
 {
+  assert(0);
   NET *net = &connection->net;
 
   if (net->last_errno != 0) {
@@ -392,6 +395,7 @@ int clone_kill(MYSQL *connection, MYSQL *kill_connection)
 
 void clone_disconnect(THD *thd, MYSQL *mysql, bool is_fatal, bool clear_error)
 {
+  assert(0);
   /* Make sure that the other end has switched back from clone protocol. */
   if (!is_fatal) {
     is_fatal = simple_command(mysql, COM_RESET_CONNECTION, nullptr, 0, 0);

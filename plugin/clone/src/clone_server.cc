@@ -138,19 +138,6 @@ int Server::init_storage(Ha_clone_mode mode, uchar *com_buf, size_t com_len) {
 
   if (m_is_master) {
     /* Set statement type for master thread */
-    clone_start_statement(thd, PSI_NOT_INSTRUMENTED, clone_stmt_server_key, nullptr);
-
-    /* Acquire backup lock */
-    if (block_ddl()) {
-      bool failed = false; // mysql_service_mysql_backup_lock->acquire(
-          // thd, BACKUP_LOCK_SERVICE_DEFAULT, m_client_ddl_timeout);
-
-      if (failed) {
-        return (ER_LOCK_WAIT_TIMEOUT);
-      }
-      m_acquired_backup_lock = true;
-      log_error(get_thd(), false, 0, "Acquired backup lock");
-    }
   }
   m_pfs_initialized = true;
 

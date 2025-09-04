@@ -1600,8 +1600,6 @@ dispatch_command_return dispatch_command(enum enum_server_command command, THD *
                        command_name[command].str :
                        "<?>")));
   bool drop_more_results= 0;
-  Sql_cmd_clone *clone_cmd = nullptr;
-
   if (thd->async_state.m_state == thd_async_state::enum_async_state::RESUMED)
   {
     thd->async_state.m_state = thd_async_state::enum_async_state::NONE;
@@ -1723,21 +1721,6 @@ dispatch_command_return dispatch_command(enum enum_server_command command, THD *
     if(thd->org_charset)
       thd->update_charset(thd->org_charset,thd->org_charset,thd->org_charset);
     my_ok(thd, 0, 0, 0);
-    break;
-  }
-  case COM_CLONE: {
-    status_var_increment(thd->status_var.com_other);
-
-    /* Try loading clone plugin */
-    clone_cmd = new (thd->mem_root) Sql_cmd_clone();
-
-    if (clone_cmd && clone_cmd->load(thd)) {
-      clone_cmd = nullptr;
-    }
-
-    thd->lex->m_sql_cmd = clone_cmd;
-    thd->lex->sql_command = SQLCOM_CLONE;
-
     break;
   }
   case COM_CHANGE_USER:
@@ -2444,12 +2427,6 @@ resume:
     thd->update_server_status();
     thd->protocol->end_statement();
     query_cache_end_of_result(thd);
-  }
-
-  /* After sending response, switch to clone protocol */
-  if (clone_cmd != nullptr) {
-    assert(command == COM_CLONE);
-    error = clone_cmd->execute_server(thd);
   }
 
   if (drop_more_results)

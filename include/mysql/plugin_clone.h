@@ -50,25 +50,6 @@ struct Mysql_clone {
   @param[in]	data_dir	cloned data directory
   @return error code, 0 on success */
   int (*clone_local)(THD *thd, const char *data_dir);
-
-  /** Clone database from remote server.
-  @param[in]	thd		server thread handle
-  @param[in]	remote_host	remote host IP address
-  @param[in]	remote_port	remote server port
-  @param[in]	remote_user	remote user name
-  @param[in]	remote_passwd	remote user's password
-  @param[in]	data_dir	cloned data directory
-  @param[in]	ssl_mode	ssl mode for remote connection
-  @return error code, 0 on success */
-  int (*clone_client)(THD *thd, const char *remote_host, uint remote_port,
-                      const char *remote_user, const char *remote_passwd,
-                      const char *data_dir, int ssl_mode);
-
-  /** Clone database and send to remote clone client.
-  @param[in]	thd	server thread handle
-  @param[in]	socket	network socket to remote client
-  @return error code, 0 on success */
-  int (*clone_server)(THD *thd, MYSQL_SOCKET socket);
 };
 
 /** Create clone handle to  access the clone interfaces from server.

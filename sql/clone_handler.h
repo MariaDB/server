@@ -74,12 +74,6 @@ class Clone_handler {
   @return error code */
   int clone_local(THD *thd, const char *data_dir);
 
-  /** Clone handler interface for remote clone server.
-  @param[in]	thd	server thread handle
-  @param[in]	socket	network socket to remote client
-  @return error code */
-  int clone_remote_server(THD *thd, MYSQL_SOCKET socket);
-
   /** @return false only if no user data is dropped yet. */
   static bool is_data_dropped() { return (s_is_data_dropped); }
 
