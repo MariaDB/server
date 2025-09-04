@@ -86,9 +86,6 @@ int Local::clone_exec() {
   auto thd = m_clone_client.get_thd();
   auto dir_name = m_clone_client.get_data_dir();
   auto is_master = m_clone_client.is_master();
-  //auto acquire_backup_lock = (is_master && clone_block_ddl);
-  //auto num_workers = m_clone_client.get_max_concurrency() - 1;
-
   auto &client_vector = m_clone_client.get_storage_vector();
   auto &client_tasks = m_clone_client.get_task_vector();
   auto &server_vector = m_clone_server->get_storage_vector();
@@ -340,7 +337,7 @@ int Local_Callback::apply_cbk(Ha_clone_file to_file, bool apply_file,
       to_len = static_cast<uint>(from_buf->m_length);
     }
 
-    info.update(from_buf->m_length, 0);
+    info.update(from_buf->m_length);
 
   } else {
     assert(dest_type == CLONE_HANDLE_FILE);
@@ -377,7 +374,7 @@ int Local_Callback::apply_cbk(Ha_clone_file to_file, bool apply_file,
       error = clone_os_copy_file_to_buf(from_file->m_file_desc, to_buffer,
                                         to_len, get_source_name());
     }
-    info.update(from_file->m_length, 0);
+    info.update(from_file->m_length);
   }
 
   /* Check limits and throttle if needed. */

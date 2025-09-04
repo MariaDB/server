@@ -109,8 +109,6 @@ int Server::clone() {
 
 int Server::send_status(int err) {
   uchar res_cmd;
-  char info_mesg[128];
-
   if (err == 0) {
     /* Send complete response */
     res_cmd = static_cast<uchar>(COM_RES_COMPLETE);
@@ -121,13 +119,6 @@ int Server::send_status(int err) {
   } else {
     /* Send Error Response */
     res_cmd = static_cast<uchar>(COM_RES_ERROR);
-
-    snprintf(info_mesg, 128, "Before sending COM_RES_ERROR: %s",
-             is_network_error(err) ? "network " : " ");
-    log_error(get_thd(), false, err, &info_mesg[0]);
-
-    err = clone_send_error(get_thd(), res_cmd, is_network_error(err));
-    log_error(get_thd(), false, err, "After sending COM_RES_ERROR");
   }
 
   return (err);

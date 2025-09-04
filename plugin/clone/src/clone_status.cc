@@ -95,37 +95,17 @@ uint32_t Client::s_num_clones = 0;
 
 int Table_pfs::create_proxy_tables()
 {
-  // auto thd = current_thd;
-  // if (mysql_pfs_table == nullptr || thd == nullptr)
-  // if (!thd)
-  //   return 1;
-
   Client::init_pfs();
-  // pfs_proxy_tables[0] = g_status_table.get_proxy_share();
-  // pfs_proxy_tables[1] = g_progress_table.get_proxy_share();
   return 0; // mysql_pfs_table->add_tables(pfs_proxy_tables, 2);
 }
 
 void Table_pfs::drop_proxy_tables()
 {
-  // if (mysql_pfs_table != nullptr)
-  //   return;
-
-  // static_cast<void>(mysql_pfs_table->delete_tables(pfs_proxy_tables, 2));
   Client::uninit_pfs();
 }
 
 bool Table_pfs::acquire_services()
 {
-  /* Get Table service. */
-  // ACQUIRE_SERVICE(mysql_pfs_table, "pfs_plugin_table_v1")
-  /* Get column services. */
-  // ACQUIRE_SERVICE(mysql_pfscol_int, "pfs_plugin_column_integer_v1")
-  // ACQUIRE_SERVICE(mysql_pfscol_bigint, "pfs_plugin_column_bigint_v1")
-  // ACQUIRE_SERVICE(mysql_pfscol_string, "pfs_plugin_column_string_v2")
-  // ACQUIRE_SERVICE(mysql_pfscol_timestamp, "pfs_plugin_column_timestamp_v2")
-  // ACQUIRE_SERVICE(mysql_pfscol_text, "pfs_plugin_column_text_v1")
-
   auto err = create_proxy_tables();
   if (err != 0)
     return true;

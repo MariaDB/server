@@ -378,7 +378,7 @@ static int plugin_clone_remote_client(THD *thd, const char *remote_host,
 
   myclone::Client clone_inst(thd, &client_share, 0, true);
 
-  error = clone_inst.clone();
+  //error = clone_inst.clone();
 
   return error;
 }
