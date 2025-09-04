@@ -1568,6 +1568,19 @@ protected:
 };
 
 
+class Create_func_transliterate : public Create_func_arg2
+{
+public:
+  Item *create_2_arg(THD *thd, Item *arg1, Item *arg2) override;
+
+  static Create_func_transliterate s_singleton;
+
+protected:
+  Create_func_transliterate() = default;
+  ~Create_func_transliterate() override = default;
+};
+
+
 class Create_func_least : public Create_native_func
 {
 public:
@@ -4941,6 +4954,15 @@ Create_func_lcase::create_1_arg(THD *thd, Item *arg1)
 }
 
 
+Create_func_transliterate Create_func_transliterate::s_singleton;
+
+Item*
+Create_func_transliterate::create_2_arg(THD *thd, Item *arg1, Item *arg2)
+{
+  return new (thd->mem_root) Item_func_transliterate(thd, arg1, arg2);
+}
+
+
 Create_func_least Create_func_least::s_singleton;
 
 Item*
@@ -6617,6 +6639,7 @@ const Native_func_registry func_array[] =
   { { STRING_WITH_LEN("TO_NUMBER") }, &create_func_to_number},
   { { STRING_WITH_LEN("TO_DAYS") }, BUILDER(Create_func_to_days)},
   { { STRING_WITH_LEN("TO_SECONDS") }, BUILDER(Create_func_to_seconds)},
+  { { STRING_WITH_LEN("TRANSLITERATE") }, BUILDER(Create_func_transliterate)},
   { { STRING_WITH_LEN("TRUNC") }, BUILDER(Create_func_trunc)},
   { { STRING_WITH_LEN("UCASE") }, BUILDER(Create_func_ucase)},
   { { STRING_WITH_LEN("UNCOMPRESS") }, BUILDER(Create_func_uncompress)},

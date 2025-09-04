@@ -1,0 +1,50 @@
+-- source include/have_perfschema.inc
+
+--echo #
+--echo # MDEV-34331: System package SYS.UTL_I18N
+--echo #
+
+SET sql_mode= oracle;
+SET NAMES ujis;
+
+--echo #
+--echo # Test assigning ANY_CS charset to a local variable
+--echo #
+DELIMITER /;
+--error ER_PARSE_ERROR
+CREATE FUNCTION f1 () RETURN VARCHAR2(10) AS
+BEGIN
+  DECLARE
+    b VARCHAR2(10) CHARACTER SET ANY_CS DEFAULT 'a';
+  BEGIN
+    RETURN b;
+  END;
+END;
+/
+DELIMITER ;/
+
+--echo #
+--echo # Test assigning ANY_CS charset to a local variable of row type
+--echo #
+DROP PROCEDURE IF EXISTS p1;
+DELIMITER /;
+--error ER_PARSE_ERROR
+CREATE PROCEDURE p1 AS
+  rec ROW(a INT, b VARCHAR2(32) CHARACTER SET ANY_CS);
+BEGIN
+END;
+/
+DELIMITER ;/
+DROP PROCEDURE IF EXISTS p1;
+
+--echo #
+--echo # Test row type as SP parameter
+--echo #
+DELIMITER /;
+--error ER_PARSE_ERROR
+CREATE PROCEDURE p2(r ROW(a INT, b VARCHAR2(32) CHARACTER SET ANY_CS)) AS
+  BEGIN
+  END;
+/
+DELIMITER ;/
+DROP PROCEDURE IF EXISTS p2;

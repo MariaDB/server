@@ -682,6 +682,26 @@ public:
   { return get_item_copy<Item_func_lcase>(thd, this); }
 };
 
+class Item_func_transliterate :public Item_str_func
+{
+protected:
+  my_charset_conv_to_halfwidth to_halfwidth_converter;
+  my_charset_conv_to_fullwidth to_fullwidth_converter;
+public:
+  Item_func_transliterate(THD *thd, Item *a, Item *b):
+    Item_str_func(thd, a, b)
+    {}
+  String *val_str(String *str) override;
+  bool fix_length_and_dec(THD *thd) override;
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING name= {STRING_WITH_LEN("transliterate") };
+    return name;
+  }
+  Item *do_get_copy(THD *thd) const override { return 0; }
+};
+
+
 class Item_func_ucase :public Item_str_conv
 {
 public:
