@@ -266,24 +266,6 @@ void Client_Stat::set_target_bandwidth(uint32_t num_workers, bool is_reset,
     data_target=
         task_target(data_target, data_speed, m_target_data_speed, num_workers);
   m_target_data_speed.store(data_target);
-#if 0
-  ++num_workers;
-
-  uint64_t data_target= clone_max_io_bandwidth * 1024 * 1024;
-  uint64_t net_target= clone_max_network_bandwidth * 1024 * 1024;
-
-  if (!is_reset)
-  {
-    data_target=
-        task_target(data_target, data_speed, m_target_data_speed, num_workers);
-
-    net_target=
-        task_target(net_target, net_speed, m_target_network_speed, num_workers);
-  }
-
-  m_target_data_speed.store(data_target);
-  m_target_network_speed.store(net_target);
-#endif
 }
 
 void Client_Stat::reset_history(bool init)
@@ -309,36 +291,6 @@ void Client_Stat::reset_history(bool init)
 bool Client_Stat::is_bandwidth_saturated()
 {
   return false;
-#if 0
-  if (m_current_history_index == 0)
-    return false;
-
-  auto last_index= (m_current_history_index - 1) % STAT_HISTORY_SIZE;
-
-  /* Check if data speed is close to the limit. We consider it saturated if 90%
-  is reached and stop spawning more threads. */
-  auto data_speed= m_data_speed_history[last_index];
-  auto max_io= clone_max_io_bandwidth;
-
-  /* Zero implies no limit on bandwidth. */
-  if (max_io != 0)
-  {
-    max_io *= 0.9;
-    if (data_speed > max_io)
-      return true;
-  }
-  /* Check if network speed is close to the limit. */
-  auto net_speed= m_network_speed_history[last_index];
-  auto max_net= clone_max_network_bandwidth;
-
-  if (max_net != 0)
-  {
-    max_net *= 0.9;
-    if (net_speed > max_net)
-      return true;
-  }
-  return false;
-#endif
 }
 
 bool Client_Stat::tune_has_improved(uint32_t num_threads)
@@ -732,33 +684,6 @@ uint32_t Client::limit_workers(uint32_t num_workers)
 {
   return 0;
 }
-#if 0
-  /* Adjust if network bandwidth is limited. Currently 64 M
-  minimum per task is ensured before spawning task. */
-  if (clone_max_network_bandwidth > 0)
-  {
-    /* Zero is also valid result for the limit. Workers are over and above
-    the master task. So, anything less than 64M would mean no workers to
-    spawn immediately. */
-    const uint32_t limit= clone_max_network_bandwidth / 64;
-    if (num_workers > limit)
-      num_workers= limit;
-  }
-
-  /* Adjust if data bandwidth is limited. Currently 64 M
-  minimum per task is ensured before spawning task. */
-  if (clone_max_io_bandwidth > 0)
-  {
-    /* Zero is also valid result for the limit. Workers are over and above
-    the master task. So, anything less than 64M would mean no workers to
-    spawn immediately. */
-    const uint32_t limit= clone_max_io_bandwidth / 64;
-    if (num_workers > limit)
-      num_workers= limit;
-  }
-  return num_workers;
-}
-#endif
 
 const char *sub_command_str(Sub_Command sub_com)
 {
@@ -1007,17 +932,6 @@ int Client::clone()
     /* Execute clone command */
     if (err == 0)
     {
-#if 0
-      /* Spawn concurrent client tasks if auto tuning is off. */
-      if (!clone_autotune_concurrency)
-      {
-        /* Limit number of workers based on other configurations. */
-        auto to_spawn= limit_workers(num_workers);
-        using namespace std::placeholders;
-        auto func= std::bind(clone_client, _1, _2);
-        spawn_workers(to_spawn, func);
-      }
-#endif
       auto exec_callback= [&](Sub_Command sub_state)
       {
         int err= remote_command(COM_EXECUTE, sub_state, false);
@@ -1144,113 +1058,6 @@ int Client::clone()
 
 int Client::connect_remote(bool is_restart, bool use_aux)
 {
-#if 0
-  MYSQL_SOCKET conn_socket;
-  mysql_clone_ssl_context ssl_context;
-
-  ssl_context.m_enable_compression= clone_enable_compression;
-  ssl_context.m_server_extn=
-      ssl_context.m_enable_compression ? &m_conn_server_extn : nullptr;
-  ssl_context.m_ssl_mode= m_share->m_ssl_mode;
-
-  /* Get Clone SSL configuration parameter value safely. */
-  Key_Values ssl_configs= {{"clone_ssl_key", ""}, {"clone_ssl_cert", ""},
-                            {"clone_ssl_ca", ""}};
-  auto err= clone_get_configs(get_thd(), static_cast<void *>(&ssl_configs));
-
-  if (err != 0)
-    return err;
-
-  ssl_context.m_ssl_key= nullptr;
-  ssl_context.m_ssl_cert= nullptr;
-  ssl_context.m_ssl_ca= nullptr;
-
-  if (ssl_configs[0].second.length() > 0)
-    ssl_context.m_ssl_key= ssl_configs[0].second.c_str();
-
-  if (ssl_configs[1].second.length() > 0)
-    ssl_context.m_ssl_cert= ssl_configs[1].second.c_str();
-
-  if (ssl_configs[2].second.length() > 0)
-    ssl_context.m_ssl_ca= ssl_configs[2].second.c_str();
-
-  const size_t MESG_SZ= 128;
-  char info_mesg[MESG_SZ];
-  /* Establish auxiliary connection */
-  if (use_aux)
-  {
-    /* Only master creates the auxiliary connection */
-    if (!is_master())
-      return 0;
-
-    /* Connect to remote server and load clone protocol. */
-    m_conn_aux.m_conn= clone_connect(nullptr, m_share->m_host, m_share->m_port,
-                                     m_share->m_user, m_share->m_passwd,
-                                     &ssl_context, &conn_socket);
-
-    if (m_conn_aux.m_conn == nullptr)
-    {
-      /* Disconnect from remote and return */
-      err= remote_command(COM_EXIT, SUBCOM_NONE, false);
-      log_error(get_thd(), true, err, "Source Task COM_EXIT");
-
-      bool abort_net= (err != 0);
-      clone_disconnect(get_thd(), m_conn, abort_net, false);
-      snprintf(info_mesg, MESG_SZ, "Source Task Disconnect: abort: %s",
-               abort_net ? "true" : "false");
-      LogPluginErr(INFORMATION_LEVEL, ER_CLONE_CLIENT_TRACE, info_mesg);
-
-      m_conn= nullptr;
-      return ER_CLONE_DONOR;
-    }
-    return 0;
-  }
-
-  uint loop_count= 0;
-  auto start_time= Clock::now();
-
-  while (true)
-  {
-    auto connect_time= Clock::now();
-
-    /* Connect to remote server and load clone protocol. */
-    m_conn= clone_connect(m_server_thd, m_share->m_host, m_share->m_port,
-                          m_share->m_user, m_share->m_passwd, &ssl_context,
-                          &conn_socket);
-    if (m_conn != nullptr)
-      break;
-
-    if (!is_master() || !is_restart ||
-        s_reconnect_timeout == Time_Sec::zero())
-      return ER_CLONE_DONOR;
-
-    ++loop_count;
-    snprintf(info_mesg, MESG_SZ, "Source re-connect failed: count: %u",
-             loop_count);
-    LogPluginErr(INFORMATION_LEVEL, ER_CLONE_CLIENT_TRACE, info_mesg);
-
-    if (is_master() && thd_killed(get_thd()))
-    {
-      my_error(ER_QUERY_INTERRUPTED, MYF(0));
-      return ER_QUERY_INTERRUPTED;
-    }
-
-    /* Check and exit if we have exceeded total reconnect time. */
-    auto cur_time= Clock::now();
-    auto elapsed_time= cur_time - start_time;
-
-    if (elapsed_time > s_reconnect_timeout)
-      return ER_CLONE_DONOR;
-
-    /* Check and sleep between multiple connect attempt. */
-    auto next_connect_time= connect_time + s_reconnect_interval;
-
-    if (next_connect_time > cur_time)
-      std::this_thread::sleep_until(next_connect_time);
-  }
-
-  m_ext_link.set_socket(conn_socket);
-#endif
   return 0;
 }
 
@@ -1638,11 +1445,6 @@ int Client::serialize_init_cmd(size_t &buf_len)
 
   /* Store DDL timeout value. Default is no lock. */
   uint32_t timeout_value= NO_BACKUP_LOCK_FLAG;
-  //clone_ddl_timeout;
-#if 0
-  if (!clone_block_ddl)
-    timeout_value|= NO_BACKUP_LOCK_FLAG;
-#endif
   int4store(buf_ptr, timeout_value);
   buf_ptr+= 4;
 
@@ -2120,12 +1922,6 @@ int Client::delay_if_needed()
   if (get_data_dir() != nullptr)
     return 0;
   return 1;
-#if 0
-  if (clone_delay_after_data_drop == 0)
-    return 0;
-  auto err= wait(Time_Sec(clone_delay_after_data_drop));
-  return err;
-#endif
 }
 
 int Client_Cbk::file_cbk(Ha_clone_file from_file [[maybe_unused]],

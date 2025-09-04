@@ -66,38 +66,6 @@ extern uint clone_buffer_size;
 /** Clone system variable: Maximum IO bandwidth in MiB/sec */
 extern uint clone_max_io_bandwidth;
 
-#if 0
-/** Clone system variable: If clone should block concurrent DDL */
-extern my_bool clone_block_ddl;
-
-/** Clone system variable: timeout for DDL lock */
-extern uint clone_ddl_timeout;
-
-/** Clone system variable: If concurrency is automatically tuned */
-extern my_bool clone_autotune_concurrency;
-
-/** Clone system variable: Maximum concurrent threads */
-extern uint clone_max_concurrency;
-
-/** Clone system variable: Maximum network bandwidth in MiB/sec */
-extern uint clone_max_network_bandwidth;
-
-/** Clone system variable: If network compression is enabled */
-extern my_bool clone_enable_compression;
-
-/** Clone system variable: SSL private key */
-extern char *clone_client_ssl_private_key;
-
-/** Clone system variable: SSL Certificate */
-extern char *clone_client_ssl_certificate;
-
-/** Clone system variable: SSL Certificate authority */
-extern char *clone_client_ssl_certficate_authority;
-
-/** Clone system variable: time delay after removing data */
-extern uint clone_delay_after_data_drop;
-
-#endif
 /** Number of storage engines supporting clone. */
 const uint MAX_CLONE_STORAGE_ENGINE = 16;
 

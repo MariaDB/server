@@ -63,30 +63,6 @@ const char CLONE_VIEW_STATUS_FILE[] = CLONE_FILES_DIR FILE_PREFIX "view_status";
 const char CLONE_VIEW_PROGRESS_FILE[] =
     CLONE_FILES_DIR FILE_PREFIX "view_progress";
 
-#ifdef NEVER
-template <typename T>
-static bool acquire_service(T &service, const char *name)
-{
-  my_h_service mysql_service;
-  if (mysql_service_registry->acquire(name, &mysql_service))
-    return true;
-
-  service = reinterpret_cast<T>(mysql_service);
-  return false;
-}
-
-#define ACQUIRE_SERVICE(service, name)       \
-  if (0 != acquire_service(service, name)) { \
-    return (true);                           \
- }
-
-#define RELEASE_SERVICE(service)                                              \
-  if (service != nullptr) {                                                   \
-    mysql_service_registry->release(reinterpret_cast<my_h_service>(service)); \
-    service = nullptr;                                                        \
-  }
-#endif // NEVER
-
 /* Namespace for all clone data types */
 namespace myclone
 {
@@ -223,153 +199,15 @@ void Table_pfs::init_state_names()
 void Table_pfs::release_services()
 {
   drop_proxy_tables();
-  // RELEASE_SERVICE(mysql_pfs_table);
-  // RELEASE_SERVICE(mysql_pfscol_int);
-  // RELEASE_SERVICE(mysql_pfscol_bigint);
-  // RELEASE_SERVICE(mysql_pfscol_string);
-  // RELEASE_SERVICE(mysql_pfscol_timestamp);
-  // RELEASE_SERVICE(mysql_pfscol_text);
 }
-
-#ifdef NEVER
-static int cbk_rnd_init(PSI_table_handle *handle, bool)
-{
-  auto table = reinterpret_cast<Table_pfs *>(handle);
-  return table->rnd_init();
-}
-
-static int cbk_rnd_next(PSI_table_handle *handle)
-{
-  auto table = reinterpret_cast<Table_pfs *>(handle);
-  return table->rnd_next();
-}
-
-static int cbk_rnd_pos(PSI_table_handle *handle)
-{
-  auto table = reinterpret_cast<Table_pfs *>(handle);
-  return table->rnd_pos();
-}
-
-static void cbk_reset_pos(PSI_table_handle *handle)
-{
-  auto table = reinterpret_cast<Table_pfs *>(handle);
-  table->reset_pos();
-}
-
-static int cbk_read_column(PSI_table_handle *handle, PSI_field *field,
-                           uint32_t index)
-{
-  auto table = reinterpret_cast<Table_pfs *>(handle);
-  return table->read_column_value(field, index);
-}
-
-static void cbk_close_table(PSI_table_handle *handle)
-{
-  auto table = reinterpret_cast<Table_pfs *>(handle);
-  table->close();
-}
-
-/** Open clone status table for PFS.
-@param[out]	row_pos	address of row position
-@return clone status table. */
-static Status_pfs *open_status_table(uint32_t **row_pos)
-{
-  uint32_t *pos_addr = g_status_table.get_position_address();
-  *row_pos = pos_addr;
-  return &g_status_table;
-}
-
-/** Open clone progress table for PFS.
-@param[out]	row_pos address of row position
-@return clone progress table. */
-static Progress_pfs *open_progress_table(uint32_t **row_pos)
-{
-  uint32_t *pos_addr = g_progress_table.get_position_address();
-  *row_pos = pos_addr;
-  return &g_progress_table;
-}
-#endif // NEVER
 
 Table_pfs::Table_pfs(uint32_t num_rows)
     : m_rows(num_rows), m_position(), m_empty(true)
 {
-  /* Must set for each table separately in derived classes. */
-  // m_pfs_table.m_table_name = "";
-  // m_pfs_table.m_table_name_length = 0;
-  // m_pfs_table.m_table_definition = "";
-
-  /* Table information common for all. */
-  // m_pfs_table.m_ref_length = sizeof(uint32_t);
-  // m_pfs_table.m_acl = READONLY;
-  // m_pfs_table.delete_all_rows = nullptr;
-
-  /* Initialize proxy table access methods. */
-  // auto &proxy_table = m_pfs_table.m_proxy_engine_table;
-
-  /* Table open and close method. Open method must be set
-  separately in each derived class. */
-  // proxy_table.open_table = nullptr;
-  // proxy_table.close_table = cbk_close_table;
-
-  /* Table scan methods. */
-  // proxy_table.rnd_init = cbk_rnd_init;
-  // proxy_table.rnd_next = cbk_rnd_next;
-  // proxy_table.rnd_pos = cbk_rnd_pos;
-
-  /* Read operation. */
-  // proxy_table.read_column_value = cbk_read_column;
-  // proxy_table.reset_position = cbk_reset_pos;
-
-  /* No index scan. */
-  // proxy_table.index_init = nullptr;
-  // proxy_table.index_read = nullptr;
-  // proxy_table.index_next = nullptr;
-
-  /* No write operation. */
-  // proxy_table.write_column_value = nullptr;
-  // proxy_table.write_row_values = nullptr;
-  // proxy_table.update_column_value = nullptr;
-  // proxy_table.update_row_values = nullptr;
-  // proxy_table.delete_row_values = nullptr;
 }
-
-#ifdef NEVER
-static unsigned long long cbk_status_row_count()
-{
-  return Status_pfs::S_NUM_ROWS;
-}
-
-static PSI_table_handle *cbk_status_open_table(PSI_pos **pos)
-{
-  auto row_pos = reinterpret_cast<uint32_t **>(pos);
-  auto table = open_status_table(row_pos);
-  auto handle = reinterpret_cast<PSI_table_handle *>(table);
-  return handle;
-}
-#endif // NEVER
 
 Status_pfs::Status_pfs() : Table_pfs(S_NUM_ROWS)
 {
-  // auto table = get_proxy_share();
-  // table->m_table_name = "clone_status";
-  // table->m_table_name_length = strlen(table->m_table_name);
-  // table->m_table_definition =
-  //     "`ID` int,"
-  //     "`PID` int,"
-  //     "`STATE` char(16),"
-  //     "`BEGIN_TIME` timestamp(3) NULL,"
-  //     "`END_TIME` timestamp(3) NULL,"
-  //     "`SOURCE` varchar(512),"
-  //     "`DESTINATION` varchar(512),"
-  //     "`ERROR_NO` int,"
-  //     "`ERROR_MESSAGE` varchar(512),"
-  //     "`BINLOG_FILE` varchar(512),"
-  //     "`BINLOG_POSITION` bigint,"
-  //     "`GTID_EXECUTED` longtext";
-  // table->get_row_count = cbk_status_row_count;
-
-  // auto &proxy_table = table->m_proxy_engine_table;
-  // proxy_table.open_table = cbk_status_open_table;
 }
 
 int Status_pfs::rnd_init()
@@ -378,78 +216,6 @@ int Status_pfs::rnd_init()
   Table_pfs::init_position(m_data.m_id);
   return 0;
 }
-
-#ifdef NEVER
-int Status_pfs::read_column_value(PSI_field *field, uint32_t index)
-{
-  assert(!is_empty());
-  PSI_uint int_value;
-  PSI_ulonglong bigint_value;
-
-  /* Return NULL if cursor is positioned at beginning or end. */
-  auto row_index = get_position();
-  const bool is_null = (row_index == 0 || row_index > S_NUM_ROWS);
-
-  switch (index) {
-    case 0: /* ID: Clone ID */
-      int_value.val = m_data.m_id;
-      int_value.is_null = is_null;
-      mysql_pfscol_int->set_unsigned(field, int_value);
-      break;
-    case 1: /* PID: Process List ID */
-      int_value.val = m_data.m_pid;
-      int_value.is_null = is_null;
-      mysql_pfscol_int->set_unsigned(field, int_value);
-      break;
-    case 2: /* STATE */
-      mysql_pfscol_string->set_char_utf8mb4(
-          field, s_state_names[m_data.m_state],
-          strlen(s_state_names[m_data.m_state]));
-      break;
-    case 3: /* BEGIN_TIME */
-      mysql_pfscol_timestamp->set2(field, is_null ? 0 : m_data.m_start_time);
-      break;
-    case 4: /* END_TIME */
-      mysql_pfscol_timestamp->set2(field, is_null ? 0 : m_data.m_end_time);
-      break;
-    case 5: /* SOURCE */
-      mysql_pfscol_string->set_varchar_utf8mb4(
-          field, is_null ? nullptr : m_data.m_source);
-      break;
-    case 6: /* DESTINATION */
-      mysql_pfscol_string->set_varchar_utf8mb4(
-          field, is_null ? nullptr : m_data.m_destination);
-      break;
-    case 7: /* ERROR_NUMBER */
-      int_value.val = m_data.m_error_number;
-      int_value.is_null = is_null;
-      mysql_pfscol_int->set_unsigned(field, int_value);
-      break;
-    case 8: /* ERROR_MESSAGE */
-      mysql_pfscol_string->set_varchar_utf8mb4(
-          field, is_null ? nullptr : m_data.m_error_mesg);
-      break;
-    case 9: /* BINLOG_FILE */ {
-      const size_t dir_len = dirname_length(m_data.m_binlog_file);
-      mysql_pfscol_string->set_varchar_utf8mb4(
-          field, is_null ? nullptr : m_data.m_binlog_file + dir_len);
-    } break;
-    case 10: /* BINLOG_POSITION */
-      bigint_value.val = m_data.m_binlog_pos;
-      bigint_value.is_null = is_null;
-      mysql_pfscol_bigint->set_unsigned(field, bigint_value);
-      break;
-    case 11: /* GTID_EXECUTED */ {
-      int length = is_null ? 0 : m_data.m_gtid_string.length();
-      mysql_pfscol_text->set(
-          field, is_null ? nullptr : m_data.m_gtid_string.c_str(), length);
-    } break;
-    default:         /* purecov: inspected */
-      assert(false); /* purecov: inspected */
-  }
-  return (0);
-}
-#endif // NEVER
 
 void Status_pfs::Data::write(bool write_error)
 {
@@ -633,42 +399,8 @@ void Status_pfs::Data::recover()
   write(true);
 }
 
-#ifdef NEVER
-static unsigned long long cbk_progress_row_count()
-{
-  return (Progress_pfs::S_NUM_ROWS);
-}
-
-static PSI_table_handle *cbk_progress_open_table(PSI_pos **pos)
-{
-  auto row_pos = reinterpret_cast<uint32_t **>(pos);
-  auto table = open_progress_table(row_pos);
-  auto handle = reinterpret_cast<PSI_table_handle *>(table);
-  return handle;
-}
-#endif // NEVER
-
 Progress_pfs::Progress_pfs() : Table_pfs(S_NUM_ROWS)
 {
-//  auto table = get_proxy_share();
-//  table->m_table_name = "clone_progress";
-//  table->m_table_name_length = strlen(table->m_table_name);
-//  table->m_table_definition =
-//      "`ID` int,"
-//      "`STAGE` char(32),"
-//      "`STATE` char(16),"
-//      "`BEGIN_TIME` timestamp(6) NULL,"
-//      "`END_TIME` timestamp(6) NULL,"
-//      "`THREADS` int,"
-//      "`ESTIMATE` bigint,"
-//      "`DATA` bigint,"
-//      "`NETWORK` bigint,"
-//      "`DATA_SPEED` int,"
-//      "`NETWORK_SPEED` int";
-//  table->get_row_count = cbk_progress_row_count;
-
-//  auto &proxy_table = table->m_proxy_engine_table;
-//  proxy_table.open_table = cbk_progress_open_table;
 }
 
 int Progress_pfs::rnd_init()
@@ -677,84 +409,6 @@ int Progress_pfs::rnd_init()
   Table_pfs::init_position(m_data.m_id);
   return 0;
 }
-
-#ifdef NEVER
-int Progress_pfs::read_column_value(PSI_field *field, uint32_t index)
-{
-  assert(!is_empty());
-  PSI_uint int_value;
-  PSI_ulonglong bigint_value;
-
-  /* Return NULL if cursor is positioned at beginning or end. */
-  auto row_index = get_position();
-  const bool is_null = (row_index == 0 || row_index > S_NUM_ROWS);
-
-  switch (index) {
-    case 0: /* ID: Clone ID */
-      int_value.val = m_data.m_id;
-      int_value.is_null = false;
-      mysql_pfscol_int->set_unsigned(field, int_value);
-      break;
-    case 1: /* STAGE */
-      mysql_pfscol_string->set_char_utf8mb4(
-          field, s_stage_names[row_index],
-          is_null ? 0 : strlen(s_stage_names[row_index]));
-      break;
-    case 2: /* STATE */ {
-      auto name_index = m_data.m_states[row_index];
-      mysql_pfscol_string->set_char_utf8mb4(
-          field, s_state_names[name_index],
-          is_null ? 0 : strlen(s_state_names[name_index]));
-      break;
-    }
-    case 3: /* BEGIN_TIME */
-      mysql_pfscol_timestamp->set2(
-          field, is_null ? 0 : m_data.m_start_time[row_index]);
-      break;
-    case 4: /* END_TIME */
-      mysql_pfscol_timestamp->set2(field,
-                                   is_null ? 0 : m_data.m_end_time[row_index]);
-      break;
-    case 5: /* THREADS */
-      int_value.val = m_data.m_threads[row_index];
-      int_value.is_null = is_null;
-      mysql_pfscol_int->set_unsigned(field, int_value);
-      break;
-    case 6: /* ESTIMATE */
-      bigint_value.val = m_data.m_estimate[row_index];
-      bigint_value.is_null = is_null;
-      mysql_pfscol_bigint->set_unsigned(field, bigint_value);
-      break;
-    case 7: /* DATA */
-      bigint_value.val = m_data.m_complete[row_index];
-      bigint_value.is_null = is_null;
-      mysql_pfscol_bigint->set_unsigned(field, bigint_value);
-      break;
-    case 8: /* NETWORK */
-      bigint_value.val = m_data.m_network[row_index];
-      bigint_value.is_null = is_null;
-      mysql_pfscol_bigint->set_unsigned(field, bigint_value);
-      break;
-    case 9: /* DATA_SPEED */
-      int_value.val = (m_data.m_states[row_index] == STATE_STARTED)
-                          ? m_data.m_data_speed
-                          : 0;
-      int_value.is_null = is_null;
-      mysql_pfscol_int->set_unsigned(field, int_value);
-      break;
-    case 10: /* NETWORK_SPEED */
-      int_value.val = (m_data.m_states[row_index] == STATE_STARTED)
-                          ? m_data.m_network_speed
-                          : 0;
-      int_value.is_null = is_null;
-      mysql_pfscol_int->set_unsigned(field, int_value);
-      break;
-    default:         /* purecov: inspected */
-      assert(false); /* purecov: inspected */
-  }
-  return 0;
-}
-#endif // NEVER
 
 void Progress_pfs::Data::write(const char *data_dir) {
   std::string file_name;

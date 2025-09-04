@@ -123,17 +123,6 @@ int Local::clone_exec() {
       hton_clone_end(thd, server_vector, server_tasks, error);
       return error;
     }
-#if 0
-    /* Spawn concurrent client tasks if auto tuning is OFF. */
-    if (!clone_autotune_concurrency) {
-      /* Limit number of workers based on other configurations. */
-      auto to_spawn = m_clone_client.limit_workers(num_workers);
-      using namespace std::placeholders;
-      auto func = std::bind(clone_local, _1, m_clone_server, _2);
-      m_clone_client.spawn_workers(to_spawn, func);
-    }
-#endif
-
   } else {
     /* Begin clone apply to destination. For auxiliary threads,
     use server storage locator with current copy state. */

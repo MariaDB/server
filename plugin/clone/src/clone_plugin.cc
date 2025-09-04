@@ -49,42 +49,6 @@ uint clone_buffer_size;
 /** Clone system variable: Maximum IO bandwidth in MiB/sec */
 uint clone_max_io_bandwidth;
 
-#if 0
-/** Clone system variable: If clone should block concurrent DDL */
-my_bool clone_block_ddl;
-
-/** Clone system variable: timeout for DDL lock */
-uint clone_ddl_timeout;
-/** Clone system variable: If concurrency is automatically tuned */
-my_bool clone_autotune_concurrency;
-
-/** Clone system variable: Maximum concurrent threads */
-uint clone_max_concurrency;
-
-/** Clone system variable: Maximum network bandwidth in MiB/sec */
-uint clone_max_network_bandwidth;
-
-/** Clone system variable: If network compression is enabled */
-my_bool clone_enable_compression;
-
-/** Clone system variable: valid list of donor addresses. */
-static char *clone_valid_donor_list;
-
-/** Clone system variable: SSL private key */
-static char *clone_ssl_key;
-
-/** Clone system variable: SSL Certificate */
-static char *clone_ssl_cert;
-
-/** Clone system variable: SSL Certificate authority */
-static char *clone_ssl_ca;
-
-/** Clone system variable: timeout for clone restart after n/w failure */
-uint clone_restart_timeout;
-
-/** Clone system variable: time delay after removing data */
-uint clone_delay_after_data_drop;
-#endif
 /** Key for registering clone allocations with performance schema */
 PSI_memory_key clone_mem_key;
 
@@ -302,52 +266,6 @@ static int match_valid_donor_address(MYSQL_THD thd, const char *host,
 
 using SYS_VAR = struct st_mysql_sys_var;
 
-#if 0
-/** Check valid_donor_list format "<HOST1>:<PORT1>,<HOST2:PORT2,..."
-@param[in]	thd	user session THD
-@param[in]	var	system variable
-@param[out]	save	possibly updated variable value
-@param[in]	value	current variable value
-@return error code */
-static int check_donor_addr_format(MYSQL_THD thd, SYS_VAR *var [[maybe_unused]],
-                                   void *save, struct st_mysql_value *value)
-{
-  char temp_buffer[STRING_BUFFER_USUAL_SIZE];
-  auto buf_len = static_cast<int>(sizeof(temp_buffer));
-
-  auto addrs_cstring = value->val_str(value, temp_buffer, &buf_len);
-
-  if (addrs_cstring && (addrs_cstring == temp_buffer))
-    addrs_cstring = thd_strmake(thd, addrs_cstring, buf_len);
-
-  if (addrs_cstring == nullptr)
-  {
-    /* purecov: begin deadcode */
-    (*(const char **)save) = nullptr;
-    /* NULL is a valid value */
-    return 0;
-    /* purecov: end */
-  }
-
-  const std::string addrs(addrs_cstring);
-
-  Donor_Callback callback = [](std::string, uint32_t) { return (false); };
-
-  bool success = scan_donor_list(addrs_cstring, callback);
-
-  if (!success)
-  {
-    (*(const char **)save) = nullptr;
-    my_error(ER_CLONE_SYS_CONFIG, MYF(0),
-             "Invalid Format. Please enter "
-             "\"<hostname1>:<port1>,...\"' with no extra space");
-    return (ER_CLONE_SYS_CONFIG);
-  }
-  *(const char **)save = addrs_cstring;
-  return 0;
-}
-#endif
-
 /** Initialize clone plugin
 @param[in]	plugin_info	server plugin handle
 @return error code */
@@ -503,124 +421,10 @@ static MYSQL_SYSVAR_UINT(max_data_bandwidth, clone_max_io_bandwidth,
                          1024 * 1024,         /* Maximum =   1 TiB/sec */
                          1);                  /* Step    =   1 MiB/sec */
 
-#if 0
-/** If clone should block concurrent DDL */
-static MYSQL_SYSVAR_BOOL(block_ddl, clone_block_ddl, PLUGIN_VAR_NOCMDARG,
-                         "If clone should block concurrent DDL", nullptr,
-                         nullptr, FALSE); /* Allow concurrent ddl by default */
-
-/** Time in seconds to wait for DDL lock. Relevant for donor only when
-clone_block_ddl is set to true. */
-static MYSQL_SYSVAR_UINT(ddl_timeout, clone_ddl_timeout, PLUGIN_VAR_RQCMDARG,
-                         "Time in seconds to wait for DDL lock", nullptr,
-                         nullptr, 60 * 5,   /* Default =  5 min */
-                         0,                 /* Minimum =  0 no wait */
-                         60 * 60 * 24 * 30, /* Maximum =  1 month */
-                         1);                /* Step    =  1 sec */
-
-/** If concurrency is automatically tuned */
-static MYSQL_SYSVAR_BOOL(autotune_concurrency, clone_autotune_concurrency,
-                         PLUGIN_VAR_NOCMDARG,
-                         "If concurrency is automatically tuned", nullptr,
-                         nullptr, TRUE); /* Enable auto tuning by default */
-
-/** Maximum number of concurrent threads for clone */
-static MYSQL_SYSVAR_UINT(max_concurrency, clone_max_concurrency,
-                         PLUGIN_VAR_RQCMDARG,
-                         "Maximum number of concurrent threads for clone",
-                         nullptr, nullptr,
-                         CLONE_DEF_CON, /* Default =   8 threads */
-                         1,             /* Minimum =   1 thread */
-                         128,           /* Maximum = 128 threads */
-                         1);            /* Step    =   1 thread */
-
-/** Maximum network bandwidth for clone */
-static MYSQL_SYSVAR_UINT(max_network_bandwidth, clone_max_network_bandwidth,
-                         PLUGIN_VAR_RQCMDARG,
-                         "Maximum network bandwidth for clone in MiB/sec",
-                         nullptr, nullptr, 0, /* Default =   0 unlimited */
-                         0,                   /* Minimum =   0 unlimited */
-                         1024 * 1024,         /* Maximum =   1 TiB/sec */
-                         1);                  /* Step    =   1 MiB/sec */
-
-/** If data is compressed in network layer. */
-static MYSQL_SYSVAR_BOOL(enable_compression, clone_enable_compression,
-                         PLUGIN_VAR_NOCMDARG,
-                         "If compression is done at network", nullptr, nullptr,
-                         FALSE); /* Disable compression by default */
-
-/** List of valid donor addresses allowed to clone from. */
-static MYSQL_SYSVAR_STR(valid_donor_list, clone_valid_donor_list,
-                        PLUGIN_VAR_OPCMDARG | PLUGIN_VAR_MEMALLOC,
-                        "List of valid donor addresses allowed to clone from"
-                        " HOST1:PORT1,HOST2:PORT2",
-                        check_donor_addr_format, nullptr, nullptr);
-
-/** SSL path name of the SSL private key file */
-static MYSQL_SYSVAR_STR(ssl_key, clone_ssl_key,
-                        PLUGIN_VAR_OPCMDARG | PLUGIN_VAR_MEMALLOC,
-                        "SSL path name of the SSL private key file", nullptr,
-                        nullptr, nullptr);
-
-/** SSL path name of the public key certificate file */
-static MYSQL_SYSVAR_STR(ssl_cert, clone_ssl_cert,
-                        PLUGIN_VAR_OPCMDARG | PLUGIN_VAR_MEMALLOC,
-                        "SSL path name of the public key certificate file",
-                        nullptr, nullptr, nullptr);
-
-/** SSL path name of the Certificate Authority (CA) certificate file */
-static MYSQL_SYSVAR_STR(ssl_ca, clone_ssl_ca,
-                        PLUGIN_VAR_OPCMDARG | PLUGIN_VAR_MEMALLOC,
-                        "SSL path name for Certificate Authority (CA) file",
-                        nullptr, nullptr, nullptr);
-
-/** Donor allows an on going clone operation to resume after short network
-failures. This is the time in minutes up to which the donor allows recipient to
-re-connect and resume after a network failure. After timeout, donor drops the
-current snapshot and the clone operation can no longer be resumed. */
-static MYSQL_SYSVAR_UINT(donor_timeout_after_network_failure,
-                         clone_restart_timeout, PLUGIN_VAR_RQCMDARG,
-                         "Time in minutes up to which donor allows recipient"
-                         " to re-connect and restart cloning after network"
-                         " failure",
-                         nullptr, nullptr, 5, /* Default =   5 min */
-                         0,                   /* Minimum =   0 min: no wait */
-                         30,                  /* Maximum =  30 min */
-                         1);                  /* Step    =   1 min */
-
-/* Time in seconds to wait after data drop.
-In VxFS file system, it was found that the disk space is released
-asynchronously after data files are successfully removed. Since it
-is FS specific behavior and we could not find any generic way to wait
-till the space is completely released, therefore this configuration
-is introduced.*/
-static MYSQL_SYSVAR_UINT(delay_after_data_drop, clone_delay_after_data_drop,
-                         PLUGIN_VAR_RQCMDARG,
-                         "Time in seconds to wait after removing data",
-                         nullptr, nullptr, 0, /* Default =  0 no wait */
-                         0,                   /* Minimum =  0 no wait */
-                         60 * 60,             /* Maximum =  1 hour */
-                         1);                  /* Step    =  1 sec */
-#endif
-
 /** Clone system variables */
 static SYS_VAR *clone_system_variables[] = {
     MYSQL_SYSVAR(buffer_size),
     MYSQL_SYSVAR(max_data_bandwidth),
-#if 0
-    MYSQL_SYSVAR(block_ddl),
-    MYSQL_SYSVAR(ddl_timeout),
-    MYSQL_SYSVAR(max_concurrency),
-    MYSQL_SYSVAR(max_network_bandwidth),
-    MYSQL_SYSVAR(enable_compression),
-    MYSQL_SYSVAR(autotune_concurrency),
-    MYSQL_SYSVAR(valid_donor_list),
-    MYSQL_SYSVAR(ssl_key),
-    MYSQL_SYSVAR(ssl_cert),
-    MYSQL_SYSVAR(ssl_ca),
-    MYSQL_SYSVAR(donor_timeout_after_network_failure),
-    MYSQL_SYSVAR(delay_after_data_drop),
-#endif
     nullptr};
 
 /** Declare clone plugin */
