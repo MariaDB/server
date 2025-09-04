@@ -1073,13 +1073,6 @@ bool Clone_Snapshot::begin_ddl_state(Clone_notify::Type type, space_id_t space,
               We currently cannot handle encryption key in redo log which is
               encrypted by donor master key. */
         ut_ad(!blocked);
-        if (type == Clone_notify::Type::SPACE_ALTER_INPLACE_BULK ||
-            type == Clone_notify::Type::SPACE_ALTER_ENCRYPT_GENERAL ||
-            type == Clone_notify::Type::SPACE_ALTER_ENCRYPT) {
-          error =
-              wait(Wait_type::STATE_END_PAGE_COPY, nullptr, false, check_intr);
-          break;
-        }
         /* Try to block state change. If state is already modified then nothing
         to do as the next states don't require blocking. */
         blocked = block_state_change(type, space, no_wait, check_intr, error);
@@ -1364,22 +1357,7 @@ inline void Clone_Snapshot::unblock_state_change() {
 
 Clone_file_ctx::State Clone_Snapshot::get_target_file_state(
     Clone_notify::Type type, bool begin) {
-  auto target_state = Clone_file_ctx::State::NONE;
-
-  switch (type) {
-    case Clone_notify::Type::SPACE_DROP:
-      target_state = begin ? Clone_file_ctx::State::DROPPING
-                           : Clone_file_ctx::State::DROPPED;
-      break;
-    case Clone_notify::Type::SPACE_RENAME:
-      target_state = begin ? Clone_file_ctx::State::RENAMING
-                           : Clone_file_ctx::State::RENAMED;
-      break;
-    default:
-      target_state = Clone_file_ctx::State::NONE;
-      break;
-  }
-  return target_state;
+  return Clone_file_ctx::State::NONE;
 }
 
 bool Clone_Snapshot::blocks_clone(const Clone_file_ctx *file_ctx) {
@@ -1492,16 +1470,9 @@ void Clone_Snapshot::end_ddl_file(Clone_notify::Type type, space_id_t space) {
 
   file_ctx->set_ddl(get_next_state());
 
-  if (type == Clone_notify::Type::SPACE_DROP) {
-    file_meta->m_deleted = true;
-    file_ctx->m_state.store(target_state);
-    return;
-  }
-
   bool blocking_clone = blocks_clone(file_ctx);
 
   /* We need file handling for drop and rename. */
-  ut_ad(type == Clone_notify::Type::SPACE_RENAME);
   file_meta->m_renamed = true;
   file_ctx->m_state.store(target_state);
 

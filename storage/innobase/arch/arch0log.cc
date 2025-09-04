@@ -669,8 +669,7 @@ Arch_State Arch_Log_Sys::check_set_state(bool is_abort, lsn_t *archived_lsn,
   return ret_state;
 }
 
-dberr_t Arch_Log_Sys::copy_log(Arch_File_Ctx *file_ctx, lsn_t start_lsn,
-                               uint length)
+dberr_t Arch_Log_Sys::copy_log(Arch_File_Ctx *file_ctx, uint length)
 {
   dberr_t err= DB_SUCCESS;
 
@@ -716,7 +715,6 @@ dberr_t Arch_Log_Sys::copy_log(Arch_File_Ctx *file_ctx, lsn_t start_lsn,
 
     ut_ad(length >= write_size);
     length-= write_size;
-    start_lsn+= write_size;
   }
   return DB_SUCCESS;
 }
@@ -901,7 +899,7 @@ bool Arch_Log_Sys::archive(bool init, Arch_File_Ctx *curr_ctx, lsn_t *arch_lsn,
     }
 
     /* Copy data from system redo log files to archiver files */
-    err= copy_log(curr_ctx, *arch_lsn, arch_len);
+    err= copy_log(curr_ctx, arch_len);
 
     /* Simulate archive error. */
     DBUG_EXECUTE_IF("clone_redo_archive_error", err = DB_ERROR;);

@@ -167,24 +167,6 @@ class Clone_notify {
  public:
   /** Notification type. Currently used by various DDL commands. */
   enum class Type {
-    /* Space is being created. */
-    SPACE_CREATE,
-    /* Space is being dropped. */
-    SPACE_DROP,
-    /* Space is being renamed. */
-    SPACE_RENAME,
-    /* Space is being discarded or imported. */
-    SPACE_IMPORT,
-    /* Space encryption property is altered. */
-    SPACE_ALTER_ENCRYPT,
-    /* Space encryption property of general tablespace is altered. */
-    SPACE_ALTER_ENCRYPT_GENERAL,
-    /* Space encryption flags of general tablespace are altered. */
-    SPACE_ALTER_ENCRYPT_GENERAL_FLAGS,
-    /* In place Alter general notification. */
-    SPACE_ALTER_INPLACE,
-    /* Inplace Alter bulk operation. */
-    SPACE_ALTER_INPLACE_BULK,
     /* Special consideration is needed for UNDO as these DDLs
     don't use DDL log and needs special consideration during recovery. */
     SPACE_UNDO_TRUNCATE,

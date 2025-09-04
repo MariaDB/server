@@ -1481,10 +1481,9 @@ class Arch_Log_Sys
 
   /** Copy redo log from file context to archiver files.
   @param[in]  file_ctx  file context for system redo logs
-  @param[in]  start_lsn lsn at which we start copying
   @param[in]  length    data to copy in bytes
   @return error code */
-  dberr_t copy_log(Arch_File_Ctx *file_ctx, lsn_t start_lsn, uint length);
+  dberr_t copy_log(Arch_File_Ctx *file_ctx, uint length);
 
  private:
   /** Mutex to protect concurrent start, stop operations */

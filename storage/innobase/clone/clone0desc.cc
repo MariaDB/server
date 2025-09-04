@@ -620,8 +620,6 @@ static const uint CLONE_FILE_FSBLK_OFFSET = CLONE_FILE_FSP_OFFSET + 4;
 
 /** File Metadata: File space flags in next 2 bytes [Maximum 16 flags] */
 static const uint CLONE_FILE_FLAGS_OFFSET = CLONE_FILE_FSBLK_OFFSET + 4;
-/** Clone File Flag: Encryption type AES */
-static const uint CLONE_DESC_FILE_FLAG_AES = 1;
 /** Clone File Flag: File is renamed. */
 static const uint CLONE_DESC_FILE_FLAG_RENAMED = 2;
 /** Clone File Flag: File is deleted. */

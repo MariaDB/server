@@ -51,8 +51,6 @@ this program; if not, write to the Free Software Foundation, Inc.,
 #include "dict0load.h"
 #include "trx0sys.h"
 
-constexpr space_id_t SPACE_UNKNOWN = std::numeric_limits<space_id_t>::max();
-
 extern void ignore_db_dirs_append(const char *dirname_arg);
 
 /** Check if clone status file exists.
@@ -1695,7 +1693,7 @@ Clone_notify::Clone_notify(Clone_notify::Type type, space_id_t space,
   if (clone_sys == nullptr) return;
   DEBUG_SYNC_C("clone_notify_ddl");
 
-  if (fsp_is_system_temporary(space) || m_type == Type::SPACE_ALTER_INPLACE)
+  if (fsp_is_system_temporary(space))
     /* No need to block clone. */
     return;
 
@@ -1716,7 +1714,7 @@ Clone_notify::Clone_notify(Clone_notify::Type type, space_id_t space,
     return;
   }
 
-  if (type == Type::SYSTEM_REDO_RESIZE || type == Type::SPACE_IMPORT ||
+  if (type == Type::SYSTEM_REDO_RESIZE ||
       type == Type::SPACE_UNDO_TRUNCATE)
   {
     if (clone_active)
@@ -1742,18 +1740,6 @@ Clone_notify::Clone_notify(Clone_notify::Type type, space_id_t space,
   }
 
   bool abort_if_failed= false;
-
-  if (type == Type::SPACE_ALTER_ENCRYPT_GENERAL ||
-      type == Type::SPACE_ALTER_ENCRYPT_GENERAL_FLAGS)
-    /* For general tablespace, Encryption of data pages are always rolled
-    forward as of today. Since we cannot rollback the DDL, clone is aborted
-    on any failure here. */
-    abort_if_failed = true;
-
-  else if (type == Type::SPACE_DROP)
-    /* Post DDL operations should not fail, the transaction is already
-    committed. */
-    abort_if_failed = true;
 
   get_mesg(true, ntfn_mesg);
   ib::info() << "Clone DDL Notification: " << ntfn_mesg;
@@ -1837,33 +1823,6 @@ void Clone_notify::get_mesg(bool begin, std::string &mesg)
 
   switch (m_type)
   {
-    case Type::SPACE_CREATE:
-      mesg.append("[SPACE_CREATE] ");
-      break;
-    case Type::SPACE_DROP:
-      mesg.append("[SPACE_DROP] : ");
-      break;
-    case Type::SPACE_RENAME:
-      mesg.append("[SPACE_RENAME] ");
-      break;
-    case Type::SPACE_ALTER_ENCRYPT:
-      mesg.append("[SPACE_ALTER_ENCRYPT] ");
-      break;
-    case Type::SPACE_IMPORT:
-      mesg.append("[SPACE_IMPORT] ");
-      break;
-    case Type::SPACE_ALTER_ENCRYPT_GENERAL:
-      mesg.append("[SPACE_ALTER_ENCRYPT_GENERAL] ");
-      break;
-    case Type::SPACE_ALTER_ENCRYPT_GENERAL_FLAGS:
-      mesg.append("[SPACE_ALTER_ENCRYPT_GENERAL_FLAGS] ");
-      break;
-    case Type::SPACE_ALTER_INPLACE:
-      mesg.append("[SPACE_ALTER_INPLACE] ");
-      break;
-    case Type::SPACE_ALTER_INPLACE_BULK:
-      mesg.append("[SPACE_ALTER_INPLACE_BULK] ");
-      break;
     case Type::SYSTEM_REDO_RESIZE:
       mesg.append("[SYSTEM_REDO_RESIZE] ");
       break;
