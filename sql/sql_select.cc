@@ -19980,7 +19980,29 @@ simplify_joins(JOIN *join, List<TABLE_LIST> *join_list, COND *conds, bool top,
       {
         /* If the ON expression is still there, it's an outer join */
         DBUG_ASSERT(prev_table->outer_join);
-        prev_table->dep_tables|= table->on_expr_dep_tables;
+
+        /*
+          Ok, we have "... table LEFT JOIN prev_table ON ... ". The old
+          optimizer would make prev_table dependent on all tables needed by
+          "table". For example, in the query:
+
+            SELECT *
+            FROM
+              t1
+              LEFT JOIN t2 ON t2.col1=t1.col1
+              LEFT JOIN t3 ON t3.col2=t1.col2
+
+          table t3 would be made also dependent on {t1, t2}.
+
+          Now, we removed the dependency. table t3 is already marked to depend
+          on the tables it has LEFT JOIN operation with and on tables that it
+          uses in the ON expression.
+        */
+        if (!optimizer_flag(join->thd, OPTIMIZER_SWITCH_REORDER_OUTER_JOINS))
+        {
+          /* Old behavior: mark the table as dependent on all previous */
+          prev_table->dep_tables|= table->on_expr_dep_tables;
+        }
         table_map prev_used_tables= prev_table->nested_join ?
 	                            prev_table->nested_join->used_tables :
 	                            prev_table->get_map();
