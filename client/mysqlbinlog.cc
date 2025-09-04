@@ -3015,6 +3015,12 @@ static Exit_status check_header(IO_CACHE* file,
     */
     goto end;
   }
+  else if (header[0] == '\0' && !memcmp(header, header+1, sizeof(header)-1))
+  {
+    /* This is an empty InnoDB binlog file, pre-allocated but not yet used. */
+    error("File is an empty pre-allocated binlog, contains no data yet");
+    return ERROR_STOP;
+  }
   else if (memcmp(header, BINLOG_MAGIC, sizeof(header)))
   {
     error("File is not a binary log file.");
