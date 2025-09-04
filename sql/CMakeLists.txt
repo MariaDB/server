@@ -199,9 +199,15 @@ SET (SQL_SOURCE
 
 MY_CHECK_CXX_COMPILER_FLAG(-Wno-unused-but-set-variable)
 IF(have_CXX__Wno_unused_but_set_variable)
+  IF(CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64"
+     AND CMAKE_CXX_COMPILER_ID STREQUAL "GNU"
+     AND CMAKE_CXX_COMPILER_VERSION VERSION_LESS "9.0")
+    # Avoid excessive compile time on RHEL8 aarch64
+    SET(ARM_OLD_GCC_FLAGS -fno-strict-aliasing)
+  ENDIF()
   ADD_COMPILE_FLAGS(${CMAKE_CURRENT_BINARY_DIR}/yy_mariadb.cc
     ${CMAKE_CURRENT_BINARY_DIR}/yy_oracle.cc
-    COMPILE_FLAGS "-Wno-unused-but-set-variable")
+    COMPILE_FLAGS "${ARM_OLD_GCC_FLAGS} -Wno-unused-but-set-variable")
 ENDIF()
 
 IF ((CMAKE_SYSTEM_NAME MATCHES "Linux" OR
