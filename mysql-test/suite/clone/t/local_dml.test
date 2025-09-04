@@ -1,6 +1,6 @@
 # Test clone with concurrent DML
 --source include/have_innodb.inc
---source ../include/clone_connection_begin.inc
+
 --let $CLONE_DATADIR = $MYSQL_TMP_DIR/data_new
 --let $CLONE_DATADIR1 = $MYSQL_TMP_DIR/data_new1
 --source include/count_sessions.inc
@@ -40,7 +40,7 @@ connect (con4,localhost,root,,);
 begin;
 --send call execute_dml(1, 51, 25, 100, 200, 1)
 --echo # In connection default - Cloning database
---connection clone_conn_1
+--connection default
 --source ../include/clone_command.inc
 --echo # In connection default - Finished Cloning
 --echo # In connection con1 - Waiting
@@ -115,5 +115,5 @@ SELECT col1, col2, col3 FROM t2 ORDER BY col1 DESC LIMIT 10;
 --source ../include/drop_schema.inc
 --rmdir $CLONE_DATADIR
 --rmdir $CLONE_DATADIR1
---source ../include/clone_connection_end.inc
+
 UNINSTALL PLUGIN clone;

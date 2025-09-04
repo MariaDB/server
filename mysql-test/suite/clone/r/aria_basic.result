@@ -104,7 +104,7 @@ INSERT INTO t_dml VALUES(1), (2), (3);
 SET SESSION debug_dbug="+d,maria_flush_whole_log";
 SET GLOBAL aria_checkpoint_interval=10000;
 INSTALL PLUGIN clone SONAME 'CLONE_PLUGIN';
-connection clone_conn_1;
+connect clone_conn_1,localhost,root,,,;
 SET DEBUG_SYNC= 'after_aria_table_copy_t_dml SIGNAL dml_start WAIT_FOR aria_1';
 CLONE LOCAL DATA DIRECTORY = 'CLONE_DATADIR';
 connection default;
@@ -120,6 +120,7 @@ i
 SET DEBUG_SYNC="now SIGNAL aria_1";
 connection clone_conn_1;
 connection default;
+disconnect clone_conn_1;
 # Restart server on cloned data directory
 # restart: with restart_parameters
 ### Result for DML test
@@ -191,6 +192,4 @@ DROP TABLE t_part_online;
 DROP TABLE t_part_offline;
 DROP TABLE `t 1 t-1`;
 DROP TABLE `t-part online`;
-disconnect clone_conn_1;
-connection default;
 UNINSTALL PLUGIN clone;

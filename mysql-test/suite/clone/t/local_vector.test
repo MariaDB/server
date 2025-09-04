@@ -1,7 +1,6 @@
 --echo # Clone test for VECTOR data type and indexes (InnoDB + MyISAM)
 --source include/have_innodb.inc
 --source include/not_embedded.inc
---source ../include/clone_connection_begin.inc
 
 # Install Clone Plugin
 --replace_result $MARIADB_CLONE_SO CLONE_PLUGIN
@@ -46,7 +45,7 @@ SELECT * FROM t_myisam
   LIMIT 1;
 
 # Starting a local clone
---connection clone_conn_1
+--connection default
 --let $CLONE_DATADIR=$MYSQL_TMP_DIR/clone_vector_test
 --source ../include/clone_command.inc
 
@@ -80,5 +79,5 @@ SELECT * FROM t_myisam
 --connection default
 DROP TABLE t_innodb, t_myisam;
 --rmdir $CLONE_DATADIR
---source ../include/clone_connection_end.inc
+
 UNINSTALL PLUGIN clone;

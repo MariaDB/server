@@ -1,6 +1,6 @@
 # Test clone command
 --source include/have_innodb.inc
---source ../include/clone_connection_begin.inc
+
 --let $CLONE_DATADIR = $MYSQL_TMP_DIR/data_new
 
 CREATE TABLE t1(col1 INT PRIMARY KEY, col2 char(64), FULLTEXT KEY fts_index(col2))ENGINE=InnoDB;

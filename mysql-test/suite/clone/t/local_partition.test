@@ -2,7 +2,7 @@
 --source include/have_innodb.inc
 --source include/have_partition.inc
 --source include/not_embedded.inc
---source ../include/clone_connection_begin.inc
+
 
 # Install Clone plugin
 --replace_result $MARIADB_CLONE_SO CLONE_PLUGIN
@@ -72,7 +72,7 @@ ALTER TABLE isam_p ADD PARTITION (PARTITION p5 VALUES LESS THAN (600));
 INSERT INTO isam_p VALUES (401),(501);       # final isam_p rows: 201,301,401,501
 
 # Clone Data
---connection clone_conn_1
+--connection default
 --let $CLONE_DATADIR=$MYSQL_TMP_DIR/clone_ddl_partitions
 --source ../include/clone_command.inc
 
@@ -98,5 +98,5 @@ SELECT * FROM isam_p ORDER BY a;
 --connection default
 DROP TABLE IF EXISTS p, t2, isam_p, isam_t2;
 --rmdir $CLONE_DATADIR
---source ../include/clone_connection_end.inc
+
 UNINSTALL PLUGIN clone;

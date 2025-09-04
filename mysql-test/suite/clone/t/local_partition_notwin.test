@@ -1,7 +1,7 @@
 --echo # MyISAM table with 400 partitions
 --source include/have_partition.inc
 --source include/not_embedded.inc
---source ../include/clone_connection_begin.inc
+
 
 # Install Clone Plugin
 --replace_result $MARIADB_CLONE_SO CLONE_PLUGIN
@@ -46,4 +46,4 @@ DROP TABLE t1;
 --rmdir $CLONE_DATADIR
 
 UNINSTALL PLUGIN clone;
---source ../include/clone_connection_end.inc
+

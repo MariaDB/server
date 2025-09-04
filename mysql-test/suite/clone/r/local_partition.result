@@ -54,7 +54,7 @@ ALTER TABLE isam_p DROP PARTITION p1;
 ALTER TABLE isam_p ADD PARTITION (PARTITION p4 VALUES LESS THAN (500));
 ALTER TABLE isam_p ADD PARTITION (PARTITION p5 VALUES LESS THAN (600));
 INSERT INTO isam_p VALUES (401),(501);
-connection clone_conn_1;
+connection default;
 CLONE LOCAL DATA DIRECTORY = 'CLONE_DATADIR';
 connection default;
 # Restart server on cloned data directory
@@ -88,6 +88,4 @@ a
 # restart
 connection default;
 DROP TABLE IF EXISTS p, t2, isam_p, isam_t2;
-disconnect clone_conn_1;
-connection default;
 UNINSTALL PLUGIN clone;

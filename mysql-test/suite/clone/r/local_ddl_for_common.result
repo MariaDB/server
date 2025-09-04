@@ -101,5 +101,3 @@ t1_m1, t1_m2, t2_m1, t2_m2, t3_m1, t3_m2;
 Warnings:
 Note	1051	Unknown table 'test.t2,test.t3,test.t1_m1,test.t1_m2,test.t2_m1,test.t2_m2,test.t3_m1,test.t3_m2'
 UNINSTALL PLUGIN clone;
-disconnect clone_conn_1;
-connection default;

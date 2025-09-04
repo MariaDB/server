@@ -1,6 +1,6 @@
 # Test clone command (DDL for non-InnoDB: CSV, MERGE/MRG_MYISAM, MyISAM)
 --source include/not_embedded.inc
---source ../include/clone_connection_begin.inc
+
 
 # Install Clone Plugin
 --replace_result $MARIADB_CLONE_SO CLONE_PLUGIN
@@ -99,9 +99,8 @@ while ($e_var)
   # Cleanup donor objects
   DROP TABLE IF EXISTS t4, t5, t1, t2, t3,
                        t1_m1, t1_m2, t2_m1, t2_m2, t3_m1, t3_m2;
-
   --dec $e_var
 }
 
 UNINSTALL PLUGIN clone;
---source ../include/clone_connection_end.inc
+

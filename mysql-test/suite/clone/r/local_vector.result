@@ -35,7 +35,7 @@ ORDER BY vec_distance_euclidean(v, 0x30303030)
 LIMIT 1;
 a	v
 1	1111
-connection clone_conn_1;
+connection default;
 CLONE LOCAL DATA DIRECTORY = 'CLONE_DATADIR';
 # Restart server on cloned data directory
 connection default;
@@ -77,6 +77,4 @@ a	v
 # restart
 connection default;
 DROP TABLE t_innodb, t_myisam;
-disconnect clone_conn_1;
-connection default;
 UNINSTALL PLUGIN clone;

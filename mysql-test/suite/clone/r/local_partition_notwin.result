@@ -35,5 +35,3 @@ COUNT(*)
 connection default;
 DROP TABLE t1;
 UNINSTALL PLUGIN clone;
-disconnect clone_conn_1;
-connection default;

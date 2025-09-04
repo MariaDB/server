@@ -153,7 +153,7 @@ connect  con4,localhost,root,,;
 begin;
 call execute_dml(1, 51, 25, 100, 200, 1);
 # In connection default - Cloning database
-connection clone_conn_1;
+connection default;
 CLONE LOCAL DATA DIRECTORY = 'CLONE_DATADIR';
 # In connection default - Finished Cloning
 # In connection con1 - Waiting
@@ -333,6 +333,4 @@ connection default;
 DROP TABLE t1;
 DROP TABLE t2;
 DROP PROCEDURE execute_dml;
-disconnect clone_conn_1;
-connection default;
 UNINSTALL PLUGIN clone;
