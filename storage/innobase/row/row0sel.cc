@@ -6382,16 +6382,13 @@ rec_loop:
                                  ULINT_UNDEFINED, &heap);
       goto next_rec;
     }
-    else if (!rec_deleted && !rec_trx_id);
+    else if (!rec_deleted);
     else if (!check_table_extended_view.changes_visible(rec_trx_id));
     else if (prebuilt->autoinc_error == DB_SUCCESS)
     {
-      const char *msg= rec_deleted
-        ? "Unpurged clustered index record"
-        : "Clustered index record with stale history";
-
       ib::warn w;
-      w << msg << " in table " << index->table->name << ": "
+      w << "Unpurged clustered index record in table "
+        << index->table->name << ": "
         << rec_offsets_print(rec, offsets);
       prebuilt->autoinc_error= DB_MISSING_HISTORY;
       push_warning_printf(prebuilt->trx->mysql_thd,
