@@ -2932,9 +2932,6 @@ Item_sp::func_name_cstring(THD *thd, bool is_package_function) const
 void
 Item_sp::cleanup()
 {
-  delete sp_result_field;
-  sp_result_field= NULL;
-  sp_result_field_items= Item_args();
   m_sp= NULL;
   delete func_ctx;
   func_ctx= NULL;
@@ -3106,7 +3103,6 @@ Item_sp::init_result_field(THD *thd, uint max_length, uint maybe_null,
   DBUG_ENTER("Item_sp::init_result_field");
 
   DBUG_ASSERT(m_sp != NULL);
-  DBUG_ASSERT(sp_result_field == NULL);
 
   /*
      A Field needs to be attached to a Table.
@@ -3119,6 +3115,30 @@ Item_sp::init_result_field(THD *thd, uint max_length, uint maybe_null,
   dummy_table->s->table_cache_key= empty_clex_str;
   dummy_table->s->table_name= Lex_ident_table(empty_clex_str);
   dummy_table->maybe_null= maybe_null;
+
+  if (sp_result_field) // Non-first execution
+  {
+    if (Field_row *field_row= dynamic_cast<Field_row*>(sp_result_field))
+    {
+      /*
+        At the end of the previous execution cleanup() was called for
+        all Item_field instances in sp_result_field_items, which set their
+        Item_field::field to nullptr. We need to restore them to pointers
+        to the Fields in the virtual table.
+      */
+      Virtual_tmp_table *tbl= field_row->virtual_tmp_table();
+      DBUG_ASSERT(tbl->s->fields == sp_result_field_items.argument_count());
+      for (uint i= 0; i < tbl->s->fields; i++)
+      {
+        Item *item= sp_result_field_items.arguments()[i];
+        Item_field *item_field= dynamic_cast<Item_field*>(item);
+        DBUG_ASSERT(item_field);
+        item_field->reset_field(tbl->field[i]);
+      }
+    }
+    DBUG_RETURN(FALSE);
+  }
+
 
   if (m_sp->m_return_field_def.is_column_type_ref())
   {
