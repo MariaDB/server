@@ -1,0 +1,201 @@
+-- source include/have_perfschema.inc
+
+--echo #
+--echo # MDEV-34331: System package SYS.UTL_I18N
+--echo #
+
+--echo #
+--echo # transliterate test with sjis
+--echo #
+
+SET sql_mode= oracle;
+SET NAMES sjis;
+
+--echo #
+--echo # Test transliterate with valid input
+--echo #
+SET collation_connection=sjis_japanese_ci;
+CREATE TABLE t1 (b VARCHAR(2));
+INSERT INTO t1 VALUES ('0'),('1'),('2'),('3'),('4'),('5'),('6'),('7');
+INSERT INTO t1 VALUES ('8'),('9'),('A'),('B'),('C'),('D'),('E'),('F');
+#
+# Populate tables head and tail with values '00'-'FF'
+#
+CREATE TEMPORARY TABLE head AS SELECT CONCAT(b1.b, b2.b) AS head FROM t1 b1, t1 b2;
+CREATE TEMPORARY TABLE tail AS SELECT CONCAT(b1.b, b2.b) AS tail FROM t1 b1, t1 b2;
+DROP TABLE t1;
+#
+# Populate Hiragana table t1
+#
+CREATE TABLE t1 AS
+SELECT CONCAT(head, tail) AS code, ' ' AS a
+FROM head, tail
+WHERE (head = '82') AND (tail BETWEEN '9F' AND 'F1')
+ORDER BY head, tail;
+# Populate Half Width Kana part 1
+# 
+INSERT IGNORE INTO t1 (code) SELECT CONCAT('83', head) FROM head
+WHERE (head BETWEEN '40' AND '7E') ORDER BY head;#
+# Populate Half Width Kana part 2
+# 
+INSERT IGNORE INTO t1 (code) SELECT CONCAT('83', head) FROM head
+WHERE (head BETWEEN '80' AND '96') ORDER BY head;#
+# Populate Half Width Kana: [A1..DD]
+# 
+INSERT IGNORE t1 (code) SELECT head FROM head WHERE (head BETWEEN 'A1' AND 'DD');
+DROP TEMPORARY TABLE head, tail;
+SHOW CREATE TABLE t1;
+UPDATE IGNORE t1 SET a=UNHEX(code) ORDER BY code;
+SELECT GROUP_CONCAT(a) FROM t1 WHERE (code BETWEEN 'A1' AND 'DD') INTO @hw_char_arr;
+SELECT GROUP_CONCAT(a) FROM t1 WHERE (code BETWEEN '8340' AND '837e') INTO @fw_char_arr;
+SELECT GROUP_CONCAT(a) FROM t1 WHERE (code BETWEEN '8380' AND '8396') INTO @fw_char_arr2;
+SELECT GROUP_CONCAT(a) FROM t1 WHERE (code BETWEEN '829f' AND '82f1') INTO @hi_char_arr2;
+
+DROP TABLE t1;
+
+SET NAMES sjis;
+SET collation_connection=sjis_japanese_ci;
+DELIMITER /;
+CREATE PROCEDURE f1 (array_string VARCHAR2(255) CHARACTER SET sjis)
+AS
+BEGIN
+  DECLARE
+    array_length INT;
+    element VARCHAR2(255) CHARACTER SET sjis;
+    temp_string VARCHAR2(255) CHARACTER SET sjis;
+  BEGIN
+    SET array_length = (LENGTH(array_string) - LENGTH(REPLACE(array_string, ',', ''))) + 1;
+    SET temp_string = array_string;
+    <<la>>
+    FOR ia IN 1 .. array_length
+    LOOP
+      SET element = SUBSTRING_INDEX(SUBSTRING_INDEX(temp_string, ',', 1), ',', -1);
+      SELECT element;
+      SELECT sys.UTL_I18N.TRANSLITERATE(element, 'hwkatakana_fwkatakana');
+      SET temp_string = SUBSTRING(temp_string, LENGTH(element) + 2); 
+    END LOOP la;
+  END;
+END;
+/
+DELIMITER ;/
+
+--echo #
+--echo # feed all halfwidth katakana characters to the transliterate function
+--echo #
+CALL f1(@hw_char_arr);
+DROP PROCEDURE f1;
+
+DELIMITER /;
+CREATE PROCEDURE f2 (array_string VARCHAR2(255) CHARACTER SET sjis)
+AS
+BEGIN
+  DECLARE
+    array_length INT;
+    element VARCHAR2(255) CHARACTER SET sjis;
+    temp_string VARCHAR2(255) CHARACTER SET sjis;
+  BEGIN
+    SET array_length = (LENGTH(array_string) - LENGTH(REPLACE(array_string, ',', ''))) + 1;
+    SET temp_string = array_string;
+    <<la>>
+    FOR ia IN 1 .. array_length
+    LOOP
+      SET element = SUBSTRING_INDEX(SUBSTRING_INDEX(temp_string, ',', 1), ',', -1);
+      SELECT element;
+      SELECT sys.UTL_I18N.TRANSLITERATE(element, 'kana_hwkatakana');
+      SET temp_string = SUBSTRING(temp_string, LENGTH(element) + 2); 
+    END LOOP la;
+  END;
+END;
+/
+DELIMITER ;/
+
+--echo #
+--echo # feed fullwidth katakana characters with codepoints '8340' upto '837e' to the transliterate function
+--echo #
+CALL f2(@fw_char_arr);
+
+--echo #
+--echo # feed fullwidth katakana characters with codepoints '8380' upto '8396' to the transliterate function
+--echo #
+CALL f2(@fw_char_arr2);
+
+--echo #
+--echo # feed all hiragana characters to the transliterate function
+--echo #
+CALL f2(@hi_char_arr2);
+DROP PROCEDURE f2;
+
+--echo #
+--echo # Test combination of fullwidth, hiragana & halfwidth characters with the 'fwkatakana_hwkatakana' (mode) name
+--echo #
+--disable_warnings
+SELECT sys.UTL_I18N.TRANSLITERATE('ÉAÇ†±', 'fwkatakana_hwkatakana');
+--enable_warnings
+
+--echo #
+--echo # Test Latin 'a' character with the 'kana_hwkatakana' (mode) name
+--echo #
+SELECT sys.UTL_I18N.TRANSLITERATE('a', 'kana_hwkatakana');
+
+--echo #
+--echo # Test Latin 'a' character with the 'hwkatakana_fwkatakana' (mode) name
+--echo #
+SELECT sys.UTL_I18N.TRANSLITERATE('a', 'hwkatakana_fwkatakana');
+
+--echo #
+--echo # Test the 'kana_hwkatakana' (mode) name
+--echo #
+SELECT sys.UTL_I18N.TRANSLITERATE('Ç†', 'kana_hwkatakana');
+
+--echo #
+--echo # Test the 'hwkatakana_fwkatakana' (mode) name
+--echo #
+SELECT sys.UTL_I18N.TRANSLITERATE('±', 'hwkatakana_fwkatakana');
+
+--echo #
+--echo # Test the 'hwkatakana_fwkatakana' (mode) name
+--echo #
+SELECT sys.UTL_I18N.TRANSLITERATE('ÉA1', 'hwkatakana_fwkatakana');
+
+--echo #
+--echo # Test input string with introducer
+--echo #
+SELECT sys.UTL_I18N.TRANSLITERATE(_sjis'Ç†', 'kana_hwkatakana');
+
+--echo #
+--echo # Test input string with collate clause
+--echo #
+SELECT sys.UTL_I18N.TRANSLITERATE('Ç†' COLLATE sjis_japanese_ci, 'kana_hwkatakana');
+
+--echo #
+--echo # Test input string with introducer & collate clause
+--echo #
+SELECT sys.UTL_I18N.TRANSLITERATE(_sjis'Ç†' COLLATE sjis_japanese_ci, 'kana_hwkatakana');
+
+--echo #
+--echo # Test with blank (mode) name
+--echo #
+--error ER_STD_INVALID_ARGUMENT
+SELECT sys.UTL_I18N.TRANSLITERATE('±', ' ');
+
+--echo #
+--echo # Test with empty input string
+--echo #
+SELECT sys.UTL_I18N.TRANSLITERATE('', 'hwkatakana_fwkatakana');
+
+--echo #
+--echo # Test TRANSLITERATE with empty name
+--echo #
+--error ER_STD_INVALID_ARGUMENT
+SELECT sys.UTL_I18N.TRANSLITERATE('±', '');
+
+--echo #
+--echo # Test TRANSLITERATE with null name
+--echo #
+SELECT sys.UTL_I18N.TRANSLITERATE(NULL, 'hwkatakana_fwkatakana');
+
+--echo #
+--echo # Test TRANSLITERATE with non sjis & EUC-JP characters
+--echo #
+--error ER_STD_INVALID_ARGUMENT
+SELECT sys.UTL_I18N.TRANSLITERATE(_utf8'±', 'hwkatakana_fwkatakana');
