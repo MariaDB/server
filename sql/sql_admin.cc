@@ -1760,37 +1760,28 @@ bool Sql_cmd_clone::execute(THD *thd)
 {
 #ifdef EMBEDDED_LIBRARY
   my_error(ER_NOT_SUPPORTED_YET, MYF(0),
-           "Remote clone or REPLACE clone");
+           "Clone Not Supported In Embedded Build");
   return true;
 #else
-  const bool is_replace= (m_data_dir.str == nullptr);
-  if (is_replace || !is_local())
+
+  if (is_local())
+  {
+    DBUG_PRINT("admin", ("CLONE type = local, DIR = %s", m_data_dir.str));
+  }
+  else
   {
     my_error(ER_NOT_SUPPORTED_YET, MYF(0),
              "Remote clone or REPLACE clone");
     return true;
   }
 
-  if (is_local())
-    DBUG_PRINT("admin", ("CLONE type = local, DIR = %s", m_data_dir.str));
-  else
-    DBUG_PRINT("admin", ("CLONE type = remote, DIR = %s",
-                         is_replace ? "" : m_data_dir.str));
-
-  /* For replacing current data directory, needs clone_admin privilege. */
-  if (is_replace)
-  {
-    /* TODO: Check for CLONE_ADMIN equivalent privilege. */
-    if (check_global_access(thd, RELOAD_ACL) ||
-        check_global_access(thd, LOCK_TABLES_ACL))
-      return true;
-  }
-  else if (check_global_access(thd, RELOAD_ACL) ||
-           check_global_access(thd, LOCK_TABLES_ACL))
+  /*Check for CLONE_ADMIN equivalent privilege. */
+  if (check_global_access(thd, RELOAD_ACL) ||
+      check_global_access(thd, LOCK_TABLES_ACL))
     return true;
 
   assert(m_clone == nullptr);
-  m_clone= clone_plugin_lock(thd, &m_plugin);
+  m_clone = clone_plugin_lock(thd, &m_plugin);
 
   if (m_clone == nullptr)
   {
@@ -1798,78 +1789,12 @@ bool Sql_cmd_clone::execute(THD *thd)
     return true;
   }
 
-  if (is_local())
-  {
-    assert(!is_replace);
-    auto err= m_clone->clone_local(thd, m_data_dir.str);
-
-    if (err != 0)
-      return true;
-
-    my_ok(thd);
-    return false;
-  }
-
-  assert(!is_local());
-
-  int ssl_mode= 1;
-
-  if (thd->lex->account_options.ssl_type == SSL_TYPE_NONE)
-    ssl_mode= 0;
-
-  auto err= m_clone->clone_remote_client(
-      thd, m_host.str, static_cast<uint>(m_port), m_user.str, m_passwd.str,
-      m_data_dir.str, ssl_mode);
-  clone_plugin_unlock(thd, m_plugin);
-  m_clone= nullptr;
-
-  /* Set active VIO as clone plugin might have reset it */
-  thd->set_active_vio(thd->net.vio);
+  auto err= m_clone->clone_local(thd, m_data_dir.str);
 
   if (err != 0)
-  {
-    /* Log donor error number and message. */
-    if (err == ER_CLONE_DONOR)
-    {
-      const char *donor_mesg= nullptr;
-      int donor_error= 0;
-      const bool success=
-          Clone_handler::get_donor_error(donor_error, donor_mesg);
-      if (success && donor_error != 0 && donor_mesg != nullptr)
-      {
-        char info_mesg[128];
-        snprintf(info_mesg, 128, "Clone Donor error : %d : %s", donor_error,
-                 donor_mesg);
-        const char* format= my_get_err_msg(ER_CLONE_CLIENT_TRACE);
-        sql_print_information(format, info_mesg);
-      }
-    }
-    return true;
-  }
-
-  /* Check for KILL after setting active VIO */
-  if (!is_replace && thd->killed != NOT_KILLED)
-  {
-    my_error(ER_QUERY_INTERRUPTED, MYF(0));
-    return true;
-  }
-
-  /* Restart server after successfully cloning to current data directory. */
-  if (is_replace)
-  {
-    /* Shutdown server if restart failed. */
-    const char* mesg= my_get_err_msg(ER_CLONE_SHUTDOWN_TRACE);
-    sql_print_information("%s", mesg);
-
-    Diagnostics_area *stmt_da= thd->get_stmt_da();
-    Diagnostics_area shutdown_da(thd->query_id, false, true);
-    thd->set_stmt_da(&shutdown_da);
-    /* CLONE_ADMIN privilege allows us to shutdown/restart at end. */
-    kill_mysql(thd);
-    thd->set_stmt_da(stmt_da);
-    return true;
-  }
+    return true;  
   my_ok(thd);
+
 #endif /* EMBEDDED_LIBRARY */
   return false;
 }
