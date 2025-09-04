@@ -473,7 +473,7 @@ get_server_from_table_to_cache(TABLE *table)
   server->scheme= ptr ? ptr : blank;
   ptr= get_field(&mem, table->field[8]);
   server->owner= ptr ? ptr : blank;
-  ptr= table->field[9] ? get_field(&mem, table->field[9]) : NULL;
+  ptr= table->s->fields > 9 ? get_field(&mem, table->field[9]) : NULL;
   server->option_list= NULL;
   if (ptr && parse_server_options_json(server, ptr))
     DBUG_RETURN(TRUE);
