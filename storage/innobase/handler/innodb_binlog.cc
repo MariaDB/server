@@ -49,17 +49,17 @@ pending_lsn_fifo ibb_pending_lsn_fifo;
 uint32_t innodb_binlog_size_in_pages;
 const char *innodb_binlog_directory;
 
-/* Current write position in active binlog file. */
+/** Current write position in active binlog file. */
 uint32_t binlog_cur_page_no;
 uint32_t binlog_cur_page_offset;
 
-/*
+/**
   Server setting for how often to dump a (differential) binlog state at the
   start of the page, to speed up finding the initial GTID position, read-only.
 */
 ulonglong innodb_binlog_state_interval;
 
-/*
+/**
   Differential binlog state in the currently active binlog tablespace, relative
   to the state at the start.
 */
@@ -68,16 +68,16 @@ rpl_binlog_state_base binlog_diff_state;
 static std::thread binlog_prealloc_thr_obj;
 static bool prealloc_thread_end= false;
 
-/*
+/**
   Mutex around purge operations, including earliest_binlog_file_no and
   total_binlog_used_size.
 */
 mysql_mutex_t purge_binlog_mutex;
 
-/* The earliest binlog tablespace file. Used in binlog purge. */
+/** The earliest binlog tablespace file. Used in binlog purge. */
 static uint64_t earliest_binlog_file_no;
 
-/*
+/**
   The total space in use by binlog tablespace files. Maintained in-memory to
   not have to stat(2) every file for every new binlog tablespace allocated in
   case of --max-binlog-total-size.
@@ -95,7 +95,9 @@ mysql_pfs_key_t binlog_prealloc_thread_key;
 #endif
 
 
-/* Structure holding context for out-of-band chunks of binlogged event group. */
+/**
+   Structure holding context for out-of-band chunks of binlogged event group.
+*/
 struct binlog_oob_context {
   struct savepoint;
   /*
@@ -114,14 +116,14 @@ struct binlog_oob_context {
     static constexpr uint32_t max_buffer= 5*COMPR_INT_MAX64;
     uint64_t sofar;
     uint64_t main_len;
-    byte *main_data;
+    const byte *main_data;
     uint32_t header_len;
     byte header_buf[max_buffer];
 
     chunk_data_oob(uint64_t idx,
                    uint64_t left_file_no, uint64_t left_offset,
                    uint64_t right_file_no, uint64_t right_offset,
-                   byte *data, size_t data_len);
+                   const byte *data, size_t data_len);
     virtual ~chunk_data_oob() {};
     virtual std::pair<uint32_t, bool> copy_data(byte *p, uint32_t max_len) final;
   };
@@ -180,7 +182,7 @@ struct binlog_oob_context {
 };
 
 
-/*
+/**
   A class for doing the post-order traversal of the forest of perfect binary
   trees that make up the out-of-band data for a commit record.
 */
@@ -312,7 +314,8 @@ struct chunk_data_cache : public chunk_data_base {
     ut_ad(end_offset >= binlog_info->gtid_offset);
     gtid_remain= end_offset - (size_t)binlog_info->gtid_offset;
 
-    binlog_oob_context *c= (binlog_oob_context *)binlog_info->engine_ptr;
+    binlog_oob_context *c=
+      static_cast<binlog_oob_context *>(binlog_info->engine_ptr);
     unsigned char *p;
     ut_ad(c);
     oob_ctx= c;
@@ -434,7 +437,7 @@ struct found_binlogs {
 };
 
 
-/*
+/**
   This structure holds the state needed during InnoDB recovery for recovering
   binlog tablespace files.
 */
@@ -533,7 +536,7 @@ static bool binlog_state_recover();
 static void innodb_binlog_autopurge(uint64_t first_open_file_no, LF_PINS *pins);
 
 
-/*
+/**
   Read the header of a binlog tablespace file identified by file_no.
   Sets the out_empty false if the file is empty or has checksum error (or
   is missing).
@@ -600,7 +603,8 @@ bool binlog_recovery::init_recovery(bool space_id, uint32_t page_no,
 {
   /* Start by initializing resource pointers so we are safe to releaes(). */
   cur_file_fh= (File)-1;
-  if (!(page_buf= (byte *)ut_malloc(ibb_page_size, mem_key_binlog)))
+  if (!(page_buf= static_cast<byte *>
+        (ut_malloc(ibb_page_size, mem_key_binlog))))
   {
     my_error(ER_OUTOFMEMORY, MYF(MY_WME), ibb_page_size);
     return true;
@@ -773,7 +777,7 @@ binlog_recovery::init_recovery_from(uint64_t file_no, lsn_t file_lsn,
 }
 
 
-/*
+/**
   Initialize recovery from the state where there are no binlog files, or only
   completely empty binlog files. In this case we have no file LSN to compare
   redo records against.
@@ -1151,7 +1155,7 @@ binlog_recovery::update_page_from_record(uint16_t offset,
 }
 
 
-/*
+/**
   Check if this is an InnoDB binlog file name.
   Return the index/file_no if so.
 */
@@ -1214,7 +1218,7 @@ innodb_binlog_init_state()
 }
 
 
-/* Start the thread that pre-allocates new binlog files. */
+/** Start the thread that pre-allocates new binlog files. */
 static void
 start_binlog_prealloc_thread()
 {
@@ -1230,7 +1234,7 @@ start_binlog_prealloc_thread()
 }
 
 
-/*
+/**
   Write the initial header record to the file and durably sync it to disk in
   the binlog tablespace file and in the redo log.
 
@@ -1279,7 +1283,7 @@ ibb_set_max_size(size_t binlog_size)
 }
 
 
-/*
+/**
   Open the InnoDB binlog implementation.
   This is called from server binlog layer if the user configured the binlog to
   use the innodb implementation (with --binlog-storage-engine=innodb).
@@ -1305,7 +1309,7 @@ innodb_binlog_init(size_t binlog_size, const char *directory)
   int res= innodb_binlog_discover();
   if (res < 0)
   {
-    /* Need to think more on the error handling if the binlog cannot be opened. We may need to abort starting the server, at least for some errors? And/or in some cases maybe force ignore any existing unusable files and continue with a new binlog (but then maybe innodb_binlog_discover() should return 0 and print warnings in the error log?). */
+    /* ToDo: Need to think more on the error handling if the binlog cannot be opened. We may need to abort starting the server, at least for some errors? And/or in some cases maybe force ignore any existing unusable files and continue with a new binlog (but then maybe innodb_binlog_discover() should return 0 and print warnings in the error log?). */
     return true;
   }
   if (res > 0)
@@ -1327,7 +1331,7 @@ innodb_binlog_init(size_t binlog_size, const char *directory)
 }
 
 
-/* Compute the (so far) last and last-but-one binlog files found. */
+/** Compute the (so far) last and last-but-one binlog files found. */
 static void
 process_binlog_name(found_binlogs *bls, uint64_t idx, size_t size)
 {
@@ -1362,7 +1366,7 @@ process_binlog_name(found_binlogs *bls, uint64_t idx, size_t size)
 }
 
 
-/*
+/**
   Scan the binlog directory for binlog files.
   Returns:
     1 Success
@@ -1405,7 +1409,7 @@ binlog_page_empty(const byte *page)
 }
 
 
-/*
+/**
   Find the last written position in the binlog file.
   Do a binary search through the pages to find the last non-empty page, then
   scan the page to find the place to start writing new binlog data.
@@ -1557,7 +1561,7 @@ binlog_discover_init(uint64_t file_no, uint64_t interval)
 }
 
 
-/*
+/**
   Returns:
     -1     error
      0     No binlogs found
@@ -1715,7 +1719,7 @@ void innodb_binlog_close(bool shutdown)
 }
 
 
-/*
+/**
   Background thread to close old binlog tablespaces and pre-allocate new ones.
 */
 static void
@@ -1915,7 +1919,7 @@ binlog_gtid_state(rpl_binlog_state_base *state, mtr_t *mtr,
   {
     size_t buf_size=
       state->count_nolock() * (2*COMPR_INT_MAX32 + COMPR_INT_MAX64);
-    alloced_buf= (byte *)ut_malloc(buf_size, mem_key_binlog);
+    alloced_buf= static_cast<byte *>(ut_malloc(buf_size, mem_key_binlog));
     if (UNIV_UNLIKELY(!alloced_buf))
       return true;
     buf= alloced_buf;
@@ -1996,7 +2000,7 @@ binlog_gtid_state(rpl_binlog_state_base *state, mtr_t *mtr,
 }
 
 
-/*
+/**
   Read a binlog state record. The passed in STATE object is updated with the
   state read.
 
@@ -2079,7 +2083,7 @@ read_gtid_state(binlog_chunk_reader *chunk_reader,
 }
 
 
-/*
+/**
   Recover the GTID binlog state at startup.
   Read the full binlog state at the start of the current binlog file, as well
   as the last differential binlog state on top, if any. Then scan from there to
@@ -2097,7 +2101,8 @@ binlog_state_recover()
   uint32_t page_no= 1;
 
   binlog_chunk_reader chunk_reader(binlog_cur_end_offset);
-  byte *page_buf= (byte *)ut_malloc(ibb_page_size, mem_key_binlog);
+  byte *page_buf=
+    static_cast<byte *>(ut_malloc(ibb_page_size, mem_key_binlog));
   if (!page_buf)
     return true;
   chunk_reader.set_page_buf(page_buf);
@@ -2134,14 +2139,14 @@ binlog_state_recover()
 }
 
 
-/* Allocate a context for out-of-band binlogging. */
+/** Allocate a context for out-of-band binlogging. */
 static binlog_oob_context *
 alloc_oob_context(uint32 list_length= 10)
 {
   size_t needed= sizeof(binlog_oob_context) +
     list_length * sizeof(binlog_oob_context::node_info);
   binlog_oob_context *c=
-    (binlog_oob_context *) ut_malloc(needed, mem_key_binlog);
+    static_cast<binlog_oob_context *>(ut_malloc(needed, mem_key_binlog));
   if (c)
   {
     if (!(c->lf_pins= lf_hash_get_pins(&ibb_file_hash.hash)))
@@ -2168,7 +2173,8 @@ static void
 innodb_binlog_write_cache(IO_CACHE *cache,
                        handler_binlog_event_group_info *binlog_info, mtr_t *mtr)
 {
-  binlog_oob_context *c= (binlog_oob_context *)binlog_info->engine_ptr;
+  binlog_oob_context *c=
+    static_cast<binlog_oob_context *>(binlog_info->engine_ptr);
   if (!c)
     binlog_info->engine_ptr= c= alloc_oob_context();
   ut_a(c);
@@ -2217,7 +2223,7 @@ free_oob_context(binlog_oob_context *c)
 static binlog_oob_context *
 ensure_oob_context(void **engine_data, uint32_t needed_len)
 {
-  binlog_oob_context *c= (binlog_oob_context *)*engine_data;
+  binlog_oob_context *c= static_cast<binlog_oob_context *>(*engine_data);
   if (c->node_list_alloc_len >= needed_len)
     return c;
   if (needed_len < c->node_list_alloc_len + 10)
@@ -2234,7 +2240,7 @@ ensure_oob_context(void **engine_data, uint32_t needed_len)
 }
 
 
-/*
+/**
   Binlog an out-of-band piece of event group data.
 
   For large transactions, we binlog the data in pieces spread out over the
@@ -2298,7 +2304,7 @@ innodb_binlog_oob_ordered(THD *thd, const unsigned char *data, size_t data_len,
                           void **engine_data, void **stm_start_data,
                           void **savepoint_data)
 {
-  binlog_oob_context *c= (binlog_oob_context *)*engine_data;
+  binlog_oob_context *c= static_cast<binlog_oob_context *>(*engine_data);
   if (!c)
     *engine_data= c= alloc_oob_context();
   if (UNIV_UNLIKELY(!c))
@@ -2333,7 +2339,7 @@ innodb_binlog_oob_ordered(THD *thd, const unsigned char *data, size_t data_len,
       (new_idx,
        c->node_list[i-2].file_no, c->node_list[i-2].offset,
        c->node_list[i-1].file_no, c->node_list[i-1].offset,
-       (byte *)data, data_len);
+       static_cast<const byte *>(data), data_len);
     if (c->binlog_node(i-2, new_idx, i-2, i-1, &oob_data, c->lf_pins, &mtr))
       return true;
     c->node_list_len= i - 1;
@@ -2348,7 +2354,7 @@ innodb_binlog_oob_ordered(THD *thd, const unsigned char *data, size_t data_len,
       (new_idx,
        0, 0, /* NULL left child signifies a leaf */
        c->node_list[i-1].file_no, c->node_list[i-1].offset,
-       (byte *)data, data_len);
+       static_cast<const byte *>(data), data_len);
     if (c->binlog_node(i, new_idx, i-1, i-1, &oob_data, c->lf_pins, &mtr))
       return true;
     c->node_list_len= i + 1;
@@ -2357,7 +2363,7 @@ innodb_binlog_oob_ordered(THD *thd, const unsigned char *data, size_t data_len,
   {
     /* Special case i==0, like case 2 but no prior node to link to. */
     binlog_oob_context::chunk_data_oob oob_data
-      (new_idx, 0, 0, 0, 0, (byte *)data, data_len);
+      (new_idx, 0, 0, 0, 0, static_cast<const byte *>(data), data_len);
     if (c->binlog_node(i, new_idx, ~(uint32_t)0, ~(uint32_t)0, &oob_data,
                        c->lf_pins, &mtr))
       return true;
@@ -2381,14 +2387,14 @@ bool
 innodb_binlog_oob(THD *thd, const unsigned char *data, size_t data_len,
                   void **engine_data)
 {
-  binlog_oob_context *c= (binlog_oob_context *)*engine_data;
+  binlog_oob_context *c= static_cast<binlog_oob_context *>(*engine_data);
   if (UNIV_LIKELY(c != nullptr))
     ibb_pending_lsn_fifo.record_commit(c);
   return false;
 }
 
 
-/*
+/**
   Binlog a new out-of-band tree node and put it at position `node` in the list
   of trees. A leaf node is denoted by left and right child being identical (and
   in this case they point to the root of the prior tree).
@@ -2416,7 +2422,7 @@ binlog_oob_context::binlog_node(uint32_t node, uint64_t new_idx,
 binlog_oob_context::chunk_data_oob::chunk_data_oob(uint64_t idx,
         uint64_t left_file_no, uint64_t left_offset,
         uint64_t right_file_no, uint64_t right_offset,
-        byte *data, size_t data_len)
+        const byte *data, size_t data_len)
   : sofar(0), main_len(data_len), main_data(data)
 {
   ut_ad(data_len > 0);
@@ -2465,7 +2471,8 @@ binlog_oob_context::create_stmt_start_point()
   {
     ut_free(stmt_start_point);
     size_t size= sizeof(savepoint) + node_list_len * sizeof(node_info);
-    stmt_start_point= (savepoint *) ut_malloc(size, mem_key_binlog);
+    stmt_start_point=
+      static_cast<savepoint *>(ut_malloc(size, mem_key_binlog));
     if (!stmt_start_point)
     {
       my_error(ER_OUTOFMEMORY, MYF(0), size);
@@ -2484,7 +2491,7 @@ binlog_oob_context::savepoint *
 binlog_oob_context::create_savepoint()
 {
   size_t size= sizeof(savepoint) + node_list_len * sizeof(node_info);
-  savepoint *s= (savepoint *) ut_malloc(size, mem_key_binlog);
+  savepoint *s= static_cast<savepoint *>(ut_malloc(size, mem_key_binlog));
   if (!s)
   {
     my_error(ER_OUTOFMEMORY, MYF(0), size);
@@ -2535,7 +2542,7 @@ void
 ibb_savepoint_rollback(THD *thd, void **engine_data,
                        void **stmt_start_data, void **savepoint_data)
 {
-  binlog_oob_context *c= (binlog_oob_context *)*engine_data;
+  binlog_oob_context *c= static_cast<binlog_oob_context *>(*engine_data);
   ut_a(c != nullptr);
 
   if (stmt_start_data)
@@ -2557,7 +2564,7 @@ ibb_savepoint_rollback(THD *thd, void **engine_data,
 void
 innodb_reset_oob(void **engine_data)
 {
-  binlog_oob_context *c= (binlog_oob_context *)*engine_data;
+  binlog_oob_context *c= static_cast<binlog_oob_context *>(*engine_data);
   if (c)
     reset_oob_context(c);
 }
@@ -2566,7 +2573,7 @@ innodb_reset_oob(void **engine_data)
 void
 innodb_free_oob(void *engine_data)
 {
-  free_oob_context((binlog_oob_context *)engine_data);
+  free_oob_context(static_cast<binlog_oob_context *>(engine_data));
 }
 
 
@@ -2603,7 +2610,7 @@ innodb_binlog_oob_reader::start_traversal(uint64_t file_no, uint64_t offset)
 }
 
 
-/*
+/**
   Read from out-of-band event group data.
 
   Does a state-machine incremental traversal of the forest of perfect binary
@@ -2757,7 +2764,7 @@ ha_innodb_binlog_reader::ha_innodb_binlog_reader(bool wait_durable,
              binlog_cur_durable_offset : binlog_cur_end_offset),
     rd_buf_len(0), rd_buf_sofar(0), state(ST_read_next_event_group)
 {
-  page_buf= (uchar *)ut_malloc(ibb_page_size, mem_key_binlog);
+  page_buf= static_cast<uchar *>(ut_malloc(ibb_page_size, mem_key_binlog));
   chunk_rd.set_page_buf(page_buf);
   if (offset < ibb_page_size)
     offset= ibb_page_size;
@@ -2772,7 +2779,7 @@ ha_innodb_binlog_reader::~ha_innodb_binlog_reader()
 }
 
 
-/*
+/**
   Read data from current position in binlog.
 
   If the data is written to disk (visible at the OS level, even if not
@@ -3068,7 +3075,7 @@ gtid_search::~gtid_search()
 }
 
 
-/*
+/**
   Search for a GTID position in the binlog.
   Find a binlog file_no and an offset into the file that is guaranteed to
   be before the target position. It can be a bit earlier, that only means a
@@ -3369,7 +3376,7 @@ pending_lsn_fifo::process_durable_lsn(lsn_t lsn)
 }
 
 
-/*
+/**
   After a binlog commit, put the LSN and the corresponding binlog position
   into the ibb_pending_lsn_fifo. We do this here (rather than immediately in
   innodb_binlog_post_commit()), so that we can delay it until we are no longer
@@ -3473,7 +3480,7 @@ innodb_binlog_trx(trx_t *trx, mtr_t *mtr)
       UNIV_LIKELY(binlog_info->gtid_offset > 0)) {
     binlog_diff_state.update_nolock(gtid);
     innodb_binlog_write_cache(cache, binlog_info, mtr);
-    return (binlog_oob_context *)binlog_info->engine_ptr;
+    return static_cast<binlog_oob_context *>(binlog_info->engine_ptr);
   }
   return nullptr;
 }
@@ -3501,8 +3508,8 @@ innobase_binlog_write_direct_ordered(IO_CACHE *cache,
   mtr.start();
   innodb_binlog_write_cache(cache, binlog_info, &mtr);
   mtr.commit();
-  innodb_binlog_post_commit(&mtr,
-                            (binlog_oob_context *)binlog_info->engine_ptr);
+  innodb_binlog_post_commit(&mtr, static_cast<binlog_oob_context *>
+                            (binlog_info->engine_ptr));
   return false;
 }
 
@@ -3512,7 +3519,8 @@ innobase_binlog_write_direct(IO_CACHE *cache,
                              handler_binlog_event_group_info *binlog_info,
                              const rpl_gtid *gtid)
 {
-  binlog_oob_context *c= (binlog_oob_context *)binlog_info->engine_ptr;
+  binlog_oob_context *c=
+    static_cast<binlog_oob_context *>(binlog_info->engine_ptr);
   if (UNIV_LIKELY(c != nullptr))
   {
     if (srv_flush_log_at_trx_commit & 1)
@@ -3526,7 +3534,8 @@ innobase_binlog_write_direct(IO_CACHE *cache,
 void
 ibb_group_commit(THD *thd, handler_binlog_event_group_info *binlog_info)
 {
-  binlog_oob_context *c= (binlog_oob_context *)binlog_info->engine_ptr;
+  binlog_oob_context *c=
+    static_cast<binlog_oob_context *>(binlog_info->engine_ptr);
   if (UNIV_LIKELY(c != nullptr))
   {
     if (srv_flush_log_at_trx_commit & 1 && c->pending_lsn)
@@ -3579,7 +3588,7 @@ innodb_binlog_get_init_state(rpl_binlog_state_base *out_state)
   binlog_chunk_reader chunk_reader(binlog_cur_end_offset);
   bool err= false;
 
-  byte *page_buf= (byte *)ut_malloc(ibb_page_size, mem_key_binlog);
+  byte *page_buf= static_cast<byte *>(ut_malloc(ibb_page_size, mem_key_binlog));
   if (!page_buf)
   {
     my_error(ER_OUTOFMEMORY, MYF(0), ibb_page_size);
@@ -3703,7 +3712,7 @@ purge_adjust_limit_file_no(handler_binlog_purge_info *purge_info, LF_PINS *pins)
     return false;
   }
 
-  byte *page_buf= (byte *)ut_malloc(ibb_page_size, mem_key_binlog);
+  byte *page_buf= static_cast<byte *>(ut_malloc(ibb_page_size, mem_key_binlog));
   if (!page_buf)
   {
     my_error(ER_OUTOFMEMORY, MYF(0), ibb_page_size);
@@ -3745,7 +3754,7 @@ purge_adjust_limit_file_no(handler_binlog_purge_info *purge_info, LF_PINS *pins)
 }
 
 
-/*
+/**
   The low-level function handling binlog purge.
 
   How much to purge is determined by:

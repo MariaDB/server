@@ -25,7 +25,7 @@ Mini-transaction log record encoding and decoding
 #include "mtr0mtr.h"
 
 /** The smallest invalid page identifier for persistent tablespaces */
-constexpr page_id_t end_page_id{SRV_SPACE_ID_BINLOG1 + 1, 0};
+constexpr page_id_t end_page_id{SRV_SPACE_ID_UPPER_BOUND, 0};
 
 /** The minimum 2-byte integer (0b10xxxxxx xxxxxxxx) */
 constexpr uint32_t MIN_2BYTE= 1 << 7;

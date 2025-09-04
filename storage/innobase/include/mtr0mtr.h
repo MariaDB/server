@@ -743,13 +743,12 @@ public:
   static const byte *parse_length(const byte *l, uint32_t *size) noexcept;
 
   /** Write binlog data
-  @param space_id  binlog tablespace
-  @param page_no   binlog page number
+  @param page_id   binlog file id and page number
   @param offset    offset within the page
   @param buf       data
   @param size      size of data
   @return */
-  void write_binlog(bool space_id, uint32_t page_no, uint16_t offset,
+  void write_binlog(page_id_t page_id, uint16_t offset,
                     const void *buf, size_t size) noexcept;
 
 private:
