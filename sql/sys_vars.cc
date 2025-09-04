@@ -3119,6 +3119,7 @@ export const char *optimizer_switch_names[]=
   "hash_join_cardinality",
   "cset_narrowing",
   "sargable_casefold",
+  "reorder_outer_joins",
   "default",
   NullS
 };
