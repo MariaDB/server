@@ -1213,739 +1213,739 @@ SELECT rec.COLLATION_NAME;
 END FOR;
 $$
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def				COLLATION_NAME	rec.COLLATION_NAME	253	192	13	Y	0	0	192
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	13	Y	4096	0	192
 rec.COLLATION_NAME
 uca1400_ai_ci
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def				COLLATION_NAME	rec.COLLATION_NAME	253	192	13	Y	0	0	192
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	13	Y	4096	0	192
 rec.COLLATION_NAME
 uca1400_ai_cs
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def				COLLATION_NAME	rec.COLLATION_NAME	253	192	13	Y	0	0	192
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	13	Y	4096	0	192
 rec.COLLATION_NAME
 uca1400_as_ci
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def				COLLATION_NAME	rec.COLLATION_NAME	253	192	13	Y	0	0	192
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	13	Y	4096	0	192
 rec.COLLATION_NAME
 uca1400_as_cs
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def				COLLATION_NAME	rec.COLLATION_NAME	253	192	19	Y	0	0	192
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	19	Y	4096	0	192
 rec.COLLATION_NAME
 uca1400_nopad_ai_ci
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def				COLLATION_NAME	rec.COLLATION_NAME	253	192	19	Y	0	0	192
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	19	Y	4096	0	192
 rec.COLLATION_NAME
 uca1400_nopad_ai_cs
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def				COLLATION_NAME	rec.COLLATION_NAME	253	192	19	Y	0	0	192
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	19	Y	4096	0	192
 rec.COLLATION_NAME
 uca1400_nopad_as_ci
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def				COLLATION_NAME	rec.COLLATION_NAME	253	192	19	Y	0	0	192
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	19	Y	4096	0	192
 rec.COLLATION_NAME
 uca1400_nopad_as_cs
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def				COLLATION_NAME	rec.COLLATION_NAME	253	192	23	Y	0	0	193
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	23	Y	4096	0	193
 rec.COLLATION_NAME
 uca1400_icelandic_ai_ci
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def				COLLATION_NAME	rec.COLLATION_NAME	253	192	23	Y	0	0	193
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	23	Y	4096	0	193
 rec.COLLATION_NAME
 uca1400_icelandic_ai_cs
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def				COLLATION_NAME	rec.COLLATION_NAME	253	192	23	Y	0	0	193
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	23	Y	4096	0	193
 rec.COLLATION_NAME
 uca1400_icelandic_as_ci
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def				COLLATION_NAME	rec.COLLATION_NAME	253	192	23	Y	0	0	193
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	23	Y	4096	0	193
 rec.COLLATION_NAME
 uca1400_icelandic_as_cs
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def				COLLATION_NAME	rec.COLLATION_NAME	253	192	29	Y	0	0	193
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	29	Y	4096	0	193
 rec.COLLATION_NAME
 uca1400_icelandic_nopad_ai_ci
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def				COLLATION_NAME	rec.COLLATION_NAME	253	192	29	Y	0	0	193
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	29	Y	4096	0	193
 rec.COLLATION_NAME
 uca1400_icelandic_nopad_ai_cs
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def				COLLATION_NAME	rec.COLLATION_NAME	253	192	29	Y	0	0	193
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	29	Y	4096	0	193
 rec.COLLATION_NAME
 uca1400_icelandic_nopad_as_ci
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def				COLLATION_NAME	rec.COLLATION_NAME	253	192	29	Y	0	0	193
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	29	Y	4096	0	193
 rec.COLLATION_NAME
 uca1400_icelandic_nopad_as_cs
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def				COLLATION_NAME	rec.COLLATION_NAME	253	192	21	Y	0	0	194
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	21	Y	4096	0	194
 rec.COLLATION_NAME
 uca1400_latvian_ai_ci
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def				COLLATION_NAME	rec.COLLATION_NAME	253	192	21	Y	0	0	194
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	21	Y	4096	0	194
 rec.COLLATION_NAME
 uca1400_latvian_ai_cs
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def				COLLATION_NAME	rec.COLLATION_NAME	253	192	21	Y	0	0	194
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	21	Y	4096	0	194
 rec.COLLATION_NAME
 uca1400_latvian_as_ci
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def				COLLATION_NAME	rec.COLLATION_NAME	253	192	21	Y	0	0	194
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	21	Y	4096	0	194
 rec.COLLATION_NAME
 uca1400_latvian_as_cs
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def				COLLATION_NAME	rec.COLLATION_NAME	253	192	27	Y	0	0	194
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	27	Y	4096	0	194
 rec.COLLATION_NAME
 uca1400_latvian_nopad_ai_ci
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def				COLLATION_NAME	rec.COLLATION_NAME	253	192	27	Y	0	0	194
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	27	Y	4096	0	194
 rec.COLLATION_NAME
 uca1400_latvian_nopad_ai_cs
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def				COLLATION_NAME	rec.COLLATION_NAME	253	192	27	Y	0	0	194
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	27	Y	4096	0	194
 rec.COLLATION_NAME
 uca1400_latvian_nopad_as_ci
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def				COLLATION_NAME	rec.COLLATION_NAME	253	192	27	Y	0	0	194
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	27	Y	4096	0	194
 rec.COLLATION_NAME
 uca1400_latvian_nopad_as_cs
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def				COLLATION_NAME	rec.COLLATION_NAME	253	192	22	Y	0	0	195
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	22	Y	4096	0	195
 rec.COLLATION_NAME
 uca1400_romanian_ai_ci
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def				COLLATION_NAME	rec.COLLATION_NAME	253	192	22	Y	0	0	195
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	22	Y	4096	0	195
 rec.COLLATION_NAME
 uca1400_romanian_ai_cs
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def				COLLATION_NAME	rec.COLLATION_NAME	253	192	22	Y	0	0	195
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	22	Y	4096	0	195
 rec.COLLATION_NAME
 uca1400_romanian_as_ci
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def				COLLATION_NAME	rec.COLLATION_NAME	253	192	22	Y	0	0	195
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	22	Y	4096	0	195
 rec.COLLATION_NAME
 uca1400_romanian_as_cs
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def				COLLATION_NAME	rec.COLLATION_NAME	253	192	28	Y	0	0	195
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	28	Y	4096	0	195
 rec.COLLATION_NAME
 uca1400_romanian_nopad_ai_ci
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def				COLLATION_NAME	rec.COLLATION_NAME	253	192	28	Y	0	0	195
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	28	Y	4096	0	195
 rec.COLLATION_NAME
 uca1400_romanian_nopad_ai_cs
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def				COLLATION_NAME	rec.COLLATION_NAME	253	192	28	Y	0	0	195
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	28	Y	4096	0	195
 rec.COLLATION_NAME
 uca1400_romanian_nopad_as_ci
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def				COLLATION_NAME	rec.COLLATION_NAME	253	192	28	Y	0	0	195
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	28	Y	4096	0	195
 rec.COLLATION_NAME
 uca1400_romanian_nopad_as_cs
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def				COLLATION_NAME	rec.COLLATION_NAME	253	192	23	Y	0	0	196
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	23	Y	4096	0	196
 rec.COLLATION_NAME
 uca1400_slovenian_ai_ci
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def				COLLATION_NAME	rec.COLLATION_NAME	253	192	23	Y	0	0	196
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	23	Y	4096	0	196
 rec.COLLATION_NAME
 uca1400_slovenian_ai_cs
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def				COLLATION_NAME	rec.COLLATION_NAME	253	192	23	Y	0	0	196
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	23	Y	4096	0	196
 rec.COLLATION_NAME
 uca1400_slovenian_as_ci
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def				COLLATION_NAME	rec.COLLATION_NAME	253	192	23	Y	0	0	196
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	23	Y	4096	0	196
 rec.COLLATION_NAME
 uca1400_slovenian_as_cs
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def				COLLATION_NAME	rec.COLLATION_NAME	253	192	29	Y	0	0	196
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	29	Y	4096	0	196
 rec.COLLATION_NAME
 uca1400_slovenian_nopad_ai_ci
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def				COLLATION_NAME	rec.COLLATION_NAME	253	192	29	Y	0	0	196
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	29	Y	4096	0	196
 rec.COLLATION_NAME
 uca1400_slovenian_nopad_ai_cs
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def				COLLATION_NAME	rec.COLLATION_NAME	253	192	29	Y	0	0	196
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	29	Y	4096	0	196
 rec.COLLATION_NAME
 uca1400_slovenian_nopad_as_ci
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def				COLLATION_NAME	rec.COLLATION_NAME	253	192	29	Y	0	0	196
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	29	Y	4096	0	196
 rec.COLLATION_NAME
 uca1400_slovenian_nopad_as_cs
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def				COLLATION_NAME	rec.COLLATION_NAME	253	192	20	Y	0	0	197
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	20	Y	4096	0	197
 rec.COLLATION_NAME
 uca1400_polish_ai_ci
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def				COLLATION_NAME	rec.COLLATION_NAME	253	192	20	Y	0	0	197
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	20	Y	4096	0	197
 rec.COLLATION_NAME
 uca1400_polish_ai_cs
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def				COLLATION_NAME	rec.COLLATION_NAME	253	192	20	Y	0	0	197
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	20	Y	4096	0	197
 rec.COLLATION_NAME
 uca1400_polish_as_ci
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def				COLLATION_NAME	rec.COLLATION_NAME	253	192	20	Y	0	0	197
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	20	Y	4096	0	197
 rec.COLLATION_NAME
 uca1400_polish_as_cs
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def				COLLATION_NAME	rec.COLLATION_NAME	253	192	26	Y	0	0	197
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	26	Y	4096	0	197
 rec.COLLATION_NAME
 uca1400_polish_nopad_ai_ci
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def				COLLATION_NAME	rec.COLLATION_NAME	253	192	26	Y	0	0	197
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	26	Y	4096	0	197
 rec.COLLATION_NAME
 uca1400_polish_nopad_ai_cs
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def				COLLATION_NAME	rec.COLLATION_NAME	253	192	26	Y	0	0	197
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	26	Y	4096	0	197
 rec.COLLATION_NAME
 uca1400_polish_nopad_as_ci
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def				COLLATION_NAME	rec.COLLATION_NAME	253	192	26	Y	0	0	197
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	26	Y	4096	0	197
 rec.COLLATION_NAME
 uca1400_polish_nopad_as_cs
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def				COLLATION_NAME	rec.COLLATION_NAME	253	192	22	Y	0	0	198
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	22	Y	4096	0	198
 rec.COLLATION_NAME
 uca1400_estonian_ai_ci
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def				COLLATION_NAME	rec.COLLATION_NAME	253	192	22	Y	0	0	198
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	22	Y	4096	0	198
 rec.COLLATION_NAME
 uca1400_estonian_ai_cs
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def				COLLATION_NAME	rec.COLLATION_NAME	253	192	22	Y	0	0	198
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	22	Y	4096	0	198
 rec.COLLATION_NAME
 uca1400_estonian_as_ci
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def				COLLATION_NAME	rec.COLLATION_NAME	253	192	22	Y	0	0	198
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	22	Y	4096	0	198
 rec.COLLATION_NAME
 uca1400_estonian_as_cs
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def				COLLATION_NAME	rec.COLLATION_NAME	253	192	28	Y	0	0	198
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	28	Y	4096	0	198
 rec.COLLATION_NAME
 uca1400_estonian_nopad_ai_ci
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def				COLLATION_NAME	rec.COLLATION_NAME	253	192	28	Y	0	0	198
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	28	Y	4096	0	198
 rec.COLLATION_NAME
 uca1400_estonian_nopad_ai_cs
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def				COLLATION_NAME	rec.COLLATION_NAME	253	192	28	Y	0	0	198
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	28	Y	4096	0	198
 rec.COLLATION_NAME
 uca1400_estonian_nopad_as_ci
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def				COLLATION_NAME	rec.COLLATION_NAME	253	192	28	Y	0	0	198
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	28	Y	4096	0	198
 rec.COLLATION_NAME
 uca1400_estonian_nopad_as_cs
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def				COLLATION_NAME	rec.COLLATION_NAME	253	192	21	Y	0	0	199
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	21	Y	4096	0	199
 rec.COLLATION_NAME
 uca1400_spanish_ai_ci
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def				COLLATION_NAME	rec.COLLATION_NAME	253	192	21	Y	0	0	199
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	21	Y	4096	0	199
 rec.COLLATION_NAME
 uca1400_spanish_ai_cs
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def				COLLATION_NAME	rec.COLLATION_NAME	253	192	21	Y	0	0	199
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	21	Y	4096	0	199
 rec.COLLATION_NAME
 uca1400_spanish_as_ci
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def				COLLATION_NAME	rec.COLLATION_NAME	253	192	21	Y	0	0	199
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	21	Y	4096	0	199
 rec.COLLATION_NAME
 uca1400_spanish_as_cs
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def				COLLATION_NAME	rec.COLLATION_NAME	253	192	27	Y	0	0	199
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	27	Y	4096	0	199
 rec.COLLATION_NAME
 uca1400_spanish_nopad_ai_ci
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def				COLLATION_NAME	rec.COLLATION_NAME	253	192	27	Y	0	0	199
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	27	Y	4096	0	199
 rec.COLLATION_NAME
 uca1400_spanish_nopad_ai_cs
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def				COLLATION_NAME	rec.COLLATION_NAME	253	192	27	Y	0	0	199
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	27	Y	4096	0	199
 rec.COLLATION_NAME
 uca1400_spanish_nopad_as_ci
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def				COLLATION_NAME	rec.COLLATION_NAME	253	192	27	Y	0	0	199
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	27	Y	4096	0	199
 rec.COLLATION_NAME
 uca1400_spanish_nopad_as_cs
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def				COLLATION_NAME	rec.COLLATION_NAME	253	192	21	Y	0	0	200
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	21	Y	4096	0	200
 rec.COLLATION_NAME
 uca1400_swedish_ai_ci
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def				COLLATION_NAME	rec.COLLATION_NAME	253	192	21	Y	0	0	200
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	21	Y	4096	0	200
 rec.COLLATION_NAME
 uca1400_swedish_ai_cs
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def				COLLATION_NAME	rec.COLLATION_NAME	253	192	21	Y	0	0	200
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	21	Y	4096	0	200
 rec.COLLATION_NAME
 uca1400_swedish_as_ci
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def				COLLATION_NAME	rec.COLLATION_NAME	253	192	21	Y	0	0	200
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	21	Y	4096	0	200
 rec.COLLATION_NAME
 uca1400_swedish_as_cs
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def				COLLATION_NAME	rec.COLLATION_NAME	253	192	27	Y	0	0	200
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	27	Y	4096	0	200
 rec.COLLATION_NAME
 uca1400_swedish_nopad_ai_ci
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def				COLLATION_NAME	rec.COLLATION_NAME	253	192	27	Y	0	0	200
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	27	Y	4096	0	200
 rec.COLLATION_NAME
 uca1400_swedish_nopad_ai_cs
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def				COLLATION_NAME	rec.COLLATION_NAME	253	192	27	Y	0	0	200
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	27	Y	4096	0	200
 rec.COLLATION_NAME
 uca1400_swedish_nopad_as_ci
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def				COLLATION_NAME	rec.COLLATION_NAME	253	192	27	Y	0	0	200
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	27	Y	4096	0	200
 rec.COLLATION_NAME
 uca1400_swedish_nopad_as_cs
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def				COLLATION_NAME	rec.COLLATION_NAME	253	192	21	Y	0	0	201
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	21	Y	4096	0	201
 rec.COLLATION_NAME
 uca1400_turkish_ai_ci
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def				COLLATION_NAME	rec.COLLATION_NAME	253	192	21	Y	0	0	201
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	21	Y	4096	0	201
 rec.COLLATION_NAME
 uca1400_turkish_ai_cs
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def				COLLATION_NAME	rec.COLLATION_NAME	253	192	21	Y	0	0	201
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	21	Y	4096	0	201
 rec.COLLATION_NAME
 uca1400_turkish_as_ci
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def				COLLATION_NAME	rec.COLLATION_NAME	253	192	21	Y	0	0	201
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	21	Y	4096	0	201
 rec.COLLATION_NAME
 uca1400_turkish_as_cs
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def				COLLATION_NAME	rec.COLLATION_NAME	253	192	27	Y	0	0	201
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	27	Y	4096	0	201
 rec.COLLATION_NAME
 uca1400_turkish_nopad_ai_ci
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def				COLLATION_NAME	rec.COLLATION_NAME	253	192	27	Y	0	0	201
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	27	Y	4096	0	201
 rec.COLLATION_NAME
 uca1400_turkish_nopad_ai_cs
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def				COLLATION_NAME	rec.COLLATION_NAME	253	192	27	Y	0	0	201
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	27	Y	4096	0	201
 rec.COLLATION_NAME
 uca1400_turkish_nopad_as_ci
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def				COLLATION_NAME	rec.COLLATION_NAME	253	192	27	Y	0	0	201
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	27	Y	4096	0	201
 rec.COLLATION_NAME
 uca1400_turkish_nopad_as_cs
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def				COLLATION_NAME	rec.COLLATION_NAME	253	192	19	Y	0	0	202
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	19	Y	4096	0	202
 rec.COLLATION_NAME
 uca1400_czech_ai_ci
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def				COLLATION_NAME	rec.COLLATION_NAME	253	192	19	Y	0	0	202
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	19	Y	4096	0	202
 rec.COLLATION_NAME
 uca1400_czech_ai_cs
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def				COLLATION_NAME	rec.COLLATION_NAME	253	192	19	Y	0	0	202
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	19	Y	4096	0	202
 rec.COLLATION_NAME
 uca1400_czech_as_ci
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def				COLLATION_NAME	rec.COLLATION_NAME	253	192	19	Y	0	0	202
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	19	Y	4096	0	202
 rec.COLLATION_NAME
 uca1400_czech_as_cs
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def				COLLATION_NAME	rec.COLLATION_NAME	253	192	25	Y	0	0	202
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	25	Y	4096	0	202
 rec.COLLATION_NAME
 uca1400_czech_nopad_ai_ci
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def				COLLATION_NAME	rec.COLLATION_NAME	253	192	25	Y	0	0	202
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	25	Y	4096	0	202
 rec.COLLATION_NAME
 uca1400_czech_nopad_ai_cs
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def				COLLATION_NAME	rec.COLLATION_NAME	253	192	25	Y	0	0	202
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	25	Y	4096	0	202
 rec.COLLATION_NAME
 uca1400_czech_nopad_as_ci
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def				COLLATION_NAME	rec.COLLATION_NAME	253	192	25	Y	0	0	202
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	25	Y	4096	0	202
 rec.COLLATION_NAME
 uca1400_czech_nopad_as_cs
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def				COLLATION_NAME	rec.COLLATION_NAME	253	192	20	Y	0	0	203
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	20	Y	4096	0	203
 rec.COLLATION_NAME
 uca1400_danish_ai_ci
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def				COLLATION_NAME	rec.COLLATION_NAME	253	192	20	Y	0	0	203
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	20	Y	4096	0	203
 rec.COLLATION_NAME
 uca1400_danish_ai_cs
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def				COLLATION_NAME	rec.COLLATION_NAME	253	192	20	Y	0	0	203
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	20	Y	4096	0	203
 rec.COLLATION_NAME
 uca1400_danish_as_ci
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def				COLLATION_NAME	rec.COLLATION_NAME	253	192	20	Y	0	0	203
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	20	Y	4096	0	203
 rec.COLLATION_NAME
 uca1400_danish_as_cs
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def				COLLATION_NAME	rec.COLLATION_NAME	253	192	26	Y	0	0	203
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	26	Y	4096	0	203
 rec.COLLATION_NAME
 uca1400_danish_nopad_ai_ci
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def				COLLATION_NAME	rec.COLLATION_NAME	253	192	26	Y	0	0	203
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	26	Y	4096	0	203
 rec.COLLATION_NAME
 uca1400_danish_nopad_ai_cs
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def				COLLATION_NAME	rec.COLLATION_NAME	253	192	26	Y	0	0	203
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	26	Y	4096	0	203
 rec.COLLATION_NAME
 uca1400_danish_nopad_as_ci
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def				COLLATION_NAME	rec.COLLATION_NAME	253	192	26	Y	0	0	203
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	26	Y	4096	0	203
 rec.COLLATION_NAME
 uca1400_danish_nopad_as_cs
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def				COLLATION_NAME	rec.COLLATION_NAME	253	192	24	Y	0	0	204
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	24	Y	4096	0	204
 rec.COLLATION_NAME
 uca1400_lithuanian_ai_ci
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def				COLLATION_NAME	rec.COLLATION_NAME	253	192	24	Y	0	0	204
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	24	Y	4096	0	204
 rec.COLLATION_NAME
 uca1400_lithuanian_ai_cs
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def				COLLATION_NAME	rec.COLLATION_NAME	253	192	24	Y	0	0	204
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	24	Y	4096	0	204
 rec.COLLATION_NAME
 uca1400_lithuanian_as_ci
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def				COLLATION_NAME	rec.COLLATION_NAME	253	192	24	Y	0	0	204
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	24	Y	4096	0	204
 rec.COLLATION_NAME
 uca1400_lithuanian_as_cs
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def				COLLATION_NAME	rec.COLLATION_NAME	253	192	30	Y	0	0	204
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	30	Y	4096	0	204
 rec.COLLATION_NAME
 uca1400_lithuanian_nopad_ai_ci
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def				COLLATION_NAME	rec.COLLATION_NAME	253	192	30	Y	0	0	204
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	30	Y	4096	0	204
 rec.COLLATION_NAME
 uca1400_lithuanian_nopad_ai_cs
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def				COLLATION_NAME	rec.COLLATION_NAME	253	192	30	Y	0	0	204
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	30	Y	4096	0	204
 rec.COLLATION_NAME
 uca1400_lithuanian_nopad_as_ci
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def				COLLATION_NAME	rec.COLLATION_NAME	253	192	30	Y	0	0	204
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	30	Y	4096	0	204
 rec.COLLATION_NAME
 uca1400_lithuanian_nopad_as_cs
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def				COLLATION_NAME	rec.COLLATION_NAME	253	192	20	Y	0	0	205
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	20	Y	4096	0	205
 rec.COLLATION_NAME
 uca1400_slovak_ai_ci
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def				COLLATION_NAME	rec.COLLATION_NAME	253	192	20	Y	0	0	205
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	20	Y	4096	0	205
 rec.COLLATION_NAME
 uca1400_slovak_ai_cs
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def				COLLATION_NAME	rec.COLLATION_NAME	253	192	20	Y	0	0	205
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	20	Y	4096	0	205
 rec.COLLATION_NAME
 uca1400_slovak_as_ci
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def				COLLATION_NAME	rec.COLLATION_NAME	253	192	20	Y	0	0	205
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	20	Y	4096	0	205
 rec.COLLATION_NAME
 uca1400_slovak_as_cs
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def				COLLATION_NAME	rec.COLLATION_NAME	253	192	26	Y	0	0	205
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	26	Y	4096	0	205
 rec.COLLATION_NAME
 uca1400_slovak_nopad_ai_ci
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def				COLLATION_NAME	rec.COLLATION_NAME	253	192	26	Y	0	0	205
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	26	Y	4096	0	205
 rec.COLLATION_NAME
 uca1400_slovak_nopad_ai_cs
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def				COLLATION_NAME	rec.COLLATION_NAME	253	192	26	Y	0	0	205
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	26	Y	4096	0	205
 rec.COLLATION_NAME
 uca1400_slovak_nopad_as_ci
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def				COLLATION_NAME	rec.COLLATION_NAME	253	192	26	Y	0	0	205
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	26	Y	4096	0	205
 rec.COLLATION_NAME
 uca1400_slovak_nopad_as_cs
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def				COLLATION_NAME	rec.COLLATION_NAME	253	192	22	Y	0	0	206
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	22	Y	4096	0	206
 rec.COLLATION_NAME
 uca1400_spanish2_ai_ci
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def				COLLATION_NAME	rec.COLLATION_NAME	253	192	22	Y	0	0	206
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	22	Y	4096	0	206
 rec.COLLATION_NAME
 uca1400_spanish2_ai_cs
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def				COLLATION_NAME	rec.COLLATION_NAME	253	192	22	Y	0	0	206
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	22	Y	4096	0	206
 rec.COLLATION_NAME
 uca1400_spanish2_as_ci
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def				COLLATION_NAME	rec.COLLATION_NAME	253	192	22	Y	0	0	206
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	22	Y	4096	0	206
 rec.COLLATION_NAME
 uca1400_spanish2_as_cs
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def				COLLATION_NAME	rec.COLLATION_NAME	253	192	28	Y	0	0	206
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	28	Y	4096	0	206
 rec.COLLATION_NAME
 uca1400_spanish2_nopad_ai_ci
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def				COLLATION_NAME	rec.COLLATION_NAME	253	192	28	Y	0	0	206
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	28	Y	4096	0	206
 rec.COLLATION_NAME
 uca1400_spanish2_nopad_ai_cs
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def				COLLATION_NAME	rec.COLLATION_NAME	253	192	28	Y	0	0	206
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	28	Y	4096	0	206
 rec.COLLATION_NAME
 uca1400_spanish2_nopad_as_ci
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def				COLLATION_NAME	rec.COLLATION_NAME	253	192	28	Y	0	0	206
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	28	Y	4096	0	206
 rec.COLLATION_NAME
 uca1400_spanish2_nopad_as_cs
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def				COLLATION_NAME	rec.COLLATION_NAME	253	192	19	Y	0	0	207
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	19	Y	4096	0	207
 rec.COLLATION_NAME
 uca1400_roman_ai_ci
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def				COLLATION_NAME	rec.COLLATION_NAME	253	192	19	Y	0	0	207
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	19	Y	4096	0	207
 rec.COLLATION_NAME
 uca1400_roman_ai_cs
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def				COLLATION_NAME	rec.COLLATION_NAME	253	192	19	Y	0	0	207
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	19	Y	4096	0	207
 rec.COLLATION_NAME
 uca1400_roman_as_ci
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def				COLLATION_NAME	rec.COLLATION_NAME	253	192	19	Y	0	0	207
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	19	Y	4096	0	207
 rec.COLLATION_NAME
 uca1400_roman_as_cs
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def				COLLATION_NAME	rec.COLLATION_NAME	253	192	25	Y	0	0	207
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	25	Y	4096	0	207
 rec.COLLATION_NAME
 uca1400_roman_nopad_ai_ci
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def				COLLATION_NAME	rec.COLLATION_NAME	253	192	25	Y	0	0	207
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	25	Y	4096	0	207
 rec.COLLATION_NAME
 uca1400_roman_nopad_ai_cs
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def				COLLATION_NAME	rec.COLLATION_NAME	253	192	25	Y	0	0	207
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	25	Y	4096	0	207
 rec.COLLATION_NAME
 uca1400_roman_nopad_as_ci
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def				COLLATION_NAME	rec.COLLATION_NAME	253	192	25	Y	0	0	207
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	25	Y	4096	0	207
 rec.COLLATION_NAME
 uca1400_roman_nopad_as_cs
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def				COLLATION_NAME	rec.COLLATION_NAME	253	192	21	Y	0	0	208
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	21	Y	4096	0	208
 rec.COLLATION_NAME
 uca1400_persian_ai_ci
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def				COLLATION_NAME	rec.COLLATION_NAME	253	192	21	Y	0	0	208
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	21	Y	4096	0	208
 rec.COLLATION_NAME
 uca1400_persian_ai_cs
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def				COLLATION_NAME	rec.COLLATION_NAME	253	192	21	Y	0	0	208
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	21	Y	4096	0	208
 rec.COLLATION_NAME
 uca1400_persian_as_ci
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def				COLLATION_NAME	rec.COLLATION_NAME	253	192	21	Y	0	0	208
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	21	Y	4096	0	208
 rec.COLLATION_NAME
 uca1400_persian_as_cs
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def				COLLATION_NAME	rec.COLLATION_NAME	253	192	27	Y	0	0	208
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	27	Y	4096	0	208
 rec.COLLATION_NAME
 uca1400_persian_nopad_ai_ci
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def				COLLATION_NAME	rec.COLLATION_NAME	253	192	27	Y	0	0	208
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	27	Y	4096	0	208
 rec.COLLATION_NAME
 uca1400_persian_nopad_ai_cs
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def				COLLATION_NAME	rec.COLLATION_NAME	253	192	27	Y	0	0	208
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	27	Y	4096	0	208
 rec.COLLATION_NAME
 uca1400_persian_nopad_as_ci
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def				COLLATION_NAME	rec.COLLATION_NAME	253	192	27	Y	0	0	208
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	27	Y	4096	0	208
 rec.COLLATION_NAME
 uca1400_persian_nopad_as_cs
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def				COLLATION_NAME	rec.COLLATION_NAME	253	192	23	Y	0	0	209
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	23	Y	4096	0	209
 rec.COLLATION_NAME
 uca1400_esperanto_ai_ci
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def				COLLATION_NAME	rec.COLLATION_NAME	253	192	23	Y	0	0	209
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	23	Y	4096	0	209
 rec.COLLATION_NAME
 uca1400_esperanto_ai_cs
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def				COLLATION_NAME	rec.COLLATION_NAME	253	192	23	Y	0	0	209
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	23	Y	4096	0	209
 rec.COLLATION_NAME
 uca1400_esperanto_as_ci
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def				COLLATION_NAME	rec.COLLATION_NAME	253	192	23	Y	0	0	209
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	23	Y	4096	0	209
 rec.COLLATION_NAME
 uca1400_esperanto_as_cs
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def				COLLATION_NAME	rec.COLLATION_NAME	253	192	29	Y	0	0	209
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	29	Y	4096	0	209
 rec.COLLATION_NAME
 uca1400_esperanto_nopad_ai_ci
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def				COLLATION_NAME	rec.COLLATION_NAME	253	192	29	Y	0	0	209
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	29	Y	4096	0	209
 rec.COLLATION_NAME
 uca1400_esperanto_nopad_ai_cs
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def				COLLATION_NAME	rec.COLLATION_NAME	253	192	29	Y	0	0	209
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	29	Y	4096	0	209
 rec.COLLATION_NAME
 uca1400_esperanto_nopad_as_ci
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def				COLLATION_NAME	rec.COLLATION_NAME	253	192	29	Y	0	0	209
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	29	Y	4096	0	209
 rec.COLLATION_NAME
 uca1400_esperanto_nopad_as_cs
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def				COLLATION_NAME	rec.COLLATION_NAME	253	192	23	Y	0	0	210
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	23	Y	4096	0	210
 rec.COLLATION_NAME
 uca1400_hungarian_ai_ci
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def				COLLATION_NAME	rec.COLLATION_NAME	253	192	23	Y	0	0	210
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	23	Y	4096	0	210
 rec.COLLATION_NAME
 uca1400_hungarian_ai_cs
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def				COLLATION_NAME	rec.COLLATION_NAME	253	192	23	Y	0	0	210
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	23	Y	4096	0	210
 rec.COLLATION_NAME
 uca1400_hungarian_as_ci
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def				COLLATION_NAME	rec.COLLATION_NAME	253	192	23	Y	0	0	210
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	23	Y	4096	0	210
 rec.COLLATION_NAME
 uca1400_hungarian_as_cs
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def				COLLATION_NAME	rec.COLLATION_NAME	253	192	29	Y	0	0	210
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	29	Y	4096	0	210
 rec.COLLATION_NAME
 uca1400_hungarian_nopad_ai_ci
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def				COLLATION_NAME	rec.COLLATION_NAME	253	192	29	Y	0	0	210
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	29	Y	4096	0	210
 rec.COLLATION_NAME
 uca1400_hungarian_nopad_ai_cs
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def				COLLATION_NAME	rec.COLLATION_NAME	253	192	29	Y	0	0	210
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	29	Y	4096	0	210
 rec.COLLATION_NAME
 uca1400_hungarian_nopad_as_ci
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def				COLLATION_NAME	rec.COLLATION_NAME	253	192	29	Y	0	0	210
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	29	Y	4096	0	210
 rec.COLLATION_NAME
 uca1400_hungarian_nopad_as_cs
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def				COLLATION_NAME	rec.COLLATION_NAME	253	192	21	Y	0	0	211
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	21	Y	4096	0	211
 rec.COLLATION_NAME
 uca1400_sinhala_ai_ci
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def				COLLATION_NAME	rec.COLLATION_NAME	253	192	21	Y	0	0	211
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	21	Y	4096	0	211
 rec.COLLATION_NAME
 uca1400_sinhala_ai_cs
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def				COLLATION_NAME	rec.COLLATION_NAME	253	192	21	Y	0	0	211
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	21	Y	4096	0	211
 rec.COLLATION_NAME
 uca1400_sinhala_as_ci
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def				COLLATION_NAME	rec.COLLATION_NAME	253	192	21	Y	0	0	211
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	21	Y	4096	0	211
 rec.COLLATION_NAME
 uca1400_sinhala_as_cs
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def				COLLATION_NAME	rec.COLLATION_NAME	253	192	27	Y	0	0	211
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	27	Y	4096	0	211
 rec.COLLATION_NAME
 uca1400_sinhala_nopad_ai_ci
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def				COLLATION_NAME	rec.COLLATION_NAME	253	192	27	Y	0	0	211
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	27	Y	4096	0	211
 rec.COLLATION_NAME
 uca1400_sinhala_nopad_ai_cs
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def				COLLATION_NAME	rec.COLLATION_NAME	253	192	27	Y	0	0	211
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	27	Y	4096	0	211
 rec.COLLATION_NAME
 uca1400_sinhala_nopad_as_ci
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def				COLLATION_NAME	rec.COLLATION_NAME	253	192	27	Y	0	0	211
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	27	Y	4096	0	211
 rec.COLLATION_NAME
 uca1400_sinhala_nopad_as_cs
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def				COLLATION_NAME	rec.COLLATION_NAME	253	192	21	Y	0	0	212
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	21	Y	4096	0	212
 rec.COLLATION_NAME
 uca1400_german2_ai_ci
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def				COLLATION_NAME	rec.COLLATION_NAME	253	192	21	Y	0	0	212
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	21	Y	4096	0	212
 rec.COLLATION_NAME
 uca1400_german2_ai_cs
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def				COLLATION_NAME	rec.COLLATION_NAME	253	192	21	Y	0	0	212
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	21	Y	4096	0	212
 rec.COLLATION_NAME
 uca1400_german2_as_ci
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def				COLLATION_NAME	rec.COLLATION_NAME	253	192	21	Y	0	0	212
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	21	Y	4096	0	212
 rec.COLLATION_NAME
 uca1400_german2_as_cs
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def				COLLATION_NAME	rec.COLLATION_NAME	253	192	27	Y	0	0	212
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	27	Y	4096	0	212
 rec.COLLATION_NAME
 uca1400_german2_nopad_ai_ci
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def				COLLATION_NAME	rec.COLLATION_NAME	253	192	27	Y	0	0	212
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	27	Y	4096	0	212
 rec.COLLATION_NAME
 uca1400_german2_nopad_ai_cs
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def				COLLATION_NAME	rec.COLLATION_NAME	253	192	27	Y	0	0	212
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	27	Y	4096	0	212
 rec.COLLATION_NAME
 uca1400_german2_nopad_as_ci
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def				COLLATION_NAME	rec.COLLATION_NAME	253	192	27	Y	0	0	212
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	27	Y	4096	0	212
 rec.COLLATION_NAME
 uca1400_german2_nopad_as_cs
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def				COLLATION_NAME	rec.COLLATION_NAME	253	192	24	Y	0	0	215
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	24	Y	4096	0	215
 rec.COLLATION_NAME
 uca1400_vietnamese_ai_ci
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def				COLLATION_NAME	rec.COLLATION_NAME	253	192	24	Y	0	0	215
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	24	Y	4096	0	215
 rec.COLLATION_NAME
 uca1400_vietnamese_ai_cs
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def				COLLATION_NAME	rec.COLLATION_NAME	253	192	24	Y	0	0	215
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	24	Y	4096	0	215
 rec.COLLATION_NAME
 uca1400_vietnamese_as_ci
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def				COLLATION_NAME	rec.COLLATION_NAME	253	192	24	Y	0	0	215
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	24	Y	4096	0	215
 rec.COLLATION_NAME
 uca1400_vietnamese_as_cs
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def				COLLATION_NAME	rec.COLLATION_NAME	253	192	30	Y	0	0	215
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	30	Y	4096	0	215
 rec.COLLATION_NAME
 uca1400_vietnamese_nopad_ai_ci
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def				COLLATION_NAME	rec.COLLATION_NAME	253	192	30	Y	0	0	215
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	30	Y	4096	0	215
 rec.COLLATION_NAME
 uca1400_vietnamese_nopad_ai_cs
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def				COLLATION_NAME	rec.COLLATION_NAME	253	192	30	Y	0	0	215
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	30	Y	4096	0	215
 rec.COLLATION_NAME
 uca1400_vietnamese_nopad_as_ci
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def				COLLATION_NAME	rec.COLLATION_NAME	253	192	30	Y	0	0	215
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	30	Y	4096	0	215
 rec.COLLATION_NAME
 uca1400_vietnamese_nopad_as_cs
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def				COLLATION_NAME	rec.COLLATION_NAME	253	192	22	Y	0	0	576
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	22	Y	4096	0	576
 rec.COLLATION_NAME
 uca1400_croatian_ai_ci
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def				COLLATION_NAME	rec.COLLATION_NAME	253	192	22	Y	0	0	576
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	22	Y	4096	0	576
 rec.COLLATION_NAME
 uca1400_croatian_ai_cs
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def				COLLATION_NAME	rec.COLLATION_NAME	253	192	22	Y	0	0	576
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	22	Y	4096	0	576
 rec.COLLATION_NAME
 uca1400_croatian_as_ci
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def				COLLATION_NAME	rec.COLLATION_NAME	253	192	22	Y	0	0	576
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	22	Y	4096	0	576
 rec.COLLATION_NAME
 uca1400_croatian_as_cs
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def				COLLATION_NAME	rec.COLLATION_NAME	253	192	28	Y	0	0	576
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	28	Y	4096	0	576
 rec.COLLATION_NAME
 uca1400_croatian_nopad_ai_ci
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def				COLLATION_NAME	rec.COLLATION_NAME	253	192	28	Y	0	0	576
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	28	Y	4096	0	576
 rec.COLLATION_NAME
 uca1400_croatian_nopad_ai_cs
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def				COLLATION_NAME	rec.COLLATION_NAME	253	192	28	Y	0	0	576
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	28	Y	4096	0	576
 rec.COLLATION_NAME
 uca1400_croatian_nopad_as_ci
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def				COLLATION_NAME	rec.COLLATION_NAME	253	192	28	Y	0	0	576
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	28	Y	4096	0	576
 rec.COLLATION_NAME
 uca1400_croatian_nopad_as_cs
 #

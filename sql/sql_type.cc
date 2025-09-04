@@ -8565,7 +8565,7 @@ Field *Type_handler_varchar::
     Field_varstring(rec.ptr(), (uint32) attr->length,
                     HA_VARCHAR_PACKLENGTH((uint32) attr->length),
                     rec.null_ptr(), rec.null_bit(),
-                    attr->unireg_check, name, share, attr->charset);
+                    attr->unireg_check, name, share, attr->charset, flags);
 }
 
 

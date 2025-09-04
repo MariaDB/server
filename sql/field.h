@@ -4289,12 +4289,13 @@ public:
                   uint32 len_arg, uint length_bytes_arg,
                   uchar *null_ptr_arg, uchar null_bit_arg,
 		  enum utype unireg_check_arg, const LEX_CSTRING *field_name_arg,
-		  TABLE_SHARE *share, const DTCollation &collation)
+		  TABLE_SHARE *share, const DTCollation &collation, uint32 flags= 0)
     :Field_longstr(ptr_arg, len_arg, null_ptr_arg, null_bit_arg,
                    unireg_check_arg, field_name_arg, collation),
      length_bytes(length_bytes_arg)
   {
     share->varchar_fields++;
+    this->flags|= flags;
   }
   Field_varstring(uint32 len_arg,bool maybe_null_arg,
                   const LEX_CSTRING *field_name_arg,
@@ -5674,6 +5675,9 @@ public:
       flags|= CONTEXT_COLLATION_FLAG;
     else
       flags&= ~CONTEXT_COLLATION_FLAG;
+    if (lc.type() ==
+        Lex_column_charset_collation_attrs_st::TYPE_CHARACTER_SET_ANY_CS)
+      flags|= ANYCS_COLLATION_FLAG;
   }
   Lex_column_charset_collation_attrs charset_collation_attrs() const
   {

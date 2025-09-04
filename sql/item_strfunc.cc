@@ -1886,6 +1886,109 @@ err:
 }
 
 
+bool Item_func_transliterate::fix_length_and_dec(THD *thd)
+{
+  if (agg_arg_charsets_for_string_result(collation, args, 1))
+    return TRUE;
+  fix_char_length(args[0]->max_char_length());
+  return FALSE;
+}
+
+
+String *Item_func_transliterate::val_str(String *str)
+{
+  DBUG_ASSERT(fixed());
+  char buff0[MAX_FIELD_WIDTH];
+  String tmp0(buff0,sizeof(buff0),&my_charset_bin);
+  String *name= args[1]->val_str(&tmp0);
+  char *name_ptr= const_cast<char *>(name->ptr());
+  for ( ; *name_ptr; ++name_ptr) *name_ptr= tolower(*name_ptr);
+  const String *hwkatakana_fwkatakana_mode= new String("hwkatakana_fwkatakana",
+      21, name->charset());
+  const String *fwkatakana_hwkatakana_mode= new String("fwkatakana_hwkatakana",
+      21, name->charset());
+  const String *kana_hiragana_mode= new String("kana_hiragana", 13,
+    name->charset());
+  const String *kana_hwkatakana_mode= new String("kana_hwkatakana", 15,
+    name->charset());
+  String *source= args[0]->val_str(&tmp0);
+
+  if (!source)
+  {
+  err:
+    null_value= true;
+    return nullptr;
+  }
+
+  if (args[0]->collation.collation != &my_charset_sjis_japanese_ci &&
+      args[0]->collation.collation != &my_charset_ujis_japanese_ci)
+  {
+    my_printf_error(ER_STD_INVALID_ARGUMENT,
+      ER(ER_STD_INVALID_ARGUMENT),
+      MYF(0),
+      "wrong number or types of argument/s",
+      func_name());
+  }
+
+  size_t alloced_length= source->length();
+
+  if (str->alloc((alloced_length)))
+    goto err;
+
+  str->set_charset(collation.collation);
+
+  source->set_charset(args[0]->collation.collation);
+
+  if (name->eq(hwkatakana_fwkatakana_mode, name->charset()) ||
+      name->eq(kana_hiragana_mode, name->charset()))
+  {
+    to_fullwidth_converter= collation.collation->cset->halfwidth_fullwidth;
+    if (to_fullwidth_converter)
+    {
+      if (name->eq(hwkatakana_fwkatakana_mode, name->charset()))
+        str->length(to_fullwidth_converter(collation.collation, 0,
+            (char*) source->ptr(), source->length(), (char*) str->ptr(),
+            alloced_length));
+      else if (name->eq(kana_hiragana_mode, name->charset()))
+        str->length(to_fullwidth_converter(collation.collation, 1,
+            (char*) source->ptr(), source->length(), (char*) str->ptr(),
+            alloced_length));
+    }
+  }
+  else if (name->eq(fwkatakana_hwkatakana_mode, name->charset()) ||
+      name->eq(kana_hwkatakana_mode, name->charset()))
+  {
+    to_halfwidth_converter= collation.collation->cset->fullwidth_halfwidth;
+    if (to_halfwidth_converter)
+    {
+      if (name->eq(fwkatakana_hwkatakana_mode, name->charset()))
+        str->length(to_halfwidth_converter(collation.collation, 1,
+            (char*) source->ptr(), source->length(), (char*) str->ptr(),
+            alloced_length));
+      else if (name->eq(kana_hwkatakana_mode, name->charset()))
+        str->length(to_halfwidth_converter(collation.collation, 0,
+            (char*) source->ptr(), source->length(), (char*) str->ptr(),
+            alloced_length));
+    }
+  }
+  else
+  {
+    my_printf_error(ER_STD_INVALID_ARGUMENT,
+      ER(ER_STD_INVALID_ARGUMENT),
+      MYF(0),
+      "This features was not implemented.",
+      func_name());
+  }
+  delete hwkatakana_fwkatakana_mode;
+  delete fwkatakana_hwkatakana_mode;
+  delete kana_hiragana_mode;
+  delete kana_hwkatakana_mode;
+  to_fullwidth_converter= NULL;
+  to_halfwidth_converter= NULL;
+  return str;
+}
+
+
 /************************************************************************/
 
 
