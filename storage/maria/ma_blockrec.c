@@ -953,14 +953,13 @@ void copy_not_changed_fields(MARIA_HA *info, MY_BITMAP *changed_fields,
                              uchar *to, uchar *from)
 {
   MARIA_COLUMNDEF *column, *end_column;
-  uchar *bitmap= (uchar*) changed_fields->bitmap;
   MARIA_SHARE *share= info->s;
-  uint bit= 1;
+  uint bit= 0;
 
   for (column= share->columndef, end_column= column+ share->base.fields;
-       column < end_column; column++)
+       column < end_column; column++, bit++)
   {
-    if (!(*bitmap & bit))
+    if (!bitmap_is_set(changed_fields, bit))
     {
       uint field_length= column->length;
       if (column->type == FIELD_VARCHAR)
@@ -971,11 +970,6 @@ void copy_not_changed_fields(MARIA_HA *info, MY_BITMAP *changed_fields,
           field_length= uint2korr(from + column->offset) + 2;
       }
       memcpy(to + column->offset, from + column->offset, field_length);
-    }
-    if ((bit= (bit << 1)) == 256)
-    {
-      bitmap++;
-      bit= 1;
     }
   }
 }
