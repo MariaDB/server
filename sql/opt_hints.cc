@@ -1007,6 +1007,14 @@ hint_state hint_table_state(const THD *thd,
 }
 
 
+/* 
+  @brief
+    Check whether a given optimization is enabled for table.keyno.
+
+  @detail
+    First check if a hint is present, then check optimizer_switch
+*/
+
 bool hint_key_state(const THD *thd, const TABLE *table, uint keyno,
                     opt_hints_enum type_arg, bool fallback_value)
 {

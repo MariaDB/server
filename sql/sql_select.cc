@@ -33172,24 +33172,24 @@ test_if_cheaper_ordering(bool in_join_optimizer,
       /*
         Don't use an index scan with ORDER BY without limit.
         For GROUP BY without limit always use index scan
-        if there is a suitable index. 
+        if there is a suitable index.
         Why we hold to this asymmetry hardly can be explained
         rationally. It's easy to demonstrate that using
         temporary table + filesort could be cheaper for grouping
         queries too.
-      */ 
+      */
       if (is_covering || has_limit ||
           (ref_key < 0 && (group || table->force_index)))
-      { 
+      {
         double rec_per_key;
         if (group)
         {
-          /* 
+          /*
             Used_key_parts can be larger than keyinfo->user_defined_key_parts
-            when using a secondary index clustered with a primary 
-            key (e.g. as in Innodb). 
+            when using a secondary index clustered with a primary
+            key (e.g. as in Innodb).
             See Bug #28591 for details.
-          */  
+          */
           KEY *keyinfo= table->key_info+nr;
           uint used_index_parts= keyinfo->user_defined_key_parts;
           uint used_pk_parts= 0;
