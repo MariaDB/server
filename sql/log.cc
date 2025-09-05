@@ -5135,6 +5135,10 @@ MYSQL_BIN_LOG::reset_engine_binlogs(THD *thd, rpl_gtid *init_state,
 
   mysql_mutex_lock(&LOCK_log);
   mysql_mutex_lock(&LOCK_index);
+  mysql_mutex_lock(&LOCK_after_binlog_sync);
+  mysql_mutex_unlock(&LOCK_log);
+  mysql_mutex_lock(&LOCK_commit_ordered);
+  mysql_mutex_unlock(&LOCK_after_binlog_sync);
 
   if (init_state)
     rpl_global_gtid_binlog_state.load(init_state, init_state_len);
@@ -5142,8 +5146,8 @@ MYSQL_BIN_LOG::reset_engine_binlogs(THD *thd, rpl_gtid *init_state,
     rpl_global_gtid_binlog_state.reset();
   err= (*opt_binlog_engine_hton->reset_binlogs)();
 
+  mysql_mutex_unlock(&LOCK_commit_ordered);
   mysql_mutex_unlock(&LOCK_index);
-  mysql_mutex_unlock(&LOCK_log);
 
   return err;
 }
@@ -8883,7 +8887,7 @@ binlog_engine_delete_gtid_domain(DYNAMIC_ARRAY *domain_drop_lex)
 
   DBUG_ASSERT(domain_drop_lex->elements > 0);
   DBUG_ASSERT(opt_binlog_engine_hton);
-  mysql_mutex_assert_owner(mysql_bin_log.get_log_lock());
+  mysql_mutex_assert_owner(&LOCK_commit_ordered);
 
   if (!opt_binlog_engine_hton->binlog_get_init_state)
   {
@@ -8923,6 +8927,10 @@ MYSQL_BIN_LOG::flush_binlogs_engine(DYNAMIC_ARRAY *domain_drop_lex)
   DBUG_ENTER("MYSQL_BIN_LOG::flush_binlogs_engine");
 
   mysql_mutex_lock(&LOCK_log);
+  mysql_mutex_lock(&LOCK_after_binlog_sync);
+  mysql_mutex_unlock(&LOCK_log);
+  mysql_mutex_lock(&LOCK_commit_ordered);
+  mysql_mutex_unlock(&LOCK_after_binlog_sync);
 
   if ((error= binlog_engine_delete_gtid_domain(domain_drop_lex)) &&
       error < 0)
@@ -8931,10 +8939,6 @@ MYSQL_BIN_LOG::flush_binlogs_engine(DYNAMIC_ARRAY *domain_drop_lex)
   if ((*opt_binlog_engine_hton->binlog_flush)())
     error= 1;
 
-  mysql_mutex_lock(&LOCK_after_binlog_sync);
-  mysql_mutex_unlock(&LOCK_log);
-  mysql_mutex_lock(&LOCK_commit_ordered);
-  mysql_mutex_unlock(&LOCK_after_binlog_sync);
   mysql_mutex_unlock(&LOCK_commit_ordered);
 
   DBUG_RETURN(error);
