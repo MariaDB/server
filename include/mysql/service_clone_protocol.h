@@ -42,27 +42,7 @@ extern "C" {
 #include <stdbool.h>
 #endif /* MYSQL_ABI_CHECK */
 
-typedef struct st_net_server NET_SERVER;
-typedef struct st_mysql MYSQL;
-typedef struct st_mysql_socket MYSQL_SOCKET;
-
 // #include "mysql_com_server.h"
-
-/** Connection parameters including SSL */
-typedef struct mysql_clone_ssl_context_t {
-  /** Clone ssl mode. Same as mysql client --ssl-mode */
-  int m_ssl_mode;
-  /** Clone ssl private key. Same as mysql client --ssl-key */
-  const char *m_ssl_key;
-  /** Clone ssl certificate. Same as mysql client --ssl-cert */
-  const char *m_ssl_cert;
-  /** Clone ssl certificate authority. Same as mysql client --ssl-ca */
-  const char *m_ssl_ca;
-
-  /** Enable network compression. */
-  bool m_enable_compression;
-  NET_SERVER *m_server_extn;
-} mysql_clone_ssl_context;
 
 extern struct clone_protocol_service_st {
 /**
@@ -90,14 +70,6 @@ extern struct clone_protocol_service_st {
   int (*get_charsets_fn)(MYSQL_THD thd, void *char_sets);
 
 /**
-  Check if all characters sets are supported by server
-  @param[in,out]  thd        server session THD
-  @param[in]      char_sets  all character set collations to validate
-  @return error code.
-*/
-  int (*validate_charsets_fn)(MYSQL_THD thd, void *char_sets);
-
-/**
   Get system configuration parameter values.
   @param[in,out]  thd        server session THD
   @param[in,out]  configs    a list of configuration key value pair
@@ -106,76 +78,6 @@ extern struct clone_protocol_service_st {
 */
   int (*get_configs_fn)(MYSQL_THD thd, void *configs);
 
-/**
-  Check if configuration parameter values match
-  @param[in,out]  thd        server session THD
-  @param[in]      configs    a list of configuration key value pair
-  @return error code.
-*/
-  int (*validate_configs_fn)(MYSQL_THD thd, void *configs);
-
-/**
-  Connect to a remote server and switch to clone protocol
-  @param[in,out] thd      server session THD
-  @param[in]     host     host name to connect to
-  @param[in]     port     port number to connect to
-  @param[in]     user     user name on remote host
-  @param[in]     passwd   password for the user
-  @param[in]     ssl_ctx  client ssl context
-  @param[out]    socket   Network socket for the connection
-
-  @return Connection object if successful.
-*/
-  MYSQL* (*connect_fn)(MYSQL_THD thd, const char *host, uint32_t port,
-                             const char *user, const char *passwd,
-                             mysql_clone_ssl_context *ssl_ctx,
-                             MYSQL_SOCKET *socket);
-/**
-  Execute clone command on remote server
-  @param[in,out] thd            local session THD
-  @param[in,out] connection     connection object
-  @param[in]     set_active     set socket active for current THD
-  @param[in]     command        remote command
-  @param[in]     com_buffer     data following command
-  @param[in]     buffer_length  data length
-  @return error code.
-*/
-  int (*send_command_fn)(MYSQL_THD thd, MYSQL *connection, bool set_active,
-                         unsigned char command, unsigned char *com_buffer,
-                         size_t buffer_length);
-
-/**
-  Get response from remote server
-  @param[in,out] thd            local session THD
-  @param[in,out] connection     connection object
-  @param[in]     set_active     set socket active for current THD
-  @param[in]     timeout        timeout in seconds
-  @param[out]    packet         response packet
-  @param[out]    length         packet length
-  @param[out]    net_length     network data length for compressed data
-  @return error code.
-*/
-  int (*get_response_fn)(MYSQL_THD thd, MYSQL *connection, bool set_active,
-                         uint32_t timeout, unsigned char **packet,
-                         size_t *length, size_t *net_length);
-
-/**
-  Kill a remote connection
-  @param[in,out] connection        connection object
-  @param[in]     kill_connection   connection to kill
-  @return error code.
-*/
-  int (*kill_fn)(MYSQL *connection, MYSQL *kill_connection);
-
-/**
-  Disconnect from a remote server
-  @param[in,out] thd         local session THD
-  @param[in,out] connection  connection object
-  @param[in]     is_fatal    if closing after fatal error
-  @param[in]     clear_error clear any earlier error in session
-*/
-  void (*disconnect_fn)(MYSQL_THD thd, MYSQL *connection, bool is_fatal,
-                        bool clear_error);
 /**
   Get error number and message.
   @param[in,out] thd         local session THD
@@ -206,15 +108,6 @@ extern struct clone_protocol_service_st {
 */
   int (*send_response_fn)(MYSQL_THD thd, bool secure, unsigned char *packet,
                           size_t length);
-
-/**
-  Send error to client
-  @param[in,out] thd           server session THD
-  @param[in]     err_cmd       error response command
-  @param[in]     is_fatal      if fatal error
-  @return error code.
-*/
-  int (*send_error_fn)(MYSQL_THD thd, unsigned char err_cmd, bool is_fatal);
 
 /**
   Set server to desired backup stage
@@ -250,35 +143,8 @@ extern struct clone_protocol_service_st {
  #define clone_get_charsets(thd, char_sets) \
    (clone_protocol_service->get_charsets_fn((thd), (char_sets)))
 
- #define clone_validate_charsets(thd, char_sets) \
-    (clone_protocol_service->validate_charsets_fn((thd), (char_sets)))
-
 #define clone_get_configs(thd, configs) \
    (clone_protocol_service->get_configs_fn((thd), (configs)))
-
- #define clone_validate_configs(thd, configs) \
-    (clone_protocol_service->validate_configs_fn((thd), (configs)))
-
-#define clone_connect(thd, host, port, user, passwd, ssl_ctx, socket) \
-  (clone_protocol_service->connect_fn((thd), (host), (port), (user), (passwd), \
-  (ssl_ctx), (socket)))
-
-#define clone_send_command(thd, connection, set_active, command, com_buffer, \
-  buffer_length) \
-  (clone_protocol_service->send_command_fn((thd), (connection), \
-  (set_active), (command), (com_buffer), (buffer_length)))
-
-#define clone_get_response(thd, connection, set_active, timeout, packet, length, \
-  net_length) \
-  (clone_protocol_service->get_response_fn((thd), (connection), \
-  (set_active), (timeout), (packet), (length), (net_length)))
-
-#define clone_kill(connection, kill_connection) \
-  (clone_protocol_service->kill_fn((connection), (kill_connection)))
-
-#define clone_disconnect(thd, connection, is_fatal, clear_error) \
-  (clone_protocol_service->disconnect_fn((thd), (connection), (is_fatal), \
-  (clear_error)))
 
 #define clone_get_error(thd, err_num, err_mesg) \
   (clone_protocol_service->get_error_fn((thd), (err_num), (err_mesg)))
@@ -289,9 +155,6 @@ extern struct clone_protocol_service_st {
 
 #define clone_send_response(thd, secure, packet, length) \
   (clone_protocol_service->send_response_fn((thd), (secure), (packet), (length)))
-
-#define clone_send_error(thd, err_cmd, is_fatal) \
-  (clone_protocol_service->send_error_fn((thd), (err_cmd), (is_fatal)))
 
 #define clone_set_backup_stage(thd, stage) \
    (clone_protocol_service->set_backup_stage_fn((thd), (stage)))
@@ -309,29 +172,8 @@ extern struct clone_protocol_service_st {
 
   int clone_get_charsets(MYSQL_THD thd, void *char_sets);
 
-  int clone_validate_charsets(MYSQL_THD thd, void *char_sets);
-
   int clone_get_configs(MYSQL_THD thd, void *configs);
 
-  int clone_validate_configs(MYSQL_THD thd, void *configs);
-
-  MYSQL* clone_connect(MYSQL_THD thd, const char *host, uint32_t port,
-                       const char *user, const char *passwd,
-                       mysql_clone_ssl_context *ssl_ctx,
-                       MYSQL_SOCKET *socket);
-
-  int clone_send_command(MYSQL_THD thd, MYSQL *connection, bool set_active,
-                         unsigned char command, unsigned char *com_buffer,
-                         size_t buffer_length);
-
-  int clone_get_response(MYSQL_THD thd, MYSQL *connection, bool set_active,
-                         uint32_t timeout, unsigned char **packet,
-                         size_t *length, size_t *net_length);
-
-  int clone_kill(MYSQL *connection, MYSQL *kill_connection);
-
-  void clone_disconnect(MYSQL_THD thd, MYSQL *connection, bool is_fatal,
-                        bool clear_error);
   void clone_get_error(MYSQL_THD thd, uint32_t *err_num,
                        const char **err_mesg);
 
@@ -340,8 +182,6 @@ extern struct clone_protocol_service_st {
 
   int clone_send_response(MYSQL_THD thd, bool secure, unsigned char *packet,
                           size_t length);
-
-  int clone_send_error(MYSQL_THD thd, unsigned char err_cmd, bool is_fatal);
 
   int clone_set_backup_stage(MYSQL_THD thd, unsigned char stage);
 
