@@ -194,6 +194,10 @@ typedef struct st_ddl_log_entry
   uchar uuid[MY_UUID_SIZE];            // UUID for new frm file
 
   ulonglong xid;                       // Xid stored in the binary log
+  /* The following 4 variables are for doing slaves crash safe */
+  uint32 domain_id, server_id;
+  uint64 seq_no, sub_id;
+
   /*
     unique_id can be used to store a unique number to check current state.
     Currently it is used to store new size of frm file, link to another ddl log
@@ -272,7 +276,8 @@ bool ddl_log_revert(THD *thd, DDL_LOG_STATE *ddl_log_state);
 bool ddl_log_update_phase(DDL_LOG_STATE *entry, uchar phase);
 bool ddl_log_add_flag(DDL_LOG_STATE *entry, uint16 flag);
 bool ddl_log_update_unique_id(DDL_LOG_STATE *state, ulonglong id);
-bool ddl_log_update_xid(DDL_LOG_STATE *state, ulonglong xid);
+bool ddl_log_update_xid(DDL_LOG_STATE *state, THD *thd, ulonglong xid,
+                        rpl_group_info *rgi_slave);
 bool ddl_log_disable_entry(DDL_LOG_STATE *state);
 bool ddl_log_increment_phase(uint entry_pos);
 void ddl_log_release_memory_entry(DDL_LOG_MEMORY_ENTRY *log_entry);

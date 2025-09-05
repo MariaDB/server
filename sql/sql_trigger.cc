@@ -691,7 +691,7 @@ end:
     if (add_if_exists_to_binlog)
       thd->variables.option_bits|= OPTION_IF_EXISTS;
     thd->binlog_xid= thd->query_id;
-    ddl_log_update_xid(&ddl_log_state, thd->binlog_xid);
+    ddl_log_update_xid(&ddl_log_state, thd, thd->binlog_xid, thd->rgi_slave);
     result= write_bin_log(thd, TRUE, stmt_query.ptr(),
                           stmt_query.length());
     thd->binlog_xid= 0;

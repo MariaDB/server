@@ -5440,8 +5440,9 @@ bool select_create::send_eof()
 #endif /* WITH_WSREP */
     thd->binlog_xid= thd->query_id;
     /* Remember xid's for the case of row based logging */
-    ddl_log_update_xid(&ddl_log_state_create, thd->binlog_xid);
-    ddl_log_update_xid(&ddl_log_state_rm, thd->binlog_xid);
+    ddl_log_update_xid(&ddl_log_state_create, thd, thd->binlog_xid,
+                       thd->rgi_slave);
+    ddl_log_update_xid(&ddl_log_state_rm, thd, thd->binlog_xid, thd->rgi_slave);
     if (trans_commit_stmt(thd) ||
 	(!(thd->variables.option_bits & OPTION_GTID_BEGIN) &&
 	 trans_commit_implicit(thd)))
@@ -5614,8 +5615,10 @@ void select_create::abort_result_set()
         if (table_creation_was_logged)
         {
           thd->binlog_xid= thd->query_id;
-          ddl_log_update_xid(&ddl_log_state_create, thd->binlog_xid);
-          ddl_log_update_xid(&ddl_log_state_rm, thd->binlog_xid);
+          ddl_log_update_xid(&ddl_log_state_create, thd, thd->binlog_xid,
+                             thd->rgi_slave);
+          ddl_log_update_xid(&ddl_log_state_rm, thd, thd->binlog_xid,
+                             thd->rgi_slave);
           debug_crash_here("ddl_log_create_before_binlog");
           log_drop_table(thd, &table_list->db, &table_list->table_name,
                          &create_info->org_storage_engine_name,

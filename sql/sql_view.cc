@@ -760,7 +760,7 @@ bool mysql_create_view(THD *thd, TABLE_LIST *views,
     */
     thd->reset_unsafe_warnings();
     thd->binlog_xid= thd->query_id;
-    ddl_log_update_xid(&ddl_log_state, thd->binlog_xid);
+    ddl_log_update_xid(&ddl_log_state, thd, thd->binlog_xid, thd->rgi_slave);
     if (backup_file_name[0])
     {
       LEX_CSTRING cpath= {backup_file_name, strlen(backup_file_name) };
@@ -2043,7 +2043,7 @@ bool mysql_drop_view(THD *thd, TABLE_LIST *views, enum_drop_mode drop_mode)
      */
     debug_crash_here("ddl_log_drop_before_binlog");
     thd->binlog_xid= thd->query_id;
-    ddl_log_update_xid(&ddl_log_state, thd->binlog_xid);
+    ddl_log_update_xid(&ddl_log_state, thd, thd->binlog_xid, thd->rgi_slave);
     if (unlikely(write_bin_log(thd, !something_wrong, thd->query(),
                                thd->query_length())))
       something_wrong= 1;
