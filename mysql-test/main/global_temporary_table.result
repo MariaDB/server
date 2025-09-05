@@ -929,4 +929,9 @@ create global temporary table t1 (c int);
 create table t2 select * from t1;
 drop table t2;
 drop table t1;
+# MDEV-37384 SIGSEGV on CREATE GTT ... LIKE partitioned table
+create table t1 (c int) partition by hash(c) partitions 3;
+create global temporary table t2 like t1;
+ERROR HY000: Table storage engine 'partition' does not support the create option 'GLOBAL TEMPORARY'
+drop table t1;
 disconnect con1;
