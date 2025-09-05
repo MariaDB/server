@@ -795,4 +795,12 @@ create table t2 select * from t1;
 drop table t2;
 drop table t1;
 
+--echo # MDEV-37384 SIGSEGV on CREATE GTT ... LIKE partitioned table
+
+create table t1 (c int) partition by hash(c) partitions 3;
+--error ER_FEATURE_NOT_SUPPORTED_WITH_PARTITIONING
+create global temporary table t2 like t1;
+drop table t1;
+
+
 --disconnect con1
