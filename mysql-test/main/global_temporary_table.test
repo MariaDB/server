@@ -638,8 +638,6 @@ create or replace global temporary table t (d int);
 drop table t;
 unlock tables;
 
-
-
 --echo # Test CREATE...LIKE
 create global temporary table t(x int) on commit preserve rows;
 create table liker(y int);
@@ -695,12 +693,19 @@ unlock tables;
 drop table t;
 drop table src;
 
---echo MDEV-37385 (duplicate) Thread hang on CoR where the original table is a GTT
+--echo # MDEV-37385 (duplicate) Thread hang on CoR where the original table is a GTT
 create global temporary table t (c int) on commit preserve rows;
 insert t values (1);
 --error ER_LOCK_WAIT_TIMEOUT
 create or replace table t (c int);
 truncate t;
 drop table t;
+
+--echo # MDEV-37395 SIGSEGV on CREATE TABLE ... SELECT where source table is a GTT
+
+create global temporary table t1 (c int);
+create table t2 select * from t1;
+drop table t2;
+drop table t1;
 
 --disconnect con1

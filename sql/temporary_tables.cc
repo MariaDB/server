@@ -1932,7 +1932,14 @@ static transaction_participant global_temporary_tp=
 
 void THD::use_global_tmp_table_tp()
 {
-  if (!(sql_command_flags() & CF_STATUS_COMMAND))
+  /*
+    Workaround: select_create commits in send_eof, but accesses tables in many
+    places after that.
+    Tables will be removed manually for that case.
+  */
+  bool is_create_select= lex->sql_command == SQLCOM_CREATE_TABLE &&
+    lex->first_select_lex()->is_select_or_tvc();
+  if (!(sql_command_flags() & CF_STATUS_COMMAND) && !is_create_select)
   {
     trans_register_ha(this, false, &global_temporary_tp, 0);
     if (in_multi_stmt_transaction_mode())

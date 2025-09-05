@@ -824,11 +824,16 @@ ERROR HY000: Can't create table `test`.`t` (errno: 0 "Internal error/check (Not 
 unlock tables;
 drop table t;
 drop table src;
-MDEV-37385 (duplicate) Thread hang on CoR where the original table is a GTT
+# MDEV-37385 (duplicate) Thread hang on CoR where the original table is a GTT
 create global temporary table t (c int) on commit preserve rows;
 insert t values (1);
 create or replace table t (c int);
 ERROR HY000: Lock wait timeout exceeded; try restarting transaction
 truncate t;
 drop table t;
+# MDEV-37395 SIGSEGV on CREATE TABLE ... SELECT where source table is a GTT
+create global temporary table t1 (c int);
+create table t2 select * from t1;
+drop table t2;
+drop table t1;
 disconnect con1;
