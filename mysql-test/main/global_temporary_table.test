@@ -326,7 +326,6 @@ drop table gtt;
 create table t(x int);
 lock table t write;
 create or replace table t(x int);
---error ER_CANT_CREATE_TABLE
 create or replace global temporary table t(t text);
 unlock table;
 drop table t;
@@ -659,5 +658,141 @@ create table t (c int);
 --error ER_UNKNOWN_TABLE
 handler t close;
 drop table t;
+
+
+--echo MDEV-37382 SIGSEGV and UBSAN null-pointer-use in wait_while_table_is_used on CoR GTT
+
+create global temporary table t(x int) on commit preserve rows;
+insert t values(1);
+--error ER_LOCK_WAIT_TIMEOUT
+create or replace table t(y int);
+truncate t;
+create or replace table t(y int);
+show create table t;
+drop table t;
+
+create global temporary table t (c int);
+lock tables t write;
+create or replace global temporary table t (c int);
+show create table t;
+select * from t;
+drop table t;
+create or replace global temporary table t (c int) on commit preserve rows;
+show create table t;
+insert t values(1);
+--error ER_LOCK_WAIT_TIMEOUT
+create or replace global temporary table t (d int);
+truncate t;
+create or replace global temporary table t (d int);
+drop table t;
+unlock tables;
+
+--echo # Test CREATE...LIKE
+create global temporary table t(x int) on commit preserve rows;
+create table liker(y int);
+insert t values(1);
+--error ER_LOCK_WAIT_TIMEOUT
+create or replace table t like liker;
+truncate t;
+create or replace table t like liker;
+show create table t;
+drop table t;
+drop table liker;
+
+create global temporary table t(x int) on commit preserve rows ;
+create table liker(y int);
+lock tables t write, liker write;
+insert t values(1);
+--error ER_LOCK_WAIT_TIMEOUT
+create or replace table t like liker;
+truncate t;
+create or replace table t like liker;
+drop table t;
+drop table liker;
+unlock tables;
+
+--echo # Test CREATE ... SELECT
+--echo # Source table is GTT
+create table t(x int);
+create global temporary table src(x int) ;
+insert src values(1);
+create or replace table t select * from src;
+select * from t;
+drop table t;
+drop table src;
+
+create table t(x int);
+create global temporary table src(x int);
+insert src values(1);
+lock tables t write, src write;
+create or replace  table t select * from src;
+select * from t;
+unlock tables;
+drop table t;
+drop table src;
+
+--echo # Source table is GTT ON COMMIT PRESERVE ROWS
+create table t(x int);
+create global temporary table src(x int) on commit preserve rows;
+insert src values(1);
+create or replace table t select * from src;
+select * from t;
+drop table t;
+truncate src;
+drop table src;
+
+create table t(x int);
+create global temporary table src(x int) on commit preserve rows;
+insert src values(1);
+lock tables t write, src write;
+create or replace  table t select * from src;
+select * from t;
+unlock tables;
+drop table t;
+truncate src;
+drop table src;
+
+--echo # New table is GTT
+create or replace table t(x int);
+create table src(x int);
+insert src values (1), (2);
+lock tables t write, src write;
+create or replace global temporary table t on commit preserve rows select * from src;
+select * from t;
+--error ER_LOCK_WAIT_TIMEOUT
+drop table t;
+unlock tables;
+--error ER_LOCK_WAIT_TIMEOUT
+drop table t;
+select * from t;
+truncate t;
+drop table t;
+drop table src;
+
+--echo # Old table is GTT, and it's being replaced
+create or replace global temporary table t(y float) on commit preserve rows;
+create table src(x int);
+insert src values (1), (2);
+lock tables t write, src read;
+create or replace table t select * from src;
+select * from t;
+unlock tables;
+drop table t;
+drop table src;
+
+--echo # MDEV-37385 (duplicate) Thread hang on CoR where the original table is a GTT
+create global temporary table t (c int) on commit preserve rows;
+insert t values (1);
+--error ER_LOCK_WAIT_TIMEOUT
+create or replace table t (c int);
+truncate t;
+drop table t;
+
+--echo # MDEV-37395 SIGSEGV on CREATE TABLE ... SELECT where source table is a GTT
+
+create global temporary table t1 (c int);
+create table t2 select * from t1;
+drop table t2;
+drop table t1;
 
 --disconnect con1
