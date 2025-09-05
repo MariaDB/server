@@ -1,0 +1,45 @@
+--source include/have_debug.inc
+--source include/have_binlog_format_row.inc
+--source include/have_innodb_binlog.inc
+
+--echo *** Test a binlog write running concurrently with a FLUSH BINARY LOGS.
+--source include/reset_master.inc
+CREATE TABLE t1(a INT PRIMARY KEY, b LONGBLOB) ENGINE=InnoDB;
+
+--connect con1,localhost,root,,
+# The dbug insertion injects a small sleep just after the binlog write has
+# written the first part of the record to the page and has released the page.
+# This helps the test trigger the condition where the FLUSH (which will be
+# blocked while the writer has a page latched) runs concurrently with the
+# write. A dbug_sync would not be effective here, since (as is usual for
+# race conditions) when the bug is fixed, the race can no longer occur and
+# the debug_sync would time out.
+SET SESSION debug_dbug= '+d,pause_binlog_write_after_release_page';
+send INSERT INTO t1 VALUES(0, REPEAT('#', 20000));
+
+--connection default
+--sleep 0.1
+FLUSH NO_WRITE_TO_BINLOG BINARY LOGS;
+
+--connection con1
+reap;
+--source include/show_binlog_events.inc
+
+--echo *** Now the same thing for RESET MASTER.
+--source include/reset_master.inc
+
+--connection con1
+SET SESSION debug_dbug= '+d,pause_binlog_write_after_release_page';
+send INSERT INTO t1 VALUES(1, REPEAT('#', 20000));
+
+--connection default
+--sleep 0.1
+RESET MASTER;
+
+--connection con1
+reap;
+
+# Clean up.
+--connection default
+--disconnect con1
+DROP TABLE t1;
