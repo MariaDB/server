@@ -6516,9 +6516,10 @@ int ha_create_table(THD *thd, const char *path, const char *db,
 
     bzero((char*) &index_cinfo, sizeof(index_cinfo));
     index_cinfo.alter_info= &index_ainfo;
-    if (create_info->index_file_name)
+    index_file_name_end= const_cast<char*>(create_info->index_file_name);
+    if (index_file_name_end)
     {
-      index_file_name_end= strmov(index_file_name, create_info->index_file_name);
+      index_file_name_end= strmov(index_file_name, index_file_name_end);
       index_cinfo.index_file_name= index_file_name;
       index_cinfo.data_file_name= index_file_name;
     }
