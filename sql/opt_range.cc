@@ -5392,7 +5392,7 @@ TABLE_READ_PLAN *get_best_disjunct_quick(PARAM *param, SEL_IMERGE *imerge,
 
   /*
     In every tree of imerge remove SEL_ARG trees that do not make ranges.
-    If after this removal some SEL_ARG tree becomes empty discard imerge.  
+    If after this removal some SEL_ARG tree becomes empty discard imerge.
   */
   for (ptree= imerge->trees; ptree != imerge->trees_next; ptree++)
   {
@@ -5404,7 +5404,7 @@ TABLE_READ_PLAN *get_best_disjunct_quick(PARAM *param, SEL_IMERGE *imerge,
   }
 
   n_child_scans= imerge->trees_next - imerge->trees;
-  
+
   if (!n_child_scans)
     DBUG_RETURN(NULL);
 
@@ -5481,7 +5481,7 @@ TABLE_READ_PLAN *get_best_disjunct_quick(PARAM *param, SEL_IMERGE *imerge,
     DBUG_RETURN(NULL);
   }
 
-  /* 
+  /*
     If all scans happen to be ROR, proceed to generate a ROR-union plan (it's 
     guaranteed to be cheaper than non-ROR union), unless ROR-unions are
     disabled in @@optimizer_switch
@@ -7261,7 +7261,7 @@ static bool ror_intersect_add(ROR_INTERSECT_INFO *info,
     DBUG_PRINT("info", ("The scan doesn't improve selectivity."));
     DBUG_RETURN(FALSE);
   }
-  
+
   info->out_rows *= selectivity_mult;
   
   if (is_cpk_scan)
@@ -7532,7 +7532,7 @@ TRP_ROR_INTERSECT *get_best_ror_intersect(const PARAM *param, SEL_TREE *tree,
                                           intersect_scans_best););
 
   *are_all_covering= intersect->is_covering;
-  uint best_num= (uint)(intersect_scans_best - intersect_scans);
+  uint best_num= (uint) (intersect_scans_best - intersect_scans);
   ror_intersect_cpy(intersect, intersect_best);
 
   /*
@@ -7551,7 +7551,7 @@ TRP_ROR_INTERSECT *get_best_ror_intersect(const PARAM *param, SEL_TREE *tree,
         trace_cpk.
           add("clustered_pk_scan_added_to_intersect", true).
           add("cumulated_cost", intersect->total_cost);
-      intersect_best= intersect; //just set pointer here
+      intersect_best= intersect; // just set pointer here
     }
     else
     {
@@ -7796,7 +7796,7 @@ TRP_ROR_INTERSECT *get_best_covering_ror_intersect(PARAM *param,
 */
 
 static TRP_RANGE *get_key_scans_params(PARAM *param, SEL_TREE *tree,
-                                       bool index_read_must_be_used, 
+                                       bool index_read_must_be_used,
                                        bool for_range_access,
                                        double read_time, ha_rows limit,
                                        bool using_table_scan)
@@ -7832,105 +7832,105 @@ static TRP_RANGE *get_key_scans_params(PARAM *param, SEL_TREE *tree,
   for (idx= 0; idx < param->keys; idx++)
   {
     SEL_ARG *key= tree->keys[idx];
-    if (key)
+    if (!key)
+      continue;
+
+    ha_rows found_records;
+    Cost_estimate cost;
+    double found_read_time;
+    uint mrr_flags, buf_size;
+    bool is_ror_scan= FALSE;
+    INDEX_SCAN_INFO *index_scan;
+    uint keynr= param->real_keynr[idx];
+    if (key->type == SEL_ARG::MAYBE_KEY ||
+        key->maybe_flag)
+      param->needed_reg->set_bit(keynr);
+
+    bool read_index_only= index_read_must_be_used ? TRUE :
+                          (bool) param->table->covering_keys.is_set(keynr);
+
+    Json_writer_object trace_idx(thd);
+    trace_idx.add("index", param->table->key_info[keynr].name);
+
+    found_records= check_quick_select(param, idx, limit, read_index_only,
+                                      key, for_range_access, &mrr_flags,
+                                      &buf_size, &cost, &is_ror_scan);
+
+    if (found_records == HA_POS_ERROR ||
+        (!for_range_access && !is_ror_scan &&
+         !optimizer_flag(param->thd,OPTIMIZER_SWITCH_INDEX_MERGE_SORT_UNION)))
     {
-      ha_rows found_records;
-      Cost_estimate cost;
-      double found_read_time;
-      uint mrr_flags, buf_size;
-      bool is_ror_scan= FALSE;
-      INDEX_SCAN_INFO *index_scan;
-      uint keynr= param->real_keynr[idx];
-      if (key->type == SEL_ARG::MAYBE_KEY ||
-          key->maybe_flag)
-        param->needed_reg->set_bit(keynr);
+      /* The scan is not a ROR-scan, just skip it */
+      continue;
+    }
+    found_read_time= cost.total_cost();
+    if (tree->index_scans &&
+        (index_scan= (INDEX_SCAN_INFO *)alloc_root(param->mem_root,
+                                                   sizeof(INDEX_SCAN_INFO))))
+    {
+      Json_writer_array trace_range(thd, "ranges");
+      const KEY &cur_key= param->table->key_info[keynr];
+      const KEY_PART_INFO *key_part= cur_key.key_part;
 
-      bool read_index_only= index_read_must_be_used ? TRUE :
-                            (bool) param->table->covering_keys.is_set(keynr);
+      index_scan->idx= idx;
+      index_scan->keynr= keynr;
+      index_scan->key_info= &param->table->key_info[keynr];
+      index_scan->used_key_parts= param->max_key_parts;
+      index_scan->range_count= param->range_count;
+      index_scan->records= found_records;
+      index_scan->sel_arg= key;
+      *tree->index_scans_end++= index_scan;
 
-      Json_writer_object trace_idx(thd);
-      trace_idx.add("index", param->table->key_info[keynr].name);
+      if (unlikely(thd->trace_started()))
+        trace_ranges(&trace_range, param, idx, key, key_part);
+      trace_range.end();
 
-      found_records= check_quick_select(param, idx, limit, read_index_only,
-                                        key, for_range_access, &mrr_flags,
-                                        &buf_size, &cost, &is_ror_scan);
-
-      if (found_records == HA_POS_ERROR ||
-          (!for_range_access && !is_ror_scan &&
-           !optimizer_flag(param->thd,OPTIMIZER_SWITCH_INDEX_MERGE_SORT_UNION)))
+      if (unlikely(trace_idx.trace_started()))
       {
-        /* The scan is not a ROR-scan, just skip it */
-        continue;
+        trace_idx.
+          add("rowid_ordered", is_ror_scan).
+          add("using_mrr", !(mrr_flags & HA_MRR_USE_DEFAULT_IMPL)).
+          add("index_only", read_index_only).
+          add("rows", found_records).
+          add("cost", found_read_time);
+        if (using_table_scan && cost.limit_cost != 0.0)
+          trace_idx.add("cost_with_limit", cost.limit_cost);
       }
-      found_read_time= cost.total_cost();
-      if (tree->index_scans &&
-          (index_scan= (INDEX_SCAN_INFO *)alloc_root(param->mem_root,
-						     sizeof(INDEX_SCAN_INFO))))
+    }
+    if (is_ror_scan)
+    {
+      tree->n_ror_scans++;
+      tree->ror_scans_map.set_bit(idx);
+    }
+    /*
+      Use range if best range so far or if we are comparing to a table scan
+      and the cost with limit approximation is better than the table scan
+    */
+    if (read_time > found_read_time ||
+        (using_table_scan && cost.limit_cost != 0.0 &&
+         read_time > cost.limit_cost))
+    {
+      read_time=    found_read_time;
+      best_records= found_records;
+      key_to_read=  key;
+      best_idx= idx;
+      best_mrr_flags= mrr_flags;
+      best_buf_size=  buf_size;
+      using_table_scan= 0;
+      trace_idx.add("chosen", true);
+    }
+    else if (unlikely(trace_idx.trace_started()))
+    {
+      trace_idx.add("chosen", false);
+      if (found_records == HA_POS_ERROR)
       {
-        Json_writer_array trace_range(thd, "ranges");
-        const KEY &cur_key= param->table->key_info[keynr];
-        const KEY_PART_INFO *key_part= cur_key.key_part;
-
-        index_scan->idx= idx;
-        index_scan->keynr= keynr;
-        index_scan->key_info= &param->table->key_info[keynr];
-        index_scan->used_key_parts= param->max_key_parts;
-        index_scan->range_count= param->range_count;
-        index_scan->records= found_records;
-        index_scan->sel_arg= key;
-        *tree->index_scans_end++= index_scan;
-
-        if (unlikely(thd->trace_started()))
-          trace_ranges(&trace_range, param, idx, key, key_part);
-        trace_range.end();
-
-        if (unlikely(trace_idx.trace_started()))
-        {
-          trace_idx.
-            add("rowid_ordered", is_ror_scan).
-            add("using_mrr", !(mrr_flags & HA_MRR_USE_DEFAULT_IMPL)).
-            add("index_only", read_index_only).
-            add("rows", found_records).
-            add("cost", found_read_time);
-          if (using_table_scan && cost.limit_cost != 0.0)
-            trace_idx.add("cost_with_limit", cost.limit_cost);
-        }
-      }
-      if (is_ror_scan)
-      {
-        tree->n_ror_scans++;
-        tree->ror_scans_map.set_bit(idx);
-      }
-      /*
-        Use range if best range so far or if we are comparing to a table scan
-        and the cost with limit approximation is better than the table scan
-      */
-      if (read_time > found_read_time ||
-          (using_table_scan && cost.limit_cost != 0.0 &&
-           read_time > cost.limit_cost))
-      {
-        read_time=    found_read_time;
-        best_records= found_records;
-        key_to_read=  key;
-        best_idx= idx;
-        best_mrr_flags= mrr_flags;
-        best_buf_size=  buf_size;
-        using_table_scan= 0;
-        trace_idx.add("chosen", true);
-      }
-      else if (unlikely(trace_idx.trace_started()))
-      {
-        trace_idx.add("chosen", false);
-        if (found_records == HA_POS_ERROR)
-        {
-          if (key->type == SEL_ARG::Type::MAYBE_KEY)
-            trace_idx.add("cause", "depends on unread values");
-          else
-            trace_idx.add("cause", "unknown");
-        }
+        if (key->type == SEL_ARG::Type::MAYBE_KEY)
+          trace_idx.add("cause", "depends on unread values");
         else
-          trace_idx.add("cause", "cost");
+          trace_idx.add("cause", "unknown");
       }
+      else
+        trace_idx.add("cause", "cost");
     }
   }
 
