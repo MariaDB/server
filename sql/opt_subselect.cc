@@ -3709,17 +3709,22 @@ bool Duplicate_weedout_picker::check_qep(JOIN *join,
     double sj_outer_fanout= 1.0;
     uint temptable_rec_size;
 
+    /*
+      We start with the number of records in the first table as we
+      aren't performing a join.
+      Worst case scenario is that we we perform n^2 reads on the first table
+      performing our weedout operation.
+    */
+    first_weedout_table_rec_count=
+                                 join->positions[first_tab].prefix_record_count;
     if (first_tab == join->const_tables)
     {
-      first_weedout_table_rec_count= 1.0;
       temptable_rec_size= 0;
       dups_cost= 0.0;
     }
     else
     {
       dups_cost= join->positions[first_tab - 1].prefix_cost;
-      first_weedout_table_rec_count=
-        join->positions[first_tab - 1].prefix_record_count;
       temptable_rec_size= 8; /* This is not true but we'll make it so */
     }
     
