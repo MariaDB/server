@@ -39,9 +39,6 @@ UPDATE t1 SET b1 = 0, t="2006-02-22" WHERE id = 412;
 --echo --- Check the update on master --- 
 SELECT id,hex(b1),vc,bc,d,f,total,y,t FROM t1 WHERE id = 412;
 
-# Must give injector thread a little time to get update
-# into the binlog other wise we will miss the update.
-
 sync_slave_with_master;
 --echo --- Check Update on slave ---
 SELECT id,hex(b1),vc,bc,d,f,total,y,t FROM t1 WHERE id = 412;
