@@ -373,7 +373,6 @@ create table t(x int);
 lock table t write;
 create or replace table t(x int);
 create or replace global temporary table t(t text);
-ERROR HY000: Can't create table `test`.`t` (errno: 0 "Internal error/check (Not system error)")
 unlock table;
 drop table t;
 ### PS Second execution
@@ -734,5 +733,102 @@ ERROR 42S01: Table 't' already exists
 # The handler was closed on implicit commit after HANDLER OPEN
 handler t close;
 ERROR 42S02: Unknown table 't' in HANDLER
+drop table t;
+MDEV-37382 SIGSEGV and UBSAN null-pointer-use in wait_while_table_is_used on CoR GTT
+create global temporary table t(x int) on commit preserve rows;
+insert t values(1);
+create or replace table t(y int);
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+truncate t;
+create or replace table t(y int);
+show create table t;
+Table	Create Table
+t	CREATE TABLE `t` (
+  `y` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+drop table t;
+create global temporary table t (c int);
+lock tables t write;
+create or replace global temporary table t (c int);
+show create table t;
+Table	Create Table
+t	CREATE GLOBAL TEMPORARY TABLE `t` (
+  `c` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci ON COMMIT DELETE ROWS
+select * from t;
+c
+drop table t;
+create or replace global temporary table t (c int) on commit preserve rows;
+show create table t;
+Table	Create Table
+t	CREATE GLOBAL TEMPORARY TABLE `t` (
+  `c` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci ON COMMIT PRESERVE ROWS
+insert t values(1);
+create or replace global temporary table t (d int);
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+truncate t;
+create or replace global temporary table t (d int);
+drop table t;
+unlock tables;
+# Test CREATE...LIKE
+create global temporary table t(x int) on commit preserve rows;
+create table liker(y int);
+insert t values(1);
+create or replace table t like liker;
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+truncate t;
+create or replace table t like liker;
+show create table t;
+Table	Create Table
+t	CREATE TABLE `t` (
+  `y` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+drop table t;
+drop table liker;
+create global temporary table t(x int) on commit preserve rows ;
+create table liker(y int);
+lock tables t write, liker write;
+insert t values(1);
+create or replace table t like liker;
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+truncate t;
+create or replace table t like liker;
+ERROR HY000: Can't create table `test`.`t` (errno: 0 "Internal error/check (Not system error)")
+drop table t;
+drop table liker;
+unlock tables;
+# Test CREATE ... SELECT
+create table t(x int);
+create global temporary table src(x int) ;
+insert src values(1);
+create or replace  table t select * from src;
+ERROR HY000: Can't create table `test`.`t` (errno: 0 "Internal error/check (Not system error)")
+drop table t;
+drop table src;
+create table t(x int);
+create global temporary table src(x int) ;
+insert src values(1);
+lock tables t write, src write;
+create or replace  table t select * from src;
+ERROR HY000: Can't create table `test`.`t` (errno: 0 "Internal error/check (Not system error)")
+unlock tables;
+drop table t;
+drop table src;
+create  table t(x int);
+create table src (yy int);
+insert src values(1),(2);
+lock tables t write, src write;
+create or replace global temporary table t on commit preserve rows select * from src;
+ERROR HY000: Can't create table `test`.`t` (errno: 0 "Internal error/check (Not system error)")
+unlock tables;
+drop table t;
+drop table src;
+MDEV-37385 (duplicate) Thread hang on CoR where the original table is a GTT
+create global temporary table t (c int) on commit preserve rows;
+insert t values (1);
+create or replace table t (c int);
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+truncate t;
 drop table t;
 disconnect con1;

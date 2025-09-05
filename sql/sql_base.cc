@@ -1941,6 +1941,24 @@ bool TABLE::vers_switch_partition(THD *thd, TABLE_LIST *table_list,
 }
 #endif /* WITH_PARTITION_STORAGE_ENGINE */
 
+/*
+  Return whether a table is opened for create, and it's a subject to be
+  replaced.
+
+  We can recognize a table open for replacement by several properties:
+  1. It's a first table in list
+  2. Its lock type is at least MDL_SHARED_UPGRADABLE.
+
+  Only the second property is enough to check, and besides it's enough to
+  compare against MDL_SHARED_UPGRADABLE, since we know this lock type is
+  assigned in sql_yacc, see `create` rule.
+*/
+bool is_open_for_create_replace(THD* thd, TABLE_LIST* table)
+{
+  return thd->lex->sql_command == SQLCOM_CREATE_TABLE &&
+         table->mdl_request.type == MDL_SHARED_UPGRADABLE;
+}
+
 
 /**
   Open a base table.
@@ -2091,7 +2109,8 @@ bool open_table(THD *thd, TABLE_LIST *table_list, Open_table_context *ot_ctx)
     if (best_table)
     {
       if (best_table->s->table_type == TABLE_TYPE_GLOBAL_TEMPORARY &&
-          !thd->use_real_global_temporary_share())
+          !thd->use_real_global_temporary_share() &&
+          !is_open_for_create_replace(thd, table_list))
         goto get_new_table;
 
       table= best_table;
@@ -2325,7 +2344,8 @@ retry_share:
 
     if (share->table_type == TABLE_TYPE_GLOBAL_TEMPORARY)
     {
-      if (!thd->use_real_global_temporary_share())
+      if (!thd->use_real_global_temporary_share() &&
+          !((flags & MYSQL_OPEN_GET_NEW_TABLE) && thd->locked_tables_mode))
       {
         my_bool err= open_global_temporary_table(thd, share, table_list,
                                                  mdl_ticket);
