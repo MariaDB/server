@@ -99,17 +99,6 @@ extern struct clone_protocol_service_st {
                         unsigned char **com_buffer, size_t *buffer_length);
 
 /**
-  Send response to client.
-  @param[in,out] thd     server session THD
-  @param[in]     secure  needs to be sent over secure connection
-  @param[in]     packet  response packet
-  @param[in]     length  packet length
-  @return error code.
-*/
-  int (*send_response_fn)(MYSQL_THD thd, bool secure, unsigned char *packet,
-                          size_t length);
-
-/**
   Set server to desired backup stage
   @param[in,out] thd	server session THD
   @param[in]	 stage	backup stage
@@ -153,9 +142,6 @@ extern struct clone_protocol_service_st {
   (clone_protocol_service->get_command_fn((thd), (command), (com_buffer), \
   (buffer_length)))
 
-#define clone_send_response(thd, secure, packet, length) \
-  (clone_protocol_service->send_response_fn((thd), (secure), (packet), (length)))
-
 #define clone_set_backup_stage(thd, stage) \
    (clone_protocol_service->set_backup_stage_fn((thd), (stage)))
 
@@ -180,8 +166,6 @@ extern struct clone_protocol_service_st {
   int clone_get_command(MYSQL_THD thd, unsigned char *command,
                         unsigned char **com_buffer, size_t *buffer_length);
 
-  int clone_send_response(MYSQL_THD thd, bool secure, unsigned char *packet,
-                          size_t length);
 
   int clone_set_backup_stage(MYSQL_THD thd, unsigned char stage);
 

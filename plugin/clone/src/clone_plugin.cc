@@ -198,7 +198,7 @@ static int plugin_clone_local(THD *thd, const char *data_dir)
 {
   myclone::Client_Share client_share(nullptr, 0, nullptr, nullptr, data_dir, 0);
 
-  myclone::Server server(thd, MYSQL_INVALID_SOCKET);
+  myclone::Server server(thd);
 
   /* Update session and statement PFS keys */
   assert(thd != nullptr);

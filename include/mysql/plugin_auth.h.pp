@@ -33,8 +33,6 @@ extern struct clone_protocol_service_st {
                        const char **err_mesg);
   int (*get_command_fn)(THD* thd, unsigned char *command,
                         unsigned char **com_buffer, size_t *buffer_length);
-  int (*send_response_fn)(THD* thd, bool secure, unsigned char *packet,
-                          size_t length);
   int (*set_backup_stage_fn)(THD* thd, unsigned char stage);
   int (*backup_lock_fn)(THD* thd, const char *db, const char *tbl);
   int (*backup_unlock_fn)(THD* thd);
@@ -49,8 +47,6 @@ extern struct clone_protocol_service_st {
                        const char **err_mesg);
   int clone_get_command(THD* thd, unsigned char *command,
                         unsigned char **com_buffer, size_t *buffer_length);
-  int clone_send_response(THD* thd, bool secure, unsigned char *packet,
-                          size_t length);
   int clone_set_backup_stage(THD* thd, unsigned char stage);
   int clone_backup_lock(THD* thd, const char* db, const char* tbl);
   int clone_backup_unlock(THD* thd);

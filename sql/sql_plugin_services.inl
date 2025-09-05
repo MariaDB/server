@@ -349,7 +349,6 @@ static struct clone_protocol_service_st clone_protocol_handler= {
   clone_get_configs,
   clone_get_error,
   clone_get_command,
-  clone_send_response,
   clone_set_backup_stage,
   clone_backup_lock,
   clone_backup_unlock
