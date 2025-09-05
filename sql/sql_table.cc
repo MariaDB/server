@@ -2005,7 +2005,7 @@ err:
         built_query.append(normal_tables.ptr(), normal_tables.length());
         built_query.append(generated_by_server);
         thd->binlog_xid= thd->query_id;
-        ddl_log_update_xid(ddl_log_state, thd->binlog_xid);
+        ddl_log_update_xid(ddl_log_state, thd, thd->binlog_xid, thd->rgi_slave);
         error |= (thd->binlog_query(THD::STMT_QUERY_TYPE,
                                     built_query.ptr(), built_query.length(),
                                     TRUE, FALSE, FALSE, 0) > 0);
@@ -5364,9 +5364,11 @@ err:
       create_info->table->s->table_creation_was_logged= 1;
     }
     thd->binlog_xid= thd->query_id;
-    ddl_log_update_xid(&ddl_log_state_create, thd->binlog_xid);
+    ddl_log_update_xid(&ddl_log_state_create, thd, thd->binlog_xid,
+                       thd->rgi_slave);
     if (ddl_log_state_rm.is_active())
-      ddl_log_update_xid(&ddl_log_state_rm, thd->binlog_xid);
+      ddl_log_update_xid(&ddl_log_state_rm, thd, thd->binlog_xid,
+                         thd->rgi_slave);
     debug_crash_here("ddl_log_create_before_binlog");
     if (unlikely(write_bin_log(thd, result ? FALSE : TRUE, thd->query(),
                                thd->query_length(), is_trans)))
@@ -6098,9 +6100,11 @@ err:
   if (do_logging)
   {
     thd->binlog_xid= thd->query_id;
-    ddl_log_update_xid(&ddl_log_state_create, thd->binlog_xid);
+    ddl_log_update_xid(&ddl_log_state_create, thd, thd->binlog_xid,
+                       thd->rgi_slave);
     if (ddl_log_state_rm.is_active())
-      ddl_log_update_xid(&ddl_log_state_rm, thd->binlog_xid);
+      ddl_log_update_xid(&ddl_log_state_rm, thd, thd->binlog_xid,
+                         thd->rgi_slave);
     debug_crash_here("ddl_log_create_before_binlog");      
     if (res && create_info->table_was_deleted)
     {
@@ -10311,7 +10315,7 @@ simple_rename_or_index_change(THD *thd, TABLE_LIST *table_list,
   if (likely(!error))
   {
     thd->binlog_xid= thd->query_id;
-    ddl_log_update_xid(&ddl_log_state, thd->binlog_xid);
+    ddl_log_update_xid(&ddl_log_state, thd, thd->binlog_xid, thd->rgi_slave);
     error= write_bin_log(thd, TRUE, thd->query(), thd->query_length());
     thd->binlog_xid= 0;
     if (likely(!error))
@@ -12039,7 +12043,7 @@ alter_copy:
     {
       int tmp_error;
       thd->binlog_xid= thd->query_id;
-      ddl_log_update_xid(&ddl_log_state, thd->binlog_xid);
+      ddl_log_update_xid(&ddl_log_state, thd, thd->binlog_xid, thd->rgi_slave);
       tmp_error= write_bin_log_with_if_exists(thd, true, false, log_if_exists);
       thd->binlog_xid= 0;
       if (tmp_error)
@@ -12255,7 +12259,7 @@ alter_copy:
     */
     thd->variables.option_bits&= ~OPTION_BIN_COMMIT_OFF;
     thd->binlog_xid= thd->query_id;
-    ddl_log_update_xid(&ddl_log_state, thd->binlog_xid);
+    ddl_log_update_xid(&ddl_log_state, thd, thd->binlog_xid, thd->rgi_slave);
     binlog_commit(thd, true);
     thd->binlog_xid= 0;
   }
@@ -12293,7 +12297,7 @@ end_inplace:
   {
     int tmp_error;
     thd->binlog_xid= thd->query_id;
-    ddl_log_update_xid(&ddl_log_state, thd->binlog_xid);
+    ddl_log_update_xid(&ddl_log_state, thd, thd->binlog_xid, thd->rgi_slave);
     tmp_error= write_bin_log_with_if_exists(thd, true, false, log_if_exists,
                                             partial_alter);
     thd->binlog_xid= 0;

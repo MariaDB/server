@@ -7639,7 +7639,8 @@ uint fast_alter_partition_table(THD *thd, TABLE *table,
         ERROR_INJECT("convert_partition_8") ||
         ((!thd->lex->no_write_to_binlog) &&
           ((thd->binlog_xid= thd->query_id),
-           ddl_log_update_xid(lpt->part_info, thd->binlog_xid),
+           ddl_log_update_xid(lpt->part_info, thd, thd->binlog_xid,
+                              thd->rgi_slave),
            write_bin_log(thd, false, thd->query(), thd->query_length()),
            (thd->binlog_xid= 0))) ||
         ERROR_INJECT("convert_partition_9"))
@@ -7691,7 +7692,8 @@ uint fast_alter_partition_table(THD *thd, TABLE *table,
         ERROR_INJECT("convert_partition_8") ||
         ((!thd->lex->no_write_to_binlog) &&
           ((thd->binlog_xid= thd->query_id),
-           ddl_log_update_xid(lpt->part_info, thd->binlog_xid),
+           ddl_log_update_xid(lpt->part_info, thd, thd->binlog_xid,
+                              thd->rgi_slave),
            write_bin_log(thd, false, thd->query(), thd->query_length()),
            (thd->binlog_xid= 0))) ||
         ERROR_INJECT("convert_partition_9"))

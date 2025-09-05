@@ -11,11 +11,15 @@ use constant {
     DDL_LOG_NEXT_ENTRY_POS   => 4,
     DDL_LOG_FLAG_POS         => 8,
     DDL_LOG_XID_POS          => 10,
-    DDL_LOG_UUID_POS         => 18,
+    DDL_LOG_SLAVE_DOMAIN_ID  => 18,
+    DDL_LOG_SLAVE_SERVER_ID  => 22,
+    DDL_LOG_SLAVE_SEQ_NO     => 26,
+    DDL_LOG_SLAVE_SUB_ID     => 34,
+    DDL_LOG_UUID_POS         => 42,
     MY_UUID_SIZE             => 16,
-    DDL_LOG_ID_POS           => 34,
-    DDL_LOG_END_POS          => 42,
-    NAME_START_POS           => 56,
+    DDL_LOG_ID_POS           => 48,
+    DDL_LOG_END_POS          => 66,
+    NAME_START_POS           => 80,
 };
 
 package main;
@@ -65,6 +69,20 @@ open $fh, '<:raw', $file or die "Cannot open $file: $!";
 # Skip header block
 exit 0 if (!read($fh, my $block, BLOCK_SIZE));
 
+if (substr($block,0,3) ne chr(254) . chr(254) . chr(11))
+{
+    die "Abort: $file is not a ddl recovery log file\n";
+}
+
+my $version= unpack("C", substr($block, 3, 1));
+
+print "$file is a ddl recovery file version: $version\n";
+
+if ($version < 2)
+{
+    die "Abort: This script can only handle version 3 and newer\n";
+}
+
 my $entry_num = 1;
 
 while (read($fh, my $block, BLOCK_SIZE)) {
@@ -75,6 +93,10 @@ while (read($fh, my $block, BLOCK_SIZE)) {
     my $next_entry    = unpack("V", substr($block, DDL_LOG_NEXT_ENTRY_POS, 4));
     my $flags         = unpack("v", substr($block, DDL_LOG_FLAG_POS, 2));
     my $xid           = unpack("Q<", substr($block, DDL_LOG_XID_POS, 8));
+    my $domain_id     = unpack("v", substr($block, DDL_LOG_SLAVE_DOMAIN_ID, 2));
+    my $server_id     = unpack("v", substr($block, DDL_LOG_SLAVE_SERVER_ID, 2));
+    my $slave_seq_no  = unpack("Q<", substr($block, DDL_LOG_SLAVE_SEQ_NO, 8));
+    my $slave_sub_id  = unpack("Q<", substr($block, DDL_LOG_SLAVE_SUB_ID, 8));
     my $uuid_bin      = substr($block, DDL_LOG_UUID_POS, MY_UUID_SIZE);
     my $unique_id     = unpack("Q<", substr($block, DDL_LOG_ID_POS, 8));
 
@@ -106,6 +128,10 @@ while (read($fh, my $block, BLOCK_SIZE)) {
     print "Next Entry     : $next_entry\n";
     print "Flags          : $flags\n";
     print "XID            : $xid\n";
+    print "slave_domain_id: $domain_id\n";
+    print "slave_server_id: $server_id\n";
+    print "slave_seq_no   : $slave_seq_no\n";
+    print "slave_sub_id   : $slave_sub_id\n";
     print "UUID           : $uuid\n";
     print "Unique ID      : $unique_id\n";
     print "Handler Name   : $strings[0]\n";

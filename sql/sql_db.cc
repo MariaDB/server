@@ -1222,7 +1222,7 @@ update_binlog:
       */
       debug_crash_here("ddl_log_drop_before_binlog");
       thd->binlog_xid= thd->query_id;
-      ddl_log_update_xid(&ddl_log_state, thd->binlog_xid);
+      ddl_log_update_xid(&ddl_log_state, thd, thd->binlog_xid, thd->rgi_slave);
       res= mysql_bin_log.write(&qinfo);
       thd->binlog_xid= 0;
       debug_crash_here("ddl_log_drop_after_binlog");
@@ -1286,7 +1286,7 @@ update_binlog:
       */
       debug_crash_here("ddl_log_drop_before_binlog");
       thd->binlog_xid= thd->query_id;
-      ddl_log_update_xid(&ddl_log_state, thd->binlog_xid);
+      ddl_log_update_xid(&ddl_log_state, thd, thd->binlog_xid, thd->rgi_slave);
       res= write_to_binlog(thd, query, (uint)(query_pos -1 - query), db.str,
                            db.length);
       thd->binlog_xid= 0;

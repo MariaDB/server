@@ -182,7 +182,7 @@ bool mysql_rename_tables(THD *thd, TABLE_LIST *table_list, bool silent,
       if the item is in the binary log (and thus the operation was complete
     */
     thd->binlog_xid= thd->query_id;
-    ddl_log_update_xid(&ddl_log_state, thd->binlog_xid);
+    ddl_log_update_xid(&ddl_log_state, thd, thd->binlog_xid, thd->rgi_slave);
     if (mysql_bin_log.is_open())
     {
       if (not_logged_temporary_tables)
