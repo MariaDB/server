@@ -13890,7 +13890,7 @@ bool Sql_cmd_create_table_like::execute(THD *thd)
       my_error(ER_WRONG_OBJECT, MYF(0), create_table->db.str,
                create_table->table_name.str, "BASE TABLE");
       res= 1;
-      goto end_with_restore_list;
+      goto end_create_select;
     }
 
     res= open_and_lock_tables(thd, create_info, lex->query_tables, TRUE, 0);
@@ -13899,14 +13899,14 @@ bool Sql_cmd_create_table_like::execute(THD *thd)
       /* Got error or warning. Set res to 1 if error */
       if (!(res= thd->is_error()))
         my_ok(thd);                           // CREATE ... IF NOT EXISTS
-      goto end_with_restore_list;
+      goto end_create_select;
     }
 
 
     if (check_global_temporary_tables_for_create(thd, &create_info, create_info,
                                                  create_table->db,
                                                  create_table->table_name))
-      goto end_with_restore_list;
+      goto end_create_select;
 
     /* Ensure we don't try to create something from which we select from */
     if (create_info.or_replace() && !create_info.tmp_table())
@@ -13919,7 +13919,7 @@ bool Sql_cmd_create_table_like::execute(THD *thd)
         update_non_unique_table_error(lex->query_tables, "CREATE",
                                       duplicate);
         res= TRUE;
-        goto end_with_restore_list;
+        goto end_create_select;
       }
     }
     {
@@ -13961,6 +13961,7 @@ bool Sql_cmd_create_table_like::execute(THD *thd)
       }
       lex->link_first_table_back(create_table, link_to_local);
     }
+    goto end_create_select;
   }
   else
   {
@@ -14032,6 +14033,10 @@ bool Sql_cmd_create_table_like::execute(THD *thd)
   }
 
 end_with_restore_list:
+  DBUG_RETURN(res);
+end_create_select:
+  if (!thd->rgi_slave)
+    thd->commit_global_tmp_tables();
   DBUG_RETURN(res);
 }
 
