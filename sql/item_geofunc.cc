@@ -1367,6 +1367,8 @@ public:
   }
   int store_shapes(Gcalc_shape_transporter *trn) const
   { return geom->store_shapes(trn); }
+  int shape_type() const
+  { return geom->get_class_info()->m_type_id; }
 };
 
 
@@ -1467,8 +1469,17 @@ bool Item_func_spatial_precise_rel::val_bool()
                          Gcalc_function::op_intersection, 2);
       null_value= g1.store_shapes(&trn) || g2.store_shapes(&trn);
       break;
-    case SP_OVERLAPS_FUNC:
     case SP_CROSSES_FUNC:
+      if (g1.shape_type() == Geometry::wkb_polygon ||
+          g1.shape_type() == Geometry::wkb_multipolygon ||
+          g2.shape_type() == Geometry::wkb_point ||
+          g2.shape_type() == Geometry::wkb_multipoint)
+      {
+        null_value= 1;
+        break;
+      }
+      /* fall through */
+    case SP_OVERLAPS_FUNC:
       func.add_operation(Gcalc_function::op_intersection, 2);
       if (func.reserve_op_buffer(3))
         break;
