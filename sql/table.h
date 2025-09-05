@@ -2920,7 +2920,8 @@ struct TABLE_LIST
     /* Associate a table share only if the table exists. */
     OPEN_IF_EXISTS,
     /* Don't associate a table share. */
-    OPEN_STUB
+    OPEN_STUB,
+    OPEN_FOR_LOCKED_TABLES_LIST,
   } open_strategy;
   /** TRUE if an alias for this table was specified in the SQL. */
   bool          is_alias;

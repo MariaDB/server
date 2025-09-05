@@ -4633,6 +4633,29 @@ err:
   DBUG_RETURN(NULL);
 }
 
+static
+my_bool
+check_global_temporary_tables_for_create(THD *thd,
+                                         const HA_CREATE_INFO *create_info,
+                                         const DDL_options_st options,
+                                         const Lex_ident_db &db,
+                                         const Lex_ident_table &table_name)
+{
+  if (!options.or_replace())
+    return FALSE;
+
+  TABLE *t= create_info->table;
+  if ((t && t->s->tmp_table && t->s->global_tmp_table()) ||
+      thd->find_temporary_table(db, table_name, THD::TMP_TABLE_ANY,
+                                Tmp_table_kind::GLOBAL))
+  {
+    my_error(ER_LOCK_WAIT_TIMEOUT, MYF(0));
+    return TRUE;
+  }
+
+  return FALSE;
+}
+
 
 /**
   Create a table
@@ -5305,6 +5328,10 @@ bool mysql_create_table(THD *thd, TABLE_LIST *create_table,
     mdl_ticket= create_table->table->mdl_ticket;
   }
 
+  if (check_global_temporary_tables_for_create(thd, create_info, *create_info,
+                                               create_table->db,
+                                               create_table->table_name))
+    DBUG_RETURN(true);
   /* Got lock. */
   DEBUG_SYNC(thd, "locked_table_name");
 
@@ -5335,13 +5362,6 @@ bool mysql_create_table(THD *thd, TABLE_LIST *create_table,
       create_info->or_replace())
   {
     DBUG_ASSERT(thd->variables.option_bits & OPTION_TABLE_LOCK);
-    if (create_info->table_options & HA_OPTION_GLOBAL_TEMPORARY_TABLE)
-    {
-      my_error(ER_CANT_CREATE_TABLE, MYF(0), alter_info->db.str,
-               alter_info->table_name.str, 0);
-      result= 1;
-      goto err;
-    }
     /*
       Add back the deleted table and re-created table as a locked table
       This should always work as we have a meta lock on the table.
@@ -5824,6 +5844,13 @@ bool mysql_create_like_table(THD* thd, TABLE_LIST* table,
       res= 1;
       goto err;
     }
+  }
+
+  if (check_global_temporary_tables_for_create(thd, create_info, *create_info,
+                                               table->db, table->alias))
+  {
+    res= 1;
+    goto err;
   }
 
   src_table->table->use_all_columns();
@@ -13860,6 +13887,12 @@ bool Sql_cmd_create_table_like::execute(THD *thd)
         my_ok(thd);                           // CREATE ... IF NOT EXISTS
       goto end_with_restore_list;
     }
+
+
+    if (check_global_temporary_tables_for_create(thd, &create_info, create_info,
+                                                 create_table->db,
+                                                 create_table->table_name))
+      goto end_with_restore_list;
 
     /* Ensure we don't try to create something from which we select from */
     if (create_info.or_replace() && !create_info.tmp_table())

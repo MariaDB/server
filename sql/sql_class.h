@@ -5875,7 +5875,7 @@ public:
                                         Tmp_table_kind find_kind);
 
   void global_tmp_tables_set_explicit_lock_duration();
-  bool use_real_global_temporary_share() const;
+  bool use_real_global_temporary_share(const TABLE_LIST *table) const;
 
   bool open_temporary_table_impl(TABLE_LIST *tl, TABLE **table,
                                  Tmp_table_kind find_kind);

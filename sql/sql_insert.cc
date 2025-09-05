@@ -5007,6 +5007,28 @@ TABLE *select_create::create_table_from_items(THD *thd, List<Item> *items,
       /* Force the newly created table to be opened */
       save_open_strategy= table_list->open_strategy;
       table_list->open_strategy= TABLE_LIST::OPEN_NORMAL;
+      if (!table_list->mdl_request.ticket)
+        table_list->mdl_request.ticket= create_info->mdl_ticket;
+      DBUG_ASSERT(table_list->mdl_request.ticket);
+
+      if (create_info->pos_in_locked_tables && create_info->global_tmp_table())
+      {
+        /*
+          Also pre-open a parent GTT handle to replace a
+          locked_tables_list item later in select_create::send_eof()
+        */
+        TABLE_LIST *parent_gtt= thd->alloc<TABLE_LIST>(1);
+        new(parent_gtt) TABLE_LIST(&table_list->db, &table_list->table_name,
+                                   &table_list->alias, table_list->lock_type);
+        // Will open the parent table
+        parent_gtt->open_strategy= TABLE_LIST::OPEN_FOR_LOCKED_TABLES_LIST;
+        parent_gtt->prev_global= &table_list;
+        // Tables from SELECT are stored in select_create::select_tables
+        DBUG_ASSERT(table_list->next_global == NULL);
+        table_list->next_global= parent_gtt;
+        open_table(thd, parent_gtt, &ot_ctx);
+      }
+
       /*
         Here we open the destination table, on which we already have
         an exclusive metadata lock.
@@ -5581,17 +5603,24 @@ bool select_create::send_eof()
     if (create_info->pos_in_locked_tables)
     {
       /*
+        For global temporary tables, restore a parent table handle, pre-opened
+        in select_create::create_table_from_items.
+      */
+      TABLE *table_to_store= create_info->global_tmp_table() ?
+                             table_list->next_global->table :
+                             table;
+      /*
         If we are under lock tables, we have created a table that was
         originally locked. We should add back the lock to ensure that
         all tables in the thd->open_list are locked!
       */
-      table->mdl_ticket= create_info->mdl_ticket;
+      table_to_store->mdl_ticket= create_info->mdl_ticket;
 
       /* The following should never fail, except if out of memory */
       if (!thd->locked_tables_list.restore_lock(thd,
                                                 create_info->
                                                 pos_in_locked_tables,
-                                                table, lock))
+                                                table_to_store, lock))
         DBUG_RETURN(false);                     // ok
       /* Fail. Continue without locking the table */
     }
