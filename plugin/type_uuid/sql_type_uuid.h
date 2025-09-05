@@ -311,6 +311,16 @@ public:
     return rc;
   }
 
+  static bool allowed(const Lex_field_type_st &attr,
+                      const Name& name)
+  {
+    if (attr.length() || attr.dec()) {
+      my_error(ER_NO_LENGTH_PRECISION_ALLOWED, MYF(0), name.ptr());
+      return true;
+    }
+
+    return false;  // no error, is allowed
+  }
 };
 
 class Type_collection_uuid: public Type_collection
