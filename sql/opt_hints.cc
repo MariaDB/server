@@ -908,7 +908,7 @@ hint_state hint_table_state(const THD *thd,
 /* 
   @brief
     Check whether a given optimization is enabled for table.keyno.
-  
+
   @detail
     First check if a hint is present, then check optimizer_switch
 */
