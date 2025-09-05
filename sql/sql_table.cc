@@ -4127,7 +4127,7 @@ mysql_prepare_create_table_finalize(THD *thd, HA_CREATE_INFO *create_info,
 
   if (create_info->global_tmp_table())
   {
-    if (thd->lex->part_info)
+    if (alter_info->partition_flags || IF_PARTITIONING(thd->work_part_info, 0))
     {
       my_error(ER_FEATURE_NOT_SUPPORTED_WITH_PARTITIONING, MYF(0),
                "CREATE GLOBAL TEMPORARY TABLE");
