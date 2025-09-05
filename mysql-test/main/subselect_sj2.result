@@ -108,8 +108,9 @@ test.t3	analyze	status	Engine-independent statistics collected
 test.t3	analyze	status	OK
 explain select * from t3 where b in (select a from t0);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t0	ALL	NULL	NULL	NULL	NULL	#	Using where; Start temporary
-1	PRIMARY	t3	ref	b	b	5	test.t0.a	#	End temporary
+1	PRIMARY	t3	ALL	b	NULL	NULL	NULL	#	
+1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	4	func	#	
+2	MATERIALIZED	t0	ALL	NULL	NULL	NULL	NULL	#	
 select * from t3 where b in (select A.a+B.a from t0 A, t0 B where B.a<5);
 a	b	pk1	pk2
 0	0	0	0
