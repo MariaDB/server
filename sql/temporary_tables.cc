@@ -384,9 +384,11 @@ void THD::global_tmp_tables_set_explicit_lock_duration()
   }
 }
 
-bool THD::use_real_global_temporary_share() const
+bool THD::use_real_global_temporary_share(const TABLE_LIST *table) const
 {
-  return (sql_command_flags() & (CF_ALTER_TABLE   |
+  return table->open_strategy == TABLE_LIST::OPEN_STUB ||
+         table->open_strategy == TABLE_LIST::OPEN_FOR_LOCKED_TABLES_LIST ||
+         (sql_command_flags() & (CF_ALTER_TABLE   |
                                  CF_SCHEMA_CHANGE |
                                  CF_STATUS_COMMAND)
         && lex->sql_command != SQLCOM_CREATE_TABLE) ||

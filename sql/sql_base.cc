@@ -2080,7 +2080,7 @@ bool open_table(THD *thd, TABLE_LIST *table_list, Open_table_context *ot_ctx)
     if (best_table)
     {
       if (best_table->s->table_type == TABLE_TYPE_GLOBAL_TEMPORARY &&
-          !thd->use_real_global_temporary_share())
+          !thd->use_real_global_temporary_share(table_list))
         goto get_new_table;
 
       table= best_table;
@@ -2314,10 +2314,9 @@ retry_share:
 
     if (share->table_type == TABLE_TYPE_GLOBAL_TEMPORARY)
     {
-      if (!thd->use_real_global_temporary_share())
+      if (!thd->use_real_global_temporary_share(table_list))
       {
-        my_bool err= open_global_temporary_table(thd, share, table_list,
-                                                 mdl_ticket);
+        my_bool err= open_global_temporary_table(thd, share, table_list, mdl_ticket);
         if (unlikely(err))
           goto err_lock;
         table= table_list->table;
@@ -2661,6 +2660,7 @@ Locked_tables_list::init_locked_tables(THD *thd)
     memcpy((char*) alias.str,      table->alias.c_ptr(), alias.length + 1);
     dst_table_list->init_one_table(&db, &table_name,
                                    &alias, table->reginfo.lock_type);
+    dst_table_list->open_strategy= TABLE_LIST::OPEN_FOR_LOCKED_TABLES_LIST;
     dst_table_list->table= table;
     dst_table_list->mdl_request.ticket= src_table_list->mdl_request.ticket;
 
