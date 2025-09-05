@@ -120,7 +120,8 @@ SET GLOBAL aria_checkpoint_interval=10000;
 
 connect(clone_conn_1,localhost,root,,,);
 SET DEBUG_SYNC= 'after_aria_table_copy_t_dml SIGNAL dml_start WAIT_FOR aria_1';
---source ../include/clone_command_send.inc
+--replace_result $CLONE_DATADIR CLONE_DATADIR
+--send_eval CLONE LOCAL DATA DIRECTORY = '$CLONE_DATADIR'
 
 connection default;
 set DEBUG_SYNC="now WAIT_FOR dml_start";

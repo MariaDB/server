@@ -41,7 +41,8 @@ begin;
 --send call execute_dml(1, 51, 25, 100, 200, 1)
 --echo # In connection default - Cloning database
 --connection default
---source ../include/clone_command.inc
+--replace_result $CLONE_DATADIR CLONE_DATADIR
+--eval CLONE LOCAL DATA DIRECTORY = '$CLONE_DATADIR'
 --echo # In connection default - Finished Cloning
 --echo # In connection con1 - Waiting
 connection con1;
@@ -86,7 +87,8 @@ SELECT col1, col2, col3 FROM t2 ORDER BY col1 DESC LIMIT 10;
 
 # Test clone after recovering from cloned databse
 --let $CLONE_DATADIR = $CLONE_DATADIR1
---source ../include/clone_command.inc
+--replace_result $CLONE_DATADIR CLONE_DATADIR
+--eval CLONE LOCAL DATA DIRECTORY = '$CLONE_DATADIR'
 --let $CLONE_DATADIR = $MYSQL_TMP_DIR/data_new
 
 --echo # Restart cloned database

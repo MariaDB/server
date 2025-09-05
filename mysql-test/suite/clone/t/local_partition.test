@@ -74,7 +74,8 @@ INSERT INTO isam_p VALUES (401),(501);       # final isam_p rows: 201,301,401,50
 # Clone Data
 --connection default
 --let $CLONE_DATADIR=$MYSQL_TMP_DIR/clone_ddl_partitions
---source ../include/clone_command.inc
+--replace_result $CLONE_DATADIR CLONE_DATADIR
+--eval CLONE LOCAL DATA DIRECTORY = '$CLONE_DATADIR'
 
 # Start server with cloned data
 --connection default

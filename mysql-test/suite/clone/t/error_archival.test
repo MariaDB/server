@@ -38,7 +38,8 @@ SELECT col1, col2, col3, SUBSTRING(col4, 1000, 32) FROM t2 ORDER BY col1 DESC LI
 SET GLOBAL DEBUG = '+d,clone_redo_archive_error';
 SET DEBUG_SYNC = 'clone_file_copy SIGNAL start_dml1 WAIT_FOR resume_clone1';
 SET DEBUG_SYNC = 'clone_page_copy SIGNAL start_dml2 WAIT_FOR resume_clone2';
---source ../include/clone_command_send.inc
+--replace_result $CLONE_DATADIR CLONE_DATADIR
+--send_eval CLONE LOCAL DATA DIRECTORY = '$CLONE_DATADIR'
 
 --echo # In connection con1 - Running Update Random [0 - 100 Key Range]
 connect (con1,localhost,root,,);
@@ -69,7 +70,8 @@ SET DEBUG_SYNC = 'RESET';
 SET GLOBAL DEBUG = '+d,clone_redo_no_archive';
 SET DEBUG_SYNC = 'clone_file_copy SIGNAL start_dml1 WAIT_FOR resume_clone1';
 SET DEBUG_SYNC = 'clone_page_copy SIGNAL start_dml2 WAIT_FOR resume_clone2';
---source ../include/clone_command_send.inc
+--replace_result $CLONE_DATADIR CLONE_DATADIR
+--send_eval CLONE LOCAL DATA DIRECTORY = '$CLONE_DATADIR'
 
 --echo # In connection con1 - Delete all rows
 connection con1;
@@ -98,7 +100,8 @@ SET DEBUG_SYNC = 'RESET';
 --echo # In connection default - Cloning database
 SET DEBUG_SYNC = 'clone_file_copy SIGNAL start_dml1 WAIT_FOR resume_clone1';
 SET DEBUG_SYNC = 'clone_page_copy SIGNAL start_dml2 WAIT_FOR resume_clone2';
---source ../include/clone_command_send.inc
+--replace_result $CLONE_DATADIR CLONE_DATADIR
+--send_eval CLONE LOCAL DATA DIRECTORY = '$CLONE_DATADIR'
 
 --echo # In connection con1 - Running Update Random [0 - 100 Key Range]
 connection con1;

@@ -37,7 +37,8 @@ CREATE TABLE t2 (a INT PRIMARY KEY AUTO_INCREMENT, b LONGBLOB, c LONGBLOB)ENGINE
 SET DEBUG_SYNC = 'clone_file_copy SIGNAL page_signal WAIT_FOR go_page';
 SET DEBUG_SYNC = 'clone_page_copy SIGNAL redo_signal WAIT_FOR go_redo';
 SET DEBUG_SYNC = 'clone_donor_after_saving_dynamic_metadata SIGNAL meta_signal WAIT_FOR go_meta';
---source ../include/clone_command_send.inc
+--replace_result $CLONE_DATADIR CLONE_DATADIR
+--send_eval CLONE LOCAL DATA DIRECTORY = '$CLONE_DATADIR'
 
 --connection con2
 SET DEBUG_SYNC = 'now WAIT_FOR page_signal';

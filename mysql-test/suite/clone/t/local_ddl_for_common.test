@@ -72,7 +72,8 @@ while ($e_var)
   --let $CLONE_DATADIR=$MYSQL_TMP_DIR/clone_noninnodb_$e_var
   --let $clone_err=0
   --let $clone_remote_err=0
-  --source ../include/clone_command.inc
+  --replace_result $CLONE_DATADIR CLONE_DATADIR
+--eval CLONE LOCAL DATA DIRECTORY = '$CLONE_DATADIR'
 
   --echo # Restart server on cloned data directory
   --let $restart_noprint=1

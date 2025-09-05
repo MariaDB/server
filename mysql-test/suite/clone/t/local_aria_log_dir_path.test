@@ -51,7 +51,8 @@ SHOW ENGINE aria logs;
 --replace_result $MARIADB_CLONE_SO CLONE_PLUGIN
 --eval INSTALL PLUGIN clone SONAME '$MARIADB_CLONE_SO'
 
---source ../include/clone_command.inc
+--replace_result $CLONE_DATADIR CLONE_DATADIR
+--eval CLONE LOCAL DATA DIRECTORY = '$CLONE_DATADIR'
 
 let restart_no_print=1;
 let restart_parameters=$server_parameters --datadir=$CLONE_DATADIR;

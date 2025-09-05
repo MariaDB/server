@@ -31,7 +31,8 @@ SELECT col1, col2, col3, SUBSTRING(col4, 1000, 32) FROM t2 ORDER BY col1 DESC LI
 
 ## Test-1: Clone with no redo log to copy.
 SET GLOBAL innodb_buf_flush_list_now = 1;
---source ../include/clone_command.inc
+--replace_result $CLONE_DATADIR CLONE_DATADIR
+--eval CLONE LOCAL DATA DIRECTORY = '$CLONE_DATADIR'
 
 --echo # Restart cloned database
 --let restart_noprint=1
@@ -73,7 +74,8 @@ if($remote_clone) {
 
 SET DEBUG_SYNC = 'clone_file_copy SIGNAL start_dml1 WAIT_FOR resume_clone1';
 SET DEBUG_SYNC = 'clone_page_copy SIGNAL start_dml2 WAIT_FOR resume_clone2';
---source ../include/clone_command_send.inc
+--replace_result $CLONE_DATADIR CLONE_DATADIR
+--send_eval CLONE LOCAL DATA DIRECTORY = '$CLONE_DATADIR'
 
 --echo # In connection con1 - Running Update Random [0 - 200 Key Range]
 connect (con1,localhost,root,,);

@@ -24,7 +24,8 @@ insert into t1 values (1),(2),(3),(4);
 
 --echo # clone Begins
 --let $CLONE_DATADIR=$MYSQL_TMP_DIR/clone_partition_400
---source ../include/clone_command.inc
+--replace_result $CLONE_DATADIR CLONE_DATADIR
+--eval CLONE LOCAL DATA DIRECTORY = '$CLONE_DATADIR'
 
 # Restart with clone data
 --connection default

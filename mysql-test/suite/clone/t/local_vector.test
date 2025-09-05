@@ -47,7 +47,8 @@ SELECT * FROM t_myisam
 # Starting a local clone
 --connection default
 --let $CLONE_DATADIR=$MYSQL_TMP_DIR/clone_vector_test
---source ../include/clone_command.inc
+--replace_result $CLONE_DATADIR CLONE_DATADIR
+--eval CLONE LOCAL DATA DIRECTORY = '$CLONE_DATADIR'
 
 --echo # Restart server on cloned data directory
 --connection default

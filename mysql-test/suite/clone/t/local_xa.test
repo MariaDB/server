@@ -25,7 +25,8 @@ XA prepare 'xa_trx_1';
 
 connect(con1,localhost,root,,,);
 --echo # In connection default - Start Cloning database
---source ../include/clone_command.inc
+--replace_result $CLONE_DATADIR CLONE_DATADIR
+--eval CLONE LOCAL DATA DIRECTORY = '$CLONE_DATADIR'
 --echo # In connection con1 - Finish XA prepare, Start XA commit
 connection default;
 XA commit 'xa_trx_1';

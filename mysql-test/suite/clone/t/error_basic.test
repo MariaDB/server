@@ -5,7 +5,9 @@
 
 --echo # 1. PLUGIN not loaded - clone local
 --let $clone_err = ER_PLUGIN_IS_NOT_LOADED
---source ../include/clone_command.inc
+--replace_result $CLONE_DATADIR CLONE_DATADIR
+--error $clone_err
+--eval CLONE LOCAL DATA DIRECTORY = '$CLONE_DATADIR'
 --let $clone_err = 0
 
 --echo # 1A. PLUGIN not installed - Uninstall plugin
@@ -21,32 +23,41 @@ UNINSTALL PLUGIN clone;
 --eval INSTALL PLUGIN clone SONAME '$MARIADB_CLONE_SO'
 
 --echo #1C. Clone data without error
---source ../include/clone_command.inc
+--replace_result $CLONE_DATADIR CLONE_DATADIR
+--eval CLONE LOCAL DATA DIRECTORY = '$CLONE_DATADIR'
 
 --echo # 2A. Incorrect PATH - Relative path
 --let $CLONE_DATADIR = ./data
 --let $clone_err = ER_WRONG_VALUE
---source ../include/clone_command.inc
+--replace_result $CLONE_DATADIR CLONE_DATADIR
+--error $clone_err
+--eval CLONE LOCAL DATA DIRECTORY = '$CLONE_DATADIR'
 --let $clone_err = 0
 --let $CLONE_DATADIR = $MYSQL_TMP_DIR/data_new
 
 --echo # 2B. Incorrect PATH - Too long
 --let $CLONE_DATADIR = $MYSQL_TMP_DIR/data_new/a#######################################################b#######################################################################################b#####################################################################################b######################################################################################b######################################################################################b#############################################################################################################
 --let $clone_err = ER_PATH_LENGTH
---source ../include/clone_command.inc
+--replace_result $CLONE_DATADIR CLONE_DATADIR
+--error $clone_err
+--eval CLONE LOCAL DATA DIRECTORY = '$CLONE_DATADIR'
 --let $clone_err = 0
 --let $CLONE_DATADIR = $MYSQL_TMP_DIR/data_new
 
 --echo # 2C. Incorrect PATH - Within data directory
 --let $CLONE_DATADIR = $MYSQLD_DATADIR/data
 --let $clone_err = ER_PATH_IN_DATADIR
---source ../include/clone_command.inc
+--replace_result $CLONE_DATADIR CLONE_DATADIR
+--error $clone_err
+--eval CLONE LOCAL DATA DIRECTORY = '$CLONE_DATADIR'
 --let $clone_err = 0
 --let $CLONE_DATADIR = $MYSQL_TMP_DIR/data_new
 
 --echo # 2D. Incorrect PATH - data directory exists
 --let $clone_err = ER_DB_CREATE_EXISTS
---source ../include/clone_command.inc
+--replace_result $CLONE_DATADIR CLONE_DATADIR
+--error $clone_err
+--eval CLONE LOCAL DATA DIRECTORY = '$CLONE_DATADIR'
 --let $clone_err = 0
 
 --echo #Cleanup

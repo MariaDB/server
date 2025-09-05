@@ -21,7 +21,9 @@ CREATE TABLE t3(col1 INT PRIMARY KEY, col2 int, col3 varchar(64),
 let $restart_parameters=--innodb_buffer_pool_load_at_startup=0;
 --source include/restart_mysqld.inc
 let clone_err=ER_NOT_SUPPORTED_YET;
---source ../include/clone_command.inc
+--replace_result $CLONE_DATADIR CLONE_DATADIR
+--error $clone_err
+--eval CLONE LOCAL DATA DIRECTORY = '$CLONE_DATADIR'
 --rmdir $CLONE_DATADIR
 
 # Modify the schema

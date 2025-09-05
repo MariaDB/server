@@ -35,7 +35,8 @@ SET GLOBAL DEBUG ="+d,clone_no_zero_copy";
 SET DEBUG_SYNC = 'RESET';
 SET DEBUG_SYNC = 'clone_file_copy SIGNAL start_dml1 WAIT_FOR resume_clone1';
 SET DEBUG_SYNC = 'clone_page_copy SIGNAL start_dml2 WAIT_FOR resume_clone2';
---source ../include/clone_command_send.inc
+--replace_result $CLONE_DATADIR CLONE_DATADIR
+--send_eval CLONE LOCAL DATA DIRECTORY = '$CLONE_DATADIR'
 
 --echo # In connection con1 - Running Update Random [0 - 150 Key Range]
 connect (con1,localhost,root,,);
@@ -97,7 +98,8 @@ SET GLOBAL DEBUG ="+d,clone_arch_log_stop_file_end";
 SET DEBUG_SYNC = 'RESET';
 SET DEBUG_SYNC = 'clone_file_copy SIGNAL start_dml1 WAIT_FOR resume_clone1';
 SET DEBUG_SYNC = 'clone_page_copy SIGNAL start_dml2 WAIT_FOR resume_clone2';
---source ../include/clone_command_send.inc
+--replace_result $CLONE_DATADIR CLONE_DATADIR
+--send_eval CLONE LOCAL DATA DIRECTORY = '$CLONE_DATADIR'
 
 --echo # In connection con1 - Running Update Random [0 - 10 Key Range]
 connect (con1,localhost,root,,);
@@ -134,7 +136,8 @@ SET GLOBAL DEBUG ="+d,clone_arch_log_extra_bytes";
 SET DEBUG_SYNC = 'RESET';
 SET DEBUG_SYNC = 'clone_file_copy SIGNAL start_dml1 WAIT_FOR resume_clone1';
 SET DEBUG_SYNC = 'clone_page_copy SIGNAL start_dml2 WAIT_FOR resume_clone2';
---source ../include/clone_command_send.inc
+--replace_result $CLONE_DATADIR CLONE_DATADIR
+--send_eval CLONE LOCAL DATA DIRECTORY = '$CLONE_DATADIR'
 
 --echo # In connection con1 - Running Update Random [0 - 10 Key Range]
 connection con1;
@@ -168,7 +171,8 @@ SET GLOBAL DEBUG ="-d,clone_arch_log_extra_bytes";
 ## Test-3A: Shutdown while Clone in progress [FILE_COPY]
 SET DEBUG_SYNC = 'RESET';
 SET DEBUG_SYNC = 'clone_file_copy SIGNAL start_dml1 WAIT_FOR resume_clone1';
---source ../include/clone_command_send.inc
+--replace_result $CLONE_DATADIR CLONE_DATADIR
+--send_eval CLONE LOCAL DATA DIRECTORY = '$CLONE_DATADIR'
 
 --echo # In connection con1 - Running Update Random [0 - 10 Key Range]
 connection con1;
@@ -194,7 +198,8 @@ disconnect con1;
 SET DEBUG_SYNC = 'RESET';
 SET DEBUG_SYNC = 'clone_file_copy SIGNAL start_dml1 WAIT_FOR resume_clone1';
 SET DEBUG_SYNC = 'clone_page_copy SIGNAL start_dml2 WAIT_FOR resume_clone2';
---source ../include/clone_command_send.inc
+--replace_result $CLONE_DATADIR CLONE_DATADIR
+--send_eval CLONE LOCAL DATA DIRECTORY = '$CLONE_DATADIR'
 
 --echo # In connection con1 - Running Update Random [0 - 10 Key Range]
 connect (con1,localhost,root,,);
@@ -231,7 +236,8 @@ SET DEBUG_SYNC = 'RESET';
 SET DEBUG_SYNC = 'clone_file_copy SIGNAL start_dml1 WAIT_FOR resume_clone1';
 SET DEBUG_SYNC = 'clone_page_copy SIGNAL start_dml2 WAIT_FOR resume_clone2';
 SET DEBUG_SYNC = 'clone_redo_copy SIGNAL start_dml3 WAIT_FOR resume_clone3';
---source ../include/clone_command_send.inc
+--replace_result $CLONE_DATADIR CLONE_DATADIR
+--send_eval CLONE LOCAL DATA DIRECTORY = '$CLONE_DATADIR'
 
 --echo # In connection con1 - Running Update Random [0 - 10 Key Range]
 connect (con1,localhost,root,,);

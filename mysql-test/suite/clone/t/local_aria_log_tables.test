@@ -29,7 +29,8 @@ SELECT PLUGIN_NAME, PLUGIN_STATUS FROM INFORMATION_SCHEMA.PLUGINS
 WHERE PLUGIN_NAME LIKE '%clone%';
 
 SET DEBUG_SYNC="after_stage_block_ddl SIGNAL start_dml WAIT_FOR resume_clone1";
---source ../include/clone_command_send.inc
+--replace_result $CLONE_DATADIR CLONE_DATADIR
+--send_eval CLONE LOCAL DATA DIRECTORY = '$CLONE_DATADIR'
 
 --echo # Insert new row into general_log table after it has been copied on BLOCK_DDL.
 connect(con1,localhost,root,,);

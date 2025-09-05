@@ -14,7 +14,8 @@ disable_query_log;
 enable_query_log;
 
 SET DEBUG_SYNC = 'clone_file_copy SIGNAL start_dml1 WAIT_FOR resume_clone1';
---source ../include/clone_command_send.inc
+--replace_result $CLONE_DATADIR CLONE_DATADIR
+--send_eval CLONE LOCAL DATA DIRECTORY = '$CLONE_DATADIR'
 
 --echo # In connection con1
 connect (con1,localhost,root,,);
@@ -32,7 +33,9 @@ connection con1;
 set DEBUG_SYNC="now WAIT_FOR clone_start";
 rmdir $CLONE_DATADIR;
 let $clone_err= ER_CLONE_DDL_IN_PROGRESS;
---source include/clone_command.inc
+--replace_result $CLONE_DATADIR CLONE_DATADIR
+--error $clone_err
+--eval CLONE LOCAL DATA DIRECTORY = '$CLONE_DATADIR'
 set DEBUG_SYNC="now SIGNAL redo_finish";
 
 connection default;

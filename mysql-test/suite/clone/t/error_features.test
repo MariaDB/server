@@ -17,8 +17,12 @@ SHOW GRANTS FOR 'user_clone'@'localhost';
 SELECT user();
 USE testdb_clone;
 CREATE TABLE t1(col1 INT PRIMARY KEY, col2 char(64));
+
 --let $clone_err = ER_SPECIFIC_ACCESS_DENIED_ERROR
---source ../include/clone_command.inc
+--replace_result $CLONE_DATADIR CLONE_DATADIR
+--error $clone_err
+--eval CLONE LOCAL DATA DIRECTORY = '$CLONE_DATADIR'
+
 connection default;
 SHOW GRANTS FOR 'user_clone'@'localhost';
 --echo # Grant backup privilege to clone user
@@ -29,7 +33,10 @@ disconnect con1;
 
 --echo # Without LOCK_TBL privilege
 --connect (con1,'localhost','user_clone','123',)
---source ../include/clone_command.inc
+--let $clone_err = ER_SPECIFIC_ACCESS_DENIED_ERROR
+--replace_result $CLONE_DATADIR CLONE_DATADIR
+--error $clone_err
+--eval CLONE LOCAL DATA DIRECTORY = '$CLONE_DATADIR'
 
 connection default;
 disconnect con1;
@@ -40,7 +47,8 @@ SHOW GRANTS FOR 'user_clone'@'localhost';
 --echo # Trying clone again with all privileges
 --connect (con1,'localhost','user_clone','123',)
 let $clone_err = 0;
---source ../include/clone_command.inc
+--replace_result $CLONE_DATADIR CLONE_DATADIR
+--eval CLONE LOCAL DATA DIRECTORY = '$CLONE_DATADIR'
 connection default;
 disconnect con1;
 DROP SCHEMA testdb_clone;

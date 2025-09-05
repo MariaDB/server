@@ -40,7 +40,8 @@ SELECT PLUGIN_NAME, PLUGIN_STATUS FROM INFORMATION_SCHEMA.PLUGINS
 WHERE PLUGIN_NAME LIKE '%clone%';
 
 SET DEBUG_SYNC = 'after_scanning_log_files SIGNAL start_dml1 WAIT_FOR resume_clone1';
---source ../include/clone_command_send.inc
+--replace_result $CLONE_DATADIR CLONE_DATADIR
+--send_eval CLONE LOCAL DATA DIRECTORY = '$CLONE_DATADIR'
 
 connect(con1, localhost,root,,);
 SET DEBUG_SYNC= 'now WAIT_FOR start_dml1';
