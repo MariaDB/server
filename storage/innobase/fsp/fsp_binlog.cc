@@ -1506,6 +1506,8 @@ fsp_binlog_write_rec(chunk_data_base *chunk_data, mtr_t *mtr, byte chunk_type,
       block= nullptr;
       ++page_no;
       page_offset= BINLOG_PAGE_DATA;
+      DBUG_EXECUTE_IF("pause_binlog_write_after_release_page",
+                      my_sleep(200000););
       continue;
     }
 
@@ -1543,6 +1545,10 @@ fsp_binlog_write_rec(chunk_data_base *chunk_data, mtr_t *mtr, byte chunk_type,
       block= nullptr;
       page_offset= BINLOG_PAGE_DATA;
       ++page_no;
+      DBUG_EXECUTE_IF("pause_binlog_write_after_release_page",
+                      if (!size_last.second)
+                        my_sleep(200000);
+                      );
     } else {
       page_offset+= size+3;
     }
