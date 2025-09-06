@@ -5506,4 +5506,11 @@ ST_SRID(g1)	ST_SRID(ST_GeomFromWKB(g1, 4326))	ST_SRID(ST_GeomFromWKB(g1))	ST_AsT
 #
 SELECT ST_DISTANCE_SPHERE(st_geomfromtext('linestring( 2 2, 2 8) '), ST_GeomFromText('POINT(18.413076 43.856258)')) ;
 ERROR HY000: Calling geometry function st_distance_sphere with unsupported types of arguments.
+#
+# MDEV-32619 Settng SRID on geometry with ST_*FromWKKB(g, srid)
+#
+CREATE TABLE t1 (g GEOMETRY NOT NULL,SPATIAL KEY (g)) ENGINE=MYISAM;
+INSERT INTO t1 VALUES (0x0000000001050000000200000001020000000100000000000000000024400000000000003440);
+ERROR 22003: Cannot get geometry object from data you send to the GEOMETRY field
+DROP TABLE t1;
 # End of 10.5 tests

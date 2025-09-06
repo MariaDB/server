@@ -279,6 +279,7 @@ public:
   virtual bool init_from_json(json_engine_t *je, bool er_on_3D, String *wkb)
   { return true; }
 
+  bool is_valid() const { return get_data_size() != GET_SIZE_ERROR; }
   virtual bool get_data_as_wkt(String *txt, const char **end) const=0;
   virtual bool get_data_as_json(String *txt, uint max_dec_digits,
                                 const char **end) const=0;

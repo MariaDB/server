@@ -854,34 +854,47 @@ int Field_geom::store(const char *from, size_t length, CHARSET_INFO *cs)
 	wkb_type > (uint32) Geometry::wkb_last)
       goto err;
 
-    if (m_type_handler->geometry_type() != Type_handler_geometry::GEOM_GEOMETRY &&
-        m_type_handler->geometry_type() != Type_handler_geometry::GEOM_GEOMETRYCOLLECTION &&
-        (uint32) m_type_handler->geometry_type() != wkb_type)
     {
+      /*
+        Check the shape represented by the buffer is valid
+        and right for the column.
+      */
       const char *db= table->s->db.str;
       const char *tab_name= table->s->table_name.str;
+      Geometry_buffer buffer;
+      Geometry *geom= NULL;
 
       if (!db)
         db= "";
       if (!tab_name)
         tab_name= "";
 
-      Geometry_buffer buffer;
-      Geometry *geom= NULL;
-      String wkt;
-      const char *dummy;
-      wkt.set_charset(&my_charset_latin1);
       if (!(geom= Geometry::construct(&buffer, from, uint32(length))) ||
-          geom->as_wkt(&wkt, &dummy))
+          !geom->is_valid())
         goto err;
 
-      my_error(ER_TRUNCATED_WRONG_VALUE_FOR_FIELD, MYF(0),
-               Geometry::ci_collection[m_type_handler->geometry_type()]->m_name.str,
-	       wkt.c_ptr_safe(),
-               db, tab_name, field_name.str,
-               (ulong) table->in_use->get_stmt_da()->
-               current_row_for_warning());
-      goto err_exit;
+      if (m_type_handler->geometry_type() !=
+            Type_handler_geometry::GEOM_GEOMETRY &&
+          m_type_handler->geometry_type() !=
+            Type_handler_geometry::GEOM_GEOMETRYCOLLECTION &&
+          (uint32) m_type_handler->geometry_type() != wkb_type)
+      {
+        String wkt;
+        const char *dummy;
+        wkt.set_charset(&my_charset_latin1);
+
+        if (geom->as_wkt(&wkt, &dummy))
+          goto err;
+
+        my_error(ER_TRUNCATED_WRONG_VALUE_FOR_FIELD, MYF(0),
+                 Geometry::ci_collection[
+                             m_type_handler->geometry_type()]->m_name.str,
+	         wkt.c_ptr_safe(),
+                 db, tab_name, field_name.str,
+                 (ulong) table->in_use->get_stmt_da()->
+                 current_row_for_warning());
+        goto err_exit;
+      }
     }
 
     Field_blob::store_length(length);
