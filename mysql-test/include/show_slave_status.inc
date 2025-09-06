@@ -86,7 +86,7 @@
 --let $_show_slave_status_items=$status_items
 if (!$status_items)
 {
-  --die Bug in test case: The mysqltest variable $status_items is not set.
+  --die Bug in test case: The mysqltest variable \$status_items is not set.
 }
 
 --let $_show_query=SHOW SLAVE STATUS
@@ -95,7 +95,7 @@ if ($all_slaves_status)
 {
   if ($slave_name)
   {
-    --die Bug in test case: Both $all_slaves_status and $slave_name are set.
+    --die Bug in test case: Both \$all_slaves_status and \$slave_name are set.
   }
   --let $_show_query=SHOW ALL SLAVES STATUS
 }
