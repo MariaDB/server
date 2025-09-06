@@ -8543,9 +8543,11 @@ Update_rows_log_event::do_exec_row(rpl_group_info *rgi)
 #endif /* WSREP_PROC_INFO */
 
   thd_proc_info(thd, message);
-  // Temporary fix to find out why it fails [/Matz]
-  memcpy(m_table->read_set->bitmap, m_cols.bitmap, (m_table->read_set->n_bits + 7) / 8);
-  memcpy(m_table->write_set->bitmap, m_cols_ai.bitmap, (m_table->write_set->n_bits + 7) / 8);
+  /* Must read also after-image columns to be able to update them. */
+  bitmap_copy(m_table->read_set, &m_cols);
+  bitmap_union(m_table->read_set, &m_cols_ai);
+  /* Must update after-image columns. */
+  bitmap_copy(m_table->write_set, &m_cols_ai);
 
   m_table->mark_columns_per_binlog_row_image();
 
