@@ -1045,7 +1045,7 @@ COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	FOREIGN_KEY_CHECKS
 VARIABLE_SCOPE	SESSION
 VARIABLE_TYPE	BOOLEAN
-VARIABLE_COMMENT	If set to 1 (the default) foreign key constraints (including ON UPDATE and ON DELETE behavior) InnoDB tables are checked, while if set to 0, they are not checked. 0 is not recommended for normal use, though it can be useful in situations where you know the data is consistent, but want to reload data in a different order from that that specified by parent/child relationships. Setting this variable to 1 does not retrospectively check for inconsistencies introduced while set to 0.
+VARIABLE_COMMENT	If set to 1 (the default) foreign key constraints (including ON UPDATE and ON DELETE behavior) InnoDB tables are checked, while if set to 0, they are not checked. 0 is not recommended for normal use, though it can be useful in situations where you know the data is consistent, but want to reload data in a different order from that specified by parent/child relationships. Setting this variable to 1 does not retrospectively check for inconsistencies introduced while set to 0.
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL
@@ -4505,7 +4505,7 @@ COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	THREAD_POOL_PRIORITY
 VARIABLE_SCOPE	SESSION
 VARIABLE_TYPE	ENUM
-VARIABLE_COMMENT	Threadpool priority. High priority connections usually start executing earlier than low priority.If priority set to 'auto', the the actual priority(low or high) is determined based on whether or not connection is inside transaction.
+VARIABLE_COMMENT	Threadpool priority. High priority connections usually start executing earlier than low priority.If priority set to 'auto', the actual priority(low or high) is determined based on whether or not connection is inside transaction.
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL

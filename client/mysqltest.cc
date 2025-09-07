@@ -55,6 +55,7 @@
 #endif
 #include <signal.h>
 #include <my_stacktrace.h>
+#include <my_attribute.h>
 
 #include <welcome_copyright_notice.h> // ORACLE_WELCOME_COPYRIGHT_NOTICE
 
@@ -78,7 +79,7 @@ static my_bool non_blocking_api_enabled= 0;
 #define MAX_DELIMITER_LENGTH 16
 #define DEFAULT_MAX_CONN        64
 
-#define DIE_BUFF_SIZE           15*1024
+#define DIE_BUFF_SIZE           64*1024
 
 #define RESULT_STRING_INIT_MEM 2048
 #define RESULT_STRING_INCREMENT_MEM 2048
@@ -1619,6 +1620,8 @@ static void make_error_message(char *buf, size_t len, const char *fmt, va_list a
   s+= my_snprintf(s, end -s, "\n");
 }
 
+PRAGMA_DISABLE_CHECK_STACK_FRAME
+
 static void die(const char *fmt, ...)
 {
   char buff[DIE_BUFF_SIZE];
@@ -1629,6 +1632,8 @@ static void die(const char *fmt, ...)
   make_error_message(buff, sizeof(buff), fmt, args);
   really_die(buff);
 }
+
+PRAGMA_REENABLE_CHECK_STACK_FRAME
 
 static void really_die(const char *msg)
 {
@@ -1657,6 +1662,8 @@ static void really_die(const char *msg)
 
   cleanup_and_exit(1, 1);
 }
+
+PRAGMA_DISABLE_CHECK_STACK_FRAME
 
 void report_or_die(const char *fmt, ...)
 {
@@ -1712,6 +1719,7 @@ void abort_not_supported_test(const char *fmt, ...)
   cleanup_and_exit(62, 0);
 }
 
+PRAGMA_REENABLE_CHECK_STACK_FRAME
 
 void abort_not_in_this_version()
 {

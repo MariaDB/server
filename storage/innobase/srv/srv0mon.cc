@@ -35,6 +35,7 @@ Created 12/9/2009 Jimmy Yang
 #include "srv0srv.h"
 #include "trx0rseg.h"
 #include "trx0sys.h"
+#include "log.h"
 
 /* Macro to standardize the counter names for counters in the
 "monitor_buf_page" module as they have very structured defines */
@@ -1269,6 +1270,18 @@ srv_mon_set_module_control(
 			ut_error;
 		}
 	}
+}
+
+/** Reset all values.
+@param monitor  monitor identifier */
+void srv_mon_reset_all(monitor_id_t monitor) noexcept
+{
+  if (MONITOR_IS_ON(monitor))
+    sql_print_warning("InnoDB: Cannot reset all values for monitor counter '%s' "
+                      "while it is on. Please turn it off and retry.",
+                      srv_mon_get_name(monitor));
+  else
+    MONITOR_RESET_ALL(monitor);
 }
 
 /****************************************************************//**

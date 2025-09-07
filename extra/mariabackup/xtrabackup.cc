@@ -129,6 +129,7 @@ int sd_notifyf() { return 0; }
 }
 
 int sys_var_init();
+void sys_var_end();
 
 extern const char* fts_common_tables[];
 extern const  fts_index_selector_t fts_index_selector[];
@@ -203,6 +204,8 @@ struct xb_filter_entry_t{
 
 /** whether log_copying_thread() is active; protected by recv_sys.mutex */
 static bool log_copying_running;
+/** the log parsing function for --backup */
+static recv_sys_t::parser backup_log_parse;
 /** for --backup, target LSN to copy the log to; protected by recv_sys.mutex */
 lsn_t metadata_to_lsn;
 
@@ -394,6 +397,7 @@ char *opt_incremental_history_uuid;
 
 char *opt_user;
 const char *opt_password;
+bool free_opt_password;
 char *opt_host;
 char *opt_defaults_group;
 char *opt_socket;
@@ -2454,6 +2458,7 @@ xb_get_one_option(const struct my_option *opt,
 
 static bool innodb_init_param()
 {
+        static bool mysql_tmpdir_list_set= 0;
 	if (!ut_is_2pow(log_sys.write_size)) {
 		msg("InnoDB: innodb_log_write_ahead_size=%u"
 		    " is not a power of two", log_sys.write_size);
@@ -2461,12 +2466,15 @@ static bool innodb_init_param()
 	}
 	srv_is_being_started = TRUE;
 	/* === some variables from mysqld === */
-	memset((G_PTR) &mysql_tmpdir_list, 0, sizeof(mysql_tmpdir_list));
-
-	if (init_tmpdir(&mysql_tmpdir_list, opt_mysql_tmpdir)) {
-		msg("init_tmpdir() failed");
-		return true;
-	}
+        if (!mysql_tmpdir_list_set)
+        {
+          mysql_tmpdir_list_set= 1;
+          memset((G_PTR) &mysql_tmpdir_list, 0, sizeof(mysql_tmpdir_list));
+          if (init_tmpdir(&mysql_tmpdir_list, opt_mysql_tmpdir)) {
+            msg("init_tmpdir() failed");
+            return true;
+          }
+        }
 	xtrabackup_tmpdir = my_tmpdir(&mysql_tmpdir_list);
 	/* dummy for initialize all_charsets[] */
 	get_charset_name(0);
@@ -2640,7 +2648,10 @@ static byte log_hdr_buf[log_t::START_OFFSET + SIZE_OF_FILE_CHECKPOINT];
 static void log_hdr_init()
 {
   memset(log_hdr_buf, 0, sizeof log_hdr_buf);
-  mach_write_to_4(LOG_HEADER_FORMAT + log_hdr_buf, log_t::FORMAT_10_8);
+  /* log_t::FORMAT_ENC_10_8 is written to the file as FORMAT_10_8 */
+  mach_write_to_4(LOG_HEADER_FORMAT + log_hdr_buf,
+                  log_sys.format == log_t::FORMAT_ENC_11
+                  ? log_t::FORMAT_ENC_11 : log_t::FORMAT_10_8);
   mach_write_to_8(LOG_HEADER_START_LSN + log_hdr_buf,
                   log_sys.next_checkpoint_lsn);
   snprintf(reinterpret_cast<char*>(LOG_HEADER_CREATOR + log_hdr_buf),
@@ -3441,8 +3452,7 @@ static bool xtrabackup_copy_mmap_logfile()
   const byte *start= &log_sys.buf[recv_sys.offset];
   ut_d(recv_sys_t::parse_mtr_result r);
 
-  if ((ut_d(r=) recv_sys.parse_mmap<recv_sys_t::store::BACKUP>(false)) ==
-      recv_sys_t::OK)
+  if ((ut_d(r=) backup_log_parse(false)) == recv_sys_t::OK)
   {
     do
     {
@@ -3460,8 +3470,7 @@ static bool xtrabackup_copy_mmap_logfile()
         start = seq + 1;
       }
     }
-    while ((ut_d(r=) recv_sys.parse_mmap<recv_sys_t::store::BACKUP>(false)) ==
-           recv_sys_t::OK);
+    while ((ut_d(r=) backup_log_parse(false)) == recv_sys_t::OK);
 
     if (xtrabackup_copy_mmap_snippet(dst_log_file, start,
                                      &log_sys.buf[recv_sys.offset]))
@@ -3534,8 +3543,7 @@ static bool xtrabackup_copy_logfile(bool early_exit)
       if (log_sys.buf[recv_sys.offset] <= 1)
         break;
 
-      if (recv_sys.parse_mtr<recv_sys_t::store::BACKUP>(false) ==
-          recv_sys_t::OK)
+      if (backup_log_parse(false) == recv_sys_t::OK)
       {
         do
         {
@@ -3545,8 +3553,7 @@ static bool xtrabackup_copy_logfile(bool early_exit)
                                                  sequence_offset));
           *seq= 1;
         }
-        while ((r= recv_sys.parse_mtr<recv_sys_t::store::BACKUP>(false)) ==
-               recv_sys_t::OK);
+        while ((r= backup_log_parse(false)) == recv_sys_t::OK);
 
         if (ds_write(dst_log_file, log_sys.buf + start_offset,
                      recv_sys.offset - start_offset))
@@ -5585,6 +5592,7 @@ fail:
 	/* copy log file by current position */
 
 	mysql_mutex_lock(&recv_sys.mutex);
+	backup_log_parse = recv_sys.get_backup_parser();
 	recv_sys.lsn = log_sys.next_checkpoint_lsn;
 
 	const bool log_copy_failed = xtrabackup_copy_logfile(true);
@@ -6626,7 +6634,6 @@ void
 innodb_free_param()
 {
 	srv_sys_space.shutdown();
-	free_tmpdir(&mysql_tmpdir_list);
 }
 
 
@@ -7281,6 +7288,8 @@ order:
 void handle_options(int argc, char **argv, char ***argv_server,
                     char ***argv_client, char ***argv_backup)
 {
+        char **save_argv_server, **save_argv_client, **save_argv_backup;
+
 	/* Setup some variables for Innodb.*/
 	srv_operation = SRV_OPERATION_RESTORE;
 
@@ -7398,6 +7407,7 @@ void handle_options(int argc, char **argv, char ***argv_server,
 
         load_defaults_or_exit(conf_file, &server_default_groups[0],
                               &argc_server, argv_server);
+        save_argv_server= *argv_server;
 
 	int n;
 	for (n = 0; (*argv_server)[n]; n++) {};
@@ -7443,6 +7453,7 @@ void handle_options(int argc, char **argv, char ***argv_server,
 
 	load_defaults_or_exit(conf_file, xb_client_default_groups,
 			      &argc_client, argv_client);
+        save_argv_client= *argv_client;
 
 	for (n = 0; (*argv_client)[n]; n++) {};
  	argc_client = n;
@@ -7463,6 +7474,8 @@ void handle_options(int argc, char **argv, char ***argv_server,
 
         load_defaults_or_exit(conf_file, backup_default_groups, &argc_backup,
                               argv_backup);
+        save_argv_backup= *argv_backup;
+
         for (n= 0; (*argv_backup)[n]; n++)
         {
         };
@@ -7496,6 +7509,7 @@ void handle_options(int argc, char **argv, char ***argv_server,
           char *start= (char*) opt_password;
           opt_password= my_strdup(PSI_NOT_INSTRUMENTED, opt_password,
                                   MYF(MY_FAE));
+          free_opt_password= 1;
           while (*argument)
             *argument++= 'x'; // Destroy argument
           if (*start)
@@ -7541,6 +7555,14 @@ void handle_options(int argc, char **argv, char ***argv_server,
 			}
 		}
 	}
+        /*
+          Restore load defaults argument to the value after
+          load_defaults_or_exit(). This is needed for caller
+          when calling free_defaults()
+        */
+        *argv_server= save_argv_server;
+        *argv_client= save_argv_client;
+        *argv_backup= save_argv_backup;
 }
 
 static int main_low(char** argv);
@@ -7639,10 +7661,21 @@ int main(int argc, char **argv)
 	cleanup_errmsgs();
 	free_error_messages();
 	mysql_mutex_destroy(&LOCK_error_log);
+	free_tmpdir(&mysql_tmpdir_list);
+        if (free_opt_password)
+          my_free((char*) opt_password);
+        plugin_shutdown();
+        free_list(opt_plugin_load_list_ptr);
+        mysql_server_end();
+        sys_var_end();
 
 	if (status == EXIT_SUCCESS) {
-		msg("completed OK!");
+          msg("completed OK!");
 	}
+        my_end(MY_CHECK_ERROR);
+        sf_leaking_memory= 0;
+        if (SAFEMALLOC_HAVE_MEMORY_LEAK)
+          status= EXIT_FAILURE;
 
 	return status;
 }

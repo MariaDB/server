@@ -3060,10 +3060,10 @@ public:
   int binlog_update_row(TABLE* table, bool is_transactional,
                         const uchar *old_data, const uchar *new_data);
   bool prepare_handlers_for_update(uint flag);
-  bool binlog_write_annotated_row(Log_event_writer *writer);
+  bool binlog_write_annotated_row(bool use_trans_cache);
   void binlog_prepare_for_row_logging();
   bool binlog_write_table_maps();
-  bool binlog_write_table_map(TABLE *table, bool with_annotate);
+  bool binlog_write_table_map(TABLE *table);
   static void binlog_prepare_row_images(TABLE* table);
 
   void set_server_id(uint32 sid) { variables.server_id = sid; }
@@ -6690,7 +6690,7 @@ public:
     ("c"),("b"),("c"),("c"),("a"),("b"),("g")
     ("c"),("a"),("b"),("d"),("b"),("e")
 
-  - Let's demonstrate how the the set operation INTERSECT ALL is proceesed
+  - Let's demonstrate how the set operation INTERSECT ALL is proceesed
     for the query
               SELECT f FROM t1 INTERSECT ALL SELECT f FROM t2
 
@@ -6738,7 +6738,7 @@ public:
       |0      |1      |c  |
       |0      |1      |c  |
 
-  - Let's demonstrate how the the set operation EXCEPT ALL is proceesed
+  - Let's demonstrate how the set operation EXCEPT ALL is proceesed
     for the query
               SELECT f FROM t1 EXCEPT ALL SELECT f FROM t3
 
@@ -7341,7 +7341,7 @@ class multi_update :public select_result_interceptor
 {
   TABLE_LIST *all_tables; /* query/update command tables */
   List<TABLE_LIST> *leaves;     /* list of leaves of join table tree */
-  List<TABLE_LIST> updated_leaves;  /* list of of updated leaves */
+  List<TABLE_LIST> updated_leaves;  /* list of updated leaves */
   TABLE_LIST *update_tables;
   TABLE **tmp_tables, *main_table, *table_to_update;
   TMP_TABLE_PARAM *tmp_table_param;

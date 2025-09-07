@@ -6666,7 +6666,9 @@ struct my_option my_long_options[]=
    "names at once (in 'datadir') and is normally the only option you need "
    "for specifying log files. Sets names for --log-bin, --log-bin-index, "
    "--relay-log, --relay-log-index, --general-log-file, "
-   "--log-slow-query-file, --log-error-file, and --pid-file",
+   "--log-slow-query-file, --log-error-file, and --pid-file. "
+   "If log-basename includes a path, the path will apply for all above "
+   "variables except pid-file that will use it without the path",
    &opt_log_basename, &opt_log_basename, 0, GET_STR, REQUIRED_ARG,
    0, 0, 0, 0, 0, 0},
   {"log-bin", OPT_BIN_LOG,
@@ -7749,7 +7751,6 @@ static void print_help()
   sys_var_add_options(&all_options, sys_var::PARSE_EARLY);
   add_plugin_options(&all_options, &mem_root);
   sort_dynamic(&all_options, (qsort_cmp) option_cmp);
-  sort_dynamic(&all_options, (qsort_cmp) option_cmp);
   add_terminator(&all_options);
 
   my_print_help((my_option*) all_options.buffer);
@@ -8161,10 +8162,12 @@ mysqld_get_one_option(const struct my_option *opt, const char *argument,
   case (int) OPT_LOG_BASENAME:
   {
     if (opt_log_basename[0] == 0 || strchr(opt_log_basename, FN_EXTCHAR) ||
-        strchr(opt_log_basename,FN_LIBCHAR) ||
+        !my_basename(opt_log_basename)[0] ||
         !is_filename_allowed(opt_log_basename, strlen(opt_log_basename), FALSE))
     {
-      sql_print_error("Wrong argument for --log-basename. It can't be empty or contain '.' or '" FN_DIRSEP "'. It must be valid filename.");
+      sql_print_error("Wrong argument for --log-basename. It can't be empty, "
+                      "contain '.' or be a directory name'. "
+                      "It must be valid filename.");
       return 1;
     }
     if (log_error_file_ptr != disabled_my_option)
@@ -8198,7 +8201,8 @@ mysqld_get_one_option(const struct my_option *opt, const char *argument,
     {
       SYSVAR_AUTOSIZE(pidfile_name_ptr, pidfile_name);
       /* PID file */
-      strmake(pidfile_name, argument, sizeof(pidfile_name)-5);
+      strmake(pidfile_name, my_basename(opt_log_basename),
+              sizeof(pidfile_name)-5);
       strmov(fn_ext(pidfile_name),".pid");
     }
     break;

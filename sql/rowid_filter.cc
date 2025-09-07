@@ -452,7 +452,7 @@ void Range_rowid_filter_cost_info::trace_info(THD *thd)
   @details
     The function looks through the array of cost info for range filters
     and chooses the element for the range filter that promise the greatest
-    gain with the the ref or range access of the table by access_key_no.
+    gain with the ref or range access of the table by access_key_no.
     As the array is sorted by cross_x in ascending order the function stops
     the look through as soon as it reaches the first element with
     cross_x_adj > records because the range filter for this element and the

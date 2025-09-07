@@ -4478,7 +4478,7 @@ handler *mysql_create_frm_image(THD *thd, HA_CREATE_INFO *create_info,
   /*
     Unless table's storage engine supports partitioning natively
     don't allow foreign keys on partitioned tables (they won't
-    work work even with InnoDB beneath of partitioning engine).
+    work even with InnoDB beneath of partitioning engine).
     If storage engine handles partitioning natively (like NDB)
     foreign keys support is possible, so we let the engine decide.
   */
@@ -10414,6 +10414,8 @@ static uint64 get_start_alter_id(THD *thd)
   based on information about the table changes from fill_alter_inplace_info().
 */
 
+PRAGMA_DISABLE_CHECK_STACK_FRAME
+
 bool mysql_alter_table(THD *thd, const LEX_CSTRING *new_db,
                        const LEX_CSTRING *new_name,
                        Table_specification_st *create_info,
@@ -11578,7 +11580,11 @@ do_continue:;
       binlog_as_create_select= 1;
       DBUG_ASSERT(new_table->file->row_logging);
       new_table->mark_columns_needed_for_insert();
-      thd->binlog_write_table_map(new_table, 1);
+      if (thd->binlog_write_annotated_row(new_table->file->row_logging_has_trans ||
+                                          (thd->variables.option_bits &
+                                           OPTION_GTID_BEGIN)) ||
+          thd->binlog_write_table_map(new_table))
+        goto err_new_table_cleanup;
     }
     if (copy_data_between_tables(thd, table, new_table, ignore, order_num,
                                  order, &copied, &deleted, alter_info,
@@ -11716,7 +11722,7 @@ do_continue:;
     5) Write statement to the binary log.
     6) If we are under LOCK TABLES and do ALTER TABLE ... RENAME we
        remove placeholders and release metadata locks.
-    7) If we are not not under LOCK TABLES we rely on the caller
+    7) If we are not under LOCK TABLES we rely on the caller
       (mysql_execute_command()) to release metadata locks.
   */
 
@@ -12028,6 +12034,7 @@ err_with_mdl:
   goto err_cleanup;
 }
 
+PRAGMA_REENABLE_CHECK_STACK_FRAME
 
 
 /**
