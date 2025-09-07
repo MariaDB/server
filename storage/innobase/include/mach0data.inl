@@ -33,7 +33,7 @@ Created 11/28/1995 Heikki Tuuri
 
 /*******************************************************//**
 The following function is used to store data in one byte. */
-UNIV_INLINE
+inline __attribute__((always_inline))
 void
 mach_write_to_1(
 /*============*/
@@ -52,7 +52,7 @@ mach_write_to_1(
 /*******************************************************//**
 The following function is used to store data in two consecutive
 bytes. We store the most significant byte to the lowest address. */
-UNIV_INLINE
+inline __attribute__((always_inline))
 void
 mach_write_to_2(
 /*============*/
@@ -70,7 +70,7 @@ mach_write_to_2(
 /** The following function is used to fetch data from one byte.
 @param[in]	b	pointer to a byte to read
 @return ulint integer, >= 0, < 256 */
-UNIV_INLINE
+inline __attribute__((always_inline))
 uint8_t
 mach_read_from_1(
 	const byte*	b)
@@ -82,7 +82,7 @@ mach_read_from_1(
 bytes. The most significant byte is at the lowest address.
 @param[in]	b	pointer to 2 bytes to read
 @return 2-byte integer, >= 0, < 64k */
-UNIV_INLINE
+inline __attribute__((always_inline))
 uint16_t
 mach_read_from_2(
 	const byte*	b)
@@ -97,7 +97,7 @@ The following function is used to convert a 16-bit data item
 to the canonical format, for fast bytewise equality test
 against memory.
 @return 16-bit integer in canonical format */
-UNIV_INLINE
+inline __attribute__((always_inline))
 uint16
 mach_encode_2(
 /*==========*/
@@ -113,7 +113,7 @@ The following function is used to convert a 16-bit data item
 from the canonical format, for fast bytewise equality test
 against memory.
 @return integer in machine-dependent format */
-UNIV_INLINE
+inline __attribute__((always_inline))
 ulint
 mach_decode_2(
 /*==========*/
@@ -159,7 +159,7 @@ mach_read_from_3(
 /*******************************************************//**
 The following function is used to store data in four consecutive
 bytes. We store the most significant byte to the lowest address. */
-UNIV_INLINE
+inline __attribute__((always_inline))
 void
 mach_write_to_4(
 /*============*/
@@ -176,7 +176,7 @@ mach_write_to_4(
 bytes. The most significant byte is at the lowest address.
 @param[in]	b	pointer to 4 bytes to read
 @return 32 bit integer */
-UNIV_INLINE
+inline __attribute__((always_inline))
 uint32_t
 mach_read_from_4(
 	const byte*	b)
@@ -336,7 +336,7 @@ mach_read_next_compressed(
 /*******************************************************//**
 The following function is used to store data in 8 consecutive
 bytes. We store the most significant byte to the lowest address. */
-UNIV_INLINE
+inline __attribute__((always_inline))
 void
 mach_write_to_8(
 /*============*/
@@ -353,7 +353,7 @@ mach_write_to_8(
 The following function is used to fetch data from 8 consecutive
 bytes. The most significant byte is at the lowest address.
 @return 64-bit integer */
-UNIV_INLINE
+inline __attribute__((always_inline))
 ib_uint64_t
 mach_read_from_8(
 /*=============*/
@@ -717,7 +717,7 @@ mach_write_to_n_little_endian(
 /*********************************************************//**
 Reads a ulint stored in the little-endian format.
 @return unsigned long int */
-UNIV_INLINE
+inline __attribute__((always_inline))
 ulint
 mach_read_from_2_little_endian(
 /*===========================*/
@@ -728,7 +728,7 @@ mach_read_from_2_little_endian(
 
 /*********************************************************//**
 Writes a ulint in the little-endian format. */
-UNIV_INLINE
+inline __attribute__((always_inline))
 void
 mach_write_to_2_little_endian(
 /*==========================*/

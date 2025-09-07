@@ -3681,6 +3681,8 @@ static int innodb_init_abort()
 {
 	DBUG_ENTER("innodb_init_abort");
 
+	recv_sys.tmp_free();
+
 	if (fil_system.temp_space) {
 		fil_system.temp_space->close();
 	}

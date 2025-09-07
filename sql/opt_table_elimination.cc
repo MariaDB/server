@@ -944,7 +944,7 @@ bool check_func_dependency(JOIN *join,
   dac.usable_tables= dep_tables;
 
   /*
-    Analyze the the ON expression and create Dep_module_expr objects and
+    Analyze the ON expression and create Dep_module_expr objects and
       Dep_value_field objects for the used fields.
   */
   uint and_level=0;
@@ -1411,7 +1411,7 @@ void build_eq_mods_for_cond(THD *thd, Dep_analysis_context *ctx,
      = AND_ij (fdep_A_[i] OR fdep_B_[j])
   
   Then we walk over the obtained "fdep_A_[i] OR fdep_B_[j]" pairs, and 
-   - Discard those that that have left and right part referring to different
+   - Discard those that have left and right part referring to different
      columns. We can't infer anything useful from "col1=expr1 OR col2=expr2".
    - When left and right parts refer to the same column,  we check if they are 
      essentially the same. 

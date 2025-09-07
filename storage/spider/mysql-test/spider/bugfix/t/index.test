@@ -5,6 +5,7 @@
 --enable_query_log
 create database auto_test_local;
 set spider_same_server_link= on;
+set global spider_same_server_link= on;
 
 --echo #
 --echo # MDEV-27590 Auto-increment on Spider tables with DESC PK does not work properly
@@ -16,7 +17,10 @@ create or replace table t_sp1 (id int auto_increment, primary key(id desc))
 engine=Spider COMMENT='wrapper "mysql", srv "s_1", table "t"';
 insert into t_sp1 () values (),(),();
 insert into t_sp1 () values (),(),();
+# MDEV-37568
+--disable_view_protocol
 select * from t_sp1;
+--enable_view_protocol
 drop table t_sp1, auto_test_local.t;
 
 --echo #

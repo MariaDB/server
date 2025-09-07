@@ -406,7 +406,7 @@ bool log_t::attach(log_file_t file, os_offset_t size) noexcept
 void log_t::header_write(byte *buf, lsn_t lsn, bool encrypted) noexcept
 {
   mach_write_to_4(my_assume_aligned<4>(buf) + LOG_HEADER_FORMAT,
-                  log_sys.FORMAT_10_8);
+                  log_sys.format);
   mach_write_to_8(my_assume_aligned<8>(buf + LOG_HEADER_START_LSN), lsn);
 
 #if defined __GNUC__ && __GNUC__ > 7

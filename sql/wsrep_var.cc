@@ -33,6 +33,15 @@ ulong   wsrep_reject_queries;
 
 int wsrep_init_vars()
 {
+  my_free((char*) wsrep_provider);
+  my_free((char*) wsrep_provider_options);
+  my_free((char*) wsrep_cluster_address);
+  my_free((char*) wsrep_cluster_name);
+  my_free((char*) wsrep_node_name);
+  my_free((char*) wsrep_node_address);
+  my_free((char*) wsrep_node_incoming_address);
+  my_free((char*) wsrep_start_position);
+
   wsrep_provider        = my_strdup(PSI_INSTRUMENT_ME, WSREP_NONE, MYF(MY_WME));
   wsrep_provider_options= my_strdup(PSI_INSTRUMENT_ME, "", MYF(MY_WME));
   wsrep_cluster_address = my_strdup(PSI_INSTRUMENT_ME, "", MYF(MY_WME));

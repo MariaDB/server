@@ -90,7 +90,9 @@ for (my $offset= 0x65; $offset;
 	my $end= unpack("C", substr($page, $offset-7-$i, 1));
 	print ",\n " if $i;
 	print "$fields[$i]=";
-	if ($end & 0x80) {
+	if ($i == 1 || $i == 2) {
+	    print "0x", "XX" x ($end-$start);
+	} elsif ($end & 0x80) {
 	    print "NULL(", ($end & 0x7f) - $start, " bytes)"
 	} elsif ($n_fields > 1 && $i == 0) {
 	    $name= substr($page,$offset+$start,$end-$start);
@@ -211,10 +213,7 @@ BEGIN;
 INSERT INTO tr VALUES(1);
 INSERT INTO tc VALUES(1);
 INSERT INTO td VALUES(1);
-# We cannot access tz, because due to our fiddling of the NO_ROLLBACK flag,
-# it now has a record with DB_TRX_ID=0, which is invalid for
-# transactional tables until MDEV-12288 is implemented.
-# INSERT INTO tz VALUES(1);
+INSERT INTO tz VALUES(1);
 INSERT INTO tp VALUES(1);
 ROLLBACK;
 

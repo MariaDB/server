@@ -2000,6 +2000,8 @@ func_exit:
 	return(ret);
 }
 
+PRAGMA_DISABLE_CHECK_STACK_FRAME
+
 /** Check the consistency of an index page.
 @param[in]	page	index page
 @param[in]	index	B-tree or R-tree index
@@ -2435,6 +2437,8 @@ next_free:
 
 	return(ret);
 }
+
+PRAGMA_REENABLE_CHECK_STACK_FRAME
 
 /***************************************************************//**
 Looks in the page record list for a record with the given heap number.

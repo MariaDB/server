@@ -854,7 +854,7 @@ int _ma_insert(register MARIA_HA *info, MARIA_KEY *key,
   page_store_size(share, anc_page);
 
   /*
-    Check if the new key fits totally into the the page
+    Check if the new key fits totally into the page
     (anc_buff is big enough to contain a full page + one key)
   */
   if (a_length <= share->max_index_block_size)

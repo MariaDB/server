@@ -80,7 +80,7 @@ protected:
   It's also responsible to generate new values and updating the sequence
   table (engine=SQL_SEQUENCE) trough it's specialized handler interface.
 
-  If increment is 0 then the sequence will be be using
+  If increment is 0 then the sequence will be using
   auto_increment_increment and auto_increment_offset variables, just like
   AUTO_INCREMENT is using.
 */

@@ -2029,7 +2029,7 @@ static int ddl_log_execute_action(THD *thd, MEM_ROOT *mem_root,
       {
         LEX_CUSTRING version= {ddl_log_entry->uuid, MY_UUID_SIZE};
         /*
-          Temporary .frm file exists.  This means that that the table in
+          Temporary .frm file exists.  This means that the table in
           the storage engine can be of either old or new version.
           If old version, delete the new .frm table and keep the old one.
           If new version, replace the old .frm with the new one.

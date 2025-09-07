@@ -50,6 +50,13 @@
 #define HA_OPEN_FOR_CREATE              4096U
 #define HA_OPEN_FOR_DROP                (1U << 13) /* Open part of drop */
 #define HA_OPEN_GLOBAL_TMP_TABLE	(1U << 14) /* TMP table used by repliction */
+/*
+  This is to signal that the table will not be cached by the caller
+  and the table should be open in read-only mode if the tool requests
+  that
+*/
+#define HA_OPEN_FORCE_MODE              (1U << 15) /* Force open mode */
+#define HA_OPEN_DATA_READONLY           (1U << 16) /* Use readonly for data */
 
 /*
   Allow opening even if table is incompatible as this is for ALTER TABLE which

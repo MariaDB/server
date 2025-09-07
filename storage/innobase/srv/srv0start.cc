@@ -859,6 +859,8 @@ unused_undo:
   return DB_SUCCESS;
 }
 
+PRAGMA_DISABLE_CHECK_STACK_FRAME
+
 /** Open the configured number of dedicated undo tablespaces.
 @param[in]	create_new_undo	whether the undo tablespaces has to be created
 @param[in,out]	mtr		mini-transaction
@@ -919,6 +921,9 @@ dberr_t srv_undo_tablespaces_init(bool create_new_undo, mtr_t *mtr)
 
   return err;
 }
+
+PRAGMA_REENABLE_CHECK_STACK_FRAME
+
 
 /** Create the temporary file tablespace.
 @param[in]	create_new_db	whether we are creating a new database
@@ -1157,6 +1162,8 @@ inline lsn_t log_t::init_lsn() noexcept
   latch.wr_unlock();
   return lsn;
 }
+
+PRAGMA_DISABLE_CHECK_STACK_FRAME
 
 /** Start InnoDB.
 @param[in]	create_new_db	whether to create a new database
@@ -1551,7 +1558,7 @@ dberr_t srv_start(bool create_new_db)
 		} else if (log_sys.file_size == srv_log_file_size
 			   && log_sys.format
 			   == (srv_encrypt_log
-			       ? log_t::FORMAT_ENC_10_8
+			       ? log_t::FORMAT_ENC_11
 			       : log_t::FORMAT_10_8)) {
 			/* No need to add or remove encryption,
 			upgrade, or resize. */
@@ -1922,6 +1929,8 @@ skip_monitors:
 
 	return(DB_SUCCESS);
 }
+
+PRAGMA_REENABLE_CHECK_STACK_FRAME
 
 /**
   Shutdown purge to make sure that there is no possibility that we call any

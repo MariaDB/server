@@ -5925,6 +5925,7 @@ bool lock_tables(THD *thd, TABLE_LIST *tables, uint count, uint flags)
         found_first_not_own= 1;
       if (!table->placeholder())
       {
+        DBUG_ASSERT(table->lock_type != TL_IGNORE);
         *(ptr++)= table->table;
         if (!found_first_not_own)
           table->table->query_id= thd->query_id;
