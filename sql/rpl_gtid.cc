@@ -939,8 +939,15 @@ rpl_slave_state::gtid_delete_pending(THD *thd,
     table->rpl_write_set= table->write_set;
 
     /* Now delete any already committed GTIDs. */
-    bitmap_set_bit(table->read_set, table->field[0]->field_index);
-    bitmap_set_bit(table->read_set, table->field[1]->field_index);
+#ifdef HAVE_REPLICATION
+    if (unlikely(table->s->online_alter_binlog))
+      bitmap_set_all(table->read_set);
+    else
+#endif
+    {
+      bitmap_set_bit(table->read_set, table->field[0]->field_index);
+      bitmap_set_bit(table->read_set, table->field[1]->field_index);
+    }
 
     if (!direct_pos)
     {
