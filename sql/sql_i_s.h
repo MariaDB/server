@@ -133,6 +133,11 @@ public:
   Enum(const Typelib *typelib) :Type(&type_handler_enum, 0, false, typelib) { }
 };
 
+class Set: public Type
+{
+public:
+  Set(const Typelib *typelib) :Type(&type_handler_set, 0, false, typelib) { }
+};
 
 class Blob: public Type
 {

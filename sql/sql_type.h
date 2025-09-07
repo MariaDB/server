@@ -7498,6 +7498,10 @@ public:
                                    const Bit_addr &bit,
                                    const Column_definition_attributes *attr,
                                    uint32 flags) const override;
+  Field *make_schema_field(MEM_ROOT *root,
+                           TABLE *table,
+                           const Record_addr &addr,
+                           const ST_FIELD_INFO &def) const override;
 };
 
 

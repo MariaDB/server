@@ -6725,6 +6725,24 @@ int store_schema_params(THD *thd, TABLE *table, TABLE *proc_table,
   DBUG_RETURN(error);
 }
 
+#define FUNCTION_KIND_TYPES 4
+
+static const char *function_kind_names[FUNCTION_KIND_TYPES]=
+{
+    "NOT_FUNCTION", /* procedure is not function type */
+    "NORMAL",
+    "AGGREGATE",
+    0				/* end marker */
+};
+
+static unsigned int function_kind_lengths[FUNCTION_KIND_TYPES]=
+{
+    12,
+    6,
+    9,
+    0
+};
+
 
 int store_schema_proc(THD *thd, TABLE *table, TABLE *proc_table,
                        LOOKUP_FIELD_VALUES *lookup, bool full_access,
@@ -6843,6 +6861,31 @@ int store_schema_proc(THD *thd, TABLE *table, TABLE *proc_table,
                            field[MYSQL_PROC_FIELD_COLLATION_CONNECTION]);
       copy_field_as_string(table->field[30],
 			   proc_table->field[MYSQL_PROC_FIELD_DB_COLLATION]);
+
+
+      // TODO: initialize FUNCTION_KIND value
+      // int Field_set::store(const char *from,size_t length,CHARSET_INFO *cs)
+      if ((enum_sp_aggregate_type)proc_table->
+          field[MYSQL_PROC_FIELD_AGGREGATE]->ptr[0] == GROUP_AGGREGATE)
+      {
+        // function kind: AGGREGATE;
+        table->field[31]->store(function_kind_names[2], function_kind_lengths[2], cs);
+        table->field[31]->set_notnull();
+      }
+      else
+      {
+        if (!table->field[4]->cmp(reinterpret_cast<const uchar*>("\bFUNCTION")))
+        {
+          // function kind: NORMAL function but not aggregate;
+          table->field[31]->store(function_kind_names[1], function_kind_lengths[1], cs);
+        }
+        else
+        {
+          // function kind: NOT_FUNCTION
+          table->field[31]->store(function_kind_names[0], function_kind_lengths[0], cs);
+        }
+        table->field[31]->set_notnull();
+      }
 
       return schema_table_store_record(thd, table);
     }
@@ -9613,6 +9656,11 @@ ST_FIELD_INFO coll_charset_app_fields_info[]=
 };
 
 
+// used by proc_fields_info Function Kind Column
+static Typelib proc_function_kind_typelib=
+  Typelib(FUNCTION_KIND_TYPES, function_kind_names, function_kind_lengths);
+
+
 ST_FIELD_INFO proc_fields_info[]=
 {
   Column("SPECIFIC_NAME",           Name(),     NOT_NULL),
@@ -9646,6 +9694,7 @@ ST_FIELD_INFO proc_fields_info[]=
   Column("CHARACTER_SET_CLIENT",    CSName(),   NOT_NULL, "character_set_client"),
   Column("COLLATION_CONNECTION",    CLName(),   NOT_NULL, "collation_connection"),
   Column("DATABASE_COLLATION",      CLName(),   NOT_NULL, "Database Collation"),
+  Column("FUNCTION_KIND",	      Set(&proc_function_kind_typelib),   NULLABLE,   "Function Kind"),
   CEnd()
 };
 
