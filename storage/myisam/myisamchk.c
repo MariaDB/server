@@ -739,8 +739,6 @@ get_one_option(const struct my_option *opt,
     break;
   case 'V':
     print_version();
-    free_defaults(default_argv);
-    my_end(MY_CHECK_ERROR);
     my_exit(0);
   case OPT_CORRECT_CHECKSUM:
     if (argument == disabled_my_option)

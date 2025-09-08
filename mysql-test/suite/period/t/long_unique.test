@@ -41,4 +41,11 @@ set transaction isolation level read committed;
 update t1 for portion of p from '1980-01-01' to '1980-01-02' set a = 1;
 drop table t1;
 
+--echo #
+--echo # MDEV-37397 Assertion `bitmap_is_set(&read_partitions, next->id)' failed in int partition_info::vers_set_hist_part(THD *)
+--echo #
+create table t (f int,s date,e date,period for p (s,e),unique (f,p without overlaps)) with system versioning partition by system_time limit+1 (partition p history,partition pn current);
+delete from t;
+drop table t;
+
 --echo # End of 10.6 tests
