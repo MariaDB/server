@@ -9667,10 +9667,13 @@ best_access_path(JOIN      *join,
         lookups are cheaper than full scans, but when the table is small, they
         can be [considered to be] more expensive, which causes lookups not to 
         be used for cases with small datasets, which is annoying.
+    OR
+    (10) The quick select is an index_merge quick select prescribed by the
+         INDEX_MERGE hint. In this case we try to follow the hint and ignore
+         all other considerations.
   */
   Json_writer_object trace_access_scan(thd);
-  if ((s->quick && s->quick->force_index_merge) ||
-      ((best.records_read >= s->found_records ||
+  if (((best.records_read >= s->found_records ||
         best.cost > s->read_time) &&                                      // (1)
        !(best.key && best.key->key == MAX_KEY) &&                         // (2)
        !(s->quick &&
@@ -9681,7 +9684,9 @@ best_access_path(JOIN      *join,
        !((file->ha_table_flags() & HA_TABLE_SCAN_ON_INDEX) &&      // (3)
          !table->covering_keys.is_clear_all() && best.key && !s->quick) &&// (3)
        !(table->force_index_join && best.key && !s->quick) &&             // (4)
-       !(best.key && table->pos_in_table_list->jtbm_subselect)))           // (5)
+       !(best.key && table->pos_in_table_list->jtbm_subselect))           // (5)
+      ||
+      (s->quick && s->quick->force_index_merge))                        // (10)
   {                                             // Check full join
     double records_after_filter, org_records;
     double records_best_filter, cur_cost;
