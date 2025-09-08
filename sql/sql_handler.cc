@@ -1247,8 +1247,8 @@ void mysql_ha_set_explicit_lock_duration(THD *thd)
   for (uint i= 0; i < thd->handler_tables_hash.records; i++)
   {
     hash_tables= (SQL_HANDLER*) my_hash_element(&thd->handler_tables_hash, i);
-    if (hash_tables->table && hash_tables->table->mdl_ticket)
-      thd->mdl_context.set_lock_duration(hash_tables->table->mdl_ticket,
+    if (hash_tables->mdl_request.ticket)
+      thd->mdl_context.set_lock_duration(hash_tables->mdl_request.ticket,
                                          MDL_EXPLICIT);
   }
   DBUG_VOID_RETURN;
