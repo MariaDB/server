@@ -813,5 +813,14 @@ show create table t;
 truncate t;
 drop table t;
 
+--echo # MDEV-37578 Assertion failed in TDC_element::flush on ALTER TABLE GTT DISCARD TABLESPACE
+create global temporary table t (c int) engine=innodb;
+lock tables t write;
+--error ER_CANNOT_DISCARD_TEMPORARY_TABLE
+alter table t discard tablespace;
+unlock tables;
+drop table t;
+
+
 
 --disconnect con1
