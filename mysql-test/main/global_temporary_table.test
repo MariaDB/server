@@ -802,5 +802,16 @@ create table t1 (c int) partition by hash(c) partitions 3;
 create global temporary table t2 like t1;
 drop table t1;
 
+--echo # MDEV-37576 Assertion `!global_table.versioned()' failed after
+--echo # ALTER TABLE GTT ADD SYSTEM VERSIONING
+create global temporary table t (c int);
+truncate t;
+--error ER_VERS_NOT_SUPPORTED
+alter table t add system versioning;
+select * from t;
+show create table t;
+truncate t;
+drop table t;
+
 
 --disconnect con1
