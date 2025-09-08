@@ -2470,7 +2470,7 @@ struct Table_scope_and_contents_source_pod_st // For trivial members
   }
   bool tmp_table() const { return options & HA_LEX_CREATE_TMP_TABLE; }
   bool global_tmp_table() const
-  { return options & HA_LEX_CREATE_GLOBAL_TEMPORARY_TABLE; }
+  { return table_options & HA_OPTION_GLOBAL_TEMPORARY_TABLE; }
   bool on_commit_delete() const
   { return table_options & HA_OPTION_ON_COMMIT_DELETE_ROWS; }
   void use_default_db_type(THD *thd)
