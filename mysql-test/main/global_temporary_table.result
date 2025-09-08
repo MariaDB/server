@@ -934,8 +934,8 @@ create table t1 (c int) partition by hash(c) partitions 3;
 create global temporary table t2 like t1;
 ERROR HY000: Table storage engine 'partition' does not support the create option 'GLOBAL TEMPORARY'
 drop table t1;
-# MDEV-37576 (duplicate) Assertion `!global_table.versioned()' failed after
-# ALTER TABLE GTT ADD SYSTEM VERIONING
+# MDEV-37576 Assertion `!global_table.versioned()' failed after
+# ALTER TABLE GTT ADD SYSTEM VERSIONING
 create global temporary table t (c int);
 truncate t;
 alter table t add system versioning;
@@ -948,5 +948,12 @@ t	CREATE GLOBAL TEMPORARY TABLE `t` (
   `c` int(11) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci ON COMMIT DELETE ROWS
 truncate t;
+drop table t;
+# MDEV-37578 Assertion failed in TDC_element::flush on ALTER TABLE GTT DISCARD TABLESPACE
+create global temporary table t (c int) engine=innodb;
+lock tables t write;
+alter table t discard tablespace;
+ERROR HY000: Cannot DISCARD/IMPORT tablespace associated with temporary table
+unlock tables;
 drop table t;
 disconnect con1;
