@@ -231,6 +231,7 @@ our $exe_mysqltest;
 our $exe_libtool;
 our $exe_mysql_embedded;
 our $exe_mariadb_conv;
+our $exe_mariadb_frm;
 
 our $opt_big_test= 0;
 our $opt_staging_run= 0;
@@ -1941,7 +1942,9 @@ sub executable_setup () {
   $exe_mysql=          mtr_exe_exists("$path_client_bindir/mariadb");
   $exe_mysql_plugin=   mtr_exe_exists("$path_client_bindir/mariadb-plugin");
   $exe_mariadb_conv=   mtr_exe_exists("$path_client_bindir/mariadb-conv");
-
+  $exe_mariadb_frm=    mtr_exe_maybe_exists("$bindir/extra$multiconfig/mariadbfrm/mariadb-frm",
+      "$bindir/extra/mariadbfrm$multiconfig/mariadb-frm",
+      "$path_client_bindir/mariadbfrm/mariadb-frm");
   $exe_mysql_embedded= mtr_exe_maybe_exists("$bindir/libmysqld/examples/mariadb-embedded",
                                             "$bindir/libmysqld/examples/mysql_embedded");
 
@@ -2232,6 +2235,7 @@ sub environment_setup {
   $ENV{'MYSQL_PLUGIN'}=             $exe_mysql_plugin;
   $ENV{'MYSQL_EMBEDDED'}=           $exe_mysql_embedded;
   $ENV{'MARIADB_CONV'}=             "$exe_mariadb_conv --character-sets-dir=$path_charsetsdir";
+  $ENV{'MARIADB_FRM'}=              $exe_mariadb_frm;
   if(IS_WINDOWS)
   {
      $ENV{'MYSQL_INSTALL_DB_EXE'}=  mtr_exe_exists("$bindir/sql$multiconfig/mariadb-install-db",

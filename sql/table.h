@@ -1200,7 +1200,7 @@ struct TABLE_SHARE
   int init_from_binary_frm_image(THD *thd, bool write,
                                  const uchar *frm_image, size_t frm_length,
                                  const uchar *par_image=0,
-                                 size_t par_length=0);
+                                 size_t par_length=0, bool frm_parser_mode=false);
 
   /*
     populates TABLE_SHARE from the table description, specified as the
@@ -3581,10 +3581,10 @@ enum open_frm_error open_table_from_share(THD *thd, TABLE_SHARE *share,
                        const LEX_CSTRING *alias, uint db_stat, uint prgflag,
                        uint ha_open_flags, TABLE *outparam,
                        bool is_create_table,
-                       List<String> *partitions_to_open= NULL);
+                       List<String> *partitions_to_open= NULL, bool frm_parser_mode=false);
 bool copy_keys_from_share(TABLE *outparam, MEM_ROOT *root);
 bool parse_vcol_defs(THD *thd, MEM_ROOT *mem_root, TABLE *table,
-                     bool *error_reported, vcol_init_mode expr);
+                     bool *error_reported, vcol_init_mode expr, bool frm_parser_mode=false);
 TABLE_SHARE *alloc_table_share(const char *db, const char *table_name,
                                const char *key, uint key_length);
 void init_tmp_table_share(THD *thd, TABLE_SHARE *share, const char *key,
