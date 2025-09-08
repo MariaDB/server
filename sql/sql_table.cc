@@ -6363,6 +6363,13 @@ int mysql_discard_or_import_tablespace(THD *thd,
     DBUG_RETURN(-1);
   }
 
+  if (table_list->table->s->global_tmp_table())
+  {
+    my_error(ER_CANNOT_DISCARD_TEMPORARY_TABLE, MYF(0));
+    thd->tablespace_op=FALSE;
+    DBUG_RETURN(-1);
+  }
+
   table= table_list->table;
   DBUG_ASSERT(table->mdl_ticket || table->s->tmp_table);
   if (table->mdl_ticket && table->mdl_ticket->get_type() < MDL_EXCLUSIVE)
