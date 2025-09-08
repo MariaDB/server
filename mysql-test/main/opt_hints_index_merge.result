@@ -66,18 +66,12 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 EXPLAIN SELECT count(*) FROM t1 WHERE f2 = 3 AND f5 > '' AND f3 = 'c';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	range	PRIMARY,f2,f3	f3	9	NULL	1	Using index condition; Using where
-# Warn that there are insufficient ROR scans available for the given index merge.
 EXPLAIN SELECT /*+ INDEX_MERGE(t1 f3, PRIMARY) */ count(*) FROM t1 WHERE f2 = 3 AND f5 > '' AND f3 = 'c';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	range	PRIMARY,f2,f3	f3	9	NULL	1	Using index condition; Using where
-Warnings:
-Warning	4207	Insufficient ROR scans available for keys given in INDEX_MERGE hint
-# Warn that there are insufficient ROR scans available for the given index merge.
 EXPLAIN SELECT /*+ INDEX_MERGE(t1 f2, PRIMARY) */ count(*) FROM t1 WHERE f2 = 3 AND f5 > '' AND f3 = 'c';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	range	PRIMARY,f2,f3	f2	9	NULL	64	Using index condition; Using where
-Warnings:
-Warning	4207	Insufficient ROR scans available for keys given in INDEX_MERGE hint
 # Hint f5 is unknown, warn about it and use the remaining keys that apply.
 EXPLAIN SELECT /*+ INDEX_MERGE(t1 f2, f4, f5) */ f3 FROM t1 WHERE f4 = 'h' AND f2 = 2 AND f3 = 'b';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
@@ -168,9 +162,6 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 EXPLAIN SELECT /*+ INDEX_MERGE(t1 f2, f4) */ COUNT(*) FROM t1 WHERE f4 = 'h' AND f2 > 2;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	ref|filter	f2,f4	f4|f2	5|5	const	128 (33%)	Using index condition; Using where; Using rowid filter
-Warnings:
-Warning	4207	Insufficient ROR scans available for keys given in INDEX_MERGE hint
-Warning	4207	Insufficient ROR scans available for keys given in INDEX_MERGE hint
 # Index merge union
 SET optimizer_switch='index_merge_union=off,index_merge=off';
 # union(f2,f3,f4), since only indexes specified in the hint are applicable for index merge.
@@ -271,8 +262,6 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 EXPLAIN SELECT /*+ INDEX_MERGE(t1) */ f3 FROM t1 WHERE f4 = 'f' AND f2 = 3 AND f5 > '';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	range	PRIMARY,f2,f4	f4	9	NULL	1	Using index condition; Using where
-Warnings:
-Warning	4207	Insufficient ROR scans available for keys given in INDEX_MERGE hint
 # intersect(f2,f4), since it's the cheapest index merge.
 EXPLAIN SELECT /*+ INDEX_MERGE(t1) */ f3 FROM t1 WHERE f2 = 3 AND f4 = 'g' AND f5 = '';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
@@ -285,8 +274,6 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 EXPLAIN SELECT /*+ INDEX_MERGE(t1) */ f3 FROM t1 WHERE f2 = 3 AND f4 = '' AND f5 > '';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	range	PRIMARY,f2,f4	PRIMARY	4	NULL	256	Using where
-Warnings:
-Warning	4207	Insufficient ROR scans available for keys given in INDEX_MERGE hint
 # sort_union(f2,f7)
 EXPLAIN SELECT /*+ INDEX_MERGE(t1) */ f3 FROM t1 WHERE (f2 = 3 AND f4 = '' AND f5 > '') OR (f7 = 'd' AND f6 = 'e');
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra

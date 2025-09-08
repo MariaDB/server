@@ -45,9 +45,7 @@ EXPLAIN SELECT /*+ INDEX_MERGE(t1 PRIMARY, f4, f3) */ COUNT(*) FROM t1 WHERE f4 
 
 --echo # no index merge, since 'index_merge_intersection' optimizer switch is off.
 EXPLAIN SELECT count(*) FROM t1 WHERE f2 = 3 AND f5 > '' AND f3 = 'c';
---echo # Warn that there are insufficient ROR scans available for the given index merge.
 EXPLAIN SELECT /*+ INDEX_MERGE(t1 f3, PRIMARY) */ count(*) FROM t1 WHERE f2 = 3 AND f5 > '' AND f3 = 'c';
---echo # Warn that there are insufficient ROR scans available for the given index merge.
 EXPLAIN SELECT /*+ INDEX_MERGE(t1 f2, PRIMARY) */ count(*) FROM t1 WHERE f2 = 3 AND f5 > '' AND f3 = 'c';
 --echo # Hint f5 is unknown, warn about it and use the remaining keys that apply.
 EXPLAIN SELECT /*+ INDEX_MERGE(t1 f2, f4, f5) */ f3 FROM t1 WHERE f4 = 'h' AND f2 = 2 AND f3 = 'b';
