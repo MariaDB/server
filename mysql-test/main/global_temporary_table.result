@@ -956,4 +956,16 @@ alter table t discard tablespace;
 ERROR HY000: Cannot DISCARD/IMPORT tablespace associated with temporary table
 unlock tables;
 drop table t;
+# MDEV-37579 use-after-free in MDL_context::release_lock on FLUSH TABLE GTT
+create global temporary table t (x int) on commit preserve rows engine=innodb;
+set session transaction_read_only=1;
+handler t open;
+lock tables t read;
+lock tables t write;
+ERROR 25006: Cannot execute statement in a READ ONLY transaction
+flush table t;
+set session transaction_read_only=0;
+truncate t;
+unlock tables;
+drop table t;
 disconnect con1;

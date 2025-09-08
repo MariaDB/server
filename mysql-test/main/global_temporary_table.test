@@ -821,6 +821,18 @@ alter table t discard tablespace;
 unlock tables;
 drop table t;
 
+--echo # MDEV-37579 use-after-free in MDL_context::release_lock on FLUSH TABLE GTT
+create global temporary table t (x int) on commit preserve rows engine=innodb;
+set session transaction_read_only=1;
+handler t open;
+lock tables t read;
+--error ER_CANT_EXECUTE_IN_READ_ONLY_TRANSACTION
+lock tables t write;
+flush table t;
+set session transaction_read_only=0;
+truncate t;
+unlock tables;
+drop table t;
 
 
 --disconnect con1
