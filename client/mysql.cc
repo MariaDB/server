@@ -3199,6 +3199,12 @@ static int reconnect(void)
 }
 
 #ifndef EMBEDDED_LIBRARY
+#ifdef __clang__
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wvarargs"
+/* CONC-789 */
+#endif
+
 static void status_info_cb(void *data, enum enum_mariadb_status_info type, ...)
 {
   va_list ap;
@@ -3214,6 +3220,10 @@ static void status_info_cb(void *data, enum enum_mariadb_status_info type, ...)
   }
   va_end(ap);
 }
+
+#ifdef __clang__
+#pragma clang diagnostic pop
+#endif
 #else
 #define mysql_optionsv(A,B,C,D) do { } while(0)
 #endif
