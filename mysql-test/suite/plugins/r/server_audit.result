@@ -234,6 +234,8 @@ connect  cn1,localhost,user1,,sa_db;
 connection cn1;
 create table t1(id int) engine=myisam;
 insert delayed into t1 values (1);
+create table test_partitions (i int) partition by hash (i) partitions 4;
+drop table test_partitions;
 connection default;
 # Waiting until INSERT DELAYED thread does the insert.
 drop table t1;
@@ -448,6 +450,11 @@ TIME,HOSTNAME,root,localhost,ID,ID,QUERY,sa_db,'drop user u1, u2, u3',0
 TIME,HOSTNAME,root,localhost,ID,ID,QUERY,sa_db,'insert into t1 values (1), (2)',0
 TIME,HOSTNAME,user1,localhost,ID,ID,CREATE,sa_db,t1,
 TIME,HOSTNAME,user1,localhost,ID,ID,WRITE,sa_db,t1,
+TIME,HOSTNAME,user1,localhost,ID,ID,CREATE,sa_db,test_partitions,
+TIME,HOSTNAME,user1,localhost,ID,ID,WRITE,mysql,table_stats,
+TIME,HOSTNAME,user1,localhost,ID,ID,WRITE,mysql,column_stats,
+TIME,HOSTNAME,user1,localhost,ID,ID,WRITE,mysql,index_stats,
+TIME,HOSTNAME,user1,localhost,ID,ID,DROP,sa_db,test_partitions,
 TIME,HOSTNAME,root,localhost,ID,ID,QUERY,sa_db,'set global server_audit_logging= off',0
 TIME,HOSTNAME,root,localhost,ID,ID,WRITE,mysql,db,
 TIME,HOSTNAME,root,localhost,ID,ID,WRITE,mysql,tables_priv,
