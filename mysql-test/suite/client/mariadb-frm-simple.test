@@ -1,0 +1,48 @@
+--echo MariaDB frm parser test #1
+--echo simple file
+--let $MYSQLD_DATADIR= `select @@datadir`
+
+# Skip test if WSREP is active (mariadb-frm tool is incompatible with WSREP)
+if (`SELECT COUNT(*)>0 FROM INFORMATION_SCHEMA.PLUGINS WHERE PLUGIN_NAME = 'wsrep' AND PLUGIN_STATUS='ACTIVE'`)
+{
+  --skip Test requires wsrep plugin to be inactive (mariadb-frm tool incompatible with WSREP)
+}
+
+# Skip test if running on embedded server (mariadb-frm tool is incompatible with embedded server)
+if (`SELECT VERSION() LIKE '%embedded%'`)
+{
+  --skip Test requires non-embedded server (mariadb-frm tool incompatible with embedded server)
+}
+
+--exec $MARIADB_FRM $MYSQL_TEST_DIR/std_data/frm/table_simple.frm
+
+# Test comments with indexes
+CREATE TABLE t_comments_with_indexes (
+  id INT COMMENT 'Primary key with index',
+  name VARCHAR(100) COMMENT 'Name field with regular index',
+  email VARCHAR(255) COMMENT 'Email with unique constraint',
+  category VARCHAR(50) COMMENT 'Category for grouping',
+  content TEXT COMMENT 'Full-text searchable content',
+  PRIMARY KEY (id),
+  INDEX idx_name (name) COMMENT 'Index for name lookups',
+  UNIQUE KEY idx_email (email) COMMENT 'Unique constraint on email',
+  INDEX idx_category (category) COMMENT 'Category grouping index',
+  FULLTEXT KEY ft_content (content) COMMENT 'Full-text search index'
+) COMMENT = 'Table demonstrating comments on both fields and indexes';
+--error 5
+--exec $MARIADB_FRM $MYSQLD_DATADIR/test/t_comments_with_indexes.frm
+DROP TABLE t_comments_with_indexes;
+
+
+# Test comments with virtual columns
+CREATE TABLE t_comments_vcols (
+  first_name VARCHAR(50) COMMENT 'User first name',
+  last_name VARCHAR(50) COMMENT 'User last name',
+  full_name VARCHAR(101) AS (CONCAT(first_name, ' ', last_name)) COMMENT 'Computed full name',
+  name_length INT AS (LENGTH(CONCAT(first_name, last_name))) STORED COMMENT 'Stored computed name length'
+) COMMENT = 'Table with comments on virtual/generated columns';
+--error 5
+--exec $MARIADB_FRM $MYSQLD_DATADIR/test/t_comments_vcols.frm
+DROP TABLE t_comments_vcols;
+
+--echo Tests completed

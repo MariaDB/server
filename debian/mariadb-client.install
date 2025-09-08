@@ -12,6 +12,7 @@ usr/bin/mariadb-dump
 usr/bin/mariadb-dumpslow
 usr/bin/mariadb-find-rows
 usr/bin/mariadb-fix-extensions
+usr/bin/mariadb-frm
 usr/bin/mariadb-hotcopy
 usr/bin/mariadb-import
 usr/bin/mariadb-plugin
