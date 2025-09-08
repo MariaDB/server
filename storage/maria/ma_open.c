@@ -256,7 +256,7 @@ MARIA_HA *maria_open(const char *name, int mode, uint open_flags,
                      S3_INFO *s3)
 {
   int save_errno;
-  int open_mode, try_open_mode;
+  int open_mode= mode;
   uint i,j,len,errpos,head_length,base_pos,keys, realpath_err,
     key_parts,base_key_parts,unique_key_parts,fulltext_keys,uniques;
   uint internal_table= MY_TEST(open_flags & HA_OPEN_INTERNAL_TABLE);
@@ -288,6 +288,11 @@ MARIA_HA *maria_open(const char *name, int mode, uint open_flags,
 
 #ifndef WITH_S3_STORAGE_ENGINE
   DBUG_ASSERT(!s3);
+# ifdef _MSC_VER
+  __assume(!s3);
+# else
+  if (s3) __builtin_unreachable();
+# endif
 #else
   if (!s3)
 #endif /* WITH_S3_STORAGE_ENGINE */
@@ -346,10 +351,11 @@ MARIA_HA *maria_open(const char *name, int mode, uint open_flags,
         that the table is usable for future read and write queries in
         MariaDB.  Only if the read-write mode fails we try to readonly.
       */
-      try_open_mode= (open_flags & HA_OPEN_FORCE_MODE) ? mode : O_RDWR;
+      if (!(open_flags & HA_OPEN_FORCE_MODE))
+        open_mode= O_RDWR;
 
       if ((kfile=mysql_file_open(key_file_kfile, name_buff,
-                                 (open_mode=try_open_mode) | O_SHARE |
+                                 open_mode | O_SHARE |
                                  O_NOFOLLOW | O_CLOEXEC,
                                  MYF(common_flag | MY_NOSYMLINKS))) < 0)
       {
@@ -372,7 +378,6 @@ MARIA_HA *maria_open(const char *name, int mode, uint open_flags,
 #ifdef WITH_S3_STORAGE_ENGINE
     else
     {
-      open_mode= mode;
       errpos= 1;
       if (s3f.set_database_and_table_from_path(s3, name_buff))
       {
