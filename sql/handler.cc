@@ -5630,6 +5630,12 @@ int ha_delete_table_force(THD *thd, const char *path, const LEX_CSTRING *db,
 }
 
 
+bool handler::is_partition_table() const
+{
+  return table_share->db_type() == partition_hton && ht != partition_hton;
+}
+
+
 /**
   Create a table in the engine: public interface.
 
@@ -5646,7 +5652,8 @@ handler::ha_create(const char *name, TABLE *form, HA_CREATE_INFO *info_arg)
     info_arg->options|= HA_LEX_CREATE_GLOBAL_TMP_TABLE;
   int error= create(name, form, info_arg);
   if (!error &&
-      !(info_arg->options & (HA_LEX_CREATE_TMP_TABLE | HA_CREATE_TMP_ALTER)))
+      !(info_arg->options & (HA_LEX_CREATE_TMP_TABLE | HA_CREATE_TMP_ALTER)) &&
+      !is_partition_table())
     mysql_audit_create_table(form);
   return error;
 }

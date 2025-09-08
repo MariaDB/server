@@ -5266,6 +5266,7 @@ public:
 
   bool log_not_redoable_operation(const char *operation);
 
+  bool is_partition_table() const;
 protected:
   Handler_share *get_ha_share_ptr();
   void set_ha_share_ptr(Handler_share *arg_ha_share);
