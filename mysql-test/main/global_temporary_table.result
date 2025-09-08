@@ -841,4 +841,19 @@ create table t1 (c int) partition by hash(c) partitions 3;
 create global temporary table t2 like t1;
 ERROR HY000: Partitioned tables do not support CREATE GLOBAL TEMPORARY TABLE
 drop table t1;
+# MDEV-37576 (duplicate) Assertion `!global_table.versioned()' failed after
+# ALTER TABLE GTT ADD SYSTEM VERIONING
+create global temporary table t (c int);
+truncate t;
+alter table t add system versioning;
+ERROR HY000: System-versioned tables do not support CREATE GLOBAL TEMPORARY TABLE
+select * from t;
+c
+show create table t;
+Table	Create Table
+t	CREATE GLOBAL TEMPORARY TABLE `t` (
+  `c` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci ON COMMIT DELETE ROWS
+truncate t;
+drop table t;
 disconnect con1;
