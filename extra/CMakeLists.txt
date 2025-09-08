@@ -53,6 +53,9 @@ MYSQL_ADD_EXECUTABLE(perror perror.c)
 ADD_DEPENDENCIES(perror GenError)
 TARGET_LINK_LIBRARIES(perror mysys)
 
+# FRM Parser utility
+ADD_SUBDIRECTORY(mariadbfrm)
+
 IF(UNIX)
 MYSQL_ADD_EXECUTABLE(resolveip resolveip.c)
 TARGET_LINK_LIBRARIES(resolveip mysys)

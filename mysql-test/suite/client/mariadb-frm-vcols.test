@@ -1,0 +1,126 @@
+--echo MariaDB frm parser test - Virtual Columns
+--echo Testing virtual/generated columns with various expressions
+
+# Initialize the MYSQLD_DATADIR variable
+--let $MYSQLD_DATADIR= `select @@datadir`
+# Skip test if WSREP is active (mariadb-frm tool is incompatible with WSREP)
+if (`SELECT COUNT(*)>0 FROM INFORMATION_SCHEMA.PLUGINS WHERE PLUGIN_NAME = 'wsrep' AND PLUGIN_STATUS='ACTIVE'`)
+{
+  --skip Test requires wsrep plugin to be inactive (mariadb-frm tool incompatible with WSREP)
+}
+
+# Skip test if running on embedded server (mariadb-frm tool is incompatible with embedded server)
+if (`SELECT VERSION() LIKE '%embedded%'`)
+{
+  --skip Test requires non-embedded server (mariadb-frm tool incompatible with embedded server)
+}
+
+# Test basic virtual columns
+CREATE TABLE t_basic_vcols (
+  a INT,
+  b INT,
+  sum_col INT AS (a + b) VIRTUAL,
+  product_col INT AS (a * b) STORED,
+  difference_col INT AS (a - b) VIRTUAL
+);
+--error 5
+--exec $MARIADB_FRM $MYSQLD_DATADIR/test/t_basic_vcols.frm
+DROP TABLE t_basic_vcols;
+
+# Test string virtual columns
+CREATE TABLE t_string_vcols (
+  first_name VARCHAR(50),
+  last_name VARCHAR(50),
+  full_name VARCHAR(101) AS (CONCAT(first_name, ' ', last_name)) VIRTUAL,
+  initials CHAR(2) AS (CONCAT(LEFT(first_name, 1), LEFT(last_name, 1))) STORED,
+  name_length INT AS (LENGTH(CONCAT(first_name, last_name))) VIRTUAL
+);
+--error 5
+--exec $MARIADB_FRM $MYSQLD_DATADIR/test/t_string_vcols.frm
+DROP TABLE t_string_vcols;
+
+# Test date/time virtual columns
+CREATE TABLE t_datetime_vcols (
+  birth_date DATE,
+  created_at DATETIME,
+  birth_year INT AS (YEAR(birth_date)) STORED,
+  created_date DATE AS (DATE(created_at)) VIRTUAL,
+  day_of_week VARCHAR(10) AS (DAYNAME(birth_date)) VIRTUAL
+);
+--error 5
+--exec $MARIADB_FRM $MYSQLD_DATADIR/test/t_datetime_vcols.frm
+DROP TABLE t_datetime_vcols;
+
+# Test mathematical expressions
+CREATE TABLE t_math_vcols (
+  radius DECIMAL(10,2),
+  height DECIMAL(10,2),
+  area DECIMAL(15,4) AS (PI() * radius * radius) VIRTUAL,
+  volume DECIMAL(20,6) AS (PI() * radius * radius * height) STORED,
+  circumference DECIMAL(15,4) AS (2 * PI() * radius) VIRTUAL,
+  sqrt_area DECIMAL(10,4) AS (SQRT(PI() * radius * radius)) VIRTUAL
+);
+--error 5
+--exec $MARIADB_FRM $MYSQLD_DATADIR/test/t_math_vcols.frm
+DROP TABLE t_math_vcols;
+
+# Test conditional expressions
+CREATE TABLE t_conditional_vcols (
+  score INT,
+  status VARCHAR(20),
+  grade CHAR(1) AS (CASE 
+    WHEN score >= 90 THEN 'A'
+    WHEN score >= 80 THEN 'B' 
+    WHEN score >= 70 THEN 'C'
+    WHEN score >= 60 THEN 'D'
+    ELSE 'F'
+  END) VIRTUAL,
+  is_active BOOLEAN AS (status = 'active') STORED,
+  pass_fail VARCHAR(4) AS (IF(score >= 60, 'PASS', 'FAIL')) VIRTUAL
+);
+--error 5
+--exec $MARIADB_FRM $MYSQLD_DATADIR/test/t_conditional_vcols.frm
+DROP TABLE t_conditional_vcols;
+
+# Test JSON virtual columns (if JSON supported)
+CREATE TABLE t_json_vcols (
+  id INT,
+  user_data JSON,
+  user_name VARCHAR(100) AS (JSON_UNQUOTE(JSON_EXTRACT(user_data, '$.name'))) VIRTUAL,
+  user_age INT AS (JSON_EXTRACT(user_data, '$.age')) STORED,
+  has_email BOOLEAN AS (JSON_CONTAINS_PATH(user_data, 'one', '$.email')) VIRTUAL
+);
+--error 5
+--exec $MARIADB_FRM $MYSQLD_DATADIR/test/t_json_vcols.frm
+DROP TABLE t_json_vcols;
+
+# Test virtual columns with indexes
+CREATE TABLE t_vcols_with_indexes (
+  id INT,
+  first_name VARCHAR(50),
+  last_name VARCHAR(50),
+  full_name VARCHAR(101) AS (CONCAT(first_name, ' ', last_name)) STORED,
+  name_upper VARCHAR(101) AS (UPPER(CONCAT(first_name, ' ', last_name))) VIRTUAL,
+  PRIMARY KEY (id),
+  INDEX idx_full_name (full_name),
+  INDEX idx_last_name (last_name)
+);
+--error 5
+--exec $MARIADB_FRM $MYSQLD_DATADIR/test/t_vcols_with_indexes.frm
+DROP TABLE t_vcols_with_indexes;
+
+# Test complex nested expressions
+CREATE TABLE t_complex_vcols (
+  x DECIMAL(10,2),
+  y DECIMAL(10,2),
+  z DECIMAL(10,2),
+  distance_2d DECIMAL(15,6) AS (SQRT(x*x + y*y)) VIRTUAL,
+  distance_3d DECIMAL(15,6) AS (SQRT(x*x + y*y + z*z)) STORED,
+  normalized_x DECIMAL(10,6) AS (x / SQRT(x*x + y*y + z*z)) VIRTUAL,
+  is_unit_vector BOOLEAN AS (ABS(SQRT(x*x + y*y + z*z) - 1.0) < 0.001) VIRTUAL
+);
+--error 5
+--exec $MARIADB_FRM $MYSQLD_DATADIR/test/t_complex_vcols.frm
+DROP TABLE t_complex_vcols;
+
+--echo Virtual columns test completed
