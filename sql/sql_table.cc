@@ -6317,6 +6317,15 @@ int mysql_discard_or_import_tablespace(THD *thd,
     DBUG_RETURN(-1);
   }
 
+  if (table_list->table->s->global_tmp_table())
+  {
+    my_error(ER_ALTER_OPERATION_NOT_SUPPORTED_REASON, MYF(0),
+             discard ? "DISCARD TABLESPACE" : "IMPORT TABLESPACE",
+             "GLOBAL TEMPORARY TABLE");
+    thd->tablespace_op=FALSE;
+    DBUG_RETURN(-1);
+  }
+
   DBUG_ASSERT(table_list->table->s->hlindexes() <= 1);
   for (uint i= table_list->table->s->keys; i < table_list->table->s->total_keys; i++)
   {
