@@ -317,6 +317,14 @@ DROP TABLE t1, t2;
 --echo #
 --echo # KILL QUERY ID USER
 --echo #
---error ER_BAD_FIELD_ERROR
+--error ER_PARSE_ERROR
 kill query id user 'foo';
+
+--echo #
+--echo # MDEV-36875 KILL with nested subqueries crash server
+--echo #
+# thread 0 should not be among mysqld threads
+--error ER_NO_SUCH_THREAD
+KILL 100 IN (SELECT 1) IN (SELECT 1);
+
 --enable_service_connection

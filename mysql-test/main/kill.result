@@ -184,4 +184,9 @@ DROP TABLE t1, t2;
 # KILL QUERY ID USER
 #
 kill query id user 'foo';
-ERROR 42S22: Unknown column 'user' in 'KILL'
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near ''foo'' at line 1
+#
+# MDEV-36875 KILL with nested subqueries crash server
+#
+KILL 100 IN (SELECT 1) IN (SELECT 1);
+ERROR HY000: Unknown thread id: 0

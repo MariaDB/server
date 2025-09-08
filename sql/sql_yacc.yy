@@ -14755,6 +14755,8 @@ kill:
           KILL_SYM
           {
             LEX *lex=Lex;
+            if (lex->main_select_push())
+              MYSQL_YYABORT;
             lex->value_list.empty();
             lex->users_list.empty();
             lex->sql_command= SQLCOM_KILL;
@@ -14765,6 +14767,7 @@ kill:
           kill_type kill_option
           {
             Lex->kill_signal= (killed_state) ($3 | $4);
+            Lex->pop_select(); //min select
           }
         ;
 
