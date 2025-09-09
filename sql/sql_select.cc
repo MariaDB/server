@@ -8365,7 +8365,8 @@ static ALL_READ_COST cost_for_index_read(const THD *thd, const TABLE *table,
 
 
 /**
-   Apply filter if the filter is better than the current cost
+   Apply filter if the filter is better than the current cost or
+   if it forced by ROWID_FILTER hint
 
    @param thd             Thread handler
    @param table           Table
@@ -8439,7 +8440,7 @@ apply_filter(THD *thd, TABLE *table, ALL_READ_COST *cost,
              new_records * tmp + filter_startup_cost);
 
   DBUG_ASSERT(new_cost >= 0 && new_records >= 0);
-  use_filter= new_cost < org_cost;
+  use_filter= new_cost < org_cost || is_forced_by_hint;
 
   if (unlikely(thd->trace_started()))
   {
