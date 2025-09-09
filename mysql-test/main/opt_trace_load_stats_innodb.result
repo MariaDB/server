@@ -1,0 +1,636 @@
+set optimizer_record_context=ON;
+set optimizer_trace=1;
+create database db1;
+use db1;
+create table t1 (
+c1 int,
+c2 int,
+index(c1),
+index(c2)
+) ENGINE=InnoDB;
+insert into t1 select seq, seq from seq_1_to_1000;
+analyze table t1;
+Table	Op	Msg_type	Msg_text
+db1.t1	analyze	status	Engine-independent statistics collected
+db1.t1	analyze	status	OK
+#
+# run a query with two different ranges on the same index
+# record stats and re-run same query
+#
+set optimizer_replay_context="";
+explain format=json select * from t1 a, t1 b where a.c1 < 3 and b.c1 < 333 and a.c2 < 3 and b.c2 < 333;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": 0.191374711,
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "a",
+          "access_type": "range",
+          "possible_keys": ["c1", "c2"],
+          "key": "c1",
+          "key_length": "5",
+          "used_key_parts": ["c1"],
+          "rowid_filter": {
+            "range": {
+              "key": "c2",
+              "used_key_parts": ["c2"]
+            },
+            "rows": 2,
+            "selectivity_pct": 0.2
+          },
+          "loops": 1,
+          "rows": 2,
+          "cost": 0.004658583,
+          "filtered": 0.200000003,
+          "index_condition": "a.c1 < 3",
+          "attached_condition": "a.c2 < 3"
+        }
+      },
+      {
+        "block-nl-join": {
+          "table": {
+            "table_name": "b",
+            "access_type": "ALL",
+            "possible_keys": ["c1", "c2"],
+            "loops": 1,
+            "rows": 1000,
+            "cost": 0.186716128,
+            "filtered": 11.0223999,
+            "attached_condition": "b.c1 < 333 and b.c2 < 333"
+          },
+          "buffer_type": "flat",
+          "buffer_size": "119",
+          "join_type": "BNL"
+        }
+      }
+    ]
+  }
+}
+set @saved_opt_context=
+(select json_pretty(json_extract(
+json_extract(trace, "$**.optimizer_context"),
+'$[0]'
+                      )
+)
+from information_schema.optimizer_trace);
+select @saved_opt_context;
+@saved_opt_context
+{
+    "current_database": "db1",
+    "list_contexts": 
+    [
+        {
+            "name": "db1.t1",
+            "ddl": "CREATE TABLE `t1` (\n  `c1` int(11) DEFAULT NULL,\n  `c2` int(11) DEFAULT NULL,\n  KEY `c1` (`c1`),\n  KEY `c2` (`c2`)\n) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci",
+            "num_of_records": 1000,
+            "read_cost_io": 16,
+            "read_cost_cpu": 0.0001424,
+            "indexes": 
+            [
+                {
+                    "index_name": "c1",
+                    "rec_per_key": 
+                    ["1"]
+                },
+                {
+                    "index_name": "c2",
+                    "rec_per_key": 
+                    ["1"]
+                }
+            ],
+            "list_ranges": 
+            [
+                {
+                    "index_name": "c1",
+                    "ranges": 
+                    ["(NULL) < (c1) < (3)"],
+                    "num_rows": 2,
+                    "cost": 
+                    [
+                        "0.0002048",
+                        "0",
+                        "0.000064",
+                        "0",
+                        "0",
+                        "0.00079112",
+                        "4",
+                        0.00102472,
+                        8,
+                        0.00172488
+                    ],
+                    "max_index_blocks": 4,
+                    "max_row_blocks": 8
+                },
+                {
+                    "index_name": "c2",
+                    "ranges": 
+                    ["(NULL) < (c2) < (3)"],
+                    "num_rows": 2,
+                    "cost": 
+                    [
+                        "0.0002048",
+                        "0",
+                        "0.000064",
+                        "0",
+                        "0",
+                        "0.00079112",
+                        "4",
+                        0.00102472,
+                        8,
+                        0.00172488
+                    ],
+                    "max_index_blocks": 4,
+                    "max_row_blocks": 8
+                },
+                {
+                    "index_name": "c1",
+                    "ranges": 
+                    ["(NULL) < (c1) < (333)"],
+                    "num_rows": 332,
+                    "cost": 
+                    [
+                        "0.0002048",
+                        "0",
+                        "0.010624",
+                        "0",
+                        "0",
+                        "0.00079112",
+                        "4",
+                        0.03369472,
+                        16,
+                        0.28633008
+                    ],
+                    "max_index_blocks": 4,
+                    "max_row_blocks": 16
+                },
+                {
+                    "index_name": "c2",
+                    "ranges": 
+                    ["(NULL) < (c2) < (333)"],
+                    "num_rows": 332,
+                    "cost": 
+                    [
+                        "0.0002048",
+                        "0",
+                        "0.010624",
+                        "0",
+                        "0",
+                        "0.00079112",
+                        "4",
+                        0.03369472,
+                        16,
+                        0.28633008
+                    ],
+                    "max_index_blocks": 4,
+                    "max_row_blocks": 16
+                },
+                {
+                    "index_name": "c2",
+                    "ranges": 
+                    ["(NULL) < (c2) < (3)"],
+                    "num_rows": 2,
+                    "cost": 
+                    [
+                        "0.0002048",
+                        "0",
+                        "0.000064",
+                        "0.00003137",
+                        "0",
+                        0.00079112,
+                        4,
+                        0.00102472,
+                        0,
+                        0
+                    ],
+                    "max_index_blocks": 4,
+                    "max_row_blocks": 8
+                }
+            ]
+        }
+    ]
+}
+truncate table t1;
+set optimizer_replay_context=@saved_opt_context;
+explain format=json select * from t1 a, t1 b where a.c1 < 3 and b.c1 < 333 and a.c2 < 3 and b.c2 < 333;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": 0.191374711,
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "a",
+          "access_type": "range",
+          "possible_keys": ["c1", "c2"],
+          "key": "c1",
+          "key_length": "5",
+          "used_key_parts": ["c1"],
+          "rowid_filter": {
+            "range": {
+              "key": "c2",
+              "used_key_parts": ["c2"]
+            },
+            "rows": 2,
+            "selectivity_pct": 0.2
+          },
+          "loops": 1,
+          "rows": 2,
+          "cost": 0.004658583,
+          "filtered": 0.200000003,
+          "index_condition": "a.c1 < 3",
+          "attached_condition": "a.c2 < 3"
+        }
+      },
+      {
+        "block-nl-join": {
+          "table": {
+            "table_name": "b",
+            "access_type": "ALL",
+            "possible_keys": ["c1", "c2"],
+            "loops": 1,
+            "rows": 1000,
+            "cost": 0.186716128,
+            "filtered": 11.0223999,
+            "attached_condition": "b.c1 < 333 and b.c2 < 333"
+          },
+          "buffer_type": "flat",
+          "buffer_size": "119",
+          "join_type": "BNL"
+        }
+      }
+    ]
+  }
+}
+#
+# now, with the same replay context from above query,
+# run different queries with subset of the ranges from above query
+# there should be no warnings
+#
+explain format=json select * from t1 a, t1 b where a.c1 < 3 and b.c2 < 333;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": 0.244266276,
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "a",
+          "access_type": "range",
+          "possible_keys": ["c1"],
+          "key": "c1",
+          "key_length": "5",
+          "used_key_parts": ["c1"],
+          "loops": 1,
+          "rows": 2,
+          "cost": 0.00606232,
+          "filtered": 100,
+          "index_condition": "a.c1 < 3"
+        }
+      },
+      {
+        "block-nl-join": {
+          "table": {
+            "table_name": "b",
+            "access_type": "ALL",
+            "possible_keys": ["c2"],
+            "loops": 2,
+            "rows": 1000,
+            "cost": 0.238203956,
+            "filtered": 33.20000076,
+            "attached_condition": "b.c2 < 333"
+          },
+          "buffer_type": "flat",
+          "buffer_size": "119",
+          "join_type": "BNL"
+        }
+      }
+    ]
+  }
+}
+explain format=json select * from t1 a, t1 b where a.c2 < 3 and b.c1 < 333;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": 0.244266276,
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "a",
+          "access_type": "range",
+          "possible_keys": ["c2"],
+          "key": "c2",
+          "key_length": "5",
+          "used_key_parts": ["c2"],
+          "loops": 1,
+          "rows": 2,
+          "cost": 0.00606232,
+          "filtered": 100,
+          "index_condition": "a.c2 < 3"
+        }
+      },
+      {
+        "block-nl-join": {
+          "table": {
+            "table_name": "b",
+            "access_type": "ALL",
+            "possible_keys": ["c1"],
+            "loops": 2,
+            "rows": 1000,
+            "cost": 0.238203956,
+            "filtered": 33.20000076,
+            "attached_condition": "b.c1 < 333"
+          },
+          "buffer_type": "flat",
+          "buffer_size": "119",
+          "join_type": "BNL"
+        }
+      }
+    ]
+  }
+}
+set optimizer_replay_context="";
+drop table t1;
+#
+# run a range query on a table, then truncate the table,
+# and rerun the same query by setting the context from previous query
+#
+create table t1 (c1 int, c2 int, index(c1)) engine=innodb;
+insert into t1 select seq, seq from seq_1_to_10000;
+analyze table t1;
+Table	Op	Msg_type	Msg_text
+db1.t1	analyze	status	Engine-independent statistics collected
+db1.t1	analyze	status	OK
+explain format=json select * from t1 a, t1 b where a.c1 < 3 and b.c1 < 333;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": 0.419766996,
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "a",
+          "access_type": "range",
+          "possible_keys": ["c1"],
+          "key": "c1",
+          "key_length": "5",
+          "used_key_parts": ["c1"],
+          "loops": 1,
+          "rows": 2,
+          "cost": 0.00606232,
+          "filtered": 100,
+          "index_condition": "a.c1 < 3"
+        }
+      },
+      {
+        "block-nl-join": {
+          "table": {
+            "table_name": "b",
+            "access_type": "range",
+            "possible_keys": ["c1"],
+            "key": "c1",
+            "key_length": "5",
+            "used_key_parts": ["c1"],
+            "loops": 2,
+            "rows": 332,
+            "cost": 0.413704676,
+            "filtered": 100,
+            "index_condition": "b.c1 < 333",
+            "attached_condition": "b.c1 < 333"
+          },
+          "buffer_type": "flat",
+          "buffer_size": "119",
+          "join_type": "BNL"
+        }
+      }
+    ]
+  }
+}
+set @trace= (select trace from information_schema.optimizer_trace);
+set @opt_context=json_pretty(json_extract(
+json_extract(@trace, "$**.optimizer_context"),
+'$[0]'
+                      ));
+#
+# even after truncating the table, the above query
+# should get the same plan with same cost estimates
+#
+truncate table t1;
+set optimizer_replay_context=@opt_context;
+explain format=json select * from t1 a, t1 b where a.c1 < 3 and b.c1 < 333;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": 0.419766996,
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "a",
+          "access_type": "range",
+          "possible_keys": ["c1"],
+          "key": "c1",
+          "key_length": "5",
+          "used_key_parts": ["c1"],
+          "loops": 1,
+          "rows": 2,
+          "cost": 0.00606232,
+          "filtered": 100,
+          "index_condition": "a.c1 < 3"
+        }
+      },
+      {
+        "block-nl-join": {
+          "table": {
+            "table_name": "b",
+            "access_type": "range",
+            "possible_keys": ["c1"],
+            "key": "c1",
+            "key_length": "5",
+            "used_key_parts": ["c1"],
+            "loops": 2,
+            "rows": 332,
+            "cost": 0.413704676,
+            "filtered": 100,
+            "index_condition": "b.c1 < 333",
+            "attached_condition": "b.c1 < 333"
+          },
+          "buffer_type": "flat",
+          "buffer_size": "119",
+          "join_type": "BNL"
+        }
+      }
+    ]
+  }
+}
+set optimizer_replay_context="";
+#
+# run a range query on an empty table,
+# and rerun the same query by setting the context from previous query
+#
+truncate table t1;
+explain format=json select * from t1 a, t1 b where a.c1 < 3 and b.c1 < 333;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": 0.008653092,
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "a",
+          "access_type": "range",
+          "possible_keys": ["c1"],
+          "key": "c1",
+          "key_length": "5",
+          "used_key_parts": ["c1"],
+          "loops": 1,
+          "rows": 1,
+          "cost": 0.00424968,
+          "filtered": 100,
+          "index_condition": "a.c1 < 3"
+        }
+      },
+      {
+        "block-nl-join": {
+          "table": {
+            "table_name": "b",
+            "access_type": "range",
+            "possible_keys": ["c1"],
+            "key": "c1",
+            "key_length": "5",
+            "used_key_parts": ["c1"],
+            "loops": 1,
+            "rows": 1,
+            "cost": 0.004403412,
+            "filtered": 100,
+            "index_condition": "b.c1 < 333",
+            "attached_condition": "b.c1 < 333"
+          },
+          "buffer_type": "flat",
+          "buffer_size": "119",
+          "join_type": "BNL"
+        }
+      }
+    ]
+  }
+}
+set @trace= (select trace from information_schema.optimizer_trace);
+set @opt_context=json_pretty(json_extract(
+json_extract(@trace, "$**.optimizer_context"),
+'$[0]'
+                      ));
+#
+# now, populate the table and rerun query with previous query context
+# should get the same plan with same cost estimates
+#
+insert into t1 select seq, seq from seq_1_to_10000;
+analyze table t1;
+Table	Op	Msg_type	Msg_text
+db1.t1	analyze	status	Engine-independent statistics collected
+db1.t1	analyze	status	OK
+set optimizer_replay_context=@opt_context;
+explain format=json select * from t1 a, t1 b where a.c1 < 3 and b.c1 < 333;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": 0.008653092,
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "a",
+          "access_type": "range",
+          "possible_keys": ["c1"],
+          "key": "c1",
+          "key_length": "5",
+          "used_key_parts": ["c1"],
+          "loops": 1,
+          "rows": 1,
+          "cost": 0.00424968,
+          "filtered": 100,
+          "index_condition": "a.c1 < 3"
+        }
+      },
+      {
+        "block-nl-join": {
+          "table": {
+            "table_name": "b",
+            "access_type": "range",
+            "possible_keys": ["c1"],
+            "key": "c1",
+            "key_length": "5",
+            "used_key_parts": ["c1"],
+            "loops": 1,
+            "rows": 1,
+            "cost": 0.004403412,
+            "filtered": 100,
+            "index_condition": "b.c1 < 333",
+            "attached_condition": "b.c1 < 333"
+          },
+          "buffer_type": "flat",
+          "buffer_size": "119",
+          "join_type": "BNL"
+        }
+      }
+    ]
+  }
+}
+#
+# now, reset replay context and rerun the query
+#
+set optimizer_replay_context="";
+explain format=json select * from t1 a, t1 b where a.c1 < 3 and b.c1 < 333;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": 0.419766996,
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "a",
+          "access_type": "range",
+          "possible_keys": ["c1"],
+          "key": "c1",
+          "key_length": "5",
+          "used_key_parts": ["c1"],
+          "loops": 1,
+          "rows": 2,
+          "cost": 0.00606232,
+          "filtered": 100,
+          "index_condition": "a.c1 < 3"
+        }
+      },
+      {
+        "block-nl-join": {
+          "table": {
+            "table_name": "b",
+            "access_type": "range",
+            "possible_keys": ["c1"],
+            "key": "c1",
+            "key_length": "5",
+            "used_key_parts": ["c1"],
+            "loops": 2,
+            "rows": 332,
+            "cost": 0.413704676,
+            "filtered": 100,
+            "index_condition": "b.c1 < 333",
+            "attached_condition": "b.c1 < 333"
+          },
+          "buffer_type": "flat",
+          "buffer_size": "119",
+          "join_type": "BNL"
+        }
+      }
+    ]
+  }
+}
+drop table t1;
+drop database db1;

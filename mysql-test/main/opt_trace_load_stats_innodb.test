@@ -1,0 +1,116 @@
+--source include/not_embedded.inc
+--source include/have_sequence.inc
+--source include/have_innodb.inc
+set optimizer_record_context=ON;
+set optimizer_trace=1;
+
+create database db1;
+use db1;
+
+create table t1 (
+    c1 int,
+    c2 int,
+    index(c1),
+    index(c2)
+) ENGINE=InnoDB;
+
+insert into t1 select seq, seq from seq_1_to_1000;
+
+analyze table t1;
+
+--echo #
+--echo # run a query with two different ranges on the same index
+--echo # record stats and re-run same query
+--echo #
+set optimizer_replay_context="";
+
+explain format=json select * from t1 a, t1 b where a.c1 < 3 and b.c1 < 333 and a.c2 < 3 and b.c2 < 333;
+set @saved_opt_context=
+  (select json_pretty(json_extract(
+                        json_extract(trace, "$**.optimizer_context"),
+                        '$[0]'
+                      )
+  )
+  from information_schema.optimizer_trace);
+
+select @saved_opt_context;
+
+truncate table t1;
+set optimizer_replay_context=@saved_opt_context;
+explain format=json select * from t1 a, t1 b where a.c1 < 3 and b.c1 < 333 and a.c2 < 3 and b.c2 < 333;
+
+--echo #
+--echo # now, with the same replay context from above query,
+--echo # run different queries with subset of the ranges from above query
+--echo # there should be no warnings
+--echo #
+
+explain format=json select * from t1 a, t1 b where a.c1 < 3 and b.c2 < 333;
+
+explain format=json select * from t1 a, t1 b where a.c2 < 3 and b.c1 < 333;
+
+set optimizer_replay_context="";
+drop table t1;
+
+--echo #
+--echo # run a range query on a table, then truncate the table,
+--echo # and rerun the same query by setting the context from previous query
+--echo #
+create table t1 (c1 int, c2 int, index(c1)) engine=innodb;
+insert into t1 select seq, seq from seq_1_to_10000;
+analyze table t1;
+
+explain format=json select * from t1 a, t1 b where a.c1 < 3 and b.c1 < 333;
+set @trace= (select trace from information_schema.optimizer_trace);
+
+set @opt_context=json_pretty(json_extract(
+                       json_extract(@trace, "$**.optimizer_context"),
+                       '$[0]'
+                      ));
+
+--echo #
+--echo # even after truncating the table, the above query
+--echo # should get the same plan with same cost estimates
+--echo #
+truncate table t1;
+set optimizer_replay_context=@opt_context;
+
+explain format=json select * from t1 a, t1 b where a.c1 < 3 and b.c1 < 333;
+
+set optimizer_replay_context="";
+
+--echo #
+--echo # run a range query on an empty table,
+--echo # and rerun the same query by setting the context from previous query
+--echo #
+truncate table t1;
+explain format=json select * from t1 a, t1 b where a.c1 < 3 and b.c1 < 333;
+set @trace= (select trace from information_schema.optimizer_trace);
+
+set @opt_context=json_pretty(json_extract(
+                       json_extract(@trace, "$**.optimizer_context"),
+                       '$[0]'
+                      ));
+
+--echo #
+--echo # now, populate the table and rerun query with previous query context
+--echo # should get the same plan with same cost estimates
+--echo #
+
+insert into t1 select seq, seq from seq_1_to_10000;
+
+analyze table t1;
+
+set optimizer_replay_context=@opt_context;
+
+explain format=json select * from t1 a, t1 b where a.c1 < 3 and b.c1 < 333;
+
+--echo #
+--echo # now, reset replay context and rerun the query
+--echo #
+set optimizer_replay_context="";
+explain format=json select * from t1 a, t1 b where a.c1 < 3 and b.c1 < 333;
+
+drop table t1;
+
+drop database db1;

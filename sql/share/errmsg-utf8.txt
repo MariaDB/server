@@ -12332,3 +12332,7 @@ ER_INIT_SLAVE_ERROR
         eng "Slave SQL thread aborted. Can't execute init_slave query due to error code %u: %s"
 ER_ACTIVE_CONNECTIONS_FOR_USER_TO_DROP
         eng "Dropped users %s have active connections. Use KILL CONNECTION if they should not be used anymore."
+ER_JSON_OPTIMIZER_REPLAY_CONTEXT_PARSE_FAILED
+        eng "Failed to parse json structure present in the optimizer_replay_context variable: %s at offset %d."
+ER_JSON_OPTIMIZER_REPLAY_CONTEXT_MATCH_FAILED
+        eng "Failed to match the stats from replay context with the optimizer stats: %s doesn't exist in %s"
