@@ -7119,9 +7119,12 @@ dbug_gtid_accept:
          (uchar)buf[EVENT_TYPE_OFFSET] != STOP_EVENT))
     {
       mi->master_log_pos+= inc_pos;
-      memcpy(rli->ign_master_log_name_end, mi->master_log_name, FN_REFLEN);
-      DBUG_ASSERT(rli->ign_master_log_name_end[0]);
-      rli->ign_master_log_pos_end= mi->master_log_pos;
+      if (!mi->binlog_storage_engine)
+      {
+        memcpy(rli->ign_master_log_name_end, mi->master_log_name, FN_REFLEN);
+        DBUG_ASSERT(rli->ign_master_log_name_end[0]);
+        rli->ign_master_log_pos_end= mi->master_log_pos;
+      }
       if (got_gtid_event)
         rli->ign_gtids.update(&event_gtid);
     }
