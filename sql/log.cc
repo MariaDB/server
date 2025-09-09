@@ -4108,6 +4108,7 @@ bool MYSQL_BIN_LOG::open(const char *log_name,
   xid_count_per_binlog *new_xid_list_entry= NULL, *b;
   DBUG_ENTER("MYSQL_BIN_LOG::open");
 
+  DBUG_ASSERT(is_relay_log || !opt_binlog_engine_hton);
   mysql_mutex_assert_owner(&LOCK_log);
 
   if (!is_relay_log)
@@ -8614,6 +8615,7 @@ int MYSQL_BIN_LOG::rotate(bool force_rotate, bool* check_purge)
   int error= 0;
   ulonglong binlog_pos;
   DBUG_ENTER("MYSQL_BIN_LOG::rotate");
+  DBUG_ASSERT(!opt_binlog_engine_hton);
 
 #ifdef WITH_WSREP
   if (WSREP_ON && wsrep_to_isolation)
@@ -9410,6 +9412,7 @@ MYSQL_BIN_LOG::write_transaction_to_binlog(THD *thd,
     if (likely(ha_info->is_started()))
     {
       if (has_xid && ha_info->ht() != binlog_hton &&
+          ha_info->is_trx_read_write() &&
           !ha_info->ht()->commit_checkpoint_request)
         entry.need_unlog= true;
       if (ha_info->ht() == opt_binlog_engine_hton)
