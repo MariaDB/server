@@ -31,32 +31,17 @@ let $MASTER_1_SET_OK_STATUS_AS_2_1=
 let $MASTER_1_COPY_TABLES_2_1=
   SELECT spider_copy_tables('ta_l', '0', '1');
 
-if ($VERSION_COMPILE_OS_WIN)
-{
-  let $MASTER_1_COMMENT_HA_2_1=
-    COMMENT='port "$CHILD2_1_MYPORT $CHILD2_2_MYPORT", table "ta_r ta_r3"'
-    CONNECTION='host "localhost", user "root", password "",
-    msi "$CHILD3_1_SERVER_ID", mkd "2",
-    database "auto_test_remote auto_test_remote2"';
-  let $MASTER_1_COMMENT_HA_AS_2_1=
-    COMMENT='port "$CHILD2_1_MYPORT $CHILD2_2_MYPORT", table "ta_r ta_r3"'
-    CONNECTION='host "localhost", user "root", password "",
-    msi "$CHILD3_1_SERVER_ID", mkd "2", alc "1",
-    database "auto_test_remote auto_test_remote2"';
-}
-if (!$VERSION_COMPILE_OS_WIN)
-{
-  let $MASTER_1_COMMENT_HA_2_1=
-    COMMENT='socket "$CHILD2_1_MYSOCK $CHILD2_2_MYSOCK", table "ta_r ta_r3"'
-    CONNECTION='host "localhost", user "root", password "",
-    msi "$CHILD3_1_SERVER_ID", mkd "2",
-    database "auto_test_remote auto_test_remote2"';
-  let $MASTER_1_COMMENT_HA_AS_2_1=
-    COMMENT='socket "$CHILD2_1_MYSOCK $CHILD2_2_MYSOCK", table "ta_r ta_r3"'
-    CONNECTION='host "localhost", user "root", password "",
-    msi "$CHILD3_1_SERVER_ID", mkd "2", alc "1",
-    database "auto_test_remote auto_test_remote2"';
-}
+
+let $MASTER_1_COMMENT_HA_2_1=
+COMMENT='socket "$CHILD2_1_MYSOCK $CHILD2_2_MYSOCK", table "ta_r ta_r3"'
+CONNECTION='host "localhost", user "root", password "",
+msi "$CHILD3_1_SERVER_ID", mkd "2",
+database "auto_test_remote auto_test_remote2"';
+let $MASTER_1_COMMENT_HA_AS_2_1=
+COMMENT='socket "$CHILD2_1_MYSOCK $CHILD2_2_MYSOCK", table "ta_r ta_r3"'
+CONNECTION='host "localhost", user "root", password "",
+msi "$CHILD3_1_SERVER_ID", mkd "2", alc "1",
+database "auto_test_remote auto_test_remote2"';
 let $MASTER_1_COMMENT_HA_P_2_1=
   COMMENT='msi "$CHILD3_1_SERVER_ID", mkd "2"'
   PARTITION BY KEY(a) (

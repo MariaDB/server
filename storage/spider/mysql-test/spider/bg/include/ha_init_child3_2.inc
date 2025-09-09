@@ -34,56 +34,29 @@ let $CHILD3_2_SET_OK_STATUS_AS_2_1=
 
 let $CHILD3_2_DROP_TABLES_HA_2_1=
   DROP TABLE IF EXISTS ta_l;
-if ($VERSION_COMPILE_OS_WIN)
-{
-  let $CHILD3_2_CREATE_TABLES_HA_2_1=
-    CREATE TABLE ta_l (
-      a INT DEFAULT 10,
-      b CHAR(1) DEFAULT 'c',
-      c DATETIME DEFAULT '1999-10-10 10:10:10',
-      PRIMARY KEY(a)
-    ) $CHILD3_2_ENGINE $CHILD3_2_CHARSET
-    COMMENT='port "$CHILD2_1_MYPORT $CHILD2_2_MYPORT", table "ta_r ta_r3"'
-    CONNECTION='host "localhost", user "root", password "",
-    msi "$CHILD3_1_SERVER_ID", mkd "2",
-    database "auto_test_remote auto_test_remote2"';
-  let $CHILD3_2_CREATE_TABLES_HA_AS_2_1=
-    CREATE TABLE ta_l (
-      a INT DEFAULT 10,
-      b CHAR(1) DEFAULT 'c',
-      c DATETIME DEFAULT '1999-10-10 10:10:10',
-      PRIMARY KEY(a)
-    ) $CHILD3_2_ENGINE $CHILD3_2_CHARSET
-    COMMENT='port "$CHILD2_1_MYPORT $CHILD2_2_MYPORT", table "ta_r ta_r3"'
-    CONNECTION='host "localhost", user "root", password "",
-    msi "$CHILD3_1_SERVER_ID", mkd "2", alc "1",
-    database "auto_test_remote auto_test_remote2"';
-}
-if (!$VERSION_COMPILE_OS_WIN)
-{
-  let $CHILD3_2_CREATE_TABLES_HA_2_1=
-    CREATE TABLE ta_l (
-      a INT DEFAULT 10,
-      b CHAR(1) DEFAULT 'c',
-      c DATETIME DEFAULT '1999-10-10 10:10:10',
-      PRIMARY KEY(a)
-    ) $CHILD3_2_ENGINE $CHILD3_2_CHARSET
-    COMMENT='socket "$CHILD2_1_MYSOCK $CHILD2_2_MYSOCK", table "ta_r ta_r3"'
-    CONNECTION='host "localhost", user "root", password "",
-    msi "$CHILD3_1_SERVER_ID", mkd "2",
-    database "auto_test_remote auto_test_remote2"';
-  let $CHILD3_2_CREATE_TABLES_HA_AS_2_1=
-    CREATE TABLE ta_l (
-      a INT DEFAULT 10,
-      b CHAR(1) DEFAULT 'c',
-      c DATETIME DEFAULT '1999-10-10 10:10:10',
-      PRIMARY KEY(a)
-    ) $CHILD3_2_ENGINE $CHILD3_2_CHARSET
-    COMMENT='socket "$CHILD2_1_MYSOCK $CHILD2_2_MYSOCK", table "ta_r ta_r3"'
-    CONNECTION='host "localhost", user "root", password "",
-    msi "$CHILD3_1_SERVER_ID", mkd "2", alc "1",
-    database "auto_test_remote auto_test_remote2"';
-}
+
+let $CHILD3_2_CREATE_TABLES_HA_2_1=
+CREATE TABLE ta_l (
+a INT DEFAULT 10,
+b CHAR(1) DEFAULT 'c',
+c DATETIME DEFAULT '1999-10-10 10:10:10',
+PRIMARY KEY(a)
+) $CHILD3_2_ENGINE $CHILD3_2_CHARSET
+COMMENT='socket "$CHILD2_1_MYSOCK $CHILD2_2_MYSOCK", table "ta_r ta_r3"'
+CONNECTION='host "localhost", user "root", password "",
+msi "$CHILD3_1_SERVER_ID", mkd "2",
+database "auto_test_remote auto_test_remote2"';
+let $CHILD3_2_CREATE_TABLES_HA_AS_2_1=
+CREATE TABLE ta_l (
+a INT DEFAULT 10,
+b CHAR(1) DEFAULT 'c',
+c DATETIME DEFAULT '1999-10-10 10:10:10',
+PRIMARY KEY(a)
+) $CHILD3_2_ENGINE $CHILD3_2_CHARSET
+COMMENT='socket "$CHILD2_1_MYSOCK $CHILD2_2_MYSOCK", table "ta_r ta_r3"'
+CONNECTION='host "localhost", user "root", password "",
+msi "$CHILD3_1_SERVER_ID", mkd "2", alc "1",
+database "auto_test_remote auto_test_remote2"';
 let $CHILD3_2_DROP_TABLES_HA_P_2_1=
   DROP TABLE IF EXISTS ta_l2;
 let $CHILD3_2_CREATE_TABLES_HA_P_2_1=

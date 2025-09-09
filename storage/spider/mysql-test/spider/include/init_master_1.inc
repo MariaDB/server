@@ -1,34 +1,16 @@
 --source ../include/init_spider.inc
 SET spider_direct_order_limit= 10000;
 SET spider_init_sql_alloc_size= 1;
-if ($VERSION_COMPILE_OS_WIN)
-{
-  let $MASTER_1_COMMENT_2_1=
-    COMMENT='database "auto_test_remote", table "ta_r"'
-    CONNECTION='host "localhost", port "$CHILD2_1_MYPORT", user "root",
-    password ""';
-}
-if (!$VERSION_COMPILE_OS_WIN)
-{
-  let $MASTER_1_COMMENT_2_1=
-    COMMENT='database "auto_test_remote", table "ta_r"'
-    CONNECTION='host "localhost", socket "$CHILD2_1_MYSOCK", user "root",
-    password ""';
-}
-if ($VERSION_COMPILE_OS_WIN)
-{
-  let $MASTER_1_COMMENT2_2_1=
-    COMMENT='database "auto_test_remote", table "ta_r_no_idx"'
-    CONNECTION='host "localhost", port "$CHILD2_1_MYPORT", user "root",
-    password "", prt "2000000"';
-}
-if (!$VERSION_COMPILE_OS_WIN)
-{
-  let $MASTER_1_COMMENT2_2_1=
-    COMMENT='database "auto_test_remote", table "ta_r_no_idx"'
-    CONNECTION='host "localhost", socket "$CHILD2_1_MYSOCK", user "root",
-    password "", prt "2000000"';
-}
+
+let $MASTER_1_COMMENT_2_1=
+COMMENT='database "auto_test_remote", table "ta_r"'
+CONNECTION='host "localhost", socket "$CHILD2_1_MYSOCK", user "root",
+password ""';
+
+let $MASTER_1_COMMENT2_2_1=
+COMMENT='database "auto_test_remote", table "ta_r_no_idx"'
+CONNECTION='host "localhost", socket "$CHILD2_1_MYSOCK", user "root",
+password "", prt "2000000"';
 let $MASTER_1_COMMENT_P_2_1=
   COMMENT='table "ta_r3"'
   PARTITION BY KEY(a) (
@@ -44,20 +26,11 @@ let $MASTER_1_COMMENT2_P_2_1=
     PARTITION pt2 VALUES LESS THAN MAXVALUE
     COMMENT='srv "s_2_2", priority "1000001"'
   );
-if ($VERSION_COMPILE_OS_WIN)
-{
-  let $MASTER_1_COMMENT3_2_1=
-    COMMENT='database "auto_test_remote", table "ta_r_auto_inc"'
-    CONNECTION='host "localhost", port "$CHILD2_1_MYPORT", user "root",
-    password ""';
-}
-if (!$VERSION_COMPILE_OS_WIN)
-{
-  let $MASTER_1_COMMENT3_2_1=
-    COMMENT='database "auto_test_remote", table "ta_r_auto_inc"'
-    CONNECTION='host "localhost", socket "$CHILD2_1_MYSOCK", user "root",
-    password ""';
-}
+
+let $MASTER_1_COMMENT3_2_1=
+COMMENT='database "auto_test_remote", table "ta_r_auto_inc"'
+CONNECTION='host "localhost", socket "$CHILD2_1_MYSOCK", user "root",
+password ""';
 let $MASTER_1_COMMENT3_P_2_1=
   COMMENT='table "ta_r_int"'
   PARTITION BY LIST(MOD(a, 2)) (
@@ -66,52 +39,25 @@ let $MASTER_1_COMMENT3_P_2_1=
     PARTITION pt2 VALUES IN (1)
     COMMENT='srv "s_2_2", priority "1000001"'
   );
-if ($VERSION_COMPILE_OS_WIN)
-{
-  let $MASTER_1_COMMENT4_2_1=
-    COMMENT='database "auto_test_remote", table "ta_r_int"'
-    CONNECTION='host "localhost", port "$CHILD2_1_MYPORT", user "root",
-    password ""';
-}
-if (!$VERSION_COMPILE_OS_WIN)
-{
-  let $MASTER_1_COMMENT4_2_1=
-    COMMENT='database "auto_test_remote", table "ta_r_int"'
-    CONNECTION='host "localhost", socket "$CHILD2_1_MYSOCK", user "root",
-    password ""';
-}
-if ($VERSION_COMPILE_OS_WIN)
-{
-  let $MASTER_1_COMMENT5_2_1=
-    COMMENT='database "auto_test_remote", table "ta_r_3"'
-    CONNECTION='host "localhost", port "$CHILD2_1_MYPORT", user "root",
-    password ""';
-}
-if (!$VERSION_COMPILE_OS_WIN)
-{
-  let $MASTER_1_COMMENT5_2_1=
-    COMMENT='database "auto_test_remote", table "ta_r_3"'
-    CONNECTION='host "localhost", socket "$CHILD2_1_MYSOCK", user "root",
-    password ""';
-}
+
+let $MASTER_1_COMMENT4_2_1=
+COMMENT='database "auto_test_remote", table "ta_r_int"'
+CONNECTION='host "localhost", socket "$CHILD2_1_MYSOCK", user "root",
+password ""';
+
+let $MASTER_1_COMMENT5_2_1=
+COMMENT='database "auto_test_remote", table "ta_r_3"'
+CONNECTION='host "localhost", socket "$CHILD2_1_MYSOCK", user "root",
+password ""';
 let $MASTER_1_COMMENT6_P_1_1=
   COMMENT='database "auto_test_remote", table "ta_ob"'
   PARTITION BY LIST COLUMNS (e) PARTITIONS 1
   (PARTITION pt1 values in (510411) COMMENT = 'srv "s_2_1"');
-if ($VERSION_COMPILE_OS_WIN)
-{
-  let $MASTER_1_COMMENT_FT_2_1=
-    COMMENT='database "auto_test_remote", table "ft_r"'
-    CONNECTION='host "localhost", port "$CHILD2_1_MYPORT", user "root",
-    password ""';
-}
-if (!$VERSION_COMPILE_OS_WIN)
-{
-  let $MASTER_1_COMMENT_FT_2_1=
-    COMMENT='database "auto_test_remote", table "ft_r"'
-    CONNECTION='host "localhost", socket "$CHILD2_1_MYSOCK", user "root",
-    password ""';
-}
+
+let $MASTER_1_COMMENT_FT_2_1=
+COMMENT='database "auto_test_remote", table "ft_r"'
+CONNECTION='host "localhost", socket "$CHILD2_1_MYSOCK", user "root",
+password ""';
 let $MASTER_1_COMMENT2_FT_P_2_1=
   COMMENT='table "ft_r3"'
   PARTITION BY RANGE(a) (
