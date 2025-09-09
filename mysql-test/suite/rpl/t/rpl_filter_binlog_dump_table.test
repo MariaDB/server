@@ -24,7 +24,10 @@
 
 connection master;
 
---echo # On master: create two databases and insert data
+
+SET @@default_storage_engine='innodb';
+
+--echo # On master: create two tables and insert data
 CREATE TABLE t1 (id INT PRIMARY KEY, data VARCHAR(50));
 CREATE TABLE t2 (id INT PRIMARY KEY, data VARCHAR(50));
 INSERT INTO t1 VALUES (1, 'row in t1');
@@ -33,8 +36,6 @@ INSERT INTO t2 VALUES (1, 'row in t2');
 --echo # Capture current binlog file name
 --let $binlog_file= SELECT @@global.log_bin_basename
 --let $binlog_index= query_get_value(SHOW MASTER STATUS, File, 1)
-
-SET @@default_storage_engine='innodb';
 
 --echo # Find relay log file on slave
 connection slave;
@@ -79,3 +80,4 @@ connection master;
 DROP TABLE t1;
 DROP TABLE t2;
 --source include/rpl_end.inc
+--echo # End of rpl_filter_binlog_dump_table.test

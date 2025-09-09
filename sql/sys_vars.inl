@@ -835,9 +835,7 @@ public:
   bool do_check(THD *thd, set_var *var) override
 
   {
-
     DBUG_ASSERT(FALSE);
-
     return true;
 
   }

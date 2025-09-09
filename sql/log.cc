@@ -1892,11 +1892,16 @@ binlog_commit_flush_stmt_cache(THD *thd, bool all,
 
   Query_log_event end_evt(thd, STRING_WITH_LEN("COMMIT"),
                           FALSE, TRUE, TRUE, 0);
-
+  /* 
+    When all events in the transaction are filtered by binlog_dump_* rules,
+    we also need to mark the GTID and END event to be skipped. 
+    This prevents writing the end event on its own with no prior event
+    group if everything prior to it is filtered.
+  */
   if (cache_mngr)
   {
     binlog_cache_data* cache_data= cache_mngr->get_binlog_cache_data(true);
-    if (cache_data && cache_data->skip_cache_status == binlog_cache_data::CACHE_SKIP_ALL)
+    if (cache_data && cache_data->event_group_rpl_filter)
     {
       end_evt.flags|= LOG_EVENT_SKIP_REPLICATION_F;
     }
@@ -1947,11 +1952,16 @@ binlog_commit_flush_trx_cache(THD *thd, bool all, binlog_cache_mngr *cache_mngr,
                                buf, query, q_len);
   }
   Query_log_event end_evt(thd, buf, buflen, TRUE, TRUE, TRUE, 0);
-
+  /*
+    When all events in the transaction are filtered by binlog_dump_* rules,
+    we also need to mark the GTID and END event to be skipped. 
+    This prevents writing the end event on its own with no prior event
+    group if everything prior to it is filtered.
+  */
   if (cache_mngr)
   {
     binlog_cache_data* cache_data= cache_mngr->get_binlog_cache_data(true);
-    if (cache_data && cache_data->skip_cache_status == binlog_cache_data::CACHE_SKIP_ALL)
+    if (cache_data && cache_data->event_group_rpl_filter)
     {
       end_evt.flags|= LOG_EVENT_SKIP_REPLICATION_F;
     }
@@ -2020,11 +2030,16 @@ binlog_commit_flush_xid_caches(THD *thd, binlog_cache_mngr *cache_mngr,
     my_hrtime_t hrtime= my_hrtime();
     end_evt.when= hrtime_to_my_time(hrtime);
   }
-
+  /*
+    When all events in the transaction are filtered by binlog_dump_* rules,
+    we also need to mark the GTID and END event to be skipped. 
+    This prevents writing the end event on its own with no prior event
+    group if everything prior to it is filtered.
+  */
   if (cache_mngr)
   {
     binlog_cache_data* cache_data= cache_mngr->get_binlog_cache_data(true);
-    if (cache_data && cache_data->skip_cache_status == binlog_cache_data::CACHE_SKIP_ALL)
+    if (cache_data && cache_data->event_group_rpl_filter)
     {
       end_evt.flags|= LOG_EVENT_SKIP_REPLICATION_F;
     }
@@ -6345,9 +6360,10 @@ bool stmt_has_updated_non_trans_table(const THD* thd)
 /**
   Updates the skip status of the binlog cache based on the current event.
 
-  If the event has the LOG_EVENT_SKIP_REPLICATION_F flag set, the cache is marked
-  as skippable (CACHE_SKIP_ALL). Otherwise, it is marked as non-skippable (CACHE_SKIP_NONE),
-  indicating that at least one event must be replicated later when the transaction is committed and
+  If the event has the LOG_EVENT_SKIP_REPLICATION_F flag set, 
+  the cache is marked as skippable (CACHE_SKIP_ALL). Otherwise, it is
+  marked as non-skippable (CACHE_SKIP_NONE), indicating that at least 
+  one event must be replicated later when the transaction is committed and
   the GTID_EVENT is to be written inside write_gtid_event()
 
   @param ev          The binlog event to evaluate.
@@ -6360,18 +6376,15 @@ void update_event_cache_skip(Log_event* ev, binlog_cache_data* cache_data)
   {
     if ((ev->flags & LOG_EVENT_SKIP_REPLICATION_F))
     {
-      /* First event or still undecided, assume all events so far are skippable */
-      if (cache_data->skip_cache_status != binlog_cache_data::CACHE_SKIP_NONE)
+      /* 
+        First event or still undecided, 
+         assume all events so far are skippable
+      */
+      if (!cache_data->event_group_rpl_filter)
       {
-        cache_data->skip_cache_status= binlog_cache_data::CACHE_SKIP_ALL;
+        cache_data->event_group_rpl_filter= true;
         DBUG_PRINT("info", ("Event has LOG_EVENT_SKIP_REPLICATION_F, setting CACHE_SKIP_ALL"));
       }
-    }
-    else
-    {
-      /* Found an event that must not be skipped, mark the whole cache as non-skippable */
-      cache_data->skip_cache_status= binlog_cache_data::CACHE_SKIP_NONE;
-      DBUG_PRINT("info", ("Event does not have LOG_EVENT_SKIP_REPLICATION_F, setting CACHE_SKIP_NONE"));
     }
   }
   DBUG_VOID_RETURN;
@@ -6685,39 +6698,59 @@ bool THD::binlog_write_table_maps()
 
   bool filter_all_tables= false;
 
-  for (MYSQL_LOCK **cur_lock= locks ; cur_lock < locks_end ; cur_lock++)
+  /*
+
+    In case any of the binlog_dump_* rules are on then we loop over the tables
+    twice
+
+    - First pass: just to check if any table is filtered by the 
+      binlog_dump_* rules. If even one table is filtered, 
+      we flag the whole transaction to be skipped (GTID, table 
+      maps, row events, commit, everything). We need to know this 
+      before writing any TABLE_MAP events.
+
+    - Second pass: actually writes all of the TABLE_MAP events for the tables.
+
+  */
+  if (binlog_dump_filter->is_on() || !binlog_dump_filter->is_db_empty()) 
   {
-    TABLE **const end_ptr= (*cur_lock)->table + (*cur_lock)->table_count;
-    for (TABLE **table_ptr= (*cur_lock)->table;
-         table_ptr != end_ptr ;
-         ++table_ptr)
-    {
-      TABLE *table= *table_ptr;
-
-      const char* db= table->s->db.str;
-      bool should_replicate_db= binlog_dump_filter->db_ok(db);
-      bool should_replicate_table= binlog_dump_filter->table_ok(db, table->alias.c_ptr());
-
-      /* 
-        If a single table map event is affected and NOT replicated (should get filtered) then every other
-        table map event (and as a consequence all other corresponding *_ROWS_EVENTs) should also get filtered
-        as well as the ANNOTATE_EVENT ... this will skip the whole transaction starting from GTID_EVENT which should
-        check the cache isnide write_gtid_event and realize that everything in the cache has the skip flag so it would 
-        also get filtered (same thing with the end events such as XID COMMIT or QUERY EVENT with COMMIT string and ROLLBACK
-        
-        Basically a single table affected by not being replicated should skip the whole transaction being binlogged with
-        the filtering 
-      */
-      if(!should_replicate_db || !should_replicate_table)
+      for (MYSQL_LOCK **cur_lock= locks ; cur_lock < locks_end ; cur_lock++)
       {
-        filter_all_tables= true;
-        break;
-      }
+        TABLE **const end_ptr= (*cur_lock)->table + (*cur_lock)->table_count;
+        for (TABLE **table_ptr= (*cur_lock)->table;
+            table_ptr != end_ptr ;
+            ++table_ptr)
+        {
+          TABLE *table= *table_ptr;
 
-    }
+          const char* db= table->s->db.str;
+          bool should_replicate_db= binlog_dump_filter->db_ok(db);
+          bool should_replicate_table= binlog_dump_filter->table_ok(db, table->alias.c_ptr());
+
+          /* 
+            If a single table map event is affected and NOT replicated should 
+            get filtered) then every other table map event (and as a 
+            consequence all other corresponding *_ROWS_EVENTs) should also get
+            filtered as well as the ANNOTATE_EVENT ... this will skip the 
+            whole transaction starting from GTID_EVENT which should check the
+            cache isnide write_gtid_event and realize that everything in the 
+            cache has the skip flag so it would also get filtered 
+            (same thing with the end events such as XID COMMIT or QUERY EVENT 
+            with COMMIT string and ROLLBACK
+            
+            Basically a single table affected by not being replicated should 
+            skip the whole transaction being binlogged with the filtering
+          */
+          if(!should_replicate_db || !should_replicate_table)
+          {
+            filter_all_tables= true;
+            break;
+          }
+
+        }
+      }
   }
 
-
   for (MYSQL_LOCK **cur_lock= locks ; cur_lock < locks_end ; cur_lock++)
   {
     TABLE **const end_ptr= (*cur_lock)->table + (*cur_lock)->table_count;
@@ -6726,7 +6759,6 @@ bool THD::binlog_write_table_maps()
          ++table_ptr)
     {
       TABLE *table= *table_ptr;
-
       bool restore= 0;
       /*
         We have to also write table maps for tables that have not yet been
@@ -6816,7 +6848,7 @@ bool MYSQL_BIN_LOG::write_table_map(THD *thd, TABLE *table, bool with_annotate, 
   if (skip_all_events)
   {
     the_event.flags|= LOG_EVENT_SKIP_REPLICATION_F;
-    cache_data->skip_cache_status= binlog_cache_data::CACHE_SKIP_ALL;
+    cache_data->event_group_rpl_filter= true;
   }
 
   if (unlikely((error= writer.write(&the_event))))
@@ -7085,7 +7117,7 @@ Event_log::prepare_pending_rows_event(THD *thd, TABLE* table,
         If the ANNOTATE and TABLE_MAPS have been filtered earlier using binlog_dump_* then 
         all events including the *_ROWS_EVENTs should get filtered as well
       */
-      if (cache_data && cache_data->skip_cache_status == binlog_cache_data::CACHE_SKIP_ALL)
+      if (cache_data && cache_data->event_group_rpl_filter)
         ev->flags|= LOG_EVENT_SKIP_REPLICATION_F;
     }
   
@@ -7168,8 +7200,10 @@ MYSQL_BIN_LOG::write_gtid_event(THD *thd, bool standalone,
   /* 
     We might add the skip flag to the GTID_EVENT in one of the 
     following two cases: 
-      is_transactional = true (this means the events passed through cache not direct binlogging)
-      is_transactional = false (this means this is a standalone GTID_EVENT with only a single event following it next)
+      is_transactional = true (this means the events passed through cache not 
+                              direct binlogging)
+      is_transactional = false (this means this is a standalone GTID_EVENT 
+                                with only a single event following it next)
   */
   if (is_transactional)
   {
@@ -7179,22 +7213,26 @@ MYSQL_BIN_LOG::write_gtid_event(THD *thd, bool standalone,
         GTID_EVENTs that would be treated as an incomplete event group
       */
       binlog_cache_mngr* cache_mngr= thd->binlog_get_cache_mngr();
-      if (cache_mngr) 
+      if (cache_mngr)
       {
-        binlog_cache_data* cache_data= cache_mngr->get_binlog_cache_data(is_transactional);
-        if (cache_data && cache_data->skip_cache_status == binlog_cache_data::CACHE_SKIP_ALL)
-        {
-          DBUG_PRINT("info", ("GTID_EVENT: skip_cache_status == CACHE_SKIP_ALL, setting LOG_EVENT_SKIP_REPLICATION_F"));
+        binlog_cache_data* cache_data= 
+                cache_mngr->get_binlog_cache_data(is_transactional);
+        const bool skip_all= (cache_data &&
+                              cache_data->event_group_rpl_filter);
+
+        DBUG_PRINT("info",
+                  ("GTID_EVENT: event_group_rpl_filter: %s; %ssetting"
+                    "LOG_EVENT_SKIP_REPLICATION_F",
+                    skip_all ? "CACHE_SKIP_ALL" : "CACHE_SKIP_NONE",
+                    skip_all ? "" : "not "));
+
+        if (skip_all)
           gtid_event.flags|= LOG_EVENT_SKIP_REPLICATION_F;
-        }
-        else
-        {
-          DBUG_PRINT("info", ("GTID_EVENT: skip_cache_status != CACHE_SKIP_ALL, not setting LOG_EVENT_SKIP_REPLICATION_F"));
-        }
       }
       else
       {
-        DBUG_PRINT("info", ("GTID_EVENT: cache_mngr is NULL, not setting LOG_EVENT_SKIP_REPLICATION_F"));
+        DBUG_PRINT("info", ("GTID_EVENT: cache_mngr is NULL, "
+                   "not setting LOG_EVENT_SKIP_REPLICATION_F"));
       }
   }
   else if (skip_gtid)
@@ -9568,7 +9606,7 @@ int MYSQL_BIN_LOG::write_transaction_or_stmt(group_commit_entry *entry,
   {
     bool skip_gtid= false;
     binlog_cache_data* cache_data= mngr->get_binlog_cache_data(entry->using_trx_cache);
-    if (cache_data && cache_data->skip_cache_status == binlog_cache_data::CACHE_SKIP_ALL)
+    if (cache_data && cache_data->event_group_rpl_filter)
       skip_gtid= true;
     if (write_gtid_event(entry->thd, is_prepared_xa(entry->thd),
                          entry->using_trx_cache, commit_id,
@@ -13309,8 +13347,8 @@ inline bool Binlog_commit_by_rotate::should_commit_by_rotate(
      file. It happens in the case binlog cache buffer is larger than
      threshold
    */
-  if (cache_data && (cache_data->file_reserved_bytes() == 0 ||
-      cache_data->cache_log.disk_writes == 0))
+  if (cache_data->file_reserved_bytes() == 0 ||
+      cache_data->cache_log.disk_writes == 0)
     return false;
 
   /*
@@ -13339,7 +13377,7 @@ bool Binlog_commit_by_rotate::commit(MYSQL_BIN_LOG::group_commit_entry *entry)
     cache_data= cache_mngr->get_binlog_cache_data(false);
 
   /* Call them before enter log_lock to avoid holding the lock long */
-  if (cache_data && cache_data->sync_temp_file())
+  if (cache_data->sync_temp_file())
     return true;
 
   /*

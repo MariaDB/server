@@ -31,3 +31,4 @@ USE test;
 DROP TABLE t1;
 DROP DATABASE ignored_db;
 include/rpl_end.inc
+# End of rpl_filter_binlog_dump_db.test

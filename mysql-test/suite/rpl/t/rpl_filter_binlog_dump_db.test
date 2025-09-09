@@ -17,6 +17,9 @@
 #
 # This test ensures that these filters behave as expected, by examining
 # which events appear in the master's binlog and the slave's relay log.
+# 
+# NOTE: This test has a -master.opt file "rpl_filter_binlog_dump_db-master.opt"
+# for confirguring the replication filter rules 
 #
 
 --source include/have_innodb.inc
@@ -81,3 +84,4 @@ USE test;
 DROP TABLE t1;
 DROP DATABASE ignored_db;
 --source include/rpl_end.inc
+--echo # End of rpl_filter_binlog_dump_db.test

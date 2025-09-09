@@ -129,7 +129,7 @@ public:
     incident= FALSE;
     before_stmt_pos= MY_OFF_T_UNDEF;
     // Since the cache_data is reused so we should reset it to not conflict 
-    skip_cache_status= CACHE_SKIP_UNDECIDED;    
+    event_group_rpl_filter= false;    
     DBUG_ASSERT(empty());
   }
 
@@ -304,21 +304,16 @@ public:
   enum_binlog_checksum_alg checksum_opt;
 
   /*
-    Enum used to track whether all events inside the transaction cache
+    Boolean used to track whether all events inside the transaction cache
     have the LOG_EVENT_SKIP_REPLICATION_F flag. This determines
-    whether the entire transaction/event group can be skipped when writing to the binary log
-    
-    - CACHE_SKIP_UNDECIDED: Initial state, typically before any events are cached. e.g: The first GTID_EVENT
-    - CACHE_SKIP_ALL: All cached events have the LOG_EVENT_SKIP_REPLICATION_F flag.
-    - CACHE_SKIP_NONE: At least one cached event does not have the skip flag,
-                       so the transaction must not be skipped.
+    whether the entire transaction/event group can be skipped when
+    writing to the binary log.
+
+    - true: All cached events have the LOG_EVENT_SKIP_REPLICATION_F flag.
+    - false: At least one cached event does not have the skip flag,
+             so the transaction must not be skipped.
   */
-  enum skip_cache_status {
-      CACHE_SKIP_UNDECIDED= 0,
-      CACHE_SKIP_ALL= 1,
-      CACHE_SKIP_NONE= 2
-  };
-  skip_cache_status skip_cache_status= CACHE_SKIP_UNDECIDED;
+  bool event_group_rpl_filter= false;
 
 private:
   /*

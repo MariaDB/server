@@ -4730,6 +4730,7 @@ Rows_log_event::Rows_log_event(THD *thd_arg, TABLE *tbl_arg,
   DBUG_ASSERT((tbl_arg && tbl_arg->s &&
                (table_id & MAX_TABLE_MAP_ID) != UINT32_MAX) ||
               (!tbl_arg && !cols && (table_id & MAX_TABLE_MAP_ID) == UINT32_MAX));
+  
   if (thd_arg->variables.option_bits & OPTION_NO_FOREIGN_KEY_CHECKS)
     set_flags(NO_FOREIGN_KEY_CHECKS_F);
   if (thd_arg->variables.option_bits & OPTION_RELAXED_UNIQUE_CHECKS)
