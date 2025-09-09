@@ -5868,7 +5868,8 @@ public:
   TMP_TABLE_SHARE *find_tmp_table_share(const Lex_ident_db &db,
                                         const Lex_ident_table &table_name,
                                         Tmp_table_kind find_kind);
-  TMP_TABLE_SHARE *find_tmp_table_share(const TABLE_LIST *tl, Tmp_table_kind find_kind);
+  TMP_TABLE_SHARE *find_tmp_table_share(const TABLE_LIST *tl,
+                                        Tmp_table_kind find_kind);
   TMP_TABLE_SHARE *find_tmp_table_share(const char *key, size_t key_length,
                                         Tmp_table_kind find_kind);
 
