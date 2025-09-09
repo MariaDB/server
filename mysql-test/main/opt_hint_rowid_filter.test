@@ -58,6 +58,15 @@ EXPLAIN EXTENDED
 SELECT /*+ no_rowid_filter(t1 key_a,key_b)*/ a FROM t1
   WHERE c < 'e' AND b > 't' and d < 'e';
 
+--echo # Filter use is not beneficial for this query, so there is just 'range' access
+EXPLAIN EXTENDED
+SELECT a FROM t1 WHERE c < 'z' AND b > 't';
+
+--echo # Force the use of the rowid filter anyway:
+EXPLAIN EXTENDED
+SELECT /*+ rowid_filter(t1 key_c)*/ a FROM t1 WHERE c < 'z' AND b > 't';
+
+
 --echo # Test the hint with query blocks
 set optimizer_switch='derived_merge=off';
 
