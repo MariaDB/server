@@ -638,7 +638,8 @@ public:
   {
     /** The largest encountered transaction identifier for which no
     transaction was observed to be active. This is a cache to speed up
-    trx_sys_t::find_same_or_older().
+    trx_sys_t::find_same_or_older() as well as to elide some calls to
+    trx_sys_t::find().
 
     This will be zero-initialized in Pool::Pool() and not initialized
     when a transaction object in the pool is freed and reused. The

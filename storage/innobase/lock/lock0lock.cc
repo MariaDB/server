@@ -5629,8 +5629,10 @@ func_exit:
 		? lock_clust_rec_some_has_impl(rec, index, offsets)
 		: 0;
 
-	if (trx_t *impl_trx = impl_trx_id
-	    ? trx_sys.find(current_trx(), impl_trx_id, false)
+	trx_t *trx= current_trx();
+
+	if (trx_t *impl_trx = impl_trx_id > (trx ? trx->max_inactive_id : 0)
+	    ? trx_sys.find(trx, impl_trx_id, false)
 	    : 0) {
 		/* impl_trx could have been committed before we
 		acquire its mutex, but not thereafter. */
@@ -6215,7 +6217,7 @@ lock_rec_convert_impl_to_expl(
 
 		trx_id = lock_clust_rec_some_has_impl(rec, index, offsets);
 
-		if (trx_id == 0) {
+		if (trx_id <= caller_trx->max_inactive_id) {
 			return nullptr;
 		}
 		if (UNIV_UNLIKELY(trx_id == caller_trx->id)) {
