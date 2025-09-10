@@ -149,3 +149,11 @@ alter table t
   add index(vc1, vc2);
 explain select vc1, vc2 from t group by c + 1, 1 - c;
 drop table t;
+
+--echo #
+--echo # MDEV-37435 Assertion `field' failed in virtual bool Item_field::fix_fields(THD *, Item **)
+--echo #
+CREATE TABLE t (a INT,a1 INT AS (a) VIRTUAL,INDEX (a1));
+SELECT a FROM t GROUP BY a HAVING a>2;
+SELECT a FROM t WHERE a=(SELECT a FROM t GROUP BY a HAVING a>2);
+drop table t;

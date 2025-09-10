@@ -461,6 +461,8 @@ void subst_vcol_if_compatible(Vcol_subst_context *ctx,
     return;
   }
   Item_field *itf= new (thd->mem_root) Item_field(thd, vcol_field);
+  if (vcol_expr->type() == Item::FIELD_ITEM)
+    itf->context= ((Item_field *)vcol_expr)->context;
   if (!itf)
     return; // Out of memory, caller will know from thd->is_error()
   bitmap_set_bit(vcol_field->table->read_set, vcol_field->field_index);

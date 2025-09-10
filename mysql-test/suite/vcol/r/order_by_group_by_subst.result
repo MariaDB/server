@@ -193,3 +193,12 @@ explain select vc1, vc2 from t group by c + 1, 1 - c;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t	index	NULL	vc1	10	NULL	10000	Using index
 drop table t;
+#
+# MDEV-37435 Assertion `field' failed in virtual bool Item_field::fix_fields(THD *, Item **)
+#
+CREATE TABLE t (a INT,a1 INT AS (a) VIRTUAL,INDEX (a1));
+SELECT a FROM t GROUP BY a HAVING a>2;
+a
+SELECT a FROM t WHERE a=(SELECT a FROM t GROUP BY a HAVING a>2);
+a
+drop table t;
