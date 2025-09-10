@@ -97,7 +97,7 @@ When one supplies long data for a placeholder:
 #include "sql_view.h"                          // create_view_precheck
 #include "sql_delete.h"                        // mysql_prepare_delete
 #include "sql_select.h" // for JOIN
-#include "sql_insert.h" // upgrade_lock_type_for_insert, mysql_prepare_insert
+#include "sql_insert.h" // mysql_prepare_insert
 #include "sql_update.h" // mysql_prepare_update
 #include "sql_db.h"     // mysql_opt_change_db, mysql_change_db
 #include "sql_derived.h" // mysql_derived_prepare,
@@ -1310,8 +1310,6 @@ static bool mysql_test_insert_common(Prepared_statement *stmt,
   if (insert_precheck(thd, table_list))
     goto error;
 
-  //upgrade_lock_type_for_insert(thd, &table_list->lock_type, duplic,
-  //                             values_list.elements > 1);
   /*
     open temporary memory pool for temporary data allocated by derived
     tables & preparation procedure
