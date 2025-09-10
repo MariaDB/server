@@ -908,7 +908,7 @@ Exit_status process_event(PRINT_EVENT_INFO *print_event_info, Log_event *ev,
   /*
     Run time estimation of the output window configuration.
 
-    Do not validate GLLE information is start position is provided as a file
+    Do not validate GLLE information if start position is provided as a file
     offset.
   */
   if (ev_type == GTID_LIST_EVENT && ev->when)
@@ -2538,6 +2538,7 @@ static Exit_status check_master_version()
   if (position_gtid_filter &&
       position_gtid_filter->get_num_start_gtids() > 0)
   {
+    to_last_remote_log= TRUE;
     char str_buf[256];
     String query_str(str_buf, sizeof(str_buf), system_charset_info);
     query_str.length(0);

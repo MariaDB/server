@@ -131,6 +131,11 @@ struct binlog_send_info {
   slave_connection_state until_gtid_state_obj;
   Format_description_log_event *fdev;
   handler_binlog_reader *engine_binlog_reader;
+  /*
+    Last file_no reported as the current point to slave (using a fake rotate
+    event prior to a GTID event, mainly for debugging purposes).
+  */
+  uint64_t prev_reported_file_no;
   int mariadb_slave_capability;
   enum_gtid_skip_type gtid_skip_group;
   enum_gtid_until_state gtid_until_group;
@@ -170,7 +175,7 @@ struct binlog_send_info {
                    char *lfn)
     : thd(thd_arg), net(&thd_arg->net), packet(packet_arg),
       log_file_name(lfn), until_gtid_state(NULL), fdev(NULL),
-      engine_binlog_reader(NULL),
+      engine_binlog_reader(NULL), prev_reported_file_no(~(uint64_t)0),
       gtid_skip_group(GTID_SKIP_NOT), gtid_until_group(GTID_UNTIL_NOT_DONE),
       flags(flags_arg), current_checksum_alg(BINLOG_CHECKSUM_ALG_UNDEF),
       slave_gtid_strict_mode(false), send_fake_gtid_list(false),
@@ -3339,7 +3344,14 @@ static int send_engine_events(binlog_send_info *info, LOG_INFO* linfo)
       return 1;
     }
 
-    linfo->file_no.store(reader->cur_file_no, std::memory_order_relaxed);
+    uint64_t prev_file_no= linfo->file_no.load(std::memory_order_relaxed);
+    if (unlikely(prev_file_no == ~(uint64_t)0) ||
+                 unlikely(reader->cur_file_no > prev_file_no))
+    {
+      linfo->file_no.store(reader->cur_file_no, std::memory_order_relaxed);
+      (*opt_binlog_engine_hton->get_filename)(info->log_file_name,
+                                              reader->cur_file_no);
+    }
     linfo->pos= (my_off_t) reader->cur_file_pos;
 
     if (error == LOG_READ_EOF)
@@ -3376,9 +3388,8 @@ static int send_engine_events(binlog_send_info *info, LOG_INFO* linfo)
         bool ret= reader->wait_available(info->thd, ts_ptr);
         if (info->heartbeat_period && ret)
         {
-          char name[FN_REFLEN];
-          (*opt_binlog_engine_hton->get_filename)(name, reader->cur_file_no);
-          struct event_coordinates coord = { name, reader->cur_file_pos };
+          struct event_coordinates coord=
+            { info->log_file_name, reader->cur_file_pos };
           int err= send_heartbeat_event(info, info->net, info->packet, &coord,
                                         BINLOG_CHECKSUM_ALG_OFF);
           if (err)
@@ -3417,6 +3428,17 @@ static int send_engine_events(binlog_send_info *info, LOG_INFO* linfo)
                     });
 #endif
 
+    if (event_type == GTID_EVENT && prev_file_no != info->prev_reported_file_no)
+    {
+      String saved_gtid_packet;
+      saved_gtid_packet.swap(*info->packet);
+      int err=
+        fake_rotate_event(info, 0, &info->errmsg, BINLOG_CHECKSUM_ALG_OFF);
+      info->prev_reported_file_no= prev_file_no;
+      saved_gtid_packet.swap(*info->packet);
+      if (err)
+        return 1;
+    }
     if (((info->errmsg= send_event_to_slave(info, event_type, nullptr,
                                             ev_offset, &info->error_gtid))))
       return 1;
