@@ -2576,3 +2576,33 @@ DROP TABLE t1;
 #
 # End of 10.5 tests
 #
+#
+# MDEV-28849: I_S.ROUTINES don't tell that the stored function is AGGREGATE
+#
+drop procedure if exists proc;
+drop function if exists sca_func;
+drop function if exists agg_func;
+CREATE FUNCTION sca_func(i INT)
+RETURNS INT
+RETURN i+1;
+CREATE TABLE marks(stud_id INT, grade_count INT);
+INSERT INTO marks VALUES (1,6), (2,4), (3,7), (4,5), (5,8);
+CREATE AGGREGATE FUNCTION IF NOT EXISTS agg_func(x INT) RETURNS INT
+BEGIN
+DECLARE count_students INT DEFAULT 0;
+DECLARE CONTINUE HANDLER FOR NOT FOUND
+RETURN count_students;
+LOOP
+FETCH GROUP NEXT ROW;
+IF x  THEN
+SET count_students = count_students+1;
+END IF;
+END LOOP;
+END //
+CREATE PROCEDURE proc()
+BEGIN
+END|
+drop procedure if exists proc;
+drop function if exists sca_func;
+drop function if exists agg_func;
+drop table marks;

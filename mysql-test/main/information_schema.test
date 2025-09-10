@@ -2163,3 +2163,81 @@ DROP TABLE t1;
 --echo #
 --echo # End of 10.5 tests
 --echo #
+
+--echo #
+--echo # MDEV-28849: I_S.ROUTINES don't tell that the stored function is AGGREGATE
+--echo #
+
+--disable_warnings
+drop procedure if exists proc;
+drop function if exists sca_func;
+drop function if exists agg_func;
+--enable_warnings
+
+CREATE FUNCTION sca_func(i INT)
+  RETURNS INT
+  RETURN i+1;
+
+
+CREATE TABLE marks(stud_id INT, grade_count INT);
+
+INSERT INTO marks VALUES (1,6), (2,4), (3,7), (4,5), (5,8);
+
+DELIMITER //;
+CREATE AGGREGATE FUNCTION IF NOT EXISTS agg_func(x INT) RETURNS INT
+BEGIN
+ DECLARE count_students INT DEFAULT 0;
+ DECLARE CONTINUE HANDLER FOR NOT FOUND
+ RETURN count_students;
+      LOOP
+          FETCH GROUP NEXT ROW;
+          IF x  THEN
+            SET count_students = count_students+1;
+          END IF;
+      END LOOP;
+END //
+DELIMITER ;//
+
+DELIMITER |;
+CREATE PROCEDURE proc()
+  BEGIN
+  END|
+DELIMITER ;|
+
+
+let $sca_func_kind= 
+  `SELECT FUNCTION_KIND
+  FROM information_schema.ROUTINES
+  WHERE ROUTINE_NAME='sca_func'`;
+if($sca_func_kind != 'SCALAR')
+{
+  --echo "FUNCTION_KIND of sca_fun should be SCALAR instead of $sca_func_kind."
+}
+
+
+let $agg_func_kind=
+  `SELECT FUNCTION_KIND
+  FROM information_schema.ROUTINES
+  WHERE ROUTINE_NAME='agg_func'`;
+if($agg_func_kind != 'AGGREGATE')
+{
+  --die "FUNCTION_KIND of agg_fun should be AGGREGATE instead of $agg_func_kind."
+}
+
+
+let $proc_kind=
+  `SELECT FUNCTION_KIND
+  FROM information_schema.ROUTINES
+  WHERE ROUTINE_NAME='proc'`;
+if($proc_kind != 'NOT_FUNCTION')
+{
+  --echo "FUNCTION_KIND of proc should be NOT_FUNCTION instead of $proc_kind"
+}
+
+
+--disable_warnings
+drop procedure if exists proc;
+drop function if exists sca_func;
+drop function if exists agg_func;
+drop table marks;
+--enable_warnings

@@ -311,7 +311,7 @@ def	information_schema	ROUTINES	DEFINER	28	NULL	NO	varchar	384	1152	NULL	NULL	NU
 def	information_schema	ROUTINES	DTD_IDENTIFIER	14	NULL	YES	longtext	4294967295	4294967295	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	longtext			select		NEVER	NULL
 def	information_schema	ROUTINES	EXTERNAL_LANGUAGE	18	NULL	YES	varchar	64	192	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	varchar(64)			select		NEVER	NULL
 def	information_schema	ROUTINES	EXTERNAL_NAME	17	NULL	YES	varchar	64	192	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	varchar(64)			select		NEVER	NULL
-def	information_schema	ROUTINES	FUNCTION_KIND	32	NULL	YES	set	2	8	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	set('NOT_FUNCTION','NORMAL','AGGREGATE')			select		NEVER	NULL
+def	information_schema	ROUTINES	FUNCTION_KIND	32	NULL	NO	set	2	8	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	set('NOT_FUNCTION','SCALAR','AGGREGATE')			select		NEVER	NULL
 def	information_schema	ROUTINES	IS_DETERMINISTIC	20	NULL	NO	varchar	3	9	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	varchar(3)			select		NEVER	NULL
 def	information_schema	ROUTINES	LAST_ALTERED	25	NULL	NO	datetime	NULL	NULL	NULL	NULL	0	NULL	NULL	datetime			select		NEVER	NULL
 def	information_schema	ROUTINES	NUMERIC_PRECISION	9	NULL	YES	int	NULL	NULL	10	0	NULL	NULL	NULL	int(21)			select		NEVER	NULL
@@ -881,7 +881,7 @@ NULL	information_schema	ROUTINES	LAST_ALTERED	datetime	NULL	NULL	NULL	NULL	datet
 3.0000	information_schema	ROUTINES	CHARACTER_SET_CLIENT	varchar	32	96	utf8mb3	utf8mb3_general_ci	varchar(32)
 3.0000	information_schema	ROUTINES	COLLATION_CONNECTION	varchar	64	192	utf8mb3	utf8mb3_general_ci	varchar(64)
 3.0000	information_schema	ROUTINES	DATABASE_COLLATION	varchar	64	192	utf8mb3	utf8mb3_general_ci	varchar(64)
-4.0000	information_schema	ROUTINES	FUNCTION_KIND	set	2	8	utf8mb3	utf8mb3_general_ci	set('NOT_FUNCTION','NORMAL','AGGREGATE')
+4.0000	information_schema	ROUTINES	FUNCTION_KIND	set	2	8	utf8mb3	utf8mb3_general_ci	set('NOT_FUNCTION','SCALAR','AGGREGATE')
 3.0000	information_schema	SCHEMATA	CATALOG_NAME	varchar	512	1536	utf8mb3	utf8mb3_general_ci	varchar(512)
 3.0000	information_schema	SCHEMATA	SCHEMA_NAME	varchar	64	192	utf8mb3	utf8mb3_general_ci	varchar(64)
 3.0000	information_schema	SCHEMATA	DEFAULT_CHARACTER_SET_NAME	varchar	32	96	utf8mb3	utf8mb3_general_ci	varchar(32)

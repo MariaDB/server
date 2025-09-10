@@ -6864,7 +6864,7 @@ int store_schema_proc(THD *thd, TABLE *table, TABLE *proc_table,
 
 
       if ((enum_sp_aggregate_type)proc_table->
-          field[MYSQL_PROC_FIELD_AGGREGATE]->ptr[0] == GROUP_AGGREGATE)
+          field[MYSQL_PROC_FIELD_AGGREGATE]->val_int() == GROUP_AGGREGATE)
       {
         // function kind: AGGREGATE function
         table->field[31]->store(function_kind_names[2], function_kind_lengths[2], cs);
@@ -6872,15 +6872,21 @@ int store_schema_proc(THD *thd, TABLE *table, TABLE *proc_table,
       }
       else
       {
-        if (!table->field[4]->cmp(reinterpret_cast<const uchar*>("\bFUNCTION")))
+        if ((enum_sp_type)proc_table->field[MYSQL_PROC_MYSQL_TYPE]->
+            val_int() == SP_TYPE_FUNCTION)
         {
           // function kind: SCALAR function
           table->field[31]->store(function_kind_names[1], function_kind_lengths[1], cs);
         }
-        else
+        else if ((enum_sp_type)proc_table->field[MYSQL_PROC_MYSQL_TYPE]->
+            val_int() == SP_TYPE_PROCEDURE)
         {
           // function kind: NOT_FUNCTION for procedure
           table->field[31]->store(function_kind_names[0], function_kind_lengths[0], cs);
+        }
+        else
+        {
+          // for other enum_sp_type
         }
         table->field[31]->set_notnull();
       }
