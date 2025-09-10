@@ -6863,33 +6863,40 @@ int store_schema_proc(THD *thd, TABLE *table, TABLE *proc_table,
 			   proc_table->field[MYSQL_PROC_FIELD_DB_COLLATION]);
 
 
-      if ((enum_sp_aggregate_type)proc_table->
-          field[MYSQL_PROC_FIELD_AGGREGATE]->val_int() == GROUP_AGGREGATE)
+      size_t function_kind_idx= 0;
+      enum_sp_type sp_type= 
+        (enum_sp_type)proc_table->field[MYSQL_PROC_MYSQL_TYPE]->val_int();
+      switch (sp_type)
       {
-        // function kind: AGGREGATE function
-        table->field[31]->store(function_kind_names[2], function_kind_lengths[2], cs);
-        table->field[31]->set_notnull();
+        case SP_TYPE_FUNCTION:
+          if ((enum_sp_aggregate_type)proc_table->
+              field[MYSQL_PROC_FIELD_AGGREGATE]->val_int() == GROUP_AGGREGATE)
+          {
+            // function kind: AGGREGATE function
+            function_kind_idx = 2;
+          }
+          else
+          {
+            // function kind: SCALAR for non-aggregate function
+            function_kind_idx = 1;
+          }
+          break;
+        case SP_TYPE_PROCEDURE:
+        case SP_TYPE_PACKAGE:
+        case SP_TYPE_PACKAGE_BODY:
+        case SP_TYPE_TRIGGER:
+        case SP_TYPE_EVENT:
+          // function kind: NOT_FUNCTION for all non-functions
+          function_kind_idx = 0;
+          break;
+        default: // for future enum_sp_types
+          break;
       }
-      else
-      {
-        if ((enum_sp_type)proc_table->field[MYSQL_PROC_MYSQL_TYPE]->
-            val_int() == SP_TYPE_FUNCTION)
-        {
-          // function kind: SCALAR function
-          table->field[31]->store(function_kind_names[1], function_kind_lengths[1], cs);
-        }
-        else if ((enum_sp_type)proc_table->field[MYSQL_PROC_MYSQL_TYPE]->
-            val_int() == SP_TYPE_PROCEDURE)
-        {
-          // function kind: NOT_FUNCTION for procedure
-          table->field[31]->store(function_kind_names[0], function_kind_lengths[0], cs);
-        }
-        else
-        {
-          // for other enum_sp_type
-        }
-        table->field[31]->set_notnull();
-      }
+
+      table->field[31]->store(function_kind_names[function_kind_idx], 
+                              function_kind_lengths[function_kind_idx], 
+                              cs);
+      table->field[31]->set_notnull();
 
       return schema_table_store_record(thd, table);
     }
