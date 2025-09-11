@@ -708,7 +708,6 @@ handle_new_error:
 	case DB_DEADLOCK:
 	case DB_RECORD_CHANGED:
 	case DB_LOCK_TABLE_FULL:
-	case DB_TEMP_FILE_WRITE_FAIL:
 	rollback:
 		/* Roll back the whole transaction; this resolution was added
 		to version 3.23.43 */
@@ -739,6 +738,9 @@ handle_new_error:
 			" table. Please drop excessive"
 			" foreign constraints and try again";
 		goto rollback_to_savept;
+        case DB_TEMP_FILE_WRITE_FAIL:
+                trx->bulk_rollback_low();
+                break;
 	default:
 		ib::fatal() << "Unknown error " << err;
 	}
