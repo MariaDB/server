@@ -463,6 +463,8 @@ void subst_vcol_if_compatible(Vcol_subst_context *ctx,
   Item_field *itf= new (thd->mem_root) Item_field(thd, vcol_field);
   if (!itf)
     return; // Out of memory, caller will know from thd->is_error()
+  if (vcol_expr->type() == Item::FIELD_ITEM)
+    itf->context= ((Item_field *)vcol_expr)->context;
   bitmap_set_bit(vcol_field->table->read_set, vcol_field->field_index);
   DBUG_ASSERT(itf->fixed());
   thd->change_item_tree(vcol_expr_ref, itf);
