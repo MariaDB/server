@@ -696,7 +696,7 @@ sub w2log
 
   open (LOGFILE, ">>$opt_log")
     or die "FATAL: w2log: Couldn't open log file: $opt_log\n";
-
+  binmode(LOGFILE, ":encoding(UTF-8)");
   if ($is_file)
   {
     open (FROMFILE, "<$msg") && (@data=<FROMFILE>) &&
