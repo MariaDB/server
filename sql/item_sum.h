@@ -532,7 +532,7 @@ public:
     return create_tmp_field(root, param->group(), table);
   }
   bool collect_outer_ref_processor(void *param) override;
-  bool init_sum_func_check(THD *thd);
+  bool init_sum_func_check(THD *thd, bool force= FALSE);
   bool check_sum_func(THD *thd, Item **ref);
   bool register_sum_func(THD *thd, Item **ref);
   st_select_lex *depended_from() 

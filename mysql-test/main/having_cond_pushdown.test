@@ -1451,11 +1451,9 @@ DROP TABLE t1,t2;
 
 CREATE TABLE t1 (i int NOT NULL);
 SELECT * FROM t1 GROUP BY i HAVING i IN ( i IS NULL);
-#dublicate warning
---disable_view_protocol
+#duplicate warning
 SELECT * FROM t1 GROUP BY i HAVING i IN ( i IS NULL AND 'x' = 0);
 SELECT * FROM t1 GROUP BY i HAVING i='1' IN ( i IS NULL AND 'x' = 0);
---enable_view_protocol
 DROP TABLE t1;
 
 --echo #
