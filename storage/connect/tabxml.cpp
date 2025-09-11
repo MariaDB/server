@@ -1220,7 +1220,6 @@ int TDBXML::ReadDB(PGLOBAL g)
       case -2:           // No match for join
         return RC_NF;
       case -3:           // Same record as last non null one
-        same = true;
         return RC_OK;
       default:
         d.Rpos = recpos;
