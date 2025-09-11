@@ -1519,7 +1519,10 @@ static void yy_load_buffer_state  (yyscan_t yyscanner)
 	 */
 	b->yy_ch_buf = (char *) yyalloc( (yy_size_t) (b->yy_buf_size + 2) , yyscanner );
 	if ( ! b->yy_ch_buf )
+	{
+		yyfree(b, yyscanner);
 		YY_FATAL_ERROR( "out of dynamic memory in yy_create_buffer()" );
+	}
 
 	b->yy_is_our_buffer = 1;
 
