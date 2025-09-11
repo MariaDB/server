@@ -1488,6 +1488,7 @@ int THD::commit_global_tmp_tables()
                             "Global temporary table %s.%s HANDLER is closed.",
                             table->s->db.str, table->s->table_name.str);
       }
+      mark_tmp_table_as_free_for_reuse(table);
     }
 
     if (int local_error= drop_tmp_table_share(NULL, share, true))

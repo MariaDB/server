@@ -875,4 +875,10 @@ set session transaction_read_only=0;
 truncate t;
 unlock tables;
 drop table t;
+# MDEV-37597 InnoDB: Failing assertion: table->get_ref_count() == 0 in dict_sys_t::remove on UPDATE
+create table t1 (c varchar(4096) unique) engine=innodb;
+create global temporary table t2 like t1;
+update t2 set c=0;
+drop table t1;
+drop table t2;
 disconnect con1;
