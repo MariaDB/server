@@ -1856,7 +1856,7 @@ public:
   /*
     Return table map of tables that can't be NULL tables (tables that are
     used in a context where if they would contain a NULL row generated
-    by a LEFT or RIGHT join, the item would not be true).
+    by a LEFT or RIGHT join, the item would be evaluated to NULL).
     This expression is used on WHERE item to determinate if a LEFT JOIN can be
     converted to a normal join.
     Generally this function should return used_tables() if the function
