@@ -881,4 +881,9 @@ create global temporary table t2 like t1;
 update t2 set c=0;
 drop table t1;
 drop table t2;
+MDEV-37595 Assertion '...' failed using HANDLER+mrg_myisam+GTT
+create global temporary table t (x int) engine=mrg_myisam;
+handler t open;
+ERROR HY000: Storage engine MRG_MyISAM of the table `test`.`t` doesn't have this option
+drop table t;
 disconnect con1;
