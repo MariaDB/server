@@ -2231,8 +2231,9 @@ ensure_oob_context(void **engine_data, uint32_t needed_len)
   binlog_oob_context *new_c= alloc_oob_context(needed_len);
   if (UNIV_UNLIKELY(!new_c))
     return nullptr;
+  ut_ad(c->node_list_len <= c->node_list_alloc_len);
   memcpy(new_c, c, sizeof(binlog_oob_context) +
-         needed_len*sizeof(binlog_oob_context::node_info));
+         c->node_list_len*sizeof(binlog_oob_context::node_info));
   new_c->node_list_alloc_len= needed_len;
   *engine_data= new_c;
   ut_free(c);

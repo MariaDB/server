@@ -1,4 +1,5 @@
 --source include/have_binlog_format_row.inc
+--source include/have_sequence.inc
 --source include/master-slave.inc
 --source include/have_innodb_binlog.inc
 
@@ -96,8 +97,25 @@ SET GLOBAL max_binlog_size= @old_binlog_size;
 SELECT COUNT(*), SUM(a), SUM(LENGTH(b)) FROM t1;
 
 
+--echo *** Test that triggers re-allocation of the oob stack due to large tree depth
+--connection master
+CREATE TABLE t3 (
+  id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+  a text NOT NULL DEFAULT '',
+  b text DEFAULT '',
+  PRIMARY KEY (id)
+) ENGINE=InnoDB;
+
+SET @old_cache_size= @@GLOBAL.binlog_cache_size;
+# Use smaller nodes to get larger tree height.
+SET GLOBAL binlog_cache_size= 4096;
+INSERT INTO t3 SELECT seq, 'foo', 'bar' FROM seq_1_to_100;
+UPDATE t3 SET a = REPEAT('x', 65535);
+UPDATE t3 SET b = 'qux';
+SET GLOBAL binlog_cache_size= @old_cache_size;
+
 # Cleanup.
 --connection master
-DROP TABLE t1, t2;
+DROP TABLE t1, t2, t3;
 --exec $MYSQL_BINLOG --read-from-remote-server --user=root --host=127.0.0.1 --port=$MASTER_MYPORT master-bin.000001 --start-position=0-1-1 > $MYSQLTEST_VARDIR/tmp/mysqlbinlog.txt
 --source include/rpl_end.inc
