@@ -835,4 +835,10 @@ unlock tables;
 drop table t;
 
 
+--echo MDEV-37595 Assertion '...' failed using HANDLER+mrg_myisam+GTT
+create global temporary table t (x int) engine=mrg_myisam;
+--error ER_ILLEGAL_HA
+handler t open;
+drop table t;
+
 --disconnect con1
