@@ -403,6 +403,8 @@ id
 9
 10
 rollback;
+Warnings:
+Warning	1196	Some non-transactional changed tables couldn't be rolled back
 select * from t_1;
 id
 1111
@@ -644,6 +646,8 @@ id
 3
 2222
 rollback to sp1;
+Warnings:
+Warning	1196	Some non-transactional changed tables couldn't be rolled back
 select * from t1;
 id
 1111
@@ -724,6 +728,8 @@ id
 3
 4
 rollback;
+Warnings:
+Warning	1196	Some non-transactional changed tables couldn't be rolled back
 select * from t2;
 id
 select * from t1;
@@ -767,6 +773,8 @@ id
 3
 4
 rollback;
+Warnings:
+Warning	1196	Some non-transactional changed tables couldn't be rolled back
 select * from t1;
 id
 select next value for s1;
