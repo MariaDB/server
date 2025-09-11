@@ -711,8 +711,7 @@ int prepare_for_replace(TABLE *table, enum_duplicates handle_duplicates,
   {
     create_lookup_handler= true;
     table->file->extra(HA_EXTRA_IGNORE_DUP_KEY);
-    if (table->file->ha_table_flags() & HA_DUPLICATE_POS ||
-        table->s->long_unique_table)
+    if (table->file->ha_table_flags() & HA_DUPLICATE_POS)
     {
       if (table->file->ha_rnd_init_with_error(false))
         return 1;
@@ -2051,7 +2050,16 @@ int Write_record::locate_dup_record()
   {
     DBUG_PRINT("info", ("Locating offending record using rnd_pos()"));
 
+    const bool init_lookup_handler= (table->file->inited == handler::NONE);
+    if (init_lookup_handler)
+    {
+      error= table->file->ha_rnd_init_with_error(false);
+      if (error)
+        return error;
+    }
     error= h->ha_rnd_pos(table->record[1], h->dup_ref);
+    if (init_lookup_handler)
+      table->file->ha_rnd_end();
     if (unlikely(error))
     {
       DBUG_PRINT("info", ("rnd_pos() returns error %d",error));
@@ -2062,9 +2070,6 @@ int Write_record::locate_dup_record()
   {
     DBUG_PRINT("info",
                ("Locating offending record using ha_index_read_idx_map"));
-
-    if (h->lookup_handler)
-      h= h->lookup_handler;
 
     error= h->extra(HA_EXTRA_FLUSH_CACHE);
     if (unlikely(error))
