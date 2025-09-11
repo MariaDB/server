@@ -202,18 +202,8 @@ Server_side_cursor::~Server_side_cursor() = default;
 
 void Server_side_cursor::operator delete(void *ptr, size_t size)
 {
-  Server_side_cursor *cursor= (Server_side_cursor*) ptr;
-  MEM_ROOT own_root= *cursor->mem_root;
-
   DBUG_ENTER("Server_side_cursor::operator delete");
   TRASH_FREE(ptr, size);
-  /*
-    If this cursor has never been opened mem_root is empty. Otherwise
-    mem_root points to the memory the cursor object was allocated in.
-    In this case it's important to call free_root last, and free a copy
-    instead of *mem_root to avoid writing into freed memory.
-  */
-  free_root(&own_root, MYF(0));
   DBUG_VOID_RETURN;
 }
 
