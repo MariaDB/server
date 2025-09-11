@@ -476,11 +476,16 @@ err:
     No need to rollback statement transaction, it's not started.
     If called with reopen flag, no need to rollback either,
     it will be done at statement end.
+    Also no need to close the tables. All this is done at the statement end.
+    However we may consider closing them early in sub-statement for a better
+    granularity of a complex statement's mdl locks.
   */
-  DBUG_ASSERT(thd->transaction->stmt.is_empty());
-  close_thread_tables(thd);
-  thd->mdl_context.rollback_to_savepoint(mdl_savepoint);
-  thd->set_open_tables(backup_open_tables);
+  if (thd->in_sub_stmt)
+  {
+    close_thread_tables(thd);
+    thd->mdl_context.rollback_to_savepoint(mdl_savepoint);
+    thd->set_open_tables(backup_open_tables);
+  }
   if (sql_handler)
   {
     if (!reopen)
