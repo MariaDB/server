@@ -1,7 +1,5 @@
 #include "univ.i"
-#line 2 "fts0tlex.cc"
 
-#line 4 "fts0tlex.cc"
 
 #define  YY_INT_ALIGNED short int
 
@@ -635,7 +633,6 @@ static const flex_int16_t yy_chk[29] =
 #define yymore() yymore_used_but_not_detected
 #define YY_MORE_ADJ 0
 #define YY_RESTORE_YY_MORE_OFFSET
-#line 1 "fts0tlex.l"
 /*****************************************************************************
 
 Copyright (c) 2007, 2014, Oracle and/or its affiliates. All Rights Reserved.
@@ -659,7 +656,6 @@ this program; if not, write to the Free Software Foundation, Inc.,
  *
  * Created 2007/5/9 Sunny Bains
  */
-#line 27 "fts0tlex.l"
 
 #include "fts0ast.h"
 #include "fts0pars.h"
@@ -668,9 +664,7 @@ this program; if not, write to the Free Software Foundation, Inc.,
 #define YY_DECL int fts_tlexer(YYSTYPE* val, yyscan_t yyscanner)
 #define exit(A)   ut_error
 
-#line 671 "fts0tlex.cc"
 #define YY_NO_INPUT 1
-#line 673 "fts0tlex.cc"
 
 #define INITIAL 0
 
@@ -928,10 +922,8 @@ YY_DECL
 		}
 
 	{
-#line 45 "fts0tlex.l"
 
 
-#line 934 "fts0tlex.cc"
 
 	while ( /*CONSTCOND*/1 )		/* loops until end-of-file is reached */
 		{
@@ -986,12 +978,10 @@ do_action:	/* This label is used only to access EOF actions. */
 
 case 1:
 YY_RULE_SETUP
-#line 47 "fts0tlex.l"
 /* Ignore whitespace */ ;
 	YY_BREAK
 case 2:
 YY_RULE_SETUP
-#line 49 "fts0tlex.l"
 {
 	val->oper = fts0tget_text(yyscanner)[0];
 
@@ -1000,7 +990,6 @@ YY_RULE_SETUP
 	YY_BREAK
 case 3:
 YY_RULE_SETUP
-#line 55 "fts0tlex.l"
 {
 	val->token = fts_ast_string_create(reinterpret_cast<const byte*>(fts0tget_text(yyscanner)), fts0tget_leng(yyscanner));
 
@@ -1009,7 +998,6 @@ YY_RULE_SETUP
 	YY_BREAK
 case 4:
 YY_RULE_SETUP
-#line 61 "fts0tlex.l"
 {
 	val->token = fts_ast_string_create(reinterpret_cast<const byte*>(fts0tget_text(yyscanner)), fts0tget_leng(yyscanner));
 
@@ -1018,21 +1006,17 @@ YY_RULE_SETUP
 	YY_BREAK
 case 5:
 YY_RULE_SETUP
-#line 66 "fts0tlex.l"
 ;
 	YY_BREAK
 case 6:
 /* rule 6 can match eol */
 YY_RULE_SETUP
-#line 67 "fts0tlex.l"
 
 	YY_BREAK
 case 7:
 YY_RULE_SETUP
-#line 69 "fts0tlex.l"
 ECHO;
 	YY_BREAK
-#line 1035 "fts0tlex.cc"
 case YY_STATE_EOF(INITIAL):
 	yyterminate();
 
@@ -2164,6 +2148,5 @@ void yyfree (void * ptr , yyscan_t yyscanner)
 
 #define YYTABLES_NAME "yytables"
 
-#line 69 "fts0tlex.l"
 
 
