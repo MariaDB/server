@@ -35,6 +35,20 @@ include/sync_with_master_gtid.inc
 SELECT COUNT(*), SUM(a), SUM(LENGTH(b)) FROM t1;
 COUNT(*)	SUM(a)	SUM(LENGTH(b))
 2602	50033150	4993
+*** Test that triggers re-allocation of the oob stack due to large tree depth
 connection master;
-DROP TABLE t1, t2;
+CREATE TABLE t3 (
+id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+a text NOT NULL DEFAULT '',
+b text DEFAULT '',
+PRIMARY KEY (id)
+) ENGINE=InnoDB;
+SET @old_cache_size= @@GLOBAL.binlog_cache_size;
+SET GLOBAL binlog_cache_size= 4096;
+INSERT INTO t3 SELECT seq, 'foo', 'bar' FROM seq_1_to_100;
+UPDATE t3 SET a = REPEAT('x', 65535);
+UPDATE t3 SET b = 'qux';
+SET GLOBAL binlog_cache_size= @old_cache_size;
+connection master;
+DROP TABLE t1, t2, t3;
 include/rpl_end.inc
