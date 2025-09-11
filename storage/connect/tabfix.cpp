@@ -52,7 +52,13 @@
 /*  DB static variables.                                               */
 /***********************************************************************/
 extern int num_read, num_there, num_eq[2];               // Statistics
-char BINCOL::Endian = 'H';
+const char BINCOL::Endian =
+#if defined(WORDS_BIGENDIAN)
+  'B'
+#else
+  'L'
+#endif
+  ;
 
 /***********************************************************************/
 /*  External function.                                                 */
@@ -446,20 +452,6 @@ BINCOL::BINCOL(BINCOL *col1, PTDB tdbp) : DOSCOL(col1, tdbp)
   M = col1->M;
   Lim = col1->Lim;
   } // end of BINCOL copy constructor
-
-/***********************************************************************/
-/*  Set Endian according to the host setting.                          */
-/***********************************************************************/
-void BINCOL::SetEndian(void)
-  {
-  union {
-    short S;
-    char  C[sizeof(short)];
-    };
-
-  S = 1;
-  Endian = (C[0] == 1) ? 'L' : 'B';
-  } // end of SetEndian
 
 /***********************************************************************/
 /*  ReadColumn: what this routine does is to access the last line      */

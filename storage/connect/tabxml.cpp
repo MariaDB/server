@@ -1131,11 +1131,11 @@ int TDBXML::GetRecpos(void)
   union {
     uint Rpos;
     BYTE Spos[4];
-    };
+    } d;
 
-  Rpos = htonl(Irow);
-  Spos[0] = (BYTE)Nsub;
-  return Rpos;
+  d.Rpos = htonl(Irow);
+  d.Spos[0] = (BYTE)Nsub;
+  return d.Rpos;
   } // end of GetRecpos
 
 /***********************************************************************/
@@ -1210,7 +1210,7 @@ int TDBXML::ReadDB(PGLOBAL g)
     union {
       uint Rpos;
       BYTE Spos[4];
-      };
+      } d;
 
     int recpos = To_Kindex->Fetch(g);
 
@@ -1223,12 +1223,12 @@ int TDBXML::ReadDB(PGLOBAL g)
         same = true;
         return RC_OK;
       default:
-        Rpos = recpos;
-        Nsub = Spos[0];
-        Spos[0] = 0;
+        d.Rpos = recpos;
+        Nsub = d.Spos[0];
+        d.Spos[0] = 0;
 
-        if (Irow != (signed)ntohl(Rpos)) {
-          Irow = ntohl(Rpos);
+        if (Irow != (signed)ntohl(d.Rpos)) {
+          Irow = ntohl(d.Rpos);
           same = false;
         } else
           same = true;
