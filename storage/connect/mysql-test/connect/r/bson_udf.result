@@ -352,7 +352,7 @@ SELECT BsonGet_String(NULL json_, NULL);
 BsonGet_String(NULL json_, NULL)
 NULL
 Warnings:
-Warning	1105	
+Warning	1105	Argument is NULL
 /* NULL WARNING */
 SELECT department, BsonGet_String(Bson_Make_Object(department, Bson_Array_Grp(salary) "Json_salaries"),'salaries.[+]') Sumsal FROM t3 GROUP BY department;
 department	Sumsal
