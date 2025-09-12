@@ -349,7 +349,7 @@ TMP_TABLE_SHARE *THD::find_tmp_table_share(const char *key, size_t key_length,
     if (share->table_cache_key.length == key_length &&
     !memcmp(share->table_cache_key.str, key, key_length) &&
     (find_kind == Tmp_table_kind::ANY ||
-     (share->from_share != NULL) == (find_kind == Tmp_table_kind::GLOBAL)))
+     share->global_tmp_table() == (find_kind == Tmp_table_kind::GLOBAL)))
     {
       result= share;
       break;
@@ -372,7 +372,7 @@ void THD::global_tmp_tables_set_explicit_lock_duration()
   All_tmp_tables_list::Iterator it(*temporary_tables);
   while (TMP_TABLE_SHARE *share= it++)
   {
-    if (!share->from_share)
+    if (!share->global_tmp_table())
       continue;
     mdl_context.set_lock_duration(share->mdl_request.ticket, MDL_EXPLICIT);
   }
@@ -438,7 +438,7 @@ bool THD::open_temporary_table_impl(TABLE_LIST *tl, TABLE **table,
   TMP_TABLE_SHARE *tmp_share;
   if (!*table && (tmp_share= find_tmp_table_share(tl, find_kind)))
   {
-    if (tmp_share->from_share && use_real_global_temporary_share())
+    if (tmp_share->global_tmp_table() && use_real_global_temporary_share())
     {
       // We want to use real global temporary table when ALTER/DROP is executed.
       DBUG_RETURN(false);
@@ -1163,7 +1163,6 @@ TMP_TABLE_SHARE *THD::create_temporary_table(LEX_CUSTRING *frm,
 
   /* Initialize the all_tmp_tables list. */
   share->all_tmp_tables.empty();
-  share->from_share= NULL;
 
   /*
     We need to alloc & initialize temporary_tables if this happens
@@ -1226,11 +1225,11 @@ TABLE *THD::find_temporary_table(const char *key, uint key_length,
     if (share->table_cache_key.length == key_length &&
         !memcmp(share->table_cache_key.str, key, key_length) &&
         (find_kind == Tmp_table_kind::ANY ||
-         (share->from_share != NULL) == (find_kind == Tmp_table_kind::GLOBAL)))
+         share->global_tmp_table() == (find_kind == Tmp_table_kind::GLOBAL)))
     {
       /* A matching TMP_TABLE_SHARE is found. */
 
-      if (share->from_share && use_real_global_temporary_share())
+      if (share->global_tmp_table() && use_real_global_temporary_share())
         break; /* We want to use real global temporary table
                   when ALTER/DROP is executed.
                 */
@@ -1404,7 +1403,7 @@ bool THD::use_temporary_table(TABLE *table, TABLE **out_table)
     parallel replication
   */
   table->in_use= this;
-  if (tmp_table_share(table)->from_share)
+  if (table->s->global_tmp_table())
     use_global_tmp_table_tp();
 
   DBUG_RETURN(false);
@@ -1756,12 +1755,10 @@ bool THD::free_tmp_table_share(TMP_TABLE_SHARE *share, bool delete_table)
       rm_temporary_table(share->hlindex->db_type(), share->hlindex->path.str);
     }
 
-    if (share->from_share)
+    if (share->global_tmp_table())
     {
       mdl_context.release_lock(share->mdl_request.ticket);
-      tdc_release_share(share->from_share);
       --temporary_tables->global_temporary_tables_count;
-      share->from_share= NULL;
     }
   }
   free_table_share(share);
