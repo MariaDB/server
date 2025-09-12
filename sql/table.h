@@ -1100,6 +1100,8 @@ struct TABLE_SHARE
   {
     if (is_view)
       return TABLE_REF_VIEW;
+    if (global_tmp_table())
+      return TABLE_REF_BASE_TABLE;
     switch (tmp_table) {
     case NO_TMP_TABLE:
       return TABLE_REF_BASE_TABLE;

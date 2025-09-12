@@ -886,4 +886,20 @@ create global temporary table t (x int) engine=mrg_myisam;
 handler t open;
 ERROR HY000: Storage engine MRG_MyISAM of the table `test`.`t` doesn't have this option
 drop table t;
+# MDEV-37594 Thread hang on TRUNCATE GTT after server_id change
+set global server_id=100;
+create global temporary table t(x int) on commit preserve rows;
+insert t values (5),(6),(7);
+set global server_id=1;
+truncate t;
+drop table t;
+# MDEV-37656 Thread hang in 'starting' state on FLUSH TABLES
+create global temporary table t (x int key) on commit preserve rows;
+select * from t;
+x
+lock table t write;
+flush table t;
+unlock tables;
+truncate t;
+drop table t;
 disconnect con1;

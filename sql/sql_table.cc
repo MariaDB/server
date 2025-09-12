@@ -6254,11 +6254,7 @@ my_bool open_global_temporary_table(THD *thd, TABLE_SHARE *source,
       return TRUE;
 
     if (table)
-    {
-      DBUG_ASSERT(((TMP_TABLE_SHARE*)table->s)->from_share == source);
-      tdc_release_share(source);
       table->query_id= thd->query_id;
-    }
   }
 
   if (!table)
@@ -6293,6 +6289,7 @@ my_bool open_global_temporary_table(THD *thd, TABLE_SHARE *source,
       return TRUE;
     }
 
+    create_info.tabledef_version= source->tabledef_version;
 #ifdef WITH_PARTITION_STORAGE_ENGINE
     thd->work_part_info= 0;
 #endif
@@ -6312,7 +6309,7 @@ my_bool open_global_temporary_table(THD *thd, TABLE_SHARE *source,
     table= create_info.table;
 
     TMP_TABLE_SHARE *share= (TMP_TABLE_SHARE*)table->s;
-    share->from_share= source;
+
     share->table_type= TABLE_TYPE_NORMAL;
 
     MDL_REQUEST_INIT_BY_KEY(&share->mdl_request, &out_table->mdl_request.key,
@@ -6335,6 +6332,7 @@ my_bool open_global_temporary_table(THD *thd, TABLE_SHARE *source,
   table->init(thd, out_table);
 
   thd->use_global_tmp_table_tp();
+  tdc_release_share(source);
   return FALSE;
 }
 
