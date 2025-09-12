@@ -343,8 +343,8 @@ static int write_to_table(char *filename, MYSQL *mysql)
   if (strchr(tablename, '@'))
   {
     uint errors, len;
-    const char *csname= my_default_csname(); /* see MYSQL_SET_CHARSET_NAME */
-    CHARSET_INFO *cs= get_charset_by_csname(csname,  MY_CS_PRIMARY, MYF(0));
+    CHARSET_INFO *cs=
+        get_charset_by_csname(default_charset, MY_CS_PRIMARY, MYF(0));
     len= my_convert(escaped_name, sizeof(escaped_name) - 1, cs, tablename,
                     (uint32)strlen(tablename), &my_charset_filename, &errors);
     if (!errors)
@@ -498,7 +498,7 @@ static MYSQL *db_connect(char *host, char *database,
     mysql_options(mysql, MYSQL_DEFAULT_AUTH, opt_default_auth);
   if (!strcmp(default_charset,MYSQL_AUTODETECT_CHARSET_NAME))
     default_charset= (char *)my_default_csname();
-  mysql_options(mysql, MYSQL_SET_CHARSET_NAME, my_default_csname());
+  mysql_options(mysql, MYSQL_SET_CHARSET_NAME, default_charset);
   mysql_options(mysql, MYSQL_OPT_CONNECT_ATTR_RESET, 0);
   mysql_options4(mysql, MYSQL_OPT_CONNECT_ATTR_ADD,
                  "program_name", "mysqlimport");
