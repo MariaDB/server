@@ -2067,7 +2067,6 @@ public:
     for this share.
   */
   All_share_tables_list all_tmp_tables;
-  TABLE_SHARE *from_share;
   MDL_request mdl_request;
 };
 

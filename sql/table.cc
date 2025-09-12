@@ -10391,16 +10391,6 @@ bool TABLE_LIST::is_with_table()
 
 bool TABLE_LIST::is_the_same_definition(THD* thd, TABLE_SHARE *s)
 {
-  if (s->tmp_table != NO_TMP_TABLE && s->global_tmp_table())
-  {
-    /*
-      For Global temporary tables, let's compare the global share,
-      from which this local share is built
-    */
-    s= ((TMP_TABLE_SHARE*)s)->from_share;
-    DBUG_ASSERT(s);
-  }
-
   enum enum_table_ref_type tp= s->get_table_ref_type();
   if (m_table_ref_type == tp)
   {
