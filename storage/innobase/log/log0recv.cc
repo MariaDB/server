@@ -3362,6 +3362,10 @@ static buf_block_t *recv_recover_page(buf_block_t *block, mtr_t &mtr,
 
 		log_phys_t::apply_status a= l->apply(*block, recs.last_offset);
 
+		DBUG_EXECUTE_IF("recv_corrupt",
+				if (init_lsn &&
+				    (!space || space->id != 0))
+				  a= log_phys_t::APPLIED_CORRUPTED;);
 		switch (a) {
 		case log_phys_t::APPLIED_NO:
 			ut_ad(!mtr.has_modifications());
@@ -3428,17 +3432,9 @@ set_start_lsn:
 			mtr.discard_modifications();
 			mtr.commit();
 
-			fil_space_t* s = space
-				? space
-				: fil_space_t::get(block->page.id().space());
-
 			buf_pool.corrupted_evict(&block->page,
 						 block->page.state() &
 						 buf_page_t::LRU_MASK);
-			if (!space) {
-				s->release();
-			}
-
 			return nullptr;
 		}
 
@@ -3849,7 +3845,6 @@ inline buf_block_t *recv_sys_t::recover_low(const map::iterator &p, mtr_t &mtr,
     zip_size= fil_space_t::zip_size(flags);
     block= buf_page_create_deferred(p->first.space(), zip_size, &mtr, b);
     ut_ad(block == b);
-    block->page.lock.x_lock_recursive();
   }
   else
   {
@@ -3868,6 +3863,8 @@ inline buf_block_t *recv_sys_t::recover_low(const map::iterator &p, mtr_t &mtr,
     }
   }
 
+  /* Released in buf_pool_t::corrupted_evict(), recover_deferred() or below */
+  block->page.lock.x_lock_recursive();
   ut_d(mysql_mutex_lock(&mutex));
   ut_ad(&recs == &pages.find(p->first)->second);
   ut_d(mysql_mutex_unlock(&mutex));
@@ -3875,8 +3872,10 @@ inline buf_block_t *recv_sys_t::recover_low(const map::iterator &p, mtr_t &mtr,
   ut_ad(mtr.has_committed());
 
   if (space)
+  {
     space->release();
-
+    if (block) block->page.lock.x_unlock();
+  }
   return block ? block : reinterpret_cast<buf_block_t*>(-1);
 }
 
