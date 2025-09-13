@@ -450,6 +450,11 @@ public:
     of the current binlog (ie. end-of-file).
   */
   int read_data(byte *buffer, int max_len, bool multipage);
+  /*
+    Find a chunk boundary at or after specified offset in current page. Used
+    for init_legacy_pos() to find a valid starting position.
+  */
+  int find_offset_in_page(uint32_t off);
   /* Read the file header of current file_no. */
   int get_file_header(binlog_header_data *out_header);
 

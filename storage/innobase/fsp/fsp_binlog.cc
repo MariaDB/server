@@ -811,13 +811,20 @@ crc32_pread_page(File fd, byte *buf, uint32_t page_no, myf MyFlags) noexcept
       res= -1;
       my_errno= EIO;
       if (MyFlags & MY_WME)
+      {
         sql_print_error("InnoDB: Page corruption in binlog tablespace file "
                         "page number %u (invalid crc32 checksum 0x%08X)",
                         page_no, crc32);
+        my_error(ER_BINLOG_READ_EVENT_CHECKSUM_FAILURE, MYF(0));
+      }
     }
   }
   else if (read == (size_t)-1)
+  {
+    if (MyFlags & MY_WME)
+      my_error(ER_READING_BINLOG_FILE, MYF(0), page_no, my_errno);
     res= -1;
+  }
   else
     res= 0;
 
@@ -1737,8 +1744,8 @@ binlog_chunk_reader::fetch_current_page()
     if (s.file_no > active || UNIV_UNLIKELY(active == ~(uint64_t)0)
         || UNIV_UNLIKELY(s.file_no > stop_file_no))
     {
-      ut_ad(s.page_no == 1);
-      ut_ad(s.in_page_offset == 0);
+      ut_ad(s.page_no == 1 || s.file_no > stop_file_no);
+      ut_ad(s.in_page_offset == 0 || s.file_no > stop_file_no);
       /*
         Allow a reader that reached the very end of the active binlog file to
         have moved ahead early to the start of the coming binlog file.
@@ -1809,6 +1816,8 @@ binlog_chunk_reader::fetch_current_page()
     if (offset >= cur_file_length) {
       /* End of this file, move to the next one. */
   goto_next_file:
+      if (UNIV_UNLIKELY(s.file_no >= stop_file_no))
+        return CHUNK_READER_EOF;
       if (cur_file_handle >= (File)0)
       {
         my_close(cur_file_handle, MYF(0));
@@ -2028,6 +2037,43 @@ go_next_page:
     return sofar;
 
   goto read_more_data;
+}
+
+
+int
+binlog_chunk_reader::find_offset_in_page(uint32_t off)
+{
+  if (!page_ptr)
+  {
+    enum chunk_reader_status res= fetch_current_page();
+    if (res == CHUNK_READER_EOF)
+      return 0;
+    else if (res == CHUNK_READER_ERROR)
+      return -1;
+  }
+
+  /*
+    Skip ahead in the page until we come to the first chunk boundary that
+    is at or later than the requested offset.
+  */
+  s.in_page_offset= 0;
+  s.chunk_len= 0;
+  s.chunk_read_offset= 0;
+  s.chunk_type= FSP_BINLOG_TYPE_FILLER;
+  s.skip_current= 0;
+  s.in_record= 0;
+  while (s.in_page_offset < off &&
+         s.in_page_offset < cur_end_offset &&
+         s.in_page_offset < ibb_page_size)
+  {
+    byte type= page_ptr[s.in_page_offset];
+    if (type == 0 || type == FSP_BINLOG_TYPE_FILLER)
+      break;
+    uint32_t chunk_len= page_ptr[s.in_page_offset + 1] |
+      ((uint32_t)page_ptr[s.in_page_offset + 2] << 8);
+    s.in_page_offset+= std::min(3 + chunk_len, (uint32_t)ibb_page_size);
+  }
+  return 0;
 }
 
 
