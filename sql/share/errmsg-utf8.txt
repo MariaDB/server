@@ -12308,3 +12308,5 @@ ER_BINLOG_CANNOT_READ_STATE
 	eng "Error reading GTID state from the binlog"
 ER_BINLOG_POS_INVALID
 	eng "The binlog offset %llu is invalid"
+ER_READING_BINLOG_FILE
+	eng "Error reading from page number %u in binlog file (error code: %d)"

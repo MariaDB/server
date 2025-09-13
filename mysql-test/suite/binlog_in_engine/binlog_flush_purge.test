@@ -47,7 +47,7 @@ sysseek F, $pos, 0 or die $!;
 syswrite F, $x, 1 or die $!;
 EOF
 
---error ER_ERROR_WHEN_EXECUTING_COMMAND
+--error ER_BINLOG_READ_EVENT_CHECKSUM_FAILURE
 eval SHOW BINLOG EVENTS IN '$file' LIMIT 1;
 
 

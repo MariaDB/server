@@ -4512,6 +4512,9 @@ MYSQL_BIN_LOG::open_engine(handlerton *hton, ulong max_size, const char *dir)
     Format_description_log_event s(BINLOG_VERSION, NULL,
                                    BINLOG_CHECKSUM_ALG_OFF);
     s.dont_set_created= false;
+    /* Set stmt cache so end_log_pos gets written as 0. */
+    s.cache_type= Log_event::EVENT_STMT_CACHE;
+
     IO_CACHE cache;
     init_io_cache(&cache, (File)-1, binlog_cache_size, WRITE_CACHE, 0, false,
                   MYF(MY_DONT_CHECK_FILESIZE));

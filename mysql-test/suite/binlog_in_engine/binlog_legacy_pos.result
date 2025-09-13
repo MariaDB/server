@@ -48,6 +48,50 @@ Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 binlog-000001.ibb	#	Gtid	#	#	BEGIN GTID #-#-#
 binlog-000001.ibb	#	Query	#	#	use `test`; INSERT INTO t1 VALUES (5, 0)
 binlog-000001.ibb	#	Xid	#	#	COMMIT /* XID */
+*** Test some various conditions around SHOW BINLOG EVENTS.
+SHOW BINLOG EVENTS IN 'binlog-000003.ibb';
+ERROR HY000: Error when executing command SHOW BINLOG EVENTS: Could not find target log
+SHOW BINLOG EVENTS IN 'binlog-000003.ibb' FROM 1234567890;
+ERROR HY000: Error when executing command SHOW BINLOG EVENTS: Could not find target log
+SHOW BINLOG EVENTS IN 'binlog-000000.ibb' FROM 0 LIMIT 1;
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+binlog-000000.ibb	0	Gtid	1	0	GTID 0-1-1
+SHOW BINLOG EVENTS IN 'binlog-000000.ibb' FROM 4 LIMIT 1;
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+binlog-000000.ibb	0	Gtid	1	0	GTID 0-1-1
+SHOW BINLOG EVENTS IN 'binlog-000000.ibb' FROM 42 LIMIT 1;
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+binlog-000000.ibb	0	Gtid	1	0	GTID 0-1-1
+SHOW BINLOG EVENTS IN 'binlog-000000.ibb' FROM 3000 LIMIT 1;
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+binlog-000000.ibb	0	Gtid	1	0	GTID 0-1-1
+SHOW BINLOG EVENTS IN 'binlog-000000.ibb' FROM 16384 LIMIT 1;
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+binlog-000000.ibb	0	Gtid	1	0	GTID 0-1-1
+SHOW BINLOG EVENTS IN 'binlog-000001.ibb' FROM 16384 LIMIT 1;
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+binlog-000001.ibb	0	Gtid	1	0	BEGIN GTID 0-1-4
+SHOW BINLOG EVENTS IN 'binlog-000001.ibb' FROM 16400 LIMIT 1;
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+binlog-000001.ibb	0	Gtid	1	0	BEGIN GTID 0-1-5
+SHOW BINLOG EVENTS IN 'binlog-000000.ibb' FROM 32768;
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+SHOW BINLOG EVENTS IN 'binlog-000000.ibb' FROM 32769;
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+SHOW BINLOG EVENTS IN 'binlog-000000.ibb' FROM 262144;
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+SHOW BINLOG EVENTS IN 'binlog-000000.ibb' FROM 2000000000;
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+SHOW BINLOG EVENTS IN 'binlog--000012.ibb';
+ERROR HY000: Target log not found in binlog index
+SHOW BINLOG EVENTS IN 'abadcafe.ibb';
+ERROR HY000: Target log not found in binlog index
+SET @old_needed= @@GLOBAL.slave_connections_needed_for_purge;
+SET GLOBAL slave_connections_needed_for_purge= 0;
+PURGE BINARY LOGS TO 'binlog-000001.ibb';
+SET GLOBAL slave_connections_needed_for_purge= @old_needed;
+SHOW BINLOG EVENTS IN 'binlog-000000.ibb' LIMIT 10;
+ERROR HY000: File './binlog-000000.ibb' not found (Errcode: 2 "No such file or directory")
 connection default;
 disconnect con1;
 disconnect con2;

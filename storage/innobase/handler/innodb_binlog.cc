@@ -262,6 +262,11 @@ class ha_innodb_binlog_reader : public handler_binlog_reader {
   uint64_t oob_count;
   uint64_t oob_last_file_no;
   uint64_t oob_last_offset;
+  /*
+    Originally requested starting file_no, from init_gtid_pos() or
+    init_legacy_pos(). Or ~0 if none.
+  */
+  uint64_t requested_file_no;
   /* Buffer to hold a page read directly from the binlog file. */
   uchar *page_buf;
   /* Keep track of pending bytes in the rd_buf. */
@@ -2763,6 +2768,7 @@ ha_innodb_binlog_reader::ha_innodb_binlog_reader(bool wait_durable,
                                                  uint64_t offset)
   : chunk_rd(wait_durable ?
              binlog_cur_durable_offset : binlog_cur_end_offset),
+    requested_file_no(~(uint64_t)0),
     rd_buf_len(0), rd_buf_sofar(0), state(ST_read_next_event_group)
 {
   page_buf= static_cast<uchar *>(ut_malloc(ibb_page_size, mem_key_binlog));
@@ -3215,6 +3221,7 @@ ha_innodb_binlog_reader::init_gtid_pos(slave_connection_state *pos,
     return -1;
   if (res > 0)
   {
+    requested_file_no= file_no;
     chunk_rd.seek(file_no, offset);
     chunk_rd.skip_partial(true);
     cur_file_no= chunk_rd.current_file_no();
@@ -3239,32 +3246,46 @@ ha_innodb_binlog_reader::init_legacy_pos(const char *filename, ulonglong offset)
     my_error(ER_UNKNOWN_TARGET_BINLOG, MYF(0));
     return -1;
   }
+  if (file_no > active_binlog_file_no.load(std::memory_order_acquire))
+  {
+    my_error(ER_ERROR_WHEN_EXECUTING_COMMAND, MYF(0), "SHOW BINLOG EVENTS",
+             "Could not find target log");
+    return -1;
+  }
+  requested_file_no= file_no;
   if ((uint64_t)offset >= (uint64_t)(UINT32_MAX) << ibb_page_size_shift)
   {
     my_error(ER_BINLOG_POS_INVALID, MYF(0), offset);
     return -1;
   }
 
-  /*
-    ToDo: Here, we could start at the beginning of the page containing the
-    requested position. Then read forwards until the requested position is
-    reached. This way we avoid reading garbaga data for invalid request
-    offset.
-  */
   if (offset < ibb_page_size)
     offset= ibb_page_size;
-  chunk_rd.seek(file_no, (uint64_t)offset);
+
+  /*
+    Start at the beginning of the page containing the requested position. Then
+    read forwards until the requested position is reached. This way we avoid
+    reading garbaga data for invalid request offset.
+  */
+
+  chunk_rd.seek(file_no,
+                (uint64_t)offset & ((uint64_t)~0 << ibb_page_size_shift));
+  int err=
+    chunk_rd.find_offset_in_page((uint32_t)(offset & (ibb_page_size - 1)));
+  chunk_rd.release(true);
   chunk_rd.skip_partial(true);
+
   cur_file_no= chunk_rd.current_file_no();
   cur_file_pos= chunk_rd.current_pos();
-  return 0;
+  return err;
 }
 
 
 void
 ha_innodb_binlog_reader::enable_single_file()
 {
-  chunk_rd.stop_file_no= chunk_rd.s.file_no;
+  chunk_rd.stop_file_no= requested_file_no != ~(uint64_t)0 ?
+    requested_file_no : chunk_rd.s.file_no;
 }
 
 
