@@ -26,7 +26,7 @@ CALL mtr.add_suppression("InnoDB: Page corruption in binlog tablespace file page
 FLUSH BINARY LOGS;
 FLUSH BINARY LOGS;
 SHOW BINLOG EVENTS IN 'binlog-000000.ibb' LIMIT 1;
-ERROR HY000: Error when executing command SHOW BINLOG EVENTS: error reading event data
+ERROR HY000: Replication event checksum verification failed while reading from a log file
 include/reset_master.inc
 SHOW BINARY LOGS;
 Log_name	File_size
