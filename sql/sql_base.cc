@@ -2423,6 +2423,11 @@ retry_share:
   DBUG_ASSERT(table->file->pushed_cond == NULL);
   table_list->updatable= 1; // It is not derived table nor non-updatable VIEW
   table_list->table= table;
+  if (table_list->linked_table)
+  {
+    /* Update link for sequence tables in default */
+    table_list->linked_table->table= table;
+  }
 
   if (!from_share && table->vcol_fix_expr(thd))
     DBUG_RETURN(true);
@@ -5052,7 +5057,7 @@ add_internal_tables(THD *thd, Query_tables_list *prelocking_ctx,
         next_local value as it may have been changed by a previous
         statement using the same table.
       */
-      tables->next_local= tmp;
+      tmp->linked_table= tables;
       continue;
     }
 
@@ -5067,10 +5072,10 @@ add_internal_tables(THD *thd, Query_tables_list *prelocking_ctx,
                                       &prelocking_ctx->query_tables_last,
                                       tables->for_insert_data);
     /*
-      Store link to the new table_list that will be used by open so that
-      Item_func_nextval() can find it
+      Store link to the sequences table so that we can in open_table() update
+      it to point to the opened table.
     */
-    tables->next_local= tl;
+    tl->linked_table= tables;
     DBUG_PRINT("info", ("table name: %s added", tables->table_name.str));
   } while ((tables= tables->next_global));
   DBUG_RETURN(FALSE);

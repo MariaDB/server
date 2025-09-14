@@ -2414,6 +2414,7 @@ struct TABLE_LIST
   TABLE_LIST *next_local;
   /* link in a global list of all queries tables */
   TABLE_LIST *next_global, **prev_global;
+  TABLE_LIST *linked_table;             // For sequence tables used in default
   LEX_CSTRING   db;
   LEX_CSTRING   table_name;
   LEX_CSTRING   schema_table_name;
