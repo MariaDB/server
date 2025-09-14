@@ -6866,31 +6866,30 @@ int store_schema_proc(THD *thd, TABLE *table, TABLE *proc_table,
       size_t function_kind_idx= 0;
       enum_sp_type sp_type= 
         (enum_sp_type)proc_table->field[MYSQL_PROC_MYSQL_TYPE]->val_int();
-      switch (sp_type)
-      {
-        case SP_TYPE_FUNCTION:
-          if ((enum_sp_aggregate_type)proc_table->
-              field[MYSQL_PROC_FIELD_AGGREGATE]->val_int() == GROUP_AGGREGATE)
-          {
-            // function kind: AGGREGATE function
-            function_kind_idx = 2;
-          }
-          else
-          {
-            // function kind: SCALAR for non-aggregate function
-            function_kind_idx = 1;
-          }
-          break;
-        case SP_TYPE_PROCEDURE:
-        case SP_TYPE_PACKAGE:
-        case SP_TYPE_PACKAGE_BODY:
-        case SP_TYPE_TRIGGER:
-        case SP_TYPE_EVENT:
-          // function kind: NOT_FUNCTION for all non-functions
-          function_kind_idx = 0;
-          break;
-        default: // for future enum_sp_types
-          break;
+      switch (sp_type) {
+			case SP_TYPE_FUNCTION:
+				if ((enum_sp_aggregate_type)proc_table->
+						field[MYSQL_PROC_FIELD_AGGREGATE]->val_int() == GROUP_AGGREGATE)
+				{
+					// function kind: AGGREGATE function
+					function_kind_idx= 2;
+				}
+				else
+				{
+					// function kind: SCALAR for non-aggregate function
+					function_kind_idx= 1;
+				}
+				break;
+			case SP_TYPE_PROCEDURE:
+			case SP_TYPE_PACKAGE:
+			case SP_TYPE_PACKAGE_BODY:
+			case SP_TYPE_TRIGGER:
+			case SP_TYPE_EVENT:
+				// function kind: NOT_FUNCTION for all non-functions
+				function_kind_idx= 0;
+				break;
+			default: // for future enum_sp_types
+				break;
       }
 
       table->field[31]->store(function_kind_names[function_kind_idx], 
