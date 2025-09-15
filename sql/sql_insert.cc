@@ -2599,6 +2599,7 @@ public:
     strmake_buf(thd.security_ctx->priv_user, thd.security_ctx->user);
     thd.current_tablenr=0;
     lex_start(&thd);
+    thd.reset_for_next_command();
     thd.set_command(COM_DELAYED_INSERT);
     thd.lex->current_select= lex->current_select;
     thd.lex->sql_command= lex->sql_command;        // For innodb::store_lock()
