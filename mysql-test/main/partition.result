@@ -2888,5 +2888,23 @@ a
 1
 DROP TABLE t1;
 #
+# MDEV-20498 Assertion `table_share->tmp_table != NO_TMP_TABLE || m_lock_type == 1' failed upon REBUILD PARTITION.
+#     ALTER TABLE DROP COLUMN, ADD COLUMN misplacing rows.
+#
+CREATE TABLE t1 (a INT)
+PARTITION BY LIST (a) (
+PARTITION p0 VALUES IN (8),
+PARTITION p1 VALUES IN (4,7,0),
+PARTITION p2 VALUES IN (9,2,5),
+PARTITION p3 VALUES IN (3,1,6));
+INSERT INTO t1 VALUES (8),(5),(4),(0);
+ALTER TABLE t1 DROP a, ADD a INT NOT NULL DEFAULT 0, algorithm=inplace;
+ERROR 0A000: ALGORITHM=INPLACE is not supported for this operation. Try ALGORITHM=COPY
+ALTER TABLE t1 DROP a, ADD a INT NOT NULL DEFAULT 0;
+CHECK TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+DROP TABLE t1;
+#
 # End of 10.6 tests
 #
