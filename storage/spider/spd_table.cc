@@ -7005,7 +7005,8 @@ void spider_get_partition_info(
           DBUG_VOID_RETURN;
         }
         DBUG_PRINT("info",("spider tmp_name=%s", tmp_name));
-        if (!memcmp(table_name, tmp_name, table_name_length + 1))
+        if (table_name_length == strlen(tmp_name) &&
+            !strncmp(table_name, tmp_name, table_name_length))
           DBUG_VOID_RETURN;
         if (
           tmp_flg &&
@@ -7026,7 +7027,8 @@ void spider_get_partition_info(
         DBUG_VOID_RETURN;
       }
       DBUG_PRINT("info",("spider tmp_name=%s", tmp_name));
-      if (!memcmp(table_name, tmp_name, table_name_length + 1))
+      if (table_name_length == strlen(tmp_name) &&
+          !strncmp(table_name, tmp_name, table_name_length))
         DBUG_VOID_RETURN;
       if (
         tmp_flg &&

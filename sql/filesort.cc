@@ -2333,7 +2333,7 @@ get_addon_fields(TABLE *table, uint sortlength,
 
   /*
     If there is a reference to a field in the query add it
-    to the the set of appended fields.
+    to the set of appended fields.
     Note for future refinement:
     This this a too strong condition.
     Actually we need only the fields referred in the

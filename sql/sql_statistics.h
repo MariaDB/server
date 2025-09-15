@@ -359,7 +359,7 @@ public:
 
 
 /*
-  This is used to collect the the basic statistics from a Unique object:
+  This is used to collect the basic statistics from a Unique object:
    - count of values
    - count of distinct values
    - count of distinct values that have occurred only once

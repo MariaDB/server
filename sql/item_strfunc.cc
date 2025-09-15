@@ -294,7 +294,7 @@ String *Item_func_sha2::val_str_ascii(String *str)
   /* Convert the large number to a string-hex representation. */
   array_to_hex((char *) str->ptr(), digest_buf, (uint)digest_length);
 
-  /* We poked raw bytes in.  We must inform the the String of its length. */
+  /* We poked raw bytes in.  We must inform the String of its length. */
   str->length((uint) digest_length*2); /* Each byte as two nybbles */
 
   null_value= FALSE;

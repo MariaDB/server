@@ -750,6 +750,7 @@ void push_warning(THD *thd, Sql_condition::enum_warning_level level,
   if (level == Sql_condition::WARN_LEVEL_ERROR)
     level= Sql_condition::WARN_LEVEL_WARN;
 
+  DBUG_ASSERT(strlen(msg));
   DBUG_ASSERT(msg[strlen(msg)-1] != '\n');
   (void) thd->raise_condition(code, "\0\0\0\0\0", level, msg);
 

@@ -333,7 +333,17 @@ static int write_to_table(char *filename, MYSQL *mysql)
   DBUG_ENTER("write_to_table");
   DBUG_PRINT("enter",("filename: %s",filename));
 
-  fn_format(tablename, filename, "", "", 1 | 2); /* removes path & ext. */
+  fn_format(tablename, filename, "", "", MYF(MY_REPLACE_DIR | MY_REPLACE_EXT));
+  if (strchr(tablename, '@'))
+  {
+    uint errors, len;
+    CHARSET_INFO *cs=
+        get_charset_by_csname(default_charset, MY_CS_PRIMARY, MYF(0));
+    len= my_convert(escaped_name, sizeof(escaped_name) - 1, cs, tablename,
+                    (uint32)strlen(tablename), &my_charset_filename, &errors);
+    if (!errors)
+      strmake(tablename, escaped_name, len);
+  }
   if (!opt_local_file)
     strmov(hard_path,filename);
   else
@@ -472,7 +482,7 @@ static MYSQL *db_connect(char *host, char *database,
   if (!strcmp(default_charset,MYSQL_AUTODETECT_CHARSET_NAME))
     default_charset= (char *)my_default_csname();
   my_set_console_cp(default_charset);
-  mysql_options(mysql, MYSQL_SET_CHARSET_NAME, my_default_csname());
+  mysql_options(mysql, MYSQL_SET_CHARSET_NAME, default_charset);
   mysql_options(mysql, MYSQL_OPT_CONNECT_ATTR_RESET, 0);
   mysql_options4(mysql, MYSQL_OPT_CONNECT_ATTR_ADD,
                  "program_name", "mysqlimport");

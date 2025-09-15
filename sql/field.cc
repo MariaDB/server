@@ -1143,7 +1143,7 @@ Field_longstr::pack_sort_string(uchar *to, const SORT_FIELD_ATTR *sort_field)
   @details
   The function returns a double number between 0.0 and 1.0 as the relative
   position of the value of the this field in the numeric interval of [min,max].
-  If the value is not in the interval the the function returns 0.0 when
+  If the value is not in the interval the function returns 0.0 when
   the value is less than min, and, 1.0 when the value is greater than max.
 
   @param  min  value of the left end of the interval
@@ -1204,7 +1204,7 @@ static inline double safe_substract(ulonglong a, ulonglong b)
   @details
   The function returns a double number between 0.0 and 1.0 as the relative
   position of the value of the this field in the string interval of [min,max].
-  If the value is not in the interval the the function returns 0.0 when
+  If the value is not in the interval the function returns 0.0 when
   the value is less than min, and, 1.0 when the value is greater than max.
 
   @note

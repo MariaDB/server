@@ -3428,17 +3428,9 @@ set_start_lsn:
 			mtr.discard_modifications();
 			mtr.commit();
 
-			fil_space_t* s = space
-				? space
-				: fil_space_t::get(block->page.id().space());
-
 			buf_pool.corrupted_evict(&block->page,
 						 block->page.state() &
 						 buf_page_t::LRU_MASK);
-			if (!space) {
-				s->release();
-			}
-
 			return nullptr;
 		}
 
@@ -3829,7 +3821,6 @@ inline buf_block_t *recv_sys_t::recover_low(const map::iterator &p, mtr_t &mtr,
     DBUG_LOG("ib_log", "skip log for page " << p->first
              << " LSN " << end_lsn << " < " << init_lsn);
   fil_space_t *space= fil_space_t::get(p->first.space());
-
   mtr.start();
   mtr.set_log_mode(MTR_LOG_NO_REDO);
 
@@ -3849,7 +3840,6 @@ inline buf_block_t *recv_sys_t::recover_low(const map::iterator &p, mtr_t &mtr,
     zip_size= fil_space_t::zip_size(flags);
     block= buf_page_create_deferred(p->first.space(), zip_size, &mtr, b);
     ut_ad(block == b);
-    block->page.lock.x_lock_recursive();
   }
   else
   {
@@ -3868,6 +3858,8 @@ inline buf_block_t *recv_sys_t::recover_low(const map::iterator &p, mtr_t &mtr,
     }
   }
 
+  /* Released in buf_pool_t::corrupted_evict(), recover_deferred() or below */
+  block->page.lock.x_lock_recursive();
   ut_d(mysql_mutex_lock(&mutex));
   ut_ad(&recs == &pages.find(p->first)->second);
   ut_d(mysql_mutex_unlock(&mutex));
@@ -3875,8 +3867,11 @@ inline buf_block_t *recv_sys_t::recover_low(const map::iterator &p, mtr_t &mtr,
   ut_ad(mtr.has_committed());
 
   if (space)
+  {
     space->release();
-
+    if (block)
+      block->page.lock.x_unlock();
+  }
   return block ? block : reinterpret_cast<buf_block_t*>(-1);
 }
 

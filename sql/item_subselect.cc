@@ -1373,7 +1373,7 @@ bool subselect_single_select_engine::always_returns_one_row() const
 
   @details
   The function checks whether an expression cache is needed for this item
-  and if if so wraps the item into an item of the class
+  and if so wraps the item into an item of the class
   Item_cache_wrapper with an appropriate expression cache set up there.
 
   @note
@@ -1802,7 +1802,7 @@ bool Item_in_subselect::fix_length_and_dec()
 
   @details
   The function checks whether an expression cache is needed for this item
-  and if if so wraps the item into an item of the class
+  and if so wraps the item into an item of the class
   Item_cache_wrapper with an appropriate expression cache set up there.
 
   @note

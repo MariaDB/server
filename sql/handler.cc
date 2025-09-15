@@ -4706,7 +4706,7 @@ void handler::print_error(int error, myf errflag)
   case HA_ERR_RECORD_DELETED:
   case HA_ERR_END_OF_FILE:
     /*
-      This errors is not not normally fatal (for example for reads). However
+      This errors is not normally fatal (for example for reads). However
       if you get it during an update or delete, then its fatal.
       As the user is calling print_error() (which is not done on read), we
       assume something when wrong with the update or delete.

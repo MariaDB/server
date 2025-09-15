@@ -271,7 +271,7 @@ typedef struct st_partition_part_key_multi_range_hld
   /* Owner object */
   ha_partition *partition;
 
-  /* id of the the partition this structure is for */
+  /* id of the partition this structure is for */
   uint32 part_id;
 
   /* Current range we're iterating through */

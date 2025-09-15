@@ -481,7 +481,7 @@ bool Sql_cmd_delete::delete_from_single_table(THD *thd)
       not in safe mode (not using option --safe-mode)
     - There is no limit clause
     - The condition is constant
-    - If there is a condition, then it it produces a non-zero value
+    - If there is a condition, then it produces a non-zero value
     - If the current command is DELETE FROM with no where clause, then:
       - We should not be binlogging this statement in row-based, and
       - there should be no delete triggers associated with the table.
@@ -550,6 +550,9 @@ bool Sql_cmd_delete::delete_from_single_table(THD *thd)
     conds= conds->top_level_transform(thd, &Item::varchar_upper_cmp_transformer,
                                           (uchar *) 0);
   }
+
+  if (table->versioned(VERS_TIMESTAMP) || (table_list->has_period()))
+    table->file->prepare_for_insert(1);
 
 #ifdef WITH_PARTITION_STORAGE_ENGINE
   if (prune_partitions(thd, table, conds))
@@ -862,8 +865,6 @@ bool Sql_cmd_delete::delete_from_single_table(THD *thd)
           && !table->versioned()
           && table->file->has_transactions();
 
-  if (table->versioned(VERS_TIMESTAMP) || (table_list->has_period()))
-    table->file->prepare_for_insert(1);
   DBUG_ASSERT(table->file->inited != handler::NONE);
 
   THD_STAGE_INFO(thd, stage_updating);

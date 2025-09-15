@@ -997,7 +997,7 @@ int terminate_slave_threads(Master_info* mi,int thread_mask,bool skip_lock)
    This function is called after requesting the thread to terminate
    (by setting @c abort_slave member of @c Relay_log_info or @c
    Master_info structure to 1). Termination of the thread is
-   controlled with the the predicate <code>*slave_running</code>.
+   controlled with the predicate <code>*slave_running</code>.
 
    Function will acquire @c term_lock before waiting on the condition
    unless @c skip_lock is true in which case the mutex should be owned

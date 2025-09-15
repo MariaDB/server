@@ -1004,7 +1004,7 @@ bool MDL_context::fix_pins()
 
   @param  mdl_namespace  Id of namespace of object to be locked
   @param  db             Name of database to which the object belongs
-  @param  name           Name of of the object
+  @param  name           Name of the object
   @param  mdl_type       The MDL lock type for the request.
 */
 

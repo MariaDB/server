@@ -879,7 +879,7 @@ bool Item_field::find_item_in_field_list_processor(void *arg)
   Mark field in read_map
 
   NOTES
-    This is used by filesort to register used fields in a a temporary
+    This is used by filesort to register used fields in a temporary
     column read set or to register used fields in a view or check constraint
 */
 
@@ -1383,7 +1383,7 @@ Item *Item_num::safe_charset_converter(THD *thd, CHARSET_INFO *tocs)
   Create character set converter for constant items
   using Item_null, Item_string or Item_static_string_func.
 
-  @param tocs       Character set to to convert the string to.
+  @param tocs       Character set to convert the string to.
   @param lossless   Whether data loss is acceptable.
   @param func_name  Function name, or NULL.
 
@@ -2682,7 +2682,7 @@ bool Type_std_attributes::agg_item_set_converter(const DTCollation &coll,
 
   /*
     For better error reporting: save the first and the second argument.
-    We need this only if the the number of args is 3 or 2:
+    We need this only if the number of args is 3 or 2:
     - for a longer argument list, "Illegal mix of collations"
       doesn't display each argument's characteristics.
     - if nargs is 1, then this error cannot happen.
@@ -4013,7 +4013,7 @@ void Item_string::print(String *str, enum_query_type query_type)
         - utf8mb3 does not work well with non-BMP characters (e.g. emoji).
         - Simply changing utf8mb3 to utf8mb4 will not fully help:
           some character sets have unassigned characters,
-          they get lost during during cs->utf8mb4->cs round trip.
+          they get lost during cs->utf8mb4->cs round trip.
       */
       str_value.print_with_conversion(str, str->charset());
     }

@@ -11210,7 +11210,7 @@ void mark_or_conds_to_avoid_pushdown(Item *cond)
        After that the transformed condition is attached into attach_to_conds
        list.
     2. Part of some other condition c1 that can't be entirely pushed
-       (if с1 isn't marked with any flag).
+       (if c1 isn't marked with any flag).
 
        For example:
 
@@ -12444,7 +12444,7 @@ bool SELECT_LEX_UNIT::explainable() const
 
   @param thd          the current thread handle
   @param db_name      name of db of the table to look for
-  @param db_name      name of db of the table to look for
+  @param table_name   name of table
 
   @return first found table, NULL or ERROR_TABLE
 */

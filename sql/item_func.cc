@@ -4903,7 +4903,7 @@ Item_func_set_user_var::fix_length_and_dec(THD *thd)
   Mark field in read_map
 
   NOTES
-    This is used by filesort to register used fields in a a temporary
+    This is used by filesort to register used fields in a temporary
     column read set or to register used fields in a view
 */
 

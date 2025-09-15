@@ -527,7 +527,10 @@ public:
      (think of an exit because of an error right after my_getopt)
     */
     option.var_type|= (flags & ALLOCATED) ? GET_STR_ALLOC : GET_STR;
-    global_var(const char*)= def_val;
+    if (def_val && (flags & ALLOCATED))
+      global_var(const char*)= my_strdup(PSI_INSTRUMENT_ME, def_val, MYF(0));
+    else
+      global_var(const char*)= def_val;
     SYSVAR_ASSERT(size == sizeof(char *));
   }
   void cleanup() override

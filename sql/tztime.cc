@@ -1031,7 +1031,7 @@ public:
     This method uses system function (localtime_r()) for conversion
     local time in system time zone in MYSQL_TIME structure to its my_time_t
     representation. Unlike the same function for Time_zone_db class
-    it it won't handle unnormalized input properly. Still it will
+    it won't handle unnormalized input properly. Still it will
     return lowest possible my_time_t in case of ambiguity or if we
     provide time corresponding to the time-gap.
 

@@ -81,6 +81,8 @@
 */
 #define export /* not static */
 
+PRAGMA_DISABLE_CHECK_STACK_FRAME
+
 #ifdef WITH_PERFSCHEMA_STORAGE_ENGINE
 
 static Sys_var_mybool Sys_pfs_enabled(
@@ -4265,7 +4267,7 @@ static Sys_var_on_access_global<Sys_var_enum,
 Sys_thread_pool_priority(
   "thread_pool_priority",
   "Threadpool priority. High priority connections usually start executing earlier than low priority."
-  "If priority set to 'auto', the the actual priority(low or high) is determined based on whether or not connection is inside transaction.",
+  "If priority set to 'auto', the actual priority(low or high) is determined based on whether or not connection is inside transaction.",
   SESSION_VAR(threadpool_priority), CMD_LINE(REQUIRED_ARG),
   threadpool_priority_names, DEFAULT(TP_PRIORITY_AUTO));
 
@@ -4854,7 +4856,7 @@ static Sys_var_bit Sys_foreign_key_checks(
        " (including ON UPDATE and ON DELETE behavior) InnoDB tables are checked,"
        " while if set to 0, they are not checked. 0 is not recommended for normal "
        "use, though it can be useful in situations where you know the data is "
-       "consistent, but want to reload data in a different order from that that "
+       "consistent, but want to reload data in a different order from that "
        "specified by parent/child relationships. Setting this variable to 1 does "
        "not retrospectively check for inconsistencies introduced while set to 0.",
        SESSION_VAR(option_bits), NO_CMD_LINE,

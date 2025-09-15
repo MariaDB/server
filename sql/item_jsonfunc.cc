@@ -1741,17 +1741,14 @@ bool Item_func_json_contains_path::val_bool()
   uint n_arg;
   longlong result;
   json_path_t p;
-  int n_found;
+  /*
+    Initialization force not required after gcc 13.3 where it
+    correctly sees that an uninitialized read of n_found doesn't occur
+    with mode_one being true.
+  */
+  int UNINIT_VAR(n_found);
   int array_sizes[JSON_DEPTH_LIMIT];
   uint has_negative_path= 0;
-#if defined(FORCE_INIT_OF_VARS)
-  /*
-    Initialization force not required after gcc 13.3
-    where it correctly sees that an uninitialized read
-    of n_found doesn't occur with mode_one being true.
-  */
-  n_found= 0; 
-#endif
 
   if ((null_value= args[0]->null_value))
     return 0;

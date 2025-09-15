@@ -4002,7 +4002,7 @@ bool Virtual_column_info::check_access(THD *thd)
     table 'table' and parses it, building an item object for it. The
     pointer to this item is placed into in a Virtual_column_info object
     that is created. After this the function performs
-    semantic analysis of the item by calling the the function
+    semantic analysis of the item by calling the function
     fix_and_check_vcol_expr().  Since the defining expression is part of the table
     definition the item for it is created in table->memroot within the
     special arena TABLE::expr_arena or in the thd memroot for INSERT DELAYED

@@ -260,7 +260,7 @@ public:
   bool sql_thread_caught_up;
   /**
     Simple setter for @ref worker_threads_caught_up;
-    sets it `false` to to indicate new user events in queue
+    sets it `false` to indicate new user events in queue
     @pre @ref data_lock held to prevent race with is_threads_caught_up()
   */
   inline void unset_worker_threads_caught_up()

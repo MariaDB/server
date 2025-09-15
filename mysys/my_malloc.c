@@ -108,7 +108,7 @@ void *my_malloc(PSI_memory_key key, size_t size, myf my_flags)
     int flag= MY_TEST(my_flags & MY_THREAD_SPECIFIC);
     mh->m_size= size | flag;
     mh->m_key= PSI_CALL_memory_alloc(key, size, & mh->m_owner);
-    if (update_malloc_size)
+    if (update_malloc_size != dummy)
     {
       mh->m_size|=2;
       update_malloc_size(size + HEADER_SIZE, flag);
@@ -177,7 +177,7 @@ void *my_realloc(PSI_memory_key key, void *old_point, size_t size, myf my_flags)
   {
     mh->m_size= size | old_flags;
     mh->m_key= PSI_CALL_memory_realloc(key, old_size, size, & mh->m_owner);
-    if (update_malloc_size && (old_flags & 2))
+    if (update_malloc_size != dummy && (old_flags & 2))
       update_malloc_size((longlong)size - (longlong)old_size, old_flags & 1);
     point= HEADER_TO_USER(mh);
   }
@@ -208,7 +208,7 @@ void my_free(void *ptr)
   old_flags= mh->m_size & 3;
   PSI_CALL_memory_free(mh->m_key, old_size, mh->m_owner);
 
-  if (update_malloc_size && (old_flags & 2))
+  if (update_malloc_size != dummy && (old_flags & 2))
     update_malloc_size(- (longlong) old_size - HEADER_SIZE, old_flags & 1);
 
 #ifndef SAFEMALLOC

@@ -1028,7 +1028,7 @@ typedef ulong		myf;	/* Type of MyFlags in my_funcs */
 #define YESNO(X) ((X) ? "yes" : "no")
 
 #define MY_HOW_OFTEN_TO_ALARM	2	/* How often we want info on screen */
-#define MY_HOW_OFTEN_TO_WRITE	10000	/* How often we want info on screen */
+#define MY_HOW_OFTEN_TO_WRITE	100000	/* How often we want info on screen */
 
 #include <my_byteorder.h>
 

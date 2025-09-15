@@ -4227,7 +4227,7 @@ public:
     @retval
       NULL      on error
     @retval
-      non-NULL  a pointer to a a valid string on success
+      non-NULL  a pointer to a valid string on success
   */
   virtual String *print_item_value(THD *thd, Item *item, String *str) const= 0;
 

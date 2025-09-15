@@ -2712,7 +2712,8 @@ bool st_select_lex_unit::cleanup()
       With_element *with_elem= with_element;
       while ((with_elem= with_elem->get_next_mutually_recursive()) !=
              with_element)
-        with_elem->rec_result->cleanup_count++;
+        if (with_elem->rec_result)
+          with_elem->rec_result->cleanup_count++;
       DBUG_RETURN(FALSE);
     }
   }

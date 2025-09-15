@@ -43,7 +43,7 @@
 
   The execution of the transformed query (Q1R) follows these steps:
     1. For each row of t1 where t1.b < const a temporary table
-       containing all rows of of t2 with t2.a = t1.a is created
+       containing all rows of t2 with t2.a = t1.a is created
     2. If there are any rows in the temporary table aggregation
        is performed for them
     3. The result of the aggregation is joined with t1.
@@ -155,7 +155,7 @@
   subsets the operation can applied to each subset independently. In this case
   all rows are first partitioned into the groups each of which contains all the
   rows from the partitions belonging the same subset and then each group
-  is subpartitioned into groups in the the post join operation.
+  is subpartitioned into groups in the post join operation.
 
   The set of all rows belonging to the union of several partitions is called
   here superpartition. If a grouping operation is defined by the list
@@ -1286,7 +1286,7 @@ bool JOIN::inject_best_splitting_cond(table_map excluded_tables)
     Test if equality is injected for split optimization
 
   @param
-    eq_item   equality to to test
+    eq_item   equality to test
 
   @retval
     true    eq_item is equality injected for split optimization
