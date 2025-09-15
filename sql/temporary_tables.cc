@@ -1472,16 +1472,9 @@ int THD::commit_global_tmp_tables()
     {
       if (table->open_by_handler)
       {
-        Diagnostics_area new_stmt_da(query_id, false, true);
-        Diagnostics_area *old_stmt_da= get_stmt_da();
-        // Avoid error reporting on COMMIT/ROLLBACK
-        set_stmt_da(&new_stmt_da);
-
         TABLE_LIST tl(table, TL_WRITE);
-        if (int local_error= mysql_ha_close(this, &tl))
-          error= local_error;
+        mysql_ha_rm_tables(this, &tl);
 
-        set_stmt_da(old_stmt_da);
         push_warning_printf(this, Sql_condition::WARN_LEVEL_NOTE,
                             ER_ILLEGAL_HA,
                             "Global temporary table %s.%s HANDLER is closed.",
