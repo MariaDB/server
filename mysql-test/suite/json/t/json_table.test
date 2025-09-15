@@ -1041,3 +1041,26 @@ COLUMNS
 --echo #
 --echo # End of 10.9 tests
 --echo #
+
+--echo #
+--echo # MDEV-27898 CREATE VIEW AS SELECT FROM JSON_TABLE column requires global privileges
+--echo #
+
+create view v1 as (select * from
+	json_table('[{"a":"1"}]', '$[*]' columns(a int path '$.a')  ) as jt);
+
+create user u1@localhost;
+grant ALL on test.* to u1@localhost;
+
+--connect (con1,localhost,u1,,test)
+
+create view v2 as
+	(select * from json_table('[{"a":"1"}]', '$[*]' columns(a int path '$.a')  ) as jt);
+
+disconnect con1;
+connection default;
+DROP VIEW v2;
+DROP VIEW v1;
+DROP USER u1@localhost;
+
+--echo # End of 10.11 tests
