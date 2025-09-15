@@ -8235,6 +8235,7 @@ end:
 bool
 MYSQL_BIN_LOG::write_transaction_to_binlog_events(group_commit_entry *entry)
 {
+  DEBUG_SYNC(entry->thd, "before_group_commit_queue");
   int is_leader= queue_for_group_commit(entry);
 #ifdef WITH_WSREP
   /* commit order was released in queue_for_group_commit() call,
