@@ -10036,3 +10036,5 @@ ER_REMOVED_ORPHAN_TRIGGER
 ER_STORAGE_ENGINE_DISABLED
         eng "Storage engine %s is disabled"
         spa "El motor de almacenaje %s está desactivado"
+ER_PARTITION_PARTITIONING_COLUMN_DROPPED
+        eng "Column %-.64s can't be dropped as it's used in PARTITIONING."
