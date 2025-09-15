@@ -778,4 +778,13 @@ unlock tables;
 truncate t;
 drop table t;
 
+--echo # MDEV-37379 UBSAN invalid-bool-load on INSERT DELAYED GTT
+set @save_binlog_format=@@global.binlog_format;
+set global binlog_format=row;
+create global temporary table t (x int) on commit preserve rows;
+--error ER_DELAYED_NOT_SUPPORTED
+insert delayed into t values ();
+drop table t;
+set global binlog_format=@save_binlog_format;
+
 --disconnect con1
