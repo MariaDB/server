@@ -665,12 +665,12 @@ int compare_window_funcs_by_window_specs(Item_window_func *win_func1,
     */
     if (!win_spec1->name() && win_spec2->name())
     {
-      win_spec1->save_order_list= win_spec2->order_list;
+      win_spec1->save_order_list= win_spec1->order_list;
       win_spec1->order_list= win_spec2->order_list;
     }
     else
     {
-      win_spec1->save_order_list= win_spec2->order_list;
+      win_spec2->save_order_list= win_spec2->order_list;
       win_spec2->order_list= win_spec1->order_list;
     }
 
@@ -2490,13 +2490,25 @@ Frame_cursor *get_frame_cursor(THD *thd, Window_spec *spec, bool is_top_bound)
     }
     else
     {
+      /*
+        compare_window_funcs_by_window_specs() will try to get the 
+        Window Specs to reuse the ORDER BY lists.
+        RANGE-type window frame expects a single ORDER BY element,
+        and if the list from a different window spec having more than 1 
+        ORDER BY element is used, then an ASSERT is raised.
+        
+        So, use the original ORDER BY list when constructing 
+        RANGE-type frames.
+      */
+      SQL_I_List<ORDER> *order_list=
+          spec->save_order_list ? spec->save_order_list : spec->order_list;
       if (is_top_bound)
         return new Frame_range_n_top(
-            thd, spec->partition_list, spec->order_list,
+            thd, spec->partition_list, order_list,
             is_preceding, bound->offset);
 
       return new Frame_range_n_bottom(thd,
-          spec->partition_list, spec->order_list,
+          spec->partition_list, order_list,
           is_preceding, bound->offset);
     }
   }
