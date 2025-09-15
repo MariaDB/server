@@ -850,4 +850,16 @@ insert delayed into t values ();
 drop table t;
 set global binlog_format=@save_binlog_format;
 
+--echo # MDEV-37657 SIGSEGV in mysql_ha_flush on SHOW CREATE TABLE after HANDLER OPEN GTT
+create global temporary table t (c int) engine=innodb on commit delete rows;
+handler t open as a;
+show create table t;
+drop table t;
+
+create global temporary table t (c int) on commit delete rows;
+handler t open h;
+--error ER_TABLE_EXISTS_ERROR
+create table t (d int);
+drop table t;
+
 --disconnect con1
