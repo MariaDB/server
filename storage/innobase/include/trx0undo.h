@@ -27,9 +27,8 @@ Created 3/26/1996 Heikki Tuuri
 #ifndef trx0undo_h
 #define trx0undo_h
 
-#ifndef UNIV_INNOCHECKSUM
 #include "trx0sys.h"
-
+#ifndef UNIV_INNOCHECKSUM
 /** The LSB of the "is insert" flag in DB_ROLL_PTR */
 #define ROLL_PTR_INSERT_FLAG_POS 55
 /** The LSB of the 7-bit trx_rseg_t::id in DB_ROLL_PTR */
