@@ -902,4 +902,12 @@ flush table t;
 unlock tables;
 truncate t;
 drop table t;
+# MDEV-37379 UBSAN invalid-bool-load on INSERT DELAYED GTT
+set @save_binlog_format=@@global.binlog_format;
+set global binlog_format=row;
+create global temporary table t (x int) on commit preserve rows;
+insert delayed into t values ();
+ERROR HY000: DELAYED option not supported for table 't'
+drop table t;
+set global binlog_format=@save_binlog_format;
 disconnect con1;
