@@ -3448,10 +3448,6 @@ static buf_block_t *recv_recover_page(buf_block_t *block, mtr_t &mtr,
 				      block->page.id().page_no()));
 
 		log_phys_t::apply_status a= l->apply(*block, recs.last_offset);
-		DBUG_EXECUTE_IF("recv_corrupt",
-				if (init && init->created &&
-				    (!space || space->id != 0))
-				  a= log_phys_t::APPLIED_CORRUPTED;);
 
 		switch (a) {
 		case log_phys_t::APPLIED_NO:

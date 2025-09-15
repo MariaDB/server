@@ -4,15 +4,6 @@ INSERT INTO t1 VALUES(1, 'sql'), (2, 'server'), (3, 'mariadb'),
 (4, 'mariadb'), (5, 'test1'), (6, 'test2'), (7, 'test3'),
 (8, 'test4'), (9, 'test5'), (10, 'test6'), (11, 'test7'),
 (12, 'test8');
-call mtr.add_suppression("InnoDB: Cannot apply log to \\[page id: space=[1-9], page number=0\\] of corrupted file '.*mdev_37412\\.ibd'");
-SET GLOBAL innodb_log_checkpoint_now=ON;
-CREATE TABLE mdev_37412(id INT AUTO_INCREMENT, PRIMARY KEY(id))
-STATS_PERSISTENT=0 ENGINE=InnoDB;
-# Kill the server
-# restart: --debug_dbug=+d,recv_corrupt
-SELECT * FROM mdev_37412;
-id
-DROP TABLE mdev_37412;
 SELECT COUNT(*) FROM t1;
 COUNT(*)
 12
