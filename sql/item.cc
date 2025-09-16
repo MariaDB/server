@@ -661,7 +661,6 @@ Item* Item::set_expr_cache(THD *thd)
 Item_ident_placeholder::Item_ident_placeholder(THD *thd,
                                                Name_resolution_context
                                                  *context_arg,
-
                                                const Lex_ident_db
                                                  db_name_arg,
                                                const Lex_ident_table

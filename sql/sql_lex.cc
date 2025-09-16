@@ -8877,18 +8877,17 @@ bool LEX::check_expr_allows_fields_or_error(THD *thd, const char *name) const
 
 Item *LEX::create_item_ident_placeholder(THD *thd,
                                          Name_resolution_context *ctx,
-                                         const Lex_ident_db *db,
-                                         const Lex_ident_table *table,
-                                         const Lex_ident_column *field)
+                                         const Lex_ident_db db,
+                                         const Lex_ident_table table,
+                                         const Lex_ident_column field)
 {
   DBUG_ENTER("LEX::create_item_ident_placeholder");
   DBUG_PRINT("enter", ("New name to resolve %s.%s.%s",
-                       (db->length ? db->str : "<NULL>"),
-                       (table->length ? table->str : "<NULL>"),
-                       (field->length ? field->str : "<NULL>")));
+                       (db.length ? db.str : "<NULL>"),
+                       (table.length ? table.str : "<NULL>"),
+                       (field.length ? field.str : "<NULL>")));
   Item_ident_placeholder *res=
-   new(thd->mem_root) Item_ident_placeholder(thd, ctx,
-                                             *db, *table, *field);
+   new(thd->mem_root) Item_ident_placeholder(thd, ctx, db, table, field);
   if (res)
   {
     if(ctx->select_lex->names_to_resolve.push_back(res, thd->mem_root))

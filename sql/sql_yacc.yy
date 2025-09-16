@@ -16334,16 +16334,18 @@ simple_ident_nospvar:
           {
             if (unlikely(!($$= Lex->create_item_ident_placeholder(thd,
                                       Lex->context_stack.head(),
-                                      NULL, NULL,
-                                      &$1))))
+                                      Lex_ident_db(null_clex_str),
+                                      Lex_ident_table(null_clex_str),
+                                      Lex_ident_column($1)))))
               MYSQL_YYABORT;
           }
         | ident '.' ident
           {
-            if (unlikely(!($$= Lex->create_item_ident_placeholder(thd,
+           if (unlikely(!($$= Lex->create_item_ident_placeholder(thd,
                                       Lex->context_stack.head(),
-                                      &null_clex_str, &$1,
-                                      &$3))))
+                                      Lex_ident_db(null_clex_str),
+                                      Lex_ident_table($1),
+                                      Lex_ident_column($3)))))
               MYSQL_YYABORT;
           }
         | COLON_ORACLE_SYM ident_cli '.' ident_cli
@@ -16353,17 +16355,25 @@ simple_ident_nospvar:
           }
         | '.' ident '.' ident
           {
+            Lex_ident_table tab($2);
+            Lex_ident_column col($4);
             if (unlikely(!($$= Lex->create_item_ident_placeholder(thd,
                                       Lex->context_stack.head(),
-                                      &null_clex_str, &$2,
-                                      &$4))))
+                                      Lex_ident_db(null_clex_str),
+                                      Lex_ident_table($2),
+                                      Lex_ident_column($4)))))
               MYSQL_YYABORT;
           }
         | ident '.' ident '.' ident
           {
+            Lex_ident_db db($1);
+            Lex_ident_table tab($3);
+            Lex_ident_column col($5);
             if (unlikely(!($$= Lex->create_item_ident_placeholder(thd,
                                       Lex->context_stack.head(),
-                                      &$1, &$3, &$5))))
+                                      Lex_ident_db($1),
+                                      Lex_ident_table($3),
+                                      Lex_ident_column($5)))))
               MYSQL_YYABORT;
           }
         ;

@@ -3745,6 +3745,8 @@ public:
   Field *create_tmp_field_ex(MEM_ROOT *, TABLE *, Tmp_field_src *,
                              const Tmp_field_param *) override
     { DBUG_ASSERT(0); return NULL;}
+  virtual Item* do_build_clone(THD *thd) const override
+    { DBUG_ASSERT(0); return NULL;}
   /*
     Dummy things start
   */
