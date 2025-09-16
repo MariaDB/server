@@ -2684,8 +2684,8 @@ void Explain_update::print_explain_json(Explain_query *query,
 
     if (table_tracker.has_timed_statistics())
     {
-      writer->add_member("r_total_time_ms").
-              add_double(table_tracker.get_time_ms());
+      writer->add_member("r_table_time_ms").add_double(table_tracker.get_time_ms());
+      writer->add_member("r_other_time_ms").add_double(extra_time_tracker.get_time_ms());
     }
   }
 

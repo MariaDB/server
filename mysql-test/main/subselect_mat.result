@@ -3320,7 +3320,8 @@ ANALYZE
       "rows": 4,
       "r_rows": 4,
       "r_filtered": 25,
-      "r_total_time_ms": "REPLACED",
+      "r_table_time_ms": "REPLACED",
+      "r_other_time_ms": "REPLACED",
       "r_engine_stats": REPLACED,
       "attached_condition": "!(<in_optimizer>(t1.a,t1.a in (subquery#2)))"
     },
@@ -3395,7 +3396,8 @@ ANALYZE
       "rows": 2,
       "r_rows": 2,
       "r_filtered": 0,
-      "r_total_time_ms": "REPLACED",
+      "r_table_time_ms": "REPLACED",
+      "r_other_time_ms": "REPLACED",
       "r_engine_stats": REPLACED,
       "attached_condition": "!(<in_optimizer>(t1.a,t1.a in (subquery#2)))"
     },
