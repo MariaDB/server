@@ -1,14 +1,14 @@
 # Copyright (c) 2009, 2013, Oracle and/or its affiliates. All rights reserved.
-# 
+#
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
 # the Free Software Foundation; version 2 of the License.
-# 
+#
 # This program is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 # GNU General Public License for more details.
-# 
+#
 # You should have received a copy of the GNU General Public License
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1335  USA
@@ -27,15 +27,15 @@ INCLUDE (CheckSymbolExists)
 # WITH_PIC options.Not of much use, PIC is taken care of on platforms
 # where it makes sense anyway.
 IF(UNIX)
-  IF(APPLE)  
+  IF(APPLE)
     # OSX  executable are always PIC
     SET(WITH_PIC ON)
   ELSE()
     OPTION(WITH_PIC "Generate PIC objects" OFF)
     IF(WITH_PIC)
-      SET(CMAKE_C_FLAGS 
+      SET(CMAKE_C_FLAGS
         "${CMAKE_C_FLAGS} ${CMAKE_SHARED_LIBRARY_C_FLAGS}")
-      SET(CMAKE_CXX_FLAGS 
+      SET(CMAKE_CXX_FLAGS
         "${CMAKE_CXX_FLAGS} ${CMAKE_SHARED_LIBRARY_CXX_FLAGS}")
     ENDIF()
   ENDIF()
@@ -43,7 +43,7 @@ ENDIF()
 
 
 
-# System type affects version_compile_os variable 
+# System type affects version_compile_os variable
 IF(NOT SYSTEM_TYPE)
   IF(PLATFORM)
     SET(SYSTEM_TYPE ${PLATFORM})
@@ -53,7 +53,7 @@ IF(NOT SYSTEM_TYPE)
 ENDIF()
 
 IF(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang" AND (NOT MSVC))
-  IF (CMAKE_EXE_LINKER_FLAGS MATCHES " -static " 
+  IF (CMAKE_EXE_LINKER_FLAGS MATCHES " -static "
      OR CMAKE_EXE_LINKER_FLAGS MATCHES " -static$")
      SET(HAVE_DLOPEN FALSE CACHE "Disable dlopen due to -static flag" FORCE)
      SET(WITHOUT_DYNAMIC_PLUGINS TRUE)
@@ -90,7 +90,7 @@ ENDFUNCTION()
 
 # Searches function in libraries
 # if function is found, sets output parameter result to the name of the library
-# if function is found in libc, result will be empty 
+# if function is found in libc, result will be empty
 FUNCTION(MY_SEARCH_LIBS func libs result)
   IF(${${result}})
     # Library is already found or was predefined
@@ -102,7 +102,7 @@ FUNCTION(MY_SEARCH_LIBS func libs result)
     RETURN()
   ENDIF()
   FOREACH(lib  ${libs})
-    CHECK_LIBRARY_EXISTS(${lib} ${func} "" HAVE_${func}_IN_${lib}) 
+    CHECK_LIBRARY_EXISTS(${lib} ${func} "" HAVE_${func}_IN_${lib})
     IF(HAVE_${func}_IN_${lib})
       SET(${result} ${lib} PARENT_SCOPE)
       SET(HAVE_${result} 1 PARENT_SCOPE)
@@ -130,7 +130,7 @@ IF(UNIX)
   set(THREADS_PREFER_PTHREAD_FLAG ON)
   FIND_PACKAGE(Threads)
 
-  SET(CMAKE_REQUIRED_LIBRARIES 
+  SET(CMAKE_REQUIRED_LIBRARIES
     ${LIBM} ${LIBNSL} ${LIBBIND} ${LIBCRYPT} ${LIBSOCKET} ${CMAKE_DL_LIBS} ${CMAKE_THREAD_LIBS_INIT} ${LIBRT} ${LIBEXECINFO})
   # Need explicit pthread for gcc -fsanitize=address
   IF(CMAKE_USE_PTHREADS_INIT AND CMAKE_C_FLAGS MATCHES "-fsanitize=")
@@ -139,9 +139,9 @@ IF(UNIX)
 
   IF(CMAKE_REQUIRED_LIBRARIES)
     LIST(REMOVE_DUPLICATES CMAKE_REQUIRED_LIBRARIES)
-  ENDIF()  
+  ENDIF()
   LINK_LIBRARIES(${CMAKE_THREAD_LIBS_INIT})
-  
+
   OPTION(WITH_LIBWRAP "Compile with tcp wrappers support" OFF)
   IF(WITH_LIBWRAP)
     SET(SAVE_CMAKE_REQUIRED_LIBRARIES ${CMAKE_REQUIRED_LIBRARIES})
@@ -353,15 +353,15 @@ CHECK_FUNCTION_EXISTS (getrusage HAVE_GETRUSAGE)
 CHECK_FUNCTION_EXISTS (getwd HAVE_GETWD)
 CHECK_FUNCTION_EXISTS (gmtime_r HAVE_GMTIME_R)
 CHECK_FUNCTION_EXISTS (initgroups HAVE_INITGROUPS)
-CHECK_FUNCTION_EXISTS (ldiv HAVE_LDIV)
+SET(HAVE_LDIV 1)
 CHECK_FUNCTION_EXISTS (localtime_r HAVE_LOCALTIME_R)
 CHECK_FUNCTION_EXISTS (lstat HAVE_LSTAT)
 CHECK_FUNCTION_EXISTS (madvise HAVE_MADVISE)
 CHECK_FUNCTION_EXISTS (mallinfo HAVE_MALLINFO)
 CHECK_FUNCTION_EXISTS (mallinfo2 HAVE_MALLINFO2)
 CHECK_FUNCTION_EXISTS (malloc_zone_statistics HAVE_MALLOC_ZONE)
-CHECK_FUNCTION_EXISTS (memcpy HAVE_MEMCPY)
-CHECK_FUNCTION_EXISTS (memmove HAVE_MEMMOVE)
+SET(HAVE_MEMCPY 1)
+SET(HAVE_MEMMOVE 1)
 CHECK_FUNCTION_EXISTS (mkstemp HAVE_MKSTEMP)
 CHECK_FUNCTION_EXISTS (mkostemp HAVE_MKOSTEMP)
 CHECK_FUNCTION_EXISTS (mlock HAVE_MLOCK)
@@ -369,7 +369,7 @@ CHECK_FUNCTION_EXISTS (mlockall HAVE_MLOCKALL)
 CHECK_FUNCTION_EXISTS (mmap HAVE_MMAP)
 CHECK_FUNCTION_EXISTS (mmap64 HAVE_MMAP64)
 CHECK_FUNCTION_EXISTS (mprotect HAVE_MPROTECT)
-CHECK_FUNCTION_EXISTS (perror HAVE_PERROR)
+SET(HAVE_PERROR 1)
 CHECK_FUNCTION_EXISTS (poll HAVE_POLL)
 CHECK_FUNCTION_EXISTS (posix_fallocate HAVE_POSIX_FALLOCATE)
 CHECK_FUNCTION_EXISTS (pread HAVE_PREAD)
@@ -391,7 +391,7 @@ CHECK_FUNCTION_EXISTS (rename HAVE_RENAME)
 CHECK_FUNCTION_EXISTS (rwlock_init HAVE_RWLOCK_INIT)
 CHECK_FUNCTION_EXISTS (sched_yield HAVE_SCHED_YIELD)
 CHECK_FUNCTION_EXISTS (setenv HAVE_SETENV)
-CHECK_FUNCTION_EXISTS (setlocale HAVE_SETLOCALE)
+SET(HAVE_SETLOCALE 1)
 CHECK_FUNCTION_EXISTS (sigaction HAVE_SIGACTION)
 CHECK_FUNCTION_EXISTS (sigthreadmask HAVE_SIGTHREADMASK)
 CHECK_FUNCTION_EXISTS (sigwait HAVE_SIGWAIT)
@@ -399,19 +399,19 @@ CHECK_FUNCTION_EXISTS (sigwaitinfo HAVE_SIGWAITINFO)
 CHECK_FUNCTION_EXISTS (sigset HAVE_SIGSET)
 CHECK_FUNCTION_EXISTS (sleep HAVE_SLEEP)
 CHECK_FUNCTION_EXISTS (stpcpy HAVE_STPCPY)
-CHECK_FUNCTION_EXISTS (strcoll HAVE_STRCOLL)
-CHECK_FUNCTION_EXISTS (strerror HAVE_STRERROR)
+SET(HAVE_STRCOLL 1)
+SET(HAVE_STRERROR 1)
 CHECK_FUNCTION_EXISTS (strnlen HAVE_STRNLEN)
-CHECK_FUNCTION_EXISTS (strpbrk HAVE_STRPBRK)
+SET(HAVE_STRPBRK 1)
 CHECK_FUNCTION_EXISTS (strtok_r HAVE_STRTOK_R)
-CHECK_FUNCTION_EXISTS (strtoll HAVE_STRTOLL)
-CHECK_FUNCTION_EXISTS (strtoul HAVE_STRTOUL)
-CHECK_FUNCTION_EXISTS (strtoull HAVE_STRTOULL)
+SET(HAVE_STRTOLL 1)
+SET(HAVE_STRTOL 1)
+SET(HAVE_STRTOULL 1)
 CHECK_FUNCTION_EXISTS (strcasecmp HAVE_STRCASECMP)
 CHECK_FUNCTION_EXISTS (tell HAVE_TELL)
 CHECK_FUNCTION_EXISTS (thr_yield HAVE_THR_YIELD)
 CHECK_FUNCTION_EXISTS (vasprintf HAVE_VASPRINTF)
-CHECK_FUNCTION_EXISTS (vsnprintf HAVE_VSNPRINTF)
+SET(HAVE_VSNPRINTF 1)
 CHECK_FUNCTION_EXISTS (nl_langinfo HAVE_NL_LANGINFO)
 
 IF(NOT HAVE_PTHREAD_RWLOCK_RDLOCK AND NOT HAVE_RWLOCK_INIT AND NOT WIN32)
@@ -474,7 +474,7 @@ CHECK_SYMBOL_EXISTS(gettimeofday "sys/time.h" HAVE_GETTIMEOFDAY)
 #
 INCLUDE(TestBigEndian)
 IF(APPLE)
-  # Cannot run endian test on universal PPC/Intel binaries 
+  # Cannot run endian test on universal PPC/Intel binaries
   # would return inconsistent result.
   # config.h.cmake includes a special #ifdef for Darwin
 ELSE()
@@ -621,7 +621,7 @@ CHECK_CXX_SOURCE_COMPILES("
 int main(int argc, char **argv)
 {
   getsockname(0,0,(socklen_t *) 0);
-  return 0; 
+  return 0;
 }"
 HAVE_SOCKET_SIZE_T_AS_socklen_t)
 
@@ -633,7 +633,7 @@ ELSE()
   int main(int argc, char **argv)
   {
     getsockname(0,0,(int *) 0);
-    return 0; 
+    return 0;
   }"
   HAVE_SOCKET_SIZE_T_AS_int)
   IF(HAVE_SOCKET_SIZE_T_AS_int)
@@ -644,7 +644,7 @@ ELSE()
     int main(int argc, char **argv)
     {
       getsockname(0,0,(size_t *) 0);
-      return 0; 
+      return 0;
     }"
     HAVE_SOCKET_SIZE_T_AS_size_t)
     IF(HAVE_SOCKET_SIZE_T_AS_size_t)
@@ -770,7 +770,7 @@ SET(SPRINTFS_RETURNS_INT 1)
 IF(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
 CHECK_CXX_SOURCE_COMPILES("
  #include <cxxabi.h>
- int main(int argc, char **argv) 
+ int main(int argc, char **argv)
   {
     char *foo= 0; int bar= 0;
     foo= abi::__cxa_demangle(foo, foo, 0, &bar);
@@ -883,7 +883,7 @@ IF(WITH_VALGRIND)
   SET(HAVE_valgrind 1)
 ENDIF()
 
-CHECK_INCLUDE_FILES("valgrind/memcheck.h;valgrind/valgrind.h" 
+CHECK_INCLUDE_FILES("valgrind/memcheck.h;valgrind/valgrind.h"
   HAVE_VALGRIND_MEMCHECK_H)
 
 #--------------------------------------------------------------------
@@ -935,7 +935,7 @@ CHECK_STRUCT_HAS_MEMBER("struct sockaddr_in" sin_len
 CHECK_STRUCT_HAS_MEMBER("struct sockaddr_in6" sin6_len
   "${CMAKE_EXTRA_INCLUDE_FILES}" HAVE_SOCKADDR_IN6_SIN6_LEN)
 
-SET(CMAKE_EXTRA_INCLUDE_FILES) 
+SET(CMAKE_EXTRA_INCLUDE_FILES)
 
 CHECK_STRUCT_HAS_MEMBER("struct dirent" d_ino "dirent.h"  STRUCT_DIRENT_HAS_D_INO)
 CHECK_STRUCT_HAS_MEMBER("struct dirent" d_namlen "dirent.h"  STRUCT_DIRENT_HAS_D_NAMLEN)
