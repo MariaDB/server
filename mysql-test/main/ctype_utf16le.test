@@ -426,6 +426,19 @@ SELECT HEX(SOUNDEX(_utf16le 0x041004110412));
 SELECT HEX(SOUNDEX(_utf16le 0x00BF00C0));
 
 --echo #
+--echo # MDEV-9473 feature for multiple words
+--echo #
+SET NAMES utf8, collation_connection=utf16le_general_ci;
+SELECT SOUNDEX('','0'),SOUNDEX('he','0'),SOUNDEX('hello all folks','0'),SOUNDEX('#3556 in bugdb','0');
+SELECT HEX(SOUNDEX('','0')),HEX(SOUNDEX('he','0')),HEX(SOUNDEX('hello all folks','0')),HEX(SOUNDEX('#3556 in bugdb','0'));
+SELECT SOUNDEX('','1'),SOUNDEX('he','1'),SOUNDEX('hello all folks','1'),SOUNDEX('#3556 in bugdb','1');
+SELECT HEX(SOUNDEX('','1')),HEX(SOUNDEX('he','1')),HEX(SOUNDEX('hello all folks','1')),HEX(SOUNDEX('#3556 in bugdb','1'));
+SELECT SOUNDEX('',0),SOUNDEX('he',0),SOUNDEX('hello all folks',0),SOUNDEX('#3556 in bugdb',0);
+SELECT HEX(SOUNDEX('',0)),HEX(SOUNDEX('he',0)),HEX(SOUNDEX('hello all folks',0)),HEX(SOUNDEX('#3556 in bugdb',0));
+SELECT SOUNDEX('',1),SOUNDEX('he',1),SOUNDEX('hello all folks',1),SOUNDEX('#3556 in bugdb',1);
+SELECT HEX(SOUNDEX('',1)),HEX(SOUNDEX('he',1)),HEX(SOUNDEX('hello all folks',1)),HEX(SOUNDEX('#3556 in bugdb',1));
+
+--echo #
 --echo # Bug#14290: character_maximum_length for text fields
 --echo #
 CREATE TABLE t1(a BLOB, b TEXT CHARSET utf16le);
