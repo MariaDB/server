@@ -158,11 +158,11 @@ EOF
     [[ $latest_distro == 34 ]] && dnf install -y https://repo.almalinux.org/almalinux/9/AppStream/x86_64/os/Packages/boost-program-options-1.75.0-8.el9.x86_64.rpm \
         https://vault.centos.org/centos/8/AppStream/x86_64/os/Packages/liburing-1.0.7-3.el8.x86_64.rpm
     [[ $latest_distro == 35 ]] && dnf install -y https://archives.fedoraproject.org/pub/archive/fedora/linux/updates/36/Everything/x86_64/Packages/b/boost-program-options-1.76.0-12.fc36.x86_64.rpm
-    [[ $latest_distro -le 35 ]] && dnf install -y https://dl.fedoraproject.org/pub/fedora/linux/releases/39/Everything/x86_64/os/Packages/o/openssl1.1-1.1.1q-5.fc39.x86_64.rpm
+    [[ $latest_distro -le 35 ]] && dnf install -y https://archives.fedoraproject.org/pub/archive/fedora/linux/releases/39/Everything/x86_64/os/Packages/o/openssl1.1-1.1.1q-5.fc39.x86_64.rpm
     # galera-4 needs boost-program-options-1.81.0. Try installing from default repository first.
     [[ $latest_distro -ge 39 ]] && 
         (dnf install -y boost-program-options-1.81.0 ||
-        dnf install -y https://rpmfind.net/linux/fedora/linux/releases/39/Everything/x86_64/os/Packages/b/boost-program-options-1.81.0-8.fc39.x86_64.rpm)
+        dnf install -y https://archives.fedoraproject.org/pub/archive/fedora/linux/releases/39/Everything/x86_64/os/Packages/b/boost-program-options-1.81.0-8.fc39.x86_64.rpm)
     if [[ $major_version == "10.4" ]] && [[ $minor_version -ge 24 ]]; then
         log "RPMs not available for version 10.4.24+ from this repository. You may try testing by installing from the .tar.gz binaries."
         exit 1
