@@ -672,14 +672,6 @@ class MYSQL_BIN_LOG: public TC_LOG, private Event_log
       LOCK_commit_ordered has been released.
     */
     bool do_binlog_group_commit_ordered;
-    /*
-      Set to 1 when commit_ordered() will *not* binlog transaction (ie. using
-      a different storage engine than --binlog-storage-engine).
-      Set to 2 in trx_group_commit_leader() when binlog_write_direct_ordered
-      has been called and we need to also call binlog_write_direct after
-      LOCK_commit_ordered has been released.
-    */
-    uchar no_auto_binlog;
   };
 
   /*
