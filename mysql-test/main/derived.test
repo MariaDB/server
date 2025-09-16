@@ -1194,9 +1194,11 @@ drop table t1,t2,t3;
 --echo # query includes a derived table containing unnamed column
 --echo # (eg: `SELECT '' from t`).
 --echo #
+--disable_view_protocol
 
 --echo # Tests from the bug report
 
+--disable_view_protocol
 CREATE TABLE t (pk INT PRIMARY KEY);
 INSERT INTO t VALUES (1), (2), (3);
 
@@ -1251,6 +1253,7 @@ SHOW CREATE VIEW v1;
 
 DROP VIEW v_t, v1;
 DROP TABLE t;
+--enable_view_protocol
 
 --echo # Tests on views created using SELECT statements that contain derived columns
 
@@ -1292,6 +1295,7 @@ SELECT * FROM v6_t;
 
 DROP VIEW v1_t, v2_t, v3_t, v4_t, v5_t, v6_t;
 DROP TABLE t;
+--enable_view_protocol
 
 --echo # End of 10.11 tests
 
@@ -2226,6 +2230,114 @@ drop table t10, t20, t30;
 
 --echo #
 --echo # End of 11.7 tests
+--echo #
+
+--echo #
+--echo # MDEV-37044 derived_wth_keys optimization not applied where it should
+--echo #
+
+--echo # MI_MAX_KEY_LENGTH < key length < tmp_table_max_key_length()
+--echo # must use <derived2>, <derived3> with ref access (not ALL)
+create table t1
+(
+  `CTC_DATABASE` varchar(128) NOT NULL,
+  `CTC_TABLE` varchar(256) DEFAULT NULL,
+  `CTC_PARTITION` varchar(767) DEFAULT NULL
+) DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci;
+insert into t1
+select
+  concat('db-', seq),
+  concat('tbl-', seq),
+  concat('part-', seq)
+from
+  seq_1_to_100;
+
+let $q=
+select * from
+  (select * from t1 limit 100) A,
+  (select * from t1 limit 101) B
+where
+  A.ctc_database=B.ctc_database and
+  A.ctc_table=B.ctc_table and
+  A.ctc_partition=B.ctc_partition;
+eval explain $q;
+
+--echo # key length > tmp_table_max_key_length()
+--echo # This uses <derived2>, <derived3> with type=ALL as index on temp table
+--echo # would be too long
+alter table t1 CONVERT TO CHARACTER SET utf8;
+eval explain $q;
+
+drop table t1;
+
+--echo # number of key parts > tmp_table_max_key_parts()
+--echo # This uses <derived2>, <derived3> with type=ALL as index on temp table
+--echo # would have too many parts
+create table t1
+(
+  c0  varchar(10) NOT NULL,
+  c1  varchar(10),
+  c2  varchar(10),
+  c3  varchar(10),
+  c4  varchar(10),
+  c5  varchar(10),
+  c6  varchar(10),
+  c7  varchar(10),
+  c8  varchar(10),
+  c9  varchar(10),
+  c10  varchar(10),
+  c11  varchar(10),
+  c12  varchar(10),
+  c13  varchar(10),
+  c14  varchar(10),
+  c15  varchar(10),
+  c16  varchar(10),
+  c17  varchar(10),
+  c18  varchar(10),
+  c19  varchar(10),
+  c20  varchar(10),
+  c21  varchar(10),
+  c22  varchar(10),
+  c23  varchar(10),
+  c24  varchar(10),
+  c25  varchar(10),
+  c26  varchar(10),
+  c27  varchar(10),
+  c28  varchar(10),
+  c29  varchar(10),
+  c30  varchar(10),
+  c31  varchar(10),
+  c32  varchar(10),
+  c33  varchar(10)
+);
+insert into t1
+select
+  seq, seq, seq, seq, seq, seq, seq, seq, seq, seq, seq, seq, seq, seq, seq,
+  seq, seq, seq, seq, seq, seq, seq, seq, seq, seq, seq, seq, seq, seq, seq,
+  seq, seq, seq, seq
+from
+  seq_1_to_100;
+let $q=
+select * from
+  (select * from t1 limit 100) A,
+  (select * from t1 limit 101) B
+where
+  A.c0 = B.c0 and A.c1 = B.c1 and A.c2 = B.c2 and A.c3 = B.c3 and
+  A.c4 = B.c4 and A.c5 = B.c5 and A.c6 = B.c6 and A.c7 = B.c7 and
+  A.c8 = B.c8 and A.c9 = B.c9 and A.c10 = B.c10 and A.c11 = B.c11 and
+  A.c12 = B.c12 and A.c13 = B.c13 and A.c14 = B.c14 and A.c15 = B.c15 and
+  A.c16 = B.c16 and A.c17 = B.c17 and A.c18 = B.c18 and A.c19 = B.c19 and
+  A.c20 = B.c20 and A.c21 = B.c21 and A.c22 = B.c22 and A.c23 = B.c23 and
+  A.c24 = B.c24 and A.c25 = B.c25 and A.c26 = B.c26 and A.c27 = B.c27 and
+  A.c28 = B.c28 and A.c29 = B.c29 and A.c30 = B.c30 and A.c31 = B.c31 and
+  A.c32 = B.c32 and A.c33 = B.c33;
+eval explain $q;
+
+drop table t1;
+
+
+--echo #
+--echo # End of 12.0 tests
 --echo #
 
 --source include/test_db_charset_restore.inc

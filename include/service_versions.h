@@ -26,7 +26,7 @@
 #define VERSION_base64                  0x0100
 #define VERSION_encryption              0x0300
 #define VERSION_encryption_scheme       0x0100
-#define VERSION_logger                  0x0200
+#define VERSION_logger                  0x0300
 #define VERSION_my_crypt                0x0101
 #define VERSION_my_md5                  0x0100
 #define VERSION_my_print_error          0x0200

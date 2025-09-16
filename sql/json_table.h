@@ -218,8 +218,8 @@ public:
   /*** Name resolution functions ***/
   bool setup(THD *thd, TABLE_LIST *sql_table, SELECT_LEX *s_lex);
 
-  int walk_items(Item_processor processor, bool walk_subquery,
-                 void *argument);
+  int walk_items(Item_processor processor,
+                 void *argument, item_walk_flags flags);
 
   /*** Functions for interaction with the Query Optimizer ***/
   void fix_after_pullout(TABLE_LIST *sql_table,
@@ -284,7 +284,7 @@ bool push_table_function_arg_context(LEX *lex, MEM_ROOT *alloc);
 TABLE *create_table_for_function(THD *thd, TABLE_LIST *sql_table);
 
 table_map add_table_function_dependencies(List<TABLE_LIST> *join_list,
-                                          table_map nest_tables);
+                                          table_map nest_tables, bool *error);
 
 #endif /* JSON_TABLE_INCLUDED */
 

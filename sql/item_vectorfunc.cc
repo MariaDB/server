@@ -29,7 +29,7 @@ static double calc_distance_euclidean(float *v1, float *v2, size_t v_len)
   double d= 0;
   for (size_t i= 0; i < v_len; i++, v1++, v2++)
   {
-    float dist= get_float(v1) - get_float(v2);
+    double dist= get_float(v1) - get_float(v2);
     d+= dist * dist;
   }
   return sqrt(d);

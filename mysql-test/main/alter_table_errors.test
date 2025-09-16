@@ -1,8 +1,8 @@
 --source include/have_innodb.inc
 
-#
-# MDEV-16110 ALTER with ALGORITHM=INPLACE breaks temporary table with virtual columns
-#
+--echo #
+--echo # MDEV-16110 ALTER with ALGORITHM=INPLACE breaks temporary table with virtual columns
+--echo #
 create table t (a int, v int as (a)) engine=innodb;
 --error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
 alter table t change column a b tinyint, algorithm=inplace;
@@ -20,12 +20,15 @@ lock table t2 write;
 alter table t2 change column a b int, algorithm=inplace;
 show create table t2;
 drop temporary table t1, t2;
+unlock tables;
 
-#
-# MDEV-18083 ASAN heap-use-after-free in Field::set_warning_truncated_wrong_value upon inserting into temporary table
-#
+--echo #
+--echo # MDEV-18083 ASAN heap-use-after-free in Field::set_warning_truncated_wrong_value upon inserting into temporary table
+--echo #
 create temporary table t1 (a int);
 alter table t1 add column f text;
 --error ER_TRUNCATED_WRONG_VALUE_FOR_FIELD
 insert into t1 values ('x','foo');
 drop temporary table t1;
+
+--echo # End of 10.2 tests

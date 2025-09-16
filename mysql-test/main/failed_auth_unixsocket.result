@@ -4,7 +4,7 @@ delete from mysql.global_priv where user != 'root';
 flush privileges;
 connect(localhost,USER,,test,MASTER_PORT,MASTER_SOCKET);
 ERROR 28000: Access denied for user 'USER'@'localhost'
-change_user buildbot,,;
+change_user USER,,;
 ERROR 28000: Access denied for user 'USER'@'localhost'
 replace mysql.global_priv select * from global_priv_backup;
 flush privileges;

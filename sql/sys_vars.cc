@@ -3129,6 +3129,13 @@ static Sys_var_ulong Sys_optimizer_trace_max_mem_size(
     SESSION_VAR(optimizer_trace_max_mem_size), CMD_LINE(REQUIRED_ARG),
     VALID_RANGE(0, ULONG_MAX), DEFAULT(1024 * 1024), BLOCK_SIZE(1));
 
+static Sys_var_mybool Sys_optimizer_record_context(
+    "optimizer_record_context",
+    "Controls storing of optmizer context of all the tables "
+    "that are referenced in a query",
+    SESSION_VAR(optimizer_record_context), CMD_LINE(OPT_ARG),
+    DEFAULT(FALSE));
+
 static Sys_var_ulong Sys_optimizer_adjust_secondary_key_costs(
     "optimizer_adjust_secondary_key_costs",
     UNUSED_HELP,
@@ -6692,6 +6699,12 @@ static Sys_var_charptr Sys_wsrep_allowlist(
        "wsrep_allowlist", "Allowed IP addresses split by comma delimiter",
        READ_ONLY GLOBAL_VAR(wsrep_allowlist), CMD_LINE(REQUIRED_ARG),
        DEFAULT(""));
+
+static Sys_var_uint Sys_wsrep_applier_retry_count (
+       "wsrep_applier_retry_count", "Maximum number of applier retry attempts",
+       GLOBAL_VAR(wsrep_applier_retry_count), CMD_LINE(OPT_ARG),
+       VALID_RANGE(0, UINT_MAX), DEFAULT(0), BLOCK_SIZE(1),
+       NO_MUTEX_GUARD, NOT_IN_BINLOG);
 
 #endif /* WITH_WSREP */
 

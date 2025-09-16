@@ -1490,7 +1490,11 @@ TRANSACTIONAL_INLINE inline void trx_t::commit_in_memory(const mtr_t *mtr)
     trx_finalize_for_fts(this, undo_no != 0);
 
 #ifdef WITH_WSREP
-  ut_ad(is_wsrep() == wsrep_on(mysql_thd));
+  /* Assert that any transaction which is started as a wsrep
+     transaction, also commits or rolls back as a wsrep
+     transaction. Wsrep applier may turn wsrep off temporarily for
+     rollback when the applying of wsrep transactions is retried. */
+  ut_ad(is_wsrep() == wsrep_on(mysql_thd) || wsrep_thd_in_rollback(mysql_thd));
 
   /* Serialization history has been written and the transaction is
   committed in memory, which makes this commit ordered. Release commit

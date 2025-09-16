@@ -1,0 +1,667 @@
+
+set SQL_MODE= oracle;
+
+create table t1 (a int);
+insert into t1 values (1),(2),(3);
+create table t2 (b int);
+insert into t2 values (2),(1),(20);
+create table t3 (c int, e int);
+insert into t3 values (3,2),(10,3),(2,20);
+create table t4 (d int);
+insert into t4 values (3),(1),(20);
+
+select t1.a, t4.d, t2.b, t3.c
+  from t1, t2, t3, t4
+  where
+    t1.a = t2.b(+) and
+    t1.a = t3.c(+) and
+    t4.d = t2.b(+) and
+    t4.d = t3.c(+);
+
+explain extended
+select t1.a, t4.d, t2.b, t3.c
+  from t1, t2, t3, t4
+  where
+    t1.a = t2.b(+) and
+    t1.a = t3.c(+) and
+    t4.d = t2.b(+) and
+    t4.d = t3.c(+);
+
+select t1.a, t4.d, t2.b, t3.c
+  from t4, t3, t2, t1
+  where
+    t1.a = t2.b(+) and
+    t1.a = t3.c(+) and
+    t4.d = t2.b(+) and
+    t4.d = t3.c(+);
+
+explain extended
+select t1.a, t4.d, t2.b, t3.c
+  from t4, t3, t2, t1
+  where
+    t1.a = t2.b(+) and
+    t1.a = t3.c(+) and
+    t4.d = t2.b(+) and
+    t4.d = t3.c(+);
+
+select t1.a, t4.d, t2.b, t3.c
+  from t2, t1, t4, t3
+  where
+    t1.a = t2.b(+) and
+    t1.a = t3.c(+) and
+    t4.d = t2.b(+) and
+    t4.d = t3.c(+);
+
+explain extended
+select t1.a, t4.d, t2.b, t3.c
+  from t2, t1, t4, t3
+  where
+    t1.a = t2.b(+) and
+    t1.a = t3.c(+) and
+    t4.d = t2.b(+) and
+    t4.d = t3.c(+);
+
+select t1.a, t4.d, t2.b, t3.c
+  from t3, t4, t1, t2
+  where
+    t1.a = t2.b(+) and
+    t1.a = t3.c(+) and
+    t4.d = t2.b(+) and
+    t4.d = t3.c(+);
+
+explain extended
+select t1.a, t4.d, t2.b, t3.c
+  from t3, t4, t1, t2
+  where
+    t1.a = t2.b(+) and
+    t1.a = t3.c(+) and
+    t4.d = t2.b(+) and
+    t4.d = t3.c(+);
+
+drop table t1, t2, t3, t4;
+
+--echo #
+--echo # tests of Iqbal Hassan <iqbal@hasprime.com>
+--echo # (with 2 fixes)
+--echo #
+
+CREATE TABLE tj1(a int, b int);
+CREATE TABLE tj2(c int, d int);
+CREATE TABLE tj3(e int, f int);
+CREATE TABLE tj4(b int, c int);
+INSERT INTO tj1 VALUES (1, 1);
+INSERT INTO tj1 VALUES (2, 2);
+INSERT INTO tj2 VALUES (2, 3);
+INSERT INTO tj3 VALUES (1, 4);
+
+--echo #
+--echo # Basic test
+--echo #
+SELECT * FROM tj1,tj2 WHERE tj1.a = tj2.c(+);
+
+--echo #
+--echo # Compare marked with literal
+--echo #
+SELECT * FROM tj1,tj2 WHERE tj1.a = tj2.c(+) AND tj2.d(+) > 4;
+explain extended
+SELECT * FROM tj1,tj2 WHERE tj1.a = tj2.c(+) AND tj2.d(+) > 4;
+
+--echo #
+--echo # Use both marked and unmarked field in the same condition
+--echo #
+SELECT * FROM tj1,tj2 WHERE tj1.a = tj2.c(+) AND tj2.d = 3;
+
+--echo #
+--echo # Use both marked and unmarked field in OR condition
+--echo #
+--error ER_INVALID_USE_OF_ORA_JOIN_CYCLE
+SELECT * FROM tj2,tj1 WHERE tj1.a = tj2.c(+) OR tj2.d=4;
+--error ER_INVALID_USE_OF_ORA_JOIN_CYCLE
+SELECT * FROM tj1,tj2,tj3 WHERE tj1.a = tj3.e(+) AND (tj1.a = tj2.c(+) OR tj2.d=4);
+
+--echo #
+--echo # Use unmarked fields in OR condition
+--echo #
+SELECT * FROM tj2,tj1 WHERE tj1.a = tj2.c(+) AND (tj2.d=3 OR tj2.d * 2=3);
+
+--echo #
+--echo # Use marked fields in OR condition when all fields are marked
+--echo #
+SELECT * FROM tj1,tj2 WHERE tj1.a = tj2.c(+) AND (tj2.d(+)=3 OR tj2.c(+)=1);
+
+--echo #
+--echo # Use more than one marked table per condition
+--echo #
+--error ER_INVALID_USE_OF_ORA_JOIN_ONE_TABLE
+SELECT * FROM tj1,tj2,tj3 WHERE tj1.a = tj2.c(+) + tj3.e(+);
+
+--echo #
+--echo # Use different tables per `AND` operand
+--echo #
+SELECT * FROM tj1,tj2,tj3 WHERE tj1.a = tj2.c(+) AND tj1.a = tj3.e(+);
+
+--echo #
+--echo # Ensure table dependencies are properly resolved
+--echo #
+SELECT * FROM tj1,tj2,tj3 WHERE tj1.a = tj3.e AND tj1.a + 1 = tj2.c(+);
+SELECT * FROM tj1,tj2,tj3 WHERE tj1.a = tj2.c(+) AND tj2.c = tj3.e(+) + 1;
+SELECT * FROM tj1, tj2, tj3 WHERE tj1.a + tj3.e = tj2.c(+);
+
+--echo #
+--echo # Cyclic dependency of tables
+--echo # ORA-01416 two tables cannot be outer-joined to each other
+--echo #
+--error ER_INVALID_USE_OF_ORA_JOIN_CYCLE
+SELECT * FROM tj1,tj2,tj3 WHERE tj1.a = tj2.c(+) AND tj2.c = tj3.e(+) + 1 AND tj3.e = tj1.a(+);
+
+--echo #
+--echo # Table not referenced in where condition (must be cross-joined)
+--echo #
+SELECT * FROM tj1, tj2, tj3 WHERE tj1.a + 1 = tj2.c(+);
+
+--echo #
+--echo # Alias
+--echo #
+SELECT * FROM tj1, tj2 b WHERE tj1.a + 1 = b.c(+);
+
+--echo #
+--echo # Subselect
+--echo #
+SELECT * FROM tj1, (SELECT * from tj2) b WHERE tj1.a + 1 = b.c(+);
+SELECT * FROM tj1, (SELECT * FROM tj1, tj2 d WHERE tj1.a = d.c(+)) b WHERE tj1.a + 1 = b.c(+);
+
+--echo #
+--echo # Single table
+--echo #
+# --error ER_INVALID_USE_OF_ORA_JOIN
+# it is legal, Oracle just ignore the operator if it is applied to all tabes
+
+# The WARN_ORA_JOIN_IGNORED is emitted only on PREPARE:
+--disable_ps_protocol
+SELECT * FROM tj1 WHERE tj1.a(+) = 1;
+--enable_ps_protocol
+
+--echo #
+--echo # Self outer join
+--echo #
+SELECT * FROM tj1 a, tj1 b WHERE a.a + 1 = b.a(+);
+
+--echo #
+--echo # Self outer join without alias
+--echo #
+--error ER_INVALID_USE_OF_ORA_JOIN_CYCLE
+SELECT * FROM tj1, tj2 WHERE tj1.a + 1 = tj1.a(+);
+
+--echo #
+--echo # Outer join condition is independent of other tables
+--echo # In this case we need to restrict the marked table(s) to appear
+--echo # after the unmarked table(s) during topological sort. This test
+--echo # ensures that the topological sort is working correctly.
+--echo #
+--echo # correct result in is empty result set (tj2.c = 1 filters all out)
+
+# The WARN_ORA_JOIN_IGNORED is emitted only on PREPARE:
+--disable_ps_protocol
+SELECT * FROM tj1, tj2 WHERE tj2.c(+) = 1;
+--echo # one row (there is tj1.a = 1)
+SELECT * FROM tj1, tj2 WHERE tj1.a(+) = 1;
+--enable_ps_protocol
+
+--echo #
+--echo # Outer join in 'IN' condition
+--echo # ORA-01719
+--echo #
+--error ER_INVALID_USE_OF_ORA_JOIN_WRONG_FUNC
+SELECT * FROM tj1, tj2 WHERE tj1.a IN (tj2.c(+), tj2.d(+));
+--error ER_INVALID_USE_OF_ORA_JOIN_WRONG_FUNC
+SELECT * FROM tj1, tj2 WHERE tj1.a NOT IN (tj2.c(+), tj2.d(+));
+
+--echo #
+--echo # Outer join in 'IN' condition with a single expression
+--echo # This is also allowed in oracle since the expression is
+--echo # can be simplified to 'equal' or 'not equal' condition
+--echo #
+SELECT * FROM tj1, tj2 WHERE tj1.a IN (tj2.c(+));
+SELECT * FROM tj1, tj2 WHERE tj1.a NOT IN (tj2.c(+));
+
+--echo #
+--echo # Oracle outer join not in WHERE clause
+--echo #
+--error ER_PARSE_ERROR
+SELECT * FROM tj1, tj2 WHERE tj1.a = tj2.c GROUP BY tj2.c(+);
+--error ER_PARSE_ERROR
+SELECT * FROM tj1, tj2 WHERE tj1.a = tj2.c GROUP BY tj2.c HAVING tj2.c(+) > 1;
+--error ER_PARSE_ERROR
+SELECT * FROM tj1, tj2 WHERE tj1.a = tj2.c ORDER BY tj2.c(+);
+--error ER_PARSE_ERROR
+SELECT tj2.c(+) FROM tj2;
+
+--echo #
+--echo # Mix ANSI and Oracle outer join
+--echo # ORA-25156
+--error ER_INVALID_USE_OF_ORA_JOIN_MIX
+SELECT * FROM tj1 LEFT JOIN tj2 ON tj2.c = 1 WHERE tj1.a = tj2.c(+);
+--error ER_INVALID_USE_OF_ORA_JOIN_MIX
+SELECT * FROM tj1 INNER JOIN tj2 ON tj2.c = 1 WHERE tj1.a = tj2.c(+);
+--error ER_INVALID_USE_OF_ORA_JOIN_MIX
+SELECT * FROM tj1 NATURAL JOIN tj2 WHERE tj1.a = tj2.c(+);
+
+--echo #
+--echo # View with oracle outer join
+--echo #
+CREATE VIEW v1 AS SELECT * FROM tj1, tj2 WHERE tj1.a = tj2.c(+);
+SELECT * FROM v1;
+
+--echo #
+--echo # Cursor with oracle outer join
+--echo #
+DELIMITER $$;
+DECLARE
+  CURSOR c1 IS SELECT * FROM tj1, tj2 WHERE tj1.a = tj2.c(+);
+BEGIN
+  FOR r1 IN c1 LOOP
+    SELECT r1.a || ' ' || r1.c;
+  END LOOP;
+END
+$$
+DELIMITER ;$$
+
+--echo #
+--echo # Marking ROW type
+--echo #
+DELIMITER $$;
+--error ER_PARSE_ERROR
+DECLARE
+  v1 ROW (a INT, b INT);
+BEGIN
+  SELECT * FROM tj1 WHERE tj1.a = v1.a(+);
+END
+$$
+DELIMITER ;$$
+
+--echo #
+--echo # Unspecified table used in WHERE clause that contains (+)
+--echo #
+--error ER_BAD_FIELD_ERROR
+SELECT * FROM tj1, tj2 WHERE tj1.a = tj3.c(+);
+
+--echo #
+--echo # '.' prefixed table name
+--echo #
+SELECT * FROM tj1, tj2 WHERE tj1.a = .tj2.c(+);
+
+CREATE DATABASE db1;
+USE db1;
+CREATE TABLE tj1(a int, b int);
+INSERT INTO tj1 VALUES (3, 3);
+INSERT INTO tj1 VALUES (4, 4);
+
+--echo #
+--echo # DB qualifed ident with oracle outer join (aliased)
+--echo #
+SELECT * FROM test.tj2 a, tj1 WHERE a.c(+) = tj1.a - 1;
+
+--echo #
+--echo # DB qualifed ident with oracle outer join (non-aliased)
+--echo #
+SELECT * FROM test.tj2, tj1 WHERE test.tj2.c(+) = tj1.a - 1;
+
+--echo #
+--echo # DB qualifed ident with oracle outer join (aliased but use table name)
+--echo #
+--error ER_BAD_FIELD_ERROR
+SELECT * FROM test.tj2 a, tj1 WHERE test.tj2.c(+) = tj1.a - 1;
+
+USE test;
+
+--echo #
+--echo # UPDATE with oracle outer join
+--echo #
+UPDATE tj1, tj2 SET tj1.a = tj2.c WHERE tj1.a = tj2.c(+);
+SELECT * FROM tj1;
+
+--echo #
+--echo # DELETE with oracle outer join
+--echo #
+DELETE tj1 FROM tj1, tj2 WHERE tj1.b(+) = tj2.c;
+SELECT * FROM tj1;
+
+DROP DATABASE db1;
+DROP VIEW v1;
+DROP TABLE tj4;
+DROP TABLE tj3;
+DROP TABLE tj2;
+DROP TABLE tj1;
+
+--echo #
+--echo # End of iqbal-rsec tests
+--echo #
+
+--echo #
+--echo # Test from the MDEV comments
+--echo #
+
+create table t1 (a int);
+insert into t1 values (1),(2),(3);
+create table t2 (b int);
+insert into t2 values (2),(1),(20);
+create table t3 (c int, e int);
+insert into t3 values (3,2),(10,3),(2,20);
+create table t4 (d int);
+insert into t4 values (3),(1),(20);
+select t1.a, t4.d, t2.b, t3.c from t1, t2, t3, t4 where t1.a = t2.b(+) and t1.a = t3.c(+) and t4.d = t2.b(+) and t4.d = t3.c(+);
+select t1.a, t4.d, t2.b, t3.c from t1, t2, t3, t4 where t1.a + t3.c = t2.b(+) and t1.a = t3.c(+) and t4.d = t2.b(+) and t4.d = t3.c(+);
+select t1.a, t4.d, t2.b, t3.c from t1, t2, t3, t4 where (t2.b(+) in (t1.a, t1.a+1)) and t1.a = t3.c(+) and t4.d = t2.b(+) and t4.d = t3.c(+);
+
+drop tables t1, t2, t3, t4;
+
+create table t1 (a int);
+insert into t1 values (1),(2),(3);
+create table t2 (b int);
+insert into t2 values (2),(1),(20);
+create table t3 (c int, f int);
+insert into t3 values (3,2),(10,3),(2,20);
+create table t4 (d int);
+insert into t4 values (3),(1),(20);
+create table t5 (e int);
+insert into t5 values (3),(2),(20);
+
+select t1.a, t2.b, t3.c, t4.d, t5.e  from t1, t2, t3, t4, t5 where t1.a = t2.b(+) and t2.b = t3.c(+) and t1.a = t4.d(+) and t4.d=t5.e(+) and t3.c=t5.e(+);
+select t1.a, t2.b, t3.c, t4.d, t5.e  from t1, t2, t3, t4, t5 where t1.a = t2.b(+) and t2.b = t3.c(+) and t1.a = t4.d(+) and t4.d=t5.e(+) and 1=t5.e(+);
+select t1.a, t2.b, t3.c, t4.d, t5.e  from t1, t2, t3, t4, t5 where t1.a = t2.b(+) and t2.b = t3.c(+) and t1.a = t4.d(+) and t4.d=t5.e(+) and 3=t5.e(+);
+--error ER_INVALID_USE_OF_ORA_JOIN_MIX
+select t1.a, t2.b, t3.c, t4.d, t5.e  from t1, (t2, t3), t4, t5 where t1.a = t2.b(+) and t2.b = t3.c(+) and t1.a = t4.d(+) and t4.d=t5.e(+) and 3=t5.e(+);
+
+drop tables t1, t2, t3, t4, t5;
+
+create table t1 (a int);
+insert into t1 values (1),(2),(3);
+create table t2 (b int);
+insert into t2 values (2),(1),(20);
+
+# The WARN_ORA_JOIN_IGNORED is emitted only on PREPARE:
+--disable_ps_protocol
+select t1.a, t2.b  from t1, t2 where 1 = t2.b(+);
+select t1.a, t2.b  from t2, t1 where 1 = t2.b(+);
+select t1.a,t2.b  from t2,t1 where t2.b(+) in (1,2);
+select t2.b  from t2 where 1 = t2.b(+);
+--enable_ps_protocol
+
+drop tables t1, t2;
+
+create table t1 (a int);
+insert into t1 values (1),(2),(4),(5),(20),(21),(23);
+create table t2 (b int);
+insert into t2 values (1),(4),(6),(7),(8),(23);
+create table t3 (c int);
+insert into t3 values (4),(7),(9),(4),(6),(10),(11),(1);
+create table t4 (d int);
+insert into t4 values (1),(4),(10),(12),(20),(21),(23);
+
+SELECT * FROM t1,t2,t3,t4 WHERE  t1.a = t2.b(+) AND t1.a = t3.c(+) AND t2.b=t4.d(+) AND t3.c=t4.d(+);
+select * from t1, t2, t3 where  (t1.a + t2.b = t3.c(+));
+
+--echo # no tables mentioned
+select * from t2, t3 where  b = c(+);
+--echo # should be the same as above
+select * from t2, t3 where  t2.b = t3.c(+);
+
+drop tables t1, t2, t3, t4;
+
+--echo #
+--echo # View creation and usage
+--echo #
+create table t1 (a int);
+insert into t1 values (1),(2),(3);
+create table t2 (b int);
+insert into t2 values (2),(1),(20);
+
+create view v1 as
+select t1.a, t2.b from t1, t2 where t1.a = t2.b(+);
+show create view v1;
+select * from v1;
+select t1.a, t2.b from t1, t2 where t1.a = t2.b(+);
+
+--echo usage without oracle sql mode
+set SQL_MODE= '';
+select * from v1;
+--error ER_PARSE_ERROR
+select t1.a, t2.b from t1, t2 where t1.a = t2.b(+);
+set SQL_MODE= oracle;
+
+drop view v1;
+drop table t1,t2;
+
+--echo #
+--echo # MDEV-36830: Oracle outer join syntax (+): outer join not converted to inner
+--echo #
+--source include/have_sequence.inc
+
+create table t1 (
+  a int not null,
+  b int not null
+);
+insert into t1 select seq,seq from seq_1_to_10;
+
+create table t2 (
+  a int not null,
+  b int not null
+);
+insert into t2 select seq,seq from seq_1_to_3;
+
+--echo # Must be converted to inner join:
+explain extended
+select * from t1, t2
+where
+  t1.a=1 and
+  t1.b=t2.b(+) and
+  t2.b=1;
+
+drop table t1,t2;
+
+
+--echo #
+--echo # MDEV-36838: Oracle outer join syntax (+): server crash on derived tables
+--echo #
+
+select a.a
+from (select 1 as a) a,
+     (select 2 as b) b
+     where a.a=b.b(+);
+
+--echo #
+--echo # MDEV-36866: Oracle outer join syntax (+): query with checking for
+--echo # null of non-null column uses wrong query plan and returns wrong
+--echo # result
+--echo #
+
+create table t1 (a int default NULL);
+create table t2 (a int not null);
+insert into t1 values (1), (2), (3), (4), (5), (6), (NULL);
+insert into t2 values (1), (4), (5), (6), (7);
+
+select t1.*,t2.* from t1,t2 where t1.a=t2.a and isnull(t2.a)=1;
+explain select t1.*,t2.* from t1,t2 where t1.a=t2.a and isnull(t2.a)=1;
+
+select t1.*,t2.* from t1 left join t2 on t1.a=t2.a where isnull(t2.a)=1;
+explain select t1.*,t2.* from t1 left join t2 on t1.a=t2.a where isnull(t2.a)=1;
+
+select t1.*,t2.* from t1,t2 where t1.a=t2.a(+) and isnull(t2.a)=1;
+explain extended select t1.*,t2.* from t1,t2 where t1.a=t2.a(+) and isnull(t2.a)=1;
+
+drop table t1,t2;
+
+--echo #
+--echo # Correct nullability test
+--echo #
+
+create table t1 (a int not null, s varchar(10) not null);
+create table t2 (a int not null, s varchar(10) not null);
+insert into t1 values (1, 'one');
+insert into t1 values (2, 'two');
+insert into t2 values (2, 'two');
+insert into t2 values (3, 'three');
+
+explain extended
+select * from t1,t2 where t1.a = t2.a (+) and
+  isnull(t2.a);
+
+explain extended
+select * from t1,t2 where t1.a = t2.a (+) and
+  isnull(t1.a+t2.a);
+
+explain extended
+select * from t1,t2 where t1.a = t2.a (+) and
+  isnull(coalesce(t2.s, 'null'));
+
+explain extended
+select * from t1,t2 where t1.a = t2.a (+) and
+  isnull(ifnull(t2.s, 'null'));
+
+explain extended
+select * from t1,t2 where t1.a = t2.a (+) and
+  isnull(coalesce(t2.s, null));
+
+explain extended
+select * from t1,t2 where t1.a = t2.a (+) and
+  isnull(ifnull(t2.s, null));
+
+--echo # Our optimizer does not optimize out never-null-subselects under
+--echo # isnull() so we do not test it. The following test is to make
+--echo # sure that nullable one stay in the WHERE.
+explain extended
+select * from t1,t2 where t1.a = t2.a (+) and
+  isnull(t2.a in (select a from t1));
+
+explain extended
+select * from t1,t2 where t1.a = t2.a (+) and
+  isnull(t2.a in (1, 2, 3));
+
+explain extended
+select * from t1,t2 where t1.a = t2.a (+) and
+  isnull(t1.a in (1, 2, 3));
+
+explain extended
+select * from t1,t2 where t1.a = t2.a (+) and
+  isnull(isnull(t2.a));
+
+explain extended
+select * from t1,t2 where t1.a = t2.a (+) and
+  isnull(field(t2.a, 2, 23));
+
+explain extended
+select * from t1,t2 where t1.a = t2.a (+) and
+  isnull(benchmark(10, t2.a));
+
+
+drop table t1, t2;
+
+--echo #
+--echo # MDEV-36895: Oracle outer join syntax (+): some NULLs missing from
+--echo # result of the query with derived tables and limit
+--echo #
+
+create table t2 (b int);
+insert into t2 values (3),(7),(1);
+create table t3 (c int);
+insert into t3 values (3),(1);
+create table t1 (a int);
+insert into t1 values (1),(2),(7),(1);
+
+select * from
+(
+  select * from
+    (select 'Z' as z, t1.a from t1) dt1
+    left join
+      (select 'Y' as y, t2.b from t2) dt2
+      left join
+      (select 'X' as x, t3.c from t3) dt3
+      on dt2.b=dt3.c
+    on dt1.a=dt2.b
+  order by z, a, y, b, x, c
+  limit 9
+) dt;
+
+
+select * from
+(
+  select * from
+    (select 'Z' as z, t1.a from t1) dt1
+    ,(select * from
+      (select 'Y' as y, t2.b from t2) dt2
+      ,
+      (select 'X' as x, t3.c from t3) dt3
+      where dt2.b=dt3.c(+)
+    ) tdt2
+    where dt1.a=tdt2.b(+)
+    order by z, a, y, b, x, c
+  limit 9
+) dt;
+
+drop table t1, t2, t3;
+
+--echo #
+--echo # MDEV-37337: Oracle outer join syntax (+): IN equal to = allow (+) on right side
+--echo #
+
+create table t1 (a int);
+insert into t1 values (1),(2),(3);
+create table t2 (b int);
+insert into t2 values (2),(1),(20);
+
+set SQL_MODE= oracle;
+
+select t1.a, t2.b
+  from t1, t2
+  where
+    t1.a = t2.b(+);
+
+select t1.a, t2.b
+  from t1, t2
+  where
+    t1.a IN (t2.b(+));
+explain extended
+select t1.a, t2.b
+  from t1, t2
+  where
+    t1.a IN (t2.b(+));
+
+--error ER_INVALID_USE_OF_ORA_JOIN_WRONG_FUNC
+select t1.a, t2.b
+  from t1, t2
+  where
+    t1.a IN (t2.b(+), 29);
+
+DROP TABLE t1, t2;
+create table t1 (a int);
+insert into t1 values (1),(2),(3);
+create table t2 (b int);
+insert into t2 values (2),(1),(20);
+
+set SQL_MODE= oracle;
+
+select t1.a, t2.b
+  from t1, t2
+  where
+    t1.a = t2.b(+);
+
+select t1.a, t2.b
+  from t1, t2
+  where
+    t1.a IN (t2.b(+));
+
+explain extended
+select t1.a, t2.b
+  from t1, t2
+  where
+    t1.a IN (t2.b(+));
+
+--error ER_INVALID_USE_OF_ORA_JOIN_WRONG_FUNC
+select t1.a, t2.b
+  from t1, t2
+  where
+    t1.a IN (t2.b(+), 29);
+
+DROP TABLE t1, t2;
+
+--echo # End of 12.1 tests

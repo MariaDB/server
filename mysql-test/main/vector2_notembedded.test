@@ -62,5 +62,5 @@ insert into t (v) values (0x30303030),(0x31313131);
 check table t extended;
 repair table t extended;
 check table t extended;
-select v from t order by vec_distance_euclidean(0x323233232,v) limit 1;
+select v from t order by vec_distance_euclidean(0x32323232,v) limit 1;
 drop table t;

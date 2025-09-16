@@ -2,6 +2,7 @@
 # Testing of table locking
 #
 
+--source include/no_view_protocol.inc
 --source include/have_partition.inc
 
 CREATE TABLE t1 (  `id` int(11) NOT NULL default '0', `id2` int(11) NOT NULL default '0', `id3` int(11) NOT NULL default '0', `dummy1` char(30) default NULL, PRIMARY KEY  (`id`,`id2`), KEY `index_id3` (`id3`)) ENGINE=MyISAM;

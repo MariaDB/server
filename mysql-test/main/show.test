@@ -56,3 +56,40 @@ drop table t1;
 --echo #
 --echo # End of 10.3 tests
 --echo #
+
+--echo #
+--echo # MDEV-31721: Cursor protocol increases the counter of  "Empty_queries" for select
+--echo #
+
+FLUSH STATUS;
+
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1);
+
+--disable_ps2_protocol
+SELECT COUNT(*) FROM t1;
+SELECT * FROM t1;
+SELECT * FROM t1 LIMIT 0;
+--enable_ps2_protocol
+
+SHOW STATUS LIKE "Empty_queries";
+
+DROP TABLE t1;
+
+--echo #------------------------------
+
+CREATE TABLE t1 (a INT);
+CREATE TABLE t2 (b INT);
+INSERT INTO t1 VALUES (1);
+INSERT INTO t2 VALUES (2);
+
+--disable_ps2_protocol
+SELECT * FROM t1 UNION SELECT * FROM t2;
+SELECT * FROM t1 UNION SELECT * FROM t2 LIMIT 0;
+--enable_ps2_protocol
+
+SHOW STATUS LIKE "Empty_queries";
+
+DROP TABLE t1, t2;
+
+--echo # End of 10.11 tests

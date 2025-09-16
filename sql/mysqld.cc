@@ -2422,8 +2422,8 @@ static void activate_tcp_port(uint port,
     else 
     {
       ip_sock.address_family= a->ai_family;
-      sql_print_information("Server socket created on IP: '%s'.",
-                          (const char *) ip_addr);
+      sql_print_information("Server socket created on IP: '%s', port: '%u'.",
+                          (const char *) ip_addr, port);
 
       if (mysql_socket_getfd(ip_sock) == INVALID_SOCKET)
       {
@@ -2884,7 +2884,7 @@ void unlink_thd(THD *thd)
 }
 
 
-#if defined(_WIN32)
+#if defined(_WIN32) && !defined(EMBEDDED_LIBRARY)
 /*
   If server is started as service, the service routine will set
   the callback function.
@@ -9709,6 +9709,7 @@ PSI_memory_key key_memory_user_var_entry;
 PSI_memory_key key_memory_user_var_entry_value;
 PSI_memory_key key_memory_String_value;
 PSI_memory_key key_memory_WSREP;
+PSI_memory_key key_memory_trace_ddl_info;
 
 #ifdef HAVE_PSI_INTERFACE
 
@@ -9955,7 +9956,8 @@ static PSI_memory_info all_server_memory[]=
   { &key_memory_Query_cache, "Query_cache", PSI_FLAG_GLOBAL},
   { &key_memory_Table_trigger_dispatcher, "Table_trigger_dispatcher::m_mem_root", 0},
   { &key_memory_native_functions, "native_functions", PSI_FLAG_GLOBAL},
-  { &key_memory_WSREP, "wsrep", 0 }
+  { &key_memory_WSREP, "wsrep", 0 },
+  { &key_memory_trace_ddl_info, "TRACE_DDL_INFO", 0}
 };
 
 /**

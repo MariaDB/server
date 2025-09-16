@@ -61,7 +61,6 @@ ${PCRE_INCLUDE_DIRS}
 ${ZLIB_INCLUDE_DIRS}
 ${SSL_INCLUDE_DIRS}
 ${CMAKE_BINARY_DIR}/sql
-${CMAKE_SOURCE_DIR}/tpool
 )
 
 ADD_CUSTOM_COMMAND(
@@ -133,6 +132,7 @@ SET (SQL_SOURCE
                sql_error.cc sql_handler.cc sql_get_diagnostics.cc
                sql_help.cc sql_insert.cc sql_lex.cc
                sql_list.cc sql_load.cc sql_manager.cc
+               sql_oracle_outer_join.cc
                sql_parse.cc sql_bootstrap.cc
                sql_partition.cc sql_plugin.cc sql_prepare.cc sql_rename.cc
                debug_sync.cc debug.cc
@@ -187,6 +187,7 @@ SET (SQL_SOURCE
                rowid_filter.cc rowid_filter.h
                optimizer_costs.h optimizer_defaults.h
                opt_trace.cc
+               opt_trace_ddl_info.cc
                table_cache.cc encryption.cc temporary_tables.cc
                json_table.cc
                proxy_protocol.cc backup.cc xa.cc
@@ -195,6 +196,9 @@ SET (SQL_SOURCE
                opt_vcol_substitution.cc
                opt_hints_parser.cc opt_hints_parser.h scan_char.h
                opt_hints.cc opt_hints.h
+               sql_type_row.cc
+               sql_type_composite.cc sql_type_composite.h
+               item_composite.cc item_composite.h
                ${CMAKE_CURRENT_BINARY_DIR}/lex_hash.h
                ${CMAKE_CURRENT_BINARY_DIR}/lex_token.h
                ${GEN_SOURCES}

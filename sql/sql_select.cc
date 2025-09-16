@@ -738,9 +738,10 @@ fix_inner_refs(THD *thd, List<Item> &all_fields, SELECT_LEX *select,
   List_iterator_fast <Item_outer_ref> ref_it(select->inner_refs_list);
   for (ORDER *group= select->join->group_list; group;  group= group->next)
   {
-    (*group->item)->walk(&Item::check_inner_refs_processor, TRUE, &ref_it);
-  } 
-    
+    (*group->item)->walk(&Item::check_inner_refs_processor,
+                         &ref_it, WALK_SUBQUERY);
+  }
+
   while ((ref= ref_it++))
   {
     bool direct_ref= false;
@@ -953,7 +954,7 @@ setup_without_group(THD *thd, Ref_ptr_array ref_pointer_array,
   DBUG_ENTER("setup_without_group");
 
   thd->lex->allow_sum_func.clear_bit(select->nest_level);
-  res= setup_conds(thd, tables, leaves, conds);
+  res= setup_conds(thd, tables, leaves, conds, &all_fields);
 
   /* it's not wrong to have non-aggregated columns in a WHERE */
   select->set_non_agg_field_used(saved_non_agg_field_used);
@@ -1317,6 +1318,7 @@ int SELECT_LEX::vers_setup_conds(THD *thd, TABLE_LIST *tables)
     }
 
     bool timestamps_only= table->table->versioned(VERS_TIMESTAMP);
+    bool update_this= update_conds;
 
     if (vers_conditions.is_set() && vers_conditions.type != SYSTEM_TIME_HISTORY)
     {
@@ -1333,9 +1335,22 @@ int SELECT_LEX::vers_setup_conds(THD *thd, TABLE_LIST *tables)
         my_error(ER_VERS_ENGINE_UNSUPPORTED, MYF(0), table->table_name.str);
         DBUG_RETURN(-1);
       }
+      if (vers_conditions.has_param)
+      {
+        /*
+          PS parameter in history expression requires processing at execution
+          stage when parameters has values substituted. So at prepare continue
+          the loop, but at execution enter update_this. The second execution
+          is skipped on vers_conditions.type == SYSTEM_TIME_ALL condition.
+        */
+        if (thd->stmt_arena->is_stmt_prepare())
+          continue;
+        DBUG_ASSERT(thd->stmt_arena->is_stmt_execute());
+        update_this= true;
+      }
     }
 
-    if (update_conds)
+    if (update_this)
     {
       vers_conditions.period = &table->table->s->vers;
       Item *cond= period_get_condition(thd, table, this, &vers_conditions,
@@ -1352,6 +1367,8 @@ int SELECT_LEX::vers_setup_conds(THD *thd, TABLE_LIST *tables)
         else
           where= and_items(thd, where, cond);
         table->where= and_items(thd, table->where, cond);
+        if (where && vers_conditions.has_param && vers_conditions.delete_history)
+          prep_where= where->copy_andor_structure(thd);
       }
 
       table->vers_conditions.set_all();
@@ -2241,7 +2258,7 @@ JOIN::optimize_inner()
     conversion happened (which done in the same way.
   */
   if (select_lex->first_cond_optimization &&
-      conds && conds->walk(&Item::exists2in_processor, 0, thd))
+      conds && conds->walk(&Item::exists2in_processor, thd, 0))
     DBUG_RETURN(1);
   /*
     TODO
@@ -2309,6 +2326,7 @@ JOIN::optimize_inner()
   SELECT_LEX *sel= select_lex;
   if (sel->first_cond_optimization)
   {
+    bool error= false;
     /*
       The following code will allocate the new items in a permanent
       MEMROOT for prepared statements and stored procedures.
@@ -2326,7 +2344,7 @@ JOIN::optimize_inner()
     /* Convert all outer joins to inner joins if possible */
     conds= simplify_joins(this, join_list, conds, TRUE, FALSE);
 
-    add_table_function_dependencies(join_list, table_map(-1));
+    add_table_function_dependencies(join_list, table_map(-1), &error);
 
     if (thd->is_error() ||
         (!select_lex->leaf_tables_saved && select_lex->save_leaf_tables(thd)))
@@ -2362,10 +2380,10 @@ JOIN::optimize_inner()
 
   if (conds && conds->with_subquery())
     (void) conds->walk(&Item::cleanup_is_expensive_cache_processor,
-                       0, (void *) 0);
+                       0, 0);
   if (having && having->with_subquery())
     (void) having->walk(&Item::cleanup_is_expensive_cache_processor,
-			0, (void *) 0);
+                        0, 0);
 
   List<Item> eq_list;
 
@@ -7409,7 +7427,13 @@ static bool add_key_part(DYNAMIC_ARRAY *keyuse_array, KEY_FIELD *key_field)
         }
       }
     }
-    if (field->hash_join_is_possible() &&
+    /*
+      Compressed field cannot be part of a key. For optimizer temporary table
+      compressed fields are replaced by uncompressed, see
+      is_optimizer_tmp_table() and Field_*_compressed::make_new_field().
+    */
+    if (!field->compression_method() &&
+        field->hash_join_is_possible() &&
         (key_field->optimize & KEY_OPTIMIZE_EQ) &&
         key_field->val->used_tables())
     {
@@ -7617,7 +7641,7 @@ void count_cond_for_nj(SELECT_LEX *sel, TABLE_LIST *nested_join_table)
       count_cond_for_nj(sel, table); 
   }
   if (nested_join_table->on_expr)
-    nested_join_table->on_expr->walk(&Item::count_sargable_conds, 0, sel);
+    nested_join_table->on_expr->walk(&Item::count_sargable_conds, sel, 0);
     
 }
 
@@ -7658,11 +7682,11 @@ update_ref_and_keys(THD *thd, DYNAMIC_ARRAY *keyuse,JOIN_TAB *join_tab,
   sel->cond_count= 0;
   sel->between_count= 0; 
   if (cond)
-    cond->walk(&Item::count_sargable_conds, 0, sel);
+    cond->walk(&Item::count_sargable_conds, sel, 0);
   for (i=0 ; i < tables ; i++)
   {
     if (*join_tab[i].on_expr_ref)
-      (*join_tab[i].on_expr_ref)->walk(&Item::count_sargable_conds, 0, sel);
+      (*join_tab[i].on_expr_ref)->walk(&Item::count_sargable_conds, sel, 0);
   }
   {
     List_iterator<TABLE_LIST> li(*join_tab->join->join_list);
@@ -8093,8 +8117,8 @@ add_group_and_distinct_keys(JOIN *join, JOIN_TAB *join_tab)
   if (join->group_list)
   { /* Collect all query fields referenced in the GROUP clause. */
     for (cur_group= join->group_list; cur_group; cur_group= cur_group->next)
-      (*cur_group->item)->walk(&Item::collect_item_field_processor, 0,
-                               &indexed_fields);
+      (*cur_group->item)->walk(&Item::collect_item_field_processor,
+                               &indexed_fields, 0);
   }
   else if (join->select_distinct)
   { /* Collect all query fields referenced in the SELECT clause. */
@@ -8102,7 +8126,7 @@ add_group_and_distinct_keys(JOIN *join, JOIN_TAB *join_tab)
     List_iterator<Item> select_items_it(select_items);
     Item *item;
     while ((item= select_items_it++))
-      item->walk(&Item::collect_item_field_processor, 0, &indexed_fields);
+      item->walk(&Item::collect_item_field_processor, &indexed_fields, 0);
   }
   else if (!join->tmp_table_param.sum_func_count ||
            !is_indexed_agg_distinct(join, &indexed_fields))
@@ -32255,6 +32279,8 @@ void st_select_lex::print(THD *thd, String *str, enum_query_type query_type)
       }
     }
     str->append(STRING_WITH_LEN(" */ "));
+    if (join && join->cleaned) // if this join has been cleaned
+      return;                  // the select_number printed above is all we have
   }
 
   if (sel_type == SELECT_CMD ||
@@ -32269,7 +32295,7 @@ void st_select_lex::print(THD *thd, String *str, enum_query_type query_type)
       because temporary tables they pointed on could be freed.
     */
     str->append('#');
-    str->append(select_number);
+    str->append_ulonglong(select_number);
     return;
   }
 

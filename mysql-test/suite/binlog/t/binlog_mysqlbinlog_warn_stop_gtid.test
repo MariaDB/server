@@ -1,0 +1,103 @@
+#
+# Test ensures that --stop-position work correctly for mysqlbinlog. This high
+# level test sets up the binary log (and tags certain locations for comparison),
+# and the helper file binlog_mysqlbinlog_warn_stop_position.inc performs the
+# actual tests.
+#
+# References:
+#   MDEV-34614 mysqlbinlog warn on EOF before GTID in --stop-position
+#
+--source include/have_log_bin.inc
+
+--let $binlog_out_relpath= tmp/warn_position_test_file.out
+--let $binlog_out= $MYSQLTEST_VARDIR/$binlog_out_relpath
+
+--echo #
+--echo # Clear the existing binary log state.
+--echo #
+RESET MASTER;
+
+SET @@SESSION.gtid_domain_id= 0;
+SET @@SESSION.server_id= 1;
+--let $binlog_f1= query_get_value(SHOW MASTER STATUS, File, 1)
+SET @@SESSION.gtid_seq_no= 1;
+create table t1 (a int);
+insert into t1 values (1);
+SET @@SESSION.gtid_domain_id= 1;
+insert into t1 values (2);
+--let $binlog_f1_pre_rotate= `SELECT @@GLOBAL.gtid_binlog_pos`
+flush binary logs;
+--let $binlog_f1_end= `SELECT @@GLOBAL.gtid_binlog_pos`
+
+--let $binlog_f2= query_get_value(SHOW MASTER STATUS, File, 1)
+insert into t1 values (3);
+--echo # Tag binlog_f2_mid
+--let $binlog_f2_mid= `SELECT @@GLOBAL.gtid_binlog_pos`
+--let $binlog_f1_over_eof= $binlog_f2_mid
+insert into t1 values (4);
+--let $binlog_f2_gtid_after_midpoint= `SELECT @@GLOBAL.gtid_binlog_pos`
+insert into t1 values (5);
+SET @@SESSION.gtid_domain_id= 0;
+insert into t1 values (6);
+insert into t1 values (7);
+--let $binlog_f2_last_gtid= `SELECT REGEXP_SUBSTR(@@GLOBAL.gtid_binlog_pos, '0-1-\\\\\\\\d++')`
+flush binary logs;
+--let $binlog_f2_end= `SELECT @@GLOBAL.gtid_binlog_pos`
+drop table t1;
+--let $binlog_f2_over_eof= `SELECT @@GLOBAL.gtid_binlog_pos`
+
+--echo # Ensuring binary log order is correct
+--let $binlog_f1_show= query_get_value(SHOW BINARY LOGS, Log_name, 1)
+if (`SELECT strcmp('$binlog_f1','$binlog_f1_show') != 0`)
+{
+  --echo # Real binlog_f1: $binlog_f1
+  --echo # First binlog in SHOW BINLOG FILES: $binlog_f1_show
+  --die Wrong order of binary log files in SHOW BINARY LOGS
+}
+--let $binlog_f2_show= query_get_value(SHOW BINARY LOGS, Log_name, 2)
+if (`SELECT strcmp('$binlog_f2','$binlog_f2_show') != 0`)
+{
+  --echo # Real binlog_f2: $binlog_f2
+  --echo # First binlog in SHOW BINLOG FILES: $binlog_f2_show
+  --die Wrong order of binary log files in SHOW BINARY LOGS
+}
+
+--let $domain_id= [01]
+
+--echo #
+--echo #
+--echo # Test using --read-from-remote-server
+--echo #
+--let $read_from_remote_server= 1
+--source binlog_mysqlbinlog_warn_stop_position.inc
+
+--echo #
+--echo #
+--echo # Test using local binlog files
+--echo #
+--let $read_from_remote_server= 0
+--source binlog_mysqlbinlog_warn_stop_position.inc
+
+--echo # Poison GTID lists with an extraneous GTID domain - expect additional `9-1-1` warnings
+--let $binlog_f1_pre_rotate= 9-1-1
+--let $binlog_f2_mid=      $binlog_f1_pre_rotate,$binlog_f2_mid
+--let $binlog_f1_end=      $binlog_f1_pre_rotate,$binlog_f1_end
+--let $binlog_f2_end=      $binlog_f1_pre_rotate,$binlog_f2_end
+--let $binlog_f1_over_eof= $binlog_f1_pre_rotate,$binlog_f1_over_eof
+--let $binlog_f2_over_eof= $binlog_f1_pre_rotate,$binlog_f2_over_eof
+--echo #
+--echo #
+--echo # Test extraneous stop GTID using --read-from-remote-server
+--echo #
+--let $read_from_remote_server= 1
+--source binlog_mysqlbinlog_warn_stop_position.inc
+
+--echo #
+--echo #
+--echo # Test extraneous stop GTID using local binlog files
+--echo #
+--let $read_from_remote_server= 0
+--source binlog_mysqlbinlog_warn_stop_position.inc
+
+--echo #
+--echo # End of binlog_mysqlbinlog_warn_stop_gtid.test

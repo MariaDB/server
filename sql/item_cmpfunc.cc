@@ -638,7 +638,7 @@ bool Arg_comparator::set_cmp_func_string(THD *thd)
     else if ((*b)->type() == Item::FUNC_ITEM &&
              ((Item_func *) (*b))->functype() == Item_func::JSON_EXTRACT_FUNC)
     {
-      func= is_owner_equal_func() ? &Arg_comparator::compare_e_json_str:
+      func= is_owner_equal_func() ? &Arg_comparator::compare_e_str_json:
                                     &Arg_comparator::compare_str_json;
       return 0;
     }
@@ -1551,17 +1551,17 @@ bool Item_in_optimizer::invisible_mode()
 
 
 bool Item_in_optimizer::walk(Item_processor processor,
-                             bool walk_subquery,
-                             void *arg)
+                             void *arg,
+                             item_walk_flags flags)
 {
   bool res= FALSE;
   if (args[1]->type() == Item::SUBSELECT_ITEM &&
       ((Item_subselect *)args[1])->substype() != Item_subselect::EXISTS_SUBS &&
       !(((Item_subselect *)args[1])->substype() == Item_subselect::IN_SUBS &&
         ((Item_in_subselect *)args[1])->test_strategy(SUBS_IN_TO_EXISTS)))
-    res= args[0]->walk(processor, walk_subquery, arg);
+    res= args[0]->walk(processor, arg,  flags);
   if (!res)
-    res= args[1]->walk(processor, walk_subquery, arg);
+    res= args[1]->walk(processor, arg, flags);
 
   return res || (this->*processor)(arg);
 }
@@ -2677,7 +2677,7 @@ void Item_func_nullif::split_sum_func(THD *thd, Ref_ptr_array ref_pointer_array,
 
 
 bool Item_func_nullif::walk(Item_processor processor,
-                            bool walk_subquery, void *arg)
+                            void *arg, item_walk_flags flags)
 {
   /*
     No needs to iterate through args[2] when it's just a copy of args[0].
@@ -2686,7 +2686,7 @@ bool Item_func_nullif::walk(Item_processor processor,
   uint tmp_count= arg_count == 2 || args[0] == args[2] ? 2 : 3;
   for (uint i= 0; i < tmp_count; i++)
   {
-    if (args[i]->walk(processor, walk_subquery, arg))
+    if (args[i]->walk(processor, arg, flags))
       return true;
   }
   return (this->*processor)(arg);
@@ -3185,7 +3185,8 @@ Item *Item_func_case_simple::find_item()
 {
   /* Compare every WHEN argument with it and return the first match */
   uint idx;
-  if (!Predicant_to_list_comparator::cmp(this, &idx, NULL))
+  bool found_unknown_values;
+  if (!Predicant_to_list_comparator::cmp(this, &idx, &found_unknown_values))
     return args[idx + when_count()];
   Item **pos= Item_func_case_simple::else_expr_addr();
   return pos ? pos[0] : 0;
@@ -5033,6 +5034,33 @@ void Item_func_in::mark_as_condition_AND_part(TABLE_LIST *embedding)
 }
 
 
+bool Item_func_in::ora_join_processor(void *arg)
+{
+  if (with_ora_join())
+  {
+    if (args[0]->cols() > 1 && args[0]->with_ora_join())
+    {
+        // used in ROW operaton
+        my_error(ER_INVALID_USE_OF_ORA_JOIN_WRONG_FUNC, MYF(0));
+        return TRUE;
+    }
+    uint n= argument_count();
+    DBUG_ASSERT(n >= 2);
+    // first argument (0) is right part of IN where oracle joins are allowed
+    for (uint i= 1; i < n; i++)
+    {
+      if (args[i]->with_ora_join())
+      {
+        // used in right part of IN
+        my_error(ER_INVALID_USE_OF_ORA_JOIN_WRONG_FUNC, MYF(0));
+        return TRUE ;
+      }
+    }
+  }
+  return FALSE;
+}
+
+
 class Func_handler_bit_or_int_to_ulonglong:
         public Item_handled_func::Handler_ulonglong
 {
@@ -5421,14 +5449,15 @@ void Item_cond::fix_after_pullout(st_select_lex *new_parent, Item **ref,
 }
 
 
-bool Item_cond::walk(Item_processor processor, bool walk_subquery, void *arg)
+bool Item_cond::walk(Item_processor processor,
+                     void *arg, item_walk_flags flags)
 {
   List_iterator_fast<Item> li(list);
   Item *item;
   while ((item= li++))
-    if (item->walk(processor, walk_subquery, arg))
+    if (item->walk(processor, arg, flags))
       return 1;
-  return Item_func::walk(processor, walk_subquery, arg);
+  return Item_func::walk(processor, arg,  flags);
 }
 
 /**
@@ -5831,6 +5860,17 @@ bool Item_func_null_predicate::count_sargable_conds(void *arg)
 {
   ((SELECT_LEX*) arg)->cond_count++;
   return 0;
+}
+
+
+bool Item_func_null_predicate::check_arguments() const
+{
+  DBUG_ASSERT(arg_count == 1);
+  if (args[0]->type_handler()->has_null_predicate())
+    return false;
+  my_error(ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION, MYF(0),
+           args[0]->type_handler()->name().ptr(), func_name());
+  return true;
 }
 
 
@@ -7555,16 +7595,17 @@ bool Item_equal::fix_length_and_dec(THD *thd)
 }
 
 
-bool Item_equal::walk(Item_processor processor, bool walk_subquery, void *arg)
+bool Item_equal::walk(Item_processor processor,
+                      void *arg, item_walk_flags flags)
 {
   Item *item;
   Item_equal_fields_iterator it(*this);
   while ((item= it++))
   {
-    if (item->walk(processor, walk_subquery, arg))
+    if (item->walk(processor, arg, flags))
       return 1;
   }
-  return Item_func::walk(processor, walk_subquery, arg);
+  return Item_func::walk(processor, arg, flags);
 }
 
 
@@ -8027,8 +8068,8 @@ bool Item_equal::create_pushable_equalities(THD *thd,
         where a fixed item has non-fixed items inside it.
       */
       int16 new_flag= MARKER_IMMUTABLE;
-      right_item->walk(&Item::set_extraction_flag_processor, false,
-                       (void*)&new_flag);
+      right_item->walk(&Item::set_extraction_flag_processor,
+                       (void*)&new_flag, 0);
     }
   }
 

@@ -1,0 +1,27 @@
+source include/platform.inc;
+source init.inc;
+
+let proto=SOCKET;
+if ($MTR_COMBINATION_WIN) {
+  let proto=PIPE;
+}
+
+connect con1, localhost,test1,pwd,,,,$proto NOSSL;
+call checkme();
+disconnect con1;
+connect con2, localhost,test1,pwd,,,,$proto NOSSL;
+call checkme();
+disconnect con2;
+replace_result $MASTER_MYSOCK MASTER_MYSOCK $MASTER_MYPORT MASTER_MYPORT;
+error ER_ACCESS_DENIED_ERROR;
+connect con3, localhost,test1,wrong_pwd,,,,$proto NOSSL;
+connect con4, localhost,test2,,,,,$proto NOSSL;
+call checkme();
+disconnect con4;
+replace_result $MASTER_MYSOCK MASTER_MYSOCK $MASTER_MYPORT MASTER_MYPORT;
+error ER_ACCESS_DENIED_ERROR;
+connect con5, localhost,test2 pwd,,,,,$proto NOSSL;
+
+connection default;
+
+source fini.inc;
