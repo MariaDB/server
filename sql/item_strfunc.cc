@@ -51,6 +51,10 @@ C_MODE_END
 #include <sql_repl.h>
 #include "sql_statistics.h"
 #include "strfunc.h"
+#include <wchar.h>
+#include <wctype.h>
+#include <unordered_map>
+#include "../strings/ctype-unidata.h"
 
 #ifdef HAVE_hkdf
 #include <openssl/kdf.h>
@@ -3090,6 +3094,128 @@ String *Item_func_soundex::val_str(String *str)
     uint nbytes= (4 - nchars) * cs->mbminlen;
     cs->fill(to, nbytes, '0');
     to+= nbytes;
+  }
+
+  str->length((uint) (to - str->ptr()));
+  return str;
+}
+
+
+bool Item_func_initcap::fix_length_and_dec(THD *thd)
+{
+  uint32_t char_length= args[0]->max_char_length();
+  if (agg_arg_charsets_for_string_result(collation, args, 1))
+    return TRUE;
+  DBUG_ASSERT(collation.collation != NULL);
+  fix_char_length(char_length);
+  
+  return FALSE;
+}
+
+
+String *Item_func_initcap::val_str(String *str)
+{
+  DBUG_ASSERT(fixed());
+  String *res= args[0]->val_str(&tmp_value);
+  CHARSET_INFO *cs= collation.collation;
+  my_wc_t wc;
+  int rc;
+  bool new_word= true;
+
+  if ((null_value= args[0]->null_value))
+    return 0;
+
+  if (str->alloc(MY_MAX(res->length(), 4 * cs->mbminlen)))
+    return &tmp_value;
+  str->set_charset(collation.collation);
+  char *to= (char *) str->ptr();
+  char *to_end= to + str->alloced_length();
+  char *from= (char *) res->ptr(), *end= from + res->length();
+  
+  /* Use the charset's casefold information directly */
+  MY_CASEFOLD_INFO *casefold= cs->casefold ? cs->casefold : &my_casefold_default;
+  
+  while (from < end)
+  {
+    if ((rc= cs->mb_wc(&wc, (uchar*) from, (uchar*) end)) <= 0)
+    {
+      if (to < to_end)
+        *to++= *from;
+      from++;
+      continue;
+    }
+
+    if (rc == 1 && cs->m_ctype)
+    {
+      /* Single byte character */
+      if (my_isalpha(cs, *from))
+      {
+        /* Convert single byte to wide char for processing */
+        my_wc_t wc_char= (my_wc_t)*from;
+        if (new_word)
+          my_toupper_unicode(casefold, &wc_char);
+        else
+          my_tolower_unicode(casefold, &wc_char);
+        my_wc_t new_wc= wc_char;
+        
+        /* Try to convert back to single byte */
+        if (new_wc <= 0xFF)
+          *to++= (char)new_wc;
+        else
+        {
+          /* Fallback to multibyte conversion */
+          if ((rc= cs->wc_mb(new_wc, (uchar*) to, (uchar*) to_end)) <= 0)
+            /* Use original if conversion fails */
+            *to++= *from;
+          else
+            to+= rc;
+        }
+        new_word= false;
+      }
+      else
+      {
+        *to++= *from;
+        if (!my_isalnum(cs, *from))
+          new_word= true;
+      }
+      from++;
+    }
+    else
+    {
+      /* Multibyte character */
+      from+= rc;
+      if (my_uni_isalpha(wc))
+      {
+        my_wc_t new_wc= wc;
+        if (new_word)
+          my_toupper_unicode(casefold, &new_wc);
+        else
+          my_tolower_unicode(casefold, &new_wc);
+        
+        if ((rc= cs->wc_mb(new_wc, (uchar*) to, (uchar*) to_end)) <= 0)
+        {
+          /* If conversion fails, try original character */
+          if ((rc= cs->wc_mb(wc, (uchar*) to, (uchar*) to_end)) <= 0)
+          {
+            DBUG_ASSERT(false);
+            return make_empty_result(str);
+          }
+        }
+        to+= rc;
+        new_word= false;
+      }
+      else
+      {
+        if ((rc= cs->wc_mb(wc, (uchar*) to, (uchar*) to_end)) <= 0)
+        {
+          DBUG_ASSERT(false);
+          return make_empty_result(str);
+        }
+        to+= rc;
+        if (!my_uni_isalpha(wc) && !my_isdigit(cs, wc))
+          new_word= true;
+      }
+    }
   }
 
   str->length((uint) (to - str->ptr()));
