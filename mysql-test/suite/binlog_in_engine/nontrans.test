@@ -63,6 +63,33 @@ SELECT a, b, length(c) FROM t2 ORDER BY a;
 --error ER_NOT_AVAILABLE_WITH_ENGINE_BINLOG
 SELECT MASTER_POS_WAIT("binlog-000000.ibb", 4096);
 
+
+--echo *** Test CREATE TABLE ... SELECT binlogging when it uses ROW mode.
+--connection master
+# Rotate binlogs to a bigger size to make sure our SHOW BINLOG EVENTS output
+# fits in a single binlog file.
+SET @old_max_size= @@GLOBAL.max_binlog_size;
+SET GLOBAL max_binlog_size= 1048576;
+FLUSH BINARY LOGS;
+FLUSH BINARY LOGS;
+ALTER TABLE t1 FORCE;
+--let $binlog_file= query_get_value(SHOW MASTER STATUS, File, 1)
+--let $binlog_start= query_get_value(SHOW MASTER STATUS, Position, 1)
+SET binlog_format=MIXED;
+CREATE TABLE t3 AS SELECT * FROM t1 LIMIT 10;
+CREATE TABLE t4 AS SELECT * FROM t2 LIMIT 10;
+SET binlog_format=ROW;
+CREATE TABLE t5 AS SELECT * FROM t3;
+CREATE TABLE t6 AS SELECT * FROM t4;
+SET binlog_format=MIXED;
+CREATE TABLE t7 AS SELECT * FROM t3;
+CREATE TABLE t8 AS SELECT * FROM t4;
+--source include/show_binlog_events2.inc
+SET GLOBAL max_binlog_size= @old_max_size;
+
+DROP TABLE t3,t4,t5,t6,t7,t8;
+
+
 --connection master
 DROP TABLE t1, t2;
 
