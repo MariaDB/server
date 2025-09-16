@@ -1,0 +1,39 @@
+set generate_embedding_openai_host="http://127.0.0.1:OPENAI_PORT/success";
+create table expensive_test (idx int, a text, b text, c text as (concat(a,"")), 
+d text as (concat(b,"")), doc text as (concat(c,d)),
+embedding vector(1536) as (generate_embedding_openai(doc, "text-embedding-ada-002")) stored);
+insert into expensive_test (idx, a, b) values (1, "a", "bc");
+select idx, a, b from expensive_test;
+idx	a	b
+1	a	bc
+1
+update expensive_test set a = "ab";
+select idx, a, b from expensive_test;
+idx	a	b
+1	ab	bc
+2
+update expensive_test set idx = 2;
+select idx, a, b from expensive_test;
+idx	a	b
+2	ab	bc
+2
+drop table expensive_test;
+create table expensive_test (idx int, a text, b text, c text as (concat(a,"")) stored, 
+d text as (concat(b,"")), doc text as (concat(c,d)),
+embedding vector(1536) as (generate_embedding_openai(doc, "text-embedding-ada-002")) stored);
+insert into expensive_test (idx, a, b) values (1, "a", "bc");
+select idx, a, b from expensive_test;
+idx	a	b
+1	a	bc
+3
+update expensive_test set a = "ab";
+select idx, a, b from expensive_test;
+idx	a	b
+1	ab	bc
+4
+update expensive_test set idx = 2;
+select idx, a, b from expensive_test;
+idx	a	b
+2	ab	bc
+5
+drop table expensive_test;

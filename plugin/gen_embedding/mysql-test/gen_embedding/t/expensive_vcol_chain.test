@@ -1,0 +1,72 @@
+source include/have_gen_embedding.inc;
+
+
+# Test that a slightly complicated chain of dependencies works as expected
+# We also verify that the fields that are meant to be updated, are indeed updated by executing select statements
+# We don't verify the contents of the embedding vector in those select statements, as the status variables are 
+# sufficient indications that the expensive function is (or isn't) called
+
+--replace_result $OPENAI_PORT OPENAI_PORT
+eval set generate_embedding_openai_host="http://127.0.0.1:$OPENAI_PORT/success";
+
+create table expensive_test (idx int, a text, b text, c text as (concat(a,"")), 
+                d text as (concat(b,"")), doc text as (concat(c,d)),
+                embedding vector(1536) as (generate_embedding_openai(doc, "text-embedding-ada-002")) stored);
+
+let $expensive_calls_begin= `$get_expensive_calls`;
+
+# Should call the expensive function
+insert into expensive_test (idx, a, b) values (1, "a", "bc");
+select idx, a, b from expensive_test;
+let $expensive_calls= `$get_expensive_calls`;
+let $res= `select $expensive_calls - $expensive_calls_begin`;
+echo $res;
+
+# Should call the expensive function
+update expensive_test set a = "ab";
+select idx, a, b from expensive_test;
+let $expensive_calls= `$get_expensive_calls`;
+let $res= `select $expensive_calls - $expensive_calls_begin`;
+echo $res;
+
+# Should not call the expensive function
+update expensive_test set idx = 2;
+select idx, a, b from expensive_test;
+let $expensive_calls= `$get_expensive_calls`;
+let $res= `select $expensive_calls - $expensive_calls_begin`;
+echo $res;
+
+# Cleanup
+drop table expensive_test;
+
+#################################################
+
+# Do the same but the c vcol is stored
+
+create table expensive_test (idx int, a text, b text, c text as (concat(a,"")) stored, 
+                d text as (concat(b,"")), doc text as (concat(c,d)),
+                embedding vector(1536) as (generate_embedding_openai(doc, "text-embedding-ada-002")) stored);
+
+# Should call the expensive function
+insert into expensive_test (idx, a, b) values (1, "a", "bc");
+select idx, a, b from expensive_test;
+let $expensive_calls= `$get_expensive_calls`;
+let $res= `select $expensive_calls - $expensive_calls_begin`;
+echo $res;
+
+# Should call the expensive function
+update expensive_test set a = "ab";
+select idx, a, b from expensive_test;
+let $expensive_calls= `$get_expensive_calls`;
+let $res= `select $expensive_calls - $expensive_calls_begin`;
+echo $res;
+
+# Should call the expensive function
+update expensive_test set idx = 2;
+select idx, a, b from expensive_test;
+let $expensive_calls= `$get_expensive_calls`;
+let $res= `select $expensive_calls - $expensive_calls_begin`;
+echo $res;
+
+# Cleanup
+drop table expensive_test;

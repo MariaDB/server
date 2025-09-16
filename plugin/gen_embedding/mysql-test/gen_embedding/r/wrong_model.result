@@ -1,0 +1,19 @@
+call mtr.add_suppression("GENERATE_EMBEDDING_OPENAI: Model wrong-model-name is not supported");
+set @wrong_model="wrong-model-name";
+select vec_totext(generate_embedding_openai('abc', @wrong_model));
+vec_totext(generate_embedding_openai('abc', @wrong_model))
+NULL
+Warnings:
+Warning	1	GENERATE_EMBEDDING_OPENAI: Model wrong-model-name is not supported
+Warning	1	GENERATE_EMBEDDING_OPENAI: Model wrong-model-name is not supported
+select vec_totext(generate_embedding_openai('abc', NULL));
+vec_totext(generate_embedding_openai('abc', NULL))
+NULL
+create table t1 (doc text, model varchar(100));
+insert t1 values (@text, @wrong_model);
+insert t1 values (@text, @wrong_model);
+select vec_totext(generate_embedding_openai(doc, model)) from t1;
+vec_totext(generate_embedding_openai(doc, model))
+NULL
+NULL
+drop table t1;

@@ -1,0 +1,84 @@
+source include/have_gen_embedding.inc;
+
+
+# Test what happens when an expensive stored vcol (embedding) depends on a another vcol doc
+# and the dependencies of doc get updated 
+# or another random update that does not affect the vcols happens
+# We also verify that the fields that are meant to be updated, are indeed updated by executing select statements
+# We don't verify the contents of the embedding vector in those select statements, as the status variables are 
+# sufficient indications that the expensive function is (or isn't) called
+
+--replace_result $OPENAI_PORT OPENAI_PORT
+eval set generate_embedding_openai_host="http://127.0.0.1:$OPENAI_PORT/success";
+
+# Test that if a stored vcol embedding depends on a non-stored vcol doc, updating the dependencies of the non-stored vcol (doc) calls the expensive function  
+
+create table expensive_test (idx int, a text, b text, doc text as (concat(a,b)),
+                    embedding vector(1536) as (generate_embedding_openai(doc, "text-embedding-ada-002")) stored);
+
+let $expensive_calls_begin= `$get_expensive_calls`;
+insert into expensive_test (idx, a, b) values (1, "a", "bc");
+select idx, a, b, doc from expensive_test;
+let $expensive_calls= `$get_expensive_calls`;
+let $res= `select $expensive_calls - $expensive_calls_begin`;
+echo $res;
+
+# This should call the expensive function
+update expensive_test set a = "a", b = "bc";
+select idx, a, b, doc from expensive_test;
+let $expensive_calls= `$get_expensive_calls`;
+let $res= `select $expensive_calls - $expensive_calls_begin`;
+echo $res;
+
+# Same, but only update one column
+# Should call the expensive function
+update expensive_test set a = "ab";
+select idx, a, b, doc from expensive_test;
+let $expensive_calls= `$get_expensive_calls`;
+let $res= `select $expensive_calls - $expensive_calls_begin`;
+echo $res;
+
+# Should not call the expensive function
+update expensive_test set idx = 2;
+select idx, a, b, doc from expensive_test;
+let $expensive_calls= `$get_expensive_calls`;
+let $res= `select $expensive_calls - $expensive_calls_begin`;
+echo $res;
+
+# Cleanup
+drop table expensive_test;
+
+########################################################
+
+# Same as above but now doc is a stored vcol
+create table expensive_test (idx int, a text, b text, doc text as (concat(a,b)) stored,
+                    embedding vector(1536) as (generate_embedding_openai(doc, "text-embedding-ada-002")) stored);
+
+insert into expensive_test (idx, a, b) values (1, "a", "bc");
+select idx, a, b, doc from expensive_test;
+let $expensive_calls= `$get_expensive_calls`;
+let $res= `select $expensive_calls - $expensive_calls_begin`;
+echo $res;
+
+# This should call the expensive function
+update expensive_test set a = "a", b = "bc";
+select idx, a, b, doc from expensive_test;
+let $expensive_calls= `$get_expensive_calls`;
+let $res= `select $expensive_calls - $expensive_calls_begin`;
+echo $res;
+
+# This should call the expensive function
+# This happens because:
+#   doc is a stored vcol, but not expensive -> it gets recomputed in every update
+#   doc is a dependency of embedding -> embedding is recomputed
+# If this is not what we are going for, we should avoid recomputing all stored vcols (not just expensive ones)
+# if their deps are not affected by an update
+
+update expensive_test set idx = 2;
+select idx, a, b, doc from expensive_test;
+let $expensive_calls= `$get_expensive_calls`;
+let $res= `select $expensive_calls - $expensive_calls_begin`;
+echo $res;
+
+# Cleanup
+drop table expensive_test;
