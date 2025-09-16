@@ -4668,6 +4668,31 @@ SUM(i) OVER (ORDER BY i)
 # Clean up
 DROP TABLE t1, t2;
 #
+# MDEV-31744: Assertion `order_list->elements == 1' failure 
+# during Frame_range_n_bottom object creation
+#
+CREATE TABLE t (a int, b int, c int, d int) ENGINE=MyISAM;
+INSERT INTO t VALUES (1,1,1,1);
+CREATE VIEW v AS SELECT * FROM t;
+SELECT 
+LEAD(a)  OVER (ORDER BY b, c), 
+COUNT(*) OVER (ORDER BY d RANGE BETWEEN CURRENT ROW AND 5 FOLLOWING)
+FROM v;
+LEAD(a)  OVER (ORDER BY b, c)	COUNT(*) OVER (ORDER BY d RANGE BETWEEN CURRENT ROW AND 5 FOLLOWING)
+NULL	1
+#
+# test similar query as above for
+# Frame_range_n_top
+#
+SELECT 
+LEAD(a)  OVER (ORDER BY b, c), 
+COUNT(*) OVER (ORDER BY d RANGE BETWEEN 5 PRECEDING AND CURRENT ROW)
+FROM v;
+LEAD(a)  OVER (ORDER BY b, c)	COUNT(*) OVER (ORDER BY d RANGE BETWEEN 5 PRECEDING AND CURRENT ROW)
+NULL	1
+DROP VIEW v;
+DROP TABLE t;
+#
 # End of 10.6 tests
 #
 #
