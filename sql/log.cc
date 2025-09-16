@@ -394,7 +394,8 @@ public:
       stmt_start_engine_ptr(nullptr),
       cache_savepoint_list(nullptr),
       cache_savepoint_next_ptr(&cache_savepoint_list),
-      using_xa(FALSE), xa_xid(0)
+      using_xa(FALSE), xa_xid(0),
+      engine_binlogged(FALSE), need_write_direct(FALSE)
   {
      stmt_cache.set_binlog_cache_info(param_max_binlog_stmt_cache_size,
                                       param_ptr_binlog_stmt_cache_use,
@@ -449,6 +450,8 @@ public:
       last_commit_pos_offset= 0;
       using_xa= FALSE;
     }
+    engine_binlogged= FALSE;
+    need_write_direct= FALSE;
   }
 
   binlog_cache_data* get_binlog_cache_data(bool is_transactional)
@@ -499,6 +502,17 @@ public:
   bool using_xa;
   my_xid xa_xid;
   bool need_unlog;
+  /*
+    Set true when binlog engine fetches the cache data with binlog_get_cache()
+    and does the binlogging for us.
+  */
+  bool engine_binlogged;
+  /*
+    Set when we called binlog_write_direct_ordered() during binlog group commit
+    (due to engine_binlogged==false) and need to call binlog_write_direct()
+    later after releasing mutex.
+  */
+  bool need_write_direct;
   /*
     Id of binlog that transaction was written to; only needed if need_unlog is
     true.
@@ -2016,6 +2030,7 @@ binlog_get_cache(THD *thd, uint64_t file_no, uint64_t offset,
   /* opt_binlog_engine_hton can be unset during bootstrap. */
   if (opt_binlog_engine_hton && (cache_mngr= thd->binlog_get_cache_mngr()))
   {
+    cache_mngr->engine_binlogged= TRUE;
     cache_mngr->last_commit_pos_file.engine_file_no= file_no;
     cache_mngr->last_commit_pos_offset= offset;
     binlog_cache_data *cache_data= !cache_mngr->trx_cache.empty() ?
@@ -9352,7 +9367,6 @@ MYSQL_BIN_LOG::write_transaction_to_binlog(THD *thd,
   entry.need_unlog= is_preparing_xa(thd);
   ha_info= all ? thd->transaction->all.ha_list : thd->transaction->stmt.ha_list;
   entry.ro_1pc= is_ro_1pc;
-  entry.no_auto_binlog= 1;
   entry.do_binlog_group_commit_ordered= false;
   entry.end_event= end_ev;
   auto has_xid= entry.end_event->get_type_code() == XID_EVENT;
@@ -9365,20 +9379,10 @@ MYSQL_BIN_LOG::write_transaction_to_binlog(THD *thd,
           ha_info->is_trx_read_write() &&
           !ha_info->ht()->commit_checkpoint_request)
         entry.need_unlog= true;
-      if (ha_info->ht() == opt_binlog_engine_hton)
-        entry.no_auto_binlog= 0;
     }
     else
       break;
   }
-  /*
-    If not going through log_and_order(), we are not going to go through
-    commit_ordered(), and the engine will not binlog for us as part of its
-    own internal transaction commit. So we will need to binlog explicitly.
-    (This occurs when mixing transactional and non-transactional DML in the
-    same event group).
-  */
-  entry.no_auto_binlog|= !cache_mngr->using_xa;
 
   if (cache_mngr->stmt_cache.has_incident() ||
       cache_mngr->trx_cache.has_incident())
@@ -9759,6 +9763,7 @@ bool
 MYSQL_BIN_LOG::write_transaction_to_binlog_events(group_commit_entry *entry)
 {
   int is_leader= queue_for_group_commit(entry);
+  binlog_cache_mngr *cache_mngr= entry->cache_mngr;
 #ifdef WITH_WSREP
   /* commit order was released in queue_for_group_commit() call,
      here we check if wsrep_commit_ordered() failed or if we are leader */
@@ -9811,8 +9816,6 @@ MYSQL_BIN_LOG::write_transaction_to_binlog_events(group_commit_entry *entry)
 
   if (!opt_optimize_thread_scheduling)
   {
-    binlog_cache_mngr *cache_mngr= entry->cache_mngr;
-
     /* For the leader, trx_group_commit_leader() already took the lock. */
     if (!is_leader)
       mysql_mutex_lock(&LOCK_commit_ordered);
@@ -9822,7 +9825,7 @@ MYSQL_BIN_LOG::write_transaction_to_binlog_events(group_commit_entry *entry)
     if (cache_mngr->using_xa && !entry->error)
       run_commit_ordered(entry->thd, entry->all);
 
-    if (unlikely(entry->no_auto_binlog) && opt_binlog_engine_hton)
+    if (unlikely(!cache_mngr->engine_binlogged) && opt_binlog_engine_hton)
     {
       binlog_cache_data *cache_data=
         cache_mngr->get_binlog_cache_data(entry->using_trx_cache);
@@ -9834,7 +9837,10 @@ MYSQL_BIN_LOG::write_transaction_to_binlog_events(group_commit_entry *entry)
         entry->error= (*opt_binlog_engine_hton->binlog_write_direct_ordered)
           (file, engine_context, entry->thd->get_last_commit_gtid());
         if (likely(!entry->error))
-          entry->no_auto_binlog= 2;  // Mark to call binlog_write_direct later
+        {
+          /* Mark to call binlog_write_direct() later. */
+          cache_mngr->need_write_direct= TRUE;
+        }
       }
     }
 
@@ -9879,9 +9885,8 @@ MYSQL_BIN_LOG::write_transaction_to_binlog_events(group_commit_entry *entry)
 
   }
 
-  if (unlikely(entry->no_auto_binlog == 2))
+  if (unlikely(cache_mngr->need_write_direct))
   {
-    binlog_cache_mngr *cache_mngr= entry->cache_mngr;
     binlog_cache_data *cache_data=
       cache_mngr->get_binlog_cache_data(entry->using_trx_cache);
     IO_CACHE *file= &cache_data->cache_log;
@@ -9894,7 +9899,7 @@ MYSQL_BIN_LOG::write_transaction_to_binlog_events(group_commit_entry *entry)
   if (entry->do_binlog_group_commit_ordered)
   {
     binlog_cache_data *cache_data=
-      entry->cache_mngr->get_binlog_cache_data(entry->using_trx_cache);
+      cache_mngr->get_binlog_cache_data(entry->using_trx_cache);
     (*opt_binlog_engine_hton->binlog_group_commit_ordered)
       (entry->thd, &cache_data->engine_binlog_info);
   }
@@ -9927,9 +9932,9 @@ MYSQL_BIN_LOG::write_transaction_to_binlog_events(group_commit_entry *entry)
     we need to mark it as not needed for recovery (unlog() is not called
     for a transaction if log_xid() fails).
   */
-  if (entry->cache_mngr->using_xa && entry->cache_mngr->xa_xid &&
-      entry->cache_mngr->need_unlog)
-    mark_xid_done(entry->cache_mngr->binlog_id, true);
+  if (cache_mngr->using_xa && cache_mngr->xa_xid &&
+      cache_mngr->need_unlog)
+    mark_xid_done(cache_mngr->binlog_id, true);
 
   return 1;
 }
@@ -9954,7 +9959,6 @@ MYSQL_BIN_LOG::trx_group_commit_leader(group_commit_entry *leader)
   bool check_purge= false;
   ulong UNINIT_VAR(binlog_id);
   uint64 commit_id;
-  bool non_auto_binlog= false;
   DBUG_ENTER("MYSQL_BIN_LOG::trx_group_commit_leader");
 
   {
@@ -10056,8 +10060,6 @@ MYSQL_BIN_LOG::trx_group_commit_leader(group_commit_entry *leader)
         update_gtid_index((uint32)commit_offset,
                           current->thd->get_last_commit_gtid());
       }
-      else
-        non_auto_binlog= non_auto_binlog || current->no_auto_binlog;
 
       if ((cache_mngr->using_xa && cache_mngr->xa_xid) || current->need_unlog)
       {
@@ -10295,14 +10297,26 @@ MYSQL_BIN_LOG::trx_group_commit_leader(group_commit_entry *leader)
     binlog_cache_mngr *cache_mngr= current->cache_mngr;
 
     DEBUG_SYNC(leader->thd, "commit_loop_entry_commit_ordered");
+    cache_mngr->engine_binlogged= FALSE;
     ++num_commits;
     set_current_thd(current->thd);
     if (cache_mngr->using_xa && likely(!current->error) &&
         !DBUG_IF("skip_commit_ordered"))
       run_commit_ordered(current->thd, current->all);
 
-    if (unlikely(current->no_auto_binlog) && opt_binlog_storage_engine)
+    if (unlikely(!cache_mngr->engine_binlogged) && opt_binlog_engine_hton)
     {
+      /*
+        If the binlog engine did not binlog for us as part of its own internal
+        transaction commit during commit_ordered(), we need to binlog it
+        explicitly here, while still holding LOCK_commit_ordered to ensure the
+        correct commit order.
+
+        The common case is a normal transaction in the binlog engine, and we
+        will not hit this condition. But it can happen for example when mixing
+        transactional and non-transactional DML in the same event group, or when
+        doing CREATE TABLE ... SELECT using row-based binlogging.
+      */
       binlog_cache_data *cache_data=
         cache_mngr->get_binlog_cache_data(current->using_trx_cache);
       IO_CACHE *file= &cache_data->cache_log;
@@ -10313,7 +10327,10 @@ MYSQL_BIN_LOG::trx_group_commit_leader(group_commit_entry *leader)
         current->error= (*opt_binlog_engine_hton->binlog_write_direct_ordered)
           (file, engine_context, current->thd->get_last_commit_gtid());
         if (likely(!current->error))
-          current->no_auto_binlog= 2;  // Mark to call binlog_write_direct later
+        {
+          /* Mark to call binlog_write_direct later. */
+          cache_mngr->need_write_direct= TRUE;
+        }
       }
     }
 
