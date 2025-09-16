@@ -411,6 +411,70 @@ a	b	length(c)
 3114	2	40000
 SELECT MASTER_POS_WAIT("binlog-000000.ibb", 4096);
 ERROR HY000: master_pos_wait() is not available when --binlog-storage-engine is enabled
+*** Test CREATE TABLE ... SELECT binlogging when it uses ROW mode.
+connection master;
+SET @old_max_size= @@GLOBAL.max_binlog_size;
+SET GLOBAL max_binlog_size= 1048576;
+FLUSH BINARY LOGS;
+FLUSH BINARY LOGS;
+ALTER TABLE t1 FORCE;
+SET binlog_format=MIXED;
+CREATE TABLE t3 AS SELECT * FROM t1 LIMIT 10;
+CREATE TABLE t4 AS SELECT * FROM t2 LIMIT 10;
+SET binlog_format=ROW;
+CREATE TABLE t5 AS SELECT * FROM t3;
+CREATE TABLE t6 AS SELECT * FROM t4;
+SET binlog_format=MIXED;
+CREATE TABLE t7 AS SELECT * FROM t3;
+CREATE TABLE t8 AS SELECT * FROM t4;
+show binlog events in 'binlog-000009.ibb' from <binlog_start>;
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+binlog-000009.ibb	#	Gtid	1	#	BEGIN GTID #-#-#
+binlog-000009.ibb	#	Query	1	#	use `test`; CREATE TABLE `t3` (
+  `a` int(11) NOT NULL,
+  `b` int(11) DEFAULT NULL,
+  `c` longtext DEFAULT NULL
+)
+binlog-000009.ibb	#	Annotate_rows	1	#	CREATE TABLE t3 AS SELECT * FROM t1 LIMIT 10
+binlog-000009.ibb	#	Table_map	1	#	table_id: # (test.t3)
+binlog-000009.ibb	#	Write_rows_v1	1	#	table_id: # flags: STMT_END_F
+binlog-000009.ibb	#	Query	1	#	COMMIT
+binlog-000009.ibb	#	Gtid	1	#	BEGIN GTID #-#-#
+binlog-000009.ibb	#	Query	1	#	use `test`; CREATE TABLE `t4` (
+  `a` int(11) NOT NULL,
+  `b` int(11) DEFAULT NULL,
+  `c` longtext DEFAULT NULL
+)
+binlog-000009.ibb	#	Annotate_rows	1	#	CREATE TABLE t4 AS SELECT * FROM t2 LIMIT 10
+binlog-000009.ibb	#	Table_map	1	#	table_id: # (test.t4)
+binlog-000009.ibb	#	Write_rows_v1	1	#	table_id: # flags: STMT_END_F
+binlog-000009.ibb	#	Query	1	#	COMMIT
+binlog-000009.ibb	#	Gtid	1	#	BEGIN GTID #-#-#
+binlog-000009.ibb	#	Query	1	#	use `test`; CREATE TABLE `t5` (
+  `a` int(11) NOT NULL,
+  `b` int(11) DEFAULT NULL,
+  `c` longtext DEFAULT NULL
+)
+binlog-000009.ibb	#	Annotate_rows	1	#	CREATE TABLE t5 AS SELECT * FROM t3
+binlog-000009.ibb	#	Table_map	1	#	table_id: # (test.t5)
+binlog-000009.ibb	#	Write_rows_v1	1	#	table_id: # flags: STMT_END_F
+binlog-000009.ibb	#	Query	1	#	COMMIT
+binlog-000009.ibb	#	Gtid	1	#	BEGIN GTID #-#-#
+binlog-000009.ibb	#	Query	1	#	use `test`; CREATE TABLE `t6` (
+  `a` int(11) NOT NULL,
+  `b` int(11) DEFAULT NULL,
+  `c` longtext DEFAULT NULL
+)
+binlog-000009.ibb	#	Annotate_rows	1	#	CREATE TABLE t6 AS SELECT * FROM t4
+binlog-000009.ibb	#	Table_map	1	#	table_id: # (test.t6)
+binlog-000009.ibb	#	Write_rows_v1	1	#	table_id: # flags: STMT_END_F
+binlog-000009.ibb	#	Query	1	#	COMMIT
+binlog-000009.ibb	#	Gtid	1	#	GTID #-#-#
+binlog-000009.ibb	#	Query	1	#	use `test`; CREATE TABLE t7 AS SELECT * FROM t3
+binlog-000009.ibb	#	Gtid	1	#	GTID #-#-#
+binlog-000009.ibb	#	Query	1	#	use `test`; CREATE TABLE t8 AS SELECT * FROM t4
+SET GLOBAL max_binlog_size= @old_max_size;
+DROP TABLE t3,t4,t5,t6,t7,t8;
 connection master;
 DROP TABLE t1, t2;
 CALL mtr.add_suppression('Statement is unsafe because it accesses a non-transactional table after accessing a transactional table');
