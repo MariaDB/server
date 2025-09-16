@@ -527,15 +527,12 @@ public:
      (think of an exit because of an error right after my_getopt)
     */
     option.var_type|= (flags & ALLOCATED) ? GET_STR_ALLOC : GET_STR;
-    if (def_val && (flags & ALLOCATED))
-      global_var(const char*)= my_strdup(PSI_INSTRUMENT_ME, def_val, MYF(0));
-    else
-      global_var(const char*)= def_val;
+    global_var(const char*)= def_val;
     SYSVAR_ASSERT(size == sizeof(char *));
   }
   void cleanup() override
   {
-    if (flags & ALLOCATED)
+    if (flags & ALLOCATED && global_var(intptr) != (intptr)option.def_value)
     {
       my_free(global_var(char*));
       global_var(char *)= NULL;
@@ -607,8 +604,7 @@ public:
   }
   void global_update_finish(char *new_val)
   {
-    if (flags & ALLOCATED)
-      my_free(global_var(char*));
+    cleanup();
     flags|= ALLOCATED;
     global_var(char*)= new_val;
   }

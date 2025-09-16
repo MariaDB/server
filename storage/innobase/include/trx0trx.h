@@ -710,7 +710,7 @@ public:
 
   Regular transactions:
   * NOT_STARTED -> ACTIVE -> COMMITTED -> NOT_STARTED
-  * NOT_STARTED -> ABORTED (when thd_mark_transaction_to_rollback() is called)
+  * NOT_STARTED -> ABORTED (when THD::mark_transaction_to_rollback() is called)
   * ABORTED -> NOT_STARTED (acknowledging the rollback of a transaction)
 
   Auto-commit non-locking read-only:

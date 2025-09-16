@@ -24,6 +24,7 @@ Purge old versions
 Created 3/26/1996 Heikki Tuuri
 *******************************************************/
 
+#define MYSQL_SERVER
 #include "trx0purge.h"
 #include "fsp0fsp.h"
 #include "mach0data.h"
@@ -42,6 +43,7 @@ Created 3/26/1996 Heikki Tuuri
 #include <mysql/service_thd_mdl.h>
 #include <mysql/service_wsrep.h>
 #include "log.h"
+#include "sql_class.h"
 
 /** Maximum allowable purge history length.  <=0 means 'infinite'. */
 ulong		srv_max_purge_lag = 0;
@@ -1061,16 +1063,14 @@ static void trx_purge_close_tables(purge_node_t *node, THD *thd) noexcept
       table->release();
   }
 
-  MDL_context *mdl_context= static_cast<MDL_context*>(thd_mdl_context(thd));
-
   for (auto &t : node->tables)
   {
     dict_table_t *table= t.second.first;
     if (table != nullptr && table != reinterpret_cast<dict_table_t*>(-1))
     {
       t.second.first= reinterpret_cast<dict_table_t*>(-1);
-      if (mdl_context != nullptr && t.second.second != nullptr)
-        mdl_context->release_lock(t.second.second);
+      if (t.second.second != nullptr)
+        thd->mdl_context.release_lock(t.second.second);
     }
   }
 }
@@ -1175,8 +1175,7 @@ ATTRIBUTE_COLD
 dict_table_t *purge_sys_t::close_and_reopen(table_id_t id, THD *thd,
                                             MDL_ticket **mdl)
 {
-  MDL_context *mdl_context= static_cast<MDL_context*>(thd_mdl_context(thd));
-  ut_ad(mdl_context);
+  MDL_context *mdl_context= &thd->mdl_context;
  retry:
   ut_ad(m_active);
 
@@ -1234,10 +1233,6 @@ static purge_sys_t::iterator trx_purge_attach_undo_recs(THD *thd,
     table_id_map(TRX_PURGE_TABLE_BUCKETS);
   purge_sys.m_active= true;
 
-  MDL_context *const mdl_context=
-    static_cast<MDL_context*>(thd_mdl_context(thd));
-  ut_ad(mdl_context);
-
   while (UNIV_LIKELY(srv_undo_sources) || !srv_fast_shutdown)
   {
     /* Track the max {trx_id, undo_no} for truncating the
@@ -1265,7 +1260,7 @@ static purge_sys_t::iterator trx_purge_attach_undo_recs(THD *thd,
     if (!table_node)
     {
       std::pair<dict_table_t *, MDL_ticket *> p;
-      p.first= trx_purge_table_open(table_id, mdl_context, &p.second);
+      p.first= trx_purge_table_open(table_id, &thd->mdl_context, &p.second);
       if (p.first == reinterpret_cast<dict_table_t *>(-1))
         p.first= purge_sys.close_and_reopen(table_id, thd, &p.second);
 
