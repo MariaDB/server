@@ -90,15 +90,18 @@
 #include "./rdb_threads.h"
 #include "./rdb_mariadb_server_port.h"
 
-// Internal MySQL APIs not exposed in any header.
-extern "C" {
 /**
   Mark transaction to rollback and mark error as fatal to a sub-statement.
   @param  thd   Thread handle
   @param  all   TRUE <=> rollback main transaction.
 */
-void thd_mark_transaction_to_rollback(MYSQL_THD thd, bool all);
+static inline void thd_mark_transaction_to_rollback(MYSQL_THD thd, bool all)
+{
+  return thd->mark_transaction_to_rollback(all);
+}
 
+// Internal MariaDB APIs not exposed in any header.
+extern "C" {
 /**
  *   Get the user thread's binary logging format
  *   @param thd  user thread

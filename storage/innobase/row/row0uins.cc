@@ -24,6 +24,7 @@ Fresh insert undo
 Created 2/25/1997 Heikki Tuuri
 *******************************************************/
 
+#define MYSQL_SERVER
 #include "row0uins.h"
 #include "dict0dict.h"
 #include "dict0stats.h"
@@ -44,6 +45,7 @@ Created 2/25/1997 Heikki Tuuri
 #include "log0log.h"
 #include "fil0fil.h"
 #include <mysql/service_thd_mdl.h>
+#include "sql_class.h"
 
 /*************************************************************************
 IMPORTANT NOTE: Any operation that generates redo MUST check that there
@@ -167,14 +169,9 @@ restart:
 					dict_sys.unlock();
 				}
 				table = nullptr;
-				if (!mdl_ticket);
-				else if (MDL_context* mdl_context =
-					 static_cast<MDL_context*>(
-						 thd_mdl_context(
-							 node->trx->
-							 mysql_thd))) {
-					mdl_context->release_lock(
-						mdl_ticket);
+				if (mdl_ticket) {
+					node->trx->mysql_thd->mdl_context
+						.release_lock(mdl_ticket);
 					mdl_ticket = nullptr;
 				}
 			}

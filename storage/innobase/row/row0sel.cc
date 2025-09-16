@@ -24,6 +24,7 @@ Select
 Created 12/19/1997 Heikki Tuuri
 *******************************************************/
 
+#define MYSQL_SERVER
 #include "row0sel.h"
 #include "dict0dict.h"
 #include "dict0boot.h"
@@ -50,6 +51,7 @@ Created 12/19/1997 Heikki Tuuri
 #include "srv0srv.h"
 #include "srv0mon.h"
 #include "sql_error.h"
+#include "sql_class.h" // THD
 #ifdef WITH_WSREP
 #include "mysql/service_wsrep.h" /* For wsrep_thd_skip_locking */
 #endif

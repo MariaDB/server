@@ -25,6 +25,7 @@ Created 5/7/1996 Heikki Tuuri
 *******************************************************/
 
 #define LOCK_MODULE_IMPLEMENTATION
+#define MYSQL_SERVER
 
 #include "univ.i"
 
@@ -1074,7 +1075,7 @@ lock_rec_other_has_expl_req(
 #endif /* UNIV_DEBUG */
 
 #ifdef WITH_WSREP
-void lock_wait_wsrep_kill(trx_t *bf_trx, ulong thd_id, trx_id_t trx_id);
+void lock_wait_wsrep_kill(trx_t *bf_trx, my_thread_id thd_id, trx_id_t trx_id);
 
 #ifdef UNIV_DEBUG
 void wsrep_report_error(const lock_t* victim_lock, const trx_t *bf_trx)
@@ -1175,13 +1176,13 @@ func_exit:
   if (victims.empty())
     goto func_exit;
 
-  std::vector<std::pair<ulong,trx_id_t>> victim_id;
+  std::vector<std::pair<my_thread_id,trx_id_t>> victim_id;
   for (trx_t *v : victims)
   {
     /* Victim must have THD */
     ut_ad(v->mysql_thd);
-    victim_id.emplace_back(std::pair<ulong,trx_id_t>
-                           {thd_get_thread_id(v->mysql_thd), v->id});
+    victim_id.emplace_back(std::pair<my_thread_id,trx_id_t>
+                           {v->mysql_thd->thread_id, v->id});
   }
 
   DBUG_EXECUTE_IF("sync.before_wsrep_thd_abort",
@@ -4121,9 +4122,7 @@ run_again:
 @return error code */
 dberr_t lock_table_children(dict_table_t *table, trx_t *trx)
 {
-  MDL_context *mdl_context=
-    static_cast<MDL_context*>(thd_mdl_context(trx->mysql_thd));
-  ut_ad(mdl_context);
+  MDL_context *mdl_context= &trx->mysql_thd->mdl_context;
   struct table_mdl{dict_table_t* table; MDL_ticket *mdl;};
   std::vector<table_mdl> children;
   children.emplace_back(table_mdl{table, nullptr});
@@ -6849,6 +6848,11 @@ bool lock_trx_has_expl_x_lock(const trx_t &trx, const dict_table_t &table,
 
 namespace Deadlock
 {
+  static bool thd_has_edited_nontrans_tables(const THD *thd)
+  {
+    return thd->transaction->all.modified_non_trans_table;
+  }
+
   /** rewind(3) the file used for storing the latest detected deadlock and
   print a heading message to stderr if printing of all deadlocks to stderr
   is enabled. */

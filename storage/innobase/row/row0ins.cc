@@ -24,6 +24,7 @@ Insert into a table
 Created 4/20/1996 Heikki Tuuri
 *******************************************************/
 
+#define MYSQL_SERVER
 #include "row0ins.h"
 #include "dict0dict.h"
 #include "trx0rec.h"
@@ -46,6 +47,7 @@ Created 4/20/1996 Heikki Tuuri
 #ifdef BTR_CUR_HASH_ADAPT
 # include "btr0sea.h"
 #endif
+#include "sql_class.h" // THD
 #ifdef WITH_WSREP
 #include <wsrep.h>
 #include <mysql/service_wsrep.h>
@@ -2570,13 +2572,12 @@ statement
 @return true if it is insert statement */
 static bool thd_sql_is_insert(const THD *thd) noexcept
 {
-  switch(thd_sql_command(thd))
-  {
-    case SQLCOM_INSERT:
-    case SQLCOM_INSERT_SELECT:
-      return true;
-    default:
-      return false;
+  switch (thd->lex->sql_command) {
+  case SQLCOM_INSERT:
+  case SQLCOM_INSERT_SELECT:
+    return true;
+  default:
+    return false;
   }
 }
 
