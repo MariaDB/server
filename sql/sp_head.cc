@@ -656,6 +656,7 @@ sp_package::~sp_package()
   m_routine_implementations.cleanup();
   m_routine_declarations.cleanup();
   m_body= null_clex_str;
+  m_package_path.pop();
   if (m_current_routine)
     sp_head::destroy(m_current_routine->sphead);
   delete m_rcontext;
@@ -918,6 +919,8 @@ sp_head::~sp_head()
 
   my_hash_free(&m_sptabs);
   my_hash_free(&m_sroutines);
+
+  m_routine_path.pop();
 
   sp_head::destroy(m_next_cached_sp);
 
@@ -2851,6 +2854,10 @@ sp_head::set_chistics(const st_sp_chistics &chistics)
     m_chistics.comment.str= strmake_root(mem_root,
                                          m_chistics.comment.str,
                                          m_chistics.comment.length);
+  if (m_chistics.sql_path.length)
+    m_chistics.sql_path.str= strmake_root(mem_root,
+                                          m_chistics.sql_path.str,
+                                          m_chistics.sql_path.length);
 }
 
 

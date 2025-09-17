@@ -931,6 +931,8 @@ The following specify which files/extra groups are read (specified before remain
  Cost of checking the row against the WHERE clause.
  Increasing this will have the optimizer to prefer plans
  with less row combinations
+ --path=name         Comma-separated list of schema names that defines the
+ search order for stored routines
  --performance-schema 
  Enable the performance schema
  --performance-schema-accounts-size=# 
@@ -1908,6 +1910,7 @@ optimizer-trace
 optimizer-trace-max-mem-size 1048576
 optimizer-use-condition-selectivity 4
 optimizer-where-cost 0.032
+path CURRENT_SCHEMA
 performance-schema FALSE
 performance-schema-accounts-size -1
 performance-schema-consumer-events-stages-current FALSE

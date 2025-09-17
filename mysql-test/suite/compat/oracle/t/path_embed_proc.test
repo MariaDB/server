@@ -1,0 +1,126 @@
+--echo #
+--echo # MDEV-34391 Path resolution
+--echo # Stored procedure tests with embedded PATH
+--echo #
+SET sql_mode=ORACLE;
+
+CREATE DATABASE test2;
+DELIMITER /;
+CREATE FUNCTION test2.func2() RETURN TEXT
+AS
+BEGIN
+  RETURN 'test2.func2';
+END;
+/
+DELIMITER ;/
+
+CREATE DATABASE test3;
+DELIMITER /;
+CREATE FUNCTION test3.func2() RETURN TEXT
+AS
+BEGIN
+  RETURN 'test3.func2';
+END;
+/
+DELIMITER ;/
+
+CREATE DATABASE test4;
+DELIMITER /;
+CREATE FUNCTION test4.func4() RETURN TEXT
+AS
+BEGIN
+  RETURN 'test4.func4';
+END;
+/
+DELIMITER ;/
+
+--echo #
+--echo # Embed a path in a stored procedure
+--echo #
+DELIMITER /;
+CREATE PROCEDURE proc()
+PATH 'test2'
+AS
+BEGIN
+  SELECT func2();
+END;
+/
+DELIMITER ;/
+
+CALL proc;
+SET PATH 'test3';
+CALL test.proc;
+SET PATH 'CURRENT_SCHEMA,test3';
+CALL proc;
+
+DROP PROCEDURE proc;
+SET PATH 'CURRENT_SCHEMA';
+
+--echo #
+--echo # Ensure that multiple references are resolved properly
+--echo #
+DELIMITER /;
+CREATE PROCEDURE proc()
+PATH 'test2'
+AS
+BEGIN
+  SELECT func2() || '+' || func2();
+END;
+/
+DELIMITER ;/
+
+CALL proc();
+SET PATH 'test3';
+CALL test.proc;
+
+DROP PROCEDURE proc;
+SET PATH 'CURRENT_SCHEMA';
+
+--echo #
+--echo # Use multiple schemas in embedded PATH
+--echo #
+DELIMITER /;
+CREATE PROCEDURE proc()
+PATH 'test2,test3,test4'
+AS
+BEGIN
+  SELECT func2() || '+' || func2() || '+' || func4();
+END;
+/
+DELIMITER ;/
+
+CALL proc();
+SET PATH 'test3';
+CALL test.proc;
+
+DROP PROCEDURE proc;
+SET PATH 'CURRENT_SCHEMA';
+
+--echo #
+--echo # Use empty PATH in stored routine (resolution should fail)
+--echo #
+DELIMITER /;
+CREATE PROCEDURE proc()
+PATH ''
+AS
+BEGIN
+  SELECT func2();
+END;
+/
+DELIMITER ;/
+
+--error ER_SP_DOES_NOT_EXIST
+CALL proc;
+
+--echo #
+--echo # ALTER PROCEDURE's previously empty PATH
+--echo #
+ALTER PROCEDURE proc PATH 'test2';
+CALL proc;
+
+DROP PROCEDURE proc;
+SET PATH 'CURRENT_SCHEMA';
+
+DROP DATABASE test2;
+DROP DATABASE test3;
+DROP DATABASE test4;

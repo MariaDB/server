@@ -840,7 +840,7 @@ static void make_view_filename(LEX_CSTRING *dir, char *dir_buff,
 }
 
 /* number of required parameters for making view */
-static const int required_view_parameters= 15;
+static const int required_view_parameters= 16;
 
 /*
   table of VIEW .frm field descriptors
@@ -890,6 +890,9 @@ static File_option view_parameters[]=
   FILE_OPTIONS_STRING},
  {{(char*) STRING_WITH_LEN("view_body_utf8")},
   my_offsetof(TABLE_LIST, view_body_utf8),
+  FILE_OPTIONS_ESTRING},
+ {{ STRING_WITH_LEN("sql_path")},
+  my_offsetof(TABLE_LIST, m_sql_path),
   FILE_OPTIONS_ESTRING},
  {{ STRING_WITH_LEN("mariadb-version")},
   my_offsetof(TABLE_LIST, mariadb_version),
@@ -1093,6 +1096,7 @@ static int mysql_register_view(THD *thd, DDL_LOG_STATE *ddl_log_state,
   view->definer.host= lex->definer->host;
   view->view_suid= lex->create_view->suid;
   view->with_check= lex->create_view->check;
+  view->m_sql_path= thd->variables.path.lex_cstring(thd, thd->mem_root);
 
   DBUG_EXECUTE_IF("simulate_register_view_failure",
                   {
@@ -1528,6 +1532,8 @@ bool mysql_make_view(THD *thd, TABLE_SHARE *share, TABLE_LIST *table,
     lex->stmt_lex= old_lex;
 
     Sql_mode_save_for_frm_handling sql_mode_save(thd);
+    Sql_path_push path_push(thd, table->view_creation_ctx->get_client_cs(),
+                            table->m_sql_path);
     /* Parse the query. */
 
     parse_status= parse_sql(thd, & parser_state, table->view_creation_ctx);

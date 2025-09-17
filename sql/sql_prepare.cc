@@ -237,6 +237,7 @@ private:
   */
   MEM_ROOT main_mem_root;
   sql_mode_t m_sql_mode;
+  LEX_CSTRING m_sql_path;
   THD::used_t m_prepare_time_thd_used_flags;
   uint m_prepare_time_charset_collation_map_version;
   bool check_charset_collation_map_version(THD *thd,
@@ -4137,6 +4138,9 @@ bool Prepared_statement::prepare(const char *packet, uint packet_len)
     DBUG_RETURN(TRUE);
   }
 
+  /* Store the current PATH */
+  m_sql_path= thd->variables.path.lex_cstring(thd, thd->mem_root);
+
   /*
     We'd like to have thd->query to be set to the actual query
     after the function ends.
@@ -4807,6 +4811,7 @@ Prepared_statement::reprepare()
     return TRUE;
 
   Sql_mode_instant_set sms(thd, m_sql_mode);
+  Sql_path_push path_push(thd, &my_charset_utf8mb3_bin, m_sql_path);
 
   error= ((name.str && copy.set_name(&name)) ||
           copy.prepare(query(), query_length()) ||
@@ -4932,6 +4937,8 @@ Prepared_statement::swap_prepared_statement(Prepared_statement *copy)
   swap_variables(THD::used_t,
                  m_prepare_time_thd_used_flags,
                  copy->m_prepare_time_thd_used_flags);
+  
+  swap_variables(LEX_CSTRING, m_sql_path, copy->m_sql_path);
 
   DBUG_ASSERT(param_count == copy->param_count);
   DBUG_ASSERT(thd == copy->thd);
