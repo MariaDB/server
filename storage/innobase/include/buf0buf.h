@@ -465,7 +465,8 @@ public: // FIXME: fix fil_iterate()
     protected by buf_pool.page_hash.lock_get() */
     buf_page_t *hash;
     /** for state()==MEMORY that are part of recv_sys.pages and
-    protected by recv_sys.mutex */
+    protected by recv_sys.mutex, or part of btr_sea::partition::table
+    and protected by btr_sea::partition::blocks_mutex */
     struct {
       /** number of recv_sys.pages entries stored in the block */
       uint16_t used_records;
@@ -860,7 +861,7 @@ struct buf_block_t{
   Atomic_relaxed<uint16_t> n_hash_helps;
 # if defined UNIV_AHI_DEBUG || defined UNIV_DEBUG
   /** number of pointers from the btr_sea::partition::table;
-  !n_pointers == !index */
+  !index implies n_pointers == 0 */
   Atomic_counter<uint16_t> n_pointers;
 #  define assert_block_ahi_empty(block) ut_a(!(block)->n_pointers)
 #  define assert_block_ahi_valid(b) ut_a((b)->index || !(b)->n_pointers)
