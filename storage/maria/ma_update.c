@@ -16,6 +16,7 @@
 #include "ma_fulltext.h"
 #include "ma_rt_index.h"
 #include "trnman.h"
+#include <mysqld_error.h>
 
 /**
    Update an old row in a MARIA table
@@ -113,8 +114,10 @@ int maria_update(register MARIA_HA *info, const uchar *oldrec,
       {
         MARIA_KEY new_key, old_key;
 
-        (*keyinfo->make_key)(info,&new_key, i, new_key_buff, newrec,
-                             pos, info->trn->trid);
+        if (!(*keyinfo->make_key)(info,&new_key, i, new_key_buff, newrec,
+                                  pos, info->trn->trid))
+          goto err;
+
         (*keyinfo->make_key)(info,&old_key, i, old_key_buff,
                              oldrec, pos, info->cur_row.trid);
 
@@ -239,6 +242,8 @@ err:
       }
     } while (i-- != 0);
   }
+  else if (my_errno == HA_ERR_NULL_IN_SPATIAL)
+    my_error(ER_CANT_CREATE_GEOMETRY_OBJECT, MYF(0));
   else
     _ma_set_fatal_error(info, save_errno);
 

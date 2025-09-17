@@ -18,6 +18,7 @@
 
 #include "fulltext.h"
 #include "rt_index.h"
+#include <mysqld_error.h>
 
 int mi_update(register MI_INFO *info, const uchar *oldrec,
               const uchar *newrec)
@@ -221,6 +222,8 @@ err:
       }
     } while (i-- != 0);
   }
+  else if (my_errno == HA_ERR_NULL_IN_SPATIAL)
+    my_error(ER_CANT_CREATE_GEOMETRY_OBJECT, MYF(0));
   else
   {
     mi_print_error(info->s, HA_ERR_CRASHED);
