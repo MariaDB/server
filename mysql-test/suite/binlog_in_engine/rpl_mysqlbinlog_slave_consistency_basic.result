@@ -392,6 +392,8 @@ connection master;
 connection slave;
 CHANGE MASTER TO MASTER_USE_GTID=slave_pos;
 START SLAVE UNTIL master_gtid_pos="1-1-2";
+Warnings:
+Note	1278	It is recommended to use --skip-slave-start when doing step-by-step replication with START SLAVE UNTIL; otherwise, you will get problems if you get an unexpected slave's mariadbd restart
 # No slave error expecting - waiting for slave to catch up to master
 # Because there is a stop position we wait for all events to process
 # and slave to automatically stop
@@ -597,6 +599,8 @@ connection master;
 connection slave;
 CHANGE MASTER TO MASTER_USE_GTID=slave_pos, DO_DOMAIN_IDS=(0);
 START SLAVE UNTIL master_gtid_pos="0-1-4";
+Warnings:
+Note	1278	It is recommended to use --skip-slave-start when doing step-by-step replication with START SLAVE UNTIL; otherwise, you will get problems if you get an unexpected slave's mariadbd restart
 # No slave error expecting - waiting for slave to catch up to master
 # Because there is a stop position we wait for all events to process
 # and slave to automatically stop
@@ -652,6 +656,8 @@ connection master;
 connection slave;
 CHANGE MASTER TO MASTER_USE_GTID=slave_pos, IGNORE_DOMAIN_IDS=(0);
 START SLAVE UNTIL master_gtid_pos="0-1-4";
+Warnings:
+Note	1278	It is recommended to use --skip-slave-start when doing step-by-step replication with START SLAVE UNTIL; otherwise, you will get problems if you get an unexpected slave's mariadbd restart
 # No slave error expecting - waiting for slave to catch up to master
 # Because there is a stop position we wait for all events to process
 # and slave to automatically stop
@@ -701,6 +707,8 @@ connection master;
 connection slave;
 CHANGE MASTER TO MASTER_USE_GTID=slave_pos, IGNORE_SERVER_IDS=(3);
 START SLAVE UNTIL master_gtid_pos="0-1-4";
+Warnings:
+Note	1278	It is recommended to use --skip-slave-start when doing step-by-step replication with START SLAVE UNTIL; otherwise, you will get problems if you get an unexpected slave's mariadbd restart
 # No slave error expecting - waiting for slave to catch up to master
 # Because there is a stop position we wait for all events to process
 # and slave to automatically stop
@@ -911,6 +919,8 @@ connection slave;
 set global gtid_slave_pos="0-1-1";
 CHANGE MASTER TO MASTER_USE_GTID=slave_pos, DO_DOMAIN_IDS=(0);
 START SLAVE UNTIL master_gtid_pos="0-3-3";
+Warnings:
+Note	1278	It is recommended to use --skip-slave-start when doing step-by-step replication with START SLAVE UNTIL; otherwise, you will get problems if you get an unexpected slave's mariadbd restart
 # No slave error expecting - waiting for slave to catch up to master
 # Because there is a stop position we wait for all events to process
 # and slave to automatically stop
@@ -966,6 +976,8 @@ connection slave;
 set global gtid_slave_pos="0-1-1";
 CHANGE MASTER TO MASTER_USE_GTID=slave_pos, DO_DOMAIN_IDS=(1);
 START SLAVE UNTIL master_gtid_pos="0-3-3";
+Warnings:
+Note	1278	It is recommended to use --skip-slave-start when doing step-by-step replication with START SLAVE UNTIL; otherwise, you will get problems if you get an unexpected slave's mariadbd restart
 # No slave error expecting - waiting for slave to catch up to master
 # Because there is a stop position we wait for all events to process
 # and slave to automatically stop
@@ -1018,6 +1030,8 @@ connection slave;
 set global gtid_slave_pos="0-1-1";
 CHANGE MASTER TO MASTER_USE_GTID=slave_pos, IGNORE_DOMAIN_IDS=(0);
 START SLAVE UNTIL master_gtid_pos="0-3-3";
+Warnings:
+Note	1278	It is recommended to use --skip-slave-start when doing step-by-step replication with START SLAVE UNTIL; otherwise, you will get problems if you get an unexpected slave's mariadbd restart
 # No slave error expecting - waiting for slave to catch up to master
 # Because there is a stop position we wait for all events to process
 # and slave to automatically stop
@@ -1071,6 +1085,8 @@ connection slave;
 set global gtid_slave_pos="0-1-1";
 CHANGE MASTER TO MASTER_USE_GTID=slave_pos, IGNORE_DOMAIN_IDS=(1);
 START SLAVE UNTIL master_gtid_pos="0-3-3";
+Warnings:
+Note	1278	It is recommended to use --skip-slave-start when doing step-by-step replication with START SLAVE UNTIL; otherwise, you will get problems if you get an unexpected slave's mariadbd restart
 # No slave error expecting - waiting for slave to catch up to master
 # Because there is a stop position we wait for all events to process
 # and slave to automatically stop
@@ -1124,6 +1140,8 @@ connection slave;
 set global gtid_slave_pos="0-1-0";
 CHANGE MASTER TO MASTER_USE_GTID=slave_pos, IGNORE_SERVER_IDS=(3);
 START SLAVE UNTIL master_gtid_pos="0-3-3";
+Warnings:
+Note	1278	It is recommended to use --skip-slave-start when doing step-by-step replication with START SLAVE UNTIL; otherwise, you will get problems if you get an unexpected slave's mariadbd restart
 # No slave error expecting - waiting for slave to catch up to master
 # Because there is a stop position we wait for all events to process
 # and slave to automatically stop
@@ -1343,4 +1361,4 @@ RESET MASTER;
 connection slave;
 include/start_slave.inc
 include/rpl_end.inc
-# End of test rpl.rpl_mysqlbinlog_slave_consistency.test
+# End of binlog_in_engine.rpl_mysqlbinlog_slave_consistency_basic.test
