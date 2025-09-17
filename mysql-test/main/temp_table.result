@@ -700,3 +700,16 @@ DROP TABLE t1;
 #
 # End of 10.6 tests
 #
+# MDEV-37673 Changing server_id results in ignoring past created temporary tables
+set @save_server_id= @@server_id;
+set global server_id= 1;
+create temporary table t(x int) engine=innodb as select 1 as 'x';
+set global server_id= 100;
+select * from t;
+x
+1
+drop table t;
+set global server_id= @save_server_id;
+#
+# End of 10.11 tests
+#

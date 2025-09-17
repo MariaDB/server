@@ -1000,9 +1000,10 @@ uint THD::create_tmp_table_def_key(char *key,
 {
   uint key_length;
   DBUG_ENTER("THD::create_tmp_table_def_key");
+  ulonglong server_id= rgi_slave ? variables.server_id : 0;
 
   key_length= tdc_create_key(key, db.str, table_name.str);
-  int4store(key + key_length, variables.server_id);
+  int4store(key + key_length, server_id);
   int4store(key + key_length + 4, variables.pseudo_thread_id);
   key_length += TMP_TABLE_KEY_EXTRA;
 
