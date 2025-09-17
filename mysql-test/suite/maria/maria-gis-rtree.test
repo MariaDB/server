@@ -886,3 +886,13 @@ SELECT COUNT(*) FROM t1 IGNORE INDEX (b) WHERE
 DROP TABLE t1;
 
 --echo End of 5.0 tests.
+
+#
+# Bug #31766 SIGSEGV in maria_rtree_split_page | maria_rtree_add_key
+#
+
+CREATE TABLE t1 (c POINT NOT NULL,SPATIAL (c));
+INSERT INTO t1 VALUES (ST_GEOMFROMTEXT ('POINT(1 0)'));
+--error ER_CANT_CREATE_GEOMETRY_OBJECT
+UPDATE t1 SET c='';
+DROP TABLE t1;
