@@ -2039,6 +2039,7 @@ rule:
 %type <spblock> opt_sp_decl_body_list
 %type <spblock> sp_decl_variable_list
 %type <spblock> sp_decl_variable_list_anchored
+%type <spblock> sp_decl_type
 %type <spblock> sp_decl_non_handler
 %type <spblock> sp_decl_non_handler_list
 %type <spblock> sp_decl_handler
@@ -11045,6 +11046,7 @@ function_call_generic:
             Item *item= NULL;
             const sp_type_def *tdef= NULL;
             const Lex_ident_sys ident(thd, &$1);
+            const Sp_rcontext_handler *rh;
             sp_variable *spv= NULL;
             bool allow_field_accessor= false;
 
@@ -11083,13 +11085,12 @@ function_call_generic:
             {
               // Found a constructor with a proper argument count
             }
-            else if (Lex->spcont &&
-                     (tdef= Lex->spcont->find_type_def(ident, false)))
+            else if (Lex->spcont && (tdef= Lex->find_type_def(ident)))
             {
               item= tdef->make_constructor_item(thd, $4);
             }
             else if (Lex->spcont &&
-                    (spv= Lex->spcont->find_variable(&ident, false)) &&
+                    (spv= Lex->find_variable(&ident, &rh)) &&
                     spv->type_handler()->has_functors())
             {
               const char *end= $6.str ? $6.end() : $5.end();
@@ -19574,6 +19575,7 @@ sf_return_type:
 
 package_implementation_item_declaration:
           sp_decl_variable_list ';'
+        | sp_decl_type ';'
         ;
 
 sp_package_function_body:
@@ -20460,7 +20462,11 @@ sp_decl_non_handler:
             $$.vars= $$.conds= $$.hndlrs= 0;
             $$.curs= 1;
           }
-        | typed_ident IS RECORD_SYM rec_type_body
+        | sp_decl_type
+        ;
+
+sp_decl_type:
+          typed_ident IS RECORD_SYM rec_type_body
           {
             if (unlikely(Lex->declare_type_record(thd, $1, $4)))
               MYSQL_YYABORT;

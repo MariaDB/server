@@ -3929,6 +3929,7 @@ public:
   bool direct_call(THD *thd, const Qualified_ident *ident, List<Item> *args);
 
   bool assoc_assign_start(THD *thd, Qualified_ident *ident);
+  const sp_type_def *find_type_def(const LEX_CSTRING &name) const;
   sp_variable *find_variable(const LEX_CSTRING *name,
                              sp_pcontext **ctx,
                              const Sp_rcontext_handler **rh) const;

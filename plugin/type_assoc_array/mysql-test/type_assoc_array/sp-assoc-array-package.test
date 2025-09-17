@@ -7,3 +7,5 @@ SET NAMES utf8mb4;
 
 --source sp-assoc-array-package-00.inc
 --source sp-assoc-array-package-01.inc
+--source sp-assoc-array-package-02.inc
+--source sp-assoc-array-package-03.inc
