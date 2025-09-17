@@ -768,3 +768,10 @@ DROP TABLE t1;
 --echo #
 --echo # End of 10.6 tests
 --echo #
+set @save_server_id= @@server_id;
+set global server_id= 1;
+create temporary table t(x int) engine=innodb as select 1 as 'x';
+set global server_id= 100;
+select * from t;
+drop table t;
+set global server_id= @save_server_id;
