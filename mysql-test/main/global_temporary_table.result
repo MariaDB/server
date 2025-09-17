@@ -999,4 +999,15 @@ Note	1031	Global temporary table test.t HANDLER is closed.
 create table t (d int);
 ERROR 42S01: Table 't' already exists
 drop table t;
+# MDEV-37666 Global temporary table can be created w/ versioning using CREATE LIKE
+create table t0 (x int, y int) with system versioning;
+create global temporary table t like t0;
+ERROR HY000: System-versioned tables do not support CREATE GLOBAL TEMPORARY TABLE
+drop table t0;
+create table t0 (x int primary key, y int) engine=innodb;
+create table t1 (x int primary key references t0(x)) engine=innodb;
+create global temporary table t like t1;
+ERROR HY000: Cannot add foreign key constraint for `GLOBAL TEMPORARY TABLE`
+drop table t1;
+drop table t0;
 disconnect con1;
