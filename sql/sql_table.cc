@@ -4143,12 +4143,12 @@ mysql_prepare_create_table_finalize(THD *thd, HA_CREATE_INFO *create_info,
                "CREATE GLOBAL TEMPORARY TABLE");
       DBUG_RETURN(TRUE);
     }
-    if (alter_info->flags & ALTER_ADD_FOREIGN_KEY)
+    if (alter_info->has_foreign_keys())
     {
       my_error(ER_CANNOT_ADD_FOREIGN, MYF(0), "GLOBAL TEMPORARY TABLE");
       DBUG_RETURN(TRUE);
     }
-    if (alter_info->flags & (ALTER_ADD_SYSTEM_VERSIONING))
+    if (create_info->versioned())
     {
       my_error(ER_VERS_NOT_SUPPORTED, MYF(0), "CREATE GLOBAL TEMPORARY TABLE");
       DBUG_RETURN(TRUE);
@@ -4609,19 +4609,11 @@ handler *mysql_create_frm_image(THD *thd, HA_CREATE_INFO *create_info,
     If storage engine handles partitioning natively (like NDB)
     foreign keys support is possible, so we let the engine decide.
   */
-  if (create_info->db_type == partition_hton)
+  if (create_info->db_type == partition_hton && alter_info->has_foreign_keys())
   {
-    List_iterator_fast<Key> key_iterator(alter_info->key_list);
-    Key *key;
-    while ((key= key_iterator++))
-    {
-      if (key->type == Key::FOREIGN_KEY)
-      {
-        my_error(ER_FEATURE_NOT_SUPPORTED_WITH_PARTITIONING, MYF(0),
-                 "FOREIGN KEY");
-        goto err;
-      }
-    }
+    my_error(ER_FEATURE_NOT_SUPPORTED_WITH_PARTITIONING, MYF(0),
+             "FOREIGN KEY");
+    goto err;
   }
 #endif
 
