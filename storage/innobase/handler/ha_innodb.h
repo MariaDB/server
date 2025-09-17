@@ -631,7 +631,7 @@ public:
 	@param create_fk	whether to add FOREIGN KEY constraints */
 	int create_table(bool create_fk = true);
 
-  static void create_table_update_dict(dict_table_t* table, THD* thd,
+  static void create_table_update_dict(dict_table_t* table, trx_t* trx,
                                        const HA_CREATE_INFO& info,
                                        const TABLE& t);
 

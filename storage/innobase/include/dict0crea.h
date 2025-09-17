@@ -88,15 +88,6 @@ dict_build_index_def(
 	dict_index_t*		index,	/*!< in/out: index */
 	trx_t*			trx);	/*!< in/out: InnoDB transaction
 					handle */
-/***************************************************************//**
-Creates an index tree for the index if it is not a member of a cluster.
-Don't update SYSTEM TABLES.
-@return DB_SUCCESS or DB_OUT_OF_FILE_SPACE */
-dberr_t
-dict_create_index_tree(
-/*===================*/
-	dict_index_t*	index,	/*!< in/out: index */
-	const trx_t*	trx);	/*!< in: InnoDB transaction handle */
 
 /** Drop the index tree associated with a row in SYS_INDEXES table.
 @param[in,out]	pcur	persistent cursor on rec
@@ -115,7 +106,7 @@ dberr_t
 dict_create_index_tree_in_mem(
 /*==========================*/
 	dict_index_t*	index,		/*!< in/out: index */
-	const trx_t*	trx);		/*!< in: InnoDB transaction handle */
+	trx_t*		trx);		/*!< in: InnoDB transaction handle */
 
 /********************************************************************//**
 Generate a foreign key constraint name when it was not named by the user.

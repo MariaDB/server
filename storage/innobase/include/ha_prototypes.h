@@ -164,7 +164,7 @@ extern "C" unsigned long long thd_start_utime(const MYSQL_THD thd);
 /** Obtain the InnoDB transaction of a MariaDB thread handle.
 @param thd   current_thd
 @return InnoDB transaction */
-trx_t *thd_to_trx(THD *thd) noexcept;
+trx_t *thd_to_trx(const THD *thd) noexcept;
 
 /** Determines the current SQL statement.
 Thread unsafe, can only be called from the thread owning the THD.

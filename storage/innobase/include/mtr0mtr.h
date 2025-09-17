@@ -65,7 +65,7 @@ struct mtr_memo_slot_t
 
 /** Mini-transaction handle and buffer */
 struct mtr_t {
-  mtr_t();
+  mtr_t(trx_t *trx/*= nullptr*/);
   ~mtr_t();
 
   /** Start a mini-transaction. */
@@ -783,6 +783,12 @@ private:
 
   /** CRC-32C of m_log */
   uint32_t m_crc;
+public:
+  /** dummy or real transaction associated with the mini-transaction */
+  trx_t *const trx;
+private:
+  /** user tablespace that is being modified by the mini-transaction */
+  fil_space_t *m_user_space;
 
 #ifdef UNIV_DEBUG
   /** Persistent user tablespace associated with the
@@ -795,9 +801,6 @@ private:
 
   /** mini-transaction log */
   mtr_buf_t m_log;
-
-  /** user tablespace that is being modified by the mini-transaction */
-  fil_space_t* m_user_space;
 
   /** LSN at commit time */
   lsn_t m_commit_lsn;

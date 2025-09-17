@@ -52,6 +52,7 @@ Returns a new table, index, or space id. */
 void
 dict_hdr_get_new_id(
 /*================*/
+	trx_t*			trx,		/*!< in/out: transaction */
 	table_id_t*		table_id,	/*!< out: table id
 						(not assigned if NULL) */
 	index_id_t*		index_id,	/*!< out: index id
@@ -60,7 +61,7 @@ dict_hdr_get_new_id(
 						(not assigned if NULL) */
 {
 	ib_id_t		id;
-	mtr_t		mtr;
+	mtr_t		mtr{trx};
 
 	mtr.start();
 	buf_block_t* dict_hdr = dict_hdr_get(&mtr);
@@ -103,7 +104,7 @@ dberr_t dict_create()
 	ulint		root_page_no;
 
 	dberr_t err;
-	mtr_t mtr;
+	mtr_t mtr{nullptr};
 	mtr.start();
 	compile_time_assert(DICT_HDR_SPACE == 0);
 
@@ -198,7 +199,7 @@ dberr_t dict_boot()
 	dict_table_t*	table;
 	dict_index_t*	index;
 	mem_heap_t*	heap;
-	mtr_t		mtr;
+	mtr_t		mtr{nullptr};
 
 	static_assert(DICT_NUM_COLS__SYS_TABLES == 8, "compatibility");
 	static_assert(DICT_NUM_FIELDS__SYS_TABLES == 10, "compatibility");

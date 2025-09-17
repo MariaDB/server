@@ -1535,16 +1535,19 @@ dict_fs2utf8(
 
 /** Flag an index corrupted both in the data dictionary cache
 and in the system table SYS_INDEXES.
+@param trx         transaction
 @param index       index to be flagged as corrupted
 @param ctx         context (for error log reporting) */
-void dict_set_corrupted(dict_index_t *index, const char *ctx)
+void dict_set_corrupted(trx_t *trx, dict_index_t *index, const char *ctx)
   ATTRIBUTE_COLD __attribute__((nonnull));
 
 /** Sets merge_threshold in the SYS_INDEXES
+@param[in]	thd		current_thd
 @param[in,out]	index		index
 @param[in]	merge_threshold	value to set */
 void
 dict_index_set_merge_threshold(
+	const THD&	thd,
 	dict_index_t*	index,
 	ulint		merge_threshold);
 

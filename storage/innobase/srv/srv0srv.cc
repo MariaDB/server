@@ -65,6 +65,7 @@ Created 10/8/1995 Heikki Tuuri
 #include "fil0crypt.h"
 #include "fil0pagecompress.h"
 #include "trx0types.h"
+#include "row0purge.h"
 #include <list>
 #include "log.h"
 
@@ -452,7 +453,7 @@ struct purge_coordinator_state
   size_t history_size;
   Atomic_counter<int> m_running;
 public:
-  inline void do_purge();
+  inline void do_purge(trx_t *trx);
 };
 
 static purge_coordinator_state purge_state;
@@ -1340,7 +1341,7 @@ static bool srv_purge_should_exit(size_t old_history_size)
 /*********************************************************************//**
 Fetch and execute a task from the work queue.
 @return true if a task was executed */
-static bool srv_task_execute()
+static bool srv_task_execute(THD *thd)
 {
 	ut_ad(!srv_read_only_mode);
 	ut_ad(srv_force_recovery < SRV_FORCE_NO_BACKGROUND);
@@ -1351,6 +1352,7 @@ static bool srv_task_execute()
 		ut_a(que_node_get_type(thr->child) == QUE_NODE_PURGE);
 		UT_LIST_REMOVE(srv_sys.tasks, thr);
 		mysql_mutex_unlock(&srv_sys.tasks_mutex);
+		static_cast<purge_node_t*>(thr->child)->trx = thd_to_trx(thd);
 		que_run_threads(thr);
 		return true;
 	}
@@ -1359,8 +1361,6 @@ static bool srv_task_execute()
 	mysql_mutex_unlock(&srv_sys.tasks_mutex);
 	return false;
 }
-
-static void purge_create_background_thds(int );
 
 /** Flag which is set, whenever innodb_purge_threads changes. */
 static Atomic_relaxed<bool> srv_purge_thread_count_changed;
@@ -1375,7 +1375,7 @@ void srv_update_purge_thread_count(uint n)
 	srv_purge_thread_count_changed = true;
 }
 
-inline void purge_coordinator_state::do_purge()
+inline void purge_coordinator_state::do_purge(trx_t *trx)
 {
   ut_ad(!srv_read_only_mode);
 
@@ -1417,7 +1417,7 @@ inline void purge_coordinator_state::do_purge()
       break;
     }
 
-    ulint n_pages_handled= trx_purge(n_threads, history_size);
+    ulint n_pages_handled= trx_purge(trx, n_threads, history_size);
     if (!trx_sys.history_exists())
       goto no_history;
     if (purge_sys.truncating_tablespace() ||
@@ -1470,19 +1470,24 @@ static THD *acquire_thd(void **ctx)
 	return thd;
 }
 
-static void release_thd(THD *thd, void *ctx)
+extern struct handlerton *innodb_hton_ptr;
+
+static void release_thd(trx_t *trx, void *ctx)
 {
-	thd_detach_thd(ctx);
-	std::unique_lock<std::mutex> lk(purge_thd_mutex);
-	purge_thds.push_back(thd);
-	lk.unlock();
-	set_current_thd(0);
+  THD *const thd= trx->mysql_thd;
+  trx->free();
+  thd_set_ha_data(thd, innodb_hton_ptr, nullptr);
+  thd_detach_thd(ctx);
+  std::unique_lock<std::mutex> lk(purge_thd_mutex);
+  purge_thds.push_back(thd);
+  lk.unlock();
+  set_current_thd(nullptr);
 }
 
 void srv_purge_worker_task_low()
 {
-  ut_ad(current_thd);
-  while (srv_task_execute())
+  THD *const thd{current_thd};
+  while (srv_task_execute(thd))
     ut_ad(purge_sys.running());
 }
 
@@ -1493,16 +1498,22 @@ static void purge_worker_callback(void*)
   ut_ad(srv_force_recovery < SRV_FORCE_NO_BACKGROUND);
   void *ctx;
   THD *thd= acquire_thd(&ctx);
+  trx_t *trx= trx_create();
+  trx->mysql_thd= thd;
+  thd_set_ha_data(thd, innodb_hton_ptr, trx);
   srv_purge_worker_task_low();
-  release_thd(thd,ctx);
+  release_thd(trx, ctx);
 }
 
 static void purge_coordinator_callback(void*)
 {
   void *ctx;
   THD *thd= acquire_thd(&ctx);
-  purge_state.do_purge();
-  release_thd(thd, ctx);
+  trx_t *trx= trx_create();
+  trx->mysql_thd= thd;
+  thd_set_ha_data(thd, innodb_hton_ptr, trx);
+  purge_state.do_purge(trx);
+  release_thd(trx, ctx);
 }
 
 void srv_init_purge_tasks()

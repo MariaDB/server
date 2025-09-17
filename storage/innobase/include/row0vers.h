@@ -134,7 +134,6 @@ which should be seen by a semi-consistent read. */
 void
 row_vers_build_for_semi_consistent_read(
 /*====================================*/
-	trx_t*		caller_trx,/*!<in/out: trx of current thread */
 	const rec_t*	rec,	/*!< in: record in a clustered index; the
 				caller must have a latch on the page; this
 				latch locks the top of the stack of versions

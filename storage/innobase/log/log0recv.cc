@@ -1071,7 +1071,7 @@ fil_space_t *recv_sys_t::recover_deferred(const recv_sys_t::map::iterator &p,
 
   if (!p->first.page_no() && p->second.skip_read)
   {
-    mtr_t mtr;
+    mtr_t mtr{nullptr};
     ut_ad(!p->second.being_processed);
     p->second.being_processed= 1;
     lsn_t init_lsn= mlog_init.last(p->first);
@@ -3519,7 +3519,7 @@ ATTRIBUTE_COLD void recv_sys_t::set_corrupt_fs() noexcept
 @return whether the page was recovered correctly */
 bool recv_recover_page(fil_space_t* space, buf_page_t* bpage)
 {
-  mtr_t mtr;
+  mtr_t mtr{nullptr};
   mtr.start();
   mtr.set_log_mode(MTR_LOG_NO_REDO);
 
@@ -3572,7 +3572,7 @@ void IORequest::fake_read_complete(os_offset_t offset) const noexcept
   ut_ad(recv_recovery_is_on());
   ut_ad(offset);
 
-  mtr_t mtr;
+  mtr_t mtr{nullptr};
   mtr.start();
   mtr.set_log_mode(MTR_LOG_NO_REDO);
 
@@ -3905,7 +3905,7 @@ recv_sys_t::recover(const page_id_t page_id, mtr_t *mtr, dberr_t *err)
   buf_block_t *free_block= buf_LRU_get_free_block(have_no_mutex);
   buf_block_t *block;
   {
-    mtr_t local_mtr;
+    mtr_t local_mtr{nullptr};
     block= recover_low(p, local_mtr, free_block, init_lsn);
   }
   p->second.being_processed= -1;
