@@ -109,6 +109,14 @@ struct btr_sea
   while a thread is holding a partition::latch, then also this must hold. */
   Atomic_relaxed<bool> enabled;
 
+private:
+  /** Disable the adaptive hash search system and empty the index.
+  @return whether the adaptive hash index was enabled */
+  ATTRIBUTE_COLD bool disable_and_lock() noexcept;
+
+  /** Unlock the adaptive hash search system. */
+  ATTRIBUTE_COLD void unlock() noexcept;
+public:
   /** Disable the adaptive hash search system and empty the index.
   @return whether the adaptive hash index was enabled */
   ATTRIBUTE_COLD bool disable() noexcept;
@@ -163,13 +171,14 @@ struct btr_sea
 #endif
 
     /** number of payload elements in array[] */
-    Atomic_relaxed<ulint> n_cells;
+    Atomic_relaxed<size_t> n_cells;
     /** the hash table, with pad(n_cells) elements, aligned to L1 cache size */
     hash_chain *array;
 
     /** Create the hash table.
-    @param n  the lower bound of n_cells */
-    inline void create(ulint n) noexcept;
+    @param n  the lower bound of n_cells
+    @return whether the creation succeeded */
+    inline bool create(ulint n) noexcept;
 
     /** Free the hash table. */
     void free() noexcept { aligned_free(array); array= nullptr; }
@@ -226,7 +235,8 @@ struct btr_sea
 
     inline void init() noexcept;
 
-    inline void alloc(ulint hash_size) noexcept;
+    /** @return whether the allocation succeeded */
+    inline bool alloc(size_t hash_size) noexcept;
 
     inline void clear() noexcept;
 
@@ -301,6 +311,8 @@ struct btr_sea
     erase_status erase(uint32_t fold, const rec_t *rec) noexcept;
   };
 
+  /** number of hash table entries, to be divided by n_parts */
+  uint n_cells;
   /** innodb_adaptive_hash_index_parts */
   ulong n_parts;
   /** Partitions of the adaptive hash index */
@@ -316,7 +328,11 @@ struct btr_sea
   /** Create and initialize at startup */
   void create() noexcept;
 
-  void alloc(ulint hash_size) noexcept;
+  /** @return whether the allocation succeeded */
+  bool alloc(size_t hash_size) noexcept;
+
+  /** Change the number of cells */
+  void resize(uint n_cells) noexcept;
 
   /** Clear when disabling the adaptive hash index */
   inline void clear() noexcept;

@@ -3748,6 +3748,30 @@ static MYSQL_SYSVAR_UINT(log_write_ahead_size, log_sys.write_size,
   "Redo log write size to avoid read-on-write; must be a power of two",
   nullptr, nullptr, 512, 512, 4096, 1);
 
+
+#ifdef BTR_CUR_HASH_ADAPT
+static void innodb_adaptive_hash_index_update(THD*, st_mysql_sys_var*, void*,
+                                              const void *save) noexcept
+{
+  if (*static_cast<const my_bool*>(save))
+    btr_search.enable();
+  else
+    btr_search.disable();
+}
+
+static void innodb_adaptive_hash_index_cells_update(THD*, st_mysql_sys_var*,
+                                                    void*, const void *save)
+  noexcept
+{
+  btr_search.resize(*static_cast<const uint*>(save));
+}
+
+static MYSQL_SYSVAR_UINT(adaptive_hash_index_cells, btr_search.n_cells,
+  PLUGIN_VAR_RQCMDARG,
+  "Number of adaptive hash table cells in each partition",
+  nullptr, innodb_adaptive_hash_index_cells_update, 0, 0, UINT_MAX, 0);
+#endif /* BTR_CUR_HASH_ADAPT */
+
 /****************************************************************//**
 Gives the file extension of an InnoDB single-table tablespace. */
 static const char* ha_innobase_exts[] = {
@@ -3863,6 +3887,15 @@ static int innodb_init_params()
                     log_sys.write_size);
     DBUG_RETURN(HA_ERR_INITIALIZATION);
   }
+
+  if (!btr_search.n_cells)
+    btr_search.n_cells=
+      uint(std::max<size_t>(16384,
+                            std::min<size_t>(UINT_MAX,
+                                             innodb_buffer_pool_size / 512 /
+                                             btr_search.n_parts)));
+
+  MYSQL_SYSVAR_NAME(adaptive_hash_index_cells).min_val= 16384;
 
   if (compression_algorithm_is_not_loaded(innodb_compression_algorithm,
                                           ME_ERROR_LOG))
@@ -17645,25 +17678,6 @@ static int innodb_ft_aux_table_validate(THD *thd, st_mysql_sys_var*,
 	}
 }
 
-#ifdef BTR_CUR_HASH_ADAPT
-/****************************************************************//**
-Update the system variable innodb_adaptive_hash_index using the "saved"
-value. This function is registered as a callback with MySQL. */
-static
-void
-innodb_adaptive_hash_index_update(THD*, st_mysql_sys_var*, void*,
-				  const void* save)
-{
-	mysql_mutex_unlock(&LOCK_global_system_variables);
-	if (*(my_bool*) save) {
-		btr_search.enable();
-	} else {
-		btr_search.disable();
-	}
-	mysql_mutex_lock(&LOCK_global_system_variables);
-}
-#endif /* BTR_CUR_HASH_ADAPT */
-
 /****************************************************************//**
 Update the system variable innodb_cmp_per_index using the "saved"
 value. This function is registered as a callback with MySQL. */
@@ -20008,6 +20022,7 @@ static struct st_mysql_sys_var* innobase_system_variables[]= {
   MYSQL_SYSVAR(stats_traditional),
 #ifdef BTR_CUR_HASH_ADAPT
   MYSQL_SYSVAR(adaptive_hash_index),
+  MYSQL_SYSVAR(adaptive_hash_index_cells),
   MYSQL_SYSVAR(adaptive_hash_index_parts),
 #endif /* BTR_CUR_HASH_ADAPT */
   MYSQL_SYSVAR(stats_method),
