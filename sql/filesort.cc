@@ -815,7 +815,7 @@ String dbug_format_row(TABLE *table, const uchar *rec, bool print_names)
 */
 const char *dbug_print_row(TABLE *table, const uchar *rec)
 {
-  String row= dbug_format_row(table, table->record[0]);
+  String row= dbug_format_row(table, rec);
   if (row.length() > sizeof dbug_row_print_buf - 1)
     return "Couldn't fit into buffer";
   memcpy(dbug_row_print_buf, row.c_ptr(), row.length());
