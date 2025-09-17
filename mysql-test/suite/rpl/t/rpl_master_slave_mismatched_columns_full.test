@@ -1,0 +1,140 @@
+#
+# Test ensures that if slave tables have their columns organized differently
+# than their master, that the slave can still correctly replicate the events.
+# That is, the slave will use column names, if available (supplied when
+# binlog_row_metadata=FULL), to identify the correct columns to store the row
+# data.
+#
+#
+# The following use cases are tested:
+#
+#   1. ALTER TABLE adds a new column in the first position on the slave,
+#      default value is used for the new column during replication, and all
+#      other fields replicate correctly.
+#   2. ALTER TABLE adds a new column in the middle of the table on the slave,
+#      default value is used for the new column during replication, and all
+#      other fields replicate correctly.
+#   3. ALTER TABLE adds a new column in the last position on the slave,
+#      default value is used for the new column during replication, and all
+#      other fields replicate correctly.
+#   4. ALTER TABLE drops the first column on the slave, that column is not
+#      replicated, but all other fields replicate correctly.
+#   5. ALTER TABLE drops a middle column on the slave, that column is not
+#      replicated, but all other fields replicate correctly.
+#   6. ALTER TABLE drops the last column on the slave, that column is not
+#      replicated, but all other fields replicate correctly.
+#   7. Re-test use-cases 1-6 with combinations of:
+#     a) type conversion
+#     b) NULL columns
+#     c) binlog_row_image configurations
+#
+#
+# In addition, slave_type_conversions=ERROR_IF_MISSING_FIELD is tested to
+# ensure it gives errors when the slave is missing columns that the master
+# binlogged its events with.
+#
+#
+# References:
+#   MDEV-36290: ALTER TABLE with multi-master can cause data loss
+#
+
+--source include/have_innodb.inc
+--source include/have_debug.inc
+--source include/have_binlog_format_row.inc
+--let $rpl_topology=1->2, 2->3
+--source include/rpl_init.inc
+
+--source rpl_master_slave_mismatched_columns_full_img.inc
+
+
+--echo #
+--echo # ERROR_IF_MISSING_FIELD Error Checking
+
+--echo #
+--echo # Error 1: When row events are binlogged without metadata, if the logged
+--echo # event has more fields than the slave's table has, the slave should
+--echo # stop in error (mentioning the missing column number).
+--connection server_2
+set @saved_slave_type_conversions = @@global.slave_type_conversions;
+set global slave_type_conversions='ERROR_IF_MISSING_FIELD';
+
+--connection server_1
+set @@global.binlog_row_metadata=FULL;
+create table t1(
+  pk int not null primary key,
+  a int,
+  b int
+) engine=innodb;
+--source include/save_master_gtid.inc
+
+--connection server_2
+--source include/sync_with_master_gtid.inc
+set statement sql_log_bin=0 for alter ignore table t1 drop b;
+
+--connection server_1
+insert into t1 values (10, 20, 30);
+select * from t1;
+--source include/save_master_gtid.inc
+
+--connection server_2
+# Error code is ER_SLAVE_INCOMPATIBLE_TABLE_DEF
+--let $slave_sql_errno= 4242
+--let $show_slave_sql_error= 1
+--source include/wait_for_slave_sql_error.inc
+set sql_slave_skip_counter= 1;
+--source include/start_slave.inc
+--source include/sync_with_master_gtid.inc
+
+--connection server_1
+drop table t1;
+--source include/save_master_gtid.inc
+--connection server_2
+--source include/sync_with_master_gtid.inc
+
+
+--echo #
+--echo # Error 2: When row events are binlogged with metadata, if the slave's
+--echo # version of the table doesn't have a column with the same name that
+--echo # the binlogged event has, the slave should stop in error (mentioning
+--echo # the missing column name).
+
+--connection server_1
+set @@global.binlog_row_metadata=FULL;
+create table t1(
+  pk int not null primary key,
+  a int,
+  b int
+) engine=innodb;
+--source include/save_master_gtid.inc
+
+--connection server_2
+--source include/sync_with_master_gtid.inc
+set statement sql_log_bin=0 for alter ignore table t1 drop b;
+set statement sql_log_bin=0 for alter ignore table t1 add column z int;
+
+--connection server_1
+insert into t1 values (11, 21, 31);
+select * from t1;
+--source include/save_master_gtid.inc
+
+--connection server_2
+# Error code is ER_SLAVE_INCOMPATIBLE_TABLE_DEF
+--let $slave_sql_errno= 4242
+--let $show_slave_sql_error= 1
+--source include/wait_for_slave_sql_error.inc
+set sql_slave_skip_counter= 1;
+--source include/start_slave.inc
+--source include/sync_with_master_gtid.inc
+
+--connection server_1
+drop table t1;
+--source include/save_master_gtid.inc
+--connection server_2
+--source include/sync_with_master_gtid.inc
+
+--connection server_2
+set global slave_type_conversions= @saved_slave_type_conversions;
+
+
+--source include/rpl_end.inc
+--echo # End of rpl_master_slave_mismatched_columns_full.test
