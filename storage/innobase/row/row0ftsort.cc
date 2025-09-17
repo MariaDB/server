@@ -531,32 +531,17 @@ row_merge_fts_doc_tokenize(
 
 		/* Ignore string whose character number is less than
 		"fts_min_token_size" or more than "fts_max_token_size" */
-		if (!parser && !fts_token_length_in_range(&str)) {
-			if (parser != NULL) {
-				UT_LIST_REMOVE(t_ctx->fts_token_list, fts_token);
-				ut_free(fts_token);
-			} else {
-				t_ctx->processed_len += inc;
-			}
+		/* if "cached_stopword" is defined, ignore words in the
+		stopword list */
+		if (!parser && !fts_check_token(&str, t_ctx->cached_stopword,
+				     doc->charset)) {
+			t_ctx->processed_len += inc;
 
 			continue;
 		}
 
 		str_buf.copy_casedn(doc->charset,
 			LEX_CSTRING{(const char *) str.f_str, str.f_len});
-
-		/* if "cached_stopword" is defined, ignore words in the
-		stopword list */
-		if (fts_token_is_stopword(&str, t_ctx->cached_stopword)) {
-			if (parser != NULL) {
-				UT_LIST_REMOVE(t_ctx->fts_token_list, fts_token);
-				ut_free(fts_token);
-			} else {
-				t_ctx->processed_len += inc;
-			}
-
-			continue;
-		}
 
 		/* There are FTS_NUM_AUX_INDEX auxiliary tables, find
 		out which sort buffer to put this word record in */

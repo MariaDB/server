@@ -2683,11 +2683,11 @@ fts_query_phrase_split(
 			ib_vector_push(tokens, NULL));
 		fts_string_dup(token, &result_str, heap);
 
-		if (query->parser != NULL ||
-		    (!fts_token_is_stopword(
-			    &result_str,
-			    cache->stopword_info.cached_stopword)
-		     && fts_token_length_in_range(&result_str))) {
+		if (query->parser ||
+		    fts_check_token(
+			   &result_str,
+			   cache->stopword_info.cached_stopword,
+			   query->fts_index_table.charset)) {
 			/* Add the word to the RB tree so that we can
 			calculate its frequency within a document. */
 			fts_query_add_word_freq(query, token);

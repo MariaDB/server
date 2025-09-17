@@ -1142,11 +1142,6 @@ fts_tokenizer_word_get(
 
 	mysql_mutex_assert_owner(&cache->lock);
 
-	/* If it is a stopword, do not index it */
-	if (fts_token_is_stopword(text, cache->stopword_info.cached_stopword)) {
-		return(NULL);
-	}
-
 	/* Check if we found a match, if not then add word to tree. */
 	if (rbt_search(index_cache->words, &parent, text) != 0) {
 		mem_heap_t*		heap;
@@ -3205,6 +3200,7 @@ fts_fetch_doc_from_rec(
 
 		doc->found = TRUE;
 		doc->charset = get_doc->index_cache->charset;
+		doc->stopwords= get_doc->cache->stopword_info.cached_stopword;
 
 		/* Null Field */
 		if (doc->text.f_len == UNIV_SQL_NULL || doc->text.f_len == 0) {
@@ -3267,6 +3263,7 @@ fts_fetch_doc_from_tuple(
                doc->text.f_len = dfield_get_len(field);
                doc->found = TRUE;
                doc->charset = get_doc->index_cache->charset;
+               doc->stopwords= get_doc->cache->stopword_info.cached_stopword;
 
                /* field data is NULL. */
                if (doc->text.f_len == UNIV_SQL_NULL || doc->text.f_len == 0) {
@@ -4410,29 +4407,27 @@ dberr_t fts_sync_table(dict_table_t* table, bool wait)
     : DB_SUCCESS;
 }
 
-/** Check if a fts token is a stopword.
+/** Check if a fts token is a stopword or less than fts_min_token_size
+or greater than fts_max_token_size.
 @param[in]	token		token string
 @param[in]	stopwords	stopwords rb tree
-@retval	true	if it is a stopword
-@retval	false	if it is not a stopword */
+@param[in]	cs		token charset
+@retval	true	if it is not stopword and length in range
+@retval	false	if it is stopword or length not in range */
 bool
-fts_token_is_stopword(
+fts_check_token(
 	const fts_string_t*		token,
-	const ib_rbt_t*			stopwords)
+	const ib_rbt_t*			stopwords,
+	const CHARSET_INFO*		cs)
 {
+	ut_ad(cs != NULL || stopwords == NULL);
+
 	ib_rbt_bound_t  parent;
 
-	if (stopwords == NULL)
-		return(false);
-	return(rbt_search(stopwords, &parent, token) == 0);
-}
-
-bool
-fts_token_length_in_range(
-	const fts_string_t*		token)
-{
 	return(token->f_n_char >= fts_min_token_size
-	       && token->f_n_char <= fts_max_token_size);
+	       && token->f_n_char <= fts_max_token_size
+	       && (stopwords == NULL
+		   || rbt_search(stopwords, &parent, token) != 0));
 }
 
 /** Add the token and its start position to the token's list of positions.
@@ -4530,8 +4525,9 @@ fts_process_token(
 
 	position = start_pos + ret - str.f_len + add_pos;
 
-	if (fts_token_length_in_range(&str))
+	if (fts_check_token(&str, doc->stopwords, doc->charset)) {
 		fts_add_token(result_doc, str, position);
+        }
 
 	return(ret);
 }

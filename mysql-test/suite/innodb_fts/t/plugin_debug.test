@@ -209,7 +209,7 @@ SELECT * FROM articles WHERE
 
 # Test stopword or word less than fts_min_token_size
 SELECT * FROM articles WHERE
-	MATCH(title, body) AGAINST('"for mysql"' IN BOOLEAN MODE);
+	MATCH(title, body) AGAINST('for mysql' IN BOOLEAN MODE);
 
 --echo # simple parser st_mysql_ftparser_boolean_info doesn't
 --echo # store position of every word in boolean metadata.
