@@ -269,6 +269,14 @@ bool Alter_info::algorithm_is_nocopy(const THD *thd) const
          || alg == ALTER_TABLE_ALGORITHM_NOCOPY;
 }
 
+bool Alter_info::has_foreign_keys() const
+{
+  for (List<Key>::Iterator key= key_list.begin(); key != key_list.end(); key++)
+    if (key->type == Key::FOREIGN_KEY)
+      return true;
+  return false;
+}
+
 
 uint Alter_info::check_vcol_field(Item_field *item) const
 {
