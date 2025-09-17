@@ -336,6 +336,8 @@ public:
     return create_list.elements - select_field_count;
   }
 
+  bool has_foreign_keys() const;
+
 private:
   Alter_info &operator=(const Alter_info &rhs); // not implemented
   Alter_info(const Alter_info &rhs);            // not implemented
