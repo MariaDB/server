@@ -130,6 +130,11 @@ Optimizer_hint_tokenizer::find_keyword(const LEX_CSTRING &str)
       return TokenID::keyword_GROUP_INDEX;
     break;
 
+  case 12:
+    if ("ROWID_FILTER"_Lex_ident_column.streq(str))
+      return TokenID::keyword_ROWID_FILTER;
+    break;
+
   case 13:
     if ("NO_JOIN_INDEX"_Lex_ident_column.streq(str))
       return TokenID::keyword_NO_JOIN_INDEX;
@@ -145,6 +150,8 @@ Optimizer_hint_tokenizer::find_keyword(const LEX_CSTRING &str)
   case 15:
     if ("MATERIALIZATION"_Lex_ident_column.streq(str))
       return TokenID::keyword_MATERIALIZATION;
+    if ("NO_ROWID_FILTER"_Lex_ident_column.streq(str))
+      return TokenID::keyword_NO_ROWID_FILTER;
     break;
 
   case 16:
@@ -486,13 +493,14 @@ bool Parser::Table_level_hint::resolve(Parse_context *pc) const
     - table level hints: only table name specified but no index names
     - index level hints: both table name and index names specified
   - 2 kinds of hints:
-    - global: [NO_]INDEX
+    - global: [NO_]INDEX, [NO_]ROWID_FILTER
     - non-global: [NO_]JOIN_INDEX, [NO_]GROUP_INDEX, [NO_]ORDER_INDEX
-  - 4 types of hints:
+  - 5 types of hints:
     - [NO_]JOIN_INDEX
     - [NO_]GROUP_INDEX
     - [NO_]ORDER_INDEX
     - [NO_]INDEX
+    - [NO_]ROWID_FILTER
 
   Conflict checking
   - A conflict happens if and only if
@@ -567,6 +575,14 @@ bool Parser::Index_level_hint::resolve(Parse_context *pc) const
     hint_type= GROUP_INDEX_HINT_ENUM;
     hint_state= false;
     break;
+  case TokenID::keyword_ROWID_FILTER:
+    hint_type= ROWID_FILTER_HINT_ENUM;
+    hint_state= true;
+    break;
+  case TokenID::keyword_NO_ROWID_FILTER:
+    hint_type= ROWID_FILTER_HINT_ENUM;
+    hint_state= false;
+    break;
   default:
     DBUG_ASSERT(0);
     return true;
@@ -584,9 +600,6 @@ bool Parser::Index_level_hint::resolve(Parse_context *pc) const
   Opt_hints_table *tab= get_table_hints(pc, table_name_sys, qb);
   if (!tab)
     return false;
-
-  const Lex_ident_sys key_conflict(
-      STRING_WITH_LEN("another hint was already specified for this index"));
 
   /*
     If no index names are given, this is a table level hint, for example:
