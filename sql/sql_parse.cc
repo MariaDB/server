@@ -4894,6 +4894,9 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
     DBUG_ASSERT(select_lex->limit_params.offset_limit == 0);
     unit->set_limit(select_lex);
 
+    if (thd->is_error())
+      goto error;
+
     MYSQL_DELETE_START(thd->query());
     Protocol *save_protocol= NULL;
 
