@@ -995,9 +995,9 @@ a	t1.a in (select t2.a from t2)
 explain extended SELECT t1.a, t1.a in (select t2.a from t2) FROM t1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t1	index	NULL	PRIMARY	4	NULL	4	100.00	Using index
-2	SUBQUERY	t2	index_subquery	a	a	5	func	2	100.00	Using index
+2	DEPENDENT SUBQUERY	t2	index_subquery	a	a	5	func	2	100.00	Using index; Using where
 Warnings:
-Note	1003	/* select#1 */ select `test`.`t1`.`a` AS `a`,<expr_cache><`test`.`t1`.`a`>(<in_optimizer>(`test`.`t1`.`a`,<exists>(<index_lookup>(<cache>(`test`.`t1`.`a`) in t2 on a checking NULL having `test`.`t2`.`a` is null)))) AS `t1.a in (select t2.a from t2)` from `test`.`t1`
+Note	1003	/* select#1 */ select `test`.`t1`.`a` AS `a`,<expr_cache><`test`.`t1`.`a`>(<in_optimizer>(`test`.`t1`.`a`,<exists>(<index_lookup>(<cache>(`test`.`t1`.`a`) in t2 on a checking NULL where <cache>(`test`.`t1`.`a`) = `test`.`t2`.`a` or `test`.`t2`.`a` is null having `test`.`t2`.`a` is null)))) AS `t1.a in (select t2.a from t2)` from `test`.`t1`
 CREATE TABLE t3 (a int(11) default '0');
 INSERT INTO t3 VALUES (1),(2),(3);
 SELECT t1.a, t1.a in (select t2.a from t2,t3 where t3.a=t2.a) FROM t1;
@@ -1704,21 +1704,21 @@ a3	1
 explain extended select s1, s1 NOT IN (SELECT s1 FROM t2) from t1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t1	index	NULL	s1	6	NULL	3	100.00	Using index
-2	SUBQUERY	t2	index_subquery	s1	s1	6	func	2	100.00	Using index; Full scan on NULL key
+2	DEPENDENT SUBQUERY	t2	index_subquery	s1	s1	6	func	2	100.00	Using index; Using where; Full scan on NULL key
 Warnings:
-Note	1003	/* select#1 */ select `test`.`t1`.`s1` AS `s1`,!<expr_cache><`test`.`t1`.`s1`>(<in_optimizer>(`test`.`t1`.`s1`,<exists>(<index_lookup>(<cache>(`test`.`t1`.`s1`) in t2 on s1 checking NULL having trigcond(`test`.`t2`.`s1` is null))))) AS `s1 NOT IN (SELECT s1 FROM t2)` from `test`.`t1`
+Note	1003	/* select#1 */ select `test`.`t1`.`s1` AS `s1`,!<expr_cache><`test`.`t1`.`s1`>(<in_optimizer>(`test`.`t1`.`s1`,<exists>(<index_lookup>(<cache>(`test`.`t1`.`s1`) in t2 on s1 checking NULL where trigcond(<cache>(`test`.`t1`.`s1`) = `test`.`t2`.`s1` or `test`.`t2`.`s1` is null) having trigcond(`test`.`t2`.`s1` is null))))) AS `s1 NOT IN (SELECT s1 FROM t2)` from `test`.`t1`
 explain extended select s1, s1 = ANY (SELECT s1 FROM t2) from t1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t1	index	NULL	s1	6	NULL	3	100.00	Using index
-2	SUBQUERY	t2	index_subquery	s1	s1	6	func	2	100.00	Using index; Full scan on NULL key
+2	DEPENDENT SUBQUERY	t2	index_subquery	s1	s1	6	func	2	100.00	Using index; Using where; Full scan on NULL key
 Warnings:
-Note	1003	/* select#1 */ select `test`.`t1`.`s1` AS `s1`,<expr_cache><`test`.`t1`.`s1`>(<in_optimizer>(`test`.`t1`.`s1`,<exists>(<index_lookup>(<cache>(`test`.`t1`.`s1`) in t2 on s1 checking NULL having trigcond(`test`.`t2`.`s1` is null))))) AS `s1 = ANY (SELECT s1 FROM t2)` from `test`.`t1`
+Note	1003	/* select#1 */ select `test`.`t1`.`s1` AS `s1`,<expr_cache><`test`.`t1`.`s1`>(<in_optimizer>(`test`.`t1`.`s1`,<exists>(<index_lookup>(<cache>(`test`.`t1`.`s1`) in t2 on s1 checking NULL where trigcond(<cache>(`test`.`t1`.`s1`) = `test`.`t2`.`s1` or `test`.`t2`.`s1` is null) having trigcond(`test`.`t2`.`s1` is null))))) AS `s1 = ANY (SELECT s1 FROM t2)` from `test`.`t1`
 explain extended select s1, s1 <> ALL (SELECT s1 FROM t2) from t1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t1	index	NULL	s1	6	NULL	3	100.00	Using index
-2	SUBQUERY	t2	index_subquery	s1	s1	6	func	2	100.00	Using index; Full scan on NULL key
+2	DEPENDENT SUBQUERY	t2	index_subquery	s1	s1	6	func	2	100.00	Using index; Using where; Full scan on NULL key
 Warnings:
-Note	1003	/* select#1 */ select `test`.`t1`.`s1` AS `s1`,!<expr_cache><`test`.`t1`.`s1`>(<in_optimizer>(`test`.`t1`.`s1`,<exists>(<index_lookup>(<cache>(`test`.`t1`.`s1`) in t2 on s1 checking NULL having trigcond(`test`.`t2`.`s1` is null))))) AS `s1 <> ALL (SELECT s1 FROM t2)` from `test`.`t1`
+Note	1003	/* select#1 */ select `test`.`t1`.`s1` AS `s1`,!<expr_cache><`test`.`t1`.`s1`>(<in_optimizer>(`test`.`t1`.`s1`,<exists>(<index_lookup>(<cache>(`test`.`t1`.`s1`) in t2 on s1 checking NULL where trigcond(<cache>(`test`.`t1`.`s1`) = `test`.`t2`.`s1` or `test`.`t2`.`s1` is null) having trigcond(`test`.`t2`.`s1` is null))))) AS `s1 <> ALL (SELECT s1 FROM t2)` from `test`.`t1`
 explain extended select s1, s1 NOT IN (SELECT s1 FROM t2 WHERE s1 < 'a2') from t1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t1	index	NULL	s1	6	NULL	3	100.00	Using index
@@ -3275,7 +3275,7 @@ INSERT INTO t2 VALUES (1),(2),(3);
 EXPLAIN SELECT a, a IN (SELECT a FROM t1) FROM t2;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	3	
-2	SUBQUERY	t1	index_subquery	a	a	5	func	3	Using index; Full scan on NULL key
+2	DEPENDENT SUBQUERY	t1	index_subquery	a	a	5	func	3	Using index; Using where; Full scan on NULL key
 SELECT a, a IN (SELECT a FROM t1) FROM t2;
 a	a IN (SELECT a FROM t1)
 1	1
