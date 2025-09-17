@@ -229,6 +229,13 @@ void subst_vcols_in_order(Vcol_subst_context *ctx,
     if (ctx->subst_count > old_count)
     {
       Item *new_item= *order->item;
+      List_iterator<Item> it(join->all_fields);
+      bool already_in_all_fields= false;
+      while (Item *item_in_all_fields= it++)
+        if (item_in_all_fields->eq(new_item, true))
+          already_in_all_fields= true;
+      if (!already_in_all_fields)
+      {
       /*
         If the old ORDER BY item is a SELECT item, then insert the new
         item to all_fields and keep it in sync with ref_pointer_array.
@@ -256,6 +263,7 @@ void subst_vcols_in_order(Vcol_subst_context *ctx,
           if (item_in_all_fields == item)
             it.replace(new_item);
         }
+      }
       }
       /*
         Re-initialise index covering of affected tables, which will
