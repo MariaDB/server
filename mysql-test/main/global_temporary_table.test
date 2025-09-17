@@ -862,4 +862,17 @@ handler t open h;
 create table t (d int);
 drop table t;
 
+--echo # MDEV-37666 Global temporary table can be created w/ versioning using CREATE LIKE
+create table t0 (x int, y int) with system versioning;
+--error ER_VERS_NOT_SUPPORTED
+create global temporary table t like t0;
+drop table t0;
+
+create table t0 (x int primary key, y int) engine=innodb;
+create table t1 (x int primary key references t0(x)) engine=innodb;
+--error ER_CANNOT_ADD_FOREIGN
+create global temporary table t like t1;
+drop table t1;
+drop table t0;
+
 --disconnect con1
