@@ -498,16 +498,12 @@ up_rec_match:
 			   ) {
 			if (!cmp && !cur_matched_fields) {
 #ifdef UNIV_DEBUG
-				mtr_t	mtr;
-				mtr_start(&mtr);
-
 				/* We got a match, but cur_matched_fields is
 				0, it must have REC_INFO_MIN_REC_FLAG */
 				ulint   rec_info = rec_get_info_bits(mid_rec,
                                                      rec_offs_comp(offsets));
 				ut_ad(rec_info & REC_INFO_MIN_REC_FLAG);
 				ut_ad(!page_has_prev(page));
-				mtr_commit(&mtr);
 #endif
 
 				cur_matched_fields = dtuple_get_n_fields_cmp(tuple);

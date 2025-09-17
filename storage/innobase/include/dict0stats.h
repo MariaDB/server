@@ -30,21 +30,12 @@ Created Jan 06, 2010 Vasil Dimov
 #include "dict0types.h"
 #include "trx0types.h"
 
-#ifdef WITH_WSREP
 /** Update the table modification counter and if necessary,
 schedule new estimates for table and index statistics to be calculated.
 @param[in,out]	table	persistent or temporary table
-@param[in]	trx	transaction */
-void dict_stats_update_if_needed(dict_table_t *table, const trx_t &trx)
+@param[in,out]	trx	transaction */
+void dict_stats_update_if_needed(dict_table_t *table, trx_t &trx) noexcept
 	MY_ATTRIBUTE((nonnull));
-#else
-/** Update the table modification counter and if necessary,
-schedule new estimates for table and index statistics to be calculated.
-@param[in,out]	table	persistent or temporary table */
-void dict_stats_update_if_needed_func(dict_table_t *table)
-	MY_ATTRIBUTE((nonnull));
-# define dict_stats_update_if_needed(t,trx) dict_stats_update_if_needed_func(t)
-#endif
 
 /** Execute DELETE FROM mysql.innodb_table_stats
 @param database_name  database name
@@ -76,11 +67,8 @@ dberr_t dict_stats_delete_from_index_stats(const char *database_name,
 
 /*********************************************************************//**
 Fetches or calculates new estimates for index statistics. */
-void
-dict_stats_update_for_index(
-/*========================*/
-	dict_index_t*	index)	/*!< in/out: index */
-	MY_ATTRIBUTE((nonnull));
+void dict_stats_update_for_index(trx_t *trx, dict_index_t *index) noexcept
+  MY_ATTRIBUTE((nonnull));
 
 enum dict_stats_schema_check {
   /** The InnoDB persistent statistics tables do not exist. */
@@ -107,24 +95,27 @@ dberr_t dict_stats_fetch_from_ps(dict_table_t *table);
 /**
 Calculate new estimates for table and index statistics. This function
 is relatively quick and is used to calculate non-persistent statistics.
+@param trx      transaction
 @param table    table for which the non-persistent statistics are being updated
 @return error code
 @retval DB_SUCCESS_LOCKED REC if the table under bulk insert operation */
-dberr_t dict_stats_update_transient(dict_table_t *table) noexcept;
+dberr_t dict_stats_update_transient(trx_t *trx, dict_table_t *table) noexcept;
 
 /**
 Calculate new estimates for table and index statistics. This function
 is slower than dict_stats_update_transient().
+@param trx      transaction
 @param table    table for which the persistent statistics are being updated
 @return DB_SUCCESS or error code
 @retval DB_SUCCESS_LOCKED_REC if the table under bulk insert operation */
-dberr_t dict_stats_update_persistent(dict_table_t *table) noexcept;
+dberr_t dict_stats_update_persistent(trx_t *trx, dict_table_t *table) noexcept;
 
 /**
 Try to calculate and save new estimates for persistent statistics.
 If persistent statistics are not enabled for the table or not available,
 this does nothing. */
-dberr_t dict_stats_update_persistent_try(dict_table_t *table);
+dberr_t dict_stats_update_persistent_try(trx_t *trx, dict_table_t *table)
+  noexcept;
 
 /** Rename a table in InnoDB persistent stats storage.
 @param old_name  old table name

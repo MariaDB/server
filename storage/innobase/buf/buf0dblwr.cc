@@ -87,7 +87,7 @@ bool buf_dblwr_t::create() noexcept
   if (is_created())
     return true;
 
-  mtr_t mtr;
+  mtr_t mtr{nullptr};
   const ulint size= block_size;
 
 start_again:

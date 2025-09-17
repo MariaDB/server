@@ -111,7 +111,7 @@ static
 void
 trx_sysf_get_n_rseg_slots()
 {
-	mtr_t		mtr;
+	mtr_t mtr{nullptr};
 	mtr.start();
 
 	srv_available_undo_logs = 0;
@@ -251,7 +251,7 @@ bool trx_sys_t::find_same_or_older_low(trx_t *trx, trx_id_t id) noexcept
 static trx_rseg_t *trx_rseg_create(uint32_t space_id)
 {
   trx_rseg_t *rseg= nullptr;
-  mtr_t mtr;
+  mtr_t mtr{nullptr};
 
   mtr.start();
 

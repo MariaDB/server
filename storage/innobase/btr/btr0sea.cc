@@ -34,6 +34,7 @@ Created 2/17/1996 Heikki Tuuri
 #include "btr0pcur.h"
 #include "btr0btr.h"
 #include "srv0mon.h"
+#include "trx0trx.h"
 
 /** Is search system enabled.
 Search system is protected by array of latches. */
@@ -1061,7 +1062,13 @@ block_and_ahi_release_and_fail:
 
 	part->latch.rd_unlock();
 
-	++buf_pool.stat.n_page_gets;
+        if (THD *thd= current_thd)
+          if (trx_t *trx= thd_to_trx(thd))
+          {
+            trx->pages_accessed++;
+            if (ha_handler_stats *stats= trx->active_handler_stats)
+              stats->pages_accessed++;
+          }
 
 	mtr->memo_push(block, mtr_memo_type_t(latch_mode));
 
@@ -1317,13 +1324,12 @@ cleanup:
 
 /** Drop possible adaptive hash index entries when a page is evicted
 from the buffer pool or freed in a file, or the index is being dropped.
+@param[in,out]	mtr		mini-transaction
 @param[in]	page_id		page id */
-void btr_search_drop_page_hash_when_freed(const page_id_t page_id)
+void btr_search_drop_page_hash_when_freed(mtr_t *mtr, const page_id_t page_id)
 {
-	buf_block_t*	block;
-	mtr_t		mtr;
-
-	mtr_start(&mtr);
+	auto sp = mtr->get_savepoint();
+	buf_block_t* block;
 
 	/* If the caller has a latch on the page, then the caller must
 	have a x-latch on the page and it must have already dropped
@@ -1332,7 +1338,7 @@ void btr_search_drop_page_hash_when_freed(const page_id_t page_id)
 	(recursively) x-latch it, even though we are only reading. */
 
 	block = buf_page_get_gen(page_id, 0, RW_X_LATCH, NULL,
-				 BUF_PEEK_IF_IN_POOL, &mtr);
+				 BUF_PEEK_IF_IN_POOL, mtr);
 
 	if (block && block->index) {
 		/* In all our callers, the table handle should
@@ -1343,7 +1349,7 @@ void btr_search_drop_page_hash_when_freed(const page_id_t page_id)
 		btr_search_drop_page_hash_index(block, false);
 	}
 
-	mtr_commit(&mtr);
+	mtr->rollback_to_savepoint(sp);
 }
 
 /** Build a hash index on a page with the given parameters. If the page already

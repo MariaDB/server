@@ -353,11 +353,12 @@ ATTRIBUTE_COLD void trx_t::apply_log()
     return;
   const page_id_t page_id{rsegs.m_redo.rseg->space->id, undo->hdr_page_no};
   page_id_t next_page_id(page_id);
-  buf_block_t *block= buf_pool.page_fix(page_id, nullptr, buf_pool_t::FIX_WAIT_READ);
+  buf_block_t *block=
+    buf_pool.page_fix(page_id, nullptr, this, buf_pool_t::FIX_WAIT_READ);
   if (UNIV_UNLIKELY(!block))
     return;
 
-  UndorecApplier log_applier(page_id, id);
+  UndorecApplier log_applier(page_id, *this);
 
   for (;;)
   {
@@ -380,7 +381,8 @@ ATTRIBUTE_COLD void trx_t::apply_log()
     if (next == FIL_NULL)
       break;
     next_page_id.set_page_no(next);
-    block= buf_pool.page_fix(next_page_id, nullptr, buf_pool_t::FIX_WAIT_READ);
+    block= buf_pool.page_fix(next_page_id, nullptr, this,
+                             buf_pool_t::FIX_WAIT_READ);
     if (UNIV_UNLIKELY(!block))
       break;
     log_applier.assign_next(next_page_id);
@@ -802,21 +804,17 @@ dberr_t trx_undo_free_last_page(trx_undo_t *undo, mtr_t *mtr)
 
 /** Truncate the tail of an undo log during rollback.
 @param[in,out]	undo	undo log
-@param[in]	limit	all undo logs after this limit will be discarded
-@param[in]	is_temp	whether this is temporary undo log
+@param[in,out]	mtr	mini-transaction
 @return error code */
-static dberr_t trx_undo_truncate_end(trx_undo_t &undo, undo_no_t limit,
-                                     bool is_temp)
+static dberr_t trx_undo_truncate_end(trx_undo_t &undo, mtr_t &mtr)
 {
-  ut_ad(is_temp == !undo.rseg->is_persistent());
-
   if (UNIV_UNLIKELY(undo.last_page_no == FIL_NULL))
     return DB_CORRUPTION;
 
-  for (mtr_t mtr;;)
+  for (const auto limit= mtr.trx->undo_no;;)
   {
     mtr.start();
-    if (is_temp)
+    if (!undo.rseg->is_persistent())
       mtr.set_log_mode(MTR_LOG_NO_REDO);
 
     trx_undo_rec_t *trunc_here= nullptr;
@@ -867,19 +865,21 @@ func_exit:
 /** Try to truncate the undo logs.
 @param trx transaction
 @return error code */
-dberr_t trx_undo_try_truncate(const trx_t &trx)
+dberr_t trx_undo_try_truncate(trx_t *trx)
 {
-  if (trx_undo_t *undo= trx.rsegs.m_redo.undo)
+  mtr_t mtr{trx};
+
+  if (trx_undo_t *undo= trx->rsegs.m_redo.undo)
   {
-    ut_ad(undo->rseg == trx.rsegs.m_redo.rseg);
-    if (dberr_t err= trx_undo_truncate_end(*undo, trx.undo_no, false))
+    ut_ad(undo->rseg == trx->rsegs.m_redo.rseg);
+    if (dberr_t err= trx_undo_truncate_end(*undo, mtr))
       return err;
   }
 
-  if (trx_undo_t *undo = trx.rsegs.m_noredo.undo)
+  if (trx_undo_t *undo = trx->rsegs.m_noredo.undo)
   {
-    ut_ad(undo->rseg == trx.rsegs.m_noredo.rseg);
-    if (dberr_t err= trx_undo_truncate_end(*undo, trx.undo_no, true))
+    ut_ad(undo->rseg == trx->rsegs.m_noredo.rseg);
+    if (dberr_t err= trx_undo_truncate_end(*undo, mtr))
       return err;
   }
 
@@ -904,7 +904,7 @@ trx_undo_truncate_start(
 {
 	trx_undo_rec_t* rec;
 	trx_undo_rec_t* last_rec;
-	mtr_t		mtr;
+	mtr_t		mtr{nullptr};
 
 	ut_ad(rseg->is_persistent());
 
@@ -965,7 +965,7 @@ done:
 trx_undo_t *
 trx_undo_mem_create_at_db_start(trx_rseg_t *rseg, ulint id, uint32_t page_no)
 {
-	mtr_t		mtr;
+	mtr_t		mtr{nullptr};
 	XID		xid;
 
 	ut_ad(id < TRX_RSEG_N_SLOTS);
@@ -1190,17 +1190,16 @@ trx_undo_mem_init_for_reuse(
 }
 
 /** Create an undo log.
-@param[in,out]	trx	transaction
+@param[in,out]	mtr	mini-transaction
+@param[out]	err	error code
 @param[in,out]	rseg	rollback segment
 @param[out]	undo	undo log object
-@param[out]	err	error code
-@param[in,out]	mtr	mini-transaction
 @return undo log block
 @retval	NULL	on failure */
 static MY_ATTRIBUTE((nonnull, warn_unused_result))
 buf_block_t*
-trx_undo_create(trx_t* trx, trx_rseg_t* rseg, trx_undo_t** undo,
-		dberr_t* err, mtr_t* mtr)
+trx_undo_create(mtr_t *mtr, dberr_t *err, trx_rseg_t* rseg, trx_undo_t** undo)
+  noexcept
 {
 	ulint		id;
 	buf_block_t*	block = rseg->get(mtr, err);
@@ -1215,6 +1214,7 @@ trx_undo_create(trx_t* trx, trx_rseg_t* rseg, trx_undo_t** undo,
 
 	rseg->curr_size++;
 
+	trx_t *const trx{mtr->trx};
 	uint16_t offset = trx_undo_header_create(block, trx->id, mtr);
 
 	*undo = trx_undo_mem_create(rseg, id, trx->id, &trx->xid,
@@ -1244,18 +1244,17 @@ trx_undo_create(trx_t* trx, trx_rseg_t* rseg, trx_undo_t** undo,
 /*================ UNDO LOG ASSIGNMENT AND CLEANUP =====================*/
 
 /** Reuse a cached undo log block.
-@param[in,out]	trx	transaction
-@param[in,out]	rseg	rollback segment
-@param[out]	pundo	the undo log memory object
 @param[in,out]	mtr	mini-transaction
 @param[out]	err	error code
+@param[in,out]	rseg	rollback segment
+@param[out]	pundo	the undo log memory object
 @return	the undo log block
 @retval	NULL	if none cached */
-static
-buf_block_t*
-trx_undo_reuse_cached(trx_t* trx, trx_rseg_t* rseg, trx_undo_t** pundo,
-		      mtr_t* mtr, dberr_t *err)
+static buf_block_t *trx_undo_reuse_cached(mtr_t *mtr, dberr_t *err,
+                                          trx_rseg_t *rseg, trx_undo_t **pundo)
+  noexcept
 {
+	trx_t *const trx{mtr->trx};
 	ut_ad(rseg->is_persistent());
 	ut_ad(rseg->is_referenced());
 	ut_ad(rseg == trx->rsegs.m_redo.rseg);
@@ -1312,16 +1311,15 @@ trx_undo_reuse_cached(trx_t* trx, trx_rseg_t* rseg, trx_undo_t** pundo,
 
 /** Assign an undo log for a persistent transaction.
 A new undo log is created or a cached undo log reused.
-@param[in,out]	trx	transaction
-@param[out]	err	error code
 @param[in,out]	mtr	mini-transaction
+@param[out]	err	error code
 @return	the undo log block
 @retval	NULL	on error */
-buf_block_t*
-trx_undo_assign(trx_t* trx, dberr_t* err, mtr_t* mtr)
+buf_block_t *trx_undo_assign(mtr_t *mtr, dberr_t *err) noexcept
 {
 	ut_ad(mtr->get_log_mode() == MTR_LOG_ALL);
 
+	trx_t *const trx{mtr->trx};
 	trx_undo_t* undo = trx->rsegs.m_redo.undo;
 	buf_block_t* block;
 
@@ -1340,12 +1338,11 @@ trx_undo_assign(trx_t* trx, dberr_t* err, mtr_t* mtr)
 	trx_rseg_t* rseg = trx->rsegs.m_redo.rseg;
 
 	rseg->latch.wr_lock(SRW_LOCK_CALL);
-	block = trx_undo_reuse_cached(
-		trx, rseg, &trx->rsegs.m_redo.undo, mtr, err);
+	block = trx_undo_reuse_cached(mtr, err, rseg, &trx->rsegs.m_redo.undo);
 
 	if (!block) {
-		block = trx_undo_create(trx, rseg, &trx->rsegs.m_redo.undo,
-					err, mtr);
+		block = trx_undo_create(mtr, err, rseg,
+					&trx->rsegs.m_redo.undo);
 		ut_ad(!block == (*err != DB_SUCCESS));
 		if (!block) {
 			goto func_exit;
@@ -1362,23 +1359,22 @@ func_exit:
 /** Assign an undo log for a transaction.
 A new undo log is created or a cached undo log reused.
 @tparam is_temp  whether this is temporary undo log
-@param[in,out]	trx	transaction
-@param[in]	rseg	rollback segment
-@param[out]	undo	the undo log
 @param[in,out]	mtr	mini-transaction
 @param[out]	err	error code
+@param[in]	rseg	rollback segment
+@param[out]	undo	the undo log
 @return	the undo log block
 @retval	nullptr	on error */
 template<bool is_temp>
 buf_block_t*
-trx_undo_assign_low(trx_t *trx, trx_rseg_t *rseg, trx_undo_t **undo,
-                    mtr_t *mtr, dberr_t *err)
+trx_undo_assign_low(mtr_t *mtr, dberr_t *err,
+                    trx_rseg_t *rseg, trx_undo_t **undo)
 {
-	ut_ad(is_temp == (rseg == trx->rsegs.m_noredo.rseg));
-	ut_ad(is_temp || rseg == trx->rsegs.m_redo.rseg);
+	ut_ad(is_temp == (rseg == mtr->trx->rsegs.m_noredo.rseg));
+	ut_ad(is_temp || rseg == mtr->trx->rsegs.m_redo.rseg);
 	ut_ad(undo == (is_temp
-		       ? &trx->rsegs.m_noredo.undo
-		       : &trx->rsegs.m_redo.undo));
+		       ? &mtr->trx->rsegs.m_noredo.undo
+		       : &mtr->trx->rsegs.m_redo.undo));
 	ut_ad(mtr->get_log_mode()
 	      == (is_temp ? MTR_LOG_NO_REDO : MTR_LOG_ALL));
 	buf_block_t* block;
@@ -1404,40 +1400,36 @@ trx_undo_assign_low(trx_t *trx, trx_rseg_t *rseg, trx_undo_t **undo,
 	if (is_temp) {
 		ut_ad(!UT_LIST_GET_LEN(rseg->undo_cached));
 	} else {
-		block = trx_undo_reuse_cached(trx, rseg, undo, mtr, err);
+		block = trx_undo_reuse_cached(mtr, err, rseg, undo);
 		if (block) {
 			goto got_block;
 		}
 	}
-	block = trx_undo_create(trx, rseg, undo, err, mtr);
+	block = trx_undo_create(mtr, err, rseg, undo);
 	ut_ad(!block == (*err != DB_SUCCESS));
-	if (!block) {
-		goto func_exit;
+	if (block) {
+	got_block:
+		UT_LIST_ADD_FIRST(rseg->undo_list, *undo);
 	}
 
-got_block:
-	UT_LIST_ADD_FIRST(rseg->undo_list, *undo);
-
-func_exit:
 	rseg->latch.wr_unlock();
 	return block;
 }
 
 template buf_block_t*
-trx_undo_assign_low<false>(trx_t *trx, trx_rseg_t *rseg, trx_undo_t **undo,
-                           mtr_t *mtr, dberr_t *err);
+trx_undo_assign_low<false>(mtr_t *mtr, dberr_t *err,
+                           trx_rseg_t *rseg, trx_undo_t **undo);
 template buf_block_t*
-trx_undo_assign_low<true>(trx_t *trx, trx_rseg_t *rseg, trx_undo_t **undo,
-                          mtr_t *mtr, dberr_t *err);
+trx_undo_assign_low<true>(mtr_t *mtr, dberr_t *err,
+                          trx_rseg_t *rseg, trx_undo_t **undo);
 
 /** Set the state of the undo log segment at a XA PREPARE or XA ROLLBACK.
-@param[in,out]	trx		transaction
 @param[in,out]	undo		undo log
 @param[in]	rollback	false=XA PREPARE, true=XA ROLLBACK
 @param[in,out]	mtr		mini-transaction
 @return undo log segment header page, x-latched */
-void trx_undo_set_state_at_prepare(trx_t *trx, trx_undo_t *undo, bool rollback,
-				   mtr_t *mtr)
+void trx_undo_set_state_at_prepare(trx_undo_t *undo, bool rollback, mtr_t *mtr)
+  noexcept
 {
 	ut_a(undo->id < TRX_RSEG_N_SLOTS);
 
@@ -1462,7 +1454,7 @@ void trx_undo_set_state_at_prepare(trx_t *trx, trx_undo_t *undo, bool rollback,
 	/*------------------------------*/
 	ut_ad(undo->state == TRX_UNDO_ACTIVE);
 	undo->state = TRX_UNDO_PREPARED;
-	undo->xid   = trx->xid;
+	undo->xid   = mtr->trx->xid;
 	/*------------------------------*/
 
 	mtr->write<2>(*block, TRX_UNDO_SEG_HDR + TRX_UNDO_STATE
