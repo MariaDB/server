@@ -885,6 +885,7 @@ void THD::mark_tmp_tables_as_free_for_reuse()
       Thread has not executed any statement and has not used any
       temporary tables.
     */
+    DBUG_ASSERT(!rgi_slave || !temporary_tables || temporary_tables->committed);
     DBUG_VOID_RETURN;
   }
 
@@ -904,6 +905,12 @@ void THD::mark_tmp_tables_as_free_for_reuse()
       if ((table->query_id == query_id) && !table->open_by_handler)
         mark_tmp_table_as_free_for_reuse(table);
     }
+  }
+
+  if (temporary_tables->committed)
+  {
+    temporary_tables->committed= false;
+    drop_on_commit_delete_tables();
   }
 
   if (locked)
@@ -1457,9 +1464,13 @@ static const char rename_table_stub[]= "RENAME TABLE ";
 int THD::commit_global_tmp_tables()
 {
   DBUG_ASSERT(!rgi_slave);
-  if (!has_open_global_temporary_tables())
-    return 0;
+  if (has_open_global_temporary_tables())
+    temporary_tables->committed= true;
+  return 0;
+}
 
+int THD::drop_on_commit_delete_tables()
+{
   int error= 0;
   All_tmp_tables_list::Iterator it(*temporary_tables);
   while (TMP_TABLE_SHARE *share= it++)
@@ -1480,7 +1491,6 @@ int THD::commit_global_tmp_tables()
                             "Global temporary table %s.%s HANDLER is closed.",
                             table->s->db.str, table->s->table_name.str);
       }
-      mark_tmp_table_as_free_for_reuse(table);
     }
 
     if (int local_error= drop_tmp_table_share(NULL, share, true))
@@ -1923,14 +1933,7 @@ static transaction_participant global_temporary_tp=
 
 void THD::use_global_tmp_table_tp()
 {
-  /*
-    Workaround: select_create commits in send_eof, but accesses tables in many
-    places after that.
-    Tables will be removed manually for that case.
-  */
-  bool is_create_select= lex->sql_command == SQLCOM_CREATE_TABLE &&
-    lex->first_select_lex()->is_select_or_tvc();
-  if (!(sql_command_flags() & CF_STATUS_COMMAND) && !is_create_select)
+  if (!(sql_command_flags() & CF_STATUS_COMMAND))
   {
     trans_register_ha(this, false, &global_temporary_tp, 0);
     if (in_multi_stmt_transaction_mode())

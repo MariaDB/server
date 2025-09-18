@@ -2058,10 +2058,12 @@ struct All_tmp_table_shares
 /* Also used in rpl_rli.h. */
 struct All_tmp_tables_list: I_P_List <TMP_TABLE_SHARE, All_tmp_table_shares>
 {
+  bool committed;
   ulonglong global_temporary_tables_count= 0;
   inline void empty()
   {
     I_P_List::empty();
+    committed= false;
     global_temporary_tables_count= 0;
   }
 };
@@ -5860,6 +5862,7 @@ public:
   void restore_tmp_table_share(TMP_TABLE_SHARE *share);
   void close_unused_temporary_table_instances(const TABLE_LIST *tl);
   int commit_global_tmp_tables();
+  int drop_on_commit_delete_tables();
   void use_global_tmp_table_tp();
   inline bool has_open_global_temporary_tables() const
   {
@@ -6641,7 +6644,6 @@ private:
                                   List<Item> *items,
                                   MYSQL_LOCK **lock);
   int postlock(THD *thd, TABLE **tables);
-  void unlock_tables();
 };
 
 #include <myisam.h>
