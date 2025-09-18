@@ -15,3 +15,5 @@ rpl_row_binlog_max_cache_size : MDEV-11092
 rpl_row_index_choice      : MDEV-11666
 rpl_auto_increment_update_failure  : disabled for now
 rpl_current_user          : waits for MDEV-22374 fix
+create_or_replace_mix2    : MDEV-37686
+create_or_replace_statement : MDEV-37686
