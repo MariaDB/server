@@ -548,4 +548,23 @@ unlock tables;
 truncate t;
 drop table t;
 
+--echo # MDEV-37597 InnoDB: Failing assertion: table->get_ref_count() == 0 in dict_sys_t::remove on UPDATE
+create table t1 (c varchar(4096) unique) engine=innodb;
+create global temporary table t2 like t1;
+update t2 set c=0;
+drop table t1;
+drop table t2;
+
+--echo # MDEV-37694 ASAN heap-use-after-free in check_column_name on CoR ... LIKE
+create table t1 (a int key);
+create global temporary table t (x int) on commit delete rows;
+create or replace table t1 like t;
+drop table t;
+drop table t1;
+
+--echo # MDEV-37394 SIGSEGV in handler::ha_external_lock on CREATE GTT ... AS,
+--echo # CREATE GTT ... ENGINE=INNODB SELECT, ASAN heap-use-after-free in unlock_external
+create global temporary table t (c int) engine=innodb as select 1;
+drop table t;
+
 --disconnect con1
