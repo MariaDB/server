@@ -150,27 +150,6 @@ dberr_t dict_stats_rename_index(const char *db, const char *table,
 @return DB_SUCCESS or error code */
 dberr_t dict_stats_delete(const char *db, trx_t *trx);
 
-/** Save an individual index's statistic into the persistent statistics
-storage.
-@param[in]	index			index to be updated
-@param[in]	last_update		timestamp of the stat
-@param[in]	stat_name		name of the stat
-@param[in]	stat_value		value of the stat
-@param[in]	sample_size		n pages sampled or NULL
-@param[in]	stat_description	description of the stat
-@param[in,out]	trx			transaction
-@return DB_SUCCESS or error code */
-dberr_t
-dict_stats_save_index_stat(
-	dict_index_t*	index,
-	time_t		last_update,
-	const char*	stat_name,
-	ib_uint64_t	stat_value,
-	ib_uint64_t*	sample_size,
-	const char*	stat_description,
-	trx_t*		trx)
-	MY_ATTRIBUTE((nonnull(1, 3, 6, 7)));
-
 #ifdef UNIV_ENABLE_UNIT_TEST_DICT_STATS
 void test_dict_stats_all();
 #endif /* UNIV_ENABLE_UNIT_TEST_DICT_STATS */
