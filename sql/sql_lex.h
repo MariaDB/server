@@ -3604,8 +3604,6 @@ public:
   {
     if (limit_rows_examined)
       limit_rows_examined_cnt= limit_rows_examined->val_uint();
-    else
-      limit_rows_examined_cnt= ULONGLONG_MAX; // Unreachable value
   }
 
   /**
@@ -3617,7 +3615,7 @@ public:
   */
   bool deactivate_limit_rows_examined()
   {
-    bool was_activated= (limit_rows_examined_cnt == ULONGLONG_MAX);
+    bool was_activated= (limit_rows_examined_cnt != ULONGLONG_MAX);
     limit_rows_examined_cnt= ULONGLONG_MAX; // Unreachable value
     return was_activated;
   }
