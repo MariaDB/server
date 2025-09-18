@@ -2058,10 +2058,12 @@ struct All_tmp_table_shares
 /* Also used in rpl_rli.h. */
 struct All_tmp_tables_list: I_P_List <TMP_TABLE_SHARE, All_tmp_table_shares>
 {
+  bool committed;
   ulonglong global_temporary_tables_count= 0;
   inline void empty()
   {
     I_P_List::empty();
+    committed= false;
     global_temporary_tables_count= 0;
   }
 };
@@ -5891,6 +5893,7 @@ private:
   void free_temporary_table(TABLE *table);
   bool lock_temporary_tables();
   void unlock_temporary_tables();
+  int drop_on_commit_delete_tables();
 
   inline uint tmpkeyval(TMP_TABLE_SHARE *share)
   {
