@@ -632,8 +632,8 @@ bool handle_select(THD *thd, LEX *lex, select_result *result,
     thd->abort_on_warning= saved_abort_on_warning;
     thd->reset_killed();
   }
-  /* Disable LIMIT ROWS EXAMINED after query execution. */
-  thd->lex->limit_rows_examined_cnt= ULONGLONG_MAX;
+  /* Deactivate LIMIT ROWS EXAMINED after query execution. */
+  thd->lex->deactivate_limit_rows_examined();
 
   MYSQL_SELECT_DONE((int) res, (ulong) thd->limit_found_rows);
   DBUG_RETURN(res);
@@ -4787,7 +4787,7 @@ void JOIN::exec_inner()
   THD_STAGE_INFO(thd, stage_executing);
 
   /*
-    Enable LIMIT ROWS EXAMINED during query execution if:
+    Activate enforcement of LIMIT ROWS EXAMINED during query execution if:
     (1) This JOIN is the outermost query (not a subquery or derived table)
         This ensures that the limit is enabled when actual execution begins,
         and not if a subquery is evaluated during optimization of the outer
@@ -4799,7 +4799,7 @@ void JOIN::exec_inner()
 
   if (!select_lex->outer_select() &&                            // (1)
       select_lex != select_lex->master_unit()->fake_select_lex) // (2)
-    thd->lex->set_limit_rows_examined();
+    thd->lex->activate_limit_rows_examined();
 
   if (procedure)
   {
@@ -26733,10 +26733,10 @@ JOIN_TAB::remove_duplicates()
     sort_field_keylength+= ptr->length + (ptr->item->maybe_null() ? 1 : 0);
 
   /*
-    Disable LIMIT ROWS EXAMINED in order to avoid interrupting prematurely
+    Deactivate LIMIT ROWS EXAMINED in order to avoid interrupting prematurely
     duplicate removal, and produce a possibly incomplete query result.
   */
-  thd->lex->limit_rows_examined_cnt= ULONGLONG_MAX;
+  thd->lex->deactivate_limit_rows_examined();
   if (thd->killed == ABORT_QUERY)
     thd->reset_killed();
 
@@ -26755,7 +26755,7 @@ JOIN_TAB::remove_duplicates()
                                   sort_field_keylength, having);
 
   if (join->select_lex != join->select_lex->master_unit()->fake_select_lex)
-    thd->lex->set_limit_rows_examined();
+    thd->lex->activate_limit_rows_examined();
   free_blobs(first_field);
   my_free(sortorder);
   DBUG_RETURN(error);
