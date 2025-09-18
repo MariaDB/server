@@ -888,4 +888,16 @@ drop table t;
 unlock tables;
 set max_session_mem_used= @save_max_session_mem_used;
 
+--echo # MDEV-37668 SIGSEGV on DROP TABLE GTT under LOCK TABLES and different server_id
+create global temporary table t (x int) on commit preserve rows as select 1 'a';
+create global temporary table t2 (x int key) on commit preserve rows;
+set session server_id=10;
+lock tables t2 as a1 write,t as a5 write;
+--error ER_LOCK_WAIT_TIMEOUT
+drop table t;
+truncate t;
+drop table t;
+unlock tables;
+drop table t2;
+
 --disconnect con1
