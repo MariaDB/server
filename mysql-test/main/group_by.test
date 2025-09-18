@@ -2177,3 +2177,19 @@ DROP TABLE t1,t2;
 --echo #
 --echo # End of 10.5 tests
 --echo #
+
+--echo #
+--echo # MDEV-37682 Not all columns in super-aggregate rows in a SELECT ... WITH ROLLUP are NULL
+--echo #
+
+--source include/have_sequence.inc
+CREATE TABLE t (a INT,b INT);
+insert into t (a, b) select seq / 20, seq from seq_1_to_100;
+SELECT a, a, count(b) FROM t GROUP BY a WITH ROLLUP;
+SELECT a + 1, a, count(b) FROM t GROUP BY a + 1 WITH ROLLUP;
+SELECT a + 1, a, count(b) FROM t GROUP BY a WITH ROLLUP;
+drop table t;
+
+--echo #
+--echo # End of 10.6 tests
+--echo #
