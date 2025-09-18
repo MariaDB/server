@@ -1,0 +1,3 @@
+# MDEV-37690 SIGSEGV on CREATE TABLE ... AS SELECT
+create table t as select 0 query;
+drop table t;
