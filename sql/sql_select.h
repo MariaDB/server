@@ -2020,10 +2020,6 @@ JOIN_TAB *next_linear_tab(JOIN* join, JOIN_TAB* tab,
 JOIN_TAB *first_top_level_tab(JOIN *join, enum enum_with_const_tables with_const);
 JOIN_TAB *next_top_level_tab(JOIN *join, JOIN_TAB *tab);
 
-typedef struct st_select_check {
-  uint const_ref,reg_ref;
-} SELECT_CHECK;
-
 extern const char *join_type_str[];
 
 /* Extern functions in sql_select.cc */
