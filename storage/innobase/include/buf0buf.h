@@ -39,6 +39,7 @@ Created 11/5/1995 Heikki Tuuri
 #include "log0log.h"
 #include "srv0srv.h"
 #include "transactional_lock_guard.h"
+#include "ha_handler_stats.h"
 #include <ostream>
 
 /** The allocation granularity of innodb_buffer_pool_size */
@@ -703,10 +704,18 @@ public:
 
   /** Complete a read of a page.
   @param node     data file
+  @param recovery recv_recovery_is_on()
   @return whether the operation succeeded
+  @retval DB_SUCCESS           if the read succeeded; caller must unfix()
   @retval DB_PAGE_CORRUPTED    if the checksum or the page ID is incorrect
   @retval DB_DECRYPTION_FAILED if the page cannot be decrypted */
-  dberr_t read_complete(const fil_node_t &node) noexcept;
+  dberr_t read_complete(const fil_node_t &node, bool recovery) noexcept;
+
+  /** Wait for read_complete().
+  @param page_id  id() at the time we were holding lock
+  @param stats    per-thread statistics to update
+  @return state() at the time we were holding lock */
+  uint32_t read_wait(page_id_t *page_id, ha_handler_stats *stats) noexcept;
 
   /** Release a write fix after a page write was completed.
   @param persistent  whether the page belongs to a persistent tablespace
@@ -1482,53 +1491,18 @@ public:
     hash_chain &cell_get(ulint fold) const
     { return array[calc_hash(fold, n_cells)]; }
 
+    /** Append a block descriptor to a hash bucket chain
+    that will be locked here. */
+    void lock_and_append(hash_chain &chain, buf_page_t *bpage) noexcept;
+
     /** Append a block descriptor to a hash bucket chain. */
-    void append(hash_chain &chain, buf_page_t *bpage) noexcept
-    {
-      ut_ad(!bpage->in_page_hash);
-      ut_ad(!bpage->hash);
-      ut_d(bpage->in_page_hash= true);
-      buf_page_t **prev= &chain.first;
-      while (*prev)
-      {
-        ut_ad((*prev)->in_page_hash);
-        prev= &(*prev)->hash;
-      }
-      *prev= bpage;
-    }
+    void append(hash_chain &chain, buf_page_t *bpage) noexcept;
 
     /** Remove a block descriptor from a hash bucket chain. */
-    void remove(hash_chain &chain, buf_page_t *bpage) noexcept
-    {
-      ut_ad(bpage->in_page_hash);
-      buf_page_t **prev= &chain.first;
-      while (*prev != bpage)
-      {
-        ut_ad((*prev)->in_page_hash);
-        prev= &(*prev)->hash;
-      }
-      *prev= bpage->hash;
-      ut_d(bpage->in_page_hash= false);
-      bpage->hash= nullptr;
-    }
-
+    inline void remove(hash_chain &chain, buf_page_t *bpage) noexcept;
     /** Replace a block descriptor with another. */
-    void replace(hash_chain &chain, buf_page_t *old, buf_page_t *bpage)
-      noexcept
-    {
-      ut_ad(old->in_page_hash);
-      ut_ad(bpage->in_page_hash);
-      ut_d(old->in_page_hash= false);
-      ut_ad(bpage->hash == old->hash);
-      old->hash= nullptr;
-      buf_page_t **prev= &chain.first;
-      while (*prev != old)
-      {
-        ut_ad((*prev)->in_page_hash);
-        prev= &(*prev)->hash;
-      }
-      *prev= bpage;
-    }
+    inline void replace(hash_chain &chain, buf_page_t *old, buf_page_t *bpage)
+      noexcept;
 
     /** Look up a page in a hash bucket chain. */
     inline buf_page_t *get(const page_id_t id, const hash_chain &chain) const
@@ -1842,7 +1816,7 @@ inline void buf_page_t::set_state(uint32_t s) noexcept
   mysql_mutex_assert_owner(&buf_pool.mutex);
   ut_ad(s <= REMOVE_HASH || s >= UNFIXED);
   ut_ad(s < WRITE_FIX);
-  ut_ad(s <= READ_FIX || zip.fix == READ_FIX);
+  ut_ad(s <= READ_FIX + 1 || zip.fix == READ_FIX + 1);
   zip.fix= s;
 }
 
