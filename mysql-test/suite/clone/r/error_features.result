@@ -1,0 +1,55 @@
+INSTALL PLUGIN clone SONAME 'CLONE_PLUGIN';
+CREATE DATABASE testdb_clone;
+CREATE USER 'user_clone'@'localhost' IDENTIFIED BY '123';
+GRANT ALL ON testdb_clone.* TO 'user_clone'@'localhost';
+GRANT SELECT ON performance_schema.* to 'user_clone'@'localhost';
+SHOW GRANTS FOR 'user_clone'@'localhost';
+Grants for user_clone@localhost
+GRANT USAGE ON *.* TO `user_clone`@`localhost` IDENTIFIED BY PASSWORD '*23AE809DDACAF96AF0FD78ED04B6A265E05AA257'
+GRANT ALL PRIVILEGES ON `testdb_clone`.* TO `user_clone`@`localhost`
+GRANT SELECT ON `performance_schema`.* TO `user_clone`@`localhost`
+# Connection without NECESSARY privilege
+connect  con1,'localhost','user_clone','123',;
+SELECT user();
+user()
+user_clone@localhost
+USE testdb_clone;
+CREATE TABLE t1(col1 INT PRIMARY KEY, col2 char(64));
+CLONE LOCAL DATA DIRECTORY = 'CLONE_DATADIR';
+ERROR 42000: Access denied; you need (at least one of) the RELOAD privilege(s) for this operation
+connection default;
+SHOW GRANTS FOR 'user_clone'@'localhost';
+Grants for user_clone@localhost
+GRANT USAGE ON *.* TO `user_clone`@`localhost` IDENTIFIED BY PASSWORD '*23AE809DDACAF96AF0FD78ED04B6A265E05AA257'
+GRANT ALL PRIVILEGES ON `testdb_clone`.* TO `user_clone`@`localhost`
+GRANT SELECT ON `performance_schema`.* TO `user_clone`@`localhost`
+# Grant backup privilege to clone user
+GRANT RELOAD on *.* to 'user_clone'@'localhost';
+FLUSH PRIVILEGES;
+SHOW GRANTS FOR 'user_clone'@'localhost';
+Grants for user_clone@localhost
+GRANT RELOAD ON *.* TO `user_clone`@`localhost` IDENTIFIED BY PASSWORD '*23AE809DDACAF96AF0FD78ED04B6A265E05AA257'
+GRANT ALL PRIVILEGES ON `testdb_clone`.* TO `user_clone`@`localhost`
+GRANT SELECT ON `performance_schema`.* TO `user_clone`@`localhost`
+disconnect con1;
+# Without LOCK_TBL privilege
+connect  con1,'localhost','user_clone','123',;
+CLONE LOCAL DATA DIRECTORY = 'CLONE_DATADIR';
+ERROR 42000: Access denied; you need (at least one of) the LOCK TABLES privilege(s) for this operation
+connection default;
+disconnect con1;
+GRANT LOCK TABLES ON *.* TO 'user_clone'@'localhost';
+FLUSH PRIVILEGES;
+SHOW GRANTS FOR 'user_clone'@'localhost';
+Grants for user_clone@localhost
+GRANT RELOAD, LOCK TABLES ON *.* TO `user_clone`@`localhost` IDENTIFIED BY PASSWORD '*23AE809DDACAF96AF0FD78ED04B6A265E05AA257'
+GRANT ALL PRIVILEGES ON `testdb_clone`.* TO `user_clone`@`localhost`
+GRANT SELECT ON `performance_schema`.* TO `user_clone`@`localhost`
+# Trying clone again with all privileges
+connect  con1,'localhost','user_clone','123',;
+CLONE LOCAL DATA DIRECTORY = 'CLONE_DATADIR';
+connection default;
+disconnect con1;
+DROP SCHEMA testdb_clone;
+DROP USER 'user_clone'@'localhost';
+UNINSTALL PLUGIN clone;

@@ -97,7 +97,7 @@ typedef struct st_mysql_xid MYSQL_XID;
 #define MYSQL_AUDIT_PLUGIN           5
 #define MYSQL_REPLICATION_PLUGIN     6
 #define MYSQL_AUTHENTICATION_PLUGIN  7
-#define MYSQL_MAX_PLUGIN_TYPE_NUM    12  /**< The number of plugin types */
+#define MYSQL_MAX_PLUGIN_TYPE_NUM    13  /**< The number of plugin types */
 
 /* MariaDB plugin types */
 /** Client and server password validation */
@@ -108,6 +108,8 @@ typedef struct st_mysql_xid MYSQL_XID;
 #define MariaDB_DATA_TYPE_PLUGIN  10
 /**< Plugins for new native SQL functions */
 #define MariaDB_FUNCTION_PLUGIN 11
+/** Plugin for cloning storage engine data */
+#define MariaDB_CLONE_PLUGIN 12
 
 /* We use the following strings to define licenses for plugins */
 #define PLUGIN_LICENSE_PROPRIETARY 0

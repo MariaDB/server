@@ -41,7 +41,12 @@ Created 10/21/1995 Heikki Tuuri
 # include <sys/types.h>
 # include <sys/stat.h>
 # include <sys/sysmacros.h>
+# include <sys/sendfile.h>
 #endif
+
+#ifndef _WIN32
+# include <sys/statvfs.h>
+#endif /* !_WIN32 */
 
 #include "srv0mon.h"
 #include "srv0srv.h"
@@ -187,6 +192,8 @@ extern uint page_zip_level;
 /* Keys to register InnoDB I/O with performance schema */
 mysql_pfs_key_t  innodb_data_file_key;
 mysql_pfs_key_t  innodb_temp_file_key;
+mysql_pfs_key_t  innodb_arch_file_key;
+mysql_pfs_key_t  innodb_clone_file_key;
 #endif
 
 /** Handle errors for file operations.
@@ -1034,6 +1041,44 @@ bool os_file_create_directory(const char *pathname, bool fail_if_exists)
 	return(true);
 }
 
+bool
+os_file_scan_directory(const char *path, os_dir_cbk_t scan_cbk, bool is_drop)
+{
+  DIR *directory;
+  dirent *entry;
+
+  directory = opendir(path);
+
+  if (directory == nullptr)
+  {
+    os_file_handle_error_no_exit(path, "opendir", false);
+    return (false);
+  }
+
+  entry = readdir(directory);
+
+  while (entry != nullptr)
+  {
+    scan_cbk(path, entry->d_name);
+    entry = readdir(directory);
+  }
+
+  closedir(directory);
+
+  if (is_drop)
+  {
+    int err;
+    err = rmdir(path);
+
+    if (err != 0)
+    {
+      os_file_handle_error_no_exit(path, "rmdir", false);
+      return false;
+    }
+  }
+  return true;
+}
+
 #ifdef O_DIRECT
 # ifdef __linux__
 /** Note that the log file uses buffered I/O. */
@@ -1131,10 +1176,11 @@ os_file_create_func(
 	struct stat st;
 # endif
 	ut_a(type == OS_LOG_FILE
-	     || type == OS_DATA_FILE || type == OS_DATA_FILE_NO_O_DIRECT);
+	     || type == OS_DATA_FILE || type == OS_DATA_FILE_NO_O_DIRECT
+	     || type == OS_CLONE_DATA_FILE || type == OS_CLONE_LOG_FILE);
 	int direct_flag = 0;
 
-	if (type == OS_DATA_FILE) {
+	if (type == OS_DATA_FILE || type == OS_CLONE_DATA_FILE) {
 		if (!fil_system.is_buffered()) {
 			direct_flag = O_DIRECT;
 		}
@@ -1159,7 +1205,8 @@ skip_o_direct:
 # endif
 	}
 #else
-	ut_a(type == OS_LOG_FILE || type == OS_DATA_FILE);
+	ut_a(type == OS_LOG_FILE || type == OS_DATA_FILE
+	     || type == OS_CLONE_DATA_FILE || type == OS_CLONE_LOG_FILE);
 	constexpr int direct_flag = 0;
 #endif
 
@@ -1225,6 +1272,8 @@ not_found:
 	if (!read_only
 	    && create_mode != OS_FILE_OPEN_RAW
 	    && !my_disable_locking
+	    /* Don't acquire file lock while cloning files. */
+	    && type != OS_CLONE_DATA_FILE && type != OS_CLONE_LOG_FILE
 	    && os_file_lock(file, name)) {
 
 		if (create_mode == OS_FILE_OPEN_RETRY
@@ -1439,6 +1488,30 @@ os_file_size_t os_file_get_size(const char *filename) noexcept
 	}
 
 	return(file_size);
+}
+
+/** Get available free space on disk
+@param[in]  path       pathname of a directory or file in disk
+@param[out] free_space free space available in bytes
+@return DB_SUCCESS if all OK */
+static dberr_t os_get_free_space_posix(const char *path, uint64_t &free_space)
+{
+  struct statvfs stat;
+  auto ret = statvfs(path, &stat);
+
+  if (ret && (errno == ENOENT || errno == ENOTDIR))
+    /* file or directory  does not exist */
+    return DB_NOT_FOUND;
+  else if (ret)
+  {
+    /* file exists, but stat call failed */
+    os_file_handle_error_no_exit(path, "statvfs", false);
+    return DB_FAIL;
+  }
+  free_space= stat.f_bsize;
+  free_space*= stat.f_bavail;
+
+  return DB_SUCCESS;
 }
 
 /** This function returns information about the specified file
@@ -1968,6 +2041,48 @@ bool os_file_create_directory(const char *pathname, bool fail_if_exists)
 	return(true);
 }
 
+bool
+os_file_scan_directory(const char *path, os_dir_cbk_t scan_cbk, bool is_drop) {
+  bool file_found;
+  HANDLE find_hdl;
+  WIN32_FIND_DATA find_data;
+  char wild_card_path[MAX_PATH];
+
+  snprintf(wild_card_path, MAX_PATH, "%s\\*", path);
+
+  find_hdl = FindFirstFile((LPCTSTR)wild_card_path, &find_data);
+
+  if (find_hdl == INVALID_HANDLE_VALUE)
+  {
+    os_file_handle_error_no_exit(path, "FindFirstFile", false);
+    return (false);
+  }
+
+  do
+  {
+    scan_cbk(path, find_data.cFileName);
+    file_found = FindNextFile(find_hdl, &find_data);
+
+  } while (file_found);
+
+  FindClose(find_hdl);
+
+  if (is_drop)
+  {
+    bool ret;
+
+    ret = RemoveDirectory((LPCSTR)path);
+
+    if (!ret)
+    {
+      os_file_handle_error_no_exit(path, "RemoveDirectory", false);
+      return false;
+    }
+  }
+
+  return true;
+}
+
 /** Get disk sector size for a file. */
 static size_t get_sector_size(HANDLE file)
 {
@@ -2037,7 +2152,10 @@ os_file_create_func(
 		break;
 	}
 
-	DWORD attributes= FILE_FLAG_OVERLAPPED;
+	DWORD attributes= 0;
+
+	if (type != OS_CLONE_LOG_FILE && type != OS_CLONE_DATA_FILE)
+		attributes|= FILE_FLAG_OVERLAPPED;
 
 	if (type == OS_LOG_FILE) {
 		if (!log_sys.is_opened() && !log_sys.log_buffered) {
@@ -2046,13 +2164,18 @@ os_file_create_func(
 		if (log_sys.log_write_through)
 			attributes|= FILE_FLAG_WRITE_THROUGH;
 	} else {
-		if (type == OS_DATA_FILE && !fil_system.is_buffered())
+		if ((type == OS_DATA_FILE || type == OS_CLONE_DATA_FILE)
+                    && !fil_system.is_buffered())
 			attributes|= FILE_FLAG_NO_BUFFERING;
 		if (fil_system.is_write_through())
 			attributes|= FILE_FLAG_WRITE_THROUGH;
 	}
 
 	DWORD access = read_only ? GENERIC_READ : GENERIC_READ | GENERIC_WRITE;
+
+	/* Clone data and log must allow concurrent write to file. */
+	if (type == OS_CLONE_LOG_FILE || type == OS_CLONE_DATA_FILE)
+		share_mode |= FILE_SHARE_WRITE;
 
 	for (;;) {
 		const  char *operation;
@@ -2380,6 +2503,51 @@ os_file_size_t os_file_get_size(const char *filename) noexcept
 	}
 
 	return(file_size);
+}
+
+/** Get available free space on disk
+@param[in]      path            pathname of a directory or file in disk
+@param[out]     block_size      Block size to use for IO in bytes
+@param[out]     free_space      free space available in bytes
+@return DB_SUCCESS if all OK */
+static dberr_t os_get_free_space_win32(const char *path, uint32_t &block_size,
+                                       uint64_t &free_space)
+{
+  char volname[MAX_PATH];
+  BOOL result= GetVolumePathName(path, volname, MAX_PATH);
+
+  if (!result)
+  {
+    ib::error()
+        << "os_file_get_status_win32: "
+        << "Failed to get the volume path name for: " << path
+        << "- OS error number " << GetLastError();
+    return DB_FAIL;
+  }
+
+  DWORD sectorsPerCluster;
+  DWORD bytesPerSector;
+  DWORD numberOfFreeClusters;
+  DWORD totalNumberOfClusters;
+
+  result=
+      GetDiskFreeSpace((LPCSTR)volname, &sectorsPerCluster, &bytesPerSector,
+                       &numberOfFreeClusters, &totalNumberOfClusters);
+
+  if (!result)
+  {
+    ib::error() << "GetDiskFreeSpace(" << volname << ",...) "
+                << "failed "
+                << "- OS error number " << GetLastError();
+    return DB_FAIL;
+  }
+
+  block_size= bytesPerSector * sectorsPerCluster;
+
+  free_space= static_cast<uint64_t>(block_size);
+  free_space*= numberOfFreeClusters;
+
+  return DB_SUCCESS;
 }
 
 /** This function returns information about the specified file
@@ -2743,6 +2911,121 @@ os_file_read_func(
   return err ? err : DB_IO_ERROR;
 }
 
+/** copy data from one file to another file using read, write.
+@param[in]	src_file	file handle to copy from
+@param[in]	src_offset	offset to copy from
+@param[in]	dest_file	file handle to copy to
+@param[in]	dest_offset	offset to copy to
+@param[in]	size		number of bytes to copy
+@return DB_SUCCESS if successful */
+static dberr_t os_file_copy_read_write(
+	os_file_t	src_file,
+	os_offset_t	src_offset,
+	os_file_t	dest_file,
+	os_offset_t	dest_offset,
+	uint		size)
+{
+  static const size_t SECTOR_SIZE = 512;
+  dberr_t err;
+  uint request_size;
+  const uint BUF_SIZE = 4 * SECTOR_SIZE;
+
+  alignas(SECTOR_SIZE) char buf[BUF_SIZE];
+
+  while (size > 0) {
+    if (size > BUF_SIZE) {
+      request_size = BUF_SIZE;
+    } else {
+      request_size = size;
+    }
+
+    err = os_file_read_func(IORequestRead, src_file, &buf, src_offset,
+                            request_size, nullptr);
+
+    if (err != DB_SUCCESS) {
+      return err;
+    }
+    src_offset += request_size;
+
+    err = os_file_write_func(IORequestWrite, "file copy", dest_file, &buf,
+                             dest_offset, request_size);
+
+    if (err != DB_SUCCESS) {
+      return err;
+    }
+    dest_offset += request_size;
+    size -= request_size;
+  }
+
+  return DB_SUCCESS;
+}
+
+/** Copy data from one file to another file. Data is read/written
+at current file offset.
+@param[in]	src_file	file handle to copy from
+@param[in]	src_offset	offset to copy from
+@param[in]	dest_file	file handle to copy to
+@param[in]	dest_offset	offset to copy to
+@param[in]	size		number of bytes to copy
+@return DB_SUCCESS if successful */
+#ifdef __linux__
+dberr_t os_file_copy_func(
+	os_file_t	src_file,
+	os_offset_t	src_offset,
+	os_file_t	dest_file,
+	os_offset_t	dest_offset,
+	uint		size)
+{
+  dberr_t err;
+  static bool use_sendfile = true;
+
+  if (!os_file_seek(nullptr, src_file, src_offset)) {
+    return (DB_IO_ERROR);
+  }
+
+  if (!os_file_seek(nullptr, dest_file, dest_offset)) {
+    return (DB_IO_ERROR);
+  }
+
+  while (use_sendfile && size > 0) {
+    auto ret_size = sendfile(dest_file, src_file, nullptr, size);
+
+    if (ret_size == -1) {
+      /* Fall through read/write path. */
+      ib::info() << "sendfile failed to copy data"
+                    " : trying read/write ";
+
+      use_sendfile = false;
+      break;
+    }
+
+    auto actual_size = static_cast<uint>(ret_size);
+
+    ut_ad(size >= actual_size);
+    size -= actual_size;
+  }
+
+  if (size == 0) {
+    return (DB_SUCCESS);
+  }
+
+  err = os_file_copy_read_write(src_file, src_offset, dest_file, dest_offset,
+                                size);
+
+  return (err);
+}
+#else  /* !__linux__ */
+dberr_t os_file_copy_func(os_file_t src_file, os_offset_t src_offset,
+                          os_file_t dest_file, os_offset_t dest_offset,
+                          uint size) {
+  dberr_t err;
+
+  err = os_file_copy_read_write(src_file, src_offset, dest_file, dest_offset,
+                                size);
+  return (err);
+}
+#endif /* !__linux__ */
+
 /** Handle errors for file operations.
 @param[in]	name		name of a file or NULL
 @param[in]	operation	operation
@@ -2858,6 +3141,19 @@ static bool os_is_sparse_file_supported(os_file_t fh) noexcept
 #endif /* _WIN32 */
 }
 
+dberr_t os_get_free_space(const char *path, uint64_t &free_space)
+{
+#ifdef _WIN32
+  uint32_t block_size;
+  auto err= os_get_free_space_win32(path, block_size, free_space);
+
+#else /* !_WIN32 */
+  auto err= os_get_free_space_posix(path, free_space);
+
+#endif /* !_WIN32 */
+  return err;
+}
+
 /** Truncate a file to a specified size in bytes.
 @param[in]	pathname	file path
 @param[in]	file		file to be truncated
@@ -2886,6 +3182,33 @@ os_file_truncate(
 #else /* _WIN32 */
 	return(os_file_truncate_posix(pathname, file, size));
 #endif /* _WIN32 */
+}
+
+bool os_file_seek(const char *pathname, os_file_t file, os_offset_t offset) {
+  bool success = true;
+
+#ifdef _WIN32
+  LARGE_INTEGER length;
+
+  length.QuadPart = offset;
+
+  success = SetFilePointerEx(file, length, nullptr, FILE_BEGIN);
+
+#else  /* !_WIN32 */
+  off_t ret;
+
+  ret = lseek(file, offset, SEEK_SET);
+
+  if (ret == -1) {
+    success = false;
+  }
+#endif /* !_WIN32 */
+
+  if (!success) {
+    os_file_handle_error_no_exit(pathname, "os_file_seek", false);
+  }
+
+  return success;
 }
 
 /** Check the existence and type of the given file.

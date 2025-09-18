@@ -3277,6 +3277,22 @@ fil_space_t::name_type fil_space_t::name() const noexcept
   return name_type{path, len};
 }
 
+bool fil_space_t::is_encrypted() const
+{
+  ut_ad(referenced());
+  if (!crypt_data)
+    return false;
+
+  mysql_mutex_lock(&crypt_data->mutex);
+  bool encrypted= !crypt_data->not_encrypted()
+                  && crypt_data->type != CRYPT_SCHEME_UNENCRYPTED
+                  && (!crypt_data->is_default_encryption()
+                      || srv_encrypt_tables);
+
+  mysql_mutex_unlock(&crypt_data->mutex);
+  return encrypted;
+}
+
 #ifdef UNIV_DEBUG
 
 fil_space_t *fil_space_t::next_in_space_list() noexcept

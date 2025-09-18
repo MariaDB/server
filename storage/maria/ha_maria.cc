@@ -73,6 +73,7 @@ const char *zerofill_error_msg=
 */
 ulonglong maria_recover_options= HA_RECOVER_NONE;
 handlerton *maria_hton;
+void init_maria_clone_interfaces(handlerton *aria_hton);
 
 /* bits in maria_recover_options */
 const char *maria_recover_names[]=
@@ -1000,6 +1001,7 @@ can_enable_indexes(0), bulk_insert_single_undo(BULK_INSERT_NONE)
 handler *ha_maria::clone(const char *name __attribute__((unused)),
                          MEM_ROOT *mem_root)
 {
+#ifndef EMBEDDED_LIBRARY
   ha_maria *new_handler=
     static_cast <ha_maria *>(handler::clone(file->s->open_file_name.str,
                                             mem_root));
@@ -1012,6 +1014,9 @@ handler *ha_maria::clone(const char *name __attribute__((unused)),
                 new_handler->file->trn_next == 0);
   }
   return new_handler;
+#else
+  return nullptr;
+#endif /* !EMBEDDED */
 }
 
 
@@ -3962,7 +3967,7 @@ static int ha_maria_init(void *p)
   maria_multi_threaded= maria_in_ha_maria= TRUE;
   maria_create_trn_hook= maria_create_trn_for_mysql;
   maria_assert_if_crashed_table= debug_assert_if_crashed_table;
-
+  init_maria_clone_interfaces(maria_hton);
   if (res)
   {
     maria_hton= 0;

@@ -361,6 +361,18 @@ private:
 	const bool	m_fatal;
 };
 
+/** A utility class which, if inherited from, prevents the descendant class
+from being copied, moved, or assigned. This is useful for guard classes.  */
+class Non_copyable {
+ public:
+  Non_copyable(const Non_copyable &) = delete;
+  Non_copyable &operator=(const Non_copyable &) = delete;
+
+ protected:
+  Non_copyable() = default;
+  ~Non_copyable() = default;  /// Protected non-virtual destructor
+};
+
 } // namespace ib
 
 #endif

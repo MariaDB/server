@@ -1,0 +1,26 @@
+# 1. PLUGIN not loaded - clone local
+CLONE LOCAL DATA DIRECTORY = 'CLONE_DATADIR';
+ERROR HY000: Plugin 'clone' is not loaded
+# 1A. PLUGIN not installed - Uninstall plugin
+UNINSTALL PLUGIN clone;
+ERROR 42000: PLUGIN clone does not exist
+INSTALL PLUGIN clone SONAME 'CLONE_PLUGIN';
+# 1B. PLUGIN already loaded - Install plugin
+INSTALL PLUGIN clone SONAME 'CLONE_PLUGIN';
+ERROR HY000: Plugin 'clone' already installed
+#1C. Clone data without error
+CLONE LOCAL DATA DIRECTORY = 'CLONE_DATADIR';
+# 2A. Incorrect PATH - Relative path
+CLONE LOCAL DATA DIRECTORY = 'CLONE_DATADIR';
+ERROR HY000: Incorrect path value: 'CLONE_DATADIR'
+# 2B. Incorrect PATH - Too long
+CLONE LOCAL DATA DIRECTORY = 'CLONE_DATADIR';
+ERROR HY000: The path specified for DATA DIRECTORY is too long
+# 2C. Incorrect PATH - Within data directory
+CLONE LOCAL DATA DIRECTORY = 'CLONE_DATADIR';
+ERROR HY000: Path is within the current data directory 'CLONE_DATADIR'
+# 2D. Incorrect PATH - data directory exists
+CLONE LOCAL DATA DIRECTORY = 'CLONE_DATADIR';
+ERROR HY000: Can't create database 'CLONE_DATADIR'; database exists
+#Cleanup
+UNINSTALL PLUGIN clone;

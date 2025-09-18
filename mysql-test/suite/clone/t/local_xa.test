@@ -1,0 +1,72 @@
+# Test clone with different table types with debug sync
+--source include/have_innodb.inc
+--source include/have_debug_sync.inc
+--source include/count_sessions.inc
+
+call mtr.add_suppression("\\[Warning\\] Found 1 prepared XA transactions");
+
+## Install plugin
+--let $CLONE_DATADIR = $MYSQL_TMP_DIR/data_new
+
+--replace_result $MARIADB_CLONE_SO CLONE_PLUGIN
+--eval INSTALL PLUGIN clone SONAME '$MARIADB_CLONE_SO'
+
+## Create test schema
+--source ../include/create_schema.inc
+
+call execute_dml(0, 0, 10, 10, 1, 0);
+commit;
+
+--echo ## Test: Clone with XA transactions
+XA start 'xa_trx_1';
+update t1 set col2 = 100;
+XA end 'xa_trx_1';
+XA prepare 'xa_trx_1';
+
+connect(con1,localhost,root,,,);
+--echo # In connection default - Start Cloning database
+--source ../include/clone_command.inc
+--echo # In connection con1 - Finish XA prepare, Start XA commit
+connection default;
+XA commit 'xa_trx_1';
+
+--echo # In connection default
+disconnect con1;
+
+SELECT count(*) from t1;
+SELECT col1, col2, col3, SUBSTRING(col4, 1000, 32) FROM t1 ORDER BY col1;
+
+--echo # Restart cloned database
+--let restart_noprint=1
+--let restart_parameters=--datadir=$CLONE_DATADIR
+--source include/restart_mysqld.inc
+
+# Check table in cloned database
+SHOW CREATE TABLE t1;
+SELECT count(*) from t1;
+SELECT col1, col2, col3, SUBSTRING(col4, 1000, 32) FROM t1 ORDER BY col1;
+
+XA recover;
+XA commit 'xa_trx_1';
+
+SELECT col1, col2, col3, SUBSTRING(col4, 1000, 32) FROM t1 ORDER BY col1;
+
+# Execute procedure to delete all rows and insert
+call execute_dml(3, 0, 1, 1, 1, 0);
+call execute_dml(0, 0, 10, 10, 1, 0);
+
+SELECT count(*) from t1;
+SELECT col1, col2, col3, SUBSTRING(col4, 1000, 32) FROM t1 ORDER BY col1;
+
+# Restart and Remove cloned directory
+--let restart_parameters=
+--source include/restart_mysqld.inc
+--rmdir $CLONE_DATADIR
+
+# Cleanup
+--source ../include/drop_schema.inc
+
+UNINSTALL PLUGIN clone;
+SET DEBUG_SYNC = 'RESET';
+
+--source include/wait_until_count_sessions.inc

@@ -22,6 +22,8 @@ this program; if not, write to the Free Software Foundation, Inc.,
 #endif /* WITH_WSREP */
 
 #include "table.h"
+#include "fts0fts.h"
+#include "dict0mem.h"
 
 /* The InnoDB handler: the interface between MySQL and InnoDB. */
 

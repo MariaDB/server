@@ -1,0 +1,36 @@
+CREATE TABLE t(i INT) 
+ENGINE ARIA TRANSACTIONAL=1 ROW_FORMAT=PAGE PAGE_CHECKSUM=1;
+SET GLOBAL general_log = 0;
+TRUNCATE mysql.general_log;
+SET GLOBAL general_log = 1;
+SET GLOBAL log_output = 'TABLE';
+INSERT INTO t VALUES (1);
+SELECT * FROM mysql.general_log
+WHERE argument LIKE "INSERT INTO %" AND
+(command_type = "Query" OR command_type = "Execute") ;
+event_time	user_host	thread_id	server_id	command_type	argument
+TIMESTAMP	USER_HOST	THREAD_ID	1	Query	INSERT INTO t VALUES (1)
+INSTALL PLUGIN clone SONAME 'CLONE_PLUGIN';
+SELECT PLUGIN_NAME, PLUGIN_STATUS FROM INFORMATION_SCHEMA.PLUGINS
+WHERE PLUGIN_NAME LIKE '%clone%';
+PLUGIN_NAME	PLUGIN_STATUS
+clone	ACTIVE
+SET DEBUG_SYNC="after_stage_block_ddl SIGNAL start_dml WAIT_FOR resume_clone1";
+CLONE LOCAL DATA DIRECTORY = 'CLONE_DATADIR';
+# Insert new row into general_log table after it has been copied on BLOCK_DDL.
+connect con1,localhost,root,,;
+SET DEBUG_SYNC="now WAIT_FOR start_dml";
+INSERT INTO test.t VALUES(2);
+SET DEBUG_SYNC="now SIGNAL resume_clone1";
+connection default;
+disconnect con1;
+# restart: with restart_parameters
+SELECT * FROM mysql.general_log
+WHERE argument LIKE "INSERT INTO %" AND
+(command_type = "Query" OR command_type = "Execute") ;
+event_time	user_host	thread_id	server_id	command_type	argument
+TIMESTAMP	USER_HOST	THREAD_ID	1	Query	INSERT INTO t VALUES (1)
+TIMESTAMP	USER_HOST	THREAD_ID	1	Query	INSERT INTO test.t VALUES(2)
+# restart
+DROP TABLE t;
+UNINSTALL PLUGIN clone;

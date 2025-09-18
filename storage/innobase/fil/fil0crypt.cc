@@ -2400,6 +2400,30 @@ void fil_crypt_total_stat(fil_crypt_stat_t *stat)
 	mysql_mutex_unlock(&crypt_stat_mutex);
 }
 
+dberr_t Fil_iterator::iterate(Function &&f)
+{
+  dberr_t err= DB_SUCCESS;
+  mysql_mutex_lock(&fil_system.mutex);
+  for (fil_space_t &space : fil_system.space_list)
+  {
+    if (space.is_temporary())
+      continue;
+
+    /* If the space is being dropped, it can be skipped. */
+    if (!space.acquire_if_not_stopped())
+      continue;
+
+    auto node= UT_LIST_GET_FIRST(space.chain);
+    err= f(node);
+
+    while (err == DB_SUCCESS && (node= UT_LIST_GET_NEXT(chain, node)))
+      err= f(node);
+    space.release();
+  }
+  mysql_mutex_unlock(&fil_system.mutex);
+  return err;
+}
+
 #endif /* UNIV_INNOCHECKSUM */
 
 /**

@@ -35,6 +35,7 @@
 #ifdef WITH_WSREP
 #include "wsrep_trans_observer.h"
 #endif
+#include "clone_handler.h"
 
 const LEX_CSTRING msg_status= {STRING_WITH_LEN("status")};
 const LEX_CSTRING msg_repair= { STRING_WITH_LEN("repair") };
@@ -1744,4 +1745,241 @@ wsrep_error_label:
 #endif /* WITH_WSREP */
 error:
   DBUG_RETURN(res);
+}
+
+Sql_cmd_clone::Sql_cmd_clone(LEX_USER *user_info, ulong port,
+                             LEX_CSTRING data_dir)
+    : m_port(port), m_data_dir(data_dir), m_clone(), m_is_local(false)
+{
+  m_host = user_info->host;
+  m_user = user_info->user;
+  m_passwd = user_info->auth->pwtext;
+}
+
+bool Sql_cmd_clone::execute(THD *thd)
+{
+#ifdef EMBEDDED_LIBRARY
+  my_error(ER_NOT_SUPPORTED_YET, MYF(0),
+           "Remote clone or REPLACE clone");
+  return true;
+#else
+  const bool is_replace= (m_data_dir.str == nullptr);
+  if (is_replace || !is_local())
+  {
+    my_error(ER_NOT_SUPPORTED_YET, MYF(0),
+             "Remote clone or REPLACE clone");
+    return true;
+  }
+
+  if (is_local())
+    DBUG_PRINT("admin", ("CLONE type = local, DIR = %s", m_data_dir.str));
+  else
+    DBUG_PRINT("admin", ("CLONE type = remote, DIR = %s",
+                         is_replace ? "" : m_data_dir.str));
+
+  /* For replacing current data directory, needs clone_admin privilege. */
+  if (is_replace)
+  {
+    /* TODO: Check for CLONE_ADMIN equivalent privilege. */
+    if (check_global_access(thd, RELOAD_ACL) ||
+        check_global_access(thd, LOCK_TABLES_ACL))
+      return true;
+  }
+  else if (check_global_access(thd, RELOAD_ACL) ||
+           check_global_access(thd, LOCK_TABLES_ACL))
+    return true;
+
+  assert(m_clone == nullptr);
+  m_clone= clone_plugin_lock(thd, &m_plugin);
+
+  if (m_clone == nullptr)
+  {
+    my_error(ER_PLUGIN_IS_NOT_LOADED, MYF(0), "clone");
+    return true;
+  }
+
+  if (is_local())
+  {
+    assert(!is_replace);
+    auto err= m_clone->clone_local(thd, m_data_dir.str);
+
+    if (err != 0)
+      return true;
+
+    my_ok(thd);
+    return false;
+  }
+
+  assert(!is_local());
+
+  int ssl_mode= 1;
+
+  if (thd->lex->account_options.ssl_type == SSL_TYPE_NONE)
+    ssl_mode= 0;
+
+  auto err= m_clone->clone_remote_client(
+      thd, m_host.str, static_cast<uint>(m_port), m_user.str, m_passwd.str,
+      m_data_dir.str, ssl_mode);
+  clone_plugin_unlock(thd, m_plugin);
+  m_clone= nullptr;
+
+  /* Set active VIO as clone plugin might have reset it */
+  thd->set_active_vio(thd->net.vio);
+
+  if (err != 0)
+  {
+    /* Log donor error number and message. */
+    if (err == ER_CLONE_DONOR)
+    {
+      const char *donor_mesg= nullptr;
+      int donor_error= 0;
+      const bool success=
+          Clone_handler::get_donor_error(donor_error, donor_mesg);
+      if (success && donor_error != 0 && donor_mesg != nullptr)
+      {
+        char info_mesg[128];
+        snprintf(info_mesg, 128, "Clone Donor error : %d : %s", donor_error,
+                 donor_mesg);
+        const char* format= my_get_err_msg(ER_CLONE_CLIENT_TRACE);
+        sql_print_information(format, info_mesg);
+      }
+    }
+    return true;
+  }
+
+  /* Check for KILL after setting active VIO */
+  if (!is_replace && thd->killed != NOT_KILLED)
+  {
+    my_error(ER_QUERY_INTERRUPTED, MYF(0));
+    return true;
+  }
+
+  /* Restart server after successfully cloning to current data directory. */
+  if (is_replace)
+  {
+    /* Shutdown server if restart failed. */
+    const char* mesg= my_get_err_msg(ER_CLONE_SHUTDOWN_TRACE);
+    sql_print_information("%s", mesg);
+
+    Diagnostics_area *stmt_da= thd->get_stmt_da();
+    Diagnostics_area shutdown_da(thd->query_id, false, true);
+    thd->set_stmt_da(&shutdown_da);
+    /* CLONE_ADMIN privilege allows us to shutdown/restart at end. */
+    kill_mysql(thd);
+    thd->set_stmt_da(stmt_da);
+    return true;
+  }
+  my_ok(thd);
+#endif /* EMBEDDED_LIBRARY */
+  return false;
+}
+
+
+bool Sql_cmd_clone::load(THD *thd)
+{
+#ifndef EMBEDDED_LIBRARY
+  assert(m_clone == nullptr);
+  assert(!is_local());
+
+  if (check_global_access(thd, RELOAD_ACL)) {
+    return true;
+  }
+
+  m_clone = clone_plugin_lock(thd, &m_plugin);
+
+  if (m_clone == nullptr) {
+    my_error(ER_PLUGIN_IS_NOT_LOADED, MYF(0), "clone");
+    return true;
+  }
+#endif /* EMBEDDED_SERVER */
+  my_ok(thd);
+  return false;
+}
+
+bool Sql_cmd_clone::execute_server(THD *thd)
+{
+#ifndef EMBEDDED_LIBRARY
+  assert(!is_local());
+
+  auto net= &thd->net;
+  auto sock= net->vio->mysql_socket;
+
+  Diagnostics_area *stmt_da= thd->get_stmt_da();
+  Diagnostics_area clone_da(thd->query_id, false, true);
+  thd->set_stmt_da(&clone_da);
+
+  auto err= m_clone->clone_remote_server(thd, sock);
+
+  if (!err)
+    my_ok(thd);
+
+  thd->set_stmt_da(stmt_da);
+
+  if (err)
+  {
+    uint sql_errno= clone_da.sql_errno();
+    const char *message= clone_da.message();
+    const char *sqlstate= clone_da.get_sqlstate();
+
+    stmt_da->set_overwrite_status(true);
+
+    if (unlikely(thd->is_fatal_error))
+      stmt_da->set_error_status(sql_errno, message, sqlstate, nullptr);
+    else
+      stmt_da->push_warning(thd, sql_errno, sqlstate,
+                            Sql_condition::WARN_LEVEL_ERROR, message);
+  }
+
+  clone_plugin_unlock(thd, m_plugin);
+  m_clone = nullptr;
+
+  return err != 0;
+#else
+  return 0;
+#endif /* EMBEDDED_LIBRARY */
+}
+
+/* TODO: Interface to rewrite Statement with plain-text password */
+bool Sql_cmd_clone::rewrite(THD *thd, String &rlb)
+{
+  /* No password for local clone. */
+  if (is_local()) {
+    return false;
+  }
+
+  bool no_bs= thd->variables.sql_mode & MODE_NO_BACKSLASH_ESCAPES;
+  rlb.append(STRING_WITH_LEN("CLONE INSTANCE FROM "));
+
+  /* Append user name. */
+  append_query_string(system_charset_info, &rlb, m_user.str, m_user.length,
+                      no_bs);
+  /* Append host name. */
+  rlb.append(STRING_WITH_LEN("@"));
+  append_query_string(system_charset_info, &rlb, m_host.str, m_host.length,
+                      no_bs);
+
+  /* Append port number. */
+  rlb.append(STRING_WITH_LEN(":"));
+  String num_buffer(42);
+  num_buffer.set((longlong)m_port, &my_charset_bin);
+  rlb.append(num_buffer);
+
+  /* Append password clause. */
+  rlb.append(STRING_WITH_LEN(" IDENTIFIED BY <secret>"));
+
+  /* Append data directory clause. */
+  if (m_data_dir.str != nullptr) {
+    rlb.append(STRING_WITH_LEN(" DATA DIRECTORY = "));
+    append_query_string(system_charset_info, &rlb, m_data_dir.str,
+                        m_data_dir.length, no_bs);
+  }
+
+  /* Append SSL information. */
+  if (thd->lex->account_options.ssl_type == SSL_TYPE_NONE) {
+    rlb.append(STRING_WITH_LEN(" REQUIRE NO SSL"));
+
+  } else if (thd->lex->account_options.ssl_type == SSL_TYPE_SPECIFIED) {
+    rlb.append(STRING_WITH_LEN(" REQUIRE SSL"));
+  }
+  return true;
 }

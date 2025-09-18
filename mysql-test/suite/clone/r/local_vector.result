@@ -1,0 +1,82 @@
+# Clone test for VECTOR data type and indexes (InnoDB + MyISAM)
+INSTALL PLUGIN clone SONAME 'CLONE_PLUGIN';
+SELECT PLUGIN_NAME, PLUGIN_STATUS
+FROM INFORMATION_SCHEMA.PLUGINS
+WHERE PLUGIN_NAME LIKE '%clone%';
+PLUGIN_NAME	PLUGIN_STATUS
+clone	ACTIVE
+DROP TABLE IF EXISTS t_innodb, t_myisam;
+Warnings:
+Note	1051	Unknown table 'test.t_innodb,test.t_myisam'
+CREATE TABLE t_innodb (
+id INT AUTO_INCREMENT PRIMARY KEY,
+v VECTOR(5) NOT NULL,
+VECTOR INDEX (v)
+) ENGINE=InnoDB;
+INSERT INTO t_innodb (v) VALUES
+(Vec_FromText('[0.418,0.809,0.823,0.598,0.033]')),
+(Vec_FromText('[0.687,0.789,0.496,0.574,0.917]')),
+(Vec_FromText('[0.333,0.962,0.467,0.448,0.475]'));
+CREATE TABLE t_myisam (
+a INT,
+v VECTOR(1) NOT NULL,
+VECTOR(v)
+) ENGINE=MyISAM;
+INSERT INTO t_myisam VALUES
+(1, 0x31313131),
+(2, 0x32323232);
+SELECT * FROM t_innodb
+ORDER BY vec_distance_euclidean(v, Vec_FromText('[1,0,0,0,0]'))
+LIMIT 1;
+id	v
+3	ú~ª>¢Ev? ï>B`å>33ó>
+SELECT * FROM t_myisam
+ORDER BY vec_distance_euclidean(v, 0x30303030)
+LIMIT 1;
+a	v
+1	1111
+connection clone_conn_1;
+CLONE LOCAL DATA DIRECTORY = 'CLONE_DATADIR';
+# Restart server on cloned data directory
+connection default;
+# restart: with restart_parameters
+SHOW CREATE TABLE t_innodb;
+Table	Create Table
+t_innodb	CREATE TABLE `t_innodb` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `v` vector(5) NOT NULL,
+  PRIMARY KEY (`id`),
+  VECTOR KEY `v` (`v`)
+) ENGINE=InnoDB AUTO_INCREMENT=4 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+SHOW CREATE TABLE t_myisam;
+Table	Create Table
+t_myisam	CREATE TABLE `t_myisam` (
+  `a` int(11) DEFAULT NULL,
+  `v` vector(1) NOT NULL,
+  VECTOR KEY `v` (`v`)
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+SELECT id, Vec_ToText(v) FROM t_innodb;
+id	Vec_ToText(v)
+1	[0.418,0.809,0.823,0.598,0.033]
+2	[0.687,0.789,0.496,0.574,0.917]
+3	[0.333,0.962,0.467,0.448,0.475]
+SELECT a, Vec_ToText(v) FROM t_myisam;
+a	Vec_ToText(v)
+1	[2.57849e-9]
+2	[1.03724e-8]
+SELECT id FROM t_innodb
+ORDER BY vec_distance_euclidean(v, Vec_FromText('[1,0,0,0,0]'))
+LIMIT 1;
+id
+3
+SELECT * FROM t_myisam
+ORDER BY vec_distance_euclidean(v, 0x30303030)
+LIMIT 1;
+a	v
+1	1111
+# restart
+connection default;
+DROP TABLE t_innodb, t_myisam;
+disconnect clone_conn_1;
+connection default;
+UNINSTALL PLUGIN clone;

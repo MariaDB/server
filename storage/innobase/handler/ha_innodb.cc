@@ -72,6 +72,7 @@ this program; if not, write to the Free Software Foundation, Inc.,
 #include "buf0buf.h"
 #include "buf0flu.h"
 #include "buf0lru.h"
+#include "clone0api.h"
 #include "dict0boot.h"
 #include "dict0load.h"
 #include "dict0crea.h"
@@ -617,7 +618,8 @@ static PSI_thread_info	all_innodb_threads[] = {
   {&page_cleaner_thread_key, "page_cleaner", 0},
   {&trx_rollback_clean_thread_key, "trx_rollback", 0},
   {&page_encrypt_thread_key, "page_encrypt", 0},
-  {&thread_pool_thread_key,"ib_tpool_worker", 0}
+  {&thread_pool_thread_key,"ib_tpool_worker", 0},
+  {&archiver_thread_key,"ib_archiver", 0}
 };
 # endif /* UNIV_PFS_THREAD */
 
@@ -626,7 +628,9 @@ static PSI_thread_info	all_innodb_threads[] = {
 performance schema instrumented if "UNIV_PFS_IO" is defined */
 static PSI_file_info	all_innodb_files[] = {
 	PSI_KEY(innodb_data_file),
-	PSI_KEY(innodb_temp_file)
+	PSI_KEY(innodb_temp_file),
+	PSI_KEY(innodb_arch_file),
+	PSI_KEY(innodb_clone_file)
 };
 # endif /* UNIV_PFS_IO */
 #endif /* HAVE_PSI_INTERFACE */
@@ -4173,6 +4177,19 @@ static int innodb_init(void* p)
 
         innobase_hton->update_optimizer_costs= innobase_update_optimizer_costs;
 
+#ifndef EMBEDDED_LIBRARY
+	/* Clone interfaces. */
+	innobase_hton->clone_interface.clone_capability = innodb_clone_get_capability;
+
+	innobase_hton->clone_interface.clone_begin = innodb_clone_begin;
+	innobase_hton->clone_interface.clone_copy = innodb_clone_copy;
+	innobase_hton->clone_interface.clone_ack = innodb_clone_ack;
+	innobase_hton->clone_interface.clone_end = innodb_clone_end;
+
+	innobase_hton->clone_interface.clone_apply_begin = innodb_clone_apply_begin;
+	innobase_hton->clone_interface.clone_apply = innodb_clone_apply;
+	innobase_hton->clone_interface.clone_apply_end = innodb_clone_apply_end;
+#endif /* EMBEDDED_LIBRARY */
 	innodb_remember_check_sysvar_funcs();
 
 	compile_time_assert(DATA_MYSQL_TRUE_VARCHAR == MYSQL_TYPE_VARCHAR);
@@ -18766,6 +18783,16 @@ static void innodb_log_file_size_update(THD *thd, st_mysql_sys_var*,
                     " innodb_log_buffer_size=%u", MYF(0), log_sys.buf_size);
   else
   {
+#ifndef EMBEDDED_LIBRARY
+    Clone_notify *notifier= new Clone_notify(
+      Clone_notify::Type::SYSTEM_REDO_RESIZE, UINT32_MAX, true);
+    if (notifier->failed())
+    {
+      delete notifier;
+      mysql_mutex_lock(&LOCK_global_system_variables);
+      return;
+    }
+#endif /* EMBEDDED_LIBRARY */
     switch (log_sys.resize_start(*static_cast<const ulonglong*>(save), thd)) {
     case log_t::RESIZE_NO_CHANGE:
       break;
@@ -18786,6 +18813,7 @@ static void innodb_log_file_size_update(THD *thd, st_mysql_sys_var*,
           break;
         }
 
+	DEBUG_SYNC_C("redo_log_resizing");
         set_timespec(abstime, 5);
         mysql_mutex_lock(&buf_pool.flush_list_mutex);
         lsn_t resizing= log_sys.resize_in_progress();
@@ -18812,6 +18840,9 @@ static void innodb_log_file_size_update(THD *thd, st_mysql_sys_var*,
         log_sys.latch.wr_unlock();
       }
     }
+#ifndef EMBEDDED_LIBRARY
+    delete notifier;
+#endif /* !EMBEDDED_LIBRARY */
   }
   mysql_mutex_lock(&LOCK_global_system_variables);
 }

@@ -1336,6 +1336,7 @@ void recv_sys_t::create()
 	mysql_mutex_init(recv_sys_mutex_key, &mutex, nullptr);
 
 	apply_log_recs = false;
+	is_cloned_db = false;
 
 	len = 0;
 	offset = 0;
@@ -1747,13 +1748,16 @@ dberr_t recv_sys_t::find_checkpoint()
       {
         log_sys.next_checkpoint_lsn= checkpoint_lsn;
         log_sys.next_checkpoint_no= field == log_t::CHECKPOINT_1;
-        lsn= end_lsn;
+        log_sys.last_checkpoint_end_lsn= lsn= end_lsn;
       }
     }
     if (!log_sys.next_checkpoint_lsn)
       goto got_no_checkpoint;
     if (!memcmp(creator, "Backup ", 7))
       srv_start_after_restore= true;
+    else if (!memcmp(creator, log_t::CREATOR_CLONE,
+                     sizeof(log_t::CREATOR_CLONE) - 1))
+      is_cloned_db= true;
     return DB_SUCCESS;
   case log_t::FORMAT_10_5:
   case log_t::FORMAT_10_5 | log_t::FORMAT_ENCRYPTED:
@@ -2451,7 +2455,11 @@ restart:
   return PREMATURE_EOF;
 
  eom_found:
-  if (*l != log_sys.get_sequence_bit((l - begin) + lsn))
+  /* Cloned redo log file is not overwritten and we don't need sequence bit
+  check to detect the end. Also, the redo log could be cloned from a wrapped
+  around redo and the sequence BIT may not match. This is not an issue as the
+  sequence BIT doesn't have anything to do with the logged information. */
+  if (!is_cloned_db && *l != log_sys.get_sequence_bit((l - begin) + lsn))
     return GOT_EOF;
 
   if (l.is_eof(4))
@@ -3287,7 +3295,7 @@ set_start_lsn:
 		buf_pool_t::insert_into_flush_list() */
 		mysql_mutex_lock(&buf_pool.flush_list_mutex);
 		buf_pool.flush_list_bytes+= block->physical_size();
-		block->page.set_oldest_modification(start_lsn);
+		block->page.set_oldest_modification(start_lsn, true);
 		UT_LIST_ADD_FIRST(buf_pool.flush_list, &block->page);
 		buf_pool.page_cleaner_wakeup();
 		mysql_mutex_unlock(&buf_pool.flush_list_mutex);
@@ -3995,7 +4003,7 @@ void recv_sys_t::apply(bool last_batch)
     buf_pool_invalidate();
     log_sys.latch.wr_lock(SRW_LOCK_CALL);
   }
-  else if (srv_operation == SRV_OPERATION_RESTORE ||
+  else if (is_cloned_db || srv_operation == SRV_OPERATION_RESTORE ||
            srv_operation == SRV_OPERATION_RESTORE_EXPORT)
     buf_flush_sync_batch(lsn);
   else

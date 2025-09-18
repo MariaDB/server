@@ -95,6 +95,7 @@ SET (SQL_SOURCE
                ${CMAKE_CURRENT_BINARY_DIR}/yy_mariadb.cc
                ${CMAKE_CURRENT_BINARY_DIR}/yy_oracle.cc
               ../sql-common/client.c
+               clone_handler.cc
                cset_narrowing.cc
                compat56.cc derror.cc des_key_file.cc
                discover.cc ../sql-common/errmsg.c
@@ -121,6 +122,7 @@ SET (SQL_SOURCE
                opt_vcol_substitution.cc
                ../sql-common/pack.c parse_file.cc password.c procedure.cc
                protocol.cc records.cc repl_failsafe.cc rpl_filter.cc
+               service_clone_protocol.cc
                session_tracker.cc
                set_var.cc
                slave.cc sp.cc sp_cache.cc sp_head.cc sp_pcontext.cc
@@ -241,13 +243,19 @@ STATIC_ONLY NOT_EMBEDDED)
 ADD_LIBRARY(sql STATIC ${SQL_SOURCE})
 MAYBE_DISABLE_IPO(sql)
 DTRACE_INSTRUMENT(sql)
-TARGET_LINK_LIBRARIES(sql
-  mysys mysys_ssl dbug strings vio pcre2-8
-  tpool
-  online_alter_log
-  ${LIBWRAP} ${LIBCRYPT} ${CMAKE_DL_LIBS} ${CMAKE_THREAD_LIBS_INIT}
-  ${SSL_LIBRARIES}
-  ${LIBSYSTEMD})
+# Link libstdc++fs for GNU compiler versions 5-8
+SET(SQL_LINK_LIBRARIES
+    mysys mysys_ssl dbug strings vio pcre2-8
+    tpool
+    online_alter_log
+    ${LIBWRAP} ${LIBCRYPT} ${CMAKE_DL_LIBS} ${CMAKE_THREAD_LIBS_INIT}
+    ${SSL_LIBRARIES}
+    ${LIBSYSTEMD})
+IF(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" AND CMAKE_CXX_COMPILER_VERSION VERSION_LESS "9.0" AND CMAKE_CXX_COMPILER_VERSION VERSION_GREATER "5.0")
+  LIST(APPEND SQL_LINK_LIBRARIES stdc++fs)
+ENDIF()
+
+TARGET_LINK_LIBRARIES(sql ${SQL_LINK_LIBRARIES})
 IF(TARGET pcre2)
   ADD_DEPENDENCIES(sql pcre2)
 ENDIF()

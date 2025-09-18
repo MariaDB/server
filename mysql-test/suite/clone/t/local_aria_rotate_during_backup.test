@@ -1,0 +1,81 @@
+--source include/have_debug.inc
+--source include/have_aria.inc
+--let $CLONE_DATADIR = $MYSQL_TMP_DIR/data_new
+--let $MYSQLD_DATADIR= `select @@datadir`
+
+SHOW VARIABLES LIKE 'aria_log_file_size';
+
+DELIMITER $$;
+CREATE PROCEDURE display_aria_log_control(ctrl BLOB)
+BEGIN
+  SELECT HEX(REVERSE(SUBSTRING(ctrl, 42, 4))) AS last_logno;
+END;
+$$
+DELIMITER ;$$
+
+DELIMITER $$;
+CREATE PROCEDURE populate_t1()
+BEGIN
+  FOR id IN 0..9 DO
+    INSERT INTO test.t1 (id, txt) VALUES (id, REPEAT(id,1024*1024));
+  END FOR;
+END;
+$$
+DELIMITER ;$$
+
+
+CREATE TABLE test.t1(id INT, txt LONGTEXT) ENGINE=Aria;
+
+--echo # MYSQLD_DATADIR/aria_log_control before --backup
+--let ARIA_DATADIR=$MYSQLD_DATADIR
+--source include/aria_log_control_load.inc
+CALL display_aria_log_control(@aria_log_control);
+
+
+# Install Clone Plugin
+--replace_result $MARIADB_CLONE_SO CLONE_PLUGIN
+--eval INSTALL PLUGIN clone SONAME '$MARIADB_CLONE_SO'
+
+SELECT PLUGIN_NAME, PLUGIN_STATUS FROM INFORMATION_SCHEMA.PLUGINS
+WHERE PLUGIN_NAME LIKE '%clone%';
+
+SET DEBUG_SYNC = 'after_scanning_log_files SIGNAL start_dml1 WAIT_FOR resume_clone1';
+--source ../include/clone_command_send.inc
+
+connect(con1, localhost,root,,);
+SET DEBUG_SYNC= 'now WAIT_FOR start_dml1';
+CALL test.populate_t1();
+SET DEBUG_SYNC= 'now SIGNAL resume_clone1';
+
+connection default;
+reap;
+disconnect con1;
+--let ARIA_DATADIR=$MYSQLD_DATADIR
+--source include/aria_log_control_load.inc
+CALL display_aria_log_control(@aria_log_control);
+
+--echo # targetdir/aria_log_control after cloning
+--let ARIA_DATADIR=$CLONE_DATADIR
+--source include/aria_log_control_load.inc
+CALL display_aria_log_control(@aria_log_control);
+
+let restart_noprint=1;
+let restart_parameters=--datadir=$CLONE_DATADIR;
+--source include/restart_mysqld.inc
+
+--echo # MYSQLD_DATADIR/aria_log_control after restart with clone
+--let ARIA_DATADIR=$MYSQLD_DATADIR
+--source include/aria_log_control_load.inc
+CALL display_aria_log_control(@aria_log_control);
+
+--echo # Checking that after --restore all t1 data is there
+SELECT id, LENGTH(txt) FROM t1 ORDER BY id;
+
+let restart_parameters=;
+--source include/restart_mysqld.inc
+
+DROP TABLE t1;
+DROP PROCEDURE populate_t1;
+DROP PROCEDURE display_aria_log_control;
+--rmdir $CLONE_DATADIR
+UNINSTALL PLUGIN clone;

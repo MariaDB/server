@@ -1,0 +1,58 @@
+--source include/have_aria.inc
+--source include/have_debug.inc
+--source include/not_embedded.inc
+--let $CLONE_DATADIR = $MYSQL_TMP_DIR/data_new
+--let $MYSQLD_DATADIR= `select @@datadir`
+
+CREATE TABLE t(i INT) 
+  ENGINE ARIA TRANSACTIONAL=1 ROW_FORMAT=PAGE PAGE_CHECKSUM=1;
+
+# Truncate the log in order to make the test ./mtr --repeat proof
+SET GLOBAL general_log = 0;
+TRUNCATE mysql.general_log;
+SET GLOBAL general_log = 1;
+SET GLOBAL log_output = 'TABLE';
+
+INSERT INTO t VALUES (1);
+
+--replace_column 1 TIMESTAMP 2 USER_HOST 3 THREAD_ID 5 Query
+--sorted_result
+SELECT * FROM mysql.general_log
+  WHERE argument LIKE "INSERT INTO %" AND
+  (command_type = "Query" OR command_type = "Execute") ;
+
+# Install Clone Plugin
+--replace_result $MARIADB_CLONE_SO CLONE_PLUGIN
+--eval INSTALL PLUGIN clone SONAME '$MARIADB_CLONE_SO'
+
+SELECT PLUGIN_NAME, PLUGIN_STATUS FROM INFORMATION_SCHEMA.PLUGINS
+WHERE PLUGIN_NAME LIKE '%clone%';
+
+SET DEBUG_SYNC="after_stage_block_ddl SIGNAL start_dml WAIT_FOR resume_clone1";
+--source ../include/clone_command_send.inc
+
+--echo # Insert new row into general_log table after it has been copied on BLOCK_DDL.
+connect(con1,localhost,root,,);
+SET DEBUG_SYNC="now WAIT_FOR start_dml";
+INSERT INTO test.t VALUES(2);
+SET DEBUG_SYNC="now SIGNAL resume_clone1";
+
+connection default;
+reap;
+disconnect con1;
+
+let restart_noprint=1;
+let restart_parameters=--datadir=$CLONE_DATADIR;
+--source include/restart_mysqld.inc
+
+--replace_column 1 TIMESTAMP 2 USER_HOST 3 THREAD_ID 5 Query
+--sorted_result
+SELECT * FROM mysql.general_log
+  WHERE argument LIKE "INSERT INTO %" AND
+  (command_type = "Query" OR command_type = "Execute") ;
+
+let restart_parameters=;
+--source include/restart_mysqld.inc
+rmdir $CLONE_DATADIR;
+DROP TABLE t;
+UNINSTALL PLUGIN clone;

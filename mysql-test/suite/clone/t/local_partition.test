@@ -1,0 +1,102 @@
+--echo # DDL churn + partitions in InnoDB and MyISAM
+--source include/have_innodb.inc
+--source include/have_partition.inc
+--source include/not_embedded.inc
+--source ../include/clone_connection_begin.inc
+
+# Install Clone plugin
+--replace_result $MARIADB_CLONE_SO CLONE_PLUGIN
+--eval INSTALL PLUGIN clone SONAME '$MARIADB_CLONE_SO'
+
+SELECT PLUGIN_NAME, PLUGIN_STATUS
+  FROM INFORMATION_SCHEMA.PLUGINS
+  WHERE PLUGIN_NAME LIKE '%clone%';
+
+DROP TABLE IF EXISTS t1, t2, p, isam_t1, isam_t2, isam_p;
+
+CREATE TABLE t1(a INT) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1),(2),(3);
+
+CREATE TABLE t2(a INT) ENGINE=InnoDB;
+INSERT INTO t2 VALUES (4),(5),(6);
+
+CREATE TABLE p(a INT)
+ENGINE=InnoDB
+PARTITION BY RANGE (a)
+(
+  PARTITION p0 VALUES LESS THAN (100),
+  PARTITION p1 VALUES LESS THAN (200),
+  PARTITION p2 VALUES LESS THAN (300),
+  PARTITION p3 VALUES LESS THAN (400)
+);
+INSERT INTO p VALUES (1),(101),(201),(301);
+
+CREATE TABLE isam_t1(a INT) ENGINE=MyISAM;
+INSERT INTO isam_t1 VALUES (1),(2),(3);
+
+CREATE TABLE isam_t2(a INT) ENGINE=MyISAM;
+INSERT INTO isam_t2 VALUES (4),(5),(6);
+
+CREATE TABLE isam_p(a INT)
+ENGINE=MyISAM
+PARTITION BY RANGE (a)
+(
+  PARTITION p0 VALUES LESS THAN (100),
+  PARTITION p1 VALUES LESS THAN (200),
+  PARTITION p2 VALUES LESS THAN (300),
+  PARTITION p3 VALUES LESS THAN (400)
+);
+INSERT INTO isam_p VALUES (1),(101),(201),(301);
+
+# Perform DDL and DML
+DROP TABLE t1;
+DROP TABLE t2;
+CREATE TABLE t2(a INT) ENGINE=InnoDB;
+INSERT INTO t2 VALUES (40),(50),(60); # new Data
+
+ALTER TABLE p DROP PARTITION p0;
+ALTER TABLE p DROP PARTITION p1;
+ALTER TABLE p ADD PARTITION (PARTITION p4 VALUES LESS THAN (500));
+ALTER TABLE p ADD PARTITION (PARTITION p5 VALUES LESS THAN (600));
+INSERT INTO p VALUES (401),(501);            # final p rows should be 201,301,401,501
+
+DROP TABLE isam_t1;
+DROP TABLE isam_t2;
+CREATE TABLE isam_t2(a INT) ENGINE=MyISAM;
+INSERT INTO isam_t2 VALUES (40),(50),(60); # new Data
+
+ALTER TABLE isam_p DROP PARTITION p0;
+ALTER TABLE isam_p DROP PARTITION p1;
+ALTER TABLE isam_p ADD PARTITION (PARTITION p4 VALUES LESS THAN (500));
+ALTER TABLE isam_p ADD PARTITION (PARTITION p5 VALUES LESS THAN (600));
+INSERT INTO isam_p VALUES (401),(501);       # final isam_p rows: 201,301,401,501
+
+# Clone Data
+--connection clone_conn_1
+--let $CLONE_DATADIR=$MYSQL_TMP_DIR/clone_ddl_partitions
+--source ../include/clone_command.inc
+
+# Start server with cloned data
+--connection default
+--echo # Restart server on cloned data directory
+--let $restart_noprint=1
+--let restart_parameters=--datadir=$CLONE_DATADIR
+--source include/restart_mysqld.inc
+
+# Validata
+--error ER_NO_SUCH_TABLE
+SELECT * FROM t1;
+SELECT * FROM t2 ORDER BY a;
+SELECT * FROM p ORDER BY a;
+--error ER_NO_SUCH_TABLE
+SELECT * FROM isam_t1;
+SELECT * FROM isam_t2 ORDER BY a;
+SELECT * FROM isam_p ORDER BY a;
+# Restart server with original data
+--let restart_parameters=
+--source include/restart_mysqld.inc
+--connection default
+DROP TABLE IF EXISTS p, t2, isam_p, isam_t2;
+--rmdir $CLONE_DATADIR
+--source ../include/clone_connection_end.inc
+UNINSTALL PLUGIN clone;

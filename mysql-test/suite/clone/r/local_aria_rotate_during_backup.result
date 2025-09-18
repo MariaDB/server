@@ -1,0 +1,63 @@
+SHOW VARIABLES LIKE 'aria_log_file_size';
+Variable_name	Value
+aria_log_file_size	8388608
+CREATE PROCEDURE display_aria_log_control(ctrl BLOB)
+BEGIN
+SELECT HEX(REVERSE(SUBSTRING(ctrl, 42, 4))) AS last_logno;
+END;
+$$
+CREATE PROCEDURE populate_t1()
+BEGIN
+FOR id IN 0..9 DO
+INSERT INTO test.t1 (id, txt) VALUES (id, REPEAT(id,1024*1024));
+END FOR;
+END;
+$$
+CREATE TABLE test.t1(id INT, txt LONGTEXT) ENGINE=Aria;
+# MYSQLD_DATADIR/aria_log_control before --backup
+CALL display_aria_log_control(@aria_log_control);
+last_logno
+00000001
+INSTALL PLUGIN clone SONAME 'CLONE_PLUGIN';
+SELECT PLUGIN_NAME, PLUGIN_STATUS FROM INFORMATION_SCHEMA.PLUGINS
+WHERE PLUGIN_NAME LIKE '%clone%';
+PLUGIN_NAME	PLUGIN_STATUS
+clone	ACTIVE
+SET DEBUG_SYNC = 'after_scanning_log_files SIGNAL start_dml1 WAIT_FOR resume_clone1';
+CLONE LOCAL DATA DIRECTORY = 'CLONE_DATADIR';
+connect con1, localhost,root,,;
+SET DEBUG_SYNC= 'now WAIT_FOR start_dml1';
+CALL test.populate_t1();
+SET DEBUG_SYNC= 'now SIGNAL resume_clone1';
+connection default;
+disconnect con1;
+CALL display_aria_log_control(@aria_log_control);
+last_logno
+00000002
+# targetdir/aria_log_control after cloning
+CALL display_aria_log_control(@aria_log_control);
+last_logno
+00000002
+# restart: with restart_parameters
+# MYSQLD_DATADIR/aria_log_control after restart with clone
+CALL display_aria_log_control(@aria_log_control);
+last_logno
+00000002
+# Checking that after --restore all t1 data is there
+SELECT id, LENGTH(txt) FROM t1 ORDER BY id;
+id	LENGTH(txt)
+0	1048576
+1	1048576
+2	1048576
+3	1048576
+4	1048576
+5	1048576
+6	1048576
+7	1048576
+8	1048576
+9	1048576
+# restart
+DROP TABLE t1;
+DROP PROCEDURE populate_t1;
+DROP PROCEDURE display_aria_log_control;
+UNINSTALL PLUGIN clone;

@@ -42,6 +42,7 @@ Created 3/26/1996 Heikki Tuuri
 #include <mysql/service_thd_mdl.h>
 #include <mysql/service_wsrep.h>
 #include "log.h"
+#include "clone0api.h"
 
 /** Maximum allowable purge history length.  <=0 means 'infinite'. */
 ulong		srv_max_purge_lag = 0;
@@ -644,7 +645,11 @@ TRANSACTIONAL_TARGET void trx_purge_truncate_history()
 
   if (head.free_history() != DB_SUCCESS)
     return;
-
+#ifndef EMBEDDED_LIBRARY
+  Clone_notify notifier(Clone_notify::Type::SPACE_UNDO_TRUNCATE,
+                        UINT32_MAX, true);
+  if (notifier.failed()) return;
+#endif /* EMBEDDED_LIBRARY */
   while (fil_space_t *space= purge_sys.truncating_tablespace())
   {
     for (auto &rseg : trx_sys.rseg_array)

@@ -142,10 +142,11 @@ rescan:
 /** Insert a modified block into the flush list.
 @param prev     insert position (from prepare_insert_into_flush_list())
 @param block    modified block
-@param lsn      start LSN of the mini-transaction that modified the block */
+@param lsn      start LSN of the mini-transaction that modified the block
+@param mark_tracking mark the page for tracking */
 inline void buf_pool_t::insert_into_flush_list(buf_page_t *prev,
-                                               buf_block_t *block, lsn_t lsn)
-  noexcept
+                                               buf_block_t *block, lsn_t lsn,
+                                               bool mark_tracking) noexcept
 {
   ut_ad(!fsp_is_system_temporary(block->page.id().space()));
   mysql_mutex_assert_owner(&flush_list_mutex);
@@ -171,7 +172,7 @@ inline void buf_pool_t::insert_into_flush_list(buf_page_t *prev,
   else
     UT_LIST_ADD_FIRST(flush_list, &block->page);
 
-  block->page.set_oldest_modification(lsn);
+  block->page.set_oldest_modification(lsn, mark_tracking);
 }
 
 mtr_t::mtr_t()= default;
@@ -262,7 +263,7 @@ static void insert_imported(buf_block_t *block)
     const lsn_t lsn= log_sys.get_lsn();
     mysql_mutex_lock(&buf_pool.flush_list_mutex);
     buf_pool.insert_into_flush_list
-      (buf_pool.prepare_insert_into_flush_list(lsn), block, lsn);
+      (buf_pool.prepare_insert_into_flush_list(lsn), block, lsn, true);
     log_sys.latch.wr_unlock();
     mysql_mutex_unlock(&buf_pool.flush_list_mutex);
   }
@@ -361,13 +362,17 @@ void mtr_t::commit_log(mtr_t *mtr, std::pair<lsn_t,page_flush_ahead> lsns)
         ut_d(const auto s= b->page.state());
         ut_ad(s > buf_page_t::FREED);
         ut_ad(s < buf_page_t::READ_FIX);
-        ut_ad(mach_read_from_8(b->page.frame + FIL_PAGE_LSN) <=
-              mtr->m_commit_lsn);
+
+        lsn_t frame_lsn= mach_read_from_8(b->page.frame + FIL_PAGE_LSN);
+        ut_ad(frame_lsn <= mtr->m_commit_lsn);
+        auto [tracking, track_lsn]= buf_pool.is_tracking();
+        bool track_mark= (tracking && frame_lsn <= track_lsn);
+
         mach_write_to_8(b->page.frame + FIL_PAGE_LSN, mtr->m_commit_lsn);
         if (UNIV_LIKELY_NULL(b->page.zip.data))
           memcpy_aligned<8>(FIL_PAGE_LSN + b->page.zip.data,
                             FIL_PAGE_LSN + b->page.frame, 8);
-        buf_pool.insert_into_flush_list(prev, b, lsns.first);
+        buf_pool.insert_into_flush_list(prev, b, lsns.first, track_mark);
       }
     }
 
@@ -616,8 +621,11 @@ void mtr_t::commit_shrink(fil_space_t &space, uint32_t size)
         if (slot.type & MTR_MEMO_MODIFY)
         {
           modified++;
+	  lsn_t frame_lsn= mach_read_from_8(b->page.frame + FIL_PAGE_LSN);
+          auto [tracking, track_lsn]= buf_pool.is_tracking();
+          bool track_mark= (tracking && frame_lsn <= track_lsn);
           mach_write_to_8(b->page.frame + FIL_PAGE_LSN, m_commit_lsn);
-          buf_pool.insert_into_flush_list(prev, b, start_lsn);
+          buf_pool.insert_into_flush_list(prev, b, start_lsn, track_mark);
         }
       }
       else

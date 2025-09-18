@@ -1,0 +1,215 @@
+--source include/have_aria.inc
+--source include/not_embedded.inc
+--source include/have_debug.inc
+--source ../include/clone_connection_begin.inc
+--let $CLONE_DATADIR = $MYSQL_TMP_DIR/data_new
+--echo ###
+--echo # Test for mix of online/offline backup tables
+--echo #####
+
+CREATE TABLE t_default(i INT PRIMARY KEY)
+        ENGINE ARIA;
+INSERT INTO t_default VALUES (1);
+
+CREATE TABLE t_tr_p_ch(i INT PRIMARY KEY)
+        ENGINE ARIA TRANSACTIONAL=1 ROW_FORMAT=PAGE PAGE_CHECKSUM=1;
+INSERT INTO t_tr_p_ch VALUES (1);
+
+CREATE TABLE t_tr_p_nch(i INT PRIMARY KEY)
+        ENGINE ARIA TRANSACTIONAL=1 ROW_FORMAT=PAGE PAGE_CHECKSUM=0;
+INSERT INTO t_tr_p_nch VALUES (1);
+
+CREATE TABLE t_p_ch(i INT PRIMARY KEY)
+        ENGINE ARIA TRANSACTIONAL=0 ROW_FORMAT=PAGE PAGE_CHECKSUM=1;
+INSERT INTO t_p_ch VALUES (1);
+
+CREATE TABLE t_p_nch(i INT PRIMARY KEY)
+        ENGINE ARIA TRANSACTIONAL=0 ROW_FORMAT=PAGE PAGE_CHECKSUM=0;
+INSERT INTO t_p_nch VALUES (1);
+
+CREATE TABLE t_fixed(i INT PRIMARY KEY)
+        ENGINE ARIA TRANSACTIONAL=0 ROW_FORMAT=FIXED PAGE_CHECKSUM=1;
+INSERT INTO t_fixed VALUES (1);
+
+CREATE TABLE t_dyn(i INT PRIMARY KEY)
+        ENGINE ARIA TRANSACTIONAL=0 ROW_FORMAT=DYNAMIC PAGE_CHECKSUM=1;
+INSERT INTO t_dyn VALUES (1);
+
+--echo # Test for partitioned table
+CREATE TABLE t_part_online(i INT PRIMARY KEY)
+        ENGINE ARIA TRANSACTIONAL = 1 PAGE_CHECKSUM = 1
+    PARTITION BY RANGE( i ) (
+        PARTITION p0 VALUES LESS THAN (10),
+        PARTITION p1 VALUES LESS THAN (20),
+        PARTITION p2 VALUES LESS THAN (30)
+    );
+
+INSERT INTO t_part_online VALUES(5);
+INSERT INTO t_part_online VALUES(15);
+INSERT INTO t_part_online VALUES(25);
+SELECT * FROM t_part_online;
+
+CREATE TABLE t_part_offline(i INT)
+        ENGINE ARIA TRANSACTIONAL = 0 PAGE_CHECKSUM = 0
+    PARTITION BY RANGE( i ) (
+        PARTITION p0 VALUES LESS THAN (10),
+        PARTITION p1 VALUES LESS THAN (20),
+        PARTITION p2 VALUES LESS THAN (30)
+    );
+
+INSERT INTO t_part_offline VALUES(5);
+INSERT INTO t_part_offline VALUES(15);
+INSERT INTO t_part_offline VALUES(25);
+
+--echo # Test for filename to tablename mapping
+CREATE TABLE `t 1 t-1`(i INT PRIMARY KEY)
+        ENGINE ARIA TRANSACTIONAL=1 ROW_FORMAT=PAGE PAGE_CHECKSUM=1;
+INSERT INTO `t 1 t-1` VALUES (1);
+
+CREATE TABLE `t-part online`(i INT PRIMARY KEY)
+        ENGINE ARIA TRANSACTIONAL = 1 PAGE_CHECKSUM = 1
+    PARTITION BY RANGE( i ) (
+        PARTITION p0 VALUES LESS THAN (10),
+        PARTITION p1 VALUES LESS THAN (20),
+        PARTITION p2 VALUES LESS THAN (30)
+    );
+INSERT INTO `t-part online` VALUES(5);
+INSERT INTO `t-part online` VALUES(15);
+INSERT INTO `t-part online` VALUES(25);
+
+
+--echo ###
+--echo # Test for redo log files backup;
+--echo #####
+CREATE TABLE t_logs_1(i INT)
+  ENGINE ARIA TRANSACTIONAL=1 ROW_FORMAT=PAGE PAGE_CHECKSUM=1;
+CREATE TABLE t_logs_2 LIKE t_logs_1;
+CREATE TABLE t_bulk_ins LIKE t_logs_1;
+INSERT INTO t_logs_1 VALUES
+  (0), (1), (2), (3), (4), (5), (6), (7), (8), (9),
+  (0), (1), (2), (3), (4), (5), (6), (7), (8), (9),
+  (0), (1), (2), (3), (4), (5), (6), (7), (8), (9),
+  (0), (1), (2), (3), (4), (5), (6), (7), (8), (9),
+  (0), (1), (2), (3), (4), (5), (6), (7), (8), (9),
+  (0), (1), (2), (3), (4), (5), (6), (7), (8), (9),
+  (0), (1), (2), (3), (4), (5), (6), (7), (8), (9),
+  (0), (1), (2), (3), (4), (5), (6), (7), (8), (9),
+  (0), (1), (2), (3), (4), (5), (6), (7), (8), (9),
+  (0), (1), (2), (3), (4), (5), (6), (7), (8), (9);
+--echo # Generate several log files
+--let $i = 0
+while ($i < 14) {
+INSERT INTO t_logs_1 SELECT * FROM t_logs_1;
+--inc $i
+}
+
+--echo ###
+--echo # Test for DML during backup for online backup
+--echo #####
+
+CREATE TABLE t_dml(i INT PRIMARY KEY)
+        ENGINE ARIA TRANSACTIONAL=1 ROW_FORMAT=PAGE PAGE_CHECKSUM=1;
+INSERT INTO t_dml VALUES(1), (2), (3);
+SET SESSION debug_dbug="+d,maria_flush_whole_log";
+SET GLOBAL aria_checkpoint_interval=10000;
+
+# Install Clone Plugin
+--replace_result $MARIADB_CLONE_SO CLONE_PLUGIN
+--eval INSTALL PLUGIN clone SONAME '$MARIADB_CLONE_SO'
+
+--connection clone_conn_1
+SET DEBUG_SYNC= 'after_aria_table_copy_t_dml SIGNAL dml_start WAIT_FOR aria_1';
+--source ../include/clone_command_send.inc
+
+connection default;
+set DEBUG_SYNC="now WAIT_FOR dml_start";
+DELETE FROM test.t_dml where i = 3;
+UPDATE test.t_dml SET i = 4 where i = 1;
+INSERT INTO test.t_dml VALUES(5);
+SELECT * FROM test.t_dml;
+SET DEBUG_SYNC="now SIGNAL aria_1";
+
+connection clone_conn_1;
+reap;
+
+--let $t_logs_1_records_count_before_backup=`SELECT COUNT(*) FROM t_logs_1`
+--let $t_logs_2_records_count_before_backup=`SELECT COUNT(*) FROM t_logs_2`
+--let $t_bulk_ins_records_count_before_backup=`SELECT COUNT(*) FROM t_bulk_ins`
+
+--connection default
+--echo # Restart server on cloned data directory
+--let $restart_noprint=1
+--let restart_parameters=--datadir=$CLONE_DATADIR
+--source include/restart_mysqld.inc
+
+
+--echo ### Result for DML test
+SELECT * FROM t_dml;
+
+--echo ### Result for redo log files backup
+--let $t_logs_1_records_count_after_backup=`SELECT COUNT(*) FROM t_logs_1`
+--let $t_logs_2_records_count_after_backup=`SELECT COUNT(*) FROM t_logs_2`
+--let $t_bulk_ins_records_count_after_backup=`SELECT COUNT(*) FROM t_bulk_ins`
+if ($t_logs_1_records_count_after_backup == $t_logs_1_records_count_before_backup) {
+--echo # ok
+}
+if ($t_logs_1_records_count_after_backup != $t_logs_1_records_count_before_backup) {
+--echo # failed
+}
+if ($t_logs_2_records_count_after_backup == $t_logs_2_records_count_before_backup) {
+--echo # ok
+}
+if ($t_logs_2_records_count_after_backup != $t_logs_2_records_count_before_backup) {
+--echo # failed
+}
+if ($t_bulk_ins_records_count_after_backup == $t_bulk_ins_records_count_before_backup) {
+--echo # ok
+}
+if ($t_bulk_ins_records_count_after_backup != $t_bulk_ins_records_count_before_backup) {
+--echo # failed
+}
+
+--let restart_parameters=
+--source include/restart_mysqld.inc
+
+--echo ### Clean up for DML test
+DROP TABLE t_dml;
+--echo ### Cleanup for redo log files backup
+DROP TABLE t_logs_1;
+DROP TABLE t_logs_2;
+DROP TABLE t_bulk_ins;
+--let $t_logs_1_records_count_before_backup=
+--let $t_logs_1_records_count_after_backup=
+--let $t_logs_2_records_count_before_backup=
+--let $t_logs_2_records_count_after_backup=
+--let $t_bulk_ins_records_count_before_backup=
+--let $t_bulk_ins_records_count_after_backup=
+
+--echo ### Result for online/offline tables test
+SELECT * FROM t_default;
+SELECT * FROM t_tr_p_ch;
+SELECT * FROM t_tr_p_nch;
+SELECT * FROM t_p_ch;
+SELECT * FROM t_p_nch;
+SELECT * FROM t_fixed;
+SELECT * FROM t_dyn;
+SELECT * FROM t_part_online;
+SELECT * FROM t_part_offline;
+SELECT * FROM `t 1 t-1`;
+SELECT * FROM `t-part online`;
+
+--echo ### Cleanup for online/offline tables test
+DROP TABLE t_default;
+DROP TABLE t_tr_p_ch;
+DROP TABLE t_tr_p_nch;
+DROP TABLE t_p_ch;
+DROP TABLE t_p_nch;
+DROP TABLE t_fixed;
+DROP TABLE t_dyn;
+DROP TABLE t_part_online;
+DROP TABLE t_part_offline;
+DROP TABLE `t 1 t-1`;
+DROP TABLE `t-part online`;
+--source ../include/clone_connection_end.inc
+rmdir $CLONE_DATADIR;
+UNINSTALL PLUGIN clone;

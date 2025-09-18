@@ -320,6 +320,9 @@ public:
 	void set_flags(uint32_t flags) { m_flags = flags; }
 
 	uint32_t param_size() const { return m_user_param_size; }
+
+	/** @return file size in number of pages */
+	uint32_t size() const { return m_size; }
 private:
 	/** Free the filepath buffer. */
 	void free_filepath();

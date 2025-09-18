@@ -1,0 +1,33 @@
+# Test clone with different table types with debug sync
+--source include/have_innodb.inc
+--source ../../encryption/include/have_file_key_management_plugin.inc
+--source include/have_debug_sync.inc
+--source include/count_sessions.inc
+
+--let $CLONE_DATADIR = $MYSQL_TMP_DIR/data_new
+--let $MYSQLD_DATADIR= `select @@datadir;`
+
+--echo ## Install plugin
+--replace_result $MARIADB_CLONE_SO CLONE_PLUGIN
+--eval INSTALL PLUGIN clone SONAME '$MARIADB_CLONE_SO'
+
+CREATE TABLE t1(col1 INT PRIMARY KEY, col2 int, col3 varchar(64), col4 BLOB)ENGINE=InnoDB PAGE_COMPRESSED=1 ENCRYPTED=YES;
+
+CREATE TABLE t2(col1 INT PRIMARY KEY, col2 int, col3 varchar(64), col4 BLOB) ENGINE=InnoDB PAGE_COMPRESSED= 1;
+
+CREATE TABLE t3(col1 INT PRIMARY KEY, col2 int, col3 varchar(64),
+		col4 BLOB)ENGINE=InnoDB ENCRYPTED=YES;
+
+let $restart_parameters=--innodb_buffer_pool_load_at_startup=0;
+--source include/restart_mysqld.inc
+let clone_err=ER_NOT_SUPPORTED_YET;
+--source ../include/clone_command.inc
+--rmdir $CLONE_DATADIR
+
+# Modify the schema
+DROP TABLE t1;
+DROP TABLE t2;
+DROP TABLE t3;
+
+# Cleanup
+UNINSTALL PLUGIN clone;

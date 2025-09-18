@@ -895,7 +895,8 @@ THD::THD(my_thread_id id, bool is_wsrep_applier)
                    &variables.wt_deadlock_search_depth_long,
                    &variables.wt_timeout_long);
 #ifdef SIGNAL_WITH_VIO_CLOSE
-  active_vio = 0;
+  active_vio= 0;
+  clone_vio= 0;
 #endif
   mysql_mutex_init(key_LOCK_thd_data, &LOCK_thd_data, MY_MUTEX_INIT_FAST);
   mysql_mutex_init(key_LOCK_wakeup_ready, &LOCK_wakeup_ready, MY_MUTEX_INIT_FAST);
@@ -1816,7 +1817,8 @@ void THD::reset_for_reuse()
   profiling.reset();
 #endif
 #ifdef SIGNAL_WITH_VIO_CLOSE
-  active_vio = 0;
+  active_vio= 0;
+  clone_vio= 0;
 #endif
 #ifdef WITH_WSREP
   wsrep_free_status(this);
@@ -2079,6 +2081,8 @@ void THD::awake_no_mutex(killed_state state_to_set)
     {
       if(active_vio)
         vio_shutdown(active_vio, SHUT_RDWR);
+      if(clone_vio)
+        vio_shutdown(clone_vio, SHUT_RDWR);
     }
 #endif
 
@@ -2188,6 +2192,7 @@ void THD::disconnect()
   */
   vio= active_vio;
   close_active_vio();
+  close_clone_vio();
 #endif
 
   /* Disconnect even if a active vio is not associated. */
@@ -3065,6 +3070,20 @@ void THD::close_active_vio()
   {
     vio_close(active_vio);
     active_vio = 0;
+  }
+#endif
+  DBUG_VOID_RETURN;
+}
+
+void THD::close_clone_vio()
+{
+  DBUG_ENTER("close_clone_vio");
+  mysql_mutex_assert_owner(&LOCK_thd_data);
+#ifndef EMBEDDED_LIBRARY
+  if (clone_vio)
+  {
+    vio_close(clone_vio);
+    clone_vio = 0;
   }
 #endif
   DBUG_VOID_RETURN;

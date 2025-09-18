@@ -1,0 +1,82 @@
+--source include/have_maria.inc
+--source ../include/clone_connection_begin.inc
+--let $CLONE_DATADIR = $MYSQL_TMP_DIR/data_new
+
+--let $datadir=`SELECT @@datadir`
+--let $targetdir=$MYSQLTEST_VARDIR/tmp/backup
+
+if ($ARIA_LOGDIR_MARIADB == '')
+{
+  --let $ARIA_LOGDIR_MARIADB=$MYSQLTEST_VARDIR/tmp/backup_aria_log_dir_path
+}
+
+if ($ARIA_LOGDIR_FS == '')
+{
+  --let $ARIA_LOGDIR_FS=$MYSQLTEST_VARDIR/tmp/backup_aria_log_dir_path
+}
+
+--let $server_parameters=--aria-log-file-size=8388608 --aria-log-purge-type=external --loose-aria-log-dir-path=$ARIA_LOGDIR_MARIADB
+
+
+--echo # Restart mariadbd with the test specific parameters
+--mkdir $ARIA_LOGDIR_FS
+--let restart_noprint=1
+--let $restart_parameters=$server_parameters
+--source include/restart_mysqld.inc
+
+
+--echo # Create and populate an Aria table (and Aria logs)
+CREATE TABLE t1 (id INT, txt LONGTEXT) ENGINE=Aria;
+DELIMITER $$;
+BEGIN NOT ATOMIC
+  FOR id IN 0..9 DO
+    INSERT INTO test.t1 (id, txt) VALUES (id, REPEAT(id,1024*1024));
+  END FOR;
+END;
+$$
+DELIMITER ;$$
+
+
+--echo # Testing aria log files before --backup
+SET @@global.aria_checkpoint_interval=DEFAULT /*Force checkpoint*/;
+--file_exists $ARIA_LOGDIR_FS/aria_log_control
+--file_exists $ARIA_LOGDIR_FS/aria_log.00000001
+--file_exists $ARIA_LOGDIR_FS/aria_log.00000002
+--error 1
+--file_exists $ARIA_LOGDIR_FS/aria_log.00000003
+--replace_regex /Size +[0-9]+ ; .+aria_log/aria_log/
+SHOW ENGINE aria logs;
+
+# Install Clone Plugin
+--replace_result $MARIADB_CLONE_SO CLONE_PLUGIN
+--eval INSTALL PLUGIN clone SONAME '$MARIADB_CLONE_SO'
+
+--source ../include/clone_command.inc
+
+let restart_no_print=1;
+let restart_parameters=$server_parameters --datadir=$CLONE_DATADIR;
+--source include/restart_mysqld.inc
+--enable_result_log
+
+--echo # Check that the table is there after cloning
+SELECT COUNT(*) from t1;
+DROP TABLE t1;
+
+--echo # Testing aria log files after clone
+SET @@global.aria_checkpoint_interval=DEFAULT /*Force checkpoint*/;
+--file_exists $ARIA_LOGDIR_FS/aria_log_control
+#--file_exists $ARIA_LOGDIR_FS/aria_log.00000001
+--file_exists $ARIA_LOGDIR_FS/aria_log.00000002
+--error 1
+--file_exists $ARIA_LOGDIR_FS/aria_log.00000003
+--replace_regex /Size +[0-9]+ ; .+aria_log/aria_log/
+SHOW ENGINE aria logs;
+
+
+--echo # Restarting mariadbd with default parameters
+--let $restart_parameters=
+--source include/restart_mysqld.inc
+DROP TABLE t1;
+--rmdir $ARIA_LOGDIR_FS
+--rmdir $CLONE_DATADIR
+UNINSTALL PLUGIN clone;

@@ -44,7 +44,7 @@ SET(ARIA_SOURCES ma_init.c ma_open.c ma_extra.c ma_info.c ma_rkey.c
             ma_checkpoint.c ma_recovery.c ma_commit.c ma_pagecrc.c
             ha_maria.h maria_def.h ma_recovery_util.c ma_servicethread.c
             ma_norec.c
-            ma_crypt.c ma_backup.c
+            ma_crypt.c ma_backup.c ma_clone.cc
 )
 
 IF(APPLE)
@@ -57,8 +57,14 @@ IF(CMAKE_SYSTEM_NAME MATCHES AIX)
   SET(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -Wl,-berok")
 ENDIF()
 
+# Link libstdc++fs for GNU compiler versions < 9
+SET(ARIA_LINK_LIBRARIES myisam mysys mysys_ssl)
+IF(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" AND CMAKE_CXX_COMPILER_VERSION VERSION_LESS "9.0" AND CMAKE_CXX_COMPILER_VERSION VERSION_GREATER "5.0")
+  LIST(APPEND ARIA_LINK_LIBRARIES stdc++fs)
+ENDIF()
+
 MYSQL_ADD_PLUGIN(aria ${ARIA_SOURCES} STORAGE_ENGINE MANDATORY
-                 LINK_LIBRARIES myisam mysys mysys_ssl
+                 LINK_LIBRARIES ${ARIA_LINK_LIBRARIES}
                  RECOMPILE_FOR_EMBEDDED)
 
 MYSQL_ADD_EXECUTABLE(aria_ftdump aria_ftdump.c COMPONENT Server)

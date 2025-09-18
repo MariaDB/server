@@ -30,6 +30,7 @@ Created 11/11/1995 Heikki Tuuri
 #include <mysql/service_thd_wait.h>
 #include <sql_class.h>
 
+#include "arch0arch.h"
 #include "buf0flu.h"
 #include "buf0lru.h"
 #include "buf0buf.h"
@@ -389,6 +390,20 @@ void buf_flush_assign_full_crc32_checksum(byte* page) noexcept
 	mach_write_to_4(page + payload, my_crc32c(0, page, payload));
 }
 
+bool page_is_uncompressed_type(const byte *page)
+{
+  switch (fil_page_get_type(page))
+  {
+    case FIL_PAGE_TYPE_ALLOCATED:
+    case FIL_PAGE_INODE:
+    case FIL_PAGE_IBUF_BITMAP:
+    case FIL_PAGE_TYPE_FSP_HDR:
+    case FIL_PAGE_TYPE_XDES:
+      return true;
+  }
+  return false;
+}
+
 /** Initialize a page for writing to the tablespace.
 @param[in]	block			buffer block; NULL if bypassing
 					the buffer pool
@@ -432,6 +447,7 @@ buf_flush_init_for_writing(
 		case FIL_PAGE_TYPE_FSP_HDR:
 		case FIL_PAGE_TYPE_XDES:
 			/* These are essentially uncompressed pages. */
+			ut_ad(page_is_uncompressed_type(page));
 			memcpy(page_zip->data, page, size);
 			/* fall through */
 		case FIL_PAGE_TYPE_ZBLOB:
@@ -777,6 +793,17 @@ bool buf_page_t::flush(fil_space_t *space) noexcept
         ? oldest_modification() == 2
         : oldest_modification() > 2);
 
+  if (!fsp_is_system_temporary(id().space()))
+  {
+    auto oldest_lsn= oldest_modification();
+    ut_ad(oldest_lsn > 2);
+    buf_pool.set_max_lsn_io(oldest_lsn);
+
+    auto [tracking, track_lsn]= buf_pool.is_tracking();
+    if (tracking)
+      arch_sys->page_sys()->track_page(this, track_lsn, oldest_lsn,
+                                       marked_tracking());
+  }
   /* Increment the I/O operation count used for selecting LRU policy. */
   buf_LRU_stat_inc_io();
   mysql_mutex_unlock(&buf_pool.mutex);
@@ -1874,6 +1901,7 @@ inline void log_t::write_checkpoint(lsn_t end_lsn) noexcept
   next_checkpoint_no++;
   const lsn_t checkpoint_lsn{next_checkpoint_lsn};
   last_checkpoint_lsn= checkpoint_lsn;
+  last_checkpoint_end_lsn= end_lsn;
 
   DBUG_PRINT("ib_log", ("checkpoint ended at " LSN_PF ", flushed to " LSN_PF,
                         checkpoint_lsn, get_flushed_lsn()));
@@ -2061,6 +2089,9 @@ static bool log_checkpoint() noexcept
   mysql_mutex_lock(&buf_pool.flush_list_mutex);
   const lsn_t oldest_lsn= buf_pool.get_oldest_modification(end_lsn);
   mysql_mutex_unlock(&buf_pool.flush_list_mutex);
+
+  if (arch_sys)
+    arch_sys->page_sys()->flush_at_checkpoint(oldest_lsn);
   return log_checkpoint_low(oldest_lsn, end_lsn);
 }
 

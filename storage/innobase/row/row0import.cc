@@ -24,6 +24,7 @@ Import a tablespace to a running instance.
 Created 2012-02-08 by Sunny Bains.
 *******************************************************/
 
+#include "arch0arch.h"
 #include "row0import.h"
 #include "btr0pcur.h"
 #ifdef BTR_CUR_HASH_ADAPT
@@ -4217,6 +4218,11 @@ page_corrupted:
 				actual_space_id = mach_read_from_4(
 					src + FIL_PAGE_SPACE_ID);
 			}
+
+			/* We are going to modify the page. Add to page
+			tracking system. */
+			arch_sys->page_sys()->track_page(&block->page, LSN_MAX,
+							 LSN_MAX, true);
 
 			const uint16_t type = fil_page_get_type(src);
 			page_compressed =

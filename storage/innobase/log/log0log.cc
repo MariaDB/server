@@ -28,6 +28,7 @@ Created 12/9/1995 Heikki Tuuri
 #include <debug_sync.h>
 #include <my_service_manager.h>
 
+#include "arch0arch.h"
 #include "log0log.h"
 #include "log0crypt.h"
 #include "buf0buf.h"
@@ -109,6 +110,7 @@ void log_t::create() noexcept
 #endif
 
   last_checkpoint_lsn= FIRST_LSN;
+  last_checkpoint_end_lsn= FIRST_LSN;
   log_capacity= 0;
   max_modified_age_async= 0;
   max_checkpoint_age= 0;
@@ -402,7 +404,8 @@ bool log_t::attach(log_file_t file, os_offset_t size) noexcept
 @param buf        log header buffer
 @param lsn        log sequence number corresponding to log_sys.START_OFFSET
 @param encrypted  whether the log is encrypted */
-void log_t::header_write(byte *buf, lsn_t lsn, bool encrypted) noexcept
+void log_t::header_write(byte *buf, lsn_t lsn, bool encrypted,
+                         bool is_clone) noexcept
 {
   mach_write_to_4(my_assume_aligned<4>(buf) + LOG_HEADER_FORMAT,
                   log_sys.FORMAT_10_8);
@@ -412,8 +415,10 @@ void log_t::header_write(byte *buf, lsn_t lsn, bool encrypted) noexcept
 # pragma GCC diagnostic push
 # pragma GCC diagnostic ignored "-Wstringop-truncation"
 #endif
+  std::string clone_header(log_t::CREATOR_CLONE);
+  clone_header.append(PACKAGE_VERSION);
   strncpy(reinterpret_cast<char*>(buf) + LOG_HEADER_CREATOR,
-          "MariaDB " PACKAGE_VERSION,
+          is_clone ? clone_header.c_str() : "MariaDB " PACKAGE_VERSION,
           LOG_HEADER_CREATOR_END - LOG_HEADER_CREATOR);
 #if defined __GNUC__ && __GNUC__ > 7
 # pragma GCC diagnostic pop
@@ -438,6 +443,7 @@ void log_t::create(lsn_t lsn) noexcept
   write_lsn= lsn;
 
   last_checkpoint_lsn= 0;
+  last_checkpoint_end_lsn= 0;
 
   DBUG_PRINT("ib_log", ("write header " LSN_PF, lsn));
 
@@ -918,6 +924,9 @@ void log_t::persist(lsn_t lsn) noexcept
   ut_ad(!flush_lock.is_owner());
   ut_ad(latch_have_wr());
 
+  if (arch_sys)
+    arch_sys->log_sys()->wait_archiver(lsn);
+
   lsn_t old= flushed_to_disk_lsn.load(std::memory_order_relaxed);
 
   if (old >= lsn)
@@ -945,6 +954,8 @@ void log_t::persist(lsn_t lsn) noexcept
   base_lsn.store(new_base_lsn, std::memory_order_release);
   flushed_to_disk_lsn.store(lsn, std::memory_order_relaxed);
   log_flush_notify(lsn);
+  if (arch_sys)
+    arch_sys->signal_archiver();
   DBUG_EXECUTE_IF("crash_after_log_write_upto", DBUG_SUICIDE(););
 }
 
@@ -1092,12 +1103,14 @@ lsn_t log_t::write_buf() noexcept
 
     ut_ad(base + (write_lsn_offset & (WRITE_TO_BUF - 1)) == lsn);
     write_to_log++;
+    if (arch_sys)
+      arch_sys->log_sys()->wait_archiver(lsn);
 
     if (resizing != RETAIN_LATCH)
       latch.wr_unlock();
 
     DBUG_PRINT("ib_log", ("write " LSN_PF " to " LSN_PF " at " LSN_PF,
-                          write_lsn, lsn, offset));
+                          write_lsn.load(), lsn, offset));
 
     /* Do the write to the log file */
     log_write_buf(write_buf, length, offset);
@@ -1109,8 +1122,10 @@ lsn_t log_t::write_buf() noexcept
     if (UNIV_UNLIKELY(srv_shutdown_state > SRV_SHUTDOWN_INITIATED))
     {
       service_manager_extend_timeout(INNODB_EXTEND_TIMEOUT_INTERVAL,
-                                     "InnoDB log write: " LSN_PF, write_lsn);
+                                     "InnoDB log write: " LSN_PF, write_lsn.load());
     }
+    if (arch_sys)
+      arch_sys->signal_archiver();
   }
 
   set_check_for_checkpoint(false);
@@ -1229,6 +1244,35 @@ void log_t::writer_update(bool resizing) noexcept
 void log_buffer_flush_to_disk(bool durable) noexcept
 {
   log_write_up_to(log_get_lsn(), durable);
+}
+
+void log_t::get_last_block(lsn_t &last_lsn, byte *last_block,
+                           uint32_t block_len)
+{
+  ut_ad(ut_is_2pow(block_len));
+  ut_ad(block_len <= write_size);
+
+  latch.wr_lock(SRW_LOCK_CALL);
+  last_lsn= get_lsn();
+
+  lsn_t aligned_lsn= Arch_Group::align_lsn(last_lsn, get_first_lsn());
+  lsn_t data_len= last_lsn - aligned_lsn;
+  lsn_t offset= 0;
+
+  if (is_mmap())
+    offset= log_sys.calc_lsn_offset(aligned_lsn);
+  else
+  {
+    lsn_t available_len= write_lsn_offset & (WRITE_BACKOFF - 1);
+    ut_ad(available_len >= data_len);
+    offset= available_len - data_len;
+  }
+  std::memcpy(last_block, buf + offset,
+	      static_cast<size_t>(data_len));
+
+  latch.wr_unlock();
+  std::memset(last_block + data_len, 0x00,
+	      static_cast<size_t>(block_len - data_len));
 }
 
 /** Prepare to invoke log_write_and_flush(), before acquiring log_sys.latch. */

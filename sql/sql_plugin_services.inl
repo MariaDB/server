@@ -341,10 +341,34 @@ static struct provider_service_lz4_st provider_handler_lz4=
 };
 struct provider_service_lz4_st *provider_service_lz4= &provider_handler_lz4;
 
+static struct clone_protocol_service_st clone_protocol_handler= {
+#ifndef EMBEDDED_LIBRARY
+  clone_start_statement,
+  clone_finish_statement,
+  clone_get_charsets,
+  clone_validate_charsets,
+  clone_get_configs,
+  clone_validate_configs,
+  clone_connect,
+  clone_send_command,
+  clone_get_response,
+  clone_kill,
+  clone_disconnect,
+  clone_get_error,
+  clone_get_command,
+  clone_send_response,
+  clone_send_error,
+  clone_set_backup_stage,
+  clone_backup_lock,
+  clone_backup_unlock
+#endif /* EMBEDDED_LIBRARY */
+};
+
 static struct st_service_ref list_of_services[]=
 {
   { "base64_service",              VERSION_base64,              &base64_handler },
   { "debug_sync_service",          VERSION_debug_sync,          0 }, // updated in plugin_init()
+  { "clone_protocol_service",      VERSION_clone_protocol,      &clone_protocol_handler },
   { "encryption_scheme_service",   VERSION_encryption_scheme,   &encryption_scheme_handler },
   { "encryption_service",          VERSION_encryption,          &encryption_handler },
   { "logger_service",              VERSION_logger,              &logger_service_handler },

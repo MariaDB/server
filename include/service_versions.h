@@ -24,6 +24,7 @@
 #define VERSION_kill_statement          0x1000
 
 #define VERSION_base64                  0x0100
+#define VERSION_clone_protocol          0x0100
 #define VERSION_encryption              0x0300
 #define VERSION_encryption_scheme       0x0100
 #define VERSION_logger                  0x0300
