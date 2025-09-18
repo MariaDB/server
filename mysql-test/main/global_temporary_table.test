@@ -875,4 +875,19 @@ create global temporary table t like t1;
 drop table t1;
 drop table t0;
 
+--echo # MDEV-37667 SIGSEGV on ALTER on locked GTT in low memory env
+--disable_ps_protocol
+set @save_max_session_mem_used= @@max_session_mem_used;
+create global temporary table t (t text);
+set max_session_mem_used= 8192;
+--error ER_OPTION_PREVENTS_STATEMENT
+insert t values (0);
+lock table t write;
+--error ER_OPTION_PREVENTS_STATEMENT
+alter table t add z int;
+set max_session_mem_used= @save_max_session_mem_used;
+drop table t;
+unlock tables;
+--enable_ps_protocol
+
 --disconnect con1

@@ -1010,4 +1010,16 @@ create global temporary table t like t1;
 ERROR HY000: Cannot add foreign key constraint for `GLOBAL TEMPORARY TABLE`
 drop table t1;
 drop table t0;
+# MDEV-37667 SIGSEGV on ALTER on locked GTT in low memory env
+set @save_max_session_mem_used= @@max_session_mem_used;
+create global temporary table t (t text);
+set max_session_mem_used= 8192;
+insert t values (0);
+ERROR HY000: The MariaDB server is running with the --max-session-mem-used=8192 option so it cannot execute this statement
+lock table t write;
+alter table t add z int;
+ERROR HY000: The MariaDB server is running with the --max-session-mem-used=8192 option so it cannot execute this statement
+set max_session_mem_used= @save_max_session_mem_used;
+drop table t;
+unlock tables;
 disconnect con1;
