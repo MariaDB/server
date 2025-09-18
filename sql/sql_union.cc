@@ -2340,14 +2340,15 @@ bool st_select_lex_unit::exec()
 
   DBUG_EXECUTE_IF("show_explain_probe_union_read", 
                    dbug_serve_apcs(thd, 1););
+  bool limit_rows_was_activated;
   {
     List<Item_func_match> empty_list;
     empty_list.empty();
     /*
-      Deactivate LIMIT ROWS EXAMINED in order to produce the possibly incomplete
-      result of the UNION without interruption due to exceeding the limit.
+      Deactivate LIMIT ROWS EXAMINED to avoid producing potentially incomplete
+      result of the UNION due to exceeding of the limit.
     */
-    thd->lex->deactivate_limit_rows_examined();
+    limit_rows_was_activated= thd->lex->deactivate_limit_rows_examined();
 
     // Check if EOM
     if (fake_select_lex != NULL && likely(!thd->is_fatal_error))
@@ -2447,7 +2448,8 @@ bool st_select_lex_unit::exec()
   }
   thd->lex->current_select= lex_select_save;
 err:
-  thd->lex->activate_limit_rows_examined();
+  if (limit_rows_was_activated)
+    thd->lex->activate_limit_rows_examined();
   if (likely(!saved_error))
     thd->inc_examined_row_count(examined_rows);
   DBUG_RETURN(saved_error);
@@ -2588,7 +2590,6 @@ bool st_select_lex_unit::exec_recursive()
 
   thd->lex->current_select= lex_select_save;
 err:
-  thd->lex->activate_limit_rows_examined();
   DBUG_RETURN(saved_error);    
 }
 
