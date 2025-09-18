@@ -1179,6 +1179,7 @@ TMP_TABLE_SHARE *THD::create_temporary_table(LEX_CUSTRING *frm,
 
   /* Initialize the all_tmp_tables list. */
   share->all_tmp_tables.empty();
+  share->mdl_request = {};
 
   /*
     We need to alloc & initialize temporary_tables if this happens
@@ -1760,9 +1761,10 @@ bool THD::free_tmp_table_share(TMP_TABLE_SHARE *share, bool delete_table)
       rm_temporary_table(share->hlindex->db_type(), share->hlindex->path.str);
     }
 
-    if (share->global_tmp_table())
+    if (share->global_tmp_table() && share->mdl_request.ticket)
     {
       mdl_context.release_lock(share->mdl_request.ticket);
+      DBUG_ASSERT(temporary_tables->global_temporary_tables_count > 0);
       --temporary_tables->global_temporary_tables_count;
     }
   }
