@@ -1,0 +1,73 @@
+CREATE TABLE t (a INT,b INT,a1 INT GENERATED ALWAYS AS (a) VIRTUAL,INDEX (a1)) ENGINE=INNODB;
+insert into t (a, b) select seq / 10, seq from seq_1_to_100;
+SELECT * FROM t GROUP BY a WITH ROLLUP;
+a	b	a1
+0	1	0
+1	14	1
+2	21	2
+3	31	3
+4	41	4
+5	51	5
+6	61	6
+7	71	7
+8	81	8
+9	91	9
+10	99	10
+NULL	99	10
+SELECT a, b FROM t GROUP BY a WITH ROLLUP;
+a	b
+0	1
+1	14
+2	21
+3	31
+4	41
+5	51
+6	61
+7	71
+8	81
+9	91
+10	99
+NULL	99
+SELECT a, count(b) FROM t GROUP BY a WITH ROLLUP;
+a	count(b)
+0	4
+1	10
+2	10
+3	10
+4	10
+5	10
+6	10
+7	10
+8	10
+9	10
+10	6
+NULL	100
+SELECT a, a, count(b) FROM t GROUP BY a WITH ROLLUP;
+a	a	count(b)
+0	0	4
+1	1	10
+2	2	10
+3	3	10
+4	4	10
+5	5	10
+6	6	10
+7	7	10
+8	8	10
+9	9	10
+10	10	6
+NULL	NULL	100
+SELECT count(b) FROM t GROUP BY a WITH ROLLUP;
+count(b)
+4
+10
+10
+10
+10
+10
+10
+10
+10
+10
+6
+100
+drop table t;

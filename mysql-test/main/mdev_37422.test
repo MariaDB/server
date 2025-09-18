@@ -1,0 +1,14 @@
+--source include/have_innodb.inc
+--source include/have_sequence.inc
+
+CREATE TABLE t (a INT,b INT,a1 INT GENERATED ALWAYS AS (a) VIRTUAL,INDEX (a1)) ENGINE=INNODB;
+insert into t (a, b) select seq / 10, seq from seq_1_to_100;
+SELECT * FROM t GROUP BY a WITH ROLLUP;
+SELECT a, b FROM t GROUP BY a WITH ROLLUP;
+SELECT a, count(b) FROM t GROUP BY a WITH ROLLUP;
+SELECT a, a, count(b) FROM t GROUP BY a WITH ROLLUP;
+SELECT count(b) FROM t GROUP BY a WITH ROLLUP;
+# SELECT * FROM t GROUP BY a1 WITH ROLLUP;
+# SELECT a, b FROM t GROUP BY a1 WITH ROLLUP;
+# SELECT a, count(b) FROM t GROUP BY a1 WITH ROLLUP;
+drop table t;

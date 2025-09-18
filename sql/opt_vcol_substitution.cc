@@ -235,6 +235,8 @@ void subst_vcols_in_order(Vcol_subst_context *ctx,
         Otherwise it is safe to replace the old item with the new item
         in all_fields.
       */
+      if (is_group_by && join->rollup.state == st_rollup::STATE_INITED)
+        order->vcol_back= item;
       if (order->in_field_list)
       {
         uint el= join->all_fields.elements;
@@ -307,6 +309,9 @@ bool substitute_indexed_vcols_for_join(JOIN *join)
     count_field_types(join->select_lex, &join->tmp_table_param,
                       join->all_fields, 0);
     join->select_lex->update_used_tables();
+    if (join->rollup.state == st_rollup::STATE_INITED &&
+        join->all_fields.elements != join->rollup.ref_pointer_arrays[0].size())
+      join->rollup_init();
   }
 
   if (join->thd->is_error())

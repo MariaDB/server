@@ -30517,7 +30517,8 @@ bool JOIN::rollup_make_fields(List<Item> &fields_arg, List<Item> &sel_fields,
 	for (group_tmp= start_group, i= pos ;
              group_tmp ; group_tmp= group_tmp->next, i++)
 	{
-          if (*group_tmp->item == item)
+            if ((!group_tmp->vcol_back && (*group_tmp->item)->eq(item, true)) ||
+                (group_tmp->vcol_back && group_tmp->vcol_back->eq(item, true)))
 	  {
 	    /*
 	      This is an element that is used by the GROUP BY and should be
