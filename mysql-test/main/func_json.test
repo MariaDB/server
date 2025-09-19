@@ -4176,3 +4176,16 @@ SET @obj1='{ "a": 1,"b": 2,"c": 3}';
 SELECT JSON_OBJECT_FILTER_KEYS (@obj1,@arr1);
 
 --echo # End of 11.2 Test
+
+--echo # Beginning of 11.4 Test
+
+--echo #
+--echo # MDEV-33149: JSON_ARRAY_INTERSECT function crashes the server when
+--echo # called with empty json arrays, UBSAN runtime error: member access
+--echo # within null pointer of type 'struct String' in
+--echo # Item_func_json_array_intersect::prepare_json_and_create_hash
+--echo #
+
+SELECT json_array_intersect(@a,@b);
+
+--echo # End of 11.4 Test

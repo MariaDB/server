@@ -5410,6 +5410,9 @@ String* Item_func_json_array_intersect::val_str(String *str)
   json_engine_t je2, res_je, je1;
   String *js2= args[1]->val_json(&tmp_js2), *js1= args[0]->val_json(&tmp_js1);
 
+  if (!js1 || !js2)
+    goto null_return;
+
   if (parse_for_each_row)
   {
     if (args[0]->null_value)
@@ -5505,7 +5508,9 @@ bool Item_func_json_array_intersect::fix_length_and_dec(THD *thd)
   }
 
   js1= args[0]->val_json(&tmp_js1);
-  prepare_json_and_create_hash(&je1, js1);
+
+  if (js1)
+    prepare_json_and_create_hash(&je1, js1);
 
 end:
   set_maybe_null();

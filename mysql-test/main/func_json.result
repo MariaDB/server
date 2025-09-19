@@ -5273,3 +5273,14 @@ SELECT JSON_OBJECT_FILTER_KEYS (@obj1,@arr1);
 JSON_OBJECT_FILTER_KEYS (@obj1,@arr1)
 NULL
 # End of 11.2 Test
+# Beginning of 11.4 Test
+#
+# MDEV-33149: JSON_ARRAY_INTERSECT function crashes the server when
+# called with empty json arrays, UBSAN runtime error: member access
+# within null pointer of type 'struct String' in
+# Item_func_json_array_intersect::prepare_json_and_create_hash
+#
+SELECT json_array_intersect(@a,@b);
+json_array_intersect(@a,@b)
+NULL
+# End of 11.4 Test
