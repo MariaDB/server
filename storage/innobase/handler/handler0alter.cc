@@ -11253,11 +11253,7 @@ alter_stats_rebuild(
 		DBUG_VOID_RETURN;
 	}
 
-	dberr_t	ret = dict_stats_update_persistent(table);
-	if (ret == DB_SUCCESS) {
-		ret = dict_stats_save(table);
-	}
-
+	dberr_t ret= dict_stats_update_persistent(table);
 	if (ret != DB_SUCCESS) {
 		push_warning_printf(
 			thd,

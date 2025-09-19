@@ -5750,12 +5750,8 @@ dberr_t ha_innobase::statistics_init(dict_table_t *table, bool recalc)
       switch (dict_stats_persistent_storage_check(false)) {
       case SCHEMA_OK:
         if (recalc)
-        {
         recalc:
-          err= dict_stats_update_persistent(table);
-          if (err == DB_SUCCESS)
-            err= dict_stats_save(table);
-        }
+          err = dict_stats_update_persistent(table);
         else
         {
           err= dict_stats_fetch_from_ps(table);

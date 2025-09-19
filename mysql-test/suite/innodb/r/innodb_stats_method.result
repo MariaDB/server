@@ -1,0 +1,49 @@
+CREATE TABLE t1(f1 int, f2 int, index (f1), index(f2))ENGINE=InnoDB;
+INSERT INTO t1 SELECT seq, seq FROM seq_1_to_32;
+INSERT INTO t1 SELECT seq, NULL FROM seq_33_to_64;
+ANALYZE TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	OK
+SELECT index_name, stat_value, stat_description FROM
+mysql.innodb_index_stats WHERE database_name= 'test'
+AND table_name = 't1';
+index_name	stat_value	stat_description
+GEN_CLUST_INDEX	64	DB_ROW_ID
+GEN_CLUST_INDEX	1	Number of leaf pages in the index
+GEN_CLUST_INDEX	1	Number of pages in the index
+f1	64	f1
+f1	64	f1,DB_ROW_ID
+f1	1	Number of leaf pages in the index
+f1	1	Number of pages in the index
+f2	33	f2
+f2	64	f2,DB_ROW_ID
+f2	1	Number of leaf pages in the index
+f2	1	Number of pages in the index
+DROP TABLE t1;
+BEGIN NOT ATOMIC
+DECLARE c TEXT DEFAULT(SELECT CONCAT('CREATE TABLE t1(c',
+GROUP_CONCAT(seq SEPARATOR
+' INT, c'),
+' INT, ',
+GROUP_CONCAT(CONCAT('KEY(c', seq, ')') SEPARATOR ', '),
+', KEY idx_max(c',
+GROUP_CONCAT(seq SEPARATOR ', c'),
+')) ENGINE=InnoDB STATS_PERSISTENT=1;') FROM seq_1_to_32);
+EXECUTE IMMEDIATE c;
+END;
+$$
+INSERT INTO t1 SELECT seq, seq, seq, seq, seq, seq, seq, seq,
+seq, seq, seq, seq, seq, seq, seq, seq,
+seq, seq, seq, seq, seq, seq, seq, seq,
+seq, seq, seq, seq, seq, NULL, NULL, seq
+FROM seq_1_to_320;
+ANALYZE TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	OK
+SELECT index_name, cardinality FROM information_schema.STATISTICS
+WHERE  table_schema = 'test' AND table_name = 't1'
+AND (index_name = 'c30' or index_name = 'c31');
+index_name	cardinality
+c30	2
+c31	2
+DROP TABLE t1;
