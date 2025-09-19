@@ -3742,7 +3742,7 @@ static void parse_pk_with_prefix(std::vector<Table_map_log_event::
 
 Table_map_log_event::Optional_metadata_fields::
 Optional_metadata_fields(unsigned char* optional_metadata,
-                         unsigned int optional_metadata_len)
+                         size_t optional_metadata_len)
 {
   unsigned char* field= optional_metadata;
 
