@@ -3753,17 +3753,23 @@ static MYSQL_SYSVAR_UINT(log_write_ahead_size, log_sys.write_size,
 static void innodb_adaptive_hash_index_update(THD*, st_mysql_sys_var*, void*,
                                               const void *save) noexcept
 {
+  /* Prevent a possible deadlock with innobase_fts_load_stopword() */
+  mysql_mutex_unlock(&LOCK_global_system_variables);
   if (*static_cast<const my_bool*>(save))
     btr_search.enable();
   else
     btr_search.disable();
+  mysql_mutex_lock(&LOCK_global_system_variables);
 }
 
 static void innodb_adaptive_hash_index_cells_update(THD*, st_mysql_sys_var*,
                                                     void*, const void *save)
   noexcept
 {
+  /* Prevent a possible deadlock with innobase_fts_load_stopword() */
+  mysql_mutex_unlock(&LOCK_global_system_variables);
   btr_search.resize(*static_cast<const uint*>(save));
+  mysql_mutex_lock(&LOCK_global_system_variables);
 }
 
 static MYSQL_SYSVAR_UINT(adaptive_hash_index_cells, btr_search.n_cells,
