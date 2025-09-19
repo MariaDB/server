@@ -109,12 +109,14 @@ bool st_append_json(String *s,
     return false;
   }
 
-  if ((str_len= json_unescape(json_cs, js, js + js_len,
-         s->charset(), (uchar *) s->end(), (uchar *) s->end() + str_len)) > 0)
-  {
+  str_len= json_unescape(json_cs, js, js + js_len, s->charset(),
+                         (uchar *) s->end(), (uchar *) s->end() + str_len);
+  if (str_len > 0)
     s->length(s->length() + str_len);
+
+  if (str_len >= 0)
     return false;
-  }
+
   if (current_thd)
   {
     if (str_len == JSON_ERROR_OUT_OF_SPACE)
