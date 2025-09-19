@@ -2959,6 +2959,41 @@ void st_select_lex_node::init_query_common()
   uncacheable= 0;
 }
 
+
+/*
+  We need to remember this unit for cleanup after it is stranded during CTE
+  merge (see mysql_derived_merge).  Walk to the root unit of this query tree
+  (the root unit lifetime extends for the entire query) and insert myself
+  into the front of the stranded_clean_list:
+    before: root -> B -> A
+     after: root -> this -> B -> A
+  During cleanup, the stranded units are cleaned in FIFO order.
+ */
+void st_select_lex_unit::remember_my_cleanup()
+{
+  // Walk to the root unit (which lives until the end of the query) ...
+  st_select_lex_node *root= this;
+  while (root->master)
+    root= root->master;
+
+  // ... and add myself to the front of the stranded_clean_list.
+  st_select_lex_unit *unit= static_cast<st_select_lex_unit*>(root);
+  st_select_lex_unit *prior_head= unit->stranded_clean_list;
+  unit->stranded_clean_list= this;
+  stranded_clean_list= prior_head;
+}
+
+
+void st_select_lex_unit::cleanup_stranded_units()
+{
+  if (!stranded_clean_list)
+    return;
+
+  stranded_clean_list->cleanup();
+  stranded_clean_list= nullptr;
+}
+
+
 void st_select_lex_unit::init_query()
 {
   init_query_common();
@@ -3384,6 +3419,7 @@ void st_select_lex_unit::exclude_level()
   }
   // Mark it excluded
   prev= NULL;
+  remember_my_cleanup();
 }
 
 
