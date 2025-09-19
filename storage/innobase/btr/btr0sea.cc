@@ -469,10 +469,103 @@ ATTRIBUTE_COLD void btr_sea::resize(uint n_cells) noexcept
 }
 
 #if defined UNIV_AHI_DEBUG || defined UNIV_DEBUG
-# define ha_insert_for_fold(p,f,b,d) (p).insert(f,d,b)
+/** Maximum number of records in a page */
+constexpr ulint MAX_N_POINTERS = UNIV_PAGE_SIZE_MAX / REC_N_NEW_EXTRA_BYTES;
+
+void btr_sea::partition::insert(uint32 fold, const rec_t *rec,
+                                buf_block_t *block) noexcept
 #else
-# define ha_insert_for_fold(p,f,b,d) (p).insert(f,d)
+void btr_sea::partition::insert(uint32_t fold, const rec_t *rec) noexcept
+# define insert(fold,rec,block) insert(fold,rec)
+#endif /* UNIV_AHI_DEBUG || UNIV_DEBUG */
+{
+  ut_ad(latch.have_rd());
+#if defined UNIV_AHI_DEBUG || defined UNIV_DEBUG
+  ut_a(block->page.frame == page_align(rec));
+#endif /* UNIV_AHI_DEBUG || UNIV_DEBUG */
+  ut_ad(btr_search.enabled);
+
+  hash_chain &cell{table.cell_get(fold)};
+  page_hash_latch &hash_lock{table.lock_get(cell)};
+  hash_lock.lock();
+
+  ahi_node **prev= cell.search([fold](const ahi_node *node)
+  { return !node || node->fold == fold; });
+  ahi_node *node= *prev;
+
+  if (node)
+  {
+#if defined UNIV_AHI_DEBUG || defined UNIV_DEBUG
+    {
+      buf_block_t *prev_block= node->block;
+      if (prev_block != block)
+      {
+        ut_a(prev_block->page.frame == page_align(node->rec));
+        ut_a(prev_block->n_pointers-- < MAX_N_POINTERS);
+        ut_a(block->n_pointers++ < MAX_N_POINTERS);
+        node->block= block;
+      }
+    }
+#endif /* UNIV_AHI_DEBUG || UNIV_DEBUG */
+    node->rec= rec;
+  unlock:
+    hash_lock.unlock();
+    return;
+  }
+
+  /* We have to allocate a new chain node */
+
+  {
+    blocks_mutex.wr_lock();
+    buf_page_t *last= UT_LIST_GET_LAST(blocks);
+    if (last && last->free_offset < srv_page_size - sizeof *node)
+    {
+      node= reinterpret_cast<ahi_node*>(last->frame + last->free_offset);
+#if defined __GNUC__ && !defined __clang__
+# pragma GCC diagnostic push
+# if __GNUC__ < 12 || defined WITH_UBSAN
+#  pragma GCC diagnostic ignored "-Wconversion"
+# endif
 #endif
+      last->free_offset+= sizeof *node;
+#if defined __GNUC__ && !defined __clang__
+# pragma GCC diagnostic pop
+#endif
+      MEM_MAKE_ADDRESSABLE(node, sizeof *node);
+    }
+    else
+    {
+      last= &spare.exchange(nullptr)->page;
+      if (!last)
+      {
+        blocks_mutex.wr_unlock();
+        goto unlock;
+      }
+      ut_ad(last->state() == buf_page_t::MEMORY);
+      ut_ad(!reinterpret_cast<buf_block_t*>(last)->index);
+      ut_ad(!reinterpret_cast<buf_block_t*>(last)->n_pointers);
+      UT_LIST_ADD_LAST(blocks, last);
+      last->free_offset= sizeof *node;
+      node= reinterpret_cast<ahi_node*>(last->frame);
+      MEM_UNDEFINED(last->frame, srv_page_size);
+      MEM_MAKE_ADDRESSABLE(node, sizeof *node);
+      MEM_NOACCESS(node + 1, srv_page_size - sizeof *node);
+    }
+    blocks_mutex.wr_unlock();
+  }
+
+#if defined UNIV_AHI_DEBUG || defined UNIV_DEBUG
+  ut_a(block->n_pointers++ < MAX_N_POINTERS);
+  node->block= block;
+#endif /* UNIV_AHI_DEBUG || UNIV_DEBUG */
+  node->rec= rec;
+
+  node->fold= fold;
+  node->next= nullptr;
+
+  *prev= node;
+  goto unlock;
+}
 
 ATTRIBUTE_NOINLINE
 /** Update a hash node reference when it has been unsuccessfully used in a
@@ -534,7 +627,7 @@ static void btr_search_update_hash_ref(const btr_cur_t &cursor,
       }
     }
 
-    ha_insert_for_fold(part, fold, block, rec);
+    part.insert(fold, rec, block);
     MONITOR_INC(MONITOR_ADAPTIVE_HASH_ROW_ADDED);
   }
   else
@@ -695,106 +788,6 @@ func_exit:
     btr_search_update_hash_ref(cursor, block, left_bytes_fields);
 
   return ret;
-}
-
-#if defined UNIV_AHI_DEBUG || defined UNIV_DEBUG
-/** Maximum number of records in a page */
-constexpr ulint MAX_N_POINTERS = UNIV_PAGE_SIZE_MAX / REC_N_NEW_EXTRA_BYTES;
-#endif /* UNIV_AHI_DEBUG || UNIV_DEBUG */
-
-#if defined UNIV_AHI_DEBUG || defined UNIV_DEBUG
-void btr_sea::partition::insert(uint32 fold, const rec_t *rec,
-                                buf_block_t *block) noexcept
-#else
-void btr_sea::partition::insert(uint32_t fold, const rec_t *rec) noexcept
-#endif /* UNIV_AHI_DEBUG || UNIV_DEBUG */
-{
-  ut_ad(latch.have_rd());
-#if defined UNIV_AHI_DEBUG || defined UNIV_DEBUG
-  ut_a(block->page.frame == page_align(rec));
-#endif /* UNIV_AHI_DEBUG || UNIV_DEBUG */
-  ut_ad(btr_search.enabled);
-
-  hash_chain &cell{table.cell_get(fold)};
-  page_hash_latch &hash_lock{table.lock_get(cell)};
-  hash_lock.lock();
-
-  ahi_node **prev= cell.search([fold](const ahi_node *node)
-  { return !node || node->fold == fold; });
-  ahi_node *node= *prev;
-
-  if (node)
-  {
-#if defined UNIV_AHI_DEBUG || defined UNIV_DEBUG
-    {
-      buf_block_t *prev_block= node->block;
-      if (prev_block != block)
-      {
-        ut_a(prev_block->page.frame == page_align(node->rec));
-        ut_a(prev_block->n_pointers-- < MAX_N_POINTERS);
-        ut_a(block->n_pointers++ < MAX_N_POINTERS);
-        node->block= block;
-      }
-    }
-#endif /* UNIV_AHI_DEBUG || UNIV_DEBUG */
-    node->rec= rec;
-  unlock:
-    hash_lock.unlock();
-    return;
-  }
-
-  /* We have to allocate a new chain node */
-
-  {
-    blocks_mutex.wr_lock();
-    buf_page_t *last= UT_LIST_GET_LAST(blocks);
-    if (last && last->free_offset < srv_page_size - sizeof *node)
-    {
-      node= reinterpret_cast<ahi_node*>(last->frame + last->free_offset);
-#if defined __GNUC__ && !defined __clang__
-# pragma GCC diagnostic push
-# if __GNUC__ < 12 || defined WITH_UBSAN
-#  pragma GCC diagnostic ignored "-Wconversion"
-# endif
-#endif
-      last->free_offset+= sizeof *node;
-#if defined __GNUC__ && !defined __clang__
-# pragma GCC diagnostic pop
-#endif
-      MEM_MAKE_ADDRESSABLE(node, sizeof *node);
-    }
-    else
-    {
-      last= &spare.exchange(nullptr)->page;
-      if (!last)
-      {
-        blocks_mutex.wr_unlock();
-        goto unlock;
-      }
-      ut_ad(last->state() == buf_page_t::MEMORY);
-      ut_ad(!reinterpret_cast<buf_block_t*>(last)->index);
-      ut_ad(!reinterpret_cast<buf_block_t*>(last)->n_pointers);
-      UT_LIST_ADD_LAST(blocks, last);
-      last->free_offset= sizeof *node;
-      node= reinterpret_cast<ahi_node*>(last->frame);
-      MEM_UNDEFINED(last->frame, srv_page_size);
-      MEM_MAKE_ADDRESSABLE(node, sizeof *node);
-      MEM_NOACCESS(node + 1, srv_page_size - sizeof *node);
-    }
-    blocks_mutex.wr_unlock();
-  }
-
-#if defined UNIV_AHI_DEBUG || defined UNIV_DEBUG
-  ut_a(block->n_pointers++ < MAX_N_POINTERS);
-  node->block= block;
-#endif /* UNIV_AHI_DEBUG || UNIV_DEBUG */
-  node->rec= rec;
-
-  node->fold= fold;
-  node->next= nullptr;
-
-  *prev= node;
-  goto unlock;
 }
 
 inline ahi_node *btr_sea::partition::cleanup_after_erase_start() noexcept
@@ -1649,7 +1642,7 @@ static void btr_search_build_page_hash_index(dict_index_t *index,
     const auto f= fr[--n_cached];
     const rec_t *rec= page + (uint32_t(uintptr_t(page)) ^ f.offset);
 #endif
-    ha_insert_for_fold(part, f.fold, block, rec);
+    part.insert(f.fold, rec, block);
   }
 
   if (!rec);
@@ -1907,7 +1900,7 @@ void btr_search_update_hash_on_insert(btr_cur_t *cursor, bool reorg) noexcept
           part.rollback_insert();
         goto unlock_exit;
       }
-      ha_insert_for_fold(part, ins_fold, block, ins_rec);
+      part.insert(ins_fold, ins_rec, block);
       MONITOR_INC(MONITOR_ADAPTIVE_HASH_ROW_ADDED);
     }
   }
@@ -1922,7 +1915,7 @@ void btr_search_update_hash_on_insert(btr_cur_t *cursor, bool reorg) noexcept
     }
     if (left_bytes_fields & buf_block_t::LEFT_SIDE)
       fold= ins_fold, rec= ins_rec;
-    ha_insert_for_fold(part, fold, block, rec);
+    part.insert(fold, rec, block);
     MONITOR_INC(MONITOR_ADAPTIVE_HASH_ROW_ADDED);
   }
 
@@ -1937,7 +1930,7 @@ void btr_search_update_hash_on_insert(btr_cur_t *cursor, bool reorg) noexcept
         if (!block->index)
           goto rollback;
       }
-      ha_insert_for_fold(part, ins_fold, block, ins_rec);
+      part.insert(ins_fold, ins_rec, block);
       MONITOR_INC(MONITOR_ADAPTIVE_HASH_ROW_ADDED);
     }
   }
@@ -1952,7 +1945,7 @@ void btr_search_update_hash_on_insert(btr_cur_t *cursor, bool reorg) noexcept
     }
     if (!(left_bytes_fields & ~buf_block_t::LEFT_SIDE))
       next_fold= ins_fold, next_rec= ins_rec;
-    ha_insert_for_fold(part, next_fold, block, next_rec);
+    part.insert(next_fold, next_rec, block);
     MONITOR_INC(MONITOR_ADAPTIVE_HASH_ROW_ADDED);
   }
 
