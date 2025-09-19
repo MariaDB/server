@@ -1947,4 +1947,10 @@ select json_detailed('[[123],456]');
 set @@collation_connection=@save_collation_connection;
 select json_detailed('[[123],456]');
 
+--echo #
+--echo # MDEV-37428 JSON_VALUE returns NULL for a key with an empty string value rather than an empty string
+--echo #
+
+SELECT JSON_VALUE(JSON_OBJECT("a", ""), '$.a') = "" AS not_null;
+
 --echo # End of 10.11 Test
