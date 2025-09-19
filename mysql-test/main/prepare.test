@@ -105,3 +105,18 @@ drop table t1,t2;
 --echo #
 --echo # End of 10.6 tests
 --echo #
+
+--echo #
+--echo # MDEV-35816 ASAN use-after-poison in st_select_lex::print
+--echo #
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 (a) VALUES (1),(2),(3),(4),(5);
+SET SESSION optimizer_trace = 'enabled=on';
+PREPARE stmt FROM 'SELECT STRAIGHT_JOIN * FROM t1 WHERE a IN (WITH cte AS (SELECT a FROM t1) SELECT * FROM cte)';
+EXECUTE stmt;
+EXECUTE stmt;
+DROP TABLE t1;
+
+--echo #
+--echo # End of 10.11 tests
+--echo #
