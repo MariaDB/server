@@ -49,6 +49,15 @@ INSERT INTO t3 SELECT seq, 'foo', 'bar' FROM seq_1_to_100;
 UPDATE t3 SET a = REPEAT('x', 65535);
 UPDATE t3 SET b = 'qux';
 SET GLOBAL binlog_cache_size= @old_cache_size;
+*** Test oob spilling of DDL
 connection master;
-DROP TABLE t1, t2, t3;
+ALTER TABLE t3
+PARTITION BY LIST(id)
+(PARTITION p1 VALUES IN ($long_list),
+PARTITION p2 VALUES IN (10000));
+CREATE TABLE t4 AS SELECT * FROM t3 LIMIT 10;
+ALTER TABLE t4 ENGINE=MyISAM;
+CREATE TABLE t5 AS SELECT * FROM t4;
+connection master;
+DROP TABLE t1, t2, t3, t4, t5;
 include/rpl_end.inc
