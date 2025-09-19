@@ -8206,6 +8206,17 @@ err:
         my_off_t binlog_total_bytes;
         MDL_request mdl_request;
         int res;
+
+        if (engine_context->out_of_band_offset)
+        {
+          /*
+            If we spilled part of the event data as oob, then we have to spill
+            all of it.
+          */
+          if (my_b_flush_io_cache(file, 0))
+            goto engine_fail;
+        }
+
         MDL_REQUEST_INIT(&mdl_request, MDL_key::BACKUP, "", "", MDL_BACKUP_COMMIT,
                        MDL_EXPLICIT);
         if (thd->mdl_context.acquire_lock(&mdl_request,
