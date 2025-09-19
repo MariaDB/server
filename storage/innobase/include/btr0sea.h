@@ -256,25 +256,33 @@ public:
     /** Start cleanup_after_erase()
     @return the last allocated element */
     inline ahi_node *cleanup_after_erase_start() noexcept;
-    /** Finish cleanup_after_erase()
+    /** Finish cleanup_after_erase().
+    We reduce the allocated size in UT_LIST_GET_LAST(blocks)->free_offset.
+    If that size reaches 0, the last block will be removed from blocks,
+    and a block may have to be freed by our caller.
     @return buffer block to be freed
     @retval nullptr if no buffer block was freed */
     buf_block_t *cleanup_after_erase_finish() noexcept;
   public:
     __attribute__((nonnull))
-    /** Clean up after erasing an AHI node
-    @param erase   node being erased
+    /** Clean up after erasing an AHI node, while the caller is
+    holding an exclusive latch. Unless "erase" is the last allocated
+    element, we will swap it with the last allocated element.
+    Finally, we return via cleanup_after_erase_finish().
+    @param erase node being erased
     @return buffer block to be freed
     @retval nullptr if no buffer block was freed */
     buf_block_t *cleanup_after_erase(ahi_node *erase) noexcept;
 
     __attribute__((nonnull))
-    /** Clean up after erasing an AHI node
+    /** Clean up after erasing an AHI node. This is similar to
+    cleanup_after_erase(ahi_node*), except that the operation may fail.
     @param erase   node being erased
     @param l       the latch held together with shared latch
     @return buffer block to be freed
     @retval nullptr if no buffer block was freed
-    @retval -1     if l!=nullptr and we need to shrink the allocation */
+    @retval -1     if we fail to shrink the allocation and erasing
+                   needs to be retried while holding an exclusive latch */
     buf_block_t *cleanup_after_erase(ahi_node *erase, page_hash_latch *l)
       noexcept;
 
