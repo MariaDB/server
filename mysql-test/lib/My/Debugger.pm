@@ -81,6 +81,7 @@ my %debuggers = (
     options => '_RR_TRACE_DIR={log} rr record {exe} {args}',
     run => 'env',
     pre => sub {
+      push @::global_suppressions, qr/InnoDB: native AIO failed: falling back to innodb_use_native_aio=OFF/;
       ::mtr_error('rr requires kernel.perf_event_paranoid <= 1')
         if ::mtr_grab_file('/proc/sys/kernel/perf_event_paranoid') > 1;
     }
