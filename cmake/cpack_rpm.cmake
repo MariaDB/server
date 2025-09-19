@@ -340,9 +340,11 @@ ENDIF()
 IF(RPM MATCHES "fedora")
   ALTERNATIVE_NAME("common" "mariadb-connector-c-config" ${MARIADB_CONNECTOR_C_VERSION}-1)
   ALTERNATIVE_NAME("shared" "mariadb-connector-c" ${MARIADB_CONNECTOR_C_VERSION}-1)
-  SETA(CPACK_RPM_server_PACKAGE_REQUIRES "(mysql-selinux  >= 1.0.14 if selinux-policy-targeted)")
 ENDIF()
 
+IF(RPM MATCHES "fedora|rhel" AND NOT (RPM MATCHES "rhel7" OR RPM MATCHES "rhel8"))
+  SETA(CPACK_RPM_server_PACKAGE_REQUIRES "(mysql-selinux  >= 1.0.14 if selinux-policy-targeted)")
+ENDIF()
 SET(PYTHON_SHEBANG "/usr/bin/python3" CACHE STRING "python shebang")
 
 ################
