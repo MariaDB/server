@@ -141,8 +141,6 @@ void btr_sea::create() noexcept
 {
   for (partition &part : parts)
     part.init();
-  if (enabled)
-    enable();
 }
 
 bool btr_sea::alloc(size_t hash_size) noexcept
