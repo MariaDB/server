@@ -156,7 +156,7 @@ ALTER TABLE t1 FORCE, ALGORITHM=COPY;
 connection default;
 SET DEBUG_SYNC='now WAIT_FOR blocked';
 BEGIN;
-SELECT * FROM mysql.innodb_table_stats FOR UPDATE;
+SELECT database_name, table_name FROM mysql.innodb_table_stats FOR UPDATE;
 SET DEBUG_SYNC='now SIGNAL go';
 
 connection con1;
