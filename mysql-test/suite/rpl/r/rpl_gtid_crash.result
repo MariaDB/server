@@ -43,6 +43,7 @@ include/stop_slave.inc
 RESET MASTER;
 SET GLOBAL gtid_slave_pos='';
 connection server_1;
+include/kill_binlog_dump_threads.inc
 RESET MASTER;
 SHOW BINLOG EVENTS IN 'master-bin.000001' LIMIT 1,1;
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info

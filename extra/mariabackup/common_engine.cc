@@ -9,6 +9,9 @@
 #include <memory>
 #include <chrono>
 
+#include "innodb_binlog.h"
+
+
 namespace common_engine {
 
 class Table {
@@ -298,17 +301,21 @@ class BackupImpl {
 		}
 		bool copy_log_tables(bool finalize);
 		bool copy_stats_tables();
+		bool copy_engine_binlogs(const char *binlog_dir, lsn_t backup_lsn);
 		bool wait_for_finish();
 		bool close_log_tables();
 	private:
 
 		void process_table_job(Table *table, bool no_lock, bool delete_table,
 			bool finalize, unsigned thread_num);
+		void process_binlog_job(std::string src, std::string dst,
+					lsn_t backup_lsn, unsigned thread_num);
 
 		const char *m_datadir_path;
 		ds_ctxt_t *m_ds;
 		std::vector<MYSQL *> &m_con_pool;
 		TasksGroup m_process_table_jobs;
+		std::unique_ptr<byte []> m_page_buf;
 
 		post_copy_table_hook_t m_table_post_copy_hook;
 		std::unordered_map<table_key_t, std::unique_ptr<LogTable>> m_log_tables;
@@ -334,6 +341,29 @@ void BackupImpl::process_table_job(Table *table, bool no_lock,
 exit:
 	if (delete_table)
 		delete table;
+	m_process_table_jobs.finish_task(result);
+}
+
+void BackupImpl::process_binlog_job(std::string src, std::string dst,
+				    lsn_t backup_lsn, unsigned thread_num) {
+	int result = 0;
+	const char *c_src= src.c_str();
+	bool is_empty= true;
+	lsn_t start_lsn;
+	int binlog_found;
+
+	if (!m_process_table_jobs.get_result())
+		goto exit;
+
+	binlog_found= get_binlog_header(c_src, m_page_buf.get(), start_lsn, is_empty);
+	if (binlog_found > 0 && !is_empty && start_lsn <= backup_lsn) {
+		if (!m_ds->copy_file(c_src, dst.c_str(), thread_num))
+			goto exit;
+	}
+
+	result = 1;
+
+exit:
 	m_process_table_jobs.finish_task(result);
 }
 
@@ -461,6 +491,26 @@ bool BackupImpl::copy_stats_tables() {
 	return true;
 }
 
+bool BackupImpl::copy_engine_binlogs(const char *binlog_dir, lsn_t backup_lsn) {
+	std::vector<std::string>files;
+	std::string dir(binlog_dir && binlog_dir[0] ? binlog_dir : m_datadir_path);
+	foreach_file_in_datadir(dir.c_str(),
+				[&](const char *name)->bool {
+					uint64_t file_no;
+					if (is_binlog_name(name, &file_no))
+						files.emplace_back(name);
+					return true;
+				});
+	m_page_buf.reset(new byte [ibb_page_size]);
+	for (auto &file : files) {
+		std::string path(dir + "/" + file);
+		m_process_table_jobs.push_task(
+			std::bind(&BackupImpl::process_binlog_job, this, path,
+				  file, backup_lsn, std::placeholders::_1));
+	}
+	return true;
+}
+
 bool BackupImpl::wait_for_finish() {
 	/* Wait for threads to exit */
 	return m_process_table_jobs.wait_for_finish();
@@ -497,6 +547,10 @@ bool Backup::copy_log_tables(bool finalize) {
 
 bool Backup::copy_stats_tables() {
 	return m_backup_impl->copy_stats_tables();
+}
+
+bool Backup::copy_engine_binlogs(const char *binlog_dir, lsn_t backup_lsn) {
+	return m_backup_impl->copy_engine_binlogs(binlog_dir, backup_lsn);
 }
 
 bool Backup::wait_for_finish() {

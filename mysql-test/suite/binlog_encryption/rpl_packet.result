@@ -65,6 +65,7 @@ Last_IO_Error = 'Got a packet bigger than 'slave_max_allowed_packet' bytes'
 STOP SLAVE;
 RESET SLAVE;
 connection master;
+include/kill_binlog_dump_threads.inc
 RESET MASTER;
 SET @max_allowed_packet_0= @@session.max_allowed_packet;
 SHOW BINLOG EVENTS;

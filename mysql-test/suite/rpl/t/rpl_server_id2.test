@@ -36,6 +36,7 @@ drop table t1;
 # in presense of --replicate-same-server-id the slave is started with.
 
 connection master;
+--source include/kill_binlog_dump_threads.inc
 reset master;
 
 # setting the until position to correspond to the last position of

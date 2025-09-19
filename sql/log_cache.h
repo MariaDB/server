@@ -27,6 +27,7 @@ class binlog_cache_data
 {
 public:
   binlog_cache_data(bool precompute_checksums):
+                    engine_binlog_info {0, 0, 0},
                     before_stmt_pos(MY_OFF_T_UNDEF), m_pending(0), status(0),
                     incident(FALSE), precompute_checksums(precompute_checksums),
                     saved_max_binlog_cache_size(0), ptr_binlog_cache_use(0),
@@ -45,6 +46,9 @@ public:
   ~binlog_cache_data()
   {
     DBUG_ASSERT(empty());
+    if (engine_binlog_info.engine_ptr)
+      (*opt_binlog_engine_hton->binlog_oob_free)
+        (engine_binlog_info.engine_ptr);
     close_cached_file(&cache_log);
   }
 
@@ -108,6 +112,41 @@ public:
     incident= FALSE;
     before_stmt_pos= MY_OFF_T_UNDEF;
     DBUG_ASSERT(empty());
+  }
+
+  void reset_for_engine_binlog()
+  {
+    bool cache_was_empty= empty();
+
+    if (engine_binlog_info.engine_ptr)
+      (*opt_binlog_engine_hton->binlog_oob_reset)
+        (&engine_binlog_info.engine_ptr);
+    engine_binlog_info.out_of_band_offset= 0;
+    engine_binlog_info.gtid_offset= 0;
+    /* Preserve the engine_ptr for the engine to re-use, was reset above. */
+
+    truncate(cache_log.pos_in_file);
+    cache_log.pos_in_file= 0;
+    cache_log.request_pos= cache_log.write_pos= cache_log.buffer;
+    cache_log.write_end= cache_log.buffer + cache_log.buffer_length;
+    checksum_opt= BINLOG_CHECKSUM_ALG_OFF;
+    if (!cache_was_empty)
+      compute_statistics();
+    status= 0;
+    incident= FALSE;
+    before_stmt_pos= MY_OFF_T_UNDEF;
+    DBUG_ASSERT(empty());
+  }
+
+  void reset_cache_for_engine(my_off_t pos,
+         int (*fct)(struct st_io_cache *, const uchar *, size_t))
+  {
+    /* Bit fiddly here as we're abusing the IO_CACHE a bit for oob handling. */
+    cache_log.pos_in_file= pos;
+    cache_log.request_pos= cache_log.write_pos= cache_log.buffer;
+    cache_log.write_end=
+      (cache_log.buffer + cache_log.buffer_length - (pos & (IO_SIZE-1)));
+    cache_log.write_function= fct;
   }
 
   my_off_t get_byte_position() const
@@ -176,6 +215,8 @@ public:
     Cache to store data before copying it to the binary log.
   */
   IO_CACHE cache_log;
+  /* Context for engine-implemented binlogging. */
+  handler_binlog_event_group_info engine_binlog_info;
 
 protected:
   /*

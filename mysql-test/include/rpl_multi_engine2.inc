@@ -9,6 +9,7 @@ STOP SLAVE;
 RESET SLAVE;
 
 connection master;
+--source include/kill_binlog_dump_threads.inc
 RESET MASTER;
 
 connection slave;

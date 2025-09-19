@@ -89,6 +89,7 @@ RESET MASTER;
 SET GLOBAL gtid_slave_pos='';
 
 --connection server_1
+--source include/kill_binlog_dump_threads.inc
 RESET MASTER;
 --replace_column 2 # 4 # 5 #
 SHOW BINLOG EVENTS IN 'master-bin.000001' LIMIT 1,1;
