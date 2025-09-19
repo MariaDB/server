@@ -603,6 +603,7 @@ void srv_boot()
   buf_dblwr.init();
   srv_thread_pool_init();
   trx_pool_init();
+  btr_search_sys_create();
   srv_init();
 }
 
@@ -746,7 +747,8 @@ srv_printf_innodb_monitor(
 			part.blocks_mutex.wr_lock();
 			fprintf(file, "Hash table size " ULINTPF
 				", node heap has " ULINTPF " buffer(s)\n",
-				part.table.n_cells, part.blocks.count + !!part.spare);
+				size_t{part.table.n_cells},
+				part.blocks.count + !!part.spare);
 			part.blocks_mutex.wr_unlock();
 		}
 
@@ -828,10 +830,7 @@ srv_export_innodb_status(void)
 
 	ulint mem_adaptive_hash = 0;
 	for (ulong i = 0; i < btr_search.n_parts; i++) {
-		btr_sea::partition& part= btr_search.parts[i];
-		part.blocks_mutex.wr_lock();
-		mem_adaptive_hash += part.blocks.count + !!part.spare;
-		part.blocks_mutex.wr_unlock();
+		mem_adaptive_hash += btr_search.parts[i].get_blocks();
 	}
 	mem_adaptive_hash <<= srv_page_size_shift;
 	btr_search.parts[0].latch.rd_lock(SRW_LOCK_CALL);
