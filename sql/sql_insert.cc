@@ -702,8 +702,7 @@ int prepare_for_replace(TABLE *table, enum_duplicates handle_duplicates,
   {
     create_lookup_handler= true;
     table->file->extra(HA_EXTRA_IGNORE_DUP_KEY);
-    if (table->file->ha_table_flags() & HA_DUPLICATE_POS ||
-        table->s->long_unique_table)
+    if (table->file->ha_table_flags() & HA_DUPLICATE_POS)
     {
       if (table->file->ha_rnd_init_with_error(false))
         return 1;
@@ -2018,17 +2017,26 @@ int vers_insert_history_row(TABLE *table)
  */
 int Write_record::locate_dup_record()
 {
-  handler *h= table->file;
   int error= 0;
-  if (h->ha_table_flags() & HA_DUPLICATE_POS || h->lookup_errkey != (uint)-1)
+  if (table->file->ha_table_flags() & HA_DUPLICATE_POS ||
+      table->file->lookup_errkey != (uint)-1)
   {
     DBUG_PRINT("info", ("Locating offending record using rnd_pos()"));
 
-    error= h->ha_rnd_pos(table->record[1], h->dup_ref);
+    const bool init_lookup_handler= (table->file->inited == handler::NONE);
+    if (init_lookup_handler)
+    {
+      error= table->file->ha_rnd_init_with_error(false);
+      if (error)
+        return error;
+    }
+    error= table->file->ha_rnd_pos(table->record[1], table->file->dup_ref);
+    if (init_lookup_handler)
+      table->file->ha_rnd_end();
     if (unlikely(error))
     {
       DBUG_PRINT("info", ("rnd_pos() returns error %d",error));
-      h->print_error(error, MYF(0));
+      table->file->print_error(error, MYF(0));
     }
   }
   else
@@ -2036,10 +2044,7 @@ int Write_record::locate_dup_record()
     DBUG_PRINT("info",
                ("Locating offending record using ha_index_read_idx_map"));
 
-    if (h->lookup_handler)
-      h= h->lookup_handler;
-
-    error= h->extra(HA_EXTRA_FLUSH_CACHE);
+    error= table->file->extra(HA_EXTRA_FLUSH_CACHE);
     if (unlikely(error))
     {
       DBUG_PRINT("info",("Error when setting HA_EXTRA_FLUSH_CACHE"));
@@ -2058,12 +2063,12 @@ int Write_record::locate_dup_record()
 
     key_copy(key, table->record[0], table->key_info + key_nr, 0);
 
-    error= h->ha_index_read_idx_map(table->record[1], key_nr, key,
+    error= table->file->ha_index_read_idx_map(table->record[1], key_nr, key,
                                     HA_WHOLE_KEY, HA_READ_KEY_EXACT);
     if (unlikely(error))
     {
       DBUG_PRINT("info", ("index_read_idx() returns %d", error));
-      h->print_error(error, MYF(0));
+      table->file->print_error(error, MYF(0));
     }
   }
 
