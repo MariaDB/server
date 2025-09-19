@@ -1,3 +1,4 @@
+--source include/have_partition.inc
 --source include/have_binlog_format_row.inc
 --source include/have_sequence.inc
 --source include/master-slave.inc
@@ -114,8 +115,22 @@ UPDATE t3 SET a = REPEAT('x', 65535);
 UPDATE t3 SET b = 'qux';
 SET GLOBAL binlog_cache_size= @old_cache_size;
 
+
+--echo *** Test oob spilling of DDL
+--connection master
+--let $long_list= `SELECT GROUP_CONCAT(seq SEPARATOR ',') FROM seq_0_to_9999`
+evalp
+ALTER TABLE t3
+  PARTITION BY LIST(id)
+  (PARTITION p1 VALUES IN ($long_list),
+   PARTITION p2 VALUES IN (10000));
+
+CREATE TABLE t4 AS SELECT * FROM t3 LIMIT 10;
+ALTER TABLE t4 ENGINE=MyISAM;
+CREATE TABLE t5 AS SELECT * FROM t4;
+
 # Cleanup.
 --connection master
-DROP TABLE t1, t2, t3;
+DROP TABLE t1, t2, t3, t4, t5;
 --exec $MYSQL_BINLOG --read-from-remote-server --user=root --host=127.0.0.1 --port=$MASTER_MYPORT master-bin.000001 --start-position=0-1-1 > $MYSQLTEST_VARDIR/tmp/mysqlbinlog.txt
 --source include/rpl_end.inc
