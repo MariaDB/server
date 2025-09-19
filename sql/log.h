@@ -25,6 +25,7 @@ class Gtid_index_writer;
 
 class Format_description_log_event;
 class Gtid_log_event;
+class Log_event;
 
 bool reopen_fstreams(const char *filename, FILE *outstream, FILE *errstream);
 void setup_log_handling();
@@ -35,6 +36,7 @@ bool ending_trans(THD* thd, const bool all);
 bool ending_single_stmt_trans(THD* thd, const bool all);
 bool trans_has_updated_non_trans_table(const THD* thd);
 bool stmt_has_updated_non_trans_table(const THD* thd);
+void update_event_cache_skip(Log_event* ev, binlog_cache_data* cache_data);
 
 /*
   Transaction Coordinator log - a base abstract class
@@ -1023,7 +1025,7 @@ public:
   bool write_incident_already_locked(THD *thd);
   bool write_incident(THD *thd);
   void write_binlog_checkpoint_event_already_locked(const char *name, uint len);
-  bool write_table_map(THD *thd, TABLE *table, bool with_annotate);
+  bool write_table_map(THD *thd, TABLE *table, bool with_annotate, bool skip_annotate= false);
 
   void start_union_events(THD *thd, query_id_t query_id_param);
   void stop_union_events(THD *thd);
@@ -1129,7 +1131,7 @@ public:
   bool write_gtid_event(THD *thd, bool standalone, bool is_transactional,
                         uint64 commit_id,
                         bool commit_by_rotate,
-                        bool has_xid= false, bool ro_1pc= false);
+                        bool has_xid= false, bool ro_1pc= false, bool skip_all_events= false);
   int read_state_from_file();
   int write_state_to_file();
   int get_most_recent_gtid_list(rpl_gtid **list, uint32 *size);

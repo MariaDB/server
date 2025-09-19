@@ -1,0 +1,93 @@
+#
+# Purpose:
+#
+# This test verifies the correct behavior of replication database filters,
+# specifically: replicate_do_db, and replicate_ignore_db.
+#
+# The test compares the master's binary log (binlog) and the slave's relay log
+# to confirm how these filters affect data replication.
+#
+# Key points:
+#
+# replicate_do/ignore_db filters what the slave SQL thread applies.
+#    - All changes are written to the master's binlog regardless of this filter.
+#    - The slave's relay log contains all events, but the SQL thread applies only
+#      events for the specified databases.
+#    - As a result both the Master's binlog and Slave's relaylog will contain all changes
+#
+#
+# This test ensures that these filters behave as expected, by examining
+# which events appear in the master's binlog and the slave's relay log.
+#
+
+--source include/have_innodb.inc
+--source include/master-slave.inc
+
+--echo # Stop slave to set replicate_do_db
+connection slave;
+--source include/stop_slave.inc
+SET @old_replicate_do_db= @@GLOBAL.replicate_do_table;
+SET @old_replicate_ignore_db= @@GLOBAL.replicate_ignore_table;
+SET @@GLOBAL.replicate_do_db = 'test';
+SET @@GLOBAL.replicate_ignore_db = 'ignored_db';
+--source include/start_slave.inc
+
+--echo # On master: create two databases and insert data
+connection master;
+CREATE TABLE t1 (id INT PRIMARY KEY, data VARCHAR(50));
+INSERT INTO t1 VALUES (1, 'row in t1');
+
+CREATE DATABASE ignored_db;
+USE ignored_db;
+CREATE TABLE t2 (id INT PRIMARY KEY, data VARCHAR(50));
+INSERT INTO t2 VALUES (1, 'row in t2');
+
+--echo # Capture current binlog file name
+--let $binlog_file= SELECT @@global.log_bin_basename
+--let $binlog_index= query_get_value(SHOW MASTER STATUS, File, 1)
+
+--echo # Sync master and slave
+--source include/sync_slave_sql_with_master.inc
+
+--echo # Find relay log file on slave
+connection slave;
+--let $relaylog_file= query_get_value(SHOW SLAVE STATUS, Relay_Log_File, 1)
+
+--echo # Dump master binlog to file
+--exec $MYSQL_BINLOG $MYSQLTEST_VARDIR/mysqld.1/data/$binlog_index > $MYSQLTEST_VARDIR/tmp/master_binlog.txt
+
+--echo # Dump slave relay log to file
+--exec $MYSQL_BINLOG $MYSQLTEST_VARDIR/mysqld.2/data/$relaylog_file > $MYSQLTEST_VARDIR/tmp/slave_relaylog.txt
+
+--echo # Validate that 'INSERT INTO t1' is in the master binlog
+--let $assert_file= $MYSQLTEST_VARDIR/tmp/master_binlog.txt
+--let $assert_text= INSERT INTO t1 must be present in master binlog
+--let $assert_select= INSERT INTO t1
+--let $assert_count= 1
+--source include/assert_grep.inc
+
+--echo # Validate that 'INSERT INTO t1' is in the slave relaylog
+--let $assert_file= $MYSQLTEST_VARDIR/tmp/slave_relaylog.txt
+--let $assert_text= INSERT INTO t1 must be present in master binlog
+--let $assert_select= INSERT INTO t1
+--let $assert_count= 1
+--source include/assert_grep.inc
+
+--echo # Cleanup
+connection master;
+USE test;
+DROP TABLE t1;
+USE ignored_db;
+DROP TABLE t2;
+USE test;
+DROP DATABASE ignored_db;
+--source include/sync_slave_sql_with_master.inc
+
+connection slave;
+--source include/stop_slave.inc
+SET @@GLOBAL.replicate_do_db=@old_replicate_do_db;
+SET @@GLOBAL.replicate_ignore_db=@old_replicate_ignore_db;
+--source include/start_slave.inc
+
+connection master;
+--source include/rpl_end.inc
