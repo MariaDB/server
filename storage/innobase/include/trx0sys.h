@@ -24,6 +24,7 @@ Transaction system
 Created 3/26/1996 Heikki Tuuri
 *******************************************************/
 
+#ifndef UNIV_INNOCHECKSUM
 #pragma once
 #include "buf0buf.h"
 #include "fil0fil.h"
@@ -277,6 +278,7 @@ FIXED WSREP XID info offsets for 4k page size 10.0.32-galera
 #define TRX_SYS_WSREP_XID_BQUAL_LEN 12
 #define TRX_SYS_WSREP_XID_DATA      16
 #endif /* WITH_WSREP*/
+#endif /* !UNIV_INNOCHECKSUM */
 
 /** Doublewrite buffer */
 /* @{ */
@@ -325,7 +327,7 @@ constexpr uint32_t TRX_SYS_DOUBLEWRITE_MAGIC_N= 536853855;
 /** Contents of TRX_SYS_DOUBLEWRITE_SPACE_ID_STORED */
 constexpr uint32_t TRX_SYS_DOUBLEWRITE_SPACE_ID_STORED_N= 1783657386;
 /* @} */
-
+#ifndef UNIV_INNOCHECKSUM
 trx_t* current_trx();
 
 struct rw_trx_hash_element_t
@@ -1307,3 +1309,4 @@ private:
 
 /** The transaction system */
 extern trx_sys_t trx_sys;
+#endif /* !UNIV_INNOCHECKSUM */
