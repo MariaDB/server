@@ -491,17 +491,12 @@ ALTER TABLE proc MODIFY name char(64) DEFAULT '' NOT NULL,
                             ) DEFAULT '' NOT NULL,
                  DEFAULT CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci;
 
-ALTER TABLE proc ADD path
-                     TEXT collate utf8mb3_bin DEFAULT NULL
-                     AFTER sql_mode;
-
 # Correct the character set and collation
 # Reset some fields after the conversion
 ALTER TABLE proc CONVERT TO CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci,
                   MODIFY db char(64) binary DEFAULT '' NOT NULL,
                   MODIFY definer varchar(384) binary DEFAULT '' NOT NULL,
-                  MODIFY comment text binary NOT NULL,
-                  MODIFY path text binary DEFAULT NULL;
+                  MODIFY comment text binary NOT NULL;
 
 ALTER TABLE proc ADD character_set_client
                      char(32) collate utf8mb3_bin DEFAULT NULL
@@ -572,6 +567,11 @@ ALTER TABLE proc MODIFY comment
 # MDEV-7773: Stored Aggregate Functions
 ALTER TABLE proc ADD aggregate enum('NONE', 'GROUP') DEFAULT 'NONE' NOT NULL
                      AFTER body_utf8;
+
+ALTER TABLE proc ADD path text COLLATE utf8mb3_bin DEFAULT NULL
+                     AFTER aggregate;
+
+ALTER TABLE proc MODIFY path TEXT COLLATE utf8mb3_bin DEFAULT NULL;
 
 # Update definer of Add/DropGeometryColumn procedures to 'mariadb.sys'
 # To consider the scenarios in MDEV-23102, only update the definer when it's 'root'
