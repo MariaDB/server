@@ -697,13 +697,13 @@ proc	definer	varchar(384)
 proc	created	timestamp
 proc	modified	timestamp
 proc	sql_mode	set('REAL_AS_FLOAT','PIPES_AS_CONCAT','ANSI_QUOTES','IGNORE_SPACE','IGNORE_BAD_TABLE_OPTIONS','ONLY_FULL_GROUP_BY','NO_UNSIGNED_SUBTRACTION','NO_DIR_IN_CREATE','POSTGRESQL','ORACLE','MSSQL','DB2','MAXDB','NO_KEY_OPTIONS','NO_TABLE_OPTIONS','NO_FIELD_OPTIONS','MYSQL323','MYSQL40','ANSI','NO_AUTO_VALUE_ON_ZERO','NO_BACKSLASH_ESCAPES','STRICT_TRANS_TABLES','STRICT_ALL_TABLES','NO_ZERO_IN_DATE','NO_ZERO_DATE','INVALID_DATES','ERROR_FOR_DIVISION_BY_ZERO','TRADITIONAL','NO_AUTO_CREATE_USER','HIGH_NOT_PRECEDENCE','NO_ENGINE_SUBSTITUTION','PAD_CHAR_TO_FULL_LENGTH','EMPTY_STRING_IS_NULL','SIMULTANEOUS_ASSIGNMENT','TIME_ROUND_FRACTIONAL')
-proc	path	text
 proc	comment	text
 proc	character_set_client	char(32)
 proc	collation_connection	char(64)
 proc	db_collation	char(64)
 proc	body_utf8	longblob
 proc	aggregate	enum('NONE','GROUP')
+proc	path	text
 drop table t115;
 create procedure p108 () begin declare c cursor for select data_type
 from information_schema.columns;  open c; open c; end;//
@@ -1358,9 +1358,8 @@ CHARACTER_MAXIMUM_LENGTH	CHARACTER_OCTET_LENGTH
 9	27
 drop table t1;
 use mysql;
-INSERT INTO `proc` VALUES ('test','','PROCEDURE','','SQL','CONTAINS_SQL',
-'NO','DEFINER','','','BEGIN\r\n  \r\nEND','root@%','2006-03-02 18:40:03',
-'2006-03-02 18:40:03','',NULL,'','utf8','utf8_general_ci','utf8_general_ci','n/a', 'NONE');
+INSERT INTO `proc` (db,type,body,definer,created,modified,character_set_client, collation_connection, db_collation, body_utf8,param_list,returns,comment)
+VALUES ('test','PROCEDURE', 'BEGIN\r\n  \r\nEND','root@%','2006-03-02 18:40:03', '2006-03-02 18:40:03', 'utf8','utf8_general_ci','utf8_general_ci','n/a','','','');
 select routine_name from information_schema.routines where ROUTINE_SCHEMA='test';
 routine_name
 

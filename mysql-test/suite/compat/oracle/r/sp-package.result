@@ -525,7 +525,6 @@ definer	root@localhost
 created	#
 modified	#
 sql_mode	PIPES_AS_CONCAT,ANSI_QUOTES,IGNORE_SPACE,ORACLE,NO_KEY_OPTIONS,NO_TABLE_OPTIONS,NO_FIELD_OPTIONS,NO_AUTO_CREATE_USER,SIMULTANEOUS_ASSIGNMENT
-path	NULL
 comment	package-test2-comment
 character_set_client	latin1
 collation_connection	latin1_swedish_ci
@@ -538,6 +537,7 @@ PROCEDURE p1;
 PROCEDURE p2(a INT);
 END
 aggregate	NONE
+path	NULL
 SELECT * FROM INFORMATION_SCHEMA.ROUTINES WHERE ROUTINE_SCHEMA='test' AND ROUTINE_NAME='test2';
 SPECIFIC_NAME	test2
 ROUTINE_CATALOG	def

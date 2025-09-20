@@ -206,11 +206,6 @@ TABLE_FIELD_TYPE proc_table_fields[MYSQL_PROC_FIELD_COUNT] =
     { NULL, 0 }
   },
   {
-    { STRING_WITH_LEN("path") },
-    { STRING_WITH_LEN("text") },
-    { STRING_WITH_LEN("utf8mb") }
-  },
-  {
     { STRING_WITH_LEN("comment") },
     { STRING_WITH_LEN("text") },
     { STRING_WITH_LEN("utf8mb") }
@@ -239,6 +234,11 @@ TABLE_FIELD_TYPE proc_table_fields[MYSQL_PROC_FIELD_COUNT] =
     { STRING_WITH_LEN("aggregate") },
     { STRING_WITH_LEN("enum('NONE','GROUP')") },
     { NULL, 0 }
+  },
+  {
+    { STRING_WITH_LEN("path") },
+    { STRING_WITH_LEN("text") },
+    { STRING_WITH_LEN("utf8mb") }
   }
 };
 
