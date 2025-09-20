@@ -39,7 +39,6 @@ definer	root@localhost
 created	#
 modified	#
 sql_mode	PIPES_AS_CONCAT,ANSI_QUOTES,IGNORE_SPACE,ORACLE,NO_KEY_OPTIONS,NO_TABLE_OPTIONS,NO_FIELD_OPTIONS,NO_AUTO_CREATE_USER,SIMULTANEOUS_ASSIGNMENT
-path	NULL
 comment	
 character_set_client	latin1
 collation_connection	latin1_swedish_ci
@@ -49,6 +48,7 @@ FUNCTION f1 RETURN INT;
 PROCEDURE p1;
 END
 aggregate	NONE
+path	NULL
 db	test
 name	pack
 type	PACKAGE BODY
@@ -73,7 +73,6 @@ definer	root@localhost
 created	#
 modified	#
 sql_mode	PIPES_AS_CONCAT,ANSI_QUOTES,IGNORE_SPACE,ORACLE,NO_KEY_OPTIONS,NO_TABLE_OPTIONS,NO_FIELD_OPTIONS,NO_AUTO_CREATE_USER,SIMULTANEOUS_ASSIGNMENT
-path	NULL
 comment	
 character_set_client	latin1
 collation_connection	latin1_swedish_ci
@@ -89,6 +88,7 @@ SELECT f1();
 END;
 END
 aggregate	NONE
+path	NULL
 SELECT * FROM mysql.proc WHERE db='test' AND name LIKE 'pack.%';
 SET @@sql_mode=ORACLE;
 SELECT pack.f1();
