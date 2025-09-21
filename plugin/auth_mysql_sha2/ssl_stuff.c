@@ -37,7 +37,7 @@ int ssl_decrypt(EVP_PKEY *pkey, unsigned char *src, size_t srclen,
 
 #define FILE_ERROR(op,file)                                     \
   do {                                                          \
-    my_printf_error(1, SELF ": failed to " op " %s: %iE",       \
+    my_printf_error(1, SELF ": failed to " op " %s: %M",       \
                     ME_ERROR_LOG_ONLY, file, errno);            \
     goto err;                                                   \
   } while(0)
