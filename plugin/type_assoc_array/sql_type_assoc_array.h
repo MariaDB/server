@@ -37,8 +37,7 @@ class Type_handler_assoc_array: public Type_handler_composite
 public:
   static const Type_handler_assoc_array *singleton();
   static bool check_key_expression_type(Item *key);
-  static bool check_functor_args(THD *thd, List<Item> *args,
-                                 const char *opname);
+  static bool check_functor_args(List<Item> *args, const Qualified_ident &name);
   static bool check_subscript_expression(const Type_handler *formal_th,
                                          Item *key);
 public:
