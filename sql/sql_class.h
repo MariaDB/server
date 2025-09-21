@@ -8352,29 +8352,14 @@ public:
   { }
   LEX_CSTRING lex_cstring() const override
   {
-    size_t length= m_name->to_identifier_chain2().make_qname(err_buffer,
+    if (m_name->m_db.length)
+    {
+      size_t length= m_name->to_identifier_chain2().make_qname(err_buffer,
                                                            sizeof(err_buffer));
-    return {err_buffer, length};
+      return {err_buffer, length};
+    }
+    return {m_name->m_name.str, m_name->m_name.length};
   }
-};
-
-
-/*
-  Use this class when the m_db of Database_qualified_name might point to NULL.
-  In this case, if thd->db is set, use it as the database name to preserve
-  pre-existing behavior.
-
-  If thd->db is not set, just return the unqualified name.
-*/
-class ErrConvMDQName: public ErrConvDQName
-{
-  THD *m_thd;
-public:
-  ErrConvMDQName(THD *thd, const Database_qualified_name *name)
-   :ErrConvDQName(name),
-    m_thd(thd)
-  { }
-  LEX_CSTRING lex_cstring() const override;
 };
 
 
