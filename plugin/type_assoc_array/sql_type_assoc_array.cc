@@ -2554,13 +2554,13 @@ bool Type_handler_assoc_array::check_key_expression_type(Item *key)
     assoc_array_var(key)
     assoc_array_var(key).field
 */
-bool Type_handler_assoc_array::check_functor_args(THD *thd, List<Item> *args,
-                                                  const char *op)
+bool Type_handler_assoc_array::check_functor_args(List<Item> *args,
+                                                  const Qualified_ident &name)
 {
   if (!args || args->elements != 1 || !args->head())
   {
-    my_error(ER_SP_WRONG_NO_OF_ARGS, MYF(0), op,
-             ErrConvDQName(thd->lex->sphead).ptr(),
+    Database_qualified_name dqn(Lex_ident_db(name.part(1)), name.part(0));
+    my_error(ER_SP_WRONG_NO_OF_ARGS, MYF(0), ErrConvDQName(&dqn).ptr(), "",
              1, !args ? 0 : args->elements);
     return true;
   }
@@ -2578,7 +2578,7 @@ Type_handler_assoc_array::create_item_functor(THD *thd,
                                                                           const
 {
   DBUG_ASSERT(!varname.is_null());
-  if (check_functor_args(thd, args, "ASSOC_ARRAY_ELEMENT"))
+  if (check_functor_args(args, Qualified_ident(varname)))
     return nullptr;
 
   Item *key= args->head();
@@ -2625,7 +2625,7 @@ Type_handler_assoc_array::
     return nullptr;
   }
 
-  if (check_functor_args(thd, args, "ASSOC_ARRAY KEY"))
+  if (check_functor_args(args, ident))
     return nullptr;
 
   if (member.is_null())
