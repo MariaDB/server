@@ -196,13 +196,13 @@ END;
 $$
 DELIMITER ;$$
 
---source sp-cache-invalidate.inc
+--source include/invalidate_sp_cache.inc
 SELECT pkg_r_emb.ff();
---source sp-cache-invalidate.inc
+--source include/invalidate_sp_cache.inc
 SELECT pkg_r_emb.fp();
---source sp-cache-invalidate.inc
+--source include/invalidate_sp_cache.inc
 CALL pkg_r_emb.pf();
---source sp-cache-invalidate.inc
+--source include/invalidate_sp_cache.inc
 CALL pkg_r_emb.pp();
 
 SELECT pkg_r_emb.ff();
@@ -210,13 +210,13 @@ SELECT pkg_r_emb.fp();
 CALL pkg_r_emb.pf();
 CALL pkg_r_emb.pp();
 
---source sp-cache-invalidate.inc
+--source include/invalidate_sp_cache.inc
 SELECT pkg_emb.ff();
---source sp-cache-invalidate.inc
+--source include/invalidate_sp_cache.inc
 SELECT pkg_emb.fp();
---source sp-cache-invalidate.inc
+--source include/invalidate_sp_cache.inc
 CALL pkg_emb.pf();
---source sp-cache-invalidate.inc
+--source include/invalidate_sp_cache.inc
 CALL pkg_emb.pp();
 
 SELECT pkg_emb.ff();
