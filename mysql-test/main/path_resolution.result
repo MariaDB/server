@@ -2826,11 +2826,11 @@ $$
 SELECT func();
 func()
 
+SELECT @@global.path;
+@@global.path
+`sys`
 SET @@global.path= DEFAULT;
 DROP FUNCTION func;
-#
-# End of 11.8 tests
-#
 #
 # Name shadowing from a package
 #

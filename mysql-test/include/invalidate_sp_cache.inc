@@ -1,4 +1,4 @@
---echo # sp-cache-invalidate
+--echo # source invalidate_sp_cache.inc
 --disable_query_log
 DELIMITER $$;
 CREATE FUNCTION dummy() RETURNS TEXT
