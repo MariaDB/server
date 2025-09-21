@@ -177,19 +177,19 @@ END;
 CALL proc2(a);
 END;
 $$
-# sp-cache-invalidate
+# source invalidate_sp_cache.inc
 SELECT pkg_r_emb.ff();
 pkg_r_emb.ff()
 test2.func2
-# sp-cache-invalidate
+# source invalidate_sp_cache.inc
 SELECT pkg_r_emb.fp();
 pkg_r_emb.fp()
 test2.proc2
-# sp-cache-invalidate
+# source invalidate_sp_cache.inc
 CALL pkg_r_emb.pf();
 func2()
 test2.func2
-# sp-cache-invalidate
+# source invalidate_sp_cache.inc
 CALL pkg_r_emb.pp();
 a
 test2.proc2
@@ -205,19 +205,19 @@ test2.func2
 CALL pkg_r_emb.pp();
 a
 test2.proc2
-# sp-cache-invalidate
+# source invalidate_sp_cache.inc
 SELECT pkg_emb.ff();
 pkg_emb.ff()
 test2.func2
-# sp-cache-invalidate
+# source invalidate_sp_cache.inc
 SELECT pkg_emb.fp();
 pkg_emb.fp()
 test2.proc2
-# sp-cache-invalidate
+# source invalidate_sp_cache.inc
 CALL pkg_emb.pf();
 func2()
 test2.func2
-# sp-cache-invalidate
+# source invalidate_sp_cache.inc
 CALL pkg_emb.pp();
 a
 test2.proc2

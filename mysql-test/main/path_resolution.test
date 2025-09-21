@@ -3543,14 +3543,10 @@ $$
 DELIMITER ;$$
 SELECT func();
 
+SELECT @@global.path;
 SET @@global.path= DEFAULT;
 
 DROP FUNCTION func;
-
---echo #
---echo # End of 11.8 tests
---echo #
-
 
 --echo #
 --echo # Name shadowing from a package
