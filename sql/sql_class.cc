@@ -9098,27 +9098,3 @@ LEX_CSTRING make_string(THD *thd, const char *start_ptr,
   size_t length= end_ptr - start_ptr;
   return {strmake_root(thd->mem_root, start_ptr, length), length};
 }
-
-
-LEX_CSTRING ErrConvMDQName::lex_cstring() const
-{
-  if (m_name->m_db.length)
-  {
-    DBUG_ASSERT(m_name->m_db.str);
-
-    size_t length= m_name->to_identifier_chain2().make_qname(err_buffer,
-                                                          sizeof(err_buffer));
-    return {err_buffer, length};
-  }
-
-  if (m_thd->db.str)
-  {
-    Database_qualified_name name(*m_name);
-    m_thd->copy_db_to(&name.m_db);
-    size_t length= name.to_identifier_chain2().make_qname(err_buffer,
-                                                          sizeof(err_buffer));
-    return {err_buffer, length};
-  }
-  
-  return {m_name->m_name.str, m_name->m_name.length};
-}
