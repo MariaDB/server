@@ -623,7 +623,7 @@ SET @@path = DEFAULT;
 # sql_mode: DEFAULT | procedure | is unqualified
 # curr db: X | path set: no
 #
-CREATE PROCEDURE proc() SELECT 'Invoke from Db: test, Rt: proc';
+CREATE PROCEDURE proc() SELECT 'Invoke from Db: test, Rt: proc' as 'trace:';
 CREATE DATABASE deselect_db;
 USE deselect_db;
 DROP DATABASE deselect_db;
@@ -636,7 +636,7 @@ ERROR 42000: PROCEDURE proc does not exist
 #
 SET PATH 'sys,test';
 CALL proc;
-Invoke from Db: test, Rt: proc
+trace:
 Invoke from Db: test, Rt: proc
 SET @@path = DEFAULT;
 #
@@ -655,7 +655,7 @@ ERROR 42000: PROCEDURE test2.proc does not exist
 SET PATH 'sys,test';
 USE test2;
 CALL proc;
-Invoke from Db: test, Rt: proc
+trace:
 Invoke from Db: test, Rt: proc
 SET @@path = DEFAULT;
 #
@@ -665,21 +665,21 @@ SET @@path = DEFAULT;
 # lookup in between 2 unqualified procedures with exactly the same name in different 2 databases
 #
 USE test2;
-CREATE PROCEDURE proc() SELECT 'Invoke from Db: test2, Rt: proc';
+CREATE PROCEDURE proc() SELECT 'Invoke from Db: test2, Rt: proc' as 'trace:';
 CREATE DATABASE deselect_db;
 USE deselect_db;
 DROP DATABASE deselect_db;
 SET PATH 'test,test2';
 CALL proc;
-Invoke from Db: test, Rt: proc
+trace:
 Invoke from Db: test, Rt: proc
 SET PATH 'test2,test';
 CALL proc;
-Invoke from Db: test2, Rt: proc
+trace:
 Invoke from Db: test2, Rt: proc
 DROP PROCEDURE test2.proc;
 CALL proc;
-Invoke from Db: test, Rt: proc
+trace:
 Invoke from Db: test, Rt: proc
 DROP PROCEDURE test.proc;
 CALL proc;
@@ -692,19 +692,19 @@ SET @@path = DEFAULT;
 # lookup in between 2 unqualified procedures with exactly the same name in different 2 databases
 #
 USE test;
-CREATE PROCEDURE proc() SELECT 'Invoke from Db: test, Rt: proc';
+CREATE PROCEDURE proc() SELECT 'Invoke from Db: test, Rt: proc' as 'trace:';
 SET PATH 'CURRENT_SCHEMA,test';
 USE test2;
 CALL proc;
+trace:
 Invoke from Db: test, Rt: proc
-Invoke from Db: test, Rt: proc
-CREATE PROCEDURE proc() SELECT 'Invoke from Db: test2, Rt: proc';
+CREATE PROCEDURE proc() SELECT 'Invoke from Db: test2, Rt: proc' as 'trace:';
 CALL proc;
-Invoke from Db: test2, Rt: proc
+trace:
 Invoke from Db: test2, Rt: proc
 DROP PROCEDURE proc;
 CALL proc;
-Invoke from Db: test, Rt: proc
+trace:
 Invoke from Db: test, Rt: proc
 DROP PROCEDURE test.proc;
 CALL proc;
@@ -718,26 +718,26 @@ SET @@path = DEFAULT;
 #
 SET PATH 'test,test2';
 USE test2;
-CREATE PROCEDURE proc() SELECT 'Invoke from Db: test2, Rt: proc';
+CREATE PROCEDURE proc() SELECT 'Invoke from Db: test2, Rt: proc' as 'trace:';
 USE test;
 CREATE PROCEDURE proc_call_proc() CALL proc;
 CREATE DATABASE deselect_db;
 USE deselect_db;
 DROP DATABASE deselect_db;
 CALL proc_call_proc;
-Invoke from Db: test2, Rt: proc
+trace:
 Invoke from Db: test2, Rt: proc
 USE test;
-CREATE PROCEDURE proc() SELECT 'Invoke from Db: test, Rt: proc';
+CREATE PROCEDURE proc() SELECT 'Invoke from Db: test, Rt: proc' as 'trace:';
 CREATE DATABASE deselect_db;
 USE deselect_db;
 DROP DATABASE deselect_db;
 CALL proc_call_proc;
-Invoke from Db: test, Rt: proc
+trace:
 Invoke from Db: test, Rt: proc
 DROP PROCEDURE test.proc;
 CALL proc_call_proc;
-Invoke from Db: test2, Rt: proc
+trace:
 Invoke from Db: test2, Rt: proc
 DROP PROCEDURE test2.proc;
 CALL proc_call_proc;
@@ -753,19 +753,19 @@ SET @@path = DEFAULT;
 #
 SET PATH 'CURRENT_SCHEMA,test2';
 USE test2;
-CREATE PROCEDURE proc() SELECT 'Invoke from Db: test2, Rt: proc';
+CREATE PROCEDURE proc() SELECT 'Invoke from Db: test2, Rt: proc' as 'trace:';
 USE test;
 CREATE PROCEDURE proc_call_proc() CALL proc;
 CALL proc_call_proc;
+trace:
 Invoke from Db: test2, Rt: proc
-Invoke from Db: test2, Rt: proc
-CREATE PROCEDURE proc() SELECT 'Invoke from Db: test, Rt: proc';
+CREATE PROCEDURE proc() SELECT 'Invoke from Db: test, Rt: proc' as 'trace:';
 CALL proc_call_proc;
-Invoke from Db: test, Rt: proc
+trace:
 Invoke from Db: test, Rt: proc
 DROP PROCEDURE proc;
 CALL proc_call_proc;
-Invoke from Db: test2, Rt: proc
+trace:
 Invoke from Db: test2, Rt: proc
 DROP PROCEDURE test2.proc;
 CALL proc_call_proc;
@@ -906,7 +906,7 @@ SET @@path = DEFAULT;
 #
 SET PATH 'test,test2';
 USE test2;
-CREATE PROCEDURE proc_local() SELECT 'Invoke from Db: test2, Rt: proc_local';
+CREATE PROCEDURE proc_local() SELECT 'Invoke from Db: test2, Rt: proc_local' as 'trace:';
 USE test;
 CREATE PACKAGE pack
 PROCEDURE proc();
@@ -920,19 +920,19 @@ CREATE DATABASE deselect_db;
 USE deselect_db;
 DROP DATABASE deselect_db;
 CALL pack.proc;
-Invoke from Db: test2, Rt: proc_local
+trace:
 Invoke from Db: test2, Rt: proc_local
 USE test;
-CREATE PROCEDURE proc_local() SELECT 'Invoke from Db: test, Rt: proc_local';
+CREATE PROCEDURE proc_local() SELECT 'Invoke from Db: test, Rt: proc_local' as 'trace:';
 CREATE DATABASE deselect_db;
 USE deselect_db;
 DROP DATABASE deselect_db;
 CALL pack.proc;
-Invoke from Db: test, Rt: proc_local
+trace:
 Invoke from Db: test, Rt: proc_local
 DROP PROCEDURE test.proc_local;
 CALL pack.proc;
-Invoke from Db: test2, Rt: proc_local
+trace:
 Invoke from Db: test2, Rt: proc_local
 DROP PROCEDURE test2.proc_local;
 CALL pack.proc;
@@ -949,7 +949,7 @@ SET @@path = DEFAULT;
 #
 SET PATH 'test,test2';
 USE test2;
-CREATE PROCEDURE proc_local() SELECT 'Invoke from Db: test2, Rt: proc_local';
+CREATE PROCEDURE proc_local() SELECT 'Invoke from Db: test2, Rt: proc_local' as 'trace:';
 USE test;
 CREATE PACKAGE pack
 PROCEDURE proc();
@@ -960,15 +960,15 @@ PROCEDURE proc() CALL proc_local;
 END;
 $$
 CALL pack.proc;
+trace:
 Invoke from Db: test2, Rt: proc_local
-Invoke from Db: test2, Rt: proc_local
-CREATE PROCEDURE proc_local() SELECT 'Invoke from Db: test, Rt: proc_local';
+CREATE PROCEDURE proc_local() SELECT 'Invoke from Db: test, Rt: proc_local' as 'trace:';
 CALL pack.proc;
-Invoke from Db: test, Rt: proc_local
+trace:
 Invoke from Db: test, Rt: proc_local
 DROP PROCEDURE proc_local;
 CALL pack.proc;
-Invoke from Db: test2, Rt: proc_local
+trace:
 Invoke from Db: test2, Rt: proc_local
 DROP PROCEDURE test2.proc_local;
 CALL pack.proc;
@@ -1105,12 +1105,12 @@ END;
 $$
 CREATE DATABASE pack;
 USE pack;
-CREATE PROCEDURE proc() SELECT 'Invoke from Db: pack, Rt: proc';
+CREATE PROCEDURE proc() SELECT 'Invoke from Db: pack, Rt: proc' as 'trace:';
 CREATE DATABASE deselect_db;
 USE deselect_db;
 DROP DATABASE deselect_db;
 CALL pack.proc;
-Invoke from Db: pack, Rt: proc
+trace:
 Invoke from Db: pack, Rt: proc
 SET PATH 'sys,test';
 CALL pack.proc;
@@ -1119,7 +1119,7 @@ Invoke from Db: test, Pack: pack, Rt: proc
 DROP PACKAGE BODY test.pack;
 DROP PACKAGE test.pack;
 CALL pack.proc;
-Invoke from Db: pack, Rt: proc
+trace:
 Invoke from Db: pack, Rt: proc
 DROP PROCEDURE pack.proc;
 CALL pack.proc;
@@ -1141,7 +1141,7 @@ PROCEDURE proc() SELECT 'Invoke from Db: test, Pack: pack, Rt: proc';
 END;
 $$
 USE pack;
-CREATE PROCEDURE proc() SELECT 'Invoke from Db: pack, Rt: proc';
+CREATE PROCEDURE proc() SELECT 'Invoke from Db: pack, Rt: proc' as 'trace:';
 USE test;
 CALL pack.proc;
 Invoke from Db: test, Pack: pack, Rt: proc
@@ -1149,7 +1149,7 @@ Invoke from Db: test, Pack: pack, Rt: proc
 DROP PACKAGE BODY pack;
 DROP PACKAGE pack;
 CALL pack.proc;
-Invoke from Db: pack, Rt: proc
+trace:
 Invoke from Db: pack, Rt: proc
 DROP PROCEDURE pack.proc;
 CALL pack.proc;
@@ -1171,10 +1171,10 @@ PROCEDURE proc() SELECT 'Invoke from Db: test, Pack: pack, Rt: proc';
 END;
 $$
 USE pack;
-CREATE PROCEDURE proc() SELECT 'Invoke from Db: pack, Rt: proc';
+CREATE PROCEDURE proc() SELECT 'Invoke from Db: pack, Rt: proc' as 'trace:';
 USE test2;
 CALL pack.proc;
-Invoke from Db: pack, Rt: proc
+trace:
 Invoke from Db: pack, Rt: proc
 SET PATH 'sys,test';
 CALL pack.proc;
@@ -1183,7 +1183,7 @@ Invoke from Db: test, Pack: pack, Rt: proc
 DROP PACKAGE BODY test.pack;
 DROP PACKAGE test.pack;
 CALL pack.proc;
-Invoke from Db: pack, Rt: proc
+trace:
 Invoke from Db: pack, Rt: proc
 DROP PROCEDURE pack.proc;
 CALL pack.proc;
@@ -1198,9 +1198,9 @@ SET @@path = DEFAULT;
 #
 SET PATH 'test,test2';
 USE test2;
-CREATE PROCEDURE proc_prv() SELECT 'Invoke from Db: test2, Rt: proc_prv';
+CREATE PROCEDURE proc_prv() SELECT 'Invoke from Db: test2, Rt: proc_prv' as 'trace:';
 USE test;
-CREATE PROCEDURE proc_prv() SELECT 'Invoke from Db: test, Rt: proc_prv';
+CREATE PROCEDURE proc_prv() SELECT 'Invoke from Db: test, Rt: proc_prv' as 'trace:';
 CREATE PACKAGE pack
 PROCEDURE proc_pub();
 END;
