@@ -1490,7 +1490,7 @@ BEGIN
 marks(1, 2):= 62;
 END;
 $$
-ERROR 42000: Incorrect number of arguments for ASSOC_ARRAY KEY .; expected 1, got 2
+ERROR 42000: Incorrect number of arguments for marks ; expected 1, got 2
 #
 # Element assignment with wrong argument count (2)
 #
@@ -1501,7 +1501,7 @@ BEGIN
 marks():= 62;
 END;
 $$
-ERROR 42000: Incorrect number of arguments for ASSOC_ARRAY KEY .; expected 1, got 0
+ERROR 42000: Incorrect number of arguments for marks ; expected 1, got 0
 #
 # Element access with wrong argument count
 #
@@ -1513,7 +1513,7 @@ marks(1):= 62;
 SELECT marks(1, 2);
 END;
 $$
-ERROR 42000: Incorrect number of arguments for ASSOC_ARRAY_ELEMENT .; expected 1, got 2
+ERROR 42000: Incorrect number of arguments for marks ; expected 1, got 2
 #
 # Element access with wrong argument count (2)
 #
@@ -1524,7 +1524,7 @@ BEGIN
 SELECT marks();
 END;
 $$
-ERROR 42000: Incorrect number of arguments for ASSOC_ARRAY_ELEMENT .; expected 1, got 0
+ERROR 42000: Incorrect number of arguments for marks ; expected 1, got 0
 #
 # Non-existant field access
 #
