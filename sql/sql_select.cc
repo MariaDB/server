@@ -30282,6 +30282,7 @@ bool JOIN::rollup_init()
 {
   uint i,j;
   Item **ref_array;
+  bool reinit= (rollup.state == ROLLUP::STATE_INITED);
 
   tmp_table_param.quick_group= 0;	// Can't create groups in tmp table
   /*
@@ -30330,6 +30331,8 @@ bool JOIN::rollup_init()
     for (j=0 ; j < fields_list.elements ; j++)
       rollup.fields[i].push_back(rollup.null_items[i], thd->mem_root);
   }
+  if (reinit)
+    return 0;
   List_iterator<Item> it(all_fields);
   Item *item;
   while ((item= it++))
