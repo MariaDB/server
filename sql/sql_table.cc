@@ -10370,7 +10370,8 @@ static bool
 simple_rename_or_index_change(THD *thd, TABLE_LIST *table_list,
                               Alter_info::enum_enable_or_disable keys_onoff,
                               TRIGGER_RENAME_PARAM *trigger_param,
-                              Alter_table_ctx *alter_ctx)
+                              Alter_table_ctx *alter_ctx,
+                              ulonglong wait_timeout)
 {
   TABLE *table= table_list->table;
   MDL_ticket *mdl_ticket= table->mdl_ticket;
@@ -10401,7 +10402,7 @@ simple_rename_or_index_change(THD *thd, TABLE_LIST *table_list,
 
   if (keys_onoff != Alter_info::LEAVE_AS_IS)
   {
-    if (wait_while_table_is_used(thd, table, extra_func))
+    if (wait_while_table_is_used(thd, table, extra_func, wait_timeout))
       DBUG_RETURN(true);
 
     // It's now safe to take the table level lock.
@@ -11138,6 +11139,28 @@ bool mysql_alter_table(THD *thd, const LEX_CSTRING *new_db,
     }
   }
 
+  if (table->s->table_type == TABLE_TYPE_GLOBAL_TEMPORARY)
+  {
+    if (thd->find_tmp_table_share(table_list, Tmp_table_kind::GLOBAL))
+    {
+      // The table is opened in the same connection.
+      my_error(ER_LOCK_WAIT_TIMEOUT, MYF(0));
+      DBUG_RETURN(true);
+    }
+
+    if (alter_info->requested_lock == Alter_info::ALTER_TABLE_LOCK_DEFAULT)
+      alter_info->requested_lock= Alter_info::ALTER_TABLE_LOCK_EXCLUSIVE;
+
+    if (alter_info->requested_lock != Alter_info::ALTER_TABLE_LOCK_EXCLUSIVE)
+    {
+      my_error(ER_ALTER_OPERATION_NOT_SUPPORTED, MYF(0),
+               alter_info->lock(), "LOCK=EXCLUSIVE");
+      DBUG_RETURN(true);
+    }
+
+    lock_wait_timeout= 0; // Oracle compatibility
+  }
+
   DEBUG_SYNC(thd, "alter_opened_table");
 
 #if defined WITH_WSREP && defined ENABLED_DEBUG_SYNC
@@ -11488,7 +11511,8 @@ do_continue:;
       res= simple_rename_or_index_change(thd, table_list,
                                          alter_info->keys_onoff,
                                          &trigger_param,
-                                         &alter_ctx);
+                                         &alter_ctx,
+                                         lock_wait_timeout);
     }
     else
     {
@@ -11973,27 +11997,6 @@ alter_copy:
   /* Check if ALTER TABLE is compatible with foreign key definitions. */
   if (fk_prepare_copy_alter_table(thd, table, alter_info, &alter_ctx))
     goto err_new_table_cleanup;
-
-  if (table->s->table_type == TABLE_TYPE_GLOBAL_TEMPORARY)
-  {
-    if (thd->find_tmp_table_share(table_list, Tmp_table_kind::GLOBAL))
-    {
-      // The table is opened in the same connection.
-      my_error(ER_LOCK_WAIT_TIMEOUT, MYF(0));
-      goto err_new_table_cleanup;
-    }
-    if (alter_info->requested_lock == Alter_info::ALTER_TABLE_LOCK_DEFAULT)
-      alter_info->requested_lock= Alter_info::ALTER_TABLE_LOCK_EXCLUSIVE;
-
-    if (alter_info->requested_lock != Alter_info::ALTER_TABLE_LOCK_EXCLUSIVE)
-    {
-      my_error(ER_ALTER_OPERATION_NOT_SUPPORTED, MYF(0),
-               alter_info->lock(), "LOCK=EXCLUSIVE");
-      goto err_new_table_cleanup;
-    }
-
-    lock_wait_timeout= 0; // Oracle compatibility
-  }
 
   if (!table->s->tmp_table)
   {
