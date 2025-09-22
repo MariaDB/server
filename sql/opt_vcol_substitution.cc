@@ -309,8 +309,7 @@ bool substitute_indexed_vcols_for_join(JOIN *join)
     count_field_types(join->select_lex, &join->tmp_table_param,
                       join->all_fields, 0);
     join->select_lex->update_used_tables();
-    if (join->rollup.state == st_rollup::STATE_INITED &&
-        join->all_fields.elements != join->rollup.ref_pointer_arrays[0].size())
+    if (join->rollup.state == st_rollup::STATE_INITED)
       join->rollup_init();
   }
 
