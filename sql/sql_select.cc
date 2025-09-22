@@ -30417,6 +30417,22 @@ bool JOIN::rollup_process_const_fields()
 }
   
 
+/*
+  Check equality between an all_fields item and a group item for the
+  purpose of rollup
+*/
+static bool rollup_equal(Item *field, ORDER *group)
+{
+  Item *vcol_back= group->vcol_back;
+  if (!vcol_back)
+    return (*group->item)->eq(field, true);
+  if (vcol_back->eq(field, true))
+    return true;
+  if (field->type() != Item::COPY_STR_ITEM)
+    return false;
+  return vcol_back->eq(((Item_copy *) field)->get_item(), true);
+}
+
 /**
   Fill up rollup structures with pointers to fields to use.
 
@@ -30517,8 +30533,7 @@ bool JOIN::rollup_make_fields(List<Item> &fields_arg, List<Item> &sel_fields,
 	for (group_tmp= start_group, i= pos ;
              group_tmp ; group_tmp= group_tmp->next, i++)
 	{
-            if ((!group_tmp->vcol_back && (*group_tmp->item)->eq(item, true)) ||
-                (group_tmp->vcol_back && group_tmp->vcol_back->eq(item, true)))
+          if (rollup_equal(item, group_tmp))
 	  {
 	    /*
 	      This is an element that is used by the GROUP BY and should be

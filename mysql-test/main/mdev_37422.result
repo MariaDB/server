@@ -56,7 +56,108 @@ a	a	count(b)
 9	9	10
 10	10	6
 NULL	NULL	100
+SELECT a, a + 1, count(b) FROM t GROUP BY a WITH ROLLUP;
+a	a + 1	count(b)
+0	1	4
+1	2	10
+2	3	10
+3	4	10
+4	5	10
+5	6	10
+6	7	10
+7	8	10
+8	9	10
+9	10	10
+10	11	6
+NULL	NULL	100
 SELECT count(b) FROM t GROUP BY a WITH ROLLUP;
+count(b)
+4
+10
+10
+10
+10
+10
+10
+10
+10
+10
+6
+100
+drop table t;
+CREATE TABLE t (a INT,b INT,a1 INT GENERATED ALWAYS AS (a + 1) VIRTUAL,INDEX (a1)) ENGINE=INNODB;
+insert into t (a, b) select seq / 10, seq from seq_1_to_100;
+SELECT * FROM t GROUP BY a + 1 WITH ROLLUP;
+a	b	a1
+0	1	1
+1	14	2
+2	21	3
+3	31	4
+4	41	5
+5	51	6
+6	61	7
+7	71	8
+8	81	9
+9	91	10
+10	99	11
+10	99	11
+SELECT a + 1, b FROM t GROUP BY a + 1 WITH ROLLUP;
+a + 1	b
+1	1
+2	14
+3	21
+4	31
+5	41
+6	51
+7	61
+8	71
+9	81
+10	91
+11	99
+NULL	99
+SELECT a + 1, count(b) FROM t GROUP BY a + 1 WITH ROLLUP;
+a + 1	count(b)
+1	4
+2	10
+3	10
+4	10
+5	10
+6	10
+7	10
+8	10
+9	10
+10	10
+11	6
+NULL	100
+SELECT a + 1, a + 1, count(b) FROM t GROUP BY a + 1 WITH ROLLUP;
+a + 1	a + 1	count(b)
+1	1	4
+2	2	10
+3	3	10
+4	4	10
+5	5	10
+6	6	10
+7	7	10
+8	8	10
+9	9	10
+10	10	10
+11	11	6
+NULL	NULL	100
+SELECT a + 1, a, count(b) FROM t GROUP BY a + 1 WITH ROLLUP;
+a + 1	a	count(b)
+1	0	4
+2	1	10
+3	2	10
+4	3	10
+5	4	10
+6	5	10
+7	6	10
+8	7	10
+9	8	10
+10	9	10
+11	10	6
+NULL	10	100
+SELECT count(b) FROM t GROUP BY a + 1 WITH ROLLUP;
 count(b)
 4
 10
