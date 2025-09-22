@@ -902,4 +902,26 @@ drop table t;
 unlock tables;
 drop table t2;
 
+--echo MDEV-37681 SIGSEGV on TRUNCATE GTT after failed RENAME under LOCK TABLE
+create global temporary table t (c int) on commit preserve rows;
+lock table t write;
+select * from t;
+connection default;
+--error ER_LOCK_WAIT_TIMEOUT
+alter table t add x int;
+truncate t;
+drop table t;
+
+create global temporary table t (c int) on commit preserve rows;
+--connection con1
+select * from t;
+connection default;
+--error ER_LOCK_WAIT_TIMEOUT
+alter table t add x int;
+--connection con1
+truncate t;
+--connection default
+drop table t;
+
+
 --disconnect con1

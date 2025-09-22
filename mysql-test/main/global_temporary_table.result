@@ -195,7 +195,7 @@ create global temporary table t (x int);
 alter table t force, lock=none, algorithm=copy;
 ERROR 0A000: LOCK=NONE is not supported for this operation. Try LOCK=EXCLUSIVE
 alter table t rename column x to y, lock=none, algorithm=inplace;
-ERROR 0A000: ALGORITHM=INPLACE is not supported for this operation. Try ALGORITHM=COPY
+ERROR 0A000: LOCK=NONE is not supported for this operation. Try LOCK=EXCLUSIVE
 drop table t;
 ### VIEWS
 create global temporary table t (x int);
@@ -1033,4 +1033,25 @@ truncate t;
 drop table t;
 unlock tables;
 drop table t2;
+MDEV-37681 SIGSEGV on TRUNCATE GTT after failed RENAME under LOCK TABLE
+create global temporary table t (c int) on commit preserve rows;
+lock table t write;
+select * from t;
+c
+connection default;
+alter table t add x int;
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+truncate t;
+drop table t;
+create global temporary table t (c int) on commit preserve rows;
+connection con1;
+select * from t;
+c
+connection default;
+alter table t add x int;
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+connection con1;
+truncate t;
+connection default;
+drop table t;
 disconnect con1;
