@@ -997,4 +997,10 @@ connection con1;
 truncate t;
 connection default;
 drop table t;
+# MDEV-37694 ASAN heap-use-after-free in check_column_name on CoR ... LIKE
+create table t1 (a int key);
+create global temporary table t (x int) on commit delete rows;
+create or replace table t1 like t;
+drop table t;
+drop table t1;
 disconnect con1;
