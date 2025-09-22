@@ -20,7 +20,7 @@ SET @old_debug_dbug = @@global.debug_dbug;
 XA START 'a';
 INSERT INTO mysql.innodb_index_stats SELECT '','' AS table_name,index_name,LAST_UPDATE,stat_name,0 AS stat_value,sample_size,stat_description FROM mysql.innodb_index_stats WHERE table_name='dummy' FOR UPDATE;  # Note the SELECT is empty
 SET GLOBAL debug_dbug = "+d,dict_stats_save_exit_notify";
-INSERT INTO t VALUES (1);
+INSERT INTO t VALUES (1), (2);
 XA END 'a';
 XA PREPARE 'a';
 

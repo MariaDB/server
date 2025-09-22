@@ -65,6 +65,9 @@ if ($MTR_COMBINATION_UPGRADE)
 {
 --disable_query_log
 call mtr.add_suppression("InnoDB: Table `mysql`.\`innodb_(table|index)_stats`");
+call mtr.add_suppression("InnoDB: Table mysql\\.innodb_table_stats is not readable");
+call mtr.add_suppression("InnoDB: Fetch of persistent statistics requested for table `test`\\.`articles[0-9]*` but the required system tables mysql.innodb_table_stats and mysql.innodb_index_stats are not present or have unexpected structure. Using transient stats instead.");
+call mtr.add_suppression("InnoDB: Recalculation of persistent statistics requested for table `test`\\.`#sql-alter.*` but the required persistent statistics storage is not present or is corrupted. Using transient stats instead.");
 --enable_query_log
   --source include/shutdown_mysqld.inc
   --exec rm -f $datadir/test/*.ibd $datadir/ib*
