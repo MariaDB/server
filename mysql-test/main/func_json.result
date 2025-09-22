@@ -5379,4 +5379,9 @@ result
 [["2", "6"], ["3", "8"], ["4", "5"], ["1", "7"]]
 [["2", "6"], ["3", "8"], ["4", "5"], ["1", "7"]]
 [["2", "6"], ["3", "8"], ["4", "5"], ["1", "7"]]
+#
+# MDEV-33640: Server crashes at my_hash_free
+#
+SELECT JSON_SCHEMA_VALID('{"properties": "a_string": {"pattern": "^[5-9]$"}}}', '{"a_string": "8"}');
+ERROR HY000: Invalid value for keyword properties
 # End of 11.4 Test
