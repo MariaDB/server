@@ -233,6 +233,11 @@ show create table t1;
 drop table t1;
 create global temporary table t3 like t2;
 show create table t3;
+
+create temporary table t4 (d int);
+create or replace temporary table t4 like t3; # MDEV-37719
+drop table t4;
+
 drop table t2;
 drop table t3;
 
@@ -244,7 +249,8 @@ show create table t3;
 create temporary table t4 like t2;
 show create table t4;
 
-truncate t2; # Unfortunately, we should do this
+truncate t2;
+truncate t3;
 
 drop table t1;
 drop table t2;
