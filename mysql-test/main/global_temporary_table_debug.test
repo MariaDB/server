@@ -1,0 +1,25 @@
+--source include/have_debug_sync.inc
+--source include/not_embedded.inc
+
+--echo # MDEV-37693 use-after-free in mysql_ha_flush after 2nd HANDLER OPEN execution
+create global temporary table t (x int) on commit preserve rows;
+begin;
+select * from t;
+handler t open;
+--let $con_id = `select connection_id()`
+
+set debug_sync= "before_lock_tables_takes_lock signal kill wait_for lock";
+send load index into cache t key(primary);
+--connect (con1,localhost,root,,)
+set debug_sync= "now wait_for kill";
+eval kill query $con_id;
+--echo # set debug_sync= "now signal lock"; -- not needed, as KILL breaks the waiting
+--connection default
+reap;
+handler t open;
+select 1;
+rollback;
+truncate t;
+drop table t;
+
+--disconnect con1
