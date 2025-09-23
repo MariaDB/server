@@ -923,5 +923,4 @@ truncate t;
 --connection default
 drop table t;
 
-
 --disconnect con1

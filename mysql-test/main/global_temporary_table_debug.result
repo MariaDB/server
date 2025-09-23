@@ -1,0 +1,24 @@
+# MDEV-37693 use-after-free in mysql_ha_flush after 2nd HANDLER OPEN execution
+create global temporary table t (x int) on commit preserve rows;
+begin;
+select * from t;
+x
+handler t open;
+set debug_sync= "before_lock_tables_takes_lock signal kill wait_for lock";
+load index into cache t key(primary);
+connect  con1,localhost,root,,;
+set debug_sync= "now wait_for kill";
+kill query 4;
+# set debug_sync= "now signal lock"; -- not needed, as KILL breaks the waiting
+connection default;
+Table	Op	Msg_type	Msg_text
+test.t	preload_keys	Error	Query execution was interrupted
+test.t	preload_keys	error	Corrupt
+handler t open;
+select 1;
+1
+1
+rollback;
+truncate t;
+drop table t;
+disconnect con1;
