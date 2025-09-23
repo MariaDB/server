@@ -3093,6 +3093,42 @@ DROP TABLE t1,t2;
 # End of 10.5 tests
 #
 #
+# MDEV-37682 Not all columns in super-aggregate rows in a SELECT ... WITH ROLLUP are NULL
+#
+CREATE TABLE t (a INT,b INT);
+insert into t (a, b) select seq / 20, seq from seq_1_to_100;
+SELECT a, a, count(b) FROM t GROUP BY a WITH ROLLUP;
+a	a	count(b)
+0	0	9
+1	1	20
+2	2	20
+3	3	20
+4	4	20
+5	5	11
+NULL	NULL	100
+SELECT a + 1, a, count(b) FROM t GROUP BY a + 1 WITH ROLLUP;
+a + 1	a	count(b)
+1	0	9
+2	1	20
+3	2	20
+4	3	20
+5	4	20
+6	5	11
+NULL	5	100
+SELECT a + 1, a, count(b) FROM t GROUP BY a WITH ROLLUP;
+a + 1	a	count(b)
+1	0	9
+2	1	20
+3	2	20
+4	3	20
+5	4	20
+6	5	11
+NULL	NULL	100
+drop table t;
+#
+# End of 10.11 tests
+#
+#
 # Test new group_min_max optimization
 #
 create table t1 (a int, b int, c int, key(a,b,c));
