@@ -5880,6 +5880,13 @@ bool mysql_create_like_table(THD* thd, TABLE_LIST* table,
   local_create_info.options&= ~HA_LEX_CREATE_TMP_TABLE;
   local_create_info.options|= create_info->options;
   local_create_info.table_options&= ~HA_OPTIONS_TO_RESET_CREATE_LIKE;
+  /*
+    Do not inherit the ON COMMIT behavior,
+    if the new table is not global temporary.
+  */
+  if (!create_info->global_tmp_table())
+    create_info->table_options&= ~HA_OPTION_ON_COMMIT_DELETE_ROWS;
+
   local_create_info.table_options|= create_info->table_options;
   /* Reset auto-increment counter for the new table. */
   local_create_info.auto_increment_value= 0;
