@@ -157,3 +157,53 @@ CREATE TABLE t (a INT,a1 INT AS (a) VIRTUAL,INDEX (a1));
 SELECT a FROM t GROUP BY a HAVING a>2;
 SELECT a FROM t WHERE a=(SELECT a FROM t GROUP BY a HAVING a>2);
 drop table t;
+
+--echo #
+--echo # MDEV-37422 SIGSEGV failed in base_list_iterator::replace, Assertion `n < m_size' in Bounds_checked_array, ASAN use-after-poison in JOIN::rollup_make_fields
+--echo #
+
+--source include/have_innodb.inc
+--echo # original case
+CREATE TABLE t (a INT,b INT,a1 INT GENERATED ALWAYS AS (a) VIRTUAL,INDEX (a1)) ENGINE=INNODB;
+SELECT * FROM t GROUP BY a WITH ROLLUP;
+drop table t;
+
+--echo # vcol subst group by with rollup
+CREATE TABLE t (a INT,b INT,a1 INT GENERATED ALWAYS AS (a) VIRTUAL,INDEX (a1)) ENGINE=INNODB;
+insert into t (a, b) select seq / 10, seq from seq_1_to_100;
+SELECT * FROM t GROUP BY a WITH ROLLUP;
+SELECT a, b FROM t GROUP BY a WITH ROLLUP;
+SELECT a, count(b) FROM t GROUP BY a WITH ROLLUP;
+SELECT a, a, count(b) FROM t GROUP BY a WITH ROLLUP;
+SELECT a, a + 1, count(b) FROM t GROUP BY a WITH ROLLUP;
+SELECT count(b) FROM t GROUP BY a WITH ROLLUP;
+drop table t;
+
+--echo # nontrivial vcol subst group by with rollup
+CREATE TABLE t (a INT,b INT,a1 INT GENERATED ALWAYS AS (a + 1) VIRTUAL,INDEX (a1)) ENGINE=INNODB;
+insert into t (a, b) select seq / 10, seq from seq_1_to_100;
+SELECT * FROM t GROUP BY a + 1 WITH ROLLUP;
+SELECT a + 1, b FROM t GROUP BY a + 1 WITH ROLLUP;
+SELECT a + 1, count(b) FROM t GROUP BY a + 1 WITH ROLLUP;
+SELECT a + 1, a + 1, count(b) FROM t GROUP BY a + 1 WITH ROLLUP;
+SELECT a + 1, a, count(b) FROM t GROUP BY a + 1 WITH ROLLUP;
+SELECT count(b) FROM t GROUP BY a + 1 WITH ROLLUP;
+drop table t;
+
+--echo # multiple rollup levels vcol subst group by with rollup
+CREATE TABLE t (a INT,b INT, c INT,a1 INT GENERATED ALWAYS AS (a) VIRTUAL, b1 INT GENERATED ALWAYS AS (b) VIRTUAL,INDEX (a1, b1)) ENGINE=INNODB;
+insert into t (a, b, c) select seq / 20, seq / 10, seq from seq_1_to_100;
+SELECT * FROM t GROUP BY a, b WITH ROLLUP;
+SELECT a, b FROM t GROUP BY a, b WITH ROLLUP;
+SELECT a, b, count(c) FROM t GROUP BY a, b WITH ROLLUP;
+SELECT count(c) FROM t GROUP BY a, b WITH ROLLUP;
+drop table t;
+
+--echo # multiple rollup levels nontrivial vcol subst group by with rollup
+CREATE TABLE t (a INT,b INT, c INT,a1 INT GENERATED ALWAYS AS (a+1) VIRTUAL, b1 INT GENERATED ALWAYS AS (b+1) VIRTUAL,INDEX (a1, b1)) ENGINE=INNODB;
+insert into t (a, b, c) select seq / 20, seq / 10, seq from seq_1_to_100;
+SELECT * FROM t GROUP BY a + 1, b + 1 WITH ROLLUP;
+SELECT a + 1, b + 1 FROM t GROUP BY a + 1, b + 1 WITH ROLLUP;
+SELECT a + 1, b + 1, count(c) FROM t GROUP BY a + 1, b + 1 WITH ROLLUP;
+SELECT count(c) FROM t GROUP BY a + 1, b + 1 WITH ROLLUP;
+drop table t;

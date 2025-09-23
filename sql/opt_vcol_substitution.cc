@@ -230,6 +230,14 @@ void subst_vcols_in_order(Vcol_subst_context *ctx,
     {
       Item *new_item= *order->item;
       /*
+        If we are substituting a GROUP BY item and the statement has
+        WITH ROLLUP, keep track of the original item so that the
+        correct SELECT items are masked in the super-aggregated result
+        rows
+      */
+      if (is_group_by && join->rollup.state == st_rollup::STATE_INITED)
+        order->vcol_back= item;
+      /*
         If the old ORDER BY item is a SELECT item, then insert the new
         item to all_fields and keep it in sync with ref_pointer_array.
         Otherwise it is safe to replace the old item with the new item
@@ -307,6 +315,17 @@ bool substitute_indexed_vcols_for_join(JOIN *join)
     count_field_types(join->select_lex, &join->tmp_table_param,
                       join->all_fields, 0);
     join->select_lex->update_used_tables();
+    /*
+      If rollup.state == STATE_INITED it means the query has WITH
+      ROLLUP, so there is no ORDER BY, so the reason we are here
+      (ctx.subst_count > 0) is that there has been a GROUP BY vcol
+      index substitution. Re-initialisation of the rollup object is
+      needed due to changes in all_fields and the call to
+      count_field_types above causing tmp_table_param.quick_group
+      reset to 1
+    */
+    if (join->rollup.state == ROLLUP::STATE_INITED)
+      join->rollup_init();
   }
 
   if (join->thd->is_error())

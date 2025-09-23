@@ -30282,6 +30282,7 @@ bool JOIN::rollup_init()
 {
   uint i,j;
   Item **ref_array;
+  bool reinit= (rollup.state == ROLLUP::STATE_INITED);
 
   tmp_table_param.quick_group= 0;	// Can't create groups in tmp table
   /*
@@ -30330,6 +30331,12 @@ bool JOIN::rollup_init()
     for (j=0 ; j < fields_list.elements ; j++)
       rollup.fields[i].push_back(rollup.null_items[i], thd->mem_root);
   }
+  /*
+    If we are re-initialising rollup, we are done. This is because the
+    reinit happens when vcol GROUP BY substitution
+  */
+  if (reinit)
+    return 0;
   List_iterator<Item> it(all_fields);
   Item *item;
   while ((item= it++))
@@ -30415,7 +30422,32 @@ bool JOIN::rollup_process_const_fields()
   }
   return 0;
 }
-  
+
+/*
+  Check equality between an all_fields item (the field arg) and a
+  group item (the group arg) for the purpose of rollup
+*/
+static bool rollup_equal(Item *field, ORDER *group)
+{
+  Item *vcol_back= group->vcol_back;
+  if (!vcol_back)
+    return (*group->item)->eq(field, true);
+  /*
+    The GROUP BY item is a vcol field after a substitution, so we use
+    the original item (vcol_back) for comparison
+  */
+  if (vcol_back->eq(field, true))
+    return true;
+  if (field->type() != Item::COPY_STR_ITEM)
+    return false;
+  /*
+    The item has been transformed to an Item_copy in
+    setup_copy_fields, so we have to track down the original item.
+    When no vcol substitution occurred (vcol_back == NULL), both the
+    GROUP BY item and the all_fields item are Item_copy
+  */
+  return vcol_back->eq(((Item_copy *) field)->get_item(), true);
+}
 
 /**
   Fill up rollup structures with pointers to fields to use.
@@ -30517,7 +30549,7 @@ bool JOIN::rollup_make_fields(List<Item> &fields_arg, List<Item> &sel_fields,
 	for (group_tmp= start_group, i= pos ;
              group_tmp ; group_tmp= group_tmp->next, i++)
 	{
-          if ((*group_tmp->item)->eq(item, true))
+          if (rollup_equal(item, group_tmp))
 	  {
 	    /*
 	      This is an element that is used by the GROUP BY and should be

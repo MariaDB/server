@@ -245,6 +245,7 @@ typedef struct st_order {
   struct st_order *next;
   Item	 **item;			/* Point at item in select fields */
   Item	 *item_ptr;			/* Storage for initial item */
+  Item   *vcol_back;    /* Original GROUP BY item before vcol substitution */
   /*
     Reference to the function we are trying to optimize copy to
     a temporary table
