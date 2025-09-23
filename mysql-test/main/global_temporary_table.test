@@ -923,4 +923,13 @@ truncate t;
 --connection default
 drop table t;
 
+--echo # MDEV-37596 enforce_storage_engine has an effect on child global temporary tables
+create global temporary table t (t text) engine=myisam;
+set session enforce_storage_engine=innodb;
+insert t values ('qwe');
+set session enforce_storage_engine=memory;
+insert t values ('asdf');
+drop table t;
+set session enforce_storage_engine=default;
+
 --disconnect con1

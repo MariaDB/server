@@ -6275,11 +6275,16 @@ my_bool open_global_temporary_table(THD *thd, TABLE_SHARE *source,
     thd->work_part_info= 0;
 #endif
     create_info.options|= HA_LEX_CREATE_TMP_TABLE;
+    plugin_ref enf_plugin= thd->variables.enforced_table_plugin;
+    thd->variables.enforced_table_plugin= NULL;
+
     int res= mysql_create_table_no_lock(thd,
                                         NULL, NULL,
                                         &create_info, &alter_info,
                                         NULL, C_ORDINARY_CREATE|C_ALTER_TABLE,
                                         out_table);
+
+    thd->variables.enforced_table_plugin= enf_plugin;
     if (res > 0)
     {
       open_gtt_on_error(&global_table);
