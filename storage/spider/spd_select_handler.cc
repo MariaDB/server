@@ -201,7 +201,7 @@ static void spider_sh_setup_tables(TABLE_LIST *from,
 static bool spider_sh_setup_connection(THD *thd, SPIDER_CONN *conn,
                                        ha_spider *spider)
 {
-  SPIDER_TRX *trx;
+  SPIDER_TRX *trx= spider->wide_handler->trx;
   /*
     So that spider executes various "setup" queries according to the
     various spider system variables.
@@ -225,8 +225,10 @@ static bool spider_sh_setup_connection(THD *thd, SPIDER_CONN *conn,
        spider_check_and_set_trx_isolation(
          conn, &spider->need_mons[LINK_IDX])))
     return true;
-  trx= spider->wide_handler->trx;
-  if (!conn->join_trx && !trx->trx_xa)
+  /* Do not create spider sh if in an xa transaction */
+  if (trx->trx_xa)
+    return true;
+  if (!conn->join_trx)
   {
     /* So that spider executes queries that start a transaction. */
     spider_conn_queue_start_transaction(conn);

@@ -259,6 +259,22 @@ select nvl(sum(c), 0) from t1;
 nvl(sum(c), 0)
 3
 drop table t1, t2;
+#
+# MDEV-37410 XAER_OUTSIDE in bb-main-mdev-27260
+#
+CREATE TABLE ti (c INT) ENGINE=InnoDB;
+CREATE TABLE t1 (c INT KEY) ENGINE=Spider WRAPPER=mysql REMOTE_SERVER=srv REMOTE_TABLE=ti;
+set @old_autocommit=@@autocommit;
+set autocommit=OFF;
+XA START 'a';
+SELECT 1 FROM t1;
+ERROR XAE08: XAER_DUPID: The XID already exists
+DELETE t2.* FROM t1 t2 WHERE (SELECT 1 FROM t1);
+ERROR XAE08: XAER_DUPID: The XID already exists
+xa end 'a';
+xa rollback 'a';
+drop table t1, ti;
+set autocommit=@old_autocommit;
 drop server srv;
 for master_1
 for child2

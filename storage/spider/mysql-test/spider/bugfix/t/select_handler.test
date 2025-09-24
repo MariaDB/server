@@ -181,6 +181,25 @@ explain select nvl(sum(c), 0) from t1;
 select nvl(sum(c), 0) from t1;
 drop table t1, t2;
 
+--echo #
+--echo # MDEV-37410 XAER_OUTSIDE in bb-main-mdev-27260
+--echo #
+
+--source include/have_innodb.inc
+CREATE TABLE ti (c INT) ENGINE=InnoDB;
+CREATE TABLE t1 (c INT KEY) ENGINE=Spider WRAPPER=mysql REMOTE_SERVER=srv REMOTE_TABLE=ti;
+set @old_autocommit=@@autocommit;
+set autocommit=OFF;
+XA START 'a';
+--error ER_XAER_DUPID
+SELECT 1 FROM t1;
+--error ER_XAER_DUPID
+DELETE t2.* FROM t1 t2 WHERE (SELECT 1 FROM t1);
+xa end 'a';
+xa rollback 'a';
+drop table t1, ti;
+set autocommit=@old_autocommit;
+
 drop server srv;
 --disable_query_log
 --disable_result_log
