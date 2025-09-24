@@ -8418,8 +8418,8 @@ TABLE_LIST *st_select_lex::add_table_to_list(THD *thd,
       }
     }
   }
-  /* Store the table reference preceding the current one. */
-  TABLE_LIST *UNINIT_VAR(previous_table_ref); /* The table preceding the current one. */
+  /* Store the table reference preceding the current in previous_table_ref */
+  TABLE_LIST *UNINIT_VAR(previous_table_ref);
   if (table_list.elements > 0 && likely(!ptr->sequence))
   {
     /*

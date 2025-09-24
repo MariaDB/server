@@ -4370,6 +4370,12 @@ bool get_lookup_field_values(THD *thd, COND *cond, bool fix_table_name_case,
 
 enum enum_schema_tables get_schema_table_idx(ST_SCHEMA_TABLE *schema_table)
 {
+  if (schema_table < schema_tables ||
+      schema_table > &schema_tables[SCH_N_SERVER_TABLES])
+  {
+    return SCH_PLUGIN_TABLE;
+  }
+
   return (enum enum_schema_tables) (schema_table - &schema_tables[0]);
 }
 
