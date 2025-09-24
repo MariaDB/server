@@ -62,21 +62,21 @@ static bool spider_sh_check_query(SELECT_LEX *select_lex, SPIDER_SHARE *share,
   List<Item> items;
   List_iterator_fast<Item> it(*select_lex->get_item_list());
   while (Item *item= it++)
-    item->walk(&Item::collect_item_processor, 1, (void *) &items);
+    item->walk(&Item::collect_item_processor, (void *) &items, WALK_SUBQUERY);
   if (select_lex->where)
-    select_lex->where->walk(&Item::collect_item_processor, 1, (void *) &items);
+    select_lex->where->walk(&Item::collect_item_processor, (void *) &items, WALK_SUBQUERY);
   if (select_lex->join->group_list)
     for (ORDER *order= select_lex->join->group_list; order;
          order= order->next)
       if (order->item_ptr)
-        order->item_ptr->walk(&Item::collect_item_processor, 1, (void *) &items);
+        order->item_ptr->walk(&Item::collect_item_processor, (void *) &items, WALK_SUBQUERY);
   if (select_lex->join->order)
     for (ORDER *order= select_lex->join->order; order; order= order->next)
       /* TODO: What happens if item_ptr is NULL? When is it NULL? */
       if (order->item_ptr)
-        order->item_ptr->walk(&Item::collect_item_processor, 1, (void *) &items);
+        order->item_ptr->walk(&Item::collect_item_processor, (void *) &items, WALK_SUBQUERY);
   if (select_lex->having)
-    select_lex->having->walk(&Item::collect_item_processor, 1, (void *) &items);
+    select_lex->having->walk(&Item::collect_item_processor, (void *) &items, WALK_SUBQUERY);
   it.init(items);
   while (Item *item= it++)
     if (!spider_sh_check_item(item, share, thd))
