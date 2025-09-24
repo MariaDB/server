@@ -3631,3 +3631,14 @@ SET PATH '`a``b`';
 SELECT func();
 
 DROP DATABASE `a``b`;
+
+--echo #
+--echo # Count number of table reads
+--echo #
+create function f1() returns integer return 1;
+change_user; # reset sp cache
+set path 'test';
+select f1();
+show status like 'handler_read_key';
+drop function f1;
+set path 'current_schema';

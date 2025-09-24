@@ -2288,62 +2288,6 @@ Sp_handler::sp_find_routine(THD *thd, const Database_qualified_name *name,
 
 
 /**
-  Determine the existence of a routine.
-
-  @param thd          thread context
-  @param name         name of routine
-
-  @retval
-    Non-0  routine does not exist
-  @retval
-    0      routine exists
-*/
-
-int
-Sp_handler::sp_routine_exists(THD *thd,
-                              const Database_qualified_name *name) const
-{
-  DBUG_ENTER("Sp_handler::sp_routine_exists");
-  DBUG_PRINT("enter", ("name:  %.*s.%.*s  type: %s",
-                       (int) name->m_db.length, name->m_db.str,
-                       (int) name->m_name.length, name->m_name.str,
-                       type_str()));
-
-  Parser_state *oldps= thd->m_parser_state;
-  thd->m_parser_state= NULL;
-
-  sp_cache **cp= get_cache(thd);
-  sp_head *sp;
-  if ((sp= sp_cache_lookup(cp, name)))
-  {
-    thd->m_parser_state= oldps;
-    DBUG_RETURN(SP_OK);
-  }
-
-  TABLE *table;
-  int ret;
-
-  start_new_trans new_trans(thd);
-
-  if (!(table= open_proc_table_for_read(thd)))
-  {
-    ret= SP_OPEN_TABLE_FAILED;
-    goto done;
-  }
-
-  ret= db_find_routine_aux(thd, name, table);
-done:
-  if (table)
-    thd->commit_whole_transaction_and_close_tables();
-  new_trans.restore_old_transaction();
-
-  thd->m_parser_state= oldps;
-
-  DBUG_RETURN(ret);
-}
-
-
-/**
   Find a package routine.
   See sp_cache_routine() for more information on parameters and return value.
 

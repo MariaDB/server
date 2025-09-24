@@ -2893,3 +2893,17 @@ SELECT func();
 func()
 a`b.func()
 DROP DATABASE `a``b`;
+#
+# Count number of table reads
+#
+create function f1() returns integer return 1;
+change_user root,,test;
+set path 'test';
+select f1();
+f1()
+1
+show status like 'handler_read_key';
+Variable_name	Value
+Handler_read_key	1
+drop function f1;
+set path 'current_schema';
