@@ -49,6 +49,25 @@ CONCAT(t, CAST(val AS CHAR(4)))
 CALL pp();
 CONCAT(t, CAST(val AS CHAR(4)))
 43210
+SET max_sp_recursion_depth=0;
 DROP FUNCTION ff;
 DROP PROCEDURE pp;
+SET PATH 'test';
+CREATE FUNCTION test2.f(t TEXT) RETURNS TEXT
+RETURN f(CONCAT(t, ' >> test2.f'));
+CREATE FUNCTION f(t TEXT) RETURNS TEXT
+RETURN CONCAT(t, ' >> test.f');
+SELECT test2.f('*');
+test2.f('*')
+* >> test2.f >> test.f
 DROP DATABASE test2;
+DROP FUNCTION f;
+#
+# MDEV-38483 UBSAN: SIGSEGV in Sp_handler::db_load_routine | Sp_handler::db_find_routine
+#
+set path 'test';
+create procedure p() call p(sleep(1));
+call p();
+ERROR HY000: Recursive limit 0 (as set by the max_sp_recursion_depth variable) was exceeded for routine p
+drop procedure p;
+set path 'current_schema';
