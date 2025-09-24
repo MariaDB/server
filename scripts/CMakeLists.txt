@@ -205,9 +205,6 @@ ELSE()
   SET(localstatedir ${MYSQL_DATADIR})
 ENDIF()
 
-get_filename_component(MYSQL_UNIX_DIR ${MYSQL_UNIX_ADDR} DIRECTORY)
-SET(mysqlunixdir ${MYSQL_UNIX_DIR})
-
 SET(resolveip_locations "$basedir/${INSTALL_BINDIR} $basedir/bin")
 SET(mysqld_locations "$basedir/${INSTALL_SBINDIR} $basedir/libexec $basedir/sbin $basedir/bin")
 SET(errmsg_locations "$basedir/${INSTALL_MYSQLSHAREDIR}/english $basedir/share/english $basedir/share/mariadb/english $basedir/share/mysql/english")

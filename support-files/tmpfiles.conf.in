@@ -8,4 +8,4 @@
 # etc.
 # It shouldn't be used for datadir which is why it
 # may be disabled.
-@DISABLE_TMP@d @MYSQL_UNIX_DIR@ 0755 @MYSQLD_USER@ @MYSQLD_USER@ -
+@DISABLE_TMP@d @INSTALL_RUNDATADIR@ 0755 @MYSQLD_USER@ @MYSQLD_USER@ -

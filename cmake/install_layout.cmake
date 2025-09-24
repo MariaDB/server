@@ -163,6 +163,7 @@ SET(INSTALL_UNIX_ADDRDIR_RPM            "${INSTALL_MYSQLDATADIR_RPM}/mysql.sock"
 SET(INSTALL_SYSTEMD_UNITDIR_RPM         "/usr/lib/systemd/system")
 SET(INSTALL_SYSTEMD_SYSUSERSDIR_RPM     "/usr/lib/sysusers.d")
 SET(INSTALL_SYSTEMD_TMPFILESDIR_RPM     "/usr/lib/tmpfiles.d")
+SET(INSTALL_RUNDATADIR_RPM              "/run/mariadb")
 SET(INSTALL_PAMDIR_RPM                  "/${INSTALL_LIBDIR_RPM}/security")
 SET(INSTALL_PAMDATADIR_RPM              "/etc/security")
 
@@ -197,6 +198,7 @@ SET(INSTALL_UNIX_ADDRDIR_DEB            "/run/mysqld/mysqld.sock")
 SET(INSTALL_SYSTEMD_UNITDIR_DEB         "/lib/systemd/system")
 SET(INSTALL_SYSTEMD_SYSUSERSDIR_DEB     "/usr/lib/sysusers.d")
 SET(INSTALL_SYSTEMD_TMPFILESDIR_DEB     "/usr/lib/tmpfiles.d")
+SET(INSTALL_RUNDATADIR_DEB              "/run/mariadb")
 SET(INSTALL_PAMDIR_DEB                  "/lib/${CMAKE_CXX_LIBRARY_ARCHITECTURE}/security")
 SET(INSTALL_PAMDATADIR_DEB              "/etc/security")
 
@@ -257,3 +259,7 @@ IF(NOT MYSQL_UNIX_ADDR)
   SET(MYSQL_UNIX_ADDR ${INSTALL_UNIX_ADDRDIR})
 ENDIF()
 
+IF(NOT INSTALL_RUNDATADIR)
+  get_filename_component(MYSQL_UNIX_DIR ${MYSQL_UNIX_ADDR} DIRECTORY)
+  SET(INSTALL_RUNDATADIR "${MYSQL_UNIX_DIR}" CACHE FILEPATH "Rundata installation directory" ${FORCE})
+ENDIF()
