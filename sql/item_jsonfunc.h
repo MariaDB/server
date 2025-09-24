@@ -881,14 +881,15 @@ public:
 class Item_func_json_array_intersect: public Item_str_func
 {
 protected:
-  String tmp_js1, tmp_js2;
-  bool hash_inited, root_inited;
-  HASH items;
+  String tmp_js1, tmp_js2, temp_str;
+  bool item_hash_inited, seen_hash_inited, root_inited;
+  HASH items, seen;
   MEM_ROOT hash_root;
   bool parse_for_each_row;
 public:
   Item_func_json_array_intersect(THD *thd, Item *a, Item *b):
-    Item_str_func(thd, a, b) { hash_inited= root_inited= parse_for_each_row= false; }
+    Item_str_func(thd, a, b)
+    { item_hash_inited= seen_hash_inited= root_inited= parse_for_each_row= false; }
   String *val_str(String *) override;
   bool fix_length_and_dec(THD *thd) override;
   LEX_CSTRING func_name_cstring() const override
@@ -901,12 +902,16 @@ public:
   void cleanup() override
   {
     Item_str_func::cleanup();
-    if (hash_inited)
+    if (item_hash_inited)
       my_hash_free(&items);
+    if (seen_hash_inited)
+      my_hash_free(&seen);
     if (root_inited)
       free_root(&hash_root, MYF(0));
   }
-  void prepare_json_and_create_hash(json_engine_t *je1, String *js);
+  bool prepare_json_and_create_hash(json_engine_t *je1, String *js);
+  bool get_intersect_between_arrays(String *str, json_engine_t *value,
+                                         HASH *items, HASH *seen);
 };
 
 class Item_func_json_object_filter_keys: public Item_str_func

@@ -5272,6 +5272,8 @@ SET @obj1='{ "a": 1,"b": 2,"c": 3}';
 SELECT JSON_OBJECT_FILTER_KEYS (@obj1,@arr1);
 JSON_OBJECT_FILTER_KEYS (@obj1,@arr1)
 NULL
+SET character_set_database=default;
+SET CHARACTER SET default;
 # End of 11.2 Test
 # Beginning of 11.4 Test
 #
@@ -5283,4 +5285,16 @@ NULL
 SELECT json_array_intersect(@a,@b);
 json_array_intersect(@a,@b)
 NULL
+# MDEV-36809: json_array_intersect crashs when unused table ref provided
+#
+select json_array_intersect('[["1", "7"], ["2", "6"], ["4", "5"], ["3", "8"]]', '[["2","6"],["3","8"],["4","5"],["1","7"]]') as result from mysql.user;
+result
+[["2", "6"], ["3", "8"], ["4", "5"], ["1", "7"]]
+[["2", "6"], ["3", "8"], ["4", "5"], ["1", "7"]]
+[["2", "6"], ["3", "8"], ["4", "5"], ["1", "7"]]
+[["2", "6"], ["3", "8"], ["4", "5"], ["1", "7"]]
+[["2", "6"], ["3", "8"], ["4", "5"], ["1", "7"]]
+SELECT ( WITH x AS ( WITH x ( x ) AS ( SELECT ( 1.000000 ) ) SELECT x FROM x ) SELECT * FROM x WHERE ( SELECT AVG ( x ) OVER ( ORDER BY JSON_ARRAY_INTERSECT ( '[["1", "7"], ["2", "6"], ["3", "8"]]' , '[["2","6"],["3","8"],["4","5"],["1","7"]]' ) ) FROM x ) );
+( WITH x AS ( WITH x ( x ) AS ( SELECT ( 1.000000 ) ) SELECT x FROM x ) SELECT * FROM x WHERE ( SELECT AVG ( x ) OVER ( ORDER BY JSON_ARRAY_INTERSECT ( '[["1", "7"], ["2", "6"], ["3", "8"]]' , '[["2","6"],["3","8"],["4","5"],["1","7"]]' ) ) FROM x ) )
+1.000000
 # End of 11.4 Test
