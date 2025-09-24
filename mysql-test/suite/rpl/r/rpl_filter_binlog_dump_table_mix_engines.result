@@ -1,0 +1,45 @@
+include/master-slave.inc
+[connection master]
+connection master;
+# Create tables with different engines
+CREATE TABLE t1 (id INT PRIMARY KEY, data VARCHAR(50)) ENGINE=MyISAM;
+CREATE TABLE t2 (id INT PRIMARY KEY, data VARCHAR(50)) ENGINE=InnoDB;
+CREATE TABLE t3 (id INT PRIMARY KEY, data VARCHAR(50)) ENGINE=MyISAM;
+CREATE TABLE t4 (id INT PRIMARY KEY, data VARCHAR(50)) ENGINE=InnoDB;
+# TX1: (N=1, T=0) → t1: Non-Trans filtered, t4: Trans allowed
+START TRANSACTION;
+INSERT INTO t1 VALUES (1, 'tx1 row in t1');
+INSERT INTO t4 VALUES (1, 'tx1 row in t4');
+COMMIT;
+# TX2: (N=0, T=1) → t3 Non-Trans allowed, t2 Trans filtered
+START TRANSACTION;
+INSERT INTO t3 VALUES (1, 'tx2 row in t3');
+INSERT INTO t2 VALUES (1, 'tx2 row in t2');
+COMMIT;
+# TX3: (N=1, T=1) → both filtered (t1 Non Trans, t2 Trans)
+START TRANSACTION;
+INSERT INTO t1 VALUES (2, 'tx3 row in t1');
+INSERT INTO t2 VALUES (2, 'tx3 row in t2');
+COMMIT;
+# TX4: (N=0, T=0) → both allowed (t3 Non Trans, t4 Trans)
+START TRANSACTION;
+INSERT INTO t3 VALUES (2, 'tx4 row in t3');
+INSERT INTO t4 VALUES (2, 'tx4 row in t4');
+COMMIT;
+# Capture binlog and relaylog
+connection slave;
+# Assertions: Master should always contain ALL inserts
+include/assert_grep.inc [master has t1 inserts]
+include/assert_grep.inc [master has t2 inserts]
+include/assert_grep.inc [master has t3 inserts]
+include/assert_grep.inc [master has t4 inserts]
+# Assertions: Slave should only see allowed tables (t3,t4)
+include/assert_grep.inc [slave must NOT replicate t1]
+include/assert_grep.inc [slave must NOT replicate t2]
+include/assert_grep.inc [slave must replicate t3 twice]
+include/assert_grep.inc [slave must replicate t4 twice]
+# Cleanup
+connection master;
+DROP TABLE t1, t2, t3, t4;
+include/rpl_end.inc
+# End of rpl_filter_binlog_dump_table_mix_engines.test

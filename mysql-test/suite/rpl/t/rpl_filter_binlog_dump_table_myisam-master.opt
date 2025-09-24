@@ -1,0 +1,1 @@
+--binlog-dump-do-table=test.t1 --binlog-dump-ignore-table=test.t2

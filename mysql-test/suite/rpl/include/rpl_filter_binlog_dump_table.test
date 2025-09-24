@@ -19,13 +19,12 @@
 # which events appear in the master's binlog and the slave's relay log.
 #
 
---source include/have_innodb.inc
 --source include/master-slave.inc
 
 connection master;
 
 
-SET @@default_storage_engine='innodb';
+eval SET @@default_storage_engine=$engine_type;
 
 --echo # On master: create two tables and insert data
 CREATE TABLE t1 (id INT PRIMARY KEY, data VARCHAR(50));
@@ -79,5 +78,3 @@ connection slave;
 connection master;
 DROP TABLE t1;
 DROP TABLE t2;
---source include/rpl_end.inc
---echo # End of rpl_filter_binlog_dump_table.test

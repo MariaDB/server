@@ -1,0 +1,1 @@
+--binlog-dump-do-db=test --binlog-dump-ignore-db=ignored_db

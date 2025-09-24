@@ -1,6 +1,6 @@
 include/master-slave.inc
 [connection master]
-SET @@default_storage_engine='innodb';
+SET @@default_storage_engine='InnoDB';
 connection master;
 # On master: create two databases and insert data
 CREATE TABLE t1 (id INT PRIMARY KEY, data VARCHAR(50));
@@ -31,4 +31,4 @@ USE test;
 DROP TABLE t1;
 DROP DATABASE ignored_db;
 include/rpl_end.inc
-# End of rpl_filter_binlog_dump_db.test
+# End of rpl_filter_binlog_dump_db_innodb.test

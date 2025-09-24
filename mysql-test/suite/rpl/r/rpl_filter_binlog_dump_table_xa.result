@@ -1,0 +1,39 @@
+include/master-slave.inc
+[connection master]
+connection master;
+# On master: create two tables
+CREATE TABLE t1 (id INT PRIMARY KEY, data VARCHAR(50));
+CREATE TABLE t2 (id INT PRIMARY KEY, data VARCHAR(50));
+# Perform XA transaction involving both tables
+XA START 'xatest';
+INSERT INTO t1 VALUES (1, 'row in XA t1');
+INSERT INTO t2 VALUES (1, 'row in XA t2');
+XA END 'xatest';
+XA PREPARE 'xatest';
+XA COMMIT 'xatest';
+# Capture current binlog file name
+# Find relay log file on slave
+connection slave;
+# Dump master binlog to file
+# Dump slave relay log to file
+connection master;
+# =======================
+# Assertions on master binlog
+# =======================
+include/assert_grep.inc [XA PREPARE must be present in master binlog]
+include/assert_grep.inc [XA COMMIT must be present in master binlog]
+include/assert_grep.inc [INSERT INTO t1 must be present in master binlog]
+include/assert_grep.inc [INSERT INTO t2 must be present in master binlog]
+# =======================
+# Assertions on slave relaylog
+# =======================
+include/assert_grep.inc [XA PREPARE must be present in relaylog]
+include/assert_grep.inc [XA COMMIT must be present in relaylog]
+include/assert_grep.inc [INSERT INTO t1 must be present in relaylog]
+include/assert_grep.inc [INSERT INTO t2 must NOT be present in relaylog]
+# Cleanup
+connection master;
+DROP TABLE t1;
+DROP TABLE t2;
+include/rpl_end.inc
+# End of rpl_filter_binlog_dump_table_xa.test

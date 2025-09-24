@@ -1,0 +1,116 @@
+#
+# Purpose:
+#
+# This test verifies the correct behavior of replication database filters
+# when using two-phase XA transactions.
+#
+# Key points:
+#
+# - XA transactions use a two-phase commit: XA START → DML → XA END →
+#   XA PREPARE → XA COMMIT.
+# - Replication filters (binlog_dump_do/ignore_table) may filter DML events
+#   for specific tables/databases.
+# - However, XA commands themselves (XA PREPARE, XA COMMIT, XA ROLLBACK)
+#   and their log events must always be replicated to the slave.
+#
+# This test ensures:
+#   * XA commands always appear in both master binlog and slave relaylog.
+#   * DML on filtered tables is filtered (present in master binlog but
+#     missing in slave relaylog).
+#
+
+--source include/have_innodb.inc
+--source include/master-slave.inc
+
+connection master;
+
+--echo # On master: create two tables
+CREATE TABLE t1 (id INT PRIMARY KEY, data VARCHAR(50));
+CREATE TABLE t2 (id INT PRIMARY KEY, data VARCHAR(50));
+
+--echo # Perform XA transaction involving both tables
+XA START 'xatest';
+INSERT INTO t1 VALUES (1, 'row in XA t1');
+INSERT INTO t2 VALUES (1, 'row in XA t2');
+XA END 'xatest';
+XA PREPARE 'xatest';
+XA COMMIT 'xatest';
+
+--echo # Capture current binlog file name
+--let $binlog_index= query_get_value(SHOW MASTER STATUS, File, 1)
+
+--echo # Find relay log file on slave
+connection slave;
+--let $relaylog_file= query_get_value(SHOW SLAVE STATUS, Relay_Log_File, 1)
+
+--echo # Dump master binlog to file
+--exec $MYSQL_BINLOG $MYSQLTEST_VARDIR/mysqld.1/data/$binlog_index > $MYSQLTEST_VARDIR/tmp/master_binlog.txt
+
+--echo # Dump slave relay log to file
+--exec $MYSQL_BINLOG $MYSQLTEST_VARDIR/mysqld.2/data/$relaylog_file > $MYSQLTEST_VARDIR/tmp/slave_relaylog.txt
+
+connection master;
+
+--echo # =======================
+--echo # Assertions on master binlog
+--echo # =======================
+
+--let $assert_file= $MYSQLTEST_VARDIR/tmp/master_binlog.txt
+--let $assert_text= XA PREPARE must be present in master binlog
+--let $assert_select= XA PREPARE
+--let $assert_count= 1
+--source include/assert_grep.inc
+
+--let $assert_file= $MYSQLTEST_VARDIR/tmp/master_binlog.txt
+--let $assert_text= XA COMMIT must be present in master binlog
+--let $assert_select= XA COMMIT
+--let $assert_count= 1
+--source include/assert_grep.inc
+
+--let $assert_file= $MYSQLTEST_VARDIR/tmp/master_binlog.txt
+--let $assert_text= INSERT INTO t1 must be present in master binlog
+--let $assert_select= INSERT INTO t1
+--let $assert_count= 1
+--source include/assert_grep.inc
+
+--let $assert_file= $MYSQLTEST_VARDIR/tmp/master_binlog.txt
+--let $assert_text= INSERT INTO t2 must be present in master binlog
+--let $assert_select= INSERT INTO t2
+--let $assert_count= 1
+--source include/assert_grep.inc
+
+--echo # =======================
+--echo # Assertions on slave relaylog
+--echo # =======================
+
+--let $assert_file= $MYSQLTEST_VARDIR/tmp/slave_relaylog.txt
+--let $assert_text= XA PREPARE must be present in relaylog
+--let $assert_select= XA PREPARE
+--let $assert_count= 1
+--source include/assert_grep.inc
+
+--let $assert_file= $MYSQLTEST_VARDIR/tmp/slave_relaylog.txt
+--let $assert_text= XA COMMIT must be present in relaylog
+--let $assert_select= XA COMMIT
+--let $assert_count= 1
+--source include/assert_grep.inc
+
+--let $assert_file= $MYSQLTEST_VARDIR/tmp/slave_relaylog.txt
+--let $assert_text= INSERT INTO t1 must be present in relaylog
+--let $assert_select= INSERT INTO t1
+--let $assert_count= 1
+--source include/assert_grep.inc
+
+--let $assert_file= $MYSQLTEST_VARDIR/tmp/slave_relaylog.txt
+--let $assert_text= INSERT INTO t2 must NOT be present in relaylog
+--let $assert_select= INSERT INTO t2
+--let $assert_count= 0
+--source include/assert_grep.inc
+
+--echo # Cleanup
+connection master;
+DROP TABLE t1;
+DROP TABLE t2;
+
+--source include/rpl_end.inc
+--echo # End of rpl_filter_binlog_dump_table_xa.test
