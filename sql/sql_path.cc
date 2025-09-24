@@ -75,7 +75,6 @@ bool Sql_path::try_resolve_in_schema(THD *thd, const Lex_ident_db_normalized &sc
                                       bool *resolved) const
 {
   DBUG_ASSERT(resolved);
-  int ret;
 
   if (check_db_dir_existence(schema.str))
     return false; // Schema doesn't exist
@@ -85,9 +84,15 @@ bool Sql_path::try_resolve_in_schema(THD *thd, const Lex_ident_db_normalized &sc
 
   if (!name->m_explicit_name)
   {
+    Parser_state *oldps= thd->m_parser_state;
+    thd->m_parser_state= NULL;
+
     // Try to find routine directly in schema
     tmp_spname.m_db= schema;
-    if (!(ret= (*sph)->sp_routine_exists(thd, &tmp_spname)))
+    bool found= (*sph)->sp_find_routine(thd, &tmp_spname, false) != NULL;
+    thd->m_parser_state= oldps;
+
+    if (found)
     {
       /*
         [schema] '.' routine_name
@@ -97,8 +102,6 @@ bool Sql_path::try_resolve_in_schema(THD *thd, const Lex_ident_db_normalized &sc
       *resolved= true;
       return false;
     }
-    else if (ret != SP_KEY_NOT_FOUND)
-      return true;
   }
   else
   {
