@@ -11209,7 +11209,7 @@ Remove statistics for dropped indexes, add statistics for created indexes
 and rename statistics for renamed indexes.
 @param ha_alter_info Data used during in-place alter
 @param ctx In-place ALTER TABLE context
-@param thd MySQL connection
+@param thd alter table thread
 */
 static
 void
@@ -11236,46 +11236,6 @@ alter_stats_norebuild(
 		if (!(index->type & DICT_FTS)) {
 			dict_stats_update_for_index(index);
 		}
-	}
-
-	DBUG_VOID_RETURN;
-}
-
-/** Adjust the persistent statistics after rebuilding ALTER TABLE.
-Remove statistics for dropped indexes, add statistics for created indexes
-and rename statistics for renamed indexes.
-@param table InnoDB table that was rebuilt by ALTER TABLE
-@param table_name Table name in MySQL
-@param thd MySQL connection
-*/
-static
-void
-alter_stats_rebuild(
-/*================*/
-	dict_table_t*	table,
-	const char*	table_name,
-	THD*		thd)
-{
-	DBUG_ENTER("alter_stats_rebuild");
-
-	if (!table->space || !table->stats_is_persistent()
-	    || dict_stats_persistent_storage_check(false) != SCHEMA_OK) {
-		DBUG_VOID_RETURN;
-	}
-
-	dberr_t	ret = dict_stats_update_persistent(table);
-	if (ret == DB_SUCCESS) {
-		ret = dict_stats_save(table);
-	}
-
-	if (ret != DB_SUCCESS) {
-		push_warning_printf(
-			thd,
-			Sql_condition::WARN_LEVEL_WARN,
-			ER_ALTER_INFO,
-			"Error updating stats for table '%s'"
-			" after table rebuild: %s",
-			table_name, ut_strerr(ret));
 	}
 
 	DBUG_VOID_RETURN;
@@ -11951,9 +11911,7 @@ foreign_fail:
 				(*pctx);
 			DBUG_ASSERT(ctx->need_rebuild());
 
-			alter_stats_rebuild(
-				ctx->new_table, table->s->table_name.str,
-				m_user_thd);
+			alter_stats_rebuild(ctx->new_table, m_user_thd);
 		}
 	} else {
 		for (inplace_alter_handler_ctx** pctx = ctx_array;

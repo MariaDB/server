@@ -2686,6 +2686,12 @@ json_detailed('[[123],456]')
     [123],
     456
 ]
+#
+# MDEV-37428 JSON_VALUE returns NULL for a key with an empty string value rather than an empty string
+#
+SELECT JSON_VALUE(JSON_OBJECT("a", ""), '$.a') = "" AS not_null;
+not_null
+1
 # End of 10.11 Test
 #
 # MDEV-32007: JSON_VALUE and JSON_EXTRACT doesn't handle dash (-)

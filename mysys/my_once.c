@@ -69,6 +69,8 @@ void* my_once_alloc(size_t Size, myf MyFlags)
                              (int64) get_size,
                              MY_MEMORY_ORDER_RELAXED);
     DBUG_PRINT("test",("my_once_malloc %lu byte malloced", (ulong) get_size));
+    my_once_allocated+= get_size;
+    update_malloc_size(get_size, 0);
     next->next= 0;
     next->size= get_size;
     next->left= get_size-ALIGN_SIZE(sizeof(USED_MEM));
@@ -119,7 +121,9 @@ void my_once_free(void)
     old=next; next= next->next ;
     free((uchar*) old);
   }
+  update_malloc_size(- (longlong) my_once_allocated, 0);
   my_once_root_block=0;
+  my_once_allocated= 0;
   my_malloc_init_memory_allocated= 0;
 
   DBUG_VOID_RETURN;

@@ -15827,16 +15827,17 @@ ha_innobase::extra(
 	/* Warning: since it is not sure that MariaDB calls external_lock()
 	before calling this function, m_prebuilt->trx can be obsolete! */
 	trx_t* trx;
+	THD* thd = ha_thd();
 
 	switch (operation) {
 	case HA_EXTRA_FLUSH:
-		(void)check_trx_exists(ha_thd());
+		(void)check_trx_exists(thd);
 		if (m_prebuilt->blob_heap) {
 			row_mysql_prebuilt_free_blob_heap(m_prebuilt);
 		}
 		break;
 	case HA_EXTRA_RESET_STATE:
-		trx = check_trx_exists(ha_thd());
+		trx = check_trx_exists(thd);
 		reset_template();
 		trx->duplicates = 0;
 	stmt_boundary:
@@ -15845,23 +15846,23 @@ ha_innobase::extra(
 		trx->bulk_insert &= TRX_DDL_BULK;
 		break;
 	case HA_EXTRA_NO_KEYREAD:
-		(void)check_trx_exists(ha_thd());
+		(void)check_trx_exists(thd);
 		m_prebuilt->read_just_key = 0;
 		break;
 	case HA_EXTRA_KEYREAD:
-		(void)check_trx_exists(ha_thd());
+		(void)check_trx_exists(thd);
 		m_prebuilt->read_just_key = 1;
 		break;
 	case HA_EXTRA_KEYREAD_PRESERVE_FIELDS:
-		(void)check_trx_exists(ha_thd());
+		(void)check_trx_exists(thd);
 		m_prebuilt->keep_other_fields_on_keyread = 1;
 		break;
 	case HA_EXTRA_INSERT_WITH_UPDATE:
-		trx = check_trx_exists(ha_thd());
+		trx = check_trx_exists(thd);
 		trx->duplicates |= TRX_DUP_IGNORE;
 		goto stmt_boundary;
 	case HA_EXTRA_NO_IGNORE_DUP_KEY:
-		trx = check_trx_exists(ha_thd());
+		trx = check_trx_exists(thd);
 		trx->duplicates &= ~TRX_DUP_IGNORE;
 		if (trx->is_bulk_insert()) {
 			/* Allow a subsequent INSERT into an empty table
@@ -15874,11 +15875,11 @@ ha_innobase::extra(
 		}
 		goto stmt_boundary;
 	case HA_EXTRA_WRITE_CAN_REPLACE:
-		trx = check_trx_exists(ha_thd());
+		trx = check_trx_exists(thd);
 		trx->duplicates |= TRX_DUP_REPLACE;
 		goto stmt_boundary;
 	case HA_EXTRA_WRITE_CANNOT_REPLACE:
-		trx = check_trx_exists(ha_thd());
+		trx = check_trx_exists(thd);
 		trx->duplicates &= ~TRX_DUP_REPLACE;
 		if (trx->is_bulk_insert()) {
 			/* Allow a subsequent INSERT into an empty table
@@ -15887,7 +15888,7 @@ ha_innobase::extra(
 		}
 		goto stmt_boundary;
 	case HA_EXTRA_BEGIN_ALTER_COPY:
-		trx = check_trx_exists(ha_thd());
+		trx = check_trx_exists(thd);
 		m_prebuilt->table->skip_alter_undo = 1;
 		if (m_prebuilt->table->is_temporary()
 		    || !m_prebuilt->table->versioned_by_id()) {
@@ -15900,7 +15901,7 @@ ha_innobase::extra(
 			.first->second.set_versioned(0);
 		break;
 	case HA_EXTRA_END_ALTER_COPY:
-		trx = check_trx_exists(ha_thd());
+		trx = check_trx_exists(thd);
 		if (!m_prebuilt->table->skip_alter_undo) {
 			/* This could be invoked inside INSERT...SELECT.
 			We do not want any extra log writes, because
@@ -15934,6 +15935,7 @@ ha_innobase::extra(
 			handler::extra(HA_EXTRA_BEGIN_ALTER_COPY). */
 			log_buffer_flush_to_disk();
 		}
+		alter_stats_rebuild(m_prebuilt->table, thd);
 		break;
 	case HA_EXTRA_ABORT_ALTER_COPY:
 		if (m_prebuilt->table->skip_alter_undo) {
@@ -21279,4 +21281,26 @@ void ins_node_t::vers_update_end(row_prebuilt_t *prebuilt, bool history_row)
   }
   if (UNIV_LIKELY_NULL(local_heap))
     mem_heap_free(local_heap);
+}
+
+/** Adjust the persistent statistics after rebuilding ALTER TABLE.
+Remove statistics for dropped indexes, add statistics for created indexes
+and rename statistics for renamed indexes.
+@param table InnoDB table that was rebuilt by ALTER TABLE
+@param thd   alter table thread */
+void alter_stats_rebuild(dict_table_t *table, THD *thd)
+{
+  DBUG_ENTER("alter_stats_rebuild");
+  if (!table->space || !table->stats_is_persistent()
+      || dict_stats_persistent_storage_check(false) != SCHEMA_OK)
+    DBUG_VOID_RETURN;
+
+  dberr_t ret= dict_stats_update_persistent(table);
+  if (ret == DB_SUCCESS)
+    ret= dict_stats_save(table);
+  if (ret != DB_SUCCESS)
+    push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+                        ER_ALTER_INFO, "Error updating stats for table after"
+                        " table rebuild: %s", ut_strerr(ret));
+  DBUG_VOID_RETURN;
 }

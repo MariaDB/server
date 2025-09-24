@@ -1094,7 +1094,8 @@ enum enum_schema_tables
   SCH_TRIGGERS,
   SCH_USER_PRIVILEGES,
   SCH_VIEWS,
-  SCH_ENUM_SIZE
+  SCH_N_SERVER_TABLES, /* How many SCHEMA tables in the server. */
+  SCH_PLUGIN_TABLE     /* Schema table defined in plugin. */
 };
 
 struct TABLE_SHARE;

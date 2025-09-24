@@ -128,6 +128,7 @@ bool Update_plan::save_explain_data_intern(THD *thd,
       (thd->variables.log_slow_verbosity &
        LOG_SLOW_VERBOSITY_ENGINE))
   {
+    explain->table_tracker.set_gap_tracker(&explain->extra_time_tracker);
     table->file->set_time_tracker(&explain->table_tracker);
 
     if (table->file->handler_stats && table->s->tmp_table != INTERNAL_TMP_TABLE)
