@@ -66,22 +66,22 @@ ProtectHome=true
 PermissionsStartOnly=true
 
 # Use an environment file to pass variable _WSREP_NEW_CLUSTER
-EnvironmentFile=-@mysqlunixdir@/wsrep-new-cluster
+EnvironmentFile=-@INSTALL_RUNDATADIR@/wsrep-new-cluster
 
 # Use an environment file to pass variable _WSREP_START_POSITION
-EnvironmentFile=-@mysqlunixdir@/wsrep-start-position
+EnvironmentFile=-@INSTALL_RUNDATADIR@/wsrep-start-position
 
 @SYSTEMD_EXECSTARTPRE@
 
 # Perform automatic wsrep recovery. When server is started without wsrep,
 # galera_recovery simply returns an empty string. In any case, however,
 # the script is not expected to return with a non-zero status.
-# It is always safe to remove @mysqlunixdir@/wsrep-start-position
+# It is always safe to remove @INSTALL_RUNDATADIR@/wsrep-start-position
 # environment file.
 # Do not panic if galera_recovery script is not available. (MDEV-10538)
 ExecStartPre=/bin/sh -c "[ ! -e @bindir@/galera_recovery ] && VAR= || \
  VAR=`@bindir@/galera_recovery`; [ $? -eq 0 ] \
- && echo _WSREP_START_POSITION=$VAR > @mysqlunixdir@/wsrep-start-position || exit 1"
+ && echo _WSREP_START_POSITION=$VAR > @INSTALL_RUNDATADIR@/wsrep-start-position || exit 1"
 
 # Needed to create system tables etc.
 # ExecStartPre=@scriptdir@/mariadb-install-db -u mysql
@@ -93,8 +93,8 @@ ExecStartPre=/bin/sh -c "[ ! -e @bindir@/galera_recovery ] && VAR= || \
 # _WSREP_NEW_CLUSTER is for the exclusive use of the script galera_new_cluster
 ExecStart=@sbindir@/mariadbd $MYSQLD_OPTS $_WSREP_NEW_CLUSTER $_WSREP_START_POSITION
 
-# Unset _WSREP_START_POSITION environment variable.
-ExecStartPost=/bin/rm -f @mysqlunixdir@/wsrep-start-position
+# Unset _WSREP_START_POSITION/_WSREP_NEW_CLUSTER environment variable.
+ExecStartPost=/bin/rm -f @INSTALL_RUNDATADIR@/wsrep-start-position @INSTALL_RUNDATADIR@/wsrep-new-cluster
 
 @SYSTEMD_EXECSTARTPOST@
 
