@@ -1661,7 +1661,6 @@ struct st_sp_chistics
   bool detistic;
   enum enum_sp_data_access daccess;
   enum enum_sp_aggregate_type agg_type;
-  LEX_CSTRING sql_path;
   void init() { bzero(this, sizeof(*this)); }
   void set(const st_sp_chistics &other) { *this= other; }
   bool read_from_mysql_proc_row(THD *thd, TABLE *table);

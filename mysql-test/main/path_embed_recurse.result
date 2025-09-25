@@ -22,18 +22,18 @@ CALL proc2(val, CONCAT(t, CAST(val AS CHAR(4))));
 END IF;
 END;
 /
+SET PATH 'test2'/
 CREATE FUNCTION ff() RETURNS TEXT
-PATH 'test2'
 BEGIN
 RETURN func2(5, '');
 END;
 /
 CREATE PROCEDURE pp()
-PATH 'test2'
 BEGIN
 CALL proc2(5, '');
 END;
 /
+SET PATH 'CURRENT_SCHEMA';
 SELECT ff();
 ERROR HY000: Recursive stored functions and triggers are not allowed
 CALL pp();

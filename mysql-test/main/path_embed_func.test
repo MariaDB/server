@@ -33,9 +33,9 @@ DELIMITER ;$$
 --echo #
 --echo # Embed a path in a stored function
 --echo #
+SET PATH 'test2';
 DELIMITER $$;
 CREATE FUNCTION func() RETURNS TEXT
-PATH 'test2'
 BEGIN
   RETURN func2();
 END;
@@ -52,9 +52,9 @@ SET PATH 'CURRENT_SCHEMA';
 --echo #
 --echo # Ensure that multiple references are resolved properly
 --echo #
+SET PATH 'test2';
 DELIMITER $$;
 CREATE FUNCTION func() RETURNS TEXT
-PATH 'test2'
 BEGIN
   RETURN CONCAT(func2(), '+', func2());
 END;
@@ -71,9 +71,9 @@ SET PATH 'CURRENT_SCHEMA';
 --echo #
 --echo # Use multiple schemas in embedded PATH
 --echo #
+SET PATH 'test2,test3,test4';
 DELIMITER $$;
 CREATE FUNCTION func() RETURNS TEXT
-PATH 'test2,test3,test4'
 BEGIN
   RETURN CONCAT(func2(), '+', func2(), '+', func4());
 END;
@@ -90,9 +90,9 @@ SET PATH 'CURRENT_SCHEMA';
 --echo #
 --echo # Use empty PATH in stored routine (resolution should fail)
 --echo #
+SET PATH '';
 DELIMITER $$;
 CREATE FUNCTION func() RETURNS TEXT
-PATH ''
 BEGIN
   RETURN func2();
 END;
@@ -102,34 +102,7 @@ DELIMITER ;$$
 --error ER_SP_DOES_NOT_EXIST
 SELECT func();
 
---echo #
---echo # ALTER FUNCTION's previously empty PATH
---echo #
-ALTER FUNCTION func PATH 'test2';
-SELECT func();
-
 DROP FUNCTION func;
-
---echo #
---echo # No PATH specified in stored routine
---echo # Resolution follows the caller's PATH
---echo #
-DELIMITER $$;
-CREATE FUNCTION func() RETURNS TEXT
-BEGIN
-  RETURN func2();
-END;
-$$
-
-DELIMITER ;$$
---error ER_SP_DOES_NOT_EXIST
-SELECT func();
-
-SET PATH 'CURRENT_SCHEMA,test2';
-SELECT func();
-
-DROP FUNCTION func;
-
 DROP DATABASE test2;
 DROP DATABASE test3;
 DROP DATABASE test4;

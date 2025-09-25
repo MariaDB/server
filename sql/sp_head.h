@@ -197,10 +197,6 @@ public:
 
   const char *m_tmp_query;	///< Temporary pointer to sub query string
 
-  /*
-    Pusher for routine's embedded PATH
-  */
-  Sql_path_push m_routine_path;
 private:
   /*
     Private to guarantee that m_chistics.comment is properly set to:
@@ -215,6 +211,7 @@ private:
     m_chistics.agg_type= type;
   }
 public:
+  Sql_path   m_sql_path;
   sql_mode_t m_sql_mode;		///< For SHOW CREATE and execution
   bool       m_explicit_name;                   /**< Prepend the db name? */
   LEX_CSTRING m_qname;		///< db.name
@@ -231,8 +228,6 @@ public:
   bool detistic() const { return m_chistics.detistic; }
   enum_sp_data_access daccess() const { return m_chistics.daccess; }
   enum_sp_aggregate_type agg_type() const { return m_chistics.agg_type; }
-  const LEX_CSTRING &path() const { return m_chistics.sql_path; }
-  void set_path(const LEX_CSTRING &path) { m_chistics.sql_path= path; }
 
   /**
     Is this routine being executed?
@@ -347,13 +342,14 @@ public:
 
 protected:
   sp_head(MEM_ROOT *mem_root, sp_package *parent, const Sp_handler *handler,
-          enum_sp_aggregate_type agg_type, sql_mode_t sql_mode);
+          enum_sp_aggregate_type agg_type, sql_mode_t sql_mode,
+          const Sql_path &sql_path);
   virtual ~sp_head();
 public:
   static void destroy(sp_head *sp);
   static sp_head *create(sp_package *parent, const Sp_handler *handler,
                          enum_sp_aggregate_type agg_type, sql_mode_t sql_mode,
-                         MEM_ROOT *sp_mem_root);
+                         const Sql_path &sql_path, MEM_ROOT *sp_mem_root);
 
   /// Initialize after we have reset mem_root
   void
@@ -1152,22 +1148,15 @@ public:
   bool m_is_instantiated;
   bool m_is_cloning_routine;
 
-  /*
-    Pusher for PACKAGE's embedded PATH
-  */
-  Sql_path_push m_package_path;
-
 private:
-  sp_package(MEM_ROOT *mem_root,
-             LEX *top_level_lex,
-             const sp_name *name,
-             const Sp_handler *sph,
-             sql_mode_t sql_mode);
+  sp_package(MEM_ROOT *mem_root, LEX *top_level_lex, const sp_name *name,
+             const Sp_handler *sph, sql_mode_t sql_mode,
+             const Sql_path &sql_path);
   ~sp_package();
 public:
   static sp_package *create(LEX *top_level_lex, const sp_name *name,
                             const Sp_handler *sph, sql_mode_t sql_mode,
-                            MEM_ROOT *sp_mem_root);
+                            const Sql_path &sql_path, MEM_ROOT *sp_mem_root);
 
   bool add_routine_declaration(LEX *lex)
   {

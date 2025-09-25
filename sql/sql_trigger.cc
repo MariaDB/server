@@ -1953,7 +1953,7 @@ bool Table_triggers_list::check_n_load(THD *thd, const LEX_CSTRING *db,
         }
 
         sp->m_sql_mode= sql_mode;
-        sp->set_path(sql_path);
+        sp->m_sql_path.from_text(thd, system_charset_info, sql_path);
         sp->set_creation_ctx(creation_ctx);
 
         if (!trg_definer || !trg_definer->length)

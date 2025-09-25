@@ -2762,7 +2762,7 @@ USE test;
 SET @@path= 'test3';
 SELECT test2.func2();
 test2.func2()
-Invoke from Db: test3, Rt: func
+Invoke from Db: test, Rt: func
 SET @@path= 'test';
 #TODO
 #SELECT test2.func2();
@@ -2849,20 +2849,6 @@ ERROR 42000: FUNCTION test.pkg.f1 does not exist
 drop database pkg;
 drop package pkg;
 drop procedure p1;
-CREATE FUNCTION func() RETURNS TEXT
-PATH 'test,xxx'
-BEGIN
-RETURN 'Invoke from Db: test, Rt: func';
-END;
-$$
-DROP FUNCTION func;
-CREATE PROCEDURE proc()
-PATH 'test,xxx'
-BEGIN
-SELECT func();
-END;
-$$
-DROP PROCEDURE proc;
 #
 # Prepared statement should not be affected by PATH changed
 # between PREPARE and EXECUTE

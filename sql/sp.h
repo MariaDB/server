@@ -39,6 +39,7 @@ class sp_expr_lex;
 class Database_qualified_name;
 struct st_sp_chistics;
 class Stored_program_creation_ctx;
+class Sql_path;
 struct LEX;
 struct TABLE;
 struct TABLE_LIST;
@@ -86,6 +87,7 @@ protected:
   int db_load_routine(THD *thd, const Database_qualified_name *name,
                       sp_head **sphp,
                       sql_mode_t sql_mode,
+                      const Sql_path &sql_path,
                       const LEX_CSTRING &params,
                       const LEX_CSTRING &returns,
                       const LEX_CSTRING &body,
