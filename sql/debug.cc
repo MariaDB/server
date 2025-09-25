@@ -26,6 +26,11 @@
    @@debug_push="d+frm_data_type_info_emulate"
 
    If the variable is not set or is not an integer it will be ignored.
+
+   If the "ignore_debug_counters" keyword is set, the counters will be
+   ignored, and the crash or error always trigger. This can be useful to
+   trigger the condition in a slave thread or other non-user-thread where
+   user variables cannot be easily set from a test case.
 */
 
 #ifndef DBUG_OFF
@@ -37,6 +42,7 @@ static const LEX_CSTRING debug_error_counter=
 
 bool debug_decrement_counter(const LEX_CSTRING *name)
 {
+  DBUG_EXECUTE_IF("ignore_debug_counters", return 1;);
   THD *thd= current_thd;
   user_var_entry *entry= (user_var_entry*)
     my_hash_search(&thd->user_vars, (uchar*) name->str, name->length);
