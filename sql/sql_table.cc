@@ -4732,6 +4732,8 @@ int create_table_impl(THD *thd,
           We are using CREATE OR REPLACE on an existing temporary table
           Remove the old table so that we can re-create it.
         */
+        tmp_table->pos_in_table_list->table= NULL;
+        create_info->table= NULL;
         if (thd->drop_temporary_table(tmp_table, NULL, true))
           goto err;
       }
