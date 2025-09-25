@@ -5550,7 +5550,7 @@ void subselect_hash_sj_engine::cleanup()
   Get fanout produced by tables specified in the table_map
 */
 
-double get_fanout_with_deps(JOIN *join, table_map tset)
+static double get_fanout_with_deps(JOIN *join, table_map tset)
 {
   /* Handle the case of "Impossible WHERE" */
   if (join->table_count == 0)
@@ -5588,9 +5588,9 @@ double get_fanout_with_deps(JOIN *join, table_map tset)
     */
     if (!tab->is_sjm_nest() && (tab->table->map & checked_deps) && 
         !tab->emb_sj_nest && 
-        tab->records_read != 0)
+        tab->records_out != 0)
     {
-      fanout *= tab->records_read;
+      fanout *= tab->records_out;
     }
   } 
   return fanout;

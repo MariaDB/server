@@ -1006,7 +1006,7 @@ public:
     Number of expected rows before applying the full WHERE clause. This
     includes rowid filter and table->cond_selectivity if
     use_cond_selectivity > 1. See matching_candidates_in_table().
-    Should normally not be used.
+    One should normally use records_out instead of records_read.
   */
   double records_read;
 
@@ -1498,9 +1498,9 @@ public:
   double   best_read;
   /*
     Estimated result rows (fanout) of the join operation. If this is a subquery
-    that is reexecuted multiple times, this value includes the estiamted # of
-    reexecutions. This value is equal to the multiplication of all
-    join->positions[i].records_read of a JOIN.
+    that is re-executed multiple times, this value includes the estimated # of
+    re-executions. This value is equal to the multiplication of all
+    join->positions[i].records_out of a JOIN.
   */
   double   join_record_count;
   List<Item> *fields;
