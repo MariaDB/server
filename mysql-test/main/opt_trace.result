@@ -3486,7 +3486,7 @@ explain extended select * from t1 where a in (select p from t2)	{
                         "prefix_row_count": 4,
                         "tmp_table_rows": 1,
                         "sj_inner_fanout": 101,
-                        "rows": 4,
+                        "rows": 64,
                         "dups_cost": 0.074255053,
                         "write_cost": 0.02564388,
                         "full_lookup_cost": 0.06503188,
@@ -5440,7 +5440,7 @@ explain select * from t1 where a in (select t_inner_1.a from t1 t_inner_1, t1 t_
                             "prefix_row_count": 3,
                             "tmp_table_rows": 1,
                             "sj_inner_fanout": 9,
-                            "rows": 3,
+                            "rows": 6.6,
                             "dups_cost": 0.037231395,
                             "write_cost": 0.02548291,
                             "full_lookup_cost": 0.00434619,
@@ -6315,7 +6315,7 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                                 "prefix_row_count": 27,
                                 "tmp_table_rows": 1,
                                 "sj_inner_fanout": 27,
-                                "rows": 27,
+                                "rows": 132.3,
                                 "dups_cost": 0.222053862,
                                 "write_cost": 0.02934619,
                                 "full_lookup_cost": 0.11734713,
@@ -6325,9 +6325,9 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                                 "chosen_strategy": "DuplicateWeedout"
                               }
                             ],
-                            "sj_rows_out": 0.333333333,
-                            "sj_rows_for_plan": 27,
-                            "sj_filtered": 3.703703704,
+                            "sj_rows_out": 1.633333333,
+                            "sj_rows_for_plan": 132.3,
+                            "sj_filtered": 18.14814815,
                             "rest_of_plan": [
                               {
                                 "plan_prefix": "t_outer_1,t_outer_2,t_inner_1,t_inner_2",
@@ -6336,7 +6336,7 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                                     "best_access_path": {
                                       "table": "t_inner_4",
                                       "plan_details": {
-                                        "record_count": 27
+                                        "record_count": 132.3
                                       },
                                       "considered_access_paths": [
                                         {
@@ -6344,8 +6344,8 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                                           "rows": 3,
                                           "rows_after_filter": 3,
                                           "rows_out": 3,
-                                          "cost": 0.034460781,
-                                          "cost_without_join_buffer": 0.283630005,
+                                          "cost": 0.127889048,
+                                          "cost_without_join_buffer": 1.389787025,
                                           "index_only": false,
                                           "chosen": true
                                         }
@@ -6354,7 +6354,7 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                                         "type": "scan",
                                         "rows_read": 3,
                                         "rows_out": 3,
-                                        "cost": 0.034460781,
+                                        "cost": 0.127889048,
                                         "uses_join_buffering": true
                                       }
                                     }
@@ -6363,7 +6363,7 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                                     "best_access_path": {
                                       "table": "t_inner_3",
                                       "plan_details": {
-                                        "record_count": 27
+                                        "record_count": 132.3
                                       },
                                       "considered_access_paths": [
                                         {
@@ -6371,8 +6371,8 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                                           "rows": 9,
                                           "rows_after_filter": 9,
                                           "rows_out": 9,
-                                          "cost": 0.080024379,
-                                          "cost_without_join_buffer": 0.308967615,
+                                          "cost": 0.347490802,
+                                          "cost_without_join_buffer": 1.513941314,
                                           "index_only": false,
                                           "chosen": true
                                         }
@@ -6381,7 +6381,7 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                                         "type": "scan",
                                         "rows_read": 9,
                                         "rows_out": 9,
-                                        "cost": 0.080024379,
+                                        "cost": 0.347490802,
                                         "uses_join_buffering": true
                                       }
                                     }
@@ -6391,8 +6391,8 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                               {
                                 "plan_prefix": "t_outer_1,t_outer_2,t_inner_1,t_inner_2",
                                 "table": "t_inner_4",
-                                "rows_for_plan": 81,
-                                "cost_for_plan": 0.403207963,
+                                "rows_for_plan": 396.9,
+                                "cost_for_plan": 0.49663623,
                                 "semijoin_strategy_choice": [],
                                 "rest_of_plan": [
                                   {
@@ -6402,7 +6402,7 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                                         "best_access_path": {
                                           "table": "t_inner_3",
                                           "plan_details": {
-                                            "record_count": 81
+                                            "record_count": 396.9
                                           },
                                           "considered_access_paths": [
                                             {
@@ -6410,8 +6410,8 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                                               "rows": 9,
                                               "rows_after_filter": 9,
                                               "rows_out": 9,
-                                              "cost": 0.261557961,
-                                              "cost_without_join_buffer": 0.926902845,
+                                              "cost": 1.237005353,
+                                              "cost_without_join_buffer": 4.541823941,
                                               "index_only": false,
                                               "chosen": true
                                             }
@@ -6420,7 +6420,7 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                                             "type": "scan",
                                             "rows_read": 9,
                                             "rows_out": 9,
-                                            "cost": 0.261557961,
+                                            "cost": 1.237005353,
                                             "uses_join_buffering": true
                                           }
                                         }
@@ -6430,40 +6430,40 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                                   {
                                     "plan_prefix": "t_outer_1,t_outer_2,t_inner_1,t_inner_2,t_inner_4",
                                     "table": "t_inner_3",
-                                    "rows_for_plan": 729,
-                                    "cost_for_plan": 0.664765924,
+                                    "rows_for_plan": 3572.1,
+                                    "cost_for_plan": 1.733641584,
                                     "semijoin_strategy_choice": [
                                       {
                                         "strategy": "FirstMatch",
-                                        "rows": 27,
-                                        "cost": 1.579280032
+                                        "rows": 132.3,
+                                        "cost": 6.300358147
                                       },
                                       {
                                         "strategy": "DuplicateWeedout",
-                                        "prefix_row_count": 27,
+                                        "prefix_row_count": 132.3,
                                         "tmp_table_rows": 1,
                                         "sj_inner_fanout": 27,
-                                        "rows": 27,
-                                        "dups_cost": 0.664765924,
-                                        "write_cost": 0.02934619,
-                                        "full_lookup_cost": 0.11734713,
-                                        "total_cost": 0.811459244
+                                        "rows": 648.27,
+                                        "dups_cost": 1.733641584,
+                                        "write_cost": 0.046296331,
+                                        "full_lookup_cost": 0.575000937,
+                                        "total_cost": 2.354938852
                                       },
                                       {
                                         "chosen_strategy": "DuplicateWeedout"
                                       }
                                     ],
-                                    "sj_rows_out": 0.333333333,
-                                    "sj_rows_for_plan": 27,
-                                    "sj_filtered": 3.703703704
+                                    "sj_rows_out": 1.633333333,
+                                    "sj_rows_for_plan": 648.27,
+                                    "sj_filtered": 18.14814815
                                   }
                                 ]
                               },
                               {
                                 "plan_prefix": "t_outer_1,t_outer_2,t_inner_1,t_inner_2",
                                 "table": "t_inner_3",
-                                "rows_for_plan": 243,
-                                "cost_for_plan": 0.448771561,
+                                "rows_for_plan": 1190.7,
+                                "cost_for_plan": 0.716237984,
                                 "semijoin_strategy_choice": [],
                                 "pruned_by_heuristic": true
                               }
@@ -6590,7 +6590,7 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                                         "prefix_row_count": 27,
                                         "tmp_table_rows": 1,
                                         "sj_inner_fanout": 729,
-                                        "rows": 27,
+                                        "rows": 2975.4,
                                         "dups_cost": 7.510034832,
                                         "write_cost": 0.02934619,
                                         "full_lookup_cost": 3.16837251,
@@ -6605,7 +6605,7 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                                     "sj_filtered": 0.137174211,
                                     "pruned_by_cost": true,
                                     "current_cost": 28.96624341,
-                                    "best_cost": 0.811459244
+                                    "best_cost": 2.354938852
                                   }
                                 ]
                               },
@@ -6879,7 +6879,7 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                                 "prefix_row_count": 3,
                                 "tmp_table_rows": 9,
                                 "sj_inner_fanout": 27,
-                                "rows": 27,
+                                "rows": 132.3,
                                 "dups_cost": 0.219286686,
                                 "write_cost": 0.02934619,
                                 "full_lookup_cost": 0.11734713,
@@ -6889,9 +6889,9 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                                 "chosen_strategy": "DuplicateWeedout"
                               }
                             ],
-                            "sj_rows_out": 0.333333333,
-                            "sj_rows_for_plan": 27,
-                            "sj_filtered": 3.703703704,
+                            "sj_rows_out": 1.633333333,
+                            "sj_rows_for_plan": 132.3,
+                            "sj_filtered": 18.14814815,
                             "rest_of_plan": [
                               {
                                 "plan_prefix": "t_outer_1,t_inner_1,t_outer_2,t_inner_2",
@@ -6900,7 +6900,7 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                                     "best_access_path": {
                                       "table": "t_inner_4",
                                       "plan_details": {
-                                        "record_count": 27
+                                        "record_count": 132.3
                                       },
                                       "considered_access_paths": [
                                         {
@@ -6908,8 +6908,8 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                                           "rows": 3,
                                           "rows_after_filter": 3,
                                           "rows_out": 3,
-                                          "cost": 0.034460781,
-                                          "cost_without_join_buffer": 0.283630005,
+                                          "cost": 0.127889048,
+                                          "cost_without_join_buffer": 1.389787025,
                                           "index_only": false,
                                           "chosen": true
                                         }
@@ -6918,7 +6918,7 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                                         "type": "scan",
                                         "rows_read": 3,
                                         "rows_out": 3,
-                                        "cost": 0.034460781,
+                                        "cost": 0.127889048,
                                         "uses_join_buffering": true
                                       }
                                     }
@@ -6927,7 +6927,7 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                                     "best_access_path": {
                                       "table": "t_inner_3",
                                       "plan_details": {
-                                        "record_count": 27
+                                        "record_count": 132.3
                                       },
                                       "considered_access_paths": [
                                         {
@@ -6935,8 +6935,8 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                                           "rows": 9,
                                           "rows_after_filter": 9,
                                           "rows_out": 9,
-                                          "cost": 0.080024379,
-                                          "cost_without_join_buffer": 0.308967615,
+                                          "cost": 0.347490802,
+                                          "cost_without_join_buffer": 1.513941314,
                                           "index_only": false,
                                           "chosen": true
                                         }
@@ -6945,7 +6945,7 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                                         "type": "scan",
                                         "rows_read": 9,
                                         "rows_out": 9,
-                                        "cost": 0.080024379,
+                                        "cost": 0.347490802,
                                         "uses_join_buffering": true
                                       }
                                     }
@@ -6955,8 +6955,8 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                               {
                                 "plan_prefix": "t_outer_1,t_inner_1,t_outer_2,t_inner_2",
                                 "table": "t_inner_4",
-                                "rows_for_plan": 81,
-                                "cost_for_plan": 0.400440787,
+                                "rows_for_plan": 396.9,
+                                "cost_for_plan": 0.493869054,
                                 "semijoin_strategy_choice": [],
                                 "rest_of_plan": [
                                   {
@@ -6966,7 +6966,7 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                                         "best_access_path": {
                                           "table": "t_inner_3",
                                           "plan_details": {
-                                            "record_count": 81
+                                            "record_count": 396.9
                                           },
                                           "considered_access_paths": [
                                             {
@@ -6974,8 +6974,8 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                                               "rows": 9,
                                               "rows_after_filter": 9,
                                               "rows_out": 9,
-                                              "cost": 0.261557961,
-                                              "cost_without_join_buffer": 0.926902845,
+                                              "cost": 1.237005353,
+                                              "cost_without_join_buffer": 4.541823941,
                                               "index_only": false,
                                               "chosen": true
                                             }
@@ -6984,7 +6984,7 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                                             "type": "scan",
                                             "rows_read": 9,
                                             "rows_out": 9,
-                                            "cost": 0.261557961,
+                                            "cost": 1.237005353,
                                             "uses_join_buffering": true
                                           }
                                         }
@@ -6994,40 +6994,40 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                                   {
                                     "plan_prefix": "t_outer_1,t_inner_1,t_outer_2,t_inner_2,t_inner_4",
                                     "table": "t_inner_3",
-                                    "rows_for_plan": 729,
-                                    "cost_for_plan": 0.661998748,
+                                    "rows_for_plan": 3572.1,
+                                    "cost_for_plan": 1.730874408,
                                     "semijoin_strategy_choice": [
                                       {
                                         "strategy": "FirstMatch",
-                                        "rows": 27,
-                                        "cost": 1.576512856
+                                        "rows": 132.3,
+                                        "cost": 6.297590971
                                       },
                                       {
                                         "strategy": "DuplicateWeedout",
-                                        "prefix_row_count": 27,
+                                        "prefix_row_count": 132.3,
                                         "tmp_table_rows": 1,
                                         "sj_inner_fanout": 27,
-                                        "rows": 27,
-                                        "dups_cost": 0.661998748,
-                                        "write_cost": 0.02934619,
-                                        "full_lookup_cost": 0.11734713,
-                                        "total_cost": 0.808692068
+                                        "rows": 648.27,
+                                        "dups_cost": 1.730874408,
+                                        "write_cost": 0.046296331,
+                                        "full_lookup_cost": 0.575000937,
+                                        "total_cost": 2.352171676
                                       },
                                       {
                                         "chosen_strategy": "DuplicateWeedout"
                                       }
                                     ],
-                                    "sj_rows_out": 0.333333333,
-                                    "sj_rows_for_plan": 27,
-                                    "sj_filtered": 3.703703704
+                                    "sj_rows_out": 1.633333333,
+                                    "sj_rows_for_plan": 648.27,
+                                    "sj_filtered": 18.14814815
                                   }
                                 ]
                               },
                               {
                                 "plan_prefix": "t_outer_1,t_inner_1,t_outer_2,t_inner_2",
                                 "table": "t_inner_3",
-                                "rows_for_plan": 243,
-                                "cost_for_plan": 0.446004385,
+                                "rows_for_plan": 1190.7,
+                                "cost_for_plan": 0.713470808,
                                 "semijoin_strategy_choice": [],
                                 "pruned_by_heuristic": true
                               }
@@ -7149,7 +7149,7 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                                         "prefix_row_count": 3,
                                         "tmp_table_rows": 9,
                                         "sj_inner_fanout": 729,
-                                        "rows": 27,
+                                        "rows": 2975.4,
                                         "dups_cost": 7.507267656,
                                         "write_cost": 0.02934619,
                                         "full_lookup_cost": 3.16837251,
@@ -7159,12 +7159,12 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                                         "chosen_strategy": "DuplicateWeedout"
                                       }
                                     ],
-                                    "sj_rows_out": 0.012345679,
-                                    "sj_rows_for_plan": 27,
-                                    "sj_filtered": 0.137174211,
+                                    "sj_rows_out": 1.360493827,
+                                    "sj_rows_for_plan": 2975.4,
+                                    "sj_filtered": 15.11659808,
                                     "pruned_by_cost": true,
                                     "current_cost": 10.70498636,
-                                    "best_cost": 0.808692068
+                                    "best_cost": 2.352171676
                                   }
                                 ]
                               },
@@ -7204,7 +7204,7 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                             "prefix_row_count": 3,
                             "tmp_table_rows": 1,
                             "sj_inner_fanout": 27,
-                            "rows": 3,
+                            "rows": 14.7,
                             "dups_cost": 0.046471353,
                             "write_cost": 0.02548291,
                             "full_lookup_cost": 0.01303857,
@@ -7214,9 +7214,9 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                             "chosen_strategy": "DuplicateWeedout"
                           }
                         ],
-                        "sj_rows_out": 0.333333333,
-                        "sj_rows_for_plan": 3,
-                        "sj_filtered": 3.703703704,
+                        "sj_rows_out": 1.633333333,
+                        "sj_rows_for_plan": 14.7,
+                        "sj_filtered": 18.14814815,
                         "rest_of_plan": [
                           {
                             "plan_prefix": "t_outer_1,t_inner_1,t_inner_2",
@@ -7225,7 +7225,7 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                                 "best_access_path": {
                                   "table": "t_outer_2",
                                   "plan_details": {
-                                    "record_count": 3
+                                    "record_count": 14.7
                                   },
                                   "considered_access_paths": [
                                     {
@@ -7233,8 +7233,8 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                                       "rows": 9,
                                       "rows_after_filter": 9,
                                       "rows_out": 9,
-                                      "cost": 0.017419989,
-                                      "cost_without_join_buffer": 0.034329735,
+                                      "cost": 0.040729291,
+                                      "cost_without_join_buffer": 0.168215702,
                                       "index_only": false,
                                       "chosen": true
                                     }
@@ -7243,7 +7243,7 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                                     "type": "scan",
                                     "rows_read": 9,
                                     "rows_out": 9,
-                                    "cost": 0.017419989,
+                                    "cost": 0.040729291,
                                     "uses_join_buffering": true
                                   }
                                 }
@@ -7252,7 +7252,7 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                                 "best_access_path": {
                                   "table": "t_inner_4",
                                   "plan_details": {
-                                    "record_count": 3
+                                    "record_count": 14.7
                                   },
                                   "considered_access_paths": [
                                     {
@@ -7260,8 +7260,8 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                                       "rows": 3,
                                       "rows_after_filter": 3,
                                       "rows_out": 3,
-                                      "cost": 0.012618795,
-                                      "cost_without_join_buffer": 0.031514445,
+                                      "cost": 0.020863317,
+                                      "cost_without_join_buffer": 0.154420781,
                                       "index_only": false,
                                       "chosen": true
                                     }
@@ -7270,7 +7270,7 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                                     "type": "scan",
                                     "rows_read": 3,
                                     "rows_out": 3,
-                                    "cost": 0.012618795,
+                                    "cost": 0.020863317,
                                     "uses_join_buffering": true
                                   }
                                 }
@@ -7279,7 +7279,7 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                                 "best_access_path": {
                                   "table": "t_inner_3",
                                   "plan_details": {
-                                    "record_count": 3
+                                    "record_count": 14.7
                                   },
                                   "considered_access_paths": [
                                     {
@@ -7287,8 +7287,8 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                                       "rows": 9,
                                       "rows_after_filter": 9,
                                       "rows_out": 9,
-                                      "cost": 0.017419989,
-                                      "cost_without_join_buffer": 0.034329735,
+                                      "cost": 0.040729291,
+                                      "cost_without_join_buffer": 0.168215702,
                                       "index_only": false,
                                       "chosen": true
                                     }
@@ -7297,7 +7297,7 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                                     "type": "scan",
                                     "rows_read": 9,
                                     "rows_out": 9,
-                                    "cost": 0.017419989,
+                                    "cost": 0.040729291,
                                     "uses_join_buffering": true
                                   }
                                 }
@@ -7307,8 +7307,8 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                           {
                             "plan_prefix": "t_outer_1,t_inner_1,t_inner_2",
                             "table": "t_outer_2",
-                            "rows_for_plan": 27,
-                            "cost_for_plan": 0.102412822,
+                            "rows_for_plan": 132.3,
+                            "cost_for_plan": 0.125722124,
                             "semijoin_strategy_choice": [],
                             "rest_of_plan": [
                               {
@@ -7318,7 +7318,7 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                                     "best_access_path": {
                                       "table": "t_inner_4",
                                       "plan_details": {
-                                        "record_count": 27
+                                        "record_count": 132.3
                                       },
                                       "considered_access_paths": [
                                         {
@@ -7326,8 +7326,8 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                                           "rows": 3,
                                           "rows_after_filter": 3,
                                           "rows_out": 3,
-                                          "cost": 0.034460781,
-                                          "cost_without_join_buffer": 0.283630005,
+                                          "cost": 0.127889048,
+                                          "cost_without_join_buffer": 1.389787025,
                                           "index_only": false,
                                           "chosen": true
                                         }
@@ -7336,7 +7336,7 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                                         "type": "scan",
                                         "rows_read": 3,
                                         "rows_out": 3,
-                                        "cost": 0.034460781,
+                                        "cost": 0.127889048,
                                         "uses_join_buffering": true
                                       }
                                     }
@@ -7345,7 +7345,7 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                                     "best_access_path": {
                                       "table": "t_inner_3",
                                       "plan_details": {
-                                        "record_count": 27
+                                        "record_count": 132.3
                                       },
                                       "considered_access_paths": [
                                         {
@@ -7353,8 +7353,8 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                                           "rows": 9,
                                           "rows_after_filter": 9,
                                           "rows_out": 9,
-                                          "cost": 0.080024379,
-                                          "cost_without_join_buffer": 0.308967615,
+                                          "cost": 0.347490802,
+                                          "cost_without_join_buffer": 1.513941314,
                                           "index_only": false,
                                           "chosen": true
                                         }
@@ -7363,7 +7363,7 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                                         "type": "scan",
                                         "rows_read": 9,
                                         "rows_out": 9,
-                                        "cost": 0.080024379,
+                                        "cost": 0.347490802,
                                         "uses_join_buffering": true
                                       }
                                     }
@@ -7373,8 +7373,8 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                               {
                                 "plan_prefix": "t_outer_1,t_inner_1,t_inner_2,t_outer_2",
                                 "table": "t_inner_4",
-                                "rows_for_plan": 81,
-                                "cost_for_plan": 0.136873603,
+                                "rows_for_plan": 396.9,
+                                "cost_for_plan": 0.253611172,
                                 "semijoin_strategy_choice": [],
                                 "rest_of_plan": [
                                   {
@@ -7384,7 +7384,7 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                                         "best_access_path": {
                                           "table": "t_inner_3",
                                           "plan_details": {
-                                            "record_count": 81
+                                            "record_count": 396.9
                                           },
                                           "considered_access_paths": [
                                             {
@@ -7392,8 +7392,8 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                                               "rows": 9,
                                               "rows_after_filter": 9,
                                               "rows_out": 9,
-                                              "cost": 0.261557961,
-                                              "cost_without_join_buffer": 0.926902845,
+                                              "cost": 1.237005353,
+                                              "cost_without_join_buffer": 4.541823941,
                                               "index_only": false,
                                               "chosen": true
                                             }
@@ -7402,7 +7402,7 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                                             "type": "scan",
                                             "rows_read": 9,
                                             "rows_out": 9,
-                                            "cost": 0.261557961,
+                                            "cost": 1.237005353,
                                             "uses_join_buffering": true
                                           }
                                         }
@@ -7412,40 +7412,40 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                                   {
                                     "plan_prefix": "t_outer_1,t_inner_1,t_inner_2,t_outer_2,t_inner_4",
                                     "table": "t_inner_3",
-                                    "rows_for_plan": 729,
-                                    "cost_for_plan": 0.398431564,
+                                    "rows_for_plan": 3572.1,
+                                    "cost_for_plan": 1.490616525,
                                     "semijoin_strategy_choice": [
                                       {
                                         "strategy": "FirstMatch",
-                                        "rows": 27,
-                                        "cost": 1.312945672
+                                        "rows": 132.3,
+                                        "cost": 6.057333089
                                       },
                                       {
                                         "strategy": "DuplicateWeedout",
-                                        "prefix_row_count": 27,
+                                        "prefix_row_count": 132.3,
                                         "tmp_table_rows": 1,
                                         "sj_inner_fanout": 27,
-                                        "rows": 27,
-                                        "dups_cost": 0.398431564,
-                                        "write_cost": 0.02934619,
-                                        "full_lookup_cost": 0.11734713,
-                                        "total_cost": 0.545124884
+                                        "rows": 648.27,
+                                        "dups_cost": 1.490616525,
+                                        "write_cost": 0.046296331,
+                                        "full_lookup_cost": 0.575000937,
+                                        "total_cost": 2.111913793
                                       },
                                       {
                                         "chosen_strategy": "DuplicateWeedout"
                                       }
                                     ],
-                                    "sj_rows_out": 0.333333333,
-                                    "sj_rows_for_plan": 27,
-                                    "sj_filtered": 3.703703704
+                                    "sj_rows_out": 1.633333333,
+                                    "sj_rows_for_plan": 648.27,
+                                    "sj_filtered": 18.14814815
                                   }
                                 ]
                               },
                               {
                                 "plan_prefix": "t_outer_1,t_inner_1,t_inner_2,t_outer_2",
                                 "table": "t_inner_3",
-                                "rows_for_plan": 243,
-                                "cost_for_plan": 0.182437201,
+                                "rows_for_plan": 1190.7,
+                                "cost_for_plan": 0.473212925,
                                 "semijoin_strategy_choice": [],
                                 "pruned_by_heuristic": true
                               }
@@ -7454,8 +7454,8 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                           {
                             "plan_prefix": "t_outer_1,t_inner_1,t_inner_2",
                             "table": "t_inner_4",
-                            "rows_for_plan": 9,
-                            "cost_for_plan": 0.097611628,
+                            "rows_for_plan": 44.1,
+                            "cost_for_plan": 0.10585615,
                             "semijoin_strategy_choice": [],
                             "rest_of_plan": [
                               {
@@ -7465,7 +7465,7 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                                     "best_access_path": {
                                       "table": "t_outer_2",
                                       "plan_details": {
-                                        "record_count": 9
+                                        "record_count": 44.1
                                       },
                                       "considered_access_paths": [
                                         {
@@ -7473,8 +7473,8 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                                           "rows": 9,
                                           "rows_after_filter": 9,
                                           "rows_out": 9,
-                                          "cost": 0.034303623,
-                                          "cost_without_join_buffer": 0.102989205,
+                                          "cost": 0.123459097,
+                                          "cost_without_join_buffer": 0.504647105,
                                           "index_only": false,
                                           "chosen": true
                                         }
@@ -7483,7 +7483,7 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                                         "type": "scan",
                                         "rows_read": 9,
                                         "rows_out": 9,
-                                        "cost": 0.034303623,
+                                        "cost": 0.123459097,
                                         "uses_join_buffering": true
                                       }
                                     }
@@ -7492,7 +7492,7 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                                     "best_access_path": {
                                       "table": "t_inner_3",
                                       "plan_details": {
-                                        "record_count": 9
+                                        "record_count": 44.1
                                       },
                                       "considered_access_paths": [
                                         {
@@ -7500,8 +7500,8 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                                           "rows": 9,
                                           "rows_after_filter": 9,
                                           "rows_out": 9,
-                                          "cost": 0.034303623,
-                                          "cost_without_join_buffer": 0.102989205,
+                                          "cost": 0.123459097,
+                                          "cost_without_join_buffer": 0.504647105,
                                           "index_only": false,
                                           "chosen": true
                                         }
@@ -7510,7 +7510,7 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                                         "type": "scan",
                                         "rows_read": 9,
                                         "rows_out": 9,
-                                        "cost": 0.034303623,
+                                        "cost": 0.123459097,
                                         "uses_join_buffering": true
                                       }
                                     }
@@ -7520,8 +7520,8 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                               {
                                 "plan_prefix": "t_outer_1,t_inner_1,t_inner_2,t_inner_4",
                                 "table": "t_outer_2",
-                                "rows_for_plan": 81,
-                                "cost_for_plan": 0.131915251,
+                                "rows_for_plan": 396.9,
+                                "cost_for_plan": 0.229315247,
                                 "semijoin_strategy_choice": [],
                                 "rest_of_plan": [
                                   {
@@ -7531,7 +7531,7 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                                         "best_access_path": {
                                           "table": "t_inner_3",
                                           "plan_details": {
-                                            "record_count": 81
+                                            "record_count": 396.9
                                           },
                                           "considered_access_paths": [
                                             {
@@ -7539,8 +7539,8 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                                               "rows": 9,
                                               "rows_after_filter": 9,
                                               "rows_out": 9,
-                                              "cost": 0.261557961,
-                                              "cost_without_join_buffer": 0.926902845,
+                                              "cost": 1.237005353,
+                                              "cost_without_join_buffer": 4.541823941,
                                               "index_only": false,
                                               "chosen": true
                                             }
@@ -7549,7 +7549,7 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                                             "type": "scan",
                                             "rows_read": 9,
                                             "rows_out": 9,
-                                            "cost": 0.261557961,
+                                            "cost": 1.237005353,
                                             "uses_join_buffering": true
                                           }
                                         }
@@ -7559,35 +7559,35 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                                   {
                                     "plan_prefix": "t_outer_1,t_inner_1,t_inner_2,t_inner_4,t_outer_2",
                                     "table": "t_inner_3",
-                                    "rows_for_plan": 729,
-                                    "cost_for_plan": 0.393473212,
+                                    "rows_for_plan": 3572.1,
+                                    "cost_for_plan": 1.466320601,
                                     "semijoin_strategy_choice": [
                                       {
                                         "strategy": "DuplicateWeedout",
-                                        "prefix_row_count": 3,
+                                        "prefix_row_count": 14.7,
                                         "tmp_table_rows": 9,
                                         "sj_inner_fanout": 27,
-                                        "rows": 27,
-                                        "dups_cost": 0.393473212,
-                                        "write_cost": 0.02934619,
-                                        "full_lookup_cost": 0.11734713,
-                                        "total_cost": 0.540166532
+                                        "rows": 648.27,
+                                        "dups_cost": 1.466320601,
+                                        "write_cost": 0.046296331,
+                                        "full_lookup_cost": 0.575000937,
+                                        "total_cost": 2.087617869
                                       },
                                       {
                                         "chosen_strategy": "DuplicateWeedout"
                                       }
                                     ],
-                                    "sj_rows_out": 0.333333333,
-                                    "sj_rows_for_plan": 27,
-                                    "sj_filtered": 3.703703704
+                                    "sj_rows_out": 1.633333333,
+                                    "sj_rows_for_plan": 648.27,
+                                    "sj_filtered": 18.14814815
                                   }
                                 ]
                               },
                               {
                                 "plan_prefix": "t_outer_1,t_inner_1,t_inner_2,t_inner_4",
                                 "table": "t_inner_3",
-                                "rows_for_plan": 81,
-                                "cost_for_plan": 0.131915251,
+                                "rows_for_plan": 396.9,
+                                "cost_for_plan": 0.229315247,
                                 "semijoin_strategy_choice": [],
                                 "pruned_by_heuristic": true
                               }
@@ -7596,8 +7596,8 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                           {
                             "plan_prefix": "t_outer_1,t_inner_1,t_inner_2",
                             "table": "t_inner_3",
-                            "rows_for_plan": 27,
-                            "cost_for_plan": 0.102412822,
+                            "rows_for_plan": 132.3,
+                            "cost_for_plan": 0.125722124,
                             "semijoin_strategy_choice": [],
                             "pruned_by_heuristic": true
                           }
@@ -7768,9 +7768,68 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                                 "rows_for_plan": 2187,
                                 "cost_for_plan": 0.731138787,
                                 "semijoin_strategy_choice": [],
-                                "pruned_by_cost": true,
-                                "current_cost": 0.731138787,
-                                "best_cost": 0.540166532
+                                "rest_of_plan": [
+                                  {
+                                    "plan_prefix": "t_outer_1,t_inner_1,t_inner_4,t_outer_2,t_inner_2",
+                                    "get_costs_for_tables": [
+                                      {
+                                        "best_access_path": {
+                                          "table": "t_inner_3",
+                                          "plan_details": {
+                                            "record_count": 2187
+                                          },
+                                          "considered_access_paths": [
+                                            {
+                                              "access_type": "scan_with_join_cache",
+                                              "rows": 9,
+                                              "rows_after_filter": 9,
+                                              "rows_out": 9,
+                                              "cost": 6.764540577,
+                                              "cost_without_join_buffer": 25.02637682,
+                                              "index_only": false,
+                                              "chosen": true
+                                            }
+                                          ],
+                                          "chosen_access_method": {
+                                            "type": "scan",
+                                            "rows_read": 9,
+                                            "rows_out": 9,
+                                            "cost": 6.764540577,
+                                            "uses_join_buffering": true
+                                          }
+                                        }
+                                      }
+                                    ]
+                                  },
+                                  {
+                                    "plan_prefix": "t_outer_1,t_inner_1,t_inner_4,t_outer_2,t_inner_2",
+                                    "table": "t_inner_3",
+                                    "rows_for_plan": 19683,
+                                    "cost_for_plan": 7.495679364,
+                                    "semijoin_strategy_choice": [
+                                      {
+                                        "strategy": "DuplicateWeedout",
+                                        "prefix_row_count": 3,
+                                        "tmp_table_rows": 9,
+                                        "sj_inner_fanout": 729,
+                                        "rows": 2975.4,
+                                        "dups_cost": 7.495679364,
+                                        "write_cost": 0.02934619,
+                                        "full_lookup_cost": 3.16837251,
+                                        "total_cost": 10.69339806
+                                      },
+                                      {
+                                        "chosen_strategy": "DuplicateWeedout"
+                                      }
+                                    ],
+                                    "sj_rows_out": 1.360493827,
+                                    "sj_rows_for_plan": 2975.4,
+                                    "sj_filtered": 15.11659808,
+                                    "pruned_by_cost": true,
+                                    "current_cost": 10.69339806,
+                                    "best_cost": 2.087617869
+                                  }
+                                ]
                               },
                               {
                                 "plan_prefix": "t_outer_1,t_inner_1,t_inner_4,t_outer_2",
@@ -7778,9 +7837,7 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                                 "rows_for_plan": 2187,
                                 "cost_for_plan": 0.731138787,
                                 "semijoin_strategy_choice": [],
-                                "pruned_by_cost": true,
-                                "current_cost": 0.731138787,
-                                "best_cost": 0.540166532
+                                "pruned_by_heuristic": true
                               }
                             ]
                           },
@@ -7899,8 +7956,8 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
               "t_outer_2",
               "t_inner_3"
             ],
-            "rows": 27,
-            "cost": 0.540166532
+            "rows": 648.27,
+            "cost": 2.087617869
           },
           {
             "substitute_best_equal": {
@@ -8951,7 +9008,7 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                                 "prefix_row_count": 27,
                                 "tmp_table_rows": 1,
                                 "sj_inner_fanout": 27,
-                                "rows": 27,
+                                "rows": 132.3,
                                 "dups_cost": 0.222053862,
                                 "write_cost": 0.02934619,
                                 "full_lookup_cost": 0.11734713,
@@ -9084,7 +9141,7 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                                         "prefix_row_count": 27,
                                         "tmp_table_rows": 1,
                                         "sj_inner_fanout": 27,
-                                        "rows": 27,
+                                        "rows": 132.3,
                                         "dups_cost": 0.379977238,
                                         "write_cost": 0.02934619,
                                         "full_lookup_cost": 0.11734713,
@@ -9382,7 +9439,7 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                                 "prefix_row_count": 3,
                                 "tmp_table_rows": 9,
                                 "sj_inner_fanout": 27,
-                                "rows": 27,
+                                "rows": 132.3,
                                 "dups_cost": 0.219286686,
                                 "write_cost": 0.02934619,
                                 "full_lookup_cost": 0.11734713,
@@ -9392,9 +9449,9 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                                 "chosen_strategy": "DuplicateWeedout"
                               }
                             ],
-                            "sj_rows_out": 0.333333333,
-                            "sj_rows_for_plan": 27,
-                            "sj_filtered": 3.703703704,
+                            "sj_rows_out": 1.633333333,
+                            "sj_rows_for_plan": 132.3,
+                            "sj_filtered": 18.14814815,
                             "pruned_by_cost": true,
                             "current_cost": 0.365980006,
                             "best_cost": 0.143278952
@@ -9537,7 +9594,7 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                                         "prefix_row_count": 3,
                                         "tmp_table_rows": 9,
                                         "sj_inner_fanout": 27,
-                                        "rows": 27,
+                                        "rows": 132.3,
                                         "dups_cost": 1.00428504,
                                         "write_cost": 0.02934619,
                                         "full_lookup_cost": 0.11734713,
@@ -9547,9 +9604,9 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                                         "chosen_strategy": "DuplicateWeedout"
                                       }
                                     ],
-                                    "sj_rows_out": 0.333333333,
-                                    "sj_rows_for_plan": 27,
-                                    "sj_filtered": 3.703703704,
+                                    "sj_rows_out": 1.633333333,
+                                    "sj_rows_for_plan": 132.3,
+                                    "sj_filtered": 18.14814815,
                                     "pruned_by_cost": true,
                                     "current_cost": 1.15097836,
                                     "best_cost": 0.143278952
@@ -9591,7 +9648,7 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                             "prefix_row_count": 3,
                             "tmp_table_rows": 1,
                             "sj_inner_fanout": 27,
-                            "rows": 3,
+                            "rows": 14.7,
                             "dups_cost": 0.046471353,
                             "write_cost": 0.02548291,
                             "full_lookup_cost": 0.01303857,
@@ -9817,7 +9874,7 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                                         "prefix_row_count": 27,
                                         "tmp_table_rows": 1,
                                         "sj_inner_fanout": 27,
-                                        "rows": 27,
+                                        "rows": 132.3,
                                         "dups_cost": 0.378576706,
                                         "write_cost": 0.02934619,
                                         "full_lookup_cost": 0.11734713,
@@ -9961,7 +10018,7 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                                         "prefix_row_count": 3,
                                         "tmp_table_rows": 9,
                                         "sj_inner_fanout": 27,
-                                        "rows": 27,
+                                        "rows": 132.3,
                                         "dups_cost": 0.373618354,
                                         "write_cost": 0.02934619,
                                         "full_lookup_cost": 0.11734713,
@@ -9971,9 +10028,9 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                                         "chosen_strategy": "DuplicateWeedout"
                                       }
                                     ],
-                                    "sj_rows_out": 0.333333333,
-                                    "sj_rows_for_plan": 27,
-                                    "sj_filtered": 3.703703704,
+                                    "sj_rows_out": 1.633333333,
+                                    "sj_rows_for_plan": 132.3,
+                                    "sj_filtered": 18.14814815,
                                     "pruned_by_cost": true,
                                     "current_cost": 0.520311674,
                                     "best_cost": 0.14187842
