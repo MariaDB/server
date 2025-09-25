@@ -28,6 +28,10 @@ public:
     return *this;
   }
   Sql_path(const Sql_path&) = delete;
+  Sql_path(Sql_path &&rhs)
+  {
+    set(std::move(rhs));
+  }
 
   bool resolve(THD *thd, sp_head *caller, sp_name *name,
                const Sp_handler **sph, Database_qualified_name *pkgname) const;

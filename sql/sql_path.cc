@@ -512,14 +512,17 @@ size_t Sql_path::text_format_nbytes_needed() const
   for (size_t i= 0; i < m_count; i++)
   {
     LEX_CSTRING schema= m_schemas[i];
-    size_t schema_length= schema.length;
+    if (!schema.length)
+      continue;
+
+    size_t len= schema.length;
     for (size_t j= 0; j < schema.length; j++)
     {
       if (schema.str[j] == '`')
-        schema_length++;
+        len++;
     }
 
-    nbytes+= schema_length + 2 + 1;
+    nbytes+= len + 2 + 1;
   }
 
   if (nbytes)

@@ -3573,32 +3573,6 @@ drop database pkg;
 drop package pkg;
 drop procedure p1;
 
-
-DELIMITER $$;
-CREATE FUNCTION func() RETURNS TEXT
-PATH 'test,xxx'
-BEGIN
-  RETURN 'Invoke from Db: test, Rt: func';
-END;
-$$
-DELIMITER ;$$
-
-DROP FUNCTION func;
-
-DELIMITER $$;
-CREATE PROCEDURE proc()
-PATH 'test,xxx'
-BEGIN
-  SELECT func();
-END;
-$$
-
-DELIMITER ;$$
-
-# CALL proc;
-
-DROP PROCEDURE proc;
-
 --echo #
 --echo # Prepared statement should not be affected by PATH changed
 --echo # between PREPARE and EXECUTE
