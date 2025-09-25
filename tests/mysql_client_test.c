@@ -22787,6 +22787,112 @@ insert into t1 values(\
   rc= mysql_query(mysql, "DROP TABLE t1");
   myquery(rc);
 }
+
+static void run_tests_36678(
+            const char *test,
+            const char *table_stmt,
+            const char *insert_stmt,
+            const char *view_stmt,
+            const char *proc_stmt,
+            const char *call_stmt)
+{
+  MYSQL_STMT *stmt;
+  MYSQL_BIND bind;
+  int rc;
+
+  myheader(test);
+
+  if ((table_stmt && table_stmt[0] != '\0' &&
+      (rc= mysql_query_or_error(mysql, table_stmt))))
+    DIE("Table creation failed");
+
+  if ((insert_stmt && insert_stmt[0] != '\0' &&
+      (rc= mysql_query_or_error(mysql, insert_stmt))))
+    DIE("Table insertion failed");
+
+  if ((rc= mysql_query_or_error(mysql, view_stmt)) ||
+      (rc= mysql_query_or_error(mysql, proc_stmt)))
+    DIE("View/Proc creation failed");
+
+  stmt= mysql_stmt_init(mysql);
+  rc= mysql_stmt_prepare(stmt, call_stmt, strlen(call_stmt));
+  DIE_UNLESS(rc == 0);
+
+  memset(&bind, 0, sizeof bind);
+  rc= mysql_stmt_execute(stmt);
+  DIE_UNLESS(rc == 0);
+
+  mysql_stmt_close(stmt);
+  DIE_UNLESS(mysql_query_or_error(mysql, "DROP PROCEDURE proc") == 0);
+  DIE_UNLESS(mysql_query_or_error(mysql, "DROP VIEW v") == 0);
+  if (table_stmt && table_stmt[0] != '\0')
+    DIE_UNLESS(mysql_query_or_error(mysql, "DROP TABLE t") == 0);
+}
+
+static void test_mdev_36678()
+{
+  const char *proc_stmt1= "CREATE OR REPLACE PROCEDURE proc(IN i VARCHAR(1)) \
+    SELECT * FROM v v WHERE CASE WHEN i THEN v.l LIKE CONCAT ('',i) END;";
+  const char *proc_stmt2= "CREATE OR REPLACE PROCEDURE proc(IN `IN_listc2` VARCHAR(1000), IN `IN_limitfrom` INT, IN `IN_limitto` INT) \
+    BEGIN \
+      SELECT * \
+      FROM \
+      v `t` \
+      WHERE \
+      CASE WHEN IN_listc2 IS NOT NULL THEN `t`.`listc2` LIKE CONCAT(\"%\", IN_listc2, \"%\") ELSE TRUE END \
+      LIMIT \
+        IN_limitfrom, \
+        IN_limitto; \
+    END;";
+
+  const char *table_stmt1= "CREATE OR REPLACE TABLE t (c INT) ENGINE=MyISAM;";
+  const char *table_stmt2= "CREATE OR REPLACE TABLE t (c INT) ENGINE=InnoDB;";
+  const char *table_stmt3= "create or replace table t \
+    ( id int auto_increment primary key, col1 int, col2 int, col3 int);";
+
+  const char *insert_stmt1= "insert into t select null, round(rand()*100), \
+    round(rand()*100), round(rand()*100) from seq_1_to_100;";
+
+  const char *view_stmt1= "CREATE OR REPLACE VIEW v \
+    AS SELECT GROUP_CONCAT('', '') AS l FROM (SELECT 1) AS a;";
+  const char *view_stmt2= "CREATE OR REPLACE VIEW v \
+    AS SELECT GROUP_CONCAT('', '') AS l FROM t;";
+  const char *view_stmt3= "create or replace view v as \
+    select col1 as taskcid, sum(col3) as suc3, \
+    group_concat('-',case when `col3` is not null then `col2` else '' end,'-' separator ',') AS `listc2` \
+    from t \
+    group by col1;";
+
+  const char *view_stmt11= "CREATE OR REPLACE VIEW v \
+    AS SELECT CONCAT('', '') AS l FROM (SELECT 1) AS a;";
+  const char *view_stmt21= "CREATE OR REPLACE VIEW v \
+    AS SELECT CONCAT('', '') AS l FROM t;";
+  const char *view_stmt31= "create or replace view v as \
+    select col1 as taskcid, col3 as suc3, \
+    CONCAT('-', CASE WHEN col3 IS NOT NULL THEN col2 ELSE '' END, '-') AS `listc2` \
+    from t;";
+
+  run_tests_36678("View with GROUP_CONCAT created from derived table-",
+                  "", "", view_stmt1, proc_stmt1, "call proc(0)");
+  run_tests_36678("View with CONCAT created from derived table-",
+                  "", "", view_stmt11, proc_stmt1, "call proc(0)");
+
+  run_tests_36678("View with GROUP_CONCAT created from MyISAM table-",
+                  table_stmt1, "", view_stmt2, proc_stmt1, "call proc(0)");
+  run_tests_36678("View with CONCAT created from MyISAM table-",
+                  table_stmt1, "", view_stmt21, proc_stmt1, "call proc(0)");
+
+  run_tests_36678("View with GROUP_CONCAT created from InnoDB table-",
+                  table_stmt2, "", view_stmt2, proc_stmt1, "call proc(0)");
+  run_tests_36678("View with CONCAT created from InnoDB table-",
+                  table_stmt2, "", view_stmt21, proc_stmt1, "call proc(0)");
+
+  run_tests_36678("View with GROUP_CONCAT created from table with data-",
+                  table_stmt3, insert_stmt1, view_stmt3, proc_stmt2, "call proc(null, 0, 25)");
+  run_tests_36678("View with CONCAT created from table with data-",
+                  table_stmt3, insert_stmt1, view_stmt31, proc_stmt2, "call proc(null, 0, 25)");
+}
+
 #endif // EMBEDDED_LIBRARY
 
 /*
@@ -23274,6 +23380,7 @@ static struct my_tests_st my_tests[]= {
   { "test_mdev_34718_ad", test_mdev_34718_ad },
   { "test_mdev_34958", test_mdev_34958 },
   { "test_mdev_32086", test_mdev_32086 },
+  { "test_mdev_36678", test_mdev_36678 },
 #endif
   { 0, 0 }
 };
