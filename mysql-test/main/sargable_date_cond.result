@@ -756,7 +756,7 @@ EXPLAIN
             "attached_condition": "t22.a >= '2017-02-01 00:00:00' and t22.b > '2017-11-01'"
           },
           "buffer_type": "flat",
-          "buffer_size": "7Kb",
+          "buffer_size": "3Kb",
           "join_type": "BNL",
           "attached_condition": "t22.b > '2017-11-01'"
         }
