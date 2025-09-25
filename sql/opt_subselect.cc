@@ -2779,12 +2779,14 @@ get_tmp_table_costs(THD *thd, double row_count, uint row_size, bool blobs_used,
                            tmp_table_optimizer_costs.row_copy_cost :
                            0);
     /* Disk based table */
-    cost.lookup=          ((tmp_table_optimizer_costs.key_lookup_cost *
+    cost.lookup=          ((tmp_table_optimizer_costs.key_lookup_cost +
+                            tmp_table_optimizer_costs.disk_read_cost *
                             tmp_table_optimizer_costs.disk_read_ratio) +
                            row_copy_cost);
     cost.write=           cost.lookup;
     cost.create=          DISK_TEMPTABLE_CREATE_COST;
     cost.block_size=      DISK_TEMPTABLE_BLOCK_SIZE;
+    /* The following costs are only used for table scans */
     cost.avg_io_cost=     tmp_table_optimizer_costs.disk_read_cost;
     cost.cache_hit_ratio= tmp_table_optimizer_costs.disk_read_ratio;
   }
