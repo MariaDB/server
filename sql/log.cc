@@ -2237,7 +2237,10 @@ binlog_truncate_trx_cache(THD *thd, binlog_cache_mngr *cache_mngr, bool all)
     *sp_ptr= nullptr;
     cache_mngr->cache_savepoint_next_ptr= sp_ptr;
     if (stmt_pos >= cache->pos_in_file)
+    {
       trx_cache.restore_prev_position();
+      cache->write_function= binlog_spill_to_engine;
+    }
     else
     {
       trx_cache.set_prev_position(cache->pos_in_file);
@@ -2248,6 +2251,7 @@ binlog_truncate_trx_cache(THD *thd, binlog_cache_mngr *cache_mngr, bool all)
         (thd, &cache_mngr->trx_cache.engine_binlog_info.engine_ptr,
          &cache_mngr->stmt_start_engine_ptr, nullptr);
     }
+    DBUG_ASSERT(cache->write_function == binlog_spill_to_engine);
   }
 
   DBUG_ASSERT(trx_cache.pending() == NULL);
