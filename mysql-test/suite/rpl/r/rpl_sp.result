@@ -27,7 +27,7 @@ declare b int;
 set b = 8;
 insert into t1 values (b);
 insert into t1 values (unix_timestamp());
-end	NONE	NULL
+end	NONE	CURRENT_SCHEMA
 connection slave;
 select * from mysql.proc where name='foo' and db='mysqltest1';
 db	name	type	specific_name	language	sql_data_access	is_deterministic	security_type	param_list	returns	body	definer	created	modified	sql_mode	comment	character_set_client	collation_connection	db_collation	body_utf8	aggregate	path
@@ -41,7 +41,7 @@ declare b int;
 set b = 8;
 insert into t1 values (b);
 insert into t1 values (unix_timestamp());
-end	NONE	NULL
+end	NONE	CURRENT_SCHEMA
 connection master;
 set timestamp=1000000000;
 call foo();
@@ -141,7 +141,7 @@ mysqltest1	foo4	PROCEDURE	foo4	SQL	CONTAINS_SQL	YES	DEFINER			begin
 insert into t2 values(20),(20);
 end	root@localhost	#	#			latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci	begin
 insert into t2 values(20),(20);
-end	NONE	NULL
+end	NONE	CURRENT_SCHEMA
 connection master;
 drop procedure foo4;
 select * from mysql.proc where name="foo4" and db='mysqltest1';
@@ -239,17 +239,17 @@ mysqltest1	fn1	FUNCTION	fn1	SQL	NO_SQL	NO	DEFINER		int(11)	begin
 return unix_timestamp();
 end	root@localhost	#	#			latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci	begin
 return unix_timestamp();
-end	NONE	NULL
+end	NONE	CURRENT_SCHEMA
 mysqltest1	fn2	FUNCTION	fn2	SQL	NO_SQL	NO	DEFINER		int(11)	begin
 return unix_timestamp();
 end	zedjzlcsjhd@localhost	#	#	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION		latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci	begin
 return unix_timestamp();
-end	NONE	NULL
+end	NONE	CURRENT_SCHEMA
 mysqltest1	fn3	FUNCTION	fn3	SQL	READS_SQL_DATA	NO	DEFINER		int(11)	begin
 return 0;
 end	root@localhost	#	#			latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci	begin
 return 0;
-end	NONE	NULL
+end	NONE	CURRENT_SCHEMA
 select * from t1;
 a
 1000000000
@@ -264,17 +264,17 @@ mysqltest1	fn1	FUNCTION	fn1	SQL	NO_SQL	NO	DEFINER		int(11)	begin
 return unix_timestamp();
 end	root@localhost	#	#			latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci	begin
 return unix_timestamp();
-end	NONE	NULL
+end	NONE	CURRENT_SCHEMA
 mysqltest1	fn2	FUNCTION	fn2	SQL	NO_SQL	NO	DEFINER		int(11)	begin
 return unix_timestamp();
 end	zedjzlcsjhd@localhost	#	#	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION		latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci	begin
 return unix_timestamp();
-end	NONE	NULL
+end	NONE	CURRENT_SCHEMA
 mysqltest1	fn3	FUNCTION	fn3	SQL	READS_SQL_DATA	NO	DEFINER		int(11)	begin
 return 0;
 end	root@localhost	#	#			latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci	begin
 return 0;
-end	NONE	NULL
+end	NONE	CURRENT_SCHEMA
 connection master;
 delete from t2;
 alter table t2 add unique (a);

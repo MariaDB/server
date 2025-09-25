@@ -23,8 +23,8 @@ $$
 #
 # Embed a path in a stored function
 #
+SET PATH 'test2';
 CREATE FUNCTION func() RETURNS TEXT
-PATH 'test2'
 BEGIN
 RETURN func2();
 END;
@@ -41,8 +41,8 @@ SET PATH 'CURRENT_SCHEMA';
 #
 # Ensure that multiple references are resolved properly
 #
+SET PATH 'test2';
 CREATE FUNCTION func() RETURNS TEXT
-PATH 'test2'
 BEGIN
 RETURN CONCAT(func2(), '+', func2());
 END;
@@ -59,8 +59,8 @@ SET PATH 'CURRENT_SCHEMA';
 #
 # Use multiple schemas in embedded PATH
 #
+SET PATH 'test2,test3,test4';
 CREATE FUNCTION func() RETURNS TEXT
-PATH 'test2,test3,test4'
 BEGIN
 RETURN CONCAT(func2(), '+', func2(), '+', func4());
 END;
@@ -77,26 +77,7 @@ SET PATH 'CURRENT_SCHEMA';
 #
 # Use empty PATH in stored routine (resolution should fail)
 #
-CREATE FUNCTION func() RETURNS TEXT
-PATH ''
-BEGIN
-RETURN func2();
-END;
-$$
-SELECT func();
-ERROR 42000: FUNCTION test.func2 does not exist
-#
-# ALTER FUNCTION's previously empty PATH
-#
-ALTER FUNCTION func PATH 'test2';
-SELECT func();
-func()
-test2.func2
-DROP FUNCTION func;
-#
-# No PATH specified in stored routine
-# Resolution follows the caller's PATH
-#
+SET PATH '';
 CREATE FUNCTION func() RETURNS TEXT
 BEGIN
 RETURN func2();
@@ -104,10 +85,6 @@ END;
 $$
 SELECT func();
 ERROR 42000: FUNCTION test.func2 does not exist
-SET PATH 'CURRENT_SCHEMA,test2';
-SELECT func();
-func()
-test2.func2
 DROP FUNCTION func;
 DROP DATABASE test2;
 DROP DATABASE test3;
