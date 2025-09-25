@@ -8041,6 +8041,7 @@ sp_head *LEX::make_sp_head(THD *thd, const sp_name *name,
   /* Order is important here: new - reset - init */
   if (likely((sp= sp_head::create(package, sph, agg_type,
                                   thd->variables.sql_mode,
+                                  thd->variables.path,
                                   sp_mem_root_ptr))))
   {
     sp->reset_thd_mem_root(thd);
@@ -10442,6 +10443,7 @@ sp_package *LEX::create_package_start(THD *thd,
   }
   if (unlikely(!(pkg= sp_package::create(this, name_arg, sph,
                                          thd->variables.sql_mode,
+                                         thd->variables.path,
                                          sp_mem_root_ptr))))
     return NULL;
   pkg->reset_thd_mem_root(thd);

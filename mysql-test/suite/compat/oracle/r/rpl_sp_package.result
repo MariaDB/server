@@ -48,7 +48,7 @@ FUNCTION f1 RETURN INT;
 PROCEDURE p1;
 END
 aggregate	NONE
-path	NULL
+path	CURRENT_SCHEMA
 db	test
 name	pack
 type	PACKAGE BODY
@@ -88,7 +88,7 @@ SELECT f1();
 END;
 END
 aggregate	NONE
-path	NULL
+path	CURRENT_SCHEMA
 SELECT * FROM mysql.proc WHERE db='test' AND name LIKE 'pack.%';
 SET @@sql_mode=ORACLE;
 SELECT pack.f1();

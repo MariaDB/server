@@ -23,8 +23,8 @@ $$
 #
 # Embed a path in a stored procedure
 #
+SET PATH 'test2';
 CREATE PROCEDURE proc()
-PATH 'test2'
 BEGIN
 SELECT func2();
 END;
@@ -41,16 +41,16 @@ CALL proc;
 func2()
 test2.func2
 DROP PROCEDURE proc;
-SET PATH 'CURRENT_SCHEMA';
 #
 # Ensure that multiple references are resolved properly
 #
+SET PATH 'test2';
 CREATE PROCEDURE proc()
-PATH 'test2'
 BEGIN
 SELECT CONCAT(func2(), '+', func2());
 END;
 $$
+SET PATH 'CURRENT_SCHEMA';
 CALL proc();
 CONCAT(func2(), '+', func2())
 test2.func2+test2.func2
@@ -59,16 +59,16 @@ CALL test.proc;
 CONCAT(func2(), '+', func2())
 test2.func2+test2.func2
 DROP PROCEDURE proc;
-SET PATH 'CURRENT_SCHEMA';
 #
 # Use multiple schemas in embedded PATH
 #
+SET PATH 'test2,test3,test4';
 CREATE PROCEDURE proc()
-PATH 'test2,test3,test4'
 BEGIN
 SELECT CONCAT(func2(), '+', func2(), '+', func4());
 END;
 $$
+SET PATH 'CURRENT_SCHEMA';
 CALL proc();
 CONCAT(func2(), '+', func2(), '+', func4())
 test2.func2+test2.func2+test4.func4
@@ -77,27 +77,19 @@ CALL test.proc;
 CONCAT(func2(), '+', func2(), '+', func4())
 test2.func2+test2.func2+test4.func4
 DROP PROCEDURE proc;
-SET PATH 'CURRENT_SCHEMA';
 #
 # Use empty PATH in stored routine (resolution should fail)
 #
+SET PATH '';
 CREATE PROCEDURE proc()
-PATH ''
 BEGIN
 SELECT func2();
 END;
 $$
+SET PATH 'CURRENT_SCHEMA';
 CALL proc;
 ERROR 42000: FUNCTION test.func2 does not exist
-#
-# ALTER PROCEDURE's previously empty PATH
-#
-ALTER PROCEDURE proc PATH 'test2';
-CALL proc;
-func2()
-test2.func2
 DROP PROCEDURE proc;
-SET PATH 'CURRENT_SCHEMA';
 DROP DATABASE test2;
 DROP DATABASE test3;
 DROP DATABASE test4;

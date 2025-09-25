@@ -33,9 +33,9 @@ DELIMITER ;$$
 --echo #
 --echo # Embed a path in a stored procedure
 --echo #
+SET PATH 'test2';
 DELIMITER $$;
 CREATE PROCEDURE proc()
-PATH 'test2'
 BEGIN
   SELECT func2();
 END;
@@ -50,33 +50,32 @@ SET PATH 'CURRENT_SCHEMA,test3';
 CALL proc;
 
 DROP PROCEDURE proc;
-SET PATH 'CURRENT_SCHEMA';
 
 --echo #
 --echo # Ensure that multiple references are resolved properly
 --echo #
+SET PATH 'test2';
 DELIMITER $$;
 CREATE PROCEDURE proc()
-PATH 'test2'
 BEGIN
   SELECT CONCAT(func2(), '+', func2());
 END;
 $$
 DELIMITER ;$$
 
+SET PATH 'CURRENT_SCHEMA';
 CALL proc();
 SET PATH 'test3';
 CALL test.proc;
 
 DROP PROCEDURE proc;
-SET PATH 'CURRENT_SCHEMA';
 
 --echo #
 --echo # Use multiple schemas in embedded PATH
 --echo #
+SET PATH 'test2,test3,test4';
 DELIMITER $$;
 CREATE PROCEDURE proc()
-PATH 'test2,test3,test4'
 BEGIN
   SELECT CONCAT(func2(), '+', func2(), '+', func4());
 END;
@@ -84,37 +83,30 @@ $$
 
 DELIMITER ;$$
 
+SET PATH 'CURRENT_SCHEMA';
 CALL proc();
 SET PATH 'test3';
 CALL test.proc;
 
 DROP PROCEDURE proc;
-SET PATH 'CURRENT_SCHEMA';
 
 --echo #
 --echo # Use empty PATH in stored routine (resolution should fail)
 --echo #
+SET PATH '';
 DELIMITER $$;
 CREATE PROCEDURE proc()
-PATH ''
 BEGIN
   SELECT func2();
 END;
 $$
 DELIMITER ;$$
 
+SET PATH 'CURRENT_SCHEMA';
 --error ER_SP_DOES_NOT_EXIST
 CALL proc;
 
---echo #
---echo # ALTER PROCEDURE's previously empty PATH
---echo #
-ALTER PROCEDURE proc PATH 'test2';
-CALL proc;
-
 DROP PROCEDURE proc;
-SET PATH 'CURRENT_SCHEMA';
-
 DROP DATABASE test2;
 DROP DATABASE test3;
 DROP DATABASE test4;

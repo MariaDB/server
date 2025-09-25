@@ -656,18 +656,6 @@ bool st_sp_chistics::read_from_mysql_proc_row(THD *thd, TABLE *table)
                                                             &comment))
     return true;
   
-  if (table->field[MYSQL_PROC_FIELD_PATH]->is_null())
-  {
-    sql_path.str= NULL;
-    sql_path.length= 0;
-  }
-  else
-  {
-    if (table->field[MYSQL_PROC_FIELD_PATH]->val_str_nopad(thd->mem_root,
-                                                           &sql_path))
-      return true;
-  }
-
   return false;
 }
 
@@ -714,10 +702,12 @@ Sp_handler::db_find_routine(THD *thd, const Database_qualified_name *name,
   longlong created;
   longlong modified;
   Sp_chistics chistics;
+  Sql_path sql_path;
   THD::used_t saved_time_zone_used= thd->used & THD::TIME_ZONE_USED;
   bool trans_commited= 0;
   sql_mode_t sql_mode;
   Stored_program_creation_ctx *creation_ctx;
+  StringBuffer<MAX_FIELD_WIDTH> sql_path_str;
   AUTHID definer;
   DBUG_ENTER("db_find_routine");
   DBUG_PRINT("enter", ("type: %s name: %.*s",
@@ -773,15 +763,21 @@ Sp_handler::db_find_routine(THD *thd, const Database_qualified_name *name,
   modified= table->field[MYSQL_PROC_FIELD_MODIFIED]->val_int();
   created= table->field[MYSQL_PROC_FIELD_CREATED]->val_int();
   sql_mode= (sql_mode_t) table->field[MYSQL_PROC_FIELD_SQL_MODE]->val_int();
+  if (!table->field[MYSQL_PROC_FIELD_PATH]->val_str(&sql_path_str))
+    sql_path_str.set(STRING_WITH_LEN("CURRENT_SCHEMA"), system_charset_info);
 
+  sql_path.from_text(thd, sql_path_str.charset(), sql_path_str.to_lex_cstring());
   creation_ctx= Stored_routine_creation_ctx::load_from_db(thd, name, table);
 
   trans_commited= 1;
   thd->commit_whole_transaction_and_close_tables();
   new_trans.restore_old_transaction();
 
-  ret= db_load_routine(thd, name, sphp, sql_mode, params, returns, body,
-                      chistics, definer, created, modified, NULL, creation_ctx);
+  ret= db_load_routine(thd, name, sphp, sql_mode, sql_path, params, returns,
+                       body, chistics, definer, created, modified, NULL,
+                       creation_ctx);
+  sql_path.free();
+
  done:
   /* 
     Restore the time zone flag as the timezone usage in proc table
@@ -970,11 +966,34 @@ Bad_db_error_handler::handle_condition(THD *thd,
   return false;
 }
 
+class Sql_path;
+class Sql_path_instant_set
+{
+ private:
+  THD *thd;
+  Sql_path old_path;
+public:
+  Sql_path_instant_set(THD *thd, const Sql_path &new_path) : thd(thd)
+  {
+    // TODO XXX fix Sql_path class to avoid hacks below
+    memcpy((void*)&old_path, (void*)&thd->variables.path, sizeof(Sql_path));
+    memcpy((void*)&thd->variables.path, (void*)&new_path, sizeof(Sql_path));
+  }
+ public:
+  ~Sql_path_instant_set()
+  {
+    memcpy((void*)&thd->variables.path, (void*)&old_path, sizeof(Sql_path));
+    bzero((void*)&old_path, sizeof(Sql_path));
+  }
+};
+
+
 
 int
 Sp_handler::db_load_routine(THD *thd, const Database_qualified_name *name,
                             sp_head **sphp,
                             sql_mode_t sql_mode,
+                            const Sql_path &sql_path,
                             const LEX_CSTRING &params,
                             const LEX_CSTRING &returns,
                             const LEX_CSTRING &body,
@@ -1000,10 +1019,7 @@ Sp_handler::db_load_routine(THD *thd, const Database_qualified_name *name,
   defstr.set_charset(creation_ctx->get_client_cs());
   defstr.set_thread_specific();
 
-  Sql_path_push path_push, pkg_path_push;
-  if (parent)
-    pkg_path_push.push(thd, &my_charset_utf8mb3_bin, parent->path());
-  path_push.push(thd, &my_charset_utf8mb3_bin, chistics.sql_path);
+  Sql_path_instant_set path_push(thd, sql_path);
 
   /*
     We have to add DEFINER clause and provide proper routine characteristics in
@@ -1011,10 +1027,8 @@ Sp_handler::db_load_routine(THD *thd, const Database_qualified_name *name,
     definition for SHOW CREATE PROCEDURE later.
    */
 
-  if (show_create_sp(thd, &defstr,
-                     null_clex_str, name->m_name,
-                     params, returns, body,
-                     chistics, definer, DDL_options(), sql_mode))
+  if (show_create_sp(thd, &defstr, null_clex_str, name->m_name, params,
+                     returns, body, chistics, definer, DDL_options(), sql_mode))
   {
     ret= SP_INTERNAL_ERROR;
     goto end;
@@ -1079,8 +1093,6 @@ Sp_handler::db_load_routine(THD *thd, const Database_qualified_name *name,
         DBUG_ASSERT(lex->sphead);
         lex->sphead->set_definer(&definer.user, &definer.host);
         lex->sphead->set_suid(package->suid());
-        if (package->path().str)
-          lex->sphead->set_path(package->path());
         lex->sphead->m_sql_mode= sql_mode;
         lex->sphead->set_creation_ctx(creation_ctx);
         lex->sphead->optimize();
@@ -1490,11 +1502,11 @@ Sp_handler::sp_create_routine(THD *thd, const sp_head *sp) const
           store(sp->comment(), system_charset_info);
     }
 
-    if (sp->path().str)
     {
+      LEX_CSTRING sql_path= sp->m_sql_path.lex_cstring(thd, thd->mem_root);
       store_failed= store_failed ||
         table->field[MYSQL_PROC_FIELD_PATH]->
-          store(sp->path(), system_charset_info);
+          store(sql_path, system_charset_info);
       table->field[MYSQL_PROC_FIELD_PATH]->set_notnull();
     }
 
@@ -1624,22 +1636,9 @@ append_comment(String *buf, const LEX_CSTRING &comment)
 
 
 static bool
-append_path(String *buf, const LEX_CSTRING &path)
-{
-  if (!path.length)
-    return false;
-  if (buf->append(STRING_WITH_LEN("    PATH ")))
-    return true;
-  append_unescaped(buf, path.str, path.length);
-  return buf->append('\n');
-}
-
-
-static bool
 append_package_chistics(String *buf, const st_sp_chistics &chistics)
 {
   return append_suid(buf, chistics.suid) ||
-         append_path(buf, chistics.sql_path) ||
          append_comment(buf, chistics.comment);
 }
 
@@ -1794,9 +1793,6 @@ Sp_handler::sp_update_routine(THD *thd, const Database_qualified_name *name,
     if (chistics->comment.str)
       table->field[MYSQL_PROC_FIELD_COMMENT]->store(chistics->comment,
 						    system_charset_info);
-    if (chistics->sql_path.str)
-      table->field[MYSQL_PROC_FIELD_PATH]->store(chistics->sql_path,
-                system_charset_info);
     if (chistics->agg_type != DEFAULT_AGGREGATE)
       table->field[MYSQL_PROC_FIELD_AGGREGATE]->
          store((longlong)chistics->agg_type, TRUE);
@@ -2214,7 +2210,8 @@ Sp_handler::sp_clone_and_link_routine(THD *thd,
 
 
   rc= db_load_routine(thd, &lname, &new_sp,
-                      sp->m_sql_mode, sp->m_params, returns,
+                      sp->m_sql_mode, sp->m_sql_path,
+                      sp->m_params, returns,
                       sp->m_body, sp->chistics(),
                       sp->m_definer,
                       sp->m_created, sp->m_modified,
@@ -3151,7 +3148,6 @@ Sp_handler::show_create_sp(THD *thd, String *buf,
     buf->append(STRING_WITH_LEN("    DETERMINISTIC\n"));
   append_suid(buf, chistics.suid);
   append_comment(buf, chistics.comment);
-  append_path(buf, chistics.sql_path);
   buf->append(body.str, body.length);           // Not \0 terminated
   return false;
 }

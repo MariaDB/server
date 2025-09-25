@@ -511,7 +511,7 @@ Lex_ident_routine::check_name_with_error(const LEX_CSTRING &ident)
  
 sp_head *sp_head::create(sp_package *parent, const Sp_handler *handler,
                          enum_sp_aggregate_type agg_type, sql_mode_t sql_mode,
-                         MEM_ROOT *sp_mem_root)
+                         const Sql_path &sql_path, MEM_ROOT *sp_mem_root)
 {
   MEM_ROOT own_root;
   if (!sp_mem_root)
@@ -521,7 +521,7 @@ sp_head *sp_head::create(sp_package *parent, const Sp_handler *handler,
     sp_mem_root= &own_root;
   }
   return new (sp_mem_root) sp_head(sp_mem_root, parent, handler,
-                                   agg_type, sql_mode);
+                                   agg_type, sql_mode, sql_path);
 }
 
 
@@ -548,7 +548,7 @@ void sp_head::destroy(sp_head *sp)
 
 sp_head::sp_head(MEM_ROOT *mem_root_arg, sp_package *parent,
                  const Sp_handler *sph, enum_sp_aggregate_type agg_type,
-                 sql_mode_t sql_mode)
+                 sql_mode_t sql_mode, const Sql_path &sql_path)
   :Query_arena(NULL, STMT_INITIALIZED_FOR_SP),
    main_mem_root(*mem_root_arg),
 #ifdef PROTECT_STATEMENT_MEMROOT
@@ -610,13 +610,15 @@ sp_head::sp_head(MEM_ROOT *mem_root_arg, sp_package *parent,
                Lex_ident_routine::charset_info(),
                0, 0, 0, sp_sroutine_key, 0, 0);
 
+  m_sql_path= sql_path;
+
   DBUG_VOID_RETURN;
 }
 
 
 sp_package *sp_package::create(LEX *top_level_lex, const sp_name *name,
                                const Sp_handler *sph, sql_mode_t sql_mode,
-                               MEM_ROOT *sp_mem_root)
+                               const Sql_path &sql_path, MEM_ROOT *sp_mem_root)
 {
   MEM_ROOT own_root;
   if (!sp_mem_root)
@@ -627,7 +629,7 @@ sp_package *sp_package::create(LEX *top_level_lex, const sp_name *name,
   }
   sp_package *sp;
   if (!(sp= new (sp_mem_root) sp_package(sp_mem_root, top_level_lex,
-                                         name, sph, sql_mode)))
+                                         name, sph, sql_mode, sql_path)))
     free_root(sp_mem_root, MYF(0));
 
   return sp;
@@ -638,8 +640,9 @@ sp_package::sp_package(MEM_ROOT *mem_root_arg,
                        LEX *top_level_lex,
                        const sp_name *name,
                        const Sp_handler *sph,
-                       sql_mode_t sql_mode)
- :sp_head(mem_root_arg, NULL, sph, DEFAULT_AGGREGATE, sql_mode),
+                       sql_mode_t sql_mode,
+                       const Sql_path &sql_path)
+ :sp_head(mem_root_arg, NULL, sph, DEFAULT_AGGREGATE, sql_mode, sql_path),
   m_current_routine(NULL),
   m_top_level_lex(top_level_lex),
   m_rcontext(NULL),
@@ -656,7 +659,6 @@ sp_package::~sp_package()
   m_routine_implementations.cleanup();
   m_routine_declarations.cleanup();
   m_body= null_clex_str;
-  m_package_path.pop();
   if (m_current_routine)
     sp_head::destroy(m_current_routine->sphead);
   delete m_rcontext;
@@ -908,6 +910,7 @@ sp_head::~sp_head()
   delete_dynamic(&m_instr);
   delete m_pcont;
   free_items();
+  m_sql_path.free();
 
   /*
     If we have non-empty LEX stack then we just came out of parser with
@@ -919,8 +922,6 @@ sp_head::~sp_head()
 
   my_hash_free(&m_sptabs);
   my_hash_free(&m_sroutines);
-
-  m_routine_path.pop();
 
   sp_head::destroy(m_next_cached_sp);
 
@@ -2857,10 +2858,6 @@ sp_head::set_chistics(const st_sp_chistics &chistics)
     m_chistics.comment.str= strmake_root(mem_root,
                                          m_chistics.comment.str,
                                          m_chistics.comment.length);
-  if (m_chistics.sql_path.length)
-    m_chistics.sql_path.str= strmake_root(mem_root,
-                                          m_chistics.sql_path.str,
-                                          m_chistics.sql_path.length);
 }
 
 

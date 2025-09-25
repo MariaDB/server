@@ -4,7 +4,7 @@ RETURNS CHAR(100)
 RETURN CONCAT('Hello, ', str, '!');
 SELECT * FROM mysql.proc WHERE name like 'f1';
 db	name	type	specific_name	language	sql_data_access	is_deterministic	security_type	param_list	returns	body	definer	created	modified	sql_mode	comment	character_set_client	collation_connection	db_collation	body_utf8	aggregate	path
-test	f1	FUNCTION	f1	SQL	CONTAINS_SQL	NO	DEFINER	str char(20)	char(100) CHARSET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci	RETURN CONCAT('Hello, ', str, '!')	root@localhost	2014-09-30 08:00:00	2014-09-30 08:00:00	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION		latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci	RETURN CONCAT('Hello, ', str, '!')	NONE	NULL
+test	f1	FUNCTION	f1	SQL	CONTAINS_SQL	NO	DEFINER	str char(20)	char(100) CHARSET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci	RETURN CONCAT('Hello, ', str, '!')	root@localhost	2014-09-30 08:00:00	2014-09-30 08:00:00	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION		latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci	RETURN CONCAT('Hello, ', str, '!')	NONE	CURRENT_SCHEMA
 SELECT f1('world');
 f1('world')
 Hello, world!

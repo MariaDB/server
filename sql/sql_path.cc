@@ -508,30 +508,48 @@ bool Sql_path::from_text(THD *thd, CHARSET_INFO *cs, const LEX_CSTRING &text)
 }
 
 
+LEX_CSTRING Sql_path::get_schema_for_print(size_t num, const LEX_CSTRING &db,
+                                           bool resolve, bool *seen_current) const
+{
+  if (!resolve)
+    return m_schemas[num];
+
+  if (is_cur_schema(m_schemas[num]))
+  {
+    if (*seen_current || !db.length)
+      return null_clex_str;
+    *seen_current= true;
+    return db;
+  }
+  if (db.length && Lex_ident_db(db).streq(m_schemas[num]))
+  {
+    if (*seen_current)
+      return null_clex_str;
+    *seen_current= true;
+  }
+  return m_schemas[num];
+}
+
+
 size_t Sql_path::text_format_nbytes_needed(THD *thd, bool resolve) const
 {
   size_t nbytes= 0;
+  bool seen= false;
 
   for (size_t i= 0; i < m_count; i++)
   {
-    LEX_CSTRING schema= m_schemas[i];
-    if (resolve && is_cur_schema(schema) && thd->db.str != nullptr)
-    {
-      /*
-        If the schema is the current schema, we need to replace it with
-        the current database name.
-      */
-      schema.str= thd->get_db();
-      schema.length= strlen(schema.str);
-    }
-    size_t schema_length= schema.length;
+    LEX_CSTRING schema= get_schema_for_print(i, thd->db, resolve, &seen);
+    if (!schema.length)
+      continue;
+
+    size_t len= schema.length;
     for (size_t j= 0; j < schema.length; j++)
     {
       if (schema.str[j] == '`')
-        schema_length++;
+        len++;
     }
 
-    nbytes+= schema_length + 2 + 1;
+    nbytes+= len + 2 + 1;
   }
 
   if (nbytes)
@@ -549,16 +567,9 @@ size_t Sql_path::print(THD *thd, bool resolve,
 
   for (size_t i= 0; i < m_count; i++)
   {
-    LEX_CSTRING schema= m_schemas[i];
-    if (resolve && is_cur_schema(schema) && thd->db.str != nullptr)
-    {
-      /*
-        If the schema is the current schema, we need to replace it with
-        the current database name.
-      */
-      schema.str= thd->get_db();
-      schema.length= strlen(schema.str);
-    }
+    LEX_CSTRING schema= get_schema_for_print(i, thd->db, resolve, &seen);
+    if (!schema.length)
+      continue;
 
     if (dst - start + schema.length + 3 > nbytes_available)
       break;
