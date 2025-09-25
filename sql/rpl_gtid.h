@@ -265,7 +265,7 @@ struct rpl_slave_state
               rpl_gtid *extra_gtids, uint32 num_extra,
               bool sort);
   int tostring(String *dest, rpl_gtid *extra_gtids, uint32 num_extra);
-  bool domain_to_gtid(uint32 domain_id, rpl_gtid *out_gtid);
+  bool domain_to_gtid(uint32 domain_id, rpl_gtid *out_gtid, uint64 *out_sub_id);
   int load(THD *thd, const char *state_from_master, size_t len, bool reset,
            bool in_statement);
   bool is_empty();
@@ -276,6 +276,7 @@ struct rpl_slave_state
   void update_state_hash(uint64 sub_id, rpl_gtid *gtid, void *hton,
                          rpl_group_info *rgi);
   int record_and_update_gtid(THD *thd, struct rpl_group_info *rgi);
+  int recover_gtid(THD *thd, const rpl_gtid *gtid, uint64 sub_id);
   int check_duplicate_gtid(rpl_gtid *gtid, rpl_group_info *rgi);
   void release_domain_owner(rpl_group_info *rgi);
   void set_gtid_pos_tables_list(gtid_pos_table *new_list,

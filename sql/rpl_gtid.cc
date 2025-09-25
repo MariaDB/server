@@ -90,6 +90,44 @@ rpl_slave_state::record_and_update_gtid(THD *thd, rpl_group_info *rgi)
 
 
 /*
+  Recover a GTID into the slave's position.
+
+  This is used at server startup, during atomic DDL crash recovery.
+  If a DDL crashed mid-way, and is recovered (ie. completed) during
+  crash recovery, this function correspondingly recovers the
+  mysql.gtid_slave_pos entry, so that slave position remains consistent.
+
+  The sub_id is used to make the recovery idempotent (don't add the GTID to
+  the position if it was already done before the crash or during an earlier
+  crash recovery attempt), and to order correctly in case of multiple
+  parallel DDL being recovered.
+*/
+int
+rpl_slave_state::recover_gtid(THD *thd, const rpl_gtid *gtid, uint64 sub_id)
+{
+  int err= 0;
+#ifdef HAVE_REPLICATION
+  void *hton= NULL;
+  DBUG_ASSERT(rpl_global_gtid_slave_state->loaded);
+  rpl_gtid existing_gtid;
+  uint64 existing_sub_id;
+  if (domain_to_gtid(gtid->domain_id, &existing_gtid, &existing_sub_id))
+  {
+    if (sub_id <= existing_sub_id)
+      goto end;
+  }
+  if ((err= record_gtid(thd, gtid, sub_id, false, false, &hton)) ||
+      (err= update(gtid->domain_id, gtid->server_id, sub_id,
+                   gtid->seq_no, hton, NULL)))
+    goto end;
+  err= 0;
+end:
+#endif
+  return err;
+}
+
+
+/*
   Check GTID event execution when --gtid-ignore-duplicates.
 
   The idea with --gtid-ignore-duplicates is that we allow multiple master
@@ -656,10 +694,11 @@ rpl_slave_state::record_gtid(THD *thd, const rpl_gtid *gtid, uint64 sub_id,
     result may change during execution, so we have to make a copy.
   */
 
-  if ((not_sql_thread= (thd->system_thread != SYSTEM_THREAD_SLAVE_SQL)))
+  if (unlikely(not_sql_thread=
+               (thd->system_thread != SYSTEM_THREAD_SLAVE_SQL)))
     mysql_mutex_lock(&LOCK_slave_state);
   select_gtid_pos_table(thd, &gtid_pos_table_name);
-  if (not_sql_thread)
+  if (unlikely(not_sql_thread))
   {
     LEX_CSTRING *tmp= thd->make_clex_string(gtid_pos_table_name.str,
                                             gtid_pos_table_name.length);
@@ -1264,11 +1303,12 @@ rpl_slave_state::tostring(String *dest, rpl_gtid *extra_gtids, uint32 num_extra)
   Lookup a domain_id in the current replication slave state.
 
   Returns false if the domain_id has no entries in the slave state.
-  Otherwise returns true, and fills in out_gtid with the corresponding
-  GTID.
+  Otherwise returns true, and fills in out_gtid and out_sub_id with the
+  corresponding GTID and sub_id.
 */
 bool
-rpl_slave_state::domain_to_gtid(uint32 domain_id, rpl_gtid *out_gtid)
+rpl_slave_state::domain_to_gtid(uint32 domain_id, rpl_gtid *out_gtid,
+                                uint64 *out_sub_id)
 {
   element *elem;
   list_element *list;
@@ -1298,6 +1338,7 @@ rpl_slave_state::domain_to_gtid(uint32 domain_id, rpl_gtid *out_gtid)
   }
 
   mysql_mutex_unlock(&LOCK_slave_state);
+  *out_sub_id= best_sub_id;
   return true;
 }
 

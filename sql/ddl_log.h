@@ -256,6 +256,19 @@ typedef struct st_ddl_log_state
 } DDL_LOG_STATE;
 
 
+/*
+  Struct used during recovery to collect GTIDs that need to be
+  recovered/updated in the mysql.gtid_slave_pos.
+*/
+struct ddl_recovery_gtid
+{
+  uint32 domain_id;
+  uint32 server_id;
+  uint64 seq_no;
+  uint64 sub_id;
+};
+
+
 /* These functions are for recovery */
 bool ddl_log_initialize();
 void ddl_log_release();
@@ -354,4 +367,6 @@ bool ddl_log_store_query(THD *thd, DDL_LOG_STATE *ddl_log_state,
                          const char *query, size_t length);
 bool ddl_log_delete_frm(DDL_LOG_STATE *ddl_state, const char *to_path);
 extern mysql_mutex_t LOCK_gdl;
+extern HASH ddl_recovery_gtid_hash;
+extern bool ddl_recovery_gtid_hash_inited;
 #endif /* DDL_LOG_INCLUDED */

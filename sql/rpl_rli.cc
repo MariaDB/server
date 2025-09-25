@@ -1888,7 +1888,11 @@ rpl_load_gtid_slave_state(THD *thd)
   bool loaded= rpl_global_gtid_slave_state->loaded;
   mysql_mutex_unlock(&rpl_global_gtid_slave_state->LOCK_slave_state);
   if (loaded)
+  {
+    DBUG_ASSERT(!ddl_recovery_gtid_hash_inited ||
+                ddl_recovery_gtid_hash.records == 0);
     DBUG_RETURN(0);
+  }
 
   cb_data.table_list= NULL;
   cb_data.default_entry= NULL;
@@ -1967,6 +1971,37 @@ rpl_load_gtid_slave_state(THD *thd)
   cb_data.table_list= NULL;
   rpl_global_gtid_slave_state->loaded= true;
   mysql_mutex_unlock(&rpl_global_gtid_slave_state->LOCK_slave_state);
+
+  if (ddl_recovery_gtid_hash_inited)
+  {
+    /*
+      Record on top of the loaded state any GTIDs that were recovered from
+      the DDL log (atomic ALTER TABLE).
+      This needs to be idempotent, in case the GTID was already updated before
+      we crashed (during the original DDL, or during an earlier recovery
+      attempt).
+    */
+    for (i= 0; i < ddl_recovery_gtid_hash.records; ++i)
+    {
+      const ddl_recovery_gtid *g=
+        (ddl_recovery_gtid *)my_hash_element(&ddl_recovery_gtid_hash, i);
+      const gtid_pos_element *e= (const gtid_pos_element *)
+        my_hash_search(&hash,
+                       (const uchar *)&g->domain_id, sizeof(g->domain_id));
+      if (!e || e->sub_id < g->sub_id)
+      {
+        rpl_gtid gtid{g->domain_id, g->server_id, g->seq_no};
+        void *hton= NULL;
+        rpl_global_gtid_slave_state->record_gtid(thd, &gtid, g->sub_id,
+                                                 false, false, &hton);
+        rpl_global_gtid_slave_state->update(g->domain_id, g->server_id,
+                                            g->sub_id, g->seq_no,
+                                            hton, NULL);
+      }
+    }
+    my_hash_free(&ddl_recovery_gtid_hash);
+    ddl_recovery_gtid_hash_inited= false;
+  }
 
   /* Clear out no longer needed elements now. */
   old_gtids_list=

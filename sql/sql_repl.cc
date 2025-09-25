@@ -1150,9 +1150,11 @@ check_slave_start_position(binlog_send_info *info, const char **errormsg,
     rpl_gtid master_gtid;
     rpl_gtid master_replication_gtid;
     rpl_gtid start_gtid;
+    uint64 dummy_sub_id;
     bool start_at_own_slave_pos=
       rpl_global_gtid_slave_state->domain_to_gtid(slave_gtid->domain_id,
-                                                  &master_replication_gtid) &&
+                                                  &master_replication_gtid,
+                                                  &dummy_sub_id) &&
       slave_gtid->server_id == master_replication_gtid.server_id &&
       slave_gtid->seq_no == master_replication_gtid.seq_no;
 

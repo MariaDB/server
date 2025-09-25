@@ -1,0 +1,69 @@
+--source include/have_debug.inc
+--source include/have_innodb.inc
+--source include/have_sequence.inc
+--source include/have_binlog_format_statement.inc
+--source include/master-slave.inc
+
+--connection slave
+--let $old_ddl_mode= `SELECT @@GLOBAL.slave_ddl_exec_mode`
+SET STATEMENT sql_log_bin=0 FOR ALTER TABLE mysql.gtid_slave_pos ENGINE=InnoDB;
+
+--connection master
+RESET MASTER;
+CREATE TABLE t1 (a INT PRIMARY KEY, b INT, c VARCHAR(100)) ENGINE=InnoDB;
+INSERT INTO t1
+SELECT seq, seq*seq, REPEAT("x", 10 + (seq MOD 64))
+  FROM seq_1_to_100;
+
+let $crash_count=4;
+let $crash_points='ddl_log_drop_before_delete_table','ddl_log_drop_after_drop_tables','ddl_log_drop_before_binlog','ddl_log_drop_after_binlog';
+
+
+--let $i= 0
+while ($i < $crash_count) {
+  inc $i;
+  let $crash=`select ELT($i, $crash_points)`;
+
+  --connection master
+  CREATE TABLE t2 AS SELECT * FROM t1;
+
+  --source include/save_master_gtid.inc
+  --connection slave
+  --source include/sync_with_master_gtid.inc
+
+  # Make sure the slave fails if DDL is replicated twice due to wrong recovery
+  # of gtid_slave_pos.
+  SET GLOBAL slave_ddl_exec_mode=STRICT;
+  SET GLOBAL debug_dbug="+d,ignore_debug_counters";
+  eval SET GLOBAL debug_dbug="+d,$crash";
+  --exec echo "wait" > $MYSQLTEST_VARDIR/tmp/mysqld.2.expect
+
+  --connection master
+  DROP TABLE t2;
+  SELECT @@gtid_binlog_pos;
+  --source include/save_master_gtid.inc
+
+  --connection slave
+  --source include/wait_until_disconnected.inc
+  --exec echo "restart" > $MYSQLTEST_VARDIR/tmp/mysqld.2.expect
+  --enable_reconnect
+  --source include/wait_until_connected_again.inc
+  --let $rpl_server_numnber= 2
+  --source include/rpl_reconnect.inc
+  # Check result of DDL recovery.
+  SELECT @@gtid_binlog_pos;
+  SELECT @@gtid_slave_pos;
+  SELECT * FROM mysql.gtid_slave_pos ORDER BY domain_id, sub_id;
+
+  SET GLOBAL slave_ddl_exec_mode=STRICT;
+  --source include/start_slave.inc
+  --source include/sync_with_master_gtid.inc
+}
+
+--connection master
+DROP TABLE t1;
+
+--connection slave
+evalp SET GLOBAL slave_ddl_exec_mode= '$old_ddl_mode';
+
+--source include/rpl_end.inc
