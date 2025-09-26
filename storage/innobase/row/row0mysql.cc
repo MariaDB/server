@@ -2585,7 +2585,6 @@ row_rename_table_for_mysql(
 	if (!table && lower_case_table_names == 1
 	    && strstr(old_name, table_name_t::part_suffix)) {
 		char par_case_name[MAX_FULL_NAME_LEN + 1];
-#ifndef _WIN32
 		/* Check for the table using lower
 		case name, including the partition
 		separator "P" */
@@ -2593,14 +2592,6 @@ row_rename_table_for_mysql(
 			strlen(old_name));
 		par_case_name[strlen(old_name)] = 0;
 		my_casedn_str(system_charset_info, par_case_name);
-#else
-		/* On Windows platfrom, check
-		whether there exists table name in
-		system table whose name is
-		not being normalized to lower case */
-		normalize_table_name_c_low(
-			par_case_name, old_name, FALSE);
-#endif
 		table = dict_table_open_on_name(par_case_name, true,
 						DICT_ERR_IGNORE_FK_NOKEY);
 	}

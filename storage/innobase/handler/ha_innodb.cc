@@ -1281,8 +1281,6 @@ static void innodb_drop_database(handlerton*, char *path)
   namebuf[len] = '/';
   namebuf[len + 1] = '\0';
 
-  IF_WIN(my_casedn_str(system_charset_info, namebuf),);
-
   THD * const thd= current_thd;
   trx_t *trx= innobase_trx_allocate(thd);
   dberr_t err= DB_SUCCESS;
@@ -1827,9 +1825,6 @@ static void wsrep_abort_transaction(handlerton *, THD *, THD *, my_bool)
 static int innobase_wsrep_set_checkpoint(handlerton *hton, const XID *xid);
 static int innobase_wsrep_get_checkpoint(handlerton* hton, XID* xid);
 #endif /* WITH_WSREP */
-
-#define normalize_table_name(a,b) \
-	normalize_table_name_c_low(a,b,IF_WIN(true,false))
 
 ulonglong ha_innobase::table_version() const
 {
@@ -5119,19 +5114,15 @@ ha_innobase::table_cache_type()
 /** Normalizes a table name string.
 A normalized name consists of the database name catenated to '/'
 and table name. For example: test/mytable.
-On Windows, normalization puts both the database name and the
-table name always to lower case if "set_lower_case" is set to TRUE.
 @param[out]	norm_name	Normalized name, null-terminated.
-@param[in]	name		Name to normalize.
-@param[in]	set_lower_case	True if we also should fold to lower case. */
+@param[in]	name		Name to normalize */
 void
-normalize_table_name_c_low(
+normalize_table_name(
 /*=======================*/
 	char*           norm_name,      /* out: normalized name as a
 					null-terminated string */
-	const char*     name,           /* in: table name string */
-	bool            set_lower_case) /* in: TRUE if we want to set
-					 name to lower case */
+	const char*     name          /* in: table name string */
+)
 {
 	char*	name_ptr;
 	ulint	name_len;
@@ -5178,10 +5169,6 @@ normalize_table_name_c_low(
 
 	/* Copy the name and null-byte. */
 	memcpy(norm_name + db_len + 1, name_ptr, name_len + 1);
-
-	if (set_lower_case) {
-		my_casedn_str(system_charset_info, norm_name);
-	}
 }
 
 create_table_info_t::create_table_info_t(
@@ -5258,8 +5245,8 @@ test_normalize_table_name_low()
 		       " testing \"%s\", expected \"%s\"... ",
 		       test_data[i][0], test_data[i][1]);
 
-		normalize_table_name_c_low(
-			norm_name, test_data[i][0], FALSE);
+		normalize_table_name(
+			norm_name, test_data[i][0]);
 
 		if (strcmp(norm_name, test_data[i][1]) == 0) {
 			printf("ok\n");
@@ -6135,27 +6122,17 @@ ha_innobase::open_dict_table(
 		if (lower_case_table_names == 1) {
 			char	par_case_name[FN_REFLEN];
 
-#ifndef _WIN32
 			/* Check for the table using lower
 			case name, including the partition
 			separator "P" */
 			strcpy(par_case_name, norm_name);
 			my_casedn_str(system_charset_info, par_case_name);
-#else
-			/* On Windows platfrom, check
-			whether there exists table name in
-			system table whose name is
-			not being normalized to lower case */
-			normalize_table_name_c_low(
-				par_case_name, table_name, false);
-#endif
 			/* FIXME: try_drop_aborted */
 			ib_table = dict_table_open_on_name(
 				par_case_name, false, ignore_err);
 		}
 
 		if (ib_table != NULL) {
-#ifndef _WIN32
 			sql_print_warning("Partition table %s opened"
 					  " after converting to lower"
 					  " case. The table may have"
@@ -6164,17 +6141,6 @@ ha_innobase::open_dict_table(
 					  " Please recreate table in"
 					  " the current file system\n",
 					  norm_name);
-#else
-			sql_print_warning("Partition table %s opened"
-					  " after skipping the step to"
-					  " lower case the table name."
-					  " The table may have been"
-					  " moved from a case sensitive"
-					  " file system. Please"
-					  " recreate table in the"
-					  " current file system\n",
-					  norm_name);
-#endif
 		}
 	}
 
@@ -12341,9 +12307,7 @@ char *dict_table_lookup(LEX_CSTRING db, LEX_CSTRING name,
     *table= dict_sys.load_table({ref, len});
     return copy_name(ref, db, name);
   case 0: /* store and compare as given; case sensitive */
-#ifndef _WIN32 /* On Windows, InnoDB treats 0 as lower_case_table_names=1 */
     break;
-#endif
   case 1: /* store and compare in lower case */
     my_casedn_str(system_charset_info, ref);
   }
@@ -13590,8 +13554,7 @@ int ha_innobase::delete_table(const char *name)
 #ifdef WITH_PARTITION_STORAGE_ENGINE
     if (!table && lower_case_table_names == 1 && is_partition(norm_name))
     {
-      IF_WIN(normalize_table_name_c_low(norm_name, name, false),
-             my_casedn_str(system_charset_info, norm_name));
+      my_casedn_str(system_charset_info, norm_name);
       table= dict_sys.load_table(n, DICT_ERR_IGNORE_DROP);
     }
 #endif
@@ -13866,21 +13829,12 @@ static dberr_t innobase_rename_table(trx_t *trx, const char *from,
 
 			if (is_part) {
 				char	par_case_name[FN_REFLEN];
-#ifndef _WIN32
 				/* Check for the table using lower
 				case name, including the partition
 				separator "P" */
 				strcpy(par_case_name, norm_from);
 				my_casedn_str(system_charset_info,
 					      par_case_name);
-#else
-				/* On Windows platfrom, check
-				whether there exists table name in
-				system table whose name is
-				not being normalized to lower case */
-				normalize_table_name_c_low(
-					par_case_name, from, false);
-#endif /* _WIN32 */
 				trx_start_if_not_started(trx, true);
 				error = row_rename_table_for_mysql(
 					par_case_name, norm_to, trx,
@@ -13889,22 +13843,12 @@ static dberr_t innobase_rename_table(trx_t *trx, const char *from,
 		}
 
 		if (error == DB_SUCCESS) {
-#ifndef _WIN32
 			sql_print_warning("Rename partition table %s"
 					  " succeeds after converting to lower"
 					  " case. The table may have"
 					  " been moved from a case"
 					  " in-sensitive file system.\n",
 					  norm_from);
-#else
-			sql_print_warning("Rename partition table %s"
-					  " succeeds after skipping the step to"
-					  " lower case the table name."
-					  " The table may have been"
-					  " moved from a case sensitive"
-					  " file system.\n",
-					  norm_from);
-#endif /* _WIN32 */
 		}
 	}
 

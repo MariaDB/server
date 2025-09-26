@@ -75,11 +75,7 @@ static bool dict_mem_table_is_system(const char *name)
 
 /** The start of the table basename suffix for partitioned tables */
 const char table_name_t::part_suffix[4]
-#ifdef _WIN32
-= "#p#";
-#else
 = "#P#";
-#endif
 
 /** Display an identifier.
 @param[in,out]	s	output stream
