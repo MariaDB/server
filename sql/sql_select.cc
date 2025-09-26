@@ -8740,9 +8740,7 @@ struct best_plan
   double cost;                           // Smallest cost found
   double records;                        // Old 'Records'
   double records_read;                   // Records accessed
-  double records_after_filter;           // Records_read + filter
   double records_out;                    // Smallest record count seen
-  double prev_record_reads;              // Save value from prev_record_reads
   double identical_keys;                 // Save value from prev_record_reads
   Range_rowid_filter_cost_info *filter;  // Best filter
   KEYUSE *key;                           // Best key
@@ -8804,10 +8802,9 @@ best_access_path(JOIN      *join,
   best.cost= DBL_MAX;
   best.records= DBL_MAX;
   best.records_read= DBL_MAX;
-  best.records_after_filter= DBL_MAX;
   best.records_out= MY_MIN(table->stat_records() * table->cond_selectivity,
                            table->opt_range_condition_rows);
-  best.prev_record_reads= best.identical_keys= 0;
+  best.identical_keys= 0;
   best.filter= 0;
   best.key= 0;
   best.max_key_part= 0;
@@ -9514,7 +9511,6 @@ best_access_path(JOIN      *join,
           add("cost", cur_cost);
       }
 
-
       /*
         The COST_EPS is here to ensure we use the first key if there are
         two 'identical keys' that could be used.
@@ -9529,17 +9525,6 @@ best_access_path(JOIN      *join,
         */
         best.records=      records;          // Records before filter!
         best.records_read= records;
-        /*
-          If we are using 'use_cond_selectivity > 1' then
-          table_after_join_selectivity() may take into account other
-          filters that what is currently used so we have to use
-          records_after_filter.  If 'use_cond_selectivity <= 1 then we
-          can use information from the best filter.
-        */
-        best.records_after_filter= ((use_cond_selectivity > 1) ?
-                                    records_after_filter :
-                                    records_best_filter);
-        best.prev_record_reads= prev_record_count;
         best.identical_keys= identical_keys;
         best.key= start_key;
         best.found_ref= found_ref;
@@ -9668,7 +9653,6 @@ best_access_path(JOIN      *join,
                           (double) thd->variables.join_buff_size));
     cur_cost= COST_MULT(cur_cost, refills);
 
-
     /*
       Cost of doing the hash lookup and check all matching rows with the
       WHERE clause.
@@ -9685,7 +9669,7 @@ best_access_path(JOIN      *join,
     cur_cost= COST_ADD(cur_cost, copy_cost + where_cost);
 
     best.cost= cur_cost;
-    best.records_read= best.records_after_filter= rows2double(s->records);
+    best.records_read= rows2double(s->records);
     best.records= rnd_records;        // Records after where (Legacy value)
     best.key= hj_start_key;
     best.ref_depends_map= 0;
@@ -10060,9 +10044,6 @@ best_access_path(JOIN      *join,
         records_after_filter.  If 'use_cond_selectivity <= 1 then we
         can use information from the best filter.
       */
-      best.records_after_filter= ((use_cond_selectivity > 1) ?
-                                  records_after_filter :
-                                  records_best_filter);
       best.key= 0;
       best.forced_index= forced_index;
       /*
@@ -10099,11 +10080,9 @@ best_access_path(JOIN      *join,
   /* Update the cost information for the current partial plan */
   pos->loops=        record_count;
   pos->records_init= best.records_read;
-  pos->records_after_filter= best.records_after_filter;
   pos->records_read= best.records;
   pos->records_out=  best.records_out;
-  pos->prev_record_reads= best.prev_record_reads;
-  pos->identical_keys=   best.identical_keys;
+  pos->identical_keys= best.identical_keys;
   pos->read_time=    best.cost;
   pos->key=          best.key;
   pos->forced_index= best.forced_index;
