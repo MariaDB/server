@@ -36,8 +36,8 @@ CREATE TABLE t6 (a INT AUTO_INCREMENT PRIMARY KEY, b TEXT) ENGINE=InnoDB;
 # restart
 # Trigger AHI and test pages_hashed, pages_old as non zero from sys view
 SELECT STRAIGHT_JOIN COUNT(t6a.a)
-FROM t6 AS t6a, t6 AS t6b
-WHERE t6a.a = t6b.a;
+FROM t6 AS t6a, t6 AS t6b, t6 AS t6c
+WHERE t6a.a = t6b.a AND t6c.a = t6a.a;
 COUNT(t6a.a)
 1000
 SELECT SUM(pages_hashed)>0 `1`, SUM(pages_old)>0 `1`
