@@ -376,18 +376,12 @@ ib_foreign_warn(
 	const char	*format,/*!< in: warning message */
 	...);
 
-/*****************************************************************//**
-Normalizes a table name string. A normalized name consists of the
-database name catenated to '/' and table name. An example:
-test/mytable. On Windows normalization puts both the database name and the
-table name always to lower case if "set_lower_case" is set to TRUE. */
-void
-normalize_table_name(
-/*=======================*/
-	char*		norm_name,	/*!< out: normalized name as a
-					null-terminated string */
-	const char*	name		/*!< in: table name string */
-);
+/** Normalizes a table name string.
+A normalized name consists of the database name catenated to '/'
+and table name. For example: test/mytable.
+@param	norm_name	Normalized name, null-terminated.
+@param	name		Name to normalize */
+void normalize_table_name(char* norm_name,	const char*	name);
 
 /** Create a MYSQL_THD for a background thread and mark it as such.
 @param name thread info for SHOW PROCESSLIST
