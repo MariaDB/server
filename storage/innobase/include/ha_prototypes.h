@@ -382,13 +382,12 @@ database name catenated to '/' and table name. An example:
 test/mytable. On Windows normalization puts both the database name and the
 table name always to lower case if "set_lower_case" is set to TRUE. */
 void
-normalize_table_name_c_low(
+normalize_table_name(
 /*=======================*/
 	char*		norm_name,	/*!< out: normalized name as a
 					null-terminated string */
-	const char*	name,		/*!< in: table name string */
-	bool		set_lower_case); /*!< in: true if we want to set
-					name to lower case */
+	const char*	name		/*!< in: table name string */
+);
 
 /** Create a MYSQL_THD for a background thread and mark it as such.
 @param name thread info for SHOW PROCESSLIST
