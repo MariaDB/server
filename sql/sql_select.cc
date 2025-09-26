@@ -28086,6 +28086,13 @@ setup_copy_fields(THD *thd, TMP_TABLE_PARAM *param,
 	      real_pos->type() == Item::COND_ITEM) &&
 	     !real_pos->with_sum_func())
     {						// Save for send fields
+      if (pos->name.length > 0)
+      {
+        Query_arena_stmt on_stmt_arena(thd);
+        if (on_stmt_arena.arena_replaced() &&
+            !(thd->mem_root->flags & ROOT_FLAG_READ_ONLY))
+          pos->name.str= strdup_root(thd->mem_root, pos->name.str);
+      }
       LEX_CSTRING real_name= pos->name;
       pos= real_pos;
       pos->name= real_name;
