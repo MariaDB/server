@@ -437,6 +437,7 @@ public:
   void under_not(Item_func_not *upper) override { upper_not= upper; };
 
   void set_exists_transformed() { exists_transformed= TRUE; }
+  bool where_exists_processor(void *arg) override;
 
   friend class select_exists_subselect;
   friend class subselect_uniquesubquery_engine;
@@ -783,6 +784,7 @@ public:
   void init_subq_materialization_tracker(THD *thd);
   Subq_materialization_tracker *get_materialization_tracker() const
   { return materialization_tracker; }
+  bool where_exists_processor(void *arg) override { return 0; }
 
   friend class Item_ref_null_helper;
   friend class Item_is_not_null_test;

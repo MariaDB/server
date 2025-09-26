@@ -2455,6 +2455,7 @@ public:
   */
   virtual bool check_index_dependence(void *arg) { return 0; }
   virtual bool check_sequence_privileges(void *arg) { return 0; }
+  virtual bool where_exists_processor(void *arg) { return 0; }
   /*============== End of Item processor list ======================*/
 
   /*

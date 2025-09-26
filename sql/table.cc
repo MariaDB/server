@@ -9827,6 +9827,92 @@ static inline bool derived_table_optimization_done(TABLE_LIST *table)
 }
 
 
+/*
+  Queries of the form
+    SELECT ... FROM (SELECT constant AS alias_N FROM t0) dt ... WHERE EXISTS
+      (SELECT ... WHERE (dt.alias_N ...));
+  must force derived table dt to be materialized, or the WHERE EXISTS will
+  not filter rows correctly.  If we allow derived table dt to be merged,
+  then references to dt.alias_N are replaced with their constant values
+  directly, so a WHERE EXISTS subquery will attempt to filter rows from the
+  outer query based on those constant values rather than the columns'
+  values computed during outer query evaluation.
+
+  This can't be done later, during DT_MERGE, because by that point the WHERE
+  EXISTS subquery has already had its WHERE clause updated with the field
+  from the merged query and it's impossible to detect that the merge should
+  be prevented by that time.  Doing this here prevents merging from occurring
+  in any case.
+*/
+static bool where_exists_depends_on_mergeable_derived(TABLE_LIST *derived,
+                                                      SELECT_LEX *select_lex)
+{
+  if (!derived->on_expr || !select_lex->where)
+    return false;
+
+  /*
+    The WhereExistsVisitor visits the fields of the WHERE clause within a
+    subquery of an outer WHERE EXISTS clause.  For each field found, it
+    checks to see if the same field is referenced in the derived table and
+    if so, blocks derived table merging.
+   */
+  class WhereExistsVisitor : public Field_enumerator
+  {
+    struct DerivedTableVisitor : public Field_enumerator
+    {
+      WhereExistsVisitor *outer{nullptr};
+      Item_field *where_exists_field{nullptr};
+
+      void visit_field(Item_field *derived_table_field) override
+      {
+        if (outer->block_merging || !derived_table_field->field_name)
+          return;
+        outer->block_merging=
+          (derived_table_field->field_name.streq(where_exists_field->field_name) &&
+           derived_table_field->table_name.streq(where_exists_field->table_name));
+      }
+
+    public:
+      DerivedTableVisitor(WhereExistsVisitor *wev, Item_field *field)
+        : outer(wev)
+        , where_exists_field(field)
+      {
+        DBUG_ASSERT(outer);
+        DBUG_ASSERT(field);
+      }
+    };
+
+    Item *dt_expr{nullptr};
+
+    void visit_field(Item_field *where_exists_field) override
+    {
+      if (!dt_expr || !where_exists_field->field_name)
+        return;
+      DerivedTableVisitor dt_visitor(this, where_exists_field);
+      dt_expr->walk(&Item::enumerate_field_refs_processor,
+                       true, &dt_visitor);
+    }
+
+  public:
+    bool block_merging{false};
+
+    WhereExistsVisitor(Item *derived_expr)
+      : dt_expr(derived_expr)
+    {
+      DBUG_ASSERT(dt_expr);
+    }
+  };
+
+  // Visit each field in the WHERE clause of the subquery in the WHERE EXISTS
+  // and check to see if any field references a constant field from the given
+  // derived table of the outer query.
+  WhereExistsVisitor visitor(derived->on_expr);
+  select_lex->where->walk(&Item::where_exists_processor,
+                          true, &visitor);
+  return visitor.block_merging;
+}
+
+
 /**
   @brief
   Initialize this derived table/view
@@ -9886,8 +9972,13 @@ bool TABLE_LIST::init_derived(THD *thd, bool init_view)
 
   if (!derived_table_optimization_done(this))
   {
+    const bool force_materialization=
+      where_exists_depends_on_mergeable_derived(this,
+                                                select_lex);
+
     /* A subquery might be forced to be materialized due to a side-effect. */
-    if (!is_materialized_derived() && unit->can_be_merged() &&
+    if (!force_materialization && !is_materialized_derived() &&
+        unit->can_be_merged() &&
         /*
           Following is special case of
           SELECT * FROM (<limited-select>) WHERE ROWNUM() <= nnn
