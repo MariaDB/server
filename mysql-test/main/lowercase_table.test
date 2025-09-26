@@ -1,3 +1,4 @@
+--source include/have_lowercase1.inc
 #
 # Test of --lower-case-table-names
 #

@@ -1,3 +1,4 @@
+--source include/have_lowercase1.inc
 #
 # Bug#25830 SHOW TABLE STATUS behaves differently depending on table name
 #
