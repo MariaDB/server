@@ -8696,7 +8696,26 @@ best_access_path(JOIN      *join,
       ulong key_flags;
       uint key_parts;
       key_part_map found_part= 0;
-      /* key parts which won't have NULL in lookup tuple */
+
+      /*
+        Bitmap indicating which key parts are used with NULL-rejecting
+        conditions.
+
+        A bit is set to 1 for a key part if it's used with a
+        NULL-rejecting condition (i.e., the condition will never be
+        satisfied when the indexed column contains NULL). A bit is 0 if
+        the key part is used with a non-NULL-rejecting condition (i.e.,
+        the condition can be satisfied even when the indexed column
+        contains NULL, e.g., is NULL or <=>).
+
+        Example: for condition
+          t1.keypart1 = t2.col1 AND t1.keypart2 <=> t2.col2 AND
+          t1.keypart3 = t2.col3
+        the notnull_part bitmap will be 101 (binary), because:
+        - keypart1: '=' is NULL-rejecting (bit 1)
+        - keypart2: '<=>' is NOT NULL-rejecting (bit 0)
+        - keypart3: '=' is NULL-rejecting (bit 1)
+      */
       key_part_map notnull_part=0;
       table_map found_ref= 0;
       uint key= keyuse->key;
@@ -8951,7 +8970,8 @@ best_access_path(JOIN      *join,
             }
             else
             {
-              if (!(records= keyinfo->actual_rec_per_key(key_parts-1)))
+              if (!(records=
+                    keyinfo->rec_per_key_null_aware(key_parts-1, notnull_part)))
               {                                   /* Prefer longer keys */
                 trace_access_idx.add("rec_per_key_stats_missing", true);
                 records=
@@ -9083,7 +9103,9 @@ best_access_path(JOIN      *join,
             else
             {
               /* Check if we have statistic about the distribution */
-              if ((records= keyinfo->actual_rec_per_key(max_key_part-1)))
+              if ((records=
+                   keyinfo->rec_per_key_null_aware(max_key_part-1,
+                                                   notnull_part)))
               {
                 /* 
                   Fix for the case where the index statistics is too

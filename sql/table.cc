@@ -10297,17 +10297,107 @@ uint TABLE_SHARE::actual_n_key_parts(THD *thd)
 }  
 
 
-double KEY::actual_rec_per_key(uint i) const
+/**
+  Get records-per-key estimate for an index prefix.
+
+  Returns average number of records per key value for the given index prefix.
+  Prefers engine-independent statistics (EITS) if available and falls back
+  to engine-dependent statistics otherwise.
+
+  @param max_key_part  Index of the last key part in the prefix (0-based)
+
+  @return  Estimated records per key value:
+           - 0.0 if no statistics available
+           - avg_frequency from EITS if available
+           - rec_per_key from engine statistics if EITS is not available
+*/
+double KEY::actual_rec_per_key(uint last_key_part_in_prefix) const
 { 
   if (is_statistics_from_stat_tables)
   {
     // Use engine-independent statistics (EITS)
-    return read_stats->get_avg_frequency(i);
+    return read_stats->get_avg_frequency(last_key_part_in_prefix);
   }
   // Fall back to engine-dependent statistics if EITS is not available
-  if (rec_per_key == nullptr)
-    return 0; // No statistics available
-  return (double) rec_per_key[i];
+  return rec_per_key ? (double) rec_per_key[last_key_part_in_prefix] : 0.0;
+}
+
+
+/**
+  Get records-per-key estimate for an index prefix with NULL-aware optimization.
+
+  Returns average number of records per key value for the given index prefix.
+  When EITS statistics show avg_frequency == 0 (typically all NULL values) and
+  the query uses NULL-rejecting conditions (e.g., =), returns 1.0 to indicate
+  high selectivity since NULL = NULL never matches.
+
+  @param max_key_part  Index of the last key part in the prefix (0-based)
+  @param notnull_part  Bitmap indicating which key parts have NULL-rejecting
+                       conditions (bit N set means key part N uses =, not <=>)
+
+  @return  Estimated records per key value:
+           - 0.0 if no statistics available
+           - avg_frequency from EITS if available
+           - 1.0 if all values are NULL with NULL-rejecting condition
+           - rec_per_key from engine statistics if EITS is not available
+*/
+double KEY::rec_per_key_null_aware(uint last_key_part_in_prefix,
+                                   key_part_map notnull_part) const
+{
+  if (!is_statistics_from_stat_tables)
+  {
+    // Fall back to engine-dependent statistics if EITS is not available
+    return rec_per_key ? (double) rec_per_key[last_key_part_in_prefix] : 0.0;
+  }
+
+  // Use engine-independent statistics (EITS)
+  double records= read_stats->get_avg_frequency(last_key_part_in_prefix);
+  if (records != 0.0)
+    return records;
+
+  /*
+    The index statistics show avg_frequency == 0 for this index prefix.
+    This typically means all values in the indexed columns are NULL.
+
+    For NULL-rejecting conditions like `t1.key_col = t2.col`, we know
+    there will be no matches (since NULL = NULL is never true).
+    However, for non-NULL-rejecting conditions like `t1.key_col <=> t2.col`,
+    matches are possible.
+
+    Check each key part in the prefix: if any key part has a NULL-rejecting
+    condition (indicated by bit set in `notnull_part`) and the statistics
+    confirm all values are NULL (nulls_ratio == 1.0), we can return 1.0
+    (highly selective estimate) instead of 0.0 (unknown), indicating
+    no expected matches.
+  */
+  for (int bit= last_key_part_in_prefix; bit >= 0; bit--)
+  {
+    key_part_map mask = (key_part_map)1 << bit;
+    if ((notnull_part & mask) == 0)
+    {
+      // Non-NULL-rejecting condition for the key part
+      continue;
+    }
+
+    Field *field= table->field[key_part[bit].field->field_index];
+    if (!field->read_stats)
+    {
+      // No column statistics available
+      continue;
+    }
+
+    // Check if all values in this column are NULL according to statistics
+    double nulls_ratio= field->read_stats->get_nulls_ratio();
+    if (nulls_ratio == 1.0)
+    {
+      /*
+        All values are NULL and the condition is NULL-rejecting.
+        Return 1.0 (highly selective), indicating no expected matches.
+      */
+      return 1.0;
+    }
+  }
+  return records;
 }
 
 /*
