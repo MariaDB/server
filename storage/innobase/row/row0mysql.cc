@@ -2568,22 +2568,14 @@ row_rename_table_for_mysql(
 
 	/* MariaDB partition engine hard codes the file name
 	separator as "#P#" and "#SP#". The text case is fixed even if
-	lower_case_table_names is set to 1 or 2. InnoDB always
-	normalises file names to lower case on Windows, this
+	lower_case_table_names is set to 1 or 2. InnoDB used to
+	normalize file names to lower case on Windows, this
 	can potentially cause problems when copying/moving
-	tables between platforms.
-
-	1) If boot against an installation from Windows
-	platform, then its partition table name could
-	be all be in lower case in system tables. So we
-	will need to check lower case name when load table.
-
-	2) If  we boot an installation from other case
-	sensitive platform in Windows, we might need to
-	check the existence of table name without lowering
-	case them in the system table. */
+	tables between platforms, even if lower_case_table_names=1
+	was set on both platforms.
+	*/
 	if (!table && lower_case_table_names == 1
-	    && strstr(old_name, table_name_t::part_suffix)) {
+	    && dict_is_partition(old_name)) {
 		char par_case_name[MAX_FULL_NAME_LEN + 1];
 		/* Check for the table using lower
 		case name, including the partition

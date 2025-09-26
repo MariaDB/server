@@ -73,10 +73,6 @@ static bool dict_mem_table_is_system(const char *name)
 	return false;
 }
 
-/** The start of the table basename suffix for partitioned tables */
-const char table_name_t::part_suffix[4]
-= "#P#";
-
 /** Display an identifier.
 @param[in,out]	s	output stream
 @param[in]	id_name	SQL identifier (other than table name)
@@ -1371,4 +1367,24 @@ dict_index_t::vers_history_row(
 
 	mtr->rollback_to_savepoint(sp);
 	return(error);
+}
+
+/** Checks whether the file name belongs to a partition of a table.
+@param	file_name	file name
+@return pointer to the end of the table name part of the file name
+@retval nullptr  if the file name does not belong to a partition. */
+const char *dict_is_partition(const char *file_name)
+{
+  /* We look for pattern #P# to see if the table is partitioned
+  MariaDB table. We also look for #p# pattern, because it was
+  previously used on Windows. */
+  for (const char *p= file_name;; p++)
+  {
+    p= strchr(p, '#');
+    if (!p)
+      break;
+    if ((p[1] == 'P' || p[1] == 'p') && p[2] == '#')
+      return p;
+  }
+  return nullptr;
 }

@@ -259,20 +259,6 @@ void set_my_errno(int err)
 	errno = err;
 }
 
-/** Checks whether the file name belongs to a partition of a table.
-@param[in]	file_name	file name
-@return pointer to the end of the table name part of the file name, or NULL */
-static
-char*
-is_partition(
-/*=========*/
-	char*		file_name)
-{
-	/* We look for pattern #P# to see if the table is partitioned
-	MariaDB table. */
-	return strstr(file_name, table_name_t::part_suffix);
-}
-
 
 
 /** Return the InnoDB ROW_FORMAT enum value
@@ -5114,15 +5100,9 @@ ha_innobase::table_cache_type()
 /** Normalizes a table name string.
 A normalized name consists of the database name catenated to '/'
 and table name. For example: test/mytable.
-@param[out]	norm_name	Normalized name, null-terminated.
-@param[in]	name		Name to normalize */
-void
-normalize_table_name(
-/*=======================*/
-	char*           norm_name,      /* out: normalized name as a
-					null-terminated string */
-	const char*     name          /* in: table name string */
-)
+@param	norm_name	Normalized name, null-terminated.
+@param	name		Name to normalize */
+void normalize_table_name(char* norm_name, const char* name)
 {
 	char*	name_ptr;
 	ulint	name_len;
@@ -5801,8 +5781,8 @@ ha_innobase::open(const char* name, int, uint)
 	m_upd_buf_size = 0;
 	m_disable_rowid_filter = false;
 
-	char*	is_part = is_partition(norm_name);
-	THD*	thd = ha_thd();
+	const char* is_part = dict_is_partition(norm_name);
+	THD* thd = ha_thd();
 	dict_table_t* ib_table = open_dict_table(name, norm_name, is_part,
 						 DICT_ERR_IGNORE_FK_NOKEY);
 
@@ -6131,7 +6111,14 @@ ha_innobase::open_dict_table(
 			ib_table = dict_table_open_on_name(
 				par_case_name, false, ignore_err);
 		}
-
+#ifdef _WIN32
+		/*
+		Omit the warning below, we know we used to convert
+		#P# to lowercase on Windows (we do not do that anymore).
+		Mostly likely, we have a partitioned table from an
+		older MariaDB version.
+		*/
+#else
 		if (ib_table != NULL) {
 			sql_print_warning("Partition table %s opened"
 					  " after converting to lower"
@@ -6142,6 +6129,7 @@ ha_innobase::open_dict_table(
 					  " the current file system\n",
 					  norm_name);
 		}
+#endif
 	}
 
 	DBUG_RETURN(ib_table);
@@ -13552,7 +13540,7 @@ int ha_innobase::delete_table(const char *name)
     dict_sys.lock(SRW_LOCK_CALL);
     table= dict_sys.load_table(n, DICT_ERR_IGNORE_DROP);
 #ifdef WITH_PARTITION_STORAGE_ENGINE
-    if (!table && lower_case_table_names == 1 && is_partition(norm_name))
+    if (!table && lower_case_table_names == 1 && dict_is_partition(norm_name))
     {
       my_casedn_str(system_charset_info, norm_name);
       table= dict_sys.load_table(n, DICT_ERR_IGNORE_DROP);
@@ -13825,7 +13813,7 @@ static dberr_t innobase_rename_table(trx_t *trx, const char *from,
 	if (error != DB_SUCCESS) {
 		if (error == DB_TABLE_NOT_FOUND
 		    && lower_case_table_names == 1) {
-			char*	is_part = is_partition(norm_from);
+			const char* is_part = dict_is_partition(norm_from);
 
 			if (is_part) {
 				char	par_case_name[FN_REFLEN];
@@ -20247,11 +20235,11 @@ innobase_rename_vc_templ(
 
 	/* For partition table, remove the partition name and use the
 	"main" table name to build the template */
-	char*	is_part = is_partition(tbname);
+	const char* is_part = dict_is_partition(tbname);
 
 	if (is_part != NULL) {
-		*is_part = '\0';
 		tbnamelen = ulint(is_part - tbname);
+		tbname[tbnamelen]= 0;
 	}
 
 	dbnamelen = filename_to_tablename(dbname, t_dbname,

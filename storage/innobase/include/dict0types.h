@@ -94,6 +94,13 @@ enum ib_quiesce_t {
 /** Prefix for InnoDB internal tables, adopted from sql/table.h */
 #define TEMP_FILE_PREFIX_INNODB		"#sql-ib"
 
+/** Checks whether the file name belongs to a partition of a table.
+@param	file_name	file name
+@return pointer to the end of the table name part of the file name
+@retval nullptr  if the file name does not belong to a partition. */
+const char *dict_is_partition(const char *file_name);
+
+
 /** Table name wrapper for pretty-printing */
 struct table_name_t
 {
@@ -128,14 +135,10 @@ struct table_name_t
 		return UNIV_LIKELY(end != nullptr) ? end + 1 : nullptr;
 	}
 
-	/** The start of the table basename suffix for partitioned tables */
-	static const char part_suffix[4];
-
 	/** Determine the partition or subpartition name suffix.
 	@return the partition name
 	@retval	NULL	if the table is not partitioned */
-	const char* part() const { return strstr(basename(), part_suffix); }
-
+	const char* part() const { return dict_is_partition(basename()); }
 	/** @return whether this is a temporary or intermediate table name */
 	inline bool is_temporary() const;
 };
