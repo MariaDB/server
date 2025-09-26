@@ -10310,6 +10310,80 @@ double KEY::actual_rec_per_key(uint i) const
   return (double) rec_per_key[i];
 }
 
+
+/**
+  Get records-per-key estimate with NULL-aware optimization.
+
+  Returns average number of records per key value for the given index prefix.
+  When EITS statistics show avg_frequency == 0 (typically all NULL values) and
+  the query uses NULL-rejecting conditions (e.g., =), returns 1.0 to indicate
+  high selectivity since NULL = NULL never matches.
+
+  @param max_key_part  Index of the last key part in the prefix (0-based)
+  @param notnull_part  Bitmap indicating which key parts have NULL-rejecting
+                       conditions (bit N set means key part N uses =, not <=>)
+
+  @return  Estimated records per key value:
+           - 0.0 if no statistics available
+           - avg_frequency from EITS if available
+           - 1.0 if all values are NULL with NULL-rejecting condition
+           - rec_per_key from engine statistics if EITS is not available
+*/
+double KEY::rec_per_key_null_aware(uint max_key_part,
+                                   key_part_map notnull_part) const
+{
+  // Use engine-dependent statistics if EITS is not available
+  if (!is_statistics_from_stat_tables)
+  {
+    if (rec_per_key == nullptr)
+      return 0; // No statistics available
+    return (double) rec_per_key[max_key_part];
+  }
+
+  // Use engine-independent statistics (EITS)
+  double records= read_stats->get_avg_frequency(max_key_part);
+  if (records != 0.0)
+    return records;
+
+  /*
+    The index statistics show avg_frequency == 0 for this index prefix.
+    This typically means all values in the indexed columns are NULL.
+
+    For NULL-rejecting conditions like `t1.key_col = t2.col`, we know
+    there will be no matches (since NULL = NULL is never true).
+    However, for non-NULL-rejecting conditions like `t1.key_col <=> t2.col`,
+    matches are possible.
+
+    Check each key part in the prefix: if any key part has a NULL-rejecting
+    condition (indicated by bit set in `notnull_part`) and the statistics
+    confirm all values are NULL (nulls_ratio == 1.0), we can return a very
+    low cardinality estimate (1.0) instead of 0.0 (unknown), indicating
+    high selectivity with no expected matches.
+  */
+  for (int bit= max_key_part; bit >= 0; bit--)
+  {
+    key_part_map mask = (key_part_map)1 << bit;
+    if ((notnull_part & mask) == 0 || !key_part[bit].field->read_stats)
+    {
+      // This key part has a non-NULL-rejecting condition, or no column statistics
+      continue;
+    }
+
+    // Check if all values in this column are NULL according to statistics
+    double nulls_ratio= key_part[bit].field->read_stats->get_nulls_ratio();
+    if (nulls_ratio == 1.0)
+    {
+      /*
+        All values are NULL and the condition is NULL-rejecting.
+        Return 1.0 (very low cardinality) instead of 0.0 (unknown),
+        indicating this index prefix is highly selective with no expected matches.
+      */
+      return 1.0;
+    }
+  }
+  return records;
+}
+
 /*
    find total number of field in hash expr
 */

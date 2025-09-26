@@ -8950,7 +8950,8 @@ best_access_path(JOIN      *join,
             }
             else
             {
-              if (!(records= keyinfo->actual_rec_per_key(key_parts-1)))
+              if (!(records=
+                    keyinfo->rec_per_key_null_aware(key_parts-1, notnull_part)))
               {                                   /* Prefer longer keys */
                 trace_access_idx.add("rec_per_key_stats_missing", true);
                 records=
@@ -9082,7 +9083,9 @@ best_access_path(JOIN      *join,
             else
             {
               /* Check if we have statistic about the distribution */
-              if ((records= keyinfo->actual_rec_per_key(max_key_part-1)))
+              if ((records=
+                   keyinfo->rec_per_key_null_aware(max_key_part-1,
+                                                   notnull_part)))
               {
                 /* 
                   Fix for the case where the index statistics is too
