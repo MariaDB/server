@@ -1,0 +1,109 @@
+# Small driving table
+CREATE TABLE t1 (a INT, b INT);
+INSERT INTO t1 VALUES (1, 1), (2, 2000),(3,300);
+analyze table t1 persistent for all;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+# Table that will be accessed by an index lookup (`ref` access)
+CREATE TABLE t2 (a INT, b INT, KEY key_b(b));
+# All t11.b values are NULL
+INSERT INTO t2 SELECT seq/100,  NULL FROM seq_1_to_1000;
+analyze table t2 persistent for all;
+Table	Op	Msg_type	Msg_text
+test.t2	analyze	status	Engine-independent statistics collected
+test.t2	analyze	status	Table is already up to date
+# NULL-rejecting equality t1.b = t2.b will not return any matches
+# because all values of t2.b are NULL. So "rows" = 1 for t2 where 1 is
+# a special value meaning "very few" rows
+EXPLAIN EXTENDED SELECT * FROM t1 JOIN t2 ON t1.a = t2.a AND t1.b = t2.b;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+1	SIMPLE	t2	ref	key_b	key_b	5	test.t1.b	1	100.00	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b`,`test`.`t2`.`a` AS `a`,`test`.`t2`.`b` AS `b` from `test`.`t1` join `test`.`t2` where `test`.`t2`.`a` = `test`.`t1`.`a` and `test`.`t2`.`b` = `test`.`t1`.`b`
+# However, rows estimation for not NULL-rejecting conditions
+# must not be affected ("rows" > 1 is expected)
+EXPLAIN EXTENDED SELECT * FROM t1 JOIN t2 ON t1.a = t2.a AND t1.b <=> t2.b;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	
+1	SIMPLE	t2	ref	key_b	key_b	5	test.t1.b	11	100.00	Using index condition; Using where
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b`,`test`.`t2`.`a` AS `a`,`test`.`t2`.`b` AS `b` from `test`.`t1` join `test`.`t2` where `test`.`t2`.`a` = `test`.`t1`.`a` and `test`.`t1`.`b` <=> `test`.`t2`.`b`
+ANALYZE SELECT * FROM t1 JOIN t2 ON t1.a = t2.a AND t1.b <=> t2.b;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	3.00	100.00	100.00	
+1	SIMPLE	t2	ref	key_b	key_b	5	test.t1.b	11	0.00	100.00	100.00	Using index condition; Using where
+# Test composite index for two columns. Key prefix is used for access
+CREATE TABLE t3 (a INT, b INT, KEY key_ab(a,b));
+# All t3.b values are NULL
+INSERT INTO t3 SELECT seq/100,  NULL FROM seq_1_to_1000;
+analyze table t3 persistent for all;
+Table	Op	Msg_type	Msg_text
+test.t3	analyze	status	Engine-independent statistics collected
+test.t3	analyze	status	Table is already up to date
+# NULL-rejecting equality t1.b = t3.b, same as above.
+# "rows" must be estimated to 1
+EXPLAIN EXTENDED SELECT * FROM t1 JOIN t3 ON t1.a = t3.a AND t1.b = t3.b;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+1	SIMPLE	t3	ref	key_ab	key_ab	10	test.t1.a,test.t1.b	1	100.00	Using index
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b`,`test`.`t3`.`a` AS `a`,`test`.`t3`.`b` AS `b` from `test`.`t1` join `test`.`t3` where `test`.`t3`.`a` = `test`.`t1`.`a` and `test`.`t3`.`b` = `test`.`t1`.`b`
+# Rows estimation for not NULL-rejecting conditions are not affected
+# ("rows" > 1 is expected)
+EXPLAIN EXTENDED SELECT * FROM t1 JOIN t3 ON t1.a = t3.a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+1	SIMPLE	t3	ref	key_ab	key_ab	5	test.t1.a	90	100.00	Using index
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b`,`test`.`t3`.`a` AS `a`,`test`.`t3`.`b` AS `b` from `test`.`t1` join `test`.`t3` where `test`.`t3`.`a` = `test`.`t1`.`a`
+EXPLAIN EXTENDED SELECT * FROM t1 JOIN t3 ON t1.a = t3.a AND t1.b <=> t3.b;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+1	SIMPLE	t3	ref	key_ab	key_ab	10	test.t1.a,test.t1.b	11	100.00	Using where; Using index
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b`,`test`.`t3`.`a` AS `a`,`test`.`t3`.`b` AS `b` from `test`.`t1` join `test`.`t3` where `test`.`t3`.`a` = `test`.`t1`.`a` and `test`.`t1`.`b` <=> `test`.`t3`.`b`
+EXPLAIN EXTENDED SELECT * FROM t1 JOIN t3 ON t1.a = t3.a AND t3.b is NULL;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+1	SIMPLE	t3	ref	key_ab	key_ab	10	test.t1.a,const	11	100.00	Using where; Using index
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b`,`test`.`t3`.`a` AS `a`,`test`.`t3`.`b` AS `b` from `test`.`t1` join `test`.`t3` where `test`.`t3`.`a` = `test`.`t1`.`a` and `test`.`t3`.`b` is null
+OLEGS: update t2 so that there are not only NULLs, collect the stats and re-test
+# Test composite index for 3 columns. Key prefix is used for access
+CREATE TABLE t4 (a INT, b INT, c INT, KEY key_abc(a,b,c));
+# All t3.b values are NULL
+INSERT INTO t4 SELECT seq/10,  NULL, seq/10 FROM seq_1_to_1000;
+analyze table t4 persistent for all;
+Table	Op	Msg_type	Msg_text
+test.t4	analyze	status	Engine-independent statistics collected
+test.t4	analyze	status	Table is already up to date
+# NULL-rejecting equality t1.b = t3.b, same as above.
+# "rows" must be estimated to 1
+EXPLAIN EXTENDED SELECT * FROM t1 JOIN t4 ON t1.a = t4.a AND t1.b = t4.b;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+1	SIMPLE	t4	ref	key_abc	key_abc	10	test.t1.a,test.t1.b	1	100.00	Using index
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b`,`test`.`t4`.`a` AS `a`,`test`.`t4`.`b` AS `b`,`test`.`t4`.`c` AS `c` from `test`.`t1` join `test`.`t4` where `test`.`t4`.`a` = `test`.`t1`.`a` and `test`.`t4`.`b` = `test`.`t1`.`b`
+EXPLAIN EXTENDED SELECT * FROM t1 JOIN t4 ON t1.a = t4.a AND t1.b = t4.b and t1.b = t4.c;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+1	SIMPLE	t4	ref	key_abc	key_abc	15	test.t1.a,test.t1.b,test.t1.b	1	100.00	Using index
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b`,`test`.`t4`.`a` AS `a`,`test`.`t4`.`b` AS `b`,`test`.`t4`.`c` AS `c` from `test`.`t1` join `test`.`t4` where `test`.`t4`.`a` = `test`.`t1`.`a` and `test`.`t4`.`b` = `test`.`t1`.`b` and `test`.`t4`.`c` = `test`.`t1`.`b`
+# "rows" expected to be > 1
+EXPLAIN EXTENDED SELECT * FROM t1 JOIN t4 ON t1.a = t4.a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+1	SIMPLE	t4	ref	key_abc	key_abc	5	test.t1.a	9	100.00	Using index
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b`,`test`.`t4`.`a` AS `a`,`test`.`t4`.`b` AS `b`,`test`.`t4`.`c` AS `c` from `test`.`t1` join `test`.`t4` where `test`.`t4`.`a` = `test`.`t1`.`a`
+EXPLAIN EXTENDED SELECT * FROM t1 JOIN t4 ON t1.a = t4.a AND t1.b <=> t4.c;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+1	SIMPLE	t4	ref	key_abc	key_abc	5	test.t1.a	9	100.00	Using where; Using index
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b`,`test`.`t4`.`a` AS `a`,`test`.`t4`.`b` AS `b`,`test`.`t4`.`c` AS `c` from `test`.`t1` join `test`.`t4` where `test`.`t4`.`a` = `test`.`t1`.`a` and `test`.`t1`.`b` <=> `test`.`t4`.`c`
+drop table t1, t2, t3, t4;

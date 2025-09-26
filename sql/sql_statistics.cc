@@ -4156,8 +4156,7 @@ void set_statistics_for_table(THD *thd, TABLE *table)
     key_info->is_statistics_from_stat_tables=
       (check_eits_preferred(thd) &&
        table->stats_is_read &&
-       key_info->read_stats->avg_frequency_is_inited() &&
-       key_info->read_stats->get_avg_frequency(0) > 0.5);
+       key_info->read_stats->avg_frequency_is_inited());
   }
 }
 

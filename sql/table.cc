@@ -10305,6 +10305,58 @@ double KEY::actual_rec_per_key(uint i) const
           read_stats->get_avg_frequency(i) : (double) rec_per_key[i]);
 }
 
+
+double KEY::rec_per_key_null_aware(uint max_key_part,
+                                          key_part_map notnull_part) const
+{ 
+  if (rec_per_key == 0) // OLEGS: does it hold for is_statistics_from_stat_tables?
+    return 0;
+  double records= (is_statistics_from_stat_tables ?
+          read_stats->get_avg_frequency(max_key_part) :
+          (double) rec_per_key[max_key_part]);
+  if (records != 0.0 || !is_statistics_from_stat_tables)
+    return records;
+
+  /*
+    Index statistics for the given index prefix is empty. This may be
+    caused by the fact that all values in the indexed column are NULL.
+    In this case we know that condition `t1.key_col = t2.col` will not
+    provide any matches (NULL rejecting condition).
+    However, `t1.key_col <=> t2.col` will, as it is not NULL rejecting.
+    So we need to check whether all parts of the current key prefix
+    reject NULLs.
+
+    Iterate through all set bits of `notnull_part` and check
+    the corresponding column statistics. If all values are NULL
+    (`nulls_ratio`=1.0) then there will be no matches, so we can return
+    minimal number of records
+  */
+  for (int bit= max_key_part; bit >= 0; bit--)
+  {
+    key_part_map mask = (key_part_map)1 << bit;
+    if ((notnull_part & mask) == 0 || !key_part[bit].field->read_stats)
+    {
+      // Condition is not NULL-rejecting, or there is no column stats
+      continue;
+    }
+
+    // Check if all values are NULL (according to the statistics)
+    double nulls_ratio=
+        key_part[bit].field->read_stats->get_nulls_ratio();
+    if (nulls_ratio == 1.0)
+    {
+      /*
+        nulls_ratio == 1.0 which means all values are NULL. Apply the
+        optimization: instead of records == 0.0 (unknown) return 1.0
+        (very low) which means the current index prefix is very
+        selective, because we know there will be no matches in the result
+      */
+      return 1.0;
+    }
+  }
+  return records;
+}
+
 /*
    find total number of field in hash expr
 */
