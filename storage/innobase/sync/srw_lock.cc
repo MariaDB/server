@@ -20,6 +20,16 @@ this program; if not, write to the Free Software Foundation, Inc.,
 #include "srv0srv.h"
 #include "my_cpu.h"
 #include "transactional_lock_guard.h"
+#include "my_rdtsc.h"
+
+// TODO MIN_EXP_BACKOFF may need to depend on PAUSE duration.
+/** Minimum exponential backoff value, used in spinloops initialization */
+constexpr uint32_t MIN_EXP_BACKOFF= 32;
+/* MIN_EXP_BACKOFF must be a power of two */
+static_assert(
+  MIN_EXP_BACKOFF > 0 &&
+  (MIN_EXP_BACKOFF & (MIN_EXP_BACKOFF - 1)) == 0,
+  "MIN_EXP_BACKOFF must be a power of two");
 
 #ifdef NO_ELISION
 #elif defined _MSC_VER && (defined _M_IX86 || defined _M_X64)
@@ -141,6 +151,40 @@ static inline void srw_pause(unsigned delay) noexcept
   while (delay--)
     MY_RELAX_CPU();
   HMT_medium();
+}
+
+static inline uint32_t backoff_max_delay() noexcept
+{
+  /* To avoid overflow in backoff() */
+  constexpr uint32_t max_safe_delay= std::numeric_limits<uint32_t>::max() / 4;
+  return uint32_t(std::min<uint64_t>(
+    uint64_t(srw_pause_delay()) * srv_n_spin_wait_rounds,
+    max_safe_delay
+  ));
+}
+
+static inline uint32_t backoff_jitter() noexcept
+{
+  return uint32_t(my_timer_cycles());
+}
+
+template<bool abort_over_max>
+static inline bool backoff(
+  uint32_t& exp_backoff,
+  const uint32_t max_delay,
+  const uint32_t jitter
+) noexcept
+{
+  /* delay = exp_backoff + rand(0, exp_backoff - 1) */
+  const uint32_t delay= exp_backoff + (jitter & (exp_backoff - 1));
+  const bool over_max= delay > max_delay;
+  if (abort_over_max && over_max)
+    return false;
+  else if (!over_max)
+    exp_backoff*= 2;
+  // TODO Maybe abort on exp_backoff or total delay greater than something...
+  srw_pause(delay);
+  return true;
 }
 
 #ifndef PTHREAD_ADAPTIVE_MUTEX_INITIALIZER_NP
@@ -276,9 +320,11 @@ void srw_mutex_impl<spinloop>::wait_and_lock() noexcept
 
   if (spinloop)
   {
-    const unsigned delay= srw_pause_delay();
+    const uint32_t max_delay= backoff_max_delay();
+    const uint32_t jitter= backoff_jitter();
+    uint32_t exp_backoff= MIN_EXP_BACKOFF;
 
-    for (auto spin= srv_n_spin_wait_rounds;;)
+    for (;;)
     {
       DBUG_ASSERT(~HOLDER & lk);
       lk= lock.load(std::memory_order_relaxed);
@@ -299,9 +345,8 @@ void srw_mutex_impl<spinloop>::wait_and_lock() noexcept
           goto acquired;
 #endif
       }
-      if (!--spin)
+      if (!backoff<true>(exp_backoff, max_delay, jitter))
         break;
-      srw_pause(delay);
     }
   }
 
@@ -351,11 +396,14 @@ void ssux_lock_impl<spinloop>::wr_wait(uint32_t lk) noexcept
 
   if (spinloop)
   {
-    const unsigned delay= srw_pause_delay();
+    const uint32_t max_delay= backoff_max_delay();
+    const uint32_t jitter= backoff_jitter();
+    uint32_t exp_backoff= MIN_EXP_BACKOFF;
 
-    for (auto spin= srv_n_spin_wait_rounds; spin; spin--)
+    for (;;)
     {
-      srw_pause(delay);
+      if (!backoff<true>(exp_backoff, max_delay, jitter))
+        break;
       lk= readers.load(std::memory_order_acquire);
       if (lk == WRITER)
         return;
@@ -380,13 +428,16 @@ template void ssux_lock_impl<false>::wr_wait(uint32_t) noexcept;
 template<bool spinloop>
 void ssux_lock_impl<spinloop>::rd_wait() noexcept
 {
-  const unsigned delay= srw_pause_delay();
+  const uint32_t max_delay= backoff_max_delay();
+  const uint32_t jitter= backoff_jitter();
+  uint32_t exp_backoff= MIN_EXP_BACKOFF;
 
   if (spinloop)
   {
-    for (auto spin= srv_n_spin_wait_rounds; spin; spin--)
+    for (;;)
     {
-      srw_pause(delay);
+      if (!backoff<true>(exp_backoff, max_delay, jitter))
+        break;
       if (rd_lock_try())
         return;
     }
@@ -397,6 +448,7 @@ void ssux_lock_impl<spinloop>::rd_wait() noexcept
   uint32_t wl= writer.WAITER +
     writer.lock.fetch_add(writer.WAITER, std::memory_order_acquire);
 
+  exp_backoff= MIN_EXP_BACKOFF;
   for (;;)
   {
     if (UNIV_LIKELY(writer.HOLDER & wl))
@@ -413,7 +465,7 @@ void ssux_lock_impl<spinloop>::rd_wait() noexcept
       lots of non-productive context switching until the wr_lock()
       is finally woken up. */
       writer.wake_all();
-    srw_pause(delay);
+    backoff<false>(exp_backoff, max_delay, jitter);
     wl= writer.lock.load(std::memory_order_acquire);
     ut_ad(wl);
   }
