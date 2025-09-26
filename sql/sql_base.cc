@@ -6334,7 +6334,13 @@ find_field_in_view(THD *thd, TABLE_LIST *table_list,
        the replacing item.
       */
       if (*ref && (*ref)->is_explicit_name())
+      {
+        if (arena) // We've activated and deactivated stmt arena above
+          arena= thd->activate_stmt_arena_if_needed(&backup);
         item->set_name(thd, (*ref)->name);
+        if (arena)
+          thd->restore_active_arena(arena, &backup);
+      }
       if (register_tree_change)
         thd->change_item_tree(ref, item);
       else
