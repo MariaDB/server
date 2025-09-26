@@ -928,6 +928,7 @@ int Gcalc_operation_reducer::count_slice(Gcalc_scan_iterator *si)
         {
           add_poly_border(1, cur_t, prev_state, events);
           prev_state^= 1;
+          prev_range= prev_state ? cur_t : 0;
         }
         if (!events->is_bottom())
         {
