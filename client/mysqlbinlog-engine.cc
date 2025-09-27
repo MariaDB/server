@@ -287,6 +287,10 @@ class binlog_reader_innodb : public handler_binlog_reader {
   uint64_t oob_count;
   uint64_t oob_last_file_no;
   uint64_t oob_last_offset;
+  /* Any secondary out-of-band data to be also read. */
+  uint64_t oob_count2;
+  uint64_t oob_last_file_no2;
+  uint64_t oob_last_offset2;
   /*
     The starting file_no. We stop once we've read the last record in this file
     (which may span into the next file).
@@ -732,6 +736,7 @@ again:
 
 binlog_reader_innodb::binlog_reader_innodb()
   : oob_count(0), oob_last_file_no(0), oob_last_offset(0),
+    oob_count2(0), oob_last_file_no2(0), oob_last_offset2(0),
     start_file_no(~(uint64_t)0),
     rd_buf_len(0), rd_buf_sofar(0), state(ST_read_next_event_group)
 {
@@ -884,6 +889,7 @@ again:
     if (p > p_end)
       return chunk_rd.read_error_corruption("Short chunk");
     oob_count= v_and_p.first;
+    oob_count2= 0;
 
     if (oob_count > 0)
     {
@@ -907,6 +913,37 @@ again:
       if (p > p_end)
         return chunk_rd.read_error_corruption("Short chunk");
       oob_last_offset= v_and_p.first;
+
+      /* Check for any secondary oob data. */
+      v_and_p= compr_int_read(p);
+      p= v_and_p.second;
+      if (p > p_end)
+        return chunk_rd.read_error_corruption("Short chunk");
+      oob_count2= v_and_p.first;
+
+      if (oob_count2 > 0)
+      {
+        /* Skip the pointer to first chunk. */
+        v_and_p= compr_int_read(p);
+        p= v_and_p.second;
+        if (p > p_end)
+          return chunk_rd.read_error_corruption("Short chunk");
+        v_and_p= compr_int_read(p);
+        p= v_and_p.second;
+        if (p > p_end)
+          return chunk_rd.read_error_corruption("Short chunk");
+
+        v_and_p= compr_int_read(p);
+        p= v_and_p.second;
+        if (p > p_end)
+          return chunk_rd.read_error_corruption("Short chunk");
+        oob_last_file_no2= v_and_p.first;
+        v_and_p= compr_int_read(p);
+        p= v_and_p.second;
+        if (p > p_end)
+          return chunk_rd.read_error_corruption("Short chunk");
+        oob_last_offset2= v_and_p.first;
+      }
     }
 
     rd_buf_sofar= (uint32_t)(p - rd_buf);
@@ -969,8 +1006,21 @@ again:
       return -1;
     if (oob_reader.oob_traversal_done())
     {
-      chunk_rd.restore_pos(&saved_commit_pos);
-      state= ST_read_next_event_group;
+      if (oob_count2 > 0)
+      {
+        /* Switch over to secondary oob data. */
+        oob_count= oob_count2;
+        oob_count2= 0;
+        oob_last_file_no= oob_last_file_no2;
+        oob_last_offset= oob_last_offset2;
+        oob_reader.start_traversal(oob_last_file_no, oob_last_offset);
+        state= ST_read_oob_data;
+      }
+      else
+      {
+        chunk_rd.restore_pos(&saved_commit_pos);
+        state= ST_read_next_event_group;
+      }
     }
     if (res == 0)
     {

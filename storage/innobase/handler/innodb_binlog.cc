@@ -149,6 +149,11 @@ struct binlog_oob_context {
   LF_PINS *lf_pins;
   savepoint *stmt_start_point;
   savepoint *savepoint_stack;
+  /*
+    The secondary pointer is for when server layer binlogs both a
+    non-transactional and a transactional oob stream.
+  */
+  binlog_oob_context *secondary_ctx;
   uint32_t node_list_len;
   uint32_t node_list_alloc_len;
   /*
@@ -262,6 +267,10 @@ class ha_innodb_binlog_reader : public handler_binlog_reader {
   uint64_t oob_count;
   uint64_t oob_last_file_no;
   uint64_t oob_last_offset;
+  /* Any secondary out-of-band data to be also read. */
+  uint64_t oob_count2;
+  uint64_t oob_last_file_no2;
+  uint64_t oob_last_offset2;
   /*
     Originally requested starting file_no, from init_gtid_pos() or
     init_legacy_pos(). Or ~0 if none.
@@ -303,7 +312,7 @@ struct chunk_data_cache : public chunk_data_base {
   size_t gtid_remain;
   uint32_t header_remain;
   uint32_t header_sofar;
-  byte header_buf[5*COMPR_INT_MAX64];
+  byte header_buf[10*COMPR_INT_MAX64];
 
   chunk_data_cache(IO_CACHE *cache_arg,
                    handler_binlog_event_group_info *binlog_info)
@@ -321,7 +330,7 @@ struct chunk_data_cache : public chunk_data_base {
 
     binlog_oob_context *c=
       static_cast<binlog_oob_context *>(binlog_info->engine_ptr);
-    unsigned char *p;
+    unsigned char *p= header_buf;
     ut_ad(c);
     oob_ctx= c;
     if (c && c->node_list_len)
@@ -329,14 +338,34 @@ struct chunk_data_cache : public chunk_data_base {
       /*
         Link to the out-of-band data. First store the number of nodes; then
         store 2 x 2 numbers of file_no/offset for the first and last node.
+
+        There's a special case when we have to link two times out-of-band data,
+        due to mixing non-transactional and transactional stuff. In that case,
+        the non-transactional goes first. In the common case where there is no
+        dual oob references, we just store a single 0 count.
       */
+      binlog_oob_context *c2= c->secondary_ctx=
+        static_cast<binlog_oob_context *>(binlog_info->engine_ptr2);
+      if (UNIV_UNLIKELY(c2 != nullptr) && c2->node_list_len)
+      {
+        uint32_t last2= c2->node_list_len-1;
+        uint64_t num_nodes2= c2->node_list[last2].node_index + 1;
+        p= compr_int_write(p, num_nodes2);
+        p= compr_int_write(p, c2->first_node_file_no);
+        p= compr_int_write(p, c2->first_node_offset);
+        p= compr_int_write(p, c2->node_list[last2].file_no);
+        p= compr_int_write(p, c2->node_list[last2].offset);
+      }
+
       uint32_t last= c->node_list_len-1;
       uint64_t num_nodes= c->node_list[last].node_index + 1;
-      p= compr_int_write(header_buf, num_nodes);
+      p= compr_int_write(p, num_nodes);
       p= compr_int_write(p, c->first_node_file_no);
       p= compr_int_write(p, c->first_node_offset);
       p= compr_int_write(p, c->node_list[last].file_no);
       p= compr_int_write(p, c->node_list[last].offset);
+      if (UNIV_LIKELY(c2 == nullptr) || c2->node_list_len == 0)
+        p= compr_int_write(p, 0);
     }
     else
     {
@@ -344,7 +373,7 @@ struct chunk_data_cache : public chunk_data_base {
         No out-of-band data, marked with a single 0 count for nodes and no
         first/last links.
       */
-      p= compr_int_write(header_buf, 0);
+      p= compr_int_write(p, 0);
     }
     header_remain= (uint32_t)(p - header_buf);
     ut_ad((size_t)(p - header_buf) <= sizeof(header_buf));
@@ -365,6 +394,13 @@ struct chunk_data_cache : public chunk_data_base {
     {
       ibb_file_hash.oob_ref_dec(oob_ctx->first_node_file_no, oob_ctx->lf_pins);
       oob_ctx->pending_refcount= false;
+      if (UNIV_UNLIKELY(oob_ctx->secondary_ctx != nullptr) &&
+          oob_ctx->secondary_ctx->pending_refcount)
+      {
+        ibb_file_hash.oob_ref_dec(oob_ctx->secondary_ctx->first_node_file_no,
+                                  oob_ctx->secondary_ctx->lf_pins);
+        oob_ctx->secondary_ctx->pending_refcount= false;
+      }
     }
 
     /* Write header data, if any still available. */
@@ -2165,6 +2201,7 @@ alloc_oob_context(uint32 list_length= 10)
     c->pending_file_no= ~(uint64_t)0;
     c->node_list_alloc_len= list_length;
     c->node_list_len= 0;
+    c->secondary_ctx= nullptr;
     c->pending_refcount= false;
   }
   else
@@ -2211,6 +2248,7 @@ reset_oob_context(binlog_oob_context *c)
     c->pending_refcount= false;
   }
   c->node_list_len= 0;
+  c->secondary_ctx= nullptr;
 }
 
 
@@ -2850,6 +2888,7 @@ again:
     if (p > p_end)
       return chunk_rd.read_error_corruption("Short chunk");
     oob_count= v_and_p.first;
+    oob_count2= 0;
 
     if (oob_count > 0)
     {
@@ -2873,6 +2912,37 @@ again:
       if (p > p_end)
         return chunk_rd.read_error_corruption("Short chunk");
       oob_last_offset= v_and_p.first;
+
+      /* Check for any secondary oob data. */
+      v_and_p= compr_int_read(p);
+      p= v_and_p.second;
+      if (p > p_end)
+        return chunk_rd.read_error_corruption("Short chunk");
+      oob_count2= v_and_p.first;
+
+      if (oob_count2 > 0)
+      {
+        /* Skip the pointer to first chunk. */
+        v_and_p= compr_int_read(p);
+        p= v_and_p.second;
+        if (p > p_end)
+          return chunk_rd.read_error_corruption("Short chunk");
+        v_and_p= compr_int_read(p);
+        p= v_and_p.second;
+        if (p > p_end)
+          return chunk_rd.read_error_corruption("Short chunk");
+
+        v_and_p= compr_int_read(p);
+        p= v_and_p.second;
+        if (p > p_end)
+          return chunk_rd.read_error_corruption("Short chunk");
+        oob_last_file_no2= v_and_p.first;
+        v_and_p= compr_int_read(p);
+        p= v_and_p.second;
+        if (p > p_end)
+          return chunk_rd.read_error_corruption("Short chunk");
+        oob_last_offset2= v_and_p.first;
+      }
     }
 
     rd_buf_sofar= (uint32_t)(p - rd_buf);
@@ -2935,8 +3005,21 @@ again:
       return -1;
     if (oob_reader.oob_traversal_done())
     {
-      chunk_rd.restore_pos(&saved_commit_pos);
-      state= ST_read_next_event_group;
+      if (UNIV_UNLIKELY(oob_count2 > 0))
+      {
+        /* Switch over to secondary oob data. */
+        oob_count= oob_count2;
+        oob_count2= 0;
+        oob_last_file_no= oob_last_file_no2;
+        oob_last_offset= oob_last_offset2;
+        oob_reader.start_traversal(oob_last_file_no, oob_last_offset);
+        state= ST_read_oob_data;
+      }
+      else
+      {
+        chunk_rd.restore_pos(&saved_commit_pos);
+        state= ST_read_next_event_group;
+      }
     }
     if (UNIV_UNLIKELY(res == 0))
     {
@@ -3525,6 +3608,7 @@ innobase_binlog_write_direct_ordered(IO_CACHE *cache,
                              const rpl_gtid *gtid)
 {
   mtr_t mtr;
+  ut_ad(binlog_info->engine_ptr2 == nullptr);
   if (gtid)
     binlog_diff_state.update_nolock(gtid);
   mtr.start();
@@ -3541,6 +3625,7 @@ innobase_binlog_write_direct(IO_CACHE *cache,
                              handler_binlog_event_group_info *binlog_info,
                              const rpl_gtid *gtid)
 {
+  ut_ad(binlog_info->engine_ptr2 == nullptr);
   binlog_oob_context *c=
     static_cast<binlog_oob_context *>(binlog_info->engine_ptr);
   if (UNIV_LIKELY(c != nullptr))
