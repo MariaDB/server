@@ -2033,10 +2033,23 @@ binlog_get_cache(THD *thd, uint64_t file_no, uint64_t offset,
     cache_mngr->engine_binlogged= TRUE;
     cache_mngr->last_commit_pos_file.engine_file_no= file_no;
     cache_mngr->last_commit_pos_offset= offset;
-    binlog_cache_data *cache_data= !cache_mngr->trx_cache.empty() ?
-      &cache_mngr->trx_cache : &cache_mngr->stmt_cache;
-    context= &cache_data->engine_binlog_info;
-    cache= &cache_data->cache_log;
+    binlog_cache_data *stmt_cache= &cache_mngr->stmt_cache;
+    binlog_cache_data *trx_cache= &cache_mngr->trx_cache;
+    if (unlikely(trx_cache->empty()))
+    {
+      cache= &stmt_cache->cache_log;
+      context= &stmt_cache->engine_binlog_info;
+      context->engine_ptr2= nullptr;
+    }
+    else
+    {
+      cache= &trx_cache->cache_log;
+      context= &trx_cache->engine_binlog_info;
+      if (unlikely(!stmt_cache->empty()))
+        context->engine_ptr2= stmt_cache->engine_binlog_info.engine_ptr;
+      else
+        context->engine_ptr2= nullptr;
+    }
     gtid= thd->get_last_commit_gtid();
   }
   *out_cache= cache;
@@ -4488,7 +4501,7 @@ MYSQL_BIN_LOG::open_engine(handlerton *hton, ulong max_size, const char *dir)
     IO_CACHE cache;
     init_io_cache(&cache, (File)-1, binlog_cache_size, WRITE_CACHE, 0, false,
                   MYF(MY_DONT_CHECK_FILESIZE));
-    handler_binlog_event_group_info engine_context= { nullptr, 0, 0 };
+    handler_binlog_event_group_info engine_context= { nullptr, nullptr, 0, 0 };
     write_event(&s, BINLOG_CHECKSUM_ALG_OFF, 0, &cache);
     mysql_mutex_lock(&LOCK_commit_ordered);
     (*opt_binlog_engine_hton->binlog_write_direct_ordered) (&cache,
@@ -10466,12 +10479,32 @@ MYSQL_BIN_LOG::write_transaction_or_stmt(group_commit_entry *entry,
   }
   else
   {
-    DBUG_ASSERT((!entry->using_stmt_cache || mngr->stmt_cache.empty()) ||
-                (!entry->using_trx_cache || mngr->trx_cache.empty())
-                /* ToDo: Support combined stmt/trx caches?*/);
     DBUG_ASSERT((entry->using_stmt_cache && !mngr->stmt_cache.empty()) ||
                 (entry->using_trx_cache && !mngr->trx_cache.empty())
                 /* Assert that empty transaction is handled elsewhere. */);
+    if (unlikely((entry->using_stmt_cache && !mngr->stmt_cache.empty()) &&
+                 (entry->using_trx_cache && !mngr->trx_cache.empty())))
+    {
+      /*
+        We have data in both the statement and the transaction cache.
+        This is usually not the case, but it can occur in autocommit when
+        both transactional and non-transactional tables are changed in a
+        single statement, for example multi-table update or implicit
+        allocation from SEQUENCE as part of transactional INSERT.
+
+        We do not want the complexity of handling two different caches in
+        the engine binlog API for this uncommon case, so we spill both
+        caches as OOB data here, leaving just the transaction cache
+        containing the GTID event.
+
+        (We still need to handle dual OOB data streams, as we might need to
+        roll back the transaction one and binlog the statement one).
+      */
+      if (my_b_flush_io_cache(&mngr->stmt_cache.cache_log, 0) ||
+          my_b_flush_io_cache(&mngr->trx_cache.cache_log, 0))
+        DBUG_RETURN(ER_ERROR_ON_WRITE);
+    }
+
     binlog_cache_data *cache_data=
       (entry->using_trx_cache && !mngr->trx_cache.empty()) ?
       &mngr->trx_cache : &mngr->stmt_cache;
