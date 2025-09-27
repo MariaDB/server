@@ -1,0 +1,87 @@
+--source include/have_binlog_format_mixed.inc
+--source include/have_sequence.inc
+--source include/master-slave.inc
+--source include/have_innodb_binlog.inc
+
+--echo *** Various tests for event groups using both stmt/trx cache.
+
+--let $datadir= `SELECT @@datadir`
+
+# Implicit allocation from sequence gets binlogged as a non-transactional
+# part of a transactional INSERT.
+CREATE SEQUENCE s;
+CREATE TABLE t (a int PRIMARY KEY, b int DEFAULT (NEXTVAL(s))) ENGINE=InnoDB;
+--let $binlog_file= query_get_value(SHOW MASTER STATUS, File, 1)
+--let $binlog_start= query_get_value(SHOW MASTER STATUS, Position, 1)
+INSERT INTO t (a) VALUES (1);
+--source include/show_binlog_events2.inc
+
+# Multi-table update of both non-transactional and transactional table with
+# autocommit - this populates both the stmt and trx caches.
+
+CREATE TABLE t1 (a INT PRIMARY KEY, b VARCHAR(2048)) ENGINE=MyISAM;
+CREATE TABLE t2 (a INT PRIMARY KEY, b VARCHAR(2048)) ENGINE=InnoDB;
+SET binlog_format=ROW;
+INSERT INTO t2 VALUES (1, '');
+INSERT INTO t1 VALUES (1, '');
+--let $binlog_file= query_get_value(SHOW MASTER STATUS, File, 1)
+--let $binlog_start= query_get_value(SHOW MASTER STATUS, Position, 1)
+UPDATE t1, t2 SET t1.b='a', t2.b='b';
+--source include/show_binlog_events2.inc
+
+# Larger update so there will be oob data for both stmt and trx caches.
+INSERT INTO t1 SELECT seq, '' FROM seq_2_to_25;
+INSERT INTO t2 SELECT seq, '' FROM seq_2_to_25;
+--let $binlog_file= query_get_value(SHOW MASTER STATUS, File, 1)
+--let $binlog_start= query_get_value(SHOW MASTER STATUS, Position, 1)
+UPDATE t1, t2 SET t1.b=REPEAT('x', 2000), t2.b=REPEAT('y',2000) WHERE t1.a=t2.a;
+--source include/show_binlog_events2.inc
+
+# Test that oob refcount is working when both caches are in use.
+# Smaller binlog files to have oob refs across multiple binlog files.
+SET @old_max_size= @@GLOBAL.max_binlog_size;
+SET GLOBAL max_binlog_size= 65536;
+FLUSH BINARY LOGS;
+FLUSH BINARY LOGS;
+
+INSERT INTO t1 SELECT seq, '' FROM seq_26_to_50;
+INSERT INTO t2 SELECT seq, '' FROM seq_26_to_50;
+UPDATE t1, t2 SET t1.b=REPEAT('\\', 2000), t2.b=REPEAT('/',2000) WHERE t1.a=t2.a;
+--let $binlog_file= query_get_value(SHOW MASTER STATUS, File, 1)
+
+--error ER_LOG_IN_USE
+evalp PURGE BINARY LOGS TO '$binlog_file';
+FLUSH BINARY LOGS;
+FLUSH BINARY LOGS;
+# Test mysqlbinlog reading of dual-cache oob data.
+--exec $MYSQL_BINLOG $datadir/$binlog_file > $MYSQLTEST_VARDIR/tmp/mysqlbinlog.txt
+--let $binlog_file= query_get_value(SHOW MASTER STATUS, File, 1)
+SET binlog_format=DEFAULT;
+SET GLOBAL max_binlog_size= @old_max_size;
+FLUSH BINARY LOGS;
+FLUSH BINARY LOGS;
+
+# Make sure the slave is caught up so we can purge.
+INSERT INTO t(a) SELECT 1+MAX(a) FROM t;
+--source include/save_master_gtid.inc
+--connection slave
+--source include/sync_with_master_gtid.inc
+
+--connection master
+evalp PURGE BINARY LOGS TO '$binlog_file';
+
+# This asserted due to uninitialized handler_binlog_event_group_info->engine_ptr2
+SET binlog_format=ROW;
+CREATE SEQUENCE ss ENGINE=InnoDB;
+CREATE TABLE tt (a INT, b BIGINT DEFAULT(NEXTVAL(ss))) ENGINE=InnoDB;
+INSERT INTO tt (a) VALUES (1);
+CREATE TABLE xx ENGINE=InnoDB SELECT * FROM tt;
+SET binlog_format=DEFAULT;
+
+
+DROP TABLE t;
+DROP SEQUENCE s;
+DROP TABLE t1, t2;
+DROP TABLE tt, xx;
+DROP SEQUENCE ss;
+--source include/rpl_end.inc

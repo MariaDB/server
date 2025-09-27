@@ -1,0 +1,87 @@
+include/master-slave.inc
+[connection master]
+*** Various tests for event groups using both stmt/trx cache.
+CREATE SEQUENCE s;
+CREATE TABLE t (a int PRIMARY KEY, b int DEFAULT (NEXTVAL(s))) ENGINE=InnoDB;
+INSERT INTO t (a) VALUES (1);
+show binlog events in 'binlog-000000.ibb' from <binlog_start>;
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+binlog-000000.ibb	#	Gtid	1	#	BEGIN GTID #-#-#
+binlog-000000.ibb	#	Table_map	1	#	table_id: # (test.s)
+binlog-000000.ibb	#	Write_rows_v1	1	#	table_id: # flags: STMT_END_F
+binlog-000000.ibb	#	Annotate_rows	1	#	INSERT INTO t (a) VALUES (1)
+binlog-000000.ibb	#	Table_map	1	#	table_id: # (test.t)
+binlog-000000.ibb	#	Write_rows_v1	1	#	table_id: # flags: STMT_END_F
+binlog-000000.ibb	#	Xid	1	#	COMMIT /* XID */
+CREATE TABLE t1 (a INT PRIMARY KEY, b VARCHAR(2048)) ENGINE=MyISAM;
+CREATE TABLE t2 (a INT PRIMARY KEY, b VARCHAR(2048)) ENGINE=InnoDB;
+SET binlog_format=ROW;
+INSERT INTO t2 VALUES (1, '');
+INSERT INTO t1 VALUES (1, '');
+UPDATE t1, t2 SET t1.b='a', t2.b='b';
+show binlog events in 'binlog-000000.ibb' from <binlog_start>;
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+binlog-000000.ibb	#	Gtid	1	#	BEGIN GTID #-#-#
+binlog-000000.ibb	#	Annotate_rows	1	#	UPDATE t1, t2 SET t1.b='a', t2.b='b'
+binlog-000000.ibb	#	Table_map	1	#	table_id: # (test.t1)
+binlog-000000.ibb	#	Update_rows_v1	1	#	table_id: # flags: STMT_END_F
+binlog-000000.ibb	#	Table_map	1	#	table_id: # (test.t2)
+binlog-000000.ibb	#	Update_rows_v1	1	#	table_id: # flags: STMT_END_F
+binlog-000000.ibb	#	Xid	1	#	COMMIT /* XID */
+INSERT INTO t1 SELECT seq, '' FROM seq_2_to_25;
+INSERT INTO t2 SELECT seq, '' FROM seq_2_to_25;
+UPDATE t1, t2 SET t1.b=REPEAT('x', 2000), t2.b=REPEAT('y',2000) WHERE t1.a=t2.a;
+show binlog events in 'binlog-000000.ibb' from <binlog_start>;
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+binlog-000000.ibb	#	Gtid	1	#	BEGIN GTID #-#-#
+binlog-000000.ibb	#	Annotate_rows	1	#	UPDATE t1, t2 SET t1.b=REPEAT('x', 2000), t2.b=REPEAT('y',2000) WHERE t1.a=t2.a
+binlog-000000.ibb	#	Table_map	1	#	table_id: # (test.t1)
+binlog-000000.ibb	#	Update_rows_v1	1	#	table_id: #
+binlog-000000.ibb	#	Update_rows_v1	1	#	table_id: #
+binlog-000000.ibb	#	Update_rows_v1	1	#	table_id: #
+binlog-000000.ibb	#	Update_rows_v1	1	#	table_id: #
+binlog-000000.ibb	#	Update_rows_v1	1	#	table_id: #
+binlog-000000.ibb	#	Update_rows_v1	1	#	table_id: #
+binlog-000000.ibb	#	Update_rows_v1	1	#	table_id: # flags: STMT_END_F
+binlog-000000.ibb	#	Table_map	1	#	table_id: # (test.t2)
+binlog-000000.ibb	#	Update_rows_v1	1	#	table_id: #
+binlog-000000.ibb	#	Update_rows_v1	1	#	table_id: #
+binlog-000000.ibb	#	Update_rows_v1	1	#	table_id: #
+binlog-000000.ibb	#	Update_rows_v1	1	#	table_id: #
+binlog-000000.ibb	#	Update_rows_v1	1	#	table_id: #
+binlog-000000.ibb	#	Update_rows_v1	1	#	table_id: #
+binlog-000000.ibb	#	Update_rows_v1	1	#	table_id: # flags: STMT_END_F
+binlog-000000.ibb	#	Xid	1	#	COMMIT /* XID */
+SET @old_max_size= @@GLOBAL.max_binlog_size;
+SET GLOBAL max_binlog_size= 65536;
+FLUSH BINARY LOGS;
+FLUSH BINARY LOGS;
+INSERT INTO t1 SELECT seq, '' FROM seq_26_to_50;
+INSERT INTO t2 SELECT seq, '' FROM seq_26_to_50;
+UPDATE t1, t2 SET t1.b=REPEAT('\\', 2000), t2.b=REPEAT('/',2000) WHERE t1.a=t2.a;
+PURGE BINARY LOGS TO '$binlog_file';
+ERROR HY000: A purgeable log is in use, will not purge
+FLUSH BINARY LOGS;
+FLUSH BINARY LOGS;
+SET binlog_format=DEFAULT;
+SET GLOBAL max_binlog_size= @old_max_size;
+FLUSH BINARY LOGS;
+FLUSH BINARY LOGS;
+INSERT INTO t(a) SELECT 1+MAX(a) FROM t;
+include/save_master_gtid.inc
+connection slave;
+include/sync_with_master_gtid.inc
+connection master;
+PURGE BINARY LOGS TO '$binlog_file';
+SET binlog_format=ROW;
+CREATE SEQUENCE ss ENGINE=InnoDB;
+CREATE TABLE tt (a INT, b BIGINT DEFAULT(NEXTVAL(ss))) ENGINE=InnoDB;
+INSERT INTO tt (a) VALUES (1);
+CREATE TABLE xx ENGINE=InnoDB SELECT * FROM tt;
+SET binlog_format=DEFAULT;
+DROP TABLE t;
+DROP SEQUENCE s;
+DROP TABLE t1, t2;
+DROP TABLE tt, xx;
+DROP SEQUENCE ss;
+include/rpl_end.inc
