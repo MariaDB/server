@@ -27,7 +27,7 @@ class binlog_cache_data
 {
 public:
   binlog_cache_data(bool precompute_checksums):
-                    engine_binlog_info {0, 0, 0},
+                    engine_binlog_info {0, 0, 0, 0},
                     before_stmt_pos(MY_OFF_T_UNDEF), m_pending(0), status(0),
                     incident(FALSE), precompute_checksums(precompute_checksums),
                     saved_max_binlog_cache_size(0), ptr_binlog_cache_use(0),

@@ -5929,6 +5929,15 @@ String dbug_format_row(TABLE *table, const uchar *rec, bool print_names= true);
 struct handler_binlog_event_group_info {
   /* Opaque pointer for the engine's use. */
   void *engine_ptr;
+  /*
+    Secondary engine context ptr.
+    This will be non-null only when both non-transactional (aka statement cache)
+    and transactional (aka transaction cache) updates are binlogged together.
+    Then this secondary pointer is the non-transactional / statement cache
+    part, and it should be considered to go before the transactional /
+    transaction cache part in the commit record.
+  */
+  void *engine_ptr2;
   /* End of data that has already been binlogged out-of-band. */
   my_off_t out_of_band_offset;
   /*
