@@ -1,0 +1,12 @@
+#
+# NOTE: This test has a -master.opt file "rpl_filter_multi_table_all_innodb-master.opt"
+# for confirguring the replication filter rules 
+
+--source include/have_innodb.inc
+
+let $engine_type= 'InnoDB';
+
+--source include/rpl_filter_multi_table_all.test
+
+--source include/rpl_end.inc
+--echo # End of rpl_filter_multi_table_all_innodb.test
