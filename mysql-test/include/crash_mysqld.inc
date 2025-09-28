@@ -1,6 +1,6 @@
 # Crash mysqld hard and wait until it's restarted
 
---source include/have_debug_sync.inc
+--source include/have_debug.inc
 --source include/not_embedded.inc
 
 # Write file to make mysql-test-run.pl expect crash and restart

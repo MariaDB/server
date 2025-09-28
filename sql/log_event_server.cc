@@ -2401,22 +2401,28 @@ void Format_description_log_event::pack_info(Protocol *protocol)
 }
 #endif /* defined(HAVE_REPLICATION) */
 
-bool Format_description_log_event::write(Log_event_writer *writer)
+bool
+Format_description_log_event::to_packet(String *packet)
 {
-  bool ret;
-  /*
-    We don't call Start_log_event_v::write() because this would make 2
-    my_b_safe_write().
-  */
-  uchar buff[START_V3_HEADER_LEN+1];
-  size_t rec_size= sizeof(buff) + BINLOG_CHECKSUM_ALG_DESC_LEN +
-                   number_of_event_types;
-  int2store(buff + ST_BINLOG_VER_OFFSET,binlog_version);
-  memcpy((char*) buff + ST_SERVER_VER_OFFSET,server_version,ST_SERVER_VER_LEN);
+  uchar *p;
+  uint32 needed_length=
+    packet->length() + START_V3_HEADER_LEN + 1 + number_of_event_types + 1;
+  if (packet->reserve(needed_length))
+    return true;
+  p= (uchar *)packet->ptr() + packet->length();;
+  packet->length(needed_length);
+  int2store(p, binlog_version);
+  p += 2;
+  memcpy(p, server_version, ST_SERVER_VER_LEN);
+  p+= ST_SERVER_VER_LEN;
   if (!dont_set_created)
     created= get_time();
-  int4store(buff + ST_CREATED_OFFSET,created);
-  buff[ST_COMMON_HEADER_LEN_OFFSET]= common_header_len;
+  int4store(p, created);
+  p+= 4;
+  *p++= common_header_len;
+  memcpy(p, post_header_len, number_of_event_types);
+  p+= number_of_event_types;
+
   /*
     if checksum is requested
     record the checksum-algorithm descriptor next to
@@ -2441,13 +2447,31 @@ bool Format_description_log_event::write(Log_event_writer *writer)
      (A), (V) presence in FD of the checksum-aware server makes the event
      1 + 4 bytes bigger comparing to the former FD.
   */
+  *p++= checksum_byte;
+
+  return false;
+}
+
+bool Format_description_log_event::write(Log_event_writer *writer)
+{
+  bool ret;
+  /*
+    We don't call Start_log_event_v::write() because this would make 2
+    my_b_safe_write().
+  */
+  constexpr uint32_t needed= START_V3_HEADER_LEN + 1 + LOG_EVENT_TYPES + 1;
+  char buff[needed + 1];
+  String packet(buff, sizeof(buff), system_charset_info);
+  packet.length(0);
+  if (to_packet(&packet))
+    return true;
+  size_t rec_size= packet.length();
+  DBUG_ASSERT(needed == rec_size);
 
   uint orig_checksum_len= writer->checksum_len;
   writer->checksum_len= BINLOG_CHECKSUM_LEN;
   ret= write_header(writer, rec_size) ||
-       write_data(writer, buff, sizeof(buff)) ||
-       write_data(writer, post_header_len, number_of_event_types) ||
-       write_data(writer, &checksum_byte, sizeof(checksum_byte)) ||
+       write_data(writer, packet.ptr(), packet.length()) ||
        write_footer(writer);
   writer->checksum_len= orig_checksum_len;
   return ret;
@@ -2949,6 +2973,18 @@ Gtid_log_event::peek(const uchar *event_start, size_t event_len,
 }
 
 
+uint32_t
+Gtid_log_event::get_size() const noexcept
+{
+  return get_gtid_event_size(flags2 & FL_GROUP_COMMIT_ID,
+                             flags2 & (FL_PREPARED_XA | FL_COMPLETED_XA),
+                             flags_extra > 0,
+                             flags_extra & FL_EXTRA_MULTI_ENGINE_E1,
+                             flags_extra & (FL_COMMIT_ALTER_E1 | FL_ROLLBACK_ALTER_E1),
+                             xid.bqual_length, xid.gtrid_length);
+}
+
+
 bool
 Gtid_log_event::write(Log_event_writer *writer)
 {
@@ -3018,6 +3054,17 @@ Gtid_log_event::write(Log_event_writer *writer)
     bzero(buf+write_len, GTID_HEADER_LEN-write_len);
     write_len= GTID_HEADER_LEN;
   }
+  /*
+    Whenever updating this function, make sure that Gtid_log_event::get_size()
+    still computes the same consistent event length! Do not just rely on this
+    assertion, in case test coverage is not 100%.
+  */
+  DBUG_ASSERT(DBUG_IF("negate_xid_from_gtid") ||
+              DBUG_IF("negate_xid_data_from_gtid") ||
+              DBUG_IF("negate_alter_fl_from_gtid") ||
+              DBUG_IF("inject_fl_extra_multi_engine_into_gtid") ||
+              write_len + LOG_EVENT_HEADER_LEN == get_size());
+
   return write_header(writer, write_len) ||
          write_data(writer, buf, write_len) ||
          write_footer(writer);

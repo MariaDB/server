@@ -1994,6 +1994,10 @@ int ha_commit_trans(THD *thd, bool all)
     */
     if (! hi->is_trx_read_write())
       continue;
+    /* We do not need to 2pc the binlog with the engine that implements it. */
+    /* ToDo: This needs refinement, at least to handle the case when we are not binlogging. And maybe the logic could happen more elegantly in a different place, higher in the call stack? */
+    if (ht == opt_binlog_engine_hton)
+      continue;
     /*
       Sic: we know that prepare() is not NULL since otherwise
       trans->no_2pc would have been set.
@@ -8386,8 +8390,6 @@ int ha_abort_transaction(THD *bf_thd, THD *victim_thd, my_bool signal)
   if (!WSREP(bf_thd) &&
       !(bf_thd->variables.wsrep_OSU_method == WSREP_OSU_RSU &&
         wsrep_thd_is_toi(bf_thd))) {
-    mysql_mutex_unlock(&victim_thd->LOCK_thd_data);
-    mysql_mutex_unlock(&victim_thd->LOCK_thd_kill);
     DBUG_RETURN(0);
   }
 
@@ -8399,8 +8401,6 @@ int ha_abort_transaction(THD *bf_thd, THD *victim_thd, my_bool signal)
   else
   {
     WSREP_WARN("Cannot abort InnoDB transaction");
-    mysql_mutex_unlock(&victim_thd->LOCK_thd_data);
-    mysql_mutex_unlock(&victim_thd->LOCK_thd_kill);
   }
 
   DBUG_RETURN(0);

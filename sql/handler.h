@@ -38,6 +38,7 @@
 #include "vers_string.h"
 #include "ha_handler_stats.h"
 #include "optimizer_costs.h"
+#include "handler_binlog_reader.h"
 
 #include "sql_analyze_stmt.h" // for Exec_time_tracker 
 
@@ -59,6 +60,12 @@ class Field_varstring;
 class Field_blob;
 class Column_definition;
 class select_result;
+class handler_binlog_reader;
+struct rpl_gtid;
+struct slave_connection_state;
+struct rpl_binlog_state_base;
+struct handler_binlog_event_group_info;
+struct handler_binlog_purge_info;
 
 // the following is for checking tables
 
@@ -1226,6 +1233,17 @@ typedef struct st_ha_create_table_option {
   struct st_mysql_sys_var *var;
 } ha_create_table_option;
 
+
+/* Struct used to return binlog file list for SHOW BINARY LOGS from engine. */
+struct binlog_file_entry
+{
+  binlog_file_entry *next;
+  LEX_CSTRING name;
+  /* The size is filled in by server, engine need not return it. */
+  my_off_t size;
+};
+
+
 class handler;
 class group_by_handler;
 class derived_handler;
@@ -1528,6 +1546,104 @@ struct handlerton
   /* Called at startup to update default engine costs */
   void (*update_optimizer_costs)(OPTIMIZER_COSTS *costs);
   void *optimizer_costs;                        /* Costs are stored here */
+
+  /* Optional implementation of binlog in the engine. */
+  bool (*binlog_init)(size_t binlog_size, const char *directory);
+  /* Dynamically changing the binlog max size. */
+  void (*set_binlog_max_size)(size_t binlog_size);
+  /* Binlog an event group that doesn't go through commit_ordered. */
+  bool (*binlog_write_direct_ordered)(IO_CACHE *cache,
+                              handler_binlog_event_group_info *binlog_info,
+                              const rpl_gtid *gtid);
+  bool (*binlog_write_direct)(IO_CACHE *cache,
+                              handler_binlog_event_group_info *binlog_info,
+                              const rpl_gtid *gtid);
+  /*
+    Called for the last transaction (only) in a binlog group commit, with
+    no locks being held.
+  */
+  void (*binlog_group_commit_ordered)(THD *thd,
+                               handler_binlog_event_group_info *binlog_info);
+  /*
+    Binlog parts of large transactions out-of-band, in different chunks in the
+    binlog as the transaction executes. This limits the amount of data that
+    must be binlogged transactionally during COMMIT. The engine_data points to
+    a pointer location that the engine can set to maintain its own context
+    for the out-of-band data.
+
+    Optionally savepoints can be set at the point at the start of the write
+    (ie. before any written data), when stmt_start_data and/or savepoint_data
+    are non-NULL. Such a point can later be rolled back to by calling
+    binlog_savepoint_rollback(). (Only) if stmt_start_data or savepoint_data
+    is non-null can data_len be null (to set savepoint(s) and do nothing else).
+   */
+  bool (*binlog_oob_data_ordered)(THD *thd, const unsigned char *data,
+                                  size_t data_len, void **engine_data,
+                                  void **stmt_start_data,
+                                  void **savepoint_data);
+  bool (*binlog_oob_data)(THD *thd, const unsigned char *data,
+                          size_t data_len, void **engine_data);
+  /*
+    Rollback to a prior point in out-of-band binlogged partial transaction
+    data, for savepoint support. The stmt_start_data and/or savepoint_data,
+    if non-NULL, correspond to the point set by an earlier binlog_oob_data()
+    call.
+
+    Exactly one of stmt_start_data or savepoint_data will be non-NULL,
+    corresponding to either rolling back to the start of the current statement,
+    or to an earlier set savepoint.
+  */
+  void (*binlog_savepoint_rollback)(THD *thd, void **engine_data,
+                                    void **stmt_start_data,
+                                    void **savepoint_data);
+  /*
+    Call to reset (for new transactions) the engine_data from
+    binlog_oob_data(). Can also change the pointer to point to different data
+    (or set it to NULL).
+  */
+  void (*binlog_oob_reset)(void **engine_data);
+  /* Call to allow engine to release the engine_data from binlog_oob_data(). */
+  void (*binlog_oob_free)(void *engine_data);
+  /*
+    Obtain an object to allow reading from the binlog.
+    The boolean argument wait_durable is set to true to require that
+    transactions be durable before they can be read and returned from the
+    reader. This is used to make replication crash-safe without requiring
+    durability; this way, if the master crashes, when it comes back up the
+    slave will not be ahead and replication will not diverge.
+  */
+  handler_binlog_reader * (*get_binlog_reader)(bool wait_durable);
+  /*
+    Obtain the current position in the binlog.
+    Used to support legacy SHOW MASTER STATUS.
+  */
+  void (*binlog_status)(uint64_t * out_fileno, uint64_t *out_pos);
+  /* Get a binlog name from a file_no. */
+  void (*get_filename)(char name[FN_REFLEN], uint64_t file_no);
+  /* Obtain list of binlog files (SHOW BINARY LOGS). */
+  binlog_file_entry * (*get_binlog_file_list)(MEM_ROOT *mem_root);
+  /*
+    End the current binlog file, and create and switch to a new one.
+    Used to implement FLUSH BINARY LOGS.
+  */
+  bool (*binlog_flush)();
+  /*
+    Read the binlog state at the start of the very first (not purged) binlog
+    file, and return it in *out_state. This is used to check validity of
+    FLUSH BINARY LOGS DELETE_DOMAIN_ID=(<list>).
+
+    Returns true on error, false on ok.
+  */
+  bool (*binlog_get_init_state)(rpl_binlog_state_base *out_state);
+  /* Engine implementation of RESET MASTER. */
+  bool (*reset_binlogs)();
+  /*
+    Engine implementation of PURGE BINARY LOGS.
+    Return 0 for ok or one of LOG_INFO_* errors.
+
+    See also ha_binlog_purge_info() for auto-purge.
+  */
+  int (*binlog_purge)(handler_binlog_purge_info *purge_info);
 
    /*
      Optional clauses in the CREATE/ALTER TABLE
@@ -5809,4 +5925,58 @@ int get_select_field_pos(Alter_info *alter_info, int select_field_count,
 #ifndef DBUG_OFF
 String dbug_format_row(TABLE *table, const uchar *rec, bool print_names= true);
 #endif /* DBUG_OFF */
+
+/* Struct with info about an event group to be binlogged by a storage engine. */
+struct handler_binlog_event_group_info {
+  /* Opaque pointer for the engine's use. */
+  void *engine_ptr;
+  /*
+    Secondary engine context ptr.
+    This will be non-null only when both non-transactional (aka statement cache)
+    and transactional (aka transaction cache) updates are binlogged together.
+    Then this secondary pointer is the non-transactional / statement cache
+    part, and it should be considered to go before the transactional /
+    transaction cache part in the commit record.
+  */
+  void *engine_ptr2;
+  /* End of data that has already been binlogged out-of-band. */
+  my_off_t out_of_band_offset;
+  /*
+    Offset of the GTID event, which comes first in the event group, but is put
+    at the end of the IO_CACHE containing the data to be binlogged.
+  */
+  my_off_t gtid_offset;
+};
+
+
+/* Structure returned by ha_binlog_purge_info(). */
+struct handler_binlog_purge_info {
+  /* The earliest binlog file that is in use by a dump thread. */
+  uint64_t limit_file_no;
+  /*
+    Set by engine to give a reason why a requested purge could not be done.
+    If set, then nonpurge_filename should be set to the filename.
+
+    Also set by ha_binlog_purge_info() when it returns false, to the reason
+    why no purge is possible. In this case, the nonpurge_filename is set
+    to the empty string.
+  */
+  const char *nonpurge_reason;
+  /* The user-configured maximum total size of the binlog. */
+  ulonglong limit_size;
+  /* Binlog name, for PURGE BINARY LOGS TO. */
+  const char *limit_name;
+  /* The earliest file date (unix timestamp) that should not be purged. */
+  time_t limit_date;
+  /* Whether purge by date and/or by size and/or name is requested. */
+  bool purge_by_date, purge_by_size, purge_by_name;
+  /*
+    The name of the file that could not be purged, when nonpurge_reason
+    is given.
+  */
+  char nonpurge_filename[FN_REFLEN];
+  /* Default constructor to silence compiler warnings -Wuninitialized. */
+  handler_binlog_purge_info()= default;
+};
+
 #endif /* HANDLER_INCLUDED */

@@ -165,6 +165,7 @@ ut_allocator::get_mem_key()):
   happens then that means that the list of predefined names must be extended.
 Keep this list alphabetically sorted. */
 extern PSI_memory_key	mem_key_ahi;
+extern PSI_memory_key	mem_key_binlog;
 extern PSI_memory_key	mem_key_buf_buf_pool;
 extern PSI_memory_key	mem_key_dict_stats_bg_recalc_pool_t;
 extern PSI_memory_key	mem_key_dict_stats_index_map_t;
@@ -849,6 +850,7 @@ constexpr const char* const auto_event_names[] =
   "fil0crypt",
   "fil0fil",
   "fsp0file",
+  "fsp_binlog",
   "fts0ast",
   "fts0blex",
   "fts0config",
@@ -860,6 +862,7 @@ constexpr const char* const auto_event_names[] =
   "fts0sql",
   "fts0tlex",
   "gis0sea",
+  "innodb_binlog",
   "ha_innodb",
   "handler0alter",
   "hash0hash",

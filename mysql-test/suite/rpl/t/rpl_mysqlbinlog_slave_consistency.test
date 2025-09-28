@@ -46,6 +46,7 @@ SET sql_log_bin=1;
 --source include/stop_slave.inc
 
 --connection master
+--source include/kill_binlog_dump_threads.inc
 RESET MASTER;
 
 # Save old state
@@ -390,11 +391,13 @@ CHANGE MASTER TO MASTER_USE_GTID=slave_pos, DO_DOMAIN_IDS=(0), IGNORE_DOMAIN_IDS
 RESET MASTER;
 set global gtid_slave_pos="";
 CHANGE MASTER TO MASTER_USE_GTID=slave_pos, DO_DOMAIN_IDS=(), IGNORE_DOMAIN_IDS=();
---source include/start_slave.inc
 
 # Cleanup
 --connection master
+--source include/kill_binlog_dump_threads.inc
 RESET MASTER;
+--connection slave
+--source include/start_slave.inc
 
 --source include/rpl_end.inc
 

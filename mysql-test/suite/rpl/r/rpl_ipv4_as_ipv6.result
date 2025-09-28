@@ -1,6 +1,7 @@
 #################### IP: 127.0.0.1 ###########################
 connect  master,$IPv6,root,,test,$MASTER_MYPORT;
 connect  slave,$IPv6,root,,test,$SLAVE_MYPORT;
+include/kill_binlog_dump_threads.inc
 connection master;
 reset master;
 show master status;
@@ -16,6 +17,7 @@ connection default;
 #################### IP: 0:0:0:0:0:FFFF:127.0.0.1 ###########################
 connect  master,$IPv6,root,,test,$MASTER_MYPORT;
 connect  slave,$IPv6,root,,test,$SLAVE_MYPORT;
+include/kill_binlog_dump_threads.inc
 connection master;
 reset master;
 show master status;
@@ -31,6 +33,7 @@ connection default;
 #################### IP: 0000:0000:0000:0000:0000:FFFF:127.0.0.1 ###########################
 connect  master,$IPv6,root,,test,$MASTER_MYPORT;
 connect  slave,$IPv6,root,,test,$SLAVE_MYPORT;
+include/kill_binlog_dump_threads.inc
 connection master;
 reset master;
 show master status;
@@ -46,6 +49,7 @@ connection default;
 #################### IP: 0:0000:0000:0:0000:FFFF:127.0.0.1 ###########################
 connect  master,$IPv6,root,,test,$MASTER_MYPORT;
 connect  slave,$IPv6,root,,test,$SLAVE_MYPORT;
+include/kill_binlog_dump_threads.inc
 connection master;
 reset master;
 show master status;
@@ -61,6 +65,7 @@ connection default;
 #################### IP: 0::0000:FFFF:127.0.0.1 ###########################
 connect  master,$IPv6,root,,test,$MASTER_MYPORT;
 connect  slave,$IPv6,root,,test,$SLAVE_MYPORT;
+include/kill_binlog_dump_threads.inc
 connection master;
 reset master;
 show master status;
@@ -76,6 +81,7 @@ connection default;
 #################### IP: ::FFFF:127.0.0.1 ###########################
 connect  master,$IPv6,root,,test,$MASTER_MYPORT;
 connect  slave,$IPv6,root,,test,$SLAVE_MYPORT;
+include/kill_binlog_dump_threads.inc
 connection master;
 reset master;
 show master status;

@@ -1,0 +1,90 @@
+--source include/not_embedded.inc
+--source include/not_valgrind.inc
+--source include/have_debug.inc
+--source include/have_binlog_format_row.inc
+--source include/master-slave.inc
+--source include/have_innodb_binlog.inc
+
+-- echo *** Test that slave doesn't get ahead of a non-durable master that crashes.
+--connection master
+--let $old_flatc= `SELECT @@GLOBAL.innodb_flush_log_at_trx_commit`
+SET GLOBAL innodb_flush_log_at_trx_commit= 0;
+
+CREATE TABLE t1 (a INT PRIMARY KEY, b INT, c TEXT) ENGINE=InnoDB;
+
+# Create a bunch of transactions, when --innodb-flush-log-at-trx-commit=0
+# we should lose some of them in master crash.
+# Note though that this is ineffective when running in /dev/shm/ (./mtr --mem).
+# Because InnoDB is hard-coded to simulate PMEM in this case and forces
+# mmap on the log file even though we have --innodb-log-file-mmap=OFF in our
+# .opt file. Then the memory mapping gets updated immediately when the mtr
+# commits, and kill -9 cannot lose any transactions. The test will still pass,
+# but no transactions are lost on the master so nothing much is tested.
+
+--disable_query_log
+--let loop= 0
+while ($loop < 10) {
+  eval INSERT INTO t1 VALUES ($loop*1000, 0, '');
+  BEGIN;
+  --let $i= 0
+  while ($i < 20) {
+    eval INSERT INTO t1 VALUES ($loop*1000 + $i*10 + 1, 1, REPEAT('a', 1000));
+    eval INSERT INTO t1 VALUES ($loop*1000 + $i*10 + 2, 2, REPEAT('z', 1000));
+    eval INSERT INTO t1 VALUES ($loop*1000 + $i*10 + 3, 3, REPEAT('#', 1000));
+    inc $i;
+  }
+  COMMIT;
+#  CREATE TABLE t2 (a INT PRIMARY KEY, b INT) ENGINE=InnoDB;
+  eval INSERT INTO t1 VALUES ($loop*1000 + 5, 5, 'zyxxy');
+#  INSERT INTO t2 VALUES (1, 0);
+  eval INSERT INTO t1 VALUES ($loop*1000 + 6, 6, 'the quick brown fox');
+#  DROP TABLE t2;
+  inc $loop;
+}
+--enable_query_log
+
+# Crash the master
+--write_file $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
+wait-recovery.test
+EOF
+
+SELECT COUNT(*) FROM t1;
+SET SESSION debug_dbug="+d,crash_dispatch_command_before";
+--error 2006,2013
+SELECT 1;
+--source include/wait_until_disconnected.inc
+--connection master1
+--source include/wait_until_disconnected.inc
+--connection server_1
+--source include/wait_until_disconnected.inc
+--connection default
+--source include/wait_until_disconnected.inc
+
+--connection master
+--append_file $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
+restart
+EOF
+--let $rpl_server_number= 1
+--source include/rpl_reconnect.inc
+
+# After the crash, transactions can be lost and the table row count
+# may be smaller than before the crash.
+--let $master_count= `SELECT COUNT(*) FROM t1`
+SET STATEMENT gtid_domain_id= 1 FOR INSERT INTO t1 VALUES (9, 9, 'extra');
+--source include/save_master_gtid.inc
+
+--connection slave
+--source include/sync_with_master_gtid.inc
+# The slave should have the same amount of rows as the master (ie. not have
+# any extra transactions that were lost on the master by the crash).
+--let $slave_count= `SELECT COUNT(*) FROM t1`
+--let $assert_text= Row count should match on master and slave (no extra rows on slave)
+--let $assert_cond= $master_count + 1 = $slave_count
+--source include/rpl_assert.inc
+
+--connection master
+--disable_query_log
+eval SET GLOBAL innodb_flush_log_at_trx_commit= $old_flatc;
+--enable_query_log
+DROP TABLE t1;
+--source include/rpl_end.inc

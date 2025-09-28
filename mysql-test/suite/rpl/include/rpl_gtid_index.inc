@@ -81,12 +81,14 @@ SET server_id= @orig_server_id;
 
 SELECT COUNT(*) FROM gtid_data;
 
-# Test that BINLOG_GTID_POS returns correct positions for every GTID position.
---echo *** The result should be empty, otherwise some result is wrong:
-SELECT idx, gtid_pos, BINLOG_GTID_POS(file, pos)
-  FROM gtid_data
- WHERE NOT gtid_eq(CONVERT(gtid_pos USING utf8),BINLOG_GTID_POS(file, pos)) 
- ORDER BY idx;
+if ($binlog_in_engine_test != '1') {
+   # Test that BINLOG_GTID_POS returns correct positions for every GTID position.
+   --echo *** The result should be empty, otherwise some result is wrong:
+   SELECT idx, gtid_pos, BINLOG_GTID_POS(file, pos)
+     FROM gtid_data
+    WHERE NOT gtid_eq(CONVERT(gtid_pos USING utf8),BINLOG_GTID_POS(file, pos)) 
+    ORDER BY idx;
+}
 
 # Prepare to rewind the slave to this point to test again on same binlog.
 --connection slave
@@ -107,7 +109,7 @@ while ($i < $NUM_POS) {
   --disable_result_log
   eval START SLAVE UNTIL master_gtid_pos='$gtid_pos';
   --enable_result_log
-  --let $res= `SELECT MASTER_GTID_WAIT('$gtid_pos')`
+  --let $res= `SELECT MASTER_GTID_WAIT('$gtid_pos', 60)`
   if ($res != 0) {
     --die "FAIL: MASTER_GTID_WAIT($gtid_pos) returned $res, should have been 0"
   }
@@ -152,7 +154,7 @@ while ($i <= $NUM_DOMAIN) {
   --disable_result_log
   eval START SLAVE UNTIL master_gtid_pos='$until_pos';
   --enable_result_log
-  --let $res= `SELECT MASTER_GTID_WAIT('$until_pos')`
+  --let $res= `SELECT MASTER_GTID_WAIT('$until_pos', 60)`
   if ($res != 0) {
     --die "FAIL: MASTER_GTID_WAIT($until_pos) returned $res, should have been 0"
   }
