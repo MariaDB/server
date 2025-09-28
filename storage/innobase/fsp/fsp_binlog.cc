@@ -309,6 +309,26 @@ fsp_binlog_page_fifo::release_page_mtr(fsp_binlog_page_entry *page, mtr_t *mtr)
 }
 
 
+/* Check if there are any (complete) non-flushed pages in a tablespace. */
+bool
+fsp_binlog_page_fifo::has_unflushed(uint64_t file_no)
+{
+  mysql_mutex_assert_owner(&m_mutex);
+  if (UNIV_UNLIKELY(file_no < first_file_no))
+    return false;
+  if (UNIV_UNLIKELY(file_no > first_file_no + 1))
+    return false;
+  const page_list *pl= &fifos[file_no & 1];
+  if (pl->used_entries == 0)
+    return false;
+  if (!pl->entries[pl->first_entry]->complete)
+    return false;
+  ut_ad(!pl->entries[pl->first_entry]->flushed_clean
+        /* Clean and complete page should have been freed */);
+  return true;
+}
+
+
 /**
   Flush (write to disk) the first unflushed page in a file.
   Returns true when the last page has been flushed.
@@ -319,7 +339,7 @@ fsp_binlog_page_fifo::release_page_mtr(fsp_binlog_page_entry *page, mtr_t *mtr)
   Otherwise such page will not be written out. Any final, incomplete page
   is left in the FIFO in any case.
 */
-bool
+void
 fsp_binlog_page_fifo::flush_one_page(uint64_t file_no, bool force)
 {
   page_list *pl;
@@ -337,16 +357,16 @@ fsp_binlog_page_fifo::flush_one_page(uint64_t file_no, bool force)
       flushed the page ahead of us.
     */
     if (file_no < first_file_no)
-      return true;
+      return;
     /* Guard against simultaneous RESET MASTER. */
     if (file_no > first_file_no + 1)
-      return true;
+      return;
 
     if (!flushing)
     {
       pl= &fifos[file_no & 1];
       if (pl->used_entries == 0)
-        return true;
+        return;
       e= pl->entries[pl->first_entry];
       if (e->latched == 0)
         break;
@@ -402,11 +422,11 @@ fsp_binlog_page_fifo::flush_one_page(uint64_t file_no, bool force)
               pl->entries[pl->first_entry] != e)
           {
             /* Someone else flushed the page for us. */
-            return true;
+            return;
           }
           /* Guard against simultaneous RESET MASTER. */
           if (file_no > first_file_no + 1)
-            return true;
+            return;
           if (e->latched == 0)
             break;
           if (force)
@@ -437,15 +457,10 @@ fsp_binlog_page_fifo::flush_one_page(uint64_t file_no, bool force)
   */
   ut_ad(flushing);
   ut_ad(pl->used_entries >= 1);
-  bool done= (pl->used_entries == 1);
   if (is_complete)
     release_entry(file_no, page_no);
-  else
-    done= true;  /* Cannot flush past final incomplete page. */
-
   flushing= false;
   pthread_cond_broadcast(&m_cond);
-  return done;
 }
 
 
@@ -455,19 +470,30 @@ fsp_binlog_page_fifo::flush_up_to(uint64_t file_no, uint32_t page_no)
   mysql_mutex_lock(&m_mutex);
   for (;;)
   {
+    const page_list *pl= &fifos[file_no & 1];
     if (file_no < first_file_no ||
-        (file_no == first_file_no && fifos[file_no & 1].first_page_no > page_no))
+        (file_no == first_file_no && pl->first_page_no > page_no))
       break;
     /* Guard against simultaneous RESET MASTER. */
     if (file_no > first_file_no + 1)
       break;
+    /*
+      The flush is complete if there are no pages left, or if there is just
+      one incomplete page left that is fully flushed so far.
+    */
+    if (pl->used_entries == 0 ||
+        (pl->used_entries == 1 && !pl->entries[pl->first_entry]->complete &&
+         pl->entries[pl->first_entry]->flushed_clean))
+      break;
     uint64_t file_no_to_flush= file_no;
     /* Flush the prior file to completion first. */
     if (file_no == first_file_no + 1 && fifos[(file_no - 1) & 1].used_entries)
+    {
       file_no_to_flush= file_no - 1;
-    bool done= flush_one_page(file_no_to_flush, true);
-    if (done && file_no == file_no_to_flush)
-      break;
+      pl= &fifos[file_no_to_flush & 1];
+      ut_ad(pl->entries[pl->first_entry]->complete);
+    }
+    flush_one_page(file_no_to_flush, true);
   }
   /* Will release the mutex and free any excess page buffers. */
   unlock_with_delayed_free();
@@ -757,14 +783,12 @@ fsp_binlog_page_fifo::flush_thread_run()
     bool all_flushed= true;
     if (first_file_no != ~(uint64_t)0)
     {
-      all_flushed= flush_one_page(file_no, false);
-      /*
-        flush_one_page() can release the m_mutex temporarily, so do an
-        extra check against first_file_no to guard against a RESET MASTER
-        running in parallel.
-      */
-      if (all_flushed && file_no <= first_file_no)
-        all_flushed= flush_one_page(file_no + 1, false);
+      if (has_unflushed(file_no))
+        flush_one_page(file_no, false);
+      else if (has_unflushed(file_no + 1))
+        flush_one_page(file_no + 1, false);
+      else
+        all_flushed= 1;
     }
     if (all_flushed && !flush_thread_end)
       my_cond_wait(&m_cond, &m_mutex.m_mutex);

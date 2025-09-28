@@ -257,7 +257,8 @@ public:
   fsp_binlog_page_entry *get_page(uint64_t file_no, uint32_t page_no);
   void release_page(fsp_binlog_page_entry *page);
   void release_page_mtr(fsp_binlog_page_entry *page, mtr_t *mtr);
-  bool flush_one_page(uint64_t file_no, bool force);
+  bool has_unflushed(uint64_t file_no);
+  void flush_one_page(uint64_t file_no, bool force);
   void flush_up_to(uint64_t file_no, uint32_t page_no);
   void do_fdatasync(uint64_t file_no);
   File get_fh(uint64_t file_no);
