@@ -6507,8 +6507,6 @@ DROP TABLE t1, t2;
 --echo # MDEV-23291: SUM column from a derived table returns invalid values
 --echo #
 
-#Enable ps2 protocol after fix MDEV-31175
---disable_ps2_protocol
 CREATE TABLE t1(a INT, b INT);
 INSERT INTO t1 VALUES (1,1), (2,2);
 
@@ -6520,7 +6518,6 @@ SELECT sum(z) FROM v1;
 
 DROP TABLE t1;
 DROP VIEW v1;
---enable_ps2_protocol
 
 --echo #
 --echo # MDEV-26299: Some views force server (and mysqldump) to generate

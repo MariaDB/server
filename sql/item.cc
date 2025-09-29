@@ -5987,22 +5987,49 @@ Item_field::fix_outer_field(THD *thd, Field **from_field, Item **reference)
               select->group_list.elements &&
               (place == SELECT_LIST || place == IN_HAVING))
           {
-            Item_outer_ref *rf;
             /*
-              If an outer field is resolved in a grouping select then it
-              is replaced for an Item_outer_ref object. Otherwise an
-              Item_field object is used.
-              The new Item_outer_ref object is saved in the inner_refs_list of
-              the outer select. Here it is only created. It can be fixed only
-              after the original field has been fixed and this is done in the
-              fix_inner_refs() function.
-            */
-            ;
-            if (!(rf= new (thd->mem_root) Item_outer_ref(thd, context, this)))
-              return -1;
-            thd->change_item_tree(reference, rf);
-            select->inner_refs_list.push_back(rf, thd->mem_root);
-            rf->in_sum_func= thd->lex->in_sum_func;
+              This Item_field represents a reference to a column in some
+              outer select. Wrap this Item_field item into an Item_outer_ref
+              object if we are at the first execution of the query or at
+              processing the prepare command for it. Make this wrapping
+              permanent for the first query execution so that it could be used
+              for next executions of the query.
+              Add the wrapper item to the list st_select_lex::inner_refs_list
+              of the select against which this Item_field has been resolved.
+           */
+            Query_arena::enum_state ps_state= thd->stmt_arena->state;
+            if (ps_state != Query_arena::STMT_EXECUTED)
+            {
+              Query_arena *arena= 0, backup;
+              Item_outer_ref *rf;
+              bool is_first_execution=
+                                    (ps_state != Query_arena::STMT_INITIALIZED);
+              if (is_first_execution &&
+                                    (ps_state != Query_arena::STMT_INITIALIZED))
+                arena= thd->activate_stmt_arena_if_needed(&backup);
+              /*
+                If an outer field is resolved in a grouping select then it
+                is replaced for an Item_outer_ref object. Otherwise an
+                Item_field object is used.
+                The new Item_outer_ref object is saved in the inner_refs_list of
+                the outer select. Here it is only created. It can be fixed only
+                after the original field has been fixed and this is done in the
+                fix_inner_refs() function.
+              */
+              if ((rf= new (thd->mem_root) Item_outer_ref(thd, context, this)))
+             {
+                select->inner_refs_list.push_back(rf, thd->mem_root);
+                if (is_first_execution)
+                  *reference= rf;
+                else
+                  thd->change_item_tree(reference, rf);
+              }
+              if (arena)
+                thd->restore_active_arena(arena, &backup);
+              if (!rf)
+                return -1;
+              rf->in_sum_func= thd->lex->in_sum_func;
+            }
           }
           /*
             A reference is resolved to a nest level that's outer or the same as
@@ -6103,7 +6130,7 @@ Item_field::fix_outer_field(THD *thd, Field **from_field, Item **reference)
   else if (ref != not_found_item)
   {
     Item *save;
-    Item_ref *rf;
+    Item_ref *rf= 0;
 
     /* Should have been checked in resolve_ref_in_select_and_group(). */
     DBUG_ASSERT(*ref && (*ref)->fixed());
@@ -6115,35 +6142,64 @@ Item_field::fix_outer_field(THD *thd, Field **from_field, Item **reference)
     */
     save= *ref;
     *ref= NULL;                             // Don't call set_properties()
-    rf= (place == IN_HAVING ?
-         new (thd->mem_root)
-         Item_ref(thd, context, ref, table_name,
-                  field_name, alias_name_used) :
-         (!select->group_list.elements ?
-         new (thd->mem_root)
-          Item_direct_ref(thd, context, ref, table_name,
-                          field_name, alias_name_used) :
-         new (thd->mem_root)
-          Item_outer_ref(thd, context, ref, table_name,
-                         field_name, alias_name_used)));
-    *ref= save;
-    if (!rf)
-      return -1;
 
-    if (place != IN_HAVING && select->group_list.elements)
-    {
-      outer_context->select_lex->inner_refs_list.push_back((Item_outer_ref*)rf,
-                                                           thd->mem_root);
-      ((Item_outer_ref*)rf)->in_sum_func= thd->lex->in_sum_func;
-    }
-    thd->change_item_tree(reference, rf);
     /*
-      rf is Item_ref => never substitute other items (in this case)
-      during fix_fields() => we can use rf after fix_fields()
+      This Item_field represents a reference to a column in some outer select.
+      Wrap this Item_field item into an object of the Item_ref class or a class
+      derived from Item_ref we are at the first execution of the query or at
+      processing the prepare command for it. Make this wrapping permanent for
+      the first query execution so that it could be used for next executions
+      of the query. The type of the wrapper depends on the place where this
+      item field occurs or on type of the query. If it is in the the having clause
+      we use a wrapper of the Item_ref type. Otherwise we use a wrapper either
+      of Item_direct_ref type or of Item_outer_ref. The latter is used for
+      grouping queries. Such a wrapper is always added to the list inner_refs_list
+      for the select against which the outer reference has been resolved.
     */
-    DBUG_ASSERT(!rf->fixed());                // Assured by Item_ref()
-    if (rf->fix_fields(thd, reference) || rf->check_cols(1))
-      return -1;
+    if (thd->stmt_arena->state != Query_arena::STMT_EXECUTED)
+    {
+      Query_arena *arena= 0, backup;
+      bool is_first_execution= thd->is_first_query_execution();
+      if (is_first_execution &&
+          !thd->stmt_arena->is_conventional())
+        arena= thd->activate_stmt_arena_if_needed(&backup);
+      rf= (place == IN_HAVING ?
+           new (thd->mem_root)
+           Item_ref(thd, context, ref, table_name,
+                    field_name, alias_name_used) :
+           (!select->group_list.elements ?
+           new (thd->mem_root)
+            Item_direct_ref(thd, context, ref, table_name,
+                            field_name, alias_name_used) :
+           new (thd->mem_root)
+            Item_outer_ref(thd, context, ref, table_name,
+                           field_name, alias_name_used)));
+      *ref= save;
+      if (rf)
+      {
+        if (place != IN_HAVING && select->group_list.elements)
+        {
+          outer_context->select_lex->inner_refs_list.push_back(
+                                     (Item_outer_ref*)rf, thd->mem_root);
+          ((Item_outer_ref*)rf)->in_sum_func= thd->lex->in_sum_func;
+        }
+        if (is_first_execution)
+          *reference= rf;
+        else
+          thd->change_item_tree(reference, rf);
+      }
+      if (arena)
+        thd->restore_active_arena(arena, &backup);
+      if (!rf)
+        return -1;
+      /*
+        rf is Item_ref => never substitute other items (in this case)
+        during fix_fields() => we can use rf after fix_fields()
+      */
+      DBUG_ASSERT(!rf->fixed());                // Assured by Item_ref()
+      if (rf->fix_fields(thd, reference) || rf->check_cols(1))
+        return -1;
+    }
 
     /*
       We can not "move" aggregate function in the place where
@@ -6168,22 +6224,42 @@ Item_field::fix_outer_field(THD *thd, Field **from_field, Item **reference)
                       this, (Item_ident*)*reference, false);
     if (last_checked_context->select_lex->having_fix_field)
     {
-      Item_ref *rf;
-      rf= new (thd->mem_root) Item_ref(thd, context,
-                                       (*from_field)->table->s->db,
-                                       Lex_cstring_strlen((*from_field)->
-                                                          table->alias.c_ptr()),
-                                       field_name);
-      if (!rf)
-        return -1;
-      thd->change_item_tree(reference, rf);
-      /*
-        rf is Item_ref => never substitute other items (in this case)
-        during fix_fields() => we can use rf after fix_fields()
+      /*                                                                                                                                                                                                         │
+        This Item_field represents a reference to a column in having clause                                                                                                                                      │
+        of some outer select. Wrap this Item_field item into an Item_ref object                                                                                                                                  │
+        if we are at the first execution of the query or at processing the                                                                                                                                       │
+        prepare command for it. Make this wrapping permanent for the first query                                                                                                                                 │
+        execution so that it could be used for next executions of the query.                                                                                                                                     │
       */
-      DBUG_ASSERT(!rf->fixed());                // Assured by Item_ref()
-      if (rf->fix_fields(thd, reference) || rf->check_cols(1))
-        return -1;
+      Item_ref *rf;
+      if (thd->stmt_arena->state != Query_arena::STMT_EXECUTED)
+      {
+        Query_arena *arena= 0, backup;
+        bool is_first_execution= thd->is_first_query_execution();
+        if (is_first_execution && !thd->stmt_arena->is_conventional())
+          arena= thd->activate_stmt_arena_if_needed(&backup);
+        if ((rf= new (thd->mem_root) Item_ref(thd, context,
+                                         (*from_field)->table->s->db,
+                                         Lex_cstring_strlen((*from_field)->
+                                                          table->alias.c_ptr()),
+                                         field_name)))
+        {
+          if (is_first_execution)
+            *reference= rf;
+          else
+            thd->change_item_tree(reference, rf);
+        }
+        thd->restore_active_arena(arena, &backup);
+        if (!rf)
+          return -1;
+        /*
+          rf is Item_ref => never substitute other items (in this case)
+          during fix_fields() => we can use rf after fix_fields()
+        */
+        DBUG_ASSERT(!rf->fixed());                // Assured by Item_ref()
+        if (rf->fix_fields(thd, reference) || rf->check_cols(1))
+          return -1;
+      }
       return 0;
     }
   }
@@ -8510,6 +8586,14 @@ bool Item_ref::fix_fields(THD *thd, Item **reference)
                     "forward reference in item list"));
     goto error;
   }
+
+  /*
+   We need fix_fields() for the second execution when on the first execution
+   Item_outer_ref was used.
+   Populate (*ref)->field before we call Item_direct_ref::fix_fields()
+  */
+  if ((*ref)->fix_fields_if_needed(thd, reference))
+    goto error;
 
   set_properties();
 
