@@ -57,22 +57,6 @@ SET @@global.new_mode = OFF;
 ERROR 42000: Variable 'new_mode' can't be set to the value of 'OFF'
 SET @@session.new_mode = OFF;
 ERROR 42000: Variable 'new_mode' can't be set to the value of 'OFF'
-SET @debug_dbug_safe = @@global.debug_dbug;
-SET @@global.debug_dbug = 'd,check_new_mode_mdev_37784';
-create table t1 (a int);
-insert into t1 values (1), (2);
-create table t2 (b int);
-insert into t2 values (3), (4);
-select * from t1 where a in (select b from t2);
-a
-SET @@new_mode = "FIX_DISK_TMPTABLE_COSTS";
-select * from t1 where a in (select b from t2);
-a
-Warnings:
-Note	1003	YES
-Note	1003	YES
-drop table t1, t2;
-SET @@global.debug_dbug = @debug_dbug_safe;
 SET @@global.new_mode = @global_start_value;
 SELECT @@global.new_mode;
 @@global.new_mode

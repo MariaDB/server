@@ -2767,15 +2767,6 @@ get_tmp_table_costs(THD *thd, double row_count, uint row_size, bool blobs_used,
   row_size+= sizeof(char*)*2;
   row_size= MY_ALIGN(MY_MAX(row_size, sizeof(char*)) + 1, sizeof(char*));
 
-  /*  remove this once TEST_NEW_MODE_FLAG is used elsewhere */
-  DBUG_EXECUTE_IF("check_new_mode_mdev_37784",
-  {
-    if (TEST_NEW_MODE_FLAG(thd, NEW_MODE_FIX_DISK_TMPTABLE_COSTS))
-    {
-      push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE, ER_YES, "YES" );
-    }
-  });
-
   if (row_count > thd->variables.max_heap_table_size / (double) row_size ||
       blobs_used)
   {
@@ -2783,12 +2774,27 @@ get_tmp_table_costs(THD *thd, double row_count, uint row_size, bool blobs_used,
                            tmp_table_optimizer_costs.row_copy_cost :
                            0);
     /* Disk based table */
-    cost.lookup=          ((tmp_table_optimizer_costs.key_lookup_cost *
+    if (TEST_NEW_MODE_FLAG(thd, NEW_MODE_FIX_DISK_TMPTABLE_COSTS))
+    {
+      cost.lookup=         ((tmp_table_optimizer_costs.key_lookup_cost +
+                             tmp_table_optimizer_costs.disk_read_cost *
+                             tmp_table_optimizer_costs.disk_read_ratio) +
+                           row_copy_cost);
+    }
+    else
+    {
+      cost.lookup=         ((tmp_table_optimizer_costs.key_lookup_cost *
                             tmp_table_optimizer_costs.disk_read_ratio) +
                            row_copy_cost);
+    }
+    /*
+      Don't have numbers for cost of writing, assume it's the same as cost
+      of reading for lack of a better number.
+    */
     cost.write=           cost.lookup;
     cost.create=          DISK_TEMPTABLE_CREATE_COST;
     cost.block_size=      DISK_TEMPTABLE_BLOCK_SIZE;
+    /* The following costs are only used for table scans */
     cost.avg_io_cost=     tmp_table_optimizer_costs.disk_read_cost;
     cost.cache_hit_ratio= tmp_table_optimizer_costs.disk_read_ratio;
   }
