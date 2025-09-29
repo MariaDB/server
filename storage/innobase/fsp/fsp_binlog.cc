@@ -1765,6 +1765,12 @@ binlog_chunk_reader::fetch_current_page()
     uint64_t active= active2;
     uint64_t end_offset=
       limit_offset[s.file_no & 3].load(std::memory_order_acquire);
+    /*
+      Can be different from end_offset if limit_offset is the
+      binlog_cur_durable_offset.
+    */
+    uint64_t real_end_offset=
+      binlog_cur_end_offset[s.file_no & 3].load(std::memory_order_acquire);
     if (s.file_no > active || UNIV_UNLIKELY(active == ~(uint64_t)0)
         || UNIV_UNLIKELY(s.file_no > stop_file_no))
     {
@@ -1797,6 +1803,15 @@ binlog_chunk_reader::fetch_current_page()
         ut_ad(!block);
         if (s.file_no == active) {
           /* Reached end of the currently active binlog file -> EOF. */
+          return CHUNK_READER_EOF;
+        }
+        ut_ad(s.file_no + 1 == active);
+        if (offset < real_end_offset)
+        {
+          /*
+            Reached durable limit of active-1 _and_ not at the end of the
+            file where we should move to the next one.
+          */
           return CHUNK_READER_EOF;
         }
       }
