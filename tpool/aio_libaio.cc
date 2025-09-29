@@ -14,6 +14,7 @@ along with this program; if not, write to the Free Software
 Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111 - 1301 USA*/
 
 #include "tpool.h"
+#include "my_valgrind.h"
 #include <thread>
 #include <sys/syscall.h>
 #include <libaio.h>
@@ -139,6 +140,10 @@ class aio_libaio final : public aio
 #endif
             iocb->m_ret_len= event.res;
             iocb->m_err= 0;
+#if __has_feature(memory_sanitizer) || defined HAVE_valgrind
+            if (iocb->m_opcode == aio_opcode::AIO_PREAD)
+              MEM_MAKE_DEFINED(iocb->m_buffer, iocb->m_ret_len);
+#endif
             finish_synchronous(iocb);
           }
           iocb->m_internal_task.m_func= iocb->m_callback;
@@ -196,7 +201,8 @@ aio *create_libaio(thread_pool *pool, int max_io)
   memset(&ctx, 0, sizeof ctx);
   if (int ret= io_setup(max_io, &ctx))
   {
-    fprintf(stderr, "io_setup(%d) returned %d\n", max_io, ret);
+    fprintf(stderr, "Warning: io_setup(%d) returned %s. See man 2 io_setup.\n",
+            max_io, strerror(ret));
     return nullptr;
   }
   return new aio_libaio(ctx, pool);

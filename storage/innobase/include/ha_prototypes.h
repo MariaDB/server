@@ -113,17 +113,6 @@ innobase_convert_name(
 	ulint		idlen,	/*!< in: length of id, in bytes */
 	THD*		thd);	/*!< in: MySQL connection thread, or NULL */
 
-/******************************************************************//**
-Returns true if the transaction this thread is processing has edited
-non-transactional tables. Used by the deadlock detector when deciding
-which transaction to rollback in case of a deadlock - we try to avoid
-rolling back transactions that have edited non-transactional tables.
-@return true if non-transactional tables have been edited */
-ibool
-thd_has_edited_nontrans_tables(
-/*===========================*/
-	THD*	thd);	/*!< in: thread handle */
-
 /*************************************************************//**
 Prints info of a THD object (== user session thread) to the given file. */
 void
@@ -176,8 +165,6 @@ ulint wsrep_innobase_mysql_sort(int mysql_type, uint charset_number,
                              ulint buf_length);
 #endif /* WITH_WSREP */
 
-extern "C" struct charset_info_st *thd_charset(THD *thd);
-
 /** Get high resolution timestamp for the current query start time.
 The timestamp is not anchored to any specific point in time,
 but can be used for comparison.
@@ -227,23 +214,6 @@ thd_lock_wait_timeout(
 /*==================*/
 	THD*	thd);	/*!< in: thread handle, or NULL to query
 			the global innodb_lock_wait_timeout */
-
-/******************************************************************//**
-Returns true if transaction should be flagged as read-only.
-@return true if the thd is marked as read-only */
-bool
-thd_trx_is_read_only(
-/*=================*/
-	THD*	thd);	/*!< in/out: thread handle */
-
-/******************************************************************//**
-Check if the transaction is an auto-commit transaction. TRUE also
-implies that it is a SELECT (read-only) transaction.
-@return true if the transaction is an auto commit read-only transaction. */
-ibool
-thd_trx_is_auto_commit(
-/*===================*/
-	THD*	thd);	/*!< in: thread handle, or NULL */
 
 /*****************************************************************//**
 A wrapper function of innobase_convert_name(), convert a table name

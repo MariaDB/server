@@ -25,6 +25,7 @@ Data dictionary system
 Created 1/8/1996 Heikki Tuuri
 ***********************************************************************/
 
+#define MYSQL_SERVER
 #include <my_config.h>
 #include <string>
 
@@ -38,7 +39,6 @@ Created 1/8/1996 Heikki Tuuri
 #include <algorithm>
 #include "sql_class.h"
 #include "sql_table.h"
-#include <mysql/service_thd_mdl.h>
 
 #include "btr0btr.h"
 #include "btr0cur.h"
@@ -518,10 +518,8 @@ dict_index_get_nth_field_pos(
 
 void mdl_release(THD *thd, MDL_ticket *mdl) noexcept
 {
-  if (!thd || !mdl);
-  else if (MDL_context *mdl_context= static_cast<MDL_context*>
-           (thd_mdl_context(thd)))
-    mdl_context->release_lock(mdl);
+  if (thd && mdl)
+    thd->mdl_context.release_lock(mdl);
 }
 
 /** Parse the table file name into table name and database name.
@@ -781,7 +779,6 @@ dict_acquire_mdl_shared(dict_table_t *table,
   if (!table || !mdl)
     return table;
 
-  MDL_context *mdl_context= static_cast<MDL_context*>(thd_mdl_context(thd));
   size_t db_len;
 
   if (trylock)
@@ -799,9 +796,7 @@ dict_acquire_mdl_shared(dict_table_t *table,
   if (db_len == 0)
     return table; /* InnoDB system tables are not covered by MDL */
 
-  return mdl_context
-    ? dict_acquire_mdl_shared<trylock>(table, mdl_context, mdl, table_op)
-    : nullptr;
+  return dict_acquire_mdl_shared<trylock>(table, &thd->mdl_context, mdl, table_op);
 }
 
 template dict_table_t* dict_acquire_mdl_shared<false>
@@ -1094,9 +1089,7 @@ bool dict_stats::open(THD *thd) noexcept
   ut_ad(!index_stats);
   ut_ad(!mdl_context);
 
-  mdl_context= static_cast<MDL_context*>(thd_mdl_context(thd));
-  if (!mdl_context)
-    return true;
+  mdl_context= &thd->mdl_context;
   /* FIXME: use compatible type, and maybe remove this parameter altogether! */
   const double timeout= double(global_system_variables.lock_wait_timeout);
   MDL_request request;
@@ -1212,10 +1205,12 @@ inline void dict_sys_t::add(dict_table_t *table) noexcept
   ut_ad(dict_lru_validate());
 }
 
+#ifdef BTR_CUR_HASH_ADAPT
+TRANSACTIONAL_TARGET
+#endif
 /** Test whether a table can be evicted from dict_sys.table_LRU.
 @param table   table to be considered for eviction
 @return whether the table can be evicted */
-TRANSACTIONAL_TARGET
 static bool dict_table_can_be_evicted(dict_table_t *table)
 {
 	ut_ad(dict_sys.locked());
@@ -2059,9 +2054,11 @@ dict_index_add_to_cache(
 	return DB_SUCCESS;
 }
 
+#ifdef BTR_CUR_HASH_ADAPT
+TRANSACTIONAL_TARGET
+#endif
 /**********************************************************************//**
 Removes an index from the dictionary cache. */
-TRANSACTIONAL_TARGET
 static
 void
 dict_index_remove_from_cache_low(
@@ -3394,7 +3391,7 @@ dict_foreign_parse_drop_constraints(
 
 	ut_a(trx->mysql_thd);
 
-	cs = thd_charset(trx->mysql_thd);
+	cs = trx->mysql_thd->charset();
 
 	*n = 0;
 

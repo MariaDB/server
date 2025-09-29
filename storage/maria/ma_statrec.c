@@ -53,7 +53,7 @@ my_bool _ma_write_static_record(MARIA_HA *info, const uchar *record)
       return(2);
 
     if (info->opt_flag & WRITE_CACHE_USED)
-    {				/* Cash in use */
+    {				/* Cache in use */
       if (my_b_write(&info->rec_cache, record,
 		     info->s->base.reclength))
 	goto err;

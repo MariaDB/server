@@ -1,14 +1,6 @@
 --- replace.result
 +++ replace.reject
-@@ -75,7 +75,6 @@
- replace into t1 (pk,i) values (1,10),(1,100),(1,1000);
- select pk, i, check_row(row_start, row_end) from t1 for system_time all;
- pk	i	check_row(row_start, row_end)
--1	10	ERROR: row_end == row_start
- 1	1000	CURRENT ROW
- drop table t1;
- create or replace table t1 (
-@@ -94,7 +93,6 @@
+@@ -122,7 +122,6 @@
  commit;
  select pk, i, check_row(row_start, row_end) from t1 for system_time all;
  pk	i	check_row(row_start, row_end)
@@ -16,7 +8,7 @@
  1	300	CURRENT ROW
  drop table t1;
  # In this case there'll be no unique constraint on a historical row.
-@@ -114,8 +112,6 @@
+@@ -142,8 +141,6 @@
  commit;
  select pk, i, check_row(row_start, row_end) from t1 for system_time all;
  pk	i	check_row(row_start, row_end)
@@ -24,3 +16,4 @@
 -1	30	ERROR: row_end == row_start
  1	300	CURRENT ROW
  drop table t1;
+ #

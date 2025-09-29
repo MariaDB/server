@@ -24,6 +24,7 @@ Database object creation
 Created 1/8/1996 Heikki Tuuri
 *******************************************************/
 
+#define MYSQL_SERVER
 #include "dict0crea.h"
 #include "btr0pcur.h"
 #ifdef BTR_CUR_HASH_ADAPT
@@ -45,7 +46,7 @@ Created 1/8/1996 Heikki Tuuri
 #include "fts0priv.h"
 #include "srv0start.h"
 #include "log.h"
-#include "ha_innodb.h"
+#include "sql_class.h"
 
 /*****************************************************************//**
 Based on a table object, this function builds the entry to be inserted
@@ -1754,7 +1755,7 @@ dict_create_add_foreigns_to_dictionary(
     return DB_ERROR;
   }
 
-  bool strict_mode = thd_is_strict_mode(trx->mysql_thd);
+  bool strict_mode = trx->mysql_thd->is_strict_mode();
   for (auto fk : local_fk_set)
     if (strict_mode && !fk->check_fk_constraint_valid())
       return DB_CANNOT_ADD_CONSTRAINT;

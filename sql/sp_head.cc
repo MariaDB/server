@@ -1438,6 +1438,9 @@ sp_head::execute(THD *thd, bool merge_da_on_success)
   DBUG_ASSERT(thd->Item_change_list::is_empty());
   old_change_list.move_elements_to(thd);
   thd->lex= old_lex;
+  DBUG_PRINT("info", ("sp_head::execute: query_id restore: old_query_id=%lld, query_id=%lld, query=%.*s",
+                         old_query_id,
+                         thd->query_id, thd->query_length(), thd->query()));
   thd->set_query_id(old_query_id);
   thd->set_query_inner(old_query);
   DBUG_ASSERT(!thd->derived_tables);
@@ -3542,7 +3545,8 @@ sp_head::merge_table_list(THD *thd, TABLE_LIST *table, LEX *lex_for_tmp_check)
   }
 
   for (; table ; table= table->next_global)
-    if (!table->derived && !table->schema_table && !table->table_function)
+    if (!table->derived && !table->schema_table && !table->table_function &&
+        table->lock_type != TL_IGNORE)
     {
       /*
         Structure of key for the multi-set is "db\0table\0alias\0".

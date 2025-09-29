@@ -129,6 +129,7 @@ bool Update_plan::save_explain_data_intern(THD *thd,
       (thd->variables.log_slow_verbosity &
        LOG_SLOW_VERBOSITY_ENGINE))
   {
+    explain->table_tracker.set_gap_tracker(&explain->extra_time_tracker);
     table->file->set_time_tracker(&explain->table_tracker);
 
     if (table->file->handler_stats && table->s->tmp_table != INTERNAL_TMP_TABLE)
@@ -506,7 +507,7 @@ bool Sql_cmd_delete::delete_from_single_table(THD *thd)
       not in safe mode (not using option --safe-mode)
     - There is no limit clause
     - The condition is constant
-    - If there is a condition, then it it produces a non-zero value
+    - If there is a condition, then it produces a non-zero value
     - If the current command is DELETE FROM with no where clause, then:
       - We should not be binlogging this statement in row-based, and
       - there should be no delete triggers associated with the table.
@@ -1680,7 +1681,7 @@ int multi_delete::rowid_table_deletes(TABLE *table, bool ignore)
       during ha_delete_row.
       Also, don't execute the AFTER trigger if the row operation failed.
     */
-    if (unlikely(!local_error))
+    if (likely(!local_error))
     {
       deleted++;
       if (table->triggers &&

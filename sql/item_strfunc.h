@@ -105,10 +105,12 @@ public:
    :Item_str_ascii_func(thd, a) { }
   Item_str_ascii_checksum_func(THD *thd, Item *a, Item *b)
    :Item_str_ascii_func(thd, a, b) { }
-  bool eq(const Item *item, bool binary_cmp) const override
+  bool eq(const Item *item, const Eq_config &config) const override
   {
     // Always use binary argument comparison: MD5('x') != MD5('X')
-    return Item_func::eq(item, true);
+    Eq_config new_config= config;
+    new_config.binary_cmp= true;
+    return Item_func::eq(item, new_config);
   }
 };
 
@@ -131,13 +133,15 @@ public:
    :Item_str_func(thd, a, b, c, d) { }
   Item_str_binary_checksum_func(THD *thd, Item *a, Item *b, Item *c, Item *d, Item *e)
    :Item_str_func(thd, a, b, c, d, e) { }
-  bool eq(const Item *item, bool binary_cmp) const override
+  bool eq(const Item *item, const Eq_config &config) const override
   {
     /*
       Always use binary argument comparison:
         FROM_BASE64('test') != FROM_BASE64('TEST')
     */
-    return Item_func::eq(item, true);
+    Eq_config new_config= config;
+    new_config.binary_cmp= true;
+    return Item_func::eq(item, new_config);
   }
 };
 
@@ -2017,7 +2021,7 @@ public:
     Item_str_func(thd, a), m_set_collation(set_collation) {}
   String *val_str(String *) override;
   bool fix_length_and_dec(THD *thd) override;
-  bool eq(const Item *item, bool binary_cmp) const override;
+  bool eq(const Item *item, const Eq_config &config) const override;
   LEX_CSTRING func_name_cstring() const override
   {
     static LEX_CSTRING name= {STRING_WITH_LEN("collate") };
@@ -2129,9 +2133,9 @@ public:
   }
   String *val_str(String *) override;
   bool fix_length_and_dec(THD *thd) override;
-  bool eq(const Item *item, bool binary_cmp) const override
+  bool eq(const Item *item, const Eq_config &config) const override
   {
-    if (!Item_str_func::eq(item, binary_cmp))
+    if (!Item_str_func::eq(item, config))
       return false;
     Item_func_weight_string *that= (Item_func_weight_string *)item;
     return this->weigth_flags == that->weigth_flags &&

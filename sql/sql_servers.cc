@@ -1045,7 +1045,7 @@ void merge_server_struct(FOREIGN_SERVER *from, FOREIGN_SERVER *to)
     0, then index_read_idx is called to read the index to that record, the
     record then being ready to be updated, if found. If not found an error is
     set and error message printed. If the record is found, store_record is
-    called, then store_server_fields stores each field from the the members of
+    called, then store_server_fields stores each field from the members of
     the updated FOREIGN_SERVER struct.
 
   RETURN VALUE

@@ -594,6 +594,11 @@ int maria_chk_key(HA_CHECK *param, register MARIA_HA *info)
     param->max_level=0;
     if (chk_index(param, info,keyinfo, &page, &keys, param->key_crc+key,1))
       DBUG_RETURN(-1);
+    if ((param->testflag & T_WRITE_LOOP) && param->verbose)
+    {
+      puts("                                        \r");
+      fflush(stdout);
+    }
     if (keyinfo->key_alg <= HA_KEY_ALG_BTREE)
     {
       if (keys != share->state.state.records)
@@ -695,7 +700,8 @@ do_stat:
       puts("");
   }
   if (param->key_file_blocks != share->state.state.key_file_length &&
-      share->state.key_map == ~(ulonglong) 0)
+      maria_is_all_keys_active(share->state.key_map, share->base.keys) &&
+      !full_text_keys)
     _ma_check_print_warning(param, "Some data are unreferenced in keyfile");
   if (found_keys != full_text_keys)
     param->record_checksum=old_record_checksum-init_checksum;	/* Remove delete links */
@@ -1088,6 +1094,15 @@ static int chk_index(HA_CHECK *param, MARIA_HA *info, MARIA_KEYDEF *keyinfo,
       goto err;
     }
     param->record_checksum+= (ha_checksum) record;
+    if ((param->testflag & T_WRITE_LOOP) && param->verbose &&
+        (*keys % WRITE_COUNT) == 0)
+    {
+      char llbuff[22];
+      ulonglong records= info->state->records;
+      printf("%15s (%3.4f%%)\r", llstr(*keys, llbuff),
+             ((double) *keys / (records > *keys ? records : *keys)) *100);
+      fflush(stdout);
+    }
   }
   if (keypos != endpos)
   {
@@ -5726,6 +5741,7 @@ static int sort_key_write(MARIA_SORT_PARAM *sort_param, const uchar *a)
   {
     _ma_check_print_error(param,
 			 "Internal error: Keys are not in order from sort");
+    DBUG_ASSERT(0);
     return(1);
   }
 #endif

@@ -175,7 +175,7 @@ public:
 
 private:
   /*
-     Intersect with a bitmap represented as as longlong.
+     Intersect with a bitmap represented as longlong.
      In addition, pad the rest of the bitmap with 0 or 1 bits
      depending on pad_with_ones parameter.
   */

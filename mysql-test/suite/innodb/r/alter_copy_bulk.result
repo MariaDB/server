@@ -113,3 +113,25 @@ SET innodb_lock_wait_timeout=default;
 DROP TABLE t1;
 DROP TABLE IF EXISTS t2;
 # restart
+#
+#  MDEV-37296 ALTER TABLE allows adding unique hash key
+#		with duplicate values
+#
+CREATE TABLE t (pk INT PRIMARY KEY, a INT, b TEXT) ENGINE=InnoDB;
+INSERT INTO t VALUES (5,3,'foo'), (1,NULL,'bar'), (3,3,'foo');
+ALTER TABLE t ADD UNIQUE (a,b);
+ERROR 23000: Duplicate entry '3-foo' for key 'a'
+SHOW CREATE TABLE t;
+Table	Create Table
+t	CREATE TABLE `t` (
+  `pk` int(11) NOT NULL,
+  `a` int(11) DEFAULT NULL,
+  `b` text DEFAULT NULL,
+  PRIMARY KEY (`pk`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+SELECT * FROM t;
+pk	a	b
+1	NULL	bar
+3	3	foo
+5	3	foo
+DROP TABLE t;

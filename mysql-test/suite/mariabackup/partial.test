@@ -14,7 +14,7 @@ echo # xtrabackup backup;
 
 let targetdir=$MYSQLTEST_VARDIR/tmp/backup;
 --disable_result_log
-exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf  --backup --parallel=10 "--tables=test.*1" --target-dir=$targetdir;
+exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf  --backup --parallel=10 "--tables=test.*1" --target-dir=$targetdir --innodb_log_checkpoint_now=1;
 --enable_result_log
 list_files $targetdir/test *.ibd;
 list_files $targetdir/test *.new;
@@ -96,6 +96,7 @@ exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --backup --tables-file
 --enable_result_log
 
 --echo # table t2 is skipped. Shows only t1
+--replace_result .new .ibd
 list_files $targetdir/test;
 DROP TABLE t2, t1;
 rmdir $targetdir;

@@ -24,6 +24,7 @@ Purge old versions
 Created 3/26/1996 Heikki Tuuri
 *******************************************************/
 
+#define MYSQL_SERVER
 #include "trx0purge.h"
 #include "fsp0fsp.h"
 #include "mach0data.h"
@@ -42,6 +43,7 @@ Created 3/26/1996 Heikki Tuuri
 #include <mysql/service_thd_mdl.h>
 #include <mysql/service_wsrep.h>
 #include "log.h"
+#include "sql_class.h"
 
 /** Maximum allowable purge history length.  <=0 means 'infinite'. */
 ulong		srv_max_purge_lag = 0;
@@ -135,28 +137,11 @@ void purge_sys_t::close()
 /** Determine if the history of a transaction is purgeable.
 @param trx_id  transaction identifier
 @return whether the history is purgeable */
-TRANSACTIONAL_TARGET bool purge_sys_t::is_purgeable(trx_id_t trx_id) const
+bool purge_sys_t::is_purgeable(trx_id_t trx_id) const noexcept
 {
-  bool purgeable;
-#if !defined SUX_LOCK_GENERIC && !defined NO_ELISION
-  purgeable= false;
-  if (xbegin())
-  {
-    if (!latch.is_write_locked())
-    {
-      purgeable= view.changes_visible(trx_id);
-      xend();
-    }
-    else
-      xabort();
-  }
-  else
-#endif
-  {
-    latch.rd_lock(SRW_LOCK_CALL);
-    purgeable= view.changes_visible(trx_id);
-    latch.rd_unlock();
-  }
+  latch.rd_lock(SRW_LOCK_CALL);
+  bool purgeable= view.changes_visible(trx_id);
+  latch.rd_unlock();
   return purgeable;
 }
 
@@ -629,7 +614,7 @@ function is called, the caller
 (purge_coordinator_callback or purge_truncation_callback)
 must not have any latches on undo log pages!
 */
-TRANSACTIONAL_TARGET void trx_purge_truncate_history()
+void trx_purge_truncate_history()
 {
   ut_ad(purge_sys.head <= purge_sys.tail);
   purge_sys_t::iterator &head= purge_sys.head.trx_no
@@ -1061,16 +1046,14 @@ static void trx_purge_close_tables(purge_node_t *node, THD *thd) noexcept
       table->release();
   }
 
-  MDL_context *mdl_context= static_cast<MDL_context*>(thd_mdl_context(thd));
-
   for (auto &t : node->tables)
   {
     dict_table_t *table= t.second.first;
     if (table != nullptr && table != reinterpret_cast<dict_table_t*>(-1))
     {
       t.second.first= reinterpret_cast<dict_table_t*>(-1);
-      if (mdl_context != nullptr && t.second.second != nullptr)
-        mdl_context->release_lock(t.second.second);
+      if (t.second.second != nullptr)
+        thd->mdl_context.release_lock(t.second.second);
     }
   }
 }
@@ -1175,8 +1158,7 @@ ATTRIBUTE_COLD
 dict_table_t *purge_sys_t::close_and_reopen(table_id_t id, THD *thd,
                                             MDL_ticket **mdl)
 {
-  MDL_context *mdl_context= static_cast<MDL_context*>(thd_mdl_context(thd));
-  ut_ad(mdl_context);
+  MDL_context *mdl_context= &thd->mdl_context;
  retry:
   ut_ad(m_active);
 
@@ -1234,10 +1216,6 @@ static purge_sys_t::iterator trx_purge_attach_undo_recs(THD *thd,
     table_id_map(TRX_PURGE_TABLE_BUCKETS);
   purge_sys.m_active= true;
 
-  MDL_context *const mdl_context=
-    static_cast<MDL_context*>(thd_mdl_context(thd));
-  ut_ad(mdl_context);
-
   while (UNIV_LIKELY(srv_undo_sources) || !srv_fast_shutdown)
   {
     /* Track the max {trx_id, undo_no} for truncating the
@@ -1265,7 +1243,7 @@ static purge_sys_t::iterator trx_purge_attach_undo_recs(THD *thd,
     if (!table_node)
     {
       std::pair<dict_table_t *, MDL_ticket *> p;
-      p.first= trx_purge_table_open(table_id, mdl_context, &p.second);
+      p.first= trx_purge_table_open(table_id, &thd->mdl_context, &p.second);
       if (p.first == reinterpret_cast<dict_table_t *>(-1))
         p.first= purge_sys.close_and_reopen(table_id, thd, &p.second);
 
@@ -1338,7 +1316,6 @@ static void trx_purge_wait_for_workers_to_complete()
   ut_ad(srv_get_task_queue_length() == 0);
 }
 
-TRANSACTIONAL_INLINE
 void purge_sys_t::batch_cleanup(const purge_sys_t::iterator &head)
 {
   m_active= false;
@@ -1355,17 +1332,11 @@ void purge_sys_t::batch_cleanup(const purge_sys_t::iterator &head)
 
   /* Limit the end_view similar to what trx_purge_truncate_history() does. */
   const trx_id_t trx_no= head.trx_no ? head.trx_no : tail.trx_no;
-#ifdef SUX_LOCK_GENERIC
   end_latch.wr_lock();
-#else
-  transactional_lock_guard<srw_spin_lock_low> g(end_latch);
-#endif
   this->head= head;
   end_view= view;
   end_view.clamp_low_limit_id(trx_no);
-#ifdef SUX_LOCK_GENERIC
   end_latch.wr_unlock();
-#endif
 }
 
 /**
@@ -1373,7 +1344,7 @@ Run a purge batch.
 @param n_tasks       number of purge tasks to submit to the queue
 @param history_size  trx_sys.history_size()
 @return number of undo log pages handled in the batch */
-TRANSACTIONAL_TARGET ulint trx_purge(ulint n_tasks, ulint history_size)
+ulint trx_purge(ulint n_tasks, ulint history_size)
 {
   ut_ad(n_tasks > 0);
 

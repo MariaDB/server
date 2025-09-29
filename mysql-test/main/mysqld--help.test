@@ -40,7 +40,7 @@ perl;
               test-sql-discovery query-cache-info password-reuse-check
               query-response-time metadata-lock-info locales unix-socket
               wsrep file-key-management cracklib-password-check user-variables
-              provider-bzip2 provider-lzma provider-lzo
+              provider-bzip2 provider-lzma provider-lzo caching-sha2-password
               thread-pool-groups thread-pool-queues thread-pool-stats
               thread-pool-waits hashicorp provider gssapi parsec/;
 

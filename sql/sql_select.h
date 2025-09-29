@@ -284,7 +284,7 @@ typedef struct st_join_table {
   st_join_table *first_inner;   /**< first inner table for including outerjoin */
   bool           found;         /**< true after all matches or null complement */
   bool           not_null_compl;/**< true before null complement is added      */
-  st_join_table *last_inner;    /**< last table table for embedding outer join */
+  st_join_table *last_inner;    /**< last table for embedding outer join */
   st_join_table *first_upper;  /**< first inner table for embedding outer join */
   st_join_table *first_unmatched; /**< used for optimization purposes only     */
 
@@ -1823,7 +1823,7 @@ public:
     memcpy(dest, src, src_arr.size() * src_arr.element_size());
   }
 
-  /// Overwrites 'ref_ptrs' and remembers the the source as 'current'.
+  /// Overwrites 'ref_ptrs' and remembers the source as 'current'.
   void set_items_ref_array(Ref_ptr_array src_arr)
   {
     copy_ref_ptr_array(ref_ptrs, src_arr);

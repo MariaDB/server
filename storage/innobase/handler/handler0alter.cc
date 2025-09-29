@@ -22,12 +22,13 @@ this program; if not, write to the Free Software Foundation, Inc.,
 Smart ALTER TABLE
 *******************************************************/
 
+#define MYSQL_SERVER
 /* Include necessary SQL headers */
 #include "univ.i"
 #include <debug_sync.h>
 #include <log.h>
-#include <sql_lex.h>
 #include <sql_class.h>
+#include <sql_lex.h>
 #include <sql_table.h>
 #include <mysql/plugin.h>
 #include <strfunc.h>
@@ -3232,7 +3233,7 @@ innobase_get_foreign_key_info(
 	char*		referenced_table_name = NULL;
 	ulint		num_fk = 0;
 	Alter_info*	alter_info = ha_alter_info->alter_info;
-	const CHARSET_INFO*	cs = thd_charset(trx->mysql_thd);
+	const CHARSET_INFO*	cs = trx->mysql_thd->charset();
 	char db_name[MAX_DATABASE_NAME_LEN + 1];
 	char t_name[MAX_TABLE_NAME_LEN + 1];
 	static_assert(MAX_TABLE_NAME_LEN == MAX_DATABASE_NAME_LEN, "");
@@ -6688,7 +6689,7 @@ acquire_lock:
 		if (innobase_check_foreigns(
 			    ha_alter_info, old_table,
 			    user_table, ctx->drop_fk, ctx->num_to_drop_fk,
-			    thd_is_strict_mode(ctx->trx->mysql_thd))) {
+			    ctx->trx->mysql_thd->is_strict_mode())) {
 new_clustered_failed:
 			DBUG_ASSERT(ctx->trx != ctx->prebuilt->trx);
 			ctx->trx->rollback();
@@ -8606,7 +8607,7 @@ field_changed:
 					heap, indexed_table,
 					col_names, ULINT_UNDEFINED, 0, 0,
 					(ha_alter_info->ignore
-					 || !thd_is_strict_mode(m_user_thd)),
+					 || !m_user_thd->is_strict_mode()),
 					alt_opt.page_compressed,
 					alt_opt.page_compression_level);
 			ha_alter_info->handler_ctx = ctx;
@@ -8762,7 +8763,7 @@ found_col:
 		add_autoinc_col_no,
 		ha_alter_info->create_info->auto_increment_value,
 		autoinc_col_max_value,
-		ha_alter_info->ignore || !thd_is_strict_mode(m_user_thd),
+		ha_alter_info->ignore || !m_user_thd->is_strict_mode(),
 		alt_opt.page_compressed, alt_opt.page_compression_level);
 
 	if (!prepare_inplace_alter_table_dict(
@@ -11183,7 +11184,7 @@ Remove statistics for dropped indexes, add statistics for created indexes
 and rename statistics for renamed indexes.
 @param ha_alter_info Data used during in-place alter
 @param ctx In-place ALTER TABLE context
-@param thd MySQL connection
+@param thd alter table thread
 */
 static
 void
@@ -11210,46 +11211,6 @@ alter_stats_norebuild(
 		if (!(index->type & DICT_FTS)) {
 			dict_stats_update_for_index(index);
 		}
-	}
-
-	DBUG_VOID_RETURN;
-}
-
-/** Adjust the persistent statistics after rebuilding ALTER TABLE.
-Remove statistics for dropped indexes, add statistics for created indexes
-and rename statistics for renamed indexes.
-@param table InnoDB table that was rebuilt by ALTER TABLE
-@param table_name Table name in MySQL
-@param thd MySQL connection
-*/
-static
-void
-alter_stats_rebuild(
-/*================*/
-	dict_table_t*	table,
-	const char*	table_name,
-	THD*		thd)
-{
-	DBUG_ENTER("alter_stats_rebuild");
-
-	if (!table->space || !table->stats_is_persistent()
-	    || dict_stats_persistent_storage_check(false) != SCHEMA_OK) {
-		DBUG_VOID_RETURN;
-	}
-
-	dberr_t	ret = dict_stats_update_persistent(table);
-	if (ret == DB_SUCCESS) {
-		ret = dict_stats_save(table);
-	}
-
-	if (ret != DB_SUCCESS) {
-		push_warning_printf(
-			thd,
-			Sql_condition::WARN_LEVEL_WARN,
-			ER_ALTER_INFO,
-			"Error updating stats for table '%s'"
-			" after table rebuild: %s",
-			table_name, ut_strerr(ret));
 	}
 
 	DBUG_VOID_RETURN;
@@ -11925,9 +11886,7 @@ foreign_fail:
 				(*pctx);
 			DBUG_ASSERT(ctx->need_rebuild());
 
-			alter_stats_rebuild(
-				ctx->new_table, table->s->table_name.str,
-				m_user_thd);
+			alter_stats_rebuild(ctx->new_table, m_user_thd);
 		}
 	} else {
 		for (inplace_alter_handler_ctx** pctx = ctx_array;

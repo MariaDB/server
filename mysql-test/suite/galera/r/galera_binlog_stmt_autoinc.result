@@ -198,7 +198,7 @@ wsrep_auto_increment_control	ON
 SET GLOBAL wsrep_auto_increment_control='OFF';
 show variables like '%auto_increment%';
 Variable_name	Value
-auto_increment_increment	1
+auto_increment_increment	2
 auto_increment_offset	2
 wsrep_auto_increment_control	OFF
 SET GLOBAL wsrep_auto_increment_control='ON';

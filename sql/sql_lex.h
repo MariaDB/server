@@ -3262,7 +3262,7 @@ public:
     at parse time to set local name resolution contexts for various parts
     of a query. For example, in a JOIN ... ON (some_condition) clause the
     Items in 'some_condition' must be resolved only against the operands
-    of the the join, and not against the whole clause. Similarly, Items in
+    of the join, and not against the whole clause. Similarly, Items in
     subqueries should be resolved against the subqueries (and outer queries).
     The stack is used in the following way: when the parser detects that
     all Items in some clause need a local context, it creates a new context

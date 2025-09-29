@@ -25,6 +25,7 @@ Created 5/7/1996 Heikki Tuuri
 *******************************************************/
 
 #define LOCK_MODULE_IMPLEMENTATION
+#define MYSQL_SERVER
 
 #include "univ.i"
 
@@ -1076,7 +1077,7 @@ lock_rec_other_has_expl_req(
 #endif /* UNIV_DEBUG */
 
 #ifdef WITH_WSREP
-void lock_wait_wsrep_kill(trx_t *bf_trx, ulong thd_id, trx_id_t trx_id);
+void lock_wait_wsrep_kill(trx_t *bf_trx, my_thread_id thd_id, trx_id_t trx_id);
 
 #ifdef UNIV_DEBUG
 void wsrep_report_error(const lock_t* victim_lock, const trx_t *bf_trx)
@@ -1188,13 +1189,13 @@ func_exit:
   if (victims.empty())
     goto func_exit;
 
-  std::vector<std::pair<ulong,trx_id_t>> victim_id;
+  std::vector<std::pair<my_thread_id,trx_id_t>> victim_id;
   for (trx_t *v : victims)
   {
     /* Victim must have THD */
     ut_ad(v->mysql_thd);
-    victim_id.emplace_back(std::pair<ulong,trx_id_t>
-                           {thd_get_thread_id(v->mysql_thd), v->id});
+    victim_id.emplace_back(std::pair<my_thread_id,trx_id_t>
+                           {v->mysql_thd->thread_id, v->id});
   }
 
   DBUG_EXECUTE_IF("sync.before_wsrep_thd_abort",
@@ -2791,7 +2792,6 @@ lock_rec_inherit_to_gap_if_gap_lock(
 /*************************************************************//**
 Moves the locks of a record to another record and resets the lock bits of
 the donating record. */
-TRANSACTIONAL_TARGET
 static
 void
 lock_rec_move(
@@ -3034,7 +3034,6 @@ lock_move_reorganize_page(
 /*************************************************************//**
 Moves the explicit locks on user records to another page if a record
 list end is moved to another page. */
-TRANSACTIONAL_TARGET
 void
 lock_move_rec_list_end(
 /*===================*/
@@ -3168,7 +3167,6 @@ lock_move_rec_list_end(
 /*************************************************************//**
 Moves the explicit locks on user records to another page if a record
 list start is moved to another page. */
-TRANSACTIONAL_TARGET
 void
 lock_move_rec_list_start(
 /*=====================*/
@@ -3291,7 +3289,6 @@ lock_move_rec_list_start(
 /*************************************************************//**
 Moves the explicit locks on user records to another page if a record
 list start is moved to another page. */
-TRANSACTIONAL_TARGET
 void
 lock_rtr_move_rec_list(
 /*===================*/
@@ -4325,9 +4322,7 @@ run_again:
 @return error code */
 dberr_t lock_table_children(dict_table_t *table, trx_t *trx)
 {
-  MDL_context *mdl_context=
-    static_cast<MDL_context*>(thd_mdl_context(trx->mysql_thd));
-  ut_ad(mdl_context);
+  MDL_context *mdl_context= &trx->mysql_thd->mdl_context;
   struct table_mdl{dict_table_t* table; MDL_ticket *mdl;};
   std::vector<table_mdl> children;
   children.emplace_back(table_mdl{table, nullptr});
@@ -4522,7 +4517,7 @@ released:
 /** Release the explicit locks of a committing transaction,
 and release possible other transactions waiting because of these locks.
 @return whether the operation succeeded */
-TRANSACTIONAL_TARGET static bool lock_release_try(trx_t *trx)
+static bool lock_release_try(trx_t *trx)
 {
   /* At this point, trx->lock.trx_locks cannot be modified by other
   threads, because our transaction has been committed.
@@ -5311,7 +5306,6 @@ http://bugs.mysql.com/36942 */
 /*********************************************************************//**
 Calculates the number of record lock structs in the record lock hash table.
 @return number of record locks */
-TRANSACTIONAL_TARGET
 static ulint lock_get_n_rec_locks()
 {
   ulint n_locks= 0;
@@ -5629,8 +5623,10 @@ func_exit:
 		? lock_clust_rec_some_has_impl(rec, index, offsets)
 		: 0;
 
-	if (trx_t *impl_trx = impl_trx_id
-	    ? trx_sys.find(current_trx(), impl_trx_id, false)
+	trx_t *trx= current_trx();
+
+	if (trx_t *impl_trx = impl_trx_id > (trx ? trx->max_inactive_id : 0)
+	    ? trx_sys.find(trx, impl_trx_id, false)
 	    : 0) {
 		/* impl_trx could have been committed before we
 		acquire its mutex, but not thereafter. */
@@ -5938,7 +5934,6 @@ be suspended for some reason; if not, then puts the transaction and
 the query thread to the lock wait state and inserts a waiting request
 for a gap x-lock to the lock queue.
 @return DB_SUCCESS, DB_LOCK_WAIT, or DB_DEADLOCK */
-TRANSACTIONAL_TARGET
 dberr_t
 lock_rec_insert_check_and_lock(
 /*===========================*/
@@ -6215,7 +6210,7 @@ lock_rec_convert_impl_to_expl(
 
 		trx_id = lock_clust_rec_some_has_impl(rec, index, offsets);
 
-		if (trx_id == 0) {
+		if (trx_id <= caller_trx->max_inactive_id) {
 			return nullptr;
 		}
 		if (UNIV_UNLIKELY(trx_id == caller_trx->id)) {
@@ -7072,6 +7067,11 @@ bool lock_trx_has_expl_x_lock(const trx_t &trx, const dict_table_t &table,
 
 namespace Deadlock
 {
+  static bool thd_has_edited_nontrans_tables(const THD *thd)
+  {
+    return thd->transaction->all.modified_non_trans_table;
+  }
+
   /** rewind(3) the file used for storing the latest detected deadlock and
   print a heading message to stderr if printing of all deadlocks to stderr
   is enabled. */

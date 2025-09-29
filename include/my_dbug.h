@@ -24,7 +24,7 @@
 #ifdef  __cplusplus
 extern "C" {
 #endif
-#if !defined(DBUG_OFF) && !defined(_lint)
+#if !defined(DBUG_OFF)
 
 struct _db_stack_frame_ {
   const char *func;      /* function name of the previous stack frame       */
@@ -206,7 +206,7 @@ extern void (*my_dbug_assert_failed)(const char *assert_expr, const char* file, 
 #define DBUG_ASSERT(A)                  do { } while(0)
 #define IF_DBUG_ASSERT(A,B)             B
 #endif /* DBUG_ASSERT_AS_PRINTF */
-#endif /* !defined(DBUG_OFF) && !defined(_lint) */
+#endif /* !defined(DBUG_OFF) */
 
 #ifdef EXTRA_DEBUG
 /**

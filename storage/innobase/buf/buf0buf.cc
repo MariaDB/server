@@ -1803,6 +1803,7 @@ ATTRIBUTE_COLD buf_pool_t::shrink_status buf_pool_t::shrink(size_t size)
     /* relocate page_hash */
     ut_ad(b == page_hash.get(id, chain));
     page_hash.replace(chain, b, &block->page);
+    b->id_.set_corrupted();
 
     if (b->zip.data)
     {
@@ -2623,11 +2624,12 @@ buf_block_t *buf_pool_t::page_fix(const page_id_t id,
   }
 }
 
-TRANSACTIONAL_TARGET
 uint32_t buf_pool_t::page_guess(buf_block_t *b, page_hash_latch &latch,
                                 const page_id_t id) noexcept
 {
-  transactional_shared_lock_guard<page_hash_latch> g{latch};
+  /* On at least two Intel Xeon of different generation, it turns out
+  that transactional_shared_lock_guard would perform worse here. */
+  latch.lock_shared();
 #ifndef HAVE_UNACCESSIBLE_AFTER_MEM_DECOMMIT
   /* shrunk() and my_virtual_mem_decommit() could retain the original
   contents of the virtual memory range or zero it out immediately or
@@ -2639,8 +2641,13 @@ uint32_t buf_pool_t::page_guess(buf_block_t *b, page_hash_latch &latch,
 #else
   /* shrunk() made the memory inaccessible. */
   if (UNIV_UNLIKELY(reinterpret_cast<char*>(b) >= memory + size_in_bytes))
+  {
+    latch.unlock_shared();
     return 0;
+  }
 #endif
+  /* This synchronizes with buf_page_t::init() */
+  uint32_t state{b->page.zip.fix.load(std::memory_order_acquire)};
   const page_id_t block_id{b->page.id()};
 #ifndef HAVE_UNACCESSIBLE_AFTER_MEM_DECOMMIT
   /* shrunk() may have invoked MEM_UNDEFINED() on this memory to be able
@@ -2650,7 +2657,6 @@ uint32_t buf_pool_t::page_guess(buf_block_t *b, page_hash_latch &latch,
 
   if (id == block_id)
   {
-    uint32_t state= b->page.state();
 #ifndef HAVE_UNACCESSIBLE_AFTER_MEM_DECOMMIT
     /* shrunk() may have invoked MEM_UNDEFINED() on this memory to be able
     to catch any unintended access elsewhere in our code. */
@@ -2660,10 +2666,15 @@ uint32_t buf_pool_t::page_guess(buf_block_t *b, page_hash_latch &latch,
     avoid a race condition by looking up the block via page_hash. */
     if ((state >= buf_page_t::FREED && state < buf_page_t::READ_FIX) ||
         state >= buf_page_t::WRITE_FIX)
-      return b->page.fix();
+      state= b->page.fix();
+    else
+      state= 0;
     ut_ad(b->page.frame);
   }
-  return 0;
+  else
+    state= 0;
+  latch.unlock_shared();
+  return state;
 }
 
 /** Low level function used to get access to a database page.
@@ -2677,7 +2688,6 @@ or BUF_PEEK_IF_IN_POOL
 @param[out]	err			DB_SUCCESS or error code
 @return pointer to the block
 @retval nullptr	if the block is corrupted or unavailable */
-TRANSACTIONAL_TARGET
 buf_block_t*
 buf_page_get_gen(
 	const page_id_t		page_id,
@@ -3063,15 +3073,51 @@ void buf_block_t::initialise(const page_id_t page_id, ulint zip_size,
   page_zip_set_size(&page.zip, zip_size);
 }
 
-TRANSACTIONAL_TARGET
+void
+buf_pool_t::page_hash_table::append(buf_pool_t::hash_chain &chain,
+                                    buf_page_t *bpage) noexcept
+{
+  mysql_mutex_assert_owner(&buf_pool.mutex);
+  ut_ad(buf_pool.page_hash.lock_get(chain).is_locked());
+  ut_ad(!bpage->in_page_hash);
+  ut_ad(!bpage->hash);
+  ut_d(bpage->in_page_hash= true);
+  buf_page_t **prev= &chain.first;
+  while (*prev)
+  {
+    ut_ad((*prev)->in_page_hash);
+    prev= &(*prev)->hash;
+  }
+  *prev= bpage;
+}
+
+inline void
+buf_pool_t::page_hash_table::replace(buf_pool_t::hash_chain &chain,
+                                     buf_page_t *old,
+                                     buf_page_t *bpage) noexcept
+{
+  mysql_mutex_assert_owner(&buf_pool.mutex);
+
+  ut_ad(old->in_page_hash);
+  ut_ad(bpage->in_page_hash);
+  ut_d(old->in_page_hash= false);
+  ut_ad(bpage->hash == old->hash);
+  old->hash= nullptr;
+  buf_page_t **prev= &chain.first;
+  while (*prev != old)
+  {
+    ut_ad((*prev)->in_page_hash);
+    prev= &(*prev)->hash;
+  }
+  *prev= bpage;
+}
+
 static buf_block_t *buf_page_create_low(page_id_t page_id, ulint zip_size,
                                         mtr_t *mtr, buf_block_t *free_block)
   noexcept
 {
   ut_ad(mtr->is_active());
   ut_ad(page_id.space() != 0 || !zip_size);
-
-  free_block->initialise(page_id, zip_size, buf_page_t::MEMORY);
 
   buf_pool_t::hash_chain &chain= buf_pool.page_hash.cell_get(page_id.fold());
 retry:
@@ -3206,16 +3252,19 @@ retry:
   bpage= &free_block->page;
 
   ut_ad(bpage->state() == buf_page_t::MEMORY);
-  bpage->lock.x_lock();
+
+  {
+    page_hash_latch &hash_lock= buf_pool.page_hash.lock_get(chain);
+    hash_lock.lock();
+    reinterpret_cast<buf_block_t*>(bpage)->
+      initialise(page_id, zip_size, buf_page_t::REINIT + 1);
+    bpage->lock.x_lock();
+    buf_pool.page_hash.append(chain, bpage);
+    hash_lock.unlock();
+  }
 
   /* The block must be put to the LRU list */
   buf_LRU_add_block(bpage, false);
-  {
-    transactional_lock_guard<page_hash_latch> g
-      {buf_pool.page_hash.lock_get(chain)};
-    bpage->set_state(buf_page_t::REINIT + 1);
-    buf_pool.page_hash.append(chain, bpage);
-  }
 
   if (UNIV_UNLIKELY(zip_size))
   {

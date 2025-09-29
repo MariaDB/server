@@ -791,7 +791,7 @@ static int collect_tables(LEX_STRING *str, LSN checkpoint_start_log_horizon)
     MARIA_SHARE *share= info->s;
     /* the first three variables below can never change */
     if (share->base.born_transactional && !share->temporary &&
-        share->mode != O_RDONLY &&
+        (share->index_mode != O_RDONLY && share->data_mode != O_RDONLY) &&
         !(share->in_checkpoint & MARIA_CHECKPOINT_SEEN_IN_LOOP))
     {
       /*
@@ -983,7 +983,7 @@ static int collect_tables(LEX_STRING *str, LSN checkpoint_start_log_horizon)
       Tables in a normal state have their two file descriptors open.
       In some rare cases like REPAIR, some descriptor may be closed or even
       -1. If that happened, the _ma_state_info_write() may fail. This is
-      prevented by enclosing all all places which close/change kfile.file with
+      prevented by enclosing all places which close/change kfile.file with
       intern_lock.
     */
     kfile= share->kfile;

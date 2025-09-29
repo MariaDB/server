@@ -9,5 +9,6 @@ mariabackup,^
 roles,^
 auth_gssapi,^
 query_response_time,^
+mysql_sha2,^
 rocksdb,^
 sysschema

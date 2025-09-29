@@ -399,21 +399,19 @@ bool Table::copy(ds_ctxt_t *ds, bool is_index, unsigned thread_num) {
 
 		for (ulonglong block= 0 ; ; block++) {
 			size_t length = m_cap.block_size;
-			if (is_index) {
-				if ((error= aria_read_index(
-							partition.m_index_file, &m_cap, block, copy_buffer) ==
-							HA_ERR_END_OF_FILE))
-					break;
-			} else {
-				if ((error= aria_read_data(
-							partition.m_data_file, &m_cap, block, copy_buffer, &length) ==
-							HA_ERR_END_OF_FILE))
-					break;
-			}
-			if (error) {
-				msg(thread_num, "error: aria_read %s failed:  %d",
-					is_index ? "index" : "data", error);
-				goto err;
+			if (is_index)
+                          error= aria_read_index(partition.m_index_file, &m_cap,
+                                                       block, copy_buffer);
+                        else
+                          error= aria_read_data(partition.m_data_file, &m_cap,
+                                                block, copy_buffer, &length);
+			if (error)
+                        {
+                          if (error == HA_ERR_END_OF_FILE)
+                            break;
+                          msg(thread_num, "error: aria_read %s failed:  %d",
+                              is_index ? "index" : "data", error);
+                          goto err;
 			}
 			xtrabackup_io_throttling();
 			if ((error = ds_write(dst_file, copy_buffer, length))) {

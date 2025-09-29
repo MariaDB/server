@@ -2113,6 +2113,9 @@ Adjust thread count for key rotation
 @param[in]	enw_cnt		Number of threads to be used */
 void fil_crypt_set_thread_cnt(const uint new_cnt)
 {
+	if (srv_read_only_mode)
+		return;
+
 	if (!fil_crypt_threads_inited) {
 		if (srv_shutdown_state != SRV_SHUTDOWN_NONE)
 			return;
@@ -2266,6 +2269,8 @@ void fil_crypt_set_encrypt_tables(ulong val)
 Init threads for key rotation */
 void fil_crypt_threads_init()
 {
+	ut_ad(!srv_read_only_mode);
+
 	if (!fil_crypt_threads_inited) {
 		pthread_cond_init(&fil_crypt_cond, nullptr);
 		pthread_cond_init(&fil_crypt_threads_cond, nullptr);

@@ -160,7 +160,7 @@ int calc_weekday(long daynr,bool sunday_first_day_of_week)
       		   	  If set	Monday is first day of week
    WEEK_YEAR (1)	  If not set	Week is in range 0-53
 
-   	Week 0 is returned for the the last week of the previous year (for
+   	Week 0 is returned for the last week of the previous year (for
 	a date at start of january) In this case one can get 53 for the
 	first week of next year.  This flag ensures that the week is
 	relevant for the given year. Note that this flag is only
