@@ -137,28 +137,11 @@ void purge_sys_t::close()
 /** Determine if the history of a transaction is purgeable.
 @param trx_id  transaction identifier
 @return whether the history is purgeable */
-TRANSACTIONAL_TARGET bool purge_sys_t::is_purgeable(trx_id_t trx_id) const
+bool purge_sys_t::is_purgeable(trx_id_t trx_id) const noexcept
 {
-  bool purgeable;
-#if !defined SUX_LOCK_GENERIC && !defined NO_ELISION
-  purgeable= false;
-  if (xbegin())
-  {
-    if (!latch.is_write_locked())
-    {
-      purgeable= view.changes_visible(trx_id);
-      xend();
-    }
-    else
-      xabort();
-  }
-  else
-#endif
-  {
-    latch.rd_lock(SRW_LOCK_CALL);
-    purgeable= view.changes_visible(trx_id);
-    latch.rd_unlock();
-  }
+  latch.rd_lock(SRW_LOCK_CALL);
+  bool purgeable= view.changes_visible(trx_id);
+  latch.rd_unlock();
   return purgeable;
 }
 
@@ -631,7 +614,7 @@ function is called, the caller
 (purge_coordinator_callback or purge_truncation_callback)
 must not have any latches on undo log pages!
 */
-TRANSACTIONAL_TARGET void trx_purge_truncate_history()
+void trx_purge_truncate_history()
 {
   ut_ad(purge_sys.head <= purge_sys.tail);
   purge_sys_t::iterator &head= purge_sys.head.trx_no
@@ -1333,7 +1316,6 @@ static void trx_purge_wait_for_workers_to_complete()
   ut_ad(srv_get_task_queue_length() == 0);
 }
 
-TRANSACTIONAL_INLINE
 void purge_sys_t::batch_cleanup(const purge_sys_t::iterator &head)
 {
   m_active= false;
@@ -1350,17 +1332,11 @@ void purge_sys_t::batch_cleanup(const purge_sys_t::iterator &head)
 
   /* Limit the end_view similar to what trx_purge_truncate_history() does. */
   const trx_id_t trx_no= head.trx_no ? head.trx_no : tail.trx_no;
-#ifdef SUX_LOCK_GENERIC
   end_latch.wr_lock();
-#else
-  transactional_lock_guard<srw_spin_lock_low> g(end_latch);
-#endif
   this->head= head;
   end_view= view;
   end_view.clamp_low_limit_id(trx_no);
-#ifdef SUX_LOCK_GENERIC
   end_latch.wr_unlock();
-#endif
 }
 
 /**
@@ -1368,7 +1344,7 @@ Run a purge batch.
 @param n_tasks       number of purge tasks to submit to the queue
 @param history_size  trx_sys.history_size()
 @return number of undo log pages handled in the batch */
-TRANSACTIONAL_TARGET ulint trx_purge(ulint n_tasks, ulint history_size)
+ulint trx_purge(ulint n_tasks, ulint history_size)
 {
   ut_ad(n_tasks > 0);
 

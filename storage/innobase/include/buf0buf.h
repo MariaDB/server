@@ -586,7 +586,7 @@ public:
     ut_ad(state < REMOVE_HASH || state >= UNFIXED);
     ut_ad(!lock.is_locked_or_waiting());
     id_= id;
-    zip.fix= state;
+    zip.fix.store(state, std::memory_order_release);
     oldest_modification_= 0;
     ut_d(in_free_list= false);
     ut_d(in_LRU_list= false);
@@ -1342,7 +1342,6 @@ public:
   @param id    page identifier
   @return b->page.fix() if b->page.id() == id
   @retval 0 if b is invalid */
-  TRANSACTIONAL_TARGET
   uint32_t page_guess(buf_block_t *b, page_hash_latch &latch,
                       const page_id_t id) noexcept;
 
@@ -1483,52 +1482,13 @@ public:
     { return array[calc_hash(fold, n_cells)]; }
 
     /** Append a block descriptor to a hash bucket chain. */
-    void append(hash_chain &chain, buf_page_t *bpage) noexcept
-    {
-      ut_ad(!bpage->in_page_hash);
-      ut_ad(!bpage->hash);
-      ut_d(bpage->in_page_hash= true);
-      buf_page_t **prev= &chain.first;
-      while (*prev)
-      {
-        ut_ad((*prev)->in_page_hash);
-        prev= &(*prev)->hash;
-      }
-      *prev= bpage;
-    }
+    void append(hash_chain &chain, buf_page_t *bpage) noexcept;
 
     /** Remove a block descriptor from a hash bucket chain. */
-    void remove(hash_chain &chain, buf_page_t *bpage) noexcept
-    {
-      ut_ad(bpage->in_page_hash);
-      buf_page_t **prev= &chain.first;
-      while (*prev != bpage)
-      {
-        ut_ad((*prev)->in_page_hash);
-        prev= &(*prev)->hash;
-      }
-      *prev= bpage->hash;
-      ut_d(bpage->in_page_hash= false);
-      bpage->hash= nullptr;
-    }
-
+    inline void remove(hash_chain &chain, buf_page_t *bpage) noexcept;
     /** Replace a block descriptor with another. */
-    void replace(hash_chain &chain, buf_page_t *old, buf_page_t *bpage)
-      noexcept
-    {
-      ut_ad(old->in_page_hash);
-      ut_ad(bpage->in_page_hash);
-      ut_d(old->in_page_hash= false);
-      ut_ad(bpage->hash == old->hash);
-      old->hash= nullptr;
-      buf_page_t **prev= &chain.first;
-      while (*prev != old)
-      {
-        ut_ad((*prev)->in_page_hash);
-        prev= &(*prev)->hash;
-      }
-      *prev= bpage;
-    }
+    inline void replace(hash_chain &chain, buf_page_t *old, buf_page_t *bpage)
+      noexcept;
 
     /** Look up a page in a hash bucket chain. */
     inline buf_page_t *get(const page_id_t id, const hash_chain &chain) const

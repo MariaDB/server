@@ -2792,7 +2792,6 @@ lock_rec_inherit_to_gap_if_gap_lock(
 /*************************************************************//**
 Moves the locks of a record to another record and resets the lock bits of
 the donating record. */
-TRANSACTIONAL_TARGET
 static
 void
 lock_rec_move(
@@ -3035,7 +3034,6 @@ lock_move_reorganize_page(
 /*************************************************************//**
 Moves the explicit locks on user records to another page if a record
 list end is moved to another page. */
-TRANSACTIONAL_TARGET
 void
 lock_move_rec_list_end(
 /*===================*/
@@ -3169,7 +3167,6 @@ lock_move_rec_list_end(
 /*************************************************************//**
 Moves the explicit locks on user records to another page if a record
 list start is moved to another page. */
-TRANSACTIONAL_TARGET
 void
 lock_move_rec_list_start(
 /*=====================*/
@@ -3292,7 +3289,6 @@ lock_move_rec_list_start(
 /*************************************************************//**
 Moves the explicit locks on user records to another page if a record
 list start is moved to another page. */
-TRANSACTIONAL_TARGET
 void
 lock_rtr_move_rec_list(
 /*===================*/
@@ -4521,7 +4517,7 @@ released:
 /** Release the explicit locks of a committing transaction,
 and release possible other transactions waiting because of these locks.
 @return whether the operation succeeded */
-TRANSACTIONAL_TARGET static bool lock_release_try(trx_t *trx)
+static bool lock_release_try(trx_t *trx)
 {
   /* At this point, trx->lock.trx_locks cannot be modified by other
   threads, because our transaction has been committed.
@@ -5310,7 +5306,6 @@ http://bugs.mysql.com/36942 */
 /*********************************************************************//**
 Calculates the number of record lock structs in the record lock hash table.
 @return number of record locks */
-TRANSACTIONAL_TARGET
 static ulint lock_get_n_rec_locks()
 {
   ulint n_locks= 0;
@@ -5939,7 +5934,6 @@ be suspended for some reason; if not, then puts the transaction and
 the query thread to the lock wait state and inserts a waiting request
 for a gap x-lock to the lock queue.
 @return DB_SUCCESS, DB_LOCK_WAIT, or DB_DEADLOCK */
-TRANSACTIONAL_TARGET
 dberr_t
 lock_rec_insert_check_and_lock(
 /*===========================*/
