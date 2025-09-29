@@ -114,3 +114,38 @@ explain select count(*) from test.t1 force index (l_suppkey) where l_suppkey >= 
 drop table t1;
 
 set global InnoDB.optimizer_disk_read_ratio=@save;
+
+--echo #
+--echo # MDEV-37723 In MDEV-36861, analyze Q4
+--echo # Alter disk based tmp table lookup cost formula
+--echo #
+
+create table t1 (a int primary key,
+                 b date, c char(15),
+                 d blob,
+                 key t1_ix1 (b)) ENGINE= InnoDB;
+create table t2 (e int not null,
+                 f int not null,
+                 g date, h date,
+                 primary key (e, f)) ENGINE= InnoDB;
+--disable_warnings
+insert into t1 select seq, date('1993-06-01') + interval seq second,
+  chr(65+mod(seq, 4)), NULL from seq_1_to_7000;
+insert into t2 select a.seq, b.seq, date('1993-06-01') + interval b.seq day,
+  if (mod(a.seq,2), date('1993-06-01') + interval b.seq+1 day,
+    date('1993-06-01') - interval b.seq-1 day)
+  from seq_1_to_7000 a, seq_1_to_3 b;
+
+set @@max_heap_table_size=16384;
+explain format=json select c, count(*) as dc
+  from t1
+  where b >= date '1993-06-01'
+    and b < date '1993-06-01' + interval '3' month
+    and exists
+    (
+      select * from t2 where e = a and g < h
+    )
+  group by c
+  order by c;
+
+drop table t1, t2;
