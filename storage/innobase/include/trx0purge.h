@@ -369,7 +369,7 @@ public:
   /** Determine if the history of a transaction is purgeable.
   @param trx_id  transaction identifier
   @return whether the history is purgeable */
-  TRANSACTIONAL_TARGET bool is_purgeable(trx_id_t trx_id) const;
+  bool is_purgeable(trx_id_t trx_id) const noexcept;
 
   /** A wrapper around ReadView::low_limit_no(). */
   trx_id_t low_limit_no() const

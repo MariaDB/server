@@ -1745,7 +1745,6 @@ or on a page infimum record.
                   above!
 @param mtr        mini-transaction
 @return DB_SUCCESS on success or error code otherwise */
-TRANSACTIONAL_TARGET
 dberr_t btr_cur_search_to_nth_level(ulint level,
                                     const dtuple_t *tuple,
                                     rw_lock_type_t rw_latch,

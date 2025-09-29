@@ -1205,10 +1205,12 @@ inline void dict_sys_t::add(dict_table_t *table) noexcept
   ut_ad(dict_lru_validate());
 }
 
+#ifdef BTR_CUR_HASH_ADAPT
+TRANSACTIONAL_TARGET
+#endif
 /** Test whether a table can be evicted from dict_sys.table_LRU.
 @param table   table to be considered for eviction
 @return whether the table can be evicted */
-TRANSACTIONAL_TARGET
 static bool dict_table_can_be_evicted(dict_table_t *table)
 {
 	ut_ad(dict_sys.locked());
@@ -2052,9 +2054,11 @@ dict_index_add_to_cache(
 	return DB_SUCCESS;
 }
 
+#ifdef BTR_CUR_HASH_ADAPT
+TRANSACTIONAL_TARGET
+#endif
 /**********************************************************************//**
 Removes an index from the dictionary cache. */
-TRANSACTIONAL_TARGET
 static
 void
 dict_index_remove_from_cache_low(

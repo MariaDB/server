@@ -72,22 +72,12 @@ and the lock released later.
 @param block      preallocated buffer block (set to nullptr if consumed)
 @return pointer to the block
 @retval	nullptr in case of an error */
-TRANSACTIONAL_TARGET
 static buf_page_t *buf_page_init_for_read(const page_id_t page_id,
                                           ulint zip_size,
                                           buf_pool_t::hash_chain &chain,
-                                          buf_block_t *&block)
+                                          buf_block_t *&block) noexcept
 {
-  buf_page_t *bpage= nullptr;
-  if (!zip_size || (zip_size & 1))
-  {
-    bpage= &block->page;
-    block->initialise(page_id, zip_size & ~1, buf_page_t::READ_FIX);
-    /* x_unlock() will be invoked
-    in buf_page_t::read_complete() by the io-handler thread. */
-    block->page.lock.x_lock(true);
-  }
-
+  buf_page_t *bpage= !zip_size || (zip_size & 1) ? &block->page : nullptr;
   page_hash_latch &hash_lock= buf_pool.page_hash.lock_get(chain);
   hash_lock.lock();
   if (buf_pool.page_hash.get(page_id, chain))
@@ -95,13 +85,6 @@ static buf_page_t *buf_page_init_for_read(const page_id_t page_id,
 page_exists:
     hash_lock.unlock();
     /* The page is already in the buffer pool. */
-    if (bpage)
-    {
-      bpage->lock.x_unlock(true);
-      ut_d(mysql_mutex_lock(&buf_pool.mutex));
-      ut_d(bpage->set_state(buf_page_t::MEMORY));
-      ut_d(mysql_mutex_unlock(&buf_pool.mutex));
-    }
     return nullptr;
   }
 
@@ -122,6 +105,11 @@ page_exists:
   if (UNIV_LIKELY(bpage != nullptr))
   {
     block= nullptr;
+    reinterpret_cast<buf_block_t*>(bpage)->
+      initialise(page_id, zip_size & ~1, buf_page_t::READ_FIX);
+    /* x_unlock() will be invoked
+    in buf_page_t::read_complete() by the io-handler thread. */
+    bpage->lock.x_lock(true);
     /* Insert into the hash table of file pages */
     buf_pool.page_hash.append(chain, bpage);
     hash_lock.unlock();
@@ -174,15 +162,17 @@ page_exists:
     page_zip_set_size(&bpage->zip, zip_size);
     bpage->zip.data = (page_zip_t*) data;
 
+    /* Because bpage is a compressed-only block descriptor, it cannot be
+    passed to buf_pool.page_guess(), and therefore there is no risk of a
+    a false match. Therefore, we can safely initialize bpage before
+    acquiring hash_lock. */
     bpage->lock.init();
     bpage->init(buf_page_t::READ_FIX, page_id);
     bpage->lock.x_lock(true);
 
-    {
-      transactional_lock_guard<page_hash_latch> g
-        {buf_pool.page_hash.lock_get(chain)};
-      buf_pool.page_hash.append(chain, bpage);
-    }
+    hash_lock.lock();
+    buf_pool.page_hash.append(chain, bpage);
+    hash_lock.unlock();
 
     /* The block must be put to the LRU list, to the old blocks.
     The zip size is already set into the page zip */
@@ -503,7 +493,6 @@ function must be written such that it cannot end up waiting for these
 latches!
 @param[in]	page_id		page id; see NOTE 3 above
 @return number of page read requests issued */
-TRANSACTIONAL_TARGET
 ulint buf_read_ahead_linear(const page_id_t page_id) noexcept
 {
   /* check if readahead is disabled.

@@ -1876,8 +1876,8 @@ trx_undo_report_row_operation(
 	} else if (!m.second || !trx->bulk_insert) {
 		bulk = false;
 	} else if (index->table->is_temporary()) {
-	} else if (trx_has_lock_x(*trx, *index->table)
-		   && index->table->bulk_trx_id == trx->id) {
+	} else if (index->table->bulk_trx_id == trx->id
+		   && trx_has_lock_x(*trx, *index->table)) {
 		m.first->second.start_bulk_insert(
 			index->table,
 			thd_sql_command(trx->mysql_thd) != SQLCOM_LOAD);
@@ -2116,7 +2116,6 @@ must hold a latch on the index page of the clustered index record.
 @retval DB_SUCCESS if previous version was successfully built,
 or if it was an insert or the undo record refers to the table before rebuild
 @retval DB_MISSING_HISTORY if the history is missing */
-TRANSACTIONAL_TARGET
 dberr_t trx_undo_prev_version_build(const rec_t *rec, dict_index_t *index,
                                     rec_offs *offsets, mem_heap_t *heap,
                                     rec_t **old_vers, mtr_t *mtr,

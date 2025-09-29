@@ -356,7 +356,9 @@ public:
     */
     void set_period(int period_ms)
     {
-      std::unique_lock<std::mutex> lk(m_mtx);
+      std::unique_lock<std::mutex> lk(m_mtx, std::defer_lock);
+      if (!lk.try_lock())
+        return;
       if (!m_on)
         return;
       if (!m_pool)
