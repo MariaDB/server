@@ -5528,6 +5528,7 @@ static bool innodb_insert_sys_columns(
 	DBUG_EXECUTE_IF("instant_insert_fail",
 			my_error(ER_INTERNAL_ERROR, MYF(0),
 				 "InnoDB: Insert into SYS_COLUMNS failed");
+			pars_info_free(info);
 			return true;);
 
 	if (DB_SUCCESS != que_eval_sql(
