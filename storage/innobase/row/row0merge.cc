@@ -2413,8 +2413,7 @@ end_of_index:
 		} else if (rec_trx_id < trx->id) {
 			/* Reset the DB_TRX_ID,DB_ROLL_PTR of old rows
 			for which history is not going to be
-			available after the rebuild operation.
-			This essentially mimics row_purge_reset_trx_id(). */
+			available after the rebuild operation. */
 			row->fields[new_trx_id_col].data
 				= const_cast<byte*>(reset_trx_id);
 			row->fields[new_trx_id_col + 1].data

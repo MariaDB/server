@@ -2419,6 +2419,7 @@ void mpvio_info(Vio *vio, MYSQL_PLUGIN_VIO_INFO *info)
       info->protocol= addr.sa_family == AF_UNIX ?
         MYSQL_VIO_SOCKET : MYSQL_VIO_TCP;
       info->socket= (int)vio_fd(vio);
+      info->tls= 1;
       return;
     }
 #ifdef _WIN32

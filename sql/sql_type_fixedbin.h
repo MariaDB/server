@@ -949,7 +949,7 @@ public:
 
     Item_func::Functype functype() const override
     { return Item_func::CHAR_TYPECAST_FUNC; }
-    bool eq(const Item *item, bool binary_cmp) const override
+    bool eq(const Item *item, const Item::Eq_config &config) const override
     {
       if (this == item)
         return true;
@@ -959,7 +959,7 @@ public:
       if (Item_fbt_func::type_handler() != item->type_handler())
         return false;
       Item_typecast_fbt *cast= (Item_typecast_fbt*) item;
-      return Item_fbt_func::args[0]->eq(cast->args[0], binary_cmp);
+      return Item_fbt_func::args[0]->eq(cast->args[0], config);
     }
     LEX_CSTRING func_name_cstring() const override
     {

@@ -3044,6 +3044,42 @@ drop table t1;
 --echo # End of 10.5 tests
 
 --echo #
+--echo # MDEV-37483 mariadb-dump -T doesn't convert table names
+--echo #
+create database foo;
+use foo;
+
+create table `con_schöne_grüße` (a int) select 1 as a;
+create table `con` (b int) select 2 as b;
+create table `con/bar` (c int) select 3 as c;
+create table `con@fame` (d int) select 4 as d;
+exec $MYSQL_DUMP foo --tab $MYSQLTEST_VARDIR/tmp;
+drop database foo;
+use test;
+move_file $MYSQLTEST_VARDIR/tmp/con@0040fame.sql $MYSQLTEST_VARDIR/tmp/con@fame.sql;
+move_file $MYSQLTEST_VARDIR/tmp/con@0040fame.txt $MYSQLTEST_VARDIR/tmp/con@fame.txt;
+list_files $MYSQLTEST_VARDIR/tmp con*;
+exec $MYSQL test < $MYSQLTEST_VARDIR/tmp/con@@@.sql;
+exec $MYSQL test < $MYSQLTEST_VARDIR/tmp/con@002fbar.sql;
+exec $MYSQL test < $MYSQLTEST_VARDIR/tmp/con_sch@1ine_gr@1o@1je.sql;
+exec $MYSQL test < $MYSQLTEST_VARDIR/tmp/con@fame.sql;
+show tables;
+exec $MYSQL_IMPORT test $MYSQLTEST_VARDIR/tmp/con@@@.txt;
+exec $MYSQL_IMPORT test $MYSQLTEST_VARDIR/tmp/con@002fbar.txt;
+exec $MYSQL_IMPORT --default-character-set=utf8mb4 test $MYSQLTEST_VARDIR/tmp/con_sch@1ine_gr@1o@1je.txt;
+exec $MYSQL_IMPORT test $MYSQLTEST_VARDIR/tmp/con@fame.txt;
+select * from `con_schöne_grüße`;
+select * from `con`;
+select * from `con/bar`;
+select * from `con@fame`;
+drop table `con_schöne_grüße`;
+drop table `con`;
+drop table `con/bar`;
+drop table `con@fame`;
+
+--echo # End of 10.6 tests
+
+--echo #
 --echo # MDEV-16733 mysqldump --tab and --xml options are conflicting
 --echo #
 --replace_result mariadb-dump.exe mariadb-dump

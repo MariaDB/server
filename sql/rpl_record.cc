@@ -311,7 +311,7 @@ static void convert_field(Field *f, Field *result_field, Field *conv_field)
    @note The relay log information can be NULL, which means that no
    checking or comparison with the source table is done, simply
    because it is not used.  This feature is used by MySQL Backup to
-   unpack a row from from the backup image, but can be used for other
+   unpack a row from the backup image, but can be used for other
    purposes as well.
 
    @param rgi     Relay group info

@@ -4713,6 +4713,8 @@ dberr_t innodb_insert_hidden_fts_col(dict_table_t* table,
 		      "END;\n", trx);
 }
 
+PRAGMA_DISABLE_CHECK_STACK_FRAME
+
 /*****************************************************************//**
 Imports a tablespace. The space id in the .ibd file must match the space id
 of the table in the data dictionary.
@@ -5066,6 +5068,8 @@ import_error:
 
 	return row_import_cleanup(prebuilt, err, table);
 }
+
+PRAGMA_REENABLE_CHECK_STACK_FRAME
 
 /** Prepare the create info to create a new stub table for import.
 @param thd          Connection

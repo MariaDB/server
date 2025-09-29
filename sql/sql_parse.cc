@@ -1873,7 +1873,7 @@ dispatch_command_return dispatch_command(enum enum_server_command command, THD *
                       (char *) thd->security_ctx->host_or_ip);
     char *packet_end= thd->query() + thd->query_length();
     general_log_write(thd, command, thd->query(), thd->query_length());
-    DBUG_PRINT("query",("%-.4096s",thd->query()));
+    DBUG_PRINT("query",("query_id=%lld, %.*s", thd->query_id, thd->query_length(), thd->query()));
 #if defined(ENABLED_PROFILING)
     thd->profiling.set_query_source(thd->query(), thd->query_length());
 #endif
@@ -8164,8 +8164,8 @@ TABLE_LIST *st_select_lex::add_table_to_list(THD *thd,
       }
     }
   }
-  /* Store the table reference preceding the current one. */
-  TABLE_LIST *UNINIT_VAR(previous_table_ref); /* The table preceding the current one. */
+  /* Store the table reference preceding the current in previous_table_ref */
+  TABLE_LIST *UNINIT_VAR(previous_table_ref);
   if (table_list.elements > 0 && likely(!ptr->sequence))
   {
     /*

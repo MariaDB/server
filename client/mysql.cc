@@ -1404,9 +1404,7 @@ int main(int argc,char *argv[])
   if (opt_outfile)
     end_tee();
   mysql_end(0);
-#ifndef _lint
-  DBUG_RETURN(0);				// Keep compiler happy
-#endif
+  DBUG_RETURN(0);
 }
 
 sig_handler mysql_end(int sig)
@@ -2890,7 +2888,9 @@ static void fix_history(String *final_command)
     ptr++;
   }
   if (total_lines > 1)			
-    add_history(fixed_buffer.ptr());
+  {
+    add_history(fixed_buffer.c_ptr());
+  }
 }
 
 /*	
@@ -3213,6 +3213,12 @@ static int reconnect(void)
 }
 
 #ifndef EMBEDDED_LIBRARY
+#ifdef __clang__
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wvarargs"
+/* CONC-789 */
+#endif
+
 static void status_info_cb(void *data, enum enum_mariadb_status_info type, ...)
 {
   va_list ap;
@@ -3228,6 +3234,10 @@ static void status_info_cb(void *data, enum enum_mariadb_status_info type, ...)
   }
   va_end(ap);
 }
+
+#ifdef __clang__
+#pragma clang diagnostic pop
+#endif
 #else
 #define mysql_optionsv(A,B,C,D) do { } while(0)
 #endif
@@ -3511,8 +3521,6 @@ static int com_go(String *buffer, char *)
     old_buffer.copy();
   }
 
-  /* Remove garbage for nicer messages */
-  LINT_INIT_STRUCT(buff[0]);
   remove_cntrl(*buffer);
 
   if (buffer->is_empty())

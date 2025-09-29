@@ -114,12 +114,14 @@ bool st_append_json(String *s,
     return false;
   }
 
-  if ((str_len= json_unescape(json_cs, js, js + js_len,
-         s->charset(), (uchar *) s->end(), (uchar *) s->end() + str_len)) > 0)
-  {
+  str_len= json_unescape(json_cs, js, js + js_len, s->charset(),
+                         (uchar *) s->end(), (uchar *) s->end() + str_len);
+  if (str_len > 0)
     s->length(s->length() + str_len);
+
+  if (str_len >= 0)
     return false;
-  }
+
   if (current_thd)
   {
     if (str_len == JSON_ERROR_OUT_OF_SPACE)
@@ -427,14 +429,9 @@ handle_value:
       if (mode == Item_func_json_format::DETAILED && 
           value_size == 1 && je->state != JST_OBJ_END)
       {
-        for (auto i = 0; i < value_len; i++)
-        {
-          nice_js->chop();
-        }
+        nice_js->length(nice_js->length() - value_len);
         for (auto i = 0; i < (depth + 1) * tab_size + 1; i++)
-        {
           nice_js->chop();
-        }
         nice_js->append(curr_str);
       }
       
@@ -1740,8 +1737,12 @@ bool Item_func_json_contains_path::val_bool()
   uint n_arg;
   longlong result;
   json_path_t p;
-  int n_found;
-  LINT_INIT(n_found);
+  /*
+    Initialization force not required after gcc 13.3 where it
+    correctly sees that an uninitialized read of n_found doesn't occur
+    with mode_one being true.
+  */
+  int UNINIT_VAR(n_found);
   int array_sizes[JSON_DEPTH_LIMIT];
   uint has_negative_path= 0;
 
@@ -1783,8 +1784,6 @@ bool Item_func_json_contains_path::val_bool()
     bzero(p_found, (arg_count-2) * sizeof(bool));
     n_found= arg_count - 2;
   }
-  else
-    n_found= 0; /* Just to prevent 'uninitialized value' warnings */
 
   result= 0;
   while (json_get_path_next(&je, &p) == 0)
@@ -2657,7 +2656,6 @@ String *Item_func_json_merge::val_str(String *str)
   String *js1= args[0]->val_json(&tmp_js1), *js2=NULL;
   uint n_arg;
   THD *thd= current_thd;
-  LINT_INIT(js2);
 
   JSON_DO_PAUSE_EXECUTION(thd, 0.0002);
 

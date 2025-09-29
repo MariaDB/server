@@ -28,6 +28,7 @@ this program; if not, write to the Free Software Foundation, Inc.,
 
 /** @file ha_innodb.cc */
 
+#define MYSQL_SERVER
 #include "univ.i"
 
 /* Include necessary SQL headers */
@@ -50,7 +51,6 @@ this program; if not, write to the Free Software Foundation, Inc.,
 #include <mysql/service_thd_alloc.h>
 #include <mysql/service_thd_wait.h>
 #include <mysql/service_print_check_msg.h>
-#include <mysql/service_log_warnings.h>
 #include "sql_type_geom.h"
 #include "scope.h"
 #include "srv0srv.h"
@@ -122,9 +122,15 @@ simple_thread_local ha_handler_stats *mariadb_stats;
 #include <myisamchk.h>                          // TT_FOR_UPGRADE
 #include "sql_type_vector.h"
 
-extern "C" void thd_mark_transaction_to_rollback(MYSQL_THD thd, bool all);
-unsigned long long thd_get_query_id(const MYSQL_THD thd);
-void thd_clear_error(MYSQL_THD thd);
+#define thd_get_query_id(thd) uint64_t((thd)->query_id)
+#define thd_in_lock_tables(thd) (thd)->in_lock_tables
+#define thd_log_warnings(thd) thd->variables.log_warnings
+#define thd_sql_command(thd) (thd)->lex->sql_command
+#define thd_test_options(thd, options) ((thd)->variables.option_bits & (options))
+#define thd_tx_isolation(thd) (thd)->tx_isolation
+extern "C" int thd_binlog_format(const MYSQL_THD thd);
+extern "C" bool thd_binlog_filter_ok(const MYSQL_THD thd);
+extern "C" bool thd_sqlcom_can_generate_row_events(const MYSQL_THD thd);
 
 TABLE *find_fk_open_table(THD *thd, const char *db, size_t db_len,
 			  const char *table, size_t table_len);
@@ -1695,17 +1701,6 @@ inline uint32_t innodb_page_size_validate(ulong page_size)
 	DBUG_RETURN(0);
 }
 
-/******************************************************************//**
-Returns true if transaction should be flagged as read-only.
-@return true if the thd is marked as read-only */
-bool
-thd_trx_is_read_only(
-/*=================*/
-	THD*	thd)	/*!< in: thread handle */
-{
-	return(thd != 0 && thd_tx_is_read_only(thd));
-}
-
 static MYSQL_THDVAR_BOOL(background_thread,
 			 PLUGIN_VAR_NOCMDOPT | PLUGIN_VAR_NOSYSVAR,
 			 "Internal (not user visible) flag to mark "
@@ -1741,23 +1736,6 @@ innobase_reset_background_thd(MYSQL_THD thd)
 	thd_proc_info(thd, proc_info);
 }
 
-
-/******************************************************************//**
-Check if the transaction is an auto-commit transaction. TRUE also
-implies that it is a SELECT (read-only) transaction.
-@return true if the transaction is an auto commit read-only transaction. */
-ibool
-thd_trx_is_auto_commit(
-/*===================*/
-	THD*	thd)	/*!< in: thread handle, can be NULL */
-{
-	return(thd != NULL
-	       && !thd_test_options(
-		       thd,
-		       OPTION_NOT_AUTOCOMMIT | OPTION_BEGIN)
-	       && thd_sql_command(thd) == SQLCOM_SELECT);
-}
-
 /******************************************************************//**
 Returns the NUL terminated value of glob_hostname.
 @return pointer to glob_hostname. */
@@ -1766,20 +1744,6 @@ server_get_hostname()
 /*=================*/
 {
 	return(glob_hostname);
-}
-
-/******************************************************************//**
-Returns true if the transaction this thread is processing has edited
-non-transactional tables. Used by the deadlock detector when deciding
-which transaction to rollback in case of a deadlock - we try to avoid
-rolling back transactions that have edited non-transactional tables.
-@return true if non-transactional tables have been edited */
-ibool
-thd_has_edited_nontrans_tables(
-/*===========================*/
-	THD*	thd)	/*!< in: thread handle */
-{
-	return((ibool) thd_non_transactional_update(thd));
 }
 
 /******************************************************************//**
@@ -2094,7 +2058,7 @@ static void innodb_transaction_abort(THD *thd, bool all, dberr_t err) noexcept
       sql_print_error("InnoDB: Transaction was aborted due to %s",
                       ut_strerr(err));
   }
-  thd_mark_transaction_to_rollback(thd, all);
+  thd->mark_transaction_to_rollback(all);
 }
 
 /********************************************************************//**
@@ -2261,7 +2225,7 @@ convert_error_code_to_mysql(
 		cached binlog for this transaction */
 
 		if (thd) {
-			thd_mark_transaction_to_rollback(thd, 1);
+			thd->mark_transaction_to_rollback(true);
 		}
 
 		return(HA_ERR_LOCK_TABLE_FULL);
@@ -2451,13 +2415,8 @@ innobase_get_stmt_unsafe(
 	THD*	thd,
 	size_t*	length)
 {
-	if (const LEX_STRING *stmt = thd_query_string(thd)) {
-		*length = stmt->length;
-		return stmt->str;
-	}
-
-	*length = 0;
-	return NULL;
+  *length= thd->query_string.length();
+  return thd->query_string.str();
 }
 
 /**
@@ -3691,6 +3650,8 @@ static int innodb_init_abort()
 {
 	DBUG_ENTER("innodb_init_abort");
 
+	recv_sys.tmp_free();
+
 	if (fil_system.temp_space) {
 		fil_system.temp_space->close();
 	}
@@ -4447,7 +4408,7 @@ innobase_commit_ordered_2(
 	/* If the transaction is not run in 2pc, we must assign wsrep
 	XID here in order to get it written in rollback segment. */
 	if (trx->is_wsrep()) {
-		thd_get_xid(thd, &reinterpret_cast<MYSQL_XID&>(trx->xid));
+		trx->xid = *thd->get_xid();
 	}
 #endif /* WITH_WSREP */
 
@@ -4607,7 +4568,7 @@ innobase_commit(
 		/* At this point commit order is fixed and transaction is
 		visible to others. So we can wakeup other commits waiting for
 		this one, to allow then to group commit with us. */
-		thd_wakeup_subsequent_commits(thd, 0);
+		thd->wakeup_subsequent_commits(0);
 
 		/* Now do a write + flush of logs. */
 		trx_commit_complete_for_mysql(trx);
@@ -5919,7 +5880,7 @@ ha_innobase::open(const char* name, int, uint)
 				ER_TABLESPACE_MISSING, norm_name);
 		}
 
-		if (!thd_tablespace_op(thd)) {
+		if (!thd->tablespace_op) {
 			set_my_errno(ENOENT);
 			int ret_err = HA_ERR_TABLESPACE_MISSING;
 
@@ -7655,6 +7616,9 @@ ha_innobase::innobase_lock_autoinc(void)
 				DBUG_RETURN(error);
 			}
 			m_prebuilt->table->autoinc_mutex.wr_unlock();
+			break;
+		default:
+			break;
 		}
 		/* Use old style locking. */
 		/* fall through */
@@ -7838,8 +7802,8 @@ ha_innobase::write_row(
 			case SQLCOM_INSERT:
 
 				WSREP_DEBUG("DUPKEY error for autoinc\n"
-				      "THD %ld, value %llu, off %llu inc %llu",
-				      thd_get_thread_id(m_user_thd),
+				      "THD %llu, value %llu, off %llu inc %llu",
+				      m_user_thd->thread_id,
 				      auto_inc,
 				      m_prebuilt->autoinc_offset,
 				      m_prebuilt->autoinc_increment);
@@ -7944,8 +7908,8 @@ set_max_autoinc:
 		if (wsrep_append_keys(m_user_thd, WSREP_SERVICE_KEY_EXCLUSIVE,
 				      record,
 				      NULL)) {
-			WSREP_DEBUG("::write_rows::wsrep_append_keys failed THD %ld for %s.%s",
-				    thd_get_thread_id(m_user_thd),
+			WSREP_DEBUG("::write_rows::wsrep_append_keys failed THD %llu for %s.%s",
+				    m_user_thd->thread_id,
 				    table->s->db.str,
 				    table->s->table_name.str);
 			error_result = HA_ERR_INTERNAL_ERROR;
@@ -8673,8 +8637,8 @@ func_exit:
 					     ? WSREP_SERVICE_KEY_UPDATE
 					     : WSREP_SERVICE_KEY_EXCLUSIVE,
 					     old_row, new_row)) {
-			WSREP_DEBUG("::update_rows::wsrep_append_keys failed THD %ld for %s.%s",
-				    thd_get_thread_id(m_user_thd),
+			WSREP_DEBUG("::update_rows::wsrep_append_keys failed THD %llu for %s.%s",
+				    m_user_thd->thread_id,
 				    table->s->db.str,
 				    table->s->table_name.str);
 			DBUG_RETURN(HA_ERR_INTERNAL_ERROR);
@@ -8729,8 +8693,8 @@ ha_innobase::delete_row(
 		if (wsrep_append_keys(m_user_thd, WSREP_SERVICE_KEY_EXCLUSIVE,
 				      record,
 				      NULL)) {
-			WSREP_DEBUG("::delete_rows::wsrep_append_keys failed THD %ld for %s.%s",
-				    thd_get_thread_id(m_user_thd),
+			WSREP_DEBUG("::delete_rows::wsrep_append_keys failed THD %llu for %s.%s",
+				    m_user_thd->thread_id,
 				    table->s->db.str,
 				    table->s->table_name.str);
 			DBUG_RETURN(HA_ERR_INTERNAL_ERROR);
@@ -10136,12 +10100,11 @@ wsrep_append_key(
 
 	DBUG_ENTER("wsrep_append_key");
 	DBUG_PRINT("enter",
-		    ("thd: %lu trx: %lld", thd_get_thread_id(thd),
-		    (long long)trx->id));
+		   ("thd: %llu trx: " TRX_ID_FMT, thd->thread_id, trx->id));
 #ifdef WSREP_DEBUG_PRINT
-	fprintf(stderr, "%s conn %lu, trx " TRX_ID_FMT ", keylen %d, key %s.%s\n",
+	fprintf(stderr, "%s conn %llu, trx " TRX_ID_FMT ", keylen %d, key %s.%s\n",
 		wsrep_key_type_to_str(key_type),
-		thd_get_thread_id(thd), trx->id, key_len,
+		thd->thread_id, trx->id, key_len,
 		table_share->table_name.str, key);
 	for (int i=0; i<key_len; i++) {
 		fprintf(stderr, "%hhX, ", key[i]);
@@ -10223,15 +10186,15 @@ ha_innobase::wsrep_append_keys(
 	trx_t *trx = thd_to_trx(thd);
 
 #ifdef WSREP_DEBUG_PRINT
-	fprintf(stderr, "%s conn %lu, trx " TRX_ID_FMT ", table %s\nSQL: %s\n",
+	fprintf(stderr, "%s conn %llu, trx " TRX_ID_FMT ", table %s\nSQL: %s\n",
 		wsrep_key_type_to_str(key_type),
-		thd_get_thread_id(thd), trx->id,
+		thd->thread_id, trx->id,
 		table_share->table_name.str, wsrep_thd_query(thd));
 #endif
 
 	if (table_share && table_share->tmp_table  != NO_TMP_TABLE) {
-		WSREP_DEBUG("skipping tmp table DML: THD: %lu tmp: %d SQL: %s",
-			    thd_get_thread_id(thd),
+		WSREP_DEBUG("skipping tmp table DML: THD: %llu tmp: %d SQL: %s",
+			    thd->thread_id,
 			    table_share->tmp_table,
 			    (wsrep_thd_query(thd)) ?
 			    wsrep_thd_query(thd) : "void");
@@ -12356,7 +12319,7 @@ create_table_info_t::create_foreign_keys()
 	dict_index_t*	      err_index	  = NULL;
 	ulint		      err_col	= 0;
 	const bool	      tmp_table = m_flags2 & DICT_TF2_TEMPORARY;
-	const CHARSET_INFO*   cs	= thd_charset(m_thd);
+	const CHARSET_INFO*   cs	= m_thd->charset();
 	const char*	      operation = "Create ";
 
 	enum_sql_command sqlcom = enum_sql_command(thd_sql_command(m_thd));
@@ -15808,16 +15771,17 @@ ha_innobase::extra(
 	/* Warning: since it is not sure that MariaDB calls external_lock()
 	before calling this function, m_prebuilt->trx can be obsolete! */
 	trx_t* trx;
+	THD* thd = ha_thd();
 
 	switch (operation) {
 	case HA_EXTRA_FLUSH:
-		(void)check_trx_exists(ha_thd());
+		(void)check_trx_exists(thd);
 		if (m_prebuilt->blob_heap) {
 			row_mysql_prebuilt_free_blob_heap(m_prebuilt);
 		}
 		break;
 	case HA_EXTRA_RESET_STATE:
-		trx = check_trx_exists(ha_thd());
+		trx = check_trx_exists(thd);
 		reset_template();
 		trx->duplicates = 0;
 	stmt_boundary:
@@ -15826,23 +15790,23 @@ ha_innobase::extra(
 		trx->bulk_insert &= TRX_DDL_BULK;
 		break;
 	case HA_EXTRA_NO_KEYREAD:
-		(void)check_trx_exists(ha_thd());
+		(void)check_trx_exists(thd);
 		m_prebuilt->read_just_key = 0;
 		break;
 	case HA_EXTRA_KEYREAD:
-		(void)check_trx_exists(ha_thd());
+		(void)check_trx_exists(thd);
 		m_prebuilt->read_just_key = 1;
 		break;
 	case HA_EXTRA_KEYREAD_PRESERVE_FIELDS:
-		(void)check_trx_exists(ha_thd());
+		(void)check_trx_exists(thd);
 		m_prebuilt->keep_other_fields_on_keyread = 1;
 		break;
 	case HA_EXTRA_INSERT_WITH_UPDATE:
-		trx = check_trx_exists(ha_thd());
+		trx = check_trx_exists(thd);
 		trx->duplicates |= TRX_DUP_IGNORE;
 		goto stmt_boundary;
 	case HA_EXTRA_NO_IGNORE_DUP_KEY:
-		trx = check_trx_exists(ha_thd());
+		trx = check_trx_exists(thd);
 		trx->duplicates &= ~TRX_DUP_IGNORE;
 		if (trx->is_bulk_insert()) {
 			/* Allow a subsequent INSERT into an empty table
@@ -15855,11 +15819,11 @@ ha_innobase::extra(
 		}
 		goto stmt_boundary;
 	case HA_EXTRA_WRITE_CAN_REPLACE:
-		trx = check_trx_exists(ha_thd());
+		trx = check_trx_exists(thd);
 		trx->duplicates |= TRX_DUP_REPLACE;
 		goto stmt_boundary;
 	case HA_EXTRA_WRITE_CANNOT_REPLACE:
-		trx = check_trx_exists(ha_thd());
+		trx = check_trx_exists(thd);
 		trx->duplicates &= ~TRX_DUP_REPLACE;
 		if (trx->is_bulk_insert()) {
 			/* Allow a subsequent INSERT into an empty table
@@ -15868,7 +15832,7 @@ ha_innobase::extra(
 		}
 		goto stmt_boundary;
 	case HA_EXTRA_BEGIN_ALTER_COPY:
-		trx = check_trx_exists(ha_thd());
+		trx = check_trx_exists(thd);
 		m_prebuilt->table->skip_alter_undo = 1;
 		if (m_prebuilt->table->is_temporary()
 		    || !m_prebuilt->table->versioned_by_id()) {
@@ -15881,7 +15845,7 @@ ha_innobase::extra(
 			.first->second.set_versioned(0);
 		break;
 	case HA_EXTRA_END_ALTER_COPY:
-		trx = check_trx_exists(ha_thd());
+		trx = check_trx_exists(thd);
 		if (!m_prebuilt->table->skip_alter_undo) {
 			/* This could be invoked inside INSERT...SELECT.
 			We do not want any extra log writes, because
@@ -15915,6 +15879,7 @@ ha_innobase::extra(
 			handler::extra(HA_EXTRA_BEGIN_ALTER_COPY). */
 			log_buffer_flush_to_disk();
 		}
+		alter_stats_rebuild(m_prebuilt->table, thd);
 		break;
 	case HA_EXTRA_ABORT_ALTER_COPY:
 		if (m_prebuilt->table->skip_alter_undo) {
@@ -16039,6 +16004,8 @@ ha_innobase::start_stmt(
 				DBUG_RETURN(convert_error_code_to_mysql(
 						    error, 0, thd));
 			}
+			break;
+		default:
 			break;
 		}
 	}
@@ -16181,6 +16148,8 @@ ha_innobase::external_lock(
 			ib_senderrf(thd, IB_LOG_LEVEL_WARN,
 				    ER_READ_ONLY_MODE);
 			DBUG_RETURN(HA_ERR_TABLE_READONLY);
+		default:
+			break;
 		}
 	}
 
@@ -17195,7 +17164,7 @@ innobase_xa_prepare(
       trx_start_if_not_started_xa(trx, false);;
     /* fall through */
   case TRX_STATE_ACTIVE:
-    thd_get_xid(thd, &reinterpret_cast<MYSQL_XID&>(trx->xid));
+    trx->xid= *thd->get_xid();
     if (prepare_trx)
       trx_prepare_for_mysql(trx);
     else
@@ -18804,9 +18773,9 @@ static struct st_mysql_storage_engine innobase_storage_engine=
 #ifdef WITH_WSREP
 /** Request a transaction to be killed that holds a conflicting lock.
 @param bf_trx    brute force applier transaction
-@param thd_id    thd_get_thread_id(victim_trx->mysql_htd)
+@param thd_id    victim_trx->mysql_thd->thread_id
 @param trx_id    victim_trx->id */
-void lock_wait_wsrep_kill(trx_t *bf_trx, ulong thd_id, trx_id_t trx_id)
+void lock_wait_wsrep_kill(trx_t *bf_trx, my_thread_id thd_id, trx_id_t trx_id)
 {
   THD *bf_thd= bf_trx->mysql_thd;
 
@@ -18835,22 +18804,22 @@ void lock_wait_wsrep_kill(trx_t *bf_trx, ulong thd_id, trx_id_t trx_id)
           /* fall through */
         case TRX_STATE_ACTIVE:
           WSREP_LOG_CONFLICT(bf_thd, vthd, TRUE);
-          WSREP_DEBUG("Aborter BF trx_id: " TRX_ID_FMT " thread: %ld "
+          WSREP_DEBUG("Aborter BF trx_id: " TRX_ID_FMT " thread: %llu "
                       "seqno: %lld client_state: %s "
                       "client_mode: %s transaction_mode: %s query: %s",
                       bf_trx->id,
-                      thd_get_thread_id(bf_thd),
+                      bf_thd->thread_id,
                       wsrep_thd_trx_seqno(bf_thd),
                       wsrep_thd_client_state_str(bf_thd),
                       wsrep_thd_client_mode_str(bf_thd),
                       wsrep_thd_transaction_state_str(bf_thd),
                       wsrep_thd_query(bf_thd));
-          WSREP_DEBUG("Victim %s trx_id: " TRX_ID_FMT " thread: %ld "
+          WSREP_DEBUG("Victim %s trx_id: " TRX_ID_FMT " thread: %llu "
                       "seqno: %lld client_state: %s "
                       "client_mode: %s transaction_mode: %s query: %s",
                       wsrep_thd_is_BF(vthd, false) ? "BF" : "normal",
                       vtrx->id,
-                      thd_get_thread_id(vthd),
+                      vthd->thread_id,
                       wsrep_thd_trx_seqno(vthd),
                       wsrep_thd_client_state_str(vthd),
                       wsrep_thd_client_mode_str(vthd),
@@ -18891,8 +18860,8 @@ void lock_wait_wsrep_kill(trx_t *bf_trx, ulong thd_id, trx_id_t trx_id)
     }
     else
     {
-      WSREP_DEBUG("wsrep_thd_bf_abort has failed, victim %lu will survive",
-                  thd_get_thread_id(vthd));
+      WSREP_DEBUG("wsrep_thd_bf_abort has failed, victim %llu will survive",
+                  vthd->thread_id);
     }
     wsrep_thd_UNLOCK(vthd);
     wsrep_thd_kill_UNLOCK(vthd);
@@ -21326,4 +21295,26 @@ void ins_node_t::vers_update_end(row_prebuilt_t *prebuilt, bool history_row)
   }
   if (UNIV_LIKELY_NULL(local_heap))
     mem_heap_free(local_heap);
+}
+
+/** Adjust the persistent statistics after rebuilding ALTER TABLE.
+Remove statistics for dropped indexes, add statistics for created indexes
+and rename statistics for renamed indexes.
+@param table InnoDB table that was rebuilt by ALTER TABLE
+@param thd   alter table thread */
+void alter_stats_rebuild(dict_table_t *table, THD *thd)
+{
+  DBUG_ENTER("alter_stats_rebuild");
+  if (!table->space || !table->stats_is_persistent()
+      || dict_stats_persistent_storage_check(false) != SCHEMA_OK)
+    DBUG_VOID_RETURN;
+
+  dberr_t ret= dict_stats_update_persistent(table);
+  if (ret == DB_SUCCESS)
+    ret= dict_stats_save(table);
+  if (ret != DB_SUCCESS)
+    push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+                        ER_ALTER_INFO, "Error updating stats for table after"
+                        " table rebuild: %s", ut_strerr(ret));
+  DBUG_VOID_RETURN;
 }

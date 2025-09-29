@@ -135,7 +135,7 @@ class Window_spec;
   The general rule to detect whether a set function is legal in a query with
   nested subqueries is much more complicated.
 
-  Consider the the following query:
+  Consider the following query:
     SELECT t1.a FROM t1 GROUP BY t1.a
       HAVING t1.a > ALL (SELECT t2.c FROM t2 WHERE SUM(t1.b) < t2.c).
   The set function SUM(b) is used here in the WHERE clause of the subquery.

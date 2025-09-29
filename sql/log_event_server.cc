@@ -5320,7 +5320,7 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
       /*
         @todo We should probably not call
         reset_current_stmt_binlog_format_row() from here.
-  
+
         Note: this applies to log_event_old.cc too.
         /Sven
       */
@@ -5907,8 +5907,8 @@ check_table_map(rpl_group_info *rgi, RPL_TABLE_LIST *table_list)
   DBUG_ENTER("check_table_map");
   enum_tbl_map_status res= OK_TO_PROCESS;
   Relay_log_info *rli= rgi->rli;
-  if ((rgi->thd->slave_thread /* filtering is for slave only */ ||
-        IF_WSREP((WSREP(rgi->thd) && rgi->thd->wsrep_applier), 0)) &&
+
+  if (rgi->thd->slave_thread /* filtering is for slave only */ &&
       (!rli->mi->rpl_filter->db_ok(table_list->db.str) ||
        (rli->mi->rpl_filter->is_on() && !rli->mi->rpl_filter->tables_ok("", table_list))))
     res= FILTERED_OUT;
@@ -7073,7 +7073,7 @@ static bool record_compare(TABLE *table, bool vers_from_plain= false)
   /**
     Compare full record only if:
     - all fields were given values
-    - there are no blob fields (otherwise we would also need 
+    - there are no blob fields (otherwise we would also need
       to compare blobs contents as well);
     - there are no varchar fields (otherwise we would also need
       to compare varchar contents as well);

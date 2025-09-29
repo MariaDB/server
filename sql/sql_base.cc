@@ -5032,11 +5032,12 @@ bool table_already_fk_prelocked(TABLE_LIST *tl, LEX_CSTRING *db,
 
 
 static TABLE_LIST *internal_table_exists(TABLE_LIST *global_list,
-                                         const char *table_name)
+                                         TABLE_LIST *table)
 {
   do
   {
-    if (global_list->table_name.str == table_name)
+    if (global_list->table_name.str == table->table_name.str &&
+        global_list->db.str == table->db.str)
       return global_list;
   } while ((global_list= global_list->next_global));
   return 0;
@@ -5057,8 +5058,7 @@ add_internal_tables(THD *thd, Query_tables_list *prelocking_ctx,
     /*
       Skip table if already in the list. Can happen with prepared statements
     */
-    if ((tmp= internal_table_exists(global_table_list,
-                                    tables->table_name.str)))
+    if ((tmp= internal_table_exists(global_table_list, tables)))
     {
       /*
         Use the original value for the next local, used by the
@@ -5979,6 +5979,7 @@ bool lock_tables(THD *thd, TABLE_LIST *tables, uint count, uint flags)
         found_first_not_own= 1;
       if (!table->placeholder())
       {
+        DBUG_ASSERT(table->lock_type != TL_IGNORE);
         *(ptr++)= table->table;
         if (!found_first_not_own)
           table->table->query_id= thd->query_id;

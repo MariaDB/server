@@ -535,7 +535,7 @@ public:
   }
   void cleanup() override
   {
-    if (flags & ALLOCATED)
+    if (flags & ALLOCATED && global_var(intptr) != (intptr)option.def_value)
     {
       my_free(global_var(char*));
       global_var(char *)= NULL;
@@ -607,8 +607,7 @@ public:
   }
   void global_update_finish(char *new_val)
   {
-    if (flags & ALLOCATED)
-      my_free(global_var(char*));
+    cleanup();
     flags|= ALLOCATED;
     global_var(char*)= new_val;
   }

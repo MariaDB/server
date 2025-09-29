@@ -638,7 +638,8 @@ public:
   {
     /** The largest encountered transaction identifier for which no
     transaction was observed to be active. This is a cache to speed up
-    trx_sys_t::find_same_or_older().
+    trx_sys_t::find_same_or_older() as well as to elide some calls to
+    trx_sys_t::find().
 
     This will be zero-initialized in Pool::Pool() and not initialized
     when a transaction object in the pool is freed and reused. The
@@ -709,7 +710,7 @@ public:
 
   Regular transactions:
   * NOT_STARTED -> ACTIVE -> COMMITTED -> NOT_STARTED
-  * NOT_STARTED -> ABORTED (when thd_mark_transaction_to_rollback() is called)
+  * NOT_STARTED -> ABORTED (when THD::mark_transaction_to_rollback() is called)
   * ABORTED -> NOT_STARTED (acknowledging the rollback of a transaction)
 
   Auto-commit non-locking read-only:

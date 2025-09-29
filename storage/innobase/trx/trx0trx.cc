@@ -24,7 +24,9 @@ The transaction
 Created 3/26/1996 Heikki Tuuri
 *******************************************************/
 
+#define MYSQL_SERVER
 #include "trx0trx.h"
+#include "sql_class.h" // THD
 
 #ifdef WITH_WSREP
 #include <mysql/service_wsrep.h>
@@ -905,16 +907,21 @@ trx_start_low(
 	ut_ad(UT_LIST_GET_LEN(trx->lock.trx_locks) == 0);
 
 	/* Check whether it is an AUTOCOMMIT SELECT */
-	trx->auto_commit = thd_trx_is_auto_commit(trx->mysql_thd);
-
-	trx->read_only = srv_read_only_mode
-		|| (!trx->dict_operation
-		    && thd_trx_is_read_only(trx->mysql_thd));
-
-	if (!trx->auto_commit) {
+        if (const THD* thd = trx->mysql_thd) {
+		trx->auto_commit = !(thd->variables.option_bits
+                                     & (OPTION_NOT_AUTOCOMMIT | OPTION_BEGIN))
+			&& thd->lex->sql_command == SQLCOM_SELECT;
+		trx->read_only = (!trx->dict_operation && thd->tx_read_only)
+			|| srv_read_only_mode;
+		if (!trx->auto_commit) {
+			trx->will_lock = true;
+		} else if (!trx->will_lock) {
+			trx->read_only = true;
+		}
+	} else {
+		trx->auto_commit = false;
+		trx->read_only = false;
 		trx->will_lock = true;
-	} else if (!trx->will_lock) {
-		trx->read_only = true;
 	}
 
 #ifdef WITH_WSREP
@@ -1979,7 +1986,7 @@ trx_prepare(
 			/* Do not release any locks at the
 			SERIALIZABLE isolation level. */
 		} else if (!trx->mysql_thd
-			   || thd_sql_command(trx->mysql_thd)
+			   || trx->mysql_thd->lex->sql_command
 			   != SQLCOM_XA_PREPARE) {
 			/* Do not release locks for XA COMMIT ONE PHASE
 			or for internal distributed transactions

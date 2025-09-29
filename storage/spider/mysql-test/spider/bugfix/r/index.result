@@ -3,6 +3,7 @@ for child2
 for child3
 create database auto_test_local;
 set spider_same_server_link= on;
+set global spider_same_server_link= on;
 #
 # MDEV-27590 Auto-increment on Spider tables with DESC PK does not work properly
 #

@@ -1020,6 +1020,7 @@ public:
   /* TODO: This tracks time to read rows from the table */
   Exec_time_tracker table_tracker;
 
+  Gap_time_tracker extra_time_tracker;
   /* The same as  Explain_table_access::handler_for_stats */
   handler *handler_for_stats;
 

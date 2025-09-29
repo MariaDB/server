@@ -25,10 +25,22 @@ if (!$success)
 }
 --echo # Success!
 
+# Server in normal mode
+SET GLOBAL innodb_encryption_threads=4;
+SELECT COUNT(*) AS encrypt_threads_running
+FROM performance_schema.threads
+WHERE NAME LIKE '%encrypt%';
+
 #
 # MDEV-11835: InnoDB: Failing assertion: free_slot != NULL on
 # restarting server with encryption and read-only
 #
 --let $restart_parameters= --innodb-read-only=1 --innodb-encrypt-tables=1
 --source include/restart_mysqld.inc
+
+# Server read-only mode
+SET GLOBAL innodb_encryption_threads=4;
+SELECT COUNT(*) AS encrypt_threads_running
+FROM performance_schema.threads
+WHERE NAME LIKE '%encrypt%';
 --echo # All done

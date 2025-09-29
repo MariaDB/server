@@ -807,13 +807,9 @@ void
 srv_mon_reset(
 /*==========*/
 	monitor_id_t	monitor);	/*!< in: monitor id*/
-/*************************************************************//**
-This function resets all values of a monitor counter */
-UNIV_INLINE
-void
-srv_mon_reset_all(
-/*==============*/
-	monitor_id_t	monitor);	/*!< in: monitor id*/
+
+/** This function resets all values of a monitor counter */
+void srv_mon_reset_all(monitor_id_t monitor) noexcept;
 /*************************************************************//**
 Turn on monitor counters that are marked as default ON. */
 void

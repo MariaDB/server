@@ -373,7 +373,7 @@ public:
 ///
 /// sp_pcontext objects are organized in a tree according to the following
 /// rules:
-///   - one sp_pcontext object corresponds for for each BEGIN..END block;
+///   - one sp_pcontext object corresponds for each BEGIN..END block;
 ///   - one sp_pcontext object corresponds for each exception handler;
 ///   - one additional sp_pcontext object is created to contain
 ///     Stored Program parameters.

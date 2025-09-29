@@ -123,7 +123,7 @@ row_vers_impl_x_locked_low(
 					ULINT_UNDEFINED, &heap);
 
 	trx_id = row_get_rec_trx_id(clust_rec, clust_index, clust_offsets);
-	if (trx_id == 0) {
+	if (trx_id <= caller_trx->max_inactive_id) {
 		/* The transaction history was already purged. */
 		mem_heap_free(heap);
 		DBUG_RETURN(0);

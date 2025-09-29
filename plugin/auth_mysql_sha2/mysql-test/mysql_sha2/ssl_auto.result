@@ -1,0 +1,29 @@
+call mtr.add_suppression('failed to read private_key.pem: 2 "No such file or directory"');
+show status like 'caching_sha2_password%';
+Variable_name	Value
+Caching_sha2_password_rsa_public_key	
+create user test1@'%' identified via caching_sha2_password using PASSWORD('pwd');
+create user test2@'%' identified via caching_sha2_password;
+show grants for test2@'%';
+Grants for test2@%
+GRANT USAGE ON *.* TO `test2`@`%` IDENTIFIED VIA caching_sha2_password
+create procedure checkme() sql security invoker
+select user(), current_user(), variable_value > '' as 'have_ssl'
+    from information_schema.session_status
+where variable_name='ssl_cipher';
+grant execute on test.* to test1@'%', test2@'%';
+# mysql -utest1 -ppwd --disable-ssl-verify-server-cert -e "call test.checkme()"
+user()	current_user()	have_ssl
+test1@localhost	test1@%	1
+# mysql -utest1 -pwrong_pwd --disable-ssl-verify-server-cert -e "call test.checkme()"
+ERROR 1045 (28000): Access denied for user 'test1'@'localhost' (using password: YES)
+# mysql -utest2 --disable-ssl-verify-server-cert -e "call test.checkme()"
+user()	current_user()	have_ssl
+test2@localhost	test2@%	1
+# mysql -utest2 -ppwd --disable-ssl-verify-server-cert -e "call test.checkme()"
+ERROR 1045 (28000): Access denied for user 'test2'@'localhost' (using password: YES)
+# mysql -utest1 -ppwd --ssl-verify-server-cert -e "call test.checkme()"
+ERROR 2026 (HY000): TLS/SSL error: Certificate verification failure: The certificate is NOT trusted.
+drop procedure checkme;
+drop user test1@'%';
+drop user test2@'%';

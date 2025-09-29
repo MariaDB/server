@@ -3325,7 +3325,7 @@ public:
                         enum_binlog_row_image row_image,
                         const uchar *old_data, const uchar *new_data);
   bool prepare_handlers_for_update(uint flag);
-  bool binlog_write_annotated_row(Log_event_writer *writer);
+  bool binlog_write_annotated_row(bool use_trans_cache);
   void binlog_prepare_for_row_logging();
   bool binlog_write_table_maps();
 
@@ -5981,7 +5981,7 @@ public:
         return variables.idle_transaction_timeout;
     }
 
-    return variables.net_wait_timeout;
+    return uint(variables.net_wait_timeout);
   }
 
   /**
@@ -6969,7 +6969,7 @@ public:
     ("c"),("b"),("c"),("c"),("a"),("b"),("g")
     ("c"),("a"),("b"),("d"),("b"),("e")
 
-  - Let's demonstrate how the the set operation INTERSECT ALL is proceesed
+  - Let's demonstrate how the set operation INTERSECT ALL is proceesed
     for the query
               SELECT f FROM t1 INTERSECT ALL SELECT f FROM t2
 
@@ -7017,7 +7017,7 @@ public:
       |0      |1      |c  |
       |0      |1      |c  |
 
-  - Let's demonstrate how the the set operation EXCEPT ALL is proceesed
+  - Let's demonstrate how the set operation EXCEPT ALL is proceesed
     for the query
               SELECT f FROM t1 EXCEPT ALL SELECT f FROM t3
 

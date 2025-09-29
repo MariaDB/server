@@ -173,7 +173,7 @@ enum enum_mdl_type {
     cases when we only need to access metadata and not data, e.g. when
     filling an INFORMATION_SCHEMA table.
     Since SH lock is compatible with SNRW lock, the connection that
-    holds SH lock lock should not try to acquire any kind of table-level
+    holds the SH lock should not try to acquire any kind of table-level
     or row-level lock, as this can lead to a deadlock. Moreover, after
     acquiring SH lock, the connection should not wait for any other
     resource, as it might cause starvation for X locks and a potential
@@ -415,8 +415,8 @@ public:
 
     @param  mdl_namespace Id of namespace of object to be locked
     @param  db            Name of database to which the object belongs
-    @param  name          Name of of the object
-    @param  key           Where to store the the MDL key.
+    @param  name          Name of the object
+    @param  key           Where to store the MDL key.
   */
   void mdl_key_init(enum_mdl_namespace mdl_namespace_arg,
                     const char *db, const char *name_arg)
