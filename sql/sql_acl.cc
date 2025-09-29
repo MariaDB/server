@@ -883,10 +883,10 @@ class Grant_table_base
      A privilege column is of type enum('Y', 'N'). Privilege columns are
      expected to be one after another.
   */
-  void set_table(TABLE *table)
+  bool set_table(TABLE *table)
   {
     if (!(m_table= table)) // Table does not exist or not opened.
-      return;
+      return 0;
 
     for (end_priv_columns= 0; end_priv_columns < num_fields(); end_priv_columns++)
     {
@@ -900,8 +900,17 @@ class Grant_table_base
       else if (start_priv_columns)
           break;
     }
+
+    if (!table->key_info || table->key_info->user_defined_key_parts != pk_parts)
+    {
+      my_error(ER_CANNOT_LOAD_FROM_TABLE_V2, MYF(ME_ERROR_LOG),
+               table->s->db.str, table->s->table_name.str);
+      return 1;
+    }
+    return 0;
   }
 
+  virtual ~Grant_table_base() = default;
 
   /* the min number of columns a table should have */
   uint min_columns;
@@ -909,6 +918,8 @@ class Grant_table_base
   uint start_priv_columns;
   /* The index after the last privilege column */
   uint end_priv_columns;
+  /* number of key_parts in PK */
+  uint pk_parts;
 
   TABLE *m_table;
 };
@@ -1322,7 +1333,7 @@ class User_table_tabular: public User_table
   friend class Grant_tables;
 
   /* Only Grant_tables can instantiate this class. */
-  User_table_tabular() { min_columns= 13; /* As in 3.20.13 */ }
+  User_table_tabular() { min_columns= 13; /* As in 3.20.13 */ pk_parts= 2; }
 
   /* The user table is a bit different compared to the other Grant tables.
      Usually, we only add columns to the grant tables when adding functionality.
@@ -1733,6 +1744,7 @@ class User_table_json: public User_table
   int set_password_expired (bool x) const override
   { return x ? set_password_last_changed(0) : 0; }
 
+  User_table_json() { pk_parts= 2; }
   ~User_table_json() override = default;
  private:
   friend class Grant_tables;
@@ -1877,7 +1889,7 @@ class Db_table: public Grant_table_base
  private:
   friend class Grant_tables;
 
-  Db_table() { min_columns= 9; /* as in 3.20.13 */ }
+  Db_table() { min_columns= 9; /* as in 3.20.13 */ pk_parts= 3; }
 };
 
 class Tables_priv_table: public Grant_table_base
@@ -1895,7 +1907,7 @@ class Tables_priv_table: public Grant_table_base
  private:
   friend class Grant_tables;
 
-  Tables_priv_table() { min_columns= 8; /* as in 3.22.26a */ }
+  Tables_priv_table() { min_columns= 8; /* as in 3.22.26a */ pk_parts= 4; }
 };
 
 class Columns_priv_table: public Grant_table_base
@@ -1912,7 +1924,7 @@ class Columns_priv_table: public Grant_table_base
  private:
   friend class Grant_tables;
 
-  Columns_priv_table() { min_columns= 7; /* as in 3.22.26a */ }
+  Columns_priv_table() { min_columns= 7; /* as in 3.22.26a */ pk_parts= 5; }
 };
 
 class Host_table: public Grant_table_base
@@ -1924,7 +1936,7 @@ class Host_table: public Grant_table_base
  private:
   friend class Grant_tables;
 
-  Host_table() { min_columns= 8; /* as in 3.20.13 */ }
+  Host_table() { min_columns= 8; /* as in 3.20.13 */  pk_parts= 2;}
 };
 
 class Procs_priv_table: public Grant_table_base
@@ -1942,7 +1954,7 @@ class Procs_priv_table: public Grant_table_base
  private:
   friend class Grant_tables;
 
-  Procs_priv_table() { min_columns=8; }
+  Procs_priv_table() { min_columns=8; pk_parts= 5; }
 };
 
 class Proxies_priv_table: public Grant_table_base
@@ -1959,7 +1971,7 @@ class Proxies_priv_table: public Grant_table_base
  private:
   friend class Grant_tables;
 
-  Proxies_priv_table() { min_columns= 7; }
+  Proxies_priv_table() { min_columns= 7; pk_parts= 4; }
 };
 
 class Roles_mapping_table: public Grant_table_base
@@ -1973,7 +1985,7 @@ class Roles_mapping_table: public Grant_table_base
  private:
   friend class Grant_tables;
 
-  Roles_mapping_table() { min_columns= 4; }
+  Roles_mapping_table() { min_columns= 4; pk_parts= 3; }
 };
 
 /**
@@ -2037,18 +2049,14 @@ class Grant_tables
                                          (USER_TABLE + 1) * sizeof *tables,
                                          MYF(MY_WME)));
     int res= -1;
+    uint counter;
 
     if (!tables)
       DBUG_RETURN(res);
 
     if (build_table_list(thd, &first, which_tables, lock_type, tables))
-    {
-    func_exit:
-      my_free(tables);
-      DBUG_RETURN(res);
-    }
+      goto func_exit;
 
-    uint counter;
     res= really_open(thd, first, &counter);
 
     /* if User_table_json wasn't found, let's try User_table_tabular */
@@ -2077,23 +2085,30 @@ class Grant_tables
     if (res)
       goto func_exit;
 
-    if (lock_tables(thd, first, counter,
-                    MYSQL_LOCK_IGNORE_TIMEOUT |
+    if (lock_tables(thd, first, counter, MYSQL_LOCK_IGNORE_TIMEOUT |
                     MYSQL_OPEN_IGNORE_LOGGING_FORMAT))
     {
       res= -1;
+      close_mysql_tables(thd);
       goto func_exit;
     }
 
-    p_user_table->set_table(tables[USER_TABLE].table);
-    m_db_table.set_table(tables[DB_TABLE].table);
-    m_tables_priv_table.set_table(tables[TABLES_PRIV_TABLE].table);
-    m_columns_priv_table.set_table(tables[COLUMNS_PRIV_TABLE].table);
-    m_host_table.set_table(tables[HOST_TABLE].table);
-    m_procs_priv_table.set_table(tables[PROCS_PRIV_TABLE].table);
-    m_proxies_priv_table.set_table(tables[PROXIES_PRIV_TABLE].table);
-    m_roles_mapping_table.set_table(tables[ROLES_MAPPING_TABLE].table);
-    goto func_exit;
+    if (p_user_table->set_table(tables[USER_TABLE].table)                ||
+        m_db_table.set_table(tables[DB_TABLE].table)                     ||
+        m_tables_priv_table.set_table(tables[TABLES_PRIV_TABLE].table)   ||
+        m_columns_priv_table.set_table(tables[COLUMNS_PRIV_TABLE].table) ||
+        m_host_table.set_table(tables[HOST_TABLE].table)                 ||
+        m_procs_priv_table.set_table(tables[PROCS_PRIV_TABLE].table)     ||
+        m_proxies_priv_table.set_table(tables[PROXIES_PRIV_TABLE].table) ||
+        m_roles_mapping_table.set_table(tables[ROLES_MAPPING_TABLE].table))
+    {
+      res= -1;
+      close_mysql_tables(thd);
+    }
+
+func_exit:
+    my_free(tables);
+    DBUG_RETURN(res);
   }
 
   inline const User_table& user_table() const
