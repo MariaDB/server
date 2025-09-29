@@ -1755,7 +1755,7 @@ row_unlock_for_mysql(
 		const rec_t*	rec;
 		dict_index_t*	index;
 		trx_id_t	rec_trx_id;
-		mtr_t		mtr;
+		mtr_t		mtr{prebuilt->trx};
 		btr_pcur_t*	pcur	= prebuilt->pcur;
 
 		mtr_start(&mtr);
@@ -2216,7 +2216,7 @@ row_mysql_table_id_reassign(
 	dberr_t		err;
 	pars_info_t*	info	= pars_info_create();
 
-	dict_hdr_get_new_id(new_id, NULL, NULL);
+	dict_hdr_get_new_id(trx, new_id, NULL, NULL);
 
 	pars_info_add_ull_literal(info, "old_id", table->id);
 	pars_info_add_ull_literal(info, "new_id", *new_id);
@@ -2838,15 +2838,17 @@ row_rename_table_for_mysql(
 		/* We only want to switch off some of the type checking in
 		an ALTER TABLE, not in a RENAME. */
 		dict_names_t	fk_tables;
-
-		err = dict_load_foreigns(
-			new_name, nullptr, trx->id,
-			!old_is_tmp || trx->check_foreigns,
-			fk == RENAME_ALTER_COPY
-			? DICT_ERR_IGNORE_NONE
-			: DICT_ERR_IGNORE_FK_NOKEY,
-			fk_tables);
-
+		{
+			mtr_t mtr{trx};
+			err = dict_load_foreigns(mtr, new_name, nullptr,
+						 trx->id,
+						 !old_is_tmp
+						 || trx->check_foreigns,
+						 fk == RENAME_ALTER_COPY
+						 ? DICT_ERR_IGNORE_NONE
+						 : DICT_ERR_IGNORE_FK_NOKEY,
+						 fk_tables);
+		}
 		if (err != DB_SUCCESS) {
 			if (old_is_tmp) {
 				/* In case of copy alter, ignore the

@@ -1270,7 +1270,7 @@ void buf_LRU_truncate_temp(uint32_t threshold)
          0, fil_system.temp_space->free_limit);
        cur_xdes_page >= threshold;)
   {
-    mtr_t mtr;
+    mtr_t mtr{nullptr};
     mtr.start();
     if (buf_block_t* block= buf_page_get_gen(
           page_id_t(SRV_TMP_SPACE_ID, cur_xdes_page), 0, RW_X_LATCH,

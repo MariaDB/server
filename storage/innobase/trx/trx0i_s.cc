@@ -580,7 +580,7 @@ fill_lock_data(
 		return(*lock_data != NULL);
 	}
 
-	mtr_t			mtr;
+	mtr_t			mtr{nullptr};
 
 	const buf_block_t*	block;
 	const page_t*		page;

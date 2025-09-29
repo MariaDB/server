@@ -1085,9 +1085,7 @@ struct buf_pool_stat_t{
 		return *this;
 	}
 
-	/** number of pages accessed; also successful searches through
-	the adaptive hash index are counted; aggregates
-	THD::pages_read */
+	/** number of pages accessed; aggregates trx_t::pages_accessed */
 	union {
 		Atomic_counter<ulint> n_page_gets{0};
 		ulint n_page_gets_nonatomic;
@@ -1224,7 +1222,7 @@ public:
 
   /** Resize the buffer pool.
   @param size   requested innodb_buffer_pool_size in bytes
-  @param thd    current connnection */
+  @param trx    current connnection */
   ATTRIBUTE_COLD void resize(size_t size, THD *thd) noexcept;
 
   /** Collect garbage (release pages from the LRU list) */
@@ -1335,15 +1333,16 @@ public:
   the mode c=FIX_WAIT_READ must not be used.
   @param id        page identifier
   @param err       error code (will only be assigned when returning nullptr)
+  @param trx       transaction attached to current connection
   @param c         how to handle conflicts
   @return undo log page, buffer-fixed
   @retval -1       if c=FIX_NOWAIT and buffer-fixing would require waiting
   @retval nullptr  if the undo page was corrupted or freed */
-  buf_block_t *page_fix(const page_id_t id, dberr_t *err,
+  buf_block_t *page_fix(const page_id_t id, dberr_t *err, trx_t *trx,
                         page_fix_conflicts c) noexcept;
 
-  buf_block_t *page_fix(const page_id_t id) noexcept
-  { return page_fix(id, nullptr, FIX_WAIT_READ); }
+  buf_block_t *page_fix(const page_id_t id, trx_t *trx) noexcept
+  { return page_fix(id, nullptr, trx, FIX_WAIT_READ); }
 
   /** Validate a block descriptor.
   @param b     block descriptor that may be invalid after shrink()

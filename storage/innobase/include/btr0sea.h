@@ -105,8 +105,9 @@ void btr_search_drop_page_hash_index(buf_block_t* block,
 
 /** Drop possible adaptive hash index entries when a page is evicted
 from the buffer pool or freed in a file, or the index is being dropped.
+@param[in,out]	mtr		mini-transaction
 @param[in]	page_id		page id */
-void btr_search_drop_page_hash_when_freed(const page_id_t page_id);
+void btr_search_drop_page_hash_when_freed(mtr_t *mtr, const page_id_t page_id);
 
 /** Updates the page hash index when a single record is inserted on a page.
 @param[in]	cursor	cursor which was positioned to the place to insert

@@ -433,7 +433,7 @@ static dberr_t srv_undo_delete_old_tablespaces()
 /** Recreate the undo log tablespaces */
 ATTRIBUTE_COLD static dberr_t srv_undo_tablespaces_reinit()
 {
-  mtr_t mtr;
+  mtr_t mtr{nullptr};
   dberr_t err;
   buf_block_t *first_rseg_hdr;
   uint32_t latest_space_id;
@@ -626,7 +626,7 @@ static dberr_t srv_undo_tablespaces_reinitialize()
 static uint32_t trx_rseg_get_n_undo_tablespaces()
 {
   std::set<uint32_t> space_ids;
-  mtr_t mtr;
+  mtr_t mtr{nullptr};
   mtr.start();
 
   if (const buf_block_t *sys_header=
@@ -979,7 +979,7 @@ srv_open_tmp_tablespace(bool create_new_db)
 		ib::error() << "Unable to create the shared innodb_temporary";
 	} else if (fil_system.temp_space->open(true)) {
 		/* Initialize the header page */
-		mtr_t mtr;
+		mtr_t mtr{nullptr};
 		mtr.start();
 		mtr.set_log_mode(MTR_LOG_NO_REDO);
 		err = fsp_header_init(fil_system.temp_space,
@@ -1259,13 +1259,52 @@ inline lsn_t log_t::init_lsn() noexcept
 
 PRAGMA_DISABLE_CHECK_STACK_FRAME
 
+/** Load the dictionary tables */
+static dberr_t srv_load_tables(bool must_upgrade_ibuf) noexcept
+{
+  mem_heap_t *heap= mem_heap_create(1000);
+  mtr_t mtr{nullptr};
+  dict_sys.lock(SRW_LOCK_CALL);
+  dberr_t err = dict_load_indexes(&mtr, dict_sys.sys_tables, false, heap,
+                                  DICT_ERR_IGNORE_NONE);
+  mem_heap_empty(heap);
+  if ((err == DB_SUCCESS || srv_force_recovery >= SRV_FORCE_NO_DDL_UNDO) &&
+      UNIV_UNLIKELY(must_upgrade_ibuf))
+  {
+    dict_sys.unlock();
+    dict_load_tablespaces(nullptr, true);
+    err= ibuf_upgrade();
+    dict_sys.lock(SRW_LOCK_CALL);
+  }
+  if (err == DB_SUCCESS || srv_force_recovery >= SRV_FORCE_NO_DDL_UNDO)
+  {
+    err = dict_load_indexes(&mtr, dict_sys.sys_columns, false, heap,
+                            DICT_ERR_IGNORE_NONE);
+    mem_heap_empty(heap);
+  }
+  if (err == DB_SUCCESS || srv_force_recovery >= SRV_FORCE_NO_DDL_UNDO)
+  {
+    err = dict_load_indexes(&mtr, dict_sys.sys_indexes, false, heap,
+                            DICT_ERR_IGNORE_NONE);
+    mem_heap_empty(heap);
+  }
+  if (err == DB_SUCCESS || srv_force_recovery >= SRV_FORCE_NO_DDL_UNDO) {
+    err = dict_load_indexes(&mtr, dict_sys.sys_fields, false, heap,
+                            DICT_ERR_IGNORE_NONE);
+  }
+  mem_heap_free(heap);
+  dict_sys.unlock();
+  dict_sys.load_sys_tables();
+  return err;
+}
+
 /** Start InnoDB.
 @param[in]	create_new_db	whether to create a new database
 @return DB_SUCCESS or error code */
 dberr_t srv_start(bool create_new_db)
 {
 	dberr_t		err		= DB_SUCCESS;
-	mtr_t		mtr;
+	mtr_t		mtr{nullptr};
 
 	ut_ad(srv_operation <= SRV_OPERATION_RESTORE_EXPORT
 	      || srv_operation == SRV_OPERATION_RESTORE
@@ -1478,7 +1517,6 @@ dberr_t srv_start(bool create_new_db)
 
 
 	if (err == DB_SUCCESS) {
-		mtr_t mtr;
 		mtr.start();
 		err= srv_undo_tablespaces_init(create_new_db, &mtr);
 		mtr.commit();
@@ -1640,24 +1678,10 @@ dberr_t srv_start(bool create_new_db)
 			DBUG_PRINT("ib_log", ("apply completed"));
 
 			if (srv_operation != SRV_OPERATION_RESTORE) {
-				dict_sys.lock(SRW_LOCK_CALL);
-				dict_load_sys_table(dict_sys.sys_tables);
-				dict_sys.unlock();
-
-				if (UNIV_UNLIKELY(must_upgrade_ibuf)) {
-					dict_load_tablespaces(nullptr, true);
-					err = ibuf_upgrade();
-					if (err != DB_SUCCESS) {
-						return srv_init_abort(err);
-					}
+				err = srv_load_tables(must_upgrade_ibuf);
+				if (err != DB_SUCCESS) {
+					return srv_init_abort(err);
 				}
-
-				dict_sys.lock(SRW_LOCK_CALL);
-				dict_load_sys_table(dict_sys.sys_columns);
-				dict_load_sys_table(dict_sys.sys_indexes);
-				dict_load_sys_table(dict_sys.sys_fields);
-				dict_sys.unlock();
-				dict_sys.load_sys_tables();
 
 				err = trx_lists_init_at_db_start();
 				if (err != DB_SUCCESS) {

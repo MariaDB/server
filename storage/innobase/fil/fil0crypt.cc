@@ -907,7 +907,7 @@ static inline void fil_crypt_read_crypt_data(fil_space_t *space)
     return;
 
   const ulint zip_size= space->zip_size();
-  mtr_t mtr;
+  mtr_t mtr{nullptr};
   mtr.start();
   if (buf_block_t* b= buf_page_get_gen(page_id_t{space->id, 0}, zip_size,
                                        RW_S_LATCH, nullptr,
@@ -961,7 +961,7 @@ func_exit:
 	fil_crypt_start_converting = true;
 	mysql_mutex_unlock(&fil_crypt_threads_mutex);
 
-	mtr_t mtr;
+	mtr_t mtr{nullptr};
 	mtr.start();
 
 	/* 2 - get page 0 */
@@ -1684,7 +1684,7 @@ fil_crypt_get_page_throttle(
 
 	if (offset % (zip_size ? zip_size : srv_page_size)
 	    && DB_SUCCESS_LOCKED_REC
-	    != fseg_page_is_allocated(space, offset)) {
+	    != fseg_page_is_allocated(mtr, space, offset)) {
 		/* page is already freed */
 		return NULL;
 	}
@@ -1752,7 +1752,7 @@ fil_crypt_rotate_page(
 		return;
 	}
 
-	mtr_t mtr;
+	mtr_t mtr{nullptr};
 	mtr.start();
 	if (buf_block_t* block = fil_crypt_get_page_throttle(state,
 							     offset, &mtr,
@@ -1931,7 +1931,7 @@ fil_crypt_flush_space(
 	}
 
 	/* update page 0 */
-	mtr_t mtr;
+	mtr_t mtr{nullptr};
 	mtr.start();
 
 	if (buf_block_t* block = buf_page_get_gen(

@@ -53,6 +53,7 @@ referenced table is pushed into the output stack (fk_tables), if it is not
 NULL.  These tables must be subsequently loaded so that all the foreign
 key constraints are loaded into memory.
 
+@param[in,out]	mtr		mini-transaction
 @param[in]	name		Table name in the db/tablename format
 @param[in]	ignore_err	Error to be ignored when loading table
 				and its index definition
@@ -61,7 +62,8 @@ key constraints are loaded into memory.
 				constraints are loaded.
 @return table, possibly with file_unreadable flag set
 @retval nullptr if the table does not exist */
-static dict_table_t *dict_load_table_one(const span<const char> &name,
+static dict_table_t *dict_load_table_one(mtr_t &mtr,
+                                         const span<const char> &name,
                                          dict_err_ignore_t ignore_err,
                                          dict_names_t &fk_tables);
 
@@ -665,7 +667,7 @@ dict_sys_tables_rec_read(
 			rec, index, nullptr, true, ULINT_UNDEFINED, &heap);
 		const rec_t* old_vers;
 		row_vers_build_for_semi_consistent_read(
-			nullptr, rec, mtr, index, &offsets, &heap,
+			rec, mtr, index, &offsets, &heap,
 			heap, &old_vers, nullptr);
 		mtr->rollback_to_savepoint(savepoint);
 		rec = old_vers;
@@ -881,7 +883,7 @@ void dict_load_tablespaces(const std::set<uint32_t> *spaces, bool upgrade)
 {
 	uint32_t	max_space_id = 0;
 	btr_pcur_t	pcur;
-	mtr_t		mtr;
+	mtr_t		mtr{nullptr};
 
 	mtr.start();
 
@@ -1075,7 +1077,7 @@ err_len:
 			rec, index, nullptr, true, ULINT_UNDEFINED, &heap);
 		const rec_t* old_vers;
 		row_vers_build_for_semi_consistent_read(
-			nullptr, rec, mtr, index, &offsets, &heap,
+			rec, mtr, index, &offsets, &heap,
 			heap, &old_vers, nullptr);
 		mtr->rollback_to_savepoint(savepoint);
 		rec = old_vers;
@@ -1290,6 +1292,7 @@ err_len:
 }
 
 /** Load the definitions for table columns.
+@param mtr	       mini-transaction
 @param table           table
 @param use_uncommitted 0=READ COMMITTED, 1=detect, 2=READ UNCOMMITTED
 @param heap            memory heap for temporary storage
@@ -1298,11 +1301,11 @@ err_len:
 @retval DB_SUCCESS_LOCKED_REC on success if use_uncommitted=1
 and instant ADD/DROP/reorder was detected */
 MY_ATTRIBUTE((nonnull, warn_unused_result))
-static dberr_t dict_load_columns(dict_table_t *table, unsigned use_uncommitted,
+static dberr_t dict_load_columns(mtr_t &mtr,
+                                 dict_table_t *table, unsigned use_uncommitted,
                                  mem_heap_t *heap)
 {
 	btr_pcur_t	pcur;
-	mtr_t		mtr;
 	ulint		n_skipped = 0;
 
 	ut_ad(dict_sys.locked());
@@ -1416,13 +1419,15 @@ func_exit:
 }
 
 /** Loads SYS_VIRTUAL info for one virtual column
+@param mtr         mini-transaction
 @param table	   table definition
 @param uncommitted false=READ COMMITTED, true=READ UNCOMMITTED
 @param nth_v_col   virtual column position */
 MY_ATTRIBUTE((nonnull, warn_unused_result))
 static
 dberr_t
-dict_load_virtual_col(dict_table_t *table, bool uncommitted, ulint nth_v_col)
+dict_load_virtual_col(mtr_t &mtr, dict_table_t *table, bool uncommitted,
+                      ulint nth_v_col)
 {
 	const dict_v_col_t* v_col = dict_table_get_nth_v_col(table, nth_v_col);
 
@@ -1432,7 +1437,6 @@ dict_load_virtual_col(dict_table_t *table, bool uncommitted, ulint nth_v_col)
 
 	dict_index_t*	sys_virtual_index;
 	btr_pcur_t	pcur;
-	mtr_t		mtr;
 
 	ut_ad(dict_sys.locked());
 
@@ -1502,13 +1506,15 @@ func_exit:
 }
 
 /** Loads info from SYS_VIRTUAL for virtual columns.
-@param table	   table definition
+@param mtr         mini-transaction
+@param table       table definition
 @param uncommitted false=READ COMMITTED, true=READ UNCOMMITTED */
 MY_ATTRIBUTE((nonnull, warn_unused_result))
-static dberr_t dict_load_virtual(dict_table_t *table, bool uncommitted)
+static dberr_t dict_load_virtual(mtr_t &mtr, dict_table_t *table,
+                                 bool uncommitted)
 {
   for (ulint i= 0; i < table->n_v_cols; i++)
-    if (dberr_t err= dict_load_virtual_col(table, uncommitted, i))
+    if (dberr_t err= dict_load_virtual_col(mtr, table, uncommitted, i))
       return err;
   return DB_SUCCESS;
 }
@@ -1632,7 +1638,7 @@ err_len:
 			rec, sys_field, nullptr, true, ULINT_UNDEFINED, &heap);
 		const rec_t* old_vers;
 		row_vers_build_for_semi_consistent_read(
-			nullptr, rec, mtr, sys_field, &offsets, &heap,
+			rec, mtr, sys_field, &offsets, &heap,
 			heap, &old_vers, nullptr);
 		mtr->rollback_to_savepoint(savepoint);
 		rec = old_vers;
@@ -1668,20 +1674,19 @@ err_len:
 
 /**
 Load definitions for index fields.
+@param mtr         mini-transaction
 @param index       index whose fields are to be loaded
 @param uncommitted false=READ COMMITTED, true=READ UNCOMMITTED
 @param heap        memory heap for temporary storage
 @return error code
 @return DB_SUCCESS if the fields were loaded successfully */
-static dberr_t dict_load_fields(dict_index_t *index, bool uncommitted,
-                                mem_heap_t *heap)
+static dberr_t dict_load_fields(mtr_t &mtr, dict_index_t *index,
+                                bool uncommitted, mem_heap_t *heap)
 {
 	btr_pcur_t	pcur;
-	mtr_t		mtr;
 
 	ut_ad(dict_sys.locked());
-
-	mtr.start();
+	auto sp = mtr.get_savepoint();
 
 	dict_index_t* sys_index = dict_sys.sys_fields->indexes.start;
 	ut_ad(!dict_sys.sys_fields->not_redundant());
@@ -1737,7 +1742,7 @@ static dberr_t dict_load_fields(dict_index_t *index, bool uncommitted,
 	}
 
 func_exit:
-	mtr.commit();
+	mtr.rollback_to_savepoint(sp);
 	return error;
 }
 
@@ -1849,7 +1854,7 @@ err_len:
 			rec, sys_index, nullptr, true, ULINT_UNDEFINED, &heap);
 		const rec_t* old_vers;
 		row_vers_build_for_semi_consistent_read(
-			nullptr, rec, mtr, sys_index, &offsets, &heap,
+			rec, mtr, sys_index, &offsets, &heap,
 			heap, &old_vers, nullptr);
 		mtr->rollback_to_savepoint(savepoint);
 		rec = old_vers;
@@ -1919,6 +1924,7 @@ err_len:
 }
 
 /** Load definitions for table indexes. Adds them to the data dictionary cache.
+@param mtr         mini-transaction
 @param table       table definition
 @param uncommitted false=READ COMMITTED, true=READ UNCOMMITTED
 @param heap        memory heap for temporary storage
@@ -1927,18 +1933,16 @@ err_len:
 @retval DB_SUCCESS if all indexes were successfully loaded
 @retval DB_CORRUPTION if corruption of dictionary table
 @retval DB_UNSUPPORTED if table has unknown index type */
-static MY_ATTRIBUTE((nonnull))
-dberr_t dict_load_indexes(dict_table_t *table, bool uncommitted,
+dberr_t dict_load_indexes(mtr_t *mtr, dict_table_t *table, bool uncommitted,
                           mem_heap_t *heap, dict_err_ignore_t ignore_err)
 {
 	dict_index_t*	sys_index;
 	btr_pcur_t	pcur;
 	byte		table_id[8];
-	mtr_t		mtr;
 
 	ut_ad(dict_sys.locked());
 
-	mtr.start();
+	mtr->start();
 
 	sys_index = dict_sys.sys_indexes->indexes.start;
 	ut_ad(!dict_sys.sys_indexes->not_redundant());
@@ -1960,7 +1964,7 @@ dberr_t dict_load_indexes(dict_table_t *table, bool uncommitted,
 	pcur.btr_cur.page_cur.index = sys_index;
 
 	dberr_t error = btr_pcur_open_on_user_rec(&tuple, BTR_SEARCH_LEAF,
-						  &pcur, &mtr);
+						  &pcur, mtr);
 	if (error != DB_SUCCESS) {
 		goto func_exit;
 	}
@@ -1993,7 +1997,7 @@ dberr_t dict_load_indexes(dict_table_t *table, bool uncommitted,
 		}
 
 		err_msg = dict_load_index_low(table_id, uncommitted, heap, rec,
-					      &mtr, table, &index);
+					      mtr, table, &index);
 		ut_ad(!index == !!err_msg);
 
 		if (err_msg == dict_load_index_none) {
@@ -2101,7 +2105,8 @@ corrupted:
 			of the database server */
 			dict_mem_index_free(index);
 		} else {
-			error = dict_load_fields(index, uncommitted, heap);
+			error = dict_load_fields(*mtr, index, uncommitted,
+						 heap);
 			if (error != DB_SUCCESS) {
 				goto func_exit;
 			}
@@ -2131,7 +2136,7 @@ corrupted:
 #endif /* UNIV_DEBUG */
 		}
 next_rec:
-		btr_pcur_move_to_next_user_rec(&pcur, &mtr);
+		btr_pcur_move_to_next_user_rec(&pcur, mtr);
 	}
 
 	if (!dict_table_get_first_index(table)
@@ -2160,7 +2165,7 @@ next_rec:
 	}
 
 func_exit:
-	mtr.commit();
+	mtr->commit();
 	return error;
 }
 
@@ -2302,6 +2307,7 @@ referenced table is pushed into the output stack (fk_tables), if it is not
 NULL.  These tables must be subsequently loaded so that all the foreign
 key constraints are loaded into memory.
 
+@param[in,out]	mtr		mini-transaction
 @param[in]	name		Table name in the db/tablename format
 @param[in]	ignore_err	Error to be ignored when loading table
 				and its index definition
@@ -2310,12 +2316,12 @@ key constraints are loaded into memory.
 				constraints are loaded.
 @return table, possibly with file_unreadable flag set
 @retval nullptr if the table does not exist */
-static dict_table_t *dict_load_table_one(const span<const char> &name,
+static dict_table_t *dict_load_table_one(mtr_t &mtr,
+                                         const span<const char> &name,
                                          dict_err_ignore_t ignore_err,
                                          dict_names_t &fk_tables)
 {
 	btr_pcur_t	pcur;
-	mtr_t		mtr;
 
 	DBUG_ENTER("dict_load_table_one");
 	DBUG_PRINT("dict_load_table_one",
@@ -2392,7 +2398,7 @@ err_exit:
 
 	dict_load_tablespace(table, ignore_err);
 
-	switch (dict_load_columns(table, use_uncommitted, heap)) {
+	switch (dict_load_columns(mtr, table, use_uncommitted, heap)) {
 	case DB_SUCCESS_LOCKED_REC:
 		ut_ad(!uncommitted);
 		uncommitted = true;
@@ -2400,7 +2406,7 @@ err_exit:
 		mem_heap_free(heap);
 		goto reload;
 	case DB_SUCCESS:
-		if (!dict_load_virtual(table, uncommitted)) {
+		if (!dict_load_virtual(mtr, table, uncommitted)) {
 			break;
 		}
 		/* fall through */
@@ -2430,7 +2436,8 @@ err_exit:
 		? DICT_ERR_IGNORE_ALL
 		: ignore_err;
 
-	err = dict_load_indexes(table, uncommitted, heap, index_load_err);
+	err = dict_load_indexes(&mtr, table, uncommitted, heap,
+				index_load_err);
 
 	if (err == DB_TABLE_CORRUPT) {
 		/* Refuse to load the table if the table has a corrupted
@@ -2477,7 +2484,7 @@ corrupted:
 				goto corrupted;
 			}
 
-			err = btr_cur_instant_init(table);
+			err = btr_cur_instant_init(&mtr, table);
 		}
 	} else {
 		ut_ad(ignore_err & DICT_ERR_IGNORE_INDEX);
@@ -2497,7 +2504,7 @@ corrupted:
 		/* Don't attempt to load the indexes from disk. */
 	} else if (err == DB_SUCCESS) {
 		auto i = fk_tables.size();
-		err = dict_load_foreigns(table->name.m_name, nullptr,
+		err = dict_load_foreigns(mtr, table->name.m_name, nullptr,
 					 0, true, ignore_err, fk_tables);
 
 		if (err != DB_SUCCESS) {
@@ -2549,13 +2556,15 @@ dict_table_t *dict_sys_t::load_table(const span<const char> &name,
   if (dict_table_t *table= find_table(name))
     return table;
   dict_names_t fk_list;
-  dict_table_t *table= dict_load_table_one(name, ignore, fk_list);
+  THD* const thd{current_thd};
+  mtr_t mtr{thd ? thd_to_trx(thd) : nullptr};
+  dict_table_t *table= dict_load_table_one(mtr, name, ignore, fk_list);
   while (!fk_list.empty())
   {
     const char *f= fk_list.front();
     const span<const char> name{f, strlen(f)};
     if (!find_table(name))
-      dict_load_table_one(name, ignore, fk_list);
+      dict_load_table_one(mtr, name, ignore, fk_list);
     fk_list.pop_front();
   }
 
@@ -2576,7 +2585,7 @@ dict_load_table_on_id(
 	btr_pcur_t	pcur;
 	const byte*	field;
 	ulint		len;
-	mtr_t		mtr;
+	mtr_t		mtr{nullptr};
 
 	ut_ad(dict_sys.locked());
 
@@ -2645,26 +2654,6 @@ check_rec:
 	return table;
 }
 
-/********************************************************************//**
-This function is called when the database is booted. Loads system table
-index definitions except for the clustered index which is added to the
-dictionary cache at booting before calling this function. */
-void
-dict_load_sys_table(
-/*================*/
-	dict_table_t*	table)	/*!< in: system table */
-{
-	mem_heap_t*	heap;
-
-	ut_ad(dict_sys.locked());
-
-	heap = mem_heap_create(1000);
-
-	dict_load_indexes(table, false, heap, DICT_ERR_IGNORE_NONE);
-
-	mem_heap_free(heap);
-}
-
 MY_ATTRIBUTE((nonnull, warn_unused_result))
 /********************************************************************//**
 Loads foreign key constraint col names (also for the referenced table).
@@ -2676,10 +2665,10 @@ Members that will be created and set by this function:
 foreign->foreign_col_names[i]
 foreign->referenced_col_names[i]
 (for i=0..foreign->n_fields-1) */
-static dberr_t dict_load_foreign_cols(dict_foreign_t *foreign, trx_id_t trx_id)
+static dberr_t dict_load_foreign_cols(mtr_t &mtr, dict_foreign_t *foreign,
+                                      trx_id_t trx_id)
 {
 	btr_pcur_t	pcur;
-	mtr_t		mtr;
 	size_t		id_len;
 
 	ut_ad(dict_sys.locked());
@@ -2739,7 +2728,7 @@ static dberr_t dict_load_foreign_cols(dict_foreign_t *foreign, trx_id_t trx_id)
 				&heap);
 			const rec_t* old_vers;
 			row_vers_build_for_semi_consistent_read(
-				nullptr, rec, &mtr, sys_index, &offsets, &heap,
+				rec, &mtr, sys_index, &offsets, &heap,
 				heap, &old_vers, nullptr);
 			mtr.rollback_to_savepoint(savepoint);
 			rec = old_vers;
@@ -2830,6 +2819,7 @@ static MY_ATTRIBUTE((warn_unused_result))
 dberr_t
 dict_load_foreign(
 /*==============*/
+	mtr_t&			mtr,		/*!< in/out: mini-transaction*/
 	const char*		table_name,	/*!< in: table name */
 	bool			uncommitted,	/*!< in: use READ UNCOMMITTED
 						transaction isolation level */
@@ -2861,7 +2851,6 @@ dict_load_foreign(
 	btr_pcur_t	pcur;
 	const byte*	field;
 	ulint		len;
-	mtr_t		mtr;
 	dict_table_t*	for_table;
 	dict_table_t*	ref_table;
 
@@ -2928,7 +2917,7 @@ err_exit:
 			rec, sys_index, nullptr, true, ULINT_UNDEFINED, &heap);
 		const rec_t* old_vers;
 		row_vers_build_for_semi_consistent_read(
-			nullptr, rec, &mtr, sys_index, &offsets, &heap,
+			rec, &mtr, sys_index, &offsets, &heap,
 			heap, &old_vers, nullptr);
 		mtr.rollback_to_savepoint(savepoint);
 		rec = old_vers;
@@ -2993,7 +2982,7 @@ err_exit:
 		mem_heap_free(heap);
 	}
 
-	err = dict_load_foreign_cols(foreign, trx_id);
+	err = dict_load_foreign_cols(mtr, foreign, trx_id);
 	if (err != DB_SUCCESS) {
 		goto load_error;
 	}
@@ -3048,6 +3037,7 @@ cache, then it is added to the output parameter (fk_tables).
 @return DB_SUCCESS or error code */
 dberr_t
 dict_load_foreigns(
+	mtr_t&			mtr,		/*!< in/out: mini-transaction*/
 	const char*		table_name,	/*!< in: table name */
 	const char**		col_names,	/*!< in: column names, or NULL
 						to use table->col_names */
@@ -3065,7 +3055,6 @@ dict_load_foreigns(
 						foreign key constraints. */
 {
 	btr_pcur_t	pcur;
-	mtr_t		mtr;
 
 	DBUG_ENTER("dict_load_foreigns");
 
@@ -3166,7 +3155,7 @@ loop:
 	/* Load the foreign constraint definition to the dictionary cache */
 
 	err = len < sizeof fk_id
-		? dict_load_foreign(table_name, false, col_names, trx_id,
+		? dict_load_foreign(mtr, table_name, false, col_names, trx_id,
 				    check_recursive, check_charsets,
 				    {fk_id, len}, ignore_err, fk_tables)
 		: DB_CORRUPTION;

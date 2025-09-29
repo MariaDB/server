@@ -2530,11 +2530,9 @@ buf_block_t *buf_pool_t::unzip(buf_page_t *b, buf_pool_t::hash_chain &chain)
 }
 
 buf_block_t *buf_pool_t::page_fix(const page_id_t id,
-                                  dberr_t *err,
+                                  dberr_t *err, trx_t *trx,
                                   buf_pool_t::page_fix_conflicts c) noexcept
 {
-  THD *const thd= current_thd; // FIXME: add parameter
-  trx_t *const trx= thd ? thd_to_trx(thd) : nullptr;
   if (trx) buf_inc_get(trx);
   auto& chain= page_hash.cell_get(id.fold());
   page_hash_latch &hash_lock= page_hash.lock_get(chain);

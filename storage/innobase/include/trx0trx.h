@@ -1021,16 +1021,13 @@ private:
   /** Process tables that were modified by the committing transaction. */
   inline void commit_tables();
   /** Mark a transaction committed in the main memory data structures.
-  @param mtr  mini-transaction (if there are any persistent modifications) */
-  inline void commit_in_memory(const mtr_t *mtr);
-  /** Write log for committing the transaction. */
+  @param mtr  mini-transaction */
+  inline void commit_in_memory(mtr_t *mtr);
+  /** Commit the transaction in the file system. */
   void commit_persist() noexcept;
   /** Clean up the transaction after commit_in_memory()
-  @return false (always) */
+  @retval false (always) */
   bool commit_cleanup() noexcept;
-  /** Commit the transaction in a mini-transaction.
-  @param mtr  mini-transaction (if there are any persistent modifications) */
-  void commit_low(mtr_t *mtr= nullptr);
   /** Commit an empty transaction.
   @param mtr   mini-transaction */
   void commit_empty(mtr_t *mtr);
@@ -1041,8 +1038,9 @@ private:
   @param mtr   mini-transaction */
   inline void write_serialisation_history(mtr_t *mtr);
 public:
-  /** Commit the transaction. */
-  void commit() noexcept;
+  /** Commit the transaction.
+  @retval false (always) */
+  bool commit() noexcept;
 
   /** Try to drop a persistent table.
   @param table       persistent table
