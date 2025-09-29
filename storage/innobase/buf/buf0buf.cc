@@ -3250,7 +3250,7 @@ retry:
   ut_ad(bpage->state() == buf_page_t::MEMORY);
 
   {
-    page_hash_latch &hash_lock{buf_pool.page_hash.lock_get(chain)};
+    page_hash_latch &hash_lock= buf_pool.page_hash.lock_get(chain);
     hash_lock.lock();
     reinterpret_cast<buf_block_t*>(bpage)->
       initialise(page_id, zip_size, buf_page_t::REINIT + 1);
