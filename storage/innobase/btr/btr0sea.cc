@@ -34,6 +34,7 @@ Created 2/17/1996 Heikki Tuuri
 #include "btr0pcur.h"
 #include "btr0btr.h"
 #include "srv0mon.h"
+#include "trx0trx.h"
 
 /** Is search system enabled.
 Search system is protected by array of latches. */
@@ -1061,7 +1062,7 @@ block_and_ahi_release_and_fail:
 
 	part->latch.rd_unlock();
 
-	++buf_pool.stat.n_page_gets;
+	buf_inc_get();
 
 	mtr->memo_push(block, mtr_memo_type_t(latch_mode));
 

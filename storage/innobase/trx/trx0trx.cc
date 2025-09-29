@@ -369,6 +369,13 @@ void trx_t::free()
 #endif
   MEM_CHECK_DEFINED(this, sizeof *this);
   autoinc_locks.make_undefined();
+  ut_ad(!active_handler_stats);
+
+  if (size_t n_page_gets= pages_accessed)
+  {
+    pages_accessed= 0;
+    buf_pool.stat.n_page_gets+= n_page_gets;
+  }
 
   ut_ad(!n_mysql_tables_in_use);
   ut_ad(!mysql_log_file_name);
@@ -1514,6 +1521,11 @@ bool trx_t::commit_cleanup() noexcept
     for (auto &t : mod_tables)
       delete t.second.bulk_store;
 
+  if (size_t n_page_gets= pages_accessed)
+  {
+    pages_accessed= 0;
+    buf_pool.stat.n_page_gets+= n_page_gets;
+  }
   mutex.wr_lock();
   state= TRX_STATE_NOT_STARTED;
   *detailed_error= '\0';

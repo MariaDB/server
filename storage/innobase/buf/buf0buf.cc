@@ -28,7 +28,6 @@ Created 11/5/1995 Heikki Tuuri
 #include "mtr0types.h"
 #include "mach0data.h"
 #include "buf0checksum.h"
-#include "mariadb_stats.h"
 #include <string.h>
 
 #ifdef UNIV_INNOCHECKSUM
@@ -324,6 +323,26 @@ static constexpr size_t pages_in_extent[]=
 {
   pages(4096), pages(8192), pages(16384), pages(32768), pages(65536)
 };
+
+static ATTRIBUTE_NOINLINE void buf_inc_get(trx_t *trx) noexcept
+{
+  trx->pages_accessed++;
+  if (ha_handler_stats *stats= trx->active_handler_stats)
+    stats->pages_accessed++;
+}
+
+void buf_inc_get() noexcept
+{
+  if (THD *thd= current_thd)
+    if (trx_t *trx= thd_to_trx(thd))
+      buf_inc_get(trx);
+}
+
+static ATTRIBUTE_NOINLINE void buf_inc_read(trx_t *trx) noexcept
+{
+  if (ha_handler_stats *stats= trx->active_handler_stats)
+    stats->pages_read_count++;
+}
 
 # ifdef SUX_LOCK_GENERIC
 void page_hash_latch::read_lock_wait() noexcept
@@ -2196,7 +2215,7 @@ void buf_page_free(fil_space_t *space, uint32_t page, mtr_t *mtr)
       )
     mtr->add_freed_offset(space, page);
 
-  ++buf_pool.stat.n_page_gets;
+  buf_inc_get();
   const page_id_t page_id(space->id, page);
   buf_pool_t::hash_chain &chain= buf_pool.page_hash.cell_get(page_id.fold());
   uint32_t fix;
@@ -2230,17 +2249,12 @@ void buf_page_free(fil_space_t *space, uint32_t page, mtr_t *mtr)
   mtr->memo_push(block, MTR_MEMO_PAGE_X_MODIFY);
 }
 
-static void buf_inc_get(ha_handler_stats *stats)
-{
-  mariadb_increment_pages_accessed(stats);
-  ++buf_pool.stat.n_page_gets;
-}
-
 TRANSACTIONAL_TARGET
 buf_page_t *buf_page_get_zip(const page_id_t page_id) noexcept
 {
-  ha_handler_stats *const stats= mariadb_stats;
-  buf_inc_get(stats);
+  THD *const thd= current_thd;
+  trx_t *const trx= thd ? thd_to_trx(thd) : nullptr;
+  if (trx) buf_inc_get(trx);
 
   buf_pool_t::hash_chain &chain= buf_pool.page_hash.cell_get(page_id.fold());
   page_hash_latch &hash_lock= buf_pool.page_hash.lock_get(chain);
@@ -2272,7 +2286,7 @@ buf_page_t *buf_page_get_zip(const page_id_t page_id) noexcept
       switch (dberr_t err= buf_read_page(page_id, chain, false)) {
       case DB_SUCCESS:
       case DB_SUCCESS_LOCKED_REC:
-        mariadb_increment_pages_read(stats);
+        if (trx) buf_inc_read(trx);
         continue;
       case DB_TABLESPACE_DELETED:
         return nullptr;
@@ -2519,8 +2533,9 @@ buf_block_t *buf_pool_t::page_fix(const page_id_t id,
                                   dberr_t *err,
                                   buf_pool_t::page_fix_conflicts c) noexcept
 {
-  ha_handler_stats *const stats= mariadb_stats;
-  buf_inc_get(stats);
+  THD *const thd= current_thd; // FIXME: add parameter
+  trx_t *const trx= thd ? thd_to_trx(thd) : nullptr;
+  if (trx) buf_inc_get(trx);
   auto& chain= page_hash.cell_get(id.fold());
   page_hash_latch &hash_lock= page_hash.lock_get(chain);
   for (;;)
@@ -2608,7 +2623,7 @@ buf_block_t *buf_pool_t::page_fix(const page_id_t id,
       return nullptr;
     case DB_SUCCESS:
     case DB_SUCCESS_LOCKED_REC:
-      mariadb_increment_pages_read(stats);
+      if (trx) buf_inc_read(trx);
       buf_read_ahead_random(id);
     }
   }
@@ -2730,8 +2745,9 @@ buf_page_get_gen(
 	}
 #endif /* UNIV_DEBUG */
 
-	ha_handler_stats* const stats = mariadb_stats;
-	buf_inc_get(stats);
+	THD *const thd = current_thd;
+	trx_t *const trx= thd ? thd_to_trx(thd) : nullptr;
+	if (trx) buf_inc_get(trx);
 	auto& chain= buf_pool.page_hash.cell_get(page_id.fold());
 	page_hash_latch& hash_lock = buf_pool.page_hash.lock_get(chain);
 loop:
@@ -2777,7 +2793,7 @@ loop:
 	switch (dberr_t local_err = buf_read_page(page_id, chain)) {
 	case DB_SUCCESS:
 	case DB_SUCCESS_LOCKED_REC:
-		mariadb_increment_pages_read(stats);
+		if (trx) buf_inc_read(trx);
 		buf_read_ahead_random(page_id);
 		break;
 	default:
@@ -3051,7 +3067,7 @@ buf_block_t *buf_page_try_get(const page_id_t page_id, mtr_t *mtr) noexcept
   ut_ad(block->page.buf_fix_count());
   ut_ad(block->page.id() == page_id);
 
-  buf_inc_get(mariadb_stats);
+  buf_inc_get();
   return block;
 }
 
@@ -3978,25 +3994,24 @@ void buf_pool_t::get_info(buf_pool_info_t *pool_info) noexcept
 
   double elapsed= 0.001 + difftime(time(nullptr), last_printout_time);
 
-  pool_info->n_pages_made_young= stat.n_pages_made_young;
-  pool_info->page_made_young_rate=
-    double(stat.n_pages_made_young - old_stat.n_pages_made_young) /
-    elapsed;
-  pool_info->n_pages_not_made_young= stat.n_pages_not_made_young;
-  pool_info->page_not_made_young_rate=
-    double(stat.n_pages_not_made_young - old_stat.n_pages_not_made_young) /
-    elapsed;
+  pool_info->n_page_gets= stat.n_page_gets;
   pool_info->n_pages_read= stat.n_pages_read;
+  pool_info->n_pages_written= stat.n_pages_written;
+  pool_info->n_pages_created= stat.n_pages_created;
+  pool_info->n_ra_pages_read_rnd= stat.n_ra_pages_read_rnd;
+  pool_info->n_ra_pages_read= stat.n_ra_pages_read;
+  pool_info->n_ra_pages_evicted= stat.n_ra_pages_evicted;
+  pool_info->n_pages_made_young= stat.n_pages_made_young;
+  pool_info->n_pages_not_made_young= stat.n_pages_not_made_young;
+
   pool_info->pages_read_rate=
     double(stat.n_pages_read - old_stat.n_pages_read) / elapsed;
-  pool_info->n_pages_created= stat.n_pages_created;
   pool_info->pages_created_rate=
     double(stat.n_pages_created - old_stat.n_pages_created) / elapsed;
-  pool_info->n_pages_written= stat.n_pages_written;
   pool_info->pages_written_rate=
     double(stat.n_pages_written - old_stat.n_pages_written) / elapsed;
-  pool_info->n_page_gets= stat.n_page_gets;
-  pool_info->n_page_get_delta= stat.n_page_gets - old_stat.n_page_gets;
+  pool_info->n_page_get_delta= pool_info->n_page_gets -
+    old_stat.n_page_gets_nonatomic;
   if (pool_info->n_page_get_delta)
   {
     pool_info->page_read_delta= stat.n_pages_read - old_stat.n_pages_read;
@@ -4005,13 +4020,18 @@ void buf_pool_t::get_info(buf_pool_info_t *pool_info) noexcept
     pool_info->not_young_making_delta=
       stat.n_pages_not_made_young - old_stat.n_pages_not_made_young;
   }
-  pool_info->n_ra_pages_read_rnd= stat.n_ra_pages_read_rnd;
+
+  pool_info->page_made_young_rate=
+    double(stat.n_pages_made_young - old_stat.n_pages_made_young) /
+    elapsed;
+  pool_info->page_not_made_young_rate=
+    double(stat.n_pages_not_made_young - old_stat.n_pages_not_made_young) /
+    elapsed;
+
   pool_info->pages_readahead_rnd_rate=
     double(stat.n_ra_pages_read_rnd - old_stat.n_ra_pages_read_rnd) / elapsed;
-  pool_info->n_ra_pages_read= stat.n_ra_pages_read;
   pool_info->pages_readahead_rate=
     double(stat.n_ra_pages_read - old_stat.n_ra_pages_read) / elapsed;
-  pool_info->n_ra_pages_evicted= stat.n_ra_pages_evicted;
   pool_info->pages_evicted_rate=
     double(stat.n_ra_pages_evicted - old_stat.n_ra_pages_evicted) / elapsed;
   pool_info->unzip_lru_len= UT_LIST_GET_LEN(unzip_LRU);

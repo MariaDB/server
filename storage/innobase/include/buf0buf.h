@@ -266,6 +266,9 @@ buf_block_modify_clock_inc(
 @return whether the buffer is all zeroes */
 bool buf_is_zeroes(st_::span<const byte> buf) noexcept;
 
+/** Increment the pages_accessed count. */
+void buf_inc_get() noexcept;
+
 /** Reason why buf_page_is_corrupted() fails */
 enum buf_page_is_corrupted_reason
 {
@@ -1077,12 +1080,18 @@ struct buf_pool_stat_t{
 	/** Initialize the counters */
 	void init() noexcept { memset((void*) this, 0, sizeof *this); }
 
-	ib_counter_t<ulint, ib_counter_element_t>	n_page_gets;
-				/*!< number of page gets performed;
-				also successful searches through
-				the adaptive hash index are
-				counted as page gets;
-				NOT protected by buf_pool.mutex */
+	buf_pool_stat_t& operator=(const buf_pool_stat_t& other) noexcept {
+		memcpy(reinterpret_cast<void*>(this), &other, sizeof *this);
+		return *this;
+	}
+
+	/** number of pages accessed; also successful searches through
+	the adaptive hash index are counted; aggregates
+	THD::pages_read */
+	union {
+		Atomic_counter<ulint> n_page_gets{0};
+		ulint n_page_gets_nonatomic;
+	};
 	ulint	n_pages_read;	/*!< number read operations */
 	ulint	n_pages_written;/*!< number write operations */
 	ulint	n_pages_created;/*!< number of pages created

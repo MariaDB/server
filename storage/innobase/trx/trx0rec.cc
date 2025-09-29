@@ -39,7 +39,6 @@ Created 3/26/1996 Heikki Tuuri
 #include "row0row.h"
 #include "row0mysql.h"
 #include "row0ins.h"
-#include "mariadb_stats.h"
 
 /** The search tuple corresponding to TRX_UNDO_INSERT_METADATA. */
 const dtuple_t trx_undo_metadata = {
@@ -2141,7 +2140,11 @@ dberr_t trx_undo_prev_version_build(const rec_t *rec, dict_index_t *index,
 
   ut_ad(!index->table->skip_alter_undo);
 
-  mariadb_increment_undo_records_read();
+  // FIXME: take trx as a parameter
+  if (THD *thd= current_thd)
+    if (trx_t *trx= thd_to_trx(thd))
+      if (ha_handler_stats *stats= trx->active_handler_stats)
+        stats->undo_records_read++;
   const auto savepoint= mtr->get_savepoint();
   dberr_t err= DB_MISSING_HISTORY;
   purge_sys_t::view_guard check{v_status == TRX_UNDO_CHECK_PURGE_PAGES

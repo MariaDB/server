@@ -35,8 +35,8 @@ Created 11/26/1995 Heikki Tuuri
 # include "btr0cur.h"
 #endif
 #include "srv0start.h"
+#include "trx0trx.h"
 #include "log.h"
-#include "mariadb_stats.h"
 #include "my_cpu.h"
 
 #ifdef HAVE_PMEM
@@ -453,7 +453,11 @@ void mtr_t::commit_log(mtr_t *mtr, std::pair<lsn_t,page_flush_ahead> lsns)
     mtr->m_memo.clear();
   }
 
-  mariadb_increment_pages_updated(modified);
+  if (!modified);
+  else if (THD *thd= current_thd)
+    if (trx_t *trx= thd_to_trx(thd))
+      if (ha_handler_stats *stats= trx->active_handler_stats)
+        stats->pages_updated+= modified;
 
   if (UNIV_UNLIKELY(lsns.second != PAGE_FLUSH_NO))
     buf_flush_ahead(mtr->m_commit_lsn, lsns.second == PAGE_FLUSH_SYNC);

@@ -43,6 +43,7 @@ Created 3/26/1996 Heikki Tuuri
 // Forward declaration
 struct mtr_t;
 struct rw_trx_hash_element_t;
+class ha_handler_stats;
 
 /******************************************************************//**
 Set detailed error message for the transaction. */
@@ -836,7 +837,7 @@ public:
 					defer flush of the logs to disk
 					until after we release the
 					mutex. */
-	ulint		duplicates;	/*!< TRX_DUP_IGNORE | TRX_DUP_REPLACE */
+	byte		duplicates;	/*!< TRX_DUP_IGNORE | TRX_DUP_REPLACE */
   /** whether this modifies InnoDB dictionary tables */
   bool dict_operation;
 #ifdef UNIV_DEBUG
@@ -856,6 +857,11 @@ public:
 	/*------------------------------*/
 	THD*		mysql_thd;	/*!< MySQL thread handle corresponding
 					to this trx, or NULL */
+
+  /** EXPLAIN ANALYZE statistics, or nullptr if not active */
+  ha_handler_stats *active_handler_stats;
+  /** number of pages accessed in the buffer pool */
+  size_t pages_accessed;
 
 	const char*	mysql_log_file_name;
 					/*!< if MySQL binlog is used, this field
