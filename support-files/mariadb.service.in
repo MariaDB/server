@@ -62,16 +62,11 @@ ProtectSystem=full
 # Prevent accessing /home, /root and /run/user
 ProtectHome=true
 
-# Execute pre and post scripts as root, otherwise it does it as User=
-PermissionsStartOnly=true
-
 # Use an environment file to pass variable _WSREP_NEW_CLUSTER
 EnvironmentFile=-@INSTALL_RUNDATADIR@/wsrep-new-cluster
 
 # Use an environment file to pass variable _WSREP_START_POSITION
 EnvironmentFile=-@INSTALL_RUNDATADIR@/wsrep-start-position
-
-@SYSTEMD_EXECSTARTPRE@
 
 # Perform automatic wsrep recovery. When server is started without wsrep,
 # galera_recovery simply returns an empty string. In any case, however,
@@ -84,7 +79,7 @@ ExecStartPre=/bin/sh -c "[ ! -e @bindir@/galera_recovery ] && VAR= || \
  && echo _WSREP_START_POSITION=$VAR > @INSTALL_RUNDATADIR@/wsrep-start-position || exit 1"
 
 # Needed to create system tables etc.
-# ExecStartPre=@scriptdir@/mariadb-install-db -u mysql
+# ExecStartPre=@scriptdir@/mariadb-install-db
 
 # Start main service
 # MYSQLD_OPTS here is for users to set in /etc/systemd/system/mariadb.service.d/MY_SPECIAL.conf
