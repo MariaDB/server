@@ -66,9 +66,6 @@ ProtectSystem=full
 # Prevent accessing /home, /root and /run/user
 ProtectHome=true
 
-# Execute pre and post scripts as root, otherwise it does it as User=
-PermissionsStartOnly=true
-
 # Use an environment file to pass variable _WSREP_NEW_CLUSTER
 EnvironmentFile=-@INSTALL_RUNDATADIR@/wsrep-new-cluster
 
