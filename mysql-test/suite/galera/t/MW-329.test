@@ -83,7 +83,19 @@ while ($count)
 
 --connection node_1
 --disable_query_log
---eval KILL CONNECTION $connection_id
+--eval KILL HARD CONNECTION $connection_id
+--enable_query_log
+--connect node_1c, 127.0.0.1, root, , test, $NODE_MYPORT_1
+--connection node_1c
+
+--disable_query_log
+# Make sure connection is killed
+while (`SELECT COUNT(*) > 0 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE ID = $connection_id`)
+{
+  SELECT SLEEP(1);
+--error 0,ER_NO_SUCH_THREAD,ER_QUERY_INTERRUPTED,ER_CONNECTION_KILLED
+--eval KILL HARD CONNECTION $connection_id
+}
 --enable_query_log
 
 #
@@ -101,8 +113,4 @@ DROP PROCEDURE proc_insert;
 DROP TABLE t1;
 
 --disconnect node_1b
-
-# Due to MW-330, Multiple "conflict state 3 after post commit" warnings if table is dropped while SP is running
-CALL mtr.add_suppression("WSREP: .* conflict state after post commit ");
-
-set global innodb_status_output=Default;
+--disconnect node_1c
