@@ -23,9 +23,9 @@ static std::atomic<bool> critical;
 ulong srv_n_spin_wait_rounds= 30;
 uint srv_spin_wait_delay= 4;
 
-constexpr unsigned N_THREADS= 30;
-constexpr unsigned N_ROUNDS= 100;
-constexpr unsigned M_ROUNDS= 100;
+unsigned N_THREADS= 30;
+unsigned N_ROUNDS= 100;
+unsigned M_ROUNDS= 100;
 
 static srw_mutex m;
 
@@ -160,9 +160,37 @@ static void test_sux_lock()
   }
 }
 
-int main(int argc __attribute__((unused)), char **argv)
+int main(int argc, char **argv)
 {
-  std::thread t[N_THREADS];
+  if (argc > 1)
+    srv_n_spin_wait_rounds= atoi(argv[1]);
+  if (argc > 2)
+    srv_spin_wait_delay= atoi(argv[2]);
+  if (argc > 3)
+    N_THREADS= atoi(argv[3]);
+  if (argc > 4)
+    N_ROUNDS= atoi(argv[4]);
+  if (argc > 5)
+    M_ROUNDS= atoi(argv[5]);
+
+  if (argc > 1)
+  {
+    printf("Parameters: srv_n_spin_wait_rounds=%lu srv_spin_wait_delay=%u "
+           "N_THREADS=%u N_ROUNDS=%u M_ROUNDS=%u\n",
+           srv_n_spin_wait_rounds, srv_spin_wait_delay,
+           N_THREADS, N_ROUNDS, M_ROUNDS);
+  }
+
+  std::thread* t= nullptr;
+  if (N_THREADS > 0)
+  {
+    t= new std::thread[N_THREADS];
+    if (!t)
+    {
+      printf("Failed to allocate memory for %u threads\n", N_THREADS);
+      return 1;
+    }
+  }
 
   MY_INIT(argv[0]);
 
@@ -209,6 +237,9 @@ int main(int argc __attribute__((unused)), char **argv)
 
   ok(true, "sux_lock");
   sux.free();
+
+  delete[] t;
+  t= nullptr;
 
   my_end(MY_CHECK_ERROR);
   return exit_status();
