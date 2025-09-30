@@ -119,14 +119,107 @@ struct btr_sea
   @param resize whether buf_pool_t::resize() is the caller */
   ATTRIBUTE_COLD void enable(bool resize= false) noexcept;
 
+  /** Hash cell chain in hash_table */
+  struct hash_chain
+  {
+    /** pointer to the first block */
+    ahi_node *first;
+
+    /** Find an element.
+    @param u   unary predicate
+    @return the first matching element
+    @retval nullptr if not found */
+    template<typename UnaryPred>
+    inline ahi_node *find(UnaryPred u) const noexcept;
+
+    /** Search for a pointer to an element.
+    @param u   unary predicate
+    @return pointer to the first matching element,
+    or to the last element in the chain */
+    template<typename UnaryPred>
+    inline ahi_node **search(UnaryPred u) noexcept;
+  };
+
+  /** Hash table with singly-linked overflow lists.
+  Based on @see buf_pool_t::page_hash_table */
+  struct hash_table
+  {
+    static_assert(CPU_LEVEL1_DCACHE_LINESIZE >= 64, "less than 64 bytes");
+    static_assert(!(CPU_LEVEL1_DCACHE_LINESIZE & 63),
+      "not a multiple of 64 bytes");
+
+    /** Number of array[] elements per page_hash_latch.
+    Must be one less than a power of 2. */
+#if 0
+    static constexpr size_t ELEMENTS_PER_LATCH= 64 / sizeof(void*) - 1;
+
+    /** Extra padding. FIXME: Is this ever useful to be nonzero?
+    Long time ago, some testing on an ARMv8 implementation seemed
+    to suggest so, but this has not been validated recently. */
+    static constexpr size_t EMPTY_SLOTS_PER_LATCH=
+      ((CPU_LEVEL1_DCACHE_LINESIZE / 64) - 1) * (64 / sizeof(void*));
+#else
+    static constexpr size_t ELEMENTS_PER_LATCH=
+      CPU_LEVEL1_DCACHE_LINESIZE / sizeof(void*) - 1;
+    static constexpr size_t EMPTY_SLOTS_PER_LATCH= 0;
+#endif
+
+    /** number of payload elements in array[] */
+    Atomic_relaxed<ulint> n_cells;
+    /** the hash table, with pad(n_cells) elements, aligned to L1 cache size */
+    hash_chain *array;
+
+    /** Create the hash table.
+    @param n  the lower bound of n_cells */
+    inline void create(ulint n) noexcept;
+
+    /** Free the hash table. */
+    void free() noexcept { aligned_free(array); array= nullptr; }
+
+    /** @return the index of an array element */
+    ulint calc_hash(ulint fold) const noexcept
+    { return calc_hash(fold, n_cells); }
+    /** @return raw array index converted to padded index */
+    static ulint pad(ulint h) noexcept
+    {
+      ulint latches= h / ELEMENTS_PER_LATCH;
+      ulint empty_slots= latches * EMPTY_SLOTS_PER_LATCH;
+      return 1 + latches + empty_slots + h;
+    }
+  private:
+    /** @return the index of an array element */
+    static ulint calc_hash(ulint fold, ulint n_cells) noexcept
+    {
+      return pad(fold % n_cells);
+    }
+  public:
+    /** @return the latch covering a hash table chain */
+    static page_hash_latch &lock_get(hash_chain &chain) noexcept
+    {
+      static_assert(!((ELEMENTS_PER_LATCH + 1) & ELEMENTS_PER_LATCH),
+                    "must be one less than a power of 2");
+      const size_t addr= reinterpret_cast<size_t>(&chain);
+      ut_ad(addr & (ELEMENTS_PER_LATCH * sizeof chain));
+      return *reinterpret_cast<page_hash_latch*>
+        (addr & ~(ELEMENTS_PER_LATCH * sizeof chain));
+    }
+
+    /** Get a hash table slot. */
+    hash_chain &cell_get(ulint fold) const
+    { return array[calc_hash(fold, n_cells)]; }
+  };
+
   /** Partition of the hash table */
   struct partition
   {
-    /** latch protecting table */
-    alignas(CPU_LEVEL1_DCACHE_LINESIZE) srw_spin_lock latch;
+    /** latch protecting table: either an exclusive latch, or
+    a shared latch combined with lock_get() */
+    alignas(CPU_LEVEL1_DCACHE_LINESIZE)
+    IF_DBUG(srw_lock_debug,srw_spin_lock) latch;
     /** map of CRC-32C of rec prefix to rec_t* in buf_page_t::frame */
-    hash_table_t table;
-    /** latch protecting blocks, spare; may be acquired while holding latch */
+    hash_table table;
+    /** protects blocks; acquired while holding latch
+    and possibly table.lock_get() */
     srw_mutex blocks_mutex;
     /** allocated blocks */
     UT_LIST_BASE_NODE_T(buf_page_t) blocks;
@@ -141,14 +234,49 @@ struct btr_sea
 
     inline void free() noexcept;
 
+    /** @return the number of allocated buffer pool blocks */
+    TPOOL_SUPPRESS_TSAN size_t get_blocks() const noexcept
+    { return UT_LIST_GET_LEN(blocks) + !!spare; }
+
     /** Ensure that there is a spare block for a future insert() */
     void prepare_insert() noexcept;
 
-    /** Clean up after erasing an AHI node
-    @param erase   node being erased
+    /** Undo prepare_insert() in case !btr_search.enabled */
+    void rollback_insert() noexcept;
+
+  private:
+    /** Start cleanup_after_erase()
+    @return the last allocated element */
+    inline ahi_node *cleanup_after_erase_start() noexcept;
+    /** Finish cleanup_after_erase().
+    We reduce the allocated size in UT_LIST_GET_LAST(blocks)->free_offset.
+    If that size reaches 0, the last block will be removed from blocks,
+    and a block may have to be freed by our caller.
+    @return buffer block to be freed
+    @retval nullptr if no buffer block was freed */
+    buf_block_t *cleanup_after_erase_finish() noexcept;
+  public:
+    __attribute__((nonnull))
+    /** Clean up after erasing an AHI node, while the caller is
+    holding an exclusive latch. Unless "erase" is the last allocated
+    element, we will swap it with the last allocated element.
+    Finally, we return via cleanup_after_erase_finish().
+    @param erase node being erased
     @return buffer block to be freed
     @retval nullptr if no buffer block was freed */
     buf_block_t *cleanup_after_erase(ahi_node *erase) noexcept;
+
+    __attribute__((nonnull))
+    /** Clean up after erasing an AHI node. This is similar to
+    cleanup_after_erase(ahi_node*), except that the operation may fail.
+    @param erase   node being erased
+    @param l       the latch held together with shared latch
+    @return buffer block to be freed
+    @retval nullptr if no buffer block was freed
+    @retval -1     if we fail to shrink the allocation and erasing
+                   needs to be retried while holding an exclusive latch */
+    buf_block_t *cleanup_after_erase(ahi_node *erase, page_hash_latch *l)
+      noexcept;
 
     __attribute__((nonnull))
 # if defined UNIV_AHI_DEBUG || defined UNIV_DEBUG
@@ -164,11 +292,23 @@ struct btr_sea
     void insert(uint32_t fold, const rec_t *rec) noexcept;
 # endif
 
-    /** Delete a pointer to a record if it exists.
-    @param fold  CRC-32C of rec prefix
+    /** erase() return value */
+    enum erase_status{
+      /** must retry with exclusive latch */
+      ERASE_RETRY= -1,
+      /** the pointer to the record was erased */
+      ERASED= 0,
+      /** nothing was erased */
+      NOT_ERASED= 1
+    };
+
+    /** Delete a pointer to a record if it exists, and release the latch.
+    @tparam ex   true=holding exclusive latch, false=shared latch
+    @param cell  hash table cell that may contain the CRC-32C of rec prefix
     @param rec   B-tree leaf page record
-    @return whether a record existed and was removed */
-    inline bool erase(uint32_t fold, const rec_t *rec) noexcept;
+    @return status */
+    template<bool ex>
+    erase_status erase(hash_chain &cell, const rec_t *rec) noexcept;
   };
 
   /** innodb_adaptive_hash_index_parts */
