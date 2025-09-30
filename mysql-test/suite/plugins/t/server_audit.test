@@ -189,6 +189,8 @@ set global server_audit_logging= off;
 set global server_audit_incl_users='root';
 set global server_audit_logging= on;
 disconnect cn1;
+let SEARCH_COUNT= 140;
+source include/wait_for_line_count_in_file.inc;
 
 drop user user1@localhost;
 
@@ -208,6 +210,8 @@ connect(plug_con,localhost,plug,plug_dest,"*NO-ONE*");
 select USER(),CURRENT_USER();
 connection default;
 disconnect plug_con;
+let SEARCH_COUNT= 174;
+source include/wait_for_line_count_in_file.inc;
 DROP USER plug;
 DROP USER plug_dest;
 
@@ -217,6 +221,8 @@ connect (conssl1,localhost,ssl_user1,,sa_db,,,SSL);
 --let $ssl_version = query_get_value(SHOW STATUS LIKE 'Ssl_version', Value, 1)
 select variable_value > '' as 'have_ssl' from information_schema.session_status where variable_name='ssl_cipher';
 disconnect conssl1;
+let SEARCH_COUNT= 205;
+source include/wait_for_line_count_in_file.inc;
 connection default;
 DROP USER ssl_user1@localhost;
 
