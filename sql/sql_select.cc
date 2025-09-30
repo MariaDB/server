@@ -13657,7 +13657,21 @@ make_join_select(JOIN *join,SQL_SELECT *select,COND *cond)
 
             if (build_tmp_join_prefix_cond(join, tab, &sel->cond))
               return true;
-	    /*
+
+            /*
+              To be removed in 11.0+:
+              Caution: we can reach this point with quick=NULL. Below, we'll
+              use tab->keys and not tab->const_keys like
+              get_quick_record_count() did. If we have constructed a
+              group-min-max quick select, make sure we're able to construct it
+              again
+            */
+            if (sel->quick && sel->quick->get_type() ==
+                QUICK_SELECT_I::QS_TYPE_GROUP_MIN_MAX)
+            {
+              tab->keys.set_bit(sel->quick->index);
+            }
+      /*
               We can't call sel->cond->fix_fields,
               as it will break tab->on_expr if it's AND condition
               (fix_fields currently removes extra AND/OR levels).
