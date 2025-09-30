@@ -11,7 +11,6 @@ usr/bin/sst_dump # Use the one from rocksdb-tools package
 usr/lib/mysql/plugin/JavaWrappers.jar # These are only built if JNI/libjawt.so is installed from e.g. openjdk-8-jre-headless
 usr/lib/mysql/plugin/JdbcInterface.jar # These are only built if JNI/libjawt.so is installed from e.g. openjdk-8-jre-headless
 usr/lib/sysusers.d/sysusers.conf
-usr/lib/tmpfiles.d/tmpfiles.conf
 usr/lib/*/libdbbc.a # ColumnStore header file
 usr/lib/*/libidbboot.a # ColumnStore header file
 usr/lib/*/libprocessor.a # ColumnStore header file
