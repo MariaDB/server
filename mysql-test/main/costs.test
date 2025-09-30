@@ -7,6 +7,7 @@
 
 --source include/have_sequence.inc
 --source include/have_innodb.inc
+--source include/innodb_stable_estimates.inc
 
 create table t1 (a int primary key, b int, c int, d int, e int, key ba (b,a), key bda (b,d,a), key cba (c,b,a), key cb (c,b), key d (d)) engine=aria;
 insert into t1 select seq,seq,seq,seq,seq from seq_1_to_10;
