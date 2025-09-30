@@ -1743,6 +1743,20 @@ trx_t *thd_to_trx(const THD *thd) noexcept
   return static_cast<trx_t*>(thd_get_ha_data(thd, innodb_hton_ptr));
 }
 
+/** Detach and free a transaction.
+@param trx transaction
+@return the trx->mysql_thd */
+THD *free_thd_trx(trx_t *trx) noexcept
+{
+  THD *const thd= trx->mysql_thd;
+  DBUG_ASSERT(current_thd == thd);
+  DBUG_ASSERT(thd_to_trx(thd) == trx);
+  thd->ha_data[innodb_hton_ptr->slot].ha_ptr= nullptr;
+  DBUG_ASSERT(thd_to_trx(thd) == nullptr);
+  trx->free();
+  return thd;
+}
+
 #ifdef WITH_WSREP
 /********************************************************************//**
 Obtain the InnoDB transaction id of a MySQL thread.

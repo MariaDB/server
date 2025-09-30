@@ -1474,9 +1474,7 @@ extern struct handlerton *innodb_hton_ptr;
 
 static void release_thd(trx_t *trx, void *ctx)
 {
-  THD *const thd= trx->mysql_thd;
-  trx->free();
-  thd_set_ha_data(thd, innodb_hton_ptr, nullptr);
+  THD *const thd= free_thd_trx(trx);
   thd_detach_thd(ctx);
   std::unique_lock<std::mutex> lk(purge_thd_mutex);
   purge_thds.push_back(thd);

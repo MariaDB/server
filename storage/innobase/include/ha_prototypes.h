@@ -166,6 +166,11 @@ extern "C" unsigned long long thd_start_utime(const MYSQL_THD thd);
 @return InnoDB transaction */
 trx_t *thd_to_trx(const THD *thd) noexcept;
 
+/** Detach and free a transaction.
+@param trx transaction
+@return the trx->mysql_thd */
+THD *free_thd_trx(trx_t *trx) noexcept;
+
 /** Determines the current SQL statement.
 Thread unsafe, can only be called from the thread owning the THD.
 @param[in]	thd	MySQL thread handle
