@@ -2170,6 +2170,20 @@ bool st_select_lex_unit::exec()
   DBUG_ENTER("st_select_lex_unit::exec");
   bool was_executed= executed;
   int error;
+  bool limit_rows_was_activated= false;
+
+  // Restore current_select on scope exit
+  SCOPE_EXIT([this, lex_select_save]() {
+    thd->lex->current_select= lex_select_save;
+  });
+
+  // Handle cleanup on scope exit
+  SCOPE_EXIT([this, &limit_rows_was_activated, &examined_rows]() {
+    if (limit_rows_was_activated)
+      thd->lex->activate_limit_rows_examined();
+    if (!saved_error)
+      thd->inc_examined_row_count(examined_rows);
+  });
 
   if (executed && !uncacheable && !describe)
     DBUG_RETURN(FALSE);
@@ -2289,14 +2303,12 @@ bool st_select_lex_unit::exec()
           thd->set_examined_row_count(0);
 	  if (union_result->flush())
 	  {
-	    thd->lex->current_select= lex_select_save;
 	    DBUG_RETURN(1);
 	  }
 	}
       }
       if (unlikely(saved_error))
       {
-	thd->lex->current_select= lex_select_save;
 	DBUG_RETURN(saved_error);
       }
       if (fake_select_lex != NULL)
@@ -2340,21 +2352,18 @@ bool st_select_lex_unit::exec()
 
   DBUG_EXECUTE_IF("show_explain_probe_union_read", 
                    dbug_serve_apcs(thd, 1););
-  bool limit_rows_was_activated;
-  {
-    List<Item_func_match> empty_list;
-    empty_list.empty();
-    /*
-      Deactivate LIMIT ROWS EXAMINED to avoid producing potentially incomplete
-      result of the UNION due to exceeding of the limit.
-    */
-    limit_rows_was_activated= thd->lex->deactivate_limit_rows_examined();
+  /*
+    Temporarily deactivate LIMIT ROWS EXAMINED to avoid producing potentially
+    incomplete result of the UNION due to exceeding of the limit. It will be
+    re-activated upon the function exit (see SCOPE_EXIT macro above)
+  */
+  limit_rows_was_activated= thd->lex->deactivate_limit_rows_examined();
 
-    // Check if EOM
-    if (fake_select_lex != NULL && likely(!thd->is_fatal_error))
-    {
-       /* Send result to 'result' */
-       saved_error= true;
+  // Check if EOM
+  if (fake_select_lex != NULL && likely(!thd->is_fatal_error))
+  {
+      /* Send result to 'result' */
+      saved_error= true;
 
       set_limit(global_parameters());
       init_prepare_fake_select_lex(thd, first_execution);
@@ -2375,7 +2384,7 @@ bool st_select_lex_unit::exec()
                                 result))))
 	{
 	  fake_select_lex->table_list.empty();
-	  goto err;
+	  DBUG_RETURN(TRUE);
 	}
         fake_select_lex->join->no_const_tables= TRUE;
 
@@ -2445,13 +2454,6 @@ bool st_select_lex_unit::exec()
 	indexes efficiently
       */
     }
-  }
-  thd->lex->current_select= lex_select_save;
-err:
-  if (limit_rows_was_activated)
-    thd->lex->activate_limit_rows_examined();
-  if (likely(!saved_error))
-    thd->inc_examined_row_count(examined_rows);
   DBUG_RETURN(saved_error);
 }
 
