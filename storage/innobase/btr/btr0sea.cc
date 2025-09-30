@@ -562,7 +562,15 @@ static uint32_t btr_search_info_update_hash(const btr_cur_t &cursor) noexcept
     static_assert(buf_block_t::LEFT_SIDE == 1U << 31, "");
     left_bytes_fields= (cmp >= 0) << 31;
 
-    if (left_bytes_fields)
+    if (cmp == 0)
+      /* Reset to the default case (a single index field).
+      Without this special handling, we could end up setting totally
+      useless parameters buf_block_t::LEFT_SIDE | 1 << 16 below
+      (rebuilding the adaptive hash index on a 1-byte prefix)
+      for example when page_cur_search_with_match_bytes() finds matches
+      of LIKE 'a%' in the first index field. */
+      left_bytes_fields|= 1;
+    else if (left_bytes_fields)
     {
       if (cursor.up_match >= n_uniq)
         left_bytes_fields|= n_uniq;
