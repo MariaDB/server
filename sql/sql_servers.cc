@@ -56,6 +56,60 @@ static MEM_ROOT mem;
 static mysql_rwlock_t THR_LOCK_servers;
 static LEX_CSTRING MYSQL_SERVERS_NAME= {STRING_WITH_LEN("servers") };
 
+static const TABLE_FIELD_TYPE servers_table_fields[] =
+{
+  {
+    { STRING_WITH_LEN("Server_name") },
+    { STRING_WITH_LEN("char(") },
+    { STRING_WITH_LEN("utf8mb") }
+  },
+  {
+    { STRING_WITH_LEN("Host") },
+    { STRING_WITH_LEN("varchar(") },
+    { STRING_WITH_LEN("utf8mb") }
+  },
+  {
+    { STRING_WITH_LEN("Db") },
+    { STRING_WITH_LEN("char(") },
+    { STRING_WITH_LEN("utf8mb") }
+  },
+  {
+    { STRING_WITH_LEN("Username") },
+    { STRING_WITH_LEN("char(") },
+    { STRING_WITH_LEN("utf8mb") }
+  },
+  {
+    { STRING_WITH_LEN("Password") },
+    { STRING_WITH_LEN("char(") },
+    { STRING_WITH_LEN("utf8mb") }
+  },
+  {
+    { STRING_WITH_LEN("Port") },
+    { STRING_WITH_LEN("int(") },
+    {NULL, 0}
+  },
+  {
+    { STRING_WITH_LEN("Socket") },
+    { STRING_WITH_LEN("char(") },
+    { STRING_WITH_LEN("utf8mb") }
+  },
+  {
+    { STRING_WITH_LEN("Wrapper") },
+    { STRING_WITH_LEN("char(") },
+    { STRING_WITH_LEN("utf8mb") }
+  },
+  {
+    { STRING_WITH_LEN("Owner") },
+    { STRING_WITH_LEN("varchar(") },
+    { STRING_WITH_LEN("utf8mb") }
+  }
+};
+static const TABLE_FIELD_DEF servers_table_def=
+{
+  array_elements(servers_table_fields), servers_table_fields, 0, NULL
+};
+
+static Table_check_intact_log_error table_intact;
 
 static bool get_server_from_table_to_cache(TABLE *table);
 
@@ -332,17 +386,16 @@ end:
 
 bool servers_reload(THD *thd)
 {
-  TABLE_LIST tables[1];
+  TABLE_LIST tables;
   bool return_val= TRUE;
   DBUG_ENTER("servers_reload");
 
   DBUG_PRINT("info", ("locking servers_cache"));
   mysql_rwlock_wrlock(&THR_LOCK_servers);
 
-  tables[0].init_one_table(&MYSQL_SCHEMA_NAME, &MYSQL_SERVERS_NAME, 0, TL_READ);
+  tables.init_one_table(&MYSQL_SCHEMA_NAME, &MYSQL_SERVERS_NAME, 0, TL_READ);
 
-  if (unlikely(open_and_lock_tables(thd, tables, FALSE,
-                                    MYSQL_LOCK_IGNORE_TIMEOUT)))
+  if (open_and_lock_tables(thd, &tables, FALSE, MYSQL_LOCK_IGNORE_TIMEOUT))
   {
     /*
       Execution might have been interrupted; only print the error message
@@ -355,7 +408,14 @@ bool servers_reload(THD *thd)
     goto end;
   }
 
-  if ((return_val= servers_load(thd, tables)))
+  if (table_intact.check(tables.table, &servers_table_def))
+  {
+    my_error(ER_CANNOT_LOAD_FROM_TABLE_V2, MYF(0),
+             tables.db.str, tables.table_name.str);
+    goto end;
+  }
+
+  if ((return_val= servers_load(thd, &tables)))
   {					// Error. Revert to old list
     /* blast, for now, we have no servers, discuss later way to preserve */
 
