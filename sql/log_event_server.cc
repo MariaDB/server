@@ -7450,7 +7450,7 @@ int Rows_log_event::find_key(const rpl_group_info *rgi)
       const uchar *curr_row_end= m_curr_row_end;
       Check_level_instant_set clis(m_table->in_use, CHECK_FIELD_IGNORE);
       if (int err= unpack_row(rgi, m_table, m_width, m_curr_row, &m_cols,
-                              &curr_row_end, &m_master_reclength, m_rows_end))
+                              &curr_row_end, m_rows_end))
         DBUG_RETURN(err);
     }
 

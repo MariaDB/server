@@ -4840,8 +4840,6 @@ protected:
   */
   MY_BITMAP   m_cols_ai;
 
-  ulong       m_master_reclength; /* Length of record on master side */
-
   /* Bit buffers in the same memory as the class */
   my_bitmap_map  m_bitbuf[128/(sizeof(my_bitmap_map)*8)];
   my_bitmap_map  m_bitbuf_ai[128/(sizeof(my_bitmap_map)*8)];
@@ -4935,7 +4933,7 @@ protected:
 
     ASSERT_OR_RETURN_ERROR(m_curr_row <= m_rows_end, HA_ERR_CORRUPT_EVENT);
     return ::unpack_row(rgi, m_table, m_width, m_curr_row, cols,
-                        &m_curr_row_end, &m_master_reclength, m_rows_end);
+                        &m_curr_row_end, m_rows_end);
   }
 
   // Unpack the current row into m_table->record[0]
@@ -4945,7 +4943,7 @@ protected:
 
     ASSERT_OR_RETURN_ERROR(m_curr_row <= m_rows_end, HA_ERR_CORRUPT_EVENT);
     return ::unpack_row(rgi, m_table, m_width, m_curr_row, &m_cols,
-                        &m_curr_row_end, &m_master_reclength, m_rows_end);
+                        &m_curr_row_end, m_rows_end);
   }
   bool process_triggers(trg_event_type event, trg_action_time_type time_type,
                         bool old_row_is_record1, bool *skip_row_indicator);
