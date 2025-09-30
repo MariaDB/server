@@ -61,6 +61,13 @@ static bool spider_sh_check_query(SELECT_LEX *select_lex, SPIDER_SHARE *share,
 {
   List<Item> items;
   List_iterator_fast<Item> it(*select_lex->get_item_list());
+  /*
+    spider does not handle SQL_CALC_FOUND_ROWS correctly, see
+    MDEV-37722. So we do not make select handler handle it until
+    MDEV-37722 is fixed.
+  */
+  if (select_lex->options & OPTION_FOUND_ROWS)
+    return true;
   while (Item *item= it++)
     item->walk(&Item::collect_item_processor, (void *) &items, WALK_SUBQUERY);
   if (select_lex->where)
