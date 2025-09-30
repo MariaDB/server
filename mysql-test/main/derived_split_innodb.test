@@ -620,5 +620,46 @@ evalp set statement optimizer_switch='split_materialized=off' for $query;
 
 DROP TABLE t1,t2;
 
+--echo #
+--echo # MDEV-37407 Wrong result with ORDER BY LIMIT
+--echo # Both, with and without split_materialized should
+--echo # produce the same results
+--echo #
+
+CREATE TABLE t1
+  (a varchar(35), b varchar(4), KEY (a))
+ENGINE=InnoDB;
+
+INSERT INTO t1 VALUES
+('Albania','AXA'), ('Australia','AUS'), ('Myanmar','MMR'),
+('Bahamas','BS'), ('Brazil','BRA'), ('Barbados','BRB');
+ 
+CREATE TABLE t2
+  (a varchar(4), b varchar(50), PRIMARY KEY (b,a), KEY (a))
+ENGINE=InnoDB;
+
+INSERT INTO t2 VALUES
+('AUS','Anglican'), ('MMR','Baptist'), ('BS','Anglican'),
+('BS','Baptist'), ('BS','Methodist'), ('BRB','Methodist'),
+('BRA','Baptist'), ('USA','Baptist');
+
+ANALYZE TABLE t1 PERSISTENT FOR ALL;
+ANALYZE TABLE t2 PERSISTENT FOR ALL;
+
+let $q=
+SELECT t1.a
+FROM (SELECT a FROM t2 GROUP BY a ORDER BY a, COUNT(DISTINCT b) LIMIT 1) dt
+     JOIN t1 ON
+     dt.a=t1.b
+WHERE t1.a LIKE 'B%';
+
+set optimizer_switch='split_materialized=off';
+eval $q;
+ 
+set optimizer_switch='split_materialized=on';
+eval $q;
+ 
+DROP TABLE t1,t2;
+
 --echo # End of 10.11 tests
 SET GLOBAL innodb_stats_persistent=@save_innodb_stats_persistent;

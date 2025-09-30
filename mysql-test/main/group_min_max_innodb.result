@@ -323,7 +323,7 @@ JOIN t1 ON dt.a=t1.b;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	#	Using where
 1	PRIMARY	<derived2>	ref	key0	key0	6	test.t1.b	#	
-2	DERIVED	t2	range	a	a	58	NULL	#	Using index for group-by; Using temporary; Using filesort
+2	DERIVED	t2	index	NULL	a	6	NULL	#	Using index; Using temporary; Using filesort
 SELECT t1.a
 FROM (SELECT a FROM t2 GROUP BY a ORDER BY COUNT(DISTINCT b) LIMIT 1) dt
 JOIN t1 ON dt.a=t1.b;
