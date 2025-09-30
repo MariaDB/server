@@ -1014,6 +1014,7 @@ btr_search_guess_on_hash(
 
   if (!btr_search.enabled)
   {
+    ut_ad(!index->any_ahi_pages());
   ahi_release_and_fail:
     part.latch.rd_unlock();
   fail:
@@ -1379,6 +1380,7 @@ static void btr_search_build_page_hash_index(dict_index_t *index,
     (block_index != index ||
      block->ahi_left_bytes_fields != left_bytes_fields);
   const bool enabled= btr_search.enabled;
+  ut_ad(enabled || !index->any_ahi_pages());
 
   part.latch.rd_unlock();
 
@@ -1462,7 +1464,10 @@ static void btr_search_build_page_hash_index(dict_index_t *index,
   if (!block->index)
   {
     if (!btr_search.enabled)
+    {
+      ut_ad(!index->any_ahi_pages());
       goto exit_func;
+    }
     ut_ad(!block->n_pointers);
     index->search_info.ref_count++;
   }
@@ -1611,7 +1616,10 @@ void btr_search_update_hash_on_delete(btr_cur_t *cursor) noexcept
     }
   }
   else
+  {
+    ut_ad(btr_search.enabled || !index->any_ahi_pages());
     part.latch.wr_unlock();
+  }
 }
 
 void btr_search_update_hash_on_insert(btr_cur_t *cursor, bool reorg) noexcept
@@ -1723,7 +1731,10 @@ void btr_search_update_hash_on_insert(btr_cur_t *cursor, bool reorg) noexcept
       locked= true;
       part.latch.wr_lock(SRW_LOCK_CALL);
       if (!block->index)
+      {
+        ut_ad(btr_search.enabled || !index->any_ahi_pages());
         goto unlock_exit;
+      }
       ha_insert_for_fold(part, ins_fold, block, ins_rec);
       MONITOR_INC(MONITOR_ADAPTIVE_HASH_ROW_ADDED);
     }

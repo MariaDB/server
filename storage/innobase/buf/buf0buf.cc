@@ -3703,6 +3703,8 @@ ATTRIBUTE_COLD void buf_pool_t::clear_hash_index() noexcept
 # endif /* UNIV_AHI_DEBUG || UNIV_DEBUG */
       if (index->freed())
         garbage.insert(index);
+      else
+        index->search_info.ref_count= 0;
       block->index= nullptr;
     }
 
