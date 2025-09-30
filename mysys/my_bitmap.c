@@ -579,9 +579,40 @@ uint bitmap_get_first_set(const MY_BITMAP *map)
   my_bitmap_map *data_ptr= map->bitmap, *end= map->last_word_ptr;
   DBUG_ASSERT_BITMAP(map);
 
-  for (uint i=0; data_ptr <= end; data_ptr++, i++)
+  for (uint i= 0; data_ptr <= end; data_ptr++, i++)
     if (*data_ptr)
       return my_find_first_bit(*data_ptr) + i * sizeof(my_bitmap_map)*8;
+  return MY_BIT_NONE;
+}
+
+
+/*
+  Find last set bit in a bitmap (0 - (bit_map_size -1))
+  Returns MY_BIT_NONE if no bits.
+*/
+
+#define step(x) if (n >= (1ULL) << x) { bit+= x; n >>= x; }
+
+uint get_last_bit(ulonglong n)
+{
+  int bit= 0;
+  DBUG_ASSERT(n > 0);
+
+  step(32) ; step(16); step(8); step(4); step(2); step(1);
+  return bit;
+}
+#undef step
+
+uint bitmap_get_last_set(const MY_BITMAP *map)
+{
+  my_bitmap_map *data_ptr= map->bitmap, *end= map->last_word_ptr;
+  DBUG_ASSERT_BITMAP(map);
+
+  do
+  {
+    if (*end)
+      return (uint) ((end-data_ptr)*sizeof(my_bitmap_map))*8 + get_last_bit(*end);
+  }  while (end-- > data_ptr);
   return MY_BIT_NONE;
 }
 
