@@ -137,16 +137,17 @@ insert into t2 select a.seq, b.seq, date('1993-06-01') + interval b.seq day,
     date('1993-06-01') - interval b.seq-1 day)
   from seq_1_to_7000 a, seq_1_to_3 b;
 
-set @@max_heap_table_size=16384;
-explain format=json select c, count(*) as dc
-  from t1
-  where b >= date '1993-06-01'
-    and b < date '1993-06-01' + interval '3' month
-    and exists
-    (
-      select * from t2 where e = a and g < h
-    )
-  group by c
-  order by c;
+set
+  @save_mhts= @@max_heap_table_size,
+  @@max_heap_table_size=16384;
+--echo # This should use:  t1, FirstMatch(t2)
+explain format=json
+select c, count(*) as dc
+from t1
+where
+  b >= date '1993-06-01' and b < date '1993-06-01' + interval '3' month and
+  exists (select * from t2 where e = t1.a and g < h)
+group by c;
 
+set max_heap_table_size=@save_mhts;
 drop table t1, t2;
