@@ -901,7 +901,8 @@ class Grant_table_base
           break;
     }
 
-    if (!table->key_info || table->key_info->user_defined_key_parts != pk_parts)
+    if (num_fields() < min_columns || !table->key_info ||
+        table->key_info->user_defined_key_parts != pk_parts)
     {
       my_error(ER_CANNOT_LOAD_FROM_TABLE_V2, MYF(ME_ERROR_LOG),
                table->s->db.str, table->s->table_name.str);
