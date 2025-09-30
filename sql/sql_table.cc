@@ -13007,8 +13007,7 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
 
     Relay_log_info *rli= new(rli_buff) Relay_log_info(false);
     rpl_group_info rgi(rli);
-    RPL_TABLE_LIST rpl_table(to, TL_WRITE, from, table_event.get_table_def(),
-                             copy, copy_end);
+    RPL_TABLE_LIST rpl_table(to, TL_WRITE, from, &table_event, copy, copy_end);
     DBUG_ASSERT(to->pos_in_table_list == NULL);
     to->pos_in_table_list= &rpl_table;
     rgi.thd= thd;

@@ -837,6 +837,7 @@ class THD;
 class Format_description_log_event;
 class Relay_log_info;
 class binlog_cache_data;
+struct RPL_TABLE_LIST;
 
 bool copy_event_cache_to_file_and_reinit(IO_CACHE *cache, FILE *file);
 
@@ -4518,8 +4519,6 @@ public:
   bool print(FILE *file, PRINT_EVENT_INFO *print_event_info) override;
 #endif
 
-  table_def get_table_def();
-
 private:
 #if defined(MYSQL_SERVER) && defined(HAVE_REPLICATION)
   int do_apply_event(rpl_group_info *rgi) override;
@@ -4597,6 +4596,7 @@ private:
   uchar         *m_meta_memory;
   unsigned int   m_optional_metadata_len;
   unsigned char *m_optional_metadata;
+  friend RPL_TABLE_LIST;
 };
 
 

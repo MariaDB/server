@@ -250,6 +250,38 @@ static void set_thd_db(THD *thd, Rpl_filter *rpl_filter,
 
 #if defined(HAVE_REPLICATION)
 
+RPL_TABLE_LIST::RPL_TABLE_LIST(const LEX_CSTRING *db_arg,
+                               const LEX_CSTRING *table_name_arg,
+                               thr_lock_type thr_lock_type,
+                               Table_map_log_event *event,
+                               bool master_had_trigers):
+  TABLE_LIST(db_arg, table_name_arg, NULL, thr_lock_type),
+  m_tabledef(event->m_coltype, event->m_colcnt, event->m_field_metadata,
+             event->m_field_metadata_size, event->m_null_bits, event->m_flags),
+  m_conv_table(NULL),
+  m_online_alter_copy_fields(NULL), m_online_alter_copy_fields_end(NULL),
+  cached_key_nr(~0U), m_tabledef_valid(true),
+  master_had_triggers(master_had_trigers)
+{
+}
+
+
+RPL_TABLE_LIST::RPL_TABLE_LIST(TABLE *table, thr_lock_type lock_type,
+                               TABLE *conv_table,
+                               Table_map_log_event *event,
+                               const Copy_field online_alter_copy_fields[],
+                               const Copy_field *online_alter_copy_fields_end):
+  TABLE_LIST(table, lock_type),
+  m_tabledef(event->m_coltype, event->m_colcnt, event->m_field_metadata,
+             event->m_field_metadata_size, event->m_null_bits, event->m_flags),
+  m_conv_table(conv_table),
+  m_online_alter_copy_fields(online_alter_copy_fields),
+  m_online_alter_copy_fields_end(online_alter_copy_fields_end),
+  cached_key_nr(~0U), m_tabledef_valid(true), master_had_triggers(false)
+{
+}
+
+
 inline int idempotent_error_code(int err_code)
 {
   int ret= 0;
@@ -5962,12 +5994,6 @@ check_table_map(rpl_group_info *rgi, RPL_TABLE_LIST *table_list)
   DBUG_RETURN(res);
 }
 
-table_def Table_map_log_event::get_table_def()
-{
-  return table_def(m_coltype, m_colcnt,
-                   m_field_metadata, m_field_metadata_size,
-                   m_null_bits, m_flags);
-}
 
 int Table_map_log_event::do_apply_event(rpl_group_info *rgi)
 {
@@ -6026,8 +6052,7 @@ int Table_map_log_event::do_apply_event(rpl_group_info *rgi)
     table_def destructor explicitly.
   */
   new(table_list) RPL_TABLE_LIST(&tmp_db_name, &tmp_tbl_name, TL_WRITE,
-                                 get_table_def(),
-                                 m_flags & TM_BIT_HAS_TRIGGERS_F);
+                                 this, m_flags & TM_BIT_HAS_TRIGGERS_F);
 
   table_list->table_id= DBUG_IF("inject_tblmap_same_id_maps_diff_table") ?
                                          0: m_table_id;
