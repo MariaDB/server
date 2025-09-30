@@ -3050,7 +3050,7 @@ ha_innodb_binlog_reader::wait_available(THD *thd,
                                         const struct timespec *abstime)
 {
   bool is_timeout= false;
-  bool pending_sync_lsn= 0;
+  lsn_t pending_sync_lsn= 0;
   bool did_enter_cond= false;
   PSI_stage_info old_stage;
 
@@ -3077,10 +3077,20 @@ ha_innodb_binlog_reader::wait_available(THD *thd,
       As we are holding binlog_durable_mutex, active_binlog_file_no cannot
       move during this check.
     */
-    uint64_t active= active_binlog_file_no.load(std::memory_order_relaxed);
+    uint64_t cur= active_binlog_file_no.load(std::memory_order_relaxed);
     uint64_t durable_offset=
-      binlog_cur_durable_offset[active & 3].load(std::memory_order_relaxed);
-    if (chunk_rd.is_before_pos(active, durable_offset))
+      binlog_cur_durable_offset[cur & 3].load(std::memory_order_relaxed);
+    if (durable_offset == 0 && chunk_rd.s.file_no + 1 == cur)
+    {
+      /*
+        If active has durable position=0, it means the current durable
+        position is somewhere in active-1.
+      */
+      cur= chunk_rd.s.file_no;
+      durable_offset=
+        binlog_cur_durable_offset[cur & 3].load(std::memory_order_relaxed);
+    }
+    if (chunk_rd.is_before_pos(cur, durable_offset))
       break;
 
     if (pending_sync_lsn != 0 && ibb_pending_lsn_fifo.flushing_lsn == 0)
