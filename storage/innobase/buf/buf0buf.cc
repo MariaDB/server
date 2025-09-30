@@ -1506,7 +1506,10 @@ bool buf_pool_t::create() noexcept
   last_activity_count= srv_get_activity_count();
 
   buf_LRU_old_ratio_update(100 * 3 / 8, false);
-  btr_search_sys_create();
+#ifdef BTR_CUR_HASH_ADAPT
+  if (btr_search.enabled)
+    btr_search.enable();
+#endif
 
 #ifdef __linux__
   if (srv_operation == SRV_OPERATION_NORMAL)

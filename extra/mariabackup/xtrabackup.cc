@@ -5510,6 +5510,7 @@ fail:
 	srv_thread_pool_init();
 	/* Reset the system variables in the recovery module. */
 	trx_pool_init();
+	btr_search_sys_create();
 	recv_sys.create();
 
 	xb_filters_init();

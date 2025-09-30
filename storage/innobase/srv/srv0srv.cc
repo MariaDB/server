@@ -604,6 +604,7 @@ void srv_boot()
   buf_dblwr.init();
   srv_thread_pool_init();
   trx_pool_init();
+  btr_search_sys_create();
   srv_init();
 }
 
