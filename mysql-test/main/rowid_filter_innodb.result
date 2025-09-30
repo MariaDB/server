@@ -2061,7 +2061,7 @@ ANALYZE
           "r_table_time_ms": "REPLACED",
           "r_other_time_ms": "REPLACED",
           "r_engine_stats": {
-            "pages_accessed": 84
+            "pages_accessed": 90
           },
           "filtered": "REPLACED",
           "r_total_filtered": 2.43902439,
@@ -2093,7 +2093,7 @@ ANALYZE
           "r_table_time_ms": "REPLACED",
           "r_other_time_ms": "REPLACED",
           "r_engine_stats": {
-            "pages_accessed": 2
+            "pages_accessed": 4
           },
           "filtered": "REPLACED",
           "r_total_filtered": 66.66666667,
@@ -2229,7 +2229,7 @@ ANALYZE
           "r_table_time_ms": "REPLACED",
           "r_other_time_ms": "REPLACED",
           "r_engine_stats": {
-            "pages_accessed": 84
+            "pages_accessed": 90
           },
           "filtered": "REPLACED",
           "r_total_filtered": 2.43902439,
@@ -2261,7 +2261,7 @@ ANALYZE
           "r_table_time_ms": "REPLACED",
           "r_other_time_ms": "REPLACED",
           "r_engine_stats": {
-            "pages_accessed": 2
+            "pages_accessed": 4
           },
           "filtered": "REPLACED",
           "r_total_filtered": 66.66666667,

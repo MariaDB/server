@@ -34,6 +34,7 @@ Created 2/17/1996 Heikki Tuuri
 #include "btr0pcur.h"
 #include "btr0btr.h"
 #include "srv0mon.h"
+#include "trx0trx.h"
 #include "log.h"
 
 #ifdef UNIV_SEARCH_PERF_STAT
@@ -1089,12 +1090,13 @@ btr_search_guess_on_hash(
   we validate the guessed rec. */
   part.latch.rd_unlock();
 
+  if (mtr->trx)
+    buf_inc_get(mtr->trx);
+
   block->page.fix();
   buf_page_make_young_if_needed(&block->page);
   static_assert(ulint{MTR_MEMO_PAGE_S_FIX} == ulint{BTR_SEARCH_LEAF}, "");
   static_assert(ulint{MTR_MEMO_PAGE_X_FIX} == ulint{BTR_MODIFY_LEAF}, "");
-
-  ++buf_pool.stat.n_page_gets;
 
   mtr->memo_push(block, mtr_memo_type_t(latch_mode));
 
@@ -1326,16 +1328,16 @@ void btr_search_drop_page_hash_index(buf_block_t *block,
   btr_search_drop_page_hash_index(block, not_garbage, folds);
 }
 
-void btr_search_drop_page_hash_when_freed(const page_id_t page_id) noexcept
+void btr_search_drop_page_hash_when_freed(mtr_t *mtr, const page_id_t page_id)
+  noexcept
 {
-  mtr_t mtr;
-  mtr.start();
   /* If the caller has a latch on the page, then the caller must be an
   x-latch page and it must have already dropped the hash index for the
   page. Because of the x-latch that we are possibly holding, we must
   (recursively) x-latch it, even though we are only reading. */
+  auto sp= mtr->get_savepoint();
   if (buf_block_t *block= buf_page_get_gen(page_id, 0, RW_X_LATCH, nullptr,
-                                           BUF_PEEK_IF_IN_POOL, &mtr))
+                                           BUF_PEEK_IF_IN_POOL, mtr))
   {
     /* In all our callers, the table handle should be open, or we
     should be in the process of dropping the table (preventing eviction). */
@@ -1344,7 +1346,7 @@ void btr_search_drop_page_hash_when_freed(const page_id_t page_id) noexcept
     btr_search_drop_page_hash_index(block, nullptr);
   }
 
-  mtr.commit();
+  mtr->rollback_to_savepoint(sp);
 }
 
 /** Build a hash index on a page with the given parameters. If the page already

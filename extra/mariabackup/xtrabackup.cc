@@ -664,11 +664,12 @@ void CorruptedPages::zero_out_free_pages()
     if (!space)
       die("Can't find space object for space name %s to check corrupted page",
           space_name.c_str());
+    mtr_t mtr{nullptr};
     for (std::set<unsigned>::const_iterator page_it=
              space_it->second.pages.begin();
          page_it != space_it->second.pages.end(); ++page_it)
     {
-      if (fseg_page_is_allocated(space, *page_it))
+      if (fseg_page_is_allocated(&mtr, space, *page_it))
       {
         space_info_t &space_info = non_free_pages[space_id];
         space_info.pages.insert(*page_it);

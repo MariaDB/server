@@ -623,7 +623,7 @@ public:
 	@param create_fk	whether to add FOREIGN KEY constraints */
 	int create_table(bool create_fk = true, bool strict= true);
 
-  static void create_table_update_dict(dict_table_t* table, THD* thd,
+  static void create_table_update_dict(dict_table_t* table, trx_t* trx,
                                        const HA_CREATE_INFO& info,
                                        const TABLE& t);
 
@@ -919,6 +919,6 @@ bool too_big_key_part_length(size_t max_field_len, const KEY& key);
 /** Adjust the persistent statistics after rebuilding ALTER TABLE.
 Remove statistics for dropped indexes, add statistics for created indexes
 and rename statistics for renamed indexes.
-@param table_name Table name in MySQL
-@param thd        alter table thread */
-void alter_stats_rebuild(dict_table_t *table, THD *thd);
+@param table InnoDB table that was rebuilt by ALTER TABLE
+@param trx   user transaction */
+void alter_stats_rebuild(dict_table_t *table, trx_t *trx) noexcept;

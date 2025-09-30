@@ -34,8 +34,8 @@ Created 11/26/1995 Heikki Tuuri
 #endif
 #include "btr0cur.h"
 #include "srv0start.h"
+#include "trx0trx.h"
 #include "log.h"
-#include "mariadb_stats.h"
 #include "my_cpu.h"
 
 #ifdef HAVE_PMEM
@@ -174,7 +174,7 @@ inline void buf_pool_t::insert_into_flush_list(buf_page_t *prev,
   block->page.set_oldest_modification(lsn);
 }
 
-mtr_t::mtr_t()= default;
+mtr_t::mtr_t(trx_t *trx) : trx(trx) {}
 mtr_t::~mtr_t()= default;
 
 /** Start a mini-transaction. */
@@ -183,7 +183,9 @@ void mtr_t::start()
   ut_ad(m_memo.empty());
   ut_ad(!m_freed_pages);
   ut_ad(!m_freed_space);
+  MEM_CHECK_DEFINED(&trx, sizeof trx);
   MEM_UNDEFINED(this, sizeof *this);
+  MEM_MAKE_DEFINED(&trx, sizeof trx);
   MEM_MAKE_DEFINED(&m_memo, sizeof m_memo);
   MEM_MAKE_DEFINED(&m_freed_space, sizeof m_freed_space);
   MEM_MAKE_DEFINED(&m_freed_pages, sizeof m_freed_pages);
@@ -452,7 +454,9 @@ void mtr_t::commit_log(mtr_t *mtr, std::pair<lsn_t,page_flush_ahead> lsns)
     mtr->m_memo.clear();
   }
 
-  mariadb_increment_pages_updated(modified);
+  if (modified != 0 && mtr->trx)
+    if (ha_handler_stats *stats= mtr->trx->active_handler_stats)
+      stats->pages_updated+= modified;
 
   if (UNIV_UNLIKELY(lsns.second != PAGE_FLUSH_NO))
     buf_flush_ahead(mtr->m_commit_lsn, lsns.second == PAGE_FLUSH_SYNC);
@@ -515,9 +519,6 @@ void mtr_t::rollback_to_savepoint(ulint begin, ulint end)
   {
     const mtr_memo_slot_t &slot= m_memo[s];
     ut_ad(slot.object);
-    /* This is intended for releasing latches on indexes or unmodified
-    buffer pool pages. */
-    ut_ad(slot.type <= MTR_MEMO_SX_LOCK);
     ut_ad(!(slot.type & MTR_MEMO_MODIFY));
     slot.release();
   }

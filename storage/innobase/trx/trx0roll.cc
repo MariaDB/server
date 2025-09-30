@@ -86,8 +86,7 @@ bool trx_t::rollback_finish() noexcept
     ut_free(undo);
     undo= nullptr;
   }
-  commit_low();
-  return commit_cleanup();
+  return commit();
 }
 
 dberr_t trx_t::rollback_low(const undo_no_t *savept) noexcept
@@ -238,10 +237,10 @@ dberr_t trx_rollback_for_mysql(trx_t* trx)
 			the actions already having been rolled back. */
 			ut_ad(trx->rsegs.m_redo.undo->rseg
 			      == trx->rsegs.m_redo.rseg);
-			mtr_t		mtr;
+			mtr_t mtr{trx};
 			mtr.start();
 			if (trx_undo_t* undo = trx->rsegs.m_redo.undo) {
-				trx_undo_set_state_at_prepare(trx, undo, true,
+				trx_undo_set_state_at_prepare(undo, true,
 							      &mtr);
 			}
 			/* Write the redo log for the XA ROLLBACK

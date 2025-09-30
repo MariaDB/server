@@ -562,7 +562,7 @@ static void wsrep_assert_valid_bf_bf_wait(const lock_t *lock, const trx_t *trx,
 			    << ((type_mode & LOCK_INSERT_INTENTION) ? " INSERT INTENTION " : " ")
 			    << ((type_mode & LOCK_X) ? " LOCK_X " : " LOCK_S ");
 
-	mtr_t mtr;
+	mtr_t mtr{nullptr};
 
 	ib::error() << "Conflicting lock on table: "
 		    << lock->index->table->name
@@ -682,7 +682,7 @@ bool wsrep_is_BF_lock_timeout(const trx_t &trx)
             now.val - suspend_time.val);
 
     if (!wait_lock->is_table()) {
-      mtr_t mtr;
+      mtr_t mtr{nullptr};
       lock_rec_print(stderr, wait_lock, mtr);
     } else {
       lock_table_print(stderr, wait_lock);
@@ -1084,7 +1084,7 @@ void wsrep_report_error(const lock_t* victim_lock, const trx_t *bf_trx)
 {
   // We have conflicting BF-BF case, these threads
   // should not execute concurrently
-  mtr_t mtr;
+  mtr_t mtr{nullptr};
   WSREP_ERROR("BF request is not compatible with victim");
   WSREP_ERROR("BF requesting lock: ");
   lock_rec_print(stderr, bf_trx->lock.wait_lock, mtr);
@@ -4843,7 +4843,7 @@ static bool lock_release_on_prepare_try(trx_t *trx, bool unlock_unmodified)
   DBUG_ASSERT(trx->state == TRX_STATE_PREPARED);
 
   bool all_released= true;
-  mtr_t mtr;
+  mtr_t mtr{trx};
   rec_offs offsets_[REC_OFFS_NORMAL_SIZE];
   rec_offs *offsets= offsets_;
   rec_offs_init(offsets_);
@@ -5023,7 +5023,7 @@ void lock_release_on_prepare(trx_t *trx)
 skip_try:
 #endif
 
-  mtr_t mtr;
+  mtr_t mtr{trx};
   /* Reserve enough offsets for the key and PRIMARY KEY. */
   rec_offs offsets_[REC_OFFS_HEADER_SIZE + 2 * MAX_REF_PARTS + 1];
   rec_offs *offsets= offsets_;
@@ -5395,7 +5395,7 @@ void lock_trx_print_wait_and_mvcc_state(FILE *file, const trx_t *trx,
 			now.val - suspend_time.val);
 
 		if (!wait_lock->is_table()) {
-			mtr_t mtr;
+			mtr_t mtr{nullptr};
 			lock_rec_print(file, wait_lock, mtr);
 		} else {
 			lock_table_print(file, wait_lock);
@@ -5414,7 +5414,7 @@ lock_trx_print_locks(
 	FILE*		file,		/*!< in/out: File to write */
 	const trx_t*	trx)		/*!< in: current transaction */
 {
-	mtr_t mtr;
+	mtr_t mtr{nullptr};
 	uint32_t i= 0;
 	/* Iterate over the transaction's locks. */
 	lock_sys.assert_locked();
@@ -5852,7 +5852,7 @@ static void lock_rec_block_validate(const page_id_t page_id)
 	this point. */
 
 	buf_block_t*	block;
-	mtr_t		mtr;
+	mtr_t		mtr{nullptr};
 
 	/* Transactional locks should never refer to dropped
 	tablespaces, because all DDL operations that would drop or
@@ -7121,7 +7121,7 @@ namespace Deadlock
 
     if (!lock.is_table())
     {
-      mtr_t mtr;
+      mtr_t mtr{lock.trx};
       lock_rec_print(lock_latest_err_file, &lock, mtr);
 
       if (srv_print_all_deadlocks)

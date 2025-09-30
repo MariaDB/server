@@ -1669,7 +1669,7 @@ fil_space_t *fil_space_t::drop(uint32_t id, pfs_os_file_t *detached_handle)
     }
 
     /* Before deleting the file, persistently write a log record. */
-    mtr_t mtr;
+    mtr_t mtr{nullptr};
     mtr.start();
     mtr.log_file_op(FILE_DELETE, id, space->chain.start->name);
     mtr.commit_file(*space, nullptr);
@@ -1943,7 +1943,7 @@ dberr_t fil_space_t::rename(const char *path, bool log, bool replace) noexcept
     }
   }
 
-  mtr_t mtr;
+  mtr_t mtr{nullptr};
   mtr.start();
   mtr.log_file_op(FILE_RENAME, id, old_path, path);
   return mtr.commit_file(*this, path) ? DB_SUCCESS : DB_ERROR;
@@ -1974,7 +1974,7 @@ fil_ibd_create(
 {
 	pfs_os_file_t	file;
 	bool		success;
-	mtr_t		mtr;
+	mtr_t		mtr{nullptr};
 	bool		has_data_dir = FSP_FLAGS_HAS_DATA_DIR(flags) != 0;
 
 	ut_ad(!is_system_tablespace(space_id));
@@ -2674,7 +2674,7 @@ void fsp_flags_try_adjust(fil_space_t *space, uint32_t flags)
 	if (!space->size || !space->get_size()) {
 		return;
 	}
-	mtr_t	mtr;
+	mtr_t mtr{nullptr};
 	mtr.start();
 	if (buf_block_t* b = buf_page_get(
 		    page_id_t(space->id, 0), space->zip_size(),
@@ -3101,7 +3101,7 @@ ATTRIBUTE_NOINLINE ATTRIBUTE_COLD void mtr_t::name_write() noexcept
   fil_system.named_spaces.push_back(*m_user_space);
   ut_ad(UT_LIST_GET_LEN(m_user_space->chain) == 1);
 
-  mtr_t mtr;
+  mtr_t mtr{nullptr};
   mtr.start();
   mtr.log_file_op(FILE_MODIFY, m_user_space->id,
                   UT_LIST_GET_FIRST(m_user_space->chain)->name);
@@ -3114,7 +3114,7 @@ and write out FILE_MODIFY if needed, and write FILE_CHECKPOINT.
 @return current LSN */
 ATTRIBUTE_COLD lsn_t fil_names_clear(lsn_t lsn) noexcept
 {
-	mtr_t	mtr;
+	mtr_t	mtr{nullptr};
 
 	ut_ad(log_sys.latch_have_wr());
 	ut_ad(lsn);

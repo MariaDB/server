@@ -31,12 +31,13 @@ buf_block_t *buf_page_get_gen(const page_id_t, ulint, rw_lock_type_t,
 { return nullptr; }
 bool buf_page_make_young_if_needed(buf_page_t*) { return false; }
 
-mtr_t::mtr_t()= default;
+mtr_t::mtr_t(trx_t *trx) : trx(trx) {}
 mtr_t::~mtr_t()= default;
 void mtr_t::start() {}
 void mtr_t::commit() {}
 void mtr_t::rollback_to_savepoint(ulint, ulint) {}
 void small_vector_base::grow_by_1(void *, size_t) noexcept {}
+void buf_inc_get(trx_t*) noexcept {}
 
 void sql_print_error(const char*, ...) {}
 ulint ut_find_prime(ulint n) { return n; }

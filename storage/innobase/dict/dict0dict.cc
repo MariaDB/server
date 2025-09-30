@@ -1205,9 +1205,6 @@ inline void dict_sys_t::add(dict_table_t *table) noexcept
   ut_ad(dict_lru_validate());
 }
 
-#ifdef BTR_CUR_HASH_ADAPT
-TRANSACTIONAL_TARGET
-#endif
 /** Test whether a table can be evicted from dict_sys.table_LRU.
 @param table   table to be considered for eviction
 @return whether the table can be evicted */
@@ -2054,9 +2051,6 @@ dict_index_add_to_cache(
 	return DB_SUCCESS;
 }
 
-#ifdef BTR_CUR_HASH_ADAPT
-TRANSACTIONAL_TARGET
-#endif
 /**********************************************************************//**
 Removes an index from the dictionary cache. */
 static
@@ -3889,10 +3883,10 @@ dict_print_info_on_foreign_keys(
 /**********************************************************************//**
 Flags an index corrupted both in the data dictionary cache
 and in the SYS_INDEXES */
-void dict_set_corrupted(dict_index_t *index, const char *ctx)
+void dict_set_corrupted(trx_t *trx, dict_index_t *index, const char *ctx)
 {
 	mem_heap_t*	heap;
-	mtr_t		mtr;
+	mtr_t		mtr{trx};
 	dict_index_t*	sys_index;
 	dtuple_t*	tuple;
 	dfield_t*	dfield;
@@ -3981,15 +3975,17 @@ func_exit:
 }
 
 /** Sets merge_threshold in the SYS_INDEXES
+@param[in]	thd		current_thd
 @param[in,out]	index		index
 @param[in]	merge_threshold	value to set */
 void
 dict_index_set_merge_threshold(
+	const THD&	thd,
 	dict_index_t*	index,
 	ulint		merge_threshold)
 {
 	mem_heap_t*	heap;
-	mtr_t		mtr;
+	mtr_t		mtr{thd_to_trx(&thd)};
 	dict_index_t*	sys_index;
 	dtuple_t*	tuple;
 	dfield_t*	dfield;

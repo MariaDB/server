@@ -253,11 +253,12 @@ row_log_block_free(
 /** Logs an operation to a secondary index that is (or was) being created.
 @param  index   index, S or X latched
 @param  tuple   index tuple
+@param  trx     transaction
 @param  trx_id  transaction ID for insert, or 0 for delete
 @retval false if row_log_apply() failure happens
 or true otherwise */
-bool row_log_online_op(dict_index_t *index, const dtuple_t *tuple,
-                       trx_id_t trx_id)
+static bool row_log_online_op(dict_index_t *index, const dtuple_t *tuple,
+                              trx_t *trx, trx_id_t trx_id)
 {
 	byte*		b;
 	ulint		extra_size;
@@ -350,7 +351,7 @@ start_log:
 			apply the online log for the completed index */
 			index->lock.s_unlock();
 			dberr_t error= row_log_apply(
-				log->alter_trx, index, nullptr, nullptr);
+				trx, index, nullptr, nullptr);
 			index->lock.s_lock(SRW_LOCK_CALL);
 			if (error != DB_SUCCESS) {
 				/* Mark all newly added indexes
@@ -1742,12 +1743,13 @@ row_log_table_apply_delete(
 	mem_heap_t*		offsets_heap,	/*!< in/out: memory heap
 						that can be emptied */
 	mem_heap_t*		heap,		/*!< in/out: memory heap */
-	const row_log_t*	log)		/*!< in: online log */
+	const row_merge_dup_t*	dup)		/*!< in: context */
 {
+	const row_log_t* const log{dup->index->online_log};
 	dict_table_t*	new_table = log->table;
 	dict_index_t*	index = dict_table_get_first_index(new_table);
 	dtuple_t*	old_pk;
-	mtr_t		mtr;
+	mtr_t		mtr{dup->trx};
 	btr_pcur_t	pcur;
 	rec_offs*	offsets;
 
@@ -1864,7 +1866,7 @@ row_log_table_apply_update(
 	row_log_t*	log	= dup->index->online_log;
 	const dtuple_t*	row;
 	dict_index_t*	index	= dict_table_get_first_index(log->table);
-	mtr_t		mtr;
+	mtr_t		mtr{dup->trx};
 	btr_pcur_t	pcur;
 	dberr_t		error;
 	ulint		n_index = 0;
@@ -2214,7 +2216,7 @@ row_log_table_apply_op(
 
 		*error = row_log_table_apply_delete(
 			new_trx_id_col,
-			mrec, offsets, offsets_heap, heap, log);
+			mrec, offsets, offsets_heap, heap, dup);
 		break;
 
 	case ROW_T_UPDATE:
@@ -2816,10 +2818,11 @@ row_log_table_apply(
 {
 	dberr_t		error;
 	dict_index_t*	clust_index;
+        trx_t* const	trx{thr_get_trx(thr)};
 
-	thr_get_trx(thr)->error_key_num = 0;
+	trx->error_key_num = 0;
 	DBUG_EXECUTE_IF("innodb_trx_duplicates",
-			thr_get_trx(thr)->duplicates = TRX_DUP_REPLACE;);
+			trx->duplicates = TRX_DUP_REPLACE;);
 
 	stage->begin_phase_log_table();
 
@@ -2841,7 +2844,7 @@ row_log_table_apply(
 		error = DB_ERROR;
 	} else {
 		row_merge_dup_t	dup = {
-			clust_index, table,
+			clust_index, trx, table,
 			clust_index->online_log->col_map, 0
 		};
 
@@ -2853,8 +2856,7 @@ row_log_table_apply(
 	}
 
 	clust_index->lock.x_unlock();
-	DBUG_EXECUTE_IF("innodb_trx_duplicates",
-			thr_get_trx(thr)->duplicates = 0;);
+	DBUG_EXECUTE_IF("innodb_trx_duplicates", trx->duplicates = 0;);
 
 	return(error);
 }
@@ -3032,7 +3034,7 @@ row_log_apply_op_low(
 	trx_id_t	trx_id,		/*!< in: transaction identifier */
 	const dtuple_t*	entry)		/*!< in: row */
 {
-	mtr_t		mtr;
+	mtr_t		mtr{dup->trx};
 	btr_cur_t	cursor;
 	rec_offs*	offsets = NULL;
 
@@ -3704,7 +3706,7 @@ func_exit:
 }
 
 /** Apply the row log to the index upon completing index creation.
-@param[in]	trx	transaction (for checking if the operation was
+@param[in,out]	trx	transaction (for checking if the operation was
 interrupted)
 @param[in,out]	index	secondary index
 @param[in,out]	table	MySQL table (for reporting duplicates)
@@ -3715,13 +3717,13 @@ when row log has been applied by DML thread.
 @return DB_SUCCESS, or error code on failure */
 dberr_t
 row_log_apply(
-	const trx_t*		trx,
+	trx_t*			trx,
 	dict_index_t*		index,
 	struct TABLE*		table,
 	ut_stage_alter_t*	stage)
 {
 	dberr_t		error;
-	row_merge_dup_t	dup = { index, table, NULL, 0 };
+	row_merge_dup_t	dup = { index, trx, table, nullptr, 0 };
 	DBUG_ENTER("row_log_apply");
 
 	ut_ad(dict_index_is_online_ddl(index)
@@ -3949,7 +3951,7 @@ void UndorecApplier::log_insert(const dtuple_t &tuple,
         dtuple_t *entry= row_build_index_entry_low(row, ext, index,
                                                    heap, ROW_BUILD_NORMAL);
         entry->copy_field_types(*index);
-	success= row_log_online_op(index, entry, trx_id);
+	success= row_log_online_op(index, entry, mtr.trx, trx_id);
       }
 
       index->lock.s_unlock();
@@ -4074,7 +4076,7 @@ void UndorecApplier::log_update(const dtuple_t &tuple,
 
         old_entry->copy_field_types(*index);
 
-	success= row_log_online_op(index, old_entry, 0);
+	success= row_log_online_op(index, old_entry, mtr.trx, 0);
 
 	dtuple_t *new_entry= row_build_index_entry_low(
           row, new_ext, index, heap, ROW_BUILD_NORMAL);
@@ -4082,7 +4084,7 @@ void UndorecApplier::log_update(const dtuple_t &tuple,
         new_entry->copy_field_types(*index);
 
 	if (success)
-	  success= row_log_online_op(index, new_entry, trx_id);
+	  success= row_log_online_op(index, new_entry, mtr.trx, trx_id);
       }
       else
       {
@@ -4091,7 +4093,7 @@ void UndorecApplier::log_update(const dtuple_t &tuple,
 
         old_entry->copy_field_types(*index);
 
-        success= row_log_online_op(index, old_entry, 0);
+        success= row_log_online_op(index, old_entry, mtr.trx, 0);
       }
     }
 next_index:

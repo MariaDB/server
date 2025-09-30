@@ -2122,17 +2122,18 @@ innobase_fts_check_doc_id_col(
 }
 
 /** Check whether the table is empty.
-@param[in]	table			table to be checked
+@param[in]	prebuilt		table to be checked
 @param[in]	ignore_delete_marked	Ignore the delete marked
 					flag record
 @return true if table is empty */
-static bool innobase_table_is_empty(const dict_table_t *table,
-				    bool ignore_delete_marked=true)
+static bool innobase_table_is_empty(row_prebuilt_t *prebuilt,
+				    bool ignore_delete_marked)
 {
+  const dict_table_t *const table{prebuilt->table};
   if (!table->space)
     return false;
   dict_index_t *clust_index= dict_table_get_first_index(table);
-  mtr_t mtr;
+  mtr_t mtr{prebuilt->trx};
   btr_pcur_t pcur;
   buf_block_t *block;
   page_cur_t *cur;
@@ -2443,7 +2444,7 @@ innodb_instant_alter_column_allowed_reason:
 	for newly added column when table is not empty */
 	if (ha_alter_info->error_if_not_empty
 	    && m_prebuilt->table->space
-	    && !innobase_table_is_empty(m_prebuilt->table)) {
+	    && !innobase_table_is_empty(m_prebuilt, true)) {
 		DBUG_RETURN(HA_ALTER_INPLACE_NOT_SUPPORTED);
 	}
 
@@ -6177,7 +6178,7 @@ add_all_virtual:
 	memset(roll_ptr, 0, sizeof roll_ptr);
 
 	dtuple_t* entry = index->instant_metadata(*row, ctx->heap);
-	mtr_t	mtr;
+	mtr_t mtr{trx};
 	mtr.start();
 	index->set_modified(mtr);
 	btr_pcur_t pcur;
@@ -7282,7 +7283,8 @@ error_handling_drop_uncached_1:
 			    || !user_table->space) {
 			} else if (ib_uint64_t autoinc
 				   = btr_read_autoinc(clust_index)) {
-				btr_write_autoinc(new_clust_index, autoinc);
+				btr_write_autoinc(ctx->prebuilt->trx,
+						  new_clust_index, autoinc);
 			}
 		}
 
@@ -8009,7 +8011,7 @@ ha_innobase::prepare_inplace_alter_table(
 	/* Ignore the MDL downgrade when table is empty.
 	This optimization is disabled for partition table. */
 	ha_alter_info->mdl_exclusive_after_prepare =
-		innobase_table_is_empty(m_prebuilt->table, false);
+		innobase_table_is_empty(m_prebuilt, false);
 	if (ha_alter_info->online
 	    && ha_alter_info->mdl_exclusive_after_prepare) {
 		ha_alter_info->online = false;
@@ -9946,7 +9948,8 @@ commit_set_autoinc(
 		/* Bulk index creation does not update
 		PAGE_ROOT_AUTO_INC, so we must persist the "last used"
 		value here. */
-		btr_write_autoinc(dict_table_get_first_index(ctx->new_table),
+		btr_write_autoinc(ctx->trx,
+				  dict_table_get_first_index(ctx->new_table),
 				  autoinc - 1, true);
 	} else if ((ha_alter_info->handler_flags
 		    & ALTER_CHANGE_CREATE_OPTION)
@@ -10017,7 +10020,8 @@ commit_set_autoinc(
 			}
 		}
 
-		btr_write_autoinc(dict_table_get_first_index(ctx->new_table),
+		btr_write_autoinc(ctx->trx,
+                                  dict_table_get_first_index(ctx->new_table),
 				  autoinc, true);
 	} else if (ctx->need_rebuild()) {
 		/* No AUTO_INCREMENT value was specified.
@@ -10171,8 +10175,9 @@ innobase_update_foreign_cache(
 	and prevent the table from being evicted from the data
 	dictionary cache (work around the lack of WL#6049). */
 	dict_names_t	fk_tables;
+        mtr_t mtr{ctx->trx};
 
-	err = dict_load_foreigns(user_table->name.m_name,
+	err = dict_load_foreigns(mtr, user_table->name.m_name,
 				 ctx->col_names, 1, true,
 				 DICT_ERR_IGNORE_FK_NOKEY,
 				 fk_tables);
@@ -10183,7 +10188,7 @@ innobase_update_foreign_cache(
 		/* It is possible there are existing foreign key are
 		loaded with "foreign_key checks" off,
 		so let's retry the loading with charset_check is off */
-		err = dict_load_foreigns(user_table->name.m_name,
+		err = dict_load_foreigns(mtr, user_table->name.m_name,
 					 ctx->col_names, 1, false,
 					 DICT_ERR_IGNORE_NONE,
 					 fk_tables);
@@ -11014,7 +11019,7 @@ commit_cache_norebuild(
 				becomes durable, fsp_flags_try_adjust()
 				will perform the equivalent adjustment
 				and warn "adjusting FSP_SPACE_FLAGS". */
-				mtr_t	mtr;
+				mtr_t mtr{trx};
 				mtr.start();
 				if (buf_block_t* b = buf_page_get(
 					    page_id_t(space->id, 0),
@@ -11184,7 +11189,7 @@ Remove statistics for dropped indexes, add statistics for created indexes
 and rename statistics for renamed indexes.
 @param ha_alter_info Data used during in-place alter
 @param ctx In-place ALTER TABLE context
-@param thd alter table thread
+@param trx user transaction
 */
 static
 void
@@ -11192,7 +11197,7 @@ alter_stats_norebuild(
 /*==================*/
 	Alter_inplace_info*		ha_alter_info,
 	ha_innobase_inplace_ctx*	ctx,
-	THD*				thd)
+	trx_t*				trx)
 {
 	DBUG_ENTER("alter_stats_norebuild");
 	DBUG_ASSERT(!ctx->need_rebuild());
@@ -11209,7 +11214,7 @@ alter_stats_norebuild(
 		DBUG_ASSERT(index->table == ctx->new_table);
 
 		if (!(index->type & DICT_FTS)) {
-			dict_stats_update_for_index(index);
+			dict_stats_update_for_index(trx, index);
 		}
 	}
 
@@ -11886,7 +11891,7 @@ foreign_fail:
 				(*pctx);
 			DBUG_ASSERT(ctx->need_rebuild());
 
-			alter_stats_rebuild(ctx->new_table, m_user_thd);
+			alter_stats_rebuild(ctx->new_table, m_prebuilt->trx);
 		}
 	} else {
 		for (inplace_alter_handler_ctx** pctx = ctx_array;
@@ -11896,7 +11901,8 @@ foreign_fail:
 				(*pctx);
 			DBUG_ASSERT(!ctx->need_rebuild());
 
-			alter_stats_norebuild(ha_alter_info, ctx, m_user_thd);
+			alter_stats_norebuild(ha_alter_info, ctx,
+					      m_prebuilt->trx);
 		}
 	}
 

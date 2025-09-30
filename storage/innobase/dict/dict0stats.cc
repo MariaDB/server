@@ -831,7 +831,7 @@ btr_estimate_number_of_different_key_vals(dict_index_t* index,
 	ulint		not_empty_flag	= 0;
 	ulint		total_external_size = 0;
 	uintmax_t	add_on;
-	mtr_t		mtr;
+	mtr_t		mtr{nullptr};
 	mem_heap_t*	heap		= NULL;
 	rec_offs*	offsets_rec	= NULL;
 	rec_offs*	offsets_next_rec = NULL;
@@ -1098,13 +1098,12 @@ Calculates new estimates for index statistics. This function is
 relatively quick and is used to calculate transient statistics that
 are not saved on disk. This was the only way to calculate statistics
 before the Persistent Statistics feature was introduced.
+@param trx    transaction
+@param index  B-tree
 @return error code
 @retval DB_SUCCESS_LOCKED_REC if the table under bulk insert operation */
-static
-dberr_t
-dict_stats_update_transient_for_index(
-/*==================================*/
-	dict_index_t*	index)	/*!< in/out: index */
+static dberr_t
+dict_stats_update_transient_for_index(trx_t *trx, dict_index_t* index) noexcept
 {
 	dberr_t err = DB_SUCCESS;
 	if (srv_force_recovery >= SRV_FORCE_NO_TRX_UNDO
@@ -1125,7 +1124,7 @@ dummy_empty:
 		   || !index->table->space) {
 		goto dummy_empty;
 	} else {
-		mtr_t	mtr;
+		mtr_t mtr{trx};
 
 		mtr.start();
 		mtr_sx_lock_index(index, &mtr);
@@ -1187,7 +1186,7 @@ invalid:
 	return err;
 }
 
-dberr_t dict_stats_update_transient(dict_table_t *table) noexcept
+dberr_t dict_stats_update_transient(trx_t *trx, dict_table_t *table) noexcept
 {
 	ut_ad(!table->stats_mutex_is_owner());
 
@@ -1226,7 +1225,7 @@ dberr_t dict_stats_update_transient(dict_table_t *table) noexcept
 			continue;
 		}
 
-		err = dict_stats_update_transient_for_index(index);
+		err = dict_stats_update_transient_for_index(trx, index);
 
 		sum_of_index_sizes += index->stat_index_size;
 	}
@@ -1815,6 +1814,7 @@ distinct records on the leaf page, when looking at the fist n_prefix
 columns. Also calculate the number of external pages pointed by records
 on the leaf page.
 @param[in]	cur			cursor
+@param[in,out]	mtr			mini-transaction
 @param[in]	n_prefix		look at the first n_prefix columns
 when comparing records
 @param[out]	n_diff			number of distinct records
@@ -1824,6 +1824,7 @@ static
 void
 dict_stats_analyze_index_below_cur(
 	const btr_cur_t*	cur,
+	mtr_t*			mtr,
 	ulint			n_prefix,
 	ib_uint64_t*		n_diff,
 	ib_uint64_t*		n_external_pages)
@@ -1837,8 +1838,8 @@ dict_stats_analyze_index_below_cur(
 	rec_offs*	offsets2;
 	rec_offs*	offsets_rec;
 	ulint		size;
-	mtr_t		mtr;
 
+	const auto sp = mtr->get_savepoint();
 	index = btr_cur_get_index(cur);
 
 	/* Allocate offsets for the record and the node pointer, for
@@ -1878,15 +1879,13 @@ dict_stats_analyze_index_below_cur(
 	function without analyzing any leaf pages */
 	*n_external_pages = 0;
 
-	mtr_start(&mtr);
-
 	/* descend to the leaf level on the B-tree */
 	for (;;) {
 		dberr_t err;
 
 		block = buf_page_get_gen(page_id, zip_size,
 					 RW_S_LATCH, NULL, BUF_GET,
-					 &mtr, &err);
+					 mtr, &err);
 		if (!block) {
 			goto func_exit;
 		}
@@ -1912,17 +1911,14 @@ dict_stats_analyze_index_below_cur(
 		ut_a(*n_diff > 0);
 
 		if (*n_diff == 1) {
-			mtr_commit(&mtr);
-
 			/* page has all keys equal and the end of the page
 			was reached by dict_stats_scan_page(), no need to
 			descend to the leaf level */
-			mem_heap_free(heap);
 			/* can't get an estimate for n_external_pages here
 			because we do not dive to the leaf level, assume no
 			external pages (*n_external_pages was assigned to 0
 			above). */
-			return;
+			goto func_exit;
 		}
 		/* else */
 
@@ -1957,7 +1953,7 @@ dict_stats_analyze_index_below_cur(
 #endif
 
 func_exit:
-	mtr_commit(&mtr);
+	mtr->rollback_to_savepoint(sp);
 	mem_heap_free(heap);
 }
 
@@ -2152,7 +2148,7 @@ dict_stats_analyze_index_for_n_prefix(
 		ib_uint64_t	n_external_pages;
 
 		dict_stats_analyze_index_below_cur(btr_pcur_get_btr_cur(&pcur),
-						   n_prefix,
+						   mtr, n_prefix,
 						   &n_diff_on_leaf_page,
 						   &n_external_pages);
 
@@ -2288,14 +2284,14 @@ members stat_n_diff_key_vals[], stat_n_sample_sizes[], stat_index_size and
 stat_n_leaf_pages. This function can be slow.
 @param[in]	index	index to analyze
 @return index stats */
-static index_stats_t dict_stats_analyze_index(dict_index_t* index)
+static index_stats_t dict_stats_analyze_index(trx_t *trx, dict_index_t* index)
 {
 	bool		level_is_analyzed;
 	ulint		n_uniq;
 	ulint		n_prefix;
 	ib_uint64_t	total_recs;
 	ib_uint64_t	total_pages;
-	mtr_t		mtr;
+	mtr_t		mtr{trx};
 	index_stats_t	result(index->n_uniq);
 	DBUG_ENTER("dict_stats_analyze_index");
 
@@ -2594,7 +2590,7 @@ found_level:
 	DBUG_RETURN(result);
 }
 
-dberr_t dict_stats_update_persistent(dict_table_t *table) noexcept
+dberr_t dict_stats_update_persistent(trx_t *trx, dict_table_t *table) noexcept
 {
 	dict_index_t*	index;
 
@@ -2603,7 +2599,7 @@ dberr_t dict_stats_update_persistent(dict_table_t *table) noexcept
 	DEBUG_SYNC_C("dict_stats_update_persistent");
 
 	if (trx_id_t bulk_trx_id = table->bulk_trx_id) {
-		if (trx_sys.find(nullptr, bulk_trx_id, false)) {
+		if (trx_sys.find(trx, bulk_trx_id, false)) {
 			dict_stats_empty_table(table);
 			return DB_SUCCESS_LOCKED_REC;
 		}
@@ -2627,7 +2623,7 @@ dberr_t dict_stats_update_persistent(dict_table_t *table) noexcept
 	dict_stats_empty_index(index);
 	table->stats_mutex_unlock();
 
-	index_stats_t stats = dict_stats_analyze_index(index);
+	index_stats_t stats = dict_stats_analyze_index(trx, index);
 
 	if (stats.is_bulk_operation()) {
 		dict_stats_empty_table(table);
@@ -2668,7 +2664,7 @@ dberr_t dict_stats_update_persistent(dict_table_t *table) noexcept
 		}
 
 		table->stats_mutex_unlock();
-		stats = dict_stats_analyze_index(index);
+		stats = dict_stats_analyze_index(trx, index);
 		table->stats_mutex_lock();
 
 		if (stats.is_bulk_operation()) {
@@ -2706,12 +2702,13 @@ dberr_t dict_stats_update_persistent(dict_table_t *table) noexcept
 	return(DB_SUCCESS);
 }
 
-dberr_t dict_stats_update_persistent_try(dict_table_t *table)
+dberr_t dict_stats_update_persistent_try(trx_t *trx, dict_table_t *table)
+  noexcept
 {
   if (table->stats_is_persistent() &&
       dict_stats_persistent_storage_check(false) == SCHEMA_OK)
   {
-    if (dberr_t err= dict_stats_update_persistent(table))
+    if (dberr_t err= dict_stats_update_persistent(trx, table))
       return err;
     return dict_stats_save(table);
   }
@@ -3517,12 +3514,7 @@ dberr_t dict_stats_fetch_from_ps(dict_table_t *table)
 	return ret;
 }
 
-/*********************************************************************//**
-Fetches or calculates new estimates for index statistics. */
-void
-dict_stats_update_for_index(
-/*========================*/
-	dict_index_t*	index)	/*!< in/out: index */
+void dict_stats_update_for_index(trx_t *trx, dict_index_t *index) noexcept
 {
   dict_table_t *const table= index->table;
   ut_ad(table->stat_initialized());
@@ -3547,7 +3539,7 @@ dict_stats_update_for_index(
                             table->name.basename(), index->name());
       break;
     case SCHEMA_OK:
-      index_stats_t stats{dict_stats_analyze_index(index)};
+      index_stats_t stats{dict_stats_analyze_index(trx, index)};
       table->stats_mutex_lock();
       index->stat_index_size = stats.index_size;
       index->stat_n_leaf_pages = stats.n_leaf_pages;
@@ -3563,7 +3555,7 @@ dict_stats_update_for_index(
       return;
     }
 
-  dict_stats_update_transient_for_index(index);
+  dict_stats_update_transient_for_index(trx, index);
 }
 
 /** Execute DELETE FROM mysql.innodb_table_stats
