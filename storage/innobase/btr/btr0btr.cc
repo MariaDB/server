@@ -4497,8 +4497,12 @@ btr_discard_page(
 		/* btr_check_node_ptr() needs parent block latched.
 		If the merge_block's parent block is not same,
 		we cannot use btr_check_node_ptr() */
-		ut_ad(parent_is_different
-		      || btr_check_node_ptr(index, merge_block, mtr));
+		if(!parent_is_different){
+			/* btr_check_node_ptr can returning FALSE. MDEV-27675*/
+			if (!btr_check_node_ptr(index, merge_block, mtr)) {
+				return DB_CORRUPTION;
+			}
+		}
 
 		if (btr_cur_get_block(&parent_cursor)->page.id().page_no()
 		    == index->page
@@ -4682,6 +4686,11 @@ btr_check_node_ptr(
 						    NULL, &cursor);
 	} else {
 		offsets = btr_page_get_father_block(NULL, heap, mtr, &cursor);
+	}
+
+	if(UNIV_UNLIKELY(!offsets)) {
+		mem_heap_free(heap);
+        return(FALSE);
 	}
 
 	ut_ad(offsets);

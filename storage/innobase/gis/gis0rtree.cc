@@ -585,7 +585,10 @@ rtr_adjust_upper_level(
 	/* Set new mbr for the old page on the upper level. */
 	/* Look up the index for the node pointer to page */
 	offsets = rtr_page_get_father_block(NULL, heap, mtr, sea_cur, &cursor);
-
+	if(UNIV_UNLIKELY(!offsets)) {
+		mem_heap_free(heap);
+		return DB_CORRUPTION;
+	}
 	page_cursor = btr_cur_get_page_cur(&cursor);
 
 	rtr_update_mbr_field(&cursor, offsets, nullptr, block->page.frame, mbr,
