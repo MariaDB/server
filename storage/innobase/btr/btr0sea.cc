@@ -121,19 +121,21 @@ inline void btr_sea::partition::free() noexcept
   blocks_mutex.destroy();
 }
 
-inline void btr_sea::hash_table::create(ulint n) noexcept
+inline bool btr_sea::hash_table::create(ulint n) noexcept
 {
-  n_cells= ut_find_prime(n);
+  n_cells= n;
   const size_t size= MY_ALIGN(pad(n_cells) * sizeof *array,
                               CPU_LEVEL1_DCACHE_LINESIZE);
   void *v= aligned_malloc(size, CPU_LEVEL1_DCACHE_LINESIZE);
-  memset_aligned<CPU_LEVEL1_DCACHE_LINESIZE>(v, 0, size);
+  if (v)
+    memset_aligned<CPU_LEVEL1_DCACHE_LINESIZE>(v, 0, size);
   array= static_cast<hash_chain*>(v);
+  return array != nullptr;
 }
 
-inline void btr_sea::partition::alloc(ulint hash_size) noexcept
+inline bool btr_sea::partition::alloc(ulint hash_size) noexcept
 {
-  table.create(hash_size);
+  return table.create(hash_size);
 }
 
 void btr_sea::create() noexcept
@@ -142,11 +144,16 @@ void btr_sea::create() noexcept
     part.init();
 }
 
-void btr_sea::alloc(ulint hash_size) noexcept
+bool btr_sea::alloc(size_t hash_size) noexcept
 {
-  hash_size/= n_parts;
   for (ulong i= 0; i < n_parts; ++i)
-    parts[i].alloc(hash_size);
+    if (!parts[i].alloc(hash_size))
+    {
+      while (i--)
+        parts[i].clear();
+      return false;
+    }
+  return true;
 }
 
 inline void btr_sea::clear() noexcept
@@ -381,7 +388,7 @@ ATTRIBUTE_COLD void btr_search_lazy_free(dict_index_t *index) noexcept
   table->autoinc_mutex.wr_unlock();
 }
 
-ATTRIBUTE_COLD bool btr_sea::disable() noexcept
+ATTRIBUTE_COLD bool btr_sea::disable_and_lock() noexcept
 {
   dict_sys.freeze(SRW_LOCK_CALL);
 
@@ -404,9 +411,19 @@ ATTRIBUTE_COLD bool btr_sea::disable() noexcept
   else
     dict_sys.unfreeze();
 
+  return was_enabled;
+}
+
+ATTRIBUTE_COLD void btr_sea::unlock() noexcept
+{
   for (ulong i= 0; i < n_parts; i++)
     parts[i].latch.wr_unlock();
+}
 
+ATTRIBUTE_COLD bool btr_sea::disable() noexcept
+{
+  const bool was_enabled{disable_and_lock()};
+  unlock();
   return was_enabled;
 }
 
@@ -427,15 +444,27 @@ ATTRIBUTE_COLD void btr_sea::enable(bool resize) noexcept
     parts[i].latch.wr_lock(SRW_LOCK_CALL);
 
   if (!parts[0].table.array)
-  {
-    enabled= true;
-    alloc(buf_pool.curr_pool_size() / sizeof(void *) / 64);
-  }
+    enabled= alloc(n_cells);
+  else
+    ut_ad(enabled);
 
-  ut_ad(enabled);
+  unlock();
+}
 
-  for (ulong i= 0; i < n_parts; i++)
-    parts[i].latch.wr_unlock();
+ATTRIBUTE_COLD void btr_sea::resize(uint n_cells) noexcept
+{
+  const bool was_enabled{disable_and_lock()};
+
+  clear();
+  ut_ad(!parts[0].table.array);
+
+  if (was_enabled)
+    enabled= alloc(n_cells);
+
+  if (!was_enabled || enabled)
+    this->n_cells= n_cells;
+
+  unlock();
 }
 
 #if defined UNIV_AHI_DEBUG || defined UNIV_DEBUG
