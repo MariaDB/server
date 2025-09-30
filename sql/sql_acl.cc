@@ -11261,11 +11261,11 @@ bool mysql_create_user(THD *thd, List <LEX_USER> &list, bool handle_as_role)
 
       /* TODO(cvicentiu) refactor replace_roles_mapping_table to use
          Roles_mapping_table instead of TABLE directly. */
-      if (replace_roles_mapping_table(tables.roles_mapping_table().table(),
+      if (tables.roles_mapping_table().table_exists() &&
+          replace_roles_mapping_table(tables.roles_mapping_table().table(),
                                       &thd->lex->definer->user,
                                       &thd->lex->definer->host,
-                                      &user_name->user, true,
-                                      NULL, false))
+                                      &user_name->user, true, NULL, false))
       {
         append_user(thd, &wrong_users, user_name);
         if (grantee)

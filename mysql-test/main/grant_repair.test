@@ -96,4 +96,12 @@ grant proxy on grant_plug to grant_plug_dest;
 drop table mysql.proxies_priv;
 rename table mysql.proxies_priv_bak to mysql.proxies_priv;
 
+--echo #
+--echo # MDEV-28773 SIGSEGV in TABLE::use_all_columns, replace_roles_mapping_table
+--echo #
+rename table mysql.roles_mapping to mysql.roles_mapping_bak;
+create role r1;
+drop role r1;
+rename table mysql.roles_mapping_bak to mysql.roles_mapping;
+
 --echo # End of 10.11 tests

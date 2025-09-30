@@ -80,4 +80,11 @@ grant proxy on grant_plug to grant_plug_dest;
 ERROR HY000: Cannot load from mysql.proxies_priv. The table is probably corrupted
 drop table mysql.proxies_priv;
 rename table mysql.proxies_priv_bak to mysql.proxies_priv;
+#
+# MDEV-28773 SIGSEGV in TABLE::use_all_columns, replace_roles_mapping_table
+#
+rename table mysql.roles_mapping to mysql.roles_mapping_bak;
+create role r1;
+drop role r1;
+rename table mysql.roles_mapping_bak to mysql.roles_mapping;
 # End of 10.11 tests
