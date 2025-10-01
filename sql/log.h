@@ -63,7 +63,8 @@ class TC_LOG
   virtual int log_and_order(THD *thd, my_xid xid, bool all,
                             bool need_prepare_ordered,
                             bool need_commit_ordered) = 0;
-  virtual int unlog(ulong cookie, my_xid xid)=0;
+  virtual int unlog(THD *thd, ulong cookie, my_xid xid)=0;
+  virtual int log_xa_prepare(THD *thd, bool all)= 0;
   virtual int unlog_xa_prepare(THD *thd, bool all)= 0;
   virtual void commit_checkpoint_notify(void *cookie)= 0;
 
@@ -118,7 +119,11 @@ public:
     DBUG_ASSERT(0);
     return 1;
   }
-  int unlog(ulong cookie, my_xid xid) override  { return 0; }
+  int unlog(THD *thd, ulong cookie, my_xid xid) override  { return 0; }
+  int log_xa_prepare(THD *thd, bool all) override
+  {
+    return 0;
+  }
   int unlog_xa_prepare(THD *thd, bool all) override
   {
     return 0;
@@ -205,7 +210,11 @@ class TC_LOG_MMAP: public TC_LOG
   void close() override;
   int log_and_order(THD *thd, my_xid xid, bool all,
                     bool need_prepare_ordered, bool need_commit_ordered) override;
-  int unlog(ulong cookie, my_xid xid) override;
+  int unlog(THD *thd, ulong cookie, my_xid xid) override;
+  int log_xa_prepare(THD *thd, bool all) override
+  {
+    return 0;
+  }
   int unlog_xa_prepare(THD *thd, bool all) override
   {
     return 0;
@@ -581,6 +590,10 @@ private:
   case where there is no corresponding binlog id (since nothing was logged).
   And we need an error flag to mark that unlog() must return failure.
 
+  For --binlog-storage-engine, we need unlog if another engine than the
+  binlog engine participated in the transaction, or if we did a user XA
+  commit.
+
   We use the following macros to pack all of this information into the single
   ulong available with log_and_order() / unlog().
 
@@ -589,15 +602,20 @@ private:
   */
 #define BINLOG_COOKIE_ERROR_RETURN 0
 #define BINLOG_COOKIE_DUMMY_ID 1
-#define BINLOG_COOKIE_BASE 2
+#define BINLOG_COOKIE_ENGINE_UNLOG_ID 2
+#define BINLOG_COOKIE_BASE 3
 #define BINLOG_COOKIE_DUMMY(error_flag) \
   ( (BINLOG_COOKIE_DUMMY_ID<<1) | ((error_flag)&1) )
+#define BINLOG_COOKIE_ENGINE_UNLOG(error_flag) \
+  ( (BINLOG_COOKIE_ENGINE_UNLOG_ID<<1) | ((error_flag)&1) )
 #define BINLOG_COOKIE_MAKE(id, error_flag) \
   ( (((id)+BINLOG_COOKIE_BASE)<<1) | ((error_flag)&1) )
 #define BINLOG_COOKIE_GET_ERROR_FLAG(c) ((c) & 1)
 #define BINLOG_COOKIE_GET_ID(c) ( ((ulong)(c)>>1) - BINLOG_COOKIE_BASE )
 #define BINLOG_COOKIE_IS_DUMMY(c) \
   ( ((ulong)(c)>>1) == BINLOG_COOKIE_DUMMY_ID )
+#define BINLOG_COOKIE_IS_ENGINE_UNLOG(c) \
+  ( ((ulong)(c)>>1) == BINLOG_COOKIE_ENGINE_UNLOG_ID )
 
 
 class binlog_cache_mngr;
@@ -934,7 +952,8 @@ public:
                         ulong next_log_number) override;
   int log_and_order(THD *thd, my_xid xid, bool all,
                     bool need_prepare_ordered, bool need_commit_ordered) override;
-  int unlog(ulong cookie, my_xid xid) override;
+  int unlog(THD *thd, ulong cookie, my_xid xid) override;
+  int log_xa_prepare(THD *thd, bool all) override;
   int unlog_xa_prepare(THD *thd, bool all) override;
   void commit_checkpoint_notify(void *cookie) override;
   int recover(LOG_INFO *linfo, const char *last_log_name, IO_CACHE *first_log,
@@ -1531,8 +1550,12 @@ const char *
 get_gtid_list_event(IO_CACHE *cache, Gtid_list_log_event **out_gtid_list);
 
 int binlog_commit(THD *thd, bool all, bool is_ro_1pc= false);
+void binlog_post_commit(THD *thd, bool all);
+void binlog_post_rollback(THD *thd, bool all);
 int binlog_commit_by_xid(handlerton *hton, XID *xid);
 int binlog_rollback_by_xid(handlerton *hton, XID *xid);
+void binlog_post_commit_by_xid(handlerton *hton, XID *xid);
+void binlog_post_rollback_by_xid(handlerton *hton, XID *xid);
 bool write_bin_log_start_alter(THD *thd, bool& partial_alter,
                                uint64 start_alter_id, bool log_if_exists);
 #endif /* LOG_H */
