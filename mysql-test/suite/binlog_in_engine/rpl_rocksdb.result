@@ -1,0 +1,49 @@
+include/master-slave.inc
+[connection master]
+CREATE TABLE t1(a INT PRIMARY KEY, b INT, c LONGBLOB) ENGINE=InnoDB;
+CREATE TABLE t2(a INT PRIMARY KEY, b INT, c LONGBLOB) ENGINE=RocksDB;
+INSERT INTO t1 SELECT seq, seq*seq, REPEAT('x', 50*seq) FROM seq_1_to_100;
+INSERT INTO t2 SELECT seq, 10000 - seq*seq, REPEAT('y', 50*seq) FROM seq_1_to_100;
+*** Cross-engine transaction, InnoDB and RocksDB.
+connect con1,localhost,root,,;
+BEGIN;
+UPDATE t1 SET b=b+a WHERE a BETWEEN 10 AND 20;
+REPLACE INTO t2 SELECT a, b, c FROM t1 WHERE a BETWEEN 30 and 40;
+connect con2,localhost,root,,;
+BEGIN;
+UPDATE t1, t2
+SET t1.b=t1.b + LENGTH(t2.c), t2.c=CONCAT("|", t2.c, "|")
+WHERE t1.a = t2.a
+AND t1.a BETWEEN 50 AND 60;
+connection con1;
+UPDATE t1 SET b=-b WHERE a=100;
+connection con2;
+UPDATE t2 SET c=CONCAT('-', c) WHERE a BETWEEN 50 AND 90;
+connection con1;
+COMMIT;
+connection con2;
+COMMIT;
+*** RocksDB-only transactions with binlog in InnoDB.
+connection master;
+UPDATE t2 SET c=CONCAT('<', c, '>') WHERE a BETWEEN 20 AND 80;
+UPDATE t2 SET b=b+1 WHERE a=1 OR a=92;
+UPDATE t2 SET b=b*2 WHERE a MOD 7 = 0;
+connection master;
+SELECT COUNT(*), SUM(a), SUM(b), SUM(LENGTH(c)) FROM t1;
+COUNT(*)	SUM(a)	SUM(b)	SUM(LENGTH(c))
+100	5050	348765	252500
+SELECT COUNT(*), SUM(a), SUM(b), SUM(LENGTH(c)) FROM t2;
+COUNT(*)	SUM(a)	SUM(b)	SUM(LENGTH(c))
+100	5050	661537	252685
+include/save_master_gtid.inc
+connection slave;
+include/sync_with_master_gtid.inc
+SELECT COUNT(*), SUM(a), SUM(b), SUM(LENGTH(c)) FROM t1;
+COUNT(*)	SUM(a)	SUM(b)	SUM(LENGTH(c))
+100	5050	348765	252500
+SELECT COUNT(*), SUM(a), SUM(b), SUM(LENGTH(c)) FROM t2;
+COUNT(*)	SUM(a)	SUM(b)	SUM(LENGTH(c))
+100	5050	661537	252685
+connection master;
+DROP TABLE t1, t2;
+include/rpl_end.inc

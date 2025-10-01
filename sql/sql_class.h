@@ -68,7 +68,7 @@ void set_thd_stage_info(void *thd,
   (thd)->enter_stage(&stage, __func__, __FILE__, __LINE__)
 
 #include "my_apc.h"
-#include "rpl_gtid.h"
+#include "rpl_gtid_base.h"
 
 #include "wsrep.h"
 #include "wsrep_on.h"

@@ -263,6 +263,16 @@ extern bool innobase_binlog_write_direct
    const rpl_gtid *gtid);
 extern void ibb_group_commit(THD *thd,
                              handler_binlog_event_group_info *binlog_info);
+extern bool ibb_write_xa_prepare_ordered(THD *thd,
+                             handler_binlog_event_group_info *binlog_info,
+                             uchar engine_count);
+extern bool ibb_write_xa_prepare(THD *thd,
+                             handler_binlog_event_group_info *binlog_info,
+                             uchar engine_count);
+extern bool ibb_xa_rollback_ordered(THD *thd, const XID *xid,
+                                    void **engine_data);
+extern bool ibb_xa_rollback(THD *thd, const XID *xid, void **engine_data);
+extern void ibb_binlog_unlog(const XID *xid, void **engine_data);
 extern bool innodb_find_binlogs(uint64_t *out_first, uint64_t *out_last);
 extern void innodb_binlog_status(uint64_t *out_file_no, uint64_t *out_pos);
 extern bool innodb_binlog_get_init_state(rpl_binlog_state_base *out_state);

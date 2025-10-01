@@ -1,0 +1,182 @@
+--source include/have_binlog_format_mixed.inc
+--source include/have_innodb_binlog.inc
+
+--source include/reset_master.inc
+
+CREATE TABLE t1(a INT PRIMARY KEY, b INT) ENGINE=InnoDB;
+
+--echo *** Test basic XA COMMIT from same or different client connection.
+
+--let $binlog_file= query_get_value(SHOW MASTER STATUS, File, 1)
+--let $binlog_start= query_get_value(SHOW MASTER STATUS, Position, 1)
+
+--connect con1,localhost,root,,
+--let $con1_id= `SELECT connection_id()`
+XA START 'a';
+INSERT INTO t1 VALUES (1, 0);
+INSERT INTO t1 VALUES (2, 0);
+INSERT INTO t1 VALUES (3, 0);
+XA END 'a';
+XA PREPARE 'a';
+
+--connection default
+--disconnect con1
+# Must wait; XA transaction is not available until the creating session has disconnected.
+--let $wait_condition= SELECT NOT EXISTS (SELECT ID FROM INFORMATION_SCHEMA.PROCESSLIST WHERE ID=$con1_id)
+--source include/wait_condition.inc
+
+--connect con2,localhost,root,,
+XA COMMIT 'a';
+
+# Also test rollback from separate client session.
+--connect con1_roll,localhost,root,,
+--let $con1_roll_id= `SELECT connection_id()`
+XA START 'a_roll';
+INSERT INTO t1 VALUES (1001, 0);
+INSERT INTO t1 VALUES (1002, 0);
+INSERT INTO t1 VALUES (1003, 0);
+XA END 'a_roll';
+XA PREPARE 'a_roll';
+
+--connection default
+--disconnect con1_roll
+--let $wait_condition= SELECT NOT EXISTS (SELECT ID FROM INFORMATION_SCHEMA.PROCESSLIST WHERE ID=$con1_roll_id)
+--source include/wait_condition.inc
+
+--connection con2
+XA ROLLBACK 'a_roll';
+
+--connection default
+
+XA START 'b';
+UPDATE t1 SET b=2 WHERE a=1;
+XA END 'b';
+XA PREPARE 'b';
+XA COMMIT 'b';
+
+XA START 'b_roll';
+UPDATE t1 SET b=3 WHERE a=1;
+XA END 'b_roll';
+XA PREPARE 'b_roll';
+XA ROLLBACK 'b_roll';
+
+XA START 'c';
+UPDATE t1 SET b=3 WHERE a=3;
+XA END 'c';
+XA COMMIT 'c' ONE PHASE;
+
+SELECT * FROM t1 ORDER BY a;
+
+# Some queries that create empty XA transactions.
+CREATE TABLE t2 (a INT) ENGINE=MyISAM;
+CREATE TABLE t3 (id INT PRIMARY KEY) ENGINE=InnoDB;
+INSERT INTO t2 VALUES (1),(2);
+INSERT INTO t3 VALUES (1),(2);
+
+XA START '1';
+REPLACE INTO t2 SELECT * FROM t2;
+REPLACE INTO t3 SELECT * FROM t3;
+XA END '1';
+XA PREPARE '1';
+XA RECOVER FORMAT='SQL';
+
+# Cleanup
+XA ROLLBACK '1';
+DROP TABLE t2, t3;
+
+CREATE TABLE t2 (a INT PRIMARY KEY) ENGINE=InnoDB;
+INSERT INTO t2 VALUES (1);
+CREATE SEQUENCE s ENGINE=InnoDB;
+
+XA START '2';
+--disable_ps2_protocol
+SELECT NEXT VALUE FOR s;
+--enable_ps2_protocol
+REPLACE INTO t2 SELECT * FROM t2;
+XA END '2';
+XA PREPARE '2';
+XA RECOVER FORMAT='SQL';
+
+# Cleanup
+XA ROLLBACK '2';
+DROP SEQUENCE s;
+DROP TABLE t2;
+
+
+--let $binlog_limit= 100
+--source include/show_binlog_events.inc
+
+
+--echo *** Test that we will not purge a file that is needed by an active XA transaction.
+--connection default
+# Add some longer data to force spill to binlog.
+ALTER TABLE t1 ADD COLUMN c LONGBLOB;
+UPDATE t1 SET b=10 WHERE a=1;
+
+--connection con2
+SET SESSION binlog_format=ROW;
+XA START 'd';
+INSERT INTO t1 VALUES (10, 2, REPEAT('#', 40000));
+
+--connect con3,localhost,root,,
+SET SESSION binlog_format=ROW;
+XA START 'e';
+INSERT INTO t1 VALUES (110, 2, REPEAT('#', 40000));
+
+--connection default
+UPDATE t1 SET b=11 WHERE a=1;
+FLUSH BINARY LOGS;
+UPDATE t1 SET b=12 WHERE a=1;
+--let $binlog_file= query_get_value(SHOW MASTER STATUS, File, 1)
+
+--connection con2
+INSERT INTO t1 VALUES (11, 2, REPEAT('*', 40000));
+
+--connection con3
+INSERT INTO t1 VALUES (111, 2, REPEAT('*', 40000));
+
+--connection default
+UPDATE t1 SET b=13 WHERE a=1;
+FLUSH BINARY LOGS;
+UPDATE t1 SET b=14 WHERE a=1;
+UPDATE t1 SET b=15 WHERE a=1;
+FLUSH BINARY LOGS;
+UPDATE t1 SET b=16 WHERE a=1;
+FLUSH BINARY LOGS;
+
+--connection default
+SET @old_min_slaves= @@GLOBAL.slave_connections_needed_for_purge;
+SET GLOBAL slave_connections_needed_for_purge= 0;
+--error ER_LOG_IN_USE
+eval PURGE BINARY LOGS TO '$binlog_file';
+
+--connection con2
+XA END 'd';
+XA PREPARE 'd';
+
+--connection con3
+XA END 'e';
+XA PREPARE 'e';
+
+--connection default
+--error ER_LOG_IN_USE
+eval PURGE BINARY LOGS TO '$binlog_file';
+
+--connection con2
+XA COMMIT 'd';
+
+--connection con3
+XA ROLLBACK 'e';
+
+--connection default
+eval PURGE BINARY LOGS TO '$binlog_file';
+FLUSH BINARY LOGS;
+UPDATE t1 SET b=17 WHERE a=1;
+FLUSH BINARY LOGS;
+UPDATE t1 SET b=18 WHERE a=1;
+eval PURGE BINARY LOGS TO '$binlog_file';
+
+--disconnect con2
+--disconnect con3
+SET GLOBAL slave_connections_needed_for_purge= @old_min_slaves;
+DROP TABLE t1;

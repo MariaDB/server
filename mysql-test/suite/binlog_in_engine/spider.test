@@ -1,0 +1,20 @@
+if (`SELECT COUNT(*) = 0 FROM INFORMATION_SCHEMA.ENGINES WHERE engine = 'spider' AND support IN ('YES', 'DEFAULT', 'ENABLED')`)
+{
+  --skip Test requires Spider engine
+}
+
+--source include/have_binlog_format_mixed.inc
+--source include/have_innodb_binlog.inc
+
+SET spider_same_server_link= on;
+--evalp create server s foreign data wrapper mysql options (host "127.0.0.1", database "spider_db", user "root", port $MASTER_MYPORT);
+
+CREATE DATABASE spider_db;
+
+CREATE TABLE spider_db.t (a INT) ENGINE=InnoDB;
+CREATE TABLE t (a INT) ENGINE=SPIDER COMMENT = 'wrapper "mysql", srv "s", table "t"';
+INSERT INTO t VALUES (2);
+
+DROP TABLE t;
+DROP DATABASE spider_db;
+DROP SERVER s;
