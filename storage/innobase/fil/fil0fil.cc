@@ -2928,25 +2928,31 @@ void IORequest::read_complete(int io_error) const noexcept
   ut_ad(node);
   ut_ad(is_read());
   ut_ad(bpage);
+  ut_d(auto s= bpage->state());
+  ut_ad(s > buf_page_t::READ_FIX);
+  ut_ad(s <= buf_page_t::WRITE_FIX);
 
   const page_id_t id(bpage->id());
+  const bool in_recovery{recv_sys.recovery_on};
 
   if (UNIV_UNLIKELY(io_error != 0))
   {
     sql_print_error("InnoDB: Read error %d of page " UINT32PF " in file %s",
                     io_error, id.page_no(), node->name);
     recv_sys.free_corrupted_page(id, *node);
-    buf_pool.corrupted_evict(bpage, buf_page_t::READ_FIX);
+    buf_pool.corrupted_evict(bpage, buf_page_t::READ_FIX + 1);
   corrupted:
-    if (recv_recovery_is_on() && !srv_force_recovery)
+    if (in_recovery && !srv_force_recovery)
     {
       mysql_mutex_lock(&recv_sys.mutex);
       recv_sys.set_corrupt_fs();
       mysql_mutex_unlock(&recv_sys.mutex);
     }
   }
-  else if (bpage->read_complete(*node))
+  else if (bpage->read_complete(*node, in_recovery))
     goto corrupted;
+  else
+    bpage->unfix();
 
   node->space->release();
 }
