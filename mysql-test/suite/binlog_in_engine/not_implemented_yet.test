@@ -4,18 +4,6 @@
 --error ER_NOT_YET_SUPPORTED_ENGINE_BINLOG
 SET GLOBAL rpl_semi_sync_master_enabled= 1;
 
-CREATE TABLE t1 (a INT PRIMARY KEY, b INT) ENGINE=InnoDB;
---error ER_NOT_YET_SUPPORTED_ENGINE_BINLOG
-XA START 'a';
-INSERT INTO t1 VALUES (0, 0);
---error ER_XAER_RMFAIL
-XA END 'a';
---error ER_XAER_RMFAIL
-XA PREPARE 'a';
---error ER_XAER_NOTA
-XA COMMIT 'a';
-DROP TABLE t1;
-
 # The BINLOG_GTID_POS() function is not available and will not be, we
 # want to get away from old problematic filename/offset coordinates.
 --error ER_NOT_AVAILABLE_WITH_ENGINE_BINLOG

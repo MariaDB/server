@@ -43,6 +43,9 @@ InnoDB implementation of binlog.
 #include "log.h"
 
 
+class ibb_xid_hash;
+
+
 static int innodb_binlog_inited= 0;
 
 pending_lsn_fifo ibb_pending_lsn_fifo;
@@ -89,6 +92,8 @@ size_t total_binlog_used_size;
 
 static bool purge_warning_given= false;
 
+/** References to pending XA PREPARED transactions in the binlog. */
+static ibb_xid_hash *ibb_xa_xid_hash;
 
 #ifdef UNIV_PFS_THREAD
 mysql_pfs_key_t binlog_prealloc_thread_key;
@@ -161,6 +166,8 @@ struct binlog_oob_context {
     decrement again at commit record write or reset/rollback.
   */
   bool pending_refcount;
+  /* Set when the transaction is sealed after writing an XA PREPARE record. */
+  bool is_xa_prepared;
   /*
     The node_list contains the root of each tree in the forest of perfect
     binary trees.
@@ -304,6 +311,32 @@ public:
 };
 
 
+/**
+  Class that keeps track of the oob references etc. for each
+  XA PREPAREd XID.
+*/
+class ibb_xid_hash {
+public:
+  struct xid_elem {
+    XID xid;
+    uint64_t refcnt_file_no;
+    uint64_t oob_num_nodes;
+    uint64_t oob_first_file_no;
+    uint64_t oob_first_offset;
+    uint64_t oob_last_file_no;
+    uint64_t oob_last_offset;
+  };
+  HASH xid_hash;
+  mysql_mutex_t xid_mutex;
+
+  ibb_xid_hash();
+  ~ibb_xid_hash();
+  bool add_xid(const XID *xid, const binlog_oob_context *c);
+  xid_elem *grab_xid(const XID *xid);
+  template <typename F> bool run_on_xid(const XID *xid, F callback);
+};
+
+
 struct chunk_data_cache : public chunk_data_base {
   IO_CACHE *cache;
   binlog_oob_context *oob_ctx;
@@ -333,7 +366,40 @@ struct chunk_data_cache : public chunk_data_base {
     unsigned char *p= header_buf;
     ut_ad(c);
     oob_ctx= c;
-    if (c && c->node_list_len)
+    if (UNIV_UNLIKELY(!c))
+      ;
+    else if (UNIV_UNLIKELY(binlog_info->xa_xid != nullptr) &&
+             !binlog_info->internal_xa)
+    {
+      /*
+        For explicit user XA COMMIT, the commit record must point to the
+        OOB data previously saved in XA PREPARE.
+      */
+      bool err= ibb_xa_xid_hash->run_on_xid(binlog_info->xa_xid,
+        [&p](const ibb_xid_hash::xid_elem *elem) -> bool {
+          if (UNIV_LIKELY(elem->oob_num_nodes > 0))
+          {
+            p= compr_int_write(p, elem->oob_num_nodes);
+            p= compr_int_write(p, elem->oob_first_file_no);
+            p= compr_int_write(p, elem->oob_first_offset);
+            p= compr_int_write(p, elem->oob_last_file_no);
+            p= compr_int_write(p, elem->oob_last_offset);
+            p= compr_int_write(p, 0);
+          }
+          else
+            p= compr_int_write(p, 0);
+          return false;
+        });
+      /*
+        The XID must always be found, else we have a serious
+        inconsistency between the server layer and binlog state.
+        In case of inconsistency, better crash than leave a corrupt
+        binlog.
+      */
+      ut_a(!err);
+      ut_ad(binlog_info->engine_ptr2 == nullptr);
+    }
+    else if (c->node_list_len)
     {
       /*
         Link to the out-of-band data. First store the number of nodes; then
@@ -379,6 +445,18 @@ struct chunk_data_cache : public chunk_data_base {
     ut_ad((size_t)(p - header_buf) <= sizeof(header_buf));
 
     ut_ad (cache->pos_in_file <= binlog_info->out_of_band_offset);
+
+    if (UNIV_UNLIKELY(binlog_info->internal_xa))
+    {
+      /*
+        Insert the XID for the internal 2-phase commit in the xid_hash,
+        incrementing the reference count. This will ensure we hold on to
+        the commit record until ibb_binlog_unlog() is called, at which point
+        the other participating storage engine(s) have durably committed.
+      */
+      bool err= ibb_xa_xid_hash->add_xid(binlog_info->xa_xid, c);
+      ut_a(!err);
+    }
 
     /* Start with the GTID event, which is put at the end of the IO_CACHE. */
     my_bool res= reinit_io_cache(cache, READ_CACHE, binlog_info->gtid_offset, 0, 0);
@@ -452,6 +530,94 @@ struct chunk_data_cache : public chunk_data_base {
     main_remain-= size2;
     return {size + size2, main_remain == 0};
   }
+};
+
+
+template<uint32_t bufsize_>
+struct chunk_data_from_buf : public chunk_data_base {
+  static constexpr uint32_t bufsize= bufsize_;
+
+  uint32_t data_remain;
+  uint32_t data_sofar;
+  byte buffer[bufsize];
+
+  chunk_data_from_buf() : data_sofar(0)
+  {
+    /* data_remain must be initialized in derived class constructor. */
+  }
+
+  virtual std::pair<uint32_t, bool> copy_data(byte *p, uint32_t max_len) final
+  {
+    if (UNIV_UNLIKELY(data_remain <= 0))
+      return {0, true};
+    uint32_t size= data_remain > max_len ? max_len : data_remain;
+    memcpy(p, buffer + data_sofar, size);
+    data_remain-= size;
+    data_sofar+= size;
+    return {size, data_remain == 0};
+  }
+  ~chunk_data_from_buf() { }
+};
+
+
+/**
+  Record data for the XA prepare record.
+
+  Size needed for the record data:
+    1 byte type/flag.
+    1 byte engine count.
+    4 bytes formatID
+    1 byte gtrid length
+    1 byte bqual length
+    128 bytes (max) gtrid and bqual strings.
+*/
+struct chunk_data_xa_prepare :
+  public chunk_data_from_buf<1 + 1 + 4 + 1 + 1 + 128> {
+
+  chunk_data_xa_prepare(const XID *xid, uchar engine_count)
+  {
+    /* ToDo: Need the correct data here, like the oob references. To be done when we start doing the XA crash recovery. */
+    buffer[0]= 42 /* ToDo */;
+    buffer[1]= engine_count;
+    int4store(&buffer[2], xid->formatID);
+    ut_a(xid->gtrid_length >= 0 && xid->gtrid_length <= 64);
+    buffer[6]= (uchar)xid->gtrid_length;
+    ut_a(xid->bqual_length >= 0 && xid->bqual_length <= 64);
+    buffer[7]= (uchar)xid->bqual_length;
+    memcpy(&buffer[8], &xid->data[0], xid->gtrid_length + xid->bqual_length);
+    data_remain=
+      static_cast<uint32_t>(8 + xid->gtrid_length + xid->bqual_length);
+  }
+  ~chunk_data_xa_prepare() { }
+};
+
+
+/**
+  Record data for the XA COMMIT or XA ROLLBACK record.
+
+  Size needed for the record data:
+    1 byte type/flag.
+    4 bytes formatID
+    1 byte gtrid length
+    1 byte bqual length
+    128 bytes (max) gtrid and bqual strings.
+*/
+struct chunk_data_xa_complete :
+  public chunk_data_from_buf<1 + 4 + 1 + 1 + 128> {
+
+  chunk_data_xa_complete(const XID *xid, bool is_commit)
+  {
+    buffer[0]= (is_commit ? IBB_FL_XA_TYPE_COMMIT : IBB_FL_XA_TYPE_ROLLBACK);
+    int4store(&buffer[1], xid->formatID);
+    ut_a(xid->gtrid_length >= 0 && xid->gtrid_length <= 64);
+    buffer[5]= (uchar)xid->gtrid_length;
+    ut_a(xid->bqual_length >= 0 && xid->bqual_length <= 64);
+    buffer[6]= (uchar)xid->bqual_length;
+    memcpy(&buffer[7], &xid->data[0], xid->gtrid_length + xid->bqual_length);
+    data_remain=
+      static_cast<uint32_t>(7 + xid->gtrid_length + xid->bqual_length);
+  }
+  ~chunk_data_xa_complete() { }
 };
 
 
@@ -1232,6 +1398,8 @@ innodb_binlog_startup_init()
   fsp_binlog_init();
   mysql_mutex_init(fsp_purge_binlog_mutex_key, &purge_binlog_mutex, nullptr);
   binlog_diff_state.init();
+  ibb_xa_xid_hash= new ibb_xid_hash();
+
   innodb_binlog_inited= 1;
 }
 
@@ -1753,6 +1921,7 @@ void innodb_binlog_close(bool shutdown)
 
   if (shutdown && innodb_binlog_inited >= 1)
   {
+    delete ibb_xa_xid_hash;
     binlog_diff_state.free();
     fsp_binlog_shutdown();
     mysql_mutex_destroy(&purge_binlog_mutex);
@@ -1914,10 +2083,15 @@ serialize_gtid_state(rpl_binlog_state_base *state, byte *buf, size_t buf_size)
   unsigned char *p= (unsigned char *)buf;
   /*
     1 uint64_t for the number of entries in the state stored.
+    1 uint64_t for the XA references file_no.
     2 uint32_t + 1 uint64_t for at least one GTID.
   */
-  ut_ad(buf_size >= 2*COMPR_INT_MAX32 + 2*COMPR_INT_MAX64);
+  ut_ad(buf_size >= 2*COMPR_INT_MAX32 + 3*COMPR_INT_MAX64);
   p= compr_int_write(p, state->count_nolock());
+  uint64_t xa_ref_file_no=
+    ibb_file_hash.earliest_xa_ref.load(std::memory_order_relaxed);
+  /* Write 1 +file_no, so that 0 (1 + ~0) means "no reference". */
+  p= compr_int_write(p, xa_ref_file_no + 1);
   unsigned char * const pmax=
     p + (buf_size - (2*COMPR_INT_MAX32 + COMPR_INT_MAX64));
 
@@ -1958,7 +2132,7 @@ binlog_gtid_state(rpl_binlog_state_base *state, mtr_t *mtr,
   }
   else
   {
-    size_t buf_size=
+    size_t buf_size= 2*COMPR_INT_MAX64 +
       state->count_nolock() * (2*COMPR_INT_MAX32 + COMPR_INT_MAX64);
     alloced_buf= static_cast<byte *>(ut_malloc(buf_size, mem_key_binlog));
     if (UNIV_UNLIKELY(!alloced_buf))
@@ -2052,10 +2226,11 @@ binlog_gtid_state(rpl_binlog_state_base *state, mtr_t *mtr,
 */
 static int
 read_gtid_state(binlog_chunk_reader *chunk_reader,
-                rpl_binlog_state_base *state) noexcept
+                rpl_binlog_state_base *state,
+                uint64_t *out_xa_ref_file_no) noexcept
 {
   byte buf[256];
-  static_assert(sizeof(buf) >= 6*COMPR_INT_MAX64,
+  static_assert(sizeof(buf) >= 2*COMPR_INT_MAX64 + 6*COMPR_INT_MAX64,
                 "buf must hold at least 2 GTIDs");
   int res= chunk_reader->read_data(buf, sizeof(buf), true);
   if (UNIV_UNLIKELY(res < 0))
@@ -2070,9 +2245,19 @@ read_gtid_state(binlog_chunk_reader *chunk_reader,
   p= v_and_p.second;
   if (UNIV_UNLIKELY(p > p_end))
     return -1;
+  uint64_t num_gtid= v_and_p.first;
+  /*
+    Read the earliest file_no containing pending XA if any.
+    Note that unsigned underflow means 0 - 1 becomes ~0, as required.
+  */
+  v_and_p= compr_int_read(p);
+  p= v_and_p.second;
+  if (UNIV_UNLIKELY(p > p_end))
+    return -1;
+  *out_xa_ref_file_no= v_and_p.first - 1;
 
   /* Read each GTID one by one and add into the state. */
-  for (uint64_t count= v_and_p.first; count > 0; --count)
+  for (uint64_t count= num_gtid; count > 0; --count)
   {
     ptrdiff_t remain= p_end - p;
     /* Read more data as needed to ensure we have read a full GTID. */
@@ -2140,6 +2325,7 @@ binlog_state_recover()
   uint64_t active= active_binlog_file_no.load(std::memory_order_relaxed);
   uint64_t diff_state_interval= current_binlog_state_interval;
   uint32_t page_no= 1;
+  uint64_t xa_ref_file_no;
 
   binlog_chunk_reader chunk_reader(binlog_cur_end_offset);
   byte *page_buf=
@@ -2148,7 +2334,7 @@ binlog_state_recover()
     return true;
   chunk_reader.set_page_buf(page_buf);
   chunk_reader.seek(active, page_no << ibb_page_size_shift);
-  int res= read_gtid_state(&chunk_reader, &state);
+  int res= read_gtid_state(&chunk_reader, &state, &xa_ref_file_no);
   if (res < 0)
   {
     ut_free(page_buf);
@@ -2166,7 +2352,7 @@ binlog_state_recover()
     while (page_no > 1)
     {
       chunk_reader.seek(active, page_no << ibb_page_size_shift);
-      res= read_gtid_state(&chunk_reader, &state);
+      res= read_gtid_state(&chunk_reader, &state, &xa_ref_file_no);
       if (res > 0)
         break;
       page_no-= (uint32_t)diff_state_interval;
@@ -2203,6 +2389,7 @@ alloc_oob_context(uint32 list_length= 10)
     c->node_list_len= 0;
     c->secondary_ctx= nullptr;
     c->pending_refcount= false;
+    c->is_xa_prepared= false;
   }
   else
     my_error(ER_OUTOFMEMORY, MYF(0), needed);
@@ -2220,6 +2407,21 @@ innodb_binlog_write_cache(IO_CACHE *cache,
   if (!c)
     binlog_info->engine_ptr= c= alloc_oob_context();
   ut_a(c);
+
+  if (unlikely(binlog_info->xa_xid))
+  {
+    /*
+      Write an XID commit record just before the main commit record.
+      The XID commit record just contains the XID, and is used by binlog XA
+      crash recovery to ensure than the other storage engine(s) that are part
+      of the transaciton commit or rollback consistently with the binlog
+      engine.
+    */
+    chunk_data_xa_complete chunk_data2(binlog_info->xa_xid, true);
+    fsp_binlog_write_rec(&chunk_data2, mtr, FSP_BINLOG_TYPE_XA_COMPLETE,
+                         c->lf_pins);
+  }
+
   chunk_data_cache chunk_data(cache, binlog_info);
 
   fsp_binlog_write_rec(&chunk_data, mtr, FSP_BINLOG_TYPE_COMMIT, c->lf_pins);
@@ -2249,6 +2451,7 @@ reset_oob_context(binlog_oob_context *c)
   }
   c->node_list_len= 0;
   c->secondary_ctx= nullptr;
+  c->is_xa_prepared= false;
 }
 
 
@@ -2353,6 +2556,11 @@ innodb_binlog_oob_ordered(THD *thd, const unsigned char *data, size_t data_len,
     *engine_data= c= alloc_oob_context();
   if (UNIV_UNLIKELY(!c))
     return true;
+  if (UNIV_UNLIKELY(c->is_xa_prepared))
+  {
+    my_error(ER_XAER_RMFAIL, MYF(0), "IDLE");
+    return true;
+  }
 
   if (stm_start_data)
   {
@@ -2415,7 +2623,7 @@ innodb_binlog_oob_ordered(THD *thd, const unsigned char *data, size_t data_len,
     c->first_node_offset= c->node_list[i].offset;
     c->node_list_len= 1;
     c->pending_refcount=
-      ibb_file_hash.oob_ref_inc(c->first_node_file_no, c->lf_pins);
+      !ibb_file_hash.oob_ref_inc(c->first_node_file_no, c->lf_pins);
   }
 
   uint64_t file_no= active_binlog_file_no.load(std::memory_order_relaxed);
@@ -3191,6 +3399,7 @@ gtid_search::find_gtid_pos(slave_connection_state *pos,
                            rpl_binlog_state_base *out_state,
                            uint64_t *out_file_no, uint64_t *out_offset)
 {
+  uint64_t dummy_xa_ref;
   /*
     Dirty read, but getting a slightly stale value is no problem, we will just
     be starting to scan the binlog file at a slightly earlier position than
@@ -3223,7 +3432,7 @@ gtid_search::find_gtid_pos(slave_connection_state *pos,
     diff_state_page_interval= header.diff_state_interval;
 
     chunk_reader.seek(file_no, ibb_page_size);
-    int res= read_gtid_state(&chunk_reader, &base_state);
+    int res= read_gtid_state(&chunk_reader, &base_state, &dummy_xa_ref);
     if (UNIV_UNLIKELY(res < 0))
       return -1;
     if (res == 0)
@@ -3272,7 +3481,7 @@ gtid_search::find_gtid_pos(slave_connection_state *pos,
     tmp_diff_state.reset_nolock();
     tmp_diff_state.load_nolock(&base_state);
     chunk_reader.seek(file_no, page1 << ibb_page_size_shift);
-    int res= read_gtid_state(&chunk_reader, &tmp_diff_state);
+    int res= read_gtid_state(&chunk_reader, &tmp_diff_state, &dummy_xa_ref);
     if (UNIV_UNLIKELY(res < 0))
       return -1;
     if (res == 0)
@@ -3572,6 +3781,122 @@ pending_lsn_fifo::add_to_fifo(uint64_t lsn, uint64_t file_no, uint64_t offset)
 }
 
 
+static const uchar *get_xid_hash_key(const void *p, size_t *out_len, my_bool)
+{
+  const XID *xid= &(reinterpret_cast<const ibb_xid_hash::xid_elem *>(p)->xid);
+  *out_len= xid->key_length();
+  return xid->key();
+}
+
+
+ibb_xid_hash::ibb_xid_hash()
+{
+  mysql_mutex_init(ibb_xid_hash_mutex_key, &xid_mutex, nullptr);
+  my_hash_init(mem_key_binlog, &xid_hash, &my_charset_bin, 32, 0,
+               sizeof(XID), get_xid_hash_key, nullptr, MYF(HASH_UNIQUE));
+}
+
+
+ibb_xid_hash::~ibb_xid_hash()
+{
+  for (uint32 i= 0; i < xid_hash.records; ++i)
+    my_free(my_hash_element(&xid_hash, i));
+  my_hash_free(&xid_hash);
+  mysql_mutex_destroy(&xid_mutex);
+}
+
+
+bool
+ibb_xid_hash::add_xid(const XID *xid, const binlog_oob_context *c)
+{
+  xid_elem *e=
+    (xid_elem *)my_malloc(mem_key_binlog, sizeof(xid_elem), MYF(MY_WME));
+  if (!e)
+  {
+    my_error(ER_OUTOFMEMORY, MYF(0), (int)sizeof(xid_elem));
+    return true;
+  }
+  e->xid.set(xid);
+  uint64_t refcnt_file_no;
+  if (UNIV_LIKELY(c->node_list_len > 0))
+  {
+    uint32_t last= c->node_list_len-1;
+    e->oob_num_nodes= c->node_list[last].node_index + 1;
+    e->oob_first_file_no= c->first_node_file_no;
+    e->oob_first_offset= c->first_node_offset;
+    e->oob_last_file_no= c->node_list[last].file_no;
+    e->oob_last_offset= c->node_list[last].offset;
+    refcnt_file_no= e->oob_first_file_no;
+  }
+  else
+  {
+    e->oob_num_nodes= 0;
+    e->oob_first_file_no= 0;
+    e->oob_first_offset= 0;
+    e->oob_last_file_no= 0;
+    e->oob_last_offset= 0;
+    /*
+      Empty XA transaction, but we still need to ensure the prepare record
+      is kept until the (empty) transactions gets XA COMMMIT'ted.
+    */
+    refcnt_file_no= active_binlog_file_no.load(std::memory_order_acquire);
+  }
+  e->refcnt_file_no= refcnt_file_no;
+  mysql_mutex_lock(&xid_mutex);
+  if (my_hash_insert(&xid_hash, (uchar *)e))
+  {
+    mysql_mutex_unlock(&xid_mutex);
+    my_free(e);
+    return true;
+  }
+  mysql_mutex_unlock(&xid_mutex);
+  ibb_file_hash.oob_ref_inc(refcnt_file_no, c->lf_pins, true);
+  return false;
+}
+
+
+template <typename F> bool
+ibb_xid_hash::run_on_xid(const XID *xid, F callback)
+{
+  size_t key_len= 0;
+  const uchar *key_ptr= get_xid_hash_key(xid, &key_len, 1);
+  bool err;
+
+  mysql_mutex_lock(&xid_mutex);
+  uchar *rec= my_hash_search(&xid_hash, key_ptr, key_len);
+  if (UNIV_LIKELY(rec != nullptr))
+  {
+    err= callback(reinterpret_cast<xid_elem *>(rec));
+  }
+  else
+    err= true;
+  mysql_mutex_unlock(&xid_mutex);
+  return err;
+}
+
+
+/*
+  Look up an XID in the internal XID hash.
+  Remove the entry found (if any) and return it.
+*/
+ibb_xid_hash::xid_elem *
+ibb_xid_hash::grab_xid(const XID *xid)
+{
+  xid_elem *e= nullptr;
+  size_t key_len= 0;
+  const uchar *key_ptr= get_xid_hash_key(xid, &key_len, 1);
+  mysql_mutex_lock(&xid_mutex);
+  uchar *rec= my_hash_search(&xid_hash, key_ptr, key_len);
+  if (UNIV_LIKELY(rec != nullptr))
+  {
+    e= reinterpret_cast<xid_elem *>(rec);
+    my_hash_delete(&xid_hash, rec);
+  }
+  mysql_mutex_unlock(&xid_mutex);
+  return e;
+}
+
+
 void
 ibb_get_filename(char name[FN_REFLEN], uint64_t file_no)
 {
@@ -3627,6 +3952,7 @@ innobase_binlog_write_direct_ordered(IO_CACHE *cache,
   ut_ad(binlog_info->engine_ptr2 == nullptr);
   if (gtid)
     binlog_diff_state.update_nolock(gtid);
+  innodb_binlog_status(&binlog_info->out_file_no, &binlog_info->out_offset);
   mtr.start();
   innodb_binlog_write_cache(cache, binlog_info, &mtr);
   mtr.commit();
@@ -3675,6 +4001,113 @@ ibb_group_commit(THD *thd, handler_binlog_event_group_info *binlog_info)
 
 
 bool
+ibb_write_xa_prepare_ordered(THD *thd,
+                             handler_binlog_event_group_info *binlog_info,
+                             uchar engine_count)
+{
+  mtr_t mtr;
+  binlog_oob_context *c=
+    static_cast<binlog_oob_context *>(binlog_info->engine_ptr);
+  // ToDo: Here need also the oob ref.
+  chunk_data_xa_prepare chunk_data(binlog_info->xa_xid, engine_count);
+  mtr.start();
+  fsp_binlog_write_rec(&chunk_data, &mtr, FSP_BINLOG_TYPE_XA_PREPARE,
+                       c->lf_pins);
+  mtr.commit();
+  return false;
+}
+
+
+bool
+ibb_write_xa_prepare(THD *thd,
+                     handler_binlog_event_group_info *binlog_info,
+                     uchar engine_count)
+{
+  binlog_oob_context *c=
+    static_cast<binlog_oob_context *>(binlog_info->engine_ptr);
+  ut_ad(binlog_info->xa_xid != nullptr);
+  if (ibb_xa_xid_hash->add_xid(binlog_info->xa_xid, c))
+    return true;
+
+  /*
+    Sync the redo log to ensure that the prepare record is durably written to
+    disk. This is necessary before returning OK to the client, to be sure we
+    can recover the binlog part of the XA transaction in case of crash.
+  */
+  if (srv_flush_log_at_trx_commit > 0)
+    log_write_up_to(c->pending_lsn, (srv_flush_log_at_trx_commit & 1));
+
+  return false;
+}
+
+
+bool
+ibb_xa_rollback_ordered(THD *thd, const XID *xid, void **engine_data)
+{
+  binlog_oob_context *c=
+    static_cast<binlog_oob_context *>(*engine_data);
+  if (UNIV_UNLIKELY(c == nullptr))
+    *engine_data= c= alloc_oob_context();
+
+  /*
+    Write ROLLBACK record to the binlog.
+    This will be used during recovery to know that the XID is no longer active,
+    allowing purge of the associated binlogs.
+  */
+  chunk_data_xa_complete chunk_data(xid, false);
+  mtr_t mtr;
+  mtr.start();
+  fsp_binlog_write_rec(&chunk_data, &mtr, FSP_BINLOG_TYPE_XA_COMPLETE,
+                       c->lf_pins);
+  mtr.commit();
+  c->pending_lsn= mtr.commit_lsn();
+
+  return false;
+}
+
+
+bool
+ibb_xa_rollback(THD *thd, const XID *xid, void **engine_data)
+{
+  binlog_oob_context *c=
+    static_cast<binlog_oob_context *>(*engine_data);
+
+  /*
+    Keep the reference count here, as we need the rollback record to be
+    available for recovery until all engines have durably rolled back.
+    Decrement will happen after that, in ibb_binlog_unlog().
+  */
+
+  /*
+    Durably write the rollback record to disk. This way, when we return the
+    "ok" packet to the client, we are sure that crash recovery will make the
+    XID rollback in engines if needed.
+  */
+  ut_ad(c->pending_lsn > 0);
+  if (srv_flush_log_at_trx_commit > 0)
+    log_write_up_to(c->pending_lsn, (srv_flush_log_at_trx_commit & 1));
+  c->pending_lsn= 0;
+  return false;
+}
+
+
+void
+ibb_binlog_unlog(const XID *xid, void **engine_data)
+{
+  binlog_oob_context *c=
+    static_cast<binlog_oob_context *>(*engine_data);
+  if (UNIV_UNLIKELY(c == nullptr))
+    *engine_data= c= alloc_oob_context();
+  ibb_xid_hash::xid_elem *elem= ibb_xa_xid_hash->grab_xid(xid);
+  if (elem)
+  {
+    ibb_file_hash.oob_ref_dec(elem->refcnt_file_no, c->lf_pins, true);
+    my_free(elem);
+  }
+}
+
+
+bool
 innodb_find_binlogs(uint64_t *out_first, uint64_t *out_last)
 {
   mysql_mutex_lock(&active_binlog_mutex);
@@ -3710,6 +4143,7 @@ innodb_binlog_get_init_state(rpl_binlog_state_base *out_state)
 {
   binlog_chunk_reader chunk_reader(binlog_cur_end_offset);
   bool err= false;
+  uint64_t dummy_xa_ref;
 
   byte *page_buf= static_cast<byte *>(ut_malloc(ibb_page_size, mem_key_binlog));
   if (!page_buf)
@@ -3721,7 +4155,7 @@ innodb_binlog_get_init_state(rpl_binlog_state_base *out_state)
 
   mysql_mutex_lock(&purge_binlog_mutex);
   chunk_reader.seek(earliest_binlog_file_no, ibb_page_size);
-  int res= read_gtid_state(&chunk_reader, out_state);
+  int res= read_gtid_state(&chunk_reader, out_state, &dummy_xa_ref);
   mysql_mutex_unlock(&purge_binlog_mutex);
   if (res != 1)
     err= true;
@@ -3888,7 +4322,8 @@ purge_adjust_limit_file_no(handler_binlog_purge_info *purge_info, LF_PINS *pins)
     1b. first_open_binlog_file_no
     1c. Any file_no in use by an active dump thread
     1d. Any file_no containing oob data referenced by file_no from (1c)
-    1e. User specified file_no (from PURGE BINARY LOGS TO, if any).
+    1e. Any file_no containing oob data referenced by an active transaction.
+    1f. User specified file_no (from PURGE BINARY LOGS TO, if any).
 
   2. Unix timestamp specifying the minimal value that should not be purged,
   optional (used by PURGE BINARY LOGS BEFORE and --binlog-expire-log-seconds).
@@ -3947,8 +4382,11 @@ innodb_binlog_purge_low(handler_binlog_purge_info *purge_info,
       want_purge= true;
     if (by_name && file_no < limit_name_file_no)
       want_purge= true;
-    if (file_no >= limit_file_no || !want_purge)
+    if (!want_purge ||
+        file_no >= limit_file_no ||
+        ibb_file_hash.get_oob_ref_in_use(file_no, lf_pins))
       break;
+
     earliest_binlog_file_no= file_no + 1;
     if (loc_total_size < (size_t)stat_buf.st_size)
     {
