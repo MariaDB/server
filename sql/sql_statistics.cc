@@ -3120,7 +3120,10 @@ read_statistics_for_table(THD *thd, TABLE *table,
       found|= index_stat.get_stat_values(index_statistics);
     }
     if (found)
+    {
       new_stats_cb->stats_available|= TABLE_STAT_INDEX;
+      index_statistics->mark_stats_as_read();
+    }
 
     key_part_map ext_key_part_map= key_info->ext_key_part_map;
     if (key_info->user_defined_key_parts != key_info->ext_key_parts &&
@@ -4157,7 +4160,7 @@ void set_statistics_for_table(THD *thd, TABLE *table)
       (check_eits_preferred(thd) &&
        table->stats_is_read &&
        key_info->read_stats->avg_frequency_is_inited() &&
-       key_info->read_stats->get_avg_frequency(0) > 0.5);
+       key_info->read_stats->has_stats());
   }
 }
 

@@ -10299,10 +10299,15 @@ uint TABLE_SHARE::actual_n_key_parts(THD *thd)
 
 double KEY::actual_rec_per_key(uint i) const
 { 
-  if (rec_per_key == 0)
-    return 0;
-  return (is_statistics_from_stat_tables ?
-          read_stats->get_avg_frequency(i) : (double) rec_per_key[i]);
+  if (is_statistics_from_stat_tables)
+  {
+    // Use engine-independent statistics (EITS)
+    return read_stats->get_avg_frequency(i);
+  }
+  // Fall back to engine-dependent statistics if EITS is not available
+  if (rec_per_key == nullptr)
+    return 0; // No statistics available
+  return (double) rec_per_key[i];
 }
 
 /*
