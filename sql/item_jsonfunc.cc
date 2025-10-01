@@ -1215,7 +1215,7 @@ bool Item_func_json_extract::fix_length_and_dec(THD *thd)
 }
 
 
-static int path_exact(const json_path_with_flags *paths_list, int n_paths,
+int path_exact(const json_path_with_flags *paths_list, int n_paths,
                        const json_path_t *p, json_value_types vt,
                        MEM_ROOT_DYNAMIC_ARRAY *array_size_counter)
 {

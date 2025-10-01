@@ -1,0 +1,8 @@
+source include/have_gen_embedding.inc;
+
+# Test that CURL error, for example due to a bad API endpoint, is handled correctly 
+# It should return NULL and produce a warning
+
+eval set generate_embedding_openai_host="notavalidurl:5000";
+call mtr.add_suppression("GENERATE_EMBEDDING_OPENAI: curl returned this error code: 6 with the following error message: Couldn't resolve host name");
+select vec_totext(generate_embedding_openai('abc', 'text-embedding-ada-002'));

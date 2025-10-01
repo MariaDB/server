@@ -7218,7 +7218,7 @@ static bool fill_alter_inplace_info(THD *thd, TABLE *table,
             alter_expr= ALTER_STORED_GCOL_EXPR;
           else
             alter_expr= ALTER_VIRTUAL_GCOL_EXPR;
-          if (!field->vcol_info->is_equal(new_field->vcol_info))
+          if (!field->vcol_info->is_equal(new_field->vcol_info, false))
           {
             ha_alter_info->handler_flags|= alter_expr;
             value_changes= true;
@@ -7712,12 +7712,8 @@ bool mysql_compare_tables(TABLE *table, Alter_info *alter_info,
     {
       if (!tmp_new_field->field->vcol_info)
         DBUG_RETURN(false);
-      bool err;
-      if (!field->vcol_info->is_equivalent(thd, table->s, create_info->table->s,
-                                           tmp_new_field->field->vcol_info, err))
+      if (!field->vcol_info->is_equal(tmp_new_field->field->vcol_info, true))
         DBUG_RETURN(false);
-      if (err)
-        DBUG_RETURN(true);
     }
 
     /*
@@ -12611,13 +12607,16 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
   sql_mode_t save_sql_mode= thd->variables.sql_mode;
   ulonglong prev_insert_id, time_to_report_progress;
   Field **dfield_ptr= to->default_field;
-  uint save_to_s_default_fields= to->s->default_fields;
+  uint save_to_s_default_fields= to->s->default_fields, size_in_bytes;
   bool make_versioned= !from->versioned() && to->versioned();
   bool make_unversioned= from->versioned() && !to->versioned();
   bool keep_versioned= from->versioned() && to->versioned();
   bool bulk_insert_started= 0;
+  // bool err;
   Field *to_row_start= NULL, *to_row_end= NULL, *from_row_end= NULL;
   MYSQL_TIME query_start;
+  MY_BITMAP write_set_backup, *original_write_set=NULL;
+  my_bitmap_map* bitmap;
   DBUG_ENTER("copy_data_between_tables");
 
   // Relay_log_info is too big to put on a stack
@@ -12675,6 +12674,17 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
       my_error(ER_SEQUENCE_TABLE_HAS_TOO_FEW_ROWS, MYF(0));
     goto err;
   }
+  /* 
+    Mark all columns as "changed", we use the write_set for that
+    If there is a conflict and we can't use the write_set, we can use a bitmap that lives in this function only
+    or use the has_value_set
+    In this loop, the write_set is used to signify that a column is changed
+    For vcols, we check their deps and if none of them are changed, we remove them from the write_set
+    This is done for non stored vcols as well, as we don't check the write_set in update_virtual_fields for non stored vcols
+    The write_set computed in this loop will be preserved in write_set_backup
+    and restored before calling update_virtual_fields
+  */
+  bitmap_set_all(to->write_set);
   for (Field **ptr=to->field ; *ptr ; ptr++)
   {
     def=it++;
@@ -12698,6 +12708,54 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
         if ((*ptr)->check_assignability_from(def->field, ignore))
           goto err;
         (copy_end++)->set(*ptr,def->field,0);
+        // If a normal field, we can check if it is not changed by looking at def->field->eq_def(*ptr)
+        if (def->field->eq_def(*ptr))
+          // Remove it from the bitmap
+          bitmap_clear_bit(to->write_set, (*ptr)->field_index);
+      }
+      /*
+        If stored and expensive, check if it can be copied directly to avoid recomputation
+        To check if the vcol can be copied, we need to check if any of the dependencies changed
+        We can do that by walking through the vcol expression
+      */
+      else // for vcols
+      {
+        /*
+          Remove the vcol from the write_set, as check_dependencies_in_write_set checks if the bit is set
+          The vcol will be added back to the write_set later if it needs to be recomputed 
+        */
+        bitmap_clear_bit(to->write_set, (*ptr)->field_index);
+        /* 
+          If there is no change in the dependencies and the vcol expression and type (see TODO below), we can copy directly
+        */
+        if (!to->check_dependencies_in_write_set(*ptr) && def->field->vcol_info && (*ptr)->vcol_info->is_equal(def->field->vcol_info, true))
+            /*
+              TODO: What is the correct way to detect if the expression and the type are not altered?
+              We probably want to detect both changes:
+              1. Change in the type: alter table exp_test_new modify embedding vector(1537);
+              2. Change in the expression: alter table exp_test_new modify embedding 
+                      vector(1536) as (generate_embedding_openai(b, "text-embedding-3-small")) stored;
+              
+              The solutions being examined are:
+              def->field->vcol_info && (*ptr)->vcol_info->is_equivalent(thd, (*ptr)->table->s, def->field->table->s,
+                                    def->field->vcol_info, err)
+              or 
+              def->field->vcol_info && (*ptr)->vcol_info->is_equal(def->field->vcol_info)) 
+            */
+        {
+          /* 
+            Check if vcol can be copied
+            If not stored, it cannot be copied
+            If not expensive, we decided for now to not copy
+          */ 
+          if ((*ptr)->vcol_info->is_stored() && (*ptr)->vcol_info->expr->is_expensive())
+          {
+            bitmap_set_bit(from->read_set, def->field->field_index);
+            (copy_end++)->set(*ptr,def->field,0);
+          }
+        }
+        else // if the deps changed, the vcol is changed too, put it in the write_set
+          bitmap_set_bit(to->write_set, (*ptr)->field_index);
       }
     }
     else
@@ -12715,6 +12773,18 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
       }
     }
   }
+  /* 
+    Keep a backup of the current write_set that will be restored before calling update_virtual_fields
+    Currently, if the bit is set in the write_set, we know it corresponds 
+    to a vcol that needs to be recomputed
+    In reality, the write_set will be used in update_virtual_fields, which only examines the write_set for
+    expensive stored vcols
+  */
+  size_in_bytes= bitmap_buffer_size(to->write_set->n_bits);
+  bitmap = (my_bitmap_map*) thd->alloc<uchar>(size_in_bytes);
+  my_bitmap_init(&write_set_backup, bitmap, to->write_set->n_bits);
+  bitmap_copy(&write_set_backup, to->write_set);
+  
   if (dfield_ptr)
     *dfield_ptr= NULL;
 
@@ -12778,8 +12848,12 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
   /* Tell handler that we have values for all columns in the to table */
   to->use_all_columns();
   /* Add virtual columns to vcol_set to ensure they are updated */
-  if (to->vfield)
-    to->mark_virtual_columns_for_write(TRUE);
+  /* 
+    This is probably not needed, as we have called to->use_all_columns() 
+    It probably remained here from when we had the vcol_set
+  */
+  // if (to->vfield)
+  //   to->mark_virtual_columns_for_write(TRUE);
   if (init_read_record(&info, thd, from, (SQL_SELECT *) 0, file_sort, 1, 1,
                        FALSE))
     goto err;
@@ -12868,8 +12942,16 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
       if (to->default_field)
         to->update_default_fields(ignore);
       if (to->vfield)
+      {
+        original_write_set = to->write_set;
+        to->write_set = &write_set_backup; // Restore write_set
         to->update_virtual_fields(to->file, VCOL_UPDATE_FOR_WRITE);
-
+        /* 
+          We don't need the write_set_backup anymore
+          We could also probably use to->use_all_columns(); instead of keeping the pointer with original_write_set
+        */
+        to->write_set = original_write_set;
+      }
       /* This will set thd->is_error() if fatal failure */
       if (to->verify_constraints(ignore) == VIEW_CHECK_SKIP)
         continue;
@@ -12962,6 +13044,8 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
   }
   else
     online= false;
+  if (write_set_backup.bitmap)
+    write_set_backup.bitmap= NULL;
 
   DEBUG_SYNC(thd, "alter_table_copy_end");
 

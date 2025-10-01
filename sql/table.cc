@@ -3852,28 +3852,6 @@ bool Virtual_column_info::cleanup_session_expr()
 }
 
 
-bool
-Virtual_column_info::is_equivalent(THD *thd, TABLE_SHARE *share, TABLE_SHARE *vcol_share,
-                                  const Virtual_column_info* vcol, bool &error) const
-{
-  error= true;
-  Item *cmp_expr= vcol->expr->build_clone(thd);
-  if (!cmp_expr)
-    return false;
-  Item::func_processor_rename_table param;
-  param.old_db=    Lex_ident_db(vcol_share->db);
-  param.old_table= Lex_ident_table(vcol_share->table_name);
-  param.new_db=    Lex_ident_db(share->db);
-  param.new_table= Lex_ident_table(share->table_name);
-  cmp_expr->walk(&Item::rename_table_processor, &param, WALK_SUBQUERY);
-
-  error= false;
-  return type_handler()  == vcol->type_handler()
-      && is_stored() == vcol->is_stored()
-      && expr->eq(cmp_expr, true);
-}
-
-
 class Vcol_expr_context
 {
   bool inited;
@@ -8291,9 +8269,37 @@ bool TABLE::mark_virtual_columns_for_write(bool insert_fl
              (tmp_vfield->flags & (PART_KEY_FLAG | FIELD_IN_PART_FUNC_FLAG |
                                    PART_INDIRECT_KEY_FLAG)))
     {
-      bitmap_set_bit(write_set, tmp_vfield->field_index);
-      mark_virtual_column_with_deps(tmp_vfield);
-      bitmap_updated= true;
+      /*
+        Stored expensive virtual columns should not be recomputed whenever possible
+        Instead, the stored value should be used
+        To achieve this, we only mark the column in the write_set when necessary,
+        meaning when one of its dependencies is in the write_set
+        Once we have identified that the column needs to be updated, we need
+        to walk again and mark all of its dependencies in the write_set too
+      */
+      if (
+        tmp_vfield->vcol_info->expr->is_expensive() && 
+        tmp_vfield->vcol_info->is_stored())
+      {
+        if (check_dependencies_in_write_set(tmp_vfield)) 
+        {
+          /*
+            One of the vfield's deps is in the write set, so the vfield
+            needs to be updated so we put it in the write_set
+            To update it, we need the values of all the deps, so we put them
+            in the read_set
+           */
+          bitmap_set_bit(write_set, tmp_vfield->field_index);
+          mark_virtual_column_with_deps(tmp_vfield);
+          bitmap_updated= true;
+        }
+      }
+      else 
+      {
+        bitmap_set_bit(write_set, tmp_vfield->field_index);
+        mark_virtual_column_with_deps(tmp_vfield);
+        bitmap_updated= true;
+      }
     }
   }
   if (bitmap_updated)
@@ -9338,7 +9344,11 @@ int TABLE::update_virtual_fields(handler *h, enum_vcol_update_mode update_mode)
       break;
     case VCOL_UPDATE_FOR_DELETE:
     case VCOL_UPDATE_FOR_WRITE:
-      update= bitmap_is_set(read_set, vf->field_index);
+      update= (bool) bitmap_is_set(read_set, vf->field_index);
+      if (vcol_info->expr->is_expensive() && vcol_info->is_stored())
+        // update&= !vf->has_explicit_value();
+        update&= (bool) bitmap_is_set(write_set, vf->field_index);
+
       break;
     case VCOL_UPDATE_FOR_REPLACE:
       update= ((!vcol_info->is_stored() &&
