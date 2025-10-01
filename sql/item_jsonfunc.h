@@ -1039,4 +1039,39 @@ public:
 };
 
 
+class Item_func_is_json: public Item_bool_func
+{
+public:
+  enum constraint_t { JSON_VALUE_ANY, JSON_ARRAY, JSON_OBJECT, JSON_SCALAR };
+
+protected:
+  String tmp_value;
+  constraint_t type_constraint;
+  bool negated;
+  bool with_unique_keys;
+  json_engine_t je;
+
+public:
+  Item_func_is_json(THD *thd, Item *json, bool is_not,
+                    ulong type_constraint,
+                    bool with_unique_keys)
+      : Item_bool_func(thd, json),
+        type_constraint(static_cast<constraint_t>(type_constraint)),
+        negated(is_not),
+        with_unique_keys(with_unique_keys)
+        {}
+
+  bool val_bool() override;
+  bool fix_length_and_dec(THD *thd) override;
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING name= {STRING_WITH_LEN("is_json") };
+    return name;
+  }
+
+  Item *do_get_copy(THD *thd) const override
+  { return get_item_copy<Item_func_is_json>(thd, this); }
+};
+
+
 #endif /* ITEM_JSONFUNC_INCLUDED */

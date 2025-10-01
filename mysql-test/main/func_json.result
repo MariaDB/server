@@ -5394,3 +5394,264 @@ result
 [["2", "6"], ["3", "8"], ["4", "5"], ["1", "7"]]
 [["2", "6"], ["3", "8"], ["4", "5"], ["1", "7"]]
 # End of 11.4 Test
+#
+# MDEV-37072: Implement IS JSON predicate
+#
+set names utf8mb4;
+SELECT '[1, 2]' IS JSON;
+'[1, 2]' IS JSON
+1
+SELECT '{"key1":1, "key2":[2,3]}' IS JSON;
+'{"key1":1, "key2":[2,3]}' IS JSON
+1
+SELECT '123' IS JSON;
+'123' IS JSON
+1
+SELECT 'null' IS JSON;
+'null' IS JSON
+1
+SELECT 'invalid' IS JSON;
+'invalid' IS JSON
+0
+SELECT '{"key1":1, "key2":[2,3]' IS JSON;
+'{"key1":1, "key2":[2,3]' IS JSON
+0
+SELECT '[1, 2' IS JSON;
+'[1, 2' IS JSON
+0
+SELECT 'NULL' IS JSON;
+'NULL' IS JSON
+0
+SELECT 'invalid' IS NOT JSON;
+'invalid' IS NOT JSON
+1
+SELECT '{"key1":1, "key2":[2,3]' IS NOT JSON;
+'{"key1":1, "key2":[2,3]' IS NOT JSON
+1
+SELECT '[1, 2]' IS NOT JSON;
+'[1, 2]' IS NOT JSON
+0
+SELECT '{"key1":1, "key2":[2,3]}' IS NOT JSON;
+'{"key1":1, "key2":[2,3]}' IS NOT JSON
+0
+# Type constraints
+SELECT js,
+js IS JSON "json?",
+js IS JSON VALUE "value?",
+js IS JSON SCALAR "scalar?",
+js IS JSON OBJECT "object?",
+js IS JSON ARRAY "array?"
+FROM (VALUES
+('123'), ('"string"'), ('{"key":1}'), ('[1,2,3]'), ('[]'), ('{}'),
+('true'), ('false'), ('null')) foo(js);
+js	json?	value?	scalar?	object?	array?
+123	1	1	1	0	0
+"string"	1	1	1	0	0
+{"key":1}	1	1	0	1	0
+[1,2,3]	1	1	0	0	1
+[]	1	1	0	0	1
+{}	1	1	0	1	0
+true	1	1	1	0	0
+false	1	1	1	0	0
+null	1	1	1	0	0
+# UNIQUE KEYS constraint
+SELECT '"a",1,1,2]' IS JSON WITH UNIQUE KEYS;
+'"a",1,1,2]' IS JSON WITH UNIQUE KEYS
+0
+SELECT '{"a": 42,"b": [{"c":1, "c":2}]}' IS JSON WITH UNIQUE KEYS;
+'{"a": 42,"b": [{"c":1, "c":2}]}' IS JSON WITH UNIQUE KEYS
+0
+SELECT '{"a": 42,"b": [{"a": {"a": [{"a" : "a", "a" : "a" }]} }]}' IS JSON WITH UNIQUE KEYS;
+'{"a": 42,"b": [{"a": {"a": [{"a" : "a", "a" : "a" }]} }]}' IS JSON WITH UNIQUE KEYS
+0
+SELECT '{"a": 42,"b": [{"a": {"a": [{"a" : "a"}]} }]}' IS JSON WITH UNIQUE KEYS;
+'{"a": 42,"b": [{"a": {"a": [{"a" : "a"}]} }]}' IS JSON WITH UNIQUE KEYS
+1
+SELECT '[{"a":1}, {"a":1}]' IS JSON WITH UNIQUE KEYS;
+'[{"a":1}, {"a":1}]' IS JSON WITH UNIQUE KEYS
+1
+SELECT '[{"a":1, "a":2}, {"b":1}]' IS JSON WITH UNIQUE KEYS;
+'[{"a":1, "a":2}, {"b":1}]' IS JSON WITH UNIQUE KEYS
+0
+SELECT '{"a": {"b":1, "b":2}}' IS JSON WITH UNIQUE KEYS;
+'{"a": {"b":1, "b":2}}' IS JSON WITH UNIQUE KEYS
+0
+SELECT '[{"a":1}, [{"b":1, "b":2}]]' IS JSON WITH UNIQUE KEYS;
+'[{"a":1}, [{"b":1, "b":2}]]' IS JSON WITH UNIQUE KEYS
+0
+SELECT '{"a": [{"b": {"c":1, "c":2}}]}' IS JSON WITH UNIQUE KEYS;
+'{"a": [{"b": {"c":1, "c":2}}]}' IS JSON WITH UNIQUE KEYS
+0
+SELECT '[{}]' IS JSON WITH UNIQUE KEYS;
+'[{}]' IS JSON WITH UNIQUE KEYS
+1
+SELECT '[1, {"a":1}, 2, {"b":2}]' IS JSON WITH UNIQUE KEYS;
+'[1, {"a":1}, 2, {"b":2}]' IS JSON WITH UNIQUE KEYS
+1
+SELECT '[{"a":1}, 1, {"a":1, "a":2}, 2]' IS JSON WITH UNIQUE KEYS;
+'[{"a":1}, 1, {"a":1, "a":2}, 2]' IS JSON WITH UNIQUE KEYS
+0
+SELECT '[{"a":1}, [{"b":1}], {"c":1}]' IS JSON WITH UNIQUE KEYS;
+'[{"a":1}, [{"b":1}], {"c":1}]' IS JSON WITH UNIQUE KEYS
+1
+SELECT '[{"a":1}, [{"b":1, "b":2}], {"c":1}]' IS JSON WITH UNIQUE KEYS;
+'[{"a":1}, [{"b":1, "b":2}], {"c":1}]' IS JSON WITH UNIQUE KEYS
+0
+SELECT '[[[[{"a":1, "a":2}]]]]' IS JSON WITH UNIQUE KEYS;
+'[[[[{"a":1, "a":2}]]]]' IS JSON WITH UNIQUE KEYS
+0
+SELECT '[[[{"a":1}]], [[{"b":1}]]]' IS JSON WITH UNIQUE KEYS;
+'[[[{"a":1}]], [[{"b":1}]]]' IS JSON WITH UNIQUE KEYS
+1
+SELECT '[[[{"a":1, "a":2}]], [[{"b":1}]]]' IS JSON WITH UNIQUE KEYS;
+'[[[{"a":1, "a":2}]], [[{"b":1}]]]' IS JSON WITH UNIQUE KEYS
+0
+SELECT '[{"a":[{"b":1, "b":2}]}, {"c":[{"d":1}]}]' IS JSON WITH UNIQUE KEYS;
+'[{"a":[{"b":1, "b":2}]}, {"c":[{"d":1}]}]' IS JSON WITH UNIQUE KEYS
+0
+SELECT '{"a":{"b":1, "c":2}, "d":{"b":1, "c":2}}' IS JSON WITH UNIQUE KEYS;
+'{"a":{"b":1, "c":2}, "d":{"b":1, "c":2}}' IS JSON WITH UNIQUE KEYS
+1
+SELECT '[{"a":[{"b":[{"c":1}]}]}, {"d":[{"e":[{"f":1, "f":2}]}]}]' IS JSON WITH UNIQUE KEYS;
+'[{"a":[{"b":[{"c":1}]}]}, {"d":[{"e":[{"f":1, "f":2}]}]}]' IS JSON WITH UNIQUE KEYS
+0
+SELECT '[{}, {"a":{}}, [{}]]' IS JSON WITH UNIQUE KEYS;
+'[{}, {"a":{}}, [{}]]' IS JSON WITH UNIQUE KEYS
+1
+SELECT '{"a":{"b":{"b":1}}, "d":{"e":{"f":1}}}' IS JSON WITH UNIQUE KEYS;
+'{"a":{"b":{"b":1}}, "d":{"e":{"f":1}}}' IS JSON WITH UNIQUE KEYS
+1
+SELECT js,
+js IS JSON OBJECT WITH UNIQUE KEYS "object_with_unique",
+js IS JSON OBJECT WITHOUT UNIQUE KEYS "object_without_unique",
+js IS JSON ARRAY WITH UNIQUE KEYS "array_with_unique",
+js IS JSON ARRAY WITHOUT UNIQUE KEYS "array_without_unique"
+FROM (VALUES
+('{"a":1, "b":2, "c":3}'),
+('{"a":1, "a":2, "a":3}'),
+('[{"a":"1"},{"c":"2","c":"3"}]'),
+('[{"a":"1"},{"b":"2","c":"3"}]'),
+('[1,2,3]'), ('[1,1,1]'), ('[]'), ('123'),
+('"string"'), ('true'), ('null')) foo(js);
+js	object_with_unique	object_without_unique	array_with_unique	array_without_unique
+{"a":1, "b":2, "c":3}	1	1	0	0
+{"a":1, "a":2, "a":3}	0	1	0	0
+[{"a":"1"},{"c":"2","c":"3"}]	0	0	0	1
+[{"a":"1"},{"b":"2","c":"3"}]	0	0	1	1
+[1,2,3]	0	0	1	1
+[1,1,1]	0	0	1	1
+[]	0	0	1	1
+123	0	0	0	0
+"string"	0	0	0	0
+true	0	0	0	0
+null	0	0	0	0
+# Test with table data
+CREATE TABLE test_json (
+json_col JSON,
+text_col TEXT
+);
+INSERT INTO test_json VALUES 
+('{"name":"Alice", "age":25}', '{"name":"Alice", "age":25}'),
+('[1,2,3]', '[1,2,3]'),
+('42', '42'),
+('"hello"', '"hello"'),
+('true', 'true'),
+('null', 'null'),
+('"invalid"', 'invalid'),
+('{"key1":1, "key2":2}', '{"key1":1, "key2":2}'),
+('{"key1":1, "key1":2}', '{"key1":1, "key1":2}');
+SELECT 
+json_col,
+json_col IS JSON as is_json,
+json_col IS JSON VALUE as is_value,
+json_col IS JSON SCALAR as is_scalar,
+json_col IS JSON OBJECT as is_object,
+json_col IS JSON ARRAY as is_array,
+json_col IS JSON OBJECT WITH UNIQUE KEYS as object_with_unique,
+json_col IS JSON OBJECT WITHOUT UNIQUE KEYS as object_without_unique
+FROM test_json;
+json_col	is_json	is_value	is_scalar	is_object	is_array	object_with_unique	object_without_unique
+{"name":"Alice", "age":25}	1	1	0	1	0	1	1
+[1,2,3]	1	1	0	0	1	0	0
+42	1	1	1	0	0	0	0
+"hello"	1	1	1	0	0	0	0
+true	1	1	1	0	0	0	0
+null	1	1	1	0	0	0	0
+"invalid"	1	1	1	0	0	0	0
+{"key1":1, "key2":2}	1	1	0	1	0	1	1
+{"key1":1, "key1":2}	1	1	0	1	0	0	1
+SELECT 
+text_col,
+text_col IS JSON as is_json,
+text_col IS JSON VALUE as is_value,
+text_col IS JSON SCALAR as is_scalar,
+text_col IS JSON OBJECT as is_object,
+text_col IS JSON ARRAY as is_array
+FROM test_json;
+text_col	is_json	is_value	is_scalar	is_object	is_array
+{"name":"Alice", "age":25}	1	1	0	1	0
+[1,2,3]	1	1	0	0	1
+42	1	1	1	0	0
+"hello"	1	1	1	0	0
+true	1	1	1	0	0
+null	1	1	1	0	0
+invalid	0	0	0	0	0
+{"key1":1, "key2":2}	1	1	0	1	0
+{"key1":1, "key1":2}	1	1	0	1	0
+SELECT 
+COUNT(*) as total_rows,
+SUM(json_col IS JSON) as valid_json_count,
+SUM(json_col IS JSON OBJECT) as object_count,
+SUM(json_col IS JSON ARRAY) as array_count,
+SUM(json_col IS JSON SCALAR) as scalar_count
+FROM test_json;
+total_rows	valid_json_count	object_count	array_count	scalar_count
+9	9	3	1	5
+# Edge cases
+SELECT js,
+js IS JSON "json?",
+js IS JSON VALUE "value?",
+js IS JSON SCALAR "scalar?",
+js IS JSON OBJECT "object?",
+js IS JSON ARRAY "array?"
+FROM (VALUES
+(NULL), (''), ('   '), ('\n'), ('\t'),
+('{"key":1,}'), ('{"key":1, "key2":}'), ('{key:1}'),
+('{"emoji":"😊"}'), ('{"unicode":"\\u0041"}'),
+(x'48656C6C6F'), ('2'), (CONCAT('{"a":', 1, '}')),
+(JSON_OBJECT('a', 1, 'b', 2)), (JSON_ARRAY(1, 2, 3)), (JSON_QUOTE('hello'))) foo(js);
+js	json?	value?	scalar?	object?	array?
+NULL	NULL	NULL	NULL	NULL	NULL
+	0	0	0	0	0
+   	0	0	0	0	0
+
+	0	0	0	0	0
+		0	0	0	0	0
+{"key":1,}	0	0	0	0	0
+{"key":1, "key2":}	0	0	0	0	0
+{key:1}	0	0	0	0	0
+{"emoji":"😊"}	1	1	0	1	0
+{"unicode":"\u0041"}	1	1	0	1	0
+Hello	0	0	0	0	0
+2	1	1	1	0	0
+{"a":1}	1	1	0	1	0
+{"a": 1, "b": 2}	1	1	0	1	0
+[1, 2, 3]	1	1	0	0	1
+"hello"	1	1	1	0	0
+# Large json object with unique keys
+CREATE PROCEDURE build_large_json()
+BEGIN
+SET @json='{"key1":1';
+SET @i=2;
+WHILE @i <= 1000 DO
+SET @json = CONCAT(@json, ',"key', @i, '":', @i);
+SET @i = @i + 1;
+END WHILE;
+SET @json = CONCAT(@json, '}');
+END|
+CALL build_large_json()|
+SELECT @json IS JSON OBJECT WITH UNIQUE KEYS AS unique_keys|
+unique_keys
+1
+DROP PROCEDURE build_large_json|
+DROP TABLE test_json;
