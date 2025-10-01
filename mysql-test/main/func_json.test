@@ -1953,4 +1953,76 @@ select json_detailed('[[123],456]');
 
 SELECT JSON_VALUE(JSON_OBJECT("a", ""), '$.a') = "" AS not_null;
 
+--echo #
+--echo # MDEV-36319: Wrong result json_table
+--echo #
+
+SET @JSON='
+{
+  "SZ": [
+    {
+      "NAME": "S0",
+      "OFFERS": [
+        {
+          "NAME": "S0A0"
+        }
+      ]
+    },
+    {
+      "NAME": "S1",
+      "OFFERS": [
+        {
+          "NAME": "S1A0"
+        },
+        {
+          "NAME": "S1A1"
+        }
+      ]
+    },
+    {
+      "NAME": "S2",
+      "OFFERS": [
+        {
+          "NAME": "S2A0"
+        }
+      ]
+    },
+    {
+      "NAME": "S3",
+      "OFFERS": [
+        {
+          "NAME": "S3A0"
+        }
+      ]
+    },
+    {
+      "NAME": "S4",
+      "OFFERS": [
+        {
+          "NAME": "S4A0"
+        }
+      ]
+    },
+    {
+      "NAME": "S5",
+      "OFFERS": [
+        {
+          "NAME": "S5A0"
+        }
+      ]
+    }
+  ]
+}
+ 
+'
+;
+ 
+--echo # Should return EMPTY result
+SELECT * FROM json_table(@JSON, '$.SZ[0].OFFERS[1]' 
+COLUMNS(NAME VARCHAR(30) PATH '$.NAME')) AS t_sz;
+ 
+--echo # Should return S1A1
+SELECT * FROM json_table(@JSON, '$.SZ[1].OFFERS[1]' 
+COLUMNS(NAME VARCHAR(30) PATH '$.NAME')) AS t_sz;
+
 --echo # End of 10.11 Test
