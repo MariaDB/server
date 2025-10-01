@@ -1527,6 +1527,12 @@ int ha_prepare(THD *thd)
 
   if (ha_info)
   {
+    if (unlikely(tc_log->log_xa_prepare(thd, all)))
+    {
+      ha_rollback_trans(thd, all);
+      error= 1;
+      goto binlog_error;
+    }
     for (; ha_info; ha_info= ha_info->next())
     {
       handlerton *ht= ha_info->ht();
@@ -1549,6 +1555,7 @@ int ha_prepare(THD *thd)
       }
     }
 
+binlog_error:
     DEBUG_SYNC(thd, "at_unlog_xa_prepare");
 
     if (tc_log->unlog_xa_prepare(thd, all))
@@ -2056,14 +2063,14 @@ int ha_commit_trans(THD *thd, bool all)
     if (wsrep_must_abort(thd))
     {
       mysql_mutex_unlock(&thd->LOCK_thd_data);
-      (void)tc_log->unlog(cookie, xid);
+      (void)tc_log->unlog(thd, cookie, xid);
       goto wsrep_err;
     }
     mysql_mutex_unlock(&thd->LOCK_thd_data);
   }
 #endif /* WITH_WSREP */
   DBUG_EXECUTE_IF("crash_commit_before_unlog", DBUG_SUICIDE(););
-  if (tc_log->unlog(cookie, xid))
+  if (tc_log->unlog(thd, cookie, xid))
     error= 2;                                /* Error during commit */
 
 done:
@@ -2208,29 +2215,6 @@ inline Ha_trx_info* get_binlog_hton(Ha_trx_info *ha_info)
   return ha_info;
 }
 
-static int run_binlog_first(THD *thd, bool all, THD_TRANS *trans,
-                            bool is_real_trans, bool is_commit)
-{
-  int rc= 0;
-  Ha_trx_info *ha_info= trans->ha_list;
-
-  if ((ha_info= get_binlog_hton(ha_info)))
-  {
-    int err;
-    if ((err= is_commit ? binlog_commit(thd, all,
-                                        is_ro_1pc_trans(thd, ha_info, all,
-                                                        is_real_trans))
-                        : binlog_rollback(ha_info->ht(), thd, all)))
-    {
-      my_error(is_commit ? ER_ERROR_DURING_COMMIT : ER_ERROR_DURING_ROLLBACK,
-               MYF(0), err);
-      rc= 1;
-    }
-  }
-
-  return rc;
-}
-
 static int
 commit_one_phase_2(THD *thd, bool all, THD_TRANS *trans, bool is_real_trans)
 {
@@ -2244,19 +2228,19 @@ commit_one_phase_2(THD *thd, bool all, THD_TRANS *trans, bool is_real_trans)
   if (ha_info)
   {
     int err= 0;
-    /*
-      Binlog hton must be called first regardless of its position
-      in trans->ha_list at least to prevent from commiting any engine
-      branches when afterward a duplicate GTID error out of binlog_commit()
-      is generated.
-    */
-    for (int binlog_err= error=
-           run_binlog_first(thd, all, trans, is_real_trans, true);
-         ha_info; ha_info= ha_info_next)
+    Ha_trx_info *binlog_ha_info= get_binlog_hton(ha_info);
+    if (binlog_ha_info &&
+        (err= binlog_commit(thd, all,
+                            is_ro_1pc_trans(thd, ha_info, all,
+                            is_real_trans))))
     {
-      if (binlog_err)
-        goto err;
+      my_error(ER_ERROR_DURING_COMMIT, MYF(0), err);
+      error= 1;
 
+      goto err;
+    }
+    for (; ha_info; ha_info= ha_info_next)
+    {
       handlerton *ht= ha_info->ht();
       if ((err= ht->commit(ht, thd, all)))
       {
@@ -2270,6 +2254,8 @@ commit_one_phase_2(THD *thd, bool all, THD_TRANS *trans, bool is_real_trans)
       ha_info_next= ha_info->next();
       ha_info->reset(); /* keep it conveniently zero-filled */
     }
+    if (binlog_ha_info && is_real_trans)
+      binlog_post_commit(thd, all);
     trans->ha_list= 0;
     trans->no_2pc=0;
     if (all)
@@ -2378,6 +2364,8 @@ int ha_rollback_trans(THD *thd, bool all)
 
   if (ha_info)
   {
+    int err;
+
     /* Close all cursors that can not survive ROLLBACK */
     if (is_real_trans)                          /* not a statement commit */
       thd->stmt_map.close_transient_cursors();
@@ -2388,12 +2376,17 @@ int ha_rollback_trans(THD *thd, bool all)
       rollbacker and any transaction that depends on it. This guarantees
       the execution time dependency identifies binlog ordering.
     */
-    for (error= run_binlog_first(thd, all, trans, is_real_trans, false);
-         ha_info; ha_info= ha_info_next)
+    Ha_trx_info *binlog_ha_info= get_binlog_hton(ha_info);
+    if (binlog_ha_info && (err= binlog_rollback(binlog_hton, thd, all)))
     {
-      int err;
+      my_error(ER_ERROR_DURING_ROLLBACK, MYF(0), err);
+      error= 1;
+    }
+
+    for (; ha_info; ha_info= ha_info_next)
+    {
       handlerton *ht= ha_info->ht();
-      if (ht != binlog_hton && (err= ht->rollback(ht, thd, all)))
+      if (ha_info != binlog_ha_info && (err= ht->rollback(ht, thd, all)))
       {
         // cannot happen
         my_error(ER_ERROR_DURING_ROLLBACK, MYF(0), err);
@@ -2415,6 +2408,9 @@ int ha_rollback_trans(THD *thd, bool all)
     }
     trans->ha_list= 0;
     trans->no_2pc=0;
+
+    if (binlog_ha_info)
+      binlog_post_rollback(thd, all);
   }
 
 #ifdef WITH_WSREP
@@ -2528,6 +2524,10 @@ int ha_commit_or_rollback_by_xid(XID *xid, bool commit)
   plugin_foreach(NULL, commit ? xacommit_handlerton : xarollback_handlerton,
                  MYSQL_STORAGE_ENGINE_PLUGIN, &xaop);
 
+  if (commit)
+    binlog_post_commit_by_xid(binlog_hton, xid);
+  else
+    binlog_post_rollback_by_xid(binlog_hton, xid);
   return xaop.result;
 }
 

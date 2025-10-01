@@ -486,6 +486,7 @@ extern mysql_pfs_key_t fsp_binlog_durable_mutex_key;
 extern mysql_pfs_key_t fsp_binlog_durable_cond_key;
 extern mysql_pfs_key_t fsp_purge_binlog_mutex_key;
 extern mysql_pfs_key_t fsp_page_fifo_mutex_key;
+extern mysql_pfs_key_t ibb_xid_hash_mutex_key;
 # endif /* UNIV_PFS_MUTEX */
 
 # ifdef UNIV_PFS_RWLOCK

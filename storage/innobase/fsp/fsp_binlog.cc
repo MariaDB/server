@@ -296,13 +296,20 @@ fsp_binlog_page_fifo::release_page_mtr(fsp_binlog_page_entry *page, mtr_t *mtr)
   if (!page->last_page)
     return release_page(page);
 
+  /*
+    Check against having two pending last-in-binlog-file pages to release.
+    But allow to have the same page released twice in a single mtr (this can
+    happen when 2-phase commit puts an XID/XA complete record just in front
+    of the commit record).
+  */
   fsp_binlog_page_entry *old_page= mtr->get_binlog_page();
-  ut_ad(!old_page);
+  ut_ad(!(old_page != nullptr && old_page != page));
   if (UNIV_UNLIKELY(old_page != nullptr))
   {
-    sql_print_error("InnoDB: Internal inconsistency with mini-transaction that "
-                    "spans more than two binlog files. Recovery may be "
-                    "affected until the next checkpoint.");
+    if (UNIV_UNLIKELY(old_page != page))
+      sql_print_error("InnoDB: Internal inconsistency with mini-transaction "
+                      "that spans more than two binlog files. Recovery may "
+                      "be affected until the next checkpoint.");
     release_page(old_page);
   }
   mtr->set_binlog_page(page);
@@ -968,25 +975,29 @@ ibb_file_oob_refs::remove_up_to(uint64_t file_no, LF_PINS *pins)
 
 
 bool
-ibb_file_oob_refs::oob_ref_inc(uint64_t file_no, LF_PINS *pins)
-{
-  ibb_tblspc_entry *e= static_cast<ibb_tblspc_entry *>
-    (lf_hash_search(&hash, pins, &file_no, sizeof(file_no)));
-  if (!e)
-    return false;
-  e->oob_refs.fetch_add(1, std::memory_order_acquire);
-  lf_hash_search_unpin(pins);
-  return true;
-}
-
-
-bool
-ibb_file_oob_refs::oob_ref_dec(uint64_t file_no, LF_PINS *pins)
+ibb_file_oob_refs::oob_ref_inc(uint64_t file_no, LF_PINS *pins, bool do_xa)
 {
   ibb_tblspc_entry *e= static_cast<ibb_tblspc_entry *>
     (lf_hash_search(&hash, pins, &file_no, sizeof(file_no)));
   if (!e)
     return true;
+  if (UNIV_UNLIKELY(do_xa))
+    e->xa_refs.fetch_add(1, std::memory_order_acquire);
+  e->oob_refs.fetch_add(1, std::memory_order_acquire);
+  lf_hash_search_unpin(pins);
+  return false;
+}
+
+
+bool
+ibb_file_oob_refs::oob_ref_dec(uint64_t file_no, LF_PINS *pins, bool do_xa)
+{
+  ibb_tblspc_entry *e= static_cast<ibb_tblspc_entry *>
+    (lf_hash_search(&hash, pins, &file_no, sizeof(file_no)));
+  if (!e)
+    return true;
+  if (UNIV_UNLIKELY(do_xa))
+    e->xa_refs.fetch_sub(1, std::memory_order_acquire);
   uint64_t refcnt= e->oob_refs.fetch_sub(1, std::memory_order_acquire) - 1;
   lf_hash_search_unpin(pins);
   ut_ad(refcnt != (uint64_t)0 - 1);
@@ -1073,6 +1084,25 @@ ibb_file_oob_refs::get_oob_ref_file_no(uint64_t file_no, LF_PINS *pins,
   *out_oob_ref_file_no= e->oob_ref_file_no.load(std::memory_order_relaxed);
   lf_hash_search_unpin(pins);
   return true;
+}
+
+
+/*
+  Check if a file_no contains oob data that is needed by an active
+  (ie. not committed) transaction. This is seen simply as having refcount
+  greater than 0.
+*/
+bool
+ibb_file_oob_refs::get_oob_ref_in_use(uint64_t file_no, LF_PINS *pins)
+{
+  ibb_tblspc_entry *e= static_cast<ibb_tblspc_entry *>
+    (lf_hash_search(&hash, pins, &file_no, sizeof(file_no)));
+  if (!e)
+    return false;
+
+  uint64_t refcnt= e->oob_refs.load(std::memory_order_relaxed);
+  lf_hash_search_unpin(pins);
+  return refcnt > 0;
 }
 
 
