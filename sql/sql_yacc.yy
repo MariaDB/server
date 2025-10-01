@@ -242,6 +242,10 @@ void _CONCAT_UNDERSCORED(turn_parser_debug_on,yyparse)()
   Lex_select_lock select_lock;
   Lex_select_limit select_limit;
   Lex_order_limit_lock *order_limit_lock;
+  struct {
+    bool with_unique_keys;
+    ulong type_constraint;
+  } json_predicate;
 
   /* pointers */
   Lex_ident_sys *ident_sys_ptr;
@@ -362,9 +366,9 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 */
 
 %ifdef MARIADB
-%expect 63
+%expect 69
 %else
-%expect 64
+%expect 70
 %endif
 
 /*
@@ -767,6 +771,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %token  <kwd>  ALGORITHM_SYM
 %token  <kwd>  ALWAYS_SYM
 %token  <kwd>  ANY_SYM                       /* SQL-2003-R */
+%token  <kwd>  ARRAY_SYM
 %token  <kwd>  ASCII_SYM                     /* MYSQL-FUNC */
 %token  <kwd>  AT_SYM                        /* SQL-2003-R */
 %token  <kwd>  ATOMIC_SYM                    /* SQL-2003-R */
@@ -998,6 +1003,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %token  <kwd>  NUMBER_MARIADB_SYM            /* SQL-2003-N  */
 %token  <kwd>  NUMBER_ORACLE_SYM             /* Oracle-R, PLSQL-R */
 %token  <kwd>  NVARCHAR_SYM
+%token  <kwd>  OBJECT_SYM
 %token  <kwd>  OF_SYM                        /* SQL-1992-R, Oracle-R */
 %token  <kwd>  OFFSET_SYM
 %token  <kwd>  OLD_PASSWORD_SYM
@@ -1073,6 +1079,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %token  <kwd>  ROW_FORMAT_SYM
 %token  <kwd>  RTREE_SYM
 %token  <kwd>  SAVEPOINT_SYM                 /* SQL-2003-R */
+%token  <kwd>  SCALAR_SYM
 %token  <kwd>  SCHEDULE_SYM
 %token  <kwd>  SCHEMA_NAME_SYM               /* SQL-2003-N */
 %token  <kwd>  SECOND_SYM                    /* SQL-2003-R */
@@ -1436,6 +1443,10 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
                    sp_handler_package_body
 
 %type <json_on_response> json_on_response
+
+%type <ulong_num> json_type_constraint
+%type <num> json_key_unique_constraint
+%type <json_predicate> json_predicate
 
 %type <Lex_field_type> field_type field_type_all field_type_all_builtin
         field_type_all_with_typedefs
@@ -9844,6 +9855,24 @@ boolean_test:
             if (unlikely($$ == NULL))
               MYSQL_YYABORT;
           }
+        | boolean_test IS json_predicate %prec IS
+          {
+            $$= new (thd->mem_root) Item_func_is_json(thd, $1,
+                                                      false,
+                                                      $3.type_constraint,
+                                                      $3.with_unique_keys);
+            if (unlikely($$ == NULL))
+              MYSQL_YYABORT;
+          }
+        | boolean_test IS not json_predicate %prec IS
+          {
+            $$= new (thd->mem_root) Item_func_is_json(thd, $1,
+                                                      true,
+                                                      $4.type_constraint,
+                                                      $4.with_unique_keys);
+            if (unlikely($$ == NULL))
+              MYSQL_YYABORT;
+          }
         | boolean_test EQUAL_SYM predicate %prec EQUAL_SYM
           {
             $$= new (thd->mem_root) Item_func_equal(thd, $1, $3);
@@ -9864,6 +9893,29 @@ boolean_test:
           }
         | predicate %prec BETWEEN_SYM
         ;
+
+json_predicate:
+          JSON_SYM json_type_constraint json_key_unique_constraint
+          {
+            $$.type_constraint= $2;
+            $$.with_unique_keys= $3;
+          }
+        ;
+
+json_type_constraint:
+          ARRAY_SYM        { $$= Item_func_is_json::JSON_ARRAY; }
+        | OBJECT_SYM       { $$= Item_func_is_json::JSON_OBJECT; }
+        | SCALAR_SYM       { $$= Item_func_is_json::JSON_SCALAR; }
+        | VALUE_SYM        { $$= Item_func_is_json::JSON_VALUE_ANY; }
+        | /* empty */      { $$= Item_func_is_json::JSON_VALUE_ANY; }
+        ;
+
+json_key_unique_constraint:
+          WITH UNIQUE_SYM              { $$ = true; }
+        | WITH UNIQUE_SYM KEYS         { $$ = true; }
+        | WITHOUT UNIQUE_SYM           { $$ = false; }
+        | WITHOUT UNIQUE_SYM KEYS      { $$ = false; }
+        | /* empty */                  { $$ = false; }
 
 predicate:
           predicate IN_SYM subquery
@@ -16609,6 +16661,7 @@ keyword_func_sp_var_and_label:
         | AGGREGATE_SYM
         | ALGORITHM_SYM
         | ALWAYS_SYM
+        | ARRAY_SYM
         | AT_SYM
         | ATOMIC_SYM
         | AUTHORS_SYM
@@ -16780,6 +16833,7 @@ keyword_func_sp_var_and_label:
         | NODEGROUP_SYM
         | NONE_SYM
         | NOTFOUND_SYM
+        | OBJECT_SYM
         | OF_SYM
         | OLD_PASSWORD_SYM
         | ONE_SYM
@@ -16838,6 +16892,7 @@ keyword_func_sp_var_and_label:
         | ROWTYPE_MARIADB_SYM
         | ROW_FORMAT_SYM
         | RTREE_SYM
+        | SCALAR_SYM
         | SCHEDULE_SYM
         | SCHEMA_NAME_SYM
         | SEQUENCE_SYM

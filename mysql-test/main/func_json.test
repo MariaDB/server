@@ -4162,4 +4162,250 @@ SET CHARACTER SET utf8;
 SET @obj1='{ "a": 1,"b": 2,"c": 3}';
 SELECT JSON_OBJECT_FILTER_KEYS (@obj1,@arr1);
 
+
+--echo #
+--echo # MDEV-37072: Implement IS JSON predicate
+--echo #
+
+set names utf8mb4;
+
+--disable_view_protocol
+SELECT '[1, 2]' IS JSON;
+SELECT '{"key1":1, "key2":[2,3]}' IS JSON;
+SELECT '123' IS JSON;
+SELECT 'null' IS JSON;
+
+SELECT 'invalid' IS JSON;
+SELECT '{"key1":1, "key2":[2,3]' IS JSON;
+SELECT '[1, 2' IS JSON;
+SELECT 'NULL' IS JSON;
+
+SELECT 'invalid' IS NOT JSON;
+SELECT '{"key1":1, "key2":[2,3]' IS NOT JSON;
+SELECT '[1, 2]' IS NOT JSON;
+SELECT '{"key1":1, "key2":[2,3]}' IS NOT JSON;
+
+--echo # Type constraints
+
+SELECT js,
+  js IS JSON "json?",
+  js IS JSON VALUE "value?",
+  js IS JSON SCALAR "scalar?",
+  js IS JSON OBJECT "object?",
+  js IS JSON ARRAY "array?"
+FROM (VALUES
+      ('123'), ('"string"'), ('{"key":1}'), ('[1,2,3]'), ('[]'), ('{}'),
+      ('true'), ('false'), ('null')) foo(js);
+
+--echo # UNIQUE KEYS constraint
+
+SELECT '"a",1,1,2]' IS JSON WITH UNIQUE KEYS;
+SELECT '{"a": 42,"b": [{"c":1, "c":2}]}' IS JSON WITH UNIQUE KEYS;
+SELECT '{"a": 42,"b": [{"a": {"a": [{"a" : "a", "a" : "a" }]} }]}' IS JSON WITH UNIQUE KEYS;
+SELECT '{"a": 42,"b": [{"a": {"a": [{"a" : "a"}]} }]}' IS JSON WITH UNIQUE KEYS;
+SELECT '[{"a":1}, {"a":1}]' IS JSON WITH UNIQUE KEYS;
+SELECT '[{"a":1, "a":2}, {"b":1}]' IS JSON WITH UNIQUE KEYS;
+SELECT '{"a": {"b":1, "b":2}}' IS JSON WITH UNIQUE KEYS;
+SELECT '[{"a":1}, [{"b":1, "b":2}]]' IS JSON WITH UNIQUE KEYS;
+SELECT '{"a": [{"b": {"c":1, "c":2}}]}' IS JSON WITH UNIQUE KEYS;
+SELECT '[{}]' IS JSON WITH UNIQUE KEYS;
+SELECT '[1, {"a":1}, 2, {"b":2}]' IS JSON WITH UNIQUE KEYS;
+SELECT '[{"a":1}, 1, {"a":1, "a":2}, 2]' IS JSON WITH UNIQUE KEYS;
+SELECT '[{"a":1}, [{"b":1}], {"c":1}]' IS JSON WITH UNIQUE KEYS;
+SELECT '[{"a":1}, [{"b":1, "b":2}], {"c":1}]' IS JSON WITH UNIQUE KEYS;
+SELECT '[[[[{"a":1, "a":2}]]]]' IS JSON WITH UNIQUE KEYS;
+SELECT '[[[{"a":1}]], [[{"b":1}]]]' IS JSON WITH UNIQUE KEYS;
+SELECT '[[[{"a":1, "a":2}]], [[{"b":1}]]]' IS JSON WITH UNIQUE KEYS;
+SELECT '[{"a":[{"b":1, "b":2}]}, {"c":[{"d":1}]}]' IS JSON WITH UNIQUE KEYS;
+SELECT '{"a":{"b":1, "c":2}, "d":{"b":1, "c":2}}' IS JSON WITH UNIQUE KEYS;
+SELECT '[{"a":[{"b":[{"c":1}]}]}, {"d":[{"e":[{"f":1, "f":2}]}]}]' IS JSON WITH UNIQUE KEYS;
+SELECT '[{}, {"a":{}}, [{}]]' IS JSON WITH UNIQUE KEYS;
+SELECT '{"a":{"b":{"b":1}}, "d":{"e":{"f":1}}}' IS JSON WITH UNIQUE KEYS;
+
+SELECT js,
+  js IS JSON OBJECT WITH UNIQUE KEYS "object_with_unique",
+  js IS JSON OBJECT WITHOUT UNIQUE KEYS "object_without_unique",
+  js IS JSON ARRAY WITH UNIQUE KEYS "array_with_unique",
+  js IS JSON ARRAY WITHOUT UNIQUE KEYS "array_without_unique"
+FROM (VALUES
+      ('{"a":1, "b":2, "c":3}'),
+      ('{"a":1, "a":2, "a":3}'),
+      ('[{"a":"1"},{"c":"2","c":"3"}]'),
+      ('[{"a":"1"},{"b":"2","c":"3"}]'),
+      ('[1,2,3]'), ('[1,1,1]'), ('[]'), ('123'),
+      ('"string"'), ('true'), ('null')) foo(js);
+
+--echo # Test with table data
+
+CREATE TABLE test_json (
+    json_col JSON,
+    text_col TEXT
+);
+
+INSERT INTO test_json VALUES 
+('{"name":"Alice", "age":25}', '{"name":"Alice", "age":25}'),
+('[1,2,3]', '[1,2,3]'),
+('42', '42'),
+('"hello"', '"hello"'),
+('true', 'true'),
+('null', 'null'),
+('"invalid"', 'invalid'),
+('{"key1":1, "key2":2}', '{"key1":1, "key2":2}'),
+('{"key1":1, "key1":2}', '{"key1":1, "key1":2}');
+
+SELECT 
+  json_col,
+  json_col IS JSON as is_json,
+  json_col IS JSON VALUE as is_value,
+  json_col IS JSON SCALAR as is_scalar,
+  json_col IS JSON OBJECT as is_object,
+  json_col IS JSON ARRAY as is_array,
+  json_col IS JSON OBJECT WITH UNIQUE KEYS as object_with_unique,
+  json_col IS JSON OBJECT WITHOUT UNIQUE KEYS as object_without_unique
+FROM test_json;
+
+SELECT 
+  text_col,
+  text_col IS JSON as is_json,
+  text_col IS JSON VALUE as is_value,
+  text_col IS JSON SCALAR as is_scalar,
+  text_col IS JSON OBJECT as is_object,
+  text_col IS JSON ARRAY as is_array
+FROM test_json;
+
+SELECT 
+  COUNT(*) as total_rows,
+  SUM(json_col IS JSON) as valid_json_count,
+  SUM(json_col IS JSON OBJECT) as object_count,
+  SUM(json_col IS JSON ARRAY) as array_count,
+  SUM(json_col IS JSON SCALAR) as scalar_count
+FROM test_json;
+
+--echo # Edge cases
+
+SELECT js,
+  js IS JSON "json?",
+  js IS JSON VALUE "value?",
+  js IS JSON SCALAR "scalar?",
+  js IS JSON OBJECT "object?",
+  js IS JSON ARRAY "array?"
+FROM (VALUES
+      (NULL), (''), ('   '), ('\n'), ('\t'),
+      ('{"key":1,}'), ('{"key":1, "key2":}'), ('{key:1}'),
+      ('{"emoji":"😊"}'), ('{"unicode":"\\u0041"}'),
+      (x'48656C6C6F'), ('2'), (CONCAT('{"a":', 1, '}')),
+      (JSON_OBJECT('a', 1, 'b', 2)), (JSON_ARRAY(1, 2, 3)), (JSON_QUOTE('hello'))) foo(js);
+--enable_view_protocol
+
+--echo # Large json object with unique keys
+
+DELIMITER |;
+CREATE PROCEDURE build_large_json()
+BEGIN
+  SET @json='{"key1":1';
+  SET @i=2;
+  WHILE @i <= 1000 DO
+    SET @json = CONCAT(@json, ',"key', @i, '":', @i);
+    SET @i = @i + 1;
+  END WHILE;
+  SET @json = CONCAT(@json, '}');
+END|
+CALL build_large_json()|
+SELECT @json IS JSON OBJECT WITH UNIQUE KEYS AS unique_keys|
+DROP PROCEDURE build_large_json|
+DELIMITER ;|
+
+DROP TABLE test_json;
+
+--echo # Generated columns
+
+CREATE TABLE test_generated_json (
+  j TEXT,
+  is_json BOOL GENERATED ALWAYS AS (j IS JSON) VIRTUAL,
+  is_not_json BOOL GENERATED ALWAYS AS (j IS NOT JSON) VIRTUAL,
+  is_array BOOL GENERATED ALWAYS AS (j IS JSON ARRAY) VIRTUAL,
+  is_object BOOL GENERATED ALWAYS AS (j IS JSON OBJECT) VIRTUAL,
+  is_scalar BOOL GENERATED ALWAYS AS (j IS JSON SCALAR) VIRTUAL,
+  with_unique_keys BOOL GENERATED ALWAYS AS (j IS JSON OBJECT WITH UNIQUE KEYS) VIRTUAL,
+  without_unique_keys BOOL GENERATED ALWAYS AS (j IS JSON OBJECT WITHOUT UNIQUE KEYS) VIRTUAL
+);
+
+INSERT INTO test_generated_json (j) VALUES 
+  ('[1, 2, 3]'),
+  ('{"key": "value"}'),
+  ('3'),
+  (NULL),
+  ('{}'),
+  ('invalid'),
+  ('{"key": "value", "key2": "value2"}'),
+  ('{"key": "value", "key": "value2"}');
+
+SELECT
+  j,
+  is_json,
+  is_not_json,
+  is_array,
+  is_object,
+  is_scalar,
+  with_unique_keys,
+  without_unique_keys
+FROM test_generated_json;
+
+DROP TABLE test_generated_json;
+
+--echo # CHECK constraints
+
+CREATE TABLE test_check_json (
+  j TEXT CHECK (j IS JSON),
+  j_array JSON CHECK (j_array IS JSON ARRAY),
+  j_object JSON CHECK (j_object IS JSON OBJECT),
+  j_object_with_unique_keys JSON CHECK (j_object_with_unique_keys IS JSON OBJECT WITH UNIQUE KEYS)
+);
+
+INSERT INTO test_check_json VALUES 
+  ('[1, 2, 3]', '[1, 2]', '{"key": "value"}', '{"key": "value"}'),
+  ('{"key": "value"}', '[1, 2]', '{"key": "value"}', '{"key": "value", "key2": "value2"}');
+
+--error ER_CONSTRAINT_FAILED
+INSERT INTO test_check_json VALUES ('[1, 2, 3]', '{1, 2}', '{"key": "value"}', 'invalid');
+--error ER_CONSTRAINT_FAILED
+INSERT INTO test_check_json VALUES ('[1, 2, 3]', '[1, 2]', '{"key": "value"}', '{"key": "value", "key": "value2"}');
+
+DROP TABLE test_check_json;
+
+--echo # DEFAULT clauses
+
+CREATE TABLE test_default_json (
+  j TEXT,
+  is_json BOOL DEFAULT (j IS JSON),
+  is_not_json BOOL DEFAULT (j IS NOT JSON),
+  is_array BOOL DEFAULT (j IS JSON ARRAY),
+  is_object BOOL DEFAULT (j IS JSON OBJECT),
+  is_scalar BOOL DEFAULT (j IS JSON SCALAR),
+  with_unique_keys BOOL DEFAULT (j IS JSON OBJECT WITH UNIQUE KEYS),
+  without_unique_keys BOOL DEFAULT (j IS JSON OBJECT WITHOUT UNIQUE KEYS)
+);
+
+INSERT INTO test_default_json (j) VALUES 
+  ('[1, 2, 3]'),
+  ('{"key": "value"}'),
+  ('3'),
+  (NULL),
+  ('{}'),
+  ('{"key": "value", "key2": "value2"}'),
+  ('{"key": "value", "key": "value2"}');
+
+SELECT 
+  j,
+  is_json,
+  is_not_json,
+  is_array,
+  is_object,
+  is_scalar,
+  with_unique_keys,
+  without_unique_keys
+FROM test_default_json;
+
+DROP TABLE test_default_json;
+
 --echo # End of 11.2 Test

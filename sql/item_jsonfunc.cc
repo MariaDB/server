@@ -28,6 +28,7 @@ static int json_find_overlap_with_object(json_engine_t *,
                                          json_engine_t *, bool, MEM_ROOT*,
                                          json_engine_t *temp_je,
                                          MEM_ROOT_DYNAMIC_ARRAY *stack);
+static bool handle_nested_value(json_engine_t *je);
 
 #ifndef DBUG_OFF
 int dbug_json_check_min_stack_requirement()
@@ -6261,4 +6262,229 @@ bool Item_func_json_object_to_array::fix_length_and_dec(THD *thd)
                               JSON_DEPTH_DEFAULT, JSON_DEPTH_INC, MYF(0));
 
   return FALSE;
+}
+
+
+static bool check_unique_keys(json_engine_t *je)
+{
+  HASH unique_keys;
+  int level= je->stack_p;
+
+  DBUG_EXECUTE_IF("json_check_min_stack_requirement",
+                  return dbug_json_check_min_stack_requirement(););
+  if (check_stack_overrun(current_thd, STACK_MIN_SIZE , NULL))
+    return false;
+
+  if (my_hash_init(PSI_INSTRUMENT_ME, &unique_keys, je->s.cs,
+                   0, 0, 0, get_key_name, my_free, 0))
+    return false;
+
+  while (json_scan_next(je) == 0 && je->stack_p >= level)
+  {
+    if (je->state == JST_KEY)
+    {
+      const uchar *key_start, *key_end;
+      int key_len;
+
+      key_start= je->s.c_str;
+      do
+      {
+        key_end= je->s.c_str;
+      } while (json_read_keyname_chr(je) == 0);
+
+      if (unlikely(je->s.error))
+      {
+        my_hash_free(&unique_keys);
+        return false;
+      }
+
+      key_len= (int)(key_end - key_start);
+
+      char *curr_key= (char*)my_malloc(PSI_NOT_INSTRUMENTED, key_len + 1, MYF(0));
+      if (!curr_key)
+      {
+        my_hash_free(&unique_keys);
+        return false;
+      }
+
+      memcpy(curr_key, key_start, key_len);
+      curr_key[key_len]= '\0';
+
+      if (my_hash_search(&unique_keys, (const uchar*)curr_key, key_len))
+      {
+        my_free(curr_key);
+        my_hash_free(&unique_keys);
+        return false;
+      }
+
+      if (my_hash_insert(&unique_keys, (const uchar*)curr_key))
+      {
+        my_free(curr_key);
+        my_hash_free(&unique_keys);
+        return false;
+      }
+
+      if (json_read_value(je))
+      {
+        my_hash_free(&unique_keys);
+        return false;
+      }
+
+      // Handle nested structures: delegate to value handler
+      if (!json_value_scalar(je))
+      {
+        if (!handle_nested_value(je))
+        {
+          my_hash_free(&unique_keys);
+          return false;
+        }
+      }
+    }
+  }
+  my_hash_free(&unique_keys);
+
+  if (je->s.error)
+    return false;
+
+  return true;
+}
+
+
+// Checks type and delegates to appropriate function
+static bool handle_nested_value(json_engine_t *je)
+{
+  int level= je->stack_p;
+
+  DBUG_EXECUTE_IF("json_check_min_stack_requirement",
+                  return dbug_json_check_min_stack_requirement(););
+  if (check_stack_overrun(current_thd, STACK_MIN_SIZE , NULL))
+    return false;
+
+  if (je->value_type == JSON_VALUE_OBJECT)
+    return check_unique_keys(je);
+
+  if (je->value_type == JSON_VALUE_ARRAY)
+  {
+    // If value is an array, iterate through elements and handle each value
+    while (json_scan_next(je) == 0 && je->stack_p >= level)
+    {
+      if (je->state == JST_VALUE)
+      {
+        if (json_read_value(je))
+          return false;
+
+        // Handle nested structures: delegate to value handler recursively
+        if (!json_value_scalar(je))
+        {
+          if (!handle_nested_value(je))
+            return false;
+        }
+      }
+    }
+
+    if (je->s.error)
+      return false;
+
+    return true;
+  }
+
+  return json_skip_level(je) == 0;
+}
+
+
+bool Item_func_is_json::val_bool()
+{
+  bool result= true;
+  bool unique_keys= true;
+  String *js= args[0]->val_json(&tmp_value);
+
+  if ((null_value= args[0]->null_value))
+    return 0;
+
+  json_scan_start(&je, js->charset(), (const uchar*)js->ptr(),
+                  (const uchar*)js->end());
+
+  if (json_read_value(&je))
+    return negated;
+
+  switch (type_constraint)
+  {
+  case JSON_VALUE_ANY:
+    result= true;
+    break;
+  case JSON_ARRAY:
+    result= (je.value_type == JSON_VALUE_ARRAY);
+    break;
+  case JSON_OBJECT:
+    result= (je.value_type == JSON_VALUE_OBJECT);
+    break;
+  case JSON_SCALAR:
+    result= (json_value_scalar(&je));
+    break;
+  }
+
+  if (with_unique_keys &&
+     (je.value_type == JSON_VALUE_OBJECT || je.value_type == JSON_VALUE_ARRAY))
+  {
+    if (je.value_type == JSON_VALUE_OBJECT)
+      unique_keys= check_unique_keys(&je);
+    else
+      // For arrays, use handle_nested_value which will iterate through elements
+      unique_keys= handle_nested_value(&je);
+
+    if (je.s.error)
+      return negated;
+  }
+  else
+  {
+    // verify JSON is well-formed
+    while (json_scan_next(&je) == 0) {}
+    if (je.s.error)
+      return negated;
+  }
+
+  return negated ? !(result && unique_keys) : (result && unique_keys);
+}
+
+
+bool Item_func_is_json::fix_length_and_dec(THD *thd)
+{
+  mem_root_dynamic_array_init(thd->mem_root, PSI_INSTRUMENT_MEM,
+                              &je.stack, sizeof(int), NULL,
+                              JSON_DEPTH_DEFAULT, JSON_DEPTH_INC, MYF(0));
+
+  if (Item_bool_func::fix_length_and_dec(thd))
+    return TRUE;
+  set_maybe_null();
+
+  return FALSE;
+}
+
+
+void Item_func_is_json::print(String *str, enum_query_type query_type)
+{
+  args[0]->print_parenthesised(str, query_type, precedence());
+  
+  if (negated)
+    str->append(STRING_WITH_LEN(" IS NOT JSON"));
+  else
+    str->append(STRING_WITH_LEN(" IS JSON"));
+  
+  switch (type_constraint)
+  {
+  case JSON_ARRAY:
+    str->append(STRING_WITH_LEN(" ARRAY"));
+    break;
+  case JSON_OBJECT:
+    str->append(STRING_WITH_LEN(" OBJECT"));
+    break;
+  case JSON_SCALAR:
+    str->append(STRING_WITH_LEN(" SCALAR"));
+    break;
+  case JSON_VALUE_ANY:
+    break;
+  }
+  
+  if (with_unique_keys)
+    str->append(STRING_WITH_LEN(" WITH UNIQUE KEYS"));
 }
