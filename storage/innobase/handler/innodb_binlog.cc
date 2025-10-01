@@ -1914,10 +1914,15 @@ serialize_gtid_state(rpl_binlog_state_base *state, byte *buf, size_t buf_size)
   unsigned char *p= (unsigned char *)buf;
   /*
     1 uint64_t for the number of entries in the state stored.
+    1 uint64_t for the XA references file_no.
     2 uint32_t + 1 uint64_t for at least one GTID.
   */
-  ut_ad(buf_size >= 2*COMPR_INT_MAX32 + 2*COMPR_INT_MAX64);
+  ut_ad(buf_size >= 2*COMPR_INT_MAX32 + 3*COMPR_INT_MAX64);
   p= compr_int_write(p, state->count_nolock());
+  uint64_t xa_ref_file_no=
+    ibb_file_hash.earliest_xa_ref.load(std::memory_order_relaxed);
+  /* Write 1 +file_no, so that 0 (1 + ~0) means "no reference". */
+  p= compr_int_write(p, xa_ref_file_no + 1);
   unsigned char * const pmax=
     p + (buf_size - (2*COMPR_INT_MAX32 + COMPR_INT_MAX64));
 
@@ -1958,7 +1963,7 @@ binlog_gtid_state(rpl_binlog_state_base *state, mtr_t *mtr,
   }
   else
   {
-    size_t buf_size=
+    size_t buf_size= 2*COMPR_INT_MAX64 +
       state->count_nolock() * (2*COMPR_INT_MAX32 + COMPR_INT_MAX64);
     alloced_buf= static_cast<byte *>(ut_malloc(buf_size, mem_key_binlog));
     if (UNIV_UNLIKELY(!alloced_buf))
@@ -2052,10 +2057,11 @@ binlog_gtid_state(rpl_binlog_state_base *state, mtr_t *mtr,
 */
 static int
 read_gtid_state(binlog_chunk_reader *chunk_reader,
-                rpl_binlog_state_base *state) noexcept
+                rpl_binlog_state_base *state,
+                uint64_t *out_xa_ref_file_no) noexcept
 {
   byte buf[256];
-  static_assert(sizeof(buf) >= 6*COMPR_INT_MAX64,
+  static_assert(sizeof(buf) >= 2*COMPR_INT_MAX64 + 6*COMPR_INT_MAX64,
                 "buf must hold at least 2 GTIDs");
   int res= chunk_reader->read_data(buf, sizeof(buf), true);
   if (UNIV_UNLIKELY(res < 0))
@@ -2070,9 +2076,19 @@ read_gtid_state(binlog_chunk_reader *chunk_reader,
   p= v_and_p.second;
   if (UNIV_UNLIKELY(p > p_end))
     return -1;
+  uint64_t num_gtid= v_and_p.first;
+  /*
+    Read the earliest file_no containing pending XA if any.
+    Note that unsigned underflow means 0 - 1 becomes ~0, as required.
+  */
+  v_and_p= compr_int_read(p);
+  p= v_and_p.second;
+  if (UNIV_UNLIKELY(p > p_end))
+    return -1;
+  *out_xa_ref_file_no= v_and_p.first - 1;
 
   /* Read each GTID one by one and add into the state. */
-  for (uint64_t count= v_and_p.first; count > 0; --count)
+  for (uint64_t count= num_gtid; count > 0; --count)
   {
     ptrdiff_t remain= p_end - p;
     /* Read more data as needed to ensure we have read a full GTID. */
@@ -2140,6 +2156,7 @@ binlog_state_recover()
   uint64_t active= active_binlog_file_no.load(std::memory_order_relaxed);
   uint64_t diff_state_interval= current_binlog_state_interval;
   uint32_t page_no= 1;
+  uint64_t xa_ref_file_no;
 
   binlog_chunk_reader chunk_reader(binlog_cur_end_offset);
   byte *page_buf=
@@ -2148,7 +2165,7 @@ binlog_state_recover()
     return true;
   chunk_reader.set_page_buf(page_buf);
   chunk_reader.seek(active, page_no << ibb_page_size_shift);
-  int res= read_gtid_state(&chunk_reader, &state);
+  int res= read_gtid_state(&chunk_reader, &state, &xa_ref_file_no);
   if (res < 0)
   {
     ut_free(page_buf);
@@ -2166,7 +2183,7 @@ binlog_state_recover()
     while (page_no > 1)
     {
       chunk_reader.seek(active, page_no << ibb_page_size_shift);
-      res= read_gtid_state(&chunk_reader, &state);
+      res= read_gtid_state(&chunk_reader, &state, &xa_ref_file_no);
       if (res > 0)
         break;
       page_no-= (uint32_t)diff_state_interval;
@@ -3191,6 +3208,7 @@ gtid_search::find_gtid_pos(slave_connection_state *pos,
                            rpl_binlog_state_base *out_state,
                            uint64_t *out_file_no, uint64_t *out_offset)
 {
+  uint64_t dummy_xa_ref;
   /*
     Dirty read, but getting a slightly stale value is no problem, we will just
     be starting to scan the binlog file at a slightly earlier position than
@@ -3223,7 +3241,7 @@ gtid_search::find_gtid_pos(slave_connection_state *pos,
     diff_state_page_interval= header.diff_state_interval;
 
     chunk_reader.seek(file_no, ibb_page_size);
-    int res= read_gtid_state(&chunk_reader, &base_state);
+    int res= read_gtid_state(&chunk_reader, &base_state, &dummy_xa_ref);
     if (UNIV_UNLIKELY(res < 0))
       return -1;
     if (res == 0)
@@ -3272,7 +3290,7 @@ gtid_search::find_gtid_pos(slave_connection_state *pos,
     tmp_diff_state.reset_nolock();
     tmp_diff_state.load_nolock(&base_state);
     chunk_reader.seek(file_no, page1 << ibb_page_size_shift);
-    int res= read_gtid_state(&chunk_reader, &tmp_diff_state);
+    int res= read_gtid_state(&chunk_reader, &tmp_diff_state, &dummy_xa_ref);
     if (UNIV_UNLIKELY(res < 0))
       return -1;
     if (res == 0)
@@ -3710,6 +3728,7 @@ innodb_binlog_get_init_state(rpl_binlog_state_base *out_state)
 {
   binlog_chunk_reader chunk_reader(binlog_cur_end_offset);
   bool err= false;
+  uint64_t dummy_xa_ref;
 
   byte *page_buf= static_cast<byte *>(ut_malloc(ibb_page_size, mem_key_binlog));
   if (!page_buf)
@@ -3721,7 +3740,7 @@ innodb_binlog_get_init_state(rpl_binlog_state_base *out_state)
 
   mysql_mutex_lock(&purge_binlog_mutex);
   chunk_reader.seek(earliest_binlog_file_no, ibb_page_size);
-  int res= read_gtid_state(&chunk_reader, out_state);
+  int res= read_gtid_state(&chunk_reader, out_state, &dummy_xa_ref);
   mysql_mutex_unlock(&purge_binlog_mutex);
   if (res != 1)
     err= true;
