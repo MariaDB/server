@@ -937,8 +937,7 @@ Description: Backup tool for MariaDB server
 
 Package: mariadb-plugin-connect
 Architecture: any
-Depends: libxml2,
-         mariadb-server (= ${server:Version}),
+Depends: mariadb-server (= ${server:Version}),
          unixodbc,
          ${misc:Depends},
          ${shlibs:Depends}

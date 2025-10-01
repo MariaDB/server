@@ -1,6 +1,6 @@
-#
-# MDEV-20257 Server crashes in Grant_table_base::init_read_record upon crash-upgrade
-#
+--echo #
+--echo # MDEV-20257 Server crashes in Grant_table_base::init_read_record upon crash-upgrade
+--echo #
 source include/not_embedded.inc;
 
 call mtr.add_suppression("mysql.user");
@@ -19,3 +19,109 @@ replace_result \\ /;
 flush privileges;
 
 source include/switch_to_mysql_global_priv.inc;
+
+--echo #
+--echo # MDEV-28128 SIGSEGV in replace_column_table on GRANT
+--echo #
+call mtr.add_suppression("The table is probably corrupted");
+create user a@localhost;
+rename table mysql.columns_priv to mysql.columns_priv_bak;
+create table mysql.columns_priv select * from mysql.columns_priv_bak;
+create table t (c int);
+--error ER_CANNOT_LOAD_FROM_TABLE_V2
+grant update (c) on t to a@localhost;
+drop table t;
+drop table mysql.columns_priv;
+rename table mysql.columns_priv_bak to mysql.columns_priv;
+drop user a@localhost;
+
+--echo #
+--echo # MDEV-23731 SIGSEGV in replace_user_table when changing mysql db tables
+--echo #
+rename table mysql.global_priv to mysql.global_priv_bak;
+rename table mysql.user to mysql.user_bak;
+create table mysql.user (host char(100), user char(100)) engine=merge;
+--error ER_CANNOT_LOAD_FROM_TABLE_V2
+alter user 'a' identified by '';
+drop table mysql.user;
+rename table mysql.global_priv_bak to mysql.global_priv;
+rename table mysql.user_bak to mysql.user;
+
+--echo #
+--echo # MDEV-24206 SIGSEGV in replace_db_table on GRANT
+--echo #
+rename table mysql.db to mysql.db_bak;
+create table mysql.db engine=memory select * from mysql.db_bak;
+--error ER_CANNOT_LOAD_FROM_TABLE_V2
+grant select on mysql.* to 'a'@'a' identified by 'a';
+drop table mysql.db;
+rename table mysql.db_bak to mysql.db;
+
+--echo #
+--echo # MDEV-24814 SIGSEGV in replace_table_table on GRANT
+--echo #
+create user m@localhost;
+rename table mysql.tables_priv to mysql.tables_priv_bak;
+create table t (c int);
+create table mysql.tables_priv select * from mysql.tables_priv_bak;
+--error ER_CANNOT_LOAD_FROM_TABLE_V2
+grant select on t to m@localhost;
+drop table mysql.tables_priv;
+rename table mysql.tables_priv_bak to mysql.tables_priv;
+drop user m@localhost;
+drop table t;
+
+--echo #
+--echo # MDEV-27842 SIGSEGV in replace_routine_table on GRANT
+--echo #
+create user a@b;
+set global log_bin_trust_function_creators=1;
+rename table mysql.procs_priv to mysql.procs_priv_bak;
+create table mysql.procs_priv (dummy int);
+create function f() returns int return (select 1 t);
+--error ER_CANNOT_LOAD_FROM_TABLE_V2
+grant execute on function f to a@b;
+drop table mysql.procs_priv;
+rename table mysql.procs_priv_bak to mysql.procs_priv;
+drop function f;
+drop user a@b;
+
+--echo #
+--echo # MDEV-27893 SIGSEGV in replace_proxies_priv_table on GRANT PROXY
+--echo #
+rename table mysql.proxies_priv to mysql.proxies_priv_bak;
+create table mysql.proxies_priv select * from mysql.proxies_priv_bak;
+--error ER_CANNOT_LOAD_FROM_TABLE_V2
+grant proxy on grant_plug to grant_plug_dest;
+drop table mysql.proxies_priv;
+rename table mysql.proxies_priv_bak to mysql.proxies_priv;
+
+--echo #
+--echo # MDEV-28773 SIGSEGV in TABLE::use_all_columns, replace_roles_mapping_table
+--echo #
+rename table mysql.roles_mapping to mysql.roles_mapping_bak;
+create role r1;
+drop role r1;
+rename table mysql.roles_mapping_bak to mysql.roles_mapping;
+
+--echo #
+--echo # MDEV-35622 SEGV, ASAN use-after-poison when reading system table with less than expected number of columns
+--echo #
+call mtr.add_suppression("mysql.servers");
+alter table mysql.servers drop column owner;
+insert into mysql.servers values(0,0,0,0,0,0,0,0);
+--error ER_CANNOT_LOAD_FROM_TABLE_V2
+flush privileges;
+alter table mysql.servers add column Owner varchar(512) not null default '';
+
+--echo #
+--echo # MDEV-28482 SIGSEGV in get_access_value_from_val_int
+--echo #
+create temporary table t1 select * from mysql.tables_priv;
+alter table mysql.tables_priv drop column timestamp;
+--error ER_CANNOT_LOAD_FROM_TABLE_V2
+flush privileges;
+alter table mysql.tables_priv add column Timestamp timestamp not null default now() on update now() after grantor;
+replace mysql.tables_priv select * from t1;
+
+--echo # End of 10.11 tests
