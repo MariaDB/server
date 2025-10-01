@@ -1,0 +1,11 @@
+--- storage/spider/mysql-test/spider/bugfix/r/mdev_32907.result	2025-10-01 11:47:30.380446118 +1000
++++ storage/spider/mysql-test/spider/bugfix/r/mdev_32907.reject	2025-10-01 14:47:19.035531989 +1000
+@@ -12,7 +12,7 @@
+ insert into t1 values (3), (NULL);
+ explain select nvl(sum(c), 0) from t1;
+ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	
++1	PUSHED SELECT	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL
+ select nvl(sum(c), 0) from t1;
+ nvl(sum(c), 0)
+ 3

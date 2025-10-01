@@ -1,0 +1,83 @@
+--- storage/spider/mysql-test/spider/feature/r/pushdown_timestamp_diff.result	2025-10-01 11:47:35.084409616 +1000
++++ storage/spider/mysql-test/spider/feature/r/pushdown_timestamp_diff.reject	2025-10-01 14:46:50.607764806 +1000
+@@ -28,7 +28,7 @@
+ interval year
+ explain select a, b, timestampdiff(year, '2000-01-01 00:00:00', c) from t1;
+ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+-1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Storage engine handles GROUP BY
++1	PUSHED SELECT	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL
+ select a, b, timestampdiff(year, '2000-01-01 00:00:00', c) from t1;
+ a	b	timestampdiff(year, '2000-01-01 00:00:00', c)
+ 1	a	18
+@@ -37,7 +37,7 @@
+ interval quarter
+ explain select a, b, timestampdiff(quarter, '2000-01-01 00:00:00', c) from t1;
+ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+-1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Storage engine handles GROUP BY
++1	PUSHED SELECT	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL
+ select a, b, timestampdiff(quarter, '2000-01-01 00:00:00', c) from t1;
+ a	b	timestampdiff(quarter, '2000-01-01 00:00:00', c)
+ 1	a	75
+@@ -46,7 +46,7 @@
+ interval month
+ explain select a, b, timestampdiff(month, '2000-01-01 00:00:00', c) from t1;
+ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+-1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Storage engine handles GROUP BY
++1	PUSHED SELECT	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL
+ select a, b, timestampdiff(month, '2000-01-01 00:00:00', c) from t1;
+ a	b	timestampdiff(month, '2000-01-01 00:00:00', c)
+ 1	a	226
+@@ -55,7 +55,7 @@
+ interval week
+ explain select a, b, timestampdiff(week, '2000-01-01 00:00:00', c) from t1;
+ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+-1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Storage engine handles GROUP BY
++1	PUSHED SELECT	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL
+ select a, b, timestampdiff(week, '2000-01-01 00:00:00', c) from t1;
+ a	b	timestampdiff(week, '2000-01-01 00:00:00', c)
+ 1	a	982
+@@ -64,7 +64,7 @@
+ interval day
+ explain select a, b, timestampdiff(day, '2000-01-01 00:00:00', c) from t1;
+ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+-1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Storage engine handles GROUP BY
++1	PUSHED SELECT	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL
+ select a, b, timestampdiff(day, '2000-01-01 00:00:00', c) from t1;
+ a	b	timestampdiff(day, '2000-01-01 00:00:00', c)
+ 1	a	6879
+@@ -73,7 +73,7 @@
+ internal hour
+ explain select a, b, timestampdiff(hour, '2000-01-01 00:00:00', c) from t1;
+ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+-1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Storage engine handles GROUP BY
++1	PUSHED SELECT	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL
+ select a, b, timestampdiff(hour, '2000-01-01 00:00:00', c) from t1;
+ a	b	timestampdiff(hour, '2000-01-01 00:00:00', c)
+ 1	a	165106
+@@ -82,7 +82,7 @@
+ internal minute
+ explain select a, b, timestampdiff(minute, '2000-01-01 00:00:00', c) from t1;
+ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+-1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Storage engine handles GROUP BY
++1	PUSHED SELECT	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL
+ select a, b, timestampdiff(minute, '2000-01-01 00:00:00', c) from t1;
+ a	b	timestampdiff(minute, '2000-01-01 00:00:00', c)
+ 1	a	9906381
+@@ -91,7 +91,7 @@
+ internal second
+ explain select a, b, timestampdiff(second, '2000-01-01 00:00:00', c) from t1;
+ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+-1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Storage engine handles GROUP BY
++1	PUSHED SELECT	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL
+ select a, b, timestampdiff(second, '2000-01-01 00:00:00', c) from t1;
+ a	b	timestampdiff(second, '2000-01-01 00:00:00', c)
+ 1	a	594382899
+@@ -100,7 +100,7 @@
+ internal microsecond
+ explain select a, b, timestampdiff(microsecond, '2000-01-01 00:00:00', c) from t1;
+ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+-1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Storage engine handles GROUP BY
++1	PUSHED SELECT	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL
+ select a, b, timestampdiff(microsecond, '2000-01-01 00:00:00', c) from t1;
+ a	b	timestampdiff(microsecond, '2000-01-01 00:00:00', c)
+ 1	a	594382899000000

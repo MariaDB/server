@@ -1,0 +1,28 @@
+--- storage/spider/mysql-test/spider/r/spider_fixes.result	2025-10-01 11:47:38.900380009 +1000
++++ storage/spider/mysql-test/spider/r/spider_fixes.reject	2025-10-01 15:35:02.205067369 +1000
+@@ -294,7 +294,7 @@
+ connection master_1;
+ SHOW STATUS LIKE 'Spider_direct_order_limit';
+ Variable_name	Value
+-Spider_direct_order_limit	2
++Spider_direct_order_limit	0
+ SELECT a, b, c FROM ta_l_int ORDER BY a LIMIT 3;
+ a	b	c
+ 1	2	4
+@@ -302,7 +302,7 @@
+ 3	4	5
+ SHOW STATUS LIKE 'Spider_direct_order_limit';
+ Variable_name	Value
+-Spider_direct_order_limit	3
++Spider_direct_order_limit	0
+ 
+ 2.26
+ lock tables
+@@ -485,7 +485,6 @@
+ SELECT id FROM t1 ORDER BY id;
+ id
+ Warnings:
+-Error	12702	Remote table 'auto_test_remote.ter1_1' is not found
+ Error	1146	Table 'auto_test_remote.ter1_1' doesn't exist
+ INSERT INTO t1 (id) VALUES (1);
+ Warnings:

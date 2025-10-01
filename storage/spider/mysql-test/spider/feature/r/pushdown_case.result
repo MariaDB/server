@@ -15,7 +15,7 @@ Warning	138	Spider table params in COMMENT or CONNECTION strings have been depre
 insert into t1 values (42), (3), (848), (100);
 explain select case c when 3 then "three" when 42 then "answer" else "other" end as exp from t1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PUSHED SELECT	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Storage engine handles GROUP BY
 select case c when 3 then "three" when 42 then "answer" else "other" end as exp from t1;
 exp
 answer
@@ -24,7 +24,7 @@ other
 other
 explain select case c when 3 then "three" when 42 then "answer" end from t1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PUSHED SELECT	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Storage engine handles GROUP BY
 select case c when 3 then "three" when 42 then "answer" end from t1;
 case c when 3 then "three" when 42 then "answer" end
 answer
@@ -33,7 +33,7 @@ NULL
 NULL
 explain select case when c = 3 then "three" when c = 42 then "answer" else "other" end as exp from t1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PUSHED SELECT	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Storage engine handles GROUP BY
 select case when c = 3 then "three" when c = 42 then "answer" else "other" end as exp from t1;
 exp
 answer
@@ -42,7 +42,7 @@ other
 other
 explain select case when c = 3 then "three" when c = 42 then "answer" end from t1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PUSHED SELECT	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Storage engine handles GROUP BY
 select case when c = 3 then "three" when c = 42 then "answer" end from t1;
 case when c = 3 then "three" when c = 42 then "answer" end
 answer

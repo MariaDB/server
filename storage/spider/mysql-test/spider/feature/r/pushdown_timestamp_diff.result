@@ -28,7 +28,7 @@ INSERT INTO t1 (a, b, c) VALUES
 interval year
 explain select a, b, timestampdiff(year, '2000-01-01 00:00:00', c) from t1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PUSHED SELECT	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Storage engine handles GROUP BY
 select a, b, timestampdiff(year, '2000-01-01 00:00:00', c) from t1;
 a	b	timestampdiff(year, '2000-01-01 00:00:00', c)
 1	a	18
@@ -37,7 +37,7 @@ a	b	timestampdiff(year, '2000-01-01 00:00:00', c)
 interval quarter
 explain select a, b, timestampdiff(quarter, '2000-01-01 00:00:00', c) from t1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PUSHED SELECT	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Storage engine handles GROUP BY
 select a, b, timestampdiff(quarter, '2000-01-01 00:00:00', c) from t1;
 a	b	timestampdiff(quarter, '2000-01-01 00:00:00', c)
 1	a	75
@@ -46,7 +46,7 @@ a	b	timestampdiff(quarter, '2000-01-01 00:00:00', c)
 interval month
 explain select a, b, timestampdiff(month, '2000-01-01 00:00:00', c) from t1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PUSHED SELECT	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Storage engine handles GROUP BY
 select a, b, timestampdiff(month, '2000-01-01 00:00:00', c) from t1;
 a	b	timestampdiff(month, '2000-01-01 00:00:00', c)
 1	a	226
@@ -55,7 +55,7 @@ a	b	timestampdiff(month, '2000-01-01 00:00:00', c)
 interval week
 explain select a, b, timestampdiff(week, '2000-01-01 00:00:00', c) from t1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PUSHED SELECT	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Storage engine handles GROUP BY
 select a, b, timestampdiff(week, '2000-01-01 00:00:00', c) from t1;
 a	b	timestampdiff(week, '2000-01-01 00:00:00', c)
 1	a	982
@@ -64,7 +64,7 @@ a	b	timestampdiff(week, '2000-01-01 00:00:00', c)
 interval day
 explain select a, b, timestampdiff(day, '2000-01-01 00:00:00', c) from t1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PUSHED SELECT	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Storage engine handles GROUP BY
 select a, b, timestampdiff(day, '2000-01-01 00:00:00', c) from t1;
 a	b	timestampdiff(day, '2000-01-01 00:00:00', c)
 1	a	6879
@@ -73,7 +73,7 @@ a	b	timestampdiff(day, '2000-01-01 00:00:00', c)
 internal hour
 explain select a, b, timestampdiff(hour, '2000-01-01 00:00:00', c) from t1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PUSHED SELECT	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Storage engine handles GROUP BY
 select a, b, timestampdiff(hour, '2000-01-01 00:00:00', c) from t1;
 a	b	timestampdiff(hour, '2000-01-01 00:00:00', c)
 1	a	165106
@@ -82,7 +82,7 @@ a	b	timestampdiff(hour, '2000-01-01 00:00:00', c)
 internal minute
 explain select a, b, timestampdiff(minute, '2000-01-01 00:00:00', c) from t1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PUSHED SELECT	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Storage engine handles GROUP BY
 select a, b, timestampdiff(minute, '2000-01-01 00:00:00', c) from t1;
 a	b	timestampdiff(minute, '2000-01-01 00:00:00', c)
 1	a	9906381
@@ -91,7 +91,7 @@ a	b	timestampdiff(minute, '2000-01-01 00:00:00', c)
 internal second
 explain select a, b, timestampdiff(second, '2000-01-01 00:00:00', c) from t1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PUSHED SELECT	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Storage engine handles GROUP BY
 select a, b, timestampdiff(second, '2000-01-01 00:00:00', c) from t1;
 a	b	timestampdiff(second, '2000-01-01 00:00:00', c)
 1	a	594382899
@@ -100,7 +100,7 @@ a	b	timestampdiff(second, '2000-01-01 00:00:00', c)
 internal microsecond
 explain select a, b, timestampdiff(microsecond, '2000-01-01 00:00:00', c) from t1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PUSHED SELECT	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Storage engine handles GROUP BY
 select a, b, timestampdiff(microsecond, '2000-01-01 00:00:00', c) from t1;
 a	b	timestampdiff(microsecond, '2000-01-01 00:00:00', c)
 1	a	594382899000000

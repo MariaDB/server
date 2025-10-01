@@ -61,13 +61,13 @@ IF(COUNT(a > 0),'Y','N')	MAX(a)
 Y	97
 SHOW STATUS LIKE 'Spider_direct_aggregate';
 Variable_name	Value
-Spider_direct_aggregate	0
+Spider_direct_aggregate	2
 SELECT MAX(a), IF(COUNT(a > 0),'Y','N') FROM t1;
 MAX(a)	IF(COUNT(a > 0),'Y','N')
 97	Y
 SHOW STATUS LIKE 'Spider_direct_aggregate';
 Variable_name	Value
-Spider_direct_aggregate	0
+Spider_direct_aggregate	4
 DROP TABLE t, t1;
 set spider_direct_aggregate=@old_spider_direct_aggregate;
 DROP SERVER srv_mdev_29502;
