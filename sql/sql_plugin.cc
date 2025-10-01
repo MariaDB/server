@@ -73,6 +73,8 @@ ulong plugin_maturity;
 
 static LEX_CSTRING MYSQL_PLUGIN_NAME= {STRING_WITH_LEN("plugin") };
 
+enum mysql_plugin_fields { PLUGIN_NAME, PLUGIN_SONAME, PLUGIN_FIELDS_COUNT };
+
 /*
   not really needed now, this map will become essential when we add more
   maturity levels. We cannot change existing maturity constants,
@@ -1927,8 +1929,8 @@ static void plugin_load(MEM_ROOT *tmp_root)
   {
     DBUG_PRINT("info", ("init plugin record"));
     String str_name, str_dl;
-    get_field(tmp_root, table->field[0], &str_name);
-    get_field(tmp_root, table->field[1], &str_dl);
+    get_field(tmp_root, table->field[PLUGIN_NAME], &str_name);
+    get_field(tmp_root, table->field[PLUGIN_SONAME], &str_dl);
 
     LEX_CSTRING name= {str_name.ptr(), str_name.length()};
     LEX_CSTRING dl=   {str_dl.ptr(), str_dl.length()};
@@ -2247,9 +2249,8 @@ static bool finalize_install(THD *thd, TABLE *table, const LEX_CSTRING *name,
   DBUG_ASSERT(!table->file->row_logging);
   table->use_all_columns();
   restore_record(table, s->default_values);
-  table->field[0]->store(name->str, name->length, system_charset_info);
-  table->field[1]->store(tmp->plugin_dl->dl.str, tmp->plugin_dl->dl.length,
-                         files_charset_info);
+  table->field[PLUGIN_NAME]->store(name->str, name->length, system_charset_info);
+  table->field[PLUGIN_SONAME]->store(&tmp->plugin_dl->dl, files_charset_info);
   error= table->file->ha_write_row(table->record[0]);
   if (unlikely(error))
   {
@@ -2388,7 +2389,7 @@ static bool do_uninstall(THD *thd, TABLE *table, const LEX_CSTRING *name)
 
   uchar user_key[MAX_KEY_LENGTH];
   table->use_all_columns();
-  table->field[0]->store(name->str, name->length, system_charset_info);
+  table->field[PLUGIN_NAME]->store(name->str, name->length, system_charset_info);
   key_copy(user_key, table->record[0], table->key_info,
            table->key_info->key_length);
   if (! table->file->ha_index_read_idx_map(table->record[0], 0, user_key,

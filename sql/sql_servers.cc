@@ -56,6 +56,12 @@ static MEM_ROOT mem;
 static mysql_rwlock_t THR_LOCK_servers;
 static LEX_CSTRING MYSQL_SERVERS_NAME= {STRING_WITH_LEN("servers") };
 
+enum servers_fields {
+  SERVER_NAME_FIELD, HOST_FIELD, DB_FIELD, USERNAME_FIELD, PASSWORD_FIELD,
+  PORT_FIELD, SOCKET_FIELD, SCHEME_FIELD, OWNER_FIELD,
+  SERVERS_FIELDS_COUNT
+};
+
 static bool get_server_from_table_to_cache(TABLE *table);
 
 /* insert functions */
@@ -292,8 +298,7 @@ static bool servers_load(THD *thd, TABLE_LIST *tables)
   init_sql_alloc(key_memory_servers, &mem, ACL_ALLOC_BLOCK_SIZE, 0, MYF(0));
 
   table->use_all_columns();
-  if (init_read_record(&read_record_info,thd,table, NULL, NULL,
-                       1,0, FALSE))
+  if (init_read_record(&read_record_info,thd,table, NULL, NULL, 1,0, FALSE))
     DBUG_RETURN(1);
   while (!(read_record_info.read_record()))
   {
@@ -406,27 +411,27 @@ get_server_from_table_to_cache(TABLE *table)
   DBUG_ENTER("get_server_from_table_to_cache");
 
   /* get each field into the server struct ptr */
-  ptr= get_field(&mem, table->field[0]);
+  ptr= get_field(&mem, table->field[SERVER_NAME_FIELD]);
   server->server_name= ptr ? ptr : blank;
   server->server_name_length= (uint) strlen(server->server_name);
-  ptr= get_field(&mem, table->field[1]);
+  ptr= get_field(&mem, table->field[HOST_FIELD]);
   server->host= ptr ? ptr : blank;
-  ptr= get_field(&mem, table->field[2]);
+  ptr= get_field(&mem, table->field[DB_FIELD]);
   server->db= ptr ? ptr : blank;
-  ptr= get_field(&mem, table->field[3]);
+  ptr= get_field(&mem, table->field[USERNAME_FIELD]);
   server->username= ptr ? ptr : blank;
-  ptr= get_field(&mem, table->field[4]);
+  ptr= get_field(&mem, table->field[PASSWORD_FIELD]);
   server->password= ptr ? ptr : blank;
-  ptr= get_field(&mem, table->field[5]);
+  ptr= get_field(&mem, table->field[PORT_FIELD]);
   server->sport= ptr ? ptr : blank;
 
   server->port= server->sport ? atoi(server->sport) : 0;
 
-  ptr= get_field(&mem, table->field[6]);
+  ptr= get_field(&mem, table->field[SOCKET_FIELD]);
   server->socket= ptr && strlen(ptr) ? ptr : blank;
-  ptr= get_field(&mem, table->field[7]);
+  ptr= get_field(&mem, table->field[SCHEME_FIELD]);
   server->scheme= ptr ? ptr : blank;
-  ptr= get_field(&mem, table->field[8]);
+  ptr= get_field(&mem, table->field[OWNER_FIELD]);
   server->owner= ptr ? ptr : blank;
   DBUG_PRINT("info", ("server->server_name %s", server->server_name));
   DBUG_PRINT("info", ("server->host %s", server->host));
@@ -554,7 +559,7 @@ store_server_fields(TABLE *table, FOREIGN_SERVER *server)
 
   table->use_all_columns();
 
-  if (table->s->fields < 9)
+  if (table->s->fields < SERVERS_FIELDS_COUNT)
     return ER_CANT_FIND_SYSTEM_REC;
 
   /*
@@ -566,34 +571,34 @@ store_server_fields(TABLE *table, FOREIGN_SERVER *server)
     even if with empty strings
   */
   if (server->host &&
-    table->field[1]->store(server->host,
+    table->field[HOST_FIELD]->store(server->host,
                            (uint) strlen(server->host), system_charset_info))
     goto err;
   if (server->db &&
-    table->field[2]->store(server->db,
+    table->field[DB_FIELD]->store(server->db,
                            (uint) strlen(server->db), system_charset_info))
     goto err;
   if (server->username &&
-    table->field[3]->store(server->username,
+    table->field[USERNAME_FIELD]->store(server->username,
                            (uint) strlen(server->username), system_charset_info))
     goto err;
   if (server->password &&
-    table->field[4]->store(server->password,
+    table->field[PASSWORD_FIELD]->store(server->password,
                            (uint) strlen(server->password), system_charset_info))
     goto err;
   if (server->port > -1 &&
-    table->field[5]->store(server->port))
+    table->field[PORT_FIELD]->store(server->port))
     goto err;
   if (server->socket &&
-    table->field[6]->store(server->socket,
+    table->field[SOCKET_FIELD]->store(server->socket,
                            (uint) strlen(server->socket), system_charset_info))
     goto err;
   if (server->scheme &&
-    table->field[7]->store(server->scheme,
+    table->field[SCHEME_FIELD]->store(server->scheme,
                            (uint) strlen(server->scheme), system_charset_info))
     goto err;
   if (server->owner &&
-    table->field[8]->store(server->owner,
+    table->field[OWNER_FIELD]->store(server->owner,
                            (uint) strlen(server->owner), system_charset_info))
     goto err;
   return 0;
@@ -638,17 +643,14 @@ int insert_server_record(TABLE *table, FOREIGN_SERVER *server)
   empty_record(table);
 
   /* set the field that's the PK to the value we're looking for */
-  table->field[0]->store(server->server_name,
-                         server->server_name_length,
-                         system_charset_info);
+  table->field[SERVER_NAME_FIELD]->store(server->server_name,
+                                         server->server_name_length,
+                                         system_charset_info);
 
   /* read index until record is that specified in server_name */
-  if (unlikely((error=
-                table->file->ha_index_read_idx_map(table->record[0], 0,
-                                                   (uchar *)table->field[0]->
-                                                   ptr,
-                                                   HA_WHOLE_KEY,
-                                                   HA_READ_KEY_EXACT))))
+  if ((error= table->file->ha_index_read_idx_map(table->record[0], 0,
+                  (uchar *)table->field[SERVER_NAME_FIELD]->ptr,
+                  HA_WHOLE_KEY, HA_READ_KEY_EXACT)))
   {
     /* if not found, err */
     if (error != HA_ERR_KEY_NOT_FOUND && error != HA_ERR_END_OF_FILE)
@@ -988,9 +990,9 @@ update_server_record(TABLE *table, FOREIGN_SERVER *server)
 
   table->use_all_columns();
   /* set the field that's the PK to the value we're looking for */
-  if (table->field[0]->store(server->server_name,
-                         server->server_name_length,
-                         system_charset_info))
+  if (table->field[SERVER_NAME_FIELD]->store(server->server_name,
+                                             server->server_name_length,
+                                             system_charset_info))
   {
     DBUG_ASSERT(0); /* Protected by servers_cache */
     THD *thd= table->in_use;
@@ -998,12 +1000,9 @@ update_server_record(TABLE *table, FOREIGN_SERVER *server)
     return thd->get_stmt_da()->get_sql_errno();
   }
 
-  if (unlikely((error=
-                table->file->ha_index_read_idx_map(table->record[0], 0,
-                                                   (uchar *)table->field[0]->
-                                                   ptr,
-                                                   ~(longlong)0,
-                                                   HA_READ_KEY_EXACT))))
+  if ((error=table->file->ha_index_read_idx_map(table->record[0], 0,
+                  (uchar *)table->field[SERVER_NAME_FIELD]->ptr,
+                  ~(longlong)0, HA_READ_KEY_EXACT)))
   {
     if (error != HA_ERR_KEY_NOT_FOUND && error != HA_ERR_END_OF_FILE)
       table->file->print_error(error, MYF(0));
@@ -1057,14 +1056,11 @@ delete_server_record(TABLE *table, LEX_CSTRING *name)
   table->use_all_columns();
 
   /* set the field that's the PK to the value we're looking for */
-  table->field[0]->store(name->str, name->length, system_charset_info);
+  table->field[SERVER_NAME_FIELD]->store(name->str, name->length, system_charset_info);
 
-  if (unlikely((error=
-                table->file->ha_index_read_idx_map(table->record[0], 0,
-                                                   (uchar *)table->field[0]->
-                                                   ptr,
-                                                   HA_WHOLE_KEY,
-                                                   HA_READ_KEY_EXACT))))
+  if ((error= table->file->ha_index_read_idx_map(table->record[0], 0,
+                (uchar *)table->field[SERVER_NAME_FIELD]->ptr,
+                HA_WHOLE_KEY, HA_READ_KEY_EXACT)))
   {
     if (error != HA_ERR_KEY_NOT_FOUND && error != HA_ERR_END_OF_FILE)
       table->file->print_error(error, MYF(0));
