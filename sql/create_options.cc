@@ -27,7 +27,7 @@
 
 #define FRM_QUOTED_VALUE 0x8000U
 
-static const char *bools="NO,OFF,0,YES,ON,1";
+static const char *bools="NO,OFF,FALSE,0,YES,ON,TRUE,1";
 
 /**
   Links this item to the given list end
@@ -182,6 +182,31 @@ static bool set_one_value(ha_create_table_option *opt, THD *thd,
         DBUG_RETURN(0);
       }
 
+      /* check boolean aliases. */
+      uint bool_val= value->find_in_list(bools);
+      if (bool_val != UINT_MAX)
+      {
+        bool_val= bool_val > 3;
+
+        static const LEX_CSTRING vals[2]= {
+          { STRING_WITH_LEN("NO") },
+          { STRING_WITH_LEN("YES") },
+        };
+        const LEX_CSTRING &str_val= vals[bool_val];
+        const char *str= opt->values;
+        size_t len= 0;
+        for (int num= 0; *str; num++)
+        {
+          for (len= 0; str[len] && str[len] != ','; len++) /* no-op */;
+          if (str_val.length == len && !strncasecmp(str_val.str, str, len))
+          {
+            *val= num;
+            DBUG_RETURN(0);
+          }
+          str+= len+1;
+        }
+      }
+
       DBUG_RETURN(report_wrong_value(thd, opt->name, value->str,
                                      suppress_warning));
     }
@@ -196,7 +221,7 @@ static bool set_one_value(ha_create_table_option *opt, THD *thd,
       uint num= value->find_in_list(bools);
       if (num != UINT_MAX)
       {
-        *val= num > 2;
+        *val= num > 3;
         DBUG_RETURN(0);
       }
 
