@@ -6262,3 +6262,134 @@ bool Item_func_json_object_to_array::fix_length_and_dec(THD *thd)
 
   return FALSE;
 }
+
+
+static bool check_unique_keys(json_engine_t *je)
+{
+  HASH unique_keys;
+  bool result= true;
+
+  if (my_hash_init(PSI_INSTRUMENT_ME, &unique_keys, je->s.cs,
+                   0, 0, 0, get_key_name, NULL, 0))
+    return false;
+
+  while (json_scan_next(je) == 0)
+  {
+    if (je->state == JST_KEY)
+    {
+      const uchar *key_start, *key_end;
+      int key_len;
+
+      key_start= je->s.c_str;
+      do
+      {
+        key_end= je->s.c_str;
+      } while (json_read_keyname_chr(je) == 0);
+
+      if (unlikely(je->s.error))
+      {
+        my_hash_free(&unique_keys);
+        return false;
+      }
+
+      key_len= (int)(key_end - key_start);
+
+      char *curr_key= (char*)malloc((size_t)(key_len+3));
+      strncpy(curr_key, (const char*)key_start, key_len);
+      curr_key[key_len]= '\0';
+
+      if (my_hash_search(&unique_keys, (const uchar*)curr_key, strlen(curr_key)))
+      {
+        my_hash_free(&unique_keys);
+        return false;
+      }
+
+      if (my_hash_insert(&unique_keys, (const uchar*)curr_key))
+      {
+        my_hash_free(&unique_keys);
+        return false;
+      }
+
+      // Skip the value
+      if (json_read_value(je))
+      {
+        my_hash_free(&unique_keys);
+        return false;
+      }
+      if (!json_value_scalar(je))
+      {
+        if (json_skip_level(je))
+        {
+          my_hash_free(&unique_keys);
+          return false;
+        }
+      }
+    }
+  }
+  my_hash_free(&unique_keys);
+  return result;
+}
+
+
+bool Item_func_is_json::val_bool()
+{
+  bool result= true;
+  bool unique_keys= true;
+  String *js= args[0]->val_json(&tmp_value);
+
+  if ((null_value= args[0]->null_value))
+    return 0;
+
+  json_scan_start(&je, js->charset(), (const uchar*)js->ptr(),
+                  (const uchar*)js->end());
+
+  if (json_read_value(&je))
+    return negated;
+
+  switch (type_constraint)
+  {
+  case JSON_VALUE_ANY:
+    result= true;
+    break;
+  case JSON_ARRAY:
+    result= (je.value_type == JSON_VALUE_ARRAY);
+    break;
+  case JSON_OBJECT:
+    result= (je.value_type == JSON_VALUE_OBJECT);
+    break;
+  case JSON_SCALAR:
+    result= (json_value_scalar(&je));
+    break;
+  }
+
+  while (json_scan_next(&je) == 0) {}
+  if (je.s.error)
+    return negated;
+
+  if (with_unique_keys)
+  {
+    if (je.value_type == JSON_VALUE_OBJECT || je.value_type == JSON_VALUE_ARRAY)
+    {
+      // Reset the json engine to the beginning of the json object
+      json_scan_start(&je, js->charset(), (const uchar*)js->ptr(),
+      (const uchar*)js->end());
+      unique_keys= check_unique_keys(&je);
+    }
+  }
+
+  return negated ? !(result && unique_keys) : (result && unique_keys);
+}
+
+
+bool Item_func_is_json::fix_length_and_dec(THD *thd)
+{
+  mem_root_dynamic_array_init(thd->mem_root, PSI_INSTRUMENT_MEM,
+                              &je.stack, sizeof(int), NULL,
+                              JSON_DEPTH_DEFAULT, JSON_DEPTH_INC, MYF(0));
+
+  if (Item_bool_func::fix_length_and_dec(thd))
+    return TRUE;
+  set_maybe_null();
+
+  return FALSE;
+}
