@@ -48,8 +48,13 @@ set @pages_prefetch_read_count= cast(json_value(@js,'$.pages_prefetch_read_count
 select @pages_accessed > 1000 and @pages_accessed < 1500;
 
 set @total_read = (@pages_read_count + @pages_prefetch_read_count);
+set @low_ok= @pages_accessed*0.75 < @total_read;
+set @high_ok= @total_read < @pages_accessed*1.50;
 
-select @pages_accessed*0.75 < @total_read, @total_read < @pages_accessed*1.25;
+select @low_ok, @high_ok;
+select
+if(@low_ok and @high_ok,0,@pages_accessed) unexpected_accessed,
+if(@low_ok and @high_ok,0,@total_read) unexpected_read;
 
 set @innodb_pages_read1= 
   (select variable_value 
