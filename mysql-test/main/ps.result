@@ -6018,6 +6018,18 @@ a	b	c
 1	1970-01-01 09:00:01	6
 DROP TABLE t;
 # End of 10.6 tests
+# Beginning of 10.11 test
+#
+# MDEV-30277: Assertion failure in Diagnostics_area::set_error_status
+# / Reprepare_observer::report_error
+#
+CREATE TABLE t (a INT);
+PREPARE stmt FROM " DELETE FROM t LIMIT ?";
+ALTER TABLE t FORCE;
+EXECUTE stmt USING DEFAULT;
+ERROR HY000: Default/ignore value is not supported for such parameter usage
+DROP TABLE t;
+# End of 10.11 test
 #
 # MDEV-34322: ASAN heap-buffer-overflow in Field::is_null / Item_param::assign_default or bogus ER_BAD_NULL_ERROR
 #
