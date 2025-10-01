@@ -315,6 +315,20 @@ end:
 }
 
 
+static bool servers_table_is_valid(TABLE *table)
+{
+  if (table->s->fields < SERVERS_FIELDS_COUNT ||
+      table->s->primary_key == MAX_KEY)
+  {
+    my_errno= 1;
+    my_error(ER_CANNOT_LOAD_FROM_TABLE_V2, MYF(0),
+             table->s->db.str, table->s->table_name.str);
+    return false;
+  }
+  return true;
+}
+
+
 /*
   Forget current servers cache and read new servers 
   from the conneciton table.
@@ -357,6 +371,9 @@ bool servers_reload(THD *thd)
     return_val= FALSE;
     goto end;
   }
+
+  if (!servers_table_is_valid(tables.table))
+    goto end;
 
   if ((return_val= servers_load(thd, &tables)))
   {					// Error. Revert to old list
@@ -479,8 +496,10 @@ insert_server(THD *thd, FOREIGN_SERVER *server)
   tables.init_one_table(&MYSQL_SCHEMA_NAME, &MYSQL_SERVERS_NAME, 0, TL_WRITE);
 
   /* need to open before acquiring THR_LOCK_plugin or it will deadlock */
-  if (! (table= open_ltable(thd, &tables, TL_WRITE, MYSQL_LOCK_IGNORE_TIMEOUT)))
+  table= open_ltable(thd, &tables, TL_WRITE, MYSQL_LOCK_IGNORE_TIMEOUT);
+  if (!table || !servers_table_is_valid(table))
     goto end;
+
   table->file->row_logging= 0;                  // Don't log to binary log
 
   /* insert the server into the table */
@@ -558,9 +577,6 @@ store_server_fields(TABLE *table, FOREIGN_SERVER *server)
 {
 
   table->use_all_columns();
-
-  if (table->s->fields < SERVERS_FIELDS_COUNT)
-    return ER_CANT_FIND_SYSTEM_REC;
 
   /*
     "server" has already been prepped by prepare_server_struct_for_<>
@@ -711,8 +727,8 @@ static int drop_server_internal(THD *thd, LEX_SERVER_OPTIONS *server_options)
   if (unlikely((error= delete_server_record_in_cache(server_options))))
     goto end;
 
-  if (unlikely(!(table= open_ltable(thd, &tables, TL_WRITE,
-                                    MYSQL_LOCK_IGNORE_TIMEOUT))))
+  table= open_ltable(thd, &tables, TL_WRITE, MYSQL_LOCK_IGNORE_TIMEOUT);
+  if (!table || !servers_table_is_valid(table))
   {
     error= my_errno;
     goto end;
@@ -839,7 +855,8 @@ int update_server(THD *thd, FOREIGN_SERVER *existing, FOREIGN_SERVER *altered)
 
   tables.init_one_table(&MYSQL_SCHEMA_NAME, &MYSQL_SERVERS_NAME, 0, TL_WRITE);
 
-  if (!(table= open_ltable(thd, &tables, TL_WRITE, MYSQL_LOCK_IGNORE_TIMEOUT)))
+  table= open_ltable(thd, &tables, TL_WRITE, MYSQL_LOCK_IGNORE_TIMEOUT);
+  if (!table || !servers_table_is_valid(table))
   {
     error= my_errno;
     goto end;

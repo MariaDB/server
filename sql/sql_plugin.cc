@@ -1875,6 +1875,19 @@ static bool register_builtin(struct st_maria_plugin *plugin,
 }
 
 
+static bool plugin_table_is_valid(TABLE *table)
+{
+  if (table->s->fields < PLUGIN_FIELDS_COUNT ||
+      table->s->primary_key == MAX_KEY)
+  {
+    my_error(ER_CANNOT_LOAD_FROM_TABLE_V2, MYF(0),
+             table->s->db.str, table->s->table_name.str);
+    return false;
+  }
+  return true;
+}
+
+
 /*
   called only by plugin_init()
 */
@@ -1916,6 +1929,9 @@ static void plugin_load(MEM_ROOT *tmp_root)
                         new_thd->get_stmt_da()->message());
     goto end;
   }
+
+  if (!plugin_table_is_valid(table))
+    goto end2;
 
   if (init_read_record(&read_record_info, new_thd, table, NULL, NULL, 1, 0,
                        FALSE))
@@ -1978,6 +1994,7 @@ static void plugin_load(MEM_ROOT *tmp_root)
     sql_print_error(ER_THD(new_thd, ER_GET_ERRNO), my_errno,
                            table->file->table_type());
   end_read_record(&read_record_info);
+end2:
   table->mark_table_for_reopen();
   close_mysql_tables(new_thd);
 end:
@@ -2280,8 +2297,8 @@ bool mysql_install_plugin(THD *thd, const LEX_CSTRING *name,
   WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, NULL, NULL);
 
   /* need to open before acquiring LOCK_plugin or it will deadlock */
-  if (! (table = open_ltable(thd, &tables, TL_WRITE,
-                             MYSQL_LOCK_IGNORE_TIMEOUT)))
+  table= open_ltable(thd, &tables, TL_WRITE, MYSQL_LOCK_IGNORE_TIMEOUT);
+  if (!table || !plugin_table_is_valid(table))
     DBUG_RETURN(TRUE);
 
   if (my_load_defaults(MYSQL_CONFIG_NAME, load_default_groups, &argc, &argv, NULL))
@@ -2438,18 +2455,9 @@ bool mysql_uninstall_plugin(THD *thd, const LEX_CSTRING *name,
   WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, NULL, NULL);
 
   /* need to open before acquiring LOCK_plugin or it will deadlock */
-  if (! (table= open_ltable(thd, &tables, TL_WRITE, MYSQL_LOCK_IGNORE_TIMEOUT)))
+  table= open_ltable(thd, &tables, TL_WRITE, MYSQL_LOCK_IGNORE_TIMEOUT);
+  if (!table || !plugin_table_is_valid(table))
     DBUG_RETURN(TRUE);
-
-  if (!table->key_info)
-  {
-    my_printf_error(ER_UNKNOWN_ERROR,
-                    "The table %s.%s has no primary key. "
-                    "Please check the table definition and "
-                    "create the primary key accordingly.", MYF(0),
-                    table->s->db.str, table->s->table_name.str);
-    DBUG_RETURN(TRUE);
-  }
 
   /*
     Pre-acquire audit plugins for events that may potentially occur
