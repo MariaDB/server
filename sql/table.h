@@ -2604,7 +2604,23 @@ struct TABLE_LIST
   /* TODO: check if this can be joined with tablenr_exec */
   uint jtbm_table_no;
 
+  /*
+    Subquery's SELECT list. On second PS execution the subquery is not
+    processed so select_lex->item_list or ref_pointer_array are not valid.
+    These item pointers point to the arguments of Item_func_eq IN-equalities
+    in sj_on_expr.
+  */
+  List<Item_ptr>        sj_inner_expr_list;
+
   SJ_MATERIALIZATION_INFO *sj_mat_info;
+  /*
+    For semi-join nests: how much fanout this semi-join has: given one
+    record combination of outer tables, how many matching rows the
+    subquery would produce. For example,
+      ... IN (SELECT o_customer FROM orders WHERE ...)
+    would produce average number of orders for one customer.
+  */
+  double sj_fanout_ratio;
 
   /*
     The structure of ON expression presented in the member above

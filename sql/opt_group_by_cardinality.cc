@@ -30,6 +30,10 @@
 static
 double estimate_table_group_cardinality(JOIN *join, Item ***group_list,
                                         Item* const *end);
+static
+double estimate_item_list_cardinality(JOIN *join,
+                                      Dynamic_array<Item*> &group_cols,
+                                      double join_output_card);
 
 inline bool has_one_bit_set(table_map val)
 {
@@ -51,6 +55,41 @@ int cmp_items_by_used_tables(const void *a_val, const void *b_val)
   return v1 > v2 ? 1 : (v1 < v2 ? -1 : 0);
 }
 
+
+/*
+  Estimate how many distinct rows the select inside sj_nest would produce
+
+  @param  join              Parent join (subq_pred is a semi-join merged into
+                            this join)
+  @param  sj_nest           Subquery (converted into a merged semi-join)
+  @param  subq_output_size  Subquery output size. Duplicate rows may occur
+                            multiple times.
+
+  @return
+    Number of distinct rows in subquery's output.
+*/
+
+double estimate_distinct_cardinality(JOIN *join, TABLE_LIST *sj_nest,
+                                     double subq_output_size)
+{
+  Dynamic_array<Item*> group_cols(join->thd->mem_root);
+
+  Item **item;
+  List_iterator<Item_ptr> it(sj_nest->sj_inner_expr_list);
+
+  while ((item = it++))
+  {
+    table_map map= (*item)->used_tables();
+    if ((map & PSEUDO_TABLE_BITS) || !has_one_bit_set(map))
+    {
+      /* Can't estimate */
+      return subq_output_size;
+    }
+    group_cols.append(*item);
+  }
+  DBUG_ASSERT(group_cols.size());
+  return estimate_item_list_cardinality(join, group_cols, subq_output_size);
+}
 
 /*
   @brief
@@ -91,10 +130,6 @@ double estimate_post_group_cardinality(JOIN *join, double join_output_card)
   Dynamic_array<Item*> group_cols(join->thd->mem_root);
   ORDER *cur_group;
 
-  Json_writer_object wrapper(join->thd);
-  Json_writer_object trace(join->thd, "materialized_output_cardinality");
-  trace.add("join_output_cardinality", join_output_card);
-
   /*
     Walk the GROUP BY list and put items into group_cols array. Array is
     easier to work with: we will sort it and then produce estimates for
@@ -113,7 +148,17 @@ double estimate_post_group_cardinality(JOIN *join, double join_output_card)
     group_cols.append(item);
   }
   DBUG_ASSERT(group_cols.size());
+  return estimate_item_list_cardinality(join, group_cols, join_output_card);
+}
 
+
+static
+double estimate_item_list_cardinality(JOIN *join, Dynamic_array<Item*> &group_cols,
+                                      double join_output_card)
+{
+  Json_writer_object wrapper(join->thd);
+  Json_writer_object trace(join->thd, "materialized_output_cardinality");
+  trace.add("join_output_cardinality", join_output_card);
   group_cols.sort(cmp_items_by_used_tables);
 
   double new_card= 1.0;
@@ -241,8 +286,8 @@ double estimate_table_group_cardinality(JOIN *join, Item ***group_list,
 
       // Also note the TABLE* for the table we're handling:
       table= field->table;
-      table_records_after_where= rows2double(table->reginfo.join_tab->
-                                             found_records);
+      table_records_after_where= table->cond_selectivity *
+                                 rows2double(table->stat_records());
     }
     else
       found_complex_item= true;
@@ -379,8 +424,8 @@ whole_table:
       if (tbl->table->map == table_bit)
       {
         table= tbl->table;
-        table_records_after_where= rows2double(tbl->table->reginfo.
-                                               join_tab->found_records);
+        table_records_after_where= table->cond_selectivity *
+                                   rows2double(table->stat_records());
         break;
       }
     }
