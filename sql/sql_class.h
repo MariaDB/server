@@ -216,6 +216,25 @@ enum enum_binlog_row_image {
 
 void old_mode_deprecated_warnings(ulonglong v);
 
+
+/*
+  Bits for @@new_mode -> thd->variables.new_behaviour system variable
+  See sys_vars.cc /new_mode_all_names
+*/
+
+/* this bit will always be set */
+#define NEW_MODE_NOW_DEFAULT                                           (1 << 0)
+/* these are configuration */
+#define NEW_MODE_FIX_DISK_TMPTABLE_COSTS                               (1 << 1)
+#define NEW_MODE_FIX_SEMIJOIN_DUPS_WEEDOUT_CHECK                       (1 << 2)
+#define NEW_MODE_MAX                                                         3
+
+/* Definitions above that have transitioned from new behaviour to default */
+
+#define NEW_MODE_TEST_WARNING1                                         (1 << 0)
+#define NEW_MODE_TEST_WARNING2                                         (1 << 0)
+
+
 extern char internal_table_name[2];
 extern char empty_c_string[1];
 extern MYSQL_PLUGIN_IMPORT const char **errmesg;
@@ -724,6 +743,7 @@ typedef struct system_variables
   ulonglong optimizer_trace;
   sql_mode_t sql_mode; ///< which non-standard SQL behaviour should be enabled
   sql_mode_t old_behavior; ///< which old SQL behaviour should be enabled
+  sql_mode_t new_behavior; ///< which new SQL behaviour should be enabled
   ulonglong option_bits; ///< OPTION_xxx constants, e.g. OPTION_PROFILING
   ulonglong join_buff_space_limit;
   ulonglong log_slow_filter; 
