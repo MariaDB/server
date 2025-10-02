@@ -3571,9 +3571,6 @@ void spider_trx_set_link_idx_for_all(
   DBUG_PRINT("info",("spider set link_count=%d", link_count));
   DBUG_PRINT("info",("spider set all_link_count=%d", all_link_count));
   memset(conn_can_fo, 0, sizeof(uchar) * share->link_bitmap_size);
-  /* We change the name from roop_count and roop_count2 to link_idx
-  and all_link_idx because the latter are generally used in the
-  same context. */
   for (uint link_idx = 0; link_idx < link_count; link_idx++)
   {
     uint all_link_idx;
