@@ -112,7 +112,7 @@ alter table mysql.servers drop column owner;
 insert into mysql.servers values(0,0,0,0,0,0,0,0,0);
 --error ER_CANNOT_LOAD_FROM_TABLE_V2
 flush privileges;
-alter table mysql.servers add column Owner varchar(512) not null default '';
+alter table mysql.servers add column Owner varchar(512) not null default '' after Wrapper;
 
 --echo #
 --echo # MDEV-28482 SIGSEGV in get_access_value_from_val_int
