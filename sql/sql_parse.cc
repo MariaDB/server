@@ -4894,6 +4894,9 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
     DBUG_ASSERT(select_lex->limit_params.offset_limit == 0);
     unit->set_limit(select_lex);
 
+    if (thd->is_error())
+      goto error;
+
     MYSQL_DELETE_START(thd->query());
     Protocol *save_protocol= NULL;
 
@@ -8418,8 +8421,8 @@ TABLE_LIST *st_select_lex::add_table_to_list(THD *thd,
       }
     }
   }
-  /* Store the table reference preceding the current one. */
-  TABLE_LIST *UNINIT_VAR(previous_table_ref); /* The table preceding the current one. */
+  /* Store the table reference preceding the current in previous_table_ref */
+  TABLE_LIST *UNINIT_VAR(previous_table_ref);
   if (table_list.elements > 0 && likely(!ptr->sequence))
   {
     /*

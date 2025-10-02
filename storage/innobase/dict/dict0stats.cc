@@ -379,7 +379,15 @@ dict_table_schema_check(
 		return DB_STATS_DO_NOT_EXIST;
 	}
 
-	if (!table->is_readable() || !table->space) {
+	if (!table->is_readable()) {
+		/* table is not readable */
+		snprintf(errstr, errstr_sz,
+			 "Table %s is not readable.",
+			 req_schema->table_name_sql);
+		return DB_ERROR;
+	}
+
+	if (!table->space) {
 		/* missing tablespace */
 		snprintf(errstr, errstr_sz,
 			 "Tablespace for table %s is missing.",
@@ -3714,8 +3722,9 @@ dberr_t dict_stats_rename_table(const char *old_name, const char *new_name,
   dict_fs2utf8(old_name, old_db, sizeof old_db, old_table, sizeof old_table);
   dict_fs2utf8(new_name, new_db, sizeof new_db, new_table, sizeof new_table);
 
-  if (dict_table_t::is_temporary_name(old_name) ||
-      dict_table_t::is_temporary_name(new_name))
+  /* Delete the stats only if renaming the table from old table to
+  intermediate table during COPY algorithm */
+  if (dict_table_t::is_temporary_name(new_name))
   {
     if (dberr_t e= dict_stats_delete_from_table_stats(old_db, old_table, trx))
       return e;
