@@ -3568,7 +3568,6 @@ void spider_reuse_trx_ha(
 void spider_trx_set_link_idx_for_all(
   ha_spider *spider
 ) {
-  int roop_count, roop_count2;
   SPIDER_SHARE *share = spider->share;
   long *link_statuses = share->link_statuses;
   uint *conn_link_idx = spider->conn_link_idx;
@@ -3579,32 +3578,33 @@ void spider_trx_set_link_idx_for_all(
   DBUG_PRINT("info",("spider set link_count=%d", link_count));
   DBUG_PRINT("info",("spider set all_link_count=%d", all_link_count));
   memset(conn_can_fo, 0, sizeof(uchar) * share->link_bitmap_size);
-  for (roop_count = 0; roop_count < link_count; roop_count++)
+  for (uint link_idx = 0; link_idx < link_count; link_idx++)
   {
-    for (roop_count2 = roop_count; roop_count2 < all_link_count;
-      roop_count2 += link_count)
+    uint all_link_idx;
+    for (all_link_idx = link_idx; all_link_idx < all_link_count;
+      all_link_idx += link_count)
     {
-      if (link_statuses[roop_count2] <= SPIDER_LINK_STATUS_RECOVERY)
+      if (link_statuses[all_link_idx] <= SPIDER_LINK_STATUS_RECOVERY)
         break;
     }
-    if (roop_count2 < all_link_count)
+    if (all_link_idx < all_link_count)
     {
-      conn_link_idx[roop_count] = roop_count2;
-      if (roop_count2 + link_count < all_link_count)
-        spider_set_bit(conn_can_fo, roop_count);
+      conn_link_idx[link_idx] = all_link_idx;
+      if (all_link_idx + link_count < all_link_count)
+        spider_set_bit(conn_can_fo, link_idx);
       DBUG_PRINT("info",("spider set conn_link_idx[%d]=%d",
-        roop_count, roop_count2));
+        link_idx, all_link_idx));
     } else {
-      conn_link_idx[roop_count] = roop_count;
+      conn_link_idx[link_idx] = link_idx;
       DBUG_PRINT("info",("spider set2 conn_link_idx[%d]=%d",
-        roop_count, roop_count));
+        link_idx, link_idx));
     }
-    spider->conn_keys[roop_count] =
+    spider->conn_keys[link_idx] =
       ADD_TO_PTR(spider->conn_keys_first_ptr,
-        PTR_BYTE_DIFF(share->conn_keys[conn_link_idx[roop_count]],
+        PTR_BYTE_DIFF(share->conn_keys[conn_link_idx[link_idx]],
           share->conn_keys[0]), char*);
     DBUG_PRINT("info",("spider conn_keys[%d]=%s",
-      roop_count, spider->conn_keys[roop_count]));
+      link_idx, spider->conn_keys[link_idx]));
   }
   DBUG_VOID_RETURN;
 }
