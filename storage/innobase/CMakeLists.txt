@@ -91,6 +91,8 @@ IF (CMAKE_CXX_COMPILER_ID MATCHES "Clang" OR
   SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wconversion -Wno-sign-conversion")
   SET_SOURCE_FILES_PROPERTIES(fts/fts0pars.cc
     PROPERTIES COMPILE_FLAGS -Wno-conversion)
+  SET_SOURCE_FILES_PROPERTIES(clone/clone0api.cc
+    PROPERTIES COMPILE_FLAGS -Wno-conversion)
 ENDIF()
 
 IF(NOT MSVC)
@@ -133,6 +135,10 @@ INCLUDE_DIRECTORIES(${CMAKE_SOURCE_DIR}/storage/innobase/include
                     ${CMAKE_SOURCE_DIR}/libbinlogevents/include)
 
 SET(INNOBASE_SOURCES
+	arch/arch0arch.cc
+	arch/arch0page.cc
+	arch/arch0log.cc
+	arch/arch0recv.cc
 	btr/btr0btr.cc
 	btr/btr0bulk.cc
 	btr/btr0cur.cc
@@ -146,6 +152,12 @@ SET(INNOBASE_SOURCES
 	buf/buf0flu.cc
 	buf/buf0lru.cc
 	buf/buf0rea.cc
+	clone/clone0api.cc
+	clone/clone0clone.cc
+	clone/clone0copy.cc
+	clone/clone0apply.cc
+	clone/clone0desc.cc
+	clone/clone0snapshot.cc
 	data/data0data.cc
 	data/data0type.cc
 	dict/dict0boot.cc

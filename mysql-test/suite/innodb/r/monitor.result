@@ -180,6 +180,10 @@ icp_attempts	disabled
 icp_no_match	disabled
 icp_out_of_range	disabled
 icp_match	disabled
+page_track_resets	disabled
+page_track_partial_block_writes	disabled
+page_track_full_block_writes	disabled
+page_track_checkpoint_partial_flush_request	disabled
 create temporary table orig_innodb_metrics as select name, enabled from information_schema.innodb_metrics;
 set global innodb_monitor_disable = All;
 select name from information_schema.innodb_metrics where enabled;
@@ -220,6 +224,8 @@ lock_row_lock_time	disabled
 lock_row_lock_time_max	disabled
 lock_row_lock_waits	disabled
 lock_row_lock_time_avg	disabled
+page_track_partial_block_writes	disabled
+page_track_full_block_writes	disabled
 set global innodb_monitor_enable = "%lock*";
 ERROR 42000: Variable 'innodb_monitor_enable' can't be set to the value of '%lock*'
 set global innodb_monitor_enable="%%%%%%%%%%%%%%%%%%%%%%%%%%%";

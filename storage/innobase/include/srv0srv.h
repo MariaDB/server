@@ -392,6 +392,7 @@ extern mysql_pfs_key_t	page_cleaner_thread_key;
 extern mysql_pfs_key_t	page_encrypt_thread_key;
 extern mysql_pfs_key_t	trx_rollback_clean_thread_key;
 extern mysql_pfs_key_t	thread_pool_thread_key;
+extern mysql_pfs_key_t  archiver_thread_key;
 
 /* This macro register the current thread and its key with performance
 schema */
@@ -441,6 +442,15 @@ extern PSI_stage_info	srv_stage_alter_table_read_pk_internal_sort;
 /** Performance schema stage event for monitoring buffer pool load progress. */
 extern PSI_stage_info	srv_stage_buffer_pool_load;
 #endif /* HAVE_PSI_STAGE_INTERFACE */
+
+/** Performance schema stage event for monitoring clone file copy progress. */
+extern PSI_stage_info srv_stage_clone_file_copy;
+
+/** Performance schema stage event for monitoring clone redo copy progress. */
+extern PSI_stage_info srv_stage_clone_redo_copy;
+
+/** Performance schema stage event for monitoring clone page copy progress. */
+extern PSI_stage_info srv_stage_clone_page_copy;
 
 /** Alternatives for srv_force_recovery. Non-zero values are intended
 to help the user get a damaged database up so that he can dump intact

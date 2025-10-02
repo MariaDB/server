@@ -3651,6 +3651,8 @@ public:
 #endif
 #ifdef SIGNAL_WITH_VIO_CLOSE
   Vio* active_vio;
+  /* Active network vio for clone remote connection. */
+  Vio *clone_vio;
 #endif
 
   /*
@@ -4366,7 +4368,25 @@ public:
     active_vio = 0;
     mysql_mutex_unlock(&LOCK_thd_data);
   }
+
   void close_active_vio();
+
+  /** Set active clone network Vio for remote clone.
+  @param[in] vio network vio */
+  inline void set_clone_vio(Vio *vio) {
+    mysql_mutex_lock(&LOCK_thd_data);
+    clone_vio = vio;
+    mysql_mutex_unlock(&LOCK_thd_data);
+  }
+
+  /** Clear clone network Vio for remote clone. */
+  inline void clear_clone_vio() {
+    mysql_mutex_lock(&LOCK_thd_data);
+    clone_vio = nullptr;
+    mysql_mutex_unlock(&LOCK_thd_data);
+  }
+
+  void close_clone_vio();
 #endif
   void awake_no_mutex(killed_state state_to_set);
   void awake(killed_state state_to_set)

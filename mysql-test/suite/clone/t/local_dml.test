@@ -1,0 +1,182 @@
+# Test clone with concurrent DML
+--source include/have_innodb.inc
+--source ../include/clone_connection_begin.inc
+
+--let $CLONE_DATADIR = $MYSQL_TMP_DIR/data_new
+--let $CLONE_DATADIR1 = $MYSQL_TMP_DIR/data_new1
+
+--source include/count_sessions.inc
+
+## Install plugin
+--replace_result $MARIADB_CLONE_SO CLONE_PLUGIN
+--eval INSTALL PLUGIN clone SONAME '$MARIADB_CLONE_SO'
+
+SHOW VARIABLES LIKE "clone_buffer_size";
+
+SET GLOBAL clone_buffer_size = 2097152;
+
+SHOW VARIABLES LIKE "clone_buffer_size";
+
+## Create test schema
+--source ../include/create_schema.inc
+
+## Execute Clone while concurrent DMLs are in progress
+--let num_rows = 100
+
+# Insert 1k rows to run clone for longer and test auto tuning
+if ($clone_auto_tune) {
+--let num_rows = 1000
+--let clone_throttle = 1
+}
+
+if ($clone_ddl) {
+  --let num_rows = 200
+  --let clone_throttle = 1
+}
+
+# Insert rows
+--eval call execute_dml(0, 0, $num_rows, $num_rows, 10, 0)
+
+# Check base rows
+SHOW CREATE TABLE t1;
+SELECT count(*) from t1;
+SELECT col1, col2, col3 FROM t1 ORDER BY col1 LIMIT 10;
+SELECT col1, col2, col3 FROM t1 ORDER BY col1 DESC LIMIT 10;
+
+SHOW CREATE TABLE t2;
+SELECT count(*) from t2;
+SELECT col1, col2, col3 FROM t2 ORDER BY col1 LIMIT 10;
+SELECT col1, col2, col3 FROM t2 ORDER BY col1 DESC LIMIT 10;
+
+--echo # In connection con1 - Running Insert Random [100 - 200 Key range]
+connect (con1,localhost,root,,);
+--send call execute_dml(0, 100, 100, 100, 20, 1)
+
+--echo # In connection con2 - Running Update Random [0 - 25 Key Range]
+connect (con2,localhost,root,,);
+--send call execute_dml(1, 0, 25, 100, 20, 1)
+
+--echo # In connection con3 - Running Delete Random [26 - 50 Key Range]
+connect (con3,localhost,root,,);
+--send call execute_dml(2, 26, 25, 100, 20, 1)
+
+--echo # In connection con4 - Running Update Random uncommited [51 - 75 Key Range]
+connect (con4,localhost,root,,);
+
+if ($clone_ddl) {
+  --send call execute_ddl(10)
+}
+
+if (!$clone_ddl) {
+  begin;
+  --send call execute_dml(1, 51, 25, 100, 200, 1)
+}
+
+--echo # In connection default - Cloning database
+--connection clone_conn_1
+
+--source ../include/clone_command.inc
+--echo # In connection default - Finished Cloning
+
+--echo # In connection con1 - Waiting
+connection con1;
+--reap
+
+--echo # In connection con2 - Waiting
+connection con2;
+--reap
+
+--echo # In connection con3 - Waiting
+connection con3;
+--reap
+
+--echo # In connection con4 - Waiting
+connection con4;
+--reap
+commit;
+
+--echo # In connection default
+connection default;
+
+disconnect con1;
+disconnect con2;
+disconnect con3;
+disconnect con4;
+
+--source include/wait_until_count_sessions.inc
+
+if (!$clone_remote_replace) {
+  --echo # Restart cloned database
+  --let restart_noprint=1
+  --let restart_parameters=--datadir=$CLONE_DATADIR
+  --source include/restart_mysqld.inc
+}
+
+if ($clone_remote_replace) {
+  --connection clone_conn_1
+}
+
+# Insert 2k rows with throttle to run clone for longer and test auto tuning
+if ($clone_auto_tune) {
+--let num_rows = 2000
+--let clone_throttle = 0
+}
+
+# Execute procedure to delete all rows and insert
+call execute_dml(3, 0, 1, 1, 1, 0);
+--eval call execute_dml(0, 0, $num_rows, $num_rows, 10, 0)
+
+# Check table in cloned database
+SHOW CREATE TABLE t1;
+SELECT count(*) from t1;
+SELECT col1, col2, col3 FROM t1 ORDER BY col1 LIMIT 10;
+SELECT col1, col2, col3 FROM t1 ORDER BY col1 DESC LIMIT 10;
+
+SHOW CREATE TABLE t2;
+SELECT count(*) from t2;
+SELECT col1, col2, col3 FROM t2 ORDER BY col1 LIMIT 10;
+SELECT col1, col2, col3 FROM t2 ORDER BY col1 DESC LIMIT 10;
+
+# Test clone after recovering from cloned databse
+--let $CLONE_DATADIR = $CLONE_DATADIR1
+--source ../include/clone_command.inc
+--let $CLONE_DATADIR = $MYSQL_TMP_DIR/data_new
+
+if (!$clone_remote_replace) {
+  --echo # Restart cloned database
+  --let restart_parameters=--datadir=$CLONE_DATADIR1
+  --source include/restart_mysqld.inc
+}
+
+# Execute procedure to delete all rows and insert
+call execute_dml(3, 0, 1, 1, 1, 0);
+call execute_dml(0, 0, 100, 100, 10, 0);
+
+# Check table in cloned database
+SHOW CREATE TABLE t1;
+SELECT count(*) from t1;
+SELECT col1, col2, col3 FROM t1 ORDER BY col1 LIMIT 10;
+SELECT col1, col2, col3 FROM t1 ORDER BY col1 DESC LIMIT 10;
+
+SHOW CREATE TABLE t2;
+SELECT count(*) from t2;
+SELECT col1, col2, col3 FROM t2 ORDER BY col1 LIMIT 10;
+SELECT col1, col2, col3 FROM t2 ORDER BY col1 DESC LIMIT 10;
+
+#Cleanup
+if (!$clone_remote_replace) {
+--let restart_parameters=
+--source include/restart_mysqld.inc
+}
+--connection default
+
+--source ../include/drop_schema.inc
+
+if (!$clone_remote_replace) {
+--rmdir $CLONE_DATADIR
+--rmdir $CLONE_DATADIR1
+}
+
+--source ../include/clone_connection_end.inc
+
+UNINSTALL PLUGIN clone;

@@ -165,6 +165,9 @@ struct log_t
   (used to be 2048 before FORMAT_10_8). */
   static constexpr lsn_t FIRST_LSN= START_OFFSET;
 
+  /** Clone header string in redo log header creator field. */
+  static constexpr const char CREATOR_CLONE[]= "MariaDB Clone ";
+
 private:
   /** the least significant bit of the write_to_buf buffer */
   static constexpr size_t WRITE_TO_BUF_SHIFT{34};
@@ -222,7 +225,7 @@ public:
   size_t write_to_log;
 
   /** Last written LSN; protected by latch */
-  lsn_t write_lsn;
+  Atomic_relaxed<lsn_t> write_lsn;
 
   /** Buffer for writing data to ib_logfile0, or nullptr if is_mmap().
   In write_buf(), buf and flush_buf may be swapped */
@@ -241,6 +244,10 @@ public:
 
   /** latest completed checkpoint (protected by latch.wr_lock()) */
   Atomic_relaxed<lsn_t> last_checkpoint_lsn;
+
+  /** LSN for last checkpoint record. */
+  lsn_t last_checkpoint_end_lsn;
+
   /** The log writer (protected by latch.wr_lock()) */
   lsn_t (*writer)() noexcept;
   /** next checkpoint LSN (protected by latch.wr_lock()) */
@@ -409,7 +416,8 @@ public:
   @param buf        log header buffer
   @param lsn        log sequence number corresponding to log_sys.START_OFFSET
   @param encrypted  whether the log is encrypted */
-  static void header_write(byte *buf, lsn_t lsn, bool encrypted) noexcept;
+  static void header_write(byte *buf, lsn_t lsn, bool encrypted,
+                           bool is_clone= false) noexcept;
 
   /** @return an estimate of get_lsn(),
   using acquire-release ordering with write_buf() or persist();
@@ -556,6 +564,13 @@ public:
 
   /** Create the log. */
   void create(lsn_t lsn) noexcept;
+
+  /** Get last redo block from redo buffer and end LSN.
+  @param  last_lsn    end lsn of last mtr
+  @param  last_block  last redo block
+  @param  block_len   length in bytes */
+  void get_last_block(lsn_t &last_lsn, byte *last_block,
+                      uint32_t block_len);
 };
 
 /** Redo log system */

@@ -1,0 +1,107 @@
+# Test clone command (DDL for non-InnoDB: CSV, MERGE/MRG_MYISAM, MyISAM)
+--source include/not_embedded.inc
+--source ../include/clone_connection_begin.inc
+
+# Install Clone Plugin
+--replace_result $MARIADB_CLONE_SO CLONE_PLUGIN
+--eval INSTALL PLUGIN clone SONAME '$MARIADB_CLONE_SO'
+
+SELECT PLUGIN_NAME, PLUGIN_STATUS
+  FROM INFORMATION_SCHEMA.PLUGINS
+  WHERE PLUGIN_NAME LIKE '%clone%';
+
+# -------- Engine loop: 3->CSV, 2->MERGE, 1->MyISAM --------
+--let $e_myisam = 1
+--let $e_merge  = 2
+--let $e_csv    = 3
+--let $e_var    = $e_csv
+
+while ($e_var)
+{
+  if ($e_var == $e_csv)
+  {
+    --let $engine = CSV
+  }
+  if ($e_var == $e_merge)
+  {
+    --let $engine = MERGE
+  }
+  if ($e_var == $e_myisam)
+  {
+    --let $engine = MyISAM
+  }
+
+  --echo # ===== Engine iteration: $engine =====
+
+  # Clean
+  DROP TABLE IF EXISTS t1, t2, t3, t4, t5,
+                       t1_m1, t1_m2, t2_m1, t2_m2, t3_m1, t3_m2;
+
+  # Create per-engine tables on donor
+  if ($e_var == $e_merge)
+  {
+    # MERGE requires MyISAM base tables
+    CREATE TABLE t1_m1 (a INT NOT NULL) ENGINE=MyISAM;
+    CREATE TABLE t1_m2 (a INT NOT NULL) ENGINE=MyISAM;
+    CREATE TABLE t1 (a INT NOT NULL)
+    ENGINE=MERGE UNION=(t1_m1, t1_m2) INSERT_METHOD=LAST;
+
+    CREATE TABLE t2_m1 (a INT NOT NULL) ENGINE=MyISAM;
+    CREATE TABLE t2_m2 (a INT NOT NULL) ENGINE=MyISAM;
+    CREATE TABLE t2 (a INT NOT NULL)
+    ENGINE=MERGE UNION=(t2_m1, t2_m2) INSERT_METHOD=LAST;
+
+    CREATE TABLE t3_m1 (a INT NOT NULL) ENGINE=MyISAM;
+    CREATE TABLE t3_m2 (a INT NOT NULL) ENGINE=MyISAM;
+    CREATE TABLE t3 (a INT NOT NULL)
+    ENGINE=MERGE UNION=(t3_m1, t3_m2) INSERT_METHOD=LAST;
+  }
+  if ($e_var != $e_merge)
+  {
+    eval CREATE TABLE t1 (a INT NOT NULL) ENGINE=$engine;
+    eval CREATE TABLE t2 (a INT NOT NULL) ENGINE=$engine;
+    eval CREATE TABLE t3 (a INT NOT NULL) ENGINE=$engine;
+  }
+
+  # DDL bundle BEFORE clone
+  CREATE TABLE t4 LIKE t1;
+  DROP TABLE t2;
+  RENAME TABLE t3 TO t5;
+
+  # Clone to a fresh directory for this iteration
+  --let $CLONE_DATADIR=$MYSQL_TMP_DIR/clone_noninnodb_$e_var
+  --let $clone_err=0
+  --let $clone_remote_err=0
+  --source ../include/clone_command.inc
+
+  --echo # Restart server on cloned data directory
+  --let $restart_noprint=1
+  --let restart_parameters=--datadir=$CLONE_DATADIR
+  --source include/restart_mysqld.inc
+
+  # Validate
+  SELECT COUNT(*) FROM t4;
+
+  --error ER_NO_SUCH_TABLE
+  SELECT * FROM t2;
+
+  --error ER_NO_SUCH_TABLE
+  SELECT * FROM t3;
+
+  SELECT COUNT(*) FROM t5;
+
+  # Return to original datadir for next iteration
+  --let restart_parameters=
+  --source include/restart_mysqld.inc
+
+  --rmdir $CLONE_DATADIR   # delete the cloned dir before next iteration
+
+  # Cleanup donor objects
+  DROP TABLE IF EXISTS t4, t5, t1, t2, t3,
+                       t1_m1, t1_m2, t2_m1, t2_m2, t3_m1, t3_m2;
+
+  --dec $e_var
+}
+
+UNINSTALL PLUGIN clone;
+--source ../include/clone_connection_end.inc

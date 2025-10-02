@@ -1,0 +1,49 @@
+# Test clone error conditions with incompatible features
+--source include/not_embedded.inc
+let $CLONE_DATADIR = $MYSQL_TMP_DIR/data_new;
+let $MYSQLD_DATADIR= `select @@datadir`;
+
+--replace_result $MARIADB_CLONE_SO CLONE_PLUGIN
+--eval INSTALL PLUGIN clone SONAME '$MARIADB_CLONE_SO'
+
+CREATE DATABASE testdb_clone;
+CREATE USER 'user_clone'@'localhost' IDENTIFIED BY '123';
+GRANT ALL ON testdb_clone.* TO 'user_clone'@'localhost';
+GRANT SELECT ON performance_schema.* to 'user_clone'@'localhost';
+SHOW GRANTS FOR 'user_clone'@'localhost';
+
+--echo # Connection without NECESSARY privilege
+--connect (con1,'localhost','user_clone','123',)
+SELECT user();
+USE testdb_clone;
+CREATE TABLE t1(col1 INT PRIMARY KEY, col2 char(64));
+--let $clone_err = ER_SPECIFIC_ACCESS_DENIED_ERROR
+--source ../include/clone_command.inc
+connection default;
+SHOW GRANTS FOR 'user_clone'@'localhost';
+--echo # Grant backup privilege to clone user
+GRANT RELOAD on *.* to 'user_clone'@'localhost';
+FLUSH PRIVILEGES;
+SHOW GRANTS FOR 'user_clone'@'localhost';
+disconnect con1;
+
+--echo # Without LOCK_TBL privilege
+--connect (con1,'localhost','user_clone','123',)
+--source ../include/clone_command.inc
+
+connection default;
+disconnect con1;
+GRANT LOCK TABLES ON *.* TO 'user_clone'@'localhost';
+FLUSH PRIVILEGES;
+SHOW GRANTS FOR 'user_clone'@'localhost';
+
+--echo # Trying clone again with all privileges
+--connect (con1,'localhost','user_clone','123',)
+let $clone_err = 0;
+--source ../include/clone_command.inc
+connection default;
+disconnect con1;
+DROP SCHEMA testdb_clone;
+DROP USER 'user_clone'@'localhost';
+--rmdir $CLONE_DATADIR
+UNINSTALL PLUGIN clone;

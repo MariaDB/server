@@ -1,0 +1,13 @@
+## Install plugin
+INSTALL PLUGIN clone SONAME 'CLONE_PLUGIN';
+CREATE TABLE t1(col1 INT PRIMARY KEY, col2 int, col3 varchar(64), col4 BLOB)ENGINE=InnoDB PAGE_COMPRESSED=1 ENCRYPTED=YES;
+CREATE TABLE t2(col1 INT PRIMARY KEY, col2 int, col3 varchar(64), col4 BLOB) ENGINE=InnoDB PAGE_COMPRESSED= 1;
+CREATE TABLE t3(col1 INT PRIMARY KEY, col2 int, col3 varchar(64),
+col4 BLOB)ENGINE=InnoDB ENCRYPTED=YES;
+# restart: --innodb_buffer_pool_load_at_startup=0
+CLONE LOCAL DATA DIRECTORY = 'CLONE_DATADIR';
+ERROR 42000: This version of MariaDB doesn't yet support 'Encrypted and compressed tablespace '
+DROP TABLE t1;
+DROP TABLE t2;
+DROP TABLE t3;
+UNINSTALL PLUGIN clone;

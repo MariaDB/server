@@ -38,7 +38,9 @@ Keep this list alphabetically sorted. */
 #ifdef BTR_CUR_HASH_ADAPT
 PSI_memory_key	mem_key_ahi;
 #endif /* BTR_CUR_HASH_ADAPT */
+PSI_memory_key  mem_key_archive;
 PSI_memory_key	mem_key_buf_buf_pool;
+PSI_memory_key  mem_key_clone;
 PSI_memory_key	mem_key_dict_stats_bg_recalc_pool_t;
 PSI_memory_key	mem_key_dict_stats_index_map_t;
 PSI_memory_key	mem_key_dict_stats_n_diff_on_level;
@@ -65,7 +67,9 @@ static PSI_memory_info	pfs_info[] = {
 #ifdef BTR_CUR_HASH_ADAPT
   {&mem_key_ahi, "adaptive hash index", 0},
 #endif /* BTR_CUR_HASH_ADAPT */
+  {&mem_key_archive, "log and page archiver", 0},
   {&mem_key_buf_buf_pool, "buf_buf_pool", 0},
+  {&mem_key_clone, "clone", 0},
   {&mem_key_dict_stats_bg_recalc_pool_t, "dict_stats_bg_recalc_pool_t", 0},
   {&mem_key_dict_stats_index_map_t, "dict_stats_index_map_t", 0},
   {&mem_key_dict_stats_n_diff_on_level, "dict_stats_n_diff_on_level", 0},

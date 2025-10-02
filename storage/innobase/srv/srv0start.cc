@@ -38,9 +38,11 @@ Created 2/16/1996 Heikki Tuuri
 #include "mysql/psi/mysql_stage.h"
 #include "mysql/psi/psi.h"
 
+#include "arch0arch.h"
 #include "row0ftsort.h"
 #include "ut0mem.h"
 #include "mem0mem.h"
+#include "clone0api.h"
 #include "data0data.h"
 #include "data0type.h"
 #include "dict0dict.h"
@@ -127,7 +129,7 @@ static bool srv_started_redo;
 
 /** At a shutdown this value climbs from SRV_SHUTDOWN_NONE to
 SRV_SHUTDOWN_CLEANUP and then to SRV_SHUTDOWN_LAST_PHASE, and so on */
-enum srv_shutdown_t	srv_shutdown_state = SRV_SHUTDOWN_NONE;
+std::atomic<enum srv_shutdown_t> srv_shutdown_state{SRV_SHUTDOWN_NONE};
 
 /** Name of srv_monitor_file */
 static char*	srv_monitor_file_name;
@@ -153,6 +155,9 @@ static PSI_stage_info*	srv_stages[] =
 	&srv_stage_alter_table_merge_sort,
 	&srv_stage_alter_table_read_pk_internal_sort,
 	&srv_stage_buffer_pool_load,
+	&srv_stage_clone_file_copy,
+	&srv_stage_clone_page_copy,
+	&srv_stage_clone_redo_copy
 };
 #endif /* HAVE_PSI_STAGE_INTERFACE */
 
@@ -1075,7 +1080,9 @@ srv_init_abort_low(
 #endif /* UNIV_DEBUG */
 			" with error " << err;
 	}
-
+#ifndef EMBEDDED_LIBRARY
+	clone_files_error();
+#endif /* EMBEDDED_LIBRARY */
 	srv_shutdown_bg_undo_sources();
 	srv_shutdown_threads(true);
 	return(err);
@@ -1100,7 +1107,11 @@ ATTRIBUTE_COLD static lsn_t srv_prepare_to_delete_redo_log_file() noexcept
   const bool latest_format{log_sys.is_latest()};
   lsn_t flushed_lsn{log_sys.get_flushed_lsn(std::memory_order_relaxed)};
 
-  if (latest_format && !(log_sys.file_size & 4095) &&
+  /* For clone recovery, we should not need to log file names before deleting
+  creating new logs. All logs are applied at this point and dirty pages are
+  flushed. If no new checkpoint is created, the DB should recover fine in case
+  of a crash before new logs are created. */
+  if (!recv_sys.is_cloned_db && latest_format && !(log_sys.file_size & 4095) &&
       flushed_lsn != log_sys.next_checkpoint_lsn +
       (log_sys.is_encrypted()
        ? SIZE_OF_FILE_CHECKPOINT + 8
@@ -1326,7 +1337,17 @@ dberr_t srv_start(bool create_new_db)
 		mysql_mutex_init(srv_misc_tmpfile_mutex_key,
 				 &srv_misc_tmpfile_mutex, nullptr);
 	}
+	/* Must replace clone files before opening any files. When clone
+        replaces current database, cloned files are moved to data files
+	at this stage. */
+#ifndef EMBEDDED_LIBRARY
+        if (srv_operation == SRV_OPERATION_NORMAL)
+	  err = clone_init();
 
+	if (err != DB_SUCCESS) {
+		return (srv_init_abort(err));
+	}
+#endif /* EMBEDDED_LIBRARY */
 	if (!srv_read_only_mode) {
 		if (srv_innodb_status) {
 
@@ -1440,6 +1461,9 @@ dberr_t srv_start(bool create_new_db)
 		Datafile::validate_first_page() */
 		return srv_init_abort(err);
 	}
+
+        if (srv_operation == SRV_OPERATION_NORMAL)
+	  Arch_Sys::init();
 
 	if (create_new_db) {
 		lsn_t flushed_lsn = log_sys.init_lsn();
@@ -1566,6 +1590,10 @@ dberr_t srv_start(bool create_new_db)
 
 		switch (srv_operation) {
                 case SRV_OPERATION_NORMAL:
+			if (err == DB_SUCCESS) {
+				arch_sys->page_sys()->post_recovery_init();
+			}
+			[[fallthrough]];
 		case SRV_OPERATION_EXPORT_RESTORED:
 		case SRV_OPERATION_RESTORE_EXPORT:
 			if (err != DB_SUCCESS) {
@@ -1600,7 +1628,9 @@ dberr_t srv_start(bool create_new_db)
 		if (err != DB_SUCCESS) {
 			return srv_init_abort(err);
 		}
-
+#ifndef EMBEDDED_LIBRARY
+		ut_ad(clone_check_recovery_crashpoint(recv_sys.is_cloned_db));
+#endif
 		if (srv_force_recovery < SRV_FORCE_NO_LOG_REDO) {
 			/* Apply the hashed log records to the
 			respective file pages, for the last batch of
@@ -1997,7 +2027,12 @@ skip_monitors:
 
 		srv_started_redo = true;
 	}
-
+#ifndef EMBEDDED_LIBRARY
+	/* Finish clone files recovery. This call is idempotent and is no op
+	if it is already done before creating new log files. */
+        if (srv_operation == SRV_OPERATION_NORMAL)
+	  clone_files_recovery(true);
+#endif /* EMBEDDED_LIBRARY */
 	return(DB_SUCCESS);
 }
 
@@ -2066,6 +2101,9 @@ void innodb_shutdown()
 		/* Shut down the persistent files. */
 		logs_empty_and_mark_files_at_shutdown();
 	}
+	/* Copy all log data to archive and stop archiver threads. */
+        if (srv_operation == SRV_OPERATION_NORMAL)
+	  Arch_Sys::stop();
 
 	os_aio_free();
 	fil_space_t::close_all();
@@ -2107,7 +2145,6 @@ void innodb_shutdown()
 
 	/* This must be disabled before closing the buffer pool
 	and closing the data dictionary.  */
-
 #ifdef BTR_CUR_HASH_ADAPT
 	if (dict_sys.is_initialised()) {
 		btr_search.disable();
@@ -2153,6 +2190,14 @@ void innodb_shutdown()
 			   << srv_shutdown_lsn
 			   << "; transaction id " << trx_sys.get_max_trx_id();
 	}
+
+	if (srv_operation == SRV_OPERATION_NORMAL) {
+#ifndef EMBEDDED_LIBRARY
+	  clone_free();
+#endif /* EMBEDDED_LIBRARY */
+	  Arch_Sys::free();
+	}
+
 	srv_thread_pool_end();
 	srv_started_redo = false;
 	srv_was_started = false;

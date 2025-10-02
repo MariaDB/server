@@ -1,0 +1,49 @@
+--echo # MyISAM table with 400 partitions
+--source include/have_partition.inc
+--source include/not_embedded.inc
+--source ../include/clone_connection_begin.inc
+
+# Install Clone Plugin
+--replace_result $MARIADB_CLONE_SO CLONE_PLUGIN
+--eval INSTALL PLUGIN clone SONAME '$MARIADB_CLONE_SO'
+
+SELECT PLUGIN_NAME, PLUGIN_STATUS
+  FROM INFORMATION_SCHEMA.PLUGINS
+  WHERE PLUGIN_NAME LIKE '%clone%';
+
+DROP TABLE IF EXISTS t1;
+
+CREATE TABLE t1 (
+  id BIGINT NOT NULL AUTO_INCREMENT,
+  PRIMARY KEY (id)
+) ENGINE=MyISAM
+PARTITION BY HASH (id)
+PARTITIONS 400;
+
+insert into t1 values (1),(2),(3),(4);
+
+--echo # clone Begins
+--let $CLONE_DATADIR=$MYSQL_TMP_DIR/clone_partition_400
+--source ../include/clone_command.inc
+
+# Restart with clone data
+--connection default
+--echo # Restart server on cloned data directory
+--let $restart_noprint=1
+--let restart_parameters=--datadir=$CLONE_DATADIR
+--source include/restart_mysqld.inc
+
+# Validate
+SHOW CREATE TABLE t1;
+SELECT COUNT(*) FROM t1;
+
+--let restart_parameters=
+--source include/restart_mysqld.inc
+
+--connection default
+# Cleanup
+DROP TABLE t1;
+--rmdir $CLONE_DATADIR
+
+UNINSTALL PLUGIN clone;
+--source ../include/clone_connection_end.inc

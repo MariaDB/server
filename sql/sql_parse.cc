@@ -162,7 +162,7 @@ const LEX_CSTRING command_name[257]={
   { STRING_WITH_LEN("Daemon") },          //29
   { STRING_WITH_LEN("Unimpl get tid") },  //30
   { STRING_WITH_LEN("Reset connection") },//31
-  { 0, 0 }, //32
+  { STRING_WITH_LEN("Remote Clone") },    //32
   { 0, 0 }, //33
   { 0, 0 }, //34
   { 0, 0 }, //35
@@ -775,6 +775,7 @@ void init_update_queries(void)
   sql_command_flags[SQLCOM_DROP_SERVER]=        CF_AUTO_COMMIT_TRANS;
   sql_command_flags[SQLCOM_BACKUP]=             CF_AUTO_COMMIT_TRANS;
   sql_command_flags[SQLCOM_BACKUP_LOCK]=        CF_AUTO_COMMIT_TRANS;
+  sql_command_flags[SQLCOM_CLONE]=              CF_AUTO_COMMIT_TRANS;
 
   /*
     The following statements can deal with temporary tables,
@@ -884,6 +885,7 @@ void init_update_queries(void)
   sql_command_flags[SQLCOM_REVOKE_ALL]|=       CF_DISALLOW_IN_RO_TRANS;
   sql_command_flags[SQLCOM_INSTALL_PLUGIN]|=   CF_DISALLOW_IN_RO_TRANS;
   sql_command_flags[SQLCOM_UNINSTALL_PLUGIN]|= CF_DISALLOW_IN_RO_TRANS;
+  sql_command_flags[SQLCOM_CLONE]|=            CF_DISALLOW_IN_RO_TRANS;
 #ifdef WITH_WSREP
   /*
     Statements for which some errors are ignored when
@@ -1598,6 +1600,7 @@ dispatch_command_return dispatch_command(enum enum_server_command command, THD *
                        command_name[command].str :
                        "<?>")));
   bool drop_more_results= 0;
+  Sql_cmd_clone *clone_cmd = nullptr;
 
   if (thd->async_state.m_state == thd_async_state::enum_async_state::RESUMED)
   {
@@ -1720,6 +1723,21 @@ dispatch_command_return dispatch_command(enum enum_server_command command, THD *
     if(thd->org_charset)
       thd->update_charset(thd->org_charset,thd->org_charset,thd->org_charset);
     my_ok(thd, 0, 0, 0);
+    break;
+  }
+  case COM_CLONE: {
+    status_var_increment(thd->status_var.com_other);
+
+    /* Try loading clone plugin */
+    clone_cmd = new (thd->mem_root) Sql_cmd_clone();
+
+    if (clone_cmd && clone_cmd->load(thd)) {
+      clone_cmd = nullptr;
+    }
+
+    thd->lex->m_sql_cmd = clone_cmd;
+    thd->lex->sql_command = SQLCOM_CLONE;
+
     break;
   }
   case COM_CHANGE_USER:
@@ -2427,6 +2445,13 @@ resume:
     thd->protocol->end_statement();
     query_cache_end_of_result(thd);
   }
+
+  /* After sending response, switch to clone protocol */
+  if (clone_cmd != nullptr) {
+    assert(command == COM_CLONE);
+    error = clone_cmd->execute_server(thd);
+  }
+
   if (drop_more_results)
     thd->server_status&= ~SERVER_MORE_RESULTS_EXISTS;
 
@@ -5858,6 +5883,12 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
     DBUG_PRINT("result", ("res: %d  killed: %d  is_error(): %d",
                           res, thd->killed, thd->is_error()));
     break;
+  case SQLCOM_CLONE:
+  {
+    assert(lex->m_sql_cmd != nullptr);
+    res = lex->m_sql_cmd->execute(thd);
+    break;
+  }
   default:
 
 #ifndef EMBEDDED_LIBRARY

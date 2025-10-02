@@ -20,6 +20,7 @@ extern "C" {
 #endif
 
 #include <mysql/service_base64.h>
+#include <mysql/service_clone_protocol.h>
 #include <mysql/service_debug_sync.h>
 #include <mysql/service_encryption.h>
 #include <mysql/service_encryption_scheme.h>

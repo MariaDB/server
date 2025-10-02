@@ -40,6 +40,9 @@ Created 4/24/1996 Heikki Tuuri
 /** A stack of table names related through foreign key constraints */
 typedef std::deque<const char*, ut_allocator<const char*> >	dict_names_t;
 
+/** Load all tablespaces for clone when DDLs are blocked. */
+void dict_load_spaces_no_ddl();
+
 /** Check MAX(SPACE) FROM SYS_TABLES and store it in fil_system.
 Open each data file if an encryption plugin has been loaded.
 

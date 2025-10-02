@@ -61,6 +61,11 @@ void buf_page_write_complete(const IORequest &request, bool error) noexcept;
 @param[in,out]	page	page to be updated */
 void buf_flush_assign_full_crc32_checksum(byte* page) noexcept;
 
+/** Check if page type is uncompressed.
+@param[in] page page frame
+@return true if uncompressed page type. */
+bool page_is_uncompressed_type(const byte *page);
+
 /** Initialize a page for writing to the tablespace.
 @param[in]	block			buffer block; NULL if bypassing the buffer pool
 @param[in,out]	page			page frame

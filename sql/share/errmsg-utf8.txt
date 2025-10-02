@@ -12360,3 +12360,71 @@ ER_WARN_CONFLICTING_COMPOUND_INDEX_HINT_FOR_TABLE
         eng "Hint %s is ignored as conflicting/duplicated (an index hint of the same type or opposite kind has already been specified for this table)"
 ER_WARN_CONFLICTING_COMPOUND_INDEX_HINT_FOR_KEY
         eng "Hint %s is ignored as conflicting/duplicated (an index hint of the same type or opposite kind has already been specified for the key)"
+ER_CLONE_DDL_IN_PROGRESS
+  eng "Concurrent DDL is performed during clone operation. Please try again."
+ER_CLONE_TOO_MANY_CONCURRENT_CLONES
+  eng "Too many concurrent clone operations. Maximum allowed - %d."
+ER_CLONE_DONOR
+  eng "Clone Donor Error: %.512s."
+ER_CLONE_PROTOCOL
+  eng "Clone received unexpected response from Donor : %.512s."
+ER_CLONE_DONOR_VERSION
+  eng "Clone Donor MySQL version: %.64s is different from Recipient MySQL version %.64s."
+ER_CLONE_OS
+  eng "Clone Donor OS: %.64s is different from Recipient OS: %.64s."
+ER_CLONE_PLATFORM
+  eng "Clone Donor platform: %.64s is different from Recipient platform: %.64s."
+ER_CLONE_CHARSET
+  eng "Clone Donor collation: %.128s is unavailable in Recipient."
+ER_CLONE_CONFIG
+  eng "Clone Configuration %.128s: Donor value: %.128s is different from Recipient value: %.128s."
+ER_CLONE_SYS_CONFIG
+  eng "Clone system configuration: %.512s"
+ER_CLONE_PLUGIN_MATCH
+  eng "Clone Donor plugin %.128s is not active in Recipient."
+ER_CLONE_LOOPBACK
+  eng "Clone cannot use loop back connection while cloning into current data directory."
+ER_CLONE_ENCRYPTION
+  eng "Clone needs SSL connection for encrypted table."
+ER_CLONE_DISK_SPACE
+  eng "Clone estimated database size is %.64s. Available space %.64s is not enough."
+ER_CLONE_IN_PROGRESS
+  eng "Concurrent clone in progress. Please try after clone is complete."
+ER_CLONE_DISALLOWED
+  eng "The clone operation cannot be executed when %s."
+ER_CLONE_NETWORK_PACKET
+  eng "Clone needs max_allowed_packet value to be %u or more. Current value is %u"
+ER_CLONE_PLUGIN_NOT_LOADED_TRACE
+  eng "Clone plugin cannot be loaded."
+ER_CLONE_HANDLER_EXIST_TRACE
+  eng "Clone Handler exists."
+ER_CLONE_CREATE_HANDLER_FAIL_TRACE
+  eng "Could not create Clone Handler."
+ER_CLONE_DONOR_TRACE
+  eng "Clone donor reported : %.512s."
+ER_CLONE_PROTOCOL_TRACE
+  eng "Clone received unexpected response from donor : %.512s."
+ER_CLONE_CLIENT_TRACE
+  eng "Clone Client: %.512s."
+ER_CLONE_SERVER_TRACE
+  eng "Clone Server: %.512s."
+ER_CLONE_SHUTDOWN_TRACE
+  eng "Clone shutting down server as RESTART failed. Please start server to complete clone operation."
+ER_PATH_IN_DATADIR
+  eng "Path is within the current data directory '%-.192s'"
+ER_IB_MSG_PAGE_ARCH_NO_RESET_POINTS
+  eng "Could not find appropriate reset points."
+ER_IB_WRN_PAGE_ARCH_FLUSH_DATA
+  eng "Unable to flush. Page archiving data may be corrupt in case of a crash."
+ER_IB_ERR_PAGE_ARCH_INVALID_DOUBLE_WRITE_BUF
+  eng "Page archiver's doublewrite buffer for %ld is not valid."
+ER_IB_ERR_PAGE_ARCH_RECOVERY_FAILED
+  eng "Page archiver system's recovery failed."
+ER_IB_ERR_PAGE_ARCH_INVALID_FORMAT
+  eng "Invalid archived file name format. The archived file is supposed to have the format %s + [0-9]*."
+ER_PAGE_TRACKING_NOT_STARTED
+  eng "Page Tracking is not started yet."
+ER_PAGE_TRACKING_RANGE_NOT_TRACKED
+  eng "Tracking was not enabled for the LSN range specified"
+ER_PAGE_TRACKING_CANNOT_PURGE
+  eng "Cannot purge data when concurrent clone is in progress. Try later."

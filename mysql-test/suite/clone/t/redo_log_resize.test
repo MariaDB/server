@@ -1,0 +1,44 @@
+--source include/have_innodb.inc
+--source include/have_debug_sync.inc
+--source include/not_embedded.inc
+
+## Install plugin
+--let $CLONE_DATADIR = $MYSQL_TMP_DIR/data_new
+
+--replace_result $MARIADB_CLONE_SO CLONE_PLUGIN
+--eval INSTALL PLUGIN clone SONAME '$MARIADB_CLONE_SO'
+
+## Create test schema
+disable_query_log;
+--source ../include/create_schema.inc
+enable_query_log;
+
+SET DEBUG_SYNC = 'clone_file_copy SIGNAL start_dml1 WAIT_FOR resume_clone1';
+--source ../include/clone_command_send.inc
+
+--echo # In connection con1
+connect (con1,localhost,root,,);
+SET DEBUG_SYNC='now WAIT_FOR start_dml1';
+--error ER_CLONE_IN_PROGRESS
+SET global innodb_log_file_size=4*1024*1024;
+SET DEBUG_SYNC= 'now SIGNAL resume_clone1';
+
+connection default;
+reap;
+SET DEBUG_SYNC="redo_log_resizing SIGNAL clone_start WAIT_FOR redo_finish";
+send SET global innodb_log_file_size=4*1024*1024;
+
+connection con1;
+set DEBUG_SYNC="now WAIT_FOR clone_start";
+rmdir $CLONE_DATADIR;
+let $clone_err= ER_CLONE_DDL_IN_PROGRESS;
+--source include/clone_command.inc
+set DEBUG_SYNC="now SIGNAL redo_finish";
+
+connection default;
+reap;
+disconnect con1;
+--source ../include/drop_schema.inc
+UNINSTALL PLUGIN clone;
+SET GLOBAL innodb_log_file_size = 10 *1024*1024;
+SET DEBUG_SYNC= 'RESET';
