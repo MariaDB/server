@@ -3375,3 +3375,163 @@ SELECT (SELECT 0 GROUP BY c HAVING (SELECT c)) FROM t GROUP BY c;
 (SELECT 0 GROUP BY c HAVING (SELECT c))
 DROP TABLE t;
 # End of 10.11 tests
+#
+# MDEV-37732: TPROC-H, Query 21 is much slower in 11.4 than in 10.11
+#
+create table t1 (
+user_id int primary key,
+user_balance int
+);
+insert into t1 select seq, seq from seq_1_to_1000;
+create table t2 (
+order_id int primary key,
+user_id int,
+order_amt int,
+index(user_id)
+);
+insert into t2 select seq, seq/10, 123456 from seq_1_to_100;
+create table t3 (
+user_id int,
+more_data varchar(100),
+index(user_id)
+);
+insert into t3 select seq, seq from seq_1_to_1000;
+set @save_new_mode=@@new_mode;
+set new_mode=replace(@@new_mode, 'fix_semijoin_dups_weedout_check', '');
+#
+# This will have a join order of DuplicateWeedout(O, U), t3.
+#  table t3 will have loops=1 (incorrect)
+explain format=json
+select *
+from
+t1 as U,
+t3
+where
+U.user_id IN (select O.user_id from t2 O
+where O.order_amt<=U.user_balance)
+and t3.user_id = U.user_id;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": "REPLACED",
+    "nested_loop": [
+      {
+        "duplicates_removal": [
+          {
+            "table": {
+              "table_name": "O",
+              "access_type": "ALL",
+              "possible_keys": ["user_id"],
+              "loops": 1,
+              "rows": 100,
+              "cost": "REPLACED",
+              "filtered": 100,
+              "attached_condition": "O.user_id is not null"
+            }
+          },
+          {
+            "table": {
+              "table_name": "U",
+              "access_type": "eq_ref",
+              "possible_keys": ["PRIMARY"],
+              "key": "PRIMARY",
+              "key_length": "4",
+              "used_key_parts": ["user_id"],
+              "ref": ["test.O.user_id"],
+              "loops": 100,
+              "rows": 1,
+              "cost": "REPLACED",
+              "filtered": 1,
+              "attached_condition": "O.order_amt <= U.user_balance"
+            }
+          }
+        ]
+      },
+      {
+        "table": {
+          "table_name": "t3",
+          "access_type": "ref",
+          "possible_keys": ["user_id"],
+          "key": "user_id",
+          "key_length": "5",
+          "used_key_parts": ["user_id"],
+          "ref": ["test.O.user_id"],
+          "loops": 1,
+          "rows": 1,
+          "cost": "REPLACED",
+          "filtered": 100
+        }
+      }
+    ]
+  }
+}
+set new_mode=CONCAT(@@new_mode, ',fix_semijoin_dups_weedout_check');
+# This will be like above but t3 will have loops=11:
+explain format=json
+select *
+from
+t1 as U,
+t3
+where
+U.user_id IN (select O.user_id from t2 O
+where O.order_amt<=U.user_balance)
+and t3.user_id = U.user_id;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": "REPLACED",
+    "nested_loop": [
+      {
+        "duplicates_removal": [
+          {
+            "table": {
+              "table_name": "O",
+              "access_type": "ALL",
+              "possible_keys": ["user_id"],
+              "loops": 1,
+              "rows": 100,
+              "cost": "REPLACED",
+              "filtered": 100,
+              "attached_condition": "O.user_id is not null"
+            }
+          },
+          {
+            "table": {
+              "table_name": "U",
+              "access_type": "eq_ref",
+              "possible_keys": ["PRIMARY"],
+              "key": "PRIMARY",
+              "key_length": "4",
+              "used_key_parts": ["user_id"],
+              "ref": ["test.O.user_id"],
+              "loops": 100,
+              "rows": 1,
+              "cost": "REPLACED",
+              "filtered": 11.11111069,
+              "attached_condition": "O.order_amt <= U.user_balance"
+            }
+          }
+        ]
+      },
+      {
+        "table": {
+          "table_name": "t3",
+          "access_type": "ref",
+          "possible_keys": ["user_id"],
+          "key": "user_id",
+          "key_length": "5",
+          "used_key_parts": ["user_id"],
+          "ref": ["test.O.user_id"],
+          "loops": 11.11111111,
+          "rows": 1,
+          "cost": "REPLACED",
+          "filtered": 100
+        }
+      }
+    ]
+  }
+}
+set new_mode=@save_new_mode;
+drop table t1,t2,t3;

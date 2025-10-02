@@ -2673,3 +2673,58 @@ SELECT (SELECT 0 GROUP BY c HAVING (SELECT c)) FROM t GROUP BY c;
 DROP TABLE t;
 
 --echo # End of 10.11 tests
+
+--echo #
+--echo # MDEV-37732: TPROC-H, Query 21 is much slower in 11.4 than in 10.11
+--echo #
+
+create table t1 (
+  user_id int primary key,
+  user_balance int
+);
+insert into t1 select seq, seq from seq_1_to_1000;
+
+create table t2 (
+  order_id int primary key,
+  user_id int,
+  order_amt int,
+  index(user_id)
+);
+insert into t2 select seq, seq/10, 123456 from seq_1_to_100;
+
+create table t3 (
+  user_id int,
+  more_data varchar(100),
+  index(user_id)
+);
+insert into t3 select seq, seq from seq_1_to_1000;
+
+
+let $q=
+explain format=json
+select *
+from
+  t1 as U,
+  t3
+where
+  U.user_id IN (select O.user_id from t2 O
+                where O.order_amt<=U.user_balance)
+  and t3.user_id = U.user_id;
+
+set @save_new_mode=@@new_mode;
+
+set new_mode=replace(@@new_mode, 'fix_semijoin_dups_weedout_check', '');
+--echo #
+--echo # This will have a join order of DuplicateWeedout(O, U), t3.
+--echo #  table t3 will have loops=1 (incorrect)
+--source include/analyze-format.inc
+eval $q;
+
+set new_mode=CONCAT(@@new_mode, ',fix_semijoin_dups_weedout_check');
+--echo # This will be like above but t3 will have loops=11:
+--source include/analyze-format.inc
+eval $q;
+
+set new_mode=@save_new_mode;
+drop table t1,t2,t3;
+

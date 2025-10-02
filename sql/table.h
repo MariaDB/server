@@ -2568,6 +2568,10 @@ struct TABLE_LIST
   Name_resolution_context *on_context;  /* For ON expressions */
   Table_function_json_table *table_function; /* If it's the table function. */
 
+  /*
+    CAUTION: This may not be a valid expression. Luckily, we only check
+    whether this is NULL.
+  */
   Item          *sj_on_expr;
   /*
     (Valid only for semi-join nests) Bitmap of tables that are within the
@@ -2589,7 +2593,18 @@ struct TABLE_LIST
   /* TODO: check if this can be joined with tablenr_exec */
   uint jtbm_table_no;
 
+  /*
+    Subquery's SELECT list. On second PS execution the subquery is not
+    processed so select_lex->item_list or ref_pointer_array are not valid.
+  */
+  List<Item_ptr>        sj_inner_expr_list;
+
   SJ_MATERIALIZATION_INFO *sj_mat_info;
+  /*
+    For semi-join nests: how much fanout this semi-join has: given one
+    record combination, how many matching rows it would produce.
+  */
+  double sj_fanout_ratio;
 
   /*
     The structure of ON expression presented in the member above

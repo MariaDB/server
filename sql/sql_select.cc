@@ -11493,7 +11493,7 @@ get_costs_for_tables(JOIN *join, table_map remaining_tables, uint idx,
   {
     table_map real_table_bit= s->table->map;
     if ((*allowed_tables & real_table_bit) &&
-        !(remaining_tables & s->dependent))
+        !(remaining_tables & join->allowed_tables & s->dependent))
     {
 #ifdef DBUG_ASSERT_EXISTS
       DBUG_ASSERT(!check_interleaving_with_nj(s));

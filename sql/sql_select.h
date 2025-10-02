@@ -825,6 +825,9 @@ class Duplicate_weedout_picker : public Semi_join_strategy_picker
   table_map dupsweedout_tables;
   
   bool is_used;
+
+  void get_inner_outer_fanouts(JOIN *join, uint idx, double *sj_inner_fanout,
+                               double *sj_outer_fanout);
 public:
   void set_empty() override
   {
@@ -2567,6 +2570,11 @@ inline bool optimizer_flag(const THD *thd, ulonglong flag)
   return (thd->variables.optimizer_switch & flag);
 }
 
+inline bool optimizer_new_mode(const THD *thd, ulonglong mode_flag)
+{
+  return (thd->variables.new_behavior & mode_flag);
+}
+
 /*
 int print_fake_select_lex_join(select_result_sink *result, bool on_the_fly,
                                SELECT_LEX *select_lex, uint8 select_options);
@@ -2725,6 +2733,8 @@ void propagate_new_equalities(THD *thd, Item *cond,
 #define PREV_BITS(type, N_BITS) ((type)my_set_bits(N_BITS))
 
 double estimate_post_group_cardinality(JOIN *join, double join_output_card);
+double estimate_distinct_cardinality(JOIN *join, TABLE_LIST *sj_nest,
+                                     uint ncols, double join_output_card);
 
 bool dbug_user_var_equals_str(THD *thd, const char *name, const char *value);
 

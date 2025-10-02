@@ -1937,6 +1937,7 @@ static bool convert_subq_to_sj(JOIN *parent_join, Item_in_subselect *subq_pred)
   sj_nest->nested_join->sj_depends_on=  subq_pred_used_tables |
                                         left_exp->used_tables();
   sj_nest->sj_on_expr= subq_lex->join->conds;
+  sj_nest->sj_inner_expr_list.empty();
 
   /*
     Create the IN-equalities and inject them into semi-join's ON expression.
@@ -1974,6 +1975,7 @@ static bool convert_subq_to_sj(JOIN *parent_join, Item_in_subselect *subq_pred)
     Item_func_eq *item_eq=
       new (thd->mem_root) Item_func_eq(thd, left_exp_orig,
                                        subq_lex->ref_pointer_array[0]);
+    sj_nest->sj_inner_expr_list.push_back(&item_eq->arguments()[1]);
     if (!item_eq)
       goto restore_tl_and_exit;
     if (left_exp_orig != left_exp)
@@ -2004,6 +2006,7 @@ static bool convert_subq_to_sj(JOIN *parent_join, Item_in_subselect *subq_pred)
                               left_exp->element_index(i));
       item_eq->in_equality_no= i;
       sj_nest->sj_on_expr= and_items(thd, sj_nest->sj_on_expr, item_eq);
+      sj_nest->sj_inner_expr_list.push_back(&item_eq->arguments()[1]);
     }
   }
   else
@@ -2026,6 +2029,8 @@ static bool convert_subq_to_sj(JOIN *parent_join, Item_in_subselect *subq_pred)
     {
       if (row->element_index(i) != subq_lex->ref_pointer_array[i])
         thd->change_item_tree(row->addr(i), subq_lex->ref_pointer_array[i]);
+
+      sj_nest->sj_inner_expr_list.push_back(row->addr(i));
     }
     item_eq->in_equality_no= 0;
     sj_nest->sj_on_expr= and_items(thd, sj_nest->sj_on_expr, item_eq);
@@ -2512,7 +2517,8 @@ int pull_out_semijoin_tables(JOIN *join)
 
 
 /* 
-  Optimize semi-join nests that could be run with sj-materialization
+  Optimize semi-join nests that could be run with sj-materialization.
+  Also, get fanout estimate for Duplicate Weedout.
 
   SYNOPSIS
     optimize_semijoin_nests()
@@ -2556,7 +2562,9 @@ bool optimize_semijoin_nests(JOIN *join, table_map all_table_map)
     /* semi-join nests with only constant tables are not valid */
    /// DBUG_ASSERT(sj_nest->sj_inner_tables & ~join->const_table_map);
 
+    sj_nest->sj_fanout_ratio= 1.0;
     sj_nest->sj_mat_info= NULL;
+    bool sj_nest_handled= false;
     /*
       The statement may have been executed with 'semijoin=on' earlier.
       We need to verify that 'semijoin=on' still holds.
@@ -2630,6 +2638,8 @@ bool optimize_semijoin_nests(JOIN *join, table_map all_table_map)
           }
           sjm->rows= MY_MIN(sjm->rows, rows);
         }
+        // Save the subquery's "fanout" (see below)
+        sj_nest->sj_fanout_ratio= subjoin_out_rows / sjm->rows;
         memcpy((uchar*) sjm->positions,
                (uchar*) (join->best_positions + join->const_tables),
                sizeof(POSITION) * n_tables);
@@ -2670,8 +2680,42 @@ bool optimize_semijoin_nests(JOIN *join, table_map all_table_map)
         /* When reading a row, we have also to check the where clause */
         sjm->lookup_cost= cost.lookup + WHERE_COST_THD(thd);
         sj_nest->sj_mat_info= sjm;
+        sj_nest_handled= true;
         DBUG_EXECUTE("opt", print_sjm(sjm););
       }
+    }
+
+    if (optimizer_new_mode(thd, NEW_MODE_FIX_SEMIJOIN_DUPS_WEEDOUT_CHECK) &&
+        !sj_nest_handled && (sj_nest->sj_inner_tables & ~join->const_table_map))
+    {
+      /*
+        Prepare data for Duplicate_weedout_picker::get_inner_outer_fanouts()
+        SJ-Materialization code didn't produce estimates for this subquery.
+        Estimate its "fanout", ie. how many duplicate rows would be produced on
+        average for a record combination of outer tables' records.
+
+        Correlation conditions may decrease selectivity. We ignore that here.
+        Example:
+
+           IN (select l_orderkey from
+               lineitem l2 where l2.shipdate < outside_ref.some_date)
+
+        Here the fanout is "number of items in an order".
+      */
+      uint n_tables= my_count_bits(sj_nest->sj_inner_tables & 
+                                   ~join->const_table_map);
+
+      if (choose_plan(join, all_table_map &~join->const_table_map, sj_nest))
+        DBUG_RETURN(TRUE); /* purecov: inspected */
+      double subjoin_out_rows, subjoin_read_time;
+      join->get_prefix_cost_and_fanout(n_tables, &subjoin_read_time,
+                                       &subjoin_out_rows);
+      double distinct_rows=
+        estimate_distinct_cardinality(join, // parent join
+                                      sj_nest,
+                                      sj_nest->sj_in_exprs,
+                                      subjoin_out_rows);
+      sj_nest->sj_fanout_ratio= subjoin_out_rows / distinct_rows;
     }
   }
   DBUG_RETURN(FALSE);
@@ -3648,6 +3692,95 @@ void Duplicate_weedout_picker::set_from_prev(POSITION *prev)
 }
 
 
+/*
+  @brief
+    Compute inner and outer fanout for a join order subset which will be
+    handled by Duplicate Elimination.
+
+  @detail
+    We may get subquery and outer tables in an arbitrary order:
+
+      join_prefix, it1, ot1, ..., itN, otN
+
+    Access methods for the tables provide cardinality estimates. The question
+    is, how many record combinations will be left after the duplicate weedout?
+*/
+
+void Duplicate_weedout_picker::get_inner_outer_fanouts(JOIN *join, uint idx,
+                                                       double *sj_inner_fanout,
+                                                       double *sj_outer_fanout)
+{
+  /*
+    Approach #1: use sj_fanout_ratio computed in optimize_semijoin_nests()
+  */
+
+  // Fanout of all tables in the join suffix we're looking at
+  double total_fanout= 1.0;
+
+  // Fanout that will be removed by duplicate elimination.
+  double semi_join_fanout= 1.0;
+
+  table_map dups_removed_fanout= 0;
+  for (uint j= first_dupsweedout_table; j <= idx; j++)
+  {
+    POSITION *p= join->positions + j;
+    total_fanout = COST_MULT(total_fanout, p->records_out);
+
+    if (p->table->emb_sj_nest)
+    {
+      if (!(dups_removed_fanout & p->table->emb_sj_nest->sj_inner_tables))
+      {
+        // We haven't seen a table from this semi-join.
+        // Put it into semi_join_fanout.
+        semi_join_fanout *= p->table->emb_sj_nest->sj_fanout_ratio;
+      }
+      dups_removed_fanout |= p->table->table->map;
+    }
+  }
+
+  // Fanout caused by duplicates generated by all semi-joins we cover:
+  *sj_inner_fanout= semi_join_fanout;
+  // This is what will be left after duplicates are removed:
+  *sj_outer_fanout= total_fanout / semi_join_fanout;
+
+  /*
+    Also try Approach #2:
+     - each outer table contributes its fanout.
+     - outer tables that do not depend on anything in in the inner table
+       can use their p->records_out.
+     - other tables use found_records.
+     Compute the product of the above.
+  */
+  {
+    double outer_fanout=1.0;
+    table_map outer_clean_tables=0;
+    for (uint j= first_dupsweedout_table; j <= idx; j++)
+    {
+      POSITION *p= join->positions + j;
+
+      if (!p->table->emb_sj_nest)
+      {
+        double rows;
+        if (!p->key || !(p->ref_depend_map & ~outer_clean_tables))
+        {
+          outer_clean_tables |= p->table->table->map;
+          rows= p->records_out;
+        }
+        else
+          rows= rows2double(p->table->found_records);
+
+        outer_fanout= COST_MULT(outer_fanout, rows);
+      }
+    }
+    if (outer_fanout < *sj_outer_fanout)
+    {
+      *sj_outer_fanout= outer_fanout;
+      *sj_inner_fanout= total_fanout / *sj_outer_fanout;
+    }
+  }
+}
+
+
 bool Duplicate_weedout_picker::check_qep(JOIN *join,
                                          uint idx,
                                          table_map remaining_tables, 
@@ -3719,6 +3852,11 @@ bool Duplicate_weedout_picker::check_qep(JOIN *join,
     }
     
     table_map dups_removed_fanout= 0;
+    /*
+      Note: the below computation is incorrect and can produce wildly
+      inaccurate numbers! See get_inner_outer_fanouts() below for correct
+      computation.
+    */
     for (uint j= first_dupsweedout_table; j <= idx; j++)
     {
       POSITION *p= join->positions + j;
@@ -3738,6 +3876,9 @@ bool Duplicate_weedout_picker::check_qep(JOIN *join,
         temptable_rec_size += p->table->table->file->ref_length;
       }
     }
+
+    if (optimizer_new_mode(join->thd, NEW_MODE_FIX_SEMIJOIN_DUPS_WEEDOUT_CHECK))
+      get_inner_outer_fanouts(join, idx, &sj_inner_fanout, &sj_outer_fanout);
 
     /*
       Add the cost of temptable use. The table will have sj_outer_fanout
