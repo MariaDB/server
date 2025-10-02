@@ -103,8 +103,6 @@
 #include "keycaches.h"
 #include "../storage/myisam/ha_myisam.h"
 #include "set_var.h"
-
-#include "rpl_injector.h"
 #include "semisync_master.h"
 #include "semisync_slave.h"
 
@@ -1986,8 +1984,6 @@ static void clean_up(bool print_message)
   ddl_log_release();
 
   logger.cleanup_base();
-
-  injector::free_instance();
   mysql_bin_log.cleanup();
   Gtid_index_writer::gtid_index_cleanup();
 
