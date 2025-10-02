@@ -1,0 +1,11 @@
+[group_by_handler]
+loose_spider_disable_select_handler=1
+loose_spider_disable_group_by_handler=0
+
+# [usual_handler]
+# loose_spider_disable_select_handler=1
+# loose_spider_disable_group_by_handler=1
+
+[select_handler]
+loose_spider_disable_select_handler=0
+loose_spider_disable_group_by_handler=0

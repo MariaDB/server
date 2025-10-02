@@ -133,8 +133,17 @@ public:
   bool               da_status;
   bool               use_spatial_index;
 
+  /*
+    Index of the table in FROM tables, for the use of direct
+    execution by gbh or sh
+  */
   uint                  idx_for_direct_join;
+  /*
+    Whether using a spider_fields, only applicable to direct
+    execution by gbh
+  */
   bool                  use_fields;
+  /* If use_fields == true, the spider_fields in use for gbh */
   spider_fields         *fields;
   SPIDER_LINK_IDX_CHAIN *link_idx_chain;
   SPIDER_LINK_IDX_CHAIN *result_link_idx_chain;

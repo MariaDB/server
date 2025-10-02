@@ -25,9 +25,9 @@ CREATE TABLE t8 (c INT) ENGINE=Spider COMMENT='WRAPPER "mysql",SRV "srv",TABLE "
 Warnings:
 Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 SELECT * FROM t8;
-ERROR HY000: Remote table 'test.t' is not found
+Got one of the listed errors
 CREATE TEMPORARY TABLE t7 (c INT) ENGINE=InnoDB SELECT * FROM t7;
-ERROR HY000: Remote table 'test.t' is not found
+Got one of the listed errors
 CALL foo;
 ERROR 42000: PROCEDURE test.foo does not exist
 CREATE TEMPORARY TABLE t7 (c INT) ENGINE=InnoDB;

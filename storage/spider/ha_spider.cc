@@ -62,6 +62,11 @@ void ha_spider::init_fields()
   partition_handler = NULL;
   multi_range_keys = NULL;
   mrr_key_buff = NULL;
+  /* TODO: Are these correct values / should we read from params
+    already? */
+  select_column_mode= 0;
+  init_index_handler= FALSE;
+  mrr_with_cnt= FALSE;
   append_tblnm_alias = NULL;
   use_index_merge = FALSE;
   is_clone = FALSE;
