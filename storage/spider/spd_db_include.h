@@ -616,7 +616,7 @@ public:
   );
   SPIDER_CONN_HOLDER *create_conn_holder();
   bool has_conn_holder();
-  void clear_conn_holder_from_conn();
+  void clear_conn_holder_checked();
   bool check_conn_same_conn(
     SPIDER_CONN *conn_arg
   );
