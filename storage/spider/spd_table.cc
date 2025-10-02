@@ -6503,9 +6503,6 @@ int spider_db_init(
   spider_hton_ptr = spider_hton;
 
   spider_hton->flags = HTON_TEMPORARY_NOT_SUPPORTED;
-#ifdef HTON_CAN_READ_CONNECT_STRING_IN_PARTITION
-  spider_hton->flags |= HTON_CAN_READ_CONNECT_STRING_IN_PARTITION;
-#endif
   spider_hton->panic = spider_panic;
   spider_hton->signal_ddl_recovery_done= spider_after_ddl_recovery;
   spider_hton->close_connection = spider_close_connection;
