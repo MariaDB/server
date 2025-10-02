@@ -155,7 +155,7 @@ const char *tx_isolation_names[]=
   NullS};
 TYPELIB tx_isolation_typelib= CREATE_TYPELIB_FOR(tx_isolation_names);
 
-static TYPELIB known_extensions= {0,"known_exts", NULL, NULL};
+static TYPELIB known_extensions= {0,"known_exts", NULL, NULL, NULL};
 uint known_extensions_id= 0;
 
 

@@ -2767,6 +2767,15 @@ get_tmp_table_costs(THD *thd, double row_count, uint row_size, bool blobs_used,
   row_size+= sizeof(char*)*2;
   row_size= MY_ALIGN(MY_MAX(row_size, sizeof(char*)) + 1, sizeof(char*));
 
+  /*  remove this once TEST_NEW_MODE_FLAG is used elsewhere */
+  DBUG_EXECUTE_IF("check_new_mode_mdev_37784",
+  {
+    if (TEST_NEW_MODE_FLAG(thd, NEW_MODE_FIX_DISK_TMPTABLE_COSTS))
+    {
+      push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE, ER_YES, "YES" );
+    }
+  });
+
   if (row_count > thd->variables.max_heap_table_size / (double) row_size ||
       blobs_used)
   {

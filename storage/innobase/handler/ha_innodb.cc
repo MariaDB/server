@@ -346,7 +346,7 @@ TYPELIB innodb_linux_aio_typelib = {
 	array_elements(innodb_linux_aio_names) - 1,
 	"innodb_linux_aio_typelib",
 	innodb_linux_aio_names,
-	NULL
+	NULL, NULL
 };
 #endif
 
