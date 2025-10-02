@@ -742,6 +742,9 @@ The following specify which files/extra groups are read (specified before remain
  --net-write-timeout=# 
  Number of seconds to wait for a block to be written to a
  connection before aborting the write
+ --new-mode=name     Used to introduce new behavior to existing MariaDB
+ versions. Any combination of: TEST_WARNING1
+ Use 'ALL' to set all combinations.
  --note-verbosity=name 
  Verbosity level for note-warnings given to the user. See
  also @@sql_notes.. Any combination of: basic, 
@@ -1813,6 +1816,7 @@ net-buffer-length 16384
 net-read-timeout 30
 net-retry-count 10
 net-write-timeout 60
+new-mode 
 note-verbosity basic,explain
 old FALSE
 old-mode UTF8_IS_UTF8MB3

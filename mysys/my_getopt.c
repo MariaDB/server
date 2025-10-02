@@ -1649,6 +1649,22 @@ void my_print_help(const struct my_option *options)
         col= print_comment(optp->typelib->type_names[0], col, name_space, comment_space);
         for (i= 1; i < count; i++)
         {
+          my_bool skip_value= 0;
+          /* Do not print the value if it is listed in hidden_values */
+          if (optp->typelib->hidden_values)
+          {
+            for (const int *value= optp->typelib->hidden_values;
+                 *value >= 0; value++)
+            {
+              if (*value == (int)i)
+              {
+                skip_value= 1;
+                break;
+              }
+            }
+          }
+          if (skip_value)
+            continue;
           col= print_comment(", ", col, name_space, comment_space);
           col= print_comment(optp->typelib->type_names[i], col, name_space, comment_space);
         }

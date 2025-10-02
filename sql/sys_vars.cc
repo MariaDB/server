@@ -4048,6 +4048,80 @@ static Sys_var_set Sys_old_behavior(
        old_mode_names, DEFAULT(OLD_MODE_DEFAULT_VALUE),
        NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(old_mode_deprecated));
 
+
+/*
+  Current 'not yet default' @@new_mode flag names see sql_class.h /NEW_MODE_ 
+  These need to be be kept in the same order as the value of definitions above
+*/
+static const char *new_mode_all_names[]=
+{
+  "TEST_WARNING1",                       // Default from here, See NEW_MODE_MAX
+  "TEST_WARNING2",
+  0
+};
+
+static int new_mode_hidden_names[] =
+{
+  0,  // TEST_WARNING1
+  1,  // TEST_WARNING2
+  -1  // End of list
+};
+
+/*
+  @@new_mode flag names that are now default and thus not configurable
+  see previous comment
+*/
+const char **new_mode_default_names= &new_mode_all_names[NEW_MODE_MAX];
+
+
+/*
+  @brief
+    Emit warnings if the value of @@new_mode in *v contains flags that are
+    already included in the default behavior.
+
+  @param v INOUT  Bitmap where bits represent indexes in new_mode_all_names
+                  array.
+                  Bits representing obsolete elements will be cleared.
+*/
+
+void check_new_mode_value(THD *thd, ulonglong *v)
+{
+  ulonglong vl= *v >> NEW_MODE_MAX;
+  for (uint i=0; new_mode_default_names[i]; i++)
+  {
+    if ((1ULL<<i) & vl)
+    {
+      (*v)&= ~(1ULL << (i+NEW_MODE_MAX));
+      if (thd)
+      {
+        push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+                      ER_WARN_DEFAULT_SYNTAX,
+                      ER_THD(thd, ER_WARN_DEFAULT_SYNTAX),
+                      new_mode_default_names[i]);
+      }
+      else
+      {
+        sql_print_warning("--new-mode='%s' is now default",
+                          new_mode_default_names[i]);
+      }
+    }
+  }
+}
+
+static bool check_new_mode_var_value(sys_var *self, THD *thd, set_var *var)
+{
+  check_new_mode_value(thd, &var->save_result.ulonglong_value);
+  return false;
+}
+
+static Sys_var_set Sys_new_behavior(
+       "new_mode",
+       "Used to introduce new behavior to existing MariaDB versions",
+       SESSION_VAR(new_behavior), CMD_LINE(REQUIRED_ARG),
+       new_mode_all_names, DEFAULT(0),
+       NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(check_new_mode_var_value), 0, 0,
+       new_mode_hidden_names);
+
 #if defined(HAVE_OPENSSL) && !defined(EMBEDDED_LIBRARY)
 #define SSL_OPT(X) CMD_LINE(REQUIRED_ARG,X)
 #else

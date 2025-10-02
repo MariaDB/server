@@ -300,7 +300,7 @@ static const char *tc_heuristic_recover_names[]=
 static TYPELIB tc_heuristic_recover_typelib=
 {
   array_elements(tc_heuristic_recover_names)-1,"",
-  tc_heuristic_recover_names, NULL
+  tc_heuristic_recover_names, NULL, NULL
 };
 
 const char *first_keyword= "first";
@@ -8670,6 +8670,9 @@ static void option_error_reporter(enum loglevel level, const char *format, ...)
 
 C_MODE_END
 
+extern const char **new_mode_default_names;
+
+
 /**
   Get server options from the command line,
   and perform related server initializations.
@@ -8729,6 +8732,8 @@ static int get_options(int *argc_ptr, char ***argv_ptr)
     sql_print_warning("--old is deprecated and will be removed in a future "
                       "release. Please use --old-mode instead. ");
   }
+
+  check_new_mode_value(NULL, &global_system_variables.new_behavior);
 
   if (global_system_variables.net_buffer_length > 
       global_system_variables.max_allowed_packet)

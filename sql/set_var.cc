@@ -1219,9 +1219,21 @@ int fill_sysvars(THD *thd, TABLE_LIST *tables, COND *cond)
       strbuf.length(0);
       for (i=0; i < tl->count; i++)
       {
-        const char *name= tl->type_names[i];
-        strbuf.append(name, strlen(name));
-        strbuf.append(',');
+        bool show= TRUE;
+        if (tl->hidden_values)
+        {
+          for (uint j= 0; tl->hidden_values[j] >= 0; j++)
+          {
+            if (tl->hidden_values[j] == (int)i)
+              show= FALSE;
+          }
+        }
+        if (show)
+        {
+          const char *name= tl->type_names[i];
+          strbuf.append(name, strlen(name));
+          strbuf.append(',');
+        }
       }
       if (!strbuf.is_empty())
         strbuf.chop();
