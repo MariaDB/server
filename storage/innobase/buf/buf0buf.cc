@@ -2293,8 +2293,7 @@ buf_page_t *buf_page_get_zip(const page_id_t page_id) noexcept
       bpage->unfix();
     }
 
-    ut_d(uint32_t state= bpage->state());
-    ut_ad(state >= buf_page_t::UNFIXED);
+    ut_ad(bpage->in_file());
     ut_ad(page_id == bpage->id());
 
     const bool got_s_latch= bpage->lock.s_lock_try();
