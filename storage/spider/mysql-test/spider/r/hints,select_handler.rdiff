@@ -1,0 +1,89 @@
+--- storage/spider/mysql-test/spider/r/hints.result	2025-10-02 17:35:02.916988985 +1000
++++ storage/spider/mysql-test/spider/r/hints.reject	2025-10-02 17:36:45.132174905 +1000
+@@ -21,47 +21,47 @@
+ Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
+ explain select * from t1;
+ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+-1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Storage engine handles GROUP BY
++1	PUSHED SELECT	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL
+ select * from t1;
+ c
+ explain select HIGH_PRIORITY * from t1;
+ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+-1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Storage engine handles GROUP BY
++1	PUSHED SELECT	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL
+ select HIGH_PRIORITY * from t1;
+ c
+ explain select SQL_CACHE * from t1;
+ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+-1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Storage engine handles GROUP BY
++1	PUSHED SELECT	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL
+ select SQL_CACHE * from t1;
+ c
+ explain select SQL_NO_CACHE * from t1;
+ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+-1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Storage engine handles GROUP BY
++1	PUSHED SELECT	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL
+ select SQL_NO_CACHE * from t1;
+ c
+ explain select SQL_BUFFER_RESULT * from t1;
+ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+-1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Storage engine handles GROUP BY
++1	PUSHED SELECT	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL
+ select SQL_BUFFER_RESULT * from t1;
+ c
+ explain select SQL_SMALL_RESULT * from t1;
+ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+-1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Storage engine handles GROUP BY
++1	PUSHED SELECT	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL
+ select SQL_SMALL_RESULT * from t1;
+ c
+ explain select SQL_BIG_RESULT * from t1;
+ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+-1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Storage engine handles GROUP BY
++1	PUSHED SELECT	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL
+ select SQL_BIG_RESULT * from t1;
+ c
+ explain select STRAIGHT_JOIN * from t1 t3, t1 t4 where t3.c > t4.c;
+ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+-1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Storage engine handles GROUP BY
++1	PUSHED SELECT	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL
+ select STRAIGHT_JOIN * from t1 t3, t1 t4 where t3.c > t4.c;
+ c	c
+ explain select * from t1 t3 STRAIGHT_JOIN t1 t4 on t3.c > t4.c;
+ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+-1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Storage engine handles GROUP BY
++1	PUSHED SELECT	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL
+ select * from t1 t3 STRAIGHT_JOIN t1 t4 on t3.c > t4.c;
+ c	c
+ explain select SQL_CALC_FOUND_ROWS * from t1;
+@@ -71,17 +71,17 @@
+ c
+ explain select * from t1 USE INDEX (i);
+ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+-1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Storage engine handles GROUP BY
++1	PUSHED SELECT	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL
+ select * from t1 USE INDEX (i);
+ c
+ explain select * from t1 FORCE INDEX (i);
+ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+-1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Storage engine handles GROUP BY
++1	PUSHED SELECT	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL
+ select * from t1 FORCE INDEX (i);
+ c
+ explain select * from t1 IGNORE INDEX (i);
+ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+-1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Storage engine handles GROUP BY
++1	PUSHED SELECT	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL
+ select * from t1 IGNORE INDEX (i);
+ c
+ SELECT argument FROM mysql.general_log WHERE argument LIKE 'select %';
+@@ -103,7 +103,7 @@
+ select STRAIGHT_JOIN * from t1 t3, t1 t4 where t3.c > t4.c
+ select t0.`c` `c`,t1.`c` `c` from `test`.`t2` t0 join `test`.`t2` t1 where (t0.`c` > t1.`c`)
+ select * from t1 t3 STRAIGHT_JOIN t1 t4 on t3.c > t4.c
+-select t0.`c` `c`,t1.`c` `c` from `test`.`t2` t0 straight_join `test`.`t2` t1 where (t0.`c` > t1.`c`)
++select t0.`c` `c`,t1.`c` `c` from (`test`.`t2` t0 straight_join `test`.`t2` t1 on (t0.`c` > t1.`c`))
+ select SQL_CALC_FOUND_ROWS * from t1
+ select t0.`c` `c` from `test`.`t2` t0
+ select * from t1 USE INDEX (i)
