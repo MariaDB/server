@@ -4137,7 +4137,7 @@ bool wsrep_foreign_key_append(THD *thd, FOREIGN_KEY_INFO *fk)
   if (WSREP(thd) && !thd->wsrep_applier &&
       wsrep_is_active(thd) &&
       (sql_command_flags[thd->lex->sql_command] &
-       (CF_UPDATES_DATA | CF_DELETES_DATA)))
+       (CF_UPDATES_DATA | CF_DELETES_DATA | CF_INSERTS_DATA)))
   {
     wsrep::key key(wsrep::key::shared);
     key.append_key_part(fk->foreign_db->str, fk->foreign_db->length);
