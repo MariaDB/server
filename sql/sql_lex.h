@@ -3600,7 +3600,7 @@ public:
     Activates enforcement of the LIMIT ROWS EXAMINED clause, if present
     in the query.
   */
-  void activate_limit_rows_examined()
+  void set_limit_rows_examined()
   {
     if (limit_rows_examined)
       limit_rows_examined_cnt= limit_rows_examined->val_uint();

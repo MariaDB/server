@@ -4799,7 +4799,7 @@ void JOIN::exec_inner()
 
   if (!select_lex->outer_select() &&                            // (1)
       select_lex != select_lex->master_unit()->fake_select_lex) // (2)
-    thd->lex->activate_limit_rows_examined();
+    thd->lex->set_limit_rows_examined();
 
   if (procedure)
   {
@@ -26755,7 +26755,7 @@ JOIN_TAB::remove_duplicates()
                                   sort_field_keylength, having);
 
   if (join->select_lex != join->select_lex->master_unit()->fake_select_lex)
-    thd->lex->activate_limit_rows_examined();
+    thd->lex->set_limit_rows_examined();
   free_blobs(first_field);
   my_free(sortorder);
   DBUG_RETURN(error);

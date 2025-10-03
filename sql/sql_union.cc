@@ -2180,7 +2180,7 @@ bool st_select_lex_unit::exec()
   // Handle cleanup on scope exit
   SCOPE_EXIT([this, &limit_rows_was_activated, &examined_rows]() {
     if (limit_rows_was_activated)
-      thd->lex->activate_limit_rows_examined();
+      thd->lex->set_limit_rows_examined();
     if (!saved_error)
       thd->inc_examined_row_count(examined_rows);
   });
