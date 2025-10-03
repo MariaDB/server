@@ -1555,6 +1555,13 @@ int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables,
     }
 
     DEBUG_SYNC(thd, "rm_table_no_locks_before_delete_table");
+    DBUG_EXECUTE_IF("sync.rm_table_no_locks",
+                    {
+                      const char action[] = "now SIGNAL after_lock_table"
+                                            " WAIT_FOR continue";
+                      DBUG_ASSERT(!debug_sync_set_action(thd,
+                                  STRING_WITH_LEN(action)));
+                    };);
     if (drop_temporary)
     {
       /* "DROP TEMPORARY" but a temporary table was not found */
