@@ -10297,22 +10297,34 @@ uint TABLE_SHARE::actual_n_key_parts(THD *thd)
 }  
 
 
-double KEY::actual_rec_per_key(uint i) const
+/**
+  Get records-per-key estimate for an index prefix.
+
+  Returns average number of records per key value for the given index prefix.
+  Prefers engine-independent statistics (EITS) if available and falls back
+  to engine-dependent statistics otherwise.
+
+  @param max_key_part  Index of the last key part in the prefix (0-based)
+
+  @return  Estimated records per key value:
+           - 0.0 if no statistics available
+           - avg_frequency from EITS if available
+           - rec_per_key from engine statistics if EITS is not available
+*/
+double KEY::actual_rec_per_key(uint max_key_part) const
 { 
   if (is_statistics_from_stat_tables)
   {
     // Use engine-independent statistics (EITS)
-    return read_stats->get_avg_frequency(i);
+    return read_stats->get_avg_frequency(max_key_part);
   }
   // Fall back to engine-dependent statistics if EITS is not available
-  if (rec_per_key == nullptr)
-    return 0; // No statistics available
-  return (double) rec_per_key[i];
+  return rec_per_key ? (double) rec_per_key[max_key_part] : 0.0;
 }
 
 
 /**
-  Get records-per-key estimate with NULL-aware optimization.
+  Get records-per-key estimate for an index prefix with NULL-aware optimization.
 
   Returns average number of records per key value for the given index prefix.
   When EITS statistics show avg_frequency == 0 (typically all NULL values) and
@@ -10332,12 +10344,10 @@ double KEY::actual_rec_per_key(uint i) const
 double KEY::rec_per_key_null_aware(uint max_key_part,
                                    key_part_map notnull_part) const
 {
-  // Use engine-dependent statistics if EITS is not available
   if (!is_statistics_from_stat_tables)
   {
-    if (rec_per_key == nullptr)
-      return 0; // No statistics available
-    return (double) rec_per_key[max_key_part];
+    // Fall back to engine-dependent statistics if EITS is not available
+    return rec_per_key ? (double) rec_per_key[max_key_part] : 0.0;
   }
 
   // Use engine-independent statistics (EITS)
