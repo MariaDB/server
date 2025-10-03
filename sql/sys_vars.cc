@@ -4120,13 +4120,25 @@ static const char *new_mode_all_names[]=
   0
 };
 
-static int new_mode_hidden_names[] = {0, 3, 4, -1};
+static int new_mode_hidden_names[] =
+{
+  0,  // NOW_DEFAULT
+  3,  // TEST_WARNING1
+  4,  // TEST_WARNING2
+  -1  // End of list
+};
 
 /*
   @@new_mode flag names that are now default and thus not configurable
   see previous comment
 */
 const char **new_mode_default_names= &new_mode_all_names[NEW_MODE_MAX];
+
+
+/*
+  Emit warnings if the value of @@new_mode in *v contains flags that are
+  already included in the default behavior.
+*/
 
 void new_mode_default_warnings(THD *thd, ulonglong *v)
 {
@@ -4151,7 +4163,7 @@ void new_mode_default_warnings(THD *thd, ulonglong *v)
   }
 }
 
-static bool new_mode_default(sys_var *self, THD *thd, set_var *var)
+static bool check_new_mode_value(sys_var *self, THD *thd, set_var *var)
 {
   new_mode_default_warnings(thd, &var->save_result.ulonglong_value);
   return false;
@@ -4162,8 +4174,8 @@ static Sys_var_set Sys_new_behavior(
        "Used to introduce new behavior to existing MariaDB versions",
        SESSION_VAR(new_behavior), CMD_LINE(REQUIRED_ARG),
        new_mode_all_names, DEFAULT(NEW_MODE_NOW_DEFAULT),
-       NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(new_mode_default), 0, 0,
-       new_mode_hidden_names );
+       NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(check_new_mode_value), 0, 0,
+       new_mode_hidden_names);
 
 #if defined(HAVE_OPENSSL) && !defined(EMBEDDED_LIBRARY)
 #define SSL_OPT(X) CMD_LINE(REQUIRED_ARG,X)

@@ -777,8 +777,7 @@ The following specify which files/extra groups are read (specified before remain
  --new-mode=name     Used to introduce new behavior to existing MariaDB
  versions. Any combination of: NOW_DEFAULT, 
  FIX_DISK_TMPTABLE_COSTS, FIX_SEMIJOIN_DUPS_WEEDOUT_CHECK,
- TEST_WARNING1, TEST_WARNING2, or ALL to set all
- combinations
+ or ALL to set all combinations
  --note-verbosity=name 
  Verbosity level for note-warnings given to the user. See
  also @@sql_notes. Any combination of: basic, 
