@@ -4136,11 +4136,17 @@ const char **new_mode_default_names= &new_mode_all_names[NEW_MODE_MAX];
 
 
 /*
-  Emit warnings if the value of @@new_mode in *v contains flags that are
-  already included in the default behavior.
+  @brief
+    Emit warnings if the value of @@new_mode in *v contains flags that are
+    already included in the default behavior.
+
+  @param v INOUT  Bitmap where bits represent indexes in new_mode_all_names
+                  array.
+                  Bits representing obsolete elements will be cleared.
+                  Also, NEW_MODE_NOW_DEFAULT will be set.
 */
 
-void new_mode_default_warnings(THD *thd, ulonglong *v)
+void check_new_mode_value(THD *thd, ulonglong *v)
 {
   (*v)|= NEW_MODE_NOW_DEFAULT;
   ulonglong vl= *v >> NEW_MODE_MAX;
@@ -4157,15 +4163,17 @@ void new_mode_default_warnings(THD *thd, ulonglong *v)
                       new_mode_default_names[i], nullptr);
       }
       else
+      {
         sql_print_warning("--new-mode='%s' is now default",
                           new_mode_default_names[i]);
+      }
     }
   }
 }
 
-static bool check_new_mode_value(sys_var *self, THD *thd, set_var *var)
+static bool check_new_mode_var_value(sys_var *self, THD *thd, set_var *var)
 {
-  new_mode_default_warnings(thd, &var->save_result.ulonglong_value);
+  check_new_mode_value(thd, &var->save_result.ulonglong_value);
   return false;
 }
 
@@ -4174,7 +4182,7 @@ static Sys_var_set Sys_new_behavior(
        "Used to introduce new behavior to existing MariaDB versions",
        SESSION_VAR(new_behavior), CMD_LINE(REQUIRED_ARG),
        new_mode_all_names, DEFAULT(NEW_MODE_NOW_DEFAULT),
-       NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(check_new_mode_value), 0, 0,
+       NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(check_new_mode_var_value), 0, 0,
        new_mode_hidden_names);
 
 #if defined(HAVE_OPENSSL) && !defined(EMBEDDED_LIBRARY)

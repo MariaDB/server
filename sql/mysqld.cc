@@ -8816,20 +8816,7 @@ static int get_options(int *argc_ptr, char ***argv_ptr)
                                            OLD_MODE_COMPAT_5_1_CHECKSUM);
   }
 
-  global_system_variables.new_behavior|= NEW_MODE_NOW_DEFAULT;
-  if (global_system_variables.new_behavior >= (1 << NEW_MODE_MAX))
-  {
-    ulonglong bits= global_system_variables.new_behavior >> NEW_MODE_MAX;
-    for (uint i=0; new_mode_default_names[i]; i++)
-    {
-      if (bits & (1ULL << i))
-      {
-        global_system_variables.new_behavior&= ~(1ULL << (i+NEW_MODE_MAX));
-        sql_print_warning("--new-mode='%s' is now default",
-                          new_mode_default_names[i]);
-      }
-    }
-  }
+  check_new_mode_value(NULL, &global_system_variables.new_behavior);
 
   if (global_system_variables.net_buffer_length > 
       global_system_variables.max_allowed_packet)
