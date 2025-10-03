@@ -223,7 +223,8 @@ void old_mode_deprecated_warnings(ulonglong v);
 */
 
 #define NEW_MODE_FIX_DISK_TMPTABLE_COSTS                               (1 << 0)
-#define NEW_MODE_MAX                                                         1
+#define NEW_MODE_FIX_DUPLICATE_WEEDOUT                                 (1 << 1)
+#define NEW_MODE_MAX                                                         2
 
 /* Definitions above that have transitioned from new behaviour to default */
 

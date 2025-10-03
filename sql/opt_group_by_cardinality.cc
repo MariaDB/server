@@ -51,6 +51,31 @@ int cmp_items_by_used_tables(const void *a_val, const void *b_val)
   return v1 > v2 ? 1 : (v1 < v2 ? -1 : 0);
 }
 
+static
+double estimate_item_list_cardinality(JOIN *join,
+                                        Dynamic_array<Item*> &group_cols,
+                                        double join_output_card);
+
+double estimate_distinct_cardinality(JOIN *join, Item_in_subselect *subq_pred,
+                                     uint ncols, double join_output_card)
+{
+  Dynamic_array<Item*> group_cols(join->thd->mem_root);
+  st_select_lex *subq_lex= subq_pred->unit->first_select();
+
+  for (uint i=0; i < ncols; i++)
+  {
+    Item *item= subq_lex->ref_pointer_array[i];
+    table_map map= item->used_tables();
+    if ((map & PSEUDO_TABLE_BITS) || !has_one_bit_set(map))
+    {
+      /* Can't estimate */
+      return join_output_card;
+    }
+    group_cols.append(item);
+  }
+  DBUG_ASSERT(group_cols.size());
+  return estimate_item_list_cardinality(join, group_cols, join_output_card);
+}
 
 /*
   @brief
@@ -91,10 +116,6 @@ double estimate_post_group_cardinality(JOIN *join, double join_output_card)
   Dynamic_array<Item*> group_cols(join->thd->mem_root);
   ORDER *cur_group;
 
-  Json_writer_object wrapper(join->thd);
-  Json_writer_object trace(join->thd, "materialized_output_cardinality");
-  trace.add("join_output_cardinality", join_output_card);
-
   /*
     Walk the GROUP BY list and put items into group_cols array. Array is
     easier to work with: we will sort it and then produce estimates for
@@ -113,7 +134,17 @@ double estimate_post_group_cardinality(JOIN *join, double join_output_card)
     group_cols.append(item);
   }
   DBUG_ASSERT(group_cols.size());
+  return estimate_item_list_cardinality(join, group_cols, join_output_card);
+}
 
+
+static
+double estimate_item_list_cardinality(JOIN *join, Dynamic_array<Item*> &group_cols,
+                                      double join_output_card)
+{
+  Json_writer_object wrapper(join->thd);
+  Json_writer_object trace(join->thd, "materialized_output_cardinality");
+  trace.add("join_output_cardinality", join_output_card);
   group_cols.sort(cmp_items_by_used_tables);
 
   double new_card= 1.0;
@@ -216,17 +247,35 @@ double estimate_table_group_cardinality(JOIN *join, Item ***group_list,
   /*
     join->map2table is not set yet, so find our table in JOIN_TABs.
   */
-  for (JOIN_TAB *tab= join->join_tab;
-       tab < join->join_tab + join->top_join_tab_count;
-       tab++)
+  if (TEST_NEW_MODE_FLAG(join->thd, NEW_MODE_FIX_DUPLICATE_WEEDOUT))
   {
-    if (tab->table->map == table_bit)
+    List_iterator<TABLE_LIST> li(join->select_lex->leaf_tables);
+    TABLE_LIST *tbl;
+    while ((tbl= li++))
     {
-      table= tab->table;
-      table_records_after_where= rows2double(tab->found_records);
-      break;
+      if (tbl->table->map == table_bit)
+      {
+        table= tbl->table;
+        table_records_after_where= rows2double(tbl->table->reginfo.join_tab->found_records);
+        break;
+      }
     }
   }
+  else
+  {
+    for (JOIN_TAB *tab= join->join_tab;
+         tab < join->join_tab + join->top_join_tab_count;
+         tab++)
+    {
+      if (tab->table->map == table_bit)
+      {
+        table= tab->table;
+        table_records_after_where= rows2double(tab->found_records);
+        break;
+      }
+    }
+  }
+
   DBUG_ASSERT(table);
 
   Json_writer_object trace_obj(join->thd);

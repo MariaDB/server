@@ -2590,6 +2590,10 @@ struct TABLE_LIST
   uint jtbm_table_no;
 
   SJ_MATERIALIZATION_INFO *sj_mat_info;
+  /*
+    For semi-join nests: how much fanout this semi-join has.
+  */
+  double sj_fanout_ratio;
 
   /*
     The structure of ON expression presented in the member above
