@@ -1574,6 +1574,13 @@ public:
           !my_charset_latin1.strnncollsp(res->to_lex_cstring(), all_clex_str))
       {
         var->save_result.ulonglong_value= ((1ULL << (typelib.count)) -1);
+        if (typelib.hidden_values)
+        {
+          for (const int *p= typelib.hidden_values; *p >= 0; p++)
+          {
+            var->save_result.ulonglong_value &= ~(1ull << *p);
+          }
+        }
         error_len= 0;
       }
       /*

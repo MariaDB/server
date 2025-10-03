@@ -43,6 +43,10 @@ Warning	4209	'TEST_WARNING1' is default and ignored
 Warning	4209	'TEST_WARNING2' is default and ignored
 SET @@session.new_mode = "FIX_DISK_TMPTABLE_COSTS,TEST_WARNING1,TEST_WARNING2,TEST_WARNING3";
 ERROR 42000: Variable 'new_mode' can't be set to the value of 'TEST_WARNING3'
+SET @@session.new_mode = "ALL";
+select @@session.new_mode;
+@@session.new_mode
+NOW_DEFAULT,FIX_DISK_TMPTABLE_COSTS,FIX_SEMIJOIN_DUPS_WEEDOUT_CHECK
 SET @@global.new_mode = NULL;
 ERROR 42000: Variable 'new_mode' can't be set to the value of 'NULL'
 SET @@global.new_mode = '';
