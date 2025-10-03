@@ -1,0 +1,114 @@
+source include/have_debug_sync.inc;
+source include/have_binlog_format_row.inc;
+source include/master-slave.inc;
+
+# 1. For slave_exec_mode=IDEMPOTENT.
+#        Query executed: INSERT t1 and DROP t2
+connection master;
+CREATE TABLE t1 (
+  id INTEGER PRIMARY KEY,
+  f2 INTEGER
+);
+
+CREATE TABLE t2 (
+  id INT PRIMARY KEY,
+  t1_id INT NOT NULL,
+  f2 INTEGER NOT NULL,
+  KEY key_t1_id(t1_id),
+  CONSTRAINT key_t1_id FOREIGN KEY (t1_id) REFERENCES t1 (id) ON UPDATE CASCADE ON DELETE CASCADE
+);
+
+INSERT INTO t1 VALUES (1,0);
+INSERT INTO t1 VALUES (2,0);
+INSERT INTO t2 VALUES (1,1,1234);
+--sync_slave_with_master
+
+
+--let $fk_parent_query = DROP TABLE t2
+--let $fk_child_query = INSERT INTO t1 VALUES (3,0)
+--let $fk_slave_exec_mode = IDEMPOTENT
+--let $fk_mdl_lock_parent_num = 2
+--let $fk_mdl_lock_child_num = 1
+--source rpl_fk_ddl.inc
+
+
+#
+# Verify insert and drop table has succeded.
+#
+--connection slave
+--let $wait_condition = SELECT COUNT(*) = 3 FROM test.t1
+--source include/wait_condition.inc
+
+select * from t1;
+--error ER_NO_SUCH_TABLE
+select * from t2;
+
+--connection master
+select * from t1;
+--error ER_NO_SUCH_TABLE
+select * from t2;
+
+
+#
+# Cleanup
+#
+DROP TABLE t1;
+--sync_slave_with_master
+
+
+# 2. For slave_exec_mode=STRICT.
+#        Query executed: INSERT t1 and DROP t2
+connection master;
+CREATE TABLE t1 (
+  id INTEGER PRIMARY KEY,
+  f2 INTEGER
+);
+
+CREATE TABLE t2 (
+  id INT PRIMARY KEY,
+  t1_id INT NOT NULL,
+  f2 INTEGER NOT NULL,
+  KEY key_t1_id(t1_id),
+  CONSTRAINT key_t1_id FOREIGN KEY (t1_id) REFERENCES t1 (id) ON UPDATE CASCADE ON DELETE CASCADE
+);
+
+INSERT INTO t1 VALUES (1,0);
+INSERT INTO t1 VALUES (2,0);
+INSERT INTO t2 VALUES (1,1,1234);
+--sync_slave_with_master
+
+
+--let $fk_parent_query = DROP TABLE t2
+--let $fk_child_query = INSERT INTO t1 VALUES (3,0)
+--let $fk_slave_exec_mode = STRICT
+--let $fk_mdl_lock_parent_num = 2
+--let $fk_mdl_lock_child_num = 1
+--source rpl_fk_ddl.inc
+
+
+#
+# Verify insert and drop table has succeded.
+#
+--connection slave
+--let $wait_condition = SELECT COUNT(*) = 3 FROM test.t1
+--source include/wait_condition.inc
+
+select * from t1;
+--error ER_NO_SUCH_TABLE
+select * from t2;
+
+--connection master
+select * from t1;
+--error ER_NO_SUCH_TABLE
+select * from t2;
+
+
+#
+# Cleanup
+#
+DROP TABLE t1;
+--sync_slave_with_master
+
+
+
+--source include/rpl_end.inc
