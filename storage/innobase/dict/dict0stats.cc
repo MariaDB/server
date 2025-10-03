@@ -430,12 +430,12 @@ dict_table_schema_check(
 
 		/* check length for exact match */
 		if (req_schema->columns[i].len != table->cols[j].len) {
-			sql_print_warning("InnoDB: Table %s has"
-					  " length mismatch in the"
-					  " column name %s."
-					  " Please run mariadb-upgrade",
-					  req_schema->table_name_sql,
-					  req_schema->columns[i].name);
+			snprintf(errstr, errstr_sz,
+				 "Unexpected length of %s.%s. Please run "
+				 "mariadb-upgrade or ALTER TABLE",
+				 req_schema->table_name_sql,
+				 req_schema->columns[i].name);
+			return DB_ERROR;
 		}
 
 		/*
