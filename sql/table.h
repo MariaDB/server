@@ -2383,8 +2383,7 @@ struct TABLE_LIST
           const LEX_CSTRING *table_name_arg, const LEX_CSTRING *alias_arg,
           enum thr_lock_type lock_type_arg, prelocking_types prelocking_type,
           TABLE_LIST *belong_to_view_arg, uint8 trg_event_map_arg,
-          TABLE_LIST ***last_ptr, my_bool insert_data,
-          my_bool override_fk_ignore_table= FALSE)
+          TABLE_LIST ***last_ptr, my_bool insert_data)
   {
     init_one_table(db_arg, table_name_arg, alias_arg, lock_type_arg);
     cacheable_table= 1;
@@ -2395,8 +2394,7 @@ struct TABLE_LIST
     belong_to_view= belong_to_view_arg;
     trg_event_map= trg_event_map_arg;
     /* MDL is enough for read-only FK checks, we don't need the table */
-    if (prelocking_type == PRELOCK_FK && lock_type < TL_FIRST_WRITE &&
-        !override_fk_ignore_table)
+    if (prelocking_type == PRELOCK_FK && lock_type < TL_FIRST_WRITE)
       open_strategy= OPEN_STUB;
 
     **last_ptr= this;
