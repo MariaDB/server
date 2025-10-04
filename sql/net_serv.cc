@@ -428,13 +428,13 @@ my_bool my_net_write(NET *net, const uchar *packet, size_t len)
     int3store(buff, z_size);
     buff[3]= (uchar) net->pkt_nr++;
     if (net_write_buff(net, buff, NET_HEADER_SIZE) ||
-	net_write_buff(net, packet, z_size))
+        net_write_buff(net, packet, z_size))
     {
       MYSQL_NET_WRITE_DONE(1);
       return 1;
     }
-    packet += z_size;
-    len-=     z_size;
+    packet+= z_size;
+    len-= z_size;
   }
   /* Write last packet */
   int3store(buff,len);
@@ -584,10 +584,10 @@ net_write_buff(NET *net, const uchar *packet, size_t len)
     if (net->write_pos != net->buff)
     {
       /* Fill up already used packet and write it */
-      memcpy((char*) net->write_pos,packet,left_length);
+      memcpy((char*) net->write_pos, packet, left_length);
       if (net_real_write(net, net->buff, 
-			 (size_t) (net->write_pos - net->buff) + left_length))
-	return 1;
+            (size_t) (net->write_pos - net->buff) + left_length))
+        return 1;
       net->write_pos= net->buff;
       packet+= left_length;
       len-= left_length;
@@ -595,16 +595,16 @@ net_write_buff(NET *net, const uchar *packet, size_t len)
     if (net->compress)
     {
       /*
-	We can't have bigger packets than 16M with compression
-	Because the uncompressed length is stored in 3 bytes
+	      We can't have bigger packets than 16M with compression
+	      Because the uncompressed length is stored in 3 bytes
       */
       left_length= MAX_PACKET_LENGTH;
       while (len > left_length)
       {
-	if (net_real_write(net, packet, left_length))
-	  return 1;
-	packet+= left_length;
-	len-= left_length;
+        if (net_real_write(net, packet, left_length))
+          return 1;
+        packet+= left_length;
+        len-= left_length;
       }
     }
     if (len > net->max_packet)
@@ -627,7 +627,7 @@ net_write_buff(NET *net, const uchar *packet, size_t len)
 */
 
 int
-net_real_write(NET *net,const uchar *packet, size_t len)
+net_real_write(NET *net, const uchar *packet, size_t len)
 {
   size_t length;
   const uchar *pos,*end;
