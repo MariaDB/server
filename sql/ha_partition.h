@@ -608,7 +608,6 @@ private:
                                  const char *partition_name_with_path,
                                  HA_CREATE_INFO *info,
                                  partition_element *p_elem);
-  partition_element *find_partition_element(uint part_id);
   bool insert_partition_name_in_hash(const char *name, uint part_id,
                                      bool is_subpart);
   bool populate_partition_name_hash();
