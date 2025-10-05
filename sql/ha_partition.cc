@@ -2786,10 +2786,7 @@ int ha_partition::set_up_table_before_create(TABLE *tbl,
   if (info->connect_string.length)
     info->used_fields|= HA_CREATE_USED_CONNECTION;
   tbl->s->connect_string= part_elem->connect_string;
-  if (part_elem->option_list)
-    tbl->s->option_list= part_elem->option_list;
-  if (part_elem->option_struct)
-    tbl->s->option_struct= part_elem->option_struct;
+  info->option_struct= part_elem->option_struct_part;
   DBUG_RETURN(0);
 }
 
@@ -8936,6 +8933,7 @@ int ha_partition::open_read_partitions(char *name_buff, size_t name_buff_size)
   handler **file;
   char *name_buffer_ptr;
   int error= 0;
+  partition_element_iterator part_it(m_part_info->partitions);
 
   name_buffer_ptr= m_name_buffer_ptr;
   file= m_file;
@@ -8945,6 +8943,7 @@ int ha_partition::open_read_partitions(char *name_buff, size_t name_buff_size)
     int n_file= (int)(file-m_file);
     int is_open= bitmap_is_set(&m_opened_partitions, n_file);
     int should_be_open= bitmap_is_set(&m_part_info->read_partitions, n_file);
+    partition_element *part_elem= part_it++;
 
     /*
       TODO: we can close some opened partitions if they're not
@@ -8969,6 +8968,7 @@ int ha_partition::open_read_partitions(char *name_buff, size_t name_buff_size)
                                           FALSE))))
         goto err_handler;
       table->s->connect_string= m_connect_string[(uint)(file-m_file)];
+      (*file)->option_struct= part_elem->option_struct_part;
       error= (*file)->ha_open(table, name_buff, m_mode,
                               m_open_test_lock | HA_OPEN_NO_PSI_CALL);
       table->s->connect_string= save_connect_string;
@@ -10562,6 +10562,7 @@ bool ha_partition::check_if_incompatible_data(HA_CREATE_INFO *create_info,
   {
     dummy_info.data_file_name= part_elem->data_file_name;
     dummy_info.index_file_name= part_elem->index_file_name;
+    dummy_info.option_struct= part_elem->option_struct_part;
     if (m_file[i++]->check_if_incompatible_data(&dummy_info, table_changes))
       return COMPATIBLE_DATA_NO;
   }
@@ -10608,7 +10609,7 @@ ha_partition::check_if_supported_inplace_alter(TABLE *altered_table,
 {
   uint index= 0;
   enum_alter_inplace_result result;
-  alter_table_operations orig_ops;
+  alter_table_operations orig_flags;
   ha_partition_inplace_ctx *part_inplace_ctx;
   bool first_is_set= false;
   THD *thd= ha_thd();
@@ -10635,6 +10636,7 @@ ha_partition::check_if_supported_inplace_alter(TABLE *altered_table,
   if (!part_inplace_ctx->handler_ctx_array)
     DBUG_RETURN(HA_ALTER_ERROR);
 
+  ha_table_option_struct *orig_opst= ha_alter_info->create_info->option_struct;
   do {
     result= HA_ALTER_INPLACE_NO_LOCK;
     /* Set all to NULL, including the terminating one. */
@@ -10642,9 +10644,11 @@ ha_partition::check_if_supported_inplace_alter(TABLE *altered_table,
        part_inplace_ctx->handler_ctx_array[index]= NULL;
 
     ha_alter_info->handler_flags |= ALTER_PARTITIONED;
-    orig_ops= ha_alter_info->handler_flags;
+    orig_flags= ha_alter_info->handler_flags;
+    partition_element_iterator part_it(m_part_info->partitions);
     for (index= 0; index < m_tot_parts; index++)
     {
+      ha_alter_info->create_info->option_struct= (part_it++)->option_struct_part;
       enum_alter_inplace_result p_result=
         m_file[index]->check_if_supported_inplace_alter(altered_table,
                                                         ha_alter_info);
@@ -10663,8 +10667,9 @@ ha_partition::check_if_supported_inplace_alter(TABLE *altered_table,
       if (result == HA_ALTER_ERROR)
         break;
     }
-  } while (orig_ops != ha_alter_info->handler_flags);
+  } while (orig_flags != ha_alter_info->handler_flags);
 
+  ha_alter_info->create_info->option_struct= orig_opst;
   ha_alter_info->handler_ctx= part_inplace_ctx;
   /*
     To indicate for future inplace calls that there are several

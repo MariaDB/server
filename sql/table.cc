@@ -3744,7 +3744,7 @@ int TABLE_SHARE::init_from_sql_statement_string(THD *thd, bool write,
   if (frm.str)
   {
     option_list= 0;             // cleanup existing options ...
-    option_struct= 0;           // ... if it's an assisted discovery
+    option_struct_table= 0;     // ... if it's an assisted discovery
     error= init_from_binary_frm_image(thd, write, frm.str, frm.length);
   }
 
@@ -4601,8 +4601,6 @@ enum open_frm_error open_table_from_share(THD *thd, TABLE_SHARE *share,
       thd->restore_active_arena(&part_func_arena, &backup_arena);
       goto partititon_err;
     }
-    if (parse_engine_part_options(thd, outparam))
-      goto err;
     outparam->part_info->is_auto_partitioned= share->auto_partitioned;
     DBUG_PRINT("info", ("autopartitioned: %u", share->auto_partitioned));
     /* 
@@ -4611,6 +4609,8 @@ enum open_frm_error open_table_from_share(THD *thd, TABLE_SHARE *share,
     */
     if (!work_part_info_used)
       tmp= fix_partition_func(thd, outparam, is_create_table);
+    if (parse_engine_part_options(thd, outparam))
+      goto err;
     thd->stmt_arena= backup_stmt_arena_ptr;
     thd->restore_active_arena(&part_func_arena, &backup_arena);
     if (!tmp)
@@ -4691,6 +4691,7 @@ partititon_err:
     else
       ha_open_flags|= HA_OPEN_IGNORE_IF_LOCKED;
 
+    outparam->file->option_struct= share->option_struct_table;
     int ha_err= outparam->file->ha_open(outparam, share->normalized_path.str,
                                  (db_stat & HA_READ_ONLY ? O_RDONLY : O_RDWR),
                                  ha_open_flags, 0, partitions_to_open);

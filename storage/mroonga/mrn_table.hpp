@@ -105,7 +105,7 @@ struct st_mrn_slot_data
   uint base_index_add_count = ha_alter_info->index_add_count; \
   uint *base_index_add_buffer = ha_alter_info->index_add_buffer; \
   ha_alter_info->handler_flags = file->alter_handler_flags; \
-  ha_alter_info->create_info->option_struct = wrap_altered_table->s->option_struct; \
+  ha_alter_info->create_info->option_struct = wrap_altered_table->s->option_struct_table; \
   ha_alter_info->key_info_buffer = file->alter_key_info_buffer; \
   ha_alter_info->key_count = file->alter_key_count; \
   ha_alter_info->index_drop_count = file->alter_index_drop_count; \
