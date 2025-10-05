@@ -133,9 +133,9 @@ static handler* oqgraph_create_handler(handlerton *hton, TABLE_SHARE *table,
 "         )                                              "
 
 #define append_opt(NAME,VAL)                              \
-  if (share->option_struct->VAL)                          \
+  if (share->option_struct_table->VAL)                    \
   {                                                       \
-    const char *val= share->option_struct->VAL;           \
+    const char *val= share->option_struct_table->VAL;     \
     sql.append(STRING_WITH_LEN(" " NAME "='"));           \
     sql.append_for_single_quote(val, strlen(val));        \
     sql.append('\'');                                     \
@@ -462,7 +462,7 @@ bool ha_oqgraph::validate_oqgraph_table_options()
   // after which we could change things to call this method from create() and the ALTER TABLE handling code instead.
   // It may still be sensible to call this from open() anyway, in case someone somewhere upgrades from a broken table definition...
 
-  ha_table_option_struct *options = table->s->option_struct;
+  ha_table_option_struct *options = option_struct;
   // Catch cases where table was not constructed properly
   // Note - need to return -1 so our error text gets reported
   if (!options) {
@@ -524,8 +524,7 @@ int ha_oqgraph::open(const char *name, int mode, uint test_if_locked)
   // Before doing anything, make sure we have DATA_TABLE, ORIGID and DESTID not empty
   if (!validate_oqgraph_table_options()) { DBUG_RETURN(-1); }
 
-  ha_table_option_struct *options= table->s->option_struct;
-
+  ha_table_option_struct *options= option_struct;
 
   error_message.length(0);
   origid= destid= weight= 0;

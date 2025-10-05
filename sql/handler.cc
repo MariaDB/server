@@ -6225,6 +6225,7 @@ handler::ha_create(const char *name, TABLE *form, HA_CREATE_INFO *info_arg)
   if ((info_arg->options & HA_LEX_CREATE_TMP_TABLE) &&
       current_thd->slave_thread)
     info_arg->options|= HA_LEX_CREATE_GLOBAL_TMP_TABLE;
+  option_struct= info_arg->option_struct;
   int error= create(name, form, info_arg);
   if (!error &&
       !(info_arg->options & (HA_LEX_CREATE_TMP_TABLE | HA_CREATE_TMP_ALTER)) &&
@@ -6774,6 +6775,7 @@ int ha_create_table(THD *thd, const char *path, const char *db,
 
     bzero((char*) &index_cinfo, sizeof(index_cinfo));
     index_cinfo.alter_info= &index_ainfo;
+    index_cinfo.option_struct= create_info->option_struct;
     index_file_name_end= const_cast<char*>(create_info->index_file_name);
     if (index_file_name_end)
     {

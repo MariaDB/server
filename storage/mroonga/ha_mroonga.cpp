@@ -3121,6 +3121,7 @@ int ha_mroonga::wrapper_create(const char *name, TABLE *table,
     base_key_info = NULL;
     DBUG_RETURN(HA_ERR_OUT_OF_MEM);
   }
+  info->option_struct= table->s->option_struct_table;
   error = hnd->ha_create(name, table, info);
   MRN_SET_BASE_SHARE_KEY(tmp_share, table->s);
   MRN_SET_BASE_TABLE_KEY(this, table);
@@ -12862,9 +12863,13 @@ int ha_mroonga::wrapper_truncate()
 
   MRN_SET_WRAP_SHARE_KEY(share, table->s);
   MRN_SET_WRAP_TABLE_KEY(this, table);
-  error = parse_engine_table_options(ha_thd(), tmp_share->hton, table->s)
-    ? MRN_GET_ERROR_NUMBER
-    : wrap_handler->ha_truncate();
+  if (parse_engine_table_options(ha_thd(), tmp_share->hton, table->s))
+    error= MRN_GET_ERROR_NUMBER;
+  else
+  {
+    wrap_handler->option_struct= option_struct= table->s->option_struct_table;
+    error = wrap_handler->ha_truncate();
+  }
   MRN_SET_BASE_SHARE_KEY(share, table->s);
   MRN_SET_BASE_TABLE_KEY(this, table);
 
