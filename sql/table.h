@@ -741,7 +741,11 @@ struct TABLE_SHARE
   LEX_CUSTRING tabledef_version;
 
   engine_option_value *option_list;     /* text options for table */
-  ha_table_option_struct *option_struct; /* structure with parsed options */
+  /*
+    Structure with parsed options. Table-wide, engines should use
+    handler::option_struct, otherwise they won't see per-partition options.
+  */
+  ha_table_option_struct *option_struct_table;
 
   /* The following is copied to each TABLE on OPEN */
   Field **field;

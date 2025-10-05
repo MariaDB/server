@@ -3335,7 +3335,6 @@ int ha_maria::create(const char *name, TABLE *table_arg,
   MARIA_CREATE_INFO create_info;
   TABLE_SHARE *share= table_arg->s;
   uint options= share->db_options_in_use;
-  ha_table_option_struct *table_options= table_arg->s->option_struct;
   enum data_file_type row_type;
   THD *thd= current_thd;
   DBUG_ENTER("ha_maria::create");
@@ -3383,8 +3382,8 @@ int ha_maria::create(const char *name, TABLE *table_arg,
   if (ht != maria_hton)
   {
     /* S3 engine */
-    create_info.s3_block_size= (ulong) table_options->s3_block_size;
-    create_info.compression_algorithm= table_options->compression_algorithm;
+    create_info.s3_block_size= (ulong) option_struct->s3_block_size;
+    create_info.compression_algorithm= option_struct->compression_algorithm;
   }
 
   /*

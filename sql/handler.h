@@ -3282,6 +3282,7 @@ protected:
 
 public:
   handlerton *ht;               /* storage engine of this handler */
+  ha_table_option_struct *option_struct;         /* table options */
   OPTIMIZER_COSTS *costs;       /* Points to table->share->costs */
   uchar *ref;			/* Pointer to current row */
   uchar *dup_ref;		/* Pointer to duplicate row */
@@ -3494,7 +3495,7 @@ public:
   handler(handlerton *ht_arg, TABLE_SHARE *share_arg)
     :table_share(share_arg), table(0),
     estimation_rows_to_insert(0),
-    ht(ht_arg), costs(0), ref(0), lookup_handler(this),
+    ht(ht_arg), option_struct(0), costs(0), ref(0), lookup_handler(this),
     lookup_buffer(NULL), handler_stats(NULL),
     end_range(NULL), implicit_emptied(0),
     mark_trx_read_write_done(0),

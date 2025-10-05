@@ -5813,6 +5813,7 @@ ha_innobase::open(const char* name, int, uint)
 		if (int err = prepare_create_stub_for_import(thd, norm_name,
 							     create_info))
 			DBUG_RETURN(err);
+                create_info.option_struct= option_struct;
 		create(norm_name, table, &create_info, true, nullptr);
 		DEBUG_SYNC(thd, "ib_after_create_stub_for_import");
 		ib_table = open_dict_table(name, norm_name, is_part,
@@ -10565,7 +10566,7 @@ create_table_info_t::create_table_def()
 	ulint		doc_id_col = 0;
 	ibool		has_doc_id_col = FALSE;
 	mem_heap_t*	heap;
-	ha_table_option_struct *options= m_form->s->option_struct;
+	ha_table_option_struct *options= m_create_info->option_struct;
 	dberr_t		err = DB_SUCCESS;
 
 	DBUG_ENTER("create_table_def");
@@ -10885,6 +10886,7 @@ create_index(
 	trx_t*		trx,		/*!< in: InnoDB transaction handle */
 	const TABLE*	form,		/*!< in: information on table
 					columns and indexes */
+        const ha_table_option_struct& o,
 	dict_table_t*	table,		/*!< in,out: table */
 	uint		key_num)	/*!< in: index number */
 {
@@ -10899,7 +10901,6 @@ create_index(
 
 	/* Assert that "GEN_CLUST_INDEX" cannot be used as non-primary index */
 	ut_a(!key->name.streq(GEN_CLUST_INDEX));
-	const ha_table_option_struct& o = *form->s->option_struct;
 
 	if (key->algorithm == HA_KEY_ALG_FULLTEXT ||
 	    key->algorithm == HA_KEY_ALG_RTREE) {
@@ -11259,7 +11260,7 @@ const char*
 create_table_info_t::check_table_options()
 {
 	enum row_type row_format = m_create_info->row_type;
-	const ha_table_option_struct *options= m_form->s->option_struct;
+        const ha_table_option_struct *options= m_create_info->option_struct;
 
 	switch (options->encryption) {
 	case FIL_ENCRYPTION_OFF:
@@ -11549,7 +11550,7 @@ bool create_table_info_t::innobase_table_flags()
 		ut_min(static_cast<ulint>(UNIV_PAGE_SSIZE_MAX),
 		       static_cast<ulint>(PAGE_ZIP_SSIZE_MAX));
 
-	ha_table_option_struct *options= m_form->s->option_struct;
+        ha_table_option_struct *options= m_create_info->option_struct;
 
 	m_flags = 0;
 	m_flags2 = 0;
@@ -12740,6 +12741,7 @@ int create_table_info_t::create_table(bool create_fk, bool strict)
 	int		error;
 	int		primary_key_no;
 	uint		i;
+        const ha_table_option_struct& o = *m_create_info->option_struct;
 
 	DBUG_ENTER("create_table");
 
@@ -12767,7 +12769,6 @@ int create_table_info_t::create_table(bool create_fk, bool strict)
 		dict_index_t* index = dict_mem_index_create(
 			m_table, GEN_CLUST_INDEX.str,
 			DICT_CLUSTERED, 0);
-		const ha_table_option_struct& o = *m_form->s->option_struct;
 		error = convert_error_code_to_mysql(
 			row_create_index_for_mysql(
 				index, m_trx, NULL,
@@ -12782,7 +12783,7 @@ int create_table_info_t::create_table(bool create_fk, bool strict)
 	if (primary_key_no != -1) {
 		/* In InnoDB the clustered index must always be created
 		first */
-		if ((error = create_index(m_trx, m_form, m_table,
+		if ((error = create_index(m_trx, m_form, o, m_table,
 					  (uint) primary_key_no))) {
 			DBUG_RETURN(error);
 		}
@@ -12839,7 +12840,7 @@ int create_table_info_t::create_table(bool create_fk, bool strict)
 
 	for (i = 0; i < m_form->s->keys; i++) {
 		if (i != uint(primary_key_no)
-		    && (error = create_index(m_trx, m_form, m_table, i))) {
+		    && (error = create_index(m_trx, m_form, o, m_table, i))) {
 			DBUG_RETURN(error);
 		}
 	}
@@ -13233,6 +13234,7 @@ ha_innobase::create(const char *name, TABLE *form, HA_CREATE_INFO *create_info,
   DBUG_ASSERT(table_share->table_type == TABLE_TYPE_SEQUENCE ||
               table_share->table_type == TABLE_TYPE_NORMAL);
 
+  DBUG_ASSERT(option_struct == create_info->option_struct);
   create_table_info_t info(ha_thd(), form, create_info, file_per_table, trx);
 
   int error= info.initialize();
@@ -13851,6 +13853,7 @@ int ha_innobase::truncate()
     info.row_type= ROW_TYPE_DYNAMIC;
     break;
   }
+  info.option_struct= option_struct;
 
   const auto stored_lock= m_prebuilt->stored_select_lock_type;
   trx_t *trx= innobase_trx_allocate(m_user_thd);
@@ -17416,7 +17419,7 @@ ha_innobase::check_if_incompatible_data(
 
 	/* Cache engine specific options */
 	param_new = info->option_struct;
-	param_old = table->s->option_struct;
+	param_old = option_struct;
 
 	m_prebuilt->table->stats_mutex_lock();
 	if (!m_prebuilt->table->stat_initialized()) {

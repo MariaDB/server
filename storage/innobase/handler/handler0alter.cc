@@ -1292,7 +1292,7 @@ struct ha_innobase_inplace_ctx : public inplace_alter_handler_ctx
 		bool&				add_fts_doc_idx,
 				/*!< in: whether we need to add new DOC ID
 				index for FTS index */
-		const TABLE*			table);
+		const ha_table_option_struct&   opt);
 				/*!< in: MySQL table that is being altered */
 
 	/** Share context between partitions.
@@ -1540,7 +1540,7 @@ innobase_spatial_exist(
 @return whether it is mandatory to rebuild the table */
 static bool alter_options_need_rebuild(
 	const Alter_inplace_info*	ha_alter_info,
-	const TABLE*			table)
+	const ha_table_option_struct&   opt)
 {
 	DBUG_ASSERT(ha_alter_info->handler_flags & ALTER_OPTIONS);
 
@@ -1558,7 +1558,6 @@ static bool alter_options_need_rebuild(
 
 	const ha_table_option_struct& alt_opt=
 			*ha_alter_info->create_info->option_struct;
-	const ha_table_option_struct& opt= *table->s->option_struct;
 
 	/* Allow an instant change to enable page_compressed,
 	and any change of page_compression_level. */
@@ -1580,13 +1579,13 @@ static MY_ATTRIBUTE((nonnull, warn_unused_result))
 bool
 innobase_need_rebuild(
 	const Alter_inplace_info*	ha_alter_info,
-	const TABLE*			table)
+        const ha_table_option_struct&   opt)
 {
 	if ((ha_alter_info->handler_flags & ~(INNOBASE_INPLACE_IGNORE
 					      | INNOBASE_ALTER_NOREBUILD
 					      | INNOBASE_ALTER_INSTANT))
 	    == ALTER_OPTIONS) {
-		return alter_options_need_rebuild(ha_alter_info, table);
+		return alter_options_need_rebuild(ha_alter_info, opt);
 	}
 
 	return !!(ha_alter_info->handler_flags & INNOBASE_ALTER_REBUILD);
@@ -1695,7 +1694,7 @@ bool
 instant_alter_column_possible(
 	const dict_table_t&		ib_table,
 	const Alter_inplace_info*	ha_alter_info,
-	const TABLE*			table,
+        const ha_table_option_struct&   opt,
 	const TABLE*			altered_table,
 	bool				strict)
 {
@@ -1909,7 +1908,7 @@ set_max_size:
 			return false;
 		}
 		if ((flags & ALTER_OPTIONS)
-		    && alter_options_need_rebuild(ha_alter_info, table)) {
+		    && alter_options_need_rebuild(ha_alter_info, opt)) {
 			return false;
 		}
 	} else if (!ib_table.supports_instant()) {
@@ -1944,7 +1943,7 @@ set_max_size:
 	}
 
 	if ((ha_alter_info->handler_flags & ALTER_OPTIONS)
-	    && alter_options_need_rebuild(ha_alter_info, table)) {
+	    && alter_options_need_rebuild(ha_alter_info, opt)) {
 		return false;
 	}
 
@@ -2339,7 +2338,7 @@ innodb_instant_alter_column_allowed_reason:
 	switch (ha_alter_info->handler_flags & ~INNOBASE_INPLACE_IGNORE) {
 	case ALTER_OPTIONS:
 		if ((srv_file_per_table && !m_prebuilt->table->space_id)
-		    || alter_options_need_rebuild(ha_alter_info, table)) {
+		    || alter_options_need_rebuild(ha_alter_info, *option_struct)) {
 			reason_rebuild = my_get_err_msg(
 				ER_ALTER_OPERATION_TABLE_OPTIONS_NEED_REBUILD);
 			ha_alter_info->unsupported_reason = reason_rebuild;
@@ -2611,7 +2610,7 @@ innodb_instant_alter_column_allowed_reason:
 	Field **af = altered_table->field;
 	bool fts_need_rebuild = false;
 	need_rebuild = need_rebuild
-		|| innobase_need_rebuild(ha_alter_info, table);
+		|| innobase_need_rebuild(ha_alter_info, *option_struct);
 
 	for (Create_field& cf : ha_alter_info->alter_info->create_list) {
 		DBUG_ASSERT(cf.field
@@ -2679,8 +2678,8 @@ next_column:
 	}
 
 	const bool supports_instant = instant_alter_column_possible(
-		*m_prebuilt->table, ha_alter_info, table, altered_table,
-		is_innodb_strict_mode());
+                *m_prebuilt->table, ha_alter_info, *option_struct,
+                altered_table, is_innodb_strict_mode());
 	if (add_drop_v_cols) {
 		ulonglong flags = ha_alter_info->handler_flags;
 
@@ -4143,7 +4142,7 @@ ha_innobase_inplace_ctx::create_key_defs(
 	bool&				add_fts_doc_idx,
 			/*!< in: whether we need to add new DOC ID
 			index for FTS index */
-	const TABLE*			table)
+        const ha_table_option_struct&   opt)
 			/*!< in: MySQL table that is being altered */
 {
 	ulint&			n_add = num_to_add_index;
@@ -4182,7 +4181,7 @@ ha_innobase_inplace_ctx::create_key_defs(
 	}
 
 	const bool rebuild = new_primary || add_fts_doc_id
-		|| innobase_need_rebuild(ha_alter_info, table);
+		|| innobase_need_rebuild(ha_alter_info, opt);
 
 	/* Reserve one more space if new_primary is true, and we might
 	need to add the FTS_DOC_ID_INDEX */
@@ -6481,6 +6480,7 @@ prepare_inplace_alter_table_dict(
 	Alter_inplace_info*	ha_alter_info,
 	const TABLE*		altered_table,
 	const TABLE*		old_table,
+        const ha_table_option_struct *old_opt,
 	const char*		table_name,
 	ulint			flags,
 	ulint			flags2,
@@ -6592,7 +6592,7 @@ prepare_inplace_alter_table_dict(
 		ha_alter_info, altered_table,
 		num_fts_index,
 		fts_doc_id_col, add_fts_doc_id, add_fts_doc_id_idx,
-		old_table);
+		*old_opt);
 
 	new_clustered = (DICT_CLUSTERED & index_defs[0].ind_type) != 0;
 
@@ -6605,7 +6605,7 @@ prepare_inplace_alter_table_dict(
 	is just copied from old table and stored in indexdefs[0] */
 	DBUG_ASSERT(!add_fts_doc_id || new_clustered);
 	DBUG_ASSERT(!!new_clustered ==
-		    (innobase_need_rebuild(ha_alter_info, old_table)
+		    (innobase_need_rebuild(ha_alter_info, *old_opt)
 		     || add_fts_doc_id));
 
 	/* Allocate memory for dictionary index definitions */
@@ -6942,7 +6942,7 @@ wrong_column_name:
 			ctx->new_table, user_table, defaults, ctx->heap);
 		ctx->defaults = defaults;
 	} else {
-		DBUG_ASSERT(!innobase_need_rebuild(ha_alter_info, old_table));
+		DBUG_ASSERT(!innobase_need_rebuild(ha_alter_info, *old_opt));
 		DBUG_ASSERT(old_table->s->primary_key
 			    == altered_table->s->primary_key);
 
@@ -7011,7 +7011,7 @@ wrong_column_name:
 		    || !ctx->new_table->persistent_autoinc);
 
 	if (ctx->need_rebuild() && instant_alter_column_possible(
-		    *user_table, ha_alter_info, old_table, altered_table,
+		    *user_table, ha_alter_info, *old_opt, altered_table,
 		    ha_innobase::is_innodb_strict_mode(ctx->trx->mysql_thd))) {
 		for (uint a = 0; a < ctx->num_to_add_index; a++) {
 			ctx->add_index[a]->table = ctx->new_table;
@@ -7149,7 +7149,7 @@ wrong_column_name:
 			    || !ha_alter_info->mdl_exclusive_after_prepare
 			    || ctx->add_autoinc == ULINT_UNDEFINED);
 		DBUG_ASSERT(!ctx->online
-			    || !innobase_need_rebuild(ha_alter_info, old_table)
+			    || !innobase_need_rebuild(ha_alter_info, *old_opt)
 			    || !innobase_fulltext_exist(altered_table));
 
 		uint32_t		key_id	= FIL_DEFAULT_ENCRYPTION_KEY;
@@ -7165,8 +7165,7 @@ wrong_column_name:
 		if (ha_alter_info->handler_flags & ALTER_OPTIONS) {
 			const ha_table_option_struct& alt_opt=
 				*ha_alter_info->create_info->option_struct;
-			const ha_table_option_struct& opt=
-				*old_table->s->option_struct;
+			const ha_table_option_struct& opt= *old_opt;
 			if (alt_opt.encryption != opt.encryption
 			    || alt_opt.encryption_key_id
 			    != opt.encryption_key_id) {
@@ -8176,7 +8175,7 @@ check_if_ok_to_rename:
 	/* ALGORITHM=INPLACE without rebuild (10.3+ ALGORITHM=NOCOPY)
 	must use the current ROW_FORMAT of the table. */
 	const ulint max_col_len = DICT_MAX_FIELD_LEN_BY_FORMAT_FLAG(
-		innobase_need_rebuild(ha_alter_info, this->table)
+		innobase_need_rebuild(ha_alter_info, *option_struct)
 		? info.flags()
 		: m_prebuilt->table->flags);
 
@@ -8580,7 +8579,7 @@ field_changed:
 						  | INNOBASE_ALTER_NOCREATE
 						  | INNOBASE_ALTER_INSTANT))
 		== ALTER_OPTIONS
-		&& !alter_options_need_rebuild(ha_alter_info, table))) {
+		&& !alter_options_need_rebuild(ha_alter_info, *option_struct))) {
 
 		DBUG_ASSERT(!m_prebuilt->trx->dict_operation_lock_mode);
 		online_retry_drop_indexes(m_prebuilt->table, m_user_thd);
@@ -8755,7 +8754,7 @@ found_col:
 		alt_opt.page_compressed, alt_opt.page_compression_level);
 
 	if (!prepare_inplace_alter_table_dict(
-		    ha_alter_info, altered_table, table,
+		    ha_alter_info, altered_table, table, option_struct,
 		    table_share->table_name.str,
 		    info.flags(), info.flags2(),
 		    fts_doc_col_no, add_fts_doc_id,
@@ -8841,7 +8840,7 @@ ok_exit:
 					      | INNOBASE_ALTER_NOCREATE
 					      | INNOBASE_ALTER_INSTANT))
 	    == ALTER_OPTIONS
-	    && !alter_options_need_rebuild(ha_alter_info, table)) {
+	    && !alter_options_need_rebuild(ha_alter_info, *option_struct)) {
 		goto ok_exit;
 	}
 

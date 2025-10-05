@@ -5462,16 +5462,14 @@ that are reorganised.
           partition_element *part_elem= alt_it++;
           if (*fast_alter_table)
             part_elem->part_state= PART_TO_BE_ADDED;
-          if (unlikely(tab_part_info->partitions.push_back(part_elem,
-                                                           thd->mem_root)))
+          if (tab_part_info->partitions.push_back(part_elem, thd->mem_root))
             goto err;
         } while (++part_count < num_new_partitions);
         tab_part_info->num_parts+= num_new_partitions;
         if (tab_part_info->part_type == VERSIONING_PARTITION)
         {
           DBUG_ASSERT(now_part);
-          if (unlikely(tab_part_info->partitions.push_back(now_part,
-                                                           thd->mem_root)))
+          if (tab_part_info->partitions.push_back(now_part, thd->mem_root))
             goto err;
         }
       }

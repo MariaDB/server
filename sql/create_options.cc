@@ -478,7 +478,7 @@ bool parse_engine_table_options(THD *thd, handlerton *ht, TABLE_SHARE *share)
   MEM_ROOT *root= &share->mem_root;
   DBUG_ENTER("parse_engine_table_options");
 
-  if (parse_option_list(thd, &share->option_struct, & share->option_list,
+  if (parse_option_list(thd, &share->option_struct_table, & share->option_list,
                         ht->table_options, TRUE, root))
     DBUG_RETURN(TRUE);
 
@@ -534,22 +534,18 @@ bool parse_engine_part_options(THD *thd, TABLE *table)
                              &tmp_option_list, root))
       DBUG_RETURN(TRUE);
 
-    if (!part_info->is_sub_partitioned())
-    {
-      ht= part_elem->engine_type;
-      if (parse_option_list(thd, &part_elem->option_struct,
-                            &tmp_option_list, ht->table_options, TRUE, root))
-        DBUG_RETURN(TRUE);
-    }
-    else
+    ht= table->file->partition_ht();
+    if (parse_option_list(thd, &part_elem->option_struct_part,
+                          &tmp_option_list, ht->table_options, TRUE, root))
+      DBUG_RETURN(TRUE);
+
+    if (part_info->is_sub_partitioned())
     {
       List_iterator<partition_element> sub_it(part_elem->subpartitions);
       while (partition_element *sub_part_elem= sub_it++)
       {
-        ht= sub_part_elem->engine_type;
-        if (parse_option_list(thd, &sub_part_elem->option_struct,
-                              &tmp_option_list, ht->table_options, TRUE, root))
-          DBUG_RETURN(TRUE);
+        DBUG_ASSERT(sub_part_elem->engine_type == ht);
+        sub_part_elem->option_struct_part= part_elem->option_struct_part;
       }
     }
   }
