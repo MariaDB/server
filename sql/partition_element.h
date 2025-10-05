@@ -127,8 +127,8 @@ public:
   bool empty;
   elem_type_enum type;
 
-  engine_option_value *option_list;      // create options for partition
-  ha_table_option_struct *option_struct; // structure with parsed options
+  engine_option_value *option_list;           // create options for partition
+  ha_table_option_struct *option_struct_part; // structure with parsed options
 
   partition_element()
   : part_max_rows(0), part_min_rows(0), range_value(0),
@@ -140,7 +140,7 @@ public:
     id(UINT_MAX32),
     empty(true),
     type(CONVENTIONAL),
-    option_list(NULL), option_struct(NULL)
+    option_list(NULL), option_struct_part(NULL)
   {}
   partition_element(partition_element *part_elem)
   : part_max_rows(part_elem->part_max_rows),
@@ -161,7 +161,7 @@ public:
     empty(part_elem->empty),
     type(CONVENTIONAL),
     option_list(part_elem->option_list),
-    option_struct(part_elem->option_struct)
+    option_struct_part(part_elem->option_struct_part)
   {}
   ~partition_element() = default;
 

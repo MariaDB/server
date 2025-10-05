@@ -4888,6 +4888,9 @@ int create_table_impl(THD *thd,
     if (parse_engine_table_options(thd, hton, &share))
       goto err;
 
+    DBUG_ASSERT(!create_info->option_struct);
+    create_info->option_struct= share.option_struct_table;
+
     /*
       Log that we are going to do discovery. If things fails, any generated
       .frm files are deleted

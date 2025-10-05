@@ -1363,7 +1363,7 @@ PTOS ha_connect::GetTableOptionStruct(TABLE_SHARE *s)
 	return (tsp && (!tsp->db_plugin || 
 		              !stricmp(plugin_name(tsp->db_plugin)->str, "connect") ||
 									!stricmp(plugin_name(tsp->db_plugin)->str, "partition")))
-									? tsp->option_struct : NULL;
+									? tsp->option_struct_table : NULL;
 } // end of GetTableOptionStruct
 
 /****************************************************************************/
@@ -5252,7 +5252,7 @@ int ha_connect::delete_or_rename_table(const char *name, const char *to)
     }
     if (!got_error) {
       // Now we can work
-      if ((pos= share->option_struct)) {
+      if ((pos= share->option_struct_table)) {
         if (check_privileges(thd, pos, db))
           rc= HA_ERR_INTERNAL_ERROR;         // ???
         else
@@ -5498,7 +5498,7 @@ static int init_table_share(THD* thd,
                             String *sql)
 {
   bool oom= false;
-  PTOS topt= table_s->option_struct;
+  PTOS topt= table_s->option_struct_table;
 
   sql->length(sql->length()-1); // remove the trailing comma
   sql->append(')');
@@ -5632,7 +5632,8 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
   if (!g)
     return HA_ERR_INTERNAL_ERROR;
 
-  PTOS     topt= table_s->option_struct;
+  DBUG_ASSERT(IF_PARTITIONING(!table_s->partition_info_str,1));
+  PTOS     topt= table_s->option_struct_table;
   char     buf[1024];
   String   sql(buf, sizeof(buf), system_charset_info);
 
@@ -7170,7 +7171,7 @@ ha_connect::check_if_supported_inplace_alter(TABLE *altered_table,
   int             sqlcom= thd_sql_command(thd);
   TABTYPE         newtyp, type= TAB_UNDEF;
   HA_CREATE_INFO *create_info= ha_alter_info->create_info;
-  PTOS            newopt, oldopt;
+  PTOS            newopt= create_info->option_struct, oldopt= option_struct;
   xp= GetUser(thd, xp);
   PGLOBAL         g= xp->g;
 
@@ -7178,9 +7179,6 @@ ha_connect::check_if_supported_inplace_alter(TABLE *altered_table,
     my_message(ER_UNKNOWN_ERROR, "Cannot check ALTER operations", MYF(0));
     DBUG_RETURN(HA_ALTER_ERROR);
     } // endif Xchk
-
-  newopt= altered_table->s->option_struct;
-  oldopt= table->s->option_struct;
 
   // If this is the start of a new query, cleanup the previous one
   if (xp->CheckCleanup()) {

@@ -2529,11 +2529,11 @@ int spider_parse_connect_info(
   table, a partition, or a sub-partition. */
   if (part_info)
     if (part_info->is_sub_partitioned())
-      options= sub_elem->option_struct;
+      options= sub_elem->option_struct_part;
     else
-      options= part_elem->option_struct;
+      options= part_elem->option_struct_part;
   else
-    options= table_share->option_struct;
+    options= table_share->option_struct_table;
   spider_minus_1(share, table_share);
 
   /* Parse through all option fields, and flip option_specified if

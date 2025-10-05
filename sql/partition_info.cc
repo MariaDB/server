@@ -411,20 +411,19 @@ bool partition_info::set_up_default_partitions(THD *thd, handler *file,
     my_error(ER_TOO_MANY_PARTITIONS_ERROR, MYF(0));
     goto end;
   }
-  if (unlikely((!(default_name= create_default_partition_names(thd, 0,
-                                                               num_parts,
-                                                               start_no)))))
+  default_name= create_default_partition_names(thd, 0, num_parts, start_no);
+  if (unlikely(!default_name))
     goto end;
   i= 0;
   do
   {
     partition_element *part_elem= new partition_element();
-    if (likely(part_elem != 0 &&
-               (!partitions.push_back(part_elem))))
+    if (likely(part_elem != 0 && !partitions.push_back(part_elem)))
     {
       part_elem->engine_type= default_engine_type;
       part_elem->partition_name= Lex_cstring_strlen(default_name);
       part_elem->id= i;
+      part_elem->option_struct_part= file->option_struct;
       default_name+=MAX_PART_NAME_SIZE;
       if (part_type == VERSIONING_PARTITION)
       {

@@ -431,8 +431,8 @@ PTDB TDBPRX::GetSubTable(PGLOBAL g, PTABLE tabp, bool b)
     hc->get_table()->field = NULL;
 
     // Make caller use the source definition
-    sp = hc->get_table()->s->option_struct->srcdef;
-    hc->get_table()->s->option_struct->srcdef = tabp->GetSrc();
+    sp = hc->get_table()->s->option_struct_table->srcdef;
+    hc->get_table()->s->option_struct_table->srcdef = tabp->GetSrc();
   } // endif srcdef
 
   if (mysql) {
@@ -466,7 +466,7 @@ PTDB TDBPRX::GetSubTable(PGLOBAL g, PTABLE tabp, bool b)
   } else if (b) {
     // Restore s structure that can be in cache
     hc->get_table()->field = fp;
-    hc->get_table()->s->option_struct->srcdef = sp;
+    hc->get_table()->s->option_struct_table->srcdef = sp;
   } // endif s
 
   if (trace(1) && tdbp)
