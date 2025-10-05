@@ -82,6 +82,7 @@
                                         HA_CAN_TABLES_WITHOUT_ROLLBACK)
 
 static const char *ha_par_ext= PAR_EXT;
+List<partition_element> partition_element_iterator::empty;
 
 /*
   Index Condition Pushdown relies on invoking val_int() on the pushed index
@@ -794,8 +795,7 @@ int ha_partition::create(const char *name, TABLE *table_arg,
   Table_path_buffer name_lc_buff;
   char *name_buffer_ptr;
   const char *path;
-  uint i;
-  List_iterator_fast <partition_element> part_it(m_part_info->partitions);
+  partition_element_iterator part_it(m_part_info->partitions);
   partition_element *part_elem;
   handler **file, **abort_file;
   DBUG_ENTER("ha_partition::create");
@@ -843,48 +843,18 @@ int ha_partition::create(const char *name, TABLE *table_arg,
   */
   path= file[0]->get_canonical_filename(Lex_cstring_strlen(name),
                                         &name_lc_buff).str;
-  for (i= 0; i < m_part_info->num_parts; i++)
+  while ((part_elem= part_it++))
   {
-    part_elem= part_it++;
-    if (m_is_sub_partitioned)
-    {
-      uint j;
-      List_iterator_fast <partition_element> sub_it(part_elem->subpartitions);
-      for (j= 0; j < m_part_info->num_subparts; j++)
-      {
-        part_elem= sub_it++;
-        if (unlikely((error= create_partition_name(name_buff,
-                                                   sizeof(name_buff), path,
-                                                   name_buffer_ptr,
-                                                   NORMAL_PART_NAME, FALSE))))
-          goto create_error;
-        if (unlikely((error= set_up_table_before_create(table_arg, name_buff,
-                                                        create_info,
-                                                        part_elem)) ||
-                     ((error= (*file)->ha_create(name_buff, table_arg,
-                                                 create_info)))))
-          goto create_error;
+    if ((error= create_partition_name(name_buff, sizeof(name_buff), path,
+                                      name_buffer_ptr, NORMAL_PART_NAME, 0)))
+      goto create_error;
+    if ((error= set_up_table_before_create(table_arg, name_buff, create_info,
+                                           part_elem)) ||
+        (error= (*file)->ha_create(name_buff, table_arg, create_info)))
+      goto create_error;
 
-        name_buffer_ptr= strend(name_buffer_ptr) + 1;
-        file++;
-      }
-    }
-    else
-    {
-      if (unlikely((error= create_partition_name(name_buff, sizeof(name_buff),
-                                                 path, name_buffer_ptr,
-                                                 NORMAL_PART_NAME, FALSE))))
-        goto create_error;
-      if (unlikely((error= set_up_table_before_create(table_arg, name_buff,
-                                                      create_info,
-                                                      part_elem)) ||
-                   ((error= (*file)->ha_create(name_buff, table_arg,
-                                               create_info)))))
-        goto create_error;
-
-      name_buffer_ptr= strend(name_buffer_ptr) + 1;
-      file++;
-    }
+    name_buffer_ptr= strend(name_buffer_ptr) + 1;
+    file++;
   }
   DBUG_RETURN(0);
 
@@ -2785,8 +2755,7 @@ register_query_cache_dependant_tables(THD *thd,
 */
 
 int ha_partition::set_up_table_before_create(TABLE *tbl,
-                    const char *partition_name_with_path,
-                    HA_CREATE_INFO *info,
+                    const char *partition_name_with_path, HA_CREATE_INFO *info,
                     partition_element *part_elem)
 {
   int error= 0;
@@ -2803,12 +2772,10 @@ int ha_partition::set_up_table_before_create(TABLE *tbl,
   part_name.str= strrchr(partition_name_with_path, FN_LIBCHAR)+1;
   part_name.length= strlen(part_name.str);
   if ((part_elem->index_file_name &&
-      (error= append_file_to_dir(thd,
-                                 (const char**)&part_elem->index_file_name,
+      (error= append_file_to_dir(thd, (const char**)&part_elem->index_file_name,
                                  &part_name))) ||
       (part_elem->data_file_name &&
-      (error= append_file_to_dir(thd,
-                                 (const char**)&part_elem->data_file_name,
+      (error= append_file_to_dir(thd, (const char**)&part_elem->data_file_name,
                                  &part_name))))
   {
     DBUG_RETURN(error);
@@ -10588,29 +10555,15 @@ bool ha_partition::check_if_incompatible_data(HA_CREATE_INFO *create_info,
     in mysql_alter_table (by fix_partition_func), so it is only up to
     the underlying handlers.
   */
-  List_iterator<partition_element> part_it(m_part_info->partitions);
+  partition_element_iterator part_it(m_part_info->partitions);
   HA_CREATE_INFO dummy_info= *create_info;
   uint i=0;
   while (partition_element *part_elem= part_it++)
   {
-    if (m_is_sub_partitioned)
-    {
-      List_iterator<partition_element> subpart_it(part_elem->subpartitions);
-      while (partition_element *sub_elem= subpart_it++)
-      {
-        dummy_info.data_file_name= sub_elem->data_file_name;
-        dummy_info.index_file_name= sub_elem->index_file_name;
-        if (m_file[i++]->check_if_incompatible_data(&dummy_info, table_changes))
-          return COMPATIBLE_DATA_NO;
-      }
-    }
-    else
-    {
-      dummy_info.data_file_name= part_elem->data_file_name;
-      dummy_info.index_file_name= part_elem->index_file_name;
-      if (m_file[i++]->check_if_incompatible_data(&dummy_info, table_changes))
-        return COMPATIBLE_DATA_NO;
-    }
+    dummy_info.data_file_name= part_elem->data_file_name;
+    dummy_info.index_file_name= part_elem->index_file_name;
+    if (m_file[i++]->check_if_incompatible_data(&dummy_info, table_changes))
+      return COMPATIBLE_DATA_NO;
   }
   return COMPATIBLE_DATA_YES;
 }

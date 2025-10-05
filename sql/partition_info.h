@@ -575,4 +575,27 @@ uint partition_info::next_part_no(uint new_parts) const
 }
 #endif
 
+
+class partition_element_iterator
+{
+  static List<partition_element> empty;
+  List_iterator_fast<partition_element> part_it, subpart_it;
+  public:
+  partition_element_iterator(List<partition_element> &partitions) :
+    part_it(partitions), subpart_it(empty) {}
+  partition_element *operator++(int)
+  {
+    partition_element *sub= subpart_it++;
+    if (sub)
+      return sub;
+    partition_element *part= part_it++;
+    if (!part)
+      return NULL;
+    subpart_it.init(part->subpartitions);
+    sub= subpart_it++;
+    return sub ? sub : part;
+  }
+};
+
+
 #endif /* PARTITION_INFO_INCLUDED */
