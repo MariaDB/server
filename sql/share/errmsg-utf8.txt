@@ -12277,7 +12277,7 @@ ER_SEQUENCE_TABLE_CANNOT_HAVE_ANY_CONSTRAINTS
 ER_SEQUENCE_TABLE_ORDER_BY
         eng "ORDER BY"
 ER_VARIABLE_IGNORED
-        eng "The variable '%s' is ignored. It only exists for compatibility with old installations and will be removed in a future release"
+        eng "The setting '%s' is ignored. It only exists for compatibility with old installations and will be removed in a future release"
 ER_INCORRECT_COLUMN_NAME_COUNT
         eng "Incorrect column name count for derived table"
         chi "派生表的列名计数不正确"
@@ -12292,8 +12292,3 @@ ER_VECTOR_FORMAT_INVALID
         eng "Invalid vector format at offset: %d for '%-.100s'. Must be a valid JSON array of numbers."
 ER_PSEUDO_THREAD_ID_OVERWRITE
         eng "Pseudo thread id should not be modified by the client as it will be overwritten"
-ER_WARN_DEFAULT_SYNTAX
-        chi "'%s' 默认并被忽略"
-        eng "'%s' is default and ignored"
-        ger "'%s' ist Standard und wird ignoriert"
-        spa "'%s' Es predeterminado e ignorado"
