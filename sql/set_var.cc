@@ -428,15 +428,13 @@ void sys_var::do_deprecated_warning(THD *thd)
 {
   if (option.deprecation_substitute != NULL)
   {
-    char buf1[NAME_CHAR_LEN + 3];
-    strxnmov(buf1, sizeof(buf1)-1, "@@", name.str, 0);
-
     if (option.comment == UNUSED_HELP ||
         strcmp(option.comment, UNUSED_HELP) == 0)
-      my_error(ER_VARIABLE_IGNORED, MYF(ME_WARNING), buf1);
+      my_error(ER_VARIABLE_IGNORED, MYF(ME_WARNING), name.str);
     else
     {
-      char buf2[NAME_CHAR_LEN + 3];
+      char buf1[NAME_CHAR_LEN + 3], buf2[NAME_CHAR_LEN + 3];
+      strxnmov(buf1, sizeof(buf1)-1, "@@", name.str, 0);
       if (!IS_DEPRECATED_NO_REPLACEMENT(option.deprecation_substitute))
         strxnmov(buf2, sizeof(buf2)-1, "@@", option.deprecation_substitute, 0);
       else

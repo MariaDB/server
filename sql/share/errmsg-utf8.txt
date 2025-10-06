@@ -12275,7 +12275,7 @@ ER_SEQUENCE_TABLE_CANNOT_HAVE_ANY_CONSTRAINTS
 ER_SEQUENCE_TABLE_ORDER_BY
         eng "ORDER BY"
 ER_VARIABLE_IGNORED
-        eng "The variable '%s' is ignored. It only exists for compatibility with old installations and will be removed in a future release"
+        eng "The setting '%s' is ignored. It only exists for compatibility with old installations and will be removed in a future release"
 ER_INCORRECT_COLUMN_NAME_COUNT
         eng "Incorrect column name count for derived table"
         chi "派生表的列名计数不正确"
@@ -12297,8 +12297,3 @@ WARN_INDEX_HINTS_IGNORED
         ukr "Підказки по використанню индексів ігноруются тому що вони несумісні з RETURNING"
 ER_SIGNAL_SKIP_ROW_FROM_TRIGGER
         eng "The row is skipped by a trigger implementation"
-ER_WARN_DEFAULT_SYNTAX
-        chi "'%s' 默认并被忽略"
-        eng "'%s' is default and ignored"
-        ger "'%s' ist Standard und wird ignoriert"
-        spa "'%s' Es predeterminado e ignorado"

@@ -4267,6 +4267,7 @@ static int init_common_variables()
   global_system_variables.lc_messages= my_default_lc_messages;
   global_system_variables.errmsgs= my_default_lc_messages->errmsgs->errmsgs;
   init_client_errs();
+  check_new_mode_value(NULL, &global_system_variables.new_behavior);
   mysql_library_init(unused,unused,unused); /* for replication */
   lex_init();
   if (item_create_init())
@@ -8815,8 +8816,6 @@ static int get_options(int *argc_ptr, char ***argv_ptr)
                                            OLD_MODE_IGNORE_INDEX_ONLY_FOR_JOIN |
                                            OLD_MODE_COMPAT_5_1_CHECKSUM);
   }
-
-  check_new_mode_value(NULL, &global_system_variables.new_behavior);
 
   if (global_system_variables.net_buffer_length > 
       global_system_variables.max_allowed_packet)

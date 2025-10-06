@@ -4149,19 +4149,10 @@ void check_new_mode_value(THD *thd, ulonglong *v)
   {
     if ((1ULL<<i) & vl)
     {
+      char buf1[NAME_CHAR_LEN*2 + 3];
+      strxnmov(buf1, sizeof(buf1)-1, "new_mode=", new_mode_default_names[i], 0);
+      my_error(ER_VARIABLE_IGNORED, MYF(ME_WARNING), buf1);
       (*v)&= ~(1ULL << (i+NEW_MODE_MAX));
-      if (thd)
-      {
-        push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
-                      ER_WARN_DEFAULT_SYNTAX,
-                      ER_THD(thd, ER_WARN_DEFAULT_SYNTAX),
-                      new_mode_default_names[i], nullptr);
-      }
-      else
-      {
-        sql_print_warning("--new-mode='%s' is now default",
-                          new_mode_default_names[i]);
-      }
     }
   }
 }
