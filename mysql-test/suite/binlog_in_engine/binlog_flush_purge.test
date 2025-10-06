@@ -218,6 +218,9 @@ SET GLOBAL binlog_expire_logs_seconds= @old_expire;
 
 --echo *** Test FLUSH BINARY LOGS DELETE_DOMAIN_ID.
 
+# Test that deleting only non-existing domain succeeds with a warning.
+FLUSH BINARY LOGS DELETE_DOMAIN_ID=(101);
+
 SET SESSION gtid_domain_id= 1;
 SET SESSION gtid_seq_no= 1000;
 CREATE TABLE t1 (a INT PRIMARY KEY, b INT) ENGINE=InnoDB;
@@ -237,7 +240,7 @@ FLUSH BINARY LOGS;
 --let $binlog_size= 262144
 --source include/wait_for_engine_binlog.inc
 PURGE BINARY LOGS TO 'binlog-000031.ibb';
-FLUSH BINARY LOGS DELETE_DOMAIN_ID=(2);
+FLUSH BINARY LOGS DELETE_DOMAIN_ID=(101, 2);
 SELECT @@GLOBAL.gtid_binlog_state;
 
 # Test that deletion of domains in the state got persisted to disk.
