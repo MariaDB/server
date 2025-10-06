@@ -137,6 +137,9 @@ DROP TABLE t1;
 SET GLOBAL max_binlog_total_size= @old_max_total;
 SET GLOBAL binlog_expire_logs_seconds= @old_expire;
 *** Test FLUSH BINARY LOGS DELETE_DOMAIN_ID.
+FLUSH BINARY LOGS DELETE_DOMAIN_ID=(101);
+Warnings:
+Warning	1076	The gtid domain being deleted ('101') is not in the current binlog state
 SET SESSION gtid_domain_id= 1;
 SET SESSION gtid_seq_no= 1000;
 CREATE TABLE t1 (a INT PRIMARY KEY, b INT) ENGINE=InnoDB;
@@ -157,7 +160,9 @@ SELECT @@GLOBAL.gtid_binlog_state;
 0-1-2508,1-1-1003,2-1-100
 FLUSH BINARY LOGS;
 PURGE BINARY LOGS TO 'binlog-000031.ibb';
-FLUSH BINARY LOGS DELETE_DOMAIN_ID=(2);
+FLUSH BINARY LOGS DELETE_DOMAIN_ID=(101, 2);
+Warnings:
+Warning	1076	The gtid domain being deleted ('101') is not in the current binlog state
 SELECT @@GLOBAL.gtid_binlog_state;
 @@GLOBAL.gtid_binlog_state
 0-1-2508,1-1-1003
