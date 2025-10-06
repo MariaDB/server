@@ -2555,7 +2555,7 @@ DROP DATABASE bug25717383;
 #
 # MDEV-6091 mysqldump goes in a loop and segfaults if --dump-slave is specified and it cannot connect to the server
 #
---replace_regex /mariadb-dump\.exe/mariadb-dump/ /'unknownhost' \(.*\)/'unknownhost'/
+--replace_regex /mariadb-dump\.exe/mariadb-dump/ /'unknownhost' \(.*\)/'unknownhost'/ /Got error: 2002: "Can't connect to server on/Got error: 2005: "Unknown server host/
 --error 2
 --exec $MYSQL_DUMP --default-character-set=utf8mb4 -hunknownhost --dump-slave nulldb 2>&1
 
