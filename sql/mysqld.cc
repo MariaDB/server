@@ -4875,6 +4875,35 @@ static int adjust_optimizer_costs(const LEX_CSTRING *, OPTIMIZER_COSTS *oc, TABL
   { option, OPT_REMOVED_OPTION, \
    0, 0, 0, 0, GET_STR, OPT_ARG, 0, 0, 0, 0, 0, 0 }
 
+
+static int
+create_dir_path_if_needed(const char *dir)
+{
+  MY_STAT stat_buf;
+  char buf[FN_REFLEN];
+  char *end= strmake(buf, dir, FN_REFLEN-1);
+  size_t len= dirname_length(buf);
+  if (len > 0 && end == buf + len)
+  {
+    /* Ends in trailing '/', strip it. */
+    buf[len-1]= '\0';
+    len= dirname_length(buf);
+  }
+  if (my_stat(dir, &stat_buf, MYF(0)))
+    return 0;  // Already exists
+  if (len > 1)
+  {
+    /* Create any parent directory as well. */
+    strmake(buf, dir, len);
+    if (create_dir_path_if_needed(buf))
+      return 1;
+  }
+  if(my_mkdir(dir, 0777, MYF(MY_WME)) && my_errno != EEXIST)
+    return 1;
+  return 0;
+}
+
+
 static int init_server_components()
 {
   DBUG_ENTER("init_server_components");
@@ -5092,6 +5121,13 @@ static int init_server_components()
         sql_print_error("The combination of --binlog-directory path '%s' with "
                         "filename '%s' from --log-bin results in a too long "
                         "path", opt_binlog_directory, ln);
+        unireg_abort(1);
+      }
+      if (create_dir_path_if_needed(opt_binlog_directory))
+      {
+        sql_print_error("Failed to create the directory '%s' specified in "
+                        "--binlog-directory, error code: %d",
+                        opt_binlog_directory, my_errno);
         unireg_abort(1);
       }
       const char *end= &buf2[FN_REFLEN-1];
