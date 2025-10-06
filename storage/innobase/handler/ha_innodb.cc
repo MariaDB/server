@@ -19926,9 +19926,9 @@ static MYSQL_SYSVAR_ULONGLONG(binlog_state_interval,
   PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
   "Interval (in bytes) at which to write the GTID binlog state to binlog "
   "files to speed up GTID lookups. Must be a multiple of the binlog page "
-  "size (4096 bytes)",
+  "size (16384 bytes)",
   NULL, NULL, 2*1024*1024,
-  8192, ULONGLONG_MAX, 0);
+  32768, ULONGLONG_MAX, 0);
 
 static struct st_mysql_sys_var* innobase_system_variables[]= {
   MYSQL_SYSVAR(autoextend_increment),
