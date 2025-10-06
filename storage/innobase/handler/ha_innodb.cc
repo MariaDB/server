@@ -342,12 +342,7 @@ const char* innodb_linux_aio_names[] = {
 
 /** Used to define an enumerate type of the system variable
 innodb_linux_aio. Used by mariadb-backup too. */
-TYPELIB innodb_linux_aio_typelib = {
-	array_elements(innodb_linux_aio_names) - 1,
-	"innodb_linux_aio_typelib",
-	innodb_linux_aio_names,
-	NULL, NULL
-};
+TYPELIB innodb_linux_aio_typelib = CREATE_TYPELIB_FOR(innodb_linux_aio_names);
 #endif
 
 /** Possible values of the parameter innodb_checksum_algorithm */

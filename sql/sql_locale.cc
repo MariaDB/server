@@ -3192,28 +3192,16 @@ static const char *my_locale_ab_day_names_el_GR[8]=
 };
  
 static TYPELIB my_locale_typelib_month_names_el_GR= 
-{
-  array_elements(my_locale_month_names_el_GR) - 1,
-  "", my_locale_month_names_el_GR, NULL, NULL
-};
+  CREATE_TYPELIB_FOR(my_locale_month_names_el_GR);
 
 static TYPELIB my_locale_typelib_ab_month_names_el_GR= 
-{
-  array_elements(my_locale_ab_month_names_el_GR)-1,
-  "", my_locale_ab_month_names_el_GR, NULL, NULL
-};
+  CREATE_TYPELIB_FOR(my_locale_ab_month_names_el_GR);
 
 static TYPELIB my_locale_typelib_day_names_el_GR= 
-{
-  array_elements(my_locale_day_names_el_GR)-1,
-  "", my_locale_day_names_el_GR, NULL, NULL
-};
+  CREATE_TYPELIB_FOR(my_locale_day_names_el_GR);
 
 static TYPELIB my_locale_typelib_ab_day_names_el_GR= 
-{
-  array_elements(my_locale_ab_day_names_el_GR) - 1,
-  "", my_locale_ab_day_names_el_GR, NULL, NULL
-};
+  CREATE_TYPELIB_FOR(my_locale_ab_day_names_el_GR);
 
 MY_LOCALE my_locale_el_GR
 (
@@ -3260,28 +3248,16 @@ static const char *my_locale_ab_day_names_rm_CH[8]=
 };
 
 static TYPELIB my_locale_typelib_month_names_rm_CH=
-{
-  array_elements(my_locale_month_names_rm_CH) - 1,
-  "", my_locale_month_names_rm_CH, NULL, NULL
-};
+  CREATE_TYPELIB_FOR(my_locale_month_names_rm_CH);
 
 static TYPELIB my_locale_typelib_ab_month_names_rm_CH=
-{
-  array_elements(my_locale_ab_month_names_rm_CH) - 1,
-  "", my_locale_ab_month_names_rm_CH, NULL, NULL
-};
+  CREATE_TYPELIB_FOR(my_locale_ab_month_names_rm_CH);
 
 static TYPELIB my_locale_typelib_day_names_rm_CH=
-{
-  array_elements(my_locale_day_names_rm_CH) - 1,
-   "", my_locale_day_names_rm_CH, NULL, NULL
-};
+  CREATE_TYPELIB_FOR(my_locale_day_names_rm_CH);
 
 static TYPELIB my_locale_typelib_ab_day_names_rm_CH=
-{
-  array_elements(my_locale_ab_day_names_rm_CH) - 1,
-  "", my_locale_ab_day_names_rm_CH, NULL, NULL
-};
+  CREATE_TYPELIB_FOR(my_locale_ab_day_names_rm_CH);
 
 MY_LOCALE my_locale_rm_CH
 (
