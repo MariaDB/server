@@ -80,9 +80,9 @@ bool reload_acl_and_cache(THD *thd, unsigned long long options,
 
   DBUG_ASSERT(!thd || !thd->in_sub_stmt);
 
-#ifndef NO_EMBEDDED_ACCESS_CHECKS
   if (options & REFRESH_GRANT)
   {
+#ifndef NO_EMBEDDED_ACCESS_CHECKS
     THD *tmp_thd= 0;
     /*
       If reload_acl_and_cache() is called from SIGHUP handler we have to
@@ -124,8 +124,11 @@ bool reload_acl_and_cache(THD *thd, unsigned long long options,
       thd= 0;
     }
     reset_mqh((LEX_USER *)NULL, TRUE);
-  }
+#else
+    if ((result= thd && servers_reload(thd)))
+      my_error(ER_UNKNOWN_ERROR, MYF(0));
 #endif
+  }
   if (options & REFRESH_LOG)
   {
     /*
