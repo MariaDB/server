@@ -1,0 +1,165 @@
+--source include/have_innodb.inc
+--source include/not_embedded.inc
+--source include/have_debug.inc
+let MYSQLD_DATADIR= `SELECT @@datadir`;
+CREATE TABLE t1(a INT PRIMARY KEY) ENGINE=InnoDB STATS_PERSISTENT=0;
+SET GLOBAL innodb_log_checkpoint_now=ON;
+FLUSH TABLE t1 FOR EXPORT;
+UNLOCK TABLES;
+INSERT INTO t1 SET a=1;
+FLUSH TABLE t1 FOR EXPORT;
+UNLOCK TABLES;
+
+let INDEX_ID= `select INDEX_ID FROM INFORMATION_SCHEMA.INNODB_SYS_INDEXES WHERE TABLE_ID = (SELECT TABLE_ID FROM INFORMATION_SCHEMA.INNODB_SYS_TABLES WHERE NAME="test/t1")`;
+
+let FLAG= `SELECT flag FROM INFORMATION_SCHEMA.INNODB_SYS_TABLESPACES WHERE NAME="innodb_system"`;
+
+let $shutdown_timeout=0;
+--source include/shutdown_mysqld.inc
+let $resultlog=$MYSQLTEST_VARDIR/tmp/result.log;
+let $resultlog_1=$MYSQLTEST_VARDIR/tmp/result_1.log;
+
+exec $INNOCHECKSUM -S -r $MYSQLD_DATADIR/ibdata1 > $resultlog;
+--echo # Skip InnoDB Doublewrite Buffer
+exec $INNOCHECKSUM -S $MYSQLD_DATADIR/ibdata1 > $resultlog_1;
+
+perl;
+use strict;
+use warnings;
+use File::Spec::Functions qw(catfile);
+
+sub check_index_in_file {
+    my ($filename, $search_id, $file_desc) = @_;
+    my $found = 0;
+    open(my $fh, '<', $filename) or die "Could not open file '$filename': $!\n";
+    my $line_count = 0;
+    while (my $line = <$fh>) {
+        $line_count++;
+        chomp $line;
+        # Skip empty lines and header lines
+        next if $line =~ /^\s*$/;
+        next if $line =~ /index_id.*#pages/;  # Skip header line
+        # Split the line by whitespace
+        my @fields = grep { $_ ne '' } split(/\s+/, $line);
+        next unless @fields;  # Skip if no fields
+        # The first field is the index_id
+        my $current_id = $fields[0];
+        # Check if this is the ID we're looking for
+        if (defined $current_id && $current_id eq $search_id) {
+            $found = 1;
+            last;
+        }
+    }
+    if ($found) {
+        print "Index ID $search_id FOUND \n";
+    } else {
+        print "Index ID $search_id NOT FOUND \n";
+    }
+    close $fh;
+}
+
+my $search_id = $ENV{'INDEX_ID'};
+
+# Define file paths
+my $resultlog = catfile($ENV{'MYSQLTEST_VARDIR'}, 'tmp', 'result.log');
+my $resultlog_1 = catfile($ENV{'MYSQLTEST_VARDIR'}, 'tmp', 'result_1.log');
+
+# Check both files
+print "Should not exist when summary excludes dblwr pages\n";
+check_index_in_file($resultlog, $search_id, 'result.log');
+
+print "Should exist when summary includes dblwr pages\n";
+check_index_in_file($resultlog_1, $search_id, 'result_1.log');
+EOF
+
+remove_file $resultlog;
+remove_file $resultlog_1;
+
+# We expect deterministic checksum error when we pass
+# incorrect wrong flags to innochecksum. Below restart is needed
+# to make sure that we flush all the pages.
+--source include/start_mysqld.inc
+CREATE TABLE ibd_1(f1 INT PRIMARY KEY)ENGINE=InnoDB;
+INSERT INTO ibd_1 VALUES(1), (2), (3), (4);
+let $shutdown_timeout=;
+--source include/shutdown_mysqld.inc
+--echo # Pass wrong tablespace flag for ibdata2
+--error 1
+exec $INNOCHECKSUM -S -l $resultlog --tablespace_flags=39 $MYSQLD_DATADIR/ibdata2;
+
+let SEARCH_FILE=$resultlog;
+let SEARCH_PATTERN=checksum mismatch fails;
+--source include/search_pattern_in_file.inc
+remove_file $resultlog;
+
+--echo # Pass wrong tablespace flag for ibdata1
+--error 1
+exec $INNOCHECKSUM -S -l $resultlog --tablespace_flags=39 $MYSQLD_DATADIR/ibdata1;
+
+let SEARCH_PATTERN=Fail: Mismatch between provided tablespace flags;
+--source include/search_pattern_in_file.inc
+remove_file $resultlog;
+
+--echo # Pass invalid tablespace flag for ibdata1, skip invalid flag
+--echo # read page_size from page 0
+exec $INNOCHECKSUM -S --tablespace_flags=89 $MYSQLD_DATADIR/ibdata1 > $resultlog;
+remove_file $resultlog;
+
+--echo # innochecksum should be succesfull
+exec $INNOCHECKSUM -S --tablespace_flags=$FLAG $MYSQLD_DATADIR/ibdata2 > $resultlog;
+
+let SEARCH_PATTERN=Fail;
+--source include/search_pattern_in_file.inc
+
+--echo # Create a tablespace with page number > 2^31
+--let $ibdata3 = $MYSQLD_DATADIR/ibdata3
+perl;
+do "$ENV{MTR_SUITE_DIR}/include/crc32.pl";
+my $polynomial = 0x82f63b78; # CRC-32C
+my $ps = 16384; # Default InnoDB page size
+my $page_num = 2147483649; # 2^31 + 1
+my $filename = "$ENV{MYSQLD_DATADIR}/ibdata3";
+
+# Create a zero-filled page
+my $page = "\0" x $ps;
+
+# Set page number (FIL_PAGE_OFFSET)
+substr($page, 4, 4) = pack('NN', $page_num);
+# Set a valid LSN (log sequence number)
+my $lsn = 0x12345678;
+substr($page, 16, 8) = pack('NN', $lsn & 0xFFFFFFFF, $lsn >> 32);
+
+# Calculate the checksum
+my $checksum = pack('N',
+    mycrc32(substr($page, 4, 22), 0, $polynomial) ^
+    mycrc32(substr($page, 38, $ps - 38 - 8), 0, $polynomial)
+);
+# Write the checksum at the beginning (FIL_PAGE_SPACE_OR_CHKSUM)
+# and at the end (FIL_PAGE_END_LSN_OLD_CHKSUM) of the page
+substr($page, 0, 4) = $checksum;
+substr($page, $ps - 8, 4) = $checksum;
+
+# Write the page to file
+open(my $fh, '>', $filename) or die "Could not open file $filename: $!";
+binmode $fh;
+print $fh $page;
+close $fh;
+EOF
+
+--echo # Test innochecksum with the modified ibdata3
+--error 1
+exec $INNOCHECKSUM -S $ibdata3 > $resultlog 2>&1;
+let SEARCH_PATTERN=Error: First page of the tablespace file should be 0, but encountered page number 2147483649;
+--source include/search_pattern_in_file.inc
+remove_file $resultlog;
+
+--echo # Test innochecksum with the modified ibdata3 with tablespace flags
+--error 1
+exec $INNOCHECKSUM -S --tablespace_flags=$FLAG $ibdata3 > $resultlog 2>&1;
+let SEARCH_PATTERN=Exceeded the maximum allowed checksum mismatch;
+--source include/search_pattern_in_file.inc
+
+remove_file $ibdata3;
+--source include/start_mysqld.inc
+DROP TABLE t1, ibd_1;
+remove_file $resultlog;
