@@ -3259,7 +3259,10 @@ gtid_search::find_gtid_pos(slave_connection_state *pos,
                 ((chunk_reader.cur_end_offset - 1) >> ibb_page_size_shift));
   /* Round to the next diff_state_page_interval after file end. */
   page2-= page2 % (uint32_t)diff_state_page_interval;
-  uint32_t page1= (page0 + page2) / 2;
+  uint32_t page1= page0 +
+    ((page2 - page0) /
+         (2*(uint32_t)diff_state_page_interval) *
+         (uint32_t)diff_state_page_interval);
   page0_diff_state.init();
   page0_diff_state.load_nolock(&base_state);
   tmp_diff_state.init();
@@ -3290,7 +3293,10 @@ gtid_search::find_gtid_pos(slave_connection_state *pos,
     }
     else
       page2= page1;
-    page1= (page0 + page2) / 2;
+    page1= page0 +
+      ((page2 - page0) /
+           (2*(uint32_t)diff_state_page_interval) *
+           (uint32_t)diff_state_page_interval);
   }
   ut_ad(page1 >= page0);
   out_state->load_nolock(&page0_diff_state);
