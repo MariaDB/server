@@ -8926,11 +8926,27 @@ MYSQL_BIN_LOG::flush_binlogs_engine(DYNAMIC_ARRAY *domain_drop_lex)
   mysql_mutex_lock(&LOCK_commit_ordered);
   mysql_mutex_unlock(&LOCK_after_binlog_sync);
 
-  if ((error= binlog_engine_delete_gtid_domain(domain_drop_lex)) &&
-      error < 0)
-    error= 1;
+  if ((error= binlog_engine_delete_gtid_domain(domain_drop_lex)))
+  {
+    if (error < 0)
+      error= 1;
+    else
+    {
+      /*
+        If the domain(s) specified were already deleted, then a warning was
+        sent (by rpl_binlog_state::drop_domain()), but the statement succeeds
+        anyway and the FLUSH to move to a new file is still done.
 
-  if ((*opt_binlog_engine_hton->binlog_flush)())
+        (This is inconsistent with the legacy behaviour, which succeeds the
+        statement with a warning but _skips_ the flush/binlog rotation. It
+        seems a more reasonable behaviour that a FLUSH BINARY LOGS statement
+        _either_ performs the FLUSH, _or_ fails with an error, so this is
+        what we do in the engine binlog implementation).
+      */
+      error= 0;
+    }
+  }
+  if (!error && (*opt_binlog_engine_hton->binlog_flush)())
     error= 1;
 
   mysql_mutex_unlock(&LOCK_commit_ordered);
