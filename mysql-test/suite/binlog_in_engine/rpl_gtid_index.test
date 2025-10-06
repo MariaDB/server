@@ -18,7 +18,7 @@
 --echo *** Switch to a larger binlog size
 SET @old_binlog_size= @@GLOBAL.max_binlog_size;
 SET GLOBAL max_binlog_size= 16*1024*1024;
---let $NUM_POS= 1000
+--let $NUM_POS= 4000
 --let $RND_SEED= 666
 --source suite/rpl/include/rpl_gtid_index.inc
 
