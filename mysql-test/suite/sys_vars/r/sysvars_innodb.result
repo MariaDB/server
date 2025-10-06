@@ -97,8 +97,8 @@ SESSION_VALUE	NULL
 DEFAULT_VALUE	2097152
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	BIGINT UNSIGNED
-VARIABLE_COMMENT	Interval (in bytes) at which to write the GTID binlog state to binlog files to speed up GTID lookups. Must be a multiple of the binlog page size (4096 bytes)
-NUMERIC_MIN_VALUE	8192
+VARIABLE_COMMENT	Interval (in bytes) at which to write the GTID binlog state to binlog files to speed up GTID lookups. Must be a multiple of the binlog page size (16384 bytes)
+NUMERIC_MIN_VALUE	32768
 NUMERIC_MAX_VALUE	18446744073709551615
 NUMERIC_BLOCK_SIZE	0
 ENUM_VALUE_LIST	NULL

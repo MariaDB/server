@@ -85,7 +85,7 @@ connection master;
 *** Switch to a larger binlog size
 SET @old_binlog_size= @@GLOBAL.max_binlog_size;
 SET GLOBAL max_binlog_size= 16*1024*1024;
-*** Testing 1000 GTIDs with 100 test connects
+*** Testing 4000 GTIDs with 100 test connects
 connection master;
 DELETE FROM t1 WHERE a >= 1000;
 FLUSH NO_WRITE_TO_BINLOG BINARY LOGS;
@@ -96,10 +96,10 @@ INSERT INTO rand_data(idx, domain_id, server_id)
 SELECT seq,
 @tmp:=floor(10*POW(rand(666),2)),
 100 + 5*@tmp + floor(5*rand(666))
-FROM seq_1_to_1000;
+FROM seq_1_to_4000;
 SELECT COUNT(*), SUM(domain_id), SUM(server_id) FROM rand_data;
 COUNT(*)	SUM(domain_id)	SUM(server_id)
-1001	2986	116966
+4001	11733	466721
 CREATE TABLE gtid_data(
 idx INT PRIMARY KEY,
 gtid VARCHAR(44),
@@ -119,7 +119,7 @@ SET gtid_domain_id= @orig_domain_id;
 SET server_id= @orig_server_id;
 SELECT COUNT(*) FROM gtid_data;
 COUNT(*)
-1000
+4000
 connection slave;
 SET @orig_pos= @@GLOBAL.gtid_slave_pos;
 SET @orig_t1_limit= (SELECT MAX(a) FROM t1);

@@ -1,5 +1,5 @@
 --max-binlog-size=64k
---innodb-binlog-state-interval=16k
+--innodb-binlog-state-interval=32k
 --log-bin
 --binlog-cache-size=8192
 --binlog-stmt-cache-size=8192
