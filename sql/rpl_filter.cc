@@ -92,6 +92,42 @@ Rpl_filter::~Rpl_filter()
 */
 
 bool 
+Rpl_filter::table_ok(const char* db, const char* table_name)
+{
+  char hash_key[SAFE_NAME_LEN*2+2];
+  char *end;
+  uint len;
+
+  end= strmov(hash_key, db);
+  *end++= '.';
+  len= (uint) (strmov(end, table_name) - hash_key);
+
+  if (do_table_inited) // if there are any do's
+  {
+    if (my_hash_search(&do_table, (uchar*) hash_key, len))
+      return true;
+  }
+  if (ignore_table_inited) // if there are any ignores
+  {
+    if (my_hash_search(&ignore_table, (uchar*) hash_key, len))
+      return false; 
+  }
+  if (wild_do_table_inited && 
+      find_wild(&wild_do_table, hash_key, len))
+    return true;
+  if (wild_ignore_table_inited && 
+      find_wild(&wild_ignore_table, hash_key, len))
+    return false;
+
+  /*
+    No explicit match:
+    - If there is a "do" list: reject by default (0).
+    - If there is no "do" list: accept by default (1).
+  */
+  return !do_table_inited && !wild_do_table_inited;
+}
+
+bool 
 Rpl_filter::tables_ok(const char* db, TABLE_LIST* tables)
 {
   bool some_tables_updating= 0;

@@ -766,8 +766,9 @@ public:
                      privilege_t access_global)
     : sys_var(&all_sys_vars, name, comment, sys_var::GLOBAL, 0, NO_GETOPT,
               NO_ARG, SHOW_CHAR, 0, NULL, VARIABLE_NOT_IN_BINLOG,
-              NULL, NULL, NULL), opt_id(getopt_id),
-      m_access_global(access_global)
+              NULL, NULL, NULL), 
+              opt_id(getopt_id),
+              m_access_global(access_global)
   {
     option.var_type|= GET_STR | GET_ASK_ADDR;
   }
@@ -803,6 +804,67 @@ protected:
   const uchar *global_value_ptr(THD *thd, const LEX_CSTRING *base)
     const override;
   bool set_filter_value(const char *value, Master_info *mi);
+};
+
+/**
+  This class implements the system variable interface for binlog dump filters.
+  @note:
+  It is a static system variable, which means it can only be set from the command line arguments
+  or from the configuration and can not modified at runtime. 
+  TODO: refactor along with Sys_var_rpl_filter and Sys_var_binlog_filter since most
+        of the code is duplicated.
+ */
+class Sys_var_binlog_dump_filter: public sys_var
+{
+private:
+  int opt_id;
+  privilege_t m_access_global;
+
+public:
+  Sys_var_binlog_dump_filter(const char *name, int getopt_id, const char *comment,
+                     privilege_t access_global)
+    : sys_var(&all_sys_vars, name, comment, sys_var::READONLY+sys_var::GLOBAL, 0, NO_GETOPT,
+              NO_ARG, SHOW_CHAR, 0, NULL, VARIABLE_NOT_IN_BINLOG,
+              NULL, NULL, NULL), 
+              opt_id(getopt_id),
+              m_access_global(access_global)
+  {
+    option.var_type|= GET_STR;
+  }
+
+  bool do_check(THD *thd, set_var *var) override
+
+  {
+    DBUG_ASSERT(FALSE);
+    return true;
+
+  }
+  void session_save_default(THD *, set_var *) override
+  { DBUG_ASSERT(FALSE); }
+
+  void global_save_default(THD *thd, set_var *var) override
+  { DBUG_ASSERT(FALSE); }
+
+  bool session_update(THD *, set_var *) override
+  {
+    DBUG_ASSERT(FALSE);
+    return true;
+  }
+
+  bool global_update(THD *thd, set_var *var) override
+  {
+    DBUG_ASSERT(FALSE);
+    return true;
+  }
+
+  bool on_check_access_global(THD *thd) const override
+  {
+    return check_global_access(thd, m_access_global);
+  }
+
+protected:
+  const uchar *global_value_ptr(THD *thd, const LEX_CSTRING *base)
+    const override;
 };
 
 class Sys_var_binlog_filter: public sys_var

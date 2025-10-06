@@ -1,0 +1,34 @@
+include/master-slave.inc
+[connection master]
+SET @@default_storage_engine='InnoDB';
+connection master;
+# On master: create two databases and insert data
+CREATE TABLE t1 (id INT PRIMARY KEY, data VARCHAR(50));
+BEGIN;
+INSERT INTO t1 VALUES (1, 'first row in t1');
+UPDATE t1 SET data = 'row in t1' WHERE id = 1;
+COMMIT;
+# Create and use a filtered DB
+CREATE DATABASE ignored_db;
+USE ignored_db;
+CREATE TABLE t2 (id INT PRIMARY KEY, data VARCHAR(50));
+INSERT INTO t2 VALUES (1, 'row in t2');
+# Capture current binlog file name
+# Find relay log file on slave
+connection slave;
+# Get slave's current relay log file
+# Dump master binlog to file
+# Dump slave relay log to file
+# Validate that 'INSERT INTO t1' is in the master binlog
+include/assert_grep.inc [INSERT INTO t1 must be present in master binlog]
+# Validate that 'INSERT INTO t2' is not in the slave relaylog
+include/assert_grep.inc [INSERT INTO t2 must not be present in the Slave's relaylog]
+# Cleanup
+connection master;
+use ignored_db;
+DROP TABLE t2;
+USE test;
+DROP TABLE t1;
+DROP DATABASE ignored_db;
+include/rpl_end.inc
+# End of rpl_filter_binlog_dump_db_innodb.test

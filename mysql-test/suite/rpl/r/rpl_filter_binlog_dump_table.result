@@ -1,0 +1,28 @@
+include/master-slave.inc
+[connection master]
+connection master;
+SET @@default_storage_engine='innodb';
+# On master: create two tables and insert data
+CREATE TABLE t1 (id INT PRIMARY KEY, data VARCHAR(50));
+CREATE TABLE t2 (id INT PRIMARY KEY, data VARCHAR(50));
+INSERT INTO t1 VALUES (1, 'row in t1');
+INSERT INTO t2 VALUES (1, 'row in t2');
+# Capture current binlog file name
+# Find relay log file on slave
+connection slave;
+# Dump master binlog to file
+# Dump slave relay log to file
+# Validate that 'INSERT INTO t1' is in the master binlog
+include/assert_grep.inc [INSERT INTO t1 must be present in master binlog]
+# Validate that 'INSERT INTO t2' is in the master binlog
+include/assert_grep.inc [INSERT INTO t2 must be present in master binlog]
+# Validate that 'INSERT INTO t1' is in the slave relaylog
+include/assert_grep.inc [INSERT INTO t1 must be present in relaylog]
+# Validate that 'INSERT INTO t2' is not in the slave relaylog
+include/assert_grep.inc [INSERT INTO t2 must not be present in the Slave's relaylog]
+# Cleanup
+connection master;
+DROP TABLE t1;
+DROP TABLE t2;
+include/rpl_end.inc
+# End of rpl_filter_binlog_dump_table.test

@@ -50,6 +50,7 @@ public:
   /* Checks - returns true if ok to replicate/log */
 
 #ifndef MYSQL_CLIENT
+  bool table_ok(const char* db, const char* table_name);
   bool tables_ok(const char* db, TABLE_LIST *tables);
 #endif 
   bool db_ok(const char* db);
@@ -158,5 +159,6 @@ private:
 
 extern Rpl_filter *global_rpl_filter;
 extern Rpl_filter *binlog_filter;
+extern Rpl_filter *binlog_dump_filter;
 
 #endif // RPL_FILTER_H

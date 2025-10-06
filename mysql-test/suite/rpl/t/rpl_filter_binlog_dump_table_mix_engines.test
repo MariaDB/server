@@ -1,0 +1,123 @@
+
+#
+# Purpose:
+#   Verify binlog_dump_do/ignore_table filters when transactions span
+#   tables of different transactional capabilities 
+#   (MyISAM = non-transactional, InnoDB = transactional).
+#
+#   Filter config rules (in rpl_filter_binlog_dump_mix-master.opt):
+#     - t1: filter , t3: allow (MyISAM) 
+#     - t2: filter , t4: allow (InnoDB)
+#
+#   Transactions:
+#     TX1 → (N=1, T=0): Non-trans filtered, trans allowed
+#     TX2 → (N=0, T=1): Non-trans allowed, trans filtered
+#     TX3 → (N=1, T=1): Both filtered
+#     TX4 → (N=0, T=0): Both allowed
+#
+
+--source include/have_innodb.inc
+--source include/master-slave.inc
+
+connection master;
+
+--echo # Create tables with different engines
+CREATE TABLE t1 (id INT PRIMARY KEY, data VARCHAR(50)) ENGINE=MyISAM;
+CREATE TABLE t2 (id INT PRIMARY KEY, data VARCHAR(50)) ENGINE=InnoDB;
+CREATE TABLE t3 (id INT PRIMARY KEY, data VARCHAR(50)) ENGINE=MyISAM;
+CREATE TABLE t4 (id INT PRIMARY KEY, data VARCHAR(50)) ENGINE=InnoDB;
+
+################################################################################
+--echo # TX1: (N=1, T=0) → t1: Non-Trans filtered, t4: Trans allowed
+START TRANSACTION;
+INSERT INTO t1 VALUES (1, 'tx1 row in t1');
+INSERT INTO t4 VALUES (1, 'tx1 row in t4');
+COMMIT;
+
+################################################################################
+--echo # TX2: (N=0, T=1) → t3 Non-Trans allowed, t2 Trans filtered
+START TRANSACTION;
+INSERT INTO t3 VALUES (1, 'tx2 row in t3');
+INSERT INTO t2 VALUES (1, 'tx2 row in t2');
+COMMIT;
+
+################################################################################
+--echo # TX3: (N=1, T=1) → both filtered (t1 Non Trans, t2 Trans)
+START TRANSACTION;
+INSERT INTO t1 VALUES (2, 'tx3 row in t1');
+INSERT INTO t2 VALUES (2, 'tx3 row in t2');
+COMMIT;
+
+################################################################################
+--echo # TX4: (N=0, T=0) → both allowed (t3 Non Trans, t4 Trans)
+START TRANSACTION;
+INSERT INTO t3 VALUES (2, 'tx4 row in t3');
+INSERT INTO t4 VALUES (2, 'tx4 row in t4');
+COMMIT;
+
+################################################################################
+--echo # Capture binlog and relaylog
+--let $binlog_index= query_get_value(SHOW MASTER STATUS, File, 1)
+connection slave;
+--let $relaylog_file= query_get_value(SHOW SLAVE STATUS, Relay_Log_File, 1)
+
+--exec $MYSQL_BINLOG $MYSQLTEST_VARDIR/mysqld.1/data/$binlog_index > $MYSQLTEST_VARDIR/tmp/master_binlog.txt
+--exec $MYSQL_BINLOG $MYSQLTEST_VARDIR/mysqld.2/data/$relaylog_file > $MYSQLTEST_VARDIR/tmp/slave_relaylog.txt
+
+################################################################################
+
+--echo # Assertions: Master should always contain ALL inserts
+--let $assert_file= $MYSQLTEST_VARDIR/tmp/master_binlog.txt
+--let $assert_text= master has t1 inserts
+--let $assert_select= INSERT INTO t1
+--let $assert_count= 2
+--source include/assert_grep.inc
+--let $assert_text= master has t2 inserts
+--let $assert_select= INSERT INTO t2
+--let $assert_count= 2
+--source include/assert_grep.inc
+--let $assert_text= master has t3 inserts
+--let $assert_select= INSERT INTO t3
+--let $assert_count= 2
+--source include/assert_grep.inc
+--let $assert_text= master has t4 inserts
+--let $assert_select= INSERT INTO t4
+--let $assert_count= 2
+--source include/assert_grep.inc
+
+--echo # Assertions: Slave should only see allowed tables (t3,t4)
+--let $assert_file= $MYSQLTEST_VARDIR/tmp/slave_relaylog.txt
+
+################################################################################
+
+# t1 (filtered)
+--let $assert_text= slave must NOT replicate t1
+--let $assert_select= INSERT INTO t1
+--let $assert_count= 0
+--source include/assert_grep.inc
+
+# t2 (filtered)
+--let $assert_text= slave must NOT replicate t2
+--let $assert_select= INSERT INTO t2
+--let $assert_count= 0
+--source include/assert_grep.inc
+
+# t3 (allowed)
+--let $assert_text= slave must replicate t3 twice
+--let $assert_select= INSERT INTO t3
+--let $assert_count= 2
+--source include/assert_grep.inc
+
+# t4 (allowed)
+--let $assert_text= slave must replicate t4 twice
+--let $assert_select= INSERT INTO t4
+--let $assert_count= 2
+--source include/assert_grep.inc
+
+
+################################################################################
+--echo # Cleanup
+connection master;
+DROP TABLE t1, t2, t3, t4;
+--source include/rpl_end.inc
+--echo # End of rpl_filter_binlog_dump_table_mix_engines.test

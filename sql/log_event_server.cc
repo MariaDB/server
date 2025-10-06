@@ -1429,6 +1429,48 @@ Query_log_event::Query_log_event(THD* thd_arg, const char* query_arg,
   */
   flags2= (uint32) (thd_arg->variables.option_bits &
                     (OPTIONS_WRITTEN_TO_BIN_LOG & ~OPTION_NOT_AUTOCOMMIT));
+  #ifdef HAVE_REPLICATION
+
+  MYSQL_LOCK *locks[2], **locks_end= locks;
+
+  if ((*locks_end= thd_arg->extra_lock))
+    locks_end++;
+  if ((*locks_end= thd_arg->lock))
+    locks_end++;
+
+  bool should_replicate_tables= true; 
+  
+  for (MYSQL_LOCK **cur_lock= locks ; cur_lock < locks_end ; cur_lock++)
+  {
+    TABLE **const end_ptr= (*cur_lock)->table + (*cur_lock)->table_count;
+
+    for (TABLE **table_ptr= (*cur_lock)->table;
+         table_ptr != end_ptr ;
+         ++table_ptr)
+    {
+      TABLE *table= *table_ptr;
+  
+      /* 
+        If there is a single tables affected by this query then all of the 
+        tables will get filtered as well the whole event group should get filtered
+      */
+     bool should_replicate_table= binlog_dump_filter->table_ok(db, table->alias.c_ptr());
+     if (!should_replicate_table)
+     {
+      should_replicate_tables= false;
+      break;
+     }
+    }
+
+  }
+
+  bool should_replicate_db= binlog_dump_filter->db_ok(db);
+  if (!should_replicate_db || !should_replicate_tables)
+  {
+    flags|= LOG_EVENT_SKIP_REPLICATION_F;
+  }
+  
+  #endif
   DBUG_ASSERT(thd_arg->variables.character_set_client->number < 256*256);
   DBUG_ASSERT(thd_arg->variables.collation_connection->number < 256*256);
   DBUG_ASSERT(thd_arg->variables.collation_server->number < 256*256);
@@ -4720,7 +4762,7 @@ Rows_log_event::Rows_log_event(THD *thd_arg, TABLE *tbl_arg,
   DBUG_ASSERT((tbl_arg && tbl_arg->s &&
                (table_id & MAX_TABLE_MAP_ID) != UINT32_MAX) ||
               (!tbl_arg && !cols && (table_id & MAX_TABLE_MAP_ID) == UINT32_MAX));
-
+  
   if (thd_arg->variables.option_bits & OPTION_NO_FOREIGN_KEY_CHECKS)
     set_flags(NO_FOREIGN_KEY_CHECKS_F);
   if (thd_arg->variables.option_bits & OPTION_RELAXED_UNIQUE_CHECKS)

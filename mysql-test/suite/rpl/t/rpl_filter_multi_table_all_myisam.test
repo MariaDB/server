@@ -1,0 +1,10 @@
+#
+# NOTE: This test has a -master.opt file "rpl_filter_multi_table_all_myisam-master.opt"
+# for confirguring the replication filter rules 
+
+let $engine_type= 'MyISAM';
+
+--source include/rpl_filter_multi_table_all.test
+
+--source include/rpl_end.inc
+--echo # End of rpl_filter_multi_table_all_myisam.test

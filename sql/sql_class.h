@@ -3421,7 +3421,8 @@ public:
                         enum_binlog_row_image row_image,
                         const uchar *old_data, const uchar *new_data);
   bool prepare_handlers_for_update(uint flag);
-  bool binlog_write_annotated_row(Log_event_writer *writer);
+  bool binlog_write_annotated_row(Log_event_writer *writer, 
+                                  bool filter_all_event_group= false);
   void binlog_prepare_for_row_logging();
   bool binlog_write_table_maps();
 
