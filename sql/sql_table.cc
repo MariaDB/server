@@ -3397,10 +3397,10 @@ mysql_prepare_create_table_finalize(THD *thd, HA_CREATE_INFO *create_info,
       auto_increment++;
     extend_option_list(thd, create_info->db_type, !sql_field->field,
                        &sql_field->option_list,
-                       create_info->db_type->field_options);
+                       file->partition_ht()->field_options);
     if (parse_option_list(thd, &sql_field->option_struct,
                           &sql_field->option_list,
-                          create_info->db_type->field_options, FALSE,
+                          file->partition_ht()->field_options, FALSE,
                           thd->mem_root))
       DBUG_RETURN(TRUE);
     /*
@@ -3621,7 +3621,7 @@ mysql_prepare_create_table_finalize(THD *thd, HA_CREATE_INFO *create_info,
     Create_field *auto_increment_key= 0;
     Key_part_spec *column;
     st_plugin_int *index_plugin= hton2plugin[create_info->db_type->slot];
-    ha_create_table_option *index_options= create_info->db_type->index_options;
+    ha_create_table_option *index_options= file->partition_ht()->index_options;
 
     if (key->type == Key::IGNORE_KEY)
     {
