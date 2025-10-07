@@ -18,6 +18,8 @@ OPTIONS (SOCKET "$MASTER_1_MYSOCK", DATABASE 'test',user 'root');
 create table t2 (c int, index i(c));
 create table t1 (c int, index i(c)) ENGINE=Spider
 COMMENT='WRAPPER "mysql", srv "srv",TABLE "t2", query_cache_sync "3", idx000 "f i"';
+Warnings:
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 explain select * from t1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Storage engine handles GROUP BY

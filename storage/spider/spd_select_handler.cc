@@ -29,11 +29,9 @@ constexpr int LINK_IDX= 0;
 
 spider_select_handler::spider_select_handler(THD *thd, SELECT_LEX *select_lex,
                                              spider_fields *fields)
-  : select_handler(thd, spider_hton_ptr), fields(fields),
+  : select_handler(thd, spider_hton_ptr, select_lex), fields(fields),
     store_error(0)
-{
-  select= select_lex;
-}
+{}
 
 spider_select_handler::~spider_select_handler()
 {
@@ -269,7 +267,8 @@ static spider_fields* spider_sh_setup_fields(
 }
 
 /* Create and return a spider select handler if possible */
-select_handler *spider_create_select_handler(THD *thd, SELECT_LEX *select_lex)
+select_handler *spider_create_select_handler(THD *thd, SELECT_LEX *select_lex,
+                                             SELECT_LEX_UNIT *)
 {
   SPIDER_TABLE_HOLDER *table_holders;
   uint n_tables= 0;
@@ -392,18 +391,18 @@ static int spider_sh_execute_query(ha_spider *spider,
 
 int spider_select_handler::init_scan()
 {
-  Query query= {select->get_item_list(), 0,
-    select->options & SELECT_DISTINCT ? true : false,
-    select->get_table_list(), select->where,
-    select->join->group_list, select->join->order,
-    select->having, &select->master_unit()->lim};
+  Query query= {select_lex->get_item_list(), 0,
+    select_lex->options & SELECT_DISTINCT ? true : false,
+    select_lex->get_table_list(), select_lex->where,
+    select_lex->join->group_list, select_lex->join->order,
+    select_lex->having, &select_lex->master_unit()->lim};
   ha_spider *spider= fields->get_first_table_holder()->spider;
   /*
     Reset select_column_mode so that previous insertions would not
     affect.
   */
   spider->select_column_mode= 0;
-  spider_sh_setup_result_list(spider, select);
+  spider_sh_setup_result_list(spider, select_lex);
 
   /* build query string */
   spider_make_query(query, fields, spider, table);

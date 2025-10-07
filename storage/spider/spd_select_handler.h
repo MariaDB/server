@@ -1,4 +1,3 @@
-#include "select_handler.h"
 class spider_select_handler: public select_handler
 {
   spider_fields *fields;
@@ -11,4 +10,4 @@ public:
   int end_scan() override;
 };
 
-select_handler *spider_create_select_handler(THD *, SELECT_LEX *);
+select_handler *spider_create_select_handler(THD *, SELECT_LEX *, SELECT_LEX_UNIT *);

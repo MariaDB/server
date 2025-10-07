@@ -205,7 +205,10 @@ SET @old_log_output = @@global.log_output;
 SET global general_log = 1;
 SET global log_output = "TABLE";
 --connection master_1
+# TODO(MDEV-37810)
+--disable_view_protocol
 SELECT max(a) FROM tbl_a;
+--enable_view_protocol
 --connection child2_1
 select argument from mysql.general_log
   where argument like "select `a` %force index (primary)%" limit 1;
