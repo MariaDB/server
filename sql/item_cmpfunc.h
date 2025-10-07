@@ -266,6 +266,8 @@ public:
   bool fix_length_and_dec(THD *thd) override;
   void print(String *str, enum_query_type query_type) override;
   enum precedence precedence() const override { return CMP_PRECEDENCE; }
+  table_map not_null_tables() const override
+  { return is_top_level_item() ? not_null_tables_cache : 0; }
 
 protected:
   Item_func_truth(THD *thd, Item *a, bool a_value, bool a_affirmative):
