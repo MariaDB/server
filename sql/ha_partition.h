@@ -308,7 +308,6 @@ private:
   handler **m_new_file;                 // Array of references to new handlers
   handler **m_reorged_file;             // Reorganised partitions
   handler **m_added_file;               // Added parts kept for errors
-  LEX_CSTRING *m_connect_string;
   partition_info *m_part_info;          // local reference to partition
   Field **m_part_field_array;           // Part field array locally to save acc
   uchar *m_ordered_rec_buffer;          // Row and key buffer for ord. idx scan

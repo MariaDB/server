@@ -5594,12 +5594,6 @@ server_part_option:
             part_info->curr_part_elem->engine_type= $4;
             part_info->default_engine_type= $4;
           }
-        | CONNECTION_SYM opt_equal TEXT_STRING_sys
-          {
-            LEX *lex= Lex;
-            lex->part_info->curr_part_elem->connect_string.str= $3.str;
-            lex->part_info->curr_part_elem->connect_string.length= $3.length;
-          }
         | NODEGROUP_SYM opt_equal real_ulong_num
           { Lex->part_info->curr_part_elem->nodegroup_id= (uint16) $3; }
         | MAX_ROWS opt_equal real_ulonglong_num
@@ -5939,12 +5933,6 @@ create_table_option:
           {Lex->create_info.storage_media= HA_SM_DISK;}
         | STORAGE_SYM MEMORY_SYM
           {Lex->create_info.storage_media= HA_SM_MEMORY;}
-        | CONNECTION_SYM opt_equal TEXT_STRING_sys
-          {
-            Lex->create_info.connect_string.str= $3.str;
-            Lex->create_info.connect_string.length= $3.length;
-            Lex->create_info.used_fields|= HA_CREATE_USED_CONNECTION;
-          }
         | KEY_BLOCK_SIZE opt_equal ulong_num
           {
             Lex->create_info.used_fields|= HA_CREATE_USED_KEY_BLOCK_SIZE;
@@ -6015,6 +6003,7 @@ ident_options:
 */
 keyword_options:
           READ_ONLY_SYM
+        | CONNECTION_SYM
         | WRAPPER_SYM
         ;
 

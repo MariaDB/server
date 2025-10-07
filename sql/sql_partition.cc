@@ -2222,9 +2222,6 @@ static int add_server_part_options(String *str, partition_element *p_elem)
   }
   if (p_elem->part_comment)
     err+= add_keyword_string(str, "COMMENT", true, p_elem->part_comment);
-  if (p_elem->connect_string.length)
-    err+= add_keyword_string(str, "CONNECTION", true,
-                             p_elem->connect_string.str);
   err += add_keyword_string(str, "ENGINE", false,
                          ha_resolve_storage_engine_name(p_elem->engine_type));
   return err;

@@ -6794,10 +6794,6 @@ int ha_spider::create(
   DBUG_ENTER("ha_spider::create");
   DBUG_PRINT("info",("spider this=%p", this));
   DBUG_PRINT("info",("spider name=%s", name));
-  DBUG_PRINT("info",
-    ("spider form->s->connect_string=%s", form->s->connect_string.str));
-  DBUG_PRINT("info",
-    ("spider info->connect_string=%s", info->connect_string.str));
   if (
     sql_command == SQLCOM_CREATE_INDEX ||
     sql_command == SQLCOM_DROP_INDEX
@@ -7008,14 +7004,6 @@ void ha_spider::update_create_info(
     }
   }
 
-  if (!create_info->connect_string.str)
-  {
-    create_info->connect_string.str = table->s->connect_string.str;
-    create_info->connect_string.length = table->s->connect_string.length;
-  }
-  DBUG_PRINT("info",
-    ("spider create_info->connect_string=%s",
-    create_info->connect_string.str));
   if (
     !(create_info->used_fields & HA_CREATE_USED_AUTO)
   ) {

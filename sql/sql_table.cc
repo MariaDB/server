@@ -3279,16 +3279,6 @@ mysql_prepare_create_table_finalize(THD *thd, HA_CREATE_INFO *create_info,
   const CHARSET_INFO *scs= system_charset_info;
   DBUG_ENTER("mysql_prepare_create_table");
 
-  LEX_CSTRING* connstr = &create_info->connect_string;
-  if (connstr->length > CONNECT_STRING_MAXLEN &&
-      scs->charpos(connstr->str, connstr->str + connstr->length,
-                   CONNECT_STRING_MAXLEN) < connstr->length)
-  {
-    my_error(ER_WRONG_STRING_LENGTH, MYF(0), connstr->str, "CONNECTION",
-             CONNECT_STRING_MAXLEN);
-    DBUG_RETURN(TRUE);
-  }
-
   select_field_pos= get_select_field_pos(alter_info, create_info->versioned());
   null_fields= 0;
   create_info->varchar= 0;
@@ -4883,7 +4873,6 @@ int create_table_impl(THD *thd,
     share.field= &no_fields;
     share.db_plugin= ha_lock_engine(thd, hton);
     share.option_list= create_info->option_list;
-    share.connect_string= create_info->connect_string;
 
     if (parse_engine_table_options(thd, hton, &share))
       goto err;
@@ -8698,9 +8687,6 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
 
   if (!(used_fields & HA_CREATE_USED_TRANSACTIONAL))
     create_info->transactional= table->s->transactional;
-
-  if (!(used_fields & HA_CREATE_USED_CONNECTION))
-    create_info->connect_string= table->s->connect_string;
 
   if (!(used_fields & HA_CREATE_USED_SEQUENCE))
     create_info->sequence= table->s->table_type == TABLE_TYPE_SEQUENCE;

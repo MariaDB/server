@@ -140,71 +140,6 @@ struct close_cached_connection_tables_arg
 };
 
 
-static my_bool close_cached_connection_tables_callback(void *el, void *a)
-{
-  TDC_element *element= static_cast<TDC_element*>(el);
-  auto arg= static_cast<close_cached_connection_tables_arg*>(a);
-  TABLE_LIST *tmp;
-
-  mysql_mutex_lock(&element->LOCK_table_share);
-  /* Ignore if table is not open or does not have a connect_string */
-  if (!element->share || !element->share->connect_string.length ||
-      !element->ref_count)
-    goto end;
-
-  /* Compare the connection string */
-  if (arg->connection &&
-      (arg->connection->length > element->share->connect_string.length ||
-       (arg->connection->length < element->share->connect_string.length &&
-        (element->share->connect_string.str[arg->connection->length] != '/' &&
-         element->share->connect_string.str[arg->connection->length] != '\\')) ||
-       strncasecmp(arg->connection->str, element->share->connect_string.str,
-                   arg->connection->length)))
-    goto end;
-
-  /* close_cached_tables() only uses these elements */
-  if (!(tmp= (TABLE_LIST*) alloc_root(arg->thd->mem_root, sizeof(TABLE_LIST))) ||
-      !(arg->thd->make_lex_string(&tmp->db, element->share->db.str, element->share->db.length)) ||
-      !(arg->thd->make_lex_string(&tmp->table_name, element->share->table_name.str,
-                                      element->share->table_name.length)))
-  {
-    mysql_mutex_unlock(&element->LOCK_table_share);
-    return TRUE;
-  }
-
-  tmp->next_global= tmp->next_local= arg->tables;
-  MDL_REQUEST_INIT(&tmp->mdl_request, MDL_key::TABLE, tmp->db.str,
-                   tmp->table_name.str, MDL_EXCLUSIVE, MDL_TRANSACTION);
-  arg->tables= tmp;
-
-end:
-  mysql_mutex_unlock(&element->LOCK_table_share);
-  return FALSE;
-}
-
-
-/**
-  Close all tables which match specified connection string or
-  if specified string is NULL, then any table with a connection string.
-
-  @return false  ok
-  @return true   error, some tables may keep using old server info
-*/
-
-static bool close_cached_connection_tables(THD *thd, LEX_CSTRING *connection)
-{
-  close_cached_connection_tables_arg argument= { thd, connection, 0 };
-  DBUG_ENTER("close_cached_connections");
-
-  if (tdc_iterate(thd, close_cached_connection_tables_callback, &argument))
-    DBUG_RETURN(true);
-
-  DBUG_RETURN(argument.tables ?
-              close_cached_tables(thd, argument.tables, true,
-                                  thd->variables.lock_wait_timeout) : false);
-}
-
-
 /*
   Initialize structures responsible for servers used in federated
   server scheme information for them from the server
@@ -819,14 +754,7 @@ static int drop_server_internal(THD *thd, LEX_SERVER_OPTIONS *server_options)
 
   error= delete_server_record(table, &server_options->server_name);
 
-  /* close the servers table before we call closed_cached_connection_tables */
   close_mysql_tables(thd);
-
-  if (close_cached_connection_tables(thd, &server_options->server_name))
-  {
-    push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
-                        ER_UNKNOWN_ERROR, "Server connection in use");
-  }
 
 end:
   DBUG_RETURN(error);
@@ -1293,14 +1221,7 @@ int alter_server(THD *thd, LEX_SERVER_OPTIONS *server_options)
 
   error= update_server(thd, existing, &altered);
 
-  /* close the servers table before we call closed_cached_connection_tables */
   close_mysql_tables(thd);
-
-  if (close_cached_connection_tables(thd, &server_options->server_name))
-  {
-    push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
-                        ER_UNKNOWN_ERROR, "Server connection in use");
-  }
 
 end:
   DBUG_PRINT("info", ("error returned %d", error));
