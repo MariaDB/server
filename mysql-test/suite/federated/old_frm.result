@@ -1,0 +1,39 @@
+#
+# MDEV-37815 engine attributes in partitioning is broken
+#
+create server server3 foreign data wrapper 'mysql' options
+(HOST '127.0.0.1', DATABASE 'test', USER 'root', PORT MASTER_PORT);
+create server server4 foreign data wrapper 'mysql' options
+(HOST '127.0.0.1', DATABASE 'test', USER 'root', PORT MASTER_PORT);
+create server server5 foreign data wrapper 'mysql' options
+(HOST '127.0.0.1', DATABASE 'test', USER 'root', PORT MASTER_PORT);
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci /* `CONNECTION`='server1' */
+show create table t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `a` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+ PARTITION BY HASH (`a`)
+(PARTITION `p0` ENGINE = MyISAM,
+ PARTITION `p1` ENGINE = MyISAM CONNECTION = 'server2')
+show create table t3;
+Table	Create Table
+t3	CREATE TABLE `t3` (
+  `a` int(11) DEFAULT NULL
+) ENGINE=FEDERATED DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci `CONNECTION`='server3/t1'
+show create table t4;
+Table	Create Table
+t4	CREATE TABLE `t4` (
+  `a` int(11) DEFAULT NULL
+) ENGINE=FEDERATED DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+ PARTITION BY HASH (`a`)
+(PARTITION `p0` ENGINE = FEDERATED CONNECTION = 'server4/t1',
+ PARTITION `p1` ENGINE = FEDERATED CONNECTION = 'server5/t2')
+drop table t1, t2, t3, t4;
+drop server server3;
+drop server server4;
+drop server server5;

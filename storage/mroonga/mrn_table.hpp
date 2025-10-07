@@ -91,7 +91,6 @@ struct st_mrn_slot_data
   st_mrn_wrap_hton *first_wrap_hton;
   HA_CREATE_INFO *alter_create_info;
   HA_CREATE_INFO *disable_keys_create_info;
-  char *alter_connect_string;
   char *alter_comment;
 };
 

@@ -268,6 +268,7 @@ struct ha_table_option_struct
   char *bulk_size;
   char *bulk_update_size;
   char *connect_timeout;
+  char *connection;
   char *database;
   char *default_file;
   char *default_group;
@@ -313,6 +314,7 @@ ha_create_table_option spider_table_option_list[]= {
   HA_TOPTION_STRING("BULK_SIZE", bulk_size),
   HA_TOPTION_STRING("BULK_UPDATE_SIZE", bulk_update_size),
   HA_TOPTION_STRING("CONNECT_TIMEOUT", connect_timeout),
+  HA_TOPTION_STRING("CONNECTION", connection),
   HA_TOPTION_STRING("REMOTE_DATABASE", database),
   HA_TOPTION_STRING("DEFAULT_FILE", default_file),
   HA_TOPTION_STRING("DEFAULT_GROUP", default_group),
@@ -2307,11 +2309,12 @@ static int spider_get_connect_info(const int type,
       return HA_ERR_OUT_OF_MEM;
     break;
   default:
-    if (table_share->connect_string.length == 0)
+    if (table_share->option_struct_table->connection == NULL)
       return 1;
     DBUG_PRINT("info",("spider create out string"));
     if (!(out = spider_create_string(
-          table_share->connect_string.str, table_share->connect_string.length)))
+          table_share->option_struct_table->connection,
+          strlen(table_share->option_struct_table->connection))))
       return HA_ERR_OUT_OF_MEM;
     break;
   }
@@ -8602,17 +8605,20 @@ int spider_discover_table_structure(
   str.q_append(SPIDER_SQL_COMMENT_STR, SPIDER_SQL_COMMENT_LEN);
   str.q_append(SPIDER_SQL_VALUE_QUOTE_STR, SPIDER_SQL_VALUE_QUOTE_LEN);
   str.append_escape_string(share->comment.str, share->comment.length);
-  if (str.reserve(SPIDER_SQL_CONNECTION_LEN +
-    (SPIDER_SQL_VALUE_QUOTE_LEN * 2) +
-    (share->connect_string.length * 2)))
+  if (share->option_struct_table->connection)
   {
-    DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+    if (str.reserve(SPIDER_SQL_CONNECTION_LEN +
+      (SPIDER_SQL_VALUE_QUOTE_LEN * 2) +
+      (strlen(share->option_struct_table->connection) * 2)))
+    {
+      DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+    }
+    str.q_append(SPIDER_SQL_VALUE_QUOTE_STR, SPIDER_SQL_VALUE_QUOTE_LEN);
+    str.q_append(SPIDER_SQL_CONNECTION_STR, SPIDER_SQL_CONNECTION_LEN);
+    str.q_append(SPIDER_SQL_VALUE_QUOTE_STR, SPIDER_SQL_VALUE_QUOTE_LEN);
+    str.append_escape_string(share->option_struct_table->connection,
+      strlen(share->option_struct_table->connection));
   }
-  str.q_append(SPIDER_SQL_VALUE_QUOTE_STR, SPIDER_SQL_VALUE_QUOTE_LEN);
-  str.q_append(SPIDER_SQL_CONNECTION_STR, SPIDER_SQL_CONNECTION_LEN);
-  str.q_append(SPIDER_SQL_VALUE_QUOTE_STR, SPIDER_SQL_VALUE_QUOTE_LEN);
-  str.append_escape_string(share->connect_string.str,
-    share->connect_string.length);
   if (str.reserve(SPIDER_SQL_VALUE_QUOTE_LEN))
   {
     DBUG_RETURN(HA_ERR_OUT_OF_MEM);
