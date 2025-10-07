@@ -6281,6 +6281,14 @@ static Sys_var_charptr Sys_wsrep_patch_version(
        READ_ONLY GLOBAL_VAR(wsrep_patch_version_ptr), CMD_LINE_HELP_ONLY,
        DEFAULT(WSREP_PATCH_VERSION));
 
+static Sys_var_charptr Sys_wsrep_applier_priority(
+       "wsrep_applier_priority", "Scheduler and priority for WSREP applier threads",
+       PREALLOCATED GLOBAL_VAR(wsrep_applier_priority), CMD_LINE(OPT_ARG),
+       DEFAULT("other:0"),
+       NO_MUTEX_GUARD, NOT_IN_BINLOG,
+       ON_CHECK(wsrep_applier_priority_check),
+       ON_UPDATE(wsrep_applier_priority_update));
+
 #endif /* WITH_WSREP */
 
 static bool fix_host_cache_size(sys_var *, THD *, enum_var_type)
