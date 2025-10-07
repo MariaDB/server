@@ -1046,10 +1046,13 @@ dberr_t ibuf_upgrade_needed()
   if (!root)
     goto err_exit;
 
+  const size_t payload= fil_system.sys_space->full_crc32() ||
+    !fil_system.sys_space->crypt_data
+    ? FIL_PAGE_TYPE : FIL_PAGE_SPACE_ID;
+
   if (UNIV_LIKELY(!page_has_siblings(root->page.frame)) &&
-      UNIV_LIKELY(!memcmp(root->page.frame + FIL_PAGE_TYPE, field_ref_zero,
-                          srv_page_size -
-                          (FIL_PAGE_DATA_END + FIL_PAGE_TYPE))))
+      UNIV_LIKELY(!memcmp(root->page.frame + payload, field_ref_zero,
+                          srv_page_size - (FIL_PAGE_DATA_END + payload))))
     /* the change buffer was removed; no need to upgrade */;
   else if (page_is_comp(root->page.frame) ||
            btr_page_get_index_id(root->page.frame) != ibuf_index_id ||
