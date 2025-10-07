@@ -399,6 +399,17 @@ static void init_federated_psi_keys(void)
 #define init_federated_psi_keys() /* no-op */
 #endif /* HAVE_PSI_INTERFACE */
 
+struct ha_table_option_struct
+{
+  char *connection;
+};
+
+static ha_create_table_option table_option_list[]=
+{
+  HA_TOPTION_STRING("CONNECTION", connection),
+  HA_TOPTION_END
+};
+
 handlerton* federatedx_hton;
 
 static derived_handler*
@@ -454,6 +465,7 @@ int federatedx_db_init(void *p)
   federatedx_hton->create= federatedx_create_handler;
   federatedx_hton->drop_table= [](handlerton *, const char*) { return -1; };
   federatedx_hton->flags= HTON_ALTER_NOT_SUPPORTED;
+  federatedx_hton->table_options= table_option_list;
   federatedx_hton->create_derived= create_federatedx_derived_handler;
   federatedx_hton->create_select= create_federatedx_select_handler;
   federatedx_hton->update_optimizer_costs= federatedx_update_optimizer_costs;
@@ -547,16 +559,11 @@ err:
 }
 
 
-static int parse_url_error(FEDERATEDX_SHARE *share, TABLE_SHARE *table_s,
-                           int error_num)
+static int parse_url_error(const char *connection, int error_num)
 {
   char buf[FEDERATEDX_QUERY_BUFFER_SIZE];
-  size_t buf_len;
   DBUG_ENTER("ha_federatedx parse_url_error");
-
-  buf_len= MY_MIN(table_s->connect_string.length,
-                  FEDERATEDX_QUERY_BUFFER_SIZE-1);
-  strmake(buf, table_s->connect_string.str, buf_len);
+  strmake_buf(buf, connection);
   my_error(error_num, MYF(0), buf, 14);
   DBUG_RETURN(error_num);
 }
@@ -622,7 +629,7 @@ error:
 }
 
 /*
-  Parse connection info from table->s->connect_string
+  Parse connection info from share->connection_string
 
   SYNOPSIS
     parse_url()
@@ -677,7 +684,8 @@ error:
 */
 
 static int parse_url(MEM_ROOT *mem_root, FEDERATEDX_SHARE *share,
-                     TABLE_SHARE *table_s, uint table_create_flag)
+                     TABLE_SHARE *table_s, ha_table_option_struct *opt,
+                     uint table_create_flag)
 {
   uint error_num= (table_create_flag ?
                    ER_FOREIGN_DATA_STRING_INVALID_CANT_CREATE :
@@ -687,11 +695,7 @@ static int parse_url(MEM_ROOT *mem_root, FEDERATEDX_SHARE *share,
   share->port= 0;
   share->socket= 0;
   DBUG_PRINT("info", ("share at %p", share));
-  DBUG_PRINT("info", ("Length: %u", (uint) table_s->connect_string.length));
-  DBUG_PRINT("info", ("String: '%.*s'", (int) table_s->connect_string.length,
-                      table_s->connect_string.str));
-  share->connection_string= strmake_root(mem_root, table_s->connect_string.str,
-                                       table_s->connect_string.length);
+  share->connection_string= strdup_root(mem_root, opt->connection);
 
   DBUG_PRINT("info",("parse_url alloced share->connection_string %p",
                      share->connection_string));
@@ -744,9 +748,9 @@ static int parse_url(MEM_ROOT *mem_root, FEDERATEDX_SHARE *share,
         Connection specifies everything but, resort to
         expecting remote and foreign table names to match
       */
+      share->table_name_length= table_s->table_name.length;
       share->table_name= strmake_root(mem_root, table_s->table_name.str,
-                                      (share->table_name_length=
-                                       table_s->table_name.length));
+                                      share->table_name_length);
       DBUG_PRINT("info", 
                  ("internal format, default table_name "
                   "share->connection_string: %s  share->table_name: %s",
@@ -759,8 +763,6 @@ static int parse_url(MEM_ROOT *mem_root, FEDERATEDX_SHARE *share,
   else
   {
     share->parsed= TRUE;
-    // Add a null for later termination of table name
-    share->connection_string[table_s->connect_string.length]= 0;
     share->scheme= share->connection_string;
     DBUG_PRINT("info",("parse_url alloced share->scheme: %p",
                        share->scheme));
@@ -847,7 +849,7 @@ static int parse_url(MEM_ROOT *mem_root, FEDERATEDX_SHARE *share,
   DBUG_RETURN(0);
 
 error:
-  DBUG_RETURN(parse_url_error(share, table_s, error_num));
+  DBUG_RETURN(parse_url_error(opt->connection, error_num));
 }
 
 /*****************************************************************************
@@ -1594,7 +1596,8 @@ error:
   have pieces that are used for locking, and they are needed to function.
 */
 
-static FEDERATEDX_SHARE *get_share(const char *table_name, TABLE *table)
+static FEDERATEDX_SHARE *get_share(const char *table_name, TABLE *table,
+                                  ha_table_option_struct *option_struct)
 {
   char query_buffer[FEDERATEDX_QUERY_BUFFER_SIZE];
   Field **field;
@@ -1622,7 +1625,7 @@ static FEDERATEDX_SHARE *get_share(const char *table_name, TABLE *table)
 
   tmp_share.share_key= table_name;
   tmp_share.share_key_length= (int)strlen(table_name);
-  if (parse_url(&mem_root, &tmp_share, table->s, 0))
+  if (parse_url(&mem_root, &tmp_share, table->s, option_struct, 0))
     goto error;
 
   /* TODO: change tmp_share.scheme to LEX_STRING object */
@@ -1797,7 +1800,7 @@ int ha_federatedx::open(const char *name, int mode, uint test_if_locked)
   THD *thd= ha_thd();
   DBUG_ENTER("ha_federatedx::open");
 
-  if (!(share= get_share(name, table)))
+  if (!(share= get_share(name, table, option_struct)))
     DBUG_RETURN(1);
   thr_lock_data_init(&share->lock, &lock, NULL);
 
@@ -3409,7 +3412,8 @@ int ha_federatedx::create(const char *name, TABLE *table_arg,
     DBUG_RETURN(HA_ERR_UNSUPPORTED);
   }
 
-  if ((retval= parse_url(thd->mem_root, &tmp_share, table_arg->s, 1)))
+  retval= parse_url(thd->mem_root, &tmp_share, table_arg->s, option_struct, 1);
+  if (retval)
     goto error;
 
   /* loopback socket connections hang due to LOCK_open mutex */
@@ -3463,7 +3467,6 @@ int ha_federatedx::create(const char *name, TABLE *table_arg,
 
 error:
   DBUG_RETURN(retval);
-
 }
 
 
@@ -3651,7 +3654,8 @@ int ha_federatedx::discover_assisted(handlerton *hton, THD* thd,
   my_bool my_true= 1;
   my_bool my_false= 0;
 
-  if (parse_url(thd->mem_root, &tmp_share, table_s, 1))
+  if (parse_url(thd->mem_root, &tmp_share, table_s,
+                table_s->option_struct_table, 1))
     return HA_WRONG_CREATE_OPTION;
 
   mysql_init(&mysql);
@@ -3700,8 +3704,8 @@ int ha_federatedx::discover_assisted(handlerton *hton, THD* thd,
     }
   }
   query.append(STRING_WITH_LEN(" CONNECTION='"), cs);
-  query.append_for_single_quote(table_s->connect_string.str,
-                                table_s->connect_string.length);
+  query.append_for_single_quote(table_s->option_struct_table->connection,
+                                strlen(table_s->option_struct_table->connection));
   query.append('\'');
 
   error= table_s->init_from_sql_statement_string(thd, true,

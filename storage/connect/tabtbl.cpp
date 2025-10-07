@@ -230,7 +230,6 @@ PCOL TDBTBL::InsertSpecialColumn(PCOL scp)
 /***********************************************************************/
 bool TDBTBL::InitTableList(PGLOBAL g)
   {
-  uint    sln;
   const char   *scs;
   PTABLE  tp, tabp;
   PCOL    colp;
@@ -238,8 +237,7 @@ bool TDBTBL::InitTableList(PGLOBAL g)
   PCATLG  cat = To_Def->GetCat();
   PHC     hc = ((MYCAT*)cat)->GetHandler();
 
-  scs = hc->get_table()->s->connect_string.str;
-  sln = hc->get_table()->s->connect_string.length;
+  scs = hc->option_struct->connect;
 //  PlugSetPath(filename, Tdbp->GetFile(g), Tdbp->GetPath());
 
   for (tp = tdp->Tablep; tp; tp = tp->GetNext()) {
@@ -248,8 +246,7 @@ bool TDBTBL::InitTableList(PGLOBAL g)
 
       if (tabp->GetSrc()) {
         // Table list is a list of connections
-        hc->get_table()->s->connect_string.str = (char*)tabp->GetName();
-        hc->get_table()->s->connect_string.length = strlen(tabp->GetName());
+        hc->option_struct->connect= (char*)tabp->GetName();
         } // endif Src
 
       // Get the table description block of this table
@@ -279,8 +276,7 @@ bool TDBTBL::InitTableList(PGLOBAL g)
 
     } // endfor tp
 
-  hc->get_table()->s->connect_string.str = (char*)scs;
-  hc->get_table()->s->connect_string.length = sln;
+  hc->option_struct->connect = (char*)scs;
 
 //NumTables = n;
   To_CondFil = NULL;        // To avoid doing it several times

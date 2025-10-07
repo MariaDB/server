@@ -458,6 +458,17 @@ static void init_federated_psi_keys(void)
 }
 #endif /* HAVE_PSI_INTERFACE */
 
+struct ha_table_option_struct
+{
+  char *connection;
+};
+
+static ha_create_table_option table_option_list[]=
+{
+  HA_TOPTION_STRING("CONNECTION", connection),
+  HA_TOPTION_END
+};
+
 /*
   Federated doesn't need costs.disk_read_ratio as everything is one a
   remote server and nothing is cached locally
@@ -500,6 +511,7 @@ int federated_db_init(void *p)
   federated_hton->drop_table= [](handlerton *, const char*) { return -1; };
   federated_hton->update_optimizer_costs= federated_update_optimizer_costs;
   federated_hton->flags= HTON_ALTER_NOT_SUPPORTED | HTON_NO_PARTITION;
+  federated_hton->table_options= table_option_list;
 
   /*
     Support for transactions disabled until WL#2952 fixes it.
@@ -592,15 +604,11 @@ err:
 }
 
 
-static int parse_url_error(FEDERATED_SHARE *share, TABLE *table, int error_num)
+static int parse_url_error(const char *connection, int error_num)
 {
   char buf[FEDERATED_QUERY_BUFFER_SIZE];
-  size_t buf_len;
   DBUG_ENTER("ha_federated parse_url_error");
-
-  buf_len= MY_MIN(table->s->connect_string.length,
-               FEDERATED_QUERY_BUFFER_SIZE-1);
-  strmake(buf, table->s->connect_string.str, buf_len);
+  strmake_buf(buf, connection);
   my_error(error_num, MYF(0), buf, 14);
   DBUG_RETURN(error_num);
 }
@@ -666,7 +674,7 @@ error:
 }
 
 /*
-  Parse connection info from table->s->connect_string
+  Parse connection info from share->connection_string
 
   SYNOPSIS
     parse_url()
@@ -721,7 +729,7 @@ error:
 */
 
 static int parse_url(MEM_ROOT *mem_root, FEDERATED_SHARE *share, TABLE *table,
-                     uint table_create_flag)
+                     ha_table_option_struct *opt, uint table_create_flag)
 {
   uint error_num= (table_create_flag ?
                    ER_FOREIGN_DATA_STRING_INVALID_CANT_CREATE :
@@ -731,11 +739,7 @@ static int parse_url(MEM_ROOT *mem_root, FEDERATED_SHARE *share, TABLE *table,
   share->port= 0;
   share->socket= 0;
   DBUG_PRINT("info", ("share at %p", share));
-  DBUG_PRINT("info", ("Length: %u", (uint) table->s->connect_string.length));
-  DBUG_PRINT("info", ("String: '%.*s'", (int) table->s->connect_string.length,
-                      table->s->connect_string.str));
-  share->connection_string= strmake_root(mem_root, table->s->connect_string.str,
-                                       table->s->connect_string.length);
+  share->connection_string= strdup_root(mem_root, opt->connection);
 
   DBUG_PRINT("info",("parse_url alloced share->connection_string %p",
                      share->connection_string));
@@ -804,8 +808,6 @@ static int parse_url(MEM_ROOT *mem_root, FEDERATED_SHARE *share, TABLE *table,
   else
   {
     share->parsed= TRUE;
-    // Add a null for later termination of table name
-    share->connection_string[table->s->connect_string.length]= 0;
     share->scheme= share->connection_string;
     DBUG_PRINT("info",("parse_url alloced share->scheme %p",
                        share->scheme));
@@ -907,7 +909,7 @@ static int parse_url(MEM_ROOT *mem_root, FEDERATED_SHARE *share, TABLE *table,
   DBUG_RETURN(0);
 
 error:
-  DBUG_RETURN(parse_url_error(share, table, error_num));
+  DBUG_RETURN(parse_url_error(opt->connection, error_num));
 }
 
 /*****************************************************************************
@@ -1512,7 +1514,8 @@ err:
   have pieces that are used for locking, and they are needed to function.
 */
 
-static FEDERATED_SHARE *get_share(const char *table_name, TABLE *table)
+static FEDERATED_SHARE *get_share(const char *table_name, TABLE *table,
+                                  ha_table_option_struct *option_struct)
 {
   char query_buffer[FEDERATED_QUERY_BUFFER_SIZE];
   Field **field;
@@ -1533,14 +1536,13 @@ static FEDERATED_SHARE *get_share(const char *table_name, TABLE *table)
 
   tmp_share.share_key= table_name;
   tmp_share.share_key_length= (uint) strlen(table_name);
-  if (parse_url(&mem_root, &tmp_share, table, 0))
+  if (parse_url(&mem_root, &tmp_share, table, option_struct, 0))
     goto error;
 
   /* TODO: change tmp_share.scheme to LEX_STRING object */
   if (!(share= (FEDERATED_SHARE *) my_hash_search(&federated_open_tables,
                                                   (uchar*) tmp_share.share_key,
-                                                  tmp_share.
-                                                  share_key_length)))
+                                                  tmp_share. share_key_length)))
   {
     query.set_charset(system_charset_info);
     query.append(STRING_WITH_LEN("SELECT "));
@@ -1646,7 +1648,7 @@ int ha_federated::open(const char *name, int mode, uint test_if_locked)
 {
   DBUG_ENTER("ha_federated::open");
 
-  if (!(share= get_share(name, table)))
+  if (!(share= get_share(name, table, option_struct)))
     DBUG_RETURN(1);
   thr_lock_data_init(&share->lock, &lock, NULL);
 
@@ -3134,7 +3136,8 @@ int ha_federated::create(const char *name, TABLE *table_arg,
     DBUG_RETURN(HA_ERR_UNSUPPORTED);
   }
 
-  retval= parse_url(thd->mem_root, &tmp_share, table_arg, 1);
+  tmp_share.connection_string= option_struct->connection;
+  retval= parse_url(thd->mem_root, &tmp_share, table_arg, option_struct, 1);
 
   DBUG_RETURN(retval);
 

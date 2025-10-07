@@ -310,8 +310,7 @@ LEX_CUSTRING build_frm_image(THD *thd, const LEX_CSTRING &table,
   /* Calculate extra data segment length */
   str_db_type= *hton_name(create_info->db_type);
   /* str_db_type */
-  create_info->extra_size= (uint)(2 + str_db_type.length +
-                            2 + create_info->connect_string.length);
+  create_info->extra_size= (uint)(2 + str_db_type.length + 2);
   /*
     Partition:
       Length of partition info = 4 byte
@@ -578,11 +577,8 @@ LEX_CUSTRING build_frm_image(THD *thd, const LEX_CSTRING &table,
     goto err;
 
   pos+= reclength;
-  int2store(pos, create_info->connect_string.length);
+  int2store(pos, 0);
   pos+= 2;
-  if (create_info->connect_string.length)
-    memcpy(pos, create_info->connect_string.str, create_info->connect_string.length);
-  pos+= create_info->connect_string.length;
   int2store(pos, str_db_type.length);
   pos+= 2;
   memcpy(pos, str_db_type.str, str_db_type.length);

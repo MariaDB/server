@@ -388,6 +388,7 @@ int mrn_parse_table_param(MRN_SHARE *share, TABLE *table)
                     params_string_length, params_string_value));
         break;
       default:
+#ifdef MDEV_37815_DISABLED_BECAUSE_NO_TESTS
         if (LEX_STRING_IS_EMPTY(table->s->connect_string))
           continue;
         DBUG_PRINT("info", ("mroonga create connect_string string"));
@@ -396,6 +397,7 @@ int mrn_parse_table_param(MRN_SHARE *share, TABLE *table)
         DBUG_PRINT("info",
                    ("mroonga connect_string=%.*s",
                     params_string_length, params_string_value));
+#endif
         break;
     }
 

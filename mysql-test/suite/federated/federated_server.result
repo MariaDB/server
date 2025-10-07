@@ -146,6 +146,7 @@ id	name
 1	server_one, new scheme, first_db.t1
 1	server_one, new scheme, whatever, first_db.t1
 ALTER SERVER 'server_one' options(DATABASE 'second_db');
+FLUSH TABLES;
 INSERT INTO federated.t1 (id, name) values (1, 'server_two, new scheme, second_db.t1');
 SELECT * FROM federated.t1;
 id	name

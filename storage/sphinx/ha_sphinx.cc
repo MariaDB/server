@@ -21,15 +21,8 @@
 #include <my_global.h>
 #include <mysql_version.h>
 
-#if MYSQL_VERSION_ID>=50515
 #include "sql_class.h"
 #include "sql_array.h"
-#elif MYSQL_VERSION_ID>50100
-#include "mysql_priv.h"
-#include <mysql/plugin.h>
-#else
-#include "../mysql_priv.h"
-#endif
 
 #include <mysys_err.h>
 #include <my_sys.h>
@@ -118,21 +111,10 @@ void sphUnalignedWrite ( void * pPtr, const T & tVal )
 
 #endif
 
-#if MYSQL_VERSION_ID>=50515
-
 #define sphinx_hash_init my_hash_init
 #define sphinx_hash_free my_hash_free
 #define sphinx_hash_search my_hash_search
 #define sphinx_hash_delete my_hash_delete
-
-#else
-
-#define sphinx_hash_init hash_init
-#define sphinx_hash_free hash_free
-#define sphinx_hash_search hash_search
-#define sphinx_hash_delete hash_delete
-
-#endif
 
 /////////////////////////////////////////////////////////////////////////////
 
@@ -286,6 +268,17 @@ inline void SPH_DEBUG ( const char *, ... ) {}
 
 //////////////////////////////////////////////////////////////////////////////
 
+struct ha_table_option_struct
+{
+  char *connection;
+};
+
+static ha_create_table_option table_option_list[]=
+{
+  HA_TOPTION_STRING("CONNECTION", connection),
+  HA_TOPTION_END
+};
+
 /// per-table structure that will be shared among all open Sphinx SE handlers
 struct CSphSEShare
 {
@@ -301,11 +294,7 @@ struct CSphSEShare
 	bool			m_bSphinxQL;	///< is this read-only SphinxAPI table, or write-only SphinxQL table?
 	uint			m_iTableNameLen;
 	uint			m_iUseCount;
-#if MYSQL_VERSION_ID<50610
-	CHARSET_INFO *	m_pTableQueryCharset;
-#else	
 	const CHARSET_INFO *	m_pTableQueryCharset;
-#endif	
 
 	int					m_iTableFields;
 	char **				m_sTableField;
@@ -434,11 +423,7 @@ struct CSphSEThreadTable
 	bool				m_bQuery;
 	char				m_sQuery[MAX_QUERY_LEN];
 
-#if MYSQL_VERSION_ID<50610
-	CHARSET_INFO *		m_pQueryCharset;
-#else
 	const CHARSET_INFO *		m_pQueryCharset;
-#endif	
 
 	bool				m_bReplace;		///< are we doing an INSERT or REPLACE
 
@@ -641,62 +626,18 @@ template int CSphSEQuery::ParseArray<longlong> ( longlong **, const char * );
 
 //////////////////////////////////////////////////////////////////////////////
 
-#if MYSQL_VERSION_ID>50100
-
-#if MYSQL_VERSION_ID<50114
-#error Sphinx SE requires MySQL 5.1.14 or higher if compiling for 5.1.x series!
-#endif
-
 static handler *	sphinx_create_handler ( handlerton * hton, TABLE_SHARE * table, MEM_ROOT * mem_root );
 static int			sphinx_init_func ( void * p );
 static int			sphinx_close_connection ( THD * thd );
 static int			sphinx_panic ( handlerton * hton, enum ha_panic_function flag );
 static bool			sphinx_show_status ( handlerton * hton, THD * thd, stat_print_fn * stat_print, enum ha_stat_type stat_type );
 
-#else
-
-static bool			sphinx_init_func_for_handlerton ();
-static int			sphinx_close_connection ( THD * thd );
-bool				sphinx_show_status ( THD * thd );
-
-#endif // >50100
-
 //////////////////////////////////////////////////////////////////////////////
 
 static const char	sphinx_hton_name[]		= "SPHINX";
 static const char	sphinx_hton_comment[]	= "Sphinx storage engine " SPHINXSE_VERSION;
 
-#if MYSQL_VERSION_ID<50100
-handlerton sphinx_hton =
-{
-	#ifdef MYSQL_HANDLERTON_INTERFACE_VERSION
-	MYSQL_HANDLERTON_INTERFACE_VERSION,
-	#endif
-	sphinx_hton_name,
-	SHOW_OPTION_YES,
-	sphinx_hton_comment,
-	DB_TYPE_SPHINX_DB,
-	sphinx_init_func_for_handlerton,
-	0,							// slot
-	0,							// savepoint size
-	sphinx_close_connection,	// close_connection
-	NULL,	// savepoint
-	NULL,	// rollback to savepoint
-	NULL,	// release savepoint
-	NULL,	// commit
-	NULL,	// rollback
-	NULL,	// prepare
-	NULL,	// recover
-	NULL,	// commit_by_xid
-	NULL,	// rollback_by_xid
-	NULL,	// create_cursor_read_view
-	NULL,	// set_cursor_read_view
-	NULL,	// close_cursor_read_view
-	HTON_CAN_RECREATE | HTON_AUTOMATIC_DELETE_TABLE
-};
-#else
 static handlerton * sphinx_hton_ptr = NULL;
-#endif
 
 //////////////////////////////////////////////////////////////////////////////
 
@@ -710,11 +651,7 @@ static HASH			sphinx_open_tables;	// hash used to track open tables
 //////////////////////////////////////////////////////////////////////////////
 
 // hashing function
-#if MYSQL_VERSION_ID>=50120
 typedef size_t GetKeyLength_t;
-#else
-typedef uint GetKeyLength_t;
-#endif
 
 static const uchar *sphinx_get_key(const void *pSharePtr,
                                    GetKeyLength_t *pLength, my_bool)
@@ -724,11 +661,7 @@ static const uchar *sphinx_get_key(const void *pSharePtr,
   return reinterpret_cast<const uchar *>(pShare->m_sTable);
 }
 
-#if MYSQL_VERSION_ID<50100
-static int sphinx_init_func ( void * ) // to avoid unused arg warning
-#else
 static int sphinx_init_func ( void * p )
-#endif
 {
 	SPH_ENTER_FUNC();
 	if ( !sphinx_init )
@@ -739,7 +672,6 @@ static int sphinx_init_func ( void * p )
                                    system_charset_info, 32, 0, 0,
                                    sphinx_get_key, 0, 0 );
 
-		#if MYSQL_VERSION_ID > 50100
 		handlerton * hton = (handlerton*) p;
 		hton->db_type = DB_TYPE_AUTOASSIGN;
 		hton->create = sphinx_create_handler;
@@ -748,21 +680,11 @@ static int sphinx_init_func ( void * p )
 		hton->panic = sphinx_panic;
 		hton->drop_table= [](handlerton *, const char*) { return -1; };
 		hton->flags = HTON_CAN_RECREATE;
-		#endif
+                hton->table_options= table_option_list;
 	}
 	SPH_RET(0);
 }
 
-
-#if MYSQL_VERSION_ID<50100
-static bool sphinx_init_func_for_handlerton ()
-{
-	return sphinx_init_func ( &sphinx_hton );
-}
-#endif
-
-
-#if MYSQL_VERSION_ID>50100
 
 static int sphinx_close_connection ( THD * thd )
 {
@@ -797,37 +719,14 @@ static int sphinx_panic ( handlerton * hton, enum ha_panic_function )
 	return sphinx_done_func ( hton );
 }
 
-#else
-
-static int sphinx_close_connection ( THD * thd )
-{
-	// deallocate common handler data
-	SPH_ENTER_FUNC();
-	CSphTLS * pTls = (CSphTLS *) thd->ha_data[sphinx_hton.slot];
-	SafeDelete ( pTls );
-	thd->ha_data[sphinx_hton.slot] = NULL;
-	SPH_RET(0);
-}
-
-#endif // >50100
-
 //////////////////////////////////////////////////////////////////////////////
 // SHOW STATUS
 //////////////////////////////////////////////////////////////////////////////
 
-#if MYSQL_VERSION_ID>50100
 static bool sphinx_show_status ( handlerton * hton, THD * thd, stat_print_fn * stat_print,
 	enum ha_stat_type )
-#else
-bool sphinx_show_status ( THD * thd )
-#endif
 {
 	SPH_ENTER_FUNC();
-
-#if MYSQL_VERSION_ID<50100
-	Protocol * protocol = thd->protocol;
-	List<Item> field_list;
-#endif
 
 	char buf1[IO_SIZE];
 	uint buf1len;
@@ -839,40 +738,11 @@ bool sphinx_show_status ( THD * thd )
 	buf2[0] = '\0';
 
 
-#if MYSQL_VERSION_ID>50100
 	// 5.1.x style stats
 	CSphTLS * pTls = (CSphTLS*) ( thd_get_ha_data ( thd, hton ) );
 
 #define LOC_STATS(_key,_keylen,_val,_vallen) \
 	stat_print ( thd, sphinx_hton_name, strlen(sphinx_hton_name), _key, _keylen, _val, _vallen );
-
-#else
-	// 5.0.x style stats
-	if ( have_sphinx_db!=SHOW_OPTION_YES )
-	{
-		my_message ( ER_NOT_SUPPORTED_YET,
-			"failed to call SHOW SPHINX STATUS: --skip-sphinx was specified",
-			MYF(0) );
-		SPH_RET(TRUE);
-	}
-	CSphTLS * pTls = (CSphTLS*) thd->ha_data[sphinx_hton.slot];
-
-	field_list.push_back ( new Item_empty_string ( thd, "Type", 10 ) );
-	field_list.push_back ( new Item_empty_string ( thd, "Name", FN_REFLEN ) );
-	field_list.push_back ( new Item_empty_string ( thd, "Status", 10 ) );
-	if ( protocol->send_fields ( &field_list, Protocol::SEND_NUM_ROWS | Protocol::SEND_EOF ) )
-		SPH_RET(TRUE);
-
-#define LOC_STATS(_key,_keylen,_val,_vallen) \
-	protocol->prepare_for_resend (); \
-	protocol->store ( "SPHINX", 6, system_charset_info ); \
-	protocol->store ( _key, _keylen, system_charset_info ); \
-	protocol->store ( _val, _vallen, system_charset_info ); \
-	if ( protocol->write() ) \
-		SPH_RET(TRUE);
-
-#endif
-
 
 	// show query stats
 	if ( pTls && pTls->m_pHeadTable && pTls->m_pHeadTable->m_bStats )
@@ -922,14 +792,7 @@ bool sphinx_show_status ( THD * thd )
 	} else
 	{
 		// well, nothing to show just yet
-#if MYSQL_VERSION_ID < 50100
-		LOC_STATS ( "stats", 5, "no query has been executed yet", sizeof("no query has been executed yet")-1 );
-#endif
 	}
-
-#if MYSQL_VERSION_ID < 50100
-	send_eof(thd);
-#endif
 
 	SPH_RET(FALSE);
 }
@@ -999,7 +862,8 @@ static void sphLogError ( const char * sFmt, ... )
 // sphinx://host[:port]/index
 // sphinxql://host[:port]/index
 // unix://unix/domain/socket[:index]
-static bool ParseUrl ( CSphSEShare * share, TABLE * table, bool bCreate )
+static bool ParseUrl ( CSphSEShare * share, TABLE * table,
+                       const char * connect_string, bool bCreate )
 {
 	SPH_ENTER_FUNC();
 
@@ -1044,9 +908,9 @@ static bool ParseUrl ( CSphSEShare * share, TABLE * table, bool bCreate )
 	int iPort = SPHINXAPI_DEFAULT_PORT;
 
 	// parse connection string, if any
-	while ( table->s->connect_string.length!=0 )
+	while ( connect_string && *connect_string )
 	{
-		sScheme = sphDup ( table->s->connect_string.str, table->s->connect_string.length );
+		sScheme = sphDup ( connect_string, strlen(connect_string) );
 
 		sHost = strstr ( sScheme, "://" );
 		if ( !sHost )
@@ -1156,7 +1020,7 @@ static bool ParseUrl ( CSphSEShare * share, TABLE * table, bool bCreate )
 	if ( !bOk )
 	{
 		my_error ( bCreate ? ER_FOREIGN_DATA_STRING_INVALID_CANT_CREATE : ER_FOREIGN_DATA_STRING_INVALID,
-			MYF(0), table->s->connect_string.str);
+			MYF(0), connect_string);
 	} else
 	{
 		if ( share )
@@ -1179,7 +1043,8 @@ static bool ParseUrl ( CSphSEShare * share, TABLE * table, bool bCreate )
 // Example of simple lock controls. The "share" it creates is structure we will
 // pass to each sphinx handler. Do you have to have one of these? Well, you have
 // pieces that are used for locking, and they are needed to function.
-static CSphSEShare * get_share ( const char * table_name, TABLE * table )
+static CSphSEShare * get_share ( const char * table_name, TABLE * table,
+                                 const char * connect_string)
 {
 	SPH_ENTER_FUNC();
 	pthread_mutex_lock ( &sphinx_mutex );
@@ -1188,15 +1053,7 @@ static CSphSEShare * get_share ( const char * table_name, TABLE * table )
 	for ( ;; )
 	{
 		// check if we already have this share
-#if MYSQL_VERSION_ID>=50120
 		pShare = (CSphSEShare*) sphinx_hash_search ( &sphinx_open_tables, (const uchar *) table_name, strlen(table_name) );
-#else
-#ifdef _WIN32
-		pShare = (CSphSEShare*) sphinx_hash_search ( &sphinx_open_tables, (const byte *) table_name, strlen(table_name) );
-#else
-		pShare = (CSphSEShare*) sphinx_hash_search ( &sphinx_open_tables, table_name, strlen(table_name) );
-#endif // win
-#endif // pre-5.1.20
 
 		if ( pShare )
 		{
@@ -1210,7 +1067,7 @@ static CSphSEShare * get_share ( const char * table_name, TABLE * table )
 			break;
 
 		// try to setup it
-		if ( !ParseUrl ( pShare, table, false ) )
+		if ( !ParseUrl ( pShare, table, connect_string, false ) )
 		{
 			SafeDelete ( pShare );
 			break;
@@ -1255,13 +1112,11 @@ static int free_share ( CSphSEShare * pShare )
 }
 
 
-#if MYSQL_VERSION_ID>50100
 static handler * sphinx_create_handler ( handlerton * hton, TABLE_SHARE * table, MEM_ROOT * mem_root )
 {
 	sphinx_hton_ptr = hton;
 	return new ( mem_root ) ha_sphinx ( hton, table );
 }
-#endif
 
 //////////////////////////////////////////////////////////////////////////////
 // CLIENT-SIDE REQUEST STUFF
@@ -2061,13 +1916,8 @@ int CSphSEQuery::BuildRequest ( char ** ppBuffer )
 // SPHINX HANDLER
 //////////////////////////////////////////////////////////////////////////////
 
-#if MYSQL_VERSION_ID<50100
-ha_sphinx::ha_sphinx ( TABLE_ARG * table )
-	: handler ( &sphinx_hton, table )
-#else
 ha_sphinx::ha_sphinx ( handlerton * hton, TABLE_ARG * table )
 	: handler ( hton, table )
-#endif
 	, m_pShare ( NULL )
 	, m_iMatchesTotal ( 0 )
 	, m_iCurrentPos ( 0 )
@@ -2110,7 +1960,7 @@ ha_sphinx::~ha_sphinx()
 int ha_sphinx::open ( const char * name, int, uint )
 {
 	SPH_ENTER_METHOD();
-	m_pShare = get_share ( name, table );
+	m_pShare = get_share ( name, table, option_struct->connection );
 	if ( !m_pShare )
 		SPH_RET(1);
 
@@ -2154,7 +2004,6 @@ int ha_sphinx::Connect ( const char * sHost, ushort uPort )
 			int tmp_errno;
 			bool bError = false;
 
-#if MYSQL_VERSION_ID>=50515
 			struct addrinfo *hp = NULL;
 			tmp_errno = getaddrinfo ( sHost, NULL, NULL, &hp );
 			if ( tmp_errno || !hp || !hp->ai_addr )
@@ -2163,16 +2012,6 @@ int ha_sphinx::Connect ( const char * sHost, ushort uPort )
 				if ( hp )
 					freeaddrinfo ( hp );
 			}
-#else
-			struct hostent tmp_hostent, *hp;
-			char buff2 [ GETHOSTBYNAME_BUFF_SIZE ];
-			hp = my_gethostbyname_r ( sHost, &tmp_hostent, buff2, sizeof(buff2), &tmp_errno );
-			if ( !hp )
-			{
-				my_gethostbyname_r_free();
-				bError = true;
-			}
-#endif
 
 			if ( bError )
 			{
@@ -2183,14 +2022,9 @@ int ha_sphinx::Connect ( const char * sHost, ushort uPort )
 				SPH_RET(-1);
 			}
 
-#if MYSQL_VERSION_ID>=50515
 			struct sockaddr_in *in = (sockaddr_in *)hp->ai_addr;
 			memcpy ( &sin.sin_addr, &in->sin_addr, Min ( sizeof(sin.sin_addr), sizeof(in->sin_addr) ) );
  			freeaddrinfo ( hp );
-#else
-			memcpy ( &sin.sin_addr, hp->h_addr, Min ( sizeof(sin.sin_addr), (size_t)hp->h_length ) );
-			my_gethostbyname_r_free();
-#endif
 		}
 	} else
 	{
@@ -2721,11 +2555,7 @@ bool ha_sphinx::UnpackStats ( CSphSEStats * pStats )
 
 
 /// condition pushdown implementation, to properly intercept WHERE clauses on my columns
-#if MYSQL_VERSION_ID<50610
-const COND * ha_sphinx::cond_push ( const COND * cond )
-#else
 const Item * ha_sphinx::cond_push ( const Item *cond )
-#endif
 {
 	// catch the simplest case: query_column="some text"
 	for ( ;; )
@@ -3041,9 +2871,7 @@ int ha_sphinx::get_rec ( byte * buf, const byte *, uint )
 		SPH_RET ( HA_ERR_END_OF_FILE );
 	}
 
-	#if MYSQL_VERSION_ID>50100
 	MY_BITMAP * org_bitmap = dbug_tmp_use_all_columns ( table, &table->write_set );
-	#endif
 	Field ** field = table->field;
 
 	// unpack and return the match
@@ -3187,9 +3015,7 @@ int ha_sphinx::get_rec ( byte * buf, const byte *, uint )
 	memset ( buf, 0, table->s->null_bytes );
 	m_iCurrentPos++;
 
-	#if MYSQL_VERSION_ID > 50100
 	dbug_tmp_restore_column_map ( &table->write_set, org_bitmap );
-	#endif
 
 	SPH_RET(0);
 }
@@ -3264,28 +3090,16 @@ int ha_sphinx::rnd_pos ( byte *, byte * )
 }
 
 
-#if MYSQL_VERSION_ID>=50030
 int ha_sphinx::info ( uint )
-#else
-void ha_sphinx::info ( uint )
-#endif
 {
 	SPH_ENTER_METHOD();
 
 	if ( table->s->keys>0 )
 		table->key_info[0].rec_per_key[0] = 1;
 
-	#if MYSQL_VERSION_ID>50100
 	stats.records = 20;
-	#else
-	records = 20;
-	#endif
 
-#if MYSQL_VERSION_ID>=50030
 	SPH_RET(0);
-#else
-	SPH_VOID_RET();
-#endif
 }
 
 
@@ -3367,10 +3181,6 @@ ha_rows ha_sphinx::records_in_range ( uint, const key_range *, const key_range *
 	SPH_RET(3); // low number to force index usage
 }
 
-#if MYSQL_VERSION_ID < 50610
-#define user_defined_key_parts key_parts
-#endif
-
 // create() is called to create a database. The variable name will have the name
 // of the table. When create() is called you do not need to worry about opening
 // the table. Also, the FRM file will have already been created so adjusting
@@ -3385,7 +3195,7 @@ int ha_sphinx::create ( const char * name, TABLE * table_arg, HA_CREATE_INFO * )
 	char sError[256];
 
 	CSphSEShare tInfo;
-	if ( !ParseUrl ( &tInfo, table_arg, true ) )
+	if ( !ParseUrl ( &tInfo, table_arg, option_struct->connection, true ) )
 		SPH_RET(-1);
 
 	// check SphinxAPI table
@@ -3513,13 +3323,8 @@ int ha_sphinx::create ( const char * name, TABLE * table_arg, HA_CREATE_INFO * )
 
 // show functions
 
-#if MYSQL_VERSION_ID<50100
-#define SHOW_VAR_FUNC_BUFF_SIZE 1024
-#endif
-
 CSphSEStats * sphinx_get_stats ( THD * thd, SHOW_VAR * out )
 {
-#if MYSQL_VERSION_ID>50100
 	if ( sphinx_hton_ptr )
 	{
 		CSphTLS * pTls = (CSphTLS *) thd_get_ha_data ( thd, sphinx_hton_ptr );
@@ -3527,11 +3332,6 @@ CSphSEStats * sphinx_get_stats ( THD * thd, SHOW_VAR * out )
 		if ( pTls && pTls->m_pHeadTable && pTls->m_pHeadTable->m_bStats )
 			return &pTls->m_pHeadTable->m_tStats;
 	}
-#else
-	CSphTLS * pTls = (CSphTLS *) thd->ha_data[sphinx_hton.slot];
-	if ( pTls && pTls->m_pHeadTable && pTls->m_pHeadTable->m_bStats )
-		return &pTls->m_pHeadTable->m_tStats;
-#endif
 
 	out->type = SHOW_CHAR;
 	out->value = (char*) "";
@@ -3589,15 +3389,10 @@ static int sphinx_showfunc_word_count ( THD * thd, SHOW_VAR * out, void *,
 static int sphinx_showfunc_words ( THD * thd, SHOW_VAR * out, void * buf,
                                    system_status_var *, enum_var_type )
 {
-#if MYSQL_VERSION_ID>50100
 	char *sBuffer = static_cast<char*>(buf);
 	if ( sphinx_hton_ptr )
 	{
 		CSphTLS * pTls = (CSphTLS *) thd_get_ha_data ( thd, sphinx_hton_ptr );
-#else
-	{
-		CSphTLS * pTls = (CSphTLS *) thd->ha_data[sphinx_hton.slot];
-#endif
 		if ( pTls && pTls->m_pHeadTable && pTls->m_pHeadTable->m_bStats )
 		{
 			CSphSEStats * pStats = &pTls->m_pHeadTable->m_tStats;
@@ -3659,7 +3454,6 @@ static int sphinx_showfunc_error ( THD * thd, SHOW_VAR * out, void *,
 	return 0;
 }
 
-#if MYSQL_VERSION_ID>50100
 struct st_mysql_storage_engine sphinx_storage_engine =
 {
 	MYSQL_HANDLERTON_INTERFACE_VERSION
@@ -3694,8 +3488,6 @@ maria_declare_plugin(sphinx)
 MariaDB_PLUGIN_MATURITY_GAMMA
 }
 maria_declare_plugin_end;
-
-#endif // >50100
 
 //
 // $Id: ha_sphinx.cc 4842 2014-11-12 21:03:06Z deogar $

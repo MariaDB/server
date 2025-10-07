@@ -793,7 +793,6 @@ struct TABLE_SHARE
   Lex_ident_table table_name;            /* Table name (for open) */
   LEX_CSTRING path;                	/* Path to .frm file (from datadir) */
   LEX_CSTRING normalized_path;		/* unpack_filename(path) */
-  LEX_CSTRING connect_string;
 
   /* 
      Set of keys in use, implemented as a Bitmap.
