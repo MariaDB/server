@@ -302,7 +302,7 @@ struct RPL_TABLE_LIST : public TABLE_LIST
   {
     optional_metadata.length= 0;
   }
-  bool create_column_mapping(rpl_group_info *rgi);
+  void create_column_mapping(rpl_group_info *rgi);
   bool give_compatibility_error(rpl_group_info *rgi, uint col);
   bool check_wrong_column_usage(rpl_group_info *rgi, MY_BITMAP *m_cols);
 };

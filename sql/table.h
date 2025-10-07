@@ -105,6 +105,18 @@ typedef ulonglong nested_join_map;
 #define HLINDEX_TEMPLATE "#i#%02u"
 #define HLINDEX_BUF_LEN  16 /* with extension .ibd/.MYI/etc and safety margin */
 
+/*
+  to satisfy marked_for_write_or_computed() Field's assert we temporarily
+  mark field for write before storing the generated value in it
+*/
+#ifdef DBUG_ASSERT_EXISTS
+#define DBUG_FIX_WRITE_SET(f) bool _write_set_fixed= !bitmap_fast_test_and_set(write_set, (f)->field_index)
+#define DBUG_RESTORE_WRITE_SET(f) if (_write_set_fixed) bitmap_clear_bit(write_set, (f)->field_index)
+#else
+#define DBUG_FIX_WRITE_SET(f)
+#define DBUG_RESTORE_WRITE_SET(f)
+#endif
+
 /**
   Enumerate possible types of a table from re-execution
   standpoint.

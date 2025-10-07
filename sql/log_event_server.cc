@@ -4817,6 +4817,45 @@ inline void restore_empty_query_table_list(LEX *lex)
 }
 
 
+/**
+  Updates a table's write_set to include slave-only fields that are
+  automatically filled in (either with a default or virtual column value). That
+  is, when replicating a rows log event, a table's write_set is initially
+  determined by the event's column bitmaps (in the case of an update rows
+  event, it is the after_image bitmap). However, if a field isn't present on
+  the master, the binlog event's column mapping won't be able to include it; so
+  we iterate through a table's fields which will be automatically populated,
+  and add them to the write_set.
+
+  @param table           Table to update the write_set for
+  @param field_start_ptr Pointer to the first automatically populatable field
+                         of the table (e.g. table->default_field or
+                         table->vfield).
+*/
+static void update_write_set_for_auto_filled_fields(TABLE *table,
+                                                    Field **field_start_ptr)
+{
+  DBUG_ENTER("update_write_set_for_auto_filled_fields");
+  DBUG_ASSERT(field_start_ptr && *field_start_ptr);
+
+  Field **field_ptr, *field;
+  for (field_ptr= field_start_ptr; *field_ptr; ++field_ptr)
+  {
+    field= *field_ptr;
+    /*
+      We only want to automatically populate the value of fields which don't
+      have values provided by the master; so we check that either no value was
+      provided, or the table's original write set accounts for the explicit
+      value.
+    */
+    DBUG_ASSERT(!field->has_explicit_value() ||
+                bitmap_is_set(table->write_set, field->field_index));
+    if (field->stored_in_db())
+      bitmap_set_bit(table->write_set, field->field_index);
+  }
+  DBUG_VOID_RETURN;
+}
+
 int Rows_log_event::do_apply_event(rpl_group_info *rgi)
 {
   DBUG_ASSERT(rgi);
@@ -5075,12 +5114,7 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
         RPL_TABLE_LIST *ptr= static_cast<RPL_TABLE_LIST*>(table_list_ptr);
         DBUG_ASSERT(ptr->m_tabledef_valid);
 
-        if (ptr->create_column_mapping(rgi))
-        {
-          thd->is_slave_error= 1;
-          error= ERR_BAD_TABLE_DEF;
-          goto err;
-        }
+        ptr->create_column_mapping(rgi);
         if (ptr->m_tabledef.compatible_with(thd, rgi, ptr))
         {
           DBUG_PRINT("debug", ("Table: %s.%s is not compatible with master",
@@ -5182,16 +5216,19 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
 
     DBUG_PRINT_BITSET("debug", "Setting table's read_set from: %s", &m_cols);
     {
-      RPL_TABLE_LIST *rpl_table= rgi->get_table_data(table);
+      RPL_TABLE_LIST *rpl_table= (RPL_TABLE_LIST*)table->pos_in_table_list;
       Log_event_type type= get_general_type_code();
       DBUG_ASSERT(rpl_table);
+      DBUG_ASSERT(rpl_table == rgi->get_table_data(table));
 
       bitmap_set_all(table->read_set);
       bitmap_set_all(table->write_set);
       table->rpl_write_set= table->write_set;
-      if (rpl_data.copy_fields)
+      if (rpl_data.is_online_alter())
       {
-        /* always full rows, all bits set */;
+        /*
+          We are executing online alter table. Always full rows, all bits set
+        */
       }
       else if (!table->s->online_alter_binlog)
       {
@@ -5231,7 +5268,7 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
                              rpl_table->m_tabledef.master_to_slave_map[i]);
           }
 
-          if (get_general_type_code() != UPDATE_ROWS_EVENT)
+          if (type != UPDATE_ROWS_EVENT)
             bitmap_copy(table->write_set, table->read_set);
           else
           {
@@ -5264,6 +5301,15 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
         DBUG_RETURN(1);
 
       table->mark_columns_per_binlog_row_image();
+
+      if (table->default_field && *(table->default_field) &&
+          (rpl_data.is_online_alter() ||
+           LOG_EVENT_IS_WRITE_ROW(rgi->current_event->get_type_code())))
+        update_write_set_for_auto_filled_fields(table, table->default_field);
+
+      if (table->vfield && *(table->vfield))
+        update_write_set_for_auto_filled_fields(table, table->vfield);
+
       if (!rpl_data.is_online_alter())
         this->slave_exec_mode= (enum_slave_exec_mode) slave_exec_mode_options;
     }
@@ -5281,8 +5327,9 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
     */
     sql_mode_t saved_sql_mode= thd->variables.sql_mode;
     if (!is_auto_inc_in_extra_columns())
-      thd->variables.sql_mode= (rpl_data.copy_fields ? saved_sql_mode : 0)
-                               | MODE_NO_AUTO_VALUE_ON_ZERO;
+      thd->variables.sql_mode=
+          (rpl_data.is_online_alter() ? saved_sql_mode : 0) |
+          MODE_NO_AUTO_VALUE_ON_ZERO;
 
     // row processing loop
 

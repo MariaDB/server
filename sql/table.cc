@@ -1397,7 +1397,10 @@ bool parse_vcol_defs(THD *thd, MEM_ROOT *mem_root, TABLE *table,
     *vfield_ptr= 0;
 
   if (dfield_ptr)
+  {
+    DBUG_ASSERT(table->default_field != dfield_ptr);
     *dfield_ptr= 0;
+  }
 
   if (check_constraint_ptr)
     *check_constraint_ptr= 0;
@@ -9224,19 +9227,6 @@ bool is_simple_order(ORDER *order)
   }
   return TRUE;
 }
-
-/*
-  to satisfy marked_for_write_or_computed() Field's assert we temporarily
-  mark field for write before storing the generated value in it
-*/
-#ifdef DBUG_ASSERT_EXISTS
-#define DBUG_FIX_WRITE_SET(f) bool _write_set_fixed= !bitmap_fast_test_and_set(write_set, (f)->field_index)
-#define DBUG_RESTORE_WRITE_SET(f) if (_write_set_fixed) bitmap_clear_bit(write_set, (f)->field_index)
-#else
-#define DBUG_FIX_WRITE_SET(f)
-#define DBUG_RESTORE_WRITE_SET(f)
-#endif
-
 
 /*
   @brief Compute values for virtual columns used in query

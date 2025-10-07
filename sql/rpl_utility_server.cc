@@ -1036,16 +1036,13 @@ bool RPL_TABLE_LIST::check_wrong_column_usage(rpl_group_info *rgi,
     if (!bitmap_is_set(m_cols, col))
       continue;
     if (m_tabledef.master_to_slave_error[col])
-    {
-      has_err= give_compatibility_error(rgi, col) || has_err;
-    }
-    DBUG_ASSERT(m_tabledef.master_column_name[col] == NULL);
+      has_err|= give_compatibility_error(rgi, col);
   }
   DBUG_RETURN(has_err);
 }
 
 /*
-  Give an error if we are trying to access a wrong column
+  Report errors for any (and all) incompatible columns that we try to access.
 
   @return 0  error was ignored
   @return 1  error, abort replication
@@ -1059,7 +1056,6 @@ bool RPL_TABLE_LIST::give_compatibility_error(rpl_group_info *rgi, uint col)
   switch (m_tabledef.master_to_slave_error[col]) {
   case SLAVE_FIELD_NAME_MISSING:
     DBUG_ASSERT(m_tabledef.master_column_name[col]);
-    DBUG_ASSERT(m_tabledef.master_to_slave_map[col] == UINT_MAX32);
     if (!(slave_type_conversions_options &
           (1ULL << SLAVE_TYPE_CONVERSIONS_ERROR_IF_MISSING_FIELD)))
       error_level= WARNING_LEVEL;
@@ -1073,7 +1069,6 @@ bool RPL_TABLE_LIST::give_compatibility_error(rpl_group_info *rgi, uint col)
             error_level, ER_SLAVE_INCOMPATIBLE_TABLE_DEF, rgi->gtid_info(),
             ER_THD(rgi->thd, ER_SLAVE_INCOMPATIBLE_TABLE_DEF), error_msg);
       }
-    my_free(m_tabledef.master_column_name[col]);
     m_tabledef.master_column_name[col]= NULL;
     break;
   case SLAVE_FIELD_NR_MISSING:
@@ -1322,14 +1317,13 @@ void Deferred_log_events::rewind()
 
   Mapping stored in master_to_slave_map[].
   Errors stored in master_to_slave_error[]. Error will be given
-  on usage.
+  on usage (see ::check_wrong_column_usage()).
   Store master column names in master_column_name[].
 
   Note that we map all columns as we at this point do not know which
   columns will be used by the row events.
 */
-
-bool RPL_TABLE_LIST::create_column_mapping(rpl_group_info *rgi)
+void RPL_TABLE_LIST::create_column_mapping(rpl_group_info *rgi)
 {
   ulong master_cols= m_tabledef.size();
   DBUG_ENTER("RPL_TABLE_LIST::create_column_mapping");
@@ -1351,7 +1345,7 @@ default_column_mapping:
       m_tabledef.master_to_slave_map[col]= UINT_MAX32;
       m_tabledef.master_to_slave_error[col]= SLAVE_FIELD_NR_MISSING;
     }
-    DBUG_RETURN(0);
+    DBUG_VOID_RETURN;
   }
 
   Table_map_log_event::Optional_metadata_fields
@@ -1385,8 +1379,8 @@ default_column_mapping:
         field_name) are stored on the stack.
       */
       size_t field_name_sz= master_col_name_cppstr.size();
-      m_tabledef.master_column_name[col]= (char *) my_malloc(
-          PSI_INSTRUMENT_ME, field_name_sz * sizeof(char) + 1, MYF(MY_WME));
+      m_tabledef.master_column_name[col]= (char *) alloc_root(
+          rgi->thd->mem_root, field_name_sz * sizeof(char) + 1);
       strncpy(m_tabledef.master_column_name[col],
               master_col_name_cppstr.c_str(), field_name_sz);
       m_tabledef.master_column_name[col][field_name_sz] = '\0';
@@ -1403,7 +1397,7 @@ default_column_mapping:
     m_tabledef.master_to_slave_map[col]= field->field_index;
     DBUG_PRINT("info", ("Found mapping for %s", field_name.str));
   }
-  DBUG_RETURN(false);
+  DBUG_VOID_RETURN;
 }
 
 #endif // defined(HAVE_REPLICATION)
