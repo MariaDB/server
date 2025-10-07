@@ -5,6 +5,9 @@
 
 let $basedir=$MYSQLTEST_VARDIR/tmp/backup;
 let MYSQLD_DATADIR=`select @@datadir`;
+# Encrypt the change buffer root page
+SET GLOBAL innodb_encrypt_tables=ON,innodb_encryption_threads=1;
+SET GLOBAL innodb_saved_page_number_debug=4,innodb_fil_make_page_dirty_debug=0;
 
 CREATE TABLE t1(f1 text, index idx(f1(20))) ENGINE INNODB;
 

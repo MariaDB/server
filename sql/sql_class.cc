@@ -2482,7 +2482,7 @@ void THD::cleanup_after_query()
   if (!in_active_multi_stmt_transaction())
     wsrep_affected_rows= 0;
 #endif /* WITH_WSREP */
-
+  gap_tracker_data.init();
   DBUG_VOID_RETURN;
 }
 

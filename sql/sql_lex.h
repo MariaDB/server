@@ -3512,14 +3512,29 @@ public:
   static const ulong initial_gtid_domain_buffer_size= 16;
   uint32 gtid_domain_static_buffer[initial_gtid_domain_buffer_size];
 
-  inline void set_limit_rows_examined()
+  /*
+    Activates enforcement of the LIMIT ROWS EXAMINED clause, if present
+    in the query.
+  */
+  void set_limit_rows_examined()
   {
     if (limit_rows_examined)
       limit_rows_examined_cnt= limit_rows_examined->val_uint();
-    else
-      limit_rows_examined_cnt= ULONGLONG_MAX;
   }
 
+  /**
+    Deactivates enforcement of the LIMIT ROWS EXAMINED clause and returns its
+    prior state.
+    Return value:
+    - false: LIMIT ROWS EXAMINED was not activated
+    - true:  LIMIT ROWS EXAMINED was activated
+  */
+  bool deactivate_limit_rows_examined()
+  {
+    bool was_activated= (limit_rows_examined_cnt != ULONGLONG_MAX);
+    limit_rows_examined_cnt= ULONGLONG_MAX; // Unreachable value
+    return was_activated;
+  }
 
   LEX_CSTRING *win_ref;
   Window_frame *win_frame;
