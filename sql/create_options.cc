@@ -305,6 +305,51 @@ bool extend_option_list(THD* thd, st_plugin_int *plugin, bool create,
 }
 
 
+static bool set_many_values(THD *thd, void *option_struct,
+                            engine_option_value *option_list,
+                            ha_create_table_option *rules,
+                            bool suppress_warning, MEM_ROOT *root)
+{
+  DBUG_ENTER("set_many_values");
+
+  for (ha_create_table_option *opt= rules; rules && opt->name; opt++)
+  {
+    engine_option_value::Value default_value;
+    engine_option_value *last;
+    bool seen=false;
+    for (engine_option_value *val= option_list; val; val= val->next)
+    {
+      last= val;
+      if (!val->name.streq(Lex_cstring(opt->name, opt->name_length)))
+        continue;
+
+      /* skip duplicates (see engine_option_value constructor above) */
+      if (val->parsed && !val->value.str)
+        continue;
+
+      if (set_one_value(opt, thd, &val->value, option_struct,
+                        suppress_warning || val->parsed, root))
+        DBUG_RETURN(TRUE);
+      val->parsed= true;
+      seen=true;
+      break;
+    }
+    if (!seen || (opt->var && !last->value.str))
+      set_one_value(opt, thd, &default_value, option_struct,
+                    suppress_warning, root);
+  }
+
+  for (engine_option_value *val= option_list; val; val= val->next)
+  {
+    if (report_unknown_option(thd, val, suppress_warning))
+      DBUG_RETURN(TRUE);
+    val->parsed= true;
+  }
+
+  DBUG_RETURN(FALSE);
+}
+
+
 /**
   Creates option structure and parses list of options in it
 
@@ -324,11 +369,8 @@ bool parse_option_list(THD* thd, void *option_struct_arg,
                        ha_create_table_option *rules,
                        bool suppress_warning, MEM_ROOT *root)
 {
-  ha_create_table_option *opt;
   size_t option_struct_size= 0;
-  engine_option_value *val, *last;
   void **option_struct= (void**)option_struct_arg;
-  engine_option_value::Value default_value;
   DBUG_ENTER("parse_option_list");
   DBUG_PRINT("enter",
              ("struct: %p list: %p rules: %p suppress_warning: %u root: %p",
@@ -337,48 +379,16 @@ bool parse_option_list(THD* thd, void *option_struct_arg,
 
   if (rules)
   {
-    for (opt= rules; opt->name; opt++)
+    for (ha_create_table_option *opt= rules; opt->name; opt++)
       set_if_bigger(option_struct_size, opt->offset +
                     ha_option_type_sizeof[opt->type]);
 
     *option_struct= alloc_root(root, option_struct_size);
   }
 
-  for (opt= rules; rules && opt->name; opt++)
-  {
-    bool seen=false;
-    for (val= *option_list; val; val= val->next)
-    {
-      last= val;
-      if (!val->name.streq(Lex_cstring(opt->name, opt->name_length)))
-        continue;
-
-      /* skip duplicates (see engine_option_value constructor above) */
-      if (val->parsed && !val->value.str)
-        continue;
-
-      if (set_one_value(opt, thd, &val->value,
-                        *option_struct, suppress_warning || val->parsed, root))
-        DBUG_RETURN(TRUE);
-      val->parsed= true;
-      seen=true;
-      break;
-    }
-    if (!seen || (opt->var && !last->value.str))
-      set_one_value(opt, thd, &default_value, *option_struct,
-                    suppress_warning, root);
-  }
-
-  for (val= *option_list; val; val= val->next)
-  {
-    if (report_unknown_option(thd, val, suppress_warning))
-      DBUG_RETURN(TRUE);
-    val->parsed= true;
-  }
-
-  DBUG_RETURN(FALSE);
+  DBUG_RETURN(set_many_values(thd, *option_struct, *option_list, rules,
+                              suppress_warning, root));
 }
-
 
 /**
   Resolves all HA_OPTION_TYPE_SYSVAR elements.
@@ -872,4 +882,21 @@ bool is_engine_option_known(engine_option_value *opt,
         return true;
   }
   return false;
+}
+
+bool add_as_engine_option(THD *thd, handlerton *ht, MEM_ROOT *root,
+                   const Lex_ident_ci &nam, const LEX_CSTRING &val, bool quoted,
+                   void *option_struct, engine_option_value **option_list)
+{
+  auto value= new (root) engine_option_value(engine_option_value::Name(nam),
+                                             engine_option_value::Value(val),
+                                             quoted);
+  if (set_many_values(thd, option_struct, value, ht->table_options, TRUE,
+                      root))
+    return TRUE;
+
+  /* no need to check for duplicates as in ::link(). cannot happen here */
+  value->next= *option_list;
+  *option_list= value;
+  return FALSE;
 }

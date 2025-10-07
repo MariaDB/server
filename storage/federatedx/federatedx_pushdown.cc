@@ -321,7 +321,8 @@ int federatedx_handler_base::init_scan_()
 
   ha_federatedx *h= (ha_federatedx *) query_table->file;
   iop= &h->io;
-  share= get_share(query_table->s->table_name.str, query_table);
+  share= get_share(query_table->s->table_name.str, query_table,
+                   h->option_struct);
   txn= h->get_txn(thd);
   if ((rc= txn->acquire(share, thd, TRUE, iop)))
     DBUG_RETURN(rc);

@@ -1877,6 +1877,8 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
   extra2_fields extra2;
   bool extra_index_flags_present= FALSE;
   key_map sort_keys_in_use(0);
+  LEX_CSTRING connect_string= {0, 0};
+  static const Lex_ident_ci connect_keyword={ STRING_WITH_LEN("CONNECTION") };
   DBUG_ENTER("TABLE_SHARE::init_from_binary_frm_image");
 
   keyinfo= &first_keyinfo;
@@ -2066,15 +2068,11 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
     if (buff_end >= frm_image_end)
       goto err;
 
-    share->connect_string.length= uint2korr(next_chunk);
-    if (!(share->connect_string.str= strmake_root(&share->mem_root,
-                                                  (char*) next_chunk + 2,
-                                                  share->connect_string.
-                                                  length)))
-    {
+    connect_string.length= uint2korr(next_chunk);
+    if (!(connect_string.str= strmake_root(thd->mem_root, (char*) next_chunk+2,
+                                           connect_string.length)))
       goto err;
-    }
-    next_chunk+= share->connect_string.length + 2;
+    next_chunk+= connect_string.length + 2;
     if (next_chunk + 2 < buff_end)
     {
       uint str_db_type_length= uint2korr(next_chunk);
@@ -3462,6 +3460,14 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
   }
   if (parse_engine_table_options(thd, handler_file->partition_ht(), share))
     goto err;
+
+  /* convert legacy CONNECTION option to engine option */
+  if (connect_string.length &&
+      add_as_engine_option(thd, handler_file->partition_ht(), &share->mem_root,
+                           connect_keyword, connect_string, TRUE,
+                           share->option_struct_table, &share->option_list))
+    goto err;
+  connect_string= null_clex_str;
 
   if (share->hlindexes())
   {

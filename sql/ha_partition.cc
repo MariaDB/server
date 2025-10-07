@@ -402,7 +402,6 @@ void ha_partition::init_handler_variables()
   m_file_buffer= NULL;
   m_name_buffer_ptr= NULL;
   m_engine_array= NULL;
-  m_connect_string= NULL;
   m_file= NULL;
   m_file_tot_parts= 0;
   m_reorged_file= NULL;
@@ -1701,7 +1700,6 @@ int ha_partition::prepare_new_partition(TABLE *tbl,
                                                   p_elem))))
     goto error_create;
 
-  tbl->s->connect_string= p_elem->connect_string;
   create_info->options|= HA_CREATE_TMP_ALTER;
   if ((error= file->ha_create(part_name, tbl, create_info)))
   {
@@ -2290,7 +2288,6 @@ void ha_partition::update_create_info(HA_CREATE_INFO *create_info)
   */
   my_bool from_alter= (create_info->data_file_name == (const char*) -1);
   create_info->data_file_name= create_info->index_file_name= NULL;
-  create_info->connect_string= null_clex_str;
 
   /*
     We do not need to update the individual partition DATA DIRECTORY settings
@@ -2782,10 +2779,6 @@ int ha_partition::set_up_table_before_create(TABLE *tbl,
   }
   info->index_file_name= part_elem->index_file_name;
   info->data_file_name= part_elem->data_file_name;
-  info->connect_string= part_elem->connect_string;
-  if (info->connect_string.length)
-    info->used_fields|= HA_CREATE_USED_CONNECTION;
-  tbl->s->connect_string= part_elem->connect_string;
   info->option_struct= part_elem->option_struct_part;
   DBUG_RETURN(0);
 }
@@ -2932,9 +2925,7 @@ bool ha_partition::create_handler_file(const char *name)
                               FN_REFLEN);
         tablename_to_filename(subpart_elem->partition_name.str, subpart_name,
                               FN_REFLEN);
-	name_buffer_ptr+= name_add(name_buffer_ptr,
-				   part_name,
-				   subpart_name);
+	name_buffer_ptr+= name_add(name_buffer_ptr, part_name, subpart_name);
         *engine_array= (uchar) ha_legacy_type(subpart_elem->engine_type);
         DBUG_PRINT("info", ("engine: %u", *engine_array));
 	engine_array++;
@@ -2962,23 +2953,6 @@ bool ha_partition::create_handler_file(const char *name)
   {
     result= mysql_file_write(file, (uchar *) file_buffer, tot_len_byte,
                              MYF(MY_WME | MY_NABP)) != 0;
-
-    /* Write connection information (for federatedx engine) */
-    part_it.rewind();
-    for (i= 0; i < num_parts && !result; i++)
-    {
-      uchar buffer[4];
-      part_elem= part_it++;
-      size_t length= part_elem->connect_string.length;
-      int4store(buffer, length);
-      if (my_write(file, buffer, 4, MYF(MY_WME | MY_NABP)) ||
-          my_write(file, (uchar *) part_elem->connect_string.str, length,
-                   MYF(MY_WME | MY_NABP)))
-      {
-        result= TRUE;
-        break;
-      }
-    }
     (void) mysql_file_close(file, MYF(0));
     if (result)
       mysql_file_delete(key_file_ha_partition_par, file_name, MYF(MY_WME));
@@ -3001,7 +2975,6 @@ void ha_partition::clear_handler_file()
   free_root(&m_mem_root, MYF(MY_KEEP_PREALLOC));
   m_file_buffer= NULL;
   m_engine_array= NULL;
-  m_connect_string= NULL;
 }
 
 
@@ -3185,33 +3158,6 @@ int ha_partition::read_par_file(const char *name)
     goto err2;
   m_file_buffer= file_buffer;          // Will be freed in clear_handler_file()
   m_name_buffer_ptr= (char*) (tot_name_len_offset + PAR_WORD_SIZE);
-
-  if (!(m_connect_string= (LEX_CSTRING*)
-        alloc_root(&m_mem_root, m_tot_parts * sizeof(LEX_CSTRING))))
-    goto err2;
-  bzero(m_connect_string, m_tot_parts * sizeof(LEX_CSTRING));
-
-  /* Read connection arguments (for federated X engine) */
-  for (i= 0; i < m_tot_parts; i++)
-  {
-    LEX_CSTRING connect_string;
-    uchar buffer[4];
-    char *tmp;
-    if (my_read(file, buffer, 4, MYF(MY_NABP)))
-    {
-      /* No extra options; Probably not a federatedx engine */
-      break;
-    }
-    connect_string.length= uint4korr(buffer);
-    connect_string.str= tmp= (char*) alloc_root(&m_mem_root,
-                                                connect_string.length+1);
-    if (my_read(file, (uchar*) connect_string.str, connect_string.length,
-                MYF(MY_NABP)))
-      break;
-    tmp[connect_string.length]= 0;
-    m_connect_string[i]= connect_string;
-  }
-
   (void) mysql_file_close(file, MYF(0));
   DBUG_RETURN(0);
 
@@ -8960,18 +8906,15 @@ int ha_partition::open_read_partitions(char *name_buff, size_t name_buff_size)
     */
     if (!is_open && should_be_open)
     {
-      LEX_CSTRING save_connect_string= table->s->connect_string;
       if (unlikely((error=
                     create_partition_name(name_buff, name_buff_size,
                                           table->s->normalized_path.str,
                                           name_buffer_ptr, NORMAL_PART_NAME,
                                           FALSE))))
         goto err_handler;
-      table->s->connect_string= m_connect_string[(uint)(file-m_file)];
       (*file)->option_struct= part_elem->option_struct_part;
       error= (*file)->ha_open(table, name_buff, m_mode,
                               m_open_test_lock | HA_OPEN_NO_PSI_CALL);
-      table->s->connect_string= save_connect_string;
       if (error)
         goto err_handler;
       bitmap_set_bit(&m_opened_partitions, n_file);

@@ -2245,7 +2245,6 @@ struct Table_scope_and_contents_source_pod_st // For trivial members
   CHARSET_INFO *alter_table_convert_to_charset;
   LEX_CUSTRING tabledef_version;
   LEX_CUSTRING org_tabledef_version;            /* version of dropped table */
-  LEX_CSTRING connect_string;
   LEX_CSTRING comment;
   LEX_CSTRING alias;
   LEX_CSTRING org_storage_engine_name, new_storage_engine_name;

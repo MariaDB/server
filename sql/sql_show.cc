@@ -2165,11 +2165,6 @@ end_options:
     packet->append(STRING_WITH_LEN(" COMMENT="));
     append_unescaped(packet, share->comment.str, share->comment.length);
   }
-  if (share->connect_string.length)
-  {
-    packet->append(STRING_WITH_LEN(" CONNECTION="));
-    append_unescaped(packet, share->connect_string.str, share->connect_string.length);
-  }
   append_create_options(thd, packet, share->option_list, check_options,
                         hton->table_options);
   append_directory(thd, packet, &DATA_clex_str,  create_info.data_file_name);
