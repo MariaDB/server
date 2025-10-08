@@ -1569,6 +1569,7 @@ void my_print_help(const struct my_option *options)
   for (optp= options; optp->name; optp++)
   {
     const char *typelib_help= 0;
+    my_bool skip_or_all_message= 0;
     if (!optp->comment)
       continue;
     if (optp->id && optp->id < 256)
@@ -1612,6 +1613,7 @@ void my_print_help(const struct my_option *options)
     if (optp->comment && *optp->comment)
     {
       uint count;
+      uint hidden_value_count= 0;
 
       if (col > name_space)
       {
@@ -1632,8 +1634,22 @@ void my_print_help(const struct my_option *options)
         count= optp->typelib->count;
         break;
       case GET_SET: 
-        typelib_help= ". Any combination of: ";
+        if (optp->typelib->hidden_values)
+        {
+          /* Count how many values are hidden */
+          for (const int *val= optp->typelib->hidden_values; *val>= 0; val++)
+            hidden_value_count++;
+        }
         count= optp->typelib->count;
+        if (count == hidden_value_count)
+        {
+          /* All values are hidden */
+          typelib_help= ". No currently supported values.";
+          count= 0;
+          skip_or_all_message= 1;
+        }
+        else
+          typelib_help= ". Any combination of: ";
         break;
       case GET_FLAGSET:
         typelib_help= ". Takes a comma-separated list of option=value pairs, "
@@ -1645,9 +1661,9 @@ void my_print_help(const struct my_option *options)
           strstr(optp->comment, optp->typelib->type_names[0]) == NULL)
       {
         uint i;
+        my_bool printing_first= 1;
         col= print_comment(typelib_help, col, name_space, comment_space);
-        col= print_comment(optp->typelib->type_names[0], col, name_space, comment_space);
-        for (i= 1; i < count; i++)
+        for (i= 0; i < count; i++)
         {
           my_bool skip_value= 0;
           /* Do not print the value if it is listed in hidden_values */
@@ -1665,7 +1681,10 @@ void my_print_help(const struct my_option *options)
           }
           if (skip_value)
             continue;
-          col= print_comment(", ", col, name_space, comment_space);
+          if (printing_first)
+            printing_first= 0;
+          else
+            col= print_comment(", ", col, name_space, comment_space);
           col= print_comment(optp->typelib->type_names[i], col, name_space, comment_space);
         }
       }
@@ -1681,7 +1700,7 @@ void my_print_help(const struct my_option *options)
         printf(" to disable.)\n");
       }
     }
-    else if ((optp->var_type & GET_TYPE_MASK) == GET_SET)
+    else if ((optp->var_type & GET_TYPE_MASK) == GET_SET && !skip_or_all_message)
       printf("  Use 'ALL' to set all combinations.\n");
   }
   DBUG_VOID_RETURN;
