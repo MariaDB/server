@@ -2777,19 +2777,10 @@ get_tmp_table_costs(THD *thd, double row_count, uint row_size, bool blobs_used,
                            tmp_table_optimizer_costs.row_copy_cost :
                            0);
     /* Disk based table */
-    if (TEST_NEW_MODE_FLAG(thd, NEW_MODE_FIX_DISK_TMPTABLE_COSTS))
-    {
-      cost.lookup=         ((tmp_table_optimizer_costs.key_lookup_cost +
-                             tmp_table_optimizer_costs.disk_read_cost *
-                             tmp_table_optimizer_costs.disk_read_ratio) +
-                           row_copy_cost);
-    }
-    else
-    {
-      cost.lookup=         ((tmp_table_optimizer_costs.key_lookup_cost *
-                            tmp_table_optimizer_costs.disk_read_ratio) +
-                           row_copy_cost);
-    }
+    cost.lookup=         ((tmp_table_optimizer_costs.key_lookup_cost +
+                           tmp_table_optimizer_costs.disk_read_cost *
+                           tmp_table_optimizer_costs.disk_read_ratio) +
+                         row_copy_cost);
     /*
       Don't have numbers for cost of writing, assume it's the same as cost
       of reading for lack of a better number.

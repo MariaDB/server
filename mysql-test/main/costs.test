@@ -141,8 +141,8 @@ set
   @save_mhts= @@max_heap_table_size,
   @@max_heap_table_size=16384;
 
-set @save_new_mode=@@new_mode;
-let $q=
+
+--echo # This should use "t1, FirstMatch(t2)".  Not "t1, SJ-Materialization(t2)".
 explain format=json
 select c, count(*) as dc
 from t1
@@ -151,15 +151,5 @@ where
   exists (select * from t2 where e = t1.a and g < h)
 group by c;
 
-set new_mode=CONCAT(@@new_mode, ',FIX_DISK_TMPTABLE_COSTS');
---echo # This should use:  t1, FirstMatch(t2)
-eval $q;
-
-SET new_mode = REPLACE(@@new_mode, 'FIX_DISK_TMPTABLE_COSTS', '');
-
---echo # This should use: t1, SJ-Materialization(t2)
-eval $q;
-
-set new_mode=@save_new_mode;
 set max_heap_table_size=@save_mhts;
 drop table t1, t2;

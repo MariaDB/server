@@ -145,9 +145,7 @@ from seq_1_to_7000 a, seq_1_to_3 b;
 set
 @save_mhts= @@max_heap_table_size,
 @@max_heap_table_size=16384;
-set @save_new_mode=@@new_mode;
-set new_mode=CONCAT(@@new_mode, ',FIX_DISK_TMPTABLE_COSTS');
-# This should use:  t1, FirstMatch(t2)
+# This should use "t1, FirstMatch(t2)".  Not "t1, SJ-Materialization(t2)".
 explain format=json
 select c, count(*) as dc
 from t1
@@ -198,74 +196,5 @@ EXPLAIN
     }
   }
 }
-SET new_mode = REPLACE(@@new_mode, 'FIX_DISK_TMPTABLE_COSTS', '');
-# This should use: t1, SJ-Materialization(t2)
-explain format=json
-select c, count(*) as dc
-from t1
-where
-b >= date '1993-06-01' and b < date '1993-06-01' + interval '3' month and
-exists (select * from t2 where e = t1.a and g < h)
-group by c;
-EXPLAIN
-{
-  "query_block": {
-    "select_id": 1,
-    "cost": 12.39219425,
-    "filesort": {
-      "sort_key": "t1.c",
-      "temporary_table": {
-        "nested_loop": [
-          {
-            "table": {
-              "table_name": "t1",
-              "access_type": "ALL",
-              "possible_keys": ["PRIMARY", "t1_ix1"],
-              "loops": 1,
-              "rows": 7000,
-              "cost": 1.1518548,
-              "filtered": 100,
-              "attached_condition": "t1.b >= DATE'1993-06-01' and t1.b < <cache>(DATE'1993-06-01' + interval '3' month)"
-            }
-          },
-          {
-            "table": {
-              "table_name": "<subquery2>",
-              "access_type": "eq_ref",
-              "possible_keys": ["distinct_key"],
-              "key": "distinct_key",
-              "key_length": "4",
-              "used_key_parts": ["e"],
-              "ref": ["func"],
-              "rows": 1,
-              "filtered": 100,
-              "materialized": {
-                "unique": 1,
-                "query_block": {
-                  "select_id": 2,
-                  "nested_loop": [
-                    {
-                      "table": {
-                        "table_name": "t2",
-                        "access_type": "ALL",
-                        "possible_keys": ["PRIMARY"],
-                        "loops": 1,
-                        "rows": 21000,
-                        "cost": 3.4338548,
-                        "filtered": 100,
-                        "attached_condition": "t2.g < t2.h"
-                      }
-                    }
-                  ]
-                }
-              }
-            }
-          }
-        ]
-      }
-    }
-  }
-}
-set new_mode=@save_new_mode;
 set max_heap_table_size=@save_mhts;
 drop table t1, t2;

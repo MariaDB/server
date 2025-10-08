@@ -227,14 +227,14 @@ void old_mode_deprecated_warnings(ulonglong v);
   See sys_vars.cc /new_mode_all_names
 */
 
-#define NEW_MODE_FIX_DISK_TMPTABLE_COSTS                               (1 << 0)
-#define NEW_MODE_MAX                                                         1
+#define NEW_MODE_MAX                                                         0
 
 /* Definitions above that have transitioned from new behaviour to default */
 
 #define NOW_DEFAULT                                             -1
 #define NEW_MODE_TEST_WARNING1                               NOW_DEFAULT
 #define NEW_MODE_TEST_WARNING2                               NOW_DEFAULT
+#define NEW_MODE_FIX_DISK_TMPTABLE_COSTS                     NOW_DEFAULT
 
 #define TEST_NEW_MODE_FLAG(thd, flag) \
   (flag == NOW_DEFAULT ? TRUE : thd->variables.new_behavior & flag)

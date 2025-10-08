@@ -4182,6 +4182,7 @@ static const char *new_mode_all_names[]=
 
 static int new_mode_hidden_names[] =
 {
+  0,  // FIX_DISK_TMPTABLE_COSTS
   1,  // TEST_WARNING1
   2,  // TEST_WARNING2
   -1  // End of list
