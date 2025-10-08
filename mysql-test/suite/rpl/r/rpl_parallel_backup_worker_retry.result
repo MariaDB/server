@@ -1,0 +1,48 @@
+include/master-slave.inc
+[connection master]
+#
+# MDEV-37453 Parallel Replication Crash During Backup
+#
+connection master;
+CREATE TABLE t1 (a INT PRIMARY KEY, b INT) ENGINE = innodb;
+INSERT INTO  t1 VALUES (1, 0);
+INSERT INTO  t1 VALUES (2, 0);
+connection slave;
+include/stop_slave.inc
+ALTER TABLE mysql.gtid_slave_pos ENGINE=InnoDB;
+SET @old_parallel_threads  = @@GLOBAL.slave_parallel_threads;
+SET @old_parallel_mode     = @@GLOBAL.slave_parallel_mode;
+SET @@global.slave_parallel_threads= 2;
+SET @@global.slave_parallel_mode   = 'optimistic';
+connection master;
+begin /* trx1 */;
+delete from t1 where a = 1;
+update t1 set b = 1 where a = 2;
+commit;
+begin /* trx2 */;
+delete from t1 where a = 2;
+commit;
+connect  aux_slave,127.0.0.1,root,,test,$SLAVE_MYPORT,;
+BEGIN;
+DELETE FROM t1 WHERE a = 1;
+connection slave;
+include/start_slave.inc
+connection aux_slave;
+connect  backup_slave,127.0.0.1,root,,test,$SLAVE_MYPORT,;
+BACKUP STAGE START;
+BACKUP STAGE BLOCK_COMMIT;
+connection aux_slave;
+ROLLBACK;
+connection aux_slave;
+connection backup_slave;
+BACKUP STAGE END;
+connection slave;
+include/diff_tables.inc [master:t1,slave:t1]
+connection slave;
+include/stop_slave.inc
+SET @@global.slave_parallel_threads= @old_parallel_threads;
+SET @@global.slave_parallel_mode   = @old_parallel_mode;
+include/start_slave.inc
+connection server_1;
+DROP TABLE t1;
+include/rpl_end.inc

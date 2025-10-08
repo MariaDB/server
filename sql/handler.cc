@@ -2072,16 +2072,22 @@ err:
                 thd->rgi_slave->is_parallel_exec);
   }
 end:
-  if (mdl_backup.ticket)
+  if (thd->backup_commit_lock == &mdl_backup)
   {
     /*
       We do not always immediately release transactional locks
       after ha_commit_trans() (see uses of ha_enable_transaction()),
       thus we release the commit blocker lock as soon as it's
       not needed.
+     */
+    if (mdl_backup.ticket)
+      thd->mdl_context.release_lock(mdl_backup.ticket);
+    /*
+      reset the pointer to the ticket in step with its stack-based memory
+      deallocation.
     */
-    thd->mdl_context.release_lock(mdl_backup.ticket);
-    thd->backup_commit_lock= 0;
+    thd->backup_commit_lock=
+      DBUG_EVALUATE_IF("simulate_mdev_37453", thd->backup_commit_lock, 0);
   }
 #ifdef WITH_WSREP
   if (wsrep_is_active(thd) && is_real_trans && !error &&
