@@ -68,11 +68,13 @@ let $hex2 = $(hex(4095));
 let $base36 = $(conv(ZZ, 36, 10));
 --echo conv(ZZ, 36, 10) -> $base36
 
-let $base62_1 = $(conv(z, 62, 10));
---echo conv(z, 62, 10) -> $base62_1
-
-let $base62_2 = $(conv(Hello, 62, 10));
---echo conv(Hello, 62, 10) -> $base62_2
+# uncomment in 11.4
+#let $base62_1 = $(conv(z, 62, 10));
+#--echo conv(z, 62, 10) -> $base62_1
+#conv(z, 62, 10) -> 61
+#let $base62_2 = $(conv(Hello, 62, 10));
+#--echo conv(Hello, 62, 10) -> $base62_2
+#conv(Hello, 62, 10) -> 260914464
 
 --echo # ----------------------------------------------------------------------------
 --echo # Test signed vs unsigned interpretation

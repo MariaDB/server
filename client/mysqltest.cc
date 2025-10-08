@@ -6542,7 +6542,11 @@ void func_lower(Expression_value args[], int count, Expression_value *result)
     die("lower() expects 1 argument, got %d", count);
 
   My_string result_str;
-  result_str.copy_casedn(charset_info, args[0].to_string().to_lex_cstring());
+  // replace with
+  // result_str.copy_casedn(charset_info, args[0].to_string().to_lex_cstring());
+  // in higher versions
+  result_str.copy(args[0].to_string());
+  my_casedn_str(charset_info, (char*) result_str.ptr());
 
   result->set_string(result_str.ptr(), result_str.length());
 }
@@ -6567,7 +6571,11 @@ void func_upper(Expression_value args[], int count, Expression_value *result)
     die("upper() expects 1 argument, got %d", count);
 
   My_string result_str;
-  result_str.copy_caseup(charset_info, args[0].to_string().to_lex_cstring());
+  // replace with
+  //result_str.copy_caseup(charset_info, args[0].to_string().to_lex_cstring());
+  // in higher versions
+  result_str.copy(args[0].to_string());
+  my_caseup_str(charset_info, (char*) result_str.ptr());
 
   result->set_string(result_str.ptr(), result_str.length());
 }
