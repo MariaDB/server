@@ -2484,7 +2484,7 @@ bool st_select_lex_unit::exec_inner()
   /*
     Temporarily deactivate LIMIT ROWS EXAMINED to avoid producing potentially
     incomplete result of the UNION due to exceeding of the limit. It will be
-    re-activated upon the function exit (see SCOPE_EXIT macro above)
+    re-activated upon the function exit
   */
   const bool limit_rows_was_activated=
     thd->lex->deactivate_limit_rows_examined();
