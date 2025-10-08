@@ -10311,15 +10311,15 @@ uint TABLE_SHARE::actual_n_key_parts(THD *thd)
            - avg_frequency from EITS if available
            - rec_per_key from engine statistics if EITS is not available
 */
-double KEY::actual_rec_per_key(uint max_key_part) const
+double KEY::actual_rec_per_key(uint last_key_part_in_prefix) const
 { 
   if (is_statistics_from_stat_tables)
   {
     // Use engine-independent statistics (EITS)
-    return read_stats->get_avg_frequency(max_key_part);
+    return read_stats->get_avg_frequency(last_key_part_in_prefix);
   }
   // Fall back to engine-dependent statistics if EITS is not available
-  return rec_per_key ? (double) rec_per_key[max_key_part] : 0.0;
+  return rec_per_key ? (double) rec_per_key[last_key_part_in_prefix] : 0.0;
 }
 
 
@@ -10341,17 +10341,17 @@ double KEY::actual_rec_per_key(uint max_key_part) const
            - 1.0 if all values are NULL with NULL-rejecting condition
            - rec_per_key from engine statistics if EITS is not available
 */
-double KEY::rec_per_key_null_aware(uint max_key_part,
+double KEY::rec_per_key_null_aware(uint last_key_part_in_prefix,
                                    key_part_map notnull_part) const
 {
   if (!is_statistics_from_stat_tables)
   {
     // Fall back to engine-dependent statistics if EITS is not available
-    return rec_per_key ? (double) rec_per_key[max_key_part] : 0.0;
+    return rec_per_key ? (double) rec_per_key[last_key_part_in_prefix] : 0.0;
   }
 
   // Use engine-independent statistics (EITS)
-  double records= read_stats->get_avg_frequency(max_key_part);
+  double records= read_stats->get_avg_frequency(last_key_part_in_prefix);
   if (records != 0.0)
     return records;
 
@@ -10366,27 +10366,37 @@ double KEY::rec_per_key_null_aware(uint max_key_part,
 
     Check each key part in the prefix: if any key part has a NULL-rejecting
     condition (indicated by bit set in `notnull_part`) and the statistics
-    confirm all values are NULL (nulls_ratio == 1.0), we can return a very
-    low cardinality estimate (1.0) instead of 0.0 (unknown), indicating
-    high selectivity with no expected matches.
+    confirm all values are NULL (nulls_ratio == 1.0), we can return 1.0
+    (highly selective estimate) instead of 0.0 (unknown), indicating
+    no expected matches.
   */
-  for (int bit= max_key_part; bit >= 0; bit--)
+  for (int bit= last_key_part_in_prefix; bit >= 0; bit--)
   {
     key_part_map mask = (key_part_map)1 << bit;
-    if ((notnull_part & mask) == 0 || !key_part[bit].field->read_stats)
+    if ((notnull_part & mask) == 0)
     {
-      // This key part has a non-NULL-rejecting condition, or no column statistics
+      // Non-NULL-rejecting condition for the key part
+      continue;
+    }
+
+    field_index_t field_idx= key_part[bit].field->field_index;
+    if (field_idx >= table->s->fields)
+      continue; // Invalid field index
+
+    Field *field= table->field[field_idx];
+    if (!field->read_stats)
+    {
+      // No column statistics available
       continue;
     }
 
     // Check if all values in this column are NULL according to statistics
-    double nulls_ratio= key_part[bit].field->read_stats->get_nulls_ratio();
+    double nulls_ratio= field->read_stats->get_nulls_ratio();
     if (nulls_ratio == 1.0)
     {
       /*
         All values are NULL and the condition is NULL-rejecting.
-        Return 1.0 (very low cardinality) instead of 0.0 (unknown),
-        indicating this index prefix is highly selective with no expected matches.
+        Return 1.0 (highly selective), indicating no expected matches.
       */
       return 1.0;
     }
