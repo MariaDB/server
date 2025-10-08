@@ -1145,7 +1145,7 @@ COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	FOREIGN_KEY_CHECKS
 VARIABLE_SCOPE	SESSION
 VARIABLE_TYPE	BOOLEAN
-VARIABLE_COMMENT	If set to 1 (the default) foreign key constraints (including ON UPDATE and ON DELETE behavior) InnoDB tables are checked, while if set to 0, they are not checked. 0 is not recommended for normal use, though it can be useful in situations where you know the data is consistent, but want to reload data in a different order from that that specified by parent/child relationships. Setting this variable to 1 does not retrospectively check for inconsistencies introduced while set to 0
+VARIABLE_COMMENT	If set to 1 (the default) foreign key constraints (including ON UPDATE and ON DELETE behavior) InnoDB tables are checked, while if set to 0, they are not checked. 0 is not recommended for normal use, though it can be useful in situations where you know the data is consistent, but want to reload data in a different order from that specified by parent/child relationships. Setting this variable to 1 does not retrospectively check for inconsistencies introduced while set to 0
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL
@@ -2630,6 +2630,16 @@ NUMERIC_MIN_VALUE	1
 NUMERIC_MAX_VALUE	31536000
 NUMERIC_BLOCK_SIZE	1
 ENUM_VALUE_LIST	NULL
+READ_ONLY	NO
+COMMAND_LINE_ARGUMENT	REQUIRED
+VARIABLE_NAME	NEW_MODE
+VARIABLE_SCOPE	SESSION
+VARIABLE_TYPE	SET
+VARIABLE_COMMENT	Used to introduce new behavior to existing MariaDB versions
+NUMERIC_MIN_VALUE	NULL
+NUMERIC_MAX_VALUE	NULL
+NUMERIC_BLOCK_SIZE	NULL
+ENUM_VALUE_LIST	FIX_DISK_TMPTABLE_COSTS
 READ_ONLY	NO
 COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	NOTE_VERBOSITY

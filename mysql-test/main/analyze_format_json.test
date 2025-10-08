@@ -346,3 +346,26 @@ analyze format=json select * from t13,t12 where t13.b between 1 and 2 and t12.a=
 between 400 and 450 and t12.b like '%f%';
 
 drop table t12,t13;
+
+--echo #
+--echo # MDEV-33309: ANALYZE FORMAT=JSON: UPDATE|DELETE don't show r_other_time_ms
+--echo #
+--source include/have_sequence.inc
+create table t1 (pk int primary key, a int);
+insert into t1 select seq, seq from seq_1_to_1000;
+create table t2 like t1;
+insert into t2 select * from t1;
+
+--echo # Top-level query block must have r_table_time_ms and r_other_time_ms
+--source include/analyze-format.inc
+analyze format=json 
+update t1 set a=a+1 
+where t1.pk > (select max(a) from t2 where t2.pk+1 = t1.pk+1 ) - 10;
+
+--echo # Top-level query block must have r_table_time_ms and r_other_time_ms
+--source include/analyze-format.inc
+analyze format=json 
+delete from t1 
+where t1.pk > (select max(a) from t2 where t2.pk+1 = t1.pk+1 ) - 10;
+
+drop table t1, t2;

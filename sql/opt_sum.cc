@@ -1031,7 +1031,7 @@ static bool find_key_for_maxmin(bool max_fl, TABLE_REF *ref,
   @param[in] ref            Reference to the key value and info
   @param[in] field          Field used the MIN/MAX expression
   @param[in] cond           WHERE condition
-  @param[in] range_fl       Says whether there is a condition to to be checked
+  @param[in] range_fl       Says whether there is a condition to be checked
   @param[in] prefix_len     Length of the constant part of the key
 
   @retval

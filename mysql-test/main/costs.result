@@ -124,3 +124,148 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	range	l_suppkey	l_suppkey	10	NULL	1	Using where; Using index
 drop table t1;
 set global InnoDB.optimizer_disk_read_ratio=@save;
+#
+# MDEV-37723 In MDEV-36861, analyze Q4
+# Alter disk based tmp table lookup cost formula
+#
+create table t1 (a int primary key,
+b date, c char(15),
+d blob,
+key t1_ix1 (b)) ENGINE= InnoDB;
+create table t2 (e int not null,
+f int not null,
+g date, h date,
+primary key (e, f)) ENGINE= InnoDB;
+insert into t1 select seq, date('1993-06-01') + interval seq second,
+chr(65+mod(seq, 4)), NULL from seq_1_to_7000;
+insert into t2 select a.seq, b.seq, date('1993-06-01') + interval b.seq day,
+if (mod(a.seq,2), date('1993-06-01') + interval b.seq+1 day,
+date('1993-06-01') - interval b.seq-1 day)
+from seq_1_to_7000 a, seq_1_to_3 b;
+set
+@save_mhts= @@max_heap_table_size,
+@@max_heap_table_size=16384;
+set @save_new_mode=@@new_mode;
+set new_mode=CONCAT(@@new_mode, ',FIX_DISK_TMPTABLE_COSTS');
+# This should use:  t1, FirstMatch(t2)
+explain format=json
+select c, count(*) as dc
+from t1
+where
+b >= date '1993-06-01' and b < date '1993-06-01' + interval '3' month and
+exists (select * from t2 where e = t1.a and g < h)
+group by c;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": 12.53886553,
+    "filesort": {
+      "sort_key": "t1.c",
+      "temporary_table": {
+        "nested_loop": [
+          {
+            "table": {
+              "table_name": "t1",
+              "access_type": "ALL",
+              "possible_keys": ["PRIMARY", "t1_ix1"],
+              "loops": 1,
+              "rows": 7000,
+              "cost": 1.1518548,
+              "filtered": 100,
+              "attached_condition": "t1.b >= DATE'1993-06-01' and t1.b < <cache>(DATE'1993-06-01' + interval '3' month)"
+            }
+          },
+          {
+            "table": {
+              "table_name": "t2",
+              "access_type": "ref",
+              "possible_keys": ["PRIMARY"],
+              "key": "PRIMARY",
+              "key_length": "4",
+              "used_key_parts": ["e"],
+              "ref": ["test.t1.a"],
+              "loops": 7000,
+              "rows": 1,
+              "cost": 6.7528092,
+              "filtered": 100,
+              "attached_condition": "t2.g < t2.h",
+              "first_match": "t1"
+            }
+          }
+        ]
+      }
+    }
+  }
+}
+SET new_mode = REPLACE(@@new_mode, 'FIX_DISK_TMPTABLE_COSTS', '');
+# This should use: t1, SJ-Materialization(t2)
+explain format=json
+select c, count(*) as dc
+from t1
+where
+b >= date '1993-06-01' and b < date '1993-06-01' + interval '3' month and
+exists (select * from t2 where e = t1.a and g < h)
+group by c;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": 12.39219425,
+    "filesort": {
+      "sort_key": "t1.c",
+      "temporary_table": {
+        "nested_loop": [
+          {
+            "table": {
+              "table_name": "t1",
+              "access_type": "ALL",
+              "possible_keys": ["PRIMARY", "t1_ix1"],
+              "loops": 1,
+              "rows": 7000,
+              "cost": 1.1518548,
+              "filtered": 100,
+              "attached_condition": "t1.b >= DATE'1993-06-01' and t1.b < <cache>(DATE'1993-06-01' + interval '3' month)"
+            }
+          },
+          {
+            "table": {
+              "table_name": "<subquery2>",
+              "access_type": "eq_ref",
+              "possible_keys": ["distinct_key"],
+              "key": "distinct_key",
+              "key_length": "4",
+              "used_key_parts": ["e"],
+              "ref": ["func"],
+              "rows": 1,
+              "filtered": 100,
+              "materialized": {
+                "unique": 1,
+                "query_block": {
+                  "select_id": 2,
+                  "nested_loop": [
+                    {
+                      "table": {
+                        "table_name": "t2",
+                        "access_type": "ALL",
+                        "possible_keys": ["PRIMARY"],
+                        "loops": 1,
+                        "rows": 21000,
+                        "cost": 3.4338548,
+                        "filtered": 100,
+                        "attached_condition": "t2.g < t2.h"
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        ]
+      }
+    }
+  }
+}
+set new_mode=@save_new_mode;
+set max_heap_table_size=@save_mhts;
+drop table t1, t2;

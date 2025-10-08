@@ -57,6 +57,65 @@ static MEM_ROOT mem;
 static mysql_rwlock_t THR_LOCK_servers;
 static LEX_CSTRING MYSQL_SERVERS_NAME= {STRING_WITH_LEN("servers") };
 
+static const TABLE_FIELD_TYPE servers_table_fields[] =
+{
+  {
+    { STRING_WITH_LEN("Server_name") },
+    { STRING_WITH_LEN("char(") },
+    { STRING_WITH_LEN("utf8mb") }
+  },
+  {
+    { STRING_WITH_LEN("Host") },
+    { STRING_WITH_LEN("varchar(") },
+    { STRING_WITH_LEN("utf8mb") }
+  },
+  {
+    { STRING_WITH_LEN("Db") },
+    { STRING_WITH_LEN("char(") },
+    { STRING_WITH_LEN("utf8mb") }
+  },
+  {
+    { STRING_WITH_LEN("Username") },
+    { STRING_WITH_LEN("char(") },
+    { STRING_WITH_LEN("utf8mb") }
+  },
+  {
+    { STRING_WITH_LEN("Password") },
+    { STRING_WITH_LEN("char(") },
+    { STRING_WITH_LEN("utf8mb") }
+  },
+  {
+    { STRING_WITH_LEN("Port") },
+    { STRING_WITH_LEN("int(") },
+    {NULL, 0}
+  },
+  {
+    { STRING_WITH_LEN("Socket") },
+    { STRING_WITH_LEN("char(") },
+    { STRING_WITH_LEN("utf8mb") }
+  },
+  {
+    { STRING_WITH_LEN("Wrapper") },
+    { STRING_WITH_LEN("char(") },
+    { STRING_WITH_LEN("utf8mb") }
+  },
+  {
+    { STRING_WITH_LEN("Owner") },
+    { STRING_WITH_LEN("varchar(") },
+    { STRING_WITH_LEN("utf8mb") }
+  },
+  {
+    { STRING_WITH_LEN("Options") },
+    { STRING_WITH_LEN("longtext") },
+    { STRING_WITH_LEN("utf8mb") }
+  }
+};
+static const TABLE_FIELD_DEF servers_table_def=
+{
+  array_elements(servers_table_fields), servers_table_fields, 0, NULL
+};
+
+static Table_check_intact_log_error table_intact;
 
 static bool get_server_from_table_to_cache(TABLE *table);
 
@@ -336,17 +395,16 @@ end:
 
 bool servers_reload(THD *thd)
 {
-  TABLE_LIST tables[1];
+  TABLE_LIST tables;
   bool return_val= TRUE;
   DBUG_ENTER("servers_reload");
 
   DBUG_PRINT("info", ("locking servers_cache"));
   mysql_rwlock_wrlock(&THR_LOCK_servers);
 
-  tables[0].init_one_table(&MYSQL_SCHEMA_NAME, &MYSQL_SERVERS_NAME, 0, TL_READ);
+  tables.init_one_table(&MYSQL_SCHEMA_NAME, &MYSQL_SERVERS_NAME, 0, TL_READ);
 
-  if (unlikely(open_and_lock_tables(thd, tables, FALSE,
-                                    MYSQL_LOCK_IGNORE_TIMEOUT)))
+  if (open_and_lock_tables(thd, &tables, FALSE, MYSQL_LOCK_IGNORE_TIMEOUT))
   {
     /*
       Execution might have been interrupted; only print the error message
@@ -359,7 +417,14 @@ bool servers_reload(THD *thd)
     goto end;
   }
 
-  if ((return_val= servers_load(thd, tables)))
+  if (table_intact.check(tables.table, &servers_table_def))
+  {
+    my_error(ER_CANNOT_LOAD_FROM_TABLE_V2, MYF(0),
+             tables.db.str, tables.table_name.str);
+    goto end;
+  }
+
+  if ((return_val= servers_load(thd, &tables)))
   {					// Error. Revert to old list
     /* blast, for now, we have no servers, discuss later way to preserve */
 
@@ -473,7 +538,7 @@ get_server_from_table_to_cache(TABLE *table)
   server->scheme= ptr ? ptr : blank;
   ptr= get_field(&mem, table->field[8]);
   server->owner= ptr ? ptr : blank;
-  ptr= table->field[9] ? get_field(&mem, table->field[9]) : NULL;
+  ptr= table->s->fields > 9 ? get_field(&mem, table->field[9]) : NULL;
   server->option_list= NULL;
   if (ptr && parse_server_options_json(server, ptr))
     DBUG_RETURN(TRUE);
@@ -1045,7 +1110,7 @@ void merge_server_struct(FOREIGN_SERVER *from, FOREIGN_SERVER *to)
     0, then index_read_idx is called to read the index to that record, the
     record then being ready to be updated, if found. If not found an error is
     set and error message printed. If the record is found, store_record is
-    called, then store_server_fields stores each field from the the members of
+    called, then store_server_fields stores each field from the members of
     the updated FOREIGN_SERVER struct.
 
   RETURN VALUE

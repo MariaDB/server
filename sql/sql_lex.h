@@ -409,7 +409,7 @@ struct LEX_MASTER_INFO
 
     host= user= password= log_file_name= ssl_key= ssl_cert= ssl_ca=
       ssl_capath= ssl_cipher= ssl_crl= ssl_crlpath= relay_log_name= NULL;
-    pos= relay_log_pos= server_id= port= connect_retry= retry_count= 0;
+    pos= relay_log_pos= server_id= retry_count= port= connect_retry= 0;
     heartbeat_period= 0;
     ssl= ssl_verify_server_cert= heartbeat_opt=
       repl_ignore_server_ids_opt= repl_do_domain_ids_opt=
@@ -3304,7 +3304,7 @@ public:
     at parse time to set local name resolution contexts for various parts
     of a query. For example, in a JOIN ... ON (some_condition) clause the
     Items in 'some_condition' must be resolved only against the operands
-    of the the join, and not against the whole clause. Similarly, Items in
+    of the join, and not against the whole clause. Similarly, Items in
     subqueries should be resolved against the subqueries (and outer queries).
     The stack is used in the following way: when the parser detects that
     all Items in some clause need a local context, it creates a new context
@@ -3554,14 +3554,29 @@ public:
   static const ulong initial_gtid_domain_buffer_size= 16;
   uint32 gtid_domain_static_buffer[initial_gtid_domain_buffer_size];
 
-  inline void set_limit_rows_examined()
+  /*
+    Activates enforcement of the LIMIT ROWS EXAMINED clause, if present
+    in the query.
+  */
+  void set_limit_rows_examined()
   {
     if (limit_rows_examined)
       limit_rows_examined_cnt= limit_rows_examined->val_uint();
-    else
-      limit_rows_examined_cnt= ULONGLONG_MAX;
   }
 
+  /**
+    Deactivates enforcement of the LIMIT ROWS EXAMINED clause and returns its
+    prior state.
+    Return value:
+    - false: LIMIT ROWS EXAMINED was not activated
+    - true:  LIMIT ROWS EXAMINED was activated
+  */
+  bool deactivate_limit_rows_examined()
+  {
+    bool was_activated= (limit_rows_examined_cnt != ULONGLONG_MAX);
+    limit_rows_examined_cnt= ULONGLONG_MAX; // Unreachable value
+    return was_activated;
+  }
 
   LEX_CSTRING *win_ref;
   Window_frame *win_frame;

@@ -1,3 +1,6 @@
+#
+# MDEV-20257 Server crashes in Grant_table_base::init_read_record upon crash-upgrade
+#
 call mtr.add_suppression("mysql.user");
 # switching from mysql.global_priv to mysql.user
 flush tables;
@@ -7,3 +10,99 @@ Error	145	Got error '145 "Table was marked as crashed and should be repaired"' f
 Warning	1034	12544 clients are using or haven't closed the table properly
 Note	1034	Table is fixed
 # switching back from mysql.user to mysql.global_priv
+#
+# MDEV-28128 SIGSEGV in replace_column_table on GRANT
+#
+call mtr.add_suppression("The table is probably corrupted");
+create user a@localhost;
+rename table mysql.columns_priv to mysql.columns_priv_bak;
+create table mysql.columns_priv select * from mysql.columns_priv_bak;
+create table t (c int);
+grant update (c) on t to a@localhost;
+ERROR HY000: Cannot load from mysql.columns_priv. The table is probably corrupted
+drop table t;
+drop table mysql.columns_priv;
+rename table mysql.columns_priv_bak to mysql.columns_priv;
+drop user a@localhost;
+#
+# MDEV-23731 SIGSEGV in replace_user_table when changing mysql db tables
+#
+rename table mysql.global_priv to mysql.global_priv_bak;
+rename table mysql.user to mysql.user_bak;
+create table mysql.user (host char(100), user char(100)) engine=merge;
+alter user 'a' identified by '';
+ERROR HY000: Cannot load from mysql.user. The table is probably corrupted
+drop table mysql.user;
+rename table mysql.global_priv_bak to mysql.global_priv;
+rename table mysql.user_bak to mysql.user;
+#
+# MDEV-24206 SIGSEGV in replace_db_table on GRANT
+#
+rename table mysql.db to mysql.db_bak;
+create table mysql.db engine=memory select * from mysql.db_bak;
+grant select on mysql.* to 'a'@'a' identified by 'a';
+ERROR HY000: Cannot load from mysql.db. The table is probably corrupted
+drop table mysql.db;
+rename table mysql.db_bak to mysql.db;
+#
+# MDEV-24814 SIGSEGV in replace_table_table on GRANT
+#
+create user m@localhost;
+rename table mysql.tables_priv to mysql.tables_priv_bak;
+create table t (c int);
+create table mysql.tables_priv select * from mysql.tables_priv_bak;
+grant select on t to m@localhost;
+ERROR HY000: Cannot load from mysql.tables_priv. The table is probably corrupted
+drop table mysql.tables_priv;
+rename table mysql.tables_priv_bak to mysql.tables_priv;
+drop user m@localhost;
+drop table t;
+#
+# MDEV-27842 SIGSEGV in replace_routine_table on GRANT
+#
+create user a@b;
+set global log_bin_trust_function_creators=1;
+rename table mysql.procs_priv to mysql.procs_priv_bak;
+create table mysql.procs_priv (dummy int);
+create function f() returns int return (select 1 t);
+grant execute on function f to a@b;
+ERROR HY000: Cannot load from mysql.procs_priv. The table is probably corrupted
+drop table mysql.procs_priv;
+rename table mysql.procs_priv_bak to mysql.procs_priv;
+drop function f;
+drop user a@b;
+#
+# MDEV-27893 SIGSEGV in replace_proxies_priv_table on GRANT PROXY
+#
+rename table mysql.proxies_priv to mysql.proxies_priv_bak;
+create table mysql.proxies_priv select * from mysql.proxies_priv_bak;
+grant proxy on grant_plug to grant_plug_dest;
+ERROR HY000: Cannot load from mysql.proxies_priv. The table is probably corrupted
+drop table mysql.proxies_priv;
+rename table mysql.proxies_priv_bak to mysql.proxies_priv;
+#
+# MDEV-28773 SIGSEGV in TABLE::use_all_columns, replace_roles_mapping_table
+#
+rename table mysql.roles_mapping to mysql.roles_mapping_bak;
+create role r1;
+drop role r1;
+rename table mysql.roles_mapping_bak to mysql.roles_mapping;
+#
+# MDEV-35622 SEGV, ASAN use-after-poison when reading system table with less than expected number of columns
+#
+call mtr.add_suppression("mysql.servers");
+alter table mysql.servers drop column owner;
+insert into mysql.servers values(0,0,0,0,0,0,0,0,0);
+flush privileges;
+ERROR HY000: Cannot load from mysql.servers. The table is probably corrupted
+alter table mysql.servers add column Owner varchar(512) not null default '';
+#
+# MDEV-28482 SIGSEGV in get_access_value_from_val_int
+#
+create temporary table t1 select * from mysql.tables_priv;
+alter table mysql.tables_priv drop column timestamp;
+flush privileges;
+ERROR HY000: Cannot load from mysql.tables_priv. The table is probably corrupted
+alter table mysql.tables_priv add column Timestamp timestamp not null default now() on update now() after grantor;
+replace mysql.tables_priv select * from t1;
+# End of 10.11 tests

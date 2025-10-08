@@ -404,10 +404,10 @@ drop user foo;
 #
 # MDEV-23009 SIGSEGV in get_field from acl_load (on optimized builds)
 #
-call mtr.add_suppression('mysql.host table is damaged');
+call mtr.add_suppression('mysql\\.host');
 create table mysql.host (c1 int);
 insert mysql.host values (1);
---error ER_UNKNOWN_ERROR
+--error ER_CANNOT_LOAD_FROM_TABLE_V2
 flush privileges;
 drop table mysql.host;
 

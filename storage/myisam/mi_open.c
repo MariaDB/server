@@ -82,7 +82,8 @@ MI_INFO *test_if_reopen(char *filename)
 
 MI_INFO *mi_open(const char *name, int mode, uint open_flags)
 {
-  int lock_error,kfile,open_mode,save_errno,have_rtree=0, realpath_err;
+  int lock_error,kfile,save_errno,have_rtree=0, realpath_err;
+  int open_mode, try_open_mode;
   uint i,j,len,errpos,head_length,base_pos,offset,info_length,keys,
     key_parts,unique_key_parts,base_key_parts,fulltext_keys,uniques;
   uint internal_table= open_flags & HA_OPEN_INTERNAL_TABLE;
@@ -138,18 +139,31 @@ MI_INFO *mi_open(const char *name, int mode, uint open_flags)
                     });
 
     DEBUG_SYNC_C("mi_open_kfile");
+
+    /*
+      We first try to open the file on read-write mode to ensure that
+      the table is usable for future read and write queries in
+      MariaDB.  Only if the read-write mode fails we try to readonly.
+    */
+    try_open_mode= (open_flags & HA_OPEN_FORCE_MODE) ? mode : O_RDWR;
+
     if ((kfile= mysql_file_open(mi_key_file_kfile, name_buff,
-                                (open_mode= O_RDWR) | O_SHARE | O_NOFOLLOW | O_CLOEXEC,
+                                (open_mode= try_open_mode) | O_SHARE |
+                                O_NOFOLLOW | O_CLOEXEC,
                                 MYF(MY_NOSYMLINKS))) < 0)
     {
-      if ((errno != EROFS && errno != EACCES) ||
+      if ((errno != EROFS && errno != EACCES) || open_mode == O_RDONLY ||
 	  mode != O_RDONLY ||
           (kfile= mysql_file_open(mi_key_file_kfile, name_buff,
-                                  (open_mode= O_RDONLY) | O_SHARE| O_NOFOLLOW | O_CLOEXEC,
+                                  (open_mode= O_RDONLY) | O_SHARE |
+                                  O_NOFOLLOW | O_CLOEXEC,
                                   MYF(MY_NOSYMLINKS))) < 0)
 	goto err;
     }
-    share->mode=open_mode;
+    share->index_mode= share->data_mode= open_mode;
+    if (open_flags & HA_OPEN_DATA_READONLY)
+      share->data_mode= O_RDONLY;
+
     errpos=1;
     if (mysql_file_read(kfile, (uchar*)&share->state.header, head_length,
                         MYF(MY_NABP)))
@@ -200,7 +214,9 @@ MI_INFO *mi_open(const char *name, int mode, uint open_flags)
         my_errno= HA_WRONG_CREATE_OPTION;
         goto err;
       }
-      share->mode|= O_NOFOLLOW; /* all symlinks are resolved by realpath() */
+      /* all symlinks are resolved by realpath() */
+      share->index_mode|= O_NOFOLLOW;
+      share->data_mode|= O_NOFOLLOW;
     }
 
     info_length=mi_uint2korr(share->state.header.header_length);
@@ -584,7 +600,7 @@ MI_INFO *mi_open(const char *name, int mode, uint open_flags)
   else
   {
     share= old_info->s;
-    if (mode == O_RDWR && share->mode == O_RDONLY)
+    if (mode == O_RDWR && share->index_mode == O_RDONLY)
     {
       my_errno=EACCES;				/* Can't open in write mode */
       goto err;
@@ -905,12 +921,16 @@ static void setup_key_functions(register MI_KEYDEF *keyinfo)
 
 uint mi_state_info_write(File file, MI_STATE_INFO *state, uint pWrite)
 {
-  uchar  buff[MI_STATE_INFO_SIZE + MI_STATE_EXTRA_SIZE];
-  uchar *ptr=buff;
+  uchar  *buff, *ptr;
   uint	i, keys= (uint) state->header.keys,
-	key_blocks=state->header.max_block_size_index;
+        key_blocks=state->header.max_block_size_index,
+        key_parts= mi_uint2korr(state->header.key_parts);
+  int   res;
   DBUG_ENTER("mi_state_info_write");
 
+  buff= my_alloca(MI_STATE_INFO_SIZE + MI_STATE_EXTRA_SIZE(keys, key_parts));
+
+  ptr= buff;
   memcpy(ptr, &state->header, sizeof(state->header));
   ptr+=sizeof(state->header);
 
@@ -944,7 +964,6 @@ uint mi_state_info_write(File file, MI_STATE_INFO *state, uint pWrite)
   }
   if (pWrite & 2)				/* From isamchk */
   {
-    uint key_parts= mi_uint2korr(state->header.key_parts);
     mi_int4store(ptr,state->sec_index_changed); ptr +=4;
     mi_int4store(ptr,state->sec_index_used);	ptr +=4;
     mi_int4store(ptr,state->version);		ptr +=4;
@@ -960,10 +979,13 @@ uint mi_state_info_write(File file, MI_STATE_INFO *state, uint pWrite)
   }
 
   if (pWrite & 1)
-    DBUG_RETURN(mysql_file_pwrite(file, buff, (size_t) (ptr-buff), 0L,
-                                  MYF(MY_NABP | MY_THREADSAFE)) != 0);
-  DBUG_RETURN(mysql_file_write(file, buff, (size_t) (ptr-buff),
-                               MYF(MY_NABP)) != 0);
+    res= mysql_file_pwrite(file, buff, (size_t) (ptr-buff), 0L,
+                           MYF(MY_NABP | MY_THREADSAFE)) != 0;
+  else
+    res= mysql_file_write(file, buff, (size_t) (ptr-buff),
+                          MYF(MY_NABP)) != 0;
+  my_afree(buff);
+  DBUG_RETURN(res);
 }
 
 
@@ -1032,20 +1054,24 @@ uchar *mi_state_info_read(uchar *ptr, MI_STATE_INFO *state)
 
 uint mi_state_info_read_dsk(File file, MI_STATE_INFO *state, my_bool pRead)
 {
-  uchar	buff[MI_STATE_INFO_SIZE + MI_STATE_EXTRA_SIZE];
+  uchar *buff= my_alloca(state->state_length);
 
   if (!myisam_single_user)
   {
     if (pRead)
     {
       if (mysql_file_pread(file, buff, state->state_length, 0L, MYF(MY_NABP)))
-	return 1;
+        goto err;
     }
     else if (mysql_file_read(file, buff, state->state_length, MYF(MY_NABP)))
-      return 1;
+      goto err;
     mi_state_info_read(buff, state);
   }
+  my_afree(buff);
   return 0;
+err:
+  my_afree(buff);
+  return 1;
 }
 
 
@@ -1261,10 +1287,11 @@ active seek-positions.
 
 int mi_open_datafile(MI_INFO *info, MYISAM_SHARE *share)
 {
-  myf flags= MY_WME | (share->mode & O_NOFOLLOW ? MY_NOSYMLINKS: 0);
+  myf flags= MY_WME | (share->data_mode & O_NOFOLLOW ? MY_NOSYMLINKS: 0);
   DEBUG_SYNC_C("mi_open_datafile");
   info->dfile= mysql_file_open(mi_key_file_dfile, share->data_file_name,
-                               share->mode | O_SHARE | O_CLOEXEC, MYF(flags));
+                               share->data_mode | O_SHARE | O_CLOEXEC,
+                               MYF(flags));
   return info->dfile >= 0 ? 0 : 1;
 }
 
@@ -1273,7 +1300,8 @@ int mi_open_keyfile(MYISAM_SHARE *share)
 {
   if ((share->kfile= mysql_file_open(mi_key_file_kfile,
                                      share->unique_file_name,
-                                     share->mode | O_SHARE | O_NOFOLLOW | O_CLOEXEC,
+                                     share->index_mode | O_SHARE | O_NOFOLLOW
+                                     | O_CLOEXEC,
                                      MYF(MY_NOSYMLINKS | MY_WME))) < 0)
     return 1;
   return 0;

@@ -452,11 +452,11 @@ disconnect con1;
 connection default;
 drop database db;
 drop user foo;
-call mtr.add_suppression('mysql.host table is damaged');
+call mtr.add_suppression('mysql\\.host');
 create table mysql.host (c1 int);
 insert mysql.host values (1);
 flush privileges;
-ERROR HY000: Fatal error: mysql.host table is damaged or in unsupported 3.20 format
+ERROR HY000: Cannot load from mysql.host. The table is probably corrupted
 drop table mysql.host;
 #
 # MDEV-30826 Invalid data on mysql.host segfaults the server after an upgrade to 10.4

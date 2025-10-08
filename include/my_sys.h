@@ -154,12 +154,15 @@ char *guess_malloc_library();
 
 /* If we have our own safemalloc (for debugging) */
 #if defined(SAFEMALLOC)
-void sf_report_leaked_memory(my_thread_id id);
+my_bool sf_report_leaked_memory(my_thread_id id);
 int sf_sanity();
+my_bool sf_have_memory_leak();
 extern my_thread_id (*sf_malloc_dbug_id)(void);
 #define SAFEMALLOC_REPORT_MEMORY(X) if (!sf_leaking_memory) sf_report_leaked_memory(X)
+#define SAFEMALLOC_HAVE_MEMORY_LEAK sf_have_memory_leak()
 #else
 #define SAFEMALLOC_REPORT_MEMORY(X) do {} while(0)
+#define SAFEMALLOC_HAVE_MEMORY_LEAK 0
 #endif
 
 typedef void (*MALLOC_SIZE_CB) (long long size, my_bool is_thread_specific); 

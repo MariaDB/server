@@ -4046,3 +4046,26 @@ disconnect con1;
 connection default;
 DROP VIEW v1;
 SET debug_sync='reset';
+
+
+--echo #
+--echo # MDEV-30364 Assertion MDL_EXCLUSIVE on DISCARD TABLESPACE in LOCK TABLE mode
+--echo #
+create table t (c int) engine=innodb;
+set debug_sync='get_schema_column SIGNAL waiting WAIT_FOR go';
+send select column_name from information_schema.columns
+where table_schema='test' and table_name='t';
+
+--connect con1,localhost,root
+set debug_sync= 'now WAIT_FOR waiting';
+lock table t write;
+--error ER_LOCK_WAIT_TIMEOUT
+set statement lock_wait_timeout=0 for alter table t discard tablespace;
+unlock tables;
+set debug_sync='now SIGNAL go';
+--disconnect con1
+
+--connection default
+reap;
+drop table t;
+set debug_sync= 'reset';

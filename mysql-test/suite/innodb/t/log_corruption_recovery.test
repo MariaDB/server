@@ -1,0 +1,67 @@
+--source include/have_innodb.inc
+
+--let DATADIR=`select @@datadir`
+let $check_no_innodb=SELECT * FROM INFORMATION_SCHEMA.ENGINES
+WHERE engine = 'innodb'
+AND support IN ('YES', 'DEFAULT', 'ENABLED');
+--let SEARCH_FILE = $MYSQLTEST_VARDIR/log/mysqld.1.err
+
+--echo #
+--echo # MDEV-37412 Corrupted page during recovery aborts the server
+--echo #
+
+call mtr.add_suppression("InnoDB: OPT_PAGE_CHECKSUM mismatch on \\[page id: space=127, page number=0\\]");
+call mtr.add_suppression("InnoDB: Set innodb_force_recovery=1");
+call mtr.add_suppression("InnoDB: Cannot apply log to \\[page id: space=127, page number=0\\] of corrupted file '.*test/t\\.ibd");
+call mtr.add_suppression("(InnoDB: Plugin|Plugin 'InnoDB')");
+call mtr.add_suppression("InnoDB: Page .* Current system log sequence number 123(38|54)\\.");
+
+SET GLOBAL innodb_fast_shutdown=0;
+--source include/shutdown_mysqld.inc
+--move_file $DATADIR/ib_logfile0 $DATADIR/ib_logfile0.old
+perl;
+do "$ENV{MTR_SUITE_DIR}/../innodb/include/crc32.pl";
+die unless open OUT, ">", "$ENV{DATADIR}/ib_logfile0";
+binmode OUT;
+sub crc32c {
+  my ($input) = @_;
+  print OUT $input, pack("N", mycrc32($input, 0, 0x82f63b78))
+}
+sub mtr {
+  my ($input) = @_;
+  print OUT $input, chr(1), pack("N", mycrc32($input, 0, 0x82f63b78))
+}
+crc32c("Phys" . pack("x[8]N", 0x3000) . "BogoDB 1.2.3.4" . chr(0) x 478);
+print OUT chr(0) x 3584;
+crc32c(pack("x[4]Nx[4]Nx[44]", 0x3000, 0x3000));
+print OUT chr(0) x 8128;
+mtr(pack("Cx[6]N", 0xfa, 0x3000)); # FILE_CHECKPOINT
+mtr(pack("CCx", 0x8c, 127) . "test/t.ibd"); # FILE_CREATE
+# INIT_PAGE, OPT_PAGE_CHECKSUM
+mtr(pack("CCxCCx[6]", 0x12, 127, 0x77, 127));
+EOF
+
+write_file $DATADIR/test/t.ibd;
+EOF
+
+--source include/start_mysqld.inc
+eval $check_no_innodb;
+let SEARCH_PATTERN=InnoDB: Page .* Current system log sequence number;
+--source include/search_pattern_in_file.inc
+--let $restart_parameters=--innodb-force-recovery=1
+--source include/restart_mysqld.inc
+eval $check_no_innodb;
+--source include/shutdown_mysqld.inc
+
+--move_file $DATADIR/ib_logfile0.old $DATADIR/ib_logfile0
+--remove_file $DATADIR/test/t.ibd
+--let $restart_parameters=
+
+--source include/search_pattern_in_file.inc
+let SEARCH_PATTERN=InnoDB: OPT_PAGE_CHECKSUM mismatch on \\[page id: space=127, page number=0\\];
+--source include/search_pattern_in_file.inc
+let SEARCH_PATTERN=InnoDB: Cannot apply log to \\[page id: space=127, page number=0\\] of corrupted file .*test/t\\.ibd;
+--source include/search_pattern_in_file.inc
+
+--source include/start_mysqld.inc
+eval $check_no_innodb;

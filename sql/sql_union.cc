@@ -2373,8 +2373,14 @@ bool st_select_lex_unit::exec_inner()
   if (!saved_error && !was_executed)
     save_union_explain(thd->lex->explain);
 
-  if (unlikely(saved_error))
-    return saved_error;
+  error= saved_error;
+
+  if (unlikely(error))
+  {
+  err:
+    thd->lex->current_select= lex_select_save;
+    return error;
+  }
 
   if (union_result)
   {
@@ -2465,7 +2471,8 @@ bool st_select_lex_unit::exec_inner()
           {
             table->file->print_error(error, MYF(0));
             DBUG_ASSERT(0);
-            return true;
+            error= true;
+            goto err;
           }
 	  table->no_keyread=1;
 	}
@@ -2473,24 +2480,24 @@ bool st_select_lex_unit::exec_inner()
 	{
 	  if (union_result->flush())
 	  {
-	    thd->lex->current_select= lex_select_save;
-	    return true;
+            error= true;
+            goto err;
 	  }
 	}
       }
       if (unlikely(saved_error))
       {
-	thd->lex->current_select= lex_select_save;
-	return saved_error;
+        error= saved_error;
+        goto err;
       }
       if (fake_select_lex != NULL)
       {
         /* Needed for the following test and for records_at_start in next loop */
-        int error= table->file->info(HA_STATUS_VARIABLE);
+        error= table->file->info(HA_STATUS_VARIABLE);
         if (unlikely(error))
         {
           table->file->print_error(error, MYF(0));
-          return true;
+          goto err;
         }
       }
       if (found_rows_for_union && !sl->braces &&
@@ -2524,20 +2531,19 @@ bool st_select_lex_unit::exec_inner()
 
   DBUG_EXECUTE_IF("show_explain_probe_union_read", 
                    dbug_serve_apcs(thd, 1););
-  {
-    List<Item_func_match> empty_list;
-    empty_list.empty();
-    /*
-      Disable LIMIT ROWS EXAMINED in order to produce the possibly incomplete
-      result of the UNION without interruption due to exceeding the limit.
-    */
-    thd->lex->limit_rows_examined_cnt= ULONGLONG_MAX;
+  /*
+    Temporarily deactivate LIMIT ROWS EXAMINED to avoid producing potentially
+    incomplete result of the UNION due to exceeding of the limit. It will be
+    re-activated upon the function exit (see SCOPE_EXIT macro above)
+  */
+  const bool limit_rows_was_activated=
+    thd->lex->deactivate_limit_rows_examined();
 
-    // Check if EOM
-    if (fake_select_lex != NULL && likely(!thd->is_fatal_error))
-    {
-       /* Send result to 'result' */
-       saved_error= true;
+  // Check if EOM
+  if (fake_select_lex != NULL && likely(!thd->is_fatal_error))
+  {
+      /* Send result to 'result' */
+      saved_error= true;
 
       set_limit(global_parameters());
       JOIN *join= fake_select_lex->join;
@@ -2591,10 +2597,10 @@ bool st_select_lex_unit::exec_inner()
 	Mark for slow query log if any of the union parts didn't use
 	indexes efficiently
       */
-    }
   }
   thd->lex->current_select= lex_select_save;
-  thd->lex->set_limit_rows_examined();
+  if (limit_rows_was_activated)
+    thd->lex->set_limit_rows_examined();
   return saved_error;
 }
 
@@ -2726,7 +2732,6 @@ bool st_select_lex_unit::exec_recursive()
 
   thd->lex->current_select= lex_select_save;
 err:
-  thd->lex->set_limit_rows_examined();
   DBUG_RETURN(saved_error);    
 }
 
@@ -2762,7 +2767,8 @@ bool st_select_lex_unit::cleanup()
       With_element *with_elem= with_element;
       while ((with_elem= with_elem->get_next_mutually_recursive()) !=
              with_element)
-        with_elem->rec_result->cleanup_count++;
+        if (with_elem->rec_result)
+          with_elem->rec_result->cleanup_count++;
       DBUG_RETURN(FALSE);
     }
   }

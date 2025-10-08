@@ -1,6 +1,7 @@
 --source include/have_innodb.inc
 --source include/have_sequence.inc
 --source include/big_test.inc
+--source include/not_embedded.inc
 
 CREATE TABLE t1(f1 INT NOT NULL,f2 INT NOT NULL)ENGINE=InnoDB;
 INSERT INTO t1 SELECT seq, seq from seq_1_to_131072;
@@ -9,6 +10,8 @@ INSERT INTO t1 VALUES(131073, 131073), (131074, 131073);
 --disable_cursor_protocol
 --disable_ps2_protocol
 eval SELECT * INTO OUTFILE "$MYSQLTEST_VARDIR/tmp/t1.outfile" FROM t1;
+--replace_result $MYSQLTEST_VARDIR VARDIR
+eval SELECT * INTO OUTFILE "$MYSQLTEST_VARDIR/tmp/t.outfile" FROM t1 LIMIT 1;
 --enable_ps2_protocol
 --enable_cursor_protocol
 
@@ -50,3 +53,16 @@ SELECT COUNT(*) FROM t2;
 CHECK TABLE t2 EXTENDED;
 --remove_file $MYSQLTEST_VARDIR/tmp/t1.outfile
 DROP TABLE t2, t1;
+
+--echo #
+--echo #  MDEV-37192  Crash recovery reports corruption after bulk load
+--echo #
+CREATE TABLE t2(f1 INT AUTO_INCREMENT, f2 INT NOT NULL,
+		PRIMARY KEY(f1))ENGINE=InnoDB;
+BEGIN;
+--replace_result $MYSQLTEST_VARDIR VARDIR
+eval LOAD DATA INFILE '$MYSQLTEST_VARDIR/tmp/t.outfile' INTO TABLE t2;
+--let $shutdown_timeout=0
+--source include/restart_mysqld.inc
+--remove_file $MYSQLTEST_VARDIR/tmp/t.outfile
+DROP TABLE t2;

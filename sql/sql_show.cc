@@ -4489,6 +4489,12 @@ bool get_lookup_field_values(THD *thd, COND *cond, bool fix_table_name_case,
 
 enum enum_schema_tables get_schema_table_idx(ST_SCHEMA_TABLE *schema_table)
 {
+  if (schema_table < schema_tables ||
+      schema_table > &schema_tables[SCH_N_SERVER_TABLES])
+  {
+    return SCH_PLUGIN_TABLE;
+  }
+
   return (enum enum_schema_tables) (schema_table - &schema_tables[0]);
 }
 
@@ -10932,7 +10938,7 @@ ST_SCHEMA_TABLE schema_tables[]=
   {Lex_ident_i_s_table(), 0, 0, 0, 0, 0, 0, 0, 0, 0}
 };
 
-static_assert(array_elements(schema_tables) == SCH_ENUM_SIZE + 1,
+static_assert(array_elements(schema_tables) == SCH_N_SERVER_TABLES + 1,
               "Update enum_schema_tables as well.");
 
 int initialize_schema_table(void *plugin_)

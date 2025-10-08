@@ -138,6 +138,9 @@ enum class aio_opcode
 };
 constexpr size_t MAX_AIO_USERDATA_LEN= 4 * sizeof(void*);
 
+#ifdef TPOOL_OPAQUE_AIOCB
+struct aiocb;
+#else
 /** IO control block, includes parameters for the IO, and the callback*/
 
 struct aiocb
@@ -181,6 +184,7 @@ struct aiocb
   }
 };
 
+#endif /* TPOOL_OPAQUE_AIOCB */
 
 /**
  AIO interface
@@ -202,17 +206,7 @@ public:
 protected:
   static void synchronous(aiocb *cb);
   /** finish a partial read/write callback synchronously */
-  static inline void finish_synchronous(aiocb *cb)
-  {
-    if (!cb->m_err && cb->m_ret_len != cb->m_len)
-    {
-      /* partial read/write */
-      cb->m_buffer= (char *) cb->m_buffer + cb->m_ret_len;
-      cb->m_len-= (unsigned int) cb->m_ret_len;
-      cb->m_offset+= cb->m_ret_len;
-      synchronous(cb);
-    }
-  }
+  static void finish_synchronous(aiocb *cb);
 };
 
 class timer

@@ -987,7 +987,7 @@ int terminate_slave_threads(Master_info* mi,int thread_mask,bool skip_lock)
    This function is called after requesting the thread to terminate
    (by setting @c abort_slave member of @c Relay_log_info or @c
    Master_info structure to 1). Termination of the thread is
-   controlled with the the predicate <code>*slave_running</code>.
+   controlled with the predicate <code>*slave_running</code>.
 
    Function will acquire @c term_lock before waiting on the condition
    unless @c skip_lock is true in which case the mutex should be owned
@@ -6127,17 +6127,31 @@ static int queue_event(Master_info* mi, const uchar *buf, ulong event_len)
        
        Heartbeat is sent only after an event corresponding to the coordinates
        the heartbeat carries.
-       Slave can not have a higher coordinate except in the only
-       special case when mi->master_log_name, master_log_pos have never
-       been updated by Rotate event i.e when slave does not have any history
-       with the master (and thereafter mi->master_log_pos is NULL).
+
+       Slave can not have a higher coordinate except when rotating logs. That
+       is, either
+         1. when mi->master_log_name, master_log_pos have never been updated by
+            Rotate event i.e when slave does not have any history with the
+            master (and thereafter mi->master_log_pos is NULL)
+         2. if a heartbeat is sent during a slow rotation, the master can send
+            its Rotate event (thereby increasing the mi->master_log_name); yet
+            the sent heartbeat may still be for the old log file.
+
+       Therefore, state comparison is only valid when the log file names match,
+       otherwise the heartbeat is ignored.
 
        Slave can have lower coordinates, if some event from master was omitted.
 
        TODO: handling `when' for SHOW SLAVE STATUS' seconds behind
+
+       TODO: Extend heartbeat events to use GTIDs instead of binlog
+         coordinates. This would alleviate the strange exceptions during log
+         rotation.
     */
-    if (memcmp(mi->master_log_name, hb.get_log_ident(), hb.get_ident_len()) ||
-        mi->master_log_pos > hb.log_pos) {
+    if (mi->master_log_pos &&
+        !memcmp(mi->master_log_name, hb.get_log_ident(), hb.get_ident_len()) &&
+        mi->master_log_pos > hb.log_pos)
+    {
       /* missed events of heartbeat from the past */
       error= ER_SLAVE_HEARTBEAT_FAILURE;
       error_msg.append(STRING_WITH_LEN("heartbeat is not compatible with local info;"));
@@ -6932,6 +6946,7 @@ static int connect_to_master(THD* thd, MYSQL* mysql, Master_info* mi,
   int slave_was_killed;
   unsigned int last_errno= 0; // initialize with not-error
   mi->connects_tried= 0; // reset retry counter
+  DBUG_EXECUTE_IF("set_slave_err_count_near_overflow", mi->connects_tried = ULONG_MAX - 2;);
   my_bool my_true= 1;
   DBUG_ENTER("connect_to_master");
   set_slave_max_allowed_packet(thd, mysql);
@@ -6973,13 +6988,20 @@ static int connect_to_master(THD* thd, MYSQL* mysql, Master_info* mi,
                  mi->connect_retry, mi->retry_count,
                  mysql_error(mysql));
     }
-    if (++(mi->connects_tried) == mi->retry_count)
+    if ((++(mi->connects_tried) == mi->retry_count) && mi->retry_count)
     {
       slave_was_killed=1;
       if (reconnect)
         change_rpl_status(RPL_ACTIVE_SLAVE,RPL_LOST_SOLDIER);
       break;
     }
+
+    DBUG_EXECUTE_IF("sync_master_retry",
+      debug_sync_set_action(thd, STRING_WITH_LEN(
+        "now SIGNAL master_retry_sleep WAIT_FOR master_retry_continue"
+      ));
+    );
+
     slave_sleep(thd,mi->connect_retry,io_slave_killed, mi);
   }
 

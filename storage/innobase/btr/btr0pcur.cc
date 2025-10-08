@@ -298,7 +298,6 @@ btr_pcur_t::SAME_UNIQ cursor position is on user rec and points on the
 record with the same unique field values as in the stored record,
 btr_pcur_t::NOT_SAME cursor position is not on user rec or points on
 the record with not the samebuniq field values as in the stored */
-TRANSACTIONAL_TARGET
 btr_pcur_t::restore_status
 btr_pcur_t::restore_position(btr_latch_mode restore_latch_mode, mtr_t *mtr)
 {

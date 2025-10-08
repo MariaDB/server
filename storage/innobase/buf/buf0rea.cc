@@ -42,7 +42,6 @@ Created 11/5/1995 Heikki Tuuri
 #include "srv0start.h"
 #include "srv0srv.h"
 #include "log.h"
-#include "mariadb_stats.h"
 
 TRANSACTIONAL_TARGET
 bool buf_pool_t::page_hash_contains(const page_id_t page_id, hash_chain &chain)
@@ -72,22 +71,12 @@ and the lock released later.
 @param block      preallocated buffer block (set to nullptr if consumed)
 @return pointer to the block
 @retval	nullptr in case of an error */
-TRANSACTIONAL_TARGET
 static buf_page_t *buf_page_init_for_read(const page_id_t page_id,
                                           ulint zip_size,
                                           buf_pool_t::hash_chain &chain,
-                                          buf_block_t *&block)
+                                          buf_block_t *&block) noexcept
 {
-  buf_page_t *bpage= nullptr;
-  if (!zip_size || (zip_size & 1))
-  {
-    bpage= &block->page;
-    block->initialise(page_id, zip_size & ~1, buf_page_t::READ_FIX);
-    /* x_unlock() will be invoked
-    in buf_page_t::read_complete() by the io-handler thread. */
-    block->page.lock.x_lock(true);
-  }
-
+  buf_page_t *bpage= !zip_size || (zip_size & 1) ? &block->page : nullptr;
   page_hash_latch &hash_lock= buf_pool.page_hash.lock_get(chain);
   hash_lock.lock();
   if (buf_pool.page_hash.get(page_id, chain))
@@ -95,13 +84,6 @@ static buf_page_t *buf_page_init_for_read(const page_id_t page_id,
 page_exists:
     hash_lock.unlock();
     /* The page is already in the buffer pool. */
-    if (bpage)
-    {
-      bpage->lock.x_unlock(true);
-      ut_d(mysql_mutex_lock(&buf_pool.mutex));
-      ut_d(bpage->set_state(buf_page_t::MEMORY));
-      ut_d(mysql_mutex_unlock(&buf_pool.mutex));
-    }
     return nullptr;
   }
 
@@ -122,6 +104,11 @@ page_exists:
   if (UNIV_LIKELY(bpage != nullptr))
   {
     block= nullptr;
+    reinterpret_cast<buf_block_t*>(bpage)->
+      initialise(page_id, zip_size & ~1, buf_page_t::READ_FIX);
+    /* x_unlock() will be invoked
+    in buf_page_t::read_complete() by the io-handler thread. */
+    bpage->lock.x_lock(true);
     /* Insert into the hash table of file pages */
     buf_pool.page_hash.append(chain, bpage);
     hash_lock.unlock();
@@ -174,15 +161,17 @@ page_exists:
     page_zip_set_size(&bpage->zip, zip_size);
     bpage->zip.data = (page_zip_t*) data;
 
+    /* Because bpage is a compressed-only block descriptor, it cannot be
+    passed to buf_pool.page_guess(), and therefore there is no risk of a
+    a false match. Therefore, we can safely initialize bpage before
+    acquiring hash_lock. */
     bpage->lock.init();
     bpage->init(buf_page_t::READ_FIX, page_id);
     bpage->lock.x_lock(true);
 
-    {
-      transactional_lock_guard<page_hash_latch> g
-        {buf_pool.page_hash.lock_get(chain)};
-      buf_pool.page_hash.append(chain, bpage);
-    }
+    hash_lock.lock();
+    buf_pool.page_hash.append(chain, bpage);
+    hash_lock.unlock();
 
     /* The block must be put to the LRU list, to the old blocks.
     The zip size is already set into the page zip */
@@ -197,6 +186,15 @@ func_exit:
   return bpage;
 }
 
+inline ulonglong mariadb_measure() noexcept
+{
+#if (MY_TIMER_ROUTINE_CYCLES)
+  return my_timer_cycles();
+#else
+  return my_timer_microseconds();
+#endif
+}
+
 /** Low-level function which reads a page asynchronously from a file to the
 buffer buf_pool if it is not already there, in which case does nothing.
 Sets the io_fix flag and sets an exclusive lock on the buffer frame. The
@@ -208,7 +206,8 @@ flag is cleared and the x-lock released by an i/o-handler thread.
 @param[in,out] chain	buf_pool.page_hash cell for page_id
 @param[in,out] space	tablespace
 @param[in,out] block	preallocated buffer block
-@param[in] sync		true if synchronous aio is desired
+@param[in] thd		current_thd if sync
+@param[in] sync		whether synchronous aio is desired
 @return error code
 @retval DB_SUCCESS if the page was read
 @retval DB_SUCCESS_LOCKED_REC if the page exists in the buffer pool already */
@@ -220,6 +219,7 @@ buf_read_page_low(
 	buf_pool_t::hash_chain&	chain,
 	fil_space_t*		space,
 	buf_block_t*&		block,
+	THD*			thd = nullptr,
 	bool			sync = false) noexcept
 {
 	buf_page_t*	bpage;
@@ -238,14 +238,12 @@ buf_read_page_low(
 
 	ut_ad(bpage->in_file());
 	ulonglong mariadb_timer = 0;
+	trx_t *const trx= thd ? thd_to_trx(thd) : nullptr;
 
-	if (sync) {
-		thd_wait_begin(nullptr, THD_WAIT_DISKIO);
-		if (const ha_handler_stats *stats = mariadb_stats) {
-			if (stats->active) {
-				mariadb_timer = mariadb_measure();
-			}
-		}
+	thd_wait_begin(thd, THD_WAIT_DISKIO);
+
+	if (trx && trx->active_handler_stats) {
+		mariadb_timer = mariadb_measure();
 	}
 
 	DBUG_LOG("ib_buf",
@@ -265,12 +263,13 @@ buf_read_page_low(
 		recv_sys.free_corrupted_page(page_id, *space->chain.start);
 		buf_pool.corrupted_evict(bpage, buf_page_t::READ_FIX);
 	} else if (sync) {
-		thd_wait_end(nullptr);
+		thd_wait_end(thd);
 		/* The i/o was already completed in space->io() */
 		fio.err = bpage->read_complete(*fio.node);
 		space->release();
 		if (mariadb_timer) {
-			mariadb_increment_pages_read_time(mariadb_timer);
+			trx->active_handler_stats->pages_read_time
+				+= mariadb_measure() - mariadb_timer;
 		}
 	}
 
@@ -292,6 +291,24 @@ static void buf_read_release(buf_block_t *block)
     buf_LRU_block_free_non_file_page(block);
     mysql_mutex_unlock(&buf_pool.mutex);
   }
+}
+
+/** Report a completed read-ahead batch.
+@param space  tablespace
+@param count  number of pages submitted for reading */
+static ATTRIBUTE_NOINLINE
+void buf_read_ahead_report(const fil_space_t &space, size_t count) noexcept
+{
+  if (THD *thd= current_thd)
+    if (trx_t *trx= thd_to_trx(thd))
+      if (ha_handler_stats *stats= trx->active_handler_stats)
+        stats->pages_prefetched+= count;
+  mysql_mutex_lock(&buf_pool.mutex);
+  /* Read ahead is considered one I/O operation for the purpose of
+     LRU policy decision. */
+  buf_LRU_stat_inc_io();
+  buf_pool.stat.n_ra_pages_read_rnd+= count;
+  mysql_mutex_unlock(&buf_pool.mutex);
 }
 
 /** Applies a random read-ahead in buf_pool if there are at least a threshold
@@ -381,18 +398,7 @@ read_ahead:
   }
 
   if (count)
-  {
-    mariadb_increment_pages_prefetched(count);
-    DBUG_PRINT("ib_buf", ("random read-ahead %zu pages from %s: %u",
-			  count, space->chain.start->name,
-			  low.page_no()));
-    mysql_mutex_lock(&buf_pool.mutex);
-    /* Read ahead is considered one I/O operation for the purpose of
-    LRU policy decision. */
-    buf_LRU_stat_inc_io();
-    buf_pool.stat.n_ra_pages_read_rnd+= count;
-    mysql_mutex_unlock(&buf_pool.mutex);
-  }
+    buf_read_ahead_report(*space, count);
 
   space->release();
   buf_read_release(block);
@@ -432,7 +438,8 @@ dberr_t buf_read_page(const page_id_t page_id,
     goto allocate_block;
   }
 
-  dberr_t err= buf_read_page_low(page_id, zip_size, chain, space, block, true);
+  dberr_t err= buf_read_page_low(page_id, zip_size, chain, space, block,
+                                 current_thd, true);
   buf_read_release(block);
   return err;
 }
@@ -503,7 +510,6 @@ function must be written such that it cannot end up waiting for these
 latches!
 @param[in]	page_id		page id; see NOTE 3 above
 @return number of page read requests issued */
-TRANSACTIONAL_TARGET
 ulint buf_read_ahead_linear(const page_id_t page_id) noexcept
 {
   /* check if readahead is disabled.
@@ -674,18 +680,7 @@ failed:
   }
 
   if (count)
-  {
-    mariadb_increment_pages_prefetched(count);
-    DBUG_PRINT("ib_buf", ("random read-ahead %zu pages from %s: %u",
-                          count, space->chain.start->name,
-                          new_low.page_no()));
-    mysql_mutex_lock(&buf_pool.mutex);
-    /* Read ahead is considered one I/O operation for the purpose of
-    LRU policy decision. */
-    buf_LRU_stat_inc_io();
-    buf_pool.stat.n_ra_pages_read+= count;
-    mysql_mutex_unlock(&buf_pool.mutex);
-  }
+    buf_read_ahead_report(*space, count);
 
   space->release();
   buf_read_release(block);

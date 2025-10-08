@@ -3397,6 +3397,15 @@ void st_select_lex_unit::exclude_level()
     SELECT_LEX_UNIT **last= 0;
     for (SELECT_LEX_UNIT *u= sl->first_inner_unit(); u; u= u->next_unit())
     {
+      for (SELECT_LEX *inner_sel= u->first_select();
+           inner_sel; inner_sel= inner_sel->next_select())
+      {
+        if (&sl->context == inner_sel->context.outer_context)
+          inner_sel->context.outer_context = &sl->outer_select()->context;
+      }
+      if (u->fake_select_lex &&
+          u->fake_select_lex->context.outer_context == &sl->context)
+        u->fake_select_lex->context.outer_context= &sl->outer_select()->context;
       u->master= master;
       last= (SELECT_LEX_UNIT**)&(u->next);
     }
@@ -12040,7 +12049,7 @@ void mark_or_conds_to_avoid_pushdown(Item *cond)
        After that the transformed condition is attached into attach_to_conds
        list.
     2. Part of some other condition c1 that can't be entirely pushed
-       (if с1 isn't marked with any flag).
+       (if c1 isn't marked with any flag).
 
        For example:
 
@@ -13357,7 +13366,7 @@ bool SELECT_LEX_UNIT::explainable() const
 
   @param thd          the current thread handle
   @param db_name      name of db of the table to look for
-  @param db_name      name of db of the table to look for
+  @param table_name   name of table
 
   @return first found table, NULL or ERROR_TABLE
 */

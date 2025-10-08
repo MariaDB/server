@@ -166,3 +166,15 @@ drop table t1;
 --remove_file $MYSQLTEST_VARDIR/tmp/features_outfile.1
 --remove_file $MYSQLTEST_VARDIR/tmp/features_outfile.2
 show status like "feature_into_%";
+
+--echo #
+--echo # Feature vector index
+--echo #
+
+create table t1 (id int auto_increment primary key,
+  u vector(5) not null, vector index (u));
+select * from t1;
+select * from t1;
+select * from t1;
+show status like "Feature_vector_index";
+drop table t1;

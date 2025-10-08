@@ -4575,7 +4575,7 @@ handler *mysql_create_frm_image(THD *thd, HA_CREATE_INFO *create_info,
   /*
     Unless table's storage engine supports partitioning natively
     don't allow foreign keys on partitioned tables (they won't
-    work work even with InnoDB beneath of partitioning engine).
+    work even with InnoDB beneath of partitioning engine).
     If storage engine handles partitioning natively (like NDB)
     foreign keys support is possible, so we let the engine decide.
   */
@@ -7218,7 +7218,7 @@ static bool fill_alter_inplace_info(THD *thd, TABLE *table,
             alter_expr= ALTER_STORED_GCOL_EXPR;
           else
             alter_expr= ALTER_VIRTUAL_GCOL_EXPR;
-          if (!field->vcol_info->is_equal(new_field->vcol_info))
+          if (!field->vcol_info->is_equal(new_field->vcol_info, false))
           {
             ha_alter_info->handler_flags|= alter_expr;
             value_changes= true;
@@ -7712,12 +7712,8 @@ bool mysql_compare_tables(TABLE *table, Alter_info *alter_info,
     {
       if (!tmp_new_field->field->vcol_info)
         DBUG_RETURN(false);
-      bool err;
-      if (!field->vcol_info->is_equivalent(thd, table->s, create_info->table->s,
-                                           tmp_new_field->field->vcol_info, err))
+      if (!field->vcol_info->is_equal(tmp_new_field->field->vcol_info, true))
         DBUG_RETURN(false);
-      if (err)
-        DBUG_RETURN(true);
     }
 
     /*
@@ -10728,6 +10724,8 @@ const char *online_alter_check_supported(THD *thd,
   based on information about the table changes from fill_alter_inplace_info().
 */
 
+PRAGMA_DISABLE_CHECK_STACK_FRAME
+
 bool mysql_alter_table(THD *thd, const LEX_CSTRING *new_db,
                        const LEX_CSTRING *new_name,
                        Table_specification_st *create_info,
@@ -11950,7 +11948,11 @@ alter_copy:
       binlog_as_create_select= 1;
       DBUG_ASSERT(new_table->file->row_logging);
       new_table->mark_columns_needed_for_insert();
-      mysql_bin_log.write_table_map(thd, new_table, 1);
+      if (thd->binlog_write_annotated_row(new_table->file->row_logging_has_trans ||
+                                          (thd->variables.option_bits &
+                                           OPTION_GTID_BEGIN)) ||
+          mysql_bin_log.write_table_map(thd, new_table))
+        goto err_new_table_cleanup;
     }
 
     /*
@@ -12098,7 +12100,7 @@ alter_copy:
     5) Write statement to the binary log.
     6) If we are under LOCK TABLES and do ALTER TABLE ... RENAME we
        remove placeholders and release metadata locks.
-    7) If we are not not under LOCK TABLES we rely on the caller
+    7) If we are not under LOCK TABLES we rely on the caller
       (mysql_execute_command()) to release metadata locks.
   */
 
@@ -12423,6 +12425,7 @@ err_with_mdl:
   goto err_cleanup;
 }
 
+PRAGMA_REENABLE_CHECK_STACK_FRAME
 
 
 /**
@@ -13699,6 +13702,8 @@ bool Sql_cmd_create_table_like::execute(THD *thd)
 
       DEBUG_SYNC(thd, "wsrep_create_table_as_select");
 
+      Write_record write;
+
       /*
         select_create is currently not re-execution friendly and
         needs to be created for every execution of a PS/SP.
@@ -13710,7 +13715,8 @@ bool Sql_cmd_create_table_like::execute(THD *thd)
                                                      select_lex->item_list,
                                                      lex->duplicates,
                                                      lex->ignore,
-                                                     select_tables)))
+                                                     select_tables,
+                                                     &write)))
       {
         /*
           CREATE from SELECT give its SELECT_LEX for SELECT,

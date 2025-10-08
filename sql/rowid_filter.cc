@@ -476,7 +476,7 @@ void Range_rowid_filter_cost_info::trace_info(THD *thd)
   @details
     The function looks through the array of cost info for range filters
     and chooses the element for the range filter that promise the greatest
-    gain with the the ref or range access of the table by access_key_no.
+    gain with the ref or range access of the table by access_key_no.
 
     The function assumes that caller has checked that the key is not a clustered
     key. See best_access_path().

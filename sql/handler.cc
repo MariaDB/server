@@ -155,7 +155,7 @@ const char *tx_isolation_names[]=
   NullS};
 TYPELIB tx_isolation_typelib= CREATE_TYPELIB_FOR(tx_isolation_names);
 
-static TYPELIB known_extensions= {0,"known_exts", NULL, NULL};
+static TYPELIB known_extensions= {0,"known_exts", NULL, NULL, NULL};
 uint known_extensions_id= 0;
 
 
@@ -4782,7 +4782,7 @@ void handler::print_error(int error, myf errflag)
   case HA_ERR_RECORD_DELETED:
   case HA_ERR_END_OF_FILE:
     /*
-      This errors is not not normally fatal (for example for reads). However
+      This errors is not normally fatal (for example for reads). However
       if you get it during an update or delete, then its fatal.
       As the user is calling print_error() (which is not done on read), we
       assume something when wrong with the update or delete.
@@ -5292,12 +5292,6 @@ uint handler::get_dup_key(int error)
       error == HA_ERR_DROP_INDEX_FK)
     info(HA_STATUS_ERRKEY | HA_STATUS_NO_LOCK);
   DBUG_RETURN(errkey);
-}
-
-bool handler::has_dup_ref() const
-{
-  DBUG_ASSERT(lookup_errkey != (uint)-1 || errkey != (uint)-1);
-  return ha_table_flags() & HA_DUPLICATE_POS || lookup_errkey != (uint)-1;
 }
 
 
@@ -6513,9 +6507,10 @@ int ha_create_table(THD *thd, const char *path, const char *db,
 
     bzero((char*) &index_cinfo, sizeof(index_cinfo));
     index_cinfo.alter_info= &index_ainfo;
-    if (create_info->index_file_name)
+    index_file_name_end= const_cast<char*>(create_info->index_file_name);
+    if (index_file_name_end)
     {
-      index_file_name_end= strmov(index_file_name, create_info->index_file_name);
+      index_file_name_end= strmov(index_file_name, index_file_name_end);
       index_cinfo.index_file_name= index_file_name;
       index_cinfo.data_file_name= index_file_name;
     }
@@ -8019,8 +8014,12 @@ int handler::ha_check_overlaps(const uchar *old_data, const uchar* new_data)
   DBUG_ASSERT(this == table->file);
   if (!table_share->period.unique_keys)
     return 0;
-  if (table->versioned() && !table->vers_end_field()->is_max())
-    return 0;
+  if (table->versioned())
+  {
+    Field *end= table->vers_end_field();
+    if (!end->is_max(end->ptr_in_record(new_data)))
+      return 0;
+  }
 
   const bool after_write= ha_table_flags() & HA_CHECK_UNIQUE_AFTER_WRITE;
   const bool is_update= !after_write && old_data;
