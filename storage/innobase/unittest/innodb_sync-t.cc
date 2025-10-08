@@ -18,7 +18,7 @@
 #include "my_sys.h"
 #include "sux_lock.h"
 
-static std::atomic<bool> critical;
+static std::atomic<bool>* critical= nullptr;
 
 ulong srv_n_spin_wait_rounds= 30;
 uint srv_spin_wait_delay= 4;
@@ -27,6 +27,18 @@ unsigned N_THREADS= 30;
 unsigned N_ROUNDS= 100;
 unsigned M_ROUNDS= 100;
 
+size_t n_critical= 1;
+
+#define ASSERT_CRITICAL(value) \
+  for (size_t i= 0; i < n_critical; ++i) \
+    assert(critical[i] == value)
+
+static inline void set_critical(const bool value)
+{
+  for (size_t i= 0; i < n_critical; ++i)
+    critical[i]= value;
+}
+
 static srw_mutex m;
 
 static void test_srw_mutex()
@@ -34,9 +46,9 @@ static void test_srw_mutex()
   for (auto i= N_ROUNDS * M_ROUNDS; i--; )
   {
     m.wr_lock();
-    assert(!critical);
-    critical= true;
-    critical= false;
+    ASSERT_CRITICAL(false);
+    set_critical(true);
+    set_critical(false);
     m.wr_unlock();
   }
 }
@@ -48,15 +60,15 @@ static void test_srw_lock()
   for (auto i= N_ROUNDS; i--; )
   {
     l.wr_lock();
-    assert(!critical);
-    critical= true;
-    critical= false;
+    ASSERT_CRITICAL(false);
+    set_critical(true);
+    set_critical(false);
     l.wr_unlock();
 
     for (auto j= M_ROUNDS; j--; )
     {
       l.rd_lock();
-      assert(!critical);
+      ASSERT_CRITICAL(false);
       l.rd_unlock();
     }
   }
@@ -69,26 +81,26 @@ static void test_ssux_lock()
   for (auto i= N_ROUNDS; i--; )
   {
     ssux.wr_lock();
-    assert(!critical);
-    critical= true;
-    critical= false;
+    ASSERT_CRITICAL(false);
+    set_critical(true);
+    set_critical(false);
     ssux.wr_unlock();
 
     for (auto j= M_ROUNDS; j--; )
     {
       ssux.rd_lock();
-      assert(!critical);
+      ASSERT_CRITICAL(false);
       ssux.rd_unlock();
     }
 
     for (auto j= M_ROUNDS; j--; )
     {
       ssux.u_lock();
-      assert(!critical);
+      ASSERT_CRITICAL(false);
       ssux.u_wr_upgrade();
-      assert(!critical);
-      critical= true;
-      critical= false;
+      ASSERT_CRITICAL(false);
+      set_critical(true);
+      set_critical(false);
       ssux.wr_u_downgrade();
       ssux.u_unlock();
     }
@@ -96,19 +108,19 @@ static void test_ssux_lock()
     for (auto j= M_ROUNDS; j--; )
     {
       ssux.rd_lock();
-      assert(!critical);
+      ASSERT_CRITICAL(false);
       if (ssux.rd_u_upgrade_try())
       {
-        assert(!critical);
+        ASSERT_CRITICAL(false);
         ssux.rd_unlock();
         ssux.u_wr_upgrade();
-        assert(!critical);
-        critical= true;
-        critical= false;
+        ASSERT_CRITICAL(false);
+        set_critical(true);
+        set_critical(false);
         ssux.wr_u_downgrade();
         ssux.u_rd_downgrade();
       }
-      assert(!critical);
+      ASSERT_CRITICAL(false);
       ssux.rd_unlock();
     }
   }
@@ -121,40 +133,40 @@ static void test_sux_lock()
   for (auto i= N_ROUNDS; i--; )
   {
     sux.x_lock();
-    assert(!critical);
-    critical= true;
+    ASSERT_CRITICAL(false);
+    set_critical(true);
     for (auto j= M_ROUNDS; j--; )
       sux.x_lock();
-    critical= false;
+    set_critical(false);
     for (auto j= M_ROUNDS + 1; j--; )
       sux.x_unlock();
 
     for (auto j= M_ROUNDS; j--; )
     {
       sux.s_lock();
-      assert(!critical);
+      ASSERT_CRITICAL(false);
       sux.s_unlock();
     }
 
     for (auto j= M_ROUNDS / 2; j--; )
     {
       sux.u_lock();
-      assert(!critical);
+      ASSERT_CRITICAL(false);
       sux.u_lock();
       sux.u_x_upgrade();
-      assert(!critical);
-      critical= true;
+      ASSERT_CRITICAL(false);
+      set_critical(true);
       sux.x_unlock();
-      critical= false;
+      set_critical(false);
       sux.x_u_downgrade();
       sux.u_unlock();
       sux.s_lock();
       std::ignore= sux.s_x_upgrade();
-      assert(!critical);
+      ASSERT_CRITICAL(false);
       sux.x_lock();
-      critical= true;
+      set_critical(true);
       sux.x_unlock();
-      critical= false;
+      set_critical(false);
       sux.x_unlock();
     }
   }
@@ -172,13 +184,15 @@ int main(int argc, char **argv)
     N_ROUNDS= atoi(argv[4]);
   if (argc > 5)
     M_ROUNDS= atoi(argv[5]);
+  if (argc > 6)
+    n_critical= atoi(argv[6]);
 
   if (argc > 1)
   {
     printf("Parameters: srv_n_spin_wait_rounds=%lu srv_spin_wait_delay=%u "
-           "N_THREADS=%u N_ROUNDS=%u M_ROUNDS=%u\n",
+           "N_THREADS=%u N_ROUNDS=%u M_ROUNDS=%u n_critical=%zu\n",
            srv_n_spin_wait_rounds, srv_spin_wait_delay,
-           N_THREADS, N_ROUNDS, M_ROUNDS);
+           N_THREADS, N_ROUNDS, M_ROUNDS, n_critical);
   }
 
   std::thread* t= nullptr;
@@ -190,6 +204,19 @@ int main(int argc, char **argv)
       printf("Failed to allocate memory for %u threads\n", N_THREADS);
       return 1;
     }
+  }
+
+  if (n_critical > 0)
+  {
+    critical= new std::atomic<bool>[n_critical];
+    if (!critical)
+    {
+      printf("Failed to allocate memory for %zu criticals\n", n_critical);
+      free(t);
+      t= nullptr;
+      return 1;
+    }
+    set_critical(false);
   }
 
   MY_INIT(argv[0]);
@@ -240,6 +267,9 @@ int main(int argc, char **argv)
 
   delete[] t;
   t= nullptr;
+
+  delete[] critical;
+  critical= nullptr;
 
   my_end(MY_CHECK_ERROR);
   return exit_status();
