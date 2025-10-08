@@ -2380,6 +2380,17 @@ static MYSQL_THDVAR_BOOL(
 SPIDER_THDVAR_VALUE_FUNC(bool, disable_group_by_handler)
 
 static MYSQL_THDVAR_BOOL(
+  disable_select_handler, /* name */
+  PLUGIN_VAR_OPCMDARG, /* opt */
+  "Disables the select handler", /* comment */
+  NULL, /* check */
+  NULL, /* update */
+  TRUE /* def */
+);
+
+SPIDER_THDVAR_VALUE_FUNC(bool, disable_select_handler)
+
+static MYSQL_THDVAR_BOOL(
   suppress_comment_ignored_warning,
   PLUGIN_VAR_RQCMDARG,
   "Whether to suppress warnings that table COMMENT or CONNECTION strings "
@@ -2519,6 +2530,7 @@ static struct st_mysql_sys_var* spider_system_variables[] = {
   MYSQL_SYSVAR(strict_group_by),
   MYSQL_SYSVAR(direct_aggregate),
   MYSQL_SYSVAR(disable_group_by_handler),
+  MYSQL_SYSVAR(disable_select_handler),
   MYSQL_SYSVAR(suppress_comment_ignored_warning),
   MYSQL_SYSVAR(ignore_comments),
   NULL

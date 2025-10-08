@@ -1,0 +1,126 @@
+for master_1
+for child2
+child2_1
+child2_2
+child2_3
+for child3
+child3_1
+child3_2
+child3_3
+connection master_1;
+set spider_same_server_link=1;
+set global general_log=1;
+set @old_log_output=@@global.log_output;
+set global log_output="TABLE";
+TRUNCATE TABLE mysql.general_log;
+CREATE SERVER srv FOREIGN DATA WRAPPER mysql
+OPTIONS (SOCKET "$MASTER_1_MYSOCK", DATABASE 'test',user 'root');
+create table t2 (c int, index i(c));
+create table t1 (c int, index i(c)) ENGINE=Spider
+COMMENT='WRAPPER "mysql", srv "srv",TABLE "t2", query_cache_sync "3", idx000 "f i"';
+explain select * from t1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Storage engine handles GROUP BY
+select * from t1;
+c
+explain select HIGH_PRIORITY * from t1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Storage engine handles GROUP BY
+select HIGH_PRIORITY * from t1;
+c
+explain select SQL_CACHE * from t1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Storage engine handles GROUP BY
+select SQL_CACHE * from t1;
+c
+explain select SQL_NO_CACHE * from t1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Storage engine handles GROUP BY
+select SQL_NO_CACHE * from t1;
+c
+explain select SQL_BUFFER_RESULT * from t1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Storage engine handles GROUP BY
+select SQL_BUFFER_RESULT * from t1;
+c
+explain select SQL_SMALL_RESULT * from t1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Storage engine handles GROUP BY
+select SQL_SMALL_RESULT * from t1;
+c
+explain select SQL_BIG_RESULT * from t1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Storage engine handles GROUP BY
+select SQL_BIG_RESULT * from t1;
+c
+explain select STRAIGHT_JOIN * from t1 t3, t1 t4 where t3.c > t4.c;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Storage engine handles GROUP BY
+select STRAIGHT_JOIN * from t1 t3, t1 t4 where t3.c > t4.c;
+c	c
+explain select * from t1 t3 STRAIGHT_JOIN t1 t4 on t3.c > t4.c;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Storage engine handles GROUP BY
+select * from t1 t3 STRAIGHT_JOIN t1 t4 on t3.c > t4.c;
+c	c
+explain select SQL_CALC_FOUND_ROWS * from t1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Storage engine handles GROUP BY
+select SQL_CALC_FOUND_ROWS * from t1;
+c
+explain select * from t1 USE INDEX (i);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Storage engine handles GROUP BY
+select * from t1 USE INDEX (i);
+c
+explain select * from t1 FORCE INDEX (i);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Storage engine handles GROUP BY
+select * from t1 FORCE INDEX (i);
+c
+explain select * from t1 IGNORE INDEX (i);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Storage engine handles GROUP BY
+select * from t1 IGNORE INDEX (i);
+c
+SELECT argument FROM mysql.general_log WHERE argument LIKE 'select %';
+argument
+select * from t1
+select t0.`c` `c` from `test`.`t2` t0
+select HIGH_PRIORITY * from t1
+select high_priority t0.`c` `c` from `test`.`t2` t0
+select SQL_CACHE * from t1
+select sql_cache t0.`c` `c` from `test`.`t2` t0
+select SQL_NO_CACHE * from t1
+select sql_no_cache t0.`c` `c` from `test`.`t2` t0
+select SQL_BUFFER_RESULT * from t1
+select t0.`c` `c` from `test`.`t2` t0
+select SQL_SMALL_RESULT * from t1
+select t0.`c` `c` from `test`.`t2` t0
+select SQL_BIG_RESULT * from t1
+select t0.`c` `c` from `test`.`t2` t0
+select STRAIGHT_JOIN * from t1 t3, t1 t4 where t3.c > t4.c
+select t0.`c` `c`,t1.`c` `c` from `test`.`t2` t0 join `test`.`t2` t1 where (t0.`c` > t1.`c`)
+select * from t1 t3 STRAIGHT_JOIN t1 t4 on t3.c > t4.c
+select t0.`c` `c`,t1.`c` `c` from `test`.`t2` t0 straight_join `test`.`t2` t1 where (t0.`c` > t1.`c`)
+select SQL_CALC_FOUND_ROWS * from t1
+select t0.`c` `c` from `test`.`t2` t0
+select * from t1 USE INDEX (i)
+select t0.`c` `c` from `test`.`t2` t0
+select * from t1 FORCE INDEX (i)
+select t0.`c` `c` from `test`.`t2` t0
+select * from t1 IGNORE INDEX (i)
+select t0.`c` `c` from `test`.`t2` t0
+SELECT argument FROM mysql.general_log WHERE argument LIKE 'select %'
+drop table t1, t2;
+drop server srv;
+set global log_output=@old_log_output;
+for master_1
+for child2
+child2_1
+child2_2
+child2_3
+for child3
+child3_1
+child3_2
+child3_3

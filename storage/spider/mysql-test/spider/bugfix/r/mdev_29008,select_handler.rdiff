@@ -1,0 +1,13 @@
+--- storage/spider/mysql-test/spider/bugfix/r/mdev_29008.result	2025-10-01 11:47:33.060425320 +1000
++++ storage/spider/mysql-test/spider/bugfix/r/mdev_29008.reject	2025-10-01 14:46:41.055843030 +1000
+@@ -39,8 +39,8 @@
+ connection child2_1;
+ SELECT argument FROM mysql.general_log WHERE argument LIKE 'select %';
+ argument
+-select min(t1.`a`) `f1`,t0.`b` `f2` from `auto_test_remote`.`tbl_a` t0 join `auto_test_remote`.`tbl_a` t1 group by `f2` order by `f1`,`f2`
+-select min(t1.`a`) `f1`,t0.`b` `f2` from `auto_test_remote`.`tbl_a` t0 join `auto_test_remote`.`tbl_a` t1 group by `f2` order by min(t1.`a`),max(t1.`a`),`f2`
++select min(t1.`a`) `f1`,t0.`b` `f2` from (`auto_test_remote`.`tbl_a` t0 join `auto_test_remote`.`tbl_a` t1) group by `f2` order by `f1`,`f2`
++select min(t1.`a`) `f1`,t0.`b` `f2` from (`auto_test_remote`.`tbl_a` t0 join `auto_test_remote`.`tbl_a` t1) group by `f2` order by min(t1.`a`),max(t1.`a`),`f2`
+ SELECT argument FROM mysql.general_log WHERE argument LIKE 'select %'
+ set global log_output=@old_log_output;
+ set global general_log=@old_general_log;

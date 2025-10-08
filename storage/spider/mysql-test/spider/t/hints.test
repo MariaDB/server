@@ -1,0 +1,96 @@
+--disable_query_log
+--disable_result_log
+--source test_init.inc
+--enable_result_log
+--enable_query_log
+--connection master_1
+set spider_same_server_link=1;
+set global general_log=1;
+set @old_log_output=@@global.log_output;
+set global log_output="TABLE";
+TRUNCATE TABLE mysql.general_log;
+evalp CREATE SERVER srv FOREIGN DATA WRAPPER mysql
+OPTIONS (SOCKET "$MASTER_1_MYSOCK", DATABASE 'test',user 'root');
+create table t2 (c int, index i(c));
+create table t1 (c int, index i(c)) ENGINE=Spider
+COMMENT='WRAPPER "mysql", srv "srv",TABLE "t2", query_cache_sync "3", idx000 "f i"';
+
+--disable_ps_protocol
+# TODO(MDEV-37810)
+--disable_view_protocol
+let $query=
+select * from t1;
+eval explain $query;
+eval $query;
+
+let $query=
+select HIGH_PRIORITY * from t1;
+eval explain $query;
+eval $query;
+
+let $query=
+select SQL_CACHE * from t1;
+eval explain $query;
+eval $query;
+
+let $query=
+select SQL_NO_CACHE * from t1;
+eval explain $query;
+eval $query;
+
+let $query=
+select SQL_BUFFER_RESULT * from t1;
+eval explain $query;
+eval $query;
+
+let $query=
+select SQL_SMALL_RESULT * from t1;
+eval explain $query;
+eval $query;
+
+let $query=
+select SQL_BIG_RESULT * from t1;
+eval explain $query;
+eval $query;
+
+let $query=
+select STRAIGHT_JOIN * from t1 t3, t1 t4 where t3.c > t4.c;
+eval explain $query;
+eval $query;
+
+let $query=
+select * from t1 t3 STRAIGHT_JOIN t1 t4 on t3.c > t4.c;
+eval explain $query;
+eval $query;
+
+let $query=
+select SQL_CALC_FOUND_ROWS * from t1;
+eval explain $query;
+eval $query;
+
+let $query=
+select * from t1 USE INDEX (i);
+eval explain $query;
+eval $query;
+
+let $query=
+select * from t1 FORCE INDEX (i);
+eval explain $query;
+eval $query;
+
+let $query=
+select * from t1 IGNORE INDEX (i);
+eval explain $query;
+eval $query;
+
+SELECT argument FROM mysql.general_log WHERE argument LIKE 'select %';
+--enable_view_protocol
+--enable_ps_protocol
+drop table t1, t2;
+drop server srv;
+set global log_output=@old_log_output;
+--disable_query_log
+--disable_result_log
+--source test_deinit.inc
+--enable_result_log
+--enable_query_log

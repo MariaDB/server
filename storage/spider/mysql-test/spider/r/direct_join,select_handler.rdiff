@@ -1,0 +1,21 @@
+--- storage/spider/mysql-test/spider/r/direct_join.result	2025-10-01 11:47:40.576367008 +1000
++++ storage/spider/mysql-test/spider/r/direct_join.reject	2025-10-01 14:47:18.963532579 +1000
+@@ -85,7 +85,7 @@
+ connection child2_1;
+ SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %';
+ argument
+-select t0.`a` `a`,t2.`b` `b`,t2.`c` `c` from `auto_test_remote`.`ta_r` t0 join `auto_test_remote`.`ta_r_3` t1 join `auto_test_remote`.`ta_r_int` t2 where ((t0.`a` = t1.`a`) and (t2.`a` = t1.`a`)) order by t0.`b` desc limit 1,2
++select t0.`a` `a`,t2.`b` `b`,t2.`c` `c` from `auto_test_remote`.`ta_r` t0 join `auto_test_remote`.`ta_r_3` t1 join `auto_test_remote`.`ta_r_int` t2 where ((t0.`a` = t1.`a`) and (t0.`a` = t2.`a`)) order by t0.`b` desc limit 1,2
+ SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %'
+ SELECT a, b, date_format(c, '%Y-%m-%d %H:%i:%s') FROM ta_r ORDER BY a;
+ a	b	date_format(c, '%Y-%m-%d %H:%i:%s')
+@@ -180,8 +180,7 @@
+ connection child2_1;
+ SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %';
+ argument
+-select `id`,`hr_status`,`region_code`,`region` from `auto_test_remote`.`tbl_person` where `id` = '24FC3F0A5119432BAE13DD65AABAA39C' and `region` = 510411
+-select count(0) `count(0)` from (select 1) t0 join `auto_test_remote`.`tbl_ncd_cm_person` t1 where ((t1.`person_id` = '24FC3F0A5119432BAE13DD65AABAA39C') and (t1.`diseaseKind_id` = '52A0328740914BCE86ED10A4D2521816'))
++select count(0) `count(0)` from (`auto_test_remote`.`tbl_person` t0 join `auto_test_remote`.`tbl_ncd_cm_person` t1 on (t0.`id` = t1.`person_id`)) where ((1 = 1) and (t0.`hr_status` <> '99') and (t0.`hr_status` <> '2') and (t0.`region_code` like (convert((concat((concat(_latin1'%' , _latin1'51041110620301' , _latin1'%')))) using utf8mb3))) and (t0.`id` = '24FC3F0A5119432BAE13DD65AABAA39C') and (t1.`diseaseKind_id` = '52A0328740914BCE86ED10A4D2521816') and (t0.`region` = 510411))
+ SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %'
+ SELECT * FROM tbl_person;
+ id	hr_status	region_code	region

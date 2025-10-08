@@ -64,7 +64,10 @@ TRUNCATE TABLE mysql.general_log;
 
 --connection master_1
 --disable_ps2_protocol
+# TODO(MDEV-37810)
+--disable_view_protocol
 SELECT a.val, a.akey FROM tbl_a a, tbl_b b WHERE a.akey = b.akey AND b.bkey = 5;
+--enable_view_protocol
 --enable_ps2_protocol
 
 --connection child2_1
