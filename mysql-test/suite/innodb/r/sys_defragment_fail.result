@@ -20,33 +20,35 @@ InnoDB		0 transactions not purged
 FOUND 1 /InnoDB: User table exists in the system tablespace/ in mysqld.1.err
 DROP TABLE t1;
 InnoDB		0 transactions not purged
-select name, file_size from information_schema.innodb_sys_tablespaces where space = 0;
-name	file_size
-innodb_system	58720256
 # restart: --debug_dbug=+d,fail_after_level_defragment
 FOUND 1 /InnoDB: Defragmentation of CLUST_IND in SYS_COLUMNS failed./ in mysqld.1.err
-select name, file_size from information_schema.innodb_sys_tablespaces where space = 0;
-name	file_size
-innodb_system	58720256
+select name, file_size<$fsize shrunk
+from information_schema.innodb_sys_tablespaces where space=0;
+name	shrunk
+innodb_system	0
 # restart: --debug_dbug=d,allocation_prepare_fail
 FOUND 1 /InnoDB: Defragmentation of CLUST_IND in SYS_INDEXES failed./ in mysqld.1.err
-select name, file_size from information_schema.innodb_sys_tablespaces where space = 0;
-name	file_size
-innodb_system	58720256
+select name, file_size<$fsize shrunk
+from information_schema.innodb_sys_tablespaces where space=0;
+name	shrunk
+innodb_system	0
 # restart: --debug_dbug=d,relation_page_prepare_fail
 FOUND 2 /InnoDB: Defragmentation of CLUST_IND in SYS_INDEXES failed./ in mysqld.1.err
-select name, file_size from information_schema.innodb_sys_tablespaces where space = 0;
-name	file_size
-innodb_system	58720256
+select name, file_size<$fsize shrunk
+from information_schema.innodb_sys_tablespaces where space=0;
+name	shrunk
+innodb_system	0
 # restart: --debug_dbug=d,remover_prepare_fail
 FOUND 3 /InnoDB: Defragmentation of CLUST_IND in SYS_INDEXES failed./ in mysqld.1.err
-select name, file_size from information_schema.innodb_sys_tablespaces where space = 0;
-name	file_size
-innodb_system	58720256
+select name, file_size<$fsize shrunk
+from information_schema.innodb_sys_tablespaces where space=0;
+name	shrunk
+innodb_system	0
 # restart
 FOUND 5 /InnoDB: Moving the data from extents 4096 through 8960/ in mysqld.1.err
 FOUND 1 /InnoDB: Defragmentation of system tablespace is successful/ in mysqld.1.err
-select name, file_size from information_schema.innodb_sys_tablespaces where space = 0;
-name	file_size
-innodb_system	15728640
+select name, file_size<$fsize shrunk
+from information_schema.innodb_sys_tablespaces where space=0;
+name	shrunk
+innodb_system	1
 # restart

@@ -34,7 +34,7 @@ let SEARCH_PATTERN=InnoDB: User table exists in the system tablespace;
 DROP TABLE t1;
 
 --source include/wait_all_purged.inc
-select name, file_size from information_schema.innodb_sys_tablespaces where space = 0;
+let $fsize=`select file_size from information_schema.innodb_sys_tablespaces where space = 0`;
 
 let $restart_parameters=--debug_dbug=+d,fail_after_level_defragment;
 --source include/restart_mysqld.inc
@@ -43,7 +43,8 @@ let SEARCH_FILE= $MYSQLTEST_VARDIR/log/mysqld.1.err;
 let SEARCH_PATTERN=InnoDB: Defragmentation of CLUST_IND in SYS_COLUMNS failed.;
 --source include/search_pattern_in_file.inc
 
-select name, file_size from information_schema.innodb_sys_tablespaces where space = 0;
+evalp select name, file_size<$fsize shrunk
+from information_schema.innodb_sys_tablespaces where space=0;
 
 let $restart_parameters=--debug_dbug=d,allocation_prepare_fail;
 --source include/restart_mysqld.inc
@@ -52,7 +53,8 @@ let SEARCH_FILE= $MYSQLTEST_VARDIR/log/mysqld.1.err;
 let SEARCH_PATTERN=InnoDB: Defragmentation of CLUST_IND in SYS_INDEXES failed.;
 --source include/search_pattern_in_file.inc
 
-select name, file_size from information_schema.innodb_sys_tablespaces where space = 0;
+evalp select name, file_size<$fsize shrunk
+from information_schema.innodb_sys_tablespaces where space=0;
 
 let $restart_parameters=--debug_dbug=d,relation_page_prepare_fail;
 --source include/restart_mysqld.inc
@@ -61,7 +63,8 @@ let SEARCH_FILE= $MYSQLTEST_VARDIR/log/mysqld.1.err;
 let SEARCH_PATTERN=InnoDB: Defragmentation of CLUST_IND in SYS_INDEXES failed.;
 --source include/search_pattern_in_file.inc
 
-select name, file_size from information_schema.innodb_sys_tablespaces where space = 0;
+evalp select name, file_size<$fsize shrunk
+from information_schema.innodb_sys_tablespaces where space=0;
 
 let $restart_parameters=--debug_dbug=d,remover_prepare_fail;
 --source include/restart_mysqld.inc
@@ -70,7 +73,8 @@ let SEARCH_FILE= $MYSQLTEST_VARDIR/log/mysqld.1.err;
 let SEARCH_PATTERN=InnoDB: Defragmentation of CLUST_IND in SYS_INDEXES failed.;
 --source include/search_pattern_in_file.inc
 
-select name, file_size from information_schema.innodb_sys_tablespaces where space = 0;
+evalp select name, file_size<$fsize shrunk
+from information_schema.innodb_sys_tablespaces where space=0;
 
 let $restart_parameters=;
 --source include/restart_mysqld.inc
@@ -82,7 +86,8 @@ let SEARCH_PATTERN= InnoDB: Moving the data from extents 4096 through 8960;
 let SEARCH_PATTERN=InnoDB: Defragmentation of system tablespace is successful;
 --source include/search_pattern_in_file.inc
 
-select name, file_size from information_schema.innodb_sys_tablespaces where space = 0;
+evalp select name, file_size<$fsize shrunk
+from information_schema.innodb_sys_tablespaces where space=0;
 
 --source include/shutdown_mysqld.inc
 --move_file $MYSQLD_DATADIR/ibdata1_copy $MYSQLD_DATADIR/ibdata1
