@@ -74,6 +74,10 @@ enum fsp_binlog_chunk_types {
   FSP_BINLOG_TYPE_OOB_DATA= 3,
   /* Dummy record, use to fill remainder of page (eg. FLUSH BINARY LOGS). */
   FSP_BINLOG_TYPE_DUMMY= 4,
+  /* User XA record containing XID and OOB reference for XA PREPARE. */
+  FSP_BINLOG_TYPE_XA_PREPARE= 5,
+  /* User XA record containing XID for XA COMMIT/ROLLBACK. */
+  FSP_BINLOG_TYPE_XA_COMPLETE= 6,
   /* Must be one more than the last type. */
   FSP_BINLOG_TYPE_END,
 
@@ -95,6 +99,11 @@ static constexpr uint32_t FSP_BINLOG_FLAG_BIT_LAST= 6;
 static constexpr uint32_t FSP_BINLOG_FLAG_LAST= (1 << FSP_BINLOG_FLAG_BIT_LAST);
 static constexpr uint32_t FSP_BINLOG_TYPE_MASK=
   ~(FSP_BINLOG_FLAG_CONT | FSP_BINLOG_FLAG_LAST);
+
+/* Flag bits for FSP_BINLOG_TYPE_XA_COMPLETE. */
+static constexpr uint32_t IBB_FL_XA_TYPE_MASK= 0x1;
+static constexpr uint32_t IBB_FL_XA_TYPE_COMMIT= 0x0;
+static constexpr uint32_t IBB_FL_XA_TYPE_ROLLBACK= 0x1;
 
 /**
   These are the chunk types that are allowed to occur in the middle of

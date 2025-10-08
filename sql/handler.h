@@ -1604,6 +1604,25 @@ struct handlerton
   /* Call to allow engine to release the engine_data from binlog_oob_data(). */
   void (*binlog_oob_free)(void *engine_data);
   /*
+    Durably persist the event data for the current user-XA transaction,
+    identified by XID.
+
+    This way, a later XA COMMIT can then be binlogged correctly with the
+    persisted event data, even across server restart.
+
+    The ENGINE_COUNT is the number of storage engines that participate in the
+    XA transaction. This is used to correctly handle crash recovery if the
+    server crashed in the middle of XA PREPARE. If during crash recovery,
+    we find the XID present in less than ENGINE_COUNT engines, then the
+    XA PREPARE did not complete before the crash, and should be rolled back
+    during crash recovery.
+  */
+  /* Binlog an event group that doesn't go through commit_ordered. */
+  bool (*binlog_write_xa_prepare_ordered)
+      (handler_binlog_event_group_info *binlog_info, uchar engine_count);
+  bool (*binlog_write_xa_prepare)(handler_binlog_event_group_info *binlog_info,
+                                  uchar engine_count);
+  /*
     Obtain an object to allow reading from the binlog.
     The boolean argument wait_durable is set to true to require that
     transactions be durable before they can be read and returned from the
@@ -5938,6 +5957,14 @@ struct handler_binlog_event_group_info {
     transaction cache part in the commit record.
   */
   void *engine_ptr2;
+  /*
+    The XID for XA PREPARE/XA COMMIT; else NULL.
+    When this is set, the IO_CACHE only contains the GTID. All other event data
+    was spilled as OOB and persisted with the binlog_write_xa_prepare hton
+    call; the engine binlog implementation must use the XID to look up or
+    otherwise refer to that OOB data.
+  */
+  const XID *xa_xid;
   /* End of data that has already been binlogged out-of-band. */
   my_off_t out_of_band_offset;
   /*

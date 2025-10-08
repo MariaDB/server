@@ -1528,6 +1528,12 @@ int ha_prepare(THD *thd)
 
   if (ha_info)
   {
+    if (tc_log->log_xa_prepare(thd, all))
+    {
+      ha_rollback_trans(thd, all);
+      error= 1;
+      DBUG_RETURN(error);
+    }
     for (; ha_info; ha_info= ha_info->next())
     {
       handlerton *ht= ha_info->ht();

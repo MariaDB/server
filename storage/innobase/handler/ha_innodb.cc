@@ -565,6 +565,7 @@ mysql_pfs_key_t fsp_binlog_durable_mutex_key;
 mysql_pfs_key_t fsp_binlog_durable_cond_key;
 mysql_pfs_key_t fsp_purge_binlog_mutex_key;
 mysql_pfs_key_t fsp_page_fifo_mutex_key;
+mysql_pfs_key_t ibb_xid_hash_mutex_key;
 
 /* all_innodb_mutexes array contains mutexes that are
 performance schema instrumented if "UNIV_PFS_MUTEX"
@@ -4151,6 +4152,9 @@ static int innodb_init(void* p)
         innobase_hton->binlog_savepoint_rollback= ibb_savepoint_rollback;
         innobase_hton->binlog_oob_reset= innodb_reset_oob;
         innobase_hton->binlog_oob_free= innodb_free_oob;
+        innobase_hton->binlog_write_xa_prepare_ordered=
+          ibb_write_xa_prepare_ordered;
+        innobase_hton->binlog_write_xa_prepare= ibb_write_xa_prepare;
         innobase_hton->get_binlog_reader= innodb_get_binlog_reader;
         innobase_hton->get_binlog_file_list= innodb_get_binlog_file_list;
         innobase_hton->get_filename= ibb_get_filename;

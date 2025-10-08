@@ -27,7 +27,7 @@ class binlog_cache_data
 {
 public:
   binlog_cache_data(bool precompute_checksums):
-                    engine_binlog_info {0, 0, 0, 0},
+                    engine_binlog_info {0, 0, 0, 0, 0},
                     before_stmt_pos(MY_OFF_T_UNDEF), m_pending(0), status(0),
                     incident(FALSE), precompute_checksums(precompute_checksums),
                     saved_max_binlog_cache_size(0), ptr_binlog_cache_use(0),
@@ -122,6 +122,7 @@ public:
       (*opt_binlog_engine_hton->binlog_oob_reset)
         (&engine_binlog_info.engine_ptr);
     engine_binlog_info.engine_ptr2= nullptr;
+    engine_binlog_info.xa_xid= nullptr;
     engine_binlog_info.out_of_band_offset= 0;
     engine_binlog_info.gtid_offset= 0;
     /* Preserve the engine_ptr for the engine to re-use, was reset above. */

@@ -1944,11 +1944,16 @@ binlog_flush_cache(THD *thd, binlog_cache_mngr *cache_mngr,
     }
 #endif /* WITH_WSREP */
 
-    if (opt_binlog_engine_hton)
+    if (opt_binlog_engine_hton &&
+        likely(!(thd->lex->sql_command == SQLCOM_XA_COMMIT &&
+                 thd->lex->xa_opt != XA_ONE_PHASE)))
     {
       /*
         Write the end_event into the cache, in preparation for sending the
         cache to the engine to be binlogged as a whole.
+
+        Except for user XA COMMIT, where we already wrote the end event into
+        the OOB data that was persisted in the binlog.
       */
       binlog_cache_data *cache_data;
       if (doing_trx || !doing_stmt)
@@ -2125,8 +2130,14 @@ binlog_commit_flush_trx_cache(THD *thd, bool all, binlog_cache_mngr *cache_mngr,
     DBUG_ASSERT(thd->transaction->xid_state.get_state_code() ==
                 XA_PREPARED);
 
-    buflen= serialize_with_xid(thd->transaction->xid_state.get_xid(),
-                               buf, query, q_len);
+    if (opt_binlog_engine_hton)
+      cache_mngr->trx_cache.engine_binlog_info.xa_xid=
+        thd->transaction->xid_state.get_xid();
+    else
+    {
+      buflen= serialize_with_xid(thd->transaction->xid_state.get_xid(),
+                                 buf, query, q_len);
+    }
   }
   Query_log_event end_evt(thd, buf, buflen, TRUE, TRUE, TRUE, 0);
 
@@ -2280,10 +2291,70 @@ inline bool is_preparing_xa(THD *thd)
 }
 
 
-static int binlog_prepare(handlerton *hton, THD *thd, bool all)
+int
+MYSQL_BIN_LOG::log_xa_prepare(THD *thd, bool all)
 {
   /* Do nothing unless the transaction is a user XA. */
-  return is_preparing_xa(thd) ? binlog_commit(thd, all, FALSE) : 0;
+  if (is_preparing_xa(thd) &&
+      thd->ha_data[binlog_hton->slot].ha_info[1].is_started())
+  {
+    if (opt_binlog_engine_hton)
+    {
+      /*
+        Tell the binlog engine to persist the event data for the current
+        transaction, identified by the user-supplied XID.
+        This way, a later XA COMMIT can then be binlogged correctly with the
+        persisted event data, even across server restart.
+      */
+      binlog_cache_mngr *cache_mngr= thd->binlog_setup_trx_data();
+      if (unlikely(!cache_mngr))
+        return 1;
+      binlog_cache_data *cache_data= cache_mngr->get_binlog_cache_data(true);
+      /* Put in the end event. */
+      {
+        Query_log_event end_ev(thd, STRING_WITH_LEN("COMMIT"),
+                               TRUE, TRUE, TRUE, 0);
+        end_ev.cache_type= Log_event::EVENT_TRANSACTIONAL_CACHE;
+        if (write_event(&end_ev, BINLOG_CHECKSUM_ALG_OFF, 0,
+                        &cache_data->cache_log))
+          return 1;
+      }
+      /* Make sure all event data is flushed as OOB. */
+      if (unlikely(my_b_flush_io_cache(&cache_data->cache_log, 0)))
+        return 1;
+      handler_binlog_event_group_info *engine_context=
+        &cache_data->engine_binlog_info;
+      engine_context->xa_xid= thd->transaction->xid_state.get_xid();
+      uchar engine_count= (uchar)ha_count_rw_2pc(thd, true);
+      mysql_mutex_lock(&LOCK_commit_ordered);
+      bool err= (*opt_binlog_engine_hton->binlog_write_xa_prepare_ordered)
+        (engine_context, engine_count);
+      mysql_mutex_unlock(&LOCK_commit_ordered);
+      if (likely(!err))
+        err= (*opt_binlog_engine_hton->binlog_write_xa_prepare)
+          (engine_context, engine_count);
+      cache_mngr->reset(false, true);
+      return err;
+    }
+    else
+      return binlog_commit(thd, all, FALSE);
+  }
+  return 0;
+}
+
+
+static int binlog_prepare(handlerton *hton, THD *thd, bool all)
+{
+  /*
+    ToDo: We do not really need a prepare() hton method in the binlog, we are
+    the transaction coordinator, should do our work in log_xa_prepare().
+
+    There is currently code that looks at registered htons if they have the
+    "prepare" method and use that to decide how the transaction should be
+    handled; until this is refactored, we need to have a prepare method in the
+    binlog which just does nothing.
+  */
+  return 0;
 }
 
 
@@ -4501,7 +4572,8 @@ MYSQL_BIN_LOG::open_engine(handlerton *hton, ulong max_size, const char *dir)
     IO_CACHE cache;
     init_io_cache(&cache, (File)-1, binlog_cache_size, WRITE_CACHE, 0, false,
                   MYF(MY_DONT_CHECK_FILESIZE));
-    handler_binlog_event_group_info engine_context= { nullptr, nullptr, 0, 0 };
+    handler_binlog_event_group_info engine_context=
+      { nullptr, nullptr, nullptr, 0, 0 };
     write_event(&s, BINLOG_CHECKSUM_ALG_OFF, 0, &cache);
     mysql_mutex_lock(&LOCK_commit_ordered);
     (*opt_binlog_engine_hton->binlog_write_direct_ordered) (&cache,
@@ -10442,8 +10514,15 @@ MYSQL_BIN_LOG::write_transaction_or_stmt(group_commit_entry *entry,
   else
   {
     DBUG_ASSERT((entry->using_stmt_cache && !mngr->stmt_cache.empty()) ||
-                (entry->using_trx_cache && !mngr->trx_cache.empty())
-                /* Assert that empty transaction is handled elsewhere. */);
+                (entry->using_trx_cache && !mngr->trx_cache.empty()) ||
+                (entry->using_trx_cache &&
+                 mngr->trx_cache.engine_binlog_info.xa_xid != nullptr)
+                /*
+                  Assert that empty transaction is handled elsewhere.
+                  Except in XA COMMIT, all events are OOB-spilled with the
+                  prepare record, the caches are empty.
+                */
+                );
     if (unlikely((entry->using_stmt_cache && !mngr->stmt_cache.empty()) &&
                  (entry->using_trx_cache && !mngr->trx_cache.empty())))
     {
@@ -10467,9 +10546,16 @@ MYSQL_BIN_LOG::write_transaction_or_stmt(group_commit_entry *entry,
         DBUG_RETURN(ER_ERROR_ON_WRITE);
     }
 
-    binlog_cache_data *cache_data=
-      (entry->using_trx_cache && !mngr->trx_cache.empty()) ?
+    binlog_cache_data *cache_data= entry->using_trx_cache ?
       &mngr->trx_cache : &mngr->stmt_cache;
+    DBUG_ASSERT(!(entry->using_trx_cache &&
+                  mngr->trx_cache.empty() &&
+                  !mngr->stmt_cache.empty())
+                /*
+                  Assert that we do not put the GTID in the trx cache
+                  when the only event data is in the stmt cache.
+                */
+                );
     /*
       The GTID event cannot go first since we only allocate the GTID at binlog
       time. So write the GTID at the very end, and record its offset so that the
@@ -12387,6 +12473,9 @@ static bool write_empty_xa_prepare(THD *thd, binlog_cache_mngr *cache_mngr)
 int TC_LOG_BINLOG::unlog_xa_prepare(THD *thd, bool all)
 {
   DBUG_ASSERT(is_preparing_xa(thd));
+
+  if (opt_binlog_engine_hton)
+    return 0;
 
   binlog_cache_mngr *cache_mngr= thd->binlog_setup_trx_data();
   int cookie= 0;

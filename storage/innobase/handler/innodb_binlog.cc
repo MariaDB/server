@@ -43,6 +43,9 @@ InnoDB implementation of binlog.
 #include "log.h"
 
 
+class ibb_xid_hash;
+
+
 static int innodb_binlog_inited= 0;
 
 pending_lsn_fifo ibb_pending_lsn_fifo;
@@ -89,6 +92,8 @@ size_t total_binlog_used_size;
 
 static bool purge_warning_given= false;
 
+/** References to pending XA PREPARED transactions in the binlog. */
+static ibb_xid_hash *ibb_xa_xid_hash;
 
 #ifdef UNIV_PFS_THREAD
 mysql_pfs_key_t binlog_prealloc_thread_key;
@@ -161,6 +166,8 @@ struct binlog_oob_context {
     decrement again at commit record write or reset/rollback.
   */
   bool pending_refcount;
+  /* Set when the transaction is sealed after writing an XA PREPARE record. */
+  bool is_xa_prepared;
   /*
     The node_list contains the root of each tree in the forest of perfect
     binary trees.
@@ -304,6 +311,30 @@ public:
 };
 
 
+/**
+  Class that keeps track of the oob references etc. for each
+  XA PREPAREd XID.
+*/
+class ibb_xid_hash {
+public:
+  struct xid_elem {
+    XID xid;
+    uint64_t oob_num_nodes;
+    uint64_t oob_first_file_no;
+    uint64_t oob_first_offset;
+    uint64_t oob_last_file_no;
+    uint64_t oob_last_offset;
+  };
+  HASH xid_hash;
+  mysql_mutex_t xid_mutex;
+
+  ibb_xid_hash();
+  ~ibb_xid_hash();
+  bool add_xid(const XID *xid, const binlog_oob_context *c);
+  xid_elem *grab_xid(const XID *xid);
+};
+
+
 struct chunk_data_cache : public chunk_data_base {
   IO_CACHE *cache;
   binlog_oob_context *oob_ctx;
@@ -333,7 +364,35 @@ struct chunk_data_cache : public chunk_data_base {
     unsigned char *p= header_buf;
     ut_ad(c);
     oob_ctx= c;
-    if (c && c->node_list_len)
+    if (UNIV_UNLIKELY(!c))
+      ;
+    else if (UNIV_UNLIKELY(binlog_info->xa_xid != nullptr))
+    {
+      ibb_xid_hash::xid_elem *elem=
+        ibb_xa_xid_hash->grab_xid(binlog_info->xa_xid);
+      ut_a(elem != nullptr
+           /*
+             The XID must always be found, else we have a serious
+             inconsistency between the server layer and binlog state.
+             In case of inconsistency, better crash than leave a corrupt
+             binlog.
+           */
+           );
+      ut_ad(binlog_info->engine_ptr2 == nullptr);
+      if (UNIV_LIKELY(elem->oob_num_nodes > 0))
+      {
+        p= compr_int_write(p, elem->oob_num_nodes);
+        p= compr_int_write(p, elem->oob_first_file_no);
+        p= compr_int_write(p, elem->oob_first_offset);
+        p= compr_int_write(p, elem->oob_last_file_no);
+        p= compr_int_write(p, elem->oob_last_offset);
+        p= compr_int_write(p, 0);
+      }
+      else
+        p= compr_int_write(p, 0);
+      my_free(elem);
+    }
+    else if (c->node_list_len)
     {
       /*
         Link to the out-of-band data. First store the number of nodes; then
@@ -451,6 +510,52 @@ struct chunk_data_cache : public chunk_data_base {
     ut_ad(main_remain >= size2);
     main_remain-= size2;
     return {size + size2, main_remain == 0};
+  }
+};
+
+
+struct chunk_data_xa_prepare : public chunk_data_base {
+  uint32_t data_remain;
+  uint32_t data_sofar;
+  /*
+    Size needed for the XA record data:
+      1 byte type/flag.
+      1 byte engine count.
+      4 bytes formatID
+      1 byte gtrid length
+      1 byte bqual length
+      128 bytes (max) gtrid and bqual strings.
+  */
+  byte buffer[1 + 1 + 4 + 1 + 1 + 128];
+
+  chunk_data_xa_prepare(const XID *xid, uchar engine_count)
+    : data_sofar(0)
+  {
+    /* ToDo: Need the correct data here, like the oob references. To be done when we start doing the XA crash recovery. */
+    buffer[0]= 42 /* ToDo */;
+    buffer[1]= engine_count;
+    int4store(&buffer[2], xid->formatID);
+    ut_a(xid->gtrid_length >= 0 && xid->gtrid_length <= 64);
+    buffer[6]= (uchar)xid->gtrid_length;
+    ut_a(xid->bqual_length >= 0 && xid->bqual_length <= 64);
+    buffer[7]= (uchar)xid->bqual_length;
+    memcpy(&buffer[8], &xid->data[0], xid->gtrid_length);
+    memcpy(&buffer[8 + xid->gtrid_length], &xid->data[xid->gtrid_length],
+           xid->bqual_length);
+    data_remain=
+      static_cast<uint32_t>(8 + xid->gtrid_length + xid->bqual_length);
+  }
+  ~chunk_data_xa_prepare() { }
+
+  virtual std::pair<uint32_t, bool> copy_data(byte *p, uint32_t max_len) final
+  {
+    if (UNIV_UNLIKELY(data_remain <= 0))
+      return {0, true};
+    uint32_t size= data_remain > max_len ? max_len : data_remain;
+    memcpy(p, buffer + data_sofar, size);
+    data_remain-= size;
+    data_sofar+= size;
+    return {size, data_remain == 0};
   }
 };
 
@@ -1232,6 +1337,8 @@ innodb_binlog_startup_init()
   fsp_binlog_init();
   mysql_mutex_init(fsp_purge_binlog_mutex_key, &purge_binlog_mutex, nullptr);
   binlog_diff_state.init();
+  ibb_xa_xid_hash= new ibb_xid_hash();
+
   innodb_binlog_inited= 1;
 }
 
@@ -1753,6 +1860,7 @@ void innodb_binlog_close(bool shutdown)
 
   if (shutdown && innodb_binlog_inited >= 1)
   {
+    delete ibb_xa_xid_hash;
     binlog_diff_state.free();
     fsp_binlog_shutdown();
     mysql_mutex_destroy(&purge_binlog_mutex);
@@ -2220,6 +2328,7 @@ alloc_oob_context(uint32 list_length= 10)
     c->node_list_len= 0;
     c->secondary_ctx= nullptr;
     c->pending_refcount= false;
+    c->is_xa_prepared= false;
   }
   else
     my_error(ER_OUTOFMEMORY, MYF(0), needed);
@@ -2266,6 +2375,7 @@ reset_oob_context(binlog_oob_context *c)
   }
   c->node_list_len= 0;
   c->secondary_ctx= nullptr;
+  c->is_xa_prepared= false;
 }
 
 
@@ -2370,6 +2480,11 @@ innodb_binlog_oob_ordered(THD *thd, const unsigned char *data, size_t data_len,
     *engine_data= c= alloc_oob_context();
   if (UNIV_UNLIKELY(!c))
     return true;
+  if (UNIV_UNLIKELY(c->is_xa_prepared))
+  {
+    my_error(ER_XAER_RMFAIL, MYF(0), "IDLE");
+    return true;
+  }
 
   if (stm_start_data)
   {
@@ -3590,6 +3705,91 @@ pending_lsn_fifo::add_to_fifo(uint64_t lsn, uint64_t file_no, uint64_t offset)
 }
 
 
+static const uchar *get_xid_hash_key(const void *p, size_t *out_len, my_bool)
+{
+  const XID *xid= &(reinterpret_cast<const ibb_xid_hash::xid_elem *>(p)->xid);
+  *out_len= xid->key_length();
+  return xid->key();
+}
+
+
+ibb_xid_hash::ibb_xid_hash()
+{
+  mysql_mutex_init(ibb_xid_hash_mutex_key, &xid_mutex, nullptr);
+  my_hash_init(mem_key_binlog, &xid_hash, &my_charset_bin, 32, 0,
+               sizeof(XID), get_xid_hash_key, nullptr, MYF(HASH_UNIQUE));
+}
+
+
+ibb_xid_hash::~ibb_xid_hash()
+{
+  for (uint32 i= 0; i < xid_hash.records; ++i)
+    my_free(my_hash_element(&xid_hash, i));
+  my_hash_free(&xid_hash);
+  mysql_mutex_destroy(&xid_mutex);
+}
+
+
+bool
+ibb_xid_hash::add_xid(const XID *xid, const binlog_oob_context *c)
+{
+  xid_elem *e=
+    (xid_elem *)my_malloc(mem_key_binlog, sizeof(xid_elem), MYF(MY_WME));
+  if (!e)
+  {
+    my_error(ER_OUTOFMEMORY, MYF(0), (int)sizeof(xid_elem));
+    return true;
+  }
+  memcpy(&e->xid, xid, sizeof(e->xid));
+  if (UNIV_LIKELY(c->node_list_len > 0))
+  {
+    uint32_t last= c->node_list_len-1;
+    e->oob_num_nodes= c->node_list[last].node_index + 1;
+    e->oob_first_file_no= c->first_node_file_no;
+    e->oob_first_offset= c->first_node_offset;
+    e->oob_last_file_no= c->node_list[last].file_no;
+    e->oob_last_offset= c->node_list[last].offset;
+  }
+  else
+  {
+    e->oob_num_nodes= 0;
+    e->oob_first_file_no= 0;
+    e->oob_first_offset= 0;
+    e->oob_last_file_no= 0;
+    e->oob_last_offset= 0;
+  }
+  mysql_mutex_lock(&xid_mutex);
+  if (my_hash_insert(&xid_hash, (uchar *)e))
+  {
+    mysql_mutex_unlock(&xid_mutex);
+    my_free(e);
+    return true;
+  }
+  mysql_mutex_unlock(&xid_mutex);
+  return false;
+}
+
+
+/*
+  Look up an XID in the internal XID hash.
+  Remove the entry found (if any) and return it.
+*/
+ibb_xid_hash::xid_elem *
+ibb_xid_hash::grab_xid(const XID *xid)
+{
+  xid_elem *e= nullptr;
+  size_t key_len= 0;
+  const uchar *key_ptr= get_xid_hash_key(xid, &key_len, 1);
+  uchar *rec= my_hash_search(&xid_hash, key_ptr, key_len);
+  if (UNIV_LIKELY(rec != nullptr))
+  {
+    e= reinterpret_cast<xid_elem *>(rec);
+    my_hash_delete(&xid_hash, rec);
+  }
+  return e;
+}
+
+
 void
 ibb_get_filename(char name[FN_REFLEN], uint64_t file_no)
 {
@@ -3689,6 +3889,38 @@ ibb_group_commit(THD *thd, handler_binlog_event_group_info *binlog_info)
     }
     ibb_pending_lsn_fifo.record_commit(c);
   }
+}
+
+
+bool
+ibb_write_xa_prepare_ordered(handler_binlog_event_group_info *binlog_info,
+                             uchar engine_count)
+{
+  mtr_t mtr;
+  binlog_oob_context *c=
+    static_cast<binlog_oob_context *>(binlog_info->engine_ptr);
+  // ToDo: Here need also the oob ref.
+  chunk_data_xa_prepare chunk_data(binlog_info->xa_xid, engine_count);
+  mtr.start();
+  fsp_binlog_write_rec(&chunk_data, &mtr, FSP_BINLOG_TYPE_XA_PREPARE,
+                       c->lf_pins);
+  mtr.commit();
+  return false;
+}
+
+
+bool
+ibb_write_xa_prepare(handler_binlog_event_group_info *binlog_info,
+                     uchar engine_count)
+{
+  binlog_oob_context *c=
+    static_cast<binlog_oob_context *>(binlog_info->engine_ptr);
+  ut_ad(binlog_info->xa_xid != nullptr);
+  if (ibb_xa_xid_hash->add_xid(binlog_info->xa_xid, c))
+    return true;
+  // ToDo increment xa refcount.
+  // ToDo also need the fsync here, if IFLATC=1. Or log write for IFLATC=2.
+  return false;
 }
 
 

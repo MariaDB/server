@@ -64,6 +64,7 @@ class TC_LOG
                             bool need_prepare_ordered,
                             bool need_commit_ordered) = 0;
   virtual int unlog(ulong cookie, my_xid xid)=0;
+  virtual int log_xa_prepare(THD *thd, bool all)= 0;
   virtual int unlog_xa_prepare(THD *thd, bool all)= 0;
   virtual void commit_checkpoint_notify(void *cookie)= 0;
 
@@ -119,6 +120,10 @@ public:
     return 1;
   }
   int unlog(ulong cookie, my_xid xid) override  { return 0; }
+  int log_xa_prepare(THD *thd, bool all) override
+  {
+    return 0;
+  }
   int unlog_xa_prepare(THD *thd, bool all) override
   {
     return 0;
@@ -206,6 +211,10 @@ class TC_LOG_MMAP: public TC_LOG
   int log_and_order(THD *thd, my_xid xid, bool all,
                     bool need_prepare_ordered, bool need_commit_ordered) override;
   int unlog(ulong cookie, my_xid xid) override;
+  int log_xa_prepare(THD *thd, bool all) override
+  {
+    return 0;
+  }
   int unlog_xa_prepare(THD *thd, bool all) override
   {
     return 0;
@@ -935,6 +944,7 @@ public:
   int log_and_order(THD *thd, my_xid xid, bool all,
                     bool need_prepare_ordered, bool need_commit_ordered) override;
   int unlog(ulong cookie, my_xid xid) override;
+  int log_xa_prepare(THD *thd, bool all) override;
   int unlog_xa_prepare(THD *thd, bool all) override;
   void commit_checkpoint_notify(void *cookie) override;
   int recover(LOG_INFO *linfo, const char *last_log_name, IO_CACHE *first_log,
