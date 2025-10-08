@@ -1,0 +1,11 @@
+--- storage/spider/mysql-test/spider/bugfix/r/mdev_25116.result	2025-10-01 11:47:32.236431715 +1000
++++ storage/spider/mysql-test/spider/bugfix/r/mdev_25116.reject	2025-10-01 15:21:13.712570878 +1000
+@@ -30,7 +30,7 @@
+ N
+ SHOW STATUS LIKE 'Spider_direct_aggregate';
+ Variable_name	Value
+-Spider_direct_aggregate	1
++Spider_direct_aggregate	0
+ set spider_direct_aggregate=@old_spider_direct_aggregate;
+ connection master_1;
+ DROP DATABASE IF EXISTS auto_test_local;

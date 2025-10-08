@@ -6900,6 +6900,9 @@ Field *spider_db_find_field_in_item_list(
   @return                   Error code.
 */
 
+/* TODO: if an ER_SPIDER_COND_SKIP_NUM would be emitted, we should do
+  a check for str. If it is non-NULL then the failure should be
+  different because we are in execution stage */
 int spider_db_print_item_type(
   Item *item,
   Field *field,
@@ -6919,12 +6922,15 @@ int spider_db_print_item_type(
     const auto rtype= ((Item_ref*)item)->ref_type();
     /*
       The presence of an Item_aggregate_ref tends to lead to the query
-      being broken at the execution stage.
+      being broken at the execution stage for gbh, so we disable it at
+      the prepare stage (str == NULL implies use of gbh at prepare
+      stage)
     */
     if (rtype == Item_ref::AGGREGATE_REF && !str)
       DBUG_RETURN(ER_SPIDER_COND_SKIP_NUM);
-    DBUG_ASSERT(rtype != Item_ref::AGGREGATE_REF);
-    if (rtype == Item_ref::DIRECT_REF)
+    /* Allows MDEV-32907 case to work for sh */
+    else if (rtype == Item_ref::AGGREGATE_REF ||
+             rtype == Item_ref::DIRECT_REF)
     {
       item= item->real_item();
       DBUG_PRINT("info", ("spider new COND type=%d", item->type()));
@@ -6973,6 +6979,7 @@ int spider_db_print_item_type(
     case Item::INSERT_VALUE_ITEM:
       DBUG_RETURN(spider_db_open_item_insert_value((Item_insert_value *) item,
         field, spider, str, alias, alias_length, dbton_id, use_fields, fields));
+      /* TODO: consider adding SUBSELECT_ITEM support for spider sh */
     case Item::SUBSELECT_ITEM:
     case Item::TRIGGER_FIELD_ITEM:
     case Item::EXPR_CACHE_ITEM:
@@ -7134,6 +7141,10 @@ int spider_db_open_item_ident(
   int error_num, field_name_length;
   SPIDER_SHARE *share = spider->share;
   DBUG_ENTER("spider_db_open_item_ident");
+  /* Likely tmp_field - see Item_ident::print */
+  /* TODO: find test case that covers this, if possible */
+  if (!str && (!item_ident->field_name.str || !item_ident->field_name.str[0]))
+    DBUG_RETURN(ER_SPIDER_COND_SKIP_NUM);
   if (
     item_ident->cached_field_index != NO_CACHED_FIELD_INDEX &&
     item_ident->cached_table

@@ -1256,6 +1256,8 @@ public:
     spider_db_copy_table *tgt_ct,
     ulong sql_type
   ) = 0;
+  virtual int execute_sql_for_sh(SPIDER_CONN *conn, char *db,
+                                 int quick_mode, int *need_mon) { return 0; }
   virtual int execute_sql(
     ulong sql_type,
     SPIDER_CONN *conn,

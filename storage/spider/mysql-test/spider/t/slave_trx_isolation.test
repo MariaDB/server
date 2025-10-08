@@ -1,3 +1,5 @@
+# TODO(MDEV-37569)
+--source include/no_view_protocol.inc
 --source ../include/slave_trx_isolation_init.inc
 --echo
 --echo drop and create databases

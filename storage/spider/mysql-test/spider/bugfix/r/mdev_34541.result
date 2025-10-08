@@ -17,9 +17,9 @@ CREATE TABLE t6 (c INT KEY) ENGINE=InnoDB PARTITION BY RANGE (c) (PARTITION p VA
 CREATE TABLE t7 (a INT) ENGINE=Spider COMMENT='WRAPPER "mysql",SRV "srv",TABLE "t"';
 CREATE TABLE t8 (c INT) ENGINE=Spider COMMENT='WRAPPER "mysql",SRV "srv",TABLE "t"';
 SELECT * FROM t8;
-ERROR HY000: Remote table 'test.t' is not found
+Got one of the listed errors
 CREATE TEMPORARY TABLE t7 (c INT) ENGINE=InnoDB SELECT * FROM t7;
-ERROR HY000: Remote table 'test.t' is not found
+Got one of the listed errors
 CALL foo;
 ERROR 42000: PROCEDURE test.foo does not exist
 CREATE TEMPORARY TABLE t7 (c INT) ENGINE=InnoDB;

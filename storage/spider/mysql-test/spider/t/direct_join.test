@@ -156,7 +156,10 @@ if ($USE_CHILD_GROUP2)
 
 --connection master_1
 --disable_ps2_protocol
+# TODO(MDEV-37810)
+--disable_view_protocol
 SELECT a.a, c.b, c.c FROM tbl_a a, tbl_b b, tbl_c c WHERE a.a = b.a and a.a = c.a ORDER BY a.b DESC LIMIT 1,2;
+--enable_view_protocol
 
 if ($USE_CHILD_GROUP2)
 {
@@ -306,7 +309,10 @@ if ($USE_CHILD_GROUP2)
 
 --connection master_1
 --disable_ps2_protocol
+# TODO(MDEV-37810)
+--disable_view_protocol
 SELECT count(0) FROM tbl_person tp INNER JOIN tbl_ncd_cm_person tncp ON tp.id = tncp.person_id WHERE 1 = 1 AND tp.hr_status != "99" AND tp.hr_status != "2" AND tp.region_code LIKE CONCAT(CONCAT('%', '51041110620301', '%')) AND tp.id = '24FC3F0A5119432BAE13DD65AABAA39C' AND tncp.diseaseKind_id = '52A0328740914BCE86ED10A4D2521816' AND tp.region = 510411;
+--enable_view_protocol
 if ($USE_CHILD_GROUP2)
 {
   if (!$OUTPUT_CHILD_GROUP2)

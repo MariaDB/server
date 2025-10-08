@@ -1,0 +1,18 @@
+--- storage/spider/mysql-test/spider/bugfix/r/mdev_29502.result	2025-10-01 11:47:30.172447732 +1000
++++ storage/spider/mysql-test/spider/bugfix/r/mdev_29502.reject	2025-10-01 15:35:00.873079021 +1000
+@@ -61,13 +61,13 @@
+ Y	97
+ SHOW STATUS LIKE 'Spider_direct_aggregate';
+ Variable_name	Value
+-Spider_direct_aggregate	2
++Spider_direct_aggregate	0
+ SELECT MAX(a), IF(COUNT(a > 0),'Y','N') FROM t1;
+ MAX(a)	IF(COUNT(a > 0),'Y','N')
+ 97	Y
+ SHOW STATUS LIKE 'Spider_direct_aggregate';
+ Variable_name	Value
+-Spider_direct_aggregate	4
++Spider_direct_aggregate	0
+ DROP TABLE t, t1;
+ set spider_direct_aggregate=@old_spider_direct_aggregate;
+ DROP SERVER srv_mdev_29502;

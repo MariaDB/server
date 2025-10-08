@@ -139,7 +139,7 @@ public:
 
   /*
     Index of the table in FROM tables, for the use of direct
-    execution by gbh
+    execution by gbh or sh
   */
   uint                  idx_for_direct_join;
   /*

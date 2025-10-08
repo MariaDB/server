@@ -41,6 +41,7 @@
 #include "spd_direct_sql.h"
 #include "spd_malloc.h"
 #include "spd_group_by_handler.h"
+#include "spd_select_handler.h"
 #include "spd_init_query.h"
 
 /* Background thread management */
@@ -6284,6 +6285,7 @@ int spider_db_init(
   spider_hton->drop_database = spider_drop_database;
   spider_hton->show_status = spider_show_status;
   spider_hton->create_group_by = spider_create_group_by_handler;
+  spider_hton->create_select = spider_create_select_handler;
   spider_hton->table_options= spider_table_option_list;
 
   if (my_gethwaddr((uchar *) addr))

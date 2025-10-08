@@ -2285,6 +2285,11 @@ public:
   virtual bool cleanup_excluding_const_fields_processor (void *arg)
   { return cleanup_processor(arg); }
   virtual bool collect_item_field_processor(void *arg) { return 0; }
+  bool collect_item_processor(void *arg)
+  {
+    ((List<Item> *) arg)->push_back(this);
+    return 0;
+  }
   virtual bool unknown_splocal_processor(void *arg) { return 0; }
   virtual bool collect_outer_ref_processor(void *arg) {return 0; }
   virtual bool check_inner_refs_processor(void *arg) { return 0; }

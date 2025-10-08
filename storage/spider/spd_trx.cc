@@ -3571,8 +3571,8 @@ void spider_trx_set_link_idx_for_all(
   SPIDER_SHARE *share = spider->share;
   long *link_statuses = share->link_statuses;
   uint *conn_link_idx = spider->conn_link_idx;
-  int link_count = share->link_count;
-  int all_link_count = share->all_link_count;
+  uint link_count = share->link_count;
+  uint all_link_count = share->all_link_count;
   uchar *conn_can_fo = spider->conn_can_fo;
   DBUG_ENTER("spider_trx_set_link_idx_for_all");
   DBUG_PRINT("info",("spider set link_count=%d", link_count));
