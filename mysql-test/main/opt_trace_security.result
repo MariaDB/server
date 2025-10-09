@@ -201,6 +201,12 @@ select * from db1.v1	{
         "select_id": 1,
         "steps": [
           {
+            "transformations_to_joins": {
+              "transformations": ["parenthesis_removal"],
+              "expanded_query": "select db1.t1.a AS a from t1"
+            }
+          },
+          {
             "table_dependencies": [
               {
                 "table": "t1",

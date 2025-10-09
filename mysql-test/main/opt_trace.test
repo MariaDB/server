@@ -1340,6 +1340,35 @@ select json_detailed(json_extract(trace, '$**.prune_partitions')) as out1
 from information_schema.optimizer_trace;
 drop table t1;
 
+--echo #
+--echo # MDEV-33436 Transform OUTER JOIN to INNER JOIN in subqueries used with IN operator
+--echo #            (test presence of the transformation in the trace)
+--echo #
+CREATE TABLE t1 (a INT, b INT);
+CREATE TABLE t2 (a INT, b INT);
+CREATE TABLE t3 (a INT, b INT);
+
+INSERT INTO t1 VALUES (1,1), (2,2), (3,3);
+INSERT INTO t2 VALUES (1,1), (2,2), (3,3);
+INSERT INTO t3 VALUES (1,1), (2,2), (3,3);
+
+SET @save_optimizer_switch_mdev33436 = @@optimizer_switch;
+SET optimizer_switch='semijoin=off';
+
+--disable_ps2_protocol
+--echo # LEFT JOIN transformed to INNER JOIN
+SELECT a
+FROM t1
+WHERE a IN (SELECT t3.a + t2.a
+            FROM t2 LEFT JOIN t3 ON t3.b = t2.a);
+
+SELECT json_detailed(json_extract(trace, '$**.transformations_to_joins')) AS out1
+FROM information_schema.optimizer_trace;
+--enable_ps2_protocol
+
+DROP TABLE t1, t2, t3;
+SET optimizer_switch = @save_optimizer_switch_mdev33436;
+
 set  @@optimizer_switch= @save_optimizer_switch;
 set  @@use_stat_tables= @save_use_stat_tables;
 set  @@histogram_size= @save_histogram_size;
