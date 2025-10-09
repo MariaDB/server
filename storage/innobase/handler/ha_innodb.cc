@@ -261,20 +261,6 @@ void set_my_errno(int err)
 	errno = err;
 }
 
-/** Checks whether the file name belongs to a partition of a table.
-@param[in]	file_name	file name
-@return pointer to the end of the table name part of the file name, or NULL */
-static
-char*
-is_partition(
-/*=========*/
-	char*		file_name)
-{
-	/* We look for pattern #P# to see if the table is partitioned
-	MariaDB table. */
-	return strstr(file_name, table_name_t::part_suffix);
-}
-
 
 
 /** Checks whether the file name belongs to a to the hlindex
@@ -1866,18 +1852,6 @@ static int innobase_wsrep_set_checkpoint(handlerton *hton, const XID *xid);
 static int innobase_wsrep_get_checkpoint(handlerton* hton, XID* xid);
 #endif /* WITH_WSREP */
 
-
-static inline size_t
-normalize_table_name(
-	char*		norm_name,
-	size_t		norm_name_size,
-	const char*	name)
-{
-	return normalize_table_name_c_low(norm_name, norm_name_size,
-					name, IF_WIN(true,false));
-}
-
-
 ulonglong ha_innobase::table_version() const
 {
   /* This is either "garbage" or something that was assigned
@@ -1902,7 +1876,7 @@ static int innodb_check_version(handlerton *hton, const char *path,
     DBUG_RETURN(0);
 
   char norm_path[FN_REFLEN];
-  normalize_table_name(norm_path, sizeof(norm_path), path);
+  normalize_table_name(norm_path, sizeof norm_path, path);
 
   if (dict_table_t *table= dict_table_open_on_name(norm_path, false,
                                                    DICT_ERR_IGNORE_NONE))
@@ -5177,21 +5151,11 @@ ha_innobase::table_cache_type()
 /** Normalizes a table name string.
 A normalized name consists of the database name catenated to '/'
 and table name. For example: test/mytable.
-On Windows, normalization puts both the database name and the
-table name always to lower case if "set_lower_case" is set to TRUE.
-@param[out]	norm_name	Normalized name, null-terminated.
-@param[in]	name		Name to normalize.
-@param[in]	set_lower_case	True if we also should fold to lower case. */
-size_t
-normalize_table_name_c_low(
-/*=======================*/
-	char*           norm_name,      /* out: normalized name as a
-					null-terminated string */
-	size_t          norm_name_size, /*!< in: number of bytes available
-					in norm_name*/
-	const char*     name,           /* in: table name string */
-	bool            set_lower_case) /* in: TRUE if we want to set
-					 name to lower case */
+@param norm_name        Normalized name, null-terminated.
+@param norm_name_size   size of the norm_name buffer
+@param name             Name to normalize */
+size_t normalize_table_name(char *norm_name, size_t norm_name_size,
+                            const char *name) noexcept
 {
 	const char* name_ptr;
 	ulint	name_len;
@@ -5228,8 +5192,7 @@ normalize_table_name_c_low(
 
 	db_ptr = ptr + 1;
 	return Identifier_chain2({db_ptr, db_len}, {name_ptr, name_len}).
-		make_sep_name_opt_casedn(norm_name, norm_name_size, '/',
-					set_lower_case);
+		make_sep_name(norm_name, norm_name_size, '/');
 }
 
 create_table_info_t::create_table_info_t(
@@ -5305,8 +5268,8 @@ test_normalize_table_name_low()
 		       " testing \"%s\", expected \"%s\"... ",
 		       test_data[i][0], test_data[i][1]);
 
-		normalize_table_name_c_low(
-			norm_name, sizeof(norm_name), test_data[i][0], FALSE);
+		normalize_table_name(
+			norm_name, sizeof norm_name, test_data[i][0]);
 
 		if (strcmp(norm_name, test_data[i][1]) == 0) {
 			printf("ok\n");
@@ -5858,8 +5821,8 @@ ha_innobase::open(const char* name, int, uint)
 	m_upd_buf_size = 0;
 	m_disable_rowid_filter = false;
 
-	char*	is_part = is_partition(norm_name);
-	THD*	thd = ha_thd();
+	const char* is_part = dict_is_partition(norm_name);
+	THD* thd = ha_thd();
 	dict_table_t* ib_table = open_dict_table(name, norm_name, is_part,
 						 DICT_ERR_IGNORE_FK_NOKEY);
 
@@ -6179,29 +6142,25 @@ ha_innobase::open_dict_table(
 		if (lower_case_table_names == 1) {
 			char	par_case_name[FN_REFLEN];
 
-#ifndef _WIN32
 			/* Check for the table using lower
 			case name, including the partition
 			separator "P" */
 			system_charset_info->casedn_z(
 				norm_name, strlen(norm_name),
 				par_case_name, sizeof(par_case_name));
-#else
-			/* On Windows platfrom, check
-			whether there exists table name in
-			system table whose name is
-			not being normalized to lower case */
-			normalize_table_name_c_low(
-				par_case_name, sizeof(par_case_name),
-				table_name, false);
-#endif
 			/* FIXME: try_drop_aborted */
 			ib_table = dict_table_open_on_name(
 				par_case_name, false, ignore_err);
 		}
-
+#ifdef _WIN32
+		/*
+		Omit the warning below, we know we used to convert
+		#P# to lowercase on Windows (we do not do that anymore).
+		Mostly likely, we have a partitioned table from an
+		older MariaDB version.
+		*/
+#else
 		if (ib_table != NULL) {
-#ifndef _WIN32
 			sql_print_warning("Partition table %s opened"
 					  " after converting to lower"
 					  " case. The table may have"
@@ -6210,18 +6169,8 @@ ha_innobase::open_dict_table(
 					  " Please recreate table in"
 					  " the current file system\n",
 					  norm_name);
-#else
-			sql_print_warning("Partition table %s opened"
-					  " after skipping the step to"
-					  " lower case the table name."
-					  " The table may have been"
-					  " moved from a case sensitive"
-					  " file system. Please"
-					  " recreate table in the"
-					  " current file system\n",
-					  norm_name);
-#endif
 		}
+#endif
 	}
 
 	DBUG_RETURN(ib_table);
@@ -13563,17 +13512,16 @@ int ha_innobase::delete_table(const char *name)
 
   {
     char norm_name[FN_REFLEN];
-    size_t norm_len= normalize_table_name_c_low(norm_name, sizeof(norm_name),
-    						name, IF_WIN(true,false));
+    size_t norm_len= normalize_table_name(norm_name, sizeof(norm_name), name);
     span<const char> n{norm_name, norm_len};
 
     dict_sys.lock(SRW_LOCK_CALL);
     table= dict_sys.load_table(n, DICT_ERR_IGNORE_DROP);
 #ifdef WITH_PARTITION_STORAGE_ENGINE
-    if (!table && lower_case_table_names == 1 && is_partition(norm_name))
+    if (!table && lower_case_table_names == 1 && dict_is_partition(norm_name))
     {
-      norm_len= normalize_table_name_c_low(norm_name, sizeof(norm_name),
-      					name, IF_WIN(false, true));
+      norm_len= system_charset_info->casedn_z(name, strlen(name),
+                                              norm_name, sizeof norm_name);
       n= {norm_name, norm_len};
       table= dict_sys.load_table(n, DICT_ERR_IGNORE_DROP);
     }
@@ -13845,26 +13793,16 @@ static dberr_t innobase_rename_table(trx_t *trx, const char *from,
 	if (error != DB_SUCCESS) {
 		if (error == DB_TABLE_NOT_FOUND
 		    && lower_case_table_names == 1) {
-			char*	is_part = is_partition(norm_from);
+			const char* is_part = dict_is_partition(norm_from);
 
 			if (is_part) {
 				char	par_case_name[FN_REFLEN];
-#ifndef _WIN32
 				/* Check for the table using lower
 				case name, including the partition
 				separator "P" */
 				system_charset_info->casedn_z(
 					norm_from, strlen(norm_from),
 					par_case_name, sizeof(par_case_name));
-#else
-				/* On Windows platfrom, check
-				whether there exists table name in
-				system table whose name is
-				not being normalized to lower case */
-				normalize_table_name_c_low(
-					par_case_name, sizeof(par_case_name),
-					from, false);
-#endif /* _WIN32 */
 				trx_start_if_not_started(trx, true);
 				error = row_rename_table_for_mysql(
 					par_case_name, norm_to, trx,
@@ -13873,22 +13811,12 @@ static dberr_t innobase_rename_table(trx_t *trx, const char *from,
 		}
 
 		if (error == DB_SUCCESS) {
-#ifndef _WIN32
 			sql_print_warning("Rename partition table %s"
 					  " succeeds after converting to lower"
 					  " case. The table may have"
 					  " been moved from a case"
 					  " in-sensitive file system.\n",
 					  norm_from);
-#else
-			sql_print_warning("Rename partition table %s"
-					  " succeeds after skipping the step to"
-					  " lower case the table name."
-					  " The table may have been"
-					  " moved from a case sensitive"
-					  " file system.\n",
-					  norm_from);
-#endif /* _WIN32 */
 		}
 	}
 
@@ -20334,9 +20262,9 @@ innobase_rename_vc_templ(
 	/* For partition table, remove the partition name and use the
 	"main" table name to build the template */
 
-	if (char *is_part = is_partition(tbname)) {
-		*is_part = '\0';
+	if (const char *is_part = dict_is_partition(tbname)) {
 		tbnamelen = ulint(is_part - tbname);
+		tbname[tbnamelen]= 0;
 	}
 	else if (char *is_hli = is_hlindex(tbname)) {
 		*is_hli = '\0';

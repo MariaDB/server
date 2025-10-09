@@ -5,6 +5,8 @@
 # we do the windows specific relative directory testing
 
 --source include/windows.inc
+--source include/have_lowercase1.inc
+--source include/have_case_insensitive_file_system.inc
 
 CREATE TABLE t1 (c1 longtext);
 INSERT INTO t1 values ('a');
