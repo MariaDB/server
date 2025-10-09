@@ -2962,21 +2962,15 @@ int spider_commit(
     {
       if (trx->trx_xa)
       {
-        if (trx->internal_xa && !trx->trx_xa_prepared)
+        if ((trx->internal_xa || thd->lex->xa_opt == XA_ONE_PHASE) &&
+            !trx->trx_xa_prepared)
         {
           if (
             (error_num = spider_internal_xa_prepare(
               thd, trx, table_xa, table_xa_member, TRUE))
           ) {
-/*
-            if (!thd_test_options(thd, OPTION_NOT_AUTOCOMMIT | OPTION_BEGIN))
-            {
-*/
               /* rollback for semi_trx */
               spider_rollback(hton, thd, all);
-/*
-            }
-*/
             DBUG_RETURN(error_num);
           }
           trx->trx_xa_prepared = TRUE;
