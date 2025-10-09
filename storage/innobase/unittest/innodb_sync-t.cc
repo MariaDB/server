@@ -31,7 +31,11 @@ size_t n_critical= 1;
 
 #define ASSERT_CRITICAL(value) \
   for (size_t i= 0; i < n_critical; ++i) \
-    assert(critical[i] == value)
+    if (critical[i] != value) \
+    { \
+      assert(false); \
+      ok(false, "Unexpected critical value"); \
+    }
 
 static inline void set_critical(const bool value)
 {
