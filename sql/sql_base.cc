@@ -973,6 +973,8 @@ int close_thread_tables(THD *thd)
 
     if (thd->locked_tables_mode == LTM_LOCK_TABLES)
     {
+      if (thd->lock)
+        (void)thd->binlog_flush_pending_rows_event(TRUE);
       error= 0;
       goto end;
     }

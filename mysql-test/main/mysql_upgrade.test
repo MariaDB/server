@@ -540,7 +540,8 @@ SELECT * FROM mysql.plugin WHERE name='unix_socket';
 --echo #
 
 # The warning appears during mysql_upgrade, before the schema becomes consistent
-call mtr.add_suppression("innodb_(table|index)_stats has length mismatch in the column name table_name");
+call mtr.add_suppression("InnoDB: Fetch of persistent statistics requested for table `mysql`\\.`gtid_slave_pos` but the required system tables mysql\\.innodb_table_stats and mysql\\.innodb_index_stats are not present or have unexpected structure");
+call mtr.add_suppression("InnoDB: Unexpected length of mysql\\.innodb_table_stats\\.table_name");
 # This comes from opening 10.6 sys.host_summary view that uses sys.format_time function,
 # on still inconsistent mysql.proc, in older versions
 call mtr.add_suppression("Column count of mysql.proc is wrong. Expected 21, found 20.");

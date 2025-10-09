@@ -37,11 +37,14 @@ alter server s1 options(host 'server.example.org');
 rename table mysql.servers to mysql.servers_save;
 create table mysql.servers (x int);
 alter server s1 options(host 'server.example.org');
-ERROR HY000: The foreign server name you are trying to reference does not exist. Data source error:  s1
+ERROR HY000: Cannot load from mysql.servers. The table is probably corrupted
+drop server s1;
+ERROR HY000: Cannot load from mysql.servers. The table is probably corrupted
 create server s2 foreign data wrapper foo options(user 'a');
-ERROR HY000: Can't read record in system table
+ERROR HY000: Cannot load from mysql.servers. The table is probably corrupted
 drop table mysql.servers;
 rename table mysql.servers_save to mysql.servers;
+flush privileges;
 drop server s1;
 #
 # MDEV-35641 foreign server "disappears" after ALTERing the servers system table to use innodb and FLUSH PRIVILEGES
@@ -50,3 +53,54 @@ CREATE SERVER s1 FOREIGN DATA WRAPPER mysql OPTIONS (HOST '127.0.0.1');
 ALTER TABLE mysql.servers ENGINE=innodb;
 FLUSH PRIVILEGES;
 drop server s1;
+#
+# MDEV-35622 SEGV, ASAN use-after-poison when reading system table with less than expected number of columns
+# MDEV-37777 upgrade from MySQL 5.7 regression, mysql.servers invalid structure
+#
+# no crash:
+rename table mysql.servers to mysql.servers_save;
+create table mysql.servers like mysql.servers_save;
+alter table mysql.servers drop column owner;
+insert into mysql.servers values(0,0,0,0,0,0,0,0);
+flush privileges;
+ERROR HY000: Cannot load from mysql.servers. The table is probably corrupted
+drop table mysql.servers;
+# w/o PK
+create table mysql.servers like mysql.servers_save;
+alter table mysql.servers drop primary key;
+insert into mysql.servers values(0,0,0,0,0,0,0,0,0);
+flush privileges;
+ERROR HY000: Cannot load from mysql.servers. The table is probably corrupted
+drop table mysql.servers;
+# upgrade is ok
+create table mysql.servers like mysql.servers_save;
+alter table mysql.servers add column Options text;
+create server s1 foreign data wrapper mysql options (host '127.0.0.1');
+flush privileges;
+drop server s1;
+drop table mysql.servers;
+# MySQL 5.7 (MDEV-37777)
+create table mysql.servers like mysql.servers_save;
+alter table mysql.servers modify Host char(64) not null, modify Owner char(64) not null;
+create server s1 foreign data wrapper mysql options (host '127.0.0.1');
+flush privileges;
+drop server s1;
+drop table mysql.servers;
+rename table mysql.servers_save to mysql.servers;
+# plugin
+create table mysql.plugin_save like mysql.plugin;
+alter table mysql.plugin drop column dl;
+install soname "ha_example";
+ERROR HY000: Cannot load from mysql.plugin. The table is probably corrupted
+uninstall soname "ha_example";
+ERROR HY000: Cannot load from mysql.plugin. The table is probably corrupted
+drop table mysql.plugin;
+create table mysql.plugin like mysql.plugin_save;
+alter table mysql.plugin drop primary key;
+install soname "ha_example";
+ERROR HY000: Cannot load from mysql.plugin. The table is probably corrupted
+uninstall soname "ha_example";
+ERROR HY000: Cannot load from mysql.plugin. The table is probably corrupted
+drop table mysql.plugin;
+rename table mysql.plugin_save to mysql.plugin;
+# End of 10.11 tests
