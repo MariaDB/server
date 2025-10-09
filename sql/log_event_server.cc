@@ -6168,8 +6168,15 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
     table->rpl_write_set= table->write_set;
 
     /* WRITE ROWS EVENTS store the bitmap in m_cols instead of m_cols_ai */
-    MY_BITMAP *after_image= ((get_general_type_code() == UPDATE_ROWS_EVENT) ?
-                             &m_cols_ai : &m_cols);
+    MY_BITMAP *after_image;
+    if (get_general_type_code() == UPDATE_ROWS_EVENT)
+    {
+      after_image= &m_cols_ai;
+      /* Must read also after-image columns to be able to update them. */
+      bitmap_union(table->read_set, after_image);
+    }
+    else
+      after_image= &m_cols;
     bitmap_intersect(table->write_set, after_image);
 
     if (table->versioned())

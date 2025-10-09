@@ -122,20 +122,21 @@ row_vers_impl_x_locked_low(
 					clust_index->n_core_fields,
 					ULINT_UNDEFINED, &heap);
 
+	trx_t* trx = nullptr;
 	trx_id = row_get_rec_trx_id(clust_rec, clust_index, clust_offsets);
 	if (trx_id <= caller_trx->max_inactive_id) {
 		/* The transaction history was already purged. */
+	done:
 		mem_heap_free(heap);
-		DBUG_RETURN(0);
+		DBUG_RETURN(trx);
 	}
 
 	ut_ad(!clust_index->table->is_temporary());
 
-	trx_t*	trx;
-
 	if (trx_id == caller_trx->id) {
 		trx = caller_trx;
 		trx->reference();
+		goto done;
 	} else {
 		trx = trx_sys.find(caller_trx, trx_id);
 		if (trx == 0) {
