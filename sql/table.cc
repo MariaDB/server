@@ -789,7 +789,8 @@ err_not_open:
   DBUG_RETURN(share->error);
 }
 
-static bool create_key_infos(const uchar *strpos, const uchar *frm_image_end,
+static bool create_key_infos(THD *thd, const uchar *strpos,
+                             const uchar *frm_image_end,
                              uint keys, KEY *keyinfo, uint new_frm_ver,
                              uint *ext_key_parts, TABLE_SHARE *share, uint len,
                              KEY *first_keyinfo, LEX_STRING *keynames)
@@ -846,6 +847,8 @@ static bool create_key_infos(const uchar *strpos, const uchar *frm_image_end,
       keyinfo->algorithm= HA_KEY_ALG_UNDEF;
       strpos+=4;
     }
+    if (keyinfo->algorithm == HA_KEY_ALG_VECTOR)
+      thd->status_var.feature_vector_index++;
 
     if (i == 0)
     {
@@ -2123,7 +2126,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
     share->set_use_ext_keys_flag(plugin_hton(se_plugin)->flags &
                                  HTON_SUPPORTS_EXTENDED_KEYS);
 
-    if (create_key_infos(disk_buff + 6, frm_image_end, keys, keyinfo,
+    if (create_key_infos(thd, disk_buff + 6, frm_image_end, keys, keyinfo,
                          new_frm_ver, &ext_key_parts,
                          share, len, &first_keyinfo, &keynames))
       goto err;
@@ -2223,7 +2226,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
   }
   else
   {
-    if (create_key_infos(disk_buff + 6, frm_image_end, keys, keyinfo,
+    if (create_key_infos(thd, disk_buff + 6, frm_image_end, keys, keyinfo,
                          new_frm_ver, &ext_key_parts,
                          share, len, &first_keyinfo, &keynames))
       goto err;
@@ -3852,28 +3855,6 @@ bool Virtual_column_info::cleanup_session_expr()
 }
 
 
-bool
-Virtual_column_info::is_equivalent(THD *thd, TABLE_SHARE *share, TABLE_SHARE *vcol_share,
-                                  const Virtual_column_info* vcol, bool &error) const
-{
-  error= true;
-  Item *cmp_expr= vcol->expr->build_clone(thd);
-  if (!cmp_expr)
-    return false;
-  Item::func_processor_rename_table param;
-  param.old_db=    Lex_ident_db(vcol_share->db);
-  param.old_table= Lex_ident_table(vcol_share->table_name);
-  param.new_db=    Lex_ident_db(share->db);
-  param.new_table= Lex_ident_table(share->table_name);
-  cmp_expr->walk(&Item::rename_table_processor, &param, WALK_SUBQUERY);
-
-  error= false;
-  return type_handler()  == vcol->type_handler()
-      && is_stored() == vcol->is_stored()
-      && expr->eq(cmp_expr, true);
-}
-
-
 class Vcol_expr_context
 {
   bool inited;
@@ -4102,7 +4083,7 @@ bool Virtual_column_info::check_access(THD *thd)
     table 'table' and parses it, building an item object for it. The
     pointer to this item is placed into in a Virtual_column_info object
     that is created. After this the function performs
-    semantic analysis of the item by calling the the function
+    semantic analysis of the item by calling the function
     fix_and_check_vcol_expr().  Since the defining expression is part of the table
     definition the item for it is created in table->memroot within the
     special arena TABLE::expr_arena or in the thd memroot for INSERT DELAYED
@@ -4126,6 +4107,7 @@ unpack_vcol_info_from_frm(THD *thd, TABLE *table,
   LEX *old_lex= thd->lex;
   LEX lex;
   bool error;
+  TABLE_LIST *sequence, *last;
   DBUG_ENTER("unpack_vcol_info_from_frm");
 
   DBUG_ASSERT(vcol->expr == NULL);
@@ -4143,11 +4125,12 @@ unpack_vcol_info_from_frm(THD *thd, TABLE *table,
   if (unlikely(error))
     goto end;
 
-  if (lex.current_select->table_list.first[0].next_global)
+  if ((sequence= lex.current_select->table_list.first[0].next_global))
   {
-    /* We are using NEXT VALUE FOR sequence. Remember table name for open */
-    TABLE_LIST *sequence= lex.current_select->table_list.first[0].next_global;
-    sequence->next_global= table->internal_tables;
+    /* We are using NEXT VALUE FOR sequence. Remember table for open */
+    for (last= sequence ; last->next_global ; last= last->next_global)
+      ;
+    last->next_global= table->internal_tables;
     table->internal_tables= sequence;
   }
 
@@ -7830,6 +7813,11 @@ static void do_mark_index_columns(TABLE *table, uint index,
       table->s->primary_key != MAX_KEY && table->s->primary_key != index)
     do_mark_index_columns(table, table->s->primary_key, bitmap, read);
 
+  if (table->versioned(VERS_TRX_ID))
+  {
+    table->vers_start_field()->register_field_in_read_map();
+    table->vers_end_field()->register_field_in_read_map();
+  }
 }
 /*
   mark columns used by key, but don't reset other fields
@@ -8162,6 +8150,19 @@ void TABLE::mark_columns_per_binlog_row_image()
   if (file->row_logging &&
       !ha_check_storage_engine_flag(s->db_type(), HTON_NO_BINLOG_ROW_OPT))
   {
+#ifdef WITH_WSREP
+    /**
+     The marking of all columns will prevent update/set column values for the
+     sequence table. For the sequence table column bitmap sent from master is
+     used.
+    */
+    if (WSREP(thd) && wsrep_thd_is_applying(thd) &&
+        s->sequence && s->primary_key >= MAX_KEY)
+    {
+      DBUG_VOID_RETURN;
+    }
+#endif /* WITH_WSREP */
+
     /* if there is no PK, then mark all columns for the BI. */
     if (s->primary_key >= MAX_KEY)
     {

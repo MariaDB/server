@@ -22,12 +22,13 @@ this program; if not, write to the Free Software Foundation, Inc.,
 Smart ALTER TABLE
 *******************************************************/
 
+#define MYSQL_SERVER
 /* Include necessary SQL headers */
 #include "univ.i"
 #include <debug_sync.h>
 #include <log.h>
-#include <sql_lex.h>
 #include <sql_class.h>
+#include <sql_lex.h>
 #include <sql_table.h>
 #include <mysql/plugin.h>
 #include <strfunc.h>
@@ -2121,17 +2122,18 @@ innobase_fts_check_doc_id_col(
 }
 
 /** Check whether the table is empty.
-@param[in]	table			table to be checked
+@param[in]	prebuilt		table to be checked
 @param[in]	ignore_delete_marked	Ignore the delete marked
 					flag record
 @return true if table is empty */
-static bool innobase_table_is_empty(const dict_table_t *table,
-				    bool ignore_delete_marked=true)
+static bool innobase_table_is_empty(row_prebuilt_t *prebuilt,
+				    bool ignore_delete_marked)
 {
+  const dict_table_t *const table{prebuilt->table};
   if (!table->space)
     return false;
   dict_index_t *clust_index= dict_table_get_first_index(table);
-  mtr_t mtr;
+  mtr_t mtr{prebuilt->trx};
   btr_pcur_t pcur;
   buf_block_t *block;
   page_cur_t *cur;
@@ -2442,7 +2444,7 @@ innodb_instant_alter_column_allowed_reason:
 	for newly added column when table is not empty */
 	if (ha_alter_info->error_if_not_empty
 	    && m_prebuilt->table->space
-	    && !innobase_table_is_empty(m_prebuilt->table)) {
+	    && !innobase_table_is_empty(m_prebuilt, true)) {
 		DBUG_RETURN(HA_ALTER_INPLACE_NOT_SUPPORTED);
 	}
 
@@ -3224,7 +3226,7 @@ innobase_get_foreign_key_info(
 	char*		referenced_table_name = NULL;
 	ulint		num_fk = 0;
 	Alter_info*	alter_info = ha_alter_info->alter_info;
-	const CHARSET_INFO*	cs = thd_charset(trx->mysql_thd);
+	const CHARSET_INFO*	cs = trx->mysql_thd->charset();
 	char db_name[MAX_DATABASE_NAME_LEN + 1];
 	char t_name[MAX_TABLE_NAME_LEN + 1];
 	static_assert(MAX_TABLE_NAME_LEN == MAX_DATABASE_NAME_LEN, "");
@@ -6174,7 +6176,7 @@ add_all_virtual:
 	memset(roll_ptr, 0, sizeof roll_ptr);
 
 	dtuple_t* entry = index->instant_metadata(*row, ctx->heap);
-	mtr_t	mtr;
+	mtr_t mtr{trx};
 	mtr.start();
 	index->set_modified(mtr);
 	btr_pcur_t pcur;
@@ -6686,7 +6688,7 @@ acquire_lock:
 		if (innobase_check_foreigns(
 			    ha_alter_info, old_table,
 			    user_table, ctx->drop_fk, ctx->num_to_drop_fk,
-			    thd_is_strict_mode(ctx->trx->mysql_thd))) {
+			    ctx->trx->mysql_thd->is_strict_mode())) {
 new_clustered_failed:
 			DBUG_ASSERT(ctx->trx != ctx->prebuilt->trx);
 			ctx->trx->rollback();
@@ -7279,7 +7281,8 @@ error_handling_drop_uncached_1:
 			    || !user_table->space) {
 			} else if (ib_uint64_t autoinc
 				   = btr_read_autoinc(clust_index)) {
-				btr_write_autoinc(new_clust_index, autoinc);
+				btr_write_autoinc(ctx->prebuilt->trx,
+						  new_clust_index, autoinc);
 			}
 		}
 
@@ -8005,7 +8008,7 @@ ha_innobase::prepare_inplace_alter_table(
 	/* Ignore the MDL downgrade when table is empty.
 	This optimization is disabled for partition table. */
 	ha_alter_info->mdl_exclusive_after_prepare =
-		innobase_table_is_empty(m_prebuilt->table, false);
+		innobase_table_is_empty(m_prebuilt, false);
 	if (ha_alter_info->online
 	    && ha_alter_info->mdl_exclusive_after_prepare) {
 		ha_alter_info->online = false;
@@ -8592,7 +8595,7 @@ field_changed:
 					heap, indexed_table,
 					col_names, ULINT_UNDEFINED, 0, 0,
 					(ha_alter_info->ignore
-					 || !thd_is_strict_mode(m_user_thd)),
+					 || !m_user_thd->is_strict_mode()),
 					alt_opt.page_compressed,
 					alt_opt.page_compression_level);
 			ha_alter_info->handler_ctx = ctx;
@@ -8748,7 +8751,7 @@ found_col:
 		add_autoinc_col_no,
 		ha_alter_info->create_info->auto_increment_value,
 		autoinc_col_max_value,
-		ha_alter_info->ignore || !thd_is_strict_mode(m_user_thd),
+		ha_alter_info->ignore || !m_user_thd->is_strict_mode(),
 		alt_opt.page_compressed, alt_opt.page_compression_level);
 
 	if (!prepare_inplace_alter_table_dict(
@@ -9931,7 +9934,8 @@ commit_set_autoinc(
 		/* Bulk index creation does not update
 		PAGE_ROOT_AUTO_INC, so we must persist the "last used"
 		value here. */
-		btr_write_autoinc(dict_table_get_first_index(ctx->new_table),
+		btr_write_autoinc(ctx->trx,
+				  dict_table_get_first_index(ctx->new_table),
 				  autoinc - 1, true);
 	} else if ((ha_alter_info->handler_flags
 		    & ALTER_CHANGE_CREATE_OPTION)
@@ -10002,7 +10006,8 @@ commit_set_autoinc(
 			}
 		}
 
-		btr_write_autoinc(dict_table_get_first_index(ctx->new_table),
+		btr_write_autoinc(ctx->trx,
+                                  dict_table_get_first_index(ctx->new_table),
 				  autoinc, true);
 	} else if (ctx->need_rebuild()) {
 		/* No AUTO_INCREMENT value was specified.
@@ -10148,8 +10153,9 @@ innobase_update_foreign_cache(
 	and prevent the table from being evicted from the data
 	dictionary cache (work around the lack of WL#6049). */
 	dict_names_t	fk_tables;
+        mtr_t mtr{ctx->trx};
 
-	err = dict_load_foreigns(user_table->name.m_name,
+	err = dict_load_foreigns(mtr, user_table->name.m_name,
 				 ctx->col_names, 1, true,
 				 DICT_ERR_IGNORE_FK_NOKEY,
 				 fk_tables);
@@ -10160,7 +10166,7 @@ innobase_update_foreign_cache(
 		/* It is possible there are existing foreign key are
 		loaded with "foreign_key checks" off,
 		so let's retry the loading with charset_check is off */
-		err = dict_load_foreigns(user_table->name.m_name,
+		err = dict_load_foreigns(mtr, user_table->name.m_name,
 					 ctx->col_names, 1, false,
 					 DICT_ERR_IGNORE_NONE,
 					 fk_tables);
@@ -10991,7 +10997,7 @@ commit_cache_norebuild(
 				becomes durable, fsp_flags_try_adjust()
 				will perform the equivalent adjustment
 				and warn "adjusting FSP_SPACE_FLAGS". */
-				mtr_t	mtr;
+				mtr_t mtr{trx};
 				mtr.start();
 				if (buf_block_t* b = buf_page_get(
 					    page_id_t(space->id, 0),
@@ -11161,7 +11167,7 @@ Remove statistics for dropped indexes, add statistics for created indexes
 and rename statistics for renamed indexes.
 @param ha_alter_info Data used during in-place alter
 @param ctx In-place ALTER TABLE context
-@param thd MySQL connection
+@param trx user transaction
 */
 static
 void
@@ -11169,7 +11175,7 @@ alter_stats_norebuild(
 /*==================*/
 	Alter_inplace_info*		ha_alter_info,
 	ha_innobase_inplace_ctx*	ctx,
-	THD*				thd)
+	trx_t*				trx)
 {
 	DBUG_ENTER("alter_stats_norebuild");
 	DBUG_ASSERT(!ctx->need_rebuild());
@@ -11186,48 +11192,8 @@ alter_stats_norebuild(
 		DBUG_ASSERT(index->table == ctx->new_table);
 
 		if (!(index->type & DICT_FTS)) {
-			dict_stats_update_for_index(index);
+			dict_stats_update_for_index(trx, index);
 		}
-	}
-
-	DBUG_VOID_RETURN;
-}
-
-/** Adjust the persistent statistics after rebuilding ALTER TABLE.
-Remove statistics for dropped indexes, add statistics for created indexes
-and rename statistics for renamed indexes.
-@param table InnoDB table that was rebuilt by ALTER TABLE
-@param table_name Table name in MySQL
-@param thd MySQL connection
-*/
-static
-void
-alter_stats_rebuild(
-/*================*/
-	dict_table_t*	table,
-	const char*	table_name,
-	THD*		thd)
-{
-	DBUG_ENTER("alter_stats_rebuild");
-
-	if (!table->space || !table->stats_is_persistent()
-	    || dict_stats_persistent_storage_check(false) != SCHEMA_OK) {
-		DBUG_VOID_RETURN;
-	}
-
-	dberr_t	ret = dict_stats_update_persistent(table);
-	if (ret == DB_SUCCESS) {
-		ret = dict_stats_save(table);
-	}
-
-	if (ret != DB_SUCCESS) {
-		push_warning_printf(
-			thd,
-			Sql_condition::WARN_LEVEL_WARN,
-			ER_ALTER_INFO,
-			"Error updating stats for table '%s'"
-			" after table rebuild: %s",
-			table_name, ut_strerr(ret));
 	}
 
 	DBUG_VOID_RETURN;
@@ -11903,9 +11869,7 @@ foreign_fail:
 				(*pctx);
 			DBUG_ASSERT(ctx->need_rebuild());
 
-			alter_stats_rebuild(
-				ctx->new_table, table->s->table_name.str,
-				m_user_thd);
+			alter_stats_rebuild(ctx->new_table, m_prebuilt->trx);
 		}
 	} else {
 		for (inplace_alter_handler_ctx** pctx = ctx_array;
@@ -11915,7 +11879,8 @@ foreign_fail:
 				(*pctx);
 			DBUG_ASSERT(!ctx->need_rebuild());
 
-			alter_stats_norebuild(ha_alter_info, ctx, m_user_thd);
+			alter_stats_norebuild(ha_alter_info, ctx,
+					      m_prebuilt->trx);
 		}
 	}
 

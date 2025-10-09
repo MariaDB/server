@@ -69,7 +69,6 @@ row_vers_non_virtual_fields_equal(
 
 /** Determine if an active transaction has inserted or modified a secondary
 index record.
-@param[in,out]	caller_trx	trx of current thread
 @param[in]	clust_rec	clustered index record
 @param[in]	clust_index	clustered index
 @param[in]	rec		secondary index record
@@ -82,7 +81,6 @@ acquiring trx->mutex, and trx->release_reference() must be invoked
 UNIV_INLINE
 trx_t*
 row_vers_impl_x_locked_low(
-	trx_t*		caller_trx,
 	const rec_t*	clust_rec,
 	dict_index_t*	clust_index,
 	const rec_t*	rec,
@@ -123,7 +121,7 @@ row_vers_impl_x_locked_low(
 					ULINT_UNDEFINED, &heap);
 
 	trx_id = row_get_rec_trx_id(clust_rec, clust_index, clust_offsets);
-	if (trx_id == 0) {
+	if (trx_id <= mtr->trx->max_inactive_id) {
 		/* The transaction history was already purged. */
 		mem_heap_free(heap);
 		DBUG_RETURN(0);
@@ -133,11 +131,11 @@ row_vers_impl_x_locked_low(
 
 	trx_t*	trx;
 
-	if (trx_id == caller_trx->id) {
-		trx = caller_trx;
+	if (trx_id == mtr->trx->id) {
+		trx = mtr->trx;
 		trx->reference();
 	} else {
-		trx = trx_sys.find(caller_trx, trx_id);
+		trx = trx_sys.find(mtr->trx, trx_id);
 		if (trx == 0) {
 			/* The transaction that modified or inserted
 			clust_rec is no longer active, or it is
@@ -397,7 +395,7 @@ row_vers_impl_x_locked(
 	dict_index_t*	index,
 	const rec_offs*	offsets)
 {
-	mtr_t		mtr;
+	mtr_t		mtr{caller_trx};
 	trx_t*		trx;
 	const rec_t*	clust_rec;
 	dict_index_t*	clust_index;
@@ -437,7 +435,7 @@ row_vers_impl_x_locked(
 		trx = 0;
 	} else {
 		trx = row_vers_impl_x_locked_low(
-				caller_trx, clust_rec, clust_index, rec, index,
+				clust_rec, clust_index, rec, index,
 				offsets, &mtr);
 
 		ut_ad(trx == 0 || trx->is_referenced());
@@ -822,7 +820,6 @@ which should be seen by a semi-consistent read. */
 void
 row_vers_build_for_semi_consistent_read(
 /*====================================*/
-	trx_t*		caller_trx,/*!<in/out: trx of current thread */
 	const rec_t*	rec,	/*!< in: record in a clustered index; the
 				caller must have a latch on the page; this
 				latch locks the top of the stack of versions
@@ -867,7 +864,7 @@ row_vers_build_for_semi_consistent_read(
 			rec_trx_id = version_trx_id;
 		}
 
-		if (!trx_sys.is_registered(caller_trx, version_trx_id)) {
+		if (!trx_sys.is_registered(mtr->trx, version_trx_id)) {
 committed_version_trx:
 			/* We found a version that belongs to a
 			committed transaction: return it. */

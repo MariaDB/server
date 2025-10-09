@@ -64,8 +64,7 @@ TARGET_LINK_LIBRARIES(import_util PRIVATE pcre2-posix pcre2-8)
 TARGET_INCLUDE_DIRECTORIES(import_util PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 
 MYSQL_ADD_EXECUTABLE(mariadb-import mysqlimport.cc)
-TARGET_INCLUDE_DIRECTORIES(mariadb-import PRIVATE ${CMAKE_SOURCE_DIR}/tpool)
-TARGET_LINK_LIBRARIES(mariadb-import PRIVATE tpool ${CLIENT_LIB} import_util)
+TARGET_LINK_LIBRARIES(mariadb-import PRIVATE tpool_min ${CLIENT_LIB} import_util)
 
 
 MYSQL_ADD_EXECUTABLE(mariadb-upgrade mysql_upgrade.c COMPONENT Server)

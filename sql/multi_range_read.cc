@@ -164,7 +164,7 @@ handler::multi_range_read_info_const(uint keyno, RANGE_SEQ_IF *seq,
   */
   ulonglong single_point_ranges= 0;
   /*
-    The counter of of single point ranges that we succeded to assign
+    The counter of single point ranges that we succeded to assign
     to some blocks
   */
   ulonglong assigned_single_point_ranges= 0;

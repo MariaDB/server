@@ -43,7 +43,7 @@
 
   The execution of the transformed query (Q1R) follows these steps:
     1. For each row of t1 where t1.b < const a temporary table
-       containing all rows of of t2 with t2.a = t1.a is created
+       containing all rows of t2 with t2.a = t1.a is created
     2. If there are any rows in the temporary table aggregation
        is performed for them
     3. The result of the aggregation is joined with t1.
@@ -155,7 +155,7 @@
   subsets the operation can applied to each subset independently. In this case
   all rows are first partitioned into the groups each of which contains all the
   rows from the partitions belonging the same subset and then each group
-  is subpartitioned into groups in the the post join operation.
+  is subpartitioned into groups in the post join operation.
 
   The set of all rows belonging to the union of several partitions is called
   here superpartition. If a grouping operation is defined by the list
@@ -694,7 +694,7 @@ add_ext_keyuse_for_splitting(Dynamic_array<KEYUSE_EXT> *ext_keyuses,
   possible_keys.intersect(field->table->keys_usable_for_splitting);
   tab->keys.merge(possible_keys);
 
-  Item_func_eq *eq_item= (Item_func_eq *) (added_key_field->cond);
+  Item_args *eq_item= (Item_args *) (added_key_field->cond);
   keyuse_ext.table= field->table;
   keyuse_ext.val= eq_item->arguments()[1];
   keyuse_ext.key= key;
@@ -1330,7 +1330,7 @@ bool JOIN::inject_best_splitting_cond(table_map excluded_tables)
     Test if equality is injected for split optimization
 
   @param
-    eq_item   equality to to test
+    eq_item   equality to test
 
   @retval
     true    eq_item is equality injected for split optimization

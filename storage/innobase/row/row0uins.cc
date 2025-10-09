@@ -24,6 +24,7 @@ Fresh insert undo
 Created 2/25/1997 Heikki Tuuri
 *******************************************************/
 
+#define MYSQL_SERVER
 #include "row0uins.h"
 #include "dict0dict.h"
 #include "dict0stats.h"
@@ -43,6 +44,7 @@ Created 2/25/1997 Heikki Tuuri
 #include "log0log.h"
 #include "fil0fil.h"
 #include <mysql/service_thd_mdl.h>
+#include "sql_class.h"
 
 /*************************************************************************
 IMPORTANT NOTE: Any operation that generates redo MUST check that there
@@ -66,7 +68,7 @@ row_undo_ins_remove_clust_rec(
 {
 	dberr_t		err;
 	ulint		n_tries	= 0;
-	mtr_t		mtr;
+	mtr_t		mtr{node->trx};
 	dict_index_t*	index	= node->pcur.index();
 	table_id_t table_id = 0;
 	const bool dict_locked = node->trx->dict_operation_lock_mode;
@@ -166,14 +168,9 @@ restart:
 					dict_sys.unlock();
 				}
 				table = nullptr;
-				if (!mdl_ticket);
-				else if (MDL_context* mdl_context =
-					 static_cast<MDL_context*>(
-						 thd_mdl_context(
-							 node->trx->
-							 mysql_thd))) {
-					mdl_context->release_lock(
-						mdl_ticket);
+				if (mdl_ticket) {
+					node->trx->mysql_thd->mdl_context
+						.release_lock(mdl_ticket);
 					mdl_ticket = nullptr;
 				}
 			}
@@ -261,7 +258,7 @@ row_undo_ins_remove_sec_low(
 {
 	btr_pcur_t		pcur;
 	dberr_t			err	= DB_SUCCESS;
-	mtr_t			mtr;
+	mtr_t			mtr{thr_get_trx(thr)};
 	const bool		modify_leaf = mode == BTR_MODIFY_LEAF;
 
 	pcur.btr_cur.page_cur.index = index;

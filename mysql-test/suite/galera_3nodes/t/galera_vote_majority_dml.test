@@ -1,0 +1,67 @@
+#
+#  MDEV-37494: Inconsistency voting: create conditions where applying would
+#              fail on replicas in table_def::compatible_with() and check that
+#              that replicas survive and the primary (trx source) bails out.
+#
+--source include/galera_cluster.inc
+
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY, f2 BLOB) ENGINE=InnoDB;
+
+--connect node_3, 127.0.0.1, root, , test, $NODE_MYPORT_3
+--connection node_3
+SET GLOBAL wsrep_on=OFF;
+ALTER TABLE t1 MODIFY f2 LONGTEXT; # Introducing schema inconsistency
+SET GLOBAL wsrep_on=ON;
+INSERT INTO t1 VALUES (3, 'a'); # Nodes 1 and 2 should fail to apply this
+
+--connection node_1
+# Wait until node #3 leaves the cluster
+--let $wait_condition = SELECT VARIABLE_VALUE = 2 FROM performance_schema.global_status WHERE VARIABLE_NAME = 'wsrep_cluster_size'
+--source include/wait_condition.inc
+SHOW STATUS LIKE 'wsrep_cluster_status';
+
+--connection node_2
+--let $wait_condition = SELECT VARIABLE_VALUE = 2 FROM performance_schema.global_status WHERE VARIABLE_NAME = 'wsrep_cluster_size'
+# Wait until node #3 leaves the cluster
+--source include/wait_condition.inc
+SHOW STATUS LIKE 'wsrep_cluster_status';
+
+INSERT INTO t1 VALUES (2, 'a'); # Nodes 1 and 2 should successfully apply this
+
+--connection node_3
+SET SESSION wsrep_sync_wait=0;
+--let $wait_condition = SELECT VARIABLE_VALUE = 'Disconnected' FROM performance_schema.global_status WHERE VARIABLE_NAME = 'wsrep_cluster_status';
+--source include/wait_condition.inc
+SET SESSION wsrep_on=OFF;
+--source include/restart_mysqld.inc
+--source include/wait_wsrep_ready.inc
+SET SESSION wsrep_on=ON;
+
+INSERT INTO t1 VALUES (3, 'a'); # All nodes should successfully apply this
+
+# Check that consistency is restored
+--connection node_1
+SHOW CREATE TABLE t1;
+SELECT * FROM t1;
+
+--connection node_2
+SHOW CREATE TABLE t1;
+SELECT * FROM t1;
+
+--connection node_3
+SHOW CREATE TABLE t1;
+SELECT * FROM t1;
+
+DROP TABLE t1;
+
+--connection node_1
+CALL mtr.add_suppression("Replica SQL: Column 1 of table 'test.t1' cannot be converted from type 'longblob' to type 'blob', Error_code: MY-013146");
+CALL mtr.add_suppression("Event 3 Write_rows_v1 apply failed: 3, seqno");
+
+--connection node_2
+CALL mtr.add_suppression("Replica SQL: Column 1 of table 'test.t1' cannot be converted from type 'longblob' to type 'blob', Error_code: MY-013146");
+CALL mtr.add_suppression("Event 3 Write_rows_v1 apply failed: 3, seqno");
+
+--connection node_3
+CALL mtr.add_suppression("Vote 0 \\(success\\) on (.*) is inconsistent with group. Leaving cluster.");
+CALL mtr.add_suppression("Plugin 'InnoDB' will be forced to shutdown");

@@ -3397,6 +3397,15 @@ void st_select_lex_unit::exclude_level()
     SELECT_LEX_UNIT **last= 0;
     for (SELECT_LEX_UNIT *u= sl->first_inner_unit(); u; u= u->next_unit())
     {
+      for (SELECT_LEX *inner_sel= u->first_select();
+           inner_sel; inner_sel= inner_sel->next_select())
+      {
+        if (&sl->context == inner_sel->context.outer_context)
+          inner_sel->context.outer_context = &sl->outer_select()->context;
+      }
+      if (u->fake_select_lex &&
+          u->fake_select_lex->context.outer_context == &sl->context)
+        u->fake_select_lex->context.outer_context= &sl->outer_select()->context;
       u->master= master;
       last= (SELECT_LEX_UNIT**)&(u->next);
     }
@@ -6757,6 +6766,27 @@ void LEX::set_stmt_init()
   autocommit= 0;
   var_list.empty();
 };
+
+
+/**
+  Find a local or a package body type declaration by name
+  @param IN name - the data type name
+  @retval        - the data type (if found), or NULL otherwise.
+*/
+const sp_type_def *LEX::find_type_def(const LEX_CSTRING &name) const
+{
+  DBUG_ASSERT(spcont);
+  const sp_type_def *def= spcont->find_type_def(name, false);
+  if (def)
+    return def;
+  if (sphead->m_parent)
+  {
+    // Find a package body type definition
+    return sphead->m_parent->get_parse_context()->
+             child_context(0)->find_type_def(name, true);
+  }
+  return nullptr;
+}
 
 
 /**
@@ -10176,8 +10206,9 @@ bool LEX::call_statement_start_or_lvalue_assign(THD *thd,
                                                Qualified_ident *ident)
 {
   sp_variable *spv;
+  const Sp_rcontext_handler *rh;
   if (spcont &&
-      (spv= spcont->find_variable(&ident->part(0), false)) &&
+      (spv= find_variable(&ident->part(0), &rh)) &&
       (likely(spv->field_def.type_handler()->has_methods())))
   {
     ident->set_spvar(spv);
@@ -10642,7 +10673,6 @@ Item *LEX::make_item_func_or_method_call(THD *thd,
                                          List<Item> *args,
                                          const Lex_ident_cli_st &query_fragment)
 {
-  DBUG_ASSERT(!thd->is_error());
   const Lex_ident_sys sys_a(thd, &ca), sys_b(thd, &cb);
   if (sys_a.is_null() || sys_b.is_null())
     return nullptr; // EOM
@@ -12019,7 +12049,7 @@ void mark_or_conds_to_avoid_pushdown(Item *cond)
        After that the transformed condition is attached into attach_to_conds
        list.
     2. Part of some other condition c1 that can't be entirely pushed
-       (if с1 isn't marked with any flag).
+       (if c1 isn't marked with any flag).
 
        For example:
 
@@ -12992,7 +13022,7 @@ bool LEX::set_field_type_typedef(Lex_field_type_st *type,
   *is_typedef= false;
   if (spcont)
   {
-    if (const sp_type_def *composite= spcont->find_type_def(name, false))
+    if (const sp_type_def *composite= find_type_def(name))
     {
       type->set(composite->type_handler(), NULL);
       last_field->set_attr_const_void_ptr(0, composite);
@@ -13336,7 +13366,7 @@ bool SELECT_LEX_UNIT::explainable() const
 
   @param thd          the current thread handle
   @param db_name      name of db of the table to look for
-  @param db_name      name of db of the table to look for
+  @param table_name   name of table
 
   @return first found table, NULL or ERROR_TABLE
 */

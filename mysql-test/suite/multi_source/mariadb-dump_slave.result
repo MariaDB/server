@@ -1,11 +1,11 @@
 connect    active_master, 127.0.0.1, root, , , $SERVER_MYPORT_2;
 connect  inactive_master, 127.0.0.1, root, , , $SERVER_MYPORT_3;
 connect            slave, 127.0.0.1, root, , , $SERVER_MYPORT_1;
-CHANGE MASTER TO
-master_host='127.0.0.1', master_port=MYPORT_2, master_user='root', master_ssl_verify_server_cert=0;
+CHANGE MASTER TO master_ssl_verify_server_cert=0,
+master_host='127.0.0.1', master_port=$SERVER_MYPORT_2, master_user='root', master_ssl_verify_server_cert=0;
 START SLAVE SQL_THREAD;
 CHANGE MASTER 'inactive' TO
-master_host='127.0.0.1', master_port=MYPORT_3;
+master_host='127.0.0.1', master_port=$SERVER_MYPORT_3;
 include/wait_for_slave_sql_to_start.inc
 # Control State
 Connection_name = ''

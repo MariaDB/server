@@ -1552,12 +1552,15 @@ fil_space_t *fil_space_t::get(uint32_t id) noexcept
 @param type           file operation
 @param first_page_no  first page number in the file
 @param path           file path
-@param new_path       new file path for type=FILE_RENAME */
-inline void mtr_t::log_file_op(mfile_type_t type, uint32_t space_id,
-			       const char *path, const char *new_path)
+@param new_path       new file path for type=FILE_RENAME
+@return number of bytes written */
+inline size_t mtr_t::log_file_op(mfile_type_t type, uint32_t space_id,
+                                 const char *path, const char *new_path)
+  noexcept
 {
   ut_ad((new_path != nullptr) == (type == FILE_RENAME));
   ut_ad(!(byte(type) & 15));
+  ut_ad(!is_predefined_tablespace(space_id));
 
   /* fil_name_parse() requires that there be at least one path
   separator and that the file path end with ".ibd". */
@@ -1566,7 +1569,7 @@ inline void mtr_t::log_file_op(mfile_type_t type, uint32_t space_id,
 
   m_modifications= true;
   if (!is_logged())
-    return;
+    return 0;
   m_last= nullptr;
 
   const size_t len= strlen(path);
@@ -1598,7 +1601,7 @@ inline void mtr_t::log_file_op(mfile_type_t type, uint32_t space_id,
 
   m_log.close(end);
 
-  if (new_path)
+  if (new_len)
   {
     ut_ad(strchr(new_path, '/'));
     m_log.push(reinterpret_cast<const byte*>(path), uint32_t(len + 1));
@@ -1606,17 +1609,8 @@ inline void mtr_t::log_file_op(mfile_type_t type, uint32_t space_id,
   }
   else
     m_log.push(reinterpret_cast<const byte*>(path), uint32_t(len));
-}
 
-/** Write FILE_MODIFY for a file.
-@param[in]	space_id	tablespace id
-@param[in]	name		tablespace file name
-@param[in,out]	mtr		mini-transaction */
-static void fil_name_write(uint32_t space_id, const char *name,
-                           mtr_t *mtr)
-{
-  ut_ad(!is_predefined_tablespace(space_id));
-  mtr->log_file_op(FILE_MODIFY, space_id, name);
+  return end - log_ptr + len + new_len;
 }
 
 fil_space_t *fil_space_t::drop(uint32_t id, pfs_os_file_t *detached_handle)
@@ -1675,7 +1669,7 @@ fil_space_t *fil_space_t::drop(uint32_t id, pfs_os_file_t *detached_handle)
     }
 
     /* Before deleting the file, persistently write a log record. */
-    mtr_t mtr;
+    mtr_t mtr{nullptr};
     mtr.start();
     mtr.log_file_op(FILE_DELETE, id, space->chain.start->name);
     mtr.commit_file(*space, nullptr);
@@ -1949,7 +1943,7 @@ dberr_t fil_space_t::rename(const char *path, bool log, bool replace) noexcept
     }
   }
 
-  mtr_t mtr;
+  mtr_t mtr{nullptr};
   mtr.start();
   mtr.log_file_op(FILE_RENAME, id, old_path, path);
   return mtr.commit_file(*this, path) ? DB_SUCCESS : DB_ERROR;
@@ -1980,7 +1974,7 @@ fil_ibd_create(
 {
 	pfs_os_file_t	file;
 	bool		success;
-	mtr_t		mtr;
+	mtr_t		mtr{nullptr};
 	bool		has_data_dir = FSP_FLAGS_HAS_DATA_DIR(flags) != 0;
 
 	ut_ad(!is_system_tablespace(space_id));
@@ -2680,7 +2674,7 @@ void fsp_flags_try_adjust(fil_space_t *space, uint32_t flags)
 	if (!space->size || !space->get_size()) {
 		return;
 	}
-	mtr_t	mtr;
+	mtr_t mtr{nullptr};
 	mtr.start();
 	if (buf_block_t* b = buf_page_get(
 		    page_id_t(space->id, 0), space->zip_size(),
@@ -3107,11 +3101,10 @@ ATTRIBUTE_NOINLINE ATTRIBUTE_COLD void mtr_t::name_write() noexcept
   fil_system.named_spaces.push_back(*m_user_space);
   ut_ad(UT_LIST_GET_LEN(m_user_space->chain) == 1);
 
-  mtr_t mtr;
+  mtr_t mtr{nullptr};
   mtr.start();
-  fil_name_write(m_user_space->id,
-                 UT_LIST_GET_FIRST(m_user_space->chain)->name,
-                 &mtr);
+  mtr.log_file_op(FILE_MODIFY, m_user_space->id,
+                  UT_LIST_GET_FIRST(m_user_space->chain)->name);
   mtr.commit_files();
 }
 
@@ -3121,21 +3114,25 @@ and write out FILE_MODIFY if needed, and write FILE_CHECKPOINT.
 @return current LSN */
 ATTRIBUTE_COLD lsn_t fil_names_clear(lsn_t lsn) noexcept
 {
-	mtr_t	mtr;
+	mtr_t	mtr{nullptr};
 
 	ut_ad(log_sys.latch_have_wr());
 	ut_ad(lsn);
 	ut_ad(log_sys.is_latest());
 
 	mtr.start();
+	constexpr size_t budget = recv_sys.MTR_SIZE_MAX - (3 + 5);
+	size_t budget_left = budget;
 
 	for (auto it = fil_system.named_spaces.begin();
 	     it != fil_system.named_spaces.end(); ) {
-		if (mtr.get_log_size() + strlen(it->chain.start->name)
-		    >= recv_sys.MTR_SIZE_MAX - (3 + 5)) {
+		const char* const name = it->chain.start->name;
+
+		if (strlen(name) >= budget_left) {
 			/* Prevent log parse buffer overflow */
 			mtr.commit_files();
 			mtr.start();
+			budget_left = budget;
 		}
 
 		auto next = std::next(it);
@@ -3156,8 +3153,9 @@ ATTRIBUTE_COLD lsn_t fil_names_clear(lsn_t lsn) noexcept
 		where max_lsn turned nonzero), we could avoid the
 		fil_names_write() call if min_lsn > lsn. */
 		ut_ad(UT_LIST_GET_LEN((*it).chain) == 1);
-		fil_name_write((*it).id, UT_LIST_GET_FIRST((*it).chain)->name,
-			       &mtr);
+		size_t s = mtr.log_file_op(FILE_MODIFY, (*it).id, name);
+		ut_ad(s <= budget_left);
+		budget_left -= s;
 		it = next;
 	}
 

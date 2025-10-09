@@ -6968,6 +6968,52 @@ drop view `v'1"2`;
 drop table t1;
 # End of 10.5 tests
 #
+# MDEV-37483 mariadb-dump -T doesn't convert table names
+#
+create database foo;
+use foo;
+create table `con_schöne_grüße` (a int) select 1 as a;
+create table `con` (b int) select 2 as b;
+create table `con/bar` (c int) select 3 as c;
+create table `con@fame` (d int) select 4 as d;
+drop database foo;
+use test;
+con@002fbar.sql
+con@002fbar.txt
+con@@@.sql
+con@@@.txt
+con@fame.sql
+con@fame.txt
+con_sch@1ine_gr@1o@1je.sql
+con_sch@1ine_gr@1o@1je.txt
+show tables;
+Tables_in_test
+con
+con/bar
+con@fame
+con_schöne_grüße
+test.con: Records: 1  Deleted: 0  Skipped: 0  Warnings: 0
+test.con/bar: Records: 1  Deleted: 0  Skipped: 0  Warnings: 0
+test.con_schöne_grüße: Records: 1  Deleted: 0  Skipped: 0  Warnings: 0
+test.con@fame: Records: 1  Deleted: 0  Skipped: 0  Warnings: 0
+select * from `con_schöne_grüße`;
+a
+1
+select * from `con`;
+b
+2
+select * from `con/bar`;
+c
+3
+select * from `con@fame`;
+d
+4
+drop table `con_schöne_grüße`;
+drop table `con`;
+drop table `con/bar`;
+drop table `con@fame`;
+# End of 10.6 tests
+#
 # MDEV-16733 mysqldump --tab and --xml options are conflicting
 #
 mariadb-dump: --xml can't be used with --tab or --dir.

@@ -669,6 +669,18 @@ void srw_lock_debug::wr_unlock() noexcept
   srw_lock::wr_unlock();
 }
 
+# if defined _WIN32 || defined SUX_LOCK_GENERIC
+# else
+void srw_lock_debug::wr_rd_downgrade
+(SRW_LOCK_ARGS(const char *file, unsigned line)) noexcept
+{
+  ut_ad(have_wr());
+  writer.store(0, std::memory_order_relaxed);
+  readers_register();
+  srw_lock::wr_rd_downgrade(SRW_LOCK_ARGS(file, line));
+}
+# endif
+
 void srw_lock_debug::readers_register() noexcept
 {
   readers_lock.wr_lock();

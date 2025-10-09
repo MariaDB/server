@@ -136,7 +136,8 @@ int main(int argc __attribute__((unused)),char *argv[])
   DO_TEST_CRC32C(0,STR,(sizeof(STR)-1));
   ok(0 == my_crc32c(0, NULL, 0), "crc32c data = NULL, length = 0");
 
-  memset(buf, 0x5a, sizeof buf);
+  for (size_t i = 0; i < sizeof buf; i++)
+    buf[i] = i % 251;
   ok(0 == test_buf(my_checksum, crc32), "crc32 with various lengths");
   ok(0 == test_buf(my_crc32c, crc32c), "crc32c with various lengths");
 

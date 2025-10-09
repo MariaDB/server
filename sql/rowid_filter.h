@@ -62,7 +62,7 @@
   ---------------------------
 
   If the search structure to test whether an element is in F can be fully
-  placed in RAM then this test is expected to be be much cheaper than a random
+  placed in RAM then this test is expected to be much cheaper than a random
   access of a record from Ti. We'll consider two search structures for
   pk-filters: ordered array and bloom filter. Ordered array is easy to
   implement, but it's space consuming. If a filter contains primary keys
