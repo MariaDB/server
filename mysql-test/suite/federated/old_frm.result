@@ -19,7 +19,7 @@ t2	CREATE TABLE `t2` (
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY HASH (`a`)
 (PARTITION `p0` ENGINE = MyISAM,
- PARTITION `p1` ENGINE = MyISAM CONNECTION = 'server2')
+ PARTITION `p1` ENGINE = MyISAM /* `CONNECTION`='server2' */)
 show create table t3;
 Table	Create Table
 t3	CREATE TABLE `t3` (
@@ -31,8 +31,8 @@ t4	CREATE TABLE `t4` (
   `a` int(11) DEFAULT NULL
 ) ENGINE=FEDERATED DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY HASH (`a`)
-(PARTITION `p0` ENGINE = FEDERATED CONNECTION = 'server4/t1',
- PARTITION `p1` ENGINE = FEDERATED CONNECTION = 'server5/t2')
+(PARTITION `p0` ENGINE = FEDERATED `CONNECTION`='server4/t1',
+ PARTITION `p1` ENGINE = FEDERATED `CONNECTION`='server5/t2')
 drop table t1, t2, t3, t4;
 drop server server3;
 drop server server4;

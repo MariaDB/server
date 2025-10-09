@@ -1959,10 +1959,8 @@ static bool get_param_default_value(Item *item, String *default_value)
   @param rules           list of known options
 */
 
-static void append_create_options(THD *thd, String *packet,
-				  engine_option_value *opt,
-                                  bool check_options,
-                                  ha_create_table_option *rules)
+void append_create_options(THD *thd, String *packet, engine_option_value *opt,
+                           bool check_options, ha_create_table_option *rules)
 {
   bool in_comment= false;
   for(; opt; opt= opt->next)

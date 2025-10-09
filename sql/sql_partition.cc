@@ -2227,20 +2227,6 @@ static int add_server_part_options(String *str, partition_element *p_elem)
   return err;
 }
 
-static int add_engine_part_options(String *str, partition_element *p_elem)
-{
-  engine_option_value *opt= p_elem->option_list;
-
-  for (; opt; opt= opt->next)
-  {
-    if (!opt->value.str)
-      continue;
-    if ((add_keyword_string(str, opt->name.str, opt->quoted_value,
-                                 opt->value.str)))
-      return 1;
-  }
-  return 0;
-}
 
 /*
   Find the given field's Create_field object using name of field
@@ -2695,6 +2681,7 @@ char *generate_partition_syntax(THD *thd, partition_info *part_info,
 
   if (!part_info->use_default_partitions)
   {
+    bool allow_bad= thd->variables.sql_mode & MODE_IGNORE_BAD_TABLE_OPTIONS;
     bool first= TRUE;
     err+= str.append(STRING_WITH_LEN("\n("));
     i= 0;
@@ -2717,7 +2704,8 @@ char *generate_partition_syntax(THD *thd, partition_info *part_info,
           if (show_partition_options)
           {
             err+= add_server_part_options(&str, part_elem);
-            err+= add_engine_part_options(&str, part_elem);
+            append_create_options(thd, &str, part_elem->option_list,
+                            !allow_bad, part_elem->engine_type->table_options);
           }
         }
         else
