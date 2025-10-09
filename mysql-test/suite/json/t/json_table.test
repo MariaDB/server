@@ -1041,3 +1041,45 @@ COLUMNS
 --echo #
 --echo # End of 10.9 tests
 --echo #
+
+--echo # Beginning of 10.11 tests
+
+--echo #
+--echo # MDEV-34081: View containing JSON_TABLE does not return JSON
+--echo #
+
+CREATE OR REPLACE VIEW test_view AS SELECT * FROM JSON_TABLE('
+[
+  {
+    "caption": "First Element",
+    "value": 1
+  },
+  {
+    "caption": "Second Element",
+    "value": 2
+  }
+]
+', '$[*]' COLUMNS(
+  caption VARCHAR(200) PATH '$.caption', 
+  whole_block JSON PATH '$')) t;
+ 
+SELECT * FROM test_view;
+
+SELECT * FROM JSON_TABLE('
+[
+  {
+    "caption": "First Element",
+    "value": 1
+  },
+  {
+    "caption": "Second Element",
+    "value": 2
+  }
+]
+', '$[*]' COLUMNS(
+  caption VARCHAR(200) PATH '$.caption', 
+  whole_block JSON PATH '$')) t;
+
+DROP VIEW test_view;
+
+--echo # End of 10.11 test
