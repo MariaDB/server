@@ -964,14 +964,20 @@ static inline size_t root_size(MEM_ROOT *root)
   return k * (k + 1) * 2 * root->block_size;
 }
 
-extern my_bool my_compress(uchar *, size_t *, size_t *);
-extern my_bool my_uncompress(uchar *, size_t , size_t *);
+extern my_bool my_compress(uchar *, size_t *, size_t *, void*, void*);
+extern my_bool my_uncompress(uchar *, size_t , size_t *, void*, void*);
 extern uchar *my_compress_alloc(const uchar *packet, size_t *len,
-                                size_t *complen);
+                                size_t *complen, void*);
 extern void *my_az_allocator(void *dummy, unsigned int items, unsigned int size);
 extern void my_az_free(void *dummy, void *address);
 extern int my_compress_buffer(uchar *dest, size_t *destLen,
-                              const uchar *source, size_t sourceLen);
+                              const uchar *source, size_t sourceLen, void*);
+
+extern void *comp_buf_az_allocator(void *dummy, unsigned int items, unsigned int size);
+extern void comp_buf_az_free(void *dummy, void *address);
+extern int my_uncompress_buffer(uchar *dest, size_t *destLen,
+                              const uchar *source, size_t *sourceLen, void*);
+
 extern int packfrm(const uchar *, size_t, uchar **, size_t *);
 extern int unpackfrm(uchar **, size_t *, const uchar *);
 

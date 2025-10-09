@@ -585,8 +585,8 @@ net_write_buff(NET *net, const uchar *packet, size_t len)
     {
       /* Fill up already used packet and write it */
       memcpy((char*) net->write_pos, packet, left_length);
-      if (net_real_write(net, net->buff, 
-            (size_t) (net->write_pos - net->buff) + left_length))
+      net->write_pos+= left_length;
+      if (net_real_write(net, net->buff, (size_t)(net->write_pos - net->buff)))
         return 1;
       net->write_pos= net->buff;
       packet+= left_length;
@@ -674,7 +674,9 @@ net_real_write(NET *net, const uchar *packet, size_t len)
     memcpy(b+header_length,packet,len);
 
     /* Don't compress error packets (compress == 2) */
-    if (net->compress == 2 || my_compress(b+header_length, &len, &complen))
+    if (net->compress == 2 
+        || my_compress(b+header_length, &len, &complen, 
+                      net->write_pos, net->buff_end))
       complen=0;
     int3store(&b[NET_HEADER_SIZE],complen);
     int3store(b,len);
@@ -1191,7 +1193,8 @@ my_net_read_packet_reallen(NET *net, my_bool read_from_server, ulong* reallen)
 	      return packet_error;
       }
       read_from_server= 0;
-      if (my_uncompress(net->buff + net->where_b, packet_len, &complen))
+      if (my_uncompress(net->buff + net->where_b, packet_len, &complen, 
+            net->buff + net->where_b + complen, net->buff_end))
       {
 	      net->error= 2;			/* caller will close socket */
         net->last_errno= ER_NET_UNCOMPRESS_ERROR;

@@ -4800,7 +4800,7 @@ String *Item_func_compress::val_str(String *str)
 
   // As far as we have checked res->is_empty() we can use ptr()
   if ((err= my_compress_buffer(body, &new_size, (const uchar *)res->ptr(),
-                               res->length())) != Z_OK)
+                               res->length(), 0)) != Z_OK)
   {
     THD *thd= current_thd;
     code= err==Z_MEM_ERROR ? ER_ZLIB_Z_MEM_ERROR : ER_ZLIB_Z_BUF_ERROR;

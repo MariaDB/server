@@ -25,6 +25,63 @@
 #include <zlib.h>
 
 /*
+* Policy: local buffer first else my_malloc()
+*
+* Usage: the order of calling comp_buf_dealloc()
+* should be the reverse of the order of calling
+* comp_buf_alloc().
+*
+* Note: for a local buffer memory, first sizeof(unsigned long) bytes
+* indicates the length of the memory available.
+*/
+typedef struct Compress_buffer
+{
+  void* buf;		    // buffer start
+  void* buf_end;	  // buffer end
+  void* write_pos;  // next position to write in buffer
+} Compress_buffer;
+
+/**
+ * @param comp_buf a Compress_buffer object for memory management
+ * @param bytes size of memory to be allocated
+ * @ret pointer to a buffer else NULL if there is no available memory
+**/
+void* comp_buf_alloc(Compress_buffer* comp_buf, size_t bytes)
+{
+  void* buf;
+  if (comp_buf->write_pos + bytes + sizeof(unsigned long) >= comp_buf->buf_end)
+  {
+    buf= my_malloc(key_memory_my_compress_alloc, bytes, MYF(0));
+  }
+  else
+  {
+    *(unsigned long*)(comp_buf->write_pos)= bytes;
+    comp_buf->write_pos+= sizeof(unsigned long);
+    buf= comp_buf->write_pos;
+    comp_buf->write_pos+= bytes;
+  }
+  return buf;
+}
+
+/**
+ * @param comp_buf a Compress_buffer object for memory management
+ * @param ptr pointer to memory to be deallocated
+**/
+void comp_buf_dealloc(Compress_buffer* comp_buf, void* ptr)
+{
+  if (ptr >= comp_buf->buf + sizeof(unsigned long) && ptr < comp_buf->buf_end) 
+  {
+    comp_buf->write_pos= ptr - sizeof(unsigned long);
+  }
+  else 
+  {
+    my_free(ptr);
+  }
+}
+
+
+
+/*
    This replaces the packet with a compressed packet
 
    SYNOPSIS
@@ -38,7 +95,8 @@
      0   ok.  In this case 'len' contains the size of the compressed packet
 */
 
-my_bool my_compress(uchar *packet, size_t *len, size_t *complen)
+my_bool my_compress(uchar *packet, size_t *len, size_t *complen, 
+                    void* buf, void* buf_end)
 {
   DBUG_ENTER("my_compress");
   if (*len < MIN_COMPRESS_LENGTH)
@@ -48,11 +106,18 @@ my_bool my_compress(uchar *packet, size_t *len, size_t *complen)
   }
   else
   {
-    uchar *compbuf=my_compress_alloc(packet,len,complen);
+    // uchar *compbuf=my_compress_alloc(packet,len,complen);
+    uchar *compbuf;
+    Compress_buffer compress_buf;
+    compress_buf.buf= buf;
+    compress_buf.buf_end= buf_end;
+    compress_buf.write_pos= buf;
+    compbuf= my_compress_alloc(packet, len, complen, &compress_buf);
     if (!compbuf)
       DBUG_RETURN(*complen ? 0 : 1);
     memcpy(packet,compbuf,*len);
-    my_free(compbuf);
+    // my_free(compbuf);
+    comp_buf_dealloc(&compress_buf, compbuf);
   }
   DBUG_RETURN(0);
 }
@@ -75,7 +140,7 @@ void my_az_free(void *dummy __attribute__((unused)), void *address)
   better with my_malloc leak detection and Valgrind.
 */
 int my_compress_buffer(uchar *dest, size_t *destLen,
-                       const uchar *source, size_t sourceLen)
+                       const uchar *source, size_t sourceLen, void* buf)
 {
     z_stream stream;
     int err;
@@ -87,9 +152,20 @@ int my_compress_buffer(uchar *dest, size_t *destLen,
     if ((size_t)stream.avail_out != *destLen)
       return Z_BUF_ERROR;
 
-    stream.zalloc = (alloc_func)my_az_allocator;
-    stream.zfree = (free_func)my_az_free;
-    stream.opaque = (voidpf)0;
+    // stream.zalloc = (alloc_func)my_az_allocator;
+    // stream.zfree = (free_func)my_az_free;
+    if (!buf)
+    {
+      stream.zalloc = (alloc_func)my_az_allocator;
+      stream.zfree = (free_func)my_az_free;
+      stream.opaque = (voidpf)0;
+    }
+    else
+    {
+      stream.zalloc = (alloc_func)comp_buf_az_allocator;
+      stream.zfree = (free_func)comp_buf_az_free;
+      stream.opaque = (voidpf)buf;
+    }
 
     err = deflateInit(&stream, Z_DEFAULT_COMPRESSION);
     if (err != Z_OK) return err;
@@ -105,28 +181,43 @@ int my_compress_buffer(uchar *dest, size_t *destLen,
     return err;
 }
 
-uchar *my_compress_alloc(const uchar *packet, size_t *len, size_t *complen)
+uchar*
+my_compress_alloc(const uchar *packet, size_t *len, size_t *complen, void* buf)
 {
   uchar *compbuf;
   int res;
-  *complen=  *len * 120 / 100 + 12;
+  *complen= *len * 120 / 100 + 12;
 
-  if (!(compbuf= (uchar *) my_malloc(key_memory_my_compress_alloc,
-                                     *complen, MYF(MY_WME))))
-    return 0;
+  if (!buf)
+  {
+    if (!(compbuf= (uchar *) my_malloc(key_memory_my_compress_alloc, 
+                                      *complen, MYF(MY_WME))))
+      return 0;
+  }
+  else
+  {
+    if (!(compbuf= (uchar *) comp_buf_alloc((Compress_buffer*)buf, *complen)))
+      return 0;
+  }
 
-  res= my_compress_buffer(compbuf, complen, packet, *len);
+  res= my_compress_buffer(compbuf, complen, packet, *len, buf);
 
   if (res != Z_OK)
   {
-    my_free(compbuf);
+    if (!buf)
+      my_free(compbuf);
+    else
+      comp_buf_dealloc((Compress_buffer*)buf, compbuf);
     return 0;
   }
 
   if (*complen >= *len)
   {
     *complen= 0;
-    my_free(compbuf);
+    if (!buf)
+      my_free(compbuf);
+    else
+      comp_buf_dealloc((Compress_buffer*)buf, compbuf);
     DBUG_PRINT("note",("Packet got longer on compression; Not compressed"));
     return 0;
   }
@@ -152,35 +243,138 @@ uchar *my_compress_alloc(const uchar *packet, size_t *len, size_t *complen)
               real data.
 */
 
-my_bool my_uncompress(uchar *packet, size_t len, size_t *complen)
+my_bool my_uncompress(uchar *packet, size_t len, size_t *complen, void* buf, void* buf_end)
 {
-  uLongf tmp_complen;
+  size_t tmp_complen;
+  uchar *compbuf;
+  int error;
   DBUG_ENTER("my_uncompress");
 
   if (*complen)					/* If compressed */
   {
-    uchar *compbuf= (uchar *) my_malloc(key_memory_my_compress_alloc,
-                                        *complen,MYF(MY_WME));
-    int error;
+    Compress_buffer compress_buf;
+    compress_buf.buf= buf;
+    compress_buf.buf_end= buf_end;
+    compress_buf.write_pos= buf;
+    compbuf= comp_buf_alloc(&compress_buf, *complen);
+    // uchar *compbuf= (uchar *) my_malloc(key_memory_my_compress_alloc,
+    //                                  *complen,MYF(MY_WME));
     if (!compbuf)
       DBUG_RETURN(1);				/* Not enough memory */
 
-    tmp_complen= (uLongf) *complen;
-    error= uncompress((Bytef*) compbuf, &tmp_complen, (Bytef*) packet,
-                      (uLong) len);
+    tmp_complen= *complen;
+    error= my_uncompress_buffer(compbuf, &tmp_complen, packet, &len, (void*)&compress_buf);
+    // error= uncompress((Bytef*) compbuf, &tmp_complen, (Bytef*) packet,
+    //                  (uLong) len);
     *complen= tmp_complen;
     if (error != Z_OK)
     {						/* Probably wrong packet */
       DBUG_PRINT("error",("Can't uncompress packet, error: %d",error));
-      my_free(compbuf);
+      comp_buf_dealloc(&compress_buf, compbuf);
+      // my_free(compbuf);
       DBUG_RETURN(1);
     }
     memcpy(packet, compbuf, *complen);
-    my_free(compbuf);
+    comp_buf_dealloc(&compress_buf, compbuf);
+    // my_free(compbuf);
   }
   else
     *complen= len;
   DBUG_RETURN(0);
+}
+
+/**
+* allocate ITEMS * SIZE bytes from buffer BUF
+*/
+void *comp_buf_az_allocator(void *buf, unsigned int items, unsigned int size)
+{
+  return comp_buf_alloc((Compress_buffer*)buf, (size_t)items * (size_t)size);
+}
+/**
+* deallocate memory pointed by ADDRESS back to buffer BUF
+*/
+void comp_buf_az_free(void *buf, void *address)
+{
+  comp_buf_dealloc((Compress_buffer*)buf, address);
+}
+
+/* mysys/my_compress.c */
+/** works like zlib uncompress(), but using class Compress_buffer
+* allocator to try to get better performance
+* @param dest buffer where uncompressed data will be put
+* @param destLen length of buffer DEST
+* @param source buffer where compressed data is stored
+* @param sourceLen length fo compressed data
+* @param compress_buf a local buffer if COMPRESS_BUF is not NULL
+*
+* @ret Z_OK if success, Z_MEM_ERROR if there was not enough memory,
+*      Z_BUF_ERROR if there was not enough room in the output buffer,
+*      Z_DATA_ERROR if the input data was corrupted, including if the
+*      input data is an incomplete zlib stream.
+*/
+int my_uncompress_buffer(uchar* dest, size_t* destLen, 
+                         const uchar* source, size_t* sourceLen, void* compress_buf)
+{
+  z_stream stream;
+  int err;
+  const uInt max= (uInt)-1;
+  uLong len, left;
+  Byte buf[1];    /* for detection of incomplete stream when *destLen == 0 */
+
+  len= *sourceLen;
+  if (*destLen) {
+      left= *destLen;
+      *destLen = 0;
+  }
+  else {
+      left= 1;
+      dest= buf;
+  }
+
+  stream.next_in= (z_const Bytef *)source;
+  stream.avail_in= 0;
+  if (!compress_buf)
+  {
+    stream.zalloc= (alloc_func)my_az_allocator;
+    stream.zfree= (free_func)my_az_free;
+    stream.opaque= (voidpf)0;
+  }
+  else
+  {
+    stream.zalloc= (alloc_func)comp_buf_az_allocator;
+    stream.zfree= (free_func)comp_buf_az_free;
+    stream.opaque= (voidpf)compress_buf;
+  }
+
+  err= inflateInit(&stream);
+  if (err != Z_OK) return err;
+
+  stream.next_out= (Bytef*)dest;
+  stream.avail_out= 0;
+
+  do {
+      if (stream.avail_out == 0) {
+          stream.avail_out= left > (uLong)max ? max : (uInt)left;
+          left-= stream.avail_out;
+      }
+      if (stream.avail_in== 0) {
+          stream.avail_in= len > (uLong)max ? max : (uInt)len;
+          len-= stream.avail_in;
+      }
+      err= inflate(&stream, Z_NO_FLUSH);
+  } while (err == Z_OK);
+
+  *sourceLen-= len + stream.avail_in;
+  if (dest != buf)
+      *destLen= stream.total_out;
+  else if (stream.total_out && err == Z_BUF_ERROR)
+      left= 1;
+
+  inflateEnd(&stream);
+  return err == Z_STREAM_END ? Z_OK :
+         err == Z_NEED_DICT ? Z_DATA_ERROR  :
+         err == Z_BUF_ERROR && left + stream.avail_out ? Z_DATA_ERROR :
+         err;
 }
 
 #endif /* HAVE_COMPRESS */
