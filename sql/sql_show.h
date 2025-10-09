@@ -99,6 +99,8 @@ static inline bool append_identifier(THD *thd, String *packet, const LEX_CSTRING
 
 bool append_identifier_opt_casedn(THD *thd, String *to,
                                   const LEX_CSTRING &ident, bool casedn);
+void append_create_options(THD *thd, String *packet, engine_option_value *opt,
+                           bool check_options, ha_create_table_option *rules);
 
 void mysqld_list_fields(THD *thd,TABLE_LIST *table, const char *wild);
 int mysqld_dump_create_info(THD *thd, TABLE_LIST *table_list, int fd);
