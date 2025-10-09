@@ -387,9 +387,11 @@ struct chunk_data_cache : public chunk_data_base {
         p= compr_int_write(p, elem->oob_last_file_no);
         p= compr_int_write(p, elem->oob_last_offset);
         p= compr_int_write(p, 0);
+        ibb_file_hash.oob_ref_dec(elem->oob_first_file_no, c->lf_pins, true);
       }
       else
         p= compr_int_write(p, 0);
+
       my_free(elem);
     }
     else if (c->node_list_len)
@@ -2547,7 +2549,7 @@ innodb_binlog_oob_ordered(THD *thd, const unsigned char *data, size_t data_len,
     c->first_node_offset= c->node_list[i].offset;
     c->node_list_len= 1;
     c->pending_refcount=
-      ibb_file_hash.oob_ref_inc(c->first_node_file_no, c->lf_pins);
+      !ibb_file_hash.oob_ref_inc(c->first_node_file_no, c->lf_pins);
   }
 
   uint64_t file_no= active_binlog_file_no.load(std::memory_order_relaxed);
@@ -3893,7 +3895,8 @@ ibb_group_commit(THD *thd, handler_binlog_event_group_info *binlog_info)
 
 
 bool
-ibb_write_xa_prepare_ordered(handler_binlog_event_group_info *binlog_info,
+ibb_write_xa_prepare_ordered(THD *thd,
+                             handler_binlog_event_group_info *binlog_info,
                              uchar engine_count)
 {
   mtr_t mtr;
@@ -3910,7 +3913,8 @@ ibb_write_xa_prepare_ordered(handler_binlog_event_group_info *binlog_info,
 
 
 bool
-ibb_write_xa_prepare(handler_binlog_event_group_info *binlog_info,
+ibb_write_xa_prepare(THD *thd,
+                     handler_binlog_event_group_info *binlog_info,
                      uchar engine_count)
 {
   binlog_oob_context *c=
@@ -3918,8 +3922,65 @@ ibb_write_xa_prepare(handler_binlog_event_group_info *binlog_info,
   ut_ad(binlog_info->xa_xid != nullptr);
   if (ibb_xa_xid_hash->add_xid(binlog_info->xa_xid, c))
     return true;
-  // ToDo increment xa refcount.
-  // ToDo also need the fsync here, if IFLATC=1. Or log write for IFLATC=2.
+
+  if (UNIV_LIKELY(c->node_list_len > 0))
+  {
+    /*
+      Increment the reference count on the file_no containing the (start of
+      the) OOB data, so we will not purge that file while the XA transaction
+      is pending.
+    */
+    if (ibb_file_hash.oob_ref_inc(c->first_node_file_no, c->lf_pins, true))
+      return true;
+  }
+
+  /*
+    Sync the redo log to ensure that the prepare record is durably written to
+    disk. This is necessary before returning OK to the client, to be sure we
+    can recover the binlog part of the XA transaction in case of crash.
+  */
+  if (srv_flush_log_at_trx_commit > 0)
+    log_write_up_to(c->pending_lsn, (srv_flush_log_at_trx_commit & 1));
+
+  return false;
+}
+
+
+bool
+ibb_xa_rollback_ordered(THD *thd, const XID *xid, void **engine_data)
+{
+  binlog_oob_context *c=
+    static_cast<binlog_oob_context *>(*engine_data);
+  if (UNIV_UNLIKELY(c == nullptr))
+    *engine_data= c= alloc_oob_context();
+
+  // ToDo: Write ROLLBACK record to the binlog.
+  // ToDo: Save the lsn of the record in c->pending_lsn
+
+  return false;
+}
+
+
+bool
+ibb_xa_rollback(THD *thd, const XID *xid, void **engine_data)
+{
+  binlog_oob_context *c=
+    static_cast<binlog_oob_context *>(*engine_data);
+
+  ibb_xid_hash::xid_elem *elem= ibb_xa_xid_hash->grab_xid(xid);
+  if (elem)
+  {
+    ibb_file_hash.oob_ref_dec(elem->oob_first_file_no, c->lf_pins, true);
+    my_free(elem);
+  }
+
+  /*
+    Durably write the rollback record to disk. This way, when we return the
+    "ok" packet to the client, we are sure that crash recovery will make the
+    XID rollback in engines if needed.
+  */
+  if (srv_flush_log_at_trx_commit > 0)
+    log_write_up_to(c->pending_lsn, (srv_flush_log_at_trx_commit & 1));
   return false;
 }
 
@@ -4139,7 +4200,8 @@ purge_adjust_limit_file_no(handler_binlog_purge_info *purge_info, LF_PINS *pins)
     1b. first_open_binlog_file_no
     1c. Any file_no in use by an active dump thread
     1d. Any file_no containing oob data referenced by file_no from (1c)
-    1e. User specified file_no (from PURGE BINARY LOGS TO, if any).
+    1e. Any file_no containing oob data referenced by an active transaction.
+    1f. User specified file_no (from PURGE BINARY LOGS TO, if any).
 
   2. Unix timestamp specifying the minimal value that should not be purged,
   optional (used by PURGE BINARY LOGS BEFORE and --binlog-expire-log-seconds).
@@ -4198,8 +4260,11 @@ innodb_binlog_purge_low(handler_binlog_purge_info *purge_info,
       want_purge= true;
     if (by_name && file_no < limit_name_file_no)
       want_purge= true;
-    if (file_no >= limit_file_no || !want_purge)
+    if (!want_purge ||
+        file_no >= limit_file_no ||
+        ibb_file_hash.get_oob_ref_in_use(file_no, lf_pins))
       break;
+
     earliest_binlog_file_no= file_no + 1;
     if (loc_total_size < (size_t)stat_buf.st_size)
     {

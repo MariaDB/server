@@ -968,25 +968,29 @@ ibb_file_oob_refs::remove_up_to(uint64_t file_no, LF_PINS *pins)
 
 
 bool
-ibb_file_oob_refs::oob_ref_inc(uint64_t file_no, LF_PINS *pins)
-{
-  ibb_tblspc_entry *e= static_cast<ibb_tblspc_entry *>
-    (lf_hash_search(&hash, pins, &file_no, sizeof(file_no)));
-  if (!e)
-    return false;
-  e->oob_refs.fetch_add(1, std::memory_order_acquire);
-  lf_hash_search_unpin(pins);
-  return true;
-}
-
-
-bool
-ibb_file_oob_refs::oob_ref_dec(uint64_t file_no, LF_PINS *pins)
+ibb_file_oob_refs::oob_ref_inc(uint64_t file_no, LF_PINS *pins, bool do_xa)
 {
   ibb_tblspc_entry *e= static_cast<ibb_tblspc_entry *>
     (lf_hash_search(&hash, pins, &file_no, sizeof(file_no)));
   if (!e)
     return true;
+  if (UNIV_UNLIKELY(do_xa))
+    e->xa_refs.fetch_add(1, std::memory_order_acquire);
+  e->oob_refs.fetch_add(1, std::memory_order_acquire);
+  lf_hash_search_unpin(pins);
+  return false;
+}
+
+
+bool
+ibb_file_oob_refs::oob_ref_dec(uint64_t file_no, LF_PINS *pins, bool do_xa)
+{
+  ibb_tblspc_entry *e= static_cast<ibb_tblspc_entry *>
+    (lf_hash_search(&hash, pins, &file_no, sizeof(file_no)));
+  if (!e)
+    return true;
+  if (UNIV_UNLIKELY(do_xa))
+    e->xa_refs.fetch_sub(1, std::memory_order_acquire);
   uint64_t refcnt= e->oob_refs.fetch_sub(1, std::memory_order_acquire) - 1;
   lf_hash_search_unpin(pins);
   ut_ad(refcnt != (uint64_t)0 - 1);
@@ -1073,6 +1077,25 @@ ibb_file_oob_refs::get_oob_ref_file_no(uint64_t file_no, LF_PINS *pins,
   *out_oob_ref_file_no= e->oob_ref_file_no.load(std::memory_order_relaxed);
   lf_hash_search_unpin(pins);
   return true;
+}
+
+
+/*
+  Check if a file_no contains oob data that is needed by an active
+  (ie. not committed) transaction. This is seen simply as having refcount
+  greater than 0.
+*/
+bool
+ibb_file_oob_refs::get_oob_ref_in_use(uint64_t file_no, LF_PINS *pins)
+{
+  ibb_tblspc_entry *e= static_cast<ibb_tblspc_entry *>
+    (lf_hash_search(&hash, pins, &file_no, sizeof(file_no)));
+  if (!e)
+    return false;
+
+  uint64_t refcnt= e->oob_refs.load(std::memory_order_relaxed);
+  lf_hash_search_unpin(pins);
+  return refcnt > 0;
 }
 
 

@@ -1618,10 +1618,17 @@ struct handlerton
     during crash recovery.
   */
   /* Binlog an event group that doesn't go through commit_ordered. */
-  bool (*binlog_write_xa_prepare_ordered)
-      (handler_binlog_event_group_info *binlog_info, uchar engine_count);
-  bool (*binlog_write_xa_prepare)(handler_binlog_event_group_info *binlog_info,
-                                  uchar engine_count);
+  bool (*binlog_write_xa_prepare_ordered)(THD *thd,
+           handler_binlog_event_group_info *binlog_info, uchar engine_count);
+  bool (*binlog_write_xa_prepare)(THD *thd,
+           handler_binlog_event_group_info *binlog_info, uchar engine_count);
+  /*
+    Binlog rollback a transaction that was previously made durably prepared
+    with binlog_write_xa_prepare.
+  */
+  bool (*binlog_xa_rollback_ordered)(THD *thd, const XID *xid,
+                                     void **engine_data);
+  bool (*binlog_xa_rollback)(THD *thd, const XID *xid, void **engine_data);
   /*
     Obtain an object to allow reading from the binlog.
     The boolean argument wait_durable is set to true to require that

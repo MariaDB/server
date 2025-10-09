@@ -346,8 +346,8 @@ public:
   /* Delete all (consecutive) entries from file_no down. */
   void remove_up_to(uint64_t file_no, LF_PINS *pins);
   /* Update an entry when an OOB record is started/completed. */
-  bool oob_ref_inc(uint64_t file_no, LF_PINS *pins);
-  bool oob_ref_dec(uint64_t file_no, LF_PINS *pins);
+  bool oob_ref_inc(uint64_t file_no, LF_PINS *pins, bool do_xa= false);
+  bool oob_ref_dec(uint64_t file_no, LF_PINS *pins, bool do_xa= false);
   /* Update earliest_oob_ref when refcount drops to zero. */
   void do_zero_refcnt_action(uint64_t file_no, LF_PINS *pins,
                              bool active_moving);
@@ -357,6 +357,8 @@ public:
   /* Lookup the oob-referenced file_no from a file_no. */
   bool get_oob_ref_file_no(uint64_t file_no, LF_PINS *pins,
                            uint64_t *out_oob_ref_file_no);
+  /* Check if file_no needed by active, not committed transaction. */
+  bool get_oob_ref_in_use(uint64_t file_no, LF_PINS *pins);
 };
 
 
