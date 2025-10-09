@@ -1,4 +1,3 @@
---source include/no_view_protocol.inc
 --disable_query_log
 --disable_result_log
 --source ../t/test_init.inc

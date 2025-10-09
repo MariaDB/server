@@ -1,5 +1,6 @@
 # Windows-specific tests
 --source include/windows.inc
+--source include/have_lowercase1.inc
 
 #
 # Bug 9148: Denial of service

@@ -5821,11 +5821,12 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
 
     if ((err_code= drop_server(thd, &lex->server_options)))
     {
-      if (! lex->if_exists() && err_code == ER_FOREIGN_SERVER_DOESNT_EXIST)
+      if (! lex->if_exists() || err_code != ER_FOREIGN_SERVER_DOESNT_EXIST)
       {
         DBUG_PRINT("info", ("problem dropping server %s",
                             lex->server_options.server_name.str));
-        my_error(err_code, MYF(0), lex->server_options.server_name.str);
+        if (!thd->is_error())
+          my_error(err_code, MYF(0), lex->server_options.server_name.str);
       }
       else
       {

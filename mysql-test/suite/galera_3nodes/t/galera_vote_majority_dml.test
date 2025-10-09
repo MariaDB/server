@@ -4,6 +4,7 @@
 #              that replicas survive and the primary (trx source) bails out.
 #
 --source include/galera_cluster.inc
+--source include/have_perfschema.inc
 
 CREATE TABLE t1 (f1 INTEGER PRIMARY KEY, f2 BLOB) ENGINE=InnoDB;
 

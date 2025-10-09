@@ -498,11 +498,16 @@ void bitmap_subtract(MY_BITMAP *map, const MY_BITMAP *map2)
 
 void bitmap_union(MY_BITMAP *map, const MY_BITMAP *map2)
 {
-  my_bitmap_map *to= map->bitmap, *from= map2->bitmap, *end= map->last_word_ptr;
-  DBUG_ASSERT_IDENTICAL_BITMAPS(map,map2);
+  my_bitmap_map *to= map->bitmap, *from= map2->bitmap, *end;
+  uint len= no_words_in_map(map), len2= no_words_in_map(map2);
+  uint32 num_bits= MY_MIN(map->n_bits, map2->n_bits);
+  DBUG_ASSERT_DIFFERENT_BITMAPS(map,map2);
 
-  while (to <= end)
+  end= to + MY_MIN(len, len2) - 1;
+
+  while (to < end)
     *to++ |= *from++;
+  *to|= *from & ~last_bit_mask(num_bits); /* Omit last not relevant bits */
 }
 
 

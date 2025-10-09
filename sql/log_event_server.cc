@@ -5228,7 +5228,11 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
     {
       bitmap_intersect(table->read_set,&m_cols);
       if (get_general_type_code() == UPDATE_ROWS_EVENT)
+      {
+        /* Must read also after-image columns to be able to update them. */
+        bitmap_union(m_table->read_set, &m_cols_ai);
         bitmap_intersect(table->write_set, &m_cols_ai);
+      }
       table->mark_columns_per_binlog_row_image();
       if (table->vfield)
         table->mark_virtual_columns_for_write(0);

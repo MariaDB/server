@@ -88,15 +88,6 @@ create role r1;
 drop role r1;
 rename table mysql.roles_mapping_bak to mysql.roles_mapping;
 #
-# MDEV-35622 SEGV, ASAN use-after-poison when reading system table with less than expected number of columns
-#
-call mtr.add_suppression("mysql.servers");
-alter table mysql.servers drop column owner;
-insert into mysql.servers values(0,0,0,0,0,0,0,0,0);
-flush privileges;
-ERROR HY000: Cannot load from mysql.servers. The table is probably corrupted
-alter table mysql.servers add column Owner varchar(512) not null default '';
-#
 # MDEV-28482 SIGSEGV in get_access_value_from_val_int
 #
 create temporary table t1 select * from mysql.tables_priv;

@@ -2370,6 +2370,7 @@ buf_page_t *buf_page_get_zip(const page_id_t page_id) noexcept
 #ifdef UNIV_DEBUG
   if (!(++buf_dbg_counter % 5771)) buf_pool.validate();
 #endif /* UNIV_DEBUG */
+  ut_ad(bpage->state() >= buf_page_t::UNFIXED);
   return bpage;
 }
 
