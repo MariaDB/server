@@ -23,6 +23,7 @@ int maria_scan_init(register MARIA_HA *info)
 
   info->cur_row.nextpos= info->s->pack.header_length;	/* Read first record */
   info->lastinx= -1;				/* Can't forward or backward */
+  info->cur_row.trid= 0;
   if (info->opt_flag & WRITE_CACHE_USED && flush_io_cache(&info->rec_cache))
     DBUG_RETURN(my_errno);
 
