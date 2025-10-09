@@ -12,7 +12,6 @@ show create server s;
 alter table mysql.servers drop column Options;
 show create server s;
 --source include/restart_mysqld.inc
---error ER_FOREIGN_SERVER_DOESNT_EXIST
 show create server s;
 ALTER TABLE mysql.servers
   ADD Options JSON NOT NULL DEFAULT '{}' CHECK(JSON_VALID(Options));

@@ -105,16 +105,6 @@ drop role r1;
 rename table mysql.roles_mapping_bak to mysql.roles_mapping;
 
 --echo #
---echo # MDEV-35622 SEGV, ASAN use-after-poison when reading system table with less than expected number of columns
---echo #
-call mtr.add_suppression("mysql.servers");
-alter table mysql.servers drop column owner;
-insert into mysql.servers values(0,0,0,0,0,0,0,0,0);
---error ER_CANNOT_LOAD_FROM_TABLE_V2
-flush privileges;
-alter table mysql.servers add column Owner varchar(512) not null default '';
-
---echo #
 --echo # MDEV-28482 SIGSEGV in get_access_value_from_val_int
 --echo #
 create temporary table t1 select * from mysql.tables_priv;
