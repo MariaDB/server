@@ -1064,4 +1064,15 @@ set session enforce_storage_engine=memory;
 insert t values ('asdf');
 drop table t;
 set session enforce_storage_engine=default;
+# MDEV-37817 DROP TABLE GTT doesn't succeed for ON COMMIT DELETE ROWS
+create global temporary table gtt (x int);
+begin;
+insert into gtt values (1);
+handler gtt open;
+alter table gtt force;
+Warnings:
+Note	1031	Global temporary table test.gtt HANDLER is closed.
+begin;
+insert into gtt values (1);
+drop table gtt;
 disconnect con1;

@@ -3755,6 +3755,8 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
       bool commit_failed= trans_commit_implicit(thd);
       /* Release metadata locks acquired in this transaction. */
       thd->release_transactional_locks();
+      commit_failed=
+              thd->drop_on_commit_delete_tables_with_lock() || commit_failed;
       if (commit_failed)
       {
         WSREP_DEBUG("implicit commit failed, MDL released: %lld",

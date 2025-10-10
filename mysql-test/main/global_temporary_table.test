@@ -934,4 +934,16 @@ insert t values ('asdf');
 drop table t;
 set session enforce_storage_engine=default;
 
+--echo # MDEV-37817 DROP TABLE GTT doesn't succeed for ON COMMIT DELETE ROWS
+create global temporary table gtt (x int);
+begin;
+insert into gtt values (1);
+handler gtt open;
+--disable_ps_protocol
+alter table gtt force;
+--enable_ps_protocol
+begin;
+insert into gtt values (1);
+drop table gtt;
+
 --disconnect con1

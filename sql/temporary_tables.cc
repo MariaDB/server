@@ -1460,6 +1460,20 @@ int THD::commit_global_tmp_tables()
   return 0;
 }
 
+int THD::drop_on_commit_delete_tables_with_lock()
+{
+  bool locked= lock_temporary_tables();
+
+  int error= 0;
+  if (temporary_tables && temporary_tables->global_temporary_tables_count &&
+      temporary_tables->committed)
+    error= drop_on_commit_delete_tables();
+
+  if (locked)
+    unlock_temporary_tables();
+  return error;
+}
+
 int THD::drop_on_commit_delete_tables()
 {
   int error= 0;
@@ -1481,6 +1495,7 @@ int THD::drop_on_commit_delete_tables()
                             ER_ILLEGAL_HA,
                             "Global temporary table %s.%s HANDLER is closed.",
                             table->s->db.str, table->s->table_name.str);
+        mark_tmp_table_as_free_for_reuse(table);
       }
     }
 
