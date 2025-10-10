@@ -5897,6 +5897,7 @@ public:
   void restore_tmp_table_share(TMP_TABLE_SHARE *share);
   void close_unused_temporary_table_instances(const TABLE_LIST *tl);
   int commit_global_tmp_tables();
+  int drop_on_commit_delete_tables_with_lock();
   void use_global_tmp_table_tp();
   inline bool has_open_global_temporary_tables() const
   {
