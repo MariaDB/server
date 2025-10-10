@@ -1745,17 +1745,23 @@ void verbose_msg(const char *fmt, ...)
   DBUG_ENTER("verbose_msg");
   DBUG_PRINT("enter", ("format: %s", fmt));
 
-  if (!verbose)
-    DBUG_VOID_RETURN;
+  /*
+    if (!verbose)
+      DBUG_VOID_RETURN;
+   */
 
   fflush(stdout);
   va_start(args, fmt);
-  fprintf(stderr, "mysqltest: ");
+  /*
+    fprintf(stderr, "mysqltest: ");
+   */
   if (cur_file && cur_file != file_stack)
     fprintf(stderr, "In included file \"%s\": ",
             cur_file->file_name);
-  if (start_lineno != 0)
-    fprintf(stderr, "At line %u: ", start_lineno);
+  /*
+    if (start_lineno != 0)
+      fprintf(stderr, "At line %u: ", start_lineno);
+   */
   vfprintf(stderr, fmt, args);
   fprintf(stderr, "\n");
   va_end(args);
@@ -10412,6 +10418,22 @@ int main(int argc, char **argv)
 
     if (ok_to_do)
     {
+      /* only log current file / do not log included files */
+      if (!cur_file || cur_file == file_stack)
+      {
+        if (command->type == Q_EMPTY_LINE)
+          verbose_msg("%s", "");
+        /* ignore if; eval will be handled after var subst */
+        else if (command->type != Q_IF && command->type != Q_END_BLOCK &&
+                 command->type != Q_EVAL)
+          /*
+            read_command_buf instead of command->query because only
+            the former retains leading "--"
+          */
+          verbose_msg("%s%s", read_command_buf,
+                      strncmp("--", read_command_buf, 2) &&
+                      strncmp("#", read_command_buf, 1) ? ";" : "");
+      }
       command->last_argument= command->first_argument;
       processed = 1;
       /* Need to remember this for handle_error() */
@@ -10594,6 +10616,14 @@ int main(int argc, char **argv)
 
         /* Restore settings */
 	display_result_vertically= old_display_result_vertically;
+
+        /* only log current file / do not log included files */
+        if (!cur_file || cur_file == file_stack)
+        {
+          /* print evaled query */
+          if (command->type == Q_EVAL)
+            verbose_msg("%s;", command->eval_query.str);
+        }
 
 	break;
       }
