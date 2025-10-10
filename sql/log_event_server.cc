@@ -5297,8 +5297,8 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
         bitmap_set_bit(table->write_set, table->s->vers.end_fieldno);
       }
 
-      if (rpl_table->check_wrong_column_usage(rgi, &m_cols))
-        DBUG_RETURN(1);
+      if ((error= rpl_table->check_wrong_column_usage(rgi, &m_cols)))
+        goto err;
 
       table->mark_columns_per_binlog_row_image();
 
