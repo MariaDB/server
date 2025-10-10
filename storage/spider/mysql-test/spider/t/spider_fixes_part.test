@@ -7,17 +7,6 @@ source include/have_log_bin.inc;
 --source slave_test_init.inc
 --enable_result_log
 --enable_query_log
-if (!$HAVE_PARTITION)
-{
-  --disable_query_log
-  --disable_result_log
-  --source slave_test_deinit.inc
-  --source test_deinit.inc
-  --enable_result_log
-  --enable_query_log
-  --enable_warnings
-  skip Test requires partitioning;
-}
 
 --echo
 --echo drop and create databases
@@ -25,47 +14,32 @@ if (!$HAVE_PARTITION)
 DROP DATABASE IF EXISTS auto_test_local;
 CREATE DATABASE auto_test_local;
 USE auto_test_local;
-if ($USE_REPLICATION)
-{
-  --connection slave1_1
-  DROP DATABASE IF EXISTS auto_test_local;
-  CREATE DATABASE auto_test_local;
-  USE auto_test_local;
-}
-if ($USE_CHILD_GROUP2)
-{
-  --connection child2_1
-  DROP DATABASE IF EXISTS auto_test_remote;
-  CREATE DATABASE auto_test_remote;
-  USE auto_test_remote;
-  --connection child2_2
-  DROP DATABASE IF EXISTS auto_test_remote2;
-  CREATE DATABASE auto_test_remote2;
-  USE auto_test_remote2;
-}
+--connection slave1_1
+DROP DATABASE IF EXISTS auto_test_local;
+CREATE DATABASE auto_test_local;
+USE auto_test_local;
+--connection child2_1
+DROP DATABASE IF EXISTS auto_test_remote;
+CREATE DATABASE auto_test_remote;
+USE auto_test_remote;
+--connection child2_2
+DROP DATABASE IF EXISTS auto_test_remote2;
+CREATE DATABASE auto_test_remote2;
+USE auto_test_remote2;
 --enable_warnings
 
 --echo
 --echo test select 1
 --connection master_1
 SELECT 1;
-if ($USE_CHILD_GROUP2)
-{
-  if (!$OUTPUT_CHILD_GROUP2)
-  {
-    --disable_query_log
-    --disable_result_log
-  }
-  --connection child2_1
-  SELECT 1;
-  --connection child2_2
-  SELECT 1;
-  if (!$OUTPUT_CHILD_GROUP2)
-  {
-    --enable_query_log
-    --enable_result_log
-  }
-}
+--disable_query_log
+--disable_result_log
+--connection child2_1
+SELECT 1;
+--connection child2_2
+SELECT 1;
+--enable_query_log
+--enable_result_log
 
 --connection master_1
 --disable_warnings
@@ -73,687 +47,478 @@ DROP TABLE IF EXISTS tb_l;
 --enable_warnings
 --disable_query_log
 echo CREATE TABLE tb_l (
-  a INT,
-  b CHAR(1),
-  c DATETIME,
-  PRIMARY KEY(a)
+a INT,
+b CHAR(1),
+c DATETIME,
+PRIMARY KEY(a)
 ) MASTER_1_ENGINE2 MASTER_1_CHARSET2;
-eval CREATE TABLE tb_l (
-  a INT,
-  b CHAR(1),
-  c DATETIME,
-  PRIMARY KEY(a)
-) $MASTER_1_ENGINE2 $MASTER_1_CHARSET2;
+CREATE TABLE tb_l (
+a INT,
+b CHAR(1),
+c DATETIME,
+PRIMARY KEY(a)
+) ENGINE=MyISAM DEFAULT CHARSET=utf8;
 --enable_query_log
 INSERT INTO tb_l (a, b, c) VALUES
-  (1, 'a', '2008-08-01 10:21:39'),
-  (2, 'b', '2000-01-01 00:00:00'),
-  (3, 'e', '2007-06-04 20:03:11'),
-  (4, 'd', '2003-11-30 05:01:03'),
-  (5, 'c', '2001-12-31 23:59:59');
+(1, 'a', '2008-08-01 10:21:39'),
+(2, 'b', '2000-01-01 00:00:00'),
+(3, 'e', '2007-06-04 20:03:11'),
+(4, 'd', '2003-11-30 05:01:03'),
+(5, 'c', '2001-12-31 23:59:59');
 
 --echo
 --echo 2.17
 --echo partition with sort
-if ($HAVE_PARTITION)
-{
-  if ($USE_CHILD_GROUP2)
-  {
-    if (!$OUTPUT_CHILD_GROUP2)
-    {
-      --disable_query_log
-      --disable_result_log
-    }
-    --connection child2_2
-    if ($OUTPUT_CHILD_GROUP2)
-    {
-      --disable_query_log
-      echo CHILD2_2_DROP_TABLES;
-      echo CHILD2_2_CREATE_TABLES;
-    }
-    --disable_warnings
-    eval $CHILD2_2_DROP_TABLES;
-    --enable_warnings
-    eval $CHILD2_2_CREATE_TABLES;
-    if ($OUTPUT_CHILD_GROUP2)
-    {
-      --enable_query_log
-    }
-    if ($USE_GENERAL_LOG)
-    {
-      TRUNCATE TABLE mysql.general_log;
-    }
-    --connection child2_1
-    if ($OUTPUT_CHILD_GROUP2)
-    {
-      --disable_query_log
-      echo CHILD2_1_DROP_TABLES2;
-      echo CHILD2_1_CREATE_TABLES2;
-    }
-    --disable_warnings
-    eval $CHILD2_1_DROP_TABLES2;
-    --enable_warnings
-    eval $CHILD2_1_CREATE_TABLES2;
-    if ($OUTPUT_CHILD_GROUP2)
-    {
-      --enable_query_log
-    }
-    if ($USE_GENERAL_LOG)
-    {
-      TRUNCATE TABLE mysql.general_log;
-    }
-    if (!$OUTPUT_CHILD_GROUP2)
-    {
-      --enable_query_log
-      --enable_result_log
-    }
-  }
-  --connection master_1
-  --disable_query_log
-  echo CREATE TABLE ta_l2 (
-    a INT,
-    b CHAR(1),
-    c DATETIME,
-    PRIMARY KEY(a)
-  ) MASTER_1_ENGINE MASTER_1_COMMENT2_P_2_1;
-  eval CREATE TABLE ta_l2 (
-    a INT,
-    b CHAR(1),
-    c DATETIME,
-    PRIMARY KEY(a)
-  ) $MASTER_1_ENGINE $MASTER_1_COMMENT2_P_2_1;
-  --enable_query_log
-  --disable_ps_protocol
-  INSERT INTO ta_l2 SELECT a, b, c FROM tb_l;
-  --enable_ps_protocol
-  SELECT a, b, date_format(c, '%Y-%m-%d %H:%i:%s') FROM ta_l2 WHERE a > 1
-  ORDER BY a;
-  if ($USE_CHILD_GROUP2)
-  {
-    if (!$OUTPUT_CHILD_GROUP2)
-    {
-      --disable_query_log
-      --disable_result_log
-    }
-    --connection child2_2
-    if ($USE_GENERAL_LOG)
-    {
-      SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %';
-    }
-    eval $CHILD2_2_SELECT_TABLES;
-    --connection child2_1
-    if ($USE_GENERAL_LOG)
-    {
-      SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %';
-    }
-    eval $CHILD2_1_SELECT_TABLES2;
-    if (!$OUTPUT_CHILD_GROUP2)
-    {
-      --enable_query_log
-      --enable_result_log
-    }
-  }
-}
+--disable_query_log
+--disable_result_log
+--connection child2_2
+--disable_warnings
+DROP TABLE IF EXISTS ta_r3;
+--enable_warnings
+CREATE TABLE ta_r3 (
+a INT DEFAULT 10,
+b CHAR(1) DEFAULT 'c',
+c DATETIME DEFAULT '1999-10-10 10:10:10',
+PRIMARY KEY(a)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+TRUNCATE TABLE mysql.general_log;
+--connection child2_1
+--disable_warnings
+DROP TABLE IF EXISTS ta_r2;
+--enable_warnings
+CREATE TABLE ta_r2 (
+a INT DEFAULT 10,
+b CHAR(1) DEFAULT 'c',
+c DATETIME DEFAULT '1999-10-10 10:10:10',
+PRIMARY KEY(a)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+TRUNCATE TABLE mysql.general_log;
+--enable_query_log
+--enable_result_log
+--connection master_1
+--disable_query_log
+echo CREATE TABLE ta_l2 (
+a INT,
+b CHAR(1),
+c DATETIME,
+PRIMARY KEY(a)
+) MASTER_1_ENGINE MASTER_1_COMMENT2_P_2_1;
+CREATE TABLE ta_l2 (
+a INT,
+b CHAR(1),
+c DATETIME,
+PRIMARY KEY(a)
+) ENGINE=Spider COMMENT='table "ta_r3"'
+  PARTITION BY RANGE(a) (
+PARTITION pt1 VALUES LESS THAN (4) COMMENT='srv "s_2_1",
+    table "ta_r2", priority "1000"',
+PARTITION pt2 VALUES LESS THAN MAXVALUE
+COMMENT='srv "s_2_2", priority "1000001"'
+  );
+--enable_query_log
+--disable_ps_protocol
+INSERT INTO ta_l2 SELECT a, b, c FROM tb_l;
+--enable_ps_protocol
+SELECT a, b, date_format(c, '%Y-%m-%d %H:%i:%s') FROM ta_l2 WHERE a > 1
+ORDER BY a;
+--disable_query_log
+--disable_result_log
+--connection child2_2
+SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %';
+SELECT a, b, date_format(c, '%Y-%m-%d %H:%i:%s') FROM ta_r3 ORDER BY a;
+--connection child2_1
+SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %';
+SELECT a, b, date_format(c, '%Y-%m-%d %H:%i:%s') FROM ta_r2 ORDER BY a;
+--enable_query_log
+--enable_result_log
 
 --echo
 --echo 2.23
 --echo partition update with moving partition
-if ($HAVE_PARTITION)
-{
-  --connection master_1
-  --disable_warnings
-  DROP TABLE IF EXISTS ta_l2;
-  --enable_warnings
-  if ($USE_CHILD_GROUP2)
-  {
-    if (!$OUTPUT_CHILD_GROUP2)
-    {
-      --disable_query_log
-      --disable_result_log
-    }
-    --connection child2_2
-    if ($OUTPUT_CHILD_GROUP2)
-    {
-      --disable_query_log
-      echo CHILD2_2_DROP_TABLES;
-      echo CHILD2_2_CREATE_TABLES;
-    }
-    --disable_warnings
-    eval $CHILD2_2_DROP_TABLES;
-    --enable_warnings
-    eval $CHILD2_2_CREATE_TABLES;
-    if ($OUTPUT_CHILD_GROUP2)
-    {
-      --enable_query_log
-    }
-    if ($USE_GENERAL_LOG)
-    {
-      TRUNCATE TABLE mysql.general_log;
-    }
-    --connection child2_1
-    if ($OUTPUT_CHILD_GROUP2)
-    {
-      --disable_query_log
-      echo CHILD2_1_DROP_TABLES2;
-      echo CHILD2_1_CREATE_TABLES2;
-    }
-    --disable_warnings
-    eval $CHILD2_1_DROP_TABLES2;
-    --enable_warnings
-    eval $CHILD2_1_CREATE_TABLES2;
-    if ($OUTPUT_CHILD_GROUP2)
-    {
-      --enable_query_log
-    }
-    if ($USE_GENERAL_LOG)
-    {
-      TRUNCATE TABLE mysql.general_log;
-    }
-    if (!$OUTPUT_CHILD_GROUP2)
-    {
-      --enable_query_log
-      --enable_result_log
-    }
-  }
-  --connection master_1
-  --disable_query_log
-  echo CREATE TABLE ta_l2 (
-    a INT,
-    b CHAR(1),
-    c DATETIME,
-    PRIMARY KEY(a)
-  ) MASTER_1_ENGINE MASTER_1_COMMENT2_P_2_1;
-  eval CREATE TABLE ta_l2 (
-    a INT,
-    b CHAR(1),
-    c DATETIME,
-    PRIMARY KEY(a)
-  ) $MASTER_1_ENGINE $MASTER_1_COMMENT2_P_2_1;
-  --enable_query_log
-  --disable_ps_protocol
-  INSERT INTO ta_l2 (a, b, c) VALUES (3, 'B', '2010-09-26 00:00:00');
-  --enable_ps_protocol
-  UPDATE ta_l2 SET a = 4 WHERE a = 3;
-  SELECT a, b, date_format(c, '%Y-%m-%d %H:%i:%s') FROM ta_l2;
-  if ($USE_CHILD_GROUP2)
-  {
-    if (!$OUTPUT_CHILD_GROUP2)
-    {
-      --disable_query_log
-      --disable_result_log
-    }
-    --connection child2_2
-    if ($USE_GENERAL_LOG)
-    {
-      SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %';
-      SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%insert %';
-      SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%update %';
-      SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%delete %';
-    }
-    eval $CHILD2_2_SELECT_TABLES;
-    --connection child2_1
-    if ($USE_GENERAL_LOG)
-    {
-      SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %';
-      SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%insert %';
-      SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%update %';
-      SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%delete %';
-    }
-    eval $CHILD2_1_SELECT_TABLES2;
-    if (!$OUTPUT_CHILD_GROUP2)
-    {
-      --enable_query_log
-      --enable_result_log
-    }
-  }
-}
+--connection master_1
+--disable_warnings
+DROP TABLE IF EXISTS ta_l2;
+--enable_warnings
+--disable_query_log
+--disable_result_log
+--connection child2_2
+--disable_warnings
+DROP TABLE IF EXISTS ta_r3;
+--enable_warnings
+CREATE TABLE ta_r3 (
+a INT DEFAULT 10,
+b CHAR(1) DEFAULT 'c',
+c DATETIME DEFAULT '1999-10-10 10:10:10',
+PRIMARY KEY(a)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+TRUNCATE TABLE mysql.general_log;
+--connection child2_1
+--disable_warnings
+DROP TABLE IF EXISTS ta_r2;
+--enable_warnings
+CREATE TABLE ta_r2 (
+a INT DEFAULT 10,
+b CHAR(1) DEFAULT 'c',
+c DATETIME DEFAULT '1999-10-10 10:10:10',
+PRIMARY KEY(a)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+TRUNCATE TABLE mysql.general_log;
+--enable_query_log
+--enable_result_log
+--connection master_1
+--disable_query_log
+echo CREATE TABLE ta_l2 (
+a INT,
+b CHAR(1),
+c DATETIME,
+PRIMARY KEY(a)
+) MASTER_1_ENGINE MASTER_1_COMMENT2_P_2_1;
+CREATE TABLE ta_l2 (
+a INT,
+b CHAR(1),
+c DATETIME,
+PRIMARY KEY(a)
+) ENGINE=Spider COMMENT='table "ta_r3"'
+  PARTITION BY RANGE(a) (
+PARTITION pt1 VALUES LESS THAN (4) COMMENT='srv "s_2_1",
+    table "ta_r2", priority "1000"',
+PARTITION pt2 VALUES LESS THAN MAXVALUE
+COMMENT='srv "s_2_2", priority "1000001"'
+  );
+--enable_query_log
+--disable_ps_protocol
+INSERT INTO ta_l2 (a, b, c) VALUES (3, 'B', '2010-09-26 00:00:00');
+--enable_ps_protocol
+UPDATE ta_l2 SET a = 4 WHERE a = 3;
+SELECT a, b, date_format(c, '%Y-%m-%d %H:%i:%s') FROM ta_l2;
+--disable_query_log
+--disable_result_log
+--connection child2_2
+SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %';
+SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%insert %';
+SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%update %';
+SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%delete %';
+SELECT a, b, date_format(c, '%Y-%m-%d %H:%i:%s') FROM ta_r3 ORDER BY a;
+--connection child2_1
+SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %';
+SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%insert %';
+SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%update %';
+SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%delete %';
+SELECT a, b, date_format(c, '%Y-%m-%d %H:%i:%s') FROM ta_r2 ORDER BY a;
+--enable_query_log
+--enable_result_log
 
 --echo index merge with partition
-if ($HAVE_PARTITION)
-{
-  --connection master_1
-  --disable_warnings
-  DROP TABLE IF EXISTS ta_l_int;
-  --enable_warnings
-  if ($USE_CHILD_GROUP2)
-  {
-    if (!$OUTPUT_CHILD_GROUP2)
-    {
-      --disable_result_log
-    }
-    --disable_query_log
-    --connection child2_2
-    if ($OUTPUT_CHILD_GROUP2)
-    {
-      echo CHILD2_2_DROP_TABLES5;
-      echo CHILD2_2_CREATE_TABLES5;
-    }
-    --disable_warnings
-    eval $CHILD2_2_DROP_TABLES5;
-    --enable_warnings
-    eval $CHILD2_2_CREATE_TABLES5;
-    --connection child2_1
-    if ($OUTPUT_CHILD_GROUP2)
-    {
-      echo CHILD2_1_DROP_TABLES5;
-      echo CHILD2_1_CREATE_TABLES5;
-    }
-    --disable_warnings
-    eval $CHILD2_1_DROP_TABLES5;
-    --enable_warnings
-    eval $CHILD2_1_CREATE_TABLES5;
-    --enable_query_log
-    if (!$OUTPUT_CHILD_GROUP2)
-    {
-      --enable_result_log
-    }
-  }
-  --connection master_1
-  --disable_query_log
-  echo CREATE TABLE ta_l_int (
-    a INT AUTO_INCREMENT,
-    b INT DEFAULT 10,
-    c INT DEFAULT 11,
-    PRIMARY KEY(a),
-    KEY idx1(b),
-    KEY idx2(c)
-  ) MASTER_1_ENGINE MASTER_1_CHARSET MASTER_1_COMMENT3_P_2_1;
-  eval CREATE TABLE ta_l_int (
-    a INT AUTO_INCREMENT,
-    b INT DEFAULT 10,
-    c INT DEFAULT 11,
-    PRIMARY KEY(a),
-    KEY idx1(b),
-    KEY idx2(c)
-  ) $MASTER_1_ENGINE $MASTER_1_CHARSET $MASTER_1_COMMENT3_P_2_1;
-  --enable_query_log
-  --disable_ps_protocol
-  INSERT INTO ta_l_int (a, b, c) VALUES (1, 2, 3);
-  --enable_ps_protocol
-  INSERT INTO ta_l_int (a, b, c) SELECT a + 1, b + 1, c + 1 FROM ta_l_int;
-  INSERT INTO ta_l_int (a, b, c) SELECT a + 2, b + 2, c + 2 FROM ta_l_int;
-  INSERT INTO ta_l_int (a, b, c) SELECT a + 4, b + 4, c + 4 FROM ta_l_int;
-  INSERT INTO ta_l_int (a, b, c) SELECT a + 8, b + 8, c + 8 FROM ta_l_int;
-  if ($USE_CHILD_GROUP2)
-  {
-    if (!$OUTPUT_CHILD_GROUP2)
-    {
-      --disable_query_log
-      --disable_result_log
-    }
-    --connection child2_2
-    if ($USE_GENERAL_LOG)
-    {
-      TRUNCATE TABLE mysql.general_log;
-    }
-    --connection child2_1
-    if ($USE_GENERAL_LOG)
-    {
-      TRUNCATE TABLE mysql.general_log;
-    }
-    if (!$OUTPUT_CHILD_GROUP2)
-    {
-      --enable_query_log
-      --enable_result_log
-    }
-  }
-  --connection master_1
-  SELECT a, b, c FROM ta_l_int force index(primary, idx1, idx2)
-  WHERE a = 5 OR b = 5 OR c = 5 ORDER BY a;
-  if ($USE_CHILD_GROUP2)
-  {
-    if (!$OUTPUT_CHILD_GROUP2)
-    {
-      --disable_query_log
-      --disable_result_log
-    }
-    --connection child2_2
-    if ($USE_GENERAL_LOG)
-    {
-      SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %';
-    }
-    --connection child2_1
-    if ($USE_GENERAL_LOG)
-    {
-      SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %';
-    }
-    if (!$OUTPUT_CHILD_GROUP2)
-    {
-      --enable_query_log
-      --enable_result_log
-    }
-  }
-}
-
+--connection master_1
+--disable_warnings
+DROP TABLE IF EXISTS ta_l_int;
+--enable_warnings
+--disable_result_log
+--disable_query_log
+--connection child2_2
+--disable_warnings
+DROP TABLE IF EXISTS ta_r_int;
+--enable_warnings
+CREATE TABLE ta_r_int (
+a INT AUTO_INCREMENT,
+b INT DEFAULT 10,
+c INT DEFAULT 11,
+PRIMARY KEY(a),
+KEY idx1(b),
+KEY idx2(c)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+--connection child2_1
+--disable_warnings
+DROP TABLE IF EXISTS ta_r_int;
+--enable_warnings
+CREATE TABLE ta_r_int (
+a INT AUTO_INCREMENT,
+b INT DEFAULT 10,
+c INT DEFAULT 11,
+PRIMARY KEY(a),
+KEY idx1(b),
+KEY idx2(c)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+--enable_query_log
+--enable_result_log
+--connection master_1
+--disable_query_log
+echo CREATE TABLE ta_l_int (
+a INT AUTO_INCREMENT,
+b INT DEFAULT 10,
+c INT DEFAULT 11,
+PRIMARY KEY(a),
+KEY idx1(b),
+KEY idx2(c)
+) MASTER_1_ENGINE MASTER_1_CHARSET MASTER_1_COMMENT3_P_2_1;
+CREATE TABLE ta_l_int (
+a INT AUTO_INCREMENT,
+b INT DEFAULT 10,
+c INT DEFAULT 11,
+PRIMARY KEY(a),
+KEY idx1(b),
+KEY idx2(c)
+) ENGINE=Spider DEFAULT CHARSET=utf8 COMMENT='table "ta_r_int"'
+  PARTITION BY LIST(MOD(a, 2)) (
+PARTITION pt1 VALUES IN (0)
+COMMENT='srv "s_2_1", priority "1000"',
+PARTITION pt2 VALUES IN (1)
+COMMENT='srv "s_2_2", priority "1000001"'
+  );
+--enable_query_log
+--disable_ps_protocol
+INSERT INTO ta_l_int (a, b, c) VALUES (1, 2, 3);
+--enable_ps_protocol
+INSERT INTO ta_l_int (a, b, c) SELECT a + 1, b + 1, c + 1 FROM ta_l_int;
+INSERT INTO ta_l_int (a, b, c) SELECT a + 2, b + 2, c + 2 FROM ta_l_int;
+INSERT INTO ta_l_int (a, b, c) SELECT a + 4, b + 4, c + 4 FROM ta_l_int;
+INSERT INTO ta_l_int (a, b, c) SELECT a + 8, b + 8, c + 8 FROM ta_l_int;
+--disable_query_log
+--disable_result_log
+--connection child2_2
+TRUNCATE TABLE mysql.general_log;
+--connection child2_1
+TRUNCATE TABLE mysql.general_log;
+--enable_query_log
+--enable_result_log
+--connection master_1
+SELECT a, b, c FROM ta_l_int force index(primary, idx1, idx2)
+WHERE a = 5 OR b = 5 OR c = 5 ORDER BY a;
+--disable_query_log
+--disable_result_log
+--connection child2_2
+SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %';
+--connection child2_1
+SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %';
+--enable_query_log
+--enable_result_log
 
 --echo
 --echo 2.26
 --echo auto_increment with partition
-if ($HAVE_PARTITION)
-{
-  if ($USE_CHILD_GROUP2)
-  {
-    if (!$OUTPUT_CHILD_GROUP2)
-    {
-      --disable_query_log
-      --disable_result_log
-    }
-    --connection child2_1
-    if ($OUTPUT_CHILD_GROUP2)
-    {
-      --disable_query_log
-      echo CHILD2_1_DROP_INCREMENT_TABLES1;
-      echo CHILD2_1_CREATE_INCREMENT_TABLES1;
-      echo CHILD2_1_AUTO_INCREMENT_INCREMENT2;
-      echo CHILD2_1_AUTO_INCREMENT_OFFSET2;
-    }
-    --disable_warnings
-    eval $CHILD2_1_DROP_INCREMENT_TABLES1;
-    --enable_warnings
-    eval $CHILD2_1_CREATE_INCREMENT_TABLES1;
-    eval $CHILD2_1_AUTO_INCREMENT_INCREMENT2;
-    eval $CHILD2_1_AUTO_INCREMENT_OFFSET2;
-    if ($OUTPUT_CHILD_GROUP2)
-    {
-      --enable_query_log
-    }
-    if ($USE_GENERAL_LOG)
-    {
-      TRUNCATE TABLE mysql.general_log;
-    }
-    --connection child2_2
-    if ($OUTPUT_CHILD_GROUP2)
-    {
-      --disable_query_log
-      echo CHILD2_2_DROP_INCREMENT_TABLES1;
-      echo CHILD2_2_CREATE_INCREMENT_TABLES1;
-      echo CHILD2_2_AUTO_INCREMENT_INCREMENT2;
-      echo CHILD2_2_AUTO_INCREMENT_OFFSET2;
-    }
-    --disable_warnings
-    eval $CHILD2_2_DROP_INCREMENT_TABLES1;
-    --enable_warnings
-    eval $CHILD2_2_CREATE_INCREMENT_TABLES1;
-    eval $CHILD2_2_AUTO_INCREMENT_INCREMENT2;
-    eval $CHILD2_2_AUTO_INCREMENT_OFFSET2;
-    if ($OUTPUT_CHILD_GROUP2)
-    {
-      --enable_query_log
-    }
-    if ($USE_GENERAL_LOG)
-    {
-      TRUNCATE TABLE mysql.general_log;
-    }
-    if (!$OUTPUT_CHILD_GROUP2)
-    {
-      --enable_query_log
-      --enable_result_log
-    }
-  }
-  --connection master_1
-  if ($USE_REPLICATION)
-  {
-    save_master_pos;
-    --source include/save_master_pos.inc
-    --connection slave1_1
-    --let $rc= `select master_pos_wait('$_master_file', $_master_pos, 300, '')`
-    if (`select $rc is NULL OR $rc < 0`)
-    {
-      --vertical_results
-       show slave status;
-      --horizontal_results
-      show global status;
-      show global variables;
-      --let $MYSQLD_DATADIR= `select @@datadir`
-      --exec $MYSQL_BINLOG -v $MYSQLD_DATADIR/mysqld-relay-bin.000001;
-      # Check that the relay-log file is fully on disk.
-      --exec ls -l  $MYSQLD_DATADIR;
-      # After that try to restart the slave SQL thread
-      start slave sql_thread;
-    }
-    sync_with_master;
-    --connection master_1
-    --disable_query_log
-    SET SESSION sql_log_bin= 0;
-    --enable_query_log
-  }
-  --disable_warnings
-  DROP TABLE IF EXISTS t1;
-  --enable_warnings
-  --disable_query_log
-  echo CREATE TABLE t1 (
-    id int(11) NOT NULL AUTO_INCREMENT,
-    PRIMARY KEY (id)
-  ) MASTER_1_ENGINE MASTER_1_CHARSET MASTER_1_COMMENT_INCREMENT1_P_1;
-  echo MASTER_1_AUTO_INCREMENT_INCREMENT2;
-  echo MASTER_1_AUTO_INCREMENT_OFFSET2;
-  eval CREATE TABLE t1 (
-    id int(11) NOT NULL AUTO_INCREMENT,
-    PRIMARY KEY (id)
-  ) $MASTER_1_ENGINE $MASTER_1_CHARSET $MASTER_1_COMMENT_INCREMENT1_P_1;
-  --disable_ps_protocol
-  eval $MASTER_1_AUTO_INCREMENT_INCREMENT2;
-  eval $MASTER_1_AUTO_INCREMENT_OFFSET2;
-  --enable_ps_protocol
-  if ($USE_REPLICATION)
-  {
-    SET SESSION sql_log_bin= 1;
-    --connection slave1_1
-    --disable_warnings
-    DROP TABLE IF EXISTS t1;
-    --enable_warnings
-    echo CREATE TABLE t1 (
-      id int(11) NOT NULL AUTO_INCREMENT,
-      PRIMARY KEY (id)
-    ) SLAVE1_1_ENGINE SLAVE1_1_CHARSET SLAVE1_1_COMMENT_INCREMENT1_P_1;
-    eval CREATE TABLE t1 (
-      id int(11) NOT NULL AUTO_INCREMENT,
-      PRIMARY KEY (id)
-    ) $SLAVE1_1_ENGINE $SLAVE1_1_CHARSET $SLAVE1_1_COMMENT_INCREMENT1_P_1;
-    --connection master_1
-  }
-  --enable_query_log
-  --disable_ps_protocol
-  INSERT INTO t1 () VALUES ();
-  --enable_ps_protocol
-  SELECT LAST_INSERT_ID();
-  SELECT MAX(id) FROM t1;
-  INSERT INTO t1 () VALUES ();
-  SELECT LAST_INSERT_ID();
-  SELECT MAX(id) FROM t1;
-  INSERT INTO t1 (id) VALUES (null);
-  SELECT LAST_INSERT_ID();
-  SELECT MAX(id) FROM t1;
-  INSERT INTO t1 (id) VALUES (null);
-  SELECT LAST_INSERT_ID();
-  SELECT MAX(id) FROM t1;
-  INSERT INTO t1 () VALUES (),(),(),();
-  SELECT LAST_INSERT_ID();
-  SELECT id FROM t1 ORDER BY id;
-  SET INSERT_ID=5000;
-  INSERT INTO t1 () VALUES ();
-  SELECT LAST_INSERT_ID();
-  SELECT MAX(id) FROM t1;
-  INSERT INTO t1 (id) VALUES (10000);
-  SELECT LAST_INSERT_ID();
-  SELECT MAX(id) FROM t1;
-  INSERT INTO t1 (id) VALUES (1000);
-  SELECT LAST_INSERT_ID();
-  SELECT MAX(id) FROM t1;
-  if ($USE_REPLICATION)
-  {
-    save_master_pos;
-    --connection slave1_1
-    sync_with_master;
-    SELECT id FROM t1 ORDER BY id;
-    --connection master_1
-    --disable_query_log
-    SET SESSION sql_log_bin= 0;
-    --enable_query_log
-  }
-  if ($USE_CHILD_GROUP2)
-  {
-    if (!$OUTPUT_CHILD_GROUP2)
-    {
-      --disable_query_log
-      --disable_result_log
-    }
-    --connection child2_1
-    if ($USE_GENERAL_LOG)
-    {
-      SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%insert %';
-    }
-    eval $CHILD2_1_SELECT_INCREMENT_TABLES1;
-    if ($OUTPUT_CHILD_GROUP2)
-    {
-      --disable_query_log
-      echo CHILD2_1_AUTO_INCREMENT_INCREMENT1;
-      echo CHILD2_1_AUTO_INCREMENT_OFFSET1;
-    }
-    eval $CHILD2_1_AUTO_INCREMENT_INCREMENT1;
-    eval $CHILD2_1_AUTO_INCREMENT_OFFSET1;
-    if ($OUTPUT_CHILD_GROUP2)
-    {
-      --enable_query_log
-    }
-    --connection child2_2
-    if ($USE_GENERAL_LOG)
-    {
-      SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%insert %';
-    }
-    eval $CHILD2_2_SELECT_INCREMENT_TABLES1;
-    if ($OUTPUT_CHILD_GROUP2)
-    {
-      --disable_query_log
-      echo CHILD2_2_AUTO_INCREMENT_INCREMENT1;
-      echo CHILD2_2_AUTO_INCREMENT_OFFSET1;
-    }
-    eval $CHILD2_2_AUTO_INCREMENT_INCREMENT1;
-    eval $CHILD2_2_AUTO_INCREMENT_OFFSET1;
-    if ($OUTPUT_CHILD_GROUP2)
-    {
-      --enable_query_log
-    }
-    if (!$OUTPUT_CHILD_GROUP2)
-    {
-      --enable_query_log
-      --enable_result_log
-    }
-  }
-}
+--disable_query_log
+--disable_result_log
+--connection child2_1
+--disable_warnings
+DROP TABLE IF EXISTS t1_1;
+--enable_warnings
+CREATE TABLE t1_1 (
+id int(11) NOT NULL AUTO_INCREMENT,
+PRIMARY KEY (id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+SET GLOBAL AUTO_INCREMENT_INCREMENT = 4;
+SET GLOBAL AUTO_INCREMENT_OFFSET = 2;
+TRUNCATE TABLE mysql.general_log;
+--connection child2_2
+--disable_warnings
+DROP TABLE IF EXISTS t1_2;
+--enable_warnings
+CREATE TABLE t1_2 (
+id int(11) NOT NULL AUTO_INCREMENT,
+PRIMARY KEY (id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+SET GLOBAL AUTO_INCREMENT_INCREMENT = 4;
+SET GLOBAL AUTO_INCREMENT_OFFSET = 3;
+TRUNCATE TABLE mysql.general_log;
+--enable_query_log
+--enable_result_log
+--connection master_1
+save_master_pos;
+--source include/save_master_pos.inc
+--connection slave1_1
+--let $rc= `select master_pos_wait('$_master_file', $_master_pos, 300, '')`
+sync_with_master;
+--connection master_1
+--disable_query_log
+SET SESSION sql_log_bin= 0;
+--enable_query_log
+--disable_warnings
+DROP TABLE IF EXISTS t1;
+--enable_warnings
+--disable_query_log
+echo CREATE TABLE t1 (
+id int(11) NOT NULL AUTO_INCREMENT,
+PRIMARY KEY (id)
+) MASTER_1_ENGINE MASTER_1_CHARSET MASTER_1_COMMENT_INCREMENT1_P_1;
+echo MASTER_1_AUTO_INCREMENT_INCREMENT2;
+echo MASTER_1_AUTO_INCREMENT_OFFSET2;
+CREATE TABLE t1 (
+id int(11) NOT NULL AUTO_INCREMENT,
+PRIMARY KEY (id)
+) ENGINE=Spider DEFAULT CHARSET=utf8 COMMENT 'aim "0"'
+  PARTITION BY LIST(MOD(id, 2)) (
+PARTITION pt1 VALUES IN (0)
+COMMENT='tbl "t1_1", srv "s_2_1"',
+PARTITION pt2 VALUES IN (1)
+COMMENT='tbl "t1_2", srv "s_2_2"'
+  );
+--disable_ps_protocol
+SET SESSION AUTO_INCREMENT_INCREMENT = 777 ;
+SELECT spider_direct_sql('SET SESSION AUTO_INCREMENT_INCREMENT = 4', '',
+'srv "s_2_1"') ;
+SELECT spider_direct_sql('SET SESSION AUTO_INCREMENT_INCREMENT = 4', '',
+'srv "s_2_2"');
+SET SESSION AUTO_INCREMENT_OFFSET = 777 ;
+SELECT spider_bg_direct_sql('SET SESSION AUTO_INCREMENT_OFFSET = 2', '',
+'srv "s_2_1"') ;
+SELECT spider_bg_direct_sql('SET SESSION AUTO_INCREMENT_OFFSET = 3', '',
+'srv "s_2_2"');
+--enable_ps_protocol
+SET SESSION sql_log_bin= 1;
+--connection slave1_1
+--disable_warnings
+DROP TABLE IF EXISTS t1;
+--enable_warnings
+echo CREATE TABLE t1 (
+id int(11) NOT NULL AUTO_INCREMENT,
+PRIMARY KEY (id)
+) SLAVE1_1_ENGINE SLAVE1_1_CHARSET SLAVE1_1_COMMENT_INCREMENT1_P_1;
+CREATE TABLE t1 (
+id int(11) NOT NULL AUTO_INCREMENT,
+PRIMARY KEY (id)
+) ENGINE=MyISAM DEFAULT CHARSET=utf8 COMMENT ''
+  PARTITION BY LIST(MOD(id, 2)) (
+PARTITION pt1 VALUES IN (0)
+COMMENT='',
+PARTITION pt2 VALUES IN (1)
+COMMENT=''
+  );
+--connection master_1
+--enable_query_log
+--disable_ps_protocol
+INSERT INTO t1 () VALUES ();
+--enable_ps_protocol
+SELECT LAST_INSERT_ID();
+SELECT MAX(id) FROM t1;
+INSERT INTO t1 () VALUES ();
+SELECT LAST_INSERT_ID();
+SELECT MAX(id) FROM t1;
+INSERT INTO t1 (id) VALUES (null);
+SELECT LAST_INSERT_ID();
+SELECT MAX(id) FROM t1;
+INSERT INTO t1 (id) VALUES (null);
+SELECT LAST_INSERT_ID();
+SELECT MAX(id) FROM t1;
+INSERT INTO t1 () VALUES (),(),(),();
+SELECT LAST_INSERT_ID();
+SELECT id FROM t1 ORDER BY id;
+SET INSERT_ID=5000;
+INSERT INTO t1 () VALUES ();
+SELECT LAST_INSERT_ID();
+SELECT MAX(id) FROM t1;
+INSERT INTO t1 (id) VALUES (10000);
+SELECT LAST_INSERT_ID();
+SELECT MAX(id) FROM t1;
+INSERT INTO t1 (id) VALUES (1000);
+SELECT LAST_INSERT_ID();
+SELECT MAX(id) FROM t1;
+save_master_pos;
+--connection slave1_1
+sync_with_master;
+SELECT id FROM t1 ORDER BY id;
+--connection master_1
+--disable_query_log
+SET SESSION sql_log_bin= 0;
+--enable_query_log
+--disable_query_log
+--disable_result_log
+--connection child2_1
+SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%insert %';
+SELECT id FROM t1_1 ORDER BY id;
+SET GLOBAL AUTO_INCREMENT_INCREMENT = 1;
+SET GLOBAL AUTO_INCREMENT_OFFSET = 1;
+--connection child2_2
+SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%insert %';
+SELECT id FROM t1_2 ORDER BY id;
+SET GLOBAL AUTO_INCREMENT_INCREMENT = 1;
+SET GLOBAL AUTO_INCREMENT_OFFSET = 1;
+--enable_query_log
+--enable_result_log
 
 --echo
 --echo Test ORDER BY with LIMIT and OFFSET
-if ($HAVE_PARTITION)
-{
-  if ($USE_CHILD_GROUP2)
-  {
-    if (!$OUTPUT_CHILD_GROUP2)
-    {
-      --disable_query_log
-      --disable_result_log
-    }
-    --connection child2_1
-    if ($OUTPUT_CHILD_GROUP2)
-    {
-      --disable_query_log
-      echo CHILD2_1_DROP_TABLES7;
-      echo CHILD2_1_CREATE_TABLES7;
-    }
-    --disable_warnings
-    eval $CHILD2_1_DROP_TABLES7;
-    --enable_warnings
-    eval $CHILD2_1_CREATE_TABLES7;
-    if ($OUTPUT_CHILD_GROUP2)
-    {
-      --enable_query_log
-    }
-    if ($USE_GENERAL_LOG)
-    {
-      TRUNCATE TABLE mysql.general_log;
-    }
-    if (!$OUTPUT_CHILD_GROUP2)
-    {
-      --enable_query_log
-      --enable_result_log
-    }
-  }
-  --connection master_1
-  --disable_query_log
-  --disable_warnings
-  DROP TABLE IF EXISTS ta_ob;
-  --enable_warnings
-  echo CREATE TABLE ta_ob (
-    a VARCHAR(50) NOT NULL,
-    b VARCHAR(50) NULL DEFAULT NULL,
-    c VARCHAR(100) NULL DEFAULT NULL,
-    d DATETIME(0) NULL DEFAULT NULL,
-    e INT(11) NOT NULL,
-    f INT(10) NULL DEFAULT NULL,
-    PRIMARY KEY (a, e)
-  ) $MASTER_1_ENGINE $MASTER_1_COMMENT6_P_1_1;
-  eval CREATE TABLE ta_ob (
-    a VARCHAR(50) NOT NULL,
-    b VARCHAR(50) NULL DEFAULT NULL,
-    c VARCHAR(100) NULL DEFAULT NULL,
-    d DATETIME(0) NULL DEFAULT NULL,
-    e INT(11) NOT NULL,
-    f INT(10) NULL DEFAULT NULL,
-    PRIMARY KEY (a, e)
-  ) $MASTER_1_ENGINE $MASTER_1_COMMENT6_P_1_1;
-  --enable_query_log
-  --disable_ps_protocol
-  INSERT INTO ta_ob VALUES ('0B95CD65DF994BC9A09A6AABE53A2733',
-                            '6CFED89FF6A84C7AA55C3C432663D094',
-                            '51041110620304', '2018-08-02 13:41:13',
-                            510411, 1);
-  --enable_ps_protocol
-  INSERT INTO ta_ob VALUES ('15E8D55EF099443BAEE639E60A4650BD',
-                            '879DC2A0B6AC46D9A62E8EA47E2970F2',
-                            '51041110620301', NULL,
-                            510411, 0);
-  INSERT INTO ta_ob VALUES ('51ECF2C0CD3C48D99C91792E99D3C1A0',
-                            '017B8A460DBC444682B791305EF75356',
-                            '51041110620308', '2018-08-02 13:48:29',
-                            510411, 0);
-  INSERT INTO ta_ob VALUES ('093B37A93A534DF883787AF5F6799674',
-                            '996C7F14989D480589A553717D735E3E',
-                            '51041110620302', '2018-08-02 13:48:30',
-                            510411, 0);
-  INSERT INTO ta_ob VALUES ('53F5266FB069499AB6234755CACA2583',
-                            '017B8A460DBC444682B791305EF75356',
-                            '51041110620308', '2018-08-02 13:48:28',
-                            510411, 0);
-  INSERT INTO ta_ob VALUES ('56E59BC4BDC143868D4A219C2D07A24B',
-                            '821E71E6ABB4404EBAA349BB681089F8',
-                            '51041110620310', '2018-08-02 13:48:27',
-                            510411, 0);
-  INSERT INTO ta_ob VALUES ('56B68DA68D6D4A04A08B453D09AD7B70',
-                            '821E71E6ABB4404EBAA349BB681089F8',
-                            '51041110620310', '2018-08-02 13:48:28',
-                            510411, 0);
-  SELECT * FROM ta_ob WHERE c LIKE "%510411106%" AND e = 510411 AND f != 1 ORDER BY d,c LIMIT 5 OFFSET 1;
-  if ($USE_CHILD_GROUP2)
-  {
-    if (!$OUTPUT_CHILD_GROUP2)
-    {
-      --disable_query_log
-      --disable_result_log
-    }
-    --connection child2_1
-    if ($USE_GENERAL_LOG)
-    {
-      SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %';
-    }
-    eval $CHILD2_1_SELECT_TABLES7;
-    if (!$OUTPUT_CHILD_GROUP2)
-    {
-      --enable_query_log
-      --enable_result_log
-    }
-  }
-}
-
+--disable_query_log
+--disable_result_log
+--connection child2_1
+--disable_warnings
+DROP TABLE IF EXISTS ta_ob;
+--enable_warnings
+CREATE TABLE ta_ob (
+a VARCHAR(50) NOT NULL,
+b VARCHAR(50) NULL DEFAULT NULL,
+c VARCHAR(100) NULL DEFAULT NULL,
+d DATETIME(0) NULL DEFAULT NULL,
+e INT(11) NOT NULL,
+f INT(10) NULL DEFAULT NULL,
+PRIMARY KEY (a, e)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+TRUNCATE TABLE mysql.general_log;
+--enable_query_log
+--enable_result_log
+--connection master_1
+--disable_query_log
+--disable_warnings
+DROP TABLE IF EXISTS ta_ob;
+--enable_warnings
+echo CREATE TABLE ta_ob (
+a VARCHAR(50) NOT NULL,
+b VARCHAR(50) NULL DEFAULT NULL,
+c VARCHAR(100) NULL DEFAULT NULL,
+d DATETIME(0) NULL DEFAULT NULL,
+e INT(11) NOT NULL,
+f INT(10) NULL DEFAULT NULL,
+PRIMARY KEY (a, e)
+) $MASTER_1_ENGINE $MASTER_1_COMMENT6_P_1_1;
+CREATE TABLE ta_ob (
+a VARCHAR(50) NOT NULL,
+b VARCHAR(50) NULL DEFAULT NULL,
+c VARCHAR(100) NULL DEFAULT NULL,
+d DATETIME(0) NULL DEFAULT NULL,
+e INT(11) NOT NULL,
+f INT(10) NULL DEFAULT NULL,
+PRIMARY KEY (a, e)
+) ENGINE=Spider COMMENT='database "auto_test_remote", table "ta_ob"'
+  PARTITION BY LIST COLUMNS (e) PARTITIONS 1
+(PARTITION pt1 values in (510411) COMMENT = 'srv "s_2_1"');
+--enable_query_log
+--disable_ps_protocol
+INSERT INTO ta_ob VALUES ('0B95CD65DF994BC9A09A6AABE53A2733',
+'6CFED89FF6A84C7AA55C3C432663D094',
+'51041110620304', '2018-08-02 13:41:13',
+510411, 1);
+--enable_ps_protocol
+INSERT INTO ta_ob VALUES ('15E8D55EF099443BAEE639E60A4650BD',
+'879DC2A0B6AC46D9A62E8EA47E2970F2',
+'51041110620301', NULL,
+510411, 0);
+INSERT INTO ta_ob VALUES ('51ECF2C0CD3C48D99C91792E99D3C1A0',
+'017B8A460DBC444682B791305EF75356',
+'51041110620308', '2018-08-02 13:48:29',
+510411, 0);
+INSERT INTO ta_ob VALUES ('093B37A93A534DF883787AF5F6799674',
+'996C7F14989D480589A553717D735E3E',
+'51041110620302', '2018-08-02 13:48:30',
+510411, 0);
+INSERT INTO ta_ob VALUES ('53F5266FB069499AB6234755CACA2583',
+'017B8A460DBC444682B791305EF75356',
+'51041110620308', '2018-08-02 13:48:28',
+510411, 0);
+INSERT INTO ta_ob VALUES ('56E59BC4BDC143868D4A219C2D07A24B',
+'821E71E6ABB4404EBAA349BB681089F8',
+'51041110620310', '2018-08-02 13:48:27',
+510411, 0);
+INSERT INTO ta_ob VALUES ('56B68DA68D6D4A04A08B453D09AD7B70',
+'821E71E6ABB4404EBAA349BB681089F8',
+'51041110620310', '2018-08-02 13:48:28',
+510411, 0);
+SELECT * FROM ta_ob WHERE c LIKE "%510411106%" AND e = 510411 AND f != 1 ORDER BY d,c LIMIT 5 OFFSET 1;
+--disable_query_log
+--disable_result_log
+--connection child2_1
+SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %';
+SELECT * FROM ta_ob WHERE c LIKE "%510411106%" AND e = 510411 AND f != 1 ORDER BY d,c LIMIT 6 OFFSET 0;
+--enable_query_log
+--enable_result_log
 
 --echo #
 --echo # MDEV-25985 Spider handle ">=" as ">" in some cases
@@ -763,13 +528,13 @@ if ($HAVE_PARTITION)
 --disable_warnings
 DROP TABLE IF EXISTS t1;
 --enable_warnings
-eval CREATE TABLE t1 (
-    a int,
-    b int,
-    c int,
-    PRIMARY KEY (a),
-    KEY (b,c)
-) $CHILD2_1_ENGINE $CHILD2_1_CHARSET;
+CREATE TABLE t1 (
+a int,
+b int,
+c int,
+PRIMARY KEY (a),
+KEY (b,c)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
 INSERT INTO t1 VALUES (1, 1, 1), (2, 2, 1);
 
@@ -777,13 +542,16 @@ INSERT INTO t1 VALUES (1, 1, 1), (2, 2, 1);
 --disable_warnings
 DROP TABLE IF EXISTS t1;
 --enable_warnings
-eval CREATE TABLE t1 (
-    a int,
-    b int,
-    c int,
-    PRIMARY KEY (a),
-    KEY (b,c)
-) $MASTER_1_ENGINE $MASTER_1_CHARSET $MASTER_1_COMMENT_MDEV_25985;
+CREATE TABLE t1 (
+a int,
+b int,
+c int,
+PRIMARY KEY (a),
+KEY (b,c)
+) ENGINE=Spider DEFAULT CHARSET=utf8 COMMENT='table "t1"'
+  PARTITION BY LIST COLUMNS(`a`) (
+PARTITION `pt1` DEFAULT COMMENT = 'srv "s_2_1"'
+  );
 
 --connection master_1
 --disable_ps_protocol
@@ -795,131 +563,88 @@ SELECT * FROM t1 WHERE c < 3 AND b <= 2;
 --echo Crash from b4a2baffa82e5c07b96a1c752228560dcac1359b (MDEV-11084)
 --echo Fixed with 4968049799193394d442f26b4e3a8d95b185be72
 --echo Spider crashed if the first partition was not used first
-if ($HAVE_PARTITION)
-{
-  if ($USE_CHILD_GROUP2)
-  {
-    if (!$OUTPUT_CHILD_GROUP2)
-    {
-      --disable_query_log
-      --disable_result_log
-    }
-    --connection child2_2
-    if ($OUTPUT_CHILD_GROUP2)
-    {
-      --disable_query_log
-      echo CHILD2_2_DROP_TABLES;
-      echo CHILD2_2_CREATE_TABLES;
-    }
-    --disable_warnings
-    eval $CHILD2_2_DROP_TABLES;
-    --enable_warnings
-    eval $CHILD2_2_CREATE_TABLES;
-    if ($OUTPUT_CHILD_GROUP2)
-    {
-      --enable_query_log
-    }
-    if ($USE_GENERAL_LOG)
-    {
-      TRUNCATE TABLE mysql.general_log;
-    }
-    --connection child2_1
-    if ($OUTPUT_CHILD_GROUP2)
-    {
-      --disable_query_log
-      echo CHILD2_1_DROP_TABLES2;
-      echo CHILD2_1_CREATE_TABLES2;
-    }
-    --disable_warnings
-    eval $CHILD2_1_DROP_TABLES2;
-    --enable_warnings
-    eval $CHILD2_1_CREATE_TABLES2;
-    if ($OUTPUT_CHILD_GROUP2)
-    {
-      --enable_query_log
-    }
-    if ($USE_GENERAL_LOG)
-    {
-      TRUNCATE TABLE mysql.general_log;
-    }
-    if (!$OUTPUT_CHILD_GROUP2)
-    {
-      --enable_query_log
-      --enable_result_log
-    }
-  }
-  --connection master_1
-  --disable_query_log
-  --disable_warnings
-  DROP TABLE IF EXISTS ta_l2;
-  --enable_warnings
-  echo CREATE TABLE ta_l2 (
-    a INT,
-    b CHAR(1),
-    c DATETIME,
-    PRIMARY KEY(a)
-  ) MASTER_1_ENGINE MASTER_1_COMMENT2_P_2_1;
-  eval CREATE TABLE ta_l2 (
-    a INT,
-    b CHAR(1),
-    c DATETIME,
-    PRIMARY KEY(a)
-  ) $MASTER_1_ENGINE $MASTER_1_COMMENT2_P_2_1;
-  --enable_query_log
-  --disable_ps_protocol
-  INSERT INTO ta_l2 SELECT a, b, c FROM tb_l;
-  --enable_ps_protocol
-  --echo Query a Spider table only using the second partition
-  SELECT a,b,c FROM ta_l2 PARTITION (pt2);
-  --echo Query a Spider table only using the first partition
-  SELECT a,b,c FROM ta_l2 PARTITION (pt1);
-  --echo Query a Spider table by all paritions, then the second partition
-  SELECT min(a), max(a), min(b), max(b) FROM ta_l2;
-  SELECT a,b,c FROM ta_l2 PARTITION (pt2);
-  if ($USE_CHILD_GROUP2)
-  {
-    if (!$OUTPUT_CHILD_GROUP2)
-    {
-      --disable_query_log
-      --disable_result_log
-    }
-    --connection child2_2
-    if ($USE_GENERAL_LOG)
-    {
-      SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %';
-    }
-    eval $CHILD2_2_SELECT_TABLES;
-    --connection child2_1
-    if ($USE_GENERAL_LOG)
-    {
-      SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %';
-    }
-    eval $CHILD2_1_SELECT_TABLES2;
-    if (!$OUTPUT_CHILD_GROUP2)
-    {
-      --enable_query_log
-      --enable_result_log
-    }
-  }
-}
+--disable_query_log
+--disable_result_log
+--connection child2_2
+--disable_warnings
+DROP TABLE IF EXISTS ta_r3;
+--enable_warnings
+CREATE TABLE ta_r3 (
+a INT DEFAULT 10,
+b CHAR(1) DEFAULT 'c',
+c DATETIME DEFAULT '1999-10-10 10:10:10',
+PRIMARY KEY(a)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+TRUNCATE TABLE mysql.general_log;
+--connection child2_1
+--disable_warnings
+DROP TABLE IF EXISTS ta_r2;
+--enable_warnings
+CREATE TABLE ta_r2 (
+a INT DEFAULT 10,
+b CHAR(1) DEFAULT 'c',
+c DATETIME DEFAULT '1999-10-10 10:10:10',
+PRIMARY KEY(a)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+TRUNCATE TABLE mysql.general_log;
+--enable_query_log
+--enable_result_log
+--connection master_1
+--disable_query_log
+--disable_warnings
+DROP TABLE IF EXISTS ta_l2;
+--enable_warnings
+echo CREATE TABLE ta_l2 (
+a INT,
+b CHAR(1),
+c DATETIME,
+PRIMARY KEY(a)
+) MASTER_1_ENGINE MASTER_1_COMMENT2_P_2_1;
+CREATE TABLE ta_l2 (
+a INT,
+b CHAR(1),
+c DATETIME,
+PRIMARY KEY(a)
+) ENGINE=Spider COMMENT='table "ta_r3"'
+  PARTITION BY RANGE(a) (
+PARTITION pt1 VALUES LESS THAN (4) COMMENT='srv "s_2_1",
+    table "ta_r2", priority "1000"',
+PARTITION pt2 VALUES LESS THAN MAXVALUE
+COMMENT='srv "s_2_2", priority "1000001"'
+  );
+--enable_query_log
+--disable_ps_protocol
+INSERT INTO ta_l2 SELECT a, b, c FROM tb_l;
+--enable_ps_protocol
+--echo Query a Spider table only using the second partition
+SELECT a,b,c FROM ta_l2 PARTITION (pt2);
+--echo Query a Spider table only using the first partition
+SELECT a,b,c FROM ta_l2 PARTITION (pt1);
+--echo Query a Spider table by all paritions, then the second partition
+SELECT min(a), max(a), min(b), max(b) FROM ta_l2;
+SELECT a,b,c FROM ta_l2 PARTITION (pt2);
+--disable_query_log
+--disable_result_log
+--connection child2_2
+SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %';
+SELECT a, b, date_format(c, '%Y-%m-%d %H:%i:%s') FROM ta_r3 ORDER BY a;
+--connection child2_1
+SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %';
+SELECT a, b, date_format(c, '%Y-%m-%d %H:%i:%s') FROM ta_r2 ORDER BY a;
+--enable_query_log
+--enable_result_log
 
 --echo
 --echo deinit
 --disable_warnings
 --connection master_1
 DROP DATABASE IF EXISTS auto_test_local;
-if ($USE_REPLICATION)
-{
-  --connection slave1_1
-  DROP DATABASE IF EXISTS auto_test_local;
-}
-if ($USE_CHILD_GROUP2)
-{
-  --connection child2_1
-  DROP DATABASE IF EXISTS auto_test_remote;
-  --connection child2_2
-  DROP DATABASE IF EXISTS auto_test_remote2;
-}
+--connection slave1_1
+DROP DATABASE IF EXISTS auto_test_local;
+--connection child2_1
+DROP DATABASE IF EXISTS auto_test_remote;
+--connection child2_2
+DROP DATABASE IF EXISTS auto_test_remote2;
 --disable_query_log
 --disable_result_log
 --source slave_test_deinit.inc

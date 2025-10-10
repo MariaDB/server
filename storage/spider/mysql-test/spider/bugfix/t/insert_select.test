@@ -22,38 +22,48 @@ USE auto_test_remote;
 --connection child2_1
 --disable_query_log
 echo CHILD2_1_CREATE_TABLES;
-eval $CHILD2_1_CREATE_TABLES;
+CREATE TABLE tbl_a (
+skey int NOT NULL,
+dt date NOT NULL,
+tm time NOT NULL,
+KEY idx1 (skey,dt,tm)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 echo CHILD2_1_CREATE_TABLES2;
-eval $CHILD2_1_CREATE_TABLES2;
+CREATE TABLE tbl_b (
+pkey int NOT NULL,
+dt datetime NOT NULL,
+PRIMARY KEY (pkey),
+KEY idx1 (dt)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 --enable_query_log
 TRUNCATE TABLE mysql.general_log;
 
 --connection master_1
 --disable_query_log
 echo CREATE TABLE tbl_a (
-    skey int NOT NULL,
-    dt date NOT NULL,
-    tm time NOT NULL,
-    KEY idx1 (skey,dt,tm)
+skey int NOT NULL,
+dt date NOT NULL,
+tm time NOT NULL,
+KEY idx1 (skey,dt,tm)
 ) MASTER_1_ENGINE MASTER_1_CHARSET MASTER_1_COMMENT_2_1;
-eval CREATE TABLE tbl_a (
-    skey int NOT NULL,
-    dt date NOT NULL,
-    tm time NOT NULL,
-    KEY idx1 (skey,dt,tm)
-) $MASTER_1_ENGINE $MASTER_1_CHARSET $MASTER_1_COMMENT_2_1;
+CREATE TABLE tbl_a (
+skey int NOT NULL,
+dt date NOT NULL,
+tm time NOT NULL,
+KEY idx1 (skey,dt,tm)
+) ENGINE=Spider DEFAULT CHARSET=utf8 COMMENT='table "tbl_a", srv "s_2_1"';
 echo CREATE TABLE tbl_b (
-    pkey int NOT NULL,
-    dt datetime NOT NULL,
-    PRIMARY KEY (pkey),
-    KEY idx1 (dt)
+pkey int NOT NULL,
+dt datetime NOT NULL,
+PRIMARY KEY (pkey),
+KEY idx1 (dt)
 ) MASTER_1_ENGINE MASTER_1_CHARSET MASTER_1_COMMENT_2_1_2;
-eval CREATE TABLE tbl_b (
-    pkey int NOT NULL,
-    dt datetime NOT NULL,
-    PRIMARY KEY (pkey),
-    KEY idx1 (dt)
-) $MASTER_1_ENGINE $MASTER_1_CHARSET $MASTER_1_COMMENT_2_1_2;
+CREATE TABLE tbl_b (
+pkey int NOT NULL,
+dt datetime NOT NULL,
+PRIMARY KEY (pkey),
+KEY idx1 (dt)
+) ENGINE=Spider DEFAULT CHARSET=utf8 COMMENT='table "tbl_b", srv "s_2_1"';
 --enable_query_log
 --disable_ps_protocol
 INSERT INTO tbl_a (skey, dt, tm) VALUES (0, '2012-01-01', '12:00:00'),(1, '2012-02-01', '12:00:00'),(2, '2012-03-01', '12:00:00'),(3, '2012-04-01', '12:00:00'),(4, '2012-05-01', '12:00:00'),(5, '2012-06-01', '12:00:00'),(6, '2012-07-01', '12:00:00'),(7, '2012-08-01', '12:00:00'),(8, '2012-09-01', '12:00:00'),(9, '2012-10-01', '12:00:00');
@@ -85,10 +95,10 @@ INSERT IGNORE INTO tbl_b (SELECT skey, CAST(CONCAT(dt, ' ', tm) AS datetime) FRO
 --connection child2_1
 --disable_view_protocol
 --disable_ps2_protocol
-eval $CHILD2_1_SELECT_ARGUMENT1;
+SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %';
 --enable_ps2_protocol
 --enable_view_protocol
-eval $CHILD2_1_SELECT_TABLES;
+SELECT pkey, dt FROM tbl_b ORDER BY pkey;
 
 --echo
 --echo deinit

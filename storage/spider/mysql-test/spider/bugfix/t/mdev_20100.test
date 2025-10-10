@@ -23,7 +23,24 @@ USE auto_test_remote;
 --disable_query_log
 echo CHILD2_1_CREATE_TABLES;
 --disable_ps_protocol
-eval $CHILD2_1_CREATE_TABLES;
+CREATE TABLE ta_r2 (
+a INT,
+b CHAR(1),
+c DATETIME,
+PRIMARY KEY(a)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8 ;
+CREATE TABLE ta_r3 (
+a INT,
+b CHAR(1),
+c DATETIME,
+PRIMARY KEY(a)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8 ;
+CREATE TABLE ta_r4 (
+a INT,
+b CHAR(1),
+c DATETIME,
+PRIMARY KEY(a)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 --enable_ps_protocol
 --enable_query_log
 TRUNCATE TABLE mysql.general_log;
@@ -31,25 +48,29 @@ TRUNCATE TABLE mysql.general_log;
 --connection master_1
 --disable_query_log
 echo CREATE TABLE tbl_a (
-  a INT,
-  b CHAR(1),
-  c DATETIME,
-  PRIMARY KEY(a)
+a INT,
+b CHAR(1),
+c DATETIME,
+PRIMARY KEY(a)
 ) $MASTER_1_ENGINE $MASTER_1_COMMENT_P_2_1;
-eval CREATE TABLE tbl_a (
-  a INT,
-  b CHAR(1),
-  c DATETIME,
-  PRIMARY KEY(a)
-) $MASTER_1_ENGINE $MASTER_1_COMMENT_P_2_1;
+CREATE TABLE tbl_a (
+a INT,
+b CHAR(1),
+c DATETIME,
+PRIMARY KEY(a)
+) ENGINE=Spider PARTITION BY RANGE(a) (
+PARTITION pt1 VALUES LESS THAN (5) COMMENT='srv "s_2_1", table "ta_r2"',
+PARTITION pt2 VALUES LESS THAN (10) COMMENT='srv "s_2_1", table "ta_r3"',
+PARTITION pt3 VALUES LESS THAN MAXVALUE COMMENT='srv "s_2_1", table "ta_r4"'
+  );
 --enable_query_log
 --disable_ps_protocol
 INSERT INTO tbl_a (a, b, c) VALUES
-  (1, 'a', '2008-08-01 10:21:39'),
-  (2, 'b', '2000-01-01 00:00:00'),
-  (3, 'e', '2007-06-04 20:03:11'),
-  (4, 'd', '2003-11-30 05:01:03'),
-  (5, 'c', '2001-12-31 23:59:59');
+(1, 'a', '2008-08-01 10:21:39'),
+(2, 'b', '2000-01-01 00:00:00'),
+(3, 'e', '2007-06-04 20:03:11'),
+(4, 'd', '2003-11-30 05:01:03'),
+(5, 'c', '2001-12-31 23:59:59');
 --enable_ps_protocol
 
 --echo
@@ -81,10 +102,12 @@ SELECT a, b, c FROM tbl_a PARTITION (pt2,pt3);
 --connection child2_1
 --disable_view_protocol
 --disable_ps2_protocol
-eval $CHILD2_1_SELECT_ARGUMENT1;
+SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %';
 --enable_ps2_protocol
 --disable_ps_protocol
-eval $CHILD2_1_SELECT_TABLES;
+SELECT a, b, c FROM ta_r2 ORDER BY a ;
+SELECT a, b, c FROM ta_r3 ORDER BY a ;
+SELECT a, b, c FROM ta_r4 ORDER BY a;
 --enable_ps_protocol
 --enable_view_protocol
 

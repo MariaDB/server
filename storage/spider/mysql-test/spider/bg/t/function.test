@@ -12,76 +12,53 @@
 DROP DATABASE IF EXISTS auto_test_local;
 CREATE DATABASE auto_test_local;
 USE auto_test_local;
-if ($USE_CHILD_GROUP2)
-{
-  --connection child2_1
-  DROP DATABASE IF EXISTS auto_test_remote;
-  CREATE DATABASE auto_test_remote;
-  USE auto_test_remote;
-  --connection child2_2
-  DROP DATABASE IF EXISTS auto_test_remote2;
-  CREATE DATABASE auto_test_remote2;
-  USE auto_test_remote2;
-}
+--connection child2_1
+DROP DATABASE IF EXISTS auto_test_remote;
+CREATE DATABASE auto_test_remote;
+USE auto_test_remote;
+--connection child2_2
+DROP DATABASE IF EXISTS auto_test_remote2;
+CREATE DATABASE auto_test_remote2;
+USE auto_test_remote2;
 --enable_warnings
 
 --echo
 --echo test select 1
 --connection master_1
 SELECT 1;
-if ($USE_CHILD_GROUP2)
-{
-  if (!$OUTPUT_CHILD_GROUP2)
-  {
-    --disable_query_log
-    --disable_result_log
-  }
-  --connection child2_1
-  SELECT 1;
-  --connection child2_2
-  SELECT 1;
-  if (!$OUTPUT_CHILD_GROUP2)
-  {
-    --enable_query_log
-    --enable_result_log
-  }
-}
+--disable_query_log
+--disable_result_log
+--connection child2_1
+SELECT 1;
+--connection child2_2
+SELECT 1;
+--enable_query_log
+--enable_result_log
 
 --echo
 --echo in()
-if ($USE_CHILD_GROUP2)
-{
-  if (!$OUTPUT_CHILD_GROUP2)
-  {
-    --disable_result_log
-  }
-  --disable_query_log
-  --connection child2_1
-  if ($OUTPUT_CHILD_GROUP2)
-  {
-    echo CHILD2_1_DROP_TEXT_PK_TABLES1;
-    echo CHILD2_1_CREATE_TEXT_PK_TABLES1;
-  }
-  --disable_warnings
-  eval $CHILD2_1_DROP_TEXT_PK_TABLES1;
-  --enable_warnings
-  eval $CHILD2_1_CREATE_TEXT_PK_TABLES1;
-  --enable_query_log
-  if (!$OUTPUT_CHILD_GROUP2)
-  {
-    --enable_result_log
-  }
-}
+--disable_result_log
+--disable_query_log
+--connection child2_1
+--disable_warnings
+DROP TABLE IF EXISTS t1;
+--enable_warnings
+CREATE TABLE t1 (
+a VARCHAR(255),
+PRIMARY KEY (a)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
+--enable_query_log
+--enable_result_log
 --connection master_1
 --disable_query_log
 echo CREATE TABLE t1 (
-  a VARCHAR(255),
-  PRIMARY KEY(a)
+a VARCHAR(255),
+PRIMARY KEY(a)
 ) MASTER_1_ENGINE MASTER_1_CHARSET3 MASTER_1_COMMENT_TEXT_PK1_1;
-eval CREATE TABLE t1 (
-  a VARCHAR(255),
-  PRIMARY KEY(a)
-) $MASTER_1_ENGINE $MASTER_1_CHARSET3 $MASTER_1_COMMENT_TEXT_PK1_1;
+CREATE TABLE t1 (
+a VARCHAR(255),
+PRIMARY KEY(a)
+) ENGINE=Spider DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci COMMENT 'tbl "t1", srv "s_2_1"';
 --enable_query_log
 --disable_ps_protocol
 insert into t1 values ('1');
@@ -97,107 +74,69 @@ insert into t1 select a + 128 from t1;
 insert into t1 select a + 256 from t1;
 insert into t1 select a + 512 from t1;
 flush tables;
-if ($USE_CHILD_GROUP2)
-{
-  if (!$OUTPUT_CHILD_GROUP2)
-  {
-    --disable_query_log
-    --disable_result_log
-  }
-  --connection child2_1
-  if ($USE_GENERAL_LOG)
-  {
-    TRUNCATE TABLE mysql.general_log;
-  }
-  if (!$OUTPUT_CHILD_GROUP2)
-  {
-    --enable_query_log
-    --enable_result_log
-  }
-}
+--disable_query_log
+--disable_result_log
+--connection child2_1
+TRUNCATE TABLE mysql.general_log;
+--enable_query_log
+--enable_result_log
 --connection master_1
 --disable_ps_protocol
 select a from t1 where a in ('15', '120');
 --enable_ps_protocol
-if ($USE_CHILD_GROUP2)
-{
-  if (!$OUTPUT_CHILD_GROUP2)
-  {
-    --disable_query_log
-    --disable_result_log
-  }
-  --connection child2_1
-  if ($USE_GENERAL_LOG)
-  {
-    SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %';
-  }
-  eval $CHILD2_1_SELECT_TEXT_PK_TABLES1;
-  if (!$OUTPUT_CHILD_GROUP2)
-  {
-    --enable_query_log
-    --enable_result_log
-  }
-}
+--disable_query_log
+--disable_result_log
+--connection child2_1
+SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %';
+SELECT a FROM t1 ORDER BY a;
+--enable_query_log
+--enable_result_log
 
 --echo
 --echo date_sub()
-if ($USE_CHILD_GROUP2)
-{
-  if (!$OUTPUT_CHILD_GROUP2)
-  {
-    --disable_query_log
-    --disable_result_log
-  }
-  --connection child2_1
-  if ($OUTPUT_CHILD_GROUP2)
-  {
-    --disable_query_log
-    echo CHILD2_1_DROP_TABLES;
-    echo CHILD2_1_CREATE_TABLES;
-  }
-  --disable_warnings
-  eval $CHILD2_1_DROP_TABLES;
-  --enable_warnings
-  eval $CHILD2_1_CREATE_TABLES;
-  if ($OUTPUT_CHILD_GROUP2)
-  {
-    --enable_query_log
-  }
-  if ($USE_GENERAL_LOG)
-  {
-    TRUNCATE TABLE mysql.general_log;
-  }
-  if (!$OUTPUT_CHILD_GROUP2)
-  {
-    --enable_query_log
-    --enable_result_log
-  }
-}
+--disable_query_log
+--disable_result_log
+--connection child2_1
+--disable_warnings
+DROP TABLE IF EXISTS ta_r;
+--enable_warnings
+CREATE TABLE ta_r (
+a INT DEFAULT 10,
+b CHAR(1) DEFAULT 'c',
+c DATETIME DEFAULT '1999-10-10 10:10:10',
+PRIMARY KEY(a),
+KEY idx1(b)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+TRUNCATE TABLE mysql.general_log;
+--enable_query_log
+--enable_result_log
 --connection master_1
 --disable_warnings
 DROP TABLE IF EXISTS ta_l;
 --enable_warnings
 --disable_query_log
 echo CREATE TABLE ta_l (
-  a INT,
-  b CHAR(1),
-  c DATETIME,
-  PRIMARY KEY(a)
+a INT,
+b CHAR(1),
+c DATETIME,
+PRIMARY KEY(a)
 ) MASTER_1_ENGINE MASTER_1_CHARSET MASTER_1_COMMENT_2_1;
-eval CREATE TABLE ta_l (
-  a INT,
-  b CHAR(1),
-  c DATETIME,
-  PRIMARY KEY(a)
-) $MASTER_1_ENGINE $MASTER_1_CHARSET $MASTER_1_COMMENT_2_1;
+CREATE TABLE ta_l (
+a INT,
+b CHAR(1),
+c DATETIME,
+PRIMARY KEY(a)
+) ENGINE=Spider DEFAULT CHARSET=utf8 COMMENT='database "auto_test_remote", table "ta_r"'
+    CONNECTION='host "localhost", socket "/home/ycp/source/mariadb-server/main/build/mysql-test/var/tmp/mysqld.2.1.sock", user "root",
+    password ""';
 --enable_query_log
 --disable_ps_protocol
 INSERT INTO ta_l (a, b, c) VALUES
-  (1, 'a', '2008-08-01 10:21:39'),
-  (2, 'b', '2000-01-01 00:00:00'),
-  (3, 'e', '2007-06-04 20:03:11'),
-  (4, 'd', '2003-11-30 05:01:03'),
-  (5, 'c', '2001-12-31 23:59:59');
+(1, 'a', '2008-08-01 10:21:39'),
+(2, 'b', '2000-01-01 00:00:00'),
+(3, 'e', '2007-06-04 20:03:11'),
+(4, 'd', '2003-11-30 05:01:03'),
+(5, 'c', '2001-12-31 23:59:59');
 --enable_ps_protocol
 SELECT a, b, date_format(c, '%Y-%m-%d %H:%i:%s') FROM ta_l ORDER BY a;
 UPDATE ta_l SET c = DATE_SUB(c, INTERVAL 1 YEAR);
@@ -215,25 +154,13 @@ SELECT a, b, date_format(c, '%Y-%m-%d %H:%i:%s') FROM ta_l ORDER BY a;
 UPDATE ta_l SET c = DATE_SUB(c, INTERVAL 1 MINUTE);
 SELECT a, b, date_format(c, '%Y-%m-%d %H:%i:%s') FROM ta_l ORDER BY a;
 UPDATE ta_l SET c = DATE_ADD(c, INTERVAL 1 SECOND);
-if ($USE_CHILD_GROUP2)
-{
-  if (!$OUTPUT_CHILD_GROUP2)
-  {
-    --disable_query_log
-    --disable_result_log
-  }
-  --connection child2_1
-  if ($USE_GENERAL_LOG)
-  {
-    SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%update %';
-  }
-  eval $CHILD2_1_SELECT_TABLES;
-  if (!$OUTPUT_CHILD_GROUP2)
-  {
-    --enable_query_log
-    --enable_result_log
-  }
-}
+--disable_query_log
+--disable_result_log
+--connection child2_1
+SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%update %';
+SELECT a, b, date_format(c, '%Y-%m-%d %H:%i:%s') FROM ta_r ORDER BY a;
+--enable_query_log
+--enable_result_log
 --connection master_1
 SELECT a, b, date_format(c, '%Y-%m-%d %H:%i:%s') FROM ta_l ORDER BY a;
 
@@ -242,13 +169,10 @@ SELECT a, b, date_format(c, '%Y-%m-%d %H:%i:%s') FROM ta_l ORDER BY a;
 --disable_warnings
 --connection master_1
 DROP DATABASE IF EXISTS auto_test_local;
-if ($USE_CHILD_GROUP2)
-{
-  --connection child2_1
-  DROP DATABASE IF EXISTS auto_test_remote;
-  --connection child2_2
-  DROP DATABASE IF EXISTS auto_test_remote2;
-}
+--connection child2_1
+DROP DATABASE IF EXISTS auto_test_remote;
+--connection child2_2
+DROP DATABASE IF EXISTS auto_test_remote2;
 --disable_query_log
 --disable_result_log
 --source test_deinit.inc

@@ -28,35 +28,41 @@ USE auto_test_remote2;
 --connection child2_1
 --disable_query_log
 echo CHILD2_1_CREATE_TABLES;
-eval $CHILD2_1_CREATE_TABLES;
+CREATE TABLE tbl_a (
+pkey int NOT NULL,
+PRIMARY KEY (pkey)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 --enable_query_log
 TRUNCATE TABLE mysql.general_log;
 
 --connection child2_2
 --disable_query_log
 echo CHILD2_2_CREATE_TABLES;
-eval $CHILD2_2_CREATE_TABLES;
+CREATE TABLE tbl_b (
+pkey int NOT NULL,
+PRIMARY KEY (pkey)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 --enable_query_log
 TRUNCATE TABLE mysql.general_log;
 
 --connection master_1
 --disable_query_log
 echo CREATE TABLE tbl_a (
-    pkey int NOT NULL,
-    PRIMARY KEY (pkey)
+pkey int NOT NULL,
+PRIMARY KEY (pkey)
 ) MASTER_1_ENGINE MASTER_1_CHARSET MASTER_1_COMMENT_2_1;
 echo CREATE TABLE tbl_b (
-    pkey int NOT NULL,
-    PRIMARY KEY (pkey)
+pkey int NOT NULL,
+PRIMARY KEY (pkey)
 ) MASTER_1_ENGINE MASTER_1_CHARSET MASTER_1_COMMENT_2_2;
-eval CREATE TABLE tbl_a (
-    pkey int NOT NULL,
-    PRIMARY KEY (pkey)
-) $MASTER_1_ENGINE $MASTER_1_CHARSET $MASTER_1_COMMENT_2_1;
-eval CREATE TABLE tbl_b (
-    pkey int NOT NULL,
-    PRIMARY KEY (pkey)
-) $MASTER_1_ENGINE $MASTER_1_CHARSET $MASTER_1_COMMENT_2_2;
+CREATE TABLE tbl_a (
+pkey int NOT NULL,
+PRIMARY KEY (pkey)
+) ENGINE=Spider DEFAULT CHARSET=utf8 COMMENT='table "tbl_a", srv "s_2_1"';
+CREATE TABLE tbl_b (
+pkey int NOT NULL,
+PRIMARY KEY (pkey)
+) ENGINE=Spider DEFAULT CHARSET=utf8 COMMENT='table "tbl_b", srv "s_2_2"';
 --enable_query_log
 --disable_ps_protocol
 INSERT INTO tbl_a (pkey) VALUES (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
@@ -85,19 +91,19 @@ SELECT a.pkey FROM tbl_a a, tbl_b b WHERE a.pkey = b.pkey;
 --connection child2_1
 --disable_view_protocol
 --replace_regex /tmp_spider_bka_0x[0-9a-f]*/tmp_spider_bka_xxxx/
-eval $CHILD2_1_SELECT_ARGUMENT1;
+SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %';
 --enable_view_protocol
-eval $CHILD2_1_SELECT_TABLES;
+SELECT pkey FROM tbl_a ORDER BY pkey;
 
 --connection child2_2
 --disable_view_protocol
 --replace_regex /tmp_spider_bka_0x[0-9a-f]*/tmp_spider_bka_xxxx/
-eval $CHILD2_2_SELECT_ARGUMENT1;
+SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %';
 --enable_view_protocol
-eval $CHILD2_2_SELECT_TABLES;
+SELECT pkey FROM tbl_b ORDER BY pkey;
 
 --connection master_1
-eval $MASTER_1_SET_QUICK_PAGE_BYTE_6;
+set session spider_quick_page_byte= 6;
 
 --echo
 --echo select test 2
@@ -114,19 +120,19 @@ SELECT a.pkey FROM tbl_a a, tbl_b b WHERE a.pkey = b.pkey;
 --connection child2_1
 --disable_view_protocol
 --replace_regex /tmp_spider_bka_0x[0-9a-f]*/tmp_spider_bka_xxxx/
-eval $CHILD2_1_SELECT_ARGUMENT1;
+SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %';
 --enable_view_protocol
-eval $CHILD2_1_SELECT_TABLES;
+SELECT pkey FROM tbl_a ORDER BY pkey;
 
 --connection child2_2
 --disable_view_protocol
 --replace_regex /tmp_spider_bka_0x[0-9a-f]*/tmp_spider_bka_xxxx/
-eval $CHILD2_2_SELECT_ARGUMENT1;
+SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %';
 --enable_view_protocol
-eval $CHILD2_2_SELECT_TABLES;
+SELECT pkey FROM tbl_b ORDER BY pkey;
 
 --connection master_1
-eval $MASTER_1_SET_QUICK_PAGE_BYTE_0;
+set session spider_quick_page_byte= 0;
 
 --echo
 --echo select test 3
@@ -143,16 +149,16 @@ SELECT a.pkey FROM tbl_a a, tbl_b b WHERE a.pkey = b.pkey;
 --connection child2_1
 --replace_regex /tmp_spider_bka_0x[0-9a-f]*/tmp_spider_bka_xxxx/
 --disable_view_protocol
-eval $CHILD2_1_SELECT_ARGUMENT1;
+SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %';
 --enable_view_protocol
-eval $CHILD2_1_SELECT_TABLES;
+SELECT pkey FROM tbl_a ORDER BY pkey;
 
 --connection child2_2
 --replace_regex /tmp_spider_bka_0x[0-9a-f]*/tmp_spider_bka_xxxx/
 --disable_view_protocol
-eval $CHILD2_2_SELECT_ARGUMENT1;
+SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %';
 --enable_view_protocol
-eval $CHILD2_2_SELECT_TABLES;
+SELECT pkey FROM tbl_b ORDER BY pkey;
 --enable_ps2_protocol
 
 --echo
