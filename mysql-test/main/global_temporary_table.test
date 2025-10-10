@@ -219,7 +219,9 @@ select * from t;
 drop table t;
 
 --error ER_DUP_ENTRY
-create global temporary table t2(`5` int primary key) as values(5),(5),(5);
+create global temporary table t2(`5` int primary key)
+                          comment='create ... as values(5),(5),(5) => duplicate'
+                          as values(5),(5),(5);
 select `5` as col from t2;
 drop table t2;
 

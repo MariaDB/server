@@ -255,7 +255,9 @@ as select 1 as 'x';
 select * from t;
 x
 drop table t;
-create global temporary table t2(`5` int primary key) as values(5),(5),(5);
+create global temporary table t2(`5` int primary key)
+comment='create ... as values(5),(5),(5) => duplicate'
+                          as values(5),(5),(5);
 ERROR 23000: Duplicate entry '5' for key 'PRIMARY'
 select `5` as col from t2;
 col
