@@ -85,10 +85,11 @@ echo CREATE TABLE ta_l (
 PRIMARY KEY(a)
 ) MASTER_1_ENGINE MASTER_1_CHARSET MASTER_1_COMMENT_2_1
 SELECT a, b, c FROM tb_l;
+eval
 CREATE TABLE ta_l (
 PRIMARY KEY(a)
 ) ENGINE=Spider DEFAULT CHARSET=utf8 COMMENT='database "auto_test_remote", table "ta_r"'
-    CONNECTION='host "localhost", socket "/home/ycp/source/mariadb-server/main/build/mysql-test/var/tmp/mysqld.2.1.sock", user "root",
+    CONNECTION='host "localhost", socket "$CHILD2_1_MYSOCK", user "root",
     password ""'
 SELECT a, b, c FROM tb_l;
 --enable_query_log
@@ -140,10 +141,11 @@ echo CREATE TABLE ta_l (
 PRIMARY KEY(a)
 ) MASTER_1_ENGINE MASTER_1_CHARSET MASTER_1_COMMENT_2_1
 IGNORE SELECT a, b, c FROM tb_l;
+eval
 CREATE TABLE ta_l (
 PRIMARY KEY(a)
 ) ENGINE=Spider DEFAULT CHARSET=utf8 COMMENT='database "auto_test_remote", table "ta_r"'
-    CONNECTION='host "localhost", socket "/home/ycp/source/mariadb-server/main/build/mysql-test/var/tmp/mysqld.2.1.sock", user "root",
+    CONNECTION='host "localhost", socket "$CHILD2_1_MYSOCK", user "root",
     password ""'
 IGNORE SELECT a, b, c FROM tb_l;
 --enable_query_log
@@ -174,10 +176,11 @@ echo CREATE TABLE ta_l (
 PRIMARY KEY(a)
 ) MASTER_1_ENGINE MASTER_1_CHARSET MASTER_1_COMMENT_2_1
 REPLACE SELECT a, b, c FROM tb_l;
+eval
 CREATE TABLE ta_l (
 PRIMARY KEY(a)
 ) ENGINE=Spider DEFAULT CHARSET=utf8 COMMENT='database "auto_test_remote", table "ta_r"'
-    CONNECTION='host "localhost", socket "/home/ycp/source/mariadb-server/main/build/mysql-test/var/tmp/mysqld.2.1.sock", user "root",
+    CONNECTION='host "localhost", socket "$CHILD2_1_MYSOCK", user "root",
     password ""'
 REPLACE SELECT a, b, c FROM tb_l;
 --enable_query_log
@@ -215,9 +218,10 @@ DROP TABLE IF EXISTS ta_l_no_idx;
 echo CREATE TABLE ta_l_no_idx
 MASTER_1_ENGINE MASTER_1_CHARSET MASTER_1_COMMENT2_2_1
 SELECT a, b, c FROM tb_l;
+eval
 CREATE TABLE ta_l_no_idx
 ENGINE=Spider DEFAULT CHARSET=utf8 COMMENT='database "auto_test_remote", table "ta_r_no_idx"'
-    CONNECTION='host "localhost", socket "/home/ycp/source/mariadb-server/main/build/mysql-test/var/tmp/mysqld.2.1.sock", user "root",
+    CONNECTION='host "localhost", socket "$CHILD2_1_MYSOCK", user "root",
     password "", prt "2000000"'
 SELECT a, b, c FROM tb_l;
 --enable_query_log

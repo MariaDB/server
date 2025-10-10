@@ -84,13 +84,14 @@ DROP TABLE IF EXISTS ta_l;
 echo CREATE TABLE ta_l (
 PRIMARY KEY(a)
 ) MASTER_1_ENGINE MASTER_1_CHARSET MASTER_1_COMMENT_2_1;
+eval
 CREATE TABLE ta_l (
 a INT,
 b CHAR(1),
 c DATETIME,
 PRIMARY KEY(a)
 ) ENGINE=Spider DEFAULT CHARSET=utf8 COMMENT='database "auto_test_remote", table "ta_r"'
-    CONNECTION='host "localhost", socket "/home/ycp/source/mariadb-server/main/build/mysql-test/var/tmp/mysqld.2.1.sock", user "root",
+    CONNECTION='host "localhost", socket "$CHILD2_1_MYSOCK", user "root",
     password ""';
 --enable_query_log
 --disable_ps_protocol
@@ -124,13 +125,14 @@ b INT AUTO_INCREMENT,
 c INT DEFAULT 11,
 PRIMARY KEY(b)
 ) MASTER_1_ENGINE MASTER_1_CHARSET MASTER_1_COMMENT4_2_1;
+eval
 CREATE TABLE ta_l_int (
 a INT DEFAULT 10,
 b INT AUTO_INCREMENT,
 c INT DEFAULT 11,
 PRIMARY KEY(b)
 ) ENGINE=Spider DEFAULT CHARSET=utf8 COMMENT='database "auto_test_remote", table "ta_r_int"'
-    CONNECTION='host "localhost", socket "/home/ycp/source/mariadb-server/main/build/mysql-test/var/tmp/mysqld.2.1.sock", user "root",
+    CONNECTION='host "localhost", socket "$CHILD2_1_MYSOCK", user "root",
     password ""';
 --enable_query_log
 --disable_query_log
@@ -186,13 +188,14 @@ b INT DEFAULT 12,
 c INT DEFAULT 11,
 PRIMARY KEY(c)
 ) MASTER_1_ENGINE MASTER_1_CHARSET MASTER_1_COMMENT4_2_1;
+eval
 CREATE TABLE ta_l_int (
 a INT DEFAULT 10,
 b INT DEFAULT 12,
 c INT DEFAULT 11,
 PRIMARY KEY(c)
 ) ENGINE=Spider DEFAULT CHARSET=utf8 COMMENT='database "auto_test_remote", table "ta_r_int"'
-    CONNECTION='host "localhost", socket "/home/ycp/source/mariadb-server/main/build/mysql-test/var/tmp/mysqld.2.1.sock", user "root",
+    CONNECTION='host "localhost", socket "$CHILD2_1_MYSOCK", user "root",
     password ""';
 --enable_query_log
 --disable_query_log

@@ -64,12 +64,13 @@ PRIMARY KEY(id)
 --disable_query_log
 echo MASTER_CREATE_TABLE;
 echo $MASTER_CREATE_TABLE_OUTPUT;
+eval
 CREATE TABLE ta_l (
 id INT NOT NULL,
 a INT,
 PRIMARY KEY(id)
 ) ENGINE=Spider DEFAULT CHARSET=utf8 COMMENT='database "auto_test_remote", table "ta_r"'
-    CONNECTION='host "localhost", socket "/home/ycp/source/mariadb-server/main/build/mysql-test/var/tmp/mysqld.2.1.sock", user "root",
+    CONNECTION='host "localhost", socket "$CHILD2_1_MYSOCK", user "root",
     password ""';
 --enable_query_log
 

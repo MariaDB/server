@@ -71,6 +71,7 @@ c DATETIME DEFAULT '1999-10-10 10:10:10',
 PRIMARY KEY(a),
 KEY idx1(b)
 ) MASTER_1_ENGINE MASTER_1_CHARSET MASTER_1_COMMENT_2_1;
+eval
 CREATE TABLE tbl_a (
 a INT DEFAULT 10,
 b CHAR(1) DEFAULT 'c',
@@ -78,19 +79,20 @@ c DATETIME DEFAULT '1999-10-10 10:10:10',
 PRIMARY KEY(a),
 KEY idx1(b)
 ) ENGINE=Spider DEFAULT CHARSET=utf8 COMMENT='database "auto_test_remote", table "ta_r"'
-    CONNECTION='host "localhost", socket "/home/ycp/source/mariadb-server/main/build/mysql-test/var/tmp/mysqld.2.1.sock", user "root",
+    CONNECTION='host "localhost", socket "$CHILD2_1_MYSOCK", user "root",
     password ""';
 echo CREATE TABLE tbl_b (
 a INT DEFAULT 10,
 b CHAR(1) DEFAULT 'c',
 c DATETIME DEFAULT '1999-10-10 10:10:10'
 ) MASTER_1_ENGINE MASTER_1_CHARSET MASTER_1_COMMENT5_2_1;
+eval
 CREATE TABLE tbl_b (
 a INT DEFAULT 10,
 b CHAR(1) DEFAULT 'c',
 c DATETIME DEFAULT '1999-10-10 10:10:10'
 ) ENGINE=Spider DEFAULT CHARSET=utf8 COMMENT='database "auto_test_remote", table "ta_r_3"'
-    CONNECTION='host "localhost", socket "/home/ycp/source/mariadb-server/main/build/mysql-test/var/tmp/mysqld.2.1.sock", user "root",
+    CONNECTION='host "localhost", socket "$CHILD2_1_MYSOCK", user "root",
     password ""';
 echo CREATE TABLE tbl_c (
 a INT AUTO_INCREMENT,
@@ -100,6 +102,7 @@ PRIMARY KEY(a),
 KEY idx1(b),
 KEY idx2(c)
 ) MASTER_1_ENGINE MASTER_1_CHARSET MASTER_1_COMMENT4_2_1;
+eval
 CREATE TABLE tbl_c (
 a INT AUTO_INCREMENT,
 b INT DEFAULT 10,
@@ -108,7 +111,7 @@ PRIMARY KEY(a),
 KEY idx1(b),
 KEY idx2(c)
 ) ENGINE=Spider DEFAULT CHARSET=utf8 COMMENT='database "auto_test_remote", table "ta_r_int"'
-    CONNECTION='host "localhost", socket "/home/ycp/source/mariadb-server/main/build/mysql-test/var/tmp/mysqld.2.1.sock", user "root",
+    CONNECTION='host "localhost", socket "$CHILD2_1_MYSOCK", user "root",
     password ""';
 --enable_query_log
 --disable_ps_protocol

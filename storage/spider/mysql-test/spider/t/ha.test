@@ -99,13 +99,14 @@ TRUNCATE TABLE mysql.general_log;
 --disable_warnings
 DROP TABLE IF EXISTS ta_l;
 --enable_warnings
+eval
 CREATE TABLE ta_l (
 a INT DEFAULT 10,
 b CHAR(1) DEFAULT 'c',
 c DATETIME DEFAULT '1999-10-10 10:10:10',
 PRIMARY KEY(a)
 ) ENGINE=Spider DEFAULT CHARSET=utf8
-COMMENT='socket "/home/ycp/source/mariadb-server/main/build/mysql-test/var/tmp/mysqld.2.1.sock /home/ycp/source/mariadb-server/main/build/mysql-test/var/tmp/mysqld.2.2.sock", table "ta_r ta_r3"'
+COMMENT='socket "$CHILD2_1_MYSOCK $CHILD2_2_MYSOCK", table "ta_r ta_r3"'
     CONNECTION='host "localhost", user "root", password "",
     msi "5", mkd "2",
     database "auto_test_remote auto_test_remote2"';
@@ -113,13 +114,14 @@ COMMENT='socket "/home/ycp/source/mariadb-server/main/build/mysql-test/var/tmp/m
 --disable_warnings
 DROP TABLE IF EXISTS ta_l;
 --enable_warnings
+eval
 CREATE TABLE ta_l (
 a INT DEFAULT 10,
 b CHAR(1) DEFAULT 'c',
 c DATETIME DEFAULT '1999-10-10 10:10:10',
 PRIMARY KEY(a)
 ) ENGINE=Spider DEFAULT CHARSET=utf8
-COMMENT='socket "/home/ycp/source/mariadb-server/main/build/mysql-test/var/tmp/mysqld.2.1.sock /home/ycp/source/mariadb-server/main/build/mysql-test/var/tmp/mysqld.2.2.sock", table "ta_r ta_r3"'
+COMMENT='socket "$CHILD2_1_MYSOCK $CHILD2_2_MYSOCK", table "ta_r ta_r3"'
     CONNECTION='host "localhost", user "root", password "",
     msi "5", mkd "2",
     database "auto_test_remote auto_test_remote2"';
@@ -127,13 +129,14 @@ COMMENT='socket "/home/ycp/source/mariadb-server/main/build/mysql-test/var/tmp/m
 --disable_warnings
 DROP TABLE IF EXISTS ta_l;
 --enable_warnings
+eval
 CREATE TABLE ta_l (
 a INT DEFAULT 10,
 b CHAR(1) DEFAULT 'c',
 c DATETIME DEFAULT '1999-10-10 10:10:10',
 PRIMARY KEY(a)
 ) ENGINE=Spider DEFAULT CHARSET=utf8
-COMMENT='socket "/home/ycp/source/mariadb-server/main/build/mysql-test/var/tmp/mysqld.2.1.sock /home/ycp/source/mariadb-server/main/build/mysql-test/var/tmp/mysqld.2.2.sock", table "ta_r ta_r3"'
+COMMENT='socket "$CHILD2_1_MYSOCK $CHILD2_2_MYSOCK", table "ta_r ta_r3"'
     CONNECTION='host "localhost", user "root", password "",
     msi "5", mkd "2",
     database "auto_test_remote auto_test_remote2"';
@@ -150,12 +153,13 @@ b CHAR(1),
 c DATETIME,
 PRIMARY KEY(a)
 ) MASTER_1_ENGINE MASTER_1_CHARSET MASTER_1_COMMENT_HA_2_1;
+eval
 CREATE TABLE ta_l (
 a INT,
 b CHAR(1),
 c DATETIME,
 PRIMARY KEY(a)
-) ENGINE=Spider DEFAULT CHARSET=utf8 COMMENT='socket "/home/ycp/source/mariadb-server/main/build/mysql-test/var/tmp/mysqld.2.1.sock /home/ycp/source/mariadb-server/main/build/mysql-test/var/tmp/mysqld.2.2.sock", table "ta_r ta_r3"'
+) ENGINE=Spider DEFAULT CHARSET=utf8 COMMENT='socket "$CHILD2_1_MYSOCK $CHILD2_2_MYSOCK", table "ta_r ta_r3"'
     CONNECTION='host "localhost", user "root", password "",
     msi "5", mkd "2",
     database "auto_test_remote auto_test_remote2"';
@@ -399,13 +403,14 @@ TRUNCATE TABLE mysql.general_log;
 --disable_warnings
 DROP TABLE IF EXISTS ta_l;
 --enable_warnings
+eval
 CREATE TABLE ta_l (
 a INT DEFAULT 10,
 b CHAR(1) DEFAULT 'c',
 c DATETIME DEFAULT '1999-10-10 10:10:10',
 PRIMARY KEY(a)
 ) ENGINE=Spider DEFAULT CHARSET=utf8
-COMMENT='socket "/home/ycp/source/mariadb-server/main/build/mysql-test/var/tmp/mysqld.2.1.sock /home/ycp/source/mariadb-server/main/build/mysql-test/var/tmp/mysqld.2.2.sock", table "ta_r ta_r3"'
+COMMENT='socket "$CHILD2_1_MYSOCK $CHILD2_2_MYSOCK", table "ta_r ta_r3"'
     CONNECTION='host "localhost", user "root", password "",
     msi "5", mkd "2", alc "1",
     database "auto_test_remote auto_test_remote2"';
@@ -413,13 +418,14 @@ COMMENT='socket "/home/ycp/source/mariadb-server/main/build/mysql-test/var/tmp/m
 --disable_warnings
 DROP TABLE IF EXISTS ta_l;
 --enable_warnings
+eval
 CREATE TABLE ta_l (
 a INT DEFAULT 10,
 b CHAR(1) DEFAULT 'c',
 c DATETIME DEFAULT '1999-10-10 10:10:10',
 PRIMARY KEY(a)
 ) ENGINE=Spider DEFAULT CHARSET=utf8
-COMMENT='socket "/home/ycp/source/mariadb-server/main/build/mysql-test/var/tmp/mysqld.2.1.sock /home/ycp/source/mariadb-server/main/build/mysql-test/var/tmp/mysqld.2.2.sock", table "ta_r ta_r3"'
+COMMENT='socket "$CHILD2_1_MYSOCK $CHILD2_2_MYSOCK", table "ta_r ta_r3"'
     CONNECTION='host "localhost", user "root", password "",
     msi "5", mkd "2", alc "1",
     database "auto_test_remote auto_test_remote2"';
@@ -427,13 +433,14 @@ COMMENT='socket "/home/ycp/source/mariadb-server/main/build/mysql-test/var/tmp/m
 --disable_warnings
 DROP TABLE IF EXISTS ta_l;
 --enable_warnings
+eval
 CREATE TABLE ta_l (
 a INT DEFAULT 10,
 b CHAR(1) DEFAULT 'c',
 c DATETIME DEFAULT '1999-10-10 10:10:10',
 PRIMARY KEY(a)
 ) ENGINE=Spider DEFAULT CHARSET=utf8
-COMMENT='socket "/home/ycp/source/mariadb-server/main/build/mysql-test/var/tmp/mysqld.2.1.sock /home/ycp/source/mariadb-server/main/build/mysql-test/var/tmp/mysqld.2.2.sock", table "ta_r ta_r3"'
+COMMENT='socket "$CHILD2_1_MYSOCK $CHILD2_2_MYSOCK", table "ta_r ta_r3"'
     CONNECTION='host "localhost", user "root", password "",
     msi "5", mkd "2", alc "1",
     database "auto_test_remote auto_test_remote2"';
@@ -450,12 +457,13 @@ b CHAR(1),
 c DATETIME,
 PRIMARY KEY(a)
 ) MASTER_1_ENGINE MASTER_1_CHARSET MASTER_1_COMMENT_HA_AS_2_1;
+eval
 CREATE TABLE ta_l (
 a INT,
 b CHAR(1),
 c DATETIME,
 PRIMARY KEY(a)
-) ENGINE=Spider DEFAULT CHARSET=utf8 COMMENT='socket "/home/ycp/source/mariadb-server/main/build/mysql-test/var/tmp/mysqld.2.1.sock /home/ycp/source/mariadb-server/main/build/mysql-test/var/tmp/mysqld.2.2.sock", table "ta_r ta_r3"'
+) ENGINE=Spider DEFAULT CHARSET=utf8 COMMENT='socket "$CHILD2_1_MYSOCK $CHILD2_2_MYSOCK", table "ta_r ta_r3"'
     CONNECTION='host "localhost", user "root", password "",
     msi "5", mkd "2", alc "1",
     database "auto_test_remote auto_test_remote2"';
