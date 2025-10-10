@@ -973,5 +973,16 @@ rollback to sp1;
 select * from gtt;
 drop table gtt;
 
+--echo # MDEV-37720 use-after-free on CREATE OR REPLACE GTT under LOCK TABLES and pseudo_slave_mode
+create global temporary table t (c int) engine=innodb on commit preserve rows;
+set pseudo_slave_mode=1;
+--error ER_GTID_OPEN_TABLE_FAILED
+select * from t;
+set pseudo_slave_mode=0;
+select * from t;
+--error ER_WRONG_VALUE_FOR_VAR
+set pseudo_slave_mode=1;
+truncate t;
+drop table t;
 
 --disconnect con1
