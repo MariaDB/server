@@ -1086,4 +1086,18 @@ Warning	1196	Some non-transactional changed tables couldn't be rolled back
 select * from gtt;
 c
 drop table gtt;
+# MDEV-37720 use-after-free on CREATE OR REPLACE GTT under LOCK TABLES and pseudo_slave_mode
+create global temporary table t (c int) engine=innodb on commit preserve rows;
+set pseudo_slave_mode=1;
+select * from t;
+ERROR HY000: Failed to open t.test
+set pseudo_slave_mode=0;
+Warnings:
+Warning	1231	Slave applier execution mode not active, statement ineffective.
+select * from t;
+c
+set pseudo_slave_mode=1;
+ERROR 42000: Variable 'pseudo_slave_mode' can't be set to the value of '1'
+truncate t;
+drop table t;
 disconnect con1;
