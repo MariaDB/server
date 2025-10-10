@@ -4652,7 +4652,8 @@ bool select_insert::prepare_eof(bool in_create_table)
   if ((WSREP_EMULATE_BINLOG(thd) || mysql_bin_log.is_open()) &&
       (table->s->using_binlog() ||
        ((in_create_table &&
-         (!table->s->tmp_table || thd->binlog_create_tmp_table())))) &&
+         (!table->s->tmp_table || thd->binlog_create_tmp_table()) &&
+         !table->s->global_tmp_table()))) &&
        (likely(!error) ||
         (!in_create_table &&
          (thd->transaction->stmt.modified_non_trans_table ||
@@ -5165,8 +5166,8 @@ int select_create::postlock(THD *thd, TABLE **tables)
     return error;
 
   TABLE const *const table = *tables;
-  if (thd->is_current_stmt_binlog_format_row() &&
-      !table->s->tmp_table)
+  if ((thd->is_current_stmt_binlog_format_row() &&
+      !table->s->tmp_table) || table->s->global_tmp_table())
     return binlog_show_create_table(thd, *tables, create_info);
   return 0;
 }
@@ -5300,7 +5301,8 @@ static int binlog_show_create_table(THD *thd, TABLE *table,
     schema that will do a close_thread_tables(), destroying the
     statement transaction cache.
   */
-  DBUG_ASSERT(thd->is_current_stmt_binlog_format_row());
+  DBUG_ASSERT(thd->is_current_stmt_binlog_format_row() ||
+              table->s->global_tmp_table());
   StringBuffer<2048> query(system_charset_info);
   int result;
   TABLE_LIST tmp_table_list;
