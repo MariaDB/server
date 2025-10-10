@@ -1262,9 +1262,7 @@ static void trx_flush_log_if_needed(lsn_t lsn, trx_t *trx)
   if (log_sys.get_flushed_lsn(std::memory_order_relaxed) >= lsn)
     return;
 
-  const bool flush=
-    (!my_disable_sync &&
-     (srv_flush_log_at_trx_commit & 1));
+  const bool flush= srv_flush_log_at_trx_commit & 1;
   if (!log_sys.is_mmap())
   {
     completion_callback cb;
@@ -1963,7 +1961,7 @@ trx_prepare(
 
 		We must not be holding any mutexes or latches here. */
 		if (auto f = srv_flush_log_at_trx_commit) {
-			log_write_up_to(lsn, (f & 1) && !my_disable_sync);
+			log_write_up_to(lsn, f & 1);
 		}
 
 		if (!UT_LIST_GET_LEN(trx->lock.trx_locks)
