@@ -1101,6 +1101,17 @@ Note	1031	Global temporary table test.gtt HANDLER is closed.
 begin;
 insert into gtt values (1);
 drop table gtt;
+# MDEV-37798 Incomplete savepoint support with global temporary tables
+create global temporary table gtt (c int);
+begin;
+savepoint sp1;
+insert into gtt (c) values (1);
+rollback to sp1;
+Warnings:
+Warning	1196	Some non-transactional changed tables couldn't be rolled back
+select * from gtt;
+c
+drop table gtt;
 disconnect con1;
 connection slave;
 connection master;

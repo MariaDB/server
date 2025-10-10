@@ -1942,7 +1942,9 @@ static transaction_participant global_temporary_tp=
 {
   0, 0,  HTON_NO_ROLLBACK,
   [](THD *) { return 0; },
-  NULL, NULL, NULL, NULL,
+  [](THD *, void *){ return 0; },
+  [](THD *, void *){ return 0; },
+  NULL, NULL,
   commit_global_tmp_table,       // commit
   commit_global_tmp_table,       // rollback
   [](THD *, bool){ return 0; },  // prepare
