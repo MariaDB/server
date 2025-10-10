@@ -46,7 +46,7 @@ struct st_opt_hint_info opt_hint_info[]=
   {{STRING_WITH_LEN("JOIN_ORDER")}, false, true, true},
   {{STRING_WITH_LEN("JOIN_FIXED_ORDER")}, false, true, false},
   {{STRING_WITH_LEN("DERIVED_CONDITION_PUSHDOWN")}, false, false, false},
-  {{STRING_WITH_LEN("MERGE")}, false, false, false},
+  {{STRING_WITH_LEN("MERGE")}, true, false, false},
   {{STRING_WITH_LEN("SPLIT_MATERIALIZED")}, false, false, false},
   {{STRING_WITH_LEN("INDEX")}, false, true, false},
   {{STRING_WITH_LEN("JOIN_INDEX")}, false, true, false},
@@ -432,34 +432,27 @@ Opt_hints_qb::Opt_hints_qb(Opt_hints *opt_hints_arg,
 
 void Opt_hints_qb::fix_hints_for_derived_table(TABLE_LIST *table_list)
 {
-  Opt_hints_table *tab=
-    static_cast<Opt_hints_table *>(find_by_name(table_list->alias));
-
-  /*
-    If this is fixed and the corresponding Opt_hints_table doesn't exist (or it
-    exists and is fixed) then there's nothing to do, so return early.
-  */
-  if (are_all_fixed() && (!tab || tab->are_all_fixed()))
-    return;
+  DBUG_ASSERT(table_list->is_view_or_derived());
+  DBUG_ASSERT(!table_list->opt_hints_qb ||
+              (table_list->opt_hints_qb == this));
+  table_list->opt_hints_qb= this;
 
   /*
     This instance will have been marked as fixed on the basis of its
-    attachment to a SELECT_LEX (during get_qb_hints) but that is
-    insufficient to consider it fixed for the case where a TABLE
-    instance is required but not yet available.  If the associated
-    table isn't yet fixed, then fix this hint as though it were unfixed.
+    attachment to a SELECT_LEX (during get_qb_hints).
 
-    We mark the Opt_hints_table as 'fixed' here and this means we
+    We mark the opt_hints_table as 'fixed' here and this means we
     won't try to fix the child hints again later.  They will remain
     unfixed and will eventually produce "Unresolved index name" error
     in opt_hints_qb->check_unfixed().  This is acceptable because
     no child hints apply to derived tables.
   */
   DBUG_ASSERT(!table_list->opt_hints_table);
-  DBUG_ASSERT(tab);
-  table_list->opt_hints_qb= this;
-  table_list->opt_hints_table= tab;
-  tab->set_fixed();
+  table_list->opt_hints_table=
+    static_cast<Opt_hints_table *>(find_by_name(table_list->alias));
+  if (!table_list->opt_hints_table)
+    return;
+  table_list->opt_hints_table->set_fixed();
 }
 
 
