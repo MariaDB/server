@@ -79,9 +79,11 @@ SELECT a.val, a.akey FROM tbl_a a, tbl_b b WHERE a.akey = b.akey AND b.bkey = 5;
 --connection child2_1
 --disable_ps_protocol
 --disable_view_protocol
-SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%`tbl_a`%' ;
+eval
+SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%`tbl_a`%' $STR_SEMICOLON
 SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%`tbl_b`%';
-SELECT akey, val FROM tbl_a ORDER BY akey ;
+eval
+SELECT akey, val FROM tbl_a ORDER BY akey $STR_SEMICOLON
 SELECT bkey, akey FROM tbl_b ORDER BY bkey;
 --enable_view_protocol
 --enable_ps_protocol

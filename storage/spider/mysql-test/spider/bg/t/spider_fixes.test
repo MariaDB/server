@@ -376,7 +376,7 @@ c DATETIME,
 PRIMARY KEY(a)
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8;
 --enable_query_log
-CREATE TRIGGER ins_ta_l_auto_inc AFTER INSERT ON ta_l_auto_inc FOR EACH ROW BEGIN INSERT INTO tc_l (a, b, c) VALUES (NEW.a, NEW.b, NEW.c); END;;
+--eval CREATE TRIGGER ins_ta_l_auto_inc AFTER INSERT ON ta_l_auto_inc FOR EACH ROW BEGIN INSERT INTO tc_l (a, b, c) VALUES (NEW.a, NEW.b, NEW.c); END;
 --disable_query_log
 --disable_result_log
 --connection child2_1

@@ -104,7 +104,8 @@ SET NAMES utf8;
 SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %';
 --enable_ps2_protocol
 --disable_ps_protocol
-SELECT a, b, c FROM ta_r2 ORDER BY a ;
+eval
+SELECT a, b, c FROM ta_r2 ORDER BY a $STR_SEMICOLON
 SELECT a, b, c FROM ta_r3 ORDER BY a;
 --enable_ps_protocol
 --enable_view_protocol

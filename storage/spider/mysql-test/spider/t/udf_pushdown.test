@@ -87,16 +87,16 @@ DELIMITER //;
 CREATE FUNCTION `plusone`( param INT ) RETURNS INT
 BEGIN
 RETURN param + 1;
-END ;
-DELIMITER ;;
+END //
+DELIMITER ;//
 
 --connection child2_1
 DELIMITER //;
 CREATE FUNCTION `plusone`( param INT ) RETURNS INT
 BEGIN
 RETURN param + 1;
-END ;
-DELIMITER ;;
+END //
+DELIMITER ;//
 
 --echo
 --echo ########## spider_use_pushdown_udf=0 ##########
