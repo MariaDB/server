@@ -1,4 +1,10 @@
+-- source include/have_binlog_format_statement.inc
 -- source include/master-slave.inc
+
+connection default;
+source main/global_temporary_table.test;
+sync_slave_with_master;
+connection master;
 
 #Safety
 set @old_timeout= @@global.lock_wait_timeout;
