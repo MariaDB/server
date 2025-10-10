@@ -7344,6 +7344,16 @@ static bool check_pseudo_slave_mode(sys_var *self, THD *thd, set_var *var)
   }
   else
   {
+    if (!thd->rgi_slave && thd->temporary_tables &&
+        thd->temporary_tables->global_temporary_tables_count)
+    {
+      push_warning(thd, Sql_condition::WARN_LEVEL_WARN,
+                   ER_WRONG_VALUE_FOR_VAR,
+                   "Slave applier execution mode can't be enabled "
+                   "when some global temporary tables are open.");
+      return TRUE;
+    }
+
     if (!previous_val && !val)
       goto ineffective;
     else if (previous_val && !val)
