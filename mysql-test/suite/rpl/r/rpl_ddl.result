@@ -2,14 +2,19 @@ include/master-slave.inc
 [connection master]
 set global sql_mode='';
 set local sql_mode='';
+connection master;
+include/save_master_gtid.inc
 connection slave;
+include/sync_with_master_gtid.inc
 connection master;
 SET AUTOCOMMIT = 1;
 CREATE DATABASE mysqltest1;
 CREATE DATABASE mysqltest2;
 CREATE TABLE mysqltest1.t1 (f1 BIGINT) ENGINE=InnoDB;
+connection master;
+include/save_master_gtid.inc
 connection slave;
-connection slave;
+include/sync_with_master_gtid.inc
 connection master;
 INSERT INTO mysqltest1.t1 SET f1= 0;
 CREATE TABLE mysqltest1.t2 (f1 BIGINT) ENGINE=InnoDB;
@@ -35,7 +40,10 @@ CREATE TABLE mysqltest1.t19 (f1 BIGINT) ENGINE=InnoDB;
 CREATE TEMPORARY TABLE mysqltest1.t23 (f1 BIGINT) ENGINE=MEMORY;
 SET AUTOCOMMIT = 0;
 use mysqltest1;
+connection master;
+include/save_master_gtid.inc
 connection slave;
+include/sync_with_master_gtid.inc
 connection slave;
 SET AUTOCOMMIT = 1;
 use mysqltest1;
@@ -47,7 +55,10 @@ INSERT INTO t1 SET f1= 0 + 1;
 SELECT MAX(f1) FROM t1;
 MAX(f1)
 1
+connection master;
+include/save_master_gtid.inc
 connection slave;
+include/sync_with_master_gtid.inc
 connection slave;
 SELECT MAX(f1) FROM t1;
 MAX(f1)
@@ -59,7 +70,10 @@ SELECT 1;
 SELECT MAX(f1) FROM t1;
 MAX(f1)
 1
+connection master;
+include/save_master_gtid.inc
 connection slave;
+include/sync_with_master_gtid.inc
 connection slave;
 SELECT MAX(f1) FROM t1;
 MAX(f1)
@@ -71,7 +85,10 @@ MAX(f1)
 0
 
 TEST-INFO: MASTER: The INSERT is not committed (Succeeded)
+connection master;
+include/save_master_gtid.inc
 connection slave;
+include/sync_with_master_gtid.inc
 connection slave;
 SELECT MAX(f1) FROM t1;
 MAX(f1)
@@ -86,7 +103,10 @@ INSERT INTO t1 SET f1= 0 + 1;
 SELECT MAX(f1) FROM t1;
 MAX(f1)
 1
+connection master;
+include/save_master_gtid.inc
 connection slave;
+include/sync_with_master_gtid.inc
 connection slave;
 SELECT MAX(f1) FROM t1;
 MAX(f1)
@@ -98,7 +118,10 @@ COUNT(*)
 SELECT MAX(f1) FROM t1;
 MAX(f1)
 1
+connection master;
+include/save_master_gtid.inc
 connection slave;
+include/sync_with_master_gtid.inc
 connection slave;
 SELECT MAX(f1) FROM t1;
 MAX(f1)
@@ -110,7 +133,10 @@ MAX(f1)
 0
 
 TEST-INFO: MASTER: The INSERT is not committed (Succeeded)
+connection master;
+include/save_master_gtid.inc
 connection slave;
+include/sync_with_master_gtid.inc
 connection slave;
 SELECT MAX(f1) FROM t1;
 MAX(f1)
@@ -125,7 +151,10 @@ INSERT INTO t1 SET f1= 0 + 1;
 SELECT MAX(f1) FROM t1;
 MAX(f1)
 1
+connection master;
+include/save_master_gtid.inc
 connection slave;
+include/sync_with_master_gtid.inc
 connection slave;
 SELECT MAX(f1) FROM t1;
 MAX(f1)
@@ -135,7 +164,10 @@ COMMIT;
 SELECT MAX(f1) FROM t1;
 MAX(f1)
 1
+connection master;
+include/save_master_gtid.inc
 connection slave;
+include/sync_with_master_gtid.inc
 connection slave;
 SELECT MAX(f1) FROM t1;
 MAX(f1)
@@ -147,7 +179,10 @@ MAX(f1)
 1
 
 TEST-INFO: MASTER: The INSERT is committed (Succeeded)
+connection master;
+include/save_master_gtid.inc
 connection slave;
+include/sync_with_master_gtid.inc
 connection slave;
 SELECT MAX(f1) FROM t1;
 MAX(f1)
@@ -162,7 +197,10 @@ INSERT INTO t1 SET f1= 1 + 1;
 SELECT MAX(f1) FROM t1;
 MAX(f1)
 2
+connection master;
+include/save_master_gtid.inc
 connection slave;
+include/sync_with_master_gtid.inc
 connection slave;
 SELECT MAX(f1) FROM t1;
 MAX(f1)
@@ -172,7 +210,10 @@ ROLLBACK;
 SELECT MAX(f1) FROM t1;
 MAX(f1)
 1
+connection master;
+include/save_master_gtid.inc
 connection slave;
+include/sync_with_master_gtid.inc
 connection slave;
 SELECT MAX(f1) FROM t1;
 MAX(f1)
@@ -184,7 +225,10 @@ MAX(f1)
 1
 
 TEST-INFO: MASTER: The INSERT is not committed (Succeeded)
+connection master;
+include/save_master_gtid.inc
 connection slave;
+include/sync_with_master_gtid.inc
 connection slave;
 SELECT MAX(f1) FROM t1;
 MAX(f1)
@@ -199,7 +243,10 @@ INSERT INTO t1 SET f1= 1 + 1;
 SELECT MAX(f1) FROM t1;
 MAX(f1)
 2
+connection master;
+include/save_master_gtid.inc
 connection slave;
+include/sync_with_master_gtid.inc
 connection slave;
 SELECT MAX(f1) FROM t1;
 MAX(f1)
@@ -209,7 +256,10 @@ SET AUTOCOMMIT=1;
 SELECT MAX(f1) FROM t1;
 MAX(f1)
 2
+connection master;
+include/save_master_gtid.inc
 connection slave;
+include/sync_with_master_gtid.inc
 connection slave;
 SELECT MAX(f1) FROM t1;
 MAX(f1)
@@ -221,7 +271,10 @@ MAX(f1)
 2
 
 TEST-INFO: MASTER: The INSERT is committed (Succeeded)
+connection master;
+include/save_master_gtid.inc
 connection slave;
+include/sync_with_master_gtid.inc
 connection slave;
 SELECT MAX(f1) FROM t1;
 MAX(f1)
@@ -237,7 +290,10 @@ INSERT INTO t1 SET f1= 2 + 1;
 SELECT MAX(f1) FROM t1;
 MAX(f1)
 3
+connection master;
+include/save_master_gtid.inc
 connection slave;
+include/sync_with_master_gtid.inc
 connection slave;
 SELECT MAX(f1) FROM t1;
 MAX(f1)
@@ -247,7 +303,10 @@ START TRANSACTION;
 SELECT MAX(f1) FROM t1;
 MAX(f1)
 3
+connection master;
+include/save_master_gtid.inc
 connection slave;
+include/sync_with_master_gtid.inc
 connection slave;
 SELECT MAX(f1) FROM t1;
 MAX(f1)
@@ -259,7 +318,10 @@ MAX(f1)
 3
 
 TEST-INFO: MASTER: The INSERT is committed (Succeeded)
+connection master;
+include/save_master_gtid.inc
 connection slave;
+include/sync_with_master_gtid.inc
 connection slave;
 SELECT MAX(f1) FROM t1;
 MAX(f1)
@@ -274,7 +336,10 @@ INSERT INTO t1 SET f1= 3 + 1;
 SELECT MAX(f1) FROM t1;
 MAX(f1)
 4
+connection master;
+include/save_master_gtid.inc
 connection slave;
+include/sync_with_master_gtid.inc
 connection slave;
 SELECT MAX(f1) FROM t1;
 MAX(f1)
@@ -284,7 +349,10 @@ BEGIN;
 SELECT MAX(f1) FROM t1;
 MAX(f1)
 4
+connection master;
+include/save_master_gtid.inc
 connection slave;
+include/sync_with_master_gtid.inc
 connection slave;
 SELECT MAX(f1) FROM t1;
 MAX(f1)
@@ -296,7 +364,10 @@ MAX(f1)
 4
 
 TEST-INFO: MASTER: The INSERT is committed (Succeeded)
+connection master;
+include/save_master_gtid.inc
 connection slave;
+include/sync_with_master_gtid.inc
 connection slave;
 SELECT MAX(f1) FROM t1;
 MAX(f1)
@@ -311,7 +382,10 @@ INSERT INTO t1 SET f1= 4 + 1;
 SELECT MAX(f1) FROM t1;
 MAX(f1)
 5
+connection master;
+include/save_master_gtid.inc
 connection slave;
+include/sync_with_master_gtid.inc
 connection slave;
 SELECT MAX(f1) FROM t1;
 MAX(f1)
@@ -321,7 +395,10 @@ DROP TABLE mysqltest1.t2;
 SELECT MAX(f1) FROM t1;
 MAX(f1)
 5
+connection master;
+include/save_master_gtid.inc
 connection slave;
+include/sync_with_master_gtid.inc
 connection slave;
 SELECT MAX(f1) FROM t1;
 MAX(f1)
@@ -333,7 +410,10 @@ MAX(f1)
 5
 
 TEST-INFO: MASTER: The INSERT is committed (Succeeded)
+connection master;
+include/save_master_gtid.inc
 connection slave;
+include/sync_with_master_gtid.inc
 connection slave;
 SELECT MAX(f1) FROM t1;
 MAX(f1)
@@ -354,7 +434,10 @@ INSERT INTO t1 SET f1= 5 + 1;
 SELECT MAX(f1) FROM t1;
 MAX(f1)
 6
+connection master;
+include/save_master_gtid.inc
 connection slave;
+include/sync_with_master_gtid.inc
 connection slave;
 SELECT MAX(f1) FROM t1;
 MAX(f1)
@@ -364,7 +447,10 @@ DROP TEMPORARY TABLE mysqltest1.t23;
 SELECT MAX(f1) FROM t1;
 MAX(f1)
 6
+connection master;
+include/save_master_gtid.inc
 connection slave;
+include/sync_with_master_gtid.inc
 connection slave;
 SELECT MAX(f1) FROM t1;
 MAX(f1)
@@ -376,7 +462,10 @@ MAX(f1)
 5
 
 TEST-INFO: MASTER: The INSERT is not committed (Succeeded)
+connection master;
+include/save_master_gtid.inc
 connection slave;
+include/sync_with_master_gtid.inc
 connection slave;
 SELECT MAX(f1) FROM t1;
 MAX(f1)
@@ -397,7 +486,10 @@ INSERT INTO t1 SET f1= 5 + 1;
 SELECT MAX(f1) FROM t1;
 MAX(f1)
 6
+connection master;
+include/save_master_gtid.inc
 connection slave;
+include/sync_with_master_gtid.inc
 connection slave;
 SELECT MAX(f1) FROM t1;
 MAX(f1)
@@ -407,7 +499,10 @@ RENAME TABLE mysqltest1.t3 to mysqltest1.t20;
 SELECT MAX(f1) FROM t1;
 MAX(f1)
 6
+connection master;
+include/save_master_gtid.inc
 connection slave;
+include/sync_with_master_gtid.inc
 connection slave;
 SELECT MAX(f1) FROM t1;
 MAX(f1)
@@ -419,7 +514,10 @@ MAX(f1)
 6
 
 TEST-INFO: MASTER: The INSERT is committed (Succeeded)
+connection master;
+include/save_master_gtid.inc
 connection slave;
+include/sync_with_master_gtid.inc
 connection slave;
 SELECT MAX(f1) FROM t1;
 MAX(f1)
@@ -442,7 +540,10 @@ INSERT INTO t1 SET f1= 6 + 1;
 SELECT MAX(f1) FROM t1;
 MAX(f1)
 7
+connection master;
+include/save_master_gtid.inc
 connection slave;
+include/sync_with_master_gtid.inc
 connection slave;
 SELECT MAX(f1) FROM t1;
 MAX(f1)
@@ -452,7 +553,10 @@ ALTER TABLE mysqltest1.t4 ADD column f2 BIGINT;
 SELECT MAX(f1) FROM t1;
 MAX(f1)
 7
+connection master;
+include/save_master_gtid.inc
 connection slave;
+include/sync_with_master_gtid.inc
 connection slave;
 SELECT MAX(f1) FROM t1;
 MAX(f1)
@@ -464,7 +568,10 @@ MAX(f1)
 7
 
 TEST-INFO: MASTER: The INSERT is committed (Succeeded)
+connection master;
+include/save_master_gtid.inc
 connection slave;
+include/sync_with_master_gtid.inc
 connection slave;
 SELECT MAX(f1) FROM t1;
 MAX(f1)
@@ -489,7 +596,10 @@ INSERT INTO t1 SET f1= 7 + 1;
 SELECT MAX(f1) FROM t1;
 MAX(f1)
 8
+connection master;
+include/save_master_gtid.inc
 connection slave;
+include/sync_with_master_gtid.inc
 connection slave;
 SELECT MAX(f1) FROM t1;
 MAX(f1)
@@ -499,7 +609,10 @@ CREATE TABLE mysqltest1.t21 (f1 BIGINT) ENGINE= InnoDB;
 SELECT MAX(f1) FROM t1;
 MAX(f1)
 8
+connection master;
+include/save_master_gtid.inc
 connection slave;
+include/sync_with_master_gtid.inc
 connection slave;
 SELECT MAX(f1) FROM t1;
 MAX(f1)
@@ -511,7 +624,10 @@ MAX(f1)
 8
 
 TEST-INFO: MASTER: The INSERT is committed (Succeeded)
+connection master;
+include/save_master_gtid.inc
 connection slave;
+include/sync_with_master_gtid.inc
 connection slave;
 SELECT MAX(f1) FROM t1;
 MAX(f1)
@@ -526,7 +642,10 @@ INSERT INTO t1 SET f1= 8 + 1;
 SELECT MAX(f1) FROM t1;
 MAX(f1)
 9
+connection master;
+include/save_master_gtid.inc
 connection slave;
+include/sync_with_master_gtid.inc
 connection slave;
 SELECT MAX(f1) FROM t1;
 MAX(f1)
@@ -536,7 +655,10 @@ CREATE TEMPORARY TABLE mysqltest1.t22 (f1 BIGINT) ENGINE=MEMORY;
 SELECT MAX(f1) FROM t1;
 MAX(f1)
 9
+connection master;
+include/save_master_gtid.inc
 connection slave;
+include/sync_with_master_gtid.inc
 connection slave;
 SELECT MAX(f1) FROM t1;
 MAX(f1)
@@ -548,7 +670,10 @@ MAX(f1)
 8
 
 TEST-INFO: MASTER: The INSERT is not committed (Succeeded)
+connection master;
+include/save_master_gtid.inc
 connection slave;
+include/sync_with_master_gtid.inc
 connection slave;
 SELECT MAX(f1) FROM t1;
 MAX(f1)
@@ -563,7 +688,10 @@ INSERT INTO t1 SET f1= 8 + 1;
 SELECT MAX(f1) FROM t1;
 MAX(f1)
 9
+connection master;
+include/save_master_gtid.inc
 connection slave;
+include/sync_with_master_gtid.inc
 connection slave;
 SELECT MAX(f1) FROM t1;
 MAX(f1)
@@ -573,7 +701,10 @@ TRUNCATE TABLE mysqltest1.t7;
 SELECT MAX(f1) FROM t1;
 MAX(f1)
 9
+connection master;
+include/save_master_gtid.inc
 connection slave;
+include/sync_with_master_gtid.inc
 connection slave;
 SELECT MAX(f1) FROM t1;
 MAX(f1)
@@ -585,7 +716,10 @@ MAX(f1)
 9
 
 TEST-INFO: MASTER: The INSERT is committed (Succeeded)
+connection master;
+include/save_master_gtid.inc
 connection slave;
+include/sync_with_master_gtid.inc
 connection slave;
 SELECT MAX(f1) FROM t1;
 MAX(f1)
@@ -595,7 +729,10 @@ TEST-INFO: SLAVE:  The INSERT is committed (Succeeded)
 connection master;
 SELECT * FROM mysqltest1.t7;
 f1
+connection master;
+include/save_master_gtid.inc
 connection slave;
+include/sync_with_master_gtid.inc
 connection slave;
 SELECT * FROM mysqltest1.t7;
 f1
@@ -607,7 +744,10 @@ INSERT INTO t1 SET f1= 9 + 1;
 SELECT MAX(f1) FROM t1;
 MAX(f1)
 10
+connection master;
+include/save_master_gtid.inc
 connection slave;
+include/sync_with_master_gtid.inc
 connection slave;
 SELECT MAX(f1) FROM t1;
 MAX(f1)
@@ -617,7 +757,10 @@ LOCK TABLES mysqltest1.t1 WRITE, mysqltest1.t8 READ;
 SELECT MAX(f1) FROM t1;
 MAX(f1)
 10
+connection master;
+include/save_master_gtid.inc
 connection slave;
+include/sync_with_master_gtid.inc
 connection slave;
 SELECT MAX(f1) FROM t1;
 MAX(f1)
@@ -629,7 +772,10 @@ MAX(f1)
 10
 
 TEST-INFO: MASTER: The INSERT is committed (Succeeded)
+connection master;
+include/save_master_gtid.inc
 connection slave;
+include/sync_with_master_gtid.inc
 connection slave;
 SELECT MAX(f1) FROM t1;
 MAX(f1)
@@ -645,7 +791,10 @@ INSERT INTO t1 SET f1= 10 + 1;
 SELECT MAX(f1) FROM t1;
 MAX(f1)
 11
+connection master;
+include/save_master_gtid.inc
 connection slave;
+include/sync_with_master_gtid.inc
 connection slave;
 SELECT MAX(f1) FROM t1;
 MAX(f1)
@@ -655,7 +804,10 @@ UNLOCK TABLES;
 SELECT MAX(f1) FROM t1;
 MAX(f1)
 11
+connection master;
+include/save_master_gtid.inc
 connection slave;
+include/sync_with_master_gtid.inc
 connection slave;
 SELECT MAX(f1) FROM t1;
 MAX(f1)
@@ -667,7 +819,10 @@ MAX(f1)
 10
 
 TEST-INFO: MASTER: The INSERT is not committed (Succeeded)
+connection master;
+include/save_master_gtid.inc
 connection slave;
+include/sync_with_master_gtid.inc
 connection slave;
 SELECT MAX(f1) FROM t1;
 MAX(f1)
@@ -684,7 +839,10 @@ ERROR HY000: Table 't1' was locked with a READ lock and can't be updated
 SELECT MAX(f1) FROM t1;
 MAX(f1)
 10
+connection master;
+include/save_master_gtid.inc
 connection slave;
+include/sync_with_master_gtid.inc
 connection slave;
 SELECT MAX(f1) FROM t1;
 MAX(f1)
@@ -694,7 +852,10 @@ UNLOCK TABLES;
 SELECT MAX(f1) FROM t1;
 MAX(f1)
 10
+connection master;
+include/save_master_gtid.inc
 connection slave;
+include/sync_with_master_gtid.inc
 connection slave;
 SELECT MAX(f1) FROM t1;
 MAX(f1)
@@ -706,7 +867,10 @@ MAX(f1)
 10
 
 TEST-INFO: MASTER: The INSERT is not committed (Succeeded)
+connection master;
+include/save_master_gtid.inc
 connection slave;
+include/sync_with_master_gtid.inc
 connection slave;
 SELECT MAX(f1) FROM t1;
 MAX(f1)
@@ -722,7 +886,10 @@ INSERT INTO t1 SET f1= 10 + 1;
 SELECT MAX(f1) FROM t1;
 MAX(f1)
 11
+connection master;
+include/save_master_gtid.inc
 connection slave;
+include/sync_with_master_gtid.inc
 connection slave;
 SELECT MAX(f1) FROM t1;
 MAX(f1)
@@ -732,7 +899,10 @@ UNLOCK TABLES;
 SELECT MAX(f1) FROM t1;
 MAX(f1)
 11
+connection master;
+include/save_master_gtid.inc
 connection slave;
+include/sync_with_master_gtid.inc
 connection slave;
 SELECT MAX(f1) FROM t1;
 MAX(f1)
@@ -744,7 +914,10 @@ MAX(f1)
 11
 
 TEST-INFO: MASTER: The INSERT is committed (Succeeded)
+connection master;
+include/save_master_gtid.inc
 connection slave;
+include/sync_with_master_gtid.inc
 connection slave;
 SELECT MAX(f1) FROM t1;
 MAX(f1)
@@ -759,7 +932,10 @@ INSERT INTO t1 SET f1= 11 + 1;
 SELECT MAX(f1) FROM t1;
 MAX(f1)
 12
+connection master;
+include/save_master_gtid.inc
 connection slave;
+include/sync_with_master_gtid.inc
 connection slave;
 SELECT MAX(f1) FROM t1;
 MAX(f1)
@@ -769,7 +945,10 @@ DROP INDEX my_idx6 ON mysqltest1.t6;
 SELECT MAX(f1) FROM t1;
 MAX(f1)
 12
+connection master;
+include/save_master_gtid.inc
 connection slave;
+include/sync_with_master_gtid.inc
 connection slave;
 SELECT MAX(f1) FROM t1;
 MAX(f1)
@@ -781,7 +960,10 @@ MAX(f1)
 12
 
 TEST-INFO: MASTER: The INSERT is committed (Succeeded)
+connection master;
+include/save_master_gtid.inc
 connection slave;
+include/sync_with_master_gtid.inc
 connection slave;
 SELECT MAX(f1) FROM t1;
 MAX(f1)
@@ -802,7 +984,10 @@ INSERT INTO t1 SET f1= 12 + 1;
 SELECT MAX(f1) FROM t1;
 MAX(f1)
 13
+connection master;
+include/save_master_gtid.inc
 connection slave;
+include/sync_with_master_gtid.inc
 connection slave;
 SELECT MAX(f1) FROM t1;
 MAX(f1)
@@ -812,7 +997,10 @@ CREATE INDEX my_idx5 ON mysqltest1.t5(f1);
 SELECT MAX(f1) FROM t1;
 MAX(f1)
 13
+connection master;
+include/save_master_gtid.inc
 connection slave;
+include/sync_with_master_gtid.inc
 connection slave;
 SELECT MAX(f1) FROM t1;
 MAX(f1)
@@ -824,7 +1012,10 @@ MAX(f1)
 13
 
 TEST-INFO: MASTER: The INSERT is committed (Succeeded)
+connection master;
+include/save_master_gtid.inc
 connection slave;
+include/sync_with_master_gtid.inc
 connection slave;
 SELECT MAX(f1) FROM t1;
 MAX(f1)
@@ -847,7 +1038,10 @@ INSERT INTO t1 SET f1= 13 + 1;
 SELECT MAX(f1) FROM t1;
 MAX(f1)
 14
+connection master;
+include/save_master_gtid.inc
 connection slave;
+include/sync_with_master_gtid.inc
 connection slave;
 SELECT MAX(f1) FROM t1;
 MAX(f1)
@@ -857,7 +1051,10 @@ DROP DATABASE mysqltest2;
 SELECT MAX(f1) FROM t1;
 MAX(f1)
 14
+connection master;
+include/save_master_gtid.inc
 connection slave;
+include/sync_with_master_gtid.inc
 connection slave;
 SELECT MAX(f1) FROM t1;
 MAX(f1)
@@ -869,7 +1066,10 @@ MAX(f1)
 14
 
 TEST-INFO: MASTER: The INSERT is committed (Succeeded)
+connection master;
+include/save_master_gtid.inc
 connection slave;
+include/sync_with_master_gtid.inc
 connection slave;
 SELECT MAX(f1) FROM t1;
 MAX(f1)
@@ -890,7 +1090,10 @@ INSERT INTO t1 SET f1= 14 + 1;
 SELECT MAX(f1) FROM t1;
 MAX(f1)
 15
+connection master;
+include/save_master_gtid.inc
 connection slave;
+include/sync_with_master_gtid.inc
 connection slave;
 SELECT MAX(f1) FROM t1;
 MAX(f1)
@@ -900,7 +1103,10 @@ CREATE DATABASE mysqltest3;
 SELECT MAX(f1) FROM t1;
 MAX(f1)
 15
+connection master;
+include/save_master_gtid.inc
 connection slave;
+include/sync_with_master_gtid.inc
 connection slave;
 SELECT MAX(f1) FROM t1;
 MAX(f1)
@@ -912,7 +1118,10 @@ MAX(f1)
 15
 
 TEST-INFO: MASTER: The INSERT is committed (Succeeded)
+connection master;
+include/save_master_gtid.inc
 connection slave;
+include/sync_with_master_gtid.inc
 connection slave;
 SELECT MAX(f1) FROM t1;
 MAX(f1)
@@ -935,7 +1144,10 @@ INSERT INTO t1 SET f1= 15 + 1;
 SELECT MAX(f1) FROM t1;
 MAX(f1)
 16
+connection master;
+include/save_master_gtid.inc
 connection slave;
+include/sync_with_master_gtid.inc
 connection slave;
 SELECT MAX(f1) FROM t1;
 MAX(f1)
@@ -945,7 +1157,10 @@ CREATE PROCEDURE p1() READS SQL DATA SELECT "this is p1";
 SELECT MAX(f1) FROM t1;
 MAX(f1)
 16
+connection master;
+include/save_master_gtid.inc
 connection slave;
+include/sync_with_master_gtid.inc
 connection slave;
 SELECT MAX(f1) FROM t1;
 MAX(f1)
@@ -957,7 +1172,10 @@ MAX(f1)
 16
 
 TEST-INFO: MASTER: The INSERT is committed (Succeeded)
+connection master;
+include/save_master_gtid.inc
 connection slave;
+include/sync_with_master_gtid.inc
 connection slave;
 SELECT MAX(f1) FROM t1;
 MAX(f1)
@@ -998,7 +1216,10 @@ INSERT INTO t1 SET f1= 16 + 1;
 SELECT MAX(f1) FROM t1;
 MAX(f1)
 17
+connection master;
+include/save_master_gtid.inc
 connection slave;
+include/sync_with_master_gtid.inc
 connection slave;
 SELECT MAX(f1) FROM t1;
 MAX(f1)
@@ -1008,7 +1229,10 @@ ALTER PROCEDURE p1 COMMENT "I have been altered";
 SELECT MAX(f1) FROM t1;
 MAX(f1)
 17
+connection master;
+include/save_master_gtid.inc
 connection slave;
+include/sync_with_master_gtid.inc
 connection slave;
 SELECT MAX(f1) FROM t1;
 MAX(f1)
@@ -1020,7 +1244,10 @@ MAX(f1)
 17
 
 TEST-INFO: MASTER: The INSERT is committed (Succeeded)
+connection master;
+include/save_master_gtid.inc
 connection slave;
+include/sync_with_master_gtid.inc
 connection slave;
 SELECT MAX(f1) FROM t1;
 MAX(f1)
@@ -1061,7 +1288,10 @@ INSERT INTO t1 SET f1= 17 + 1;
 SELECT MAX(f1) FROM t1;
 MAX(f1)
 18
+connection master;
+include/save_master_gtid.inc
 connection slave;
+include/sync_with_master_gtid.inc
 connection slave;
 SELECT MAX(f1) FROM t1;
 MAX(f1)
@@ -1071,7 +1301,10 @@ DROP PROCEDURE p1;
 SELECT MAX(f1) FROM t1;
 MAX(f1)
 18
+connection master;
+include/save_master_gtid.inc
 connection slave;
+include/sync_with_master_gtid.inc
 connection slave;
 SELECT MAX(f1) FROM t1;
 MAX(f1)
@@ -1083,7 +1316,10 @@ MAX(f1)
 18
 
 TEST-INFO: MASTER: The INSERT is committed (Succeeded)
+connection master;
+include/save_master_gtid.inc
 connection slave;
+include/sync_with_master_gtid.inc
 connection slave;
 SELECT MAX(f1) FROM t1;
 MAX(f1)
@@ -1102,7 +1338,10 @@ INSERT INTO t1 SET f1= 18 + 1;
 SELECT MAX(f1) FROM t1;
 MAX(f1)
 19
+connection master;
+include/save_master_gtid.inc
 connection slave;
+include/sync_with_master_gtid.inc
 connection slave;
 SELECT MAX(f1) FROM t1;
 MAX(f1)
@@ -1112,7 +1351,10 @@ CREATE OR REPLACE VIEW v1 as select * from t1;
 SELECT MAX(f1) FROM t1;
 MAX(f1)
 19
+connection master;
+include/save_master_gtid.inc
 connection slave;
+include/sync_with_master_gtid.inc
 connection slave;
 SELECT MAX(f1) FROM t1;
 MAX(f1)
@@ -1124,7 +1366,10 @@ MAX(f1)
 19
 
 TEST-INFO: MASTER: The INSERT is committed (Succeeded)
+connection master;
+include/save_master_gtid.inc
 connection slave;
+include/sync_with_master_gtid.inc
 connection slave;
 SELECT MAX(f1) FROM t1;
 MAX(f1)
@@ -1147,7 +1392,10 @@ INSERT INTO t1 SET f1= 19 + 1;
 SELECT MAX(f1) FROM t1;
 MAX(f1)
 20
+connection master;
+include/save_master_gtid.inc
 connection slave;
+include/sync_with_master_gtid.inc
 connection slave;
 SELECT MAX(f1) FROM t1;
 MAX(f1)
@@ -1157,7 +1405,10 @@ ALTER VIEW v1 AS select f1 from t1;
 SELECT MAX(f1) FROM t1;
 MAX(f1)
 20
+connection master;
+include/save_master_gtid.inc
 connection slave;
+include/sync_with_master_gtid.inc
 connection slave;
 SELECT MAX(f1) FROM t1;
 MAX(f1)
@@ -1169,7 +1420,10 @@ MAX(f1)
 20
 
 TEST-INFO: MASTER: The INSERT is committed (Succeeded)
+connection master;
+include/save_master_gtid.inc
 connection slave;
+include/sync_with_master_gtid.inc
 connection slave;
 SELECT MAX(f1) FROM t1;
 MAX(f1)
@@ -1192,7 +1446,10 @@ INSERT INTO t1 SET f1= 20 + 1;
 SELECT MAX(f1) FROM t1;
 MAX(f1)
 21
+connection master;
+include/save_master_gtid.inc
 connection slave;
+include/sync_with_master_gtid.inc
 connection slave;
 SELECT MAX(f1) FROM t1;
 MAX(f1)
@@ -1202,7 +1459,10 @@ DROP VIEW IF EXISTS v1;
 SELECT MAX(f1) FROM t1;
 MAX(f1)
 21
+connection master;
+include/save_master_gtid.inc
 connection slave;
+include/sync_with_master_gtid.inc
 connection slave;
 SELECT MAX(f1) FROM t1;
 MAX(f1)
@@ -1214,7 +1474,10 @@ MAX(f1)
 21
 
 TEST-INFO: MASTER: The INSERT is committed (Succeeded)
+connection master;
+include/save_master_gtid.inc
 connection slave;
+include/sync_with_master_gtid.inc
 connection slave;
 SELECT MAX(f1) FROM t1;
 MAX(f1)
@@ -1235,7 +1498,10 @@ INSERT INTO t1 SET f1= 21 + 1;
 SELECT MAX(f1) FROM t1;
 MAX(f1)
 22
+connection master;
+include/save_master_gtid.inc
 connection slave;
+include/sync_with_master_gtid.inc
 connection slave;
 SELECT MAX(f1) FROM t1;
 MAX(f1)
@@ -1245,7 +1511,10 @@ CREATE TRIGGER trg1 BEFORE INSERT ON t1 FOR EACH ROW SET @a:=1;
 SELECT MAX(f1) FROM t1;
 MAX(f1)
 22
+connection master;
+include/save_master_gtid.inc
 connection slave;
+include/sync_with_master_gtid.inc
 connection slave;
 SELECT MAX(f1) FROM t1;
 MAX(f1)
@@ -1257,7 +1526,10 @@ MAX(f1)
 22
 
 TEST-INFO: MASTER: The INSERT is committed (Succeeded)
+connection master;
+include/save_master_gtid.inc
 connection slave;
+include/sync_with_master_gtid.inc
 connection slave;
 SELECT MAX(f1) FROM t1;
 MAX(f1)
@@ -1280,7 +1552,10 @@ INSERT INTO t1 SET f1= 22 + 1;
 SELECT MAX(f1) FROM t1;
 MAX(f1)
 23
+connection master;
+include/save_master_gtid.inc
 connection slave;
+include/sync_with_master_gtid.inc
 connection slave;
 SELECT MAX(f1) FROM t1;
 MAX(f1)
@@ -1290,7 +1565,10 @@ DROP TRIGGER trg1;
 SELECT MAX(f1) FROM t1;
 MAX(f1)
 23
+connection master;
+include/save_master_gtid.inc
 connection slave;
+include/sync_with_master_gtid.inc
 connection slave;
 SELECT MAX(f1) FROM t1;
 MAX(f1)
@@ -1302,7 +1580,10 @@ MAX(f1)
 23
 
 TEST-INFO: MASTER: The INSERT is committed (Succeeded)
+connection master;
+include/save_master_gtid.inc
 connection slave;
+include/sync_with_master_gtid.inc
 connection slave;
 SELECT MAX(f1) FROM t1;
 MAX(f1)
@@ -1323,7 +1604,10 @@ INSERT INTO t1 SET f1= 23 + 1;
 SELECT MAX(f1) FROM t1;
 MAX(f1)
 24
+connection master;
+include/save_master_gtid.inc
 connection slave;
+include/sync_with_master_gtid.inc
 connection slave;
 SELECT MAX(f1) FROM t1;
 MAX(f1)
@@ -1333,7 +1617,10 @@ CREATE USER user1@localhost;
 SELECT MAX(f1) FROM t1;
 MAX(f1)
 24
+connection master;
+include/save_master_gtid.inc
 connection slave;
+include/sync_with_master_gtid.inc
 connection slave;
 SELECT MAX(f1) FROM t1;
 MAX(f1)
@@ -1345,7 +1632,10 @@ MAX(f1)
 24
 
 TEST-INFO: MASTER: The INSERT is committed (Succeeded)
+connection master;
+include/save_master_gtid.inc
 connection slave;
+include/sync_with_master_gtid.inc
 connection slave;
 SELECT MAX(f1) FROM t1;
 MAX(f1)
@@ -1368,7 +1658,10 @@ INSERT INTO t1 SET f1= 24 + 1;
 SELECT MAX(f1) FROM t1;
 MAX(f1)
 25
+connection master;
+include/save_master_gtid.inc
 connection slave;
+include/sync_with_master_gtid.inc
 connection slave;
 SELECT MAX(f1) FROM t1;
 MAX(f1)
@@ -1378,7 +1671,10 @@ RENAME USER user1@localhost TO rename1@localhost;
 SELECT MAX(f1) FROM t1;
 MAX(f1)
 25
+connection master;
+include/save_master_gtid.inc
 connection slave;
+include/sync_with_master_gtid.inc
 connection slave;
 SELECT MAX(f1) FROM t1;
 MAX(f1)
@@ -1390,7 +1686,10 @@ MAX(f1)
 25
 
 TEST-INFO: MASTER: The INSERT is committed (Succeeded)
+connection master;
+include/save_master_gtid.inc
 connection slave;
+include/sync_with_master_gtid.inc
 connection slave;
 SELECT MAX(f1) FROM t1;
 MAX(f1)
@@ -1413,7 +1712,10 @@ INSERT INTO t1 SET f1= 25 + 1;
 SELECT MAX(f1) FROM t1;
 MAX(f1)
 26
+connection master;
+include/save_master_gtid.inc
 connection slave;
+include/sync_with_master_gtid.inc
 connection slave;
 SELECT MAX(f1) FROM t1;
 MAX(f1)
@@ -1423,7 +1725,10 @@ DROP USER rename1@localhost;
 SELECT MAX(f1) FROM t1;
 MAX(f1)
 26
+connection master;
+include/save_master_gtid.inc
 connection slave;
+include/sync_with_master_gtid.inc
 connection slave;
 SELECT MAX(f1) FROM t1;
 MAX(f1)
@@ -1435,7 +1740,10 @@ MAX(f1)
 26
 
 TEST-INFO: MASTER: The INSERT is committed (Succeeded)
+connection master;
+include/save_master_gtid.inc
 connection slave;
+include/sync_with_master_gtid.inc
 connection slave;
 SELECT MAX(f1) FROM t1;
 MAX(f1)
