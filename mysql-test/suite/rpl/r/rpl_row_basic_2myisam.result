@@ -5,7 +5,10 @@ connection master;
 CREATE TABLE t1 (C1 CHAR(1), C2 CHAR(1), INDEX (C1)) ENGINE = 'MYISAM'  ;
 SELECT * FROM t1;
 C1	C2
+connection master;
+include/save_master_gtid.inc
 connection slave;
+include/sync_with_master_gtid.inc
 SELECT * FROM t1;
 C1	C2
 connection master;
@@ -19,7 +22,6 @@ A	C
 X	X
 X	Y
 X	Z
-connection slave;
 SELECT * FROM t1 ORDER BY C1,C2;
 C1	C2
 A	A
@@ -29,6 +31,10 @@ X	X
 X	Y
 X	Z
 connection master;
+include/save_master_gtid.inc
+connection slave;
+include/sync_with_master_gtid.inc
+connection master;
 DELETE FROM t1 WHERE C1 = C2;
 SELECT * FROM t1 ORDER BY C1,C2;
 C1	C2
@@ -36,7 +42,10 @@ A	B
 A	C
 X	Y
 X	Z
+connection master;
+include/save_master_gtid.inc
 connection slave;
+include/sync_with_master_gtid.inc
 SELECT * FROM t1 ORDER BY C1,C2;
 C1	C2
 A	B
@@ -51,7 +60,10 @@ A	B
 A	I
 X	Y
 X	Z
+connection master;
+include/save_master_gtid.inc
 connection slave;
+include/sync_with_master_gtid.inc
 SELECT * FROM t1 ORDER BY C1,C2;
 C1	C2
 A	B
@@ -71,13 +83,16 @@ A	B
 A	I
 X	Y
 X	Z
-connection slave;
 SELECT * FROM t1 ORDER BY c1,c2;
 C1	C2
 A	B
 A	I
 X	Y
 X	Z
+connection master;
+include/save_master_gtid.inc
+connection slave;
+include/sync_with_master_gtid.inc
 connection master;
 CREATE TABLE t2 (c1 INT, c12 char(1), c2 INT, PRIMARY KEY (c1)) ENGINE = 'MYISAM'  ;
 INSERT INTO t2
@@ -101,7 +116,10 @@ c1	c12	c2
 5	A	25
 8	A	64
 9	A	81
+connection master;
+include/save_master_gtid.inc
 connection slave;
+include/sync_with_master_gtid.inc
 SELECT * FROM t2 ORDER BY c1,c2;
 c1	c12	c2
 1	A	2
@@ -133,7 +151,10 @@ c1	c12	c2
 7	A	49
 8	A	64
 9	A	81
+connection master;
+include/save_master_gtid.inc
 connection slave;
+include/sync_with_master_gtid.inc
 SELECT * FROM t2 WHERE c2 = c1 * c1 ORDER BY c1,c2;
 c1	c12	c2
 1	A	1
@@ -158,7 +179,10 @@ c1	c12	c2
 7	A	49
 8	A	64
 9	A	81
+connection master;
+include/save_master_gtid.inc
 connection slave;
+include/sync_with_master_gtid.inc
 SELECT * FROM t2 ORDER BY c1,c2;
 c1	c12	c2
 1	A	1
@@ -181,7 +205,10 @@ c1	c12	c2
 6	A	36
 7	A	49
 9	A	81
+connection master;
+include/save_master_gtid.inc
 connection slave;
+include/sync_with_master_gtid.inc
 SELECT * FROM t2 ORDER BY c1,c2;
 c1	c12	c2
 1	A	1
@@ -205,7 +232,10 @@ A	C	1	B	2
 X	X	3	B	1
 X	Y	2	B	1
 X	Z	2	B	2
+connection master;
+include/save_master_gtid.inc
 connection slave;
+include/sync_with_master_gtid.inc
 SELECT * FROM t3 ORDER BY C1,C2;
 C1	C2	pk1	C3	pk2
 A	A	3	B	2
@@ -222,7 +252,10 @@ A	B	1	B	1
 A	C	1	B	2
 X	Y	2	B	1
 X	Z	2	B	2
+connection master;
+include/save_master_gtid.inc
 connection slave;
+include/sync_with_master_gtid.inc
 SELECT * FROM t3 ORDER BY C1,C2;
 C1	C2	pk1	C3	pk2
 A	B	1	B	1
@@ -237,7 +270,10 @@ A	B	1	B	1
 A	I	1	B	2
 X	Y	2	B	1
 X	Z	2	B	2
+connection master;
+include/save_master_gtid.inc
 connection slave;
+include/sync_with_master_gtid.inc
 SELECT * FROM t3 ORDER BY C1,C2;
 C1	C2	pk1	C3	pk2
 A	B	1	B	1
@@ -256,7 +292,10 @@ X	X	3
 A	C	4
 X	Z	5
 A	A	6
+connection master;
+include/save_master_gtid.inc
 connection slave;
+include/sync_with_master_gtid.inc
 SELECT * FROM t6 ORDER BY C3;
 C1	C2	C3
 A	B	1
@@ -273,7 +312,10 @@ A	B	1
 X	Y	2
 A	C	4
 X	Z	5
+connection master;
+include/save_master_gtid.inc
 connection slave;
+include/sync_with_master_gtid.inc
 SELECT * FROM t6 ORDER BY C3;
 C1	C2	C3
 A	B	1
@@ -288,7 +330,10 @@ A	B	1
 X	Y	2
 A	I	4
 X	Z	5
+connection master;
+include/save_master_gtid.inc
 connection slave;
+include/sync_with_master_gtid.inc
 SELECT * FROM t6 ORDER BY C3;
 C1	C2	C3
 A	B	1
@@ -344,7 +389,10 @@ X	Q	5	7	R	49	X	Y	2	S	1
 X	Q	5	7	R	49	X	Z	2	S	2
 X	Q	5	9	R	81	X	Y	2	S	1
 X	Q	5	9	R	81	X	Z	2	S	2
+connection master;
+include/save_master_gtid.inc
 connection slave;
+include/sync_with_master_gtid.inc
 SELECT * FROM t5,t2,t3 WHERE t5.C2='Q' AND t2.c12='R' AND t3.C3 ='S' ORDER BY t5.C3,t2.c1,t3.pk1,t3.pk2;
 C1	C2	C3	c1	c12	c2	C1	C2	pk1	C3	pk2
 X	Q	2	1	R	1	X	Y	2	S	1
@@ -395,13 +443,19 @@ INSERT INTO t4 SET C1 = 1;
 SELECT C1,HEX(B1),HEX(B2) FROM t4 ORDER BY C1;
 C1	HEX(B1)	HEX(B2)
 1	NULL	0
+connection master;
+include/save_master_gtid.inc
 connection slave;
+include/sync_with_master_gtid.inc
 SELECT C1,HEX(B1),HEX(B2) FROM t4 ORDER BY C1;
 C1	HEX(B1)	HEX(B2)
 1	NULL	0
 connection master;
 CREATE TABLE t7 (C1 INT PRIMARY KEY, C2 INT) ENGINE = 'MYISAM'  ;
+connection master;
+include/save_master_gtid.inc
 connection slave;
+include/sync_with_master_gtid.inc
 --- original values ---
 INSERT INTO t7 VALUES (1,3), (2,6), (3,9);
 SELECT * FROM t7 ORDER BY C1;
@@ -418,7 +472,10 @@ C1	C2
 1	2
 2	4
 3	6
+connection master;
+include/save_master_gtid.inc
 connection slave;
+include/sync_with_master_gtid.inc
 set @@global.slave_exec_mode= default;
 --- old values should be overwritten by replicated values ---
 SELECT * FROM t7 ORDER BY C1;
@@ -438,7 +495,10 @@ ERROR 23000: Duplicate entry '99' for key 'c'
 SELECT * FROM t8 ORDER BY a;
 a	b	c
 99	99	99
+connection master;
+include/save_master_gtid.inc
 connection slave;
+include/sync_with_master_gtid.inc
 SELECT * FROM t8 ORDER BY a;
 a	b	c
 99	99	99
@@ -452,7 +512,10 @@ a	b	c
 set @@global.slave_exec_mode= 'IDEMPOTENT';
 connection master;
 INSERT INTO t8 VALUES (2,4,8);
+connection master;
+include/save_master_gtid.inc
 connection slave;
+include/sync_with_master_gtid.inc
 set @@global.slave_exec_mode= default;
 SELECT * FROM t8 ORDER BY a;
 a	b	c
@@ -463,18 +526,27 @@ a	b	c
 **** Test for BUG#31552 ****
 connection master;
 DELETE FROM t1;
+connection master;
+include/save_master_gtid.inc
 connection slave;
+include/sync_with_master_gtid.inc
 include/rpl_reset.inc
 connection master;
 INSERT INTO t1 VALUES ('K','K'), ('L','L'), ('M','M');
+connection master;
+include/save_master_gtid.inc
 connection slave;
+include/sync_with_master_gtid.inc
 set @@global.slave_exec_mode= 'IDEMPOTENT';
 DELETE FROM t1 WHERE C1 = 'L';
 connection master;
 DELETE FROM t1;
 SELECT COUNT(*) FROM t1 ORDER BY c1,c2;
 COUNT(*)	0
+connection master;
+include/save_master_gtid.inc
 connection slave;
+include/sync_with_master_gtid.inc
 set @@global.slave_exec_mode= default;
 include/check_slave_is_running.inc
 SELECT COUNT(*) FROM t1 ORDER BY c1,c2;
@@ -485,13 +557,19 @@ DROP TABLE IF EXISTS t1;
 CREATE TABLE t1 (a TIMESTAMP, b DATETIME, c DATE);
 INSERT INTO t1 VALUES(
 '2005-11-14 01:01:01', '2005-11-14 01:01:02', '2005-11-14');
+connection master;
+include/save_master_gtid.inc
 connection slave;
+include/sync_with_master_gtid.inc
 SELECT * FROM t1;
 a	b	c
 2005-11-14 01:01:01	2005-11-14 01:01:02	2005-11-14
 connection master;
 DROP TABLE IF EXISTS t1,t2,t3,t4,t5,t6,t7,t8;
+connection master;
+include/save_master_gtid.inc
 connection slave;
+include/sync_with_master_gtid.inc
 connection master;
 CREATE TABLE t1 (i INT NOT NULL,
 c CHAR(16) CHARACTER SET utf8 NOT NULL,
@@ -499,13 +577,19 @@ j INT NOT NULL) ENGINE = 'MYISAM'  ;
 CREATE TABLE t2 (i INT NOT NULL,
 c CHAR(16) CHARACTER SET utf8 NOT NULL,
 j INT NOT NULL) ENGINE = 'MYISAM'  ;
+connection master;
+include/save_master_gtid.inc
 connection slave;
+include/sync_with_master_gtid.inc
 ALTER TABLE t2 MODIFY c CHAR(128) CHARACTER SET utf8 NOT NULL;
 connection master;
 CREATE TABLE t3 (i INT NOT NULL,
 c CHAR(128) CHARACTER SET utf8 NOT NULL,
 j INT NOT NULL) ENGINE = 'MYISAM'  ;
+connection master;
+include/save_master_gtid.inc
 connection slave;
+include/sync_with_master_gtid.inc
 ALTER TABLE t3 MODIFY c CHAR(16) CHARACTER SET utf8 NOT NULL;
 connection master;
 CREATE TABLE t4 (i INT NOT NULL,
@@ -514,13 +598,19 @@ j INT NOT NULL) ENGINE = 'MYISAM'  ;
 CREATE TABLE t5 (i INT NOT NULL,
 c CHAR(255) CHARACTER SET utf8 NOT NULL,
 j INT NOT NULL) ENGINE = 'MYISAM'  ;
+connection master;
+include/save_master_gtid.inc
 connection slave;
+include/sync_with_master_gtid.inc
 ALTER TABLE t5 MODIFY c CHAR(16) CHARACTER SET utf8 NOT NULL;
 connection master;
 CREATE TABLE t6 (i INT NOT NULL,
 c CHAR(255) CHARACTER SET utf8 NOT NULL,
 j INT NOT NULL) ENGINE = 'MYISAM'  ;
+connection master;
+include/save_master_gtid.inc
 connection slave;
+include/sync_with_master_gtid.inc
 ALTER TABLE t6 MODIFY c CHAR(128) CHARACTER SET utf8 NOT NULL;
 connection master;
 CREATE TABLE t7 (i INT NOT NULL,
@@ -533,13 +623,19 @@ SET GLOBAL SLAVE_TYPE_CONVERSIONS = 'ALL_NON_LOSSY';
 connection master;
 INSERT INTO t1 VALUES (1, "", 1);
 INSERT INTO t1 VALUES (2, repeat(_utf8'a', 16), 2);
+connection master;
+include/save_master_gtid.inc
 connection slave;
+include/sync_with_master_gtid.inc
 include/diff_tables.inc [master:t1, slave:t1]
 [expecting slave to replicate correctly]
 connection master;
 INSERT INTO t2 VALUES (1, "", 1);
 INSERT INTO t2 VALUES (2, repeat(_utf8'a', 16), 2);
+connection master;
+include/save_master_gtid.inc
 connection slave;
+include/sync_with_master_gtid.inc
 include/diff_tables.inc [master:t2, slave:t2]
 connection slave;
 SET GLOBAL SLAVE_TYPE_CONVERSIONS = @saved_slave_type_conversions;
@@ -552,7 +648,10 @@ include/rpl_reset.inc
 connection master;
 INSERT INTO t4 VALUES (1, "", 1);
 INSERT INTO t4 VALUES (2, repeat(_utf8'a', 128), 2);
+connection master;
+include/save_master_gtid.inc
 connection slave;
+include/sync_with_master_gtid.inc
 include/diff_tables.inc [master:t4, slave:t4]
 [expecting slave to stop]
 connection master;
@@ -574,22 +673,34 @@ include/rpl_reset.inc
 connection master;
 INSERT INTO t7 VALUES (1, "", 1);
 INSERT INTO t7 VALUES (2, repeat(_utf8'a', 255), 2);
+connection master;
+include/save_master_gtid.inc
 connection slave;
+include/sync_with_master_gtid.inc
 include/diff_tables.inc [master:t7, slave:t7]
 connection master;
 drop table t1, t2, t3, t4, t5, t6, t7;
+connection master;
+include/save_master_gtid.inc
 connection slave;
+include/sync_with_master_gtid.inc
 connection master;
 CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE='MYISAM' ;
 INSERT INTO t1 VALUES (1), (2), (3);
 UPDATE t1 SET a = 10;
 ERROR 23000: Duplicate entry '10' for key 'PRIMARY'
 INSERT INTO t1 VALUES (4);
+connection master;
+include/save_master_gtid.inc
 connection slave;
+include/sync_with_master_gtid.inc
 include/diff_tables.inc [master:t1, slave:t1]
 connection master;
 drop table t1;
+connection master;
+include/save_master_gtid.inc
 connection slave;
+include/sync_with_master_gtid.inc
 connection master;
 DROP TABLE IF EXISTS t1, t2;
 CREATE TABLE t1 (
@@ -642,7 +753,10 @@ UPDATE t1 SET `pk` = 6 ORDER BY `int_key` LIMIT 6;
 ERROR 23000: Duplicate entry '6' for key 'PRIMARY'
 DELETE FROM t2 WHERE `pk` < 7 LIMIT 1;
 UPDATE t1 SET `int_key` = 4 ORDER BY `pk` LIMIT 6;
+connection master;
+include/save_master_gtid.inc
 connection slave;
+include/sync_with_master_gtid.inc
 *** results: t2 must be consistent ****
 include/diff_tables.inc [master:t2, slave:t2]
 connection master;
@@ -662,11 +776,17 @@ UPDATE t1 SET a = 9 WHERE a < 3;
 INSERT INTO t1 ( a ) VALUES ( 3 );
 UPDATE t1 SET a = 0 WHERE a < 4;
 UPDATE t1 SET a = 8 WHERE a < 5;
+connection master;
+include/save_master_gtid.inc
 connection slave;
+include/sync_with_master_gtid.inc
 include/diff_tables.inc [master:t1, slave:t1]
 connection master;
 drop table t1;
+connection master;
+include/save_master_gtid.inc
 connection slave;
+include/sync_with_master_gtid.inc
 connection master;
 connection master;
 CREATE TABLE t1 (a bit) ENGINE='MYISAM' ;
@@ -709,11 +829,17 @@ DELETE FROM t1 WHERE a < 3 LIMIT 0;
 UPDATE t1 SET a = 8 WHERE a = 5 LIMIT 2;
 INSERT INTO t1 ( a ) VALUES ( 1 );
 UPDATE IGNORE t1 SET a = 9 WHERE a < 5 LIMIT 3;
+connection master;
+include/save_master_gtid.inc
 connection slave;
+include/sync_with_master_gtid.inc
 include/diff_tables.inc [master:t1, slave:t1]
 connection master;
 drop table t1;
+connection master;
+include/save_master_gtid.inc
 connection slave;
+include/sync_with_master_gtid.inc
 connection slave;
 call mtr.add_suppression("Can't find record in 't1'");
 include/rpl_end.inc

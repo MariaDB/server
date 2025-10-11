@@ -31,6 +31,9 @@
 #     Set the timeout when waiting for slave threads to stop and
 #     start, respectively.  See include/wait_for_slave_param.inc
 #
+#   $rpl_skip_sync
+#     Don't sync the slaves before resetting them.
+#
 # Note:
 #   This script will fail if Last_SQL_Error or Last_IO_Error is
 #   nonempty.  If you expect an error in the SQL thread, you should
@@ -50,7 +53,10 @@ if (!$rpl_debug)
 }
 
 
---source include/rpl_sync.inc
+if (!$rpl_skip_sync)
+{
+  --source include/rpl_sync.inc
+}
 
 
 if ($rpl_debug)
