@@ -75,6 +75,10 @@ while ($_rpl_i) {
 
   if ($_rpl_server)
   {
+    disable_query_log;
+    --connection server_$_rpl_server
+    enable_query_log;
+    --let $_rpl_gtid_mode= query_get_value(SHOW SLAVE STATUS, Using_Gtid, 1)
     if ($rpl_debug)
     {
       --echo [sync server_$_rpl_prev_server -> server_$_rpl_server]
@@ -99,15 +103,30 @@ while ($_rpl_i) {
         enable_query_log;
         if ($_rpl_slave_sql_running)
         {
-          if ($rpl_debug)
+          if ($_rpl_gtid_mode == 'No')
           {
-            --let $_rpl_master_file= query_get_value("SHOW MASTER STATUS", File, 1)
-            --let $_rpl_master_pos= query_get_value("SHOW MASTER STATUS", Position, 1)
-            --echo syncing master_file='$_rpl_master_file' master_pos='$_rpl_master_pos'
+            if ($rpl_debug)
+            {
+              --let $_rpl_master_file= query_get_value("SHOW MASTER STATUS", File, 1)
+              --let $_rpl_master_pos= query_get_value("SHOW MASTER STATUS", Position, 1)
+              --echo syncing master_file='$_rpl_master_file' master_pos='$_rpl_master_pos'
+            }
+            disable_connect_log;
+            --sync_slave_with_master server_$_rpl_server
+            enable_connect_log;
           }
-          disable_connect_log;
-          --sync_slave_with_master server_$_rpl_server
-          enable_connect_log;
+          if ($_rpl_gtid_mode != 'No')
+          {
+            --source include/save_master_gtid.inc
+            disable_connect_log;
+            --connection server_$_rpl_server
+            if ($rpl_debug)
+            {
+              --echo syncing with GTID position '$master_pos'
+            }
+            --source include/sync_with_master_gtid.inc
+            enable_connect_log;
+          }
         }
         if (!$_rpl_slave_sql_running)
         {
@@ -128,8 +147,6 @@ while ($_rpl_i) {
       disable_connect_log;
       # ToDo: With binlog-in-engine, we need to sync up using GTID.
       # Is it ok to change things to always do it with GTID when GTID enabled?
-      --connection server_$_rpl_server
-      --let $_rpl_gtid_mode= query_get_value(SHOW SLAVE STATUS, Using_Gtid, 1)
       --connection server_$_rpl_prev_server
       if ($_rpl_gtid_mode == 'No') {
 	if ($rpl_debug)
