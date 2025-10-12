@@ -349,7 +349,7 @@ Diagnostics_area::set_ok_status(ulonglong affected_rows,
     with an OK packet.
   */
   if (unlikely(is_error() || is_disabled()))
-    return;
+    DBUG_VOID_RETURN;
   /*
     When running a bulk operation, m_status will be DA_OK for the first
     operation and set to DA_OK_BULK for all following operations.
