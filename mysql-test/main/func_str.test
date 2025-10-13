@@ -2573,5 +2573,8 @@ DROP TABLE t1;
 SET sql_mode=DEFAULT;
 
 --echo #
---echo # End of 10.11 tests
+--echo # MDEV-37740 LOCATE(X,Y,NULL) is not NULL
 --echo #
+select locate(1,2,NULL);
+
+--echo # End of 10.11 tests

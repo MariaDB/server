@@ -5623,5 +5623,9 @@ DROP TABLE t2;
 DROP TABLE t1;
 SET sql_mode=DEFAULT;
 #
-# End of 10.11 tests
+# MDEV-37740 LOCATE(X,Y,NULL) is not NULL
 #
+select locate(1,2,NULL);
+locate(1,2,NULL)
+NULL
+# End of 10.11 tests
