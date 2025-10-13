@@ -2906,5 +2906,18 @@ Table	Op	Msg_type	Msg_text
 test.t1	check	status	OK
 DROP TABLE t1;
 #
+# MDEV-20498 Assertion `table_share->tmp_table != NO_TMP_TABLE || m_lock_type == 1' failed upon REBUILD PARTITION.
+#     ALTER TABLE REBUILD PARTITION crashed on misplaced rows.
+#
+CREATE TABLE mdev20498 (a INT) ENGINE=myisam PARTITION BY LIST (a)
+(PARTITION p0 VALUES IN (0), PARTITION p1 VALUES IN (1));
+INSERT INTO mdev20498 values (0), (0), (1), (1);
+FLUSH TABLES;
+CALL mtr.add_suppression("corrupted: row in wrong partition:");
+ALTER TABLE mdev20498 REBUILD PARTITION p0;
+ERROR HY000: Found a row in wrong partition (0 != 1) a:1
+ALTER TABLE mdev20498 REBUILD PARTITION p0, p1;
+DROP TABLE mdev20498;
+#
 # End of 10.6 tests
 #
