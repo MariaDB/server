@@ -34522,6 +34522,9 @@ bool Sql_cmd_dml::execute_inner(THD *thd)
   SELECT_LEX *select_lex= unit->first_select();
   JOIN *join= select_lex->join;
 
+  // look for select_handler provided by engines
+  select_lex->pushdown_select= find_single_select_handler(thd, select_lex);
+
   if (join->optimize())
     goto err;
 

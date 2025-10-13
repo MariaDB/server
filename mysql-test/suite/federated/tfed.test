@@ -1,0 +1,132 @@
+--echo # this test carshes during update and delete, to be enabled once it is fixed
+--skip
+
+--source have_federatedx.inc
+--source include/federated.inc
+
+connection default;
+set global federated_pushdown=1;
+
+connection slave;
+create table product_tag (product_id bigint);
+CREATE TABLE `product` (
+ `product_id` bigint(20) DEFAULT NULL,
+ `price` bigint(20) DEFAULT NULL,
+ `short_description` varchar(7998) DEFAULT NULL,
+ `brand` varchar(254) DEFAULT NULL,
+ `modified_dtm` datetime DEFAULT NULL,
+ `created_dtm` datetime DEFAULT NULL,
+ `modified_by` int(11) DEFAULT NULL
+) CHARSET=latin1;
+
+connection master;
+--replace_result $SLAVE_MYPORT SLAVE_PORT
+eval
+create table product_tag (product_id bigint)
+ENGINE="FEDERATED"
+CONNECTION='mysql://root@127.0.0.1:$SLAVE_MYPORT/test/product_tag';
+
+eval
+CREATE TABLE `product` (
+ `product_id` bigint(20) DEFAULT NULL,
+ `price` bigint(20) DEFAULT NULL,
+ `short_description` varchar(7998) DEFAULT NULL,
+ `brand` varchar(254) DEFAULT NULL,
+ `modified_dtm` datetime DEFAULT NULL,
+ `created_dtm` datetime DEFAULT NULL,
+ `modified_by` int(11) DEFAULT NULL
+)
+ENGINE="FEDERATED" DEFAULT CHARSET=latin1
+CONNECTION='mysql://root@127.0.0.1:$SLAVE_MYPORT/test/product';
+
+insert into product_tag values (1),(2),(3),(4);
+insert into product values (1,22,'fes','rets','2011-12-12 12:12:12','2011-12-13 1:1:10',343);
+insert into product values (3,22,'fes','rets','2011-12-12 12:12:12','2011-12-13 1:1:10',343);
+select * from product order by product_id;
+
+explain format=json
+update
+ product p join
+ (select product_id from product_tag limit 1000) t using (product_id)
+ set brand=p.product_id, price=555, modified_dtm='2011-12-15 15:15:30',
+ short_description=concat(short_description,modified_by);
+
+update
+ product p join
+ (select product_id from product_tag limit 1000) t using (product_id)
+ set brand=p.product_id, price=555, modified_dtm='2011-12-15 15:15:30',
+ short_description=concat(short_description,modified_by);
+
+select * from product order by product_id;
+
+drop table product_tag;
+drop table product;
+
+connection slave;
+drop table product_tag;
+drop table product;
+
+--echo # Setup
+create table t1 (id int);
+create table t2 (id int, op varchar(10), op_count int DEFAULT 0) CHARSET=latin1;
+
+connection master;
+--replace_result $SLAVE_MYPORT SLAVE_PORT
+eval
+create table t1 (id int)
+ENGINE="FEDERATED"
+CONNECTION='mysql://root@127.0.0.1:$SLAVE_MYPORT/test/t1';
+
+eval
+create table t2 (id int, op varchar(10), op_count int DEFAULT 0)
+ENGINE="FEDERATED" DEFAULT CHARSET=latin1
+CONNECTION='mysql://root@127.0.0.1:$SLAVE_MYPORT/test/t2';
+
+insert into t1 values (1),(2),(3),(4);
+insert into t2 (id, op) values (1, 'inserted'), (2, 'inserted'), (3, 'inserted'), (4, 'inserted');
+select * from t2 order by id;
+
+--echo # Update tests
+explain format=json
+    update t2 inner join t1 on t2.id = t1.id
+    set t2.op = 'updated', t2.op_count = t2.op_count + 1
+    where t2.id in (1, 2);
+
+update t2 inner join t1 on t2.id = t1.id
+    set t2.op = 'updated', t2.op_count = t2.op_count + 1
+    where t2.id in (1, 2);
+
+select * from t2 order by id;
+
+PREPARE stmt_update FROM
+'update t2 inner join t1 on t2.id = t1.id set t2.op_count = t2.op_count + 1, t2.op = ? where t2.id in (1, 2)';
+SET @update_value = 'updated_prep';
+EXECUTE stmt_update USING @update_value;
+DEALLOCATE PREPARE stmt_update;
+
+select * from t2 order by id;
+
+--echo # Delete tests
+explain format=json
+    delete t2 from t2 inner join t1 on t2.id = t1.id and t2.op = 'updated';
+
+delete t2 from t2 inner join t1 on t2.id = t1.id and t2.op = 'updated';
+select * from t2 order by id;
+
+PREPARE stmt_delete FROM
+'delete t2 from t2 inner join t1 on t2.id = t1.id where t2.id = 3';
+EXECUTE stmt_delete;
+DEALLOCATE PREPARE stmt_delete;
+
+select * from t2 order by id;
+
+drop table t1, t2;
+
+connection slave;
+drop table t1, t2;
+
+# cleanup
+connection default;
+set global federated_pushdown=0;
+
+source include/federated_cleanup.inc;
