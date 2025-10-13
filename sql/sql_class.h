@@ -5899,6 +5899,7 @@ public:
   int commit_global_tmp_tables();
   int drop_on_commit_delete_tables_with_lock();
   void use_global_tmp_table_tp();
+  void global_tmp_drop_database(const Lex_ident_db &db);
   inline bool has_open_global_temporary_tables() const
   {
     return !rgi_slave && temporary_tables &&
