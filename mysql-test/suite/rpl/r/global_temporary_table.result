@@ -1126,6 +1126,32 @@ set pseudo_slave_mode=1;
 ERROR 42000: Variable 'pseudo_slave_mode' can't be set to the value of '1'
 truncate t;
 drop table t;
+# MDEV-37850 Wrong error on DROP TABLE GTT after DROP DATABASE
+create database test2;
+use test2;
+create global temporary table t (c int) on commit preserve rows;
+insert t values(1);
+connection con1;
+set statement lock_wait_timeout= 0 for
+drop database test2;
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+connection default;
+drop database test2;
+create database test2;
+use test2;
+drop table t;
+ERROR 42S02: Unknown table 'test2.t'
+drop database test2;
+use test;
+create global temporary table t (c int) on commit preserve rows;
+insert t values(1);
+create database test3;
+drop database test3;
+select * from t;
+c
+1
+truncate t;
+drop table t;
 disconnect con1;
 connection slave;
 connection master;
