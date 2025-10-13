@@ -1350,6 +1350,231 @@ federated.t12, federated.t13, federated.t14;
 connection slave;
 DROP TABLES federated.t1, federated.t2, federated.t11, federated.t12,
 federated.t13, federated.t14;
+#
+# MDEV-37484: `Sql_cmd_dml::execute_inner`, `Sql_cmd_update::execute_inner` do not call Select handler for the engine involved
+#
+connection default;
+set global federated_pushdown=1;
+connection slave;
+create table federated.product_tag (product_id bigint);
+CREATE TABLE federated.product (
+`product_id` bigint(20) DEFAULT NULL,
+`price` bigint(20) DEFAULT NULL,
+`short_description` varchar(7998) DEFAULT NULL,
+`brand` varchar(254) DEFAULT NULL,
+`modified_dtm` datetime DEFAULT NULL,
+`created_dtm` datetime DEFAULT NULL,
+`modified_by` int(11) DEFAULT NULL
+) CHARSET=latin1;
+connection master;
+create table federated.product_tag (product_id bigint)
+ENGINE="FEDERATED"
+CONNECTION='mysql://root@127.0.0.1:SLAVE_PORT/federated/product_tag';
+CREATE TABLE federated.product (
+`product_id` bigint(20) DEFAULT NULL,
+`price` bigint(20) DEFAULT NULL,
+`short_description` varchar(7998) DEFAULT NULL,
+`brand` varchar(254) DEFAULT NULL,
+`modified_dtm` datetime DEFAULT NULL,
+`created_dtm` datetime DEFAULT NULL,
+`modified_by` int(11) DEFAULT NULL
+)
+ENGINE="FEDERATED" DEFAULT CHARSET=latin1
+CONNECTION='mysql://root@127.0.0.1:SLAVE_PORT/federated/product';
+insert into federated.product_tag values (1),(2),(3),(4);
+insert into federated.product values (1,22,'fes','rets','2011-12-12 12:12:12','2011-12-13 1:1:10',343);
+insert into federated.product values (3,22,'fes','rets','2011-12-12 12:12:12','2011-12-13 1:1:10',343);
+select * from federated.product order by product_id;
+product_id	price	short_description	brand	modified_dtm	created_dtm	modified_by
+1	22	fes	rets	2011-12-12 12:12:12	2011-12-13 01:01:10	343
+3	22	fes	rets	2011-12-12 12:12:12	2011-12-13 01:01:10	343
+explain format=json
+update
+federated.product p join
+(select product_id from federated.product_tag limit 1000) t using (product_id)
+set brand=p.product_id, price=555, modified_dtm='2011-12-15 15:15:30',
+short_description=concat(short_description,modified_by);
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": 1000.010933,
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "p",
+          "access_type": "ALL",
+          "loops": 1,
+          "rows": 2,
+          "cost": 1000.010388,
+          "filtered": 100,
+          "attached_condition": "p.product_id is not null"
+        }
+      },
+      {
+        "table": {
+          "table_name": "<derived2>",
+          "access_type": "ref",
+          "possible_keys": ["key0"],
+          "key": "key0",
+          "key_length": "9",
+          "used_key_parts": ["product_id"],
+          "ref": ["federated.p.product_id"],
+          "loops": 2,
+          "rows": 1,
+          "cost": 0.000545388,
+          "filtered": 100,
+          "materialized": {
+            "query_block": {
+              "select_id": 2,
+              "table": {
+                "message": "Pushed derived"
+              }
+            }
+          }
+        }
+      }
+    ]
+  }
+}
+update
+federated.product p join
+(select product_id from federated.product_tag limit 1000) t using (product_id)
+set brand=p.product_id, price=555, modified_dtm='2011-12-15 15:15:30',
+short_description=concat(short_description,modified_by);
+select * from federated.product order by product_id;
+product_id	price	short_description	brand	modified_dtm	created_dtm	modified_by
+1	555	fes343	1	2011-12-15 15:15:30	2011-12-13 01:01:10	343
+3	555	fes343	3	2011-12-15 15:15:30	2011-12-13 01:01:10	343
+drop table federated.product_tag;
+drop table federated.product;
+connection slave;
+drop table federated.product_tag;
+drop table federated.product;
+# Setup
+create or replace table federated.t1 (id int);
+create or replace table federated.t2 (id int, op varchar(10), op_count int DEFAULT 0) CHARSET=latin1;
+connection master;
+create or replace table federated.t1 (id int)
+ENGINE="FEDERATED"
+CONNECTION='mysql://root@127.0.0.1:SLAVE_PORT/federated/t1';
+create or replace table federated.t2 (id int, op varchar(10), op_count int DEFAULT 0)
+ENGINE="FEDERATED" DEFAULT CHARSET=latin1
+CONNECTION='mysql://root@127.0.0.1:SLAVE_PORT/federated/t2';
+insert into federated.t1 values (1),(2),(3),(4);
+insert into federated.t2 (id, op) values (1, 'inserted'), (2, 'inserted'), (3, 'inserted'), (4, 'inserted');
+select * from federated.t2 order by id;
+id	op	op_count
+1	inserted	0
+2	inserted	0
+3	inserted	0
+4	inserted	0
+# Update tests
+explain format=json
+update federated.t2 inner join federated.t1 on t2.id = t1.id
+set t2.op = 'updated', t2.op_count = t2.op_count + 1
+where t2.id in (1, 2);
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": 2000.022975,
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t2",
+          "access_type": "ALL",
+          "loops": 1,
+          "rows": 4,
+          "cost": 1000.010655,
+          "filtered": 100,
+          "attached_condition": "t2.`id` in (1,2)"
+        }
+      },
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "ALL",
+          "loops": 4,
+          "rows": 4,
+          "cost": 1000.012319,
+          "filtered": 100,
+          "attached_condition": "t1.`id` = t2.`id`"
+        }
+      }
+    ]
+  }
+}
+update federated.t2 inner join federated.t1 on t2.id = t1.id
+set t2.op = 'updated', t2.op_count = t2.op_count + 1
+where t2.id in (1, 2);
+select * from federated.t2 order by id;
+id	op	op_count
+1	updated	1
+2	updated	1
+3	inserted	0
+4	inserted	0
+# Prepared update stmt
+PREPARE stmt_update FROM
+'update federated.t2 inner join federated.t1 on t2.id = t1.id set t2.op_count = t2.op_count + 1, t2.op="updated" where t2.id in (1, 2)';
+EXECUTE stmt_update;
+DEALLOCATE PREPARE stmt_update;
+select * from federated.t2 order by id;
+id	op	op_count
+1	updated	2
+2	updated	2
+3	inserted	0
+4	inserted	0
+# Delete tests
+explain format=json
+delete federated.t2 from federated.t2 inner join federated.t1 on t2.id = t1.id and t2.op = 'updated';
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": 2000.023025,
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t2",
+          "access_type": "ALL",
+          "loops": 1,
+          "rows": 4,
+          "cost": 1000.010705,
+          "filtered": 100,
+          "attached_condition": "t2.op = 'updated'"
+        }
+      },
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "ALL",
+          "loops": 4,
+          "rows": 4,
+          "cost": 1000.012319,
+          "filtered": 100,
+          "attached_condition": "t1.`id` = t2.`id`"
+        }
+      }
+    ]
+  }
+}
+delete federated.t2 from federated.t2 inner join federated.t1 on t2.id = t1.id and t2.op = 'updated';
+select * from federated.t2 order by id;
+id	op	op_count
+3	inserted	0
+4	inserted	0
+# Prepared delete stmt
+PREPARE stmt_delete FROM
+'delete federated.t2 from federated.t2 inner join federated.t1 on t2.id = t1.id where t2.id = 3';
+EXECUTE stmt_delete;
+DEALLOCATE PREPARE stmt_delete;
+select * from federated.t2 order by id;
+id	op	op_count
+4	inserted	0
+drop table federated.t1, federated.t2;
+connection slave;
+drop table federated.t1, federated.t2;
 connection default;
 set global federated_pushdown=0;
 connection master;
@@ -1358,3 +1583,4 @@ DROP DATABASE IF EXISTS federated;
 connection slave;
 DROP TABLE IF EXISTS federated.t1;
 DROP DATABASE IF EXISTS federated;
+# End of 11.4 tests
