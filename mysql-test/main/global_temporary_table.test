@@ -967,4 +967,31 @@ set pseudo_slave_mode=1;
 truncate t;
 drop table t;
 
+--echo # MDEV-37850 Wrong error on DROP TABLE GTT after DROP DATABASE
+create database test2;
+use test2;
+create global temporary table t (c int) on commit preserve rows;
+insert t values(1);
+--connection con1
+--error ER_LOCK_WAIT_TIMEOUT
+set statement lock_wait_timeout= 0 for
+    drop database test2;
+--connection default
+drop database test2;
+create database test2;
+use test2;
+--error ER_BAD_TABLE_ERROR
+drop table t;
+drop database test2;
+use test;
+
+create global temporary table t (c int) on commit preserve rows;
+insert t values(1);
+
+create database test3;
+drop database test3;
+select * from t;
+truncate t;
+drop table t;
+
 --disconnect con1

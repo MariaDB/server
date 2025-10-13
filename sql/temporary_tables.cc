@@ -1460,6 +1460,24 @@ int THD::commit_global_tmp_tables()
   return 0;
 }
 
+void THD::global_tmp_drop_database(const Lex_ident_db &db)
+{
+  if (rgi_slave)
+  {
+    DBUG_ASSERT(!temporary_tables ||
+                temporary_tables->global_temporary_tables_count == 0);
+    return;
+  }
+
+  All_tmp_tables_list::Iterator it(*temporary_tables);
+  while (TMP_TABLE_SHARE *share= it++)
+  {
+    if (share->global_tmp_table() && share->db.streq(db))
+      drop_tmp_table_share(NULL, share, true);
+  }
+}
+
+
 int THD::drop_on_commit_delete_tables_with_lock()
 {
   bool locked= lock_temporary_tables();
