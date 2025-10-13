@@ -1125,6 +1125,8 @@ mysql_rm_db_internal(THD *thd, const Lex_ident_db &db, bool if_exists,
     }
   }
 
+  thd->global_tmp_drop_database(db);
+
   /*
     Close active HANDLER's for tables in the database.
     Note that mysql_ha_rm_tables() requires a non-null TABLE_LIST.
