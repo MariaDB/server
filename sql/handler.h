@@ -1600,7 +1600,8 @@ struct handlerton : public transaction_participant
                                       chf_create_flags action_flag);
 
   /* Optional implementation of binlog in the engine. */
-  bool (*binlog_init)(size_t binlog_size, const char *directory);
+  bool (*binlog_init)(size_t binlog_size, const char *directory,
+                      HASH *recover_xid_hash);
   /* Dynamically changing the binlog max size. */
   void (*set_binlog_max_size)(size_t binlog_size);
   /* Binlog an event group that doesn't go through commit_ordered. */
@@ -5863,6 +5864,7 @@ int ha_commit_one_phase(THD *thd, bool all);
 int ha_commit_trans(THD *thd, bool all);
 int ha_rollback_trans(THD *thd, bool all);
 int ha_prepare(THD *thd);
+int ha_recover_engine_binlog(HASH *xid_hash);
 int ha_recover(HASH *commit_list, MEM_ROOT *mem_root= NULL);
 uint ha_recover_complete(HASH *commit_list, Binlog_offset *coord= NULL);
 
@@ -6085,5 +6087,48 @@ struct handler_binlog_purge_info {
   /* Default constructor to silence compiler warnings -Wuninitialized. */
   handler_binlog_purge_info()= default;
 };
+
+
+/*
+  Structure holding information about each XID present in binlog engine at
+  server startup.
+
+  Objects of this class (or a class derived from it by the engine binlog
+  implementation) will be inserted into a HASH passed to the binlog_init
+  hton call. The server layer will free these objects using normal delete.
+*/
+class handler_binlog_xid_info {
+public:
+  enum binlog_xid_state {
+    BINLOG_PREPARE, BINLOG_COMMIT, BINLOG_ROLLBACK
+  };
+  XID xid;
+  /*
+    Number of storage engines in which this transaction is prepared. Used when
+    xid_state==BINLOG_PREPARE.
+
+    This is used to correctly recover from a crash in the middle of an XA
+    PREPARE. If the crash happens before all engines had time to durably
+    prepare, then the XID will be rolled back. If all engines got prepared,
+    then the XID will be preserved in "prepared" state.
+  */
+  uint32_t engine_count;
+  /* Bitmap of which engine(s) a prepared transaction was found in. */
+  uint32_t engine_map;
+  enum binlog_xid_state xid_state;
+
+  /* The key function to use for the HASH. */
+  static const uchar *get_key(const void *p, size_t *out_len, my_bool)
+  {
+    const XID *xid=
+      &(reinterpret_cast<const handler_binlog_xid_info *>(p)->xid);
+    *out_len= xid->key_length();
+    return xid->key();
+  }
+  handler_binlog_xid_info(binlog_xid_state typ) :
+    engine_count(0), engine_map(0), xid_state(typ) { }
+  virtual ~handler_binlog_xid_info() { };
+};
+
 
 #endif /* HANDLER_INCLUDED */

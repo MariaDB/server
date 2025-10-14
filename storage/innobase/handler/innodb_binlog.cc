@@ -93,7 +93,7 @@ size_t total_binlog_used_size;
 static bool purge_warning_given= false;
 
 /** References to pending XA PREPARED transactions in the binlog. */
-static ibb_xid_hash *ibb_xa_xid_hash;
+ibb_xid_hash *ibb_xa_xid_hash;
 
 #ifdef UNIV_PFS_THREAD
 mysql_pfs_key_t binlog_prealloc_thread_key;
@@ -309,32 +309,6 @@ public:
                               ulonglong offset) final;
   virtual void enable_single_file() final;
   void seek_internal(uint64_t file_no, uint64_t offset);
-};
-
-
-/**
-  Class that keeps track of the oob references etc. for each
-  XA PREPAREd XID.
-*/
-class ibb_xid_hash {
-public:
-  struct xid_elem {
-    XID xid;
-    uint64_t refcnt_file_no;
-    uint64_t oob_num_nodes;
-    uint64_t oob_first_file_no;
-    uint64_t oob_first_offset;
-    uint64_t oob_last_file_no;
-    uint64_t oob_last_offset;
-  };
-  HASH xid_hash;
-  mysql_mutex_t xid_mutex;
-
-  ibb_xid_hash();
-  ~ibb_xid_hash();
-  bool add_xid(const XID *xid, const binlog_oob_context *c);
-  xid_elem *grab_xid(const XID *xid);
-  template <typename F> bool run_on_xid(const XID *xid, F callback);
 };
 
 
@@ -565,29 +539,41 @@ struct chunk_data_from_buf : public chunk_data_base {
   Record data for the XA prepare record.
 
   Size needed for the record data:
-    1 byte type/flag.
     1 byte engine count.
     4 bytes formatID
     1 byte gtrid length
     1 byte bqual length
     128 bytes (max) gtrid and bqual strings.
+    And last 5 compressed integers at most 5*COMPR_INT_MAX64:
+      num_oob_nodes
+      first_oob_file_no
+      first_oob_offset
+      last_oob_file_no
+      last_oob_offset
 */
+static constexpr size_t ibb_prepare_record_max_size=
+  1 + 4 + 1 + 1 + 128 + 5*COMPR_INT_MAX64;
 struct chunk_data_xa_prepare :
-  public chunk_data_from_buf<1 + 1 + 4 + 1 + 1 + 128> {
+  public chunk_data_from_buf<ibb_prepare_record_max_size> {
 
-  chunk_data_xa_prepare(const XID *xid, uchar engine_count)
+  chunk_data_xa_prepare(const XID *xid, uchar engine_count,
+                        binlog_oob_context *c)
   {
-    /* ToDo: Need the correct data here, like the oob references. To be done when we start doing the XA crash recovery. */
-    buffer[0]= 42 /* ToDo */;
-    buffer[1]= engine_count;
-    int4store(&buffer[2], xid->formatID);
+    buffer[0]= engine_count;
+    int4store(&buffer[1], xid->formatID);
     ut_a(xid->gtrid_length >= 0 && xid->gtrid_length <= 64);
-    buffer[6]= (uchar)xid->gtrid_length;
+    buffer[5]= (uchar)xid->gtrid_length;
     ut_a(xid->bqual_length >= 0 && xid->bqual_length <= 64);
-    buffer[7]= (uchar)xid->bqual_length;
-    memcpy(&buffer[8], &xid->data[0], xid->gtrid_length + xid->bqual_length);
-    data_remain=
-      static_cast<uint32_t>(8 + xid->gtrid_length + xid->bqual_length);
+    buffer[6]= (uchar)xid->bqual_length;
+    memcpy(&buffer[7], &xid->data[0], xid->gtrid_length + xid->bqual_length);
+    byte *p= &buffer[7] + xid->gtrid_length + xid->bqual_length;
+    uint32_t last= c->node_list_len-1;
+    p= compr_int_write(p, c->node_list[last].node_index + 1);
+    p= compr_int_write(p, c->first_node_file_no);
+    p= compr_int_write(p, c->first_node_offset);
+    p= compr_int_write(p, c->node_list[last].file_no);
+    p= compr_int_write(p, c->node_list[last].offset);
+    data_remain= static_cast<uint32_t>(p - buffer);
   }
   ~chunk_data_xa_prepare() { }
 };
@@ -642,6 +628,34 @@ struct found_binlogs {
   int num_found;
   /* Default constructor to silence compiler warnings -Wuninitialized. */
   found_binlogs()= default;
+};
+
+
+/**
+  Class used during startup to recover any pending prepared XID for internal
+  2pc or user XA. Filled-in from prepare and commit/rollback records found
+  during scan of the binlog file, and used by the server to decide whether
+  to keep, commit, or roll back any prepared transactions/XID found in engines.
+*/
+class ibb_binlog_xid_info : public handler_binlog_xid_info
+{
+public:
+  /*
+    In addition to the information needed by the server layer, we need
+    references to the binlogged OOB data of prepared transactions to
+    populate entries in our internal ibb_xa_xid_hash.
+  */
+  uint64_t num_oob_nodes;
+  uint64_t first_oob_file_no;
+  uint64_t first_oob_offset;
+  uint64_t last_oob_file_no;
+  uint64_t last_oob_offset;
+  /* This is the file_no of the prepare/commit/rollback record itself. */
+  uint64_t rec_file_no;
+
+  ibb_binlog_xid_info(binlog_xid_state typ, uint64_t rec_file_no_) :
+    handler_binlog_xid_info(typ), rec_file_no(rec_file_no_) { }
+  virtual ~ibb_binlog_xid_info() override { };
 };
 
 
@@ -752,9 +766,12 @@ static void innodb_binlog_prealloc_thread();
 static int scan_for_binlogs(const char *binlog_dir, found_binlogs *binlog_files,
                             bool error_if_missing) noexcept;
 static int innodb_binlog_discover();
-static bool binlog_state_recover();
+static bool binlog_state_recover(uint64_t *out_xa_file_no,
+                                 uint64_t *out_xa_offset);
 static void innodb_binlog_autopurge(uint64_t first_open_file_no, LF_PINS *pins);
-
+static bool binlog_scan_for_xid(uint64_t start_file_no, uint64_t start_offset,
+                                HASH *hash);
+static bool ibb_init_xid_hash(HASH *hash, LF_PINS *pins);
 
 /**
   Read the header of a binlog tablespace file identified by file_no.
@@ -1586,8 +1603,16 @@ ibb_set_max_size(size_t binlog_size)
   use the innodb implementation (with --binlog-storage-engine=innodb).
 */
 bool
-innodb_binlog_init(size_t binlog_size, const char *directory)
+innodb_binlog_init(size_t binlog_size, const char *directory,
+                   HASH *recovery_hash)
 {
+  /**
+    The file_no from which we should start scanning to recover any prepare and
+    committed XID.
+  */
+  uint64_t recover_start_file_no= ~(uint64_t)0;
+  uint64_t recover_start_offset= 0;
+
   ibb_set_max_size(binlog_size);
   if (!directory || !directory[0])
     directory= ".";
@@ -1612,8 +1637,15 @@ innodb_binlog_init(size_t binlog_size, const char *directory)
   if (res > 0)
   {
     /* We are continuing from existing binlogs. Recover the binlog state. */
-    if (binlog_state_recover())
+    if (binlog_state_recover(&recover_start_file_no,
+                             &recover_start_offset))
       return true;
+  }
+  else
+  {
+    /* Starting new binlogs, no XA to recover. */
+    recover_start_file_no= ~(uint64_t)0;
+    recover_start_offset= 0;
   }
 
   start_binlog_prealloc_thread();
@@ -1626,6 +1658,25 @@ innodb_binlog_init(size_t binlog_size, const char *directory)
       to start in case of a crash.
     */
     binlog_sync_initial();
+  }
+  else
+  {
+    /*
+      Recover XIDs for pending 2pc/XA transactions (if any) by scanning
+      required part of binlog.
+    */
+    if (binlog_scan_for_xid(recover_start_file_no, recover_start_offset,
+                            recovery_hash))
+      return true;
+    LF_PINS *lf_pins= lf_hash_get_pins(&ibb_file_hash.hash);
+    if (UNIV_UNLIKELY(!lf_pins))
+    {
+      sql_print_error("InnoDB: Out of memory while recovering pending XID");
+      return true;
+    }
+    bool err= ibb_init_xid_hash(recovery_hash, lf_pins);
+    lf_hash_put_pins(lf_pins);
+    return err;
   }
 
   return false;
@@ -1932,6 +1983,9 @@ innodb_binlog_discover()
     }
 
     /* res == 0, the last binlog is empty. */
+    if (ibb_record_in_file_hash(binlog_files.last_file_no,
+                                ~(uint64_t)0, ~(uint64_t)0))
+      return -1;
     if (binlog_files.num_found >= 2) {
       /* The last binlog is empty, try the previous one. */
       res= find_pos_in_binlog(binlog_files.prev_file_no,
@@ -2412,23 +2466,25 @@ read_gtid_state(binlog_chunk_reader *chunk_reader,
   Return false if ok, true if error.
 */
 static bool
-binlog_state_recover()
+binlog_state_recover(uint64_t *out_xa_file_no, uint64_t *out_xa_offset)
 {
   rpl_binlog_state_base state;
   state.init();
   uint64_t active= active_binlog_file_no.load(std::memory_order_relaxed);
   uint64_t diff_state_interval= current_binlog_state_interval;
   uint32_t page_no= 1;
-  uint64_t xa_ref_file_no;
 
+  *out_xa_file_no= earliest_binlog_file_no;
+  *out_xa_offset= (uint64_t)1 << ibb_page_size_shift;
   binlog_chunk_reader chunk_reader(binlog_cur_end_offset);
   byte *page_buf=
     static_cast<byte *>(ut_malloc(ibb_page_size, mem_key_binlog));
   if (!page_buf)
     return true;
   chunk_reader.set_page_buf(page_buf);
-  chunk_reader.seek(active, page_no << ibb_page_size_shift);
-  int res= read_gtid_state(&chunk_reader, &state, &xa_ref_file_no);
+  *out_xa_offset= page_no << ibb_page_size_shift;
+  chunk_reader.seek(active, *out_xa_offset);
+  int res= read_gtid_state(&chunk_reader, &state, out_xa_file_no);
   if (res < 0)
   {
     ut_free(page_buf);
@@ -2445,18 +2501,263 @@ binlog_state_recover()
                         (binlog_cur_page_no % diff_state_interval));
     while (page_no > 1)
     {
-      chunk_reader.seek(active, page_no << ibb_page_size_shift);
-      res= read_gtid_state(&chunk_reader, &state, &xa_ref_file_no);
+      *out_xa_offset= page_no << ibb_page_size_shift;
+      chunk_reader.seek(active, *out_xa_offset);
+      res= read_gtid_state(&chunk_reader, &state, out_xa_file_no);
       if (res > 0)
         break;
       page_no-= (uint32_t)diff_state_interval;
     }
   }
   ut_free(page_buf);
+  if (UNIV_LIKELY(*out_xa_file_no == ~(uint64_t)0))
+  {
+    /*
+      If there were no XID references active at the last state record written,
+      then recovery only needs to scan from that point on.
+    */
+    *out_xa_file_no= active;
+  }
 
   ha_innodb_binlog_reader reader(false, active,
                                  page_no << ibb_page_size_shift);
   return binlog_recover_gtid_state(&state, &reader);
+}
+
+
+static bool
+ibb_recv_record_update(HASH *hash, ibb_binlog_xid_info *info, uint64_t file_no)
+{
+  /* Delete any existing entry for this XID before inserting the newer one. */
+  size_t key_len= 0;
+  const uchar *key_ptr= info->get_key(info, &key_len, 1);
+  uchar *rec= my_hash_search(hash, key_ptr, key_len);
+  if (rec != nullptr)
+    my_hash_delete(hash, rec);
+  if (my_hash_insert(hash, (const uchar *)info))
+  {
+    sql_print_error("InnoDB: Out of memory while scanning file_no=%" PRIu64,
+                    file_no);
+    delete info;
+    return true;
+  }
+  return false;
+}
+
+
+static bool
+ibb_recv_record_prepare(HASH *hash, uint64_t file_no,
+                        const byte *rec_data, int data_len)
+{
+  const byte *p= rec_data;
+
+  uchar engine_count= *p++;
+  long formatID= uint4korr(p);
+  p+= 4;
+  byte gtrid_length= *p++;
+  byte bqual_length= *p++;
+  if (UNIV_UNLIKELY(gtrid_length > 64) ||
+      UNIV_UNLIKELY(bqual_length > 64))
+  {
+    sql_print_error("InnoDB: Corrupt prepare record found in file_no=%" PRIu64
+                    ", invalid XID lengths %u/%u", file_no,
+                    (uint)gtrid_length, (uint)bqual_length);
+    return true;
+  }
+  const char *xid_data= reinterpret_cast<const char *>(p);
+  p+= gtrid_length + bqual_length;
+  std::pair<uint64_t, const unsigned char *> v_and_p;
+  v_and_p= compr_int_read(p);
+  uint64_t num_oob_nodes= v_and_p.first;
+  p= v_and_p.second;
+  v_and_p= compr_int_read(p);
+  uint64_t first_oob_file_no= v_and_p.first;
+  p= v_and_p.second;
+  v_and_p= compr_int_read(p);
+  uint64_t first_oob_offset= v_and_p.first;
+  p= v_and_p.second;
+  v_and_p= compr_int_read(p);
+  uint64_t last_oob_file_no= v_and_p.first;
+  p= v_and_p.second;
+  v_and_p= compr_int_read(p);
+  uint64_t last_oob_offset= v_and_p.first;
+  p= v_and_p.second;
+  if ((int)(p - rec_data) > data_len)
+  {
+    sql_print_error("InnoDB: Corrupt prepare record found in file_no=%" PRIu64
+                    ", only %d bytes but expected %u", file_no,
+                    data_len, (uint)(p - rec_data));
+    return true;
+  }
+  ibb_binlog_xid_info *xid_info=
+    new ibb_binlog_xid_info(handler_binlog_xid_info::BINLOG_PREPARE, file_no);
+  if (!xid_info)
+  {
+    sql_print_error("InnoDB: Out of memory while scanning file_no=%" PRIu64,
+                    file_no);
+    return true;
+  }
+  xid_info->xid.set(formatID, xid_data, gtrid_length,
+                    xid_data + bqual_length, bqual_length);
+  xid_info->engine_count= engine_count;
+  xid_info->num_oob_nodes= num_oob_nodes;
+  xid_info->first_oob_file_no= first_oob_file_no;
+  xid_info->first_oob_offset= first_oob_offset;
+  xid_info->last_oob_file_no= last_oob_file_no;
+  xid_info->last_oob_offset= last_oob_offset;
+  if (ibb_recv_record_update(hash, xid_info, file_no))
+    return true;
+
+  return false;
+}
+
+
+static bool
+ibb_recv_record_complete(HASH *hash, uint64_t file_no,
+                        const byte *rec_data, int data_len)
+{
+  const byte *p= rec_data;
+
+  byte subtype= *p++;
+  bool is_commit= (subtype & IBB_FL_XA_TYPE_MASK) == IBB_FL_XA_TYPE_COMMIT;
+  long formatID= uint4korr(p);
+  p+= 4;
+  byte gtrid_length= *p++;
+  byte bqual_length= *p++;
+  if (UNIV_UNLIKELY(gtrid_length > 64) ||
+      UNIV_UNLIKELY(bqual_length > 64))
+  {
+    sql_print_error("InnoDB: Corrupt %s record found in file_no=%" PRIu64
+                    ", invalid XID lengths %u/%u", file_no,
+                    (is_commit ? "commit" : "rollback"),
+                    (uint)gtrid_length, (uint)bqual_length);
+    return true;
+  }
+  const char *xid_data= reinterpret_cast<const char *>(p);
+  p+= gtrid_length + bqual_length;
+  if ((int)(p - rec_data) > data_len)
+  {
+    sql_print_error("InnoDB: Corrupt prepare record found in file_no=%" PRIu64
+                    ", only %d bytes but expected %u", file_no,
+                    data_len, (uint)(p - rec_data));
+    return true;
+  }
+  handler_binlog_xid_info::binlog_xid_state xid_state= is_commit ?
+    handler_binlog_xid_info::BINLOG_COMMIT :
+    handler_binlog_xid_info::BINLOG_ROLLBACK;
+  ibb_binlog_xid_info *xid_info= new ibb_binlog_xid_info(xid_state, file_no);
+  if (!xid_info)
+  {
+    sql_print_error("InnoDB: Out of memory while scanning file_no=%" PRIu64,
+                    file_no);
+    return true;
+  }
+  xid_info->xid.set(formatID, xid_data, gtrid_length,
+                    xid_data + bqual_length, bqual_length);
+  if (ibb_recv_record_update(hash, xid_info, file_no))
+    return true;
+  return false;
+}
+
+
+static bool
+binlog_scan_for_xid(uint64_t start_file_no, uint64_t start_offset,
+                    HASH *hash)
+{
+  if (start_file_no == ~(uint64_t)0)
+    return false;  // No active XID, no scan needed.
+  binlog_chunk_reader chunk_reader(binlog_cur_end_offset);
+  std::unique_ptr<byte, void (*)(byte *)>
+    page_buf(static_cast<byte*>(ut_malloc(ibb_page_size, mem_key_binlog)),
+             [](byte *p) {ut_free(p);});
+  if (page_buf == nullptr)
+    return true;
+  chunk_reader.set_page_buf(page_buf.get());
+  chunk_reader.seek(start_file_no, start_offset);
+  chunk_reader.skip_partial(true);
+
+  byte buf[1024];
+  static_assert(sizeof(buf) >= ibb_prepare_record_max_size,
+                "Need space for max size prepare record");
+  for (;;)
+  {
+    int res= chunk_reader.read_data(buf, sizeof(buf), true);
+    if (res < 0)
+    {
+      sql_print_error("InnoDB: Error reading binlog while recovering XIDs of "
+                      "possibly prepared transactions");
+      return true;
+    }
+    if (res == 0)
+    {
+      /* EOF, so scan is done. */
+      return false;
+    }
+    if (chunk_reader.cur_type() == FSP_BINLOG_TYPE_XA_PREPARE)
+    {
+      if (ibb_recv_record_prepare(hash, chunk_reader.s.rec_start_file_no,
+                                  buf, res))
+        return true;
+    }
+    else if (chunk_reader.cur_type() == FSP_BINLOG_TYPE_XA_COMPLETE)
+    {
+      if (ibb_recv_record_complete(hash, chunk_reader.s.rec_start_file_no,
+                                   buf, res))
+        return true;
+    }
+    else
+    {
+      /* Skip any other record type. */
+      chunk_reader.skip_current();
+    }
+  }
+
+  return false;
+}
+
+
+static bool
+ibb_init_xid_hash(HASH *hash, LF_PINS *pins)
+{
+  /*
+    Populate our internal XID hash from any prepare records found
+    while scanning the binlogs.
+  */
+  for (uint32 i= 0; i < hash->records; ++i)
+  {
+    const ibb_binlog_xid_info *info= (const ibb_binlog_xid_info *)
+      my_hash_element(hash, i);
+    if (info->xid_state != handler_binlog_xid_info::BINLOG_PREPARE)
+      continue;
+
+    uint64_t oob_file_no= info->num_oob_nodes > 0 ?
+      info->first_oob_file_no : info->rec_file_no;
+    /*
+      This is just to ensure that we load the file header page into the
+      ibb_file_hash if not there already.
+    */
+    uint64_t dummy;
+    if (ibb_file_hash.get_oob_ref_file_no(oob_file_no, pins, &dummy))
+    {
+      sql_print_error("InnoDB: Could not process file number %" PRIu64
+                      " while recovering pending XID from existing binlogs, "
+                      "out of memory or unable to read file", oob_file_no);
+      return true;
+    }
+
+    if (ibb_xa_xid_hash->add_xid(&info->xid, oob_file_no, pins,
+                                 info->num_oob_nodes,
+                                 info->first_oob_file_no,
+                                 info->first_oob_offset,
+                                 info->last_oob_file_no,
+                                 info->last_oob_offset))
+    {
+      fprintf(stderr, "InnoDB: Out of memory while recovering pending "
+              "XID from existing binlogs");
+      return true;
+    }
+  }
+  return false;
 }
 
 
@@ -2716,8 +3017,8 @@ innodb_binlog_oob_ordered(THD *thd, const unsigned char *data, size_t data_len,
     c->first_node_file_no= c->node_list[i].file_no;
     c->first_node_offset= c->node_list[i].offset;
     c->node_list_len= 1;
-    c->pending_refcount=
-      !ibb_file_hash.oob_ref_inc(c->first_node_file_no, c->lf_pins);
+    c->pending_refcount= ibb_file_hash.oob_ref_inc(c->first_node_file_no,
+                                                   c->lf_pins) != ~(uint64_t)0;
   }
 
   uint64_t file_no= active_binlog_file_no.load(std::memory_order_relaxed);
@@ -3925,38 +4226,46 @@ ibb_xid_hash::~ibb_xid_hash()
 bool
 ibb_xid_hash::add_xid(const XID *xid, const binlog_oob_context *c)
 {
+  if (UNIV_LIKELY(c->node_list_len > 0))
+  {
+    uint32_t last= c->node_list_len-1;
+    return add_xid(xid, c->first_node_file_no, c->lf_pins,
+                   c->node_list[last].node_index + 1,
+                   c->first_node_file_no, c->first_node_offset,
+                   c->node_list[last].file_no, c->node_list[last].offset);
+  }
+  else
+  {
+    /*
+      Empty XA transaction, but we still need to ensure the prepare record
+      is kept until the (empty) transactions gets XA COMMMIT'ted.
+    */
+    uint64_t refcnt_file_no=
+      active_binlog_file_no.load(std::memory_order_acquire);
+    return add_xid(xid, refcnt_file_no, c->lf_pins, 0, 0, 0, 0, 0);
+  }
+}
+
+
+bool
+ibb_xid_hash::add_xid(const XID *xid, uint64_t refcnt_file_no, LF_PINS *pins,
+                      uint64_t num_nodes,
+                      uint64_t first_file_no, uint64_t first_offset,
+                      uint64_t last_file_no, uint64_t last_offset)
+{
   xid_elem *e=
     (xid_elem *)my_malloc(mem_key_binlog, sizeof(xid_elem), MYF(MY_WME));
-  if (!e)
+  if (UNIV_UNLIKELY(!e))
   {
     my_error(ER_OUTOFMEMORY, MYF(0), (int)sizeof(xid_elem));
     return true;
   }
   e->xid.set(xid);
-  uint64_t refcnt_file_no;
-  if (UNIV_LIKELY(c->node_list_len > 0))
-  {
-    uint32_t last= c->node_list_len-1;
-    e->oob_num_nodes= c->node_list[last].node_index + 1;
-    e->oob_first_file_no= c->first_node_file_no;
-    e->oob_first_offset= c->first_node_offset;
-    e->oob_last_file_no= c->node_list[last].file_no;
-    e->oob_last_offset= c->node_list[last].offset;
-    refcnt_file_no= e->oob_first_file_no;
-  }
-  else
-  {
-    e->oob_num_nodes= 0;
-    e->oob_first_file_no= 0;
-    e->oob_first_offset= 0;
-    e->oob_last_file_no= 0;
-    e->oob_last_offset= 0;
-    /*
-      Empty XA transaction, but we still need to ensure the prepare record
-      is kept until the (empty) transactions gets XA COMMMIT'ted.
-    */
-    refcnt_file_no= active_binlog_file_no.load(std::memory_order_acquire);
-  }
+  e->oob_num_nodes= num_nodes;
+  e->oob_first_file_no= first_file_no;
+  e->oob_first_offset= first_offset;
+  e->oob_last_file_no= last_file_no;
+  e->oob_last_offset= last_offset;
   e->refcnt_file_no= refcnt_file_no;
   mysql_mutex_lock(&xid_mutex);
   if (my_hash_insert(&xid_hash, (uchar *)e))
@@ -3965,8 +4274,11 @@ ibb_xid_hash::add_xid(const XID *xid, const binlog_oob_context *c)
     my_free(e);
     return true;
   }
+  uint64_t refcnt=
+    ibb_file_hash.oob_ref_inc(refcnt_file_no, pins, true);
+  if (refcnt == 1)
+    ibb_file_hash.update_earliest_xa_ref(refcnt_file_no, pins);
   mysql_mutex_unlock(&xid_mutex);
-  ibb_file_hash.oob_ref_inc(refcnt_file_no, c->lf_pins, true);
   return false;
 }
 
@@ -4105,6 +4417,7 @@ innobase_binlog_write_direct(IO_CACHE *cache,
   {
     if (srv_flush_log_at_trx_commit & 1)
       log_write_up_to(c->pending_lsn, true);
+  DEBUG_SYNC(current_thd, "ibb_after_commit_redo_log");
     ibb_pending_lsn_fifo.record_commit(c);
   }
   return false;
@@ -4126,6 +4439,7 @@ ibb_group_commit(THD *thd, handler_binlog_event_group_info *binlog_info)
       */
       log_write_up_to(c->pending_lsn, true);
     }
+  DEBUG_SYNC(current_thd, "ibb_after_group_commit_redo_log");
     ibb_pending_lsn_fifo.record_commit(c);
   }
 }
@@ -4139,8 +4453,7 @@ ibb_write_xa_prepare_ordered(THD *thd,
   mtr_t mtr{nullptr};
   binlog_oob_context *c=
     static_cast<binlog_oob_context *>(binlog_info->engine_ptr);
-  // ToDo: Here need also the oob ref.
-  chunk_data_xa_prepare chunk_data(binlog_info->xa_xid, engine_count);
+  chunk_data_xa_prepare chunk_data(binlog_info->xa_xid, engine_count, c);
   mtr.start();
   fsp_binlog_write_rec(&chunk_data, &mtr, FSP_BINLOG_TYPE_XA_PREPARE,
                        c->lf_pins);
@@ -4171,6 +4484,7 @@ ibb_write_xa_prepare(THD *thd,
   */
   if (srv_flush_log_at_trx_commit > 0)
     log_write_up_to(c->pending_lsn, (srv_flush_log_at_trx_commit & 1));
+  DEBUG_SYNC(thd, "ibb_after_prepare_redo_log");
   ibb_pending_lsn_fifo.record_commit(c);
 
   return err;
@@ -4222,6 +4536,7 @@ ibb_xa_rollback(THD *thd, const XID *xid, void **engine_data)
   ut_ad(c->pending_lsn > 0);
   if (srv_flush_log_at_trx_commit > 0)
     log_write_up_to(c->pending_lsn, (srv_flush_log_at_trx_commit & 1));
+  DEBUG_SYNC(thd, "ibb_after_rollback_redo_log");
 
   ibb_pending_lsn_fifo.record_commit(c);
   c->pending_lsn= 0;
@@ -4239,7 +4554,12 @@ ibb_binlog_unlog(const XID *xid, void **engine_data)
   ibb_xid_hash::xid_elem *elem= ibb_xa_xid_hash->grab_xid(xid);
   if (elem)
   {
-    ibb_file_hash.oob_ref_dec(elem->refcnt_file_no, c->lf_pins, true);
+    mysql_mutex_lock(&ibb_xa_xid_hash->xid_mutex);
+    uint64_t new_refcnt=
+      ibb_file_hash.oob_ref_dec(elem->refcnt_file_no, c->lf_pins, true);
+    if (new_refcnt == 0)
+      ibb_file_hash.update_earliest_xa_ref(elem->refcnt_file_no, c->lf_pins);
+    mysql_mutex_unlock(&ibb_xa_xid_hash->xid_mutex);
     my_free(elem);
   }
 }
@@ -4406,53 +4726,14 @@ purge_adjust_limit_file_no(handler_binlog_purge_info *purge_info, LF_PINS *pins)
   uint64_t referenced_file_no;
   if (ibb_file_hash.get_oob_ref_file_no(limit_file_no, pins,
                                         &referenced_file_no))
-  {
-    if (referenced_file_no < limit_file_no)
-      purge_info->limit_file_no= referenced_file_no;
-    else
-      ut_ad(referenced_file_no == limit_file_no ||
-            referenced_file_no == ~(uint64_t)0);
-    return false;
-  }
+    return true;
 
-  byte *page_buf= static_cast<byte *>(ut_malloc(ibb_page_size, mem_key_binlog));
-  if (!page_buf)
-  {
-    my_error(ER_OUTOFMEMORY, MYF(0), ibb_page_size);
-    return true;
-  }
-  char filename[OS_FILE_MAX_PATH];
-  binlog_name_make(filename, limit_file_no);
-  File fh= my_open(filename, O_RDONLY | O_BINARY, MYF(0));
-  if (fh < (File)0)
-  {
-    my_error(ER_ERROR_ON_READ, MYF(0), filename, my_errno);
-    ut_free(page_buf);
-    return true;
-  }
-  int res= crc32_pread_page(fh, page_buf, 0, MYF(0));
-  my_close(fh, MYF(0));
-  if (res <= 0)
-  {
-    ut_free(page_buf);
-    my_error(ER_ERROR_ON_READ, MYF(0), filename, my_errno);
-    return true;
-  }
-  binlog_header_data header;
-  fsp_binlog_extract_header_page(page_buf, &header);
-  ut_free(page_buf);
-  if (header.is_invalid || header.is_empty)
-  {
-    my_error(ER_ERROR_ON_READ, MYF(0), filename, my_errno);
-    return true;
-  }
-  if (header.oob_ref_file_no < limit_file_no)
-    purge_info->limit_file_no= header.oob_ref_file_no;
+  if (referenced_file_no < limit_file_no)
+    purge_info->limit_file_no= referenced_file_no;
   else
-    ut_ad(header.oob_ref_file_no == limit_file_no ||
-          header.oob_ref_file_no == ~(uint64_t)0);
-  ibb_record_in_file_hash(limit_file_no, header.oob_ref_file_no,
-                          header.xa_ref_file_no, pins);
+    ut_ad(referenced_file_no == limit_file_no ||
+          referenced_file_no == ~(uint64_t)0);
+
   return false;
 }
 

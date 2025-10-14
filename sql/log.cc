@@ -5043,9 +5043,6 @@ bool
 MYSQL_BIN_LOG::open_engine(handlerton *hton, ulong max_size, const char *dir)
 {
   binlog_max_spill_size= std::min((size_t)(max_size / 2), BINLOG_SPILL_MAX);
-  bool err= (*hton->binlog_init)((size_t)max_size, dir);
-  if (err)
-    goto exit_error;
 
   log_state= LOG_OPENED;
   {
@@ -5081,8 +5078,7 @@ MYSQL_BIN_LOG::open_engine(handlerton *hton, ulong max_size, const char *dir)
     end_io_cache(&cache);
   }
 
-exit_error:
-  return err;
+  return false;
 }
 
 
@@ -12890,6 +12886,26 @@ end:
 #endif
   return error > 0;
 }
+
+
+static void
+binlog_recover_hash_free(void *p)
+{
+  const handler_binlog_xid_info *info=
+    reinterpret_cast<const handler_binlog_xid_info *>(p);
+  delete info;
+}
+
+
+static const uchar *
+binlog_recover_hash_key(const void *p, size_t *out_len, my_bool)
+{
+  const XID *xid= &(reinterpret_cast<const handler_binlog_xid_info *>(p)->xid);
+  *out_len= xid->key_length();
+  return xid->key();
+}
+
+
 int TC_LOG_BINLOG::open(const char *opt_name)
 {
   int      error= 1;
@@ -12899,23 +12915,34 @@ int TC_LOG_BINLOG::open(const char *opt_name)
   DBUG_ASSERT(opt_name);
   DBUG_ASSERT(opt_name[0]);
 
-  if (!opt_binlog_engine_hton && !my_b_inited(&index_file))
+  if (opt_binlog_engine_hton)
+  {
+    HASH recover_hash;
+    my_hash_init(key_memory_binlog_recover_exec, &recover_hash, &my_charset_bin,
+                 128, 0, sizeof(XID), binlog_recover_hash_key,
+                 binlog_recover_hash_free, MYF(HASH_UNIQUE));
+    if ((*opt_binlog_engine_hton->binlog_init)
+        ((size_t)max_binlog_size, opt_binlog_directory, &recover_hash))
+    {
+      my_hash_free(&recover_hash);
+      DBUG_RETURN(1);
+    }
+
+    bool err= ha_recover_engine_binlog(&recover_hash);
+    my_hash_free(&recover_hash);
+    if (err)
+      DBUG_RETURN(1);
+
+    /* Engine binlog implementation recovers the GTID state by itself. */
+    binlog_state_recover_done= true;
+    DBUG_RETURN(0);
+  }
+
+  if (!my_b_inited(&index_file))
   {
     /* There was a failure to open the index file, can't open the binlog */
     cleanup();
     DBUG_RETURN(1);
-  }
-
-  if (opt_binlog_engine_hton)
-  {
-    /*
-      ToDo: Eventually, we will want to recover from the in-engine binlog,
-      for cross-engine transactions (or just transactions in a different
-      XA-capable engine that the engine used in --binlog-storage-engine.
-      For now, just skip recovery when --binlog-storage-engine.
-    */
-    binlog_state_recover_done= true;
-    DBUG_RETURN(0);
   }
 
   if (using_heuristic_recover())
