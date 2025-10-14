@@ -102,8 +102,11 @@ INSERT INTO t2(a) VALUES (0);
 XA END 'xid44';
 XA PREPARE 'xid44';
 include/rpl_restart_server.inc [server_number=1]
-XA ROLLBACK 'xid44';
-CALL mtr.add_suppression('Found 1 prepared XA transactions');
+XA COMMIT 'xid44';
+SELECT * FROM t2 WHERE a=0;
+a	b	c
+0	NULL	NULL
+DELETE FROM t2 WHERE a=0;
 *** XA transaction XID not freed in RocksDB
 connection master;
 CREATE TRIGGER u AFTER INSERT ON t2 FOR EACH ROW BEGIN RELEASE SAVEPOINT A ;  END //

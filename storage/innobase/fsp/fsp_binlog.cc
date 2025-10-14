@@ -977,37 +977,41 @@ ibb_file_oob_refs::remove_up_to(uint64_t file_no, LF_PINS *pins)
 }
 
 
-bool
+uint64_t
 ibb_file_oob_refs::oob_ref_inc(uint64_t file_no, LF_PINS *pins, bool do_xa)
 {
   ibb_tblspc_entry *e= static_cast<ibb_tblspc_entry *>
     (lf_hash_search(&hash, pins, &file_no, sizeof(file_no)));
   if (!e)
-    return true;
+    return ~(uint64_t)0;
+  uint64_t refcnt= e->oob_refs.fetch_add(1, std::memory_order_acquire);
   if (UNIV_UNLIKELY(do_xa))
-    e->xa_refs.fetch_add(1, std::memory_order_acquire);
-  e->oob_refs.fetch_add(1, std::memory_order_acquire);
+    refcnt= e->xa_refs.fetch_add(1, std::memory_order_acquire);
   lf_hash_search_unpin(pins);
-  return false;
+  return refcnt + 1;
 }
 
 
-bool
+uint64_t
 ibb_file_oob_refs::oob_ref_dec(uint64_t file_no, LF_PINS *pins, bool do_xa)
 {
   ibb_tblspc_entry *e= static_cast<ibb_tblspc_entry *>
     (lf_hash_search(&hash, pins, &file_no, sizeof(file_no)));
   if (!e)
-    return true;
+    return ~(uint64_t)0;
+  uint64_t oob_refcnt= e->oob_refs.fetch_sub(1, std::memory_order_acquire) - 1;
+  uint64_t ret_refcnt= oob_refcnt;
   if (UNIV_UNLIKELY(do_xa))
-    e->xa_refs.fetch_sub(1, std::memory_order_acquire);
-  uint64_t refcnt= e->oob_refs.fetch_sub(1, std::memory_order_acquire) - 1;
+  {
+    mysql_mutex_assert_owner(&ibb_xa_xid_hash->xid_mutex);
+    ret_refcnt= e->xa_refs.fetch_sub(1, std::memory_order_acquire) - 1;
+  }
   lf_hash_search_unpin(pins);
-  ut_ad(refcnt != (uint64_t)0 - 1);
+  ut_ad(oob_refcnt != (uint64_t)0 - 1);
 
-  if (refcnt == 0)
+  if (oob_refcnt == 0)
     do_zero_refcnt_action(file_no, pins, false);
-  return false;
+  return ret_refcnt;
 }
 
 
@@ -1073,20 +1077,103 @@ ibb_file_oob_refs::update_refs(uint64_t file_no, LF_PINS *pins,
 }
 
 
+/*
+  This is called when an xa/xid refcount goes from 1->0 or 0->1, to update
+  the value of ibb_file_hash.earliest_xa_ref if necessary.
+*/
+void
+ibb_file_oob_refs::update_earliest_xa_ref(uint64_t ref_file_no, LF_PINS *pins)
+{
+  mysql_mutex_assert_owner(&ibb_xa_xid_hash->xid_mutex);
+  uint64_t file_no1= earliest_xa_ref.load(std::memory_order_relaxed);
+  if (file_no1 < ref_file_no)
+  {
+    /* Current is before the updated one, no change possible for now. */
+    return;
+  }
+  uint64_t file_no2= active_binlog_file_no.load(std::memory_order_acquire);
+  uint64_t file_no= ref_file_no;
+  for (;;)
+  {
+    if (file_no > file_no2)
+    {
+      /* No active XA anymore. */
+      file_no= ~(uint64_t)0;
+      break;
+    }
+    ibb_tblspc_entry *e= static_cast<ibb_tblspc_entry *>
+      (lf_hash_search(&hash, pins, &file_no, sizeof(file_no)));
+    if (!e)
+    {
+      ++file_no;
+      continue;
+    }
+    uint64_t refcnt= e->xa_refs.load(std::memory_order_acquire);
+    lf_hash_search_unpin(pins);
+    if (refcnt > 0)
+      break;
+    ++file_no;
+  }
+  earliest_xa_ref.store(file_no, std::memory_order_relaxed);
+}
+
+
+/**
+  Look up the earliest file with OOB references from a given file_no.
+  Insert a new entry into the file hash (reading the file header from disk)
+  if not there already.
+*/
 bool
 ibb_file_oob_refs::get_oob_ref_file_no(uint64_t file_no, LF_PINS *pins,
                                        uint64_t *out_oob_ref_file_no)
 {
   ibb_tblspc_entry *e= static_cast<ibb_tblspc_entry *>
     (lf_hash_search(&hash, pins, &file_no, sizeof(file_no)));
-  if (!e)
+  if (e)
   {
-    *out_oob_ref_file_no= ~(uint64_t)0;
+    *out_oob_ref_file_no= e->oob_ref_file_no.load(std::memory_order_relaxed);
+    lf_hash_search_unpin(pins);
     return false;
   }
-  *out_oob_ref_file_no= e->oob_ref_file_no.load(std::memory_order_relaxed);
-  lf_hash_search_unpin(pins);
-  return true;
+
+  *out_oob_ref_file_no= ~(uint64_t)0;
+  byte *page_buf= static_cast<byte *>(ut_malloc(ibb_page_size, mem_key_binlog));
+  if (!page_buf)
+  {
+    my_error(ER_OUTOFMEMORY, MYF(0), ibb_page_size);
+    return true;
+  }
+  char filename[OS_FILE_MAX_PATH];
+  binlog_name_make(filename, file_no);
+  File fh= my_open(filename, O_RDONLY | O_BINARY, MYF(0));
+  if (fh < (File)0)
+  {
+    my_error(ER_ERROR_ON_READ, MYF(0), filename, my_errno);
+    ut_free(page_buf);
+    return true;
+  }
+  int res= crc32_pread_page(fh, page_buf, 0, MYF(0));
+  my_close(fh, MYF(0));
+  if (res <= 0)
+  {
+    ut_free(page_buf);
+    my_error(ER_ERROR_ON_READ, MYF(0), filename, my_errno);
+    return true;
+  }
+  binlog_header_data header;
+  fsp_binlog_extract_header_page(page_buf, &header);
+  ut_free(page_buf);
+  if (header.is_invalid || header.is_empty)
+  {
+    my_error(ER_FILE_CORRUPT, MYF(0), filename);
+    return true;
+  }
+  *out_oob_ref_file_no= header.oob_ref_file_no;
+  if (ibb_record_in_file_hash(file_no, header.oob_ref_file_no,
+                              header.xa_ref_file_no, pins))
+    return true;
+
+  return false;
 }
 
 
@@ -1778,7 +1865,7 @@ fsp_binlog_flush()
 
 
 binlog_chunk_reader::binlog_chunk_reader(std::atomic<uint64_t> *limit_offset_)
-  : s { 0, 0, 0, 0, 0, FSP_BINLOG_TYPE_FILLER, false, false },
+  : s { 0, ~(uint64_t)0, 0, 0, 0, 0, FSP_BINLOG_TYPE_FILLER, false, false },
     stop_file_no(~(uint64_t)0), page_ptr(0), cur_block(0), page_buffer(nullptr),
     limit_offset(limit_offset_), cur_file_handle((File)-1),
     skipping_partial(false)
@@ -2058,6 +2145,7 @@ read_more_data:
     s.skip_current= false;
     s.chunk_type= type;
     s.in_record= true;
+    s.rec_start_file_no= s.file_no;
     s.chunk_len= page_ptr[s.in_page_offset + 1] |
       ((uint32_t)page_ptr[s.in_page_offset + 2] << 8);
     s.chunk_read_offset= 0;
@@ -2230,7 +2318,7 @@ void
 binlog_chunk_reader::seek(uint64_t file_no, uint64_t offset)
 {
   saved_position pos {
-    file_no, (uint32_t)(offset >> ibb_page_size_shift),
+    file_no, ~(uint64_t)0, (uint32_t)(offset >> ibb_page_size_shift),
     (uint32_t)(offset & (ibb_page_size - 1)),
     0, 0, FSP_BINLOG_TYPE_FILLER, false, false };
   restore_pos(&pos);

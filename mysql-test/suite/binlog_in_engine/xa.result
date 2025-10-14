@@ -211,7 +211,6 @@ XA END 'y';
 XA PREPARE 'y';
 # restart
 XA ROLLBACK 'y';
-CALL mtr.add_suppression('Found 1 prepared XA transactions');
 *** Test binlogging of empty XA transaction.
 SET binlog_format=row;
 DELETE FROM t1 WHERE a=4242;
@@ -256,5 +255,8 @@ INSERT INTO t1(a) VALUES (10001);
 XA END 'xid44';
 XA PREPARE 'xid44';
 # restart
-XA ROLLBACK 'xid44';
+XA COMMIT 'xid44';
+SELECT * FROM t1 WHERE a >= 10000 ORDER BY a;
+a	b	c
+10001	NULL	NULL
 DROP TABLE t1;
