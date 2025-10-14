@@ -2257,26 +2257,27 @@ btr_cur_ins_lock_and_undo(
 /**
 Prefetch siblings of the leaf for the pessimistic operation.
 @param block	leaf page
-@param index    index of the page */
+@param index    index of the page
+@param trx      transaction */
 static void btr_cur_prefetch_siblings(const buf_block_t *block,
-                                      const dict_index_t *index)
+                                      const dict_index_t *index,
+                                      trx_t *trx) noexcept
 {
   ut_ad(page_is_leaf(block->page.frame));
 
   const page_t *page= block->page.frame;
-  uint32_t prev= mach_read_from_4(my_assume_aligned<4>(page + FIL_PAGE_PREV));
   uint32_t next= mach_read_from_4(my_assume_aligned<4>(page + FIL_PAGE_NEXT));
-
   fil_space_t *space= index->table->space;
+  page_id_t id{space->id,
+               mach_read_from_4(my_assume_aligned<4>(page + FIL_PAGE_PREV))};
 
-  if (prev == FIL_NULL);
-  else if (space->acquire())
-    buf_read_page_background(space, page_id_t(space->id, prev),
-                             block->zip_size());
-  if (next == FIL_NULL);
-  else if (space->acquire())
-    buf_read_page_background(space, page_id_t(space->id, next),
-                             block->zip_size());
+  if (id.page_no() != FIL_NULL && space->acquire())
+    buf_read_page_background(id, space, trx);
+
+  id.set_page_no(next);
+
+  if (next != FIL_NULL && space->acquire())
+    buf_read_page_background(id, space, trx);
 }
 
 /*************************************************************//**
@@ -2394,7 +2395,7 @@ fail:
 		/* prefetch siblings of the leaf for the pessimistic
 		operation, if the page is leaf. */
 		if (leaf) {
-			btr_cur_prefetch_siblings(block, index);
+			btr_cur_prefetch_siblings(block, index, mtr->trx);
 		}
 fail_err:
 
@@ -3522,7 +3523,7 @@ any_extern:
 
 		/* prefetch siblings of the leaf for the pessimistic
 		operation. */
-		btr_cur_prefetch_siblings(block, index);
+		btr_cur_prefetch_siblings(block, index, mtr->trx);
 
 		return(DB_OVERFLOW);
 	}
@@ -3694,7 +3695,7 @@ corrupted:
 func_exit:
 		/* prefetch siblings of the leaf for the pessimistic
 		operation. */
-		btr_cur_prefetch_siblings(block, index);
+		btr_cur_prefetch_siblings(block, index, mtr->trx);
 	}
 
 	return(err);
@@ -4370,7 +4371,7 @@ btr_cur_optimistic_delete(
 						    mtr)) {
 		/* prefetch siblings of the leaf for the pessimistic
 		operation. */
-		btr_cur_prefetch_siblings(block, cursor->index());
+		btr_cur_prefetch_siblings(block, cursor->index(), mtr->trx);
 		err = DB_FAIL;
 		goto func_exit;
 	}
