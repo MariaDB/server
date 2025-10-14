@@ -5057,6 +5057,14 @@ void JOIN::cleanup_item_list(List<Item> &items) const
   DBUG_VOID_RETURN;
 }
 
+/*
+    Determine if the SQL command can be pushed for processing into
+    a foreign engine
+*/
+static bool is_cmd_allowed_for_pushdown(enum_sql_command sql_command)
+{
+  return sql_command == SQLCOM_SELECT || sql_command == SQLCOM_INSERT_SELECT;
+}
 
 /**
   @brief
@@ -5083,6 +5091,8 @@ select_handler *find_select_handler(THD *thd,
   if (select_lex->next_select())
     return 0;
   if (select_lex->master_unit()->outer_select())
+    return 0;
+  if (!is_cmd_allowed_for_pushdown(thd->lex->sql_command))
     return 0;
 
   TABLE_LIST *tbl= nullptr;
