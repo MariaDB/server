@@ -957,6 +957,8 @@ int close_thread_tables(THD *thd)
 
     if (thd->locked_tables_mode == LTM_LOCK_TABLES)
     {
+      if (thd->lock)
+        (void)thd->binlog_flush_pending_rows_event(TRUE);
       error= 0;
       goto end;
     }
@@ -4722,11 +4724,12 @@ bool table_already_fk_prelocked(TABLE_LIST *tl, LEX_CSTRING *db,
 
 
 static TABLE_LIST *internal_table_exists(TABLE_LIST *global_list,
-                                         const char *table_name)
+                                         TABLE_LIST *table)
 {
   do
   {
-    if (global_list->table_name.str == table_name)
+    if (global_list->table_name.str == table->table_name.str &&
+        global_list->db.str == table->db.str)
       return global_list;
   } while ((global_list= global_list->next_global));
   return 0;
@@ -4747,8 +4750,7 @@ add_internal_tables(THD *thd, Query_tables_list *prelocking_ctx,
     /*
       Skip table if already in the list. Can happen with prepared statements
     */
-    if ((tmp= internal_table_exists(global_table_list,
-                                    tables->table_name.str)))
+    if ((tmp= internal_table_exists(global_table_list, tables)))
     {
       /*
         Use the original value for the next local, used by the
@@ -4897,7 +4899,7 @@ bool DML_prelocking_strategy::handle_table(THD *thd,
   DBUG_ASSERT(table_list->lock_type >= TL_FIRST_WRITE ||
               thd->lex->default_used);
 
-  if (table_list->trg_event_map)
+  if (table_list->trg_event_map && table_list->lock_type >= TL_FIRST_WRITE)
   {
     if (table->triggers)
     {

@@ -3942,6 +3942,7 @@ unpack_vcol_info_from_frm(THD *thd, TABLE *table,
   LEX *old_lex= thd->lex;
   LEX lex;
   bool error;
+  TABLE_LIST *sequence, *last;
   DBUG_ENTER("unpack_vcol_info_from_frm");
 
   DBUG_ASSERT(vcol->expr == NULL);
@@ -3959,11 +3960,12 @@ unpack_vcol_info_from_frm(THD *thd, TABLE *table,
   if (unlikely(error))
     goto end;
 
-  if (lex.current_select->table_list.first[0].next_global)
+  if ((sequence= lex.current_select->table_list.first[0].next_global))
   {
-    /* We are using NEXT VALUE FOR sequence. Remember table name for open */
-    TABLE_LIST *sequence= lex.current_select->table_list.first[0].next_global;
-    sequence->next_global= table->internal_tables;
+    /* We are using NEXT VALUE FOR sequence. Remember table for open */
+    for (last= sequence ; last->next_global ; last= last->next_global)
+      ;
+    last->next_global= table->internal_tables;
     table->internal_tables= sequence;
   }
 
@@ -7952,6 +7954,19 @@ void TABLE::mark_columns_per_binlog_row_image()
   if (file->row_logging &&
       !ha_check_storage_engine_flag(s->db_type(), HTON_NO_BINLOG_ROW_OPT))
   {
+#ifdef WITH_WSREP
+    /**
+     The marking of all columns will prevent update/set column values for the
+     sequence table. For the sequence table column bitmap sent from master is
+     used.
+    */
+    if (WSREP(thd) && wsrep_thd_is_applying(thd) &&
+        s->sequence && s->primary_key >= MAX_KEY)
+    {
+      DBUG_VOID_RETURN;
+    }
+#endif /* WITH_WSREP */
+
     /* if there is no PK, then mark all columns for the BI. */
     if (s->primary_key >= MAX_KEY)
     {

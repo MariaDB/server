@@ -5969,7 +5969,11 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
       slave_rows_error_report(ERROR_LEVEL, thd->is_error() ? 0 : error,
                               rgi, thd, table, get_type_str(),
                               RPL_LOG_NAME, log_pos);
-    if (thd->slave_thread)
+    if (thd->slave_thread
+#ifdef WITH_WSREP
+        || (WSREP(thd) && wsrep_thd_is_applying(thd))
+#endif /* WITH_WSREP */
+    )
       free_root(thd->mem_root, MYF(MY_KEEP_PREALLOC));
   }
 
@@ -6522,8 +6526,8 @@ check_table_map(rpl_group_info *rgi, RPL_TABLE_LIST *table_list)
   DBUG_ENTER("check_table_map");
   enum_tbl_map_status res= OK_TO_PROCESS;
   Relay_log_info *rli= rgi->rli;
-  if ((rgi->thd->slave_thread /* filtering is for slave only */ ||
-        IF_WSREP((WSREP(rgi->thd) && rgi->thd->wsrep_applier), 0)) &&
+
+  if (rgi->thd->slave_thread /* filtering is for slave only */ &&
       (!rli->mi->rpl_filter->db_ok(table_list->db.str) ||
        (rli->mi->rpl_filter->is_on() && !rli->mi->rpl_filter->tables_ok("", table_list))))
     res= FILTERED_OUT;
@@ -8543,9 +8547,11 @@ Update_rows_log_event::do_exec_row(rpl_group_info *rgi)
 #endif /* WSREP_PROC_INFO */
 
   thd_proc_info(thd, message);
-  // Temporary fix to find out why it fails [/Matz]
-  memcpy(m_table->read_set->bitmap, m_cols.bitmap, (m_table->read_set->n_bits + 7) / 8);
-  memcpy(m_table->write_set->bitmap, m_cols_ai.bitmap, (m_table->write_set->n_bits + 7) / 8);
+  /* Must read also after-image columns to be able to update them. */
+  bitmap_copy(m_table->read_set, &m_cols);
+  bitmap_union(m_table->read_set, &m_cols_ai);
+  /* Must update after-image columns. */
+  bitmap_copy(m_table->write_set, &m_cols_ai);
 
   m_table->mark_columns_per_binlog_row_image();
 

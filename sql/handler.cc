@@ -3367,7 +3367,7 @@ int handler::create_lookup_handler()
   if (!(tmp= clone(table->s->normalized_path.str, table->in_use->mem_root)))
     return 1;
   lookup_handler= tmp;
-  return lookup_handler->ha_external_lock(table->in_use, F_RDLCK);
+  return lookup_handler->ha_external_lock(table->in_use, F_WRLCK);
 }
 
 LEX_CSTRING *handler::engine_name()
@@ -7414,7 +7414,7 @@ int handler::check_duplicate_long_entry_key(const uchar *new_rec, uint key_no)
 {
   int result;
   /* Skip just written row in the case of HA_CHECK_UNIQUE_AFTER_WRITE */
-  bool lax= (ha_table_flags() & HA_CHECK_UNIQUE_AFTER_WRITE) > 0;
+  bool skip_self= ha_table_flags() & HA_CHECK_UNIQUE_AFTER_WRITE;
   KEY *key_info= table->key_info + key_no;
   uchar ptr[HA_HASH_KEY_LENGTH_WITH_NULL];
   DBUG_ENTER("handler::check_duplicate_long_entry_key");
@@ -7425,6 +7425,9 @@ int handler::check_duplicate_long_entry_key(const uchar *new_rec, uint key_no)
 
   if (key_info->key_part->field->is_real_null())
     DBUG_RETURN(0);
+
+  if (skip_self)
+    position(table->record[0]);
 
   key_copy(ptr, new_rec, key_info, key_info->key_length, false);
 
@@ -7437,11 +7440,7 @@ int handler::check_duplicate_long_entry_key(const uchar *new_rec, uint key_no)
   result= lookup_handler->ha_index_read_map(table->record[0], ptr,
                                             HA_WHOLE_KEY, HA_READ_KEY_EXACT);
   if (result)
-  {
-    if (result == HA_ERR_KEY_NOT_FOUND)
-      result= 0;
     goto end;
-  }
 
   // restore pointers after swap_values in TABLE::update_virtual_fields()
   for (Field **vf= table->vfield; *vf; vf++)
@@ -7454,14 +7453,14 @@ int handler::check_duplicate_long_entry_key(const uchar *new_rec, uint key_no)
   {
     if (!long_unique_fields_differ(key_info, lookup_buffer))
     {
-      if (lax)
+      lookup_handler->position(table->record[0]);
+      if (skip_self && !memcmp(ref, lookup_handler->ref, ref_length))
       {
-        lax= false;
+        skip_self= false; // cannot happen twice, so let's save a memcpy
         continue;
       }
       result= HA_ERR_FOUND_DUPP_KEY;
       table->file->lookup_errkey= key_no;
-      lookup_handler->position(table->record[0]);
       memcpy(table->file->dup_ref, lookup_handler->ref, ref_length);
       goto end;
     }
@@ -7469,10 +7468,10 @@ int handler::check_duplicate_long_entry_key(const uchar *new_rec, uint key_no)
   while (!(result= lookup_handler->ha_index_next_same(table->record[0], ptr,
                                                       key_info->key_length)));
 
-  if (result == HA_ERR_END_OF_FILE)
+end:
+  if (result == HA_ERR_END_OF_FILE || result == HA_ERR_KEY_NOT_FOUND)
     result= 0;
 
-end:
   restore_record(table, file->lookup_buffer);
   table->restore_blob_values(blob_storage);
   lookup_handler->ha_index_end();
@@ -7774,16 +7773,19 @@ int handler::ha_write_row(const uchar *buf)
   {
     if (lookup_handler != this) // INSERT IGNORE or REPLACE or ODKU
     {
+      int olderror= error;
+      if ((error= lookup_handler->rnd_init(0)))
+        goto err;
       position(buf);
-      int e= rnd_pos(lookup_buffer, ref);
-      if (!e)
-      {
-        increment_statistics(&SSV::ha_delete_count);
-        TABLE_IO_WAIT(tracker, PSI_TABLE_DELETE_ROW, MAX_KEY, e,
-          { e= delete_row(buf);})
-      }
-      if (e)
-        error= e;
+      if ((error= lookup_handler->rnd_pos(lookup_buffer, ref)))
+        goto err;
+
+      increment_statistics(&SSV::ha_delete_count);
+      TABLE_IO_WAIT(tracker, PSI_TABLE_DELETE_ROW, MAX_KEY, error,
+                    { error= lookup_handler->delete_row(buf);})
+      lookup_handler->rnd_end();
+      if (!error)
+        error= olderror;
     }
     goto err;
   }
@@ -7841,25 +7843,11 @@ int handler::ha_update_row(const uchar *old_data, const uchar *new_data)
     int e= 0;
     if (ha_thd()->lex->ignore)
     {
-      /* hack: modifying PK is not supported for now, see  MDEV-37233 */
-      if (table->s->primary_key != MAX_KEY)
-      {
-        KEY *key= table->key_info + table->s->primary_key;
-        KEY_PART_INFO *kp= key->key_part;
-        KEY_PART_INFO *end= kp + key->user_defined_key_parts;
-        for (; kp < end; kp++)
-          if (bitmap_is_set(table->write_set, kp->fieldnr-1))
-          {
-            my_printf_error(ER_NOT_SUPPORTED_YET, "UPDATE IGNORE that "
-              "modifies a primary key of a table with a UNIQUE constraint "
-              "%s is not currently supported", MYF(0),
-              table->s->long_unique_table ? "USING HASH" : "WITHOUT OVERLAPS");
-            return HA_ERR_UNSUPPORTED;
-          }
-      }
-      increment_statistics(&SSV::ha_update_count);
-      TABLE_IO_WAIT(tracker, PSI_TABLE_UPDATE_ROW, MAX_KEY, e,
-        { e= update_row(new_data, old_data);})
+      my_printf_error(ER_NOT_SUPPORTED_YET, "UPDATE IGNORE in READ "
+        "COMMITTED isolation mode of a table with a UNIQUE constraint "
+        "%s is not currently supported", MYF(0),
+        table->s->long_unique_table ? "USING HASH" : "WITHOUT OVERLAPS");
+      return HA_ERR_UNSUPPORTED;
     }
     return e ? e : error;
   }
@@ -7928,8 +7916,7 @@ int handler::ha_delete_row(const uchar *buf)
   /*
     Normally table->record[0] is used, but sometimes table->record[1] is used.
   */
-  DBUG_ASSERT(buf == table->record[0] ||
-              buf == table->record[1]);
+  DBUG_ASSERT(buf == table->record[0] || buf == table->record[1]);
 
   MYSQL_DELETE_ROW_START(table_share->db.str, table_share->table_name.str);
   mark_trx_read_write();

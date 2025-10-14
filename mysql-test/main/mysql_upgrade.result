@@ -2518,7 +2518,8 @@ name	dl
 # Check that mysql_upgrade can be run on mysqldump
 # of mysql schema from previous versions
 #
-call mtr.add_suppression("innodb_(table|index)_stats has length mismatch in the column name table_name");
+call mtr.add_suppression("InnoDB: Fetch of persistent statistics requested for table `mysql`\\.`gtid_slave_pos` but the required system tables mysql\\.innodb_table_stats and mysql\\.innodb_index_stats are not present or have unexpected structure");
+call mtr.add_suppression("InnoDB: Unexpected length of mysql\\.innodb_table_stats\\.table_name");
 call mtr.add_suppression("Column count of mysql.proc is wrong. Expected 21, found 20.");
 #
 # Upgrade from version 5.5

@@ -5857,3 +5857,10 @@ b	rank() over (order by c)
 drop view v1;
 drop table t1;
 # End of 10.4 tests
+#
+# MDEV-32308: Server crash on cleanup of
+# non-fully-constructed-due-to-an-error CTE
+#
+SELECT ( WITH RECURSIVE x AS ( WITH x AS ( SELECT 1 FROM t14 ) SELECT x ) , t14 AS ( SELECT 1 UNION SELECT 'x' FROM x ) SELECT x FROM x WHERE ( SELECT x FROM x ) ) ;
+ERROR 42S22: Unknown column 'x' in 'SELECT'
+# End of 10.6 tests

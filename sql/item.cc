@@ -5231,10 +5231,17 @@ static Field *make_default_field(THD *thd, Field *field_arg)
       def_field->default_value->expr->update_used_tables();
     def_field->move_field(newptr + 1, def_field->maybe_null() ? newptr : 0, 1);
   }
-  else
+  else if (field_arg->table && field_arg->table->s->field)
+  {
+    Field *def_val= field_arg->table->s->field[field_arg->field_index];
+    def_field->move_field(def_val->ptr, def_val->null_ptr, def_val->null_bit);
+  }
+  else /* e.g. non-updatable view */
+  {
     def_field->move_field_offset((my_ptrdiff_t)
                                  (def_field->table->s->default_values -
                                   def_field->table->record[0]));
+  }
   return def_field;
 }
 

@@ -68,14 +68,14 @@ struct ibuf_t{
 					ibuf index tree, in pages */
 	ulint		seg_size;	/*!< allocated pages of the file
 					segment containing ibuf header and
-					tree */
-	bool		empty;		/*!< Protected by the page
-					latch of the root page of the
-					insert buffer tree
-					(FSP_IBUF_TREE_ROOT_PAGE_NO). true
-					if and only if the insert
-					buffer tree is empty. */
-	ulint		free_list_len;	/*!< length of the free list */
+					tree; protected by ibuf.index->lock
+					and the root page latch */
+	bool		empty;		/*!< whether the change buffer is
+					empty; protected by ibuf.index->lock
+					and the root page latch */
+	uint32_t	free_list_len;	/*!< length of the free list;
+					protected by ibuf.index->lock and
+					the root page latch */
 	ulint		height;		/*!< tree height */
 	dict_index_t*	index;		/*!< insert buffer index */
 
