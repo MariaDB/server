@@ -184,7 +184,7 @@ trx_undo_get_prev_rec_from_prev_page(buf_block_t *&block, uint16_t rec,
   if (UNIV_UNLIKELY(!block))
     return nullptr;
 
-  if (!buf_page_make_young_if_needed(&block->page))
+  if (!block->page.flag_accessed())
     buf_read_ahead_linear(block->page.id());
   return trx_undo_page_get_last_rec(block, page_no, offset);
 }
@@ -282,7 +282,7 @@ trx_undo_get_first_rec(const fil_space_t &space, uint32_t page_no,
   if (!block)
     return nullptr;
 
-  if (!buf_page_make_young_if_needed(&b->page))
+  if (!b->page.flag_accessed())
     buf_read_ahead_linear(b->page.id());
 
   if (trx_undo_rec_t *rec= trx_undo_page_get_first_rec(b, page_no, offset))
@@ -663,7 +663,7 @@ buf_block_t *trx_undo_add_page(trx_undo_t *undo, mtr_t *mtr, dberr_t *err)
                      0, RW_X_LATCH, nullptr, BUF_GET, mtr, err);
   if (!header_block)
     goto func_exit;
-  buf_page_make_young_if_needed(&header_block->page);
+  header_block->page.flag_accessed();
 
   *err= fsp_reserve_free_extents(&n_reserved, rseg->space, 1, FSP_UNDO, mtr);
 
@@ -735,7 +735,7 @@ trx_undo_free_page(
 		return FIL_NULL;
 	}
 
-	buf_page_make_young_if_needed(&header_block->page);
+	header_block->page.flag_accessed();
 
 	const uint32_t limit = rseg->space->free_limit;
 
@@ -1286,7 +1286,7 @@ static buf_block_t *trx_undo_reuse_cached(mtr_t *mtr, dberr_t *err,
 		return NULL;
 	}
 
-	buf_page_make_young_if_needed(&block->page);
+	block->page.flag_accessed();
 
 	UT_LIST_REMOVE(rseg->undo_cached, undo);
 
@@ -1329,7 +1329,7 @@ buf_block_t *trx_undo_assign(mtr_t *mtr, dberr_t *err) noexcept
 			0, RW_X_LATCH, undo->guess_block,
 			BUF_GET, mtr, err);
 		if (UNIV_LIKELY(block != nullptr)) {
-			buf_page_make_young_if_needed(&block->page);
+			block->page.flag_accessed();
 		}
 		return block;
 	}
@@ -1385,7 +1385,7 @@ trx_undo_assign_low(mtr_t *mtr, dberr_t *err,
 			0, RW_X_LATCH, (*undo)->guess_block,
 			BUF_GET, mtr, err);
 		if (UNIV_LIKELY(block != nullptr)) {
-			buf_page_make_young_if_needed(&block->page);
+			block->page.flag_accessed();
 		}
 		return block;
 	}

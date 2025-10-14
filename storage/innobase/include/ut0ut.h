@@ -37,12 +37,6 @@ Created 1/20/1994 Heikki Tuuri
 
 #include "db0err.h"
 
-#include <time.h>
-
-#ifndef MYSQL_SERVER
-#include <ctype.h>
-#endif /* MYSQL_SERVER */
-
 #include <stdarg.h>
 
 #include <string>
@@ -75,15 +69,6 @@ when m is a power of two.  In other words, rounds n up to m * k.
 #define UT_CALC_ALIGN(n, m) ((n + m - 1) & ~(m - 1))
 template <typename T> inline T ut_calc_align(T n, T m)
 { return static_cast<T>(UT_CALC_ALIGN(n, m)); }
-
-/**********************************************************//**
-Returns the number of milliseconds since some epoch.  The
-value may wrap around.  It should only be used for heuristic
-purposes.
-@return ms since epoch */
-ulint
-ut_time_ms(void);
-/*============*/
 #endif /* !UNIV_INNOCHECKSUM */
 
 /** Determine how many bytes (groups of 8 bits) are needed to

@@ -25,6 +25,7 @@ Created 11/29/1995 Heikki Tuuri
 ***********************************************************************/
 
 #include "fsp0fsp.h"
+#include "buf0lru.h"
 #include "fil0crypt.h"
 #include "mtr0log.h"
 #include "page0page.h"
@@ -2681,8 +2682,8 @@ dberr_t fseg_free_page(fseg_header_t *seg_header, fil_space_t *space,
 dberr_t fseg_page_is_allocated(mtr_t *mtr, fil_space_t *space, unsigned page)
   noexcept
 {
-  uint32_t dpage= xdes_calc_descriptor_page(space->zip_size(), page);
   const unsigned zip_size= space->zip_size();
+  uint32_t dpage= xdes_calc_descriptor_page(zip_size, page);
   dberr_t err= DB_SUCCESS;
   const auto sp= mtr->get_savepoint();
 
@@ -2691,7 +2692,7 @@ dberr_t fseg_page_is_allocated(mtr_t *mtr, fil_space_t *space, unsigned page)
 
   if (page >= space->free_limit || page >= space->size_in_header);
   else if (const buf_block_t *b=
-           buf_page_get_gen(page_id_t(space->id, dpage), space->zip_size(),
+           buf_page_get_gen(page_id_t(space->id, dpage), zip_size,
                             RW_S_LATCH, nullptr, BUF_GET_POSSIBLY_FREED,
                             mtr, &err))
   {

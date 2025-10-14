@@ -2062,7 +2062,7 @@ purge_sys_t::view_guard::get(const page_id_t id, trx_t *trx, mtr_t *mtr)
 {
   buf_block_t *block;
   ut_ad(mtr->is_active());
-  if (!latch)
+  if (latch == PURGE)
   {
     decltype(purge_sys.pages)::const_iterator i= purge_sys.pages.find(id);
     if (i != purge_sys.pages.end())
@@ -2076,11 +2076,11 @@ purge_sys_t::view_guard::get(const page_id_t id, trx_t *trx, mtr_t *mtr)
   if (block)
   {
     mtr->memo_push(block, MTR_MEMO_BUF_FIX);
-    if (latch)
+    if (latch != PURGE)
       /* In MVCC operations (outside purge tasks), we will refresh the
       buf_pool.LRU position. In purge, we expect the page to be freed
       soon, at the end of the current batch. */
-      buf_page_make_young_if_needed(&block->page);
+      block->page.flag_accessed_only();
   }
   return block;
 }

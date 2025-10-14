@@ -19615,7 +19615,7 @@ static MYSQL_SYSVAR_UINT(old_blocks_pct, innobase_old_blocks_pct,
   "Percentage of the buffer pool to reserve for 'old' blocks",
   NULL, innodb_old_blocks_pct_update, 100 * 3 / 8, 5, 95, 0);
 
-static MYSQL_SYSVAR_UINT(old_blocks_time, buf_LRU_old_threshold_ms,
+static MYSQL_SYSVAR_UINT(old_blocks_time, buf_pool.LRU_old_time_threshold,
   PLUGIN_VAR_RQCMDARG,
   "Move blocks to the 'new' end of the buffer pool if the first access"
   " was at least this many milliseconds ago."
