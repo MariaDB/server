@@ -2542,7 +2542,10 @@ JOIN::optimize_inner()
 	    DBUG_RETURN(1);
         }
 	if (mysql_handle_single_derived(thd->lex, tbl, DT_OPTIMIZE))
+        {
+          error= 1;
 	  DBUG_RETURN(1);
+        }
       }
     }
   }
@@ -5436,6 +5439,9 @@ static bool get_quick_record_count(THD *thd, SQL_SELECT *select,
   uchar buff[STACK_BUFF_ALLOC];
   if (unlikely(check_stack_overrun(thd, STACK_MIN_SIZE, buff)))
     DBUG_RETURN(false);                           // Fatal error flag is set
+
+  DEBUG_SYNC(thd, "before_get_quick_record_count");
+
   if (select)
   {
     select->head=table;

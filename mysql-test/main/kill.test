@@ -9,6 +9,8 @@
 
 -- source include/count_sessions.inc
 -- source include/not_embedded.inc
+-- source include/have_innodb.inc
+-- source include/have_debug_sync.inc
 
 --disable_service_connection
 
@@ -320,3 +322,36 @@ DROP TABLE t1, t2;
 --error ER_BAD_FIELD_ERROR
 kill query id user 'foo';
 --enable_service_connection
+
+
+--echo #
+--echo # MDEV-36034 KILL or timeout inside derived table optimization causes an assert
+--echo #
+
+CREATE TABLE t10(c int primary key, c2 int) engine=innodb;
+CREATE TABLE t20(c INT) engine=innodb;
+
+connect con1, localhost, root;
+connection default;
+
+set debug_sync='before_get_quick_record_count SIGNAL target_ready WAIT_FOR target_continue';
+let $id=`select connection_id()`;
+
+send
+explain format=json
+update t20,(SELECT * FROM t10)t (a, c)
+  set t20.c=t.c+10 where t20.c = t.c and t.a >= 3;
+
+connection con1;
+set debug_sync='now WAIT_FOR target_ready';
+evalp kill query $id;
+
+connection default;
+--error ER_QUERY_INTERRUPTED
+reap;
+
+disconnect con1;
+
+drop table t10, t20;
+
+set debug_sync='reset';
