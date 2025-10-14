@@ -95,12 +95,6 @@ enum dict_stats_schema_check {
 dict_stats_schema_check
 dict_stats_persistent_storage_check(bool dict_already_locked= false) noexcept;
 
-/** Save the persistent statistics of a table or an index.
-@param table            table whose stats to save
-@param only_for_index   the index ID to save statistics for (0=all)
-@return DB_SUCCESS or error code */
-dberr_t dict_stats_save(dict_table_t* table, index_id_t index_id= 0);
-
 /** Read the stored persistent statistics of a table. */
 dberr_t dict_stats_fetch_from_ps(dict_table_t *table);
 
@@ -112,12 +106,13 @@ is relatively quick and is used to calculate non-persistent statistics.
 @retval DB_SUCCESS_LOCKED REC if the table under bulk insert operation */
 dberr_t dict_stats_update_transient(dict_table_t *table) noexcept;
 
-/**
-Calculate new estimates for table and index statistics. This function
-is slower than dict_stats_update_transient().
-@param table    table for which the persistent statistics are being updated
-@return DB_SUCCESS or error code
-@retval DB_SUCCESS_LOCKED_REC if the table under bulk insert operation */
+/** Updates the persistent statistics for a table.
+This function calculates and stores index statistics
+for all indexes of the table. The statistics are stored
+in the InnoDB data dictionary tables.
+@param table   table whose stats to update
+@retval DB_SUCCESS_LOCKED_REC if the table under bulk insert operation
+@return DB_SUCCESS or error code */
 dberr_t dict_stats_update_persistent(dict_table_t *table) noexcept;
 
 /**

@@ -5751,7 +5751,6 @@ error:
 /***********************************************************//**
 Gets the offset of the pointer to the externally stored part of a field.
 @return offset of the pointer to the externally stored part */
-static
 ulint
 btr_rec_get_field_ref_offs(
 /*=======================*/
@@ -5776,42 +5775,6 @@ btr_rec_get_field_ref_offs(
 @return pointer to the externally stored part */
 #define btr_rec_get_field_ref(rec, offsets, n)			\
 	((rec) + btr_rec_get_field_ref_offs(offsets, n))
-
-/** Gets the externally stored size of a record, in units of a database page.
-@param[in]	rec	record
-@param[in]	offsets	array returned by rec_get_offsets()
-@return externally stored part, in units of a database page */
-ulint
-btr_rec_get_externally_stored_len(
-	const rec_t*	rec,
-	const rec_offs*	offsets)
-{
-	ulint	n_fields;
-	ulint	total_extern_len = 0;
-	ulint	i;
-
-	ut_ad(!rec_offs_comp(offsets) || !rec_get_node_ptr_flag(rec));
-
-	if (!rec_offs_any_extern(offsets)) {
-		return(0);
-	}
-
-	n_fields = rec_offs_n_fields(offsets);
-
-	for (i = 0; i < n_fields; i++) {
-		if (rec_offs_nth_extern(offsets, i)) {
-
-			ulint	extern_len = mach_read_from_4(
-				btr_rec_get_field_ref(rec, offsets, i)
-				+ BTR_EXTERN_LEN + 4);
-
-			total_extern_len += ut_calc_align(
-				extern_len, ulint(srv_page_size));
-		}
-	}
-
-	return total_extern_len >> srv_page_size_shift;
-}
 
 /*******************************************************************//**
 Sets the ownership bit of an externally stored field in a record. */
