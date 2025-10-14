@@ -1171,21 +1171,25 @@ eval explain extended $q;
 
 let $q=
 select 2 union (values (5), (7), (1), (3), (4) limit 2);
+--replace_result * 2
 eval $q;
 eval explain extended $q;
 
 let $q=
 select 2 union (values (5), (7), (1), (3), (4) limit 2 offset 1);
+--replace_result * 2
 eval $q;
 eval explain extended $q;
 
 let $q=
 select 2 union (values (5), (7), (1), (3), (4) order by 1 limit 2);
+--replace_result * 2
 eval $q;
 eval explain extended $q;
 
 let $q=
 select 2 union (values (5), (7), (1), (3), (4) order by 1 limit 2 offset 1);
+--replace_result * 2
 eval $q;
 eval explain extended $q;
 
@@ -1193,6 +1197,7 @@ eval explain extended $q;
 let $q=
 (values (5), (7), (1), (3), (4) limit 2) union select 2;
 eval $q;
+--replace_result derived4 derived2
 eval explain extended $q;
 
 let $q=
@@ -1203,16 +1208,19 @@ eval explain extended $q;
 let $q=
 (values (5), (7), (1), (3), (4) order by 1 limit 2) union select 2;
 eval $q;
+--replace_result derived4 derived2
 eval explain extended $q;
 
 let $q=
 (values (5), (7), (1), (3), (4) order by 1 limit 2 offset 1) union select 2;
 eval $q;
+--replace_result derived4 derived2
 eval explain extended $q;
 
 
 let $q=
 select 3 union all (values (5), (7), (1), (3), (4) limit 2 offset 3);
+--replace_result * 3
 eval $q;
 eval explain extended $q;
 
@@ -1223,12 +1231,14 @@ eval explain extended $q;
 
 let $q=
 select 3 union all (values (5), (7), (1), (3), (4) order by 1 limit 2);
+--replace_result * 3
 eval $q;
 eval explain extended $q;
 
 let $q=
 (values (5), (7), (1), (3), (4) order by 1 limit 2) union all select 3;
 eval $q;
+--replace_result derived4 derived2
 eval explain extended $q;
 
 let $q=
@@ -1253,12 +1263,14 @@ eval explain extended $q;
 let $q=
 (values (5), (7), (1), (3), (4) order by 1 limit 3 offset 1) union all select 3 order by 1;
 eval $q;
+--replace_result derived4 derived2
 eval explain extended $q;
 
 let $q=
 (values (5), (7), (1), (3), (4) order by 1 limit 3 offset 1) union all select 3
  order by 1 limit 2 offset 1;
 eval $q;
+--replace_result derived4 derived2
 eval explain extended $q;
 
 --error ER_BAD_FIELD_ERROR
