@@ -49,16 +49,16 @@ typedef struct Compress_buffer
 void* comp_buf_alloc(Compress_buffer* comp_buf, size_t bytes)
 {
   void* buf;
-  if (comp_buf->write_pos + bytes + sizeof(unsigned long) >= comp_buf->buf_end)
+  if ((uchar*)comp_buf->write_pos + bytes + sizeof(unsigned long) >= (uchar*)comp_buf->buf_end)
   {
     buf= my_malloc(key_memory_my_compress_alloc, bytes, MYF(0));
   }
   else
   {
-    *(unsigned long*)(comp_buf->write_pos)= bytes;
-    comp_buf->write_pos+= sizeof(unsigned long);
+    *(unsigned long*)(comp_buf->write_pos)= (unsigned long)bytes;
+    comp_buf->write_pos= (uchar*)comp_buf->write_pos + sizeof(unsigned long);
     buf= comp_buf->write_pos;
-    comp_buf->write_pos+= bytes;
+    comp_buf->write_pos= (uchar*)comp_buf->write_pos + bytes;
   }
   return buf;
 }
@@ -69,9 +69,9 @@ void* comp_buf_alloc(Compress_buffer* comp_buf, size_t bytes)
 **/
 void comp_buf_dealloc(Compress_buffer* comp_buf, void* ptr)
 {
-  if (ptr >= comp_buf->buf + sizeof(unsigned long) && ptr < comp_buf->buf_end) 
+  if ((uchar*)ptr >= (uchar*)comp_buf->buf + sizeof(unsigned long) && ptr < comp_buf->buf_end) 
   {
-    comp_buf->write_pos= ptr - sizeof(unsigned long);
+    comp_buf->write_pos= (uchar*)ptr - sizeof(unsigned long);
   }
   else 
   {
@@ -321,9 +321,9 @@ int my_uncompress_buffer(uchar* dest, size_t* destLen,
   uLong len, left;
   Byte buf[1];    /* for detection of incomplete stream when *destLen == 0 */
 
-  len= *sourceLen;
+  len= (uLong)*sourceLen;
   if (*destLen) {
-      left= *destLen;
+      left= (uLong)*destLen;
       *destLen = 0;
   }
   else {
