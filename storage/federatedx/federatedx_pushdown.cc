@@ -227,10 +227,16 @@ void ha_federatedx_derived_handler::print_error(int, unsigned long)
 }
 
 
+static bool is_supported_by_select_handler(enum_sql_command sql_command)
+{
+  return sql_command == SQLCOM_SELECT || sql_command == SQLCOM_INSERT_SELECT;
+}
+
+
 static select_handler*
 create_federatedx_select_handler(THD* thd, SELECT_LEX *sel)
 {
-  if (!use_pushdown)
+  if (!use_pushdown || !is_supported_by_select_handler(thd->lex->sql_command))
     return 0;
 
   ha_federatedx_select_handler* handler = NULL;
