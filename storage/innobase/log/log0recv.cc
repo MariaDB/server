@@ -42,6 +42,8 @@ Created 9/20/1997 Heikki Tuuri
 #include "buf0dblwr.h"
 #include "buf0flu.h"
 #include "buf0checksum.h"
+#include "buf0lru.h"
+#include "buf0rea.h"
 #include "mtr0mtr.h"
 #include "mtr0log.h"
 #include "page0page.h"
@@ -50,7 +52,6 @@ Created 9/20/1997 Heikki Tuuri
 #include "trx0undo.h"
 #include "trx0rec.h"
 #include "fil0fil.h"
-#include "buf0rea.h"
 #include "srv0srv.h"
 #include "srv0start.h"
 #include "fil0pagecompress.h"
@@ -252,7 +253,7 @@ public:
     size_t size;
     const byte *page= block.page.zip.data;
     if (UNIV_LIKELY_NULL(page))
-      size= (UNIV_ZIP_SIZE_MIN >> 1) << block.page.zip.ssize;
+      size= (UNIV_ZIP_SIZE_MIN >> 1) << block.page.zip.ssize();
     else
     {
       page= block.page.frame;
@@ -375,7 +376,7 @@ page_corrupted:
       switch (b & 0x70) {
       case EXTENDED:
         if (UNIV_UNLIKELY(block.page.id().page_no() < 3 ||
-                          block.page.zip.ssize))
+                          block.page.zip.ssize()))
           goto record_corrupted;
         static_assert(INIT_ROW_FORMAT_REDUNDANT == 0, "compatibility");
         static_assert(INIT_ROW_FORMAT_DYNAMIC == 1, "compatibility");

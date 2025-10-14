@@ -36,22 +36,6 @@ Created 5/11/1994 Heikki Tuuri
 #include "trx0trx.h"
 #include <string>
 #include "log.h"
-#include "my_cpu.h"
-#ifndef DBUG_OFF
-#include "rem0rec.h"
-#endif
-
-/**********************************************************//**
-Returns the number of milliseconds since some epoch.  The
-value may wrap around.  It should only be used for heuristic
-purposes.
-@return ms since epoch */
-ulint
-ut_time_ms(void)
-/*============*/
-{
-	return static_cast<ulint>(my_interval_timer() / 1000000);
-}
 #endif /* !UNIV_INNOCHECKSUM */
 
 /**********************************************************//**
@@ -511,6 +495,7 @@ fatal_or_error::~fatal_or_error()
 } // namespace ib
 
 #ifndef DBUG_OFF
+# include "rem0rec.h"
 static char dbug_print_buf[1024];
 
 const char * dbug_print_rec(const rec_t* rec, const rec_offs* offsets)
