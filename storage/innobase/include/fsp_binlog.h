@@ -345,15 +345,21 @@ public:
   void remove(uint64_t file_no, LF_PINS *pins);
   /* Delete all (consecutive) entries from file_no down. */
   void remove_up_to(uint64_t file_no, LF_PINS *pins);
-  /* Update an entry when an OOB record is started/completed. */
-  bool oob_ref_inc(uint64_t file_no, LF_PINS *pins, bool do_xa= false);
-  bool oob_ref_dec(uint64_t file_no, LF_PINS *pins, bool do_xa= false);
+  /*
+    Update an entry when an OOB record is started/completed.
+    Returns the resulting refcount, or ~0 if entry not found.
+    The return is the xa refcnt if do_xa==true, else the oob refcnt.
+  */
+  uint64_t oob_ref_inc(uint64_t file_no, LF_PINS *pins, bool do_xa= false);
+  uint64_t oob_ref_dec(uint64_t file_no, LF_PINS *pins, bool do_xa= false);
   /* Update earliest_oob_ref when refcount drops to zero. */
   void do_zero_refcnt_action(uint64_t file_no, LF_PINS *pins,
                              bool active_moving);
   /* Update the oob and xa file_no's active at start of this file_no. */
   bool update_refs(uint64_t file_no, LF_PINS *pins,
                    uint64_t oob_ref, uint64_t xa_ref);
+  /* Update earliest_xa_ref when xa_refs changes 0->1 or 1->0. */
+  void update_earliest_xa_ref(uint64_t ref_file_no, LF_PINS *pins);
   /* Lookup the oob-referenced file_no from a file_no. */
   bool get_oob_ref_file_no(uint64_t file_no, LF_PINS *pins,
                            uint64_t *out_oob_ref_file_no);
@@ -380,6 +386,8 @@ public:
   struct saved_position {
     /* Current position file. */
     uint64_t file_no;
+    /* The file_no of the start of a record, if in_record is true. */
+    uint64_t rec_start_file_no;
     /* Current position page. */
     uint32_t page_no;
     /* Start of current chunk inside page. */

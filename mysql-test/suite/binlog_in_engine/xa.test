@@ -228,7 +228,6 @@ XA PREPARE 'y';
 --source include/restart_mysqld.inc
 
 XA ROLLBACK 'y';
-CALL mtr.add_suppression('Found 1 prepared XA transactions');
 
 
 
@@ -280,9 +279,8 @@ XA PREPARE 'xid44';
 # waited forever.
 --source include/restart_mysqld.inc
 
-# ToDo: commit here, when we have binlog XA recovery implemented.
-#XA COMMIT 'xid44';
-XA ROLLBACK 'xid44';
+XA COMMIT 'xid44';
+SELECT * FROM t1 WHERE a >= 10000 ORDER BY a;
 
 
 # Clean up.

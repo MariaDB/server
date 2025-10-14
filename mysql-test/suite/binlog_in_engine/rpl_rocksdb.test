@@ -138,10 +138,9 @@ XA END 'xid44';
 XA PREPARE 'xid44';
 --let $rpl_server_number= 1
 --source include/rpl_restart_server.inc
-# ToDo: commit here, when we have binlog XA recovery implemented.
-#XA COMMIT 'xid44';
-XA ROLLBACK 'xid44';
-CALL mtr.add_suppression('Found 1 prepared XA transactions');
+XA COMMIT 'xid44';
+SELECT * FROM t2 WHERE a=0;
+DELETE FROM t2 WHERE a=0;
 
 --echo *** XA transaction XID not freed in RocksDB
 

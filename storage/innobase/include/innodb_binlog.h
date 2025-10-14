@@ -185,6 +185,36 @@ public:
 };
 
 
+/**
+  Class that keeps track of the oob references etc. for each
+  XA PREPAREd XID.
+*/
+class ibb_xid_hash {
+public:
+  struct xid_elem {
+    XID xid;
+    uint64_t refcnt_file_no;
+    uint64_t oob_num_nodes;
+    uint64_t oob_first_file_no;
+    uint64_t oob_first_offset;
+    uint64_t oob_last_file_no;
+    uint64_t oob_last_offset;
+  };
+  HASH xid_hash;
+  mysql_mutex_t xid_mutex;
+
+  ibb_xid_hash();
+  ~ibb_xid_hash();
+  bool add_xid(const XID *xid, const binlog_oob_context *c);
+  bool add_xid(const XID *xid, uint64_t refcnt_file_no, LF_PINS *pins,
+               uint64_t num_nodes,
+               uint64_t first_file_no, uint64_t first_offset,
+               uint64_t last_file_no, uint64_t last_offset);
+  xid_elem *grab_xid(const XID *xid);
+  template <typename F> bool run_on_xid(const XID *xid, F callback);
+};
+
+
 #define BINLOG_NAME_BASE "binlog-"
 #define BINLOG_NAME_EXT ".ibb"
 /* '/' + "binlog-" + (<=20 digits) + '.' + "ibb" + '\0'. */
@@ -200,6 +230,7 @@ extern ulonglong innodb_binlog_state_interval;
 extern rpl_binlog_state_base binlog_diff_state;
 extern mysql_mutex_t purge_binlog_mutex;
 extern size_t total_binlog_used_size;
+extern ibb_xid_hash *ibb_xa_xid_hash;
 
 
 static inline void
@@ -231,7 +262,8 @@ extern int get_binlog_header(const char *binlog_path, byte *page_buf,
                              lsn_t &out_lsn, bool &out_empty) noexcept;
 extern dberr_t innodb_binlog_startup_init();
 extern void ibb_set_max_size(size_t binlog_size);
-extern bool innodb_binlog_init(size_t binlog_size, const char *directory);
+extern bool innodb_binlog_init(size_t binlog_size, const char *directory,
+                               HASH *recovery_hash);
 extern void innodb_binlog_close(bool shutdown);
 extern bool ibb_write_header_page(mtr_t *mtr, uint64_t file_no,
                                   uint64_t file_size_in_pages, lsn_t start_lsn,
