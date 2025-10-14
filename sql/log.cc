@@ -452,6 +452,10 @@ public:
     }
     engine_binlogged= FALSE;
     need_write_direct= FALSE;
+    /*
+      need_engine_2pc is not reset here, as we need it still, at the end of
+      MYSQL_LOG_BIN::log_and_order() where it will be reset.
+    */
   }
 
   binlog_cache_data* get_binlog_cache_data(bool is_transactional)
@@ -469,6 +473,9 @@ public:
   binlog_cache_data stmt_cache;
 
   binlog_cache_data trx_cache;
+
+  /* Buffer used to pass internal my_xid into engine as struct xid_t. */
+  XID xid_buf;
 
   /*
     Binlog position for current transaction.
@@ -501,6 +508,12 @@ public:
   */
   bool using_xa;
   my_xid xa_xid;
+  /*
+    Set true when not using --binlog-storage-engine and we need to decrement
+    the xid_list reference count for the transaction at unlog time. (The
+    xid_list refcounting is used to keep binlog files for recovery while
+    transactions may still be in the prepared state).
+  */
   bool need_unlog;
   /*
     Set true when binlog engine fetches the cache data with binlog_get_cache()
@@ -517,6 +530,12 @@ public:
     Id of binlog that transaction was written to; only needed if need_unlog is
     true.
   */
+  /*
+    Set when using --binlog-storage-engine, but there is another XA-capable
+    engine involved in the transaction, so that we need to do 2-phase commit
+    to ensure consistency in case of crash.
+  */
+  bool need_engine_2pc;
   ulong binlog_id;
   /* Set if we get an error during commit that must be returned from unlog(). */
   bool delayed_error;
@@ -2021,6 +2040,26 @@ binlog_flush_cache(THD *thd, binlog_cache_mngr *cache_mngr,
 }
 
 
+static void
+binlog_setup_engine_commit_data(handler_binlog_event_group_info *context,
+                                binlog_cache_mngr *cache_mngr)
+{
+  if (unlikely(context->xa_xid))
+  {
+    /* Mark that we are doing XA and need to unlog. */
+    cache_mngr->need_engine_2pc= true;
+  }
+  else if (unlikely(cache_mngr->need_engine_2pc))
+  {
+    /* Internal 2-phase with multiple xa-capable engines. */
+    DBUG_ASSERT(cache_mngr->xa_xid != 0);
+    cache_mngr->xid_buf.set(cache_mngr->xa_xid);
+    context->xa_xid= &cache_mngr->xid_buf;
+    context->internal_xa= true;
+  }
+}
+
+
 extern "C"
 void
 binlog_get_cache(THD *thd, uint64_t file_no, uint64_t offset,
@@ -2033,7 +2072,8 @@ binlog_get_cache(THD *thd, uint64_t file_no, uint64_t offset,
   binlog_cache_mngr *cache_mngr;
   const rpl_gtid *gtid= nullptr;
   /* opt_binlog_engine_hton can be unset during bootstrap. */
-  if (opt_binlog_engine_hton && (cache_mngr= thd->binlog_get_cache_mngr()))
+  if (likely(opt_binlog_engine_hton) &&
+      (cache_mngr= thd->binlog_get_cache_mngr()))
   {
     cache_mngr->engine_binlogged= TRUE;
     cache_mngr->last_commit_pos_file.engine_file_no= file_no;
@@ -2055,6 +2095,7 @@ binlog_get_cache(THD *thd, uint64_t file_no, uint64_t offset,
       else
         context->engine_ptr2= nullptr;
     }
+    binlog_setup_engine_commit_data(context, cache_mngr);
     gtid= thd->get_last_commit_gtid();
   }
   *out_cache= cache;
@@ -2131,8 +2172,11 @@ binlog_commit_flush_trx_cache(THD *thd, bool all, binlog_cache_mngr *cache_mngr,
                 XA_PREPARED);
 
     if (opt_binlog_engine_hton)
+    {
       cache_mngr->trx_cache.engine_binlog_info.xa_xid=
         thd->transaction->xid_state.get_xid();
+      cache_mngr->trx_cache.engine_binlog_info.internal_xa= false;
+    }
     else
     {
       buflen= serialize_with_xid(thd->transaction->xid_state.get_xid(),
@@ -2183,6 +2227,7 @@ binlog_rollback_flush_trx_cache(THD *thd, bool all,
         err= (*opt_binlog_engine_hton->binlog_xa_rollback)
           (thd, xid, &engine_context->engine_ptr);
       cache_mngr->reset(false, true);
+      cache_mngr->need_engine_2pc= true;
 
       return err;
     }
@@ -2612,7 +2657,8 @@ int binlog_commit(THD *thd, bool all, bool ro_1pc)
       if (cache_mngr->need_unlog && !is_xa_prepare)
       {
         error=
-          mysql_bin_log.unlog(BINLOG_COOKIE_MAKE(cache_mngr->binlog_id,
+          mysql_bin_log.unlog(thd,
+                              BINLOG_COOKIE_MAKE(cache_mngr->binlog_id,
                                                  cache_mngr->delayed_error), 1);
         cache_mngr->need_unlog= false;
       }
@@ -2626,6 +2672,80 @@ int binlog_commit(THD *thd, bool all, bool ro_1pc)
   THD_STAGE_INFO(thd, org_stage);
   DBUG_RETURN(error);
 }
+
+
+void
+binlog_post_commit(THD *thd, bool all)
+{
+  if (!opt_binlog_engine_hton)
+    return;
+
+  binlog_cache_mngr *cache_mngr= thd->binlog_get_cache_mngr();
+  if (likely(cache_mngr != nullptr) && unlikely(cache_mngr->need_engine_2pc))
+  {
+    DBUG_ASSERT(thd->lex->sql_command == SQLCOM_XA_COMMIT &&
+                thd->lex->xa_opt != XA_ONE_PHASE);
+    cache_mngr->need_engine_2pc= false;
+    (*opt_binlog_engine_hton->binlog_unlog)
+      (thd->transaction->xid_state.get_xid(),
+       &cache_mngr->trx_cache.engine_binlog_info.engine_ptr);
+  }
+}
+
+
+void
+binlog_post_commit_by_xid(handlerton *hton, XID *xid)
+{
+  if (!opt_binlog_engine_hton)
+    return;
+
+  THD *thd= current_thd;
+  binlog_cache_mngr *cache_mngr= thd->binlog_get_cache_mngr();
+  if (likely(cache_mngr != nullptr) && unlikely(cache_mngr->need_engine_2pc))
+  {
+    DBUG_ASSERT(thd->lex->sql_command == SQLCOM_XA_COMMIT &&
+                thd->lex->xa_opt != XA_ONE_PHASE);
+    cache_mngr->need_engine_2pc= false;
+    (*opt_binlog_engine_hton->binlog_unlog)
+      (xid, &cache_mngr->trx_cache.engine_binlog_info.engine_ptr);
+  }
+}
+
+
+void
+binlog_post_rollback(THD *thd, bool all)
+{
+  if (!opt_binlog_engine_hton)
+    return;
+  binlog_cache_mngr *cache_mngr= thd->binlog_get_cache_mngr();
+  if (likely(cache_mngr != nullptr) && unlikely(cache_mngr->need_engine_2pc))
+  {
+    DBUG_ASSERT(thd->lex->sql_command == SQLCOM_XA_ROLLBACK);
+    cache_mngr->need_engine_2pc= false;
+    (*opt_binlog_engine_hton->binlog_unlog)
+      (thd->transaction->xid_state.get_xid(),
+       &cache_mngr->trx_cache.engine_binlog_info.engine_ptr);
+  }
+}
+
+
+void
+binlog_post_rollback_by_xid(handlerton *hton, XID *xid)
+{
+  if (!opt_binlog_engine_hton)
+    return;
+
+  THD *thd= current_thd;
+  binlog_cache_mngr *cache_mngr= thd->binlog_get_cache_mngr();
+  if (likely(cache_mngr != nullptr) && unlikely(cache_mngr->need_engine_2pc))
+  {
+    DBUG_ASSERT(thd->lex->sql_command == SQLCOM_XA_ROLLBACK);
+    cache_mngr->need_engine_2pc= false;
+    (*opt_binlog_engine_hton->binlog_unlog)
+      (xid, &cache_mngr->trx_cache.engine_binlog_info.engine_ptr);
+  }
+}
+
 
 /**
   This function is called when a transaction or a statement is rolled back.
@@ -4595,7 +4715,7 @@ MYSQL_BIN_LOG::open_engine(handlerton *hton, ulong max_size, const char *dir)
     init_io_cache(&cache, (File)-1, binlog_cache_size, WRITE_CACHE, 0, false,
                   MYF(MY_DONT_CHECK_FILESIZE));
     handler_binlog_event_group_info engine_context=
-      { nullptr, nullptr, nullptr, 0, 0 };
+      { 0, 0, nullptr, nullptr, nullptr, 0, 0, 0 };
     write_event(&s, BINLOG_CHECKSUM_ALG_OFF, 0, &cache);
     mysql_mutex_lock(&LOCK_commit_ordered);
     (*opt_binlog_engine_hton->binlog_write_direct_ordered) (&cache,
@@ -8376,6 +8496,9 @@ err:
           goto engine_fail;
         }
         mysql_mutex_unlock(&LOCK_commit_ordered);
+        cache_mngr->last_commit_pos_file.engine_file_no=
+          engine_context->out_file_no;
+        cache_mngr->last_commit_pos_offset= engine_context->out_file_no;
 
         if (unlikely((*opt_binlog_engine_hton->binlog_write_direct)
                      (file, engine_context, commit_gtid)))
@@ -9439,6 +9562,7 @@ MYSQL_BIN_LOG::write_transaction_to_binlog(THD *thd,
       )
   {
     cache_mngr->need_unlog= false;
+    cache_mngr->need_engine_2pc= false;
     DBUG_RETURN(0);
   }
 
@@ -9448,21 +9572,32 @@ MYSQL_BIN_LOG::write_transaction_to_binlog(THD *thd,
   entry.all= all;
   entry.using_stmt_cache= using_stmt_cache;
   entry.using_trx_cache= using_trx_cache;
-  entry.need_unlog= is_preparing_xa(thd);
+  entry.need_unlog= unlikely(is_preparing_xa(thd)) && !opt_binlog_engine_hton;
   ha_info= all ? thd->transaction->all.ha_list : thd->transaction->stmt.ha_list;
   entry.ro_1pc= is_ro_1pc;
   entry.do_binlog_group_commit_ordered= false;
   entry.end_event= end_ev;
+  cache_mngr->need_engine_2pc= false;
   auto has_xid= entry.end_event->get_type_code() == XID_EVENT;
 
   for (; ha_info; ha_info= ha_info->next())
   {
-    if (likely(ha_info->is_started()))
+    if (likely(has_xid) && likely(ha_info->is_started()))
     {
-      if (has_xid && ha_info->ht() != binlog_hton &&
-          ha_info->is_trx_read_write() &&
-          !ha_info->ht()->commit_checkpoint_request)
-        entry.need_unlog= true;
+      if (opt_binlog_engine_hton)
+      {
+        if (ha_info->ht() != binlog_hton &&
+            ha_info->ht() != opt_binlog_engine_hton &&
+            ha_info->is_trx_read_write())
+          cache_mngr->need_engine_2pc= true;
+      }
+      else
+      {
+        if (ha_info->ht() != binlog_hton &&
+            ha_info->is_trx_read_write() &&
+            !ha_info->ht()->commit_checkpoint_request)
+          entry.need_unlog= true;
+      }
     }
     else
       break;
@@ -9916,12 +10051,17 @@ MYSQL_BIN_LOG::write_transaction_to_binlog_events(group_commit_entry *entry)
       IO_CACHE *file= &cache_data->cache_log;
       handler_binlog_event_group_info *engine_context=
         &cache_data->engine_binlog_info;
+      binlog_setup_engine_commit_data(engine_context, cache_mngr);
       if (likely(!entry->error))
       {
         entry->error= (*opt_binlog_engine_hton->binlog_write_direct_ordered)
           (file, engine_context, entry->thd->get_last_commit_gtid());
         if (likely(!entry->error))
         {
+          cache_mngr->last_commit_pos_file.engine_file_no=
+            engine_context->out_file_no;
+          cache_mngr->last_commit_pos_offset= engine_context->out_file_no;
+
           /* Mark to call binlog_write_direct() later. */
           cache_mngr->need_write_direct= TRUE;
         }
@@ -10406,12 +10546,17 @@ MYSQL_BIN_LOG::trx_group_commit_leader(group_commit_entry *leader)
       IO_CACHE *file= &cache_data->cache_log;
       handler_binlog_event_group_info *engine_context=
         &cache_data->engine_binlog_info;
+      binlog_setup_engine_commit_data(engine_context, cache_mngr);
       if (likely(!current->error))
       {
         current->error= (*opt_binlog_engine_hton->binlog_write_direct_ordered)
           (file, engine_context, current->thd->get_last_commit_gtid());
         if (likely(!current->error))
         {
+          cache_mngr->last_commit_pos_file.engine_file_no=
+            engine_context->out_file_no;
+          cache_mngr->last_commit_pos_offset= engine_context->out_file_no;
+
           /* Mark to call binlog_write_direct later. */
           cache_mngr->need_write_direct= TRUE;
         }
@@ -11863,7 +12008,7 @@ mmap_do_checkpoint_callback(void *data)
   ++pending->pending_count;
 }
 
-int TC_LOG_MMAP::unlog(ulong cookie, my_xid xid)
+int TC_LOG_MMAP::unlog(THD *thd, ulong cookie, my_xid xid)
 {
   pending_cookies *full_buffer= NULL;
   uint32 ncookies= tc_log_page_size / sizeof(my_xid);
@@ -12312,6 +12457,13 @@ TC_LOG_BINLOG::log_and_order(THD *thd, my_xid xid, bool all,
                 relocated to the current or later point.
   */
   cache_mngr->need_unlog= false;
+
+  if (unlikely(cache_mngr->need_engine_2pc))
+  {
+    DBUG_ASSERT(!need_unlog);
+    cache_mngr->need_engine_2pc= false;
+    DBUG_RETURN(BINLOG_COOKIE_ENGINE_UNLOG(cache_mngr->delayed_error));
+  }
   /*
     If using explicit user XA, we will not have XID. We must still return a
     non-zero cookie (as zero cookie signals error).
@@ -12472,13 +12624,24 @@ TC_LOG_BINLOG::mark_xid_done(ulong binlog_id, bool write_checkpoint)
   DBUG_VOID_RETURN;
 }
 
-int TC_LOG_BINLOG::unlog(ulong cookie, my_xid xid)
+int TC_LOG_BINLOG::unlog(THD *thd, ulong cookie, my_xid xid)
 {
   DBUG_ENTER("TC_LOG_BINLOG::unlog");
   if (!xid)
     DBUG_RETURN(0);
 
-  if (!BINLOG_COOKIE_IS_DUMMY(cookie))
+  if (BINLOG_COOKIE_IS_ENGINE_UNLOG(cookie))
+  {
+    DBUG_ASSERT(opt_binlog_engine_hton);
+    XID xid_buf;
+    xid_buf.set(xid);
+    binlog_cache_mngr *cache_mngr= thd->binlog_get_cache_mngr();
+    DBUG_ASSERT(cache_mngr != nullptr);
+    if (likely(cache_mngr != nullptr))
+      (*opt_binlog_engine_hton->binlog_unlog)
+        (&xid_buf, &cache_mngr->trx_cache.engine_binlog_info.engine_ptr);
+  }
+  else if (!BINLOG_COOKIE_IS_DUMMY(cookie))
     mark_xid_done(BINLOG_COOKIE_GET_ID(cookie), true);
   /*
     See comment in trx_group_commit_leader() - if rotate() gave a failure,
@@ -12529,7 +12692,7 @@ int TC_LOG_BINLOG::unlog_xa_prepare(THD *thd, bool all)
   cookie= BINLOG_COOKIE_MAKE(cache_mngr->binlog_id, cache_mngr->delayed_error);
   cache_mngr->need_unlog= false;
 
-  return unlog(cookie, 1);
+  return unlog(thd, cookie, 1);
 }
 
 

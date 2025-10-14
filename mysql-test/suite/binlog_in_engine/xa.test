@@ -28,6 +28,24 @@ XA PREPARE 'a';
 --connect con2,localhost,root,,
 XA COMMIT 'a';
 
+# Also test rollback from separate client session.
+--connect con1_roll,localhost,root,,
+--let $con1_roll_id= `SELECT connection_id()`
+XA START 'a_roll';
+INSERT INTO t1 VALUES (1001, 0);
+INSERT INTO t1 VALUES (1002, 0);
+INSERT INTO t1 VALUES (1003, 0);
+XA END 'a_roll';
+XA PREPARE 'a_roll';
+
+--connection default
+--disconnect con1_roll
+--let $wait_condition= SELECT NOT EXISTS (SELECT ID FROM INFORMATION_SCHEMA.PROCESSLIST WHERE ID=$con1_roll_id)
+--source include/wait_condition.inc
+
+--connection con2
+XA ROLLBACK 'a_roll';
+
 --connection default
 
 XA START 'b';
@@ -36,6 +54,12 @@ XA END 'b';
 XA PREPARE 'b';
 XA COMMIT 'b';
 
+XA START 'b_roll';
+UPDATE t1 SET b=3 WHERE a=1;
+XA END 'b_roll';
+XA PREPARE 'b_roll';
+XA ROLLBACK 'b_roll';
+
 XA START 'c';
 UPDATE t1 SET b=3 WHERE a=3;
 XA END 'c';
@@ -43,7 +67,41 @@ XA COMMIT 'c' ONE PHASE;
 
 SELECT * FROM t1 ORDER BY a;
 
---let $binlog_limit= 13
+# Some queries that create empty XA transactions.
+CREATE TABLE t2 (a INT) ENGINE=MyISAM;
+CREATE TABLE t3 (id INT PRIMARY KEY) ENGINE=InnoDB;
+INSERT INTO t2 VALUES (1),(2);
+INSERT INTO t3 VALUES (1),(2);
+
+XA START '1';
+REPLACE INTO t2 SELECT * FROM t2;
+REPLACE INTO t3 SELECT * FROM t3;
+XA END '1';
+XA PREPARE '1';
+XA RECOVER FORMAT='SQL';
+
+# Cleanup
+XA ROLLBACK '1';
+DROP TABLE t2, t3;
+
+CREATE TABLE t2 (a INT PRIMARY KEY) ENGINE=InnoDB;
+INSERT INTO t2 VALUES (1);
+CREATE SEQUENCE s ENGINE=InnoDB;
+
+XA START '2';
+SELECT NEXT VALUE FOR s;
+REPLACE INTO t2 SELECT * FROM t2;
+XA END '2';
+XA PREPARE '2';
+XA RECOVER FORMAT='SQL';
+
+# Cleanup
+XA ROLLBACK '2';
+DROP SEQUENCE s;
+DROP TABLE t2;
+
+
+--let $binlog_limit= 100
 --source include/show_binlog_events.inc
 
 

@@ -319,6 +319,7 @@ class ibb_xid_hash {
 public:
   struct xid_elem {
     XID xid;
+    uint64_t refcnt_file_no;
     uint64_t oob_num_nodes;
     uint64_t oob_first_file_no;
     uint64_t oob_first_offset;
@@ -332,6 +333,7 @@ public:
   ~ibb_xid_hash();
   bool add_xid(const XID *xid, const binlog_oob_context *c);
   xid_elem *grab_xid(const XID *xid);
+  template <typename F> bool run_on_xid(const XID *xid, F callback);
 };
 
 
@@ -366,33 +368,36 @@ struct chunk_data_cache : public chunk_data_base {
     oob_ctx= c;
     if (UNIV_UNLIKELY(!c))
       ;
-    else if (UNIV_UNLIKELY(binlog_info->xa_xid != nullptr))
+    else if (UNIV_UNLIKELY(binlog_info->xa_xid != nullptr) &&
+             !binlog_info->internal_xa)
     {
-      ibb_xid_hash::xid_elem *elem=
-        ibb_xa_xid_hash->grab_xid(binlog_info->xa_xid);
-      ut_a(elem != nullptr
-           /*
-             The XID must always be found, else we have a serious
-             inconsistency between the server layer and binlog state.
-             In case of inconsistency, better crash than leave a corrupt
-             binlog.
-           */
-           );
+      /*
+        For explicit user XA COMMIT, the commit record must point to the
+        OOB data previously saved in XA PREPARE.
+      */
+      bool err= ibb_xa_xid_hash->run_on_xid(binlog_info->xa_xid,
+        [&p](const ibb_xid_hash::xid_elem *elem) -> bool {
+          if (UNIV_LIKELY(elem->oob_num_nodes > 0))
+          {
+            p= compr_int_write(p, elem->oob_num_nodes);
+            p= compr_int_write(p, elem->oob_first_file_no);
+            p= compr_int_write(p, elem->oob_first_offset);
+            p= compr_int_write(p, elem->oob_last_file_no);
+            p= compr_int_write(p, elem->oob_last_offset);
+            p= compr_int_write(p, 0);
+          }
+          else
+            p= compr_int_write(p, 0);
+          return false;
+        });
+      /*
+        The XID must always be found, else we have a serious
+        inconsistency between the server layer and binlog state.
+        In case of inconsistency, better crash than leave a corrupt
+        binlog.
+      */
+      ut_a(!err);
       ut_ad(binlog_info->engine_ptr2 == nullptr);
-      if (UNIV_LIKELY(elem->oob_num_nodes > 0))
-      {
-        p= compr_int_write(p, elem->oob_num_nodes);
-        p= compr_int_write(p, elem->oob_first_file_no);
-        p= compr_int_write(p, elem->oob_first_offset);
-        p= compr_int_write(p, elem->oob_last_file_no);
-        p= compr_int_write(p, elem->oob_last_offset);
-        p= compr_int_write(p, 0);
-        ibb_file_hash.oob_ref_dec(elem->oob_first_file_no, c->lf_pins, true);
-      }
-      else
-        p= compr_int_write(p, 0);
-
-      my_free(elem);
     }
     else if (c->node_list_len)
     {
@@ -440,6 +445,18 @@ struct chunk_data_cache : public chunk_data_base {
     ut_ad((size_t)(p - header_buf) <= sizeof(header_buf));
 
     ut_ad (cache->pos_in_file <= binlog_info->out_of_band_offset);
+
+    if (UNIV_UNLIKELY(binlog_info->internal_xa))
+    {
+      /*
+        Insert the XID for the internal 2-phase commit in the xid_hash,
+        incrementing the reference count. This will ensure we hold on to
+        the commit record until ibb_binlog_unlog() is called, at which point
+        the other participating storage engine(s) have durably committed.
+      */
+      bool err= ibb_xa_xid_hash->add_xid(binlog_info->xa_xid, c);
+      ut_a(!err);
+    }
 
     /* Start with the GTID event, which is put at the end of the IO_CACHE. */
     my_bool res= reinit_io_cache(cache, READ_CACHE, binlog_info->gtid_offset, 0, 0);
@@ -516,38 +533,18 @@ struct chunk_data_cache : public chunk_data_base {
 };
 
 
-struct chunk_data_xa_prepare : public chunk_data_base {
+template<uint32_t bufsize_>
+struct chunk_data_from_buf : public chunk_data_base {
+  static constexpr uint32_t bufsize= bufsize_;
+
   uint32_t data_remain;
   uint32_t data_sofar;
-  /*
-    Size needed for the XA record data:
-      1 byte type/flag.
-      1 byte engine count.
-      4 bytes formatID
-      1 byte gtrid length
-      1 byte bqual length
-      128 bytes (max) gtrid and bqual strings.
-  */
-  byte buffer[1 + 1 + 4 + 1 + 1 + 128];
+  byte buffer[bufsize];
 
-  chunk_data_xa_prepare(const XID *xid, uchar engine_count)
-    : data_sofar(0)
+  chunk_data_from_buf() : data_sofar(0)
   {
-    /* ToDo: Need the correct data here, like the oob references. To be done when we start doing the XA crash recovery. */
-    buffer[0]= 42 /* ToDo */;
-    buffer[1]= engine_count;
-    int4store(&buffer[2], xid->formatID);
-    ut_a(xid->gtrid_length >= 0 && xid->gtrid_length <= 64);
-    buffer[6]= (uchar)xid->gtrid_length;
-    ut_a(xid->bqual_length >= 0 && xid->bqual_length <= 64);
-    buffer[7]= (uchar)xid->bqual_length;
-    memcpy(&buffer[8], &xid->data[0], xid->gtrid_length);
-    memcpy(&buffer[8 + xid->gtrid_length], &xid->data[xid->gtrid_length],
-           xid->bqual_length);
-    data_remain=
-      static_cast<uint32_t>(8 + xid->gtrid_length + xid->bqual_length);
+    /* data_remain must be initialized in derived class constructor. */
   }
-  ~chunk_data_xa_prepare() { }
 
   virtual std::pair<uint32_t, bool> copy_data(byte *p, uint32_t max_len) final
   {
@@ -559,6 +556,68 @@ struct chunk_data_xa_prepare : public chunk_data_base {
     data_sofar+= size;
     return {size, data_remain == 0};
   }
+  ~chunk_data_from_buf() { }
+};
+
+
+/**
+  Record data for the XA prepare record.
+
+  Size needed for the record data:
+    1 byte type/flag.
+    1 byte engine count.
+    4 bytes formatID
+    1 byte gtrid length
+    1 byte bqual length
+    128 bytes (max) gtrid and bqual strings.
+*/
+struct chunk_data_xa_prepare :
+  public chunk_data_from_buf<1 + 1 + 4 + 1 + 1 + 128> {
+
+  chunk_data_xa_prepare(const XID *xid, uchar engine_count)
+  {
+    /* ToDo: Need the correct data here, like the oob references. To be done when we start doing the XA crash recovery. */
+    buffer[0]= 42 /* ToDo */;
+    buffer[1]= engine_count;
+    int4store(&buffer[2], xid->formatID);
+    ut_a(xid->gtrid_length >= 0 && xid->gtrid_length <= 64);
+    buffer[6]= (uchar)xid->gtrid_length;
+    ut_a(xid->bqual_length >= 0 && xid->bqual_length <= 64);
+    buffer[7]= (uchar)xid->bqual_length;
+    memcpy(&buffer[8], &xid->data[0], xid->gtrid_length + xid->bqual_length);
+    data_remain=
+      static_cast<uint32_t>(8 + xid->gtrid_length + xid->bqual_length);
+  }
+  ~chunk_data_xa_prepare() { }
+};
+
+
+/**
+  Record data for the XA COMMIT or XA ROLLBACK record.
+
+  Size needed for the record data:
+    1 byte type/flag.
+    4 bytes formatID
+    1 byte gtrid length
+    1 byte bqual length
+    128 bytes (max) gtrid and bqual strings.
+*/
+struct chunk_data_xa_complete :
+  public chunk_data_from_buf<1 + 4 + 1 + 1 + 128> {
+
+  chunk_data_xa_complete(const XID *xid, bool is_commit)
+  {
+    buffer[0]= (is_commit ? IBB_FL_XA_TYPE_COMMIT : IBB_FL_XA_TYPE_ROLLBACK);
+    int4store(&buffer[1], xid->formatID);
+    ut_a(xid->gtrid_length >= 0 && xid->gtrid_length <= 64);
+    buffer[5]= (uchar)xid->gtrid_length;
+    ut_a(xid->bqual_length >= 0 && xid->bqual_length <= 64);
+    buffer[6]= (uchar)xid->bqual_length;
+    memcpy(&buffer[7], &xid->data[0], xid->gtrid_length + xid->bqual_length);
+    data_remain=
+      static_cast<uint32_t>(7 + xid->gtrid_length + xid->bqual_length);
+  }
+  ~chunk_data_xa_complete() { }
 };
 
 
@@ -2348,6 +2407,21 @@ innodb_binlog_write_cache(IO_CACHE *cache,
   if (!c)
     binlog_info->engine_ptr= c= alloc_oob_context();
   ut_a(c);
+
+  if (unlikely(binlog_info->xa_xid))
+  {
+    /*
+      Write an XID commit record just before the main commit record.
+      The XID commit record just contains the XID, and is used by binlog XA
+      crash recovery to ensure than the other storage engine(s) that are part
+      of the transaciton commit or rollback consistently with the binlog
+      engine.
+    */
+    chunk_data_xa_complete chunk_data2(binlog_info->xa_xid, true);
+    fsp_binlog_write_rec(&chunk_data2, mtr, FSP_BINLOG_TYPE_XA_COMPLETE,
+                         c->lf_pins);
+  }
+
   chunk_data_cache chunk_data(cache, binlog_info);
 
   fsp_binlog_write_rec(&chunk_data, mtr, FSP_BINLOG_TYPE_COMMIT, c->lf_pins);
@@ -3742,7 +3816,8 @@ ibb_xid_hash::add_xid(const XID *xid, const binlog_oob_context *c)
     my_error(ER_OUTOFMEMORY, MYF(0), (int)sizeof(xid_elem));
     return true;
   }
-  memcpy(&e->xid, xid, sizeof(e->xid));
+  e->xid.set(xid);
+  uint64_t refcnt_file_no;
   if (UNIV_LIKELY(c->node_list_len > 0))
   {
     uint32_t last= c->node_list_len-1;
@@ -3751,6 +3826,7 @@ ibb_xid_hash::add_xid(const XID *xid, const binlog_oob_context *c)
     e->oob_first_offset= c->first_node_offset;
     e->oob_last_file_no= c->node_list[last].file_no;
     e->oob_last_offset= c->node_list[last].offset;
+    refcnt_file_no= e->oob_first_file_no;
   }
   else
   {
@@ -3759,7 +3835,13 @@ ibb_xid_hash::add_xid(const XID *xid, const binlog_oob_context *c)
     e->oob_first_offset= 0;
     e->oob_last_file_no= 0;
     e->oob_last_offset= 0;
+    /*
+      Empty XA transaction, but we still need to ensure the prepare record
+      is kept until the (empty) transactions gets XA COMMMIT'ted.
+    */
+    refcnt_file_no= active_binlog_file_no.load(std::memory_order_acquire);
   }
+  e->refcnt_file_no= refcnt_file_no;
   mysql_mutex_lock(&xid_mutex);
   if (my_hash_insert(&xid_hash, (uchar *)e))
   {
@@ -3768,7 +3850,28 @@ ibb_xid_hash::add_xid(const XID *xid, const binlog_oob_context *c)
     return true;
   }
   mysql_mutex_unlock(&xid_mutex);
+  ibb_file_hash.oob_ref_inc(refcnt_file_no, c->lf_pins, true);
   return false;
+}
+
+
+template <typename F> bool
+ibb_xid_hash::run_on_xid(const XID *xid, F callback)
+{
+  size_t key_len= 0;
+  const uchar *key_ptr= get_xid_hash_key(xid, &key_len, 1);
+  bool err;
+
+  mysql_mutex_lock(&xid_mutex);
+  uchar *rec= my_hash_search(&xid_hash, key_ptr, key_len);
+  if (UNIV_LIKELY(rec != nullptr))
+  {
+    err= callback(reinterpret_cast<xid_elem *>(rec));
+  }
+  else
+    err= true;
+  mysql_mutex_unlock(&xid_mutex);
+  return err;
 }
 
 
@@ -3782,12 +3885,14 @@ ibb_xid_hash::grab_xid(const XID *xid)
   xid_elem *e= nullptr;
   size_t key_len= 0;
   const uchar *key_ptr= get_xid_hash_key(xid, &key_len, 1);
+  mysql_mutex_lock(&xid_mutex);
   uchar *rec= my_hash_search(&xid_hash, key_ptr, key_len);
   if (UNIV_LIKELY(rec != nullptr))
   {
     e= reinterpret_cast<xid_elem *>(rec);
     my_hash_delete(&xid_hash, rec);
   }
+  mysql_mutex_unlock(&xid_mutex);
   return e;
 }
 
@@ -3847,6 +3952,7 @@ innobase_binlog_write_direct_ordered(IO_CACHE *cache,
   ut_ad(binlog_info->engine_ptr2 == nullptr);
   if (gtid)
     binlog_diff_state.update_nolock(gtid);
+  innodb_binlog_status(&binlog_info->out_file_no, &binlog_info->out_offset);
   mtr.start();
   innodb_binlog_write_cache(cache, binlog_info, &mtr);
   mtr.commit();
@@ -3923,17 +4029,6 @@ ibb_write_xa_prepare(THD *thd,
   if (ibb_xa_xid_hash->add_xid(binlog_info->xa_xid, c))
     return true;
 
-  if (UNIV_LIKELY(c->node_list_len > 0))
-  {
-    /*
-      Increment the reference count on the file_no containing the (start of
-      the) OOB data, so we will not purge that file while the XA transaction
-      is pending.
-    */
-    if (ibb_file_hash.oob_ref_inc(c->first_node_file_no, c->lf_pins, true))
-      return true;
-  }
-
   /*
     Sync the redo log to ensure that the prepare record is durably written to
     disk. This is necessary before returning OK to the client, to be sure we
@@ -3954,8 +4049,18 @@ ibb_xa_rollback_ordered(THD *thd, const XID *xid, void **engine_data)
   if (UNIV_UNLIKELY(c == nullptr))
     *engine_data= c= alloc_oob_context();
 
-  // ToDo: Write ROLLBACK record to the binlog.
-  // ToDo: Save the lsn of the record in c->pending_lsn
+  /*
+    Write ROLLBACK record to the binlog.
+    This will be used during recovery to know that the XID is no longer active,
+    allowing purge of the associated binlogs.
+  */
+  chunk_data_xa_complete chunk_data(xid, false);
+  mtr_t mtr;
+  mtr.start();
+  fsp_binlog_write_rec(&chunk_data, &mtr, FSP_BINLOG_TYPE_XA_COMPLETE,
+                       c->lf_pins);
+  mtr.commit();
+  c->pending_lsn= mtr.commit_lsn();
 
   return false;
 }
@@ -3967,21 +4072,38 @@ ibb_xa_rollback(THD *thd, const XID *xid, void **engine_data)
   binlog_oob_context *c=
     static_cast<binlog_oob_context *>(*engine_data);
 
-  ibb_xid_hash::xid_elem *elem= ibb_xa_xid_hash->grab_xid(xid);
-  if (elem)
-  {
-    ibb_file_hash.oob_ref_dec(elem->oob_first_file_no, c->lf_pins, true);
-    my_free(elem);
-  }
+  /*
+    Keep the reference count here, as we need the rollback record to be
+    available for recovery until all engines have durably rolled back.
+    Decrement will happen after that, in ibb_binlog_unlog().
+  */
 
   /*
     Durably write the rollback record to disk. This way, when we return the
     "ok" packet to the client, we are sure that crash recovery will make the
     XID rollback in engines if needed.
   */
+  ut_ad(c->pending_lsn > 0);
   if (srv_flush_log_at_trx_commit > 0)
     log_write_up_to(c->pending_lsn, (srv_flush_log_at_trx_commit & 1));
+  c->pending_lsn= 0;
   return false;
+}
+
+
+void
+ibb_binlog_unlog(const XID *xid, void **engine_data)
+{
+  binlog_oob_context *c=
+    static_cast<binlog_oob_context *>(*engine_data);
+  if (UNIV_UNLIKELY(c == nullptr))
+    *engine_data= c= alloc_oob_context();
+  ibb_xid_hash::xid_elem *elem= ibb_xa_xid_hash->grab_xid(xid);
+  if (elem)
+  {
+    ibb_file_hash.oob_ref_dec(elem->refcnt_file_no, c->lf_pins, true);
+    my_free(elem);
+  }
 }
 
 

@@ -4158,6 +4158,7 @@ static int innodb_init(void* p)
         innobase_hton->binlog_xa_rollback_ordered=
           ibb_xa_rollback_ordered;
         innobase_hton->binlog_xa_rollback= ibb_xa_rollback;
+        innobase_hton->binlog_unlog= ibb_binlog_unlog;
         innobase_hton->get_binlog_reader= innodb_get_binlog_reader;
         innobase_hton->get_binlog_file_list= innodb_get_binlog_file_list;
         innobase_hton->get_filename= ibb_get_filename;
@@ -4467,8 +4468,8 @@ innobase_commit_ordered(
 	DBUG_ASSERT(all ||
 		(!thd_test_options(thd, OPTION_NOT_AUTOCOMMIT | OPTION_BEGIN)));
 
-	innobase_commit_ordered_2(trx, thd);
 	trx->active_commit_ordered = true;
+	innobase_commit_ordered_2(trx, thd);
 
 	DBUG_VOID_RETURN;
 }

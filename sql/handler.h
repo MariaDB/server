@@ -917,7 +917,7 @@ struct xid_t {
   { return !xid->is_null() && eq(xid->gtrid_length, xid->bqual_length, xid->data); }
   bool eq(long g, long b, const char *d) const
   { return !is_null() && g == gtrid_length && b == bqual_length && !memcmp(d, data, g+b); }
-  void set(struct xid_t *xid)
+  void set(const struct xid_t *xid)
   { memcpy(this, xid, xid->length()); }
   void set(long f, const char *g, long gl, const char *b, long bl)
   {
@@ -965,7 +965,7 @@ struct xid_t {
     memcpy(&trx_server_id, data+MYSQL_XID_PREFIX_LEN, sizeof(trx_server_id));
     return trx_server_id;
   }
-  uint length()
+  uint length() const
   {
     return static_cast<uint>(sizeof(formatID)) + key_length();
   }
@@ -1629,6 +1629,17 @@ struct handlerton
   bool (*binlog_xa_rollback_ordered)(THD *thd, const XID *xid,
                                      void **engine_data);
   bool (*binlog_xa_rollback)(THD *thd, const XID *xid, void **engine_data);
+  /*
+    The "unlog" method is used after a commit with an XID - either internal
+    2-phase commit with a separate storage engine, or explicit user
+    XA COMMIT. For user XA, it is also used after XA ROLLBACK.
+
+    The binlog first writes the commit durably, then the engines commit
+    durably, and finally "unlog" is done. The binlog engine must ensure it
+    can recover the committed XID until unlog has been called, after which
+    point resources can be freed, binlog files purged, etc.
+  */
+  void (*binlog_unlog)(const XID *xid, void **engine_data);
   /*
     Obtain an object to allow reading from the binlog.
     The boolean argument wait_durable is set to true to require that
@@ -5953,6 +5964,13 @@ String dbug_format_row(TABLE *table, const uchar *rec, bool print_names= true);
 
 /* Struct with info about an event group to be binlogged by a storage engine. */
 struct handler_binlog_event_group_info {
+  /*
+    These are returned by (set by) the binlog_write_direct_ordered hton
+    method to approximate/best-effort position of the start of where the
+    event group was written.
+  */
+  uint64_t out_file_no;
+  uint64_t out_offset;
   /* Opaque pointer for the engine's use. */
   void *engine_ptr;
   /*
@@ -5979,6 +5997,22 @@ struct handler_binlog_event_group_info {
     at the end of the IO_CACHE containing the data to be binlogged.
   */
   my_off_t gtid_offset;
+  /*
+    If xa_xid is non-NULL, this is set for an internal 2-phase commit between
+    the engine binlog and one or more additional storage engines participating
+    in the transaction. In this case, there is no call to the
+    binlog_write_xa_prepare() method. The binlog engine must record durably
+    that the xa_xid was committed, and in case of recovery it must pass the
+    xa_xid to the server layer for it to commit in all participating engines.
+
+    If not set, any XID is user external XA, and the xa_xid was previously
+    passed to binlog_write_xa_prepare(). The binlog engine must again record
+    durably that the xa_xid was committed and recover it in case of crash.
+
+    The ability to recover the xa_xid must remain until the binlog_xa_unlog()
+    method is called.
+  */
+  bool internal_xa;
 };
 
 

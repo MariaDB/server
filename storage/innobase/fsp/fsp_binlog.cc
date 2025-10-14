@@ -296,13 +296,20 @@ fsp_binlog_page_fifo::release_page_mtr(fsp_binlog_page_entry *page, mtr_t *mtr)
   if (!page->last_page)
     return release_page(page);
 
+  /*
+    Check against having two pending last-in-binlog-file pages to release.
+    But allow to have the same page released twice in a single mtr (this can
+    happen when 2-phase commit puts an XID/XA complete record just in front
+    of the commit record).
+  */
   fsp_binlog_page_entry *old_page= mtr->get_binlog_page();
-  ut_ad(!old_page);
+  ut_ad(!(old_page != nullptr && old_page != page));
   if (UNIV_UNLIKELY(old_page != nullptr))
   {
-    sql_print_error("InnoDB: Internal inconsistency with mini-transaction that "
-                    "spans more than two binlog files. Recovery may be "
-                    "affected until the next checkpoint.");
+    if (UNIV_UNLIKELY(old_page != page))
+      sql_print_error("InnoDB: Internal inconsistency with mini-transaction "
+                      "that spans more than two binlog files. Recovery may "
+                      "be affected until the next checkpoint.");
     release_page(old_page);
   }
   mtr->set_binlog_page(page);

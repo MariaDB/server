@@ -1528,11 +1528,11 @@ int ha_prepare(THD *thd)
 
   if (ha_info)
   {
-    if (tc_log->log_xa_prepare(thd, all))
+    if (unlikely(tc_log->log_xa_prepare(thd, all)))
     {
       ha_rollback_trans(thd, all);
       error= 1;
-      DBUG_RETURN(error);
+      goto binlog_error;
     }
     for (; ha_info; ha_info= ha_info->next())
     {
@@ -1556,6 +1556,7 @@ int ha_prepare(THD *thd)
       }
     }
 
+binlog_error:
     DEBUG_SYNC(thd, "at_unlog_xa_prepare");
 
     if (tc_log->unlog_xa_prepare(thd, all))
@@ -2063,14 +2064,14 @@ int ha_commit_trans(THD *thd, bool all)
     if (wsrep_must_abort(thd))
     {
       mysql_mutex_unlock(&thd->LOCK_thd_data);
-      (void)tc_log->unlog(cookie, xid);
+      (void)tc_log->unlog(thd, cookie, xid);
       goto wsrep_err;
     }
     mysql_mutex_unlock(&thd->LOCK_thd_data);
   }
 #endif /* WITH_WSREP */
   DBUG_EXECUTE_IF("crash_commit_before_unlog", DBUG_SUICIDE(););
-  if (tc_log->unlog(cookie, xid))
+  if (tc_log->unlog(thd, cookie, xid))
     error= 2;                                /* Error during commit */
 
 done:
@@ -2226,8 +2227,8 @@ commit_one_phase_2(THD *thd, bool all, THD_TRANS *trans, bool is_real_trans)
   if (ha_info)
   {
     int err= 0;
-
-    if (has_binlog_hton(ha_info) &&
+    bool is_binlogged= has_binlog_hton(ha_info);
+    if (is_binlogged &&
         (err= binlog_commit(thd, all,
                             is_ro_1pc_trans(thd, ha_info, all, is_real_trans))))
     {
@@ -2251,6 +2252,8 @@ commit_one_phase_2(THD *thd, bool all, THD_TRANS *trans, bool is_real_trans)
       ha_info_next= ha_info->next();
       ha_info->reset(); /* keep it conveniently zero-filled */
     }
+    if (is_binlogged && is_real_trans)
+      binlog_post_commit(thd, all);
     trans->ha_list= 0;
     trans->no_2pc=0;
     if (all)
@@ -2391,6 +2394,8 @@ int ha_rollback_trans(THD *thd, bool all)
     trans->no_2pc=0;
   }
 
+  binlog_post_rollback(thd, all);
+
 #ifdef WITH_WSREP
   if (WSREP(thd) && thd->is_error())
   {
@@ -2502,6 +2507,10 @@ int ha_commit_or_rollback_by_xid(XID *xid, bool commit)
   plugin_foreach(NULL, commit ? xacommit_handlerton : xarollback_handlerton,
                  MYSQL_STORAGE_ENGINE_PLUGIN, &xaop);
 
+  if (commit)
+    binlog_post_commit_by_xid(binlog_hton, xid);
+  else
+    binlog_post_rollback_by_xid(binlog_hton, xid);
   return xaop.result;
 }
 
