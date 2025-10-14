@@ -220,6 +220,11 @@ int federatedx_handler_base::end_scan_()
 }
 
 
+static bool is_supported_by_select_handler(enum_sql_command sql_command)
+{
+  return sql_command == SQLCOM_SELECT || sql_command == SQLCOM_INSERT_SELECT;
+}
+
 /*
   Create FederatedX select handler for processing either a single select
   (in this case sel_lex is initialized and lex_unit==NULL)
@@ -230,8 +235,8 @@ static select_handler *
 create_federatedx_select_handler(THD *thd, SELECT_LEX *sel_lex,
                                  SELECT_LEX_UNIT *lex_unit)
 {
-  if (!use_pushdown)
-    return nullptr;
+  if (!use_pushdown || !is_supported_by_select_handler(thd->lex->sql_command))
+    return 0;
 
   auto tbl= get_fed_table_for_pushdown(sel_lex);
   if (!tbl)

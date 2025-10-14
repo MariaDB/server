@@ -435,6 +435,50 @@ EXECUTE stmt;
 EXECUTE stmt;
 DEALLOCATE PREPARE stmt;
 
+--echo #
+--echo # FederatedX error 10000 on multi-table UPDATE/DELETE
+--echo #
+
+connection slave;
+DROP TABLE IF EXISTS federated.t1, federated.t2;
+
+CREATE TABLE federated.t1 (a int, b int);
+INSERT INTO federated.t1 VALUES (1,1), (2,2), (3,3);
+
+CREATE TABLE federated.t2 (a int, b int);
+INSERT INTO federated.t2 VALUES (1,1), (2,2), (4,4);
+
+connection master;
+DROP TABLE IF EXISTS federated.t1, federated.t2;
+--replace_result $SLAVE_MYPORT SLAVE_PORT
+eval
+CREATE TABLE federated.t1 (a int, b int)
+ENGINE="FEDERATED" DEFAULT CHARSET=latin1
+CONNECTION='mysql://root@127.0.0.1:$SLAVE_MYPORT/federated/t1';
+
+--replace_result $SLAVE_MYPORT SLAVE_PORT
+eval
+CREATE TABLE federated.t2 (a int, b int)
+ENGINE="FEDERATED" DEFAULT CHARSET=latin1
+CONNECTION='mysql://root@127.0.0.1:$SLAVE_MYPORT/federated/t2';
+
+use federated;
+
+--echo # Multi-table UPDATE
+UPDATE t1, t2 SET t1.a = 2 WHERE t1.a=t2.a;
+
+--echo # Check the result
+SELECT * FROM t1;
+
+--echo # Multi-table DELETE
+DELETE FROM t1 USING t1 JOIN t2 ON t1.a = t2.a WHERE t2.b > 1;
+
+SELECT * FROM t1;
+
+--echo # Another form of multi-table DELETE
+DELETE FROM a1 USING t1 AS a1;
+
+SELECT * FROM t1;
 
 DROP TABLES federated.t1, federated.t2, federated.t3, federated.t10,
    federated.t11;
@@ -856,4 +900,3 @@ connection default;
 set global federated_pushdown=0;
 
 source include/federated_cleanup.inc;
-
