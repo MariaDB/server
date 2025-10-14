@@ -14268,22 +14268,9 @@ static int server_mpvio_write_packet(MYSQL_PLUGIN_VIO *param,
     res= send_server_handshake_packet(mpvio, (char*) packet, packet_len);
   else if (mpvio->status == MPVIO_EXT::RESTART)
     res= send_plugin_request_packet(mpvio, packet, packet_len);
-  else if (packet_len > 0 && (*packet < 2 || *packet > 253))
-  {
-    /*
-      we cannot allow plugin data packet to start from 0, 255 or 254 -
-      as the client will treat it as an OK, ERROR or "change plugin" packet.
-      We'll escape these bytes with \1. Consequently, we
-      have to escape \1 byte too.
-    */
+  else /* plugin data, prefixed with 1 */
     res= net_write_command(&mpvio->auth_info.thd->net, 1, (uchar*)"", 0,
                            packet, packet_len);
-  }
-  else
-  {
-    res= my_net_write(&mpvio->auth_info.thd->net, packet, packet_len) ||
-         net_flush(&mpvio->auth_info.thd->net);
-  }
   mpvio->status= MPVIO_EXT::FAILURE; // the status is no longer RESTART
   mpvio->packets_written++;
   DBUG_RETURN(res);
