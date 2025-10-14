@@ -7608,27 +7608,23 @@ public:
   If command creates or drops a database
 */
 #define CF_DB_CHANGE (1U << 23)
-
-#ifdef WITH_WSREP
-/**
-  DDL statement that may be subject to error filtering.
-*/
-#define CF_WSREP_MAY_IGNORE_ERRORS (1U << 24)
-/**
-   Basic DML statements that create writeset.
-*/
-#define CF_WSREP_BASIC_DML (1u << 25)
-
-#endif /* WITH_WSREP */
-
-
-/* Bits in server_command_flags */
-
 /**
   Statement that deletes existing rows (DELETE, DELETE_MULTI)
 */
 #define CF_DELETES_DATA (1U << 24)
 
+#ifdef WITH_WSREP
+/**
+  DDL statement that may be subject to error filtering.
+*/
+#define CF_WSREP_MAY_IGNORE_ERRORS (1U << 25)
+/**
+   Basic DML statements that create writeset.
+*/
+#define CF_WSREP_BASIC_DML (1u << 26)
+#endif /* WITH_WSREP */
+
+/* Bits in server_command_flags */
 /**
   Skip the increase of the global query id counter. Commonly set for
   commands that are stateless (won't cause any change on the server
