@@ -9,6 +9,8 @@
 
 -- source include/count_sessions.inc
 -- source include/not_embedded.inc
+-- source include/have_innodb.inc
+-- source include/have_debug_sync.inc
 
 --disable_service_connection
 
@@ -320,3 +322,23 @@ DROP TABLE t1, t2;
 --error ER_BAD_FIELD_ERROR
 kill query id user 'foo';
 --enable_service_connection
+
+
+--echo #
+--echo # MDEV-36034 thd->killed ignored by high level function leading to assertion
+--echo #
+
+CREATE TABLE t10(c int primary key, c2 int) engine=innodb;
+CREATE TABLE t20(c INT) engine=innodb;
+
+set max_statement_time = 0.1;
+
+set debug_sync='before_get_quick_record_count WAIT_FOR go TIMEOUT 1';
+
+--error ER_STATEMENT_TIMEOUT
+explain format=json update t20,(SELECT * FROM t10)t (a, c) set t20.c=t.c+10
+where t20.c = t.c and t.a >= 3;
+
+drop table t10, t20;
+
+set debug_sync='reset';
