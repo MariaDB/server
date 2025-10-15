@@ -2360,6 +2360,7 @@ int ha_rollback_trans(THD *thd, bool all)
       (void) wsrep_before_rollback(thd, all);
 #endif /* WITH_WSREP */
 
+  bool do_binlog= false;
   if (ha_info)
   {
     /* Close all cursors that can not survive ROLLBACK */
@@ -2370,6 +2371,7 @@ int ha_rollback_trans(THD *thd, bool all)
     {
       int err;
       handlerton *ht= ha_info->ht();
+      do_binlog|= (ht == binlog_hton);
       if ((err= ht->rollback(ht, thd, all)))
       {
         // cannot happen
@@ -2394,7 +2396,8 @@ int ha_rollback_trans(THD *thd, bool all)
     trans->no_2pc=0;
   }
 
-  binlog_post_rollback(thd, all);
+  if (do_binlog)
+    binlog_post_rollback(thd, all);
 
 #ifdef WITH_WSREP
   if (WSREP(thd) && thd->is_error())
