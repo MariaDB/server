@@ -526,3 +526,26 @@ let $wait_condition=
 
 drop database events_test;
 --enable_service_connection
+
+--echo #
+--echo # MDEV-37744 Table Charset Mismatch (Primary/Replica) via Event
+--echo #
+set global event_scheduler=1;
+create schema andre default charset utf8mb4 collate utf8mb4_general_ci;
+use andre;
+create event daily_table_creation
+on schedule every 1 day starts now() + interval 5 second do
+ create table andre_table (
+     id int(11) not null auto_increment primary key,
+     col_1 varchar(50) not null
+   );
+
+let $wait_condition= select count(*)= 1 from information_schema.tables where table_name = 'andre_table';
+source include/wait_condition.inc;
+show create table andre_table;
+set global event_scheduler=0;
+drop event daily_table_creation;
+drop schema andre;
+use test;
+
+--echo # End of 10.11 tests

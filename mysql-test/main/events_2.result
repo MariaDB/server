@@ -437,3 +437,27 @@ Warnings:
 Note	1544	Event execution time is in the past. Event has been disabled
 drop event event_35981;
 drop database events_test;
+#
+# MDEV-37744 Table Charset Mismatch (Primary/Replica) via Event
+#
+set global event_scheduler=1;
+create schema andre default charset utf8mb4 collate utf8mb4_general_ci;
+use andre;
+create event daily_table_creation
+on schedule every 1 day starts now() + interval 5 second do
+create table andre_table (
+id int(11) not null auto_increment primary key,
+col_1 varchar(50) not null
+);
+show create table andre_table;
+Table	Create Table
+andre_table	CREATE TABLE `andre_table` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `col_1` varchar(50) NOT NULL,
+  PRIMARY KEY (`id`)
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci
+set global event_scheduler=0;
+drop event daily_table_creation;
+drop schema andre;
+use test;
+# End of 10.11 tests
