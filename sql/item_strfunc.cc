@@ -2947,6 +2947,10 @@ bool Item_func_soundex::fix_length_and_dec(THD *thd)
   if (agg_arg_charsets_for_string_result(collation, args, 1))
     return TRUE;
   DBUG_ASSERT(collation.collation != NULL);
+  if (collation.collation->mbmaxlen > 1)
+  {
+    char_length*= collation.collation->mbmaxlen;
+  }
   set_if_bigger(char_length, 4);
   fix_char_length(char_length);
   return FALSE;
@@ -2991,7 +2995,104 @@ static bool my_uni_isalpha(int wc)
 }
 
 
-String *Item_func_soundex::val_str(String *str)
+String *Item_func_soundex::soundex(String *str, String input_str)
+{
+    DBUG_ASSERT(fixed());
+    CHARSET_INFO *cs= collation.collation;
+    
+    /* Check for empty input */
+    if (!input_str.ptr() || input_str.length() == 0)
+    {
+      str->copy(NULL, 0, collation.collation);
+      return str;
+    }
+
+    String *res= new String(input_str.c_ptr(), input_str.length(), cs);
+    char last_ch,ch;
+    my_wc_t wc;
+    uint nchars;
+    int rc;
+
+    /* Allocate enough space for the result (4 characters for soundex code) */
+    if (str->alloc(4))
+      return &tmp_value;
+
+    str->set_charset(collation.collation);
+    char *to= (char *)str->ptr();
+    char *from= (char *)res->ptr();
+    char *end= from + res->length();
+
+    /* Skip pre-space and find first letter */
+    for ( ; ; )
+    {
+      if ((rc= cs->mb_wc(&wc, (uchar*)from, (uchar*)end)) <= 0)
+        return make_empty_result(str);
+
+      if (rc == 1 && cs->m_ctype)
+      {
+        /* Single byte letter found */
+        if (my_isalpha(cs, *from)) 
+        {
+          last_ch= get_scode(*from);
+          *to++= soundex_toupper(*from++);
+          break;
+        }
+        from++;
+      } 
+      else
+      {
+        from+= rc;
+        if (my_uni_isalpha(wc))
+        {
+          /* Multibyte letter found - just use first character for simplicity */
+          last_ch= get_scode(wc);
+          *to++= (char)soundex_toupper(wc);
+          break;
+        }
+      }
+    }
+
+    /* Process remaining characters */
+    for (nchars= 1; ; )
+    {
+      if ((rc= cs->mb_wc(&wc, (uchar*)from, (uchar*)end)) <= 0)
+        break;
+
+      if (rc == 1 && cs->m_ctype)
+      {
+        if (!my_isalpha(cs, *from++))
+          continue;
+      }
+      else
+      {
+        from += rc;
+        if (!my_uni_isalpha(wc))
+          continue;
+      }
+
+      ch= get_scode(wc);
+      if ((ch != '0') && (ch != last_ch))
+      {
+        *to++= ch;
+        nchars++;
+        last_ch= ch;
+        if (nchars >= 4)
+          break;
+      }
+    }
+
+    /* Pad with zeros if necessary */
+    while (nchars < 4)
+    {
+      *to++= '0';
+      nchars++;
+    }
+
+    str->length(4);
+    return str;
+}
+
+String *Item_func_soundex::val_str_legacy(String *str)
 {
   DBUG_ASSERT(fixed());
   String *res= args[0]->val_str(&tmp_value);
@@ -3094,6 +3195,93 @@ String *Item_func_soundex::val_str(String *str)
 
   str->length((uint) (to - str->ptr()));
   return str;
+}
+
+String *Item_func_soundex::val_str(String *str)
+{
+    DBUG_ASSERT(fixed());
+
+    // Handle argument count and validation
+    if (arg_count == 1)
+        return Item_func_soundex::val_str_legacy(str);
+    else if (arg_count == 2)
+    {
+      if (args[1]->val_int() == 0)
+        return Item_func_soundex::val_str_legacy(str);
+      else if (args[1]->val_int() != 1)
+      {
+        push_warning_printf(current_thd,
+                          Sql_condition::WARN_LEVEL_WARN,
+                          ER_WRONG_ARGUMENTS,
+                          "Invalid argument for SOUNDEX function. Expected 0 or 1.");
+        return NULL;
+      }
+    } 
+    else
+    {
+      push_warning_printf(current_thd,
+                        Sql_condition::WARN_LEVEL_WARN,
+                        ER_WRONG_ARGUMENTS,
+                        "Invalid number of arguments for SOUNDEX function. Expected 1 or 2 arguments.");
+      return NULL;
+    }
+
+    String *arg_str= args[0]->val_str(&tmp_value);
+    if ((null_value= args[0]->null_value))
+        return NULL;
+
+    String result;
+    result.set_charset(collation.collation);
+    String word_buffer;
+    String soundex_result;
+    
+    CHARSET_INFO *cs= arg_str->charset();
+    const char *input_ptr= arg_str->ptr();
+    const char *input_end= input_ptr + arg_str->length();
+    bool first_word= true;
+    my_wc_t wc;
+    int rc;
+
+    /* Process input string word by word using proper charset functions */
+    while (input_ptr < input_end) 
+    {
+      /* Skip leading spaces */
+      while (input_ptr < input_end) {
+        if ((rc= cs->mb_wc(&wc, (uchar*)input_ptr, (uchar*)input_end)) <= 0)
+            break;
+        if (wc != ' ')
+            break;
+        input_ptr+= rc;
+      }
+      
+      /* Extract word */
+      word_buffer.length(0);
+      while (input_ptr < input_end) {
+        if ((rc= cs->mb_wc(&wc, (uchar*)input_ptr, (uchar*)input_end)) <= 0)
+          break;
+        if (wc == ' ')
+          break;
+        word_buffer.append(input_ptr, rc);
+        input_ptr+= rc;
+      }
+
+      /* Process word if we have one */
+      if (word_buffer.length() > 0) {
+        if (!first_word) 
+        {
+          result.append(" ", 1);
+        }
+        String *res= soundex(&soundex_result, word_buffer);
+        if (res && res->length() > 0) 
+        {
+          result.append(res->ptr(), res->length());
+        }
+        first_word= false;
+      }
+    }
+
+    str->copy(result.ptr(), result.length(), collation.collation);
+    return str;
 }
 
 
