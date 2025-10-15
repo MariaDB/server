@@ -1,10 +1,5 @@
 --source include/no_protocol.inc
 --source ../include/partition_mrr_init.inc
-if (!$HAVE_PARTITION)
-{
-  --source ../include/partition_mrr_deinit.inc
-  skip Test requires partitioning;
-}
 
 --echo
 --echo drop and create databases
@@ -13,110 +8,82 @@ if (!$HAVE_PARTITION)
 DROP DATABASE IF EXISTS auto_test_local;
 CREATE DATABASE auto_test_local;
 USE auto_test_local;
-if ($USE_CHILD_GROUP2)
-{
   --connection child2_1
-  if ($USE_GENERAL_LOG)
-  {
     SET @old_log_output = @@global.log_output;
     SET GLOBAL log_output = 'TABLE,FILE';
-  }
   DROP DATABASE IF EXISTS auto_test_remote;
   CREATE DATABASE auto_test_remote;
   USE auto_test_remote;
   --connection child2_2
-  if ($USE_GENERAL_LOG)
-  {
     SET @old_log_output = @@global.log_output;
     SET GLOBAL log_output = 'TABLE,FILE';
-  }
   DROP DATABASE IF EXISTS auto_test_remote2;
   CREATE DATABASE auto_test_remote2;
   USE auto_test_remote2;
   --connection child2_3
-  if ($USE_GENERAL_LOG)
-  {
     SET @old_log_output = @@global.log_output;
     SET GLOBAL log_output = 'TABLE,FILE';
-  }
   DROP DATABASE IF EXISTS auto_test_remote3;
   CREATE DATABASE auto_test_remote3;
   USE auto_test_remote3;
-}
 --enable_warnings
 
 --echo
 --echo create table and insert
-if ($USE_CHILD_GROUP2)
-{
-  if (!$OUTPUT_CHILD_GROUP2)
-  {
-    --disable_query_log
-    --disable_result_log
-  }
   --connection child2_1
-  if ($OUTPUT_CHILD_GROUP2)
-  {
     --disable_query_log
     echo CHILD2_1_DROP_TABLES;
     echo CHILD2_1_CREATE_TABLES;
-  }
   --disable_warnings
-  eval $CHILD2_1_DROP_TABLES;
+DROP TABLE IF EXISTS tbl_a ;
+DROP TABLE IF EXISTS tbl_b;
   --enable_warnings
-  eval $CHILD2_1_CREATE_TABLES;
-  if ($OUTPUT_CHILD_GROUP2)
-  {
+CREATE TABLE tbl_a (
+pkey int NOT NULL,
+PRIMARY KEY (pkey)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8 ;
+CREATE TABLE tbl_b (
+pkey int NOT NULL,
+PRIMARY KEY (pkey)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
     --enable_query_log
-  }
-  if ($USE_GENERAL_LOG)
-  {
     TRUNCATE TABLE mysql.general_log;
-  }
   --connection child2_2
-  if ($OUTPUT_CHILD_GROUP2)
-  {
     --disable_query_log
     echo CHILD2_2_DROP_TABLES;
     echo CHILD2_2_CREATE_TABLES;
-  }
   --disable_warnings
-  eval $CHILD2_2_DROP_TABLES;
+DROP TABLE IF EXISTS tbl_a ;
+DROP TABLE IF EXISTS tbl_b;
   --enable_warnings
-  eval $CHILD2_2_CREATE_TABLES;
-  if ($OUTPUT_CHILD_GROUP2)
-  {
+CREATE TABLE tbl_a (
+pkey int NOT NULL,
+PRIMARY KEY (pkey)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8 ;
+CREATE TABLE tbl_b (
+pkey int NOT NULL,
+PRIMARY KEY (pkey)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
     --enable_query_log
-  }
-  if ($USE_GENERAL_LOG)
-  {
     TRUNCATE TABLE mysql.general_log;
-  }
   --connection child2_3
-  if ($OUTPUT_CHILD_GROUP2)
-  {
     --disable_query_log
     echo CHILD2_3_DROP_TABLES;
     echo CHILD2_3_CREATE_TABLES;
-  }
   --disable_warnings
-  eval $CHILD2_3_DROP_TABLES;
+DROP TABLE IF EXISTS tbl_a ;
+DROP TABLE IF EXISTS tbl_b;
   --enable_warnings
-  eval $CHILD2_3_CREATE_TABLES;
-  if ($OUTPUT_CHILD_GROUP2)
-  {
+CREATE TABLE tbl_a (
+pkey int NOT NULL,
+PRIMARY KEY (pkey)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8 ;
+CREATE TABLE tbl_b (
+pkey int NOT NULL,
+PRIMARY KEY (pkey)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
     --enable_query_log
-  }
-  if ($USE_GENERAL_LOG)
-  {
     TRUNCATE TABLE mysql.general_log;
-  }
-  if (!$OUTPUT_CHILD_GROUP2)
-  {
-    --enable_query_log
-    --enable_result_log
-  }
-}
 --connection master_1
 --disable_warnings
 DROP TABLE IF EXISTS tbl_a;
@@ -131,14 +98,24 @@ echo CREATE TABLE tbl_b (
     pkey int NOT NULL,
     PRIMARY KEY (pkey)
 ) MASTER_1_ENGINE MASTER_1_CHARSET MASTER_1_COMMENT_2_2;
-eval CREATE TABLE tbl_a (
+CREATE TABLE tbl_a (
     pkey int NOT NULL,
     PRIMARY KEY (pkey)
-) $MASTER_1_ENGINE $MASTER_1_CHARSET $MASTER_1_COMMENT_2_1;
-eval CREATE TABLE tbl_b (
+) ENGINE=Spider DEFAULT CHARSET=utf8 COMMENT='table "tbl_a", bka_mode "1"'
+  PARTITION BY KEY(pkey) (
+PARTITION pt1 COMMENT='srv "s_2_1"',
+PARTITION pt2 COMMENT='srv "s_2_2"',
+PARTITION pt3 COMMENT='srv "s_2_3"'
+  );
+CREATE TABLE tbl_b (
     pkey int NOT NULL,
     PRIMARY KEY (pkey)
-) $MASTER_1_ENGINE $MASTER_1_CHARSET $MASTER_1_COMMENT_2_2;
+) ENGINE=Spider DEFAULT CHARSET=utf8 COMMENT='table "tbl_b", bka_mode "1"'
+  PARTITION BY KEY(pkey) (
+PARTITION pt1 COMMENT='srv "s_2_2"',
+PARTITION pt2 COMMENT='srv "s_2_3"',
+PARTITION pt3 COMMENT='srv "s_2_1"'
+  );
 --enable_query_log
 INSERT INTO tbl_a (pkey) VALUES (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
 INSERT INTO tbl_a (pkey) VALUES (10),(11),(12),(13),(14),(15),(16),(17),(18),(19);
@@ -149,62 +126,31 @@ INSERT INTO tbl_b (pkey) VALUES (20),(21),(22),(23),(24),(25),(26),(27),(28),(29
 
 --echo
 --echo select test
-if ($USE_CHILD_GROUP2)
-{
-  if (!$OUTPUT_CHILD_GROUP2)
-  {
-    --disable_query_log
-    --disable_result_log
-  }
   --connection child2_1
-  if ($USE_GENERAL_LOG)
-  {
     TRUNCATE TABLE mysql.general_log;
-  }
-  if (!$OUTPUT_CHILD_GROUP2)
-  {
-    --enable_query_log
-    --enable_result_log
-  }
-}
 --connection master_1
 --disable_ps2_protocol
 SELECT a.pkey FROM tbl_a a, tbl_b b WHERE a.pkey = b.pkey;
-SELECT a.pkey FROM tbl_a a, tbl_b b WHERE a.pkey+0 = b.pkey+0 ORDER BY a.pkey; # MDEV-29947
-if ($USE_CHILD_GROUP2)
-{
-  if (!$OUTPUT_CHILD_GROUP2)
-  {
-    --disable_query_log
-    --disable_result_log
-  }
+SELECT a.pkey FROM tbl_a a, tbl_b b WHERE a.pkey+0 = b.pkey+0 ORDER BY a.pkey;
+# MDEV-29947
   --connection child2_1
-  if ($USE_GENERAL_LOG)
-  {
 --replace_regex /tmp_spider_bka_(0x)?[0-9a-f]*/tmp_spider_bka_xxxx/
-    eval $CHILD2_1_SELECT_ARGUMENT1;
-  }
-  eval $CHILD2_1_SELECT_TABLES;
+SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %';
+eval
+SELECT pkey FROM tbl_a ORDER BY pkey $STR_SEMICOLON
+SELECT pkey FROM tbl_b ORDER BY pkey;
   --connection child2_2
-  if ($USE_GENERAL_LOG)
-  {
 --replace_regex /tmp_spider_bka_(0x)?[0-9a-f]*/tmp_spider_bka_xxxx/
-    eval $CHILD2_2_SELECT_ARGUMENT1;
-  }
-  eval $CHILD2_2_SELECT_TABLES;
+SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %';
+eval
+SELECT pkey FROM tbl_a ORDER BY pkey $STR_SEMICOLON
+SELECT pkey FROM tbl_b ORDER BY pkey;
   --connection child2_3
-  if ($USE_GENERAL_LOG)
-  {
 --replace_regex /tmp_spider_bka_(0x)?[0-9a-f]*/tmp_spider_bka_xxxx/
-    eval $CHILD2_3_SELECT_ARGUMENT1;
-  }
-  eval $CHILD2_3_SELECT_TABLES;
-  if (!$OUTPUT_CHILD_GROUP2)
-  {
-    --enable_query_log
-    --enable_result_log
-  }
-}
+SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %';
+eval
+SELECT pkey FROM tbl_a ORDER BY pkey $STR_SEMICOLON
+SELECT pkey FROM tbl_b ORDER BY pkey;
 --enable_ps2_protocol
 
 --echo
@@ -212,27 +158,15 @@ if ($USE_CHILD_GROUP2)
 --disable_warnings
 --connection master_1
 DROP DATABASE IF EXISTS auto_test_local;
-if ($USE_CHILD_GROUP2)
-{
   --connection child2_1
   DROP DATABASE IF EXISTS auto_test_remote;
-  if ($USE_GENERAL_LOG)
-  {
     SET GLOBAL log_output = @old_log_output;
-  }
   --connection child2_2
   DROP DATABASE IF EXISTS auto_test_remote2;
-  if ($USE_GENERAL_LOG)
-  {
     SET GLOBAL log_output = @old_log_output;
-  }
   --connection child2_3
   DROP DATABASE IF EXISTS auto_test_remote3;
-  if ($USE_GENERAL_LOG)
-  {
     SET GLOBAL log_output = @old_log_output;
-  }
-}
 --enable_warnings
 --source ../include/partition_mrr_deinit.inc
 --echo
