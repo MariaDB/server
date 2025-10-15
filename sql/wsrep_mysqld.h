@@ -1,4 +1,4 @@
-/* Copyright 2008-2023 Codership Oy <http://www.codership.com>
+/* Copyright 2008-2025 Codership Oy <http://www.codership.com>
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -131,7 +131,17 @@ enum enum_wsrep_mode {
   WSREP_MODE_REPLICATE_MYISAM= (1ULL << 3),
   WSREP_MODE_REPLICATE_ARIA= (1ULL << 4),
   WSREP_MODE_DISALLOW_LOCAL_GTID= (1ULL << 5),
-  WSREP_MODE_BF_MARIABACKUP= (1ULL << 6)
+  WSREP_MODE_BF_MARIABACKUP= (1ULL << 6),
+  WSREP_MODE_APPLIER_DISABLE_FK_WARNINGS= (1ULL << 7)
+};
+
+enum wsrep_warning_type {
+  WSREP_DISABLED = 0,
+  WSREP_REQUIRE_PRIMARY_KEY= 1,
+  WSREP_REQUIRE_INNODB= 2,
+  WSREP_EXPERIMENTAL= 3,
+  WSREP_APPLIER_FK= 4,
+  WSREP_WARNING_MAX=5,
 };
 
 // Streaming Replication
@@ -610,6 +620,8 @@ bool wsrep_table_list_has_non_temp_tables(THD *thd, TABLE_LIST *tables);
  */
 bool wsrep_foreign_key_append(THD *thd, FOREIGN_KEY_INFO *fk);
 
+bool wsrep_protect_against_warning_flood(
+       enum wsrep_warning_type warning_type);
 #else /* !WITH_WSREP */
 
 /* These macros are needed to compile MariaDB without WSREP support

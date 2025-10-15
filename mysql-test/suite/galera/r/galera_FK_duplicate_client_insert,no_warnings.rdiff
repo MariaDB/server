@@ -1,0 +1,9 @@
+--- galera_FK_duplicate_client_insert.result
++++ galera_FK_duplicate_client_insert.reject
+@@ -380,6 +380,4 @@
+ set debug_sync = reset;
+ connection node_1;
+ drop table user_session,user;
+-# Now there should be 10 WSREP Foreign key constraint warnings
+-include/assert_grep.inc [Foreign key warning in table]
+ call mtr.add_suppression("WSREP: Foreign key warning in table");

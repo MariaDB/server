@@ -733,6 +733,58 @@ row_ins_foreign_trx_print(
 	mysql_mutex_assert_owner(&dict_foreign_err_mutex);
 }
 
+#ifdef WITH_WSREP
+/** Produce warning on foreign key action that failed on applier.
+
+@param trx       Transaction
+@param foreign   Foreign key where error happened
+@param warn_msg  FK warning message
+@param err       Error code
+*/
+ATTRIBUTE_COLD ATTRIBUTE_NOINLINE
+static void wsrep_applier_log_fk(const trx_t* trx,
+				 const dict_foreign_t* foreign,
+				 const char* warn_msg,
+				 const dberr_t err=DB_SUCCESS)
+{
+#ifndef UNIV_DEBUG
+  /* In release builds do not output lock wait warnings to avoid
+     flooding error log. */
+  if (err == DB_LOCK_WAIT)
+    return;
+#endif
+
+  if (!wsrep_applier_log_warnings(trx->mysql_thd))
+    return;
+
+  char db_table[3 * NAME_LEN];
+  const char* end;
+  end= innobase_convert_name(db_table, sizeof db_table,
+			     foreign->foreign_table_name,
+			     strlen(foreign->foreign_table_name),
+			     trx->mysql_thd);
+  db_table[end - db_table] = '\0';
+
+  const char *fk_id= strchr(foreign->id, '/');
+  if (fk_id)
+    fk_id++;
+  else
+    fk_id= foreign->id; /* a constraint name from before MySQL 4.0.18 */
+
+  if (err != DB_SUCCESS)
+    WSREP_WARN("Foreign key warning in table: %s constraint `%s` failed err: %s (%s).",
+               db_table,
+               fk_id,
+               warn_msg,
+               ut_strerr(err));
+  else
+    WSREP_WARN("Foreign key warning in table: %s constraint `%s` failed err: %s.",
+               db_table,
+               fk_id,
+               warn_msg);
+}
+#endif /* WITH_WSREP */
+
 /*********************************************************************//**
 Reports a foreign key error associated with an update or a delete of a
 parent table index entry. */
@@ -789,6 +841,18 @@ row_ins_foreign_report_err(
 	putc('\n', ef);
 
 	mysql_mutex_unlock(&dict_foreign_err_mutex);
+
+#ifdef WITH_WSREP
+	/* Warning message for applier FK failure */
+	if (trx->is_wsrep()) {
+		const char*err= rec ?
+		  "update or delete to parent table index failed "
+		  "because there is a record"
+		  : "update or delete to parent table index failed "
+		    "because record is not available";
+		wsrep_applier_log_fk(trx, foreign, err);
+	}
+#endif
 }
 
 /*********************************************************************//**
@@ -855,6 +919,14 @@ row_ins_foreign_report_add_err(
 	putc('\n', ef);
 
 	mysql_mutex_unlock(&dict_foreign_err_mutex);
+
+#ifdef WITH_WSREP
+	/* Warning message for applier FK failure */
+	if (trx->is_wsrep()) {
+		wsrep_applier_log_fk(trx, foreign,
+			      "adding an index entry to a child table failed");
+	}
+#endif
 }
 
 /*********************************************************************//**
@@ -1191,7 +1263,6 @@ row_ins_foreign_check_on_constraint(
 	}
 
 	if (err != DB_SUCCESS) {
-
 		goto nonstandard_exit_func;
 	}
 
@@ -1721,6 +1792,16 @@ row_ins_check_foreign_constraint(
 				case DB_SUCCESS:
 					break;
 				default:
+#ifdef WITH_WSREP
+				/* Warning message for applier FK failure */
+				if (trx->is_wsrep()) {
+					wsrep_applier_log_fk(trx, foreign,
+						      "Setting shared record lock "
+						      "to matching record in the "
+						      "child table failed err: ",
+						      err);
+				}
+#endif /* WITH_WSREP */
 					goto end_scan;
 				}
 
