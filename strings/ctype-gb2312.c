@@ -6478,7 +6478,8 @@ static MY_CHARSET_HANDLER my_charset_handler=
   my_native_to_mb_gb2312,
   my_wc_to_printable_generic,
   my_casefold_multiply_1,
-  my_casefold_multiply_1
+  my_casefold_multiply_1,
+  my_fixed_string_rtrimmed_length_mb1
 };
 
 

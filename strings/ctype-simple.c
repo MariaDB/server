@@ -2171,6 +2171,17 @@ my_strxfrm_pad_desc_and_reverse_nopad(CHARSET_INFO *cs,
 }
 
 
+size_t
+my_fixed_string_rtrimmed_length_8bit(CHARSET_INFO *cs,
+                                     const char *ptr, size_t octet_length)
+{
+  const char *end;
+  DBUG_ASSERT(cs->mbmaxlen == 1);
+  end= (const char *) skip_trailing_space((const uchar *) ptr, octet_length);
+  return end - ptr;
+}
+
+
 MY_CHARSET_HANDLER my_charset_8bit_handler=
 {
     my_cset_init_8bit,
@@ -2201,7 +2212,8 @@ MY_CHARSET_HANDLER my_charset_8bit_handler=
     my_wc_mb_bin, /* native_to_mb */
     my_wc_to_printable_8bit,
     my_casefold_multiply_1,
-    my_casefold_multiply_1
+    my_casefold_multiply_1,
+    my_fixed_string_rtrimmed_length_8bit
 };
 
 MY_COLLATION_HANDLER my_collation_8bit_simple_ci_handler =

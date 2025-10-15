@@ -225,6 +225,16 @@ void my_ci_set_level_flags(struct charset_info_st *cs, uint flags);
 uint my_casefold_multiply_1(CHARSET_INFO *cs);
 uint my_casefold_multiply_2(CHARSET_INFO *cs);
 
+
+size_t my_fixed_string_rtrimmed_length_8bit(CHARSET_INFO *cs,
+                                            const char *from,
+                                            size_t octet_length);
+
+size_t my_fixed_string_rtrimmed_length_mb1(CHARSET_INFO *cs,
+                                           const char *from,
+                                           size_t octet_length);
+
+
 my_bool my_ci_eq_collation_generic(CHARSET_INFO *self, CHARSET_INFO *other);
 
 struct charset_info_st *my_ci_alloc(MY_CHARSET_LOADER *loader,
@@ -232,6 +242,7 @@ struct charset_info_st *my_ci_alloc(MY_CHARSET_LOADER *loader,
                                     LEX_CSTRING *out_name,
                                     const LEX_CSTRING comment,
                                     LEX_CSTRING *out_comment);
+
 
 /* Some common character set names */
 extern const char charset_name_latin2[];

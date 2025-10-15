@@ -852,6 +852,20 @@ my_wildcmp_mb2_or_mb4_bin(CHARSET_INFO *cs,
                                         escape, w_one, w_many, 1);
 }
 
+
+size_t my_fixed_string_rtrimmed_length_mb2_or_mb4(CHARSET_INFO *cs,
+                                                  const char *ptr,
+                                                  size_t octet_length)
+{
+  size_t char_length, length;
+  DBUG_ASSERT(cs->pad_char == ' ');
+  DBUG_ASSERT(cs->mbminlen == 2 || cs->mbminlen == 4);
+  char_length= octet_length / cs->mbmaxlen;
+  length= cs->cset->charpos(cs, ptr, ptr + octet_length, char_length);
+  return cs->cset->lengthsp(cs, (const char*) ptr, length);
+}
+
+
 #endif /* HAVE_CHARSET_mb2_or_mb4 */
 
 
@@ -1611,7 +1625,8 @@ MY_CHARSET_HANDLER my_charset_utf16_handler=
   my_uni_utf16,
   my_wc_to_printable_generic,
   my_casefold_multiply_1,
-  my_casefold_multiply_1
+  my_casefold_multiply_1,
+  my_fixed_string_rtrimmed_length_mb2_or_mb4
 };
 
 
@@ -1962,7 +1977,8 @@ static MY_CHARSET_HANDLER my_charset_utf16le_handler=
   my_uni_utf16le,
   my_wc_to_printable_generic,
   my_casefold_multiply_1,
-  my_casefold_multiply_1
+  my_casefold_multiply_1,
+  my_fixed_string_rtrimmed_length_mb2_or_mb4
 };
 
 
@@ -2742,7 +2758,8 @@ MY_CHARSET_HANDLER my_charset_utf32_handler=
   my_uni_utf32,
   my_wc_to_printable_generic,
   my_casefold_multiply_1,
-  my_casefold_multiply_1
+  my_casefold_multiply_1,
+  my_fixed_string_rtrimmed_length_mb2_or_mb4
 };
 
 
@@ -3338,7 +3355,8 @@ MY_CHARSET_HANDLER my_charset_ucs2_handler=
     my_uni_ucs2,
     my_wc_to_printable_generic,
     my_casefold_multiply_1,
-    my_casefold_multiply_1
+    my_casefold_multiply_1,
+    my_fixed_string_rtrimmed_length_mb2_or_mb4
 };
 
 

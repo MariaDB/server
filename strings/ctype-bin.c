@@ -510,6 +510,18 @@ skip:
 }
 
 
+static
+size_t my_fixed_string_rtrimmed_length_bin(CHARSET_INFO *cs,
+                                           const char *from,
+                                           size_t octet_length)
+{
+  DBUG_ASSERT(cs->pad_char == 0x00);
+  while (octet_length && from[octet_length - 1] == 0x00)
+    octet_length--;
+  return octet_length;
+}
+
+
 MY_COLLATION_HANDLER my_collation_8bit_bin_handler =
 {
   my_coll_init_8bit_bin,
@@ -603,7 +615,8 @@ static MY_CHARSET_HANDLER my_charset_handler=
   my_wc_mb_bin,
   my_wc_to_printable_generic,
   my_casefold_multiply_1,
-  my_casefold_multiply_1
+  my_casefold_multiply_1,
+  my_fixed_string_rtrimmed_length_bin
 };
 
 

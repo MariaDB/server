@@ -24,7 +24,13 @@ class StringPack
   uint mbmaxlen() const { return m_cs->mbmaxlen; };
   uint32 char_length() const { return m_octet_length / mbmaxlen(); }
   // Trim trailing spaces for CHAR or 0x00 bytes for BINARY
-  uint rtrimmed_length(const char *from) const;
+  uint rtrimmed_length(const char *from) const
+  {
+    DBUG_PRINT("debug", ("length: %u ", (uint) m_octet_length));
+    return (uint) (m_cs->cset->fixed_string_rtrimmed_length)(m_cs,
+                                                             from,
+                                                             m_octet_length);
+  }
   static uint length_bytes(uint max_length)
   {
     return max_length > 255 ? 2 : 1;

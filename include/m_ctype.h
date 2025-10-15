@@ -781,6 +781,9 @@ struct my_charset_handler_st
 
   uint (*caseup_multiply)(CHARSET_INFO *cs);
   uint (*casedn_multiply)(CHARSET_INFO *cs);
+
+  size_t (*fixed_string_rtrimmed_length)(CHARSET_INFO *cs,
+                                         const char *ptr, size_t octet_length);
 };
 
 extern MY_CHARSET_HANDLER my_charset_8bit_handler;

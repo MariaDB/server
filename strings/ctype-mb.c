@@ -1370,4 +1370,41 @@ int my_mb_ctype_mb(CHARSET_INFO *cs, int *ctype,
 }
 
 
+size_t my_fixed_string_rtrimmed_length_mb1(CHARSET_INFO *cs,
+                                           const char *ptr,
+                                           size_t octet_length)
+{
+  size_t char_length= octet_length / cs->mbmaxlen;
+  size_t length, remaining_octet_length;
+  const uchar *e;
+  DBUG_ASSERT(cs->mbminlen == 1);
+  DBUG_ASSERT(cs->pad_char == ' ');
+  /*
+    Suppose we have CHAR(100) CHARACTER SET utf8mb4.
+    Its octet_length is 400.
+    - In case of ASCII characters only, the leftmost 100 bytes
+      contain real data, the other 300 bytes are padding spaces.
+    - In case of 100 2-byte characters, the leftmost 200 bytes
+      contain real data, the other 200 bytes are padding spaces.
+    - All 400 bytes contain real data (without padding spaces)
+      only in case of 100 4-byte characters, which is a rare scenario.
+
+    There are two approaches possible to trim the data:
+    1. Left-to-right: call charpos() to find the end of the 100th
+       character, then switch to a right-to-left loop to trim trailing spaces.
+    2. Right-to-left: trim characters from the position "ptr+400" towards
+       the beginning.
+
+    N1 should be faster in an average case, and is much faster for pure ASCII.
+  */
+  e= skip_trailing_space((const uchar*) ptr, octet_length);
+  remaining_octet_length= e - (const uchar*) ptr;
+  if (remaining_octet_length <= char_length)
+    return remaining_octet_length;
+  length= cs->cset->charpos(cs, ptr, ptr + remaining_octet_length,
+                            char_length);
+  return cs->cset->lengthsp(cs, (const char*) ptr, length);
+}
+
+
 #endif
