@@ -82,6 +82,8 @@
 */
 #define export /* not static */
 
+PRAGMA_DISABLE_CHECK_STACK_FRAME
+
 #ifdef WITH_PERFSCHEMA_STORAGE_ENGINE
 
 static Sys_var_mybool Sys_pfs_enabled(
@@ -4165,6 +4167,73 @@ static Sys_var_set Sys_old_behavior(
        old_mode_names, DEFAULT(OLD_MODE_DEFAULT_VALUE),
        NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(old_mode_deprecated));
 
+
+/*
+  Current 'not yet default' @@new_mode flag names see sql_class.h /NEW_MODE_ 
+  These need to be be kept in the same order as the value of definitions above
+*/
+static const char *new_mode_all_names[]=
+{
+  "FIX_DISK_TMPTABLE_COSTS",
+  "TEST_WARNING1",                       // Default from here, See NEW_MODE_MAX
+  "TEST_WARNING2",
+  0
+};
+
+static int new_mode_hidden_names[] =
+{
+  0,  // FIX_DISK_TMPTABLE_COSTS
+  1,  // TEST_WARNING1
+  2,  // TEST_WARNING2
+  -1  // End of list
+};
+
+/*
+  @@new_mode flag names that are now default and thus not configurable
+  see previous comment
+*/
+const char **new_mode_default_names= &new_mode_all_names[NEW_MODE_MAX];
+
+
+/*
+  @brief
+    Emit warnings if the value of @@new_mode in *v contains flags that are
+    already included in the default behavior.
+
+  @param v INOUT  Bitmap where bits represent indexes in new_mode_all_names
+                  array.
+                  Bits representing obsolete elements will be cleared.
+*/
+
+void check_new_mode_value(THD *thd, ulonglong *v)
+{
+  ulonglong vl= *v >> NEW_MODE_MAX;
+  for (uint i=0; new_mode_default_names[i]; i++)
+  {
+    if ((1ULL<<i) & vl)
+    {
+      char buf1[NAME_CHAR_LEN*2 + 3];
+      strxnmov(buf1, sizeof(buf1)-1, "new_mode=", new_mode_default_names[i], 0);
+      my_error(ER_VARIABLE_IGNORED, MYF(ME_WARNING), buf1);
+      (*v)&= ~(1ULL << (i+NEW_MODE_MAX));
+    }
+  }
+}
+
+static bool check_new_mode_var_value(sys_var *self, THD *thd, set_var *var)
+{
+  check_new_mode_value(thd, &var->save_result.ulonglong_value);
+  return false;
+}
+
+static Sys_var_set Sys_new_behavior(
+       "new_mode",
+       "Used to introduce new behavior to existing MariaDB versions",
+       SESSION_VAR(new_behavior), CMD_LINE(REQUIRED_ARG),
+       new_mode_all_names, DEFAULT(0),
+       NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(check_new_mode_var_value), 0, 0,
+       new_mode_hidden_names);
+
 #if defined(HAVE_OPENSSL) && !defined(EMBEDDED_LIBRARY)
 #define SSL_OPT(X) CMD_LINE(REQUIRED_ARG,X)
 #else
@@ -5019,7 +5088,7 @@ static Sys_var_bit Sys_foreign_key_checks(
        " (including ON UPDATE and ON DELETE behavior) InnoDB tables are checked,"
        " while if set to 0, they are not checked. 0 is not recommended for normal "
        "use, though it can be useful in situations where you know the data is "
-       "consistent, but want to reload data in a different order from that that "
+       "consistent, but want to reload data in a different order from that "
        "specified by parent/child relationships. Setting this variable to 1 does "
        "not retrospectively check for inconsistencies introduced while set to 0",
        SESSION_VAR(option_bits), NO_CMD_LINE,
@@ -6350,7 +6419,7 @@ static Sys_var_ulong Sys_wsrep_slave_threads(
        GLOBAL_VAR(wsrep_slave_threads), CMD_LINE(REQUIRED_ARG),
        VALID_RANGE(1, 512), DEFAULT(1), BLOCK_SIZE(1),
        NO_MUTEX_GUARD, NOT_IN_BINLOG,
-       ON_CHECK(0),
+       ON_CHECK(wsrep_slave_threads_check),
        ON_UPDATE(wsrep_slave_threads_update));
 
 static Sys_var_charptr Sys_wsrep_dbug_option(

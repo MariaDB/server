@@ -2182,7 +2182,7 @@ void THD::disconnect()
 
 #ifdef SIGNAL_WITH_VIO_CLOSE
   /*
-    Since a active vio might might have not been set yet, in
+    Since a active vio might have not been set yet, in
     any case save a reference to avoid closing a inexistent
     one or closing the vio twice if there is a active one.
   */
@@ -2517,7 +2517,7 @@ void THD::cleanup_after_query()
   if (!in_active_multi_stmt_transaction())
     wsrep_affected_rows= 0;
 #endif /* WITH_WSREP */
-
+  gap_tracker_data.init();
   DBUG_VOID_RETURN;
 }
 
@@ -4794,6 +4794,7 @@ void thd_increment_bytes_sent(void *thd, size_t length)
   }
 }
 
+
 my_bool thd_net_is_killed(THD *thd)
 {
   return thd && thd->killed ? 1 : 0;
@@ -5555,16 +5556,6 @@ extern "C" void thd_decrement_pending_ops(void *thd_)
 }
 
 
-unsigned long long thd_get_query_id(const MYSQL_THD thd)
-{
-  return((unsigned long long)thd->query_id);
-}
-
-void thd_clear_error(MYSQL_THD thd)
-{
-  thd->clear_error();
-}
-
 extern "C" const struct charset_info_st *thd_charset(MYSQL_THD thd)
 {
   return(thd->charset());
@@ -5953,12 +5944,6 @@ extern "C" int thd_binlog_format(const MYSQL_THD thd)
   if (mysql_bin_log.is_open() && (thd->variables.option_bits & OPTION_BIN_LOG))
     return (int) thd->variables.binlog_format;
   return BINLOG_FORMAT_UNSPEC;
-}
-
-extern "C" void thd_mark_transaction_to_rollback(MYSQL_THD thd, bool all)
-{
-  DBUG_ASSERT(thd);
-  thd->mark_transaction_to_rollback(all);
 }
 
 extern "C" bool thd_binlog_filter_ok(const MYSQL_THD thd)
@@ -7860,7 +7845,7 @@ bool THD::binlog_for_noop_dml(bool transactional_table)
 }
 
 
-#if defined(DBUG_TRACE) && !defined(_lint)
+#if defined(DBUG_TRACE)
 static const char *
 show_query_type(THD::enum_binlog_query_type qtype)
 {
@@ -7874,7 +7859,7 @@ show_query_type(THD::enum_binlog_query_type qtype)
     DBUG_ASSERT(0 <= qtype && qtype < THD::QUERY_TYPE_COUNT);
   }
   static char buf[64];
-  sprintf(buf, "UNKNOWN#%d", qtype);
+  snprintf(buf, sizeof(buf), "UNKNOWN#%d", qtype);
   return buf;
 }
 #endif
@@ -8251,7 +8236,7 @@ int THD::binlog_query(THD::enum_binlog_query_type qtype, char const *query_arg,
 
   The filter is in decide_logging_format() to mark queries to not be stored
   in the binary log, for example by a shared distributed engine like S3.
-  This function resets the filter to ensure the the query is logged if
+  This function resets the filter to ensure the query is logged if
   the binlog is active.
 
   Note that 'direct' is set to false, which means that the query will

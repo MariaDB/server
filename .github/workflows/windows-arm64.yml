@@ -48,4 +48,10 @@ jobs:
           $env:PATH = "C:\Strawberry\perl\bin;$env:PATH;C:\Program Files (x86)\Windows Kits\10\Debuggers\arm64"
           #Calculate parallel as 4 * number of processors
           $parallel = 4 * [int]$env:NUMBER_OF_PROCESSORS
-          perl bld\mysql-test\mysql-test-run.pl --force --parallel=$parallel --suite=main  --mysqld=--loose-innodb-flush-log-at-trx-commit=2
+          # create case-sensitive directory to run tests in
+          $tmp = (Get-Item $env:TEMP).FullName
+          $tmp = $tmp -replace '\\','/'
+          $cidir = "$tmp/ci"
+          mkdir $cidir
+          fsutil file setCaseSensitiveInfo $cidir enable
+          perl bld\mysql-test\mysql-test-run.pl --force --parallel=$parallel --suite=main,innodb --vardir=$cidir/var --mysqld=--lower-case-table-names=0  --mysqld=--loose-innodb-flush-log-at-trx-commit=2

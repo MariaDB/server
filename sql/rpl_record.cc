@@ -310,7 +310,7 @@ static void convert_field(Field *f, Field *result_field, Field *conv_field)
    @note The relay log information can be NULL, which means that no
    checking or comparison with the source table is done, simply
    because it is not used.  This feature is used by MySQL Backup to
-   unpack a row from from the backup image, but can be used for other
+   unpack a row from the backup image, but can be used for other
    purposes as well.
 
    @param rgi     Relay group info
@@ -322,9 +322,6 @@ static void convert_field(Field *f, Field *result_field, Field *conv_field)
    @param curr_row_end
                   Pointer to variable that will hold the value of the
                   one-after-end position for the current row
-   @param master_reclength
-                  Pointer to variable that will be set to the length of the
-                  record on the master side
    @param row_end
                   Pointer to variable that will hold the value of the
                   end position for the data in the row event
@@ -340,7 +337,7 @@ static void convert_field(Field *f, Field *result_field, Field *conv_field)
 int unpack_row(const rpl_group_info *rgi, TABLE *table, uint const colcnt,
                uchar const *const row_data, MY_BITMAP const *cols,
                uchar const **const current_row_end,
-               ulong *const master_reclength, uchar const *const row_end)
+               uchar const *const row_end)
 {
   int error;
   DBUG_ENTER("unpack_row");
@@ -357,7 +354,6 @@ int unpack_row(const rpl_group_info *rgi, TABLE *table, uint const colcnt,
        nothing to unpack.
      */
     *current_row_end= st.pack_ptr;
-    *master_reclength= 0;
     DBUG_RETURN(0);
   }
 
@@ -380,12 +376,12 @@ int unpack_row(const rpl_group_info *rgi, TABLE *table, uint const colcnt,
         pointer is NULL, no conversions are necessary.
        */
       Field *conv_field= conv_table ? conv_table->field[i] : NULL;
-      Field *const f= conv_field ? conv_field : result_field;
+      Field *const field= conv_field ? conv_field : result_field;
+      DBUG_ASSERT(field != NULL);
 
       DBUG_PRINT("debug", ("Conversion %srequired for field '%s' (#%u)",
                            conv_field ? "" : "not ",
                            result_field->field_name.str, i));
-      DBUG_ASSERT(f != NULL);
 
       /*
         No need to bother about columns that does not exist: they have
@@ -396,13 +392,12 @@ int unpack_row(const rpl_group_info *rgi, TABLE *table, uint const colcnt,
 
       result_field->set_has_explicit_value();
 
-      bool unpack_result= unpack_field(tabledef, f, &st, i);
-      if (!unpack_result)
+      if (!unpack_field(tabledef, field, &st, i))
       {
         rgi->rli->report(ERROR_LEVEL, ER_SLAVE_CORRUPT_EVENT,
                     rgi->gtid_info(),
                     "Could not read field '%s' of table '%s.%s'",
-                    f->field_name.str, table->s->db.str,
+                    field->field_name.str, table->s->db.str,
                     table->s->table_name.str);
         DBUG_RETURN(HA_ERR_CORRUPT_EVENT);
       }
@@ -417,7 +412,7 @@ int unpack_row(const rpl_group_info *rgi, TABLE *table, uint const colcnt,
         and will use copy_fields set up in copy_data_between_tables
        */
       if (conv_field)
-        convert_field(f, result_field, conv_field);
+        convert_field(field, result_field, conv_field);
     }
 
     /*
@@ -440,14 +435,6 @@ int unpack_row(const rpl_group_info *rgi, TABLE *table, uint const colcnt,
         st.null_mask <<= 1;
       }
     }
-
-    if (master_reclength)
-    {
-      if (result_field)
-        *master_reclength = (ulong)(result_field->ptr - table->record[0]);
-      else
-        *master_reclength = table->s->reclength;
-    }
   }
   else
   {
@@ -461,21 +448,17 @@ int unpack_row(const rpl_group_info *rgi, TABLE *table, uint const colcnt,
     {
       DBUG_ASSERT(bitmap_is_set(cols, i));
       Field *f= conv_table->field[i];
-#ifndef DBUG_OFF
-      bool result=
-#endif
-        unpack_field(tabledef, f, &st, i);
+      bool result __attribute__((unused));
+      result= unpack_field(tabledef, f, &st, i);
       DBUG_ASSERT(result);
     }
 
-    for (const auto *copy=rpl_data.copy_fields;
+    for (const Copy_field *copy= rpl_data.copy_fields;
          copy != rpl_data.copy_fields_end; copy++)
     {
       copy->to_field->set_has_explicit_value();
       copy->do_copy(copy);
     }
-    if (master_reclength)
-      *master_reclength = conv_table->s->reclength;
   } // if (rpl_data.is_online_alter())
 
   /*

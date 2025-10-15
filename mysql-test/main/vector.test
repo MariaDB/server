@@ -24,6 +24,7 @@ replace_result InnoDB MyISAM;
 show create table t1;
 show keys from t1;
 set mhnsw_default_m=default;
+set rand_seed1=1, rand_seed2=2;
 
 query_vertical select * from information_schema.statistics where table_name='t1';
 # print unpack("H*",pack("f*",map{rand}1..5))

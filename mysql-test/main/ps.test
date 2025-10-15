@@ -5499,6 +5499,24 @@ SELECT * FROM t;
 
 DROP TABLE t;
 --echo # End of 10.6 tests
+
+--echo # Beginning of 10.11 test
+
+--echo #
+--echo # MDEV-30277: Assertion failure in Diagnostics_area::set_error_status
+--echo # / Reprepare_observer::report_error
+--echo #
+
+CREATE TABLE t (a INT);
+PREPARE stmt FROM " DELETE FROM t LIMIT ?";
+ALTER TABLE t FORCE;
+--error ER_INVALID_DEFAULT_PARAM
+EXECUTE stmt USING DEFAULT;
+
+DROP TABLE t;
+
+--echo # End of 10.11 test
+
 --echo #
 --echo # MDEV-34322: ASAN heap-buffer-overflow in Field::is_null / Item_param::assign_default or bogus ER_BAD_NULL_ERROR
 --echo #

@@ -666,8 +666,8 @@ bool handle_select(THD *thd, LEX *lex, select_result *result,
     thd->abort_on_warning= saved_abort_on_warning;
     thd->reset_killed();
   }
-  /* Disable LIMIT ROWS EXAMINED after query execution. */
-  thd->lex->limit_rows_examined_cnt= ULONGLONG_MAX;
+  /* Deactivate LIMIT ROWS EXAMINED after query execution. */
+  thd->lex->deactivate_limit_rows_examined();
 
   MYSQL_SELECT_DONE((int) res, (ulong) thd->limit_found_rows);
   DBUG_RETURN(res);
@@ -4893,7 +4893,7 @@ int JOIN::exec_inner()
   THD_STAGE_INFO(thd, stage_executing);
 
   /*
-    Enable LIMIT ROWS EXAMINED during query execution if:
+    Activate enforcement of LIMIT ROWS EXAMINED during query execution if:
     (1) This JOIN is the outermost query (not a subquery or derived table)
         This ensures that the limit is enabled when actual execution begins,
         and not if a subquery is evaluated during optimization of the outer
@@ -6217,8 +6217,7 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
           select->quick=0;
           s->needed_reg=select->needed_reg;
           impossible_range= records == 0 && s->table->reginfo.impossible_range;
-          if (optimizer_flag(join->thd, OPTIMIZER_SWITCH_USE_ROWID_FILTER))
-            s->table->init_cost_info_for_usable_range_rowid_filters(join->thd);
+          s->table->init_cost_info_for_usable_range_rowid_filters(join->thd);
         }
         if (!impossible_range)
         {
@@ -6909,7 +6908,7 @@ add_key_field(JOIN *join,
 
   @note
     If field items f1 and f2 belong to the same multiple equality and
-    a key is added for f1, the the same key is added for f2.
+    a key is added for f1, the same key is added for f2.
 
   @returns
     *key_fields is incremented if we stored a key in the array
@@ -8366,7 +8365,8 @@ static ALL_READ_COST cost_for_index_read(const THD *thd, const TABLE *table,
 
 
 /**
-   Apply filter if the filter is better than the current cost
+   Apply filter if the filter is better than the current cost or
+   if it forced by ROWID_FILTER hint
 
    @param thd             Thread handler
    @param table           Table
@@ -8440,7 +8440,7 @@ apply_filter(THD *thd, TABLE *table, ALL_READ_COST *cost,
              new_records * tmp + filter_startup_cost);
 
   DBUG_ASSERT(new_cost >= 0 && new_records >= 0);
-  use_filter= new_cost < org_cost;
+  use_filter= new_cost < org_cost || is_forced_by_hint;
 
   if (unlikely(thd->trace_started()))
   {
@@ -8928,7 +8928,7 @@ best_access_path(JOIN      *join,
       } while (keyuse->table == table && keyuse->key == key);
 
       /*
-        Assume that that each key matches a proportional part of table.
+        Assume that each key matches a proportional part of table.
       */
       if (!found_part && !ft_key && !loose_scan_opt.have_a_case())
         continue;                               // Nothing usable found
@@ -9347,10 +9347,10 @@ best_access_path(JOIN      *join,
         Records can be 0 in case of empty tables.
       */
       if ((found_part & 1) && records &&
-          table->can_use_rowid_filter(start_key->key))
+          table->rowid_filter_can_be_applied_to_key(start_key->key))
       {
         /*
-          If we use filter F with selectivity s the the cost of fetching data
+          If we use filter F with selectivity s the cost of fetching data
           by key using this filter will be
              cost_of_fetching_1_row * rows * s +
              cost_of_fetching_1_key_tuple * rows * (1 - s) +
@@ -9645,7 +9645,7 @@ best_access_path(JOIN      *join,
     (1) The found 'ref' access produces more records than a table scan
         (or index scan, or quick select), or 'ref' is more expensive than
         any of them.
-    (2) This doesn't hold: the best way to perform table scan is to to perform
+    (2) This doesn't hold: the best way to perform table scan is to perform
         'range' access using index IDX, and the best way to perform 'ref' 
         access is to use the same index IDX, with the same or more key parts.
         (note: it is not clear how this rule is/should be extended to 
@@ -9740,7 +9740,7 @@ best_access_path(JOIN      *join,
                                  range->cost.setup_cost,
                                  s->quick->read_time));
 
-        if (table->can_use_rowid_filter(key_no))
+        if (table->rowid_filter_can_be_applied_to_key(key_no))
         {
           filter= table->best_range_rowid_filter(key_no,
                                                  rows2double(range->rows),
@@ -11012,7 +11012,7 @@ void JOIN::get_partial_cost_and_fanout(int end_tab_idx,
    - it operates on a JOIN that haven't yet finished its optimization phase (in
      particular, fix_semijoin_strategies_for_picked_join_order() and
      get_best_combination() haven't been called)
-   - it assumes the the join prefix doesn't have any semi-join plans
+   - it assumes the join prefix doesn't have any semi-join plans
 
   These assumptions are met by the caller of the function.
 */
@@ -11253,7 +11253,7 @@ double table_after_join_selectivity(JOIN *join, uint idx, JOIN_TAB *s,
       as a starting point. This value includes selectivity of equality (*). We
       should somehow discount it. 
       
-      Looking at calculate_cond_selectivity_for_table(), one can see that that
+      Looking at calculate_cond_selectivity_for_table(), one can see that
       the value is not necessarily a direct multiplicand in 
       table->cond_selectivity
 
@@ -12590,7 +12590,7 @@ int JOIN_TAB::make_scan_filter()
   @details
   This function finds out whether the ref items that have been chosen
   by the planner to access this table can be used for hash join algorithms.
-  The answer depends on a certain property of the the fields of the
+  The answer depends on a certain property of the fields of the
   joined tables on which the hash join key is built.
   
   @note
@@ -12998,7 +12998,7 @@ JOIN_TAB *first_explain_order_tab(JOIN* join)
   JOIN_TAB* tab;
   tab= join->join_tab;
   if (!tab)
-    return NULL; /* Can happen when when the tables were optimized away */
+    return NULL; /* Can happen when the tables were optimized away */
   return (tab->bush_children) ? tab->bush_children->start : tab;
 }
 
@@ -13969,7 +13969,7 @@ inline void add_cond_and_fix(THD *thd, Item **e1, Item *e2)
       
     Implementation overview
       1. update_ref_and_keys() accumulates info about null-rejecting
-         predicates in in KEY_FIELD::null_rejecting
+         predicates in KEY_FIELD::null_rejecting
       1.1 add_key_part saves these to KEYUSE.
       2. create_ref_for_key copies them to TABLE_REF.
       3. add_not_null_conds adds "x IS NOT NULL" to join_tab->select_cond of
@@ -15648,7 +15648,7 @@ end_sj_materialize(JOIN *join, JOIN_TAB *join_tab, bool end_of_records)
     has been chosen. If the function decides that a join buffer can be employed
     then it selects the most appropriate join cache object that contains this
     join buffer.
-    The result of the check and the type of the the join buffer to be used
+    The result of the check and the type of the join buffer to be used
     depend on:
       - the access method to access rows of the joined table
       - whether the join table is an inner table of an outer join or semi-join
@@ -16189,7 +16189,7 @@ restart:
   to re-check the same single-table condition for each joined record.
 
   This method removes from JOIN_TAB::select_cond and JOIN_TAB::select::cond
-  all top-level conjuncts that also appear in in JOIN_TAB::cache_select::cond.
+  all top-level conjuncts that also appear in JOIN_TAB::cache_select::cond.
 */
 
 void JOIN_TAB::remove_redundant_bnl_scan_conds()
@@ -24178,7 +24178,7 @@ sub_select_postjoin_aggr(JOIN *join, JOIN_TAB *join_tab, bool end_of_records)
   NOTES
     The function implements the algorithmic schema for both Blocked Nested
     Loop Join and Batched Key Access Join. The difference can be seen only at
-    the level of of the implementation of the put_record and join_records
+    the level of the implementation of the put_record and join_records
     virtual methods for the cache object associated with the join_tab.
     The put_record method accumulates records in the cache, while the 
     join_records method builds all matching join records and send them into
@@ -24346,7 +24346,7 @@ sub_select_cache(JOIN *join, JOIN_TAB *join_tab, bool end_of_records)
     the predicate (t2.b=5 OR t2.b IS NULL) can not be checked until
     t4.a=t2.a becomes true. 
     In order not to re-evaluate the predicates that were already evaluated
-    as attached pushed down predicates, a pointer to the the first
+    as attached pushed down predicates, a pointer to the first
     most inner unmatched table is maintained in join_tab->first_unmatched.
     Thus, when the first row from t5 with t5.a=t3.a is found
     this pointer for t5 is changed from t4 to t2.             
@@ -24755,7 +24755,7 @@ evaluate_null_complemented_join_record(JOIN *join, JOIN_TAB *join_tab)
   COND *select_cond;
   for ( ; join_tab <= last_inner_tab ; join_tab++)
   {
-    /* Change the the values of guard predicate variables. */
+    /* Change the values of guard predicate variables. */
     join_tab->found= 1;
     join_tab->not_null_compl= 0;
     /* The outer row is complemented by nulls for each inner tables */
@@ -28179,10 +28179,10 @@ JOIN_TAB::remove_duplicates()
     sort_field_keylength+= ptr->length + (ptr->item->maybe_null() ? 1 : 0);
 
   /*
-    Disable LIMIT ROWS EXAMINED in order to avoid interrupting prematurely
+    Deactivate LIMIT ROWS EXAMINED in order to avoid interrupting prematurely
     duplicate removal, and produce a possibly incomplete query result.
   */
-  thd->lex->limit_rows_examined_cnt= ULONGLONG_MAX;
+  thd->lex->deactivate_limit_rows_examined();
   if (thd->killed == ABORT_QUERY)
     thd->reset_killed();
 
@@ -30195,7 +30195,7 @@ void free_underlaid_joins(THD *thd, SELECT_LEX *select)
   The function replaces occurrences of group by fields in expr
   by ref objects for these fields unless they are under aggregate
   functions.
-  The function also corrects value of the the maybe_null attribute
+  The function also corrects value of the maybe_null attribute
   for the items of all subexpressions containing group by fields.
 
   @b EXAMPLES
@@ -30666,7 +30666,7 @@ void inline JOIN::clear_sum_funcs()
   Prepare for returning 'empty row' when there is no matching row.
 
   - Mark all tables with mark_as_null_row()
-  - Make a copy of of all simple SELECT items
+  - Make a copy of all simple SELECT items
   - Reset all sum functions to NULL or 0.
 */
 
@@ -33202,7 +33202,7 @@ test_if_cheaper_ordering(bool in_join_optimizer,
              */
             KEY *pkinfo=tab->table->key_info+table->s->primary_key;
             /*
-              If the values of of records per key for the prefixes
+              If the values of records per key for the prefixes
               of the primary key are considered unknown we assume
               they are equal to 1.
 	    */

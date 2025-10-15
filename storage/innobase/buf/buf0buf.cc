@@ -28,7 +28,6 @@ Created 11/5/1995 Heikki Tuuri
 #include "mtr0types.h"
 #include "mach0data.h"
 #include "buf0checksum.h"
-#include "mariadb_stats.h"
 #include <string.h>
 
 #ifdef UNIV_INNOCHECKSUM
@@ -324,6 +323,26 @@ static constexpr size_t pages_in_extent[]=
 {
   pages(4096), pages(8192), pages(16384), pages(32768), pages(65536)
 };
+
+void buf_inc_get(trx_t *trx) noexcept
+{
+  trx->pages_accessed++;
+  if (ha_handler_stats *stats= trx->active_handler_stats)
+    stats->pages_accessed++;
+}
+
+void buf_inc_get() noexcept
+{
+  if (THD *thd= current_thd)
+    if (trx_t *trx= thd_to_trx(thd))
+      buf_inc_get(trx);
+}
+
+static ATTRIBUTE_NOINLINE void buf_inc_read(trx_t *trx) noexcept
+{
+  if (ha_handler_stats *stats= trx->active_handler_stats)
+    stats->pages_read_count++;
+}
 
 # ifdef SUX_LOCK_GENERIC
 void page_hash_latch::read_lock_wait() noexcept
@@ -1487,7 +1506,10 @@ bool buf_pool_t::create() noexcept
   last_activity_count= srv_get_activity_count();
 
   buf_LRU_old_ratio_update(100 * 3 / 8, false);
-  btr_search_sys_create();
+#ifdef BTR_CUR_HASH_ADAPT
+  if (btr_search.enabled)
+    btr_search.enable();
+#endif
 
 #ifdef __linux__
   if (srv_operation == SRV_OPERATION_NORMAL)
@@ -1803,6 +1825,7 @@ ATTRIBUTE_COLD buf_pool_t::shrink_status buf_pool_t::shrink(size_t size)
     /* relocate page_hash */
     ut_ad(b == page_hash.get(id, chain));
     page_hash.replace(chain, b, &block->page);
+    b->id_.set_corrupted();
 
     if (b->zip.data)
     {
@@ -2226,7 +2249,7 @@ void buf_page_free(fil_space_t *space, uint32_t page, mtr_t *mtr)
       )
     mtr->add_freed_offset(space, page);
 
-  ++buf_pool.stat.n_page_gets;
+  buf_inc_get();
   const page_id_t page_id(space->id, page);
   buf_pool_t::hash_chain &chain= buf_pool.page_hash.cell_get(page_id.fold());
   uint32_t fix;
@@ -2260,17 +2283,12 @@ void buf_page_free(fil_space_t *space, uint32_t page, mtr_t *mtr)
   mtr->memo_push(block, MTR_MEMO_PAGE_X_MODIFY);
 }
 
-static void buf_inc_get(ha_handler_stats *stats)
-{
-  mariadb_increment_pages_accessed(stats);
-  ++buf_pool.stat.n_page_gets;
-}
-
 TRANSACTIONAL_TARGET
 buf_page_t *buf_page_get_zip(const page_id_t page_id) noexcept
 {
-  ha_handler_stats *const stats= mariadb_stats;
-  buf_inc_get(stats);
+  THD *const thd= current_thd;
+  trx_t *const trx= thd ? thd_to_trx(thd) : nullptr;
+  if (trx) buf_inc_get(trx);
 
   buf_pool_t::hash_chain &chain= buf_pool.page_hash.cell_get(page_id.fold());
   page_hash_latch &hash_lock= buf_pool.page_hash.lock_get(chain);
@@ -2302,7 +2320,7 @@ buf_page_t *buf_page_get_zip(const page_id_t page_id) noexcept
       switch (dberr_t err= buf_read_page(page_id, chain, false)) {
       case DB_SUCCESS:
       case DB_SUCCESS_LOCKED_REC:
-        mariadb_increment_pages_read(stats);
+        if (trx) buf_inc_read(trx);
         continue;
       case DB_TABLESPACE_DELETED:
         return nullptr;
@@ -2352,6 +2370,7 @@ buf_page_t *buf_page_get_zip(const page_id_t page_id) noexcept
 #ifdef UNIV_DEBUG
   if (!(++buf_dbg_counter % 5771)) buf_pool.validate();
 #endif /* UNIV_DEBUG */
+  ut_ad(bpage->state() >= buf_page_t::UNFIXED);
   return bpage;
 }
 
@@ -2525,11 +2544,10 @@ buf_block_t *buf_pool_t::unzip(buf_page_t *b, buf_pool_t::hash_chain &chain)
 }
 
 buf_block_t *buf_pool_t::page_fix(const page_id_t id,
-                                  dberr_t *err,
+                                  dberr_t *err, trx_t *trx,
                                   buf_pool_t::page_fix_conflicts c) noexcept
 {
-  ha_handler_stats *const stats= mariadb_stats;
-  buf_inc_get(stats);
+  if (trx) buf_inc_get(trx);
   auto& chain= page_hash.cell_get(id.fold());
   page_hash_latch &hash_lock= page_hash.lock_get(chain);
   for (;;)
@@ -2617,17 +2635,18 @@ buf_block_t *buf_pool_t::page_fix(const page_id_t id,
       return nullptr;
     case DB_SUCCESS:
     case DB_SUCCESS_LOCKED_REC:
-      mariadb_increment_pages_read(stats);
+      if (trx) buf_inc_read(trx);
       buf_read_ahead_random(id);
     }
   }
 }
 
-TRANSACTIONAL_TARGET
 uint32_t buf_pool_t::page_guess(buf_block_t *b, page_hash_latch &latch,
                                 const page_id_t id) noexcept
 {
-  transactional_shared_lock_guard<page_hash_latch> g{latch};
+  /* On at least two Intel Xeon of different generation, it turns out
+  that transactional_shared_lock_guard would perform worse here. */
+  latch.lock_shared();
 #ifndef HAVE_UNACCESSIBLE_AFTER_MEM_DECOMMIT
   /* shrunk() and my_virtual_mem_decommit() could retain the original
   contents of the virtual memory range or zero it out immediately or
@@ -2639,8 +2658,13 @@ uint32_t buf_pool_t::page_guess(buf_block_t *b, page_hash_latch &latch,
 #else
   /* shrunk() made the memory inaccessible. */
   if (UNIV_UNLIKELY(reinterpret_cast<char*>(b) >= memory + size_in_bytes))
+  {
+    latch.unlock_shared();
     return 0;
+  }
 #endif
+  /* This synchronizes with buf_page_t::init() */
+  uint32_t state{b->page.zip.fix.load(std::memory_order_acquire)};
   const page_id_t block_id{b->page.id()};
 #ifndef HAVE_UNACCESSIBLE_AFTER_MEM_DECOMMIT
   /* shrunk() may have invoked MEM_UNDEFINED() on this memory to be able
@@ -2650,7 +2674,6 @@ uint32_t buf_pool_t::page_guess(buf_block_t *b, page_hash_latch &latch,
 
   if (id == block_id)
   {
-    uint32_t state= b->page.state();
 #ifndef HAVE_UNACCESSIBLE_AFTER_MEM_DECOMMIT
     /* shrunk() may have invoked MEM_UNDEFINED() on this memory to be able
     to catch any unintended access elsewhere in our code. */
@@ -2660,10 +2683,15 @@ uint32_t buf_pool_t::page_guess(buf_block_t *b, page_hash_latch &latch,
     avoid a race condition by looking up the block via page_hash. */
     if ((state >= buf_page_t::FREED && state < buf_page_t::READ_FIX) ||
         state >= buf_page_t::WRITE_FIX)
-      return b->page.fix();
+      state= b->page.fix();
+    else
+      state= 0;
     ut_ad(b->page.frame);
   }
-  return 0;
+  else
+    state= 0;
+  latch.unlock_shared();
+  return state;
 }
 
 /** Low level function used to get access to a database page.
@@ -2677,7 +2705,6 @@ or BUF_PEEK_IF_IN_POOL
 @param[out]	err			DB_SUCCESS or error code
 @return pointer to the block
 @retval nullptr	if the block is corrupted or unavailable */
-TRANSACTIONAL_TARGET
 buf_block_t*
 buf_page_get_gen(
 	const page_id_t		page_id,
@@ -2730,8 +2757,9 @@ buf_page_get_gen(
 	}
 #endif /* UNIV_DEBUG */
 
-	ha_handler_stats* const stats = mariadb_stats;
-	buf_inc_get(stats);
+	THD *const thd = current_thd;
+	trx_t *const trx= thd ? thd_to_trx(thd) : nullptr;
+	if (trx) buf_inc_get(trx);
 	auto& chain= buf_pool.page_hash.cell_get(page_id.fold());
 	page_hash_latch& hash_lock = buf_pool.page_hash.lock_get(chain);
 loop:
@@ -2777,7 +2805,7 @@ loop:
 	switch (dberr_t local_err = buf_read_page(page_id, chain)) {
 	case DB_SUCCESS:
 	case DB_SUCCESS_LOCKED_REC:
-		mariadb_increment_pages_read(stats);
+		if (trx) buf_inc_read(trx);
 		buf_read_ahead_random(page_id);
 		break;
 	default:
@@ -3045,7 +3073,7 @@ buf_block_t *buf_page_try_get(const page_id_t page_id, mtr_t *mtr) noexcept
   ut_ad(block->page.buf_fix_count());
   ut_ad(block->page.id() == page_id);
 
-  buf_inc_get(mariadb_stats);
+  buf_inc_get();
   return block;
 }
 
@@ -3063,15 +3091,51 @@ void buf_block_t::initialise(const page_id_t page_id, ulint zip_size,
   page_zip_set_size(&page.zip, zip_size);
 }
 
-TRANSACTIONAL_TARGET
+void
+buf_pool_t::page_hash_table::append(buf_pool_t::hash_chain &chain,
+                                    buf_page_t *bpage) noexcept
+{
+  mysql_mutex_assert_owner(&buf_pool.mutex);
+  ut_ad(buf_pool.page_hash.lock_get(chain).is_locked());
+  ut_ad(!bpage->in_page_hash);
+  ut_ad(!bpage->hash);
+  ut_d(bpage->in_page_hash= true);
+  buf_page_t **prev= &chain.first;
+  while (*prev)
+  {
+    ut_ad((*prev)->in_page_hash);
+    prev= &(*prev)->hash;
+  }
+  *prev= bpage;
+}
+
+inline void
+buf_pool_t::page_hash_table::replace(buf_pool_t::hash_chain &chain,
+                                     buf_page_t *old,
+                                     buf_page_t *bpage) noexcept
+{
+  mysql_mutex_assert_owner(&buf_pool.mutex);
+
+  ut_ad(old->in_page_hash);
+  ut_ad(bpage->in_page_hash);
+  ut_d(old->in_page_hash= false);
+  ut_ad(bpage->hash == old->hash);
+  old->hash= nullptr;
+  buf_page_t **prev= &chain.first;
+  while (*prev != old)
+  {
+    ut_ad((*prev)->in_page_hash);
+    prev= &(*prev)->hash;
+  }
+  *prev= bpage;
+}
+
 static buf_block_t *buf_page_create_low(page_id_t page_id, ulint zip_size,
                                         mtr_t *mtr, buf_block_t *free_block)
   noexcept
 {
   ut_ad(mtr->is_active());
   ut_ad(page_id.space() != 0 || !zip_size);
-
-  free_block->initialise(page_id, zip_size, buf_page_t::MEMORY);
 
   buf_pool_t::hash_chain &chain= buf_pool.page_hash.cell_get(page_id.fold());
 retry:
@@ -3206,16 +3270,19 @@ retry:
   bpage= &free_block->page;
 
   ut_ad(bpage->state() == buf_page_t::MEMORY);
-  bpage->lock.x_lock();
+
+  {
+    page_hash_latch &hash_lock= buf_pool.page_hash.lock_get(chain);
+    hash_lock.lock();
+    reinterpret_cast<buf_block_t*>(bpage)->
+      initialise(page_id, zip_size, buf_page_t::REINIT + 1);
+    bpage->lock.x_lock();
+    buf_pool.page_hash.append(chain, bpage);
+    hash_lock.unlock();
+  }
 
   /* The block must be put to the LRU list */
   buf_LRU_add_block(bpage, false);
-  {
-    transactional_lock_guard<page_hash_latch> g
-      {buf_pool.page_hash.lock_get(chain)};
-    bpage->set_state(buf_page_t::REINIT + 1);
-    buf_pool.page_hash.append(chain, bpage);
-  }
 
   if (UNIV_UNLIKELY(zip_size))
   {
@@ -3637,6 +3704,8 @@ ATTRIBUTE_COLD void buf_pool_t::clear_hash_index() noexcept
 # endif /* UNIV_AHI_DEBUG || UNIV_DEBUG */
       if (index->freed())
         garbage.insert(index);
+      else
+        index->search_info.ref_count= 0;
       block->index= nullptr;
     }
 
@@ -3933,25 +4002,24 @@ void buf_pool_t::get_info(buf_pool_info_t *pool_info) noexcept
 
   double elapsed= 0.001 + difftime(time(nullptr), last_printout_time);
 
-  pool_info->n_pages_made_young= stat.n_pages_made_young;
-  pool_info->page_made_young_rate=
-    double(stat.n_pages_made_young - old_stat.n_pages_made_young) /
-    elapsed;
-  pool_info->n_pages_not_made_young= stat.n_pages_not_made_young;
-  pool_info->page_not_made_young_rate=
-    double(stat.n_pages_not_made_young - old_stat.n_pages_not_made_young) /
-    elapsed;
+  pool_info->n_page_gets= stat.n_page_gets;
   pool_info->n_pages_read= stat.n_pages_read;
+  pool_info->n_pages_written= stat.n_pages_written;
+  pool_info->n_pages_created= stat.n_pages_created;
+  pool_info->n_ra_pages_read_rnd= stat.n_ra_pages_read_rnd;
+  pool_info->n_ra_pages_read= stat.n_ra_pages_read;
+  pool_info->n_ra_pages_evicted= stat.n_ra_pages_evicted;
+  pool_info->n_pages_made_young= stat.n_pages_made_young;
+  pool_info->n_pages_not_made_young= stat.n_pages_not_made_young;
+
   pool_info->pages_read_rate=
     double(stat.n_pages_read - old_stat.n_pages_read) / elapsed;
-  pool_info->n_pages_created= stat.n_pages_created;
   pool_info->pages_created_rate=
     double(stat.n_pages_created - old_stat.n_pages_created) / elapsed;
-  pool_info->n_pages_written= stat.n_pages_written;
   pool_info->pages_written_rate=
     double(stat.n_pages_written - old_stat.n_pages_written) / elapsed;
-  pool_info->n_page_gets= stat.n_page_gets;
-  pool_info->n_page_get_delta= stat.n_page_gets - old_stat.n_page_gets;
+  pool_info->n_page_get_delta= pool_info->n_page_gets -
+    old_stat.n_page_gets_nonatomic;
   if (pool_info->n_page_get_delta)
   {
     pool_info->page_read_delta= stat.n_pages_read - old_stat.n_pages_read;
@@ -3960,13 +4028,18 @@ void buf_pool_t::get_info(buf_pool_info_t *pool_info) noexcept
     pool_info->not_young_making_delta=
       stat.n_pages_not_made_young - old_stat.n_pages_not_made_young;
   }
-  pool_info->n_ra_pages_read_rnd= stat.n_ra_pages_read_rnd;
+
+  pool_info->page_made_young_rate=
+    double(stat.n_pages_made_young - old_stat.n_pages_made_young) /
+    elapsed;
+  pool_info->page_not_made_young_rate=
+    double(stat.n_pages_not_made_young - old_stat.n_pages_not_made_young) /
+    elapsed;
+
   pool_info->pages_readahead_rnd_rate=
     double(stat.n_ra_pages_read_rnd - old_stat.n_ra_pages_read_rnd) / elapsed;
-  pool_info->n_ra_pages_read= stat.n_ra_pages_read;
   pool_info->pages_readahead_rate=
     double(stat.n_ra_pages_read - old_stat.n_ra_pages_read) / elapsed;
-  pool_info->n_ra_pages_evicted= stat.n_ra_pages_evicted;
   pool_info->pages_evicted_rate=
     double(stat.n_ra_pages_evicted - old_stat.n_ra_pages_evicted) / elapsed;
   pool_info->unzip_lru_len= UT_LIST_GET_LEN(unzip_LRU);

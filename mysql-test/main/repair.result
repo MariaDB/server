@@ -307,7 +307,7 @@ COMMAND_LINE_ARGUMENT	OPTIONAL
 GLOBAL_VALUE_PATH	NULL
 set alter_algorithm=COPY;
 Warnings:
-Warning	4200	The variable '@@alter_algorithm' is ignored. It only exists for compatibility with old installations and will be removed in a future release
+Warning	4200	The setting 'alter_algorithm' is ignored. It only exists for compatibility with old installations and will be removed in a future release
 select @@alter_algorithm;
 @@alter_algorithm
 DEFAULT
@@ -315,8 +315,8 @@ set statement alter_algorithm=COPY FOR SELECT @@alter_algorithm;
 @@alter_algorithm
 DEFAULT
 Warnings:
-Warning	4200	The variable '@@alter_algorithm' is ignored. It only exists for compatibility with old installations and will be removed in a future release
-Warning	4200	The variable '@@alter_algorithm' is ignored. It only exists for compatibility with old installations and will be removed in a future release
+Warning	4200	The setting 'alter_algorithm' is ignored. It only exists for compatibility with old installations and will be removed in a future release
+Warning	4200	The setting 'alter_algorithm' is ignored. It only exists for compatibility with old installations and will be removed in a future release
 # restart: --alter-algorithm=COPY
 select @@alter_algorithm;
 @@alter_algorithm

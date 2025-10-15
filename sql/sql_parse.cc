@@ -1848,7 +1848,7 @@ dispatch_command_return dispatch_command(enum enum_server_command command, THD *
                       (char *) thd->security_ctx->host_or_ip);
     char *packet_end= thd->query() + thd->query_length();
     general_log_write(thd, command, thd->query(), thd->query_length());
-    DBUG_PRINT("query",("%-.4096s",thd->query()));
+    DBUG_PRINT("query",("query_id=%lld, %.*s", thd->query_id, thd->query_length(), thd->query()));
 #if defined(ENABLED_PROFILING)
     thd->profiling.set_query_source(thd->query(), thd->query_length());
 #endif
@@ -4627,6 +4627,7 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
       select_lex->context.table_list=
         select_lex->context.first_name_resolution_table= second_table;
       res= mysql_insert_select_prepare(thd, result);
+      Write_record write;
       if (!res &&
           (sel_result= new (thd->mem_root)
                        select_insert(thd, first_table,
@@ -4636,7 +4637,8 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
                                     &lex->value_list,
                                     lex->duplicates,
                                     lex->ignore,
-                                    result)))
+                                    result,
+                                    &write)))
       {
         if (lex->analyze_stmt)
           ((select_result_interceptor*)sel_result)->disable_my_ok_calls();
@@ -5819,11 +5821,12 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
 
     if ((err_code= drop_server(thd, &lex->server_options)))
     {
-      if (! lex->if_exists() && err_code == ER_FOREIGN_SERVER_DOESNT_EXIST)
+      if (! lex->if_exists() || err_code != ER_FOREIGN_SERVER_DOESNT_EXIST)
       {
         DBUG_PRINT("info", ("problem dropping server %s",
                             lex->server_options.server_name.str));
-        my_error(err_code, MYF(0), lex->server_options.server_name.str);
+        if (!thd->is_error())
+          my_error(err_code, MYF(0), lex->server_options.server_name.str);
       }
       else
       {
@@ -8140,8 +8143,8 @@ TABLE_LIST *st_select_lex::add_table_to_list(THD *thd,
       }
     }
   }
-  /* Store the table reference preceding the current one. */
-  TABLE_LIST *UNINIT_VAR(previous_table_ref); /* The table preceding the current one. */
+  /* Store the table reference preceding the current in previous_table_ref */
+  TABLE_LIST *UNINIT_VAR(previous_table_ref);
   if (table_list.elements > 0 && likely(!ptr->sequence))
   {
     /*

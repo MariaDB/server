@@ -41,6 +41,8 @@ Created 11/5/1995 Heikki Tuuri
 #include "transactional_lock_guard.h"
 #include <ostream>
 
+struct trx_t;
+
 /** The allocation granularity of innodb_buffer_pool_size */
 constexpr size_t innodb_buffer_pool_extent_size=
   sizeof(size_t) < 8 ? 2 << 20 : 8 << 20;
@@ -259,6 +261,12 @@ void
 buf_block_modify_clock_inc(
 /*=======================*/
 	buf_block_t*	block);	/*!< in: block */
+
+/** Increment the pages_accessed count. */
+void buf_inc_get(trx_t *trx) noexcept;
+
+/** Increment the pages_accessed count. */
+void buf_inc_get() noexcept;
 #endif /* !UNIV_INNOCHECKSUM */
 
 /** Check if a buffer is all zeroes.
@@ -465,7 +473,8 @@ public: // FIXME: fix fil_iterate()
     protected by buf_pool.page_hash.lock_get() */
     buf_page_t *hash;
     /** for state()==MEMORY that are part of recv_sys.pages and
-    protected by recv_sys.mutex */
+    protected by recv_sys.mutex, or part of btr_sea::partition::table
+    and protected by btr_sea::partition::blocks_mutex */
     struct {
       /** number of recv_sys.pages entries stored in the block */
       uint16_t used_records;
@@ -586,7 +595,7 @@ public:
     ut_ad(state < REMOVE_HASH || state >= UNFIXED);
     ut_ad(!lock.is_locked_or_waiting());
     id_= id;
-    zip.fix= state;
+    zip.fix.store(state, std::memory_order_release);
     oldest_modification_= 0;
     ut_d(in_free_list= false);
     ut_d(in_LRU_list= false);
@@ -860,7 +869,7 @@ struct buf_block_t{
   Atomic_relaxed<uint16_t> n_hash_helps;
 # if defined UNIV_AHI_DEBUG || defined UNIV_DEBUG
   /** number of pointers from the btr_sea::partition::table;
-  !n_pointers == !index */
+  !index implies n_pointers == 0 */
   Atomic_counter<uint16_t> n_pointers;
 #  define assert_block_ahi_empty(block) ut_a(!(block)->n_pointers)
 #  define assert_block_ahi_valid(b) ut_a((b)->index || !(b)->n_pointers)
@@ -870,7 +879,7 @@ struct buf_block_t{
 # endif /* UNIV_AHI_DEBUG || UNIV_DEBUG */
   /** index for which the adaptive hash index has been created,
   or nullptr if the page does not exist in the index.
-  Protected by btr_sea::partition::latch. */
+  May be modified while holding exclusive btr_sea::partition::latch. */
   Atomic_relaxed<dict_index_t*> index;
   /* @} */
 #else /* BTR_CUR_HASH_ADAPT */
@@ -1023,12 +1032,16 @@ struct buf_pool_stat_t{
 	/** Initialize the counters */
 	void init() noexcept { memset((void*) this, 0, sizeof *this); }
 
-	ib_counter_t<ulint, ib_counter_element_t>	n_page_gets;
-				/*!< number of page gets performed;
-				also successful searches through
-				the adaptive hash index are
-				counted as page gets;
-				NOT protected by buf_pool.mutex */
+	buf_pool_stat_t& operator=(const buf_pool_stat_t& other) noexcept {
+		memcpy(reinterpret_cast<void*>(this), &other, sizeof *this);
+		return *this;
+	}
+
+	/** number of pages accessed; aggregates trx_t::pages_accessed */
+	union {
+		Atomic_counter<ulint> n_page_gets{0};
+		ulint n_page_gets_nonatomic;
+	};
 	ulint	n_pages_read;	/*!< number read operations */
 	ulint	n_pages_written;/*!< number write operations */
 	ulint	n_pages_created;/*!< number of pages created
@@ -1161,7 +1174,7 @@ public:
 
   /** Resize the buffer pool.
   @param size   requested innodb_buffer_pool_size in bytes
-  @param thd    current connnection */
+  @param trx    current connnection */
   ATTRIBUTE_COLD void resize(size_t size, THD *thd) noexcept;
 
   /** Collect garbage (release pages from the LRU list) */
@@ -1272,15 +1285,16 @@ public:
   the mode c=FIX_WAIT_READ must not be used.
   @param id        page identifier
   @param err       error code (will only be assigned when returning nullptr)
+  @param trx       transaction attached to current connection
   @param c         how to handle conflicts
   @return undo log page, buffer-fixed
   @retval -1       if c=FIX_NOWAIT and buffer-fixing would require waiting
   @retval nullptr  if the undo page was corrupted or freed */
-  buf_block_t *page_fix(const page_id_t id, dberr_t *err,
+  buf_block_t *page_fix(const page_id_t id, dberr_t *err, trx_t *trx,
                         page_fix_conflicts c) noexcept;
 
-  buf_block_t *page_fix(const page_id_t id) noexcept
-  { return page_fix(id, nullptr, FIX_WAIT_READ); }
+  buf_block_t *page_fix(const page_id_t id, trx_t *trx) noexcept
+  { return page_fix(id, nullptr, trx, FIX_WAIT_READ); }
 
   /** Validate a block descriptor.
   @param b     block descriptor that may be invalid after shrink()
@@ -1288,7 +1302,6 @@ public:
   @param id    page identifier
   @return b->page.fix() if b->page.id() == id
   @retval 0 if b is invalid */
-  TRANSACTIONAL_TARGET
   uint32_t page_guess(buf_block_t *b, page_hash_latch &latch,
                       const page_id_t id) noexcept;
 
@@ -1429,52 +1442,13 @@ public:
     { return array[calc_hash(fold, n_cells)]; }
 
     /** Append a block descriptor to a hash bucket chain. */
-    void append(hash_chain &chain, buf_page_t *bpage) noexcept
-    {
-      ut_ad(!bpage->in_page_hash);
-      ut_ad(!bpage->hash);
-      ut_d(bpage->in_page_hash= true);
-      buf_page_t **prev= &chain.first;
-      while (*prev)
-      {
-        ut_ad((*prev)->in_page_hash);
-        prev= &(*prev)->hash;
-      }
-      *prev= bpage;
-    }
+    void append(hash_chain &chain, buf_page_t *bpage) noexcept;
 
     /** Remove a block descriptor from a hash bucket chain. */
-    void remove(hash_chain &chain, buf_page_t *bpage) noexcept
-    {
-      ut_ad(bpage->in_page_hash);
-      buf_page_t **prev= &chain.first;
-      while (*prev != bpage)
-      {
-        ut_ad((*prev)->in_page_hash);
-        prev= &(*prev)->hash;
-      }
-      *prev= bpage->hash;
-      ut_d(bpage->in_page_hash= false);
-      bpage->hash= nullptr;
-    }
-
+    inline void remove(hash_chain &chain, buf_page_t *bpage) noexcept;
     /** Replace a block descriptor with another. */
-    void replace(hash_chain &chain, buf_page_t *old, buf_page_t *bpage)
-      noexcept
-    {
-      ut_ad(old->in_page_hash);
-      ut_ad(bpage->in_page_hash);
-      ut_d(old->in_page_hash= false);
-      ut_ad(bpage->hash == old->hash);
-      old->hash= nullptr;
-      buf_page_t **prev= &chain.first;
-      while (*prev != old)
-      {
-        ut_ad((*prev)->in_page_hash);
-        prev= &(*prev)->hash;
-      }
-      *prev= bpage;
-    }
+    inline void replace(hash_chain &chain, buf_page_t *old, buf_page_t *bpage)
+      noexcept;
 
     /** Look up a page in a hash bucket chain. */
     inline buf_page_t *get(const page_id_t id, const hash_chain &chain) const

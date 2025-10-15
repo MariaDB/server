@@ -1317,11 +1317,12 @@ public:
 	vers_history_row(const rec_t* rec, const rec_offs* offsets);
 
 	/** Check if record in secondary index is historical row.
+	@param[in,out]	mtr	mini-transaction
 	@param[in]	rec	record in a secondary index
 	@param[out]	history_row true if row is historical
 	@return true on error */
 	bool
-	vers_history_row(const rec_t* rec, bool &history_row);
+	vers_history_row(mtr_t *mtr, const rec_t* rec, bool &history_row);
 
   /** Assign the number of new column to be added as a part
   of the index
@@ -2171,6 +2172,11 @@ struct dict_table_t {
                       (as part of rolling back TRUNCATE) */
   dberr_t rename_tablespace(span<const char> new_name, bool replace) const;
 
+  /** Whether the table is eligible to do bulk insert operation
+  @param trx transaction which tries to do bulk insert
+  @retval true if table can do bulk insert
+  @retval false otherwise */
+  bool can_bulk_insert(const trx_t &trx) const noexcept;
 private:
 	/** Initialize instant->field_map.
 	@param[in]	table	table definition to copy from */

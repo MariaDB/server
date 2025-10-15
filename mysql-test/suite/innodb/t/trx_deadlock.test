@@ -57,6 +57,12 @@ CREATE TABLE t1(col1 INT PRIMARY KEY, col2 INT) ENGINE=InnoDB;
 INSERT INTO t1 VALUES (1, 1), (2, 2);
 SELECT * FROM t1;
 
+--echo # Wait for information schema cache for locks to get cleared
+let $wait_condition=
+  SELECT COUNT(*) = 0 FROM INFORMATION_SCHEMA.INNODB_LOCKS
+  WHERE lock_table like "%t1%";
+--source include/wait_condition.inc
+
 --connection con1
 XA BEGIN 'x1';
 --echo # XA Trx-1: Lock 1st record

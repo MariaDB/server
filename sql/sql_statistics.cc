@@ -439,7 +439,7 @@ public:
   statistical data is to be read. E.g. if the index idx consists of 3
   components (p1,p2,p3) the table  index_stats usually will contain 3 rows for
   this index: the first - for the prefix (p1), the second - for the prefix
-  (p1,p2), and the third - for the the prefix (p1,p2,p3). After the key fields
+  (p1,p2), and the third - for the prefix (p1,p2,p3). After the key fields
   has been set a call of get_stat_value looks for a row by the set key value.
   If the row is found and the value of the avg_frequency column is not null 
   then this value is assigned to key_info->read_stat.avg_frequency[k].
@@ -3311,7 +3311,7 @@ read_statistics_for_tables(THD *thd, TABLE_LIST *tables, bool force_reload)
 
   /*
     Do not read statistics for any query that explicitly involves
-    statistical tables, failure to to do so we may end up
+    statistical tables, failure to do so we may end up
     in a deadlock.
   */
   if (found_stat_table || !statistics_for_tables_is_needed)
@@ -3348,7 +3348,7 @@ read_statistics_for_tables(THD *thd, TABLE_LIST *tables, bool force_reload)
       /*
         The following lock is here to ensure that if a lot of threads are
         accessing the table at the same time after a ANALYZE TABLE,
-        only one thread is loading the data from the the stats tables
+        only one thread is loading the data from the stats tables
         and the others threads are reusing the loaded data.
       */
       mysql_mutex_lock(&table_share->LOCK_statistics);

@@ -1044,7 +1044,7 @@ public:
     negated= !negated;
     return this;
   }
-  bool eq(const Item *item, bool binary_cmp) const override;
+  bool eq(const Item *item, const Eq_config &config) const override;
   CHARSET_INFO *compare_collation() const override
   {
     return cmp_collation.collation;
@@ -3483,7 +3483,7 @@ class Item_equal: public Item_bool_func
   List<Item> equal_items; 
   /* 
      TRUE <-> one of the items is a const item.
-     Such item is always first in in the equal_items list
+     Such item is always first in the equal_items list
   */
   bool with_const;        
   /* 

@@ -62,7 +62,7 @@
   ---------------------------
 
   If the search structure to test whether an element is in F can be fully
-  placed in RAM then this test is expected to be be much cheaper than a random
+  placed in RAM then this test is expected to be much cheaper than a random
   access of a record from Ti. We'll consider two search structures for
   pk-filters: ordered array and bloom filter. Ordered array is easy to
   implement, but it's space consuming. If a filter contains primary keys
@@ -424,6 +424,8 @@ public:
   double selectivity;
   /* The type of the container of the range filter */
   Rowid_filter_container_type container_type;
+  /* This flag is set if the filter is forced by ROWID_FILTER() hint */
+  bool is_forced_by_hint;
 
   Range_rowid_filter_cost_info() : table(0), key_no(0) {}
 

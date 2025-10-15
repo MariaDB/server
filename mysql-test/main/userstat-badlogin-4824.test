@@ -1,9 +1,12 @@
 #
 # MDEV-4824 userstats - wrong user statistics
 #
-# Tests will be skipped for the view protocol because the view protocol creates 
+# Tests will be skipped for the view protocol because the view protocol creates
 # an additional util connection and other statistics data
--- source include/no_view_protocol.inc
+# Skip this test for ps protocol because the previous commit changes the expected
+# the value of bytes_expected in the userstats output.
+--source include/no_view_protocol.inc
+--disable_ps_protocol
 
 --source include/not_embedded.inc
 set @save_userstat=@@global.userstat;
@@ -40,3 +43,4 @@ select user, bytes_received from information_schema.user_statistics where user =
 
 drop user foo@localhost;
 set global userstat=@save_userstat;
+--enable_ps_protocol

@@ -43,7 +43,7 @@ static const char *protocol_types[]= {"Auto", "Original", "Amazon", "Legacy", "P
 TYPELIB s3_protocol_typelib= CREATE_TYPELIB_FOR(protocol_types);
 
 static const char *providers[]= {"Default", "Amazon", "Huawei", NullS};
-TYPELIB s3_provider_typelib = {array_elements(providers)-1,"",providers, NULL};
+TYPELIB s3_provider_typelib = CREATE_TYPELIB_FOR(providers);
 
 /******************************************************************************
  Allocations handler for libmarias3

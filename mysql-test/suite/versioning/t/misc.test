@@ -51,6 +51,25 @@ insert into t2 (a) values (now()),(now());
 select * from t2 where a in (select row_start from t1);
 drop table t1, t2;
 
+--echo # MDEV-30046 wrong row targeted with "insert ... on duplicate" and "replace"
+--echo # Don't allow changes from the past
+create or replace table t1 (pk int primary key, i int) with system versioning;
+show create table t1;
+set timestamp=12345;
+insert t1(pk, i) values(1,3);
+set timestamp=12344;
+delete from t1;
+
+select pk,i from t1 for system_time all;
+
+set timestamp=12345;
+insert t1(pk, i) values(1,3);
+set timestamp=12344;
+replace t1(pk, i) values(1,4);
+
+select pk,i from t1 for system_time all;
+drop table t1;
+
 --echo #
 --echo # End of 10.11 tests
 --echo #

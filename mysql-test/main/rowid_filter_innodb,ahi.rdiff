@@ -13,8 +13,8 @@
            "r_table_time_ms": "REPLACED",
            "r_other_time_ms": "REPLACED",
            "r_engine_stats": {
--            "pages_accessed": 84
-+            "pages_accessed": 6
+-            "pages_accessed": 90
++            "pages_accessed": 51
            },
            "filtered": "REPLACED",
            "r_total_filtered": 2.43902439,
@@ -22,8 +22,8 @@
            "r_table_time_ms": "REPLACED",
            "r_other_time_ms": "REPLACED",
            "r_engine_stats": {
--            "pages_accessed": 84
-+            "pages_accessed": 2
+-            "pages_accessed": 90
++            "pages_accessed": 49
            },
            "filtered": "REPLACED",
            "r_total_filtered": 2.43902439,

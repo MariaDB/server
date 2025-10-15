@@ -83,9 +83,35 @@ wsrep_get_apply_format(THD* thd)
   return thd->wsrep_rgi->rli->relay_log.description_event_for_exec;
 }
 
-void wsrep_store_error(const THD* const thd,
-                       wsrep::mutable_buffer& dst,
-                       bool const include_msg)
+/* store error from rli */
+static void wsrep_store_error_rli(const THD* const thd,
+                                  wsrep::mutable_buffer& dst,
+                                  bool const include_msg)
+{
+  Slave_reporting_capability* const rli= thd->wsrep_rgi->rli;
+  if (rli && rli->last_error().number != 0)
+  {
+    auto error= rli->last_error();
+    std::ostringstream os;
+    if (include_msg)
+    {
+      os << error.message << ",";
+    }
+    os << " Error_code: " << error.number << ';';
+    std::string const err_str= os.str();
+    dst.resize(err_str.length() + 1);
+    sprintf(dst.data(), "%s", err_str.c_str());
+
+    WSREP_DEBUG("Error buffer (RLI) for thd %u seqno %lld, %zu bytes: '%s'",
+                thd->thread_id, (long long)wsrep_thd_trx_seqno(thd),
+                dst.size(), dst.size() ? dst.data() : "(null)");
+  }
+}
+
+/* store error from diagnostic area */
+static void wsrep_store_error_da(const THD* const thd,
+                                 wsrep::mutable_buffer& dst,
+                                 bool const include_msg)
 {
   Diagnostics_area::Sql_condition_iterator it=
     thd->get_stmt_da()->sql_conditions();
@@ -123,9 +149,33 @@ void wsrep_store_error(const THD* const thd,
 
   dst.resize(slider - dst.data());
 
-  WSREP_DEBUG("Error buffer for thd %llu seqno %lld, %zu bytes: '%s'",
+  WSREP_DEBUG("Error buffer (DA) for thd %llu seqno %lld, %zu bytes: '%s'",
               thd->thread_id, (long long)wsrep_thd_trx_seqno(thd),
               dst.size(), dst.size() ? dst.data() : "(null)");
+}
+
+/* store error info after applying error */
+void wsrep_store_error(const THD* const thd,
+                       wsrep::mutable_buffer& dst,
+                       bool const include_msg)
+{
+  dst.clear();
+  wsrep_store_error_da(thd, dst, include_msg);
+  if (dst.size() == 0)
+  {
+    wsrep_store_error_rli(thd, dst, include_msg);
+  }
+  if (dst.size() == 0)
+  {
+    WSREP_WARN("Failed to get apply error description from either "
+               "Relay_log_info or Diagnostics_area, will use random data.");
+    DBUG_ASSERT(0);
+    uintptr_t const n1= reinterpret_cast<uintptr_t>(&dst);
+    uintptr_t const n2= reinterpret_cast<uintptr_t>(thd);
+    uintptr_t const data= n1 ^ (n2 < 1);
+    const char* const data_ptr= reinterpret_cast<const char*>(&data);
+    dst.push_back(data_ptr, data_ptr + sizeof(data));
+  }
 }
 
 static int apply_events(THD*        thd,

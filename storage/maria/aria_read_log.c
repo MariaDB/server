@@ -206,6 +206,7 @@ err:
   /* don't touch anything more, in case we hit a bug */
   fprintf(stderr, "%s: FAILED\n", my_progname_short);
   free_tmpdir(&maria_chk_tmpdir);
+  my_hash_free(&tables_to_redo);
   free_defaults(default_argv);
   exit(1);
 }

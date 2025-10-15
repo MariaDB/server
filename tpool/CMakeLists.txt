@@ -1,7 +1,6 @@
-ADD_LIBRARY(tpool STATIC
-  aio_simulated.cc
+
+SET(COMMON_SOURCES
   tpool_structs.h
-  CMakeLists.txt
   tpool.h
   tpool_generic.cc
   task_group.cc
@@ -9,13 +8,21 @@ ADD_LIBRARY(tpool STATIC
   wait_notification.cc
 )
 
-TARGET_INCLUDE_DIRECTORIES(tpool PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}"
- PRIVATE ${PROJECT_SOURCE_DIR}/include)
 
-IF(WIN32)
-  TARGET_SOURCES(tpool PRIVATE tpool_win.cc aio_win.cc)
-ELSEIF(CMAKE_SYSTEM_NAME STREQUAL "Linux")
-  TARGET_SOURCES(tpool PRIVATE aio_linux.cc)
+IF(NOT CMAKE_SYSTEM_NAME STREQUAL "Linux")
+  ADD_LIBRARY(tpool OBJECT ${COMMON_SOURCES}  aio_simulated.cc)
+  IF(WIN32)
+    TARGET_SOURCES(tpool PRIVATE tpool_win.cc aio_win.cc)
+  ENDIF()
+  TARGET_INCLUDE_DIRECTORIES(tpool PUBLIC ${CMAKE_CURRENT_SOURCE_DIR} ${PROJECT_SOURCE_DIR}/include)
+  ADD_LIBRARY(tpool_min ALIAS tpool)
+ELSE() # Linux
+  ADD_LIBRARY(tpool_common OBJECT ${COMMON_SOURCES})
+  # Ensure that aiocb used as opaque in common code, or ABI will be broken
+  TARGET_COMPILE_DEFINITIONS(tpool_common PRIVATE -DTPOOL_OPAQUE_AIOCB)
+  TARGET_INCLUDE_DIRECTORIES(tpool_common PUBLIC ${CMAKE_CURRENT_SOURCE_DIR} ${PROJECT_SOURCE_DIR}/include)
+  ADD_LIBRARY(tpool STATIC aio_linux.cc aio_simulated.cc)
+  TARGET_LINK_LIBRARIES(tpool PUBLIC tpool_common)
   OPTION(WITH_URING "Require that io_uring be used" OFF)
   OPTION(WITH_LIBAIO "Require that libaio is used" OFF)
   IF(WITH_URING)
@@ -31,6 +38,7 @@ ELSEIF(CMAKE_SYSTEM_NAME STREQUAL "Linux")
     TARGET_LINK_LIBRARIES(tpool PRIVATE ${URING_LIBRARIES})
     TARGET_INCLUDE_DIRECTORIES(tpool PUBLIC ${URING_INCLUDE_DIRS})
     TARGET_SOURCES(tpool PRIVATE aio_liburing.cc)
+    ADD_DEPENDENCIES(tpool GenError)
     SET(CMAKE_REQUIRED_INCLUDES_SAVE ${CMAKE_REQUIRED_INCLUDES})
     SET(CMAKE_REQUIRED_LIBRARIES_SAVE ${CMAKE_REQUIRED_LIBRARIES})
     SET(CMAKE_REQUIRED_INCLUDES ${URING_INCLUDE_DIRS})
@@ -50,8 +58,15 @@ ELSEIF(CMAKE_SYSTEM_NAME STREQUAL "Linux")
     TARGET_LINK_LIBRARIES(tpool PRIVATE ${LIBAIO_LIBRARIES})
     TARGET_SOURCES(tpool PRIVATE aio_libaio.cc)
   ENDIF()
+
+  IF(LIBAIO_FOUND OR URING_FOUND)
+    # Create a "light" version of the library that does not link
+    # to additional io libs, and is not compiled with
+    # -DHAVE_LIBAIO or -DHAVE_URING flags.
+    ADD_LIBRARY(tpool_min STATIC aio_linux.cc)
+    TARGET_LINK_LIBRARIES(tpool_min PUBLIC tpool_common)
+  ELSE()
+    ADD_LIBRARY(tpool_min ALIAS tpool)
+  ENDIF()
 ENDIF()
 
-IF(URING_FOUND)
-  ADD_DEPENDENCIES(tpool GenError)
-ENDIF()
