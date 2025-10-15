@@ -27,14 +27,24 @@ USE auto_test_remote2;
 --connection child2_1
 --disable_query_log
 echo CHILD2_1_CREATE_TABLES;
-eval $CHILD2_1_CREATE_TABLES;
+CREATE TABLE tbl_a (
+pkey int NOT NULL,
+skey int NOT NULL,
+PRIMARY KEY (pkey),
+KEY idx1 (skey)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 --enable_query_log
 TRUNCATE TABLE mysql.general_log;
 
 --connection child2_2
 --disable_query_log
 echo CHILD2_2_CREATE_TABLES;
-eval $CHILD2_2_CREATE_TABLES;
+CREATE TABLE tbl_a (
+pkey int NOT NULL,
+skey int NOT NULL,
+PRIMARY KEY (pkey),
+KEY idx1 (skey)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 --enable_query_log
 TRUNCATE TABLE mysql.general_log;
 
@@ -46,12 +56,16 @@ echo CREATE TABLE tbl_a (
     PRIMARY KEY (pkey),
     KEY idx1 (skey)
 ) MASTER_1_ENGINE MASTER_1_CHARSET MASTER_1_COMMENT_2_1;
-eval CREATE TABLE tbl_a (
+CREATE TABLE tbl_a (
     pkey int NOT NULL,
     skey int NOT NULL,
     PRIMARY KEY (pkey),
     KEY idx1 (skey)
-) $MASTER_1_ENGINE $MASTER_1_CHARSET $MASTER_1_COMMENT_2_1;
+) ENGINE=Spider DEFAULT CHARSET=utf8 COMMENT='table "tbl_a"'
+  PARTITION BY KEY(pkey) (
+PARTITION pt1 COMMENT='srv "s_2_1"',
+PARTITION pt2 COMMENT='srv "s_2_2"'
+  );
 --enable_query_log
 INSERT INTO tbl_a (pkey,skey) VALUES (0,0),(1,1),(2,2),(3,3),(4,4),(5,5),(6,6),(7,7),(8,8),(9,9);
 INSERT INTO tbl_a (pkey,skey) VALUES (10,10),(11,11),(12,12),(13,13),(14,14),(15,15),(16,16),(17,17),(18,18),(19,19);
@@ -79,15 +93,15 @@ set spider_direct_aggregate=@old_spider_direct_aggregate;
 
 --connection child2_1
 --disable_view_protocol
-eval $CHILD2_1_SELECT_ARGUMENT1;
+SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %';
 --enable_view_protocol
-eval $CHILD2_1_SELECT_TABLES;
+SELECT pkey, skey FROM tbl_a ORDER BY pkey;
 
 --connection child2_2
 --disable_view_protocol
-eval $CHILD2_2_SELECT_ARGUMENT1;
+SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %';
 --enable_view_protocol
-eval $CHILD2_2_SELECT_TABLES;
+SELECT pkey, skey FROM tbl_a ORDER BY pkey;
 --enable_ps2_protocol
 
 --echo
