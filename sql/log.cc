@@ -6566,6 +6566,23 @@ int THD::binlog_flush_pending_rows_event(bool stmt_end, bool is_transactional)
     error= mysql_bin_log.flush_and_set_pending_rows_event(this, 0,
                                                           is_transactional);
   }
+  else
+  {
+    /*
+      There's no pending event, but we still need to flush the cache
+    */
+    binlog_cache_mngr *cache_mngr=
+        (binlog_cache_mngr *) thd_get_ha_data(this, binlog_hton);
+    if (cache_mngr)
+    {
+      DBUG_EXECUTE_IF("simulate_binlog_tmp_file_no_space_left_on_flush",
+                      { DBUG_SET("+d,simulate_file_write_error"); });
+      error=
+          flush_io_cache(cache_mngr->get_binlog_cache_log(is_transactional));
+      DBUG_EXECUTE_IF("simulate_binlog_tmp_file_no_space_left_on_flush",
+                      { DBUG_SET("-d,simulate_file_write_error"); });
+    }
+  }
 
   DBUG_RETURN(error);
 }
