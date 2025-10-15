@@ -7708,8 +7708,12 @@ int MYSQL_BIN_LOG::write_cache(THD *thd, IO_CACHE *cache)
   DBUG_ENTER("MYSQL_BIN_LOG::write_cache");
 
   mysql_mutex_assert_owner(&LOCK_log);
+  DBUG_EXECUTE_IF("simulate_binlog_tmp_file_no_space_left_on_flush",
+                  { DBUG_SET("+d,simulate_file_write_error"); });
   if (reinit_io_cache(cache, READ_CACHE, 0, 0, 0))
     DBUG_RETURN(ER_ERROR_ON_WRITE);
+  DBUG_EXECUTE_IF("simulate_binlog_tmp_file_no_space_left_on_flush",
+                  { DBUG_SET("-d,simulate_file_write_error"); });
   size_t length= my_b_bytes_in_cache(cache), group, carry, hdr_offs;
   size_t val;
   size_t end_log_pos_inc= 0; // each event processed adds BINLOG_CHECKSUM_LEN 2 t
