@@ -174,7 +174,23 @@ UPDATE t1 SET b=17 WHERE a=1;
 FLUSH BINARY LOGS;
 UPDATE t1 SET b=18 WHERE a=1;
 PURGE BINARY LOGS TO 'binlog-000001.ibb';
+*** Test disconnecting in XA transaction before XA PREPARE.
+connection con2;
+SET SESSION binlog_format=MIXED;
+XA BEGIN 'f';
+CREATE TEMPORARY TABLE tmp ENGINE=InnoDB AS SELECT a FROM t1;
 disconnect con2;
+connection con3;
+SET SESSION binlog_format=MIXED;
+XA BEGIN 'g';
+UPDATE t1 SET b=19 WHERE a=1;
+XA END 'g';
 disconnect con3;
+connection default;
+BEGIN;
+SELECT b FROM t1 WHERE a=1 FOR UPDATE;
+b
+18
+ROLLBACK;
 SET GLOBAL slave_connections_needed_for_purge= @old_min_slaves;
 DROP TABLE t1;
