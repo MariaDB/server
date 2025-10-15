@@ -3900,16 +3900,41 @@ bool MYSQL_BIN_LOG::open(const char *log_name,
 
   mysql_mutex_assert_owner(&LOCK_log);
 
-  if (!is_relay_log)
   {
     if (!binlog_state_recover_done)
     {
       binlog_state_recover_done= true;
+      if (is_relay_log)
+      {
+        /*
+          Restore `Gtid_IO_Pos` from the relay log, or `@@gtid_slave`/
+          `current_pos` if it somehow points after the log's end position.
+          No need to load and scan in non-GTID mode,
+          where `Gtid_IO_Pos` is void until switching to GTID mode,
+          which will (re)start it from `@@gtid_slave`/`current_pos`.
+          No need to for `@@relay_log_recovery` either, which will restart
+          anew from just `@@gtid_slave`/`current_pos` in some later code.
+        */
+        if (mi->using_gtid && !mi->rli.is_relay_log_recovery)
+        {
+          DBUG_ASSERT(rpl_global_gtid_slave_state->loaded);
+          if (rpl_load_gtid_state(&mi->gtid_current_pos,
+                mi->using_gtid == Master_info::USE_GTID_CURRENT_POS))
+            DBUG_RETURN(1);
+          if (do_binlog_recovery(/* unused */ mi->connection_name.str, false))
+          {
+            sql_print_warning("`Gtid_IO_Pos` loading failed. "
+                              "Falling back to @@relay_log_recovery...");
+            mi->rli.is_relay_log_recovery= true;
+          }
+        }
+      }
+      else
       if (do_binlog_recovery(opt_bin_logname, false))
         DBUG_RETURN(1);
     }
 
-    if ((!binlog_background_thread_started &&
+    if (!is_relay_log && (!binlog_background_thread_started &&
          !binlog_background_thread_stop) &&
         start_binlog_background_thread())
       DBUG_RETURN(1);
@@ -4056,10 +4081,6 @@ bool MYSQL_BIN_LOG::open(const char *log_name,
         }
       }
 
-      if (!is_relay_log)
-      {
-        char buf[FN_REFLEN];
-
         /*
           Output a Gtid_list_log_event at the start of the binlog file.
 
@@ -4067,11 +4088,11 @@ bool MYSQL_BIN_LOG::open(const char *log_name,
           files earlier than this one, and which are found in this (or later)
           binlogs.
 
-          The list gives a mapping from (domain_id, server_id) -> seq_no (so
-          this means that there is at most one entry for every unique pair
-          (domain_id, server_id) in the list). It indicates that this seq_no is
-          the last one found in an earlier binlog file for this (domain_id,
-          server_id) combination - so any higher seq_no should be search for
+          The list gives a mapping from [(domain_id, server_id) for binary log,
+          (domain_id) for relay log] -> seq_no (so this means that there is
+          at most one entry for every unique key in the list). It indicates that
+          this seq_no is the last one found in an earlier binlog file for this
+          key - so any higher seq_no should be search for
           from this binlog file, or a later one.
 
           This allows to locate the binlog file containing a given GTID by
@@ -4079,25 +4100,31 @@ bool MYSQL_BIN_LOG::open(const char *log_name,
           start of each file, and scanning only the relevant binlog file when
           found, not all binlog files.
 
-          The existence of a given entry (domain_id, server_id, seq_no)
+          The existence of a given entry (key -> seq_no)
           guarantees only that this seq_no will not be found in this or any
           later binlog file. It does not guarantee that it can be found it an
           earlier binlog file, for example the file may have been purged.
 
-          If there is no entry for a given (domain_id, server_id) pair, then
+          If there is no entry for a given key, then
           it means that no such GTID exists in any earlier binlog. It is
           permissible to remove such pair from future Gtid_list_log_events
-          if all previous binlog files containing such GTIDs have been purged
+          if all previous binary (but not relay)
+          log files containing such GTIDs have been purged
           (though such optimization is not performed at the time of this
           writing). So if there is no entry for given GTID it means that such
           GTID should be search for in this or later binlog file, same as if
-          there had been an entry (domain_id, server_id, 0).
+          there had been an entry (key -> 0).
         */
 
-        Gtid_list_log_event gl_ev(&rpl_global_gtid_binlog_state, 0);
+        Gtid_list_log_event gl_ev= is_relay_log ?
+          Gtid_list_log_event(&mi->gtid_current_pos, 0) :
+          Gtid_list_log_event(&rpl_global_gtid_binlog_state, 0);
         if (write_event(&gl_ev))
           goto err;
 
+      if (!is_relay_log)
+      {
+        char buf[FN_REFLEN];
         /* Output a binlog checkpoint event at the start of the binlog file. */
 
         /*
@@ -11199,7 +11226,7 @@ public:
     Gets empited by reset_truncate_coord into gtid binlog state.
   */
   Dynamic_array<rpl_gtid> *gtid_maybe_to_truncate;
-  Recovery_context();
+  Recovery_context(bool do_truncate);
   ~Recovery_context() { delete gtid_maybe_to_truncate; }
   /*
     Completes the recovery procedure.
@@ -11353,11 +11380,11 @@ bool Recovery_context::complete(MYSQL_BIN_LOG *log, HASH &xids)
   return false;
 }
 
-Recovery_context::Recovery_context() :
+Recovery_context::Recovery_context(bool do_truncate):
   prev_event_pos(0),
   last_gtid_standalone(false), last_gtid_valid(false), last_gtid_no2pc(false),
   last_gtid_engines(0),
-  do_truncate(rpl_status == RPL_IDLE_SLAVE),
+  do_truncate(do_truncate),
   truncate_validated(false), truncate_reset_done(false),
   truncate_set_in_1st(false), id_binlog(MAX_binlog_id),
   checksum_alg(BINLOG_CHECKSUM_ALG_UNDEF), gtid_maybe_to_truncate(NULL)
@@ -11662,7 +11689,7 @@ int TC_LOG_BINLOG::recover(LOG_INFO *linfo, const char *last_log_name,
   File file= -1;
   const char *errmsg;
 #ifdef HAVE_REPLICATION
-  Recovery_context ctx;
+  Recovery_context ctx(!is_relay_log && rpl_status == RPL_IDLE_SLAVE);
 #endif
   DBUG_ENTER("TC_LOG_BINLOG::recover");
   /*
@@ -11677,6 +11704,8 @@ int TC_LOG_BINLOG::recover(LOG_INFO *linfo, const char *last_log_name,
     binlog file is reached.
   */
   int round;
+  /// Whether the records read are sufficient to determine a GTID position
+  bool gtid_pos_loaded= false;
 
   if (! fdle->is_valid() ||
       (my_hash_init(key_memory_binlog_recover_exec, &xids,
@@ -11709,7 +11738,11 @@ int TC_LOG_BINLOG::recover(LOG_INFO *linfo, const char *last_log_name,
   {
     int error;
     while ((ev= Log_event::read_log_event(round == 1 ? first_log : &log, &error,
-                                          fdle, opt_master_verify_checksum))
+                /*
+                  A slave will verify the checksum in the SQL thread;
+                  the relay log does not care about checksums until then.
+                */
+                fdle, !is_relay_log && opt_master_verify_checksum))
            && ev->is_valid())
     {
       enum Log_event_type typ= ev->get_type_code();
@@ -11782,15 +11815,26 @@ int TC_LOG_BINLOG::recover(LOG_INFO *linfo, const char *last_log_name,
         if (round == 1 || (ctx.do_truncate && ctx.id_binlog == 0))
         {
           Gtid_list_log_event *glev= (Gtid_list_log_event *)ev;
-
+          /*
+            A GTID list is required to know what sequences ended
+            before the last log file and at which sequence IDs.
+          */
+          gtid_pos_loaded= true;
           /* Initialise the binlog state from the Gtid_list event. */
-          if (rpl_global_gtid_binlog_state.load(glev->list, glev->count))
+          if (is_relay_log ?
+              mi->gtid_current_pos.load(glev->list, glev->count) :
+              rpl_global_gtid_binlog_state.load(glev->list, glev->count))
             goto err2;
         }
         break;
 
       case GTID_EVENT:
         ctx.process_gtid(round, (Gtid_log_event *)ev, linfo);
+        if (is_relay_log)
+        {
+          mi->last_queued_gtid= ctx.last_gtid;
+          mi->last_queued_gtid_standalone= ctx.last_gtid_standalone;
+        }
         break;
 
       case XA_PREPARE_LOG_EVENT:
@@ -11825,10 +11869,20 @@ int TC_LOG_BINLOG::recover(LOG_INFO *linfo, const char *last_log_name,
                      (((Query_log_event *)ev)->is_commit() ||
                       ((Query_log_event *)ev)->is_rollback()))));
 
+        if (is_relay_log)
+        {
+          mi->events_queued_since_last_gtid= 0;
+          if (mi->gtid_current_pos.update(&ctx.last_gtid))
+            goto err2;
+        }
+        else
         if (rpl_global_gtid_binlog_state.update_nolock(&ctx.last_gtid, false))
           goto err2;
         ctx.last_gtid_valid= false;
       }
+
+      if (is_relay_log && !ev->is_relay_log_event())
+        ++(mi->events_queued_since_last_gtid);
       ctx.prev_event_pos= ev->log_pos;
 #endif
       delete ev;
@@ -11897,6 +11951,8 @@ int TC_LOG_BINLOG::recover(LOG_INFO *linfo, const char *last_log_name,
     fdle->reset_crypto();
   } // end of for
 
+  if (!gtid_pos_loaded)
+    goto err2;
   if (do_xa)
   {
     if (binlog_checkpoint_found)
@@ -11909,7 +11965,7 @@ int TC_LOG_BINLOG::recover(LOG_INFO *linfo, const char *last_log_name,
         goto err2;
     }
   }
-  if (ddl_log_close_binlogged_events(&ddl_log_ids))
+  if (!is_relay_log && ddl_log_close_binlogged_events(&ddl_log_ids))
     goto err2;
   free_root(&mem_root, MYF(0));
   my_hash_free(&xids);
@@ -11928,6 +11984,7 @@ err2:
   my_hash_free(&ddl_log_ids);
 
 err1:
+  if (!is_relay_log)
   sql_print_error("Crash recovery failed. Either correct the problem "
                   "(if it's, for example, out of memory error) and restart, "
                   "or delete (or rename) binary log and start serverwith "
@@ -11956,21 +12013,16 @@ MYSQL_BIN_LOG::do_binlog_recovery(const char *opt_name, bool do_xa_recovery)
       the .state file to restore the binlog state. This allows to copy a server
       to provision a new one without copying the binlog files (except the
       master-bin.state file) and still preserve the correct binlog state.
+      Note that relay logs do not cache a `.state` file.
     */
     if (error != LOG_INFO_EOF)
       sql_print_error("find_log_pos() failed (error: %d)", error);
-    else
-    {
-      error= read_state_from_file();
-      if (error == 2)
-      {
+    else if (is_relay_log || (error= read_state_from_file()) == 2)
         /*
           No binlog files and no binlog state is not an error (eg. just initial
           server start after fresh installation).
         */
         error= 0;
-      }
-    }
     return error;
   }
 
@@ -11999,6 +12051,10 @@ MYSQL_BIN_LOG::do_binlog_recovery(const char *opt_name, bool do_xa_recovery)
                                      opt_master_verify_checksum)) &&
       ev->get_type_code() == FORMAT_DESCRIPTION_EVENT)
   {
+    if (is_relay_log)
+      error= recover(&log_info, log_name, &log,
+                     (Format_description_log_event *)ev, false);
+    else
     if (ev->flags & LOG_EVENT_BINLOG_IN_USE_F)
     {
       sql_print_information("Recovering after a crash using %s", opt_name);

@@ -691,6 +691,12 @@ public:
   */
   Atomic_counter<uint64> reset_master_count;
 
+  /**
+    If this @ref is_relay_log, the state of its corresponding IO thread
+    @deprecated TODO: extract the positional info and merge them with the binlog
+  */
+  struct Master_info *mi= nullptr;
+
   MYSQL_BIN_LOG(uint *sync_period);
   /*
     note that there's no destructor ~MYSQL_BIN_LOG() !
