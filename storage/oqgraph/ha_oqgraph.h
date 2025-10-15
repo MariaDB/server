@@ -52,13 +52,8 @@ class ha_oqgraph: public handler
   int fill_record(byte*, const open_query::row&);
 
 public:
-#if MYSQL_VERSION_ID >= 50100
   ha_oqgraph(handlerton *hton, TABLE_SHARE *table);
   ulonglong table_flags() const override;
-#else
-  ha_oqgraph(TABLE *table);
-  Table_flags table_flags() const;
-#endif
   virtual ~ha_oqgraph();
   const char *index_type(uint inx) override
   {
@@ -110,11 +105,6 @@ public:
   bool get_error_message(int error, String* buf) override;
 
   void fprint_error(const char* fmt, ...);
-
-#if MYSQL_VERSION_ID < 100000
-  // Allow compatibility for build with 5.5.32
-  virtual const char *table_type() const { return hton_name(ht)->str; }
-#endif
 
   my_bool register_query_cache_table(THD *thd, const char *table_key,
                                      uint key_length,

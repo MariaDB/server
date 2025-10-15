@@ -211,7 +211,7 @@ static void init_ibd_data(ds_local_file_t *local_file, const uchar *buf, size_t 
 		? fil_space_t::is_compressed(flags)
 		: bool(FSP_FLAGS_HAS_PAGE_COMPRESSION(flags));
 
-#if defined(_WIN32) && (MYSQL_VERSION_ID > 100200)
+#if defined(_WIN32)
 	/* Make compressed file sparse, on Windows.
 	In 10.1, we do not use sparse files. */
 	if (local_file->compressed) {
