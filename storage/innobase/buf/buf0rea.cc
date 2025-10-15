@@ -237,14 +237,6 @@ buf_read_page_low(
 	}
 
 	ut_ad(bpage->in_file());
-	ulonglong mariadb_timer = 0;
-	trx_t *const trx= thd ? thd_to_trx(thd) : nullptr;
-
-	thd_wait_begin(thd, THD_WAIT_DISKIO);
-
-	if (trx && trx->active_handler_stats) {
-		mariadb_timer = mariadb_measure();
-	}
 
 	DBUG_LOG("ib_buf",
 		 "read page " << page_id << " zip_size=" << zip_size
@@ -253,23 +245,39 @@ buf_read_page_low(
 	void* dst = zip_size > 1 ? bpage->zip.data : bpage->frame;
 	const ulint len = zip_size & ~1 ? zip_size & ~1 : srv_page_size;
 
-	auto fio = space->io(IORequest(sync
-				       ? IORequest::READ_SYNC
-				       : IORequest::READ_ASYNC),
-			     os_offset_t{page_id.page_no()} * len, len,
-			     dst, bpage);
+	fil_io_t fio;
 
-	if (UNIV_UNLIKELY(fio.err != DB_SUCCESS)) {
-		recv_sys.free_corrupted_page(page_id, *space->chain.start);
-		buf_pool.corrupted_evict(bpage, buf_page_t::READ_FIX);
-	} else if (sync) {
+	if (sync) {
+		ulonglong mariadb_timer = 0;
+		trx_t *const trx= thd ? thd_to_trx(thd) : nullptr;
+		if (trx && trx->active_handler_stats) {
+			mariadb_timer = mariadb_measure();
+		}
+
+		thd_wait_begin(thd, THD_WAIT_DISKIO);
+		fio = space->io(IORequest(IORequest::READ_SYNC),
+				os_offset_t{page_id.page_no()} * len, len,
+				dst, bpage);
 		thd_wait_end(thd);
-		/* The i/o was already completed in space->io() */
-		fio.err = bpage->read_complete(*fio.node);
-		space->release();
 		if (mariadb_timer) {
 			trx->active_handler_stats->pages_read_time
 				+= mariadb_measure() - mariadb_timer;
+		}
+		if (UNIV_UNLIKELY(fio.err != DB_SUCCESS)) {
+			goto read_fail;
+		}
+		/* The i/o was already completed in space->io() */
+		fio.err = bpage->read_complete(*fio.node);
+		space->release();
+	} else {
+		fio = space->io(IORequest(IORequest::READ_ASYNC),
+				os_offset_t{page_id.page_no()} * len, len,
+				dst, bpage);
+		if (UNIV_UNLIKELY(fio.err != DB_SUCCESS)) {
+		read_fail:
+			recv_sys.free_corrupted_page(page_id,
+						     *space->chain.start);
+			buf_pool.corrupted_evict(bpage, buf_page_t::READ_FIX);
 		}
 	}
 
