@@ -29,7 +29,7 @@ t1	CREATE TABLE `t1` (
   `f1` int(11) NOT NULL,
   `f2` blob DEFAULT NULL,
   PRIMARY KEY (`f1`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 SELECT * FROM t1;
 f1	f2
 2	a
@@ -41,7 +41,7 @@ t1	CREATE TABLE `t1` (
   `f1` int(11) NOT NULL,
   `f2` blob DEFAULT NULL,
   PRIMARY KEY (`f1`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 SELECT * FROM t1;
 f1	f2
 2	a
@@ -53,7 +53,7 @@ t1	CREATE TABLE `t1` (
   `f1` int(11) NOT NULL,
   `f2` blob DEFAULT NULL,
   PRIMARY KEY (`f1`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 SELECT * FROM t1;
 f1	f2
 2	a
