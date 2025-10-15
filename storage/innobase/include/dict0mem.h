@@ -1657,6 +1657,18 @@ public:
     }
     return true;
   }
+
+  /** @return the SQL visible constraint name */
+  const char *sql_id() const noexcept
+  {
+    /* Before MySQL 4.0.18, constraint names were auto-generated (%lu_%lu)
+    and unique among all InnoDB tables.  Starting with MySQL 4.0.18, the
+    constraint names were prepended with the schema name and /.
+    Starting with MariaDB 12, constraint names are prepended with the
+    dict_table_t::name and the invalid UTF-8 sequence 0xff. */
+    const char *s;
+    return ((s= strchr(id, '\377')) || (s= strchr(id, '/'))) ? ++s : id;
+  }
 };
 
 std::ostream&

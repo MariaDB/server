@@ -1,0 +1,5 @@
+[no_warnings]
+wsrep-mode=APPLIER_DISABLE_FK_WARNINGS
+
+[warnings]
+wsrep-mode=0

@@ -159,3 +159,17 @@ while($counter > 0)
 --connection node_1
 
 drop table user_session,user;
+
+let $wsrep_mode = `SELECT @@GLOBAL.wsrep_mode`;
+
+if ($wsrep_mode != APPLIER_DISABLE_FK_WARNINGS)
+{
+--echo # Now there should be 10 WSREP Foreign key constraint warnings
+--let $assert_count = 10
+--let $assert_file = $MYSQLTEST_VARDIR/log/mysqld.1.err
+--let $assert_text = Foreign key warning in table: \`test\`\.\`user_session\` constraint \`user_session_ibfk_1\` failed err: Setting shared record lock to matching record in the child table failed \(Lock wait\).
+--let $assert_select = Foreign key warning in table: \`test\`\.\`user_session\` constraint \`user_session_ibfk_1\` failed err: Setting shared record lock to matching record in the child table failed \(Lock wait\).
+--source include/assert_grep.inc
+}
+
+call mtr.add_suppression("WSREP: Foreign key warning in table");

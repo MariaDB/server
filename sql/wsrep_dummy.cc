@@ -169,3 +169,6 @@ void wsrep_thd_set_PA_unsafe(THD*)
 
 uint32 wsrep_get_domain_id()
 { return 0;}
+
+my_bool wsrep_applier_log_warnings(const THD*, my_bool)
+{ return 0;}
