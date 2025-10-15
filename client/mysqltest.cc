@@ -9066,7 +9066,6 @@ end:
   var_set_errno(mysql_stmt_errno(stmt));
 
   display_optimizer_trace(cn, ds);
-  #if MYSQL_VERSION_ID >= 50000
     if (cursor_protocol_enabled)
     {
       ulong type= CURSOR_TYPE_NO_CURSOR;
@@ -9074,7 +9073,6 @@ end:
         die("mysql_stmt_attr_set(STMT_ATTR_CURSOR_TYPE) failed': %d %s",
             mysql_stmt_errno(stmt), mysql_stmt_error(stmt));
     }
-  #endif
 
   revert_properties();
 
@@ -9291,7 +9289,6 @@ void run_execute_stmt(struct st_connection *cn, struct st_command *command,
     init_dynamic_string(&ds_execute_warnings, NULL, 0, 256);
   }
 
-#if MYSQL_VERSION_ID >= 50000
   if (cursor_protocol_enabled)
   {
     /*
@@ -9302,7 +9299,6 @@ void run_execute_stmt(struct st_connection *cn, struct st_command *command,
       die("mysql_stmt_attr_set(STMT_ATTR_CURSOR_TYPE) failed': %d %s",
           mysql_stmt_errno(stmt), mysql_stmt_error(stmt));
   }
-#endif
 
   /*
     Execute the query
