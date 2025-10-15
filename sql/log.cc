@@ -2209,33 +2209,35 @@ binlog_rollback_flush_trx_cache(THD *thd, bool all,
 
   if (unlikely(thd->transaction->xid_state.is_explicit_XA()))
   {
-    if (opt_binlog_engine_hton)
-    {
-      int err= 0;
-      binlog_cache_mngr *cache_mngr= thd->binlog_setup_trx_data();
-      if (unlikely(!cache_mngr))
-        return 1;
-      binlog_cache_data *cache_data= cache_mngr->get_binlog_cache_data(true);
-      handler_binlog_event_group_info *engine_context=
-        &cache_data->engine_binlog_info;
-      const XID *xid= thd->transaction->xid_state.get_xid();
-      mysql_mutex_lock(&LOCK_commit_ordered);
-      err= (*opt_binlog_engine_hton->binlog_xa_rollback_ordered)
-        (thd, xid, &engine_context->engine_ptr);
-      mysql_mutex_unlock(&LOCK_commit_ordered);
-      if (likely(!err))
-        err= (*opt_binlog_engine_hton->binlog_xa_rollback)
-          (thd, xid, &engine_context->engine_ptr);
-      cache_mngr->reset(false, true);
-      cache_mngr->need_engine_2pc= true;
-
-      return err;
-    }
-
     /* for not prepared use plain ROLLBACK */
     if (thd->transaction->xid_state.get_state_code() == XA_PREPARED)
+    {
+      if (opt_binlog_engine_hton)
+      {
+        int err= 0;
+        binlog_cache_mngr *cache_mngr= thd->binlog_setup_trx_data();
+        if (unlikely(!cache_mngr))
+          return 1;
+        binlog_cache_data *cache_data= cache_mngr->get_binlog_cache_data(true);
+        handler_binlog_event_group_info *engine_context=
+          &cache_data->engine_binlog_info;
+        const XID *xid= thd->transaction->xid_state.get_xid();
+        mysql_mutex_lock(&LOCK_commit_ordered);
+        err= (*opt_binlog_engine_hton->binlog_xa_rollback_ordered)
+          (thd, xid, &engine_context->engine_ptr);
+        mysql_mutex_unlock(&LOCK_commit_ordered);
+        if (likely(!err))
+          err= (*opt_binlog_engine_hton->binlog_xa_rollback)
+            (thd, xid, &engine_context->engine_ptr);
+        cache_mngr->reset(false, true);
+        cache_mngr->need_engine_2pc= true;
+
+        return err;
+      }
+
       buflen= serialize_with_xid(thd->transaction->xid_state.get_xid(),
                                  buf, query, q_len);
+    }
   }
   Query_log_event end_evt(thd, buf, buflen, TRUE, TRUE, TRUE, 0);
 
