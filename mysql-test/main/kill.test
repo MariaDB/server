@@ -9,6 +9,7 @@
 
 -- source include/count_sessions.inc
 -- source include/not_embedded.inc
+-- source include/have_debug_sync.inc
 
 --disable_service_connection
 
@@ -320,3 +321,13 @@ DROP TABLE t1, t2;
 --error ER_BAD_FIELD_ERROR
 kill query id user 'foo';
 --enable_service_connection
+
+
+--echo #
+--echo # MDEV-37874 thd->killed ignored during create event causing assertion
+--echo #
+
+set max_statement_time = 0.1;
+set debug_sync='after_create_event WAIT_FOR go TIMEOUT 1';
+--source main/alter_events.test
+

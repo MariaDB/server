@@ -376,6 +376,7 @@ Events::create_event(THD *thd, Event_parse_data *parse_data)
 
     if (!event_already_exists)
     {
+      DEBUG_SYNC(thd,"after_create_event");
       if (!(new_element= new Event_queue_element()))
         ret= TRUE;                                // OOM
       else if ((ret= db_repository->load_named_event(thd, &parse_data->dbname,
