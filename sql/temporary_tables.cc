@@ -1481,6 +1481,9 @@ void THD::global_tmp_drop_database(const Lex_ident_db &db)
     return;
   }
 
+  if (!temporary_tables)
+    return;
+
   All_tmp_tables_list::Iterator it(*temporary_tables);
   while (TMP_TABLE_SHARE *share= it++)
   {
