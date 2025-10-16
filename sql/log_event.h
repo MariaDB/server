@@ -3443,8 +3443,9 @@ public:
                         MAXBQUALSIZE, MAXGTRIDSIZE);
 
   Gtid_log_event(THD *thd_arg, uint64 seq_no, uint32 domain_id, bool standalone,
-                 uint16 flags, bool is_transactional, uint64 commit_id,
-                 bool has_xid= false, bool is_ro_1pc= false);
+                 enum_event_cache_type cache_type_arg, uint16 flags,
+                 bool is_transactional, uint64 commit_id,
+                 bool has_xid, bool is_ro_1pc);
 #ifdef HAVE_REPLICATION
   void pack_info(Protocol *protocol) override;
   int do_apply_event(rpl_group_info *rgi) override;
@@ -3458,7 +3459,6 @@ public:
                  const Format_description_log_event *description_event);
   ~Gtid_log_event() = default;
   Log_event_type get_type_code() override { return GTID_EVENT; }
-  enum_logged_status logged_status() override { return LOGGED_NO_DATA; }
   int get_data_size() override
   {
     return GTID_HEADER_LEN + ((flags2 & FL_GROUP_COMMIT_ID) ? 2 : 0);

@@ -42,7 +42,7 @@ class online_alter_cache_data: public ilist_node<>,
                                public binlog_cache_data
 {
 public:
-  online_alter_cache_data() : binlog_cache_data(false),
+  online_alter_cache_data() : binlog_cache_data(false, false),
     hton(nullptr), sink_log(nullptr) { }
   void store_prev_position()
   {
