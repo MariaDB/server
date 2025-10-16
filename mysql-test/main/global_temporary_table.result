@@ -1098,4 +1098,8 @@ c
 1
 truncate t;
 drop table t;
+connect  con2,localhost,root,,;
+create database emptydb;
+drop database emptydb;
+connection default;
 disconnect con1;
