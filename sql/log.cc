@@ -388,12 +388,13 @@ public:
                     ulong *param_ptr_binlog_cache_disk_use,
                     bool precompute_checksums)
     : thd(thd_arg),
-      stmt_cache(precompute_checksums),
-      trx_cache(precompute_checksums),
+      stmt_cache(false, precompute_checksums),
+      trx_cache(true, precompute_checksums),
       last_commit_pos_offset(0),
       stmt_start_engine_ptr(nullptr),
       cache_savepoint_list(nullptr),
       cache_savepoint_next_ptr(&cache_savepoint_list),
+      using_stmt_cache(FALSE), using_trx_cache(FALSE),
       using_xa(FALSE), xa_xid(0),
       engine_binlogged(FALSE), need_write_direct(FALSE)
   {
@@ -429,6 +430,7 @@ public:
       }
       else
         stmt_cache.reset();
+      using_stmt_cache= FALSE;
     }
     if (do_trx)
     {
@@ -448,6 +450,7 @@ public:
         last_commit_pos_file.legacy_name[0]= 0;
       }
       last_commit_pos_offset= 0;
+      using_trx_cache= FALSE;
       using_xa= FALSE;
     }
     engine_binlogged= FALSE;
@@ -461,6 +464,30 @@ public:
   binlog_cache_data* get_binlog_cache_data(bool is_transactional)
   {
     return (is_transactional ? &trx_cache : &stmt_cache);
+  }
+
+  /*
+    The cache_data to use when binlogging into the --binlog-storage-engine.
+
+    With binlog in storage engine, we're optimizing for transactional
+    event groups, and for simplicity we only pass a single cache into the
+    engine binlog implementation.
+
+    When mixing transactional and non-transactional updates in a single event
+    group, we flush everything as out-of-band-data, and use the transaction
+    cache just for the GTID.
+
+    The special case comes when we are using both the transactional and
+    the statement cache, _but_ the transaction cache happens to be empty.
+    Then we need to put the GTID in the statement cache and pass that to
+    the engine.
+  */
+  binlog_cache_data *engine_cache_data()
+  {
+    return ( unlikely(!using_trx_cache) || ( unlikely(using_stmt_cache) &&
+                                             !stmt_cache.empty() &&
+                                             trx_cache.empty() ) ) ?
+      &stmt_cache : &trx_cache;
   }
 
   IO_CACHE* get_binlog_cache_log(bool is_transactional)
@@ -502,6 +529,12 @@ public:
   binlog_savepoint_info *cache_savepoint_list;
   binlog_savepoint_info **cache_savepoint_next_ptr;
 
+  /*
+    Set from binlog_flush_cache(), to mark if we are flushing the stmt cache
+    or the trx cache (or both).
+  */
+  bool using_stmt_cache;
+  bool using_trx_cache;
   /*
     Flag set true if this transaction is committed with log_xid() as part of
     XA, false if not.
@@ -2078,23 +2111,21 @@ binlog_get_cache(THD *thd, uint64_t file_no, uint64_t offset,
     cache_mngr->engine_binlogged= TRUE;
     cache_mngr->last_commit_pos_file.engine_file_no= file_no;
     cache_mngr->last_commit_pos_offset= offset;
-    binlog_cache_data *stmt_cache= &cache_mngr->stmt_cache;
-    binlog_cache_data *trx_cache= &cache_mngr->trx_cache;
-    if (unlikely(trx_cache->empty()))
-    {
-      cache= &stmt_cache->cache_log;
-      context= &stmt_cache->engine_binlog_info;
-      context->engine_ptr2= nullptr;
-    }
+    binlog_cache_data *cache_data= cache_mngr->engine_cache_data();
+    cache= &cache_data->cache_log;
+    context= &cache_data->engine_binlog_info;
+    /*
+      If we are binlogging from both stmt and trx cache in the same event
+      group, pass the engine context for out-of-band stmt data as
+      engine_ptr2. In this case, we have flushed everything in both
+      caches out as out-of-band data already.
+    */
+    if (likely(cache_data->trx_cache()) &&
+        unlikely(!cache_mngr->stmt_cache.empty()))
+      context->engine_ptr2=
+        cache_mngr->stmt_cache.engine_binlog_info.engine_ptr;
     else
-    {
-      cache= &trx_cache->cache_log;
-      context= &trx_cache->engine_binlog_info;
-      if (unlikely(!stmt_cache->empty()))
-        context->engine_ptr2= stmt_cache->engine_binlog_info.engine_ptr;
-      else
-        context->engine_ptr2= nullptr;
-    }
+      context->engine_ptr2= nullptr;
     binlog_setup_engine_commit_data(context, cache_mngr);
     gtid= thd->get_last_commit_gtid();
   }
@@ -7357,7 +7388,9 @@ THD::binlog_start_trans_and_stmt()
           server_id= wsrep_gtid_server.server_id;
         }
         Gtid_log_event gtid_event(this, seqno, domain_id, true,
-                                  LOG_EVENT_SUPPRESS_USE_F, true, 0);
+                                  Log_event::EVENT_NO_CACHE,
+                                  LOG_EVENT_SUPPRESS_USE_F, true, 0,
+                                  false, false);
         gtid_event.server_id= server_id;
         writer.write(&gtid_event);
         wsrep_write_cache_buf(&tmp_io_cache, &buf, &len);
@@ -7883,10 +7916,9 @@ Event_log::prepare_pending_rows_event(THD *thd, TABLE* table,
 /* Generate a new global transaction ID, and write it to the binlog */
 
 bool
-MYSQL_BIN_LOG::write_gtid_event(THD *thd, IO_CACHE *dest, bool standalone,
-                                bool direct_write,
-                                bool is_transactional, uint64 commit_id,
-                                bool has_xid, bool is_ro_1pc)
+MYSQL_BIN_LOG::write_gtid_event(THD *thd, binlog_cache_data *cache_data,
+                                bool standalone, bool is_transactional,
+                                uint64 commit_id, bool has_xid, bool is_ro_1pc)
 {
   rpl_gtid gtid;
   uint32 domain_id;
@@ -7939,17 +7971,26 @@ MYSQL_BIN_LOG::write_gtid_event(THD *thd, IO_CACHE *dest, bool standalone,
   if (thd->get_binlog_flags_for_alter() & Gtid_log_event::FL_START_ALTER_E1)
     thd->set_binlog_start_alter_seq_no(gtid.seq_no);
 
-  Gtid_log_event gtid_event(thd, seq_no, domain_id, standalone,
+  Log_event::enum_event_cache_type cache_type;
+  IO_CACHE *dest;
+  if (cache_data)
+  {
+    cache_type= cache_data->trx_cache() ?
+      Log_event::EVENT_TRANSACTIONAL_CACHE : Log_event::EVENT_STMT_CACHE;
+    dest= &cache_data->cache_log;
+  }
+  else
+  {
+    cache_type= Log_event::EVENT_NO_CACHE;
+    dest= &log_file;
+  }
+  Gtid_log_event gtid_event(thd, seq_no, domain_id, standalone, cache_type,
                             LOG_EVENT_SUPPRESS_USE_F, is_transactional,
                             commit_id, has_xid, is_ro_1pc);
-  /* ToDo: Something better than this hack conditional. At least pass direct_write into the Gtid event contructor or something? */
-  if (!direct_write)
-    gtid_event.cache_type= is_transactional ?
-      Log_event::EVENT_TRANSACTIONAL_CACHE : Log_event::EVENT_STMT_CACHE;
 
   if (opt_binlog_engine_hton)
   {
-    DBUG_ASSERT(!direct_write);
+    DBUG_ASSERT(cache_data != nullptr);
     uint32_t avail= (uint32_t)(dest->write_end - dest->write_pos);
     if (unlikely(avail < Gtid_log_event::max_size) &&
         avail < gtid_event.get_size())
@@ -7974,7 +8015,7 @@ MYSQL_BIN_LOG::write_gtid_event(THD *thd, IO_CACHE *dest, bool standalone,
   }
 #endif
 
-  if (write_event(&gtid_event, NULL, dest))
+  if (write_event(&gtid_event, cache_data, dest))
     DBUG_RETURN(true);
   status_var_add(thd->status_var.binlog_bytes_written, gtid_event.data_written);
 
@@ -8379,7 +8420,8 @@ bool MYSQL_BIN_LOG::write(Log_event *event_info, my_bool *with_annotate)
         my_org_b_tell= my_b_tell(file);
         mysql_mutex_lock(&LOCK_log);
         prev_binlog_id= current_binlog_id;
-        res= write_gtid_event(thd, &log_file, true, true, using_trans, commit_id);
+        res= write_gtid_event(thd, nullptr, true, using_trans, commit_id,
+                              false, false);
         if (mdl_request.ticket)
           thd->mdl_context.release_lock(mdl_request.ticket);
         thd->backup_commit_lock= 0;
@@ -8519,7 +8561,8 @@ err:
           goto engine_fail;
         }
         mysql_mutex_lock(&LOCK_log);
-        res= write_gtid_event(thd, file, true, false, using_trans, commit_id);
+        res= write_gtid_event(thd, cache_data, true, using_trans, commit_id,
+                              false, false);
         if (mdl_request.ticket)
           thd->mdl_context.release_lock(mdl_request.ticket);
         thd->backup_commit_lock= 0;
@@ -9626,13 +9669,13 @@ MYSQL_BIN_LOG::write_transaction_to_binlog(THD *thd,
   entry.cache_mngr= cache_mngr;
   entry.error= 0;
   entry.all= all;
-  entry.using_stmt_cache= using_stmt_cache;
-  entry.using_trx_cache= using_trx_cache;
   entry.need_unlog= unlikely(is_preparing_xa(thd)) && !opt_binlog_engine_hton;
   ha_info= all ? thd->transaction->all.ha_list : thd->transaction->stmt.ha_list;
   entry.ro_1pc= is_ro_1pc;
   entry.do_binlog_group_commit_ordered= false;
   entry.end_event= end_ev;
+  cache_mngr->using_stmt_cache= using_stmt_cache;
+  cache_mngr->using_trx_cache= using_trx_cache;
   cache_mngr->need_engine_2pc= false;
   auto has_xid= entry.end_event->get_type_code() == XID_EVENT;
 
@@ -10102,8 +10145,7 @@ MYSQL_BIN_LOG::write_transaction_to_binlog_events(group_commit_entry *entry)
 
     if (unlikely(!cache_mngr->engine_binlogged) && opt_binlog_engine_hton)
     {
-      binlog_cache_data *cache_data=
-        cache_mngr->get_binlog_cache_data(entry->using_trx_cache);
+      binlog_cache_data *cache_data= cache_mngr->engine_cache_data();
       IO_CACHE *file= &cache_data->cache_log;
       handler_binlog_event_group_info *engine_context=
         &cache_data->engine_binlog_info;
@@ -10167,8 +10209,7 @@ MYSQL_BIN_LOG::write_transaction_to_binlog_events(group_commit_entry *entry)
 
   if (unlikely(cache_mngr->need_write_direct))
   {
-    binlog_cache_data *cache_data=
-      cache_mngr->get_binlog_cache_data(entry->using_trx_cache);
+    binlog_cache_data *cache_data= cache_mngr->engine_cache_data();
     IO_CACHE *file= &cache_data->cache_log;
     handler_binlog_event_group_info *engine_context=
       &cache_data->engine_binlog_info;
@@ -10179,7 +10220,7 @@ MYSQL_BIN_LOG::write_transaction_to_binlog_events(group_commit_entry *entry)
   if (entry->do_binlog_group_commit_ordered)
   {
     binlog_cache_data *cache_data=
-      cache_mngr->get_binlog_cache_data(entry->using_trx_cache);
+      cache_mngr->get_binlog_cache_data(cache_mngr->using_trx_cache);
     (*opt_binlog_engine_hton->binlog_group_commit_ordered)
       (entry->thd, &cache_data->engine_binlog_info);
   }
@@ -10597,8 +10638,7 @@ MYSQL_BIN_LOG::trx_group_commit_leader(group_commit_entry *leader)
         transactional and non-transactional DML in the same event group, or when
         doing CREATE TABLE ... SELECT using row-based binlogging.
       */
-      binlog_cache_data *cache_data=
-        cache_mngr->get_binlog_cache_data(current->using_trx_cache);
+      binlog_cache_data *cache_data= cache_mngr->engine_cache_data();
       IO_CACHE *file= &cache_data->cache_log;
       handler_binlog_event_group_info *engine_context=
         &cache_data->engine_binlog_info;
@@ -10667,32 +10707,31 @@ MYSQL_BIN_LOG::write_transaction_or_stmt(group_commit_entry *entry,
     An error in the trx_cache will truncate the cache to the last good
     statement, it won't leave a lingering error. Assert that this holds.
   */
-  DBUG_ASSERT(!(entry->using_trx_cache && !mngr->trx_cache.empty() &&
+  DBUG_ASSERT(!(mngr->using_trx_cache && !mngr->trx_cache.empty() &&
                 mngr->get_binlog_cache_log(TRUE)->error));
   /*
     An error in the stmt_cache would be caught on the higher level and result
     in an incident event being written over a (possibly corrupt) cache content.
     Assert that this holds.
   */
-  DBUG_ASSERT(!(entry->using_stmt_cache && !mngr->stmt_cache.empty() &&
+  DBUG_ASSERT(!(mngr->using_stmt_cache && !mngr->stmt_cache.empty() &&
                 mngr->get_binlog_cache_log(FALSE)->error));
 
   if (!opt_binlog_engine_hton)
   {
-  if (write_gtid_event(entry->thd, &log_file, is_prepared_xa(entry->thd),
-                       true,
-                       entry->using_trx_cache, commit_id,
+  if (write_gtid_event(entry->thd, nullptr, is_prepared_xa(entry->thd),
+                       mngr->using_trx_cache, commit_id,
                        has_xid, entry->ro_1pc))
     DBUG_RETURN(ER_ERROR_ON_WRITE);
 
-  if (entry->using_stmt_cache && !mngr->stmt_cache.empty() &&
+  if (mngr->using_stmt_cache && !mngr->stmt_cache.empty() &&
       write_cache(entry->thd, mngr->get_binlog_cache_data(FALSE)))
   {
     entry->error_cache= &mngr->stmt_cache.cache_log;
     DBUG_RETURN(ER_ERROR_ON_WRITE);
   }
 
-  if (entry->using_trx_cache && !mngr->trx_cache.empty())
+  if (mngr->using_trx_cache && !mngr->trx_cache.empty())
   {
     DBUG_EXECUTE_IF("crash_before_writing_xid",
                     {
@@ -10736,9 +10775,9 @@ MYSQL_BIN_LOG::write_transaction_or_stmt(group_commit_entry *entry,
   }
   else
   {
-    DBUG_ASSERT((entry->using_stmt_cache && !mngr->stmt_cache.empty()) ||
-                (entry->using_trx_cache && !mngr->trx_cache.empty()) ||
-                (entry->using_trx_cache &&
+    DBUG_ASSERT((mngr->using_stmt_cache && !mngr->stmt_cache.empty()) ||
+                (mngr->using_trx_cache && !mngr->trx_cache.empty()) ||
+                (mngr->using_trx_cache &&
                  mngr->trx_cache.engine_binlog_info.xa_xid != nullptr)
                 /*
                   Assert that empty transaction is handled elsewhere.
@@ -10746,8 +10785,8 @@ MYSQL_BIN_LOG::write_transaction_or_stmt(group_commit_entry *entry,
                   prepare record, the caches are empty.
                 */
                 );
-    if (unlikely((entry->using_stmt_cache && !mngr->stmt_cache.empty()) &&
-                 (entry->using_trx_cache && !mngr->trx_cache.empty())))
+    if (unlikely((mngr->using_stmt_cache && !mngr->stmt_cache.empty()) &&
+                 (mngr->using_trx_cache && !mngr->trx_cache.empty())))
     {
       /*
         We have data in both the statement and the transaction cache.
@@ -10769,25 +10808,15 @@ MYSQL_BIN_LOG::write_transaction_or_stmt(group_commit_entry *entry,
         DBUG_RETURN(ER_ERROR_ON_WRITE);
     }
 
-    binlog_cache_data *cache_data= entry->using_trx_cache ?
-      &mngr->trx_cache : &mngr->stmt_cache;
-    DBUG_ASSERT(!(entry->using_trx_cache &&
-                  mngr->trx_cache.empty() &&
-                  !mngr->stmt_cache.empty())
-                /*
-                  Assert that we do not put the GTID in the trx cache
-                  when the only event data is in the stmt cache.
-                */
-                );
+    binlog_cache_data *cache_data= mngr->engine_cache_data();
     /*
       The GTID event cannot go first since we only allocate the GTID at binlog
       time. So write the GTID at the very end, and record its offset so that the
       engine can pick it out and binlog it at the start.
     */
     cache_data->engine_binlog_info.gtid_offset= my_b_tell(&cache_data->cache_log);
-    if (write_gtid_event(entry->thd, &cache_data->cache_log,
-                         is_prepared_xa(entry->thd), false,
-                         entry->using_trx_cache, commit_id,
+    if (write_gtid_event(entry->thd, cache_data, false,
+                         mngr->using_trx_cache, commit_id,
                          has_xid, entry->ro_1pc))
       DBUG_RETURN(ER_ERROR_ON_WRITE);
   }

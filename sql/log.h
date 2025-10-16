@@ -653,8 +653,6 @@ class MYSQL_BIN_LOG: public TC_LOG, public Event_log
     struct group_commit_entry *next;
     THD *thd;
     binlog_cache_mngr *cache_mngr;
-    bool using_stmt_cache;
-    bool using_trx_cache;
     /*
       Extra events (COMMIT/ROLLBACK/XID, and possibly INCIDENT) to be
       written during group commit. The incident_event is only valid if
@@ -1174,10 +1172,9 @@ public:
   inline uint32 get_open_count() { return open_count; }
   void set_status_variables(THD *thd);
   bool is_xidlist_idle();
-  bool write_gtid_event(THD *thd, IO_CACHE *dest, bool standalone,
-                        bool direct_write,
-                        bool is_transactional, uint64 commit_id,
-                        bool has_xid= false, bool ro_1pc= false);
+  bool write_gtid_event(THD *thd, binlog_cache_data *cache_data,
+                        bool standalone, bool is_transactional,
+                        uint64 commit_id, bool has_xid, bool ro_1pc);
   int read_state_from_file();
   int write_state_to_file();
   int get_most_recent_gtid_list(rpl_gtid **list, uint32 *size);
