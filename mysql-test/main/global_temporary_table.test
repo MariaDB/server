@@ -994,4 +994,10 @@ select * from t;
 truncate t;
 drop table t;
 
+--connect (con2,localhost,root,,)
+create database emptydb;
+drop database emptydb;
+--disconnect con2
+--connection default
+
 --disconnect con1
