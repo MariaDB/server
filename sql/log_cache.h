@@ -26,9 +26,10 @@ static constexpr my_off_t CACHE_FILE_TRUNC_SIZE = 65536;
 class binlog_cache_data
 {
 public:
-  binlog_cache_data(bool precompute_checksums):
+  binlog_cache_data(bool trx_cache, bool precompute_checksums):
                     engine_binlog_info {0, 0, 0, 0, 0, 0, 0, 0},
                     before_stmt_pos(MY_OFF_T_UNDEF), m_pending(0), status(0),
+                    is_trx_cache(trx_cache),
                     incident(FALSE), precompute_checksums(precompute_checksums),
                     saved_max_binlog_cache_size(0), ptr_binlog_cache_use(0),
                     ptr_binlog_cache_disk_use(0)
@@ -51,6 +52,8 @@ public:
         (engine_binlog_info.engine_ptr);
     close_cached_file(&cache_log);
   }
+
+  bool trx_cache() { return is_trx_cache; }
 
   /*
     Return 1 if there is no relevant entries in the cache
@@ -249,6 +252,8 @@ public:
   enum_binlog_checksum_alg checksum_opt;
 
 private:
+  /* Record whether this is a stmt or trx cache. */
+  bool is_trx_cache;
   /*
     This indicates that some events did not get into the cache and most likely
     it is corrupted.
