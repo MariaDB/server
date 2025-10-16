@@ -1342,6 +1342,7 @@ void LEX::start(THD *thd_arg)
   opt_hints_global= 0;
 
   memset(&trg_chistics, 0, sizeof(trg_chistics));
+  selects_for_hint_resolution.empty();
   DBUG_VOID_RETURN;
 }
 
@@ -3900,7 +3901,7 @@ void st_select_lex::print_limit(THD *thd,
                                 enum_query_type query_type)
 {
   SELECT_LEX_UNIT *unit= master_unit();
-  Item_subselect *item= unit->item;
+  Item_subselect *item= unit ? unit->item : nullptr;
 
   if (item && unit->global_parameters() == this)
   {
@@ -4669,6 +4670,7 @@ void LEX::first_lists_tables_same()
     query_tables= first_table;
   }
 }
+
 
 void LEX::fix_first_select_number()
 {
@@ -13473,18 +13475,33 @@ LEX::parse_optimizer_hints(const Lex_comment_st &hints_str)
 }
 
 
-void LEX::resolve_optimizer_hints_in_last_select()
+/*
+  @brief
+    After we've finished parsing a SELECT, handle its hints.
+
+  @detail
+    Hints in this SELECT have already been parsed, but not resolved.
+    Hint resoution requires that
+    A. Children SELECT have done their hint resolution.
+    B. SELECT_SELECT objects have their correct select_number.
+
+    Because of A, we have this call that is invoked at the end of each SELECT.
+    Due to B, we don't do resulution right here, we just remember the order in
+    which SELECTs must do name resolution.
+    See opt_hints.h, Section "Hint Resolution" for details.
+*/
+
+void LEX::handle_parsed_optimizer_hints_in_last_select()
 {
-  SELECT_LEX *select_lex;
-  if (likely(select_stack_top))
-    select_lex= select_stack[select_stack_top - 1];
-  else
-    select_lex= nullptr;
-  if (select_lex && select_lex->parsed_optimizer_hints)
-  {
-    Parse_context pc(thd, select_lex);
-    select_lex->parsed_optimizer_hints->resolve(&pc);
-  }
+  if (unlikely(select_stack_top == 0))
+    return;
+
+  SELECT_LEX *select_lex= select_stack[select_stack_top - 1];
+
+  if (!select_lex->parsed_optimizer_hints)
+    return;
+
+  selects_for_hint_resolution.push_back(select_lex);
 }
 
 /*
@@ -13493,7 +13510,7 @@ void LEX::resolve_optimizer_hints_in_last_select()
   in some scenarios (for example, ignoring hints at the INSERT part of a
   INSERT..SELECT statement).
 
-  Also see resolve_optimizer_hints_in_last_select().
+  Also see handle_parsed_optimizer_hints_in_last_select().
 
   Return value:
   - false  optimizer hints were not found

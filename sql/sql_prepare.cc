@@ -2219,6 +2219,7 @@ static bool check_prepared_statement(Prepared_statement *stmt)
 
   lex->first_lists_tables_same();
   lex->fix_first_select_number();
+  lex->resolve_optimizer_hints();
   tables= lex->query_tables;
 
   /* set context for commands which do not use setup_tables */
