@@ -78,10 +78,29 @@ INSERT INTO tt (a) VALUES (1);
 CREATE TABLE xx ENGINE=InnoDB SELECT * FROM tt;
 SET binlog_format=DEFAULT;
 
+# A tricky case where a sequence is updated as part of a transactional
+# DML, but the DML ends up binlogging nothing. The code would put the GTID in
+# the stmt cache, but binlog the trx cache, which caused binlogging of a
+# garbage partial event group containing only annotate and table map event
+# but no GTID or rows event/commit event.
+CREATE TABLE t3 (a INT PRIMARY KEY DEFAULT NEXTVAL(ss), b INT) ENGINE=InnoDB;
+INSERT INTO t3 VALUES (10000, 1);
+INSERT INTO t3 SELECT a+1, b+1 FROM t3;
+INSERT INTO t3 SELECT a+2, b+1 FROM t3;
+INSERT INTO t3 SELECT a+4, b+1 FROM t3;
+INSERT INTO t3 SELECT a+8, b+1 FROM t3;
+INSERT INTO t3 SELECT a+16, b+1 FROM t3;
+INSERT INTO t3 SELECT a+32, b+1 FROM t3;
+
+SELECT SETVAL(ss, 10005);
+--let $binlog_file= query_get_value(SHOW MASTER STATUS, File, 1)
+--let $binlog_start= query_get_value(SHOW MASTER STATUS, Position, 1)
+INSERT IGNORE INTO t3(b) VALUES (10);
+--source include/show_binlog_events.inc
 
 DROP TABLE t;
 DROP SEQUENCE s;
-DROP TABLE t1, t2;
+DROP TABLE t1, t2, t3;
 DROP TABLE tt, xx;
 DROP SEQUENCE ss;
 --source include/rpl_end.inc

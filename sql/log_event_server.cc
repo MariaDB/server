@@ -2864,6 +2864,7 @@ bool Binlog_checkpoint_log_event::write(Log_event_writer *writer)
 
 Gtid_log_event::Gtid_log_event(THD *thd_arg, uint64 seq_no_arg,
                                uint32 domain_id_arg, bool standalone,
+                               enum_event_cache_type cache_type_arg,
                                uint16 flags_arg, bool is_transactional,
                                uint64 commit_id_arg, bool has_xid,
                                bool ro_1pc)
@@ -2873,7 +2874,7 @@ Gtid_log_event::Gtid_log_event(THD *thd_arg, uint64 seq_no_arg,
            (commit_id_arg ? FL_GROUP_COMMIT_ID : 0)),
     flags_extra(0), extra_engines(0)
 {
-  cache_type= Log_event::EVENT_NO_CACHE;
+  cache_type= cache_type_arg;
   bool is_tmp_table= thd_arg->lex->stmt_accessed_temp_table();
   if (thd_arg->transaction->stmt.trans_did_wait() ||
       thd_arg->transaction->all.trans_did_wait())
@@ -2896,9 +2897,14 @@ Gtid_log_event::Gtid_log_event(THD *thd_arg, uint64 seq_no_arg,
   if (thd_arg->rgi_slave)
     flags2|= (thd_arg->rgi_slave->gtid_ev_flags2 & (FL_DDL|FL_WAITED));
 
-  XID_STATE &xid_state= thd->transaction->xid_state;
-  if (is_transactional)
+  /*
+    When --binlog-storage-engine, we write the GTID event through the trx cache
+    (not directly to the binlog file), and we do not use this XA stuff in the
+    GTID event, that's handled by the engine binlog implementation.
+  */
+  if (cache_type_arg == EVENT_NO_CACHE && is_transactional)
   {
+    XID_STATE &xid_state= thd->transaction->xid_state;
     if (xid_state.is_explicit_XA() &&
         (thd->lex->sql_command == SQLCOM_XA_PREPARE ||
          xid_state.get_state_code() == XA_PREPARED))
