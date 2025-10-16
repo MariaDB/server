@@ -9,6 +9,7 @@
 
 -- source include/count_sessions.inc
 -- source include/not_embedded.inc
+-- source include/have_debug_sync.inc
 
 --disable_service_connection
 
@@ -320,3 +321,14 @@ DROP TABLE t1, t2;
 --error ER_BAD_FIELD_ERROR
 kill query id user 'foo';
 --enable_service_connection
+
+
+--echo #
+--echo # MDEV-37875 thd->killed ignored during help invocation, causing assert
+--echo #
+
+set max_statement_time = 0.1;
+set debug_sync='in_search_keyword WAIT_FOR go TIMEOUT 1';
+help 'function_of_my_dream';
+--source main/alter_events.test
+

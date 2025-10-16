@@ -268,6 +268,7 @@ int search_keyword(THD *thd, TABLE *keywords,
                        FALSE))
     DBUG_RETURN(0);
 
+  DEBUG_SYNC(thd, "in_search_keyword");
   while (!read_record_info.read_record() && count<2)
   {
     if (!select->cond->val_bool())		// Dosn't match like
