@@ -4896,7 +4896,7 @@ public:
   }
   int save_in_field(Field *field, bool no_conversions) override;
   const Type_handler *type_handler() const override
-  { return &type_handler_varchar; }
+  { return  Type_handler::string_type_handler(max_length); }
   Item *clone_item(THD *thd) const override;
   Item *safe_charset_converter(THD *thd, CHARSET_INFO *tocs) override
   {
