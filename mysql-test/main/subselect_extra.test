@@ -398,3 +398,27 @@ DROP VIEW v2;
 DROP TABLE t1,t2;
 
 set optimizer_switch= @tmp_subselect_extra_derived;
+
+--echo #
+--echo # MDEV-35168: Potential Bug in Database Handling of NULL Values in EXISTS Clause
+--echo #
+create table t0 (vkey int);
+insert into t0 (vkey) values (5);
+select 1 as c0
+  from
+    ((select
+            0 as c_0
+          from
+            t0
+          ) as subq_2
+      right outer join t0 as ref_6
+      on (subq_2.c_0 = ref_6.vkey ))
+  where exists (
+      select
+          1
+        from
+          t0
+        where (subq_2.c_0 <> t0.vkey));
+drop table t0;
+
+--echo # End of 10.11 tests
