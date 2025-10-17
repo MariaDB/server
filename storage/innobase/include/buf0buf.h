@@ -39,6 +39,7 @@ Created 11/5/1995 Heikki Tuuri
 #include "log0log.h"
 #include "srv0srv.h"
 #include "transactional_lock_guard.h"
+#include "ha_handler_stats.h"
 #include <ostream>
 
 /** The allocation granularity of innodb_buffer_pool_size */
@@ -706,10 +707,16 @@ public:
 
   /** Complete a read of a page.
   @param node     data file
+  @param recovery recv_recovery_is_on()
   @return whether the operation succeeded
+  @retval DB_SUCCESS           if the read succeeded; caller must unfix()
   @retval DB_PAGE_CORRUPTED    if the checksum or the page ID is incorrect
   @retval DB_DECRYPTION_FAILED if the page cannot be decrypted */
-  dberr_t read_complete(const fil_node_t &node) noexcept;
+  dberr_t read_complete(const fil_node_t &node, bool recovery) noexcept;
+
+  /** Wait for read_complete() by invoking lock.s_lock_nospin().
+  @param trx    transaction (for updating trx->active_handler_stats) */
+  void read_wait(trx_t *trx) noexcept;
 
   /** Release a write fix after a page write was completed.
   @param persistent  whether the page belongs to a persistent tablespace
@@ -1810,7 +1817,7 @@ inline void buf_page_t::set_state(uint32_t s) noexcept
   mysql_mutex_assert_owner(&buf_pool.mutex);
   ut_ad(s <= REMOVE_HASH || s >= UNFIXED);
   ut_ad(s < WRITE_FIX);
-  ut_ad(s <= READ_FIX || zip.fix == READ_FIX);
+  ut_ad(s <= READ_FIX + 1 || zip.fix == READ_FIX + 1);
   zip.fix= s;
 }
 
