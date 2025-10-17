@@ -1,0 +1,76 @@
+#
+# MDEV-37829 XA COMMIT ONE PHASE fails with "This xid does not
+# exist" if a trigger references a SPIDER table
+#
+for master_1
+for child2
+for child3
+set spider_same_server_link= 1;
+CREATE SERVER srv FOREIGN DATA WRAPPER mysql
+OPTIONS (SOCKET "$MASTER_1_MYSOCK", DATABASE 'test',user 'root');
+CREATE TABLE t (
+id INT auto_increment NOT NULL,
+name varchar(100) NULL,
+CONSTRAINT test_pk PRIMARY KEY (id)
+) ENGINE=InnoDB;
+Warnings:
+Warning	1280	Name 'test_pk' ignored for PRIMARY key.
+INSERT INTO t(id, name) VALUES(1,'test1');
+CREATE TABLE t2 (
+id INT auto_increment NOT NULL,
+name varchar(100) NULL,
+CONSTRAINT test2_pk PRIMARY KEY (id)
+) ENGINE=InnoDB;
+Warnings:
+Warning	1280	Name 'test2_pk' ignored for PRIMARY key.
+CREATE TABLE t3 (
+id INT auto_increment NOT NULL,
+name varchar(100) NULL,
+CONSTRAINT test3_pk PRIMARY KEY (id)
+) ENGINE=SPIDER COMMENT='wrapper "mysql", srv "srv", table "t2"';
+Warnings:
+Warning	1280	Name 'test3_pk' ignored for PRIMARY key.
+CREATE PROCEDURE tProc()
+BEGIN
+# This conditional logic is intentionally FALSE.
+# The SELECT on the SPIDER table will never run.
+SET @t := FALSE;
+IF @t = TRUE THEN
+SELECT name INTO @b FROM t3 WHERE id = 1;
+END IF;
+END$$
+CREATE TRIGGER t_au
+AFTER UPDATE
+ON t FOR EACH ROW
+BEGIN
+# This condition will also be false in our test case.
+IF NEW.name = '3' THEN
+CALL tProc();
+END IF;
+END$$
+SELECT "Using 2PC...";
+Using 2PC...
+Using 2PC...
+XA START 'TESTTRX_2P';
+UPDATE t SET name = 'abc' WHERE ID = 1;
+SHOW WARNINGS;
+Level	Code	Message
+XA END 'TESTTRX_2P';
+XA PREPARE 'TESTTRX_2P';
+XA COMMIT 'TESTTRX_2P';
+SELECT "Using 1PC...";
+Using 1PC...
+Using 1PC...
+XA START 'TESTTRX_1P';
+UPDATE t SET name = 'abc' WHERE ID = 1;
+SHOW WARNINGS;
+Level	Code	Message
+XA END 'TESTTRX_1P';
+XA COMMIT 'TESTTRX_1P' ONE PHASE;
+drop trigger t_au;
+drop procedure tProc;
+drop table t, t2, t3;
+drop server srv;
+for master_1
+for child2
+for child3

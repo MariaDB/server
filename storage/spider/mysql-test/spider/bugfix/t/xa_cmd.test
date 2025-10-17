@@ -51,6 +51,58 @@ XA END 'test';
 XA PREPARE 'test';
 XA COMMIT 'test';
 
+--echo # MDEV-37829 XA COMMIT ONE PHASE fails with "This xid does not
+--echo # exist" if a trigger references a SPIDER table
+--echo #
+--echo # Below we test a version of the MDEV-37829 case that is not a
+--echo # no-op on the spider table
+
+XA START 'test1';
+INSERT INTO tbl_a (pkey) VALUES (100);
+XA END 'test1';
+XA COMMIT 'test1' ONE PHASE;
+
+select * from tbl_a;
+
+create table t (c int);
+insert into t values (1),(2);
+
+DELIMITER $$;
+
+CREATE PROCEDURE tProc()
+BEGIN
+    SET @t := TRUE;
+    IF @t = TRUE THEN
+        INSERT INTO tbl_a select max(pkey) + 1 from tbl_a;
+    END IF;
+END$$
+
+CREATE TRIGGER t_au
+AFTER UPDATE
+ON t FOR EACH ROW
+BEGIN
+    IF NEW.c < 50 THEN
+        CALL tProc();
+    END IF;
+END$$
+
+DELIMITER ;$$
+
+XA START 'test';
+update t set c = c + 1 where c = 1;
+XA END 'test';
+XA PREPARE 'test';
+XA COMMIT 'test';
+
+XA START 'test1';
+update t set c = c + 1 where c = 2;
+XA END 'test1';
+XA COMMIT 'test1' ONE PHASE;
+
+drop table t;
+
+select * from tbl_a;
+
 --connection child2_1
 --disable_view_protocol
 --disable_ps2_protocol
