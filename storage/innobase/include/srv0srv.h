@@ -330,8 +330,21 @@ extern ibool	srv_print_verbose_log;
 
 extern bool	srv_monitor_active;
 
+#ifdef _WIN32
+/*
+  The synchronization primitives that we use on Windows,
+  mostly SRWLOCK and WaitOnAddress(), include a spin loop on their own.
+  Therefore, it does not make sense to duplicate any spin loops.
+*/
+# define INNODB_NO_SPIN_WAITS 1
+#endif
 
-extern ulong	srv_n_spin_wait_rounds;
+#ifdef INNODB_NO_SPIN_WAITS
+constexpr ulong srv_n_spin_wait_rounds= 0;
+#else
+extern ulong srv_n_spin_wait_rounds;
+#endif
+
 extern uint	srv_spin_wait_delay;
 
 /** Number of initialized rollback segments for persistent undo log */

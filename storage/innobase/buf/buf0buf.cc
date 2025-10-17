@@ -2582,7 +2582,7 @@ buf_block_t *buf_pool_t::page_fix(const page_id_t id,
           std::this_thread::sleep_for(std::chrono::microseconds(100));
           continue;
         }
-        b->lock.s_lock();
+        b->lock.s_lock_nospin();
         state= b->state();
         ut_ad(state < buf_page_t::READ_FIX || state >= buf_page_t::WRITE_FIX);
 
@@ -2836,15 +2836,16 @@ ignore_unfixed:
 		in buf_page_t::read_complete() or
 		buf_pool_t::corrupted_evict(), or
 		after buf_zip_decompress() in this function. */
-		block->page.lock.s_lock();
+		block->page.lock.s_lock_nospin();
 		state = block->page.state();
 		ut_ad(state < buf_page_t::READ_FIX
-		      || state >= buf_page_t::WRITE_FIX);
+		      || state > buf_page_t::WRITE_FIX);
 		const page_id_t id{block->page.id()};
-		block->page.lock.s_unlock();
 
 		if (UNIV_UNLIKELY(state < buf_page_t::UNFIXED)) {
 			block->page.unfix();
+			block->page.lock.s_unlock();
+
 			if (UNIV_UNLIKELY(id == page_id)) {
 				/* The page read was completed, and
 				another thread marked the page as free
@@ -2865,8 +2866,36 @@ ignore_unfixed:
 			return nullptr;
 		}
 		ut_ad(id == page_id);
-	} else if (mode != BUF_PEEK_IF_IN_POOL) {
-	} else if (UNIV_UNLIKELY(!block->page.frame)) {
+
+		if (UNIV_LIKELY(state > buf_page_t::UNFIXED
+				&& block->page.frame)) {
+			switch (rw_latch) {
+				bool nowait;
+			case RW_NO_LATCH:
+				break;
+			default:
+				nowait = block->page.lock.s_x_upgrade();
+				if (rw_latch == RW_SX_LATCH) {
+					block->page.lock.x_u_downgrade();
+				} else {
+					ut_ad(rw_latch == RW_X_LATCH);
+				}
+				if (!nowait) {
+					goto latch_waited;
+				} else {
+					ut_ad(state < buf_page_t::READ_FIX);
+				}
+				/* fall through */
+			case RW_S_LATCH:
+				mtr->memo_push(block,
+					       mtr_memo_type_t(rw_latch));
+				goto latched;
+			}
+		}
+
+		block->page.lock.s_unlock();
+	} else if (UNIV_UNLIKELY(!block->page.frame)
+		   && mode == BUF_PEEK_IF_IN_POOL) {
 		/* The BUF_PEEK_IF_IN_POOL mode is mainly used for dropping an
 		adaptive hash index. There cannot be an
 		adaptive hash index for a compressed-only page. */
@@ -2936,6 +2965,7 @@ wait_for_unzip:
 		}
 	}
 
+latch_waited:
 	mtr->memo_push(block, mtr_memo_type_t(rw_latch));
 	state = block->page.state();
 
@@ -2944,6 +2974,7 @@ wait_for_unzip:
 		goto ignore_unfixed;
 	}
 
+latched:
 	ut_ad(state < buf_page_t::READ_FIX || state > buf_page_t::WRITE_FIX);
 
 #ifdef BTR_CUR_HASH_ADAPT

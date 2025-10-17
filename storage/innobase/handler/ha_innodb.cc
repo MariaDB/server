@@ -19488,7 +19488,15 @@ static MYSQL_SYSVAR_ULONG(open_files, innobase_open_files,
   "How many files at the maximum InnoDB keeps open at the same time.",
   NULL, NULL, 0, 0, LONG_MAX, 0);
 
-static MYSQL_SYSVAR_ULONG(sync_spin_loops, srv_n_spin_wait_rounds,
+#ifdef INNODB_NO_SPIN_WAITS
+  static ulong dummy_srv_n_spin_wait_rounds;
+# define srv_n_spin_wait_rounds_varname dummy_srv_n_spin_wait_rounds
+#else
+# define srv_n_spin_wait_rounds_varname srv_n_spin_wait_rounds
+#endif
+
+
+static MYSQL_SYSVAR_ULONG(sync_spin_loops, srv_n_spin_wait_rounds_varname,
   PLUGIN_VAR_RQCMDARG,
   "Count of spin-loop rounds in InnoDB mutexes (30 by default)",
   NULL, NULL, 30L, 0L, ~0UL, 0);
