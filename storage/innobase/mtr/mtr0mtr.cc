@@ -459,7 +459,16 @@ void mtr_t::commit_log(mtr_t *mtr, std::pair<lsn_t,page_flush_ahead> lsns)
       stats->pages_updated+= modified;
 
   if (UNIV_UNLIKELY(lsns.second != PAGE_FLUSH_NO))
-    buf_flush_ahead(mtr->m_commit_lsn, lsns.second == PAGE_FLUSH_SYNC);
+  {
+    const bool furious= lsns.second == PAGE_FLUSH_SYNC;
+    const lsn_t last_checkpoint_lsn_dirty= log_sys.last_checkpoint_lsn;
+    const lsn_t commit_age= mtr->m_commit_lsn >= last_checkpoint_lsn_dirty ? mtr->m_commit_lsn - last_checkpoint_lsn_dirty : 0;
+    const lsn_t max_age= furious ? log_sys.max_modified_age_async : log_sys.max_checkpoint_age;
+    const lsn_t target_delta= max_age >= commit_age ? 0 : commit_age - max_age;
+    const lsn_t target_lsn= last_checkpoint_lsn_dirty + target_delta;
+
+    buf_flush_ahead(target_lsn, furious);
+  }
 }
 
 /** Commit a mini-transaction. */
