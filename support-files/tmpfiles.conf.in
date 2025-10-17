@@ -1,1 +1,16 @@
-d @MYSQL_UNIX_DIR@ 0755 @MYSQLD_USER@ @MYSQLD_USER@ -
+# This is the directory where the unix socket
+# of MariaDB may be created.
+#
+# Under Galera this is where an envfile of
+# the Galera start position is stored.
+#
+# Other temporary directories can be created here like:
+# * tmpdir
+# * innodb_tmpdir
+# * innodb_temp_data_file_path
+# * rocksdb_tmpdir
+# etc.
+# It shouldn't be used for datadir which is why it
+# may be disabled.
+@DISABLE_RUNDATADIR@d @INSTALL_RUNDATADIR@ 0755 @MYSQLD_USER@ @MYSQLD_USER@ -
+@DISABLE_MYSQL_UNIX_ADDRDIR@d @MYSQL_UNIX_ADDRDIR@ 0755 @MYSQLD_USER@ root -
