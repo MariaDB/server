@@ -372,7 +372,7 @@ id	intcol
 3	5678
 4	5678
 Warnings:
-Warning	1366	Incorrect integer value: 'asd' for column ``.`(temporary)`.`intcol` at row 1
+Warning	1366	Incorrect integer value: 'asd' for column `*any*`.`json_table`.`intcol` at row 1
 SELECT COUNT(*) FROM JSON_TABLE('[1, 2]', '$[*]' COLUMNS( I INT PATH '$')) tt;
 COUNT(*)
 2
@@ -930,7 +930,7 @@ id	intcol
 3	5678
 4	5678
 Warnings:
-Warning	1366	Incorrect integer value: 'asd' for column ``.`(temporary)`.`intcol` at row 1
+Warning	1366	Incorrect integer value: 'asd' for column `*any*`.`json_table`.`intcol` at row 1
 #
 # MDEV-25377 JSON_TABLE: Wrong value with implicit conversion.
 #
@@ -940,7 +940,7 @@ converted	original
 1	1
 127	1000
 Warnings:
-Warning	1366	Incorrect integer value: 'foo' for column ``.`(temporary)`.`converted` at row 1
+Warning	1366	Incorrect integer value: 'foo' for column `*any*`.`json_table`.`converted` at row 1
 Warning	1264	Out of range value for column 'converted' at row 3
 select * from json_table('{"a":"foo", "b":1, "c":1000}', '$.*' columns(converted tinyint path '$', original text path '$')) as jt order by converted;
 converted	original
@@ -948,9 +948,9 @@ converted	original
 1	1
 127	1000
 Warnings:
-Warning	1366	Incorrect integer value: 'foo' for column ``.`(temporary)`.`converted` at row 1
+Warning	1366	Incorrect integer value: 'foo' for column `*any*`.`json_table`.`converted` at row 1
 Warning	1264	Out of range value for column 'converted' at row 1
-Warning	1366	Incorrect integer value: 'foo' for column ``.`(temporary)`.`converted` at row 1
+Warning	1366	Incorrect integer value: 'foo' for column `*any*`.`json_table`.`converted` at row 1
 Warning	1264	Out of range value for column 'converted' at row 3
 select * from json_table('{"a":"foo", "b":1, "c":1000}', '$.*' columns(converted tinyint path '$', original text path '$')) as jt order by original;
 converted	original
@@ -959,7 +959,7 @@ converted	original
 0	foo
 Warnings:
 Warning	1264	Out of range value for column 'converted' at row 2
-Warning	1366	Incorrect integer value: 'foo' for column ``.`(temporary)`.`converted` at row 3
+Warning	1366	Incorrect integer value: 'foo' for column `*any*`.`json_table`.`converted` at row 3
 select * from
 json_table('[{"color": "blue",  "price": { "high": 10, "low": 5}},
                {"color": "white",   "price": "pretty low"},
@@ -1216,6 +1216,22 @@ ERROR 42000: You have an error in your SQL syntax; check the manual that corresp
 #
 # End of 10.9 tests
 #
+#
+# MDEV-27898 CREATE VIEW AS SELECT FROM JSON_TABLE column requires global privileges
+#
+create view v1 as (select * from
+json_table('[{"a":"1"}]', '$[*]' columns(a int path '$.a')  ) as jt);
+create user u1@localhost;
+grant ALL on test.* to u1@localhost;
+connect  con1,localhost,u1,,test;
+create view v2 as
+(select * from json_table('[{"a":"1"}]', '$[*]' columns(a int path '$.a')  ) as jt);
+disconnect con1;
+connection default;
+DROP VIEW v2;
+DROP VIEW v1;
+DROP USER u1@localhost;
+# End of 10.11 tests
 #
 # MDEV-29390: Improve coverage for UPDATE and DELETE statements in MTR test suites
 #

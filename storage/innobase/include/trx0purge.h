@@ -459,6 +459,9 @@ public:
 
     /** @return purge_sys.view or purge_sys.end_view */
     inline const ReadViewBase &view() const;
+
+    /** @return whether this is part of CHECK TABLE ... EXTENDED */
+    bool is_extended() const noexcept { return latch < END_VIEW; }
   };
 
   struct end_view_guard

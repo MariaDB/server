@@ -4004,10 +4004,8 @@ static void log_sort_flush_list() noexcept
   for (size_t i= 0; i < idx; i++)
   {
     buf_page_t *b= list[i];
-    const lsn_t lsn{b->oldest_modification()};
-    if (lsn == 1)
-      continue;
-    DBUG_ASSERT(lsn > 2);
+    ut_d(const lsn_t lsn{b->oldest_modification()});
+    ut_ad(lsn == 1 || lsn > 2);
     UT_LIST_ADD_LAST(buf_pool.flush_list, b);
   }
 
