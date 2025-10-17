@@ -86,5 +86,13 @@ ERROR HY000: The value of gtid domain being deleted ('4294967296') exceeds its m
 FLUSH BINARY LOGS DELETE_DOMAIN_ID = (4294967295);
 Warnings:
 Warning	1076	The gtid domain being deleted ('4294967295') is not in the current binlog state
+RESET MASTER;
+SET @@GLOBAL.gtid_domain_id=0;
+SET @@SESSION.gtid_domain_id=0;
+CREATE USER u;
+FLUSH BINARY LOGS;
+PURGE BINARY LOGS TO 'master-bin.000002';
+FLUSH BINARY LOGS DELETE_DOMAIN_ID = (0), BINARY LOGS DELETE_DOMAIN_ID = (0);
+DROP USER u;
 DROP TABLE t;
 RESET MASTER;
