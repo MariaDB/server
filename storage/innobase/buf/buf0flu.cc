@@ -2184,9 +2184,11 @@ ATTRIBUTE_COLD void buf_flush_ahead(lsn_t lsn, bool furious) noexcept
     {
       limit= lsn;
       buf_pool.page_cleaner_set_idle(false);
-      pthread_cond_signal(&buf_pool.do_flush_list);
       if (furious)
+      {
+        pthread_cond_signal(&buf_pool.do_flush_list);
         log_sys.set_check_for_checkpoint();
+      }
     }
     mysql_mutex_unlock(&buf_pool.flush_list_mutex);
   }
