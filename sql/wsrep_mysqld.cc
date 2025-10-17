@@ -1235,17 +1235,9 @@ bool wsrep_check_mode (enum_wsrep_mode mask)
 //number of limit warnings after which the suppression will be activated
 #define WSREP_WARNING_ACTIVATION_THRESHOLD 10
 
-enum wsrep_warning_type {
-  WSREP_DISABLED = 0,
-  WSREP_REQUIRE_PRIMARY_KEY= 1,
-  WSREP_REQUIRE_INNODB= 2,
-  WSREP_EXPERIMENTAL= 3,
-  WSREP_REQUIRE_MAX=4,
-};
-
 static ulonglong wsrep_warning_start_time=0;
-static bool wsrep_warning_active[WSREP_REQUIRE_MAX+1];
-static ulonglong wsrep_warning_count[WSREP_REQUIRE_MAX+1];
+static bool wsrep_warning_active[WSREP_WARNING_MAX+1];
+static ulonglong wsrep_warning_count[WSREP_WARNING_MAX+1];
 static ulonglong wsrep_total_warnings_count=0;
 
 /**
@@ -1262,7 +1254,7 @@ static void wsrep_reset_warnings(ulonglong now)
   wsrep_warning_start_time= now;
   wsrep_total_warnings_count= 0;
 
-  for (i= 0 ; i < WSREP_REQUIRE_MAX ; i++)
+  for (i= 0 ; i < WSREP_WARNING_MAX ; i++)
   {
     wsrep_warning_active[i]= false;
     wsrep_warning_count[i]= 0;
@@ -1277,6 +1269,8 @@ static const char* wsrep_warning_name(const enum wsrep_warning_type type)
     return "WSREP_REQUIRE_PRIMARY_KEY"; break;
   case WSREP_REQUIRE_INNODB:
     return "WSREP_REQUIRE_INNODB"; break;
+  case WSREP_APPLIER_FK:
+    return "WSREP_APPLIER_FK"; break;
   case WSREP_EXPERIMENTAL:
     return "WSREP_EXPERIMENTAL"; break;
 
@@ -1306,7 +1300,7 @@ static const char* wsrep_warning_name(const enum wsrep_warning_type type)
     1   Message suppressed
 */
 
-static bool wsrep_protect_against_warning_flood(
+bool wsrep_protect_against_warning_flood(
               enum wsrep_warning_type warning_type)
 {
   ulonglong count;
