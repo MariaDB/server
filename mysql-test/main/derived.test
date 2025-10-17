@@ -2233,8 +2233,25 @@ select * from v21 order by c;
 drop view v10, v20, v11, v21;
 drop table t10, t20, t30;
 
+
 --echo #
---echo # End of 11.7 tests
+--echo # MDEV-36474 Prepared statement with derived table column name
+--echo #   specification within used view causing memory use-after-free
+--echo #
+
+create table t1 (a int, b int);
+insert into t1  values (1,1),(2,2),(3,3);
+create view v1 as select * from (select * from (select a+b from t1)dt) dt2 (c);
+
+prepare stmt from "select * from v1";
+execute stmt;
+
+drop view v1;
+drop table t1;
+
+
+--echo #
+--echo # End of 11.8 tests
 --echo #
 
 --source include/test_db_charset_restore.inc
