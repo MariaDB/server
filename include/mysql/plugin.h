@@ -734,6 +734,7 @@ void mysql_query_cache_invalidate4(MYSQL_THD thd,
                                    const char *key, unsigned int key_length,
                                    int using_trx);
 
+void *thd_pseudo_slave_and_get_prepared_xid(MYSQL_THD thd);
 
 /**
   Provide a handler data getter to simplify coding

@@ -1,0 +1,40 @@
+SET pseudo_slave_mode=1;
+CREATE TABLE t1 (c INT) ENGINE=InnoDB;
+CREATE TABLE t2 (c INT) ENGINE=MEMORY;
+XA START 'a';
+INSERT INTO t1 VALUES (0);
+CREATE TEMPORARY TABLE t1t (c INT) ENGINE=InnoDB;
+INSERT INTO t1t VALUES (0);
+XA END 'a';
+XA PREPARE 'a';
+OPTIMIZE TABLE t1t;
+ERROR XAE07: XAER_RMFAIL: The command cannot be executed when global transaction is in the  PREPARED state
+XA ROLLBACK 'a';
+DROP TABLE t1, t2;
+SET pseudo_slave_mode=1;
+CREATE TABLE t1 (c INT) ENGINE=InnoDB;
+CREATE TABLE t2 (c INT) ENGINE=MEMORY;
+XA START 'a';
+INSERT INTO t1 VALUES (0);
+SET @@session.pseudo_thread_id=0;
+CREATE TEMPORARY TABLE t1t (c INT) ENGINE=InnoDB;
+INSERT INTO t1t VALUES (0);
+XA END 'a';
+XA PREPARE 'a';
+OPTIMIZE TABLE t1t;
+ERROR XAE07: XAER_RMFAIL: The command cannot be executed when global transaction is in the  PREPARED state
+XA ROLLBACK 'a';
+DROP TABLE t1, t2;
+CREATE TABLE t (c INT) ENGINE=InnoDB;
+XA BEGIN 'x';
+INSERT INTO t VALUES (0);
+CREATE TEMPORARY TABLE IF NOT EXISTS t (c INT) ENGINE=InnoDB;
+INSERT INTO t VALUES (0);
+SET SESSION pseudo_slave_mode=TRUE;
+XA END 'x';
+XA PREPARE 'x';
+ALTER TABLE t ENGINE=InnoDB;
+ERROR XAE07: XAER_RMFAIL: The command cannot be executed when global transaction is in the  PREPARED state
+XA ROLLBACK 'x';
+DROP TABLE t;
+DROP TABLE t;

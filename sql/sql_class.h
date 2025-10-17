@@ -3373,6 +3373,7 @@ public:
     bool on;                            // see ha_enable_transaction()
     XID_STATE xid_state;
     XID implicit_xid;
+    XID prepared_xid;                   // is_null() false in XA PREPARE
     WT_THD wt;                          ///< for deadlock detection
     Rows_log_event *m_pending_rows_event;
 
@@ -3416,10 +3417,14 @@ public:
     st_transactions()
     {
       bzero((char*)this, sizeof(*this));
+      prepared_xid.null();
       implicit_xid.null();
       init_sql_alloc(key_memory_thd_transactions, &mem_root,
                      DEFAULT_ROOT_BLOCK_SIZE, 0, MYF(MY_THREAD_SPECIFIC));
     }
+    void enter_prepared_state();
+    void exit_prepared_state();
+    bool is_in_prepared_state() const;
   } default_transaction, *transaction;
   Global_read_lock global_read_lock;
   Field      *dup_field;
