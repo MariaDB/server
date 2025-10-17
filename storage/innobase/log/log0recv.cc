@@ -2931,7 +2931,7 @@ restart:
     if (UNIV_UNLIKELY(space_id == MLOG_DECODE_ERROR))
       goto page_id_corrupted;
     static_assert((LOG_BINLOG_ID_0 | 1) == LOG_BINLOG_ID_1, "");
-    is_binlog= !ENC_10_8 && storing == YES && (space_id | 1) == LOG_BINLOG_ID_1;
+    is_binlog= !ENC_10_8 && (space_id | 1) == LOG_BINLOG_ID_1;
     l+= idlen;
     rlen-= idlen;
     idlen= mlog_decode_varint_length(*l);

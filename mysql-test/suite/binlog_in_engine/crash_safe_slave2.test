@@ -1,0 +1,88 @@
+--source include/have_debug.inc
+--source include/have_binlog_format_row.inc
+--source include/master-slave.inc
+--source include/have_innodb_binlog.inc
+
+--echo *** Test that slave is not allowed to find a GTID starting position that is ahead of where the binlog is durable.
+
+# The bug was a somewhat tricky race. The connecting slave will start at
+# the most recent GTID state record it can find in the binlog that is before
+# it's starting position. The code did not properly check that this state
+# record had become durably redo logged, so the dump thread could end up
+# being ahead of the allowed durable position, and assert due to this.
+#
+# The GTID state records are written every --innodb-binlog-state-interval
+# bytes, so the .opt of the test sets up some know values so the testcase is
+# independent of changes to these in the testsuite framework:
+#
+#   innodb_binlog_state_interval= 16384 * 4
+#   max_binlog_size= 16384 * 4 * 8
+SELECT @@GLOBAL.max_binlog_size;
+SELECT @@GLOBAL.innodb_binlog_state_interval;
+
+CREATE TABLE t1 (a LONGBLOB) ENGINE=InnoDB;
+INSERT INTO t1 VALUES ('initial');
+
+# First fill in approximately 1/4 of the binlog file.
+--let $i= 0
+while ($i < 16) {
+  eval INSERT INTO t1 VALUES (REPEAT(CHR(97 + $i), 8192));
+  inc $i;
+}
+--source include/save_master_gtid.inc
+
+--connection slave
+--source include/sync_with_master_gtid.inc
+--source include/stop_slave.inc
+
+--connection master
+# Temporarily block binlogged data from being marked durable, thus
+# blocking the slave from receiving them.
+SET @old_dbug= @@GLOBAL.debug_dbug;
+SET GLOBAL debug_dbug= '+d,block_binlog_durable';
+
+# Then fill in up to approximately 3/4 of the binlog, blocking it from
+# becoming marked as durable.
+
+--let $i= 0
+while ($i < 32) {
+  eval INSERT INTO t1 VALUES (REPEAT(CHR(65 + $i), 8192));
+  inc $i;
+}
+
+--let $gtid= `SELECT @@gtid_binlog_pos`
+INSERT INTO t1 VALUES ('middle');
+--source include/save_master_gtid.inc
+
+# Then connect the slave starting at a GTID in the non-durable part of the binlog file.
+--connection slave
+eval SET GLOBAL gtid_slave_pos= '$gtid';
+START SLAVE;
+
+# Here, the slave will be blocked from replicating.
+# Give it a small amount of time to hit the potential race.
+--sleep 0.5
+
+# Check that the GTID pos could not move yet.
+eval SELECT '$gtid' as START_POS, @@GLOBAL.gtid_slave_pos as CURRENT_POS;
+
+--connection master
+# Now release the durability block, allowing the slave to continue.
+SET GLOBAL debug_dbug= @old_dbug;
+
+--let $i= 0
+while ($i < 4) {
+  eval INSERT INTO t1 VALUES (REPEAT(CHR(48 + $i), 8192));
+  inc $i;
+}
+INSERT INTO t1 VALUES ('final');
+--source include/save_master_gtid.inc
+
+--connection slave
+--source include/sync_with_master_gtid.inc
+
+--connection master
+
+DROP TABLE t1;
+
+--source include/rpl_end.inc
