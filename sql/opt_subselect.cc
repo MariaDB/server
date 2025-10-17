@@ -6120,6 +6120,7 @@ Item *and_new_conditions_to_optimized_cond(THD *thd, Item *cond,
     {
       and_cond->argument_list()->append(&new_conds_list);
       cond= (Item *)and_cond;
+      cond->fix_fields(thd, &cond);
       *cond_eq= &((Item_cond_and *) cond)->m_cond_equal;
     }
     else
