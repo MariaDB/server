@@ -1,0 +1,25 @@
+--source include/have_binlog_format_row.inc
+--source include/have_innodb_binlog.inc
+
+--source include/reset_master.inc
+
+--echo *** Test that a prepare record at the end of binlog does not cause server shutdown to hang
+CALL mtr.add_suppression('Warning.*Found 1 prepared XA transactions');
+CREATE TABLE t1 (a INT PRIMARY KEY, b LONGBLOB) ENGINE=InnoDB;
+
+XA START 'a';
+INSERT INTO t1 VALUES (1, REPEAT('<', 50000));
+INSERT INTO t1 VALUES (2, REPEAT('|', 50000));
+INSERT INTO t1 VALUES (3, REPEAT('>', 50000));
+XA END 'a';
+XA PREPARE 'a';
+
+# The bug was that the prepare record written at the current end of
+# the binlog file was not entered into the pending LSN fifo, so it never
+# got marked as having been made durable. Then when the server shuts down
+# and closes the binlog tablespace file, it waits indefinitely for the
+# file to be marked durable.
+--source include/restart_mysqld.inc
+
+XA ROLLBACK 'a';
+DROP TABLE t1;
