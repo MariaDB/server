@@ -3415,7 +3415,7 @@ gtid_search::find_gtid_pos(slave_connection_state *pos,
     my_error(ER_OUTOFMEMORY, MYF(0), ibb_page_size);
     return -1;
   }
-  binlog_chunk_reader chunk_reader(binlog_cur_end_offset);
+  binlog_chunk_reader chunk_reader(binlog_cur_durable_offset);
   chunk_reader.set_page_buf(page_buf.get());
 
   /* First search backwards for the right file to start from. */
@@ -3671,6 +3671,7 @@ pending_lsn_fifo::process_durable_lsn(lsn_t lsn)
   if (got)
   {
     uint64_t active= active_binlog_file_no.load(std::memory_order_relaxed);
+    DBUG_EXECUTE_IF("block_binlog_durable", active= got->file_no + 2;);
     if (got->file_no + 1 >= active)
     {
       /*

@@ -787,17 +787,20 @@ fsp_binlog_page_fifo::flush_thread_run()
       filled with data.
     */
     uint64_t file_no= first_file_no;
-    bool all_flushed= true;
     if (first_file_no != ~(uint64_t)0)
     {
       if (has_unflushed(file_no))
+      {
         flush_one_page(file_no, false);
+        continue;  // Check again for more pages available to flush
+      }
       else if (has_unflushed(file_no + 1))
+      {
         flush_one_page(file_no + 1, false);
-      else
-        all_flushed= 1;
+        continue;
+      }
     }
-    if (all_flushed && !flush_thread_end)
+    if (!flush_thread_end)
       my_cond_wait(&m_cond, &m_mutex.m_mutex);
   }
 
