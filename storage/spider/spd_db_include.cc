@@ -47,13 +47,6 @@ int spider_db_result::fetch_table_checksum(
   DBUG_RETURN(0);
 }
 
-uint spider_db_result::limit_mode()
-{
-  DBUG_ENTER("spider_db_result::limit_mode");
-  DBUG_PRINT("info",("spider this=%p", this));
-  DBUG_RETURN(spider_dbton[dbton_id].db_util->limit_mode());
-}
-
 spider_db_conn::spider_db_conn(
   SPIDER_CONN *in_conn
 ) : conn(in_conn), dbton_id(in_conn->dbton_id)
