@@ -5071,6 +5071,20 @@ bool st_select_lex::optimize_unflattened_subqueries(bool const_only)
       if (empty_union_result)
         subquery_predicate->no_rows_in_result();
 
+      /*
+        If any one SELECT in the subquery has UNCACHEABLE_RAND, then all
+        SELECTs should be marked as uncacheable.
+      */
+      bool has_rand= false;
+      for (SELECT_LEX *sl= un->first_select(); sl && !has_rand;
+           sl= sl->next_select())
+        has_rand= sl->uncacheable & UNCACHEABLE_RAND;
+      if (has_rand)
+      {
+        for (SELECT_LEX *sl= un->first_select(); sl; sl= sl->next_select())
+          sl->uncacheable |= UNCACHEABLE_UNITED;
+      }
+
       if (is_correlated_unit)
       {
         /*
