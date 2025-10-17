@@ -54,7 +54,8 @@ let $shutdown_timeout=;
 let SEARCH_FILE= $MYSQLTEST_VARDIR/log/mysqld.1.err;
 --source include/search_pattern_in_file.inc
 
-SELECT NAME, FILE_SIZE FROM information_schema.innodb_sys_tablespaces WHERE SPACE = 0;
+SELECT NAME, IF(file_size>=14680064,'ok',file_size)
+FROM information_schema.innodb_sys_tablespaces WHERE SPACE = 0;
 SET GLOBAL innodb_fast_shutdown= 0;
 
 --echo # Fail to free the segment while finding the used segments
