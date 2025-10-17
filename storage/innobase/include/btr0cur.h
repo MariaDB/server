@@ -468,14 +468,22 @@ ha_rows btr_estimate_n_rows_in_range(dict_index_t *index,
                                      btr_pos_t *range_start,
                                      btr_pos_t *range_end);
 
-/** Gets the externally stored size of a record, in units of a database page.
-@param[in]	rec	record
-@param[in]	offsets	array returned by rec_get_offsets()
-@return externally stored part, in units of a database page */
+/***********************************************************//**
+Gets the offset of the pointer to the externally stored part of a field.
+@return offset of the pointer to the externally stored part */
 ulint
-btr_rec_get_externally_stored_len(
-	const rec_t*	rec,
-	const rec_offs*	offsets);
+btr_rec_get_field_ref_offs(
+/*=======================*/
+	const rec_offs*	offsets,/*!< in: array returned by rec_get_offsets() */
+	ulint		n);	/*!< in: index of the external field */
+
+/** Gets a pointer to the externally stored part of a field.
+@param rec record
+@param offsets rec_get_offsets(rec)
+@param n index of the externally stored field
+@return pointer to the externally stored part */
+#define btr_rec_get_field_ref(rec, offsets, n)			\
+	((rec) + btr_rec_get_field_ref_offs(offsets, n))
 
 /*******************************************************************//**
 Marks non-updated off-page fields as disowned by this record. The ownership
