@@ -148,9 +148,12 @@ innobase_basename(
 	const char*	path_name);
 
 #ifdef WITH_WSREP
-ulint wsrep_innobase_mysql_sort(int mysql_type, uint charset_number,
-                             unsigned char* str, ulint str_length,
-                             ulint buf_length);
+size_t wsrep_normalize_string(int mysql_type,
+			      uint charset_number,
+			      const unsigned char* str,
+			      unsigned char* out_str,
+			      ulint str_length,
+			      ulint buf_length);
 #endif /* WITH_WSREP */
 
 /** Get high resolution timestamp for the current query start time.
