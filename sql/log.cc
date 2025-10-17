@@ -6536,6 +6536,57 @@ THD::binlog_set_pending_rows_event(Rows_log_event* ev, bool is_transactional)
   cache_data->set_pending(ev);
 }
 
+int THD::binlog_flush_pending_rows_event(bool stmt_end, bool is_transactional)
+{
+  DBUG_ENTER("THD::binlog_flush_pending_rows_event");
+  /*
+    We shall flush the pending event even if we are not in row-based
+    mode: it might be the case that we left row-based mode before
+    flushing anything (e.g., if we have explicitly locked tables).
+   */
+  if (!WSREP_EMULATE_BINLOG_NNULL(this) && !mysql_bin_log.is_open())
+    DBUG_RETURN(0);
+
+  /* Ensure that all events in a GTID group are in the same cache */
+  if (variables.option_bits & OPTION_GTID_BEGIN)
+    is_transactional= 1;
+
+  /*
+    Mark the event as the last event of a statement if the stmt_end
+    flag is set.
+  */
+  int error= 0;
+  if (Rows_log_event *pending= binlog_get_pending_rows_event(is_transactional))
+  {
+    if (stmt_end)
+    {
+      pending->set_flags(Rows_log_event::STMT_END_F);
+      reset_binlog_for_next_statement();
+    }
+    error= mysql_bin_log.flush_and_set_pending_rows_event(this, 0,
+                                                          is_transactional);
+  }
+  else
+  {
+    /*
+      There's no pending event, but we still need to flush the cache
+    */
+    binlog_cache_mngr *cache_mngr=
+        (binlog_cache_mngr *) thd_get_ha_data(this, binlog_hton);
+    if (cache_mngr)
+    {
+      DBUG_EXECUTE_IF("simulate_binlog_tmp_file_no_space_left_on_flush",
+                      { DBUG_SET("+d,simulate_file_write_error"); });
+      error=
+          flush_io_cache(cache_mngr->get_binlog_cache_log(is_transactional));
+      DBUG_EXECUTE_IF("simulate_binlog_tmp_file_no_space_left_on_flush",
+                      { DBUG_SET("-d,simulate_file_write_error"); });
+    }
+  }
+
+  DBUG_RETURN(error);
+}
+
 
 /**
   This function removes the pending rows event, discarding any outstanding
@@ -7708,8 +7759,12 @@ int MYSQL_BIN_LOG::write_cache(THD *thd, IO_CACHE *cache)
   DBUG_ENTER("MYSQL_BIN_LOG::write_cache");
 
   mysql_mutex_assert_owner(&LOCK_log);
+  DBUG_EXECUTE_IF("simulate_binlog_tmp_file_no_space_left_on_flush",
+                  { DBUG_SET("+d,simulate_file_write_error"); });
   if (reinit_io_cache(cache, READ_CACHE, 0, 0, 0))
     DBUG_RETURN(ER_ERROR_ON_WRITE);
+  DBUG_EXECUTE_IF("simulate_binlog_tmp_file_no_space_left_on_flush",
+                  { DBUG_SET("-d,simulate_file_write_error"); });
   size_t length= my_b_bytes_in_cache(cache), group, carry, hdr_offs;
   size_t val;
   size_t end_log_pos_inc= 0; // each event processed adds BINLOG_CHECKSUM_LEN 2 t

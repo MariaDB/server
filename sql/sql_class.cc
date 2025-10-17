@@ -7631,41 +7631,6 @@ int THD::binlog_remove_pending_rows_event(bool reset_stmt,
 }
 
 
-int THD::binlog_flush_pending_rows_event(bool stmt_end, bool is_transactional)
-{
-  DBUG_ENTER("THD::binlog_flush_pending_rows_event");
-  /*
-    We shall flush the pending event even if we are not in row-based
-    mode: it might be the case that we left row-based mode before
-    flushing anything (e.g., if we have explicitly locked tables).
-   */
-  if (!WSREP_EMULATE_BINLOG_NNULL(this) && !mysql_bin_log.is_open())
-    DBUG_RETURN(0);
-
-  /* Ensure that all events in a GTID group are in the same cache */
-  if (variables.option_bits & OPTION_GTID_BEGIN)
-    is_transactional= 1;
-
-  /*
-    Mark the event as the last event of a statement if the stmt_end
-    flag is set.
-  */
-  int error= 0;
-  if (Rows_log_event *pending= binlog_get_pending_rows_event(is_transactional))
-  {
-    if (stmt_end)
-    {
-      pending->set_flags(Rows_log_event::STMT_END_F);
-      reset_binlog_for_next_statement();
-    }
-    error= mysql_bin_log.flush_and_set_pending_rows_event(this, 0,
-                                                          is_transactional);
-  }
-
-  DBUG_RETURN(error);
-}
-
-
 /*
   DML that doesn't change the table normally is not logged,
   but it needs to be logged if it auto-created a partition as a side effect.
