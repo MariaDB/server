@@ -141,13 +141,11 @@ CHANGE MASTER TO MASTER_LOG_FILE='slave-bin.000001', MASTER_LOG_POS=BINLOG_START
 
 -- CHANGE MASTER TO MASTER_LOG_FILE='slave-bin.000001', MASTER_LOG_POS=BINLOG_START;
 
---
--- The following is the SQL position of the replication taken from SHOW SLAVE STATUS at the time of backup.
--- Use this position when creating a clone of, or replacement server, from where the backup was taken.
+-- The following is the SQL position of the replication taken from information_schema.SLAVE_STATUS at the time of backup.
+-- Use this position when creating a clone orreplacement server from where the backup was taken.
 -- This new server will connects to the same primary server(s).
 --
-
--- A corresponding to the below dump-slave CHANGE-MASTER settings to the slave gtid state is printed later in the file.
+-- The slave gtid state corresponding to the below CHANGE MASTER settings is printed later in the file.
 
 -- Use only the MASTER_USE_GTID=slave_pos or MASTER_LOG_FILE/MASTER_LOG_POS in the statements below.
 
@@ -204,13 +202,11 @@ CHANGE MASTER TO MASTER_LOG_FILE='slave-bin.000001', MASTER_LOG_POS=BINLOG_START
 
 -- A corresponding to the above master-data CHANGE-MASTER settings to the slave gtid state is printed as comments later in the file.
 
---
--- The following is the SQL position of the replication taken from SHOW SLAVE STATUS at the time of backup.
--- Use this position when creating a clone of, or replacement server, from where the backup was taken.
+-- The following is the SQL position of the replication taken from information_schema.SLAVE_STATUS at the time of backup.
+-- Use this position when creating a clone orreplacement server from where the backup was taken.
 -- This new server will connects to the same primary server(s).
 --
-
--- A corresponding to the below dump-slave CHANGE-MASTER settings to the slave gtid state is printed later in the file.
+-- The slave gtid state corresponding to the below CHANGE MASTER settings is printed later in the file.
 -- CHANGE MASTER '' TO MASTER_LOG_FILE='master-bin.000001', MASTER_LOG_POS=BINLOG_START;
 
 
