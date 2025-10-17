@@ -112,26 +112,6 @@ component.
 /** Maximum length of an integer stored in the config table value column. */
 #define FTS_MAX_INT_LEN			32
 
-/******************************************************************//**
-Parse an SQL string. %s is replaced with the table's id.
-@return query graph */
-que_t*
-fts_parse_sql(
-/*==========*/
-	fts_table_t*	fts_table,	/*!< in: FTS aux table */
-	pars_info_t*	info,		/*!< in: info struct, or NULL */
-	const char*	sql)		/*!< in: SQL string to evaluate */
-	MY_ATTRIBUTE((nonnull(3), malloc, warn_unused_result));
-/******************************************************************//**
-Evaluate a parsed SQL statement
-@return DB_SUCCESS or error code */
-dberr_t
-fts_eval_sql(
-/*=========*/
-	trx_t*		trx,		/*!< in: transaction */
-	que_t*		graph)		/*!< in: Parsed statement */
-	MY_ATTRIBUTE((nonnull, warn_unused_result));
-
 /** Construct the name of an internal FTS table for the given table.
 @param[in]	fts_table	metadata on fulltext-indexed table
 @param[out]	table_name	a name up to MAX_FULL_NAME_LEN
@@ -139,28 +119,6 @@ fts_eval_sql(
 void fts_get_table_name(const fts_table_t* fts_table, char* table_name,
 			bool dict_locked = false)
 	MY_ATTRIBUTE((nonnull));
-/******************************************************************//**
-Construct the column specification part of the SQL string for selecting the
-indexed FTS columns for the given table. Adds the necessary bound
-ids to the given 'info' and returns the SQL string. Examples:
-
-One indexed column named "text":
-
- "$sel0",
- info/ids: sel0 -> "text"
-
-Two indexed columns named "subject" and "content":
-
- "$sel0, $sel1",
- info/ids: sel0 -> "subject", sel1 -> "content",
-@return heap-allocated WHERE string */
-const char*
-fts_get_select_columns_str(
-/*=======================*/
-	dict_index_t*	index,		/*!< in: FTS index */
-	pars_info_t*	info,		/*!< in/out: parser info */
-	mem_heap_t*	heap)		/*!< in: memory heap */
-	MY_ATTRIBUTE((nonnull, warn_unused_result));
 
 /** define for fts_doc_fetch_by_doc_id() "option" value, defines whether
 we want to get Doc whose ID is equal to or greater or smaller than supplied
@@ -169,47 +127,52 @@ ID */
 #define	FTS_FETCH_DOC_BY_ID_LARGE	2
 #define	FTS_FETCH_DOC_BY_ID_SMALL	3
 
-/*************************************************************//**
-Fetch document (= a single row's indexed text) with the given
-document id.
-@return: DB_SUCCESS if fetch is successful, else error */
-dberr_t
-fts_doc_fetch_by_doc_id(
-/*====================*/
-	fts_get_doc_t*	get_doc,	/*!< in: state */
-	doc_id_t	doc_id,		/*!< in: id of document to fetch */
-	dict_index_t*	index_to_use,	/*!< in: caller supplied FTS index,
-					or NULL */
-	ulint		option,         /*!< in: search option, if it is
-                                        greater than doc_id or equal */
-	fts_sql_callback
-			callback,	/*!< in: callback to read
-					records */
-	void*		arg)		/*!< in: callback arg */
-	MY_ATTRIBUTE((nonnull(6)));
+/** Structure to use it in fts_doc_fetch_by_doc_id() funtion.
+This structure contains fields to fetch from clustered index record
+and points to user_arg */
+struct fts_fetch_doc_id
+{
+  std::vector<uint32_t> field_to_fetch;
+  void *user_arg;
+};
 
-/*******************************************************************//**
-Callback function for fetch that stores the text of an FTS document,
+/** Fetch document with the given document id.
+@param get_doc      state
+@param doc_id       document id to fetch
+@param index_to_use index to be used for fetching fts information
+@param option       search option, if it is greater than doc_id or equal
+@param callback     callback function after fetching the fulltext indexed
+                    column
+@param arg          callback argument
+@return DB_SUCCESS if OK else error */
+dberr_t fts_doc_fetch_by_doc_id(fts_get_doc_t *get_doc, doc_id_t doc_id,
+                                dict_index_t *index_to_use, ulint option,
+                                fts_sql_callback *callback, void *arg)
+                                MY_ATTRIBUTE((nonnull(6)));
+
+/** Callback function for fetch that stores the text of an FTS document,
 converting each column to UTF-16.
-@return always FALSE */
-ibool
-fts_query_expansion_fetch_doc(
-/*==========================*/
-	void*		row,		/*!< in: sel_node_t* */
-	void*		user_arg)	/*!< in: fts_doc_t* */
-	MY_ATTRIBUTE((nonnull));
-/********************************************************************
-Write out a single word's data as new entry/entries in the INDEX table.
+@param index    clustered index
+@param rec      clustered index record
+@param offsets  offsets for the record
+@param user_arg points to fts_fetch_doc_id since it has field information
+                to fetch and user_arg which points to fts_doc_t
+@return always true */
+bool fts_query_expansion_fetch_doc(dict_index_t *index, const rec_t *rec,
+                                   const rec_offs *offsets, void *user_arg);
+
+class FTSQueryRunner;
+
+/** Write out a single word's data as new entry/entries in the INDEX table.
+@param fts_table FTS auxiliary table information
+@param word word in UTF-8
+@param node node columns
+@param runner Runs the query in FTS internal SYSTEM TABLES
 @return DB_SUCCESS if all OK. */
 dberr_t
-fts_write_node(
-/*===========*/
-	trx_t*		trx,		/*!< in: transaction */
-	que_t**		graph,		/*!< in: query graph */
-	fts_table_t*	fts_table,	/*!< in: the FTS aux index */
-	fts_string_t*	word,		/*!< in: word in UTF-8 */
-	fts_node_t*	node)		/*!< in: node columns */
-	MY_ATTRIBUTE((nonnull, warn_unused_result));
+fts_write_node(dict_table_t *table, fts_string_t *word,
+               fts_node_t* node, FTSQueryRunner *sqlRunner)
+               MY_ATTRIBUTE((nonnull, warn_unused_result));
 
 /** Check if a fts token is a stopword or less than fts_min_token_size
 or greater than fts_max_token_size.
@@ -258,19 +221,26 @@ fts_word_free(
 /*==========*/
 	fts_word_t*	word)		/*!< in: instance to free.*/
 	MY_ATTRIBUTE((nonnull));
-/******************************************************************//**
-Read the rows from the FTS inde
+
+/** Reads the rows from the given aux table.
+@param aux_table   auxiliary table
+@param word        word to fetch
+@param fetch       store the rows value
+@param sqlRunner   Query executor
 @return DB_SUCCESS or error code */
-dberr_t
-fts_index_fetch_nodes(
-/*==================*/
-	trx_t*		trx,		/*!< in: transaction */
-	que_t**		graph,		/*!< in: prepared statement */
-	fts_table_t*	fts_table,	/*!< in: FTS aux table */
-	const fts_string_t*
-			word,		/*!< in: the word to fetch */
-	fts_fetch_t*	fetch)		/*!< in: fetch callback.*/
-	MY_ATTRIBUTE((nonnull));
+dberr_t fts_index_fetch_nodes_low(
+  dict_table_t *aux_table, const fts_string_t *word, fts_fetch_t *fetch,
+  FTSQueryRunner *sqlRunner);
+
+/** Reads the rows from fts auxiliary table
+@param trx       transaction
+@param fts_table fulltext auxiliary table
+@param word      word to fetch
+@param fetch     stores the rows value and calculates memory needed
+@return error code or DB_SUCCESS */
+dberr_t fts_index_fetch_nodes(trx_t *trx, fts_table_t *fts_table,
+                              const fts_string_t *word, fts_fetch_t *fetch);
+
 #define fts_sql_commit(trx) trx_commit_for_mysql(trx)
 #define fts_sql_rollback(trx) (trx)->rollback()
 /******************************************************************//**
@@ -459,6 +429,178 @@ fts_config_create_index_param_name(
 	const dict_index_t*	index)	/*!< in: index for config */
 	MY_ATTRIBUTE((nonnull, malloc, warn_unused_result));
 
+/** Callback function for fetching the config value. */
+bool read_fts_config(dict_index_t *index, const rec_t *rec,
+                     const rec_offs *offsets, void *user_arg);
+
+/** Operation on FTS internal tables */
+enum fts_operation
+{
+  INSERT,
+  READ,
+  SELECT_UPDATE,
+  REMOVE
+};
+
+/** Match mode for fulltext tables */
+enum fts_match_key
+{
+  /** Searching single unique records */
+  MATCH_UNIQUE,
+  /** Searching single key record in multiple key index */
+  MATCH_PREFIX,
+  /** Searching for pattern like records */
+  MATCH_PATTERN,
+  /** Traverse all records on the table */
+  MATCH_ALL
+};
+
+/** This class does insert, delete, search in all FTS internal tables.*/
+class FTSQueryRunner
+{
+private:
+  /** Query thread */
+  que_thr_t *m_thr= nullptr;
+  /** Transaction to do the operation on FTS interal table */
+  trx_t *m_trx= nullptr;
+  /** Tuple to do DML operation on FTS internal table */
+  dtuple_t *m_tuple= nullptr;
+  /** Update build vector */
+  upd_t *m_update= nullptr;
+  /** system buffer to create DB_ROLL_PTR and DB_TRX_ID */
+  byte *m_sys_buf= nullptr;
+  /** Persistent cursor for search operation */
+  btr_pcur_t *m_pcur= nullptr;
+  /** Persistent cursor for clustered index */
+  btr_pcur_t *m_clust_pcur= nullptr;
+  /** Clustered index reference in case of lookup */
+  dtuple_t *m_clust_ref= nullptr;
+  /** lock type for the operation */
+  lock_mode m_lock_type;
+  /** Heap for old version record */
+  mem_heap_t *m_old_vers_heap= nullptr;
+  /** Heap to allocate query thread */
+  mem_heap_t *m_heap= nullptr;
+
+private:
+  /** Create a query thread for executing the query */
+  void create_query_thread() noexcept;
+
+  /** Handle the lock wait while doing any operation on FTS internal table
+  @param err error to be handled
+  @param table_lock Encountered the error during table lock
+  @return DB_SUCCESS in case of lock wait or error code */
+  dberr_t handle_wait(dberr_t err, bool table_lock= false) noexcept;
+
+  /** Lock the given record based on operation, reconstruct the
+  previous of the record based on transaction read view.
+  @param index    record where index belongs to
+  @param rec      record to be locked
+  @param out_rec  record which is viewable by transaction
+  @param offsets  offsets of the record
+  @param mtr      mini-transaction
+  @param op       Operation to be performed
+  @return error code or DB_SUCCESS */
+  dberr_t lock_or_sees_rec(dict_index_t *index, const rec_t *rec,
+                           const rec_t **out_rec, rec_offs **offsets,
+                           mtr_t *mtr, fts_operation op) noexcept;
+
+  /** Build clustered reference in case of clustered index lookup */
+  void build_clust_ref(dict_index_t *index) noexcept;
+
+public:
+  /** Build a tuple based on the given index of the table */
+  void build_tuple(dict_index_t *index, uint32_t n_fields= 0,
+                   uint32_t n_uniq= 0) noexcept;
+
+  /** Assign the FTS config fields for the tuple
+  @param name key for the field
+  @param value value for the field
+  @param value_len length of value string */
+  void assign_config_fields(const char* name, const void *value= nullptr,
+                            ulint value_len= 0) noexcept;
+
+  /** Assign the FTS common table fields
+  @param doc_id doc_id to be assigned */
+  void assign_common_table_fields(doc_id_t *doc_id) noexcept;
+
+  /** Assign the auxiliary table fields
+  @param word       word to be initialized
+  @param word_len   length of the word
+  @param node information about word where it stored */
+  void assign_aux_table_fields(const byte *word, ulint word_len,
+                               const fts_node_t *node= nullptr) noexcept;
+
+  /** Build update vector for the value field of fts internal config table
+  @param table     fulltext config table
+  @param field_no  value field number
+  @param new_value value to be updated */
+  void build_update_config(dict_table_t *table, uint16_t field_no,
+                           const fts_string_t *new_value) noexcept;
+
+  /** Open the table based on fts_auxiliary table name
+  @param fts_table    fts table internal name
+  @param err          set error code in case of table is not open
+  @param dict_locked  dictionary locked
+  @retval DB_TABLE_NOT_FOUND in case if table has been dropped
+  @retval DB_SUCCESS in case of success */
+  dict_table_t *open_table(fts_table_t *fts_table, dberr_t *err,
+                           bool dict_locked= false) noexcept;
+
+  /** Prepare the table for write operation
+  @param table table to be prepared
+  @retval DB_SUCCESS In case of success
+  @retrun error code for failure */
+  dberr_t prepare_for_write(dict_table_t *table) noexcept;
+
+  /** Prepare the table for read operation
+  @param table table to be prepared
+  @retval DB_SUCCESS In case of success
+  @retrun error code for failure */
+  dberr_t prepare_for_read(dict_table_t *table) noexcept;
+
+  /** Insert the record in the given table.
+  @param table table where insert is going to happen
+  @return error code or DB_SUCCESS */
+  dberr_t write_record(dict_table_t *table) noexcept;
+
+  /** Iterate the record and execute the functionality depends
+  on the operation. Lock the record when operation is
+  a delete (or) replace statement
+  @param index     Doing the operation on the given index
+  @param op        Read (or) Write (or) Delete (or) select..for update
+  @param match_op  Match mode for the given tuple
+  @param mode      Page cursor mode
+  @param func      function pointer for read operation
+  @param user_arg  user argument for function pointer
+  @return DB_SUCCESS or error code */
+  dberr_t record_executor(dict_index_t *index, fts_operation op,
+                          fts_match_key match_op= MATCH_UNIQUE,
+                          page_cur_mode_t mode= PAGE_CUR_GE,
+                          fts_sql_callback *func= nullptr,
+                          void *user_arg= nullptr) noexcept;
+
+  /** Update the clustered index of the table based on m_update and m_pcur
+  @param table    table to be updated
+  @param old_len  old length of the old data
+  @param new_len  new length of the new data
+  @return error code or DB_SUCCESS */
+  dberr_t update_record(dict_table_t *table, uint16_t old_len,
+                        uint16_t new_len) noexcept;
+
+  /** Get the heap */
+  mem_heap_t *heap() noexcept { return m_heap; }
+
+  dtuple_t *tuple() noexcept { return m_tuple; }
+
+  FTSQueryRunner(trx_t *trx): m_trx(trx) { m_heap= mem_heap_create(100); }
+
+  ~FTSQueryRunner();
+
+#ifdef UNIV_DEBUG
+  bool is_stopword_table= false;
+#endif
+};
 #include "fts0priv.inl"
 
 #endif /* INNOBASE_FTS0PRIV_H */
