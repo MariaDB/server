@@ -1,0 +1,129 @@
+#
+# MDEV-34391 Path resolution
+# Trigger tests with embedded PATH
+#
+SET sql_mode=ORACLE;
+CREATE DATABASE test2;
+CREATE FUNCTION test2.func() RETURN TEXT 
+AS
+BEGIN
+RETURN '1';
+END;
+/
+CREATE DATABASE test3;
+CREATE PROCEDURE test3.proc()
+AS
+BEGIN
+SET @a := 'hit';
+END;
+/
+CREATE TABLE t1(a INT);
+CREATE TABLE t2(a INT);
+#
+# PATH during creation will be used for routine resolution (1)
+# Test where the embedded PATH is correct
+#
+SET PATH 'test2'/
+CREATE TRIGGER trg1 BEFORE INSERT ON t1 FOR EACH ROW
+BEGIN
+SELECT func() INTO @dummy;
+END;
+/
+INSERT INTO t1 VALUES(1);
+#
+# Session PATH does not impact trigger's routine resolution
+#
+SET PATH 'CURRENT_SCHEMA';
+INSERT INTO t1 VALUES(2);
+DROP TRIGGER trg1;
+#
+# PATH during creation will be used for routine resolution (2)
+# Test where the embedded PATH is wrong
+#
+CREATE TRIGGER trg1 BEFORE INSERT ON t1 FOR EACH ROW
+BEGIN
+SELECT func() INTO @dummy;
+END;
+/
+INSERT INTO t1 VALUES(3);
+ERROR 42000: FUNCTION test.func does not exist
+SET PATH 'test2';
+INSERT INTO t1 VALUES(4);
+ERROR 42000: FUNCTION test.func does not exist
+DROP TRIGGER trg1;
+#
+# PATH during creation will be used for routine resolution (3)
+# Test with procedure resolution
+#
+SET PATH 'test3'/
+CREATE TRIGGER trg2 BEFORE UPDATE ON t2 FOR EACH ROW
+BEGIN
+CALL proc();
+END;
+/
+INSERT INTO t2 VALUES(1);
+UPDATE t2 SET a = 2;
+#
+# Session PATH does not impact trigger's routine resolution
+#
+SET PATH 'CURRENT_SCHEMA';
+UPDATE t2 SET a = 3;
+SELECT * FROM t2;
+a
+3
+#
+# Successive triggers with different embedded PATH
+#
+SET PATH 'test2'/
+CREATE TRIGGER trg1 BEFORE DELETE ON t1 FOR EACH ROW
+BEGIN
+UPDATE t2 SET a = 4;
+END;
+/
+SET @a := '';
+DELETE FROM t1 WHERE a = 1;
+SELECT @a;
+@a
+hit
+DROP TRIGGER trg2;
+#
+# When PATH is empty, trigger's routine resolution will fail
+# without exception
+#
+SET PATH ''/
+CREATE TRIGGER trg3 BEFORE INSERT ON t1 FOR EACH ROW
+BEGIN
+SELECT func() INTO @dummy;
+END;
+/
+INSERT INTO t1 VALUES(5);
+ERROR 42000: FUNCTION test.func does not exist
+SET PATH 'test2';
+INSERT INTO t1 VALUES(6);
+ERROR 42000: FUNCTION test.func does not exist
+USE test2;
+INSERT INTO test.t1 VALUES(7);
+ERROR 42000: FUNCTION test.func does not exist
+USE test;
+DROP TRIGGER trg3;
+DROP TABLE t2;
+DROP TABLE t1;
+#
+# When PATH is set to CURRENT_SCHEMA, trigger's routine resolution
+# will use the schema that was set when the trigger is created and not
+# the current schema at the time of execution.
+#
+CREATE TABLE test2.t1(a INT);
+CREATE TABLE test2.t2(a INT);
+SET PATH 'CURRENT_SCHEMA';
+USE test2;
+CREATE TRIGGER trg1 BEFORE INSERT ON t1 FOR EACH ROW
+BEGIN
+SELECT func() INTO @dummy;
+END;
+/
+INSERT INTO t1 VALUES(1);
+USE test;
+INSERT INTO test2.t1 VALUES(2);
+DROP DATABASE test2;
+DROP DATABASE test3;
