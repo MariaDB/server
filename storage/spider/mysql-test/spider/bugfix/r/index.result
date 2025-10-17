@@ -10,19 +10,27 @@ set global spider_same_server_link= on;
 select @@spider_auto_increment_mode;
 @@spider_auto_increment_mode
 0
-create or replace table auto_test_local.t (id int primary key) engine=InnoDB;
+create or replace table auto_test_local.t (id int, primary key(id desc)) engine=InnoDB;
 create or replace table t_sp1 (id int auto_increment, primary key(id desc))
 engine=Spider COMMENT='wrapper "mysql", srv "s_1", table "t"';
 insert into t_sp1 () values (),(),();
 insert into t_sp1 () values (),(),();
+select * from auto_test_local.t;
+id
+6
+5
+4
+3
+2
+1
 select * from t_sp1;
 id
-1
-2
-3
-4
-5
 6
+5
+4
+3
+2
+1
 drop table t_sp1, auto_test_local.t;
 #
 # MDEV-27581 Wrong result with DESC key on partitioned Spider table
