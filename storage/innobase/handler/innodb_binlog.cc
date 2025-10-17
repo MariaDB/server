@@ -3944,6 +3944,21 @@ innodb_binlog_post_commit(mtr_t *mtr, binlog_oob_context *c)
 }
 
 
+/*
+  Function to record the write of a record to the binlog, when done outside
+  of a normal binlog commit, eg. XA PREPARE or XA ROLLBACK.
+*/
+static void
+innodb_binlog_post_write_rec(mtr_t *mtr, binlog_oob_context *c)
+{
+  uint64_t file_no= active_binlog_file_no.load(std::memory_order_relaxed);
+  c->pending_file_no= file_no;
+  c->pending_offset=
+    binlog_cur_end_offset[file_no & 3].load(std::memory_order_relaxed);
+  innodb_binlog_post_commit(mtr, c);
+}
+
+
 bool
 innobase_binlog_write_direct_ordered(IO_CACHE *cache,
                              handler_binlog_event_group_info *binlog_info,
@@ -4015,6 +4030,8 @@ ibb_write_xa_prepare_ordered(THD *thd,
   fsp_binlog_write_rec(&chunk_data, &mtr, FSP_BINLOG_TYPE_XA_PREPARE,
                        c->lf_pins);
   mtr.commit();
+  innodb_binlog_post_write_rec(&mtr, c);
+
   return false;
 }
 
@@ -4037,6 +4054,7 @@ ibb_write_xa_prepare(THD *thd,
   */
   if (srv_flush_log_at_trx_commit > 0)
     log_write_up_to(c->pending_lsn, (srv_flush_log_at_trx_commit & 1));
+  ibb_pending_lsn_fifo.record_commit(c);
 
   return false;
 }
@@ -4061,7 +4079,7 @@ ibb_xa_rollback_ordered(THD *thd, const XID *xid, void **engine_data)
   fsp_binlog_write_rec(&chunk_data, &mtr, FSP_BINLOG_TYPE_XA_COMPLETE,
                        c->lf_pins);
   mtr.commit();
-  c->pending_lsn= mtr.commit_lsn();
+  innodb_binlog_post_write_rec(&mtr, c);
 
   return false;
 }
@@ -4087,6 +4105,8 @@ ibb_xa_rollback(THD *thd, const XID *xid, void **engine_data)
   ut_ad(c->pending_lsn > 0);
   if (srv_flush_log_at_trx_commit > 0)
     log_write_up_to(c->pending_lsn, (srv_flush_log_at_trx_commit & 1));
+
+  ibb_pending_lsn_fifo.record_commit(c);
   c->pending_lsn= 0;
   return false;
 }
