@@ -887,7 +887,6 @@ public:
     SPIDER_SHARE *spider_share,
     CHARSET_INFO *access_charset
   ) = 0;
-  virtual uint limit_mode();
 };
 
 class spider_db_conn
