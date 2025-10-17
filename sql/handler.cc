@@ -2150,12 +2150,37 @@ static bool is_ro_1pc_trans(THD *thd, Ha_trx_info *ha_info, bool all,
   return !rw_trans;
 }
 
-static bool has_binlog_hton(Ha_trx_info *ha_info)
+inline Ha_trx_info* get_binlog_hton(Ha_trx_info *ha_info)
 {
-  bool rc;
-  for (rc= false; ha_info && !rc; ha_info= ha_info->next())
-    rc= ha_info->ht() == binlog_hton;
+  for (; ha_info; ha_info= ha_info->next())
+    if (ha_info->ht() == binlog_hton)
+      return ha_info;
 
+  return ha_info;
+}
+
+static int run_binlog_first(THD *thd, bool all, THD_TRANS *trans,
+                            bool is_real_trans, bool is_commit)
+{
+  int rc= 0;
+  Ha_trx_info *ha_info= trans->ha_list;
+
+  if (mysql_bin_log.is_open())
+  {
+    if ((ha_info= get_binlog_hton(ha_info)))
+    {
+      int err;
+      if ((err= is_commit ?
+           binlog_commit(thd, all,
+                         is_ro_1pc_trans(thd, ha_info, all, is_real_trans)) :
+           binlog_rollback(ha_info->ht(), thd, all)))
+      {
+        my_error(is_commit? ER_ERROR_DURING_COMMIT : ER_ERROR_DURING_ROLLBACK,
+                 MYF(0), err);
+        rc= 1;
+      }
+    }
+  }
   return rc;
 }
 
@@ -2172,18 +2197,17 @@ commit_one_phase_2(THD *thd, bool all, THD_TRANS *trans, bool is_real_trans)
   if (ha_info)
   {
     int err= 0;
-
-    if (has_binlog_hton(ha_info) &&
-        (err= binlog_commit(thd, all,
-                            is_ro_1pc_trans(thd, ha_info, all, is_real_trans))))
+    /*
+      Binlog hton must be called first regardless of its position
+      in trans->ha_list.
+    */
+    for (int binlog_err= error=
+           run_binlog_first(thd, all, trans, is_real_trans, true);
+         ha_info; ha_info= ha_info_next)
     {
-      my_error(ER_ERROR_DURING_COMMIT, MYF(0), err);
-      error= 1;
+      if (binlog_err)
+        goto err;
 
-      goto err;
-    }
-    for (; ha_info; ha_info= ha_info_next)
-    {
       handlerton *ht= ha_info->ht();
       if ((err= ht->commit(ht, thd, all)))
       {
@@ -2309,11 +2333,16 @@ int ha_rollback_trans(THD *thd, bool all)
     if (is_real_trans)                          /* not a statement commit */
       thd->stmt_map.close_transient_cursors();
 
-    for (; ha_info; ha_info= ha_info_next)
+    /*
+      Binlog hton must be called first regardless of its position
+      in trans->ha_list.
+    */
+    for (error= run_binlog_first(thd, all, trans, is_real_trans, false);
+         ha_info; ha_info= ha_info_next)
     {
       int err;
       handlerton *ht= ha_info->ht();
-      if ((err= ht->rollback(ht, thd, all)))
+      if (ht != binlog_hton && (err= ht->rollback(ht, thd, all)))
       {
         // cannot happen
         my_error(ER_ERROR_DURING_ROLLBACK, MYF(0), err);
