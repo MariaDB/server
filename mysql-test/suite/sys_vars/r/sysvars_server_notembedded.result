@@ -432,6 +432,16 @@ NUMERIC_BLOCK_SIZE	NULL
 ENUM_VALUE_LIST	NULL
 READ_ONLY	YES
 COMMAND_LINE_ARGUMENT	NULL
+VARIABLE_NAME	BINLOG_ERROR_ACTION
+VARIABLE_SCOPE	GLOBAL
+VARIABLE_TYPE	ENUM
+VARIABLE_COMMENT	When binary logging encounters a fatal error, this option determines whether the server closes the binlog, or directly aborts. IGNORE_ERROR is a MySQL compatibility option that is the same as CLOSE_BINLOG except it retries in 60 secs when disk full, and UNSET is a MariaDB compatibility option that is the same as IGNORE_ERROR except the binlog doesn't close when rotation cannot generate a unique name
+NUMERIC_MIN_VALUE	NULL
+NUMERIC_MAX_VALUE	NULL
+NUMERIC_BLOCK_SIZE	NULL
+ENUM_VALUE_LIST	UNSET,IGNORE_ERROR,CLOSE_BINLOG,ABORT_SERVER
+READ_ONLY	NO
+COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	BINLOG_EXPIRE_LOGS_SECONDS
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	BIGINT UNSIGNED
