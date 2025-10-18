@@ -1816,7 +1816,7 @@ Sys_pseudo_thread_id(
        "pseudo_thread_id",
        "This variable is for internal server use",
        SESSION_ONLY(pseudo_thread_id),
-       NO_CMD_LINE, VALID_RANGE(0, MY_THREAD_ID_MAX), DEFAULT(0),
+       NO_CMD_LINE, VALID_RANGE(1, MY_THREAD_ID_MAX), DEFAULT(MY_THREAD_ID_MAX),
        BLOCK_SIZE(1), NO_MUTEX_GUARD, IN_BINLOG);
 
 static bool
