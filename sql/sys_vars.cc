@@ -6064,7 +6064,7 @@ static Sys_var_ulong Sys_opt_binlog_rows_event_max_size(
       "grouped into events smaller than this size if possible. "
       "The value has to be a multiple of 256",
       READ_ONLY GLOBAL_VAR(opt_binlog_rows_event_max_size), CMD_LINE(REQUIRED_ARG),
-      VALID_RANGE(256, UINT_MAX32 - (UINT_MAX32 % 256)), DEFAULT(8192),
+      VALID_RANGE(256, UINT_MAX32 - (UINT_MAX32 % 256)), DEFAULT(128000),
       BLOCK_SIZE(256));
 
 static Sys_var_on_access_global<Sys_var_uint,
