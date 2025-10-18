@@ -106,6 +106,42 @@ FROM INFORMATION_SCHEMA.PARAMETERS WHERE SPECIFIC_SCHEMA='test';
 --horizontal_results
 DROP FUNCTION f1;
 
+--echo #
+--echo # MDEV-37155  Can't catch the NOT FOUND error and sp can't exit
+--echo #
+
+CREATE TABLE t1 (a INT, b VARCHAR(10),c DATETIME(3));
+INSERT INTO t1 VALUES (1,'b1','2001-01-01 10:20:30.123');
+INSERT INTO t1 VALUES (2,'b2','2001-01-02 10:20:30.123');
+CREATE TABLE t2 LIKE t1;
+DELIMITER $$;
+CREATE PROCEDURE p1()
+AS
+  done INT DEFAULT 0;
+  v_a t1.a%type;
+  v_b t1.b%type;
+  v_c t1.c%type;
+  CURSOR c IS SELECT a,b,c FROM t1;
+  CONTINUE HANDLER FOR NOT FOUND SET done=TRUE;
+BEGIN
+  OPEN c;
+  <<read_loop>> LOOP
+    FETCH c INTO v_a, v_b, v_c;
+    IF done THEN
+      LEAVE read_loop;
+    END IF;
+    INSERT INTO t2 (a,b,c) VALUES (v_a, v_b, v_c);
+  END LOOP;
+  CLOSE c;
+END;
+$$
+DELIMITER ;$$
+# without fix this will insert forever
+CALL p1();
+select * from t2;
+DROP PROCEDURE P1;
+DROP TABLE t1;
+DROP TABLE t2;
 
 --echo #
 --echo # End of 11.7 tests
