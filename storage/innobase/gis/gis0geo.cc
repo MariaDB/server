@@ -542,9 +542,9 @@ split_rtree_node(
 	b->n_node = 2;
 
 	copy_coords(g1, a->coords, n_dim);
-	size1 += key_size;
+	size1 += a->key_len;
 	copy_coords(g2, b->coords, n_dim);
-	size2 += key_size;
+	size2 += b->key_len;
 
 	for (i = n_entries - 2; i > 0; --i) {
 		/* Can't write into group 2 */
@@ -561,10 +561,10 @@ split_rtree_node(
 
 		pick_next(node, n_entries, g1, g2, &next, &next_node, n_dim);
 		if (next_node == 1) {
-			size1 += key_size;
+			size1 += next->key_len;
 			mbr_join(g1, next->coords, n_dim);
 		} else {
-			size2 += key_size;
+			size2 += next->key_len;
 			mbr_join(g2, next->coords, n_dim);
 		}
 

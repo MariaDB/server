@@ -72,6 +72,7 @@ struct rtr_split_node_t
 	double	square;		/* square of the mbr.*/
 	int	n_node;		/* which group in.*/
 	uchar*	key;		/* key. */
+	uint16_t key_len;	/* key length */
 	double* coords;		/* mbr. */
 };
 
