@@ -5430,6 +5430,12 @@ class BackupStages {
 			);
 
 			// Copy InnoDB binlog files.
+			// Going to BACKUP STAGE START protects against RESET
+			// MASTER deleting files during the copy, or FLUSH
+			// BINARY LOGS truncating them.
+			if (!opt_no_lock)
+				xb_mysql_query(mysql_connection, "BACKUP STAGE START",
+					       false, false);
 			if (!m_common_backup.copy_engine_binlogs(opt_binlog_directory,
                                                                  recv_sys.lsn)) {
 				msg("Error on copy InnoDB binlog files");
@@ -5439,6 +5445,9 @@ class BackupStages {
 				msg("InnoDB binlog file backup process is finished with error");
 				return false;
 			}
+			if (!opt_no_lock)
+				xb_mysql_query(mysql_connection, "BACKUP STAGE END",
+					       false, false);
 
 			backup_finish(backup_datasinks.m_data);
 			return true;

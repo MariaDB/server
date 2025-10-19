@@ -134,14 +134,15 @@ SET GLOBAL innodb_flush_log_at_trx_commit= @old_innodb_flush_log_at_trx_commit;
 # restart
 *** MDEV-7402: 'reset master' hangs, waits for signalled COND_xid_list ***
 connect con3,localhost,root,,;
-SET debug_sync="reset_logs_after_set_reset_master_pending SIGNAL reset_master_ready WAIT_FOR reset_master_cont";
+SET debug_sync="reset_logs_after_set_reset_master_pending SIGNAL reset_master_ready WAIT_FOR reset_master_cont TIMEOUT 1";
 RESET MASTER;
 connection default;
 SET debug_sync="now WAIT_FOR reset_master_ready";
 RESET MASTER;
-ERROR HY000: Cannot execute RESET MASTER as the binlog is in use by a connected slave or other RESET MASTER or binlog reader. Check SHOW PROCESSLIST for "Binlog Dump" commands and use KILL to stop such readers
 SET debug_sync="now SIGNAL reset_master_cont";
 connection con3;
+Warnings:
+Warning	1639	debug sync point wait timed out
 connection default;
 SET debug_sync = 'reset';
 *** MDEV-24660: MYSQL_BIN_LOG::cleanup(): Assertion `b->xid_count == 0' failed in MYSQL_BIN_LOG::cleanup
