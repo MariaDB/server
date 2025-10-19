@@ -357,6 +357,12 @@ void BackupImpl::process_binlog_job(std::string src, std::string dst,
 
 	binlog_found= get_binlog_header(c_src, m_page_buf.get(), start_lsn, is_empty);
 	if (binlog_found > 0 && !is_empty && start_lsn <= backup_lsn) {
+		// Test binlog_in_engine.mariabackup_binlogs will try to inject
+		// RESET MASTER and PURGE BINARY LOGS here.
+		DBUG_EXECUTE_IF("binlog_copy_sleep_2",
+				if (src.find("binlog-000002.ibb") !=
+				    std::string::npos)
+					my_sleep(2000000););
 		if (!m_ds->copy_file(c_src, dst.c_str(), thread_num))
 			goto exit;
 	}

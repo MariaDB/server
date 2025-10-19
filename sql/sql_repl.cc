@@ -800,6 +800,14 @@ bool purge_master_logs(THD* thd, const char* to_log)
     return FALSE;
   }
 
+  MDL_request mdl_request;
+  MDL_REQUEST_INIT(&mdl_request, MDL_key::BACKUP, "", "", MDL_BACKUP_START,
+                   MDL_EXPLICIT);
+  if (thd->mdl_context.acquire_lock(&mdl_request,
+				    thd->variables.lock_wait_timeout))
+    return TRUE;
+  thd->backup_commit_lock= &mdl_request;
+
   int res;
   if (!opt_binlog_engine_hton)
   {
@@ -840,6 +848,11 @@ bool purge_master_logs(THD* thd, const char* to_log)
       give_purge_note(purge_info.nonpurge_reason,
                       purge_info.nonpurge_filename, true);
   }
+
+  if (mdl_request.ticket)
+    thd->mdl_context.release_lock(mdl_request.ticket);
+  thd->backup_commit_lock= 0;
+
   return purge_error_message(thd, res);
 }
 
@@ -4870,11 +4883,25 @@ int reset_master(THD* thd, rpl_gtid *init_state, uint32 init_state_len,
   }
 #endif /* WITH_WSREP */
   bool ret= 0;
+
+  MDL_request mdl_request;
+  MDL_REQUEST_INIT(&mdl_request, MDL_key::BACKUP, "", "", MDL_BACKUP_START,
+                   MDL_EXPLICIT);
+  if (thd->mdl_context.acquire_lock(&mdl_request,
+				    thd->variables.lock_wait_timeout))
+    return 1;
+  thd->backup_commit_lock= &mdl_request;
+
   /* Temporarily disable master semisync before resetting master. */
   repl_semisync_master.before_reset_master();
   ret= mysql_bin_log.reset_logs(thd, 1, init_state, init_state_len,
                                 next_log_number);
   repl_semisync_master.after_reset_master();
+
+  if (mdl_request.ticket)
+    thd->mdl_context.release_lock(mdl_request.ticket);
+  thd->backup_commit_lock= 0;
+
   DBUG_EXECUTE_IF("crash_after_reset_master", DBUG_SUICIDE(););
 
   return ret;
