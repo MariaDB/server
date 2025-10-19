@@ -156,12 +156,14 @@ connect(con3,localhost,root,,);
 # flag set by another RESET MASTER; this could cause the wakeup from the
 # binlog background thread not to be sent, and thus the second RESET MASTER
 # to wait infinitely.
-SET debug_sync="reset_logs_after_set_reset_master_pending SIGNAL reset_master_ready WAIT_FOR reset_master_cont";
+# After MDEV-34705, two RESET MASTERs are protected by MDL_BACKUP_START from
+# running concurrently; we test this by having a debug_sync point time
+# out while a second RESET MASTER is waiting for the first one.
+SET debug_sync="reset_logs_after_set_reset_master_pending SIGNAL reset_master_ready WAIT_FOR reset_master_cont TIMEOUT 1";
 send RESET MASTER;
 
 --connection default
 SET debug_sync="now WAIT_FOR reset_master_ready";
---error ER_BINLOG_IN_USE
 RESET MASTER;
 SET debug_sync="now SIGNAL reset_master_cont";
 
