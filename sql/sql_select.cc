@@ -13596,6 +13596,7 @@ make_join_select(JOIN *join,SQL_SELECT *select,COND *cond)
           {
             DBUG_ASSERT(tab->quick->is_valid());
 	    sel->quick=tab->quick;		// Use value from get_quick_...
+            tab->quick=0;
 	    sel->quick_keys.clear_all();
 	    sel->needed_reg.clear_all();
             if (is_hj && tab->rowid_filter)
@@ -13606,9 +13607,12 @@ make_join_select(JOIN *join,SQL_SELECT *select,COND *cond)
 	  }
 	  else
 	  {
-	    delete tab->quick;
+            if (!join->with_two_phase_optimization)
+            {
+              delete tab->quick;
+              tab->quick=0;
+            }
 	  }
-	  tab->quick=0;
 	}
 	uint ref_key= sel->head? (uint) sel->head->reginfo.join_tab->ref.key+1 : 0;
 	if (i == join->const_tables && ref_key)
