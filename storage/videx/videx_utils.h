@@ -110,7 +110,12 @@ public:
   // Except for string which might be empty and needs to be converted to NULL
   // separately, all other values can be handled using this function.
   template <typename V>
-  void add_property_nonan(const std::string &key, V value);
+  void add_property_nonan(const std::string &key, V value)
+  {
+    std::stringstream ss;
+    ss << value;
+    properties[key]= ss.str();
+  }
 
   std::string to_json() const;
 };

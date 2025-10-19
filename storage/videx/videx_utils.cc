@@ -208,14 +208,6 @@ void VidexJsonItem::add_property(const std::string &key, const String *value)
   }
 }
 
-template <typename V>
-void VidexJsonItem::add_property_nonan(const std::string &key, V value)
-{
-  std::stringstream ss;
-  ss << value;
-  properties[key]= ss.str();
-}
-
 std::string VidexJsonItem::to_json() const
 {
   std::string json= "{";
