@@ -24,7 +24,7 @@ LOCK TABLE t1 WRITE;
 REVOKE EXECUTE ON PROCEDURE sp FROM u;
 ERROR HY000: Table 'procs_priv' was not locked with LOCK TABLES
 REVOKE PROCESS ON *.* FROM u;
-ERROR HY000: Table 'db' was not locked with LOCK TABLES
+ERROR HY000: Table 'global_priv' was not locked with LOCK TABLES
 DROP TABLE t1;
 create database mysqltest1;
 use mysqltest1;

@@ -1456,7 +1456,7 @@ bool mysqld_show_create_db(THD *thd, LEX_CSTRING *dbname,
     db_access= acl_get_all3(sctx, dbname->str, FALSE) |
                sctx->master_access;
 
-  if (!(db_access & DB_ACLS) && check_grant_db(thd,dbname->str))
+  if (!(db_access & DB_ACLS) && check_grant_db(sctx, *dbname))
   {
     status_var_increment(thd->status_var.access_denied_errors);
     my_error(ER_DBACCESS_DENIED_ERROR, MYF(0),
@@ -4707,7 +4707,7 @@ int schema_tables_add(THD *thd, Dynamic_array<LEX_CSTRING*> *files,
 
 static int
 make_table_name_list(THD *thd, Dynamic_array<LEX_CSTRING*> *table_names,
-                     LEX *lex, LOOKUP_FIELD_VALUES *lookup_field_vals,
+                     LOOKUP_FIELD_VALUES *lookup_field_vals,
                      const LEX_CSTRING *db_name)
 {
   char path[FN_REFLEN + 1];
@@ -5628,12 +5628,11 @@ int get_all_tables(THD *thd, TABLE_LIST *tables, COND *cond)
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
     if (!check_access(thd, SELECT_ACL, db_name->str, &thd->col_access, 0,0,1) ||
         sctx->master_access & (DB_ACLS | SHOW_DB_ACL) ||
-        acl_get_all3(sctx, db_name->str, 0))
+        acl_get_all3(sctx, db_name->str, false))
 #endif
     {
       Dynamic_array<LEX_CSTRING*> table_names(PSI_INSTRUMENT_MEM);
-
-      int res= make_table_name_list(thd, &table_names, lex,
+      int res= make_table_name_list(thd, &table_names,
                                     &plan->lookup_field_vals, db_name);
       if (unlikely(res == 2))   /* Not fatal error, continue */
         continue;
@@ -5836,7 +5835,7 @@ int fill_schema_schemata(THD *thd, TABLE_LIST *tables, COND *cond)
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
     if (sctx->master_access & (DB_ACLS | SHOW_DB_ACL) ||
         acl_get_all3(sctx, db_name->str, false) ||
-        !check_grant_db(thd, db_name->str))
+        !check_grant_db(sctx, *db_name))
 #endif
     {
       load_db_opt_by_name(thd, db_name->str, &create);
@@ -6459,8 +6458,8 @@ static void store_variable_type(THD *thd,
 
 static int store_schema_period_record(THD *thd, TABLE_LIST *tl,
                                       TABLE *schema_table,
-                                      const LEX_CSTRING *db_name,
-                                      const LEX_CSTRING *table_name,
+                                      const Lex_ident_db &db_name,
+                                      const Lex_ident_table &table_name,
                                       const TABLE_SHARE::period_info_t &period)
 {
   TABLE_SHARE *s= tl->table->s;
@@ -6489,7 +6488,7 @@ static int store_schema_period_record(THD *thd, TABLE_LIST *tl,
   {
     /* Reveal the value only if the user has any privilege on this column */
     bool col_granted= get_column_grant(thd, &tl->grant, 
-                                        db_name->str, table_name->str,
+                                        db_name, table_name,
                                         field->field_name) & COL_DML_ACLS;
     if (col_granted)
     {
@@ -6524,11 +6523,11 @@ get_schema_period_records(THD *thd, TABLE_LIST *tl,
 #endif
   int err= 0;
   if (table->versioned())
-    err= store_schema_period_record(thd, tl, schema_table, db_name, table_name,
-                                    table->s->vers);
+    err= store_schema_period_record(thd, tl, schema_table, Lex_ident_db(*db_name),
+                                    Lex_ident_table(*table_name), table->s->vers);
   if (!err && table->s->period.name)
-    err= store_schema_period_record(thd, tl, schema_table, db_name, table_name,
-                                    table->s->period);
+    err= store_schema_period_record(thd, tl, schema_table, Lex_ident_db(*db_name),
+                                    Lex_ident_table(*table_name), table->s->period);
 
   return err;
 }
@@ -6584,8 +6583,8 @@ int get_schema_column_record(THD *thd, TABLE_LIST *tables,
 
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
     ulonglong col_access=
-      get_column_grant(thd, &tables->grant, db_name->str, table_name->str,
-                       field->field_name) & COL_ACLS;
+        get_column_grant(thd, &tables->grant, Lex_ident_db(*db_name), Lex_ident_table(*table_name),
+                         field->field_name) & COL_ACLS;
 
     if (!col_access && !tables->schema_table)
       continue;
@@ -7045,7 +7044,7 @@ int store_schema_params(THD *thd, TABLE *table, TABLE *proc_table,
                  !check_db_routine_access(thd, SHOW_CREATE_ROUTINE_ACL,
                                           db.str, name.str, sph, TRUE);
   if (!full_access &&
-      check_some_routine_access(thd, db.str, name.str, sph))
+      check_some_routine_access(thd, db, name, *sph))
     DBUG_RETURN(0);
 
   proc_table->field[MYSQL_PROC_FIELD_PARAM_LIST]->val_str_nopad(thd->mem_root,
@@ -7171,7 +7170,7 @@ int store_schema_proc(THD *thd, TABLE *table, TABLE *proc_table,
                  !check_db_routine_access(thd, SHOW_CREATE_ROUTINE_ACL,
                                           db.str, name.str, sph, TRUE);
   if (!full_access &&
-      check_some_routine_access(thd, db.str, name.str, sph))
+      check_some_routine_access(thd, db, name, *sph))
     return 0;
 
   if (!is_show_command(thd) ||
@@ -7429,8 +7428,8 @@ static int get_schema_stat_record(THD *thd, TABLE_LIST *tables, TABLE *table,
         uint j;
         for (j=0 ; j < key_info->user_defined_key_parts ; j++,key_part++)
         {
-          auto access= get_column_grant(thd, &tables->grant, db_name->str,
-                                        table_name->str,
+          auto access= get_column_grant(thd, &tables->grant, Lex_ident_db(*db_name),
+                                        Lex_ident_table(*table_name),
                                         key_part->field->field_name);
 
           if (!access)
@@ -8041,8 +8040,8 @@ get_schema_key_column_usage_record(THD *thd, TABLE_LIST *tables,
         uint j;
         for (j=0 ; j < key_info->user_defined_key_parts ; j++,key_part++)
         {
-          auto access= get_column_grant(thd, &tables->grant, db_name->str,
-                                        table_name->str,
+          auto access= get_column_grant(thd, &tables->grant, Lex_ident_db(*db_name),
+                                        Lex_ident_table(*table_name),
                                         key_part->field->field_name);
 
           if (!access)
@@ -8083,8 +8082,8 @@ get_schema_key_column_usage_record(THD *thd, TABLE_LIST *tables,
       {
         while ((r_info= it1++))
         {
-          auto access= get_column_grant(thd, &tables->grant, db_name->str,
-                                        table_name->str,
+          auto access= get_column_grant(thd, &tables->grant, Lex_ident_db(*db_name),
+                                        Lex_ident_table(*table_name),
                                         Lex_ident_column(*r_info));
 
           if (!access)

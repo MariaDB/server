@@ -17,6 +17,7 @@
    Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 #include "my_global.h" // ulonglong
+#include "my_bit.h"
 
 
 /*
@@ -80,7 +81,7 @@ enum privilege_t: unsigned long long
 
     In other files:
     - static struct show_privileges_st sys_privileges[]
-    - static const char *command_array[] and static uint command_lengths[]
+    - static const LEX_CSTRING privilege_str_repr[]
     - mariadb_system_tables.sql and mariadb_system_tables_fix.sql
     - acl_init() or whatever - to define behaviour for old privilege tables
     - Update User_table_json::get_access()

@@ -17985,11 +17985,11 @@ revoke_command:
         ;
 
 admin_option_for_role:
-        ADMIN_SYM OPTION FOR_SYM grant_role
-        { Lex->with_admin_option= true; $$= $4; }
-      | grant_role
-        { Lex->with_admin_option= false; $$= $1; }
-      ;
+          ADMIN_SYM OPTION FOR_SYM grant_role
+          { Lex->with_admin_option= true; $$= $4; }
+        | grant_role
+          { Lex->with_admin_option= false; $$= $1; }
+        ;
 
 grant:
           GRANT clear_privileges grant_command
@@ -18090,8 +18090,9 @@ grant_privileges:
           object_privilege_list
         | ALL opt_privileges
           { 
-            if (!($$= new (thd->mem_root) Lex_grant_privilege(GLOBAL_ACLS, true)))
+            if (!($$= new (thd->mem_root) Lex_grant_privilege()))
               MYSQL_YYABORT;
+            $$->set_all_privileges();
           }
         ;
 

@@ -89,21 +89,16 @@ bool check_change_password(THD *thd, LEX_USER *user);
 bool change_password(THD *thd, LEX_USER *user);
 
 bool mysql_grant_role(THD *thd, List<LEX_USER> &user_list, bool revoke);
-int mysql_table_grant(THD *thd, TABLE_LIST *table, List <LEX_USER> &user_list,
-                       List <LEX_COLUMN> &column_list, privilege_t rights,
-                       bool revoke);
-bool mysql_routine_grant(THD *thd, TABLE_LIST *table, const Sp_handler *sph,
-                         List <LEX_USER> &user_list, privilege_t rights,
-                         bool revoke, bool write_to_binlog);
 bool grant_init();
 void grant_free(void);
 bool grant_reload(THD *thd);
 bool check_grant(THD *thd, privilege_t want_access, TABLE_LIST *tables,
                  bool any_combination_will_do, uint number, bool no_errors);
-bool check_grant_column (THD *thd, GRANT_INFO *grant,
-                         const char *db_name, const char *table_name,
-                         const Lex_ident_column &name,
-                         Security_context *sctx);
+bool check_grant_column(const Security_context *sctx,
+                        GRANT_INFO *grant,
+                        const Lex_ident_db &db_name,
+                        const Lex_ident_table &table_name,
+                        const Lex_ident_column &column_name);
 bool check_column_grant_in_table_ref(THD *thd, TABLE_LIST * table_ref,
                                      const Lex_ident_column &name, Field *fld);
 bool check_grant_all_columns(THD *thd, privilege_t want_access,
@@ -111,15 +106,72 @@ bool check_grant_all_columns(THD *thd, privilege_t want_access,
 bool check_grant_routine(THD *thd, privilege_t want_access,
                          TABLE_LIST *procs, const Sp_handler *sph,
                          bool no_error);
-bool check_grant_db(THD *thd,const char *db);
+bool check_grant_db(Security_context *sctx, const LEX_CSTRING &db);
+
 bool check_global_access(THD *thd, const privilege_t want_access, bool no_errors= false);
 bool check_access(THD *thd, privilege_t want_access,
                   const char *db, privilege_t *save_priv,
                   GRANT_INTERNAL_INFO *grant_internal_info,
                   bool dont_check_global_grants, bool no_errors);
+bool check_fk_parent_table_access(THD *thd, HA_CREATE_INFO *create_info,
+                                  Alter_info *alter_info,
+                                  const LEX_CSTRING &create_db);
+#ifndef NO_EMBEDDED_ACCESS_CHECKS
+bool check_one_table_access(THD *thd, privilege_t privilege,
+                            TABLE_LIST *tables);
+bool check_single_table_access(THD *thd, privilege_t privilege,
+                               TABLE_LIST *tables, bool no_errors);
+bool check_routine_access(THD *thd, privilege_t want_access,
+                          const LEX_CSTRING *db, const LEX_CSTRING *name,
+                          const Sp_handler *sph, bool no_errors);
+bool check_some_access(THD *thd, privilege_t want_access, TABLE_LIST *table);
+bool check_some_routine_access(THD *thd, const LEX_CSTRING &db,
+                               const LEX_CSTRING &name, const Sp_handler &sph);
+bool check_table_access(THD *thd, privilege_t requirements, TABLE_LIST *tables,
+                        bool any_combination_of_privileges_will_do,
+                        uint number, bool no_errors);
+#else
+inline bool check_one_table_access(THD *thd, privilege_t privilege,
+                                   TABLE_LIST *tables)
+{
+  return false;
+}
+inline bool check_single_table_access(THD *thd, privilege_t privilege,
+                                      TABLE_LIST *tables, bool no_errors)
+{
+  return false;
+}
+inline bool check_routine_access(THD *thd, privilege_t want_access,
+                                 const LEX_CSTRING *db,
+                                 const LEX_CSTRING *name,
+                                 const Sp_handler *sph, bool no_errors)
+{
+  return false;
+}
+inline bool check_some_access(THD *thd, privilege_t want_access,
+                              TABLE_LIST *table)
+{
+  table->grant.privilege= want_access;
+  return false;
+}
+inline bool check_some_routine_access(THD *, const LEX_CSTRING &,
+                                      const LEX_CSTRING &, const Sp_handler &)
+{
+  return false;
+}
+inline bool check_table_access(THD *thd, privilege_t requirements,
+                               TABLE_LIST *tables,
+                               bool any_combination_of_privileges_will_do,
+                               uint number, bool no_errors)
+{
+  return false;
+}
+#endif /*NO_EMBEDDED_ACCESS_CHECKS*/
+
 privilege_t get_table_grant(THD *thd, TABLE_LIST *table);
 privilege_t get_column_grant(THD *thd, GRANT_INFO *grant,
-                             const char *db_name, const char *table_name,
+                             const Lex_ident_db &db_name,
+                             const Lex_ident_table &table_name,
                              const Lex_ident_column &field_name);
 bool get_show_user(THD *thd, LEX_USER *lex_user, const char **username,
                    const char **hostname, const char **rolename);
@@ -129,7 +181,7 @@ bool mysql_show_grants(THD *thd, LEX_USER *user);
 bool mysql_show_create_user(THD *thd, LEX_USER *user);
 int fill_schema_enabled_roles(THD *thd, TABLE_LIST *tables, COND *cond);
 int fill_schema_applicable_roles(THD *thd, TABLE_LIST *tables, COND *cond);
-void get_privilege_desc(char *to, uint max_length, privilege_t access);
+void get_privilege_desc(char *to, size_t max_length, privilege_t access);
 void get_mqh(const char *user, const char *host, USER_CONN *uc);
 bool mysql_create_user(THD *thd, List <LEX_USER> &list, bool handle_as_role);
 bool mysql_drop_user(THD *thd, List <LEX_USER> &list, bool handle_as_role);
@@ -271,19 +323,6 @@ public:
   static const ACL_internal_schema_access *lookup(const char *name);
 };
 
-const ACL_internal_schema_access *
-get_cached_schema_access(GRANT_INTERNAL_INFO *grant_internal_info,
-                         const char *schema_name);
-
-const ACL_internal_table_access *
-get_cached_table_access(GRANT_INTERNAL_INFO *grant_internal_info,
-                        const char *schema_name,
-                        const char *table_name);
-
-bool acl_check_proxy_grant_access (THD *thd,
-                                   const LEX_CSTRING &host,
-                                   const LEX_CSTRING &user,
-                                   bool with_grant);
 int acl_setauthorization(THD *thd, const LEX_USER *user);
 int acl_setrole(THD *thd, const LEX_CSTRING &rolename, privilege_t access);
 int acl_check_setrole(THD *thd,
@@ -318,14 +357,16 @@ class Sql_cmd_grant: public Sql_cmd
 {
 protected:
   enum_sql_command m_command;
+  bool m_create_new_users;
+  List<LEX_USER> m_resolved_users;
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
   void warn_hostname_requires_resolving(THD *thd, List<LEX_USER> &list);
-  bool user_list_reset_mqh(THD *thd, List<LEX_USER> &list);
-  void grant_stage0(THD *thd);
+  void user_list_reset_mqh();
+  bool grant_stage0(THD *thd);
 #endif
 public:
   Sql_cmd_grant(enum_sql_command command)
-   :m_command(command)
+   :m_command(command), m_create_new_users(false)
   { }
   bool is_revoke() const { return m_command == SQLCOM_REVOKE; }
   enum_sql_command sql_command_code() const override { return m_command; }
@@ -346,15 +387,16 @@ public:
 };
 
 
-class Sql_cmd_grant_object: public Sql_cmd_grant, public Grant_privilege
+class Sql_cmd_grant_object: public Sql_cmd_grant
 {
 protected:
+  Grant_privilege &m_gp;
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
   bool grant_stage0_exact_object(THD *thd, TABLE_LIST *table);
 #endif
 public:
-  Sql_cmd_grant_object(enum_sql_command command, const Grant_privilege &grant)
-   :Sql_cmd_grant(command), Grant_privilege(grant)
+  Sql_cmd_grant_object(enum_sql_command command, Grant_privilege &grant)
+   :Sql_cmd_grant(command), m_gp(grant)
   { }
 };
 
@@ -362,11 +404,13 @@ public:
 class Sql_cmd_grant_table: public Sql_cmd_grant_object
 {
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
-  bool execute_table_mask(THD *thd);
-  bool execute_exact_table(THD *thd, TABLE_LIST *table);
+  bool execute_grant_database_or_global(THD *thd);
+  bool execute_grant_global(THD *thd);
+  bool execute_grant_database(THD *thd);
+  bool execute_grant_table(THD *thd, TABLE_LIST *table);
 #endif
 public:
-  Sql_cmd_grant_table(enum_sql_command command, const Grant_privilege &grant)
+  Sql_cmd_grant_table(enum_sql_command command, Grant_privilege &grant)
    :Sql_cmd_grant_object(command, grant)
   { }
   bool execute(THD *thd) override;
@@ -378,7 +422,7 @@ class Sql_cmd_grant_sp: public Sql_cmd_grant_object
 {
   const Sp_handler &m_sph;
 public:
-  Sql_cmd_grant_sp(enum_sql_command command, const Grant_privilege &grant,
+  Sql_cmd_grant_sp(enum_sql_command command, Grant_privilege &grant,
                    const Sp_handler &sph)
    :Sql_cmd_grant_object(command, grant),
     m_sph(sph)

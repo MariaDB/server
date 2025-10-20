@@ -115,7 +115,9 @@ public:
   { return store_longlong((longlong) from, 0); }
   inline  bool store(ulonglong from)
   { return store_longlong((longlong) from, 1); }
-  inline bool store(String *str)
+  inline bool store(const String &str)
+  { return store((char*) str.ptr(), str.length(), str.charset()); }
+  inline bool store(const String *str)
   { return store((char*) str->ptr(), str->length(), str->charset()); }
   inline bool store(const LEX_CSTRING *from, CHARSET_INFO *cs)
   {
