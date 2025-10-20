@@ -2802,7 +2802,6 @@ binlog_post_rollback(THD *thd, bool all)
   binlog_cache_mngr *cache_mngr= thd->binlog_get_cache_mngr();
   if (likely(cache_mngr != nullptr) && unlikely(cache_mngr->need_engine_2pc))
   {
-    DBUG_ASSERT(thd->lex->sql_command == SQLCOM_XA_ROLLBACK);
     cache_mngr->need_engine_2pc= false;
     (*opt_binlog_engine_hton->binlog_unlog)
       (thd->transaction->xid_state.get_xid(),
