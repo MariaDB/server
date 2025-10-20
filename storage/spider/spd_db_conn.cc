@@ -3396,18 +3396,12 @@ int spider_db_store_result(
 
         DBUG_PRINT("info",("spider store result to temporary table"));
         DBUG_ASSERT(!current->result_tmp_tbl);
-#ifdef SPIDER_use_LEX_CSTRING_for_Field_blob_constructor
         LEX_CSTRING field_name1 = {STRING_WITH_LEN("a")};
         LEX_CSTRING field_name2 = {STRING_WITH_LEN("b")};
         LEX_CSTRING field_name3 = {STRING_WITH_LEN("c")};
         if (!(current->result_tmp_tbl = spider_mk_sys_tmp_table_for_result(
           thd, table, &current->result_tmp_tbl_prm, &field_name1, &field_name2,
           &field_name3, &my_charset_bin)))
-#else
-        if (!(current->result_tmp_tbl = spider_mk_sys_tmp_table_for_result(
-          thd, table, &current->result_tmp_tbl_prm, "a", "b", "c",
-          &my_charset_bin)))
-#endif
         {
           DBUG_RETURN(HA_ERR_OUT_OF_MEM);
         }
@@ -3757,21 +3751,13 @@ int spider_db_store_result_for_reuse_cursor(
 
       DBUG_PRINT("info",("spider store result to temporary table"));
       DBUG_ASSERT(!current->result_tmp_tbl);
-#ifdef SPIDER_use_LEX_CSTRING_for_Field_blob_constructor
       LEX_CSTRING field_name1 = {STRING_WITH_LEN("a")};
       LEX_CSTRING field_name2 = {STRING_WITH_LEN("b")};
       LEX_CSTRING field_name3 = {STRING_WITH_LEN("c")};
       if (!(current->result_tmp_tbl = spider_mk_sys_tmp_table_for_result(
         thd, table, &current->result_tmp_tbl_prm, &field_name1, &field_name2,
         &field_name3, &my_charset_bin)))
-#else
-      if (!(current->result_tmp_tbl = spider_mk_sys_tmp_table_for_result(
-        thd, table, &current->result_tmp_tbl_prm, "a", "b", "c",
-        &my_charset_bin)))
-#endif
-      {
         DBUG_RETURN(HA_ERR_OUT_OF_MEM);
-      }
       current->result_tmp_tbl_thd = thd;
       TABLE *tmp_tbl = current->result_tmp_tbl;
       tmp_tbl->file->extra(HA_EXTRA_WRITE_CACHE);

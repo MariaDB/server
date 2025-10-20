@@ -12022,14 +12022,9 @@ int spider_mbase_handler::mk_bulk_tmp_table_and_bulk_start()
   DBUG_PRINT("info",("spider this=%p", this));
   if (!upd_tmp_tbl)
   {
-#ifdef SPIDER_use_LEX_CSTRING_for_Field_blob_constructor
     LEX_CSTRING field_name = {STRING_WITH_LEN("a")};
     if (!(upd_tmp_tbl = spider_mk_sys_tmp_table(
       thd, table, &upd_tmp_tbl_prm, &field_name, update_sql.charset())))
-#else
-    if (!(upd_tmp_tbl = spider_mk_sys_tmp_table(
-      thd, table, &upd_tmp_tbl_prm, "a", update_sql.charset())))
-#endif
     {
       DBUG_RETURN(HA_ERR_OUT_OF_MEM);
     }
