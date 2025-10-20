@@ -151,6 +151,7 @@ extern char		*opt_incremental_history_uuid;
 
 extern char		*opt_user;
 extern const char	*opt_password;
+extern bool		free_opt_binlog_directory;
 extern char		*opt_host;
 extern char		*opt_defaults_group;
 extern char		*opt_socket;

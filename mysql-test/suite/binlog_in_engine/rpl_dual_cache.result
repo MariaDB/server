@@ -7,9 +7,9 @@ INSERT INTO t (a) VALUES (1);
 show binlog events in 'binlog-000000.ibb' from <binlog_start>;
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 binlog-000000.ibb	#	Gtid	1	#	BEGIN GTID #-#-#
+binlog-000000.ibb	#	Annotate_rows	1	#	INSERT INTO t (a) VALUES (1)
 binlog-000000.ibb	#	Table_map	1	#	table_id: # (test.s)
 binlog-000000.ibb	#	Write_rows_v1	1	#	table_id: # flags: STMT_END_F
-binlog-000000.ibb	#	Annotate_rows	1	#	INSERT INTO t (a) VALUES (1)
 binlog-000000.ibb	#	Table_map	1	#	table_id: # (test.t)
 binlog-000000.ibb	#	Write_rows_v1	1	#	table_id: # flags: STMT_END_F
 binlog-000000.ibb	#	Xid	1	#	COMMIT /* XID */
@@ -96,6 +96,7 @@ Warning	1062	Duplicate entry '10006' for key 'PRIMARY'
 include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 binlog-000012.ibb	#	Gtid	#	#	BEGIN GTID #-#-#
+binlog-000012.ibb	#	Annotate_rows	#	#	INSERT IGNORE INTO t3(b) VALUES (10)
 binlog-000012.ibb	#	Table_map	#	#	table_id: # (test.ss)
 binlog-000012.ibb	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 binlog-000012.ibb	#	Xid	#	#	COMMIT /* XID */
