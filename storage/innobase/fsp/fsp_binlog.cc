@@ -1666,7 +1666,7 @@ fsp_binlog_flush()
   uint64_t file_no= active_binlog_file_no.load(std::memory_order_relaxed);
   uint32_t page_no= binlog_cur_page_no;
   chunk_data_flush dummy_data;
-  mtr_t mtr;
+  mtr_t mtr{nullptr};
 
   mysql_mutex_lock(&purge_binlog_mutex);
 

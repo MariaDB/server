@@ -398,6 +398,7 @@ char *opt_incremental_history_uuid;
 char *opt_user;
 const char *opt_password;
 bool free_opt_password;
+bool free_opt_binlog_directory= false;
 char *opt_host;
 char *opt_defaults_group;
 char *opt_socket;
@@ -2615,7 +2616,10 @@ static bool innodb_init_param()
 	}
 
 	if (!opt_binlog_directory || !xtrabackup_backup) {
+		if (free_opt_binlog_directory)
+			my_free(const_cast<char *>(opt_binlog_directory));
 		opt_binlog_directory = ".";
+		free_opt_binlog_directory= false;
 	}
 
 	compile_time_assert(SRV_FORCE_IGNORE_CORRUPT == 1);
@@ -7725,6 +7729,8 @@ int main(int argc, char **argv)
           my_free((char*) opt_password);
         plugin_shutdown();
         free_list(opt_plugin_load_list_ptr);
+        if (free_opt_binlog_directory)
+          my_free(const_cast<char *>(opt_binlog_directory));
         mysql_server_end();
         sys_var_end();
 

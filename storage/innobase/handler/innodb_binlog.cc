@@ -1457,7 +1457,7 @@ static void
 binlog_sync_initial()
 {
   chunk_data_flush dummy_data;
-  mtr_t mtr;
+  mtr_t mtr{nullptr};
   LF_PINS *lf_pins= lf_hash_get_pins(&ibb_file_hash.hash);
   ut_a(lf_pins);
   mtr.start();
@@ -2581,7 +2581,7 @@ innodb_binlog_oob_ordered(THD *thd, const unsigned char *data, size_t data_len,
   }
   ut_ad(data_len > 0);
 
-  mtr_t mtr;
+  mtr_t mtr{thd_to_trx(thd)};
   uint32_t i= c->node_list_len;
   uint64_t new_idx= i==0 ? 0 : c->node_list[i-1].node_index + 1;
   if (i >= 2 && c->node_list[i-2].height == c->node_list[i-1].height)
@@ -3964,7 +3964,7 @@ innobase_binlog_write_direct_ordered(IO_CACHE *cache,
                              handler_binlog_event_group_info *binlog_info,
                              const rpl_gtid *gtid)
 {
-  mtr_t mtr;
+  mtr_t mtr{nullptr};
   ut_ad(binlog_info->engine_ptr2 == nullptr);
   if (gtid)
     binlog_diff_state.update_nolock(gtid);
@@ -4021,7 +4021,7 @@ ibb_write_xa_prepare_ordered(THD *thd,
                              handler_binlog_event_group_info *binlog_info,
                              uchar engine_count)
 {
-  mtr_t mtr;
+  mtr_t mtr{nullptr};
   binlog_oob_context *c=
     static_cast<binlog_oob_context *>(binlog_info->engine_ptr);
   // ToDo: Here need also the oob ref.
@@ -4074,7 +4074,7 @@ ibb_xa_rollback_ordered(THD *thd, const XID *xid, void **engine_data)
     allowing purge of the associated binlogs.
   */
   chunk_data_xa_complete chunk_data(xid, false);
-  mtr_t mtr;
+  mtr_t mtr{nullptr};
   mtr.start();
   fsp_binlog_write_rec(&chunk_data, &mtr, FSP_BINLOG_TYPE_XA_COMPLETE,
                        c->lf_pins);

@@ -550,8 +550,13 @@ bool get_mysql_vars(MYSQL *connection)
     xb_load_list_string(ignore_db_dirs, ",", register_ignore_db_dirs_filter);
 
   if (binlog_directory_var && *binlog_directory_var)
+  {
+    if (free_opt_binlog_directory)
+      my_free(const_cast<char *>(opt_binlog_directory));
     opt_binlog_directory= my_strdup(PSI_NOT_INSTRUMENTED, binlog_directory_var,
                                     MYF(MY_FAE));
+    free_opt_binlog_directory= true;
+  }
 
 out:
 
