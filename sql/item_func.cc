@@ -3247,7 +3247,10 @@ longlong Item_func_locate::val_int()
     start0= start= args[2]->val_int();
 
     if ((start <= 0) || (start > a->length()))
+    {
+      null_value= args[2]->is_null();
       return 0;
+    }
     start0--; start--;
 
     /* start is now sufficiently valid to pass to charpos function */

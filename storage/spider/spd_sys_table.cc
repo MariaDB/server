@@ -3036,7 +3036,6 @@ error:
   DBUG_RETURN(error_num);
 }
 
-#ifdef SPIDER_use_LEX_CSTRING_for_Field_blob_constructor
 TABLE *spider_mk_sys_tmp_table(
   THD *thd,
   TABLE *table,
@@ -3044,15 +3043,6 @@ TABLE *spider_mk_sys_tmp_table(
   const LEX_CSTRING *field_name,
   CHARSET_INFO *cs
 )
-#else
-TABLE *spider_mk_sys_tmp_table(
-  THD *thd,
-  TABLE *table,
-  TMP_TABLE_PARAM *tmp_tbl_prm,
-  const char *field_name,
-  CHARSET_INFO *cs
-)
-#endif
 {
   Field_blob *field;
   Item_field *i_field;
@@ -3110,7 +3100,6 @@ void spider_rm_sys_tmp_table(
   DBUG_VOID_RETURN;
 }
 
-#ifdef SPIDER_use_LEX_CSTRING_for_Field_blob_constructor
 TABLE *spider_mk_sys_tmp_table_for_result(
   THD *thd,
   TABLE *table,
@@ -3120,17 +3109,6 @@ TABLE *spider_mk_sys_tmp_table_for_result(
   const LEX_CSTRING *field_name3,
   CHARSET_INFO *cs
 )
-#else
-TABLE *spider_mk_sys_tmp_table_for_result(
-  THD *thd,
-  TABLE *table,
-  TMP_TABLE_PARAM *tmp_tbl_prm,
-  const char *field_name1,
-  const char *field_name2,
-  const char *field_name3,
-  CHARSET_INFO *cs
-)
-#endif
 {
   Field_blob *field1, *field2, *field3;
   Item_field *i_field1, *i_field2, *i_field3;
