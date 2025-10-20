@@ -5501,8 +5501,8 @@ bool Item_func_json_array_intersect::prepare_json_and_create_hash(json_engine_t 
       null_value= 1;
     }
 
-    max_length= (args[0]->max_length < args[1]->max_length) ?
-                 args[0]->max_length : args[1]->max_length;
+    max_length= 2*(args[0]->max_length < args[1]->max_length ?
+                 args[0]->max_length : args[1]->max_length);
 
     return false;
 }
