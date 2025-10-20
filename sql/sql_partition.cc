@@ -4800,6 +4800,9 @@ static void check_datadir_altered_for_innodb(THD *thd,
 
 static bool check_name_in_fields(const Field * const *fields, const char *name)
 {
+  if (!fields)
+    return FALSE;
+
   for (; *fields; fields++)
   {
     if (my_strcasecmp(system_charset_info,
