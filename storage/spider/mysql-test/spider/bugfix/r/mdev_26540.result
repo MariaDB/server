@@ -34,9 +34,6 @@ t	CREATE TABLE `t` (
 ) ENGINE=SPIDER DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
  PARTITION BY LIST (`c1`)
 (PARTITION `p` VALUES IN (1,2) ENGINE = SPIDER)
-Warnings:
-Error	1429	Unable to connect to foreign data source: localhost
-Error	1429	Unable to connect to foreign data source: localhost
 DELETE FROM t;
 ERROR HY000: Unable to connect to foreign data source: localhost
 DROP TABLE t;
