@@ -679,6 +679,7 @@ err:
       rli->event_relay_log_pos  <-- BIN_LOG_HEADER_SIZE;
       rli->group_relay_log_name <-- rli->relay_log.get_log_fname();
       rli->event_relay_log_name <-- rli->relay_log.get_log_fname();
+  4 - mi->gtid_current_pos <-- rpl_global_gtid_slave_state
   
    If there is an error, it returns (1), otherwise returns (0).
  */
@@ -700,6 +701,14 @@ int init_recovery(Master_info* mi, const char** errmsg)
     strmake_buf(rli->event_relay_log_name, rli->relay_log.get_log_fname());
  
     rli->group_relay_log_pos= rli->event_relay_log_pos= BIN_LOG_HEADER_SIZE;
+  }
+
+  if (mi->using_gtid)
+  {
+    sql_print_warning("Recovery with GTID.");
+    if (rpl_load_gtid_state(&mi->gtid_current_pos,
+        mi->using_gtid == Master_info::USE_GTID_CURRENT_POS))
+      DBUG_RETURN(1);
   }
 
   DBUG_RETURN(0);
@@ -4913,12 +4922,8 @@ connected:
     /*
       When the IO thread (re)connects to the master using GTID, it will
       connect at the start of an event group. But the IO thread may have
-      previously logged part of the following event group to the relay
-      log.
-
-      When the IO and SQL thread are started together, we erase any previous
-      relay logs, but this is not possible/desirable while the SQL thread is
-      running. To avoid duplicating partial event groups in the relay logs in
+      previously logged part of the following event group to the relay log.
+      To avoid duplicating partial event groups in the relay logs in
       this case, we remember the count of events in any partially logged event
       group before the reconnect, and then here at connect we set up a counter
       to skip the already-logged part of the group.

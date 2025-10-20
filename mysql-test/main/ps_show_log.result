@@ -37,6 +37,7 @@ PREPARE stmt_1 FROM 'SHOW RELAYLOG EVENTS';
 EXECUTE stmt_1;
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 slave-relay-bin.000001	#	Format_desc	#	#	#
+slave-relay-bin.000001	#	Gtid_list	#	#	[]
 slave-relay-bin.000001	#	Rotate	#	#	#
 # Execute the same prepared statement the second time to check that
 # no internal structures used for handling the statement
@@ -44,6 +45,7 @@ slave-relay-bin.000001	#	Rotate	#	#	#
 EXECUTE stmt_1;
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 slave-relay-bin.000001	#	Format_desc	#	#	#
+slave-relay-bin.000001	#	Gtid_list	#	#	[]
 slave-relay-bin.000001	#	Rotate	#	#	#
 DEALLOCATE PREPARE stmt_1;
 # Create the user u1 without the REPLICATION SLAVE privilege required

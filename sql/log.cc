@@ -3906,6 +3906,7 @@ bool MYSQL_BIN_LOG::open(const char *log_name,
       binlog_state_recover_done= true;
       if (is_relay_log)
       {
+        #ifdef HAVE_REPLICATION
         /*
           Restore `Gtid_IO_Pos` from the relay log, or `@@gtid_slave`/
           `current_pos` if it somehow points after the log's end position.
@@ -3928,6 +3929,7 @@ bool MYSQL_BIN_LOG::open(const char *log_name,
             mi->rli.is_relay_log_recovery= true;
           }
         }
+        #endif
       }
       else
       if (do_binlog_recovery(opt_bin_logname, false))
@@ -4115,15 +4117,23 @@ bool MYSQL_BIN_LOG::open(const char *log_name,
           GTID should be search for in this or later binlog file, same as if
           there had been an entry (key -> 0).
         */
-
-        Gtid_list_log_event gl_ev= is_relay_log ?
-          Gtid_list_log_event(&mi->gtid_current_pos, 0) :
-          Gtid_list_log_event(&rpl_global_gtid_binlog_state, 0);
+      #ifdef HAVE_REPLICATION
+        if (is_relay_log)
+        {
+          Gtid_list_log_event gl_ev(&mi->gtid_current_pos, 0);
+          gl_ev.set_artificial_event(); // not in the master's binary log
+          gl_ev.set_relay_log_event();  // generated rather than replicated
+          gl_ev.checksum_alg= relay_log_checksum_alg;
+          if (write_event(&gl_ev))
+            goto err;
+        }
+        else
+      #endif
+      {
+        Gtid_list_log_event gl_ev(&rpl_global_gtid_binlog_state, 0);
         if (write_event(&gl_ev))
           goto err;
 
-      if (!is_relay_log)
-      {
         char buf[FN_REFLEN];
         /* Output a binlog checkpoint event at the start of the binlog file. */
 
@@ -11705,7 +11715,7 @@ int TC_LOG_BINLOG::recover(LOG_INFO *linfo, const char *last_log_name,
   */
   int round;
   /// Whether the records read are sufficient to determine a GTID position
-  bool gtid_pos_loaded= false;
+  bool gtid_pos_loaded= !is_relay_log;
 
   if (! fdle->is_valid() ||
       (my_hash_init(key_memory_binlog_recover_exec, &xids,

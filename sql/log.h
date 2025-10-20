@@ -695,7 +695,7 @@ public:
     If this @ref is_relay_log, the state of its corresponding IO thread
     @deprecated TODO: extract the positional info and merge them with the binlog
   */
-  struct Master_info *mi= nullptr;
+  class Master_info *mi= nullptr;
 
   MYSQL_BIN_LOG(uint *sync_period);
   /*
