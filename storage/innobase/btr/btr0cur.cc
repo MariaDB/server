@@ -5748,69 +5748,21 @@ error:
 
 /*================== EXTERNAL STORAGE OF BIG FIELDS ===================*/
 
-/***********************************************************//**
-Gets the offset of the pointer to the externally stored part of a field.
+/** Gets the offset of the pointer to the externally stored part of a field.
+@param offsets offsets of record
+@param n index of the external field
 @return offset of the pointer to the externally stored part */
-static
-ulint
-btr_rec_get_field_ref_offs(
-/*=======================*/
-	const rec_offs*	offsets,/*!< in: array returned by rec_get_offsets() */
-	ulint		n)	/*!< in: index of the external field */
+inline size_t btr_rec_get_field_ref_offs(const rec_offs *offsets, size_t n)
 {
-	ulint	field_ref_offs;
-	ulint	local_len;
-
-	ut_a(rec_offs_nth_extern(offsets, n));
-	field_ref_offs = rec_get_nth_field_offs(offsets, n, &local_len);
-	ut_a(len_is_stored(local_len));
-	ut_a(local_len >= BTR_EXTERN_FIELD_REF_SIZE);
-
-	return(field_ref_offs + local_len - BTR_EXTERN_FIELD_REF_SIZE);
-}
-
-/** Gets a pointer to the externally stored part of a field.
-@param rec record
-@param offsets rec_get_offsets(rec)
-@param n index of the externally stored field
-@return pointer to the externally stored part */
-#define btr_rec_get_field_ref(rec, offsets, n)			\
-	((rec) + btr_rec_get_field_ref_offs(offsets, n))
-
-/** Gets the externally stored size of a record, in units of a database page.
-@param[in]	rec	record
-@param[in]	offsets	array returned by rec_get_offsets()
-@return externally stored part, in units of a database page */
-ulint
-btr_rec_get_externally_stored_len(
-	const rec_t*	rec,
-	const rec_offs*	offsets)
-{
-	ulint	n_fields;
-	ulint	total_extern_len = 0;
-	ulint	i;
-
-	ut_ad(!rec_offs_comp(offsets) || !rec_get_node_ptr_flag(rec));
-
-	if (!rec_offs_any_extern(offsets)) {
-		return(0);
-	}
-
-	n_fields = rec_offs_n_fields(offsets);
-
-	for (i = 0; i < n_fields; i++) {
-		if (rec_offs_nth_extern(offsets, i)) {
-
-			ulint	extern_len = mach_read_from_4(
-				btr_rec_get_field_ref(rec, offsets, i)
-				+ BTR_EXTERN_LEN + 4);
-
-			total_extern_len += ut_calc_align(
-				extern_len, ulint(srv_page_size));
-		}
-	}
-
-	return total_extern_len >> srv_page_size_shift;
+  ut_ad(n > 0);
+  ut_ad(n < rec_offs_n_fields(offsets));
+  const rec_offs *f= rec_offs_base(offsets) + n;
+  ut_ad((f[1] & TYPE_MASK) == STORED_OFFPAGE);
+  size_t len= (f[1] - f[0]) & ~TYPE_MASK;
+  ut_ad(len >= BTR_EXTERN_FIELD_REF_SIZE);
+  ut_ad(len < UNIV_SQL_DEFAULT);
+  static_assert(UNIV_SQL_DEFAULT + 1 == UNIV_SQL_NULL, "");
+  return f[1] - STORED_OFFPAGE + len - BTR_EXTERN_FIELD_REF_SIZE;
 }
 
 /*******************************************************************//**

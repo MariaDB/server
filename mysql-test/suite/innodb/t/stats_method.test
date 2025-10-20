@@ -1,0 +1,114 @@
+--source include/have_innodb.inc
+--source include/have_sequence.inc
+
+# Test case to demonstrate different innodb_stats_method settings
+CREATE TABLE t_stats_method (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  col1 INT,
+  col2 INT,
+  INDEX idx_col1 (col1),
+  INDEX idx_col2 (col2)
+) ENGINE=InnoDB;
+
+# For col1: 50 NULLs, 10 distinct non-NULL values
+# For col2: 50 NULLs, 5 distinct non-NULL values
+INSERT INTO t_stats_method (col1, col2)
+SELECT
+  CASE
+    WHEN n <= 50 THEN ((n-1) % 10) + 1
+    ELSE NULL
+  END,
+  CASE
+    WHEN n <= 50 THEN ((n-1) % 5) + 1
+    ELSE NULL
+  END
+FROM (
+  SELECT seq AS n FROM seq_1_to_100
+) AS numbers;
+
+ANALYZE TABLE t_stats_method;
+
+# cardinality = number of distinct value
+# Nulls_equal:
+#==============
+# idx_col1: 50 NULLs + 10 distinct value = 11
+# idx_col2: 50 NULLs + 5 distinct value = 6
+
+# Nulls_unequal:
+#==============
+# idx_col1: 50 NULLs + 10 distinct value = 60
+# idx_col2: 50 NULLs + 5 distinct value = 55
+
+# Nulls_ignored:
+#===============
+
+# innodb_rec_per_key =
+#       number of non-null records / number of distinct keys
+#
+# cardinality = number of records / innodb_rec_per_key;
+# idx_col1: 50 NULLs + 10 distinct value
+
+# innodb_rec_per_key = 50/10 = 5
+# cardinality = 100 / 5 = 20
+
+# idx_col2: 50 NULLs + 5 distinct value
+# innodb_rec_per_key = 50 / 5 = 10
+# cardinality = 100 / 10 = 10
+
+SELECT @@global.innodb_stats_method AS stats_method,
+       index_name,
+       cardinality AS est_rows
+FROM information_schema.STATISTICS
+WHERE table_schema = 'test'
+  AND table_name = 't_stats_method';
+
+DROP TABLE t_stats_method;
+
+# Test maximum number of index columns (32) for statistics calculation
+DELIMITER $$;
+BEGIN NOT ATOMIC
+  DECLARE c TEXT DEFAULT (
+        SELECT CONCAT('CREATE TABLE t1(',
+         GROUP_CONCAT(CONCAT('c', LPAD(seq, 2, '0'), 'x',
+                      REPEAT('x', 59)) SEPARATOR ' INT, '), ' INT, ',
+         (SELECT GROUP_CONCAT(CONCAT('KEY idx', LPAD(seq, 2, '0'),
+                      '(c', LPAD(seq, 2, '0'), 'x',
+                      REPEAT('x', 59), ')') SEPARATOR ', ')
+          FROM seq_33_to_64),
+                      ', PRIMARY KEY(',
+         (SELECT GROUP_CONCAT(CONCAT('c', LPAD(seq, 2, '0'), 'x',
+                      REPEAT('x', 59)) SEPARATOR ', ')
+          FROM seq_1_to_32),
+         ')) ENGINE=InnoDB STATS_PERSISTENT=1') 
+                        FROM seq_1_to_64);
+  EXECUTE IMMEDIATE c;
+END;
+$$
+DELIMITER ;$$
+  
+
+INSERT INTO t1
+SELECT seq, seq, seq, seq, seq, seq, seq, seq,
+       seq, seq, seq, seq, seq, seq, seq, seq,
+       seq, seq, seq, seq, seq, seq, seq, seq,
+       seq, seq, seq, seq, seq, seq, seq, seq,
+       seq, seq, seq, seq, seq, seq, seq, seq,
+       seq, seq, seq, seq, seq, seq, seq, seq,
+       seq, seq, seq, seq, seq, seq, seq, seq,
+       seq, seq, seq, seq, seq, seq, seq, seq
+FROM seq_1_to_320;
+
+ANALYZE TABLE t1;
+
+# stats_method appended at the end of stat_description in case
+# of non-default value
+SELECT stat_name, stat_description FROM mysql.innodb_index_stats
+where table_name="t1" and index_name="PRIMARY"
+and stat_name="n_diff_pfx01";
+
+# Truncation of stat_description
+SELECT stat_name, stat_description FROM mysql.innodb_index_stats
+where table_name="t1" and index_name="idx33"
+and stat_name="n_diff_pfx17";
+
+DROP TABLE t1;

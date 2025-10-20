@@ -5750,12 +5750,8 @@ dberr_t ha_innobase::statistics_init(dict_table_t *table, bool recalc)
       switch (dict_stats_persistent_storage_check(false)) {
       case SCHEMA_OK:
         if (recalc)
-        {
         recalc:
           err= dict_stats_update_persistent(table);
-          if (err == DB_SUCCESS)
-            err= dict_stats_save(table);
-        }
         else
         {
           err= dict_stats_fetch_from_ps(table);
@@ -21351,8 +21347,6 @@ void alter_stats_rebuild(dict_table_t *table, THD *thd)
     DBUG_VOID_RETURN;
 
   dberr_t ret= dict_stats_update_persistent(table);
-  if (ret == DB_SUCCESS)
-    ret= dict_stats_save(table);
   if (ret != DB_SUCCESS)
     push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
                         ER_ALTER_INFO, "Error updating stats for table after"

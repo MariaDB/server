@@ -1,0 +1,76 @@
+CREATE TABLE t_stats_method (
+id INT AUTO_INCREMENT PRIMARY KEY,
+col1 INT,
+col2 INT,
+INDEX idx_col1 (col1),
+INDEX idx_col2 (col2)
+) ENGINE=InnoDB;
+INSERT INTO t_stats_method (col1, col2)
+SELECT
+CASE
+WHEN n <= 50 THEN ((n-1) % 10) + 1
+ELSE NULL
+END,
+CASE
+WHEN n <= 50 THEN ((n-1) % 5) + 1
+ELSE NULL
+END
+FROM (
+SELECT seq AS n FROM seq_1_to_100
+) AS numbers;
+ANALYZE TABLE t_stats_method;
+Table	Op	Msg_type	Msg_text
+test.t_stats_method	analyze	status	OK
+SELECT @@global.innodb_stats_method AS stats_method,
+index_name,
+cardinality AS est_rows
+FROM information_schema.STATISTICS
+WHERE table_schema = 'test'
+  AND table_name = 't_stats_method';
+stats_method	index_name	est_rows
+nulls_equal	PRIMARY	100
+nulls_equal	idx_col1	11
+nulls_equal	idx_col2	6
+DROP TABLE t_stats_method;
+BEGIN NOT ATOMIC
+DECLARE c TEXT DEFAULT (
+SELECT CONCAT('CREATE TABLE t1(',
+GROUP_CONCAT(CONCAT('c', LPAD(seq, 2, '0'), 'x',
+REPEAT('x', 59)) SEPARATOR ' INT, '), ' INT, ',
+(SELECT GROUP_CONCAT(CONCAT('KEY idx', LPAD(seq, 2, '0'),
+'(c', LPAD(seq, 2, '0'), 'x',
+REPEAT('x', 59), ')') SEPARATOR ', ')
+FROM seq_33_to_64),
+', PRIMARY KEY(',
+(SELECT GROUP_CONCAT(CONCAT('c', LPAD(seq, 2, '0'), 'x',
+REPEAT('x', 59)) SEPARATOR ', ')
+FROM seq_1_to_32),
+')) ENGINE=InnoDB STATS_PERSISTENT=1') 
+FROM seq_1_to_64);
+EXECUTE IMMEDIATE c;
+END;
+$$
+INSERT INTO t1
+SELECT seq, seq, seq, seq, seq, seq, seq, seq,
+seq, seq, seq, seq, seq, seq, seq, seq,
+seq, seq, seq, seq, seq, seq, seq, seq,
+seq, seq, seq, seq, seq, seq, seq, seq,
+seq, seq, seq, seq, seq, seq, seq, seq,
+seq, seq, seq, seq, seq, seq, seq, seq,
+seq, seq, seq, seq, seq, seq, seq, seq,
+seq, seq, seq, seq, seq, seq, seq, seq
+FROM seq_1_to_320;
+ANALYZE TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	OK
+SELECT stat_name, stat_description FROM mysql.innodb_index_stats
+where table_name="t1" and index_name="PRIMARY"
+and stat_name="n_diff_pfx01";
+stat_name	stat_description
+n_diff_pfx01	c01xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+SELECT stat_name, stat_description FROM mysql.innodb_index_stats
+where table_name="t1" and index_name="idx33"
+and stat_name="n_diff_pfx17";
+stat_name	stat_description
+n_diff_pfx17	c33xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx,c01xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx,c02xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx,c03xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx,c04xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx,c05xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx,c06xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx,c07xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx,c08xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx,c09xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx,c10xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx,c11xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx,c12xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx,c13xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx,c14xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+DROP TABLE t1;
