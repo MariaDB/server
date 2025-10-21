@@ -3764,7 +3764,28 @@ bool Duplicate_weedout_picker::check_qep(JOIN *join,
                               sj_inner_fanout * one_cost.lookup);
     *read_time= dups_cost + write_cost + full_lookup_cost;
     
-    *record_count= first_weedout_table_rec_count * sj_outer_fanout;
+
+#   define WEEDOUT_RATIO  0.85
+    /*
+      A WEEDOUT_RATIO of 0 means all rows in our SJ nest table(s) are unique.
+      A WEEDOUT_RATIO of 1 means duplicates in our SJ nest do not cause
+        additional lookups and is the default prior to this patch
+
+      More precisely this is the ratio of rows in all the SJ nest tables
+      within our duplicate weedout that cause duplicate row id [combinations]
+      The above value is tuned by benchmark and minimizing test plan changes.
+      @todo: use table statistics, recs per key, record counts, nulls,
+             histograms if available to estimate how many duplicates we might
+             actually have
+             Historically, we have assumed that tables pulled out of a SJ
+             nest will have only one lookup for each key value.  This may be
+             true when the SJ table comes AFTER our outer table where we can
+             skip to the next key value, but not so when it comes BEFORE it
+             and there are multiple rows for each key value.
+    */
+    *record_count= first_weedout_table_rec_count *
+                        (sj_inner_fanout * (1-WEEDOUT_RATIO) + WEEDOUT_RATIO) *
+                        sj_outer_fanout;
     *handled_fanout= dups_removed_fanout;
     *strategy= SJ_OPT_DUPS_WEEDOUT;
     if (unlikely(join->thd->trace_started()))
