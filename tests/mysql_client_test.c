@@ -347,7 +347,7 @@ static void test_prepare_insert_update()
   const char **cur_query;
 
   myheader("test_prepare_insert_update");
-  
+
   for (cur_query= testcase; *cur_query; cur_query++)
   {
     char query[MAX_TEST_QUERY_LENGTH];
@@ -21874,6 +21874,71 @@ static void test_mdev19838()
   myquery(rc);
 }
 
+static void test_mdev_27013()
+{
+  int rc;
+  unsigned paramCount = 1;
+  MYSQL_STMT *stmt;
+  MYSQL_FIELD *fld;
+  const char *commands[] = {
+    "SELECT * FROM mdev27013",
+    "SELECT c1,c2 FROM mdev27013",
+    "INSERT INTO mdev27013 (c1) VALUES('tweet') RETURNING *",
+    "REPLACE INTO mdev27013 SET c2='growl' RETURNING c1, c2",
+    "INSERT INTO mdev27013 SELECT CONCAT('g', seq) as c1, 'b' as c2 FROM seq_1_to_3 RETURNING *",
+    "REPLACE INTO mdev27013 SELECT CONCAT('h', seq) as c1, 'b' as c2 FROM seq_1_to_3 RETURNING *",
+    "DELETE FROM mdev27013 RETURNING *"
+  };
+
+  myheader("test_mdev27013");
+
+  rc = mysql_query(mysql, "CREATE TABLE mdev27013("
+          "c1  char(36), c2 char(36)"
+    ")");
+  myquery(rc);
+
+  stmt = mysql_stmt_init(mysql);
+  check_stmt(stmt);
+
+  for (int com= 0; com < 7; com++)
+  {
+    rc = mariadb_stmt_execute_direct(stmt, commands[com], -1);
+
+    if (rc)
+      mct_log("comm: %s err: %s", commands[com], mysql_stmt_error(stmt));
+    DIE_UNLESS(rc == 0);
+
+    paramCount = mysql_stmt_field_count(stmt);
+    DIE_UNLESS(paramCount == 2);
+
+    fld= mariadb_stmt_fetch_fields(stmt);
+    DIE_UNLESS(fld != NULL);
+
+    mct_log("comm: %s\n", commands[com]);
+    for (unsigned int i = 0; i < paramCount; ++i)
+    {
+      mct_log("name: '%s'/'%s'; table: '%s'/'%s'; "
+              "db: '%s'; catalog: '%s'; length: %d; max_length: %d; "
+              "type: %d; decimals: %d\n",
+              (const char *) fld[i].name,
+              (const char *) fld[i].org_name,
+              (const char *) fld[i].table,
+              (const char *) fld[i].org_table,
+              (const char *) fld[i].db,
+              (const char *) fld[i].catalog,
+              (int) fld[i].length,
+              (int) fld[i].max_length,
+              (int) fld[i].type,
+              (int) fld[i].decimals);
+    }
+  }
+
+  mysql_stmt_close(stmt);
+
+  rc = mysql_query(mysql, "drop table mdev27013");
+  myquery(rc);
+}
+
 static void test_mdev_24411()
 {
   int        rc;
@@ -23274,6 +23339,7 @@ static struct my_tests_st my_tests[]= {
   { "test_mdev_34718_ad", test_mdev_34718_ad },
   { "test_mdev_34958", test_mdev_34958 },
   { "test_mdev_32086", test_mdev_32086 },
+  { "test_mdev_27013", test_mdev_27013 },
 #endif
   { 0, 0 }
 };
