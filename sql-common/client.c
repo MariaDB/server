@@ -2088,7 +2088,7 @@ static int send_client_reply_packet(MCPVIO_EXT *mpvio,
   if (mpvio->db)
     mysql->client_flag|= CLIENT_CONNECT_WITH_DB;
 
-  if (vio_type == VIO_TYPE_NAMEDPIPE)
+  if (vio_type == VIO_TYPE_NAMEDPIPE || vio_type == VIO_TYPE_SOCKET)
   {
     mysql->server_capabilities&= ~CLIENT_SSL;
     mysql->options.use_ssl= 0;
