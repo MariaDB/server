@@ -3097,8 +3097,6 @@ restart:
           ignore the payload and only compute the mini-transaction checksum;
           there will be a subsequent call with storing==YES. */
           continue;
-        if (storing == NO)
-          is_binlog= false;
         if (UNIV_UNLIKELY(rlen == 0 || last_offset == 1))
           goto record_corrupted;
         if (ENC_10_8)
@@ -3149,7 +3147,7 @@ restart:
           goto record_corrupted;
         const uint32_t len= mlog_decode_varint(ENC_10_8 ? cl : l);
         ut_ad(len != MLOG_DECODE_ERROR);
-        if (UNIV_UNLIKELY(last_offset + len > srv_page_size))
+        if (UNIV_UNLIKELY(last_offset + len > srv_page_size) || is_binlog)
           goto record_corrupted;
         (ENC_10_8 ? cl : l)+= llen;
         rlen-= llen;
