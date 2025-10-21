@@ -4370,6 +4370,12 @@ bool get_lookup_field_values(THD *thd, COND *cond, bool fix_table_name_case,
 
 enum enum_schema_tables get_schema_table_idx(ST_SCHEMA_TABLE *schema_table)
 {
+  if (schema_table < schema_tables ||
+      schema_table > &schema_tables[SCH_N_SERVER_TABLES])
+  {
+    return SCH_PLUGIN_TABLE;
+  }
+
   return (enum enum_schema_tables) (schema_table - &schema_tables[0]);
 }
 
@@ -9980,6 +9986,13 @@ void init_fill_schema_files_row(TABLE* table)
   table->field[IS_FILES_STATUS]->store("NORMAL", 6, system_charset_info);
 }
 
+
+/*
+  gcc 7.5.0 uses a lot of stack at startup to resolve Column() expressions
+  Note, do not use PRAGMA_REENABLE_CHECK_STACK_FRAME later on in this file
+  as this causes compilation to fail.
+*/
+PRAGMA_DISABLE_CHECK_STACK_FRAME_EXTRA
 
 namespace Show {
 

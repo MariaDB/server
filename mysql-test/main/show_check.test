@@ -347,7 +347,6 @@ drop table t1;
 --error ER_DBACCESS_DENIED_ERROR
 drop database mysqltest;
 disconnect con1;
---source include/wait_until_disconnected.inc
 
 connect (con2,localhost,mysqltest_2,,"*NO-ONE*");
 connection con2;
@@ -360,7 +359,6 @@ drop table mysqltest.t1;
 --error ER_DBACCESS_DENIED_ERROR
 drop database mysqltest;
 disconnect con2;
---source include/wait_until_disconnected.inc
 
 connect (con3,localhost,mysqltest_3,,"*NO-ONE*");
 connection con3;
@@ -370,7 +368,6 @@ show create database mysqltest;
 drop table mysqltest.t1;
 drop database mysqltest;
 disconnect con3;
---source include/wait_until_disconnected.inc
 
 connection default;
 set names binary;
@@ -1031,7 +1028,6 @@ connect (con4,localhost,mysqltest_4,,mysqltest);
 connection con4;
 show create database mysqltest;
 disconnect con4;
---source include/wait_until_disconnected.inc
 connection default;
 delete from mysql.user where user='mysqltest_4';
 delete from mysql.db where user='mysqltest_4';
@@ -1267,7 +1263,6 @@ SHOW ENGINE MYISAM STATUS;
 --enable_result_log
 
 disconnect conn1;
---source include/wait_until_disconnected.inc
 connection default;
 DROP USER test_u@localhost;
 
@@ -1291,7 +1286,6 @@ connection con1;
 SHOW CREATE TABLE t1;
 
 disconnect con1;
---source include/wait_until_disconnected.inc
 
 connection default;
 UNLOCK TABLES;
@@ -1363,7 +1357,6 @@ connection con1;
 ALTER TABLE t1 CHARACTER SET = utf8;
 
 disconnect con1;
---source include/wait_until_disconnected.inc
 
 connection default;
 COMMIT;
@@ -1374,6 +1367,9 @@ DROP TABLE t1;
 --echo #
 --echo # Bug#57306 SHOW PROCESSLIST does not display string literals well.
 --echo #
+
+let $count_sessions= 1;
+source include/wait_until_count_sessions.inc;
 
 SET NAMES latin1;
 SELECT GET_LOCK('t', 1000);
@@ -1397,7 +1393,6 @@ SELECT RELEASE_LOCK('t');
 --connection con1
 --reap
 --disconnect con1
---source include/wait_until_disconnected.inc
 --connection default
 SET NAMES latin1;
 

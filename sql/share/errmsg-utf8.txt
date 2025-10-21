@@ -351,7 +351,7 @@ ER_CANT_GET_WD
         serbian "Ne mogu da dobijem trenutni direktorijum (errno: %M)"
         slo "Nemôžem zistiť pracovný adresár (chybový kód: %M)"
         spa "No puedo obtener directorio de trabajo (Error: %M)"
-        swe "Kan inte inte läsa aktivt bibliotek. (Felkod: %M)"
+        swe "Kan inte läsa aktivt bibliotek. (Felkod: %M)"
         ukr "Не можу визначити робочу теку (помилка: %M)"
 ER_CANT_LOCK  
         chi "无法锁定文件（错误号码：%M）"
@@ -2292,7 +2292,7 @@ ER_WRONG_SUB_KEY
         ita "Sotto-parte della chiave errata. La parte di chiave utilizzata non e` una stringa o la lunghezza e` maggiore della parte di chiave"
         jpn "キーのプレフィックスが不正です。キーが文字列ではないか、プレフィックス長がキーよりも長いか、ストレージエンジンが一意索引のプレフィックス指定をサポートしていません。"
         kor "부정확한 서버 파트 키. 사용된 키 파트가 스트링이 아니거나 키 파트의 길이가 너무 깁니다."
-        nla "Foutief sub-gedeelte van de zoeksleutel. De gebruikte zoeksleutel is geen onderdeel van een string of of de gebruikte lengte is langer dan de zoeksleutel"
+        nla "Foutief sub-gedeelte van de zoeksleutel. De gebruikte zoeksleutel is geen onderdeel van een string of de gebruikte lengte is langer dan de zoeksleutel"
         nor "Feil delnøkkel. Den brukte delnøkkelen er ikke en streng eller den oppgitte lengde er lengre enn nøkkel lengden"
         norwegian-ny "Feil delnykkel. Den brukte delnykkelen er ikkje ein streng eller den oppgitte lengda er lengre enn nykkellengden"
         pol "Błędna podczę?ć klucza. Użyta czę?ć klucza nie jest łańcuchem lub użyta długo?ć  jest większa niż czę?ć klucza"
@@ -4548,7 +4548,7 @@ ER_FT_MATCHING_KEY_NOT_FOUND
         eng "Can't find FULLTEXT index matching the column list"
         est "Ei suutnud leida FULLTEXT indeksit, mis kattuks kasutatud tulpadega"
         fre "Impossible de trouver un index FULLTEXT correspondant à cette liste de colonnes"
-        ger "Kann keinen FULLTEXT-Index finden, der der Feldliste entspricht"
+        ger "Kann keinen FULLTEXT-Index finden, der Feldliste entspricht"
         geo "სვეტების სიის შესაბამისი FULLTEXT ინდექსი ვერ ვიპოვე"
         ita "Impossibile trovare un indice FULLTEXT che corrisponda all'elenco delle colonne"
         jpn "列リストに対応する全文索引(FULLTEXT)が見つかりません。"
@@ -10758,7 +10758,3 @@ ER_CM_OPTION_MISSING_REQUIREMENT
         eng "CHANGE MASTER TO option '%s=%s' is missing requirement %s"
 ER_SLAVE_STATEMENT_TIMEOUT 70100
         eng "Slave log event execution was interrupted (slave_max_statement_time exceeded)"
-ER_SEQUENCE_TABLE_HAS_TOO_FEW_ROWS
-        eng "Fewer than one row in the table"
-ER_SEQUENCE_TABLE_HAS_TOO_MANY_ROWS
-        eng "More than one row in the table"

@@ -6915,7 +6915,7 @@ int ha_spider::create(
           SPIDER_ALTER_PARTITION_COALESCE | SPIDER_ALTER_PARTITION_REORGANIZE |
           SPIDER_ALTER_PARTITION_TABLE_REORG | SPIDER_ALTER_PARTITION_REBUILD
         )
-      ) &&
+      ) && /* Does not support PART_CHANGED */
       memcmp(name + strlen(name) - 5, "#TMP#", 5)
     ) {
       need_lock = TRUE;
@@ -10024,7 +10024,6 @@ int ha_spider::mk_bulk_tmp_table_and_bulk_start()
       dbton_hdl->first_link_idx >= 0 &&
       dbton_hdl->need_copy_for_update(roop_count)
     ) {
-#ifdef SPIDER_use_LEX_CSTRING_for_Field_blob_constructor
       LEX_CSTRING field_name = {STRING_WITH_LEN("a")};
       if (
         !tmp_table[roop_count] &&
@@ -10033,15 +10032,6 @@ int ha_spider::mk_bulk_tmp_table_and_bulk_start()
           &result_list.upd_tmp_tbl_prms[roop_count],
           &field_name, result_list.update_sqls[roop_count].charset()))
       )
-#else
-      if (
-        !tmp_table[roop_count] &&
-        !(tmp_table[roop_count] = spider_mk_sys_tmp_table(
-          wide_handler->trx->thd, table,
-          &result_list.upd_tmp_tbl_prms[roop_count], "a",
-          result_list.update_sqls[roop_count].charset()))
-      )
-#endif
       {
         error_num = HA_ERR_OUT_OF_MEM;
         goto error_2;

@@ -289,7 +289,7 @@ String *Item_func_sha2::val_str_ascii(String *str)
   /* Convert the large number to a string-hex representation. */
   array_to_hex((char *) str->ptr(), digest_buf, (uint)digest_length);
 
-  /* We poked raw bytes in.  We must inform the the String of its length. */
+  /* We poked raw bytes in.  We must inform the String of its length. */
   str->length((uint) digest_length*2); /* Each byte as two nybbles */
 
   null_value= FALSE;
@@ -3910,9 +3910,10 @@ bool Item_func_set_collation::fix_length_and_dec(THD *thd)
 }
 
 
-bool Item_func_set_collation::eq(const Item *item, bool binary_cmp) const
+bool Item_func_set_collation::eq(const Item *item,
+                                 const Eq_config &config) const
 {
-  return Item_func::eq(item, binary_cmp) &&
+  return Item_func::eq(item, config) &&
          collation.collation == item->collation.collation;
 }
 

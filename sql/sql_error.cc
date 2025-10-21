@@ -349,7 +349,7 @@ Diagnostics_area::set_ok_status(ulonglong affected_rows,
     with an OK packet.
   */
   if (unlikely(is_error() || is_disabled()))
-    return;
+    DBUG_VOID_RETURN;
   /*
     When running a bulk operation, m_status will be DA_OK for the first
     operation and set to DA_OK_BULK for all following operations.
@@ -750,6 +750,7 @@ void push_warning(THD *thd, Sql_condition::enum_warning_level level,
   if (level == Sql_condition::WARN_LEVEL_ERROR)
     level= Sql_condition::WARN_LEVEL_WARN;
 
+  DBUG_ASSERT(strlen(msg));
   DBUG_ASSERT(msg[strlen(msg)-1] != '\n');
   (void) thd->raise_condition(code, "\0\0\0\0\0", level, msg);
 

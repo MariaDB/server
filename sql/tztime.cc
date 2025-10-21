@@ -1052,7 +1052,7 @@ public:
     This method uses system function (localtime_r()) for conversion
     local time in system time zone in MYSQL_TIME structure to its my_time_t
     representation. Unlike the same function for Time_zone_db class
-    it it won't handle unnormalized input properly. Still it will
+    it won't handle unnormalized input properly. Still it will
     return lowest possible my_time_t in case of ambiguity or if we
     provide time corresponding to the time-gap.
 
@@ -2291,6 +2291,8 @@ str_to_offset(const char *str, uint length, long *offset)
     specification or other error.
 
 */
+PRAGMA_DISABLE_CHECK_STACK_FRAME
+
 Time_zone *
 my_tz_find(THD *thd, const String *name)
 {
@@ -2359,6 +2361,7 @@ my_tz_find(THD *thd, const String *name)
 
   DBUG_RETURN(result_tz);
 }
+PRAGMA_REENABLE_CHECK_STACK_FRAME
 
 
 /**

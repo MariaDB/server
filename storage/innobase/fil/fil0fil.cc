@@ -605,7 +605,7 @@ fil_space_extend_must_retry(
 	*success = os_file_set_size(node->name, node->handle, new_size,
 				    node->punch_hole == 1);
 
-	os_has_said_disk_full = *success;
+	os_has_said_disk_full = !*success;
 	if (*success) {
 		os_file_flush(node->handle);
 		last_page_no = size;
@@ -1423,12 +1423,15 @@ fil_space_t *fil_space_t::get(uint32_t id) noexcept
 @param type           file operation
 @param first_page_no  first page number in the file
 @param path           file path
-@param new_path       new file path for type=FILE_RENAME */
-inline void mtr_t::log_file_op(mfile_type_t type, uint32_t space_id,
-			       const char *path, const char *new_path)
+@param new_path       new file path for type=FILE_RENAME
+@return number of bytes written */
+inline size_t mtr_t::log_file_op(mfile_type_t type, uint32_t space_id,
+                                 const char *path, const char *new_path)
+  noexcept
 {
   ut_ad((new_path != nullptr) == (type == FILE_RENAME));
   ut_ad(!(byte(type) & 15));
+  ut_ad(!is_predefined_tablespace(space_id));
 
   /* fil_name_parse() requires that there be at least one path
   separator and that the file path end with ".ibd". */
@@ -1437,7 +1440,7 @@ inline void mtr_t::log_file_op(mfile_type_t type, uint32_t space_id,
 
   m_modifications= true;
   if (!is_logged())
-    return;
+    return 0;
   m_last= nullptr;
 
   const size_t len= strlen(path);
@@ -1469,7 +1472,7 @@ inline void mtr_t::log_file_op(mfile_type_t type, uint32_t space_id,
 
   m_log.close(end);
 
-  if (new_path)
+  if (new_len)
   {
     ut_ad(strchr(new_path, '/'));
     m_log.push(reinterpret_cast<const byte*>(path), uint32_t(len + 1));
@@ -1477,17 +1480,8 @@ inline void mtr_t::log_file_op(mfile_type_t type, uint32_t space_id,
   }
   else
     m_log.push(reinterpret_cast<const byte*>(path), uint32_t(len));
-}
 
-/** Write FILE_MODIFY for a file.
-@param[in]	space_id	tablespace id
-@param[in]	name		tablespace file name
-@param[in,out]	mtr		mini-transaction */
-static void fil_name_write(uint32_t space_id, const char *name,
-                           mtr_t *mtr)
-{
-  ut_ad(!is_predefined_tablespace(space_id));
-  mtr->log_file_op(FILE_MODIFY, space_id, name);
+  return end - log_ptr + len + new_len;
 }
 
 fil_space_t *fil_space_t::drop(uint32_t id, pfs_os_file_t *detached_handle)
@@ -2705,23 +2699,30 @@ fil_io_t fil_space_t::io(const IORequest &type, os_offset_t offset, size_t len,
 
 		while (node->size <= p) {
 			p -= node->size;
-			node = UT_LIST_GET_NEXT(chain, node);
-			if (!node) {
+			if (!UT_LIST_GET_NEXT(chain, node)) {
 fail:
-				if (type.type != IORequest::READ_ASYNC) {
+				switch (type.type) {
+				case IORequest::READ_ASYNC:
+					/* Read-ahead may be requested for
+					non-existing pages. Ignore such
+					requests. */
+					break;
+				default:
 					fil_invalid_page_access_msg(
 						node->name,
 						offset, len,
 						type.is_read());
-				}
 #ifndef DBUG_OFF
 io_error:
 #endif
-				set_corrupted();
+					set_corrupted();
+				}
+
 				err = DB_CORRUPTION;
 				node = nullptr;
 				goto release;
 			}
+			node = UT_LIST_GET_NEXT(chain, node);
 		}
 
 		offset = os_offset_t{p} << srv_page_size_shift;
@@ -2979,9 +2980,8 @@ ATTRIBUTE_NOINLINE ATTRIBUTE_COLD void mtr_t::name_write() noexcept
 
   mtr_t mtr;
   mtr.start();
-  fil_name_write(m_user_space->id,
-                 UT_LIST_GET_FIRST(m_user_space->chain)->name,
-                 &mtr);
+  mtr.log_file_op(FILE_MODIFY, m_user_space->id,
+                  UT_LIST_GET_FIRST(m_user_space->chain)->name);
   mtr.commit_files();
 }
 
@@ -2998,14 +2998,18 @@ ATTRIBUTE_COLD lsn_t fil_names_clear(lsn_t lsn) noexcept
 	ut_ad(log_sys.is_latest());
 
 	mtr.start();
+	constexpr size_t budget = recv_sys.MTR_SIZE_MAX - (3 + 5);
+	size_t budget_left = budget;
 
 	for (auto it = fil_system.named_spaces.begin();
 	     it != fil_system.named_spaces.end(); ) {
-		if (mtr.get_log_size() + strlen(it->chain.start->name)
-		    >= recv_sys.MTR_SIZE_MAX - (3 + 5)) {
+		const char* const name = it->chain.start->name;
+
+		if (strlen(name) >= budget_left) {
 			/* Prevent log parse buffer overflow */
 			mtr.commit_files();
 			mtr.start();
+			budget_left = budget;
 		}
 
 		auto next = std::next(it);
@@ -3026,8 +3030,9 @@ ATTRIBUTE_COLD lsn_t fil_names_clear(lsn_t lsn) noexcept
 		where max_lsn turned nonzero), we could avoid the
 		fil_names_write() call if min_lsn > lsn. */
 		ut_ad(UT_LIST_GET_LEN((*it).chain) == 1);
-		fil_name_write((*it).id, UT_LIST_GET_FIRST((*it).chain)->name,
-			       &mtr);
+		size_t s = mtr.log_file_op(FILE_MODIFY, (*it).id, name);
+		ut_ad(s <= budget_left);
+		budget_left -= s;
 		it = next;
 	}
 

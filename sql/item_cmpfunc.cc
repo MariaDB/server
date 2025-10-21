@@ -602,7 +602,7 @@ bool Arg_comparator::set_cmp_func_string(THD *thd)
     else if ((*b)->type() == Item::FUNC_ITEM &&
              ((Item_func *) (*b))->functype() == Item_func::JSON_EXTRACT_FUNC)
     {
-      func= is_owner_equal_func() ? &Arg_comparator::compare_e_json_str:
+      func= is_owner_equal_func() ? &Arg_comparator::compare_e_str_json:
                                     &Arg_comparator::compare_str_json;
       return 0;
     }
@@ -1470,7 +1470,7 @@ bool Item_in_optimizer::fix_fields(THD *thd, Item **ref)
     - subqueries that were originally EXISTS subqueries (and were coinverted by
       the EXISTS->IN rewrite)
 
-   When Item_in_optimizer is not not working as a pass-through, it
+   When Item_in_optimizer is not working as a pass-through, it
     - caches its "left argument", args[0].
     - makes adjustments to subquery item's return value for proper NULL
       value handling
@@ -1507,7 +1507,7 @@ bool Item_in_optimizer::walk(Item_processor processor,
 
   @details
   The function checks whether an expression cache is needed for this item
-  and if if so wraps the item into an item of the class
+  and if so wraps the item into an item of the class
   Item_cache_wrapper with an appropriate expression cache set up there.
 
   @note
@@ -1758,7 +1758,7 @@ bool Item_in_optimizer::is_null()
   @detail
     Recursively transform the left and the right operand of this Item. The
     Right operand is an Item_in_subselect or its subclass. To avoid the
-    creation of new Items, we use the fact the the left operand of the
+    creation of new Items, we use the fact the left operand of the
     Item_in_subselect is the same as the one of 'this', so instead of
     transforming its operand, we just assign the left operand of the
     Item_in_subselect to be equal to the left operand of 'this'.
@@ -1928,7 +1928,7 @@ longlong Item_func_strcmp::val_int()
 }
 
 
-bool Item_func_opt_neg::eq(const Item *item, bool binary_cmp) const
+bool Item_func_opt_neg::eq(const Item *item, const Eq_config &config) const
 {
   /* Assume we don't have rtti */
   if (this == item)
@@ -1941,7 +1941,7 @@ bool Item_func_opt_neg::eq(const Item *item, bool binary_cmp) const
     return 0;
   if (negated != ((Item_func_opt_neg *) item_func)->negated)
     return 0;
-  return Item_args::eq(item_func, binary_cmp);
+  return Item_args::eq(item_func, config);
 }
 
 
@@ -3096,7 +3096,8 @@ Item *Item_func_case_simple::find_item()
 {
   /* Compare every WHEN argument with it and return the first match */
   uint idx;
-  if (!Predicant_to_list_comparator::cmp(this, &idx, NULL))
+  bool found_unknown_values;
+  if (!Predicant_to_list_comparator::cmp(this, &idx, &found_unknown_values))
     return args[idx + when_count()];
   Item **pos= Item_func_case_simple::else_expr_addr();
   return pos ? pos[0] : 0;
@@ -6955,7 +6956,7 @@ void Item_equal::add_const(THD *thd, Item *c)
 
     - Also, Field_str::test_if_equality_guarantees_uniqueness() guarantees
     that the comparison collation of all equalities handled by Item_equal
-    match the the collation of the field.
+    match the collation of the field.
 
     Therefore, at Item_equal::add_const() time all constants constXXX
     should be directly comparable to each other without an additional

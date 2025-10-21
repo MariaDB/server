@@ -560,11 +560,7 @@ DROP TABLE t;
 --echo #
 CREATE TABLE t (id INT) ENGINE=InnoDB;
 --replace_result $MYSQLTEST_VARDIR VARDIR
---disable_cursor_protocol
---disable_ps2_protocol
 eval select 1 into outfile "$MYSQLTEST_VARDIR/tmp/t.outfile";
---enable_ps2_protocol
---enable_cursor_protocol
 BEGIN;
 --replace_result $MYSQLTEST_VARDIR VARDIR
 eval LOAD DATA INFILE '$MYSQLTEST_VARDIR/tmp/t.outfile' INTO TABLE t;
@@ -637,5 +633,20 @@ COMMIT;
 SELECT variable_value-@old_bulk_op bulk_operations
 FROM information_schema.global_status
 WHERE variable_name = 'innodb_bulk_operations';
+DROP TABLE t1;
+
+call mtr.add_suppression("Found 1 prepared XA transactions");
+--echo #
+--echo #  MDEV-36771 Assertion `bulk_insert == TRX_NO_BULK' failed
+--echo #           in trx_t::assert_freed from innodb_shutdown
+--echo #
+CREATE TABLE t1(f1 INT)ENGINE=InnoDB;
+XA START 'a';
+INSERT INTO t1 VALUES(1);
+XA END 'a';
+XA PREPARE 'a';
+--source include/restart_mysqld.inc
+XA COMMIT 'a';
+SELECT * FROM t1;
 DROP TABLE t1;
 --echo # End of 10.11 tests

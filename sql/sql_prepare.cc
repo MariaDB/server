@@ -97,7 +97,7 @@ When one supplies long data for a placeholder:
 #include "sql_view.h"                          // create_view_precheck
 #include "sql_delete.h"                        // mysql_prepare_delete
 #include "sql_select.h" // for JOIN
-#include "sql_insert.h" // upgrade_lock_type_for_insert, mysql_prepare_insert
+#include "sql_insert.h" // mysql_prepare_insert
 #include "sql_update.h" // mysql_prepare_update
 #include "sql_db.h"     // mysql_opt_change_db, mysql_change_db
 #include "sql_derived.h" // mysql_derived_prepare,
@@ -1310,8 +1310,6 @@ static bool mysql_test_insert_common(Prepared_statement *stmt,
   if (insert_precheck(thd, table_list))
     goto error;
 
-  //upgrade_lock_type_for_insert(thd, &table_list->lock_type, duplic,
-  //                             values_list.elements > 1);
   /*
     open temporary memory pool for temporary data allocated by derived
     tables & preparation procedure
@@ -1510,6 +1508,11 @@ static int mysql_test_update(Prepared_statement *stmt,
                    0, NULL, 0, THD_WHERE::SET_LIST) ||
       check_unique_table(thd, table_list))
     goto error;
+  {
+    List_iterator_fast<Item> fs(select->item_list), vs(stmt->lex->value_list);
+    while (Item *f= fs++)
+      vs++->associate_with_target_field(thd, static_cast<Item_field*>(f));
+  }
   /* TODO: here we should send types of placeholders to the client. */
   DBUG_RETURN(0);
 error:
@@ -2479,18 +2482,8 @@ static bool check_prepared_statement(Prepared_statement *stmt)
   }
 
 #ifdef WITH_WSREP
-    if (wsrep_sync_wait(thd, sql_command))
-      goto error;
-    if (!stmt->is_sql_prepare())
-    {
-      wsrep_after_command_before_result(thd);
-      if (wsrep_current_error(thd))
-      {
-        wsrep_override_error(thd, wsrep_current_error(thd),
-                             wsrep_current_error_status(thd));
-        goto error;
-      }
-    }
+  if (wsrep_sync_wait(thd, sql_command))
+    goto error;
 #endif
   switch (sql_command) {
   case SQLCOM_REPLACE:
@@ -2714,6 +2707,20 @@ static bool check_prepared_statement(Prepared_statement *stmt)
   default:
     break;
   }
+
+#ifdef WITH_WSREP
+  if (!stmt->is_sql_prepare())
+  {
+    wsrep_after_command_before_result(thd);
+    if (wsrep_current_error(thd))
+    {
+      wsrep_override_error(thd, wsrep_current_error(thd),
+                           wsrep_current_error_status(thd));
+      goto error;
+    }
+  }
+#endif
+
   if (res == 0)
   {
     if (!stmt->is_sql_prepare())
@@ -3763,6 +3770,9 @@ void mysqld_stmt_fetch(THD *thd, char *packet, uint packet_length)
 
   cursor->fetch(num_rows);
 
+  if (!thd->get_sent_row_count())
+    status_var_increment(thd->status_var.empty_queries);
+
   if (!cursor->is_open())
   {
     stmt->close_cursor();
@@ -4595,6 +4605,8 @@ Prepared_statement::set_parameters(String *expanded_query,
     res= set_params_data(this, expanded_query);
 #endif
   }
+  lex->default_used= thd->lex->default_used;
+  thd->lex->default_used= false;
   if (res)
   {
     my_error(ER_WRONG_ARGUMENTS, MYF(0),
@@ -6495,6 +6507,7 @@ extern "C" MYSQL *mysql_real_connect_local(MYSQL *mysql)
     new_thd->variables.wsrep_on= 0;
     new_thd->client_capabilities= client_flag;
     new_thd->variables.sql_log_bin= 0;
+    new_thd->affected_rows= 0;
     new_thd->set_binlog_bit();
     /*
       TOSO: decide if we should turn the auditing off

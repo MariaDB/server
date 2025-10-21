@@ -398,12 +398,17 @@ start_log:
 		}
 
 		log->tail.blocks++;
+		DBUG_EXECUTE_IF("os_file_write_fail",
+				log->error = DB_TEMP_FILE_WRITE_FAIL;
+				goto write_failed;);
+
 		if (os_file_write(
 			    IORequestWrite,
 			    "(modification log)",
 			    log->fd,
 			    buf, byte_offset, srv_sort_buf_size)
 		    != DB_SUCCESS) {
+			log->error = DB_TEMP_FILE_WRITE_FAIL;
 write_failed:
 			index->type |= DICT_CORRUPT;
 		}
@@ -2686,8 +2691,8 @@ all_done:
 	ut_ad((mrec == NULL) == (index->online_log->head.bytes == 0));
 
 #ifdef UNIV_DEBUG
-	if (next_mrec_end == index->online_log->head.block
-	    + srv_sort_buf_size) {
+	if (next_mrec_end - srv_sort_buf_size
+	    == index->online_log->head.block) {
 		/* If tail.bytes == 0, next_mrec_end can also be at
 		the end of tail.block. */
 		if (index->online_log->tail.bytes == 0) {
@@ -2701,8 +2706,8 @@ all_done:
 			ut_ad(index->online_log->tail.blocks
 			      > index->online_log->head.blocks);
 		}
-	} else if (next_mrec_end == index->online_log->tail.block
-		   + index->online_log->tail.bytes) {
+	} else if (next_mrec_end - index->online_log->tail.bytes
+		   == index->online_log->tail.block) {
 		ut_ad(next_mrec == index->online_log->tail.block
 		      + index->online_log->head.bytes);
 		ut_ad(index->online_log->tail.blocks == 0);
@@ -2803,7 +2808,7 @@ process_next_block:
 		} else {
 			memcpy(index->online_log->head.buf, mrec,
 			       ulint(mrec_end - mrec));
-			mrec_end += ulint(index->online_log->head.buf - mrec);
+			mrec_end -= ulint(mrec - index->online_log->head.buf);
 			mrec = index->online_log->head.buf;
 			goto process_next_block;
 		}
@@ -3596,8 +3601,8 @@ all_done:
 	ut_ad((mrec == NULL) == (index->online_log->head.bytes == 0));
 
 #ifdef UNIV_DEBUG
-	if (next_mrec_end == index->online_log->head.block
-	    + srv_sort_buf_size) {
+	if (next_mrec_end - srv_sort_buf_size
+            == index->online_log->head.block) {
 		/* If tail.bytes == 0, next_mrec_end can also be at
 		the end of tail.block. */
 		if (index->online_log->tail.bytes == 0) {
@@ -3611,8 +3616,8 @@ all_done:
 			ut_ad(index->online_log->tail.blocks
 			      > index->online_log->head.blocks);
 		}
-	} else if (next_mrec_end == index->online_log->tail.block
-		   + index->online_log->tail.bytes) {
+	} else if (next_mrec_end - index->online_log->tail.bytes
+                   == index->online_log->tail.block) {
 		ut_ad(next_mrec == index->online_log->tail.block
 		      + index->online_log->head.bytes);
 		ut_ad(index->online_log->tail.blocks == 0);
@@ -3695,7 +3700,7 @@ process_next_block:
 		} else {
 			memcpy(index->online_log->head.buf, mrec,
 			       ulint(mrec_end - mrec));
-			mrec_end += ulint(index->online_log->head.buf - mrec);
+			mrec_end -= ulint(mrec - index->online_log->head.buf);
 			mrec = index->online_log->head.buf;
 			goto process_next_block;
 		}

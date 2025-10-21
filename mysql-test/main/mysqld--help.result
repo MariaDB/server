@@ -16,6 +16,10 @@ The following specify which files/extra groups are read (specified before remain
  --alter-algorithm[=name] 
  Specify the alter table algorithm. One of: DEFAULT, COPY,
  INPLACE, NOCOPY, INSTANT
+ --analyze-max-length=# 
+ Fields which length in bytes more than this are skipped
+ by ANALYZE TABLE PERSISTENT unless explicitly listed in
+ the FOR COLUMNS () clause
  --analyze-sample-percentage=# 
  Percentage of rows from the table ANALYZE TABLE will
  sample to collect table statistics. Set to 0 to let
@@ -462,7 +466,10 @@ The following specify which files/extra groups are read (specified before remain
  the only option you need for specifying log files. Sets
  names for --log-bin, --log-bin-index, --relay-log,
  --relay-log-index, --general-log-file,
- --log-slow-query-file, --log-error-file, and --pid-file
+ --log-slow-query-file, --log-error-file, and --pid-file.
+ If log-basename includes a path, the path will apply for
+ all above variables except pid-file that will use it
+ without the path
  --log-bin[=name]    Log update queries in binary format. Optional argument
  should be name for binary log. If not given
  'datadir'/'log-basename'-bin or 'datadir'/mysql-bin will
@@ -1488,9 +1495,8 @@ The following specify which files/extra groups are read (specified before remain
  --thread-pool-priority=name 
  Threadpool priority. High priority connections usually
  start executing earlier than low priority.If priority set
- to 'auto', the the actual priority(low or high) is
- determined based on whether or not connection is inside
- transaction.
+ to 'auto', the actual priority(low or high) is determined
+ based on whether or not connection is inside transaction.
  --thread-pool-size=# 
  Number of thread groups in the pool. This parameter is
  roughly equivalent to maximum number of concurrently
@@ -1932,7 +1938,6 @@ thread-pool-oversubscribe 3
 thread-pool-prio-kickup-timer 1000
 thread-pool-priority auto
 thread-pool-stall-limit 500
-thread-stack 299008
 time-format %H:%i:%s
 tmp-disk-table-size 18446744073709551615
 tmp-memory-table-size 16777216

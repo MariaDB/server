@@ -76,7 +76,7 @@ inline void buf_buddy_free(void* buf, ulint size) noexcept
 }
 
 ATTRIBUTE_COLD MY_ATTRIBUTE((nonnull, warn_unused_result))
-/** Reallocate a ROW_FORMAT=COMPRESSED page frame during buf_pool_t::resize().
+/** Reallocate a ROW_FORMAT=COMPRESSED page frame during buf_pool_t::shrink().
 @param bpage page descriptor covering a ROW_FORMAT=COMPRESSED page
 @param block uncompressed block for storage
 @return block

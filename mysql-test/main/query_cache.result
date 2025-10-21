@@ -13,10 +13,6 @@ flush query cache;
 flush query cache;
 reset query cache;
 flush status;
-drop table if exists t1,t2,t3,t4,t11,t21,t1_1,t1_2,t9,t9_1,t9_2;
-drop database if exists mysqltest;
-drop table if exists ```a`;
-drop view if exists v1;
 create table t1 (a int not null);
 insert into t1 values (1),(2),(3);
 select * from t1;
@@ -1087,7 +1083,6 @@ Qcache_hits	4
 drop table t1;
 create table t1 (a int);
 insert into t1 values (1),(2);
-drop procedure if exists p1;
 CREATE PROCEDURE `p1`()
 begin
 Declare c1 cursor for select a from t1;
@@ -1621,8 +1616,6 @@ Qcache_free_blocks	1
 set global query_cache_type=on;
 set session query_cache_type=on;
 Restore default values.
-drop database if exists db1;
-drop database if exists db2;
 set GLOBAL query_cache_size=15*1024*1024;
 create database db1;
 use db1;
@@ -1642,8 +1635,6 @@ Variable_name	Value
 Qcache_queries_in_cache	0
 drop database db2;
 set global query_cache_size=@save_query_cache_size;
-drop database if exists db1;
-drop database if exists db3;
 set GLOBAL query_cache_size=15*1024*1024;
 create database db1;
 create database db3;
@@ -1706,7 +1697,6 @@ Qcache_hits	1
 DROP TABLE t1;
 SET GLOBAL concurrent_insert= @save_concurrent_insert;
 SET GLOBAL query_cache_size= default;
-DROP TABLE IF EXISTS t1;
 FLUSH STATUS;
 SET GLOBAL query_cache_size=1048576;
 CREATE TABLE t1 (a INT);
@@ -1763,8 +1753,6 @@ SET @row_count = 4;
 SET @sleep_time_per_result_row = 1;
 SET @max_acceptable_delay = 2;
 SET @@global.query_cache_size = 1024 * 64;
-DROP TEMPORARY TABLE IF EXISTS t_history;
-DROP TABLE IF EXISTS t1;
 CREATE TEMPORARY TABLE t_history (attempt SMALLINT,
 start_ts DATETIME, end_ts DATETIME,
 start_cached INTEGER, end_cached INTEGER);
@@ -1918,7 +1906,6 @@ End of 5.1 tests
 #
 # Bug#51336 Assert in reload_acl_and_cache during RESET QUERY CACHE
 #
-DROP TABLE IF EXISTS t1;
 CREATE TABLE t1(id INT);
 START TRANSACTION;
 SELECT * FROM t1;

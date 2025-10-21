@@ -1534,11 +1534,7 @@ SELECT CONVERT(('' IN (REVERSE(CAST(('') AS DECIMAL)), '')), CHAR(3));
 --echo #
 CREATE TABLE t1 ( a TEXT );
 --replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
---disable_cursor_protocol
---disable_ps2_protocol
 --eval SELECT 'aaaaaaaaaaaaaa' INTO OUTFILE '$MYSQLTEST_VARDIR/tmp/bug58165.txt';
---enable_ps2_protocol
---enable_cursor_protocol
 SELECT insert( substring_index( 'a', 'a', 'b' ), 1, 0, 'x' );
 --replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
 --eval LOAD DATA INFILE '$MYSQLTEST_VARDIR/tmp/bug58165.txt' INTO TABLE t1;
@@ -2577,5 +2573,8 @@ DROP TABLE t1;
 SET sql_mode=DEFAULT;
 
 --echo #
---echo # End of 10.11 tests
+--echo # MDEV-37740 LOCATE(X,Y,NULL) is not NULL
 --echo #
+select locate(1,2,NULL);
+
+--echo # End of 10.11 tests

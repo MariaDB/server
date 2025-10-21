@@ -301,9 +301,6 @@ public:
   void free_result() override;
   SPIDER_DB_ROW *current_row() override;
   SPIDER_DB_ROW *fetch_row(MY_BITMAP *) override;
-  SPIDER_DB_ROW *fetch_row_from_result_buffer(
-    spider_db_result_buffer *spider_res_buf
-  ) override;
   SPIDER_DB_ROW *fetch_row_from_tmp_table(
     TABLE *tmp_table
   ) override;
@@ -877,6 +874,7 @@ public:
   ) override;
   int append_key_select(
     spider_string *str,
+    ulong sql_type,
     uint idx
   );
   int append_minimum_select_part(

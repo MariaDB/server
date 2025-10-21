@@ -87,22 +87,22 @@ static Virtual_column_info * unpack_vcol_info_from_frm(THD *,
               TABLE *, String *, Virtual_column_info **, bool *);
 
 /* INFORMATION_SCHEMA name */
-LEX_CSTRING INFORMATION_SCHEMA_NAME= {STRING_WITH_LEN("information_schema")};
+Lex_ident_db INFORMATION_SCHEMA_NAME= {STRING_WITH_LEN("information_schema")};
 
 /* PERFORMANCE_SCHEMA name */
-LEX_CSTRING PERFORMANCE_SCHEMA_DB_NAME= {STRING_WITH_LEN("performance_schema")};
+Lex_ident_db PERFORMANCE_SCHEMA_DB_NAME= {STRING_WITH_LEN("performance_schema")};
 
 /* MYSQL_SCHEMA name */
 Lex_ident_db MYSQL_SCHEMA_NAME= {STRING_WITH_LEN("mysql")};
 
 /* GENERAL_LOG name */
-LEX_CSTRING GENERAL_LOG_NAME= {STRING_WITH_LEN("general_log")};
+Lex_ident_table GENERAL_LOG_NAME= {STRING_WITH_LEN("general_log")};
 
 /* SLOW_LOG name */
-LEX_CSTRING SLOW_LOG_NAME= {STRING_WITH_LEN("slow_log")};
+Lex_ident_table SLOW_LOG_NAME= {STRING_WITH_LEN("slow_log")};
 
-LEX_CSTRING TRANSACTION_REG_NAME= {STRING_WITH_LEN("transaction_registry")};
-LEX_CSTRING MYSQL_PROC_NAME= {STRING_WITH_LEN("proc")};
+Lex_ident_table TRANSACTION_REG_NAME= {STRING_WITH_LEN("transaction_registry")};
+Lex_ident_table MYSQL_PROC_NAME= {STRING_WITH_LEN("proc")};
 
 /* 
   Keyword added as a prefix when parsing the defining expression for a
@@ -2838,6 +2838,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
         hash_keypart->fieldnr= hash_field_used_no + 1;
         hash_field= share->field[hash_field_used_no];
         hash_field->flags|= LONG_UNIQUE_HASH_FIELD;//Used in parse_vcol_defs
+        DBUG_ASSERT(hash_field->invisible == INVISIBLE_FULL);
         keyinfo->flags|= HA_NOSAME;
         share->virtual_fields++;
         share->stored_fields--;
@@ -3684,27 +3685,6 @@ bool Virtual_column_info::cleanup_session_expr()
 }
 
 
-bool
-Virtual_column_info::is_equivalent(THD *thd, TABLE_SHARE *share, TABLE_SHARE *vcol_share,
-                                  const Virtual_column_info* vcol, bool &error) const
-{
-  error= true;
-  Item *cmp_expr= vcol->expr->build_clone(thd);
-  if (!cmp_expr)
-    return false;
-  Item::func_processor_rename_table param;
-  param.old_db=    Lex_ident_db(vcol_share->db);
-  param.old_table= Lex_ident_table(vcol_share->table_name);
-  param.new_db=    Lex_ident_db(share->db);
-  param.new_table= Lex_ident_table(share->table_name);
-  cmp_expr->walk(&Item::rename_table_processor, 1, &param);
-
-  error= false;
-  return type_handler()  == vcol->type_handler()
-      && is_stored() == vcol->is_stored()
-      && expr->eq(cmp_expr, true);
-}
-
 
 class Vcol_expr_context
 {
@@ -3757,6 +3737,19 @@ Vcol_expr_context::~Vcol_expr_context()
   thd->restore_active_arena(table->expr_arena, &backup_arena);
   thd->variables.sql_mode= save_sql_mode;
   thd->stmt_arena= stmt_arena;
+}
+
+
+bool TABLE::check_sequence_privileges(THD *thd)
+{
+  if (internal_tables)
+    for (Field **fp= field; *fp; fp++)
+    {
+      Virtual_column_info *vcol= (*fp)->default_value;
+      if (vcol && vcol->check_access(thd))
+        return 1;
+    }
+  return 0;
 }
 
 
@@ -3896,6 +3889,13 @@ bool Virtual_column_info::fix_and_check_expr(THD *thd, TABLE *table)
 }
 
 
+bool Virtual_column_info::check_access(THD *thd)
+{
+  return flags & VCOL_NEXTVAL &&
+         expr->walk(&Item::check_sequence_privileges, 0, thd);
+}
+
+
 /*
   @brief
     Unpack the definition of a virtual column from its linear representation
@@ -3914,7 +3914,7 @@ bool Virtual_column_info::fix_and_check_expr(THD *thd, TABLE *table)
     table 'table' and parses it, building an item object for it. The
     pointer to this item is placed into in a Virtual_column_info object
     that is created. After this the function performs
-    semantic analysis of the item by calling the the function
+    semantic analysis of the item by calling the function
     fix_and_check_vcol_expr().  Since the defining expression is part of the table
     definition the item for it is created in table->memroot within the
     special arena TABLE::expr_arena or in the thd memroot for INSERT DELAYED
@@ -3938,6 +3938,7 @@ unpack_vcol_info_from_frm(THD *thd, TABLE *table,
   LEX *old_lex= thd->lex;
   LEX lex;
   bool error;
+  TABLE_LIST *sequence, *last;
   DBUG_ENTER("unpack_vcol_info_from_frm");
 
   DBUG_ASSERT(vcol->expr == NULL);
@@ -3955,11 +3956,12 @@ unpack_vcol_info_from_frm(THD *thd, TABLE *table,
   if (unlikely(error))
     goto end;
 
-  if (lex.current_select->table_list.first[0].next_global)
+  if ((sequence= lex.current_select->table_list.first[0].next_global))
   {
-    /* We are using NEXT VALUE FOR sequence. Remember table name for open */
-    TABLE_LIST *sequence= lex.current_select->table_list.first[0].next_global;
-    sequence->next_global= table->internal_tables;
+    /* We are using NEXT VALUE FOR sequence. Remember table for open */
+    for (last= sequence ; last->next_global ; last= last->next_global)
+      ;
+    last->next_global= table->internal_tables;
     table->internal_tables= sequence;
   }
 
@@ -6054,7 +6056,6 @@ allocate:
 
   while ((item= it++))
   {
-    DBUG_ASSERT(item->name.str && item->name.str[0]);
     transl[field_count].name.str=    thd->strmake(item->name.str, item->name.length);
     transl[field_count].name.length= item->name.length;
     transl[field_count++].item= item;
@@ -7648,6 +7649,11 @@ static void do_mark_index_columns(TABLE *table, uint index,
       table->s->primary_key != MAX_KEY && table->s->primary_key != index)
     do_mark_index_columns(table, table->s->primary_key, bitmap, read);
 
+  if (table->versioned(VERS_TRX_ID))
+  {
+    table->vers_start_field()->register_field_in_read_map();
+    table->vers_end_field()->register_field_in_read_map();
+  }
 }
 /*
   mark columns used by key, but don't reset other fields
@@ -7901,7 +7907,8 @@ void TABLE::mark_columns_needed_for_insert()
 }
 
 /*
-  Mark columns according the binlog row image option.
+  Mark columns according the binlog row image option
+  or mark virtual columns for slave.
 
   Columns to be written are stored in 'rpl_write_set'
 
@@ -7932,6 +7939,10 @@ void TABLE::mark_columns_needed_for_insert()
   the read_set at binlogging time (for those cases that
   we only want to log a PK and we needed other fields for
   execution).
+
+  If binlog row image is off on slave we mark virtual columns
+  for read as InnoDB requires correct field metadata which is set
+  by update_virtual_fields().
 */
 
 void TABLE::mark_columns_per_binlog_row_image()
@@ -7941,9 +7952,6 @@ void TABLE::mark_columns_per_binlog_row_image()
   DBUG_ASSERT(read_set->bitmap);
   DBUG_ASSERT(write_set->bitmap);
 
-  /* If not using row format */
-  rpl_write_set= write_set;
-
   /**
     If in RBR we may need to mark some extra columns,
     depending on the binlog-row-image command line argument.
@@ -7951,6 +7959,19 @@ void TABLE::mark_columns_per_binlog_row_image()
   if (file->row_logging &&
       !ha_check_storage_engine_flag(s->db_type(), HTON_NO_BINLOG_ROW_OPT))
   {
+#ifdef WITH_WSREP
+    /**
+     The marking of all columns will prevent update/set column values for the
+     sequence table. For the sequence table column bitmap sent from master is
+     used.
+    */
+    if (WSREP(thd) && wsrep_thd_is_applying(thd) &&
+        s->sequence && s->primary_key >= MAX_KEY)
+    {
+      DBUG_VOID_RETURN;
+    }
+#endif /* WITH_WSREP */
+
     /* if there is no PK, then mark all columns for the BI. */
     if (s->primary_key >= MAX_KEY)
     {
@@ -8017,6 +8038,12 @@ void TABLE::mark_columns_per_binlog_row_image()
         DBUG_ASSERT(FALSE);
       }
     }
+    file->column_bitmaps_signal();
+  }
+  else
+  {
+    /* If not using row format */
+    rpl_write_set= write_set;
     file->column_bitmaps_signal();
   }
 
@@ -10520,8 +10547,8 @@ bool vers_select_conds_t::check_units(THD *thd)
 {
   DBUG_ASSERT(type != SYSTEM_TIME_UNSPECIFIED);
   DBUG_ASSERT(start.item);
-  return start.check_unit(thd) ||
-         end.check_unit(thd);
+  return start.check_unit(thd, this) ||
+         end.check_unit(thd, this);
 }
 
 bool vers_select_conds_t::eq(const vers_select_conds_t &conds) const
@@ -10547,7 +10574,7 @@ bool vers_select_conds_t::eq(const vers_select_conds_t &conds) const
 }
 
 
-bool Vers_history_point::check_unit(THD *thd)
+bool Vers_history_point::check_unit(THD *thd, vers_select_conds_t *vers_conds)
 {
   if (!item)
     return false;
@@ -10557,6 +10584,9 @@ bool Vers_history_point::check_unit(THD *thd)
              item->full_name(), "FOR SYSTEM_TIME");
     return true;
   }
+  else if (item->with_param())
+    vers_conds->has_param= true;
+
   if (item->fix_fields_if_needed(thd, &item))
     return true;
   const Type_handler *t= item->this_item()->real_type_handler();

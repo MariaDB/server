@@ -23,7 +23,16 @@ USE auto_test_remote;
 --disable_query_log
 echo CHILD2_1_CREATE_TABLES;
 --disable_ps_protocol
-eval $CHILD2_1_CREATE_TABLES;
+CREATE TABLE tbl_a (
+akey int NOT NULL,
+val int NOT NULL,
+PRIMARY KEY (akey)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8 ;
+CREATE TABLE tbl_b (
+bkey int NOT NULL,
+akey int NOT NULL,
+PRIMARY KEY (bkey)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 --enable_ps_protocol
 --enable_query_log
 TRUNCATE TABLE mysql.general_log;
@@ -35,21 +44,21 @@ echo CREATE TABLE tbl_a (
     val int NOT NULL,
     PRIMARY KEY (akey)
 ) MASTER_1_ENGINE MASTER_1_CHARSET MASTER_1_COMMENT_2_1;
-eval CREATE TABLE tbl_a (
+CREATE TABLE tbl_a (
     akey int NOT NULL,
     val int NOT NULL,
     PRIMARY KEY (akey)
-) $MASTER_1_ENGINE $MASTER_1_CHARSET $MASTER_1_COMMENT_2_1;
+) ENGINE=Spider DEFAULT CHARSET=utf8 COMMENT='table "tbl_a", srv "s_2_1"';
 echo CREATE TABLE tbl_b (
     bkey int NOT NULL,
     akey int NOT NULL,
     PRIMARY KEY (bkey)
 ) MASTER_1_ENGINE MASTER_1_CHARSET MASTER_1_COMMENT_2_1_2;
-eval CREATE TABLE tbl_b (
+CREATE TABLE tbl_b (
     bkey int NOT NULL,
     akey int NOT NULL,
     PRIMARY KEY (bkey)
-) $MASTER_1_ENGINE $MASTER_1_CHARSET $MASTER_1_COMMENT_2_1_2;
+) ENGINE=Spider DEFAULT CHARSET=utf8 COMMENT='table "tbl_b", srv "s_2_1"';
 --enable_query_log
 INSERT INTO tbl_a (akey,val) VALUES (0,0),(1,1),(2,2),(3,3),(4,4),(5,5),(6,6),(7,7),(8,8),(9,9);
 INSERT INTO tbl_b (bkey,akey) VALUES (0,0),(1,1),(2,2),(3,3),(4,4),(5,4),(6,3),(7,2),(8,1),(9,0);
@@ -68,9 +77,13 @@ SELECT a.val, a.akey FROM tbl_a a, tbl_b b WHERE a.akey = b.akey AND b.bkey = 5;
 --connection child2_1
 --disable_ps_protocol
 --disable_view_protocol
-eval $CHILD2_1_SELECT_ARGUMENT1;
+eval
+SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%`tbl_a`%' $STR_SEMICOLON
+SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%`tbl_b`%';
+eval
+SELECT akey, val FROM tbl_a ORDER BY akey $STR_SEMICOLON
+SELECT bkey, akey FROM tbl_b ORDER BY bkey;
 --enable_view_protocol
-eval $CHILD2_1_SELECT_TABLES;
 --enable_ps_protocol
 
 --echo

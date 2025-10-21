@@ -280,6 +280,8 @@ static const LEX_CSTRING isolation_level_values[] =
 
 static TypelibBuffer<4> isolation_level_values_typelib(isolation_level_values);
 
+PRAGMA_DISABLE_CHECK_STACK_FRAME
+
 namespace Show {
 
 /* Fields of the dynamic table INFORMATION_SCHEMA.innodb_trx */
@@ -1157,6 +1159,7 @@ struct st_maria_plugin	i_s_innodb_cmp_reset =
 	MariaDB_PLUGIN_MATURITY_STABLE
 };
 
+PRAGMA_DISABLE_CHECK_STACK_FRAME_EXTRA
 
 namespace Show {
 /* Fields of the dynamic tables

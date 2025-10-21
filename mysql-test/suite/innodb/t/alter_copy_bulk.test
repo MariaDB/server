@@ -130,3 +130,15 @@ SET innodb_lock_wait_timeout=default;
 DROP TABLE t1;
 DROP TABLE IF EXISTS t2;
 --source include/restart_mysqld.inc
+
+--echo #
+--echo #  MDEV-37296 ALTER TABLE allows adding unique hash key
+--echo #		with duplicate values
+--echo #
+CREATE TABLE t (pk INT PRIMARY KEY, a INT, b TEXT) ENGINE=InnoDB;
+INSERT INTO t VALUES (5,3,'foo'), (1,NULL,'bar'), (3,3,'foo');
+--error ER_DUP_ENTRY
+ALTER TABLE t ADD UNIQUE (a,b);
+SHOW CREATE TABLE t;
+SELECT * FROM t;
+DROP TABLE t;

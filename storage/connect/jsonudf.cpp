@@ -29,9 +29,9 @@
 #define M 9
 
 static char *handle_item(UDF_INIT *initid, UDF_ARGS *args, char *result,
-	unsigned long *res_length, char *is_null, char *error);
+	unsigned long *res_length, uchar *is_null, uchar *error);
 static char *bin_handle_item(UDF_INIT *initid, UDF_ARGS *args, char *result,
-	unsigned long *res_length, char *is_null, char *error);
+	unsigned long *res_length, uchar *is_null, uchar *error);
 static PJSON JsonNew(PGLOBAL g, JTYP type);
 static PJVAL JvalNew(PGLOBAL g, JTYP type, void *vp = NULL);
 static PJSNX JsnxNew(PGLOBAL g, PJSON jsp, int type, int len = 64);
@@ -98,7 +98,10 @@ my_bool JSNX::SetJpath(PGLOBAL g, char *path, my_bool jb)
 {
 	// Check Value was allocated
 	if (!Value)
+	{
+		snprintf(g->Message, sizeof(g->Message), MSG(NO_MEMORY));
 		return true;
+	}
 
 	Value->SetNullable(true);
 	Jpath = path;
@@ -113,7 +116,7 @@ my_bool JSNX::SetJpath(PGLOBAL g, char *path, my_bool jb)
 /*********************************************************************************/
 /*  Analyse array processing options.                                            */
 /*********************************************************************************/
-my_bool JSNX::SetArrayOptions(PGLOBAL g, char *p, int i, PSZ nm)
+my_bool JSNX::SetArrayOptions(PGLOBAL g, char *p, int i)
 {
 	int     n = (int)strlen(p);
 	my_bool dg = true, b = false;
@@ -217,8 +220,11 @@ my_bool JSNX::ParseJpath(PGLOBAL g)
 	if (Parsed)
 		return false;                       // Already done
 	else if (!Jpath)
+	{
 		//	Jpath = Name;
+		snprintf(g->Message, sizeof(g->Message), MSG(ARG_IS_NULL));
 		return true;
+	}
 
 	if (trace(1))
 		htrc("ParseJpath %s\n", SVP(Jpath));
@@ -263,7 +269,7 @@ my_bool JSNX::ParseJpath(PGLOBAL g)
 		// Jpath must be explicit
 		if (a || *p == 0 || *p == '[' || IsNum(p)) {
 			// Analyse intermediate array processing
-			if (SetArrayOptions(g, p, i, Nodes[i-1].Key))
+			if (SetArrayOptions(g, p, i))
 				return true;
 
 		} else if (*p == '*') {
@@ -2066,7 +2072,7 @@ my_bool jsonvalue_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 } // end of jsonvalue_init
 
 char *jsonvalue(UDF_INIT *initid, UDF_ARGS *args, char *result, 
-                unsigned long *res_length, char *, char *)
+                unsigned long *res_length, uchar *, uchar *)
 {
   char   *str;
   PGLOBAL g = (PGLOBAL)initid->ptr;
@@ -2107,7 +2113,7 @@ my_bool json_make_array_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 } // end of json_make_array_init
 
 char *json_make_array(UDF_INIT *initid, UDF_ARGS *args, char *result,
-                      unsigned long *res_length, char *, char *)
+                      unsigned long *res_length, uchar *, uchar *)
 {
   char   *str;
   PGLOBAL g = (PGLOBAL)initid->ptr;
@@ -2174,7 +2180,7 @@ my_bool json_array_add_values_init(UDF_INIT *initid, UDF_ARGS *args, char *messa
 } // end of json_array_add_values_init
 
 char *json_array_add_values(UDF_INIT *initid, UDF_ARGS *args, char *result,
-	unsigned long *res_length, char *is_null, char *)
+	unsigned long *res_length, uchar *is_null, uchar *)
 {
 	char   *str = NULL;
 	PGLOBAL g = (PGLOBAL)initid->ptr;
@@ -2256,7 +2262,7 @@ my_bool json_array_add_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 } // end of json_array_add_init
 
 char *json_array_add(UDF_INIT *initid, UDF_ARGS *args, char *result, 
-                     unsigned long *res_length, char *is_null, char *error)
+                     unsigned long *res_length, uchar *is_null, uchar *error)
 {
 	char   *str = NULL;
   PGLOBAL g = (PGLOBAL)initid->ptr;
@@ -2364,7 +2370,7 @@ my_bool json_array_delete_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 } // end of json_array_delete_init
 
 char *json_array_delete(UDF_INIT *initid, UDF_ARGS *args, char *result, 
-                        unsigned long *res_length, char *is_null, char *error)
+                        unsigned long *res_length, uchar *is_null, uchar *error)
 {
 	char   *str = NULL;
   PGLOBAL g = (PGLOBAL)initid->ptr;
@@ -2444,7 +2450,7 @@ my_bool jsonsum_int_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 	return JsonInit(initid, args, message, true, reslen, memlen, more);
 } // end of jsonsum_int_init
 
-long long jsonsum_int(UDF_INIT *initid, UDF_ARGS *args, char *is_null, char *error)
+long long jsonsum_int(UDF_INIT *initid, UDF_ARGS *args, uchar *is_null, uchar *error)
 {
 	long long n = 0LL;
 	PGLOBAL g = (PGLOBAL)initid->ptr;
@@ -2519,7 +2525,7 @@ my_bool jsonsum_real_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 	return JsonInit(initid, args, message, true, reslen, memlen, more);
 } // end of jsonsum_real_init
 
-double jsonsum_real(UDF_INIT *initid, UDF_ARGS *args, char *is_null, char *error)
+double jsonsum_real(UDF_INIT *initid, UDF_ARGS *args, uchar *is_null, uchar *error)
 {
 	double  n = 0.0;
 	PGLOBAL g = (PGLOBAL)initid->ptr;
@@ -2583,7 +2589,7 @@ my_bool jsonavg_real_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 	return jsonsum_real_init(initid, args, message);
 } // end of jsonavg_real_init
 
-double jsonavg_real(UDF_INIT *initid, UDF_ARGS *args, char *is_null, char *error)
+double jsonavg_real(UDF_INIT *initid, UDF_ARGS *args, uchar *is_null, uchar *error)
 {
 	double  n = 0.0;
 	PGLOBAL g = (PGLOBAL)initid->ptr;
@@ -2654,7 +2660,7 @@ my_bool json_make_object_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 } // end of json_make_object_init
 
 char *json_make_object(UDF_INIT *initid, UDF_ARGS *args, char *result,
-                       unsigned long *res_length, char *, char *)
+                       unsigned long *res_length, uchar *, uchar *)
 {
   char   *str = NULL;
   PGLOBAL g = (PGLOBAL)initid->ptr;
@@ -2702,7 +2708,7 @@ my_bool json_object_nonull_init(UDF_INIT *initid, UDF_ARGS *args,
 } // end of json_object_nonull_init
 
 char *json_object_nonull(UDF_INIT *initid, UDF_ARGS *args, char *result, 
-                         unsigned long *res_length, char *, char *)
+                         unsigned long *res_length, uchar *, uchar *)
 {
   char   *str = NULL;
   PGLOBAL g = (PGLOBAL)initid->ptr;
@@ -2756,7 +2762,7 @@ my_bool json_object_key_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 } // end of json_object_key_init
 
 char *json_object_key(UDF_INIT *initid, UDF_ARGS *args, char *result,
-	unsigned long *res_length, char *, char *)
+	unsigned long *res_length, uchar *, uchar *)
 {
 	char   *str = NULL;
 	PGLOBAL g = (PGLOBAL)initid->ptr;
@@ -2824,7 +2830,8 @@ my_bool json_object_add_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 } // end of json_object_add_init
 
 char *json_object_add(UDF_INIT *initid, UDF_ARGS *args, char *result,
-	                    unsigned long *res_length, char *is_null, char *error)
+                          unsigned long *res_length, uchar *is_null,
+                          uchar *error)
 {
 	PCSZ    key;
 	char   *str = NULL;
@@ -2920,7 +2927,7 @@ my_bool json_object_delete_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 } // end of json_object_delete_init
 
 char *json_object_delete(UDF_INIT *initid, UDF_ARGS *args, char *result,
-												 unsigned long *res_length, char *is_null, char *error)
+                         unsigned long *res_length, uchar *is_null, uchar *error)
 {
 	char   *str = NULL;
 	PGLOBAL g = (PGLOBAL)initid->ptr;
@@ -2997,7 +3004,7 @@ my_bool json_object_list_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 } // end of json_object_list_init
 
 char *json_object_list(UDF_INIT *initid, UDF_ARGS *args, char *result,
-	unsigned long *res_length, char *is_null, char *error)
+	unsigned long *res_length, uchar *is_null, uchar *error)
 {
 	char   *str = NULL;
 	PGLOBAL g = (PGLOBAL)initid->ptr;
@@ -3073,7 +3080,7 @@ my_bool json_object_values_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 } // end of json_object_list_init
 
 char *json_object_values(UDF_INIT *initid, UDF_ARGS *args, char *result,
-	unsigned long *res_length, char *is_null, char *error)
+	unsigned long *res_length, uchar *is_null, uchar *error)
 {
 	char   *str = NULL;
 	PGLOBAL g = (PGLOBAL)initid->ptr;
@@ -3142,7 +3149,7 @@ my_bool jsonset_grp_size_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 
 } // end of jsonset_grp_size_init
 
-long long jsonset_grp_size(UDF_INIT *initid, UDF_ARGS *args, char *, char *)
+long long jsonset_grp_size(UDF_INIT *initid, UDF_ARGS *args, uchar *, uchar *)
 {
 	long long n = *(long long*)args->args[0];
 
@@ -3163,7 +3170,7 @@ my_bool jsonget_grp_size_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 
 } // end of jsonget_grp_size_init
 
-long long jsonget_grp_size(UDF_INIT *initid, UDF_ARGS *args, char *, char *)
+long long jsonget_grp_size(UDF_INIT *initid, UDF_ARGS *args, uchar *, uchar *)
 {
 	return (long long)GetJsonGroupSize();
 } // end of jsonget_grp_size
@@ -3198,7 +3205,7 @@ my_bool json_array_grp_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
   return false;
 } // end of json_array_grp_init
 
-void json_array_grp_add(UDF_INIT *initid, UDF_ARGS *args, char*, char*)
+void json_array_grp_add(UDF_INIT *initid, UDF_ARGS *args, uchar *, uchar *)
 {
   PGLOBAL g = (PGLOBAL)initid->ptr;
   PJAR    arp = (PJAR)g->Activityp;
@@ -3209,7 +3216,7 @@ void json_array_grp_add(UDF_INIT *initid, UDF_ARGS *args, char*, char*)
 } // end of json_array_grp_add
 
 char *json_array_grp(UDF_INIT *initid, UDF_ARGS *, char *result, 
-                     unsigned long *res_length, char *, char *)
+                     unsigned long *res_length, uchar *, uchar *)
 {
   char   *str;
   PGLOBAL g = (PGLOBAL)initid->ptr;
@@ -3231,7 +3238,7 @@ char *json_array_grp(UDF_INIT *initid, UDF_ARGS *, char *result,
   return str;
 } // end of json_array_grp
 
-void json_array_grp_clear(UDF_INIT *initid, char*, char*)
+void json_array_grp_clear(UDF_INIT *initid, uchar *, uchar *)
 {
   PGLOBAL g = (PGLOBAL)initid->ptr;
 
@@ -3275,7 +3282,7 @@ my_bool json_object_grp_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
   return false;
 } // end of json_object_grp_init
 
-void json_object_grp_add(UDF_INIT *initid, UDF_ARGS *args, char*, char*)
+void json_object_grp_add(UDF_INIT *initid, UDF_ARGS *args, uchar *, uchar *)
 {
   PGLOBAL g = (PGLOBAL)initid->ptr;
   PJOB    objp = (PJOB)g->Activityp;
@@ -3286,7 +3293,7 @@ void json_object_grp_add(UDF_INIT *initid, UDF_ARGS *args, char*, char*)
 } // end of json_object_grp_add
 
 char *json_object_grp(UDF_INIT *initid, UDF_ARGS *, char *result, 
-                      unsigned long *res_length, char *, char *)
+                      unsigned long *res_length, uchar *, uchar *)
 {
   char   *str;
   PGLOBAL g = (PGLOBAL)initid->ptr;
@@ -3302,7 +3309,7 @@ char *json_object_grp(UDF_INIT *initid, UDF_ARGS *, char *result,
   return str;
 } // end of json_object_grp
 
-void json_object_grp_clear(UDF_INIT *initid, char*, char*)
+void json_object_grp_clear(UDF_INIT *initid, uchar *, uchar *)
 {
   PGLOBAL g = (PGLOBAL)initid->ptr;
 
@@ -3352,7 +3359,7 @@ my_bool json_item_merge_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 } // end of json_item_merge_init
 
 char *json_item_merge(UDF_INIT *initid, UDF_ARGS *args, char *result,
-	unsigned long *res_length, char *is_null, char *error)
+	unsigned long *res_length, uchar *is_null, uchar *error)
 {
 	char   *str = NULL;
 	PGLOBAL g = (PGLOBAL)initid->ptr;
@@ -3451,7 +3458,7 @@ my_bool json_get_item_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 } // end of json_get_item_init
 
 char *json_get_item(UDF_INIT *initid, UDF_ARGS *args, char *result,
-	             unsigned long *res_length, char *is_null, char *)
+	             unsigned long *res_length, uchar *is_null, uchar *)
 {
 	char   *path, *str = NULL;
 	PJSON   jsp;
@@ -3558,7 +3565,7 @@ my_bool jsonget_string_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 } // end of jsonget_string_init
 
 char *jsonget_string(UDF_INIT *initid, UDF_ARGS *args, char *result,
-	unsigned long *res_length, char *is_null, char *)
+	unsigned long *res_length, uchar *is_null, uchar *)
 {
 	char   *p, *path, *str = NULL;
 	PJSON   jsp;
@@ -3667,7 +3674,7 @@ my_bool jsonget_int_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 } // end of jsonget_int_init
 
 long long jsonget_int(UDF_INIT *initid, UDF_ARGS *args,
-	                    char *is_null, char *error)
+	              uchar *is_null, uchar *error)
 {
 	char   *p, *path;
 	long long n;
@@ -3787,7 +3794,7 @@ my_bool jsonget_real_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 } // end of jsonget_real_init
 
 double jsonget_real(UDF_INIT *initid, UDF_ARGS *args,
-	                   char *is_null, char *error)
+	                   uchar *is_null, uchar *error)
 {
 	char   *p, *path;
 	double  d;
@@ -3908,7 +3915,7 @@ my_bool jsonlocate_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 } // end of jsonlocate_init
 
 char *jsonlocate(UDF_INIT *initid, UDF_ARGS *args, char *result,
-	                unsigned long *res_length, char *is_null, char *error)
+	                unsigned long *res_length, uchar *is_null, uchar *error)
 {
 	char   *path = NULL;
 	int     k;
@@ -4036,7 +4043,7 @@ my_bool json_locate_all_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 } // end of json_locate_all_init
 
 char *json_locate_all(UDF_INIT *initid, UDF_ARGS *args, char *result,
-	unsigned long *res_length, char *is_null, char *error)
+	unsigned long *res_length, uchar *is_null, uchar *error)
 {
 	char   *p, *path = NULL;
 	int     mx = 10;
@@ -4162,9 +4169,10 @@ my_bool jsoncontains_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 	return JsonInit(initid, args, message, false, reslen, memlen, more);
 } // end of jsoncontains_init
 
-long long jsoncontains(UDF_INIT *initid, UDF_ARGS *args, char *, char *error)
+long long jsoncontains(UDF_INIT *initid, UDF_ARGS *args, uchar *, uchar *error)
 {
-	char          isn, res[256];
+	unsigned char isn;
+	char          res[256];
 	unsigned long reslen;
 
 	isn = 0;
@@ -4211,7 +4219,7 @@ my_bool jsoncontains_path_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 	return JsonInit(initid, args, message, true, reslen, memlen, more);
 } // end of jsoncontains_path_init
 
-long long jsoncontains_path(UDF_INIT *initid, UDF_ARGS *args, char *, char *error)
+long long jsoncontains_path(UDF_INIT *initid, UDF_ARGS *args, uchar *, uchar *error)
 {
 	char   *p, *path;
 	long long n;
@@ -4291,7 +4299,7 @@ void jsoncontains_path_deinit(UDF_INIT* initid)
 /*  This function is used by the json_set/insert/update_item functions.          */
 /*********************************************************************************/
 char *handle_item(UDF_INIT *initid, UDF_ARGS *args, char *result,
-	unsigned long *res_length, char *is_null, char *error)
+	unsigned long *res_length, uchar *is_null, uchar *error)
 {
 	char   *p, *path, *str = NULL;
 	int     w;
@@ -4441,7 +4449,7 @@ my_bool json_set_item_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 } // end of json_set_item_init
 
 char *json_set_item(UDF_INIT *initid, UDF_ARGS *args, char *result,
-	unsigned long *res_length, char *is_null, char *p)
+	unsigned long *res_length, uchar *is_null, uchar *p)
 {
 	strcpy(result, "$set");
 	return handle_item(initid, args, result, res_length, is_null, p);
@@ -4461,7 +4469,7 @@ my_bool json_insert_item_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 } // end of json_insert_item_init
 
 char *json_insert_item(UDF_INIT *initid, UDF_ARGS *args, char *result,
-	unsigned long *res_length, char *is_null, char *p)
+	unsigned long *res_length, uchar *is_null, uchar *p)
 {
 	strcpy(result, "$insert");
 	return handle_item(initid, args, result, res_length, is_null, p);
@@ -4481,7 +4489,7 @@ my_bool json_update_item_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 } // end of json_update_item_init
 
 char *json_update_item(UDF_INIT *initid, UDF_ARGS *args, char *result,
-	unsigned long *res_length, char *is_null, char *p)
+	unsigned long *res_length, uchar *is_null, uchar *p)
 {
 	strcpy(result, "$update");
 	return handle_item(initid, args, result, res_length, is_null, p);
@@ -4540,7 +4548,7 @@ my_bool json_file_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 } // end of json_file_init
 
 char *json_file(UDF_INIT *initid, UDF_ARGS *args, char *result,
-	unsigned long *res_length, char *is_null, char *error)
+	unsigned long *res_length, uchar *is_null, uchar *error)
 {
 	char   *str, *fn;
 	PGLOBAL g = (PGLOBAL)initid->ptr;
@@ -4637,7 +4645,7 @@ my_bool jfile_make_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 } // end of jfile_make_init
 
 char *jfile_make(UDF_INIT *initid, UDF_ARGS *args, char *result,
-	unsigned long *res_length, char *is_null, char *)
+	unsigned long *res_length, uchar *is_null, uchar *)
 {
 	char   *p, *str = NULL, *fn = NULL;
 	int     n, pretty = 2;
@@ -4745,7 +4753,7 @@ my_bool jbin_array_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 } // end of jbin_array_init
 
 char *jbin_array(UDF_INIT *initid, UDF_ARGS *args, char *result,
-	unsigned long *res_length, char *is_null, char *error)
+	unsigned long *res_length, uchar *is_null, uchar *error)
 {
 	PGLOBAL g = (PGLOBAL)initid->ptr;
 	PBSON   bsp = (PBSON)g->Xchk;
@@ -4806,7 +4814,7 @@ my_bool jbin_array_add_values_init(UDF_INIT *initid, UDF_ARGS *args, char *messa
 } // end of jbin_array_add_values_init
 
 char *jbin_array_add_values(UDF_INIT *initid, UDF_ARGS *args, char *result,
-	unsigned long *res_length, char *is_null, char *error)
+	unsigned long *res_length, uchar *is_null, uchar *error)
 {
 	PGLOBAL g = (PGLOBAL)initid->ptr;
 	PBSON   bsp = (PBSON)g->Xchk;
@@ -4880,7 +4888,7 @@ my_bool jbin_array_add_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 } // end of jbin_array_add_init
 
 char *jbin_array_add(UDF_INIT *initid, UDF_ARGS *args, char *result,
-	unsigned long *res_length, char *is_null, char *error)
+	unsigned long *res_length, uchar *is_null, uchar *error)
 {
 	int     n = 2;
 	PJSON   top = NULL;
@@ -4970,7 +4978,7 @@ my_bool jbin_array_delete_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 	} // end of jbin_array_delete_init
 
 char *jbin_array_delete(UDF_INIT *initid, UDF_ARGS *args, char *result,
-	unsigned long *res_length, char *is_null, char *error)
+	unsigned long *res_length, uchar *is_null, uchar *error)
 {
 	PJSON   top = NULL;
 	PGLOBAL g = (PGLOBAL)initid->ptr;
@@ -5039,7 +5047,7 @@ my_bool jbin_object_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 } // end of jbin_object_init
 
 char *jbin_object(UDF_INIT *initid, UDF_ARGS *args, char *result,
-	unsigned long *res_length, char *is_null, char *error)
+	unsigned long *res_length, uchar *is_null, uchar *error)
 {
 	PGLOBAL g = (PGLOBAL)initid->ptr;
 	PBSON   bsp = (PBSON)g->Xchk;
@@ -5094,7 +5102,7 @@ my_bool jbin_object_nonull_init(UDF_INIT *initid, UDF_ARGS *args,	char *message)
 } // end of jbin_object_nonull_init
 
 char *jbin_object_nonull(UDF_INIT *initid, UDF_ARGS *args, char *result,
-	unsigned long *res_length, char *is_null, char *error)
+	unsigned long *res_length, uchar *is_null, uchar *error)
 {
 	PGLOBAL g = (PGLOBAL)initid->ptr;
 	PBSON   bsp = (PBSON)g->Xchk;
@@ -5155,7 +5163,7 @@ my_bool jbin_object_key_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 } // end of jbin_object_key_init
 
 char *jbin_object_key(UDF_INIT *initid, UDF_ARGS *args, char *result,
-	unsigned long *res_length, char *is_null, char *error)
+	unsigned long *res_length, uchar *is_null, uchar *error)
 {
 	PGLOBAL g = (PGLOBAL)initid->ptr;
 	PBSON   bsp = (PBSON)g->Xchk;
@@ -5217,7 +5225,7 @@ my_bool jbin_object_add_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 	} // end of jbin_object_add_init
 
 char *jbin_object_add(UDF_INIT *initid, UDF_ARGS *args, char *result,
-	unsigned long *res_length, char *is_null, char *error)
+	unsigned long *res_length, uchar *is_null, uchar *error)
 {
 	PJSON   top = NULL;
 	PGLOBAL g = (PGLOBAL)initid->ptr;
@@ -5297,7 +5305,7 @@ my_bool jbin_object_delete_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 	} // end of jbin_object_delete_init
 
 char *jbin_object_delete(UDF_INIT *initid, UDF_ARGS *args, char *result,
-	unsigned long *res_length, char *is_null, char *error)
+	unsigned long *res_length, uchar *is_null, uchar *error)
 {
 	PJSON   top = NULL;
 	PGLOBAL g = (PGLOBAL)initid->ptr;
@@ -5360,7 +5368,7 @@ my_bool jbin_object_list_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 } // end of jbin_object_list_init
 
 char *jbin_object_list(UDF_INIT *initid, UDF_ARGS *args, char *result,
-	unsigned long *res_length, char *is_null, char *error)
+	unsigned long *res_length, uchar *is_null, uchar *error)
 {
 	PJAR    jarp = NULL;
 	PGLOBAL g = (PGLOBAL)initid->ptr;
@@ -5421,7 +5429,7 @@ my_bool jbin_get_item_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 } // end of jbin_get_item_init
 
 char *jbin_get_item(UDF_INIT *initid, UDF_ARGS *args, char *result,
-	unsigned long *res_length, char *is_null, char *error)
+	unsigned long *res_length, uchar *is_null, uchar *error)
 {
 	char   *path;
 	PJSON   jsp;
@@ -5514,7 +5522,7 @@ my_bool jbin_item_merge_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 	} // end of jbin_item_merge_init
 
 char *jbin_item_merge(UDF_INIT *initid, UDF_ARGS *args, char *result,
-	unsigned long *res_length, char *is_null, char *error)
+	unsigned long *res_length, uchar *is_null, uchar *error)
 {
 	PJSON   top = NULL;
 	PGLOBAL g = (PGLOBAL)initid->ptr;
@@ -5574,7 +5582,7 @@ void jbin_item_merge_deinit(UDF_INIT* initid)
 /*  This function is used by the jbin_set/insert/update functions.               */
 /*********************************************************************************/
 char *bin_handle_item(UDF_INIT *initid, UDF_ARGS *args, char *result,
-	unsigned long *res_length, char *is_null, char *error)
+	unsigned long *res_length, uchar *is_null, uchar *error)
 {
 	char   *p, *path;
 	int     w;
@@ -5698,7 +5706,7 @@ my_bool jbin_set_item_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 	} // end of jbin_set_item_init
 
 char *jbin_set_item(UDF_INIT *initid, UDF_ARGS *args, char *result,
-	unsigned long *res_length, char *is_null, char *p)
+	unsigned long *res_length, uchar *is_null, uchar *p)
 {
 	strcpy(result, "$set");
 	return bin_handle_item(initid, args, result, res_length, is_null, p);
@@ -5718,7 +5726,7 @@ my_bool jbin_insert_item_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 } // end of jbin_insert_item_init
 
 char *jbin_insert_item(UDF_INIT *initid, UDF_ARGS *args, char *result,
-	unsigned long *res_length, char *is_null, char *p)
+	unsigned long *res_length, uchar *is_null, uchar *p)
 {
 	strcpy(result, "$insert");
 	return bin_handle_item(initid, args, result, res_length, is_null, p);
@@ -5738,7 +5746,7 @@ my_bool jbin_update_item_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 } // end of jbin_update_item_init
 
 char *jbin_update_item(UDF_INIT *initid, UDF_ARGS *args, char *result,
-	unsigned long *res_length, char *is_null, char *p)
+	unsigned long *res_length, uchar *is_null, uchar *p)
 {
 	strcpy(result, "$update");
 	return bin_handle_item(initid, args, result, res_length, is_null, p);
@@ -5786,7 +5794,7 @@ my_bool jbin_file_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 } // end of jbin_file_init
 
 char *jbin_file(UDF_INIT *initid, UDF_ARGS *args, char *result,
-	unsigned long *res_length, char *is_null, char *error)
+	unsigned long *res_length, uchar *is_null, uchar *error)
 {
 	char   *fn;
 	int     pretty = 3, pty = 3;
@@ -5881,7 +5889,7 @@ my_bool json_serialize_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 } // end of json_serialize_init
 
 char *json_serialize(UDF_INIT *initid, UDF_ARGS *args, char *result,
-	unsigned long *res_length, char *, char *error)
+	unsigned long *res_length, uchar *, uchar *error)
 {
 	char   *str;
 	PGLOBAL g = (PGLOBAL)initid->ptr;
@@ -5937,7 +5945,7 @@ my_bool jfile_convert_init(UDF_INIT* initid, UDF_ARGS* args, char* message) {
 } // end of jfile_convert_init
 
 char *jfile_convert(UDF_INIT* initid, UDF_ARGS* args, char* result,
-	                  unsigned long *res_length, char *is_null, char *error) {
+	                  unsigned long *res_length, uchar *is_null, uchar *error) {
 	char   *str, *fn, *ofn;
 	int     lrecl = (int)*(longlong*)args->args[2];
 	PGLOBAL g = (PGLOBAL)initid->ptr;
@@ -5996,7 +6004,7 @@ my_bool jfile_bjson_init(UDF_INIT* initid, UDF_ARGS* args, char* message) {
 } // end of jfile_bjson_init
 
 char *jfile_bjson(UDF_INIT *initid, UDF_ARGS *args, char *result,
-	unsigned long *res_length, char*, char *error) {
+	unsigned long *res_length, uchar *, uchar *error) {
 	char   *fn, *ofn, *buf, *str = NULL;
 	bool    loop;
 	ssize_t len, newloc;
@@ -6536,7 +6544,7 @@ my_bool envar_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 } // end of envar_init
 
 char *envar(UDF_INIT *initid, UDF_ARGS *args, char *result,
-	unsigned long *res_length, char *is_null, char *)
+	unsigned long *res_length, uchar *is_null, uchar *)
 {
 	char *str, name[256];
 	int   n = MY_MIN(args->lengths[0], sizeof(name) - 1);
@@ -6574,7 +6582,7 @@ my_bool uvar_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 } // end of uvar_init
 
 char *uvar(UDF_INIT *initid, UDF_ARGS *args, char *result,
-	unsigned long *res_length, char *is_null, char *)
+	unsigned long *res_length, uchar *is_null, uchar *)
 {
 	char   *str, varname[256];
 	PGLOBAL g = (PGLOBAL)initid->ptr;
@@ -6618,7 +6626,7 @@ my_bool countin_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 	return false;
 } // end of countin_init
 
-long long countin(UDF_INIT *initid, UDF_ARGS *args, char *is_null, char *)
+long long countin(UDF_INIT *initid, UDF_ARGS *args, uchar *is_null, uchar *)
 {
 	PSZ str1, str2;
 	char *s;

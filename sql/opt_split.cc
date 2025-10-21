@@ -43,7 +43,7 @@
 
   The execution of the transformed query (Q1R) follows these steps:
     1. For each row of t1 where t1.b < const a temporary table
-       containing all rows of of t2 with t2.a = t1.a is created
+       containing all rows of t2 with t2.a = t1.a is created
     2. If there are any rows in the temporary table aggregation
        is performed for them
     3. The result of the aggregation is joined with t1.
@@ -155,7 +155,7 @@
   subsets the operation can applied to each subset independently. In this case
   all rows are first partitioned into the groups each of which contains all the
   rows from the partitions belonging the same subset and then each group
-  is subpartitioned into groups in the the post join operation.
+  is subpartitioned into groups in the post join operation.
 
   The set of all rows belonging to the union of several partitions is called
   here superpartition. If a grouping operation is defined by the list
@@ -610,6 +610,11 @@ void TABLE::add_splitting_info_for_key_field(KEY_FIELD *key_field)
     right_item->walk(&Item::set_fields_as_dependent_processor,
                      false, join->select_lex);
     right_item->update_used_tables();
+    /*
+      We've just pushed right_item down into the child select. It may only
+      have references to outside.
+    */
+    DBUG_ASSERT(!(right_item->used_tables() & ~PSEUDO_TABLE_BITS));
     eq_item= new (thd->mem_root) Item_func_eq(thd, left_item, right_item);
   }
   if (!eq_item)
@@ -625,14 +630,7 @@ void TABLE::add_splitting_info_for_key_field(KEY_FIELD *key_field)
   added_key_field->level= 0;
   added_key_field->optimize= KEY_OPTIMIZE_EQ;
   added_key_field->eq_func= true;
-
-  Item *real= key_field->val->real_item();
-  if ((real->type() == Item::FIELD_ITEM) &&
-        ((Item_field*)real)->field->maybe_null())
-    added_key_field->null_rejecting= true;
-  else
-    added_key_field->null_rejecting= false;
-
+  added_key_field->null_rejecting= key_field->null_rejecting;
   added_key_field->cond_guard= NULL;
   added_key_field->sj_pred_no= UINT_MAX;
   return;
@@ -651,7 +649,7 @@ add_ext_keyuse_for_splitting(Dynamic_array<KEYUSE_EXT> *ext_keyuses,
   possible_keys.intersect(field->table->keys_usable_for_splitting);
   tab->keys.merge(possible_keys);
 
-  Item_func_eq *eq_item= (Item_func_eq *) (added_key_field->cond);
+  Item_args *eq_item= (Item_args *) (added_key_field->cond);
   keyuse_ext.table= field->table;
   keyuse_ext.val= eq_item->arguments()[1];
   keyuse_ext.key= key;
@@ -1239,7 +1237,7 @@ bool JOIN::inject_best_splitting_cond(table_map excluded_tables)
     Test if equality is injected for split optimization
 
   @param
-    eq_item   equality to to test
+    eq_item   equality to test
 
   @retval
     true    eq_item is equality injected for split optimization

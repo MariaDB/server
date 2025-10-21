@@ -78,10 +78,11 @@ create user testuser;
 create database testdb;
 use testdb;
 create procedure p1 () select 1;
+let $default_id= `select connection_id()`;
 
 connect (testuser,localhost,testuser,,);
 
-select user,db from information_schema.processlist where user='root';
+evalp select user,db from information_schema.processlist where id=$default_id;
 --error ER_PROCACCESS_DENIED_ERROR
 call testdb.p1();
 
@@ -94,7 +95,7 @@ GRANT EXECUTE ON testdb.* to PUBLIC;
 disconnect testuser;
 connect (testuser,localhost,testuser,,);
 
-select user,db from information_schema.processlist where user='root';
+evalp select user,db from information_schema.processlist where id=$default_id;
 call testdb.p1();
 
 connection default;
@@ -105,7 +106,7 @@ flush privileges;
 
 connect (testuser,localhost,testuser,,);
 
-select user,db from information_schema.processlist where user='root';
+evalp select user,db from information_schema.processlist where id=$default_id;
 call testdb.p1();
 
 connection default;

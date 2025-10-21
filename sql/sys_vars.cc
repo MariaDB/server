@@ -80,6 +80,8 @@
 */
 #define export /* not static */
 
+PRAGMA_DISABLE_CHECK_STACK_FRAME
+
 #ifdef WITH_PERFSCHEMA_STORAGE_ENGINE
 
 static Sys_var_mybool Sys_pfs_enabled(
@@ -444,6 +446,19 @@ static Sys_var_double Sys_analyze_sample_percentage(
        SESSION_VAR(sample_percentage),
        CMD_LINE(REQUIRED_ARG), VALID_RANGE(0, 100),
        DEFAULT(100));
+
+/*
+  The max length have to be UINT_MAX32 to not remove GEOMETRY fields
+  from analyze.
+*/
+
+static Sys_var_uint Sys_analyze_max_length(
+       "analyze_max_length",
+       "Fields which length in bytes more than this are skipped by ANALYZE "
+       "TABLE PERSISTENT unless explicitly listed in the FOR COLUMNS () clause",
+       SESSION_VAR(analyze_max_length),
+       CMD_LINE(REQUIRED_ARG), VALID_RANGE(32, UINT_MAX32),
+       DEFAULT(UINT_MAX32), BLOCK_SIZE(1));
 
 static Sys_var_ulong Sys_auto_increment_increment(
        "auto_increment_increment",
@@ -4189,7 +4204,7 @@ static Sys_var_on_access_global<Sys_var_enum,
 Sys_thread_pool_priority(
   "thread_pool_priority",
   "Threadpool priority. High priority connections usually start executing earlier than low priority."
-  "If priority set to 'auto', the the actual priority(low or high) is determined based on whether or not connection is inside transaction.",
+  "If priority set to 'auto', the actual priority(low or high) is determined based on whether or not connection is inside transaction.",
   SESSION_VAR(threadpool_priority), CMD_LINE(REQUIRED_ARG),
   threadpool_priority_names, DEFAULT(TP_PRIORITY_AUTO));
 
@@ -4791,7 +4806,7 @@ static Sys_var_bit Sys_foreign_key_checks(
        " (including ON UPDATE and ON DELETE behavior) InnoDB tables are checked,"
        " while if set to 0, they are not checked. 0 is not recommended for normal "
        "use, though it can be useful in situations where you know the data is "
-       "consistent, but want to reload data in a different order from that that "
+       "consistent, but want to reload data in a different order from that "
        "specified by parent/child relationships. Setting this variable to 1 does "
        "not retrospectively check for inconsistencies introduced while set to 0.",
        SESSION_VAR(option_bits), NO_CMD_LINE,
@@ -5364,7 +5379,8 @@ static Sys_var_charptr Sys_have_santitizer(
        "have_sanitizer",
        "If the server is compiled with sanitize (compiler option), this "
        "variable is set to the sanitizer mode used. Possible values are "
-       "ASAN (Address sanitizer) or UBSAN (The Undefined Behavior Sanitizer).",
+       "ASAN (Address sanitizer) and/or UBSAN (Undefined Behavior Sanitizer),"
+       " or MSAN (memory sanitizer).",
         READ_ONLY GLOBAL_VAR(have_sanitizer), NO_CMD_LINE,
        DEFAULT(SANITIZER_MODE));
 #endif /* defined(__SANITIZE_ADDRESS__) || defined(WITH_UBSAN) */
@@ -6064,7 +6080,7 @@ static Sys_var_ulong Sys_wsrep_slave_threads(
        GLOBAL_VAR(wsrep_slave_threads), CMD_LINE(REQUIRED_ARG),
        VALID_RANGE(1, 512), DEFAULT(1), BLOCK_SIZE(1),
        NO_MUTEX_GUARD, NOT_IN_BINLOG,
-       ON_CHECK(0),
+       ON_CHECK(wsrep_slave_threads_check),
        ON_UPDATE(wsrep_slave_threads_update));
 
 static Sys_var_charptr Sys_wsrep_dbug_option(

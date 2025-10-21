@@ -68,7 +68,7 @@ static bool admin_recreate_table(THD *thd, TABLE_LIST *table_list,
 
   DEBUG_SYNC(thd, "ha_admin_try_alter");
   tmp_disable_binlog(thd); // binlogging is done by caller if wanted
-  result_code= (thd->open_temporary_tables(table_list) ||
+  result_code= (thd->check_and_open_tmp_table(table_list) ||
                 mysql_recreate_table(thd, table_list, recreate_info, false));
   reenable_binlog(thd);
   /*
@@ -565,6 +565,9 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
   Disable_wsrep_on_guard wsrep_on_guard(thd, disable_wsrep_on);
 #endif /* WITH_WSREP */
 
+  if (thd->transaction->xid_state.check_has_uncommitted_xa())
+    DBUG_RETURN(TRUE);
+
   fill_check_table_metadata_fields(thd, &field_list);
 
   if (protocol->send_result_set_metadata(&field_list,
@@ -987,8 +990,9 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
               types here.
             */
             enum enum_field_types type= field->type();
-            if (type < MYSQL_TYPE_TINY_BLOB ||
-                type > MYSQL_TYPE_BLOB)
+            if ((type < MYSQL_TYPE_TINY_BLOB ||
+                 type > MYSQL_TYPE_BLOB) &&
+                field->field_length <= thd->variables.analyze_max_length)
             {
               field->register_field_in_read_map();
               bitmap_set_bit(&tab->has_value_set, field->field_index);

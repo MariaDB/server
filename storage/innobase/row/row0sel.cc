@@ -24,6 +24,7 @@ Select
 Created 12/19/1997 Heikki Tuuri
 *******************************************************/
 
+#define MYSQL_SERVER
 #include "row0sel.h"
 #include "dict0dict.h"
 #include "dict0boot.h"
@@ -50,6 +51,7 @@ Created 12/19/1997 Heikki Tuuri
 #include "srv0srv.h"
 #include "srv0mon.h"
 #include "sql_error.h"
+#include "sql_class.h" // THD
 #ifdef WITH_WSREP
 #include "mysql/service_wsrep.h" /* For wsrep_thd_skip_locking */
 #endif
@@ -6382,16 +6384,13 @@ rec_loop:
                                  ULINT_UNDEFINED, &heap);
       goto next_rec;
     }
-    else if (!rec_deleted && !rec_trx_id);
+    else if (!rec_deleted);
     else if (!check_table_extended_view.changes_visible(rec_trx_id));
     else if (prebuilt->autoinc_error == DB_SUCCESS)
     {
-      const char *msg= rec_deleted
-        ? "Unpurged clustered index record"
-        : "Clustered index record with stale history";
-
       ib::warn w;
-      w << msg << " in table " << index->table->name << ": "
+      w << "Unpurged clustered index record in table "
+        << index->table->name << ": "
         << rec_offsets_print(rec, offsets);
       prebuilt->autoinc_error= DB_MISSING_HISTORY;
       push_warning_printf(prebuilt->trx->mysql_thd,

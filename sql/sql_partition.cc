@@ -156,9 +156,8 @@ Item* convert_charset_partition_constant(Item *item, CHARSET_INFO *cs)
   @param name        String searched for
   @param list_names  A list of names searched in
 
-  @return True if if the name is in the list.
-    @retval true   String found
-    @retval false  String not found
+  @retval true   String found
+  @retval false  String not found
 */
 
 static bool is_name_in_list(const char *name, List<const char> list_names)
@@ -2136,7 +2135,7 @@ static int add_keyword_string(String *str, const char *keyword,
 
 
 /**
-  @brief  Truncate the partition file name from a path it it exists.
+  @brief  Truncate the partition file name from a path it exists.
 
   @note  A partition file name will contian one or more '#' characters.
 One of the occurances of '#' will be either "#P#" or "#p#" depending
@@ -3415,7 +3414,7 @@ uint32 get_list_array_idx_for_endpoint(partition_info *part_info,
       '2000-00-00' can be compared to '2000-01-01' but TO_DAYS('2000-00-00')
       returns NULL which cannot be compared used <, >, <=, >= etc.
 
-      Otherwise, just return the the first index (lowest value).
+      Otherwise, just return the first index (lowest value).
     */
     enum_monotonicity_info monotonic;
     monotonic= part_info->part_expr->get_monotonicity_info();
@@ -7626,7 +7625,7 @@ uint fast_alter_partition_table(THD *thd, TABLE *table,
         ERROR_INJECT("convert_partition_1") ||
         write_log_drop_shadow_frm(lpt) ||
         ERROR_INJECT("convert_partition_2") ||
-        mysql_write_frm(lpt, WFRM_WRITE_SHADOW) ||
+        mysql_write_frm(lpt, WFRM_WRITE_SHADOW|WFRM_ALTER_INFO_PREPARED) ||
         ERROR_INJECT("convert_partition_3") ||
         wait_while_table_is_used(thd, table, HA_EXTRA_NOT_USED) ||
         ERROR_INJECT("convert_partition_4") ||

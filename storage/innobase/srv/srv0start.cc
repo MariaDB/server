@@ -859,6 +859,8 @@ unused_undo:
   return DB_SUCCESS;
 }
 
+PRAGMA_DISABLE_CHECK_STACK_FRAME
+
 /** Open the configured number of dedicated undo tablespaces.
 @param[in]	create_new_undo	whether the undo tablespaces has to be created
 @param[in,out]	mtr		mini-transaction
@@ -920,6 +922,9 @@ dberr_t srv_undo_tablespaces_init(bool create_new_undo, mtr_t *mtr)
   return err;
 }
 
+PRAGMA_REENABLE_CHECK_STACK_FRAME
+
+
 /** Create the temporary file tablespace.
 @param[in]	create_new_db	whether we are creating a new database
 @return DB_SUCCESS or error code. */
@@ -975,12 +980,19 @@ srv_open_tmp_tablespace(bool create_new_db)
 	return(err);
 }
 
-/** Shutdown background threads, except the page cleaner. */
-static void srv_shutdown_threads()
+/** Shutdown background threads, except the page cleaner.
+@param init_abort set to true when InnoDB startup aborted */
+static void srv_shutdown_threads(bool init_abort= false)
 {
 	ut_ad(!srv_undo_sources);
 	srv_master_timer.reset();
-	srv_shutdown_state = SRV_SHUTDOWN_EXIT_THREADS;
+	/* In case of InnoDB start up aborted, Don't change
+	the srv_shutdown_state. Because innodb_shutdown()
+	does call innodb_preshutdown() which changes the
+	srv_shutdown_state back to SRV_SHUTDOWN_INITIATED */
+	if (!init_abort) {
+		srv_shutdown_state = SRV_SHUTDOWN_EXIT_THREADS;
+	}
 
 	if (purge_sys.enabled()) {
 		srv_purge_shutdown();
@@ -1050,7 +1062,7 @@ srv_init_abort_low(
 	}
 
 	srv_shutdown_bg_undo_sources();
-	srv_shutdown_threads();
+	srv_shutdown_threads(true);
 	return(err);
 }
 
@@ -1150,6 +1162,8 @@ inline lsn_t log_t::init_lsn() noexcept
   latch.wr_unlock();
   return lsn;
 }
+
+PRAGMA_DISABLE_CHECK_STACK_FRAME
 
 /** Start InnoDB.
 @param[in]	create_new_db	whether to create a new database
@@ -1287,21 +1301,8 @@ dberr_t srv_start(bool create_new_db)
 	}
 
 	if (os_aio_init()) {
-		ib::error() << "Cannot initialize AIO sub-system";
-
 		return(srv_init_abort(DB_ERROR));
 	}
-
-#ifdef LINUX_NATIVE_AIO
-	if (srv_use_native_aio) {
-		ib::info() << "Using Linux native AIO";
-	}
-#endif
-#ifdef HAVE_URING
-	if (srv_use_native_aio) {
-		ib::info() << "Using liburing";
-	}
-#endif
 
 	fil_system.create(srv_file_per_table ? 50000 : 5000);
 
@@ -1311,7 +1312,7 @@ dberr_t srv_start(bool create_new_db)
 
 	log_sys.create();
 	recv_sys.create();
-	lock_sys.create(srv_lock_table_size);
+	lock_sys.create(srv_lock_table_size = 5 * buf_pool.curr_size());
 
 	srv_startup_is_before_trx_rollback_phase = true;
 
@@ -1557,7 +1558,7 @@ dberr_t srv_start(bool create_new_db)
 		} else if (log_sys.file_size == srv_log_file_size
 			   && log_sys.format
 			   == (srv_encrypt_log
-			       ? log_t::FORMAT_ENC_10_8
+			       ? log_t::FORMAT_ENC_11
 			       : log_t::FORMAT_10_8)) {
 			/* No need to add or remove encryption,
 			upgrade, or resize. */
@@ -1928,6 +1929,8 @@ skip_monitors:
 
 	return(DB_SUCCESS);
 }
+
+PRAGMA_REENABLE_CHECK_STACK_FRAME
 
 /**
   Shutdown purge to make sure that there is no possibility that we call any

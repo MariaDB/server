@@ -1013,6 +1013,7 @@ public:
 };
 
 
+int check_if_log_table(const TABLE_LIST *table);
 int check_if_log_table(const TABLE_LIST *table, bool check_if_opened,
                        const char *errmsg);
 
@@ -1223,8 +1224,8 @@ inline bool normalize_binlog_name(char *to, const char *from, bool is_relay_log)
   /* opt_name is not null and not empty and from is a relative path */
   if (opt_name && opt_name[0] && from && !test_if_hard_path(from))
   {
-    // take the path from opt_name
-    // take the filename from from 
+    // take the path from "opt_name"
+    // take the filename from "from"
     char log_dirpart[FN_REFLEN], log_dirname[FN_REFLEN];
     size_t log_dirpart_len, log_dirname_len;
     dirname_part(log_dirpart, opt_name, &log_dirpart_len);

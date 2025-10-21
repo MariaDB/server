@@ -65,6 +65,7 @@
 #include "lock.h"
 #include "wsrep_mysqld.h"
 #include "sql_connect.h"
+#include "sql_cursor.h"                         //Select_materialize
 #ifdef WITH_WSREP
 #include "wsrep_thd.h"
 #include "wsrep_trans_observer.h"
@@ -914,7 +915,6 @@ THD::THD(my_thread_id id, bool is_wsrep_applier)
 
 #ifdef WITH_WSREP
   mysql_cond_init(key_COND_wsrep_thd, &COND_wsrep_thd, NULL);
-  wsrep_info[sizeof(wsrep_info) - 1] = '\0'; /* make sure it is 0-terminated */
 #endif
   /* Call to init() below requires fully initialized Open_tables_state. */
   reset_open_tables_state();
@@ -2080,7 +2080,7 @@ void THD::disconnect()
 
 #ifdef SIGNAL_WITH_VIO_CLOSE
   /*
-    Since a active vio might might have not been set yet, in
+    Since a active vio might have not been set yet, in
     any case save a reference to avoid closing a inexistent
     one or closing the vio twice if there is a active one.
   */
@@ -2399,7 +2399,7 @@ void THD::cleanup_after_query()
   if (!in_active_multi_stmt_transaction())
     wsrep_affected_rows= 0;
 #endif /* WITH_WSREP */
-
+  gap_tracker_data.init();
   DBUG_VOID_RETURN;
 }
 
@@ -5272,16 +5272,6 @@ extern "C" void thd_decrement_pending_ops(void *thd_)
 }
 
 
-unsigned long long thd_get_query_id(const MYSQL_THD thd)
-{
-  return((unsigned long long)thd->query_id);
-}
-
-void thd_clear_error(MYSQL_THD thd)
-{
-  thd->clear_error();
-}
-
 extern "C" const struct charset_info_st *thd_charset(MYSQL_THD thd)
 {
   return(thd->charset());
@@ -5683,12 +5673,6 @@ extern "C" int thd_binlog_format(const MYSQL_THD thd)
   return BINLOG_FORMAT_UNSPEC;
 }
 
-extern "C" void thd_mark_transaction_to_rollback(MYSQL_THD thd, bool all)
-{
-  DBUG_ASSERT(thd);
-  thd->mark_transaction_to_rollback(all);
-}
-
 extern "C" bool thd_binlog_filter_ok(const MYSQL_THD thd)
 {
   return binlog_filter->db_ok(thd->db.str);
@@ -5913,7 +5897,8 @@ void THD::reset_sub_statement_state(Sub_statement_state *backup,
   if (rpl_master_erroneous_autoinc(this))
   {
     DBUG_ASSERT(backup->auto_inc_intervals_forced.nb_elements() == 0);
-    auto_inc_intervals_forced.swap(&backup->auto_inc_intervals_forced);
+    backup->auto_inc_intervals_forced.copy_shallow(&auto_inc_intervals_forced);
+    MEM_UNDEFINED(&auto_inc_intervals_forced, sizeof auto_inc_intervals_forced);
   }
 #endif
   
@@ -5961,7 +5946,7 @@ void THD::restore_sub_statement_state(Sub_statement_state *backup)
    */
   if (rpl_master_erroneous_autoinc(this))
   {
-    backup->auto_inc_intervals_forced.swap(&auto_inc_intervals_forced);
+    auto_inc_intervals_forced.copy_shallow(&backup->auto_inc_intervals_forced);
     DBUG_ASSERT(backup->auto_inc_intervals_forced.nb_elements() == 0);
   }
 #endif
@@ -6374,6 +6359,8 @@ start_new_trans::start_new_trans(THD *thd)
   thd->server_status&= ~(SERVER_STATUS_IN_TRANS |
                          SERVER_STATUS_IN_TRANS_READONLY);
   thd->server_status|= SERVER_STATUS_AUTOCOMMIT;
+  org_rgi_slave= thd->rgi_slave;
+  thd->rgi_slave= NULL;
 }
 
 
@@ -6390,6 +6377,7 @@ void start_new_trans::restore_old_transaction()
     MYSQL_COMMIT_TRANSACTION(org_thd->m_transaction_psi);
   org_thd->m_transaction_psi= m_transaction_psi;
   org_thd->variables.wsrep_on= wsrep_on;
+  org_thd->rgi_slave= org_rgi_slave;
   org_thd= 0;
 }
 
@@ -7698,7 +7686,7 @@ bool THD::binlog_for_noop_dml(bool transactional_table)
 }
 
 
-#if defined(DBUG_TRACE) && !defined(_lint)
+#if defined(DBUG_TRACE)
 static const char *
 show_query_type(THD::enum_binlog_query_type qtype)
 {
@@ -7712,7 +7700,7 @@ show_query_type(THD::enum_binlog_query_type qtype)
     DBUG_ASSERT(0 <= qtype && qtype < THD::QUERY_TYPE_COUNT);
   }
   static char buf[64];
-  sprintf(buf, "UNKNOWN#%d", qtype);
+  snprintf(buf, sizeof(buf), "UNKNOWN#%d", qtype);
   return buf;
 }
 #endif
@@ -8082,7 +8070,7 @@ int THD::binlog_query(THD::enum_binlog_query_type qtype, char const *query_arg,
 
   The filter is in decide_logging_format() to mark queries to not be stored
   in the binary log, for example by a shared distributed engine like S3.
-  This function resets the filter to ensure the the query is logged if
+  This function resets the filter to ensure the query is logged if
   the binlog is active.
 
   Note that 'direct' is set to false, which means that the query will
@@ -8524,16 +8512,19 @@ void mariadb_sleep_for_space(unsigned int seconds)
 {
   THD *thd= current_thd;
   PSI_stage_info old_stage;
+  struct timespec abstime;
   if (!thd)
   {
     sleep(seconds);
     return;
   }
- mysql_mutex_lock(&thd->LOCK_wakeup_ready);
+  set_timespec(abstime, seconds);
+  mysql_mutex_lock(&thd->LOCK_wakeup_ready);
   thd->ENTER_COND(&thd->COND_wakeup_ready, &thd->LOCK_wakeup_ready,
                   &stage_waiting_for_disk_space, &old_stage);
   if (!thd->killed)
-    mysql_cond_wait(&thd->COND_wakeup_ready, &thd->LOCK_wakeup_ready);
+    mysql_cond_timedwait(&thd->COND_wakeup_ready, &thd->LOCK_wakeup_ready,
+                         &abstime);
   thd->EXIT_COND(&old_stage);
   return;
 }
@@ -8732,4 +8723,10 @@ void Charset_loader_server::raise_not_applicable_error(const char *cs,
                                                        const char *cl) const
 {
   my_error(ER_COLLATION_CHARSET_MISMATCH, MYF(0), cl, cs);
+}
+
+
+bool THD::is_cursor_execution() const
+{
+  return dynamic_cast<Select_materialize*>(this->lex->result);
 }

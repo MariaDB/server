@@ -258,6 +258,29 @@ public:
     Seconds_Behind_Master as zero while the SQL thread is so waiting.
   */
   bool sql_thread_caught_up;
+  /**
+    Simple setter for @ref worker_threads_caught_up;
+    sets it `false` to indicate new user events in queue
+    @pre @ref data_lock held to prevent race with is_threads_caught_up()
+  */
+  inline void unset_worker_threads_caught_up()
+  {
+    mysql_mutex_assert_owner(&data_lock);
+    worker_threads_caught_up= false;
+  }
+  /**
+    @return
+      `true` if both @ref sql_thread_caught_up and (refresh according to
+      @ref last_inuse_relaylog as needed) @ref worker_threads_caught_up
+    @pre Only meaningful if `mi->using_parallel()`
+    @pre @ref data_lock held to prevent race condition
+    @note
+      Parallel replication requires the idleness of the main SQL thread as well,
+      because after the thread sets its state to "busy" with `data_lock` held,
+      it enqueues events *without this lock*. Not to mention any event the main
+      thread processes itself without distribution, e.g., ignored ones.
+  */
+  bool are_sql_threads_caught_up();
 
   void clear_until_condition();
   /**
@@ -588,6 +611,22 @@ private:
     relay log.
   */
   uint32 m_flags;
+
+  /**
+    When `true`, this worker threads' copy of @ref sql_thread_caught_up
+    represents that __every__ worker thread is waiting for new events.
+    * The SQL driver thread sets this to `false` through
+      unset_worker_threads_caught_up() as it prepares an event
+      (either to enqueue a worker or, e.g., ignored events, process itself)
+    * For the main driver or any worker thread to refresh this state immediately
+      when it finishes, the procedure would have to be a critical section.
+      To avoid depending on a mutex, this state instead only returns to `true`
+      as part of its reader, are_worker_threads_caught_up().
+      `Seconds_Behind_Master` of SHOW SLAVE STATUS uses this method (which also
+      reads `sql_thread_caught_up`) to know when all SQL threads are waiting.
+    @pre Only meaningful if `mi->using_parallel()`
+  */
+  bool worker_threads_caught_up= true;
 };
 
 

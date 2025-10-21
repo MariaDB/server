@@ -255,12 +255,6 @@ explain select * from t1 where a=1 or b=1	{
           }
         ]
       }
-    },
-    {
-      "join_execution": {
-        "select_id": 1,
-        "steps": []
-      }
     }
   ]
 }	0	0

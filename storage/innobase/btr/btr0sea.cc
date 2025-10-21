@@ -276,7 +276,7 @@ ATTRIBUTE_COLD void btr_search_enable(bool resize)
 	}
 
 	btr_search_x_lock_all();
-	ulint hash_size = buf_pool.curr_size() / sizeof(void *) / 64;
+	ulint hash_size = buf_pool.curr_pool_size() / sizeof(void *) / 64;
 
 	if (btr_search_sys.parts[0].heap) {
 		ut_ad(btr_search_enabled);

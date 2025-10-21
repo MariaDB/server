@@ -42,8 +42,8 @@ Ignored	NO
 MyISAM file:         DATADIR/test/t1
 Record format:       Packed
 Character set:       latin1_swedish_ci (8)
-Data records:                   10  Deleted blocks:                 0
-Recordlength:                   12
+Data records:                     10  Deleted blocks:                      0
+Recordlength:                     12
 
 table description:
 Key Start Len Index   Type
@@ -130,8 +130,8 @@ insert into t1 values(1),(2),(3),(4),(5),(8),(7);
 MyISAM file:         DATADIR/test/t1
 Record format:       Packed
 Character set:       latin1_swedish_ci (8)
-Data records:                    7  Deleted blocks:                 0
-Recordlength:                   12
+Data records:                      7  Deleted blocks:                      0
+Recordlength:                     12
 
 table description:
 Key Start Len Index   Type
@@ -365,8 +365,8 @@ t1	0	e	1	e	A	NULL	NULL	NULL	YES	HASH			NO
 MyISAM file:         DATADIR/test/t1
 Record format:       Packed
 Character set:       latin1_swedish_ci (8)
-Data records:                    8  Deleted blocks:                 0
-Recordlength:                 3040
+Data records:                      8  Deleted blocks:                      0
+Recordlength:                   3040
 
 table description:
 Key Start Len Index   Type
@@ -722,8 +722,8 @@ t1	0	b	4	h	A	NULL	NULL	NULL	YES	HASH			NO
 MyISAM file:         DATADIR/test/t1
 Record format:       Packed
 Character set:       latin1_swedish_ci (8)
-Data records:                    9  Deleted blocks:                 0
-Recordlength:                 5059
+Data records:                      9  Deleted blocks:                      0
+Recordlength:                   5059
 
 table description:
 Key Start Len Index   Type
@@ -1242,6 +1242,7 @@ t1	CREATE TABLE `t1` (
 insert into t1 value(concat(repeat('s',3000),'1'));
 insert into t1 value(concat(repeat('s',3000),'2'));
 ERROR 23000: Duplicate entry 'sssssssssssssssssssssssssssssssssssssssssssssssssssssssssssss...' for key 'a'
+update t1 set a=     concat(repeat('s',3000),'2');
 insert into t1 value(concat(repeat('a',3000),'2'));
 drop table t1;
 create table t1(a varchar(4000), b longblob , c varchar(5000), d longblob, 

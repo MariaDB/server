@@ -35,8 +35,8 @@ extern "C"				/* Bug in BSDI include file */
 #include <cmath>
 
 
-extern int st_append_json(String *s,
-             CHARSET_INFO *json_cs, const uchar *js, uint js_len);
+extern bool st_append_json(String *s,
+              CHARSET_INFO *json_cs, const uchar *js, uint js_len);
 class Item_func :public Item_func_or_sum
 {
   void sync_with_sum_func_and_with_field(List<Item> &list);
@@ -84,6 +84,8 @@ protected:
   {
     return print_sql_mode_qualified_name(to, query_type, func_name_cstring());
   }
+
+  void update_nullability_post_fix_fields();
 
 public:
 
@@ -224,7 +226,7 @@ public:
     DBUG_ENTER("Item_func::get_mm_tree");
     DBUG_RETURN(const_item() ? get_mm_tree_for_const(param) : NULL);
   }
-  bool eq(const Item *item, bool binary_cmp) const override;
+  bool eq(const Item *item, const Eq_config &config) const override;
   virtual Item *key_item() const { return args[0]; }
   void set_arguments(THD *thd, List<Item> &list)
   {
@@ -1116,8 +1118,8 @@ protected:
   inline void fix_decimals()
   {
     DBUG_ASSERT(result_type() == DECIMAL_RESULT);
-    if (decimals == NOT_FIXED_DEC)
-      set_if_smaller(decimals, max_length - 1);
+    if (decimals == NOT_FIXED_DEC && decimals >= max_length)
+      decimals= decimal_digits_t(max_length - 1);
   }
 
 public:
@@ -1505,7 +1507,8 @@ public:
   {
     return args[0]->type_handler()->Item_func_unsigned_fix_length_and_dec(this);
   }
-  decimal_digits_t decimal_precision() const override { return max_length; }
+  decimal_digits_t decimal_precision() const override
+  { return decimal_digits_t(max_length); }
   void print(String *str, enum_query_type query_type) override;
   Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_func_unsigned>(thd, this); }
@@ -1516,7 +1519,8 @@ class Item_decimal_typecast :public Item_func
 {
   my_decimal decimal_value;
 public:
-  Item_decimal_typecast(THD *thd, Item *a, uint len, decimal_digits_t dec)
+  Item_decimal_typecast(THD *thd, Item *a,
+                        decimal_digits_t len, decimal_digits_t dec)
    :Item_func(thd, a)
   {
     decimals= dec;
@@ -3543,7 +3547,7 @@ public:
   bool const_item() const override;
   table_map used_tables() const override
   { return const_item() ? 0 : RAND_TABLE_BIT; }
-  bool eq(const Item *item, bool binary_cmp) const override;
+  bool eq(const Item *item, const Eq_config &config) const override;
   Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_func_get_user_var>(thd, this); }
 private:
@@ -3687,7 +3691,7 @@ public:
     @return true if the variable is written to the binlog, false otherwise.
   */
   bool is_written_to_binlog();
-  bool eq(const Item *item, bool binary_cmp) const override;
+  bool eq(const Item *item, const Eq_config &config) const override;
 
   void cleanup() override;
   bool check_vcol_func_processor(void *arg) override;
@@ -3742,7 +3746,7 @@ public:
     return false;
   }
   bool fix_fields(THD *thd, Item **ref) override;
-  bool eq(const Item *, bool binary_cmp) const override;
+  bool eq(const Item *, const Eq_config &config) const override;
   /* The following should be safe, even if we compare doubles */
   longlong val_int() override { DBUG_ASSERT(fixed()); return val_real() != 0.0; }
   double val_real() override;
@@ -4234,7 +4238,7 @@ class Item_func_nextval :public Item_longlong_func
 protected:
   TABLE_LIST *table_list;
   TABLE *table;
-  bool check_access_and_fix_fields(THD *, Item **ref, privilege_t);
+  bool check_access(THD *, privilege_t);
 public:
   Item_func_nextval(THD *thd, TABLE_LIST *table_list_arg):
   Item_longlong_func(thd), table_list(table_list_arg) {}
@@ -4245,7 +4249,13 @@ public:
     return name;
   }
   bool fix_fields(THD *thd, Item **ref) override
-  { return check_access_and_fix_fields(thd, ref, INSERT_ACL | SELECT_ACL); }
+  {
+    /* Don't check privileges, if it's parse_vcol_defs() */
+    return (table_list->table && check_sequence_privileges(thd)) ||
+           Item_longlong_func::fix_fields(thd, ref);
+  }
+  bool check_sequence_privileges(void *thd) override
+  { return check_access((THD*)thd, INSERT_ACL | SELECT_ACL); }
   bool fix_length_and_dec(THD *thd) override
   {
     unsigned_flag= 0;
@@ -4287,8 +4297,8 @@ class Item_func_lastval :public Item_func_nextval
 public:
   Item_func_lastval(THD *thd, TABLE_LIST *table_list_arg):
   Item_func_nextval(thd, table_list_arg) {}
-  bool fix_fields(THD *thd, Item **ref) override
-  { return check_access_and_fix_fields(thd, ref, SELECT_ACL); }
+  bool check_sequence_privileges(void *thd) override
+  { return check_access((THD*)thd, SELECT_ACL); }
   longlong val_int() override;
   LEX_CSTRING func_name_cstring() const override
   {
@@ -4313,8 +4323,8 @@ public:
     : Item_func_nextval(thd, table_list_arg),
     nextval(nextval_arg), round(round_arg), is_used(is_used_arg)
   {}
-  bool fix_fields(THD *thd, Item **ref) override
-  { return check_access_and_fix_fields(thd, ref, INSERT_ACL); }
+  bool check_sequence_privileges(void *thd) override
+  { return check_access((THD*)thd, INSERT_ACL); }
   longlong val_int() override;
   LEX_CSTRING func_name_cstring() const override
   {

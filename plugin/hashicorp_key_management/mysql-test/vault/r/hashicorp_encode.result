@@ -1,7 +1,7 @@
 SHOW GLOBAL variables LIKE "hashicorp%";
 Variable_name	Value
-hashicorp_key_management_cache_timeout	60000
-hashicorp_key_management_cache_version_timeout	0
+hashicorp_key_management_cache_timeout	86400000
+hashicorp_key_management_cache_version_timeout	60000
 hashicorp_key_management_caching_enabled	ON
 hashicorp_key_management_check_kv_version	OFF
 hashicorp_key_management_max_retries	3

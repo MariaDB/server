@@ -36,46 +36,6 @@ constexpr uint32_t MIN_4BYTE= MIN_3BYTE + (1 << 21);
 /** Minimum 5-byte integer (0b11110000 xxxxxxxx xxxxxxxx xxxxxxxx xxxxxxxx) */
 constexpr uint32_t MIN_5BYTE= MIN_4BYTE + (1 << 28);
 
-/** Error from mlog_decode_varint() */
-constexpr uint32_t MLOG_DECODE_ERROR= ~0U;
-
-/** Decode the length of a variable-length encoded integer.
-@param first  first byte of the encoded integer
-@return the length, in bytes */
-inline uint8_t mlog_decode_varint_length(byte first)
-{
-  uint8_t len= 1;
-  for (; first & 0x80; len++, first= static_cast<uint8_t>(first << 1));
-  return len;
-}
-
-/** Decode an integer in a redo log record.
-@param log    redo log record buffer
-@return the decoded integer
-@retval MLOG_DECODE_ERROR on error */
-template<typename byte_pointer>
-inline uint32_t mlog_decode_varint(const byte_pointer log)
-{
-  uint32_t i= *log;
-  if (i < MIN_2BYTE)
-    return i;
-  if (i < 0xc0)
-    return MIN_2BYTE + ((i & ~0x80) << 8 | log[1]);
-  if (i < 0xe0)
-    return MIN_3BYTE + ((i & ~0xc0) << 16 | uint32_t{log[1]} << 8 | log[2]);
-  if (i < 0xf0)
-    return MIN_4BYTE + ((i & ~0xe0) << 24 | uint32_t{log[1]} << 16 |
-                        uint32_t{log[2]} << 8 | log[3]);
-  if (i == 0xf0)
-  {
-    i= uint32_t{log[1]} << 24 | uint32_t{log[2]} << 16 |
-      uint32_t{log[3]} << 8 | log[4];
-    if (i <= ~MIN_5BYTE)
-      return MIN_5BYTE + i;
-  }
-  return MLOG_DECODE_ERROR;
-}
-
 /** Encode an integer in a redo log record.
 @param log  redo log record buffer
 @param i    the integer to encode
@@ -111,7 +71,7 @@ inline byte *mlog_encode_varint(byte *log, size_t i)
   }
   else
   {
-    ut_ad(i < MLOG_DECODE_ERROR);
+    ut_ad(i == uint32_t(i));
     i-= MIN_5BYTE;
     *log++= 0xf0;
     *log++= static_cast<byte>(i >> 24);
@@ -125,42 +85,6 @@ last2:
 #endif
   *log++= static_cast<byte>(i);
   return log;
-}
-
-/** Determine the length of a log record.
-@param log  start of log record
-@param end  end of the log record buffer
-@return the length of the record, in bytes
-@retval 0                 if the log extends past the end
-@retval MLOG_DECODE_ERROR if the record is corrupted */
-inline uint32_t mlog_decode_len(const byte *log, const byte *end)
-{
-  ut_ad(log < end);
-  uint32_t i= *log;
-  if (!i)
-    return 0; /* end of mini-transaction */
-  if (~i & 15)
-    return (i & 15) + 1; /* 1..16 bytes */
-  if (UNIV_UNLIKELY(++log == end))
-    return 0; /* end of buffer */
-  i= *log;
-  if (UNIV_LIKELY(i < MIN_2BYTE)) /* 1 additional length byte: 16..143 bytes */
-    return 16 + i;
-  if (i < 0xc0) /* 2 additional length bytes: 144..16,527 bytes */
-  {
-    if (UNIV_UNLIKELY(log + 1 == end))
-      return 0; /* end of buffer */
-    return 16 + MIN_2BYTE + ((i & ~0xc0) << 8 | log[1]);
-  }
-  if (i < 0xe0) /* 3 additional length bytes: 16528..1065103 bytes */
-  {
-    if (UNIV_UNLIKELY(log + 2 == end))
-      return 0; /* end of buffer */
-    return 16 + MIN_3BYTE + ((i & ~0xe0) << 16 |
-                             static_cast<uint32_t>(log[1]) << 8 | log[2]);
-  }
-  /* 1,065,103 bytes per log record ought to be enough for everyone */
-  return MLOG_DECODE_ERROR;
 }
 
 /** Write 1, 2, 4, or 8 bytes to a file page.

@@ -149,6 +149,7 @@ enum fsp_reserve_t {
 	FSP_CLEANING,	/* reservation done during purge operations */
 	FSP_BLOB	/* reservation being done for BLOB insertion */
 };
+#endif /* UNIV_INNOCHECKSUM */
 
 /* Number of pages described in a single descriptor page: currently each page
 description takes less than 1 byte; a descriptor page is repeated every
@@ -189,6 +190,7 @@ every XDES_DESCRIBED_PER_PAGE pages in every tablespace. */
 /*--------------------------------------*/
 /* @} */
 
+#ifndef UNIV_INNOCHECKSUM
 /** Check if tablespace is system temporary.
 @param[in]      space_id        verify is checksum is enabled for given space.
 @return true if tablespace is system temporary. */

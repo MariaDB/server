@@ -136,7 +136,7 @@ bool Item_sum::init_sum_func_check(THD *thd)
     If the context conditions are not met the method reports an error.
     If the set function is aggregated in some outer subquery the method
     adds it to the chain of items for such set functions that is attached
-    to the the st_select_lex structure for this subquery.
+    to the st_select_lex structure for this subquery.
 
     A number of designated members of the object are used to check the
     conditions. They are specified in the comment before the Item_sum
@@ -1365,8 +1365,16 @@ Item_sum_sp::fix_fields(THD *thd, Item **ref)
     return TRUE;
   }
 
-  if (init_result_field(thd, max_length, maybe_null(), &null_value, &name))
-    return TRUE;
+  Query_arena *arena, backup;
+  arena= thd->activate_stmt_arena_if_needed(&backup);
+
+  bool ret= init_result_field(thd, max_length, maybe_null(),
+                              &null_value, &name);
+  if (arena)
+    thd->restore_active_arena(arena, &backup);
+
+  if(ret)
+    return true;
 
   for (uint i= 0 ; i < arg_count ; i++)
   {
@@ -4380,7 +4388,7 @@ bool Item_func_group_concat::setup(THD *thd)
     /*
       Convert bit fields to bigint's in the temporary table.
       Needed as we cannot compare two table records containing BIT fields
-      stored in the the tree used for distinct/order by.
+      stored in the tree used for distinct/order by.
       Moreover we don't even save in the tree record null bits 
       where BIT fields store parts of their data.
     */

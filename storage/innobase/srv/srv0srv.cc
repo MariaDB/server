@@ -137,6 +137,10 @@ OS (provided we compiled Innobase with it in), otherwise we will
 use simulated aio we build below with threads.
 Currently we support native aio on windows and linux */
 my_bool	srv_use_native_aio;
+#ifdef __linux__
+/* This enum is defined which linux native io method to use */
+ulong	srv_linux_aio_method;
+#endif
 my_bool	srv_numa_interleave;
 /** copy of innodb_use_atomic_writes; @see innodb_init_params() */
 my_bool	srv_use_atomic_writes;
@@ -770,6 +774,10 @@ srv_printf_innodb_monitor(
 		for (ulint i = 0; i < btr_ahi_parts; ++i) {
 			const auto part= &btr_search_sys.parts[i];
 			part->latch.rd_lock(SRW_LOCK_CALL);
+			if (!btr_search_enabled) {
+				part->latch.rd_unlock();
+				break;
+			}
 			ut_ad(part->heap->type == MEM_HEAP_FOR_BTR_SEARCH);
 			fprintf(file, "Hash table size " ULINTPF
 				", node heap has " ULINTPF " buffer(s)\n",

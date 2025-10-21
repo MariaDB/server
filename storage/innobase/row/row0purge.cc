@@ -1080,78 +1080,6 @@ row_purge_del_mark(
   return result;
 }
 
-/** Reset DB_TRX_ID, DB_ROLL_PTR of a clustered index record
-whose old history can no longer be observed.
-@param[in,out]	node	purge node
-@param[in,out]	mtr	mini-transaction (will be started and committed) */
-static void row_purge_reset_trx_id(purge_node_t* node, mtr_t* mtr)
-{
-	/* Reset DB_TRX_ID, DB_ROLL_PTR for old records. */
-	mtr->start();
-
-	if (row_purge_reposition_pcur(BTR_MODIFY_LEAF, node, mtr)) {
-		dict_index_t*	index = dict_table_get_first_index(
-			node->table);
-		ulint	trx_id_pos = index->n_uniq ? index->n_uniq : 1;
-		rec_t*	rec = btr_pcur_get_rec(&node->pcur);
-		mem_heap_t*	heap = NULL;
-		/* Reserve enough offsets for the PRIMARY KEY and 2 columns
-		so that we can access DB_TRX_ID, DB_ROLL_PTR. */
-		rec_offs offsets_[REC_OFFS_HEADER_SIZE + MAX_REF_PARTS + 3];
-		rec_offs_init(offsets_);
-		rec_offs*	offsets = rec_get_offsets(
-			rec, index, offsets_, index->n_core_fields,
-			trx_id_pos + 2, &heap);
-		ut_ad(heap == NULL);
-
-		ut_ad(dict_index_get_nth_field(index, trx_id_pos)
-		      ->col->mtype == DATA_SYS);
-		ut_ad(dict_index_get_nth_field(index, trx_id_pos)
-		      ->col->prtype == (DATA_TRX_ID | DATA_NOT_NULL));
-		ut_ad(dict_index_get_nth_field(index, trx_id_pos + 1)
-		      ->col->mtype == DATA_SYS);
-		ut_ad(dict_index_get_nth_field(index, trx_id_pos + 1)
-		      ->col->prtype == (DATA_ROLL_PTR | DATA_NOT_NULL));
-
-		/* Only update the record if DB_ROLL_PTR matches (the
-		record has not been modified after this transaction
-		became purgeable) */
-		if (node->roll_ptr
-		    == row_get_rec_roll_ptr(rec, index, offsets)) {
-			ut_ad(!rec_get_deleted_flag(
-					rec, rec_offs_comp(offsets))
-			      || rec_is_alter_metadata(rec, *index));
-			DBUG_LOG("purge", "reset DB_TRX_ID="
-				 << ib::hex(row_get_rec_trx_id(
-						    rec, index, offsets)));
-
-			index->set_modified(*mtr);
-			buf_block_t* block = btr_pcur_get_block(&node->pcur);
-			if (UNIV_LIKELY_NULL(block->page.zip.data)) {
-				page_zip_write_trx_id_and_roll_ptr(
-					block, rec, offsets, trx_id_pos,
-					0, 1ULL << ROLL_PTR_INSERT_FLAG_POS,
-					mtr);
-			} else {
-				ulint	len;
-				byte*	ptr = rec_get_nth_field(
-					rec, offsets, trx_id_pos, &len);
-				ut_ad(len == DATA_TRX_ID_LEN);
-				size_t offs = ptr - block->page.frame;
-				mtr->memset(block, offs, DATA_TRX_ID_LEN, 0);
-				offs += DATA_TRX_ID_LEN;
-				mtr->write<1,mtr_t::MAYBE_NOP>(
-					*block, block->page.frame + offs,
-					0x80U);
-				mtr->memset(block, offs + 1,
-					    DATA_ROLL_PTR_LEN - 1, 0);
-			}
-		}
-	}
-
-	mtr->commit();
-}
-
 /***********************************************************//**
 Purges an update of an existing record. Also purges an update of a delete
 marked record if that record contained an externally stored field. */
@@ -1281,8 +1209,6 @@ skip_secondaries:
 			mtr.commit();
 		}
 	}
-
-	row_purge_reset_trx_id(node, &mtr);
 }
 
 #ifdef UNIV_DEBUG
@@ -1578,8 +1504,6 @@ row_purge_record_func(
 		/* fall through */
 	default:
 		if (!updated_extern) {
-			mtr_t		mtr;
-			row_purge_reset_trx_id(node, &mtr);
 			break;
 		}
 		/* fall through */

@@ -481,7 +481,7 @@ else()
       util/crc32c_ppc_asm.S)
   endif(CMAKE_SYSTEM_PROCESSOR MATCHES "ppc64")
   # aarch
-  if(CMAKE_SYSTEM_PROCESSOR MATCHES "aarch64|AARCH64")
+  if(CMAKE_SYSTEM_PROCESSOR MATCHES "arm64|aarch64|AARCH64")
     INCLUDE(CheckCXXCompilerFlag)
     CHECK_CXX_COMPILER_FLAG("-march=armv8-a+crc+crypto" HAS_ARMV8_CRC)
     if(HAS_ARMV8_CRC)
@@ -490,7 +490,7 @@ else()
       list(APPEND ROCKSDB_SOURCES
         util/crc32c_arm64.cc)
     endif(HAS_ARMV8_CRC)
-  endif(CMAKE_SYSTEM_PROCESSOR MATCHES "aarch64|AARCH64")
+  endif(CMAKE_SYSTEM_PROCESSOR MATCHES "arm64|aarch64|AARCH64")
 endif()
 SET(SOURCES)
 FOREACH(s ${ROCKSDB_SOURCES})
@@ -507,6 +507,10 @@ if(MSVC)
   # Workaround Win8.1 SDK bug, that breaks /permissive-
   string(REPLACE "/permissive-" "" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
 else()
+  set_source_files_properties(${ROCKSDB_SOURCE_DIR}/options/db_options.cc
+    PROPERTIES COMPILE_FLAGS "-Wframe-larger-than=40960")
+  set_source_files_properties(${ROCKSDB_SOURCE_DIR}/options/cf_options.cc
+    PROPERTIES COMPILE_FLAGS "-Wframe-larger-than=32768")
   set(CMAKE_REQUIRED_FLAGS "-msse4.2 -mpclmul ${CXX11_FLAGS}")
 
   CHECK_CXX_SOURCE_COMPILES("

@@ -1050,7 +1050,7 @@ uint week_mode(uint mode)
       		   	  If set	Monday is first day of week
    WEEK_YEAR (1)	  If not set	Week is in range 0-53
 
-   	Week 0 is returned for the the last week of the previous year (for
+   	Week 0 is returned for the last week of the previous year (for
 	a date at start of january) In this case one can get 53 for the
 	first week of next year.  This flag ensures that the week is
 	relevant for the given year. Note that this flag is only
@@ -1782,7 +1782,7 @@ bool Item_func_date_format::fix_length_and_dec(THD *thd)
 }
 
 
-bool Item_func_date_format::eq(const Item *item, bool binary_cmp) const
+bool Item_func_date_format::eq(const Item *item, const Eq_config &config) const
 {
   Item_func_date_format *item_func;
 
@@ -1795,7 +1795,7 @@ bool Item_func_date_format::eq(const Item *item, bool binary_cmp) const
   item_func= (Item_func_date_format*) item;
   if (arg_count != item_func->arg_count)
     return 0;
-  if (!args[0]->eq(item_func->args[0], binary_cmp))
+  if (!args[0]->eq(item_func->args[0], config))
     return 0;
   /*
     We must compare format string case sensitive.
@@ -2885,9 +2885,9 @@ bool Func_handler_date_add_interval_datetime_arg0_time::
 }
 
 
-bool Item_date_add_interval::eq(const Item *item, bool binary_cmp) const
+bool Item_date_add_interval::eq(const Item *item, const Eq_config &config) const
 {
-  if (!Item_func::eq(item, binary_cmp))
+  if (!Item_func::eq(item, config))
     return 0;
   Item_date_add_interval *other= (Item_date_add_interval*) item;
   return ((int_type == other->int_type) &&
@@ -3020,7 +3020,7 @@ longlong Item_extract::val_int()
   return 0;                                        // Impossible
 }
 
-bool Item_extract::eq(const Item *item, bool binary_cmp) const
+bool Item_extract::eq(const Item *item, const Eq_config &config) const
 {
   if (this == item)
     return 1;
@@ -3032,13 +3032,13 @@ bool Item_extract::eq(const Item *item, bool binary_cmp) const
   if (ie->int_type != int_type)
     return 0;
 
-  if (!args[0]->eq(ie->args[0], binary_cmp))
+  if (!args[0]->eq(ie->args[0], config))
       return 0;
   return 1;
 }
 
 
-bool Item_char_typecast::eq(const Item *item, bool binary_cmp) const
+bool Item_char_typecast::eq(const Item *item, const Eq_config &config) const
 {
   if (this == item)
     return 1;
@@ -3051,7 +3051,7 @@ bool Item_char_typecast::eq(const Item *item, bool binary_cmp) const
       cast_cs     != cast->cast_cs)
     return 0;
 
-  if (!args[0]->eq(cast->args[0], binary_cmp))
+  if (!args[0]->eq(cast->args[0], config))
       return 0;
   return 1;
 }

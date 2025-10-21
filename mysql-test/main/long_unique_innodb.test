@@ -1,4 +1,5 @@
 --source include/have_innodb.inc
+--source include/have_partition.inc
 
 #
 # MDEV-371 Unique indexes for blobs
@@ -143,3 +144,36 @@ disconnect con2;
 
 --error ER_TOO_LONG_KEY
 create table t1 (a text, primary key(a(1871))) engine=innodb;
+
+--echo # End of 10.4 tests
+
+--echo #
+--echo # MDEV-37268 ER_NOT_KEYFILE or assertion failure upon REPLACE into table with unique hash under READ-COMMITTED
+--echo #
+create table t1 (id int not null primary key, f varchar(100), unique(f) using hash) engine=innodb;
+insert t1 values (1,'x');
+set transaction isolation level read committed;
+replace t1 values (2,'x');
+select * from t1;
+drop table t1;
+
+create table t1 (id int, f longtext, primary key (id), unique(f)) engine=innodb partition by key (id) partitions 9;
+insert t1 (id) values (1),(2);
+set transaction isolation level read committed;
+--error ER_NOT_SUPPORTED_YET
+update ignore t1 set f = 'x';
+select * from t1;
+drop table t1;
+
+--echo #
+--echo # MDEV-37310 Non-debug failing assertion node->pcur->rel_pos == BTR_PCUR_ON upon violating long unique under READ-COMMITTED
+--echo #
+create table t1 (id int, f blob, unique(id,f)) engine=innodb partition by key(id) partitions 2;
+insert t1 values (1,'foo'),(2,'foo');
+set transaction isolation level read committed;
+--error ER_NOT_SUPPORTED_YET
+update ignore t1 set id = 2;
+select * from t1;
+drop table t1;
+
+--echo # End of 10.6 tests

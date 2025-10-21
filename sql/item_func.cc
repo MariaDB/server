@@ -291,6 +291,37 @@ bool Item_func::check_argument_types_scalar(uint start, uint end) const
 }
 
 
+/**
+  @brief
+  Update function's nullability based on nullness of its arguments
+
+  @details
+  Functions like `IFNULL` and `COALESCE` decide nullability of their
+  result after checking all the arguments. If any of the argument
+  is NOT NULL, function's result is also set to NOT NULL.
+  Note: Nullability determined here may be reset by type handlers in
+  `Item_hybrid_func_fix_attributes()`, if the first non-null argument
+  cannot be safely converted to target data type.
+  E.g. Type_handler_inet6 does:
+    IFNULL(inet6_not_null_expr, 'foo') -> INET6 NULL
+    IFNULL(inet6_not_null_expr, '::1') -> INET6 NOT NULL
+*/
+void Item_func::update_nullability_post_fix_fields()
+{
+  if (!maybe_null())
+    return;
+
+  for (uint i= 0; i < arg_count; i++)
+  {
+    if (!args[i]->maybe_null())
+    {
+      base_flags &= ~item_base_t::MAYBE_NULL;
+      break;
+    }
+  }
+}
+
+
 /*
   Resolve references to table column for a function and its argument
 
@@ -660,7 +691,7 @@ void Item_func::print_op(String *str, enum_query_type query_type)
 }
 
 
-bool Item_func::eq(const Item *item, bool binary_cmp) const
+bool Item_func::eq(const Item *item, const Eq_config &config) const
 {
   /* Assume we don't have rtti */
   if (this == item)
@@ -680,7 +711,7 @@ bool Item_func::eq(const Item *item, bool binary_cmp) const
       (func_type == Item_func::FUNC_SP &&
        my_strcasecmp(system_charset_info, func_name(), item_func->func_name())))
     return 0;
-  return Item_args::eq(item_func, binary_cmp);
+  return Item_args::eq(item_func, config);
 }
 
 
@@ -2826,6 +2857,7 @@ bool Item_func_rand::fix_fields(THD *thd,Item **ref)
   if (Item_real_func::fix_fields(thd, ref))
     return TRUE;
   used_tables_cache|= RAND_TABLE_BIT;
+  thd->lex->safe_to_cache_query= 0;
   if (arg_count)
   {					// Only use argument once in query
     /*
@@ -3215,7 +3247,10 @@ longlong Item_func_locate::val_int()
     start0= start= args[2]->val_int();
 
     if ((start <= 0) || (start > a->length()))
+    {
+      null_value= args[2]->is_null();
       return 0;
+    }
     start0--; start--;
 
     /* start is now sufficiently valid to pass to charpos function */
@@ -4860,7 +4895,7 @@ Item_func_set_user_var::fix_length_and_dec(THD *thd)
   Mark field in read_map
 
   NOTES
-    This is used by filesort to register used fields in a a temporary
+    This is used by filesort to register used fields in a temporary
     column read set or to register used fields in a view
 */
 
@@ -5767,7 +5802,7 @@ void Item_func_get_user_var::print(String *str, enum_query_type query_type)
 }
 
 
-bool Item_func_get_user_var::eq(const Item *item, bool binary_cmp) const
+bool Item_func_get_user_var::eq(const Item *item, const Eq_config &config) const
 {
   /* Assume we don't have rtti */
   if (this == item)
@@ -6160,7 +6195,7 @@ double Item_func_get_system_var::val_real()
 }
 
 
-bool Item_func_get_system_var::eq(const Item *item, bool binary_cmp) const
+bool Item_func_get_system_var::eq(const Item *item, const Eq_config &config) const
 {
   /* Assume we don't have rtti */
   if (this == item)
@@ -6445,7 +6480,7 @@ err:
 }
 
 
-bool Item_func_match::eq(const Item *item, bool binary_cmp) const
+bool Item_func_match::eq(const Item *item, const Eq_config &config) const
 {
   if (item->type() != FUNC_ITEM ||
       ((Item_func*)item)->functype() != FT_FUNC ||
@@ -6455,7 +6490,7 @@ bool Item_func_match::eq(const Item *item, bool binary_cmp) const
   Item_func_match *ifm=(Item_func_match*) item;
 
   if (key == ifm->key && table == ifm->table &&
-      key_item()->eq(ifm->key_item(), binary_cmp))
+      key_item()->eq(ifm->key_item(), config))
     return 1;
 
   return 0;
@@ -6805,12 +6840,29 @@ Item_func_sp::fix_fields(THD *thd, Item **ref)
     DBUG_RETURN(TRUE);
   }
 
+  Query_arena *arena, backup;
+  /*
+    Allocation an instance of Item_func_sp used for initialization of
+    sp_result_field taken place inside the method init_result_field() is done
+    on sp_head's mem_root since Item_sp also allocated on this memory root.
+
+    Switching to SP/PS memory root is done explicitly before calling the method
+    init_result_field() instead doing that inside init_result_field()
+    since for the case when rollup aggregate function is handled
+    (@see Item_sum_sp::copy_or_same, @see JOIN::rollup_make_fields)
+    the runtime arena used for operations, so switching to SP/PS arena for this
+    case would result in assertion failure on second execution of the same
+    prepared statement because the memory root be already marked as read only.
+  */
+  arena= thd->activate_stmt_arena_if_needed(&backup);
   /*
     We must call init_result_field before Item_func::fix_fields()
     to make m_sp and result_field members available to fix_length_and_dec(),
     which is called from Item_func::fix_fields().
   */
   res= init_result_field(thd, max_length, maybe_null(), &null_value, &name);
+  if (arena)
+    thd->restore_active_arena(arena, &backup);
 
   if (res)
     DBUG_RETURN(TRUE);
@@ -7068,15 +7120,14 @@ longlong Item_func_cursor_rowcount::val_int()
 /*****************************************************************************
   SEQUENCE functions
 *****************************************************************************/
-bool Item_func_nextval::check_access_and_fix_fields(THD *thd, Item **ref,
-                                                    privilege_t want_access)
+bool Item_func_nextval::check_access(THD *thd, privilege_t want_access)
 {
   table_list->sequence= false;
   bool error= check_single_table_access(thd, want_access, table_list, false);
   table_list->sequence= true;
   if (error && table_list->belong_to_view)
     table_list->replace_view_error_with_generic(thd);
-  return error || Item_longlong_func::fix_fields(thd, ref);
+  return error;
 }
 
 longlong Item_func_nextval::val_int()
@@ -7091,7 +7142,8 @@ longlong Item_func_nextval::val_int()
   String key_buff(buff,sizeof(buff), &my_charset_bin);
   DBUG_ENTER("Item_func_nextval::val_int");
   update_table();
-  DBUG_ASSERT(table && table->s->sequence);
+  DBUG_ASSERT(table);
+  DBUG_ASSERT(table->s->sequence);
   thd= table->in_use;
 
   if (thd->count_cuted_fields == CHECK_FIELD_EXPRESSION)

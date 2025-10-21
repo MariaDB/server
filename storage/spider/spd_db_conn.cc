@@ -3396,18 +3396,12 @@ int spider_db_store_result(
 
         DBUG_PRINT("info",("spider store result to temporary table"));
         DBUG_ASSERT(!current->result_tmp_tbl);
-#ifdef SPIDER_use_LEX_CSTRING_for_Field_blob_constructor
         LEX_CSTRING field_name1 = {STRING_WITH_LEN("a")};
         LEX_CSTRING field_name2 = {STRING_WITH_LEN("b")};
         LEX_CSTRING field_name3 = {STRING_WITH_LEN("c")};
         if (!(current->result_tmp_tbl = spider_mk_sys_tmp_table_for_result(
           thd, table, &current->result_tmp_tbl_prm, &field_name1, &field_name2,
           &field_name3, &my_charset_bin)))
-#else
-        if (!(current->result_tmp_tbl = spider_mk_sys_tmp_table_for_result(
-          thd, table, &current->result_tmp_tbl_prm, "a", "b", "c",
-          &my_charset_bin)))
-#endif
         {
           DBUG_RETURN(HA_ERR_OUT_OF_MEM);
         }
@@ -3757,21 +3751,13 @@ int spider_db_store_result_for_reuse_cursor(
 
       DBUG_PRINT("info",("spider store result to temporary table"));
       DBUG_ASSERT(!current->result_tmp_tbl);
-#ifdef SPIDER_use_LEX_CSTRING_for_Field_blob_constructor
       LEX_CSTRING field_name1 = {STRING_WITH_LEN("a")};
       LEX_CSTRING field_name2 = {STRING_WITH_LEN("b")};
       LEX_CSTRING field_name3 = {STRING_WITH_LEN("c")};
       if (!(current->result_tmp_tbl = spider_mk_sys_tmp_table_for_result(
         thd, table, &current->result_tmp_tbl_prm, &field_name1, &field_name2,
         &field_name3, &my_charset_bin)))
-#else
-      if (!(current->result_tmp_tbl = spider_mk_sys_tmp_table_for_result(
-        thd, table, &current->result_tmp_tbl_prm, "a", "b", "c",
-        &my_charset_bin)))
-#endif
-      {
         DBUG_RETURN(HA_ERR_OUT_OF_MEM);
-      }
       current->result_tmp_tbl_thd = thd;
       TABLE *tmp_tbl = current->result_tmp_tbl;
       tmp_tbl->file->extra(HA_EXTRA_WRITE_CACHE);
@@ -6913,11 +6899,21 @@ int spider_db_print_item_type(
   DBUG_ENTER("spider_db_print_item_type");
   DBUG_PRINT("info",("spider COND type=%d", item->type()));
 
-  if (item->type() == Item::REF_ITEM &&
-      ((Item_ref*)item)->ref_type() == Item_ref::DIRECT_REF)
+  if (item->type() == Item::REF_ITEM)
   {
-    item= item->real_item();
-    DBUG_PRINT("info",("spider new COND type=%d", item->type()));
+    const auto rtype= ((Item_ref*)item)->ref_type();
+    /*
+      The presence of an Item_aggregate_ref tends to lead to the query
+      being broken at the execution stage.
+    */
+    if (rtype == Item_ref::AGGREGATE_REF && !str)
+      DBUG_RETURN(ER_SPIDER_COND_SKIP_NUM);
+    DBUG_ASSERT(rtype != Item_ref::AGGREGATE_REF);
+    if (rtype == Item_ref::DIRECT_REF)
+    {
+      item= item->real_item();
+      DBUG_PRINT("info", ("spider new COND type=%d", item->type()));
+    }
   }
   switch (item->type())
   {
@@ -7345,6 +7341,10 @@ int spider_db_open_item_ref(
       }
       DBUG_RETURN(0);
     }
+    /*
+      TODO: MDEV-25116 is the same case as MDEV-32907 (having an
+      Item_aggregate_ref). Perhaps the following is redundant.
+    */
     DBUG_RETURN(ER_SPIDER_COND_SKIP_NUM); // MDEV-25116
   }
   DBUG_RETURN(spider_db_open_item_ident((Item_ident *) item_ref, spider, str,
@@ -9329,6 +9329,7 @@ error:
   DBUG_RETURN(error_num);
 }
 
+PRAGMA_DISABLE_CHECK_STACK_FRAME
 bool spider_db_conn_is_network_error(
   int error_num
 ) {
@@ -9345,3 +9346,4 @@ bool spider_db_conn_is_network_error(
   }
   DBUG_RETURN(FALSE);
 }
+PRAGMA_REENABLE_CHECK_STACK_FRAME

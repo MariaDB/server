@@ -1,5 +1,5 @@
-/* Copyright (c) 2000, 2019, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2022, MariaDB Corporation.
+/* Copyright (c) 2000, 2025, Oracle and/or its affiliates.
+   Copyright (c) 2009, 2025, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -2538,6 +2538,8 @@ int Lex_input_stream::lex_one_token(YYSTYPE *yylval, THD *thd)
       state=MY_LEX_CHAR;
       break;
     case MY_LEX_END:
+      /* Unclosed special comments result in a syntax error */
+      if (in_comment == DISCARD_COMMENT) return (ABORT_SYM);
       next_state= MY_LEX_END;
       return(0);                        // We found end of input last time
 
@@ -2957,6 +2959,41 @@ void st_select_lex_node::init_query_common()
   uncacheable= 0;
 }
 
+
+/*
+  We need to remember this unit for cleanup after it is stranded during CTE
+  merge (see mysql_derived_merge).  Walk to the root unit of this query tree
+  (the root unit lifetime extends for the entire query) and insert myself
+  into the front of the stranded_clean_list:
+    before: root -> B -> A
+     after: root -> this -> B -> A
+  During cleanup, the stranded units are cleaned in FIFO order.
+ */
+void st_select_lex_unit::remember_my_cleanup()
+{
+  // Walk to the root unit (which lives until the end of the query) ...
+  st_select_lex_node *root= this;
+  while (root->master)
+    root= root->master;
+
+  // ... and add myself to the front of the stranded_clean_list.
+  st_select_lex_unit *unit= static_cast<st_select_lex_unit*>(root);
+  st_select_lex_unit *prior_head= unit->stranded_clean_list;
+  unit->stranded_clean_list= this;
+  stranded_clean_list= prior_head;
+}
+
+
+void st_select_lex_unit::cleanup_stranded_units()
+{
+  if (!stranded_clean_list)
+    return;
+
+  stranded_clean_list->cleanup();
+  stranded_clean_list= nullptr;
+}
+
+
 void st_select_lex_unit::init_query()
 {
   init_query_common();
@@ -3346,6 +3383,15 @@ void st_select_lex_unit::exclude_level()
     SELECT_LEX_UNIT **last= 0;
     for (SELECT_LEX_UNIT *u= sl->first_inner_unit(); u; u= u->next_unit())
     {
+      for (SELECT_LEX *inner_sel= u->first_select();
+           inner_sel; inner_sel= inner_sel->next_select())
+      {
+        if (&sl->context == inner_sel->context.outer_context)
+          inner_sel->context.outer_context = &sl->outer_select()->context;
+      }
+      if (u->fake_select_lex &&
+          u->fake_select_lex->context.outer_context == &sl->context)
+        u->fake_select_lex->context.outer_context= &sl->outer_select()->context;
       u->master= master;
       last= (SELECT_LEX_UNIT**)&(u->next);
     }
@@ -3373,6 +3419,7 @@ void st_select_lex_unit::exclude_level()
   }
   // Mark it excluded
   prev= NULL;
+  remember_my_cleanup();
 }
 
 
@@ -5023,6 +5070,20 @@ bool st_select_lex::optimize_unflattened_subqueries(bool const_only)
       }
       if (empty_union_result)
         subquery_predicate->no_rows_in_result();
+
+      /*
+        If any one SELECT in the subquery has UNCACHEABLE_RAND, then all
+        SELECTs should be marked as uncacheable.
+      */
+      bool has_rand= false;
+      for (SELECT_LEX *sl= un->first_select(); sl && !has_rand;
+           sl= sl->next_select())
+        has_rand= sl->uncacheable & UNCACHEABLE_RAND;
+      if (has_rand)
+      {
+        for (SELECT_LEX *sl= un->first_select(); sl; sl= sl->next_select())
+          sl->uncacheable |= UNCACHEABLE_UNITED;
+      }
 
       if (is_correlated_unit)
       {
@@ -11043,7 +11104,7 @@ void mark_or_conds_to_avoid_pushdown(Item *cond)
        After that the transformed condition is attached into attach_to_conds
        list.
     2. Part of some other condition c1 that can't be entirely pushed
-       (if с1 isn't marked with any flag).
+       (if c1 isn't marked with any flag).
 
        For example:
 
@@ -12254,7 +12315,7 @@ bool SELECT_LEX_UNIT::explainable() const
 
   @param thd          the current thread handle
   @param db_name      name of db of the table to look for
-  @param db_name      name of db of the table to look for
+  @param table_name   name of table
 
   @return first found table, NULL or ERROR_TABLE
 */

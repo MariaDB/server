@@ -55,6 +55,7 @@
 #endif
 #include <signal.h>
 #include <my_stacktrace.h>
+#include <my_attribute.h>
 
 #include <welcome_copyright_notice.h> // ORACLE_WELCOME_COPYRIGHT_NOTICE
 
@@ -78,7 +79,7 @@ static my_bool non_blocking_api_enabled= 0;
 #define MAX_DELIMITER_LENGTH 16
 #define DEFAULT_MAX_CONN        64
 
-#define DIE_BUFF_SIZE           15*1024
+#define DIE_BUFF_SIZE           64*1024
 
 #define RESULT_STRING_INIT_MEM 2048
 #define RESULT_STRING_INCREMENT_MEM 2048
@@ -1619,6 +1620,8 @@ static void make_error_message(char *buf, size_t len, const char *fmt, va_list a
   s+= my_snprintf(s, end -s, "\n");
 }
 
+PRAGMA_DISABLE_CHECK_STACK_FRAME
+
 static void die(const char *fmt, ...)
 {
   char buff[DIE_BUFF_SIZE];
@@ -1629,6 +1632,8 @@ static void die(const char *fmt, ...)
   make_error_message(buff, sizeof(buff), fmt, args);
   really_die(buff);
 }
+
+PRAGMA_REENABLE_CHECK_STACK_FRAME
 
 static void really_die(const char *msg)
 {
@@ -1657,6 +1662,8 @@ static void really_die(const char *msg)
 
   cleanup_and_exit(1, 1);
 }
+
+PRAGMA_DISABLE_CHECK_STACK_FRAME
 
 void report_or_die(const char *fmt, ...)
 {
@@ -1712,6 +1719,7 @@ void abort_not_supported_test(const char *fmt, ...)
   cleanup_and_exit(62, 0);
 }
 
+PRAGMA_REENABLE_CHECK_STACK_FRAME
 
 void abort_not_in_this_version()
 {
@@ -2852,6 +2860,7 @@ do_result_format_version(struct st_command *command)
   dynstr_append_mem(&ds_res, ds_version.str, ds_version.length);
   dynstr_append_mem(&ds_res, STRING_WITH_LEN("\n"));
   dynstr_free(&ds_version);
+  DBUG_VOID_RETURN;
 }
 
 
@@ -5758,8 +5767,12 @@ void do_close_connection(struct st_command *command)
   DBUG_PRINT("info", ("Closing connection %s", con->name));
 #ifndef EMBEDDED_LIBRARY
   if (command->type == Q_DIRTY_CLOSE)
-  {
     mariadb_cancel(con->mysql);
+  else
+  {
+    simple_command(con->mysql,COM_QUIT,0,0,0);
+    if (con->util_mysql)
+      simple_command(con->util_mysql,COM_QUIT,0,0,0);
   }
 #endif /*!EMBEDDED_LIBRARY*/
   if (con->stmt)
@@ -8681,7 +8694,7 @@ void run_query_stmt(struct st_connection *cn, struct st_command *command,
   DYNAMIC_STRING ds_res_1st_execution;
   my_bool ds_res_1st_execution_init = FALSE;
   my_bool compare_2nd_execution = TRUE;
-  int query_match_ps2_re;
+  int query_match_ps2_re, query_match_cursor_re;
   MYSQL_RES *res;
   DBUG_ENTER("run_query_stmt");
   DBUG_PRINT("query", ("'%-.60s'", query));
@@ -8740,6 +8753,9 @@ void run_query_stmt(struct st_connection *cn, struct st_command *command,
     parameter markers.
   */
 
+  query_match_cursor_re= cursor_protocol_enabled && cn->stmt->field_count &&
+                         match_re(&cursor_re, query);
+
   if (cursor_protocol_enabled)
   {
     ps2_protocol_enabled = 0;
@@ -8748,7 +8764,7 @@ void run_query_stmt(struct st_connection *cn, struct st_command *command,
       Use cursor for queries matching the filter,
       else reset cursor type
     */
-    if (match_re(&cursor_re, query))
+    if (query_match_cursor_re)
     {
       /*
       Use cursor when retrieving result
@@ -8760,12 +8776,13 @@ void run_query_stmt(struct st_connection *cn, struct st_command *command,
     }
   }
 
-  query_match_ps2_re = match_re(&ps2_re, query);
+  query_match_ps2_re = ps2_protocol_enabled && cn->stmt->field_count &&
+                       match_re(&ps2_re, query);
 
   /*
     Execute the query first time if second execution enable
   */
-  if (ps2_protocol_enabled && query_match_ps2_re)
+  if (query_match_ps2_re)
   {
     if (do_stmt_execute(cn))
     {
@@ -8821,8 +8838,7 @@ void run_query_stmt(struct st_connection *cn, struct st_command *command,
       and keep them in a separate string for later. Cursor_protocol is used
       only for queries matching the filter "cursor_re".
     */
-    if (cursor_protocol_enabled && match_re(&cursor_re, query) &&
-        !disable_warnings)
+    if (query_match_cursor_re && !disable_warnings)
       append_warnings(&ds_execute_warnings, mysql);
 
     if (read_stmt_results(stmt, ds, command))
@@ -8834,7 +8850,7 @@ void run_query_stmt(struct st_connection *cn, struct st_command *command,
         The results of the first and second execution are compared
         only if result logging is enabled
       */
-      if (compare_2nd_execution && ps2_protocol_enabled && query_match_ps2_re)
+      if (compare_2nd_execution && query_match_ps2_re)
       {
         if (ds->length != ds_res_1st_execution.length ||
            !(memcmp(ds_res_1st_execution.str, ds->str, ds->length) == 0))

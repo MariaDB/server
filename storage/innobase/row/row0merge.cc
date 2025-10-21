@@ -2411,8 +2411,7 @@ end_of_index:
 		} else if (rec_trx_id < trx->id) {
 			/* Reset the DB_TRX_ID,DB_ROLL_PTR of old rows
 			for which history is not going to be
-			available after the rebuild operation.
-			This essentially mimics row_purge_reset_trx_id(). */
+			available after the rebuild operation. */
 			row->fields[new_trx_id_col].data
 				= const_cast<byte*>(reset_trx_id);
 			row->fields[new_trx_id_col + 1].data
@@ -5177,6 +5176,9 @@ dberr_t row_merge_bulk_t::write_to_tmp_file(ulint index_no)
                        m_block, m_crypt_block,
                        buf->index->table->space->id))
     return DB_TEMP_FILE_WRITE_FAIL;
+
+  DBUG_EXECUTE_IF("write_to_tmp_file_fail",
+                  return DB_TEMP_FILE_WRITE_FAIL;);
   MEM_UNDEFINED(&m_block[0], srv_sort_buf_size);
   return DB_SUCCESS;
 }

@@ -77,6 +77,7 @@ bool have_lock_wait_timeout = false;
 bool have_galera_enabled = false;
 bool have_multi_threaded_slave = false;
 bool have_gtid_slave = false;
+bool innobase_data_file_path_allocated= false;
 
 /* Kill long selects */
 static mysql_mutex_t kill_query_thread_mutex;
@@ -498,21 +499,19 @@ bool get_mysql_vars(MYSQL *connection)
   }
 
   if (innodb_data_file_path_var && *innodb_data_file_path_var)
-    innobase_data_file_path= my_strdup(PSI_NOT_INSTRUMENTED,
-                                       innodb_data_file_path_var, MYF(MY_FAE));
+    innobase_data_file_path= my_once_strdup(innodb_data_file_path_var,
+                                            MYF(MY_FAE));
 
   if (innodb_data_home_dir_var)
-    innobase_data_home_dir= my_strdup(PSI_NOT_INSTRUMENTED,
-                                      innodb_data_home_dir_var, MYF(MY_FAE));
+    innobase_data_home_dir= my_once_strdup(innodb_data_home_dir_var,
+                                           MYF(MY_FAE));
 
   if (innodb_log_group_home_dir_var && *innodb_log_group_home_dir_var)
-    srv_log_group_home_dir= my_strdup(PSI_NOT_INSTRUMENTED,
-                                      innodb_log_group_home_dir_var,
-                                      MYF(MY_FAE));
+    srv_log_group_home_dir= my_once_strdup(innodb_log_group_home_dir_var,
+                                           MYF(MY_FAE));
 
   if (innodb_undo_directory_var && *innodb_undo_directory_var)
-    srv_undo_dir= my_strdup(PSI_NOT_INSTRUMENTED, innodb_undo_directory_var,
-                            MYF(MY_FAE));
+    srv_undo_dir= my_once_strdup(innodb_undo_directory_var, MYF(MY_FAE));
 
   if (innodb_log_file_size_var)
   {
@@ -534,10 +533,7 @@ bool get_mysql_vars(MYSQL *connection)
   }
 
   if (aria_log_dir_path_var)
-  {
-    aria_log_dir_path= my_strdup(PSI_NOT_INSTRUMENTED,
-                                 aria_log_dir_path_var, MYF(MY_FAE));
-  }
+    aria_log_dir_path= my_once_strdup(aria_log_dir_path_var, MYF(MY_FAE));
 
   if (page_zip_level_var != NULL)
   {
@@ -550,10 +546,10 @@ bool get_mysql_vars(MYSQL *connection)
     xb_load_list_string(ignore_db_dirs, ",", register_ignore_db_dirs_filter);
 
 out:
-  free_mysql_variables(mysql_vars);
 
   return (ret);
 }
+
 
 static
 bool
@@ -561,12 +557,36 @@ select_incremental_lsn_from_history(lsn_t *incremental_lsn)
 {
 	MYSQL_RES *mysql_result;
 	char query[1000];
-	char buf[100];
+	char buf[NAME_LEN*2+3];
+
+	size_t opt_incremental_history_name_len= 0;
+	size_t opt_incremental_history_uuid_len= 0;
+
+	if (opt_incremental_history_name)
+		opt_incremental_history_name_len=
+                  strlen(opt_incremental_history_name);
+
+	if (opt_incremental_history_uuid)
+		opt_incremental_history_uuid_len=
+                  strlen(opt_incremental_history_uuid);
+
+	if (opt_incremental_history_name_len*2 > sizeof(buf))
+		die("Incremental history table name '%s' is too long.",
+		    opt_incremental_history_name);
+
+	if (opt_incremental_history_uuid_len*2 > sizeof(buf))
+		die("Incremental history uuid '%s' is too long.",
+		    opt_incremental_history_uuid);
+
+	if (opt_incremental_history_name && opt_incremental_history_name[0]
+	    && opt_incremental_history_uuid && opt_incremental_history_uuid[0])
+		die("It is allowed to use either --incremental-history-name "
+		    "or --incremental-history-uuid, but not both.");
 
 	if (opt_incremental_history_name) {
 		mysql_real_escape_string(mysql_connection, buf,
 				opt_incremental_history_name,
-				(unsigned long)strlen(opt_incremental_history_name));
+				(unsigned long) opt_incremental_history_name_len);
 		snprintf(query, sizeof(query),
 			"SELECT innodb_to_lsn "
 			"FROM " XB_HISTORY_TABLE " "
@@ -575,11 +595,10 @@ select_incremental_lsn_from_history(lsn_t *incremental_lsn)
 			"ORDER BY innodb_to_lsn DESC LIMIT 1",
 			buf);
 	}
-
-	if (opt_incremental_history_uuid) {
+	else if (opt_incremental_history_uuid) {
 		mysql_real_escape_string(mysql_connection, buf,
 				opt_incremental_history_uuid,
-				(unsigned long)strlen(opt_incremental_history_uuid));
+				(unsigned long) opt_incremental_history_uuid_len);
 		snprintf(query, sizeof(query),
 			"SELECT innodb_to_lsn "
 			"FROM " XB_HISTORY_TABLE " "
@@ -589,6 +608,8 @@ select_incremental_lsn_from_history(lsn_t *incremental_lsn)
 			buf);
 	}
 
+	/* xb_mysql_query(..,.., true) will die on error, so
+	mysql_result can't be nullptr */
 	mysql_result = xb_mysql_query(mysql_connection, query, true);
 
 	ut_ad(mysql_num_fields(mysql_result) == 1);
@@ -905,7 +926,7 @@ lock_for_backup_stage_flush(MYSQL *connection) {
 	if (opt_kill_long_queries_timeout) {
 		start_query_killer();
 	}
-	xb_mysql_query(connection, "BACKUP STAGE FLUSH", true);
+	xb_mysql_query(connection, "BACKUP STAGE FLUSH", false);
 	if (opt_kill_long_queries_timeout) {
 		stop_query_killer();
 	}
@@ -917,7 +938,7 @@ lock_for_backup_stage_block_ddl(MYSQL *connection) {
 	if (opt_kill_long_queries_timeout) {
 		start_query_killer();
 	}
-	xb_mysql_query(connection, "BACKUP STAGE BLOCK_DDL", true);
+	xb_mysql_query(connection, "BACKUP STAGE BLOCK_DDL", false);
 	DBUG_MARIABACKUP_EVENT("after_backup_stage_block_ddl", {});
 	if (opt_kill_long_queries_timeout) {
 		stop_query_killer();
@@ -930,7 +951,7 @@ lock_for_backup_stage_commit(MYSQL *connection) {
 	if (opt_kill_long_queries_timeout) {
 		start_query_killer();
 	}
-	xb_mysql_query(connection, "BACKUP STAGE BLOCK_COMMIT", true);
+	xb_mysql_query(connection, "BACKUP STAGE BLOCK_COMMIT", false);
 	DBUG_MARIABACKUP_EVENT("after_backup_stage_block_commit", {});
 	if (opt_kill_long_queries_timeout) {
 		stop_query_killer();
@@ -941,12 +962,12 @@ lock_for_backup_stage_commit(MYSQL *connection) {
 bool backup_lock(MYSQL *con, const char *table_name) {
 	static const std::string backup_lock_prefix("BACKUP LOCK ");
 	std::string backup_lock_query = backup_lock_prefix + table_name;
-	xb_mysql_query(con, backup_lock_query.c_str(), true);
+	xb_mysql_query(con, backup_lock_query.c_str(), false);
 	return true;
 }
 
 bool backup_unlock(MYSQL *con) {
-	xb_mysql_query(con, "BACKUP UNLOCK", true);
+	xb_mysql_query(con, "BACKUP UNLOCK", false);
 	return true;
 }
 
@@ -960,6 +981,8 @@ get_tables_in_use(MYSQL *con) {
 		msg("Table %s is in use", tk.c_str());
 		result.insert(std::move(tk));
 	}
+        if (q_res)
+          mysql_free_result(q_res);
 	return result;
 }
 
@@ -1689,7 +1712,7 @@ write_xtrabackup_info(ds_ctxt *datasink,
 	char buf_end_time[100];
 	tm tm;
 	std::ostringstream oss;
-	const char *xb_stream_name[] = {"file", "tar", "xbstream"};
+	const char *xb_stream_name[] = {"file", "mbstream"};
 
 	uuid = read_mysql_one_value(connection, "SELECT UUID()");
 	server_version = read_mysql_one_value(connection, "SELECT VERSION()");
@@ -1773,6 +1796,10 @@ write_xtrabackup_info(ds_ctxt *datasink,
 	}
 
 	xb_mysql_query(connection,
+		"ALTER TABLE IF EXISTS " XB_HISTORY_TABLE
+		" MODIFY format ENUM('file', 'tar', 'mbstream') DEFAULT NULL", false);
+
+	xb_mysql_query(connection,
 		"CREATE TABLE IF NOT EXISTS " XB_HISTORY_TABLE "("
 		"uuid VARCHAR(40) NOT NULL PRIMARY KEY,"
 		"name VARCHAR(255) DEFAULT NULL,"
@@ -1789,7 +1816,7 @@ write_xtrabackup_info(ds_ctxt *datasink,
 		"innodb_to_lsn BIGINT UNSIGNED DEFAULT NULL,"
 		"partial ENUM('Y', 'N') DEFAULT NULL,"
 		"incremental ENUM('Y', 'N') DEFAULT NULL,"
-		"format ENUM('file', 'tar', 'xbstream') DEFAULT NULL,"
+		"format ENUM('file', 'tar', 'mbstream') DEFAULT NULL,"
 		"compressed ENUM('Y', 'N') DEFAULT NULL"
 		") CHARACTER SET utf8 ENGINE=innodb", false);
 
@@ -1940,7 +1967,7 @@ void
 capture_tool_command(int argc, char **argv)
 {
 	/* capture tool name tool args */
-	tool_name = strrchr(argv[0], '/');
+	tool_name = strrchr(argv[0], IF_WIN('\\', '/'));
 	tool_name = tool_name ? tool_name + 1 : argv[0];
 
 	make_argv(tool_args, sizeof(tool_args), argc, argv);
@@ -2039,6 +2066,7 @@ ulonglong get_current_lsn(MYSQL *connection)
 {
 	static const char lsn_prefix[] = "\nLog sequence number ";
 	ulonglong lsn = 0;
+	msg("Getting InnoDB LSN");
 	if (MYSQL_RES *res = xb_mysql_query(connection,
 					    "SHOW ENGINE INNODB STATUS",
 					    true, false)) {
@@ -2052,5 +2080,10 @@ ulonglong get_current_lsn(MYSQL *connection)
 		}
 		mysql_free_result(res);
 	}
+	msg("InnoDB LSN: %llu, Flushing Logs", lsn);
+        /* Make sure that current LSN is written and flushed to disk. */
+	xb_mysql_query(connection, "FLUSH NO_WRITE_TO_BINLOG ENGINE LOGS",
+		       false, false);
+	msg("Flushed Logs");
 	return lsn;
 }

@@ -1,6 +1,6 @@
 --source include/default_optimizer_switch.inc
 # This is too slow on MSAN
---source include/not_msan.inc
+--source include/no_msan_without_big.inc
 --source include/not_valgrind.inc
 --source include/have_innodb.inc
 
@@ -4056,3 +4056,12 @@ drop view v1;
 drop table t1;
 
 --echo # End of 10.4 tests
+
+--echo #
+--echo # MDEV-32308: Server crash on cleanup of
+--echo # non-fully-constructed-due-to-an-error CTE
+--echo #
+--error ER_BAD_FIELD_ERROR
+SELECT ( WITH RECURSIVE x AS ( WITH x AS ( SELECT 1 FROM t14 ) SELECT x ) , t14 AS ( SELECT 1 UNION SELECT 'x' FROM x ) SELECT x FROM x WHERE ( SELECT x FROM x ) ) ;
+
+--echo # End of 10.6 tests

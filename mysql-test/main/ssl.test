@@ -29,11 +29,16 @@ SHOW STATUS LIKE 'Ssl_server_not_after';
 # Check ssl turned on
 SELECT (VARIABLE_VALUE <> '') AS have_ssl FROM INFORMATION_SCHEMA.SESSION_STATUS WHERE VARIABLE_NAME='Ssl_cipher';
 
-#
-# MDEV-7697 Client reports ERROR 2006 (MySQL server has gone away) or ERROR 2013 (Lost connection to server during query) while executing AES* functions under SSL
-#
+--echo #
+--echo # MDEV-7697 Client reports ERROR 2006 (MySQL server has gone away) or ERROR 2013 (Lost connection to server during query) while executing AES* functions under SSL
+--echo #
 select aes_decrypt('MySQL','adf');
 select 'still connected?';
+
+--echo #
+--echo # MDEV-35581 On servers linked against WolfSSL SSL_Cipher and SSL_cipher_list are always the same
+--echo #
+select variable_value like '%:%' from information_schema.session_status where variable_name='ssl_cipher_list';
 
 connection default;
 disconnect ssl_con;

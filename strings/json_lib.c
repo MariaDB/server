@@ -1656,13 +1656,13 @@ int json_unescape(CHARSET_INFO *json_cs,
     }
     if (c_len == MY_CS_ILUNI)
     {
-      return -1;
+      return JSON_ERROR_ILLEGAL_SYMBOL;
     }
     /* Result buffer is too small. */
-    return -1;
+    return JSON_ERROR_OUT_OF_SPACE;
   }
 
-  return s.error==JE_EOS ? (int)(res - res_b) : -1;
+  return s.error==JE_EOS ? (int)(res - res_b) : JSON_ERROR_OUT_OF_SPACE;
 }
 
 
@@ -1698,7 +1698,7 @@ static enum json_esc_char_classes json_escape_chr_map[0x60] = {
 };
 
 
-static const char hexconv[16] = "0123456789ABCDEF";
+static const char hexconv[17] = "0123456789ABCDEF";
 
 
 int json_escape(CHARSET_INFO *str_cs,
@@ -1874,13 +1874,13 @@ static enum json_types smart_read_value(json_engine_t *je,
     *value_len= (int) ((char *) je->s.c_str - *value);
   }
 
-  compile_time_assert((int) JSON_VALUE_OBJECT == (int) JSV_OBJECT);
-  compile_time_assert((int) JSON_VALUE_ARRAY == (int) JSV_ARRAY);
-  compile_time_assert((int) JSON_VALUE_STRING == (int) JSV_STRING);
-  compile_time_assert((int) JSON_VALUE_NUMBER == (int) JSV_NUMBER);
-  compile_time_assert((int) JSON_VALUE_TRUE == (int) JSV_TRUE);
-  compile_time_assert((int) JSON_VALUE_FALSE == (int) JSV_FALSE);
-  compile_time_assert((int) JSON_VALUE_NULL == (int) JSV_NULL);
+  compile_time_assert((enum json_types)JSON_VALUE_OBJECT == JSV_OBJECT);
+  compile_time_assert((enum json_types)JSON_VALUE_ARRAY == JSV_ARRAY);
+  compile_time_assert((enum json_types)JSON_VALUE_STRING == JSV_STRING);
+  compile_time_assert((enum json_types)JSON_VALUE_NUMBER == JSV_NUMBER);
+  compile_time_assert((enum json_types)JSON_VALUE_TRUE == JSV_TRUE);
+  compile_time_assert((enum json_types)JSON_VALUE_FALSE == JSV_FALSE);
+  compile_time_assert((enum json_types)JSON_VALUE_NULL == JSV_NULL);
 
   return (enum json_types) je->value_type;
 

@@ -563,6 +563,7 @@ int mysql_update(THD *thd,
 
   // Don't count on usage of 'only index' when calculating which key to use
   table->covering_keys.clear_all();
+  table->file->prepare_for_insert(1);
   transactional_table= table->file->has_transactions_and_rollback();
 
 #ifdef WITH_PARTITION_STORAGE_ENGINE
@@ -612,7 +613,7 @@ int mysql_update(THD *thd,
       Currently they rely on the user checking DA for
       errors when unwinding the stack after calling Item::val_xxx().
     */
-    if (error || thd->is_error())
+    if (error || thd->killed || thd->is_error())
     {
       DBUG_RETURN(1);				// Error in where
     }
@@ -1031,7 +1032,6 @@ update_begin:
   can_compare_record= records_are_comparable(table);
   explain->tracker.on_scan_init();
 
-  table->file->prepare_for_insert(1);
   DBUG_ASSERT(table->file->inited != handler::NONE);
 
   THD_STAGE_INFO(thd, stage_updating);

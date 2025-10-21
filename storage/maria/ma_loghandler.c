@@ -1480,7 +1480,7 @@ LSN translog_get_file_max_lsn_stored(uint32 file)
 
   if (file >= limit)
   {
-    DBUG_PRINT("info", ("The file in in progress"));
+    DBUG_PRINT("info", ("The file in progress"));
     DBUG_RETURN(LSN_IMPOSSIBLE);
   }
 
@@ -3601,7 +3601,6 @@ static my_bool translog_is_LSN_chunk(uchar type)
   @retval 1 Error
 */
 
-/* Stack size 26120 from clang */
 PRAGMA_DISABLE_CHECK_STACK_FRAME
 
 my_bool translog_init_with_table(const char *directory,
@@ -3857,6 +3856,7 @@ my_bool translog_init_with_table(const char *directory,
 
   if (logs_found)
   {
+    TRANSLOG_PAGE_SIZE_BUFF psize_buff;
     TRANSLOG_ADDRESS current_page= sure_page;
     my_bool pageok;
 
@@ -3897,7 +3897,6 @@ my_bool translog_init_with_table(const char *directory,
       do
       {
         TRANSLOG_VALIDATOR_DATA data;
-        TRANSLOG_PAGE_SIZE_BUFF psize_buff;
         uchar *page;
         data.addr= &current_page;
         if ((page= translog_get_page(&data, psize_buff.buffer, NULL)) == NULL)
@@ -3946,7 +3945,6 @@ my_bool translog_init_with_table(const char *directory,
     if (logs_found && !old_log_was_recovered && old_flags == flags)
     {
       TRANSLOG_VALIDATOR_DATA data;
-      TRANSLOG_PAGE_SIZE_BUFF psize_buff;
       uchar *page;
       uint16 chunk_offset;
       data.addr= &last_valid_page;
@@ -4237,8 +4235,8 @@ err:
   ma_message_no_user(0, "log initialization failed");
   DBUG_RETURN(1);
 }
-PRAGMA_REENABLE_CHECK_STACK_FRAME
 
+PRAGMA_REENABLE_CHECK_STACK_FRAME
 
 /*
   @brief Free transaction log file buffer.
@@ -4524,7 +4522,7 @@ static my_bool translog_write_parts_on_page(TRANSLOG_ADDRESS *horizon,
   if (!cursor->chaser)
     cursor->buffer->size+= length;
   /*
-    We do not not updating parts->total_record_length here because it is
+    We do not updating parts->total_record_length here because it is
     need only before writing record to have total length
   */
   DBUG_PRINT("info", ("Write parts buffer #%u: %p  "

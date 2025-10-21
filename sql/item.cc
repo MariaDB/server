@@ -845,30 +845,6 @@ bool Item_field::rename_fields_processor(void *arg)
   return 0;
 }
 
-/**
-   Rename table and clean field for EXCHANGE comparison
-*/
-
-bool Item_field::rename_table_processor(void *arg)
-{
-  Item::func_processor_rename_table *p= (Item::func_processor_rename_table*) arg;
-
-  /* If (db_name, table_name) matches (p->old_db, p->old_table)
-     rename to (p->new_db, p->new_table) */
-  if (((!db_name.str && !p->old_db.str) ||
-       db_name.streq(p->old_db)) &&
-      ((!table_name.str && !p->old_table.str) ||
-       table_name.streq(p->old_table)))
-  {
-    db_name= p->new_db;
-    table_name= p->new_table;
-  }
-
-  /* Item_field equality is done by field pointer if it is set, we need to avoid that */
-  field= NULL;
-  return 0;
-}
-
 
 /**
   Check if an Item_field references some field from a list of fields.
@@ -905,7 +881,7 @@ bool Item_field::find_item_in_field_list_processor(void *arg)
   Mark field in read_map
 
   NOTES
-    This is used by filesort to register used fields in a a temporary
+    This is used by filesort to register used fields in a temporary
     column read set or to register used fields in a view or check constraint
 */
 
@@ -1300,7 +1276,7 @@ void Item::set_name_no_truncate(THD *thd, const char *str, uint length,
   - When trying to find an ORDER BY/GROUP BY item in the SELECT part
 */
 
-bool Item::eq(const Item *item, bool binary_cmp) const
+bool Item::eq(const Item *item, const Eq_config &config) const
 {
   /*
     Note, that this is never TRUE if item is a Item_param:
@@ -1409,7 +1385,7 @@ Item *Item_num::safe_charset_converter(THD *thd, CHARSET_INFO *tocs)
   Create character set converter for constant items
   using Item_null, Item_string or Item_static_string_func.
 
-  @param tocs       Character set to to convert the string to.
+  @param tocs       Character set to convert the string to.
   @param lossless   Whether data loss is acceptable.
   @param func_name  Function name, or NULL.
 
@@ -2708,7 +2684,7 @@ bool Type_std_attributes::agg_item_set_converter(const DTCollation &coll,
 
   /*
     For better error reporting: save the first and the second argument.
-    We need this only if the the number of args is 3 or 2:
+    We need this only if the number of args is 3 or 2:
     - for a longer argument list, "Illegal mix of collations"
       doesn't display each argument's characteristics.
     - if nargs is 1, then this error cannot happen.
@@ -2898,8 +2874,6 @@ Item_sp::func_name_cstring(THD *thd, bool is_package_function) const
 void
 Item_sp::cleanup()
 {
-  delete sp_result_field;
-  sp_result_field= NULL;
   m_sp= NULL;
   delete func_ctx;
   func_ctx= NULL;
@@ -3071,7 +3045,6 @@ Item_sp::init_result_field(THD *thd, uint max_length, uint maybe_null,
   DBUG_ENTER("Item_sp::init_result_field");
 
   DBUG_ASSERT(m_sp != NULL);
-  DBUG_ASSERT(sp_result_field == NULL);
 
   /*
      A Field needs to be attached to a Table.
@@ -3085,23 +3058,26 @@ Item_sp::init_result_field(THD *thd, uint max_length, uint maybe_null,
   dummy_table->s->table_name= empty_clex_str;
   dummy_table->maybe_null= maybe_null;
 
-  if (!(sp_result_field= m_sp->create_result_field(max_length, name,
-                                                   dummy_table)))
-   DBUG_RETURN(TRUE);
-
-  if (sp_result_field->pack_length() > sizeof(result_buf))
+  if (!sp_result_field)
   {
-    void *tmp;
-    if (!(tmp= thd->alloc(sp_result_field->pack_length())))
-      DBUG_RETURN(TRUE);
-    sp_result_field->move_field((uchar*) tmp);
+    sp_result_field= m_sp->create_result_field(max_length, name,
+                                               dummy_table);
+    if (!sp_result_field)
+      DBUG_RETURN(true);
+
+    if (sp_result_field->pack_length() > sizeof(result_buf))
+    {
+      void *tmp;
+      if (!(tmp= thd->alloc(sp_result_field->pack_length())))
+        DBUG_RETURN(TRUE);
+      sp_result_field->move_field((uchar*) tmp);
+    }
+    else
+      sp_result_field->move_field(result_buf);
+
+    sp_result_field->null_ptr= (uchar *) null_value;
+    sp_result_field->null_bit= 1;
   }
-  else
-    sp_result_field->move_field(result_buf);
-
-  sp_result_field->null_ptr= (uchar *) null_value;
-  sp_result_field->null_bit= 1;
-
   DBUG_RETURN(FALSE);
 }
 
@@ -3574,14 +3550,14 @@ bool Item_field::is_null_result()
 }
 
 
-bool Item_field::eq(const Item *item, bool binary_cmp) const
+bool Item_field::eq(const Item *item, const Eq_config &config) const
 {
   const Item *real_item2= item->real_item();
   if (real_item2->type() != FIELD_ITEM)
     return 0;
   
   Item_field *item_field= (Item_field*) real_item2;
-  if (item_field->field && field)
+  if (!config.omit_table_names && item_field->field && field)
     return item_field->field == field;
   /*
     We may come here when we are trying to find a function in a GROUP BY
@@ -3595,12 +3571,13 @@ bool Item_field::eq(const Item *item, bool binary_cmp) const
   */
   return (!lex_string_cmp(system_charset_info, &item_field->name,
                           &field_name) &&
-	  (!item_field->table_name.str || !table_name.str ||
+          (config.omit_table_names ||
+           (!item_field->table_name.str || !table_name.str ||
 	   (!my_strcasecmp(table_alias_charset, item_field->table_name.str,
 			   table_name.str) &&
 	    (!item_field->db_name.str || !db_name.str ||
 	     (item_field->db_name.str && !strcmp(item_field->db_name.str,
-                                                 db_name.str))))));
+                                                 db_name.str)))))));
 }
 
 
@@ -3748,7 +3725,7 @@ void Item_field::set_refers_to_temp_table()
 }
 
 
-bool Item_basic_value::eq(const Item *item, bool binary_cmp) const
+bool Item_basic_value::eq(const Item *item, const Eq_config &config) const
 {
   const Item_const *c0, *c1;
   const Type_handler *h0, *h1;
@@ -3786,14 +3763,14 @@ bool Item_basic_value::eq(const Item *item, bool binary_cmp) const
       res= false;
       break;
     case 0:       // Two non-NULLs
-      res= h0->Item_const_eq(c0, c1, binary_cmp);
+      res= h0->Item_const_eq(c0, c1, config.binary_cmp);
     }
   }
   DBUG_EXECUTE_IF("Item_basic_value",
                   push_warning_printf(current_thd,
                   Sql_condition::WARN_LEVEL_NOTE,
                   ER_UNKNOWN_ERROR, "%seq=%d a=%s b=%s",
-                  binary_cmp ? "bin_" : "", (int) res,
+                  config.binary_cmp ? "bin_" : "", (int) res,
                   DbugStringItemTypeValue(current_thd, this).c_ptr(),
                   DbugStringItemTypeValue(current_thd, item).c_ptr()
                   ););
@@ -4055,7 +4032,7 @@ void Item_string::print(String *str, enum_query_type query_type)
         - utf8mb3 does not work well with non-BMP characters (e.g. emoji).
         - Simply changing utf8mb3 to utf8mb4 will not fully help:
           some character sets have unassigned characters,
-          they get lost during during cs->utf8mb4->cs round trip.
+          they get lost during cs->utf8mb4->cs round trip.
       */
       str_value.print_with_conversion(str, str->charset());
     }
@@ -5098,6 +5075,7 @@ Item_param::set_param_type_and_swap_value(Item_param *src)
 void Item_param::set_default(bool set_type_handler_null)
 {
   m_is_settable_routine_parameter= false;
+  current_thd->lex->default_used= true;
   state= DEFAULT_VALUE;
   /*
     When Item_param is set to DEFAULT_VALUE:
@@ -5255,14 +5233,26 @@ static Field *make_default_field(THD *thd, Field *field_arg)
     if (!newptr)
       return nullptr;
 
+    /* Don't check privileges, if it's parse_vcol_defs() */
+    if (def_field->table->pos_in_table_list &&
+        def_field->default_value->check_access(thd))
+      return nullptr;
+
     if (should_mark_column(thd->column_usage))
       def_field->default_value->expr->update_used_tables();
     def_field->move_field(newptr + 1, def_field->maybe_null() ? newptr : 0, 1);
   }
-  else
+  else if (field_arg->table && field_arg->table->s->field)
+  {
+    Field *def_val= field_arg->table->s->field[field_arg->field_index];
+    def_field->move_field(def_val->ptr, def_val->null_ptr, def_val->null_bit);
+  }
+  else /* e.g. non-updatable view */
+  {
     def_field->move_field_offset((my_ptrdiff_t)
                                  (def_field->table->s->default_values -
                                   def_field->table->record[0]));
+  }
   return def_field;
 }
 
@@ -5792,6 +5782,8 @@ resolve_ref_in_select_and_group(THD *thd, Item_ident *ref, SELECT_LEX *select)
       DBUG_ASSERT((*select_ref)->fixed());
       return &select->ref_pointer_array[counter];
     }
+    if (group_by_ref && (*group_by_ref)->type() == Item::REF_ITEM)
+      return ((Item_ref*)(*group_by_ref))->ref;
     if (group_by_ref)
       return group_by_ref;
     DBUG_ASSERT(FALSE);
@@ -9584,7 +9576,7 @@ bool Item_outer_ref::check_inner_refs_processor(void *arg)
   items are of the same type.
 
   @param item        item to compare with
-  @param binary_cmp  make binary comparison
+  @param config      comparison rules, see Item::Eq_config
 
   @retval
     TRUE    Referenced item is equal to given item
@@ -9592,7 +9584,7 @@ bool Item_outer_ref::check_inner_refs_processor(void *arg)
     FALSE   otherwise
 */
 
-bool Item_direct_view_ref::eq(const Item *item, bool binary_cmp) const
+bool Item_direct_view_ref::eq(const Item *item, const Eq_config &config) const
 {
   if (item->type() == REF_ITEM)
   {
@@ -9813,10 +9805,10 @@ bool Item_direct_view_ref::val_bool_result()
 }
 
 
-bool Item_default_value::eq(const Item *item, bool binary_cmp) const
+bool Item_default_value::eq(const Item *item, const Eq_config &config) const
 {
-  return item->type() == DEFAULT_VALUE_ITEM && 
-    ((Item_default_value *)item)->arg->eq(arg, binary_cmp);
+  return item->type() == DEFAULT_VALUE_ITEM &&
+    ((Item_default_value *)item)->arg->eq(arg, config);
 }
 
 
@@ -10099,10 +10091,10 @@ error:
 
 }
 
-bool Item_insert_value::eq(const Item *item, bool binary_cmp) const
+bool Item_insert_value::eq(const Item *item, const Eq_config &config) const
 {
   return item->type() == INSERT_VALUE_ITEM &&
-    ((Item_insert_value *)item)->arg->eq(arg, binary_cmp);
+    ((Item_insert_value *)item)->arg->eq(arg, config);
 }
 
 
@@ -10213,7 +10205,7 @@ void Item_trigger_field::setup_field(THD *thd, TABLE *table,
 }
 
 
-bool Item_trigger_field::eq(const Item *item, bool binary_cmp) const
+bool Item_trigger_field::eq(const Item *item, const Eq_config &config) const
 {
   return item->type() == TRIGGER_FIELD_ITEM &&
          row_version == ((Item_trigger_field *)item)->row_version &&
@@ -10446,7 +10438,11 @@ bool Item_cache_bool::cache_value()
   if (!example)
     return false;
   value_cached= true;
+  THD *thd= current_thd;
+  const bool err= thd->is_error();
   value= example->val_bool_result();
+  if (!err && thd->is_error())
+    value_cached= false;
   null_value_inside= null_value= example->null_value;
   unsigned_flag= false;
   return true;
@@ -10458,7 +10454,11 @@ bool  Item_cache_int::cache_value()
   if (!example)
     return FALSE;
   value_cached= TRUE;
+  THD *thd= current_thd;
+  const bool err= thd->is_error();
   value= example->val_int_result();
+  if (!err && thd->is_error())
+    value_cached= false;
   null_value_inside= null_value= example->null_value;
   unsigned_flag= example->unsigned_flag;
   return TRUE;
@@ -10535,7 +10535,11 @@ bool Item_cache_temporal::cache_value()
   if (!example)
     return false;
   value_cached= true;
-  value= example->val_datetime_packed_result(current_thd);
+  THD *thd= current_thd;
+  const bool err= thd->is_error();
+  value= example->val_datetime_packed_result(thd);
+  if (!err && thd->is_error())
+    value_cached= false;
   null_value_inside= null_value= example->null_value;
   return true;
 }
@@ -10546,7 +10550,11 @@ bool Item_cache_time::cache_value()
   if (!example)
     return false;
   value_cached= true;
-  value= example->val_time_packed_result(current_thd);
+  THD *thd= current_thd;
+  const bool err= thd->is_error();
+  value= example->val_time_packed_result(thd);
+  if (!err && thd->is_error())
+    value_cached= false;
   null_value_inside= null_value= example->null_value;
   return true;
 }
@@ -10674,8 +10682,12 @@ bool Item_cache_timestamp::cache_value()
   if (!example)
     return false;
   value_cached= true;
+  THD *thd= current_thd;
+  const bool err= thd->is_error();
   null_value_inside= null_value=
-    example->val_native_with_conversion_result(current_thd, &m_native, type_handler());
+    example->val_native_with_conversion_result(thd, &m_native, type_handler());
+  if (!err && thd->is_error())
+    value_cached= false;
   return true;
 }
 
@@ -10685,7 +10697,11 @@ bool Item_cache_real::cache_value()
   if (!example)
     return FALSE;
   value_cached= TRUE;
+  THD *thd= current_thd;
+  const bool err= thd->is_error();
   value= example->val_result();
+  if (!err && thd->is_error())
+    value_cached= false;
   null_value_inside= null_value= example->null_value;
   return TRUE;
 }
@@ -10752,7 +10768,11 @@ bool Item_cache_decimal::cache_value()
   if (!example)
     return FALSE;
   value_cached= TRUE;
+  THD *thd= current_thd;
+  const bool err= thd->is_error();
   my_decimal *val= example->val_decimal_result(&decimal_value);
+  if (!err && thd->is_error())
+    value_cached= false;
   if (!(null_value_inside= null_value= example->null_value) &&
         val != &decimal_value)
     my_decimal2decimal(val, &decimal_value);
@@ -10808,8 +10828,12 @@ bool Item_cache_str::cache_value()
     return FALSE;
   }
   value_cached= TRUE;
+  THD *thd= current_thd;
+  const bool err= thd->is_error();
   value_buff.set(buffer, sizeof(buffer), example->collation.collation);
   value= example->str_result(&value_buff);
+  if (!err && thd->is_error())
+    value_cached= false;
   if ((null_value= null_value_inside= example->null_value))
     value= 0;
   else if (value != &value_buff)

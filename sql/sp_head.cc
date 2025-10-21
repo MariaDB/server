@@ -606,7 +606,7 @@ sp_head::sp_head(MEM_ROOT *mem_root_arg, sp_package *parent,
   m_lex.empty();
   my_init_dynamic_array(key_memory_sp_head_main_root, &m_instr,
                         sizeof(sp_instr *), 16, 8, MYF(0));
-  my_hash_init(key_memory_sp_head_main_root, &m_sptabs, system_charset_info, 0,
+  my_hash_init(key_memory_sp_head_main_root, &m_sptabs, table_alias_charset, 0,
                0, 0, sp_table_key, 0, 0);
   my_hash_init(key_memory_sp_head_main_root, &m_sroutines, system_charset_info,
                0, 0, 0, sp_sroutine_key, 0, 0);
@@ -1612,6 +1612,9 @@ sp_head::execute(THD *thd, bool merge_da_on_success)
   DBUG_ASSERT(thd->Item_change_list::is_empty());
   old_change_list.move_elements_to(thd);
   thd->lex= old_lex;
+  DBUG_PRINT("info", ("sp_head::execute: query_id restore: old_query_id=%lld, query_id=%lld, query=%.*s",
+                         old_query_id,
+                         thd->query_id, thd->query_length(), thd->query()));
   thd->set_query_id(old_query_id);
   thd->set_query_inner(old_query);
   DBUG_ASSERT(!thd->derived_tables);
@@ -3609,7 +3612,8 @@ sp_lex_keeper::reset_lex_and_exec_core(THD *thd, uint *nextp,
   thd->lex= m_lex;
 
   thd->set_query_id(next_query_id());
-
+  DBUG_PRINT("info", ("reset_lex_and_exec_core: query_id=%lld, query=%.*s",
+                      thd->query_id, thd->query_length(), thd->query()));
   if (thd->locked_tables_mode <= LTM_LOCK_TABLES)
   {
     /*
@@ -5122,7 +5126,8 @@ sp_head::merge_table_list(THD *thd, TABLE_LIST *table, LEX *lex_for_tmp_check)
   }
 
   for (; table ; table= table->next_global)
-    if (!table->derived && !table->schema_table && !table->table_function)
+    if (!table->derived && !table->schema_table && !table->table_function &&
+        table->lock_type != TL_IGNORE)
     {
       /*
         Structure of key for the multi-set is "db\0table\0alias\0".

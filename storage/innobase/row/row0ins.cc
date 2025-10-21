@@ -24,6 +24,7 @@ Insert into a table
 Created 4/20/1996 Heikki Tuuri
 *******************************************************/
 
+#define MYSQL_SERVER
 #include "row0ins.h"
 #include "dict0dict.h"
 #include "trx0rec.h"
@@ -46,6 +47,7 @@ Created 4/20/1996 Heikki Tuuri
 #ifdef BTR_CUR_HASH_ADAPT
 # include "btr0sea.h"
 #endif
+#include "sql_class.h" // THD
 #ifdef WITH_WSREP
 #include <wsrep.h>
 #include <mysql/service_wsrep.h>
@@ -2412,7 +2414,7 @@ duplicate:
 						&trx_id_len);
 					ut_ad(trx_id_len == DATA_TRX_ID_LEN);
 					if (trx->id == trx_read_trx_id(trx_id)) {
-						err = DB_FOREIGN_DUPLICATE_KEY;
+						err = DB_DUPLICATE_KEY;
 					}
 				}
 				goto func_exit;
@@ -2570,13 +2572,12 @@ statement
 @return true if it is insert statement */
 static bool thd_sql_is_insert(const THD *thd) noexcept
 {
-  switch(thd_sql_command(thd))
-  {
-    case SQLCOM_INSERT:
-    case SQLCOM_INSERT_SELECT:
-      return true;
-    default:
-      return false;
+  switch (thd->lex->sql_command) {
+  case SQLCOM_INSERT:
+  case SQLCOM_INSERT_SELECT:
+    return true;
+  default:
+    return false;
   }
 }
 
@@ -2617,6 +2618,21 @@ static uint64_t row_parse_int(const byte *data, size_t len,
 
   ut_ad("invalid type" == 0);
   return 0;
+}
+
+inline bool dict_table_t::can_bulk_insert(const trx_t &trx) const noexcept
+{
+  if (is_temporary() || versioned() || has_spatial_index())
+    return false;
+  /* Bulk insert is not compatible with HA_CHECK_UNIQUE_AFTER_WRITE.
+  Refuse bulk insert if HA_KEY_ALG_LONG_HASH indexes exist.
+  handler::ha_check_long_uniques() assumes that all data
+  passed to ha_innobase::write_row() is available immediately. */
+  if (const char *s= v_col_names)
+    for (auto n= n_v_cols; n--; s+= strlen(s) + 1)
+      if (!strncmp(s, C_STRING_WITH_LEN("DB_ROW_HASH_")))
+        return false; /* make_long_hash_field_name() */
+  return !trx.check_foreigns || (foreign_set.empty() && referenced_set.empty());
 }
 
 /***************************************************************//**
@@ -2729,13 +2745,6 @@ err_exit:
 		goto func_exit;
 	}
 
-	if (auto_inc) {
-		buf_block_t* root
-			= mtr.at_savepoint(mode != BTR_MODIFY_ROOT_AND_LEAF);
-		ut_ad(index->page == root->page.id().page_no());
-		page_set_autoinc(root, auto_inc, &mtr, false);
-	}
-
 	btr_pcur_get_btr_cur(&pcur)->thr = thr;
 
 #ifdef UNIV_DEBUG
@@ -2831,12 +2840,7 @@ avoid_bulk:
 		/* If foreign key exist and foreign key is enabled
 		then avoid using bulk insert for copy algorithm */
 		if (innodb_alter_copy_bulk
-		    && !index->table->is_temporary()
-		    && !index->table->versioned()
-		    && !index->table->has_spatial_index()
-		    && (!trx->check_foreigns
-                        || (index->table->foreign_set.empty()
-                            && index->table->referenced_set.empty()))) {
+		    && index->table->can_bulk_insert(*trx)) {
 			ut_ad(page_is_empty(block->page.frame));
 			/* This code path has been executed at the
 			start of the alter operation. Consecutive
@@ -2854,6 +2858,13 @@ avoid_bulk:
 	}
 
 row_level_insert:
+	if (auto_inc) {
+		buf_block_t* root =
+			mtr.at_savepoint(mode != BTR_MODIFY_ROOT_AND_LEAF);
+		ut_ad(index->page == root->page.id().page_no());
+		page_set_autoinc(root, auto_inc, &mtr, false);
+	}
+
 	if (UNIV_UNLIKELY(entry->info_bits != 0)) {
 		const rec_t* rec = btr_pcur_get_rec(&pcur);
 

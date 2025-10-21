@@ -5447,3 +5447,71 @@ DROP VIEW t1;
 --echo #
 --echo # End of 10.4 tests
 --echo #
+
+--echo #
+--echo # MDEV-35330: Assertion `marked_for_read()` failed in VSec9::VSec9 | Item_func_from_unixtime::get_date
+--echo #
+
+CREATE TABLE t (a INT,b TIMESTAMP DEFAULT FROM_UNIXTIME(a));
+INSERT INTO t VALUES (1,'2025-07-18 18:37:10');
+
+SELECT * FROM t;
+
+EXECUTE IMMEDIATE 'UPDATE t SET b=?' USING DEFAULT;
+
+SELECT * FROM t;
+
+DROP TABLE t;
+
+CREATE TABLE t (a INT, b INT DEFAULT (a+5));
+INSERT INTO t values (1,2), (2,DEFAULT);
+EXECUTE IMMEDIATE 'INSERT INTO t VALUES (3,4), (4,?)' USING DEFAULT;
+
+SELECT * FROM t;
+
+EXECUTE IMMEDIATE 'UPDATE t SET b=?' USING DEFAULT;
+
+SELECT * FROM t;
+
+DROP TABLE t;
+
+CREATE TABLE t (a INT,b TIMESTAMP DEFAULT FROM_UNIXTIME(a));
+INSERT INTO t VALUES (1,'2025-07-18 18:37:10');
+
+SELECT * FROM t;
+
+PREPARE s FROM 'UPDATE t SET b=?';
+EXECUTE s USING DEFAULT;
+
+SELECT * FROM t;
+
+DROP TABLE t;
+
+CREATE TABLE t (a INT, b TIMESTAMP DEFAULT FROM_UNIXTIME(a), c INT DEFAULT (a+5));
+INSERT INTO t VALUES (1,'2025-07-18 18:37:10',3);
+
+SELECT * FROM t;
+
+EXECUTE IMMEDIATE 'UPDATE t SET b=?, c=?' USING DEFAULT, DEFAULT;
+
+SELECT * FROM t;
+
+DROP TABLE t;
+--echo # End of 10.6 tests
+
+--echo # Beginning of 10.11 test
+
+--echo #
+--echo # MDEV-30277: Assertion failure in Diagnostics_area::set_error_status
+--echo # / Reprepare_observer::report_error
+--echo #
+
+CREATE TABLE t (a INT);
+PREPARE stmt FROM " DELETE FROM t LIMIT ?";
+ALTER TABLE t FORCE;
+--error ER_INVALID_DEFAULT_PARAM
+EXECUTE stmt USING DEFAULT;
+
+DROP TABLE t;
+
+--echo # End of 10.11 test

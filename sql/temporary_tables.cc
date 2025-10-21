@@ -441,6 +441,17 @@ bool THD::open_temporary_table(TABLE_LIST *tl)
 }
 
 
+bool THD::check_and_open_tmp_table(TABLE_LIST *tl)
+{
+  if (!has_temporary_tables() ||
+      tl == lex->first_not_own_table() ||
+      tl->derived || tl->schema_table)
+    return false;
+
+  return open_temporary_table(tl);
+}
+
+
 /**
   Pre-open temporary tables corresponding to table list elements.
 
@@ -641,7 +652,7 @@ bool THD::drop_temporary_table(TABLE *table, bool *is_trans, bool delete_table)
   {
     if (tab != table && tab->query_id != 0)
     {
-      /* Found a table instance in use. This table cannot be be dropped. */
+      /* Found a table instance in use. This table cannot be dropped. */
       my_error(ER_CANT_REOPEN_TABLE, MYF(0), table->alias.c_ptr());
       result= true;
       goto end;

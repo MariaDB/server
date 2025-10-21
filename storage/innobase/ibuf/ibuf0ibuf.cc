@@ -371,6 +371,7 @@ ibuf_size_update(
 	const page_t*	root)	/*!< in: ibuf tree root */
 {
 	mysql_mutex_assert_owner(&ibuf_mutex);
+	ut_ad(!ibuf.index || ibuf.index->lock.have_u_or_x());
 
 	ibuf.free_list_len = flst_get_len(root + PAGE_HEADER
 					   + PAGE_BTR_IBUF_FREE_LIST);
@@ -414,6 +415,15 @@ err_exit:
 		return err;
 	}
 
+	if (buf_block_t* block =
+	    buf_page_get_gen(page_id_t(IBUF_SPACE_ID,
+				       FSP_IBUF_TREE_ROOT_PAGE_NO),
+			     0, RW_X_LATCH, nullptr, BUF_GET, &mtr, &err)) {
+		root = buf_block_get_frame(block);
+	} else {
+		goto err_exit;
+	}
+
 	fseg_n_reserved_pages(*header_page,
 			      IBUF_HEADER + IBUF_TREE_SEG_HEADER
 			      + header_page->page.frame, &ibuf.seg_size, &mtr);
@@ -423,15 +433,6 @@ err_exit:
 					 1)) continue,);
 		ut_ad(ibuf.seg_size >= 2);
 	} while (0);
-
-	if (buf_block_t* block =
-	    buf_page_get_gen(page_id_t(IBUF_SPACE_ID,
-				       FSP_IBUF_TREE_ROOT_PAGE_NO),
-			     0, RW_X_LATCH, nullptr, BUF_GET, &mtr, &err)) {
-		root = buf_block_get_frame(block);
-	} else {
-		goto err_exit;
-	}
 
 	DBUG_EXECUTE_IF("ibuf_init_corrupt",
 			err = DB_CORRUPTION;
@@ -1741,26 +1742,24 @@ dare to start a pessimistic insert to the insert buffer.
 static inline bool ibuf_data_enough_free_for_insert()
 {
 	mysql_mutex_assert_owner(&ibuf_mutex);
+	ut_ad(ibuf.index->lock.have_u_or_x());
 
 	/* We want a big margin of free pages, because a B-tree can sometimes
 	grow in size also if records are deleted from it, as the node pointers
 	can change, and we must make sure that we are able to delete the
 	inserts buffered for pages that we read to the buffer pool, without
 	any risk of running out of free space in the insert buffer. */
-
 	return(ibuf.free_list_len >= (ibuf.size / 2) + 3 * ibuf.height);
 }
 
 /*********************************************************************//**
 Checks if there are enough pages in the free list of the ibuf tree that we
 should remove them and free to the file space management.
-@return TRUE if enough free pages in list */
-UNIV_INLINE
-ibool
-ibuf_data_too_much_free(void)
-/*=========================*/
+@return whether enough free pages in list */
+static inline bool ibuf_data_too_much_free()
 {
 	mysql_mutex_assert_owner(&ibuf_mutex);
+	ut_ad(ibuf.index->lock.have_u_or_x());
 
 	return(ibuf.free_list_len >= 3 + (ibuf.size / 2) + 3 * ibuf.height);
 }
@@ -1839,6 +1838,7 @@ corrupted:
 		goto corrupted;
 	}
 
+	ut_ad(ibuf.index->lock.have_u_or_x());
 	ibuf.seg_size++;
 	ibuf.free_list_len++;
 
@@ -1850,12 +1850,17 @@ corrupted:
 	return true;
 }
 
-/*********************************************************************//**
-Removes a page from the free list and frees it to the fsp system. */
-static void ibuf_remove_free_page()
+/** Removes a page from the free list and frees it to the fsp system.
+@param all Free all freed page. This should be useful only during slow
+shutdown
+@return error code when InnoDB fails to free the page
+@retval DB_SUCCESS_LOCKED_REC if all free pages are freed
+@retval DB_SUCCESS if page is freed */
+static dberr_t ibuf_remove_free_page(bool all = false)
 {
 	mtr_t	mtr;
 	page_t*	header_page;
+	dberr_t err = DB_SUCCESS;
 
 	log_free_check();
 
@@ -1871,28 +1876,34 @@ static void ibuf_remove_free_page()
 	mysql_mutex_lock(&ibuf_pessimistic_insert_mutex);
 	mysql_mutex_lock(&ibuf_mutex);
 
-	if (!header_page || !ibuf_data_too_much_free()) {
+	if (!header_page) {
 early_exit:
 		mysql_mutex_unlock(&ibuf_mutex);
 		mysql_mutex_unlock(&ibuf_pessimistic_insert_mutex);
-
+exit:
 		ibuf_mtr_commit(&mtr);
 
-		return;
+		return err;
 	}
 
-	buf_block_t* root = ibuf_tree_root_get(&mtr);
+	buf_block_t* root = ibuf_tree_root_get(&mtr, &err);
 
 	if (UNIV_UNLIKELY(!root)) {
 		goto early_exit;
 	}
 
-	const auto root_savepoint = mtr.get_savepoint() - 1;
+	if (!all && !ibuf_data_too_much_free()) {
+		goto early_exit;
+	}
+
 	const uint32_t page_no = flst_get_last(PAGE_HEADER
 					       + PAGE_BTR_IBUF_FREE_LIST
 					       + root->page.frame).page;
 
+	/* If all the freed pages are removed during slow shutdown
+	then exit early with DB_SUCCESS_LOCKED_REC */
 	if (page_no >= fil_system.sys_space->free_limit) {
+		err = DB_SUCCESS_LOCKED_REC;
 		goto early_exit;
 	}
 
@@ -1902,7 +1913,6 @@ early_exit:
 	because in fseg_free_page we access level 1 pages, and the root
 	is a level 2 page. */
 	root->page.lock.u_unlock();
-	mtr.lock_register(root_savepoint, MTR_MEMO_BUF_FIX);
 	ibuf_exit(&mtr);
 
 	/* Since pessimistic inserts were prevented, we know that the
@@ -1914,18 +1924,17 @@ early_exit:
 	compile_time_assert(IBUF_SPACE_ID == 0);
 	const page_id_t	page_id{IBUF_SPACE_ID, page_no};
 	buf_block_t* bitmap_page = nullptr;
-	dberr_t err = fseg_free_page(
+	err = fseg_free_page(
 		header_page + IBUF_HEADER + IBUF_TREE_SEG_HEADER,
 		fil_system.sys_space, page_no, &mtr);
+
+	root->page.lock.u_lock();
 
 	if (err != DB_SUCCESS) {
 		goto func_exit;
 	}
 
 	ibuf_enter(&mtr);
-
-	mysql_mutex_lock(&ibuf_mutex);
-	mtr.upgrade_buffer_fix(root_savepoint, RW_X_LATCH);
 
 	/* Remove the page from the free list and update the ibuf size data */
 	if (buf_block_t* block =
@@ -1938,6 +1947,7 @@ early_exit:
 	}
 
 	mysql_mutex_unlock(&ibuf_pessimistic_insert_mutex);
+	ut_ad(ibuf.index->lock.have_u_or_x());
 
 	if (err == DB_SUCCESS) {
 		ibuf.seg_size--;
@@ -1946,8 +1956,6 @@ early_exit:
 	}
 
 func_exit:
-	mysql_mutex_unlock(&ibuf_mutex);
-
 	if (bitmap_page) {
 		/* Set the bit indicating that this page is no more an
 		ibuf tree page (level 2 page) */
@@ -1959,7 +1967,7 @@ func_exit:
 		buf_page_free(fil_system.sys_space, page_no, &mtr);
 	}
 
-	ibuf_mtr_commit(&mtr);
+        goto exit;
 }
 
 /***********************************************************************//**
@@ -1975,12 +1983,11 @@ ibuf_free_excess_pages(void)
 	requested service too much */
 
 	for (ulint i = 0; i < 4; i++) {
-
-		ibool	too_much_free;
-
 		mysql_mutex_lock(&ibuf_mutex);
-		too_much_free = ibuf_data_too_much_free();
+		ibuf.index->lock.u_lock(SRW_LOCK_CALL);
+		bool too_much_free = ibuf_data_too_much_free();
 		mysql_mutex_unlock(&ibuf_mutex);
+		ibuf.index->lock.u_unlock();
 
 		if (!too_much_free) {
 			return;
@@ -2427,7 +2434,9 @@ ATTRIBUTE_COLD ulint ibuf_contract()
 		      == page_id_t(IBUF_SPACE_ID, FSP_IBUF_TREE_ROOT_PAGE_NO));
 
 		ibuf_mtr_commit(&mtr);
-
+		/* Remove all free page from free list and
+		frees it to system tablespace */
+		while (ibuf_remove_free_page(true) == DB_SUCCESS);
 		return(0);
 	}
 
@@ -3159,8 +3168,11 @@ ibuf_insert_low(
 		for (;;) {
 			mysql_mutex_lock(&ibuf_pessimistic_insert_mutex);
 			mysql_mutex_lock(&ibuf_mutex);
+			ibuf.index->lock.u_lock(SRW_LOCK_CALL);
+			bool enough = ibuf_data_enough_free_for_insert();
+			ibuf.index->lock.u_unlock();
 
-			if (UNIV_LIKELY(ibuf_data_enough_free_for_insert())) {
+			if (UNIV_LIKELY(enough)) {
 
 				break;
 			}
@@ -4476,8 +4488,11 @@ ibuf_print(
   }
 
   const uint32_t size= ibuf.size;
+  ibuf.index->lock.u_lock(SRW_LOCK_CALL);
   const uint32_t free_list_len= ibuf.free_list_len;
   const uint32_t seg_size= ibuf.seg_size;
+  ibuf.index->lock.u_unlock();
+
   mysql_mutex_unlock(&ibuf_mutex);
 
   fprintf(file,

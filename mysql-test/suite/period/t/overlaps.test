@@ -253,22 +253,14 @@ insert into t values (1, '2020-03-03', '2020-03-10')
               on duplicate key update x = 2;
 
 select * from t;
---disable_cursor_protocol
---disable_ps2_protocol
 select * into outfile 'tmp_t.txt' from t;
---enable_ps2_protocol
---enable_cursor_protocol
 load data infile 'tmp_t.txt' into table t;
 --error ER_NOT_SUPPORTED_YET
 load data infile 'tmp_t.txt' replace into table t;
 remove_file $MYSQLD_DATADIR/test/tmp_t.txt;
 
 insert into t values (1, '2020-03-01', '2020-03-05');
---disable_cursor_protocol
---disable_ps2_protocol
 select * into outfile 'tmp_t.txt' from t;
---enable_ps2_protocol
---enable_cursor_protocol
 --error ER_DUP_ENTRY
 load data infile 'tmp_t.txt' into table t;
 

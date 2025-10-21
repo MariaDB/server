@@ -2176,6 +2176,7 @@ sub environment_setup {
   $ENV{'LC_CTYPE'}=           "C";
   $ENV{'LC_COLLATE'}=         "C";
 
+  $ENV{'GNUTLS_SYSTEM_PRIORITY_FILE'}='/dev/null';
   $ENV{'OPENSSL_CONF'}= $mysqld_variables{'version-ssl-library'} gt 'OpenSSL 1.1.1'
                        ? "$glob_mysql_test_dir/lib/openssl.cnf" : '/dev/null';
 
@@ -4545,10 +4546,8 @@ sub extract_warning_lines ($$) {
      qr|table.*is full|,
      qr/\[ERROR\] (mysqld|mariadbd): \Z/,  # Warning from Aria recovery
      qr|Linux Native AIO|, # warning that aio does not work on /dev/shm
-     qr|InnoDB: io_setup\(\) attempt|,
-     qr|InnoDB: io_setup\(\) failed with EAGAIN|,
      qr|io_uring_queue_init\(\) failed with|,
-     qr|InnoDB: liburing disabled|,
+     qr|InnoDB: io_uring failed: falling back to libaio|,
      qr/InnoDB: Failed to set O_DIRECT on file/,
      qr|setrlimit could not change the size of core files to 'infinity';|,
      qr|failed to retrieve the MAC address|,

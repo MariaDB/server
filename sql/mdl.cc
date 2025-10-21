@@ -1004,7 +1004,7 @@ bool MDL_context::fix_pins()
 
   @param  mdl_namespace  Id of namespace of object to be locked
   @param  db             Name of database to which the object belongs
-  @param  name           Name of of the object
+  @param  name           Name of the object
   @param  mdl_type       The MDL lock type for the request.
 */
 
@@ -2395,6 +2395,8 @@ MDL_context::acquire_lock(MDL_request *mdl_request, double lock_wait_timeout)
   DEBUG_SYNC(get_thd(), "mdl_acquire_lock_wait");
 
   find_deadlock();
+
+  DEBUG_SYNC(get_thd(), "mdl_after_find_deadlock");
 
   struct timespec abs_timeout, abs_shortwait;
   set_timespec_nsec(abs_timeout,

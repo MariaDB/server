@@ -328,6 +328,7 @@ select * from t_permanent_aria2;
 
 SET AUTOCOMMIT = 0;
 UPDATE t_permanent_innodb SET col1 = 9;
+--error ER_LOCK_WAIT_TIMEOUT
 UPDATE t_permanent_aria SET col1 = 9;
 --error ER_LOCK_WAIT_TIMEOUT
 UPDATE t_permanent_myisam SET col1 = 9;

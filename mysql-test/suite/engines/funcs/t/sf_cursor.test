@@ -1,7 +1,4 @@
---disable_warnings
-DROP TABLE IF EXISTS t1,t2,t3,t4;
-DROP FUNCTION IF EXISTS sf1;
---enable_warnings
+--disable_ps2_protocol
 CREATE TABLE t1 (id INTEGER NULL , data INTEGER NULL, KEY(id));
 CREATE TABLE t2 (i INTEGER NULL);
 CREATE TABLE t3 (id INTEGER NULL, data INTEGER NULL, KEY(id));

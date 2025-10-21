@@ -862,6 +862,28 @@ bool print_explain_for_slow_log(LEX *lex, THD *thd, String *str);
 
 
 class st_select_lex_unit: public st_select_lex_node {
+private:
+  /*
+    When a CTE is merged to the parent SELECT, its unit is excluded
+    which separates it from the tree of units for this query.  It
+    needs to be cleaned up but not at the time it is excluded, since
+    its queries are merged to the unit above it.  Remember all such
+    units via the stranded_clean_list and clean them at the end of
+    the query.  This list is maintained only at the root unit node
+    of the query tree.
+   */
+  st_select_lex_unit *stranded_clean_list{nullptr};
+
+  // Add myself to the stranded_clean_list.
+  void remember_my_cleanup();
+
+  /*
+    Walk the stranded_clean_list and cleanup units.  This must only
+    be called for the st_select_lex_unit type because it assumes
+    that those are the only nodes in the stranded_clean_list.
+  */
+  void cleanup_stranded_units();
+
 protected:
   TABLE_LIST result_table_list;
   select_unit *union_result;
@@ -1150,8 +1172,6 @@ public:
   TABLE_LIST *embedding;          /* table embedding to the above list   */
   table_value_constr *tvc;
 
-  /* The interface employed to execute the select query by a foreign engine */
-  select_handler *select_h;
   /* The object used to organize execution of the query by a foreign engine */
   select_handler *pushdown_select;
   List<TABLE_LIST> *join_list;    /* list for the currently parsed join  */
@@ -3344,7 +3364,7 @@ public:
     at parse time to set local name resolution contexts for various parts
     of a query. For example, in a JOIN ... ON (some_condition) clause the
     Items in 'some_condition' must be resolved only against the operands
-    of the the join, and not against the whole clause. Similarly, Items in
+    of the join, and not against the whole clause. Similarly, Items in
     subqueries should be resolved against the subqueries (and outer queries).
     The stack is used in the following way: when the parser detects that
     all Items in some clause need a local context, it creates a new context
@@ -3598,14 +3618,29 @@ public:
   static const ulong initial_gtid_domain_buffer_size= 16;
   uint32 gtid_domain_static_buffer[initial_gtid_domain_buffer_size];
 
-  inline void set_limit_rows_examined()
+  /*
+    Activates enforcement of the LIMIT ROWS EXAMINED clause, if present
+    in the query.
+  */
+  void set_limit_rows_examined()
   {
     if (limit_rows_examined)
       limit_rows_examined_cnt= limit_rows_examined->val_uint();
-    else
-      limit_rows_examined_cnt= ULONGLONG_MAX;
   }
 
+  /**
+    Deactivates enforcement of the LIMIT ROWS EXAMINED clause and returns its
+    prior state.
+    Return value:
+    - false: LIMIT ROWS EXAMINED was not activated
+    - true:  LIMIT ROWS EXAMINED was activated
+  */
+  bool deactivate_limit_rows_examined()
+  {
+    bool was_activated= (limit_rows_examined_cnt != ULONGLONG_MAX);
+    limit_rows_examined_cnt= ULONGLONG_MAX; // Unreachable value
+    return was_activated;
+  }
 
   LEX_CSTRING *win_ref;
   Window_frame *win_frame;

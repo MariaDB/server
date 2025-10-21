@@ -88,7 +88,7 @@ static uint field_enumerator(uchar *arg)
   @details
   The function creates a temporary table for the expression cache, defines
   the search index and initializes auxiliary search structures used to check
-  whether a given set of of values of the expression parameters is in some
+  whether a given set of values of the expression parameters is in some
   cache entry.
 */
 
