@@ -1580,7 +1580,7 @@ t2	CREATE TABLE `t2` (
   PRIMARY KEY (`a`),
   UNIQUE KEY `b_2` (`b`),
   KEY `b` (`b`),
-  CONSTRAINT `1` FOREIGN KEY (`b`) REFERENCES `t1` (`id`)
+  CONSTRAINT `t2_ibfk_1` FOREIGN KEY (`b`) REFERENCES `t1` (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 drop table t2;
 create table t2 (a int auto_increment primary key, b int, foreign key (b) references t1(id), foreign key (b) references t1(id), unique(b)) engine=innodb;
@@ -1591,8 +1591,8 @@ t2	CREATE TABLE `t2` (
   `b` int(11) DEFAULT NULL,
   PRIMARY KEY (`a`),
   UNIQUE KEY `b` (`b`),
-  CONSTRAINT `1` FOREIGN KEY (`b`) REFERENCES `t1` (`id`),
-  CONSTRAINT `2` FOREIGN KEY (`b`) REFERENCES `t1` (`id`)
+  CONSTRAINT `t2_ibfk_1` FOREIGN KEY (`b`) REFERENCES `t1` (`id`),
+  CONSTRAINT `t2_ibfk_2` FOREIGN KEY (`b`) REFERENCES `t1` (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 drop table t2, t1;
 create table t1 (c char(10), index (c,c)) engine=innodb;
@@ -2413,7 +2413,7 @@ SELECT * FROM t1;
 id
 1
 TRUNCATE t1;
-ERROR 42000: Cannot truncate a table referenced in a foreign key constraint (`test`.`t2`, CONSTRAINT `1` FOREIGN KEY (`id`) REFERENCES `test`.`t1` (`id`))
+ERROR 42000: Cannot truncate a table referenced in a foreign key constraint (`test`.`t2`, CONSTRAINT `t2_ibfk_1` FOREIGN KEY (`id`) REFERENCES `test`.`t1` (`id`))
 INSERT INTO t1 (id) VALUES (NULL);
 SELECT * FROM t1;
 id
@@ -2421,7 +2421,7 @@ id
 2
 DELETE FROM t1;
 TRUNCATE t1;
-ERROR 42000: Cannot truncate a table referenced in a foreign key constraint (`test`.`t2`, CONSTRAINT `1` FOREIGN KEY (`id`) REFERENCES `test`.`t1` (`id`))
+ERROR 42000: Cannot truncate a table referenced in a foreign key constraint (`test`.`t2`, CONSTRAINT `t2_ibfk_1` FOREIGN KEY (`id`) REFERENCES `test`.`t1` (`id`))
 INSERT INTO t1 (id) VALUES (NULL);
 SELECT * FROM t1;
 id
@@ -2539,12 +2539,12 @@ create table t2 (a int primary key, b int, foreign key (b) references t1(a)) eng
 create table t1(a char(10) primary key, b varchar(20)) engine = innodb;
 set foreign_key_checks=1;
 insert into t2 values (1,1);
-ERROR 23000: Cannot add or update a child row: a foreign key constraint fails (`test`.`t2`, CONSTRAINT `1` FOREIGN KEY (`b`) REFERENCES `t1` (`a`))
+ERROR 23000: Cannot add or update a child row: a foreign key constraint fails (`test`.`t2`, CONSTRAINT `t2_ibfk_1` FOREIGN KEY (`b`) REFERENCES `t1` (`a`))
 set foreign_key_checks=0;
 drop table t1;
 set foreign_key_checks=1;
 insert into t2 values (1,1);
-ERROR 23000: Cannot add or update a child row: a foreign key constraint fails (`test`.`t2`, CONSTRAINT `1` FOREIGN KEY (`b`) REFERENCES `t1` (`a`))
+ERROR 23000: Cannot add or update a child row: a foreign key constraint fails (`test`.`t2`, CONSTRAINT `t2_ibfk_1` FOREIGN KEY (`b`) REFERENCES `t1` (`a`))
 create table t1(a char(10) primary key, b varchar(20)) engine = innodb;
 ERROR HY000: Can't create table `test`.`t1` (errno: 150 "Foreign key constraint is incorrectly formed")
 drop table t2;
@@ -2560,14 +2560,14 @@ set foreign_key_checks=0;
 create table t2 (a varchar(10), foreign key (a) references t1(a)) engine = innodb;
 create table t1(a varchar(10) primary key) engine = innodb;
 alter table t1 modify column a int;
-ERROR HY000: Cannot change column 'a': used in a foreign key constraint '1' of table 'test.t2'
+ERROR HY000: Cannot change column 'a': used in a foreign key constraint 't2_ibfk_1' of table 'test.t2'
 set foreign_key_checks=1;
 drop table t2,t1;
 set foreign_key_checks=0;
 create table t2 (a varchar(10), foreign key (a) references t1(a)) engine = innodb DEFAULT CHARSET=latin1;
 create table t1(a varchar(10) primary key) engine = innodb DEFAULT CHARSET=latin1;
 alter table t1 convert to character set utf8;
-ERROR HY000: Cannot change column 'a': used in a foreign key constraint '1' of table 'test.t2'
+ERROR HY000: Cannot change column 'a': used in a foreign key constraint 't2_ibfk_1' of table 'test.t2'
 set foreign_key_checks=1;
 drop table t2,t1;
 call mtr.add_suppression("\\[Warning\\] InnoDB: In ALTER TABLE `test`.`t1` has or is referenced in foreign key constraints which are not compatible with the new table definition.");
@@ -2585,29 +2585,29 @@ create table t4(a int primary key,constraint foreign key(a)references t3(a)) row
 insert into t1 values(1);
 insert into t3 values(1);
 insert into t2 values(2);
-ERROR 23000: Cannot add or update a child row: a foreign key constraint fails (`test`.`t2`, CONSTRAINT `1` FOREIGN KEY (`a`) REFERENCES `t1` (`a`))
+ERROR 23000: Cannot add or update a child row: a foreign key constraint fails (`test`.`t2`, CONSTRAINT `t2_ibfk_1` FOREIGN KEY (`a`) REFERENCES `t1` (`a`))
 insert into t4 values(2);
-ERROR 23000: Cannot add or update a child row: a foreign key constraint fails (`test`.`t4`, CONSTRAINT `1` FOREIGN KEY (`a`) REFERENCES `t3` (`a`))
+ERROR 23000: Cannot add or update a child row: a foreign key constraint fails (`test`.`t4`, CONSTRAINT `t4_ibfk_1` FOREIGN KEY (`a`) REFERENCES `t3` (`a`))
 insert into t2 values(1);
 insert into t4 values(1);
 update t1 set a=2;
-ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (`test`.`t2`, CONSTRAINT `1` FOREIGN KEY (`a`) REFERENCES `t1` (`a`))
+ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (`test`.`t2`, CONSTRAINT `t2_ibfk_1` FOREIGN KEY (`a`) REFERENCES `t1` (`a`))
 update t2 set a=2;
-ERROR 23000: Cannot add or update a child row: a foreign key constraint fails (`test`.`t2`, CONSTRAINT `1` FOREIGN KEY (`a`) REFERENCES `t1` (`a`))
+ERROR 23000: Cannot add or update a child row: a foreign key constraint fails (`test`.`t2`, CONSTRAINT `t2_ibfk_1` FOREIGN KEY (`a`) REFERENCES `t1` (`a`))
 update t3 set a=2;
-ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (`test`.`t4`, CONSTRAINT `1` FOREIGN KEY (`a`) REFERENCES `t3` (`a`))
+ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (`test`.`t4`, CONSTRAINT `t4_ibfk_1` FOREIGN KEY (`a`) REFERENCES `t3` (`a`))
 update t4 set a=2;
-ERROR 23000: Cannot add or update a child row: a foreign key constraint fails (`test`.`t4`, CONSTRAINT `1` FOREIGN KEY (`a`) REFERENCES `t3` (`a`))
+ERROR 23000: Cannot add or update a child row: a foreign key constraint fails (`test`.`t4`, CONSTRAINT `t4_ibfk_1` FOREIGN KEY (`a`) REFERENCES `t3` (`a`))
 truncate t1;
-ERROR 42000: Cannot truncate a table referenced in a foreign key constraint (`test`.`t2`, CONSTRAINT `1` FOREIGN KEY (`a`) REFERENCES `test`.`t1` (`a`))
+ERROR 42000: Cannot truncate a table referenced in a foreign key constraint (`test`.`t2`, CONSTRAINT `t2_ibfk_1` FOREIGN KEY (`a`) REFERENCES `test`.`t1` (`a`))
 truncate t3;
-ERROR 42000: Cannot truncate a table referenced in a foreign key constraint (`test`.`t4`, CONSTRAINT `1` FOREIGN KEY (`a`) REFERENCES `test`.`t3` (`a`))
+ERROR 42000: Cannot truncate a table referenced in a foreign key constraint (`test`.`t4`, CONSTRAINT `t4_ibfk_1` FOREIGN KEY (`a`) REFERENCES `test`.`t3` (`a`))
 truncate t2;
 truncate t4;
 truncate t1;
-ERROR 42000: Cannot truncate a table referenced in a foreign key constraint (`test`.`t2`, CONSTRAINT `1` FOREIGN KEY (`a`) REFERENCES `test`.`t1` (`a`))
+ERROR 42000: Cannot truncate a table referenced in a foreign key constraint (`test`.`t2`, CONSTRAINT `t2_ibfk_1` FOREIGN KEY (`a`) REFERENCES `test`.`t1` (`a`))
 truncate t3;
-ERROR 42000: Cannot truncate a table referenced in a foreign key constraint (`test`.`t4`, CONSTRAINT `1` FOREIGN KEY (`a`) REFERENCES `test`.`t3` (`a`))
+ERROR 42000: Cannot truncate a table referenced in a foreign key constraint (`test`.`t4`, CONSTRAINT `t4_ibfk_1` FOREIGN KEY (`a`) REFERENCES `test`.`t3` (`a`))
 drop table t4,t3,t2,t1;
 create table t1 (a varchar(255) character set utf8,
 b varchar(255) character set utf8,
@@ -2728,14 +2728,14 @@ drop table t2,t1;
 CREATE TABLE t1(a INT, PRIMARY KEY(a)) ENGINE=InnoDB;
 CREATE TABLE t2(a INT) ENGINE=InnoDB;
 ALTER TABLE t2 ADD FOREIGN KEY (a) REFERENCES t1(a);
-ALTER TABLE t2 DROP FOREIGN KEY `1`;
-ALTER TABLE t2 ADD CONSTRAINT `0` FOREIGN KEY (a) REFERENCES t1(a);
-ALTER TABLE t2 DROP FOREIGN KEY `0`;
+ALTER TABLE t2 DROP FOREIGN KEY t2_ibfk_1;
+ALTER TABLE t2 ADD CONSTRAINT t2_ibfk_0 FOREIGN KEY (a) REFERENCES t1(a);
+ALTER TABLE t2 DROP FOREIGN KEY t2_ibfk_0;
 SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `a` int(11) DEFAULT NULL,
-  KEY `0` (`a`)
+  KEY `t2_ibfk_0` (`a`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t2,t1;
 SET sql_mode = default;
@@ -3061,7 +3061,7 @@ t2	CREATE TABLE `t2` (
   `f` int(11) NOT NULL,
   PRIMARY KEY (`id`),
   KEY `f` (`f`),
-  CONSTRAINT `1` FOREIGN KEY (`f`) REFERENCES `t1` (`f`) ON DELETE CASCADE ON UPDATE CASCADE,
+  CONSTRAINT `t2_ibfk_1` FOREIGN KEY (`f`) REFERENCES `t1` (`f`) ON DELETE CASCADE ON UPDATE CASCADE,
   CONSTRAINT `t2_t1` FOREIGN KEY (`id`) REFERENCES `t1` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t2, t1;
@@ -3073,7 +3073,7 @@ ALTER TABLE t2 ADD FOREIGN KEY (a) REFERENCES t1 (a) ON DELETE SET NULL;
 set @old_sql_mode = @@sql_mode;
 set @@sql_mode = 'STRICT_TRANS_TABLES';
 ALTER TABLE t2 MODIFY a INT NOT NULL;
-ERROR HY000: Column 'a' cannot be NOT NULL: needed in a foreign key constraint '1' SET NULL
+ERROR HY000: Column 'a' cannot be NOT NULL: needed in a foreign key constraint 't2_ibfk_1' SET NULL
 set @@sql_mode = @old_sql_mode;
 DELETE FROM t1;
 DROP TABLE t2,t1;

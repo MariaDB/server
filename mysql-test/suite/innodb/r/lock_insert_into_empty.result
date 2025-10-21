@@ -35,9 +35,9 @@ SET FOREIGN_KEY_CHECKS=ON;
 BEGIN;
 INSERT IGNORE INTO t1 VALUES (1,11);
 Warnings:
-Warning	1452	Cannot add or update a child row: a foreign key constraint fails (`test`.`t1`, CONSTRAINT `1` FOREIGN KEY (`f`) REFERENCES `nonexistent` (`x`))
+Warning	1452	Cannot add or update a child row: a foreign key constraint fails (`test`.`t1`, CONSTRAINT `t1_ibfk_1` FOREIGN KEY (`f`) REFERENCES `nonexistent` (`x`))
 REPLACE INTO t1 VALUES (1,12);
-ERROR 23000: Cannot add or update a child row: a foreign key constraint fails (`test`.`t1`, CONSTRAINT `1` FOREIGN KEY (`f`) REFERENCES `nonexistent` (`x`))
+ERROR 23000: Cannot add or update a child row: a foreign key constraint fails (`test`.`t1`, CONSTRAINT `t1_ibfk_1` FOREIGN KEY (`f`) REFERENCES `nonexistent` (`x`))
 COMMIT;
 DROP TABLE t1;
 #

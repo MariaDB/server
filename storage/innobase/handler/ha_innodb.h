@@ -922,15 +922,3 @@ and rename statistics for renamed indexes.
 @param table InnoDB table that was rebuilt by ALTER TABLE
 @param trx   user transaction */
 void alter_stats_rebuild(dict_table_t *table, trx_t *trx) noexcept;
-
-/** Find an auto-generated foreign key constraint identifier.
-@param table   InnoDB table
-@return the next number to assign to a constraint */
-ulint dict_table_get_foreign_id(const dict_table_t &table) noexcept;
-
-/** Generate a foreign key constraint name for an anonymous constraint.
-@param id_nr    sequence to allocate identifiers from
-@param name     table name
-@param foreign  foreign key */
-void dict_create_add_foreign_id(ulint *id_nr, const char *name,
-                                dict_foreign_t *foreign) noexcept;

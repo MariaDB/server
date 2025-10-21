@@ -299,13 +299,3 @@ drop table t2яяяяяяяяяяььььььььььззззззззззшшш�
            t1яяяяяяяяяяььььььььььззззззззззшшшшшшшшшш;
 
 --echo # End of 10.6 tests
-
---echo #
---echo # MDEV-37077 Crash in innobase_get_foreign_key_info()
---echo #
-
-CREATE TABLE t (id INT PRIMARY KEY, f INT NOT NULL, KEY(f)) ENGINE=InnoDB;
---error ER_FK_INCORRECT_OPTION
-SET STATEMENT FOREIGN_KEY_CHECKS = OFF FOR
-ALTER TABLE t ADD FOREIGN KEY (f) REFERENCES t (id) ON UPDATE SET NULL;
-DROP TABLE t;

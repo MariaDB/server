@@ -1504,6 +1504,10 @@ fts_rename_aux_tables(
 			err = fts_rename_one_aux_table(
 				new_name, old_table_name, trx);
 
+			DBUG_EXECUTE_IF("fts_rename_failure",
+					err = DB_DEADLOCK;
+					fts_sql_rollback(trx););
+
 			if (err != DB_SUCCESS) {
 				return(err);
 			}

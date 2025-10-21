@@ -11,6 +11,11 @@ CREATE TABLE t1 (
   CONSTRAINT test FOREIGN KEY (b) REFERENCES t1 (id)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1;
 
+#
+# Below create table fails because constraint name test
+# is reserved for above table.
+#
+--error ER_CANT_CREATE_TABLE
 CREATE TABLE t2 (
   id int(11) NOT NULL PRIMARY KEY,
   a int(11) NOT NULL,
@@ -22,7 +27,7 @@ CREATE TABLE t2 (
 
 show warnings;
 
-drop table t2,t1;
+drop table t1;
 
 #
 # MDEV-6697: Improve foreign keys warnings/errors

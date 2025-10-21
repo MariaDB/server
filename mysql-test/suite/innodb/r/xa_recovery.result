@@ -38,7 +38,7 @@ CREATE TABLE t3(a INT PRIMARY KEY REFERENCES t1(a)) ENGINE=InnoDB;
 XA START 'a';
 INSERT INTO t3 SET a=1;
 INSERT INTO t3 SET a=42;
-ERROR 23000: Cannot add or update a child row: a foreign key constraint fails (`test`.`t3`, CONSTRAINT `1` FOREIGN KEY (`a`) REFERENCES `t1` (`a`))
+ERROR 23000: Cannot add or update a child row: a foreign key constraint fails (`test`.`t3`, CONSTRAINT `t3_ibfk_1` FOREIGN KEY (`a`) REFERENCES `t1` (`a`))
 XA END 'a';
 XA PREPARE 'a';
 SET GLOBAL innodb_fast_shutdown=0;

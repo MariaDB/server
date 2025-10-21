@@ -364,7 +364,7 @@ t1	CREATE TABLE `t1` (
   `b` int(11) DEFAULT NULL,
   KEY `b` (`b`),
   KEY `idx` (`aaaa`),
-  CONSTRAINT `1` FOREIGN KEY (`aaaa`) REFERENCES `t1` (`b`)
+  CONSTRAINT `t1_ibfk_1` FOREIGN KEY (`aaaa`) REFERENCES `t1` (`b`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 SELECT index_name FROM mysql.index_stats WHERE table_name = 't1' order by index_name;
 index_name

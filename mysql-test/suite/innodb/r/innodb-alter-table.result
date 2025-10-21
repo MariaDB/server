@@ -132,7 +132,7 @@ child	CREATE TABLE `child` (
   `c` int(11) NOT NULL,
   PRIMARY KEY (`a`),
   KEY `c` (`c`),
-  CONSTRAINT `1` FOREIGN KEY (`c`) REFERENCES `parent` (`a`)
+  CONSTRAINT `child_ibfk_1` FOREIGN KEY (`c`) REFERENCES `parent` (`a`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE child, parent;
 CREATE TABLE IF NOT EXISTS ticket (

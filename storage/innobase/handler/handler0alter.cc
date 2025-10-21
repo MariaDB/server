@@ -2891,13 +2891,21 @@ innobase_init_foreign(
 	ut_ad(dict_sys.locked());
 
         if (constraint_name) {
-                /* Prepend the table name to the constraint name. */
-		size_t s = 1 + snprintf(nullptr, 0, "%s\377%s",
-					table->name.m_name, constraint_name);
-		foreign->id = static_cast<char*>(
-			mem_heap_alloc(foreign->heap, s));
-		snprintf(foreign->id, s, "%s\377%s",
-			 table->name.m_name, constraint_name);
+                ulint   db_len;
+
+                /* Catenate 'databasename/' to the constraint name specified
+                by the user: we conceive the constraint as belonging to the
+                same MySQL 'database' as the table itself. We store the name
+                to foreign->id. */
+
+                db_len = dict_get_db_name_len(table->name.m_name);
+
+                foreign->id = static_cast<char*>(mem_heap_alloc(
+                        foreign->heap, db_len + strlen(constraint_name) + 2));
+
+                memcpy(foreign->id, table->name.m_name, db_len);
+                foreign->id[db_len] = '/';
+                strcpy(foreign->id + db_len + 1, constraint_name);
 
 		/* Check if any existing foreign key has the same id,
 		this is needed only if user supplies the constraint name */
@@ -3292,8 +3300,7 @@ innobase_get_foreign_key_info(
 			num_col = i;
 		}
 
-		dict_foreign_t* const fk = add_fk[num_fk]
-			= dict_mem_foreign_create();
+		add_fk[num_fk] = dict_mem_foreign_create();
 
 		LEX_CSTRING t = innodb_convert_name(cs, fk_key->ref_table,
 						    t_name);
@@ -3303,7 +3310,7 @@ innobase_get_foreign_key_info(
 		dict_sys.lock(SRW_LOCK_CALL);
 
 		referenced_table_name = dict_table_lookup(
-			d, t, &referenced_table, fk->heap);
+			d, t, &referenced_table, add_fk[num_fk]->heap);
 
 		/* Test the case when referenced_table failed to
 		open, if trx->check_foreigns is not set, we should
@@ -3362,19 +3369,8 @@ innobase_get_foreign_key_info(
 			goto err_exit_unlock;
 		}
 
-		/* If fk_key->name.str==nullptr, we will end up with
-		fk->id=nullptr. In the calls to my_error() below,
-		passing nullptr to "%s" is fine; process_str_arg()
-		will display "(null)".
-
-		Anonymous constraints (fk->id=nullptr) will be
-		assigned a name in dict_create_add_foreign_id(), which
-		is invoked by innobase_update_foreing_try().
-
-		In check_col_is_in_fk_indexes(), errors in anonymous
-		contraints will be attributed to a constraint name "0". */
 		if (!innobase_init_foreign(
-			    fk, fk_key->name.str,
+			    add_fk[num_fk], fk_key->name.str,
 			    table, index, column_names,
 			    num_col, referenced_table_name,
 			    referenced_table, referenced_index,
@@ -3382,13 +3378,14 @@ innobase_get_foreign_key_info(
 			my_error(
 				ER_DUP_CONSTRAINT_NAME,
 				MYF(0),
-				"FOREIGN KEY", fk_key->name.str);
+                                "FOREIGN KEY", add_fk[num_fk]->id);
 			goto err_exit_unlock;
 		}
 
 		dict_sys.unlock();
 
-		correct_option = innobase_set_foreign_key_option(fk, fk_key);
+		correct_option = innobase_set_foreign_key_option(
+			add_fk[num_fk], fk_key);
 
 		DBUG_EXECUTE_IF("innodb_test_wrong_fk_option",
 				correct_option = false;);
@@ -3397,11 +3394,12 @@ innobase_get_foreign_key_info(
 			my_error(ER_FK_INCORRECT_OPTION,
 				 MYF(0),
 				 table_share->table_name.str,
-				 fk_key->name.str);
+				 add_fk[num_fk]->id);
 			goto err_exit;
 		}
 
-		if (innobase_check_fk_stored(fk, table, s_cols)) {
+		if (innobase_check_fk_stored(
+			add_fk[num_fk], table, s_cols)) {
 			my_printf_error(
 				HA_ERR_UNSUPPORTED,
 				"Cannot add foreign key on the base column "
@@ -3419,8 +3417,8 @@ err_exit_unlock:
 	dict_sys.unlock();
 err_exit:
 	for (ulint i = 0; i <= num_fk; i++) {
-		if (dict_foreign_t* fk = add_fk[i]) {
-			dict_foreign_free(fk);
+		if (add_fk[i]) {
+			dict_foreign_free(add_fk[i]);
 		}
 	}
 
@@ -4488,7 +4486,9 @@ bool check_foreigns_nullability(const dict_table_t *user_table,
             && foreign->col_fk_exists(col_name) != UINT_MAX)
         {
 non_null_error:
-          my_error(ER_FK_COLUMN_NOT_NULL, MYF(0), col_name, foreign->sql_id());
+          const char* fid = strchr(foreign->id, '/');
+          fid= fid ? fid + 1 : foreign->id;
+          my_error(ER_FK_COLUMN_NOT_NULL, MYF(0), col_name, fid);
           return true;
         }
       }
@@ -4524,8 +4524,10 @@ non_null_error:
                     dblen, foreign->foreign_table_name, tbl_name);
 
         display_name[FN_REFLEN - 1]= '\0';
+        const char* fid = strchr(foreign->id, '/');
+        fid= fid ? fid + 1 : foreign->id;
         my_error(ER_FK_COLUMN_CANNOT_CHANGE_CHILD, MYF(0), col_name,
-                 foreign->sql_id(), display_name);
+                 fid, display_name);
         return true;
       }
     }
@@ -4560,7 +4562,7 @@ bool check_foreign_drop_col(const dict_table_t *user_table,
       if (!strcmp(foreign->foreign_col_names[f], col_name))
       {
         my_error(ER_FK_COLUMN_CANNOT_DROP, MYF(0),
-                 col_name, foreign->sql_id());
+                 col_name, foreign->id);
         return true;
       }
   }
@@ -7884,9 +7886,9 @@ bool check_col_is_in_fk_indexes(
   span<const dict_foreign_t *> drop_fk,
   span<const dict_foreign_t *> add_fk)
 {
-  const dict_foreign_t *fk;
+  char *fk_id= nullptr;
 
-  for (const auto f : table->foreign_set)
+  for (const auto &f : table->foreign_set)
   {
     if (!f->foreign_index ||
         std::find(drop_fk.begin(), drop_fk.end(), f) != drop_fk.end())
@@ -7894,25 +7896,25 @@ bool check_col_is_in_fk_indexes(
     for (ulint i= 0; i < f->n_fields; i++)
       if (f->foreign_index->fields[i].col == col)
       {
-        fk= f;
+        fk_id= f->id;
         goto err_exit;
       }
   }
 
-  for (const auto a : add_fk)
+  for (const auto &a : add_fk)
   {
     if (!a->foreign_index) continue;
     for (ulint i= 0; i < a->n_fields; i++)
     {
       if (a->foreign_index->fields[i].col == col)
       {
-        fk= a;
+        fk_id= a->id;
         goto err_exit;
       }
     }
   }
 
-  for (const auto f : table->referenced_set)
+  for (const auto &f : table->referenced_set)
   {
     if (!f->referenced_index) continue;
     for (ulint i= 0; i < f->n_fields; i++)
@@ -7920,7 +7922,7 @@ bool check_col_is_in_fk_indexes(
       if (f->referenced_index->fields[i].col == col)
       {
         my_error(ER_FK_COLUMN_CANNOT_CHANGE_CHILD, MYF(0),
-                 col_name, f->sql_id(), f->foreign_table_name);
+                 col_name, f->id, f->foreign_table_name);
         return true;
       }
     }
@@ -7928,7 +7930,8 @@ bool check_col_is_in_fk_indexes(
   return false;
 err_exit:
   my_error(ER_FK_COLUMN_CANNOT_CHANGE, MYF(0), col_name,
-           fk->id ? fk->sql_id() : "0");
+           fk_id ? fk_id :
+	   (std::string(table->name.m_name) + "_ibfk_0").c_str());
   return true;
 }
 
@@ -8289,11 +8292,22 @@ check_if_ok_to_rename:
 
 			dict_foreign_t* foreign;
 
-			for (dict_foreign_t* fk : m_prebuilt->table->foreign_set) {
-				if (Lex_ident_column(Lex_cstring_strlen
-						     (fk->sql_id())).
-				    streq(drop.name)) {
-					foreign = fk;
+			for (dict_foreign_set::iterator it
+				= m_prebuilt->table->foreign_set.begin();
+			     it != m_prebuilt->table->foreign_set.end();
+			     ++it) {
+
+				foreign = *it;
+				const char* fid = strchr(foreign->id, '/');
+
+				DBUG_ASSERT(fid);
+				/* If no database/ prefix was present in
+				the FOREIGN KEY constraint name, compare
+				to the full constraint name. */
+				fid = fid ? fid + 1 : foreign->id;
+
+				if (Lex_ident_column(Lex_cstring_strlen(fid)).
+				      streq(drop.name)) {
 					goto found_fk;
 				}
 			}
@@ -10042,11 +10056,14 @@ innobase_update_foreign_try(
 	trx_t*			trx,
 	const char*		table_name)
 {
+	ulint	foreign_id;
 	ulint	i;
 
 	DBUG_ENTER("innobase_update_foreign_try");
 
-	ulint foreign_id = dict_table_get_foreign_id(*ctx->new_table);
+	foreign_id = dict_table_get_highest_foreign_id(ctx->new_table);
+
+	foreign_id++;
 
 	for (i = 0; i < ctx->num_to_add_fk; i++) {
 		dict_foreign_t*		fk = ctx->add_fk[i];
@@ -10054,9 +10071,14 @@ innobase_update_foreign_try(
 		ut_ad(fk->foreign_table == ctx->new_table
 		      || fk->foreign_table == ctx->old_table);
 
-		dict_create_add_foreign_id(
+		dberr_t error = dict_create_add_foreign_id(
 			&foreign_id, ctx->old_table->name.m_name, fk);
-		/* After this point, it is safe to call fk->sql_id(). */
+
+		if (error != DB_SUCCESS) {
+			my_error(ER_TOO_LONG_IDENT, MYF(0),
+				 fk->id);
+			DBUG_RETURN(true);
+		}
 
 		if (!fk->foreign_index) {
 			fk->foreign_index = dict_foreign_find_index(
@@ -10069,7 +10091,7 @@ innobase_update_foreign_try(
 				NULL, NULL, NULL);
 			if (!fk->foreign_index) {
 				my_error(ER_FK_INCORRECT_OPTION,
-					 MYF(0), table_name, fk->sql_id());
+					 MYF(0), table_name, fk->id);
 				DBUG_RETURN(true);
 			}
 		}
@@ -10077,7 +10099,7 @@ innobase_update_foreign_try(
 		/* The fk->foreign_col_names[] uses renamed column
 		names, while the columns in ctx->old_table have not
 		been renamed yet. */
-		dberr_t error = dict_create_add_foreign_to_dictionary(
+		error = dict_create_add_foreign_to_dictionary(
 			ctx->old_table->name.m_name, fk, trx);
 
 		DBUG_EXECUTE_IF(

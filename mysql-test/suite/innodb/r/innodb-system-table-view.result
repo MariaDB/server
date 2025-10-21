@@ -98,10 +98,10 @@ FOREIGN KEY (parent_id) REFERENCES parent(id)
 ON DELETE CASCADE) ENGINE=INNODB;
 SELECT * FROM INFORMATION_SCHEMA.INNODB_SYS_FOREIGN;
 ID	FOR_NAME	REF_NAME	N_COLS	TYPE
-constraint_test	test/child	test/parent	1	1
+test/constraint_test	test/child	test/parent	1	1
 SELECT * FROM INFORMATION_SCHEMA.INNODB_SYS_FOREIGN_COLS;
 ID	FOR_COL_NAME	REF_COL_NAME	POS
-constraint_test	parent_id	id	0
+test/constraint_test	parent_id	id	0
 INSERT INTO parent VALUES(1);
 InnoDB		0 transactions not purged
 SELECT name, num_rows, ref_count
@@ -154,11 +154,11 @@ FOREIGN KEY (id, parent_id) REFERENCES parent(id, newid)
 ON DELETE CASCADE) ENGINE=INNODB;
 SELECT * FROM INFORMATION_SCHEMA.INNODB_SYS_FOREIGN;
 ID	FOR_NAME	REF_NAME	N_COLS	TYPE
-constraint_test	test/child	test/parent	2	1
+test/constraint_test	test/child	test/parent	2	1
 SELECT * FROM INFORMATION_SCHEMA.INNODB_SYS_FOREIGN_COLS;
 ID	FOR_COL_NAME	REF_COL_NAME	POS
-constraint_test	id	id	0
-constraint_test	parent_id	newid	1
+test/constraint_test	id	id	0
+test/constraint_test	parent_id	newid	1
 INSERT INTO parent VALUES(1, 9);
 SELECT * FROM parent WHERE id IN (SELECT id FROM parent);
 id	newid

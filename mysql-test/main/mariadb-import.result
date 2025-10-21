@@ -225,7 +225,7 @@ child	CREATE TABLE `child` (
   `c` char(4) DEFAULT NULL,
   UNIQUE KEY `c` (`c`),
   KEY `par_ind` (`parent_id`),
-  CONSTRAINT `1` FOREIGN KEY (`parent_id`) REFERENCES `parent` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `child_ibfk_1` FOREIGN KEY (`parent_id`) REFERENCES `parent` (`id`) ON DELETE CASCADE,
   CONSTRAINT `CONSTRAINT_1` CHECK (`c` >= 'a')
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 drop database db2;

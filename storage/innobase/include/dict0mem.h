@@ -1672,18 +1672,6 @@ public:
     }
     return true;
   }
-
-  /** @return the SQL visible constraint name */
-  const char *sql_id() const noexcept
-  {
-    /* Before MySQL 4.0.18, constraint names were auto-generated (%lu_%lu)
-    and unique among all InnoDB tables.  Starting with MySQL 4.0.18, the
-    constraint names were prepended with the schema name and /.
-    Starting with MariaDB 12, constraint names are prepended with the
-    dict_table_t::name and the invalid UTF-8 sequence 0xff. */
-    const char *s;
-    return ((s= strchr(id, '\377')) || (s= strchr(id, '/'))) ? ++s : id;
-  }
 };
 
 std::ostream&
@@ -1741,6 +1729,33 @@ struct dict_foreign_different_tables {
 	{
 		return(foreign->foreign_table != foreign->referenced_table);
 	}
+};
+
+/** A function object to check if the foreign key constraint has the same
+name as given.  If the full name of the foreign key constraint doesn't match,
+then, check if removing the database name from the foreign key constraint
+matches. Return true if it matches, false otherwise. */
+struct dict_foreign_matches_id {
+
+	dict_foreign_matches_id(const char* id)
+		: m_id(id)
+	{}
+
+	bool operator()(const dict_foreign_t*	foreign) const
+	{
+		const Lex_ident_column ident = Lex_cstring_strlen(m_id);
+		if (ident.streq(Lex_cstring_strlen(foreign->id))) {
+			return(true);
+		}
+		if (const char* pos = strchr(foreign->id, '/')) {
+			if (ident.streq(Lex_cstring_strlen(pos + 1))) {
+				return(true);
+			}
+		}
+		return(false);
+	}
+
+	const char*	m_id;
 };
 
 typedef std::set<

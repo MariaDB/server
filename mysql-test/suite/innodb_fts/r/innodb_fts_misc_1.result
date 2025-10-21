@@ -32,9 +32,9 @@ INSERT INTO t2 (a2,b2) VALUES
 ('MySQL Security','When configured properly, MySQL ...');
 INSERT INTO t2 (a2,b2) VALUES
 ('MySQL Tricks','1. Never run mysqld as root. 2. ...');
-ERROR 23000: Cannot add or update a child row: a foreign key constraint fails (`test`.`t2`, CONSTRAINT `1` FOREIGN KEY (`a2`) REFERENCES `t1` (`a1`) ON UPDATE CASCADE)
+ERROR 23000: Cannot add or update a child row: a foreign key constraint fails (`test`.`t2`, CONSTRAINT `t2_ibfk_1` FOREIGN KEY (`a2`) REFERENCES `t1` (`a1`) ON UPDATE CASCADE)
 DELETE FROM t1;
-ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (`test`.`t2`, CONSTRAINT `1` FOREIGN KEY (`a2`) REFERENCES `t1` (`a1`) ON UPDATE CASCADE)
+ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (`test`.`t2`, CONSTRAINT `t2_ibfk_1` FOREIGN KEY (`a2`) REFERENCES `t1` (`a1`) ON UPDATE CASCADE)
 ANALYZE TABLE t1;
 Table	Op	Msg_type	Msg_text
 test.t1	analyze	status	Engine-independent statistics collected
@@ -184,7 +184,7 @@ t2	CREATE TABLE `t2` (
   `s2` varchar(200) DEFAULT NULL,
   KEY `FTS_DOC_ID` (`FTS_DOC_ID`),
   FULLTEXT KEY `idx` (`s2`),
-  CONSTRAINT `1` FOREIGN KEY (`FTS_DOC_ID`) REFERENCES `t1` (`s1`) ON UPDATE CASCADE
+  CONSTRAINT `t2_ibfk_1` FOREIGN KEY (`FTS_DOC_ID`) REFERENCES `t1` (`s1`) ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values (1,'Sunshine'),(2,'Lollipops');
 insert into t2 values (1,'Sunshine'),(2,'Lollipops');
@@ -193,7 +193,7 @@ select * from t2 where match(s2) against ('sunshine');
 FTS_DOC_ID	s2
 3	Sunshine
 update t1 set s1 = 1 where s1=3;
-ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (`test`.`t2`, CONSTRAINT `1` FOREIGN KEY (`FTS_DOC_ID`) REFERENCES `t1` (`s1`) ON UPDATE CASCADE)
+ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (`test`.`t2`, CONSTRAINT `t2_ibfk_1` FOREIGN KEY (`FTS_DOC_ID`) REFERENCES `t1` (`s1`) ON UPDATE CASCADE)
 DROP TABLE t2 , t1;
 CREATE TABLE t1 (
 id1 INT ,
@@ -265,9 +265,9 @@ INSERT INTO t2 (a2,b2) VALUES
 ('MySQL Security','When configured properly, MySQL ...');
 INSERT INTO t2 (a2,b2) VALUES
 ('MySQL Tricks','1. Never run mysqld as root. 2. ...');
-ERROR 23000: Cannot add or update a child row: a foreign key constraint fails (`test`.`t2`, CONSTRAINT `1` FOREIGN KEY (`a2`) REFERENCES `t1` (`a1`) ON UPDATE CASCADE)
+ERROR 23000: Cannot add or update a child row: a foreign key constraint fails (`test`.`t2`, CONSTRAINT `t2_ibfk_1` FOREIGN KEY (`a2`) REFERENCES `t1` (`a1`) ON UPDATE CASCADE)
 DELETE FROM t1;
-ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (`test`.`t2`, CONSTRAINT `1` FOREIGN KEY (`a2`) REFERENCES `t1` (`a1`) ON UPDATE CASCADE)
+ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (`test`.`t2`, CONSTRAINT `t2_ibfk_1` FOREIGN KEY (`a2`) REFERENCES `t1` (`a1`) ON UPDATE CASCADE)
 SELECT * FROM t1 WHERE MATCH (a1,b1) AGAINST ('tutorial') ORDER BY id1;
 id1	a1	b1
 1	MySQL Tutorial	DBMS stands for DataBase VÐƷWİ...
@@ -957,10 +957,10 @@ pk	f1	f2	f3	f4	f5	f6	f7	f8
 ROLLBACK;
 ALTER TABLE t1 ADD FOREIGN KEY (f5) REFERENCES t1 (f6) ON UPDATE SET NULL;
 UPDATE t1 SET f6='update';
-ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (`test`.`t1`, CONSTRAINT `3` FOREIGN KEY (`f5`) REFERENCES `t1` (`f6`) ON UPDATE SET NULL)
+ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (`test`.`t1`, CONSTRAINT `t1_ibfk_3` FOREIGN KEY (`f5`) REFERENCES `t1` (`f6`) ON UPDATE SET NULL)
 ALTER TABLE t1 ADD FOREIGN KEY (f7) REFERENCES t1 (f8) ON UPDATE CASCADE;
 UPDATE t1 SET f6='cascade';
-ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (`test`.`t1`, CONSTRAINT `3` FOREIGN KEY (`f5`) REFERENCES `t1` (`f6`) ON UPDATE SET NULL)
+ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (`test`.`t1`, CONSTRAINT `t1_ibfk_3` FOREIGN KEY (`f5`) REFERENCES `t1` (`f6`) ON UPDATE SET NULL)
 DROP TABLE t1;
 SET FOREIGN_KEY_CHECKS=@OLD_FOREIGN_KEY_CHECKS;
 #

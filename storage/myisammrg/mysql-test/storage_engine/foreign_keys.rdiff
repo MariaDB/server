@@ -5,12 +5,12 @@
    `a` int(11) DEFAULT NULL,
    `b` char(8) DEFAULT NULL,
 -  KEY `a` (`a`),
--  CONSTRAINT `1` FOREIGN KEY (`a`) REFERENCES `t1` (`a`)
--) ENGINE=<STORAGE_ENGINE> DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+-  CONSTRAINT `t2_ibfk_1` FOREIGN KEY (`a`) REFERENCES `t1` (`a`)
+-) ENGINE=<STORAGE_ENGINE> DEFAULT CHARSET=latin1
 +  KEY `a` (`a`)
-+) ENGINE=<STORAGE_ENGINE> DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci INSERT_METHOD=LAST UNION=(`mrg`.`t2`)
++) ENGINE=<STORAGE_ENGINE> DEFAULT CHARSET=latin1 INSERT_METHOD=LAST UNION=(`mrg`.`t2`)
  INSERT INTO t2 (a,b) VALUES (1,'a'),(2,'b');
--ERROR 23000: Cannot add or update a child row: a foreign key constraint fails (`test`.`t2`, CONSTRAINT `1` FOREIGN KEY (`a`) REFERENCES `t1` (`a`))
+-ERROR 23000: Cannot add or update a child row: a foreign key constraint fails (`test`.`t2`, CONSTRAINT `t2_ibfk_1` FOREIGN KEY (`a`) REFERENCES `t1` (`a`))
 +# ERROR: Statement succeeded (expected results: ER_NO_REFERENCED_ROW_2)
 +# ------------ UNEXPECTED RESULT ------------
 +# The statement|command succeeded unexpectedly.
@@ -22,7 +22,7 @@
  INSERT INTO t1 (a,b) VALUES (1,'c'),(2,'d');
  INSERT INTO t2 (a,b) VALUES (1,'a'),(2,'b');
  UPDATE t2 SET a=a+1;
--ERROR 23000: Cannot add or update a child row: a foreign key constraint fails (`test`.`t2`, CONSTRAINT `1` FOREIGN KEY (`a`) REFERENCES `t1` (`a`))
+-ERROR 23000: Cannot add or update a child row: a foreign key constraint fails (`test`.`t2`, CONSTRAINT `t2_ibfk_1` FOREIGN KEY (`a`) REFERENCES `t1` (`a`))
 +# ERROR: Statement succeeded (expected results: ER_NO_REFERENCED_ROW_2)
 +# ------------ UNEXPECTED RESULT ------------
 +# The statement|command succeeded unexpectedly.
@@ -32,10 +32,10 @@
 +# Also, this problem may cause a chain effect (more errors of different kinds in the test).
 +# -------------------------------------------
  UPDATE t1 SET a=3 WHERE a=2;
--ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (`test`.`t2`, CONSTRAINT `1` FOREIGN KEY (`a`) REFERENCES `t1` (`a`))
+-ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (`test`.`t2`, CONSTRAINT `t2_ibfk_1` FOREIGN KEY (`a`) REFERENCES `t1` (`a`))
 +# ERROR: Statement succeeded (expected results: ER_ROW_IS_REFERENCED_2)
  DELETE FROM t1 WHERE a=2;
--ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (`test`.`t2`, CONSTRAINT `1` FOREIGN KEY (`a`) REFERENCES `t1` (`a`))
+-ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (`test`.`t2`, CONSTRAINT `t2_ibfk_1` FOREIGN KEY (`a`) REFERENCES `t1` (`a`))
 +# ERROR: Statement succeeded (expected results: ER_ROW_IS_REFERENCED_2)
 +# ------------ UNEXPECTED RESULT ------------
 +# The statement|command succeeded unexpectedly.
@@ -73,12 +73,12 @@
    `a` int(11) DEFAULT NULL,
    `b` char(8) DEFAULT NULL,
 -  KEY `a` (`a`),
--  CONSTRAINT `1` FOREIGN KEY (`a`) REFERENCES `t1` (`a`) ON DELETE CASCADE ON UPDATE CASCADE
--) ENGINE=<STORAGE_ENGINE> DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+-  CONSTRAINT `t2_ibfk_1` FOREIGN KEY (`a`) REFERENCES `t1` (`a`) ON DELETE CASCADE ON UPDATE CASCADE
+-) ENGINE=<STORAGE_ENGINE> DEFAULT CHARSET=latin1
 +  KEY `a` (`a`)
-+) ENGINE=<STORAGE_ENGINE> DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci INSERT_METHOD=LAST UNION=(`mrg`.`t2`)
++) ENGINE=<STORAGE_ENGINE> DEFAULT CHARSET=latin1 INSERT_METHOD=LAST UNION=(`mrg`.`t2`)
  INSERT INTO t2 (a,b) VALUES (1,'a'),(2,'b'),(3,'c'),(4,'d');
--ERROR 23000: Cannot add or update a child row: a foreign key constraint fails (`test`.`t2`, CONSTRAINT `1` FOREIGN KEY (`a`) REFERENCES `t1` (`a`) ON DELETE CASCADE ON UPDATE CASCADE)
+-ERROR 23000: Cannot add or update a child row: a foreign key constraint fails (`test`.`t2`, CONSTRAINT `t2_ibfk_1` FOREIGN KEY (`a`) REFERENCES `t1` (`a`) ON DELETE CASCADE ON UPDATE CASCADE)
 +# ERROR: Statement succeeded (expected results: ER_NO_REFERENCED_ROW_2)
  INSERT INTO t1 (a,b) VALUES (3,'a'),(4,'a');
 +ERROR 42S02: Table 'test.t1' doesn't exist
@@ -132,7 +132,7 @@
 +4	d
 +4	e
  TRUNCATE TABLE t1;
--ERROR 42000: Cannot truncate a table referenced in a foreign key constraint (`test`.`t2`, CONSTRAINT `1` FOREIGN KEY (`a`) REFERENCES `test`.`t1` (`a`))
+-ERROR 42000: Cannot truncate a table referenced in a foreign key constraint (`test`.`t2`, CONSTRAINT `t2_ibfk_1` FOREIGN KEY (`a`) REFERENCES `test`.`t1` (`a`))
 +ERROR 42S02: Table 'test.t1' doesn't exist
 +# ERROR: Statement ended with errno 1146, errname ER_NO_SUCH_TABLE (expected results: ER_TRUNCATE_ILLEGAL_FK)
 +# ------------ UNEXPECTED RESULT ------------

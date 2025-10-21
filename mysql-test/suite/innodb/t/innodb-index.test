@@ -220,9 +220,13 @@ show create table t4;
 # mysqltest first does replace_regex, then replace_result
 # Embedded server doesn't chdir to data directory
 --replace_result $MYSQLD_DATADIR ./ master-data/ ''
+# a foreign key 'test/dc' already exists
+--error ER_CANT_CREATE_TABLE
 alter table t3 add constraint dc foreign key (a) references t1(a);
-alter table t3 drop foreign key dc;
+SET FOREIGN_KEY_CHECKS=0;
+--error ER_FK_FAIL_ADD_SYSTEM
 alter table t3 add constraint dc foreign key (a) references t1(a);
+SET FOREIGN_KEY_CHECKS=@OLD_FOREIGN_KEY_CHECKS;
 show create table t3;
 --enable_info
 alter table t2 drop index b, add index (beta);
@@ -233,6 +237,7 @@ delete from t1;
 --error ER_CANT_DROP_FIELD_OR_KEY
 drop index dc on t4;
 --enable_info
+--error ER_CANT_DROP_FIELD_OR_KEY
 alter table t3 drop foreign key dc;
 alter table t4 drop foreign key dc;
 --disable_info

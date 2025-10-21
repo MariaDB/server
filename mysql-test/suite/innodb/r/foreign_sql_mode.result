@@ -3,7 +3,7 @@ call mtr.add_suppression("InnoDB: In ALTER TABLE .* has or is referenced in fore
 CREATE TABLE t1(f1 INT, f2 INT, PRIMARY KEY(f1), KEY(f2))ENGINE=InnoDB;
 CREATE TABLE t2(f1 INT, FOREIGN KEY(f1) REFERENCES t1(f2) ON UPDATE CASCADE)ENGINE=InnoDB;
 ALTER TABLE t2 MODIFY COLUMN f1 INT NOT NULL;
-ERROR HY000: Column 'f1' cannot be NOT NULL: needed in a foreign key constraint '1' SET NULL
+ERROR HY000: Column 'f1' cannot be NOT NULL: needed in a foreign key constraint 't2_ibfk_1' SET NULL
 INSERT INTO t1 VALUES(1, 1);
 INSERT INTO t2 VALUES(1);
 UPDATE t1 SET f2= NULL;
@@ -20,7 +20,7 @@ DROP TABLE t2, t1;
 CREATE TABLE t1(f1 INT, f2 INT, PRIMARY KEY(f1), KEY(f2))ENGINE=InnoDB;
 CREATE TABLE t2(f1 INT, f2 INT, FOREIGN KEY(f1) REFERENCES t1(f1) ON UPDATE SET NULL)ENGINE=InnoDB;
 ALTER TABLE t2 MODIFY COLUMN f1 INT NOT NULL;
-ERROR HY000: Column 'f1' cannot be NOT NULL: needed in a foreign key constraint '1' SET NULL
+ERROR HY000: Column 'f1' cannot be NOT NULL: needed in a foreign key constraint 't2_ibfk_1' SET NULL
 INSERT INTO t1 VALUES(1, 1);
 INSERT INTO t2 VALUES(1, 1);
 UPDATE t1 SET f1= 2;
@@ -32,7 +32,7 @@ DROP TABLE t2, t1;
 CREATE TABLE t1(f1 INT, f2 INT, PRIMARY KEY(f1), KEY(f2))ENGINE=InnoDB;
 CREATE TABLE t2(f1 INT, f2 INT, FOREIGN KEY (f2) REFERENCES t1(f2) ON DELETE SET NULL)ENGINE=InnoDB;
 ALTER TABLE t2 MODIFY COLUMN f2 INT NOT NULL;
-ERROR HY000: Column 'f2' cannot be NOT NULL: needed in a foreign key constraint '1' SET NULL
+ERROR HY000: Column 'f2' cannot be NOT NULL: needed in a foreign key constraint 't2_ibfk_1' SET NULL
 DROP TABLE t2, t1;
 # modify parent column NULL ON UPDATE CASCADE child column NOT NULL
 CREATE TABLE `t#1`(f1 INT, f2 INT NOT NULL, PRIMARY KEY(f1), KEY(f2))ENGINE=InnoDB;
@@ -40,7 +40,7 @@ CREATE TABLE `t#2`(f1 INT NOT NULL,
 FOREIGN KEY(f1) REFERENCES `t#1`(f2)
 ON UPDATE CASCADE)ENGINE=InnoDB;
 ALTER TABLE `t#1` MODIFY COLUMN f2 INT;
-ERROR HY000: Cannot change column 'f2': used in a foreign key constraint '1' of table 'test.t#2'
+ERROR HY000: Cannot change column 'f2': used in a foreign key constraint 't#2_ibfk_1' of table 'test.t#2'
 INSERT INTO `t#1` VALUES(1, 1);
 INSERT INTO `t#2` VALUES(1);
 UPDATE `t#1` SET f2= NULL;
