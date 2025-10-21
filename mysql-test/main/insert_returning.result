@@ -413,7 +413,7 @@ EXPLAIN EXTENDED INSERT INTO t1 SELECT * FROM t1 WHERE id1=9 RETURNING val1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
 Warnings:
-Note	1003	insert into `test`.`t1` select sql_buffer_result NULL AS `id1`,NULL AS `val1` from `test`.`t1` where 0
+Note	1003	insert into `test`.`t1` select sql_buffer_result NULL AS `id1`,NULL AS `val1` from `test`.`t1` where false
 EXPLAIN FORMAT="json" INSERT INTO t1 SELECT * FROM t1 WHERE id1=10 RETURNING val1;
 EXPLAIN
 {

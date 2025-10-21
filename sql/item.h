@@ -4627,6 +4627,13 @@ public:
   Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_bool>(thd, this); }
   Item *do_build_clone(THD *thd) const override { return get_copy(thd); }
+  void print(String *str, enum_query_type query_type) override
+  {
+    if (value)
+      str->append(STRING_WITH_LEN("true"));
+    else
+      str->append(STRING_WITH_LEN("false"));
+  }
 };
 
 

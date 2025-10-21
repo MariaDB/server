@@ -1143,7 +1143,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
-Note	1003	select 1 AS `1` from `test`.`t1` left join `test`.`t1` `t2` on(1 = 1) left join (`test`.`t1` left join `test`.`t1` `t2` on(1 = 1)) on(rand()) where 1
+Note	1003	select 1 AS `1` from `test`.`t1` left join `test`.`t1` `t2` on(1 = 1) left join (`test`.`t1` left join `test`.`t1` `t2` on(1 = 1)) on(rand()) where true
 DROP VIEW v1;
 DROP TABLE t1;
 #
@@ -1662,7 +1662,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	3	100.00	Using join buffer (flat, BNL join)
 1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (incremental, BNL join)
 Warnings:
-Note	1003	select `test`.`t1`.`a` AS `t1_a`,`test`.`t2`.`a` AS `t2_a`,`test`.`t3`.`a` AS `t3_a` from `test`.`t1` join `test`.`t2` left join `test`.`t3` on(`test`.`t3`.`a` = `test`.`t2`.`a`) where 1
+Note	1003	select `test`.`t1`.`a` AS `t1_a`,`test`.`t2`.`a` AS `t2_a`,`test`.`t3`.`a` AS `t3_a` from `test`.`t1` join `test`.`t2` left join `test`.`t3` on(`test`.`t3`.`a` = `test`.`t2`.`a`) where true
 select t1.a as t1_a, t2.a as t2_a, t3.a as t3_a
 from t1 join t2 left join t3 on t2.a=t3.a;
 t1_a	t2_a	t3_a
@@ -1682,7 +1682,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using join buffer (flat, BNL join)
 1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (incremental, BNL join)
 Warnings:
-Note	1003	select `test`.`t1`.`a` AS `t1_a`,`test`.`t2`.`a` AS `t2_a`,`test`.`t3`.`a` AS `t3_a` from `test`.`t3` left join (`test`.`t1` join `test`.`t2`) on(`test`.`t2`.`a` = `test`.`t3`.`a`) where 1
+Note	1003	select `test`.`t1`.`a` AS `t1_a`,`test`.`t2`.`a` AS `t2_a`,`test`.`t3`.`a` AS `t3_a` from `test`.`t3` left join (`test`.`t1` join `test`.`t2`) on(`test`.`t2`.`a` = `test`.`t3`.`a`) where true
 select t1.a as t1_a, t2.a as t2_a, t3.a as t3_a
 from t1 join t2 right join t3 on t2.a=t3.a;
 t1_a	t2_a	t3_a
@@ -1715,7 +1715,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	3	100.00	Using join buffer (flat, BNL join)
 1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (incremental, BNL join)
 Warnings:
-Note	1003	select `test`.`t1`.`a` AS `t1_a`,`test`.`t2`.`a` AS `t2_a`,`test`.`t3`.`a` AS `t3_a` from `test`.`t1` join `test`.`t2` left join `test`.`t3` on(`test`.`t3`.`a` = `test`.`t1`.`a`) where 1
+Note	1003	select `test`.`t1`.`a` AS `t1_a`,`test`.`t2`.`a` AS `t2_a`,`test`.`t3`.`a` AS `t3_a` from `test`.`t1` join `test`.`t2` left join `test`.`t3` on(`test`.`t3`.`a` = `test`.`t1`.`a`) where true
 select t1.a as t1_a, t2.a as t2_a, t3.a as t3_a
 from t1 join t2 left join t3 on t1.a=t3.a;
 t1_a	t2_a	t3_a
@@ -1735,7 +1735,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (flat, BNL join)
 1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	3	100.00	Using join buffer (incremental, BNL join)
 Warnings:
-Note	1003	select `test`.`t1`.`a` AS `t1_a`,`test`.`t2`.`a` AS `t2_a`,`test`.`t3`.`a` AS `t3_a` from `test`.`t3` left join (`test`.`t1` join `test`.`t2`) on(`test`.`t1`.`a` = `test`.`t3`.`a`) where 1
+Note	1003	select `test`.`t1`.`a` AS `t1_a`,`test`.`t2`.`a` AS `t2_a`,`test`.`t3`.`a` AS `t3_a` from `test`.`t3` left join (`test`.`t1` join `test`.`t2`) on(`test`.`t1`.`a` = `test`.`t3`.`a`) where true
 select t1.a as t1_a, t2.a as t2_a, t3.a as t3_a
 from t1 join t2 right join t3 on t1.a=t3.a;
 t1_a	t2_a	t3_a
@@ -1767,7 +1767,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	3	100.00	Using join buffer (flat, BNL join)
 1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (incremental, BNL join)
 Warnings:
-Note	1003	select `test`.`t1`.`a` AS `t1_a`,`test`.`t2`.`a` AS `t2_a`,`test`.`t3`.`a` AS `t3_a` from `test`.`t1` join `test`.`t2` left join `test`.`t3` on(`test`.`t3`.`a` = `test`.`t2`.`a`) where 1
+Note	1003	select `test`.`t1`.`a` AS `t1_a`,`test`.`t2`.`a` AS `t2_a`,`test`.`t3`.`a` AS `t3_a` from `test`.`t1` join `test`.`t2` left join `test`.`t3` on(`test`.`t3`.`a` = `test`.`t2`.`a`) where true
 select t1.a as t1_a, t2.a as t2_a, t3.a as t3_a
 from t1 join (t2 left join t3 on t2.a=t3.a);
 t1_a	t2_a	t3_a
@@ -1787,7 +1787,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	3	100.00	Using join buffer (flat, BNL join)
 1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (incremental, BNL join)
 Warnings:
-Note	1003	select `test`.`t1`.`a` AS `t1_a`,`test`.`t2`.`a` AS `t2_a`,`test`.`t3`.`a` AS `t3_a` from `test`.`t1` join `test`.`t3` left join `test`.`t2` on(`test`.`t2`.`a` = `test`.`t3`.`a`) where 1
+Note	1003	select `test`.`t1`.`a` AS `t1_a`,`test`.`t2`.`a` AS `t2_a`,`test`.`t3`.`a` AS `t3_a` from `test`.`t1` join `test`.`t3` left join `test`.`t2` on(`test`.`t2`.`a` = `test`.`t3`.`a`) where true
 select t1.a as t1_a, t2.a as t2_a, t3.a as t3_a
 from t1 join (t2 right join t3 on t2.a=t3.a);
 t1_a	t2_a	t3_a
@@ -1821,7 +1821,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	3	100.00	Using join buffer (flat, BNL join)
 1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (incremental, BNL join)
 Warnings:
-Note	1003	select `test`.`t2`.`a` AS `a`,`test`.`s1`.`b` AS `b` from `test`.`s1` join `test`.`t2` left join `test`.`t3` on(`test`.`t3`.`a` = `test`.`t2`.`a`) where 1
+Note	1003	select `test`.`t2`.`a` AS `a`,`test`.`s1`.`b` AS `b` from `test`.`s1` join `test`.`t2` left join `test`.`t3` on(`test`.`t3`.`a` = `test`.`t2`.`a`) where true
 select *
 from s1 join t2 left join t3 using(a);
 a	b
@@ -1841,7 +1841,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	s1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using join buffer (flat, BNL join)
 1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (incremental, BNL join)
 Warnings:
-Note	1003	select `test`.`t3`.`a` AS `a`,`test`.`s1`.`b` AS `b` from `test`.`t3` left join (`test`.`s1` join `test`.`t2`) on(`test`.`t2`.`a` = `test`.`t3`.`a`) where 1
+Note	1003	select `test`.`t3`.`a` AS `a`,`test`.`s1`.`b` AS `b` from `test`.`t3` left join (`test`.`s1` join `test`.`t2`) on(`test`.`t2`.`a` = `test`.`t3`.`a`) where true
 select *
 from s1 join t2 right join t3 using(a);
 a	b
@@ -1871,7 +1871,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	3	100.00	Using join buffer (flat, BNL join)
 1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (incremental, BNL join)
 Warnings:
-Note	1003	select `test`.`s1`.`b` AS `b`,`test`.`t2`.`a` AS `t2_a`,`test`.`t3`.`a` AS `t3_a` from `test`.`s1` join `test`.`t2` left join `test`.`t3` on(`test`.`t3`.`a` = `test`.`t2`.`a`) where 1
+Note	1003	select `test`.`s1`.`b` AS `b`,`test`.`t2`.`a` AS `t2_a`,`test`.`t3`.`a` AS `t3_a` from `test`.`s1` join `test`.`t2` left join `test`.`t3` on(`test`.`t3`.`a` = `test`.`t2`.`a`) where true
 select s1.b, t2.a as t2_a, t3.a as t3_a
 from s1 join t2 left join t3 using(a);
 b	t2_a	t3_a
@@ -1891,7 +1891,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	s1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using join buffer (flat, BNL join)
 1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (incremental, BNL join)
 Warnings:
-Note	1003	select `test`.`s1`.`b` AS `b`,`test`.`t2`.`a` AS `t2_a`,`test`.`t3`.`a` AS `t3_a` from `test`.`t3` left join (`test`.`s1` join `test`.`t2`) on(`test`.`t2`.`a` = `test`.`t3`.`a`) where 1
+Note	1003	select `test`.`s1`.`b` AS `b`,`test`.`t2`.`a` AS `t2_a`,`test`.`t3`.`a` AS `t3_a` from `test`.`t3` left join (`test`.`s1` join `test`.`t2`) on(`test`.`t2`.`a` = `test`.`t3`.`a`) where true
 select s1.b, t2.a as t2_a, t3.a as t3_a
 from s1 join t2 right join t3 using(a);
 b	t2_a	t3_a
@@ -1907,7 +1907,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	s1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using join buffer (flat, BNL join)
 1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (incremental, BNL join)
 Warnings:
-Note	1003	select `test`.`s1`.`b` AS `b`,`test`.`t2`.`a` AS `t2_a`,`test`.`t3`.`a` AS `t3_a` from `test`.`t3` left join (`test`.`s1` join `test`.`t2`) on(`test`.`t2`.`a` = `test`.`t3`.`a`) where 1
+Note	1003	select `test`.`s1`.`b` AS `b`,`test`.`t2`.`a` AS `t2_a`,`test`.`t3`.`a` AS `t3_a` from `test`.`t3` left join (`test`.`s1` join `test`.`t2`) on(`test`.`t2`.`a` = `test`.`t3`.`a`) where true
 select s1.b, t2.a as t2_a, t3.a as t3_a
 from (s1 join t2) right join t3 using(a);
 b	t2_a	t3_a
@@ -1937,7 +1937,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	3	100.00	Using join buffer (flat, BNL join)
 1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (incremental, BNL join)
 Warnings:
-Note	1003	select `test`.`t2`.`a` AS `a`,`test`.`s1`.`b` AS `b` from `test`.`s1` join `test`.`t2` left join `test`.`t3` on(`test`.`t3`.`a` = `test`.`t2`.`a`) where 1
+Note	1003	select `test`.`t2`.`a` AS `a`,`test`.`s1`.`b` AS `b` from `test`.`s1` join `test`.`t2` left join `test`.`t3` on(`test`.`t3`.`a` = `test`.`t2`.`a`) where true
 select *
 from s1 join t2 natural left join t3;
 a	b
@@ -1957,7 +1957,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	s1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using join buffer (flat, BNL join)
 1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (incremental, BNL join)
 Warnings:
-Note	1003	select `test`.`t3`.`a` AS `a`,`test`.`s1`.`b` AS `b` from `test`.`t3` left join (`test`.`s1` join `test`.`t2`) on(`test`.`t2`.`a` = `test`.`t3`.`a`) where 1
+Note	1003	select `test`.`t3`.`a` AS `a`,`test`.`s1`.`b` AS `b` from `test`.`t3` left join (`test`.`s1` join `test`.`t2`) on(`test`.`t2`.`a` = `test`.`t3`.`a`) where true
 select *
 from s1 join t2 natural right join t3;
 a	b
@@ -2041,7 +2041,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (incremental, BNL join)
 1	SIMPLE	t4	ALL	NULL	NULL	NULL	NULL	4	100.00	Using where; Using join buffer (incremental, BNL join)
 Warnings:
-Note	1003	select `test`.`t1`.`a` AS `t1_a`,`test`.`t2`.`a` AS `t2_a`,`test`.`t3`.`a` AS `t3_a`,`test`.`t4`.`a` AS `t4_a` from `test`.`t1` join `test`.`t2` left join (`test`.`t3` join `test`.`t4`) on(`test`.`t3`.`a` = `test`.`t2`.`a` and `test`.`t4`.`a` = `test`.`t2`.`a`) where 1
+Note	1003	select `test`.`t1`.`a` AS `t1_a`,`test`.`t2`.`a` AS `t2_a`,`test`.`t3`.`a` AS `t3_a`,`test`.`t4`.`a` AS `t4_a` from `test`.`t1` join `test`.`t2` left join (`test`.`t3` join `test`.`t4`) on(`test`.`t3`.`a` = `test`.`t2`.`a` and `test`.`t4`.`a` = `test`.`t2`.`a`) where true
 select t1.a as t1_a, t2.a as t2_a, t3.a as t3_a, t4.a as t4_a
 from t1 join t2 left join t3 join t4 on t3.a=t4.a on t2.a=t3.a;
 t1_a	t2_a	t3_a	t4_a
@@ -2062,7 +2062,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (incremental, BNL join)
 1	SIMPLE	t4	ALL	NULL	NULL	NULL	NULL	4	100.00	Using where; Using join buffer (incremental, BNL join)
 Warnings:
-Note	1003	select `test`.`t1`.`a` AS `t1_a`,`test`.`t2`.`a` AS `t2_a`,`test`.`t3`.`a` AS `t3_a`,`test`.`t4`.`a` AS `t4_a` from `test`.`t1` join `test`.`t2` left join (`test`.`t3` left join `test`.`t4` on(`test`.`t4`.`a` = `test`.`t2`.`a`)) on(`test`.`t3`.`a` = `test`.`t2`.`a`) where 1
+Note	1003	select `test`.`t1`.`a` AS `t1_a`,`test`.`t2`.`a` AS `t2_a`,`test`.`t3`.`a` AS `t3_a`,`test`.`t4`.`a` AS `t4_a` from `test`.`t1` join `test`.`t2` left join (`test`.`t3` left join `test`.`t4` on(`test`.`t4`.`a` = `test`.`t2`.`a`)) on(`test`.`t3`.`a` = `test`.`t2`.`a`) where true
 select t1.a as t1_a, t2.a as t2_a, t3.a as t3_a, t4.a as t4_a
 from t1 join t2 left join t3 left join t4 on t3.a=t4.a on t2.a=t3.a;
 t1_a	t2_a	t3_a	t4_a
@@ -2083,7 +2083,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (incremental, BNL join)
 1	SIMPLE	t4	ALL	NULL	NULL	NULL	NULL	4	100.00	Using where; Using join buffer (incremental, BNL join)
 Warnings:
-Note	1003	select `test`.`t1`.`a` AS `t1_a`,`test`.`t2`.`a` AS `t2_a`,`test`.`t3`.`a` AS `t3_a`,`test`.`t4`.`a` AS `t4_a` from `test`.`t1` join `test`.`t2` left join (`test`.`t4` join `test`.`t3`) on(`test`.`t3`.`a` = `test`.`t2`.`a` and `test`.`t4`.`a` = `test`.`t2`.`a`) where 1
+Note	1003	select `test`.`t1`.`a` AS `t1_a`,`test`.`t2`.`a` AS `t2_a`,`test`.`t3`.`a` AS `t3_a`,`test`.`t4`.`a` AS `t4_a` from `test`.`t1` join `test`.`t2` left join (`test`.`t4` join `test`.`t3`) on(`test`.`t3`.`a` = `test`.`t2`.`a` and `test`.`t4`.`a` = `test`.`t2`.`a`) where true
 select t1.a as t1_a, t2.a as t2_a, t3.a as t3_a, t4.a as t4_a
 from t1 join t2 left join t3 right join t4 on t3.a=t4.a on t2.a=t3.a;
 t1_a	t2_a	t3_a	t4_a
@@ -2119,7 +2119,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using join buffer (incremental, BNL join)
 1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (incremental, BNL join)
 Warnings:
-Note	1003	select `test`.`t1`.`a` AS `t1_a`,`test`.`t2`.`a` AS `t2_a`,`test`.`t3`.`a` AS `t3_a`,`test`.`t4`.`a` AS `t4_a` from `test`.`t3` left join `test`.`t4` on(`test`.`t4`.`a` = `test`.`t3`.`a`) left join (`test`.`t1` join `test`.`t2`) on(`test`.`t2`.`a` = `test`.`t3`.`a`) where 1
+Note	1003	select `test`.`t1`.`a` AS `t1_a`,`test`.`t2`.`a` AS `t2_a`,`test`.`t3`.`a` AS `t3_a`,`test`.`t4`.`a` AS `t4_a` from `test`.`t3` left join `test`.`t4` on(`test`.`t4`.`a` = `test`.`t3`.`a`) left join (`test`.`t1` join `test`.`t2`) on(`test`.`t2`.`a` = `test`.`t3`.`a`) where true
 select t1.a as t1_a, t2.a as t2_a, t3.a as t3_a, t4.a as t4_a
 from t1 join t2 right join t3 left join t4 on t3.a=t4.a on t2.a=t3.a;
 t1_a	t2_a	t3_a	t4_a
@@ -2136,7 +2136,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using join buffer (incremental, BNL join)
 1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (incremental, BNL join)
 Warnings:
-Note	1003	select `test`.`t1`.`a` AS `t1_a`,`test`.`t2`.`a` AS `t2_a`,`test`.`t3`.`a` AS `t3_a`,`test`.`t4`.`a` AS `t4_a` from `test`.`t4` left join `test`.`t3` on(`test`.`t3`.`a` = `test`.`t4`.`a`) left join (`test`.`t1` join `test`.`t2`) on(`test`.`t2`.`a` = `test`.`t3`.`a`) where 1
+Note	1003	select `test`.`t1`.`a` AS `t1_a`,`test`.`t2`.`a` AS `t2_a`,`test`.`t3`.`a` AS `t3_a`,`test`.`t4`.`a` AS `t4_a` from `test`.`t4` left join `test`.`t3` on(`test`.`t3`.`a` = `test`.`t4`.`a`) left join (`test`.`t1` join `test`.`t2`) on(`test`.`t2`.`a` = `test`.`t3`.`a`) where true
 select t1.a as t1_a, t2.a as t2_a, t3.a as t3_a, t4.a as t4_a
 from t1 join t2 right join t3 right join t4 on t3.a=t4.a on t2.a=t3.a;
 t1_a	t2_a	t3_a	t4_a
@@ -2175,7 +2175,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	3	100.00	Using join buffer (incremental, BNL join)
 1	SIMPLE	t4	ALL	NULL	NULL	NULL	NULL	4	100.00	Using where; Using join buffer (incremental, BNL join)
 Warnings:
-Note	1003	select `test`.`t1`.`a` AS `t1_a`,`test`.`t2`.`a` AS `t2_a`,`test`.`t3`.`a` AS `t3_a`,`test`.`t4`.`a` AS `t4_a` from `test`.`t1` join `test`.`t2` join `test`.`t3` left join `test`.`t4` on(`test`.`t4`.`a` = `test`.`t3`.`a`) where 1
+Note	1003	select `test`.`t1`.`a` AS `t1_a`,`test`.`t2`.`a` AS `t2_a`,`test`.`t3`.`a` AS `t3_a`,`test`.`t4`.`a` AS `t4_a` from `test`.`t1` join `test`.`t2` join `test`.`t3` left join `test`.`t4` on(`test`.`t4`.`a` = `test`.`t3`.`a`) where true
 select t1.a as t1_a, t2.a as t2_a, t3.a as t3_a, t4.a as t4_a
 from t1 join t2 join t3 left join t4 on t3.a=t4.a;
 t1_a	t2_a	t3_a	t4_a
@@ -2214,7 +2214,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	3	100.00	Using join buffer (incremental, BNL join)
 1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (incremental, BNL join)
 Warnings:
-Note	1003	select `test`.`t1`.`a` AS `t1_a`,`test`.`t2`.`a` AS `t2_a`,`test`.`t3`.`a` AS `t3_a`,`test`.`t4`.`a` AS `t4_a` from `test`.`t4` left join (`test`.`t1` join `test`.`t2` join `test`.`t3`) on(`test`.`t3`.`a` = `test`.`t4`.`a`) where 1
+Note	1003	select `test`.`t1`.`a` AS `t1_a`,`test`.`t2`.`a` AS `t2_a`,`test`.`t3`.`a` AS `t3_a`,`test`.`t4`.`a` AS `t4_a` from `test`.`t4` left join (`test`.`t1` join `test`.`t2` join `test`.`t3`) on(`test`.`t3`.`a` = `test`.`t4`.`a`) where true
 select t1.a as t1_a, t2.a as t2_a, t3.a as t3_a, t4.a as t4_a
 from t1 join t2 join t3 right join t4 on t3.a=t4.a;
 t1_a	t2_a	t3_a	t4_a
@@ -2259,7 +2259,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	3	100.00	Using join buffer (incremental, BNL join)
 1	SIMPLE	t4	ALL	NULL	NULL	NULL	NULL	4	100.00	Using where; Using join buffer (incremental, BNL join)
 Warnings:
-Note	1003	select `test`.`s1`.`b` AS `s1_b`,`test`.`s2`.`b` AS `s2_b`,`test`.`t3`.`a` AS `t3_a`,`test`.`t4`.`a` AS `t4_a` from `test`.`s1` join `test`.`s2` join `test`.`t3` left join `test`.`t4` on(`test`.`t4`.`a` = `test`.`t3`.`a`) where 1
+Note	1003	select `test`.`s1`.`b` AS `s1_b`,`test`.`s2`.`b` AS `s2_b`,`test`.`t3`.`a` AS `t3_a`,`test`.`t4`.`a` AS `t4_a` from `test`.`s1` join `test`.`s2` join `test`.`t3` left join `test`.`t4` on(`test`.`t4`.`a` = `test`.`t3`.`a`) where true
 select s1.b as s1_b, s2.b as s2_b, t3.a as t3_a, t4.a as t4_a
 from s1 join s2 join t3 left join t4 using(a);
 s1_b	s2_b	t3_a	t4_a
@@ -2298,7 +2298,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	s2	ALL	NULL	NULL	NULL	NULL	3	100.00	Using join buffer (incremental, BNL join)
 1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (incremental, BNL join)
 Warnings:
-Note	1003	select `test`.`s1`.`b` AS `s1_b`,`test`.`s2`.`b` AS `s2_b`,`test`.`t3`.`a` AS `t3_a`,`test`.`t4`.`a` AS `t4_a` from `test`.`t4` left join (`test`.`s1` join `test`.`s2` join `test`.`t3`) on(`test`.`t3`.`a` = `test`.`t4`.`a`) where 1
+Note	1003	select `test`.`s1`.`b` AS `s1_b`,`test`.`s2`.`b` AS `s2_b`,`test`.`t3`.`a` AS `t3_a`,`test`.`t4`.`a` AS `t4_a` from `test`.`t4` left join (`test`.`s1` join `test`.`s2` join `test`.`t3`) on(`test`.`t3`.`a` = `test`.`t4`.`a`) where true
 select s1.b as s1_b, s2.b as s2_b, t3.a as t3_a, t4.a as t4_a
 from s1 join s2 join t3 right join t4 using(a);
 s1_b	s2_b	t3_a	t4_a
@@ -2346,7 +2346,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (incremental, BNL join)
 1	SIMPLE	t4	ALL	NULL	NULL	NULL	NULL	4	100.00	Using join buffer (incremental, BNL join)
 Warnings:
-Note	1003	select `test`.`t1`.`a` AS `t1_a`,`test`.`t2`.`a` AS `t2_a`,`test`.`t3`.`a` AS `t3_a`,`test`.`t4`.`a` AS `t4_a` from `test`.`t1` join `test`.`t2` left join `test`.`t3` on(`test`.`t3`.`a` = `test`.`t2`.`a`) join `test`.`t4` where 1
+Note	1003	select `test`.`t1`.`a` AS `t1_a`,`test`.`t2`.`a` AS `t2_a`,`test`.`t3`.`a` AS `t3_a`,`test`.`t4`.`a` AS `t4_a` from `test`.`t1` join `test`.`t2` left join `test`.`t3` on(`test`.`t3`.`a` = `test`.`t2`.`a`) join `test`.`t4` where true
 select t1.a as t1_a, t2.a as t2_a, t3.a as t3_a, t4.a as t4_a
 from t1 join t2 left join t3 on t2.a=t3.a join t4;
 t1_a	t2_a	t3_a	t4_a
@@ -2394,7 +2394,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (incremental, BNL join)
 1	SIMPLE	t4	ALL	NULL	NULL	NULL	NULL	4	100.00	Using join buffer (incremental, BNL join)
 Warnings:
-Note	1003	select `test`.`t1`.`a` AS `t1_a`,`test`.`t2`.`a` AS `t2_a`,`test`.`t3`.`a` AS `t3_a`,`test`.`t4`.`a` AS `t4_a` from `test`.`t3` left join (`test`.`t1` join `test`.`t2`) on(`test`.`t2`.`a` = `test`.`t3`.`a`) join `test`.`t4` where 1
+Note	1003	select `test`.`t1`.`a` AS `t1_a`,`test`.`t2`.`a` AS `t2_a`,`test`.`t3`.`a` AS `t3_a`,`test`.`t4`.`a` AS `t4_a` from `test`.`t3` left join (`test`.`t1` join `test`.`t2`) on(`test`.`t2`.`a` = `test`.`t3`.`a`) join `test`.`t4` where true
 select t1.a as t1_a, t2.a as t2_a, t3.a as t3_a, t4.a as t4_a
 from t1 join t2 right join t3 on t2.a=t3.a join t4;
 t1_a	t2_a	t3_a	t4_a
@@ -2450,7 +2450,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (incremental, BNL join)
 1	SIMPLE	t4	ALL	NULL	NULL	NULL	NULL	4	100.00	Using join buffer (incremental, BNL join)
 Warnings:
-Note	1003	select `test`.`s1`.`b` AS `s1_b`,`test`.`t2`.`a` AS `t2_a`,`test`.`t3`.`a` AS `t3_a`,`test`.`t4`.`a` AS `t4_a` from `test`.`s1` join `test`.`t2` left join `test`.`t3` on(`test`.`t3`.`a` = `test`.`t2`.`a`) join `test`.`t4` where 1
+Note	1003	select `test`.`s1`.`b` AS `s1_b`,`test`.`t2`.`a` AS `t2_a`,`test`.`t3`.`a` AS `t3_a`,`test`.`t4`.`a` AS `t4_a` from `test`.`s1` join `test`.`t2` left join `test`.`t3` on(`test`.`t3`.`a` = `test`.`t2`.`a`) join `test`.`t4` where true
 select s1.b as s1_b, t2.a as t2_a, t3.a as t3_a, t4.a as t4_a
 from s1 join t2 left join t3 using(a) join t4;
 s1_b	t2_a	t3_a	t4_a
@@ -2498,7 +2498,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (incremental, BNL join)
 1	SIMPLE	t4	ALL	NULL	NULL	NULL	NULL	4	100.00	Using join buffer (incremental, BNL join)
 Warnings:
-Note	1003	select `test`.`s1`.`b` AS `s1_b`,`test`.`t2`.`a` AS `t2_a`,`test`.`t3`.`a` AS `t3_a`,`test`.`t4`.`a` AS `t4_a` from `test`.`t3` left join (`test`.`s1` join `test`.`t2`) on(`test`.`t2`.`a` = `test`.`t3`.`a`) join `test`.`t4` where 1
+Note	1003	select `test`.`s1`.`b` AS `s1_b`,`test`.`t2`.`a` AS `t2_a`,`test`.`t3`.`a` AS `t3_a`,`test`.`t4`.`a` AS `t4_a` from `test`.`t3` left join (`test`.`s1` join `test`.`t2`) on(`test`.`t2`.`a` = `test`.`t3`.`a`) join `test`.`t4` where true
 select s1.b as s1_b, t2.a as t2_a, t3.a as t3_a, t4.a as t4_a
 from s1 join t2 right join t3 using(a) join t4;
 s1_b	t2_a	t3_a	t4_a
@@ -2562,7 +2562,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (incremental, BNL join)
 1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (incremental, BNL join)
 Warnings:
-Note	1003	select `test`.`t1`.`a` AS `t1_a`,`test`.`t2`.`a` AS `t2_a`,`test`.`t3`.`a` AS `t3_a`,`test`.`t4`.`a` AS `t4_a` from `test`.`t4` left join (`test`.`t1` join `test`.`t2` join `test`.`t3`) on(`test`.`t3`.`a` = `test`.`t4`.`a` and `test`.`t2`.`a` = `test`.`t1`.`a`) where 1
+Note	1003	select `test`.`t1`.`a` AS `t1_a`,`test`.`t2`.`a` AS `t2_a`,`test`.`t3`.`a` AS `t3_a`,`test`.`t4`.`a` AS `t4_a` from `test`.`t4` left join (`test`.`t1` join `test`.`t2` join `test`.`t3`) on(`test`.`t3`.`a` = `test`.`t4`.`a` and `test`.`t2`.`a` = `test`.`t1`.`a`) where true
 select t1.a as t1_a, t2.a as t2_a, t3.a as t3_a, t4.a as t4_a
 from t1 join t2 on t1.a=t2.a join t3 right join t4 on t3.a=t4.a;
 t1_a	t2_a	t3_a	t4_a
@@ -2594,7 +2594,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	3	100.00	Using join buffer (incremental, BNL join)
 1	SIMPLE	t4	ALL	NULL	NULL	NULL	NULL	4	100.00	Using where; Using join buffer (incremental, BNL join)
 Warnings:
-Note	1003	select `test`.`t1`.`a` AS `t1_a`,`test`.`t2`.`a` AS `t2_a`,`test`.`t3`.`a` AS `t3_a`,`test`.`t4`.`a` AS `t4_a` from `test`.`t1` left join `test`.`t2` on(`test`.`t2`.`a` = `test`.`t1`.`a`) join `test`.`t3` left join `test`.`t4` on(`test`.`t4`.`a` = `test`.`t3`.`a`) where 1
+Note	1003	select `test`.`t1`.`a` AS `t1_a`,`test`.`t2`.`a` AS `t2_a`,`test`.`t3`.`a` AS `t3_a`,`test`.`t4`.`a` AS `t4_a` from `test`.`t1` left join `test`.`t2` on(`test`.`t2`.`a` = `test`.`t1`.`a`) join `test`.`t3` left join `test`.`t4` on(`test`.`t4`.`a` = `test`.`t3`.`a`) where true
 select t1.a as t1_a, t2.a as t2_a, t3.a as t3_a, t4.a as t4_a
 from t1 left join t2 on t1.a=t2.a join t3 left join t4 on t3.a=t4.a;
 t1_a	t2_a	t3_a	t4_a
@@ -2615,7 +2615,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (incremental, BNL join)
 1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (incremental, BNL join)
 Warnings:
-Note	1003	select `test`.`t1`.`a` AS `t1_a`,`test`.`t2`.`a` AS `t2_a`,`test`.`t3`.`a` AS `t3_a`,`test`.`t4`.`a` AS `t4_a` from `test`.`t4` left join (`test`.`t1` left join `test`.`t2` on(`test`.`t2`.`a` = `test`.`t1`.`a`) join `test`.`t3`) on(`test`.`t3`.`a` = `test`.`t4`.`a`) where 1
+Note	1003	select `test`.`t1`.`a` AS `t1_a`,`test`.`t2`.`a` AS `t2_a`,`test`.`t3`.`a` AS `t3_a`,`test`.`t4`.`a` AS `t4_a` from `test`.`t4` left join (`test`.`t1` left join `test`.`t2` on(`test`.`t2`.`a` = `test`.`t1`.`a`) join `test`.`t3`) on(`test`.`t3`.`a` = `test`.`t4`.`a`) where true
 select t1.a as t1_a, t2.a as t2_a, t3.a as t3_a, t4.a as t4_a
 from t1 left join t2 on t1.a=t2.a join t3 right join t4 on t3.a=t4.a;
 t1_a	t2_a	t3_a	t4_a
@@ -2648,7 +2648,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	3	100.00	Using join buffer (incremental, BNL join)
 1	SIMPLE	t4	ALL	NULL	NULL	NULL	NULL	4	100.00	Using where; Using join buffer (incremental, BNL join)
 Warnings:
-Note	1003	select `test`.`t1`.`a` AS `t1_a`,`test`.`t2`.`a` AS `t2_a`,`test`.`t3`.`a` AS `t3_a`,`test`.`t4`.`a` AS `t4_a` from `test`.`t2` left join `test`.`t1` on(`test`.`t1`.`a` = `test`.`t2`.`a`) join `test`.`t3` left join `test`.`t4` on(`test`.`t4`.`a` = `test`.`t3`.`a`) where 1
+Note	1003	select `test`.`t1`.`a` AS `t1_a`,`test`.`t2`.`a` AS `t2_a`,`test`.`t3`.`a` AS `t3_a`,`test`.`t4`.`a` AS `t4_a` from `test`.`t2` left join `test`.`t1` on(`test`.`t1`.`a` = `test`.`t2`.`a`) join `test`.`t3` left join `test`.`t4` on(`test`.`t4`.`a` = `test`.`t3`.`a`) where true
 select t1.a as t1_a, t2.a as t2_a, t3.a as t3_a, t4.a as t4_a
 from t1 right join t2 on t1.a=t2.a join t3 left join t4 on t3.a=t4.a;
 t1_a	t2_a	t3_a	t4_a
@@ -2669,7 +2669,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (incremental, BNL join)
 1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (incremental, BNL join)
 Warnings:
-Note	1003	select `test`.`t1`.`a` AS `t1_a`,`test`.`t2`.`a` AS `t2_a`,`test`.`t3`.`a` AS `t3_a`,`test`.`t4`.`a` AS `t4_a` from `test`.`t4` left join (`test`.`t2` left join `test`.`t1` on(`test`.`t1`.`a` = `test`.`t2`.`a`) join `test`.`t3`) on(`test`.`t3`.`a` = `test`.`t4`.`a`) where 1
+Note	1003	select `test`.`t1`.`a` AS `t1_a`,`test`.`t2`.`a` AS `t2_a`,`test`.`t3`.`a` AS `t3_a`,`test`.`t4`.`a` AS `t4_a` from `test`.`t4` left join (`test`.`t2` left join `test`.`t1` on(`test`.`t1`.`a` = `test`.`t2`.`a`) join `test`.`t3`) on(`test`.`t3`.`a` = `test`.`t4`.`a`) where true
 select t1.a as t1_a, t2.a as t2_a, t3.a as t3_a, t4.a as t4_a
 from t1 right join t2 on t1.a=t2.a join t3 right join t4 on t3.a=t4.a;
 t1_a	t2_a	t3_a	t4_a
@@ -2719,7 +2719,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	3	100.00	Using join buffer (incremental, BNL join)
 1	SIMPLE	t4	ALL	NULL	NULL	NULL	NULL	4	100.00	Using where; Using join buffer (incremental, BNL join)
 Warnings:
-Note	1003	select `test`.`s1`.`b` AS `s1_b`,`test`.`t1`.`a` AS `t1_a`,`test`.`t2`.`a` AS `t2_a`,`test`.`t3`.`a` AS `t3_a`,`test`.`t4`.`a` AS `t4_a` from `test`.`s1` join `test`.`t1` left join `test`.`t2` on(`test`.`t2`.`a` = `test`.`s1`.`b`) join `test`.`t3` left join `test`.`t4` on(`test`.`t4`.`a` = `test`.`s1`.`b`) where 1
+Note	1003	select `test`.`s1`.`b` AS `s1_b`,`test`.`t1`.`a` AS `t1_a`,`test`.`t2`.`a` AS `t2_a`,`test`.`t3`.`a` AS `t3_a`,`test`.`t4`.`a` AS `t4_a` from `test`.`s1` join `test`.`t1` left join `test`.`t2` on(`test`.`t2`.`a` = `test`.`s1`.`b`) join `test`.`t3` left join `test`.`t4` on(`test`.`t4`.`a` = `test`.`s1`.`b`) where true
 select s1.b as s1_b, t1.a as t1_a, t2.a as t2_a, t3.a as t3_a, t4.a as t4_a
 from s1 join t1 left join t2 on s1.b=t2.a join t3 left join t4 on t4.a=s1.b;
 s1_b	t1_a	t2_a	t3_a	t4_a
@@ -2759,7 +2759,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (incremental, BNL join)
 1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	3	100.00	Using join buffer (incremental, BNL join)
 Warnings:
-Note	1003	select `test`.`s1`.`b` AS `s1_b`,`test`.`t1`.`a` AS `t1_a`,`test`.`t2`.`a` AS `t2_a`,`test`.`t3`.`a` AS `t3_a`,`test`.`t4`.`a` AS `t4_a` from `test`.`t4` left join (`test`.`s1` join `test`.`t1` left join `test`.`t2` on(`test`.`t2`.`a` = `test`.`t4`.`a`) join `test`.`t3`) on(`test`.`s1`.`b` = `test`.`t4`.`a`) where 1
+Note	1003	select `test`.`s1`.`b` AS `s1_b`,`test`.`t1`.`a` AS `t1_a`,`test`.`t2`.`a` AS `t2_a`,`test`.`t3`.`a` AS `t3_a`,`test`.`t4`.`a` AS `t4_a` from `test`.`t4` left join (`test`.`s1` join `test`.`t1` left join `test`.`t2` on(`test`.`t2`.`a` = `test`.`t4`.`a`) join `test`.`t3`) on(`test`.`s1`.`b` = `test`.`t4`.`a`) where true
 select s1.b as s1_b, t1.a as t1_a, t2.a as t2_a, t3.a as t3_a, t4.a as t4_a
 from s1 join t1 left join t2 on s1.b=t2.a join t3 right join t4 on t4.a=s1.b;
 s1_b	t1_a	t2_a	t3_a	t4_a
@@ -2792,7 +2792,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (incremental, BNL join)
 1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	3	100.00	Using join buffer (incremental, BNL join)
 Warnings:
-Note	1003	select `test`.`s1`.`b` AS `s1_b`,`test`.`s2`.`b` AS `s2_b`,`test`.`t1`.`a` AS `t1_a`,`test`.`t2`.`a` AS `t2_a`,`test`.`t3`.`a` AS `t3_a` from `test`.`t2` left join (`test`.`s1` join `test`.`s2` join `test`.`t1`) on(`test`.`t1`.`a` = `test`.`t2`.`a` and `test`.`s2`.`b` = `test`.`s1`.`b`) join `test`.`t3` where 1
+Note	1003	select `test`.`s1`.`b` AS `s1_b`,`test`.`s2`.`b` AS `s2_b`,`test`.`t1`.`a` AS `t1_a`,`test`.`t2`.`a` AS `t2_a`,`test`.`t3`.`a` AS `t3_a` from `test`.`t2` left join (`test`.`s1` join `test`.`s2` join `test`.`t1`) on(`test`.`t1`.`a` = `test`.`t2`.`a` and `test`.`s2`.`b` = `test`.`s1`.`b`) join `test`.`t3` where true
 select s1.b as s1_b, s2.b as s2_b, t1.a as t1_a, t2.a as t2_a, t3.a as t3_a
 from s1 join s2 on s1.b=s2.b join t1 right join t2 on t1.a=t2.a join t3;
 s1_b	s2_b	t1_a	t2_a	t3_a
@@ -2820,7 +2820,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (incremental, BNL join)
 1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	3	100.00	Using join buffer (incremental, BNL join)
 Warnings:
-Note	1003	select `test`.`s1`.`b` AS `s1_b`,`test`.`s2`.`b` AS `s2_b`,`test`.`t1`.`a` AS `t1_a`,`test`.`t2`.`a` AS `t2_a`,`test`.`t3`.`a` AS `t3_a` from `test`.`t2` left join (`test`.`s1` left join `test`.`s2` on(`test`.`s2`.`b` = `test`.`s1`.`b`) join `test`.`t1`) on(`test`.`t1`.`a` = `test`.`t2`.`a`) join `test`.`t3` where 1
+Note	1003	select `test`.`s1`.`b` AS `s1_b`,`test`.`s2`.`b` AS `s2_b`,`test`.`t1`.`a` AS `t1_a`,`test`.`t2`.`a` AS `t2_a`,`test`.`t3`.`a` AS `t3_a` from `test`.`t2` left join (`test`.`s1` left join `test`.`s2` on(`test`.`s2`.`b` = `test`.`s1`.`b`) join `test`.`t1`) on(`test`.`t1`.`a` = `test`.`t2`.`a`) join `test`.`t3` where true
 select s1.b as s1_b, s2.b as s2_b, t1.a as t1_a, t2.a as t2_a, t3.a as t3_a
 from s1 left join s2 on s1.b=s2.b join t1 right join t2 on t1.a=t2.a join t3;
 s1_b	s2_b	t1_a	t2_a	t3_a
@@ -2854,7 +2854,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (incremental, BNL join)
 1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	3	100.00	Using join buffer (incremental, BNL join)
 Warnings:
-Note	1003	select `test`.`s1`.`b` AS `s1_b`,`test`.`s2`.`b` AS `s2_b`,`test`.`t1`.`a` AS `t1_a`,`test`.`t2`.`a` AS `t2_a`,`test`.`t3`.`a` AS `t3_a` from `test`.`t2` left join (`test`.`s2` left join `test`.`s1` on(`test`.`s1`.`b` = `test`.`s2`.`b`) join `test`.`t1`) on(`test`.`t1`.`a` = `test`.`t2`.`a`) join `test`.`t3` where 1
+Note	1003	select `test`.`s1`.`b` AS `s1_b`,`test`.`s2`.`b` AS `s2_b`,`test`.`t1`.`a` AS `t1_a`,`test`.`t2`.`a` AS `t2_a`,`test`.`t3`.`a` AS `t3_a` from `test`.`t2` left join (`test`.`s2` left join `test`.`s1` on(`test`.`s1`.`b` = `test`.`s2`.`b`) join `test`.`t1`) on(`test`.`t1`.`a` = `test`.`t2`.`a`) join `test`.`t3` where true
 select s1.b as s1_b, s2.b as s2_b, t1.a as t1_a, t2.a as t2_a, t3.a as t3_a
 from s1 right join s2 on s1.b=s2.b join t1 right join t2 on t1.a=t2.a join t3;
 s1_b	s2_b	t1_a	t2_a	t3_a
@@ -2887,7 +2887,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using join buffer (incremental, BNL join)
 1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (incremental, BNL join)
 Warnings:
-Note	1003	select `test`.`t1`.`a` AS `t1_a`,`test`.`t2`.`a` AS `t2_a`,`test`.`t3`.`a` AS `t3_a`,`test`.`t4`.`a` AS `t4_a` from `test`.`t4` left join `test`.`t3` on(`test`.`t3`.`a` = `test`.`t4`.`a`) left join (`test`.`t1` join `test`.`t2`) on(`test`.`t2`.`a` = `test`.`t3`.`a`) where 1
+Note	1003	select `test`.`t1`.`a` AS `t1_a`,`test`.`t2`.`a` AS `t2_a`,`test`.`t3`.`a` AS `t3_a`,`test`.`t4`.`a` AS `t4_a` from `test`.`t4` left join `test`.`t3` on(`test`.`t3`.`a` = `test`.`t4`.`a`) left join (`test`.`t1` join `test`.`t2`) on(`test`.`t2`.`a` = `test`.`t3`.`a`) where true
 select t1.a as t1_a, t2.a as t2_a, t3.a as t3_a, t4.a as t4_a
 from t1 join t2 right join t3 right join t4 on t3.a=t4.a on t2.a=t3.a;
 t1_a	t2_a	t3_a	t4_a
@@ -2905,7 +2905,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using join buffer (incremental, BNL join)
 1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (incremental, BNL join)
 Warnings:
-Note	1003	select `test`.`t1`.`a` AS `t1_a`,`test`.`t2`.`a` AS `t2_a`,`test`.`t3`.`a` AS `t3_a`,`test`.`t4`.`a` AS `t4_a` from `test`.`t4` left join `test`.`t3` on(`test`.`t3`.`a` = `test`.`t4`.`a`) left join (`test`.`t1` join `test`.`t2`) on(`test`.`t2`.`a` = `test`.`t3`.`a`) where 1
+Note	1003	select `test`.`t1`.`a` AS `t1_a`,`test`.`t2`.`a` AS `t2_a`,`test`.`t3`.`a` AS `t3_a`,`test`.`t4`.`a` AS `t4_a` from `test`.`t4` left join `test`.`t3` on(`test`.`t3`.`a` = `test`.`t4`.`a`) left join (`test`.`t1` join `test`.`t2`) on(`test`.`t2`.`a` = `test`.`t3`.`a`) where true
 select t1.a as t1_a, t2.a as t2_a, t3.a as t3_a, t4.a as t4_a
 from (t1 join t2) right join t3 right join t4 on t3.a=t4.a on t2.a=t3.a;
 t1_a	t2_a	t3_a	t4_a
@@ -2923,7 +2923,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using join buffer (incremental, BNL join)
 1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (incremental, BNL join)
 Warnings:
-Note	1003	select `test`.`t1`.`a` AS `t1_a`,`test`.`t2`.`a` AS `t2_a`,`test`.`t3`.`a` AS `t3_a`,`test`.`t4`.`a` AS `t4_a` from `test`.`t4` left join `test`.`t3` on(`test`.`t3`.`a` = `test`.`t4`.`a`) left join (`test`.`t1` join `test`.`t2`) on(`test`.`t2`.`a` = `test`.`t3`.`a`) where 1
+Note	1003	select `test`.`t1`.`a` AS `t1_a`,`test`.`t2`.`a` AS `t2_a`,`test`.`t3`.`a` AS `t3_a`,`test`.`t4`.`a` AS `t4_a` from `test`.`t4` left join `test`.`t3` on(`test`.`t3`.`a` = `test`.`t4`.`a`) left join (`test`.`t1` join `test`.`t2`) on(`test`.`t2`.`a` = `test`.`t3`.`a`) where true
 select t1.a as t1_a, t2.a as t2_a, t3.a as t3_a, t4.a as t4_a
 from (t1, t2) right join t3 right join t4 on t3.a=t4.a on t2.a=t3.a;
 t1_a	t2_a	t3_a	t4_a
@@ -2957,7 +2957,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	3	100.00	Using join buffer (incremental, BNL join)
 1	SIMPLE	t4	ALL	NULL	NULL	NULL	NULL	4	100.00	Using where; Using join buffer (incremental, BNL join)
 Warnings:
-Note	1003	select `test`.`t1`.`a` AS `t1_a`,`test`.`t2`.`a` AS `t2_a`,`test`.`t3`.`a` AS `t3_a`,`test`.`t4`.`a` AS `t4_a` from `test`.`t1` join `test`.`t2` join `test`.`t3` left join `test`.`t4` on(`test`.`t4`.`a` = `test`.`t3`.`a`) where 1
+Note	1003	select `test`.`t1`.`a` AS `t1_a`,`test`.`t2`.`a` AS `t2_a`,`test`.`t3`.`a` AS `t3_a`,`test`.`t4`.`a` AS `t4_a` from `test`.`t1` join `test`.`t2` join `test`.`t3` left join `test`.`t4` on(`test`.`t4`.`a` = `test`.`t3`.`a`) where true
 select t1.a as t1_a, t2.a as t2_a, t3.a as t3_a, t4.a as t4_a
 from t1, t2 join t3 left join t4 on t3.a=t4.a;
 t1_a	t2_a	t3_a	t4_a
@@ -2996,7 +2996,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	3	100.00	Using join buffer (incremental, BNL join)
 1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (incremental, BNL join)
 Warnings:
-Note	1003	select `test`.`t1`.`a` AS `t1_a`,`test`.`t2`.`a` AS `t2_a`,`test`.`t3`.`a` AS `t3_a`,`test`.`t4`.`a` AS `t4_a` from `test`.`t1` join `test`.`t4` left join (`test`.`t2` join `test`.`t3`) on(`test`.`t3`.`a` = `test`.`t4`.`a`) where 1
+Note	1003	select `test`.`t1`.`a` AS `t1_a`,`test`.`t2`.`a` AS `t2_a`,`test`.`t3`.`a` AS `t3_a`,`test`.`t4`.`a` AS `t4_a` from `test`.`t1` join `test`.`t4` left join (`test`.`t2` join `test`.`t3`) on(`test`.`t3`.`a` = `test`.`t4`.`a`) where true
 select t1.a as t1_a, t2.a as t2_a, t3.a as t3_a, t4.a as t4_a
 from t1, t2 join t3 right join t4 on t3.a=t4.a;
 t1_a	t2_a	t3_a	t4_a
@@ -3027,7 +3027,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t4	ALL	NULL	NULL	NULL	NULL	4	100.00	Using join buffer (incremental, BNL join)
 1	SIMPLE	t5	ALL	NULL	NULL	NULL	NULL	4	100.00	Using where; Using join buffer (incremental, BNL join)
 Warnings:
-Note	1003	select `test`.`t1`.`a` AS `t1_a`,`test`.`t2`.`a` AS `t2_a`,`test`.`t3`.`a` AS `t3_a`,`test`.`t4`.`a` AS `t4_a`,`test`.`t5`.`a` AS `t5_a` from `test`.`t1` join `test`.`t2` join `test`.`t3` join `test`.`t4` left join `test`.`t5` on(`test`.`t5`.`a` = `test`.`t4`.`a`) where 1
+Note	1003	select `test`.`t1`.`a` AS `t1_a`,`test`.`t2`.`a` AS `t2_a`,`test`.`t3`.`a` AS `t3_a`,`test`.`t4`.`a` AS `t4_a`,`test`.`t5`.`a` AS `t5_a` from `test`.`t1` join `test`.`t2` join `test`.`t3` join `test`.`t4` left join `test`.`t5` on(`test`.`t5`.`a` = `test`.`t4`.`a`) where true
 select t1.a as t1_a, t2.a as t2_a, t3.a as t3_a, t4.a as t4_a, t5.a as t5_a
 from t1, t2 join t3 join t4 left join t5 on t4.a=t5.a;
 t1_a	t2_a	t3_a	t4_a	t5_a
@@ -3148,7 +3148,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	3	100.00	Using join buffer (incremental, BNL join)
 1	SIMPLE	t4	ALL	NULL	NULL	NULL	NULL	4	100.00	Using where; Using join buffer (incremental, BNL join)
 Warnings:
-Note	1003	select `test`.`t1`.`a` AS `t1_a`,`test`.`t2`.`a` AS `t2_a`,`test`.`t3`.`a` AS `t3_a`,`test`.`t4`.`a` AS `t4_a`,`test`.`t5`.`a` AS `t5_a` from `test`.`t1` join `test`.`t5` left join (`test`.`t2` join `test`.`t3` join `test`.`t4`) on(`test`.`t4`.`a` = `test`.`t5`.`a`) where 1
+Note	1003	select `test`.`t1`.`a` AS `t1_a`,`test`.`t2`.`a` AS `t2_a`,`test`.`t3`.`a` AS `t3_a`,`test`.`t4`.`a` AS `t4_a`,`test`.`t5`.`a` AS `t5_a` from `test`.`t1` join `test`.`t5` left join (`test`.`t2` join `test`.`t3` join `test`.`t4`) on(`test`.`t4`.`a` = `test`.`t5`.`a`) where true
 select t1.a as t1_a, t2.a as t2_a, t3.a as t3_a, t4.a as t4_a, t5.a as t5_a
 from t1, t2 join t3 join t4 right join t5 on t4.a=t5.a;
 t1_a	t2_a	t3_a	t4_a	t5_a
@@ -3221,7 +3221,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	3	100.00	Using join buffer (incremental, BNL join)
 1	SIMPLE	t4	ALL	NULL	NULL	NULL	NULL	4	100.00	Using where; Using join buffer (incremental, BNL join)
 Warnings:
-Note	1003	select `test`.`t1`.`a` AS `t1_a`,`test`.`t2`.`a` AS `t2_a`,`test`.`t3`.`a` AS `t3_a`,`test`.`t4`.`a` AS `t4_a`,`test`.`t5`.`a` AS `t5_a` from `test`.`t1` left join `test`.`t2` on(`test`.`t2`.`a` = `test`.`t1`.`a`) join `test`.`t5` left join (`test`.`t3` join `test`.`t4`) on(`test`.`t4`.`a` = `test`.`t5`.`a`) where 1
+Note	1003	select `test`.`t1`.`a` AS `t1_a`,`test`.`t2`.`a` AS `t2_a`,`test`.`t3`.`a` AS `t3_a`,`test`.`t4`.`a` AS `t4_a`,`test`.`t5`.`a` AS `t5_a` from `test`.`t1` left join `test`.`t2` on(`test`.`t2`.`a` = `test`.`t1`.`a`) join `test`.`t5` left join (`test`.`t3` join `test`.`t4`) on(`test`.`t4`.`a` = `test`.`t5`.`a`) where true
 select t1.a as t1_a, t2.a as t2_a, t3.a as t3_a, t4.a as t4_a, t5.a as t5_a
 from t1 left join t2 on t1.a=t2.a, t3 join t4 right join t5 on t4.a=t5.a;
 t1_a	t2_a	t3_a	t4_a	t5_a
