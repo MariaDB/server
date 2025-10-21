@@ -1217,6 +1217,18 @@ public:
     const Record_addr tmp(NULL, Bit_addr(true));
     return new (table->in_use->mem_root) Field_fbt(&empty_clex_str, tmp);
   }
+
+  bool Column_definition_set_attributes(THD *thd,
+                                        Column_definition *def,
+                                        const Lex_field_type_st &attr,
+                                        column_definition_type_t type) const override
+  {
+    if (FbtImpl::allowed(attr, singleton()->name()))
+      return true;
+    return Type_handler::Column_definition_set_attributes(thd, def,
+                                                          attr, type);
+  }
+
   // Fix attributes after the parser
   bool Column_definition_fix_attributes(Column_definition *c) const override
   {
