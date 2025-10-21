@@ -1,5 +1,5 @@
 /* Copyright (c) 2006, 2016, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2021, MariaDB Corporation.
+   Copyright (c) 2010, 2024, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -947,7 +947,6 @@ extern bool max_user_connections_checking;
 extern ulong opt_binlog_dbug_fsync_sleep;
 static const int SERVER_UID_SIZE= 29;
 extern char server_uid[SERVER_UID_SIZE+1];
-
 extern uint volatile global_disable_checkpoint;
 extern my_bool opt_help;
 
