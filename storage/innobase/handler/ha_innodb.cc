@@ -19296,7 +19296,7 @@ static MYSQL_SYSVAR_SIZE_T(ft_result_cache_limit, fts_result_cache_limit,
 static MYSQL_SYSVAR_ULONG(ft_min_token_size, fts_min_token_size,
   PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
   "InnoDB Fulltext search minimum token size in characters",
-  NULL, NULL, 3, 0, 16, 0);
+  NULL, NULL, 3, 1, 16, 0);
 
 static MYSQL_SYSVAR_ULONG(ft_max_token_size, fts_max_token_size,
   PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
