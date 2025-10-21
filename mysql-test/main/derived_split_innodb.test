@@ -664,5 +664,32 @@ eval $q;
 DROP TABLE t1,t2;
 
 SET optimizer_switch= @save_optimizer_switch;
+
+--echo #
+--echo # MDEV-29638 Crash when considering Split-Materialized plan
+--echo #
+
+set @save_optimizer_switch= @@optimizer_switch;
+set optimizer_switch='condition_pushdown_for_derived=off,split_materialized=on';
+
+CREATE TABLE t1 (id int PRIMARY KEY)engine=innodb;
+CREATE TABLE t2 (id int PRIMARY KEY, c int) engine=innodb;
+CREATE TABLE t3 (id int PRIMARY KEY, a int , b int, KEY (a))engine=innodb;
+
+SELECT * FROM
+(
+  SELECT DISTINCT t1.id
+    FROM t1 JOIN
+  (
+     SELECT t2.id FROM t2 JOIN t3
+       ON t3.id = t2.c
+       WHERE (t3.a > 2 AND t3.b = 2)
+       GROUP BY t2.id
+  ) m2 ON m2.id = t1.id
+) dt;
+
+drop table t1, t2, t3;
+SET optimizer_switch= @save_optimizer_switch;
+
 --echo # End of 10.11 tests
 SET GLOBAL innodb_stats_persistent=@save_innodb_stats_persistent;

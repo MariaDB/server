@@ -1676,6 +1676,7 @@ public:
   int optimize();
   int optimize_inner();
   int optimize_stage2();
+  int optimize_stage2_and_finish();
   bool build_explain();
   int reinit();
   int init_execution();

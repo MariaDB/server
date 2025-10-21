@@ -1947,7 +1947,6 @@ bool JOIN::build_explain()
 int JOIN::optimize()
 {
   int res= 0;
-  join_optimization_state init_state= optimization_state;
   if (select_lex->pushdown_select)
   {
     // Do same as JOIN::optimize_inner does:
@@ -1960,20 +1959,43 @@ int JOIN::optimize()
     }
     with_two_phase_optimization= false;
   }
-  else if (optimization_state == JOIN::OPTIMIZATION_PHASE_1_DONE)
-    res= optimize_stage2();
   else
   {
-    // to prevent double initialization on EXPLAIN
+    /*
+      This function may be invoked multiple times. Do nothing if the
+      optimization (either full or stage1) are already done.
+    */
     if (optimization_state != JOIN::NOT_OPTIMIZED)
       return FALSE;
     optimization_state= JOIN::OPTIMIZATION_IN_PROGRESS;
     res= optimize_inner();
   }
-  if (!with_two_phase_optimization ||
-      init_state == JOIN::OPTIMIZATION_PHASE_1_DONE)
+  if (!with_two_phase_optimization)
   {
     if (!res && have_query_plan != QEP_DELETED)
+      res= build_explain();
+    optimization_state= JOIN::OPTIMIZATION_DONE;
+  }
+  return res;
+}
+
+
+/*
+  @brief
+    Call optimize_stage2() and save the query plan.
+*/
+
+int JOIN::optimize_stage2_and_finish()
+{
+  int res= 0;
+  DBUG_ASSERT(with_two_phase_optimization);
+  DBUG_ASSERT(optimization_state == OPTIMIZATION_PHASE_1_DONE);
+
+  if (optimize_stage2())
+    res= 1;
+  else
+  {
+    if (have_query_plan != JOIN::QEP_DELETED)
       res= build_explain();
     optimization_state= JOIN::OPTIMIZATION_DONE;
   }
@@ -2691,6 +2713,19 @@ setup_subq_exit:
 }
 
 
+/*
+  @brief
+    In the Stage 1 we've picked the join order.
+    Now, refine the query plan and sort out all the details.
+    The choice how to handle GROUP/ORDER BY is also made here.
+
+  @detail
+    The main reason this is a separate function is Split-Materialized
+    optimization. There, we first consider doing non-split Materialization for
+    a SELECT. After that, the parent SELECT will attempt doing Splitting in
+    multiple ways and make the final choice.
+*/
+
 int JOIN::optimize_stage2()
 {
   ulonglong select_opts_for_readinfo;
@@ -2711,7 +2746,7 @@ int JOIN::optimize_stage2()
   if (make_range_rowid_filters())
     DBUG_RETURN(1);
 
-  if (select_lex->handle_derived(thd->lex, DT_OPTIMIZE))
+  if (select_lex->handle_derived(thd->lex, DT_OPTIMIZE_STAGE2))
     DBUG_RETURN(1);
 
   if (optimizer_flag(thd, OPTIMIZER_SWITCH_DERIVED_WITH_KEYS))
@@ -3501,7 +3536,7 @@ setup_subq_exit:
       some of the derived tables, and never did stage 2.
       Do it now, otherwise Explain data structure will not be complete.
     */
-    if (select_lex->handle_derived(thd->lex, DT_OPTIMIZE))
+    if (select_lex->handle_derived(thd->lex, DT_OPTIMIZE_STAGE2))
       DBUG_RETURN(1);
   }
   /*
@@ -4765,6 +4800,7 @@ bool JOIN::save_explain_data(Explain_query *output, bool can_overwrite,
 
 void JOIN::exec()
 {
+  DBUG_ASSERT(optimization_state == OPTIMIZATION_DONE);
   DBUG_EXECUTE_IF("show_explain_probe_join_exec_start", 
                   if (dbug_user_var_equals_int(thd, 
                                                "show_explain_probe_select_id", 
