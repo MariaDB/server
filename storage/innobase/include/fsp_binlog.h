@@ -359,6 +359,9 @@ public:
                            uint64_t *out_oob_ref_file_no);
   /* Check if file_no needed by active, not committed transaction. */
   bool get_oob_ref_in_use(uint64_t file_no, LF_PINS *pins);
+  /* Check if _any_ file_no is needed by active, not committed transactions. */
+  bool check_any_oob_ref_in_use(uint64_t start_file_no, uint64_t end_file_no,
+                                LF_PINS *lf_pins);
 };
 
 

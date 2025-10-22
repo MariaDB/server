@@ -12299,6 +12299,8 @@ ER_SIGNAL_SKIP_ROW_FROM_TRIGGER
         eng "The row is skipped by a trigger implementation"
 ER_BINLOG_IN_USE
 	eng "Cannot execute RESET MASTER as the binlog is in use by a connected slave or other RESET MASTER or binlog reader. Check SHOW PROCESSLIST for "Binlog Dump" commands and use KILL to stop such readers"
+ER_BINLOG_IN_USE_TRX
+	eng "Cannot execute RESET MASTER as the binlog is in use by an active transaction"
 ER_CANNOT_INIT_ENGINE_BINLOG_READER
         eng "Cannot initialize binlog reader from storage engine %s"
 ER_ENGINE_BINLOG_REQUIRES_GTID
