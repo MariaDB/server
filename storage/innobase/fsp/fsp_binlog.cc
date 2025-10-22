@@ -1109,6 +1109,30 @@ ibb_file_oob_refs::get_oob_ref_in_use(uint64_t file_no, LF_PINS *pins)
 }
 
 
+/*
+  Check if there are any of the in-use binlog files that have refcount > 0
+  (meaning any references to oob data from active transactions).
+  Any such references must prevent a RESET MASTER, as otherwise they could
+  be committed with OOB references pointing to garbage data.
+*/
+bool
+ibb_file_oob_refs::check_any_oob_ref_in_use(uint64_t start_file_no,
+                                            uint64_t end_file_no,
+                                            LF_PINS *lf_pins)
+{
+  if (unlikely(start_file_no == ~(uint64_t)0)
+      || unlikely(end_file_no == ~(uint64_t)0))
+    return false;
+
+  for (uint64_t file_no= start_file_no; file_no <= end_file_no; ++file_no)
+  {
+    if (get_oob_ref_in_use(file_no, lf_pins))
+      return true;
+  }
+  return false;
+}
+
+
 bool
 ibb_record_in_file_hash(uint64_t file_no, uint64_t oob_ref, uint64_t xa_ref,
                          LF_PINS *in_pins)
