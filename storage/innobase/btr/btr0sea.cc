@@ -687,7 +687,6 @@ btr_search_update_hash_ref(
 	ut_ad(block->page.lock.have_x() || block->page.lock.have_s());
 	ut_ad(btr_cur_get_page(cursor) == block->page.frame);
 	ut_ad(page_is_leaf(block->page.frame));
-	assert_block_ahi_valid(block);
 
 	dict_index_t* index = block->index;
 
@@ -706,8 +705,9 @@ btr_search_update_hash_ref(
 	ut_ad(!dict_index_is_ibuf(index));
 	auto part = btr_search_sys.get_part(*index);
 	part->latch.wr_lock(SRW_LOCK_CALL);
-	ut_ad(!block->index || block->index == index);
-
+#if defined UNIV_AHI_DEBUG || defined UNIV_DEBUG
+	ut_a(block->index ? block->index == index : !block->n_pointers);
+#endif
 	if (block->index
 	    && (block->curr_n_fields == info->n_fields)
 	    && (block->curr_n_bytes == info->n_bytes)
