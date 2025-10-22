@@ -44,15 +44,15 @@
 
 if (!$assert_text)
 {
-  --die !!!ERROR IN TEST: you must set $assert_text
+  --die !!!ERROR IN TEST: you must set \$assert_text
 }
 if (!$assert_file)
 {
-  --die !!!ERROR IN TEST: you must set $assert_file
+  --die !!!ERROR IN TEST: you must set \$assert_file
 }
 if (!$assert_select)
 {
-  --die !!!ERROR IN TEST: you must set $assert_select
+  --die !!!ERROR IN TEST: you must set \$assert_select
 }
 if ($assert_match == '')
 {
