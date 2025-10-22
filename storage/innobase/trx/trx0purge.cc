@@ -437,7 +437,6 @@ loop:
       rollback segment. */
 
       if (!(rseg.SKIP & rseg_ref) && !freed &&
-          ut_d(!trx_rseg_n_slots_debug &&)
           &rseg == &trx_sys.rseg_array[purge_sys.skipped_rseg])
         /* If rseg.space == purge_sys.truncate_undo_space.current
         the following will be a no-op. A possible conflict

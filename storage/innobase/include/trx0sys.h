@@ -70,11 +70,6 @@ inline buf_block_t *trx_sysf_get(mtr_t* mtr, bool rw= true)
                       0, rw ? RW_X_LATCH : RW_S_LATCH, mtr);
 }
 
-#ifdef UNIV_DEBUG
-/* Flag to control TRX_RSEG_N_SLOTS behavior debugging. */
-extern uint			trx_rseg_n_slots_debug;
-#endif
-
 /** Write DB_TRX_ID.
 @param[out]	db_trx_id	the DB_TRX_ID field to be written to
 @param[in]	id		transaction ID */
