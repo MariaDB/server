@@ -510,6 +510,7 @@ typedef struct spider_table_holder SPIDER_TABLE_HOLDER;
 typedef struct spider_link_idx_holder
 {
   spider_table_link_idx_holder *table_link_idx_holder;
+  /* The index of active link */
   int link_idx;
   int link_status;
   spider_link_idx_holder *next_table;

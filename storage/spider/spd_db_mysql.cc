@@ -3050,7 +3050,7 @@ int spider_db_mbase::append_lock_tables(
   int error_num;
   ha_spider *tmp_spider;
   int lock_type;
-  uint conn_link_idx;
+  uint all_link_idx;
   int tmp_link_idx;
   SPIDER_LINK_FOR_HASH *tmp_link_for_hash;
   const char *db_name;
@@ -3090,16 +3090,16 @@ int spider_db_mbase::append_lock_tables(
           tmp_spider->wide_handler->lock_type));
         DBUG_RETURN(0);
     }
-    conn_link_idx = tmp_spider->conn_link_idx[tmp_link_idx];
+    all_link_idx = tmp_spider->conn_link_idx[tmp_link_idx];
     spider_mbase_share *db_share = (spider_mbase_share *)
       tmp_spider->share->dbton_share[conn->dbton_id];
 
-    db_name = db_share->db_names_str[conn_link_idx].ptr();
-    db_name_length = db_share->db_names_str[conn_link_idx].length();
+    db_name = db_share->db_names_str[all_link_idx].ptr();
+    db_name_length = db_share->db_names_str[all_link_idx].length();
     db_name_charset = tmp_spider->share->access_charset;
 
-    table_name = db_share->table_names_str[conn_link_idx].ptr();
-    table_name_length = db_share->table_names_str[conn_link_idx].length();
+    table_name = db_share->table_names_str[all_link_idx].ptr();
+    table_name_length = db_share->table_names_str[all_link_idx].length();
     table_name_charset = tmp_spider->share->access_charset;
 
     if ((error_num = spider_db_mbase_utility->
