@@ -3,3 +3,11 @@ log-bin
 log-slave-updates
 
 [binlogoff]
+
+[binlogon-sr]
+log-bin
+log-slave-updates
+wsrep-trx-fragment-size=1
+
+[binlogoff-sr]
+wsrep-trx-fragment-size=1
