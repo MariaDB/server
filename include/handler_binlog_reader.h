@@ -77,13 +77,14 @@ public:
       0  The requested GTID position not found, needed binlogs have been purged
       1  Ok, position found and returned.
   */
-  virtual int init_gtid_pos(slave_connection_state *pos,
+  virtual int init_gtid_pos(THD *thd, slave_connection_state *pos,
                             rpl_binlog_state_base *state) = 0;
   /*
     Initialize to a legacy-type position (filename, offset). This mostly to
     support legacy SHOW BINLOG EVENTS.
   */
-  virtual int init_legacy_pos(const char *filename, ulonglong offset) = 0;
+  virtual int init_legacy_pos(THD *thd, const char *filename,
+                              ulonglong offset) = 0;
   /*
     Can be called after init_gtid_pos() or init_legacy_pos() to make the reader
     stop (return EOF) at the end of the binlog file. Used for SHOW BINLOG
