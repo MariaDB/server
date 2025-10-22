@@ -1960,7 +1960,19 @@ int JOIN::optimize()
     with_two_phase_optimization= false;
   }
   else if (optimization_state == JOIN::OPTIMIZATION_PHASE_1_DONE)
-    res= optimize_stage2();
+  {
+    /*
+      Do not yet call stage2 if an outer join optimization phase is
+      not yet finished, this can cause make_join_select() to be called
+      prematurely
+    */
+    SELECT_LEX *outer= unit->outer_select();
+    if (outer &&
+        outer->join->optimization_state != JOIN::OPTIMIZATION_IN_PROGRESS)
+      res= optimize_stage2();
+    else
+      return FALSE;
+  }
   else
   {
     // to prevent double initialization on EXPLAIN

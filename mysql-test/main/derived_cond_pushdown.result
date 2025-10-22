@@ -19276,7 +19276,8 @@ EXPLAIN EXTENDED
 SELECT * FROM v1 JOIN v2 ON v1.f = v2.f;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
-3	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	no matching row in const table
+3	DERIVED	a	system	PRIMARY	NULL	NULL	NULL	0	0.00	Const row not found
+3	DERIVED	b	index	NULL	PRIMARY	4	NULL	0	0.00	Using index
 Warnings:
 Note	1003	/* select#1 */ select NULL AS `f`,`v2`.`f` AS `f` from `test`.`t1` `a` straight_join `test`.`t1` `b` join `test`.`v2` where 0
 DROP VIEW v1,v2;
