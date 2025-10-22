@@ -1,0 +1,97 @@
+--- ../src/storage/spider/mysql-test/spider/r/timestamp.result	2025-08-01 15:07:36.420896283 +1000
++++ ../src/storage/spider/mysql-test/spider/r/timestamp.reject	2025-10-22 17:41:31.819626622 +1100
+@@ -114,7 +114,7 @@
+ connection child2_1;
+ SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %';
+ argument
+-select t0.`col_a` `col_a`,t0.`col_dt` `col_dt`,t0.`col_ts` `col_ts`,(unix_timestamp(t0.`col_ts`)) `unix_timestamp(col_ts)` from `ts_test_remote`.`tbl_a` t0
++select `col_a`,`col_dt`,`col_ts` from `ts_test_remote`.`tbl_a`
+ SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %'
+ SELECT col_a, col_dt, col_ts, unix_timestamp(col_ts) FROM tbl_a ORDER BY col_a;
+ col_a	col_dt	col_ts	unix_timestamp(col_ts)
+@@ -140,7 +140,7 @@
+ connection child2_1;
+ SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %';
+ argument
+-select t0.`col_a` `col_a`,t0.`col_dt` `col_dt`,t0.`col_ts` `col_ts`,(unix_timestamp(t0.`col_ts`)) `unix_timestamp(col_ts)` from `ts_test_remote`.`tbl_a` t0
++select `col_a`,`col_dt`,`col_ts` from `ts_test_remote`.`tbl_a`
+ SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %'
+ SELECT col_a, col_dt, col_ts, unix_timestamp(col_ts) FROM tbl_a ORDER BY col_a;
+ col_a	col_dt	col_ts	unix_timestamp(col_ts)
+@@ -166,7 +166,7 @@
+ connection child2_1;
+ SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %';
+ argument
+-select t0.`col_a` `col_a`,t0.`col_dt` `col_dt`,t0.`col_ts` `col_ts`,(unix_timestamp(t0.`col_ts`)) `unix_timestamp(col_ts)` from `ts_test_remote`.`tbl_a` t0
++select `col_a`,`col_dt`,`col_ts` from `ts_test_remote`.`tbl_a`
+ SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %'
+ SELECT col_a, col_dt, col_ts, unix_timestamp(col_ts) FROM tbl_a ORDER BY col_a;
+ col_a	col_dt	col_ts	unix_timestamp(col_ts)
+@@ -194,7 +194,7 @@
+ SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %';
+ argument
+ select `col_a`,`col_dt`,`col_ts` from `ts_test_remote`.`tbl_a` for update
+-select t0.`col_a` `col_a`,t0.`col_dt` `col_dt`,t0.`col_ts` `col_ts`,(unix_timestamp(t0.`col_ts`)) `unix_timestamp(col_ts)` from `ts_test_remote`.`tbl_a` t0
++select `col_a`,`col_dt`,`col_ts` from `ts_test_remote`.`tbl_a`
+ SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %'
+ SELECT col_a, col_dt, col_ts, unix_timestamp(col_ts) FROM tbl_a ORDER BY col_a;
+ col_a	col_dt	col_ts	unix_timestamp(col_ts)
+@@ -252,13 +252,13 @@
+ connection child2_1;
+ SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %';
+ argument
+-select t0.`col_a` `col_a`,t0.`col_dt` `col_dt`,t0.`col_ts` `col_ts`,(unix_timestamp(t0.`col_ts`)) `unix_timestamp(col_ts)` from `ts_test_remote`.`tbl_a` t0 where (t0.`col_ts` > _latin1'2017-12-31 23:00:00')
+-select t0.`col_a` `col_a`,t0.`col_dt` `col_dt`,t0.`col_ts` `col_ts`,(unix_timestamp(t0.`col_ts`)) `unix_timestamp(col_ts)` from `ts_test_remote`.`tbl_a` t0 where (t0.`col_ts` < _latin1'2018-10-28 01:30:00')
+-select t0.`col_a` `col_a`,t0.`col_dt` `col_dt`,t0.`col_ts` `col_ts`,(unix_timestamp(t0.`col_ts`)) `unix_timestamp(col_ts)` from `ts_test_remote`.`tbl_a` t0 where (_latin1'2018-10-28 01:30:00' > t0.`col_ts`)
+-select t0.`col_a` `col_a`,t0.`col_dt` `col_dt`,t0.`col_ts` `col_ts`,(unix_timestamp(t0.`col_ts`)) `unix_timestamp(col_ts)` from `ts_test_remote`.`tbl_a` t0 where (t0.`col_ts` between _latin1'2018-10-28 00:30:00'  and  _latin1'2018-10-28 01:30:00')
+-select t0.`col_a` `col_a`,t0.`col_dt` `col_dt`,t0.`col_ts` `col_ts`,(unix_timestamp(t0.`col_ts`)) `unix_timestamp(col_ts)` from `ts_test_remote`.`tbl_a` t0 where ((t0.`col_ts` >= _latin1'2018-10-28 00:30:00') and (t0.`col_ts` <= _latin1'2018-10-28 01:30:00'))
+-select t0.`col_a` `col_a`,t0.`col_dt` `col_dt`,t0.`col_ts` `col_ts`,(unix_timestamp(t0.`col_ts`)) `unix_timestamp(col_ts)` from `ts_test_remote`.`tbl_a` t0 where (t0.`col_ts` > '2018-03-25 01:00:00')
+-select t0.`col_a` `col_a`,t0.`col_dt` `col_dt`,t0.`col_ts` `col_ts`,(unix_timestamp(t0.`col_ts`)) `unix_timestamp(col_ts)` from `ts_test_remote`.`tbl_a` t0 where (t0.`col_ts` > '1970-01-01 00:00:01')
++select `col_a`,`col_dt`,`col_ts` from `ts_test_remote`.`tbl_a` where (`col_ts` > _latin1'2017-12-31 23:00:00') order by `col_ts`
++select `col_a`,`col_dt`,`col_ts` from `ts_test_remote`.`tbl_a` where (`col_ts` < _latin1'2018-10-28 01:30:00') order by `col_ts`
++select `col_a`,`col_dt`,`col_ts` from `ts_test_remote`.`tbl_a` where (_latin1'2018-10-28 01:30:00' > `col_ts`) order by `col_ts`
++select `col_a`,`col_dt`,`col_ts` from `ts_test_remote`.`tbl_a` where `col_ts` >= _latin1'2018-10-28 00:30:00' and `col_ts` <= _latin1'2018-10-28 01:30:00' and (`col_ts` between _latin1'2018-10-28 00:30:00'  and  _latin1'2018-10-28 01:30:00') order by `col_ts`
++select `col_a`,`col_dt`,`col_ts` from `ts_test_remote`.`tbl_a` where `col_ts` >= _latin1'2018-10-28 00:30:00' and `col_ts` <= _latin1'2018-10-28 01:30:00' and ((`col_ts` >= _latin1'2018-10-28 00:30:00') and (`col_ts` <= _latin1'2018-10-28 01:30:00')) order by `col_ts`
++select `col_a`,`col_dt`,`col_ts` from `ts_test_remote`.`tbl_a` where (`col_ts` > '2018-03-25 01:00:00') order by `col_ts`
++select `col_a`,`col_dt`,`col_ts` from `ts_test_remote`.`tbl_a` where (`col_ts` > '1970-01-01 00:00:01') order by `col_ts`
+ SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %'
+ SELECT col_a, col_dt, col_ts, unix_timestamp(col_ts) FROM tbl_a ORDER BY col_a;
+ col_a	col_dt	col_ts	unix_timestamp(col_ts)
+@@ -339,13 +339,13 @@
+ connection child2_1;
+ SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %';
+ argument
+-select t0.`col_a` `col_a`,t0.`col_dt` `col_dt`,t0.`col_ts` `col_ts`,(unix_timestamp(t0.`col_ts`)) `unix_timestamp(col_ts)` from `ts_test_remote`.`tbl_a` t0 where (t0.`col_ts` > _latin1'2017-12-31 23:00:00')
+-select t0.`col_a` `col_a`,t0.`col_dt` `col_dt`,t0.`col_ts` `col_ts`,(unix_timestamp(t0.`col_ts`)) `unix_timestamp(col_ts)` from `ts_test_remote`.`tbl_a` t0 where (t0.`col_ts` < _latin1'2018-10-28 01:30:00')
+-select t0.`col_a` `col_a`,t0.`col_dt` `col_dt`,t0.`col_ts` `col_ts`,(unix_timestamp(t0.`col_ts`)) `unix_timestamp(col_ts)` from `ts_test_remote`.`tbl_a` t0 where (_latin1'2018-10-28 01:30:00' > t0.`col_ts`)
+-select t0.`col_a` `col_a`,t0.`col_dt` `col_dt`,t0.`col_ts` `col_ts`,(unix_timestamp(t0.`col_ts`)) `unix_timestamp(col_ts)` from `ts_test_remote`.`tbl_a` t0 where (t0.`col_ts` between _latin1'2018-10-28 00:30:00'  and  _latin1'2018-10-28 01:30:00')
+-select t0.`col_a` `col_a`,t0.`col_dt` `col_dt`,t0.`col_ts` `col_ts`,(unix_timestamp(t0.`col_ts`)) `unix_timestamp(col_ts)` from `ts_test_remote`.`tbl_a` t0 where ((t0.`col_ts` >= _latin1'2018-10-28 00:30:00') and (t0.`col_ts` <= _latin1'2018-10-28 01:30:00'))
+-select t0.`col_a` `col_a`,t0.`col_dt` `col_dt`,t0.`col_ts` `col_ts`,(unix_timestamp(t0.`col_ts`)) `unix_timestamp(col_ts)` from `ts_test_remote`.`tbl_a` t0 where (t0.`col_ts` > '2018-03-25 01:00:00')
+-select t0.`col_a` `col_a`,t0.`col_dt` `col_dt`,t0.`col_ts` `col_ts`,(unix_timestamp(t0.`col_ts`)) `unix_timestamp(col_ts)` from `ts_test_remote`.`tbl_a` t0 where (t0.`col_ts` > '1970-01-01 00:00:01')
++select `col_a`,`col_dt`,`col_ts` from `ts_test_remote`.`tbl_a` where (`col_ts` > _latin1'2017-12-31 23:00:00')
++select `col_a`,`col_dt`,`col_ts` from `ts_test_remote`.`tbl_a` where (`col_ts` < _latin1'2018-10-28 01:30:00')
++select `col_a`,`col_dt`,`col_ts` from `ts_test_remote`.`tbl_a` where (_latin1'2018-10-28 01:30:00' > `col_ts`)
++select `col_a`,`col_dt`,`col_ts` from `ts_test_remote`.`tbl_a` where (`col_ts` between _latin1'2018-10-28 00:30:00'  and  _latin1'2018-10-28 01:30:00')
++select `col_a`,`col_dt`,`col_ts` from `ts_test_remote`.`tbl_a` where ((`col_ts` >= _latin1'2018-10-28 00:30:00') and (`col_ts` <= _latin1'2018-10-28 01:30:00'))
++select `col_a`,`col_dt`,`col_ts` from `ts_test_remote`.`tbl_a` where (`col_ts` > '2018-03-25 01:00:00')
++select `col_a`,`col_dt`,`col_ts` from `ts_test_remote`.`tbl_a` where (`col_ts` > '1970-01-01 00:00:01')
+ SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %'
+ SELECT col_a, col_dt, col_ts, unix_timestamp(col_ts) FROM tbl_a ORDER BY col_a;
+ col_a	col_dt	col_ts	unix_timestamp(col_ts)
+@@ -392,11 +392,11 @@
+ connection child2_1;
+ SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %';
+ argument
+-select t0.`col_d` `col_d`,t0.`col_t` `col_t` from `ts_test_remote`.`tbl_f` t0
+-select (timestamp(t0.`col_d` , t0.`col_t`)) `TIMESTAMP(col_d, col_t)` from `ts_test_remote`.`tbl_f` t0
+-select (timestamp('2018-06-25' , t0.`col_t`)) `TIMESTAMP('2018-06-25', col_t)` from `ts_test_remote`.`tbl_f` t0
+-select (timestamp(t0.`col_d` , '10:43:21')) `TIMESTAMP(col_d, '10:43:21')` from `ts_test_remote`.`tbl_f` t0
+-select (timestamp('2018-06-25' , '10:43:21')) `TIMESTAMP('2018-06-25', '10:43:21')` from `ts_test_remote`.`tbl_f` t0
++select `col_d`,`col_t` from `ts_test_remote`.`tbl_f`
++select `col_d`,`col_t` from `ts_test_remote`.`tbl_f`
++select `col_t` from `ts_test_remote`.`tbl_f`
++select `col_d` from `ts_test_remote`.`tbl_f`
++select 1 from `ts_test_remote`.`tbl_f`
+ SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %'
+ SELECT col_d, col_t FROM tbl_f;
+ col_d	col_t
