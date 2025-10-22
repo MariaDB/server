@@ -417,6 +417,15 @@ insert into s1 values (1, 1, 10000, 100, 1, 1000, 0, 0);
 drop sequence s1;
 drop sequence s2;
 
---echo #
 --echo # End of 10.4 tests
+
 --echo #
+--echo # MDEV-37906 Server crash or UBSAN errors in Item_func_nextval::update_table upon INSERT DELAYED
+--echo #
+create sequence s engine=myisam;
+create table t (id bigint default(nextval(s))) engine=myisam;
+insert delayed into t () values();
+drop table t;
+drop sequence s;
+
+--echo # End of 10.11 tests
