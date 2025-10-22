@@ -35,11 +35,17 @@ let $success= 0;
 while ($wait_counter)
 {
     dec $wait_counter;
-    let $_tid= `SELECT id FROM information_schema.processlist WHERE command = 'Binlog Dump' LIMIT 1`;
+    # Tricky here. The binlog dump thread will normally be identified by the
+    # command name "Binlog Dump". But if it was killed, but didn't have time
+    # to react on the killed yet, it will be 'Killed'. It can also be 'Busy'
+    # if the code fails to obtain the LOCK_thd_data mutex.
+    let $_tid= `SELECT IF(command='Binlog Dump', id, -1) FROM information_schema.processlist WHERE command IN ('Binlog Dump', 'Killed', 'Busy') LIMIT 1`;
     if ($_tid)
     {
-        --error 0,ER_NO_SUCH_THREAD
-        eval KILL CONNECTION $_tid;
+        if ($_tid > 0) {
+            --error 0,ER_NO_SUCH_THREAD
+            eval KILL CONNECTION $_tid;
+	}
     }
     if (!$_tid)
     {

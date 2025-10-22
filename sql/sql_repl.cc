@@ -1793,12 +1793,14 @@ end:
 
 
 static const char *
-gtid_find_engine_pos(handler_binlog_reader *binlog_reader,
-                     slave_connection_state *pos,
-                     slave_connection_state *until_gtid_pos,
-                     rpl_binlog_state *until_binlog_state)
+gtid_find_engine_pos(binlog_send_info *info)
 {
-  int res= binlog_reader->init_gtid_pos(pos, until_binlog_state);
+  handler_binlog_reader *binlog_reader= info->engine_binlog_reader;
+  slave_connection_state *pos= &info->gtid_state;
+  slave_connection_state *until_gtid_pos= info->until_gtid_state;
+  rpl_binlog_state *until_binlog_state= &info->until_binlog_state;
+
+  int res= binlog_reader->init_gtid_pos(info->thd, pos, until_binlog_state);
   if (res < 0)
     return "Error while looking up GTID position in engine binlog";
   if (res == 0)
@@ -2691,10 +2693,7 @@ static int init_binlog_sender(binlog_send_info *info,
 
     if (opt_binlog_engine_hton)
     {
-      if ((info->errmsg= gtid_find_engine_pos(info->engine_binlog_reader,
-                                              &info->gtid_state,
-                                              info->until_gtid_state,
-                                              &info->until_binlog_state)))
+      if ((info->errmsg= gtid_find_engine_pos(info)))
       {
         info->error= ER_MASTER_FATAL_ERROR_READING_BINLOG;
         return 1;
@@ -3451,6 +3450,19 @@ static int send_engine_events(binlog_send_info *info, LOG_INFO* linfo)
       saved_gtid_packet.swap(*info->packet);
       if (err)
         return 1;
+    }
+    else if (unlikely(event_type == FORMAT_DESCRIPTION_EVENT) &&
+             info->gtid_state.count() > 0)
+    {
+      /*
+        In the engine-implemented binlog, format description event is (only)
+        written to mark a master server restart; this is used by the slave to
+        know that the master discarded temporary tabls at this point. So don't
+        send such event until we have reached our GTID starting position, so
+        that the slave will not mistakenly discard such temporary tables too
+        early.
+      */
+      continue;
     }
     if (((info->errmsg= send_event_to_slave(info, event_type, nullptr,
                                             ev_offset, &info->error_gtid))))
@@ -4939,7 +4951,7 @@ show_engine_binlog_events(THD* thd, Protocol *protocol, LEX_MASTER_INFO *lex_mi)
   */
   if (pos == 4)
     pos= 0;
-  if (reader->init_legacy_pos(lex_mi->log_file_name, pos))
+  if (reader->init_legacy_pos(thd, lex_mi->log_file_name, pos))
   {
     err= true;
     goto end;

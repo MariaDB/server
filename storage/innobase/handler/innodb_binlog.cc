@@ -303,9 +303,10 @@ public:
   virtual int read_binlog_data(uchar *buf, uint32_t len) final;
   virtual bool data_available() final;
   virtual bool wait_available(THD *thd, const struct timespec *abstime) final;
-  virtual int init_gtid_pos(slave_connection_state *pos,
+  virtual int init_gtid_pos(THD *thd, slave_connection_state *pos,
                             rpl_binlog_state_base *state) final;
-  virtual int init_legacy_pos(const char *filename, ulonglong offset) final;
+  virtual int init_legacy_pos(THD *thd, const char *filename,
+                              ulonglong offset) final;
   virtual void enable_single_file() final;
   void seek_internal(uint64_t file_no, uint64_t offset);
 };
@@ -3427,16 +3428,20 @@ gtid_search::find_gtid_pos(slave_connection_state *pos,
     /* Read the header page, needed to get the binlog diff state interval. */
     binlog_header_data header;
     chunk_reader.seek(file_no, 0);
-    if (chunk_reader.get_file_header(&header))
+    int res= chunk_reader.get_file_header(&header);
+    if (UNIV_UNLIKELY(res < 0))
       return -1;
+    if (UNIV_UNLIKELY(res == 0))
+        goto not_found_in_file;
     diff_state_page_interval= header.diff_state_interval;
 
     chunk_reader.seek(file_no, ibb_page_size);
-    int res= read_gtid_state(&chunk_reader, &base_state, &dummy_xa_ref);
+    res= read_gtid_state(&chunk_reader, &base_state, &dummy_xa_ref);
     if (UNIV_UNLIKELY(res < 0))
       return -1;
     if (res == 0)
     {
+  not_found_in_file:
       if (file_no == 0)
       {
         /* Handle the special case of a completely empty binlog file. */
@@ -3445,10 +3450,9 @@ gtid_search::find_gtid_pos(slave_connection_state *pos,
         *out_offset= ibb_page_size;
         return 1;
       }
-      ut_ad(0 /* Not expected to find no state, should always be written. */);
-      return -1;
+      /* If GTID state is not (durably) available, try the previous file. */
     }
-    if (base_state.is_before_pos(pos))
+    else if (base_state.is_before_pos(pos))
       break;
     base_state.reset_nolock();
     if (file_no <= earliest_binlog_file_no)
@@ -3518,12 +3522,26 @@ gtid_search::find_gtid_pos(slave_connection_state *pos,
 
 
 int
-ha_innodb_binlog_reader::init_gtid_pos(slave_connection_state *pos,
+ha_innodb_binlog_reader::init_gtid_pos(THD *thd, slave_connection_state *pos,
                                        rpl_binlog_state_base *state)
 {
   gtid_search search_obj;
   uint64_t file_no;
   uint64_t offset;
+
+  /*
+    Wait for at least the initial GTID state record to become durable before
+    looking for the starting GTID position.
+    This is unlikely to need to wait, as it would imply that _no_ part of the
+    binlog is durable at this point. But it might theoretically occur perhaps
+    after a PURGE of all binlog files but the active; and failing to do the
+    wait if needed might wrongly return an error that the GTID position is
+    too old.
+  */
+  chunk_rd.seek(earliest_binlog_file_no, ibb_page_size);
+  if (UNIV_UNLIKELY(wait_available(thd, nullptr)))
+    return -1;
+
   int res= search_obj.find_gtid_pos(pos, state, &file_no, &offset);
   if (res < 0)
     return -1;
@@ -3540,7 +3558,8 @@ ha_innodb_binlog_reader::init_gtid_pos(slave_connection_state *pos,
 
 
 int
-ha_innodb_binlog_reader::init_legacy_pos(const char *filename, ulonglong offset)
+ha_innodb_binlog_reader::init_legacy_pos(THD *thd, const char *filename,
+                                         ulonglong offset)
 {
   uint64_t file_no;
   if (!filename)

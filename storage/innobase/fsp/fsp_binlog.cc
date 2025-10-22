@@ -2149,16 +2149,24 @@ binlog_chunk_reader::find_offset_in_page(uint32_t off)
 }
 
 
+/**
+  Read the header page of the current binlog file_no.
+  Returns:
+    1 Header page found and returned.
+    0 EOF, no header page found (ie. file is empty / nothing is durable yet).
+   -1 Error.
+*/
 int
 binlog_chunk_reader::get_file_header(binlog_header_data *out_header)
 {
   seek(current_file_no(), 0);
-  if (fetch_current_page() != CHUNK_READER_FOUND)
-    return -1;
+  enum chunk_reader_status res= fetch_current_page();
+  if (UNIV_UNLIKELY(res != CHUNK_READER_FOUND))
+    return res == CHUNK_READER_EOF ? 0 : -1;
   fsp_binlog_extract_header_page(page_ptr, out_header);
   if (out_header->is_invalid || out_header->is_empty)
     return -1;
-  return 0;
+  return 1;
 }
 
 

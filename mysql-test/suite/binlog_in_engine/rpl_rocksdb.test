@@ -10,6 +10,14 @@ CREATE TABLE t2(a INT PRIMARY KEY, b INT, c LONGBLOB) ENGINE=RocksDB;
 INSERT INTO t1 SELECT seq, seq*seq, REPEAT('x', 50*seq) FROM seq_1_to_100;
 INSERT INTO t2 SELECT seq, 10000 - seq*seq, REPEAT('y', 50*seq) FROM seq_1_to_100;
 
+--source include/save_master_gtid.inc
+--connection slave
+--source include/sync_with_master_gtid.inc
+--source include/stop_slave.inc
+SET @old_threads= @@GLOBAL.slave_parallel_threads;
+SET GLOBAL slave_parallel_threads= 8;
+--source include/start_slave.inc
+
 --echo *** Cross-engine transaction, InnoDB and RocksDB.
 --connect con1,localhost,root,,
 BEGIN;
@@ -42,6 +50,20 @@ UPDATE t2 SET c=CONCAT('<', c, '>') WHERE a BETWEEN 20 AND 80;
 UPDATE t2 SET b=b+1 WHERE a=1 OR a=92;
 UPDATE t2 SET b=b*2 WHERE a MOD 7 = 0;
 
+--echo *** RocksDB transaction that rolls back.
+BEGIN;
+UPDATE t2 SET b=b+1 WHERE a=3;
+UPDATE t2 SET b=b+1 WHERE a=5;
+UPDATE t2 SET b=b+1 WHERE a=8;
+ROLLBACK;
+
+--connection con2
+BEGIN;
+UPDATE t2 SET b=b+1 WHERE a=4;
+UPDATE t2 SET b=b+1 WHERE a=9;
+UPDATE t2 SET b=b+1 WHERE a=13;
+--disconnect con2
+
 --connection master
 SELECT COUNT(*), SUM(a), SUM(b), SUM(LENGTH(c)) FROM t1;
 SELECT COUNT(*), SUM(a), SUM(b), SUM(LENGTH(c)) FROM t2;
@@ -53,8 +75,58 @@ SELECT COUNT(*), SUM(a), SUM(b), SUM(LENGTH(c)) FROM t2;
 SELECT COUNT(*), SUM(a), SUM(b), SUM(LENGTH(c)) FROM t1;
 SELECT COUNT(*), SUM(a), SUM(b), SUM(LENGTH(c)) FROM t2;
 
+--echo *** Test a RocksDB transaction that needs to roll back after having binlogged an internal 2pc xid
+
+--connection slave1
+# Cause a "row not found" error by removing a row.
+SET STATEMENT sql_log_bin= 0
+FOR UPDATE t1 SET a= a+1000000 WHERE a=5;
+
+# Block a row temporarily to control parallel replication thread scheduling
+BEGIN;
+SELECT a FROM t1 WHERE a=2 FOR UPDATE;
+
+--connection master
+# Create a transaction T1 that will first wait, and then error.
+BEGIN;
+UPDATE t1 SET b=b+1 WHERE a=2;
+UPDATE t1 SET b=b+1 WHERE a=5;
+COMMIT;
+
+# Create a transaction T2 that will queue for group commit and wait for T1
+# to commit (or fail, as it were).
+UPDATE t2 SET b=b+2 WHERE a=10;
+--source include/save_master_gtid.inc
+
+--connection slave
+--let $wait_condition= SELECT COUNT(*)=1 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE Command='Slave_worker' AND State='Waiting for prior transaction to commit'
+--source include/wait_condition.inc
+
+# Release T1 so that it can fail after T2 has queued for group commit.
+--connection slave1
+ROLLBACK;
+
+--connection slave
+--let $slave_sql_errno= 1032
+--source include/wait_for_slave_sql_error.inc
+
+# Now move back the row so the replication can continue and succeed.
+SET STATEMENT sql_log_bin= 0
+FOR UPDATE t1 SET a= a-1000000 WHERE a=1000000 + 5;
+
+START SLAVE SQL_THREAD;
+--source include/sync_with_master_gtid.inc
+
+# Clean up.
+
+--connection slave
+--source include/stop_slave.inc
+SET GLOBAL slave_parallel_threads= @old_threads;
+--source include/start_slave.inc
 
 --connection master
 DROP TABLE t1, t2;
+CALL mtr.add_suppression("Can't find record in 't1'");
+CALL mtr.add_suppression("Commit failed due to failure of an earlier commit on which this one depends");
 
 --source include/rpl_end.inc

@@ -315,9 +315,10 @@ public:
   virtual int read_binlog_data(uchar *buf, uint32_t len) final;
   virtual bool data_available() final;
   virtual bool wait_available(THD *thd, const struct timespec *abstime) final;
-  virtual int init_gtid_pos(slave_connection_state *pos,
+  virtual int init_gtid_pos(THD *thd, slave_connection_state *pos,
                             rpl_binlog_state_base *state) final;
-  virtual int init_legacy_pos(const char *filename, ulonglong offset) final;
+  virtual int init_legacy_pos(THD *thd, const char *filename,
+                              ulonglong offset) final;
   virtual void enable_single_file() final;
   bool is_valid() { return page_buf != nullptr; }
   bool init_from_fd_pos(File fd, ulonglong start_position);
@@ -789,7 +790,7 @@ binlog_reader_innodb::wait_available(THD *thd, const struct timespec *abstime)
 
 
 int
-binlog_reader_innodb::init_gtid_pos(slave_connection_state *pos,
+binlog_reader_innodb::init_gtid_pos(THD *thd, slave_connection_state *pos,
                                     rpl_binlog_state_base *state)
 {
   DBUG_ASSERT(0 /* Should not be used in mysqlbinlog. */);
@@ -798,7 +799,8 @@ binlog_reader_innodb::init_gtid_pos(slave_connection_state *pos,
 
 
 int
-binlog_reader_innodb::init_legacy_pos(const char *filename, ulonglong offset)
+binlog_reader_innodb::init_legacy_pos(THD *thd, const char *filename,
+                                      ulonglong offset)
 {
   DBUG_ASSERT(0 /* Should not be used in mysqlbinlog. */);
   return 1;

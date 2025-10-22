@@ -2130,6 +2130,7 @@ binlog_setup_engine_commit_data(handler_binlog_event_group_info *context,
   {
     /* Mark that we are doing XA and need to unlog. */
     cache_mngr->need_engine_2pc= true;
+    context->internal_xa= false;
   }
   else if (unlikely(cache_mngr->need_engine_2pc))
   {
@@ -2302,6 +2303,8 @@ binlog_rollback_flush_trx_cache(THD *thd, bool all,
         handler_binlog_event_group_info *engine_context=
           &cache_data->engine_binlog_info;
         const XID *xid= thd->transaction->xid_state.get_xid();
+        engine_context->xa_xid= xid;
+        engine_context->internal_xa= false;
         mysql_mutex_lock(&LOCK_commit_ordered);
         err= (*opt_binlog_engine_hton->binlog_xa_rollback_ordered)
           (thd, xid, &engine_context->engine_ptr);
@@ -2765,6 +2768,7 @@ binlog_post_commit(THD *thd, bool all)
   binlog_cache_mngr *cache_mngr= thd->binlog_get_cache_mngr();
   if (likely(cache_mngr != nullptr) && unlikely(cache_mngr->need_engine_2pc))
   {
+    DBUG_ASSERT(!cache_mngr->trx_cache.engine_binlog_info.internal_xa);
     DBUG_ASSERT(thd->lex->sql_command == SQLCOM_XA_COMMIT &&
                 thd->lex->xa_opt != XA_ONE_PHASE);
     cache_mngr->need_engine_2pc= false;
@@ -2785,6 +2789,7 @@ binlog_post_commit_by_xid(handlerton *hton, XID *xid)
   binlog_cache_mngr *cache_mngr= thd->binlog_get_cache_mngr();
   if (likely(cache_mngr != nullptr) && unlikely(cache_mngr->need_engine_2pc))
   {
+    DBUG_ASSERT(!cache_mngr->trx_cache.engine_binlog_info.internal_xa);
     DBUG_ASSERT(thd->lex->sql_command == SQLCOM_XA_COMMIT &&
                 thd->lex->xa_opt != XA_ONE_PHASE);
     cache_mngr->need_engine_2pc= false;
@@ -2802,10 +2807,15 @@ binlog_post_rollback(THD *thd, bool all)
   binlog_cache_mngr *cache_mngr= thd->binlog_get_cache_mngr();
   if (likely(cache_mngr != nullptr) && unlikely(cache_mngr->need_engine_2pc))
   {
+    handler_binlog_event_group_info *context=
+      &cache_mngr->trx_cache.engine_binlog_info;
+    DBUG_ASSERT(!context->internal_xa);
+    if (!context->internal_xa)
+    {
+      const XID *xid= thd->transaction->xid_state.get_xid();
+      (*opt_binlog_engine_hton->binlog_unlog)(xid, &context->engine_ptr);
+    }
     cache_mngr->need_engine_2pc= false;
-    (*opt_binlog_engine_hton->binlog_unlog)
-      (thd->transaction->xid_state.get_xid(),
-       &cache_mngr->trx_cache.engine_binlog_info.engine_ptr);
   }
 }
 
@@ -2820,6 +2830,7 @@ binlog_post_rollback_by_xid(handlerton *hton, XID *xid)
   binlog_cache_mngr *cache_mngr= thd->binlog_get_cache_mngr();
   if (likely(cache_mngr != nullptr) && unlikely(cache_mngr->need_engine_2pc))
   {
+    DBUG_ASSERT(!cache_mngr->trx_cache.engine_binlog_info.internal_xa);
     DBUG_ASSERT(thd->lex->sql_command == SQLCOM_XA_ROLLBACK);
     cache_mngr->need_engine_2pc= false;
     (*opt_binlog_engine_hton->binlog_unlog)
@@ -9740,7 +9751,10 @@ MYSQL_BIN_LOG::write_transaction_to_binlog(THD *thd,
         if (ha_info->ht() != binlog_hton &&
             ha_info->ht() != opt_binlog_engine_hton &&
             ha_info->is_trx_read_write())
+        {
           cache_mngr->need_engine_2pc= true;
+          cache_mngr->trx_cache.engine_binlog_info.internal_xa= true;
+        }
       }
       else
       {
@@ -12600,21 +12614,22 @@ TC_LOG_BINLOG::log_and_order(THD *thd, my_xid xid, bool all,
 
   DEBUG_SYNC(thd, "binlog_after_log_and_order");
 
-  if (err)
-    DBUG_RETURN(0);
-
   bool need_unlog= cache_mngr->need_unlog;
+  bool need_engine_2pc= cache_mngr->need_engine_2pc;
   /*
     The transaction won't need the flag anymore.
     Todo/fixme: consider to move the statement into cache_mngr->reset()
                 relocated to the current or later point.
   */
   cache_mngr->need_unlog= false;
+  cache_mngr->need_engine_2pc= false;
 
-  if (unlikely(cache_mngr->need_engine_2pc))
+  if (err)
+    DBUG_RETURN(0);
+
+  if (unlikely(need_engine_2pc))
   {
     DBUG_ASSERT(!need_unlog);
-    cache_mngr->need_engine_2pc= false;
     DBUG_RETURN(BINLOG_COOKIE_ENGINE_UNLOG(cache_mngr->delayed_error));
   }
   /*
@@ -12786,13 +12801,15 @@ int TC_LOG_BINLOG::unlog(THD *thd, ulong cookie, my_xid xid)
   if (BINLOG_COOKIE_IS_ENGINE_UNLOG(cookie))
   {
     DBUG_ASSERT(opt_binlog_engine_hton);
-    XID xid_buf;
-    xid_buf.set(xid);
     binlog_cache_mngr *cache_mngr= thd->binlog_get_cache_mngr();
     DBUG_ASSERT(cache_mngr != nullptr);
     if (likely(cache_mngr != nullptr))
+    {
+      cache_mngr->xid_buf.set(xid);
       (*opt_binlog_engine_hton->binlog_unlog)
-        (&xid_buf, &cache_mngr->trx_cache.engine_binlog_info.engine_ptr);
+        (&cache_mngr->xid_buf,
+         &cache_mngr->trx_cache.engine_binlog_info.engine_ptr);
+    }
   }
   else if (!BINLOG_COOKIE_IS_DUMMY(cookie))
     mark_xid_done(BINLOG_COOKIE_GET_ID(cookie), true);
