@@ -12259,6 +12259,7 @@ end_inplace:
   else if (!binlog_as_create_select)
   {
     int tmp_error;
+    thd->transaction->stmt.mark_trans_did_ddl();
     thd->binlog_xid= thd->query_id;
     ddl_log_update_xid(&ddl_log_state, thd->binlog_xid);
     tmp_error= write_bin_log_with_if_exists(thd, true, false, log_if_exists,
