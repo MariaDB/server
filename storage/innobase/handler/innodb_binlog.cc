@@ -4213,6 +4213,14 @@ innodb_reset_binlogs()
   ut_a(lf_pins);
   ut_a(innodb_binlog_inited >= 2);
 
+  uint64_t active= active_binlog_file_no.load(std::memory_order_relaxed);
+  if (ibb_file_hash.check_any_oob_ref_in_use(earliest_binlog_file_no,
+                                             active, lf_pins))
+  {
+    my_error(ER_BINLOG_IN_USE_TRX, MYF(0));
+    return true;
+  }
+
   /* Close existing binlog tablespaces and stop the pre-alloc thread. */
   innodb_binlog_close(false);
 

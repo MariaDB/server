@@ -25,6 +25,12 @@ XA PREPARE 'a';
 --let $wait_condition= SELECT NOT EXISTS (SELECT ID FROM INFORMATION_SCHEMA.PROCESSLIST WHERE ID=$con1_id)
 --source include/wait_condition.inc
 
+# Test that we will not allow RESET MASTER while there is an active XA
+# transaction whose commit will eventually reference oob data in the current
+# binlog.
+--error ER_BINLOG_IN_USE_TRX
+RESET MASTER;
+
 --connect con2,localhost,root,,
 XA COMMIT 'a';
 

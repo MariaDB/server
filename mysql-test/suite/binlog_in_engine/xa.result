@@ -10,6 +10,8 @@ XA END 'a';
 XA PREPARE 'a';
 connection default;
 disconnect con1;
+RESET MASTER;
+ERROR HY000: Cannot execute RESET MASTER as the binlog is in use by an active transaction
 connect con2,localhost,root,,;
 XA COMMIT 'a';
 connect con1_roll,localhost,root,,;
