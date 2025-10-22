@@ -3,6 +3,6 @@ Win32 error code 150: System trace information was not specified in your CONFIG.
 OS error code  23:  Too many open files in system
 Win32 error code 23: Data error (cyclic redundancy check).
 MariaDB error code 1062 (ER_DUP_ENTRY): Duplicate entry '%-.192T' for key %d
-Learn more: https://mariadb.com/kb/en/e1062/
+Learn more: https://mariadb.com/docs/server/reference/error-codes/mariadb-error-codes-1000-to-1099/e1062
 Win32 error code 1062: The service has not been started.
 Illegal error code: 30000

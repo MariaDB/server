@@ -2688,6 +2688,8 @@ err:
 
 bool st_select_lex_unit::cleanup()
 {
+  cleanup_stranded_units();
+
   bool error= 0;
   DBUG_ENTER("st_select_lex_unit::cleanup");
 

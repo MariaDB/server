@@ -3098,6 +3098,50 @@ SELECT * FROM t1 WHERE a LIKE '1';
 DROP TABLE t1;
 
 --echo #
+--echo # MDEV-20498 Assertion `table_share->tmp_table != NO_TMP_TABLE || m_lock_type == 1' failed upon REBUILD PARTITION.
+--echo #     ALTER TABLE DROP COLUMN, ADD COLUMN misplacing rows.
+--echo #
+
+CREATE TABLE t1 (a INT)
+  PARTITION BY LIST (a) (
+      PARTITION p0 VALUES IN (8),
+      PARTITION p1 VALUES IN (4,7,0),
+      PARTITION p2 VALUES IN (9,2,5),
+      PARTITION p3 VALUES IN (3,1,6));
+INSERT INTO t1 VALUES (8),(5),(4),(0);
+--error ER_ALTER_OPERATION_NOT_SUPPORTED
+ALTER TABLE t1 DROP a, ADD a INT NOT NULL DEFAULT 0, algorithm=inplace;
+ALTER TABLE t1 DROP a, ADD a INT NOT NULL DEFAULT 0;
+CHECK TABLE t1;
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-20498 Assertion `table_share->tmp_table != NO_TMP_TABLE || m_lock_type == 1' failed upon REBUILD PARTITION.
+--echo #     ALTER TABLE REBUILD PARTITION crashed on misplaced rows.
+--echo #
+
+CREATE TABLE mdev20498 (a INT) ENGINE=myisam PARTITION BY LIST (a)
+      (PARTITION p0 VALUES IN (0), PARTITION p1 VALUES IN (1));
+INSERT INTO mdev20498 values (0), (0), (1), (1);
+FLUSH TABLES;
+
+let $datadir=`select @@datadir`;
+CALL mtr.add_suppression("corrupted: row in wrong partition:");
+
+move_file $datadir/test/mdev20498#P#p0.MYD $datadir/test//tmp.MYD;
+move_file $datadir/test/mdev20498#P#p1.MYD $datadir/test/mdev20498#P#p0.MYD;
+move_file $datadir/test/tmp.MYD $datadir/test/mdev20498#P#p1.MYD;
+
+move_file $datadir/test/mdev20498#P#p0.MYI $datadir/test/tmp.MYI;
+move_file $datadir/test/mdev20498#P#p1.MYI $datadir/test/mdev20498#P#p0.MYI;
+move_file $datadir/test/tmp.MYI $datadir/test/mdev20498#P#p1.MYI;
+
+--error ER_ROW_IN_WRONG_PARTITION
+ALTER TABLE mdev20498 REBUILD PARTITION p0;
+ALTER TABLE mdev20498 REBUILD PARTITION p0, p1;
+DROP TABLE mdev20498;
+
+--echo #
 --echo # End of 10.6 tests
 --echo #
 

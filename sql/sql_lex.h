@@ -855,6 +855,28 @@ bool print_explain_for_slow_log(LEX *lex, THD *thd, String *str);
 
 
 class st_select_lex_unit: public st_select_lex_node {
+private:
+  /*
+    When a CTE is merged to the parent SELECT, its unit is excluded
+    which separates it from the tree of units for this query.  It
+    needs to be cleaned up but not at the time it is excluded, since
+    its queries are merged to the unit above it.  Remember all such
+    units via the stranded_clean_list and clean them at the end of
+    the query.  This list is maintained only at the root unit node
+    of the query tree.
+   */
+  st_select_lex_unit *stranded_clean_list{nullptr};
+
+  // Add myself to the stranded_clean_list.
+  void remember_my_cleanup();
+
+  /*
+    Walk the stranded_clean_list and cleanup units.  This must only
+    be called for the st_select_lex_unit type because it assumes
+    that those are the only nodes in the stranded_clean_list.
+  */
+  void cleanup_stranded_units();
+
 protected:
   TABLE_LIST result_table_list;
   select_unit *union_result;

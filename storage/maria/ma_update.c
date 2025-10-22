@@ -16,6 +16,7 @@
 #include "ma_fulltext.h"
 #include "ma_rt_index.h"
 #include "trnman.h"
+#include <mysqld_error.h>
 
 /**
    Update an old row in a MARIA table
@@ -113,10 +114,19 @@ int maria_update(register MARIA_HA *info, const uchar *oldrec,
       {
         MARIA_KEY new_key, old_key;
 
-        (*keyinfo->make_key)(info,&new_key, i, new_key_buff, newrec,
-                             pos, info->trn->trid);
-        (*keyinfo->make_key)(info,&old_key, i, old_key_buff,
-                             oldrec, pos, info->cur_row.trid);
+        if (!(*keyinfo->make_key)(info,&new_key, i, new_key_buff, newrec,
+                                  pos, info->trn->trid))
+          goto err;
+
+        if (!(*keyinfo->make_key)(info,&old_key, i, old_key_buff,
+                                  oldrec, pos, info->cur_row.trid))
+        {
+          /*
+            Can't make a key from the record from the table already.
+            Sholdn't happen normally. Table is corrupted.
+          */
+          goto err;
+        }
 
         /* The above changed info->lastkey2. Inform maria_rnext_same(). */
         info->update&= ~HA_STATE_RNEXT_SAME;
@@ -204,7 +214,7 @@ err:
     save_errno= HA_ERR_INTERNAL_ERROR;          /* Should never happen */
 
   if (my_errno == HA_ERR_FOUND_DUPP_KEY || my_errno == HA_ERR_OUT_OF_MEM ||
-      my_errno == HA_ERR_RECORD_FILE_FULL)
+      my_errno == HA_ERR_RECORD_FILE_FULL || my_errno == HA_ERR_NULL_IN_SPATIAL)
   {
     info->errkey= (int) i;
     flag=0;
