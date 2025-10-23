@@ -5294,14 +5294,14 @@ result
 [["2", "6"], ["3", "8"], ["4", "5"], ["1", "7"]]
 [["2", "6"], ["3", "8"], ["4", "5"], ["1", "7"]]
 [["2", "6"], ["3", "8"], ["4", "5"], ["1", "7"]]
-SELECT ( WITH x AS ( WITH x ( x ) AS ( SELECT ( 1.000000 ) ) SELECT x FROM x ) SELECT * FROM x WHERE ( SELECT AVG ( x ) OVER ( ORDER BY JSON_ARRAY_INTERSECT ( '[["1", "7"], ["2", "6"], ["3", "8"]]' , '[["2","6"],["3","8"],["4","5"],["1","7"]]' ) ) FROM x ) );
-( WITH x AS ( WITH x ( x ) AS ( SELECT ( 1.000000 ) ) SELECT x FROM x ) SELECT * FROM x WHERE ( SELECT AVG ( x ) OVER ( ORDER BY JSON_ARRAY_INTERSECT ( '[["1", "7"], ["2", "6"], ["3", "8"]]' , '[["2","6"],["3","8"],["4","5"],["1","7"]]' ) ) FROM x ) )
+SELECT ( WITH x AS ( WITH x ( x ) AS ( SELECT ( 1.000000 ) ) SELECT x FROM x ) SELECT * FROM x WHERE ( SELECT AVG ( x ) OVER ( ORDER BY JSON_ARRAY_INTERSECT ( '[["1", "7"], ["2", "6"], ["3", "8"]]' , '[["2","6"],["3","8"],["4","5"],["1","7"]]' ) ) FROM x ) ) as result;
+result
 1.000000
 #
 # MDEV-37864: mysql-test/mtr --cursor main.func_json fails
 #
-select json_array_intersect('[["1", "7"], ["2", "6"], ["4", "5"], ["3", "8"]]', '[["2","6"],["3","8"],["4","5"],["1","7"]]') from mysql.user;
-json_array_intersect('[["1", "7"], ["2", "6"], ["4", "5"], ["3", "8"]]', '[["2","6"],["3","8"],["4","5"],["1","7"]]')
+select json_array_intersect('[["1", "7"], ["2", "6"], ["4", "5"], ["3", "8"]]', '[["2","6"],["3","8"],["4","5"],["1","7"]]') as result from mysql.user;
+result
 [["2", "6"], ["3", "8"], ["4", "5"], ["1", "7"]]
 [["2", "6"], ["3", "8"], ["4", "5"], ["1", "7"]]
 [["2", "6"], ["3", "8"], ["4", "5"], ["1", "7"]]
