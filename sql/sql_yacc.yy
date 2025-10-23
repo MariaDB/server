@@ -12457,11 +12457,9 @@ opt_where_clause:
           }
           search_condition
           {
-            SELECT_LEX *select= Select;
-            select->where= normalize_cond(thd, $3);
-            select->parsing_place= NO_MATTER;
-            if ($3)
-              $3->top_level_item();
+            $3->top_level_item();
+            Select->where= normalize_cond(thd, $3);
+            Select->parsing_place= NO_MATTER;
           }
         ;
 
