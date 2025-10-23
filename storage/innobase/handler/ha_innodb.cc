@@ -19790,11 +19790,6 @@ static MYSQL_SYSVAR_ENUM(default_row_format, innodb_default_row_format,
   &innodb_default_row_format_typelib);
 
 #ifdef UNIV_DEBUG
-static MYSQL_SYSVAR_UINT(trx_rseg_n_slots_debug, trx_rseg_n_slots_debug,
-  PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_NOCMDOPT,
-  "Debug flags for InnoDB to limit TRX_RSEG_N_SLOTS for trx_rsegf_undo_find_free()",
-  NULL, NULL, 0, 0, 1024, 0);
-
 static MYSQL_SYSVAR_UINT(limit_optimistic_insert_debug,
   btr_cur_limit_optimistic_insert_debug, PLUGIN_VAR_RQCMDARG,
   "Artificially limit the number of records per B-tree page (0=unlimited).",
@@ -20082,7 +20077,6 @@ static struct st_mysql_sys_var* innobase_system_variables[]= {
   MYSQL_SYSVAR(compression_pad_pct_max),
   MYSQL_SYSVAR(default_row_format),
 #ifdef UNIV_DEBUG
-  MYSQL_SYSVAR(trx_rseg_n_slots_debug),
   MYSQL_SYSVAR(limit_optimistic_insert_debug),
   MYSQL_SYSVAR(trx_purge_view_update_only_debug),
   MYSQL_SYSVAR(evict_tables_on_commit_debug),
