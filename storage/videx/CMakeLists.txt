@@ -45,4 +45,5 @@ MYSQL_ADD_PLUGIN(videx
         ${VIDEX_SOURCES}
         STORAGE_ENGINE
         LINK_LIBRARIES ${ZLIB_LIBRARIES} ${CURL_LIBRARIES}
+        COMPONENT videx-engine
 )
