@@ -8457,12 +8457,15 @@ wsrep_calc_row_hash(
 	return(0);
 }
 
-/** Append table-level exclusive key.
+/** Append table-level exclusive/shared key.
 @param thd   MySQL thread handle
 @param table table
+@param exclusive Exclusive not shared certification key.
 @retval false on success
 @retval true on failure */
-ATTRIBUTE_COLD bool wsrep_append_table_key(MYSQL_THD thd, const dict_table_t &table)
+ATTRIBUTE_COLD bool wsrep_append_table_key(MYSQL_THD thd,
+                                           const dict_table_t &table,
+                                           bool exclusive)
 {
   char db_buf[NAME_LEN + 1];
   char tbl_buf[NAME_LEN + 1];
@@ -8475,9 +8478,11 @@ ATTRIBUTE_COLD bool wsrep_append_table_key(MYSQL_THD thd, const dict_table_t &ta
     return true;
   }
 
-  /* Append table-level exclusive key */
-  const int rcode = wsrep_thd_append_table_key(thd, db_buf,
-                                               tbl_buf, WSREP_SERVICE_KEY_EXCLUSIVE);
+  /* Append table-level key */
+  const enum Wsrep_service_key_type key_type = exclusive
+                                               ? WSREP_SERVICE_KEY_EXCLUSIVE
+                                               : WSREP_SERVICE_KEY_SHARED;
+  const int rcode = wsrep_thd_append_table_key(thd, db_buf, tbl_buf, key_type);
   if (rcode)
   {
     WSREP_ERROR("Appending table key failed: %s, %d",
@@ -8640,10 +8645,10 @@ func_exit:
 	    && (thd_sql_command(m_user_thd) != SQLCOM_LOAD ||
 	        thd_binlog_format(m_user_thd) == BINLOG_FORMAT_ROW)) {
 
-		/* We use table-level exclusive key for SEQUENCES
+		/* We use table-level shared key for SEQUENCES
 		   and normal key append for others. */
 		if (table->s->table_type == TABLE_TYPE_SEQUENCE) {
-			if (wsrep_append_table_key(m_user_thd, *m_prebuilt->table))
+			if (wsrep_append_table_key(m_user_thd, *m_prebuilt->table, false))
 				DBUG_RETURN(HA_ERR_INTERNAL_ERROR);
 		} else if (wsrep_append_keys(m_user_thd,
 					     wsrep_protocol_version >= 4
