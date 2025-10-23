@@ -445,7 +445,7 @@ pick_next(
 	double*			g1,		/*!< in: mbr of group 1. */
 	double*			g2,		/*!< in: mbr of group 2. */
 	rtr_split_node_t**	choice,		/*!< out: the next node.*/
-	int*			n_group,	/*!< out: group number.*/
+	uint16_t*		n_group,	/*!< out: 1 or 2 */
 	int			n_dim)		/*!< in: dimensions. */
 {
 	rtr_split_node_t*	cur = node;
@@ -487,7 +487,7 @@ mark_all_entries(
 /*=============*/
 	rtr_split_node_t*	node,		/*!< in/out: split nodes. */
 	int			n_entries,	/*!< in: entries number. */
-	int			n_group)	/*!< in: group number. */
+	uint16_t		n_group)	/*!< in: 1 or 2 */
 {
 	rtr_split_node_t*	cur = node;
 	rtr_split_node_t*	end = node + n_entries;
@@ -522,7 +522,7 @@ split_rtree_node(
 	double*			g1 = reserve_coords(d_buffer, n_dim);
 	double*			g2 = reserve_coords(d_buffer, n_dim);
 	rtr_split_node_t*	next = NULL;
-	int			next_node = 0;
+	uint16_t		next_node = 0;
 	int			i;
 	int			first_rec_group = 1;
 	rtr_split_node_t*	end = node + n_entries;

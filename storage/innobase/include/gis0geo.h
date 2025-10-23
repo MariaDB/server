@@ -70,9 +70,9 @@ rtree_mbr_from_wkb(
 struct rtr_split_node_t
 {
 	double	square;		/* square of the mbr.*/
-	int	n_node;		/* which group in.*/
-	uchar*	key;		/* key. */
+	uint16_t n_node;	/* group: 1 or 2, or 0=unassigned */
 	uint16_t key_len;	/* key length */
+	uchar*	key;		/* key. */
 	double* coords;		/* mbr. */
 };
 
