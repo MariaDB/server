@@ -1816,12 +1816,27 @@ inline void log_t::write_checkpoint(lsn_t end_lsn) noexcept
   const size_t offset{(n & 1) ? CHECKPOINT_2 : CHECKPOINT_1};
   static_assert(CPU_LEVEL1_DCACHE_LINESIZE >= 64, "efficiency");
   static_assert(CPU_LEVEL1_DCACHE_LINESIZE <= 4096, "compatibility");
-  byte* c= my_assume_aligned<CPU_LEVEL1_DCACHE_LINESIZE>
-    (is_mmap() ? buf + offset : checkpoint_buf);
-  memset_aligned<CPU_LEVEL1_DCACHE_LINESIZE>(c, 0, CPU_LEVEL1_DCACHE_LINESIZE);
-  mach_write_to_8(my_assume_aligned<8>(c), next_checkpoint_lsn);
-  mach_write_to_8(my_assume_aligned<8>(c + 8), end_lsn);
-  mach_write_to_4(my_assume_aligned<4>(c + 60), my_crc32c(0, c, 60));
+  byte* c= my_assume_aligned<CPU_LEVEL1_DCACHE_LINESIZE>(
+#ifdef HAVE_PMEM
+     is_mmap() ? buf + offset :
+#endif
+     checkpoint_buf);
+#ifdef HAVE_PMEM
+  if (!c)
+  {
+    ut_ad(disabled);
+    ut_ad(writer == skip_write_buf);
+    ut_ad(resize_in_progress() <= 1);
+  }
+  else
+#endif
+  {
+    memset_aligned<CPU_LEVEL1_DCACHE_LINESIZE>
+      (c, 0, CPU_LEVEL1_DCACHE_LINESIZE);
+    mach_write_to_8(my_assume_aligned<8>(c), next_checkpoint_lsn);
+    mach_write_to_8(my_assume_aligned<8>(c + 8), end_lsn);
+    mach_write_to_4(my_assume_aligned<4>(c + 60), my_crc32c(0, c, 60));
+  }
 
   lsn_t resizing;
 
@@ -1851,7 +1866,8 @@ inline void log_t::write_checkpoint(lsn_t end_lsn) noexcept
     ut_ad(ut_is_2pow(write_size));
     ut_ad(write_size >= 512);
     ut_ad(write_size <= 4096);
-    log.write(offset, {c, write_size});
+    if (UNIV_LIKELY(!disabled))
+      log.write(offset, {c, write_size});
     if (resizing > 1 && resizing <= next_checkpoint_lsn)
     {
       resize_log.write(CHECKPOINT_1, {c, write_size});
@@ -1862,7 +1878,7 @@ inline void log_t::write_checkpoint(lsn_t end_lsn) noexcept
       aligned_free(buf);
     }
 
-    if (!log_write_through)
+    if (!log_write_through && UNIV_LIKELY(!disabled))
       ut_a(log.flush());
     latch.wr_lock(SRW_LOCK_CALL);
     ut_ad(checkpoint_pending);
@@ -1890,24 +1906,31 @@ inline void log_t::write_checkpoint(lsn_t end_lsn) noexcept
 
   if (resizing > 1 && resizing <= checkpoint_lsn)
   {
-    ut_ad(is_mmap() == !resize_flush_buf);
-    ut_ad(is_mmap() == !resize_log.is_opened());
+    ut_ad(resize_dir);
+#ifdef HAVE_PMEM
+    ut_ad(is_mmap() == !resize_flush_buf || disabled);
 
-    if (!is_mmap())
+    if (resize_log.is_opened())
+#endif
     {
+      ut_ad(disabled == !log.is_opened());
       if (!log_write_through)
         ut_a(resize_log.flush());
-      IF_WIN(log.close(),);
+      IF_WIN(if (!disabled) log.close(),);
     }
 
     if (resize_rename())
     {
-      /* Resizing failed. Discard the ib_logfile101. */
+      /* Resizing failed. @see resize_abort() */
 #ifdef HAVE_PMEM
-      if (is_mmap())
+      if (!resize_log.is_opened())
       {
         ut_ad(!is_opened());
         my_munmap(resize_buf, resize_target);
+        flush_buf= resize_flush_buf;
+        resize_flush_buf= nullptr;
+        if (flush_buf)
+          writer= skip_write_buf;
       }
       else
 #endif
@@ -1915,6 +1938,7 @@ inline void log_t::write_checkpoint(lsn_t end_lsn) noexcept
         ut_ad(!is_mmap());
         ut_free_dodump(resize_buf, buf_size);
         ut_free_dodump(resize_flush_buf, buf_size);
+        resize_log.close();
 #ifdef _WIN32
         ut_ad(!log.is_opened());
         bool success;
@@ -1930,10 +1954,17 @@ inline void log_t::write_checkpoint(lsn_t end_lsn) noexcept
     {
       /* Adopt the resized log. */
 #ifdef HAVE_PMEM
-      if (is_mmap())
+      if (!resize_log.is_opened())
       {
         ut_ad(!is_opened());
-        my_munmap(buf, file_size);
+        if (disabled)
+        {
+          ut_free_dodump(buf, buf_size);
+          /* log_t::resize_start() stored the dummy flush_buf here. */
+          ut_free_dodump(resize_flush_buf, buf_size);
+        }
+        else
+          my_munmap(buf, file_size);
         buf= resize_buf;
         buf_size= unsigned(std::min<uint64_t>(resize_target - START_OFFSET,
                                               buf_size_max));
@@ -1941,8 +1972,7 @@ inline void log_t::write_checkpoint(lsn_t end_lsn) noexcept
       else
 #endif
       {
-        ut_ad(!is_mmap());
-        IF_WIN(,log.close());
+        IF_WIN(,if (!disabled) log.close());
         std::swap(log, resize_log);
         ut_free_dodump(buf, buf_size);
         ut_free_dodump(flush_buf, buf_size);
@@ -1952,14 +1982,25 @@ inline void log_t::write_checkpoint(lsn_t end_lsn) noexcept
       srv_log_file_size= resizing_completed= file_size= resize_target;
       first_lsn= resizing;
       set_capacity();
+      disabled= false;
     }
     ut_ad(!resize_log.is_opened());
     resize_buf= nullptr;
     resize_flush_buf= nullptr;
     resize_target= 0;
     resize_lsn.store(0, std::memory_order_relaxed);
+    if (srv_log_group_home_dir != resize_dir)
+    {
+      my_free(srv_log_group_home_dir);
+      srv_log_group_home_dir= my_strdup(PSI_NOT_INSTRUMENTED, resize_dir,
+                                        MYF(MY_FAE));
+    }
+    resize_dir= nullptr;
     resize_initiator= nullptr;
-    writer_update(false);
+    if (UNIV_UNLIKELY(disabled))
+      writer= skip_write_buf;
+    else
+      writer_update(false);
   }
 
   log_resize_release();

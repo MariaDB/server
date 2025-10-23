@@ -1959,8 +1959,8 @@ struct my_option xb_server_options[] =
 
   {"innodb_log_buffer_size", OPT_INNODB_LOG_BUFFER_SIZE,
    "Redo log buffer size in bytes.",
-   (G_PTR*) &log_sys.buf_size, (G_PTR*) &log_sys.buf_size, 0,
-   GET_UINT, REQUIRED_ARG, 2U << 20,
+   (G_PTR*) &log_sys.buf_size_requested, (G_PTR*) &log_sys.buf_size_requested,
+   0, GET_UINT, REQUIRED_ARG, 2U << 20,
    2U << 20, log_sys.buf_size_max, 0, 4096, 0},
   {"innodb_log_file_mmap", OPT_INNODB_LOG_FILE_SIZE,
    "Whether ib_logfile0 should be memory-mapped",

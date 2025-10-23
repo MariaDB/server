@@ -946,7 +946,8 @@ std::pair<lsn_t,byte*> log_t::append_prepare(size_t size, bool ex) noexcept
 {
   ut_ad(ex ? latch_have_wr() : latch_have_rd());
   ut_ad(mmap == is_mmap());
-  ut_ad(!mmap || buf_size == std::min<uint64_t>(capacity(), buf_size_max));
+  ut_ad(!mmap || disabled ||
+        buf_size == std::min<uint64_t>(capacity(), buf_size_max));
   const size_t buf_size{this->buf_size - size};
   uint64_t l;
   static_assert(WRITE_TO_BUF == WRITE_BACKOFF << 1, "");
@@ -960,6 +961,12 @@ std::pair<lsn_t,byte*> log_t::append_prepare(size_t size, bool ex) noexcept
     /* Subtract our LSN overshoot. */
     write_lsn_offset.fetch_sub(size);
     append_prepare_wait(late, ex);
+#ifdef HAVE_PMEM
+    /* While we were waiting, a change of log_sys.disabled could have been
+    initiated or completed. */
+    if (UNIV_UNLIKELY(mmap != is_mmap()))
+      return append_prepare<!mmap>(size, ex);
+#endif
   }
 
   const lsn_t lsn{l + base_lsn.load(std::memory_order_relaxed)},
@@ -968,8 +975,8 @@ std::pair<lsn_t,byte*> log_t::append_prepare(size_t size, bool ex) noexcept
   if (UNIV_UNLIKELY(end_lsn >= last_checkpoint_lsn + log_capacity))
     set_check_for_checkpoint(true);
 
-  return {lsn,
-          buf + size_t(mmap ? FIRST_LSN + (lsn - first_lsn) % capacity() : l)};
+  return {lsn, buf +
+          size_t(mmap ? FIRST_LSN + (lsn - first_lsn) % this->buf_size : l)};
 }
 
 /** Finish appending data to the log.
@@ -1097,8 +1104,9 @@ inline void log_t::resize_write(lsn_t lsn, const byte *end, size_t len,
     size_t s;
 
 #ifdef HAVE_PMEM
-    if (!resize_flush_buf)
+    if (!resize_log.is_opened())
     {
+      ut_ad(!resize_flush_buf || disabled);
       ut_ad(is_mmap());
       resize_wrap_mutex.wr_lock();
       const size_t resize_capacity{resize_target - START_OFFSET};

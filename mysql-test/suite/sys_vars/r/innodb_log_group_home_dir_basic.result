@@ -5,12 +5,19 @@ COUNT(@@GLOBAL.innodb_log_group_home_dir)
 1 Expected
 '#---------------------BS_STVARS_036_02----------------------#'
 SET @@GLOBAL.innodb_log_group_home_dir=1;
-ERROR HY000: Variable 'innodb_log_group_home_dir' is a read only variable
+ERROR 42000: Incorrect argument type to variable 'innodb_log_group_home_dir'
 Expected error 'Read only variable'
 SELECT COUNT(@@GLOBAL.innodb_log_group_home_dir);
 COUNT(@@GLOBAL.innodb_log_group_home_dir)
 1
 1 Expected
+SELECT @@GLOBAL.innodb_log_group_home_dir;
+@@GLOBAL.innodb_log_group_home_dir
+./
+SET @@GLOBAL.innodb_log_group_home_dir=DEFAULT;
+SELECT @@GLOBAL.innodb_log_group_home_dir;
+@@GLOBAL.innodb_log_group_home_dir
+./
 '#---------------------BS_STVARS_036_03----------------------#'
 SELECT @@GLOBAL.innodb_log_group_home_dir = VARIABLE_VALUE
 FROM INFORMATION_SCHEMA.GLOBAL_VARIABLES
