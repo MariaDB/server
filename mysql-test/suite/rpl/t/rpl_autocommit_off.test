@@ -1,0 +1,27 @@
+--source include/have_innodb.inc
+--let $rpl_topology=1->2
+--source include/rpl_init.inc
+
+--connection server_1
+ALTER TABLE mysql.gtid_slave_pos ENGINE=InnoDB;
+--save_master_pos
+
+--connection server_2
+--sync_with_master
+--source include/stop_slave.inc
+
+--connection server_1
+CREATE TABLE t1 (a INT);
+
+--connection server_2
+--replace_result $MASTER_MYPORT MASTER_PORT
+eval CHANGE MASTER TO master_host = '127.0.0.1', master_port = $MASTER_MYPORT,
+     MASTER_USE_GTID=CURRENT_POS;
+--source include/start_slave.inc
+
+--connection server_2
+--source include/sync_with_master_gtid.inc
+
+--connection server_1
+DROP TABLE t1;
+--source include/rpl_end.inc
