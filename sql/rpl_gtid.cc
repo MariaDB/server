@@ -29,6 +29,7 @@
 #include "rpl_rli.h"
 #include "slave.h"
 #include "log_event.h"
+#include "transaction.h"
 
 const LEX_CSTRING rpl_gtid_slave_state_table_name=
   { STRING_WITH_LEN("gtid_slave_pos") };
@@ -457,7 +458,7 @@ rpl_slave_state::truncate_state_table(THD *thd)
     {
       ha_commit_trans(thd, FALSE);
       close_thread_tables(thd);
-      ha_commit_trans(thd, TRUE);
+      trans_commit(thd);
     }
     thd->release_transactional_locks();
   }
