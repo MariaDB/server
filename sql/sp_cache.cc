@@ -233,7 +233,8 @@ void sp_cache_invalidate()
 
 void sp_cache_flush_obsolete(sp_cache **cp, sp_head **sp)
 {
-  if ((*sp)->sp_cache_version() < Cversion && !(*sp)->is_invoked())
+  if ((*sp)->sp_cache_version() < Cversion && !(*sp)->is_invoked() &&
+      !current_thd->spcont)
   {
     (*cp)->remove(*sp);
     *sp= NULL;
