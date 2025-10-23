@@ -448,4 +448,12 @@ insert into t2 values ();
 drop table t1, t2, s;
 drop procedure p;
 
+# another one, temporary table, ALTER, recreate sequence
+create sequence s;
+create temporary table t (f int);
+alter table t modify f int default(nextval(s));
+create or replace sequence s;
+insert into t values (default);
+drop sequence s;
+
 --echo # End of 10.11 tests
