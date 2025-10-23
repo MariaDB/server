@@ -1530,12 +1530,16 @@ innodb_binlog_init(size_t binlog_size, const char *directory)
   }
 
   start_binlog_prealloc_thread();
-  /*
-    We are creating binlogs anew from scratch.
-    Write and fsync the initial file-header, so that recovery will know where
-    to start in case of a crash.
-  */
-  binlog_sync_initial();
+
+  if (res <= 0)
+  {
+    /*
+      We are creating binlogs anew from scratch.
+      Write and fsync the initial file-header, so that recovery will know where
+      to start in case of a crash.
+    */
+    binlog_sync_initial();
+  }
 
   return false;
 }
