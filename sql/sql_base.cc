@@ -2010,7 +2010,18 @@ bool open_table(THD *thd, TABLE_LIST *table_list, Open_table_context *ot_ctx)
              table->query_id == 0))
         {
           int distance= ((int) table->reginfo.lock_type -
-                         (int) table_list->lock_type);
+                         (int) table_list->lock_type) * 2;
+          TABLE_LIST *tl= thd->locked_tables_mode == LTM_PRELOCKED
+                      ? table->pos_in_table_list : table->pos_in_locked_tables;
+          /*
+            note, that merge table children are automatically added to
+            prelocking set in ha_myisammrg::add_children_list(), but their
+            TABLE_LIST's are on the execution arena, so tl will be invalid
+            on the second execution. Let's just skip them below.
+          */
+          if (table_list->parent_l || !tl ||
+              table_list->for_insert_data != tl->for_insert_data)
+            distance|= 1;
 
           /*
             Find a table that either has the exact lock type requested,

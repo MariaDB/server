@@ -394,4 +394,20 @@ create table t (id bigint default(nextval(s))) engine=myisam;
 insert delayed into t () values();
 drop table t;
 drop sequence s;
+#
+# MDEV-37345 Item_func_nextval::val_int() crash on INSERT...SELECT with subqueries
+#
+create sequence s;
+create table t1 (a int, b int default(nextval(s)));
+insert into t1 () values ();
+create table t2 (c int);
+create procedure p() update t1 set a = 0;
+create trigger tr after insert on t2 for each row
+begin
+insert into t1 () values ();
+call p();
+end $
+insert into t2 values ();
+drop table t1, t2, s;
+drop procedure p;
 # End of 10.11 tests
