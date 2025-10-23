@@ -1,5 +1,0 @@
-BUILT_SOURCES =
-EXTRA_DIST =
-SUFFIXES =
-
-include $(top_srcdir)/build/makefiles/gettext.am
