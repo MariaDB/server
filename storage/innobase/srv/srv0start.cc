@@ -1971,7 +1971,13 @@ skip_monitors:
 		return(srv_init_abort(err));
 	}
 
-        innodb_binlog_startup_init();
+        err= innodb_binlog_startup_init();
+        if (UNIV_UNLIKELY(err != DB_SUCCESS))
+        {
+          sql_print_error("InnoDB: Could not initialize the binlog in InnoDB, "
+                          "aborting");
+          return(srv_init_abort(DB_ERROR));
+        }
 
 	if (!srv_read_only_mode
 	    && srv_operation <= SRV_OPERATION_EXPORT_RESTORED) {

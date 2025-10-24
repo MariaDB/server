@@ -333,6 +333,17 @@ private:
   void parse_page0(const page_id_t id, const byte *b, bool size, bool flags)
     noexcept;
 
+  /** Pass a binlog recovery record to the binlog implementation.
+  @param space_id    binlog file identifier
+  @paral l           log record
+  @param rlen        record length
+  @param page_no     page modified by the record
+  @param start_lsn   LSN at start of record
+  @param lsn         LSN at end of record
+  @return            whether record was found corrupt */
+  bool parse_store_binlog(uint32_t space_id, const byte *l, uint32_t rlen,
+                          uint32_t page_no, lsn_t start_lsn, lsn_t lsn);
+
   /** @return whether parse_store() needs to be invoked
   @param space_id  tablespace identifier */
   bool parse_store_if_exists(uint32_t space_id) const noexcept;
