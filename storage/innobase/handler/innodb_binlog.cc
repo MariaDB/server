@@ -1393,15 +1393,24 @@ is_binlog_name(const char *name, uint64_t *out_idx)
 }
 
 
-void
+dberr_t
 innodb_binlog_startup_init()
 {
-  fsp_binlog_init();
+  dberr_t err= fsp_binlog_init();
+  if (err != DB_SUCCESS)
+    return err;
   mysql_mutex_init(fsp_purge_binlog_mutex_key, &purge_binlog_mutex, nullptr);
   binlog_diff_state.init();
   ibb_xa_xid_hash= new ibb_xid_hash();
+  if (UNIV_UNLIKELY(!ibb_xa_xid_hash))
+  {
+    sql_print_error("InnoDB: Could not allocate memory for the internal "
+                    "XID hash, cannot proceed");
+    return DB_OUT_OF_MEMORY;
+  }
 
   innodb_binlog_inited= 1;
+  return DB_SUCCESS;
 }
 
 
@@ -1837,9 +1846,10 @@ innodb_binlog_discover()
       binlog_discover_init(file_no, header.diff_state_interval);
       binlog_cur_page_no= page_no;
       binlog_cur_page_offset= pos_in_page;
-      ib::info() << "Continuing binlog number " << file_no << " from position "
-                 << (((uint64_t)page_no << page_size_shift) | pos_in_page)
-                 << ".";
+      sql_print_information("InnoDB: Continuing binlog number %" PRIu64
+                            " from position %" PRIu64 ".", file_no,
+                            (((uint64_t)page_no << page_size_shift)
+                             | pos_in_page));
       return binlog_files.num_found;
     }
 
@@ -1870,10 +1880,10 @@ innodb_binlog_discover()
       binlog_discover_init(file_no, header.diff_state_interval);
       binlog_cur_page_no= prev_page_no;
       binlog_cur_page_offset= prev_pos_in_page;
-      ib::info() << "Continuing binlog number " << file_no << " from position "
-                 << (((uint64_t)prev_page_no << page_size_shift) |
-                     prev_pos_in_page)
-                 << ".";
+      sql_print_information("InnoDB: Continuing binlog number %" PRIu64
+                            " from position %" PRIu64 ".", file_no,
+                            (((uint64_t)prev_page_no << page_size_shift) |
+                             prev_pos_in_page));
       return binlog_files.num_found;
     }
 
@@ -1884,8 +1894,8 @@ innodb_binlog_discover()
     binlog_discover_init(file_no, innodb_binlog_state_interval);
     binlog_cur_page_no= page_no;
     binlog_cur_page_offset= pos_in_page;
-    ib::info() << "Continuing binlog number " << file_no << " from position "
-               << BINLOG_PAGE_DATA << ".";
+    sql_print_information("InnoDB: Continuing binlog number %" PRIu64 " from "
+                          "position %u.", file_no, BINLOG_PAGE_DATA);
     return binlog_files.num_found;
   }
 
@@ -1896,7 +1906,8 @@ innodb_binlog_discover()
   total_binlog_used_size= 0;
   ibb_pending_lsn_fifo.init(0);
   current_binlog_state_interval= innodb_binlog_state_interval;
-  ib::info() << "Starting a new binlog from file number " << file_no << ".";
+  sql_print_information("InnoDB: Starting a new binlog from file number %"
+                        PRIu64 ".", file_no);
   return 0;
 }
 
