@@ -2487,6 +2487,12 @@ public:
   bool sp_find_field_by_name_or_error(uint *idx,
                                       const LEX_CSTRING &var_name,
                                       const LEX_CSTRING &field_name) const;
+
+  /**
+    Check if the Item list has a compatible structure with "this"
+    in terms of assignability.
+  */
+  bool check_assignability_from(const List<Item> &items, const char *op) const;
 };
 
 

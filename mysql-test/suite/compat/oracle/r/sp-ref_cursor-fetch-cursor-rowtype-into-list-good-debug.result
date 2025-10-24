@@ -1,0 +1,173 @@
+SET @debug_ref_cursor=TRUE;
+SET sql_mode=ORACLE;
+#
+# MDEV-10152 Add support for TYPE .. IS REF CURSOR
+#
+CREATE PROCEDURE p0 AS
+BEGIN
+IF @debug_ref_cursor IS TRUE
+THEN
+EXECUTE IMMEDIATE 'SHOW PROCEDURE CODE p1';
+END IF;
+CALL p1;
+END;
+$$
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1);
+CREATE PROCEDURE p1 IS
+CURSOR cursor_sample IS SELECT * FROM t1;
+/*empty*/
+TYPE cur_t IS REF CURSOR RETURN cursor_sample%ROWTYPE;
+c0 cur_t;
+v0a INT;
+BEGIN
+OPEN c0 FOR SELECT * FROM t1;
+FETCH c0 INTO v0a;
+CLOSE c0;
+SELECT v0a;
+END;
+$$
+CALL p0;
+Pos	Instruction
+0	set c0@0 NULL
+1	set v0a@1 NULL
+2	cpush cursor_sample@0
+3	cursor_copy_struct cursor_sample _cursor_open_tmp_var@2
+4	set _cursor_open_tmp_var@2 NULL
+5	copen STMT.cursor[c0@0]
+6	cursor_copy_struct cursor_sample _cursor_fetch_tmp_var@3
+7	set _cursor_fetch_tmp_var@3 NULL
+8	cfetch STMT.cursor[c0@0] _cursor_fetch_tmp_var@3
+9	set (v0a@1) _cursor_fetch_tmp_var@3
+10	cclose STMT.cursor[c0@0]
+11	stmt 0 "SELECT v0a"
+12	cpop 1
+13	destruct sys_refcursor c0@0
+v0a
+1
+DROP PROCEDURE p1;
+DROP TABLE t1;
+CREATE TABLE t1 (a INT, b VARCHAR(10));
+INSERT INTO t1 VALUES (1, 'b1');
+CREATE PROCEDURE p1 IS
+CURSOR cursor_sample IS SELECT * FROM t1;
+/*empty*/
+TYPE cur_t IS REF CURSOR RETURN cursor_sample%ROWTYPE;
+c0 cur_t;
+v0a INT;
+v0b VARCHAR(10);
+BEGIN
+OPEN c0 FOR SELECT * FROM t1;
+FETCH c0 INTO v0a, v0b;
+CLOSE c0;
+SELECT v0a, v0b;
+END;
+$$
+CALL p0;
+Pos	Instruction
+0	set c0@0 NULL
+1	set v0a@1 NULL
+2	set v0b@2 NULL
+3	cpush cursor_sample@0
+4	cursor_copy_struct cursor_sample _cursor_open_tmp_var@3
+5	set _cursor_open_tmp_var@3 NULL
+6	copen STMT.cursor[c0@0]
+7	cursor_copy_struct cursor_sample _cursor_fetch_tmp_var@4
+8	set _cursor_fetch_tmp_var@4 NULL
+9	cfetch STMT.cursor[c0@0] _cursor_fetch_tmp_var@4
+10	set (v0a@1,v0b@2) _cursor_fetch_tmp_var@4
+11	cclose STMT.cursor[c0@0]
+12	stmt 0 "SELECT v0a, v0b"
+13	cpop 1
+14	destruct sys_refcursor c0@0
+v0a	v0b
+1	b1
+DROP PROCEDURE p1;
+DROP TABLE t1;
+DROP PROCEDURE p0;
+CREATE PROCEDURE p0 AS
+BEGIN
+IF @debug_ref_cursor IS TRUE
+THEN
+EXECUTE IMMEDIATE 'SHOW PROCEDURE CODE p1';
+END IF;
+CALL p1;
+END;
+$$
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1);
+CREATE PROCEDURE p1 IS
+CURSOR cursor_sample IS SELECT * FROM t1;
+var_sample cursor_sample%ROWTYPE;
+TYPE cur_t IS REF CURSOR RETURN var_sample%TYPE;
+c0 cur_t;
+v0a INT;
+BEGIN
+OPEN c0 FOR SELECT * FROM t1;
+FETCH c0 INTO v0a;
+CLOSE c0;
+SELECT v0a;
+END;
+$$
+CALL p0;
+Pos	Instruction
+0	cursor_copy_struct cursor_sample var_sample@0
+1	set var_sample@0 NULL
+2	set c0@1 NULL
+3	set v0a@2 NULL
+4	cpush cursor_sample@0
+5	cursor_copy_struct cursor_sample _cursor_open_tmp_var@3
+6	set _cursor_open_tmp_var@3 NULL
+7	copen STMT.cursor[c0@1]
+8	cursor_copy_struct cursor_sample _cursor_fetch_tmp_var@4
+9	set _cursor_fetch_tmp_var@4 NULL
+10	cfetch STMT.cursor[c0@1] _cursor_fetch_tmp_var@4
+11	set (v0a@2) _cursor_fetch_tmp_var@4
+12	cclose STMT.cursor[c0@1]
+13	stmt 0 "SELECT v0a"
+14	cpop 1
+15	destruct sys_refcursor c0@1
+v0a
+1
+DROP PROCEDURE p1;
+DROP TABLE t1;
+CREATE TABLE t1 (a INT, b VARCHAR(10));
+INSERT INTO t1 VALUES (1, 'b1');
+CREATE PROCEDURE p1 IS
+CURSOR cursor_sample IS SELECT * FROM t1;
+var_sample cursor_sample%ROWTYPE;
+TYPE cur_t IS REF CURSOR RETURN var_sample%TYPE;
+c0 cur_t;
+v0a INT;
+v0b VARCHAR(10);
+BEGIN
+OPEN c0 FOR SELECT * FROM t1;
+FETCH c0 INTO v0a, v0b;
+CLOSE c0;
+SELECT v0a, v0b;
+END;
+$$
+CALL p0;
+Pos	Instruction
+0	cursor_copy_struct cursor_sample var_sample@0
+1	set var_sample@0 NULL
+2	set c0@1 NULL
+3	set v0a@2 NULL
+4	set v0b@3 NULL
+5	cpush cursor_sample@0
+6	cursor_copy_struct cursor_sample _cursor_open_tmp_var@4
+7	set _cursor_open_tmp_var@4 NULL
+8	copen STMT.cursor[c0@1]
+9	cursor_copy_struct cursor_sample _cursor_fetch_tmp_var@5
+10	set _cursor_fetch_tmp_var@5 NULL
+11	cfetch STMT.cursor[c0@1] _cursor_fetch_tmp_var@5
+12	set (v0a@2,v0b@3) _cursor_fetch_tmp_var@5
+13	cclose STMT.cursor[c0@1]
+14	stmt 0 "SELECT v0a, v0b"
+15	cpop 1
+16	destruct sys_refcursor c0@1
+v0a	v0b
+1	b1
+DROP PROCEDURE p1;
+DROP TABLE t1;
+DROP PROCEDURE p0;

@@ -842,7 +842,9 @@ bool sp_rcontext::set_case_expr(THD *thd, int case_expr_id,
    0 in case of success, -1 otherwise
 */
 
-int sp_cursor::open(THD *thd, bool check_open_cursor_counter)
+int sp_cursor::open(THD *thd, const Row_definition_list *row_def,
+                    const Virtual_tmp_table *row_def2,
+                    bool check_open_cursor_counter)
 {
   if (server_side_cursor)
   {
@@ -860,7 +862,7 @@ int sp_cursor::open(THD *thd, bool check_open_cursor_counter)
     return -1;
   }
 
-  if (mysql_open_cursor(thd, &result, &server_side_cursor))
+  if (mysql_open_cursor(thd, &result, &server_side_cursor, row_def, row_def2))
     return -1;
   thd->open_cursors_counter_increment();
   return 0;

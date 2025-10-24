@@ -1,0 +1,114 @@
+SET sql_mode=ORACLE;
+SET @debug_ref_cursor=TRUE;
+SET sql_mode=ORACLE;
+#
+# MDEV-10152 Add support for TYPE .. IS REF CURSOR
+#
+CREATE PROCEDURE p0 IS
+BEGIN
+IF @debug_ref_cursor IS TRUE
+THEN
+EXECUTE IMMEDIATE 'SHOW PROCEDURE CODE pkg1.p1';
+END IF;
+CALL pkg1.p1;
+END;
+$$
+# Cursor TYPE inside PACKAGE BODY,
+# Cursor variable inside PROCEDURE
+# Fetch targets inside PROCEDURE
+CREATE PACKAGE pkg1 IS
+PROCEDURE p1;
+END;
+$$
+CREATE PACKAGE BODY pkg1 IS
+TYPE rec0_t IS RECORD (a INT, b VARCHAR(10));
+TYPE cur0_t IS REF CURSOR RETURN rec0_t;
+PROCEDURE p1 IS
+c0 cur0_t;
+v0a INT;
+v0b VARCHAR(10);
+BEGIN
+OPEN c0 FOR SELECT 1,'b1' FROM DUAL;
+FETCH c0 INTO v0a, v0b;
+CLOSE c0;
+SELECT v0a||' '||v0b AS line;
+END;
+END;
+$$
+CALL p0;
+Pos	Instruction
+0	set c0@0 NULL
+1	set v0a@1 NULL
+2	set v0b@2 NULL
+3	copen STMT.cursor[c0@0]
+4	set _cursor_fetch_tmp_var@3 NULL
+5	cfetch STMT.cursor[c0@0] _cursor_fetch_tmp_var@3
+6	set v0a@1 _cursor_fetch_tmp_var.a@3[0]
+7	set v0b@2 _cursor_fetch_tmp_var.b@3[1]
+8	cclose STMT.cursor[c0@0]
+9	stmt 0 "SELECT v0a||' '||v0b AS line"
+10	destruct sys_refcursor c0@0
+line
+1 b1
+DROP PACKAGE pkg1;
+# Cursor TYPE inside PACKAGE BODY
+# Cursor variable inside PROCEDURE
+# Fetch targets inside PACKAGE BODY
+CREATE PACKAGE pkg1 IS
+PROCEDURE p1;
+END;
+$$
+CREATE PACKAGE BODY pkg1 IS
+TYPE rec0_t IS RECORD (a INT, b VARCHAR(10));
+TYPE cur0_t IS REF CURSOR RETURN rec0_t;
+v0a INT;
+v0b VARCHAR(10);
+PROCEDURE p1 IS
+c0 cur0_t;
+BEGIN
+OPEN c0 FOR SELECT 1,'b1' FROM DUAL;
+FETCH c0 INTO v0a, v0b;
+CLOSE c0;
+SELECT v0a||' '||v0b AS line;
+END;
+END;
+$$
+CALL p0;
+Pos	Instruction
+0	set c0@0 NULL
+1	copen STMT.cursor[c0@0]
+2	set _cursor_fetch_tmp_var@1 NULL
+3	cfetch STMT.cursor[c0@0] _cursor_fetch_tmp_var@1
+4	set PACKAGE_BODY.v0a@0 _cursor_fetch_tmp_var.a@1[0]
+5	set PACKAGE_BODY.v0b@1 _cursor_fetch_tmp_var.b@1[1]
+6	cclose STMT.cursor[c0@0]
+7	stmt 0 "SELECT v0a||' '||v0b AS line"
+8	destruct sys_refcursor c0@0
+line
+1 b1
+DROP PACKAGE pkg1;
+# Cursor TYPE inside PACKAGE BODY
+# Cursor variable inside PACKAGE BODY - not allowed
+# Fetch targets inside PACKAGE BODY
+CREATE PACKAGE pkg1 IS
+PROCEDURE p1;
+END;
+$$
+CREATE PACKAGE BODY pkg1 IS
+TYPE rec0_t IS RECORD (a INT, b VARCHAR(10));
+TYPE cur0_t IS REF CURSOR RETURN rec0_t;
+c0 cur0_t;
+v0a INT;
+v0b VARCHAR(10);
+PROCEDURE p1 IS
+BEGIN
+OPEN c0 FOR SELECT 1,'b1' FROM DUAL;
+FETCH c0 INTO v0a, v0b;
+CLOSE c0;
+SELECT v0a||' '||v0b AS line;
+END;
+END;
+$$
+ERROR HY000: 'sys_refcursor' is not allowed in this context
+DROP PACKAGE pkg1;
+DROP PROCEDURE p0;
