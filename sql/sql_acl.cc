@@ -13229,6 +13229,13 @@ void fill_effective_table_privileges(THD *thd, GRANT_INFO *grant,
     DBUG_VOID_RETURN;
   }
 
+  /* JSON_TABLE and other db detached table */
+  if (db == any_db.str)
+  {
+    grant->privilege= SELECT_ACL;
+    DBUG_VOID_RETURN;
+  }
+
   /* global privileges */
   grant->privilege= sctx->master_access;
 
@@ -14436,22 +14443,9 @@ static int server_mpvio_write_packet(MYSQL_PLUGIN_VIO *param,
     res= send_server_handshake_packet(mpvio, (char*) packet, packet_len);
   else if (mpvio->status == MPVIO_EXT::RESTART)
     res= send_plugin_request_packet(mpvio, packet, packet_len);
-  else if (packet_len > 0 && (*packet < 2 || *packet > 253))
-  {
-    /*
-      we cannot allow plugin data packet to start from 0, 255 or 254 -
-      as the client will treat it as an OK, ERROR or "change plugin" packet.
-      We'll escape these bytes with \1. Consequently, we
-      have to escape \1 byte too.
-    */
+  else /* plugin data, prefixed with 1 */
     res= net_write_command(&mpvio->auth_info.thd->net, 1, (uchar*)"", 0,
                            packet, packet_len);
-  }
-  else
-  {
-    res= my_net_write(&mpvio->auth_info.thd->net, packet, packet_len) ||
-         net_flush(&mpvio->auth_info.thd->net);
-  }
   mpvio->cached_client_reply.plugin= ""_LEX_CSTRING;
   mpvio->status= MPVIO_EXT::FAILURE; // the status is no longer RESTART
   mpvio->packets_written++;

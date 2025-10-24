@@ -3928,6 +3928,46 @@ drop table tm, t;
 # End of 10.8 tests
 #
 #
+# MDEV-35816 ASAN use-after-poison in st_select_lex::print
+#
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 (a) VALUES (1),(2),(3),(4),(5);
+SET SESSION optimizer_trace = 'enabled=on';
+PREPARE stmt FROM 'SELECT STRAIGHT_JOIN * FROM t1 WHERE a IN (WITH cte AS (SELECT a FROM t1) SELECT * FROM cte)';
+EXECUTE stmt;
+a
+1
+2
+3
+4
+5
+EXECUTE stmt;
+a
+1
+2
+3
+4
+5
+PREPARE nested FROM 'SELECT STRAIGHT_JOIN * FROM t1 WHERE a IN (WITH cte AS (WITH cte2 AS (SELECT a FROM t1) SELECT * from cte2) SELECT * FROM cte)';
+EXECUTE nested;
+a
+1
+2
+3
+4
+5
+EXECUTE nested;
+a
+1
+2
+3
+4
+5
+DROP TABLE t1;
+#
+# End of 10.11 tests
+#
+#
 # MDEV-30088 Assertion `cond_selectivity <= 1.0' failed in get_range_limit_read_cost
 #
 CREATE TABLE t1 (a TIMESTAMP, KEY(a)) ENGINE=MRG_MyISAM;
@@ -3992,4 +4032,3 @@ UPDATE v1 SET a=0;
 DROP VIEW v1;
 DROP TABLE t1;
 # End of 11.1 tests
-ALTER DATABASE test CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci;

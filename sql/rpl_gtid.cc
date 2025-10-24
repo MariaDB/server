@@ -2420,7 +2420,7 @@ rpl_binlog_state::drop_domain(DYNAMIC_ARRAY *ids,
     // compose a sequence of unique pointers to domain object
     for (k= 0; k < domain_unique.elements; k++)
     {
-      if ((rpl_binlog_state::element*) dynamic_array_ptr(&domain_unique, k)
+      if (*(rpl_binlog_state::element**) dynamic_array_ptr(&domain_unique, k)
           == elem)
         break; // domain_id's elem has been already in
     }

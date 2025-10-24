@@ -585,7 +585,6 @@ buf_load()
 	so all pages from a given tablespace are consecutive. */
 	uint32_t	cur_space_id = dump[0].space();
 	fil_space_t*	space = fil_space_t::get(cur_space_id);
-	ulint		zip_size = space ? space->zip_size() : 0;
 
 	PSI_stage_progress*	pfs_stage_progress __attribute__((unused))
 		= mysql_set_stage(srv_stage_buffer_pool_load.m_key);
@@ -608,12 +607,6 @@ buf_load()
 
 			cur_space_id = this_space_id;
 			space = fil_space_t::get(cur_space_id);
-
-			if (!space) {
-				continue;
-			}
-
-			zip_size = space->zip_size();
 		}
 
 		/* JAN: TODO: As we use background page read below,
@@ -632,7 +625,7 @@ buf_load()
 		}
 
 		space->reacquire();
-		buf_read_page_background(space, dump[i], zip_size);
+		buf_read_page_background(dump[i], space, nullptr);
 
 		if (buf_load_abort_flag) {
 			if (space) {

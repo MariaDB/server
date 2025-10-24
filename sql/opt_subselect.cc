@@ -6335,7 +6335,7 @@ Item *and_new_conditions_to_optimized_cond(THD *thd, Item *cond,
     }
   }
 
-  if (!cond)
+  if (!cond || cond->fix_fields_if_needed(thd, &cond))
     return NULL;
 
   if (*cond_eq)
@@ -6367,9 +6367,6 @@ Item *and_new_conditions_to_optimized_cond(THD *thd, Item *cond,
   */
   if (cond && is_simplified_cond)
     cond= cond->remove_eq_conds(thd, cond_value, true);
-
-  if (cond && cond->fix_fields_if_needed(thd, NULL))
-    return NULL;
 
   return cond;
 }

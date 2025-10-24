@@ -2434,4 +2434,18 @@ drop table t1, t2, t3;
 
 --echo # end of 10.3 tests
 
+--echo #
+--echo # MDEV-37653 Unexpected result of prepared statement when use boolean value as parameters
+--echo #
+create table t0(c0 real);
+create table t1 like t0;
+insert into t1 values (1);
+insert into t0 values (1);
+select t1.c0, t0.c0 from t1 left join t0 on 0 where not (t0.c0 is true);
+select t1.c0, t0.c0 from t1 left join t0 on 0 where not (t0.c0 is false);
+select t1.c0, t0.c0 from t1 left join t0 on false where (false or ((t0.c0 is true) in (false)));
+drop table t0, t1;
+
+--echo # end of 10.11 tests
+
 SET optimizer_switch=@org_optimizer_switch;

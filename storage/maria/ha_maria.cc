@@ -1757,6 +1757,13 @@ int ha_maria::repair(THD *thd, HA_CHECK *param, bool do_optimize)
     /* Set trid (needed if the table was moved from another system) */
     share->state.create_trid= trnman_get_min_safe_trid();
   }
+
+  /*
+    Leaving not-zero value here leads to crash in the following
+    maria_delete() particularly when we execute REPAIR TABLE partitioned_t;.
+  */
+  file->cur_row.trid= 0;
+
   mysql_mutex_lock(&share->intern_lock);
   if (!error)
   {

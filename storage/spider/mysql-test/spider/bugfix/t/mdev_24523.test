@@ -21,7 +21,21 @@ USE auto_test_remote;
 --disable_query_log
 --disable_ps_protocol
 echo CHILD2_1_CREATE_TABLES;
-eval $CHILD2_1_CREATE_TABLES;
+CREATE TABLE ta_r2 (
+i INT,
+j JSON,
+PRIMARY KEY(i)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8 ;
+CREATE TABLE ta_r3 (
+i INT,
+j JSON,
+PRIMARY KEY(i)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8 ;
+CREATE TABLE ta_r4 (
+i INT,
+j JSON,
+PRIMARY KEY(i)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 --enable_ps_protocol
 --enable_query_log
 
@@ -32,11 +46,15 @@ echo CREATE TABLE tbl_a (
   j JSON,
   PRIMARY KEY(i)
 ) $MASTER_1_ENGINE $MASTER_1_COMMENT_P_2_1;
-eval CREATE TABLE tbl_a (
+CREATE TABLE tbl_a (
   i INT,
   j JSON,
   PRIMARY KEY(i)
-) $MASTER_1_ENGINE $MASTER_1_COMMENT_P_2_1;
+) ENGINE=Spider PARTITION BY RANGE(i) (
+PARTITION pt1 VALUES LESS THAN (5) COMMENT='srv "s_2_1", table "ta_r2"',
+PARTITION pt2 VALUES LESS THAN (10) COMMENT='srv "s_2_1", table "ta_r3"',
+PARTITION pt3 VALUES LESS THAN MAXVALUE COMMENT='srv "s_2_1", table "ta_r4"'
+  );
 --enable_query_log
 --disable_ps_protocol
 INSERT INTO tbl_a VALUES (1, '{ "a": 1, "b": [2, 3]}');

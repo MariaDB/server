@@ -1668,6 +1668,8 @@ int plugin_init(int *argc, char **argv, int flags)
       tmp.name= tmp_plugin_name;
       tmp.state= 0;
       tmp.load_option= mandatory ? PLUGIN_FORCE : PLUGIN_ON;
+      DBUG_ASSERT(!mandatory ||
+        plugin_maturity_map[plugin->maturity] >= SERVER_MATURITY_LEVEL);
 
       for (i=0; i < array_elements(override_plugin_load_policy); i++)
       {

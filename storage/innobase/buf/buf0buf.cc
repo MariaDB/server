@@ -338,12 +338,6 @@ void buf_inc_get() noexcept
       buf_inc_get(trx);
 }
 
-static ATTRIBUTE_NOINLINE void buf_inc_read(trx_t *trx) noexcept
-{
-  if (ha_handler_stats *stats= trx->active_handler_stats)
-    stats->pages_read_count++;
-}
-
 # ifdef SUX_LOCK_GENERIC
 void page_hash_latch::read_lock_wait() noexcept
 {
@@ -634,7 +628,8 @@ bool buf_is_zeroes(span<const byte> buf) noexcept
 @param fsp_flags   contents of FIL_SPACE_FLAGS
 @return whether the page is corrupted */
 buf_page_is_corrupted_reason
-buf_page_is_corrupted(bool check_lsn, const byte *read_buf, uint32_t fsp_flags) noexcept
+buf_page_is_corrupted(bool check_lsn, const byte *read_buf, uint32_t fsp_flags)
+  noexcept
 {
 	if (fil_space_t::full_crc32(fsp_flags)) {
 		bool compressed = false, corrupted = false;
@@ -2317,20 +2312,20 @@ buf_page_t *buf_page_get_zip(const page_id_t page_id) noexcept
     if (!bpage)
     {
       hash_lock.unlock_shared();
-      switch (dberr_t err= buf_read_page(page_id, chain, false)) {
-      case DB_SUCCESS:
-      case DB_SUCCESS_LOCKED_REC:
-        if (trx) buf_inc_read(trx);
-        continue;
-      case DB_TABLESPACE_DELETED:
-        return nullptr;
-      default:
-        sql_print_error("InnoDB: Reading compressed page "
-                        "[page id: space=" UINT32PF ", page number=" UINT32PF
-                        "] failed with error: %s",
-                        page_id.space(), page_id.page_no(), ut_strerr(err));
+      dberr_t err;
+      bpage= reinterpret_cast<buf_page_t*>
+        (buf_read_page(page_id, &err, chain, false));
+      if (!bpage)
+      {
+        if (err != DB_TABLESPACE_DELETED)
+          sql_print_error("InnoDB: Reading compressed page "
+                          "[page id: space=" UINT32PF ", page number=" UINT32PF
+                          "] failed with error: %s",
+                          page_id.space(), page_id.page_no(), ut_strerr(err));
         return nullptr;
       }
+      hash_lock.lock_shared();
+      bpage->unfix();
     }
 
     ut_ad(bpage->in_file());
@@ -2339,7 +2334,11 @@ buf_page_t *buf_page_get_zip(const page_id_t page_id) noexcept
     const bool got_s_latch= bpage->lock.s_lock_try();
     hash_lock.unlock_shared();
     if (UNIV_LIKELY(got_s_latch))
+    {
+      ut_ad(!bpage->is_read_fixed());
       break;
+    }
+
     /* We may fail to acquire bpage->lock because a read is holding an
     exclusive latch on this block and either in progress or invoking
     buf_pool_t::corrupted_evict().
@@ -2554,17 +2553,18 @@ buf_block_t *buf_pool_t::page_fix(const page_id_t id,
   {
     hash_lock.lock_shared();
     buf_page_t *b= page_hash.get(id, chain);
+    uint32_t state_1;
     if (b)
     {
-      uint32_t state= b->fix() + 1;
+      state_1= b->fix();
       hash_lock.unlock_shared();
 
-      if (UNIV_UNLIKELY(state < buf_page_t::UNFIXED))
+      if (UNIV_UNLIKELY(state_1 < buf_page_t::UNFIXED))
       {
-        ut_ad(state > buf_page_t::FREED);
+        ut_ad(state_1 >= buf_page_t::FREED);
         if (c == FIX_ALSO_FREED && b->id() == id)
         {
-          ut_ad(state == buf_page_t::FREED + 1);
+          ut_ad(state_1 == buf_page_t::FREED);
           return reinterpret_cast<buf_block_t*>(b);
         }
         /* The page was marked as freed or corrupted. */
@@ -2575,7 +2575,7 @@ buf_block_t *buf_pool_t::page_fix(const page_id_t id,
         return nullptr;
       }
 
-      if (state >= buf_page_t::READ_FIX && state < buf_page_t::WRITE_FIX)
+      if (state_1 >= buf_page_t::READ_FIX && state_1 < buf_page_t::WRITE_FIX)
       {
         if (c == FIX_NOWAIT)
         {
@@ -2586,7 +2586,7 @@ buf_block_t *buf_pool_t::page_fix(const page_id_t id,
 
         if (UNIV_LIKELY(b->frame != nullptr))
           ut_ad(b->frame==reinterpret_cast<buf_block_t*>(b)->frame_address());
-        else if (state < buf_page_t::READ_FIX)
+        else if (state_1 < buf_page_t::READ_FIX)
           goto unzip;
         else
         {
@@ -2595,10 +2595,8 @@ buf_block_t *buf_pool_t::page_fix(const page_id_t id,
           std::this_thread::sleep_for(std::chrono::microseconds(100));
           continue;
         }
-        b->lock.s_lock();
-        state= b->state();
-        ut_ad(state < buf_page_t::READ_FIX || state >= buf_page_t::WRITE_FIX);
 
+        b->read_wait(trx);
         b->lock.s_unlock();
       }
 
@@ -2616,7 +2614,6 @@ buf_block_t *buf_pool_t::page_fix(const page_id_t id,
           goto corrupted;
 
         b= &block->page;
-        state= b->state();
         b->lock.x_unlock();
       }
 
@@ -2627,17 +2624,21 @@ buf_block_t *buf_pool_t::page_fix(const page_id_t id,
 
     if (c == FIX_NOWAIT)
       return reinterpret_cast<buf_block_t*>(-1);
-
-    switch (dberr_t local_err= buf_read_page(id, chain)) {
-    default:
-      if (err)
-        *err= local_err;
+    buf_block_t *block= buf_read_page(id, err, chain);
+    if (!block)
       return nullptr;
-    case DB_SUCCESS:
-    case DB_SUCCESS_LOCKED_REC:
-      if (trx) buf_inc_read(trx);
-      buf_read_ahead_random(id);
+    buf_read_ahead_random(id);
+    if (err)
+    {
+      ut_ad(*err == DB_SUCCESS || *err == DB_SUCCESS_LOCKED_REC);
+      *err= DB_SUCCESS;
     }
+    if (UNIV_UNLIKELY(!block->page.frame))
+    {
+      b= &block->page;
+      goto unzip;
+    }
+    return block;
   }
 }
 
@@ -2788,47 +2789,25 @@ loop:
 	switch (mode) {
 	case BUF_GET_IF_IN_POOL:
 	case BUF_PEEK_IF_IN_POOL:
-		return nullptr;
-	}
-
-	/* The call path is buf_read_page() ->
-	buf_read_page_low() (fil_space_t::io()) ->
-	buf_page_t::read_complete() ->
-	buf_decrypt_after_read(). Here fil_space_t* is used
-	and we decrypt -> buf_page_check_corrupt() where page
-	checksums are compared. Decryption, decompression as
-	well as error handling takes place at a lower level.
-	Here we only need to know whether the page really is
-	corrupted, or if an encrypted page with a valid
-	checksum cannot be decypted. */
-
-	switch (dberr_t local_err = buf_read_page(page_id, chain)) {
-	case DB_SUCCESS:
-	case DB_SUCCESS_LOCKED_REC:
-		if (trx) buf_inc_read(trx);
-		buf_read_ahead_random(page_id);
 		break;
 	default:
-		if (mode != BUF_GET_POSSIBLY_FREED
-		    && retries++ < BUF_PAGE_READ_MAX_RETRIES) {
-			DBUG_EXECUTE_IF("intermittent_read_failure",
-					retries = BUF_PAGE_READ_MAX_RETRIES;);
+		block = buf_read_page(page_id, err, chain);
+		if (!block) {
+			break;
+		} else if (err) {
+			*err = DB_SUCCESS;
 		}
-		/* fall through */
-	case DB_PAGE_CORRUPTED:
-		if (err) {
-			*err = local_err;
-		}
-		return nullptr;
+
+		ut_d(if (!(++buf_dbg_counter % 5771)) buf_pool.validate());
+		buf_read_ahead_random(page_id);
+		state = block->page.state();
+		goto not_read_fixed;
 	}
 
-	ut_d(if (!(++buf_dbg_counter % 5771)) buf_pool.validate());
-	goto loop;
+	return nullptr;
 
 got_block:
 	state++;
-	ut_ad(state > buf_page_t::FREED);
-
 	if (state > buf_page_t::READ_FIX && state < buf_page_t::WRITE_FIX) {
 		if (mode == BUF_PEEK_IF_IN_POOL) {
 ignore_block:
@@ -2849,15 +2828,15 @@ ignore_unfixed:
 		in buf_page_t::read_complete() or
 		buf_pool_t::corrupted_evict(), or
 		after buf_zip_decompress() in this function. */
-		block->page.lock.s_lock();
+		block->page.read_wait(trx);
 		state = block->page.state();
-		ut_ad(state < buf_page_t::READ_FIX
-		      || state >= buf_page_t::WRITE_FIX);
-		const page_id_t id{block->page.id()};
-		block->page.lock.s_unlock();
 
 		if (UNIV_UNLIKELY(state < buf_page_t::UNFIXED)) {
+			const page_id_t id{block->page.id()};
+
 			block->page.unfix();
+			block->page.lock.s_unlock();
+
 			if (UNIV_UNLIKELY(id == page_id)) {
 				/* The page read was completed, and
 				another thread marked the page as free
@@ -2877,13 +2856,49 @@ ignore_unfixed:
 
 			return nullptr;
 		}
-		ut_ad(id == page_id);
-	} else if (mode != BUF_PEEK_IF_IN_POOL) {
-	} else if (UNIV_UNLIKELY(!block->page.frame)) {
-		/* The BUF_PEEK_IF_IN_POOL mode is mainly used for dropping an
-		adaptive hash index. There cannot be an
-		adaptive hash index for a compressed-only page. */
-		goto ignore_block;
+
+		ut_ad(block->page.id() == page_id);
+
+		if (UNIV_LIKELY(state > buf_page_t::UNFIXED
+				&& block->page.frame)) {
+			switch (rw_latch) {
+				bool nowait;
+			case RW_NO_LATCH:
+				break;
+			default:
+				nowait = block->page.lock.s_x_upgrade();
+				if (rw_latch == RW_SX_LATCH) {
+					block->page.lock.x_u_downgrade();
+				} else {
+					ut_ad(rw_latch == RW_X_LATCH);
+				}
+				if (!nowait) {
+					goto latch_waited;
+				} else {
+					ut_ad(state < buf_page_t::READ_FIX);
+				}
+				/* fall through */
+			case RW_S_LATCH:
+				mtr->memo_push(block,
+					       mtr_memo_type_t(rw_latch));
+				goto latched;
+			}
+		}
+
+		block->page.lock.s_unlock();
+	} else {
+not_read_fixed:
+		ut_ad(state > buf_page_t::FREED);
+		ut_ad(state < buf_page_t::READ_FIX
+		      || state > buf_page_t::WRITE_FIX);
+		if (UNIV_UNLIKELY(!block->page.frame
+				  && mode == BUF_PEEK_IF_IN_POOL)) {
+			/* The BUF_PEEK_IF_IN_POOL mode is mainly used
+			for dropping an adaptive hash index. There
+			cannot be an adaptive hash index for a
+			compressed-only page. */
+			goto ignore_block;
+		}
 	}
 
 	ut_ad(mode == BUF_GET_IF_IN_POOL || mode == BUF_PEEK_IF_IN_POOL
@@ -2948,6 +2963,7 @@ wait_for_unzip:
 		}
 	}
 
+latch_waited:
 	mtr->memo_push(block, mtr_memo_type_t(rw_latch));
 	state = block->page.state();
 
@@ -2956,6 +2972,7 @@ wait_for_unzip:
 		goto ignore_unfixed;
 	}
 
+latched:
 	ut_ad(state < buf_page_t::READ_FIX || state > buf_page_t::WRITE_FIX);
 	ut_ad(block->page.frame == block->frame_address());
 	ut_ad(page_id_t(page_get_space_id(block->page.frame),
@@ -3194,8 +3211,15 @@ retry:
       else
         state= bpage->state();
 
-      ut_ad(state >= buf_page_t::FREED);
+      ut_ad(state > buf_page_t::FREED);
       ut_ad(state < buf_page_t::READ_FIX);
+      /* In addition to our buffer-fix, there may be another that is
+      held by a concurrent IORequest::read_complete() that had
+      released the bpage->lock in bpage->read_complete(...)  but not
+      yet invoked bpage->unfix(). This should only be due to an
+      asynchronous read-ahead for a page that was actually marked as
+      freed in the underlying data file. */
+      ut_ad(bpage->buf_fix_count(state) <= 2);
 
       if (state < buf_page_t::UNFIXED)
         bpage->set_reinit(buf_page_t::FREED);
@@ -3215,10 +3239,18 @@ retry:
       else
       {
         page_hash_latch &hash_lock= buf_pool.page_hash.lock_get(chain);
-        /* It does not make sense to use transactional_lock_guard here,
-        because buf_relocate() would likely make the memory transaction
-        too large. */
-        hash_lock.lock();
+        for (;;)
+        {
+          hash_lock.lock();
+          state= bpage->state();
+          if ((state & ~buf_page_t::LRU_MASK) == 1)
+            break;
+          /* Wait for a concurrent IORequest::read_complete() to
+          invoke bpage->unfix(), for an unnecessary read-ahead of
+          a freed page. */
+          ut_ad((state & ~buf_page_t::LRU_MASK) == 2);
+          hash_lock.unlock();
+        }
 
         mysql_mutex_lock(&buf_pool.flush_list_mutex);
         buf_relocate(bpage, &free_block->page);
@@ -3515,17 +3547,26 @@ static dberr_t buf_page_check_corrupt(buf_page_t *bpage,
 
 /** Complete a read of a page.
 @param node     data file
+@param recovery recv_recovery_is_on()
 @return whether the operation succeeded
+@retval DB_SUCCESS           if the read succeeded; caller must unfix()
 @retval DB_PAGE_CORRUPTED    if the checksum or the page ID is incorrect
 @retval DB_DECRYPTION_FAILED if the page cannot be decrypted */
-dberr_t buf_page_t::read_complete(const fil_node_t &node) noexcept
+dberr_t buf_page_t::read_complete(const fil_node_t &node,
+                                  bool recovery) noexcept
 {
   const page_id_t expected_id{id()};
-  ut_ad(is_read_fixed());
+  {
+    /* The block must be read-fixed and buffer-fixed. */
+    ut_d(const auto s= state());
+    ut_ad(s > READ_FIX);
+    ut_ad(s < WRITE_FIX);
+  }
   ut_ad(!buf_dblwr.is_inside(id()));
   ut_ad(id().space() == node.space->id);
   ut_ad(zip_size() == node.space->zip_size());
   ut_ad(!!zip.ssize == !!zip.data);
+  ut_ad(recovery == recv_sys.recovery_on);
 
   const byte *read_frame= zip.data ? zip.data : frame;
   ut_ad(read_frame);
@@ -3593,29 +3634,22 @@ dberr_t buf_page_t::read_complete(const fil_node_t &node) noexcept
   err= buf_page_check_corrupt(this, node);
   if (UNIV_UNLIKELY(err != DB_SUCCESS))
   {
-database_corrupted:
+  database_corrupted:
     if (belongs_to_unzip_LRU())
-database_corrupted_compressed:
+    database_corrupted_compressed:
       memset_aligned<UNIV_PAGE_SIZE_MIN>(frame, 0, srv_page_size);
 
-    if (!srv_force_recovery)
-      goto release_page;
-
-    if (err == DB_PAGE_CORRUPTED || err == DB_DECRYPTION_FAILED)
+  release_page:
+    if (recovery && node.space->full_crc32() && node.space->crypt_data &&
+        recv_sys.dblwr.find_deferred_page(node, id().page_no(),
+                                          const_cast<byte*>(read_frame)))
+      /* Recovered from the doublewrite buffer */
+      err= DB_SUCCESS;
+    else
     {
-release_page:
-      if (node.space->full_crc32() && node.space->crypt_data &&
-          recv_recovery_is_on() &&
-          recv_sys.dblwr.find_deferred_page(node, id().page_no(),
-                                            const_cast<byte*>(read_frame)))
-      {
-        /* Recover from doublewrite buffer */
-        err= DB_SUCCESS;
-        goto success_page;
-      }
-
-      if (recv_sys.free_corrupted_page(expected_id, node));
+      if (recovery && recv_sys.free_corrupted_page(expected_id, node));
       else if (err == DB_FAIL)
+        /* We already output a more specific message. */
         err= DB_PAGE_CORRUPTED;
       else
       {
@@ -3632,27 +3666,23 @@ release_page:
                                 FORCE_RECOVERY_MSG);
       }
 
-      buf_pool.corrupted_evict(this, buf_page_t::READ_FIX);
+      buf_pool.corrupted_evict(this, buf_page_t::READ_FIX + 1);
       return err;
     }
   }
-success_page:
 
-  const bool recovery= frame && recv_recovery_is_on();
-
-  if (recovery && !recv_recover_page(node.space, this))
+  if (!recovery || !frame)
+  {
+    ut_d(auto f=) zip.fix.fetch_sub(READ_FIX - UNFIXED);
+    ut_ad(f > READ_FIX);
+    ut_ad(f < WRITE_FIX);
+  }
+  else if (!recv_recover_page(node.space, this))
     return DB_PAGE_CORRUPTED;
 
   if (UNIV_UNLIKELY(MONITOR_IS_ON(MONITOR_MODULE_BUF_PAGE)))
     buf_page_monitor(*this, true);
   DBUG_PRINT("ib_buf", ("read page %u:%u", id().space(), id().page_no()));
-
-  if (!recovery)
-  {
-    ut_d(auto f=) zip.fix.fetch_sub(READ_FIX - UNFIXED);
-    ut_ad(f >= READ_FIX);
-    ut_ad(f < WRITE_FIX);
-  }
 
   lock.x_unlock(true);
 
