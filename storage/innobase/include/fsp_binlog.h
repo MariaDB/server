@@ -538,7 +538,7 @@ extern void fsp_log_binlog_write(mtr_t *mtr, fsp_binlog_page_entry *page,
                                  uint32_t page_offset, uint32_t len);
 extern void fsp_log_header_page(mtr_t *mtr, fsp_binlog_page_entry *page,
                                 uint64_t file_no, uint32_t len) noexcept;
-extern void fsp_binlog_init();
+extern dberr_t fsp_binlog_init();
 extern void fsp_binlog_shutdown();
 extern dberr_t fsp_binlog_tablespace_close(uint64_t file_no);
 extern bool fsp_binlog_open(const char *file_name, pfs_os_file_t fh,
