@@ -2,10 +2,6 @@
 # -----------
 # Testing string functions
 
---disable_warnings
-drop table if exists t1,t2;
---enable_warnings
-
 set @save_max_allowed_packet=@@global.max_allowed_packet;
 set global max_allowed_packet=1048576;
 connect (conn1,localhost,root,,);
@@ -2455,5 +2451,8 @@ SHOW CREATE TABLE t1;
 DROP TABLE t1;
 
 --echo #
---echo # End of 10.6 tests
+--echo # MDEV-37947 Item_func_hex doesn't check for max_allowed_packet
 --echo #
+select hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex('\\'))))))))))))))))))))))))))))))))))))))))))))) as x;
+
+--echo # End of 10.6 tests
