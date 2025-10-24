@@ -1,0 +1,120 @@
+SET sql_mode=ORACLE;
+
+--echo #
+--echo # MDEV-10152 Add support for TYPE .. IS REF CURSOR
+--echo #
+
+DELIMITER $$;
+CREATE PROCEDURE p0 IS
+BEGIN
+  IF @debug_ref_cursor IS TRUE
+  THEN
+    EXECUTE IMMEDIATE 'SHOW PROCEDURE CODE pkg1.p1';
+  END IF;
+  CALL pkg1.p1;
+END;
+$$
+DELIMITER ;$$
+
+
+--echo # Cursor TYPE inside PACKAGE BODY,
+--echo # Cursor variable inside PROCEDURE
+--echo # Fetch targets inside PROCEDURE
+
+DELIMITER $$;
+
+CREATE PACKAGE pkg1 IS
+  PROCEDURE p1;
+END;
+$$
+ 
+CREATE PACKAGE BODY pkg1 IS
+  TYPE rec0_t IS RECORD (a INT, b VARCHAR(10));
+  TYPE cur0_t IS REF CURSOR RETURN rec0_t;
+  PROCEDURE p1 IS
+    c0 cur0_t;
+    v0a INT;
+    v0b VARCHAR(10);
+  BEGIN
+    OPEN c0 FOR SELECT 1,'b1' FROM DUAL;
+    FETCH c0 INTO v0a, v0b;
+    CLOSE c0;
+    SELECT v0a||' '||v0b AS line;
+  END;
+END;
+$$
+
+DELIMITER ;$$
+
+CALL p0;
+
+DROP PACKAGE pkg1;
+
+
+--echo # Cursor TYPE inside PACKAGE BODY
+--echo # Cursor variable inside PROCEDURE
+--echo # Fetch targets inside PACKAGE BODY
+
+DELIMITER $$;
+
+CREATE PACKAGE pkg1 IS
+  PROCEDURE p1;
+END;
+$$
+ 
+CREATE PACKAGE BODY pkg1 IS
+  TYPE rec0_t IS RECORD (a INT, b VARCHAR(10));
+  TYPE cur0_t IS REF CURSOR RETURN rec0_t;
+  v0a INT;
+  v0b VARCHAR(10);
+  PROCEDURE p1 IS
+    c0 cur0_t;
+  BEGIN
+    OPEN c0 FOR SELECT 1,'b1' FROM DUAL;
+    FETCH c0 INTO v0a, v0b;
+    CLOSE c0;
+    SELECT v0a||' '||v0b AS line;
+  END;
+END;
+$$
+
+DELIMITER ;$$
+
+CALL p0;
+
+DROP PACKAGE pkg1;
+
+
+--echo # Cursor TYPE inside PACKAGE BODY
+--echo # Cursor variable inside PACKAGE BODY - not allowed
+--echo # Fetch targets inside PACKAGE BODY
+
+DELIMITER $$;
+
+CREATE PACKAGE pkg1 IS
+  PROCEDURE p1;
+END;
+$$
+
+--error ER_NOT_ALLOWED_IN_THIS_CONTEXT 
+CREATE PACKAGE BODY pkg1 IS
+  TYPE rec0_t IS RECORD (a INT, b VARCHAR(10));
+  TYPE cur0_t IS REF CURSOR RETURN rec0_t;
+  c0 cur0_t;
+  v0a INT;
+  v0b VARCHAR(10);
+  PROCEDURE p1 IS
+  BEGIN
+    OPEN c0 FOR SELECT 1,'b1' FROM DUAL;
+    FETCH c0 INTO v0a, v0b;
+    CLOSE c0;
+    SELECT v0a||' '||v0b AS line;
+  END;
+END;
+$$
+
+DELIMITER ;$$
+
+DROP PACKAGE pkg1;
+
+DROP PROCEDURE p0;

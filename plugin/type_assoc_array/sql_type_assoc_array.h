@@ -44,6 +44,8 @@ public:
 public:
   bool has_methods() const override { return true; }
   bool has_functors() const override { return true; }
+  bool can_be_ref_cursor_return_component() const { return false; }
+
   bool is_complex() const override
   {
     /*

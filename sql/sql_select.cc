@@ -70,6 +70,7 @@
 #include "derived_handler.h"
 #include "opt_hints.h"
 #include "opt_group_by_cardinality.h"
+#include "sql_cursor.h"
 
 /*
   A key part number that means we're using a fulltext scan.
@@ -1887,6 +1888,38 @@ JOIN::prepare(TABLE_LIST *tables_init, COND *conds_init, uint og_num,
 
   if (!procedure && result && result->prepare(fields_list, unit_arg))
     goto err;					/* purecov: inspected */
+
+  if (const Select_materialize *mr=
+        dynamic_cast<const Select_materialize*>(result))
+  {
+    if (mr->m_row_def)
+    {
+      /*
+        We're opening a REF CURSOR with the RETURN clause with an
+        explicit RETURN definition, e.g.
+          TYPE rec0_t IS RECORD (a INT, b VARCHAR(10));
+          TYPE cur0_t IS REF CURSOR RETURN rec0_t;
+          c0 cur0_t;
+          ...
+          OPEN c0 FOR SELECT * FROM t1;
+      */
+      if (mr->m_row_def->check_assignability_from(fields_list, "OPEN"))
+        goto err;
+    }
+    if (mr->m_row_def2)
+    {
+      /*
+        We're opening a REF CURSOR with the RETURN clause with an
+        anchored RETURN definition, e.g.
+          TYPE cur0_t IS REF CURSOR RETURN t1%ROWTYPE;
+          c0 cur0_t;
+          ...
+          OPEN c0 FOR SELECT * FROM t1;
+      */
+      if (mr->m_row_def2->check_assignability_from(fields_list, "OPEN"))
+        goto err;
+    }
+  }
 
   select_lex->where_cond_after_prepare= conds;
 
@@ -23188,6 +23221,34 @@ bool Virtual_tmp_table::sp_set_all_fields_from_item(THD *thd, Item *value)
   }
   return false;
 }
+
+
+bool Virtual_tmp_table::check_assignability_from(const List<Item> &items,
+                                                 const char *op) const
+{
+  if (s->fields != items.elements)
+  {
+    sp_cursor::raise_incompatible_row_size(s->fields, items.elements);
+    return true;
+  }
+  List<Item> items2= items;
+  List_iterator<Item> it(items2);
+  Item *item;
+  for (uint i= 0; (item= it++); i++)
+  {
+    // Check assignability of the i'th field
+    Type_handler_hybrid_field_type th(item->type_handler());
+    if (th.aggregate_for_result(field[i]->type_handler()))
+    {
+      my_error(ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION, MYF(0),
+               item->type_handler()->name().ptr(),
+               field[i]->type_handler()->name().ptr(), op);
+      return true;
+    }
+  }
+  return false;
+}
+
 
 bool open_tmp_table(TABLE *table)
 {

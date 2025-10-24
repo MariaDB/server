@@ -1,0 +1,76 @@
+--source include/have_utf8mb4.inc
+SET sql_mode=ORACLE;
+
+--echo #
+--echo # MDEV-10152 Add support for TYPE .. IS REF CURSOR
+--echo #
+
+DELIMITER $$;
+CREATE PROCEDURE p1 IS
+  TYPE cur_t IS REF CURSOR;
+  c0 cur_t;
+  va INT;
+  vb VARCHAR(32);
+BEGIN
+  OPEN c0 FOR (SELECT 1,'b1' FROM DUAL) UNION (SELECT 2,'b2' FROM DUAL);
+  LOOP
+    FETCH c0 iNTO va, vb;
+    EXIT WHEN c0%NOTFOUND;
+    SELECT va, vb;
+  END LOOP;
+  CLOSE c0;
+END;
+$$
+DELIMITER ;$$
+CALL p1;
+DROP PROCEDURE p1;
+
+
+DELIMITER $$;
+CREATE PROCEDURE p1 IS
+  TYPE rec_t IS RECORD (a INT, b VARCHAR(10));
+  TYPE cur_t IS REF CURSOR RETURN rec_t;
+BEGIN
+  NULL;
+END;
+$$
+DELIMITER ;$$
+CALL p1;
+DROP PROCEDURE p1;
+
+--echo #
+--echo # Cover the deep_copy() call in LEX::sp_add_fetch_cursor().
+--echo # Make sure that every FETCH statement uses
+--echo # Column_definition::create_length_to_internal_length_string()
+--echo # with its own copy of the data type of the temporary fetch variable.
+--echo # I.e. the data type in "TYPE rec_fetch_t..." stays untouched
+--echo #
+
+DELIMITER $$;
+CREATE PROCEDURE p1 AS
+  TYPE rec_return_t IS RECORD(a INT, b VARCHAR(255) CHARACTER SET utf8mb4);
+  TYPE rec_fetch_t IS RECORD(a INT, b TEXT CHARACTER SET utf8mb4);
+  TYPE cur0_t IS REF CURSOR RETURN rec_return_t;
+  c0 cur0_t;
+  v0 rec_fetch_t;
+BEGIN
+  OPEN c0 FOR SELECT 1, REPEAT('я',255); 
+  -- The below statement multiplies mbmaxlen=4 to the parser's length of 255
+  -- characters as given in the VARCHAR(255).
+  -- This gives the internal octet length of 1020 (255 characters at most).
+  FETCH c0 INTO v0;
+  SELECT OCTET_LENGTH(v0.b);
+
+  OPEN c0 FOR SELECT 1, REPEAT('яя',255); 
+  -- The below statement multiplies VARCHAR(255)'s character length of 255
+  -- to mbmaxlen=4 again
+  -- This gives the octet length of 1020 again (255 characters at most).
+  -- Note, it does not multiply 4 to 1020 (evaluated on the previous FETCH)
+  -- Therefore, the below fetch returns a warning, as expected.
+  FETCH c0 INTO v0;
+  SELECT OCTET_LENGTH(v0.b);
+END;
+$$
+DELIMITER ;$$
+CALL p1;
+DROP PROCEDURE p1;

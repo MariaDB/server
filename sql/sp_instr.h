@@ -617,6 +617,9 @@ public:
 }; // class sp_instr_stmt : public sp_lex_instr
 
 
+/*
+  Set an SP variable.
+*/
 class sp_instr_set : public sp_lex_instr,
                      public sp_rcontext_addr
 {
@@ -694,6 +697,91 @@ public:
   PSI_statement_info* get_psi_info() override { return & psi_info; }
   static PSI_statement_info psi_info;
 }; // class sp_instr_set : public sp_lex_instr
+
+
+/*
+  Set a Settable_routine_parameter.
+  This instruction provides a way to set any kind of
+  a Settable_routine_parameter, not just an SP variable.
+*/
+class sp_instr_set_srp : public sp_lex_instr
+{
+  sp_instr_set_srp(const sp_instr_set_srp &); /**< Prevent use of these */
+  void operator=(sp_instr_set_srp &);
+public:
+  sp_instr_set_srp(uint ip, sp_pcontext *ctx,
+                   Item *target, Item *val,
+                   LEX *lex, bool lex_resp,
+                   const LEX_CSTRING &expr_str)
+    :sp_lex_instr(ip, ctx, lex, lex_resp),
+      m_target(target),
+      m_value(val),
+      m_expr_str(expr_str)
+  {
+    DBUG_ASSERT(dynamic_cast<Settable_routine_parameter*>(target));
+  }
+
+  virtual ~sp_instr_set_srp() = default;
+
+  int execute(THD *thd, uint *nextp) override;
+
+  int exec_core(THD *thd, uint *nextp) override;
+
+  void print(String *str) override;
+
+  bool is_invalid() const override
+  {
+    return m_value == nullptr;
+  }
+
+  void invalidate() override
+  {
+    m_value= nullptr;
+  }
+
+protected:
+  LEX_CSTRING get_expr_query() const override
+  {
+    return m_expr_str;
+  }
+
+  void adjust_sql_command(LEX *lex) override
+  {
+    DBUG_ASSERT(lex->sql_command == SQLCOM_SELECT);
+    lex->sql_command= SQLCOM_SET_OPTION;
+  }
+
+  bool on_after_expr_parsing(THD *thd) override
+  {
+// TODO
+//    DBUG_ASSERT(thd->lex->current_select->item_list.elements == 1);
+//
+//    m_value= thd->lex->current_select->item_list.head();
+//    DBUG_ASSERT(m_value != nullptr);
+//
+//    /*
+//      In case there is a default value, update the dangling pointer
+//      left after clean up of item before re-parsing of SP instruction
+//    */
+//    sp_variable *spvar= m_ctx->find_variable(offset());
+//    if (spvar->default_value)
+//      spvar->default_value= m_value;
+//
+//    // Return error in release version if m_value == nullptr
+//    return m_value == nullptr;
+    return false;
+  }
+
+  Item *m_target;
+  Item *m_value;
+
+private:
+  LEX_CSTRING m_expr_str;
+
+public:
+  PSI_statement_info* get_psi_info() override { return & psi_info; }
+  static PSI_statement_info psi_info;
+}; // class sp_instr_set_srp
 
 
 /*
@@ -1724,11 +1812,15 @@ class sp_instr_copen_by_ref : public sp_lex_instr,
 public:
   sp_instr_copen_by_ref(uint ip, sp_pcontext *ctx,
                         const sp_rcontext_ref &ref,
-                        sp_lex_cursor *lex)
+                        sp_lex_cursor *lex,
+                        const Row_definition_list *row_def,// TODO: remove this
+                        const sp_variable *return_type_var)
    :sp_lex_instr(ip, ctx, lex, true),
     sp_rcontext_ref(ref),
     m_metadata_changed(false),
-    m_cursor_stmt(lex->get_expr_str())
+    m_cursor_stmt(lex->get_expr_str()),
+    m_row_field_definitions(row_def),
+    m_return_type_var(return_type_var)
   { }
 
   virtual ~sp_instr_copen_by_ref() = default;
@@ -1782,6 +1874,8 @@ public:
 private:
   bool m_metadata_changed;
   LEX_CSTRING m_cursor_stmt;
+  const Row_definition_list *m_row_field_definitions;
+  const sp_variable *m_return_type_var;
 
 public:
   PSI_statement_info* get_psi_info() override { return & psi_info; }

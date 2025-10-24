@@ -1,0 +1,5 @@
+SET sql_mode=ORACLE;
+
+SET @debug_ref_cursor=TRUE;
+
+--source sp-ref_cursor-package.test

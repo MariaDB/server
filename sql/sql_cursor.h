@@ -112,9 +112,14 @@ class Select_materialize: public select_unit
 {
   select_result *result; /**< the result object of the caller (PS or SP) */
 public:
+  const Row_definition_list *m_row_def;
+  const Virtual_tmp_table *m_row_def2;
   Materialized_cursor *materialized_cursor;
-  Select_materialize(THD *thd_arg, select_result *result_arg):
-    select_unit(thd_arg), result(result_arg), materialized_cursor(0) {}
+  Select_materialize(THD *thd_arg, select_result *result_arg,
+                     const Row_definition_list *row_def,
+                     const Virtual_tmp_table *row_def2):
+    select_unit(thd_arg), result(result_arg),
+    m_row_def(row_def), m_row_def2(row_def2), materialized_cursor(0) {}
   bool send_result_set_metadata(List<Item> &list, uint flags) override;
   bool send_eof() override { return false; }
   bool view_structure_only() const override
@@ -125,6 +130,8 @@ public:
 
 
 int mysql_open_cursor(THD *thd, select_result *result,
-                      Server_side_cursor **res);
+                      Server_side_cursor **res,
+                      const Row_definition_list *row_def,
+                      const Virtual_tmp_table *row_def2);
 
 #endif /* _sql_cusor_h_ */

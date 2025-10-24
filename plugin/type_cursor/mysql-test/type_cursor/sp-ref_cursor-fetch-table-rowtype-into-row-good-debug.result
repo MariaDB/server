@@ -1,0 +1,155 @@
+SET @debug_ref_cursor=TRUE;
+SET sql_mode=ORACLE;
+#
+# MDEV-10152 Add support for TYPE .. IS REF CURSOR
+#
+CREATE PROCEDURE p0 AS
+BEGIN
+IF @debug_ref_cursor IS TRUE
+THEN
+EXECUTE IMMEDIATE 'SHOW PROCEDURE CODE p1';
+END IF;
+CALL p1;
+END;
+$$
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1);
+CREATE PROCEDURE p1 IS
+/*empty*/
+/*empty*/
+TYPE cur_t IS REF CURSOR RETURN t1%ROWTYPE;
+c0 cur_t;
+v0 ROW(a INT);
+BEGIN
+OPEN c0 FOR SELECT * FROM t1;
+FETCH c0 INTO v0;
+CLOSE c0;
+SELECT v0.a;
+END;
+$$
+CALL p0;
+Pos	Instruction
+0	set c0@0 NULL
+1	set _friend_var_0@1 NULL
+2	set v0@2 NULL
+3	set _cursor_open_tmp_var@3 NULL
+4	copen STMT.cursor[c0@0]
+5	set _cursor_fetch_tmp_var@4 NULL
+6	cfetch STMT.cursor[c0@0] _cursor_fetch_tmp_var@4
+7	set v0@2 _cursor_fetch_tmp_var@4
+8	cclose STMT.cursor[c0@0]
+9	stmt 0 "SELECT v0.a"
+10	destruct sys_refcursor c0@0
+v0.a
+1
+DROP PROCEDURE p1;
+DROP TABLE t1;
+CREATE TABLE t1 (a INT, b VARCHAR(10));
+INSERT INTO t1 VALUES (1, 'b1');
+CREATE PROCEDURE p1 IS
+/*empty*/
+/*empty*/
+TYPE cur_t IS REF CURSOR RETURN t1%ROWTYPE;
+c0 cur_t;
+v0 ROW(a INT, b VARCHAR(10));
+BEGIN
+OPEN c0 FOR SELECT * FROM t1;
+FETCH c0 INTO v0;
+CLOSE c0;
+SELECT v0.a, v0.b;
+END;
+$$
+CALL p0;
+Pos	Instruction
+0	set c0@0 NULL
+1	set _friend_var_0@1 NULL
+2	set v0@2 NULL
+3	set _cursor_open_tmp_var@3 NULL
+4	copen STMT.cursor[c0@0]
+5	set _cursor_fetch_tmp_var@4 NULL
+6	cfetch STMT.cursor[c0@0] _cursor_fetch_tmp_var@4
+7	set v0@2 _cursor_fetch_tmp_var@4
+8	cclose STMT.cursor[c0@0]
+9	stmt 0 "SELECT v0.a, v0.b"
+10	destruct sys_refcursor c0@0
+v0.a	v0.b
+1	b1
+DROP PROCEDURE p1;
+DROP TABLE t1;
+DROP PROCEDURE p0;
+CREATE PROCEDURE p0 AS
+BEGIN
+IF @debug_ref_cursor IS TRUE
+THEN
+EXECUTE IMMEDIATE 'SHOW PROCEDURE CODE p1';
+END IF;
+CALL p1;
+END;
+$$
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1);
+CREATE PROCEDURE p1 IS
+/*empty*/
+var_sample1 t1%ROWTYPE;
+TYPE cur_t IS REF CURSOR RETURN var_sample1%TYPE;
+c0 cur_t;
+v0 ROW(a INT);
+BEGIN
+OPEN c0 FOR SELECT * FROM t1;
+FETCH c0 INTO v0;
+CLOSE c0;
+SELECT v0.a;
+END;
+$$
+CALL p0;
+Pos	Instruction
+0	set var_sample1@0 NULL
+1	set c0@1 NULL
+2	set _friend_var_1@2 NULL
+3	set v0@3 NULL
+4	set _cursor_open_tmp_var@4 NULL
+5	copen STMT.cursor[c0@1]
+6	set _cursor_fetch_tmp_var@5 NULL
+7	cfetch STMT.cursor[c0@1] _cursor_fetch_tmp_var@5
+8	set v0@3 _cursor_fetch_tmp_var@5
+9	cclose STMT.cursor[c0@1]
+10	stmt 0 "SELECT v0.a"
+11	destruct sys_refcursor c0@1
+v0.a
+1
+DROP PROCEDURE p1;
+DROP TABLE t1;
+CREATE TABLE t1 (a INT, b VARCHAR(10));
+INSERT INTO t1 VALUES (1, 'b1');
+CREATE PROCEDURE p1 IS
+/*empty*/
+var_sample1 t1%ROWTYPE;
+TYPE cur_t IS REF CURSOR RETURN var_sample1%TYPE;
+c0 cur_t;
+v0 ROW(a INT, b VARCHAR(10));
+BEGIN
+OPEN c0 FOR SELECT * FROM t1;
+FETCH c0 INTO v0;
+CLOSE c0;
+SELECT v0.a, v0.b;
+END;
+$$
+CALL p0;
+Pos	Instruction
+0	set var_sample1@0 NULL
+1	set c0@1 NULL
+2	set _friend_var_1@2 NULL
+3	set v0@3 NULL
+4	set _cursor_open_tmp_var@4 NULL
+5	copen STMT.cursor[c0@1]
+6	set _cursor_fetch_tmp_var@5 NULL
+7	cfetch STMT.cursor[c0@1] _cursor_fetch_tmp_var@5
+8	set v0@3 _cursor_fetch_tmp_var@5
+9	cclose STMT.cursor[c0@1]
+10	stmt 0 "SELECT v0.a, v0.b"
+11	destruct sys_refcursor c0@1
+v0.a	v0.b
+1	b1
+DROP PROCEDURE p1;
+DROP TABLE t1;
+DROP PROCEDURE p0;

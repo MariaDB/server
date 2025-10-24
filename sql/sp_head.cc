@@ -3917,7 +3917,8 @@ bool sp_head::add_for_loop_open_cursor(THD *thd, sp_pcontext *spcont,
     return true;
 
   const sp_rcontext_addr raddr(&sp_rcontext_handler_local, index->offset);
-  const List<sp_fetch_target> target_list(sp_fetch_target(index->name, raddr),
+  const List<sp_fetch_target> target_list(sp_fetch_target(index->name,
+                                                          spcont, raddr),
                                           thd->mem_root);
   if (!target_list.elements)
     return true; // EOM

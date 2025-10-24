@@ -439,6 +439,42 @@ bool Row_definition_list::resolve_type_refs(THD *thd)
 };
 
 
+/*
+  Make sure that:
+  - The size of the list is equal to the size of "this".
+  - Every expression in "list" is assignable to the corresponding
+    element data type in "this".
+*/
+bool Row_definition_list::check_assignability_from(const List<Item> &list,
+                                                   const char *op) const
+{
+  if (elements != list.elements)
+  {
+    sp_cursor::raise_incompatible_row_size(elements, list.elements);
+    return true;
+  }
+  List<Spvar_definition> def_list2(*this);
+  List_iterator<Spvar_definition> def_list2_it(def_list2);
+  List<Item> item_list2(list);
+  List_iterator<Item> item_list2_it(item_list2);
+  Spvar_definition *def;
+  Item *item;
+  for ( ; (def= def_list2_it++) && (item= item_list2_it++); )
+  {
+    // Check assignability of the n-th element
+    Type_handler_hybrid_field_type th(item->type_handler());
+    if (th.aggregate_for_result(def->type_handler()))
+    {
+      my_error(ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION, MYF(0),
+               item->type_handler()->name().ptr(),
+               def->type_handler()->name().ptr(), op);
+      return true;
+    }
+  }
+  return false;
+}
+
+
 bool sp_rcontext::init_var_items(THD *thd,
                                  List<Spvar_definition> &field_def_lst)
 {
@@ -842,7 +878,9 @@ bool sp_rcontext::set_case_expr(THD *thd, int case_expr_id,
    0 in case of success, -1 otherwise
 */
 
-int sp_cursor::open(THD *thd, bool check_open_cursor_counter)
+int sp_cursor::open(THD *thd, const Row_definition_list *row_def,
+                    const Virtual_tmp_table *row_def2,
+                    bool check_open_cursor_counter)
 {
   if (server_side_cursor)
   {
@@ -860,7 +898,7 @@ int sp_cursor::open(THD *thd, bool check_open_cursor_counter)
     return -1;
   }
 
-  if (mysql_open_cursor(thd, &result, &server_side_cursor))
+  if (mysql_open_cursor(thd, &result, &server_side_cursor, row_def, row_def2))
     return -1;
   thd->open_cursors_counter_increment();
   return 0;

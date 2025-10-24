@@ -98,10 +98,14 @@ class sp_fetch_target: public Sql_alloc,
 {
 public:
   LEX_CSTRING name;
+  sp_pcontext *m_pcont;
 
-  sp_fetch_target(const LEX_CSTRING &name_arg, const sp_rcontext_addr &addr)
+  sp_fetch_target(const LEX_CSTRING &name_arg,
+                  sp_pcontext *pcont,
+                  const sp_rcontext_addr &addr)
    :sp_rcontext_addr(addr),
-    name(name_arg)
+    name(name_arg),
+    m_pcont(pcont)
   { }
 };
 

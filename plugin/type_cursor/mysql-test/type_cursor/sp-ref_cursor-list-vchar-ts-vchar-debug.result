@@ -1,0 +1,155 @@
+SET @debug_ref_cursor=TRUE;
+SET sql_mode=ORACLE;
+#
+# MDEV-10152 Add support for TYPE .. IS REF CURSOR
+#
+CREATE PROCEDURE p0 AS
+BEGIN
+IF @debug_ref_cursor IS TRUE
+THEN
+EXECUTE IMMEDIATE 'SHOW PROCEDURE CODE p1';
+END IF;
+CALL p1;
+END;
+$$
+#
+# REF CURSOR with RETURN, with FETCH INTO record_variable
+# VARCHAR to TIMESTAMP to VARCHAR conversion
+#
+CREATE TABLE t1 (a INT, b VARCHAR(30));
+INSERT INTO t1 VALUES (1,'2001-01-01 ');
+INSERT INTO t1 VALUES (1,'2001-01-01 10:20:30.123 ');
+INSERT INTO t1 VALUES (1,'2001-01-01 10:20:30.123456 ');
+# Using explicit cursor
+CREATE PROCEDURE p1 IS
+TYPE rec0_t IS RECORD (a INT, b TIMESTAMP(6));
+TYPE cur0_t IS REF CURSOR RETURN rec0_t;
+c0 cur0_t;
+v0a t1.a%TYPE;
+v0b t1.b%TYPE;
+BEGIN
+OPEN c0 FOR SELECT * FROM t1;
+LOOP
+FETCH c0 INTO v0a, v0b;
+EXIT WHEN c0%NOTFOUND;
+SELECT LENGTH(v0a) || ' ' || LENGTH(v0b) || ' <'|| v0a || '><'|| v0b || '>' AS line;
+END LOOP;
+CLOSE c0;
+END;
+$$
+CALL p0;
+Pos	Instruction
+0	set c0@0 NULL
+1	set _friend_var_0@1 NULL
+2	set v0a@2 NULL
+3	set v0b@3 NULL
+4	copen STMT.cursor[c0@0]
+5	set _cursor_fetch_tmp_var@4 NULL
+6	cfetch STMT.cursor[c0@0] _cursor_fetch_tmp_var@4
+7	set v0a@2 _cursor_fetch_tmp_var.a@4[0]
+8	set v0b@3 _cursor_fetch_tmp_var.b@4[1]
+9	jump_if_not 11(0) "c0"%NOTFOUND
+10	jump 13
+11	stmt 0 "SELECT LENGTH(v0a) || ' ' || LENGTH(v..."
+12	jump 5
+13	cclose STMT.cursor[c0@0]
+14	destruct sys_refcursor c0@0
+line
+1 26 <1><2001-01-01 00:00:00.000000>
+line
+1 26 <1><2001-01-01 10:20:30.123000>
+line
+1 26 <1><2001-01-01 10:20:30.123456>
+DROP PROCEDURE p1;
+# Using table%ROWTYPE
+CREATE TABLE table_sample (a INT, b TIMESTAMP(6));
+CREATE PROCEDURE p1 IS
+TYPE cur0_t IS REF CURSOR RETURN table_sample%ROWTYPE;
+c0 cur0_t;
+v0a t1.a%TYPE;
+v0b t1.b%TYPE;
+BEGIN
+OPEN c0 FOR SELECT * FROM t1;
+LOOP
+FETCH c0 INTO v0a, v0b;
+EXIT WHEN c0%NOTFOUND;
+SELECT LENGTH(v0a) || ' ' || LENGTH(v0b) || ' <'|| v0a || '><'|| v0b || '>' AS line;
+END LOOP;
+CLOSE c0;
+END;
+$$
+CALL p0;
+Pos	Instruction
+0	set c0@0 NULL
+1	set _friend_var_0@1 NULL
+2	set v0a@2 NULL
+3	set v0b@3 NULL
+4	set _cursor_open_tmp_var@4 NULL
+5	copen STMT.cursor[c0@0]
+6	set _cursor_fetch_tmp_var@5 NULL
+7	cfetch STMT.cursor[c0@0] _cursor_fetch_tmp_var@5
+8	set (v0a@2,v0b@3) _cursor_fetch_tmp_var@5
+9	jump_if_not 11(0) "c0"%NOTFOUND
+10	jump 13
+11	stmt 0 "SELECT LENGTH(v0a) || ' ' || LENGTH(v..."
+12	jump 6
+13	cclose STMT.cursor[c0@0]
+14	destruct sys_refcursor c0@0
+line
+1 26 <1><2001-01-01 00:00:00.000000>
+line
+1 26 <1><2001-01-01 10:20:30.123000>
+line
+1 26 <1><2001-01-01 10:20:30.123456>
+DROP TABLE table_sample;
+DROP PROCEDURE p1;
+# Using cursor%ROWTYPE
+CREATE TABLE table_sample (a INT, b TIMESTAMP(6));
+CREATE PROCEDURE p1 IS
+CURSOR cursor_sample IS SELECT a, b FROM table_sample;
+TYPE cur0_t IS REF CURSOR RETURN cursor_sample%ROWTYPE;
+c0 cur0_t;
+v0a t1.a%TYPE;
+v0b t1.b%TYPE;
+BEGIN
+OPEN c0 FOR SELECT * FROM t1;
+LOOP
+FETCH c0 INTO v0a, v0b;
+EXIT WHEN c0%NOTFOUND;
+SELECT LENGTH(v0a) || ' ' || LENGTH(v0b) || ' <'|| v0a || '><'|| v0b || '>' AS line;
+END LOOP;
+CLOSE c0;
+END;
+$$
+CALL p0;
+Pos	Instruction
+0	set c0@0 NULL
+1	cursor_copy_struct cursor_sample _friend_var_0@1
+2	set _friend_var_0@1 NULL
+3	set v0a@2 NULL
+4	set v0b@3 NULL
+5	cpush cursor_sample@0
+6	cursor_copy_struct cursor_sample _cursor_open_tmp_var@4
+7	set _cursor_open_tmp_var@4 NULL
+8	copen STMT.cursor[c0@0]
+9	cursor_copy_struct cursor_sample _cursor_fetch_tmp_var@5
+10	set _cursor_fetch_tmp_var@5 NULL
+11	cfetch STMT.cursor[c0@0] _cursor_fetch_tmp_var@5
+12	set (v0a@2,v0b@3) _cursor_fetch_tmp_var@5
+13	jump_if_not 15(0) "c0"%NOTFOUND
+14	jump 17
+15	stmt 0 "SELECT LENGTH(v0a) || ' ' || LENGTH(v..."
+16	jump 9
+17	cclose STMT.cursor[c0@0]
+18	cpop 1
+19	destruct sys_refcursor c0@0
+line
+1 26 <1><2001-01-01 00:00:00.000000>
+line
+1 26 <1><2001-01-01 10:20:30.123000>
+line
+1 26 <1><2001-01-01 10:20:30.123456>
+DROP TABLE table_sample;
+DROP PROCEDURE p1;
+DROP TABLE t1;
+DROP PROCEDURE p0;
