@@ -1724,11 +1724,13 @@ class sp_instr_copen_by_ref : public sp_lex_instr,
 public:
   sp_instr_copen_by_ref(uint ip, sp_pcontext *ctx,
                         const sp_rcontext_ref &ref,
-                        sp_lex_cursor *lex)
+                        sp_lex_cursor *lex,
+                        const Row_definition_list *row_def)
    :sp_lex_instr(ip, ctx, lex, true),
     sp_rcontext_ref(ref),
     m_metadata_changed(false),
-    m_cursor_stmt(lex->get_expr_str())
+    m_cursor_stmt(lex->get_expr_str()),
+    m_row_field_definitions(row_def)
   { }
 
   virtual ~sp_instr_copen_by_ref() = default;
@@ -1782,6 +1784,7 @@ public:
 private:
   bool m_metadata_changed;
   LEX_CSTRING m_cursor_stmt;
+  const Row_definition_list *m_row_field_definitions;
 
 public:
   PSI_statement_info* get_psi_info() override { return & psi_info; }

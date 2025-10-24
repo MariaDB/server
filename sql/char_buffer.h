@@ -91,6 +91,18 @@ public:
     return *this;
   }
 
+  // Append an unsigned number
+  CharBuffer<buff_sz> & append_ulonglong(ulonglong nr)
+  {
+    if (available_size() >= MAX_BIGINT_WIDTH)
+    {
+      char *end= (char*) longlong10_to_str(nr, &m_buff[m_length], 10);
+      m_length= (end - m_buff);
+    }
+    DBUG_ASSERT(is_sane());
+    return *this;
+  }
+
   // Append one character
   CharBuffer<buff_sz> & append_char(char ch)
   {

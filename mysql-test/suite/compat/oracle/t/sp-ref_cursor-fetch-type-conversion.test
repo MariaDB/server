@@ -1,0 +1,13 @@
+# Data type conversion in FETCH
+# The data type in RETURN differ from the data type in FETCH targets
+
+SET sql_mode=ORACLE;
+
+--echo #
+--echo # MDEV-10152 Add support for TYPE .. IS REF CURSOR
+--echo #
+
+--source sp-ref_cursor-row-vchar-int-vchar.inc
+--source sp-ref_cursor-list-vchar-int-vchar.inc
+--source sp-ref_cursor-row-vchar-ts-vchar.inc
+--source sp-ref_cursor-list-vchar-ts-vchar.inc

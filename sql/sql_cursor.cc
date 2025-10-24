@@ -38,7 +38,8 @@
 */
 
 int mysql_open_cursor(THD *thd, select_result *result,
-                      Server_side_cursor **pcursor)
+                      Server_side_cursor **pcursor,
+                      const Row_definition_list *row_def)
 {
   sql_digest_state *parent_digest;
   PSI_statement_locker *parent_locker;
@@ -47,7 +48,8 @@ int mysql_open_cursor(THD *thd, select_result *result,
   LEX *lex= thd->lex;
   int rc;
 
-  if (!(result_materialize= new (thd->mem_root) Select_materialize(thd, result)))
+  if (!(result_materialize= new (thd->mem_root) Select_materialize(thd, result,
+                                                                   row_def)))
     return 1;
 
   save_result= lex->result;
