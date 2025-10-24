@@ -9974,8 +9974,6 @@ tree_or(RANGE_OPT_PARAM *param,SEL_TREE *tree1,SEL_TREE *tree2)
   {
     bool must_be_ored= sel_trees_must_be_ored(param, tree1, tree2, ored_keys);
     no_imerge_from_ranges= must_be_ored;
-    if (param->disable_index_merge_plans)
-      no_imerge_from_ranges= true;
 
     if (no_imerge_from_ranges && no_merges1 && no_merges2)
     {
@@ -10024,6 +10022,13 @@ tree_or(RANGE_OPT_PARAM *param,SEL_TREE *tree1,SEL_TREE *tree2)
       result->type= SEL_TREE::ALWAYS;
     DBUG_RETURN(result);
   }
+
+  /*
+    Ok, the result now has the ranges that one gets for (RT1 OR RT2).
+    If construction of SEL_IMERGE is disabled, stop right here.
+  */
+  if (param->disable_index_merge_plans)
+    DBUG_RETURN(result);
 
   SEL_IMERGE *imerge_from_ranges;
   if (!(imerge_from_ranges= new SEL_IMERGE()))
