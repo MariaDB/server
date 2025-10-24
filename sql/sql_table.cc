@@ -11593,6 +11593,7 @@ do_continue:;
   }
   else
   {
+    /* MERGE TABLE */
     if (!table->s->tmp_table &&
         wait_while_table_is_used(thd, table, HA_EXTRA_FORCE_REOPEN))
       goto err_new_table_cleanup;
@@ -11601,6 +11602,8 @@ do_continue:;
                             alter_info->keys_onoff);
     if (trans_commit_stmt(thd) || trans_commit_implicit(thd))
       goto err_new_table_cleanup;
+    /* Ensure that the ALTER is binlogged as a DDL */
+    thd->transaction->stmt.mark_trans_did_ddl();
   }
   thd->count_cuted_fields= CHECK_FIELD_IGNORE;
 

@@ -45,9 +45,6 @@ Created 3/26/1996 Heikki Tuuri
 trx_sys_t		trx_sys;
 
 #ifdef UNIV_DEBUG
-/* Flag to control TRX_RSEG_N_SLOTS behavior debugging. */
-uint	trx_rseg_n_slots_debug = 0;
-
 void rw_trx_hash_t::validate_element(trx_t *trx)
 {
   ut_ad(!trx->read_only || !trx->rsegs.m_redo.rseg);
