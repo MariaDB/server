@@ -2580,6 +2580,25 @@ void recv_sys_t::parse_page0(const page_id_t id, const byte *b,
   fil_space_set_recv_size_and_flags(space_id, s, f);
 }
 
+ATTRIBUTE_COLD
+ATTRIBUTE_NOINLINE
+bool recv_sys_t::parse_store_binlog(uint32_t space_id, const byte *l,
+                                    uint32_t rlen, uint32_t page_no,
+                                    lsn_t start_lsn, lsn_t lsn)
+{
+  const size_t olen= mlog_decode_varint_length(*l);
+  if (UNIV_UNLIKELY(olen >= rlen) || UNIV_UNLIKELY(olen > 3))
+    return true;
+  const uint32_t offset= mlog_decode_varint(l);
+  ut_ad(offset != MLOG_DECODE_ERROR);
+  if (UNIV_UNLIKELY(offset + rlen - olen >= 65535))
+    return true;
+  if (binlog_recover_write_data(space_id & 1, page_no, uint16_t(offset),
+                                start_lsn, lsn, l + olen, rlen - olen))
+    return true;
+  return false;
+}
+
 ATTRIBUTE_NOINLINE
 bool recv_sys_t::parse_store_if_exists(uint32_t space_id) const noexcept
 {
@@ -2824,10 +2843,10 @@ log_parse_file(const page_id_t id, bool if_exists,
 @retval GOT_EOF       if the log is corrupted */
 ATTRIBUTE_NOINLINE
 static recv_sys_t::parse_mtr_result
-log_page_modify(uint32_t space_id, uint32_t page_no, bool is_binlog) noexcept
+log_page_modify(uint32_t space_id, uint32_t page_no) noexcept
 {
   ut_ad(space_id);
-  if (is_binlog || srv_is_undo_tablespace(space_id))
+  if (space_id >= SRV_SPACE_ID_UPPER_BOUND || srv_is_undo_tablespace(space_id))
     return recv_sys_t::OK;
   recv_spaces_t::iterator i= recv_spaces.lower_bound(space_id);
   const lsn_t lsn{recv_sys.lsn};
@@ -2992,7 +3011,7 @@ restart:
         continue;
       }
       if (storing == YES && UNIV_LIKELY(space_id != TRX_SYS_SPACE))
-        if (parse_mtr_result r= log_page_modify(space_id, page_no, is_binlog))
+        if (parse_mtr_result r= log_page_modify(space_id, page_no))
         {
           if (UNIV_UNLIKELY(r == PREMATURE_EOF))
             continue;
@@ -3090,12 +3109,15 @@ restart:
         /* fall through */
       case RESERVED:
         continue;
-      case WRITE:
       case MEMMOVE:
       case MEMSET:
+        if (storing == YES && !ENC_10_8 && is_binlog)
+          goto record_corrupted;
+        /* fall through */
+      case WRITE:
         if (storing == BACKUP)
           continue;
-        if (storing == NO && UNIV_LIKELY(page_no != 0))
+        if (storing == NO && UNIV_LIKELY((page_no | (uint32_t)is_binlog) != 0))
           /* fil_space_set_recv_size_and_flags() is mandatory for storing==NO.
           It is only applicable to page_no == 0. Other than that, we can just
           ignore the payload and only compute the mini-transaction checksum;
@@ -3190,17 +3212,7 @@ restart:
       if (storing != YES);
       else if (!ENC_10_8 && is_binlog)
       {
-        if ((b & 0xf0) != WRITE)
-          goto record_corrupted;
-        const size_t olen= mlog_decode_varint_length(*l);
-        if (UNIV_UNLIKELY(olen >= rlen) || UNIV_UNLIKELY(olen > 3))
-          goto record_corrupted;
-        const uint32_t offset= mlog_decode_varint(l);
-        ut_ad(offset != MLOG_DECODE_ERROR);
-        if (UNIV_UNLIKELY(offset + rlen - olen >= 65535))
-          goto record_corrupted;
-        if (binlog_recover_write_data(space_id & 1, page_no, uint16_t(offset),
-                                      start_lsn, lsn, l + olen, rlen - olen))
+        if (parse_store_binlog(space_id, l, rlen, page_no, start_lsn, lsn))
           goto record_corrupted;
       }
       else if (if_exists && !parse_store_if_exists(space_id));

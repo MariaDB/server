@@ -1265,7 +1265,7 @@ fsp_log_header_page(mtr_t *mtr, fsp_binlog_page_entry *page, uint64_t file_no,
   Note that we do not create or open any binlog tablespaces here.
   This is only done if InnoDB binlog is enabled on the server level.
 */
-void
+dberr_t
 fsp_binlog_init()
 {
   mysql_mutex_init(fsp_active_binlog_mutex_key, &active_binlog_mutex, nullptr);
@@ -1276,7 +1276,14 @@ fsp_binlog_init()
 
   ibb_file_hash.init();
   binlog_page_fifo= new fsp_binlog_page_fifo();
+  if (UNIV_UNLIKELY(!binlog_page_fifo))
+  {
+    sql_print_error("InnoDB: Could not allocate memory for the page fifo, "
+                    "cannot proceed");
+    return DB_OUT_OF_MEMORY;
+  }
   binlog_page_fifo->start_flush_thread();
+  return DB_SUCCESS;
 }
 
 
