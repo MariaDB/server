@@ -5779,6 +5779,13 @@ public:
      m_cursor_rowtype_offset(0),
      m_row_field_definitions(NULL)
   { }
+  Spvar_definition(Row_definition_list *row_field_definitions)
+   :m_column_type_ref(NULL),
+    m_table_rowtype_ref(NULL),
+    m_cursor_rowtype_ref(false),
+    m_cursor_rowtype_offset(0),
+    m_row_field_definitions(row_field_definitions)
+  { }
   const Type_handler *type_handler() const
   {
     return Type_handler_hybrid_field_type::type_handler();

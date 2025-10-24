@@ -20,6 +20,18 @@
 #include "sql_class.h"
 
 
+void sp_cursor::raise_incompatible_row_size(uint sz0, uint sz1)
+{
+  class RowType: public CharBuffer<6 + MAX_BIGINT_WIDTH>
+  {
+  public:
+    RowType(uint sz)
+    { copy("row<"_LEX_CSTRING).append_ulonglong(sz).append_char('>'); }
+  };
+  my_error(ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION, MYF(0),
+           RowType(sz0).ptr(), RowType(sz1).ptr(), "OPEN .. FOR");
+}
+
 /*
   Append a new element into the array.
   @return  NULL Type_ref_null (with is_null()==true) on error (EOM).

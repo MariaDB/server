@@ -7695,12 +7695,27 @@ bool LEX::sp_open_cursor_for_stmt(THD *thd, const LEX_CSTRING *name,
   }
   if (check_variable_is_refcursor({STRING_WITH_LEN("OPEN")}, spv))
     return true;
+
+  const sp_type_def_ref* return_type_def= ((sp_type_def_ref*)spv[0].field_def.
+                                                                      get_attr_const_void_ptr(0));
+  const Row_definition_list *row_defs= return_type_def && return_type_def->m_def ?
+                                       return_type_def->m_def->row_field_definitions() : nullptr;
+  if (!stmt->first_select_lex()->with_wild &&
+      row_defs && row_defs->elements &&
+      row_defs->elements != stmt->first_select_lex()->item_list.elements)
+  {
+    sp_cursor::raise_incompatible_row_size(row_defs->elements,
+                                           stmt->first_select_lex()->
+                                             item_list.elements);
+    return true;
+  }
+
   auto *i= new (thd->mem_root) sp_instr_copen_by_ref(
                                  sphead->instructions(), spcont,
                                  sp_rcontext_ref(
                                    sp_rcontext_addr(rh, spv->offset),
                                    &sp_rcontext_handler_statement),
-                                 stmt);
+                                 stmt, row_defs);
   return i == NULL || sphead->add_instr(i);
 }
 
@@ -12971,6 +12986,55 @@ bool LEX::declare_type_assoc_array(THD *thd,
   return def.type_handler()->
           Column_definition_set_attributes(thd, &def, ltype,
                                            COLUMN_DEFINITION_ROUTINE_LOCAL);
+}
+
+
+bool LEX::declare_type_ref_cursor(THD *thd,
+                                  const Lex_ident_sys_st &type_name,
+                                  const Lex_ident_sys_st &return_type_name)
+{
+  const Lex_ident_plugin sr= "sys_refcursor"_Lex_ident_plugin;
+  const Type_handler *th= Type_handler::handler_by_name_or_error(thd, sr);
+  Spvar_definition *return_def= nullptr;
+  if (unlikely(!th))
+    return true;
+  if (!return_type_name.is_null())
+  {
+    const sp_type_def *rt= find_type_def(return_type_name);
+    if (!rt)
+    {
+      my_error(ER_UNKNOWN_DATA_TYPE, MYF(0), return_type_name.str);
+      return true;
+    }
+    if (!dynamic_cast<const Type_handler_row*>(rt->type_handler()))
+    {
+      my_error(ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION, MYF(0),
+               return_type_name.str, "REF CURSOR RETURN");
+      return true;
+
+    }
+    Row_definition_list *row= static_cast<const sp_type_def_record*>(rt)->
+                                field->deep_copy(thd);
+    if (!row || !(return_def= new (thd->mem_root) Spvar_definition(row)))
+      return true;
+  }
+  sp_type_def *tdef=
+    new (thd->mem_root) sp_type_def_ref(Lex_ident_column(type_name), th,
+                                        return_def);
+  if (unlikely(!tdef || spcont->type_defs_add(thd, tdef)))
+    return true;
+
+  // TODO: Why this???
+  Column_definition def;
+  def.set_handler(th);
+  def.set_attr_const_void_ptr(0, tdef);
+  Lex_field_type_st ltype;
+  ltype.set(th);
+  return def.type_handler()->
+          Column_definition_set_attributes(thd, &def, ltype,
+                                           COLUMN_DEFINITION_ROUTINE_LOCAL);
+
+  return false;
 }
 
 

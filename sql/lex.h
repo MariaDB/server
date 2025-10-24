@@ -515,6 +515,7 @@ SYMBOL symbols[] = {
   { "RECOVER",          SYM(RECOVER_SYM)},
   { "RECURSIVE",        SYM(RECURSIVE_SYM)},
   { "REDUNDANT",	SYM(REDUNDANT_SYM)},
+  { "REF",		SYM(REF_SYM)},
   { "REFERENCES",	SYM(REFERENCES)},
   { "REGEXP",		SYM(REGEXP)},
   { "RELAY",            SYM(RELAY)},

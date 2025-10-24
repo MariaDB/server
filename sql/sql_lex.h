@@ -5022,6 +5022,9 @@ public:
                                 const Lex_ident_sys_st &type_name,
                                 Spvar_definition *key,
                                 Spvar_definition *value);
+  bool declare_type_ref_cursor(THD *thd,
+                               const Lex_ident_sys_st &type_name,
+                               const Lex_ident_sys_st &return_type_name);
   bool set_field_type_typedef(Lex_field_type_st *type,
                               const LEX_CSTRING &name,
                               bool *is_typedef);

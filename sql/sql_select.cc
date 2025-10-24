@@ -70,6 +70,7 @@
 #include "derived_handler.h"
 #include "opt_hints.h"
 #include "opt_group_by_cardinality.h"
+#include "sql_cursor.h"
 
 /*
   A key part number that means we're using a fulltext scan.
@@ -1886,6 +1887,17 @@ JOIN::prepare(TABLE_LIST *tables_init, COND *conds_init, uint og_num,
 
   if (!procedure && result && result->prepare(fields_list, unit_arg))
     goto err;					/* purecov: inspected */
+
+  if (const Select_materialize *mr=
+        dynamic_cast<const Select_materialize*>(result))
+  {
+    if (mr->m_row_def && mr->m_row_def->elements != fields_list.elements)
+    {
+      sp_cursor::raise_incompatible_row_size(mr->m_row_def->elements,
+                                             fields_list.elements);
+      DBUG_RETURN(true);
+    }
+  }
 
   select_lex->where_cond_after_prepare= conds;
 

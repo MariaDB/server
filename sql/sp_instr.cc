@@ -2100,7 +2100,7 @@ int
 sp_instr_cpush::exec_core(THD *thd, uint *nextp)
 {
   sp_cursor *c = thd->spcont->get_cursor(m_cursor);
-  return c ? c->open(thd) : true;
+  return c ? c->open(thd, nullptr) : true;
 }
 
 void
@@ -2410,7 +2410,7 @@ sp_instr_cursor_copy_struct::exec_core(THD *thd, uint *nextp)
   {
     sp_cursor tmp(thd, true);
     // Open the cursor without copying data
-    if (!(ret= tmp.open(thd)))
+    if (!(ret= tmp.open(thd, nullptr)))
     {
       Row_definition_list defs;
       /*
@@ -2507,7 +2507,7 @@ int sp_instr_copen_by_ref::exec_core(THD *thd, uint *nextp)
     // TODO: check with DmitryS if hiding ROOT_FLAG_READ_ONLY is OK:
     auto flags_backup= thd->lex->query_arena()->mem_root->flags;
     thd->lex->query_arena()->mem_root->flags&= ~ROOT_FLAG_READ_ONLY;
-    int rc= cursor->open(thd);
+    int rc= cursor->open(thd, m_row_field_definitions);
     thd->lex->query_arena()->mem_root->flags= flags_backup;
     DBUG_RETURN(rc);
   }
@@ -2531,7 +2531,8 @@ int sp_instr_copen_by_ref::exec_core(THD *thd, uint *nextp)
     DBUG_RETURN(-1);
   }
   cursor->reset_for_reopen(thd);
-  DBUG_RETURN(cursor->open(thd, false/*don't check max_open_cursors*/));
+  DBUG_RETURN(cursor->open(thd, m_row_field_definitions,
+                           false/*don't check max_open_cursors*/));
 }
 
 
