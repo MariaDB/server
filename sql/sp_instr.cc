@@ -1375,6 +1375,62 @@ sp_instr_set_default_param::print(String *str)
 
 
 /*
+  sp_instr_set_srp class functions
+*/
+
+PSI_statement_info sp_instr_set_srp::psi_info= { 0, "set", 0};
+
+int
+sp_instr_set_srp::execute(THD *thd, uint *nextp)
+{
+  DBUG_ENTER("sp_instr_set_srp::execute");
+  DBUG_RETURN(m_lex_keeper.validate_lex_and_exec_core(thd, nextp, true, this));
+}
+
+
+int
+sp_instr_set_srp::exec_core(THD *thd, uint *nextp)
+{
+  Settable_routine_parameter *srp=
+    dynamic_cast<Settable_routine_parameter*>(m_target);
+  Sp_eval_expr_state state(thd); // TODO add a comment why
+  thd->sp_fix_func_item(&m_target);
+  thd->sp_fix_func_item(&m_value);
+  /*
+    For now we can get to here only with a ROW target and a ROW-type spvar
+    source. This may change in the future.
+  */
+  DBUG_ASSERT(dynamic_cast<Item_row*>(m_target));
+  DBUG_ASSERT(dynamic_cast<Item_splocal*>(m_value));
+  DBUG_ASSERT(m_value->type_handler() == &type_handler_row);
+  if (m_target->cols() != m_value->cols())
+  {
+    my_error(ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION, MYF(0),
+             RowTypeBuffer(m_value->cols()).ptr(),
+             RowTypeBuffer(m_target->cols()).ptr(), "FETCH..INTO");
+    return true;
+  }
+
+  // TODO: check assignability
+  int res= srp->set_value(thd, thd->spcont, &m_value);
+  *nextp = m_ip+1;
+  return res;
+}
+
+
+void
+sp_instr_set_srp::print(String *str)
+{
+  // E.g. set (scalar_var1@1, scalar_var2@2) rowvar@3
+  str->append("set ", 4);
+  m_target->print(str, QT_ORDINARY);
+  str->append(' ');
+  m_value->print(str, enum_query_type(QT_ORDINARY |
+                                      QT_ITEM_ORIGINAL_FUNC_NULLIF));
+}
+
+
+/*
   sp_instr_set_field class functions
 */
 
@@ -2100,7 +2156,7 @@ int
 sp_instr_cpush::exec_core(THD *thd, uint *nextp)
 {
   sp_cursor *c = thd->spcont->get_cursor(m_cursor);
-  return c ? c->open(thd) : true;
+  return c ? c->open(thd, Lex_ident_column(), nullptr) : true;
 }
 
 void
@@ -2410,7 +2466,7 @@ sp_instr_cursor_copy_struct::exec_core(THD *thd, uint *nextp)
   {
     sp_cursor tmp(thd, true);
     // Open the cursor without copying data
-    if (!(ret= tmp.open(thd)))
+    if (!(ret= tmp.open(thd, Lex_ident_column(), nullptr)))
     {
       Row_definition_list defs;
       /*
@@ -2487,6 +2543,17 @@ int sp_instr_copen_by_ref::exec_core(THD *thd, uint *nextp)
 {
   DBUG_ENTER("sp_instr_copen_by_ref::exec_core");
   sp_cursor *cursor;
+
+  Virtual_tmp_table *vtable= nullptr;
+  if (m_return_type_var)
+  {
+    Item_field *tmp= thd->spcont->get_variable(m_return_type_var->offset);
+    Field_row *field= dynamic_cast<Field_row*>(tmp->field);
+    DBUG_ASSERT(field);
+    DBUG_ASSERT(field->virtual_tmp_table());
+    vtable= field->virtual_tmp_table();
+  }
+
   if (thd->open_cursors_counter() < thd->variables.max_open_cursors)
   {
     // The limit allows to open new cursors
@@ -2507,7 +2574,8 @@ int sp_instr_copen_by_ref::exec_core(THD *thd, uint *nextp)
     // TODO: check with DmitryS if hiding ROOT_FLAG_READ_ONLY is OK:
     auto flags_backup= thd->lex->query_arena()->mem_root->flags;
     thd->lex->query_arena()->mem_root->flags&= ~ROOT_FLAG_READ_ONLY;
-    int rc= cursor->open(thd);
+
+    int rc= cursor->open(thd, m_cursor_name, vtable);
     thd->lex->query_arena()->mem_root->flags= flags_backup;
     DBUG_RETURN(rc);
   }
@@ -2531,7 +2599,8 @@ int sp_instr_copen_by_ref::exec_core(THD *thd, uint *nextp)
     DBUG_RETURN(-1);
   }
   cursor->reset_for_reopen(thd);
-  DBUG_RETURN(cursor->open(thd, false/*don't check max_open_cursors*/));
+  DBUG_RETURN(cursor->open(thd, m_cursor_name, vtable,
+                           false/*don't check max_open_cursors*/));
 }
 
 
@@ -2542,6 +2611,13 @@ sp_instr_copen_by_ref::print(String *str)
   print_cmd_and_array_element(str, instr,
                               m_deref_rcontext_handler->get_name_prefix()[0],
                               cursor_str, m_offset);
+  if (m_return_type_var)
+  {
+    str->append(" return "_LEX_CSTRING);
+    str->append(m_return_type_var->name);
+    str->append('@');
+    str->append_ulonglong(m_return_type_var->offset);
+  }
 }
 
 

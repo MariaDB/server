@@ -248,6 +248,7 @@ public:
                                Item **args, uint arg_count);
   sp_rcontext *rcontext_create(THD *thd, Field *retval,
                                Row_definition_list *list,
+                               const List<Parent_child_uint> *parent_child_list,
                                bool switch_security_ctx);
   bool eq_routine_spec(const sp_head *) const;
 private:

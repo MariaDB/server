@@ -1653,10 +1653,13 @@ bool sp_head::check_execute_access(THD *thd) const
 
 sp_rcontext *sp_head::rcontext_create(THD *thd, Field *ret_value,
                                       Row_definition_list *defs,
+                                      const List<Parent_child_uint>
+                                        *vars_parent_child_list,
                                       bool switch_security_ctx)
 {
   if (!(m_flags & HAS_COLUMN_TYPE_REFS))
-    return sp_rcontext::create(thd, this, m_pcont, ret_value, *defs);
+    return sp_rcontext::create(thd, this, m_pcont, ret_value,
+                               *defs, *vars_parent_child_list);
   sp_rcontext *res= NULL;
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
   Security_context *save_security_ctx;
@@ -1665,7 +1668,8 @@ sp_rcontext *sp_head::rcontext_create(THD *thd, Field *ret_value,
     return NULL;
 #endif
   if (!defs->resolve_type_refs(thd))
-    res= sp_rcontext::create(thd, this, m_pcont, ret_value, *defs);
+    res= sp_rcontext::create(thd, this, m_pcont, ret_value,
+                             *defs, *vars_parent_child_list);
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
   if (switch_security_ctx)
     m_security_ctx.restore_security_context(thd, save_security_ctx);
@@ -1679,10 +1683,11 @@ sp_rcontext *sp_head::rcontext_create(THD *thd, Field *ret_value,
 {
   DBUG_ASSERT(args);
   Row_definition_list defs;
-  m_pcont->retrieve_field_definitions(&defs);
+  List<Parent_child_uint> vars_parent_child_list;
+  m_pcont->retrieve_field_definitions(thd, &defs, &vars_parent_child_list);
   if (defs.adjust_formal_params_to_actual_params(thd, args))
     return NULL;
-  return rcontext_create(thd, ret_value, &defs, true);
+  return rcontext_create(thd, ret_value, &defs, &vars_parent_child_list, true);
 }
 
 
@@ -1690,10 +1695,11 @@ sp_rcontext *sp_head::rcontext_create(THD *thd, Field *ret_value,
                                       Item **args, uint arg_count)
 {
   Row_definition_list defs;
-  m_pcont->retrieve_field_definitions(&defs);
+  List<Parent_child_uint> vars_parent_child_list;
+  m_pcont->retrieve_field_definitions(thd, &defs, &vars_parent_child_list);
   if (defs.adjust_formal_params_to_actual_params(thd, args, arg_count))
     return NULL;
-  return rcontext_create(thd, ret_value, &defs, true);
+  return rcontext_create(thd, ret_value, &defs, &vars_parent_child_list, true);
 }
 
 
@@ -1795,8 +1801,10 @@ sp_head::execute_trigger(THD *thd,
   thd->set_n_backup_active_arena(&call_arena, &backup_arena);
 
   Row_definition_list defs;
-  m_pcont->retrieve_field_definitions(&defs);
-  if (!(nctx= rcontext_create(thd, NULL, &defs, false)))
+  List<Parent_child_uint> vars_parent_child_list;
+  m_pcont->retrieve_field_definitions(thd, &defs, &vars_parent_child_list);
+  if (!(nctx= rcontext_create(thd, NULL,
+                              &defs, &vars_parent_child_list, false)))
   {
     err_status= TRUE;
     goto err_with_cleanup;
@@ -3917,7 +3925,8 @@ bool sp_head::add_for_loop_open_cursor(THD *thd, sp_pcontext *spcont,
     return true;
 
   const sp_rcontext_addr raddr(&sp_rcontext_handler_local, index->offset);
-  const List<sp_fetch_target> target_list(sp_fetch_target(index->name, raddr),
+  const List<sp_fetch_target> target_list(sp_fetch_target(index->name,
+                                                          spcont, raddr),
                                           thd->mem_root);
   if (!target_list.elements)
     return true; // EOM

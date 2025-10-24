@@ -1,0 +1,577 @@
+SET sql_mode=ORACLE;
+
+--echo #
+--echo # MDEV-10152 Add support for TYPE .. IS REF CURSOR
+--echo #
+
+DELIMITER $$;
+CREATE PACKAGE pkg1 AS
+  PROCEDURE p1;
+END;
+$$
+CREATE PACKAGE BODY pkg1 AS
+  TYPE rec0_t IS RECORD(a INT, b VARCHAR(10));
+  TYPE cur0_t IS REF CURSOR RETURN rec0_t;
+  PROCEDURE p20 (c0 cur0_t) AS
+    r0 rec0_t;
+  BEGIN
+    FETCH c0 INTO r0;
+    SELECT r0.a, r0.b;
+  END;
+  PROCEDURE p1 AS
+    c0 cur0_t;
+  BEGIN
+    OPEN c0 FOR SELECT 1 AS a, 'b1' AS b;
+    CALL p20(c0);
+    CLOSE c0;
+  END;
+END;
+$$
+DELIMITER ;$$
+
+CALL pkg1.p1;
+DROP PACKAGE pkg1;
+
+
+
+DELIMITER $$;
+CREATE PACKAGE pkg1 AS
+  PROCEDURE p1;
+END;
+$$
+CREATE OR REPLACE PACKAGE BODY pkg1 AS
+  TYPE rec0_t IS RECORD (a INT,b VARCHAR(10));
+  TYPE cur0_t IS REF CURSOR RETURN rec0_t;
+  PROCEDURE p20(c0 cur0_t) AS
+    r0 rec0_t;
+  BEGIN
+    BEGIN
+      BEGIN
+        BEGIN
+          FETCH c0 INTO r0;
+        END;
+      END;
+    END;
+    SELECT r0.a, r0.b;
+  END;
+  PROCEDURE p1 AS
+    c0 cur0_t;
+  BEGIN
+    OPEN c0 FOR SELECT 1 AS a, 'b1' AS b;
+    CALL p20(c0);
+    CLOSE c0;
+  END;
+END;
+$$
+DELIMITER ;$$
+CALL pkg1.p1;
+DROP PACKAGE pkg1;
+
+
+DELIMITER $$;
+CREATE PACKAGE pkg1 AS
+  PROCEDURE p1;
+END;
+$$
+CREATE OR REPLACE PACKAGE BODY pkg1 AS
+  TYPE rec0_t IS RECORD (a INT,b VARCHAR(10));
+  TYPE cur0_t IS REF CURSOR RETURN rec0_t;
+  PROCEDURE p20(c0 cur0_t, c1 cur0_t) AS
+    r0 rec0_t;
+  BEGIN
+    BEGIN
+      c0:= c1;
+      BEGIN
+        BEGIN
+          FETCH c0 INTO r0;
+        END;
+      END;
+    END;
+    SELECT r0.a, r0.b;
+  END;
+  PROCEDURE p1 AS
+    c1 cur0_t;
+  BEGIN
+    OPEN c1 FOR SELECT 1 AS a, 'b1' AS b;
+    CALL p20(NULL, c1);
+    CLOSE c1;
+  END;
+END;
+$$
+DELIMITER ;$$
+CALL pkg1.p1;
+DROP PACKAGE pkg1;
+
+
+# Assigning from scalar data types raises an error
+
+DELIMITER $$;
+CREATE PACKAGE pkg1 AS
+  PROCEDURE p1;
+END;
+$$
+CREATE PACKAGE BODY pkg1 AS
+  TYPE rec0_t IS RECORD (a INT,b VARCHAR(10));
+  TYPE cur0_t IS REF CURSOR RETURN rec0_t;
+  PROCEDURE p20(c0 cur0_t) AS
+  BEGIN
+    NULL;
+  END;
+  PROCEDURE p1 AS
+  BEGIN
+    CALL p20(10);
+  END;
+END;
+$$
+DELIMITER ;$$
+--error ER_CANNOT_CAST_ON_IDENT1_ASSIGNMENT_FOR_OPERATION
+CALL pkg1.p1;
+DROP PACKAGE pkg1;
+
+
+DELIMITER $$;
+CREATE PACKAGE pkg1 AS
+  PROCEDURE p1;
+END;
+$$
+CREATE PACKAGE BODY pkg1 AS
+  TYPE rec0_t IS RECORD (a INT,b VARCHAR(10));
+  TYPE cur0_t IS REF CURSOR RETURN rec0_t;
+  PROCEDURE p20(i0 INT) AS
+    c0 cur0_t;
+  BEGIN
+    c0:= i0;
+  END;
+  PROCEDURE p1 AS
+  BEGIN
+    CALL p20(10);
+  END;
+END;
+$$
+DELIMITER ;$$
+--error ER_CANNOT_CAST_ON_IDENT1_ASSIGNMENT_FOR_OPERATION
+CALL pkg1.p1;
+DROP PACKAGE pkg1;
+
+
+# Something meaningless: setting a REF CURSOR from a ROW
+
+DELIMITER $$;
+CREATE PACKAGE pkg1 AS
+  PROCEDURE p1;
+END;
+$$
+CREATE PACKAGE BODY pkg1 AS
+  TYPE rec0_t IS RECORD (a INT,b VARCHAR(10));
+  TYPE cur0_t IS REF CURSOR RETURN rec0_t;
+  PROCEDURE p20(c0 cur0_t) AS
+  BEGIN
+    NULL;
+  END;
+  PROCEDURE p1 AS
+  BEGIN
+    CALL p20(ROW(1,'b1'));
+  END;
+END;
+$$
+DELIMITER ;$$
+--error ER_CANNOT_CAST_ON_IDENT1_ASSIGNMENT_FOR_OPERATION
+CALL pkg1.p1;
+DROP PACKAGE pkg1;
+
+
+DELIMITER $$;
+CREATE PACKAGE pkg1 AS
+  PROCEDURE p1;
+END;
+$$
+CREATE PACKAGE BODY pkg1 AS
+  TYPE rec0_t IS RECORD (a INT,b VARCHAR(10));
+  TYPE cur0_t IS REF CURSOR RETURN rec0_t;
+  PROCEDURE p20(r0 ROW(a INT,b VARCHAR(10))) AS
+    c0 cur0_t;
+  BEGIN
+    c0:=r0;
+    NULL;
+  END;
+  PROCEDURE p1 AS
+  BEGIN
+    CALL p20(ROW(1,'b1'));
+  END;
+END;
+$$
+DELIMITER ;$$
+--error ER_CANNOT_CAST_ON_IDENT1_ASSIGNMENT_FOR_OPERATION
+CALL pkg1.p1;
+DROP PACKAGE pkg1;
+
+
+
+# Setting a strong cursor from a weak cursor of a different row size
+
+DELIMITER $$;
+CREATE PACKAGE pkg1 AS
+  PROCEDURE p1;
+END;
+$$
+CREATE PACKAGE BODY pkg1 AS
+  TYPE rec0_t IS RECORD (a INT,b VARCHAR(10));
+  TYPE cur0_t IS REF CURSOR RETURN rec0_t;
+  TYPE cur1_t IS REF CURSOR;
+  PROCEDURE p20(p0 cur0_t) AS
+  BEGIN
+    NULL;
+  END;
+  PROCEDURE p1 AS
+    c1 cur1_t;
+  BEGIN
+    OPEN c1 FOR SELECT 1 AS a, 'b1' AS b, 1 AS c;
+    CALL p20(c1);
+    CLOSE c1;
+  END;
+END;
+$$
+DELIMITER ;$$
+--error ER_CANNOT_CAST_ON_IDENT1_ASSIGNMENT_FOR_OPERATION
+CALL pkg1.p1;
+DROP PACKAGE pkg1;
+
+
+DELIMITER $$;
+CREATE PACKAGE pkg1 AS
+  PROCEDURE p1;
+END;
+$$
+CREATE PACKAGE BODY pkg1 AS
+  TYPE rec0_t IS RECORD (a INT,b VARCHAR(10));
+  TYPE cur0_t IS REF CURSOR RETURN rec0_t;
+  TYPE cur1_t IS REF CURSOR;
+  PROCEDURE p20(p0 cur1_t) AS
+    c0 cur0_t;
+  BEGIN
+    c0:= p0;
+  END;
+  PROCEDURE p1 AS
+    c1 cur1_t;
+  BEGIN
+    OPEN c1 FOR SELECT 1 AS a, 'b1' AS b, 1 AS c;
+    CALL p20(c1);
+    CLOSE c1;
+  END;
+END;
+$$
+DELIMITER ;$$
+--error ER_CANNOT_CAST_ON_IDENT1_ASSIGNMENT_FOR_OPERATION
+CALL pkg1.p1;
+DROP PACKAGE pkg1;
+
+
+# Setting a strong cursor from a weak cursor
+# with an unassignable member (INET6 -> TIME)
+
+DELIMITER $$;
+CREATE PACKAGE pkg1 AS
+  PROCEDURE p1;
+END;
+$$
+CREATE PACKAGE BODY pkg1 AS
+  TYPE rec0_t IS RECORD (a INT,b TIME);
+  TYPE cur0_t IS REF CURSOR RETURN rec0_t;
+  TYPE cur1_t IS REF CURSOR;
+  PROCEDURE p20(p0 cur0_t) AS
+  BEGIN
+    NULL;
+  END;
+  PROCEDURE p1 AS
+    c1 cur1_t;
+  BEGIN
+    OPEN c1 FOR SELECT 1 AS a, CAST('::' AS INET6);
+    CALL p20(c1);
+    CLOSE c1;
+  END;
+END;
+$$
+DELIMITER ;$$
+--error ER_CANNOT_CAST_ON_IDENT2_ASSIGNMENT_FOR_OPERATION
+CALL pkg1.p1;
+DROP PACKAGE pkg1;
+
+DELIMITER $$;
+CREATE PACKAGE pkg1 AS
+  PROCEDURE p1;
+END;
+$$
+CREATE PACKAGE BODY pkg1 AS
+  TYPE rec0_t IS RECORD (a INT,b TIME);
+  TYPE cur0_t IS REF CURSOR RETURN rec0_t;
+  TYPE cur1_t IS REF CURSOR;
+  PROCEDURE p20(p0 cur1_t) AS
+    c0 cur0_t;
+  BEGIN
+    c0:=p0;
+  END;
+  PROCEDURE p1 AS
+    c1 cur1_t;
+  BEGIN
+    OPEN c1 FOR SELECT 1 AS a, CAST('::' AS INET6);
+    CALL p20(c1);
+    CLOSE c1;
+  END;
+END;
+$$
+DELIMITER ;$$
+--error ER_CANNOT_CAST_ON_IDENT2_ASSIGNMENT_FOR_OPERATION
+CALL pkg1.p1;
+DROP PACKAGE pkg1;
+
+
+# Setting a strong cursor from a compatible weak cursor
+
+DELIMITER $$;
+CREATE PACKAGE pkg1 AS
+  PROCEDURE p1;
+END;
+$$
+CREATE PACKAGE BODY pkg1 AS
+  TYPE rec0_t IS RECORD (a INT,b TIME);
+  TYPE cur0_t IS REF CURSOR RETURN rec0_t;
+  TYPE cur1_t IS REF CURSOR;
+  PROCEDURE p20(p0 cur0_t) AS
+    r0 rec0_t;
+  BEGIN
+    FETCH p0 INTO r0;
+    SELECT r0.a, r0.b;
+  END;
+  PROCEDURE p1 AS
+    c1 cur1_t;
+  BEGIN
+    OPEN c1 FOR SELECT 1 AS a, TIME'10:20:30' AS b;
+    CALL p20(c1);
+    CLOSE c1;
+  END;
+END;
+$$
+DELIMITER ;$$
+CALL pkg1.p1;
+DROP PACKAGE pkg1;
+
+DELIMITER $$;
+CREATE PACKAGE pkg1 AS
+  PROCEDURE p1;
+END;
+$$
+CREATE PACKAGE BODY pkg1 AS
+  TYPE rec0_t IS RECORD (a INT,b TIME);
+  TYPE cur0_t IS REF CURSOR RETURN rec0_t;
+  TYPE cur1_t IS REF CURSOR;
+  PROCEDURE p20(p0 cur1_t) AS
+    c0 cur0_t;
+    r0 rec0_t;
+  BEGIN
+    c0:= p0;
+    FETCH c0 INTO r0;
+    SELECT r0.a, r0.b;
+  END;
+  PROCEDURE p1 AS
+    c1 cur1_t;
+  BEGIN
+    OPEN c1 FOR SELECT 1 AS a, TIME'10:20:30' AS b;
+    CALL p20(c1);
+    CLOSE c1;
+  END;
+END;
+$$
+DELIMITER ;$$
+CALL pkg1.p1;
+DROP PACKAGE pkg1;
+
+
+
+# Setting a strong cursor from another strong cursor of a different row size
+
+
+DELIMITER $$;
+CREATE PACKAGE pkg1 AS
+  PROCEDURE p1;
+END;
+$$
+CREATE PACKAGE BODY pkg1 AS
+  TYPE rec0_t IS RECORD (a INT,b TIME);
+  TYPE rec1_t IS RECORD (a INT,b TIME,c INT);
+  TYPE cur0_t IS REF CURSOR RETURN rec0_t;
+  TYPE cur1_t IS REF CURSOR RETURN rec1_t;
+  PROCEDURE p20(p0 cur0_t) AS
+  BEGIN
+    NULL;
+  END;
+  PROCEDURE p1 AS
+    c1 cur1_t;
+  BEGIN
+    OPEN c1 FOR SELECT 1 AS a, TIME'10:20:30' AS b, 1 AS c;
+    CALL p20(c1);
+    CLOSE c1;
+  END;
+END;
+$$
+DELIMITER ;$$
+--error ER_CANNOT_CAST_ON_IDENT1_ASSIGNMENT_FOR_OPERATION
+CALL pkg1.p1;
+DROP PACKAGE pkg1;
+
+
+DELIMITER $$;
+CREATE PACKAGE pkg1 AS
+  PROCEDURE p1;
+END;
+$$
+CREATE PACKAGE BODY pkg1 AS
+  TYPE rec0_t IS RECORD (a INT,b TIME);
+  TYPE rec1_t IS RECORD (a INT,b TIME,c INT);
+  TYPE cur0_t IS REF CURSOR RETURN rec0_t;
+  TYPE cur1_t IS REF CURSOR RETURN rec1_t;
+  PROCEDURE p20(p0 cur1_t) AS
+    c0 cur0_t;
+  BEGIN
+    c0:=p0;
+  END;
+  PROCEDURE p1 AS
+    c1 cur1_t;
+  BEGIN
+    OPEN c1 FOR SELECT 1 AS a, TIME'10:20:30' AS b, 1 AS c;
+    CALL p20(c1);
+    CLOSE c1;
+  END;
+END;
+$$
+DELIMITER ;$$
+--error ER_CANNOT_CAST_ON_IDENT1_ASSIGNMENT_FOR_OPERATION
+CALL pkg1.p1;
+DROP PACKAGE pkg1;
+
+
+# Setting a strong cursor from another strong cursor
+# with an unassignable member (TIME -> INET6)
+# using table%ROWTYPE
+
+CREATE TABLE t1 (a INT, b TIME);
+DELIMITER $$;
+CREATE PACKAGE pkg1 AS
+  PROCEDURE p1;
+END;
+$$
+CREATE PACKAGE BODY pkg1 AS
+  TYPE rec0_t IS RECORD (a INT,b INET6);
+  TYPE cur0_t IS REF CURSOR RETURN rec0_t;
+  TYPE cur1_t IS REF CURSOR RETURN t1%ROWTYPE;
+  PROCEDURE p20(p0 cur0_t) AS
+  BEGIN
+    NULL;
+  END;
+  PROCEDURE p1 AS
+    c1 cur1_t;
+  BEGIN
+    OPEN c1 FOR SELECT 1 AS a, TIME'10:20:30' AS b;
+    CALL p20(c1);
+    CLOSE c1;
+  END;
+END;
+$$
+DELIMITER ;$$
+--error ER_CANNOT_CAST_ON_IDENT2_ASSIGNMENT_FOR_OPERATION
+CALL pkg1.p1;
+DROP PACKAGE pkg1;
+DROP TABLE t1;
+
+
+CREATE TABLE t1 (a INT, b TIME);
+DELIMITER $$;
+CREATE PACKAGE pkg1 AS
+  PROCEDURE p1;
+END;
+$$
+CREATE PACKAGE BODY pkg1 AS
+  TYPE rec0_t IS RECORD (a INT,b INET6);
+  TYPE cur0_t IS REF CURSOR RETURN rec0_t;
+  TYPE cur1_t IS REF CURSOR RETURN t1%ROWTYPE;
+  PROCEDURE p20(p0 cur1_t) AS
+    c0 cur0_t;
+  BEGIN
+    c0:= p0;
+  END;
+  PROCEDURE p1 AS
+    c1 cur1_t;
+  BEGIN
+    OPEN c1 FOR SELECT 1 AS a, TIME'10:20:30' AS b;
+    CALL p20(c1);
+    CLOSE c1;
+  END;
+END;
+$$
+DELIMITER ;$$
+--error ER_CANNOT_CAST_ON_IDENT2_ASSIGNMENT_FOR_OPERATION
+CALL pkg1.p1;
+DROP PACKAGE pkg1;
+DROP TABLE t1;
+
+
+# Setting a strong cursor from a compatible strong cursor
+
+DELIMITER $$;
+CREATE PACKAGE pkg1 AS
+  PROCEDURE p1;
+END;
+$$
+CREATE PACKAGE BODY pkg1 AS
+  TYPE rec0_t IS RECORD (a INT,b TIME);
+  TYPE cur0_t IS REF CURSOR RETURN rec0_t;
+  TYPE rec1_t IS RECORD (a INT,b VARCHAR(10));
+  TYPE cur1_t IS REF CURSOR RETURN rec1_t;
+  PROCEDURE p20(p0 cur0_t) AS
+    r0 rec0_t;
+  BEGIN
+    FETCH p0 INTO r0;
+    SELECT r0.a, r0.b;
+  END;
+  PROCEDURE p1 AS
+    c1 cur1_t;
+  BEGIN
+    OPEN c1 FOR SELECT 1 AS a, '10:20:30' AS b;
+    CALL p20(c1);
+    CLOSE c1;
+  END;
+END;
+$$
+DELIMITER ;$$
+CALL pkg1.p1;
+DROP PACKAGE pkg1;
+
+DELIMITER $$;
+CREATE PACKAGE pkg1 AS
+  PROCEDURE p1;
+END;
+$$
+CREATE PACKAGE BODY pkg1 AS
+  TYPE rec0_t IS RECORD (a INT,b TIME);
+  TYPE cur0_t IS REF CURSOR RETURN rec0_t;
+  TYPE rec1_t IS RECORD (a INT,b VARCHAR(10));
+  TYPE cur1_t IS REF CURSOR RETURN rec1_t;
+  PROCEDURE p20(p0 cur1_t) AS
+    c0 cur0_t;
+    r0 rec0_t;
+  BEGIN
+    c0:= p0;
+    FETCH c0 INTO r0;
+    SELECT r0.a, r0.b;
+  END;
+  PROCEDURE p1 AS
+    c1 cur1_t;
+  BEGIN
+    OPEN c1 FOR SELECT 1 AS a, '10:20:30' AS b;
+    CALL p20(c1);
+    CLOSE c1;
+  END;
+END;
+$$
+DELIMITER ;$$
+CALL pkg1.p1;
+DROP PACKAGE pkg1;

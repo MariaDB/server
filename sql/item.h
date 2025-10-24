@@ -3342,6 +3342,10 @@ public:
   Type type() const override { return m_type; }
   const Type_handler *type_handler() const override
   { return Type_handler_hybrid_field_type::type_handler(); }
+  const Type_extra_attributes type_extra_attributes() const override
+  {
+    return this_item()->type_extra_attributes();
+  }
   uint cols() const override { return this_item()->cols(); }
   Item* element_index(uint i) override
   { return this_item()->element_index(i); }

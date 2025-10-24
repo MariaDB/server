@@ -1,0 +1,165 @@
+SET @debug_ref_cursor=TRUE;
+SET sql_mode=ORACLE;
+#
+# MDEV-10152 Add support for TYPE .. IS REF CURSOR
+#
+CREATE PROCEDURE p0 AS
+BEGIN
+IF @debug_ref_cursor IS TRUE
+THEN
+EXECUTE IMMEDIATE 'SHOW PROCEDURE CODE p1';
+END IF;
+CALL p1;
+END;
+$$
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1);
+CREATE PROCEDURE p1 IS
+CURSOR cursor_sample IS SELECT * FROM t1;
+/*empty*/
+TYPE cur_t IS REF CURSOR RETURN cursor_sample%ROWTYPE;
+c0 cur_t;
+v0a INT;
+BEGIN
+OPEN c0 FOR SELECT * FROM t1;
+FETCH c0 INTO v0a;
+CLOSE c0;
+SELECT v0a;
+END;
+$$
+CALL p0;
+Pos	Instruction
+0	set c0@0 NULL
+1	cursor_copy_struct cursor_sample _child_0@1
+2	set _child_0@1 NULL
+3	set v0a@2 NULL
+4	cpush cursor_sample@0
+5	copen STMT.cursor[c0@0] return _child_0@1
+6	cfetch STMT.cursor[c0@0] _child_0@1
+7	set (v0a@2) _child_0@1
+8	cclose STMT.cursor[c0@0]
+9	stmt 0 "SELECT v0a"
+10	cpop 1
+11	destruct sys_refcursor c0@0
+v0a
+1
+DROP PROCEDURE p1;
+DROP TABLE t1;
+CREATE TABLE t1 (a INT, b VARCHAR(10));
+INSERT INTO t1 VALUES (1, 'b1');
+CREATE PROCEDURE p1 IS
+CURSOR cursor_sample IS SELECT * FROM t1;
+/*empty*/
+TYPE cur_t IS REF CURSOR RETURN cursor_sample%ROWTYPE;
+c0 cur_t;
+v0a INT;
+v0b VARCHAR(10);
+BEGIN
+OPEN c0 FOR SELECT * FROM t1;
+FETCH c0 INTO v0a, v0b;
+CLOSE c0;
+SELECT v0a, v0b;
+END;
+$$
+CALL p0;
+Pos	Instruction
+0	set c0@0 NULL
+1	cursor_copy_struct cursor_sample _child_0@1
+2	set _child_0@1 NULL
+3	set v0a@2 NULL
+4	set v0b@3 NULL
+5	cpush cursor_sample@0
+6	copen STMT.cursor[c0@0] return _child_0@1
+7	cfetch STMT.cursor[c0@0] _child_0@1
+8	set (v0a@2,v0b@3) _child_0@1
+9	cclose STMT.cursor[c0@0]
+10	stmt 0 "SELECT v0a, v0b"
+11	cpop 1
+12	destruct sys_refcursor c0@0
+v0a	v0b
+1	b1
+DROP PROCEDURE p1;
+DROP TABLE t1;
+DROP PROCEDURE p0;
+CREATE PROCEDURE p0 AS
+BEGIN
+IF @debug_ref_cursor IS TRUE
+THEN
+EXECUTE IMMEDIATE 'SHOW PROCEDURE CODE p1';
+END IF;
+CALL p1;
+END;
+$$
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1);
+CREATE PROCEDURE p1 IS
+CURSOR cursor_sample IS SELECT * FROM t1;
+var_sample cursor_sample%ROWTYPE;
+TYPE cur_t IS REF CURSOR RETURN var_sample%TYPE;
+c0 cur_t;
+v0a INT;
+BEGIN
+OPEN c0 FOR SELECT * FROM t1;
+FETCH c0 INTO v0a;
+CLOSE c0;
+SELECT v0a;
+END;
+$$
+CALL p0;
+Pos	Instruction
+0	cursor_copy_struct cursor_sample var_sample@0
+1	set var_sample@0 NULL
+2	set c0@1 NULL
+3	cursor_copy_struct cursor_sample _child_1@2
+4	set _child_1@2 NULL
+5	set v0a@3 NULL
+6	cpush cursor_sample@0
+7	copen STMT.cursor[c0@1] return _child_1@2
+8	cfetch STMT.cursor[c0@1] _child_1@2
+9	set (v0a@3) _child_1@2
+10	cclose STMT.cursor[c0@1]
+11	stmt 0 "SELECT v0a"
+12	cpop 1
+13	destruct sys_refcursor c0@1
+v0a
+1
+DROP PROCEDURE p1;
+DROP TABLE t1;
+CREATE TABLE t1 (a INT, b VARCHAR(10));
+INSERT INTO t1 VALUES (1, 'b1');
+CREATE PROCEDURE p1 IS
+CURSOR cursor_sample IS SELECT * FROM t1;
+var_sample cursor_sample%ROWTYPE;
+TYPE cur_t IS REF CURSOR RETURN var_sample%TYPE;
+c0 cur_t;
+v0a INT;
+v0b VARCHAR(10);
+BEGIN
+OPEN c0 FOR SELECT * FROM t1;
+FETCH c0 INTO v0a, v0b;
+CLOSE c0;
+SELECT v0a, v0b;
+END;
+$$
+CALL p0;
+Pos	Instruction
+0	cursor_copy_struct cursor_sample var_sample@0
+1	set var_sample@0 NULL
+2	set c0@1 NULL
+3	cursor_copy_struct cursor_sample _child_1@2
+4	set _child_1@2 NULL
+5	set v0a@3 NULL
+6	set v0b@4 NULL
+7	cpush cursor_sample@0
+8	copen STMT.cursor[c0@1] return _child_1@2
+9	cfetch STMT.cursor[c0@1] _child_1@2
+10	set (v0a@3,v0b@4) _child_1@2
+11	cclose STMT.cursor[c0@1]
+12	stmt 0 "SELECT v0a, v0b"
+13	cpop 1
+14	destruct sys_refcursor c0@1
+v0a	v0b
+1	b1
+DROP PROCEDURE p1;
+DROP TABLE t1;
+DROP PROCEDURE p0;

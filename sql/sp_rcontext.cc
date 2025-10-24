@@ -157,7 +157,9 @@ sp_rcontext *sp_rcontext::create(THD *thd,
                                  sp_head *owner,
                                  const sp_pcontext *root_parsing_ctx,
                                  Field *return_value_fld,
-                                 Row_definition_list &field_def_lst)
+                                 Row_definition_list &field_def_lst,
+                                 const List<Parent_child_uint>
+                                   &vars_parent_child_lst)
 {
   SELECT_LEX *save_current_select;
   sp_rcontext *ctx= new (thd->mem_root) sp_rcontext(owner,
@@ -178,6 +180,9 @@ sp_rcontext *sp_rcontext::create(THD *thd,
     delete ctx;
     ctx= 0;
   }
+  if (ctx)
+    ctx->m_var_table->set_parent_child_relations(vars_parent_child_lst,
+                                                 return_value_fld);
 
   thd->lex->current_select= save_current_select;
   return ctx;
@@ -842,7 +847,10 @@ bool sp_rcontext::set_case_expr(THD *thd, int case_expr_id,
    0 in case of success, -1 otherwise
 */
 
-int sp_cursor::open(THD *thd, bool check_open_cursor_counter)
+int sp_cursor::open(THD *thd,
+                    const Lex_ident_column &cursor_name,
+                    const Virtual_tmp_table *expected_assignable_structure,
+                    bool check_open_cursor_counter)
 {
   if (server_side_cursor)
   {
@@ -860,7 +868,8 @@ int sp_cursor::open(THD *thd, bool check_open_cursor_counter)
     return -1;
   }
 
-  if (mysql_open_cursor(thd, &result, &server_side_cursor))
+  if (mysql_open_cursor(thd, &result, &server_side_cursor,
+                        cursor_name, expected_assignable_structure))
     return -1;
   thd->open_cursors_counter_increment();
   return 0;

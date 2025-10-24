@@ -51,6 +51,8 @@ public:
   /// array indexing in runtime.
   uint offset;
 
+  uint child_offset;
+
   /// Default value of the SP-variable (if any).
   Item *default_value;
 
@@ -67,6 +69,7 @@ public:
     name(*name_arg),
     mode(MODE_IN),
     offset(offset_arg),
+    child_offset(0),
     default_value(NULL)
   { }
   /*
@@ -98,10 +101,14 @@ class sp_fetch_target: public Sql_alloc,
 {
 public:
   LEX_CSTRING name;
+  sp_pcontext *m_pcont;
 
-  sp_fetch_target(const LEX_CSTRING &name_arg, const sp_rcontext_addr &addr)
+  sp_fetch_target(const LEX_CSTRING &name_arg,
+                  sp_pcontext *pcont,
+                  const sp_rcontext_addr &addr)
    :sp_rcontext_addr(addr),
-    name(name_arg)
+    name(name_arg),
+    m_pcont(pcont)
   { }
 };
 
@@ -505,11 +512,22 @@ public:
   /// @return instance of newly added SP-variable.
   sp_variable *add_variable(THD *thd, const LEX_CSTRING *name);
 
+  /// Add a child SP variable, link it to its parent
+  sp_variable *add_child_variable(THD *thd, sp_variable *parent);
+
+  /// Add a parent-child relationsip
+  bool add_vars_parent_child(const Parent_child_uint &pc)
+  {
+    return m_vars_parent_child.append(pc);
+  }
+
   /// Retrieve full type information about SP-variables in this parsing
   /// context and its children.
   ///
   /// @param field_def_lst[out] Container to store type information.
-  void retrieve_field_definitions(List<Spvar_definition> *field_def_lst) const;
+  void retrieve_field_definitions(THD *thd,
+                                  List<Spvar_definition> *field_def_lst,
+                                  List<Parent_child_uint> *par_ch_list) const;
 
   /// Find SP-variable by name.
   ///
@@ -800,6 +818,9 @@ private:
 
   /// SP parameters/variables.
   Dynamic_array<sp_variable *> m_vars;
+
+  /// Relationship between variables
+  Dynamic_array<Parent_child_uint> m_vars_parent_child;
 
   /// Stack of CASE expression ids.
   Dynamic_array<int> m_case_expr_ids;

@@ -1,0 +1,160 @@
+--source include/have_utf8mb4.inc
+SET NAMES utf8mb4;
+SET sql_mode=ORACLE;
+
+--echo #
+--echo # MDEV-10152 Add support for TYPE .. IS REF CURSOR
+--echo #
+
+
+--echo # REF CURSOR cannot be an element of an assoc array
+
+DELIMITER $$;
+--error ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION
+CREATE PROCEDURE p1 AS
+  TYPE rec0_t IS RECORD (a INT, b VARCHAR(32));
+  TYPE cur0_t IS REF CURSOR RETURN rec0_t;
+  TYPE asc0_t IS TABLE OF cur0_t INDEX BY VARCHAR(10);
+BEGIN
+  NULL;
+END;
+$$
+DELIMITER ;$$
+
+--echo # REF CURSOR cannot be a RECORD member
+--echo # therefore cannot be a component of an assoc array element
+
+DELIMITER $$;
+--error ER_UNKNOWN_DATA_TYPE
+CREATE PROCEDURE p1 AS
+  TYPE rec0_t IS RECORD (a INT, b VARCHAR(32));
+  TYPE cur0_t IS REF CURSOR RETURN rec0_t;
+  TYPE rec1_t IS RECORD (a INT, b cur0_t);
+  TYPE asc0_t IS TABLE OF rec1_t INDEX BY VARCHAR(10);
+BEGIN
+  NULL;
+END;
+$$
+DELIMITER ;$$
+
+
+DELIMITER $$;
+CREATE PROCEDURE p1 IS
+  TYPE cur0_t IS REF CURSOR;
+  c0 cur0_t;
+  va INT;
+  vb VARCHAR(32);
+BEGIN
+  OPEN c0 FOR (SELECT 1,'b1' FROM DUAL) UNION (SELECT 2,'b2' FROM DUAL);
+  LOOP
+    FETCH c0 iNTO va, vb;
+    EXIT WHEN c0%NOTFOUND;
+    SELECT va, vb;
+  END LOOP;
+  CLOSE c0;
+END;
+$$
+DELIMITER ;$$
+CALL p1;
+DROP PROCEDURE p1;
+
+
+DELIMITER $$;
+CREATE PROCEDURE p1 IS
+  TYPE rec0_t IS RECORD (a INT, b VARCHAR(10));
+  TYPE cur0_t IS REF CURSOR RETURN rec0_t;
+BEGIN
+  NULL;
+END;
+$$
+DELIMITER ;$$
+CALL p1;
+DROP PROCEDURE p1;
+
+--echo #
+--echo # Cover the deep_copy() call in LEX::sp_add_fetch_cursor().
+--echo # Make sure that every FETCH statement uses
+--echo # Column_definition::create_length_to_internal_length_string()
+--echo # with its own copy of the data type of the temporary fetch variable.
+--echo # I.e. the data type in "TYPE rec_fetch_t..." stays untouched
+--echo #
+
+DELIMITER $$;
+CREATE PROCEDURE p1 AS
+  TYPE rec_return_t IS RECORD(a INT, b VARCHAR(255) CHARACTER SET utf8mb4);
+  TYPE rec_fetch_t IS RECORD(a INT, b TEXT CHARACTER SET utf8mb4);
+  TYPE cur0_t IS REF CURSOR RETURN rec_return_t;
+  c0 cur0_t;
+  v0 rec_fetch_t;
+BEGIN
+  OPEN c0 FOR SELECT 1, REPEAT('я',255); 
+  -- The below statement multiplies mbmaxlen=4 to the parser's length of 255
+  -- characters as given in the VARCHAR(255).
+  -- This gives the internal octet length of 1020 (255 characters at most).
+  FETCH c0 INTO v0;
+  SELECT OCTET_LENGTH(v0.b);
+
+  OPEN c0 FOR SELECT 1, REPEAT('яя',255); 
+  -- The below statement multiplies VARCHAR(255)'s character length of 255
+  -- to mbmaxlen=4 again
+  -- This gives the octet length of 1020 again (255 characters at most).
+  -- Note, it does not multiply 4 to 1020 (evaluated on the previous FETCH)
+  -- Therefore, the below fetch returns a warning, as expected.
+  FETCH c0 INTO v0;
+  SELECT OCTET_LENGTH(v0.b);
+END;
+$$
+DELIMITER ;$$
+CALL p1;
+DROP PROCEDURE p1;
+
+
+
+--echo # Multiple REF CURSOR variables in a single declaration
+
+DELIMITER $$;
+CREATE PROCEDURE p1 AS
+  TYPE rec0_t IS RECORD (a INT, b VARCHAR(255) CHARACTER SET utf8mb4);
+  TYPE rec1_t IS RECORD (a INT, b TEXT CHARACTER SET utf8mb4);
+  TYPE cur0_t IS REF CURSOR RETURN rec0_t;
+  c0, c1, c2, c3 cur0_t;
+  r0, r1, r2, r3 rec1_t;
+BEGIN
+  OPEN c3 FOR SELECT 1, REPEAT('я',255);
+  FETCH c3 INTO r3;
+  CLOSE c3;
+  SELECT OCTET_LENGTH(r3.b);
+
+  OPEN c3 FOR SELECT 1, REPEAT('яя',255);
+  FETCH c3 INTO r3;
+  CLOSE c3;
+  SELECT OCTET_LENGTH(r3.b);
+END;	
+$$
+DELIMITER ;$$
+CALL p1;
+DROP PROCEDURE p1;
+
+
+--echo # Cursor in DEFAULT
+
+DELIMITER $$;
+CREATE PROCEDURE p1 AS
+  TYPE rec0_t IS RECORD (a INT, b VARCHAR(255));
+  TYPE cur0_t IS REF CURSOR RETURN rec0_t;
+  c0 cur0_t;
+BEGIN
+  OPEN c0 FOR SELECT 1, 'b1';
+  DECLARE
+    c1 cur0_t := c0;
+    r0 rec0_t;
+  BEGIN
+    FETCH c1 INTO r0;
+    CLOSE c1;
+    SELECT r0.a, r0.b;
+  END;
+END;	
+$$
+DELIMITER ;$$
+CALL p1;
+DROP PROCEDURE p1;

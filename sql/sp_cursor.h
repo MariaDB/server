@@ -99,7 +99,10 @@ public:
 
   virtual sp_lex_keeper *get_lex_keeper() { return nullptr; }
 
-  int open(THD *thd, bool check_max_open_cursor_counter= true);
+  int open(THD *thd,
+           const Lex_ident_column &cursor_name,
+           const Virtual_tmp_table *expected_assignable_structure,
+           bool check_max_open_cursor_counter= true);
 
   int close(THD *thd);
 
@@ -109,6 +112,10 @@ public:
   int fetch(THD *, List<sp_fetch_target> *vars, bool error_on_no_data);
 
   bool export_structure(THD *thd, Row_definition_list *list);
+
+  bool check_assignability_to(const Virtual_tmp_table *table,
+                              const char *spvar_name,
+                              const char *op) const;
 
   void reset(THD *thd_arg)
   {

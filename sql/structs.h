@@ -1179,4 +1179,17 @@ protected:
 };
 
 
+class Parent_child_uint: public Sql_alloc
+{
+public:
+  uint m_parent;
+  uint m_child;
+  bool m_parent_is_return_field;
+  Parent_child_uint(uint parent, uint child, bool parent_is_return_field)
+   :m_parent(parent),
+    m_child(child),
+    m_parent_is_return_field(parent_is_return_field)
+  { }
+};
+
 #endif /* STRUCTS_INCLUDED */

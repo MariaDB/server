@@ -23189,6 +23189,87 @@ bool Virtual_tmp_table::sp_set_all_fields_from_item(THD *thd, Item *value)
   return false;
 }
 
+
+bool Virtual_tmp_table::check_assignability_from(const List<Item> &items,
+                                                 const char *spvar_name,
+                                                 const char *op) const
+{
+  DBUG_ASSERT(spvar_name);
+  if (s->fields != items.elements)
+  {
+    if (spvar_name) // TODO: if not needed
+      my_error(ER_CANNOT_CAST_ON_IDENT1_ASSIGNMENT_FOR_OPERATION, MYF(0),
+               RowTypeBuffer(items.elements).ptr(),
+               RowTypeBuffer(s->fields).ptr(), spvar_name, op);
+    else
+      my_error(ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION, MYF(0),
+               RowTypeBuffer(items.elements).ptr(),
+               RowTypeBuffer(s->fields).ptr(), op);
+    return true;
+  }
+  List<Item> items2= items;
+  List_iterator<Item> it(items2);
+  Item *item;
+  for (uint i= 0; (item= it++); i++)
+  {
+    // Check assignability of the i'th field
+    Type_handler_hybrid_field_type th(item->type_handler());
+    if (th.aggregate_for_result(field[i]->type_handler()))
+    {
+      if (spvar_name) // TODO: if not needed
+        my_error(ER_CANNOT_CAST_ON_IDENT2_ASSIGNMENT_FOR_OPERATION, MYF(0),
+                 item->type_handler()->name().ptr(),
+                 field[i]->type_handler()->name().ptr(),
+                 spvar_name, field[i]->field_name.str, op);
+      else
+        my_error(ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION, MYF(0),
+                 item->type_handler()->name().ptr(),
+                 field[i]->type_handler()->name().ptr(), op);
+      return true;
+    }
+  }
+  return false;
+}
+
+
+bool Virtual_tmp_table::check_assignability_from(const TABLE &table,
+                                                 const char *spvar_name,
+                                                 const char *op) const
+{
+  if (s->fields != table.s->fields)
+  {
+    if (spvar_name)
+      my_error(ER_CANNOT_CAST_ON_IDENT1_ASSIGNMENT_FOR_OPERATION, MYF(0),
+               RowTypeBuffer(table.s->fields).ptr(),
+               RowTypeBuffer(s->fields).ptr(), spvar_name, op);
+    else
+      my_error(ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION, MYF(0),
+               RowTypeBuffer(table.s->fields).ptr(),
+               RowTypeBuffer(s->fields).ptr(), op);
+    return true;
+  }
+  for (uint i= 0; i < s->fields; i++)
+  {
+    // Check assignability of the i'th field
+    Type_handler_hybrid_field_type th(field[i]->type_handler());
+    if (th.aggregate_for_result(table.field[i]->type_handler()))
+    {
+      if (spvar_name)
+        my_error(ER_CANNOT_CAST_ON_IDENT2_ASSIGNMENT_FOR_OPERATION, MYF(0),
+                 table.field[i]->type_handler()->name().ptr(),
+                 field[i]->type_handler()->name().ptr(),
+                 spvar_name, field[i]->field_name.str, op);
+      else
+        my_error(ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION, MYF(0),
+                 table.field[i]->type_handler()->name().ptr(),
+                 field[i]->type_handler()->name().ptr(), op);
+      return true;
+    }
+  }
+  return false;
+}
+
+
 bool open_tmp_table(TABLE *table)
 {
   int error;

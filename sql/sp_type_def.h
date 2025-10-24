@@ -57,6 +57,42 @@ public:
 
 
 /*
+  A reference data type, e.g. REF CURSOR.
+*/
+class sp_type_def_ref : public sp_type_def,
+                        public Type_handler_hybrid_field_type
+{
+  Spvar_definition m_def;
+public:
+  /*
+    m_def - The definition (e.g. the structure) of the referenced data type.
+            a) Can be nullptr when the structure of the referenced type
+               is not set:
+                 TYPE cur0_t IS REF CURSOR;
+            b) Can be non-nullptr when the structure of the referenced type
+               is set:
+                 TYPE rec0_t IS RECORD (a INT, b VARCHAR(10));
+                 TYPE cur0_t IS REF CURSOR RETURNS rec0_t;
+  */
+  sp_type_def_ref(const Lex_ident_column &name_arg,
+                  const Type_handler *th,
+                  const Spvar_definition &def)
+   :sp_type_def(name_arg),
+    Type_handler_hybrid_field_type(th),
+    m_def(def)
+  { }
+  const Type_handler *type_handler() const override
+  {
+    return Type_handler_hybrid_field_type::type_handler();
+  }
+  const Spvar_definition & def() const
+  {
+    return m_def;
+  }
+};
+
+
+/*
   This class represents 'DECLARE RECORD' statement.
 */
 class sp_type_def_record : public sp_type_def

@@ -3938,6 +3938,7 @@ public:
   bool sp_body_finalize_function(THD *);
   bool sp_body_finalize_procedure(THD *);
   bool sp_body_finalize_procedure_standalone(THD *, const sp_name *end_name);
+  bool sp_finalize_routine_signature(THD *, const Spvar_definition &retun_def);
   sp_package *create_package_start(THD *thd,
                                    const Sp_handler *sph,
                                    const sp_name *name,
@@ -3998,11 +3999,23 @@ public:
                     const LEX_CSTRING &expr_str);
   void sp_variable_declarations_init(THD *thd, int nvars);
   bool sp_variable_declarations_finalize(THD *thd, int nvars,
+                                         int *total_vars_added,
                                          const Column_definition *cdef,
                                          Item *def,
                                          const LEX_CSTRING &expr_str);
   bool sp_variable_declarations_set_default(THD *thd, int nvars, Item *def,
                                             const LEX_CSTRING &expr_str);
+  bool sp_declare_child_variables(THD *thd, uint nvars, uint *child_nvars,
+                                  const Spvar_definition &child_def,
+                                  Item *def, const LEX_CSTRING &expr_str);
+  bool sp_declare_child_variables_from_parent_def(THD *thd,
+                                       uint nvars, uint *child_nvars,
+                                       const Spvar_definition &parent_def,
+                                       const LEX_CSTRING &parent_def_expr_str);
+  bool sp_child_variable_finalize(THD *thd, const Spvar_definition &child_def,
+                                  uint child_nvars,
+                                  Item *def_expr,
+                                  const LEX_CSTRING &def_expr_str);
   bool sp_set_assign_lvalue_function(THD *thd,
                                      const Qualified_ident *ident,
                                      List<Item> *params,
@@ -4017,7 +4030,7 @@ public:
                                                   Item *def,
                                                   const LEX_CSTRING &expr_str);
   bool sp_variable_declarations_rowtype_finalize(THD *thd, int nvars,
-                                                 Qualified_column_ident *,
+                                                 const Qualified_column_ident *,
                                                  Item *def,
                                                  const LEX_CSTRING &expr_str);
   bool sp_variable_declarations_cursor_rowtype_finalize(THD *thd, int nvars,
@@ -4696,6 +4709,31 @@ public:
   bool sp_add_fetch_cursor(THD *thd,
                            const Lex_ident_sys_st &name,
                            const List<sp_fetch_target> &list);
+  bool sp_add_fetch_from_cursor_variable(THD *thd,
+                                         const sp_variable &spvar,
+                                         sp_pcontext *spvar_pcont,
+                                         const sp_rcontext_ref &spvar_ref,
+                                         const List<sp_fetch_target> &list);
+  bool sp_add_fetch_cursor_with_return_clause(THD *thd,
+                                         const sp_variable &cursor_var,
+                                         sp_pcontext *cursor_var_pcont,
+                                         const sp_rcontext_ref &cursor_ref,
+                                         const Spvar_definition &return_type,
+                                         const List<sp_fetch_target> &targets);
+  bool sp_add_assign_row_from_row(THD *thd,
+                                  const sp_fetch_target &dst,
+                                  const sp_variable &src);
+
+  bool sp_add_assign_list_from_row(THD *thd,
+                                   const List<sp_fetch_target> &targets,
+                                   const sp_variable &src,
+                                   const Row_definition_list &src_def);
+
+  bool sp_add_assign_list_from_row_anchored(THD *thd,
+                                         const List<sp_fetch_target> &targets,
+                                         const sp_variable &src,
+                                         const sp_rcontext_addr &src_addr);
+
   bool sp_add_agg_cfetch();
 
   bool set_command_with_check(enum_sql_command command,
@@ -4984,6 +5022,8 @@ public:
   void stmt_purge_to(const LEX_CSTRING &to);
   bool stmt_purge_before(Item *item);
 
+  bool check_ref_cursor_components(Row_definition_list *) const;
+
   SELECT_LEX *returning()
   { return &builtin_select; }
   bool has_returning()
@@ -5049,6 +5089,11 @@ public:
                                 const Lex_ident_sys_st &type_name,
                                 Spvar_definition *key,
                                 Spvar_definition *value);
+  bool declare_type_ref_cursor(THD *thd,
+                               const Lex_ident_sys_st &type_name,
+                               const Lex_ident_sys_st &return_type_name,
+                               const Qualified_column_ident *rowtype,
+                               const Qualified_column_ident *vartype);
   bool set_field_type_typedef(Lex_field_type_st *type,
                               const LEX_CSTRING &name,
                               bool *is_typedef);

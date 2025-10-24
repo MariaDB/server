@@ -18,6 +18,15 @@
 #ifdef MYSQL_SERVER
 #include "mariadb.h"
 #include "sql_class.h"
+#include "sql_cursor.h"
+
+bool sp_cursor::check_assignability_to(const Virtual_tmp_table *table,
+                                       const char *spvar_name,
+                                       const char *op) const
+{
+  DBUG_ASSERT(server_side_cursor);
+  return server_side_cursor->check_assignability_to(table, spvar_name, op);
+}
 
 
 /*

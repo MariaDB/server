@@ -97,7 +97,9 @@ sp_pcontext::sp_pcontext()
   : Sql_alloc(),
   m_max_var_index(0), m_max_cursor_index(0),
   m_parent(NULL), m_pboundary(0),
-  m_vars(PSI_INSTRUMENT_MEM), m_case_expr_ids(PSI_INSTRUMENT_MEM),
+  m_vars(PSI_INSTRUMENT_MEM),
+  m_vars_parent_child(PSI_INSTRUMENT_MEM),
+  m_case_expr_ids(PSI_INSTRUMENT_MEM),
   m_conditions(PSI_INSTRUMENT_MEM), m_cursors(PSI_INSTRUMENT_MEM),
   m_handlers(PSI_INSTRUMENT_MEM),
   m_children(PSI_INSTRUMENT_MEM), m_scope(REGULAR_SCOPE)
@@ -110,7 +112,9 @@ sp_pcontext::sp_pcontext(sp_pcontext *prev, sp_pcontext::enum_scope scope)
   : Sql_alloc(),
   m_max_var_index(0), m_max_cursor_index(0),
   m_parent(prev), m_pboundary(0),
-  m_vars(PSI_INSTRUMENT_MEM), m_case_expr_ids(PSI_INSTRUMENT_MEM),
+  m_vars(PSI_INSTRUMENT_MEM),
+  m_vars_parent_child(PSI_INSTRUMENT_MEM),
+  m_case_expr_ids(PSI_INSTRUMENT_MEM),
   m_conditions(PSI_INSTRUMENT_MEM), m_cursors(PSI_INSTRUMENT_MEM),
   m_handlers(PSI_INSTRUMENT_MEM),
   m_children(PSI_INSTRUMENT_MEM), m_scope(scope)
@@ -303,6 +307,47 @@ sp_variable *sp_pcontext::add_variable(THD *thd, const LEX_CSTRING *name)
 
   return m_vars.append(p) ? NULL : p;
 }
+
+
+sp_variable *sp_pcontext::add_child_variable(THD *thd, sp_variable *parent_var)
+{
+  CharBuffer<11+MAX_BIGINT_WIDTH> child_name_buffer;
+  if (parent_var)
+  {
+    child_name_buffer.copy("_child_"_LEX_CSTRING);
+    child_name_buffer.append_ulonglong(parent_var->offset);
+  }
+  else
+  {
+    child_name_buffer.copy("_child_ret"_LEX_CSTRING);
+  }
+  LEX_CSTRING child_name= make_string(thd, child_name_buffer.ptr(),
+                                           child_name_buffer.end());
+  if (!child_name.str)
+    return nullptr; // EOM
+  if (find_variable(&child_name, true))
+  {
+    my_error(ER_SP_DUP_VAR, MYF(0), child_name.str);
+    return nullptr;
+  }
+  sp_variable *child_var= add_variable(thd, &child_name);
+  if (child_var == nullptr)
+    return nullptr; // EOM
+  if (parent_var)
+  {
+    parent_var->child_offset= child_var->offset;
+    add_vars_parent_child(Parent_child_uint(parent_var->offset,
+                                            child_var->offset,
+                                            false));
+  }
+  else
+  {
+    // A child variable for the function RETURN field
+    add_vars_parent_child(Parent_child_uint(0, child_var->offset, true));
+  }
+  return child_var;
+}
+
 
 sp_label *sp_pcontext::push_label(THD *thd, const LEX_CSTRING *name, uint ip,
                                   sp_label::enum_type type,
@@ -672,7 +717,9 @@ const sp_pcursor *sp_pcontext::find_cursor(const LEX_CSTRING *name,
 
 
 void sp_pcontext::retrieve_field_definitions(
-  List<Spvar_definition> *field_def_lst) const
+  THD *thd,
+  List<Spvar_definition> *field_def_lst,
+  List<Parent_child_uint> *parent_child_lst) const
 {
   /* Put local/context fields in the result list. */
 
@@ -711,15 +758,20 @@ void sp_pcontext::retrieve_field_definitions(
       */
       DBUG_ASSERT(child->get_context_variable(0)->offset < var_def->offset);
       DBUG_ASSERT(child->get_last_context_variable()->offset < var_def->offset);
-      child->retrieve_field_definitions(field_def_lst);
+      child->retrieve_field_definitions(thd, field_def_lst, parent_child_lst);
     }
-    field_def_lst->push_back(&var_def->field_def);
+    field_def_lst->push_back(&var_def->field_def, thd->mem_root);
+  }
+  for (size_t i= 0; i < m_vars_parent_child.size(); i++)
+  {
+    parent_child_lst->push_back(&m_vars_parent_child.at(i), thd->mem_root);
   }
 
   /* Put the fields of the remaining enclosed contexts in the result list. */
 
   for (size_t i= next_child; i < m_children.elements(); ++i)
-    m_children.at(i)->retrieve_field_definitions(field_def_lst);
+    m_children.at(i)->retrieve_field_definitions(thd, field_def_lst,
+                                                 parent_child_lst);
 }
 
 
