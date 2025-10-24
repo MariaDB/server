@@ -3119,8 +3119,41 @@ static int binlog_savepoint_set(handlerton *hton, THD *thd, void *sv)
       roll back the oob data if needed.
       As long as the savepoint is in the cache, we can simply roll it back
       by truncating the cache.
+
+      Note that re-using the savepoint name is legal in SQL:
+
+        BEGIN
+        SAVEPOINT A;
+        ...
+        SAVEPOINT A;
+        ...
+        ROLLBACK TO A;
+
+      In this case, the second instance replaces the first one, and we get
+      called with the same sv pointer again. So we need to traverse the list
+      and remove the old instance, if found, before adding the new one.
     */
-    *cache_mngr->cache_savepoint_next_ptr= sp_info;
+    binlog_savepoint_info *sp= cache_mngr->cache_savepoint_list;
+    binlog_savepoint_info **next_ptr= &cache_mngr->cache_savepoint_list;
+    while (sp)
+    {
+      if (sp == sp_info)
+        *next_ptr= sp->next;
+      else
+        next_ptr= &sp->next;
+      sp=sp->next;
+    }
+
+    /*
+      Assert that the existing cache_savepoint_next_ptr matches either
+      the end of the list now, or it was pointing to the savepoint that
+      is now being set, which is being reused and was deleted from the
+      (end of the) list.
+    */
+    DBUG_ASSERT(next_ptr == cache_mngr->cache_savepoint_next_ptr ||
+                cache_mngr->cache_savepoint_next_ptr == &sp_info->next);
+    /* Insert the savepoint at the end of the list. */
+    *next_ptr= sp_info;
     cache_mngr->cache_savepoint_next_ptr= &sp_info->next;
     sp_info->next= nullptr;
     sp_info->engine_ptr= nullptr;
