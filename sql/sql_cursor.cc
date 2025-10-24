@@ -38,7 +38,9 @@
 */
 
 int mysql_open_cursor(THD *thd, select_result *result,
-                      Server_side_cursor **pcursor)
+                      Server_side_cursor **pcursor,
+                      const Lex_ident_column &cursor_name,
+                      const Virtual_tmp_table *expected_assignable_structure)
 {
   sql_digest_state *parent_digest;
   PSI_statement_locker *parent_locker;
@@ -47,7 +49,9 @@ int mysql_open_cursor(THD *thd, select_result *result,
   LEX *lex= thd->lex;
   int rc;
 
-  if (!(result_materialize= new (thd->mem_root) Select_materialize(thd, result)))
+  if (!(result_materialize= new (thd->mem_root) Select_materialize(thd, result,
+                                               cursor_name,
+                                               expected_assignable_structure)))
     return 1;
 
   save_result= lex->result;
@@ -357,6 +361,30 @@ void Materialized_cursor::on_table_fill_finished()
 /***************************************************************************
  Select_materialize
 ****************************************************************************/
+
+int Select_materialize::prepare(List<Item> &list, SELECT_LEX_UNIT *u)
+{
+  int rc= select_unit::prepare(list, u);
+  if (rc)
+    return rc;
+  if (m_expected_assignable_structure)
+  {
+    /*
+      We're opening a REF CURSOR with the RETURN clause, e.g.:
+        TYPE cur0_t IS REF CURSOR RETURN t1%ROWTYPE;
+        c0 cur0_t;
+        ...
+        OPEN c0 FOR SELECT * FROM t1;
+    */
+    if (m_expected_assignable_structure->
+                        check_assignability_from(list,
+                                                 m_cursor_name.str,
+                                                 "OPEN..FOR"))
+      return true;
+  }
+  return false;
+}
+
 
 bool Select_materialize::send_result_set_metadata(List<Item> &list, uint flags)
 {

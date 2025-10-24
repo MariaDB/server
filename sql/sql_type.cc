@@ -9621,6 +9621,13 @@ bool Type_handler::can_return_extract_source(interval_type int_type) const
   return type_collection() == &type_collection_std;
 }
 
+
+Spvar_definition Type_handler::child_variable_definition(
+                                            const Column_definition &def) const
+{
+  return Spvar_definition();
+}
+
 /***************************************************************************/
 
 LEX_CSTRING Charset::collation_specific_name() const

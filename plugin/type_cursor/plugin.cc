@@ -22,6 +22,8 @@
 #include "mysql/plugin_function.h"
 #include "sp_instr.h"
 #include "sql_type.h"
+#include "sql_cursor.h"
+#include "sql_select.h"
 
 
 static constexpr LEX_CSTRING sys_refcursor_str=
@@ -121,11 +123,35 @@ public:
 };
 
 
+class Type_generic_attributes_sys_refcursor: public Type_generic_attributes
+{
+public:
+  const Field_row *m_child;
+  Type_generic_attributes_sys_refcursor()
+   :m_child(nullptr)
+  { }
+  const Type_handler *type_handler() const override;
+};
 
 
 class Field_sys_refcursor final :public Field_short,
                                  public Sys_refcursor_traits
 {
+  Type_generic_attributes_sys_refcursor m_generic_attr;
+
+  const Field *child() const { return m_generic_attr.m_child; }
+
+  bool check_assignability_from(const Type_handler *from,
+                                bool prefer_warning_not_error) const override
+  {
+    if (from == type_handler() ||
+        from == &type_handler_null)
+      return false;
+    my_error(ER_CANNOT_CAST_ON_IDENT1_ASSIGNMENT_FOR_OPERATION, MYF(0),
+             from->name().ptr(), type_handler()->name().ptr(),
+             field_name.str, "SET");
+    return false;
+  }
 
   int update_to_null(bool no_conversion)
   {
@@ -146,10 +172,39 @@ class Field_sys_refcursor final :public Field_short,
     DBUG_RETURN(0);
   }
 
+  /*
+    Check if the structure of m_statement_cursors(ref) is compatible
+    for assignment with "this".
+  */
+  bool check_assignability_from_ref(THD *thd, ulonglong ref)
+  {
+    DBUG_ENTER("Field_sys_refcursor::check_assignability_from");
+    if (!child())
+      DBUG_RETURN(false); // Weak cursor (no RETURN clause)
+    DBUG_ASSERT(child()->virtual_tmp_table()); // Made in sp_rcontext::create()
+
+    sp_cursor *sc= ref < thd->statement_cursors()->size() ?
+                   &thd->statement_cursors()->at(ref) :
+                   nullptr;
+    if (!sc)
+    {
+      DBUG_ASSERT(0);
+      DBUG_RETURN(false); // Should not happen
+    }
+    if (!sc->is_open())
+      DBUG_RETURN(false); // We're in sp_instr_copen_by_ref::exec_core()
+    if (sc->check_assignability_to(child()->virtual_tmp_table(),
+                                   field_name.str, "SET"))
+      DBUG_RETURN(true);
+    DBUG_RETURN(false);
+  }
+
   int update_to_not_null_ref(ulonglong ref)
   {
     DBUG_ENTER("Field_sys_refcursor::update_to_not_null");
     THD *thd= get_thd();
+    if (check_assignability_from_ref(thd, ref))
+      DBUG_RETURN(-1);
     const Type_ref_null old_value= val_ref(thd);
     set_notnull();
     int rc= store((longlong) ref, true/*unsigned*/);
@@ -169,6 +224,11 @@ public:
     res.set_ascii(sys_refcursor_str.str, sys_refcursor_str.length);
   }
   const Type_handler *type_handler() const override;
+  const Type_extra_attributes type_extra_attributes() const override
+  {
+    return Type_extra_attributes(&m_generic_attr);
+  }
+
   /*
     Field_sys_refcursor has a side effect.
     Cannot use memcpy when copying data from another field.
@@ -178,6 +238,10 @@ public:
     return false;
   }
 
+  void set_child(Field *child) override
+  {
+    m_generic_attr.m_child= dynamic_cast<const Field_row *>(child);
+  }
   /*
     expr_event_handler()
 
@@ -362,6 +426,9 @@ public:
   bool can_return_text() const override { return false; }
   bool can_return_date() const override { return false; }
   bool can_return_time() const override { return false; }
+  bool can_be_ref_cursor_return_component() const override { return false; }
+  bool can_be_assoc_array_element_component() const override { return false; }
+
   bool can_return_extract_source(interval_type type) const override
   {
     return false;
@@ -439,6 +506,17 @@ public:
     return nullptr;
   }
 
+  Spvar_definition child_variable_definition(const Column_definition &def)
+                                                            const override
+  {
+    const sp_type_def_ref* return_type_def_ref=
+      dynamic_cast<const sp_type_def_ref*>(def.get_attr_const_generic_ptr(0));
+
+    if (!return_type_def_ref || return_type_def_ref->def().is_empty())
+      return Spvar_definition(); // REF CURSOR without attributes
+
+    return return_type_def_ref->def();
+  }
   bool Column_definition_set_attributes(THD *thd,
                                         Column_definition *def,
                                         const Lex_field_type_st &attr,
@@ -546,9 +624,52 @@ public:
                                        Item **items, uint nitems) const override
   {
     /*
-      Suppress the inherited behavior which converts the data type
-      from *INT to NEWDECIMAL if arguments have different signess.
+      Override to:
+      - Suppress the inherited behavior which converts the data type
+        from *INT to NEWDECIMAL if arguments have different signess, and
+      - Aggregate the RETURN type
     */
+    DBUG_ASSERT(nitems > 0);
+    DBUG_ASSERT(func->type_extra_attributes_addr());
+    bool refcursor_found= false;
+    for (uint i= 0; i < nitems; i++)
+    {
+      if (items[i]->type_handler() == &type_handler_null)
+        continue;
+      // The below assert is garantied by Type_handler_cursor::aggregate_common
+      DBUG_ASSERT(items[i]->type_handler() == this);
+
+      if (!refcursor_found)
+      {
+        *func->type_extra_attributes_addr()= items[i]->type_extra_attributes();
+        refcursor_found= true;
+        continue;
+      }
+      const Type_generic_attributes_sys_refcursor *attr0=
+        dynamic_cast<const Type_generic_attributes_sys_refcursor*>
+          (func->type_extra_attributes().get_attr_const_generic_ptr(0));
+      const Type_generic_attributes_sys_refcursor *attr1=
+        dynamic_cast<const Type_generic_attributes_sys_refcursor*>
+          (items[i]->type_extra_attributes().get_attr_const_generic_ptr(0));
+      if (attr0 && attr1)
+      {
+        /*
+          Check Field_row behind child SP variables. Their virtual_tmp_table()s
+          contain the structure of the cursor's RETURN data type.
+          If m_child is nullptr or virtual_tmp_table() returns nullptr,
+          it means the cursor is weak (does not have the RETURN clause).
+        */
+        DBUG_ASSERT(!attr0->m_child || attr0->m_child->virtual_tmp_table());
+        DBUG_ASSERT(!attr1->m_child || attr1->m_child->virtual_tmp_table());
+        if (attr0->m_child && attr1->m_child &&
+            attr0->m_child->virtual_tmp_table()->check_assignability_from(
+                                        attr1->m_child->virtual_tmp_table()[0],
+                                        nullptr,
+                                        name.str))
+          return true;
+      }
+    }
+    DBUG_ASSERT(refcursor_found);
     return false;
   }
 
@@ -810,6 +931,12 @@ const Type_handler *Type_handler_sys_refcursor::singleton()
 }
 
 const Type_handler *Field_sys_refcursor::type_handler() const
+{
+  return &type_handler_sys_refcursor;
+}
+
+const Type_handler *
+Type_generic_attributes_sys_refcursor::type_handler() const
 {
   return &type_handler_sys_refcursor;
 }

@@ -1,0 +1,199 @@
+SET @debug_ref_cursor=TRUE;
+SET sql_mode=ORACLE;
+#
+# MDEV-10152 Add support for TYPE .. IS REF CURSOR
+#
+CREATE PROCEDURE p0 AS
+BEGIN
+IF @debug_ref_cursor IS TRUE
+THEN
+EXECUTE IMMEDIATE 'SHOW PROCEDURE CODE p1';
+END IF;
+CALL p1;
+END;
+$$
+CREATE TABLE t1 (a INT, b VARCHAR(10));
+INSERT INTO t1 VALUES (1,'b1');
+CREATE PROCEDURE p1 IS
+CURSOR cursor_sample1 IS SELECT * FROM t1;
+/*empty*/
+TYPE cur_t IS REF CURSOR RETURN cursor_sample1%ROWTYPE;
+c0 cur_t;
+v0 ROW(a INT, b VARCHAR(10), c VARCHAR(10));
+BEGIN
+OPEN c0 FOR SELECT * FROM t1;
+FETCH c0 INTO v0;
+END;
+$$
+CALL p0;
+Pos	Instruction
+0	set c0@0 NULL
+1	cursor_copy_struct cursor_sample1 _child_0@1
+2	set _child_0@1 NULL
+3	set v0@2 NULL
+4	cpush cursor_sample1@0
+5	copen STMT.cursor[c0@0] return _child_0@1
+6	cfetch STMT.cursor[c0@0] _child_0@1
+7	set v0@2 _child_0@1
+8	cpop 1
+9	destruct sys_refcursor c0@0
+ERROR 21000: Operand should contain 3 column(s)
+DROP PROCEDURE p1;
+DROP TABLE t1;
+CREATE TABLE t1 (a INT, b VARCHAR(10));
+INSERT INTO t1 VALUES (1,'b1');
+CREATE PROCEDURE p1 IS
+CURSOR cursor_sample1 IS SELECT * FROM t1;
+/*empty*/
+TYPE cur_t IS REF CURSOR RETURN cursor_sample1%ROWTYPE;
+c0 cur_t;
+v0 ROW(a INT);
+BEGIN
+OPEN c0 FOR SELECT * FROM t1;
+FETCH c0 INTO v0;
+END;
+$$
+CALL p0;
+Pos	Instruction
+0	set c0@0 NULL
+1	cursor_copy_struct cursor_sample1 _child_0@1
+2	set _child_0@1 NULL
+3	set v0@2 NULL
+4	cpush cursor_sample1@0
+5	copen STMT.cursor[c0@0] return _child_0@1
+6	cfetch STMT.cursor[c0@0] _child_0@1
+7	set v0@2 _child_0@1
+8	cpop 1
+9	destruct sys_refcursor c0@0
+ERROR 21000: Operand should contain 1 column(s)
+DROP PROCEDURE p1;
+DROP TABLE t1;
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1);
+CREATE PROCEDURE p1 IS
+CURSOR cursor_sample1 IS SELECT * FROM t1;
+/*empty*/
+TYPE cur_t IS REF CURSOR RETURN cursor_sample1%ROWTYPE;
+c0 cur_t;
+v0 ROW(a INT,b INT);
+BEGIN
+OPEN c0 FOR SELECT * FROM t1;
+FETCH c0 INTO v0;
+END;
+$$
+CALL p0;
+Pos	Instruction
+0	set c0@0 NULL
+1	cursor_copy_struct cursor_sample1 _child_0@1
+2	set _child_0@1 NULL
+3	set v0@2 NULL
+4	cpush cursor_sample1@0
+5	copen STMT.cursor[c0@0] return _child_0@1
+6	cfetch STMT.cursor[c0@0] _child_0@1
+7	set v0@2 _child_0@1
+8	cpop 1
+9	destruct sys_refcursor c0@0
+ERROR 21000: Operand should contain 2 column(s)
+DROP PROCEDURE p1;
+DROP TABLE t1;
+DROP PROCEDURE p0;
+CREATE PROCEDURE p0 AS
+BEGIN
+IF @debug_ref_cursor IS TRUE
+THEN
+EXECUTE IMMEDIATE 'SHOW PROCEDURE CODE p1';
+END IF;
+CALL p1;
+END;
+$$
+CREATE TABLE t1 (a INT, b VARCHAR(10));
+INSERT INTO t1 VALUES (1,'b1');
+CREATE PROCEDURE p1 IS
+CURSOR cursor_sample1 IS SELECT * FROM t1;
+var_sample1 cursor_sample1%ROWTYPE;
+TYPE cur_t IS REF CURSOR RETURN var_sample1%TYPE;
+c0 cur_t;
+v0 ROW(a INT, b VARCHAR(10), c VARCHAR(10));
+BEGIN
+OPEN c0 FOR SELECT * FROM t1;
+FETCH c0 INTO v0;
+END;
+$$
+CALL p0;
+Pos	Instruction
+0	cursor_copy_struct cursor_sample1 var_sample1@0
+1	set var_sample1@0 NULL
+2	set c0@1 NULL
+3	cursor_copy_struct cursor_sample1 _child_1@2
+4	set _child_1@2 NULL
+5	set v0@3 NULL
+6	cpush cursor_sample1@0
+7	copen STMT.cursor[c0@1] return _child_1@2
+8	cfetch STMT.cursor[c0@1] _child_1@2
+9	set v0@3 _child_1@2
+10	cpop 1
+11	destruct sys_refcursor c0@1
+ERROR 21000: Operand should contain 3 column(s)
+DROP PROCEDURE p1;
+DROP TABLE t1;
+CREATE TABLE t1 (a INT, b VARCHAR(10));
+INSERT INTO t1 VALUES (1,'b1');
+CREATE PROCEDURE p1 IS
+CURSOR cursor_sample1 IS SELECT * FROM t1;
+var_sample1 cursor_sample1%ROWTYPE;
+TYPE cur_t IS REF CURSOR RETURN var_sample1%TYPE;
+c0 cur_t;
+v0 ROW(a INT);
+BEGIN
+OPEN c0 FOR SELECT * FROM t1;
+FETCH c0 INTO v0;
+END;
+$$
+CALL p0;
+Pos	Instruction
+0	cursor_copy_struct cursor_sample1 var_sample1@0
+1	set var_sample1@0 NULL
+2	set c0@1 NULL
+3	cursor_copy_struct cursor_sample1 _child_1@2
+4	set _child_1@2 NULL
+5	set v0@3 NULL
+6	cpush cursor_sample1@0
+7	copen STMT.cursor[c0@1] return _child_1@2
+8	cfetch STMT.cursor[c0@1] _child_1@2
+9	set v0@3 _child_1@2
+10	cpop 1
+11	destruct sys_refcursor c0@1
+ERROR 21000: Operand should contain 1 column(s)
+DROP PROCEDURE p1;
+DROP TABLE t1;
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1);
+CREATE PROCEDURE p1 IS
+CURSOR cursor_sample1 IS SELECT * FROM t1;
+var_sample1 cursor_sample1%ROWTYPE;
+TYPE cur_t IS REF CURSOR RETURN var_sample1%TYPE;
+c0 cur_t;
+v0 ROW(a INT,b INT);
+BEGIN
+OPEN c0 FOR SELECT * FROM t1;
+FETCH c0 INTO v0;
+END;
+$$
+CALL p0;
+Pos	Instruction
+0	cursor_copy_struct cursor_sample1 var_sample1@0
+1	set var_sample1@0 NULL
+2	set c0@1 NULL
+3	cursor_copy_struct cursor_sample1 _child_1@2
+4	set _child_1@2 NULL
+5	set v0@3 NULL
+6	cpush cursor_sample1@0
+7	copen STMT.cursor[c0@1] return _child_1@2
+8	cfetch STMT.cursor[c0@1] _child_1@2
+9	set v0@3 _child_1@2
+10	cpop 1
+11	destruct sys_refcursor c0@1
+ERROR 21000: Operand should contain 2 column(s)
+DROP PROCEDURE p1;
+DROP TABLE t1;
+DROP PROCEDURE p0;

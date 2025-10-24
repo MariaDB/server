@@ -4233,6 +4233,8 @@ public:
   virtual bool can_return_text() const { return true; }
   virtual bool can_return_date() const { return true; }
   virtual bool can_return_time() const { return true; }
+  virtual bool can_be_ref_cursor_return_component() const { return true; }
+  virtual bool can_be_assoc_array_element_component() const { return true; }
   virtual bool can_return_extract_source(interval_type type) const;
   virtual bool is_bool_type() const { return false; }
   virtual bool is_general_purpose_string_type() const { return false; }
@@ -4384,6 +4386,8 @@ public:
   virtual bool Column_definition_prepare_stage2(Column_definition *c,
                                                 handler *file,
                                                 ulonglong table_flags) const= 0;
+  virtual Spvar_definition child_variable_definition(
+                                            const Column_definition &def) const;
   virtual bool sp_variable_declarations_finalize(THD *thd,
                                                  LEX *lex, int nvars,
                                                  const Column_definition &def)

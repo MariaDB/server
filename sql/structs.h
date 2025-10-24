@@ -1171,4 +1171,15 @@ protected:
 };
 
 
+class Parent_child_uint: public Sql_alloc
+{
+public:
+  uint m_parent;
+  uint m_child;
+  Parent_child_uint(uint parent, uint child)
+   :m_parent(parent),
+    m_child(child)
+  { }
+};
+
 #endif /* STRUCTS_INCLUDED */

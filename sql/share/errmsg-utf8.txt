@@ -12362,3 +12362,7 @@ ER_WARN_CONFLICTING_COMPOUND_INDEX_HINT_FOR_KEY
         eng "Hint %s is ignored as conflicting/duplicated (an index hint of the same type or opposite kind has already been specified for the key)"
 ER_WARN_NO_IMPLICIT_QB_NAMES_IN_VIEW
 	eng "Implicit query block names are ignored for hints specified within VIEWs"
+ER_CANNOT_CAST_ON_IDENT1_ASSIGNMENT_FOR_OPERATION
+        eng "Cannot cast '%s' as '%s' in assignment of %sQ for operation %s"
+ER_CANNOT_CAST_ON_IDENT2_ASSIGNMENT_FOR_OPERATION
+        eng "Cannot cast '%s' as '%s' in assignment of %sQ.%sQ for operation %s"

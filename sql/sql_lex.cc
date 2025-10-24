@@ -6768,10 +6768,7 @@ bool LEX::sp_param_set_default_and_finalize(sp_variable *spvar,
   }
 
   spcont->declare_var_boundary(0);
-  if (sphead->restore_lex(thd))
-    return true;
-  
-  return false;
+  return sphead->restore_lex(thd);
 }
 
 
@@ -6915,7 +6912,7 @@ sp_fetch_target *LEX::make_fetch_target(THD *thd, const Lex_ident_sys_st &name)
     my_error(ER_SP_UNDECLARED_VAR, MYF(0), name.str);
     return nullptr;
   }
-  return new (thd->mem_root) sp_fetch_target(name,
+  return new (thd->mem_root) sp_fetch_target(name, spc,
                                sp_rcontext_addr(rha, spv->offset));
 }
 
@@ -7038,11 +7035,14 @@ LEX::sp_variable_declarations_copy_type_finalize(THD *thd, int nvars,
 
 
 bool LEX::sp_variable_declarations_finalize(THD *thd, int nvars,
+                                            int *total_vars_added,
                                             const Column_definition *cdef,
                                             Item *dflt_value_item,
                                             const LEX_CSTRING &expr_str)
 {
+  DBUG_ASSERT(nvars >= 0);
   DBUG_ASSERT(cdef);
+  *total_vars_added= nvars;
   if (unlikely(cdef->type_handler()->sp_variable_declarations_finalize(thd,
                                                                       this,
                                                                       nvars,
@@ -7051,8 +7051,173 @@ bool LEX::sp_variable_declarations_finalize(THD *thd, int nvars,
   if (unlikely(sp_variable_declarations_set_default(thd, nvars,
                                                     dflt_value_item, expr_str)))
     return true;
+
+  spcont->declare_var_boundary(0);
+  if (sphead->restore_lex(thd))
+    return true;
+
+  uint child_nvars= 0;
+  DBUG_ASSERT(nvars <= INT_MAX);
+  if (thd->lex->sp_declare_child_variables_from_parent_def(thd,
+                                                           (uint) nvars,
+                                                           &child_nvars,
+                                                           *cdef, expr_str))
+    return true;
+  DBUG_ASSERT((longlong) nvars + child_nvars <= INT_MAX);
+  *total_vars_added= nvars + (int) child_nvars;
+  return false;
+}
+
+
+bool LEX::sp_declare_child_variables_from_parent_def(THD *thd,
+                                        uint nvars, uint *child_nvars,
+                                        const Spvar_definition &parent_def,
+                                        const LEX_CSTRING &parent_def_expr_str)
+{
+  *child_nvars= 0;
+  const Spvar_definition child_def= parent_def.type_handler()->
+                                        child_variable_definition(parent_def);
+  if (child_def.is_empty())
+    return false;
+  LEX_CSTRING child_def_expr_str{parent_def_expr_str.str, 0};
+  return thd->lex->sp_declare_child_variables(thd, (uint) nvars, child_nvars,
+                                              child_def,
+                                              nullptr/*def expr*/,
+                                              child_def_expr_str);
+}
+
+
+/*
+  For every variable in the same declaration declare their
+  child variables, e.g.:
+    c0, c1, c2 cur0_t;
+*/
+
+bool LEX::sp_declare_child_variables(THD *thd,
+                                     uint nvars, uint *child_nvars,
+                                     const Spvar_definition &child_def,
+                                     Item *def_value,
+                                     const LEX_CSTRING &expr_str)
+{
+  DBUG_ASSERT(!child_def.is_empty());
+  DBUG_ASSERT(spcont->context_var_count() >= nvars);
+  uint first_var= spcont->context_var_count() - nvars;
+
+  *child_nvars= 0;
+  for (uint i= 0; i < nvars; i++)
+  {
+    sp_variable *parent_var= spcont->get_context_variable(first_var + i);
+    if (spcont->add_child_variable(thd, parent_var) == nullptr)
+      return true;
+    (*child_nvars)++;
+  }
+
+  if (!*child_nvars)
+    return false;
+
+  return thd->lex->sp_child_variable_finalize(thd, child_def, *child_nvars,
+                                              def_value, expr_str);
+}
+
+
+bool LEX::sp_child_variable_finalize(THD *thd,
+                                     const Spvar_definition &child_def,
+                                     uint child_nvars,
+                                     Item *def_expr,
+                                     const LEX_CSTRING &def_expr_str)
+{
+  DBUG_ASSERT(child_nvars <= (uint) INT_MAX);
+
+  sp_variable_declarations_init(thd, (int) child_nvars);
+  if (!def_expr)
+    def_expr= new (thd->mem_root) Item_null(thd);
+  if (child_def.is_row())
+  {
+    Row_definition_list *row_def_list=
+      child_def.row_field_definitions()->deep_copy(thd);
+    if (!row_def_list)
+      return true; /*EOM*/
+    return thd->lex->sp_variable_declarations_row_finalize(thd,
+                                                           (int) child_nvars,
+                                                           row_def_list,
+                                                           def_expr,
+                                                           def_expr_str);
+  }
+  if (child_def.is_table_rowtype_ref())
+  {
+    const Table_ident ref= *child_def.table_rowtype_ref();
+    return thd->lex->sp_variable_declarations_table_rowtype_finalize(thd,
+                                                           (int) child_nvars,
+                                                           ref.db,
+                                                           ref.table,
+                                                           def_expr,
+                                                           def_expr_str);
+  }
+  if (child_def.is_cursor_rowtype_ref())
+  {
+    return thd->lex->sp_variable_declarations_cursor_rowtype_finalize(thd,
+                                      (int) child_nvars,
+                                      child_def.cursor_rowtype_offset(),
+                                      def_expr, def_expr_str);
+  }
+  if (child_def.is_column_type_ref())
+  {
+    const Qualified_column_ident *ref= child_def.column_type_ref();
+    DBUG_ASSERT(ref->db.length == 0);
+    DBUG_ASSERT(ref->table.length == 0);
+    return thd->lex->sp_variable_declarations_vartype_finalize(thd,
+                                                           (int) child_nvars,
+                                                           ref->m_column,
+                                                           def_expr,
+                                                           def_expr_str);
+  }
+
+  DBUG_ASSERT(0); // Unknown declaration style
   spcont->declare_var_boundary(0);
   return sphead->restore_lex(thd);
+}
+
+
+bool LEX::sp_finalize_routine_signature(THD *thd)
+{
+  sp_pcontext *param_pcont= thd->lex->sphead->get_parse_context();
+  if (!param_pcont->context_var_count())
+    return false;
+  bool needs_child= false;
+  for (uint i= 0; i < param_pcont->context_var_count(); i++)
+  {
+    sp_variable *parent_var= param_pcont->get_context_variable(i);
+    const Spvar_definition & child_def=
+      parent_var->type_handler()->
+        child_variable_definition(parent_var->field_def);
+    if (!child_def.is_empty())
+    {
+      needs_child= true;
+      break;
+    }
+  }
+  if (!needs_child)
+    return false;
+  uint child_vars= 0;
+  sp_block_init(thd);
+  DBUG_ASSERT(param_pcont != spcont);
+  for (uint i= 0; i < param_pcont->context_var_count(); i++)
+  {
+    sp_variable *parent_var= param_pcont->get_context_variable(i);
+      const Spvar_definition & child_def=
+        parent_var->type_handler()->
+          child_variable_definition(parent_var->field_def);
+    if (child_def.is_empty())
+      continue;
+    if (spcont->add_child_variable(thd, parent_var) == nullptr)
+      return true;
+    if (sp_child_variable_finalize(thd, child_def, 1, nullptr, empty_clex_str))
+      return true;
+    child_vars++;
+  }
+  Lex_spblock block;
+  block.vars= (int) child_vars;
+  return sp_block_finalize(thd, block);
 }
 
 
@@ -7118,7 +7283,7 @@ bool LEX::sp_variable_declarations_row_finalize(THD *thd, int nvars,
 */
 bool
 LEX::sp_variable_declarations_rowtype_finalize(THD *thd, int nvars,
-                                               Qualified_column_ident *ref,
+                                               const Qualified_column_ident *ref,
                                                Item *def,
                                                const LEX_CSTRING &expr_str)
 {
@@ -7631,6 +7796,7 @@ bool LEX::sp_for_loop_cursor_iterate(THD *thd, const Lex_for_loop_st &loop)
   const sp_rcontext_addr raddr(&sp_rcontext_handler_local,
                                loop.m_index->offset);
   const List<sp_fetch_target> target_list(sp_fetch_target(loop.m_index->name,
+                                                          spcont,
                                                           raddr),
                                           thd->mem_root);
   if (!target_list.elements)
@@ -7743,8 +7909,9 @@ bool LEX::sp_open_cursor_for_stmt(THD *thd, const LEX_CSTRING *name,
                                   sp_lex_cursor *stmt)
 {
   const Sp_rcontext_handler *rh;
+  sp_pcontext *pcont;
   sp_variable *spv;
-  if (!(spv= find_variable(name, &rh)))
+  if (!(spv= find_variable(name, &pcont, &rh)))
   {
     my_error(ER_SP_UNDECLARED_VAR, MYF(0), name->str);
     return true;
@@ -7762,12 +7929,47 @@ bool LEX::sp_open_cursor_for_stmt(THD *thd, const LEX_CSTRING *name,
   }
   if (check_variable_is_refcursor({STRING_WITH_LEN("OPEN")}, spv))
     return true;
+
+  /*
+    If the REF CURSOR declaration has the RETURN clause and
+    the query select list does not have asterisks, check
+    that the row sizes are equal.
+    A more thorough test (field-by-field assignability) is done
+    later, after the cursor has been opened.
+  */
+  const sp_type_def_ref* return_type_def=
+    dynamic_cast<const sp_type_def_ref*>(spv[0].field_def.
+                                           get_attr_const_generic_ptr(0));
+  const Row_definition_list *row_def_list=
+    return_type_def && !return_type_def->def().is_empty() ?
+    return_type_def->def().row_field_definitions() : nullptr;
+  if (!stmt->first_select_lex()->with_wild && row_def_list &&
+      row_def_list->elements != stmt->first_select_lex()->item_list.elements)
+  {
+    my_error(ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION, MYF(0),
+             RowTypeBuffer(row_def_list->elements).ptr(),
+             RowTypeBuffer(stmt->first_select_lex()->item_list.elements).ptr(),
+             "OPEN..FOR");
+    return true;
+  }
+
+  /*
+    Cursors's child variable resides in the same parse context with
+    the cursor variable itself. If child_spvar evaluates to nullptr,
+    it means the cursor variable does not have the RETURN clause
+    (and therefore does not have a child variable).
+  */
+  sp_variable *child_spvar= spv->child_offset ?
+                             pcont->find_variable(spv->child_offset) :
+                             nullptr;
+
   auto *i= new (thd->mem_root) sp_instr_copen_by_ref(
                                  sphead->instructions(), spcont,
+                                 spv->name,
                                  sp_rcontext_ref(
                                    sp_rcontext_addr(rh, spv->offset),
                                    &sp_rcontext_handler_statement),
-                                 stmt);
+                                 stmt, row_def_list, child_spvar);
   return i == NULL || sphead->add_instr(i);
 }
 
@@ -10096,6 +10298,199 @@ int set_statement_var_if_exists(THD *thd, const char *var_name,
 
 
 /*
+  Add a code to assign the REF CURSOR's temporary fetch variable into
+  the destination ROW-type variable, e.g.:
+    FETCH c0 INTO row_variable;
+*/
+bool LEX::sp_add_assign_row_from_row(THD *thd,
+                                     const sp_fetch_target &dst,
+                                     const sp_variable &spvar)
+{
+  DBUG_ASSERT(thd->lex == this);
+  sp_assignment_lex *assignment_lex;
+  Item_splocal *item;
+  if (!(assignment_lex= new (thd->mem_root) sp_assignment_lex(thd, this)))
+    return true;
+  sphead->reset_lex(thd, assignment_lex);
+  DBUG_ASSERT(thd->lex != this);
+
+  if (!(item= new (thd->mem_root) Item_splocal(thd,
+                                               &sp_rcontext_handler_local,
+                                               &spvar.name,
+                                               spvar.offset,
+                                               spvar.type_handler(),
+                                               0,   //TODO pos_in_q,
+                                               0))) //TODO len_in_q);
+    return true;
+#ifdef DBUG_ASSERT_EXISTS
+  item->m_sp= sphead;
+#endif
+  if (thd->lex->sphead->restore_lex(thd))
+    return true;
+  DBUG_ASSERT(thd->lex == this);
+
+  sp_instr_set *set= new (thd->mem_root) sp_instr_set(sphead->instructions(),
+                                                 spcont,
+                                                 dst.rcontext_handler(),
+                                                 dst.offset(),
+                                                 item,
+                                                 assignment_lex, true,
+                                                 empty_clex_str);
+  return set == nullptr || sphead->add_instr(set);
+}
+
+
+/*
+  Add a code to assign the REF CURSOR's temporary fetch variable into
+  the destination list of scalar variables, e.g.:
+    FETCH c0 INTO scalar1_variable1, scalar_variable2;
+*/
+bool LEX::sp_add_assign_list_from_row(THD *thd,
+                                      const List<sp_fetch_target> &targets,
+                                      const sp_variable &spvar,
+                                      const Row_definition_list &spvar_def)
+{
+  DBUG_ASSERT(targets.elements == spvar_def.elements);
+  List<sp_fetch_target> targets2= targets;
+  List<Spvar_definition> spvar_def2= spvar_def;
+  List_iterator<sp_fetch_target> targets_it(targets2);
+  List_iterator<Spvar_definition> spvar_def_it(spvar_def2);
+  sp_fetch_target *dst;
+  Spvar_definition *spvar_field;
+  uint field_idx= 0;
+
+  for ( ; (dst= targets_it++) &&
+          (spvar_field= spvar_def_it++) ; field_idx++)
+  {
+    DBUG_ASSERT(thd->lex == this);
+    sp_assignment_lex *assignment_lex;
+    if (!(assignment_lex= new (thd->mem_root) sp_assignment_lex(thd, this)))
+      return true;
+    sphead->reset_lex(thd, assignment_lex);
+    DBUG_ASSERT(thd->lex != this);
+
+    Item_splocal *item;
+    if (!(item= new (thd->mem_root) Item_splocal_row_field(thd,
+                                                 &sp_rcontext_handler_local,
+                                                 &spvar.name,
+                                                 &spvar_field->field_name,
+                                                 spvar.offset,
+                                                 field_idx,
+                                                 spvar_field->type_handler(),
+                                                 0,   //TODO pos_in_q,
+                                                 0))) //TODO len_in_q);
+      return true;
+#ifdef DBUG_ASSERT_EXISTS
+    item->m_sp= sphead;
+#endif
+    if (thd->lex->sphead->restore_lex(thd))
+      return true;
+    DBUG_ASSERT(thd->lex == this);
+
+    sp_instr_set *set= new (thd->mem_root) sp_instr_set(sphead->instructions(),
+                                                   dst->m_pcont,
+                                                   dst->rcontext_handler(),
+                                                   dst->offset(),
+                                                   item,
+                                                   assignment_lex, true,
+                                                   empty_clex_str);
+    if (set == nullptr || sphead->add_instr(set))
+      return true;
+  }
+  return false;
+}
+
+
+/*
+  Generate a code to set a list of scalar fetch targets (scalar SP variables)
+  from a ROW variable with an anchored data type:
+
+    SET ROW(scalar_var1, scalar_var2, scalar_var3) = row_anchored_variable;
+
+  The size and the data types of its components are not known at this point
+  (they will be known during execution time).
+
+    @param thd          - the current THD.
+    @param thd targets  - the list of fetch targets (scalar SP variables)
+    @param thd src      - the ROW type variable with an anchored data type
+    @param thd src_addr - the run time address of "src"
+
+  Used to handle a script like this:
+    c0 IS REF CURSOR RETURN t1%ROWTYPE;
+    ...
+    FETCH c0 INTO scalar_var1, scalar_var2, scalar_var3;
+
+  The above FETCH statement is rewritten into the following code:
+    DECLARE
+      _cursor_fetch_tmp_var t1%ROWTYPE;
+    BEGIN
+      FETCH c0 INTO _cursor_fetch_tmp_var;
+      SET ROW(scalar_var1, scalar_var2, scalar_var3) = _cursor_fetch_tmp_var;
+    END;
+
+  This method generated the code to handle the SET statement.
+*/
+bool LEX::sp_add_assign_list_from_row_anchored(THD *thd,
+                                         const List<sp_fetch_target> &targets,
+                                         const sp_variable &src,
+                                         const sp_rcontext_addr &src_addr)
+{
+  DBUG_ASSERT(thd->lex == this);
+  sp_assignment_lex *assignment_lex;
+  if (!(assignment_lex= new (thd->mem_root) sp_assignment_lex(thd, this)))
+    return true;
+  sphead->reset_lex(thd, assignment_lex);
+  DBUG_ASSERT(thd->lex != this);
+
+  List<Item> target_row_arg_list;
+  List_iterator_fast<sp_fetch_target>
+                             it(const_cast<List<sp_fetch_target>&>(targets));
+  sp_fetch_target *target;
+  while ((target= it++))
+  {
+    Item_splocal *target_item;
+    if (!(target_item= new (thd->mem_root) Item_splocal(thd,
+                                                target->rcontext_handler(),
+                                                &target->name,
+                                                target->offset(),
+                                                &type_handler_varchar,//TODO
+                                                0,     //TODO pos_in_q
+                                                0)) || //TODO len_in_q
+        target_row_arg_list.push_back(target_item, thd->mem_root))
+      return true;
+#ifdef DBUG_ASSERT_EXISTS
+    target_item->m_sp= sphead;
+#endif
+  }
+  Item *target_row= new (thd->mem_root) Item_row(thd, target_row_arg_list);
+  Item_splocal *fetch_tmp_spvar_item= new (thd->mem_root) Item_splocal(thd,
+                                                src_addr.rcontext_handler(),
+                                                &src.name,
+                                                src_addr.offset(),
+                                                &type_handler_row,
+                                                0,  //TODO pos_in_q
+                                                0); //TODO len_in_q
+  if (!fetch_tmp_spvar_item)
+    return true;
+#ifdef DBUG_ASSERT_EXISTS
+  fetch_tmp_spvar_item->m_sp= sphead;
+#endif
+  if (thd->lex->sphead->restore_lex(thd))
+    return true;
+  DBUG_ASSERT(thd->lex == this);
+
+  sp_instr *set= new (thd->mem_root) sp_instr_set_srp(sphead->instructions(),
+                                                      spcont,
+                                                      target_row,
+                                                      fetch_tmp_spvar_item,
+                                                      assignment_lex,
+                                                      true,
+                                                      null_clex_str);
+  return set == nullptr || sphead->add_instr(set);
+}
+
+
+/*
   Add instructions to handle "FETCH cur INTO targets".
   It covers both static cursors and SYS_REFCUSORs.
 */
@@ -10117,23 +10512,179 @@ LEX::sp_add_fetch_cursor(THD *thd, const Lex_ident_sys_st &name,
 
   // Search for a SYS_REFCURSOR variable
   const Sp_rcontext_handler *rh;
-  const sp_variable *spv= find_variable(&name, &rh);
+  sp_pcontext *spv_pcont;
+  const sp_variable *spv= find_variable(&name, &spv_pcont, &rh);
   if (spv)
   {
     if (check_variable_is_refcursor({STRING_WITH_LEN("FETCH")}, spv))
       return true;
-    auto *i= new (thd->mem_root) sp_instr_cfetch_by_ref(
-                                   sphead->instructions(), spcont,
-                                   sp_rcontext_ref(
-                                     sp_rcontext_addr(rh, spv->offset),
-                                     &sp_rcontext_handler_statement),
-                                   target_list,
-                                   !(thd->variables.sql_mode & MODE_ORACLE));
-    return i == nullptr || sphead->add_instr(i);
+    const sp_rcontext_ref cursor_ref(sp_rcontext_addr(rh, spv->offset),
+                                     &sp_rcontext_handler_statement);
+    return sp_add_fetch_from_cursor_variable(thd, *spv, spv_pcont,
+                                             cursor_ref, target_list);
   }
 
   my_error(ER_SP_CURSOR_MISMATCH, MYF(0), name.str);
   return true;
+}
+
+
+bool LEX::sp_add_fetch_from_cursor_variable(THD *thd,
+                                     const sp_variable &spvar,
+                                     sp_pcontext *cursor_spvar_pcont,
+                                     const sp_rcontext_ref &cursor_ref,
+                                     const List<sp_fetch_target> &target_list)
+{
+  const sp_type_def_ref* return_type_def=
+    dynamic_cast<const sp_type_def_ref*>(spvar.field_def.
+                                           get_attr_const_generic_ptr(0));
+  // TODO: why test for is_empty()
+  if (!return_type_def || return_type_def->def().is_empty())
+  {
+    // REF CURSOR contains no RETURN clause
+    sp_instr *i= new (thd->mem_root) sp_instr_cfetch_by_ref(
+                                   sphead->instructions(), spcont,
+                                   cursor_ref, target_list,
+                                   !(thd->variables.sql_mode & MODE_ORACLE));
+    return !i || sphead->add_instr(i);
+  }
+  Spvar_definition return_type_copy(return_type_def->def());
+  if (return_type_copy.is_row())
+  {
+    /*
+      Make sure that every FETCH statement uses
+      Column_definition::create_length_to_internal_length_string()
+      with its own copy of the data type of the temporary fetch variable:
+        TYPE rec_fetch_t IS RECORD(a INT, b TEXT CHARACTER SET utf8mb4);
+        TYPE cur0_t IS REF CURSOR RETURN rec_return_t;
+        ...
+        FETCH c0 INTO v0;
+      i.e. the data type in "TYPE rec_fetch_t..." stays untouched.
+    */
+    return_type_copy= Spvar_definition(return_type_copy.type_handler(),
+                                  return_type_copy.row_field_definitions()->
+                                    deep_copy(thd));
+    if (!return_type_copy.row_field_definitions())
+      return true; // EOM
+  }
+  return sp_add_fetch_cursor_with_return_clause(thd, spvar, cursor_spvar_pcont,
+                                                cursor_ref,
+                                                return_type_copy,
+                                                target_list);
+}
+
+
+/*
+  Generate instructions for FETCH from a REF CURSOR with RETURN clause:
+
+    CREATE PROCEDURE p1 IS
+      TYPE rec0_t IS RECORD (a INT, b INT);
+      TYPE cur0_t IS REF CUSOR RETURN rec0_t;
+      c0 cur0_t;
+
+      TYPE rec1_t IS RECORD (a INT, b VARCHAR(10));
+      v1 rec1_t;
+    BEGIN
+      OPEN c0 FOR SELECT 1 AS a, '2 ' AS b FROM DUAL;
+      FETCH c0 INTO v1;
+      CLOSE c0;
+    END;
+
+  The point here is that the data type in the RETURN clause and the data type
+  of the target fetch variable can be different. To perform proper data type
+  conversion let's convert this fetch command:
+    FETCH c0 INTO v1;
+
+  into:
+
+    BEGIN
+      FETCH c0 INTO _child_var_for_c0; -- (1) Fetch into the cursor child var
+      v1:= _child_var_for_c0_tmp_var;  -- (2) Convert into the target data type
+    END;
+
+  In the above example, the value '2 ' will be space-trimmed to '2'
+  because in the cursor RETURN clause the column `b` is of the INT data type.
+*/
+bool
+LEX::sp_add_fetch_cursor_with_return_clause(THD *thd,
+                                       const sp_variable &cursor_spvar,
+                                       sp_pcontext *cursor_spvar_pcont,
+                                       const sp_rcontext_ref &cursor_ref,
+                                       const Spvar_definition &return_type,
+                                       const List<sp_fetch_target> &targets)
+{
+  DBUG_ASSERT(targets.elements > 0);
+
+  DBUG_ASSERT(cursor_spvar.child_offset);
+  sp_variable *child_spvar= cursor_spvar_pcont->
+                              find_variable(cursor_spvar.child_offset);
+  if (!child_spvar)
+  {
+    /*
+      // TODO-XXX: remove this hack
+      Special case: if cursor_spvar is a routine parameter,
+      it's child variable sits in the first child of the top parse context.
+    */
+    const sp_pcontext *top= cursor_spvar_pcont;
+    for ( ; top->parent_context(); top= top->parent_context())
+    { }
+    if (top->child_context(0))
+      child_spvar= top->child_context(0)->
+                                      find_variable(cursor_spvar.child_offset);
+  }
+  DBUG_ASSERT(child_spvar);
+
+  /*
+    The cursor child variable resides in the same parse context with the
+    cursor variable itself. Thus let's use the cursor's rcontext_handler().
+  */
+  const sp_rcontext_addr child_spvar_raddr(cursor_ref.rcontext_handler(),
+                                            child_spvar->offset);
+
+  // (1) Generate the code to FETCH into the cursor's child variable
+  const List<sp_fetch_target> target_list2(sp_fetch_target(
+                                             child_spvar->name,
+                                             cursor_spvar_pcont,
+                                             child_spvar_raddr),
+                                           thd->mem_root);
+
+  sp_instr *fetch= new (thd->mem_root) sp_instr_cfetch_by_ref(
+                                     sphead->instructions(), spcont,
+                                     cursor_ref, target_list2,
+                                     !(thd->variables.sql_mode & MODE_ORACLE));
+  if (fetch == nullptr || sphead->add_instr(fetch))
+    return true;
+
+  /*
+    (2) Generate the code for assigning from the cursor's child variable
+    of the "REF CURSOR .. RETURN" clause data type into the targets as
+    specified in the INTO clause:
+    - the target ROW variable
+    - the target scalar variable list
+  */
+  const sp_fetch_target &targets_head= *targets.head();
+  if (targets.elements == 1 &&
+      dynamic_cast<const Type_handler_row*>
+        (targets_head.rcontext_handler()->get_pvariable(spcont,
+                                      targets_head.offset())->type_handler()))
+  {
+    // FETCH c0 INTO row_type_target;
+    return sp_add_assign_row_from_row(thd, targets_head, *child_spvar);
+  }
+
+  // FETCH c0 INTO scalar_type_target1 [, scalar_target2]...;
+  if (return_type.is_cursor_rowtype_ref() ||
+      return_type.is_table_rowtype_ref() ||
+      return_type.is_column_type_ref())
+  {
+    return sp_add_assign_list_from_row_anchored(thd, targets, *child_spvar,
+                                                child_spvar_raddr);
+  }
+
+  // TODO: check if separate method for explicit ROW is really needed
+  DBUG_ASSERT(return_type.is_row());
+  return sp_add_assign_list_from_row(thd, targets, *child_spvar,
+                                     *return_type.row_field_definitions());
 }
 
 
@@ -13033,6 +13584,10 @@ bool LEX::declare_type_assoc_array(THD *thd,
   if (unlikely(!tdef || spcont->type_defs_add(thd, tdef)))
     return true;
 
+  /*
+    Check if the data type is sane, e.g. no diallowed data types
+    in the array element.
+  */
   Column_definition def;
   def.set_handler(th);
   def.set_attr_const_generic_ptr(0, tdef);
@@ -13041,6 +13596,123 @@ bool LEX::declare_type_assoc_array(THD *thd,
   return def.type_handler()->
           Column_definition_set_attributes(thd, &def, ltype,
                                            COLUMN_DEFINITION_ROUTINE_LOCAL);
+}
+
+
+bool LEX::declare_type_ref_cursor(THD *thd,
+                                  const Lex_ident_sys_st &type_name,
+                                  const Lex_ident_sys_st &return_type_name,
+                                  const Qualified_column_ident *rowtype,
+                                  const Qualified_column_ident *vartype)
+{
+  const Lex_ident_plugin sr= "sys_refcursor"_Lex_ident_plugin;
+  const Type_handler *th= Type_handler::handler_by_name_or_error(thd, sr);
+  Spvar_definition return_def;
+  if (unlikely(!th))
+    return true;
+
+  if (vartype)
+  {
+    // TODO: package variables: MDEV-38290
+    // TODO: check 2,3 step
+    const Sp_rcontext_handler *rh;
+    const sp_variable *spvar= find_variable(&vartype->m_column, &rh);
+    if (!spvar)
+    {
+      my_error(ER_SP_UNDECLARED_VAR, MYF(0), vartype->m_column.str);
+      return true;
+    }
+    if (!dynamic_cast<const Type_handler_row*>(spvar->type_handler()))
+    {
+      my_error(ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION, MYF(0),
+               spvar->type_handler()->name().ptr(), "REF CURSOR RETURN");
+      return true;
+    }
+
+    if (spvar->field_def.is_row() &&
+        check_ref_cursor_components(spvar->field_def.row_field_definitions()))
+      return true;
+
+    // TODO: add a constructor? vvvvvv
+    return_def.set_column_type_ref(vartype);
+    return_def.set_handler(&type_handler_row);
+  }
+  else if (rowtype)
+  {
+    // TODO: if cursor%ROWTYPE (cursor is visible)
+    // TODO: check if 3-step
+    uint coffp;
+    const sp_pcursor *pcursor= rowtype->db.str || rowtype->table.str ? nullptr :
+                               spcont->find_cursor(&rowtype->m_column, &coffp,
+                                                   false);
+    if (pcursor)
+    {
+      sp_rcontext_addr cursor_ref(&sp_rcontext_handler_local, coffp);
+      return_def= Spvar_definition(nullptr, cursor_ref);
+    }
+    else
+    {
+      Table_ident *ti= new (thd->mem_root) Table_ident(thd, &rowtype->table,
+                                                       &rowtype->m_column,
+                                                       false);
+      if (!ti)
+        return true; // EOM
+      return_def= Spvar_definition(ti, sp_rcontext_addr(nullptr, 0));
+    }
+  }
+  else if (!return_type_name.is_null())
+  {
+    /*
+      An explicit data type in the RETURN clause:
+        TYPE c0 IS REF CURSOR RETURN rec0_t;
+    */
+    const sp_type_def *rt= find_type_def(return_type_name);
+    if (!rt)
+    {
+      my_error(ER_UNKNOWN_DATA_TYPE, MYF(0), return_type_name.str);
+      return true;
+    }
+    if (!dynamic_cast<const Type_handler_row*>(rt->type_handler()))
+    {
+      my_error(ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION, MYF(0),
+               return_type_name.str, "REF CURSOR RETURN");
+      return true;
+    }
+    Row_definition_list *row= static_cast<const sp_type_def_record*>(rt)->
+                                field->deep_copy(thd);
+    if (!row)
+      return true; // EOM
+
+    if (check_ref_cursor_components(row))
+      return true;
+
+    return_def= Spvar_definition(&type_handler_row, row);
+  }
+  sp_type_def_ref *tdef=
+    new (thd->mem_root) sp_type_def_ref(Lex_ident_column(type_name), th,
+                                        return_def);
+  if (unlikely(!tdef || spcont->type_defs_add(thd, tdef)))
+    return true; // EOF
+
+  return false;
+}
+
+
+bool LEX::check_ref_cursor_components(Row_definition_list *row) const
+{
+  DBUG_ASSERT(row);
+  List_iterator<Spvar_definition> it(*row);
+  const Spvar_definition *fielddef;
+  while ((fielddef= it++))
+  {
+    if (!fielddef->type_handler()->can_be_ref_cursor_return_component())
+    {
+      my_error(ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION, MYF(0),
+               fielddef->type_handler()->name().ptr(), "REF CURSOR RETURN");
+      return true;
+    }
+  }
+  return false;
 }
 
 

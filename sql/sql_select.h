@@ -2487,6 +2487,35 @@ public:
   bool sp_find_field_by_name_or_error(uint *idx,
                                       const LEX_CSTRING &var_name,
                                       const LEX_CSTRING &field_name) const;
+
+  /**
+    Check if the Item list has a compatible structure with "this"
+    in terms of assignability.
+  */
+  bool check_assignability_from(const List<Item> &items,
+                                const char *spvar_name,
+                                const char *op) const;
+
+  /**
+    Check if the table has a compatible structure with "this"
+    in terms of assignability.
+  */
+  bool check_assignability_from(const TABLE &table,
+                                const char *spvar_name,
+                                const char *op) const;
+
+  void set_parent_child_relations(const List<Parent_child_uint>
+                                    &vars_parent_child_list)
+  {
+    List<Parent_child_uint> list2= vars_parent_child_list;
+    List_iterator<Parent_child_uint> it(list2);
+    for (const Parent_child_uint *pc= it++; pc; pc= it++)
+    {
+      DBUG_ASSERT(pc->m_parent <= s->fields);
+      DBUG_ASSERT(pc->m_child <= s->fields);
+      field[pc->m_parent]->set_child(field[pc->m_child]);
+    }
+  }
 };
 
 

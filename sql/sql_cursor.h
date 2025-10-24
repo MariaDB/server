@@ -17,6 +17,7 @@
 #define _sql_cursor_h_
 
 #include "sql_class.h"                          /* Query_arena */
+#include "sql_select.h"
 
 class JOIN;
 
@@ -54,6 +55,13 @@ public:
   {
     DBUG_ASSERT(0);
     return true;
+  }
+  virtual bool check_assignability_to(const Virtual_tmp_table *table,
+                                      const char *spvar_name,
+                                      const char *op) const
+  {
+    DBUG_ASSERT(0);
+    return false;
   }
   virtual ~Server_side_cursor();
 
@@ -93,6 +101,12 @@ public:
   {
     return table->export_structure(thd, defs);
   }
+  bool check_assignability_to(const Virtual_tmp_table *table,
+                              const char *spvar_name,
+                              const char *op) const override
+  {
+    return table->check_assignability_from(item_list, spvar_name, op);
+  }
   ~Materialized_cursor() override;
 
   void on_table_fill_finished();
@@ -111,10 +125,18 @@ public:
 class Select_materialize: public select_unit
 {
   select_result *result; /**< the result object of the caller (PS or SP) */
+  const Lex_ident_column &m_cursor_name;
+  const Virtual_tmp_table *m_expected_assignable_structure;
 public:
   Materialized_cursor *materialized_cursor;
-  Select_materialize(THD *thd_arg, select_result *result_arg):
-    select_unit(thd_arg), result(result_arg), materialized_cursor(0) {}
+  Select_materialize(THD *thd_arg, select_result *result_arg,
+                     const Lex_ident_column &cursor_name,
+                     const Virtual_tmp_table *expected_assignable_structure):
+    select_unit(thd_arg), result(result_arg),
+    m_cursor_name(cursor_name),
+    m_expected_assignable_structure(expected_assignable_structure),
+    materialized_cursor(0) {}
+  int prepare(List<Item> &list, SELECT_LEX_UNIT *u) override;
   bool send_result_set_metadata(List<Item> &list, uint flags) override;
   bool send_eof() override { return false; }
   bool view_structure_only() const override
@@ -125,6 +147,8 @@ public:
 
 
 int mysql_open_cursor(THD *thd, select_result *result,
-                      Server_side_cursor **res);
+                      Server_side_cursor **res,
+                      const Lex_ident_column &cursor_name,
+                      const Virtual_tmp_table *expected_assignable_structure);
 
 #endif /* _sql_cusor_h_ */

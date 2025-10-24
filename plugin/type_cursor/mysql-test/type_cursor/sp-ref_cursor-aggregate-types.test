@@ -1,0 +1,42 @@
+SET sql_mode=ORACLE;
+
+--echo #
+--echo # MDEV-10152 Add support for TYPE .. IS REF CURSOR
+--echo #
+
+
+DELIMITER $$;
+CREATE PROCEDURE p1 AS
+  TYPE rec0_t IS RECORD (a INT, b VARCHAR(32), c INT);
+  TYPE rec1_t IS RECORD (a INT, b VARCHAR(32));
+  TYPE cur0_t IS REF CURSOR RETURN rec0_t;
+  TYPE cur1_t IS REF CURSOR RETURN rec1_t;
+  c0 cur0_t;
+  c1 cur1_t;
+BEGIN
+  SELECT COALESCE(c0,c1);
+END;
+$$
+DELIMITER ;$$
+--error ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION
+CALL p1;
+DROP PROCEDURE p1;
+
+
+DELIMITER $$;
+CREATE PROCEDURE p1 AS
+  TYPE rec0_t IS RECORD (a INT, b TIME);
+  TYPE cur0_t IS REF CURSOR RETURN rec0_t;
+  c0, c1, c2 cur0_t;
+  r0 rec0_t;
+BEGIN
+  OPEN c1 FOR SELECT 1 AS a,'10:20:30' AS b;
+  c2:= COALESCE(c0,c1);
+  FETCH c2 INTO r0;
+  CLOSE c2;
+  SELECT r0.a, r0.b;
+END;
+$$
+DELIMITER ;$$
+CALL p1;
+DROP PROCEDURE p1;

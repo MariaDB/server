@@ -646,6 +646,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %token  <kwd> REAL                          /* SQL-2003-R */
 %token  <kwd> RECURSIVE_SYM
 %token  <kwd> REFERENCES                    /* SQL-2003-R */
+%token  <kwd> REF_SYM
 %token  <kwd> REF_SYSTEM_ID_SYM
 %token  <kwd> REGEXP
 %token  <kwd> RELEASE_SYM                   /* SQL-2003-R */
@@ -3640,12 +3641,14 @@ sp_decl_variable_list:
           }
           sp_opt_default
           {
+            int total_vars;
             if (unlikely(Lex->sp_variable_declarations_finalize(thd, $1,
+                                                                &total_vars,
                                                                 &Lex->last_field[0],
                                                                 $4.expr,
                                                                 $4.expr_str)))
               MYSQL_YYABORT;
-            $$.init_using_vars($1);
+            $$.init_using_vars(total_vars);
           }
         | sp_decl_idents_init_vars
           ROW_SYM row_type_body
@@ -16357,6 +16360,7 @@ keyword_ident:
 %ifdef ORACLE
         | TYPE_SYM
 %endif
+        | REF_SYM
         ;
 
 keyword_sysvar_name:
@@ -17096,6 +17100,7 @@ reserved_keyword_udt_not_param_type:
         | READ_SYM
         | READ_WRITE_SYM
         | RECURSIVE_SYM
+        | REF_SYM
         | REF_SYSTEM_ID_SYM
         | REFERENCES
         | REGEXP
@@ -19229,7 +19234,7 @@ sp_param_name_and_mode:
         ;
 
 sp_param_init_vars:
-          sp_param_name_and_mode_init_vars field_type
+          sp_param_name_and_mode_init_vars field_type_all_with_typedefs
           {
             if (unlikely(Lex->sp_param_fill_definition($$= $1, $2)))
               MYSQL_YYABORT;
@@ -19292,6 +19297,10 @@ sp_tail_standalone:
               MYSQL_YYABORT;
           }
           sp_parenthesized_pdparam_list
+          {
+             if (Lex->sp_finalize_routine_signature(thd))
+               MYSQL_YYABORT;
+          }
           sp_c_chistics
           {
             Lex->sphead->set_c_chistics(Lex->sp_chistics);
@@ -19998,6 +20007,10 @@ package_specification_function:
           }
           sf_parameters
           sf_returned_type_clause
+          {
+             if (Lex->sp_finalize_routine_signature(thd))
+               MYSQL_YYABORT;
+          }
           sp_c_chistics
           {
             $$= thd->lex;
@@ -20017,6 +20030,10 @@ package_specification_procedure:
             thd->lex= lex;
           }
           sp_parameters
+          {
+             if (Lex->sp_finalize_routine_signature(thd))
+               MYSQL_YYABORT;
+          }
           sp_c_chistics
           {
             $$= thd->lex;
@@ -20149,7 +20166,7 @@ sp_param_name_and_mode:
         ;
 
 sp_param_init_vars:
-          sp_param_name_and_mode_init_vars field_type
+          sp_param_name_and_mode_init_vars field_type_all_with_typedefs
           {
             if (unlikely(Lex->sp_param_fill_definition($$= $1, $2)))
               MYSQL_YYABORT;
@@ -20209,6 +20226,10 @@ sp_tail_standalone:
               MYSQL_YYABORT;
           }
           opt_sp_parenthesized_pdparam_list
+          {
+             if (Lex->sp_finalize_routine_signature(thd))
+               MYSQL_YYABORT;
+          }
           sp_c_chistics
           {
             Lex->sphead->set_c_chistics(Lex->sp_chistics);
@@ -20218,7 +20239,7 @@ sp_tail_standalone:
           sp_body
           opt_trailing_sp_name
           {
-            if (unlikely(Lex->sp_body_finalize_procedure_standalone(thd, $8)))
+            if (unlikely(Lex->sp_body_finalize_procedure_standalone(thd, $9)))
               MYSQL_YYABORT;
           }
         ;
@@ -20244,10 +20265,14 @@ create_routine:
           }
           sf_parameters
           sf_returned_type_clause
+          {
+             if (Lex->sp_finalize_routine_signature(thd))
+               MYSQL_YYABORT;
+          }
           sf_c_chistics_and_body_standalone
           opt_trailing_sp_name
           {
-            if (Lex->stmt_create_stored_function_finalize_standalone($11))
+            if (Lex->stmt_create_stored_function_finalize_standalone($12))
               MYSQL_YYABORT;
           }
         | create_or_replace no_definer opt_aggregate FUNCTION_SYM opt_if_not_exists
@@ -20258,10 +20283,14 @@ create_routine:
           }
           sf_parameters
           sf_returned_type_clause
+          {
+             if (Lex->sp_finalize_routine_signature(thd))
+               MYSQL_YYABORT;
+          }
           sf_c_chistics_and_body_standalone
           opt_trailing_sp_name
           {
-            if (Lex->stmt_create_stored_function_finalize_standalone($11))
+            if (Lex->stmt_create_stored_function_finalize_standalone($12))
               MYSQL_YYABORT;
           }
         | create_or_replace no_definer opt_aggregate FUNCTION_SYM opt_if_not_exists
@@ -20455,7 +20484,7 @@ sp_decl_type:
           {
             if (unlikely(Lex->declare_type_record(thd, $1, $4)))
               MYSQL_YYABORT;
-            $$.vars= $$.conds= $$.hndlrs= $$.curs= 0;
+            $$.init();
           }
         | typed_ident IS TABLE_SYM OF_SYM assoc_array_table_types
           {
@@ -20470,7 +20499,39 @@ sp_decl_type:
             auto def= static_cast<Spvar_definition*>(Lex->last_field);
             if (unlikely(Lex->declare_type_assoc_array(thd, $1, def, $5)))
               MYSQL_YYABORT;
-            $$.vars= $$.conds= $$.hndlrs= $$.curs= 0;
+            $$.init();
+          }
+        | typed_ident IS REF_SYM CURSOR_SYM
+          {
+            if (unlikely(Lex->declare_type_ref_cursor(thd, $1, Lex_ident_sys(),
+                                                      nullptr, nullptr)))
+              MYSQL_YYABORT;
+            $$.init();
+          }
+        | typed_ident IS REF_SYM CURSOR_SYM RETURN_ORACLE_SYM sp_decl_ident
+          {
+            if (unlikely(Lex->declare_type_ref_cursor(thd, $1, $6,
+                                                      nullptr, nullptr)))
+              MYSQL_YYABORT;
+            $$.init();
+          }
+        | typed_ident IS REF_SYM CURSOR_SYM RETURN_ORACLE_SYM
+          optionally_qualified_column_ident
+          PERCENT_ORACLE_SYM TYPE_SYM
+          {
+            if (unlikely(Lex->declare_type_ref_cursor(thd, $1, Lex_ident_sys(),
+                                                      nullptr, $6)))
+              MYSQL_YYABORT;
+            $$.init();
+          }
+        | typed_ident IS REF_SYM CURSOR_SYM RETURN_ORACLE_SYM
+          optionally_qualified_column_ident
+          PERCENT_ORACLE_SYM ROWTYPE_ORACLE_SYM
+          {
+            if (unlikely(Lex->declare_type_ref_cursor(thd, $1, Lex_ident_sys(),
+                                                      $6, nullptr)))
+              MYSQL_YYABORT;
+            $$.init();
           }
         ;
 

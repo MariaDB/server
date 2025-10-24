@@ -71,7 +71,9 @@ public:
                              sp_head *owner,
                              const sp_pcontext *root_parsing_ctx,
                              Field *return_value_fld,
-                             Row_definition_list &defs);
+                             Row_definition_list &defs,
+                             const List<Parent_child_uint>
+                               &vars_parent_child_lst);
 
   ~sp_rcontext();
 

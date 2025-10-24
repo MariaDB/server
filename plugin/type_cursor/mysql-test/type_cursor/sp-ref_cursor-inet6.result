@@ -1,0 +1,82 @@
+SET sql_mode=ORACLE;
+#
+# MDEV-10152 Add support for TYPE .. IS REF CURSOR
+#
+CREATE TABLE t1 (a INT, b INET6);
+INSERT INTO t1 VALUES (1,'::1');
+CREATE PROCEDURE p1 IS
+TYPE rec0_t IS RECORD (a INT, b INET6);
+TYPE cur0_t IS REF CURSOR RETURN rec0_t;
+c0 cur0_t;
+v0 t1%ROWTYPE;
+BEGIN
+OPEN c0 FOR SELECT * FROM t1;
+FETCH c0 INTO v0;
+CLOSE c0;
+SELECT v0.a, v0.b;
+END;
+$$
+CALL p1;
+v0.a	v0.b
+1	::1
+DROP PROCEDURE p1;
+DROP TABLE t1;
+CREATE PROCEDURE p1 AS
+TYPE rec0_t IS RECORD (a INT, b INET6);
+TYPE rec1_t IS RECORD (a INT, b TIME);
+TYPE cur0_t IS REF CURSOR RETURN rec0_t;
+TYPE cur1_t IS REF CURSOR RETURN rec1_t;
+c0 cur0_t;
+c1 cur1_t;
+BEGIN
+SELECT COALESCE(c0,c1);
+END;
+$$
+CALL p1;
+ERROR HY000: Illegal parameter data types time and inet6 for operation 'coalesce'
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1 AS
+TYPE rec0_t IS RECORD (a INT, b INET6);
+TYPE rec1_t IS RECORD (a INT, b TIME);
+TYPE cur0_t IS REF CURSOR RETURN rec0_t;
+TYPE cur1_t IS REF CURSOR RETURN rec1_t;
+c0, c1 cur0_t;
+c2 cur1_t;
+BEGIN
+SELECT COALESCE(COALESCE(c0,c1),c2);
+END;
+$$
+CALL p1;
+ERROR HY000: Illegal parameter data types time and inet6 for operation 'coalesce'
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1 AS
+TYPE rec0_t IS RECORD (a INT, b INET6);
+TYPE rec1_t IS RECORD (a INT, b TIME);
+TYPE cur0_t IS REF CURSOR RETURN rec0_t;
+TYPE cur1_t IS REF CURSOR RETURN rec1_t;
+c0 cur0_t;
+c1 cur1_t;
+BEGIN
+SELECT c0 UNION SELECT c1;
+END;
+$$
+CALL p1;
+ERROR HY000: Illegal parameter data types time and inet6 for operation 'UNION'
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1 AS
+TYPE rec0_t IS RECORD (a INT, b INET6);
+TYPE cur0_t IS REF CURSOR RETURN rec0_t;
+c0, c1, c2 cur0_t;
+r0 rec0_t;
+BEGIN
+OPEN c1 FOR SELECT 1 AS a,'::' AS b;
+c2:= COALESCE(c0,c1);
+FETCH c2 INTO r0;
+CLOSE c2;
+SELECT r0.a, r0.b;
+END;
+$$
+CALL p1;
+r0.a	r0.b
+1	::
+DROP PROCEDURE p1;

@@ -24,6 +24,15 @@
 
 class Row_definition_list;
 
+
+class RowTypeBuffer: public CharBuffer<6 + MAX_BIGINT_WIDTH>
+{
+public:
+  RowTypeBuffer(uint sz)
+  { copy("row<"_LEX_CSTRING).append_ulonglong(sz).append_char('>'); }
+};
+
+
 /*
   Special handler for ROW
 */

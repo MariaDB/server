@@ -54,6 +54,8 @@ public:
   bool can_return_text() const override { return false; }
   bool can_return_date() const override { return false; }
   bool can_return_time() const override { return false; }
+  bool can_be_ref_cursor_return_component() const { return false; }
+
   enum_field_types field_type() const override
   {
     MY_ASSERT_UNREACHABLE();

@@ -1,0 +1,90 @@
+SET sql_mode=ORACLE;
+#
+# MDEV-10152 Add support for TYPE .. IS REF CURSOR
+#
+CREATE PROCEDURE p0 IS
+BEGIN
+IF @debug_ref_cursor IS TRUE
+THEN
+EXECUTE IMMEDIATE 'SHOW PROCEDURE CODE pkg1.p1';
+END IF;
+CALL pkg1.p1;
+END;
+$$
+# Cursor TYPE inside PACKAGE BODY,
+# Cursor variable inside PROCEDURE
+# Fetch targets inside PROCEDURE
+CREATE PACKAGE pkg1 IS
+PROCEDURE p1;
+END;
+$$
+CREATE PACKAGE BODY pkg1 IS
+TYPE rec0_t IS RECORD (a INT, b VARCHAR(10));
+TYPE cur0_t IS REF CURSOR RETURN rec0_t;
+PROCEDURE p1 IS
+c0 cur0_t;
+v0a INT;
+v0b VARCHAR(10);
+BEGIN
+OPEN c0 FOR SELECT 1,'b1' FROM DUAL;
+FETCH c0 INTO v0a, v0b;
+CLOSE c0;
+SELECT v0a||' '||v0b AS line;
+END;
+END;
+$$
+CALL p0;
+line
+1 b1
+DROP PACKAGE pkg1;
+# Cursor TYPE inside PACKAGE BODY
+# Cursor variable inside PROCEDURE
+# Fetch targets inside PACKAGE BODY
+CREATE PACKAGE pkg1 IS
+PROCEDURE p1;
+END;
+$$
+CREATE PACKAGE BODY pkg1 IS
+TYPE rec0_t IS RECORD (a INT, b VARCHAR(10));
+TYPE cur0_t IS REF CURSOR RETURN rec0_t;
+v0a INT;
+v0b VARCHAR(10);
+PROCEDURE p1 IS
+c0 cur0_t;
+BEGIN
+OPEN c0 FOR SELECT 1,'b1' FROM DUAL;
+FETCH c0 INTO v0a, v0b;
+CLOSE c0;
+SELECT v0a||' '||v0b AS line;
+END;
+END;
+$$
+CALL p0;
+line
+1 b1
+DROP PACKAGE pkg1;
+# Cursor TYPE inside PACKAGE BODY
+# Cursor variable inside PACKAGE BODY - not allowed
+# Fetch targets inside PACKAGE BODY
+CREATE PACKAGE pkg1 IS
+PROCEDURE p1;
+END;
+$$
+CREATE PACKAGE BODY pkg1 IS
+TYPE rec0_t IS RECORD (a INT, b VARCHAR(10));
+TYPE cur0_t IS REF CURSOR RETURN rec0_t;
+c0 cur0_t;
+v0a INT;
+v0b VARCHAR(10);
+PROCEDURE p1 IS
+BEGIN
+OPEN c0 FOR SELECT 1,'b1' FROM DUAL;
+FETCH c0 INTO v0a, v0b;
+CLOSE c0;
+SELECT v0a||' '||v0b AS line;
+END;
+END;
+$$
+ERROR HY000: 'sys_refcursor' is not allowed in this context
+DROP PACKAGE pkg1;
+DROP PROCEDURE p0;
