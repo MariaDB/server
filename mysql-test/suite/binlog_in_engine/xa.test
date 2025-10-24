@@ -201,5 +201,18 @@ BEGIN;
 SELECT b FROM t1 WHERE a=1 FOR UPDATE;
 ROLLBACK;
 
+
+--echo *** Test duplicate SAVEPOINT with XA
+# This is the original testcase found from RQG runs. See savepoint.test for
+# more savepoint-related tests.
+XA BEGIN 'x';
+DELETE FROM t1;
+SAVEPOINT A;
+SAVEPOINT B;
+SAVEPOINT A;
+ROLLBACK TO SAVEPOINT B;
+XA END 'x';
+XA ROLLBACK 'x';
+
 SET GLOBAL slave_connections_needed_for_purge= @old_min_slaves;
 DROP TABLE t1;
