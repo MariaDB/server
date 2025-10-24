@@ -1,0 +1,104 @@
+SET sql_mode=ORACLE;
+#
+# MDEV-10152 Add support for TYPE .. IS REF CURSOR
+#
+CREATE PROCEDURE p1 IS
+TYPE cur_t IS REF CURSOR RETURN INT;
+BEGIN
+NULL;
+END;
+$$
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'INT;
+BEGIN
+NULL;
+END' at line 2
+CREATE PROCEDURE p1 IS
+TYPE cur_t IS REF CURSOR RETURN ROW(a INT, b VARCHAR(10));
+BEGIN
+NULL;
+END;
+$$
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'ROW(a INT, b VARCHAR(10));
+BEGIN
+NULL;
+END' at line 2
+CREATE PROCEDURE p1 IS
+TYPE cur_t IS REF CURSOR RETURN unknown_t;
+BEGIN
+NULL;
+END;
+$$
+ERROR HY000: Unknown data type: 'unknown_t'
+CREATE PROCEDURE p1 IS
+TYPE assoc_t IS TABLE OF INT INDEX BY INT;
+TYPE cur_t IS REF CURSOR RETURN assoc_t;
+BEGIN
+NULL;
+END;
+$$
+ERROR HY000: Illegal parameter data type assoc_t for operation 'REF CURSOR RETURN'
+CREATE OR REPLACE PROCEDURE p1 IS
+TYPE assoc0_t IS TABLE OF INT INDEX BY INT;
+TYPE rec0_t IS RECORD (a INT, b assoc0_t);
+-- The error happens on the above line
+TYPE cur0_t IS REF CURSOR RETURN rec0_t;
+c0 cur0_t;
+BEGIN
+NULL;
+END;
+$$
+ERROR HY000: Unknown data type: 'assoc0_t'
+CREATE PROCEDURE p1 IS
+TYPE rec0_t IS RECORD (a INT, b VARCHAR(10));
+TYPE cur0_t IS REF CURSOR RETURN rec0_t;
+TYPE cur1_t IS REF CURSOR RETURN cur0_t;
+BEGIN
+NULL;
+END;
+$$
+ERROR HY000: Illegal parameter data type cur0_t for operation 'REF CURSOR RETURN'
+CREATE PROCEDURE p1 IS
+TYPE rec0_t IS RECORD (a INT, b SYS_REFCURSOR);
+TYPE cur0_t IS REF CURSOR RETURN rec0_t;
+c0 cur0_t;
+BEGIN
+NULL;
+END;
+$$
+ERROR HY000: Illegal parameter data type sys_refcursor for operation 'REF CURSOR RETURN'
+CREATE PROCEDURE p1 IS
+TYPE cur0_t IS REF CURSOR RETURN v0%TYPE;
+c0 cur0_t;
+BEGIN
+NULL;
+END;
+$$
+ERROR 42000: Undeclared variable: v0
+CREATE PROCEDURE p1 IS
+v0 INT;
+TYPE cur0_t IS REF CURSOR RETURN v0%TYPE;
+c0 cur0_t;
+BEGIN
+NULL;
+END;
+$$
+ERROR HY000: Illegal parameter data type int for operation 'REF CURSOR RETURN'
+CREATE OR REPLACE PROCEDURE p1 IS
+TYPE rec0_t IS RECORD (a INT, b SYS_REFCURSOR);
+r0 rec0_t;
+TYPE cur0_t IS REF CURSOR RETURN r0%TYPE;
+c0 cur0_t;
+BEGIN
+NULL;
+END;
+$$
+ERROR HY000: Illegal parameter data type sys_refcursor for operation 'REF CURSOR RETURN'
+CREATE OR REPLACE PROCEDURE p1 IS
+r0 ROW (a INT, b SYS_REFCURSOR);
+TYPE cur0_t IS REF CURSOR RETURN r0%TYPE;
+c0 cur0_t;
+BEGIN
+NULL;
+END;
+$$
+ERROR HY000: Illegal parameter data type sys_refcursor for operation 'REF CURSOR RETURN'

@@ -1,0 +1,124 @@
+SET sql_mode=ORACLE;
+
+--echo #
+--echo # MDEV-10152 Add support for TYPE .. IS REF CURSOR
+--echo #
+
+
+--echo #
+--echo # Non-Oracle style: %TYPE of an explicit ROW variable
+--echo #
+
+DELIMITER $$;
+CREATE PROCEDURE p1 IS
+  v0 ROW(a INT, b VARCHAR(10));
+  TYPE cur0_t IS REF CURSOR RETURN v0%TYPE;
+  c0 cur0_t;
+BEGIN
+  OPEN c0 FOR SELECT 1,'2 ' FROM DUAL;
+  FETCH c0 INTO v0;
+  SELECT LENGTH(v0.a) || ' ' || LENGTH(v0.b) || ' <'|| v0.a || '><'|| v0.b || '>' AS line;
+  CLOSE c0;
+END;
+$$
+DELIMITER ;$$
+CALL p1;
+DROP PROCEDURE p1;
+
+
+--echo #
+--echo # TYPE cur0_t IS REF CURSOR RETURN v0%TYPE
+--echo # where v0 is of an explicit RECORD
+--echo #
+
+DELIMITER $$;
+CREATE PROCEDURE p1 IS
+  TYPE rec0_t IS RECORD (a INT, b VARCHAR(10));
+  v0 rec0_t;
+  TYPE cur0_t IS REF CURSOR RETURN v0%TYPE;
+  c0 cur0_t;
+BEGIN
+  OPEN c0 FOR SELECT 1,'2 ' FROM DUAL;
+  FETCH c0 INTO v0;
+  SELECT LENGTH(v0.a) || ' ' || LENGTH(v0.b) || ' <'|| v0.a || '><'|| v0.b || '>' AS line;
+  CLOSE c0;
+END;
+$$
+DELIMITER ;$$
+CALL p1;
+DROP PROCEDURE p1;
+
+
+--echo #
+--echo # TYPE cur0_t IS REF CURSOR RETURN v1%TYPE
+--echo # where v1 is of v0%TYPE where v0 is an explicit RECORD
+--echo #
+
+DELIMITER $$;
+CREATE PROCEDURE p1 IS
+  TYPE rec0_t IS RECORD (a INT, b VARCHAR(10));
+  v0 rec0_t;
+  v1 v0%TYPE;
+  TYPE cur0_t IS REF CURSOR RETURN v1%TYPE;
+  c0 cur0_t;
+BEGIN
+  OPEN c0 FOR SELECT 1,'2 ' FROM DUAL;
+  FETCH c0 INTO v0;
+  SELECT LENGTH(v0.a) || ' ' || LENGTH(v0.b) || ' <'|| v0.a || '><'|| v0.b || '>' AS line;
+  CLOSE c0;
+END;
+$$
+DELIMITER ;$$
+CALL p1;
+DROP PROCEDURE p1;
+
+
+--echo #
+--echo # TYPE cur0_t IS REF CURSOR RETURN v0%TYPE
+--echo # where v0 is table%ROWTYPE
+--echo #
+
+CREATE TABLE t1 (a INT, b VARCHAR(10));
+INSERT INTO t1 VALUES (1, '2 ');
+DELIMITER $$;
+CREATE PROCEDURE p1 IS
+  v0 t1%ROWTYPE;
+  TYPE cur0_t IS REF CURSOR RETURN v0%TYPE;
+  c0 cur0_t;
+BEGIN
+  OPEN c0 FOR SELECT * FROM t1;
+  FETCH c0 INTO v0;
+  SELECT LENGTH(v0.a) || ' ' || LENGTH(v0.b) || ' <'|| v0.a || '><'|| v0.b || '>' AS line;
+  CLOSE c0;
+END;
+$$
+DELIMITER ;$$
+CALL p1;
+DROP PROCEDURE p1;
+DROP TABLE t1;
+
+
+--echo #
+--echo # TYPE cur0_t IS REF CURSOR RETURN v0%TYPE
+--echo # where v0 is cursor%ROWTYPE
+--echo #
+
+CREATE TABLE t1 (a INT, b VARCHAR(10));
+INSERT INTO t1 VALUES (1, '2 ');
+DELIMITER $$;
+CREATE PROCEDURE p1 IS
+  CURSOR cursor_sample IS SELECT * FROM t1;
+  v0 cursor_sample%ROWTYPE;
+  TYPE cur0_t IS REF CURSOR RETURN v0%TYPE;
+  c0 cur0_t;
+BEGIN
+  OPEN c0 FOR SELECT * FROM t1;
+  FETCH c0 INTO v0;
+  SELECT LENGTH(v0.a) || ' ' || LENGTH(v0.b) || ' <'|| v0.a || '><'|| v0.b || '>' AS line;
+  CLOSE c0;
+END;
+$$
+DELIMITER ;$$
+CALL p1;
+DROP PROCEDURE p1;
+DROP TABLE t1;

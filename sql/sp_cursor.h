@@ -99,7 +99,9 @@ public:
 
   virtual sp_lex_keeper *get_lex_keeper() { return nullptr; }
 
-  int open(THD *thd, bool check_max_open_cursor_counter= true);
+  int open(THD *thd, const Row_definition_list *row_def,
+           const Virtual_tmp_table *row_def2,
+           bool check_max_open_cursor_counter= true);
 
   int close(THD *thd);
 
@@ -133,6 +135,8 @@ public:
   }
 
   virtual sp_instr_cpush *get_push_instr() { return nullptr; }
+
+  static void raise_incompatible_row_size(uint sz0, uint sz1);
 private:
   Select_fetch_into_spvars result;
   Server_side_cursor *server_side_cursor;

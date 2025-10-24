@@ -190,3 +190,28 @@ Item* Item_row::do_build_clone(THD *thd) const
   copy->args= copy_args;
   return copy;
 }
+
+
+/*
+  This method is used from sp_instr_set_srp::exec_core
+  to set a fetch variable list from a temporary cursor fetch ROW variable:
+    c0 IS REF CURSOR RETURN cursor_example%ROWTYPE;
+    FETCH c0 INTO var1,var2,var3;
+  The variables a,b,c are wrapped into an Item_row, pointed by "this".
+  So here we're effectively performing an operation like this:
+    ROW(var1,var2,var3):= _cursor_fetch_tmp_var;
+*/
+bool Item_row::set_value(THD *thd, sp_rcontext *ctx, Item **it)
+{
+  Item_splocal *value= dynamic_cast<Item_splocal*>(*it);
+  DBUG_ASSERT(value);
+  DBUG_ASSERT(dynamic_cast<const Type_handler_row*>(value->type_handler()));
+  // TODO: check_cols()
+  for (uint i= 0; i < arg_count; i++)
+  {
+    Settable_routine_parameter *p= args[i]->get_settable_routine_parameter();
+    if (p->set_value(thd, ctx, value->addr(i)))
+      return true;
+  }
+  return false;
+}
