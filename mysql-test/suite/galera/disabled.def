@@ -16,3 +16,4 @@ MW-329 : MDEV-35951 Complete freeze during MW-329 test
 galera_vote_rejoin_dml : MDEV-35964 Assertion `ist_seqno >= cc_seqno' failed in galera_vote_rejoin_dml
 galera_var_notify_cmd : MDEV-37257 WSREP: Notification command failed: 1 (Operation not permitted)
 galera_var_notify_ssl_ipv6 : MDEV-37257 WSREP: Notification command failed: 1 (Operation not permitted)
+MDEV-26266 : cannot work reliably
