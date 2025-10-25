@@ -231,13 +231,10 @@ void sp_cache_invalidate()
   inside SP'.
 */
 
-void sp_cache_flush_obsolete(sp_cache **cp, sp_head **sp, ulong version)
+void sp_cache_remove(sp_cache **cp, sp_head **sp)
 {
-  if ((*sp)->sp_cache_version() < version)
-  {
-    (*cp)->remove(*sp);
-    *sp= NULL;
-  }
+  (*cp)->remove(*sp);
+  *sp= NULL;
 }
 
 /**
