@@ -1,5 +1,5 @@
---- ../src/storage/spider/mysql-test/spider/r/timestamp.result	2025-10-15 11:15:55.421080805 +1100
-+++ ../src/storage/spider/mysql-test/spider/r/timestamp.reject	2025-10-27 12:30:28.700668060 +1100
+--- ../src/storage/spider/mysql-test/spider/r/timestamp.result	2025-02-17 13:56:13.081239142 +1100
++++ ../src/storage/spider/mysql-test/spider/r/timestamp.reject	2025-10-27 13:10:46.447401511 +1100
 @@ -118,7 +118,7 @@
  connection child2_1;
  SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %';
@@ -84,9 +84,9 @@
  argument
 -select t0.`col_d` `col_d`,t0.`col_t` `col_t` from `ts_test_remote`.`tbl_f` t0
 -select (timestamp(t0.`col_d` , t0.`col_t`)) `TIMESTAMP(col_d, col_t)` from `ts_test_remote`.`tbl_f` t0
--select (timestamp('2018-06-25' , t0.`col_t`)) `TIMESTAMP('2018-06-25', col_t)` from `ts_test_remote`.`tbl_f` t0
--select (timestamp(t0.`col_d` , '10:43:21')) `TIMESTAMP(col_d, '10:43:21')` from `ts_test_remote`.`tbl_f` t0
--select (timestamp('2018-06-25' , '10:43:21')) `TIMESTAMP('2018-06-25', '10:43:21')` from `ts_test_remote`.`tbl_f` t0
+-select (timestamp(_latin1'2018-06-25' , t0.`col_t`)) `TIMESTAMP('2018-06-25', col_t)` from `ts_test_remote`.`tbl_f` t0
+-select (timestamp(t0.`col_d` , _latin1'10:43:21')) `TIMESTAMP(col_d, '10:43:21')` from `ts_test_remote`.`tbl_f` t0
+-select (timestamp(_latin1'2018-06-25' , _latin1'10:43:21')) `TIMESTAMP('2018-06-25', '10:43:21')` from `ts_test_remote`.`tbl_f` t0
 +select `col_d`,`col_t` from `ts_test_remote`.`tbl_f`
 +select `col_d`,`col_t` from `ts_test_remote`.`tbl_f`
 +select `col_t` from `ts_test_remote`.`tbl_f`
