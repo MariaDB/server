@@ -300,6 +300,7 @@ public:
   }
   ~Table_triggers_list();
 
+  TABLE* get_trigger_table() { return trigger_table; }
   bool create_trigger(THD *thd, TABLE_LIST *table, String *stmt_query,
                       DDL_LOG_STATE *ddl_log_state,
                       DDL_LOG_STATE *ddl_log_state_tmp_file);

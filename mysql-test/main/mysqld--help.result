@@ -798,7 +798,8 @@ The following specify which files/extra groups are read (specified before remain
  ZERO_DATE_TIME_CAST, UTF8_IS_UTF8MB3, 
  IGNORE_INDEX_ONLY_FOR_JOIN, COMPAT_5_1_CHECKSUM, 
  NO_NULL_COLLATION_IDS, LOCK_ALTER_TABLE_COPY, 
- OLD_FLUSH_STATUS, SESSION_USER_IS_USER, or ALL to set all
+ OLD_FLUSH_STATUS, SESSION_USER_IS_USER, 
+ TRIGGERS_NEW_AND_OLD_ARE_ROW, or ALL to set all
  combinations
  --old-passwords     Use old password encryption method (needed for 4.0 and
  older clients)
@@ -1961,7 +1962,7 @@ performance-schema-max-socket-classes 10
 performance-schema-max-socket-instances -1
 performance-schema-max-sql-text-length 1024
 performance-schema-max-stage-classes 160
-performance-schema-max-statement-classes 227
+performance-schema-max-statement-classes 228
 performance-schema-max-statement-stack 10
 performance-schema-max-table-handles -1
 performance-schema-max-table-instances -1

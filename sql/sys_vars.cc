@@ -4132,6 +4132,9 @@ static const char *old_mode_names[]=
   "LOCK_ALTER_TABLE_COPY",              // 7: deprecated since 11.3
   "OLD_FLUSH_STATUS",                   // 8: deprecated since 11.5
   "SESSION_USER_IS_USER",               // 9: deprecated since 11.7
+  "TRIGGERS_NEW_AND_OLD_ARE_ROW",       // 10: introduced in 12.3, treats
+                                        //     NEW and OLD as row variables
+                                        //     in triggers.
   0
 };
 
