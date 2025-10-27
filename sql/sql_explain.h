@@ -61,6 +61,7 @@ public:
 
 class Json_writer;
 
+enum partition_index_scan_method : unsigned int;
 /**************************************************************************************
  
   Data structures for producing EXPLAIN outputs.
@@ -766,6 +767,7 @@ class Explain_table_access : public Sql_alloc
 {
 public:
   Explain_table_access(MEM_ROOT *root, bool timed) :
+    pi_scan_method(NULL),
     derived_select_number(0),
     non_merged_sjm_number(0),
     cost(0.0),
@@ -793,6 +795,7 @@ public:
   /* id and 'select_type' are cared-of by the parent Explain_select */
   StringBuffer<32> table_name;
   StringBuffer<32> used_partitions;
+  enum partition_index_scan_method *pi_scan_method;
   String_list used_partitions_list;
   // valid with ET_USING_MRR
   StringBuffer<32> mrr_type;

@@ -30,6 +30,9 @@ typedef bool (*check_constants_func)(THD *thd, partition_info *part_info);
  
 struct st_ddl_log_memory_entry;
 
+enum partition_index_scan_method : unsigned int
+{ NO_INDEX_SCAN= 0, ORDERED_INDEX_SCAN= 1, UNORDERED_INDEX_SCAN= 2 };
+
 #define MAX_PART_NAME_SIZE 8
 
 struct Vers_part_info : public Sql_alloc
@@ -200,6 +203,8 @@ public:
   MY_BITMAP lock_partitions;
   bool bitmaps_are_initialized;
 
+  enum partition_index_scan_method pi_scan_method;
+
   union {
     longlong *range_int_array;
     LIST_PART_ENTRY *list_array;
@@ -314,6 +319,7 @@ public:
     restore_part_field_ptrs(NULL), restore_subpart_field_ptrs(NULL),
     part_expr(NULL), subpart_expr(NULL), item_free_list(NULL),
     bitmaps_are_initialized(FALSE),
+    pi_scan_method(NO_INDEX_SCAN),
     list_array(NULL), vers_info(NULL), err_value(0),
     part_info_string(NULL),
     curr_part_elem(NULL), current_partition(NULL),

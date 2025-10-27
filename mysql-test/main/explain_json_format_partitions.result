@@ -45,6 +45,7 @@ ANALYZE
         "table": {
           "table_name": "t1",
           "partitions": ["p0"],
+          "partitions_index_scan_method": "none",
           "access_type": "ALL",
           "loops": 1,
           "r_loops": 1,
