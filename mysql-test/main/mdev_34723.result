@@ -1,0 +1,371 @@
+#
+# NEW and OLD does not work outside trigger and gives error
+# regardless of mode
+#
+SET NEW=OLD;
+ERROR HY000: Unknown system variable 'NEW'
+#
+# Checking for INSERT
+#
+CREATE TABLE t1 (id1 INT, val1 VARCHAR(10));
+CREATE TABLE t2 (id2 INT, val2 VARCHAR(10));
+INSERT INTO t1 VALUES (1, "A"), (2, "B"), (3, "C") RETURNING *;
+id1	val1
+1	A
+2	B
+3	C
+CREATE TRIGGER t1_before_insert_new_eq_old
+BEFORE INSERT ON t1
+FOR EACH ROW
+BEGIN
+SET NEW=OLD;
+END|
+ERROR HY000: There is no OLD row in on INSERT trigger
+CREATE TRIGGER t1_after_insert_new_eq_old
+AFTER INSERT ON t1
+FOR EACH ROW
+BEGIN
+SET NEW=OLD;
+END|
+ERROR HY000: There is no OLD row in on INSERT trigger
+CREATE TRIGGER t1_after_insert_new_eq_var
+AFTER INSERT ON t1
+FOR EACH ROW
+BEGIN
+DECLARE a ROW (x INT,y VARCHAR(10));
+SET NEW=a;
+INSERT INTO t2 VALUES(NEW.id1, NEW.val1);
+END|
+ERROR HY000: Updating of NEW row is not allowed in after trigger
+CREATE TRIGGER t1_before_insert_set_new_eq_var
+BEFORE INSERT ON t1
+FOR EACH ROW
+BEGIN
+DECLARE a ROW (x INT,y VARCHAR(10)) DEFAULT(5, "E");
+SET NEW=a;
+INSERT INTO t2 VALUES(NEW.id1, NEW.val1);
+END|
+INSERT INTO t1 VALUES (4, "D");
+SELECT * FROM t1;
+id1	val1
+1	A
+2	B
+3	C
+5	E
+SELECT * FROM t2;
+id2	val2
+5	E
+DROP TRIGGER t1_before_insert_set_new_eq_var;
+CREATE TRIGGER t1_before_insert_unequal_row
+BEFORE INSERT ON t1
+FOR EACH ROW
+BEGIN
+DECLARE a ROW (x INT,y VARCHAR(10)) DEFAULT(5, "E");
+SET NEW=a.x;
+INSERT INTO t2 VALUES(NEW.id1, NEW.val1);
+END|
+INSERT INTO t1 VALUES (6, "F");
+ERROR 21000: Operand should contain 2 column(s)
+DROP TRIGGER t1_before_insert_unequal_row;
+CREATE TRIGGER t1_after_insert_unequal_row
+AFTER INSERT ON t1
+FOR EACH ROW
+BEGIN
+DECLARE a ROW (x INT,y VARCHAR(10)) DEFAULT(5, "E");
+SET NEW=a.x;
+INSERT INTO t2 VALUES(NEW.id1, NEW.val1);
+END|
+ERROR HY000: Updating of NEW row is not allowed in after trigger
+DROP TABLE t1;
+DROP TABLE t2;
+#
+# Checking for UPDATE
+#
+CREATE TABLE t1 (id1 INT, val1 VARCHAR(10));
+CREATE TABLE t2 (id2 INT, val2 VARCHAR(10));
+INSERT INTO t1 VALUES (1, "A"), (2, "B"), (3, "C");
+SELECT * FROM t1;
+id1	val1
+1	A
+2	B
+3	C
+CREATE TRIGGER t1_after_update_new_eq_old
+AFTER UPDATE ON t1
+FOR EACH ROW
+BEGIN
+SET NEW=OLD;
+END|
+ERROR HY000: Updating of NEW row is not allowed in after trigger
+CREATE TRIGGER t1_after_update_old_eq_new
+AFTER UPDATE ON t1
+FOR EACH ROW
+BEGIN
+SET OLD = NEW;
+END|
+ERROR HY000: Updating of OLD row is not allowed in trigger
+CREATE TRIGGER t1_after_update_new_eq_var
+AFTER UPDATE ON t1
+FOR EACH ROW
+BEGIN
+DECLARE a ROW (x INT,y VARCHAR(10)) DEFAULT(5, "E");
+SET NEW=a;
+INSERT INTO t2 VALUES (NEW.id1, NEW.val1);
+END|
+ERROR HY000: Updating of NEW row is not allowed in after trigger
+CREATE TRIGGER t1_after_update_set_old_eq_var
+AFTER UPDATE ON t1
+FOR EACH ROW
+BEGIN
+DECLARE a ROW (x INT,y VARCHAR(10)) DEFAULT(5, "E");
+SET OLD=a;
+INSERT INTO t2 VALUES (NEW.id1, NEW.val1);
+END|
+ERROR HY000: Updating of OLD row is not allowed in trigger
+CREATE TRIGGER t1_before_update_new_eq_old
+BEFORE UPDATE ON t1
+FOR EACH ROW
+BEGIN
+SET NEW = OLD;
+INSERT INTO t2 VALUES (NEW.id1, NEW.val1);
+END|
+CREATE TRIGGER t1_before_update_old_eq_new
+BEFORE UPDATE ON t1
+FOR EACH ROW
+BEGIN
+SET OLD=NEW;
+INSERT INTO t2 VALUES (NEW.id1, NEW.val1);
+END|
+ERROR HY000: Updating of OLD row is not allowed in trigger
+SELECT * FROM t1;
+id1	val1
+1	A
+2	B
+3	C
+SELECT * FROM t2;
+id2	val2
+UPDATE t1 SET val1="D" WHERE id1= 1;
+SELECT * FROM t1;
+id1	val1
+1	A
+2	B
+3	C
+SELECT * FROM t2;
+id2	val2
+1	A
+DROP TRIGGER t1_before_update_new_eq_old;
+TRUNCATE TABLE t2;
+CREATE TRIGGER t1_before_update_old_eq_var
+BEFORE UPDATE ON t1
+FOR EACH ROW
+BEGIN
+DECLARE a ROW (x INT,y VARCHAR(10)) DEFAULT(5, "E");
+SET OLD=a;
+INSERT INTO t2 VALUES (NEW.id1, NEW.val1);
+END|
+ERROR HY000: Updating of OLD row is not allowed in trigger
+CREATE TRIGGER t1_before_update_new_eq_var
+BEFORE UPDATE ON t1
+FOR EACH ROW
+BEGIN
+DECLARE a ROW (x INT,y VARCHAR(10)) DEFAULT(5, "E");
+SET NEW=a;
+INSERT INTO t2 VALUES (NEW.id1, NEW.val1);
+END|
+UPDATE t1 SET val1="D" WHERE id1= 1;
+SELECT * FROM t1;
+id1	val1
+5	E
+2	B
+3	C
+SELECT * FROM t2;
+id2	val2
+5	E
+DROP TRIGGER t1_before_update_new_eq_var;
+CREATE TRIGGER t1_before_update_new_eq_var
+BEFORE UPDATE ON t1
+FOR EACH ROW
+BEGIN
+DECLARE a ROW (x INT,y VARCHAR(10)) DEFAULT(5, "E");
+SET NEW=a.x;
+INSERT INTO t2 VALUES (NEW.id1, NEW.val1);
+END|
+UPDATE t1 SET val1="D" WHERE id1= 5;
+ERROR 21000: Operand should contain 2 column(s)
+DROP TABLE t1;
+DROP TABLE t2;
+#
+# Checking for DELETE
+#
+CREATE TABLE t1 (id1 INT, val1 VARCHAR(10));
+CREATE TABLE t2 (id2 INT, val2 VARCHAR(10));
+INSERT INTO t1 VALUES (1, "A"), (2, "B"), (3, "C");
+SELECT * FROM t1;
+id1	val1
+1	A
+2	B
+3	C
+SELECT * FROM t2;
+id2	val2
+CREATE TRIGGER t1_before_delete_new_eq_old
+BEFORE DELETE ON t1
+FOR EACH ROW
+BEGIN
+SET NEW = OLD;
+END|
+ERROR HY000: There is no NEW row in on DELETE trigger
+CREATE TRIGGER t1_before_delete_old_eq_new
+BEFORE DELETE ON t1
+FOR EACH ROW
+BEGIN
+SET OLD = NEW;
+END|
+ERROR HY000: There is no NEW row in on DELETE trigger
+CREATE TRIGGER t1_before_delete_old_eq_var
+BEFORE DELETE ON t1
+FOR EACH ROW
+BEGIN
+DECLARE a ROW (x INT,y VARCHAR(10)) DEFAULT (3, "C");
+SET OLD=a;
+INSERT INTO t2 VALUES(NEW.id1, NEW.val1);
+END|
+ERROR HY000: Updating of OLD row is not allowed in trigger
+CREATE TRIGGER t1_before_delete_old_eq_var
+BEFORE DELETE ON t1
+FOR EACH ROW
+BEGIN
+DECLARE a ROW (x INT,y VARCHAR(10));
+SET a=OLD;
+INSERT INTO t2 VALUES(OLD.id1, OLD.val1);
+END|
+CREATE TRIGGER t1_after_delete_new_eq_old
+AFTER DELETE ON t1
+FOR EACH ROW
+BEGIN
+SET NEW = OLD;
+END|
+ERROR HY000: There is no NEW row in on DELETE trigger
+CREATE TRIGGER t1_after_delete_old_eq_new
+AFTER DELETE ON t1
+FOR EACH ROW
+BEGIN
+SET OLD=NEW;
+END|
+ERROR HY000: There is no NEW row in on DELETE trigger
+CREATE TRIGGER t1_after_delete_old_eq_var
+AFTER DELETE ON t1
+FOR EACH ROW
+BEGIN
+DECLARE a ROW (x INT,y VARCHAR(10)) DEFAULT (3, "C");
+SET OLD=a;
+INSERT INTO t2 VALUES(NEW.id1, NEW.val1);
+END|
+ERROR HY000: Updating of OLD row is not allowed in trigger
+DELETE FROM t1 WHERE id1=1;
+SELECT * FROM t1;
+id1	val1
+2	B
+3	C
+SELECT * FROM t2;
+id2	val2
+1	A
+TRUNCATE TABLE t2;
+DROP TRIGGER t1_before_delete_old_eq_var;
+CREATE TRIGGER t1_before_delete_old_eq_var
+BEFORE DELETE ON t1
+FOR EACH ROW
+BEGIN
+DECLARE a ROW (x INT,y VARCHAR(10));
+SET a=OLD;
+INSERT INTO t2 VALUES(OLD.id1, OLD.val1);
+END|
+SELECT * FROM t2;
+id2	val2
+DELETE FROM t1 WHERE id1=2;
+DROP TRIGGER t1_before_delete_old_eq_var;
+CREATE TRIGGER t1_before_delete_unequal_row
+BEFORE DELETE ON t1
+FOR EACH ROW
+BEGIN
+DECLARE a ROW (x INT, y VARCHAR(10)) DEFAULT(5, "E");
+SET a.x = OLD;
+END|
+DELETE FROM t1 WHERE id1=3;
+ERROR HY000: Cannot cast 'row' as 'int' in assignment of `x`
+SELECT * FROM t1;
+id1	val1
+3	C
+SELECT * FROM t2;
+id2	val2
+2	B
+DROP TABLE t1;
+DROP TABLE t2;
+CREATE TABLE t1 (a INT);
+CREATE TRIGGER t1_bu BEFORE UPDATE ON t1
+FOR EACH ROW
+BEGIN
+SET NEW = OLD;
+END$
+DROP TRIGGER t1_bu;
+DROP TABLE t1;
+# Shutdown and restart work ok
+CREATE TABLE t1 (a INT);
+CREATE TRIGGER t1_bu
+BEFORE UPDATE ON t1
+FOR EACH ROW
+BEGIN
+SET NEW = OLD;
+END;|
+SHOW TRIGGERS;
+Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation
+t1_bu	UPDATE	t1	BEGIN
+SET NEW = OLD;
+END	BEFORE	#	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	root@localhost	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
+# restart
+SHOW TRIGGERS;
+Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation
+t1_bu	UPDATE	t1	BEGIN
+SET NEW = OLD;
+END	BEFORE	#	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	root@localhost	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
+DROP TRIGGER t1_bu;
+DROP TABLE t1;
+# No unnecessary error emitted
+CREATE TABLE t1 (a INT);
+CREATE TRIGGER t1_bu
+BEFORE UPDATE ON t1
+FOR EACH ROW
+BEGIN
+DECLARE r ROW TYPE OF t1 DEFAULT (SELECT * FROM t1 WHERE a=1);
+SET NEW = r;
+END;|
+INSERT INTO t1 VALUES (1),(3);
+UPDATE t1 SET a = 10 WHERE a = 3;
+SELECT * FROM t1;
+a
+1
+1
+DROP TRIGGER t1_bu;
+DROP TABLE t1;
+#
+# Stored procedure variable scoping
+#
+DROP PROCEDURE IF EXISTS scope;
+Warnings:
+Note	1305	PROCEDURE test.scope does not exist
+CREATE PROCEDURE scope(a INT, b FLOAT)
+BEGIN
+DECLARE b INT DEFAULT 100;
+DECLARE c FLOAT;
+SET c = 5.5;
+BEGIN
+DECLARE c INT;
+SET c = 10;
+SELECT a, b, c;
+END;
+SELECT a, b, c;
+END|
+CALL scope(1, 2);
+a	b	c
+1	100	10
+a	b	c
+1	100	5.5
+DROP PROCEDURE scope;
