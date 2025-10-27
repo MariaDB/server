@@ -5014,32 +5014,35 @@ bool wsrep_check_sequence(THD* thd,
                           const bool used_engine)
 {
     enum legacy_db_type db_type;
+    const LEX_CSTRING *engine_name;
 
     DBUG_ASSERT(WSREP(thd));
 
     if (used_engine)
     {
       db_type= thd->lex->create_info.db_type->db_type;
+      // Currently any dynamic storage engine is not possible to identify
+      // using DB_TYPE_XXXX and ENGINE=SEQUENCE is one of them.
+      // Therefore, we get storage engine name from lex.
+      engine_name=
+        thd->lex->m_sql_cmd->option_storage_engine_name()->name();
     }
     else
     {
       const handlerton *hton= ha_default_handlerton(thd);
       db_type= hton->db_type;
+      engine_name= hton_name(hton);
     }
 
     // In Galera cluster we support only InnoDB sequences
     if (db_type != DB_TYPE_INNODB)
     {
-      // Currently any dynamic storage engine is not possible to identify
-      // using DB_TYPE_XXXX and ENGINE=SEQUENCE is one of them.
-      // Therefore, we get storage engine name from lex.
-      const LEX_CSTRING *tb_name= thd->lex->m_sql_cmd->option_storage_engine_name()->name();
       // (1) CREATE TABLE ... ENGINE=SEQUENCE  OR
       // (2) ALTER TABLE ... ENGINE=           OR
       //     Note in ALTER TABLE table->s->sequence != nullptr
       // (3) CREATE SEQUENCE ... ENGINE=
       if ((thd->lex->sql_command == SQLCOM_CREATE_TABLE &&
-           lex_string_eq(tb_name, STRING_WITH_LEN("SEQUENCE"))) ||
+           lex_string_eq(engine_name, STRING_WITH_LEN("SEQUENCE"))) ||
           (thd->lex->sql_command == SQLCOM_ALTER_TABLE) ||
           (thd->lex->sql_command == SQLCOM_CREATE_SEQUENCE))
       {
@@ -5047,7 +5050,8 @@ bool wsrep_check_sequence(THD* thd,
                  "non-InnoDB sequences in Galera cluster");
         push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
                             ER_NOT_SUPPORTED_YET,
-                            "ENGINE=%s not supported by Galera", tb_name->str);
+                            "ENGINE=%s not supported by Galera",
+                            engine_name->str);
 	return(true);
       }
     }
