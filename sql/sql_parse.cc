@@ -4724,10 +4724,21 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
 #ifdef WITH_WSREP
       if (wsrep && !first_table->view)
       {
-        const legacy_db_type db_type= first_table->table->file->partition_ht()->db_type;
+        const handlerton *hton= first_table->table->file->partition_ht() ?
+          first_table->table->file->partition_ht() :
+          first_table->table->file->ht;
+
+        const legacy_db_type db_type= hton->db_type;
         // For InnoDB we don't need to worry about anything here:
         if (db_type != DB_TYPE_INNODB)
         {
+          /* Only TOI allowed to !InnoDB tables */
+          if (thd->variables.wsrep_OSU_method != WSREP_OSU_TOI)
+          {
+            my_error(ER_NOT_SUPPORTED_YET, MYF(0), "RSU on this table engine");
+            break;
+          }
+
           // For consistency check inserted table needs to be InnoDB
           if (thd->wsrep_consistency_check != NO_CONSISTENCY_CHECK)
           {
@@ -4737,16 +4748,10 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
                                 " for InnoDB tables.");
             thd->wsrep_consistency_check= NO_CONSISTENCY_CHECK;
           }
-          /* Only TOI allowed to !InnoDB tables */
-          if (wsrep_OSU_method_get(thd) != WSREP_OSU_TOI)
-          {
-            my_error(ER_NOT_SUPPORTED_YET, MYF(0), "RSU on this table engine");
-            break;
-          }
           // For !InnoDB we start TOI if it is not yet started and hope for the best
           if (!wsrep_toi)
           {
-            /* Currently we support TOI for MyISAM only. */
+            /* Currently we support TOI for MyISAM && Aria only. */
             if ((db_type == DB_TYPE_MYISAM && wsrep_check_mode(WSREP_MODE_REPLICATE_MYISAM)) ||
                 (db_type == DB_TYPE_ARIA   && wsrep_check_mode(WSREP_MODE_REPLICATE_ARIA)))
             {
