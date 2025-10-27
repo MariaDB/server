@@ -7534,6 +7534,26 @@ int ha_partition::partition_scan_set_up(uchar * buf, bool idx_read_flag)
       m_part_spec.start_part= start_part;
     DBUG_ASSERT(m_part_spec.start_part < m_tot_parts);
     m_ordered_scan_ongoing= m_ordered;
+    /*
+      If PARTITION BY RANGE, and the RANGE expression is identical
+      to the ORDER BY expression, then opt for unordered scan (may be
+      overridden later e.g. if the ORDER BY is DESC)
+    */
+    if (m_part_info->part_type == RANGE_PARTITION &&
+        !m_is_sub_partitioned &&
+        table->pos_in_table_list &&
+        table->pos_in_table_list->select_lex->order_list.first)
+    {
+      Item *order_item =
+        table->pos_in_table_list->select_lex->order_list.first->item[0];
+      if ((m_part_info->part_expr &&
+           order_item->eq(m_part_info->part_expr, true)) ||
+          (!m_part_info->part_expr &&
+           order_item->type() == Item::FIELD_ITEM &&
+           m_part_info->full_part_field_array[0] ==
+             ((Item_field *) order_item)->field))
+        m_ordered_scan_ongoing= false;
+    }
   }
   DBUG_ASSERT(m_part_spec.start_part < m_tot_parts);
   DBUG_ASSERT(m_part_spec.end_part < m_tot_parts);
