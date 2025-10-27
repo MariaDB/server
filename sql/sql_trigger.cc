@@ -905,6 +905,31 @@ bool iterate_trigger_fields_and_run_func(
   return false;
 }
 
+
+template <typename FN>
+static
+bool iterate_trigger_row_and_run_func(
+  SQL_I_List<SQL_I_List<Item_trigger_row> > &trg_table_row,
+  FN fn
+  )
+{
+  for (SQL_I_List<Item_trigger_row>
+         *trg_row_lst= trg_table_row.first;
+       trg_row_lst;
+       trg_row_lst= trg_row_lst->first->next_trig_row_list)
+  {
+    for (Item_trigger_row *trg_row= trg_row_lst->first;
+         trg_row;
+         trg_row= trg_row->next_trg_row)
+    {
+      if (fn(trg_row))
+        return true;
+    }
+  }
+  return false;
+}
+
+
 /**
   Create trigger for table.
 
@@ -2019,6 +2044,15 @@ bool Table_triggers_list::check_n_load(THD *thd, const LEX_CSTRING *db,
           }
         );
 
+        (void)(iterate_trigger_row_and_run_func(
+           sp->m_trg_table_row,
+          [thd, table, trigger] (Item_trigger_row* trg_row)
+          {
+            return trg_row->setup_field(thd, table,
+                                        &trigger->subject_table_grants);
+          }
+        ));
+
         sp->m_trg= trigger;
         lex_end(&lex);
       }
@@ -2965,6 +2999,7 @@ bool Table_triggers_list::match_updatable_columns(List<Item> *fields)
 void Table_triggers_list::mark_fields_used(trg_event_type event)
 {
   int action_time;
+  bool fields_already_marked= false;
   DBUG_ENTER("Table_triggers_list::mark_fields_used");
 
   for (action_time= 0; action_time < (int)TRG_ACTION_MAX; action_time++)
@@ -2995,6 +3030,31 @@ void Table_triggers_list::mark_fields_used(trg_event_type event)
           return false;
         }
       );
+
+      (void)iterate_trigger_row_and_run_func(
+        trigger->body->m_trg_table_row,
+        [this, &fields_already_marked] (Item_trigger_row* trg_row)
+        {
+          if (trg_row->check_if_settable())
+          {
+            if (!fields_already_marked)
+            {
+              Field_iterator_table field_iterator;
+
+              field_iterator.set_table(trigger_table);
+
+              for (uint i=0; !field_iterator.end_of_fields(); field_iterator.next(), i++)
+              {
+                bitmap_set_bit(trigger_table->write_set, i);
+                trigger_table->mark_column_with_deps(trigger_table->field[i]);
+              }
+              fields_already_marked= true;
+            }
+          }
+          return false;
+        }
+      );
+
     }
   }
   trigger_table->file->column_bitmaps_signal();

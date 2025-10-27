@@ -216,7 +216,6 @@ enum enum_binlog_row_image {
 #define OLD_MODE_LOCK_ALTER_TABLE_COPY  (1 << 7)
 #define OLD_MODE_OLD_FLUSH_STATUS       (1 << 8)
 #define OLD_MODE_SESSION_USER_IS_USER   (1 << 9)
-
 #define OLD_MODE_DEFAULT_VALUE          OLD_MODE_UTF8_IS_UTF8MB3
 
 void old_mode_deprecated_warnings(ulonglong v);

@@ -10753,6 +10753,136 @@ void Item_trigger_field::cleanup()
   Item_fixed_hybrid::cleanup();
 }
 
+void
+Item_trigger_row::check_new_old_qualifiers_comform_with_trg_event(THD *thd)
+{
+  if ((thd->current_trg_event() == TRG_EVENT_INSERT &&
+       row_version == OLD_ROW) ||
+      (thd->current_trg_event() == TRG_EVENT_DELETE &&
+       row_version == NEW_ROW))
+    null_value= true;
+  else
+    null_value= false;
+}
+
+
+bool Item_trigger_row::fix_fields(THD *thd, Item **it)
+{
+  if (fixed())
+    return false;
+
+  check_new_old_qualifiers_comform_with_trg_event(thd);
+
+  populate_with_trigger_fields(thd);
+
+  List_iterator<Item_trigger_field> it_trigger_field(m_fields);
+  Item_trigger_field *trigger_field;
+
+  while((trigger_field= it_trigger_field++))
+  {
+    trigger_field->setup_field(thd, table, table_grants);
+    if (trigger_field->fix_fields_if_needed(thd, nullptr))
+      return true;
+  }
+  m_fields_iterator.init(m_fields);
+  base_flags|= item_base_t::FIXED;
+
+  return false;
+}
+
+bool Item_trigger_row::setup_field(THD *thd, TABLE *table,
+                                   GRANT_INFO *table_grant_info)
+{
+  triggers= table->triggers;
+  table_grants= table_grant_info;
+  this->table= table;
+  return false;
+}
+
+bool Item_trigger_row::populate_with_trigger_fields(THD *thd)
+{
+  Field_iterator_table field_iterator;
+  Field *field;
+
+  field_iterator.set_table(table);
+
+  for (; !field_iterator.end_of_fields(); field_iterator.next())
+  {
+    if ((field= field_iterator.field()) && field->invisible != VISIBLE)
+      continue;
+
+    Item_trigger_field *val= new (thd->mem_root)
+      Item_trigger_field(thd, cxt,
+                         (row_version == Item_trigger_row::NEW_ROW) ?
+                          Item_trigger_field::NEW_ROW :
+                          Item_trigger_field::OLD_ROW,
+                          field->field_name,
+                          original_privilege,
+                          read_only);
+    if (!val)
+      return true;
+
+    m_fields.push_back(val);
+  }
+  return false;
+}
+
+bool Item_trigger_row::set_value(THD *thd, sp_rcontext *ctx, Item **it)
+{
+  uint i= 0, result_fields;
+  List_iterator<Item_trigger_field> it_trigger_field(m_fields);
+  Item_trigger_field *trigger_field;
+  Item *value;
+
+  if (this->fix_fields_if_needed(thd, nullptr))
+    return true;
+
+  value= thd->sp_fix_func_item(it);
+
+  if ((result_fields= value->cols()) != cols() ||
+       value->cmp_type() != ROW_RESULT)
+  {
+    my_error(ER_OPERAND_COLUMNS, MYF(0), cols());
+    return true;
+  }
+
+  while((trigger_field= it_trigger_field++) && i < result_fields)
+  {
+    trigger_field->set_value(thd, (*it)->addr(i));
+    i++;
+  }
+  return 0;
+}
+
+void Item_trigger_row::print(String *str, enum_query_type query_type)
+{
+  str->append((row_version == NEW_ROW) ? "NEW" : "OLD", 3);
+}
+
+Item* Item_trigger_row::get_element_at_index_or_next(uint i)
+{
+  if (i == index)
+  {
+    index++;
+    return m_fields_iterator++;
+  }
+  else
+  {
+    return (Item*)m_fields.elem(i);
+  }
+}
+
+Item** Item_trigger_row::addr(uint i)
+{
+  if (index > m_fields.elements)
+  {
+    index= 0;
+    m_fields_iterator.rewind();
+  }
+  m_last_item_ptr= get_element_at_index_or_next(i);
+  return &m_last_item_ptr;
+}
+
 
 Item_result item_cmp_type(Item_result a,Item_result b)
 {

@@ -3908,10 +3908,14 @@ public:
                  CHARSET_INFO *cs,
                  const Lex_extended_collation_st &coll,
                  bool no_lookahead);
+  bool set_trigger_new_field(const LEX_CSTRING *name, Item *val,
+                             const LEX_CSTRING &expr_str);
   bool set_trigger_new_row(const LEX_CSTRING *name, Item *val,
                            const LEX_CSTRING &expr_str);
-  bool set_trigger_field(const LEX_CSTRING *name1, const LEX_CSTRING *name2,
-                         Item *val, const LEX_CSTRING &expr_str);
+  bool set_trigger_field_or_row(const LEX_CSTRING *name1,
+                                const LEX_CSTRING *name2,
+                                Item *val,
+                                const LEX_CSTRING &expr_str);
   bool set_system_variable(enum_var_type var_type, sys_var *var,
                            const Lex_ident_sys_st *base_name, Item *val);
   bool set_system_variable(enum_var_type var_type,
@@ -4377,8 +4381,10 @@ public:
 
   bool is_trigger_new_or_old_reference(const LEX_CSTRING *name) const;
 
-  Item *create_and_link_Item_trigger_field(THD *thd, const LEX_CSTRING *name,
-                                           bool new_row);
+  Item *create_and_link_Item_trigger_field_or_row(THD *thd,
+                                                  const LEX_CSTRING *name,
+                                                  bool new_row,
+                                                  bool is_row= false);
   // For syntax with colon, e.g. :NEW.a  or :OLD.a
   Item *make_item_colon_ident_ident(THD *thd,
                                     const Lex_ident_cli_st *a,

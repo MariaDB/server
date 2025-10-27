@@ -60,6 +60,7 @@ void init_sp_psi_keys()
   PSI_server->register_statement(category, & sp_instr_stmt::psi_info, 1);
   PSI_server->register_statement(category, & sp_instr_set::psi_info, 1);
   PSI_server->register_statement(category, & sp_instr_set_trigger_field::psi_info, 1);
+  PSI_server->register_statement(category, & sp_instr_set_trigger_row::psi_info, 1);
   PSI_server->register_statement(category, & sp_instr_jump::psi_info, 1);
   PSI_server->register_statement(category, & sp_instr_jump_if_not::psi_info, 1);
   PSI_server->register_statement(category, & sp_instr_freturn::psi_info, 1);
@@ -3195,32 +3196,46 @@ int sp_head::add_instr(sp_instr *instr)
     Check if SP is a trigger and there are Item_trigger_field objects
     created on parsing the current SP instruction.
   */
-  if (m_handler->type() == SP_TYPE_TRIGGER &&
-      m_cur_instr_trig_field_items.elements)
+  if (m_handler->type() == SP_TYPE_TRIGGER)
   {
-    /*
-      Get a pointer to a list of Item_trigger_field objects owned by
-      the current SP instruction. This list is used for storing
-      Item_trigger_field objects that can be created on parsing
-      the SP instruction's statement. If the current SP instruction is not
-      an instance of the class sp_lex_instr or derived class then
-      the value nullptr is returned by the virtual method
-      get_instr_trig_field_list().
-    */
-    SQL_I_List<Item_trigger_field> *instr_trig_fld_list=
-      instr->get_instr_trig_field_list();
-
-    /*
-      If the current SP instruction can store a list of Item_trigger_field
-      objects created on its parsing then move these Item_trigger_field
-      objects to the SP instruction's list.
-    */
-    if (instr_trig_fld_list)
+    if (m_cur_instr_trig_field_items.elements)
     {
-      m_cur_instr_trig_field_items.save_and_clear(instr_trig_fld_list);
-      m_trg_table_fields.insert(
-        instr_trig_fld_list,
-        &instr_trig_fld_list->first->next_trig_field_list);
+      /*
+        Get a pointer to a list of Item_trigger_field objects owned by
+        the current SP instruction. This list is used for storing
+        Item_trigger_field objects that can be created on parsing
+        the SP instruction's statement. If the current SP instruction is not
+        an instance of the class sp_lex_instr or derived class then
+        the value nullptr is returned by the virtual method
+        get_instr_trig_field_list().
+      */
+      SQL_I_List<Item_trigger_field> *instr_trig_fld_list=
+        instr->get_instr_trig_field_list();
+
+      /*
+        If the current SP instruction can store a list of Item_trigger_field
+        objects created on its parsing then move these Item_trigger_field
+        objects to the SP instruction's list.
+      */
+      if (instr_trig_fld_list)
+      {
+        m_cur_instr_trig_field_items.save_and_clear(instr_trig_fld_list);
+        m_trg_table_fields.insert(
+          instr_trig_fld_list,
+          &instr_trig_fld_list->first->next_trig_field_list);
+      }
+    }
+    else if (m_cur_instr_trig_row_items.elements)
+    {
+      SQL_I_List<Item_trigger_row> *instr_trig_row_list=
+        instr->get_instr_trig_row_list();
+      if (instr_trig_row_list)
+      {
+        m_cur_instr_trig_row_items.save_and_clear(instr_trig_row_list);
+        m_trg_table_row.insert(
+          instr_trig_row_list,
+          &instr_trig_row_list->first->next_trig_row_list);
+      }
     }
   }
   return insert_dynamic(&m_instr, (uchar*)&instr);

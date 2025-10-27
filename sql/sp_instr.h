@@ -217,6 +217,10 @@ public:
   {
     return nullptr;
   }
+  virtual SQL_I_List<Item_trigger_row>* get_instr_trig_row_list()
+  {
+    return nullptr;
+  }
 
 #ifdef PROTECT_STATEMENT_MEMROOT
   bool has_been_run() const
@@ -465,6 +469,10 @@ public:
   */
   LEX *parse_expr(THD *thd, sp_head *sp, LEX *lex);
 
+  SQL_I_List<Item_trigger_row>* get_instr_trig_row_list() override
+  {
+    return &m_cur_trigger_stmt_items_row;
+  }
   SQL_I_List<Item_trigger_field>* get_instr_trig_field_list() override
   {
     return &m_cur_trigger_stmt_items;
@@ -508,6 +516,7 @@ private:
     corresponding to this SP-instruction.
   */
   SQL_I_List<Item_trigger_field> m_cur_trigger_stmt_items;
+  SQL_I_List<Item_trigger_row> m_cur_trigger_stmt_items_row;
 
   /**
     MEM_ROOT used for allocation of memory on re-parsing of a statement
@@ -925,6 +934,58 @@ public:
   PSI_statement_info* get_psi_info() override { return & psi_info; }
   static PSI_statement_info psi_info;
 }; // class sp_instr_trigger_field : public sp_lex_instr
+
+
+class sp_instr_set_trigger_row : public sp_lex_instr
+{
+private:
+  sp_instr_set_trigger_row(const sp_instr_set_trigger_row &);
+  void operator=(sp_instr_set_trigger_row &);
+  Item_trigger_row *m_trigger_row;
+  LEX_CSTRING m_expr_str;
+  Item *m_value;
+  LEX_CSTRING m_trigger_row_name;
+
+public:
+  PSI_statement_info* get_psi_info() override { return & psi_info; }
+  static PSI_statement_info psi_info;
+
+protected:
+  LEX_CSTRING get_expr_query() const override
+  {
+    return m_expr_str;
+  }
+  bool on_after_expr_parsing(THD *thd) override;
+
+public:
+  sp_instr_set_trigger_row(uint ip, sp_pcontext *ctx,
+                           Item_trigger_row *trg_row,
+                           Item *val, LEX *lex,
+                           const LEX_CSTRING &value_query)
+  : sp_lex_instr(ip, ctx, lex, true),
+    m_trigger_row(trg_row),
+    m_expr_str(value_query),
+    m_value(val)
+  {
+    m_trigger_row_name=
+      LEX_CSTRING{strdup_root(current_thd->mem_root,
+        (trg_row->row_version ==
+          Item_trigger_row::NEW_ROW) ? "NEW" : "OLD"), 3};
+  }
+
+  virtual ~sp_instr_set_trigger_row() = default;
+  int execute(THD *thd, uint *nextp) override;
+  int exec_core(THD *thd, uint *nextp) override;
+  void print(String *str) override;
+  bool is_invalid() const override
+  {
+    return m_value == nullptr;
+  }
+  void invalidate() override
+  {
+    m_value= nullptr;
+  }
+}; // class sp_instr_trigger_row : public sp_lex_instr
 
 
 /**

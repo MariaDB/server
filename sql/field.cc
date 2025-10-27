@@ -2814,8 +2814,13 @@ bool Field_row::sp_prepare_and_store_item(THD *thd, Item **value)
   */
   Item *src;
   if (!(src= thd->sp_fix_func_item(value)) ||
-      src->cmp_type() != ROW_RESULT ||
-      src->cols() != m_table->s->fields)
+    /**
+     The cmp_type() can return non row-result if the subselect item
+     has only one field. To handle such case also check if the type is
+     not SUBSELECT.
+    */
+      (src->cmp_type() != ROW_RESULT && src->type() != Item::SUBSELECT_ITEM) ||
+       src->cols() != m_table->s->fields)
   {
     my_error(ER_OPERAND_COLUMNS, MYF(0), m_table->s->fields);
     m_table->set_all_fields_to_null();

@@ -854,7 +854,7 @@ public:
              FIELD_VARIANCE_ITEM, INSERT_VALUE_ITEM,
              SUBSELECT_ITEM, ROW_ITEM, CACHE_ITEM, TYPE_HOLDER,
              PARAM_ITEM, TRIGGER_FIELD_ITEM,
-             EXPR_CACHE_ITEM};
+             EXPR_CACHE_ITEM, TRIGGER_ROW_ITEM};
 
   enum cond_result { COND_UNDEF,COND_OK,COND_TRUE,COND_FALSE };
   enum traverse_order { POSTFIX, PREFIX };
@@ -7577,10 +7577,10 @@ public:
   Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_trigger_field>(thd, this); }
   Item *do_build_clone(THD *thd) const override { return get_copy(thd); }
+  bool set_value(THD *thd, sp_rcontext *ctx, Item **it) override;
 
 private:
   void set_required_privilege(bool rw) override;
-  bool set_value(THD *thd, sp_rcontext *ctx, Item **it) override;
 
   void check_new_old_qulifiers_comform_with_trg_event(THD *thd);
 public:
@@ -7605,6 +7605,122 @@ public:
   my_decimal *val_decimal(my_decimal *) override;
   String *val_str(String*) override;
 };
+
+
+/**
+  Represents NEW and OLD as row variables for triggers.
+  Instead of having NEW.<field> or OLD.<field> that
+  represents a particular field, NEW and OLD
+  without the field represents the entire row.
+
+  Idea behind implementation:
+  Item_trigger_row can be thought of as list of Item_trigger_field.
+  While parsing, if we are in a trigger and see NEW and OLD
+  during set, make a lazy definition for it (if old mode is set appropriately).
+  Then Create instruction of type sp_instr_set_trigger_row and add it
+  to sp_head::m_instr. Basically, treat it similar to
+  NEW.<field> and OLD.<field>
+
+  When executing the instruction, create Item_trigger_field objects for
+  each field of the table and insert into the m_fields.
+  Once the list is ready, we can call set_value() on each Item_trigger_Field
+  and assign appropirate value.
+
+  The constructor of Item_trigger_row has all the
+  parameters similar to Item_trigger_field because
+  it will be used to create Item_trigger_field objects durin
+  Item_trigger_row::fix_fields().
+*/
+
+class Item_trigger_row : public Item_splocal
+{
+public:
+  List<Item_trigger_field> m_fields;
+  enum __attribute__((packed)) row_version_type { OLD_ROW, NEW_ROW };
+
+  /* Next in list of all Item_trigger_row in trigger */
+  Item_trigger_row *next_trg_row;
+
+  /**
+    Pointer to the next list of Item_trigger_row objects to organize
+    list of lists of Item_trigger_row objects managed by sp_head.
+  */
+  SQL_I_List<Item_trigger_row> *next_trig_row_list;
+  row_version_type row_version;
+
+private:
+  GRANT_INFO *table_grants;
+  Table_triggers_list *triggers;
+  bool read_only;
+  privilege_t original_privilege;
+  privilege_t want_privilege;
+  TABLE *table;
+  Name_resolution_context *cxt;
+
+  /**
+    This is declared as member variable because we fetch
+    each item on the RHS side of the expression using addr(i).
+    Using elem(i) inside addr(i) is bad idea because it will
+    start iterating from the beginning of the list
+    for each item in m_fields making time complexity O(n^2).
+
+    So, this iterator will get the next element or
+    fetch ith element using elem(i) as needed instead
+    of iterating over the list from the beginning every time.
+  */
+  List_iterator <Item_trigger_field> m_fields_iterator;
+  uint index;
+  Item* m_last_item_ptr;
+
+public:
+  Item_trigger_row(THD *thd, Name_resolution_context *context_arg,
+                   row_version_type row_ver_arg,
+                   const LEX_CSTRING &field_name_arg,
+                   privilege_t priv, const bool ro)
+  : Item_splocal(thd, nullptr, &field_name_arg, 0,
+                 nullptr, 0, 0),
+    next_trg_row{nullptr},
+    next_trig_row_list{nullptr},
+    row_version(row_ver_arg),
+    table_grants(nullptr),
+    triggers(nullptr),
+    read_only(ro),
+    original_privilege(priv),
+    want_privilege(priv),
+    table(nullptr),
+    cxt(context_arg),
+    index(0),
+    m_last_item_ptr{nullptr}
+  {}
+  Type type() const override
+  { return TRIGGER_ROW_ITEM; }
+  bool setup_field(THD *thd, TABLE *table, GRANT_INFO *table_grant_info);
+  bool set_value(THD *thd, sp_rcontext *ctx, Item **it) override;
+  uint cols() const override { return m_fields.elements;}
+  bool is_read_only() const { return read_only; }
+  void set_required_privilege(bool rw) override {
+    want_privilege = rw ? UPDATE_ACL : SELECT_ACL;
+  }
+  Item *do_get_copy(THD *thd) const override
+  { return get_item_copy<Item_trigger_row>(thd, this); }
+  Item *do_build_clone(THD *thd) const override { return get_copy(thd); }
+  void print(String *str, enum_query_type query_type) override;
+  Item *copy_or_same(THD *) override { return this; }
+  Item *get_tmp_table_item(THD *thd) override { return copy_or_same(thd); }
+  void check_new_old_qualifiers_comform_with_trg_event(THD *thd);
+  bool fix_fields(THD *, Item **) override;
+  bool populate_with_trigger_fields(THD *thd);
+  Item** this_item_addr(THD *thd, Item **it) override { return it; }
+  Item* get_element_at_index_or_next(uint i);
+  Item** addr(uint i) override;
+  const Type_handler *type_handler() const override
+  { return &type_handler_row; }
+  Item_trigger_row *check_if_settable()
+  {
+    return read_only ? nullptr : this;
+  }
+};
+
 
 
 /**

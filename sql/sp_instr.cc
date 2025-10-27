@@ -1580,6 +1580,64 @@ sp_instr_set_trigger_field::print(String *str)
 }
 
 
+PSI_statement_info sp_instr_set_trigger_row::psi_info=
+{ 0, "set_trigger_row", 0};
+
+void
+sp_instr_set_trigger_row::print(String *str)
+{
+  str->append(STRING_WITH_LEN("set_trigger_row "));
+  m_trigger_row->print(str, enum_query_type(QT_ORDINARY |
+                                            QT_ITEM_ORIGINAL_FUNC_NULLIF));
+  str->append(STRING_WITH_LEN(":="));
+  m_value->print(str, enum_query_type(QT_ORDINARY |
+                                    QT_ITEM_ORIGINAL_FUNC_NULLIF));
+}
+
+int
+sp_instr_set_trigger_row::exec_core(THD *thd, uint *nextp)
+{
+  Abort_on_warning_instant_set aws(thd, thd->is_strict_mode()
+                                   && !thd->lex->ignore);
+  const int res= m_trigger_row->set_value(thd, nullptr, &m_value) ? -1 : 0;
+  *nextp= m_ip+1;
+
+  return res;
+}
+
+int
+sp_instr_set_trigger_row::execute(THD *thd, uint *nextp)
+{
+  DBUG_ENTER("sp_instr_set_trigger_row::execute");
+  thd->count_cuted_fields= CHECK_FIELD_ERROR_FOR_NULL;
+  DBUG_RETURN(m_lex_keeper.validate_lex_and_exec_core(thd, nextp,
+                                                      true, this));
+}
+
+bool
+sp_instr_set_trigger_row::on_after_expr_parsing(THD *thd)
+{
+  DBUG_ASSERT(thd->lex->current_select->item_list.elements == 1);
+
+  Item *val= thd->lex->current_select->item_list.head();
+  DBUG_ASSERT(val != nullptr);
+
+  m_trigger_row= new (thd->mem_root)
+    Item_trigger_row(thd, thd->lex->current_context(),
+                     Item_trigger_row::NEW_ROW,
+                     m_trigger_row_name, UPDATE_ACL, false);
+
+  if (!val || !m_trigger_row)
+    return true;
+
+  thd->spcont->m_sp->m_cur_instr_trig_row_items.insert(
+    m_trigger_row, &m_trigger_row->next_trg_row);
+
+  m_value= val;
+
+  return false;
+}
+
 /*
  sp_instr_jump class functions
 */

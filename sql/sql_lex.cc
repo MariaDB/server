@@ -210,8 +210,8 @@ LEX::set_system_variable(enum enum_var_type var_type,
   @return TRUE if error, FALSE otherwise.
 */
 
-bool LEX::set_trigger_new_row(const LEX_CSTRING *name, Item *val,
-                              const LEX_CSTRING &expr_str)
+bool LEX::set_trigger_new_field(const LEX_CSTRING *name, Item *val,
+                                const LEX_CSTRING &expr_str)
 {
   Item_trigger_field *trg_fld;
   sp_instr_set_trigger_field *sp_fld;
@@ -245,6 +245,34 @@ bool LEX::set_trigger_new_row(const LEX_CSTRING *name, Item *val,
   */
   sphead->m_cur_instr_trig_field_items.insert(trg_fld,
                                                     &trg_fld->next_trg_field);
+
+  return sphead->add_instr(sp_fld);
+}
+
+bool LEX::set_trigger_new_row(const LEX_CSTRING *name, Item *val,
+                              const LEX_CSTRING &expr_str)
+{
+  sp_instr_set_trigger_row *sp_fld= NULL;
+  Item_trigger_row *trg_row;
+
+  if (! val)
+    val= new (thd->mem_root) Item_null(thd);
+
+  DBUG_ASSERT(trg_chistics.action_time == TRG_ACTION_BEFORE &&
+              (is_trg_event_on(trg_chistics.events, TRG_EVENT_INSERT) ||
+               is_trg_event_on(trg_chistics.events, TRG_EVENT_UPDATE)));
+
+
+  trg_row= new (thd->mem_root) Item_trigger_row(thd, current_context(),
+                                                Item_trigger_row::NEW_ROW,
+                                                *name, UPDATE_ACL, false);
+
+  sp_fld= new (thd->mem_root) sp_instr_set_trigger_row(sphead->instructions(),
+                                                       spcont, trg_row, val,
+                                                       this, expr_str);
+
+  sphead->m_cur_instr_trig_row_items.insert(trg_row,
+                                            &trg_row->next_trg_row);
 
   return sphead->add_instr(sp_fld);
 }
@@ -8537,12 +8565,11 @@ bool LEX::sp_while_loop_finalize(THD *thd)
 }
 
 
-Item *LEX::create_and_link_Item_trigger_field(THD *thd,
-                                              const LEX_CSTRING *name,
-                                              bool new_row)
+Item *LEX::create_and_link_Item_trigger_field_or_row(THD *thd,
+                                                     const LEX_CSTRING *name,
+                                                     bool new_row,
+                                                     bool is_row)
 {
-  Item_trigger_field *trg_fld;
-
   if (unlikely(is_trg_event_on(trg_chistics.events, TRG_EVENT_INSERT) &&
                !new_row &&
                /*
@@ -8579,21 +8606,37 @@ Item *LEX::create_and_link_Item_trigger_field(THD *thd,
 
   const bool tmp_read_only=
     !(new_row && trg_chistics.action_time == TRG_ACTION_BEFORE);
-  trg_fld= new (thd->mem_root)
-             Item_trigger_field(thd, current_context(),
-                                new_row ?
-                                  Item_trigger_field::NEW_ROW:
-                                  Item_trigger_field::OLD_ROW,
-                                *name, SELECT_ACL, tmp_read_only);
-  /*
-    Let us add this item to list of all Item_trigger_field objects
-    in trigger.
-  */
-  if (likely(trg_fld))
-    sphead->m_cur_instr_trig_field_items.insert(trg_fld,
-                                                      &trg_fld->next_trg_field);
 
-  return trg_fld;
+  if (is_row)
+  {
+    Item_trigger_row *trg_row;
+    trg_row= new (thd->mem_root)
+      Item_trigger_row(thd, current_context(),
+                       new_row ? Item_trigger_row::NEW_ROW:
+                                 Item_trigger_row::OLD_ROW,
+                       *name, SELECT_ACL, tmp_read_only);
+    sphead->m_cur_instr_trig_row_items.insert(trg_row,
+                                              &trg_row->next_trg_row);
+    return trg_row;
+  }
+  else
+  {
+    Item_trigger_field *trg_fld;
+    trg_fld= new (thd->mem_root)
+      Item_trigger_field(thd, current_context(),
+                         new_row ? Item_trigger_field::NEW_ROW:
+                                   Item_trigger_field::OLD_ROW,
+                         *name, SELECT_ACL, tmp_read_only);
+    /*
+      Let us add this item to list of all Item_trigger_field objects
+      in trigger.
+    */
+    if (likely(trg_fld))
+      sphead->m_cur_instr_trig_field_items.insert(trg_fld,
+                                                  &trg_fld->next_trg_field);
+
+    return trg_fld;
+  }
 }
 
 
@@ -8610,7 +8653,7 @@ Item *LEX::make_item_colon_ident_ident(THD *thd,
     return NULL;
   }
   bool new_row= (a.str[0] == 'N' || a.str[0] == 'n');
-  return create_and_link_Item_trigger_field(thd, &b, new_row);
+  return create_and_link_Item_trigger_field_or_row(thd, &b, new_row);
 }
 
 
@@ -8828,7 +8871,7 @@ Item *LEX::create_item_ident_nospvar(THD *thd,
   {
     bool new_row= (a->str[0]=='N' || a->str[0]=='n');
 
-    return create_and_link_Item_trigger_field(thd, b, new_row);
+    return create_and_link_Item_trigger_field_or_row(thd, b, new_row);
   }
 
   if (unlikely(current_select->no_table_names_allowed))
@@ -9327,6 +9370,7 @@ Item *LEX::create_item_ident_sp(THD *thd, Lex_ident_sys_st *name,
   const Sp_rcontext_handler *rh;
   sp_variable *spv;
   uint unused_off;
+  const LEX_CSTRING new_or_old= {name->str, name->length};
   DBUG_ASSERT(spcont);
   DBUG_ASSERT(sphead);
   if ((spv= find_variable(name, &rh)))
@@ -9355,6 +9399,13 @@ Item *LEX::create_item_ident_sp(THD *thd, Lex_ident_sys_st *name,
 #endif
     safe_to_cache_query= 0;
     return splocal;
+  }
+
+  if (is_trigger_new_or_old_reference(&new_or_old))
+  {
+    bool new_row= (new_or_old.str[0] == 'N' || new_or_old.str[0] == 'n');
+    return create_and_link_Item_trigger_field_or_row(thd, &new_or_old,
+                                                     new_row, true);
   }
 
   if (thd->variables.sql_mode & MODE_ORACLE)
@@ -9412,11 +9463,22 @@ bool LEX::set_variable(const Lex_ident_sys_st *name, Item *item,
                        const LEX_CSTRING &expr_str)
 {
   sp_pcontext *ctx;
+  const LEX_CSTRING new_or_old= {name->str, name->length};
   const Sp_rcontext_handler *rh;
+
   sp_variable *spv= find_variable(name, &ctx, &rh);
-  return spv ? sphead->set_local_variable(thd, ctx, rh, spv, item, this, true,
-                                          expr_str) :
-               set_system_variable(option_type, name, item);
+
+  if (spv)
+  {
+    return sphead->set_local_variable(thd, ctx, rh, spv, item, this, true,
+                                          expr_str);
+  }
+  else
+  {
+    if (is_trigger_new_or_old_reference(&new_or_old))
+      return set_trigger_field_or_row(name, NULL, item, expr_str);
+    return set_system_variable(option_type, name, item);
+  }            
 }
 
 
@@ -9449,7 +9511,7 @@ bool LEX::set_variable(const Lex_ident_sys_st *name1,
   }
 
   if (is_trigger_new_or_old_reference(name1))
-    return set_trigger_field(name1, name2, item, expr_str);
+    return set_trigger_field_or_row(name1, name2, item, expr_str);
 
   return set_system_variable(thd, option_type, name1, name2, item);
 }
@@ -9521,8 +9583,9 @@ bool LEX::set_system_variable(THD *thd, enum_var_type var_type,
 }
 
 
-bool LEX::set_trigger_field(const LEX_CSTRING *name1, const LEX_CSTRING *name2,
-                            Item *val, const LEX_CSTRING &expr_str)
+bool LEX::set_trigger_field_or_row(const LEX_CSTRING *name1,
+                                   const LEX_CSTRING *name2,
+                                   Item *val, const LEX_CSTRING &expr_str)
 {
   DBUG_ASSERT(is_trigger_new_or_old_reference(name1));
   if (unlikely(name1->str[0]=='O' || name1->str[0]=='o'))
@@ -9540,7 +9603,10 @@ bool LEX::set_trigger_field(const LEX_CSTRING *name1, const LEX_CSTRING *name2,
     my_error(ER_TRG_CANT_CHANGE_ROW, MYF(0), "NEW", "after ");
     return true;
   }
-  return set_trigger_new_row(name2, val, expr_str);
+  if (name2)
+    return set_trigger_new_field(name2, val, expr_str);
+  else
+    return set_trigger_new_row(name1, val, expr_str);
 }
 
 

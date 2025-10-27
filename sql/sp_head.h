@@ -1036,6 +1036,14 @@ public:
   */
   SQL_I_List<SQL_I_List<Item_trigger_field> > m_trg_table_fields;
 
+
+  /**
+    List of lists of Item_trigger_row objects representing the NEW/OLD row-wide
+    references used by this trigger. It is used to bind with TABLE instance
+    for relevant operation.
+  */
+  SQL_I_List<SQL_I_List<Item_trigger_row> > m_trg_table_row;
+
   /**
     The object of the Trigger class corresponding to this sp_head object.
     This data member is set on table's triggers loading at the function
@@ -1050,6 +1058,12 @@ public:
     a current instruction of trigger's body
   */
   SQL_I_List<Item_trigger_field> m_cur_instr_trig_field_items;
+
+  /*
+    List of Item_trigger_row objects created on parsing
+    a current instruction of trigger's body.
+  */
+  SQL_I_List<Item_trigger_row> m_cur_instr_trig_row_items;
 }; // class sp_head : public Sql_alloc
 
 

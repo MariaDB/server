@@ -4140,6 +4140,7 @@ sp_decl_idents:
 
             if (unlikely(spc->find_variable(&$1, TRUE)))
               my_yyabort_error((ER_SP_DUP_VAR, MYF(0), $1.str));
+
             spc->add_variable(thd, &$1);
             $$= 1;
           }
@@ -19817,8 +19818,8 @@ set_assign:
           set_expr_or_default
           {
             LEX_CSTRING tmp= { $2.str, $2.length };
-            if (unlikely(Lex->set_trigger_field(&tmp, &$4, $7.expr,
-                                                $7.expr_str)) ||
+            if (unlikely(Lex->set_trigger_field_or_row(&tmp, &$4, $7.expr,
+                                                       $7.expr_str)) ||
                 unlikely(sp_create_assignment_instr(thd, yychar == YYEMPTY,
                                                     false)))
               MYSQL_YYABORT;

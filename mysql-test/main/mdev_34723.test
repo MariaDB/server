@@ -1,0 +1,371 @@
+--echo #
+--echo # NEW and OLD does not work outside trigger and gives error
+--echo # regardless of mode
+--echo #
+
+--error ER_UNKNOWN_SYSTEM_VARIABLE
+SET NEW=OLD;
+
+--echo #
+--echo # Checking for INSERT
+--echo #
+
+CREATE TABLE t1 (id1 INT, val1 VARCHAR(10));
+CREATE TABLE t2 (id2 INT, val2 VARCHAR(10));
+
+INSERT INTO t1 VALUES (1, "A"), (2, "B"), (3, "C") RETURNING *;
+
+delimiter |;
+
+--error ER_TRG_NO_SUCH_ROW_IN_TRG
+CREATE TRIGGER t1_before_insert_new_eq_old
+BEFORE INSERT ON t1
+FOR EACH ROW
+BEGIN
+  SET NEW=OLD;
+END|
+
+--error ER_TRG_NO_SUCH_ROW_IN_TRG
+CREATE TRIGGER t1_after_insert_new_eq_old
+AFTER INSERT ON t1
+FOR EACH ROW
+BEGIN
+  SET NEW=OLD;
+END|
+
+--error ER_TRG_CANT_CHANGE_ROW
+CREATE TRIGGER t1_after_insert_new_eq_var
+AFTER INSERT ON t1
+FOR EACH ROW
+BEGIN
+  DECLARE a ROW (x INT,y VARCHAR(10));
+  SET NEW=a;
+  INSERT INTO t2 VALUES(NEW.id1, NEW.val1);
+END|
+
+CREATE TRIGGER t1_before_insert_set_new_eq_var
+BEFORE INSERT ON t1
+FOR EACH ROW
+BEGIN
+  DECLARE a ROW (x INT,y VARCHAR(10)) DEFAULT(5, "E");
+  SET NEW=a;
+  INSERT INTO t2 VALUES(NEW.id1, NEW.val1);
+END|
+
+delimiter ;|
+
+INSERT INTO t1 VALUES (4, "D");
+
+SELECT * FROM t1;
+SELECT * FROM t2;
+
+DROP TRIGGER t1_before_insert_set_new_eq_var;
+
+delimiter |;
+
+CREATE TRIGGER t1_before_insert_unequal_row
+BEFORE INSERT ON t1
+FOR EACH ROW
+BEGIN
+  DECLARE a ROW (x INT,y VARCHAR(10)) DEFAULT(5, "E");
+  SET NEW=a.x;
+  INSERT INTO t2 VALUES(NEW.id1, NEW.val1);
+END|
+
+delimiter ;|
+
+--error ER_OPERAND_COLUMNS
+INSERT INTO t1 VALUES (6, "F");
+DROP TRIGGER t1_before_insert_unequal_row;
+
+delimiter |;
+
+--error ER_TRG_CANT_CHANGE_ROW
+CREATE TRIGGER t1_after_insert_unequal_row
+AFTER INSERT ON t1
+FOR EACH ROW
+BEGIN
+  DECLARE a ROW (x INT,y VARCHAR(10)) DEFAULT(5, "E");
+  SET NEW=a.x;
+  INSERT INTO t2 VALUES(NEW.id1, NEW.val1);
+END|
+delimiter ;|
+
+DROP TABLE t1;
+DROP TABLE t2;
+
+--echo #
+--echo # Checking for UPDATE
+--echo #
+
+CREATE TABLE t1 (id1 INT, val1 VARCHAR(10));
+CREATE TABLE t2 (id2 INT, val2 VARCHAR(10));
+
+INSERT INTO t1 VALUES (1, "A"), (2, "B"), (3, "C");
+SELECT * FROM t1;
+
+delimiter |;
+
+--error ER_TRG_CANT_CHANGE_ROW
+CREATE TRIGGER t1_after_update_new_eq_old
+AFTER UPDATE ON t1
+FOR EACH ROW
+BEGIN
+  SET NEW=OLD;
+END|
+
+--error ER_TRG_CANT_CHANGE_ROW
+CREATE TRIGGER t1_after_update_old_eq_new
+AFTER UPDATE ON t1
+FOR EACH ROW
+BEGIN
+  SET OLD = NEW;
+END|
+
+--error ER_TRG_CANT_CHANGE_ROW
+CREATE TRIGGER t1_after_update_new_eq_var
+AFTER UPDATE ON t1
+FOR EACH ROW
+BEGIN
+  DECLARE a ROW (x INT,y VARCHAR(10)) DEFAULT(5, "E");
+  SET NEW=a;
+  INSERT INTO t2 VALUES (NEW.id1, NEW.val1);
+END|
+
+--error ER_TRG_CANT_CHANGE_ROW
+CREATE TRIGGER t1_after_update_set_old_eq_var
+AFTER UPDATE ON t1
+FOR EACH ROW
+BEGIN
+  DECLARE a ROW (x INT,y VARCHAR(10)) DEFAULT(5, "E");
+  SET OLD=a;
+  INSERT INTO t2 VALUES (NEW.id1, NEW.val1);
+END|
+
+CREATE TRIGGER t1_before_update_new_eq_old
+BEFORE UPDATE ON t1
+FOR EACH ROW
+BEGIN
+  SET NEW = OLD;
+  INSERT INTO t2 VALUES (NEW.id1, NEW.val1);
+END|
+
+--error ER_TRG_CANT_CHANGE_ROW
+CREATE TRIGGER t1_before_update_old_eq_new
+BEFORE UPDATE ON t1
+FOR EACH ROW
+BEGIN
+  SET OLD=NEW;
+  INSERT INTO t2 VALUES (NEW.id1, NEW.val1);
+END|
+
+delimiter ;|
+
+SELECT * FROM t1;
+SELECT * FROM t2;
+
+UPDATE t1 SET val1="D" WHERE id1= 1;
+
+SELECT * FROM t1;
+SELECT * FROM t2;
+
+DROP TRIGGER t1_before_update_new_eq_old;
+
+delimiter |;
+
+--error ER_TRG_CANT_CHANGE_ROW
+CREATE TRIGGER t1_before_update_old_eq_var
+BEFORE UPDATE ON t1
+FOR EACH ROW
+BEGIN
+  DECLARE a ROW (x INT,y VARCHAR(10)) DEFAULT(5, "E");
+  SET OLD=a;
+  INSERT INTO t2 VALUES (NEW.id1, NEW.val1);
+END|
+
+TRUNCATE TABLE t2;
+
+CREATE TRIGGER t1_before_update_new_eq_var
+BEFORE UPDATE ON t1
+FOR EACH ROW
+BEGIN
+  DECLARE a ROW (x INT,y VARCHAR(10)) DEFAULT(5, "E");
+  SET NEW=a;
+  INSERT INTO t2 VALUES (NEW.id1, NEW.val1);
+END|
+
+delimiter ;|
+
+UPDATE t1 SET val1="D" WHERE id1= 1;
+
+SELECT * FROM t1;
+SELECT * FROM t2;
+
+DROP TRIGGER t1_before_update_new_eq_var;
+
+delimiter |;
+
+CREATE TRIGGER t1_before_update_new_eq_var
+BEFORE UPDATE ON t1
+FOR EACH ROW
+BEGIN
+  DECLARE a ROW (x INT,y VARCHAR(10)) DEFAULT(5, "E");
+  SET NEW=a.x;
+  INSERT INTO t2 VALUES (NEW.id1, NEW.val1);
+END|
+
+delimiter ;|
+
+--error ER_OPERAND_COLUMNS
+UPDATE t1 SET val1="D" WHERE id1= 5;
+
+DROP TABLE t1;
+DROP TABLE t2;
+
+--echo #
+--echo # Checking for DELETE
+--echo #
+
+CREATE TABLE t1 (id1 INT, val1 VARCHAR(10));
+CREATE TABLE t2 (id2 INT, val2 VARCHAR(10));
+
+INSERT INTO t1 VALUES (1, "A"), (2, "B"), (3, "C");
+SELECT * FROM t1;
+SELECT * FROM t2;
+
+delimiter |;
+
+--error ER_TRG_NO_SUCH_ROW_IN_TRG
+CREATE TRIGGER t1_before_delete_new_eq_old
+BEFORE DELETE ON t1
+FOR EACH ROW
+BEGIN
+  SET NEW = OLD;
+END|
+
+--error ER_TRG_NO_SUCH_ROW_IN_TRG
+CREATE TRIGGER t1_before_delete_old_eq_new
+BEFORE DELETE ON t1
+FOR EACH ROW
+BEGIN
+  SET OLD = NEW;
+END|
+
+--error ER_TRG_CANT_CHANGE_ROW
+CREATE TRIGGER t1_before_delete_old_eq_var
+BEFORE DELETE ON t1
+FOR EACH ROW
+BEGIN
+  DECLARE a ROW (x INT,y VARCHAR(10)) DEFAULT (3, "C");
+  SET OLD=a;
+  INSERT INTO t2 VALUES(NEW.id1, NEW.val1);
+END|
+
+CREATE TRIGGER t1_before_delete_old_eq_var
+BEFORE DELETE ON t1
+FOR EACH ROW
+BEGIN
+  DECLARE a ROW (x INT,y VARCHAR(10));
+  SET a=OLD;
+  INSERT INTO t2 VALUES(OLD.id1, OLD.val1);
+END|
+
+--error ER_TRG_NO_SUCH_ROW_IN_TRG
+CREATE TRIGGER t1_after_delete_new_eq_old
+AFTER DELETE ON t1
+FOR EACH ROW
+BEGIN
+  SET NEW = OLD;
+END|
+
+--error ER_TRG_NO_SUCH_ROW_IN_TRG
+CREATE TRIGGER t1_after_delete_old_eq_new
+AFTER DELETE ON t1
+FOR EACH ROW
+BEGIN
+  SET OLD=NEW;
+END|
+
+--error ER_TRG_CANT_CHANGE_ROW
+CREATE TRIGGER t1_after_delete_old_eq_var
+AFTER DELETE ON t1
+FOR EACH ROW
+BEGIN
+  DECLARE a ROW (x INT,y VARCHAR(10)) DEFAULT (3, "C");
+  SET OLD=a;
+  INSERT INTO t2 VALUES(NEW.id1, NEW.val1);
+END|
+
+delimiter ;|
+
+DELETE FROM t1 WHERE id1=1;
+
+SELECT * FROM t1;
+SELECT * FROM t2;
+
+TRUNCATE TABLE t2;
+
+DROP TRIGGER t1_before_delete_old_eq_var;
+
+delimiter |;
+
+CREATE TRIGGER t1_before_delete_old_eq_var
+BEFORE DELETE ON t1
+FOR EACH ROW
+BEGIN
+  DECLARE a ROW (x INT,y VARCHAR(10));
+  SET a=OLD;
+  INSERT INTO t2 VALUES(OLD.id1, OLD.val1);
+END|
+
+delimiter ;|
+
+SELECT * FROM t2;
+
+DELETE FROM t1 WHERE id1=2;
+
+DROP TRIGGER t1_before_delete_old_eq_var;
+
+delimiter |;
+
+CREATE TRIGGER t1_before_delete_unequal_row
+BEFORE DELETE ON t1
+FOR EACH ROW
+BEGIN
+  DECLARE a ROW (x INT, y VARCHAR(10)) DEFAULT(5, "E");
+  SET a.x = OLD;
+END|
+
+delimiter ;|
+
+--error ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION
+DELETE FROM t1 WHERE id1=3;
+
+SELECT * FROM t1;
+SELECT * FROM t2;
+
+DROP TABLE t1;
+DROP TABLE t2;
+
+--source include/have_innodb.inc
+
+CREATE TABLE t1 (a INT);
+
+delimiter $;
+CREATE TRIGGER t1_bu BEFORE UPDATE ON t1
+FOR EACH ROW
+BEGIN
+  SET NEW = OLD;
+END$
+delimiter ;$
+
+let $restart_file= $MYSQLTEST_VARDIR/tmp/mysqld.1.expect;
+--exec echo "wait" > $restart_file
+--shutdown_server
+--source include/wait_until_disconnected.inc
+-- exec echo "restart" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
+-- enable_reconnect
+-- source include/wait_until_connected_again.inc
+
+DROP TRIGGER t1_bu;
+DROP TABLE t1;
