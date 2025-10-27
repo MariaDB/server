@@ -668,11 +668,23 @@ public:
     No redo prior to this LSN should be applied to this file.
   */
   lsn_t start_file_lsn;
+  /*
+    The LSN of the previously applied redo record. Used to ignore duplicate
+    redo records passed from the InnoDB recovery layer, eg. in multi-batch
+    recovery. Also prev_size, prev_page_no, prev_offset, prev_space_id.
+  */
+  lsn_t prev_lsn;
+  size_t prev_size;
+
   /* Open file for cur_file_no, or -1 if not open. */
   File cur_file_fh;
   /* The sofar position of redo in cur_file_no (end point of previous redo). */
   uint32_t cur_page_no;
   uint32_t cur_page_offset;
+
+  uint32_t prev_page_no;
+  uint16_t prev_offset;
+  bool prev_space_id;
 
   /* The path to cur_file_no. */
   char full_path[OS_FILE_MAX_PATH];
@@ -965,6 +977,11 @@ binlog_recovery::init_recovery_from(uint64_t file_no, lsn_t file_lsn,
   cur_file_no= file_no;
   cur_phys_size= 0;
   start_file_lsn= file_lsn;
+  prev_lsn= lsn;
+  prev_space_id= file_no & 1;
+  prev_page_no= page_no;
+  prev_offset= offset;
+  prev_size= size;
   cur_page_no= page_no;
   cur_page_offset= 0;
   skip_recovery= false;
@@ -1001,6 +1018,11 @@ binlog_recovery::init_recovery_empty() noexcept
   cur_file_no= 0;
   cur_phys_size= 0;
   start_file_lsn= (lsn_t)0;
+  prev_lsn= (lsn_t)0;
+  prev_space_id= 0;
+  prev_page_no= 0;
+  prev_offset= 0;
+  prev_size= 0;
   cur_page_no= 0;
   cur_page_offset= 0;
   skip_recovery= false;
@@ -1214,6 +1236,18 @@ binlog_recovery::apply_redo(bool space_id, uint32_t page_no, uint16_t offset,
 {
   if (UNIV_UNLIKELY(skip_recovery) || start_empty)
     return false;
+
+  if (UNIV_UNLIKELY(offset == prev_offset) &&
+      UNIV_UNLIKELY(page_no == prev_page_no) &&
+      size == prev_size &&
+      end_lsn == prev_lsn &&
+      space_id == prev_space_id)
+    return false;  // Skip already applied record
+  prev_lsn= end_lsn;
+  prev_space_id= space_id;
+  prev_page_no= page_no;
+  prev_offset= offset;
+  prev_size= size;
 
   if (skipping_partial_page)
   {
