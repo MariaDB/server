@@ -2448,8 +2448,11 @@ SHOW CREATE TABLE t1;
 DROP TABLE t1;
 
 --echo #
---echo # End of 10.6 tests
+--echo # MDEV-37947 Item_func_hex doesn't check for max_allowed_packet
 --echo #
+select hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex('\\'))))))))))))))))))))))))))))))))))))))))))))) as x;
+
+--echo # End of 10.6 tests
 
 --echo #
 --echo # MDEV-25704 Function random_bytes
