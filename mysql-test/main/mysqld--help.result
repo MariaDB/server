@@ -743,7 +743,9 @@ The following specify which files/extra groups are read (specified before remain
  Number of seconds to wait for a block to be written to a
  connection before aborting the write
  --new-mode=name     Used to introduce new behavior to existing MariaDB
- versions. No currently supported values.
+ versions. Any combination of: 
+ FIX_INDEX_STATS_FOR_ALL_NULLS
+ Use 'ALL' to set all combinations.
  --note-verbosity=name 
  Verbosity level for note-warnings given to the user. See
  also @@sql_notes.. Any combination of: basic, 

@@ -4156,11 +4156,35 @@ void set_statistics_for_table(THD *thd, TABLE *table)
   for (key_info= table->key_info, key_info_end= key_info+table->s->keys;
        key_info < key_info_end; key_info++)
   {
+    key_info->all_nulls_key_parts= 0;
     key_info->is_statistics_from_stat_tables=
-      (check_eits_preferred(thd) &&
-       table->stats_is_read &&
-       key_info->read_stats->avg_frequency_is_inited() &&
-       key_info->read_stats->has_stats());
+        (check_eits_preferred(thd) &&
+         table->stats_is_read &&
+         key_info->read_stats->avg_frequency_is_inited() &&
+         key_info->read_stats->has_stats(thd));
+
+    // Fill out `all_nulls_key_parts` bitmap
+    if (TEST_NEW_MODE_FLAG(thd, NEW_MODE_FIX_INDEX_STATS_FOR_ALL_NULLS) &&
+        key_info->is_statistics_from_stat_tables)
+    {
+      for (uint part_idx= 0; part_idx < key_info->usable_key_parts; part_idx++)
+      {
+        Field *field=
+            table->field[key_info->key_part[part_idx].field->field_index];
+        if (!field->read_stats)
+        {
+          // No column statistics available
+          continue;
+        }
+
+        // Check if all values in this column are NULL according to statistics
+        double nulls_ratio= field->read_stats->get_nulls_ratio();
+        if (nulls_ratio == 1.0)
+        {
+          key_info->all_nulls_key_parts |= (1 << part_idx);
+        }
+      }
+    }
   }
 }
 

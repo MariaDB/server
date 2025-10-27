@@ -219,7 +219,8 @@ void old_mode_deprecated_warnings(THD *thd, ulonglong v);
   See sys_vars.cc /new_mode_all_names
 */
 
-#define NEW_MODE_MAX                                                         0
+#define NEW_MODE_FIX_INDEX_STATS_FOR_ALL_NULLS                      (1ULL << 0)
+#define NEW_MODE_MAX                                                         1
 
 /* Definitions above that have transitioned from new behaviour to default */
 

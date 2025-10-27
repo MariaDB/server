@@ -8642,6 +8642,7 @@ bool TABLE::add_tmp_key(uint key, uint key_parts,
   bzero(keyinfo->rec_per_key, sizeof(ulong)*key_parts);
   keyinfo->read_stats= NULL;
   keyinfo->collected_stats= NULL;
+  keyinfo->all_nulls_key_parts= 0;
 
   for (i= 0; i < key_parts; i++)
   {
@@ -10304,7 +10305,8 @@ uint TABLE_SHARE::actual_n_key_parts(THD *thd)
   Prefers engine-independent statistics (EITS) if available and falls back
   to engine-dependent statistics otherwise.
 
-  @param max_key_part  Index of the last key part in the prefix (0-based)
+  @param last_key_part_in_prefix  Index of the last key part
+                                  in the prefix (0-based)
 
   @return  Estimated records per key value:
            - 0.0 if no statistics available
@@ -10331,7 +10333,8 @@ double KEY::actual_rec_per_key(uint last_key_part_in_prefix) const
   the query uses NULL-rejecting conditions (e.g., =), returns 1.0 to indicate
   high selectivity since NULL = NULL never matches.
 
-  @param max_key_part  Index of the last key part in the prefix (0-based)
+  @param last_key_part_in_prefix  Index of the last key part
+                                  in the prefix (0-based)
   @param notnull_part  Bitmap indicating which key parts have NULL-rejecting
                        conditions (bit N set means key part N uses =, not <=>)
 
@@ -10344,60 +10347,19 @@ double KEY::actual_rec_per_key(uint last_key_part_in_prefix) const
 double KEY::rec_per_key_null_aware(uint last_key_part_in_prefix,
                                    key_part_map notnull_part) const
 {
-  if (!is_statistics_from_stat_tables)
+  if (notnull_part & all_nulls_key_parts)
   {
-    // Fall back to engine-dependent statistics if EITS is not available
-    return rec_per_key ? (double) rec_per_key[last_key_part_in_prefix] : 0.0;
+    /*
+      For NULL-rejecting conditions like `t1.key_col = t2.col`, we know
+      there will be no matches (since NULL = NULL is never true).
+      If at least one NULL-rejecting condition is present, and all
+      corresponding key part values are NULL, return number of records 1.0
+      (highly selective), indicating no expected matches.
+    */
+    return 1.0;
   }
 
-  // Use engine-independent statistics (EITS)
-  double records= read_stats->get_avg_frequency(last_key_part_in_prefix);
-  if (records != 0.0)
-    return records;
-
-  /*
-    The index statistics show avg_frequency == 0 for this index prefix.
-    This typically means all values in the indexed columns are NULL.
-
-    For NULL-rejecting conditions like `t1.key_col = t2.col`, we know
-    there will be no matches (since NULL = NULL is never true).
-    However, for non-NULL-rejecting conditions like `t1.key_col <=> t2.col`,
-    matches are possible.
-
-    Check each key part in the prefix: if any key part has a NULL-rejecting
-    condition (indicated by bit set in `notnull_part`) and the statistics
-    confirm all values are NULL (nulls_ratio == 1.0), we can return 1.0
-    (highly selective estimate) instead of 0.0 (unknown), indicating
-    no expected matches.
-  */
-  for (int bit= last_key_part_in_prefix; bit >= 0; bit--)
-  {
-    key_part_map mask = (key_part_map)1 << bit;
-    if ((notnull_part & mask) == 0)
-    {
-      // Non-NULL-rejecting condition for the key part
-      continue;
-    }
-
-    Field *field= table->field[key_part[bit].field->field_index];
-    if (!field->read_stats)
-    {
-      // No column statistics available
-      continue;
-    }
-
-    // Check if all values in this column are NULL according to statistics
-    double nulls_ratio= field->read_stats->get_nulls_ratio();
-    if (nulls_ratio == 1.0)
-    {
-      /*
-        All values are NULL and the condition is NULL-rejecting.
-        Return 1.0 (highly selective), indicating no expected matches.
-      */
-      return 1.0;
-    }
-  }
-  return records;
+  return actual_rec_per_key(last_key_part_in_prefix);
 }
 
 /*

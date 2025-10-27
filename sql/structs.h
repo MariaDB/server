@@ -171,6 +171,14 @@ typedef struct st_key {
   engine_option_value *option_list;
   ha_index_option_struct *option_struct;                  /* structure with parsed options */
 
+  /*
+    Bitmap of key parts where all values are NULL (nulls_ratio == 1.0).
+    Bit N set means key part N has all NULLs in the corresponding column.
+    Used for NULL-aware cardinality estimation.
+    It is computed based on EITS data, otherwise it is 0.
+  */
+  key_part_map all_nulls_key_parts;
+
   double actual_rec_per_key(uint last_key_part_in_prefix) const;
   double rec_per_key_null_aware(uint last_key_part_in_prefix,
                                 key_part_map notnull_part) const;
