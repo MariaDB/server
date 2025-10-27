@@ -1,0 +1,11 @@
+--- ../src/storage/spider/mysql-test/spider/feature/r/engine_defined_attributes.result	2025-10-15 11:15:55.417080834 +1100
++++ ../src/storage/spider/mysql-test/spider/feature/r/engine_defined_attributes.reject	2025-10-27 12:30:14.840560596 +1100
+@@ -134,7 +134,7 @@
+ connection child2_1;
+ select argument from mysql.general_log where argument like "select sql_no_cache%" limit 1;
+ argument
+-select sql_no_cache t0.`a` `a`,t0.`b` `b` from `auto_test_remote`.`tbl_a` t0
++select sql_no_cache `a`,`b` from `auto_test_remote`.`tbl_a`
+ SET global general_log = @old_general_log;
+ SET global log_output = @old_log_output;
+ truncate table mysql.general_log;
