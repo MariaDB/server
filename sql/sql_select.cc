@@ -3182,9 +3182,14 @@ int JOIN::optimize_stage2()
     (as MariaDB is by default sorting on GROUP BY) or
     if there is no GROUP BY and aggregate functions are used
     (as the result will only contain one row).
+
+    (1) - Do not remove ORDER BY if we have WITH TIES and are using
+          QUICK_GROUP_MIN_MAX_SELECT to handle GROUP BY. See the comment
+          for using_with_ties_and_group_min_max() for details.
   */
   if (order && (test_if_subpart(group_list, order) ||
-                (!group_list && tmp_table_param.sum_func_count)))
+                (!group_list && tmp_table_param.sum_func_count)) &&
+      !using_with_ties_and_group_min_max(this)) // (1)
     order=0;
 
   // Can't use sort on head table if using join buffering
@@ -13653,7 +13658,20 @@ make_join_select(JOIN *join,SQL_SELECT *select,COND *cond)
             if (build_tmp_join_prefix_cond(join, tab, &sel->cond))
               return true;
 
-	    /*
+            /*
+              To be removed in 11.0+:
+              Caution: we can reach this point with quick=NULL. Below, we'll
+              use tab->keys and not tab->const_keys like
+              get_quick_record_count() did. If we have constructed a
+              group-min-max quick select, make sure we're able to construct it
+              again
+            */
+            if (sel->quick && sel->quick->get_type() ==
+                QUICK_SELECT_I::QS_TYPE_GROUP_MIN_MAX)
+            {
+              tab->keys.set_bit(sel->quick->index);
+            }
+      /*
               We can't call sel->cond->fix_fields,
               as it will break tab->on_expr if it's AND condition
               (fix_fields currently removes extra AND/OR levels).

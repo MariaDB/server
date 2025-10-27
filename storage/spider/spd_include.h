@@ -991,8 +991,12 @@ typedef struct st_spider_share
     FIXME: consider removing it and using `active_link_count` instead.
   */
   uint               link_count;
-  /* Number of all links, i.e. all remote servers for the spider
-  table. */
+  /*
+    Number of all links, i.e. all remote servers for the spider
+    table or partition.
+
+    There's also active_link_count
+  */
   uint               all_link_count;
   /*
     The bitmap size of ha_spider::conn_can_fo, where the ha_spider

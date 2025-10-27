@@ -2073,15 +2073,17 @@ err:
                 thd->rgi_slave->is_parallel_exec);
   }
 end:
-  if (mdl_backup.ticket)
+  // reset the pointer to the ticket when it's stack instantiated
+  if (thd->backup_commit_lock == &mdl_backup)
   {
     /*
       We do not always immediately release transactional locks
       after ha_commit_trans() (see uses of ha_enable_transaction()),
       thus we release the commit blocker lock as soon as it's
       not needed.
-    */
-    thd->mdl_context.release_lock(mdl_backup.ticket);
+     */
+    if (mdl_backup.ticket)
+      thd->mdl_context.release_lock(mdl_backup.ticket);
     thd->backup_commit_lock= 0;
   }
 #ifdef WITH_WSREP
@@ -5643,7 +5645,12 @@ handler::ha_create(const char *name, TABLE *form, HA_CREATE_INFO *info_arg)
     info_arg->options|= HA_LEX_CREATE_GLOBAL_TMP_TABLE;
   int error= create(name, form, info_arg);
   if (!error &&
-      !(info_arg->options & (HA_LEX_CREATE_TMP_TABLE | HA_CREATE_TMP_ALTER)))
+      !(info_arg->options & (HA_LEX_CREATE_TMP_TABLE | HA_CREATE_TMP_ALTER)) &&
+      /*
+        DO not notify if not main handler.
+        So skip notifications for partitions.
+      */
+      form->file == this)
     mysql_audit_create_table(form);
   return error;
 }
