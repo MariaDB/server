@@ -222,6 +222,24 @@ this is a REAL test
 select soundex(''),soundex('he'),soundex('hello all folks'),soundex('#3556 in bugdb');
 soundex('')	soundex('he')	soundex('hello all folks')	soundex('#3556 in bugdb')
 	H000	H4142	I51231
+select soundex('','0'),soundex('he','0'),soundex('hello all folks','0'),soundex('#3556 in bugdb','0');
+soundex('','0')	soundex('he','0')	soundex('hello all folks','0')	soundex('#3556 in bugdb','0')
+	H000	H4142	I51231
+select soundex('','1'),soundex('he','1'),soundex('hello all folks','1'),soundex('#3556 in bugdb','1');
+soundex('','1')	soundex('he','1')	soundex('hello all folks','1')	soundex('#3556 in bugdb','1')
+	H000	H400 A400 F420	 I500 B231
+select soundex(''),soundex('he'),soundex('hello all folks'),soundex('#3556 in bugdb');
+soundex('')	soundex('he')	soundex('hello all folks')	soundex('#3556 in bugdb')
+	H000	H4142	I51231
+select soundex('',0),soundex('he',0),soundex('hello all folks',0),soundex('#3556 in bugdb',0);
+soundex('',0)	soundex('he',0)	soundex('hello all folks',0)	soundex('#3556 in bugdb',0)
+	H000	H4142	I51231
+select soundex('',1),soundex('he',1),soundex('hello all folks',1),soundex('#3556 in bugdb',1);
+soundex('',1)	soundex('he',1)	soundex('hello all folks',1)	soundex('#3556 in bugdb',1)
+	H000	H400 A400 F420	 I500 B231
+select soundex('hello'), soundex('all'),soundex('folks');
+soundex('hello')	soundex('all')	soundex('folks')
+H400	A400	F420
 select 'mood' sounds like 'mud';
 'mood' sounds like 'mud'
 1
