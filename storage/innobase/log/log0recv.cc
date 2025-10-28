@@ -1675,6 +1675,16 @@ static dberr_t recv_log_recover_10_5(lsn_t lsn_offset)
   return DB_SUCCESS;
 }
 
+/** @return if the specified innodb_log_recovery_target is being violated */
+static bool recv_sys_invalid_rpo(lsn_t lsn) noexcept
+{
+  if (!recv_sys.rpo || recv_sys.rpo >= lsn)
+    return false;
+  sql_print_error("InnoDB: cannot fulfill innodb_log_recovery_target=%"
+                  PRIu64 "<%" PRIu64, recv_sys.rpo, lsn);
+  return true;
+}
+
 dberr_t recv_sys_t::find_checkpoint()
 {
   bool wrong_size= false;
@@ -1766,6 +1776,12 @@ dberr_t recv_sys_t::find_checkpoint()
     log_sys.last_checkpoint_lsn= log_sys.next_checkpoint_lsn;
     log_sys.set_recovered_lsn(log_sys.next_checkpoint_lsn);
     lsn= file_checkpoint= log_sys.next_checkpoint_lsn;
+    if (recv_sys.rpo && recv_sys.rpo != lsn)
+    {
+      sql_print_error("InnoDB: cannot fulfill innodb_log_recovery_target=%"
+                      PRIu64 "!=%" PRIu64, recv_sys.rpo, lsn);
+      return DB_CORRUPTION;
+    }
     if (UNIV_LIKELY(lsn != 0))
       scanned_lsn= lsn;
     log_sys.next_checkpoint_no= 0;
@@ -1842,6 +1858,8 @@ dberr_t recv_sys_t::find_checkpoint()
     }
     if (!log_sys.next_checkpoint_lsn)
       goto got_no_checkpoint;
+    if (recv_sys_invalid_rpo(lsn))
+      return DB_READ_ONLY;
     if (!memcmp(creator, "Backup ", 7))
       srv_start_after_restore= true;
 
@@ -4798,6 +4816,7 @@ func_exit:
 read_only_recovery:
 			sql_print_warning("InnoDB: innodb_read_only"
 					  " prevents crash recovery");
+read_only_reported:
 			err = DB_READ_ONLY;
 			goto func_exit;
 		}
@@ -4818,8 +4837,11 @@ read_only_recovery:
 		}
 		rescan = recv_scan_log(false, parser);
 
-		if (srv_read_only_mode && recv_needed_recovery) {
+		if (!recv_needed_recovery) {
+		} else if (srv_read_only_mode) {
 			goto read_only_recovery;
+		} else if (recv_sys_invalid_rpo(recv_sys.scanned_lsn)) {
+			goto read_only_reported;
 		}
 
 		if ((recv_sys.is_corrupt_log() && !srv_force_recovery)

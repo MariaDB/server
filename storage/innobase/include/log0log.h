@@ -266,6 +266,16 @@ private:
   /** the log sequence number at the start of the log file */
   lsn_t first_lsn;
 public:
+  /** currently used innodb_log_archive_file_size; protected by latch */
+  uint64_t archive_size;
+private:
+  /** requested innodb_log_archive_file_size; protected by
+  LOCK_global_system_variables and shared latch */
+  uint64_t archive_size_requested;
+public:
+  /** directory where the log archive files will be created; protected by
+  LOCK_global_system_variables and shared latch */
+  const char *archive_path;
   /** current innodb_log_write_ahead_size */
   uint write_size;
   /** format of the redo log: e.g., FORMAT_10_8 */
@@ -564,6 +574,13 @@ public:
 
   /** Create the log. */
   void create(lsn_t lsn) noexcept;
+
+  void archive_size_request(uint64_t size) noexcept
+  {
+    latch.rd_lock(SRW_LOCK_CALL);
+    archive_size_requested= size;
+    latch.rd_unlock();
+  }
 };
 
 /** Redo log system */

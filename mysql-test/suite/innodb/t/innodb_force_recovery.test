@@ -8,6 +8,9 @@
 call mtr.add_suppression("InnoDB: Failed to find tablespace for table .* in the cache. Attempting to load the tablespace with space id");
 call mtr.add_suppression("InnoDB: Allocated tablespace ID \\d+ for test.t[12], old maximum was");
 call mtr.add_suppression("InnoDB: Allocated tablespace ID \\d+ for mysql.transaction_registry, old maximum was");
+call mtr.add_suppression("InnoDB: Plugin initialization aborted");
+call mtr.add_suppression("Plugin 'InnoDB' registration as a STORAGE ENGINE failed");
+call mtr.add_suppression("InnoDB: cannot fulfill innodb_log_recovery_target=20480<");
 --enable_query_log
 
 create table t1(f1 int not null, f2 int not null, index idx(f2))engine=innodb;
@@ -16,6 +19,16 @@ insert into t1 values(1, 2);
 insert into t2 values(1, 2);
 
 SET GLOBAL innodb_fast_shutdown = 0;
+
+--let $restart_parameters= --innodb-log-recovery-target=20480
+--source include/restart_mysqld.inc
+SELECT COUNT(*) FROM INFORMATION_SCHEMA.ENGINES
+WHERE engine = 'innodb'
+AND support IN ('YES', 'DEFAULT', 'ENABLED');
+
+--let SEARCH_FILE = $MYSQLTEST_VARDIR/log/mysqld.1.err
+--let SEARCH_PATTERN= InnoDB: cannot fulfill innodb_log_recovery_target=20480<
+--source include/search_pattern_in_file.inc
 
 --let $restart_parameters= --innodb-force-recovery=4
 --source include/restart_mysqld.inc
