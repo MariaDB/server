@@ -5624,8 +5624,18 @@ DROP TABLE t2;
 DROP TABLE t1;
 SET sql_mode=DEFAULT;
 #
-# End of 10.11 tests
+# MDEV-37740 LOCATE(X,Y,NULL) is not NULL
 #
+select locate(1,2,NULL);
+locate(1,2,NULL)
+NULL
+#
+# MDEV-37835 mysqli silently trims each json_arrayagg result to modulo 64KB
+#
+select group_concat(v) from ( select '$a' as v union all select '$b' as v) t;
+group_concat(v)
+a...aaaaa,b...bbbbb
+# End of 10.11 tests
 #
 # MDEV-9069 extend AES_ENCRYPT() and AES_DECRYPT() to support IV and the algorithm
 #

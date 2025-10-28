@@ -1,10 +1,14 @@
 call mtr.add_suppression("InnoDB: Table '.*' tablespace is set as discarded.");
 call mtr.add_suppression("InnoDB: Tablespace for table .* is set as discarded.");
+call mtr.add_suppression("\\[Warning\\] option 'innodb-ft-min-token-size': unsigned value 0 adjusted to 1");
 CREATE TABLE mdev21563(f1 VARCHAR(100), FULLTEXT idx(f1))ENGINE=InnoDB;
 set debug_dbug="+d,fts_instrument_sync_request";
 INSERT INTO mdev21563 VALUES('This is a test');
 ALTER TABLE mdev21563 DISCARD TABLESPACE;
-# restart
+# restart: --innodb_ft_min_token_size=0
+SELECT @@global.innodb_ft_min_token_size;
+@@global.innodb_ft_min_token_size
+1
 DROP TABLE mdev21563;
 #
 # MDEV-29342 Assertion failure in file que0que.cc line 728

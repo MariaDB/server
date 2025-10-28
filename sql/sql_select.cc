@@ -372,6 +372,7 @@ bool join_limit_shortcut_is_applicable(const JOIN *join);
 POSITION *join_limit_shortcut_finalize_plan(JOIN *join, double *cost);
 
 static bool find_indexes_matching_order(JOIN *, TABLE *, ORDER *, key_map *);
+static void init_join_plan_search_state(JOIN *join);
 
 #ifndef DBUG_OFF
 
@@ -2564,7 +2565,10 @@ JOIN::optimize_inner()
           DBUG_RETURN(1);
       }
       if (mysql_handle_single_derived(thd->lex, tbl, DT_OPTIMIZE))
+      {
+        error= 1;
         DBUG_RETURN(1);
+      }
     }
   }
   {
@@ -5451,6 +5455,9 @@ static bool get_quick_record_count(THD *thd, SQL_SELECT *select,
   uchar buff[STACK_BUFF_ALLOC];
   if (unlikely(check_stack_overrun(thd, STACK_MIN_SIZE, buff)))
     DBUG_RETURN(false);                           // Fatal error flag is set
+
+  DEBUG_SYNC(thd, "before_get_quick_record_count");
+
   if (select)
   {
     select->head=table;
@@ -10204,11 +10211,8 @@ choose_plan(JOIN *join, table_map join_tables, TABLE_LIST *emb_sjm_nest)
   DBUG_ENTER("choose_plan");
 
   join->limit_optimization_mode= false;
-  join->cur_embedding_map= 0;
   join->extra_heuristic_pruning= false;
   join->prune_level= join->thd->variables.optimizer_prune_level;
-
-  reset_nj_counters(join, join->join_list);
 
   if ((join->emb_sjm_nest= emb_sjm_nest))
   {
@@ -10253,13 +10257,6 @@ choose_plan(JOIN *join, table_map join_tables, TABLE_LIST *emb_sjm_nest)
 
   if (!emb_sjm_nest)
     choose_initial_table_order(join);
-
-  /*
-    Note: constant tables are already in the join prefix. We don't
-    put them into the cur_sj_inner_tables, though.
-  */
-
-  join->cur_sj_inner_tables= 0;
 
   if (straight_join)
   {
@@ -10592,6 +10589,8 @@ optimize_straight_join(JOIN *join, table_map remaining_tables)
   POSITION  loose_scan_pos;
   THD *thd= join->thd;
 
+  init_join_plan_search_state(join);
+
   for (JOIN_TAB **pos= join->best_ref + idx ; (s= *pos) ; pos++)
   {
     POSITION *position= join->positions + idx;
@@ -10790,6 +10789,8 @@ greedy_search(JOIN      *join,
   uint      n_tables __attribute__((unused));
   DBUG_ENTER("greedy_search");
   DBUG_ASSERT(!(remaining_tables & join->const_table_map));
+
+  init_join_plan_search_state(join);
 
   /* number of tables that remain to be optimized */
   usable_tables= (join->emb_sjm_nest ?
@@ -20327,6 +20328,7 @@ static bool check_interleaving_with_nj(JOIN_TAB *next_tab)
     if (!next_emb->sj_on_expr)
     {
       next_emb->nested_join->counter++;
+      DBUG_ASSERT(next_emb->nested_join->counter <= next_emb->nested_join->n_tables);
       if (next_emb->nested_join->counter == 1)
       {
         /*
@@ -34526,6 +34528,12 @@ bool JOIN::transform_all_conds_and_on_exprs_in_join_list(
   return false;
 }
 
+static void init_join_plan_search_state(JOIN *join)
+{
+  join->cur_sj_inner_tables= 0;
+  join->cur_embedding_map= 0;
+  reset_nj_counters(join, join->join_list);
+}
 
 static void MYSQL_DML_START(THD *thd)
 {

@@ -5241,14 +5241,14 @@ bool Item_func_json_key_value::fix_length_and_dec(THD *thd)
 }
 
 
-static bool create_hash(json_engine_t *value, HASH *items, bool &hash_inited,
+static bool create_hash(json_engine_t *value, HASH *items, bool &item_hash_inited,
                         MEM_ROOT *hash_root)
 {
   int level= value->stack_p;
   if (my_hash_init(PSI_INSTRUMENT_ME, items, value->s.cs, 0, 0, 0,
                    get_key_name, NULL, 0))
     return true;
-  hash_inited= true;
+  item_hash_inited= true;
 
   while (json_scan_next(value) == 0 && value->stack_p >= level)
   {
@@ -5317,6 +5317,11 @@ static bool get_current_value(json_engine_t *js, const uchar *&value_start,
   return false;
 }
 
+static my_bool restore_entry(void *element, void *arg)
+{
+    HASH *items = (HASH*) arg;
+    return my_hash_insert(items, (const uchar*) element);
+}
 
 /*
   If the outermost layer of JSON is an array,
@@ -5329,14 +5334,16 @@ static bool get_current_value(json_engine_t *js, const uchar *&value_start,
     FALSE  - if two array documents have intersection
     TRUE   - If two array documents do not have intersection
 */
-static bool get_intersect_between_arrays(String *str, json_engine_t *value,
-                                         HASH items)
+bool Item_func_json_array_intersect::
+     get_intersect_between_arrays(String *str, json_engine_t *value,
+                                         HASH *items, HASH *seen)
 {
   bool res= true, has_value= false;
   int level= value->stack_p;
-  String temp_str(0);
 
+  temp_str.length(0);
   temp_str.append('[');
+
   while (json_scan_next(value) == 0 && value->stack_p >= level)
   {
     const uchar *value_start= NULL;
@@ -5372,14 +5379,14 @@ static bool get_intersect_between_arrays(String *str, json_engine_t *value,
       of times the value appears in the hash table.
     */
     uchar * found= NULL;
-    if ((found= my_hash_search(&items,
+    if ((found= my_hash_search(items,
                                 (const uchar *) new_entry,
                                 strlen(new_entry))))
     {
       has_value= true;
       temp_str.append( (const char*) value_start, value_len);
       temp_str.append(',');
-      if (my_hash_delete(&items, found))
+      if (my_hash_delete(items, found) || my_hash_insert(seen, (const uchar *)found))
       {
         free(new_entry);
         goto error;
@@ -5398,6 +5405,8 @@ static bool get_intersect_between_arrays(String *str, json_engine_t *value,
   }
 
 error:
+  my_hash_iterate(seen, restore_entry, items);
+  my_hash_reset(seen);
   return res;
 }
 
@@ -5416,12 +5425,14 @@ String* Item_func_json_array_intersect::val_str(String *str)
   {
     if (args[0]->null_value)
       goto null_return;
-    if (hash_inited)
+    if (item_hash_inited)
       my_hash_free(&items);
+    if (seen_hash_inited)
+      my_hash_free(&seen);
     if (root_inited)
       free_root(&hash_root, MYF(0));
     root_inited= false;
-    hash_inited= false;
+    item_hash_inited= false;
     prepare_json_and_create_hash(&je1, js1);
   }
 
@@ -5437,7 +5448,7 @@ String* Item_func_json_array_intersect::val_str(String *str)
   if (json_read_value(&je2) || je2.value_type != JSON_VALUE_ARRAY)
     goto error_return;
 
-  if (get_intersect_between_arrays(str, &je2, items))
+  if (get_intersect_between_arrays(str, &je2, &items, &seen))
     goto error_return;
 
   if (str->length())
@@ -5464,7 +5475,7 @@ null_return:
   return NULL;
 }
 
-void Item_func_json_array_intersect::prepare_json_and_create_hash(json_engine_t *je1, String *js)
+bool Item_func_json_array_intersect::prepare_json_and_create_hash(json_engine_t *je1, String *js)
 {
   json_scan_start(je1, js->charset(), (const uchar *) js->ptr(),
                   (const uchar *) js->ptr() + js->length());
@@ -5472,20 +5483,27 @@ void Item_func_json_array_intersect::prepare_json_and_create_hash(json_engine_t 
     Scan value uses the hash table to get the intersection of two arrays.
   */
 
+  if (my_hash_init(PSI_INSTRUMENT_ME, &seen, je1->s.cs, 0, 0, 0,
+                   get_key_name, NULL, 0))
+    return true;
+  seen_hash_inited= true;
+
   if (!root_inited)
     init_alloc_root(PSI_NOT_INSTRUMENTED, &hash_root, 1024, 0, MYF(0));
   root_inited= true;
 
   if (json_read_value(je1) || je1->value_type != JSON_VALUE_ARRAY ||
-      create_hash(je1, &items, hash_inited, &hash_root))
+      create_hash(je1, &items, item_hash_inited, &hash_root))
     {
       if (je1->s.error)
         report_json_error(js, je1, 0);
       null_value= 1;
     }
 
-    max_length= (args[0]->max_length < args[1]->max_length) ?
-                 args[0]->max_length : args[1]->max_length;
+    max_length= 2*(args[0]->max_length < args[1]->max_length ?
+                 args[0]->max_length : args[1]->max_length);
+
+    return false;
 }
 
 bool Item_func_json_array_intersect::fix_length_and_dec(THD *thd)
@@ -5508,8 +5526,10 @@ bool Item_func_json_array_intersect::fix_length_and_dec(THD *thd)
 
   js1= args[0]->val_json(&tmp_js1);
 
-  if (js1)
-    prepare_json_and_create_hash(&je1, js1);
+  if (js1 && prepare_json_and_create_hash(&je1, js1))
+  {
+    return TRUE;
+  }
 
 end:
   set_maybe_null();
