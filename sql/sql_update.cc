@@ -1886,7 +1886,7 @@ int multi_update::prepare(List<Item> &not_used_values,
 {
   TABLE_LIST *table_ref;
   SQL_I_List<TABLE_LIST> update_list;
-  Item_field *item;
+  Item *item;
   List_iterator_fast<Item> field_it(*fields);
   List_iterator_fast<Item> value_it(*values);
   uint i, max_fields;
@@ -1975,15 +1975,16 @@ int multi_update::prepare(List<Item> &not_used_values,
 
   /* Split fields into fields_for_table[] and values_by_table[] */
 
-  while ((item= (Item_field *) field_it++))
+  while ((item= field_it++))
   {
+    Item_field *item_field= (Item_field *)item->real_item();
     Item *value= value_it++;
-    uint offset= item->field->table->pos_in_table_list->shared;
+    uint offset= item_field->field->table->pos_in_table_list->shared;
 
-    if (value->associate_with_target_field(thd, item))
+    if (value->associate_with_target_field(thd, item_field))
       DBUG_RETURN(1);
 
-    fields_for_table[offset]->push_back(item, thd->mem_root);
+    fields_for_table[offset]->push_back(item_field, thd->mem_root);
     values_for_table[offset]->push_back(value, thd->mem_root);
   }
   if (unlikely(thd->is_fatal_error))

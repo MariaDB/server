@@ -153,6 +153,18 @@ bool LEX::resolve_references_to_cte(TABLE_LIST *tables,
 {
   With_element *with_elem= 0;
 
+  /*
+    Add back the tables collected during definition of the CTEs, but cleared
+    during mysql_init_delete
+  */
+  if (save_list.elements)
+  {
+    for (TABLE_LIST *saved= save_list.first; saved; saved= saved->next_global)
+      add_to_query_tables(saved);
+    save_list.empty();
+    last_table()->next_global= nullptr;
+  }
+
   for (TABLE_LIST *tbl= tables; tbl != *tables_last; tbl= tbl->next_global)
   {
     if (tbl->derived)
