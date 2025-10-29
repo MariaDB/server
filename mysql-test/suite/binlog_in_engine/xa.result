@@ -176,6 +176,7 @@ UPDATE t1 SET b=17 WHERE a=1;
 FLUSH BINARY LOGS;
 UPDATE t1 SET b=18 WHERE a=1;
 PURGE BINARY LOGS TO 'binlog-000001.ibb';
+SET GLOBAL slave_connections_needed_for_purge= @old_min_slaves;
 *** Test disconnecting in XA transaction before XA PREPARE.
 connection con2;
 SET SESSION binlog_format=MIXED;
@@ -203,5 +204,12 @@ SAVEPOINT A;
 ROLLBACK TO SAVEPOINT B;
 XA END 'x';
 XA ROLLBACK 'x';
-SET GLOBAL slave_connections_needed_for_purge= @old_min_slaves;
+*** Test server shutdown after XA PREPARE.
+XA BEGIN 'y';
+INSERT INTO t1 VALUES (201, 0, '');
+XA END 'y';
+XA PREPARE 'y';
+# restart
+XA ROLLBACK 'y';
+CALL mtr.add_suppression('Found 1 prepared XA transactions');
 DROP TABLE t1;
