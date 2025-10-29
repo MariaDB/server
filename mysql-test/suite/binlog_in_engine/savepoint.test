@@ -172,6 +172,30 @@ COMMIT;
 SELECT i, a, LENGTH(b) FROM t1 ORDER BY i, a;
 
 
+--echo *** Test an edge case where the savepoint is just at the cache-size boundary.
+
+# Try to hit the condition that the second savepoint is exactly at position
+# 32768, the trx cache size.
+# At the time of writing, this occurs when the REPEAT value of the second INSERT
+# is exactly 32327. But we try all values in an interval around this point, to
+# have a decent chance of still covering the interesting case as couple extra
+# bytes get added or removed by random code changes.
+--let $sz= 32250
+--disable_query_log
+while ($sz <= 32500) {
+  BEGIN;
+  eval INSERT INTO t1 VALUES ($i, 10, '');
+  SAVEPOINT s1;
+  eval INSERT INTO t1 VALUES($i, 11, REPEAT('x', $sz));
+  SAVEPOINT s2;
+  eval INSERT INTO t1 VALUES ($i, 12, '');
+  ROLLBACK TO s2;
+  ROLLBACK TO s1;
+  ROLLBACK;
+  inc $sz;
+}
+--enable_query_log
+
 --connection master
 DROP TABLE t1, t2;
 --source include/rpl_end.inc
