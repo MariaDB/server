@@ -890,9 +890,23 @@ bool binlog_recovery::init_recovery(bool space_id, uint32_t page_no,
 
         This first recovery record may apply to the previous file (which has
         then presumably been purged since the last checkpoint). Or it may
-        apply to this file, or only to the following file.
+        apply to this file, or only to the following file. The case where it
+        is not this file needs a bit of care.
+
+        If the recovery record lsn is less than the lsn in this file, we know
+        that it must apply to the previous file, and we can start from this
+        file.
+
+        If the recovery record lsn is equal or greater, then it can apply to
+        the previous file if it is part of a mini-transaction that spans into
+        this file. Or it can apply to the following file. If it applies to the
+        following file it must have page_no=0 and offset=0, since that file is
+        missing and will be recovered from scratch. Conversely, if the record
+        has page_no=0 and offset=0, it cannot apply to the previous file, as
+        we keep mini-transactions smaller than one binlog file.
       */
-      if (space_id != (file_no2 & 1) && start_lsn >= lsn2)
+      if (space_id != (file_no2 & 1) && start_lsn >= lsn2 &&
+          page_no == 0 && offset == 0)
         ++start_file_no;
       return init_recovery_from(start_file_no, lsn2, page_no, offset,
                                 start_lsn, buf, size);
@@ -948,21 +962,36 @@ bool binlog_recovery::init_recovery(bool space_id, uint32_t page_no,
       return true;
     }
     if (is_empty2)
-      lsn2= lsn1;
-    if (space_id == (file_no2 & 1) && start_lsn >= lsn1)
     {
-      if (start_lsn < lsn2 && !srv_force_recovery)
-      {
-        sql_print_error("InnoDB: inconsistent space_id %d for lsn=" LSN_PF,
-                        (int)space_id, start_lsn);
-        return true;
-      }
+      /*
+        As above for the case where only one file is found, we need to
+        carefully distinguish the case where the recovery record applies to
+        file_no1-1 or file_no1+1; when start_lsn >= lsn1, the record can
+        apply to file_no1+1 only if it is for page_no==0 and offset==0.
+      */
+      if (space_id != (file_no1 & 1) && start_lsn >= lsn1 &&
+          page_no == 0 && offset == 0)
+        return init_recovery_from(file_no2, lsn1, page_no, offset,
+                                start_lsn, buf, size);
+      else
+        return init_recovery_from(file_no1, lsn1, page_no, offset,
+                                start_lsn, buf, size);
+    }
+    else if (space_id == (file_no2 & 1) && start_lsn >= lsn2)
+    {
+      /* The record must apply to file_no2. */
       return init_recovery_from(file_no2, lsn2,
                                 page_no, offset, start_lsn, buf, size);
     }
     else
+    {
+      /*
+        The record cannot apply to file_no2, as either the space_id differs
+        or the lsn is too early. Start from file_no1.
+      */
       return init_recovery_from(file_no1, lsn1,
                                 page_no, offset, start_lsn, buf, size);
+    }
     /* NotReached. */
   }
 }
@@ -1237,12 +1266,27 @@ binlog_recovery::apply_redo(bool space_id, uint32_t page_no, uint16_t offset,
   if (UNIV_UNLIKELY(skip_recovery) || start_empty)
     return false;
 
-  if (UNIV_UNLIKELY(offset == prev_offset) &&
-      UNIV_UNLIKELY(page_no == prev_page_no) &&
-      size == prev_size &&
-      end_lsn == prev_lsn &&
-      space_id == prev_space_id)
-    return false;  // Skip already applied record
+  /*
+    In a multi-batch recovery, InnoDB recovery redo parser will sometimes
+    pass the same record(s) twice to the binlog recovery.
+
+    The binlog recovery code wants to do consistency checks that records are
+    processed in strict order, so we handle this special case by detecting
+    and ignoring duplicate records.
+
+    A duplicate record is determined by being in the same mtr (identified by
+    end_lsn); and having page_no/offset either earlier in the same space_id,
+    or later in a different space_id. Using the property that an mtr is always
+    smaller than the binlog maximum file size.
+  */
+  if (end_lsn == prev_lsn &&
+      ( ( space_id == prev_space_id &&
+          ( ((uint64_t)page_no << 32 | offset) <=
+            ((uint64_t)prev_page_no << 32 | prev_offset) ) ) ||
+        ( space_id != prev_space_id &&
+          ( ((uint64_t)page_no << 32 | offset) >
+            ((uint64_t)prev_page_no << 32 | prev_offset) ) ) ) )
+    return false;
   prev_lsn= end_lsn;
   prev_space_id= space_id;
   prev_page_no= page_no;
