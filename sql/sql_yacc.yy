@@ -1183,8 +1183,8 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %token  <kwd>   ST_COLLECT_SYM
 /* A dummy token to force the priority of table_ref production in a join. */
 %left   CONDITIONLESS_JOIN
-%left   JOIN_SYM INNER_SYM STRAIGHT_JOIN CROSS LEFT RIGHT ON_SYM USING
- 
+%left   JOIN_SYM INNER_SYM STRAIGHT_JOIN CROSS LEFT RIGHT ON_SYM USING FULL
+
 %left   SET_VAR
 %left   OR_SYM OR2_SYM
 %left   XOR
@@ -12365,8 +12365,66 @@ join_table:
             if (unlikely(!($$= lex->current_select->convert_right_join())))
               MYSQL_YYABORT;
           }
-        ;
 
+          /* FULL OUTER JOIN variants */
+        | table_ref FULL opt_outer JOIN_SYM table_ref
+          ON
+          {
+            MYSQL_YYABORT_UNLESS($1 && $5);
+
+            Select->add_joined_table($1);
+            $1->outer_join|= (JOIN_TYPE_LEFT |
+                              JOIN_TYPE_FULL);
+
+            Select->add_joined_table($5);
+            $5->outer_join|= (JOIN_TYPE_RIGHT |
+                              JOIN_TYPE_FULL);
+
+            /* Change the current name resolution context to a local context. */
+            if (unlikely(push_new_name_resolution_context(thd, $1, $5)))
+              MYSQL_YYABORT;
+            Select->parsing_place= IN_ON;
+          }
+          expr
+          {
+            add_join_on(thd, $1, $8);
+            $1->on_context= Lex->pop_context();
+            Select->parsing_place= NO_MATTER;
+            $$= $1;
+            Lex->has_full_outer_join= true;
+          }
+        | table_ref FULL opt_outer JOIN_SYM table_factor
+          {
+            MYSQL_YYABORT_UNLESS($1 && $5);
+            Select->add_joined_table($1);
+            $1->outer_join|= (JOIN_TYPE_LEFT |
+                              JOIN_TYPE_FULL);
+
+            Select->add_joined_table($5);
+            $5->outer_join|= (JOIN_TYPE_RIGHT |
+                              JOIN_TYPE_FULL);
+          }
+          USING '(' using_list ')'
+          {
+            add_join_natural($1,$5,$9,Select);
+            Lex->has_full_outer_join= true;
+          }
+        | table_ref NATURAL FULL opt_outer JOIN_SYM table_factor
+          {
+            MYSQL_YYABORT_UNLESS($1 && $6);
+
+            Select->add_joined_table($1);
+            $1->outer_join|= (JOIN_TYPE_LEFT |
+                              JOIN_TYPE_FULL);
+
+            Select->add_joined_table($6);
+            $6->outer_join|= (JOIN_TYPE_RIGHT |
+                              JOIN_TYPE_FULL);
+
+            add_join_natural($6,$1,NULL,Select);
+            Lex->has_full_outer_join= true;
+          }
+        ;
 
 inner_join: /* $$ set if using STRAIGHT_JOIN, false otherwise */
           JOIN_SYM           { $$ = 0; }
@@ -16691,7 +16749,6 @@ keyword_func_sp_var_and_label:
         | FILE_SYM
         | FIRST_SYM
         | FOUND_SYM
-        | FULL
         | GENERAL
         | GENERATED_SYM
         | GRANTS
@@ -17021,6 +17078,7 @@ reserved_keyword_udt_not_param_type:
         | FIRST_VALUE_SYM
         | FOREIGN
         | FROM
+        | FULL
         | FULLTEXT_SYM
         | GOTO_ORACLE_SYM
         | GRANT
@@ -17748,6 +17806,7 @@ set_expr_or_default:
 set_expr_misc:
           ON     { $$= new (thd->mem_root) Item_string_sys(thd, "ON",  2); }
         | ALL    { $$= new (thd->mem_root) Item_string_sys(thd, "ALL", 3); }
+        | FULL   { $$= new (thd->mem_root) Item_string_sys(thd, "FULL", 4); }
         | BINARY { $$= new (thd->mem_root) Item_string_sys(thd, "binary", 6); }
         ;
 

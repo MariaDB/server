@@ -3657,3 +3657,27 @@ DROP TABLE t1,t2,t3;
 #
 # End of 11.0 tests
 #
+#
+# MDEV-37932: FULL OUTER JOIN: Make the parser support FULL OUTER JOIN
+#             syntax
+#
+create table t1 (a int);
+insert into t1 (a) values (1),(2),(3);
+create table t2 (a int);
+insert into t2 (a) values (1),(2),(3);
+select * from t1 full join t2 on t1.a = t2.a;
+ERROR 42000: This version of MariaDB doesn't yet support 'full join'
+select * from t1 full outer join t2 on t1.a = t2.a;
+ERROR 42000: This version of MariaDB doesn't yet support 'full join'
+select * from t1 natural full outer join t2;
+ERROR 42000: This version of MariaDB doesn't yet support 'full join'
+select * from t1 natural full join t2;
+ERROR 42000: This version of MariaDB doesn't yet support 'full join'
+create view v1 as select * from t1 full outer join t2 on t1.a = t2.a;
+ERROR 42000: This version of MariaDB doesn't yet support 'full join'
+select * from (select t1.a from t1 full outer join t2 on t1.a = t2.a union select * from t1) dt;
+ERROR 42000: This version of MariaDB doesn't yet support 'full join'
+with cte as (select t1.a from t1 natural full join t2) select * from cte;
+ERROR 42000: This version of MariaDB doesn't yet support 'full join'
+drop table t1, t2;
+# End of 12.3 tests
