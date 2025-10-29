@@ -2046,3 +2046,30 @@ DROP TABLE t1,t2,t3;
 --echo #
 --echo # End of 11.0 tests
 --echo #
+
+--echo #
+--echo # MDEV-37932: FULL OUTER JOIN: Make the parser support FULL OUTER JOIN
+--echo #             syntax
+--echo #
+create table t1 (a int);
+insert into t1 (a) values (1),(2),(3);
+create table t2 (a int);
+insert into t2 (a) values (1),(2),(3);
+# This test only verifies syntax acceptance.
+--error ER_NOT_SUPPORTED_YET
+select * from t1 full join t2 on t1.a = t2.a;
+--error ER_NOT_SUPPORTED_YET
+select * from t1 full outer join t2 on t1.a = t2.a;
+--error ER_NOT_SUPPORTED_YET
+select * from t1 natural full outer join t2;
+--error ER_NOT_SUPPORTED_YET
+select * from t1 natural full join t2;
+--error ER_NOT_SUPPORTED_YET
+create view v1 as select * from t1 full outer join t2 on t1.a = t2.a;
+--error ER_NOT_SUPPORTED_YET
+select * from (select t1.a from t1 full outer join t2 on t1.a = t2.a union select * from t1) dt;
+--error ER_NOT_SUPPORTED_YET
+with cte as (select t1.a from t1 natural full join t2) select * from cte;
+drop table t1, t2;
+
+--echo # End of 12.3 tests

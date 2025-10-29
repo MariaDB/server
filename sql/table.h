@@ -2218,7 +2218,8 @@ class IS_table_read_plan;
 
 #define JOIN_TYPE_LEFT	1U
 #define JOIN_TYPE_RIGHT	2U
-#define JOIN_TYPE_OUTER 4U	/* Marker that this is an outer join */
+#define JOIN_TYPE_FULL	4U
+#define JOIN_TYPE_OUTER 8U	/* Marker that this is an outer join */
 
 /* view WITH CHECK OPTION parameter options */
 #define VIEW_CHECK_NONE       0
