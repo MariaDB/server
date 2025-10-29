@@ -1001,3 +1001,22 @@ DROP TABLE t1,t2;
 #
 # End of 10.5 tests
 #
+#
+# MDEV-35815: Crash in ASAN build due to accessing use-after-poison memory error
+#
+SET @save_optimizer_trace=@@optimizer_trace;
+SET optimizer_trace= 'enabled=on';
+CREATE TABLE t1 (subject LONGTEXT);
+INSERT INTO t1 VALUES ('a'), ('b');
+CREATE VIEW v1 AS (SELECT ifnull(json_value(subject,'$.subject'),'') AS subject FROM t1);
+PREPARE stmt FROM 'SELECT tbl.subject AS fld FROM v1 AS tbl GROUP BY fld HAVING 0 AND fld != 1';
+EXECUTE stmt;
+fld
+EXECUTE stmt;
+fld
+DROP TABLE t1;
+DROP VIEW v1;
+SET optimizer_trace= @save_optimizer_trace;
+#
+# End of 10.11 tests
+#
