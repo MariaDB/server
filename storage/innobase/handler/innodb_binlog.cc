@@ -3724,6 +3724,9 @@ ibb_wait_durable_offset(uint64_t file_no, uint64_t wait_offset)
 {
   uint64_t dur_offset=
     binlog_cur_durable_offset[file_no & 3].load(std:: memory_order_relaxed);
+  if (dur_offset >= wait_offset)
+    return;
+
   ha_innodb_binlog_reader reader(true, file_no, dur_offset);
   for (;;)
   {
