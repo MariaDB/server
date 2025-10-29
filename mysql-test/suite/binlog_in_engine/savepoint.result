@@ -471,6 +471,7 @@ i	a	LENGTH(b)
 8	2	40000
 9	2	40000
 10	2	2
+*** Test an edge case where the savepoint is just at the cache-size boundary.
 connection master;
 DROP TABLE t1, t2;
 include/rpl_end.inc
