@@ -7230,13 +7230,13 @@ binlog_spill_to_engine(struct st_io_cache *cache, const uchar *data, size_t len)
     /*
       We currently always spill the entire cache contents, which should mean
       that at this point the remaining list of pending savepoints in the cache
-      is always empty.
+      is always empty - or possibly a savepoint at the current EOF.
       Let's assert that this is so. However, if we ever want to partially
       spill the cache and thus have remaining entries at this point, that is
       fine, it is supported by the code and then this assertion can just be
       removed.
     */
-    DBUG_ASSERT(sp == nullptr);
+    DBUG_ASSERT(sp == nullptr || sp->cache_offset == my_b_tell(cache));
   }
 
   DBUG_ASSERT(sofar < len);
