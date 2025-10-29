@@ -3500,6 +3500,9 @@ public:
   uint8 context_analysis_only;
   uint8 lex_options; // see OPTION_LEX_*
 
+  /* Zero by default, this counts the number of FULL JOINs in the query. */
+  uint16 full_join_count;
+
   Alter_info alter_info;
   Lex_prepared_stmt prepared_stmt;
   /*

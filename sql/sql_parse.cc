@@ -10364,6 +10364,11 @@ bool parse_sql(THD *thd, Parser_state *parser_state,
   bool mysql_parse_status= thd->variables.sql_mode & MODE_ORACLE
                            ? ORAparse(thd) : MYSQLparse(thd);
 
+  /* While we accept full join syntax, such joins are not yet supported. */
+  mysql_parse_status|= (thd->lex->full_join_count > 0);
+  if (thd->lex->full_join_count)
+    my_error(ER_NOT_SUPPORTED_YET, MYF(0), "full join");
+
   if (mysql_parse_status)
     /*
       Restore the original LEX if it was replaced when parsing
