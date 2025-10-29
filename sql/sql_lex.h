@@ -3593,6 +3593,9 @@ public:
   vers_select_conds_t vers_conditions;
   vers_select_conds_t period_conditions;
 
+  /* False by default, this will be true if the query has a full join. */
+  bool has_full_outer_join;
+
   inline void free_set_stmt_mem_root()
   {
     DBUG_ASSERT(!is_arena_for_set_stmt());
