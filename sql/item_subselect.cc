@@ -3505,6 +3505,12 @@ bool Item_exists_subselect::fix_fields(THD *thd, Item **ref)
 }
 
 
+bool Item_exists_subselect::where_exists_processor(void *arg)
+{
+  return walk(&Item::enumerate_field_refs_processor, true, arg);
+}
+
+
 bool Item_in_subselect::fix_fields(THD *thd_arg, Item **ref)
 {
   uint outer_cols_num;
