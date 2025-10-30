@@ -198,7 +198,7 @@ public:
   }
 
   void push_back(reference value) noexcept { insert(end(), value); }
-  void pop_back() noexcept { erase(end()); }
+  void pop_back() noexcept { erase(--end()); }
 
   void push_front(reference value) noexcept { insert(begin(), value); }
   void pop_front() noexcept { erase(begin()); }
