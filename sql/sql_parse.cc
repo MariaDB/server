@@ -108,6 +108,7 @@
 #ifdef WITH_WSREP
 #include "wsrep_thd.h"
 #include "wsrep_trans_observer.h" /* wsrep transaction hooks */
+#include "wsrep_schema.h"
 
 static bool wsrep_mysql_parse(THD *thd, char *rawbuf, uint length,
                               Parser_state *parser_state);
@@ -1139,7 +1140,7 @@ void cleanup_items(Item *item)
 }
 
 #ifdef WITH_WSREP
-static bool wsrep_tables_accessible_when_detached(const TABLE_LIST *tables)
+static inline bool wsrep_tables_accessible_when_detached(const TABLE_LIST *tables)
 {
   for (const TABLE_LIST *table= tables; table; table= table->next_global)
   {
@@ -1151,13 +1152,27 @@ static bool wsrep_tables_accessible_when_detached(const TABLE_LIST *tables)
   return tables != NULL;
 }
 
-static bool wsrep_command_no_result(char command)
+static inline bool wsrep_is_streaming_log(const TABLE_LIST *tables)
+{
+  for (const TABLE_LIST *table= tables; table; table= table->next_global)
+  {
+    const Lex_ident_db db(table->db);
+    const Lex_ident_table name(table->table_name);
+    if (db.streq(WSREP_LEX_SCHEMA) &&
+        name.streq(WSREP_LEX_STREAMING))
+      return true;
+  }
+  return false;
+}
+
+static inline bool wsrep_command_no_result(char command)
 {
   return (command == COM_STMT_FETCH            ||
           command == COM_STMT_SEND_LONG_DATA   ||
           command == COM_STMT_CLOSE);
 }
 #endif /* WITH_WSREP */
+
 #ifndef EMBEDDED_LIBRARY
 static enum enum_server_command fetch_command(THD *thd, char *packet)
 {
@@ -5034,6 +5049,19 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
     {
       if (check_table_access(thd, DROP_ACL, all_tables, FALSE, UINT_MAX, FALSE))
 	goto error;				/* purecov: inspected */
+#ifdef WITH_WSREP
+      /* In Galera do not allow dropping mysql.wsrep_streaming_log
+         because it would make streaming replication to fail.
+      */
+      if (WSREP(thd) && wsrep_is_streaming_log(all_tables))
+      {
+        my_error(ER_TABLEACCESS_DENIED_ERROR, MYF(0), "DROP",
+                 thd->security_ctx->priv_user,
+                 thd->security_ctx->host_or_ip,
+                 "mysql", "wsrep_streaming_log");
+        goto error;
+      }
+#endif /* WITH_WSREP */
     }
     else
     {
