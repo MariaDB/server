@@ -12387,8 +12387,9 @@ join_table:
           }
           expr
           {
-            add_join_on(thd, $1, $8);
+            add_join_on(thd, $5, $8);
             $1->on_context= Lex->pop_context();
+            $5->on_context= $1->on_context;
             Select->parsing_place= NO_MATTER;
             $$= $1;
             Lex->has_full_outer_join= true;
@@ -12415,11 +12416,13 @@ join_table:
 
             Select->add_joined_table($1);
             $1->outer_join|= (JOIN_TYPE_LEFT |
-                              JOIN_TYPE_FULL);
+                              JOIN_TYPE_FULL |
+                              JOIN_TYPE_NATURAL);
 
             Select->add_joined_table($6);
             $6->outer_join|= (JOIN_TYPE_RIGHT |
-                              JOIN_TYPE_FULL);
+                              JOIN_TYPE_FULL |
+                              JOIN_TYPE_NATURAL);
 
             add_join_natural($6,$1,NULL,Select);
             Lex->has_full_outer_join= true;
