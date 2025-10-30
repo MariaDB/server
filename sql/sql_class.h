@@ -915,6 +915,7 @@ typedef struct system_variables
 #endif // USER_VAR_TRACKING
   my_bool tcp_nodelay;
   my_bool optimizer_record_context;
+  char *optimizer_replay_context;
   plugin_ref table_plugin;
   plugin_ref tmp_table_plugin;
   plugin_ref enforced_table_plugin;
@@ -4314,7 +4315,14 @@ public:
   Parser_state *m_parser_state;
 
   Locked_tables_list locked_tables_list;
-  Optimizer_Stats_Context_Recorder *stats_ctx_recorder= NULL;
+
+  /*
+    If non-NULL, used to record all the "context" (i.e. environment data) that
+    the optimizer sees. The idea is to save the context and then re-create it
+    somewhere else.
+  */
+  Optimizer_context_recorder *opt_ctx_recorder= NULL;
+  Optimizer_context_replay *opt_ctx_replay= NULL;
 
 #ifdef WITH_PARTITION_STORAGE_ENGINE
   partition_info *work_part_info;

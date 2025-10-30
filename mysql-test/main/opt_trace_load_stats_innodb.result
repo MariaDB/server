@@ -1,0 +1,152 @@
+#
+# In this test suite, each query is run more than once. However, between the runs
+# the table is modified to either add more rows or delete rows etc. 
+# During the first run of the query, optimizer_context from the trace 
+# is saved to a variable "saved_opt_context", and the explain output is saved
+# into "saved_explain_output".
+# Once the table is modified, the saved context is used to rerun the query.
+# The execution plan output along with the stats should be one and the same
+# during each run of the query.
+#
+set optimizer_record_context=ON;
+set optimizer_trace=1;
+set optimizer_replay_context="";
+create database db1;
+use db1;
+#
+# Range query on a single table having 1 index
+#
+create table t1 (c1 int, c2 int, index(c1)) engine=innodb;
+insert into t1 select seq, seq from seq_1_to_10000;
+analyze table t1;
+Table	Op	Msg_type	Msg_text
+db1.t1	analyze	status	Engine-independent statistics collected
+db1.t1	analyze	status	OK
+set optimizer_replay_context="";
+set @explain_output='$explain_query';
+set @saved_opt_context=
+(select json_pretty(json_extract(
+json_extract(trace, "$**.optimizer_context"),
+'$[0]'
+                      )
+)
+from information_schema.optimizer_trace);
+set @saved_explain_output=@explain_output;
+set optimizer_replay_context="";
+truncate table t1;
+set optimizer_replay_context=@saved_opt_context;
+set @explain_output='$explain_query';
+select JSON_EQUALS(@saved_explain_output, @explain_output);
+JSON_EQUALS(@saved_explain_output, @explain_output)
+1
+set optimizer_replay_context="";
+drop table t1;
+#
+# Query on a single table having 2 indexes.
+# 2 different ranges are specified on each index.
+#
+create table t1 (
+c1 int,
+c2 int,
+index(c1),
+index(c2)
+) ENGINE=InnoDB;
+insert into t1 select seq, seq from seq_1_to_10000;
+analyze table t1;
+Table	Op	Msg_type	Msg_text
+db1.t1	analyze	status	Engine-independent statistics collected
+db1.t1	analyze	status	OK
+set optimizer_replay_context="";
+set @explain_output='$explain_query';
+set @saved_opt_context=
+(select json_pretty(json_extract(
+json_extract(trace, "$**.optimizer_context"),
+'$[0]'
+                      )
+)
+from information_schema.optimizer_trace);
+set @saved_explain_output=@explain_output;
+set optimizer_replay_context="";
+truncate table t1;
+set optimizer_replay_context=@saved_opt_context;
+set @explain_output='$explain_query';
+select JSON_EQUALS(@saved_explain_output, @explain_output);
+JSON_EQUALS(@saved_explain_output, @explain_output)
+1
+set optimizer_replay_context="";
+#
+# Add more data to the table and execute the query
+#
+insert into t1 select seq, seq from seq_1_to_20000;
+analyze table t1;
+Table	Op	Msg_type	Msg_text
+db1.t1	analyze	status	Engine-independent statistics collected
+db1.t1	analyze	status	OK
+set optimizer_replay_context=@saved_opt_context;
+set @explain_output='$explain_query';
+select JSON_EQUALS(@saved_explain_output, @explain_output);
+JSON_EQUALS(@saved_explain_output, @explain_output)
+1
+drop table t1;
+#
+# Query on a single table having 1 index.
+# However, a non-constant ref access is used on the index.
+#
+set optimizer_replay_context="";
+create table t1 (
+c1 int,
+c2 int,
+index(c1)
+) ENGINE=InnoDB;
+insert into t1 select seq%100, seq%500 from seq_1_to_10000;
+analyze table t1;
+Table	Op	Msg_type	Msg_text
+db1.t1	analyze	status	Engine-independent statistics collected
+db1.t1	analyze	status	OK
+set optimizer_replay_context="";
+set @explain_output='$explain_query';
+set @saved_opt_context=
+(select json_pretty(json_extract(
+json_extract(trace, "$**.optimizer_context"),
+'$[0]'
+                      )
+)
+from information_schema.optimizer_trace);
+set @saved_explain_output=@explain_output;
+set optimizer_replay_context="";
+truncate table t1;
+set optimizer_replay_context=@saved_opt_context;
+set @explain_output='$explain_query';
+select JSON_EQUALS(@saved_explain_output, @explain_output);
+JSON_EQUALS(@saved_explain_output, @explain_output)
+1
+set optimizer_replay_context="";
+#
+# On the same table, test with non-constant ref access with out using an index
+# Also, re-insert data
+#
+insert into t1 select seq%100, seq%500 from seq_1_to_10000;
+analyze table t1;
+Table	Op	Msg_type	Msg_text
+db1.t1	analyze	status	Engine-independent statistics collected
+db1.t1	analyze	status	OK
+set optimizer_replay_context="";
+set @explain_output='$explain_query';
+set @saved_opt_context=
+(select json_pretty(json_extract(
+json_extract(trace, "$**.optimizer_context"),
+'$[0]'
+                      )
+)
+from information_schema.optimizer_trace);
+set @saved_explain_output=@explain_output;
+set optimizer_replay_context="";
+truncate table t1;
+set optimizer_replay_context=@saved_opt_context;
+set @explain_output='$explain_query';
+select JSON_EQUALS(@saved_explain_output, @explain_output);
+JSON_EQUALS(@saved_explain_output, @explain_output)
+1
+set optimizer_replay_context="";
+drop table t1;
+drop database db1;
