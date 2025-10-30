@@ -95,6 +95,7 @@ extern MY_LOCALE *my_default_lc_time_names;
 
 MY_LOCALE *my_locale_by_name(const LEX_CSTRING &name);
 MY_LOCALE *my_locale_by_number(uint number);
+MY_LOCALE  *my_locale_by_oracle_name(const LEX_CSTRING &name);
 void cleanup_errmsgs(void);
 
 #endif /* SQL_LOCALE_INCLUDED */

@@ -1,0 +1,150 @@
+# Test script for an Oracle TO_DATE() function
+# Testing of all format elements and various edge cases.
+
+SET time_zone=_latin1'+03:00';
+# Ensure all date parts are consistent and different
+SET timestamp=1100000000;
+SELECT NOW();
+
+SELECT TO_DATE('2025/10/26', 'YYYY/MM/DD') AS result;
+SELECT TO_DATE('26-OCT-25', 'DD-MON-RR') AS result;
+SELECT TO_DATE('October 26, 2025', 'MONTH DD, YYYY') AS result;
+
+--echo # Two-Digit Year (RR)
+SELECT TO_DATE('26-OCT-60', 'DD-MON-RR') AS result;
+SELECT TO_DATE('26-OCT-25', 'DD-MON-RR') AS result;
+
+--echo # Day of Year (DDD)
+SELECT TO_DATE('2025-300', 'YYYY-DDD') AS result;
+
+--echo # Time Formats (HH24, MI, SS)
+SELECT TO_DATE('14:30:25', 'HH24:MI:SS') AS result;
+SELECT TO_DATE('08:30:25', 'HH:MI:SS') AS result;
+SELECT TO_DATE('08:30:25 PM', 'HH:MI:SS AM') AS result;
+
+--echo # Day of Week (DAY, DY). Uses current day
+SELECT TO_DATE('Tuesday', 'DAY') AS result;
+SELECT TO_DATE('26-OCT-25 Sunday', 'DD-MON-YY DAY') AS result;
+
+--echo # Month of Year (MONTH, MON)
+SELECT TO_DATE('October', 'MONTH') AS result;
+SELECT TO_DATE('Oct', 'MON') AS result;
+
+--echo # Fractional Seconds (FF)
+SELECT TO_DATE('2025-10-26 10:30:25.123456', 'YYYY-MM-DD HH:MI:SS.FF') AS result
+;
+SELECT TO_DATE('2025-10-26 10:30:25.123456', 'YYYY-MM-DD HH:MI:SS.FF6') AS result;
+SELECT TO_DATE('2025-10-26 10:30:25.123', 'YYYY-MM-DD HH:MI:SS.FF') AS result;
+SELECT TO_DATE('2025-10-26 10:30:25.12', 'YYYY-MM-DD HH:MI:SS.FF2') AS result;
+SELECT TO_DATE('2025-10-26 10:30:25.129', 'YYYY-MM-DD HH:MI:SS.FF2') AS result;
+SELECT TO_DATE('2025-10-26 10:30:123:34', 'YYYY-MM-DD HH:MI:FF3:SS') AS result;
+
+--echo #AD
+SELECT TO_DATE('26-10-1000 AD', 'DD-MM-YYYY AD') AS result;
+
+--echo NULL
+SELECT TO_DATE(NULL, 'YYYY-MM-DD') AS result;
+
+--echo #
+--echo # Fuzzy string
+--echo
+
+SELECT TO_DATE('0207','MM/YY');
+SELECT TO_DATE('02#07','MM/YY');
+SELECT TO_DATE('2001 -- 10','YYYY - MM');
+
+--echo # Tab and space
+SELECT TO_DATE('25	05 3','YY MM DD');
+
+--echo # Quotes
+select TO_DATE('2023-01-02 hello 03:04:05', 'YYYY-MM-DD "hello" HH24:MI:SS');
+select TO_DATE('2023-01-02 "03:04:05"', 'YYYY-MM-DD #HH24:MI:SS#');
+
+--echo #
+--echo # Not allowed fuzzy string
+--echo #
+
+SELECT TO_DATE('2001 - - 10','YYYY - MM');
+SELECT TO_DATE('02#/07','MM/YY');
+SELECT TO_DATE('2023-01-02 helloa 03:04:05', 'YYYY-MM-DD "hello" HH24:MI:SS');
+SELECT TO_DATE('2023-01-02 helloa 03:04:05', 'YYYY-MM-DD "hello HH24:MI:SS');
+
+--echo #
+--echo # Error Handling (Invalid/not supported formats)
+--echo
+
+SELECT TO_DATE('Not a date', 'YYYY-MM-DD') AS result;
+SELECT TO_DATE('2025-02-30', 'YYYY-MM-DD') AS result;
+SELECT TO_DATE('26-10-1000 BC', 'DD-MM-YYYY BC') AS result;
+SELECT TO_DATE('Monday', 'DAY') AS result;
+
+SET timestamp=unix_timestamp("2025-01-31");
+SELECT TO_DATE('January', 'MONTH') AS result;
+SELECT TO_DATE('February', 'MONTH') AS result;
+
+--echo # Wrong quoting
+select TO_DATE('2023-01-02 "03:04:05"', 'YYYY-MM-DD """"HH24:MI:SS""""');
+select TO_DATE('2023-01-02 hello 03:04:05', 'YYYY-MM-DD HH24:MI:SS');
+select TO_DATE('2023-01-02 03:04:05', 'YYYY-MM-DD "hello" HH24:MI:SS');
+select TO_DATE('2023-01-02 "03:04:05"', 'YYYY-MM-DD ""HH24:MI:SS""');
+
+--error ER_STD_INVALID_ARGUMENT
+select TO_DATE('2023-01-02 hello 03:04:05', 'YYYY-MM-DD hello HH24:MI:SS');
+--error ER_STD_INVALID_ARGUMENT
+SELECT TO_DATE('2025-10-26 10:30:25.123456', 'YYYY-MM-DD HH:MI:SS.FF0') AS result;
+--error ER_STD_INVALID_ARGUMENT
+SELECT TO_DATE('2025-10-26 26', 'YYYY-MM-DD DD') AS result;
+
+--echo #
+--echo # Default handling
+--echo #
+
+SELECT TO_DATE(NULL DEFAULT '2024-01-02' ON CONVERSION ERROR, 'YYYY-MM-DD') AS result;
+SELECT TO_DATE('not a date' DEFAULT '2024-01-02' ON CONVERSION ERROR, 'YYYY-MM-DD') AS result;
+
+SELECT TO_DATE('2025' DEFAULT NULL ON CONVERSION ERROR, 'YYYY-MM-DD') AS result;
+
+SELECT TO_DATE('2025-13-02' DEFAULT '2025-12-02' ON CONVERSION ERROR, 'YYYY-MM-DD') AS result;
+SELECT TO_DATE('2025-13-02' DEFAULT '2025-14-02' ON CONVERSION ERROR, 'YYYY-MM-DD') AS result;
+
+--echo #
+--echo # Check virtual functions with TO_DATE
+--echo #
+
+--error ER_GENERATED_COLUMN_FUNCTION_IS_NOT_ALLOWED
+create or replace table t1 (
+c1 varchar(10),
+c2 datetime as (to_date(c1,'MM')) virtual,
+key(c2));
+
+--error ER_GENERATED_COLUMN_FUNCTION_IS_NOT_ALLOWED
+create or replace table t1 (
+c1 varchar(10),
+c2 datetime as (to_date(c1, "YYYY-MM-DD HH:MM:SS")) virtual,
+key(c2));
+
+--echo #
+--echo # NLS_DATA functions
+--echo #
+
+SELECT TO_DATE(' 2024-11-01 00:00:00', 'SYYYY-MM-DD HH24:MI:SS', 'NLS_CALENDAR=GREGORIAN');
+SELECT TO_DATE(' 2024-January-01 00:00:00', 'YYYY-MONTH-DD HH24:MI:SS', '  NLS_CALENDAR = GREGORIAN  NLS_DATE_LANGUAGE =en_AU   ');
+SELECT TO_DATE(' 2024-February-01 00:00:00', 'YYYY-MONTH-DD HH24:MI:SS', '  NLS_CALENDAR = GREGORIAN  NLS_DATE_LANGUAGE ="en_AU"   ');
+
+SELECT TO_DATE('January 15, 1989, 11:00 A.M.', 'Month dd, YYYY, HH:MI A.M.', 'NLS_DATE_LANGUAGE = American');
+SELECT TO_DATE('Januar 15, 1989, 11:00 A.M.', 'Month dd, YYYY, HH:MI A.M.', 'NLS_DATE_LANGUAGE = German');
+SELECT TO_DATE('Ja 15, 1989, 11:00 A.M.', 'Month dd, YYYY, HH:MI A.M.', 'NLS_DATE_LANGUAGE = German');
+
+--echo #
+--echo # NLS_DATA errors
+--echo #
+SELECT TO_DATE('2024-11-01 00:00:00', 'SYYYY-MM-DD HH24:MI:SS', 'NLS_CALENDAR=VICTORIAN');
+SELECT TO_DATE('January 15, 1989, 11:00 A.M.', 'Month dd, YYYY, HH:MI A.M.', 'NLS_DATE_LANGUAGE = German');
+--error ER_UNKNOWN_LOCALE
+SELECT TO_DATE('January 15, 1989, 11:00 A.M.', 'Month dd, YYYY, HH:MI A.M.', 'NLS_DATE_LANGUAGE = not_exists');
+SELECT TO_DATE('2024-11-01 00:00:00', 'SYYYY-MM-DD HH24:MI:SS', 'NLS_XX=YYY');
+SELECT TO_DATE('2024-11-01 00:00:00', 'SYYYY-MM-DD HH24:MI:SS', '=YYY');
+SELECT TO_DATE('2024-11-01 00:00:00', 'SYYYY-MM-DD HH24:MI:SS', 'XX=');
+SELECT TO_DATE('2024-11-01 00:00:00', 'SYYYY-MM-DD HH24:MI:SS', 'XX=');
+SELECT TO_DATE('2024-11-01 00:00:00', 'SYYYY-MM-DD HH24:MI:SS', 'A=B C=');
+SELECT TO_DATE('2024-11-01 00:00:00', 'SYYYY-MM-DD HH24:MI:SS', 'A=B =D');
