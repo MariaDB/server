@@ -133,7 +133,6 @@ static Item* escape(THD *thd)
   return new (thd->mem_root) Item_string_ascii(thd, esc, MY_TEST(esc[0]));
 }
 
-
 /**
   @brief Bison callback to report a syntax/OOM error
 
@@ -827,6 +826,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %token  <kwd>  CONTAINS_SYM                  /* SQL-2003-N */
 %token  <kwd>  CONTEXT_SYM
 %token  <kwd>  CONTRIBUTORS_SYM
+%token  <kwd>  CONVERSION_SYM
 %token  <kwd>  CPU_SYM
 %token  <kwd>  CUBE_SYM                      /* SQL-2003-R */
 %token  <kwd>  CURRENT_SYM                   /* SQL-2003-R */
@@ -1142,6 +1142,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %token  <kwd>  TRANSACTION_SYM
 %token  <kwd>  TRANSACTIONAL_SYM
 %token  <kwd>  THREADS_SYM
+%token  <kwd>  TO_DATE                       /* PLSQL function */
 %token  <kwd>  TRIGGERS_SYM
 %token  <kwd>  TRIM_ORACLE
 %token  <kwd>  TRUNCATE_SYM
@@ -1338,7 +1339,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
         key_cache_name
         sp_opt_label BIN_NUM TEXT_STRING_filesystem
         opt_constraint constraint opt_ident
-        sp_block_label sp_control_label opt_place opt_db
+        sp_block_label sp_control_label opt_place opt_db opt_nls_param
         udt_name
 
 %ifdef ORACLE
@@ -10413,6 +10414,19 @@ column_default_non_parenthesized_expr:
                                                             $7))))
               MYSQL_YYABORT;
           }
+        | TO_DATE '(' expr ',' expr opt_nls_param')'
+        {
+          $$= new (thd->mem_root) Item_func_to_date(thd, $3, $5, &$6);
+          if (unlikely($$ == 0))
+            MYSQL_YYABORT;
+        }
+        | TO_DATE '(' expr DEFAULT expr ON CONVERSION_SYM ERROR_SYM
+           ',' expr opt_nls_param')'
+        {
+          $$= new (thd->mem_root) Item_func_to_date(thd, $3, $10, $5, &$11);
+          if (unlikely($$ == NULL))
+            MYSQL_YYABORT;
+        }
         ;
 
 primary_expr:
@@ -10493,6 +10507,18 @@ function_call_keyword_timestamp:
               MYSQL_YYABORT;
           }
         ;
+
+opt_nls_param:
+          /* empty */ 
+          {
+            $$= (LEX_CSTRING) empty_clex_str;
+	  }
+          | ',' TEXT_STRING_sys
+          {
+            $$= $2;
+          }
+
+
 /*
   Function call syntax using official SQL 2003 keywords.
   Because the function name is an official token,

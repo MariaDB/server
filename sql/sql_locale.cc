@@ -3499,6 +3499,100 @@ MY_LOCALE *my_locales[]=
   };
 
 
+/* Mapping for Oracle NLS_LANGUAGE_DATE to MY_LOCALE */
+
+struct ORACLE_DATE_LOCALE
+{
+  const Lex_ident_locale name;
+  MY_LOCALE *locale;
+};
+
+struct ORACLE_DATE_LOCALE Oracle_date_locale[]=
+{
+  { "ALBANIAN"_Lex_ident_locale, &my_locale_sq_AL },
+  { "AMERICAN"_Lex_ident_locale, &my_locale_en_US },
+  { "ARABIC"_Lex_ident_locale, &my_locale_ar_YE },
+    //{ "ARMENIAN"_Lex_ident_locale, &my_locale_hy },
+    //{ "ASSAMESE"_Lex_ident_locale, &my_locale_as },
+    //{ "AZERBAIJANI"_Lex_ident_locale, &my_locale_az },
+    //{ "BANGLA"_Lex_ident_locale, &my_locale_bn },
+  { "BASQUE"_Lex_ident_locale, &my_locale_eu_ES },
+  { "BELARUSIAN"_Lex_ident_locale, &my_locale_be_BY },
+  { "BRAZILIAN PORTUGUESE"_Lex_ident_locale, &my_locale_pt_BR },
+  { "BULGARIAN"_Lex_ident_locale, &my_locale_bg_BG },
+  { "CANADIAN FRENCH"_Lex_ident_locale, &my_locale_fr_FR },
+  { "CATALAN"_Lex_ident_locale, &my_locale_ca_ES },
+  { "CROATIAN"_Lex_ident_locale, &my_locale_hr_HR },
+  //{ "CYRILLIC KAZAKH"_Lex_ident_locale, &my_locale_ckk },
+  { "CYRILLIC SERBIAN"_Lex_ident_locale, &my_locale_sr_RS },
+  //{"CYRILLIC UZBEK"_Lex_ident_locale, &my_locale_cuz },
+  { "CZECH"_Lex_ident_locale, &my_locale_cs_CZ },
+  { "DANISH"_Lex_ident_locale, &my_locale_da_DK },
+  //{ "DARI"_Lex_ident_locale, &my_locale_prs },
+  //{ "DIVEHI"_Lex_ident_locale, &my_locale_dv },
+  { "DUTCH"_Lex_ident_locale, &my_locale_nl_BE },
+  { "EGYPTIAN"_Lex_ident_locale, &my_locale_ar_EG },
+  { "ENGLISH"_Lex_ident_locale, &my_locale_en_GB },
+  { "ESTONIAN"_Lex_ident_locale, &my_locale_et_EE },
+  { "FINNISH"_Lex_ident_locale, &my_locale_fi_FI },
+  { "FRENCH"_Lex_ident_locale, &my_locale_fr_BE },
+  //{ "GERMAN DIN"_Lex_ident_locale, &my_locale_din },
+  { "GERMAN"_Lex_ident_locale, &my_locale_de_DE },
+  { "GREEK"_Lex_ident_locale, &my_locale_el_GR },
+  //{ "GUJARATI"_Lex_ident_locale, &my_locale_gu },
+  { "HEBREW"_Lex_ident_locale, &my_locale_he_IL },
+  { "HINDI"_Lex_ident_locale, &my_locale_hi_IN },
+  { "HUNGARIAN"_Lex_ident_locale, &my_locale_hu_HU },
+  { "ICELANDIC"_Lex_ident_locale, &my_locale_is_IS },
+  { "INDONESIAN"_Lex_ident_locale, &my_locale_id_ID },
+  //{ "IRISH"_Lex_ident_locale, &my_locale_ga },
+  { "ITALIAN"_Lex_ident_locale, &my_locale_it_IT },
+  { "JAPANESE"_Lex_ident_locale, &my_locale_ja_JP },
+  { "KANNADA"_Lex_ident_locale, &my_locale_en_CA },
+  //{ "KHMER"_Lex_ident_locale, &my_locale_km_KM },
+  { "KOREAN"_Lex_ident_locale, &my_locale_ko_KR },
+  //{ "LAO"_Lex_ident_locale, &my_locale_lo_LO },
+  { "LATIN AMERICAN SPANISH"_Lex_ident_locale, &my_locale_es_ES },
+  //{ "LATIN BOSNIAN"_Lex_ident_locale, &my_locale_lbs_LBS },
+  //{ "LATIN SERBIAN"_Lex_ident_locale, &my_locale_lsr_LSR },
+  //{ "LATIN UZBEK"_Lex_ident_locale, &my_locale_luz_LUZ },
+  { "LATVIAN"_Lex_ident_locale, &my_locale_lv_LV },
+  { "LITHUANIAN"_Lex_ident_locale, &my_locale_lt_LT },
+  { "MACEDONIAN"_Lex_ident_locale, &my_locale_mk_MK },
+  { "MALAY"_Lex_ident_locale, &my_locale_ms_MY },
+  //{ "MALAYALAM"_Lex_ident_locale, &my_locale_ml_ML },
+  //{ "MALTESE"_Lex_ident_locale, &my_locale_mt_MT },
+  //{ "MARATHI"_Lex_ident_locale, &my_locale_mr_MR },
+  { "MEXICAN SPANISH"_Lex_ident_locale, &my_locale_es_MX },
+  //{ "NEPALI"_Lex_ident_locale, &my_locale_ne_NE },
+  { "NORWEGIAN"_Lex_ident_locale, &my_locale_nb_NO },
+  //{ "ORIYA"_Lex_ident_locale, &my_locale_or_OR },
+  //{ "PERSIAN"_Lex_ident_locale, &my_locale_fa_FA },
+  { "POLISH"_Lex_ident_locale, &my_locale_pl_PL },
+  { "PORTUGUESE"_Lex_ident_locale, &my_locale_pt_PT },
+  //{ "PUNJABI"_Lex_ident_locale, &my_locale_pa_PA },
+  { "ROMANIAN"_Lex_ident_locale, &my_locale_ro_RO },
+  { "RUSSIAN"_Lex_ident_locale, &my_locale_ru_RU },
+  { "SIMPLIFIED CHINESE"_Lex_ident_locale, &my_locale_zh_CN },
+  //{ "SINHALA"_Lex_ident_locale, &my_locale_si_SI },
+  { "SLOVAK"_Lex_ident_locale, &my_locale_sk_SK },
+  { "SLOVENIAN"_Lex_ident_locale, &my_locale_sl_SI },
+  { "SPANISH"_Lex_ident_locale, &my_locale_es_ES },
+  { "SWAHILI"_Lex_ident_locale, &my_locale_sw_KE },
+  { "SWEDISH"_Lex_ident_locale, &my_locale_sv_SE },
+  { "TAMIL"_Lex_ident_locale, &my_locale_ta_IN },
+  //{ "TELUGU"_Lex_ident_locale, &my_locale_te_TE },
+  { "THAI"_Lex_ident_locale, &my_locale_th_TH },
+  { "TRADITIONAL CHINESE"_Lex_ident_locale, &my_locale_zh_CN },
+  { "TURKISH"_Lex_ident_locale, &my_locale_tr_TR },
+  //{ "TURKMEN"_Lex_ident_locale, &my_locale_tk_TK },
+  { "UKRAINIAN"_Lex_ident_locale, &my_locale_uk_UA },
+  { "URDU"_Lex_ident_locale, &my_locale_ur_PK },
+  { "VIETNAMESE"_Lex_ident_locale, &my_locale_vi_VN },
+  { ""_Lex_ident_locale, 0}
+};
+
+
 MY_LOCALE *my_locale_by_number(uint number)
 {
   MY_LOCALE *locale;
@@ -3535,6 +3629,18 @@ MY_LOCALE *my_locale_by_name(const LEX_CSTRING &name)
       return locale;
   }
   return locale;
+}
+
+
+MY_LOCALE *my_locale_by_oracle_name(const LEX_CSTRING &name)
+{
+  ORACLE_DATE_LOCALE *locale;
+  for (locale= Oracle_date_locale; locale->locale ; locale++)
+  {
+    if (locale->name.streq(name))
+      return locale->locale;
+  }
+  return 0;
 }
 
 

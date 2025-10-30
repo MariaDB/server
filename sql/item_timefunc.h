@@ -1125,7 +1125,6 @@ public:
     return name;
   }
   bool fix_length_and_dec(THD *thd) override;
-  bool parse_format_string(const String *format, uint *fmt_len);
 
   bool check_vcol_func_processor(void *arg) override
   {
@@ -1756,7 +1755,7 @@ public:
     internal_charset(NULL)
   {}
   bool get_date_common(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate,
-                       timestamp_type);
+                       timestamp_type) override;
   LEX_CSTRING func_name_cstring() const override
   {
     static LEX_CSTRING name= {STRING_WITH_LEN("str_to_date") };
@@ -1765,6 +1764,100 @@ public:
   bool fix_length_and_dec(THD *thd) override;
   Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_func_str_to_date>(thd, this); }
+};
+
+
+/* Oracle TO_DATE() function */
+
+
+/* Flags used by parse_format_string() */
+
+enum PARSE_TYPE_FLAGS
+{
+  PARSE_TYPE_NONE= 0,
+  PARSE_TYPE_YEAR= 1,
+  PARSE_TYPE_MONTH= 2,
+  PARSE_TYPE_DAY= 4,
+  PARSE_TYPE_HH= 8,
+  PARSE_TYPE_MM= 16,
+  PARSE_TYPE_SS= 32,
+  PARSE_TYPE_SUBSECONDS= 64,
+  PARSE_TYPE_WEEKDAY= 128,
+  PARSE_TYPE_PART_YEAR= 256,
+  PARSE_TYPE_NON_DETERMINISTIC= 512
+};
+
+#define PARSE_TYPE_DATE (PARSE_TYPE_YEAR | PARSE_TYPE_MONTH | PARSE_TYPE_DAY)
+#define PARSE_TYPE_FULLDATE (PARSE_TYPE_YEAR | PARSE_TYPE_HH | \
+                             PARSE_TYPE_MM | PARSE_TYPE_SS)
+
+class Item_func_to_date :public Item_handled_func
+{
+  bool const_item;
+  String subject_converter;
+  String format_converter;
+  CHARSET_INFO *internal_charset;
+  MYSQL_TIME now_time;                    // Used for incomplete dates
+  PARSE_TYPE_FLAGS format_flags;
+  THD *thd;
+  const MY_LOCALE *locale;
+  String warning_message;
+  PARSE_TYPE_FLAGS formats_used;
+  LEX_CSTRING nls_param;
+  bool nls_param_error;
+
+  /*
+    When datetime format models is parsed, use uint16 integers to
+    represent the format models and store in fmt_array.
+  */
+  uint16 fmt_array[MAX_DATETIME_FORMAT_MODEL_LEN+1];
+
+public:
+  Item_func_to_date(THD *thd, Item *a, Item *b, LEX_CSTRING *nls):
+    Item_handled_func(thd, a, b), const_item(false),
+    internal_charset(NULL), locale(0), nls_param(*nls), nls_param_error(0)
+  {
+    /* NOTE: max length of warning message is 64 */
+    warning_message.alloc(64);
+    warning_message.length(0);
+    parse_nls_param(&nls_param);
+  }
+  Item_func_to_date(THD *thd, Item *a, Item *b, Item *c, LEX_CSTRING *nls):
+    Item_handled_func(thd, a, b, c),  const_item(false),
+      internal_charset(NULL), locale(0), nls_param(*nls), nls_param_error(0)
+  {
+    /* NOTE: max length of warning message is 64 */
+    warning_message.alloc(64);
+    warning_message.length(0);
+    parse_nls_param(&nls_param);
+  }
+  bool get_date_common(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate,
+                       timestamp_type) override;
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING name= {STRING_WITH_LEN("to_date") };
+    return name;
+  }
+  bool fix_length_and_dec(THD *thd) override;
+  Item *do_get_copy(THD *thd) const override
+  { return get_item_copy<Item_func_to_date>(thd, this); }
+
+  bool check_vcol_func_processor(void *arg) override
+  {
+    /*
+      We have to mark this as non deterministic as when this
+      function is called, fix_length_and_dec() has not been run
+      and we do not know if this usage is deterministic or not.
+      If the item would be const and format_flags says all
+      fields is used, we would know if the function would be
+      deterministic or not.
+    */
+    return mark_unsupported_function(func_name(), "()", arg,
+                                     VCOL_NON_DETERMINISTIC);
+  }
+  PARSE_TYPE_FLAGS get_format();
+  void parse_nls_param(LEX_CSTRING *);
+  void print(String *str, enum_query_type query_type) override;
 };
 
 
@@ -2067,8 +2160,7 @@ public:
   bool get_date(THD *thd, Item_handled_func *item,
                 MYSQL_TIME *to, date_mode_t fuzzy) const override
   {
-    return static_cast<Item_func_str_to_date*>(item)->
-             get_date_common(thd, to, fuzzy, MYSQL_TIMESTAMP_DATETIME);
+    return item->get_date_common(thd, to, fuzzy, MYSQL_TIMESTAMP_DATETIME);
   }
 };
 
@@ -2085,8 +2177,7 @@ public:
   bool get_date(THD *thd, Item_handled_func *item,
                 MYSQL_TIME *to, date_mode_t fuzzy) const override
   {
-    return static_cast<Item_func_str_to_date*>(item)->
-             get_date_common(thd, to, fuzzy, MYSQL_TIMESTAMP_DATETIME);
+    return item->get_date_common(thd, to, fuzzy, MYSQL_TIMESTAMP_DATETIME);
   }
 };
 
@@ -2097,8 +2188,7 @@ public:
   bool get_date(THD *thd, Item_handled_func *item,
                 MYSQL_TIME *to, date_mode_t fuzzy) const override
   {
-    return static_cast<Item_func_str_to_date*>(item)->
-             get_date_common(thd, to, fuzzy, MYSQL_TIMESTAMP_DATE);
+    return item->get_date_common(thd, to, fuzzy, MYSQL_TIMESTAMP_DATE);
   }
 };
 
@@ -2109,8 +2199,7 @@ public:
   bool get_date(THD *thd, Item_handled_func *item,
                 MYSQL_TIME *to, date_mode_t fuzzy) const override
   {
-    if (static_cast<Item_func_str_to_date*>(item)->
-         get_date_common(thd, to, fuzzy, MYSQL_TIMESTAMP_TIME))
+    if (item->get_date_common(thd, to, fuzzy, MYSQL_TIMESTAMP_TIME))
       return true;
     if (to->day)
     {
