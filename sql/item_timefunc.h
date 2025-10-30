@@ -1125,7 +1125,6 @@ public:
     return name;
   }
   bool fix_length_and_dec(THD *thd) override;
-  bool parse_format_string(const String *format, uint *fmt_len);
 
   bool check_vcol_func_processor(void *arg) override
   {
@@ -1756,7 +1755,7 @@ public:
     internal_charset(NULL)
   {}
   bool get_date_common(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate,
-                       timestamp_type);
+                       timestamp_type) override;
   LEX_CSTRING func_name_cstring() const override
   {
     static LEX_CSTRING name= {STRING_WITH_LEN("str_to_date") };
@@ -1765,6 +1764,75 @@ public:
   bool fix_length_and_dec(THD *thd) override;
   Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_func_str_to_date>(thd, this); }
+};
+
+
+/* Oracle TO_DATE() function */
+
+
+/* Flags used by parse_format_string() */
+
+enum PARSE_TYPE_FLAGS
+{
+  PARSE_TYPE_NONE= 0,
+  PARSE_TYPE_YEAR= 1,
+  PARSE_TYPE_MONTH= 2,
+  PARSE_TYPE_DAY= 4,
+  PARSE_TYPE_TIME= 8,
+  PARSE_TYPE_SUBSECONDS= 16,
+  PARSE_TYPE_WEEKDAY= 32,
+  PARSE_TYPE_PART_YEAR= 64
+};
+
+#define PARSE_TYPE_DATE (PARSE_TYPE_YEAR | PARSE_TYPE_MONTH | PARSE_TYPE_DAY)
+
+class Item_func_to_date :public Item_handled_func
+{
+  bool const_item;
+  String subject_converter;
+  String format_converter;
+  CHARSET_INFO *internal_charset;
+  MYSQL_TIME now_time;                    // Used for incomplete dates
+
+  THD *thd;
+  const MY_LOCALE *locale;
+  String warning_message;
+  PARSE_TYPE_FLAGS formats_used;
+
+  /*
+    When datetime format models is parsed, use uint16 integers to
+    represent the format models and store in fmt_array.
+  */
+  uint16 fmt_array[MAX_DATETIME_FORMAT_MODEL_LEN+1];
+
+public:
+  Item_func_to_date(THD *thd, Item *a, Item *b):
+    Item_handled_func(thd, a, b), const_item(false),
+    internal_charset(NULL)
+  {
+    /* NOTE: max length of warning message is 64 */
+    warning_message.alloc(64);
+    warning_message.length(0);
+  }
+  Item_func_to_date(THD *thd, Item *a, Item *b, Item *c):
+    Item_handled_func(thd, a, b, c),  const_item(false),
+    internal_charset(NULL)
+  {
+    /* NOTE: max length of warning message is 64 */
+    warning_message.alloc(64);
+    warning_message.length(0);
+  }
+  bool get_date_common(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate,
+                       timestamp_type) override;
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING name= {STRING_WITH_LEN("to_date") };
+    return name;
+  }
+  bool fix_length_and_dec(THD *thd) override;
+  Item *do_get_copy(THD *thd) const override
+  { return get_item_copy<Item_func_to_date>(thd, this); }
+  PARSE_TYPE_FLAGS get_format();
 };
 
 
@@ -2067,8 +2135,7 @@ public:
   bool get_date(THD *thd, Item_handled_func *item,
                 MYSQL_TIME *to, date_mode_t fuzzy) const override
   {
-    return static_cast<Item_func_str_to_date*>(item)->
-             get_date_common(thd, to, fuzzy, MYSQL_TIMESTAMP_DATETIME);
+    return item->get_date_common(thd, to, fuzzy, MYSQL_TIMESTAMP_DATETIME);
   }
 };
 
@@ -2085,8 +2152,7 @@ public:
   bool get_date(THD *thd, Item_handled_func *item,
                 MYSQL_TIME *to, date_mode_t fuzzy) const override
   {
-    return static_cast<Item_func_str_to_date*>(item)->
-             get_date_common(thd, to, fuzzy, MYSQL_TIMESTAMP_DATETIME);
+    return item->get_date_common(thd, to, fuzzy, MYSQL_TIMESTAMP_DATETIME);
   }
 };
 
@@ -2097,8 +2163,7 @@ public:
   bool get_date(THD *thd, Item_handled_func *item,
                 MYSQL_TIME *to, date_mode_t fuzzy) const override
   {
-    return static_cast<Item_func_str_to_date*>(item)->
-             get_date_common(thd, to, fuzzy, MYSQL_TIMESTAMP_DATE);
+    return item->get_date_common(thd, to, fuzzy, MYSQL_TIMESTAMP_DATE);
   }
 };
 
@@ -2109,8 +2174,7 @@ public:
   bool get_date(THD *thd, Item_handled_func *item,
                 MYSQL_TIME *to, date_mode_t fuzzy) const override
   {
-    if (static_cast<Item_func_str_to_date*>(item)->
-         get_date_common(thd, to, fuzzy, MYSQL_TIMESTAMP_TIME))
+    if (item->get_date_common(thd, to, fuzzy, MYSQL_TIMESTAMP_TIME))
       return true;
     if (to->day)
     {

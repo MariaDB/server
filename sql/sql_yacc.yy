@@ -133,7 +133,6 @@ static Item* escape(THD *thd)
   return new (thd->mem_root) Item_string_ascii(thd, esc, MY_TEST(esc[0]));
 }
 
-
 /**
   @brief Bison callback to report a syntax/OOM error
 
@@ -827,6 +826,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %token  <kwd>  CONTAINS_SYM                  /* SQL-2003-N */
 %token  <kwd>  CONTEXT_SYM
 %token  <kwd>  CONTRIBUTORS_SYM
+%token  <kwd>  CONVERSION_SYM
 %token  <kwd>  CPU_SYM
 %token  <kwd>  CUBE_SYM                      /* SQL-2003-R */
 %token  <kwd>  CURRENT_SYM                   /* SQL-2003-R */
@@ -1142,6 +1142,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %token  <kwd>  TRANSACTION_SYM
 %token  <kwd>  TRANSACTIONAL_SYM
 %token  <kwd>  THREADS_SYM
+%token  <kwd>  TO_DATE                       /* PLSQL function */
 %token  <kwd>  TRIGGERS_SYM
 %token  <kwd>  TRIM_ORACLE
 %token  <kwd>  TRUNCATE_SYM
@@ -10413,6 +10414,19 @@ column_default_non_parenthesized_expr:
                                                             $7))))
               MYSQL_YYABORT;
           }
+        | TO_DATE '(' expr ',' expr ')'
+        {
+          $$= new (thd->mem_root) Item_func_to_date(thd, $3, $5);
+          if (unlikely($$ == NULL))
+            MYSQL_YYABORT;
+        }
+        | TO_DATE '(' expr DEFAULT expr ON CONVERSION_SYM ERROR_SYM
+           ',' expr ')'
+        {
+          $$= new (thd->mem_root) Item_func_to_date(thd, $3, $10, $5);
+          if (unlikely($$ == NULL))
+            MYSQL_YYABORT;
+        }
         ;
 
 primary_expr:
