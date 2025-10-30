@@ -2216,10 +2216,11 @@ class IS_table_read_plan;
 #define VIEW_ALGORITHM_MERGE_FRM      1U
 #define VIEW_ALGORITHM_TMPTABLE_FRM   2U
 
-#define JOIN_TYPE_LEFT	1U
-#define JOIN_TYPE_RIGHT	2U
-#define JOIN_TYPE_FULL	4U
-#define JOIN_TYPE_OUTER 8U	/* Marker that this is an outer join */
+#define JOIN_TYPE_LEFT	  1U
+#define JOIN_TYPE_RIGHT	  2U
+#define JOIN_TYPE_FULL	  4U
+#define JOIN_TYPE_OUTER   8U	/* Marker that this is an outer join */
+#define JOIN_TYPE_NATURAL 16U
 
 /* view WITH CHECK OPTION parameter options */
 #define VIEW_CHECK_NONE       0

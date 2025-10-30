@@ -3667,17 +3667,117 @@ create table t2 (a int);
 insert into t2 (a) values (1),(2),(3);
 select * from t1 full join t2 on t1.a = t2.a;
 ERROR 42000: This version of MariaDB doesn't yet support 'full join'
+explain extended select * from t1 full join t2 on t1.a = t2.a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	UNKNOWN	NULL	NULL	NULL	NULL	0	0.00	
+1	SIMPLE	t2	UNKNOWN	NULL	NULL	NULL	NULL	0	0.00	
+Warnings:
+Note	1003	select `test`.`t2`.`a` AS `a` from `test`.`t1` full join `test`.`t2` on(multiple equal(`test`.`t1`.`a`, `test`.`t2`.`a`))
 select * from t1 full outer join t2 on t1.a = t2.a;
 ERROR 42000: This version of MariaDB doesn't yet support 'full join'
+explain extended select * from t1 full outer join t2 on t1.a = t2.a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	UNKNOWN	NULL	NULL	NULL	NULL	0	0.00	
+1	SIMPLE	t2	UNKNOWN	NULL	NULL	NULL	NULL	0	0.00	
+Warnings:
+Note	1003	select `test`.`t2`.`a` AS `a` from `test`.`t1` full join `test`.`t2` on(multiple equal(`test`.`t1`.`a`, `test`.`t2`.`a`))
 select * from t1 natural full outer join t2;
 ERROR 42000: This version of MariaDB doesn't yet support 'full join'
+explain extended select * from t1 natural full outer join t2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	UNKNOWN	NULL	NULL	NULL	NULL	0	0.00	
+1	SIMPLE	t2	UNKNOWN	NULL	NULL	NULL	NULL	0	0.00	
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` natural full join `test`.`t2`
 select * from t1 natural full join t2;
 ERROR 42000: This version of MariaDB doesn't yet support 'full join'
+explain extended select * from t1 natural full join t2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	UNKNOWN	NULL	NULL	NULL	NULL	0	0.00	
+1	SIMPLE	t2	UNKNOWN	NULL	NULL	NULL	NULL	0	0.00	
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` natural full join `test`.`t2`
+create view v1 as select * from t1 full join t2 on t1.a = t2.a;
+select * from v1;
+ERROR 42000: This version of MariaDB doesn't yet support 'full join'
+explain extended select * from v1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	UNKNOWN	NULL	NULL	NULL	NULL	0	0.00	
+1	SIMPLE	t2	UNKNOWN	NULL	NULL	NULL	NULL	0	0.00	
+Warnings:
+Note	1003	select `test`.`t2`.`a` AS `a` from `test`.`t1` full join `test`.`t2` on(multiple equal(`test`.`t1`.`a`, `test`.`t2`.`a`))
+drop view v1;
 create view v1 as select * from t1 full outer join t2 on t1.a = t2.a;
+select * from v1;
 ERROR 42000: This version of MariaDB doesn't yet support 'full join'
+explain extended select * from v1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	UNKNOWN	NULL	NULL	NULL	NULL	0	0.00	
+1	SIMPLE	t2	UNKNOWN	NULL	NULL	NULL	NULL	0	0.00	
+Warnings:
+Note	1003	select `test`.`t2`.`a` AS `a` from `test`.`t1` full join `test`.`t2` on(multiple equal(`test`.`t1`.`a`, `test`.`t2`.`a`))
+drop view v1;
+create view v1 as select * from t1 natural full join t2;
+select * from v1;
+ERROR 42000: This version of MariaDB doesn't yet support 'full join'
+explain extended select * from v1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	UNKNOWN	NULL	NULL	NULL	NULL	0	0.00	
+1	SIMPLE	t2	UNKNOWN	NULL	NULL	NULL	NULL	0	0.00	
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` natural full join `test`.`t2`
+drop view v1;
+create view v1 as select * from t1 natural full outer join t2;
+select * from v1;
+ERROR 42000: This version of MariaDB doesn't yet support 'full join'
+explain extended select * from v1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	UNKNOWN	NULL	NULL	NULL	NULL	0	0.00	
+1	SIMPLE	t2	UNKNOWN	NULL	NULL	NULL	NULL	0	0.00	
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` natural full join `test`.`t2`
+drop view v1;
+select * from (select t1.a from t1 full join t2 on t1.a = t2.a union select * from t1) dt;
+ERROR 42S22: Unknown column 't1.a' in 'SELECT'
 select * from (select t1.a from t1 full outer join t2 on t1.a = t2.a union select * from t1) dt;
+ERROR 42S22: Unknown column 't1.a' in 'SELECT'
+select * from (select t1.a from t1 natural full join t2 union select * from t1) dt;
 ERROR 42000: This version of MariaDB doesn't yet support 'full join'
+explain extended select * from (select t1.a from t1 natural full join t2 union select * from t1) dt;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	<derived2>	UNKNOWN	NULL	NULL	NULL	NULL	0	0.00	
+2	DERIVED	t1	UNKNOWN	NULL	NULL	NULL	NULL	0	0.00	
+2	DERIVED	t2	UNKNOWN	NULL	NULL	NULL	NULL	0	0.00	
+3	UNION	t1	UNKNOWN	NULL	NULL	NULL	NULL	0	0.00	
+NULL	UNION RESULT	<union2,3>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
+Warnings:
+Note	1003	/* select#1 */ select `dt`.`a` AS `a` from (/* select#2 */ select `test`.`t1`.`a` AS `a` from `test`.`t1` natural full join `test`.`t2` union /* select#3 */ select `test`.`t1`.`a` AS `a` from `test`.`t1`) `dt`
+select * from (select t1.a from t1 natural full outer join t2 union select * from t1) dt;
+ERROR 42000: This version of MariaDB doesn't yet support 'full join'
+explain extended select * from (select t1.a from t1 natural full outer join t2 union select * from t1) dt;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	<derived2>	UNKNOWN	NULL	NULL	NULL	NULL	0	0.00	
+2	DERIVED	t1	UNKNOWN	NULL	NULL	NULL	NULL	0	0.00	
+2	DERIVED	t2	UNKNOWN	NULL	NULL	NULL	NULL	0	0.00	
+3	UNION	t1	UNKNOWN	NULL	NULL	NULL	NULL	0	0.00	
+NULL	UNION RESULT	<union2,3>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
+Warnings:
+Note	1003	/* select#1 */ select `dt`.`a` AS `a` from (/* select#2 */ select `test`.`t1`.`a` AS `a` from `test`.`t1` natural full join `test`.`t2` union /* select#3 */ select `test`.`t1`.`a` AS `a` from `test`.`t1`) `dt`
 with cte as (select t1.a from t1 natural full join t2) select * from cte;
 ERROR 42000: This version of MariaDB doesn't yet support 'full join'
+explain extended with cte as (select t1.a from t1 natural full join t2) select * from cte;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	UNKNOWN	NULL	NULL	NULL	NULL	0	0.00	
+1	SIMPLE	t2	UNKNOWN	NULL	NULL	NULL	NULL	0	0.00	
+Warnings:
+Note	1003	with cte as (select `test`.`t1`.`a` AS `a` from `test`.`t1` natural full join `test`.`t2`)select `test`.`t1`.`a` AS `a` from `test`.`t1` natural full join `test`.`t2`
+select * from t1, t2 full join t3 on t2.c=t3.e and t3.f=t1.a;
+ERROR 42S02: Table 'test.t3' doesn't exist
+select * from t1, t2 full outer join t3 on t2.c=t3.e and t3.f=t1.a;
+ERROR 42S02: Table 'test.t3' doesn't exist
+select * from t1, t2 natural full join t3;
+ERROR 42S02: Table 'test.t3' doesn't exist
+select * from t1, t2 natural full outer join t3;
+ERROR 42S02: Table 'test.t3' doesn't exist
 drop table t1, t2;
 # End of 12.3 tests

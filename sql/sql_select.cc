@@ -1895,6 +1895,18 @@ JOIN::prepare(TABLE_LIST *tables_init, COND *conds_init, uint og_num,
     goto err;
   prepared= true;
 
+  /*
+    This check gates FULL JOIN functionality while it is under
+    development.  This check will be removed once FULL JOIN
+    has been completed and it allows some aspects of FULL JOIN
+    (see below) while exluding others, driven by whatever has
+    been implemented up to this point.
+  */
+  if (thd->lex->has_full_outer_join &&  // FULL JOIN not yet supported...
+      !thd->lex->is_view_context_analysis() &&  // ...but allow VIEW creation...
+      !thd->lex->describe)  // ...and limited EXPLAIN support during development
+    my_error(ER_NOT_SUPPORTED_YET, MYF(0), "full join");
+
   DBUG_RETURN(0); // All OK
 
 err:
@@ -2793,7 +2805,13 @@ setup_subq_exit:
   with_two_phase_optimization= check_two_phase_optimization(thd);
   if (with_two_phase_optimization)
     optimization_state= JOIN::OPTIMIZATION_PHASE_1_DONE;
-  else
+  /*
+    Only during the FULL JOIN development cycle, disable second stage
+    optimization for FULL JOIN queries until the implementation is
+    mature enough to correctly execute the queries.  But for now
+    this allows for some EXPLAIN EXTENDED support.
+  */
+  else if (!thd->lex->has_full_outer_join)
   {
     if (optimize_stage2())
       DBUG_RETURN(1);
@@ -31771,8 +31789,13 @@ static void print_table_array(THD *thd,
       continue;
     }
 
-    /* JOIN_TYPE_OUTER is just a marker unrelated to real join */
-    if (curr->outer_join & (JOIN_TYPE_LEFT|JOIN_TYPE_RIGHT))
+    if (curr->outer_join & JOIN_TYPE_FULL)
+    {
+      if (curr->outer_join & JOIN_TYPE_NATURAL)
+        str->append(STRING_WITH_LEN(" natural"));
+      str->append(STRING_WITH_LEN(" full join "));
+    }
+    else if (curr->outer_join & (JOIN_TYPE_LEFT|JOIN_TYPE_RIGHT))
     {
       /* MySQL converts right to left joins */
       str->append(STRING_WITH_LEN(" left join "));
@@ -31783,9 +31806,15 @@ static void print_table_array(THD *thd,
       str->append(STRING_WITH_LEN(" semi join "));
     else
       str->append(STRING_WITH_LEN(" join "));
-    
+
     curr->print(thd, eliminated_tables, str, query_type);
-    if (curr->on_expr)
+    /*
+      NATURAL JOINs don't expose explicit join columns, so don't
+      print them as they're considered invalid syntax (this is
+      important for VIEWs as when VIEWs are loaded, their SQL
+      syntax is parsed again and must be valid).
+    */
+    if (curr->on_expr && !(curr->outer_join & JOIN_TYPE_NATURAL))
     {
       str->append(STRING_WITH_LEN(" on("));
       curr->on_expr->print(str, query_type);
