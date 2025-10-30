@@ -874,6 +874,8 @@ public:
    :Item_func(thd, a), m_func_handler(NULL) { }
   Item_handled_func(THD *thd, Item *a, Item *b)
    :Item_func(thd, a, b), m_func_handler(NULL) { }
+  Item_handled_func(THD *thd, Item *a, Item *b, Item *c)
+  :Item_func(thd, a, b, c), m_func_handler(NULL) { }
   void set_func_handler(const Handler *handler)
   {
     m_func_handler= handler;
@@ -917,6 +919,12 @@ public:
   bool val_native(THD *thd, Native *to) override
   {
     return m_func_handler->val_native(thd, this, to);
+  }
+  virtual bool get_date_common(THD *thd, MYSQL_TIME *ltime,
+                               date_mode_t fuzzydate, timestamp_type)
+  {
+    DBUG_ASSERT(0);
+    return 0;
   }
 };
 

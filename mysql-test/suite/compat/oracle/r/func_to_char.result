@@ -154,6 +154,43 @@ A.D.9999-12-31	PM11:59:59	A.D..9999-12-31 P.M.23:59:59
 A.D.2021-01-03	AM08:30:00	A.D..2021-01-03 A.M.08:30:00
 A.D.2021-07-03	PM06:30:00	A.D..2021-07-03 P.M.18:30:00
 #
+# Test FF
+#
+SELECT TO_CHAR('2025-10-11 12:13:14.123456', 'YYYY-MM-DD HH:MM:SS.FF');
+TO_CHAR('2025-10-11 12:13:14.123456', 'YYYY-MM-DD HH:MM:SS.FF')
+2025-10-11 12:10:14.123456
+SELECT TO_CHAR('2025-10-11 12:13:14.123456', 'YYYY-MM-DD HH:MM:SS.FF6');
+TO_CHAR('2025-10-11 12:13:14.123456', 'YYYY-MM-DD HH:MM:SS.FF6')
+2025-10-11 12:10:14.123456
+SELECT TO_CHAR('2025-10-11 12:13:14.123456', 'YYYY-MM-DD HH:MM:SS.FF5');
+TO_CHAR('2025-10-11 12:13:14.123456', 'YYYY-MM-DD HH:MM:SS.FF5')
+2025-10-11 12:10:14.12345
+#
+# Test DDD, I*
+#
+select c3,to_char(c3, 'DDD') from t_to_char1 where c0 = 3;
+c3	to_char(c3, 'DDD')
+2021-01-03 08:30:00	003
+select c3,to_char(c3, 'I') from t_to_char1 where c0 = 3;
+c3	to_char(c3, 'I')
+2021-01-03 08:30:00	0
+select c3,to_char(c3, 'I-MM') from t_to_char1 where c0 = 3;
+c3	to_char(c3, 'I-MM')
+2021-01-03 08:30:00	0-01
+select c3,to_char(c3, 'IY') from t_to_char1 where c0 = 3;
+c3	to_char(c3, 'IY')
+2021-01-03 08:30:00	20
+select c3,to_char(c3, 'IYY-MM') from t_to_char1 where c0 = 3;
+c3	to_char(c3, 'IYY-MM')
+2021-01-03 08:30:00	020-01
+select c3, to_char(c3, 'IYYY-IW') from t_to_char1 where c0 between 3 and 4;
+c3	to_char(c3, 'IYYY-IW')
+2021-01-03 08:30:00	2020-53
+2021-07-03 18:30:00	2021-26
+select to_char("2001-01-01", "IYYY-IW");
+to_char("2001-01-01", "IYYY-IW")
+2001-1
+#
 # test format without order
 #
 SELECT TO_CHAR(c1, 'MM-YYYY-DD') AS C1, TO_CHAR(c2, 'HH:SS:MI') AS C2, TO_CHAR(c3, 'DD-YY-MM MI:SS:HH24') AS C3 FROM t_to_char1;
@@ -275,6 +312,10 @@ select to_char(c3, 'YYYY&DDD') from t_to_char1 where c0 = 1;
 ERROR HY000: Invalid argument error: date format not recognized at &DDD in function to_char.
 select to_char(c3, 'xxYYYY-DD') from t_to_char1 where c0 = 1;
 ERROR HY000: Invalid argument error: date format not recognized at xxYYYY-D in function to_char.
+SELECT TO_CHAR('2025-10-11 12:13:14.123456', 'YYYY-MM-DD HH:MM:SS.FF7');
+ERROR HY000: Invalid argument error: date format not recognized at 7 in function to_char.
+SELECT TO_CHAR('2025-10-11 12:13:14.123456', 'YYYY-MM-DD HH:MM:SS.FF0');
+ERROR HY000: Invalid argument error: date format not recognized at 0 in function to_char.
 SET character_set_client='latin1';
 SET character_set_connection='latin1';
 SET character_set_results='latin1';
@@ -289,10 +330,10 @@ to_char(c3, 'YYYYYYYYYYYYYYY')
 202120212021021
 select to_char(c3, 'YYYYYYYYYYYYYYYDDDDDD') from t_to_char1;
 to_char(c3, 'YYYYYYYYYYYYYYYDDDDDD')
-100010001000000010101
-999999999999999313131
-202120212021021030303
-202120212021021030303
+100010001000000001001
+999999999999999365365
+202120212021021003003
+202120212021021184184
 #
 # oracle max length is 144
 #
@@ -325,19 +366,13 @@ ERROR 42000: Incorrect parameter count in the call to native function 'to_char'
 #
 # oracle support format but mariadb does not support
 #
-select to_char(c3, 'DDD') from t_to_char1 where c0 = 1;
-ERROR HY000: Invalid argument error: date format not recognized at D in function to_char.
 select to_char(c3, 'D') from t_to_char1 where c0 = 1;
 ERROR HY000: Invalid argument error: date format not recognized at D in function to_char.
 select to_char(c3, 'DS') from t_to_char1 where c0 = 1;
 ERROR HY000: Invalid argument error: date format not recognized at DS in function to_char.
-select to_char(c3, 'IY') from t_to_char1 where c0 = 1;
-ERROR HY000: Invalid argument error: date format not recognized at IY in function to_char.
-select to_char(c3, 'IYYY') from t_to_char1 where c0 = 1;
-ERROR HY000: Invalid argument error: date format not recognized at IYYY in function to_char.
 #
 # test for first argument data type
-# 
+#
 select to_char(1, 'yyyy');
 ERROR HY000: Invalid argument error: data type of first argument must be type date/datetime/time or string in function to_char.
 select to_char(1.1, 'yyyy');
