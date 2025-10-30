@@ -861,13 +861,7 @@ static void fil_space_free_low(fil_space_t *space) noexcept
 	/* The tablespace must not be in fil_system.named_spaces. */
 	ut_ad(srv_fast_shutdown == 2 || !srv_was_started
 	      || space->max_lsn == 0);
-
-	/* Wait for fil_space_t::release() after
-	fil_system_t::detach(), the tablespace cannot be found, so
-	fil_space_t::get() would return NULL */
-	while (space->referenced()) {
-		std::this_thread::sleep_for(std::chrono::microseconds(100));
-	}
+	ut_ad(!space->referenced());
 
 	for (fil_node_t* node = UT_LIST_GET_FIRST(space->chain);
 	     node != NULL; ) {
@@ -911,7 +905,7 @@ bool fil_space_free(ulint id, bool x_latched) noexcept
 		mysql_mutex_assert_owner(&log_sys.mutex);
 
 		if (space->max_lsn != 0) {
-			ut_d(space->max_lsn = 0);
+			space->max_lsn = 0;
 			fil_system.named_spaces.remove(*space);
 		}
 
@@ -1604,10 +1598,24 @@ fil_space_t *fil_space_t::drop(ulint id, pfs_os_file_t *detached_handle)
 
   pfs_os_file_t handle= fil_system.detach(space, true);
   mysql_mutex_unlock(&fil_system.mutex);
+  /* The above mtr.commit_file(*space, nullptr) should remove the space from
+  fil_system.named_spaces. Before we set the STOPPING_WRITES flag, another
+  concurrent operation could have marked the tablespace dirty again.
+  This clean-up corresponds to fil_space_free(). */
+  mysql_mutex_lock(&log_sys.mutex);
+  ut_ad((space->pending() & ~NEEDS_FSYNC) == (STOPPING | CLOSING));
+  if (space->max_lsn != 0)
+  {
+    space->max_lsn= 0;
+    fil_system.named_spaces.remove(*space);
+  }
+  mysql_mutex_unlock(&log_sys.mutex);
+
   if (detached_handle)
     *detached_handle = handle;
   else
     os_file_close(handle);
+
   return space;
 }
 
@@ -1630,12 +1638,6 @@ void fil_close_tablespace(ulint id) noexcept
 	while (buf_flush_list_space(space));
 
 	space->x_unlock();
-	mysql_mutex_lock(&log_sys.mutex);
-	if (space->max_lsn != 0) {
-		ut_d(space->max_lsn = 0);
-		fil_system.named_spaces.remove(*space);
-	}
-	mysql_mutex_unlock(&log_sys.mutex);
 	fil_space_free_low(space);
 }
 
