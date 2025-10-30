@@ -436,11 +436,6 @@ static ulint trx_rsegf_undo_find_free(const buf_block_t *rseg_header)
 {
   ulint max_slots= TRX_RSEG_N_SLOTS;
 
-#ifdef UNIV_DEBUG
-  if (trx_rseg_n_slots_debug)
-    max_slots= std::min<ulint>(trx_rseg_n_slots_debug, TRX_RSEG_N_SLOTS);
-#endif
-
   for (ulint i= 0; i < max_slots; i++)
     if (trx_rsegf_get_nth_undo(rseg_header, i) == FIL_NULL)
       return i;

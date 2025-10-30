@@ -22,7 +22,6 @@ usr/lib/*/pkgconfig/mariadb.pc
 usr/bin/uca-dump
 usr/bin/wsrep_sst_backup
 usr/lib/sysusers.d/mariadb.conf # Not used (yet) in Debian systemd
-usr/lib/tmpfiles.d/mariadb.conf # Not used (yet) in Debian systemd
 usr/sbin/rcmysql
 usr/share/doc/mariadb-server/COPYING (related file: "debian/tmp/usr/share/mariadb/mroonga/COPYING")
 usr/share/doc/mariadb-server/CREDITS

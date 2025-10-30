@@ -644,17 +644,6 @@ public:
   /** Note that log_sys.latch is no longer being held exclusively. */
   void flag_wr_unlock() noexcept { ut_ad(m_latch_ex); m_latch_ex= false; }
 
-  /** type of page flushing is needed during commit() */
-  enum page_flush_ahead
-  {
-    /** no need to trigger page cleaner */
-    PAGE_FLUSH_NO= 0,
-    /** asynchronous flushing is needed */
-    PAGE_FLUSH_ASYNC,
-    /** furious flushing is needed */
-    PAGE_FLUSH_SYNC
-  };
-
 private:
   /** Handle any pages that were freed during the mini-transaction. */
   void process_freed_pages();
@@ -701,29 +690,31 @@ private:
   /** Commit the mini-transaction log.
   @tparam pmem log_sys.is_mmap()
   @param mtr   mini-transaction
-  @param lsns  {start_lsn,flush_ahead} */
+  @param lsns  {start_lsn,flush_ahead_lsn} */
   template<bool pmem>
-  static void commit_log(mtr_t *mtr, std::pair<lsn_t,page_flush_ahead> lsns)
-    noexcept;
+  static void commit_log(mtr_t *mtr, std::pair<lsn_t,lsn_t> lsns) noexcept;
+
+  /** Release log_sys.latch. */
+  void commit_log_release() noexcept;
 
   /** Append the redo log records to the redo log buffer.
-  @return {start_lsn,flush_ahead} */
-  std::pair<lsn_t,page_flush_ahead> do_write();
+  @return {start_lsn,flush_ahead_lsn} */
+  std::pair<lsn_t,lsn_t> do_write() noexcept;
 
   /** Append the redo log records to the redo log buffer.
   @tparam mmap log_sys.is_mmap()
   @param mtr   mini-transaction
   @param len   number of bytes to write
-  @return {start_lsn,flush_ahead} */
+  @return {start_lsn,flush_ahead_lsn} */
   template<bool mmap> static
-  std::pair<lsn_t,page_flush_ahead> finish_writer(mtr_t *mtr, size_t len);
+  std::pair<lsn_t,lsn_t> finish_writer(mtr_t *mtr, size_t len);
 
   /** The applicable variant of commit_log() */
-  static void (*commit_logger)(mtr_t *, std::pair<lsn_t,page_flush_ahead>);
+  static void (*commit_logger)(mtr_t *, std::pair<lsn_t,lsn_t>);
   /** The applicable variant of finish_writer() */
-  static std::pair<lsn_t,page_flush_ahead> (*finisher)(mtr_t *, size_t);
+  static std::pair<lsn_t,lsn_t> (*finisher)(mtr_t *, size_t);
 
-  std::pair<lsn_t,page_flush_ahead> finish_write(size_t len)
+  std::pair<lsn_t,lsn_t> finish_write(size_t len)
   { return finisher(this, len); }
 public:
   /** Update finisher when spin_wait_delay is changing to or from 0. */

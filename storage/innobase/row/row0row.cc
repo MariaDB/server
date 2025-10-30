@@ -1366,18 +1366,18 @@ row_raw_format_str(
 
 	charset_coll = dtype_get_charset_coll(prtype);
 
-	if (UNIV_LIKELY(dtype_is_utf8(prtype))) {
-
+	switch (charset_coll) {
+	case 11: /* ascii_general_ci */
+	case 65: /* ascii_bin */
+	case 33: /* utf8_general_ci */
+	case 83: /* utf8_bin */
+	case 254: /* utf8_general_cs */
 		return(ut_str_sql_format(data, data_len, buf, buf_size));
-	}
-	/* else */
-
-	if (charset_coll == DATA_MYSQL_BINARY_CHARSET_COLL) {
-
+	case 0:
+	case DATA_MYSQL_BINARY_CHARSET_COLL:
 		*format_in_hex = TRUE;
 		return(0);
 	}
-	/* else */
 
 	return(innobase_raw_format(data, data_len, charset_coll,
 					  buf, buf_size));
@@ -1438,9 +1438,18 @@ row_raw_format(
 		break;
 	case DATA_CHAR:
 	case DATA_VARCHAR:
+		/* FTS_%_CONFIG.key are incorrectly created with prtype==0.
+		The DATA_ENGLISH is being used for CHAR columns of the
+		InnoDB internal SQL parser, such as SYS_FOREIGN.ID.
+		For these, we will eventually goto format_in_hex. */
+		ut_ad(dtype_get_charset_coll(prtype) == 8
+		      || (mtype == DATA_VARCHAR
+			  && (prtype == 0 || prtype == DATA_ENGLISH)));
+		goto format_str;
 	case DATA_MYSQL:
 	case DATA_VARMYSQL:
-
+		ut_ad(dtype_get_charset_coll(prtype));
+	format_str:
 		ret = row_raw_format_str(data, data_len, prtype,
 					 buf, buf_size, &format_in_hex);
 		if (format_in_hex) {

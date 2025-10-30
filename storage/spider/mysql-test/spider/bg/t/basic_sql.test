@@ -476,11 +476,8 @@ SELECT count(*) FROM ta_l ORDER BY a;
     --enable_query_log
     --enable_result_log
 --connection master_1
-# MDEV-36357
---disable_view_protocol
 SELECT a.a, a.b, date_format(a.c, '%Y-%m-%d %H:%i:%s') FROM tb_l a WHERE
 EXISTS (SELECT * FROM ta_l b WHERE b.b = a.b) ORDER BY a.a;
---enable_view_protocol
     --disable_query_log
     --disable_result_log
   --connection child2_1

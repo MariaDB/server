@@ -1,0 +1,48 @@
+#
+# MDEV-23836: Assertion `! is_set() || m_can_overwrite_status' in
+# Diagnostics_area::set_error_status (interrupted ALTER TABLE under LOCK)
+#
+CREATE TABLE t1 (a INT);
+SELECT * FROM t1;
+a
+ALTER TABLE x MODIFY xx INT;
+ERROR 42S02: Table 'test.x' doesn't exist
+SET SESSION max_session_mem_used= 8192;
+LOCK TABLE t1 WRITE;
+ALTER TABLE t1 CHANGE COLUMN IF EXISTS b c INT;
+SET SESSION max_session_mem_used = DEFAULT;
+UNLOCK TABLES;
+DROP TABLE t1;
+#
+# MDEV-27978 wrong option name in error when exceeding max_session_mem_used
+#
+SET SESSION max_session_mem_used = 8192;
+SELECT * FROM information_schema.processlist;
+ERROR HY000: The MariaDB server is running with the --max-session-mem-used=8192 option so it cannot execute this statement
+SET SESSION max_session_mem_used = DEFAULT;
+set max_session_mem_used = 50000;
+select * from seq_1_to_1000;
+set max_session_mem_used = 8192;
+select * from seq_1_to_1000;
+set max_session_mem_used = DEFAULT;
+#
+# MDEV-35828: Assertion fails in alloc_root() when memory causes it to call itself
+#
+CREATE TEMPORARY TABLE t1 (a INT,b INT);
+INSERT INTO t1 VALUES (1,1),(2,2);
+SET max_session_mem_used=8192;
+SELECT * FROM (t1 AS t2 LEFT JOIN t1 AS t3 USING (a)),t1;
+ERROR HY000: The MariaDB server is running with the --max-session-mem-used=8192 option so it cannot execute this statement
+SET max_session_mem_used=DEFAULT;
+DROP TABLE t1;
+#
+# MDEV-23824 SIGSEGV in end_io_cache on REPAIR LOCAL TABLE for Aria table
+#
+CREATE TABLE t1 (i INT) ENGINE=Aria;
+INSERT INTO t1 VALUES (1);
+SET max_session_mem_used=50000;
+REPAIR LOCAL TABLE t1 USE_FRM;
+REPAIR LOCAL TABLE t1;
+DROP TABLE t1;
+SET max_session_mem_used=default;
+# End of 10.6 tests

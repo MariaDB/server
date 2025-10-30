@@ -1,0 +1,23 @@
+--- ../src/storage/spider/mysql-test/spider/bugfix/r/mdev_20100.result	2024-05-01 14:39:20.114241787 +1000
++++ ../src/storage/spider/mysql-test/spider/bugfix/r/mdev_20100.reject	2025-10-22 17:39:55.494937566 +1100
+@@ -78,16 +78,16 @@
+ connection child2_1;
+ SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %';
+ argument
+-select t0.`a` `a`,t0.`b` `b`,t0.`c` `c` from `auto_test_remote`.`ta_r3` t0 where (t0.`b` = 'c')
++select `a`,`b`,`c` from `auto_test_remote`.`ta_r3` where (`b` = 'c')
+ select `a`,`b`,`c` from `auto_test_remote`.`ta_r2`
+ select `a`,`b`,`c` from `auto_test_remote`.`ta_r3`
+-select t0.`a` `a`,t0.`b` `b`,t0.`c` `c` from `auto_test_remote`.`ta_r4` t0 where (t0.`b` = 'c')
++select `a`,`b`,`c` from `auto_test_remote`.`ta_r4` where (`b` = 'c')
+ select `a`,`b`,`c` from `auto_test_remote`.`ta_r2`
+ select `a`,`b`,`c` from `auto_test_remote`.`ta_r3`
+-select t0.`a` `a`,t0.`b` `b`,t0.`c` `c` from `auto_test_remote`.`ta_r2` t0 where (t0.`b` = 'c')
++select `a`,`b`,`c` from `auto_test_remote`.`ta_r2` where (`b` = 'c')
+ select `a`,`b`,`c` from `auto_test_remote`.`ta_r2`
+ select `a`,`b`,`c` from `auto_test_remote`.`ta_r4`
+-select t0.`a` `a`,t0.`b` `b`,t0.`c` `c` from `auto_test_remote`.`ta_r2` t0 where (t0.`b` = 'c')
++select `a`,`b`,`c` from `auto_test_remote`.`ta_r2` where (`b` = 'c')
+ select `a`,`b`,`c` from `auto_test_remote`.`ta_r3`
+ select `a`,`b`,`c` from `auto_test_remote`.`ta_r4`
+ SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %'

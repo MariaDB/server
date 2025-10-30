@@ -167,6 +167,7 @@ public:
   {
     m_on_error.m_response= RESPONSE_NOT_SPECIFIED;
     m_on_empty.m_response= RESPONSE_NOT_SPECIFIED;
+    m_format_json= false;
   }
   int print(THD *tnd, Field **f, String *str);
 };

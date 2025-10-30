@@ -237,6 +237,8 @@ insert delayed into t1 values (1);
 connection default;
 # Waiting until INSERT DELAYED thread does the insert.
 drop table t1;
+create table test_partitions (i int) partition by hash (i) partitions 4;
+drop table test_partitions;
 set global server_audit_logging= off;
 set global server_audit_incl_users='root';
 set global server_audit_logging= on;

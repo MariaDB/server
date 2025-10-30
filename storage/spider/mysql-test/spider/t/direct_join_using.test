@@ -126,7 +126,7 @@ insert into tbl_c values (1,10,100),(2,20,200),(3,30,300),(4,40,400),(5,50,500);
     TRUNCATE TABLE mysql.general_log;
 
 --connection master_1
---disable_ps2_protocol
+--disable_ps_protocol
 --disable_view_protocol
 SELECT a.a, c.b, c.c FROM tbl_a a join tbl_b b using(a) join tbl_c c using(a) ORDER BY a.b DESC;
 --enable_view_protocol
@@ -135,7 +135,7 @@ SELECT a.a, c.b, c.c FROM tbl_a a join tbl_b b using(a) join tbl_c c using(a) OR
 SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %';
     --enable_view_protocol
 SELECT a, b, date_format(c, '%Y-%m-%d %H:%i:%s') FROM ta_r ORDER BY a;
---enable_ps2_protocol
+--enable_ps_protocol
 
 --echo
 --echo deinit

@@ -3591,8 +3591,7 @@ void spider_trx_set_link_idx_for_all(
         spider_set_bit(conn_can_fo, link_idx);
       DBUG_PRINT("info",("spider set conn_link_idx[%d]=%d",
         link_idx, all_link_idx));
-    } else
-    {
+    } else {
       conn_link_idx[link_idx] = link_idx;
       DBUG_PRINT("info",("spider set2 conn_link_idx[%d]=%d",
         link_idx, link_idx));

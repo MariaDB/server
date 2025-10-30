@@ -63,12 +63,56 @@ public:
   char               *conn_keys_first_ptr;
   char               **conn_keys;
   SPIDER_CONN        **conns;
-  /* array of indexes of active servers */
+  /*
+    Array of indexes of active servers.
+
+    For a spider table or partition with multiple remotes (HA), the
+    remotes are divided into n groups of active links, where n is the
+    number of "active link count", equal to share->link_count aka
+    share->active_link_count. For example, if a spider table has 11
+    remotes (i.e. share->all_link_count == 11), and
+    share->active_link_count == 3, then we have 3 link groups with
+    group 0 consisting of the 0th, 3rd, 6th and 9th remotes and so on:
+
+    group 0: 0, 3, 6, 9
+    group 1: 1, 4, 7, 10
+    group 2: 2, 5, 8
+
+    conn_link_idx[i] is the "current" remote chosen for the ith group,
+    and it can only take a value in the ith group.
+
+    Continue with the example above, at some point, we could end up
+    with:
+
+    conn_link_idx[0] == 3
+    conn_link_idx[1] == 1
+    conn_link_idx[2] == 8
+
+    conn_link_idx is set in spider_trx_set_link_idx_for_all().
+
+    By default, active_link_idx is the same number as all_link_count,
+    i.e. 11 in the above example.
+
+    If spider HA is gone (MDEV-28862), this will be no longer needed.
+
+    Typically, to distinguish the ith group and ith link, we use
+    variable names link_idx and all_link_idx respectively, so we often
+    have
+
+    all_link_idx == conn_link_idx[link_idx]
+
+    spider->conns[link_idx] is created using connection info of the
+    `conn_link_idx[link_idx]'th remote.
+
+    When only one of the indexes is used, we simply use variable name
+    link_idx
+  */
   uint               *conn_link_idx;
   /* A bitmap indicating whether each active server have some higher
   numbered server in the same "group" left to try (can fail over) */
   uchar              *conn_can_fo;
   void               **quick_targets;
+  /* indexed on active servers */
   int                *need_mons;
   query_id_t         search_link_query_id;
   int                search_link_idx;
@@ -93,8 +137,17 @@ public:
   bool               da_status;
   bool               use_spatial_index;
 
+  /*
+    Index of the table in FROM tables, for the use of direct
+    execution by gbh
+  */
   uint                  idx_for_direct_join;
+  /*
+    Whether using a spider_fields, only applicable to direct
+    execution by gbh
+  */
   bool                  use_fields;
+  /* If use_fields == true, the spider_fields in use for gbh */
   spider_fields         *fields;
   SPIDER_LINK_IDX_CHAIN *link_idx_chain;
   SPIDER_LINK_IDX_CHAIN *result_link_idx_chain;
