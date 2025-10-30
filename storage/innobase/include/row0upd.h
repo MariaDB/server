@@ -553,6 +553,25 @@ public:
 #define UPD_NODE_NO_SIZE_CHANGE	2	/* no record field size will be
 					changed in the update */
 
+/** Updates a clustered index record of a row when the ordering fields do
+not change.
+@param flags      undo logging and locking
+@param update     update vector for the row
+@param pcur       persistent cursor placed on the clustered index
+                  record which should be updated
+@param cmpl_info  UPD_NODE_NO_ORD_CHANGE or UPD_NODE_NO_SIZE_CHANGE
+@param index      clustered index
+@param offsets    rec_get_offsets() on pcur
+@param offsets_heap memory heap for offsets
+@param thr          query thread
+@param trx          transaction
+@param mtr          mini-transaction
+@return DB_SUCCESS if operation successfully completed, else error
+code or DB_LOCK_WAIT */
+dberr_t row_upd_clust_rec_low(ulint flags, upd_t *update, btr_pcur_t *pcur,
+                              ulint cmpl_info, dict_index_t *index,
+                              rec_offs *offsets, mem_heap_t **offsets_heap,
+                              que_thr_t *thr, trx_t *trx, mtr_t *mtr);
 
 #include "row0upd.inl"
 
