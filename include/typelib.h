@@ -34,7 +34,7 @@ typedef struct st_typelib {	/* Different types saved here */
   const int *hidden_values;
 } TYPELIB;
 
-#define CREATE_TYPELIB_FOR(X) { (unsigned int)(sizeof(X)/sizeof(X[0])) - 1, "", X, NULL, NULL }
+#define CREATE_TYPELIB_FOR(X) { (unsigned int)(sizeof(X)/sizeof(X[0])) - 1, "", X, (uint[(sizeof(X)/sizeof(X[0]))-1]){0}, NULL }
 
 extern my_ulonglong find_typeset(const char *x, TYPELIB *typelib,
                                  int *error_position);
