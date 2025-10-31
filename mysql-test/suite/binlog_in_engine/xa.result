@@ -212,4 +212,49 @@ XA PREPARE 'y';
 # restart
 XA ROLLBACK 'y';
 CALL mtr.add_suppression('Found 1 prepared XA transactions');
+*** Test binlogging of empty XA transaction.
+SET binlog_format=row;
+DELETE FROM t1 WHERE a=4242;
+INSERT INTO t1 VALUES (4242, 0, 'z1');
+XA BEGIN 'z';
+SELECT a, b, LENGTH(c) FROM t1 ORDER BY a LIMIT 3;
+a	b	LENGTH(c)
+1	18	NULL
+2	0	NULL
+3	3	NULL
+INSERT IGNORE INTO t1 VALUES (4242, 0, 'z2');
+Warnings:
+Warning	1062	Duplicate entry '4242' for key 'PRIMARY'
+SELECT  a, b, LENGTH(c) FROM t1 WHERE a>3 ORDER BY a LIMIT 1;
+a	b	LENGTH(c)
+10	2	40000
+XA END 'z';
+XA PREPARE 'z';
+XA COMMIT 'z';
+XA BEGIN 'z';
+UPDATE t1 SET b=10 WHERE a=4242;
+XA END 'z';
+XA PREPARE 'z';
+XA COMMIT 'z';
+SELECT  a, b, LENGTH(c) FROM t1 WHERE a=4242;
+a	b	LENGTH(c)
+4242	10	2
+*** Test XA PREPARE when the transaction is empty because statements rolled back on error
+CREATE TRIGGER u AFTER INSERT ON t1 FOR EACH ROW BEGIN RELEASE SAVEPOINT A ;  END //
+XA BEGIN 'xid44';
+INSERT IGNORE INTO t1(a) VALUES (10000);
+ERROR 42000: SAVEPOINT A does not exist
+XA END 'xid44';
+XA PREPARE 'xid44';
+XA COMMIT 'xid44';
+DROP TRIGGER u;
+XA BEGIN 'xid44';
+SAVEPOINT A;
+ROLLBACK TO A;
+ROLLBACK TO A;
+INSERT INTO t1(a) VALUES (10001);
+XA END 'xid44';
+XA PREPARE 'xid44';
+# restart
+XA ROLLBACK 'xid44';
 DROP TABLE t1;

@@ -87,6 +87,45 @@ SET STATEMENT sql_log_bin= 0
 FOR UPDATE t1 SET a= a-1000000 WHERE a=1000000 + 5;
 START SLAVE SQL_THREAD;
 include/sync_with_master_gtid.inc
+*** XA transaction empty because statements roll back on error
+connection master;
+CREATE TRIGGER u AFTER INSERT ON t2 FOR EACH ROW BEGIN RELEASE SAVEPOINT A ;  END //
+XA BEGIN 'xid44';
+INSERT IGNORE INTO t2(a) VALUES (0);
+ERROR 42000: SAVEPOINT A does not exist
+XA END 'xid44';
+XA PREPARE 'xid44';
+XA COMMIT 'xid44';
+DROP TRIGGER u;
+XA BEGIN 'xid44';
+INSERT INTO t2(a) VALUES (0);
+XA END 'xid44';
+XA PREPARE 'xid44';
+include/rpl_restart_server.inc [server_number=1]
+XA ROLLBACK 'xid44';
+CALL mtr.add_suppression('Found 1 prepared XA transactions');
+*** XA transaction XID not freed in RocksDB
+connection master;
+CREATE TRIGGER u AFTER INSERT ON t2 FOR EACH ROW BEGIN RELEASE SAVEPOINT A ;  END //
+XA BEGIN 'xid31';
+INSERT IGNORE INTO t2(a) VALUES (0);
+ERROR 42000: SAVEPOINT A does not exist
+XA END 'xid31';
+XA PREPARE 'xid31';
+XA COMMIT 'xid31';
+DROP TRIGGER u;
+XA BEGIN 'xid31';
+INSERT INTO t2(a) VALUES (0);
+XA END 'xid31';
+XA PREPARE 'xid31';
+XA COMMIT 'xid31';
+connection master1;
+XA BEGIN 'xid31';
+UPDATE t2 SET b=b+10 WHERE a=0;
+UPDATE t2 SET b=b+10 WHERE a=1;
+XA END 'xid31';
+XA PREPARE 'xid31';
+XA COMMIT 'xid31';
 connection slave;
 include/stop_slave.inc
 SET GLOBAL slave_parallel_threads= @old_threads;

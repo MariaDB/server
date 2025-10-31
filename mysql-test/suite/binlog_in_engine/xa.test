@@ -230,4 +230,60 @@ XA PREPARE 'y';
 XA ROLLBACK 'y';
 CALL mtr.add_suppression('Found 1 prepared XA transactions');
 
+
+
+--echo *** Test binlogging of empty XA transaction.
+SET binlog_format=row;
+DELETE FROM t1 WHERE a=4242;
+INSERT INTO t1 VALUES (4242, 0, 'z1');
+XA BEGIN 'z';
+SELECT a, b, LENGTH(c) FROM t1 ORDER BY a LIMIT 3;
+INSERT IGNORE INTO t1 VALUES (4242, 0, 'z2');
+SELECT  a, b, LENGTH(c) FROM t1 WHERE a>3 ORDER BY a LIMIT 1;
+XA END 'z';
+XA PREPARE 'z';
+XA COMMIT 'z';
+
+XA BEGIN 'z';
+UPDATE t1 SET b=10 WHERE a=4242;
+XA END 'z';
+XA PREPARE 'z';
+XA COMMIT 'z';
+
+SELECT  a, b, LENGTH(c) FROM t1 WHERE a=4242;
+
+--echo *** Test XA PREPARE when the transaction is empty because statements rolled back on error
+
+--delimiter //
+CREATE TRIGGER u AFTER INSERT ON t1 FOR EACH ROW BEGIN RELEASE SAVEPOINT A ;  END //
+--delimiter ;
+
+XA BEGIN 'xid44';
+--error ER_SP_DOES_NOT_EXIST
+INSERT IGNORE INTO t1(a) VALUES (10000);
+XA END 'xid44';
+XA PREPARE 'xid44';
+XA COMMIT 'xid44';
+
+DROP TRIGGER u;
+XA BEGIN 'xid44';
+SAVEPOINT A;
+ROLLBACK TO A;
+ROLLBACK TO A;
+INSERT INTO t1(a) VALUES (10001);
+XA END 'xid44';
+XA PREPARE 'xid44';
+
+# Test server restart; this would hang due to a bug where the
+# prepare record written to the binlog was not entered into the
+# pending LSN fifo, and the tablespace close at shutdown then
+# waited forever.
+--source include/restart_mysqld.inc
+
+# ToDo: commit here, when we have binlog XA recovery implemented.
+#XA COMMIT 'xid44';
+XA ROLLBACK 'xid44';
+
+
+# Clean up.
 DROP TABLE t1;
