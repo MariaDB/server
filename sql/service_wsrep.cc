@@ -418,3 +418,21 @@ extern "C" my_bool wsrep_thd_is_local_transaction(const THD *thd)
   return (wsrep_thd_is_local(thd) &&
 	  thd->wsrep_cs().transaction().active());
 }
+
+extern "C" my_bool wsrep_applier_log_warnings(const THD *thd, my_bool lock_wait)
+{
+  /* Applier will log warning on fk  errors if
+     (1) Error is not lock wait in release builds
+     (2) wsrep_mode !=  WSREP_MODE_APPLIER_DISABLE_FK_WARNINGS AND
+     (3) thd executing is applier
+     (4) there is no error log warning flooding
+  */
+#if !defined(NDEBUG)
+  lock_wait= false;
+#endif
+
+  return (!lock_wait &&
+          !wsrep_check_mode(WSREP_MODE_APPLIER_DISABLE_FK_WARNINGS) &&
+          thd->wsrep_cs().mode() == wsrep::client_state::m_high_priority &&
+          !wsrep_protect_against_warning_flood(WSREP_APPLIER_FK));
+}

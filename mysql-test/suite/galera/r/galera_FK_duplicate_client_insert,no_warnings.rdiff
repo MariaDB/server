@@ -1,0 +1,9 @@
+--- /home/jan/work/mariadb/10.11/mysql-test/suite/galera/r/galera_FK_duplicate_client_insert.result
++++ /home/jan/work/mariadb/10.11/mysql-test/suite/galera/r/galera_FK_duplicate_client_insert.reject
+@@ -380,6 +380,4 @@
+ set debug_sync = reset;
+ connection node_1;
+ drop table user_session,user;
+-# Now there should be 10 WSREP Foreign key constraint warnings
+-include/assert_grep.inc [Foreign key warning in table: \`test\`\.\`user_session\` constraint \`user_session_ibfk_1\` failed err: Setting shared record lock to matching record in the child table failed \(Lock wait\).]
+ call mtr.add_suppression("WSREP: Foreign key warning in table");
