@@ -2221,6 +2221,33 @@ binlog_commit_flush_trx_cache(THD *thd, bool all, binlog_cache_mngr *cache_mngr,
 }
 
 
+static int
+binlog_engine_xa_rollback(THD *thd, binlog_cache_mngr *cache_mngr)
+{
+  DBUG_ASSERT(opt_binlog_engine_hton);
+  DBUG_ASSERT(thd->transaction->xid_state.is_explicit_XA());
+
+  int err= 0;
+  binlog_cache_data *cache_data= cache_mngr->get_binlog_cache_data(true);
+  handler_binlog_event_group_info *engine_context=
+    &cache_data->engine_binlog_info;
+  const XID *xid= thd->transaction->xid_state.get_xid();
+  engine_context->xa_xid= xid;
+  engine_context->internal_xa= false;
+  mysql_mutex_lock(&LOCK_commit_ordered);
+  err= (*opt_binlog_engine_hton->binlog_xa_rollback_ordered)
+    (thd, xid, &engine_context->engine_ptr);
+  mysql_mutex_unlock(&LOCK_commit_ordered);
+  if (likely(!err))
+    err= (*opt_binlog_engine_hton->binlog_xa_rollback)
+      (thd, xid, &engine_context->engine_ptr);
+  cache_mngr->reset(false, true);
+  cache_mngr->need_engine_2pc= true;
+
+  return err;
+}
+
+
 /**
   This function flushes the trx-cache upon rollback.
 
@@ -2230,7 +2257,7 @@ binlog_commit_flush_trx_cache(THD *thd, bool all, binlog_cache_mngr *cache_mngr,
   @return
     nonzero if an error pops up when flushing the cache.
 */
-static inline int
+static int
 binlog_rollback_flush_trx_cache(THD *thd, bool all,
                                 binlog_cache_mngr *cache_mngr)
 {
@@ -2246,27 +2273,9 @@ binlog_rollback_flush_trx_cache(THD *thd, bool all,
     {
       if (opt_binlog_engine_hton)
       {
-        int err= 0;
-        binlog_cache_mngr *cache_mngr= thd->binlog_setup_trx_data();
         if (unlikely(!cache_mngr))
           return 1;
-        binlog_cache_data *cache_data= cache_mngr->get_binlog_cache_data(true);
-        handler_binlog_event_group_info *engine_context=
-          &cache_data->engine_binlog_info;
-        const XID *xid= thd->transaction->xid_state.get_xid();
-        engine_context->xa_xid= xid;
-        engine_context->internal_xa= false;
-        mysql_mutex_lock(&LOCK_commit_ordered);
-        err= (*opt_binlog_engine_hton->binlog_xa_rollback_ordered)
-          (thd, xid, &engine_context->engine_ptr);
-        mysql_mutex_unlock(&LOCK_commit_ordered);
-        if (likely(!err))
-          err= (*opt_binlog_engine_hton->binlog_xa_rollback)
-            (thd, xid, &engine_context->engine_ptr);
-        cache_mngr->reset(false, true);
-        cache_mngr->need_engine_2pc= true;
-
-        return err;
+        return binlog_engine_xa_rollback(thd, cache_mngr);
       }
 
       buflen= serialize_with_xid(thd->transaction->xid_state.get_xid(),
@@ -2664,6 +2673,17 @@ int binlog_commit(THD *thd, bool all, bool ro_1pc)
        !(thd->ha_data[binlog_hton->slot].ha_info[1].is_started() &&
          thd->ha_data[binlog_hton->slot].ha_info[1].is_trx_read_write())))
   {
+    if (unlikely(thd->transaction->xid_state.get_state_code() == XA_PREPARED) &&
+        opt_binlog_engine_hton)
+    {
+      /*
+        The XA transaction is empty, so we just need to inform the binlog
+        engine that it is complete, there is no actual transaction to binlog.
+        Thus, we can just treat this as a rollback.
+      */
+      error= binlog_engine_xa_rollback(thd, cache_mngr);
+    }
+
     /*
       This is an empty transaction commit (both the regular and xa),
       or such transaction xa-prepare or
@@ -2840,6 +2860,17 @@ static int binlog_rollback(handlerton *hton, THD *thd, bool all)
        !(thd->ha_data[binlog_hton->slot].ha_info[1].is_started() &&
          thd->ha_data[binlog_hton->slot].ha_info[1].is_trx_read_write())))
   {
+    if (unlikely(thd->transaction->xid_state.get_state_code() == XA_PREPARED) &&
+        opt_binlog_engine_hton)
+    {
+      /*
+        The XA transaction is empty, so we just need to inform the binlog
+        engine that it is complete, there is no actual transaction to binlog.
+        Thus, we can just treat this as a rollback.
+      */
+      error= binlog_engine_xa_rollback(thd, cache_mngr);
+    }
+
     /*
       The same comments apply as in the binlog commit method's branch.
     */

@@ -139,8 +139,8 @@ struct binlog_header_data {
 */
 class pending_lsn_fifo {
   static constexpr uint32_t fixed_size_log2= 10;
-  static constexpr uint32_t fixed_size= (2 << fixed_size_log2);
-  static constexpr uint32_t mask= (2 << fixed_size_log2) - 1;
+  static constexpr uint32_t fixed_size= (1 << fixed_size_log2);
+  static constexpr uint32_t mask= (1 << fixed_size_log2) - 1;
 public:
   struct entry {
     lsn_t lsn;
