@@ -12292,3 +12292,23 @@ ER_VECTOR_FORMAT_INVALID
         eng "Invalid vector format at offset: %d for '%-.100s'. Must be a valid JSON array of numbers."
 ER_PSEUDO_THREAD_ID_OVERWRITE
         eng "Pseudo thread id should not be modified by the client as it will be overwritten"
+ER_BINLOG_IN_USE
+	eng "Cannot execute RESET MASTER as the binlog is in use by a connected slave or other RESET MASTER or binlog reader. Check SHOW PROCESSLIST for "Binlog Dump" commands and use KILL to stop such readers"
+ER_BINLOG_IN_USE_TRX
+	eng "Cannot execute RESET MASTER as the binlog is in use by an active transaction"
+ER_CANNOT_INIT_ENGINE_BINLOG_READER
+        eng "Cannot initialize binlog reader from storage engine %s"
+ER_ENGINE_BINLOG_REQUIRES_GTID
+        eng "GTID starting position is required on master with --binlog-storage-engine enabled"
+ER_NOT_AVAILABLE_WITH_ENGINE_BINLOG
+	eng "%s is not available when --binlog-storage-engine is enabled"
+ER_NOT_YET_SUPPORTED_ENGINE_BINLOG
+	eng "%s is not yet supported with --binlog-storage-engine"
+ER_ENGINE_BINLOG_NO_DELETE_DOMAIN
+	eng "The binlog engine does not support DELETE_DOMAIN_ID"
+ER_BINLOG_CANNOT_READ_STATE
+	eng "Error reading GTID state from the binlog"
+ER_BINLOG_POS_INVALID
+	eng "The binlog offset %llu is invalid"
+ER_READING_BINLOG_FILE
+	eng "Error reading from page number %u in binlog file (error code: %d)"

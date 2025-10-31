@@ -174,18 +174,37 @@ bool reload_acl_and_cache(THD *thd, unsigned long long options,
     tmp_write_to_binlog= 0;
     if (mysql_bin_log.is_open())
     {
-      DYNAMIC_ARRAY *drop_gtid_domain=
-        (thd && (thd->lex->delete_gtid_domain.elements > 0)) ?
-        &thd->lex->delete_gtid_domain : NULL;
-      if (mysql_bin_log.rotate_and_purge(true, drop_gtid_domain))
-        *write_to_binlog= -1;
-
-      /* Note that WSREP(thd) might not be true here e.g. during
-      SST. */
-      if (WSREP_ON)
+      MDL_request mdl_request;
+      MDL_REQUEST_INIT(&mdl_request, MDL_key::BACKUP, "", "", MDL_BACKUP_START,
+                       MDL_EXPLICIT);
+      if (thd &&
+          thd->mdl_context.acquire_lock(&mdl_request,
+                                        thd->variables.lock_wait_timeout))
+        result= 1;
+      else
       {
-        /* Wait for last binlog checkpoint event to be logged. */
-        mysql_bin_log.wait_for_last_checkpoint_event();
+        if (thd)
+          thd->backup_commit_lock= &mdl_request;
+
+        DYNAMIC_ARRAY *drop_gtid_domain=
+          (thd && (thd->lex->delete_gtid_domain.elements > 0)) ?
+          &thd->lex->delete_gtid_domain : NULL;
+        if (mysql_bin_log.flush_binlog(drop_gtid_domain))
+          *write_to_binlog= -1;
+
+        /* Note that WSREP(thd) might not be true here e.g. during
+        SST. */
+        if (WSREP_ON)
+        {
+          /* Wait for last binlog checkpoint event to be logged. */
+          mysql_bin_log.wait_for_last_checkpoint_event();
+        }
+        if (thd)
+        {
+          if (mdl_request.ticket)
+            thd->mdl_context.release_lock(mdl_request.ticket);
+          thd->backup_commit_lock= 0;
+        }
       }
     }
   }

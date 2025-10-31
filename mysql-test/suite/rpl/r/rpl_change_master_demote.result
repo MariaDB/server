@@ -65,11 +65,15 @@ connection master;
 #
 connection slave;
 include/stop_slave.inc
+include/kill_binlog_dump_threads.inc
 RESET MASTER;
 set @@global.gtid_slave_pos="";
+connection master;
+include/kill_binlog_dump_threads.inc
+RESET MASTER;
+connection slave;
 include/start_slave.inc
 connection master;
-RESET MASTER;
 set @@global.gtid_slave_pos="";
 set session gtid_domain_id= 0;
 CREATE TABLE t1 (a int);
@@ -689,6 +693,7 @@ ERROR 42000: You have an error in your SQL syntax; check the manual that corresp
 # Ensure MASTER_DEMOTE_TO_REPLICA aliases MASTER_DEMOTE_TO_SLAVE
 #
 connection slave;
+include/kill_binlog_dump_threads.inc
 RESET MASTER;
 include/reset_slave.inc
 CREATE TABLE t_mdev_31768 (a int);
@@ -700,6 +705,7 @@ RESET MASTER;
 include/reset_slave.inc
 # Clear primary binlog state to match replica
 connection master;
+include/kill_binlog_dump_threads.inc
 RESET MASTER;
 #
 # Cleanup

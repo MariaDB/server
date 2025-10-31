@@ -1,0 +1,8 @@
+set @a=UNIX_TIMESTAMP("1970-01-21 15:32:22");
+set timestamp=@a;
+include/reset_master.inc
+CREATE TABLE t1 (a INT PRIMARY KEY, b INT) ENGINE=Aria;
+INSERT INTO t1 VALUES (1, 0), (2, 1), (3, 2), (4, 4), (5, 8);
+ALTER TABLE t1 ENGINE=MRG_MyISAM;
+include/assert_grep.inc [Must have GTID event marked as ddl]
+DROP TABLE t1;

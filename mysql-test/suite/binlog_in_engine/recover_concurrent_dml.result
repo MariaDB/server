@@ -1,0 +1,129 @@
+include/master-slave.inc
+[connection master]
+connection master;
+CREATE TABLE t_strings(a INT NOT NULL, b INT NOT NULL, c VARCHAR(2048),
+PRIMARY KEY (a,b)) ENGINE=InnoDB;
+CREATE TABLE t_sum_lengths(a INT PRIMARY KEY, c INT, sum_len BIGINT) ENGINE=InnoDB;
+CREATE TABLE t_accounts(a INT PRIMARY KEY, balance INT) ENGINE=InnoDB;
+INSERT INTO t_accounts(a, balance) SELECT seq, 1000 FROM seq_1_to_500;
+include/save_master_gtid.inc
+connection slave;
+include/sync_with_master_gtid.inc
+include/stop_slave.inc
+SET STATEMENT sql_log_bin=0 FOR ALTER TABLE mysql.gtid_slave_pos ENGINE=InnoDB;
+SET @old_threads= @@GLOBAL.slave_parallel_threads;
+SET GLOBAL slave_parallel_threads= 10;
+*** Looping, killing server while running some parallel load...
+connection master;
+*** Loop: 1 ...
+connect  con1,localhost,root,,;
+CALL gen_load1(10 + 1);;
+connect  con2,localhost,root,,;
+CALL gen_load1(20 + 1);;
+connect  con3,localhost,root,,;
+CALL gen_load1(30 + 1);;
+connect  con4,localhost,root,,;
+CALL gen_load2(40 + 1);;
+connect  con5,localhost,root,,;
+CALL gen_load2(50 + 1);;
+connection master;
+include/rpl_restart_server.inc [server_number=1]
+disconnect con1;
+disconnect con2;
+disconnect con3;
+disconnect con4;
+disconnect con5;
+*** Loop: 2 ...
+connect  con1,localhost,root,,;
+CALL gen_load1(10 + 2);;
+connect  con2,localhost,root,,;
+CALL gen_load1(20 + 2);;
+connect  con3,localhost,root,,;
+CALL gen_load1(30 + 2);;
+connect  con4,localhost,root,,;
+CALL gen_load2(40 + 2);;
+connect  con5,localhost,root,,;
+CALL gen_load2(50 + 2);;
+connection master;
+include/rpl_restart_server.inc [server_number=1]
+disconnect con1;
+disconnect con2;
+disconnect con3;
+disconnect con4;
+disconnect con5;
+*** Loop: 3 ...
+connect  con1,localhost,root,,;
+CALL gen_load1(10 + 3);;
+connect  con2,localhost,root,,;
+CALL gen_load1(20 + 3);;
+connect  con3,localhost,root,,;
+CALL gen_load1(30 + 3);;
+connect  con4,localhost,root,,;
+CALL gen_load2(40 + 3);;
+connect  con5,localhost,root,,;
+CALL gen_load2(50 + 3);;
+connection master;
+include/rpl_restart_server.inc [server_number=1]
+disconnect con1;
+disconnect con2;
+disconnect con3;
+disconnect con4;
+disconnect con5;
+connection master;
+include/save_master_gtid.inc
+connection slave;
+include/start_slave.inc
+include/sync_with_master_gtid.inc
+connection server_1;
+CREATE TEMPORARY TABLE t_check_len AS
+SELECT a, COUNT(b), SUM(LENGTH(c))
+FROM t_strings
+GROUP BY a;
+*** Must have no rows output from the two SELECT on server 1:
+(SELECT * FROM t_sum_lengths)
+EXCEPT
+(SELECT * FROM t_check_len);
+a	c	sum_len
+(SELECT * FROM t_check_len)
+EXCEPT
+(SELECT * FROM t_sum_lengths);
+a	COUNT(b)	SUM(LENGTH(c))
+*** Must have zero balance from the SELECT on server 1:
+SELECT SUM(balance) - 500 * 1000
+FROM t_accounts;
+SUM(balance) - 500 * 1000
+0
+connection server_2;
+CREATE TEMPORARY TABLE t_check_len AS
+SELECT a, COUNT(b), SUM(LENGTH(c))
+FROM t_strings
+GROUP BY a;
+*** Must have no rows output from the two SELECT on server 2:
+(SELECT * FROM t_sum_lengths)
+EXCEPT
+(SELECT * FROM t_check_len);
+a	c	sum_len
+(SELECT * FROM t_check_len)
+EXCEPT
+(SELECT * FROM t_sum_lengths);
+a	COUNT(b)	SUM(LENGTH(c))
+*** Must have zero balance from the SELECT on server 2:
+SELECT SUM(balance) - 500 * 1000
+FROM t_accounts;
+SUM(balance) - 500 * 1000
+0
+*** Check that slave data is identical to master
+include/diff_tables.inc [master:t_strings, slave:t_strings]
+include/diff_tables.inc [master:t_sum_lengths, slave:t_sum_lengths]
+include/diff_tables.inc [master:t_accounts, slave:t_accounts]
+connection slave;
+include/stop_slave.inc
+SET GLOBAL slave_parallel_threads= @old_threads;
+include/start_slave.inc
+connection master;
+DROP TABLE t_strings;
+DROP TABLE t_sum_lengths;
+DROP TABLE t_accounts;
+DROP PROCEDURE gen_load1;
+DROP PROCEDURE gen_load2;
+include/rpl_end.inc

@@ -29,6 +29,7 @@
 --echo # Clear the existing binary log state, and start fresh using
 --echo # the timestamp variable set above
 --echo #
+--source include/kill_binlog_dump_threads.inc
 RESET MASTER;
 
 --let $binlog_f1= query_get_value(SHOW MASTER STATUS, File, 1)

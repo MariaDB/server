@@ -100,10 +100,12 @@ include/start_slave.inc
 connection master;
 DROP TABLE t1;
 connection slave;
-connection master;
-RESET MASTER;
 connection slave;
 include/stop_slave.inc
+connection master;
+include/kill_binlog_dump_threads.inc
+RESET MASTER;
+connection slave;
 CHANGE MASTER TO master_log_pos=MASTER_POS, master_use_gtid=no;
 START SLAVE;
 include/wait_for_slave_param.inc [Last_IO_Errno]
@@ -114,6 +116,7 @@ RESET SLAVE;
 Warnings:
 Note	4190	RESET SLAVE is implicitly changing the value of 'Using_Gtid' from 'No' to 'Slave_Pos'
 connection master;
+include/kill_binlog_dump_threads.inc
 RESET MASTER;
 connection slave;
 SET @@global.innodb_flush_log_at_trx_commit= @old_innodb_flush_log_at_trx_commit;

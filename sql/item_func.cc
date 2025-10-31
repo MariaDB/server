@@ -4028,6 +4028,12 @@ longlong Item_master_pos_wait::val_int()
   if (!(mi= get_master_info(&connection_name, Sql_condition::WARN_LEVEL_WARN)))
     goto err;
 
+  if (mi->binlog_storage_engine)
+  {
+    my_error(ER_NOT_AVAILABLE_WITH_ENGINE_BINLOG, MYF(0), "master_pos_wait()");
+    mi->release();
+    goto err;
+  }
   if ((event_count = mi->rli.wait_for_pos(thd, log_name, pos, timeout)) == -2)
   {
     null_value = 1;

@@ -115,6 +115,7 @@ SET SESSION binlog_format= @old_mode;
 --source include/stop_slave.inc
 
 --connection master
+--source include/kill_binlog_dump_threads.inc
 RESET MASTER;
 # This insert will be GTID 0-1-1
 INSERT INTO t1 VALUES (2);

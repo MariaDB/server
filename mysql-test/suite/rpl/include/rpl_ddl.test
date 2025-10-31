@@ -130,8 +130,11 @@
 ###############################################################
 set global sql_mode='';
 set local sql_mode='';
-# The sync_slave_with_master is needed to make the xids deterministic.
-sync_slave_with_master;
+# Sync the slave with master to make the xids deterministic.
+--connection master
+--source include/save_master_gtid.inc
+--connection slave
+--source include/sync_with_master_gtid.inc
 
 connection master;
 SET AUTOCOMMIT = 1;
@@ -146,8 +149,10 @@ eval CREATE TABLE mysqltest1.t1 (f1 BIGINT) ENGINE=$engine_type;
 # Prevent Bug#26687 rpl_ddl test fails if run with --innodb option
 # The testscript (suite/rpl/rpl_ddl.test) + the expected result need that the
 # slave uses MyISAM for the table mysqltest.t1.
-sync_slave_with_master;
-connection slave;
+--connection master
+--source include/save_master_gtid.inc
+--connection slave
+--source include/sync_with_master_gtid.inc
 if (`SELECT COUNT(*) FROM INFORMATION_SCHEMA.TABLES
      WHERE TABLE_SCHEMA = 'mysqltest1' AND TABLE_NAME = 't1' AND ENGINE <> 'MyISAM'`)
 {
@@ -183,7 +188,10 @@ eval CREATE TEMPORARY TABLE mysqltest1.t23 (f1 BIGINT) ENGINE=$temp_engine_type;
 #
 SET AUTOCOMMIT = 0;
 use mysqltest1;
-sync_slave_with_master;
+--connection master
+--source include/save_master_gtid.inc
+--connection slave
+--source include/sync_with_master_gtid.inc
 connection slave;
 SET AUTOCOMMIT = 1;
 use mysqltest1;
@@ -303,7 +311,10 @@ let $my_master_commit= true;
 let $my_slave_commit= true;
 --source include/rpl_stmt_seq.inc
 SELECT * FROM mysqltest1.t7;
-sync_slave_with_master;
+--connection master
+--source include/save_master_gtid.inc
+--connection slave
+--source include/sync_with_master_gtid.inc
 connection slave;
 SELECT * FROM mysqltest1.t7;
 connection master;

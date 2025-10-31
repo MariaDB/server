@@ -15,6 +15,7 @@ RESET MASTER;
 RESET SLAVE;
 
 --connection master
+--source include/kill_binlog_dump_threads.inc
 RESET MASTER;
 CREATE TABLE t1 (a int primary key, b text) ENGINE=InnoDB;
 --let $a0 = 25

@@ -385,6 +385,7 @@ bool get_mysql_vars(MYSQL *connection)
   char *aria_log_dir_path_var= NULL;
   char *page_zip_level_var= NULL;
   char *ignore_db_dirs= NULL;
+  char *binlog_directory_var= NULL;
   char *endptr;
   ulong server_version= mysql_get_server_version(connection);
 
@@ -411,6 +412,7 @@ bool get_mysql_vars(MYSQL *connection)
       {"innodb_compression_level", &page_zip_level_var},
       {"ignore_db_dirs", &ignore_db_dirs},
       {"aria_log_dir_path", &aria_log_dir_path_var},
+      {"binlog_directory", &binlog_directory_var},
       {NULL, NULL}};
 
   read_mysql_variables(connection, "SHOW VARIABLES", mysql_vars, true);
@@ -546,6 +548,15 @@ bool get_mysql_vars(MYSQL *connection)
 
   if (ignore_db_dirs)
     xb_load_list_string(ignore_db_dirs, ",", register_ignore_db_dirs_filter);
+
+  if (binlog_directory_var && *binlog_directory_var)
+  {
+    if (free_opt_binlog_directory)
+      my_free(const_cast<char *>(opt_binlog_directory));
+    opt_binlog_directory= my_strdup(PSI_NOT_INSTRUMENTED, binlog_directory_var,
+                                    MYF(MY_FAE));
+    free_opt_binlog_directory= true;
+  }
 
 out:
 
