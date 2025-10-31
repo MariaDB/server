@@ -27,6 +27,7 @@ sed -e '
 s/'"$TMPFILE"'/'"$OUTFILE"'/;
 s/'"pars0grm.tab.h"'/'"pars0grm.h"'/;
 s/^\(\(YYSTYPE\|int\) yy\(char\|nerrs\)\)/static \1/;
+/^#line /d;
 ' < "$TMPFILE" > "$OUTFILE"
 
 rm "$TMPFILE"
