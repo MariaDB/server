@@ -1631,7 +1631,16 @@ pfs_os_file_t fil_delete_tablespace(ulint id) noexcept
   ut_ad(!is_system_tablespace(id));
   pfs_os_file_t handle= OS_FILE_CLOSED;
   if (fil_space_t *space= fil_space_t::drop(id, &handle))
+  {
+    mysql_mutex_lock(&log_sys.mutex);
+    if (space->max_lsn != 0)
+    {
+      ut_d(space->max_lsn= 0);
+      fil_system.named_spaces.remove(*space);
+    }
+    mysql_mutex_unlock(&log_sys.mutex);
     fil_space_free_low(space);
+  }
   return handle;
 }
 
