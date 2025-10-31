@@ -3868,7 +3868,7 @@ pending_lsn_fifo::add_to_fifo(uint64_t lsn, uint64_t file_no, uint64_t offset)
     {
       /*
         Insert a new head.
-        Note that we make the fifo size a power-of-two (2 <<fixed_size_log2).
+        Note that we make the fifo size a power-of-two (1 <<fixed_size_log2).
         So if we wrap around uint32_t here, the outcome is still valid.
       */
       new_head();
@@ -4156,11 +4156,13 @@ ibb_write_xa_prepare(THD *thd,
                      handler_binlog_event_group_info *binlog_info,
                      uchar engine_count)
 {
+  bool err= false;
+
   binlog_oob_context *c=
     static_cast<binlog_oob_context *>(binlog_info->engine_ptr);
   ut_ad(binlog_info->xa_xid != nullptr);
   if (ibb_xa_xid_hash->add_xid(binlog_info->xa_xid, c))
-    return true;
+    err= true;
 
   /*
     Sync the redo log to ensure that the prepare record is durably written to
@@ -4171,7 +4173,7 @@ ibb_write_xa_prepare(THD *thd,
     log_write_up_to(c->pending_lsn, (srv_flush_log_at_trx_commit & 1));
   ibb_pending_lsn_fifo.record_commit(c);
 
-  return false;
+  return err;
 }
 
 
