@@ -3,7 +3,8 @@ if [ -r %{restart_flag} ] ; then
   # only restart the server if it was already running
   if [ -x /usr/bin/systemctl ] ; then
     /usr/bin/systemctl daemon-reload > /dev/null 2>&1
-    if /usr/bin/systemctl is-active mysql; then
+    systemd-tmpfiles --create mariadb.conf
+    if /usr/bin/systemctl -q is-active mysql; then
       /usr/bin/systemctl restart mysql > /dev/null 2>&1
     else
       /usr/bin/systemctl try-restart mariadb.service > /dev/null 2>&1
