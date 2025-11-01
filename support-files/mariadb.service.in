@@ -23,6 +23,7 @@ Description=MariaDB @VERSION@ database server
 Documentation=man:mariadbd(8)
 Documentation=https://mariadb.com/kb/en/library/systemd/
 After=network.target
+Wants=systemd-tmpfiles-setup.service
 
 [Install]
 WantedBy=multi-user.target
