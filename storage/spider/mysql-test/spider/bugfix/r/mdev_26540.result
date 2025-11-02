@@ -1,0 +1,46 @@
+for master_1
+for child2
+for child3
+SET spider_same_server_link=1;
+CREATE SERVER srv FOREIGN DATA WRAPPER mysql
+OPTIONS (SOCKET "$MASTER_1_MYSOCK", DATABASE 'test',user 'root');
+CREATE TABLE t (c INT KEY,c1 BLOB,c2 TEXT) ENGINE=InnoDB;
+CREATE TABLE t2 (pk INT,c1 INT) ENGINE=Spider COMMENT='TABLE "st"' PARTITION BY LIST COLUMNS (c1)
+(PARTITION p DEFAULT COMMENT='srv "d"' ENGINE=Spider COMMENT='WRAPPER "mysql",SRV "srv",TABLE "t"');
+Warnings:
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
+DELETE FROM t2 WHERE pk=2;
+ERROR 42S22: Unknown column 'pk' in 'WHERE'
+DROP TABLE t, t2;
+CREATE TABLE t (c1 INT,c2 INT,c3 INT,c4 DATE,c5 DATE,c6 TIME,c7 TIME,c8 DATE,c9 DATE,c10 CHAR(1),c11 VARCHAR(1),KEY(c1),KEY(c3),KEY(c4),KEY(c6),KEY(c8),KEY(c10,c3)) ENGINE=Spider PARTITION BY LIST (c1) (PARTITION p VALUES IN (1,2));
+SHOW CREATE TABLE t;
+Table	Create Table
+t	CREATE TABLE `t` (
+  `c1` int(11) DEFAULT NULL,
+  `c2` int(11) DEFAULT NULL,
+  `c3` int(11) DEFAULT NULL,
+  `c4` date DEFAULT NULL,
+  `c5` date DEFAULT NULL,
+  `c6` time DEFAULT NULL,
+  `c7` time DEFAULT NULL,
+  `c8` date DEFAULT NULL,
+  `c9` date DEFAULT NULL,
+  `c10` char(1) DEFAULT NULL,
+  `c11` varchar(1) DEFAULT NULL,
+  KEY `c1` (`c1`),
+  KEY `c3` (`c3`),
+  KEY `c4` (`c4`),
+  KEY `c6` (`c6`),
+  KEY `c8` (`c8`),
+  KEY `c10` (`c10`,`c3`)
+) ENGINE=SPIDER DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+ PARTITION BY LIST (`c1`)
+(PARTITION `p` VALUES IN (1,2) ENGINE = SPIDER)
+DELETE FROM t;
+ERROR HY000: Unable to connect to foreign data source: localhost
+DROP TABLE t;
+DROP SERVER srv;
+for master_1
+for child2
+for child3

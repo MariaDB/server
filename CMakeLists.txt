@@ -296,9 +296,13 @@ IF(CMAKE_C_COMPILER_ID STREQUAL "GNU" AND NOT CMAKE_CXX_COMPILER_VERSION VERSION
   SET(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -D_GLIBCXX_DEBUG -D_GLIBCXX_ASSERTIONS")
 ENDIF()
 
-OPTION(ENABLE_GCOV "Enable gcov (debug, Linux builds only)" OFF)
+OPTION(ENABLE_GCOV "Enable gcov (debug, macOS and Linux builds only)" OFF)
 IF (ENABLE_GCOV)
-  MY_CHECK_AND_SET_COMPILER_FLAG("-DHAVE_gcov -fprofile-arcs -ftest-coverage -lgcov" DEBUG)
+  IF (CMAKE_CXX_COMPILER_ID STREQUAL "AppleClang")
+    MY_CHECK_AND_SET_COMPILER_FLAG("--coverage" DEBUG)
+  ELSE()
+    MY_CHECK_AND_SET_COMPILER_FLAG("-DHAVE_gcov -fprofile-arcs -ftest-coverage -lgcov" DEBUG)
+  ENDIF()
 ENDIF()
 
 OPTION(WITHOUT_PACKED_SORT_KEYS "disable packed sort keys"  OFF)

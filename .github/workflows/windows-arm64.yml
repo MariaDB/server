@@ -54,4 +54,4 @@ jobs:
           $cidir = "$tmp/ci"
           mkdir $cidir
           fsutil file setCaseSensitiveInfo $cidir enable
-          perl bld\mysql-test\mysql-test-run.pl --force --parallel=$parallel --suite=main,innodb --vardir=$cidir/var --mysqld=--lower-case-table-names=0  --mysqld=--loose-innodb-flush-log-at-trx-commit=2
+          perl bld\mysql-test\mysql-test-run.pl --force --parallel=$parallel --suite=main,innodb --vardir=$cidir/var --mysqld=--lower-case-table-names=0  --mysqld=--loose-innodb-flush-log-at-trx-commit=2 --mysqld=--debug-no-sync

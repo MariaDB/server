@@ -670,8 +670,11 @@ ATTRIBUTE_NOINLINE size_t mtr_t::encrypt() noexcept
     {
       while (buf + rlen > end)
       {
-        rlen-= uint32_t(end - buf);
-        c.append(buf, end - buf);
+        if (size_t size= end - buf)
+        {
+          rlen-= uint32_t(size);
+          c.append(buf, size);
+        }
         ++i;
         ut_ad(i != m_log.end());
         buf= i->start();
@@ -690,7 +693,7 @@ ATTRIBUTE_NOINLINE size_t mtr_t::encrypt() noexcept
       }
 
       buf= const_cast<byte*>(mtr_t::parse_length(buf, &rlen));
-      ut_ad(buf < end);
+      ut_ad(buf <= end);
     }
   }
 
