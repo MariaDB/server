@@ -45,4 +45,13 @@ REPAIR LOCAL TABLE t1 USE_FRM;
 REPAIR LOCAL TABLE t1;
 DROP TABLE t1;
 SET max_session_mem_used=default;
+#
+# MDEV-38005 Assertion `(yyvsp[-3].simple_string) < (yyvsp[-1].simple_string)' failed
+#
+SET max_session_mem_used=1;
+Warnings:
+Warning	1292	Truncated incorrect max_session_mem_used value: '1'
+CREATE TABLE t SELECT 1000000000000000000000000000000000000000000000000000000000000000000000000000000001 AS c;
+ERROR HY000: The MariaDB server is running with the --max-session-mem-used=8192 option so it cannot execute this statement
+SET max_session_mem_used=default;
 # End of 10.6 tests
