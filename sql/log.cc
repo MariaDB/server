@@ -94,6 +94,7 @@ static bool test_if_number(const char *str,
 static int binlog_init(void *p);
 static int binlog_close_connection(handlerton *hton, THD *thd);
 static int binlog_savepoint_set(handlerton *hton, THD *thd, void *sv);
+static int binlog_savepoint_release(handlerton *hton, THD *thd, void *sv);
 static int binlog_savepoint_rollback(handlerton *hton, THD *thd, void *sv);
 static bool binlog_savepoint_rollback_can_release_mdl(handlerton *hton,
                                                       THD *thd);
@@ -1895,6 +1896,7 @@ int binlog_init(void *p)
   binlog_hton->savepoint_offset= sizeof(binlog_savepoint_info);
   binlog_hton->close_connection= binlog_close_connection;
   binlog_hton->savepoint_set= binlog_savepoint_set;
+  binlog_hton->savepoint_release= binlog_savepoint_release;
   binlog_hton->savepoint_rollback= binlog_savepoint_rollback;
   binlog_hton->savepoint_rollback_can_release_mdl=
                                      binlog_savepoint_rollback_can_release_mdl;
@@ -3112,7 +3114,7 @@ static int binlog_savepoint_set(handlerton *hton, THD *thd, void *sv)
         ROLLBACK TO A;
 
       In this case, the second instance replaces the first one, and we get
-      called with the same sv pointer again. So we need to traverse the list
+      called with the same sv pointer again. So we traverse the list
       and remove the old instance, if found, before adding the new one.
     */
     binlog_savepoint_info *sp= cache_mngr->cache_savepoint_list;
@@ -3120,7 +3122,16 @@ static int binlog_savepoint_set(handlerton *hton, THD *thd, void *sv)
     while (sp)
     {
       if (sp == sp_info)
+      {
+        /*
+          The upper layer (in handler.cc) removes the savepoint and calls
+          binlog_savepoint_release() for us, so we do not expect to have to
+          remove anything here. But let's still do so as defensive coding,
+          but assert that it won't be necessary.
+        */
+        DBUG_ASSERT("Should be removed by ha_release_savepoint()" == nullptr);
         *next_ptr= sp->next;
+      }
       else
         next_ptr= &sp->next;
       sp=sp->next;
@@ -3143,6 +3154,37 @@ static int binlog_savepoint_set(handlerton *hton, THD *thd, void *sv)
 
   DBUG_RETURN(error);
 }
+
+
+/*
+  Release a savepoint.
+  We only need to release if the savepoint is still pending in the cache.
+  If the savepoint has been spilled to the engine, it has already been
+  removed from the list, and the engine will just ignore it.
+*/
+static int
+binlog_savepoint_release(handlerton *hton, THD *thd, void *sv)
+{
+  if (!opt_binlog_engine_hton)
+    return 0;
+
+  binlog_savepoint_info *sp_info= (binlog_savepoint_info*)sv;
+  binlog_cache_mngr *cache_mngr= thd->binlog_setup_trx_data();
+  binlog_savepoint_info *sp= cache_mngr->cache_savepoint_list;
+  binlog_savepoint_info **next_ptr= &cache_mngr->cache_savepoint_list;
+  while (sp)
+  {
+    if (sp == sp_info)
+      *next_ptr= sp->next;
+    else
+      next_ptr= &sp->next;
+    sp=sp->next;
+  }
+  /* Make sure to update cache_savepoint_next_ptr if we delete last in list. */
+  cache_mngr->cache_savepoint_next_ptr= next_ptr;
+  return 0;
+}
+
 
 static int binlog_savepoint_rollback(handlerton *hton, THD *thd, void *sv)
 {
@@ -7109,8 +7151,18 @@ binlog_spill_to_engine(struct st_io_cache *cache, const uchar *data, size_t len)
   }
 
   binlog_cache_mngr *mngr= (binlog_cache_mngr *)cache->append_read_pos;
-  binlog_cache_data *cache_data= unlikely(cache==&mngr->stmt_cache.cache_log) ?
-    &mngr->stmt_cache : &mngr->trx_cache;
+  binlog_cache_data *cache_data;
+  bool using_trx_cache;
+  if (unlikely(cache==&mngr->stmt_cache.cache_log))
+  {
+    cache_data= &mngr->stmt_cache;
+    using_trx_cache= false;
+  }
+  else
+  {
+    cache_data= &mngr->trx_cache;
+    using_trx_cache= true;
+  }
   void **engine_ptr= &cache_data->engine_binlog_info.engine_ptr;
   mysql_mutex_assert_not_owner(&LOCK_commit_ordered);
 
@@ -7126,7 +7178,7 @@ binlog_spill_to_engine(struct st_io_cache *cache, const uchar *data, size_t len)
     savepoint for each of them so that we can roll back such spilled data,
     if required.
   */
-  if (data == cache->write_buffer)
+  if (data == cache->write_buffer && using_trx_cache)
   {
     my_off_t spill_start= cache->pos_in_file;
     my_off_t stmt_pos= mngr->trx_cache.get_prev_position();

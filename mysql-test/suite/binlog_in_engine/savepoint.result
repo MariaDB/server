@@ -472,6 +472,47 @@ i	a	LENGTH(b)
 9	2	40000
 10	2	2
 *** Test an edge case where the savepoint is just at the cache-size boundary.
+*** Test RELEASE SAVEPOINT.
+BEGIN;
+SAVEPOINT s1;
+INSERT INTO t1(i, a) VALUES (20, 0);
+SAVEPOINT s2;
+INSERT INTO t1(i, a) VALUES (20, 1);
+SAVEPOINT s3;
+INSERT INTO t1(i, a, b) VALUES (20, 2, REPEAT('2', 40000));
+SAVEPOINT s4;
+SAVEPOINT s5;
+INSERT INTO t1(i, a) VALUES (20, 3);
+SAVEPOINT s6;
+INSERT INTO t1(i, a, b) VALUES (20, 4, REPEAT('4', 40000));
+RELEASE SAVEPOINT s5;
+SAVEPOINT s7;
+ROLLBACK TO s7;
+SAVEPOINT s8;
+INSERT INTO t1(i, a) VALUES (20, 5);
+ROLLBACK TO s4;
+INSERT INTO t1(i, a) VALUES (20, 6);
+COMMIT;
+SELECT i, a, LENGTH(b) FROM t1 WHERE i=20 ORDER BY a;
+i	a	LENGTH(b)
+20	0	NULL
+20	1	NULL
+20	2	40000
+20	6	NULL
+*** Test savepoint combined with non-transactional OOB spill.
+BEGIN;
+INSERT INTO t1 VALUES (30, 0, REPEAT('a', 40000));
+INSERT INTO t1 VALUES (30, 1, REPEAT('b', 20000));
+SAVEPOINT s1;
+INSERT INTO t2 VALUES (30, 2, REPEAT('x', 63000));
+COMMIT;
+SELECT a, LENGTH(b) FROM t1 WHERE i=30 ORDER BY a;
+a	LENGTH(b)
+0	40000
+1	20000
+SELECT a, LENGTH(b) FROM t2 WHERE i=30  ORDER BY a;
+a	LENGTH(b)
+2	63000
 connection master;
 DROP TABLE t1, t2;
 include/rpl_end.inc
