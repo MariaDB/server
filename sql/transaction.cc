@@ -756,7 +756,8 @@ bool trans_rollback_to_savepoint(THD *thd, LEX_CSTRING name)
 
 /**
   Remove the named savepoint from the set of savepoints of
-  the current transaction.
+  the current transaction. Note that releasing a savepoint also releases
+  any savepoints set following the specified savepoint.
 
   @note No commit or rollback occurs. It is an error if the
         savepoint does not exist.
@@ -780,10 +781,22 @@ bool trans_release_savepoint(THD *thd, LEX_CSTRING name)
     DBUG_RETURN(TRUE);
   }
 
-  if (ha_release_savepoint(thd, sv))
-    res= TRUE;
+  SAVEPOINT *p= thd->transaction->savepoints;
+  while (p)
+  {
+    if (ha_release_savepoint(thd, p))
+      res= TRUE;
+    if (p == sv)
+    {
+      thd->transaction->savepoints= sv->prev;
+      DBUG_RETURN(MY_TEST(res));
+    }
+    p= p->prev;
+  }
 
-  thd->transaction->savepoints= sv->prev;
-
+  DBUG_ASSERT(0 /* Should not get here, would imply that the list of savepoints
+                   changed since find_savepoint() called at the start of this
+                   function. */);
+  thd->transaction->savepoints= NULL;;
   DBUG_RETURN(MY_TEST(res));
 }
