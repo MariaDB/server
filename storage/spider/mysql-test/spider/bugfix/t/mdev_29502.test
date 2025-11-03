@@ -21,6 +21,7 @@ set spider_direct_aggregate=1;
 
 eval CREATE TABLE t1 (a INT KEY) ENGINE=Spider COMMENT='WRAPPER "mysql",srv "$srv",TABLE "t"';
 
+--disable_ps2_protocol
 --disable_ps_protocol
 SELECT MAX(a) FROM t1;
 --enable_ps_protocol
@@ -34,6 +35,7 @@ SELECT COUNT(a), MAX(a), SUM(a) FROM t1;
 SELECT MAX(a), COUNT(a), SUM(a) FROM t1;
 SELECT MAX(a), MAX(COALESCE(a)) FROM t1;
 --enable_view_protocol
+--enable_ps2_protocol
 SHOW STATUS LIKE 'Spider_direct_aggregate';
 
 DROP TABLE t, t1;

@@ -2637,16 +2637,16 @@ struct wait_for_commit
 
 class Sp_caches
 {
+protected:
+  ulong m_sp_cache_version;
 public:
   sp_cache *sp_proc_cache;
   sp_cache *sp_func_cache;
   sp_cache *sp_package_spec_cache;
   sp_cache *sp_package_body_cache;
   Sp_caches()
-   :sp_proc_cache(NULL),
-    sp_func_cache(NULL),
-    sp_package_spec_cache(NULL),
-    sp_package_body_cache(NULL)
+   :m_sp_cache_version(0), sp_proc_cache(NULL), sp_func_cache(NULL),
+    sp_package_spec_cache(NULL), sp_package_body_cache(NULL)
   { }
   ~Sp_caches()
   {
@@ -2656,19 +2656,22 @@ public:
     DBUG_ASSERT(sp_package_spec_cache == NULL);
     DBUG_ASSERT(sp_package_body_cache == NULL);
   }
-  void sp_caches_swap(Sp_caches &rhs)
-  {
-    swap_variables(sp_cache*, sp_proc_cache, rhs.sp_proc_cache);
-    swap_variables(sp_cache*, sp_func_cache, rhs.sp_func_cache);
-    swap_variables(sp_cache*, sp_package_spec_cache, rhs.sp_package_spec_cache);
-    swap_variables(sp_cache*, sp_package_body_cache, rhs.sp_package_body_cache);
-  }
   void sp_caches_clear();
   /**
     Clear content of sp related caches.
     Don't delete cache objects itself.
   */
   void sp_caches_empty();
+  ulong sp_cache_version() const
+  {
+    DBUG_ASSERT(m_sp_cache_version);
+    return m_sp_cache_version;
+  }
+  void set_sp_cache_version_if_needed(ulong version)
+  {
+    if (!m_sp_cache_version)
+      m_sp_cache_version= version;
+  }
 };
 
 

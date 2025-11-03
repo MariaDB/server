@@ -1,0 +1,85 @@
+# memory usage is sensitive to valgrind/ps-protocol/embedded
+source include/not_msan.inc;
+source include/not_valgrind.inc;
+source include/no_protocol.inc;
+source include/not_embedded.inc;
+source include/have_64bit.inc;
+source include/have_sequence.inc;
+
+--echo #
+--echo # MDEV-23836: Assertion `! is_set() || m_can_overwrite_status' in
+--echo # Diagnostics_area::set_error_status (interrupted ALTER TABLE under LOCK)
+--echo #
+
+CREATE TABLE t1 (a INT);
+SELECT * FROM t1;
+
+--error ER_NO_SUCH_TABLE
+ALTER TABLE x MODIFY xx INT;
+
+SET SESSION max_session_mem_used= 8192;
+--error 0,ER_OPTION_PREVENTS_STATEMENT
+LOCK TABLE t1 WRITE;
+
+--disable_warnings
+--error 0,ER_OPTION_PREVENTS_STATEMENT
+ALTER TABLE t1 CHANGE COLUMN IF EXISTS b c INT;
+--enable_warnings
+
+SET SESSION max_session_mem_used = DEFAULT;
+UNLOCK TABLES;
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-27978 wrong option name in error when exceeding max_session_mem_used
+--echo #
+SET SESSION max_session_mem_used = 8192;
+--error ER_OPTION_PREVENTS_STATEMENT
+SELECT * FROM information_schema.processlist;
+SET SESSION max_session_mem_used = DEFAULT;
+
+#
+# errors caused by max_session_mem_used
+#
+--disable_result_log
+set max_session_mem_used = 50000;
+--error 0,ER_OPTION_PREVENTS_STATEMENT
+select * from seq_1_to_1000;
+set max_session_mem_used = 8192;
+--error 0,ER_OPTION_PREVENTS_STATEMENT
+select * from seq_1_to_1000;
+--enable_result_log
+# We may not be able to execute any more queries with this connection
+# because of too little memory
+
+set max_session_mem_used = DEFAULT;
+
+--echo #
+--echo # MDEV-35828: Assertion fails in alloc_root() when memory causes it to call itself
+--echo #
+CREATE TEMPORARY TABLE t1 (a INT,b INT);
+INSERT INTO t1 VALUES (1,1),(2,2);
+
+SET max_session_mem_used=8192;
+
+--error ER_OPTION_PREVENTS_STATEMENT
+SELECT * FROM (t1 AS t2 LEFT JOIN t1 AS t3 USING (a)),t1;
+
+SET max_session_mem_used=DEFAULT;
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-23824 SIGSEGV in end_io_cache on REPAIR LOCAL TABLE for Aria table
+--echo #
+
+CREATE TABLE t1 (i INT) ENGINE=Aria;
+INSERT INTO t1 VALUES (1);
+SET max_session_mem_used=50000;
+--disable_result_log
+REPAIR LOCAL TABLE t1 USE_FRM;
+REPAIR LOCAL TABLE t1;
+--enable_result_log
+DROP TABLE t1;
+SET max_session_mem_used=default;
+
+--echo # End of 10.6 tests

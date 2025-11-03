@@ -2047,7 +2047,18 @@ bool open_table(THD *thd, TABLE_LIST *table_list, Open_table_context *ot_ctx)
              table->query_id == 0))
         {
           int distance= ((int) table->reginfo.lock_type -
-                         (int) table_list->lock_type);
+                         (int) table_list->lock_type) * 2;
+          TABLE_LIST *tl= thd->locked_tables_mode == LTM_PRELOCKED
+                      ? table->pos_in_table_list : table->pos_in_locked_tables;
+          /*
+            note, that merge table children are automatically added to
+            prelocking set in ha_myisammrg::add_children_list(), but their
+            TABLE_LIST's are on the execution arena, so tl will be invalid
+            on the second execution. Let's just skip them below.
+          */
+          if (table_list->parent_l || !tl ||
+              table_list->for_insert_data != tl->for_insert_data)
+            distance|= 1;
 
           /*
             Find a table that either has the exact lock type requested,
@@ -2449,6 +2460,11 @@ retry_share:
   DBUG_ASSERT(table->file->pushed_cond == NULL);
   table_list->updatable= 1; // It is not derived table nor non-updatable VIEW
   table_list->table= table;
+  if (table_list->linked_table)
+  {
+    /* Update link for sequence tables in default */
+    table_list->linked_table->table= table;
+  }
 
   if (!from_share && table->vcol_fix_expr(thd))
     DBUG_RETURN(true);
@@ -3207,7 +3223,7 @@ static bool
 check_and_update_routine_version(THD *thd, Sroutine_hash_entry *rt,
                                  sp_head *sp)
 {
-  ulong spc_version= sp_cache_version();
+  ulong spc_version= thd->sp_cache_version();
   /* sp is NULL if there is no such routine. */
   ulong version= sp ? sp->sp_cache_version() : spc_version;
   /*
@@ -3217,7 +3233,7 @@ check_and_update_routine_version(THD *thd, Sroutine_hash_entry *rt,
     Sic: version != spc_version <--> sp is not NULL.
   */
   if (rt->m_sp_cache_version != version ||
-      (version != spc_version && !sp->is_invoked()))
+      (version < spc_version && !sp->is_invoked()))
   {
     if (thd->m_reprepare_observer &&
         thd->m_reprepare_observer->report_error(thd))
@@ -5076,7 +5092,7 @@ add_internal_tables(THD *thd, Query_tables_list *prelocking_ctx,
         next_local value as it may have been changed by a previous
         statement using the same table.
       */
-      tables->next_local= tmp;
+      tmp->linked_table= tables;
       continue;
     }
 
@@ -5091,10 +5107,10 @@ add_internal_tables(THD *thd, Query_tables_list *prelocking_ctx,
                                       &prelocking_ctx->query_tables_last,
                                       tables->for_insert_data);
     /*
-      Store link to the new table_list that will be used by open so that
-      Item_func_nextval() can find it
+      Store link to the sequences table so that we can in open_table() update
+      it to point to the opened table.
     */
-    tables->next_local= tl;
+    tl->linked_table= tables;
     DBUG_PRINT("info", ("table name: %s added", tables->table_name.str));
   } while ((tables= tables->next_global));
   DBUG_RETURN(FALSE);

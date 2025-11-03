@@ -1992,7 +1992,6 @@ bool JOIN::build_explain()
 int JOIN::optimize()
 {
   int res= 0;
-  join_optimization_state init_state= optimization_state;
   if (select_lex->pushdown_select)
   {
     if (optimization_state == JOIN::OPTIMIZATION_DONE)
@@ -2009,18 +2008,18 @@ int JOIN::optimize()
     }
     with_two_phase_optimization= false;
   }
-  else if (optimization_state == JOIN::OPTIMIZATION_PHASE_1_DONE)
-    res= optimize_stage2();
   else
   {
-    // to prevent double initialization on EXPLAIN
+    /*
+      This function may be invoked multiple times. Do nothing if the
+      optimization (either full or stage1) are already done.
+    */
     if (optimization_state != JOIN::NOT_OPTIMIZED)
       return FALSE;
     optimization_state= JOIN::OPTIMIZATION_IN_PROGRESS;
     res= optimize_inner();
   }
-  if (!with_two_phase_optimization ||
-      init_state == JOIN::OPTIMIZATION_PHASE_1_DONE)
+  if (!with_two_phase_optimization)
   {
     if (!res && have_query_plan != QEP_DELETED)
       res= build_explain();
@@ -2033,6 +2032,29 @@ int JOIN::optimize()
   */
   if (select_lex->select_number == 1)
     thd->status_var.last_query_cost= best_read;
+  return res;
+}
+
+
+/*
+  @brief
+    Call optimize_stage2() and save the query plan.
+*/
+
+int JOIN::optimize_stage2_and_finish()
+{
+  int res= 0;
+  DBUG_ASSERT(with_two_phase_optimization);
+  DBUG_ASSERT(optimization_state == OPTIMIZATION_PHASE_1_DONE);
+
+  if (optimize_stage2())
+    res= 1;
+  else
+  {
+    if (have_query_plan != JOIN::QEP_DELETED)
+      res= build_explain();
+    optimization_state= JOIN::OPTIMIZATION_DONE;
+  }
   return res;
 }
 
@@ -2756,6 +2778,19 @@ setup_subq_exit:
 }
 
 
+/*
+  @brief
+    In the Stage 1 we've picked the join order.
+    Now, refine the query plan and sort out all the details.
+    The choice how to handle GROUP/ORDER BY is also made here.
+
+  @detail
+    The main reason this is a separate function is Split-Materialized
+    optimization. There, we first consider doing non-split Materialization for
+    a SELECT. After that, the parent SELECT will attempt doing Splitting in
+    multiple ways and make the final choice.
+*/
+
 int JOIN::optimize_stage2()
 {
   ulonglong select_opts_for_readinfo;
@@ -2776,7 +2811,7 @@ int JOIN::optimize_stage2()
   if (make_range_rowid_filters())
     DBUG_RETURN(1);
 
-  if (select_lex->handle_derived(thd->lex, DT_OPTIMIZE))
+  if (select_lex->handle_derived(thd->lex, DT_OPTIMIZE_STAGE2))
     DBUG_RETURN(1);
 
   /*
@@ -3251,9 +3286,14 @@ int JOIN::optimize_stage2()
     (as MariaDB is by default sorting on GROUP BY) or
     if there is no GROUP BY and aggregate functions are used
     (as the result will only contain one row).
+
+    (1) - Do not remove ORDER BY if we have WITH TIES and are using
+          QUICK_GROUP_MIN_MAX_SELECT to handle GROUP BY. See the comment
+          for using_with_ties_and_group_min_max() for details.
   */
   if (order && (test_if_subpart(group_list, order) ||
-                (!group_list && tmp_table_param.sum_func_count)))
+                (!group_list && tmp_table_param.sum_func_count)) &&
+      !using_with_ties_and_group_min_max(this)) // (1)
     order=0;
 
   // Can't use sort on head table if using join buffering
@@ -3567,7 +3607,7 @@ setup_subq_exit:
       some of the derived tables, and never did stage 2.
       Do it now, otherwise Explain data structure will not be complete.
     */
-    if (select_lex->handle_derived(thd->lex, DT_OPTIMIZE))
+    if (select_lex->handle_derived(thd->lex, DT_OPTIMIZE_STAGE2))
       DBUG_RETURN(1);
   }
   /*
@@ -4846,6 +4886,7 @@ bool JOIN::save_explain_data(Explain_query *output, bool can_overwrite,
 int JOIN::exec()
 {
   int res;
+  DBUG_ASSERT(optimization_state == OPTIMIZATION_DONE);
   DBUG_EXECUTE_IF("show_explain_probe_join_exec_start", 
                   if (dbug_user_var_equals_int(thd, 
                                                "show_explain_probe_select_id", 
@@ -14621,7 +14662,20 @@ make_join_select(JOIN *join,SQL_SELECT *select,COND *cond)
             if (build_tmp_join_prefix_cond(join, tab, &sel->cond))
               return true;
 
-	    /*
+            /*
+              To be removed in 11.0+:
+              Caution: we can reach this point with quick=NULL. Below, we'll
+              use tab->keys and not tab->const_keys like
+              get_quick_record_count() did. If we have constructed a
+              group-min-max quick select, make sure we're able to construct it
+              again
+            */
+            if (sel->quick && sel->quick->get_type() ==
+                QUICK_SELECT_I::QS_TYPE_GROUP_MIN_MAX)
+            {
+              tab->keys.set_bit(sel->quick->index);
+            }
+      /*
               We can't call sel->cond->fix_fields,
               as it will break tab->on_expr if it's AND condition
               (fix_fields currently removes extra AND/OR levels).

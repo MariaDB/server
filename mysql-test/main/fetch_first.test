@@ -1095,3 +1095,77 @@ SELECT DISTINCT a, b FROM t1 ORDER BY a FETCH FIRST 3 ROWS WITH TIES;
  
 # Cleanup
 DROP TABLE t1;
+
+
+--echo #
+--echo # MDEV-37901: Wrong result with Loose Scan on QUICK_GROUP_MIN_MAX_SELECT WITH TIES
+--echo #
+
+--source include/have_sequence.inc
+
+create table t1 (
+  country varchar(100),
+  city varchar(100),
+  user_score int,
+  index (country, city, user_score)
+);
+
+insert into t1
+select 'China', 'Shenzhen', seq from seq_10_to_100;
+insert into t1
+select 'India', 'New Delhi', seq from seq_10_to_100;
+insert into t1
+select 'Sri Lanka', 'Colombo', seq from seq_10_to_100;
+analyze table t1 persistent for all;
+
+insert into t1
+select 'Finland', 'Espoo', seq from seq_10_to_200;
+insert into t1
+select 'Greece', 'Chania', seq from seq_10_to_20;
+insert into t1
+select 'Estonia', 'Narva', seq from seq_10_to_20;
+insert into t1
+select 'Russia', 'St Petersburg', seq from seq_10_to_20;
+
+--echo # Must use "Using index for group-by":
+explain
+select country, city, min(user_score)
+from t1
+where user_score between 9 and 199
+group by country, city
+order by country
+fetch first 5 rows with ties;
+
+--echo # Must not use "Using index for group-by":
+explain
+select country, city, sum(user_score)
+from t1
+where user_score between 9 and 199
+group by country, concat(city,'AA')
+order by country
+fetch first 5 rows with ties;
+
+select country, city, sum(user_score)
+from t1
+where user_score between 9 and 199
+group by country, concat(city,'AA')
+order by country
+fetch first 5 rows with ties;
+
+--echo # both using index and index with group by should produce same result
+
+select country, city, min(user_score)
+from t1
+where user_score between 9 and 199
+group by country, city
+order by country
+fetch first 5 rows with ties;
+
+select country, city, min(user_score)
+from t1 use index()
+where user_score between 9 and 199
+group by country, city
+order by country
+fetch first 5 rows with ties;
+
+drop table t1;
