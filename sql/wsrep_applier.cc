@@ -1,4 +1,4 @@
-/* Copyright (C) 2013-2024 Codership Oy <info@codership.com>
+/* Copyright (C) 2013-2025 Codership Oy <info@codership.com>
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -88,7 +88,8 @@ static void wsrep_store_error_rli(const THD* const thd,
                                   wsrep::mutable_buffer& dst,
                                   bool const include_msg)
 {
-  Slave_reporting_capability* const rli= thd->wsrep_rgi->rli;
+  Slave_reporting_capability* const rli= thd->wsrep_rgi ?
+    thd->wsrep_rgi->rli : nullptr;
   if (rli && rli->last_error().number != 0)
   {
     auto error= rli->last_error();
@@ -108,14 +109,36 @@ static void wsrep_store_error_rli(const THD* const thd,
   }
 }
 
+/* Helper function to print error message */
+static size_t wsrep_print_error(char* dst,
+                                const size_t dst_len,
+                                const bool include_msg,
+                                const uint err_code,
+                                const char* err_str)
+{
+  size_t len;
+  if (include_msg)
+  {
+    len= snprintf(dst, dst_len, " %s, Error_code: %d;",
+                  err_str, err_code);
+  }
+  else
+  {
+    len= snprintf(dst, dst_len, " Error_code: %d;",
+                  err_code);
+  }
+  return len;
+}
+
 /* store error from diagnostic area */
 static void wsrep_store_error_da(const THD* const thd,
                                  wsrep::mutable_buffer& dst,
                                  bool const include_msg)
 {
+  const Diagnostics_area* da= thd->get_stmt_da();
   Diagnostics_area::Sql_condition_iterator it=
-    thd->get_stmt_da()->sql_conditions();
-  const Sql_condition* cond;
+    da->sql_conditions();
+  const Sql_condition* cond=it++;
 
   static size_t const max_len= 2*MAX_SLAVE_ERRMSG; // 2x so that we have enough
 
@@ -124,23 +147,26 @@ static void wsrep_store_error_da(const THD* const thd,
   char* slider= dst.data();
   const char* const buf_end= slider + max_len - 1; // -1: leave space for \0
 
-  for (cond= it++; cond && slider < buf_end; cond= it++)
+  if (cond)
   {
-    uint const err_code= cond->get_sql_errno();
-    const char* const err_str= cond->get_message_text();
-
-    if (include_msg)
+    for (; cond && slider < buf_end; cond= it++)
     {
-      slider+= snprintf(slider, buf_end - slider, " %s, Error_code: %d;",
-                        err_str, err_code);
-    }
-    else
-    {
-      slider+= snprintf(slider, buf_end - slider, " Error_code: %d;",
-                        err_code);
+      uint const err_code= cond->get_sql_errno();
+      const char* const err_str= cond->get_message_text();
+      slider+= wsrep_print_error(slider, buf_end-slider,
+                                 include_msg, err_code, err_str);
     }
   }
-
+  else if (da->is_error())
+  {
+    // For example during TOI SQL_condition_iterator
+    // could be nullptr, get error from Diagnostics
+    // area directly.
+    uint const err_code= da->sql_errno();
+    const char* const err_str= da->message();
+    slider+= wsrep_print_error(slider, buf_end-slider,
+                               include_msg, err_code, err_str);
+  }
   if (slider != dst.data())
   {
     *slider= '\0';
