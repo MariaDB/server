@@ -882,6 +882,7 @@ SELECT COUNT(*) FROM t3 WHERE a=0xDF AND b=2;
 COUNT(*)
 2
 DROP TABLE t1,t2,t3;
+# End of 4.1 tests
 create table t1 (b bit(1));
 create table t2 (b bit(1));
 create table tm (b bit(1)) engine = merge union = (t1,t2);
@@ -1007,7 +1008,7 @@ ERROR HY000: Unable to open underlying table which is differently defined or of 
 SELECT * FROM m2;
 a
 DROP TABLE t1, t2, m1, m2;
-End of 5.0 tests
+# End of 5.0 tests
 create table t1 (c1 int, index(c1));
 create table t2 (c1 int, index(c1)) engine=merge union=(t1);
 insert into t1 values (1);
@@ -2419,7 +2420,7 @@ check table tm_temp_temp;
 Table	Op	Msg_type	Msg_text
 test.tm_temp_temp	check	status	OK
 drop temporary table t1_temp, tm_temp_temp;
-End of 5.1 tests
+# End of 5.1 tests
 # 
 # MDEV-4277: Crash inside mi_killed_in_mariadb() with myisammrg
 # 
@@ -2550,7 +2551,7 @@ i	a	b	filler
 2	999	999	filler-data-FILLER-DATA-qqq
 drop table t5;
 drop table t1,t2,t3,t4;
-End of 5.3 tests
+# End of 5.3 tests
 CREATE TABLE t1(a INT, KEY(a)) ENGINE=merge;
 SELECT MAX(a) FROM t1;
 MAX(a)
@@ -3800,9 +3801,7 @@ test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	Table is already up to date
 DEALLOCATE PREPARE stmt;
 DROP TABLE t1, tmerge;
-#
 # End of 5.5 tests
-#
 #
 # Additional coverage for refactoring which is made as part
 # of fix for bug #27480 "Extend CREATE TEMPORARY TABLES privilege
@@ -3898,10 +3897,7 @@ f
 foo
 bar
 DROP TABLE mrg, t1;
-End of 10.5 tests
-#
 # End of 10.0 tests
-#
 #
 # MDEV-27407 Different ASC/DESC index attributes on MERGE and underlying table can cause wrong results
 #
@@ -3924,9 +3920,7 @@ a
 2
 1
 drop table tm, t;
-#
 # End of 10.8 tests
-#
 #
 # MDEV-35816 ASAN use-after-poison in st_select_lex::print
 #
@@ -3964,9 +3958,7 @@ a
 4
 5
 DROP TABLE t1;
-#
 # End of 10.11 tests
-#
 #
 # MDEV-30088 Assertion `cond_selectivity <= 1.0' failed in get_range_limit_read_cost
 #
@@ -4020,9 +4012,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	range	NULL	i1	5	NULL	1	Using index for group-by
 drop table t1;
 set use_stat_tables=default;
-#
 # End of 11.0 tests
-#
 #
 # MDEV-29174: UPDATE of view that uses MERGE table
 #
@@ -4032,3 +4022,4 @@ UPDATE v1 SET a=0;
 DROP VIEW v1;
 DROP TABLE t1;
 # End of 11.1 tests
+ALTER DATABASE test CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci;
