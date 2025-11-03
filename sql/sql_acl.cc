@@ -1638,7 +1638,11 @@ class User_table_json: public User_table
       if (access & SUPER_ACL)
         access|= ALLOWED_BY_SUPER_BEFORE_101100;
     }
-    if (version_id >= 110300)
+    if (version_id >= 120200)
+    {
+      mask= ALL_KNOWN_ACL_120200;
+    }
+    else if (version_id >= 110300)
     {
       mask= ALL_KNOWN_ACL_110300;
     }
@@ -1664,7 +1668,12 @@ class User_table_json: public User_table
       if (access & BINLOG_MONITOR_ACL || access & REPL_SLAVE_ACL)
         access|= SLAVE_MONITOR_ACL;
     }
-
+    if (version_id < 120200)
+    {
+      /* Super privilege gives the user IGNORE DENIES too. */
+      if (access & SUPER_ACL)
+        access|= IGNORE_DENIES_ACL;
+    }
     if (orig_access & ~mask)
     {
       print_warning_bad_access(version_id, mask, orig_access);
@@ -8804,7 +8813,7 @@ bool check_grant_column(const Security_context *sctx,
   privilege_t want_access(grant->want_privilege & ~grant->privilege);
   DBUG_ENTER("check_grant_column");
   DBUG_PRINT("enter", ("table: %s  want_access: %llx",
-                       table_name, (longlong) want_access));
+                       table_name.str, (longlong) want_access));
 
   if (!want_access)
     DBUG_RETURN(0);				// Already checked
@@ -9496,7 +9505,8 @@ static const LEX_CSTRING privilege_str_repr[]=
   {STRING_WITH_LEN("BINLOG ADMIN")},
   {STRING_WITH_LEN("BINLOG REPLAY")},
   {STRING_WITH_LEN("SLAVE MONITOR")},
-  {STRING_WITH_LEN("SHOW CREATE ROUTINE")}
+  {STRING_WITH_LEN("SHOW CREATE ROUTINE")},
+  {STRING_WITH_LEN("IGNORE DENIES")}
 };
 
 

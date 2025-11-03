@@ -359,6 +359,7 @@ protected:
   enum_sql_command m_command;
   bool m_create_new_users;
   List<LEX_USER> m_resolved_users;
+  bool m_deny;
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
   void warn_hostname_requires_resolving(THD *thd, List<LEX_USER> &list);
   void user_list_reset_mqh();
@@ -370,6 +371,7 @@ public:
   { }
   bool is_revoke() const { return m_command == SQLCOM_REVOKE; }
   enum_sql_command sql_command_code() const override { return m_command; }
+  void set_deny(bool value) { m_deny= value; }
 };
 
 

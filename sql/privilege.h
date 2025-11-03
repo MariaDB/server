@@ -69,7 +69,8 @@ enum privilege_t: unsigned long long
   BINLOG_ADMIN_ACL      = (1ULL << 36), // Added in 10.5.2
   BINLOG_REPLAY_ACL     = (1ULL << 37), // Added in 10.5.2
   SLAVE_MONITOR_ACL     = (1ULL << 38), // Added in 10.5.8
-  SHOW_CREATE_ROUTINE_ACL = (1ULL << 39)  // added in 11.3.0
+  SHOW_CREATE_ROUTINE_ACL = (1ULL << 39),// added in 11.3.0
+  IGNORE_DENIES_ACL     = (1ULL << 40)  // added in 12.2.0
   /*
     When adding new privilege bits, don't forget to update:
     In this file:
@@ -106,9 +107,10 @@ constexpr privilege_t LAST_100304_ACL= DELETE_HISTORY_ACL;
 constexpr privilege_t LAST_100502_ACL= BINLOG_REPLAY_ACL;
 constexpr privilege_t LAST_100508_ACL= SLAVE_MONITOR_ACL;
 constexpr privilege_t LAST_110300_ACL= SHOW_CREATE_ROUTINE_ACL;
+constexpr privilege_t LAST_120200_ACL= IGNORE_DENIES_ACL;
 
 // Current version markers
-constexpr privilege_t LAST_CURRENT_ACL= LAST_110300_ACL;
+constexpr privilege_t LAST_CURRENT_ACL= LAST_120200_ACL;
 constexpr uint PRIVILEGE_T_MAX_BIT=
               my_bit_log2_uint64((ulonglong) LAST_CURRENT_ACL);
 
@@ -130,6 +132,9 @@ constexpr privilege_t ALL_KNOWN_ACL_100509= ALL_KNOWN_ACL_100508;
 
 // A combination of all bits defined in 11.3.0
 constexpr privilege_t ALL_KNOWN_ACL_110300= ALL_KNOWN_BITS(LAST_110300_ACL);
+
+// A combination of all bits defined in 12.2.0
+constexpr privilege_t ALL_KNOWN_ACL_120200= ALL_KNOWN_BITS(LAST_120200_ACL);
 
 // A combination of all bits defined as of the current version
 constexpr privilege_t ALL_KNOWN_ACL= ALL_KNOWN_BITS(LAST_CURRENT_ACL);

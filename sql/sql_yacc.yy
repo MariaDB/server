@@ -512,6 +512,8 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %token  <kwd> DELETE_DOMAIN_ID_SYM
 %token  <kwd> DELETE_SYM                    /* SQL-2003-R */
 %token  <kwd> DENSE_RANK_SYM
+%token  <kwd> DENY
+%token  <kwd> DENIES
 %token  <kwd> DESCRIBE                      /* SQL-2003-R */
 %token  <kwd> DESC                          /* SQL-2003-N */
 %token  <kwd> DETERMINISTIC_SYM             /* SQL-2003-R */
@@ -1837,7 +1839,7 @@ rule:
         procedure_list procedure_list2 procedure_item
         handler opt_generated_always
         opt_ignore opt_column opt_restrict
-        grant revoke set lock unlock string_list
+        deny grant revoke set lock unlock string_list
         table_lock_list table_lock
         ref_list opt_match_clause opt_on_update_delete use
         opt_delete_options opt_delete_option varchar nchar nvarchar
@@ -2144,6 +2146,7 @@ verb_clause:
         | create
         | deallocate
         | delete
+        | deny
         | describe
         | do
         | drop
@@ -17952,11 +17955,34 @@ handler_rkey_mode:
 /* GRANT / REVOKE */
 
 revoke:
-          REVOKE clear_privileges revoke_command
+          REVOKE clear_privileges revoke_privileges
+          {
+            static_cast<Sql_cmd_grant*>(Lex->m_sql_cmd)->set_deny(false);
+          }
+        |
+          REVOKE DENY clear_privileges revoke_privileges
+          {
+            static_cast<Sql_cmd_grant*>(Lex->m_sql_cmd)->set_deny(true);
+          }
+        | REVOKE clear_privileges ALL opt_privileges ',' GRANT OPTION FROM user_and_role_list
+          {
+            /* TODO(cvicentiu) REVOKE DENY ALL. */
+            Lex->sql_command = SQLCOM_REVOKE_ALL;
+          }
+        | REVOKE clear_privileges revoke_role
           {}
         ;
 
-revoke_command:
+revoke_role:
+          admin_option_for_role FROM user_and_role_list
+          {
+            Lex->sql_command= SQLCOM_REVOKE_ROLE;
+            if (unlikely(Lex->users_list.push_front($1, thd->mem_root)))
+              MYSQL_YYABORT;
+          }
+        ;
+
+revoke_privileges:
           grant_privileges ON opt_table grant_ident FROM user_and_role_list
           {
             if (Lex->stmt_revoke_table(thd, $1, *$4))
@@ -17967,19 +17993,9 @@ revoke_command:
             if (Lex->stmt_revoke_sp(thd, $1, *$4, *$3))
               MYSQL_YYABORT;
           }
-        | ALL opt_privileges ',' GRANT OPTION FROM user_and_role_list
-          {
-            Lex->sql_command = SQLCOM_REVOKE_ALL;
-          }
         | PROXY_SYM ON user FROM user_list
           {
             if (Lex->stmt_revoke_proxy(thd, $3))
-              MYSQL_YYABORT;
-          }
-        | admin_option_for_role FROM user_and_role_list
-          {
-            Lex->sql_command= SQLCOM_REVOKE_ROLE;
-            if (unlikely(Lex->users_list.push_front($1, thd->mem_root)))
               MYSQL_YYABORT;
           }
         ;
@@ -17991,9 +18007,26 @@ admin_option_for_role:
           { Lex->with_admin_option= false; $$= $1; }
         ;
 
+deny:
+          DENY clear_privileges grant_command
+          {
+            static_cast<Sql_cmd_grant*>(Lex->m_sql_cmd)->set_deny(true);
+          }
+        ;
 grant:
           GRANT clear_privileges grant_command
-          {}
+          {
+            static_cast<Sql_cmd_grant*>(Lex->m_sql_cmd)->set_deny(false);
+          }
+        | GRANT clear_privileges grant_role_command
+          {
+            /*
+              TODO(cvicentiu) grant_role_command should use the Sql_cmd_grant
+              interface. This will allow moving Lex->stmt_grant_xxx calls
+              at this level instead of having them within grant_command
+              rule.
+            */
+          }
         ;
 
 grant_command:
@@ -18014,7 +18047,10 @@ grant_command:
             if (Lex->stmt_grant_proxy(thd, $3, $6))
               MYSQL_YYABORT;
           }
-        | grant_role TO_SYM grant_list opt_with_admin_option
+        ;
+
+grant_role_command:
+          grant_role TO_SYM grant_list opt_with_admin_option
           {
             LEX *lex= Lex;
             lex->sql_command= SQLCOM_GRANT_ROLE;
@@ -18022,7 +18058,6 @@ grant_command:
             if (unlikely(Lex->users_list.push_front($1, thd->mem_root)))
               MYSQL_YYABORT;
           }
-
         ;
 
 opt_with_admin:
