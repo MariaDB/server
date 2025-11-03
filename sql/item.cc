@@ -6611,9 +6611,9 @@ bool Item_field::fix_fields(THD *thd, Item **reference)
   {
     if (!(have_privileges= (get_column_grant(thd, &field->table->grant,
                                              field->table->s->db,
-                                             field->table->s->table_name,
-                                             field_name) &
-                            VIEW_ANY_ACL)))
+                                             field->table->s->table_name
+                                             ) &
+        VIEW_ANY_ACL)))
     {
       my_error(ER_COLUMNACCESS_DENIED_ERROR, MYF(0),
                "ANY", thd->security_ctx->priv_user,

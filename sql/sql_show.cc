@@ -7926,7 +7926,7 @@ store_triggered_update_columns(THD *thd, TABLE_LIST *tbl,
     {
       Lex_ident_column col(*trigger_column);
       ulonglong col_access=
-        get_column_grant(thd, &tbl->grant, db_name->str, table_name->str, col) &
+        get_column_grant(thd, &tbl->grant, *db_name, *table_name, col) &
         (INSERT_ACL | UPDATE_ACL); // non-SELECT privilege on the column
       if (!col_access)
         continue;
@@ -7954,8 +7954,8 @@ store_triggered_update_columns(THD *thd, TABLE_LIST *tbl,
 static int
 get_schema_triggered_update_columns_record(THD *thd, TABLE_LIST *tables,
                                            TABLE *table, bool res,
-                                           const LEX_CSTRING *db_name,
-                                           const LEX_CSTRING *table_name)
+                                           const LEX_STRING *db_name,
+                                           const LEX_STRING *table_name)
 {
   DBUG_ENTER("get_schema_triggered_updatable_columns_record");
   if (!tables->view && tables->table->triggers)
@@ -7971,9 +7971,11 @@ get_schema_triggered_update_columns_record(THD *thd, TABLE_LIST *tables,
             trigger;
             trigger= trigger->next[TRG_EVENT_UPDATE])
       {
+        Lex_ident_db db_ident(*db_name);
+        Lex_ident_table tbl_ident(*table_name);
         if (trigger->updatable_columns &&
             store_triggered_update_columns(thd, tables, trigger,
-                                           table, db_name, table_name))
+                                           table, &db_ident, &tbl_ident))
           DBUG_RETURN(1);
       }
     }
