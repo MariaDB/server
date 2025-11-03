@@ -2055,21 +2055,79 @@ create table t1 (a int);
 insert into t1 (a) values (1),(2),(3);
 create table t2 (a int);
 insert into t2 (a) values (1),(2),(3);
-# This test only verifies syntax acceptance.
+# TODO fix PS protocol before end of FULL OUTER JOIN development
+--disable_ps_protocol
 --error ER_NOT_SUPPORTED_YET
 select * from t1 full join t2 on t1.a = t2.a;
+explain extended select * from t1 full join t2 on t1.a = t2.a;
+
 --error ER_NOT_SUPPORTED_YET
 select * from t1 full outer join t2 on t1.a = t2.a;
+explain extended select * from t1 full outer join t2 on t1.a = t2.a;
+
 --error ER_NOT_SUPPORTED_YET
 select * from t1 natural full outer join t2;
+explain extended select * from t1 natural full outer join t2;
+
 --error ER_NOT_SUPPORTED_YET
 select * from t1 natural full join t2;
+explain extended select * from t1 natural full join t2;
+
+create view v1 as select * from t1 full join t2 on t1.a = t2.a;
 --error ER_NOT_SUPPORTED_YET
+select * from v1;
+explain extended select * from v1;
+drop view v1;
+
 create view v1 as select * from t1 full outer join t2 on t1.a = t2.a;
 --error ER_NOT_SUPPORTED_YET
+select * from v1;
+explain extended select * from v1;
+drop view v1;
+
+create view v1 as select * from t1 natural full join t2;
+--error ER_NOT_SUPPORTED_YET
+select * from v1;
+explain extended select * from v1;
+drop view v1;
+
+create view v1 as select * from t1 natural full outer join t2;
+--error ER_NOT_SUPPORTED_YET
+select * from v1;
+explain extended select * from v1;
+drop view v1;
+
+--error ER_BAD_FIELD_ERROR
+select * from (select t1.a from t1 full join t2 on t1.a = t2.a union select * from t1) dt;
+
+--error ER_BAD_FIELD_ERROR
 select * from (select t1.a from t1 full outer join t2 on t1.a = t2.a union select * from t1) dt;
+
+--error ER_NOT_SUPPORTED_YET
+select * from (select t1.a from t1 natural full join t2 union select * from t1) dt;
+explain extended select * from (select t1.a from t1 natural full join t2 union select * from t1) dt;
+
+--error ER_NOT_SUPPORTED_YET
+select * from (select t1.a from t1 natural full outer join t2 union select * from t1) dt;
+explain extended select * from (select t1.a from t1 natural full outer join t2 union select * from t1) dt;
+
 --error ER_NOT_SUPPORTED_YET
 with cte as (select t1.a from t1 natural full join t2) select * from cte;
-drop table t1, t2;
+explain extended with cte as (select t1.a from t1 natural full join t2) select * from cte;
 
+--error ER_NO_SUCH_TABLE
+select * from t1, t2 full join t3 on t2.c=t3.e and t3.f=t1.a;
+
+--error ER_NO_SUCH_TABLE
+select * from t1, t2 full outer join t3 on t2.c=t3.e and t3.f=t1.a;
+
+--error ER_NO_SUCH_TABLE
+select * from t1, t2 natural full join t3;
+
+--error ER_NO_SUCH_TABLE
+select * from t1, t2 natural full outer join t3;
+
+drop table t1, t2;
+# TODO fix PS protocol before end of FULL OUTER JOIN development
+--enable_ps_protocol
 --echo # End of 12.3 tests
