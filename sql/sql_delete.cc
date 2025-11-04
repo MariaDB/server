@@ -1477,6 +1477,7 @@ int multi_delete::send_data(List<Item> &values)
               }
               found++;
           }
+          error= 0;
       }
     }
   }
