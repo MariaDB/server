@@ -3456,11 +3456,11 @@ bool Delayed_insert::open_and_lock_table()
     return TRUE;
   }
 
-  if (table->triggers || table->check_constraints)
+  if (table->triggers || table->check_constraints || table->internal_tables)
   {
     /*
-      Table has triggers or check constraints. This is not an error, but we do
-      not support these with delayed insert. Terminate the delayed
+      Table uses triggers, check constraints or sequences. This is not an error,
+      but we do not support these with delayed insert. Terminate the delayed
       thread without an error and thus request lock upgrade.
     */
     return TRUE;

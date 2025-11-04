@@ -1220,6 +1220,7 @@ ERROR 42000: You have an error in your SQL syntax; check the manual that corresp
 #
 # MDEV-27898 CREATE VIEW AS SELECT FROM JSON_TABLE column requires global privileges
 #
+# Beginning of 10.11 tests
 create view v1 as (select * from
 json_table('[{"a":"1"}]', '$[*]' columns(a int path '$.a')  ) as jt);
 create user u1@localhost;
@@ -1232,7 +1233,58 @@ connection default;
 DROP VIEW v2;
 DROP VIEW v1;
 DROP USER u1@localhost;
-# End of 10.11 tests
+#
+# MDEV-34081: View containing JSON_TABLE does not return JSON
+#
+CREATE OR REPLACE VIEW test_view AS SELECT * FROM JSON_TABLE('
+[
+  {
+    "caption": "First Element",
+    "value": 1
+  },
+  {
+    "caption": "Second Element",
+    "value": 2
+  }
+]
+', '$[*]' COLUMNS(
+caption VARCHAR(200) PATH '$.caption', 
+whole_block JSON PATH '$')) t;
+SELECT * FROM test_view;
+caption	whole_block
+First Element	{
+    "caption": "First Element",
+    "value": 1
+  }
+Second Element	{
+    "caption": "Second Element",
+    "value": 2
+  }
+SELECT * FROM JSON_TABLE('
+[
+  {
+    "caption": "First Element",
+    "value": 1
+  },
+  {
+    "caption": "Second Element",
+    "value": 2
+  }
+]
+', '$[*]' COLUMNS(
+caption VARCHAR(200) PATH '$.caption', 
+whole_block JSON PATH '$')) t;
+caption	whole_block
+First Element	{
+    "caption": "First Element",
+    "value": 1
+  }
+Second Element	{
+    "caption": "Second Element",
+    "value": 2
+  }
+DROP VIEW test_view;
+# End of 10.11 test
 #
 # MDEV-29390: Improve coverage for UPDATE and DELETE statements in MTR test suites
 #

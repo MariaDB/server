@@ -1198,7 +1198,7 @@ Sp_handler::sp_drop_routine_internal(THD *thd,
   sp_cache **spc= get_cache(thd);
   DBUG_ASSERT(spc);
   if ((sp= sp_cache_lookup(spc, name)))
-    sp_cache_flush_obsolete(spc, &sp);
+    sp_cache_remove(spc, &sp);
   /* Drop statistics for this stored program from performance schema. */
   MYSQL_DROP_SP(type(), name->m_db.str, static_cast<uint>(name->m_db.length),
                         name->m_name.str, static_cast<uint>(name->m_name.length));
@@ -2901,10 +2901,12 @@ int Sp_handler::sp_cache_routine(THD *thd,
   DBUG_ASSERT(spc);
 
   *sp= sp_cache_lookup(spc, name);
+  thd->set_sp_cache_version_if_needed(sp_cache_version());
 
   if (*sp)
   {
-    sp_cache_flush_obsolete(spc, sp);
+    if ((*sp)->sp_cache_version() < thd->sp_cache_version())
+      sp_cache_remove(spc, sp);
     if (*sp)
       DBUG_RETURN(SP_OK);
   }

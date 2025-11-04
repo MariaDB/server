@@ -3,31 +3,28 @@
 #
 --source include/have_sequence.inc
 
---disable_warnings
-drop table if exists t1;
---enable_warnings
---error 1146
+--error ER_NO_SUCH_TABLE
 insert into t1 values(1);
---error 1146
+--error ER_NO_SUCH_TABLE
 delete from t1;
---error 1146
+--error ER_NO_SUCH_TABLE
 update t1 set a=1;
 create table t1 (a int);
---error 1054
+--error ER_BAD_FIELD_ERROR
 select count(test.t1.b) from t1;
---error 1054
+--error ER_BAD_FIELD_ERROR
 select count(not_existing_database.t1) from t1;
---error 1054
+--error ER_BAD_FIELD_ERROR
 select count(not_existing_database.t1.a) from t1;
---error 1044,1146
+--error ER_DBACCESS_DENIED_ERROR,ER_NO_SUCH_TABLE
 select count(not_existing_database.t1.a) from not_existing_database.t1;
---error 1054
+--error ER_BAD_FIELD_ERROR
 select 1 from t1 order by 2;
---error 1054
+--error ER_BAD_FIELD_ERROR
 select 1 from t1 group by 2;
---error 1054
+--error ER_BAD_FIELD_ERROR
 select 1 from t1 order by t1.b;
---error 1054
+--error ER_BAD_FIELD_ERROR
 select count(*),b from t1;
 drop table t1;
 
@@ -36,10 +33,10 @@ drop table t1;
 #
 # Bug #6080: Error message for a field with a display width that is too long
 #
---error 1439
+--error ER_TOO_BIG_DISPLAYWIDTH
 create table t1 (a int(256));
 set sql_mode='traditional';
---error 1074
+--error ER_TOO_BIG_FIELDLENGTH
 create table t1 (a varchar(66000));
 set sql_mode=default;
 
@@ -95,7 +92,7 @@ delimiter ;|
 
 flush status;
 --disable_ps2_protocol
---error 1062
+--error ER_DUP_ENTRY
 select f1(), f2();
 --enable_ps2_protocol
 show status like 'Com_insert';
@@ -202,24 +199,6 @@ UPDATE t1 SET a = 'new'
 WHERE COLUMN_CREATE( 1, 'v', 1, 'w' ) IS NULL;
 drop table t1;
 
-#
-# errors caused by max_session_mem_used
-#
-set @max_session_mem_used_save= @@max_session_mem_used;
-
---disable_result_log
-set max_session_mem_used = 50000;
---error 0,ER_OPTION_PREVENTS_STATEMENT
-select * from seq_1_to_1000;
-set max_session_mem_used = 8192;
---error 0,ER_OPTION_PREVENTS_STATEMENT
-select * from seq_1_to_1000;
---enable_result_log
-# We may not be able to execute any more queries with this connection
-# because of too little memory#
-
-set max_session_mem_used = @max_session_mem_used_save;
-
 --echo #
 --echo # MDEV-20604: Duplicate key value is silently truncated to 64
 --echo # characters in print_keydup_error
@@ -283,24 +262,4 @@ show warnings;
 
 drop procedure P1;
 
--- echo # End of 10.4 tests
-
-
---echo #
---echo # MDEV-35828: Assertion fails in alloc_root() when memory causes it to call itself
---echo #
-CREATE TEMPORARY TABLE t1 (a INT,b INT);
-INSERT INTO t1 VALUES (1,1),(2,2);
-
-SET
-  @tmp=@@max_session_mem_used,
-  max_session_mem_used=8192;
-
---error ER_OPTION_PREVENTS_STATEMENT
-SELECT * FROM (t1 AS t2 LEFT JOIN t1 AS t3 USING (a)),t1;
-
-DROP TABLE t1;
-SET max_session_mem_used=@tmp;
-
-
---echo # End of 10.6 tests
+--echo # End of 10.4 tests

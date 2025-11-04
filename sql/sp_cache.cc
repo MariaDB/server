@@ -229,14 +229,10 @@ void sp_cache_invalidate()
   inside SP'.
 */
 
-void sp_cache_flush_obsolete(sp_cache **cp, sp_head **sp)
+void sp_cache_remove(sp_cache **cp, sp_head **sp)
 {
-  if ((*sp)->sp_cache_version() < Cversion && !(*sp)->is_invoked())
-  {
-    DBUG_EXECUTE_IF("check_sp_cache_not_invalidated", DBUG_SUICIDE(););
-    (*cp)->remove(*sp);
-    *sp= NULL;
-  }
+  (*cp)->remove(*sp);
+  *sp= NULL;
 }
 
 /**
