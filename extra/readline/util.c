@@ -245,41 +245,6 @@ _rl_strindex (s1, s2)
   return ((char *)NULL);
 }
 
-#ifndef HAVE_STRPBRK
-/* Find the first occurrence in STRING1 of any character from STRING2.
-   Return a pointer to the character in STRING1. */
-char *
-_rl_strpbrk (string1, string2)
-     const char *string1, *string2;
-{
-  register const char *scan;
-#if defined (HANDLE_MULTIBYTE)
-  mbstate_t ps;
-  register int i, v;
-
-  memset (&ps, 0, sizeof (mbstate_t));
-#endif
-
-  for (; *string1; string1++)
-    {
-      for (scan = string2; *scan; scan++)
-	{
-	  if (*string1 == *scan)
-	    return ((char *)string1);
-	}
-#if defined (HANDLE_MULTIBYTE)
-      if (MB_CUR_MAX > 1 && rl_byte_oriented == 0)
-	{
-	  v = _rl_get_char_len (string1, &ps);
-	  if (v > 1)
-	    string1 += v - 1;	/* -1 to account for auto-increment in loop */
-	}
-#endif
-    }
-  return ((char *)NULL);
-}
-#endif
-
 #if !defined (HAVE_STRCASECMP)
 /* Compare at most COUNT characters from string1 to string2.  Case
    doesn't matter. */
@@ -325,17 +290,7 @@ int
 _rl_qsort_string_compare (s1, s2)
   char **s1, **s2;
 {
-#if defined (HAVE_STRCOLL)
   return (strcoll (*s1, *s2));
-#else
-  int result;
-
-  result = **s1 - **s2;
-  if (result == 0)
-    result = strcmp (*s1, *s2);
-
-  return result;
-#endif
 }
 
 /* Function equivalents for the macros defined in chardefs.h. */

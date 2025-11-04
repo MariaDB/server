@@ -16,6 +16,10 @@
 
 # This file includes Linux specific options and quirks, related to system checks
 
+# avoid running system checks by using pre-cached check results
+get_filename_component(_SCRIPT_DIR ${CMAKE_CURRENT_LIST_FILE} PATH)
+include(${_SCRIPT_DIR}/LinuxCache.cmake)
+
 INCLUDE(CheckSymbolExists)
 
 # Something that needs to be set on legacy reasons
