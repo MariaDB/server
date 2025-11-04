@@ -10427,8 +10427,6 @@ tree_or(RANGE_OPT_PARAM *param,SEL_TREE *tree1,SEL_TREE *tree2)
   {
     bool must_be_ored= sel_trees_must_be_ored(param, tree1, tree2, ored_keys);
     no_imerge_from_ranges= must_be_ored;
-    if (param->disable_index_merge_plans)
-      no_imerge_from_ranges= true;
 
     if (no_imerge_from_ranges && no_merges1 && no_merges2)
     {
@@ -10477,6 +10475,13 @@ tree_or(RANGE_OPT_PARAM *param,SEL_TREE *tree1,SEL_TREE *tree2)
       result->type= SEL_TREE::ALWAYS;
     DBUG_RETURN(result);
   }
+
+  /*
+    Ok, the result now has the ranges that one gets for (RT1 OR RT2).
+    If construction of SEL_IMERGE is disabled, stop right here.
+  */
+  if (param->disable_index_merge_plans)
+    DBUG_RETURN(result);
 
   SEL_IMERGE *imerge_from_ranges;
   if (!(imerge_from_ranges= new SEL_IMERGE()))
@@ -15851,6 +15856,46 @@ TRP_GROUP_MIN_MAX::make_quick(PARAM *param, bool retrieve_full_rows,
   DBUG_RETURN(quick);
 }
 
+
+/*
+  @brief
+    Return true if the select is using "Using index for group-by" and also
+    has "ORDER BY ... FETCH FIRST n ROWS WITH TIES"
+
+  @detail
+    There is a rewrite that removes the ORDER BY (JOIN::order) if the select
+    also has a GROUP BY that produces a compatible ordering.
+    However "FETCH FIRST ... WITH TIES" needs an ORDER BY clause (in
+    JOIN::alloc_order_fields()).
+    GROUP BY strategies handle it this way:
+    - For strategies using temporary table, JOIN::make_aggr_tables_info() will
+      put the ORDER BY clause back.
+    - OrderedGroupBy in end_send_group() handles WITH TIES with the GROUP BY
+      clause (note that SQL doesn't allow "GROUP BY ... WITH TIES").
+    - The remaining strategy is QUICK_GROUP_MIN_MAX_SELECT, for which
+       = the grouping strategy in the quick select doesn't handle WITH TIES.
+       = end_send() would not handle WITH TIES, because JOIN::order is removed.
+
+    The solution is to NOT remove ORDER BY when QUICK_GROUP_MIN_MAX_SELECT is
+    used.
+
+    Unfortunately, the optimizer then will not recognize that it can skip
+    sorting and will use filesort, which will prevent short-cutting the
+    execution when LIMIT is reached.
+*/
+
+bool using_with_ties_and_group_min_max(JOIN *join)
+{
+  if (join->unit->lim.is_with_ties())
+  {
+    JOIN_TAB *tab= &join->join_tab[join->const_tables];
+    if (tab->select && tab->select->quick &&
+        tab->select->quick->get_type() ==
+          QUICK_SELECT_I::QS_TYPE_GROUP_MIN_MAX)
+    return true;
+  }
+  return false;
+}
 
 /*
   Construct new quick select for group queries with min/max.

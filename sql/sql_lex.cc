@@ -2035,6 +2035,12 @@ int Lex_input_stream::lex_one_token(YYSTYPE *yylval, THD *thd)
   const uchar *const state_map= cs->state_map;
   const uchar *const ident_map= cs->ident_map;
 
+  if (thd->killed)
+  {
+    thd->send_kill_message();
+    return END_OF_INPUT;
+  }
+
   start_token();
   state= next_state;
   next_state= MY_LEX_OPERATOR_OR_IDENT;

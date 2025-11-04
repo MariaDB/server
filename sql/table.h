@@ -2197,9 +2197,13 @@ class IS_table_read_plan;
 #define DT_CREATE           32U
 #define DT_FILL             64U
 #define DT_REINIT           128U
-#define DT_PHASES           8U
+
+#define DT_OPTIMIZE_STAGE2  256U
+
+/* Number of bits used by all phases: */
+#define DT_PHASES           9U
 /* Phases that are applicable to all derived tables. */
-#define DT_COMMON       (DT_INIT + DT_PREPARE + DT_REINIT + DT_OPTIMIZE)
+#define DT_COMMON       (DT_INIT + DT_PREPARE + DT_REINIT + DT_OPTIMIZE + DT_OPTIMIZE_STAGE2)
 /* Phases that are applicable only to materialized derived tables. */
 #define DT_MATERIALIZE  (DT_CREATE + DT_FILL)
 
@@ -2585,6 +2589,7 @@ struct TABLE_LIST
   TABLE_LIST *next_local;
   /* link in a global list of all queries tables */
   TABLE_LIST *next_global, **prev_global;
+  TABLE_LIST *linked_table;             // For sequence tables used in default
   Lex_ident_db db;
   Lex_ident_table table_name;
   Lex_ident_i_s_table schema_table_name;

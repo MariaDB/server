@@ -4450,7 +4450,7 @@ protected:
   bool check_access(THD *, privilege_t);
 public:
   Item_func_nextval(THD *thd, TABLE_LIST *table_list_arg):
-  Item_longlong_func(thd), table_list(table_list_arg) {}
+  Item_longlong_func(thd), table_list(table_list_arg), table(0) {}
   longlong val_int() override;
   LEX_CSTRING func_name_cstring() const override
   {
@@ -4480,14 +4480,8 @@ public:
   */
   void update_table()
   {
-    if (!(table= table_list->table))
-    {
-      /*
-        If nextval was used in DEFAULT then next_local points to
-        the table_list used by to open the sequence table
-      */
-      table= table_list->next_local->table;
-    }
+    table= table_list->table;
+    DBUG_ASSERT(table);
   }
   bool const_item() const override { return 0; }
   Item *do_get_copy(THD *thd) const override

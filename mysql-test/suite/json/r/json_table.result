@@ -1088,12 +1088,7 @@ show create view v;
 View	Create View	character_set_client	collation_connection
 v	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v` AS select `T`.`col1` AS `col1` from JSON_TABLE('{"a": "b"}', '$' COLUMNS (`col1` varchar(32) PATH '$.fooo' DEFAULT 'asdf' ON EMPTY)) `T`	latin1	latin1_swedish_ci
 drop view v;
-#
 # End of 10.6 tests
-#
-#
-# Start of 10.9 tests
-#
 #
 #  MDEV-27743 Remove Lex::charset
 #
@@ -1214,12 +1209,11 @@ name ENUM('Laptop') CHARACTER SET BINARY PATH '$.name')
 ) AS jt;
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'ENUM('Laptop') CHARACTER SET BINARY PATH '$.name')
 ) AS jt' at line 6
-#
 # End of 10.9 tests
-#
 #
 # MDEV-27898 CREATE VIEW AS SELECT FROM JSON_TABLE column requires global privileges
 #
+# Beginning of 10.11 tests
 create view v1 as (select * from
 json_table('[{"a":"1"}]', '$[*]' columns(a int path '$.a')  ) as jt);
 create user u1@localhost;
@@ -1232,7 +1226,58 @@ connection default;
 DROP VIEW v2;
 DROP VIEW v1;
 DROP USER u1@localhost;
-# End of 10.11 tests
+#
+# MDEV-34081: View containing JSON_TABLE does not return JSON
+#
+CREATE OR REPLACE VIEW test_view AS SELECT * FROM JSON_TABLE('
+[
+  {
+    "caption": "First Element",
+    "value": 1
+  },
+  {
+    "caption": "Second Element",
+    "value": 2
+  }
+]
+', '$[*]' COLUMNS(
+caption VARCHAR(200) PATH '$.caption', 
+whole_block JSON PATH '$')) t;
+SELECT * FROM test_view;
+caption	whole_block
+First Element	{
+    "caption": "First Element",
+    "value": 1
+  }
+Second Element	{
+    "caption": "Second Element",
+    "value": 2
+  }
+SELECT * FROM JSON_TABLE('
+[
+  {
+    "caption": "First Element",
+    "value": 1
+  },
+  {
+    "caption": "Second Element",
+    "value": 2
+  }
+]
+', '$[*]' COLUMNS(
+caption VARCHAR(200) PATH '$.caption', 
+whole_block JSON PATH '$')) t;
+caption	whole_block
+First Element	{
+    "caption": "First Element",
+    "value": 1
+  }
+Second Element	{
+    "caption": "Second Element",
+    "value": 2
+  }
+DROP VIEW test_view;
+# End of 10.11 test
 #
 # MDEV-29390: Improve coverage for UPDATE and DELETE statements in MTR test suites
 #
@@ -1331,7 +1376,5 @@ Laptop	black	20000.00	2
 Jacket	brown	5000.00	1
 Jeans	blue	5000.00	2
 drop table t1;
-#
 # End of 11.0 tests
-#
 ALTER DATABASE test CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci;

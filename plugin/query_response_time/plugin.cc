@@ -47,7 +47,6 @@ enum session_stat
 static const char *session_stat_names[]= {"GLOBAL", "ON", "OFF", NullS};
 static TYPELIB session_stat_typelib= CREATE_TYPELIB_FOR(session_stat_names);
 
-
 static MYSQL_SYSVAR_ULONG(range_base, opt_query_response_time_range_base,
        PLUGIN_VAR_RQCMDARG,
        "Select base of log for query_response_time ranges. "
