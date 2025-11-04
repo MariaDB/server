@@ -603,10 +603,24 @@ private:
     k-component prefixes among them 
   */
   ulonglong *avg_frequency;
+  bool stats_were_read;
 
 public:
+  void init_avg_frequency(ulonglong *ptr)
+  {
+    avg_frequency= ptr;
+    stats_were_read= false;
+  }
 
-  void init_avg_frequency(ulonglong *ptr) { avg_frequency= ptr; }
+  void mark_stats_as_read() { stats_were_read= true; }
+
+  bool has_stats(THD *thd) const
+  {
+    if (TEST_NEW_MODE_FLAG(thd, NEW_MODE_FIX_INDEX_STATS_FOR_ALL_NULLS))
+      return stats_were_read;
+    else
+      return get_avg_frequency(0) > 0.5;
+  }
 
   bool avg_frequency_is_inited() { return avg_frequency != NULL; }
 

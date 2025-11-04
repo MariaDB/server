@@ -222,8 +222,9 @@ void old_mode_deprecated_warnings(ulonglong v);
   See sys_vars.cc /new_mode_all_names
 */
 
-#define NEW_MODE_FIX_DISK_TMPTABLE_COSTS                               (1 << 0)
-#define NEW_MODE_MAX                                                         1
+#define NEW_MODE_FIX_DISK_TMPTABLE_COSTS                            (1ULL << 0)
+#define NEW_MODE_FIX_INDEX_STATS_FOR_ALL_NULLS                      (1ULL << 1)
+#define NEW_MODE_MAX                                                         2
 
 /* Definitions above that have transitioned from new behaviour to default */
 

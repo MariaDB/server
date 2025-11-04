@@ -5,7 +5,7 @@ drop view if exists t1;
 connection node_2;
 SELECT @@character_set_server, @@collation_server;
 @@character_set_server	@@collation_server
-latin1	latin1_swedish_ci
+utf8mb4	utf8mb4_uca1400_ai_ci
 SELECT @@character_set_client, @@collation_connection;
 @@character_set_client	@@collation_connection
 latin1	latin1_swedish_ci
@@ -13,7 +13,7 @@ connection node_1;
 SET NAMES latin1 COLLATE latin1_bin;
 SELECT @@character_set_server, @@collation_server;
 @@character_set_server	@@collation_server
-latin1	latin1_swedish_ci
+utf8mb4	utf8mb4_uca1400_ai_ci
 SELECT @@character_set_client, @@collation_connection;
 @@character_set_client	@@collation_connection
 latin1	latin1_bin
@@ -27,7 +27,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 connection node_2;
 SHOW CREATE VIEW v1;
 View	Create View	character_set_client	collation_connection
@@ -36,7 +36,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 connection node_1;
 DROP VIEW v1;
 DROP TABLE t1;

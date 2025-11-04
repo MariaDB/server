@@ -920,13 +920,7 @@ show create view v;
 drop view v;
 
 
---echo #
 --echo # End of 10.6 tests
---echo #
-
---echo #
---echo # Start of 10.9 tests
---echo #
 
 --echo #
 --echo #  MDEV-27743 Remove Lex::charset
@@ -1041,9 +1035,7 @@ COLUMNS
   name ENUM('Laptop') CHARACTER SET BINARY PATH '$.name')
 ) AS jt;
 
---echo #
 --echo # End of 10.9 tests
---echo #
 
 --echo #
 --echo # MDEV-27898 CREATE VIEW AS SELECT FROM JSON_TABLE column requires global privileges
@@ -1198,8 +1190,6 @@ select * from t1;
 
 drop table t1;
 
---echo #
 --echo # End of 11.0 tests
---echo #
 
 --source include/test_db_charset_restore.inc
