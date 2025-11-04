@@ -773,7 +773,6 @@ LIMIT ROWS EXAMINED 124;
 field1	field2	field3	field4	field5
 Warnings:
 Warning	1931	Query execution was interrupted. The query exceeded LIMIT ROWS EXAMINED 124. The query result may be incomplete
-Warning	1931	Query execution was interrupted. The query exceeded LIMIT ROWS EXAMINED 124. The query result may be incomplete
 SHOW STATUS LIKE 'Handler_read%';
 Variable_name	Value
 Handler_read_first	1

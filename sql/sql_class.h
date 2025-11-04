@@ -3284,6 +3284,8 @@ public:
   */
   bool reset_sp_cache;
 
+  bool killed_for_exceeding_limit_rows_warning_given;
+
   /* container for handler's private per-connection data */
   Ha_data ha_data[MAX_HA];
 
@@ -3838,10 +3840,11 @@ public:
     Check if the number of rows accessed by a statement exceeded
     LIMIT ROWS EXAMINED. If so, signal the query engine to stop execution.
   */
+  void killed_for_exceeding_limit_rows();
   inline void check_limit_rows_examined()
   {
     if (++accessed_rows_and_keys > lex->limit_rows_examined_cnt)
-      set_killed(ABORT_QUERY);
+      killed_for_exceeding_limit_rows();
   }
 
   USER_CONN *user_connect;
