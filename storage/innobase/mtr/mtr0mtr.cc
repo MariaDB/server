@@ -40,10 +40,10 @@ Created 11/26/1995 Heikki Tuuri
 #include "my_cpu.h"
 
 #ifdef HAVE_PMEM
-void (*mtr_t::commit_logger)(mtr_t *, std::pair<lsn_t,page_flush_ahead>);
+void (*mtr_t::commit_logger)(mtr_t *, std::pair<lsn_t,lsn_t>);
 #endif
 
-std::pair<lsn_t,mtr_t::page_flush_ahead> (*mtr_t::finisher)(mtr_t *, size_t);
+std::pair<lsn_t,lsn_t> (*mtr_t::finisher)(mtr_t *, size_t);
 
 void mtr_t::finisher_update()
 {
@@ -336,9 +336,25 @@ void mtr_t::release()
   m_memo.clear();
 }
 
+ATTRIBUTE_NOINLINE void mtr_t::commit_log_release() noexcept
+{
+  if (m_latch_ex)
+  {
+    log_sys.latch.wr_unlock();
+    m_latch_ex= false;
+  }
+  else
+    log_sys.latch.rd_unlock();
+}
+
+static ATTRIBUTE_NOINLINE ATTRIBUTE_COLD
+void mtr_flush_ahead(lsn_t flush_lsn) noexcept
+{
+  buf_flush_ahead(flush_lsn, bool(flush_lsn & 1));
+}
+
 template<bool mmap>
-void mtr_t::commit_log(mtr_t *mtr, std::pair<lsn_t,page_flush_ahead> lsns)
-  noexcept
+void mtr_t::commit_log(mtr_t *mtr, std::pair<lsn_t,lsn_t> lsns) noexcept
 {
   size_t modified= 0;
 
@@ -379,25 +395,12 @@ void mtr_t::commit_log(mtr_t *mtr, std::pair<lsn_t,page_flush_ahead> lsns)
     buf_pool.page_cleaner_wakeup();
     mysql_mutex_unlock(&buf_pool.flush_list_mutex);
 
-    if (mtr->m_latch_ex)
-    {
-      log_sys.latch.wr_unlock();
-      mtr->m_latch_ex= false;
-    }
-    else
-      log_sys.latch.rd_unlock();
-
+    mtr->commit_log_release();
     mtr->release();
   }
   else
   {
-    if (mtr->m_latch_ex)
-    {
-      log_sys.latch.wr_unlock();
-      mtr->m_latch_ex= false;
-    }
-    else
-      log_sys.latch.rd_unlock();
+    mtr->commit_log_release();
 
     for (auto it= mtr->m_memo.rbegin(); it != mtr->m_memo.rend(); )
     {
@@ -459,8 +462,11 @@ void mtr_t::commit_log(mtr_t *mtr, std::pair<lsn_t,page_flush_ahead> lsns)
     if (ha_handler_stats *stats= mtr->trx->active_handler_stats)
       stats->pages_updated+= modified;
 
-  if (UNIV_UNLIKELY(lsns.second != PAGE_FLUSH_NO))
-    buf_flush_ahead(mtr->m_commit_lsn, lsns.second == PAGE_FLUSH_SYNC);
+  if (UNIV_UNLIKELY(lsns.second != 0))
+  {
+    ut_ad(lsns.second < mtr->m_commit_lsn);
+    mtr_flush_ahead(lsns.second);
+  }
 }
 
 /** Commit a mini-transaction. */
@@ -482,7 +488,7 @@ void mtr_t::commit()
     }
 
     ut_ad(!srv_read_only_mode);
-    std::pair<lsn_t,page_flush_ahead> lsns{do_write()};
+    std::pair<lsn_t,lsn_t> lsns{do_write()};
     process_freed_pages();
 #ifdef HAVE_PMEM
     commit_logger(this, lsns);
@@ -974,24 +980,44 @@ std::pair<lsn_t,byte*> log_t::append_prepare(size_t size, bool ex) noexcept
 
 /** Finish appending data to the log.
 @param lsn  the end LSN of the log record
-@return whether buf_flush_ahead() will have to be invoked */
-static mtr_t::page_flush_ahead log_close(lsn_t lsn) noexcept
+@return lsn for invoking buf_flush_ahead() on, with "furious" flag in the LSB
+@retval 0 if buf_flush_ahead() will not have to be invoked */
+static lsn_t log_close(lsn_t lsn) noexcept
 {
   ut_ad(log_sys.latch_have_any());
 
   const lsn_t checkpoint_age= lsn - log_sys.last_checkpoint_lsn;
+  const lsn_t max_age= log_sys.max_modified_age_async;
 
   if (UNIV_UNLIKELY(checkpoint_age >= log_sys.log_capacity) &&
       /* silence message on create_log_file() after the log had been deleted */
       checkpoint_age != lsn)
     log_overwrite_warning(lsn);
-  else if (UNIV_LIKELY(checkpoint_age <= log_sys.max_modified_age_async))
-    return mtr_t::PAGE_FLUSH_NO;
-  else if (UNIV_LIKELY(checkpoint_age <= log_sys.max_checkpoint_age))
-    return mtr_t::PAGE_FLUSH_ASYNC;
+  else if (UNIV_LIKELY(checkpoint_age <= max_age))
+    return 0;
 
-  log_sys.set_check_for_checkpoint();
-  return mtr_t::PAGE_FLUSH_SYNC;
+  /* The last checkpoint is too old. Let us set an appropriate
+  checkpoint age target, that is, a checkpoint LSN target that is the
+  current LSN minus the maximum age. Let us see if are exceeding the
+  log_checkpoint_margin() limit that will involve a synchronous wait
+  in each write operation. */
+
+  const bool furious{checkpoint_age >= log_sys.max_checkpoint_age};
+
+  /* If furious==true, we could set a less aggressive target
+  (lsn - log_sys.max_checkpoint_age) instead of what we will be using
+  in both cases (lsn - log_sys.max_checkpoint_age_async).
+
+  The aim of the more aggressive target is that mtr_flush_ahead() will
+  request more progress in buf_flush_page_cleaner() sooner, so that it
+  will be less likely that several threads will end up waiting in
+  log_checkpoint_margin(). That function will use the less aggressive
+  limit (lsn - log_sys.max_checkpoint_age) in order to minimize the
+  synchronous wait time. */
+  if (furious)
+    log_sys.set_check_for_checkpoint();
+
+  return ((lsn - max_age) & ~lsn_t{1}) | lsn_t{furious};
 }
 
 inline void mtr_t::page_checksum(const buf_page_t &bpage)
@@ -1037,7 +1063,7 @@ inline void mtr_t::page_checksum(const buf_page_t &bpage)
   m_log.close(l + 4);
 }
 
-std::pair<lsn_t,mtr_t::page_flush_ahead> mtr_t::do_write()
+std::pair<lsn_t,lsn_t> mtr_t::do_write() noexcept
 {
   ut_ad(!recv_no_log_write);
   ut_ad(is_logged());
@@ -1189,8 +1215,7 @@ inline void log_t::append(byte *&d, const void *s, size_t size) noexcept
 }
 
 template<bool mmap>
-std::pair<lsn_t,mtr_t::page_flush_ahead>
-mtr_t::finish_writer(mtr_t *mtr, size_t len)
+std::pair<lsn_t,lsn_t> mtr_t::finish_writer(mtr_t *mtr, size_t len)
 {
   ut_ad(log_sys.is_latest());
   ut_ad(!recv_no_log_write);

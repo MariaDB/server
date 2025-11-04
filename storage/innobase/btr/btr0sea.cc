@@ -206,18 +206,16 @@ ATTRIBUTE_COLD void btr_search_lazy_free(dict_index_t *index)
   UT_LIST_REMOVE(table->freed_indexes, index);
   index->lock.free();
   dict_mem_index_free(index);
+  const bool destroy= !table->id && !UT_LIST_GET_LEN(table->freed_indexes) &&
+    !UT_LIST_GET_LEN(table->indexes);
+  table->autoinc_mutex.wr_unlock();
 
-  if (!UT_LIST_GET_LEN(table->freed_indexes) &&
-      !UT_LIST_GET_LEN(table->indexes))
+  if (destroy)
   {
-    ut_ad(!table->id);
-    table->autoinc_mutex.wr_unlock();
     table->autoinc_mutex.destroy();
     dict_mem_table_free(table);
     return;
   }
-
-  table->autoinc_mutex.wr_unlock();
 }
 
 ATTRIBUTE_COLD bool btr_search_disable()
@@ -682,7 +680,6 @@ btr_search_update_hash_ref(
 	ut_ad(block->page.lock.have_x() || block->page.lock.have_s());
 	ut_ad(btr_cur_get_page(cursor) == block->page.frame);
 	ut_ad(page_is_leaf(block->page.frame));
-	assert_block_ahi_valid(block);
 
 	dict_index_t* index = block->index;
 
@@ -700,8 +697,9 @@ btr_search_update_hash_ref(
 	ut_ad(index == cursor->index());
 	auto part = btr_search_sys.get_part(*index);
 	part->latch.wr_lock(SRW_LOCK_CALL);
-	ut_ad(!block->index || block->index == index);
-
+#if defined UNIV_AHI_DEBUG || defined UNIV_DEBUG
+	ut_a(block->index ? block->index == index : !block->n_pointers);
+#endif
 	if (block->index
 	    && (block->curr_n_fields == info->n_fields)
 	    && (block->curr_n_bytes == info->n_bytes)
