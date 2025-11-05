@@ -1272,7 +1272,6 @@ bool mariadb_view_version_get(TABLE_SHARE *share)
              share->db.str, share->table_name.str);
     return TRUE;
   }
-  DBUG_ASSERT(share->tabledef_version.length == MICROSECOND_TIMESTAMP_BUFFER_SIZE-1);
 
   return FALSE;
 }
@@ -1392,11 +1391,8 @@ bool mysql_make_view(THD *thd, TABLE_SHARE *share, TABLE_LIST *table,
                                       required_view_parameters,
                                       &file_parser_dummy_hook)))
     goto end;
-  DBUG_ASSERT(share->tabledef_version.length);
   if (!table->tabledef_version.length)
-  {
     table->set_view_def_version(&table->hr_timestamp);
-  }
 
   /*
     check old format view .frm
