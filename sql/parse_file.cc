@@ -814,7 +814,7 @@ File_parser::parse(uchar* base, MEM_ROOT *mem_root,
       {
 	len= parameter->name.length;
 	// check length
-	if (len < (size_t)(end-ptr) && ptr[len] != '=')
+	if (len >= (size_t)(end-ptr) || ptr[len] != '=')
 	  continue;
 	// check keyword
 	if (memcmp(parameter->name.str, ptr, len) == 0)

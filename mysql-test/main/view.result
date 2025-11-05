@@ -7122,5 +7122,9 @@ ERROR HY000: The target table view1 of the INSERT is not insertable-into
 DROP VIEW view1;
 DROP TABLE table1;
 #
-# End of 10.11 test
+# MDEV-37920 Out-of-Bounds memory access in File_parser::parse()
 #
+select * from v1;
+ERROR HY000: View 'test.v1' references invalid table(s) or column(s) or function(s) or definer/invoker of view lack rights to use them
+drop view v1;
+# End of 10.11 test
