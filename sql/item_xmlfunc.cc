@@ -3089,6 +3089,26 @@ String *Item_func_xml_extractvalue::val_str(String *str)
 }
 
 
+const Type_handler *Item_func_xml_update::xml_handler= NULL;
+
+
+bool Item_func_xml_update::fix_length_and_dec(THD *thd)
+{
+  static LEX_CSTRING name= {STRING_WITH_LEN("XMLTYPE")};
+
+  if (!xml_handler)
+    xml_handler= Type_handler::handler_by_name(thd, name);
+
+  return Item_xml_str_func::fix_length_and_dec(thd);
+}
+
+
+const Type_handler *Item_func_xml_update::type_handler() const
+{
+  return xml_handler ? xml_handler : Item_xml_str_func::type_handler();
+}
+
+
 bool Item_func_xml_update::collect_result(String *str,
                                           const MY_XML_NODE *cut,
                                           const String *replace)
