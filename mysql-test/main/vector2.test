@@ -10,7 +10,7 @@
 create table t1 (a int, b vector);
 --error ER_WRONG_FIELD_SPEC
 create table t1 (a int, b vector(0));
---error ER_WRONG_FIELD_SPEC
+--error ER_UNSUPPORTED_DATA_TYPE_ATTRIBUTE
 create table t1 (a int, b vector(10) collate utf8mb3_general_ci);
 create table t1 (a int, b vector(10));
 show create table t1;
