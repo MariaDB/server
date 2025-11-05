@@ -1297,6 +1297,13 @@ bool parse_vcol_defs(THD *thd, MEM_ROOT *mem_root, TABLE *table,
       vcol= unpack_vcol_info_from_frm(thd, table, &expr_str,
                                       &((*field_ptr)->default_value),
                                       error_reported);
+      if (vcol &&
+          field_ptr[0]->check_assignability_from(vcol->expr->type_handler(),
+                                                 false))
+      {
+        *error_reported= true;
+        goto end;
+      }
       *(dfield_ptr++)= *field_ptr;
       if (vcol && (vcol->flags & (VCOL_NON_DETERMINISTIC | VCOL_SESSION_FUNC)))
         table->s->non_determinstic_insert= true;

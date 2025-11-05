@@ -1412,6 +1412,7 @@ public:
   {
     return args[0]->type_handler()->Item_char_typecast_fix_length_and_dec(this);
   }
+  void print_charset(String *str);
   void print(String *str, enum_query_type query_type) override;
   bool need_parentheses_in_default() override { return true; }
   Item *do_get_copy(THD *thd) const override
