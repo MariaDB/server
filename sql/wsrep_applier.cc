@@ -279,6 +279,30 @@ int wsrep_apply_events(THD*        thd,
       }
     }
 
+    /* Statement-based replication requires InnoDB repeatable read
+       transaction isolation level or higher.
+       The isolation level will be reset to the default upon
+       transaction termination.
+       Although the isolation level can only be set on a newly
+       started server transaction, it cannot be determined until
+       we see the first applied binlog event.
+
+       Even though the isolation level is changed for every next
+       applied event, it won't affect the overall setting for a
+       running transaction.
+       This should create an issue with the mixed replication mode
+       as applying query and row events should be performed with
+       different isolation levels, but now it doesn't surface.
+       */
+    if (LOG_EVENT_IS_QUERY(typ))
+    {
+      thd->tx_isolation= ISO_REPEATABLE_READ;
+    }
+    else
+    {
+      thd->tx_isolation= ISO_READ_COMMITTED;
+    }
+
     if (LOG_EVENT_IS_WRITE_ROW(typ) ||
         LOG_EVENT_IS_UPDATE_ROW(typ) ||
         LOG_EVENT_IS_DELETE_ROW(typ))
