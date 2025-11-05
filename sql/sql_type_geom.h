@@ -72,6 +72,8 @@ public:
 public:
   virtual ~Type_handler_geometry() {}
   enum_field_types field_type() const override { return MYSQL_TYPE_GEOMETRY; }
+  uint get_column_attributes() const override
+  { return ATTR_LENGTH | ATTR_DEC | ATTR_SRID; }
   bool Item_append_extended_type_info(Send_field_extended_metadata *to,
                                       const Item *item) const override
   {

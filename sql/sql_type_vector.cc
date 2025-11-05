@@ -73,7 +73,9 @@ Field *Type_handler_vector::make_conversion_table_field(
 bool Type_handler_vector::Column_definition_fix_attributes(
        Column_definition *def) const
 {
-  if (def->length == 0 || def->charset != &my_charset_bin)
+  DBUG_ASSERT(!(def->flags & CONTEXT_COLLATION_FLAG));
+  DBUG_ASSERT(def->charset == nullptr);
+  if (def->length == 0)
   {
     my_error(ER_WRONG_FIELD_SPEC, MYF(0), def->field_name.str);
     return true;
@@ -84,6 +86,7 @@ bool Type_handler_vector::Column_definition_fix_attributes(
              static_cast<ulong>(MAX_FIELD_VARCHARLENGTH / sizeof(float)));
     return true;
   }
+  def->charset= &my_charset_bin;
   def->length*= sizeof(float);
   return false;
 }

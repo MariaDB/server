@@ -3135,8 +3135,7 @@ bool Item_char_typecast::eq(const Item *item, const Eq_config &config) const
 {
   if (this == item)
     return 1;
-  if (item->type() != FUNC_ITEM ||
-      functype() != ((Item_func*)item)->functype())
+  if (typeid(this) != typeid(item))
     return 0;
 
   Item_char_typecast *cast= (Item_char_typecast*)item;
@@ -3168,6 +3167,23 @@ void Item_func::print_cast_temporal(String *str, enum_query_type query_type)
 }
 
 
+void Item_char_typecast::print_charset(String *str)
+{
+  if (cast_cs)
+  {
+    str->append(STRING_WITH_LEN(" charset "));
+    str->append(cast_cs->cs_name);
+    /*
+      Print the "binary" keyword in cases like:
+        CAST('str' AS CHAR CHARACTER SET latin1 BINARY)
+    */
+    if ((cast_cs->state & MY_CS_BINSORT) &&
+        Charset(cast_cs).can_have_collate_clause())
+      str->append(STRING_WITH_LEN(" binary"));
+  }
+}
+
+
 void Item_char_typecast::print(String *str, enum_query_type query_type)
 {
   str->append(STRING_WITH_LEN("cast("));
@@ -3181,18 +3197,7 @@ void Item_char_typecast::print(String *str, enum_query_type query_type)
     str->append(buf, length);
     str->append(')');
   }
-  if (cast_cs)
-  {
-    str->append(STRING_WITH_LEN(" charset "));
-    str->append(cast_cs->cs_name);
-    /*
-      Print the "binary" keyword in cases like:
-        CAST('str' AS CHAR CHARACTER SET latin1 BINARY)
-    */
-    if ((cast_cs->state & MY_CS_BINSORT) &&
-        Charset(cast_cs).can_have_collate_clause())
-      str->append(STRING_WITH_LEN(" binary"));
-  }
+  print_charset(str);
   str->append(')');
 }
 
