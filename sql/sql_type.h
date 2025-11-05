@@ -3945,6 +3945,17 @@ public:
     PROCEDURE
   };
 
+  enum column_attributes
+  {
+    ATTR_NONE= 0,
+    ATTR_LENGTH= 1,
+    ATTR_DEC= 2,
+    ATTR_CHARSET= 4,
+    ATTR_SRID= 8,
+
+    ATTR_ALL= ATTR_LENGTH | ATTR_DEC | ATTR_CHARSET | ATTR_SRID
+  };
+
   static const Type_handler *handler_by_name(THD *thd, const LEX_CSTRING &name);
   static const Type_handler *handler_by_name_or_error(THD *thd,
                                                       const LEX_CSTRING &name);
@@ -3987,6 +3998,7 @@ public:
   virtual const Name version() const;
   virtual const Name &default_value() const= 0;
   virtual uint32 flags() const { return 0; }
+  virtual uint get_column_attributes() const { return ATTR_ALL; }
   virtual ulong KEY_pack_flags(uint column_nr) const { return 0; }
   bool is_unsigned() const { return flags() & UNSIGNED_FLAG; }
   virtual enum_field_types field_type() const= 0;

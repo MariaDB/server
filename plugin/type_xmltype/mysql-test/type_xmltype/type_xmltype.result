@@ -1,0 +1,169 @@
+CREATE TABLE t1(id INT, x xmltype);
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `id` int(11) DEFAULT NULL,
+  `x` xmltype DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+DROP TABLE t1;
+CREATE TABLE t1(id INT, x xmltype  CHARACTER SET utf8mb3) CHARACTER SET utf8mb4;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `id` int(11) DEFAULT NULL,
+  `x` xmltype CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+DROP TABLE t1;
+CREATE TABLE t1(id INT, x xmltype(10, 2));
+ERROR HY000: Data type 'xmltype' doesn't support LENGTH attribute.
+CREATE TABLE t1(id INT, x xmltype REF_SYSTEM_ID=1001);
+ERROR HY000: Data type 'xmltype' doesn't support REF_SYSTEM_ID attribute.
+CREATE TABLE t1(id int, x xmltype, INDEX ix(x(12)));
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `id` int(11) DEFAULT NULL,
+  `x` xmltype DEFAULT NULL,
+  KEY `ix` (`x`(12))
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+DROP TABLE t1;
+CREATE TABLE t1(id INT, x xmltype);
+INSERT INTO t1 VALUES (1, 'one'), (2, 'two'), (3, 'three');
+SELECT * FROM t1;
+id	x
+1	one
+2	two
+3	three
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `id` int(11) DEFAULT NULL,
+  `x` xmltype DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+CREATE TABLE t2 SELECT * FROM t1;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `id` int(11) DEFAULT NULL,
+  `x` xmltype DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+SELECT * FROM t2;
+id	x
+1	one
+2	two
+3	three
+DROP TABLE t2;
+INSERT INTO t1 VALUES (1, 'one'), (2, 'two'), (3, 'three'), (4, 'four');
+EXPLAIN SELECT * FROM t1 GROUP BY id;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	7	Using temporary; Using filesort
+CREATE TABLE t2 SELECT * FROM t1 GROUP BY id;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `id` int(11) DEFAULT NULL,
+  `x` xmltype DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+DROP TABLE t2;
+CREATE TABLE t2 SELECT id, COALESCE(x, x) as ce FROM t1;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `id` int(11) DEFAULT NULL,
+  `ce` xmltype DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+DROP TABLE t2;
+CREATE TABLE t2 SELECT id, LEAST(x, x) as ce FROM t1;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `id` int(11) DEFAULT NULL,
+  `ce` xmltype DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+DROP TABLE t2;
+CREATE TABLE t2 SELECT id, MIN(x), MAX(x) FROM t1 GROUP BY id;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `id` int(11) DEFAULT NULL,
+  `MIN(x)` xmltype DEFAULT NULL,
+  `MAX(x)` xmltype DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+DROP TABLE t2;
+CREATE TABLE t2 SELECT DISTINCT(x) FROM t1;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `x` xmltype DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+DROP TABLE t2;
+CREATE TABLE t2 AS SELECT x FROM t1 UNION SELECT x FROM t1;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `x` xmltype DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+DROP TABLE t2;
+DROP TABLE t1;
+CREATE TABLE t1(id int);
+ALTER TABLE t1 ADD COLUMN x xmltype;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `id` int(11) DEFAULT NULL,
+  `x` xmltype DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+DROP TABLE t1;
+CREATE FUNCTION xmi(id int) RETURNS xmltype RETURN 'aaa';
+SELECT xmi(1);
+xmi(1)
+aaa
+CREATE TABLE t1 SELECT xmi(10) as x;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `x` xmltype DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+DROP TABLE t1;
+DROP FUNCTION xmi;
+create procedure p1(in a int)
+begin
+declare x xmltype;
+end $
+SHOW CREATE PROCEDURE p1;
+Procedure	sql_mode	Create Procedure	character_set_client	collation_connection	Database Collation
+p1	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`root`@`localhost` PROCEDURE `p1`(in a int)
+begin
+declare x xmltype;
+end	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
+DROP PROCEDURE p1;
+create procedure p1(in a int)
+begin
+declare x xmltype;
+end $
+SHOW CREATE PROCEDURE p1;
+Procedure	sql_mode	Create Procedure	character_set_client	collation_connection	Database Collation
+p1	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`root`@`localhost` PROCEDURE `p1`(in a int)
+begin
+declare x xmltype;
+end	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
+DROP PROCEDURE p1;
+CREATE TABLE t1 SELECT cast('<a><b>b</b><c>c</c></a>' as XMLTYPE) as CA;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `CA` xmltype CHARACTER SET latin1 COLLATE latin1_swedish_ci DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+DROP TABLE t1;
+CREATE TABLE t1(id INT, x xmltype);
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `id` int(11) DEFAULT NULL,
+  `x` xmltype DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+INSERT INTO t1 VALUES (1, CONCAT("<a>", REPEAT("<b></b>", 16384), "</a>"));
+SELECT LENGTH(x) FROM t1;
+LENGTH(x)
+114695
+DROP TABLE t1;
