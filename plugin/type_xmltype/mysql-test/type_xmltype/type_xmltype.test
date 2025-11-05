@@ -1,0 +1,135 @@
+replace_result InnoDB MyISAM;
+
+CREATE TABLE t1(id INT, x xmltype);
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+--error ER_UNSUPPORTED_DATA_TYPE_ATTRIBUTE
+CREATE TABLE t1 (a XMLTYPE(6));
+
+--error ER_UNSUPPORTED_DATA_TYPE_ATTRIBUTE
+CREATE TABLE t1 (a XMLTYPE REF_SYSTEM_ID=4);
+
+CREATE TABLE t1(id INT, x xmltype  CHARACTER SET utf8mb3) CHARACTER SET utf8mb4;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+# Checking that contextually typed "binary" attribute works
+CREATE TABLE t1 (a xmltype binary) CHARACTER SET utf8mb4;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+--error ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION
+CREATE TABLE t1 (a xmltype CHARACTER SET binary);
+
+# Checking that contextually typed COLLATE DEFAULT works
+CREATE TABLE t1 (a xmltype collate default) CHARACTER SET utf8mb4 collate utf8mb4_bin;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+--error ER_UNSUPPORTED_DATA_TYPE_ATTRIBUTE
+CREATE TABLE t1(id INT, x xmltype(10, 2));
+
+--error ER_UNSUPPORTED_DATA_TYPE_ATTRIBUTE
+CREATE TABLE t1(id INT, x xmltype REF_SYSTEM_ID=1001);
+
+CREATE TABLE t1(id int, x xmltype, INDEX ix(x(12)));
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+
+CREATE TABLE t1(id INT, x xmltype);
+INSERT INTO t1 VALUES (1, 'one'), (2, 'two'), (3, 'three');
+SELECT * FROM t1;
+SHOW CREATE TABLE t1;
+CREATE TABLE t2 SELECT * FROM t1;
+SHOW CREATE TABLE t2;
+SELECT * FROM t2;
+DROP TABLE t2;
+
+INSERT INTO t1 VALUES (1, 'one'), (2, 'two'), (3, 'three'), (4, 'four');
+EXPLAIN SELECT * FROM t1 GROUP BY id;
+CREATE TABLE t2 SELECT * FROM t1 GROUP BY id;
+SHOW CREATE TABLE t2;
+
+DROP TABLE t2;
+
+CREATE TABLE t2 SELECT id, COALESCE(x, x) as ce FROM t1;
+SHOW CREATE TABLE t2;
+DROP TABLE t2;
+
+CREATE TABLE t2 SELECT id, LEAST(x, x) as ce FROM t1;
+SHOW CREATE TABLE t2;
+DROP TABLE t2;
+
+CREATE TABLE t2 SELECT id, MIN(x), MAX(x) FROM t1 GROUP BY id;
+SHOW CREATE TABLE t2;
+DROP TABLE t2;
+
+CREATE TABLE t2 SELECT DISTINCT(x) FROM t1;
+SHOW CREATE TABLE t2;
+DROP TABLE t2;
+
+CREATE TABLE t2 AS SELECT x FROM t1 UNION SELECT x FROM t1;
+SHOW CREATE TABLE t2;
+DROP TABLE t2;
+
+DROP TABLE t1;
+
+CREATE TABLE t1(id int);
+ALTER TABLE t1 ADD COLUMN x xmltype;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+CREATE FUNCTION xmi(id int) RETURNS xmltype RETURN 'aaa';
+
+SELECT xmi(1);
+CREATE TABLE t1 SELECT xmi(10) as x;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+DROP FUNCTION xmi;
+
+delimiter $;
+create procedure p1(in a int)
+  begin
+    declare x xmltype;
+  end $
+delimiter ;$
+SHOW CREATE PROCEDURE p1;
+DROP PROCEDURE p1;
+
+delimiter $;
+create procedure p1(in a int)
+  begin
+    declare x xmltype;
+  end $
+delimiter ;$
+SHOW CREATE PROCEDURE p1;
+DROP PROCEDURE p1;
+
+
+CREATE TABLE t1 SELECT cast('<a><b>b</b><c>c</c></a>' as XMLTYPE) as CA;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+# check long field
+
+CREATE TABLE t1(id INT, x xmltype);
+SHOW CREATE TABLE t1;
+INSERT INTO t1 VALUES (1, CONCAT("<a>", REPEAT("<b></b>", 16384), "</a>"));
+SELECT LENGTH(x) FROM t1;
+DROP TABLE t1;
+
+EXPLAIN EXTENDED SELECT CAST('a' as xmltype);
+
+SELECT CAST('<a></a>' AS xmltype CHARACTER SET utf8mb4) as c;
+
+--error ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION
+SELECT CAST('<a></a>' AS xmltype CHARACTER SET binary) as c;
+
+CREATE OR REPLACE TABLE t1 (a text);
+INSERT INTO t1 VALUES ('a'),('b'),('c');
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE CAST(a AS char)='a' and CAST(a AS xmltype)='a';
+DROP TABLE t1;
+

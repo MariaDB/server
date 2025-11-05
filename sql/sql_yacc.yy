@@ -366,9 +366,9 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 */
 
 %ifdef MARIADB
-%expect 69
-%else
 %expect 70
+%else
+%expect 71
 %endif
 
 /*
@@ -6542,9 +6542,9 @@ field_type_all_builtin:
 
 field_type_all:
           field_type_all_builtin
-        | udt_name float_options srid_option
+        | udt_name float_options srid_option opt_binary
           {
-            if (Lex->set_field_type_udt(&$$, $1, $2))
+            if (Lex->set_field_type_udt(&$$, $1, $2, $4))
               MYSQL_YYABORT;
           }
         ;
@@ -11930,9 +11930,9 @@ cast_type:
           }
         | cast_type_numeric  { $$= $1; }
         | cast_type_temporal { $$= $1; }
-        | udt_name
+        | udt_name opt_binary
           {
-            if (Lex->set_cast_type_udt(&$$, $1))
+            if (Lex->set_cast_type_udt(&$$, $1, $2))
               MYSQL_YYABORT;
           }
         ;

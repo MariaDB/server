@@ -13051,30 +13051,74 @@ bool LEX::set_field_type_udt_or_typedef(Lex_field_type_st *type,
   if (is_typedef)
     return false;
 
-  return set_field_type_udt(type, name, attr);
+  return set_field_type_udt(type, name, attr,
+                            Lex_column_charset_collation_attrs());
 }
 
 
 bool LEX::set_field_type_udt(Lex_field_type_st *type,
                              const LEX_CSTRING &name,
-                             const Lex_length_and_dec_st &attr)
+                             const Lex_length_and_dec_st &attr,
+                             const Lex_column_charset_collation_attrs_st &coll)
 {
   const Type_handler *h;
+  uint column_attributes;
+
   if (!(h= Type_handler::handler_by_name_or_error(thd, name)))
     return true;
-  type->set(h, attr, &my_charset_bin);
+
+  column_attributes= attr.has_explicit_length() ? Type_handler::ATTR_LENGTH :0;
+  column_attributes|= attr.has_explicit_dec() ? Type_handler::ATTR_DEC :0;
+  column_attributes|= coll.is_empty() ? 0 : Type_handler::ATTR_CHARSET;
+  column_attributes|= last_field->get_attr_uint32(0) ?
+                        Type_handler::ATTR_SRID : 0;
+
+  if ((column_attributes&= ~h->get_column_attributes()))
+  {
+    const char *attr_name= "UNKNOWN";
+    if (column_attributes & Type_handler::ATTR_LENGTH)
+      attr_name= "LENGTH";
+    else if (column_attributes & Type_handler::ATTR_DEC)
+      attr_name= "DECIMALS";
+    else if (column_attributes & Type_handler::ATTR_SRID)
+      attr_name= "REF_SYSTEM_ID";
+    else if (column_attributes & Type_handler::ATTR_CHARSET)
+      attr_name= "CHARACTER SET";
+
+    my_error(ER_UNSUPPORTED_DATA_TYPE_ATTRIBUTE, MYF(0),
+        ErrConvString(name.str, name.length,system_charset_info).ptr(),
+        attr_name);
+    return true;
+  }
+
+  type->set(h, attr, coll);
   return false;
 }
 
 
 bool LEX::set_cast_type_udt(Lex_cast_type_st *type,
-                             const LEX_CSTRING &name)
+                     const LEX_CSTRING &name,
+                     const Lex_exact_charset_extended_collation_attrs_st &coll)
+
 {
   const Type_handler *h;
   if (!(h= Type_handler::handler_by_name_or_error(thd, name)))
     return true;
-  type->set(h);
-  return false;
+
+  if (!coll.is_empty() &&
+      (h->get_column_attributes() & Type_handler::ATTR_CHARSET) == 0)
+  {
+    my_error(ER_UNSUPPORTED_DATA_TYPE_ATTRIBUTE, MYF(0),
+        ErrConvString(name.str, name.length,system_charset_info).ptr(),
+        "CHARACTER SET");
+    return true;
+  }
+
+  Lex_length_and_dec_st length_and_dec;
+  length_and_dec.reset();
+  return type->set(h, length_and_dec, thd,
+                  thd->variables.character_set_collations, coll,
+                  thd->variables.collation_connection);
 }
 
 

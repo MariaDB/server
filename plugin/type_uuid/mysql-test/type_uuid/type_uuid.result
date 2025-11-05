@@ -6,6 +6,12 @@
 #
 CREATE TABLE t1 (a UUID AUTO_INCREMENT);
 ERROR 42000: Incorrect column specifier for column 'a'
+CREATE TABLE t1 (a UUID(6));
+ERROR HY000: Data type 'UUID' doesn't support LENGTH attribute.
+CREATE TABLE t1 (a UUID CHARACTER SET latin1);
+ERROR HY000: Data type 'UUID' doesn't support CHARACTER SET attribute.
+CREATE TABLE t1 (a UUID REF_SYSTEM_ID=4);
+ERROR HY000: Data type 'UUID' doesn't support REF_SYSTEM_ID attribute.
 CREATE TABLE t1 (a UUID);
 SHOW CREATE TABLE t1;
 Table	Create Table
