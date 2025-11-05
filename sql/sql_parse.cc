@@ -6480,8 +6480,13 @@ static bool execute_sqlcom_select(THD *thd, TABLE_LIST *all_tables)
       }
     }
   }
-  /* Count number of empty select queries */
-  if (!thd->is_cursor_execution() && !thd->get_sent_row_count() && !res)
+  /*
+    Count number of empty select queries.
+    is_cursor_execution is used to handle opening of cursor.
+    For cursors, Empty_queries will be set when using the cursor.
+   */
+  if (unlikely(!thd->get_sent_row_count() && !thd->is_cursor_execution() &&
+               !(thd->server_status & SERVER_STATUS_RETURNED_ROW) && !res))
     status_var_increment(thd->status_var.empty_queries);
   else
     status_var_add(thd->status_var.rows_sent, thd->get_sent_row_count());

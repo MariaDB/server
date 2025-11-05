@@ -422,6 +422,13 @@ enum mariadb_field_attr_t
 
 #define SERVER_STATUS_ANSI_QUOTES       32768U
 
+/*
+  Set for stored procedures if the select query returned a row
+  To check for an empty query, one must also check thd::get_sent_row_count()
+*/
+
+#define SERVER_STATUS_RETURNED_ROW      (1U << 16)
+
 /**
   Server status flags that must be cleared when starting
   execution of a new SQL statement.
@@ -438,7 +445,8 @@ enum mariadb_field_attr_t
                                  SERVER_STATUS_DB_DROPPED |\
                                  SERVER_STATUS_CURSOR_EXISTS|\
                                  SERVER_STATUS_LAST_ROW_SENT|\
-                                 SERVER_SESSION_STATE_CHANGED)
+                                 SERVER_SESSION_STATE_CHANGED|\
+                                 SERVER_STATUS_RETURNED_ROW)
 
 #define MYSQL_ERRMSG_SIZE	512
 #define NET_READ_TIMEOUT	30		/* Timeout on read */
