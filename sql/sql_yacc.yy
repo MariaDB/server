@@ -362,9 +362,9 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 */
 
 %ifdef MARIADB
-%expect 63
-%else
 %expect 64
+%else
+%expect 65
 %endif
 
 /*
@@ -6531,9 +6531,9 @@ field_type_all_builtin:
 
 field_type_all:
           field_type_all_builtin
-        | udt_name float_options srid_option
+        | udt_name float_options srid_option opt_binary
           {
-            if (Lex->set_field_type_udt(&$$, $1, $2))
+            if (Lex->set_field_type_udt(&$$, $1, $2, &$4))
               MYSQL_YYABORT;
           }
         ;

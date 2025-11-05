@@ -12987,18 +12987,19 @@ bool LEX::set_field_type_udt_or_typedef(Lex_field_type_st *type,
   if (is_typedef)
     return false;
 
-  return set_field_type_udt(type, name, attr);
+  return set_field_type_udt(type, name, attr, NULL);
 }
 
 
 bool LEX::set_field_type_udt(Lex_field_type_st *type,
                              const LEX_CSTRING &name,
-                             const Lex_length_and_dec_st &attr)
+                             const Lex_length_and_dec_st &attr,
+                             const Lex_column_charset_collation_attrs_st *coll)
 {
   const Type_handler *h;
   if (!(h= Type_handler::handler_by_name_or_error(thd, name)))
     return true;
-  type->set(h, attr, &my_charset_bin);
+  type->set(h, attr, coll ? coll->charset_info() : &my_charset_bin);
   return false;
 }
 
