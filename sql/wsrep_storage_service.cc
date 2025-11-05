@@ -63,6 +63,7 @@ Wsrep_storage_service::Wsrep_storage_service(THD* thd)
   thd->variables.option_bits |= OPTION_LOG_OFF;
 
   /* Read committed isolation to avoid gap locking */
+  thd->tx_isolation = ISO_READ_COMMITTED;
   thd->variables.tx_isolation = ISO_READ_COMMITTED;
 
   /* Keep wsrep on to enter commit ordering hooks */
