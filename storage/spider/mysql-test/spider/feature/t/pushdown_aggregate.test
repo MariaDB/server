@@ -1,0 +1,33 @@
+--disable_query_log
+--disable_result_log
+--source ../../t/test_init.inc
+--enable_result_log
+--enable_query_log
+--source ../../include/have_group_by_handler.inc
+
+--echo #
+--echo # MDEV-24943: Implement FILTER clause support for aggregate functions
+--echo #
+
+set spider_same_server_link= 1;
+evalp CREATE SERVER srv FOREIGN DATA WRAPPER mysql
+OPTIONS (SOCKET "$MASTER_1_MYSOCK", DATABASE 'test',user 'root');
+create table t2 (c int);
+create table t1 (c int) ENGINE=Spider REMOTE_SERVER=srv REMOTE_TABLE=t2;
+
+insert into t1 values (3), (7), (4), (1), (5);
+
+explain
+select sum(c) filter (where c < 5) from t1;
+select sum(c) filter (where c < 5) from t1;
+
+drop table t1, t2;
+drop server srv;
+
+--echo # End of 13.2 tests
+
+--disable_query_log
+--disable_result_log
+--source ../../t/test_deinit.inc
+--enable_result_log
+--enable_query_log

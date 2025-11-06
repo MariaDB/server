@@ -4193,6 +4193,7 @@ class Item_func_sp :public Item_func,
 {
 private:
   const Sp_handler *m_handler;
+  Item *m_filter;
 
   bool execute();
 
@@ -4219,6 +4220,11 @@ public:
   {
     return bool(base_flags & item_base_t::IS_IN_PS_SAFE_CONTEXT);
   }
+
+  void set_filter(Item *filter) { m_filter= filter; }
+
+  void print(String *str, enum_query_type query_type) override;
+
   void update_used_tables() override;
 
   void cleanup() override;

@@ -1577,6 +1577,38 @@ id	op	op_count
 drop table federated.t1, federated.t2;
 connection slave;
 drop table federated.t1, federated.t2;
+# End of 11.4 tests
+#
+# MDEV-24943: Implement FILTER clause support for aggregate functions
+#
+connection slave;
+CREATE TABLE federated.t1 (
+id int(20) NOT NULL,
+name varchar(16) NOT NULL default ''
+);
+INSERT INTO federated.t1 VALUES
+(3,'xxx'), (7,'yyy'), (4,'xxx'), (1,'zzz'), (5,'yyy');
+connection master;
+CREATE TABLE federated.t1 (
+id int(20) NOT NULL,
+name varchar(16) NOT NULL default ''
+)
+ENGINE="FEDERATED" DEFAULT CHARSET=latin1
+CONNECTION='mysql://root@127.0.0.1:SLAVE_PORT/federated/t1';
+select sum(id) from federated.t1;
+sum(id)
+20
+explain
+select sum(id) filter (where name = 'yyy') from federated.t1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PUSHED SELECT	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL
+select sum(id) filter (where name = 'yyy') from federated.t1;
+sum(id) filter (where name = 'yyy')
+12
+drop table federated.t1;
+connection slave;
+drop table federated.t1;
+# End of 13.2 tests
 connection default;
 set global federated_pushdown=0;
 connection master;
@@ -1585,4 +1617,4 @@ DROP DATABASE IF EXISTS federated;
 connection slave;
 DROP TABLE IF EXISTS federated.t1;
 DROP DATABASE IF EXISTS federated;
-# End of 11.4 tests
+# End of 13.2 tests
