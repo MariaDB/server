@@ -4805,6 +4805,9 @@ Item_func_json_objectagg::fix_fields(THD *thd, Item **ref)
               / collation.collation->mbminlen
               * collation.collation->mbmaxlen);
 
+  if (fix_filter(thd))
+    return TRUE;
+
   if (check_sum_func(thd, ref))
     return TRUE;
 
@@ -4842,7 +4845,7 @@ bool Item_func_json_objectagg::add()
   String *key;
 
   key= args[0]->val_str(&buf);
-  if (args[0]->is_null())
+  if (args[0]->is_null() || !filter_passed())
     return 0;
 
   null_value= 0;
