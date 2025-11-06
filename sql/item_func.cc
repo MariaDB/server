@@ -6700,7 +6700,8 @@ longlong Item_func_row_count::val_int()
 
 Item_func_sp::Item_func_sp(THD *thd, Name_resolution_context *context_arg,
                            sp_name *name, const Sp_handler *sph):
-  Item_func(thd), Item_sp(thd, context_arg, name), m_handler(sph)
+  Item_func(thd), Item_sp(thd, context_arg, name), m_handler(sph),
+  m_filter(NULL)
 {
   set_maybe_null();
 }
@@ -6709,7 +6710,8 @@ Item_func_sp::Item_func_sp(THD *thd, Name_resolution_context *context_arg,
 Item_func_sp::Item_func_sp(THD *thd, Name_resolution_context *context_arg,
                            sp_name *name_arg, const Sp_handler *sph,
                            List<Item> &list):
-  Item_func(thd, list), Item_sp(thd, context_arg, name_arg), m_handler(sph)
+  Item_func(thd, list), Item_sp(thd, context_arg, name_arg), m_handler(sph),
+  m_filter(NULL)
 {
   set_maybe_null();
 }
@@ -6727,6 +6729,18 @@ Item_func_sp::func_name_cstring() const
 {
   return Item_sp::func_name_cstring(current_thd,
                                     m_handler == &sp_handler_package_function);
+}
+
+void
+Item_func_sp::print(String *str, enum_query_type query_type)
+{
+  Item_func::print(str, query_type);
+  if (m_filter)
+  {
+    str->append(STRING_WITH_LEN(" FILTER(WHERE "));
+    m_filter->print(str, query_type);
+    str->append(')');
+  }
 }
 
 
@@ -6921,6 +6935,12 @@ Item_func_sp::fix_fields(THD *thd, Item **ref)
   if (res)
     DBUG_RETURN(TRUE);
 
+  if (m_filter && m_sp->agg_type() != GROUP_AGGREGATE)
+  {
+    my_error(ER_WRONG_USAGE, MYF(0), "FILTER", "non-aggregate function");
+    DBUG_RETURN(TRUE);
+  }
+
   if (m_sp->agg_type() == GROUP_AGGREGATE)
   {
     Item_sum_sp *item_sp;
@@ -6943,6 +6963,10 @@ Item_func_sp::fix_fields(THD *thd, Item **ref)
       DBUG_RETURN(TRUE);
     *ref= item_sp;
     item_sp->name= name;
+    if (m_filter)
+    {
+      item_sp->set_filter(m_filter);
+    }
     bool err= item_sp->fix_fields(thd, ref);
     if (err)
       DBUG_RETURN(TRUE);

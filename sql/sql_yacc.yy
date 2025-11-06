@@ -135,6 +135,32 @@ static Item* escape(THD *thd)
 }
 
 /**
+  @brief Attach a FILTER(WHERE ...) clause to a just-parsed function call.
+
+  @return true if a parse error was raised (caller must MYSQL_YYABORT),
+          false otherwise (including when filter_expr is NULL, i.e. there
+          was no FILTER clause).
+*/
+static bool attach_func_filter(Item *item, Item *filter_expr)
+{
+  if (!filter_expr)
+    return false;
+  if (item->type() == Item::SUM_FUNC_ITEM)
+  {
+    ((Item_sum *) item)->set_filter(filter_expr);
+    return false;
+  }
+  if (item->type() == Item::FUNC_ITEM &&
+      static_cast<Item_func*>(item)->functype() == Item_func::FUNC_SP)
+  {
+    static_cast<Item_func_sp*>(item)->set_filter(filter_expr);
+    return false;
+  }
+  my_error(ER_WRONG_USAGE, MYF(0), "FILTER", "non-aggregate function");
+  return true;
+}
+
+/**
   @brief Bison callback to report a syntax/OOM error
 
   This function is invoked by the bison-generated parser
@@ -912,6 +938,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %token  <kwd>  FAULTS_SYM
 %token  <kwd>  FEDERATED_SYM                 /* MariaDB privilege */
 %token  <kwd>  FILE_SYM
+%token  <kwd>  FILTER_SYM
 %token  <kwd>  FIRST_SYM                     /* SQL-2003-N */
 %token  <kwd>  FIXED_SYM
 %token  <kwd>  FLUSH_SYM
@@ -1266,6 +1293,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %nonassoc NEG '~' NOT2_SYM BINARY
 %nonassoc COLLATE_SYM
 %nonassoc SUBQUERY_AS_EXPR
+%nonassoc FILTER_SYM
 
 /*
   Tokens that can change their meaning from identifier to something else
@@ -1622,6 +1650,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
         function_call_keyword_timestamp
         function_call_nonkeyword
         function_call_generic
+        function_call_qualified_filterable
         function_call_conflict kill_expr
         signal_allowed_expr
         simple_target_specification
@@ -1629,6 +1658,8 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
         opt_versioning_interval_start
         json_default_literal
         set_expr_misc
+        unfiltered_sum_expr
+        opt_filter_expr
 
 %type <sql_statement_name>
         sql_statement_name
@@ -11377,6 +11408,24 @@ function_call_conflict:
           }
         ;
 
+function_call_qualified_filterable:
+          ident_cli '.' ident_cli '(' opt_expr_list_or_join_operator ')'
+          {
+            const Lex_ident_cli pos($1.pos(), $6.pos() - $1.pos() + 1);
+            if (unlikely(!($$= Lex->make_item_func_or_method_call(thd, $1,
+                                                                  $3, $5,
+                                                                  pos))))
+              MYSQL_YYABORT;
+          }
+        | ident_cli '.' ident_cli '.' ident_cli
+            '(' opt_expr_list_or_join_operator ')'
+          {
+            if (unlikely(!($$= Lex->make_item_func_call_generic(thd, &$1, &$3,
+                                                                &$5, $7))))
+              MYSQL_YYABORT;
+          }
+        ;
+
 /*
   Regular function calls.
   The function name is *not* a token, and therefore is guaranteed to not
@@ -11413,7 +11462,7 @@ function_call_generic:
 #endif
           }
 
-          opt_udf_expr_list_or_join_operator ')' opt_object_member_access
+          opt_udf_expr_list_or_join_operator ')' opt_object_member_access opt_filter_expr
           {
             const Type_handler *h;
             Create_func *builder;
@@ -11503,6 +11552,9 @@ function_call_generic:
               }
             }
 
+            if (item && attach_func_filter(item, $7))
+              MYSQL_YYABORT;
+
             if ($6.str && !allow_field_accessor)
             {
               Lex_ident_sys field_sys(thd, &$6);
@@ -11531,12 +11583,9 @@ function_call_generic:
                                                                      $1, $3)))
               MYSQL_YYABORT;
           }
-        | ident_cli '.' ident_cli '(' opt_expr_list_or_join_operator ')'
+        | function_call_qualified_filterable opt_filter_expr
           {
-            const Lex_ident_cli pos($1.pos(), $6.pos() - $1.pos() + 1);
-            if (unlikely(!($$= Lex->make_item_func_or_method_call(thd, $1,
-                                                                  $3, $5,
-                                                                  pos))))
+            if (attach_func_filter($$= $1, $2))
               MYSQL_YYABORT;
           }
         | '.' ident_cli '.' ident_cli '(' '+' ')'
@@ -11551,11 +11600,6 @@ function_call_generic:
             if (unlikely(
                 !list ||
                 !($$= Lex->make_item_func_call_generic(thd, &empty, &$2, &$4, list))))
-              MYSQL_YYABORT;
-          }
-        | ident_cli '.' ident_cli '.' ident_cli '(' opt_expr_list_or_join_operator ')'
-          {
-            if (unlikely(!($$= Lex->make_item_func_call_generic(thd, &$1, &$3, &$5, $7))))
               MYSQL_YYABORT;
           }
         | ident_cli '.' REPLACE '(' opt_expr_list ')'
@@ -11682,7 +11726,30 @@ udf_expr:
           }
         ;
 
+opt_filter_expr:
+          /* empty */ { $$= NULL; }  %prec SUBQUERY_AS_EXPR
+        | FILTER_SYM '(' WHERE
+          { Select->in_sum_expr++; }
+          expr
+          { Select->in_sum_expr--; }
+          ')'
+          {
+            $$= $5;
+          }
+        ;
+
 sum_expr:
+          unfiltered_sum_expr opt_filter_expr
+          {
+            if ($2)
+            {
+              ((Item_sum *)$1)->set_filter($2);
+            }
+            $$= $1;
+          }
+        ;
+
+unfiltered_sum_expr:
           AVG_SYM '(' in_sum_expr ')'
           {
             $$= new (thd->mem_root) Item_sum_avg(thd, $3, FALSE);
@@ -17135,6 +17202,7 @@ keyword_func_sp_var_and_label:
         | FAST_SYM
         | FEDERATED_SYM
         | FILE_SYM
+        | FILTER_SYM
         | FIRST_SYM
         | FOUND_SYM
         | FULL
