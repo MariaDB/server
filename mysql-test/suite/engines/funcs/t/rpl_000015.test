@@ -5,11 +5,14 @@
 ##################### 
 --source include/master-slave.inc
 
+connection slave;
+--source include/stop_slave.inc
+connection master;
+--source include/kill_binlog_dump_threads.inc
 reset master;
 show master status;
 save_master_pos;
 connection slave;
---source include/stop_slave.inc
 reset slave;
 --let $status_items= Slave_IO_Running, Slave_SQL_Running, Last_SQL_Errno, Last_SQL_Error, Exec_Master_Log_Pos
 --source include/show_slave_status.inc

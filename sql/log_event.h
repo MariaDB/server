@@ -582,9 +582,11 @@ class String;
 #define MARIA_SLAVE_CAPABILITY_BINLOG_CHECKPOINT 3
 /* MariaDB >= 10.0.1, which knows about global transaction id events. */
 #define MARIA_SLAVE_CAPABILITY_GTID 4
+/* MariaDB >= 12.2.1, basic engine-implemented binlog capability. */
+#define MARIA_SLAVE_CAPABILITY_ENGINE_BINLOG 5
 
 /* Our capability. */
-#define MARIA_SLAVE_CAPABILITY_MINE MARIA_SLAVE_CAPABILITY_GTID
+#define MARIA_SLAVE_CAPABILITY_MINE MARIA_SLAVE_CAPABILITY_ENGINE_BINLOG
 
 
 /*
@@ -2574,6 +2576,7 @@ public:
 #ifdef HAVE_REPLICATION
   void pack_info(Protocol* protocol) override;
 #endif /* HAVE_REPLICATION */
+  bool to_packet(String *packet);
 #else
   bool print(FILE* file, PRINT_EVENT_INFO* print_event_info) override;
 #endif
@@ -3262,6 +3265,40 @@ public:
 };
 
 
+#ifdef MYSQL_SERVER
+/*
+  This is used to compute a compile-time constant max for the size (in bytes)
+  of a GTID event (Gtid_log_event::max_size).
+
+  It is carefully written to take boolean parameters corresponding directly
+  to each conditional in Gtid_log_event::write(), so that the calculation here
+  will match the actual length computed by write().
+
+  Please ensure that that any new conditionals added in write() that affect
+  the event length are similarly extended with a boolean parameter for this
+  function so future code changes do not introduce incorrect result of this
+  function.
+*/
+static constexpr uint32_t
+cap_gtid_event_size(uint32_t proposed_size)
+{
+  /* This just because std::min is not constexpr in c++11. */
+  return LOG_EVENT_HEADER_LEN +
+    (proposed_size < GTID_HEADER_LEN ? GTID_HEADER_LEN : proposed_size);
+}
+static constexpr uint32_t
+get_gtid_event_size(bool fl_commit_id, bool fl_xa, bool fl_extra,
+                    bool fl_multi_engine, bool fl_alter,
+                    int bq_size, int gt_size)
+{
+  return cap_gtid_event_size((fl_commit_id ? GTID_HEADER_LEN + 2 : 13) +
+                             (fl_xa ? 6 + bq_size + gt_size : 0) +
+                             (fl_extra ? 1 : 0) +
+                             (fl_multi_engine ? 1 : 0) +
+                             (fl_alter ? 8 : 0));
+}
+#endif
+
 /**
   @class Gtid_log_event
 
@@ -3392,15 +3429,23 @@ public:
     involving multiple storage engines. No flag and extra data are added
     to the event when the transaction involves only one engine.
   */
-  static const uchar FL_EXTRA_MULTI_ENGINE_E1= 1;
-  static const uchar FL_START_ALTER_E1= 2;
-  static const uchar FL_COMMIT_ALTER_E1= 4;
-  static const uchar FL_ROLLBACK_ALTER_E1= 8;
+  static constexpr uchar FL_EXTRA_MULTI_ENGINE_E1= 1;
+  static constexpr uchar FL_START_ALTER_E1= 2;
+  static constexpr uchar FL_COMMIT_ALTER_E1= 4;
+  static constexpr uchar FL_ROLLBACK_ALTER_E1= 8;
 
 #ifdef MYSQL_SERVER
+  static constexpr uint32_t max_size=
+    get_gtid_event_size(FL_GROUP_COMMIT_ID,
+                        (bool)(FL_PREPARED_XA|FL_COMPLETED_XA),
+                        true, FL_EXTRA_MULTI_ENGINE_E1,
+                        (bool)(FL_COMMIT_ALTER_E1|FL_ROLLBACK_ALTER_E1),
+                        MAXBQUALSIZE, MAXGTRIDSIZE);
+
   Gtid_log_event(THD *thd_arg, uint64 seq_no, uint32 domain_id, bool standalone,
-                 uint16 flags, bool is_transactional, uint64 commit_id,
-                 bool has_xid= false, bool is_ro_1pc= false);
+                 enum_event_cache_type cache_type_arg, uint16 flags,
+                 bool is_transactional, uint64 commit_id,
+                 bool has_xid, bool is_ro_1pc);
 #ifdef HAVE_REPLICATION
   void pack_info(Protocol *protocol) override;
   int do_apply_event(rpl_group_info *rgi) override;
@@ -3414,7 +3459,6 @@ public:
                  const Format_description_log_event *description_event);
   ~Gtid_log_event() = default;
   Log_event_type get_type_code() override { return GTID_EVENT; }
-  enum_logged_status logged_status() override { return LOGGED_NO_DATA; }
   int get_data_size() override
   {
     return GTID_HEADER_LEN + ((flags2 & FL_GROUP_COMMIT_ID) ? 2 : 0);
@@ -3430,6 +3474,7 @@ public:
   }
 
 #ifdef MYSQL_SERVER
+  uint32_t get_size() const noexcept;
   bool write(Log_event_writer *writer) override;
   static int make_compatible_event(String *packet, bool *need_dummy_event,
                                     ulong ev_offset, enum_binlog_checksum_alg checksum_alg);

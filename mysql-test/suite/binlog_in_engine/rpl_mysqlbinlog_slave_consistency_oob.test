@@ -1,0 +1,8 @@
+# For test description, see mysql-test/suite/rpl/t/rpl_mysqlbinlog_slave_consistency.inc
+--source include/have_innodb.inc
+--source include/master-slave.inc
+--source include/have_innodb_binlog.inc
+--let $blob_trx_size= 16384
+--source suite/rpl/t/rpl_mysqlbinlog_slave_consistency.inc
+--source include/rpl_end.inc
+--echo # End of binlog_in_engine.rpl_mysqlbinlog_slave_consistency_oob.test

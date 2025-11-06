@@ -1,0 +1,150 @@
+include/master-slave.inc
+[connection master]
+connection slave;
+include/stop_slave.inc
+CHANGE MASTER TO master_use_gtid= slave_pos;
+include/start_slave.inc
+connection master;
+CREATE TABLE t1 (a INT PRIMARY KEY, b INT) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (0, 0);
+*** Test looking up a lot of different event positions and GTIDs.
+CREATE FUNCTION gtid_eq(a VARCHAR(255), b VARCHAR(255)) RETURNS BOOLEAN DETERMINISTIC
+BEGIN
+DECLARE g VARCHAR(255);
+IF a IS NULL OR b IS NULL OR LENGTH(a) != LENGTH(b) THEN
+RETURN FALSE;
+END IF;
+SET a= CONCAT(a, ',');
+SET b= CONCAT(',', b, ',');
+WHILE LENGTH(a) > 0 DO
+SET g= REGEXP_SUBSTR(a, '^[^,]+,');
+SET a= SUBSTRING(a, LENGTH(g)+1);
+SET b= REPLACE(b, CONCAT(',', g), ',');
+END WHILE;
+RETURN b = ',';
+END //
+*** A lot of GTIDs with small binlog size and state interval
+*** Testing 1000 GTIDs with 100 test connects
+connection master;
+DELETE FROM t1 WHERE a >= 1000;
+FLUSH NO_WRITE_TO_BINLOG BINARY LOGS;
+CREATE TABLE rand_data(idx INT PRIMARY KEY, domain_id INT, server_id INT)
+ENGINE=InnoDB;
+INSERT INTO rand_data(idx, domain_id, server_id) VALUES (0, 0, 1);
+INSERT INTO rand_data(idx, domain_id, server_id)
+SELECT seq,
+@tmp:=floor(10*POW(rand(150),2)),
+100 + 5*@tmp + floor(5*rand(150))
+FROM seq_1_to_1000;
+SELECT COUNT(*), SUM(domain_id), SUM(server_id) FROM rand_data;
+COUNT(*)	SUM(domain_id)	SUM(server_id)
+1001	2881	116394
+CREATE TABLE gtid_data(
+idx INT PRIMARY KEY,
+gtid VARCHAR(44),
+gtid_pos VARCHAR(255),
+file VARCHAR(100),
+pos INT,
+row_count INT,
+KEY(file, pos)) ENGINE=InnoDB;
+include/save_master_gtid.inc
+connection slave;
+include/sync_with_master_gtid.inc
+include/stop_slave.inc
+connection master;
+SET @orig_domain_id= @@gtid_domain_id;
+SET @orig_server_id= @@server_id;
+SET gtid_domain_id= @orig_domain_id;
+SET server_id= @orig_server_id;
+SELECT COUNT(*) FROM gtid_data;
+COUNT(*)
+1000
+connection slave;
+SET @orig_pos= @@GLOBAL.gtid_slave_pos;
+SET @orig_t1_limit= (SELECT MAX(a) FROM t1);
+*** Now connect the slave to each position in turn, and test that
+*** the right amount of data is replicated at each point.
+*** Test slave connecting to some GTID positions where the position in
+*** the master's binlog is different between the different domains.
+*** Revind the slave and test on the same binlog data from the master as before.
+connection slave;
+SET sql_log_bin= 0;
+TRUNCATE gtid_data;
+DELETE FROM t1 WHERE a > @orig_t1_limit;
+SET sql_log_bin= 1;
+SET GLOBAL gtid_slave_pos= @orig_pos;
+connection master;
+connection slave;
+connection master;
+DROP TABLE gtid_data, rand_data;
+include/save_master_gtid.inc
+connection slave;
+include/start_slave.inc
+include/sync_with_master_gtid.inc
+connection master;
+*** Switch to a larger binlog size
+SET @old_binlog_size= @@GLOBAL.max_binlog_size;
+SET GLOBAL max_binlog_size= 16*1024*1024;
+*** Testing 4000 GTIDs with 100 test connects
+connection master;
+DELETE FROM t1 WHERE a >= 1000;
+FLUSH NO_WRITE_TO_BINLOG BINARY LOGS;
+CREATE TABLE rand_data(idx INT PRIMARY KEY, domain_id INT, server_id INT)
+ENGINE=InnoDB;
+INSERT INTO rand_data(idx, domain_id, server_id) VALUES (0, 0, 1);
+INSERT INTO rand_data(idx, domain_id, server_id)
+SELECT seq,
+@tmp:=floor(10*POW(rand(666),2)),
+100 + 5*@tmp + floor(5*rand(666))
+FROM seq_1_to_4000;
+SELECT COUNT(*), SUM(domain_id), SUM(server_id) FROM rand_data;
+COUNT(*)	SUM(domain_id)	SUM(server_id)
+4001	11733	466721
+CREATE TABLE gtid_data(
+idx INT PRIMARY KEY,
+gtid VARCHAR(44),
+gtid_pos VARCHAR(255),
+file VARCHAR(100),
+pos INT,
+row_count INT,
+KEY(file, pos)) ENGINE=InnoDB;
+include/save_master_gtid.inc
+connection slave;
+include/sync_with_master_gtid.inc
+include/stop_slave.inc
+connection master;
+SET @orig_domain_id= @@gtid_domain_id;
+SET @orig_server_id= @@server_id;
+SET gtid_domain_id= @orig_domain_id;
+SET server_id= @orig_server_id;
+SELECT COUNT(*) FROM gtid_data;
+COUNT(*)
+4000
+connection slave;
+SET @orig_pos= @@GLOBAL.gtid_slave_pos;
+SET @orig_t1_limit= (SELECT MAX(a) FROM t1);
+*** Now connect the slave to each position in turn, and test that
+*** the right amount of data is replicated at each point.
+*** Test slave connecting to some GTID positions where the position in
+*** the master's binlog is different between the different domains.
+*** Revind the slave and test on the same binlog data from the master as before.
+connection slave;
+SET sql_log_bin= 0;
+TRUNCATE gtid_data;
+DELETE FROM t1 WHERE a > @orig_t1_limit;
+SET sql_log_bin= 1;
+SET GLOBAL gtid_slave_pos= @orig_pos;
+connection master;
+connection slave;
+connection master;
+DROP TABLE gtid_data, rand_data;
+include/save_master_gtid.inc
+connection slave;
+include/start_slave.inc
+include/sync_with_master_gtid.inc
+connection master;
+connection master;
+SET GLOBAL max_binlog_size= @old_binlog_size;
+DROP TABLE t1;
+DROP FUNCTION gtid_eq;
+include/rpl_end.inc

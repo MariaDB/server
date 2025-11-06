@@ -3635,6 +3635,12 @@ String *Item_func_binlog_gtid_pos::val_str(String *str)
   String name_str, *name;
   longlong pos;
 
+  if (opt_binlog_engine_hton)
+  {
+    my_error(ER_NOT_AVAILABLE_WITH_ENGINE_BINLOG, MYF(0), "BINLOG_GTID_POS()");
+    goto err;
+  }
+
   name= args[0]->val_str(&name_str);
   pos= args[1]->val_int();
 

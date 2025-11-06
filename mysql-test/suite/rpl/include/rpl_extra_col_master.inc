@@ -466,6 +466,7 @@ eval CREATE TABLE t10 (a INT PRIMARY KEY, b BLOB, c CHAR(5)
 --connection master
 eval CREATE TABLE t10 (a INT KEY, b BLOB, f DOUBLE DEFAULT '233',
                       c CHAR(5), e INT DEFAULT '1')ENGINE=$engine_type;
+--source include/kill_binlog_dump_threads.inc
 RESET MASTER;
 
 --echo
@@ -522,6 +523,7 @@ connection master;
 eval CREATE TABLE t11 (a INT KEY, b BLOB, f TEXT,
                       c CHAR(5) DEFAULT 'test', e INT DEFAULT '1')ENGINE=$engine_type;
 
+--source include/kill_binlog_dump_threads.inc
 RESET MASTER;
 
 --echo
@@ -577,6 +579,7 @@ connection master;
 eval CREATE TABLE t12 (a INT KEY, b BLOB, f TEXT,
                       c CHAR(5) DEFAULT 'test', e INT DEFAULT '1')ENGINE=$engine_type;
 
+--source include/kill_binlog_dump_threads.inc
 RESET MASTER;
 
 --echo
@@ -630,6 +633,7 @@ eval CREATE TABLE t14 (c1 INT KEY, c4 BLOB, c5 CHAR(5),
                       c7 TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP
                       )ENGINE=$engine_type;
 
+--source include/kill_binlog_dump_threads.inc
 RESET MASTER;
 
 --echo
@@ -701,6 +705,7 @@ DROP TABLE t14;
 
 connection master;
 DROP TABLE t14;
+--source include/kill_binlog_dump_threads.inc
 RESET MASTER;
 
 connection slave;
@@ -727,6 +732,7 @@ eval CREATE TABLE t15 (c1 INT KEY, c4 BLOB, c5 CHAR(5),
                       c7 TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP
                       )ENGINE=$engine_type;
 
+--source include/kill_binlog_dump_threads.inc
 RESET MASTER;
 
 --echo
@@ -765,6 +771,7 @@ DROP TABLE t15;
 
 connection master;
 DROP TABLE t15;
+--source include/kill_binlog_dump_threads.inc
 RESET MASTER;
 
 connection slave;
@@ -791,6 +798,7 @@ eval CREATE TABLE t16 (c1 INT KEY, c4 BLOB, c5 CHAR(5),
                       c7 TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP
                       )ENGINE=$engine_type;
 
+--source include/kill_binlog_dump_threads.inc
 RESET MASTER;
 
 --echo
@@ -842,6 +850,7 @@ DROP TABLE t16;
 
 connection master;
 DROP TABLE t16;
+--source include/kill_binlog_dump_threads.inc
 RESET MASTER;
 
 connection slave;
@@ -869,6 +878,7 @@ eval CREATE TABLE t17 (c1 INT KEY, c4 BLOB, c5 CHAR(5),
                       c7 TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP
                       )ENGINE=$engine_type;
 
+--source include/kill_binlog_dump_threads.inc
 RESET MASTER;
 
 --echo
@@ -935,6 +945,7 @@ eval CREATE TABLE t18 (c1 INT KEY, c4 BLOB, c5 CHAR(5),
                       c7 TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP
                       )ENGINE=$engine_type;
 
+--source include/kill_binlog_dump_threads.inc
 RESET MASTER;
 
 --echo
@@ -998,6 +1009,7 @@ eval CREATE TABLE t5 (c1 INT KEY, c4 BLOB, c5 CHAR(5),
                       c7 TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP
                       )ENGINE=$engine_type;
 
+--source include/kill_binlog_dump_threads.inc
 RESET MASTER;
 
 --echo

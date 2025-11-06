@@ -1,0 +1,118 @@
+--source include/not_embedded.inc
+--source include/have_debug.inc
+--source include/have_innodb_binlog.inc
+
+--source include/reset_master.inc
+
+let $basedir= $MYSQLTEST_VARDIR/tmp/backup;
+let $datadir_2= $MYSQLTEST_VARDIR/tmp/restore;
+
+--echo *** Test mariabackup concurrent with RESET MASTER and FLUSH BINARY LOGS.
+CREATE TABLE t1(a INT PRIMARY KEY) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1);
+INSERT INTO t1 SELECT a+1 FROM t1;
+INSERT INTO t1 SELECT a+2 FROM t1;
+INSERT INTO t1 SELECT a+4 FROM t1;
+INSERT INTO t1 SELECT a+8 FROM t1;
+FLUSH BINARY LOGS;
+INSERT INTO t1 SELECT a+16 FROM t1;
+INSERT INTO t1 SELECT a+32 FROM t1;
+FLUSH BINARY LOGS;
+INSERT INTO t1 SELECT a+64 FROM t1;
+INSERT INTO t1 SELECT a+128 FROM t1;
+
+# Attempt to run a RESET MASTER, a FLUSH BINARY LOGS, and a PURGE concurrent
+# with the copy of the binlog files, to test that backup locks will prevent
+# the binlog files from changing during the copy.
+# We test this by putting a sleep in mariabackup after getting the list
+# of binlog files and before copying them. And then sending paralle
+# RESET/FLUSH/PURGE with a delay that is shorter than the sleep but longer
+# than the typical time to run the backup.
+# This gives a good chance to hit the potential race, and missing it is
+# not critical, it will at most cause a false negative, but never false
+# positive.
+SET @old_needed= @@GLOBAL.slave_connections_needed_for_purge;
+SET GLOBAL slave_connections_needed_for_purge=0;
+
+--let $i= 1
+while ($i <= 4) {
+  --connect con$i,localhost,root,,
+  --delimiter //
+
+  if ($i == 1) {
+    # A FLUSH BINARY LOGS that truncates binlog-000002.ibb at around the same
+    # time that mariabackup tries to copy it.
+    send BEGIN NOT ATOMIC
+      SELECT SLEEP(0.9);
+      FLUSH BINARY LOGS;
+    END //
+  }
+
+  if ($i == 2) {
+    # A PURGE BINARY LOGS that removes binlog-000002.ibb at around the same
+    # time that mariabackup tries to copy it.
+    send BEGIN NOT ATOMIC
+      SELECT SLEEP(1.1);
+      PURGE BINARY LOGS TO 'binlog-000003.ibb';
+    END //
+  }
+
+  if ($i == 3) {
+    # A RESET MASTER that removes binlog-000002.ibb early during the first
+    # stage of backup.
+    send BEGIN NOT ATOMIC
+	SELECT SLEEP(0.1);
+	RESET MASTER;
+    END //
+  }
+
+  if ($i == 4) {
+    # A RESET MASTER that removes binlog-000002.ibb at around the same
+    # time that mariabackup tries to copy it.
+    send BEGIN NOT ATOMIC
+	SELECT SLEEP(1.1);
+	RESET MASTER;
+    END //
+  }
+
+  --delimiter ;
+
+  --connection default
+  --exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --backup --target-dir=$basedir --dbug=+d,binlog_copy_sleep_2
+  --exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --prepare --target-dir=$basedir
+  --exec $XTRABACKUP --copy-back --datadir=$datadir_2 --target-dir=$basedir
+  --rmdir $basedir
+  --rmdir $datadir_2
+
+  --connection con$i
+  REAP;
+  --disconnect con$i
+  --connection default
+
+  if ($i == 1) {
+    # Another FLUSH, moving the active binlog file to binlog-000004.ibb, so
+    # that next round can PURGE to remove binlog-000002.ibb.
+    FLUSH BINARY LOGS;
+    INSERT INTO t1 SELECT a+256 FROM t1;
+  }
+
+  if ($i == 2) {
+    # Re-create the binlog-000002.ibb for the following RESET MASTER test.
+    RESET MASTER;
+    INSERT INTO t1 SELECT a+512 FROM t1 WHERE a <= 256;
+    FLUSH BINARY LOGS;
+    INSERT INTO t1 SELECT a+768 FROM t1 WHERE a <= 256;
+    FLUSH BINARY LOGS;
+  }
+  if ($i == 3) {
+    INSERT INTO t1 SELECT a+1024 FROM t1 WHERE a <= 256;
+    FLUSH BINARY LOGS;
+    INSERT INTO t1 SELECT a+1280 FROM t1 WHERE a <= 256;
+    FLUSH BINARY LOGS;
+  }
+
+  inc $i;
+}
+
+DROP TABLE t1;
+SET GLOBAL slave_connections_needed_for_purge= @old_needed;

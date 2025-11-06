@@ -3,6 +3,7 @@ include/master-slave.inc
 connection server_2;
 include/stop_slave.inc
 connection server_1;
+include/kill_binlog_dump_threads.inc
 RESET MASTER;
 SET @@global.max_binlog_size= 4096;
 set @@global.rpl_semi_sync_master_enabled = 1;
@@ -276,9 +277,11 @@ include/stop_slave.inc
 set global rpl_semi_sync_slave_enabled = 0;
 set global rpl_semi_sync_master_enabled = 0;
 set global rpl_semi_sync_master_wait_point=default;
+include/kill_binlog_dump_threads.inc
 RESET MASTER;
 RESET SLAVE;
 connection server_2;
+include/kill_binlog_dump_threads.inc
 RESET MASTER;
 RESET SLAVE;
 set @@global.rpl_semi_sync_master_enabled = 0;

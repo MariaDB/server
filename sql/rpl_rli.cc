@@ -1992,7 +1992,7 @@ end:
   if (table)
   {
     ha_commit_trans(thd, FALSE);
-    ha_commit_trans(thd, TRUE);
+    trans_commit(thd);
     close_thread_tables(thd);
     thd->release_transactional_locks();
   }

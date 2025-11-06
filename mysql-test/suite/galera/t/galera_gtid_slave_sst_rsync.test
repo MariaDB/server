@@ -196,6 +196,7 @@ DROP TABLE t2,t1;
 STOP SLAVE;
 RESET SLAVE ALL;
 set global wsrep_on=OFF;
+--source include/kill_binlog_dump_threads.inc
 reset master;
 set global wsrep_on=ON;
 
@@ -206,11 +207,13 @@ set global gtid_slave_pos="";
 --echo #Connection 1
 --connection node_1
 set global wsrep_on=OFF;
+--source include/kill_binlog_dump_threads.inc
 reset master;
 set global wsrep_on=ON;
 
 --echo #Connection 3
 --connection node_3
+--source include/kill_binlog_dump_threads.inc
 reset master;
 
 --connection node_2

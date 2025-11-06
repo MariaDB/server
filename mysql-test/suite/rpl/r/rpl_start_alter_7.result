@@ -362,10 +362,12 @@ SET GLOBAL gtid_slave_pos= '';
 connection server_1;
 set global binlog_alter_two_phase=0;;
 set global gtid_domain_id= 0;
+include/kill_binlog_dump_threads.inc
 reset master;
 connection server_2;
 set global gtid_domain_id= 0;
 set global binlog_alter_two_phase=0;
+include/kill_binlog_dump_threads.inc
 reset master;
 disconnect server_1;
 disconnect server_2;

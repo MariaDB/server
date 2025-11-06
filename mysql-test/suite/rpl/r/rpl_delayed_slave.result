@@ -164,6 +164,7 @@ Warnings:
 Note	4190	RESET SLAVE is implicitly changing the value of 'Using_Gtid' from 'No' to 'Slave_Pos'
 [on master]
 connection master;
+include/kill_binlog_dump_threads.inc
 RESET MASTER;
 [on slave]
 connection slave;

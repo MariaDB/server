@@ -378,6 +378,7 @@ SHOW TABLES LIKE 't_';
 --replace_column 6 #
 SHOW TRIGGERS;
 
+--source include/kill_binlog_dump_threads.inc
 RESET MASTER;
 
 # Restart slave.
