@@ -879,6 +879,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %token  <kwd>  FAULTS_SYM
 %token  <kwd>  FEDERATED_SYM                 /* MariaDB privilege */
 %token  <kwd>  FILE_SYM
+%token  <kwd>  FILTER_SYM
 %token  <kwd>  FIRST_SYM                     /* SQL-2003-N */
 %token  <kwd>  FIXED_SYM
 %token  <kwd>  FLUSH_SYM
@@ -1226,6 +1227,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %nonassoc NEG '~' NOT2_SYM BINARY
 %nonassoc COLLATE_SYM
 %nonassoc SUBQUERY_AS_EXPR
+%nonassoc FILTER_SYM
 
 /*
   Tokens that can change their meaning from identifier to something else
@@ -1582,6 +1584,8 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
         opt_versioning_interval_start
         json_default_literal
         set_expr_misc
+        unfiltered_sum_expr
+        opt_filter_expr
 
 %type <num> opt_vers_auto_part
 
@@ -11309,7 +11313,30 @@ udf_expr:
           }
         ;
 
+opt_filter_expr:
+          /* empty */ { $$= NULL; }  %prec SUBQUERY_AS_EXPR
+        | FILTER_SYM '(' WHERE
+          { Select->in_sum_expr++; }
+          expr 
+          { Select->in_sum_expr--; }
+          ')'
+          {
+            $$= $5;
+          }
+        ;
+
 sum_expr:
+          unfiltered_sum_expr opt_filter_expr
+          {
+            if ($2)
+            {
+              ((Item_sum *)$1)->set_filter($2);
+            }
+            $$= $1;
+          }
+        ;
+
+unfiltered_sum_expr:
           AVG_SYM '(' in_sum_expr ')'
           {
             $$= new (thd->mem_root) Item_sum_avg(thd, $3, FALSE);
@@ -16687,6 +16714,7 @@ keyword_func_sp_var_and_label:
         | FAST_SYM
         | FEDERATED_SYM
         | FILE_SYM
+        | FILTER_SYM
         | FIRST_SYM
         | FOUND_SYM
         | FULL
