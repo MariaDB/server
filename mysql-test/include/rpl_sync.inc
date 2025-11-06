@@ -10,6 +10,7 @@
 # [--let $rpl_only_running_threads= 1]
 # [--let $rpl_debug= 1]
 # [--let $slave_timeout= NUMBER]
+# [--let $disable_gtid= 1]
 # --source include/rpl_sync.inc
 #
 # Parameters:
@@ -22,6 +23,11 @@
 #      - If only IO thread is running, sync IO thread with master.
 #      - If only SQL thread is running, sync SQL thread with IO thread.
 #      - If no thread is running, don't sync.
+#
+#   $disable_gtid
+#     Use old-style file/offset for syncing, even if slave is configured
+#     to connect using GTID. (Useful for tests that run without properly
+#     configuring domain_id, like rpl.rpl_circular_for_4_hosts).
 #
 #   $slave_timeout
 #     Set the timeout when waiting for threads to sync. See
@@ -78,7 +84,14 @@ while ($_rpl_i) {
     disable_query_log;
     --connection server_$_rpl_server
     enable_query_log;
+    # By default, sync using GTID (when GTID is enabled), as GTID is now
+    # on by default. But allow to fallback explicitly to old-style file/pos
+    # for tests that need this.
     --let $_rpl_gtid_mode= query_get_value(SHOW SLAVE STATUS, Using_Gtid, 1)
+    if ($disable_gtid)
+    {
+      --let $_rpl_gtid_mode= No
+    }
     if ($rpl_debug)
     {
       --echo [sync server_$_rpl_prev_server -> server_$_rpl_server]
@@ -145,8 +158,6 @@ while ($_rpl_i) {
     if (!$rpl_only_running_threads)
     {
       disable_connect_log;
-      # ToDo: With binlog-in-engine, we need to sync up using GTID.
-      # Is it ok to change things to always do it with GTID when GTID enabled?
       --connection server_$_rpl_prev_server
       if ($_rpl_gtid_mode == 'No') {
 	if ($rpl_debug)
