@@ -3707,6 +3707,23 @@ bool JOIN::add_fields_for_current_rowid(JOIN_TAB *cur, List<Item> *table_fields)
   return 0;
 }
 
+/*
+  Check if the select list contains any aggregate function with a FILTER
+  clause attached.
+*/
+static bool query_has_aggregate_filter(List<Item> &fields)
+{
+  List_iterator_fast<Item> it(fields);
+  Item *item;
+
+  while ((item= it++))
+  {
+    if (item->type() == Item::SUM_FUNC_ITEM &&
+        static_cast<Item_sum*>(item)->has_filter())
+      return true;
+  }
+  return false;
+}
 
 /**
   Set info for aggregation tables
@@ -3786,6 +3803,13 @@ bool JOIN::make_aggr_tables_info()
 
     if (ht && ht->create_group_by)
     {
+      if (query_has_aggregate_filter(all_fields) &&
+          !ha_check_storage_engine_flag(ht, HTON_SUPPORTS_AGGREGATE_FILTER))
+      {
+        my_error(ER_ENGINE_DOES_NOT_SUPPORT_AGGREGATE_FILTER, MYF(0),
+                 ha_resolve_storage_engine_name(ht));
+        DBUG_RETURN(1);
+      }
       /*
         Check if the storage engine can intercept the query
 
@@ -22253,6 +22277,42 @@ bool Create_tmp_table::add_fields(THD *thd,
             new_field->flags|= FIELD_PART_OF_TMP_UNIQUE;
         }
       }
+
+      /*
+        If the aggregate has FILTER, materialize the predicate into the tmp table
+        and rewrite it to read from the tmp row (we compute aggregates later).
+      */
+      if (sum_item->has_filter())
+      {
+        Item *fexpr= *sum_item->get_filter();
+        if (!fexpr->const_item())
+        {
+          Item *tmp_item;
+          Field *new_field=
+            create_tmp_field(table, fexpr, &copy_func,
+                             tmp_from_field, &m_default_field[fieldnr],
+                             m_group != 0, not_all_columns,
+                             distinct_record_structure, false);
+          if (!new_field)
+            goto err;
+          tmp_from_field++;
+
+          thd->mem_root= mem_root_save;
+          if (!(tmp_item= new (thd->mem_root) Item_field(thd, new_field)))
+            goto err;
+          static_cast<Item_field*>(tmp_item)->set_refers_to_temp_table();
+          sum_item->set_filter(thd, tmp_item);
+          thd->mem_root= &table->mem_root;
+
+          uneven_delta= m_uneven_bit_length;
+          add_field(table, new_field, fieldnr++, param->force_not_null_cols);
+          m_field_count[current_counter]++;
+          m_uneven_bit[current_counter]+= (m_uneven_bit_length - uneven_delta);
+
+          if (!(new_field->flags & NOT_NULL_FLAG))
+            tmp_item->set_maybe_null();
+        }
+      }
     }
     else
     {
@@ -29113,6 +29173,19 @@ count_field_types(SELECT_LEX *select_lex, TMP_TABLE_PARAM *param,
             else
               param->func_count++;
           }
+
+          // Count FILTER so it can be stored in the GROUP BY temp table and read later
+          // if (sum_item->has_filter())
+          // {
+          //   Item *fexpr= *sum_item->get_filter();
+          //   if (!fexpr->const_item())
+          //   {
+          //     if (fexpr->real_item()->type() == Item::FIELD_ITEM)
+          //       param->field_count++;
+          //     else
+          //       param->func_count++;
+          //   }
+          // }
         }
         param->func_count++;
       }

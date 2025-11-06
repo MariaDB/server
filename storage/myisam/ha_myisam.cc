@@ -2609,7 +2609,8 @@ static int myisam_init(void *p)
   hton->drop_table= myisam_drop_table;
   hton->panic= myisam_panic;
   hton->update_optimizer_costs= myisam_update_optimizer_costs;
-  hton->flags= HTON_CAN_RECREATE | HTON_SUPPORT_LOG_TABLES;
+  hton->flags= HTON_CAN_RECREATE | HTON_SUPPORT_LOG_TABLES |
+               HTON_SUPPORTS_AGGREGATE_FILTER;
   hton->tablefile_extensions= ha_myisam_exts;
   mi_killed= mi_killed_in_mariadb;
 

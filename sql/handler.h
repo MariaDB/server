@@ -1850,6 +1850,9 @@ handlerton *ha_default_tmp_handlerton(THD *thd);
 */
 #define HTON_REQUIRES_NOTIFY_TABLEDEF_CHANGED_AFTER_COMMIT (1 << 20)
 
+/* Engine supports aggregate FILTER (SELECT SUM(x) FILTER (WHERE ...), etc.). */
+#define HTON_SUPPORTS_AGGREGATE_FILTER (1 << 21)
+
 class Ha_trx_info;
 
 struct THD_TRANS

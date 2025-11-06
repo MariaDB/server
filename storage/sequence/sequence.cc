@@ -419,9 +419,10 @@ create_group_by_handler(THD *thd, Query *query)
     Field *field;
     if (item->type() != Item::SUM_FUNC_ITEM ||
         (((Item_sum*) item)->sum_func() != Item_sum::SUM_FUNC &&
-         ((Item_sum*) item)->sum_func() != Item_sum::COUNT_FUNC))
+         ((Item_sum*) item)->sum_func() != Item_sum::COUNT_FUNC) ||
+        ((Item_sum*) item)->has_filter())
 
-      return 0;                                  // Not a SUM() function
+      return 0; // Not a SUM() function or has FILTER
     arg0= ((Item_sum*) item)->get_arg(0);
     if (arg0->type() != Item::FIELD_ITEM)
     {
@@ -535,6 +536,7 @@ static int init(void *p)
   hton->savepoint_set= hton->savepoint_rollback= hton->savepoint_release=
     [](THD *, void *) { return 0; };
 
+  hton->flags |= HTON_SUPPORTS_AGGREGATE_FILTER;
   hton->create_group_by= create_group_by_handler;
   hton->update_optimizer_costs= sequence_update_optimizer_costs;
   return 0;

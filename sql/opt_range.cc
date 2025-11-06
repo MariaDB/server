@@ -14655,6 +14655,18 @@ get_best_group_min_max(PARAM *param, SEL_TREE *tree, double read_time)
     Item_sum **func_ptr= join->sum_funcs;
     while ((min_max_item= *(func_ptr++)))
     {
+      /*
+        FILTER clause requires per-row evaluation, cannot use loose index scan.
+      */
+      if (min_max_item->has_filter())
+      {
+        if (unlikely(trace_group.trace_started()))
+          trace_group.
+            add("chosen", false).
+            add("cause", "aggregate has FILTER clause");
+        DBUG_RETURN(NULL);
+      }
+
       if (min_max_item->sum_func() == Item_sum::MIN_FUNC)
         have_min= TRUE;
       else if (min_max_item->sum_func() == Item_sum::MAX_FUNC)

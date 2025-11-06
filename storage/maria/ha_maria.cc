@@ -3933,7 +3933,8 @@ static int ha_maria_init(void *p)
   /* TODO: decide if we support Maria being used for log tables */
   maria_hton->flags= (HTON_CAN_RECREATE | HTON_SUPPORT_LOG_TABLES |
                       HTON_NO_ROLLBACK |
-                      HTON_TRANSACTIONAL_AND_NON_TRANSACTIONAL);
+                      HTON_TRANSACTIONAL_AND_NON_TRANSACTIONAL |
+                      HTON_SUPPORTS_AGGREGATE_FILTER);
   bzero(maria_log_pagecache, sizeof(*maria_log_pagecache));
   maria_tmpdir= &mysql_tmpdir_list;             /* For REDO */
   ma_debug_crash_here= maria_debug_crash_here;
