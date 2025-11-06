@@ -103,6 +103,13 @@ public:
     (updated by arg_val*()).
   */
   virtual bool arg_is_null(bool use_null_value) = 0;
+  
+  /**
+    Check if we're currently in the endup() phase processing distinct values.
+    This is used to skip filter checks for DISTINCT aggregates since the filter
+    was already applied during the collection phase.
+  */
+  virtual bool is_in_endup_phase() const { return false; }
 };
 
 
@@ -341,10 +348,33 @@ private:
   /* TRUE if this is aggregate function of a window function */
   bool window_func_sum_expr_flag;
 
+  /* Optional filter clause for the aggregate function */
+  Item *filter_expr;
+
 public:
 
   bool has_force_copy_fields() const { return force_copy_fields; }
   bool has_with_distinct()     const { return with_distinct; }
+
+  /* Filter expression helpers */
+  void set_filter(Item *filter_expr) { this->filter_expr= filter_expr; }
+  void set_filter(THD *thd, Item *new_filter_expr);
+  bool has_filter() const { return filter_expr != NULL; }
+  Item **get_filter() { return &filter_expr; }
+  bool filter_passed();
+  bool fix_filter(THD *thd);
+
+  bool walk(Item_processor processor, void *arg, item_walk_flags flags) override
+  {
+    if (walk_args(processor, arg, flags))
+      return true;
+    if (has_filter())
+    {
+      if (filter_expr->walk(processor, arg, flags))
+        return true;
+    }
+    return (this->*processor)(arg);
+  }
 
   enum Sumfunctype
   { COUNT_FUNC, COUNT_DISTINCT_FUNC, SUM_FUNC, SUM_DISTINCT_FUNC, AVG_FUNC,
@@ -548,6 +578,7 @@ public:
     aggr= NULL;
     with_distinct= FALSE;
     force_copy_fields= FALSE;
+    filter_expr= NULL;
   }
 
   /**
@@ -711,6 +742,7 @@ public:
   my_decimal *arg_val_decimal(my_decimal * value) override;
   double arg_val_real() override;
   bool arg_is_null(bool use_null_value) override;
+  bool is_in_endup_phase() const override { return use_distinct_values; }
 
   bool unique_walk_function(void *element);
   bool unique_walk_function_for_count(void *element);

@@ -357,11 +357,12 @@ int opt_sum_query(THD *thd,
         /*
           If the expr in COUNT(expr) can never be null we can change this
           to the number of rows in the tables if this number is exact and
-          there are no outer joins.
+          there are no outer joins and there is no filter clause.
         */
         if (!conds && !((Item_sum_count*) item)->get_arg(0)->maybe_null() &&
             !outer_tables && maybe_exact_count &&
-            ((item->used_tables() & OUTER_REF_TABLE_BIT) == 0))
+            ((item->used_tables() & OUTER_REF_TABLE_BIT) == 0) &&
+            !((Item_sum_count*) item)->has_filter())
         {
           if (!is_exact_count)
           {
@@ -382,6 +383,17 @@ int opt_sum_query(THD *thd,
       case Item_sum::MIN_FUNC:
       case Item_sum::MAX_FUNC:
       {
+        /*
+          Do not attempt MIN/MAX constant replacement if a FILTER clause
+          is present on the aggregate. FILTER must be evaluated per-row and
+          cannot be folded by the index-based shortcut here.
+        */
+        if (item_sum->has_filter())
+        {
+          const_result= 0;
+          break;
+        }
+
         int is_max= MY_TEST(item_sum->sum_func() == Item_sum::MAX_FUNC);
         /*
           If MIN/MAX(expr) is the first part of a key or if all previous

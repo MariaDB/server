@@ -4190,6 +4190,7 @@ class Item_func_sp :public Item_func,
 {
 private:
   const Sp_handler *m_handler;
+  Item *m_filter;
 
   bool execute();
 
@@ -4211,6 +4212,8 @@ public:
                sp_name *name, const Sp_handler *sph, List<Item> &list);
 
   virtual ~Item_func_sp() = default;
+
+  void set_filter(Item *filter) { m_filter= filter; }
 
   void update_used_tables() override;
 
