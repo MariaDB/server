@@ -920,13 +920,7 @@ show create view v;
 drop view v;
 
 
---echo #
 --echo # End of 10.6 tests
---echo #
-
---echo #
---echo # Start of 10.9 tests
---echo #
 
 --echo #
 --echo #  MDEV-27743 Remove Lex::charset
@@ -1041,13 +1035,13 @@ COLUMNS
   name ENUM('Laptop') CHARACTER SET BINARY PATH '$.name')
 ) AS jt;
 
---echo #
 --echo # End of 10.9 tests
---echo #
 
 --echo #
 --echo # MDEV-27898 CREATE VIEW AS SELECT FROM JSON_TABLE column requires global privileges
 --echo #
+
+--echo # Beginning of 10.11 tests
 
 create view v1 as (select * from
 	json_table('[{"a":"1"}]', '$[*]' columns(a int path '$.a')  ) as jt);
@@ -1066,7 +1060,45 @@ DROP VIEW v2;
 DROP VIEW v1;
 DROP USER u1@localhost;
 
---echo # End of 10.11 tests
+--echo #
+--echo # MDEV-34081: View containing JSON_TABLE does not return JSON
+--echo #
+
+CREATE OR REPLACE VIEW test_view AS SELECT * FROM JSON_TABLE('
+[
+  {
+    "caption": "First Element",
+    "value": 1
+  },
+  {
+    "caption": "Second Element",
+    "value": 2
+  }
+]
+', '$[*]' COLUMNS(
+  caption VARCHAR(200) PATH '$.caption', 
+  whole_block JSON PATH '$')) t;
+ 
+SELECT * FROM test_view;
+
+SELECT * FROM JSON_TABLE('
+[
+  {
+    "caption": "First Element",
+    "value": 1
+  },
+  {
+    "caption": "Second Element",
+    "value": 2
+  }
+]
+', '$[*]' COLUMNS(
+  caption VARCHAR(200) PATH '$.caption', 
+  whole_block JSON PATH '$')) t;
+
+DROP VIEW test_view;
+
+--echo # End of 10.11 test
 
 --echo #
 --echo # MDEV-29390: Improve coverage for UPDATE and DELETE statements in MTR test suites
@@ -1158,8 +1190,6 @@ select * from t1;
 
 drop table t1;
 
---echo #
 --echo # End of 11.0 tests
---echo #
 
 --source include/test_db_charset_restore.inc

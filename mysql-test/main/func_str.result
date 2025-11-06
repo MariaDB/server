@@ -5415,8 +5415,14 @@ t1	CREATE TABLE `t1` (
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t1;
 #
-# End of 10.6 tests
+# MDEV-37947 Item_func_hex doesn't check for max_allowed_packet
 #
+select hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex('\\'))))))))))))))))))))))))))))))))))))))))))))) as x;
+x
+NULL
+Warnings:
+Warning	1301	Result of hex() was larger than max_allowed_packet (16777216) - truncated
+# End of 10.6 tests
 #
 # MDEV-25704 Function random_bytes
 #

@@ -59,10 +59,10 @@ t2_v2	CREATE TABLE `t2_v2` (
 PARTITIONS 2
 SHOW CREATE VIEW x1;
 View	Create View	character_set_client	collation_connection
-x1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `x1` AS select `t1_v2`.`v1` AS `v1`,`t1_v2`.`v2` AS `v2`,`t1_v2`.`v3` AS `v3` from `t1_v2`	utf8mb4	utf8mb4_uca1400_ai_ci
+x1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `x1` AS select `t1_v2`.`v1` AS `v1`,`t1_v2`.`v2` AS `v2`,`t1_v2`.`v3` AS `v3` from `t1_v2`	latin1	latin1_swedish_ci
 SHOW CREATE VIEW x2;
 View	Create View	character_set_client	collation_connection
-x2	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `x2` AS select `t2_v2`.`v1` AS `v1`,`t2_v2`.`v2` AS `v2`,`t2_v2`.`v3` AS `v3` from `t2_v2`	utf8mb4	utf8mb4_uca1400_ai_ci
+x2	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `x2` AS select `t2_v2`.`v1` AS `v1`,`t2_v2`.`v2` AS `v2`,`t2_v2`.`v3` AS `v3` from `t2_v2`	latin1	latin1_swedish_ci
 SELECT * FROM t1_v2;
 v1	v2	v3
 SELECT * FROM t2_v2;
@@ -148,7 +148,7 @@ t2	CREATE TABLE `t2` (
 PARTITIONS 2
 SHOW CREATE VIEW x1;
 View	Create View	character_set_client	collation_connection
-x1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `x1` AS select `t1_v2`.`v1` AS `v1`,`t1_v2`.`v2` AS `v2` from `t1_v2`	utf8mb4	utf8mb4_uca1400_ai_ci
+x1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `x1` AS select `t1_v2`.`v1` AS `v1`,`t1_v2`.`v2` AS `v2` from `t1_v2`	latin1	latin1_swedish_ci
 SELECT * FROM t1_v2;
 v1	v2
 SELECT * FROM t2;

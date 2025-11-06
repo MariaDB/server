@@ -1021,8 +1021,9 @@ int Json_table_column::print(THD *thd, Field **f, String *str)
 
     (*f)->sql_type(column_type);
 
-    if (str->append(column_type) ||
-        ((*f)->has_charset() && m_explicit_cs &&
+    if ((m_format_json ? str->append(STRING_WITH_LEN(" JSON ")) : str->append(column_type)))
+      return 1;
+    if (((*f)->has_charset() && m_explicit_cs &&
          (str->append(STRING_WITH_LEN(" CHARSET ")) ||
           str->append(&m_explicit_cs->cs_name) ||
           (Charset(m_explicit_cs).can_have_collate_clause() &&

@@ -2188,9 +2188,13 @@ class IS_table_read_plan;
 #define DT_CREATE           32U
 #define DT_FILL             64U
 #define DT_REINIT           128U
-#define DT_PHASES           8U
+
+#define DT_OPTIMIZE_STAGE2  256U
+
+/* Number of bits used by all phases: */
+#define DT_PHASES           9U
 /* Phases that are applicable to all derived tables. */
-#define DT_COMMON       (DT_INIT + DT_PREPARE + DT_REINIT + DT_OPTIMIZE)
+#define DT_COMMON       (DT_INIT + DT_PREPARE + DT_REINIT + DT_OPTIMIZE + DT_OPTIMIZE_STAGE2)
 /* Phases that are applicable only to materialized derived tables. */
 #define DT_MATERIALIZE  (DT_CREATE + DT_FILL)
 

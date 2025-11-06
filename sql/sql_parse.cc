@@ -7473,6 +7473,7 @@ void THD::reset_for_next_command(bool do_clear_error)
   binlog_unsafe_warning_flags= 0;
 
   save_prep_leaf_list= false;
+  m_sp_cache_version= 0;
 
 #if defined(WITH_WSREP) && !defined(DBUG_OFF)
   if (mysql_bin_log.is_open())

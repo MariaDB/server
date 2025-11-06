@@ -190,14 +190,12 @@ int json_path_parts_compare(const MEM_ROOT_DYNAMIC_ARRAY *a_arr,
                             enum json_value_types vt,
                             MEM_ROOT_DYNAMIC_ARRAY *array_sizes)
 {
-  int res, res2;
-
+ int res, res2;
+  const json_path_step_t *temp_b= b;
   DBUG_EXECUTE_IF("json_check_min_stack_requirement",
                   return dbug_json_check_min_stack_requirement(););
-
   if (check_stack_overrun(current_thd, STACK_MIN_SIZE , NULL))
     return 1;
-
   while (a <= a_end)
   {
     if (b > b_end)
@@ -211,55 +209,28 @@ int json_path_parts_compare(const MEM_ROOT_DYNAMIC_ARRAY *a_arr,
       }
       return -2;
     }
-
     DBUG_ASSERT((b->type & (JSON_PATH_WILD | JSON_PATH_DOUBLE_WILD)) == 0);
-
     if (a->type & JSON_PATH_ARRAY)
     {
       if (b->type & JSON_PATH_ARRAY)
       {
-        int res= 0, corrected_n_item_a= 0;
-        if (array_sizes)
+        int res = 0;
+        if (a->type & JSON_PATH_WILD)
+          res = 1;
+        else if (a->type & JSON_PATH_ARRAY_RANGE && array_sizes)
         {
-          corrected_n_item_a= a->n_item;
-          if (corrected_n_item_a < 0)
-          {
-            auto temp= (json_path_step_t *) (b_arr->buffer) + 1;
-            auto value_ptr= ((int *) array_sizes->buffer) + (b - temp);
-            if (value_ptr)
-            {
-              corrected_n_item_a += *value_ptr;
-            }
-          }
+            int start = (a->n_item >= 0) ? a->n_item
+                         : *((int*)(array_sizes->buffer)+(b - temp_b)) + a->n_item;
+            int end   = (a->n_item_end >= 0) ? a->n_item_end
+                                   : *((int*)(array_sizes->buffer)+(b - temp_b)) + a->n_item_end;
+            res = (b->n_item >= start && b->n_item <= end);
         }
-        if (a->type & JSON_PATH_ARRAY_RANGE)
-        {
-          int corrected_n_item_end_a= 0;
-          if (array_sizes)
-          {
-            corrected_n_item_end_a= a->n_item_end;
-            if (corrected_n_item_end_a < 0)
-            {
-              auto temp= (json_path_step_t *) (b_arr->buffer) + 1;
-              auto value_ptr= ((int *) array_sizes->buffer) + (b - temp);
-              if (value_ptr)
-              {
-                corrected_n_item_end_a += *value_ptr;
-              }
-            }
-          }
-          res= b->n_item >= corrected_n_item_a &&
-               b->n_item <= corrected_n_item_end_a;
-        }
-        else
-        {
-         res= corrected_n_item_a == b->n_item;
-        }
-
-        if (res || (a->type & JSON_PATH_WILD))
-        {
+        else if (a->n_item >= 0)
+          res = (a->n_item == b->n_item);
+        else if (a->n_item < 0 && array_sizes)
+          res = (a->n_item == b->n_item - *((int*)(array_sizes->buffer)+(b - temp_b)));
+        if (res)
           goto step_fits;
-        }
         goto step_failed;
       }
       if ((a->type & JSON_PATH_WILD) == 0 && a->n_item == 0)
@@ -270,12 +241,10 @@ int json_path_parts_compare(const MEM_ROOT_DYNAMIC_ARRAY *a_arr,
     {
       if (!(b->type & JSON_PATH_KEY))
         goto step_failed;
-
       if (!(a->type & JSON_PATH_WILD) &&
           (a->key_end - a->key != b->key_end - b->key ||
            memcmp(a->key, b->key, a->key_end - a->key) != 0))
         goto step_failed;
-
       goto step_fits;
     }
 step_failed:
@@ -283,46 +252,36 @@ step_failed:
       return -1;
     b++;
     continue;
-
 step_fits:
-   b++;
+    b++;
     if (!(a->type & JSON_PATH_DOUBLE_WILD))
     {
-     a++;
+      a++;
       continue;
     }
-
     /* Double wild handling needs recursions. */
     res= json_path_parts_compare(a_arr, a+1, a_end, b_arr, b, b_end,
                                  vt, array_sizes);
     if (res == 0)
       return 0;
-
     res2= json_path_parts_compare(a_arr, a, a_end, b_arr, b, b_end, vt,
                                   array_sizes);
-
     return (res2 >= 0) ? res2 : res;
-
 step_fits_autowrap:
     if (!(a->type & JSON_PATH_DOUBLE_WILD))
     {
-       a++;
+      a++;
       continue;
     }
-
     /* Double wild handling needs recursions. */
     res= json_path_parts_compare(a_arr, a+1, a_end, b_arr, b+1, b_end, vt,
                                  array_sizes);
     if (res == 0)
       return 0;
-
     res2= json_path_parts_compare(a_arr, a, a_end, b_arr, b+1, b_end, vt,
                                   array_sizes);
-
     return (res2 >= 0) ? res2 : res;
-
   }
-
   return b <= b_end;
 }
 

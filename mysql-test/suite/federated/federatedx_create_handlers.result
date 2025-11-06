@@ -624,6 +624,41 @@ id	name
 4	xxx
 5	yyy
 DEALLOCATE PREPARE stmt;
+#
+# FederatedX error 10000 on multi-table UPDATE/DELETE
+#
+connection slave;
+DROP TABLE IF EXISTS federated.t1, federated.t2;
+CREATE TABLE federated.t1 (a int, b int);
+INSERT INTO federated.t1 VALUES (1,1), (2,2), (3,3);
+CREATE TABLE federated.t2 (a int, b int);
+INSERT INTO federated.t2 VALUES (1,1), (2,2), (4,4);
+connection master;
+DROP TABLE IF EXISTS federated.t1, federated.t2;
+CREATE TABLE federated.t1 (a int, b int)
+ENGINE="FEDERATED" DEFAULT CHARSET=latin1
+CONNECTION='mysql://root@127.0.0.1:SLAVE_PORT/federated/t1';
+CREATE TABLE federated.t2 (a int, b int)
+ENGINE="FEDERATED" DEFAULT CHARSET=latin1
+CONNECTION='mysql://root@127.0.0.1:SLAVE_PORT/federated/t2';
+use federated;
+# Multi-table UPDATE
+UPDATE t1, t2 SET t1.a = 2 WHERE t1.a=t2.a;
+# Check the result
+SELECT * FROM t1;
+a	b
+2	1
+2	2
+3	3
+# Multi-table DELETE
+DELETE FROM t1 USING t1 JOIN t2 ON t1.a = t2.a WHERE t2.b > 1;
+SELECT * FROM t1;
+a	b
+3	3
+# Another form of multi-table DELETE
+DELETE FROM a1 USING t1 AS a1;
+SELECT * FROM t1;
+a	b
 DROP TABLES federated.t1, federated.t2, federated.t3, federated.t10,
 federated.t11;
 connection slave;

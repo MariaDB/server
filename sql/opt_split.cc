@@ -394,6 +394,7 @@ struct SplM_field_ext_info: public SplM_field_info
        with available statistics.
     10. The select doesn't use WITH ROLLUP (This limitation can probably be
         lifted)
+    11. The select doesn't have ORDER BY with LIMIT
 
   @retval
     true   if the answer is positive
@@ -427,6 +428,9 @@ bool JOIN::check_for_splittable_materialized()
       select_lex->window_specs.head()->partition_list->first;
   }
   if (!partition_list)
+    return false;
+
+  if (select_lex->order_list.elements > 0 && !unit->lim.is_unlimited()) //!(11)
     return false;
 
   Json_writer_object trace_wrapper(thd);

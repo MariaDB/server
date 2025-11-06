@@ -1880,6 +1880,7 @@ public:
   Explain_quick_select *get_explain(MEM_ROOT *alloc) override;
 };
 
+bool using_with_ties_and_group_min_max(JOIN *join);
 
 class QUICK_SELECT_DESC: public QUICK_RANGE_SELECT
 {
