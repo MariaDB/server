@@ -133,3 +133,14 @@ EXPLAIN
   }
 }
 # End of 10.5 tests
+#
+# MDEV-24943: Implement FILTER clause support for aggregate functions
+#
+explain
+select count(*) filter (where seq < 5) from seq_1_to_15;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	seq_1_to_15	index	NULL	PRIMARY	8	NULL	15	Using index
+select count(*) filter (where seq < 5) from seq_1_to_15;
+count(*) filter (where seq < 5)
+4
+# End of 13.2 tests
