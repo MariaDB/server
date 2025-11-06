@@ -1086,7 +1086,13 @@ chunk_reader_mysqlbinlog::fetch_current_page()
       if (cur_file_handle < (File)0) {
         cur_file_handle= (File)-1;
         cur_file_length= ~(uint64_t)0;
-        return CHUNK_READER_ERROR;
+        /*
+          For mysqlbinlog where the user specifies the file, treat a missing
+          file as EOF, on the idea that we read as much as possible from what
+          the user supplied. But still use MY_WME in the my_open() to give
+          some indication that we stopped due to a missing file.
+        */
+        return errno == ENOENT ? CHUNK_READER_EOF : CHUNK_READER_ERROR;
       }
       if (my_fstat(cur_file_handle, &stat_buf, MYF(0))) {
         error("Cannot stat() file '%s', errno: %d", filename, errno);
