@@ -54,7 +54,7 @@ CREATE DEFINER='mariadb.sys'@'localhost' PROCEDURE ps_setup_save (
              Query OK, 0 rows affected (0.08 sec)
 
              mysql> UPDATE performance_schema.setup_instruments 
-                 ->    SET enabled = \'YES\', timed = \'YES\';
+                 ->    SET enabled = ''YES'', timed = ''YES'';
              Query OK, 547 rows affected (0.40 sec)
              Rows matched: 784  Changed: 547  Warnings: 0
 
@@ -69,12 +69,12 @@ CREATE DEFINER='mariadb.sys'@'localhost' PROCEDURE ps_setup_save (
 BEGIN
     DECLARE v_lock_result INT;
 
-    SET @log_bin := @@sql_log_bin;
-    SET sql_log_bin = 0;
-
     SELECT GET_LOCK('sys.ps_setup_save', in_timeout) INTO v_lock_result;
 
     IF v_lock_result THEN
+        SET @log_bin := @@sql_log_bin;
+        SET sql_log_bin = 0;
+
         DROP TEMPORARY TABLE IF EXISTS tmp_setup_actors;
         DROP TEMPORARY TABLE IF EXISTS tmp_setup_consumers;
         DROP TEMPORARY TABLE IF EXISTS tmp_setup_instruments;
@@ -86,12 +86,12 @@ BEGIN
         CREATE TEMPORARY TABLE tmp_threads (THREAD_ID bigint unsigned NOT NULL PRIMARY KEY, INSTRUMENTED enum('YES','NO') NOT NULL);
 
         INSERT INTO tmp_threads SELECT THREAD_ID, INSTRUMENTED FROM performance_schema.threads;
+
+        SET sql_log_bin = @log_bin;
     ELSE
         SIGNAL SQLSTATE VALUE '90000'
            SET MESSAGE_TEXT = 'Could not lock the sys.ps_setup_save user lock, another thread has a saved configuration';
     END IF;
-
-    SET sql_log_bin = @log_bin;
 END$$
 
 DELIMITER ;
