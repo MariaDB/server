@@ -37,5 +37,11 @@ void wsrep_sort_xid_array(XID *array, int len);
 std::string wsrep_xid_print(const XID *xid);
 bool wsrep_is_xid_gtid_undefined(const XID *xid);
 
+/**
+  Pointer to the xid that is used to commit the transaction
+  during recovery.
+*/
+extern XID* wsrep_recovery_commit_xid;
+
 #endif /* WITH_WSREP */
 #endif /* WSREP_UTILS_H */
