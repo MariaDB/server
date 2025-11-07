@@ -69,32 +69,32 @@ create or replace table t1 (a int, b int,
 show create table t1;
 drop table t1;
 
-#
-# MDEV-10370 Check constraints on virtual columns fails on INSERT when column not specified
-#
+--echo #
+--echo # MDEV-10370 Check constraints on virtual columns fails on INSERT when column not specified
+--echo #
 create table t1(c1 int, c2 int as (c1 + 1), check (c2 > 2));
 --error ER_CONSTRAINT_FAILED
 insert into t1(c1) values(1);
 insert into t1(c1) values(2);
 drop table t1;
 
-#
-# MDEV-11117 CHECK constraint fails on intermediate step of ALTER
-#
+--echo #
+--echo # MDEV-11117 CHECK constraint fails on intermediate step of ALTER
+--echo #
 -- error ER_GENERATED_COLUMN_FUNCTION_IS_NOT_ALLOWED
 create or replace table t1( c1 int auto_increment primary key, check( c1 > 0 or c1 is null ) );
 
-#
-# MDEV-12421 Check constraint with query crashes server and renders DB unusable
-#
+--echo #
+--echo # MDEV-12421 Check constraint with query crashes server and renders DB unusable
+--echo #
 --error ER_SUBQUERIES_NOT_SUPPORTED
 create table t1 (a int check (@b in (select user from mysql.user)));
 --error ER_GENERATED_COLUMN_FUNCTION_IS_NOT_ALLOWED
 create table t1 (a int check (a > @b));
 
-#
-# MDEV-13596 CHECK constraints disallow NULL to pass through, violating SQL
-#
+--echo #
+--echo # MDEV-13596 CHECK constraints disallow NULL to pass through, violating SQL
+--echo #
 create table t1 (a int check (a = 1));
 insert t1 values (1);
 --error ER_CONSTRAINT_FAILED
@@ -103,17 +103,17 @@ insert t1 values (NULL);
 select * from t1;
 drop table t1;
 
-#
-# MDEV-15141 Check constraint validation on a datetime field crashes the process
-#
+--echo #
+--echo # MDEV-15141 Check constraint validation on a datetime field crashes the process
+--echo #
 create table t1 (id int auto_increment primary key, datecol datetime, check (datecol>'0001-01-01 00:00:00'));
 insert into t1 (datecol) values (now());
 insert into t1 (datecol) values (now());
 drop table t1;
 
-#
-# MDEV-15461 Check Constraints with binary logging makes insert inconsistent
-#
+--echo #
+--echo # MDEV-15461 Check Constraints with binary logging makes insert inconsistent
+--echo #
 
 CREATE TABLE t1 (
   EmployeeID SMALLINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
@@ -136,8 +136,7 @@ select * from t1;
 drop table t1;
 
 --echo #
---echo # MDEV-16630: Ambiguous error message when check constraint
---echo #             matches table name
+--echo # MDEV-16630: Ambiguous error message when check constraint matches table name
 --echo #
 
 use test;
@@ -208,8 +207,48 @@ insert ignore into t1 values ( 'x' , 'x' ) ;
 drop table t1;
 
 --echo #
---echo # End of 10.2 tests
+--echo # MDEV-15338 Assertion `!table || (!table->read_set || bitmap_is_set(table->read_set, field_index))' failed on dropping column with CHECK
 --echo #
+
+CREATE TABLE t1 (a INT, b INT, CHECK (a>0)) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (1,2),(3,4);
+ALTER TABLE t1 DROP COLUMN a;
+CREATE OR REPLACE TABLE t1 (a INT, b INT, CHECK (a>0)) ENGINE=MyISAM;
+ALTER TABLE t1 DROP COLUMN b;
+CREATE OR REPLACE TABLE t1 (a INT, b INT, c INT, CHECK (a+b>0)) ENGINE=MyISAM;
+--error ER_BAD_FIELD_ERROR
+ALTER TABLE t1 DROP COLUMN b;
+ALTER TABLE t1 DROP COLUMN a, DROP COLUMN b;
+CREATE OR REPLACE TABLE t1 (a INT, b INT, c INT, CHECK (a+b>0)) ENGINE=MyISAM;
+ALTER TABLE t1 DROP CONSTRAINT `CONSTRAINT_1`;
+SHOW CREATE TABLE t1;
+CREATE OR REPLACE TABLE t1 (a INT, b INT, c INT, CHECK (a+b>0)) ENGINE=MyISAM;
+ALTER TABLE t1 DROP COLUMN b, DROP CONSTRAINT `CONSTRAINT_1`;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-16903 Assertion `!auto_increment_field_not_null' failed in TABLE::init after unsuccessful attempt to add CHECK constraint on temporary table
+--echo #
+create temporary table t1 (
+  id int not null auto_increment primary key,
+  f int not null default 0
+);
+insert into t1 () values ();
+alter ignore table t1 add constraint check (f > 0);
+alter table t1;
+drop table t1;
+
+--echo #
+--echo # MDEV-16905 ASAN heap-use-after-free in __interceptor_strnlen / ... / TABLE::verify_constraints upon INSERT into temporary table with CHECK constraint
+--echo #
+create temporary table t1 (a int default 0, check (a > 0));
+alter table t1 drop constraint if exists non_existing_constraint;
+--error ER_CONSTRAINT_FAILED
+insert into t1 () values ();
+drop table t1;
+
+--echo # End of 10.2 tests
 
 --echo #
 --echo # MDEV-26061 MariaDB server crash at Field::set_default
@@ -219,9 +258,7 @@ create table t1 (d timestamp not null default now() check (default (d) is true))
 show create table t1;
 drop table t1;
 
---echo #
 --echo # End of 10.3 tests
---echo #
 
 --echo #
 --echo # MDEV-24274 ALTER TABLE with CHECK CONSTRAINTS gives "Out of Memory" error
@@ -244,9 +281,7 @@ insert t1 (a) values (1);
 insert t1 (a) values (-1);
 drop table t1;
 
---echo #
 --echo # End of 10.4 tests
---echo #
 
 --echo #
 --echo # MDEV-36662 CHECK constraint does not repeat in case of error
@@ -304,7 +339,4 @@ insert into t1 values ("a");
 insert into t1 values ("b");
 drop table t1;
 
---echo #
 --echo # End of 10.11 tests
---echo #
-
