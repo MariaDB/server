@@ -55,3 +55,4 @@ Phase 6/8: Checking and upgrading tables... Skipped
 Phase 7/8: uninstalling plugins
 Phase 8/8: Running 'FLUSH PRIVILEGES'
 OK
+No archive files found to remove
