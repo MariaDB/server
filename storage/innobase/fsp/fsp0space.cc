@@ -112,6 +112,7 @@ Tablespace::open_or_create(bool is_temp)
 		/* We can close the handle now and open the tablespace
 		the proper way. */
 		it->close();
+		mysql_mutex_lock(&fil_system.mutex);
 
 		if (it == begin()) {
 			/* First data file. */
@@ -130,16 +131,9 @@ Tablespace::open_or_create(bool is_temp)
 				fsp_flags = FSP_FLAGS_PAGE_SSIZE();
 			}
 
-			mysql_mutex_lock(&fil_system.mutex);
 			space = fil_space_t::create(
 				uint32_t(m_space_id), fsp_flags,
 				false, nullptr);
-			if (!space) {
-				mysql_mutex_unlock(&fil_system.mutex);
-				return DB_ERROR;
-			}
-		} else {
-			mysql_mutex_lock(&fil_system.mutex);
 		}
 		space->add(it->m_filepath, OS_FILE_CLOSED, it->m_size,
 			   false, true);
