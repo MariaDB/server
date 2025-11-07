@@ -977,6 +977,13 @@ my_bool getopt_compare_strings(register const char *s, register const char *t,
 
 static inline ulonglong eval_num_suffix(char *suffix, int *error)
 {
+    /* Sergei’s patch for MDEV-23893:
+     Reject suffixes longer than one character, like “ab”, “hjh”, etc. */
+   if (suffix[0] && suffix[1])
+  {
+    *error = 1;
+    return 0ULL;
+  }
   switch (*suffix) {
   case '\0':
     return 1ULL;
@@ -1022,7 +1029,7 @@ static longlong eval_num_suffix_ll(char *argument,
   *error= 0;
   errno= 0;
   num= strtoll(argument, &endchar, 10);
-  if (errno == ERANGE)
+  if (errno == ERANGE||argument==endchar)
   {
     my_getopt_error_reporter(ERROR_LEVEL,
                              "Integer value out of range for int64: '%s'", argument);
