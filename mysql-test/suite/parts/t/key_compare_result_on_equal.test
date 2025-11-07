@@ -1,0 +1,21 @@
+--source include/have_partition.inc
+--source include/have_sequence.inc
+CREATE TABLE t1 (
+ a INT,
+ b INT,
+ KEY ( a, b )
+) PARTITION BY RANGE COLUMNS(a) (
+ PARTITION `p1` VALUES LESS THAN (10),
+ PARTITION `p2` VALUES LESS THAN (20),
+ PARTITION `p3` VALUES LESS THAN (30),
+ PARTITION `p4` VALUES LESS THAN (40),
+ PARTITION `p5` VALUES LESS THAN MAXVALUE
+);
+
+insert into t1 select seq, seq from seq_1_to_50;
+
+FLUSH status;
+SELECT a, MIN(b) FROM t1 WHERE a > 18 and a < 21 GROUP BY a;
+show status like 'handler_read_%';
+
+DROP TABLE t1;
