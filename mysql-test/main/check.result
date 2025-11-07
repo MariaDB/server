@@ -1,8 +1,6 @@
 connect  con1,localhost,root,,;
 connect  con2,localhost,root,,;
 connection con1;
-drop table if exists t1,t2;
-drop view if exists v1;
 create table t1(n int not null, key(n), key(n), key(n), key(n));
 Warnings:
 Note	1831	Duplicate index `n_2`. This is deprecated and will be disallowed in a future release
@@ -39,7 +37,6 @@ DROP TABLE t1;
 # Bug#56422 CHECK TABLE run when the table is locked reports corruption
 #           along with timeout
 #
-DROP TABLE IF EXISTS t1;
 CREATE TABLE t1(a INT);
 LOCK TABLE t1 WRITE;
 connect con1, localhost, root;
@@ -52,3 +49,25 @@ connection default;
 UNLOCK TABLES;
 DROP TABLE t1;
 disconnect con1;
+#
+# MDEV-37971 CHECK TABLE command can be executed by users with the table-level CREATE but not with global CREATE
+#
+create table t1 (a int);
+create user table_level_priv;
+create user global_level_priv;
+grant create on *.* to global_level_priv;
+grant create on test.t1 to table_level_priv;
+connect g,localhost,global_level_priv;
+check table test.t1;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+connect t,localhost,table_level_priv;
+check table test.t1;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+disconnect g;
+disconnect t;
+connection default;
+drop table t1;
+drop user table_level_priv, global_level_priv;
+# End of 10.11 tests
