@@ -357,18 +357,33 @@ static bool fil_node_open_file_low(fil_node_t *node, const byte *page,
     node->handle= os_file_create(innodb_data_file_key, node->name,
                                  node->is_raw_disk
                                  ? OS_FILE_OPEN_RAW | OS_FILE_ON_ERROR_NO_EXIT
+                                 : node->deferred
+                                 ? OS_FILE_OPEN | OS_FILE_ON_ERROR_NO_EXIT
+                                 | OS_FILE_ON_ERROR_SILENT
                                  : OS_FILE_OPEN | OS_FILE_ON_ERROR_NO_EXIT,
                                  type,
                                  srv_read_only_mode, &success);
+    ut_ad(success == node->is_open());
 
     if (success && node->is_open())
     {
+    created:
 #ifndef _WIN32
       if (!node->space->id && !srv_read_only_mode && my_disable_locking &&
           os_file_lock(node->handle, node->name))
         goto fail;
 #endif
       break;
+    }
+    else if (node->deferred)
+    {
+      node->handle= os_file_create(innodb_data_file_key, node->name,
+                                   OS_FILE_CREATE | OS_FILE_ON_ERROR_NO_EXIT,
+                                   type,
+                                   srv_read_only_mode, &success);
+      ut_ad(success == node->is_open());
+      if (node->is_open())
+        goto created;
     }
 
     /* The following call prints an error message */
@@ -1911,6 +1926,8 @@ fil_ibd_create(
 		the fsp_header_init() above before creating the file. */
 		log_write_up_to(mtr.commit_lsn(), true);
 	}
+
+	DEBUG_SYNC_C("fil_ibd_create_logged");
 
 	bool success;
 	pfs_os_file_t file = os_file_create(

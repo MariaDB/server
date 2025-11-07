@@ -45,52 +45,12 @@ AND support IN ('YES', 'DEFAULT', 'ENABLED');
 eval $check_no_innodb;
 let SEARCH_PATTERN= InnoDB: Ignoring data file '.*t2.ibd' with space ID \d+. Another data file called .*t1.ibd exists with the same space ID;
 --source include/search_pattern_in_file.inc
-
 --source include/shutdown_mysqld.inc
-
---remove_file $MYSQLD_DATADIR/test/t1.ibd
-
-# This could fail to refuse InnoDB startup, in case there was a log
-# checkpoint after the CREATE TABLE t3. That is what we checked above.
---echo # Fault 2: Wrong space_id in a dirty file, and a missing file.
---move_file $MYSQLD_DATADIR/test/t3.ibd $MYSQLD_DATADIR/test/t1.ibd
-
---source include/start_mysqld.inc
-eval $check_no_innodb;
-
-let SEARCH_PATTERN= InnoDB: Tablespace \d+ was not found at.*t3.ibd;
---source include/search_pattern_in_file.inc
-
---source include/shutdown_mysqld.inc
-
---move_file $MYSQLD_DATADIR/test/t1.ibd $MYSQLD_DATADIR/test/t3.ibd
-
---echo # Fault 3: Wrong space_id in a dirty file, and no missing file.
-# Swap t2.ibd and t3.ibd.
---move_file $MYSQLD_DATADIR/test/t3.ibd $MYSQLD_DATADIR/test/t.ibd
---move_file $MYSQLD_DATADIR/test/t2.ibd $MYSQLD_DATADIR/test/t3.ibd
---move_file $MYSQLD_DATADIR/test/t.ibd $MYSQLD_DATADIR/test/t2.ibd
-
---source include/start_mysqld.inc
-eval $check_no_innodb;
-
-let SEARCH_PATTERN= InnoDB: Ignoring data file '.*t[23].ibd' with space ID;
---source include/search_pattern_in_file.inc
-
-let SEARCH_PATTERN= InnoDB: Tablespace \d+ was not found at .*t1.ibd;
---source include/search_pattern_in_file.inc
-let SEARCH_PATTERN= InnoDB: Tablespace \d+ was not found at .*t3.ibd;
---source include/search_pattern_in_file.inc
-let SEARCH_PATTERN= InnoDB: Set innodb_force_recovery=1 to ignore this and to permanently lose all changes to the tablespace;
---source include/search_pattern_in_file.inc
-
---source include/shutdown_mysqld.inc
-
-# Swap back t3.ibd, but hide t2.ibd (which the redo log also knows as t1.ibd).
---move_file $MYSQLD_DATADIR/test/t3.ibd $MYSQLD_DATADIR/test/t.ibd
---move_file $MYSQLD_DATADIR/test/t2.ibd $MYSQLD_DATADIR/test/t3.ibd
 
 --echo # Fault 4: Missing data file
+
+--move_file $MYSQLD_DATADIR/test/t2.ibd $MYSQLD_DATADIR/test/t.ibd
+--remove_file $MYSQLD_DATADIR/test/t1.ibd
 
 --source include/start_mysqld.inc
 eval $check_no_innodb;
@@ -107,15 +67,6 @@ let SEARCH_PATTERN= InnoDB: Tablespace \d+ was not found at .*t[12].ibd.
 --source include/start_mysqld.inc
 eval $check_no_innodb;
 --source include/shutdown_mysqld.inc
-
-# On Linux, lseek() would typically report EINVAL when invoked on a directory.
-# On other plaftorms as well as some GNU/Linux based environments, such as
-# a Ubuntu 22.04 based image on Amazon Web Services,
-# os_file_get_size() would succeed on a directory, and we would get another
-# error about inability to apply log to a corrupted page.
-
-#--let SEARCH_PATTERN= InnoDB: Could not measure the size of single-table tablespace file '.*test/t2\\.ibd'
-#--source include/search_pattern_in_file.inc
 
 --rmdir $MYSQLD_DATADIR/test/t2.ibd
 
@@ -136,6 +87,9 @@ let SEARCH_PATTERN= .*\[ERROR\] InnoDB: Cannot apply log to \\[page id: space=[1
 --remove_file $MYSQLD_DATADIR/test/t2.ibd
 --move_file $MYSQLD_DATADIR/test/t.ibd $MYSQLD_DATADIR/test/t2.ibd
 
+--echo # Fault 2: Wrong space_id in a dirty file, and a missing file.
+--move_file $MYSQLD_DATADIR/test/t3.ibd $MYSQLD_DATADIR/test/t1.ibd
+
 --source include/start_mysqld.inc
 
 SELECT * FROM t2;
@@ -150,13 +104,20 @@ CREATE TABLE t0(a INT PRIMARY KEY) ENGINE=InnoDB;
 --remove_file $MYSQLD_DATADIR/test/t0.ibd
 CREATE TABLE t0(a INT PRIMARY KEY) ENGINE=InnoDB;
 DROP TABLE t0;
+--error ER_CANT_CREATE_TABLE
+CREATE TABLE t1(a INT PRIMARY KEY) ENGINE=InnoDB;
+--error ER_CANT_CREATE_TABLE
+CREATE TABLE t1(a INT PRIMARY KEY) ENGINE=InnoDB;
+--remove_file $MYSQLD_DATADIR/test/t1.ibd
+CREATE TABLE t1(a INT PRIMARY KEY) ENGINE=InnoDB;
+DROP TABLE t1;
 
 --disable_query_log
 # The following are for the orphan file t0.ibd or for the directory t2.ibd:
 call mtr.add_suppression("InnoDB: Operating system error number [0-9]* in a file operation");
 call mtr.add_suppression("InnoDB: Error number [0-9]* means '(File exists|Is a directory|Invalid argument)'");
 call mtr.add_suppression("InnoDB: Cannot create file '.*t0.ibd'");
-call mtr.add_suppression("InnoDB: The file '.*t0\.ibd' already exists");
+call mtr.add_suppression("InnoDB: The file '.*t[01]\.ibd' already exists");
 call mtr.add_suppression("InnoDB: Cannot open datafile for read-write: '.*t2\.ibd'");
 call mtr.add_suppression("InnoDB: Could not measure the size of single-table tablespace file '.*test/t2\\.ibd'");
 # The following are for aborted startup without --innodb-force-recovery:
@@ -186,6 +147,17 @@ call mtr.add_suppression("InnoDB: Recovery cannot access file");
 call mtr.add_suppression("InnoDB: Cannot read first page in datafile:");
 FLUSH TABLES;
 --enable_query_log
+
+# Force a log checkpoint to "discard" any FILE_CREATE records.
+SET GLOBAL innodb_max_purge_lag_wait=0;
+SET GLOBAL innodb_max_dirty_pages_pct_lwm=0.0;
+SET GLOBAL innodb_max_dirty_pages_pct=0.0;
+let $wait_condition =
+SELECT variable_value = 0
+FROM information_schema.global_status
+WHERE variable_name = 'INNODB_BUFFER_POOL_PAGES_DIRTY';
+--source include/wait_condition.inc
+SET GLOBAL innodb_max_dirty_pages_pct=90.0;
 
 --source include/no_checkpoint_start.inc
 

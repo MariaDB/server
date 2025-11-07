@@ -19,23 +19,6 @@ WHERE engine = 'innodb'
 AND support IN ('YES', 'DEFAULT', 'ENABLED');
 ENGINE	SUPPORT	COMMENT	TRANSACTIONS	XA	SAVEPOINTS
 FOUND 1 /InnoDB: Ignoring data file '.*t2.ibd' with space ID \d+. Another data file called .*t1.ibd exists with the same space ID/ in mysqld.1.err
-# Fault 2: Wrong space_id in a dirty file, and a missing file.
-# restart
-SELECT * FROM INFORMATION_SCHEMA.ENGINES
-WHERE engine = 'innodb'
-AND support IN ('YES', 'DEFAULT', 'ENABLED');
-ENGINE	SUPPORT	COMMENT	TRANSACTIONS	XA	SAVEPOINTS
-FOUND 1 /InnoDB: Tablespace \d+ was not found at.*t3.ibd/ in mysqld.1.err
-# Fault 3: Wrong space_id in a dirty file, and no missing file.
-# restart
-SELECT * FROM INFORMATION_SCHEMA.ENGINES
-WHERE engine = 'innodb'
-AND support IN ('YES', 'DEFAULT', 'ENABLED');
-ENGINE	SUPPORT	COMMENT	TRANSACTIONS	XA	SAVEPOINTS
-FOUND 1 /InnoDB: Ignoring data file '.*t[23].ibd' with space ID/ in mysqld.1.err
-NOT FOUND /InnoDB: Tablespace \d+ was not found at .*t1.ibd/ in mysqld.1.err
-FOUND 1 /InnoDB: Tablespace \d+ was not found at .*t3.ibd/ in mysqld.1.err
-FOUND 2 /InnoDB: Set innodb_force_recovery=1 to ignore this and to permanently lose all changes to the tablespace/ in mysqld.1.err
 # Fault 4: Missing data file
 # restart
 SELECT * FROM INFORMATION_SCHEMA.ENGINES
@@ -57,6 +40,7 @@ AND support IN ('YES', 'DEFAULT', 'ENABLED');
 ENGINE	SUPPORT	COMMENT	TRANSACTIONS	XA	SAVEPOINTS
 NOT FOUND /\[Note\] InnoDB: Cannot read first page of .*t2.ibd/ in mysqld.1.err
 FOUND 1 /.*\[ERROR\] InnoDB: Cannot apply log to \[page id: space=[1-9][0-9]*, page number=3\] of corrupted file './test/t2\.ibd'/ in mysqld.1.err
+# Fault 2: Wrong space_id in a dirty file, and a missing file.
 # restart
 SELECT * FROM t2;
 a
@@ -78,6 +62,16 @@ CREATE TABLE t0(a INT PRIMARY KEY) ENGINE=InnoDB;
 ERROR HY000: Can't create table `test`.`t0` (errno: 184 "Tablespace already exists")
 CREATE TABLE t0(a INT PRIMARY KEY) ENGINE=InnoDB;
 DROP TABLE t0;
+CREATE TABLE t1(a INT PRIMARY KEY) ENGINE=InnoDB;
+ERROR HY000: Can't create table `test`.`t1` (errno: 184 "Tablespace already exists")
+CREATE TABLE t1(a INT PRIMARY KEY) ENGINE=InnoDB;
+ERROR HY000: Can't create table `test`.`t1` (errno: 184 "Tablespace already exists")
+CREATE TABLE t1(a INT PRIMARY KEY) ENGINE=InnoDB;
+DROP TABLE t1;
+SET GLOBAL innodb_max_purge_lag_wait=0;
+SET GLOBAL innodb_max_dirty_pages_pct_lwm=0.0;
+SET GLOBAL innodb_max_dirty_pages_pct=0.0;
+SET GLOBAL innodb_max_dirty_pages_pct=90.0;
 CREATE TABLE u1(a INT PRIMARY KEY) ENGINE=InnoDB;
 CREATE TABLE u2(a INT PRIMARY KEY) ENGINE=InnoDB;
 CREATE TABLE u3(a INT PRIMARY KEY) ENGINE=InnoDB;

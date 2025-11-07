@@ -1144,7 +1144,7 @@ struct fil_node_t final
   /** whether the file actually is a raw device or disk partition */
   unsigned is_raw_disk:1;
   /** whether the tablespace discovery is being deferred during crash
-  recovery due to incompletely written page 0 */
+  recovery due to missing file or incompletely written page 0 */
   unsigned deferred:1;
 
   /** size of the file in database pages (0 if not known yet);

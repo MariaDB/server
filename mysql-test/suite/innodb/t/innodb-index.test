@@ -1136,26 +1136,14 @@ CREATE TABLE t2(f1 INT PRIMARY KEY)ENGINE=InnoDB;
 --let CLEANUP_IF_CHECKPOINT=DROP TABLE t1, t2;
 --source include/no_checkpoint_end.inc
 
-let SEARCH_FILE= $MYSQLTEST_VARDIR/log/mysqld.1.err;
-let $check_no_innodb=SELECT * FROM INFORMATION_SCHEMA.ENGINES
-WHERE engine = 'innodb'
-AND support IN ('YES', 'DEFAULT', 'ENABLED');
-
 --echo # Wrong space_id in a dirty file and a missing file
-
---copy_file $MYSQLD_DATADIR/test/t1.ibd $MYSQLD_DATADIR/test/t0.ibd
 --move_file $MYSQLD_DATADIR/test/t2.ibd $MYSQLD_DATADIR/test/t1.ibd
 
 --source include/start_mysqld.inc
---eval $check_no_innodb
---source include/shutdown_mysqld.inc
+# Because the tables were created after the checkpoint,
+# InnoDB will start up, but the tables will be corrupted.
+CHECK TABLE t1, t2;
 
---echo # Restore t1 and t2
-
---move_file $MYSQLD_DATADIR/test/t1.ibd $MYSQLD_DATADIR/test/t2.ibd
---move_file $MYSQLD_DATADIR/test/t0.ibd $MYSQLD_DATADIR/test/t1.ibd
-
---source include/start_mysqld.inc
 if ($have_debug) {
 # Initiate shutdown in order to issue a redo log checkpoint and to discard
 # the redo log record that was emitted due to '+d,fil_names_write_bogus'.
@@ -1163,9 +1151,6 @@ if ($have_debug) {
 --source include/restart_mysqld.inc
 --let $restart_noprint=0
 }
-
-SELECT * FROM t1;
-SELECT * FROM t2;
 
 DROP TABLE t1, t2;
 
