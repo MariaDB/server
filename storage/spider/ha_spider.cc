@@ -4149,10 +4149,6 @@ int ha_spider::rnd_init(
     }
   }
   pushed_pos = NULL;
-/*
-  if (wide_handler->external_lock_type == F_WRLCK)
-    check_and_start_bulk_update(SPD_BU_START_BY_INDEX_OR_RND_INIT);
-*/
   rnd_scan_and_first = scan;
   if (
     scan &&
@@ -4469,7 +4465,7 @@ void ha_spider::position(
   }
   if (pt_clone_last_searcher)
   {
-    /* sercher is cloned handler */
+    /* searcher is cloned handler */
     DBUG_PRINT("info",("spider cloned handler access"));
     pt_clone_last_searcher->position(record);
     memcpy(ref, pt_clone_last_searcher->ref, ref_length);
@@ -6927,7 +6923,7 @@ int ha_spider::create(
           SPIDER_ALTER_PARTITION_COALESCE | SPIDER_ALTER_PARTITION_REORGANIZE |
           SPIDER_ALTER_PARTITION_TABLE_REORG | SPIDER_ALTER_PARTITION_REBUILD
         )
-      ) &&
+      ) && /* Does not support PART_CHANGED */
       memcmp(name + strlen(name) - 5, "#TMP#", 5)
     ) {
       if (

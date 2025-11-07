@@ -60,7 +60,7 @@ INSERT INTO t1 VALUES ('1'),('௨');
 INSERT INTO t2 VALUES ('\\p{Cyrillic}'),('\\p{Greek}'),('\\p{Latin}');
 INSERT INTO t2 VALUES ('\\p{Han}'),('\\p{Hangul}');
 INSERT INTO t2 VALUES ('\\p{Sinhala}'), ('\\p{Tamil}');
-INSERT INTO t2 VALUES ('\\p{L}'),('\\p{Ll}'),('\\p{Lu}'),('\\p{L&}');
+INSERT INTO t2 VALUES ('\\p{L}'), /* buggy before v10.45 ('\\p{Ll}'),('\\p{Lu}'),*/ ('\\p{L&}');
 INSERT INTO t2 VALUES ('[[:alpha:]]'),('[[:digit:]]');
 SELECT class, ch, ch RLIKE class FROM t1, t2 ORDER BY BINARY class, BINARY ch;
 class	ch	ch RLIKE class
@@ -168,32 +168,6 @@ class	ch	ch RLIKE class
 \p{Latin}	ප	0
 \p{Latin}	㐗	0
 \p{Latin}	갷	0
-\p{Ll}	1	0
-\p{Ll}	A	0
-\p{Ll}	a	1
-\p{Ll}	À	0
-\p{Ll}	à	1
-\p{Ll}	Σ	0
-\p{Ll}	σ	1
-\p{Ll}	Я	0
-\p{Ll}	я	1
-\p{Ll}	௨	0
-\p{Ll}	ප	0
-\p{Ll}	㐗	0
-\p{Ll}	갷	0
-\p{Lu}	1	0
-\p{Lu}	A	1
-\p{Lu}	a	0
-\p{Lu}	À	1
-\p{Lu}	à	0
-\p{Lu}	Σ	1
-\p{Lu}	σ	0
-\p{Lu}	Я	1
-\p{Lu}	я	0
-\p{Lu}	௨	0
-\p{Lu}	ප	0
-\p{Lu}	㐗	0
-\p{Lu}	갷	0
 \p{L}	1	0
 \p{L}	A	1
 \p{L}	a	1
@@ -872,7 +846,7 @@ Warning	1139	Regex error 'UTF-8 error: 1 byte missing at end'
 # Since 11.5 (MDEV-25829) user variables have DERIVATION_COERCIBLE
 # so a user variable and a literal in the pattern gave equal results
 # But since 11.6 (MDEV-35041) user variables have DERIVATION_USERVAR
-# so the query with a literal is performece as binary:
+# so the query with a literal is performed as binary:
 SELECT 0xE001 REGEXP '\\xE0\\x01' AS c1;
 c1
 1
@@ -896,7 +870,7 @@ SET @regCheck= _binary '\\xE0\\x01';
 SELECT 0xE001 REGEXP @regCheck;
 0xE001 REGEXP @regCheck
 1
-# Testing workarond N3: This makes derivation of the subject string stronger (IMLICIT instead of COERCIBLE)
+# Testing workaround N3: This makes derivation of the subject string stronger (IMLICIT instead of COERCIBLE)
 SET NAMES latin1;
 SET @regCheck= '\\xE0\\x01';
 SELECT CAST(0xE001 AS BINARY) REGEXP @regCheck;

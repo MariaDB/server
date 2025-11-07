@@ -64,7 +64,7 @@ struct Listener
   }
 
   /**
-    if not NULL, this handle can be be used in WaitForSingle/MultipleObject(s).
+    if not NULL, this handle can be used in WaitForSingle/MultipleObject(s).
     This handle will be closed when object is destroyed.
 
     If NULL, the completion notification happens in threadpool.
@@ -78,7 +78,7 @@ struct Listener
   virtual void begin_accept()= 0;
 
   /**
-   Completion callback,called whenever IO posted by begin_accept is finisjed
+   Completion callback,called whenever IO posted by begin_accept is finished
    Listener needs to create a new THD then (or, call scheduler so it creates one)
 
    @param success - whether IO completed successfull
@@ -112,7 +112,7 @@ struct Listener
   };
 };
 
-/* Winsock extension finctions. */
+/* Winsock extension functions. */
 static LPFN_ACCEPTEX my_AcceptEx;
 static LPFN_GETACCEPTEXSOCKADDRS my_GetAcceptExSockaddrs;
 
@@ -121,7 +121,7 @@ static LPFN_GETACCEPTEXSOCKADDRS my_GetAcceptExSockaddrs;
   Can be threadpool-bound (i.e the completion is executed in threadpool thread),
   or use events for waits.
 
-  Threadpool-bound listener should be used with theradpool scheduler, for better
+  Threadpool-bound listener should be used with threadpool scheduler, for better
   performance.
 */
 struct Socket_Listener: public Listener
@@ -595,11 +595,8 @@ void network_init_win()
 
 void handle_connections_win()
 {
-  int n_waits;
-
   create_shutdown_event();
   wait_events.push_back(hEventShutdown);
-  n_waits= 1;
 
   for (size_t i= 0; i < all_listeners.size(); i++)
   {

@@ -65,7 +65,7 @@
   'min record length'.  Tail pages are for overflow data which can be of
   any size and thus doesn't have to be adjusted for different tables.
   If we add more columns to the table, some of the originally calculated
-  'cut off' points may not be optimal, but they shouldn't be 'drasticly
+  'cut off' points may not be optimal, but they shouldn't be 'drastically
   wrong'.
 
   When allocating data from the bitmap, we are trying to do it in a
@@ -247,6 +247,7 @@ my_bool _ma_bitmap_init(MARIA_SHARE *share, File file,
   bitmap->share= share;
   bitmap->block_size= share->block_size;
   bitmap->file.file= file;
+  bitmap->file.pagecache= share->kfile.pagecache;
   _ma_bitmap_set_pagecache_callbacks(&bitmap->file, share);
 
   /* Size needs to be aligned on 6 */
@@ -549,7 +550,7 @@ my_bool _ma_bitmap_flush_all(MARIA_SHARE *share)
       be different.
       There should be no pinned pages as bitmap->non_flushable==0.
     */
-    if (flush_pagecache_blocks_with_filter(share->pagecache,
+    if (flush_pagecache_blocks_with_filter(bitmap->file.pagecache,
                                            &bitmap->file, FLUSH_KEEP,
                                            filter_flush_bitmap_pages,
                                            &bitmap->pages_covered) &
@@ -1079,7 +1080,7 @@ static my_bool _ma_read_bitmap_page(MARIA_HA *info,
   }
   else
   {
-    res= pagecache_read(share->pagecache,
+    res= pagecache_read(bitmap->file.pagecache,
                         &bitmap->file, page, 0,
                         bitmap->map, PAGECACHE_PLAIN_PAGE,
                         PAGECACHE_LOCK_LEFT_UNLOCKED, 0) == NULL;
@@ -1370,7 +1371,7 @@ static my_bool allocate_head(MARIA_FILE_BITMAP *bitmap, uint size,
   else
   {
     /*
-      This is not stricly needed as used_size should be alligned on 6,
+      This is not strictly needed as used_size should be alligned on 6,
        but for easier debugging lets try to keep it more accurate
     */
     uint position= (uint)  (best_data - bitmap->map) + 6;
@@ -1758,7 +1759,7 @@ static my_bool find_tail(MARIA_HA *info, uint length, size_t position)
 
   /*
     We have to add DIR_ENTRY_SIZE to ensure we have space for the tail and
-    it's directroy entry on the page
+    its directory entry on the page
   */
   while (allocate_tail(bitmap, length + DIR_ENTRY_SIZE, block))
     if (move_to_next_bitmap(info, bitmap))
@@ -2208,7 +2209,7 @@ abort:
    This function is only called when the new row can't fit in the space of
    the old row in the head page.
 
-   This is essently same as _ma_bitmap_find_place() except that
+   This is essentially the same as _ma_bitmap_find_place() except that
    we don't call find_head() to search in bitmaps where to put the page.
 
   RETURN
@@ -2637,7 +2638,7 @@ void _ma_bitmap_flushable(MARIA_HA *info, int non_flushable_inc)
   DBUG_ENTER("_ma_bitmap_flushable");
 
   /*
-    Not transactional tables are never automaticly flushed and needs no
+    Not transactional tables are never automatically flushed and need no
     protection
   */
   if (!share->now_transactional)
@@ -2869,7 +2870,7 @@ my_bool _ma_bitmap_free_full_pages(MARIA_HA *info, const uchar *extents,
     {
       if (page == 0 && page_count == 0)
         continue;                               /* Not used extent */
-      if (pagecache_delete_pages(info->s->pagecache, &info->dfile, page,
+      if (pagecache_delete_pages(info->dfile.pagecache, &info->dfile, page,
                                  page_count, PAGECACHE_LOCK_WRITE, 1))
         DBUG_RETURN(1);
       mysql_mutex_lock(&bitmap->bitmap_lock);
@@ -3208,7 +3209,7 @@ _ma_bitmap_create_missing_into_pagecache(MARIA_SHARE *share,
       filesystem may fill gaps with zeroes physically which is a waste of
       time.
     */
-    if (pagecache_write(share->pagecache,
+    if (pagecache_write(bitmap->file.pagecache,
                         &bitmap->file, i, 0,
                         zeroes, PAGECACHE_PLAIN_PAGE,
                         PAGECACHE_LOCK_LEFT_UNLOCKED,

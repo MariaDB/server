@@ -54,6 +54,7 @@
 #include "sql_test.h"         // mysql_print_status
 #include "sql_select.h"       // handle_select, mysql_select,
                               // mysql_explain_union
+#include "sql_cursor.h"       // Select_materialzie
 #include "sql_load.h"         // mysql_load
 #include "sql_servers.h"      // create_servers, alter_servers,
                               // drop_servers, servers_reload
@@ -92,8 +93,8 @@
 #include "opt_trace.h"
 #include "mysql/psi/mysql_sp.h"
 
-#include "my_json_writer.h" 
-
+#include "my_json_writer.h"
+#include "opt_trace_ddl_info.h"
 #define FLAGSTR(V,F) ((V)&(F)?#F" ":"")
 
 #ifdef WITH_ARIA_STORAGE_ENGINE
@@ -530,6 +531,7 @@ void init_update_queries(void)
                                             CF_SCHEMA_CHANGE;
   sql_command_flags[SQLCOM_CREATE_SEQUENCE]=  (CF_CHANGES_DATA |
                                             CF_REEXECUTION_FRAGILE |
+                                            CF_FORCE_ORIGINAL_BINLOG_FORMAT |
                                             CF_AUTO_COMMIT_TRANS |
                                             CF_SCHEMA_CHANGE);
   sql_command_flags[SQLCOM_CREATE_INDEX]=   CF_CHANGES_DATA | CF_AUTO_COMMIT_TRANS |
@@ -1469,14 +1471,16 @@ out:
 static bool deny_updates_if_read_only_option(THD *thd, TABLE_LIST *all_tables)
 {
   DBUG_ENTER("deny_updates_if_read_only_option");
+  DBUG_ASSERT(!thd->slave_thread);              // Checked by caller
 
   if (!opt_readonly)
     DBUG_RETURN(FALSE);
 
   LEX *lex= thd->lex;
 
-  /* Super user is allowed to do changes */
-  if ((thd->security_ctx->master_access & PRIV_IGNORE_READ_ONLY) != NO_ACL)
+  /* Super user is allowed to do changes in some cases */
+  if ((thd->security_ctx->master_access & PRIV_IGNORE_READ_ONLY) != NO_ACL &&
+      opt_readonly < READONLY_NO_LOCK_NO_ADMIN)
     DBUG_RETURN(FALSE);
 
   /* Check if command doesn't update anything */
@@ -1710,22 +1714,8 @@ dispatch_command_return dispatch_command(enum enum_server_command command, THD *
   case COM_RESET_CONNECTION:
   {
     thd->status_var.com_other++;
-#ifdef WITH_WSREP
-    if (unlikely(wsrep_service_started))
-    {
-      wsrep_after_command_ignore_result(thd);
-      wsrep_close(thd);
-    }
-#endif /* WITH_WSREP */
     thd->change_user();
     thd->clear_error();                         // if errors from rollback
-#ifdef WITH_WSREP
-    if (unlikely(wsrep_service_started))
-    {
-      wsrep_open(thd);
-      wsrep_before_command(thd);
-    }
-#endif /* WITH_WSREP */
     /* Restore original charset from client authentication packet.*/
     if(thd->org_charset)
       thd->update_charset(thd->org_charset,thd->org_charset,thd->org_charset);
@@ -1737,21 +1727,7 @@ dispatch_command_return dispatch_command(enum enum_server_command command, THD *
     int auth_rc;
     status_var_increment(thd->status_var.com_other);
 
-#ifdef WITH_WSREP
-    if (unlikely(wsrep_service_started))
-    {
-      wsrep_after_command_ignore_result(thd);
-      wsrep_close(thd);
-    }
-#endif /* WITH_WSREP */
     thd->change_user();
-#ifdef WITH_WSREP
-    if (unlikely(wsrep_service_started))
-    {
-      wsrep_open(thd);
-      wsrep_before_command(thd);
-    }
-#endif /* WITH_WSREP */
     thd->clear_error();                         // if errors from rollback
 
     /* acl_authenticate() takes the data from net->read_pos */
@@ -1872,7 +1848,7 @@ dispatch_command_return dispatch_command(enum enum_server_command command, THD *
                       (char *) thd->security_ctx->host_or_ip);
     char *packet_end= thd->query() + thd->query_length();
     general_log_write(thd, command, thd->query(), thd->query_length());
-    DBUG_PRINT("query",("%-.4096s",thd->query()));
+    DBUG_PRINT("query",("query_id=%lld, %.*s", thd->query_id, thd->query_length(), thd->query()));
 #if defined(ENABLED_PROFILING)
     thd->profiling.set_query_source(thd->query(), thd->query_length());
 #endif
@@ -2183,7 +2159,7 @@ dispatch_command_return dispatch_command(enum enum_server_command command, THD *
 
     /*
       Initialize thd->lex since it's used in many base functions, such as
-      open_tables(). Otherwise, it remains unitialized and may cause crash
+      open_tables(). Otherwise, it remains uninitialized and may cause crash
       during execution of COM_REFRESH.
     */
     lex_start(thd);
@@ -2811,7 +2787,7 @@ bool sp_process_definer(THD *thd)
         case, we should assign CURRENT_USER as definer.
 
       - Our slave received an updated from the master, that does not
-        replicate definer for stored rountines. We should also assign
+        replicate definer for stored routines. We should also assign
         CURRENT_USER as definer here, but also we should mark this routine
         as NON-SUID. This is essential for the sake of backward
         compatibility.
@@ -2879,7 +2855,7 @@ bool sp_process_definer(THD *thd)
   if (!is_acl_user(lex->definer->host, lex->definer->user))
   {
     push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
-                        ER_NO_SUCH_USER, ER_THD(thd, ER_NO_SUCH_USER),
+                        ER_MALFORMED_DEFINER, ER_THD(thd, ER_MALFORMED_DEFINER),
                         lex->definer->user.str, lex->definer->host.str);
   }
 #endif /* NO_EMBEDDED_ACCESS_CHECKS */
@@ -2963,7 +2939,7 @@ retry:
         {
           /*
             Deadlock occurred during upgrade of metadata lock.
-            Let us restart acquring and opening tables for LOCK TABLES.
+            Let us restart acquiring and opening tables for LOCK TABLES.
           */
           close_tables_for_reopen(thd, &tables, mdl_savepoint, true);
           if (thd->open_temporary_tables(tables))
@@ -2990,7 +2966,7 @@ retry:
        Either definer or invoker has to have PRIV_LOCK_TABLES to be able
        to lock view and its tables. For mysqldump (that locks views
        before dumping their structures) compatibility we allow locking
-       views that select from I_S or P_S tables, but downrade the lock
+       views that select from I_S or P_S tables, but downgrade the lock
        to TL_READ
      */
     if (table->belong_to_view &&
@@ -3067,11 +3043,6 @@ static bool do_execute_sp(THD *thd, sp_head *sp)
   ha_rows select_limit= thd->variables.select_limit;
   thd->variables.select_limit= HA_POS_ERROR;
 
-  /*
-    Reset current_select as it may point to random data as a
-    result of previous parsing.
-  */
-  thd->lex->current_select= NULL;
   thd->lex->in_sum_func= 0;                     // For Item_field::fix_fields()
 
   /*
@@ -3532,6 +3503,7 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
   */
   lex->first_lists_tables_same();
   lex->fix_first_select_number();
+  lex->resolve_optimizer_hints();
   /* should be assigned after making first tables same */
   all_tables= lex->query_tables;
   /* set context for commands which do not use setup_tables */
@@ -3629,7 +3601,7 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
     }
     
     /*
-      Check if statment should be skipped because of slave filtering
+      Check if statement should be skipped because of slave filtering
       rules
 
       Exceptions are:
@@ -3668,7 +3640,7 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
     */
     if (deny_updates_if_read_only_option(thd, all_tables))
     {
-      my_error(ER_OPTION_PREVENTS_STATEMENT, MYF(0), "--read-only");
+      mariadb_error_read_only();
       DBUG_RETURN(-1);
     }
 #ifdef HAVE_REPLICATION
@@ -3687,7 +3659,7 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
     /*
       change LOCK TABLE WRITE to transaction
     */
-    if (lex->sql_command== SQLCOM_LOCK_TABLES && wsrep_convert_LOCK_to_trx)
+    if (lex->sql_command == SQLCOM_LOCK_TABLES && wsrep_convert_LOCK_to_trx)
     {
       for (TABLE_LIST *table= all_tables; table; table= table->next_global)
       {
@@ -3699,7 +3671,7 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
 	}
       }
     }
-    if (lex->sql_command== SQLCOM_UNLOCK_TABLES &&
+    if (lex->sql_command == SQLCOM_UNLOCK_TABLES &&
 	thd->wsrep_converted_lock_session)
     {
       thd->wsrep_converted_lock_session= false;
@@ -3847,7 +3819,7 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
     thd->query_plan_flags|= QPLAN_ADMIN;
 
   /* Start timeouts */
-  thd->set_query_timer();
+  thd->set_query_timer_if_needed();
 
 #ifdef WITH_WSREP
   /* Check wsrep_mode rules before command execution. */
@@ -4656,6 +4628,7 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
       select_lex->context.table_list=
         select_lex->context.first_name_resolution_table= second_table;
       res= mysql_insert_select_prepare(thd, result);
+      Write_record write;
       if (!res &&
           (sel_result= new (thd->mem_root)
                        select_insert(thd, first_table,
@@ -4665,7 +4638,8 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
                                     &lex->value_list,
                                     lex->duplicates,
                                     lex->ignore,
-                                    result)))
+                                    result,
+                                    &write)))
       {
         if (lex->analyze_stmt)
           ((select_result_interceptor*)sel_result)->disable_my_ok_calls();
@@ -5848,11 +5822,12 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
 
     if ((err_code= drop_server(thd, &lex->server_options)))
     {
-      if (! lex->if_exists() && err_code == ER_FOREIGN_SERVER_DOESNT_EXIST)
+      if (! lex->if_exists() || err_code != ER_FOREIGN_SERVER_DOESNT_EXIST)
       {
         DBUG_PRINT("info", ("problem dropping server %s",
                             lex->server_options.server_name.str));
-        my_error(err_code, MYF(0), lex->server_options.server_name.str);
+        if (!thd->is_error())
+          my_error(err_code, MYF(0), lex->server_options.server_name.str);
       }
       else
       {
@@ -5907,6 +5882,8 @@ wsrep_error_label:
   res= true;
 
 finish:
+  if (!thd->is_error() && !res)
+    res= store_table_definitions_in_trace(thd);
 
   thd->reset_query_timer();
   DBUG_ASSERT(!thd->in_active_multi_stmt_transaction() ||
@@ -5948,7 +5925,7 @@ finish:
         INSERT INTO t1 VALUES (_utf8mb3'test');
         COMMIT;
 
-      The statment (INSERT in this example) is already in binlog at this point, and the
+      The statement (INSERT in this example) is already in binlog at this point, and the
       and the "SET character_set_collations" is written inside a
       Q_CHARACTER_SET_COLLATIONS chunk in its log entry header.
       The flag CHARACTER_SET_COLLATIONS_USED is not needed any more.
@@ -5992,6 +5969,9 @@ finish:
       one of storage engines (e.g. due to deadlock). Rollback transaction in
       all storage engines including binary log.
     */
+    auto &xid_state= thd->transaction->xid_state;
+    if (xid_state.is_explicit_XA())
+      xid_state.set_rollback_only();
     trans_rollback_implicit(thd);
     thd->release_transactional_locks();
   }
@@ -6208,7 +6188,7 @@ static bool execute_sqlcom_select(THD *thd, TABLE_LIST *all_tables)
     }
   }
   /* Count number of empty select queries */
-  if (!thd->get_sent_row_count() && !res)
+  if (!thd->is_cursor_execution() && !thd->get_sent_row_count() && !res)
     status_var_increment(thd->status_var.empty_queries);
   else
     status_var_add(thd->status_var.rows_sent, thd->get_sent_row_count());
@@ -6852,7 +6832,7 @@ bool check_one_table_access(THD *thd, privilege_t privilege,
   if (check_single_table_access (thd,privilege,all_tables, FALSE))
     return 1;
 
-  /* Check rights on tables of subselects and implictly opened tables */
+  /* Check rights on tables of subselects and implicitly opened tables */
   TABLE_LIST *subselects_tables, *view= all_tables->view ? all_tables : 0;
   if ((subselects_tables= all_tables->next_global))
   {
@@ -7037,17 +7017,8 @@ check_table_access(THD *thd, privilege_t requirements, TABLE_LIST *tables,
     DBUG_PRINT("info", ("derived: %d  view: %d", table_ref->derived != 0,
                         table_ref->view != 0));
 
-    if (table_ref->is_anonymous_derived_table())
+    if (table_ref->is_anonymous_derived_table() || table_ref->sequence)
       continue;
-
-    if (table_ref->sequence)
-    {
-      /* We want to have either SELECT or INSERT rights to sequences depending
-         on how they are accessed
-      */
-      want_access= ((table_ref->lock_type >= TL_FIRST_WRITE) ?
-                    INSERT_ACL : SELECT_ACL);
-    }
 
     if (check_access(thd, want_access, table_ref->get_db_name().str,
                      &table_ref->grant.privilege,
@@ -7494,6 +7465,7 @@ void THD::reset_for_next_command(bool do_clear_error)
   get_stmt_da()->reset_for_next_command();
   sent_row_count_for_statement= examined_row_count_for_statement= 0;
   accessed_rows_and_keys= 0;
+  tmp_table_binlog_handled= 0;
 
   reset_slow_query_state(0);
 
@@ -7501,6 +7473,7 @@ void THD::reset_for_next_command(bool do_clear_error)
   binlog_unsafe_warning_flags= 0;
 
   save_prep_leaf_list= false;
+  m_sp_cache_version= 0;
 
 #if defined(WITH_WSREP) && !defined(DBUG_OFF)
   if (mysql_bin_log.is_open())
@@ -8111,7 +8084,8 @@ TABLE_LIST *st_select_lex::add_table_to_list(THD *thd,
     DBUG_RETURN(0);
   else
     fqtn= FALSE;
-  bool info_schema= is_infoschema_db(&db);
+  bool info_schema= (db.is_null() || db.is_empty())
+	            ? false : is_infoschema_db(&db);
   if (!table->sel && info_schema &&
       (table_options & TL_OPTION_UPDATING) &&
       /* Special cases which are processed by commands itself */
@@ -8171,8 +8145,8 @@ TABLE_LIST *st_select_lex::add_table_to_list(THD *thd,
       }
     }
   }
-  /* Store the table reference preceding the current one. */
-  TABLE_LIST *UNINIT_VAR(previous_table_ref); /* The table preceding the current one. */
+  /* Store the table reference preceding the current in previous_table_ref */
+  TABLE_LIST *UNINIT_VAR(previous_table_ref);
   if (table_list.elements > 0 && likely(!ptr->sequence))
   {
     /*
@@ -8927,8 +8901,8 @@ push_new_name_resolution_context(THD *thd,
 
 
 /**
-  Fix condition which contains only field (f turns to  f <> 0 )
-    or only contains the function NOT field (not f turns to  f == 0)
+  Fix condition which contains only field (f turns to  f IS TRUE )
+  or only contains the function NOT field (not f turns to  f IS FALSE)
 
   @param cond            The condition to fix
 
@@ -8942,7 +8916,8 @@ Item *normalize_cond(THD *thd, Item *cond)
     Item::Type type= cond->type();
     if (type == Item::FIELD_ITEM || type == Item::REF_ITEM)
     {
-      item_base_t is_cond_flag= cond->base_flags & item_base_t::IS_COND;
+      item_base_t is_cond_flag= cond->base_flags &
+        (item_base_t::IS_COND | item_base_t::AT_TOP_LEVEL);
       cond->base_flags&= ~item_base_t::IS_COND;
       cond= new (thd->mem_root) Item_func_istrue(thd, cond);
       if (cond)
@@ -10024,7 +9999,7 @@ LEX_USER *create_default_definer(THD *thd, bool role)
 
   if (role && definer->user.length == 0)
   {
-    my_error(ER_MALFORMED_DEFINER, MYF(0));
+    my_error(ER_INVALID_ROLE, MYF(0), "NONE");
     return 0;
   }
   else
@@ -10132,8 +10107,14 @@ bool check_string_char_length(const LEX_CSTRING *str, uint err_msg,
 
 bool check_ident_length(const LEX_CSTRING *ident)
 {
-  if (check_string_char_length(ident, 0, NAME_CHAR_LEN,
-                               Lex_ident_ci::charset_info(), 1))
+  /*
+    string_char_length desite the names, goes into Well_formed_prefix_status
+    so this is more than just a length comparison. Things like a primary key
+    doesn't have a name, therefore no length. Also the ident grammar allows
+    empty backtick. Check quickly the length, and if 0, accept that.
+  */
+  if (ident->length && check_string_char_length(ident, 0, NAME_CHAR_LEN,
+                                                Lex_ident_ci::charset_info(), 1))
   {
     my_error(ER_TOO_LONG_IDENT, MYF(0), ident->str);
     return 1;

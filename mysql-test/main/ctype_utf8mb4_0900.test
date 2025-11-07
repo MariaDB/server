@@ -83,3 +83,47 @@ drop table t1,t2;
 CREATE OR REPLACE TABLE t1 (p int primary key auto_increment, a VARCHAR(10), key (a)) engine=aria, COLLATE utf8mb4_sv_0900_ai_ci;
 alter table t1 modify a varchar(10) collate utf8mb4_uca1400_swedish_nopad_ai_ci, algorithm=nocopy;
 drop table t1;
+
+--echo #
+--echo # Print protocol collation IDs for 0900 collations
+--echo # They should be known to libmariadb
+--echo # See libmariadb/libmariadb/ma_charset.c
+--echo #
+
+--disable_column_names
+--disable_ps_protocol
+--enable_metadata
+DELIMITER $$;
+FOR rec IN (SELECT COLLATION_NAME
+            FROM INFORMATION_SCHEMA.COLLATION_CHARACTER_SET_APPLICABILITY
+            WHERE CHARACTER_SET_NAME='utf8mb4'
+              AND COLLATION_NAME RLIKE '_0900_'
+            ORDER BY ID)
+DO
+  EXECUTE IMMEDIATE CONCAT('SET NAMES utf8mb4 COLLATE ', rec.COLLATION_NAME);
+  SELECT rec.COLLATION_NAME;
+END FOR;
+$$
+DELIMITER ;$$
+--disable_metadata
+--enable_ps_protocol
+--enable_column_names
+
+
+--echo #
+--echo # MDEV-36361 Wrong utf8mb4_0900_bin alias for utf8mb4_bin (should be utf8mb4_nopad_bin)
+--echo #
+
+SELECT collation_name, id, comment
+FROM information_schema.collations
+WHERE collation_name='utf8mb4_0900_bin';
+
+CREATE TABLE t1 (
+  a VARCHAR(32),
+  b VARCHAR(32)
+) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_bin;
+INSERT INTO t1 VALUES ('a\t', 'a');
+SELECT a<b FROM t1;
+DROP TABLE t1;
+
+--echo # End of 11.4 tests

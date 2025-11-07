@@ -2,8 +2,10 @@
 # Tests BACKUP STAGE locking
 ########################################################################
 
+--source include/long_test.inc
 --source include/have_innodb.inc
 --source include/have_metadata_lock_info.inc
+--source include/have_profiling.inc
 --source include/not_embedded.inc
 --source include/no_view_protocol.inc
 

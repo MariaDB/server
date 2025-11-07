@@ -1,0 +1,22 @@
+#
+# MDEV-28762: recursive call of some json functions without stack control
+#
+SET @saved_dbug = @@debug_dbug;
+SET debug_dbug='+d,json_check_min_stack_requirement';
+SELECT * from JSON_TABLE('[{"a": 1, "b": [11,111]}, {"a": 2, "b": [22,222]}]', '$[*]' COLUMNS( a INT PATH '$.a')) as tt;
+ERROR HY000: Thread stack overrun:  'used bytes' used of a 'available' byte stack, and 'X' bytes needed. Consider increasing the thread_stack system variable.
+SET @json1= '{"key1":"val1"}';
+SET @json2= '{"key1":"val1"}';
+SELECT JSON_OVERLAPS(@json1, @json2);
+ERROR HY000: Thread stack overrun:  'used bytes' used of a 'available' byte stack, and 'X' bytes needed. Consider increasing the thread_stack system variable.
+SET @schema_array= '{
+                     "type":"array",
+                     "items": {"type":"number"},
+                     "maxItems": 4,
+                     "minItems": 2}';
+SELECT JSON_SCHEMA_VALID(@schema_array, '[1, 2, 3]');
+ERROR HY000: Thread stack overrun:  'used bytes' used of a 'available' byte stack, and 'X' bytes needed. Consider increasing the thread_stack system variable.
+SET @@debug_dbug= @saved_dbug;
+#
+# End of 10.9 test
+#

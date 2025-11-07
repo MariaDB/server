@@ -452,12 +452,14 @@ fseg_free_page(
 	MY_ATTRIBUTE((nonnull, warn_unused_result));
 
 /** Determine whether a page is allocated.
+@param mtr     mini-transaction
 @param space   tablespace
 @param page    page number
 @return error code
 @retval DB_SUCCESS             if the page is marked as free
 @retval DB_SUCCESS_LOCKED_REC  if the page is marked as allocated */
-dberr_t fseg_page_is_allocated(fil_space_t *space, unsigned page)
+dberr_t fseg_page_is_allocated(mtr_t *mtr, fil_space_t *space, unsigned page)
+  noexcept
   MY_ATTRIBUTE((nonnull, warn_unused_result));
 
 MY_ATTRIBUTE((nonnull, warn_unused_result))
@@ -698,7 +700,7 @@ inline uint32_t fsp_flags_is_incompatible_mysql(uint32_t flags)
 {
   /*
     MySQL-8.0 SDI flag (bit 14),
-    or MySQL 5.7 Encyption flag (bit 13)
+    or MySQL 5.7 Encryption flag (bit 13)
   */
   return flags >> 13 & 3;
 }

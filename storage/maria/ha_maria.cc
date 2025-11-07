@@ -42,6 +42,7 @@ C_MODE_END
 #include "key.h"
 #include "log.h"
 #include "sql_parse.h"
+#include "mysql/plugin.h"
 #include "mysql/service_print_check_msg.h"
 #include "debug.h"
 
@@ -57,7 +58,8 @@ C_MODE_END
 
 #define THD_TRN (TRN*) thd_get_ha_data(thd, maria_hton)
 
-ulong pagecache_division_limit, pagecache_age_threshold, pagecache_file_hash_size;
+uint pagecache_segments, pagecache_division_limit, pagecache_file_hash_size;
+ulong pagecache_age_threshold;
 ulonglong pagecache_buffer_size;
 const char *zerofill_error_msg=
   "Table is probably from another system and must be zerofilled or repaired ('REPAIR TABLE table_name') to be usable on this system";
@@ -114,7 +116,7 @@ const char *maria_group_commit_names[]=
 TYPELIB maria_group_commit_typelib= CREATE_TYPELIB_FOR(maria_group_commit_names);
 
 /** Interval between background checkpoints in seconds */
-static ulong checkpoint_interval;
+static uint checkpoint_interval;
 static void update_checkpoint_interval(MYSQL_THD thd,
                                        struct st_mysql_sys_var *var,
                                        void *var_ptr, const void *save);
@@ -125,32 +127,36 @@ static void update_maria_group_commit_interval(MYSQL_THD thd,
                                            struct st_mysql_sys_var *var,
                                            void *var_ptr, const void *save);
 /** After that many consecutive recovery failures, remove logs */
-static ulong force_start_after_recovery_failures;
+static uint force_start_after_recovery_failures;
 static void update_log_file_size(MYSQL_THD thd,
                                  struct st_mysql_sys_var *var,
                                  void *var_ptr, const void *save);
 
 /* The 4096 is there because of MariaDB privilege tables */
-static MYSQL_SYSVAR_ULONG(block_size, maria_block_size,
+static MYSQL_SYSVAR_UINT(block_size, maria_block_size,
        PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
        "Block size to be used for Aria index pages", 0, 0,
        MARIA_KEY_BLOCK_LENGTH, 4096,
        MARIA_MAX_KEY_BLOCK_LENGTH, MARIA_MIN_KEY_BLOCK_LENGTH);
 
-static MYSQL_SYSVAR_ULONG(checkpoint_interval, checkpoint_interval,
-       PLUGIN_VAR_RQCMDARG,
-       "Interval between tries to do an automatic checkpoints. In seconds; 0 means"
-       " 'no automatic checkpoints' which makes sense only for testing",
-       NULL, update_checkpoint_interval, 30, 0, UINT_MAX, 1);
+static MYSQL_SYSVAR_UINT(checkpoint_interval, checkpoint_interval,
+                         PLUGIN_VAR_RQCMDARG,
+                         "Interval between tries to do an automatic "
+                         "checkpoints. In seconds; 0 means "
+                         "'no automatic checkpoints' which makes sense only "
+                         "for testing",
+                         NULL, update_checkpoint_interval, 30, 0, UINT_MAX, 1);
 
-static MYSQL_SYSVAR_ULONG(checkpoint_log_activity, maria_checkpoint_min_log_activity,
-       PLUGIN_VAR_RQCMDARG,
-       "Number of bytes that the transaction log has to grow between checkpoints before a new "
-       "checkpoint is written to the log",
-       NULL, NULL, 1024*1024, 0, UINT_MAX, 1);
+static MYSQL_SYSVAR_UINT(checkpoint_log_activity,
+                         maria_checkpoint_min_log_activity,
+                         PLUGIN_VAR_RQCMDARG,
+                         "Number of bytes that the transaction log has to grow "
+                         "between checkpoints before a new checkpoint is "
+                         "written to the log",
+                         NULL, NULL, 1024*1024, 0, UINT_MAX, 1);
 
-static MYSQL_SYSVAR_ULONG(force_start_after_recovery_failures,
-       force_start_after_recovery_failures,
+static MYSQL_SYSVAR_UINT(force_start_after_recovery_failures,
+                         force_start_after_recovery_failures,
        /*
          Read-only because setting it on the fly has no useful effect,
          should be set on command-line.
@@ -222,12 +228,12 @@ static MYSQL_SYSVAR_ULONGLONG(pagecache_buffer_size, pagecache_buffer_size,
        "multiple writes) to as much as you can afford", 0, 0,
        KEY_CACHE_SIZE, 8192*16L, ~(ulonglong) 0, 1);
 
-static MYSQL_SYSVAR_ULONG(pagecache_division_limit, pagecache_division_limit,
+static MYSQL_SYSVAR_UINT(pagecache_division_limit, pagecache_division_limit,
        PLUGIN_VAR_RQCMDARG,
        "The minimum percentage of warm blocks in key cache", 0, 0,
        100,  1, 100, 1);
 
-static MYSQL_SYSVAR_ULONG(pagecache_file_hash_size, pagecache_file_hash_size,
+static MYSQL_SYSVAR_UINT(pagecache_file_hash_size, pagecache_file_hash_size,
        PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
        "Number of hash buckets for open and changed files.  If you have a lot of Aria "
        "files open you should increase this for faster flush of changes. A good "
@@ -238,7 +244,7 @@ static MYSQL_SYSVAR_SET(recover_options, maria_recover_options, PLUGIN_VAR_OPCMD
        "Specifies how corrupted tables should be automatically repaired",
        NULL, NULL, HA_RECOVER_BACKUP|HA_RECOVER_QUICK, &maria_recover_typelib);
 
-static MYSQL_THDVAR_ULONG(repair_threads, PLUGIN_VAR_RQCMDARG,
+static MYSQL_THDVAR_UINT(repair_threads, PLUGIN_VAR_RQCMDARG,
        "Number of threads to use when repairing Aria tables. The value of 1 "
        "disables parallel repair",
        0, 0, 1, 1, 128, 1);
@@ -257,6 +263,14 @@ static MYSQL_SYSVAR_ENUM(sync_log_dir, sync_log_dir, PLUGIN_VAR_RQCMDARG,
        "Controls syncing directory after log file growth and new file "
        "creation", NULL, NULL, TRANSLOG_SYNC_DIR_NEWFILE,
        &maria_sync_log_dir_typelib);
+
+static MYSQL_SYSVAR_UINT(pagecache_segments, pagecache_segments,
+                         PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
+                         "The number of segments in the page_cache. "
+                         "Each file is put in their own segments of size "
+                         "pagecache_buffer_size / segments. "
+                         "Having many segments improves parallel performance",
+                         0, 0, 1, 1, 128, 1);
 
 #ifdef USE_ARIA_FOR_TMP_TABLES
 #define USE_ARIA_FOR_TMP_TABLES_VAL 1
@@ -591,13 +605,13 @@ static int table2maria(TABLE *table_arg, data_file_type row_type,
   while (recpos < (uint) share->stored_rec_length)
   {
     Field **field, *found= 0;
-    minpos= share->reclength;
+    minpos= share->stored_rec_length;
     length= 0;
 
     for (field= table_arg->field; *field; field++)
     {
       if ((fieldpos= (*field)->offset(record)) >= recpos &&
-          fieldpos <= minpos)
+          fieldpos < minpos)
       {
         /* skip null fields */
         if (!(temp_length= (*field)->pack_length_in_rec()))
@@ -1757,6 +1771,13 @@ int ha_maria::repair(THD *thd, HA_CHECK *param, bool do_optimize)
     /* Set trid (needed if the table was moved from another system) */
     share->state.create_trid= trnman_get_min_safe_trid();
   }
+
+  /*
+    Leaving not-zero value here leads to crash in the following
+    maria_delete() particularly when we execute REPAIR TABLE partitioned_t;.
+  */
+  file->cur_row.trid= 0;
+
   mysql_mutex_lock(&share->intern_lock);
   if (!error)
   {
@@ -3212,11 +3233,12 @@ THR_LOCK_DATA **ha_maria::store_lock(THD *thd,
       We have to disable concurrent inserts for INSERT ... SELECT or
       INSERT/UPDATE/DELETE with sub queries if we are using statement based
       logging.  We take the safe route here and disable this for all commands
-      that only does reading that are not SELECT.
+      that only does reading that are not SELECT or ALTER TABLE nolock.
     */
     if (lock_type <= TL_READ_HIGH_PRIORITY &&
         !thd->is_current_stmt_binlog_format_row() &&
         (sql_command != SQLCOM_SELECT &&
+         sql_command != SQLCOM_ALTER_TABLE &&
          sql_command != SQLCOM_LOCK_TABLES) &&
         (thd->variables.option_bits & OPTION_BIN_LOG) &&
         mysql_bin_log.is_open())
@@ -3925,10 +3947,11 @@ static int ha_maria_init(void *p)
   res= res ||
     ((force_start_after_recovery_failures != 0 && !aria_readonly) &&
      mark_recovery_start(log_dir)) ||
-    !init_pagecache(maria_pagecache,
-                    (size_t) pagecache_buffer_size, pagecache_division_limit,
-                    pagecache_age_threshold, maria_block_size, pagecache_file_hash_size,
-                    0) ||
+    multi_init_pagecache(&maria_pagecaches, pagecache_segments,
+                         (size_t) pagecache_buffer_size,
+                         pagecache_division_limit,
+                         pagecache_age_threshold, maria_block_size,
+                         pagecache_file_hash_size, 0) ||
     !init_pagecache(maria_log_pagecache,
                     TRANSLOG_PAGECACHE_SIZE, 0, 0,
                     TRANSLOG_PAGE_SIZE, 0, 0) ||
@@ -3945,7 +3968,6 @@ static int ha_maria_init(void *p)
     ma_checkpoint_init(checkpoint_interval);
   maria_multi_threaded= maria_in_ha_maria= TRUE;
   maria_create_trn_hook= maria_create_trn_for_mysql;
-  maria_pagecache->extra_debug= 1;
   maria_assert_if_crashed_table= debug_assert_if_crashed_table;
 
   if (res)
@@ -4051,6 +4073,7 @@ static struct st_mysql_sys_var *system_variables[]= {
   MYSQL_SYSVAR(pagecache_buffer_size),
   MYSQL_SYSVAR(pagecache_division_limit),
   MYSQL_SYSVAR(pagecache_file_hash_size),
+  MYSQL_SYSVAR(pagecache_segments),
   MYSQL_SYSVAR(recover_options),
   MYSQL_SYSVAR(repair_threads),
   MYSQL_SYSVAR(sort_buffer_size),
@@ -4071,7 +4094,7 @@ static void update_checkpoint_interval(MYSQL_THD thd,
                                         void *var_ptr, const void *save)
 {
   ma_checkpoint_end();
-  ma_checkpoint_init(*(ulong *)var_ptr= (ulong)(*(long *)save));
+  ma_checkpoint_init(*(uint *)var_ptr= *(uint*)save);
 }
 
 
@@ -4176,14 +4199,31 @@ static void update_log_file_size(MYSQL_THD thd,
 
 
 static SHOW_VAR status_variables[]= {
-  {"pagecache_blocks_not_flushed", (char*) &maria_pagecache_var.global_blocks_changed, SHOW_LONG},
-  {"pagecache_blocks_unused",      (char*) &maria_pagecache_var.blocks_unused, SHOW_LONG},
-  {"pagecache_blocks_used",        (char*) &maria_pagecache_var.blocks_used, SHOW_LONG},
-  {"pagecache_read_requests",      (char*) &maria_pagecache_var.global_cache_r_requests, SHOW_LONGLONG},
-  {"pagecache_reads",              (char*) &maria_pagecache_var.global_cache_read, SHOW_LONGLONG},
-  {"pagecache_write_requests",     (char*) &maria_pagecache_var.global_cache_w_requests, SHOW_LONGLONG},
-  {"pagecache_writes",             (char*) &maria_pagecache_var.global_cache_write, SHOW_LONGLONG},
-  {"transaction_log_syncs",        (char*) &translog_syncs, SHOW_LONGLONG},
+  {"blocks_not_flushed", (char*) &pagecache_stats.global_blocks_changed, SHOW_LONG},
+  {"blocks_unused",      (char*) &pagecache_stats.blocks_unused, SHOW_LONG},
+  {"blocks_used",        (char*) &pagecache_stats.blocks_used, SHOW_LONG},
+  {"read_requests",      (char*) &pagecache_stats.global_cache_r_requests, SHOW_LONGLONG},
+  {"reads",              (char*) &pagecache_stats.global_cache_read, SHOW_LONGLONG},
+  {"write_requests",     (char*) &pagecache_stats.global_cache_w_requests, SHOW_LONGLONG},
+  {"writes",             (char*) &pagecache_stats.global_cache_write, SHOW_LONGLONG},
+  {NullS, NullS, SHOW_LONG}
+};
+
+
+static int pagecache_stats_func(THD *thd, SHOW_VAR *var, void *buff,
+                                system_status_var *, enum_var_type scope)
+{
+  multi_update_pagecache_stats();
+  var->type= SHOW_ARRAY;
+  var->value= status_variables;
+  return 0;
+}
+
+static SHOW_VAR dynamic_status_variables[]=
+{
+  /* Accessing pagecache causes multi_update_pagecache_stats() to be called */
+  {"pagecache",             (char*) &pagecache_stats_func, SHOW_FUNC},
+  {"transaction_log_syncs", (char*) &translog_syncs, SHOW_LONGLONG},
   {NullS, NullS, SHOW_LONG}
 };
 
@@ -4324,7 +4364,7 @@ int ha_maria::find_unique_row(uchar *record, uint constrain_no)
   else
   {
     /*
-     It is case when just unique index used instead unicue constrain
+     It is the case when just unique index is used instead of unique constraint
      (conversion from heap table).
      */
     DBUG_ASSERT(file->s->state.header.keys > constrain_no);
@@ -4359,7 +4399,12 @@ int ha_maria::check_for_upgrade(HA_CHECK_OPT *check)
 }
 
 
-struct st_mysql_storage_engine maria_storage_engine=
+void aria_reset_pagecache_counters()
+{
+  multi_reset_pagecache_counters(&maria_pagecaches);
+}
+
+  struct st_mysql_storage_engine maria_storage_engine=
 { MYSQL_HANDLERTON_INTERFACE_VERSION };
 
 maria_declare_plugin(aria)
@@ -4372,10 +4417,10 @@ maria_declare_plugin(aria)
   PLUGIN_LICENSE_GPL,
   ha_maria_init,                /* Plugin Init      */
   NULL,                         /* Plugin Deinit    */
-  0x0105,                       /* 1.5              */
-  status_variables,             /* status variables */
+  0x0106,                       /* 1.6              */
+  dynamic_status_variables,     /* status variables */
   system_variables,             /* system variables */
-  "1.5",                        /* string version   */
+  "1.6",                        /* string version   */
   MariaDB_PLUGIN_MATURITY_STABLE /* maturity         */
 }
 maria_declare_plugin_end;

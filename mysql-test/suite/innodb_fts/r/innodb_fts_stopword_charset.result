@@ -269,7 +269,7 @@ AGAINST ('love' IN NATURAL LANGUAGE MODE);
 id	title
 DROP TABLE articles;
 DROP TABLE user_stopword;
-# Test 9 : drop user stopwrod table,test shutdown to check if it works
+# Test 9 : drop user stopword table,test shutdown to check if it works
 CREATE TABLE articles (
 id INT UNSIGNED AUTO_INCREMENT NOT NULL PRIMARY KEY,
 title VARCHAR(200)

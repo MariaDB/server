@@ -226,19 +226,12 @@ Qcache_hits	8
 show status like "Qcache_not_cached";
 Variable_name	Value
 Qcache_not_cached	4
-connection root;
 disconnect root;
-connection root2;
 disconnect root2;
-connection user1;
 disconnect user1;
-connection user2;
 disconnect user2;
-connection user3;
 disconnect user3;
-connection user4;
 disconnect user4;
-connection unkuser;
 disconnect unkuser;
 connection default;
 set names binary;

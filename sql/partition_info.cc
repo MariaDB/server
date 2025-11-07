@@ -558,7 +558,7 @@ bool partition_info::set_up_defaults_for_partitioning(THD *thd, handler *file,
     no parameters
 
   RETURN VALUE
-    Erroneus field name  Error, there are two fields with same name
+    Erroneous field name  Error, there are two fields with same name
     NULL                 Ok, no field defined twice
 
   DESCRIPTION
@@ -1272,15 +1272,14 @@ bool partition_info::check_partition_info(THD *thd, handlerton **eng_type,
     if (!list_of_part_fields)
     {
       DBUG_ASSERT(part_expr);
-      err= part_expr->walk(&Item::check_partition_func_processor, 0, NULL);
+      err= part_expr->walk(&Item::check_partition_func_processor, 0, 0);
     }
 
     /* Check for sub partition expression. */
     if (!err && is_sub_partitioned() && !list_of_subpart_fields)
     {
       DBUG_ASSERT(subpart_expr);
-      err= subpart_expr->walk(&Item::check_partition_func_processor, 0,
-                              NULL);
+      err= subpart_expr->walk(&Item::check_partition_func_processor, 0, 0);
     }
 
     if (err)
@@ -1983,7 +1982,7 @@ bool partition_info::add_column_list_value(THD *thd, Item *item)
   else
     thd->where= THD_WHERE::PARTITION_FUNCTION;
 
-  if (item->walk(&Item::check_partition_func_processor, 0, NULL))
+  if (item->walk(&Item::check_partition_func_processor, 0, 0))
   {
     my_error(ER_PARTITION_FUNCTION_IS_NOT_ALLOWED, MYF(0));
     DBUG_RETURN(TRUE);

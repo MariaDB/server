@@ -2129,3 +2129,32 @@ EXECUTE stmt USING 4;
 ERROR 22007: Truncated incorrect DECIMAL value: ''
 DROP TABLE t;
 # End of 11.7 Test
+#
+# MDEV-36104 Server crashes when reading information_schema.COLUMNS after creating a table with virtual columns using the GIS data type
+#
+create table t (a point generated always as (1) stored,b int generated always as (1) virtual);
+ERROR HY000: Cannot cast 'int' as 'point' in assignment of `test`.`t`.`a`
+set sql_mode='';
+create table t (a point generated always as (1) stored,b int generated always as (1) virtual);
+Warnings:
+Warning	4078	Cannot cast 'int' as 'point' in assignment of `test`.`t`.`a`
+set sql_mode=default;
+select column_name,column_type from information_schema.columns where table_name='t';
+column_name	column_type
+a	point
+b	int(11)
+Warnings:
+Warning	4078	Cannot cast 'int' as 'point' in assignment of `test`.`t`.`a`
+show create table t;
+Table	Create Table
+t	CREATE TABLE `t` (
+  `a` point GENERATED ALWAYS AS (1) STORED,
+  `b` int(11) GENERATED ALWAYS AS (1) VIRTUAL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+Warnings:
+Warning	4078	Cannot cast 'int' as 'point' in assignment of `test`.`t`.`a`
+insert t () values ();
+ERROR 22003: Cannot get geometry object from data you send to the GEOMETRY field
+alter table t add column c int, drop column a, drop column b;
+drop table t;
+# End of 11.8 Test

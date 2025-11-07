@@ -760,30 +760,6 @@ SPIDER_DB_ROW *spider_db_mbase_result::fetch_row(MY_BITMAP *skips)
   DBUG_RETURN((SPIDER_DB_ROW *) &row);
 }
 
-SPIDER_DB_ROW *spider_db_mbase_result::fetch_row_from_result_buffer(
-  spider_db_result_buffer *spider_res_buf
-) {
-  DBUG_ENTER("spider_db_mbase_result::fetch_row_from_result_buffer");
-  DBUG_PRINT("info",("spider this=%p", this));
-  if (!(row.row = mysql_fetch_row(db_result)))
-  {
-    if (mysql_errno(((spider_db_mbase *) db_conn)->db_conn))
-    {
-      store_error_num = mysql_errno(((spider_db_mbase *) db_conn)->db_conn);
-      my_message(store_error_num,
-        mysql_error(((spider_db_mbase *) db_conn)->db_conn), MYF(0));
-    } else
-      store_error_num = HA_ERR_END_OF_FILE;
-    DBUG_RETURN(NULL);
-  }
-  row.lengths = mysql_fetch_lengths(db_result);
-  row.field_count = mysql_num_fields(db_result);
-  row.row_first = row.row;
-  row.lengths_first = row.lengths;
-  row.record_size = 0;
-  DBUG_RETURN((SPIDER_DB_ROW *) &row);
-}
-
 SPIDER_DB_ROW *spider_db_mbase_result::fetch_row_from_tmp_table(
   TABLE *tmp_table
 ) {
@@ -3057,7 +3033,7 @@ int spider_db_mbase::append_lock_tables(
   int error_num;
   ha_spider *tmp_spider;
   int lock_type;
-  uint conn_link_idx;
+  uint all_link_idx;
   int tmp_link_idx;
   SPIDER_LINK_FOR_HASH *tmp_link_for_hash;
   const char *db_name;
@@ -3097,16 +3073,16 @@ int spider_db_mbase::append_lock_tables(
           tmp_spider->wide_handler->lock_type));
         DBUG_RETURN(0);
     }
-    conn_link_idx = tmp_spider->conn_link_idx[tmp_link_idx];
+    all_link_idx = tmp_spider->conn_link_idx[tmp_link_idx];
     spider_mbase_share *db_share = (spider_mbase_share *)
       tmp_spider->share->dbton_share[conn->dbton_id];
 
-    db_name = db_share->db_names_str[conn_link_idx].ptr();
-    db_name_length = db_share->db_names_str[conn_link_idx].length();
+    db_name = db_share->db_names_str[all_link_idx].ptr();
+    db_name_length = db_share->db_names_str[all_link_idx].length();
     db_name_charset = tmp_spider->share->access_charset;
 
-    table_name = db_share->table_names_str[conn_link_idx].ptr();
-    table_name_length = db_share->table_names_str[conn_link_idx].length();
+    table_name = db_share->table_names_str[all_link_idx].ptr();
+    table_name_length = db_share->table_names_str[all_link_idx].length();
     table_name_charset = tmp_spider->share->access_charset;
 
     if ((error_num = spider_db_mbase_utility->
@@ -4847,13 +4823,9 @@ int spider_db_mbase_util::open_item_func(
 ) {
   DBUG_ENTER("spider_db_mbase_util::open_item_func");
 
-  int error = check_item_func(item_func, spider, alias,
-    alias_length, use_fields, fields);
-  if (error)
-    DBUG_RETURN(error);
   if (!str)
-    DBUG_RETURN(0);
-
+    DBUG_RETURN(check_item_func(item_func, spider, alias,
+                                alias_length, use_fields, fields));
   DBUG_RETURN(print_item_func(item_func, spider, str, alias,
     alias_length, use_fields, fields));
 }
@@ -5013,8 +4985,6 @@ int spider_db_mbase_util::print_item_func(
   int use_pushdown_udf, case_when_start, case_when_count;
   bool merge_func = FALSE, case_with_else;
   DBUG_ENTER("spider_db_mbase_util::print_item_func");
-  DBUG_ASSERT(!check_item_func(item_func, spider, alias, alias_length,
-                               use_fields, fields));
   DBUG_ASSERT(str);
 
   if (str->reserve(SPIDER_SQL_OPEN_PAREN_LEN))
@@ -8917,12 +8887,13 @@ int spider_mbase_handler::append_key_select_part(
     default:
       DBUG_RETURN(0);
   }
-  error_num = append_key_select(str, idx);
+  error_num = append_key_select(str, sql_type, idx);
   DBUG_RETURN(error_num);
 }
 
 int spider_mbase_handler::append_key_select(
   spider_string *str,
+  ulong sql_type,
   uint idx
 ) {
   st_select_lex *select_lex = NULL;
@@ -8971,6 +8942,7 @@ int spider_mbase_handler::append_key_select(
       str->q_append(SPIDER_SQL_COMMA_STR, SPIDER_SQL_COMMA_LEN);
     }
     str->length(str->length() - SPIDER_SQL_COMMA_LEN);
+    DBUG_RETURN(append_from(str, sql_type, first_link_idx));
   } else {
     table_name_pos = str->length() + mysql_share->key_select_pos[idx];
     if (str->append(mysql_share->key_select[idx]))

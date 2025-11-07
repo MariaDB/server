@@ -22,7 +22,10 @@ USE auto_test_remote;
 --connection child2_1
 --disable_query_log
 echo CHILD2_1_CREATE_TABLES;
-eval $CHILD2_1_CREATE_TABLES;
+CREATE TABLE tbl_a (
+pkey int NOT NULL,
+PRIMARY KEY (pkey)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 --enable_query_log
 TRUNCATE TABLE mysql.general_log;
 
@@ -32,10 +35,10 @@ echo CREATE TABLE tbl_a (
     pkey int NOT NULL,
     PRIMARY KEY (pkey)
 ) MASTER_1_ENGINE MASTER_1_CHARSET MASTER_1_COMMENT_2_1;
-eval CREATE TABLE tbl_a (
+CREATE TABLE tbl_a (
     pkey int NOT NULL,
     PRIMARY KEY (pkey)
-) $MASTER_1_ENGINE $MASTER_1_CHARSET $MASTER_1_COMMENT_2_1;
+) ENGINE=Spider DEFAULT CHARSET=utf8 COMMENT='table "tbl_a", srv "s_2_1"';
 --enable_query_log
 
 --connection child2_1
@@ -50,11 +53,65 @@ XA END 'test';
 XA PREPARE 'test';
 XA COMMIT 'test';
 
+--echo # MDEV-37829 XA COMMIT ONE PHASE fails with "This xid does not
+--echo # exist" if a trigger references a SPIDER table
+--echo #
+--echo # Below we test a version of the MDEV-37829 case that is not a
+--echo # no-op on the spider table
+
+XA START 'test1';
+INSERT INTO tbl_a (pkey) VALUES (100);
+XA END 'test1';
+XA COMMIT 'test1' ONE PHASE;
+
+select * from tbl_a;
+
+create table t (c int);
+insert into t values (1),(2);
+
+DELIMITER $$;
+
+CREATE PROCEDURE tProc()
+BEGIN
+    SET @t := TRUE;
+    IF @t = TRUE THEN
+        INSERT INTO tbl_a select max(pkey) + 1 from tbl_a;
+    END IF;
+END$$
+
+CREATE TRIGGER t_au
+AFTER UPDATE
+ON t FOR EACH ROW
+BEGIN
+    IF NEW.c < 50 THEN
+        CALL tProc();
+    END IF;
+END$$
+
+DELIMITER ;$$
+
+XA START 'test';
+update t set c = c + 1 where c = 1;
+XA END 'test';
+XA PREPARE 'test';
+XA COMMIT 'test';
+
+XA START 'test1';
+update t set c = c + 1 where c = 2;
+XA END 'test1';
+XA COMMIT 'test1' ONE PHASE;
+
+drop table t;
+
+select * from tbl_a;
+
 --connection child2_1
+--disable_view_protocol
 --disable_ps2_protocol
-eval $CHILD2_1_SELECT_ARGUMENT1;
+SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%insert %';
 --enable_ps2_protocol
-eval $CHILD2_1_SELECT_TABLES;
+--enable_view_protocol
+SELECT pkey FROM tbl_a ORDER BY pkey;
 
 --echo
 --echo deinit

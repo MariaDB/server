@@ -998,7 +998,7 @@ Wrong character with pad
 insert ignore into t1 values (0x110000);
 Warnings:
 Warning	1366	Incorrect string value: '\x11\x00\x00' for column `test`.`t1`.`utf32` at row 1
-Wrong chsaracter without pad
+Wrong character without pad
 insert ignore into t1 values (0x00110000);
 Warnings:
 Warning	1366	Incorrect string value: '\x00\x11\x00\x00' for column `test`.`t1`.`utf32` at row 1

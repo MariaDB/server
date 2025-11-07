@@ -203,7 +203,7 @@ set optimizer_switch=@save_optimizer_switch;
 --echo #
 --echo # LP Bug #915291: query using a materialized view
 --echo #                 + extended_keys = on
---echo # (valgrinf complains fixed by the patch for bug #914560)
+--echo # (valgrind complains fixed by the patch for bug #914560)
 --echo #
 
 SET optimizer_switch = 'derived_with_keys=on';

@@ -554,7 +554,7 @@ from t2;
 drop table t2;
 
 --echo #
---echo # Try RANGE PRECEDING|FOLLWING n
+--echo # Try RANGE PRECEDING|FOLLOWING n
 --echo #
 create table t1 (
   part_id int,
@@ -2812,7 +2812,7 @@ FROM t1
 GROUP BY nullif(id, 15532);
 drop table t1;
 
-#Dublicate warnings
+#Duplicate warnings
 --disable_view_protocol
 CREATE TABLE t1 ( a char(25), b text);
 INSERT INTO t1 VALUES ('foo','bar');
@@ -3069,4 +3069,57 @@ DROP TABLE t1, t2;
 
 --echo #
 --echo # End of 10.6 tests
+--echo #
+
+--echo #
+--echo # MDEV-31744: Assertion `order_list->elements == 1' failure 
+--echo # during Frame_range_n_bottom object creation
+--echo #
+
+CREATE TABLE t1 (a int, b int, c int, d int) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (1,1,1,1);
+CREATE VIEW v1 AS SELECT * FROM t1;
+ 
+SELECT 
+  LEAD(a)  OVER (ORDER BY b, c) AS c1,
+  COUNT(*) OVER (ORDER BY d RANGE BETWEEN CURRENT ROW AND 5 FOLLOWING) AS c2
+FROM v1;
+
+--echo #
+--echo # test similar query as above for Frame_range_n_top
+--echo #
+
+SELECT 
+  LEAD(a)  OVER (ORDER BY b, c) AS c1, 
+  COUNT(*) OVER (ORDER BY d RANGE BETWEEN 5 PRECEDING AND CURRENT ROW) AS c2
+FROM v1;
+
+DROP TABLE t1;
+DROP VIEW v1;
+
+--echo #
+--echo # test queries as above but on the table instead of view 
+--echo #
+
+CREATE TABLE t1 (a int) ENGINE=MyISAM;
+INSERT INTO t1 values (1), (2);
+
+SELECT 
+  COUNT(*) OVER (ORDER BY 'abc', a) AS c1,
+  COUNT(*) OVER (ORDER BY a RANGE BETWEEN CURRENT ROW AND 5 FOLLOWING) AS c2
+from t1;
+
+--echo #
+--echo # similar query on table with Frame_range_n_top
+--echo #
+
+SELECT 
+  COUNT(*) OVER (ORDER BY 'abc', a) AS c1,
+  COUNT(*) OVER (ORDER BY a RANGE BETWEEN 5 PRECEDING AND CURRENT ROW) AS c2
+from t1;
+
+DROP TABLE t1;
+
+--echo #
+--echo # End of 10.11 tests
 --echo #

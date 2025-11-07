@@ -533,7 +533,7 @@ BEGIN;
 COMMIT;
 
 # First make sure DELETE raced indeed to get stuck at retrying stage
-# where it runs "realistically" now. There is nomore optimistic error
+# where it runs "realistically" now. There is no more optimistic error
 # in the errorlog, which is downgraded to the warning level (when
 # --log-warnings > 1), see above suppression.
 --connection server_2

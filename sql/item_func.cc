@@ -84,7 +84,7 @@ static inline bool test_if_sum_overflows_ull(ulonglong arg1, ulonglong arg2)
 /**
   Allocate memory for arguments using tmp_args or thd->alloc().
   @retval false  - success
-  @retval true   - error (arg_count is set to 0 for conveniece)
+  @retval true   - error (arg_count is set to 0 for convenience)
 */
 bool Item_args::alloc_arguments(THD *thd, uint count)
 {
@@ -187,6 +187,20 @@ bool Item_func::check_argument_types_traditional_scalar(uint start,
 }
 
 
+bool Item_func::check_argument_types_can_return_bool(uint start,
+                                                     uint end) const
+{
+  const LEX_CSTRING fname= func_name_cstring();
+  for (uint i= start; i < end ; i++)
+  {
+    DBUG_ASSERT(i < arg_count);
+    if (args[i]->check_type_can_return_bool(fname))
+      return true;
+  }
+  return false;
+}
+
+
 bool Item_func::check_argument_types_can_return_int(uint start,
                                                     uint end) const
 {
@@ -275,6 +289,38 @@ bool Item_func::check_argument_types_scalar(uint start, uint end) const
   }
   return false;
 }
+
+
+/**
+  @brief
+  Update function's nullability based on nullness of its arguments
+
+  @details
+  Functions like `IFNULL` and `COALESCE` decide nullability of their
+  result after checking all the arguments. If any of the argument
+  is NOT NULL, function's result is also set to NOT NULL.
+  Note: Nullability determined here may be reset by type handlers in
+  `Item_hybrid_func_fix_attributes()`, if the first non-null argument
+  cannot be safely converted to target data type.
+  E.g. Type_handler_inet6 does:
+    IFNULL(inet6_not_null_expr, 'foo') -> INET6 NULL
+    IFNULL(inet6_not_null_expr, '::1') -> INET6 NOT NULL
+*/
+void Item_func::update_nullability_post_fix_fields()
+{
+  if (!maybe_null())
+    return;
+
+  for (uint i= 0; i < arg_count; i++)
+  {
+    if (!args[i]->maybe_null())
+    {
+      base_flags &= ~item_base_t::MAYBE_NULL;
+      break;
+    }
+  }
+}
+
 
 /*
   Resolve references to table column for a function and its argument
@@ -369,6 +415,11 @@ Item_func::fix_fields(THD *thd, Item **ref)
     return TRUE;
   }
   base_flags|= item_base_t::FIXED;
+  if (type_handler()->is_complex())
+  {
+    with_flags|= item_with_t::COMPLEX_DATA_TYPE;
+    thd->stmt_arena->with_flags_bit_or_for_complex_data_types|= with_flags;
+  }
 
   return FALSE;
 }
@@ -646,7 +697,7 @@ void Item_func::print_op(String *str, enum_query_type query_type)
 }
 
 
-bool Item_func::eq(const Item *item, bool binary_cmp) const
+bool Item_func::eq(const Item *item, const Eq_config &config) const
 {
   /* Assume we don't have rtti */
   if (this == item)
@@ -667,7 +718,7 @@ bool Item_func::eq(const Item *item, bool binary_cmp) const
        !Lex_ident_routine(func_name_cstring()).
          streq(item_func->func_name_cstring())))
     return 0;
-  return Item_args::eq(item_func, binary_cmp);
+  return Item_args::eq(item_func, config);
 }
 
 
@@ -830,11 +881,21 @@ String *Item_func_hybrid_field_type::val_str_from_int_op(String *str)
   return str;
 }
 
+#ifdef _M_ARM64
+/* MSVC on ARM incorrectly optimizes the code in val_real_from_int_op() */
+#pragma optimize("", off)
+#endif
+
 double Item_func_hybrid_field_type::val_real_from_int_op()
 {
   longlong result= int_op();
   return unsigned_flag ? (double) ((ulonglong) result) : (double) result;
 }
+
+#ifdef _M_ARM64
+#pragma optimize("", on)
+#endif
+
 
 my_decimal *
 Item_func_hybrid_field_type::val_decimal_from_int_op(my_decimal *dec)
@@ -2813,6 +2874,7 @@ bool Item_func_rand::fix_fields(THD *thd,Item **ref)
   if (Item_real_func::fix_fields(thd, ref))
     return TRUE;
   used_tables_cache|= RAND_TABLE_BIT;
+  thd->lex->safe_to_cache_query= 0;
   if (arg_count)
   {					// Only use argument once in query
     /*
@@ -3202,7 +3264,10 @@ longlong Item_func_locate::val_int()
     start0= start= args[2]->val_int();
 
     if ((start <= 0) || (start > a->length()))
+    {
+      null_value= args[2]->is_null();
       return 0;
+    }
     start0--; start--;
 
     /* start is now sufficiently valid to pass to charpos function */
@@ -4136,7 +4201,7 @@ public:
 const uchar *ull_get_key(const void *ptr, size_t *length, my_bool)
 {
   User_level_lock *ull = (User_level_lock*) ptr;
-  MDL_key *key = ull->lock->get_key();
+  const MDL_key *key = ull->lock->get_key();
   *length= key->length();
   return key->ptr();
 }
@@ -4793,7 +4858,7 @@ bool Item_func_set_user_var::fix_fields(THD *thd, Item **ref)
     break;
   case ROW_RESULT:
     DBUG_ASSERT(0);
-    set_handler(&type_handler_row);
+    set_handler(args[0]->type_handler());
     break;
   }
   if (thd->lex->current_select)
@@ -4848,7 +4913,7 @@ Item_func_set_user_var::fix_length_and_dec(THD *thd)
   Mark field in read_map
 
   NOTES
-    This is used by filesort to register used fields in a a temporary
+    This is used by filesort to register used fields in a temporary
     column read set or to register used fields in a view
 */
 
@@ -4861,7 +4926,8 @@ bool Item_func_set_user_var::register_field_in_read_map(void *arg)
       bitmap_set_bit(result_field->table->read_set, result_field->field_index);
     if (result_field->vcol_info)
       return result_field->vcol_info->
-               expr->walk(&Item::register_field_in_read_map, 1, arg);
+               expr->walk(&Item::register_field_in_read_map,
+                          arg, WALK_SUBQUERY);
   }
   return 0;
 }
@@ -5238,6 +5304,21 @@ Item_func_set_user_var::update()
                      unsigned_flag ? (Type_handler *) &type_handler_ulonglong :
                                      (Type_handler *) &type_handler_slonglong,
                      &my_charset_numeric);
+    if (with_complex_data_types())
+    {
+      /*
+        There are no user variable methods in Type_handler yet.
+        Also all INT-alike expresions do not preserve the exact data type on
+        a user variable assignment: they all get converted into BIGINT.
+        Let's disallow complex data types with side effects for now,
+        to avoid side effect resources leaking, e.g. m_statement_cursors
+        elements in case of SYS_REFCURSOR.
+      */
+      my_error(ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION, MYF(0),
+               args[0]->type_handler()->name().lex_cstring().str,
+               "SET user_variable");
+      DBUG_RETURN(true);
+    }
     break;
   }
   case STRING_RESULT:
@@ -5755,7 +5836,7 @@ void Item_func_get_user_var::print(String *str, enum_query_type query_type)
 }
 
 
-bool Item_func_get_user_var::eq(const Item *item, bool binary_cmp) const
+bool Item_func_get_user_var::eq(const Item *item, const Eq_config &config) const
 {
   /* Assume we don't have rtti */
   if (this == item)
@@ -6151,7 +6232,7 @@ double Item_func_get_system_var::val_real()
 }
 
 
-bool Item_func_get_system_var::eq(const Item *item, bool binary_cmp) const
+bool Item_func_get_system_var::eq(const Item *item, const Eq_config &config) const
 {
   /* Assume we don't have rtti */
   if (this == item)
@@ -6436,7 +6517,7 @@ err:
 }
 
 
-bool Item_func_match::eq(const Item *item, bool binary_cmp) const
+bool Item_func_match::eq(const Item *item, const Eq_config &config) const
 {
   if (item->type() != FUNC_ITEM ||
       ((Item_func*)item)->functype() != FT_FUNC ||
@@ -6446,7 +6527,7 @@ bool Item_func_match::eq(const Item *item, bool binary_cmp) const
   Item_func_match *ifm=(Item_func_match*) item;
 
   if (key == ifm->key && table == ifm->table &&
-      key_item()->eq(ifm->key_item(), binary_cmp))
+      key_item()->eq(ifm->key_item(), config))
     return 1;
 
   return 0;
@@ -6796,12 +6877,29 @@ Item_func_sp::fix_fields(THD *thd, Item **ref)
     DBUG_RETURN(TRUE);
   }
 
+  Query_arena *arena, backup;
+  /*
+    Allocation an instance of Item_func_sp used for initialization of
+    sp_result_field taken place inside the method init_result_field() is done
+    on sp_head's mem_root since Item_sp also allocated on this memory root.
+
+    Switching to SP/PS memory root is done explicitly before calling the method
+    init_result_field() instead doing that inside init_result_field()
+    since for the case when rollup aggregate function is handled
+    (@see Item_sum_sp::copy_or_same, @see JOIN::rollup_make_fields)
+    the runtime arena used for operations, so switching to SP/PS arena for this
+    case would result in assertion failure on second execution of the same
+    prepared statement because the memory root be already marked as read only.
+  */
+  arena= thd->activate_stmt_arena_if_needed(&backup);
   /*
     We must call init_result_field before Item_func::fix_fields()
     to make m_sp and result_field members available to fix_length_and_dec(),
     which is called from Item_func::fix_fields().
   */
   res= init_result_field(thd, max_length, maybe_null(), &null_value, &name);
+  if (arena)
+    thd->restore_active_arena(arena, &backup);
 
   if (res)
     DBUG_RETURN(TRUE);
@@ -6936,17 +7034,22 @@ longlong Item_func_uuid_short::val_int()
   Last_value - return last argument.
 */
 
-void Item_func_last_value::evaluate_sideeffects()
+void Item_func_last_value::evaluate_sideeffects(THD *thd)
 {
   DBUG_ASSERT(fixed() && arg_count > 0);
   for (uint i= 0; i < arg_count-1 ; i++)
+  {
     args[i]->val_int();
+    if (with_complex_data_types())
+      args[i]->expr_event_handler(thd ? thd : current_thd,
+                                  expr_event_t::DESTRUCT_ROUTINE_ARG);
+  }
 }
 
 String *Item_func_last_value::val_str(String *str)
 {
   String *tmp;
-  evaluate_sideeffects();
+  evaluate_sideeffects(nullptr);
   tmp= last_value->val_str(str);
   null_value= last_value->null_value;
   return tmp;
@@ -6955,7 +7058,7 @@ String *Item_func_last_value::val_str(String *str)
 
 bool Item_func_last_value::val_native(THD *thd, Native *to)
 {
-  evaluate_sideeffects();
+  evaluate_sideeffects(thd);
   return val_native_from_item(thd, last_value, to);
 }
 
@@ -6963,7 +7066,7 @@ bool Item_func_last_value::val_native(THD *thd, Native *to)
 longlong Item_func_last_value::val_int()
 {
   longlong tmp;
-  evaluate_sideeffects();
+  evaluate_sideeffects(nullptr);
   tmp= last_value->val_int();
   null_value= last_value->null_value;
   return tmp;
@@ -6972,16 +7075,24 @@ longlong Item_func_last_value::val_int()
 double Item_func_last_value::val_real()
 {
   double tmp;
-  evaluate_sideeffects();
+  evaluate_sideeffects(nullptr);
   tmp= last_value->val_real();
   null_value= last_value->null_value;
   return tmp;
 }
 
+
+Type_ref_null Item_func_last_value::val_ref(THD *thd)
+{
+  evaluate_sideeffects(thd);
+  return last_value->val_ref(thd);
+}
+
+
 my_decimal *Item_func_last_value::val_decimal(my_decimal *decimal_value)
 {
   my_decimal *tmp;
-  evaluate_sideeffects();
+  evaluate_sideeffects(nullptr);
   tmp= last_value->val_decimal(decimal_value);
   null_value= last_value->null_value;
   return tmp;
@@ -6990,7 +7101,7 @@ my_decimal *Item_func_last_value::val_decimal(my_decimal *decimal_value)
 
 bool Item_func_last_value::get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate)
 {
-  evaluate_sideeffects();
+  evaluate_sideeffects(thd);
   bool tmp= last_value->get_date(thd, ltime, fuzzydate);
   null_value= last_value->null_value;
   return tmp;
@@ -7013,52 +7124,45 @@ void Cursor_ref::print_func(String *str, const LEX_CSTRING &func_name)
 }
 
 
-sp_cursor *Cursor_ref::get_open_cursor_or_error()
-{
-  THD *thd= current_thd;
-  sp_cursor *c= thd->spcont->get_cursor(m_cursor_offset);
-  DBUG_ASSERT(c);
-  if (!c/*safety*/ || !c->is_open())
-  {
-    my_message(ER_SP_CURSOR_NOT_OPEN, ER_THD(thd, ER_SP_CURSOR_NOT_OPEN),
-               MYF(0));
-    return NULL;
-  }
-  return c;
-}
-
-
 bool Item_func_cursor_isopen::val_bool()
 {
-  sp_cursor *c= current_thd->spcont->get_cursor(m_cursor_offset);
-  DBUG_ASSERT(c != NULL);
+  sp_cursor *c= Sp_rcontext_handler::get_cursor(m_thd, *this);
   return c ? c->is_open() : 0;
 }
 
 
 bool Item_func_cursor_found::val_bool()
 {
-  sp_cursor *c= get_open_cursor_or_error();
+  sp_cursor *c= Sp_rcontext_handler::get_open_cursor_or_error(m_thd, *this);
   return !(null_value= (!c || c->fetch_count() == 0)) && c->found();
 }
 
 
 bool Item_func_cursor_notfound::val_bool()
 {
-  sp_cursor *c= get_open_cursor_or_error();
+  sp_cursor *c= Sp_rcontext_handler::get_open_cursor_or_error(m_thd, *this);
   return !(null_value= (!c || c->fetch_count() == 0)) && !c->found();
 }
 
 
 longlong Item_func_cursor_rowcount::val_int()
 {
-  sp_cursor *c= get_open_cursor_or_error();
+  sp_cursor *c= Sp_rcontext_handler::get_open_cursor_or_error(m_thd, *this);
   return !(null_value= !c) ? c->row_count() : 0;
 }
 
 /*****************************************************************************
   SEQUENCE functions
 *****************************************************************************/
+bool Item_func_nextval::check_access(THD *thd, privilege_t want_access)
+{
+  table_list->sequence= false;
+  bool error= check_single_table_access(thd, want_access, table_list, false);
+  table_list->sequence= true;
+  if (error && table_list->belong_to_view)
+    table_list->replace_view_error_with_generic(thd);
+  return error;
+}
 
 longlong Item_func_nextval::val_int()
 {
@@ -7072,7 +7176,8 @@ longlong Item_func_nextval::val_int()
   String key_buff(buff,sizeof(buff), &my_charset_bin);
   DBUG_ENTER("Item_func_nextval::val_int");
   update_table();
-  DBUG_ASSERT(table && table->s->sequence);
+  DBUG_ASSERT(table);
+  DBUG_ASSERT(table->s->sequence);
   thd= table->in_use;
 
   if (thd->count_cuted_fields == CHECK_FIELD_EXPRESSION)
@@ -7308,7 +7413,7 @@ Item_func_rownum::Item_func_rownum(THD *thd):
   /*
     Remember the select context.
     Add the function to the list fix_after_optimize in the select context
-    so that we can easily initializef all rownum functions with the pointers
+    so that we can easily initialize all rownum functions with the pointers
     to the row counters.
   */
   select= thd->lex->current_select;

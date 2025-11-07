@@ -88,7 +88,7 @@ those defined in mysql file ft_global.h */
 
 #define FTS_INDEX_TABLE_IND_NAME	"FTS_INDEX_TABLE_IND"
 
-/** The number of FTS index partitions for a fulltext idnex */
+/** The number of FTS index partitions for a fulltext index */
 #define FTS_NUM_AUX_INDEX		6
 
 /** Threshold where our optimize thread automatically kicks in */

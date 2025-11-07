@@ -1,5 +1,4 @@
 --source include/have_innodb.inc
---source include/count_sessions.inc
 --source include/default_charset.inc
 
 --disable_query_log
@@ -22,11 +21,11 @@ constraint c1 foreign key (f1) references t1(f1)) engine=InnoDB;
 create table t2 (f1 int primary key,
    constraint c1 foreign key (f1) references t1(f1)) engine=innodb;
 
---error ER_CANT_CREATE_TABLE
+--error ER_DUP_CONSTRAINT_NAME
 alter table t2 add constraint c1 foreign key (f1) references t1(f1);
 
-set foreign_key_checks = 0;
 --error ER_DUP_CONSTRAINT_NAME
+set statement foreign_key_checks = 0 for
 alter table t2 add constraint c1 foreign key (f1) references t1(f1);
 
 drop table t2, t1;
@@ -133,7 +132,6 @@ FLUSH TABLES;
 --let $shutdown_timeout=
 disconnect incomplete;
 
-SET @save_stats_persistent = @@GLOBAL.innodb_stats_persistent;
 SET GLOBAL innodb_stats_persistent = 0;
 
 INSERT INTO child SET a=0;
@@ -196,9 +194,9 @@ CREATE TABLE t3 (a INT PRIMARY KEY,
 CONSTRAINT t2_ibfk_1 FOREIGN KEY (a) REFERENCES t1(a)) ENGINE=InnoDB;
 CREATE TABLE best.t2 (a INT PRIMARY KEY, b TEXT, FULLTEXT INDEX(b),
 FOREIGN KEY (a) REFERENCES test.t1(a)) ENGINE=InnoDB;
---replace_regex /Table '.*t2'/Table 't2'/
---error ER_TABLE_EXISTS_ERROR
 RENAME TABLE best.t2 TO test.t2;
+SHOW CREATE TABLE test.t2;
+RENAME TABLE test.t2 TO best.t2;
 SHOW CREATE TABLE best.t2;
 DROP DATABASE best;
 
@@ -246,7 +244,8 @@ ALTER TABLE t1 CHANGE COLUMN a a TIME NOT NULL;
 ALTER TABLE t1 ADD pk INT NOT NULL AUTO_INCREMENT PRIMARY KEY;
 --error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
 ALTER TABLE t1 CHANGE COLUMN a b TIME;
-ALTER TABLE t1 CHANGE COLUMN a b TIME, DROP FOREIGN KEY t1_ibfk_1;
+SHOW CREATE TABLE t1;
+ALTER TABLE t1 CHANGE COLUMN a b TIME, DROP FOREIGN KEY `1`;
 SET SESSION FOREIGN_KEY_CHECKS = ON;
 DROP TABLE t1;
 
@@ -749,7 +748,7 @@ DROP TABLE t1;
 --echo # with CONSTRAINTs
 --echo #
 
-call mtr.add_suppression("\\[Warning\\] InnoDB: In ALTER TABLE `test`\\.`t2` has or is referenced in foreign key constraints which are not compatible with the new table definition.");
+call mtr.add_suppression("\\[Warning\\] InnoDB: In ALTER TABLE `test`\\.`t[12]` has or is referenced in foreign key constraints which are not compatible with the new table definition.");
 
 set foreign_key_checks=on;
 create table t1 (id int not null primary key) engine=innodb;
@@ -1245,6 +1244,33 @@ ALTER TABLE t2 ADD KEY(b), ALGORITHM=NOCOPY;
 DELETE FROM t1;
 DROP TABLE t2, t1;
 
+--echo #
+--echo # MDEV-33167 ASAN errors after failing to load foreign key
+--echo #   relation for the table
+--echo #
+call mtr.add_suppression("InnoDB: Load table `test`.`t3` failed, the table has missing foreign key indexes. Turn off 'foreign_key_checks' and try again.");
+SET STATEMENT FOREIGN_KEY_CHECKS = 0 FOR
+CREATE TABLE t1(f1 VARCHAR(8),
+	        FOREIGN KEY(f1) REFERENCES test.t3(f1))ENGINE=InnoDB;
+
+SET STATEMENT FOREIGN_KEY_CHECKS = 0 FOR
+CREATE TABLE t2(f1 VARCHAR(8),
+	        FOREIGN KEY(f1) REFERENCES test.t3(f1))
+                ENGINE=InnoDB DEFAULT CHARSET=utf8mb3;
+
+SET STATEMENT FOREIGN_KEY_CHECKS = 0 FOR
+CREATE TABLE t3(f1 VARCHAR(8) PRIMARY KEY)
+		ENGINE=InnoDB DEFAULT CHARSET=latin1;
+
+set GLOBAL innodb_fast_shutdown=0;
+--let $shutdown_timeout=
+--source include/restart_mysqld.inc
+# Error encountered while loading the foreign key
+# constraint for t3. t1 wasn't loaded into memory yet
+# t2 failed to find index for foreign key relation
+ALTER TABLE t2 FORCE;
+DROP TABLE t2, t1, t3;
+
 --echo # End of 10.6 tests
 
 CREATE TABLE t1
@@ -1270,7 +1296,5 @@ ALTER TABLE t1 ADD FOREIGN KEY (f1) REFERENCES t2 (f2);
 ALTER TABLE t2 ADD FOREIGN KEY (f2) REFERENCES t2 (f2),
 ADD UNIQUE INDEX(f3);
 drop table t1, t2;
-SET GLOBAL innodb_stats_persistent = @save_stats_persistent;
 
 --echo # End of 10.11 tests
---source include/wait_until_count_sessions.inc

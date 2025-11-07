@@ -1414,16 +1414,11 @@ row_upd_changes_ord_field_binary_func(
 			if (UNIV_LIKELY_NULL(buf)) {
 				if (UNIV_UNLIKELY(buf == field_ref_zero)) {
 					/* The externally stored field
-					was not written yet. This
-					record should only be seen by
-					trx_rollback_recovered()
-					when the server had crashed before
-					storing the field. */
-					ut_ad(!thr
-					      || thr->graph->trx->is_recovered);
-					ut_ad(!thr
-					      || thr->graph->trx
-					         == trx_roll_crash_recv_trx);
+					was not written yet. InnoDB must
+					have ran out of space or been killed
+					before storing the page */
+					ut_ad(thr);
+					ut_ad(thr->graph->trx->in_rollback);
 					return(TRUE);
 				}
 
@@ -1829,16 +1824,15 @@ row_upd_sec_index_entry(
 	upd_node_t*	node,	/*!< in: row update node */
 	que_thr_t*	thr)	/*!< in: query thread */
 {
-	mtr_t			mtr;
 	btr_pcur_t		pcur;
 	mem_heap_t*		heap;
 	dtuple_t*		entry;
 	dict_index_t*		index;
 	dberr_t			err	= DB_SUCCESS;
-	trx_t*			trx	= thr_get_trx(thr);
+	mtr_t			mtr{thr_get_trx(thr)};
 	ulint			flags;
 
-	ut_ad(trx->id != 0);
+	ut_ad(mtr.trx->id != 0);
 
 	index = node->index;
 	ut_ad(index->is_committed());
@@ -1847,9 +1841,9 @@ row_upd_sec_index_entry(
 	if index->is_committed(). */
 	ut_ad(!dict_index_is_online_ddl(index));
 
-	const bool referenced = row_upd_index_is_referenced(index, trx);
+	const bool referenced = row_upd_index_is_referenced(index, mtr.trx);
 #ifdef WITH_WSREP
-	const bool foreign = wsrep_row_upd_index_is_foreign(index, trx);
+	const bool foreign = wsrep_row_upd_index_is_foreign(index, mtr.trx);
 #endif /* WITH_WSREP */
 
 	heap = mem_heap_create(1024);
@@ -1860,7 +1854,7 @@ row_upd_sec_index_entry(
 
 	log_free_check();
 
-	DEBUG_SYNC_C_IF_THD(trx->mysql_thd,
+	DEBUG_SYNC_C_IF_THD(mtr.trx->mysql_thd,
 			    "before_row_upd_sec_index_entry");
 
 	mtr.start();
@@ -1905,7 +1899,7 @@ not_found:
 #ifdef UNIV_DEBUG
 		mtr_commit(&mtr);
 		mtr_start(&mtr);
-		ut_ad(btr_validate_index(index, 0) == DB_SUCCESS);
+		ut_ad(btr_validate_index(index, mtr.trx) == DB_SUCCESS);
 		ut_ad(0);
 #endif /* UNIV_DEBUG */
 	} else {
@@ -1931,8 +1925,8 @@ found:
 						  &mtr);
 #ifdef WITH_WSREP
 			if (!referenced && foreign
-			    && wsrep_must_process_fk(node, trx)
-			    && !wsrep_thd_is_BF(trx->mysql_thd, FALSE)) {
+			    && wsrep_must_process_fk(node, mtr.trx)
+			    && !wsrep_thd_is_BF(mtr.trx->mysql_thd, FALSE)) {
 
 				rec_offs* offsets = rec_get_offsets(
 					rec, index, NULL, index->n_core_fields,
@@ -1953,13 +1947,13 @@ found:
 					WSREP_DEBUG("Foreign key check fail: "
 						"%s on table %s index %s query %s",
 						ut_strerr(err), index->name(), index->table->name.m_name,
-						wsrep_thd_query(trx->mysql_thd));
+						wsrep_thd_query(mtr.trx->mysql_thd));
 					break;
 				default:
 					WSREP_ERROR("Foreign key check fail: "
 						"%s on table %s index %s query %s",
 						ut_strerr(err), index->name(), index->table->name.m_name,
-						wsrep_thd_query(trx->mysql_thd));
+						wsrep_thd_query(mtr.trx->mysql_thd));
 					break;
 				}
 			}
@@ -1997,7 +1991,7 @@ close:
 
 	mem_heap_empty(heap);
 
-	DEBUG_SYNC_C_IF_THD(trx->mysql_thd,
+	DEBUG_SYNC_C_IF_THD(mtr.trx->mysql_thd,
 			    "before_row_upd_sec_new_index_entry");
 
 	/* Build a new index entry */
@@ -2544,13 +2538,13 @@ row_upd_clust_step(
 	dict_index_t*	index;
 	btr_pcur_t*	pcur;
 	dberr_t		err;
-	mtr_t		mtr;
 	rec_t*		rec;
 	mem_heap_t*	heap	= NULL;
 	rec_offs	offsets_[REC_OFFS_NORMAL_SIZE];
 	rec_offs*	offsets;
 	ulint		flags;
 	trx_t*		trx = thr_get_trx(thr);
+	mtr_t		mtr{trx};
 
 	rec_offs_init(offsets_);
 

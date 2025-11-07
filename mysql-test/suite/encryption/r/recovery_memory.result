@@ -1,3 +1,5 @@
+SET GLOBAL innodb_encrypt_tables=ON,innodb_encryption_threads=1;
+SET GLOBAL innodb_saved_page_number_debug=4,innodb_fil_make_page_dirty_debug=0;
 CREATE TABLE t1(f1 text, index idx(f1(20))) ENGINE INNODB;
 set global innodb_fast_shutdown=0;
 # restart: --debug_dbug=+d,ib_log_checkpoint_avoid_hard --innodb_flush_sync=0

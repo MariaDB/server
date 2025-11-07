@@ -26,6 +26,7 @@ install_manifest*.txt
 CPackConfig.cmake
 CPackSourceConfig.cmake
 CTestTestfile.cmake
+mariadb-plugin-columnstore.install.generated
 Docs/INFO_BIN
 Docs/INFO_SRC
 Makefile
@@ -138,6 +139,7 @@ scripts/mysqld_safe
 scripts/mysqldumpslow
 scripts/mysqlhotcopy
 scripts/mytop
+scripts/print_ddl_recovery_log.pl
 scripts/wsrep_sst_backup
 scripts/wsrep_sst_common
 scripts/wsrep_sst_mysqldump

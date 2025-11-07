@@ -1,5 +1,5 @@
 #
-# Bug when using comparions of strings and integers.
+# Bug when using comparisons of strings and integers.
 #
 
 --disable_warnings

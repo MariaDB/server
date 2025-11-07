@@ -405,6 +405,7 @@ show create table t1;
 insert into t1 value(concat(repeat('s',3000),'1'));
 --error ER_DUP_ENTRY
 insert into t1 value(concat(repeat('s',3000),'2'));
+update t1 set a=     concat(repeat('s',3000),'2');
 insert into t1 value(concat(repeat('a',3000),'2'));
 drop table t1;
 
@@ -551,5 +552,27 @@ DROP TABLE t1, t2;
 
 --error ER_NO_AUTOINCREMENT_WITH_UNIQUE
 CREATE TABLE t1 (pk INT, a TEXT NOT NULL DEFAULT '', PRIMARY KEY (pk), b INT AUTO_INCREMENT, UNIQUE(b), UNIQUE (a,b)) ENGINE=myisam;
+
+--echo #
+--echo # MDEV-35620 UBSAN: runtime error: applying zero offset to null pointer in _ma_unique_hash, skip_trailing_space, my_hash_sort_mb_nopad_bin and my_strnncollsp_utf8mb4_bin
+--echo #
+
+--echo # Disable result log. The exact result is not important.
+--echo # We just need to make sure UBSAN nullptr-with-offset is not reported.
+--disable_result_log
+SELECT DISTINCT user,authentication_string FROM mysql.user;
+SELECT DISTINCT USER,PASSWORD FROM mysql.user;
+SELECT DISTINCT USER,plugin FROM mysql.user;
+--enable_result_log
+--echo # Enabling result log again.
+
+create or replace table t1 (t text) engine=aria;
+insert into t1 values ('');
+insert into t1 values (NULL);
+select distinct t from t1;
+alter table t1 ENGINE=MyISAM;
+select distinct t from t1;
+DROP TABLE t1;
+
 
 --echo # End of 10.5 tests

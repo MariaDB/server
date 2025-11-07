@@ -75,6 +75,11 @@ bool sp_condition_value::equals(const sp_condition_value *cv) const
 }
 
 
+sp_type_def_list::sp_type_def_list()
+ :m_type_defs(PSI_INSTRUMENT_MEM)
+{ }
+
+
 void sp_pcontext::init(uint var_offset,
                        uint cursor_offset,
                        int num_case_expressions)
@@ -94,7 +99,7 @@ sp_pcontext::sp_pcontext()
   m_parent(NULL), m_pboundary(0),
   m_vars(PSI_INSTRUMENT_MEM), m_case_expr_ids(PSI_INSTRUMENT_MEM),
   m_conditions(PSI_INSTRUMENT_MEM), m_cursors(PSI_INSTRUMENT_MEM),
-  m_handlers(PSI_INSTRUMENT_MEM), m_records(PSI_INSTRUMENT_MEM),
+  m_handlers(PSI_INSTRUMENT_MEM),
   m_children(PSI_INSTRUMENT_MEM), m_scope(REGULAR_SCOPE)
 {
   init(0, 0, 0);
@@ -107,7 +112,7 @@ sp_pcontext::sp_pcontext(sp_pcontext *prev, sp_pcontext::enum_scope scope)
   m_parent(prev), m_pboundary(0),
   m_vars(PSI_INSTRUMENT_MEM), m_case_expr_ids(PSI_INSTRUMENT_MEM),
   m_conditions(PSI_INSTRUMENT_MEM), m_cursors(PSI_INSTRUMENT_MEM),
-  m_handlers(PSI_INSTRUMENT_MEM), m_records(PSI_INSTRUMENT_MEM),
+  m_handlers(PSI_INSTRUMENT_MEM),
   m_children(PSI_INSTRUMENT_MEM), m_scope(scope)
 {
   init(prev->m_var_offset + prev->m_max_var_index,
@@ -246,7 +251,7 @@ sp_variable *sp_pcontext::find_variable(const LEX_CSTRING *name,
   - p0 has frame offset 0 and run-time offset 1
   - p1 has frame offset 1 and run-time offset 2
 
-  Run-time offsets on a frame can have holes, but offsets monotonocally grow,
+  Run-time offsets on a frame can have holes, but offsets monotonically grow,
   so run-time offsets of all variables are not greater than the run-time offset
   of the very last variable in this frame.
 */
@@ -427,35 +432,15 @@ sp_condition_value *sp_pcontext::find_condition(const LEX_CSTRING *name,
 }
 
 
-bool sp_pcontext::add_record(THD *thd, const Lex_ident_column &name,
-                             Row_definition_list *field)
+sp_type_def *sp_pcontext::find_type_def(const LEX_CSTRING &name,
+                                        bool current_scope_only) const
 {
-  sp_record *p= new (thd->mem_root) sp_record(name, field);
-
-  if (p == NULL)
-    return true;
-
-  return m_records.append(p);
-}
-
-
-sp_record *sp_pcontext::find_record(const LEX_CSTRING *name,
-                                    bool current_scope_only) const
-{
-  size_t i= m_records.elements();
-
-  while (i--)
-  {
-    sp_record *p= m_records.at(i);
-
-    if (p->eq_name(name))
-    {
-      return p;
-    }
-  }
+  auto p= sp_type_def_list::find_type_def(name);
+  if (p)
+     return p;
 
   return (!current_scope_only && m_parent) ?
-    m_parent->find_record(name, false) :
+    m_parent->find_type_def(name, false) :
     NULL;
 }
 

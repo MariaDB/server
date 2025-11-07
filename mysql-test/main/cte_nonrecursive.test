@@ -33,7 +33,7 @@ explain
 select * from t2, (select * from t1 where b >= 'c') as t
    where t2.c=t.a;
 
---echo # rename fields returned by the specication when defining t
+--echo # rename fields returned by the specification when defining t
 with t(f1,f2) as (select * from t1 where b >= 'c') 
   select * from t2,t where t2.c=t.f1;
 explain
@@ -52,7 +52,7 @@ explain
 select * from t2, (select a, count(*) from t1 where b >= 'c' group by a) as t 
   where t2.c=t.a;
 
---echo # specivication of t contains having
+--echo # specification of t contains having
 with t as (select a, count(*) from t1 where b >= 'c'
              group by a having count(*)=1 ) 
  select * from t2,t where t2.c=t.a; 

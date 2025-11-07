@@ -152,7 +152,7 @@ PARTITION p1 VALUES LESS THAN (20),
 PARTITION p2 VALUES LESS THAN (30)
 );
 CREATE TABLE t210(a INT, b INT) ENGINE ARIA TRANSACTIONAL = 1 PAGE_CHECKSUM = 1;
-#TODO: echange partitions have not logged yet
+#TODO: exchange partitions have not logged yet
 ALTER TABLE t200 EXCHANGE PARTITION p2 WITH TABLE t210;
 ALTER TABLE t200 DROP PARTITION p0;
 ALTER TABLE t200 ADD PARTITION (PARTITION p3 VALUES LESS THAN (40));
@@ -198,7 +198,7 @@ RENAME,InnoDB,1,test,t1_innodb,id: 4,InnoDB,1,test,t2_innodb,id: 4
 RENAME,InnoDB,1,test,t2_innodb,id: 4,InnoDB,1,test,t1_innodb,id: 4
 TRUNCATE,InnoDB,1,test,t1_innodb,id: 4,,0,,,
 repair,InnoDB,1,test,t1_innodb,id: 4,,0,,,
-ALTER,InnoDB,1,test,t1_innodb,id: 4,InnoDB,1,test,t1_innodb,id: 5
+optimize,InnoDB,1,test,t1_innodb,id: 4,,0,test,t1_innodb,id: 5
 DROP,InnoDB,1,test,t1_innodb,id: 5,,0,,,
 CREATE,MyISAM,1,test,t20,id: 6,,0,,,
 DROP,MyISAM,1,test,t20,id: 6,,0,,,

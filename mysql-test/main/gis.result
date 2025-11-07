@@ -1840,7 +1840,7 @@ disjoint
 #
 select ST_IsRing(NULL);
 ST_IsRing(NULL)
--1
+NULL
 #
 # MDEV-8675 Different results of GIS functions on NULL vs NOT NULL columns
 #
@@ -4398,7 +4398,7 @@ ST_NUMPOINTS(POINT(1,1)),
 ST_SRID(POINT(1,1));
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
 def					ST_ISSIMPLE(POINT(1,1))	3	2	1	Y	32896	0	63
-def					ST_ISRING(POINT(1,1))	3	2	2	Y	32896	0	63
+def					ST_ISRING(POINT(1,1))	3	2	1	Y	32896	0	63
 def					ST_ISCLOSED(POINT(1,1))	3	2	2	Y	32896	0	63
 def					ST_DIMENSION(POINT(1,1))	3	10	1	Y	32896	0	63
 def					ST_NUMGEOMETRIES(POINT(1,1))	3	10	0	Y	32896	0	63
@@ -4406,7 +4406,7 @@ def					ST_NUMINTERIORRINGS(POINT(1,1))	3	10	0	Y	32896	0	63
 def					ST_NUMPOINTS(POINT(1,1))	3	10	0	Y	32896	0	63
 def					ST_SRID(POINT(1,1))	3	10	1	Y	32896	0	63
 ST_ISSIMPLE(POINT(1,1))	ST_ISRING(POINT(1,1))	ST_ISCLOSED(POINT(1,1))	ST_DIMENSION(POINT(1,1))	ST_NUMGEOMETRIES(POINT(1,1))	ST_NUMINTERIORRINGS(POINT(1,1))	ST_NUMPOINTS(POINT(1,1))	ST_SRID(POINT(1,1))
-1	-1	-1	0	NULL	NULL	NULL	0
+1	0	-1	0	NULL	NULL	NULL	0
 #
 # MDEV-12803 Improve function parameter data type control
 #
@@ -4582,6 +4582,12 @@ SELECT ST_ISSIMPLE(1);
 ERROR HY000: Illegal parameter data type int for operation 'st_issimple'
 SELECT ST_ISSIMPLE('test');
 ERROR HY000: Illegal parameter data type varchar for operation 'st_issimple'
+SELECT ST_ISVALID(ROW(1,1));
+ERROR HY000: Illegal parameter data type row for operation 'st_isvalid'
+SELECT ST_ISVALID(1);
+ERROR HY000: Illegal parameter data type int for operation 'st_isvalid'
+SELECT ST_ISVALID('test');
+ERROR HY000: Illegal parameter data type varchar for operation 'st_isvalid'
 SELECT ST_ISRING(ROW(1,1));
 ERROR HY000: Illegal parameter data type row for operation 'st_isring'
 SELECT ST_ISRING(1);
@@ -5005,8 +5011,8 @@ LEAST(POINT(1,1),0x60);
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `COALESCE(0x60,POINT(1,1))` longblob DEFAULT NULL,
-  `COALESCE(POINT(1,1),0x60)` longblob DEFAULT NULL,
+  `COALESCE(0x60,POINT(1,1))` longblob NOT NULL,
+  `COALESCE(POINT(1,1),0x60)` longblob NOT NULL,
   `LEAST(0x60,POINT(1,1))` longblob DEFAULT NULL,
   `LEAST(POINT(1,1),0x60)` longblob DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
@@ -5492,6 +5498,11 @@ MULTIPOLYGON(POLYGON(LINESTRING(POINT(4, 3), POINT(4, 4), POINT(3, 4), POINT(4, 
 ) AS t;
 ST_SRID(g1)	ST_SRID(ST_GeomFromWKB(g1, 4326))	ST_SRID(ST_GeomFromWKB(g1))	ST_AsText(g1)	ST_SRID(ST_PointFromWKB(g2, 4326))	ST_SRID(g2)	ST_SRID(ST_LineStringFromWKB(g3, 3))	ST_SRID(ST_PolygonFromWKB(g4, 4))	ST_SRID(ST_MultiPointFromWKB(g5, 5))	ST_SRID(ST_MultiLineStringFromWKB(g6, 6))	ST_SRID(ST_MultiPolygonFromWKB(g7, 7))
 0	4326	0	POINT(1 2)	4326	0	3	4	5	6	7
+#
+# MDEV-35117 Error message "ERROR 1815 (HY000): Internal error: st_distance_sphere' could be improved
+#
+SELECT ST_DISTANCE_SPHERE(st_geomfromtext('linestring( 2 2, 2 8) '), ST_GeomFromText('POINT(18.413076 43.856258)')) ;
+ERROR HY000: Calling geometry function st_distance_sphere with unsupported types of arguments.
 # End of 10.5 tests
 #
 # Start of 11.5 tests
@@ -5563,4 +5574,51 @@ CREATE TABLE t1 (a INT, b POINT GENERATED ALWAYS AS (a));
 ERROR HY000: Cannot cast 'int' as 'point' in assignment of `test`.`t1`.`b`
 CREATE TABLE t1 (a POINT, b INT GENERATED ALWAYS AS (a));
 ERROR HY000: Cannot cast 'point' as 'int' in assignment of `test`.`t1`.`b`
+#
 # End of 11.5 tests
+#
+#
+# Start of 11.6 tests
+#
+#
+# MDEV-34276 Tests for ST_isValid
+#
+# Some tests for Point, multipoint, linestring
+SET @g = ST_GEOMFROMTEXT('POINT(0 0)');
+SELECT ST_ISVALID(@g);
+ST_ISVALID(@g)
+1
+SELECT ISVALID(@g);
+ISVALID(@g)
+1
+SET @g = ST_GEOMFROMTEXT('POINT(15 0)');
+SELECT ST_ISVALID(@g);
+ST_ISVALID(@g)
+1
+SET @g = ST_GEOMFROMTEXT('MULTIPOINT(15 0, 10 0, 0 0, 11 11)');
+SELECT ST_ISVALID(@g);
+ST_ISVALID(@g)
+1
+SET @g = ST_GEOMFROMTEXT('LINESTRING(0 0, 1 1, 2 2, 2 3)');
+SELECT ST_ISVALID(@g);
+ST_ISVALID(@g)
+1
+# Some tests for Polygons
+SELECT ST_ISVALID(ST_GEOMFROMTEXT('POLYGON((40 40, 20 45, 45 30, 40 40)), ((20 35, 10 30, 10 10, 30 5, 45 20, 20 35), (30 20, 20 15, 20 25, 30 20))')) c;
+c
+1
+SELECT ST_ISVALID(ST_GEOMFROMTEXT('POLYGON((30 10, 40 40, 20 40, 10 20, 30 10))')) c;
+c
+1
+SELECT ST_ISVALID(ST_GEOMFROMTEXT('POLYGON((0 0, 0 2, 2 2, 1 1, 2 0, 0 0))')) c;
+c
+1
+SELECT ST_ISVALID(ST_GEOMFROMTEXT('MULTIPOLYGON(((0 0, 0 2, 2 2, 2 0, 0 0)),((4 4, 4 5, 5 5, 5 4, 4 4)))')) AS a;
+a
+1
+SELECT ST_ISVALID(ST_GEOMFROMTEXT('POLYGON((0 0, 10 0, 10 10, 0 10, 0 0), (15 15, 15 20, 20 20, 20 15, 15 15))')) as t;
+t
+0
+#
+# End of 11.6 tests
+#

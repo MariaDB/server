@@ -58,7 +58,7 @@ take after being waked up. */
 static volatile bool	buf_dump_should_start;
 static volatile bool	buf_load_should_start;
 
-static bool	buf_load_abort_flag;
+static Atomic_relaxed<bool> buf_load_abort_flag;
 
 /** Start the buffer pool dump/load task and instructs it to start a dump. */
 void buf_dump_start()
@@ -295,7 +295,7 @@ buf_dump(
 
 		/* limit the number of total pages dumped to X% of the
 		total number of pages */
-		t_pages = buf_pool.curr_size * srv_buf_pool_dump_pct / 100;
+		t_pages = buf_pool.curr_size() * srv_buf_pool_dump_pct / 100;
 		if (n_pages > t_pages) {
 			buf_dump_status(STATUS_INFO,
 					"Restricted to " ULINTPF
@@ -477,10 +477,10 @@ buf_load()
 		return;
 	}
 
-	/* If dump is larger than the buffer pool(s), then we ignore the
+	/* If the dump is larger than the buffer pool, then we ignore the
 	extra trailing. This could happen if a dump is made, then buffer
 	pool is shrunk and then load is attempted. */
-	dump_n = std::min(dump_n, buf_pool.get_n_pages());
+	dump_n = std::min(dump_n, buf_pool.curr_size());
 
 	if (dump_n != 0) {
 		dump = static_cast<page_id_t*>(ut_malloc_nokey(
@@ -585,7 +585,6 @@ buf_load()
 	so all pages from a given tablespace are consecutive. */
 	uint32_t	cur_space_id = dump[0].space();
 	fil_space_t*	space = fil_space_t::get(cur_space_id);
-	ulint		zip_size = space ? space->zip_size() : 0;
 
 	PSI_stage_progress*	pfs_stage_progress __attribute__((unused))
 		= mysql_set_stage(srv_stage_buffer_pool_load.m_key);
@@ -608,12 +607,6 @@ buf_load()
 
 			cur_space_id = this_space_id;
 			space = fil_space_t::get(cur_space_id);
-
-			if (!space) {
-				continue;
-			}
-
-			zip_size = space->zip_size();
 		}
 
 		/* JAN: TODO: As we use background page read below,
@@ -632,7 +625,7 @@ buf_load()
 		}
 
 		space->reacquire();
-		buf_read_page_background(space, dump[i], zip_size);
+		buf_read_page_background(dump[i], space, nullptr);
 
 		if (buf_load_abort_flag) {
 			if (space) {

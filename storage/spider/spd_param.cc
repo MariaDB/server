@@ -589,7 +589,7 @@ SPIDER_THDVAR_OVERRIDE_VALUE_FUNC(int, reset_sql_alloc)
 static MYSQL_THDVAR_INT(
   multi_split_read, /* name */
   PLUGIN_VAR_RQCMDARG, /* opt */
-  "Sprit read mode for multi range", /* comment */
+  "Split read mode for multi range", /* comment */
   NULL, /* check */
   spider_var_deprecated_int, /* update */
   100, /* def */

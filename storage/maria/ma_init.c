@@ -108,7 +108,7 @@ void maria_end(void)
     if (translog_status == TRANSLOG_OK || translog_status == TRANSLOG_READONLY)
       translog_destroy();
     end_pagecache(maria_log_pagecache, TRUE);
-    end_pagecache(maria_pagecache, TRUE);
+    multi_end_pagecache(&maria_pagecaches);
     ma_control_file_end();
     mysql_mutex_destroy(&THR_LOCK_maria);
     my_hash_free(&maria_stored_state);

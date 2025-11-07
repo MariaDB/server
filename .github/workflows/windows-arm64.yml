@@ -1,0 +1,57 @@
+name: Build on Windows ARM64
+
+on:
+  push:
+    branches:
+      - 'main'
+      - 'bb-*'
+      - '[0-9]+.[0-9]+'
+      - '*wlad*'
+  pull_request:
+
+jobs:
+  build:
+    concurrency:
+      group: ${{ github.workflow }}-${{ github.ref }}
+      cancel-in-progress: true
+
+    runs-on: windows-11-arm
+
+    steps:
+      - name: Configure git
+        run: |
+          # We won't be able to successfully run mtr
+          # unless we configure autocrlf.
+          git config --global core.autocrlf input
+
+      - uses: actions/checkout@v4
+
+      - name: Install prerequisites
+        run: |
+          # Install bison to compile
+          choco install winflexbison3
+
+      - name: Build
+        run: |
+          # speedup checkout by excluding uninteresting modules
+          git config submodule.storage/columnstore/columnstore.update none
+          git config submodule.storage/maria/libmarias3.update none
+          git config submodule.storage/rocksdb/rocksdb.update none
+          git config submodule.wsrep-lib.update none
+          mkdir bld
+          cd bld
+          cmake .. -DWITH_SSL=bundled
+          cmake --build . --config RelWithDebinfo --verbose -- -m
+
+      - name: Test MTR
+        run: |
+          $env:PATH = "C:\Strawberry\perl\bin;$env:PATH;C:\Program Files (x86)\Windows Kits\10\Debuggers\arm64"
+          #Calculate parallel as 4 * number of processors
+          $parallel = 4 * [int]$env:NUMBER_OF_PROCESSORS
+          # create case-sensitive directory to run tests in
+          $tmp = (Get-Item $env:TEMP).FullName
+          $tmp = $tmp -replace '\\','/'
+          $cidir = "$tmp/ci"
+          mkdir $cidir
+          fsutil file setCaseSensitiveInfo $cidir enable
+          perl bld\mysql-test\mysql-test-run.pl --force --parallel=$parallel --suite=main,innodb --vardir=$cidir/var --mysqld=--lower-case-table-names=0  --mysqld=--loose-innodb-flush-log-at-trx-commit=2 --mysqld=--debug-no-sync

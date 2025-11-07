@@ -147,7 +147,7 @@ struct datadir_thread_ctxt_t {
 };
 
 /************************************************************************
-Retirn true if character if file separator */
+Return true if character is file separator */
 bool
 is_path_separator(char c)
 {
@@ -1349,6 +1349,8 @@ backup_files(ds_ctxt *ds_data, const char *from)
 			}
 		}
 	}
+	if (!backup_mroonga_files_from_datadir(ds_data, from))
+		goto out;
 	msg("Finished backing up non-InnoDB tables and files");
 out:
 	datadir_iter_free(it);
@@ -1413,7 +1415,7 @@ bool backup_finish(ds_ctxt *ds_data)
 
 /*
   Drop all empty database directories in the base backup
-  that do not exists in the icremental backup.
+  that do not exist in the incremental backup.
 
   This effectively re-plays all DROP DATABASE statements happened
   in between base backup and incremental backup creation time.
@@ -1515,7 +1517,9 @@ ibx_copy_incremental_over_full()
 						      "aws-kms-key")) ||
 		    !(ret = backup_files_from_datadir(ds_data,
 						      xtrabackup_incremental_dir,
-						      "aria_log")))
+						      "aria_log")) ||
+		    !(ret = backup_mroonga_files_from_datadir(ds_data,
+						      xtrabackup_incremental_dir)))
 			goto cleanup;
 
 		/* copy supplementary files */
@@ -2078,6 +2082,47 @@ bool backup_files_from_datadir(ds_ctxt_t *ds_data,
 	return ret;
 }
 
+bool backup_mroonga_files_from_datadir(ds_ctxt_t *ds_data,
+                                       const char *dir_path)
+{
+	os_file_dir_t dir= os_file_opendir(dir_path);
+	if (dir == IF_WIN(INVALID_HANDLE_VALUE, nullptr)) return false;
+
+	os_file_stat_t info;
+	bool ret= true;
+	while (os_file_readdir_next_file(dir_path, dir, &info) == 0)
+	{
+
+		if (info.type != OS_FILE_TYPE_FILE)
+			continue;
+
+		const char *pname = strrchr(info.name, '/');
+#ifdef _WIN32
+		if (const char *last = strrchr(info.name, '\\'))
+		{
+			if (!pname || last > pname)
+				pname = last;
+		}
+#endif
+		if (!pname)
+			pname = info.name;
+
+		if (!strstr(pname, ".mrn"))
+			continue;
+
+		if (xtrabackup_prepare && xtrabackup_incremental_dir &&
+			file_exists(info.name))
+			unlink(info.name);
+
+		std::string full_path(dir_path);
+		full_path.append(1, '/').append(info.name);
+		if (!(ret = ds_data->copy_file(full_path.c_str() , info.name, 1)))
+			break;
+	}
+	os_file_closedir(dir);
+	return ret;
+}
+
 
 static int rocksdb_remove_checkpoint_directory()
 {
@@ -2209,7 +2254,7 @@ static void rocksdb_lock_checkpoint()
 	MYSQL_ROW r = mysql_fetch_row(res);
 	if (r && r[0] && strcmp(r[0], "1"))
 	{
-		msg("Could not obtain rocksdb checkpont lock.");
+		msg("Could not obtain rocksdb checkpoint lock.");
 		exit(EXIT_FAILURE);
 	}
 	mysql_free_result(res);

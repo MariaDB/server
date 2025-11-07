@@ -1,9 +1,12 @@
 #
 # MDEV-4824 userstats - wrong user statistics
 #
-# Tests will be skipped for the view protocol because the view protocol creates 
+# Tests will be skipped for the view protocol because the view protocol creates
 # an additional util connection and other statistics data
--- source include/no_view_protocol.inc
+# Skip this test for ps protocol because the previous commit changes the expected
+# the value of bytes_expected in the userstats output.
+--source include/no_view_protocol.inc
+--disable_ps_protocol
 
 --source include/not_embedded.inc
 set @save_userstat=@@global.userstat;
@@ -24,8 +27,8 @@ connection default;
 let $wait_condition= select count(*) = 1 from information_schema.processlist;
 --source include/wait_condition.inc
 
-# 41 is for ps-procotol
---replace_result 41 18
+# 32 is for ps-procotol
+--replace_result 32 18
 select user, bytes_received from information_schema.user_statistics where user = 'foo';
 
 --replace_result $MASTER_MYSOCK MASTER_SOCKET $MASTER_MYPORT MASTER_PORT
@@ -34,9 +37,10 @@ connect(foo, localhost, foo, bar, test);
 
 connection default;
 
---replace_result 41 18
+--replace_result 32 18
 select user, bytes_received from information_schema.user_statistics where user = 'foo';
 --enable_ps2_protocol
 
 drop user foo@localhost;
 set global userstat=@save_userstat;
+--enable_ps_protocol

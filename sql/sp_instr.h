@@ -168,6 +168,13 @@ public:
 
   virtual void print(String *str) = 0;
 
+  void print_cmd_and_array_element(String *str,
+                                   const LEX_CSTRING &cmd,
+                                   const LEX_CSTRING &rcontext_name,
+                                   const LEX_CSTRING &array_name,
+                                   uint index_offset) const;
+  void print_fetch_into(String *str, List<sp_fetch_target> list);
+
   virtual void backpatch(uint dest, sp_pcontext *dst_ctx)
   {}
 
@@ -344,6 +351,16 @@ public:
     m_lex->safe_to_cache_query= 0;
   }
 
+  /*
+    Return m_lex as a const pointer. "const" should be enough
+    to use in DBUG_ASSERT in sp_instr_xxx methods, e.g.:
+      DBUG_ASSERT(thd->lex == m_lex_keeper.lex());
+  */
+  const LEX *lex() const
+  {
+    return m_lex;
+  }
+
 private:
   /**
     Clean up and destroy owned LEX object.
@@ -500,8 +517,12 @@ private:
 
   /**
     Clean up items previously created on behalf of the current instruction.
+
+    @return a list of Item_param instances representing position parameters
+            specified for the instruction that is a part of a prepared
+            statement
   */
-  void cleanup_before_parsing(enum_sp_type sp_type);
+  List<Item_param> cleanup_before_parsing(enum_sp_type sp_type);
 
 
   /**
@@ -522,7 +543,12 @@ private:
     THD *thd, sp_head *sp,
     SQL_I_List<Item_trigger_field> *next_trig_items_list);
 
-  bool setup_memroot_for_reparsing(sp_head *sphead);
+  bool setup_memroot_for_reparsing(sp_head *sphead,
+                                   bool *new_memroot_allocated);
+
+  void put_back_item_params(THD *thd, LEX *lex,
+                            const List<Item_param>& param_values);
+
 };
 
 
@@ -646,6 +672,14 @@ protected:
     m_value= thd->lex->current_select->item_list.head();
     DBUG_ASSERT(m_value != nullptr);
 
+    /*
+      In case there is a default value, update the dangling pointer
+      left after clean up of item before re-parsing of SP instruction
+    */
+    sp_variable *spvar= m_ctx->find_variable(offset());
+    if (spvar->default_value)
+      spvar->default_value= m_value;
+
     // Return error in release version if m_value == nullptr
     return m_value == nullptr;
   }
@@ -731,35 +765,100 @@ public:
   structure of "rec". It gets resolved at run time, during the corresponding
   sp_instr_cursor_copy_struct::exec_core().
 
-  So sp_instr_set_row_field_by_name searches for ROW fields by name,
+  So sp_instr_set_composite_field_by_name searches for ROW fields by name,
   while sp_instr_set_row_field (see above) searches for ROW fields by index.
-*/
 
-class sp_instr_set_row_field_by_name : public sp_instr_set
+  Additionally, this class is used for assignments of associative arrays
+  by key:
+  DECLARE
+    TYPE t IS TABLE OF rec_t INDEX BY VARCHAR2(20);
+    arr t;
+  BEGIN
+    arr('key'):= rec_t(10, 20); -- This instruction
+  END;
+*/
+class sp_instr_set_composite_field_by_name : public sp_instr_set
 {
-  // Prevent use of this
-  sp_instr_set_row_field_by_name(const sp_instr_set_row_field &);
-  void operator=(sp_instr_set_row_field_by_name &);
-  const LEX_CSTRING m_field_name;
+  using SELF= sp_instr_set_composite_field_by_name;
+  sp_instr_set_composite_field_by_name(const SELF &);
+  void operator=(SELF &);
+  LEX_CSTRING m_field_name;
+  Item* m_key;
 
 public:
-
-  sp_instr_set_row_field_by_name(uint ip, sp_pcontext *ctx,
-                                 const Sp_rcontext_handler *rh,
-                                 uint offset, const LEX_CSTRING &field_name,
-                                 Item *val,
-                                 LEX *lex, bool lex_resp,
-                                 const LEX_CSTRING &value_query)
+  sp_instr_set_composite_field_by_name(uint ip, sp_pcontext *ctx,
+                                       const Sp_rcontext_handler *rh,
+                                       uint offset,
+                                       const LEX_CSTRING &field_name,
+                                       Item *val,
+                                       LEX *lex, bool lex_resp,
+                                       const LEX_CSTRING &value_query)
     : sp_instr_set(ip, ctx, rh, offset, val, lex, lex_resp, value_query),
-      m_field_name(field_name)
+      m_field_name(field_name),
+      m_key(nullptr)
+  {}
+  sp_instr_set_composite_field_by_name(uint ip, sp_pcontext *ctx,
+                                       const sp_rcontext_addr &addr,
+                                       Item* key, Item *val,
+                                       LEX *lex, bool lex_resp,
+                                       const LEX_CSTRING &value_query)
+    : sp_instr_set(ip, ctx,
+                   addr.rcontext_handler(),
+                   addr.offset(), val, lex,
+                   lex_resp, value_query),
+      m_key(key)
   {}
 
-  virtual ~sp_instr_set_row_field_by_name() = default;
+  virtual ~sp_instr_set_composite_field_by_name() = default;
 
   int exec_core(THD *thd, uint *nextp) override;
 
   void print(String *str) override;
-}; // class sp_instr_set_field_by_name : public sp_instr_set
+}; // class sp_instr_set_composite_field_by_name : public sp_instr_set
+
+
+/*
+  This class handles assignments of non scalar associative array's element
+  assignments.
+
+  DECLARE
+    TYPE t IS TABLE OF rec_t INDEX BY VARCHAR2(20);
+    arr t;
+  BEGIN
+    arr('key'):= rec_t(10, 20);
+    arr('key').field:= 30; -- This instruction
+  END;
+*/
+class sp_instr_set_composite_field_by_key : public sp_instr_set
+{
+  using SELF= sp_instr_set_composite_field_by_key;
+  sp_instr_set_composite_field_by_key(const SELF &);
+  void operator=(SELF &);
+  Item* m_key;
+  const LEX_CSTRING m_field_name;
+
+public:
+  sp_instr_set_composite_field_by_key(uint ip, sp_pcontext *ctx,
+                                      const sp_rcontext_addr &addr,
+                                      Item* key,
+                                      const LEX_CSTRING &field_name,
+                                      Item *val,
+                                      LEX *lex, bool lex_resp,
+                                      const LEX_CSTRING &value_query)
+    : sp_instr_set(ip, ctx,
+                   addr.rcontext_handler(),
+                   addr.offset(), val, lex,
+                   lex_resp, value_query),
+      m_key(key),
+      m_field_name(field_name)
+  {}
+
+  virtual ~sp_instr_set_composite_field_by_key() = default;
+
+  int exec_core(THD *thd, uint *nextp) override;
+
+  void print(String *str) override;
+}; // class sp_instr_set_composite_field_by_key : public sp_instr_set
 
 
 /**
@@ -826,6 +925,34 @@ public:
   PSI_statement_info* get_psi_info() override { return & psi_info; }
   static PSI_statement_info psi_info;
 }; // class sp_instr_trigger_field : public sp_lex_instr
+
+
+/**
+  Destruct a variable in the end of a BEGIN..END block
+*/
+class sp_instr_destruct_variable: public sp_instr
+{
+public:
+  sp_instr_destruct_variable(uint ip, sp_pcontext *pctx, uint offset)
+   :sp_instr(ip, pctx),
+    m_offset(offset)
+  { }
+
+  virtual ~sp_instr_destruct_variable() = default;
+
+  int execute(THD *thd, uint *nextp) override;
+
+  void print(String *str) override;
+
+  uint offset() const { return m_offset; }
+
+private:
+  uint m_offset;
+
+public:
+  PSI_statement_info* get_psi_info() override { return & psi_info; }
+  static PSI_statement_info psi_info;
+};
 
 
 /**
@@ -1252,6 +1379,32 @@ public:
 
 
 /**
+  Get a query text associated with the cursor.
+*/
+
+static inline LEX_CSTRING get_cursor_query(const LEX_CSTRING &cursor_stmt)
+{
+  /*
+    Lexer on processing the clause CURSOR FOR / CURSOR IS doesn't
+    move a pointer on cpp_buf after the token FOR/IS so skip it explicitly
+    in order to get correct value of cursor's query string.
+  */
+
+  if (strncasecmp(cursor_stmt.str, "FOR", 3) == 0 &&
+      my_isspace(current_thd->variables.character_set_client,
+                 cursor_stmt.str[3]))
+    return LEX_CSTRING{cursor_stmt.str + 4, cursor_stmt.length - 4};
+
+  if (strncasecmp(cursor_stmt.str, "IS", 2) == 0 &&
+      my_isspace(current_thd->variables.character_set_client,
+                 cursor_stmt.str[2]))
+    return LEX_CSTRING{cursor_stmt.str + 3, cursor_stmt.length - 3};
+
+  return cursor_stmt;
+}
+
+
+/**
   This is DECLARE CURSOR
 */
 
@@ -1311,16 +1464,7 @@ public:
 protected:
   LEX_CSTRING get_expr_query() const override
   {
-    /*
-      Lexer on processing the clause CURSOR FOR / CURSOR IS doesn't
-      move a pointer on cpp_buf after the token FOR/IS so skip it explicitly
-      in order to get correct value of cursor's query string.
-    */
-    if (strncasecmp(m_cursor_stmt.str, "FOR ", 4) == 0)
-      return LEX_CSTRING{m_cursor_stmt.str + 4, m_cursor_stmt.length - 4};
-    if (strncasecmp(m_cursor_stmt.str, "IS ", 3) == 0)
-      return LEX_CSTRING{m_cursor_stmt.str + 3, m_cursor_stmt.length - 3};
-    return m_cursor_stmt;
+    return get_cursor_query(m_cursor_stmt);
   }
 
   bool on_after_expr_parsing(THD *) override
@@ -1452,16 +1596,7 @@ public:
 protected:
   LEX_CSTRING get_expr_query() const override
   {
-    /*
-      Lexer on processing the clause CURSOR FOR / CURSOR IS doesn't
-      move a pointer on cpp_buf after the token FOR/IS so skip it explicitly
-      in order to get correct value of cursor's query string.
-    */
-    if (strncasecmp(m_cursor_stmt.str, "FOR ", 4) == 0)
-      return LEX_CSTRING{m_cursor_stmt.str + 4, m_cursor_stmt.length - 4};
-    if (strncasecmp(m_cursor_stmt.str, "IS ", 3) == 0)
-      return LEX_CSTRING{m_cursor_stmt.str + 3, m_cursor_stmt.length - 3};
-    return m_cursor_stmt;
+    return get_cursor_query(m_cursor_stmt);
   }
 
   bool on_after_expr_parsing(THD *) override
@@ -1502,25 +1637,18 @@ public:
 }; // class sp_instr_cclose : public sp_instr
 
 
-class sp_instr_cfetch : public sp_instr
+class sp_instr_fetch_cursor: public sp_instr
 {
-  sp_instr_cfetch(const sp_instr_cfetch &); /**< Prevent use of these */
-  void operator=(sp_instr_cfetch &);
-
+  /**< Prevent use of these */
+  sp_instr_fetch_cursor(const sp_instr_fetch_cursor &) = delete;
+  void operator=(sp_instr_fetch_cursor &) = delete;
 public:
-  sp_instr_cfetch(uint ip, sp_pcontext *ctx, uint c, bool error_on_no_data)
-    : sp_instr(ip, ctx),
-      m_cursor(c),
-      m_error_on_no_data(error_on_no_data)
+  sp_instr_fetch_cursor(uint ip, sp_pcontext *ctx, bool error_on_no_data)
+   :sp_instr(ip, ctx),
+    m_error_on_no_data(error_on_no_data)
   {
     m_fetch_target_list.empty();
   }
-
-  virtual ~sp_instr_cfetch() = default;
-
-  int execute(THD *thd, uint *nextp) override;
-
-  void print(String *str) override;
 
   bool add_to_fetch_target_list(sp_fetch_target *target)
   {
@@ -1532,10 +1660,31 @@ public:
     m_fetch_target_list= *list;
   }
 
-private:
-  uint m_cursor;
+protected:
   List<sp_fetch_target> m_fetch_target_list;
   bool m_error_on_no_data;
+};
+
+
+class sp_instr_cfetch : public sp_instr_fetch_cursor
+{
+  sp_instr_cfetch(const sp_instr_cfetch &); /**< Prevent use of these */
+  void operator=(sp_instr_cfetch &);
+
+public:
+  sp_instr_cfetch(uint ip, sp_pcontext *ctx, uint c, bool error_on_no_data)
+   :sp_instr_fetch_cursor(ip, ctx, error_on_no_data),
+    m_cursor(c)
+  { }
+
+  virtual ~sp_instr_cfetch() = default;
+
+  int execute(THD *thd, uint *nextp) override;
+
+  void print(String *str) override;
+
+private:
+  uint m_cursor;
 
 public:
   PSI_statement_info* get_psi_info() override { return & psi_info; }
@@ -1569,6 +1718,136 @@ public:
   PSI_statement_info* get_psi_info() override { return & psi_info; }
   static PSI_statement_info psi_info;
 }; // class sp_instr_agg_cfetch : public sp_instr
+
+
+class sp_instr_copen_by_ref : public sp_lex_instr,
+                              public sp_rcontext_ref
+{
+  using SELF= sp_instr_copen_by_ref;
+  // Prevent use of these
+  sp_instr_copen_by_ref(const SELF &) = delete;
+  void operator=(SELF &) = delete;
+
+public:
+  sp_instr_copen_by_ref(uint ip, sp_pcontext *ctx,
+                        const sp_rcontext_ref &ref,
+                        sp_lex_cursor *lex)
+   :sp_lex_instr(ip, ctx, lex, true),
+    sp_rcontext_ref(ref),
+    m_metadata_changed(false),
+    m_cursor_stmt(lex->get_expr_str())
+  { }
+
+  virtual ~sp_instr_copen_by_ref() = default;
+
+  int execute(THD *thd, uint *nextp) override;
+  int exec_core(THD *thd, uint *nextp) override;
+
+  void print(String *str) override;
+
+  bool is_invalid() const override
+  {
+    return m_metadata_changed;
+  }
+
+  void invalidate() override
+  {
+    m_metadata_changed= true;
+  }
+
+  bool on_after_expr_parsing(THD *) override
+  {
+    m_metadata_changed= false;
+    return false;
+  }
+
+  void get_query(String *sql_query) const override
+  {
+    sql_query->append(get_expr_query());
+  }
+
+  LEX_CSTRING get_expr_query() const override
+  {
+    /*
+      Lexer on processing the clause CURSOR FOR / CURSOR IS doesn't
+      move a pointer on cpp_buf after the token FOR/IS so skip it explicitly
+      in order to get correct value of cursor's query string.
+
+      Note, there is possibly a bug below: only the space character is tested
+      after FOR and IS. If a TAB or NL or CR character follows the keyword
+      then something can go wrong. Cannot check at the moment because of abother bug:
+
+      MDEV-36079 Stored routine with a cursor crashes on the second execution ...
+    */
+    if (strncasecmp(m_cursor_stmt.str, "FOR ", 4) == 0)
+      return LEX_CSTRING{m_cursor_stmt.str + 4, m_cursor_stmt.length - 4};
+    if (strncasecmp(m_cursor_stmt.str, "IS ", 3) == 0)
+      return LEX_CSTRING{m_cursor_stmt.str + 3, m_cursor_stmt.length - 3};
+    return m_cursor_stmt;
+  }
+
+private:
+  bool m_metadata_changed;
+  LEX_CSTRING m_cursor_stmt;
+
+public:
+  PSI_statement_info* get_psi_info() override { return & psi_info; }
+  static PSI_statement_info psi_info;
+};
+
+
+class sp_instr_cclose_by_ref : public sp_instr,
+                               public sp_rcontext_ref
+{
+  using SELF= sp_instr_cclose_by_ref;
+  // Prevent use of these
+  sp_instr_cclose_by_ref(const SELF &) = delete;
+  void operator=(SELF &) = delete;
+
+public:
+  sp_instr_cclose_by_ref(uint ip, sp_pcontext *ctx,
+                         const sp_rcontext_ref &ref)
+   :sp_instr(ip, ctx),
+    sp_rcontext_ref(ref)
+  { }
+
+  virtual ~sp_instr_cclose_by_ref() = default;
+
+  int execute(THD *thd, uint *nextp) override;
+
+  void print(String *str) override;
+
+public:
+  PSI_statement_info* get_psi_info() override { return & psi_info; }
+  static PSI_statement_info psi_info;
+};
+
+
+class sp_instr_cfetch_by_ref : public sp_instr_fetch_cursor,
+                               public sp_rcontext_ref
+{
+  using SELF= sp_instr_cfetch_by_ref;
+  // Prevent use of these
+  sp_instr_cfetch_by_ref(const SELF &) = delete;
+  void operator=(SELF &) = delete;
+public:
+  sp_instr_cfetch_by_ref(uint ip, sp_pcontext *ctx,
+                         const sp_rcontext_ref &ref,
+                         bool error_on_no_data)
+   :sp_instr_fetch_cursor(ip, ctx, error_on_no_data),
+    sp_rcontext_ref(ref)
+  { }
+
+  virtual ~sp_instr_cfetch_by_ref() = default;
+
+  int execute(THD *thd, uint *nextp) override;
+
+  void print(String *str) override;
+
+public:
+  PSI_statement_info* get_psi_info() override { return & psi_info; }
+  static PSI_statement_info psi_info;
+};
 
 
 class sp_instr_error : public sp_instr

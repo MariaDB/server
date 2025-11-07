@@ -276,7 +276,7 @@ ret_error:
    If keys are packed, then smaller or identical key is stored in buff
 
   @return
-  @retval <0, 0 , >0 depending on if if found is smaller, equal or bigger than
+  @retval <0, 0 , >0 depending on if found is smaller, equal or bigger than
           'key'
   @retval ret_pos   Points to where the identical or bigger key starts
   @retval last_key  Set to 1 if key is the last key in the page.
@@ -1392,7 +1392,7 @@ uint _ma_get_binary_pack_key(MARIA_KEY *int_key, uint page_flag, uint nod_flag,
 }
 
 /**
-  skip key which is ptefix packed against previous key
+  skip key which is prefix packed against previous key
 
   @fn _ma_skip_binary_key()
   @param key       Keyinfo and buffer that can be used

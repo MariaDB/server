@@ -59,7 +59,7 @@ public:
     - We don't put this value as a static const inside the class,
       because "gdb" would display it every time when we do "print"
       for a time_round_mode_t value.
-    - We can't put into into a function returning this value, because
+    - We can't put into a function returning this value, because
       it's not allowed to use functions in static_assert.
   */
   enum known_values_t
@@ -133,7 +133,7 @@ public:
   {
     /*
       Use FRAC_NONE when the value needs no rounding nor truncation,
-      because it is already known not to haveany fractional digits outside
+      because it is already known not to have any fractional digits outside
       of the requested precision.
     */
     FRAC_NONE= 0,
@@ -337,5 +337,13 @@ static const time_round_mode_t
   TIME_FRAC_TRUNCATE          (time_round_mode_t::FRAC_TRUNCATE),
   TIME_FRAC_ROUND             (time_round_mode_t::FRAC_ROUND);
 
+
+enum class active_dml_stmt
+{
+  NO_DML_STMT= 0,
+  INSERTING_STMT= 1,
+  UPDATING_STMT= 2,
+  DELETING_STMT= 3
+};
 
 #endif

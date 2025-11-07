@@ -1,0 +1,102 @@
+
+# MDEV-36410 wrong result with index_merge on indexes having descending primary key
+#
+set optimizer_trace='enabled=on';
+SET @save_sort_buffer_size=@@sort_buffer_size;
+SET SESSION sort_buffer_size = 1024*16;
+CREATE TABLE t1 (
+id bigint(20) NOT NULL,
+title varchar(255) NOT NULL,
+status tinyint(4) DEFAULT 0,
+country_code varchar(5) DEFAULT NULL,
+PRIMARY KEY (id),
+KEY idx_status (status),
+KEY idx_country_code_status_id (country_code,status,id DESC)
+) ENGINE=InnoDB;
+INSERT INTO t1(id,title,status,country_code)
+SELECT seq, CONCAT('abc', seq), seq%10, CONCAT('C', seq%5) FROM seq_1_to_500;
+# This must not use index_merge:
+EXPLAIN
+SELECT * FROM t1 WHERE country_code ='C1' and `status` =1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ref	idx_status,idx_country_code_status_id	idx_status	2	const	50	Using where
+set @trace= (select JSON_EXTRACT(trace, '$**.range_scan_alternatives[*]')
+from INFORMATION_SCHEMA.OPTIMIZER_TRACE);
+select json_detailed(json_extract(@trace, '$[*].index')) as INDEXES;
+INDEXES
+[
+    "idx_status",
+    "idx_country_code_status_id"
+]
+select json_detailed(json_extract(@trace, '$[*].rowid_ordered')) as ROR;
+ROR
+[
+    true,
+    false
+]
+DROP table t1;
+# Now, try with indexes using ASC ordering and PK using DESC
+CREATE TABLE t1 (
+id bigint(20) NOT NULL,
+title varchar(255) NOT NULL,
+status tinyint(4) DEFAULT 0,
+country_code varchar(5) DEFAULT NULL,
+PRIMARY KEY (id DESC),
+KEY idx_status (status),
+KEY idx_country_code_status_id (country_code,status,id)
+) ENGINE=InnoDB;
+INSERT INTO t1(id,title,status,country_code)
+SELECT seq, CONCAT('abc', seq), seq%10, CONCAT('C', seq%5) FROM seq_1_to_500;
+# Must not use index_merge:
+EXPLAIN
+SELECT * FROM t1 WHERE country_code ='C1' and status = 1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ref	idx_status,idx_country_code_status_id	idx_status	2	const	50	Using where
+set @trace= (select JSON_EXTRACT(trace, '$**.range_scan_alternatives[*]')
+from INFORMATION_SCHEMA.OPTIMIZER_TRACE);
+select json_detailed(json_extract(@trace, '$[*].index')) as INDEXES;
+INDEXES
+[
+    "idx_status",
+    "idx_country_code_status_id"
+]
+select json_detailed(json_extract(@trace, '$[*].rowid_ordered')) as ROR;
+ROR
+[
+    true,
+    false
+]
+DROP TABLE t1;
+# Now, try with indexes using DESC ordering and PK using DESC
+CREATE TABLE t1 (
+id bigint(20) NOT NULL,
+title varchar(255) NOT NULL,
+status tinyint(4) DEFAULT 0,
+country_code varchar(5) DEFAULT NULL,
+PRIMARY KEY (id DESC),
+KEY idx_status (status),
+KEY idx_country_code_status_id (country_code,status,id DESC)
+) ENGINE=InnoDB;
+INSERT INTO t1(id,title,status,country_code)
+SELECT seq, CONCAT('abc', seq), seq%10, CONCAT('C', seq%5) FROM seq_1_to_500;
+# Must not use index_merge:
+EXPLAIN
+SELECT * FROM t1 WHERE country_code ='C1' and status = 1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ref	idx_status,idx_country_code_status_id	idx_status	2	const	50	Using where
+set @trace= (select JSON_EXTRACT(trace, '$**.range_scan_alternatives[*]')
+from INFORMATION_SCHEMA.OPTIMIZER_TRACE);
+select json_detailed(json_extract(@trace, '$[*].index')) as INDEXES;
+INDEXES
+[
+    "idx_status",
+    "idx_country_code_status_id"
+]
+select json_detailed(json_extract(@trace, '$[*].rowid_ordered')) as ROR;
+ROR
+[
+    true,
+    false
+]
+DROP TABLE t1;
+SET sort_buffer_size= @save_sort_buffer_size;

@@ -1,0 +1,130 @@
+--source include/have_sequence.inc
+
+--echo #
+--echo # MDEV-20034 Add support for the pre-defined weak SYS_REFCURSOR
+--echo #
+
+SET @@max_open_cursors=3;
+SET @@max_sp_recursion_depth=10;
+
+--echo #
+--echo # OUT param
+--echo #
+
+DELIMITER /;
+CREATE PROCEDURE p1(counter INT UNSIGNED, OUT p1c0 SYS_REFCURSOR)
+BEGIN
+  DECLARE v INT;
+  IF counter=0 THEN
+    SELECT 'p1-0' AS stage, p1c0, v;
+    OPEN p1c0 FOR SELECT seq FROM seq_10_to_15;
+    SELECT 'p1-1' AS stage, p1c0, v;
+    FETCH p1c0 INTO v;
+    SELECT 'p1-3' AS stage, p1c0, v;
+  ELSE
+    OPEN p1c0 FOR SELECT seq FROM seq_20_to_20;
+    FETCH p1c0 INTO v;
+    SELECT 'p1-req' AS stage, p1c0, v, counter;
+    CALL p1(counter-1, p1c0);
+  END IF;
+END;
+/
+CREATE PROCEDURE p2(counter INT UNSIGNED)
+BEGIN
+  DECLARE v INT;
+  DECLARE p2c0 SYS_REFCURSOR;
+  SELECT 'p2c0' AS stage, p2c0, v;
+  CALL p1(counter, p2c0);
+  FETCH p2c0 INTO v;
+  SELECT 'p2c1' AS stage, p2c0, v;
+END;
+/
+DELIMITER ;/
+--disable_column_names
+CALL p2(4);
+--enable_column_names
+DROP PROCEDURE p2;
+DROP PROCEDURE p1;
+
+
+--echo #
+--echo # INOUT param
+--echo #
+
+DELIMITER /;
+CREATE PROCEDURE p1(counter INT UNSIGNED, INOUT p1c0 SYS_REFCURSOR)
+BEGIN
+  DECLARE v INT;
+  IF counter=0 THEN
+    FETCH p1c0 INTO v;
+    SELECT 'p1-0' AS stage, p1c0, v;
+    OPEN p1c0 FOR SELECT seq FROM seq_10_to_15;
+    FETCH p1c0 INTO v;
+    SELECT 'p1-1' AS stage, p1c0, v;
+  ELSE
+    OPEN p1c0 FOR SELECT seq FROM seq_20_to_25;
+    FETCH p1c0 INTO v;
+    SELECT 'p1-req' AS stage, p1c0, v, counter;
+    CALL p1(counter-1, p1c0);
+  END IF;
+END;
+/
+CREATE PROCEDURE p2(counter INT UNSIGNED)
+BEGIN
+  DECLARE v INT;
+  DECLARE p2c0 SYS_REFCURSOR;
+  SELECT 'p2-0', p2c0, v;
+  CALL p1(counter, p2c0);
+  FETCH p2c0 INTO v;
+  SELECT 'p2-1', p2c0, v;
+END;
+/
+DELIMITER ;/
+--disable_column_names
+CALL p2(4);
+--enable_column_names
+DROP PROCEDURE p2;
+DROP PROCEDURE p1;
+
+
+--echo #
+--echo # IN param
+--echo #
+
+DELIMITER /;
+CREATE PROCEDURE p1(counter INT UNSIGNED, IN p1c0 SYS_REFCURSOR)
+BEGIN
+  DECLARE v INT;
+  IF counter=0 THEN
+    FETCH p1c0 INTO v;
+    SELECT 'p1-0' AS stage, p1c0, v;
+  ELSE
+    FETCH p1c0 INTO v;
+    SELECT 'p1-req' AS stage, p1c0, v, counter;
+    CALL p1(counter-1, p1c0);
+  END IF;
+END;
+/
+CREATE PROCEDURE p2(counter INT UNSIGNED)
+BEGIN
+  DECLARE v INT;
+  DECLARE p2c0 SYS_REFCURSOR;
+  SELECT 'p2-0', p2c0, v;
+  OPEN p2c0 FOR SELECT seq FROM seq_20_to_26;
+  FETCH p2c0 INTO v;
+  SELECT 'p2-1', p2c0, v;
+  CALL p1(counter, p2c0);
+  FETCH p2c0 INTO v;
+  SELECT 'p2-2', p2c0, v;
+END;
+/
+DELIMITER ;/
+--disable_column_names
+CALL p2(4);
+--enable_column_names
+DROP PROCEDURE p2;
+DROP PROCEDURE p1;
+
+
+SET @@max_open_cursors=DEFAULT;
+SET @@max_sp_recursion_depth=DEFAULT;

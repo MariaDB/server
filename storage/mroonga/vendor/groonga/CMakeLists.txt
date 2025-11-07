@@ -13,6 +13,7 @@
 # License along with this library; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA
 
+cmake_minimum_required(VERSION 2.8...3.12)
 set(GRN_PROJECT_NAME "groonga")
 set(GRN_PROJECT_LABEL "Groonga")
 project("${GRN_PROJECT_NAME}")
@@ -146,7 +147,7 @@ endif()
 
 if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_COMPILER_IS_CLANGCXX)
   MY_CHECK_AND_SET_COMPILER_FLAG("-Wall")
-  MY_CHECK_AND_SET_COMPILER_FLAG("-Wno-unused-but-set-variable")
+  MY_CHECK_AND_SET_COMPILER_FLAG("-Wno-error=unused-but-set-variable")
   MY_CHECK_AND_SET_COMPILER_FLAG("-Wno-pointer-sign")
   MY_CHECK_AND_SET_COMPILER_FLAG("-Wformat")
   MY_CHECK_AND_SET_COMPILER_FLAG("-Wstrict-aliasing=2")

@@ -58,7 +58,7 @@ ALTER TABLE t21 FORCE, ALGORITHM=INPLACE;
 --echo # unsupported redo log for the table t21.
 
 --disable_result_log
-exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf  --backup --parallel=10 "--tables-exclude=test.t21" --target-dir=$targetdir;
+exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf  --backup --parallel=10 "--tables-exclude=test.t21" --target-dir=$targetdir --innodb_log_checkpoint_now=1;
 --enable_result_log
 --list_files $targetdir/test *.ibd
 --list_files $targetdir/test *.new

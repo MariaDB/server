@@ -89,6 +89,7 @@ C_MODE_START
 #define MY_FREE_ON_ERROR 128U	/* my_realloc() ; Free old ptr on error */
 #define MY_DONT_OVERWRITE_FILE 2048U /* my_copy: Don't overwrite file */
 #define MY_THREADSAFE 2048U     /* my_seek(): lock fd mutex */
+#define MY_BUFFER_NO_RESIZE 512U
 #define MY_SYNC       4096U     /* my_copy(): sync dst file */
 #define MY_SYNC_DIR   32768U    /* my_create/delete/rename: sync directory */
 #define MY_THREAD_SPECIFIC 0x10000U /* my_malloc(): thread specific */
@@ -154,17 +155,21 @@ char *guess_malloc_library();
 
 /* If we have our own safemalloc (for debugging) */
 #if defined(SAFEMALLOC)
-void sf_report_leaked_memory(my_thread_id id);
+my_bool sf_report_leaked_memory(my_thread_id id);
 int sf_sanity();
+my_bool sf_have_memory_leak();
 extern my_thread_id (*sf_malloc_dbug_id)(void);
 #define SAFEMALLOC_REPORT_MEMORY(X) if (!sf_leaking_memory) sf_report_leaked_memory(X)
+#define SAFEMALLOC_HAVE_MEMORY_LEAK sf_have_memory_leak()
 #else
 #define SAFEMALLOC_REPORT_MEMORY(X) do {} while(0)
+#define SAFEMALLOC_HAVE_MEMORY_LEAK 0
 #endif
 
 typedef void (*MALLOC_SIZE_CB) (long long size, my_bool is_thread_specific); 
 extern void set_malloc_size_cb(MALLOC_SIZE_CB func);
 extern MALLOC_SIZE_CB update_malloc_size;
+extern int64 my_malloc_init_memory_allocated;
 
 	/* defines when allocating data */
 extern void *my_malloc(PSI_memory_key key, size_t size, myf MyFlags);
@@ -175,9 +180,15 @@ extern void my_free(void *ptr);
 extern void *my_memdup(PSI_memory_key key, const void *from,size_t length,myf MyFlags);
 extern char *my_strdup(PSI_memory_key key, const char *from,myf MyFlags);
 extern char *my_strndup(PSI_memory_key key, const char *from, size_t length, myf MyFlags);
+extern my_bool my_use_large_pages;
 
-int my_init_large_pages(my_bool super_large_pages);
+int my_init_large_pages(void);
 uchar *my_large_malloc(size_t *size, myf my_flags);
+#ifdef _WIN32
+/* On Windows, use my_virtual_mem_reserve() and my_virtual_mem_commit(). */
+#else
+char *my_large_virtual_alloc(size_t *size);
+#endif
 void my_large_free(void *ptr, size_t size);
 void my_large_page_truncate(size_t *size);
 
@@ -355,6 +366,17 @@ typedef struct st_dynamic_array
   myf malloc_flags;
 } DYNAMIC_ARRAY;
 
+typedef struct st_mem_root_dynamic_array
+{
+  MEM_ROOT *mem_root;
+  uchar *buffer;
+  size_t elements, max_element;
+  size_t alloc_increment;
+  size_t size_of_element;
+  PSI_memory_key m_psi_key;
+  myf malloc_flags;
+} MEM_ROOT_DYNAMIC_ARRAY;
+
 
 typedef struct st_dynamic_array_append
 {
@@ -463,7 +485,7 @@ typedef struct st_io_cache		/* Used when caching files */
   int (*write_function)(struct st_io_cache *,const uchar *,size_t);
   /*
     Specifies the type of the cache. Depending on the type of the cache
-    certain operations might not be available and yield unpredicatable
+    certain operations might not be available and yield unpredictable
     results. Details to be documented later
   */
   enum cache_type type;
@@ -1144,11 +1166,8 @@ static inline my_bool my_charset_same(CHARSET_INFO *cs1, CHARSET_INFO *cs2)
   return (cs1->cs_name.str == cs2->cs_name.str);
 }
 extern my_bool init_compiled_charsets(myf flags);
-extern void add_compiled_collation(struct charset_info_st *cs);
+extern int add_compiled_collation(struct charset_info_st *cs);
 extern void add_compiled_extra_collation(struct charset_info_st *cs);
-extern my_bool add_alias_for_collation(LEX_CSTRING *collation_name,
-                                       uint collation_id,
-                                       LEX_CSTRING *alias, uint alias_id);
 extern size_t escape_string_for_mysql(CHARSET_INFO *charset_info,
                                       char *to, size_t to_length,
                                       const char *from, size_t length,
@@ -1171,6 +1190,74 @@ extern size_t escape_quotes_for_mysql(CHARSET_INFO *charset_info,
 extern void thd_increment_bytes_sent(void *thd, size_t length);
 extern void thd_increment_bytes_received(void *thd, size_t length);
 extern void thd_increment_net_big_packet_count(void *thd, size_t length);
+
+extern int mem_root_dynamic_array_init(MEM_ROOT *mem_root,
+                                       PSI_memory_key psi_key,
+                                       MEM_ROOT_DYNAMIC_ARRAY *array,
+                                       size_t element_size, void *init_buffer,
+                                       size_t init_alloc,
+                                       size_t alloc_increment,
+                                       myf my_flags);
+int mem_root_allocate_dynamic(MEM_ROOT *mem_root,
+                              MEM_ROOT_DYNAMIC_ARRAY *array,
+                              size_t idx);
+extern void* mem_root_dynamic_array_get_val(MEM_ROOT_DYNAMIC_ARRAY *array, size_t idx);
+extern void mem_root_dynamic_array_reset(MEM_ROOT_DYNAMIC_ARRAY *array);
+extern int mem_root_dynamic_array_resize_not_allowed(MEM_ROOT_DYNAMIC_ARRAY *array);
+extern void mem_root_dynamic_array_copy_values(MEM_ROOT_DYNAMIC_ARRAY *dest, MEM_ROOT_DYNAMIC_ARRAY *src);
+static inline int mem_root_dynamic_array_set_val(MEM_ROOT_DYNAMIC_ARRAY *array,
+                                   const void *element, size_t idx)
+{
+  DBUG_ASSERT(idx < array->max_element);
+
+  memcpy(array->buffer+(idx * array->size_of_element), element,
+         array->size_of_element);
+  return TRUE;
+}
+static inline int mem_root_dynamic_array_resize_and_set_val(MEM_ROOT_DYNAMIC_ARRAY *array,
+                                   const void *element, size_t idx)
+{
+  if (array->malloc_flags & MY_BUFFER_NO_RESIZE)
+    return TRUE;
+
+  if (idx >= array->max_element)
+  {
+    if (mem_root_allocate_dynamic(array->mem_root, array, idx))
+      return 1;
+    array->elements++;
+  }
+
+  /*
+     Ensure the array size has increased and the index is
+     now well within the array bounds.
+  */
+  DBUG_ASSERT(idx < array->max_element);
+
+  memcpy(array->buffer+(idx * array->size_of_element), element,
+         array->size_of_element);
+
+  return FALSE;
+}
+
+static inline void* mem_root_dynamic_array_resize_and_get_val(MEM_ROOT_DYNAMIC_ARRAY *array, size_t idx)
+{
+  if (array->malloc_flags & MY_BUFFER_NO_RESIZE)
+    return NULL;
+
+  if (idx >= array->max_element)
+  {
+    if (mem_root_allocate_dynamic(array->mem_root, array, idx))
+      return NULL;
+  }
+
+  /*
+     Ensure the array size has increased and the index is
+     now well within the array bounds.
+  */
+  DBUG_ASSERT(idx < array->max_element);
+
+  return mem_root_dynamic_array_get_val(array, idx);
+}
 
 #include <mysql/psi/psi.h>
 

@@ -21,6 +21,8 @@
 #include "sql_string.h"                         // LEX_STRING
 #include "field.h"                              // Create_field
 #include "sql_array.h"                          // Dynamic_array
+#include "sp_type_def.h"
+#include "sp_rcontext_handler.h"
 
 
 /// This class represents a stored program variable or a parameter
@@ -344,36 +346,12 @@ public:
 
 ///////////////////////////////////////////////////////////////////////////
 
-/// This class represents 'DECLARE RECORD' statement.
-
-class sp_record : public Sql_alloc
-{
-public:
-  /// Name of the record.
-  Lex_ident_column name;
-  Row_definition_list *field;
-
-public:
-  sp_record(const Lex_ident_column &name_arg, Row_definition_list *prmfield) 
-   :Sql_alloc(),
-    name(name_arg),
-    field(prmfield)
-  { }
-  bool eq_name(const LEX_CSTRING *str) const
-  {
-    return name.streq(*str);
-  }
-};
-
-
-///////////////////////////////////////////////////////////////////////////
-
 /// The class represents parse-time context, which keeps track of declared
 /// variables/parameters, conditions, handlers, cursors and labels.
 ///
 /// sp_pcontext objects are organized in a tree according to the following
 /// rules:
-///   - one sp_pcontext object corresponds for for each BEGIN..END block;
+///   - one sp_pcontext object corresponds for each BEGIN..END block;
 ///   - one sp_pcontext object corresponds for each exception handler;
 ///   - one additional sp_pcontext object is created to contain
 ///     Stored Program parameters.
@@ -391,7 +369,8 @@ public:
 ///   - for error checking (e.g. to check correct number of parameters);
 ///   - to resolve SQL-handlers.
 
-class sp_pcontext : public Sql_alloc
+class sp_pcontext : public Sql_alloc,
+                    public sp_type_def_list
 {
 public:
   enum enum_scope
@@ -400,19 +379,22 @@ public:
     REGULAR_SCOPE,
 
     /// HANDLER_SCOPE designates SQL-handler blocks.
-    HANDLER_SCOPE
+    HANDLER_SCOPE,
+
+    /// Declarations between CREATE PACKAGE and BEGIN
+    PACKAGE_BODY_SCOPE
   };
 
   class Lex_for_loop: public Lex_for_loop_st
   {
   public:
     /*
-      The label poiting to the body start,
+      The label pointing to the body start,
       either explicit or automatically generated.
       Used during generation of "ITERATE loop_label"
       to check if "loop_label" is a FOR loop label.
       - In case of a FOR loop, some additional code
-        (cursor fetch or iteger increment) is generated before
+        (cursor fetch or integer increment) is generated before
         the backward jump to the beginning of the loop body.
       - In case of other loop types (WHILE, REPEAT)
         only the jump is generated.
@@ -559,6 +541,11 @@ public:
   /// @param n The number of variables to skip.
   void declare_var_boundary(uint n)
   { m_pboundary= n; }
+
+  const sp_variable *get_pvariable(const sp_rcontext_addr &addr) const
+  {
+    return addr.rcontext_handler()->get_pvariable(this, addr.offset());
+  }
 
   /////////////////////////////////////////////////////////////////////////
   // CASE expressions.
@@ -744,28 +731,22 @@ public:
   {
     return m_for_loop;
   }
-
-  /////////////////////////////////////////////////////////////////////////
-  // Record.
-  /////////////////////////////////////////////////////////////////////////
-
-  bool add_record(THD *thd,
-                  const Lex_ident_column &name,
-                  Row_definition_list *field);
-
-  sp_record *find_record(const LEX_CSTRING *name,
-                         bool current_scope_only) const;
-
-  bool declare_record(THD *thd,
-                      const Lex_ident_column &name,
-                      Row_definition_list *field)
+  enum_scope scope() const
   {
-    if (find_record(&name, true))
+    return m_scope;
+  }
+
+  sp_type_def *find_type_def(const LEX_CSTRING &name,
+                             bool current_scope_only) const;
+
+  bool type_defs_add(THD *thd, sp_type_def *def)
+  {
+    if (unlikely(find_type_def(def->get_name(), true)))
     {
-      my_error(ER_SP_DUP_DECL, MYF(0), name.str);
+      my_error(ER_SP_DUP_DECL, MYF(0), def->get_name().str);
       return true;
     }
-    return add_record(thd, name, field);
+    return sp_type_def_list::type_defs_add(def);
   }
 
 private:
@@ -831,9 +812,6 @@ private:
 
   /// Stack of SQL-handlers.
   Dynamic_array<sp_handler *> m_handlers;
-
-  /// Stack of records.
-  Dynamic_array<sp_record *> m_records;
 
   /*
    In the below example the label <<lab>> has two meanings:

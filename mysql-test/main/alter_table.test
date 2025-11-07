@@ -1053,7 +1053,7 @@ ALTER TABLE t1 MODIFY COLUMN a SET('a1','a2','xx');
 ALTER TABLE t1 MODIFY COLUMN a SET('a1','a2','a0','xx');
 --echo # No copy: Add new to the end
 ALTER TABLE t1 MODIFY COLUMN a SET('a1','a2','a0','xx','a5','a6');
---echo # Copy: Numerical incrase (pack lenght)
+--echo # Copy: Numerical increase (pack length)
 ALTER TABLE t1 MODIFY COLUMN a SET('a1','a2','a0','xx','a5','a6','a7','a8','a9','a10');
 --disable_info
 DROP TABLE t1;
@@ -1318,8 +1318,6 @@ SELECT LENGTH(my_t3_fld1) FROM t3;
 
 # Cleanup
 --disconnect con1
---source include/wait_until_disconnected.inc
-
 --connection default
 DROP TABLE t1, t2, t3;
 
@@ -1384,9 +1382,9 @@ ALTER TABLE t2 DROP FOREIGN KEY IF EXISTS fk;
 ALTER TABLE t2 DROP FOREIGN KEY IF EXISTS fk;
 SHOW CREATE TABLE t2;
 ALTER TABLE t2 ADD FOREIGN KEY (id) REFERENCES t1(id);
-ALTER TABLE t2 ADD FOREIGN KEY IF NOT EXISTS t2_ibfk_1(id) REFERENCES t1(id);
-ALTER TABLE t2 DROP FOREIGN KEY IF EXISTS t2_ibfk_1;
-ALTER TABLE t2 DROP FOREIGN KEY IF EXISTS t2_ibfk_1;
+ALTER TABLE t2 ADD FOREIGN KEY IF NOT EXISTS `1`(id) REFERENCES t1(id);
+ALTER TABLE t2 DROP FOREIGN KEY IF EXISTS `1`;
+ALTER TABLE t2 DROP FOREIGN KEY IF EXISTS `1`;
 SHOW CREATE TABLE t2;
 
 DROP TABLE t2;
@@ -1569,8 +1567,6 @@ connection con1;
 --echo # Reaping: ALTER TABLE t1 DISABLE KEYS
 --reap
 disconnect con1;
---source include/wait_until_disconnected.inc
-
 connection default;
 DROP TABLE t1;
 
@@ -1583,10 +1579,6 @@ DROP TABLE t1;
 --echo # --enable_info allows us to see how many rows were updated
 --echo # by ALTER TABLE. in-place will show 0 rows, while copy > 0.
 --echo #
-
---disable_warnings
-DROP TABLE IF EXISTS ti1, ti2, ti3, tm1, tm2, tm3;
---enable_warnings
 
 --echo # Single operation tests
 
@@ -2402,6 +2394,30 @@ create table t1(id int primary key, t2_id int, constraint t1_fk_t2_id foreign ke
 --error ER_CANT_DROP_FIELD_OR_KEY
 alter table t1 drop constraint t1_fk_t2_id, drop t2_id, drop t2_id;
 drop table t1, t2;
+
+--echo #
+--echo # MDEV-29001 DROP DEFAULT makes SHOW CREATE non-idempotent
+--echo #
+SET @save_sql_mode=@@sql_mode;
+SET sql_mode=strict_all_tables;
+create table t1 (
+  a int,
+  b int default 0,
+  c int not null,
+  d int not null default 1);
+show create table t1;
+alter table t1
+  alter a drop default,
+  alter b drop default,
+  alter c drop default,
+  alter d drop default;
+SHOW create table t1;
+--error ER_NO_DEFAULT_FOR_FIELD
+insert t1 values (default, default, default, default);
+insert t1 values (default, default, 0, 0);
+
+drop table t1;
+set sql_mode= @save_sql_mode;
 
 --echo #
 --echo # End of 10.6 tests

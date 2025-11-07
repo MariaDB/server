@@ -969,8 +969,8 @@ calc_rec_size(grn_table_flags flags, uint32_t max_n_subrecs, uint32_t range_size
       *subrec_size = range_size + sizeof(uint32_t) + sizeof(uint32_t);
       break;
     }
-    *value_size = (uintptr_t)GRN_RSET_SUBRECS_NTH((((grn_rset_recinfo *)0)->subrecs),
-                                                  *subrec_size, max_n_subrecs);
+    *value_size = (uintptr_t) GRN_RSET_SUBRECS_NTH(offsetof(grn_rset_recinfo, subrecs),
+                                                   *subrec_size, max_n_subrecs);
   } else {
     *value_size = range_size;
   }
@@ -8600,7 +8600,6 @@ grn_obj_set_info_source_invalid_lexicon_error(grn_ctx *ctx,
       source_name_size, source_name);
 }
 
-PRAGMA_REENABLE_CHECK_STACK_FRAME
 
 inline static grn_rc
 grn_obj_set_info_source_validate(grn_ctx *ctx, grn_obj *obj, grn_obj *value)
@@ -8703,6 +8702,8 @@ exit:
   }
   return ctx->rc;
 }
+
+PRAGMA_REENABLE_CHECK_STACK_FRAME
 
 inline static void
 grn_obj_set_info_source_log(grn_ctx *ctx, grn_obj *obj, grn_obj *value)

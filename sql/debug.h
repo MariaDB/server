@@ -23,7 +23,7 @@
   functionality.
 */
 
-/* debug_crash_here() functionallity.
+/* debug_crash_here() functionality.
  See mysql_test/suite/atomic/create_table.test for an example of how it
  can be used
 */

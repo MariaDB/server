@@ -22,7 +22,7 @@ include/start_slave.inc
 # the recovery process cannot start the binlog background thread before
 # the mysql handle manager has started.
 connection slave;
-# Add test suppresssions so crash recovery messages don't fail the test
+# Add test suppressions so crash recovery messages don't fail the test
 set session sql_log_bin=0;
 call mtr.add_suppression("mariadbd: Got error '145.*");
 call mtr.add_suppression("Checking table:.*");

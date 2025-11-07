@@ -10,5 +10,9 @@
 #
 ##############################################################################
 
-galera_sequences : MDEV-35934/MDEV-33850 For Galera, create sequence with low cache got signal 6 error: [ERROR] WSREP: FSM: no such a transition REPLICATING -> COMMITTED
-MDEV-26266 : MDEV-26266
+galera_wan : MDEV-35940 Unallowed state transition: donor -> synced in galera_wan
+galera_vote_rejoin_ddl : MDEV-35940 Unallowed state transition: donor -> synced in galera_wan
+galera_vote_rejoin_dml : MDEV-35964 Assertion `ist_seqno >= cc_seqno' failed in galera_vote_rejoin_dml
+galera_var_notify_cmd : MDEV-37257 WSREP: Notification command failed: 1 (Operation not permitted)
+galera_var_notify_ssl_ipv6 : MDEV-37257 WSREP: Notification command failed: 1 (Operation not permitted)
+MDEV-26266 : cannot work reliably

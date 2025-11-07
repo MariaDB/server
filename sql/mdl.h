@@ -22,6 +22,7 @@
 #include <m_string.h>
 #include <mysql_com.h>
 #include <lf.h>
+#include <atomic>
 #include "lex_ident.h"
 
 class THD;
@@ -31,6 +32,12 @@ class MDL_lock;
 class MDL_ticket;
 
 typedef unsigned short mdl_bitmap_t;
+
+
+/**
+  Get a bit corresponding to enum_mdl_type value in a granted/waiting bitmaps
+  and compatibility matrices.
+*/
 #define MDL_BIT(A) static_cast<mdl_bitmap_t>(1U << A)
 
 
@@ -173,7 +180,7 @@ enum enum_mdl_type {
     cases when we only need to access metadata and not data, e.g. when
     filling an INFORMATION_SCHEMA table.
     Since SH lock is compatible with SNRW lock, the connection that
-    holds SH lock lock should not try to acquire any kind of table-level
+    holds the SH lock should not try to acquire any kind of table-level
     or row-level lock, as this can lead to a deadlock. Moreover, after
     acquiring SH lock, the connection should not wait for any other
     resource, as it might cause starvation for X locks and a potential
@@ -311,7 +318,7 @@ enum enum_mdl_type {
   Statement is modifying data, but will not block MDL_BACKUP_DDL or earlier
   BACKUP stages.
   ALTER TABLE is started with MDL_BACKUP_DDL, but changed to
-  MDL_BACKUP_ALTER_COPY while alter table is copying or modifing data.
+  MDL_BACKUP_ALTER_COPY while alter table is copying or modifying data.
 */
 
 #define MDL_BACKUP_ALTER_COPY enum_mdl_type(12)
@@ -415,8 +422,8 @@ public:
 
     @param  mdl_namespace Id of namespace of object to be locked
     @param  db            Name of database to which the object belongs
-    @param  name          Name of of the object
-    @param  key           Where to store the the MDL key.
+    @param  name          Name of the object
+    @param  key           Where to store the MDL key.
   */
   void mdl_key_init(enum_mdl_namespace mdl_namespace_arg,
                     const char *db, const char *name_arg)
@@ -730,7 +737,7 @@ public:
   const LEX_STRING *get_type_name() const;
   const LEX_STRING *get_type_name(enum_mdl_type type) const;
   MDL_lock *get_lock() const { return m_lock; }
-  MDL_key *get_key() const;
+  const MDL_key *get_key() const;
   void downgrade_lock(enum_mdl_type type);
 
   bool has_stronger_or_equal_type(enum_mdl_type type) const;
@@ -748,35 +755,14 @@ public:
                          PRE_ACQUIRE_NOTIFY, POST_RELEASE_NOTIFY };
 private:
   friend class MDL_context;
+  friend class MDL_lock;
 
-  MDL_ticket(MDL_context *ctx_arg, enum_mdl_type type_arg
-#ifndef DBUG_OFF
-             , enum_mdl_duration duration_arg
-#endif
-            )
-   :
-#ifndef DBUG_OFF
-     m_duration(duration_arg),
-#endif
-     m_time(0),
-     m_type(type_arg),
-     m_ctx(ctx_arg),
-     m_lock(NULL),
-     m_psi(NULL)
-  {}
-
-  virtual ~MDL_ticket()
-  {
-    DBUG_ASSERT(m_psi == NULL);
-  }
-
-  static MDL_ticket *create(MDL_context *ctx_arg, enum_mdl_type type_arg
-#ifndef DBUG_OFF
-                            , enum_mdl_duration duration_arg
-#endif
-                            );
-  static void destroy(MDL_ticket *ticket);
+  MDL_ticket(MDL_context *ctx_arg, MDL_request *request);
+  ~MDL_ticket();
 private:
+  /** Property of MDL_lock::Fast_road, unauthorized access is prohibited. */
+  std::atomic<void*> m_fast_lane;
+
   /** Type of metadata lock. Externally accessible. */
   enum enum_mdl_type m_type;
 
@@ -1155,6 +1141,7 @@ extern "C" int thd_is_connected(MYSQL_THD thd);
   to avoid starving out weak, low-prio locks.
 */
 extern "C" ulong max_write_lock_count;
+extern uint mdl_instances;
 
 typedef int (*mdl_iterator_callback)(MDL_ticket *ticket, void *arg,
                                      bool granted);

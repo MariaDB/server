@@ -285,8 +285,8 @@ index tables) of a FTS table are in HEX format. */
 	(table->flags2 &= ~(flag) & ((1U << DICT_TF2_BITS) - 1))
 
 /** Tables could be chained together with Foreign key constraint. When
-first load the parent table, we would load all of its descedents.
-This could result in rescursive calls and out of stack error eventually.
+first load the parent table, we would load all of its descendants.
+This could result in recursive calls and out of stack error eventually.
 DICT_FK_MAX_RECURSIVE_LOAD defines the maximum number of recursive loads,
 when exceeded, the child table will not be loaded. It will be loaded when
 the foreign constraint check needs to be run. */
@@ -1317,11 +1317,12 @@ public:
 	vers_history_row(const rec_t* rec, const rec_offs* offsets);
 
 	/** Check if record in secondary index is historical row.
+	@param[in,out]	mtr	mini-transaction
 	@param[in]	rec	record in a secondary index
 	@param[out]	history_row true if row is historical
 	@return true on error */
 	bool
-	vers_history_row(const rec_t* rec, bool &history_row);
+	vers_history_row(mtr_t *mtr, const rec_t* rec, bool &history_row);
 
   /** Assign the number of new column to be added as a part
   of the index
@@ -1671,6 +1672,18 @@ public:
     }
     return true;
   }
+
+  /** @return the SQL visible constraint name */
+  const char *sql_id() const noexcept
+  {
+    /* Before MySQL 4.0.18, constraint names were auto-generated (%lu_%lu)
+    and unique among all InnoDB tables.  Starting with MySQL 4.0.18, the
+    constraint names were prepended with the schema name and /.
+    Starting with MariaDB 12, constraint names are prepended with the
+    dict_table_t::name and the invalid UTF-8 sequence 0xff. */
+    const char *s;
+    return ((s= strchr(id, '\377')) || (s= strchr(id, '/'))) ? ++s : id;
+  }
 };
 
 std::ostream&
@@ -1728,33 +1741,6 @@ struct dict_foreign_different_tables {
 	{
 		return(foreign->foreign_table != foreign->referenced_table);
 	}
-};
-
-/** A function object to check if the foreign key constraint has the same
-name as given.  If the full name of the foreign key constraint doesn't match,
-then, check if removing the database name from the foreign key constraint
-matches. Return true if it matches, false otherwise. */
-struct dict_foreign_matches_id {
-
-	dict_foreign_matches_id(const char* id)
-		: m_id(id)
-	{}
-
-	bool operator()(const dict_foreign_t*	foreign) const
-	{
-		const Lex_ident_column ident = Lex_cstring_strlen(m_id);
-		if (ident.streq(Lex_cstring_strlen(foreign->id))) {
-			return(true);
-		}
-		if (const char* pos = strchr(foreign->id, '/')) {
-			if (ident.streq(Lex_cstring_strlen(pos + 1))) {
-				return(true);
-			}
-		}
-		return(false);
-	}
-
-	const char*	m_id;
 };
 
 typedef std::set<
@@ -2186,6 +2172,11 @@ struct dict_table_t {
                       (as part of rolling back TRUNCATE) */
   dberr_t rename_tablespace(span<const char> new_name, bool replace) const;
 
+  /** Whether the table is eligible to do bulk insert operation
+  @param trx transaction which tries to do bulk insert
+  @retval true if table can do bulk insert
+  @retval false otherwise */
+  bool can_bulk_insert(const trx_t &trx) const noexcept;
 private:
 	/** Initialize instant->field_map.
 	@param[in]	table	table definition to copy from */
@@ -2515,7 +2506,7 @@ public:
   columns; protected by lock_latch */
   dict_vcol_templ_t *vc_templ;
 
-  /* @return whether the table has any other transcation lock
+  /* @return whether the table has any other transaction lock
   other than the given transaction */
   bool has_lock_other_than(const trx_t *trx) const
   {

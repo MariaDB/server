@@ -17,7 +17,7 @@ connect foo_node_2,127.0.0.1,foo,,test,$port_2,;
 # Connect with foo_node_2
 connection foo_node_2;
 INSERT INTO t1 VALUES (2);
-ERROR HY000: The MariaDB server is running with the --read-only option so it cannot execute this statement
+ERROR HY000: The MariaDB server is running with the --read-only=ON option so it cannot execute this statement
 CREATE TEMPORARY TABLE t2(id int not null primary key) engine=innodb;
 INSERT INTO t2 values (1);
 DROP TABLE t2;
@@ -33,3 +33,5 @@ DROP TABLE t2;
 SET GLOBAL read_only=FALSE;
 DROP TABLE t1;
 DROP USER foo@localhost;
+Warnings:
+Note	4226	Dropped users 'foo'@'localhost' have active connections. Use KILL CONNECTION if they should not be used anymore.

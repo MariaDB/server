@@ -5,7 +5,6 @@
 
 --let $node_1 = node_1
 --let $node_2 = node_2
-
 --source ../galera/include/auto_increment_offset_save.inc
 
 #

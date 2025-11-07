@@ -1,0 +1,54 @@
+call mtr.add_suppression("InnoDB: Defragmentation of CLUST_IND in SYS_INDEXES failed: Data structure corruption");
+call mtr.add_suppression("InnoDB: Defragmentation of CLUST_IND in SYS_COLUMNS failed: Data structure corruption");
+call mtr.add_suppression("InnoDB: Cannot free the unused segments in system tablespace");
+# restart
+set GLOBAL innodb_file_per_table = 0;
+Warnings:
+Warning	1287	'@@innodb_file_per_table' is deprecated and will be removed in a future release
+set GLOBAL innodb_limit_optimistic_insert_debug = 2;
+CREATE TABLE t1(f1 INT NOT NULL, f2 INT NOT NULL)ENGINE=InnoDB;
+INSERT INTO t1 SELECT seq, seq FROM seq_1_to_4096;
+SET GLOBAL innodb_file_per_table= 1;
+Warnings:
+Warning	1287	'@@innodb_file_per_table' is deprecated and will be removed in a future release
+CREATE TABLE t2(f1 INT NOT NULL PRIMARY KEY,
+f2 VARCHAR(40))ENGINE=InnoDB PARTITION BY KEY() PARTITIONS 256;
+INSERT INTO t1 SELECT seq, seq FROM seq_1_to_4096;
+DROP TABLE t2;
+InnoDB		0 transactions not purged
+# restart
+FOUND 1 /InnoDB: User table exists in the system tablespace/ in mysqld.1.err
+DROP TABLE t1;
+InnoDB		0 transactions not purged
+# restart: --debug_dbug=+d,fail_after_level_defragment
+FOUND 1 /InnoDB: Defragmentation of CLUST_IND in SYS_COLUMNS failed./ in mysqld.1.err
+select name, file_size<$fsize shrunk
+from information_schema.innodb_sys_tablespaces where space=0;
+name	shrunk
+innodb_system	0
+# restart: --debug_dbug=d,allocation_prepare_fail
+FOUND 1 /InnoDB: Defragmentation of CLUST_IND in SYS_INDEXES failed./ in mysqld.1.err
+select name, file_size<$fsize shrunk
+from information_schema.innodb_sys_tablespaces where space=0;
+name	shrunk
+innodb_system	0
+# restart: --debug_dbug=d,relation_page_prepare_fail
+FOUND 2 /InnoDB: Defragmentation of CLUST_IND in SYS_INDEXES failed./ in mysqld.1.err
+select name, file_size<$fsize shrunk
+from information_schema.innodb_sys_tablespaces where space=0;
+name	shrunk
+innodb_system	0
+# restart: --debug_dbug=d,remover_prepare_fail
+FOUND 3 /InnoDB: Defragmentation of CLUST_IND in SYS_INDEXES failed./ in mysqld.1.err
+select name, file_size<$fsize shrunk
+from information_schema.innodb_sys_tablespaces where space=0;
+name	shrunk
+innodb_system	0
+# restart
+FOUND 5 /InnoDB: Moving the data from extents 4096 through 8960/ in mysqld.1.err
+FOUND 1 /InnoDB: Defragmentation of system tablespace is successful/ in mysqld.1.err
+select name, file_size<$fsize shrunk
+from information_schema.innodb_sys_tablespaces where space=0;
+name	shrunk
+innodb_system	1
+# restart

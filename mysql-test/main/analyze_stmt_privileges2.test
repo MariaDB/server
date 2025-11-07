@@ -21,9 +21,6 @@
 --source include/not_embedded.inc
 --source include/default_optimizer_switch.inc
 
-# Save the initial number of concurrent sessions
---source include/count_sessions.inc
-
 set GLOBAL sql_mode="";
 set LOCAL sql_mode="";
 
@@ -5392,8 +5389,4 @@ connection default;
 DROP USER 'privtest'@localhost;
 USE test;
 DROP DATABASE privtest_db;
-
 set GLOBAL sql_mode=default;
---source include/wait_until_count_sessions.inc 
-
-

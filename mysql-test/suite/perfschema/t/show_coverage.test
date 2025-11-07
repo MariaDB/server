@@ -7,7 +7,6 @@
 --source include/have_perfschema.inc
 --source include/not_embedded.inc
 --source include/no_protocol.inc
---source include/count_sessions.inc
 
 --echo #
 --echo # TEST 1
@@ -106,7 +105,6 @@ SELECT @bytes_before > @bytes_after AS 'Expect 1';
 SELECT @bytes_after AS 'Expect 0';
 
 disconnect con1;
---source include/wait_until_count_sessions.inc
 
 
 --echo #
@@ -118,8 +116,6 @@ disconnect con1;
 --echo #
 --echo # Default connection
 --let $initial_global_value = query_get_value(SHOW GLOBAL STATUS LIKE 'Slow_queries', Value, 1)
-
---source include/count_sessions.inc
 
 --echo #
 --echo # First connection
@@ -151,7 +147,6 @@ SET long_query_time = @@global.long_query_time;
 
 --connection default
 --disconnect con1
---source include/wait_until_count_sessions.inc
 
 --echo #
 --echo # Default connection

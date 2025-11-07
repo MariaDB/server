@@ -1,0 +1,485 @@
+--source include/have_debug.inc
+--source include/fetch_one_value.inc
+
+--disable_query_log
+--disable_result_log
+--source type_sys_refcursor-helper_routines-debug-create.inc
+--enable_result_log
+--enable_query_log
+
+--echo #
+--echo # MDEV-20034 Add support for the pre-defined weak SYS_REFCURSOR
+--echo #
+
+--echo #
+--echo # A cursor on a SELECT returning a local SP variable works in the caller
+--echo #
+
+DELIMITER /;
+CREATE PROCEDURE p1(a INT, OUT c0 SYS_REFCURSOR)
+BEGIN
+  OPEN c0 FOR SELECT a; 
+END;
+/
+#
+# Although p1's sp_rcontext is already destroyed when FETCH is executed in p2,
+# the cursor opened by `SELECT a` in p1 still works
+# because the cursor was materialized into a temporary table.
+#
+CREATE PROCEDURE p2()
+BEGIN
+  DECLARE c0 SYS_REFCURSOR;
+  DECLARE v INT;
+  CALL p1(10, c0);
+  FETCH c0 INTO v;
+  SELECT v;
+END;
+/
+DELIMITER ;/
+CALL p2();
+DROP PROCEDURE p2;
+DROP PROCEDURE p1;
+
+
+--echo #
+--echo # A procedure failing on error still clears ref counters
+--echo #
+
+--echo # INOUT parameter
+DELIMITER /;
+CREATE PROCEDURE p1(INOUT c0 SYS_REFCURSOR)
+BEGIN
+  DECLARE v INT;
+  OPEN c0 FOR SELECT 1;
+  FETCH c0 INTO v;
+  FETCH c0 INTO v;  
+END;
+/
+CREATE FUNCTION f2() RETURNS SYS_REFCURSOR
+BEGIN
+  DECLARE c0 SYS_REFCURSOR;
+  DECLARE CONTINUE HANDLER FOR SQLSTATE '02000'
+  BEGIN
+    RETURN NULL;
+  END;
+  CALL p1(c0);
+  RETURN c0;
+END;
+/
+DELIMITER ;/
+# CURSOR_REF_COUNT(0) is expected to be 0
+# Let's also check CURSOR_REF_COUNT(1) just in case. NULL is expected.
+SELECT f2(), CURSOR_REF_COUNT(0), CURSOR_REF_COUNT(1);
+DROP PROCEDURE p1;
+DROP FUNCTION f2;
+
+
+--echo # OUT parameter
+DELIMITER /;
+CREATE PROCEDURE p1(OUT c0 SYS_REFCURSOR)
+BEGIN
+  DECLARE v INT;
+  OPEN c0 FOR SELECT 1;
+  FETCH c0 INTO v;
+  FETCH c0 INTO v;  
+END;
+/
+CREATE FUNCTION f2() RETURNS SYS_REFCURSOR
+BEGIN
+  DECLARE c0 SYS_REFCURSOR;
+  DECLARE CONTINUE HANDLER FOR SQLSTATE '02000'
+  BEGIN
+    RETURN NULL;
+  END;
+  CALL p1(c0);
+  RETURN c0;
+END;
+/
+DELIMITER ;/
+# CURSOR_REF_COUNT(0) is expected to be 0
+# Let's also check CURSOR_REF_COUNT(1) just in case. NULL is expected.
+SELECT f2(), CURSOR_REF_COUNT(0), CURSOR_REF_COUNT(1);
+DROP PROCEDURE p1;
+DROP FUNCTION f2;
+
+
+--echo #
+--echo # PROCEDURE + IN param + OPEN in p2
+--echo #
+
+DELIMITER /;
+CREATE PROCEDURE p1(c SYS_REFCURSOR)
+BEGIN
+  SELECT 'p1-1' AS stage, c, CURSOR_REF_COUNT(c) AS cnt;
+END;
+/
+CREATE PROCEDURE p2()
+BEGIN
+  DECLARE c SYS_REFCURSOR;
+  SELECT 'p2-1' AS stage, c, CURSOR_REF_COUNT(c) AS cnt;
+  OPEN c FOR SELECT 1;
+  SELECT 'p2-2' AS stage, c, CURSOR_REF_COUNT(c) AS cnt;
+  CALL p1(c);
+  SELECT 'p2-3' AS stage, c, CURSOR_REF_COUNT(c) AS cnt;
+END;
+/
+DELIMITER ;/
+SHOW PROCEDURE CODE p1;
+SHOW PROCEDURE CODE p2;
+CALL p2;
+SELECT '/p2' AS stage, '-' AS c, CURSOR_REF_COUNT(0) AS cnt;
+DROP PROCEDURE p2;
+DROP PROCEDURE p1;
+
+
+--echo #
+--echo # PROCEDURE + INOUT param + OPEN in p2
+--echo #
+
+DELIMITER /;
+CREATE PROCEDURE p1(INOUT c SYS_REFCURSOR)
+BEGIN
+  SELECT 'p1-1' AS stage, c, CURSOR_REF_COUNT(c) AS cnt;
+END;
+/
+CREATE PROCEDURE p2()
+BEGIN
+  DECLARE c SYS_REFCURSOR;
+  SELECT 'p2-1' AS stage, c, CURSOR_REF_COUNT(c) AS cnt;
+  OPEN c FOR SELECT 1;
+  SELECT 'p2-2' AS stage, c, CURSOR_REF_COUNT(c) AS cnt;
+  CALL p1(c);
+  SELECT 'p2-3' AS stage, c, CURSOR_REF_COUNT(c) AS cnt;
+END;
+/
+DELIMITER ;/
+SHOW PROCEDURE CODE p1;
+SHOW PROCEDURE CODE p2;
+CALL p2;
+SELECT '/p2' AS stage, '-' AS c, CURSOR_REF_COUNT(0) AS cnt;
+DROP PROCEDURE p2;
+DROP PROCEDURE p1;
+
+
+--echo #
+--echo # PROCEDURE + INOUT param + OPEN in p1
+--echo #
+
+DELIMITER /;
+CREATE PROCEDURE p1(INOUT c SYS_REFCURSOR)
+BEGIN
+  SELECT 'p1-1' AS stage, c, CURSOR_REF_COUNT(c) AS cnt;
+  OPEN c FOR SELECT 1;
+  SELECT 'p1-1' AS stage, c, CURSOR_REF_COUNT(c) AS cnt;
+END;
+/
+CREATE PROCEDURE p2()
+BEGIN
+  DECLARE c SYS_REFCURSOR;
+  SELECT 'p2-1' AS stage, c, CURSOR_REF_COUNT(c) AS cnt;
+  CALL p1(c);
+  SELECT 'p2-2' AS stage, c, CURSOR_REF_COUNT(c) AS cnt;
+END;
+/
+DELIMITER ;/
+SHOW PROCEDURE CODE p1;
+SHOW PROCEDURE CODE p2;
+CALL p2;
+SELECT '/p2' AS stage, '-' AS c, CURSOR_REF_COUNT(0) AS cnt;
+DROP PROCEDURE p2;
+DROP PROCEDURE p1;
+
+
+--echo #
+--echo # PROCEDURE + OUT param + OPEN in p2
+--echo #
+
+DELIMITER /;
+CREATE PROCEDURE p1(OUT c SYS_REFCURSOR)
+BEGIN
+  SELECT 'p1-1' AS stage, c, CURSOR_REF_COUNT(c) AS cnt;
+END;
+/
+CREATE PROCEDURE p2()
+BEGIN
+  DECLARE c SYS_REFCURSOR;
+  SELECT 'p2-1' AS stage, c, CURSOR_REF_COUNT(c) AS cnt;
+  OPEN c FOR SELECT 1;
+  SELECT 'p2-2' AS stage, c, CURSOR_REF_COUNT(c) AS cnt;
+  CALL p1(c);
+  SELECT 'p2-3' AS stage, c, CURSOR_REF_COUNT(c) AS cnt;
+END;
+/
+DELIMITER ;/
+SHOW PROCEDURE CODE p1;
+SHOW PROCEDURE CODE p2;
+CALL p2;
+SELECT '/p2' AS stage, '-' AS c, CURSOR_REF_COUNT(0) AS cnt;
+DROP PROCEDURE p2;
+DROP PROCEDURE p1;
+
+
+--echo #
+--echo # PROCEDURE + OUT param + OPEN in p1
+--echo #
+
+DELIMITER /;
+CREATE PROCEDURE p1(OUT c SYS_REFCURSOR)
+BEGIN
+  SELECT 'p1-1' AS stage, c, CURSOR_REF_COUNT(c) AS cnt;
+  OPEN c FOR SELECT 1;
+  SELECT 'p1-2' AS stage, c, CURSOR_REF_COUNT(c) AS cnt;
+END;
+/
+CREATE PROCEDURE p2()
+BEGIN
+  DECLARE c SYS_REFCURSOR;
+  SELECT 'p2-1' AS stage, c, CURSOR_REF_COUNT(c) AS cnt;
+  CALL p1(c);
+  SELECT 'p2-2' AS stage, c, CURSOR_REF_COUNT(c) AS cnt;
+END;
+/
+DELIMITER ;/
+SHOW PROCEDURE CODE p1;
+SHOW PROCEDURE CODE p2;
+CALL p2;
+SELECT '/p2' AS stage, '-' AS c, CURSOR_REF_COUNT(0) AS cnt;
+DROP PROCEDURE p2;
+DROP PROCEDURE p1;
+
+
+--echo #
+--echo # Returning the same cursor into multiple formal OUT parameters
+--echo #
+
+DELIMITER /;
+CREATE PROCEDURE p1(OUT c0 SYS_REFCURSOR, OUT c1 SYS_REFCURSOR, OUT c2 SYS_REFCURSOR)
+BEGIN
+  OPEN c0 FOR VALUES (0),(1),(2);
+  SET c1= c0;
+  SET c2= c0;
+END;
+/
+CREATE PROCEDURE p2()
+BEGIN
+  DECLARE c0, c1, c2 SYS_REFCURSOR;
+  DECLARE v0, v1, v2 INT;
+  SELECT 'p2-0' AS stage, refs(0,3) AS refs;
+  CALL p1(c0, c1, c2);
+  SELECT 'p2-1' AS stage, refs(0,3) AS refs;
+  FETCH c0 INTO v0;
+  FETCH c1 INTO v1;
+  FETCH c2 INTO v2;
+  SELECT v0, v1, v2;
+  SELECT 'p2-3' AS stage, refs(0,3) AS refs;
+  SET c0= NULL;
+  SELECT 'p2-40' AS stage, refs(0,3) AS refs;
+  SET c1= NULL;
+  SELECT 'p2-41' AS stage, refs(0,3) AS refs;
+  SET c2= NULL;
+  SELECT 'p2-42' AS stage, refs(0,3) AS refs;
+END;
+/
+DELIMITER ;/
+--disable_column_names
+CALL p2;
+--enable_column_names
+DROP PROCEDURE p1;
+DROP PROCEDURE p2;
+
+
+--echo #
+--echo # Returning the same cursor into multiple formal OUT parameters.
+--echo # Passing the same variable as all actual parameters.
+--echo #
+
+DELIMITER /;
+CREATE PROCEDURE p1(OUT c0 SYS_REFCURSOR, OUT c1 SYS_REFCURSOR, OUT c2 SYS_REFCURSOR)
+BEGIN
+  OPEN c0 FOR VALUES (0),(1),(2);
+  SET c1= c0;
+  SET c2= c0;
+END;
+/
+CREATE PROCEDURE p2()
+BEGIN
+  DECLARE c0 SYS_REFCURSOR;
+  DECLARE v0, v1, v2 INT;
+  SELECT 'p2-0' AS stage, refs(0,3) AS refs;
+  CALL p1(c0, c0, c0);
+  SELECT 'p2-1' AS stage, refs(0,3) AS refs;
+  FETCH c0 INTO v0;
+  FETCH c0 INTO v1;
+  FETCH c0 INTO v2;
+  SELECT v0, v1, v2;
+  SELECT 'p2-3' AS stage, refs(0,3) AS refs;
+  SET c0= NULL;
+  SELECT 'p2-40' AS stage, refs(0,3) AS refs;
+END;
+/
+DELIMITER ;/
+--disable_column_names
+CALL p2;
+--enable_column_names
+DROP PROCEDURE p1;
+DROP PROCEDURE p2;
+
+
+--echo #
+--echo # PROCEDURE + OUT param + OPEN in p1 + multiple calls
+--echo # reuse the cursor at the same position
+--echo #
+
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+
+DELIMITER /;
+CREATE PROCEDURE p1(OUT p1c0 SYS_REFCURSOR, task VARCHAR(64))
+BEGIN
+  SELECT 'p1-0' AS stage, p1c0, CURSOR_REF_COUNT(p1c0) AS c_p1c0, CURSOR_REF_COUNT(0) AS c_0, FETCH_ONE_VALUE(p1c0) AS val;
+  IF task LIKE '%open_p1c0%' THEN
+    OPEN p1c0 FOR SELECT a+100 FROM t1;
+  END IF;
+  SELECT 'p1-1' AS stage, p1c0, CURSOR_REF_COUNT(p1c0) AS c_p1c0, CURSOR_REF_COUNT(0) AS c_0, FETCH_ONE_VALUE(p1c0) AS val;
+END;
+/
+CREATE PROCEDURE p2(task VARCHAR(64))
+BEGIN
+  DECLARE p2c0 SYS_REFCURSOR;
+  SELECT 'state', 'curs', 'c_cur', 'c_0', 'val';
+  SELECT 'p2-0' AS stage, p2c0, CURSOR_REF_COUNT(p2c0) AS cnt_p2c0, CURSOR_REF_COUNT(0) AS cnt_0, FETCH_ONE_VALUE(p2c0) AS val;
+  CALL p1(p2c0, task);
+  SELECT 'p2-1' AS stage, p2c0, CURSOR_REF_COUNT(p2c0) AS cnt_p2c0, CURSOR_REF_COUNT(0) AS cnt_0, FETCH_ONE_VALUE(p2c0) AS val;
+  CALL p1(p2c0, task);
+  SELECT 'p2-2' AS stage, p2c0, CURSOR_REF_COUNT(p2c0) AS cnt_p2c0, CURSOR_REF_COUNT(0) AS cnt_0, FETCH_ONE_VALUE(p2c0) AS val;
+
+  IF task LIKE '%open_p2c0%' THEN
+    OPEN p2c0 FOR SELECT a+200 FROM t1;
+    SELECT 'p2-op' AS stage, p2c0, CURSOR_REF_COUNT(p2c0) AS cnt_p2c0, CURSOR_REF_COUNT(0) AS cnt_0, FETCH_ONE_VALUE(p2c0) AS val;
+  END IF;
+
+  CALL p1(p2c0, task);
+  SELECT 'p2-3' AS stage, p2c0, CURSOR_REF_COUNT(p2c0) AS cnt_p2c0, CURSOR_REF_COUNT(0) AS cnt_0, FETCH_ONE_VALUE(p2c0) AS val;
+  CALL p1(p2c0, task);
+  SELECT 'p2-4' AS stage, p2c0, CURSOR_REF_COUNT(p2c0) AS cnt_p2c0, CURSOR_REF_COUNT(0) AS cnt_0, FETCH_ONE_VALUE(p2c0) AS val;
+  CALL p1(p2c0, task);
+  SELECT 'p2-5' AS stage, p2c0, CURSOR_REF_COUNT(p2c0) AS cnt_p2c0, CURSOR_REF_COUNT(0) AS cnt_0, FETCH_ONE_VALUE(p2c0) AS val;
+END;
+/
+DELIMITER ;/
+--disable_column_names
+CALL p2('');
+CALL p2('open_p1c0');
+CALL p2('open_p2c0');
+CALL p2('open_p2c0 open_p1c0');
+--enable_column_names
+DROP PROCEDURE p1;
+DROP PROCEDURE p2;
+DROP TABLE t1;
+
+
+--echo #
+--echo # PROCEDURE + INOUT param + OPEN in p1 + OPEN in p2 + multiple calls
+--echo # reuse the cursor at the same position
+--echo #
+
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+
+DELIMITER /;
+CREATE PROCEDURE p1(INOUT p1c0 SYS_REFCURSOR, task VARCHAR(64))
+BEGIN
+  SELECT 'p1-0' AS stage, p1c0, CURSOR_REF_COUNT(p1c0) AS c_p1c0, CURSOR_REF_COUNT(0) AS c_0, FETCH_ONE_VALUE(p1c0) AS val;
+  IF task LIKE '%open_p1c0%' THEN
+    OPEN p1c0 FOR SELECT a+100 FROM t1;
+  END IF;
+  SELECT 'p1-1' AS stage, p1c0, CURSOR_REF_COUNT(p1c0) AS c_p1c0, CURSOR_REF_COUNT(0) AS c_0, FETCH_ONE_VALUE(p1c0) AS val;
+END;
+/
+CREATE PROCEDURE p2(task VARCHAR(64))
+BEGIN
+  DECLARE p2c0 SYS_REFCURSOR;
+  SELECT 'state', 'curs', 'c_cur', 'c_0';
+  SELECT 'p2-0' AS stage, p2c0, CURSOR_REF_COUNT(p2c0) AS cnt_p2c0, CURSOR_REF_COUNT(0) AS cnt_0, FETCH_ONE_VALUE(p2c0) AS val;
+  CALL p1(p2c0, task);
+  SELECT 'p2-1' AS stage, p2c0, CURSOR_REF_COUNT(p2c0) AS cnt_p2c0, CURSOR_REF_COUNT(0) AS cnt_0, FETCH_ONE_VALUE(p2c0) AS val;
+  CALL p1(p2c0, task);
+  SELECT 'p2-2' AS stage, p2c0, CURSOR_REF_COUNT(p2c0) AS cnt_p2c0, CURSOR_REF_COUNT(0) AS cnt_0, FETCH_ONE_VALUE(p2c0) AS val;
+
+  IF task LIKE '%open_p2c0%' THEN
+    OPEN p2c0 FOR SELECT a+200 FROM t1;
+    SELECT 'p2-op' AS stage, p2c0, CURSOR_REF_COUNT(p2c0) AS cnt_p2c0, CURSOR_REF_COUNT(0) AS cnt_0, FETCH_ONE_VALUE(p2c0) AS val;
+  END IF;
+
+  CALL p1(p2c0, task);
+  SELECT 'p2-3' AS stage, p2c0, CURSOR_REF_COUNT(p2c0) AS cnt_p2c0, CURSOR_REF_COUNT(0) AS cnt_0, FETCH_ONE_VALUE(p2c0) AS val;
+  CALL p1(p2c0, task);
+  SELECT 'p2-4' AS stage, p2c0, CURSOR_REF_COUNT(p2c0) AS cnt_p2c0, CURSOR_REF_COUNT(0) AS cnt_0, FETCH_ONE_VALUE(p2c0) AS val;
+  CALL p1(p2c0, task);
+  SELECT 'p2-5' AS stage, p2c0, CURSOR_REF_COUNT(p2c0) AS cnt_p2c0, CURSOR_REF_COUNT(0) AS cnt_0, FETCH_ONE_VALUE(p2c0) AS val;
+END;
+/
+DELIMITER ;/
+--disable_column_names
+CALL p2('');
+CALL p2('open_p1c0');
+CALL p2('open_p2c0');
+CALL p2('open_p2c0 open_p1c0');
+--enable_column_names
+DROP PROCEDURE p1;
+DROP PROCEDURE p2;
+DROP TABLE t1;
+
+--echo #
+--echo # PROCEDURE + OPEN in p1 + RETURN in the middle
+--echo #
+
+# sql_mode=DEFAULT does not support RETURN in procedures.
+
+SET sql_mode=ORACLE;
+DELIMITER /;
+CREATE PROCEDURE p1(ret_after_open_c1 BOOLEAN) AS
+  c0 SYS_REFCURSOR;
+BEGIN
+  SELECT 'Enter p1' AS ``;
+  SELECT 'p1-0' AS stage, refs(0,3) AS refs;
+  OPEN c0 FOR SELECT 'c0';
+  SELECT 'p1-1' AS stage, refs(0,3) AS refs;
+  DECLARE
+    c1 SYS_REFCURSOR;
+  BEGIN
+    OPEN c1 FOR SELECT 'c1';
+    SELECT 'p1-2' AS stage, refs(0,3) AS refs;
+    IF ret_after_open_c1 THEN
+      RETURN;
+    END IF;
+  END;
+  CLOSE c0;
+  SELECT 'p1-3' AS stage, refs(0,3) AS refs;
+END;
+/
+CREATE PROCEDURE p2() AS
+BEGIN
+  SELECT 'p2-0' AS stage, refs(0,3) AS refs;
+  CALL p1(FALSE);
+  SELECT 'p2-1' AS stage, refs(0,3) AS refs;
+  CALL p1(TRUE);
+  SELECT 'p2-2' AS stage, refs(0,3) AS refs;
+END;
+/
+DELIMITER ;/
+SHOW PROCEDURE CODE p1;
+SHOW PROCEDURE CODE p2;
+--disable_column_names
+CALL p2;
+--enable_column_names
+DROP PROCEDURE p1;
+DROP PROCEDURE p2;
+SET sql_mode=DEFAULT;
+
+DROP FUNCTION fetch_one_value;
+
+
+--disable_query_log
+--source type_sys_refcursor-helper_routines-debug-drop.inc
+--enable_query_log

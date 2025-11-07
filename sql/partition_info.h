@@ -180,7 +180,7 @@ public:
     * lock_partitions  - partitions that must be locked (read or write).
     Usually read_partitions is the same set as lock_partitions, but
     in case of UPDATE the WHERE clause can limit the read_partitions set,
-    but not neccesarily the lock_partitions set.
+    but not necessarily the lock_partitions set.
     Usage pattern:
     * Initialized in ha_partition::open().
     * read+lock_partitions is set  according to explicit PARTITION,
@@ -487,7 +487,13 @@ bool partition_info::vers_fix_field_list(THD * thd)
     return true;
   }
   DBUG_ASSERT(part_type == VERSIONING_PARTITION);
-  DBUG_ASSERT(table->versioned(VERS_TIMESTAMP));
+  if (!table->versioned(VERS_TIMESTAMP))
+  {
+    my_error(ER_VERS_FIELD_WRONG_TYPE, MYF(0),
+             table->vers_start_field()->field_name.str,
+             "TIMESTAMP(6)", table->s->table_name.str);
+    return true;
+  }
 
   Field *row_end= table->vers_end_field();
   // needed in handle_list_of_fields()

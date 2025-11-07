@@ -16,6 +16,10 @@ The following specify which files/extra groups are read (specified before remain
  --alter-algorithm[=name] 
  Unused. One of: DEFAULT, COPY, INPLACE, NOCOPY, INSTANT.
  Deprecated, will be removed in a future release.
+ --analyze-max-length=# 
+ Fields which length in bytes more than this are skipped
+ by ANALYZE TABLE PERSISTENT unless explicitly listed in
+ the FOR COLUMNS () clause
  --analyze-sample-percentage=# 
  Percentage of rows from the table ANALYZE TABLE will
  sample to collect table statistics. Set to 0 to let
@@ -38,11 +42,6 @@ The following specify which files/extra groups are read (specified before remain
  (Automatically configured unless set explicitly)
  -b, --basedir=name  Path to installation directory. All paths are usually
  resolved relative to this
- --big-tables        Old variable, which if set to 1, allows large result sets
- by saving all temporary sets to disk, avoiding 'table
- full' errors. No longer needed, as the server now handles
- this automatically. Deprecated, will be removed in a
- future release.
  --bind-address=name IP address to bind to. Several addresses may be
  specified, separated by a comma (,)
  --binlog-alter-two-phase 
@@ -228,6 +227,13 @@ The following specify which files/extra groups are read (specified before remain
  --console           Write error output on screen; don't remove the console
  window on Windows
  --core-file         Write core on crashes
+ --create-tmp-table-binlog-formats=name 
+ The binary logging formats under which the master will
+ log CREATE TEMPORARY statments to the binary log. If
+ CREATE TEMPORARY is not logged, all usage of the
+ temporary table will be logged in ROW format. Allowed
+ values are STATEMENT or MIXED,STATEMENT, or ALL to set
+ all combinations
  -h, --datadir=name  Path to the database root directory
  --deadlock-search-depth-long=# 
  Long search depth for the two-step deadlock detection
@@ -495,7 +501,10 @@ The following specify which files/extra groups are read (specified before remain
  the only option you need for specifying log files. Sets
  names for --log-bin, --log-bin-index, --relay-log,
  --relay-log-index, --general-log-file,
- --log-slow-query-file, --log-error-file, and --pid-file
+ --log-slow-query-file, --log-error-file, and --pid-file.
+ If log-basename includes a path, the path will apply for
+ all above variables except pid-file that will use it
+ without the path
  --log-bin[=name]    Log update queries in binary format. Optional argument
  should be name for binary log. If not given
  'datadir'/'log-basename'-bin or 'datadir'/mysql-bin will
@@ -658,6 +667,8 @@ The following specify which files/extra groups are read (specified before remain
  max_join_size records return an error
  --max-length-for-sort-data=# 
  Max number of bytes in sorted records
+ --max-open-cursors=# 
+ The maximum number of open cursors allowed per session
  --max-password-errors=# 
  If there is more than this number of failed connect
  attempts due to invalid password, user will be blocked
@@ -708,6 +719,11 @@ The following specify which files/extra groups are read (specified before remain
  Unused. Deprecated, will be removed in a future release.
  --metadata-locks-hash-instances=# 
  Unused. Deprecated, will be removed in a future release.
+ --metadata-locks-instances=# 
+ Number of fast lanes to create for metadata locks. Can be
+ used to improve DML scalability by eliminating
+ MDL_lock::rwlock load. Use 1 to disable MDL fast lanes.
+ Supported MDL namespaces: BACKUP
  --mhnsw-default-distance=name 
  Distance function to build the vector index for. One of: 
  euclidean, cosine
@@ -767,6 +783,8 @@ The following specify which files/extra groups are read (specified before remain
  --net-write-timeout=# 
  Number of seconds to wait for a block to be written to a
  connection before aborting the write
+ --new-mode=name     Used to introduce new behavior to existing MariaDB
+ versions. No currently supported values.
  --note-verbosity=name 
  Verbosity level for note-warnings given to the user. See
  also @@sql_notes. Any combination of: basic, 
@@ -845,6 +863,9 @@ The following specify which files/extra groups are read (specified before remain
  heuristic, thus perform exhaustive search: 1 - prune
  plans based on cost and number of retrieved rows eq_ref:
  2 - prune also if we find an eq_ref chain
+ --optimizer-record-context 
+ Controls storing of optmizer context of all the tables
+ that are referenced in a query
  --optimizer-row-copy-cost=# 
  Cost of copying a row from the engine or the join cache
  to the SQL layer
@@ -877,7 +898,7 @@ The following specify which files/extra groups are read (specified before remain
  index_merge_sort_union, index_merge_intersection, 
  index_merge_sort_intersection, index_condition_pushdown, 
  derived_merge, derived_with_keys, firstmatch, loosescan, 
- materialization, in_to_exists, semijoin, 
+ duplicateweedout, materialization, in_to_exists, semijoin,
  partial_match_rowid_merge, partial_match_table_scan, 
  subquery_cache, mrr, mrr_cost_based, mrr_sort_keys, 
  outer_join_with_cache, semijoin_with_cache, 
@@ -1078,7 +1099,7 @@ The following specify which files/extra groups are read (specified before remain
  --pid-file=name     Pid file used by mariadbd-safe
  --plugin-dir=name   Directory for plugins
  --plugin-load=name  Semicolon-separated list of plugins to load, where each
- plugin is specified as ether a plugin_name=library_file
+ plugin is specified as either a plugin_name=library_file
  pair or only a library_file. If the latter case, all
  plugins from a given library_file will be loaded
  --plugin-load-add=name 
@@ -1145,9 +1166,13 @@ The following specify which files/extra groups are read (specified before remain
  buffer of this size for each table it scans. If you do
  many sequential scans, you may want to increase this
  value
- --read-only         Make all non-temporary tables read-only, with the
- exception for replication (slave) threads and users with
- the 'READ ONLY ADMIN' privilege
+ --read-only[=name]  Do not allow changes to non-temporary tables. Options
+ are:OFF changes allowed. ON Disallow changes for users
+ without the READ ONLY ADMIN privilege. NO_LOCK
+ Additionally disallows LOCK TABLES and SELECT IN SHARE
+ MODE. NO_LOCK_NO_ADMIN Disallows also for users with
+ READ_ONLY ADMIN privilege. Replication (slave) threads
+ are not affected by this option
  --read-rnd-buffer-size=# 
  When reading rows in sorted order after a sort, the rows
  are read through this buffer to avoid a disk seeks
@@ -1659,7 +1684,6 @@ auto-increment-offset 1
 autocommit TRUE
 automatic-sp-privileges TRUE
 back-log 80
-big-tables FALSE
 bind-address (No default value)
 binlog-alter-two-phase FALSE
 binlog-annotate-row-events TRUE
@@ -1697,6 +1721,7 @@ completion-type NO_CHAIN
 concurrent-insert AUTO
 console TRUE
 core-file TRUE
+create-tmp-table-binlog-formats STATEMENT
 deadlock-search-depth-long 15
 deadlock-search-depth-short 4
 deadlock-timeout-long 50000000
@@ -1817,6 +1842,7 @@ max-error-count 64
 max-heap-table-size 16777216
 max-join-size 18446744073709551615
 max-length-for-sort-data 1024
+max-open-cursors 50
 max-password-errors 18446744073709551615
 max-prepared-stmt-count 16382
 max-recursive-iterations 1000
@@ -1834,6 +1860,7 @@ max-write-lock-count 18446744073709551615
 memlock FALSE
 metadata-locks-cache-size 1024
 metadata-locks-hash-instances 8
+metadata-locks-instances 8
 mhnsw-default-distance euclidean
 mhnsw-default-m 6
 mhnsw-ef-search 20
@@ -1854,6 +1881,7 @@ net-buffer-length 16384
 net-read-timeout 30
 net-retry-count 10
 net-write-timeout 60
+new-mode 
 note-verbosity basic,explain
 old FALSE
 old-mode UTF8_IS_UTF8MB3
@@ -1872,6 +1900,7 @@ optimizer-key-next-find-cost 0.082347
 optimizer-max-sel-arg-weight 32000
 optimizer-max-sel-args 16000
 optimizer-prune-level 2
+optimizer-record-context FALSE
 optimizer-row-copy-cost 0.060866
 optimizer-row-lookup-cost 0.130839
 optimizer-row-next-find-cost 0.045916
@@ -1880,7 +1909,7 @@ optimizer-rowid-copy-cost 0.002653
 optimizer-scan-setup-cost 10
 optimizer-search-depth 62
 optimizer-selectivity-sampling-limit 100
-optimizer-switch index_merge=on,index_merge_union=on,index_merge_sort_union=on,index_merge_intersection=on,index_merge_sort_intersection=off,index_condition_pushdown=on,derived_merge=on,derived_with_keys=on,firstmatch=on,loosescan=on,materialization=on,in_to_exists=on,semijoin=on,partial_match_rowid_merge=on,partial_match_table_scan=on,subquery_cache=on,mrr=off,mrr_cost_based=off,mrr_sort_keys=off,outer_join_with_cache=on,semijoin_with_cache=on,join_cache_incremental=on,join_cache_hashed=on,join_cache_bka=on,optimize_join_buffer_size=on,table_elimination=on,extended_keys=on,exists_to_in=on,orderby_uses_equalities=on,condition_pushdown_for_derived=on,split_materialized=on,condition_pushdown_for_subquery=on,rowid_filter=on,condition_pushdown_from_having=on,not_null_range_scan=off,hash_join_cardinality=on,cset_narrowing=on,sargable_casefold=on
+optimizer-switch index_merge=on,index_merge_union=on,index_merge_sort_union=on,index_merge_intersection=on,index_merge_sort_intersection=off,index_condition_pushdown=on,derived_merge=on,derived_with_keys=on,firstmatch=on,loosescan=on,duplicateweedout=on,materialization=on,in_to_exists=on,semijoin=on,partial_match_rowid_merge=on,partial_match_table_scan=on,subquery_cache=on,mrr=off,mrr_cost_based=off,mrr_sort_keys=off,outer_join_with_cache=on,semijoin_with_cache=on,join_cache_incremental=on,join_cache_hashed=on,join_cache_bka=on,optimize_join_buffer_size=on,table_elimination=on,extended_keys=on,exists_to_in=on,orderby_uses_equalities=on,condition_pushdown_for_derived=on,split_materialized=on,condition_pushdown_for_subquery=on,rowid_filter=on,condition_pushdown_from_having=on,not_null_range_scan=off,hash_join_cardinality=on,cset_narrowing=on,sargable_casefold=on
 optimizer-trace 
 optimizer-trace-max-mem-size 1048576
 optimizer-use-condition-selectivity 4
@@ -1932,7 +1961,7 @@ performance-schema-max-socket-classes 10
 performance-schema-max-socket-instances -1
 performance-schema-max-sql-text-length 1024
 performance-schema-max-stage-classes 160
-performance-schema-max-statement-classes 223
+performance-schema-max-statement-classes 227
 performance-schema-max-statement-stack 10
 performance-schema-max-table-handles -1
 performance-schema-max-table-instances -1
@@ -1961,7 +1990,7 @@ query-prealloc-size 32768
 range-alloc-block-size 4096
 read-binlog-speed-limit 0
 read-buffer-size 131072
-read-only FALSE
+read-only OFF
 read-rnd-buffer-size 262144
 redirect-url 
 relay-log (No default value)
@@ -2057,7 +2086,6 @@ thread-pool-oversubscribe 3
 thread-pool-prio-kickup-timer 1000
 thread-pool-priority auto
 thread-pool-stall-limit 500
-thread-stack 299008
 tmp-disk-table-size 18446744073709551615
 tmp-memory-table-size 16777216
 tmp-table-size 16777216

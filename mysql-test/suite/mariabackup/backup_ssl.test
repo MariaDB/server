@@ -19,13 +19,33 @@ echo # MDEV-31855 validate ssl certificates using client password in the interna
 echo #;
 # fails to connect, passwordless root
 echo # tcp ssl ssl-verify-server-cert;
+let $host=;
+if ($MARIADB_UPGRADE_EXE) {
+  # On Windows, we need host different from "127.0.0.1","::1" or "localhost"
+  # to trigger self-signed error
+  let $host=--host=127.0.0.2;
+}
 error 1;
-exec $XTRABACKUP --protocol=tcp --user=root --port=$MASTER_MYPORT --backup --target-dir=$targetdir;
+exec $XTRABACKUP --no-defaults $host --protocol=tcp --user=root --port=$MASTER_MYPORT --backup --target-dir=$targetdir;
 
 --echo #
 --echo # MDEV-32473 --disable-ssl doesn't disable it
 --echo #
 # connects fine
 echo # tcp skip-ssl;
-exec $XTRABACKUP --protocol=tcp --user=root --skip-ssl --port=$MASTER_MYPORT --backup --target-dir=$targetdir;
+exec $XTRABACKUP --no-defaults --protocol=tcp --user=root --skip-ssl --port=$MASTER_MYPORT --backup --target-dir=$targetdir;
+rmdir $targetdir;
+
+--echo #
+--echo # MDEV-37143 Mariadb-backup fails on Windows with SSL certificate is self-signed error
+--echo #
+--echo # do not fail with passwordless with default protocol
+let $port_or_socket=--socket=$MASTER_MYSOCK;
+if ($MARIADB_UPGRADE_EXE) { # windows
+  let  $port_or_socket=--port=$MASTER_MYPORT;
+}
+exec $XTRABACKUP --no-defaults --user=root --backup $port_or_socket --target-dir=$targetdir;
+rmdir $targetdir;
+--echo # do not fail with passwordless with 127.0.0.1 TCP
+exec $XTRABACKUP --no-defaults --host=127.0.0.1 --protocol=tcp --port=$MASTER_MYPORT --user=root --backup --target-dir=$targetdir;
 rmdir $targetdir;

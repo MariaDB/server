@@ -1,6 +1,5 @@
 set local sql_mode="";
 set global sql_mode="";
-drop table if exists t1;
 create table t1(f1 int);
 insert into t1 values (5);
 grant select on test.* to ssl_user1@localhost require SSL;
@@ -200,7 +199,7 @@ disconnect con1;
 connection default;
 DROP USER bug42158@localhost;
 set global sql_mode=default;
-End of 5.1 tests
+# End of 5.1 tests
 /*!50530 SET @@SESSION.PSEUDO_SLAVE_MODE=1*/;
 /*!40019 SET @@session.max_delayed_threads=0*/;
 /*!50003 SET @OLD_COMPLETION_TYPE=@@COMPLETION_TYPE,COMPLETION_TYPE=0*/;

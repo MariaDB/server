@@ -442,7 +442,7 @@ static inline uint next_power(uint value)
     init_simple_key_cache()
     keycache                pointer to the control block of a simple key cache 
     key_cache_block_size    size of blocks to keep cached data
-    use_mem                 memory to use for the key cache buferrs/structures
+    use_mem                 memory to use for the key cache buffers/structures
     division_limit          division limit (may be zero)
     age_threshold           age threshold (may be zero)
 
@@ -981,7 +981,8 @@ void end_simple_key_cache(void *keycache_, my_bool cleanup)
 
   DBUG_PRINT("status", ("used: %lu  changed: %lu  w_requests: %lu  "
                         "writes: %lu  r_requests: %lu  reads: %lu",
-                        keycache->blocks_used, keycache->global_blocks_changed,
+                        (ulong) keycache->blocks_used,
+                        (ulong) keycache->global_blocks_changed,
                         (ulong) keycache->global_cache_w_requests,
                         (ulong) keycache->global_cache_write,
                         (ulong) keycache->global_cache_r_requests,
@@ -1525,7 +1526,7 @@ static void unlink_block(SIMPLE_KEY_CACHE_CB *keycache, BLOCK_LINK *block)
 
   NOTE
     The first request unlinks the block from the LRU ring. This means
-    that it is protected against eveiction.
+    that it is protected against eviction.
 
   RETURN
     void
@@ -1600,7 +1601,7 @@ static void unreg_request(SIMPLE_KEY_CACHE_CB *keycache,
         keycache->warm_blocks--;
       block->temperature= BLOCK_HOT;
       KEYCACHE_DBUG_PRINT("unreg_request", ("#warm_blocks: %lu",
-                           keycache->warm_blocks));
+                                            (ulong) keycache->warm_blocks));
     }
     link_block(keycache, block, hot, (my_bool)at_end);
     block->last_hit_time= keycache->keycache_time;
@@ -1632,7 +1633,7 @@ static void unreg_request(SIMPLE_KEY_CACHE_CB *keycache,
         block->temperature= BLOCK_WARM;
       }
       KEYCACHE_DBUG_PRINT("unreg_request", ("#warm_blocks: %lu",
-                           keycache->warm_blocks));
+                                            (ulong) keycache->warm_blocks));
     }
   }
 }
@@ -2028,7 +2029,7 @@ restart:
         everything can happen to the block but free or another completed
         eviction.
 
-        Note that we bahave like a secondary requestor here. We just
+        Note that we behave like a secondary requestor here. We just
         cannot return with PAGE_WAIT_TO_BE_READ. This would work for
         read requests and writes on dirty blocks that are not in flush
         only. Waiting here on COND_FOR_REQUESTED works in all
@@ -3702,7 +3703,7 @@ static void free_block(SIMPLE_KEY_CACHE_CB *keycache, BLOCK_LINK *block)
   /*
     Unregister the block request and link the block into the LRU ring.
     This enables eviction for the block. If the LRU ring was empty and
-    threads are waiting for a block, then the block wil be handed over
+    threads are waiting for a block, then the block will be handed over
     for eviction immediately. Otherwise we will unlink it from the LRU
     ring again, without releasing the lock in between. So decrementing
     the request counter and updating statistics are the only relevant
@@ -3788,7 +3789,7 @@ static int flush_cached_blocks(SIMPLE_KEY_CACHE_CB *keycache,
   keycache_pthread_mutex_unlock(&keycache->cache_lock);
   /*
      As all blocks referred in 'cache' are marked by BLOCK_IN_FLUSH
-     we are guarunteed no thread will change them
+     we are guaranteed no thread will change them
   */
   my_qsort((uchar*) cache, count, sizeof(*cache), (qsort_cmp) cmp_sec_link);
 
@@ -3903,6 +3904,8 @@ static int flush_cached_blocks(SIMPLE_KEY_CACHE_CB *keycache,
     1  error
 */
 
+PRAGMA_DISABLE_CHECK_STACK_FRAME
+
 static int flush_key_blocks_int(SIMPLE_KEY_CACHE_CB *keycache,
 				File file, enum flush_type type)
 {
@@ -3911,7 +3914,8 @@ static int flush_key_blocks_int(SIMPLE_KEY_CACHE_CB *keycache,
   int last_errcnt= 0;
   DBUG_ENTER("flush_key_blocks_int");
   DBUG_PRINT("enter",("file: %d  blocks_used: %lu  blocks_changed: %lu",
-              file, keycache->blocks_used, keycache->blocks_changed));
+                      file, (ulong) keycache->blocks_used,
+                      (ulong) keycache->blocks_changed));
 
 #if !defined(DBUG_OFF) && defined(EXTRA_DEBUG)
   DBUG_EXECUTE("check_keycache",
@@ -4113,7 +4117,7 @@ restart:
     {
       if ((error= flush_cached_blocks(keycache, file, cache, pos, type)))
       {
-        /* Do not loop inifnitely trying to flush in vain. */
+        /* Do not loop infinitely trying to flush in vain. */
         if ((last_errno == error) && (++last_errcnt > 5))
           goto err;
         last_errno= error;
@@ -4335,6 +4339,7 @@ err:
   DBUG_RETURN(last_errno != 0);
 }
 
+PRAGMA_REENABLE_CHECK_STACK_FRAME
 
 /*
   Flush all blocks for a file from key buffers of a simple key cache 
@@ -6121,7 +6126,7 @@ int resize_key_cache(KEY_CACHE *keycache, uint key_cache_block_size,
 
   DESCRIPTION
     The function sets new values of the division limit and the age threshold 
-    used when the key cache keycach employs midpoint insertion strategy.
+    used when the key cache keycache employs midpoint insertion strategy.
     The parameters division_limit and age_threshold provide these new values.
 
   RETURN VALUE

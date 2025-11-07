@@ -1272,7 +1272,6 @@ DELETE FROM db.t1;
 #=======================================================================
 # Cleanup
 #=======================================================================
-connection con1;
 disconnect con1;
 connection default;
 DROP DATABASE db;

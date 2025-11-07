@@ -1,0 +1,81 @@
+#+title Spider Development Documentation
+
+** Testing
+   :PROPERTIES:
+   :UPDATED:  [2025-10-15 Wed 15:33]
+   :END:
+
+*** Run spider test suites
+    :PROPERTIES:
+    :UPDATED:  [2025-10-15 Wed 15:39]
+    :END:
+
+Spider has sub-suites. Assuming temporary WIP spider tests are placed
+under the spider/temp suite, to run a test on all spider tests, do
+
+#+begin_src sh
+./mysql-test/mtr --suite spider,spider/*,spider/*/* \
+--skip-test="spider/temp.*|.*/t\..*" --parallel=auto --big-test \
+--force --max-test-fail=0
+#+end_src
+
+Tests should be run normally, but also with --ps-protocol,
+--view-protocol and ASAN.
+
+For 10.11+ tests should also be run with
+--mysqld=--loose-disable-spider-group-by-handler. This will be done
+automatically after MDEV-37810.
+
+*** Where to place new tests
+    :PROPERTIES:
+    :UPDATED:  [2025-10-15 Wed 15:35]
+    :END:
+
+- spider/bugfix suite for bugfixes
+- spider/feature suite for new features
+- spider suite for all else, such as generic tests to improve coverage
+
+*** Use engine defined attributes in tests whenever possible
+    :PROPERTIES:
+    :UPDATED:  [2025-10-15 Wed 15:52]
+    :END:
+
+In versions of at least 10.11, when writing new tests or updating
+existing tests, use engine defined attributes for spider table
+connection info instead of table comments
+
+#+begin_src sql
+# Do this for 10.11+
+CREATE TABLE t (c int) ENGINE=SPIDER REMOTE_SERVER=s1 REMOTE_TABLE=t1;
+# Do this for 10.6
+CREATE TABLE t (c int) ENGINE=SPIDER COMMENT='srv "s1", table "t1"';
+#+end_src
+
+However, if the spider table has connection info that is not
+REMOTE_SERVER, REMOTE_TABLE, or REMOTE_DATABASE, comments are still
+needed for 10.11:
+
+#+begin_src sql
+# Do this for 10.6 and 10.11
+CREATE TABLE t (c int) ENGINE=SPIDER COMMENT='srv "s1", table "t1", read_only_mode "1"';
+# Do this for 11.4+
+CREATE TABLE t (c int) ENGINE=SPIDER REMOTE_SERVER=s1 REMOTE_TABLE=t1 READ_ONLY=1;
+#+end_src
+
+Don't mix engine defined attributes with COMMENT, unless the mixing is
+part of the test.
+
+#+begin_src sql
+# Don't do this
+CREATE TABLE t (c int) ENGINE=SPIDER REMOTE_SERVER=s1 REMOTE_TABLE=t1 COMMENT='read_only_mode "1"';
+#+end_src
+
+WRAPPER by default is mysql, so it is ok to do the following
+conversion in 10.11+:
+
+#+begin_src sql
+# From
+CREATE TABLE t (c int) ENGINE=SPIDER COMMENT='wrapper "mysql", srv "s1", table "t1"';
+# to
+CREATE TABLE t (c int) ENGINE=SPIDER REMOTE_SERVER=s1 REMOTE_TABLE=t1;
+#+end_src

@@ -768,7 +768,7 @@ col_1_text = REPEAT("क", 4000)
 1
 0
 Warnings:
-Warning	4203	2 values were longer than max_sort_length. Sorting used only the first 1024 bytes
+Warning	4202	2 values were longer than max_sort_length. Sorting used only the first 1024 bytes
 DROP TABLE worklog5743;
 CREATE TABLE worklog5743 (
 col_1_text TEXT(4000) , col_2_text TEXT(4000) ,

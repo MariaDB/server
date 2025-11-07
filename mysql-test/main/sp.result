@@ -2243,7 +2243,7 @@ show warnings;
 end|
 call bug4902()|
 Charset	Description	Default collation	Maxlen
-Collation	Charset	Id	Default	Compiled	Sortlen
+Collation	Charset	Id	Default	Compiled	Sortlen	Pad_attribute
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `id` char(16) NOT NULL DEFAULT '',
@@ -2264,7 +2264,7 @@ Variable_name	Value
 Level	Code	Message
 call bug4902()|
 Charset	Description	Default collation	Maxlen
-Collation	Charset	Id	Default	Compiled	Sortlen
+Collation	Charset	Id	Default	Compiled	Sortlen	Pad_attribute
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `id` char(16) NOT NULL DEFAULT '',
@@ -4232,7 +4232,7 @@ create procedure bug15231_2(inout ioid integer)
 begin
 select "Before NOT FOUND condition is triggered" as '1';
 select id into ioid from t3 where id=ioid;
-select "After NOT FOUND condtition is triggered" as '2';
+select "After NOT FOUND condition is triggered" as '2';
 if ioid is null then
 set ioid=1;
 end if;
@@ -4267,7 +4267,7 @@ call bug15231_1()|
 1
 Before NOT FOUND condition is triggered
 2
-After NOT FOUND condtition is triggered
+After NOT FOUND condition is triggered
 xid	xdone
 1	1
 call bug15231_3()|
@@ -5305,12 +5305,12 @@ PRIMARY KEY ( id )
 CREATE TABLE bug23760_log (
 id INT NOT NULL AUTO_INCREMENT ,
 reason VARCHAR(50)NULL ,
-ammount INT NOT NULL ,
+amount INT NOT NULL ,
 PRIMARY KEY ( id ) 
 )|
 CREATE PROCEDURE bug23760_update_log(r Varchar(50), a INT)
 BEGIN
-INSERT INTO bug23760_log (reason, ammount) VALUES(r, a);
+INSERT INTO bug23760_log (reason, amount) VALUES(r, a);
 END|
 CREATE PROCEDURE bug23760_test_row_count()
 BEGIN
@@ -5333,7 +5333,7 @@ ROW_COUNT()
 7
 CALL bug23760_test_row_count()|
 SELECT * FROM bug23760_log ORDER BY id|
-id	reason	ammount
+id	reason	amount
 1	Test is working	7
 SET @save_max_sp_recursion= @@max_sp_recursion_depth|
 SELECT @save_max_sp_recursion|
@@ -5348,7 +5348,7 @@ SELECT ROW_COUNT()|
 ROW_COUNT()
 16
 SELECT * FROM bug23760_log ORDER BY id|
-id	reason	ammount
+id	reason	amount
 1	Test is working	7
 2	Test2 is working	7
 3	Test2 is working	7
@@ -8425,11 +8425,11 @@ END' at line 2
 
 # Specifying the RESTART clause for the statement CREATE SEQUENCE is a syntax error.
 # Check that CREATE PROCEDURE doesn't crash server if the statement
-# CREATE SEQUNCE ... RESTART is specified in its body.
+# CREATE SEQUENCE ... RESTART is specified in its body.
 #
 CREATE PROCEDURE sp1() CREATE SEQUENCE s1 START WITH 300 INCREMENT BY 30 RESTART;
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'RESTART' at line 1
-# CREATE SEQUNCE ... RESTART and CREATE SEQUNCE ... RESTART WITH ... are
+# CREATE SEQUENCE ... RESTART and CREATE SEQUENCE ... RESTART WITH ... are
 # handled by different grammar rules, so check the both cases.
 CREATE PROCEDURE sp1() CREATE SEQUENCE s1 START WITH 300 INCREMENT BY 30 RESTART WITH 100;
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'RESTART' at line 1
@@ -8467,7 +8467,7 @@ CREATE FUNCTION f3 () RETURNS VARCHAR(1) RETURN f_not_exist();
 CREATE VIEW v1 AS SELECT f3() z;
 SELECT f1();
 ERROR HY000: View 'test.v1' references invalid table(s) or column(s) or function(s) or definer/invoker of view lack rights to use them
-# Check that crash doen't happen in case f3 completes with success.
+# Check that crash doesn't happen in case f3 completes with success.
 DROP FUNCTION f3;
 CREATE FUNCTION f3 () RETURNS VARCHAR(1) RETURN '!';
 SELECT f1();

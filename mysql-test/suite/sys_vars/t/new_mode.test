@@ -1,0 +1,53 @@
+--source include/load_sysvars.inc
+--source include/have_debug.inc
+
+SET @global_start_value = @@global.new_mode;
+SELECT @global_start_value;
+
+SET @session_start_value = @@session.new_mode;
+SELECT @session_start_value;
+
+SET @@global.new_mode = "FIX_DISK_TMPTABLE_COSTS";
+SELECT @@global.new_mode;
+SELECT @@session.new_mode;
+SET @@global.new_mode = DEFAULT;
+SELECT @@global.new_mode;
+SELECT @@session.new_mode;
+
+SET @@session.new_mode = "FIX_DISK_TMPTABLE_COSTS,TEST_WARNING1";
+SET @@session.new_mode = "FIX_DISK_TMPTABLE_COSTS,TEST_WARNING1,TEST_WARNING2";
+--Error ER_WRONG_VALUE_FOR_VAR
+SET @@session.new_mode = "FIX_DISK_TMPTABLE_COSTS,TEST_WARNING1,TEST_WARNING2,TEST_WARNING3";
+
+SET @@session.new_mode = "ALL";
+select @@session.new_mode;
+
+--Error ER_WRONG_VALUE_FOR_VAR
+SET @@global.new_mode = NULL;
+
+SET @@global.new_mode = '';
+SELECT @@global.new_mode;
+
+SET @@global.new_mode = ' ';
+SELECT @@global.new_mode;
+
+--Error ER_WRONG_VALUE_FOR_VAR
+SET @@session.new_mode = NULL;
+
+SET @@session.new_mode = '';
+SELECT @@session.new_mode;
+
+SET @@session.new_mode = ' ';
+SELECT @@session.new_mode;
+
+--Error ER_WRONG_VALUE_FOR_VAR
+SET @@global.new_mode = OFF;
+
+--Error ER_WRONG_VALUE_FOR_VAR
+SET @@session.new_mode = OFF;
+
+SET @@global.new_mode = @global_start_value;
+SELECT @@global.new_mode;
+
+SET @@session.new_mode = @session_start_value;
+SELECT @@session.new_mode;

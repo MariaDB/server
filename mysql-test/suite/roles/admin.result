@@ -3,7 +3,7 @@ grant create user on *.* to foo@localhost;
 create role role1;
 create role role2 with admin current_user;
 create role role3 with admin current_role;
-ERROR 0L000: Invalid definer
+ERROR OP000: Invalid role specification `NONE`
 create role role3 with admin role1;
 create role role4 with admin root@localhost;
 connect  c1, localhost, foo,,;
@@ -16,7 +16,7 @@ connection default;
 call mtr.add_suppression("Invalid roles_mapping table entry user:'foo@bar', rolename:'role6'");
 create role role6 with admin foo@bar;
 Warnings:
-Note	1449	The user specified as a definer ('foo'@'bar') does not exist
+Note	1446	The user specified as a definer ('foo'@'bar') does not exist
 create user bar with admin current_user;
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'admin current_user' at line 1
 grant role1 to foo@localhost with admin option;
@@ -152,4 +152,5 @@ revoke role2 from current_user;
 revoke role4 from current_user;
 grant role4 to current_user;
 drop role role1, role2, role3, role4, role5, role6;
+disconnect c1;
 drop user foo@localhost;

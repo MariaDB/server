@@ -76,7 +76,7 @@ SHOW TABLE STATUS LIKE 'tab';
 # Remove the *.ibd file
 ALTER TABLE tab DISCARD TABLESPACE;
 
-# Move the *ibd,*.cfg file into orginal location
+# Move the *ibd,*.cfg file into original location
 --copy_file $MYSQLD_DATADIR/tab.cfg $MYSQLD_DATADIR/test/tab.ibd
 --move_file $MYSQLD_DATADIR/tab.cfg $MYSQLD_DATADIR/test/tab.cfg
 

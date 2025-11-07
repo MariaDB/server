@@ -35,10 +35,6 @@ DELETE FROM mysql.tables_priv WHERE User LIKE 'mysqltest_%';
 DELETE FROM mysql.columns_priv WHERE User LIKE 'mysqltest_%';
 FLUSH PRIVILEGES;
 
---disable_warnings
-DROP DATABASE IF EXISTS mysqltest_db1;
---enable_warnings
-
 CREATE DATABASE mysqltest_db1;
 
 CREATE USER mysqltest_dfn@localhost;
@@ -275,7 +271,7 @@ CREATE DEFINER='mysqltest_nonexs'@'localhost'
 
 # Check that trg2 will not be activated.
 
---error ER_NO_SUCH_USER
+--error ER_MALFORMED_DEFINER
 INSERT INTO t1 VALUES(6);
 
 #
@@ -349,6 +345,8 @@ SELECT * FROM INFORMATION_SCHEMA.TRIGGERS ORDER BY trigger_name;
 #
 
 --connection default
+--disconnect wl2818_definer_con
+--disconnect wl2818_invoker_con
 
 DROP USER mysqltest_dfn@localhost;
 DROP USER mysqltest_inv@localhost;
@@ -375,19 +373,15 @@ DELETE FROM mysql.tables_priv WHERE User LIKE 'mysqltest_%';
 DELETE FROM mysql.columns_priv WHERE User LIKE 'mysqltest_%';
 FLUSH PRIVILEGES;
 
---disable_warnings
-DROP DATABASE IF EXISTS mysqltest_db1;
---enable_warnings
-
 CREATE DATABASE mysqltest_db1;
 
 use mysqltest_db1;
 
-# Tables for tesing table-level privileges:
+# Tables for testing table-level privileges:
 CREATE TABLE t1(col CHAR(20)); # table for "read-value" trigger
 CREATE TABLE t2(col CHAR(20)); # table for "write-value" trigger
 
-# Tables for tesing column-level privileges:
+# Tables for testing column-level privileges:
 CREATE TABLE t3(col CHAR(20)); # table for "read-value" trigger
 CREATE TABLE t4(col CHAR(20)); # table for "write-value" trigger
 
@@ -400,7 +394,7 @@ SET @mysqltest_var = NULL;
 --connect (bug15166_u1_con,localhost,mysqltest_u1,,mysqltest_db1)
 
 # parsing (CREATE TRIGGER) time:
-#   - check that nor SELECT either UPDATE is required to execute triggger w/o
+#   - check that nor SELECT either UPDATE is required to execute trigger w/o
 #     NEW/OLD variables.
 
 --connection default
@@ -631,7 +625,7 @@ INSERT INTO t4 VALUES('t4_line2');
 SELECT * FROM t4;
 
 # execution time:
-#   - check that nor SELECT either UPDATE is required to execute triggger w/o
+#   - check that nor SELECT either UPDATE is required to execute trigger w/o
 #     NEW/OLD variables.
 
 DELETE FROM t1;
@@ -642,6 +636,7 @@ SELECT @mysqltest_var;
 # Cleanup.
 #
 
+--disconnect bug15166_u1_con
 DROP USER mysqltest_u1@localhost;
 
 DROP DATABASE mysqltest_db1;
@@ -659,10 +654,6 @@ DELETE FROM mysql.db WHERE User LIKE 'mysqltest_%';
 DELETE FROM mysql.tables_priv WHERE User LIKE 'mysqltest_%';
 DELETE FROM mysql.columns_priv WHERE User LIKE 'mysqltest_%';
 FLUSH PRIVILEGES;
-
---disable_warnings
-DROP DATABASE IF EXISTS mysqltest_db1;
---enable_warnings
 
 CREATE DATABASE mysqltest_db1;
 USE mysqltest_db1;
@@ -898,9 +889,6 @@ SET GLOBAL LOW_PRIORITY_UPDATES=DEFAULT;
 # Bug#23713 LOCK TABLES + CREATE TRIGGER + FLUSH TABLES WITH READ LOCK = deadlock
 #
 
---disable_warnings
-drop table if exists t1;
---enable_warnings
 create table t1 (i int);
 connect (flush,localhost,root,,test,,);
 connection default;
@@ -952,10 +940,6 @@ DROP DATABASE db1;
 #   - active SELECT statement during trigger execution
 #    (i.e. LEX::current_select != NULL);
 #   - IGNORE option (i.e. LEX::current_select->no_error == TRUE);
---disable_warnings
-DROP DATABASE IF EXISTS mysqltest_db1;
---enable_warnings
-
 CREATE DATABASE mysqltest_db1;
 USE mysqltest_db1;
 
@@ -986,15 +970,14 @@ REVOKE ALL PRIVILEGES, GRANT OPTION FROM mysqltest_u1@localhost;
 --error ER_TABLEACCESS_DENIED_ERROR
 UPDATE IGNORE t1, t2 SET t1.a1 = 2, t2.a1 = 3 WHERE t1.a1 = 1 AND t2.a1 = 2;
 # Cleanup
+--disconnect con1
+--connection default
 
 DROP DATABASE mysqltest_db1;
 DROP USER mysqltest_u1@localhost;
-
---disconnect con1
---connection default
 USE test;
 
---echo End of 5.1 tests.
+--echo # End of 5.1 tests.
 
 --echo #
 --echo # MDEV-34551: Column list in the trigger definition
@@ -1015,3 +998,86 @@ DROP TABLE t1;
 --echo #
 --echo # End of 11.7 tests
 --echo #
+
+--echo #
+--echo # MDEV-36996: Implement INFORMATION_SCHEMA.TRIGGERED_UPDATE_COLUMNS
+--echo # Test privileges. Columns should be show only if the user has non-select
+--echo # privileges on the trigger updatable columns
+--echo #
+
+CREATE TABLE t (a INT, b INT, c INT);
+INSERT INTO t VALUES (1, 2, 3);
+CREATE TABLE t1 (a_old INT, b_old INT, a_new INT, b_new INT);
+
+CREATE TRIGGER t_bu BEFORE UPDATE OF a, b, c ON t FOR EACH ROW INSERT INTO t1 VALUES (OLD.a, OLD.b, NEW.a, NEW.b);
+
+UPDATE t SET a = 10 WHERE a = 1;
+SELECT * FROM t1;
+
+--replace_column 2 # 4 # 5 # 6 # 7 # 8 #
+query_vertical SHOW CREATE TRIGGER t_bu;
+
+SELECT * FROM INFORMATION_SCHEMA.TRIGGERED_UPDATE_COLUMNS WHERE TRIGGER_NAME = 't_bu';
+
+CREATE USER user@localhost;
+GRANT SELECT (a, b, c) ON t TO user@localhost;
+CONNECT conn1, localhost, user, , test;
+
+# should not show columns
+SELECT * FROM INFORMATION_SCHEMA.TRIGGERED_UPDATE_COLUMNS WHERE TRIGGER_NAME = 't_bu';
+
+CONNECTION default;
+DISCONNECT conn1;
+
+GRANT UPDATE (a) ON t TO user@localhost;
+CONNECT conn1, localhost, user, , test;
+
+# should show only one columns
+SELECT * FROM INFORMATION_SCHEMA.TRIGGERED_UPDATE_COLUMNS WHERE TRIGGER_NAME = 't_bu';
+
+CONNECTION default;
+DISCONNECT conn1;
+
+GRANT INSERT (b) ON t TO user@localhost;
+CONNECT conn1, localhost, user, , test;
+
+# should show only columns- a, b
+SELECT * FROM INFORMATION_SCHEMA.TRIGGERED_UPDATE_COLUMNS WHERE TRIGGER_NAME = 't_bu';
+
+CONNECTION default;
+DISCONNECT conn1;
+
+GRANT REFERENCES (c) ON t TO user@localhost;
+CONNECT conn1, localhost, user, , test;
+
+# should show columns- a, b but not c, REFERENCES is unused
+SELECT * FROM INFORMATION_SCHEMA.TRIGGERED_UPDATE_COLUMNS WHERE TRIGGER_NAME = 't_bu';
+
+CONNECTION default;
+DISCONNECT conn1;
+
+# revoke all privileges
+REVOKE UPDATE (a), INSERT (b), REFERENCES (c) ON t FROM user@localhost;
+CONNECT conn1, localhost, user, , test;
+
+# should not show updatable colums
+SELECT * FROM INFORMATION_SCHEMA.TRIGGERED_UPDATE_COLUMNS WHERE TRIGGER_NAME = 't_bu';
+
+CONNECTION default;
+DISCONNECT conn1;
+
+# add DELETE privilege
+GRANT DELETE ON t TO user@localhost;
+CONNECT conn1, localhost, user, , test;
+
+# should not show columns- a, b and c
+SELECT * FROM INFORMATION_SCHEMA.TRIGGERED_UPDATE_COLUMNS WHERE TRIGGER_NAME = 't_bu';
+
+CONNECTION default;
+DISCONNECT conn1;
+
+DROP USER user@localhost;
+DROP TABLE t1;
+DROP TABLE t;
+
+--echo # End of 12.2 tests

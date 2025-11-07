@@ -320,7 +320,7 @@ create or replace table t1 (a int default b, b int default a);
 show create table t1;
 
 --echo #
---echo # Refering to other columns
+--echo # Referring to other columns
 --echo #
 
 create or replace table t1 (a int default 1, b int default a);
@@ -1923,7 +1923,7 @@ INSERT INTO t2 VALUES (1),(2),(3),(2);
 INSERT INTO t1 SELECT a FROM t2 ON DUPLICATE KEY UPDATE a=DEFAULT;
 SELECT * FROM t1 order by a;
 truncate table t1;
-# efectively it is DEFALT
+# effectively it is DEFAULT
 INSERT INTO t1 SELECT a FROM t2 ON DUPLICATE KEY UPDATE a=IGNORE;
 SELECT * FROM t1 order by a;
 DROP TABLE t1,t2;
@@ -1949,7 +1949,7 @@ select * from t1 order by a;
 drop table t1;
 
 --echo #
---echo # DEVAULT & PS adoption
+--echo # DEFAULT & PS adoption
 --echo #
 
 
@@ -2140,9 +2140,8 @@ CREATE ALGORITHM=TEMPTABLE VIEW v AS SELECT * FROM t;
 SELECT DISTINCT DEFAULT(a), CASE a WHEN 0 THEN 1 ELSE 2 END FROM v GROUP BY a WITH ROLLUP;
 DROP TABLE t;
 DROP VIEW v;
---echo #
+
 --echo # End of 10.2 test
---echo #
 
 --echo #
 --echo # MDEV-22703 DEFAULT() on a BLOB column can overwrite the default
@@ -2160,9 +2159,7 @@ SELECT length(DEFAULT(h)) FROM t1;
 INSERT INTO t1 () VALUES ();
 drop table t1;
 
---echo #
 --echo # End of 10.3 test
---echo #
 
 --echo #
 --echo # MDEV-26423: MariaDB server crash in Create_tmp_table::finalize
@@ -2186,9 +2183,18 @@ select column_name, column_default, column_default is not null as 'has_default',
 drop view v1;
 drop table t1;
 
---echo #
 --echo # End of 10.4 test
---echo #
 
+--echo #
+--echo # MDEV-37320 ASAN errors in Field::is_null / Item_param::assign_default
+--echo #
+create table t1 (f01 timestamp, f03 timestamp);
+insert into t1 () values ();
+create trigger tr before insert on t1 for each row set @a=1;
+prepare stmt from "update t1 set f03 = ?";
+execute stmt using default;
+drop table t1;
+
+--echo # End of 10.6 test
 
 --source include/test_db_charset_restore.inc

@@ -962,10 +962,6 @@ CREATE PROCEDURE function()
 DROP PROCEDURE function;
 
 --error ER_PARSE_ERROR
-CREATE PROCEDURE accessible()
-   SELECT * from t1 where f2=f1;
-
---error ER_PARSE_ERROR
 CREATE PROCEDURE add()
    SELECT * from t1 where f2=f1;
 
@@ -3081,14 +3077,6 @@ let $message= Testcase ....:
 --disable_warnings
 DROP PROCEDURE IF EXISTS sp1;
 --enable_warnings
-
-delimiter //;
---error ER_PARSE_ERROR
-CREATE PROCEDURE sp1()
-  accessible:BEGIN
-    SELECT @x;
-END//
-delimiter ;//
 
 --disable_warnings
 DROP PROCEDURE IF EXISTS sp1;
@@ -8578,14 +8566,6 @@ delimiter ;//
 DROP PROCEDURE IF EXISTS sp1;
 --enable_warnings
 
-delimiter //;
---error ER_PARSE_ERROR
-CREATE PROCEDURE sp1()
-BEGIN
-    declare accessible char;
-END//
-delimiter ;//
-
 --disable_warnings
 DROP PROCEDURE IF EXISTS sp1;
 --enable_warnings
@@ -11331,15 +11311,6 @@ END//
 delimiter ;//
 DROP PROCEDURE IF EXISTS sp1;
 
-delimiter //;
---error ER_PARSE_ERROR
-CREATE PROCEDURE sp1( )
-BEGIN
-    declare accessible condition for sqlstate '02000';
-    declare exit handler for add set @var2 = 1;
-END//
-delimiter ;//
-
 DROP PROCEDURE IF EXISTS sp1;
 
 delimiter //;
@@ -13973,18 +13944,6 @@ BEGIN
     set @x = 3;
 END//
 delimiter ;//
-
-DROP PROCEDURE IF EXISTS sp1;
-
-delimiter //;
---error ER_PARSE_ERROR
-CREATE PROCEDURE sp1( )
-BEGIN
-    declare accessible handler for sqlstate '02000' set @var2 = 1;
-END//
-delimiter ;//
-
-DROP PROCEDURE IF EXISTS sp1;
 
 delimiter //;
 --error ER_PARSE_ERROR
@@ -27196,7 +27155,7 @@ DROP PROCEDURE IF EXISTS sp4;
 
 set @@sql_mode = 'ansi, error_for_division_by_zero';
 
-# now set the corrent value:
+# now set the correct value:
 set @@sql_mode = 'ansi,error_for_division_by_zero';
 
 SHOW VARIABLES LIKE 'sql_mode';

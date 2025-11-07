@@ -236,6 +236,8 @@ static char **defaults_argv;
 enum enum_info_type { INFO_INFO,INFO_ERROR,INFO_RESULT};
 typedef enum enum_info_type INFO_TYPE;
 
+enum ss_comment_type { SSC_NONE= 0, SSC_CONDITIONAL, SSC_HINT };
+
 static MYSQL mysql;			/* The connection */
 static my_bool ignore_errors=0,wait_flag=0,quick=0,
                connected=0,opt_raw_data=0,unbuffered=0,output_tables=0,
@@ -1033,6 +1035,7 @@ static COMMANDS commands[] = {
   { "MASTER_POS_WAIT", 0, 0, 0, ""},
   { "MAX", 0, 0, 0, ""},
   { "MBRCONTAINS", 0, 0, 0, ""},
+  { "MBRCOVEREDBY", 0, 0, 0, ""},
   { "MBRDISJOINT", 0, 0, 0, ""},
   { "MBREQUAL", 0, 0, 0, ""},
   { "MBRINTERSECTS", 0, 0, 0, ""},
@@ -1158,7 +1161,8 @@ static void fix_history(String *final_command);
 
 static COMMANDS *find_command(char *name);
 static COMMANDS *find_command(char cmd_name);
-static bool add_line(String &, char *, size_t line_length, char *, bool *, bool);
+static bool add_line(String &, char *, size_t line_length, char *,
+                     bool *, ss_comment_type *, bool);
 static void remove_cntrl(String &buffer);
 static void print_table_data(MYSQL_RES *result);
 static void print_table_data_html(MYSQL_RES *result);
@@ -1405,9 +1409,7 @@ int main(int argc,char *argv[])
   if (opt_outfile)
     end_tee();
   mysql_end(0);
-#ifndef _lint
-  DBUG_RETURN(0);				// Keep compiler happy
-#endif
+  DBUG_RETURN(0);
 }
 
 sig_handler mysql_end(int sig)
@@ -1475,7 +1477,7 @@ sig_handler mysql_end(int sig)
  User, password, and database are UTF8 encoded, prior to the function,
  this needs to be fixed, in case they contain non-ASCIIs.
 
- Mostly a workaround, to allow existng users with non-ASCII password
+ Mostly a workaround, to allow existing users with non-ASCII password
  to survive upgrade without losing connectivity.
 */
 static void maybe_convert_charset(const char **user, const char **password,
@@ -2211,6 +2213,7 @@ static int read_and_execute(bool interactive)
   char	in_string=0;
   ulong line_number=0;
   bool ml_comment= 0;  
+  ss_comment_type ss_comment= SSC_NONE;
   COMMANDS *com;
   size_t line_length= 0;
   status.exit_status=1;
@@ -2357,7 +2360,8 @@ static int read_and_execute(bool interactive)
 #endif
       continue;
     }
-    if (add_line(glob_buffer, line, line_length, &in_string, &ml_comment,
+    if (add_line(glob_buffer, line, line_length, &in_string,
+                 &ml_comment, &ss_comment,
                  status.line_buff ? status.line_buff->truncated : 0))
       break;
   }
@@ -2415,7 +2419,7 @@ static COMMANDS *find_command(char cmd_char)
 
   /*
     In binary-mode, we disallow all client commands except '\C',
-    DELIMITER (see long comand finding find_command(char *))
+    DELIMITER (see long command finding find_command(char *))
     and  '\-' (sandbox, see following comment).
   */
   if (real_binary_mode)
@@ -2526,13 +2530,13 @@ static COMMANDS *find_command(char *name)
 
 
 static bool add_line(String &buffer, char *line, size_t line_length,
-                     char *in_string, bool *ml_comment, bool truncated)
+                     char *in_string, bool *ml_comment,
+                     ss_comment_type *ss_comment, bool truncated)
 {
   uchar inchar;
   char buff[80], *pos, *out;
   COMMANDS *com;
   bool need_space= 0;
-  bool ss_comment= 0;
   DBUG_ENTER("add_line");
 
   if (!line[0] && buffer.is_empty())
@@ -2607,7 +2611,7 @@ static bool add_line(String &buffer, char *line, size_t line_length,
           DBUG_RETURN(1);                       // Quit
         if (com->takes_params)
         {
-          if (ss_comment)
+          if (*ss_comment != SSC_NONE)
           {
             /*
               If a client-side macro appears inside a server-side comment,
@@ -2641,7 +2645,8 @@ static bool add_line(String &buffer, char *line, size_t line_length,
 	continue;
       }
     }
-    else if (!*ml_comment && !*in_string && is_prefix(pos, delimiter))
+    else if (!*ml_comment && !*in_string && *ss_comment != SSC_HINT &&
+             is_prefix(pos, delimiter))
     {
       // Found a statement. Continue parsing after the delimiter
       pos+= delimiter_length;
@@ -2684,7 +2689,7 @@ static bool add_line(String &buffer, char *line, size_t line_length,
       }
       buffer.length(0);
     }
-    else if (!*ml_comment &&
+    else if (!*ml_comment && *ss_comment != SSC_HINT &&
              (!*in_string &&
               (inchar == '#' ||
                (inchar == '-' && pos[1] == '-' &&
@@ -2729,8 +2734,9 @@ static bool add_line(String &buffer, char *line, size_t line_length,
 
       break;
     }
-    else if (!*in_string && inchar == '/' && *(pos+1) == '*' &&
-             !(*(pos+2) == '!' || (*(pos+2) == 'M' && *(pos+3) == '!')))
+    else if (!*in_string && inchar == '/' && pos[1] == '*' &&
+             pos[2] != '!' && !(pos[2] == 'M' && pos[3] == '!') &&
+             pos[2] != '+' && *ss_comment != SSC_HINT)
     {
       if (preserve_comments)
       {
@@ -2746,7 +2752,8 @@ static bool add_line(String &buffer, char *line, size_t line_length,
         out=line;
       }
     }
-    else if (*ml_comment && !ss_comment && inchar == '*' && *(pos + 1) == '/')
+    else if (*ml_comment && *ss_comment == SSC_NONE &&
+             inchar == '*' && *(pos + 1) == '/')
     {
       if (preserve_comments)
       {
@@ -2767,14 +2774,24 @@ static bool add_line(String &buffer, char *line, size_t line_length,
     }      
     else
     {						// Add found char to buffer
-      if (!*in_string && inchar == '/' && *(pos + 1) == '*' &&
-          *(pos + 2) == '!')
-        ss_comment= 1;
-      else if (!*in_string && ss_comment && inchar == '*' && *(pos + 1) == '/')
-        ss_comment= 0;
+      if (!*in_string && inchar == '/' && pos[1] == '*')
+      {
+        if (pos[2] == '!')
+          *ss_comment= SSC_CONDITIONAL;
+        else if (pos[2] == '+')
+          *ss_comment= SSC_HINT;
+      }
+      else if (!*in_string && *ss_comment != SSC_NONE &&
+               inchar == '*' && *(pos + 1) == '/')
+      {
+        *ss_comment= SSC_NONE;
+        *out++= *pos++;                       // copy '*'
+        *out++= *pos;                         // copy '/'
+        continue;
+      }
       if (inchar == *in_string)
 	*in_string= 0;
-      else if (!*ml_comment && !*in_string &&
+      else if (!*ml_comment && !*in_string && *ss_comment != SSC_HINT &&
 	       (inchar == '\'' || inchar == '"' || inchar == '`'))
 	*in_string= (char) inchar;
       if (!*ml_comment || preserve_comments)
@@ -2893,7 +2910,9 @@ static void fix_history(String *final_command)
     ptr++;
   }
   if (total_lines > 1)			
-    add_history(fixed_buffer.ptr());
+  {
+    add_history(fixed_buffer.c_ptr());
+  }
 }
 
 /*	
@@ -3215,6 +3234,36 @@ static int reconnect(void)
   return 0;
 }
 
+#ifndef EMBEDDED_LIBRARY
+#ifdef __clang__
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wvarargs"
+/* CONC-789 */
+#endif
+
+static void status_info_cb(void *data, enum enum_mariadb_status_info type, ...)
+{
+  va_list ap;
+  va_start(ap, type);
+  if (type == SESSION_TRACK_TYPE && va_arg(ap, int) == SESSION_TRACK_SCHEMA)
+  {
+    MARIADB_CONST_STRING *val= va_arg(ap, MARIADB_CONST_STRING *);
+    my_free(current_db);
+    if (val->length)
+      current_db= my_strndup(PSI_NOT_INSTRUMENTED, val->str, val->length, MYF(MY_FAE));
+    else
+      current_db= NULL;
+  }
+  va_end(ap);
+}
+
+#ifdef __clang__
+#pragma clang diagnostic pop
+#endif
+#else
+#define mysql_optionsv(A,B,C,D) do { } while(0)
+#endif
+
 static void get_current_db()
 {
   MYSQL_RES *res;
@@ -3494,8 +3543,6 @@ static int com_go(String *buffer, char *)
     old_buffer.copy();
   }
 
-  /* Remove garbage for nicer messages */
-  LINT_INIT_STRUCT(buff[0]);
   remove_cntrl(*buffer);
 
   if (buffer->is_empty())
@@ -5038,6 +5085,8 @@ sql_real_connect(char *host,char *database,char *user,char *password,
     mysql_close(&mysql);
   }
   mysql_init(&mysql);
+  if (!one_database)
+    mysql_optionsv(&mysql, MARIADB_OPT_STATUS_CALLBACK, status_info_cb, NULL);
   if (opt_init_command)
     mysql_options(&mysql, MYSQL_INIT_COMMAND, opt_init_command);
   if (opt_connect_timeout)

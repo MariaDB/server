@@ -19,7 +19,7 @@ this program; if not, write to the Free Software Foundation, Inc.,
 The  group commit synchronization used in log_write_up_to()
 works as follows
 
-For simplicity, lets consider only write operation,synchronozation of
+For simplicity, lets consider only write operation,synchronization of
 flush operation works the same.
 
 Rules of the game
@@ -42,17 +42,17 @@ Fixes a) but burns CPU unnecessary.
 
 c) Mutex / condition variable  combo.
 
-Condtion variable notifies (broadcast) all waiters, whenever
+Condition variable notifies (broadcast) all waiters, whenever
 last written lsn is changed.
 
-Has a disadvantage of many suprious wakeups, stress on OS scheduler,
+Has a disadvantage of many spurious wakeups, stress on OS scheduler,
 and mutex contention.
 
 d) Something else.
 Make use of the waiter's lsn parameter, and only wakeup "right" waiting
 threads.
 
-We chose d). Even if implementation is more complicated than alternatves
+We chose d). Even if implementation is more complicated than alternatives
 due to the need to maintain list of waiters, it provides the best performance.
 
 See group_commit_lock implementation for details.
@@ -279,9 +279,12 @@ group_commit_lock::lock_return_code group_commit_lock::acquire(value_type num, c
   return lock_return_code::EXPIRED;
 }
 
+PRAGMA_DISABLE_CHECK_STACK_FRAME
+
+
 group_commit_lock::value_type group_commit_lock::release(value_type num)
 {
-  completion_callback callbacks[1000];
+  completion_callback callbacks[950];     // 1000 fails with framesize 16384
   size_t callback_count = 0;
   value_type ret = 0;
   std::unique_lock<std::mutex> lk(m_mtx);
@@ -395,6 +398,8 @@ group_commit_lock::value_type group_commit_lock::release(value_type num)
   }
   return ret;
 }
+
+PRAGMA_REENABLE_CHECK_STACK_FRAME
 
 #ifndef DBUG_OFF
 bool group_commit_lock::is_owner()

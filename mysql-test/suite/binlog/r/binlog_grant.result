@@ -64,7 +64,7 @@ SHOW GRANTS FOR user1@localhost;
 Grants for user1@localhost
 GRANT USAGE ON *.* TO `user1`@`localhost`
 DROP USER user1@localhost;
-# Test if SHOW BINARY LOGS and SHOW BINGLOG STATUS are not allowed without REPLICATION CLIENT
+# Test if SHOW BINARY LOGS and SHOW BINLOG STATUS are not allowed without REPLICATION CLIENT
 CREATE USER user1@localhost;
 GRANT ALL PRIVILEGES ON *.* TO user1@localhost;
 REVOKE REPLICATION CLIENT ON *.* FROM user1@localhost;
@@ -142,6 +142,7 @@ connection user1;
 connection default;
 include/diff_tables.inc [t1,t2]
 #  Test cleanup
+disconnect user1;
 DROP TABLE t2,t1;
 DROP USER user1@localhost;
 #

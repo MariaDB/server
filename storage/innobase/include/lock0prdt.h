@@ -109,7 +109,7 @@ lock_prdt_update_split(
 	const page_id_t	page_id);	/*!< in: page number */
 
 /**************************************************************//**
-Ajust locks from an ancester page of Rtree on the appropriate level . */
+Adjust locks from an ancestor page of Rtree on the appropriate level . */
 void
 lock_prdt_update_parent(
 /*====================*/

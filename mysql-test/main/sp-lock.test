@@ -133,7 +133,7 @@ drop temporary table t1;
 --echo #
 --echo # For that, start a transaction, use a routine. In a concurrent
 --echo # connection, try to drop or alter the routine. It should place
---echo # a pending or exclusive lock and block. In another concurrnet
+--echo # a pending or exclusive lock and block. In another concurrent
 --echo # connection, try to use the routine.
 --echo # That should block on the pending exclusive lock.
 --echo #
@@ -787,17 +787,10 @@ drop procedure p1;
 drop function f1;
 set @@session.max_sp_recursion_depth=default;
 
-connection con1;
 disconnect con1;
---source include/wait_until_disconnected.inc
-connection con2;
 disconnect con2;
---source include/wait_until_disconnected.inc
-connection con3;
 disconnect con3;
---source include/wait_until_disconnected.inc
 connection default;
-
 
 --echo #
 --echo # SHOW CREATE PROCEDURE p1 called from p1, after p1 was altered
@@ -838,12 +831,8 @@ connection con2;
 --echo # Reaping: CALL p1()
 --reap
 
-connection con3;
 disconnect con3;
---source include/wait_until_disconnected.inc
-connection con2;
 disconnect con2;
---source include/wait_until_disconnected.inc
 connection default;
 DROP PROCEDURE p1;
 
@@ -976,19 +965,14 @@ connection con1;
 --echo # Reaping: DROP DATABASE db1
 --reap
 disconnect con1;
---source include/wait_until_disconnected.inc
 
 connection con2;
 --echo # Reaping: ALTER FUNCTION f1 COMMENT 'test'
 --error ER_SP_DOES_NOT_EXIST
 --reap
 disconnect con2;
---source include/wait_until_disconnected.inc
 
 connection default;
 DROP FUNCTION f1;
 
-
---echo #
 --echo # End of 5.5 tests
---echo #

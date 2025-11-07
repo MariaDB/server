@@ -1220,7 +1220,7 @@ info: Records: 2  Duplicates: 0  Warnings: 0
 ALTER TABLE t1 MODIFY COLUMN a SET('a1','a2','a0','xx','a5','a6');
 affected rows: 0
 info: Records: 0  Duplicates: 0  Warnings: 0
-# Copy: Numerical incrase (pack lenght)
+# Copy: Numerical increase (pack length)
 ALTER TABLE t1 MODIFY COLUMN a SET('a1','a2','a0','xx','a5','a6','a7','a8','a9','a10');
 affected rows: 2
 info: Records: 2  Duplicates: 0  Warnings: 0
@@ -1539,13 +1539,13 @@ t2	CREATE TABLE `t2` (
   KEY `fk` (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 ALTER TABLE t2 ADD FOREIGN KEY (id) REFERENCES t1(id);
-ALTER TABLE t2 ADD FOREIGN KEY IF NOT EXISTS t2_ibfk_1(id) REFERENCES t1(id);
+ALTER TABLE t2 ADD FOREIGN KEY IF NOT EXISTS `1`(id) REFERENCES t1(id);
 Warnings:
-Note	1061	Duplicate key name 't2_ibfk_1'
-ALTER TABLE t2 DROP FOREIGN KEY IF EXISTS t2_ibfk_1;
-ALTER TABLE t2 DROP FOREIGN KEY IF EXISTS t2_ibfk_1;
+Note	1061	Duplicate key name '1'
+ALTER TABLE t2 DROP FOREIGN KEY IF EXISTS `1`;
+ALTER TABLE t2 DROP FOREIGN KEY IF EXISTS `1`;
 Warnings:
-Note	1091	Can't DROP FOREIGN KEY `t2_ibfk_1`; check that it exists
+Note	1091	Can't DROP FOREIGN KEY `1`; check that it exists
 SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
@@ -1780,7 +1780,6 @@ DROP TABLE t1;
 # --enable_info allows us to see how many rows were updated
 # by ALTER TABLE. in-place will show 0 rows, while copy > 0.
 #
-DROP TABLE IF EXISTS ti1, ti2, ti3, tm1, tm2, tm3;
 # Single operation tests
 CREATE TABLE ti1(a INT NOT NULL, b INT, c INT) engine=InnoDB;
 CREATE TABLE tm1(a INT NOT NULL, b INT, c INT) engine=MyISAM;
@@ -3098,6 +3097,42 @@ create table t1(id int primary key, t2_id int, constraint t1_fk_t2_id foreign ke
 alter table t1 drop constraint t1_fk_t2_id, drop t2_id, drop t2_id;
 ERROR 42000: Can't DROP COLUMN `t2_id`; check that it exists
 drop table t1, t2;
+#
+# MDEV-29001 DROP DEFAULT makes SHOW CREATE non-idempotent
+#
+SET @save_sql_mode=@@sql_mode;
+SET sql_mode=strict_all_tables;
+create table t1 (
+a int,
+b int default 0,
+c int not null,
+d int not null default 1);
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT 0,
+  `c` int(11) NOT NULL,
+  `d` int(11) NOT NULL DEFAULT 1
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+alter table t1
+alter a drop default,
+alter b drop default,
+alter c drop default,
+alter d drop default;
+SHOW create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL,
+  `c` int(11) NOT NULL,
+  `d` int(11) NOT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+insert t1 values (default, default, default, default);
+ERROR HY000: Field 'c' doesn't have a default value
+insert t1 values (default, default, 0, 0);
+drop table t1;
+set sql_mode= @save_sql_mode;
 #
 # End of 10.6 tests
 #

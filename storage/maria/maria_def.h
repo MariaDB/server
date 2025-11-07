@@ -162,7 +162,7 @@ typedef struct st_maria_info
 } MARIA_INFO;
 
 struct st_maria_share;
-struct st_maria_handler;                        /* For referense */
+struct st_maria_handler;                        /* For reference */
 struct st_maria_keydef;
 
 struct st_maria_key                 /* Internal info about a key */
@@ -184,7 +184,7 @@ struct st_maria_decode_tree     /* Decode huff-table */
 
 typedef struct s3_info S3_INFO;
 
-extern ulong maria_block_size, maria_checkpoint_frequency;
+extern uint maria_block_size, maria_checkpoint_frequency;
 extern ulong maria_concurrent_insert;
 extern my_bool maria_flush, maria_single_user, maria_page_checksums;
 extern my_off_t maria_max_temp_length;
@@ -208,6 +208,7 @@ extern int maria_close(MARIA_HA *file);
 extern int maria_delete(MARIA_HA *file, const uchar *buff);
 extern MARIA_HA *maria_open(const char *name, int mode,
                             uint wait_if_locked, S3_INFO *s3);
+extern void ma_change_pagecache(MARIA_HA *info);
 extern int maria_panic(enum ha_panic_function function);
 extern int maria_rfirst(MARIA_HA *file, uchar *buf, int inx);
 extern int maria_rkey(MARIA_HA *file, uchar *buf, int inx,
@@ -354,7 +355,7 @@ void _ma_update_auto_increment_key(HA_CHECK *param, MARIA_HA *info,
 typedef struct st_sort_key_blocks MA_SORT_KEY_BLOCKS;
 typedef struct st_sort_ftbuf MA_SORT_FT_BUF;
 
-extern PAGECACHE maria_pagecache_var, *maria_pagecache;
+extern PAGECACHES maria_pagecaches;
 int maria_assign_to_pagecache(MARIA_HA *info, ulonglong key_map,
 			      PAGECACHE *key_cache);
 void maria_change_pagecache(PAGECACHE *old_key_cache,
@@ -463,7 +464,7 @@ typedef struct st_maria_state_info
   my_off_t dellink;			/* Link to next removed block */
   pgcache_page_no_t first_bitmap_with_space;
   ulonglong auto_increment;
-  TrID create_trid;                     /* Minum trid for file */
+  TrID create_trid;                     /* Minimum trid for file */
   TrID last_change_trn;                 /* selfdescriptive */
   ulong update_count;			/* Updated for each write lock */
   ulong status;
@@ -754,7 +755,7 @@ typedef struct st_maria_share
   my_off_t (*recpos_to_keypos)(struct st_maria_share *share, my_off_t pos);
   my_bool (*row_is_visible)(MARIA_HA *);
 
-  /* Mapings to read/write the data file */
+  /* Mappings to read/write the data file */
   size_t (*file_read)(MARIA_HA *, uchar *, size_t, my_off_t, myf);
   size_t (*file_write)(MARIA_HA *, const uchar *, size_t, my_off_t, myf);
   /* query cache invalidator for merged tables */
@@ -781,7 +782,8 @@ typedef struct st_maria_share
   PAGECACHE_FILE kfile;			/* Shared keyfile */
   S3_INFO *s3_path;                     /* Connection and path in s3 */
   File data_file;			/* Shared data file */
-  int mode;				/* mode of file on open */
+  int	index_mode;			/* mode on index file on open */
+  int	data_mode;			/* mode of data file on open */
   uint reopen;				/* How many times opened */
   uint in_trans;                        /* Number of references by trn */
   uint w_locks, r_locks, tot_locks;	/* Number of read/write locks */
@@ -992,7 +994,7 @@ struct st_maria_handler
   my_off_t last_search_keypage;		/* Last keypage when searching */
 
   /*
-    QQ: the folloing two xxx_length fields should be removed,
+    QQ: the following two xxx_length fields should be removed,
      as they are not compatible with parallel repair
   */
   ulong packed_length, blob_length;	/* Length of found, packed record */
@@ -1011,7 +1013,7 @@ struct st_maria_handler
   int lastinx;				/* Last used index */
   uint last_rkey_length;		/* Last length in maria_rkey() */
   uint *last_rtree_keypos;              /* Last key positions for rtrees */
-  uint bulk_insert_ref_length;          /* Lenght of row ref during bi */
+  uint bulk_insert_ref_length;          /* Length of row ref during bi */
   uint non_flushable_state;
   enum ha_rkey_function last_key_func;	/* CONTAIN, OVERLAP, etc */
   uint save_lastkey_data_length;
@@ -1272,7 +1274,7 @@ extern uchar maria_zero_string[];
 extern my_bool maria_inited, maria_in_ha_maria, maria_recovery_changed_data;
 extern my_bool maria_recovery_verbose, maria_checkpoint_disabled;
 extern my_bool maria_assert_if_crashed_table, aria_readonly;
-extern ulong maria_checkpoint_min_log_activity;
+extern uint maria_checkpoint_min_log_activity;
 extern HASH maria_stored_state;
 extern int (*maria_create_trn_hook)(MARIA_HA *);
 extern my_bool (*ma_killed)(MARIA_HA *);
@@ -1786,7 +1788,7 @@ static inline check_result_t ma_check_index_cond(MARIA_HA *info, uint keynr,
   return ma_check_index_cond_real(info, keynr, record);
 }
 
-
+extern void ma_update_pagecache_stats();
 extern my_bool ma_yield_and_check_if_killed(MARIA_HA *info, int inx);
 extern my_bool ma_killed_standalone(MARIA_HA *);
 

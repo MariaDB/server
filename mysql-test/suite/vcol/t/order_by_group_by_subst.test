@@ -1,0 +1,170 @@
+--echo #
+--echo # MDEV-36132 Optimizer support for functional indexes: handle GROUP/ORDER BY
+--echo #
+
+--source include/have_sequence.inc
+create table t (c int, key (c));
+insert into t select seq from seq_1_to_10000;
+alter table t
+  add column vc int as (c + 1),
+  add index(vc);
+
+explain select c from t order by c;
+explain select vc from t order by vc;
+explain select vc from t order by vc limit 10;
+
+explain select c + 1 from t order by c + 1;
+explain select c + 1 from t order by vc;
+explain select vc from t order by c + 1;
+
+explain select vc from t order by c;
+explain select c from t order by vc;
+
+explain select c from t order by c + 1;
+
+explain select vc from t order by c + 1 limit 2;
+explain select c + 1 from t order by c + 1 limit 2;
+explain select c + 1 from t order by vc limit 2;
+explain delete from t order by c + 1 limit 2;
+alter table t add column d int;
+explain update t set d = 500 order by c + 1 limit 2;
+explain update t set d = 500 order by c limit 2;
+explain update t set c = 500 order by c + 1 limit 2;
+explain update t set c = 500 order by c limit 2;
+
+drop table t;
+
+## index only on vcol
+
+create table t (c int);
+insert into t select seq from seq_1_to_10000;
+
+alter table t
+  add column vc int as (c + 1),
+  add index(vc);
+
+explain select vc from t order by c + 1;
+explain select vc from t order by c + 1 limit 10;
+
+drop table t;
+
+# vcol on vcol
+
+create table t (c int, key (c));
+insert into t select seq from seq_1_to_10000;
+alter table t
+  add column vc1 int as (c + 1),
+  add index(vc1);
+alter table t
+  add column vc2 int as (vc1 * 2),
+  add index(vc2);
+explain select c from t order by vc2;
+explain select vc2 from t order by vc1 * 2;
+explain select vc2 from t order by vc1 * 2 limit 2;
+drop table t;
+
+# vcol not depending on other col
+
+create table t (c int, vc int generated always as (1 + 1) virtual, key (c));
+insert into t values (42, default), (83, default);
+explain select vc from t order by vc;
+select vc from t order by vc;
+drop table t;
+
+# tuple index
+
+create table t (c int);
+insert into t select seq from seq_1_to_10000;
+alter table t
+  add column vc1 int as (c + 1);
+alter table t
+  add column vc2 int as (1 - c),
+  add index(vc1, vc2);
+explain select vc1, vc2 from t order by c + 1, 1 - c;
+drop table t;
+
+# group by
+create table t (c int, key (c));
+insert into t select seq from seq_1_to_10000;
+alter table t
+  add column vc int as (c + 1),
+  add index(vc);
+
+explain select c from t group by c;
+explain select vc from t group by vc;
+explain select vc from t group by vc limit 10;
+
+explain select c + 1 from t group by c + 1;
+explain select c + 1 from t group by vc;
+explain select vc from t group by c + 1;
+
+explain select vc from t group by c;
+explain select c from t group by vc;
+
+explain select c from t group by c + 1;
+
+explain select vc from t group by c + 1 limit 2;
+explain select c + 1 from t group by c + 1 limit 2;
+explain select c + 1 from t group by vc limit 2;
+
+drop table t;
+
+## index only on vcol
+
+create table t (c int);
+insert into t select seq from seq_1_to_10000;
+
+alter table t
+  add column vc int as (c + 1),
+  add index(vc);
+
+explain select vc from t group by c + 1;
+explain select vc from t group by c + 1 limit 10;
+
+drop table t;
+
+# vcol on vcol
+
+create table t (c int, key (c));
+insert into t select seq from seq_1_to_10000;
+alter table t
+  add column vc1 int as (c + 1),
+  add index(vc1);
+alter table t
+  add column vc2 int as (vc1 * 2),
+  add index(vc2);
+explain select c from t group by vc2;
+explain select vc2 from t group by vc1 * 2;
+explain select vc2 from t group by vc1 * 2 limit 2;
+drop table t;
+
+# tuple index
+
+create table t (c int);
+insert into t select seq from seq_1_to_10000;
+alter table t
+  add column vc1 int as (c + 1);
+alter table t
+  add column vc2 int as (1 - c),
+  add index(vc1, vc2);
+explain select vc1, vc2 from t group by c + 1, 1 - c;
+drop table t;
+
+--echo #
+--echo # MDEV-37435 Assertion `field' failed in virtual bool Item_field::fix_fields(THD *, Item **)
+--echo #
+CREATE TABLE t1 (a INT,a1 INT AS (a) VIRTUAL,INDEX (a1));
+SELECT a FROM t1 GROUP BY a HAVING a>2;
+SELECT a FROM t1 WHERE a=(SELECT a FROM t1 GROUP BY a HAVING a>2);
+drop table t1;
+
+create table t1 (a int, a1 int as (a+1) virtual, index(a1));
+select a+1 as g from t1 group by g having g>2;
+drop table t1;
+
+CREATE TABLE t1 (a INT,a1 INT AS (a) VIRTUAL,INDEX (a1));
+CREATE TABLE t2 (b INT,b1 INT AS (b) VIRTUAL,INDEX (b1));
+insert into t1 (a) select seq from seq_1_to_5;
+insert into t2 (b) select seq from seq_1_to_5;
+SELECT a, b FROM t1, t2 GROUP BY a, b HAVING a>2 and b>2;
+drop table t1, t2;

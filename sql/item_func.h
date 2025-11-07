@@ -31,8 +31,8 @@ extern "C"				/* Bug in BSDI include file */
 #include <cmath>
 
 
-extern int st_append_json(String *s,
-             CHARSET_INFO *json_cs, const uchar *js, uint js_len);
+extern bool st_append_json(String *s,
+              CHARSET_INFO *json_cs, const uchar *js, uint js_len);
 class Item_func :public Item_func_or_sum
 {
   void sync_with_sum_func_and_with_field(List<Item> &list);
@@ -46,6 +46,7 @@ protected:
   bool check_argument_types_traditional_scalar(uint start, uint end) const;
   bool check_argument_types_or_binary(const Type_handler *handler,
                                       uint start, uint end) const;
+  bool check_argument_types_can_return_bool(uint start, uint end) const;
   bool check_argument_types_can_return_int(uint start, uint end) const;
   bool check_argument_types_can_return_real(uint start, uint end) const;
   bool check_argument_types_can_return_str(uint start, uint end) const;
@@ -81,6 +82,8 @@ protected:
     return print_sql_mode_qualified_name(to, query_type, func_name_cstring());
   }
 
+  void update_nullability_post_fix_fields();
+
   bool aggregate_args2_for_comparison_with_conversion(THD *thd,
                                            Type_handler_hybrid_field_type *th);
 public:
@@ -95,7 +98,7 @@ public:
 		  INTERVAL_FUNC, ISNOTNULLTEST_FUNC,
 		  SP_EQUALS_FUNC, SP_DISJOINT_FUNC,SP_INTERSECTS_FUNC,
 		  SP_TOUCHES_FUNC,SP_CROSSES_FUNC,SP_WITHIN_FUNC,
-		  SP_CONTAINS_FUNC,SP_OVERLAPS_FUNC,
+		  SP_CONTAINS_FUNC, SP_COVEREDBY_FUNC, SP_OVERLAPS_FUNC,
 		  SP_STARTPOINT,SP_ENDPOINT,SP_EXTERIORRING,
 		  SP_POINTN,SP_GEOMETRYN,SP_INTERIORRINGN, SP_RELATE_FUNC,
                   NOT_FUNC, NOT_ALL_FUNC, TEMPTABLE_ROWID,
@@ -221,7 +224,7 @@ public:
     DBUG_ENTER("Item_func::get_mm_tree");
     DBUG_RETURN(const_item() ? get_mm_tree_for_const(param) : NULL);
   }
-  bool eq(const Item *item, bool binary_cmp) const override;
+  bool eq(const Item *item, const Eq_config &config) const override;
   virtual Item *key_item() const { return args[0]; }
   void set_arguments(THD *thd, List<Item> &list)
   {
@@ -741,6 +744,44 @@ public:
   };
 
 
+  class Handler_double: public Handler
+  {
+  public:
+    const Type_handler *return_type_handler(const Item_handled_func *)
+                                                        const override
+    {
+      return &type_handler_double;
+    }
+
+    String *val_str(Item_handled_func *item, String *to) const override
+    {
+      double nr= val_real(item);
+      if (item->null_value)
+        return 0;
+      to->set_real(nr, NOT_FIXED_DEC, item->collation.collation);
+      return to;
+    }
+    String *val_str_ascii(Item_handled_func *item, String *to) const override
+    {
+      return item->Item::val_str_ascii(to);
+    }
+    double val_real(Item_handled_func *item) const override= 0;
+    my_decimal *val_decimal(Item_handled_func *item, my_decimal *to) const override
+    {
+      return item->val_decimal_from_real(to);
+    }
+    bool get_date(THD *thd, Item_handled_func *item,
+                  MYSQL_TIME *to, date_mode_t fuzzydate) const override
+    {
+      return item->get_date_from_real(thd, to, fuzzydate);
+    }
+    longlong val_int(Item_handled_func *item) const override
+    {
+      return item->val_int_from_real();
+    }
+  };
+
+
   class Handler_int: public Handler
   {
   public:
@@ -825,6 +866,10 @@ public:
 protected:
   const Handler *m_func_handler;
 public:
+  Item_handled_func(THD *thd)
+   :Item_func(thd), m_func_handler(NULL) { }
+  Item_handled_func(THD *thd, List<Item> & args)
+   :Item_func(thd, args), m_func_handler(NULL) { }
   Item_handled_func(THD *thd, Item *a)
    :Item_func(thd, a), m_func_handler(NULL) { }
   Item_handled_func(THD *thd, Item *a, Item *b)
@@ -985,6 +1030,12 @@ public:
     return Item_func_hybrid_field_type::type_handler()->
            Item_func_hybrid_field_type_val_int(this);
   }
+  Type_ref_null val_ref(THD *thd) override
+  {
+    DBUG_ASSERT(fixed());
+    return Item_func_hybrid_field_type::type_handler()->
+           Item_func_hybrid_field_type_val_ref(thd, this);
+  }
   my_decimal *val_decimal(my_decimal *dec) override
   {
     DBUG_ASSERT(fixed());
@@ -1083,6 +1134,8 @@ public:
   virtual bool time_op(THD *thd, MYSQL_TIME *res)= 0;
 
   virtual bool native_op(THD *thd, Native *native)= 0;
+
+  virtual Type_ref_null ref_op(THD *thd)= 0;
 };
 
 
@@ -1095,6 +1148,15 @@ public:
 */
 class Item_func_case_expression: public Item_func_hybrid_field_type
 {
+  bool check_arguments() const override
+  {
+    /*
+      Arguments to CASE-style expressions are subject to aggregate_for_result()
+      and/or aggregate_for_comparision(). These methods validate the arguments.
+      No needs to check arguments here.
+    */
+    return false;
+  }
 public:
   Item_func_case_expression(THD *thd)
    :Item_func_hybrid_field_type(thd)
@@ -1122,8 +1184,8 @@ protected:
   inline void fix_decimals()
   {
     DBUG_ASSERT(result_type() == DECIMAL_RESULT);
-    if (decimals == NOT_FIXED_DEC)
-      set_if_smaller(decimals, max_length - 1);
+    if (decimals == NOT_FIXED_DEC && decimals >= max_length)
+      decimals= decimal_digits_t(max_length - 1);
   }
 
 public:
@@ -1155,6 +1217,11 @@ public:
   {
     DBUG_ASSERT(0);
     return true;
+  }
+  Type_ref_null ref_op(THD *thd) override
+  {
+    DBUG_ASSERT(0);
+    return Type_ref_null();
   }
 };
 
@@ -1344,14 +1411,16 @@ public:
 };
 
 
-class Cursor_ref
+class Cursor_ref: public sp_rcontext_ref
 {
 protected:
   LEX_CSTRING m_cursor_name;
-  uint m_cursor_offset;
-  class sp_cursor *get_open_cursor_or_error();
-  Cursor_ref(const LEX_CSTRING *name, uint offset)
-   :m_cursor_name(*name), m_cursor_offset(offset)
+public:
+  Cursor_ref(const LEX_CSTRING *name,
+             const Sp_rcontext_handler *h, uint offset,
+             const Sp_rcontext_handler *deref_rcontext_handler)
+   :sp_rcontext_ref(sp_rcontext_addr(h, offset), deref_rcontext_handler),
+    m_cursor_name(*name)
   { }
   void print_func(String *str, const LEX_CSTRING &func_name);
 };
@@ -1361,11 +1430,20 @@ protected:
 class Item_func_cursor_rowcount: public Item_longlong_func,
                                  public Cursor_ref
 {
+protected:
+  THD *m_thd;
 public:
-  Item_func_cursor_rowcount(THD *thd, const LEX_CSTRING *name, uint offset)
-   :Item_longlong_func(thd), Cursor_ref(name, offset)
+  Item_func_cursor_rowcount(THD *thd, const Cursor_ref &ref)
+   :Item_longlong_func(thd), Cursor_ref(ref), m_thd(nullptr)
   {
     set_maybe_null();
+  }
+  bool fix_fields(THD *thd, Item **ref) override
+  {
+    if (Item_longlong_func::fix_fields(thd, ref))
+      return true;
+    m_thd= thd;
+    return false;
   }
   LEX_CSTRING func_name_cstring() const override
   {
@@ -1511,7 +1589,8 @@ public:
   {
     return args[0]->type_handler()->Item_func_unsigned_fix_length_and_dec(this);
   }
-  decimal_digits_t decimal_precision() const override { return max_length; }
+  decimal_digits_t decimal_precision() const override
+  { return decimal_digits_t(max_length); }
   void print(String *str, enum_query_type query_type) override;
   Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_func_unsigned>(thd, this); }
@@ -1522,7 +1601,8 @@ class Item_decimal_typecast :public Item_func
 {
   my_decimal decimal_value;
 public:
-  Item_decimal_typecast(THD *thd, Item *a, uint len, decimal_digits_t dec)
+  Item_decimal_typecast(THD *thd, Item *a,
+                        decimal_digits_t len, decimal_digits_t dec)
    :Item_func(thd, a)
   {
     decimals= dec;
@@ -2116,6 +2196,11 @@ public:
   }
   bool fix_length_and_dec(THD *thd) override;
   String *str_op(String *str) override { DBUG_ASSERT(0); return 0; }
+  Type_ref_null ref_op(THD *thd) override
+  {
+    DBUG_ASSERT(0);
+    return Type_ref_null();
+  }
   bool native_op(THD *thd, Native *to) override;
 };
 
@@ -2187,6 +2272,11 @@ public:
     DBUG_ASSERT(0);
     return NULL;
   }
+  Type_ref_null ref_op(THD *thd) override
+  {
+    DBUG_ASSERT(0);
+    return Type_ref_null();
+  }
   void fix_arg_decimal();
   void fix_arg_int(const Type_handler *preferred,
                    const Type_std_attributes *preferred_attributes,
@@ -2244,7 +2334,7 @@ class Item_func_rownum final :public Item_longlong_func
 {
   /*
     This points to a variable that contains the number of rows
-    accpted so far in the result set
+    accepted so far in the result set
   */
   ha_rows *accepted_rows;
   SELECT_LEX *select;
@@ -2576,6 +2666,9 @@ public:
     return name;
   }
   bool fix_length_and_dec(THD *thd) override;
+  // block standard processor for never null
+  bool add_maybe_null_after_ora_join_processor(void *arg) override
+  { return 0; }
   bool eval_not_null_tables(void *) override
   {
     not_null_tables_cache= 0;
@@ -2648,6 +2741,9 @@ public:
   bool fix_length_and_dec(THD *thd) override;
   Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_func_field>(thd, this); }
+  // block standard processor for never null
+  bool add_maybe_null_after_ora_join_processor(void *arg) override
+  { return 0; }
 };
 
 
@@ -2893,6 +2989,9 @@ public:
     base_flags&= ~item_base_t::MAYBE_NULL;
     return FALSE;
   }
+  // block standard processor for never null
+  bool add_maybe_null_after_ora_join_processor(void *arg) override
+  { return 0; }
   void print(String *str, enum_query_type query_type) override;
   bool check_vcol_func_processor(void *arg) override
   {
@@ -3549,7 +3648,7 @@ public:
   bool const_item() const override;
   table_map used_tables() const override
   { return const_item() ? 0 : RAND_TABLE_BIT; }
-  bool eq(const Item *item, bool binary_cmp) const override;
+  bool eq(const Item *item, const Eq_config &config) const override;
   Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_func_get_user_var>(thd, this); }
 private:
@@ -3565,7 +3664,7 @@ public:
 
 /*
   This item represents user variable used as out parameter (e.g in LOAD DATA),
-  and it is supposed to be used only for this purprose. So it is simplified
+  and it is supposed to be used only for this purpose. So it is simplified
   a lot. Actually you should never obtain its value.
 
   The only two reasons for this thing being an Item is possibility to store it
@@ -3693,7 +3792,7 @@ public:
     @return true if the variable is written to the binlog, false otherwise.
   */
   bool is_written_to_binlog();
-  bool eq(const Item *item, bool binary_cmp) const override;
+  bool eq(const Item *item, const Eq_config &config) const override;
 
   void cleanup() override;
   bool check_vcol_func_processor(void *arg) override;
@@ -3748,7 +3847,7 @@ public:
     return false;
   }
   bool fix_fields(THD *thd, Item **ref) override;
-  bool eq(const Item *, bool binary_cmp) const override;
+  bool eq(const Item *, const Eq_config &config) const override;
   /* The following should be safe, even if we compare doubles */
   longlong val_int() override { DBUG_ASSERT(fixed()); return val_real() != 0.0; }
   double val_real() override;
@@ -3932,6 +4031,9 @@ public:
     base_flags&= ~item_base_t::MAYBE_NULL;
     return FALSE;
   }
+  // block standard processor for never null
+  bool add_maybe_null_after_ora_join_processor(void *arg) override
+  { return 0; }
   bool check_vcol_func_processor(void *arg) override
   {
     return mark_unsupported_function(func_name(), "()", arg, VCOL_IMPOSSIBLE);
@@ -4023,16 +4125,93 @@ public:
 
   void bring_value() override
   {
-    execute();
+    DBUG_ASSERT(fixed());
+    /*
+      This comment describes the difference between a single row
+      subselect and a stored function returning ROW.
+
+      In case of a single column subselect:
+        SELECT 1=(SELECT a FROM t1) FROM seq_1_to_5;
+      Item_singlerow_subselect pretends to be a scalar,
+      so its type_handler() returns the type handler of the column "a".
+      (*) This is according to the SQL scandard, which says:
+          The declared type of a <scalar subquery> is the declared
+          type of the column of QE (i.e. its query expression).
+      In the above SELECT statement Arg_comparator calls a scalar comparison
+      function e.g. compare_int_signed(), which does not call bring_value().
+      Item_singlerow_subselect::exec() is called when
+      Arg_comparator::compare_int_signed(), or another scalar comparison
+      function, calls a value method like Item_singlerow_subselect::val_int().
+
+      In case of a multiple-column subselect:
+        SELECT (1,1)=(SELECT a,a FROM t1) FROM seq_1_to_5;
+      Item_singlerow_subselect::type_handler() returns &type_handler_row.
+      Arg_comparator uses compare_row() to compare its arguments.
+      compare_row() calls bring_value(), which calls
+      Item_singlerow_subselect::exec().
+
+      Unlike a single row subselect, a stored function returning a ROW does
+      not pretend to be a scalar when there is only one column in the ROW:
+        SELECT sp_row_func_with_one_col()=sp_row_var_with_one_col FROM ...;
+      Item_function_sp::type_handler() still returns &type_handler_row when
+      the return type is a ROW with one column.
+      Arg_comparator choses compare_row() as the comparison function.
+      So the execution comes to here.
+
+      This chart summarizes how a comparison of ROW values works.
+      In particular, how Item_singlerow_subselect::exec() vs
+      Item_func_sp::execute() are called.
+
+                         Single row subselect    ROW value stored function
+                         --------------------    -------------------------
+      1. bring_value()     Yes                     Yes
+         is called when
+         cols>1
+      2. exec()/execute()  Yes                     Yes
+         is called from
+         bring_value()
+         when cols>1
+      3. Pretends          Yes                     No
+         to be a scalar
+         when cols==1
+      4. bring_value()     No                      Yes
+         is called
+         when cols==1
+      5. exec()/execute()  N/A                     No
+         is called from
+         bring_value()
+         when cols==1
+      6. exec()/execute()  Yes                     Yes
+         is called from
+         a value method,
+         like val_int()
+         when cols==1
+    */
+    if (result_type() == ROW_RESULT)
+    {
+      /*
+        The condition in the "if" above catches the *intentional* difference
+        in the chart lines 3,4,5 (between a single row subselect and a stored
+        function returning ROW). Thus the condition makes #6 work in the same
+        way. See (*) in the beginning of the comment why the difference is
+        intentional.
+      */
+      execute();
+    }
   }
 
   Field *create_tmp_field_ex(MEM_ROOT *root, TABLE *table, Tmp_field_src *src,
                              const Tmp_field_param *param) override;
   Field *create_field_for_create_select(MEM_ROOT *root, TABLE *table) override
   {
-    return result_type() != STRING_RESULT ?
-           sp_result_field :
-           create_table_field_from_handler(root, table);
+    /*
+      The below call makes execution go through
+      type_handler()->make_table_field() which in case of SYS_REFCURSOR:
+        CREATE TABLE t1 AS SELECT stored_function_returning_sys_refcursor();
+      produces an error:
+       Illegal parameter data type sys_refcursor for operation 'CREATE TABLE'
+    */
+    return create_table_field_from_handler(root, table);
   }
   void make_send_field(THD *thd, Send_field *tmp_field) override;
 
@@ -4088,6 +4267,20 @@ public:
     if (execute())
       return true;
     return (null_value= sp_result_field->val_native(to));
+  }
+
+  Type_ref_null val_ref(THD *thd) override
+  {
+    const Type_ref_null ref= execute() ? Type_ref_null() :
+                                         sp_result_field->val_ref(thd);
+    if (with_complex_data_types())
+      expr_event_handler_args(thd, expr_event_t::DESTRUCT_ROUTINE_ARG);
+    return ref;
+  }
+  void expr_event_handler(THD *thd, expr_event_t event) override
+  {
+    if (with_complex_data_types())
+      sp_result_field->expr_event_handler(thd, event);
   }
 
   void update_null_value() override
@@ -4149,6 +4342,9 @@ public:
     base_flags&= ~item_base_t::MAYBE_NULL;
     return FALSE;
   }
+  // block standard processor for never null
+  bool add_maybe_null_after_ora_join_processor(void *arg) override
+  { return 0; }
   bool check_vcol_func_processor(void *arg) override
   {
     return mark_unsupported_function(func_name(), "()", arg, VCOL_IMPOSSIBLE);
@@ -4206,6 +4402,9 @@ public:
     max_length= 11;
     return FALSE;
   }
+  // block standard processor for never null
+  bool add_maybe_null_after_ora_join_processor(void *arg) override
+  { return 0; }
   Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_func_sqlcode>(thd, this); }
 };
@@ -4250,6 +4449,7 @@ public:
   my_decimal *val_decimal(my_decimal *) override;
   bool get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate) override;
   bool val_native(THD *thd, Native *) override;
+  Type_ref_null val_ref(THD *thd) override;
   bool fix_length_and_dec(THD *thd) override;
   LEX_CSTRING func_name_cstring() const override
   {
@@ -4268,7 +4468,7 @@ public:
     return false;
   }
   bool const_item() const override { return 0; }
-  void evaluate_sideeffects();
+  void evaluate_sideeffects(THD *thd);
   void update_used_tables() override
   {
     Item_func::update_used_tables();
@@ -4287,15 +4487,24 @@ protected:
   TABLE_LIST *table_list;
   TABLE *table;
   bool print_table_list_identifier(THD *thd, String *to) const;
+  bool check_access(THD *, privilege_t);
 public:
   Item_func_nextval(THD *thd, TABLE_LIST *table_list_arg):
-  Item_longlong_func(thd), table_list(table_list_arg) {}
+  Item_longlong_func(thd), table_list(table_list_arg), table(0) {}
   longlong val_int() override;
   LEX_CSTRING func_name_cstring() const override
   {
     static LEX_CSTRING name= {STRING_WITH_LEN("nextval") };
     return name;
   }
+  bool fix_fields(THD *thd, Item **ref) override
+  {
+    /* Don't check privileges, if it's parse_vcol_defs() */
+    return (table_list->table && check_sequence_privileges(thd)) ||
+           Item_longlong_func::fix_fields(thd, ref);
+  }
+  bool check_sequence_privileges(void *thd) override
+  { return check_access((THD*)thd, INSERT_ACL | SELECT_ACL); }
   bool fix_length_and_dec(THD *thd) override
   {
     if (table_list->table)
@@ -4311,14 +4520,8 @@ public:
   */
   void update_table()
   {
-    if (!(table= table_list->table))
-    {
-      /*
-        If nextval was used in DEFAULT then next_local points to
-        the table_list used by to open the sequence table
-      */
-      table= table_list->next_local->table;
-    }
+    table= table_list->table;
+    DBUG_ASSERT(table);
   }
   bool const_item() const override { return 0; }
   Item *do_get_copy(THD *thd) const override
@@ -4338,6 +4541,8 @@ class Item_func_lastval :public Item_func_nextval
 public:
   Item_func_lastval(THD *thd, TABLE_LIST *table_list_arg):
   Item_func_nextval(thd, table_list_arg) {}
+  bool check_sequence_privileges(void *thd) override
+  { return check_access((THD*)thd, SELECT_ACL); }
   longlong val_int() override;
   LEX_CSTRING func_name_cstring() const override
   {
@@ -4362,6 +4567,8 @@ public:
     : Item_func_nextval(thd, table_list_arg),
     nextval(nextval_arg), round(round_arg), is_used(is_used_arg)
   {}
+  bool check_sequence_privileges(void *thd) override
+  { return check_access((THD*)thd, INSERT_ACL); }
   longlong val_int() override;
   LEX_CSTRING func_name_cstring() const override
   {

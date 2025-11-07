@@ -7,6 +7,7 @@ TABLESPACES
 TABLE_CONSTRAINTS
 TABLE_PRIVILEGES
 TABLE_STATISTICS
+TRIGGERED_UPDATE_COLUMNS
 TRIGGERS
 create database `inf%`;
 create database mbase;
@@ -45,6 +46,7 @@ call mbase.p1();
 call mbase.p1();
 call mbase.p1();
 connection default;
+disconnect user1;
 use `inf%`;
 drop user mysqltest_1@localhost;
 drop table t1;
@@ -62,7 +64,6 @@ drop function func2;
 drop database `inf%`;
 drop procedure mbase.p1;
 drop database mbase;
-disconnect user1;
 #
 # Bug#18282 INFORMATION_SCHEMA.TABLES provides inconsistent info about invalid views
 #
@@ -113,7 +114,7 @@ grant select, show view on v6 to testdb_2@localhost;
 create table t2 (f1 char(4));
 create definer=`no_such_user`@`no_such_host` view v7 as select * from t2;
 Warnings:
-Note	1449	The user specified as a definer ('no_such_user'@'no_such_host') does not exist
+Note	1446	The user specified as a definer ('no_such_user'@'no_such_host') does not exist
 show fields from testdb_1.v6;
 Field	Type	Null	Key	Default	Extra
 f1	char(4)	YES		NULL	
@@ -124,12 +125,12 @@ show create view testdb_1.v7;
 View	Create View	character_set_client	collation_connection
 v7	CREATE ALGORITHM=UNDEFINED DEFINER=`no_such_user`@`no_such_host` SQL SECURITY DEFINER VIEW `v7` AS select `testdb_1`.`t2`.`f1` AS `f1` from `t2`	latin1	latin1_swedish_ci
 Warnings:
-Note	1449	The user specified as a definer ('no_such_user'@'no_such_host') does not exist
+Note	1446	The user specified as a definer ('no_such_user'@'no_such_host') does not exist
 show fields from testdb_1.v7;
 Field	Type	Null	Key	Default	Extra
 f1	char(4)	YES		NULL	
 Warnings:
-Note	1449	The user specified as a definer ('no_such_user'@'no_such_host') does not exist
+Note	1446	The user specified as a definer ('no_such_user'@'no_such_host') does not exist
 connection testdb_1;
 create table t3 (f1 char(4), f2 char(4));
 create view v3 as select f1,f2 from t3;
@@ -154,12 +155,12 @@ show fields from testdb_1.v7;
 Field	Type	Null	Key	Default	Extra
 f1	char(4)	YES		NULL	
 Warnings:
-Note	1449	The user specified as a definer ('no_such_user'@'no_such_host') does not exist
+Note	1446	The user specified as a definer ('no_such_user'@'no_such_host') does not exist
 show create view testdb_1.v7;
 View	Create View	character_set_client	collation_connection
 v7	CREATE ALGORITHM=UNDEFINED DEFINER=`no_such_user`@`no_such_host` SQL SECURITY DEFINER VIEW `v7` AS select `testdb_1`.`t2`.`f1` AS `f1` from `t2`	latin1	latin1_swedish_ci
 Warnings:
-Note	1449	The user specified as a definer ('no_such_user'@'no_such_host') does not exist
+Note	1446	The user specified as a definer ('no_such_user'@'no_such_host') does not exist
 revoke insert(f1) on v3 from testdb_2@localhost;
 revoke select,show view on v5 from testdb_2@localhost;
 connection default;
@@ -213,11 +214,8 @@ connection default;
 use test;
 drop view testdb_1.v1, v2, testdb_1.v3, v4;
 drop database testdb_1;
-connection testdb_1;
 disconnect testdb_1;
-connection testdb_2;
 disconnect testdb_2;
-connection default;
 drop user testdb_1@localhost;
 drop user testdb_2@localhost;
 #
@@ -247,20 +245,20 @@ testdb_1	v1
 show create view testdb_1.v1;
 ERROR 42000: SELECT command denied to user 'mysqltest_1'@'localhost' for table `testdb_1`.`v1`
 connection default;
+disconnect user1;
 drop user mysqltest_1@localhost;
 drop database testdb_1;
-connection user1;
-disconnect user1;
-connection default;
 set global sql_mode=default;
 #
 # MDEV-20549 SQL SECURITY DEFINER does not work for INFORMATION_SCHEMA tables
 #
 create user foo@localhost;
 grant select on test.* to foo@localhost;
+connect foo,localhost,foo;
+connection default;
 create procedure rootonly() select 1;
-create sql security definer view v1d as select current_user(),user from information_schema.processlist where command!='daemon';
-create sql security invoker view v1i as select current_user(),user from information_schema.processlist where command!='daemon';
+create sql security definer view v1d as select current_user(),user from information_schema.processlist where id in($default_id, $foo_id) order by user;
+create sql security invoker view v1i as select current_user(),user from information_schema.processlist where id in($default_id, $foo_id) order by user;
 create sql security definer view v2d as select table_name from information_schema.tables where table_schema='mysql' and table_name like '%user%';
 create sql security invoker view v2i as select table_name from information_schema.tables where table_schema='mysql' and table_name like '%user%';
 create sql security definer view v3d as select schema_name from information_schema.schemata where schema_name like '%mysql%';
@@ -269,7 +267,7 @@ create sql security definer view v4d as select routine_name from information_sch
 create sql security invoker view v4i as select routine_name from information_schema.routines where routine_schema='test';
 create sql security definer view v5d as select view_definition > '' from information_schema.views where table_name='v1d';
 create sql security invoker view v5i as select view_definition > '' from information_schema.views where table_name='v1d';
-connect foo,localhost,foo;
+connection foo;
 select * from v1d;
 current_user()	user
 root@localhost	root
@@ -367,9 +365,9 @@ select table_name, constraint_name, constraint_type from information_schema.tabl
 table_name	constraint_name	constraint_type
 t3	e	UNIQUE
 t3	CONSTRAINT_1	CHECK
-t3	t3_ibfk_1	FOREIGN KEY
-t3	t3_ibfk_2	FOREIGN KEY
-t3	t3_ibfk_3	FOREIGN KEY
+t3	1	FOREIGN KEY
+t3	2	FOREIGN KEY
+t3	3	FOREIGN KEY
 show index in t2;
 Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
 show index in t3;
@@ -477,6 +475,8 @@ USER	PASSWORD_ERRORS	PASSWORD_EXPIRATION_TIME
 # Delete user while some connection is still alive, then select.
 connection default;
 drop user nice_user;
+Warnings:
+Note	4227	Dropped users 'nice_user'@'%' have active connections. Use KILL CONNECTION if they should not be used anymore.
 connection con2;
 select * from information_schema.users;
 ERROR 0L000: The current user is invalid

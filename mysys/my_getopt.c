@@ -18,6 +18,7 @@
 #include <mysys_priv.h>
 #include <my_default.h>
 #include <m_string.h>
+#include <ctype.h>
 #include <stdlib.h>
 #include <mysys_err.h>
 #include <my_getopt.h>
@@ -73,7 +74,7 @@ my_bool my_getopt_skip_unknown= 0;
 
 /*
    This is a flag that can be set in client programs. 1 means that
-   my_getopt will reconize command line options by their unambiguous
+   my_getopt will recognize command line options by their unambiguous
    prefixes. 0 means an option must be always specified in full.
 */
 my_bool my_getopt_prefix_matching= 1;
@@ -920,7 +921,7 @@ static int setval(const struct my_option *opts, void *value, char *argument,
       /*
         This sets a bit stored in a longlong.
         The bit to set is stored in block_size. If block_size is positive
-        then setting the bit means value is true. If block_size is negatitive,
+        then setting the bit means value is true. If block_size is negative,
         then setting the bit means value is false.
       */
       tmp= get_bool_argument(opts, argument);
@@ -1039,7 +1040,7 @@ my_bool getopt_compare_strings(register const char *s, register const char *t,
 
   for (;s != end ; s++, t++)
   {
-    if ((*s != '-' ? *s : '_') != (*t != '-' ? *t : '_'))
+    if ((*s != '-' ? tolower(*s) : '_') != (*t != '-' ? tolower(*t) : '_'))
       DBUG_RETURN(1);
   }
   DBUG_RETURN(0);
@@ -1646,6 +1647,8 @@ void my_print_help(const struct my_option *options)
     if (optp->comment && *optp->comment)
     {
       uint count;
+      uint hidden_value_count= 0;
+      my_bool skip_or_all_message= 0;
 
       if (col > name_space)
       {
@@ -1666,8 +1669,22 @@ void my_print_help(const struct my_option *options)
         count= optp->typelib->count;
         break;
       case GET_SET: 
-        typelib_help= ". Any combination of: ";
+        if (optp->typelib->hidden_values)
+        {
+          /* Count how many values are hidden */
+          for (const int *val= optp->typelib->hidden_values; *val>= 0; val++)
+            hidden_value_count++;
+        }
         count= optp->typelib->count;
+        if (count == hidden_value_count)
+        {
+          /* All values are hidden */
+          typelib_help= ". No currently supported values.";
+          count= 0;
+          skip_or_all_message= 1;
+        }
+        else
+          typelib_help= ". Any combination of: ";
         break;
       case GET_FLAGSET:
         typelib_help= ". Takes a comma-separated list of option=value pairs, "
@@ -1679,15 +1696,34 @@ void my_print_help(const struct my_option *options)
           strstr(optp->comment, optp->typelib->type_names[0]) == NULL)
       {
         uint i;
+        my_bool printing_first= 1;
         col= print_comment(typelib_help, col, name_space, comment_space);
-        col= print_comment(optp->typelib->type_names[0], col, name_space, comment_space);
-        for (i= 1; i < count; i++)
+        for (i= 0; i < count; i++)
         {
-          col= print_comment(", ", col, name_space, comment_space);
+          my_bool skip_value= 0;
+          /* Do not print the value if it is listed in hidden_values */
+          if (optp->typelib->hidden_values)
+          {
+            for (const int *value= optp->typelib->hidden_values;
+                 *value >= 0; value++)
+            {
+              if (*value == (int)i)
+              {
+                skip_value= 1;
+                break;
+              }
+            }
+          }
+          if (skip_value)
+            continue;
+          if (printing_first)
+            printing_first= 0;
+          else
+            col= print_comment(", ", col, name_space, comment_space);
           col= print_comment(optp->typelib->type_names[i], col, name_space, comment_space);
         }
       }
-      if ((optp->var_type & GET_TYPE_MASK) == GET_SET)
+      if ((optp->var_type & GET_TYPE_MASK) == GET_SET && !skip_or_all_message)
         col= print_comment(", or ALL to set all combinations", col, name_space, comment_space);
       if (optp->deprecation_substitute != NULL)
       {

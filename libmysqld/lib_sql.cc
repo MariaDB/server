@@ -789,9 +789,21 @@ int check_embedded_connection(MYSQL *mysql, const char *db)
   sctx->proxy_user[0]= 0;
   sctx->master_access= GLOBAL_ACLS;       // Full rights
   emb_transfer_connect_attrs(mysql);
+
   /* Change database if necessary */
-  if (!(result= (db && db[0] && mysql_change_db(thd, &db_str, FALSE))))
+  result = 0;
+  if (db && db[0])
+  {
+    result = mysql_change_db(thd, &db_str, FALSE);
+    if (!result)
+    {
+      my_free(mysql->db);
+      mysql->db = my_strdup(PSI_NOT_INSTRUMENTED, db, MYF(0));
+    }
+  }
+  if (!result)
     my_ok(thd);
+ 
   thd->protocol->end_statement();
   emb_read_query_result(mysql);
   return result;

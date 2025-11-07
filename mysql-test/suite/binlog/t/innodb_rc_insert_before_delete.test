@@ -2,7 +2,6 @@
 --source include/have_debug.inc
 --source include/have_debug_sync.inc
 --source include/have_binlog_format_mixed.inc
---source include/count_sessions.inc
 
 RESET MASTER;
 
@@ -11,7 +10,7 @@ RESET MASTER;
 # supposed to:
 # https://mariadb.com/kb/en/unsafe-statements-for-statement-based-replication/#isolation-levels.
 # The original MDEV-30225 test is adapted to the RC to create
-# a similar safisticated scenario which does not lead to any deadlock though.
+# a similar sophisticated scenario which does not lead to any deadlock though.
 
 --connect (pause_purge,localhost,root)
 START TRANSACTION WITH CONSISTENT SNAPSHOT;
@@ -89,4 +88,3 @@ SELECT * FROM t;
 --disconnect pause_purge
 SET DEBUG_SYNC="RESET";
 DROP TABLE t;
---source include/wait_until_count_sessions.inc

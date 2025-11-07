@@ -257,6 +257,29 @@ public:
     Seconds_Behind_Master as zero while the SQL thread is so waiting.
   */
   bool sql_thread_caught_up;
+  /**
+    Simple setter for @ref worker_threads_caught_up;
+    sets it `false` to indicate new user events in queue
+    @pre @ref data_lock held to prevent race with is_threads_caught_up()
+  */
+  inline void unset_worker_threads_caught_up()
+  {
+    mysql_mutex_assert_owner(&data_lock);
+    worker_threads_caught_up= false;
+  }
+  /**
+    @return
+      `true` if both @ref sql_thread_caught_up and (refresh according to
+      @ref last_inuse_relaylog as needed) @ref worker_threads_caught_up
+    @pre Only meaningful if `mi->using_parallel()`
+    @pre @ref data_lock held to prevent race condition
+    @note
+      Parallel replication requires the idleness of the main SQL thread as well,
+      because after the thread sets its state to "busy" with `data_lock` held,
+      it enqueues events *without this lock*. Not to mention any event the main
+      thread processes itself without distribution, e.g., ignored ones.
+  */
+  bool are_sql_threads_caught_up();
 
   /* Last executed timestamp */
   my_time_t last_master_timestamp;
@@ -378,7 +401,7 @@ public:
   slave_connection_state ign_gtids;
 
   /* 
-    Indentifies where the SQL Thread should create temporary files for the
+    Identifies where the SQL Thread should create temporary files for the
     LOAD DATA INFILE. This is used for security reasons.
    */ 
   char slave_patternload_file[FN_REFLEN]; 
@@ -396,7 +419,7 @@ public:
   /*
     The restart_gtid_state is used when the SQL thread restarts on a relay log
     in GTID mode. In multi-domain parallel replication, each domain may have a
-    separat position, so some events in more progressed domains may need to be
+    separate position, so some events in more progressed domains may need to be
     skipped. This keeps track of the domains that have not yet reached their
     starting event.
   */
@@ -602,6 +625,22 @@ private:
     relay log.
   */
   uint32 m_flags;
+
+  /**
+    When `true`, this worker threads' copy of @ref sql_thread_caught_up
+    represents that __every__ worker thread is waiting for new events.
+    * The SQL driver thread sets this to `false` through
+      unset_worker_threads_caught_up() as it prepares an event
+      (either to enqueue a worker or, e.g., ignored events, process itself)
+    * For the main driver or any worker thread to refresh this state immediately
+      when it finishes, the procedure would have to be a critical section.
+      To avoid depending on a mutex, this state instead only returns to `true`
+      as part of its reader, are_worker_threads_caught_up().
+      `Seconds_Behind_Master` of SHOW SLAVE STATUS uses this method (which also
+      reads `sql_thread_caught_up`) to know when all SQL threads are waiting.
+    @pre Only meaningful if `mi->using_parallel()`
+  */
+  bool worker_threads_caught_up= true;
 };
 
 
@@ -917,7 +956,7 @@ struct rpl_group_info
   void reinit(Relay_log_info *rli);
 
   /* 
-     Returns true if the argument event resides in the containter;
+     Returns true if the argument event resides in the container;
      more specifically, the checking is done against the last added event.
   */
   bool is_deferred_event(Log_event * ev)

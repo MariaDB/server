@@ -69,7 +69,7 @@ BACKUP STAGE END;
 
 #
 --echo # MDEV-30423: dealock XA COMMIT vs BACKUP
-# Prove XA "COMPLETE" 'xid' does not dealock similary to the normal trx case.
+# Prove XA "COMPLETE" 'xid' does not dealock similarly to the normal trx case.
 # The slave binlog group commit leader is blocked by a local trx like in
 # the above normal trx case.
 # [Notice a reuse of t1,aux_conn from above.]

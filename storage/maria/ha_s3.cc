@@ -503,9 +503,9 @@ int ha_s3::rename_table(const char *from, const char *to)
         The table is renamed to a temporary table. This only happens
         in the case of an ALTER PARTITION failure and there will be soon
         a delete issued for the temporary table. The only thing we can do
-        is to remove the from table. We will get an extra errors for the
-        uppcoming but we will ignore this minor problem for now as this
-        is an unlikely event and the extra warnings are just annoying,
+        is to remove the "from" table. We will get extra errors for this
+        but we will ignore this minor problem for now as this
+        is an unlikely event and extra warnings are just annoying,
         not critical.
       */
       error= aria_delete_from_s3(s3_client, from_s3_info.bucket.str,
@@ -682,7 +682,8 @@ int ha_s3::open(const char *name, int mode, uint open_flags)
         Table is in S3. We have to modify the pagecache callbacks for the
         data file, index file and for bitmap handling.
       */
-      file->s->pagecache= &s3_pagecache;
+      file->s->pagecache= file->s->kfile.pagecache= file->dfile.pagecache=
+        &s3_pagecache;
       file->dfile.big_block_size= file->s->kfile.big_block_size=
         file->s->bitmap.file.big_block_size= file->s->base.s3_block_size;
       file->s->kfile.head_blocks= file->s->base.keystart / file->s->block_size;
@@ -868,7 +869,7 @@ static int s3_discover_table_existence(handlerton *hton, const char *db,
 /**
   Return a list of all S3 tables in a database
 
-  Partitoned tables are not shown
+  Partitioned tables are not shown
 */
 
 static int s3_discover_table_names(handlerton *hton __attribute__((unused)),
@@ -929,7 +930,7 @@ int ha_s3::discover_check_version()
   s3_info.tabledef_version= table->s->tabledef_version;
   /*
     We have to change the database and table as the table may part of a
-    partitoned table. In this case we want to check the frm file for the
+    partitioned table. In this case we want to check the frm file for the
     partitioned table, not the part table.
   */
   s3_info.base_table= table->s->table_name;

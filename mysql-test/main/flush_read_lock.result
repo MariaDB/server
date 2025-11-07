@@ -23,8 +23,8 @@ set local sql_mode="";
 # ALTER TABLE, ANALYZE, OPTIMIZE and some others always
 # issue an implicit commit, even if its argument is a
 # temporary table. 
-# *Howewer* an implicit commit is a no-op if all engines
-# used since the start of transactiona are non-
+# *However* an implicit commit is a no-op if all engines
+# used since the start of transaction are non-
 # transactional. Thus, for non-transactional engines,
 # these operations are not blocked by FTWRL.
 # This is class #3 -- compatible because do not take
@@ -50,19 +50,6 @@ set local sql_mode="";
 # check that DDL statements on temporary tables
 # are compatible with FTRWL. 
 call mtr.add_suppression("BINLOG_BASE64_EVENT: Error executing row event.*error code: 1223");
-drop tables if exists t1_base, t2_base, t3_trans;
-drop tables if exists tm_base, tm_base_temp;
-drop database if exists mysqltest1;
-# We're going to test ALTER DATABASE UPGRADE
-drop database if exists `#mysql50#mysqltest-2`;
-drop procedure if exists p1;
-drop function if exists f1;
-drop view if exists v1;
-drop procedure if exists p2;
-drop function if exists f2_base;
-drop function if exists f2_temp;
-drop event if exists e1;
-drop event if exists e2;
 create table t1_base(i int) engine=myisam;
 create table t2_base(j int) engine=myisam;
 create table t3_trans(i int) engine=innodb;
@@ -1463,7 +1450,7 @@ set debug_sync= "RESET";
 #       such changes are considered read only [sic!/QQ] this commit
 #       is compatible with FTWRL.
 #
-#       Let us demostrate this fact for some common DML statements.
+#       Let us demonstrate this fact for some common DML statements.
 Success: Was able to run 'delete from t3_temp_trans' under FTWRL.
 Success: Was able to run 'delete from t3_temp_trans' with FTWRL active in another connection.
 Success: Was able to run FTWRL while 'delete from t3_temp_trans' was active in another connection.
@@ -1654,7 +1641,7 @@ set debug_sync= "RESET";
 delete from t1_base;
 delete from t2_base;
 
-# Check that COMMIT thas is issued after
+# Check that COMMIT that is issued after
 # FLUSH TABLES WITH READ LOCK is not blocked by
 # FLUSH TABLES WITH READ LOCK from another connection.
 # This scenario is used in innobackup.pl. The COMMIT goes

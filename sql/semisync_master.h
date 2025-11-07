@@ -30,6 +30,7 @@ extern PSI_cond_key key_COND_binlog_send;
 
 struct Tranx_node {
   char              log_name[FN_REFLEN];
+  bool              thd_valid;             /* thd is valid for signalling */
   my_off_t          log_pos;
   THD               *thd;                   /* The thread awaiting an ACK */
   struct Tranx_node *next;            /* the next node in the sorted list */
@@ -126,7 +127,9 @@ public:
 
     trx_node= &(current_block->nodes[++last_node]);
     trx_node->log_name[0] = '\0';
+    trx_node->thd_valid= false;
     trx_node->log_pos= 0;
+    trx_node->thd= nullptr;
     trx_node->next= 0;
     trx_node->hash_next= 0;
     return trx_node;
@@ -298,7 +301,8 @@ private:
   its invocation. See the context in which it is called to know.
 */
 
-typedef int (*active_tranx_action)(THD *trx_thd, const char *log_file_name,
+typedef int (*active_tranx_action)(THD *trx_thd, bool thd_valid,
+                                   const char *log_file_name,
                                    my_off_t trx_log_file_pos);
 
 /**
@@ -381,8 +385,8 @@ public:
    * matches the thread of the respective Tranx_node::thd of the passed in
    * log_file_name and log_file_pos.
    */
-  bool is_thd_waiter(THD *thd_to_check, const char *log_file_name,
-                     my_off_t log_file_pos);
+  Tranx_node * is_thd_waiter(THD *thd_to_check, const char *log_file_name,
+                             my_off_t log_file_pos);
 
   /* Given a position, check to see whether the position is an active
    * transaction's ending position by probing the hash table.
@@ -526,7 +530,7 @@ class Repl_semi_sync_master
 
     If info_msg is provided, it will be output via sql_print_information when
     there are transactions awaiting ACKs; info_msg is not output if there are
-    no transasctions to await.
+    no transactions to await.
   */
   void await_all_slave_replies(const char *msg);
 
@@ -599,7 +603,7 @@ class Repl_semi_sync_master
   /*Wait for ACK after writing/sync binlog to file*/
   int wait_after_sync(const char* log_file, my_off_t log_pos);
 
-  /*Wait for ACK after commting the transaction*/
+  /*Wait for ACK after committing the transaction*/
   int wait_after_commit(THD* thd, bool all);
 
   /*Wait after the transaction is rollback*/
@@ -735,7 +739,7 @@ extern unsigned long long rpl_semi_sync_master_get_ack;
 /*
   This indicates whether we should keep waiting if no semi-sync slave
   is available.
-     0           : stop waiting if detected no avaialable semi-sync slave.
+     0           : stop waiting if detected no available semi-sync slave.
      1 (default) : keep waiting until timeout even no available semi-sync slave.
 */
 extern char rpl_semi_sync_master_wait_no_slave;

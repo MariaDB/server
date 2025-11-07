@@ -32,6 +32,9 @@
 #include <sys/mntent.h>
 #endif
 #endif
+#ifndef PATH_MAX
+#define PATH_MAX 4096
+#endif
 #include <sql_class.h>
 #include <sql_i_s.h>
 #include <sql_acl.h>                            /* check_global_access() */
@@ -39,7 +42,7 @@
 /*
   This intends to support *BSD's, macOS, Solaris, AIX, HP-UX, and Linux.
 
-  specificly:
+  specifically:
   FreeBSD/OpenBSD/DragonFly/macOS (statfs) NetBSD (statvfs) uses getmntinfo().
   Linux can use getmntent_r(), but we've just used getmntent for simplification.
   Linux/Solaris/AIX/HP-UX uses setmntent()/getmntent().

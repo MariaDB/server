@@ -1,5 +1,3 @@
-DROP TABLE IF EXISTS t1;
-DROP DATABASE IF EXISTS mysqltest2;
 #
 # Test for WL#4445: EXCHANGE PARTITION
 #
@@ -130,10 +128,10 @@ DATA DIRECTORY 'MYSQLTEST_VARDIR/tmp'
 Got one of the listed errors
 connection default;
 # user root (cleanup):
+disconnect con1;
 DROP DATABASE mysqltest2;
 USE test;
 DROP USER mysqltest_1@localhost;
-disconnect con1;
 create table t2 (i int )
 ENGINE = MyISAM
 partition by range (i)
@@ -156,8 +154,8 @@ data directory='/not/existing'
     index directory='/not/existing'
 );
 Warnings:
-Warning	1618	<DATA DIRECTORY> option ignored
-Warning	1618	<INDEX DIRECTORY> option ignored
+Warning	1618	DATA DIRECTORY option ignored
+Warning	1618	INDEX DIRECTORY option ignored
 show create table t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (

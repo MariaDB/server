@@ -281,10 +281,6 @@ C_MODE_END
 #error "Please add -fno-exceptions to CXXFLAGS and reconfigure/recompile"
 #endif
 
-#if defined(_lint) && !defined(lint)
-#define lint
-#endif
-
 #ifndef stdin
 #include <stdio.h>
 #endif
@@ -448,20 +444,17 @@ extern "C" int madvise(void *addr, size_t len, int behav);
 /*
    Suppress uninitialized variable warning without generating code.
 */
-#if defined(__GNUC__)
-/* GCC specific self-initialization which inhibits the warning. */
+#if defined(__GNUC__) && !defined(WITH_UBSAN)
+/*
+  GCC specific self-initialization which inhibits the warning.
+  clang and static analysis will complain loudly about this
+  so compile those under WITH_UBSAN.
+*/
 #define UNINIT_VAR(x) x= x
-#elif defined(_lint) || defined(FORCE_INIT_OF_VARS)
+#elif defined(FORCE_INIT_OF_VARS)
 #define UNINIT_VAR(x) x= 0
 #else
 #define UNINIT_VAR(x) x
-#endif
-
-/* This is only to be used when resetting variables in a class constructor */
-#if defined(_lint) || defined(FORCE_INIT_OF_VARS)
-#define LINT_INIT(x) x= 0
-#else
-#define LINT_INIT(x)
 #endif
 
 #if !defined(HAVE_UINT)
@@ -489,7 +482,7 @@ typedef unsigned short ushort;
 #include <my_alloca.h>
 
 /*
-  Wen using the embedded library, users might run into link problems,
+  When using the embedded library, users might run into link problems,
   duplicate declaration of __cxa_pure_virtual, solved by declaring it a
   weak symbol.
 */
@@ -505,7 +498,7 @@ C_MODE_END
 #endif
 
 /* We might be forced to turn debug off, if not turned off already */
-#if (defined(FORCE_DBUG_OFF) || defined(_lint)) && !defined(DBUG_OFF)
+#if defined(FORCE_DBUG_OFF) && !defined(DBUG_OFF)
 #  define DBUG_OFF
 #  ifdef DBUG_ON
 #    undef DBUG_ON
@@ -527,7 +520,7 @@ typedef int	my_socket;	/* File descriptor for sockets */
 #endif
 /* Type for functions that handles signals */
 #define sig_handler RETSIGTYPE
-#if defined(__GNUC__) && !defined(_lint)
+#if defined(__GNUC__)
 typedef char	pchar;		/* Mixed prototypes can take char */
 typedef char	puchar;		/* Mixed prototypes can take char */
 typedef char	pbool;		/* Mixed prototypes can take char */
@@ -684,14 +677,16 @@ typedef SOCKET_SIZE_TYPE size_socket;
 */
 #define MALLOC_OVERHEAD (8+24)
 
-	/* get memory in huncs */
+	/* get memory in hunks */
 #define ONCE_ALLOC_INIT		(uint) 4096
 	/* Typical record cache */
 #define RECORD_CACHE_SIZE	(uint) (128*1024)
 	/* Typical key cache */
-#define KEY_CACHE_SIZE		(uint) (128L*1024L*1024L)
+#define KEY_CACHE_SIZE		(ulong) (128L*1024L*1024L)
 	/* Default size of a key cache block  */
 #define KEY_CACHE_BLOCK_SIZE	(uint) 1024
+        /* Min resonable key cache size, only for testing */
+#define MIN_KEY_CACHE_SIZE      8192*16L
 
 	/* Some things that this system doesn't have */
 
@@ -1035,7 +1030,7 @@ typedef ulong		myf;	/* Type of MyFlags in my_funcs */
 #define YESNO(X) ((X) ? "yes" : "no")
 
 #define MY_HOW_OFTEN_TO_ALARM	2	/* How often we want info on screen */
-#define MY_HOW_OFTEN_TO_WRITE	10000	/* How often we want info on screen */
+#define MY_HOW_OFTEN_TO_WRITE	100000	/* How often we want info on screen */
 
 #include <my_byteorder.h>
 

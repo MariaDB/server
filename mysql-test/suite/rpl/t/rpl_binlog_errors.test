@@ -54,7 +54,7 @@ call mtr.add_suppression("Could not use master-bin for logging");
 SET @old_debug= @@global.debug_dbug;
 
 ### ACTION: create a large file (> 4096 bytes) that will be later used
-###         in LOAD DATA INFILE to check binlog errors in its vacinity
+###         in LOAD DATA INFILE to check binlog errors in its vicinity
 -- let $load_file= $MYSQLTEST_VARDIR/tmp/bug_46166.data
 -- let $MYSQLD_DATADIR= `select @@datadir`
 -- replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR

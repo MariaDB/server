@@ -893,8 +893,9 @@ def	information_schema	COLLATIONS	COLLATIONS	ID	Id	8	11	2	Y	36864	0	63
 def	information_schema	COLLATIONS	COLLATIONS	IS_DEFAULT	Default	253	9	0	Y	4096	0	33
 def	information_schema	COLLATIONS	COLLATIONS	IS_COMPILED	Compiled	253	9	3	N	4097	0	33
 def	information_schema	COLLATIONS	COLLATIONS	SORTLEN	Sortlen	8	3	1	N	36865	0	63
-Collation	Charset	Id	Default	Compiled	Sortlen
-latin1_bin	latin1	47		Yes	1
+def	information_schema	COLLATIONS	COLLATIONS	PAD_ATTRIBUTE	Pad_attribute	254	9	9	N	4353	0	33
+Collation	Charset	Id	Default	Compiled	Sortlen	Pad_attribute
+latin1_bin	latin1	47		Yes	1	PAD SPACE
 ----------------------------------------------------------------
 SHOW CREATE DATABASE mysqltest1;
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
@@ -1018,7 +1019,7 @@ c	int(11)	NO	PRI	NULL
 SHOW TRIGGERS LIKE 't1';
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
 def	information_schema	TRIGGERS	TRIGGERS	TRIGGER_NAME	Trigger	253	192	5	N	4097	0	33
-def	information_schema	TRIGGERS	TRIGGERS	EVENT_MANIPULATION	Event	253	18	6	N	4097	0	33
+def	information_schema	TRIGGERS	TRIGGERS	EVENT_MANIPULATION	Event	253	60	6	N	4097	0	33
 def	information_schema	TRIGGERS	TRIGGERS	EVENT_OBJECT_TABLE	Table	253	192	2	N	4097	0	33
 def	information_schema	TRIGGERS	TRIGGERS	ACTION_STATEMENT	Statement	252	589815	10	N	4113	0	33
 def	information_schema	TRIGGERS	TRIGGERS	ACTION_TIMING	Timing	253	18	6	N	4097	0	33
@@ -1055,7 +1056,7 @@ Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is
 def	information_schema	TRIGGERS	TRIGGERS	TRIGGER_CATALOG	TRIGGER_CATALOG	253	1536	3	N	4097	0	33
 def	information_schema	TRIGGERS	TRIGGERS	TRIGGER_SCHEMA	TRIGGER_SCHEMA	253	192	4	N	4097	0	33
 def	information_schema	TRIGGERS	TRIGGERS	TRIGGER_NAME	TRIGGER_NAME	253	192	5	N	4097	0	33
-def	information_schema	TRIGGERS	TRIGGERS	EVENT_MANIPULATION	EVENT_MANIPULATION	253	18	6	N	4097	0	33
+def	information_schema	TRIGGERS	TRIGGERS	EVENT_MANIPULATION	EVENT_MANIPULATION	253	60	6	N	4097	0	33
 def	information_schema	TRIGGERS	TRIGGERS	EVENT_OBJECT_CATALOG	EVENT_OBJECT_CATALOG	253	1536	3	N	4097	0	33
 def	information_schema	TRIGGERS	TRIGGERS	EVENT_OBJECT_SCHEMA	EVENT_OBJECT_SCHEMA	253	192	4	N	4097	0	33
 def	information_schema	TRIGGERS	TRIGGERS	EVENT_OBJECT_TABLE	EVENT_OBJECT_TABLE	253	192	2	N	4097	0	33

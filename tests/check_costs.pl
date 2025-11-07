@@ -483,7 +483,7 @@ sub table_scan_with_complex_where()
 "select sum(l_quantity) from $table where l_commitDate >= '2000-01-01' and l_quantity*l_extendedprice-l_discount+l_tax > 0.0");
 }
 
-# Calculate the time spent for table accesses (done with analyze statment)
+# Calculate the time spent for table accesses (done with analyze statement)
 
 # Table scan
 
@@ -862,7 +862,7 @@ sub run_query_with_analyze()
     {
         # Add the cost of the where for the two tables. The last table
         # is assumed to have $expected_rows while the first (driving table)
-        # may have less rows. Take that into account when calculalting the
+        # may have less rows. Take that into account when calculating the
         # total where cost.
         $local_where_cost= ($local_where_cost +
                             $local_where_cost *

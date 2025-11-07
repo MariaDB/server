@@ -431,7 +431,8 @@ ANALYZE
       "rows": 1000,
       "r_rows": 1000,
       "r_total_filtered": 100,
-      "r_total_time_ms": "REPLACED",
+      "r_table_time_ms": "REPLACED",
+      "r_other_time_ms": "REPLACED",
       "r_engine_stats": REPLACED,
       "r_filtered": 100
     }
@@ -499,7 +500,8 @@ ANALYZE
       "rows": 10,
       "r_rows": 10,
       "r_total_filtered": 50,
-      "r_total_time_ms": "REPLACED",
+      "r_table_time_ms": "REPLACED",
+      "r_other_time_ms": "REPLACED",
       "r_engine_stats": REPLACED,
       "attached_condition": "t1.pk < 10 and t1.b > 4",
       "r_filtered": 50
@@ -1029,7 +1031,7 @@ ANALYZE
             ],
             "subqueries": [
               {
-                "expression_cache": {
+                "subquery_cache": {
                   "state": "uninitialized",
                   "r_loops": 0,
                   "query_block": {
@@ -1130,7 +1132,7 @@ ANALYZE
     ],
     "subqueries": [
       {
-        "expression_cache": {
+        "subquery_cache": {
           "state": "uninitialized",
           "r_loops": 0,
           "query_block": {
@@ -1765,3 +1767,125 @@ ANALYZE
   }
 }
 drop table t12,t13;
+#
+# MDEV-33309: ANALYZE FORMAT=JSON: UPDATE|DELETE don't show r_other_time_ms
+#
+create table t1 (pk int primary key, a int);
+insert into t1 select seq, seq from seq_1_to_1000;
+create table t2 like t1;
+insert into t2 select * from t1;
+# Top-level query block must have r_table_time_ms and r_other_time_ms
+analyze format=json 
+update t1 set a=a+1 
+where t1.pk > (select max(a) from t2 where t2.pk+1 = t1.pk+1 ) - 10;
+ANALYZE
+{
+  "query_optimization": {
+    "r_total_time_ms": "REPLACED"
+  },
+  "query_block": {
+    "select_id": 1,
+    "r_total_time_ms": "REPLACED",
+    "table": {
+      "update": 1,
+      "table_name": "t1",
+      "access_type": "ALL",
+      "rows": 1000,
+      "r_rows": 1000,
+      "r_total_filtered": 100,
+      "r_table_time_ms": "REPLACED",
+      "r_other_time_ms": "REPLACED",
+      "r_engine_stats": REPLACED,
+      "attached_condition": "t1.pk > (subquery#2) - 10",
+      "r_filtered": 100
+    },
+    "subqueries": [
+      {
+        "query_block": {
+          "select_id": 2,
+          "cost": "REPLACED",
+          "r_loops": 1000,
+          "r_total_time_ms": "REPLACED",
+          "nested_loop": [
+            {
+              "table": {
+                "table_name": "t2",
+                "access_type": "ALL",
+                "loops": 1,
+                "r_loops": 1000,
+                "rows": 1000,
+                "r_rows": 1000,
+                "cost": "REPLACED",
+                "r_table_time_ms": "REPLACED",
+                "r_other_time_ms": "REPLACED",
+                "r_engine_stats": REPLACED,
+                "filtered": 100,
+                "r_total_filtered": 0.1,
+                "attached_condition": "t2.pk + 1 = t1.pk + 1",
+                "r_filtered": 0.1
+              }
+            }
+          ]
+        }
+      }
+    ]
+  }
+}
+# Top-level query block must have r_table_time_ms and r_other_time_ms
+analyze format=json 
+delete from t1 
+where t1.pk > (select max(a) from t2 where t2.pk+1 = t1.pk+1 ) - 10;
+ANALYZE
+{
+  "query_optimization": {
+    "r_total_time_ms": "REPLACED"
+  },
+  "query_block": {
+    "select_id": 1,
+    "r_total_time_ms": "REPLACED",
+    "table": {
+      "delete": 1,
+      "table_name": "t1",
+      "access_type": "ALL",
+      "rows": 1000,
+      "r_rows": 1000,
+      "r_total_filtered": 100,
+      "r_table_time_ms": "REPLACED",
+      "r_other_time_ms": "REPLACED",
+      "r_engine_stats": REPLACED,
+      "attached_condition": "t1.pk > (subquery#2) - 10",
+      "r_filtered": 100
+    },
+    "subqueries": [
+      {
+        "query_block": {
+          "select_id": 2,
+          "cost": "REPLACED",
+          "r_loops": 1000,
+          "r_total_time_ms": "REPLACED",
+          "nested_loop": [
+            {
+              "table": {
+                "table_name": "t2",
+                "access_type": "ALL",
+                "loops": 1,
+                "r_loops": 1000,
+                "rows": 1000,
+                "r_rows": 1000,
+                "cost": "REPLACED",
+                "r_table_time_ms": "REPLACED",
+                "r_other_time_ms": "REPLACED",
+                "r_engine_stats": REPLACED,
+                "filtered": 100,
+                "r_total_filtered": 0.1,
+                "attached_condition": "t2.pk + 1 = t1.pk + 1",
+                "r_filtered": 0.1
+              }
+            }
+          ]
+        }
+      }
+    ]
+  }
+}
+drop table t1, t2;

@@ -1,9 +1,15 @@
 --source include/have_innodb.inc
+--source include/have_debug.inc
+--source include/have_debug_sync.inc
 
 --disable_query_log
 call mtr.add_suppression("InnoDB: Transaction was aborted due to ");
 --enable_query_log
 
+--connect disable_purging,localhost,root
+START TRANSACTION WITH CONSISTENT SNAPSHOT;
+
+--connection default
 --echo #
 --echo # MDEV-26642 Weird SELECT view when a record is
 --echo #            modified to the same value by two transactions
@@ -42,22 +48,18 @@ DROP TABLE t;
 --echo #            READ UNCOMMITTED and READ COMMITTED isolation level
 --echo #
 
-CREATE TABLE t(a INT, b INT) ENGINE=InnoDB;
+CREATE TABLE t(a INT, b INT) ENGINE=InnoDB STATS_PERSISTENT=0;
 INSERT INTO t VALUES(NULL, 1), (2, 2);
 SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;
 BEGIN; UPDATE t SET a = 10;
 
 --connection consistent
 SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;
+SET DEBUG_SYNC="lock_wait_before_suspend SIGNAL select_blocked";
 --send UPDATE t SET b = 20 WHERE a
 
 --connection default
-let $wait_condition=
-  select count(*) = 1 from information_schema.processlist
-  where state = 'Updating'
-  and info = 'UPDATE t SET b = 20 WHERE a';
---source include/wait_condition.inc
-
+SET DEBUG_SYNC="now WAIT_FOR select_blocked";
 COMMIT;
 
 --connection consistent
@@ -71,14 +73,11 @@ BEGIN; UPDATE t SET a = 10;
 
 --connection consistent
 SET TRANSACTION ISOLATION LEVEL READ COMMITTED;
+SET DEBUG_SYNC="lock_wait_before_suspend SIGNAL select_blocked";
 --send UPDATE t SET b = 20 WHERE a
 
 --connection default
-let $wait_condition=
-  select count(*) = 1 from information_schema.processlist
-  where info = 'UPDATE t SET b = 20 WHERE a';
---source include/wait_condition.inc
-
+SET DEBUG_SYNC="now WAIT_FOR select_blocked";
 COMMIT;
 
 --connection consistent
@@ -92,15 +91,11 @@ BEGIN; UPDATE t SET a = 10;
 
 --connection con_weird
 SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;
+SET DEBUG_SYNC="lock_wait_before_suspend SIGNAL select_blocked";
 send UPDATE t SET b = 20 WHERE a;
 
 --connection default
-let $wait_condition=
-  select count(*) = 1 from information_schema.processlist
-  where state = 'Updating'
-  and info = 'UPDATE t SET b = 20 WHERE a';
---source include/wait_condition.inc
-
+SET DEBUG_SYNC="now WAIT_FOR select_blocked";
 SELECT * FROM t;
 COMMIT;
 
@@ -124,14 +119,11 @@ SET TRANSACTION ISOLATION LEVEL READ COMMITTED;
 BEGIN;
 # As semi-consistent read is disabled for innodb_snapshot_isolation=ON, the
 # following UPDATE must be blocked on the first record.
+SET DEBUG_SYNC="lock_wait_before_suspend SIGNAL select_blocked";
 --send UPDATE t SET b = 2 WHERE a
 
 --connection default
-let $wait_condition=
-  select count(*) = 1 from information_schema.processlist
-  where state = 'Updating' and info = 'UPDATE t SET b = 2 WHERE a';
---source include/wait_condition.inc
-
+SET DEBUG_SYNC="now WAIT_FOR select_blocked";
 UPDATE t SET a = 1;
 COMMIT;
 --connection consistent
@@ -150,13 +142,15 @@ DROP TABLE t;
 --echo # MDEV-33802 Weird read view after ROLLBACK of other transactions
 --echo #
 
-CREATE TABLE t(a INT PRIMARY KEY, b INT UNIQUE) ENGINE=InnoDB;
-INSERT INTO t SET a=1;
-
-BEGIN; INSERT INTO t SET a=2;
+CREATE TABLE t(a INT PRIMARY KEY, b INT UNIQUE) ENGINE=InnoDB STATS_PERSISTENT=0;
 
 --connection consistent
 START TRANSACTION WITH CONSISTENT SNAPSHOT;
+
+--connection default
+INSERT INTO t SET a=1;
+
+--connection consistent
 SAVEPOINT sp1;
 --disable_ps2_protocol
 --error ER_CHECKREAD
@@ -164,29 +158,151 @@ SELECT * FROM t FORCE INDEX (b) FOR UPDATE;
 --enable_ps2_protocol
 SAVEPOINT sp1;
 
+--connection default
+BEGIN; INSERT INTO t SET a=2;
+
 --connection con_weird
 START TRANSACTION WITH CONSISTENT SNAPSHOT;
-send
-SELECT * FROM t FORCE INDEX (b) FOR UPDATE;
+SET DEBUG_SYNC="lock_wait_before_suspend SIGNAL select_blocked";
+--send SELECT * FROM t FORCE INDEX (b) FOR UPDATE
 
 --connection default
-let $wait_condition=
-  select count(*) = 1 from information_schema.processlist
-  where state = 'Sending data'
-  and info LIKE 'SELECT * FROM t %';
---source include/wait_condition.inc
+SET DEBUG_SYNC="now WAIT_FOR select_blocked";
 ROLLBACK;
 
 --connection con_weird
 --reap
 SELECT * FROM t FORCE INDEX (b) FOR UPDATE;
---disconnect con_weird
+COMMIT;
 
 --connection consistent
 SELECT * FROM t FORCE INDEX (b) FOR UPDATE;
---disconnect consistent
+COMMIT;
 
 --connection default
+TRUNCATE TABLE t;
+
+--echo #
+--echo # MDEV-36639 innodb_snapshot_isolation=1 gives error for not comitted row changes
+--echo #
+INSERT INTO t VALUES (1,1),(2,2);
+
+--connection default
+--echo # Case 1: Transaction A modifies a record, transaction B with snapshot
+--echo # isolation level is blocked by A, then A is committed.
+--echo # Expected behaviour: B gets ER_CHECKREAD.
+BEGIN;
+UPDATE t SET b=3 WHERE a = 1;
+
+--connection consistent
+SET TRANSACTION ISOLATION LEVEL REPEATABLE READ;
+BEGIN;
+SELECT * FROM t;
+SET DEBUG_SYNC="lock_wait_before_suspend SIGNAL select_blocked";
+--send SELECT * FROM t WHERE a=1 FOR UPDATE
+
+--connection default
+SET DEBUG_SYNC="now WAIT_FOR select_blocked";
+COMMIT;
+
+--connection consistent
+--error ER_CHECKREAD
+--reap
+
+--echo # Case 2: Transaction A modifies a record, transaction B with snapshot
+--echo # isolation level is blocked by A, then A is rolled back.
+--echo # Expected behaviour: B continues execution.
+
+--connection default
+BEGIN;
+UPDATE t SET b=4 WHERE a=1;
+
+--connection consistent
+BEGIN;
+SELECT * FROM t;
+SET DEBUG_SYNC="lock_wait_before_suspend SIGNAL select_blocked";
+--send SELECT * FROM t WHERE a=1 FOR UPDATE
+
+--connection default
+SET DEBUG_SYNC="now WAIT_FOR select_blocked";
+ROLLBACK;
+
+--connection consistent
+--reap
+ROLLBACK;
+
+--echo # Case 3: Transaction B with snapshot isolation level started with
+--echo # consistent snapshot. Transaction A modifies a record and is committed.
+--echo # Both B tries to read modified by A record.
+--echo # Expected behavior: B gets ER_CHECKREAD.
+
+--connection consistent
+START TRANSACTION WITH CONSISTENT SNAPSHOT;
+
+--connection default
+UPDATE t SET b=4 WHERE a=1;
+
+--connection consistent
+--error ER_CHECKREAD
+SELECT * FROM t WHERE a=1 FOR UPDATE;
+--disconnect disable_purging
+
+--connection default
+SET DEBUG_SYNC="RESET";
 DROP TABLE t;
+
+CREATE TABLE t1(a INT) ENGINE=InnoDB STATS_PERSISTENT=0;
+CREATE TABLE t2(a INT) ENGINE=InnoDB STATS_PERSISTENT=0;
+BEGIN; INSERT INTO t1 SET a=1;
+--connection con_weird
+SET TRANSACTION ISOLATION LEVEL SERIALIZABLE;
+BEGIN; INSERT INTO t2 SET a=1;
+--connection consistent
+SET TRANSACTION ISOLATION LEVEL SERIALIZABLE;
+BEGIN; INSERT INTO t2 SET a=2;
+--connection default
+COMMIT;
+--connection con_weird
+SELECT * FROM t1;
+COMMIT;
+--connection consistent
+--disable_ps2_protocol
+--error ER_CHECKREAD
+SELECT * FROM t1;
+--enable_ps2_protocol
+COMMIT;
+--connection default
+BEGIN; INSERT INTO t1 SET a=2;
+--connection con_weird
+SET TRANSACTION ISOLATION LEVEL SERIALIZABLE;
+START TRANSACTION WITH CONSISTENT SNAPSHOT; INSERT INTO t2 SET a=3;
+--connection consistent
+SET TRANSACTION ISOLATION LEVEL SERIALIZABLE;
+START TRANSACTION WITH CONSISTENT SNAPSHOT; INSERT INTO t2 SET a=2;
+--connection default
+COMMIT;
+--connection con_weird
+SELECT * FROM t1;
+COMMIT;
+--disconnect con_weird
+--connection consistent
+--disable_ps2_protocol
+--error ER_CHECKREAD
+SELECT * FROM t1;
+--enable_ps2_protocol
+COMMIT;
+--disconnect consistent
+--connection default
+DROP TABLE t1,t2;
+
+--echo #
+--echo # MDEV-37215 SELECT...FOR UPDATE crash under SERIALIZABLE
+--echo #
+
+SET SESSION TRANSACTION ISOLATION LEVEL SERIALIZABLE;
+CREATE TABLE t1(a INT PRIMARY KEY) ENGINE=InnoDB;
+SELECT * FROM t1 FOR UPDATE;
+DROP TABLE t1;
+SET SESSION TRANSACTION ISOLATION LEVEL REPEATABLE READ;
 
 --echo # End of 10.6 tests

@@ -15,8 +15,8 @@ MACRO(BUNDLE_LIBFMT)
   ExternalProject_Add(
     libfmt
     PREFIX   "${dir}"
-    URL      "https://github.com/fmtlib/fmt/releases/download/11.0.2/fmt-11.0.2.zip"
-    URL_MD5 c622dca45ec3fc95254c48370a9f7a1d
+    URL "https://github.com/fmtlib/fmt/releases/download/12.0.0/fmt-12.0.0.zip"
+    URL_MD5 9bd04e6e8c5b1733e4eefb473604219d
     INSTALL_COMMAND ""
     CONFIGURE_COMMAND ""
     BUILD_COMMAND ""
@@ -28,15 +28,14 @@ MACRO (CHECK_LIBFMT)
   IF(WITH_LIBFMT STREQUAL "system" OR WITH_LIBFMT STREQUAL "auto")
     SET(CMAKE_REQUIRED_INCLUDES ${LIBFMT_INCLUDE_DIR})
     CHECK_CXX_SOURCE_RUNS(
-    "#define FMT_STATIC_THOUSANDS_SEPARATOR ','
-     #define FMT_HEADER_ONLY 1
+    "#define FMT_HEADER_ONLY 1
      #include <fmt/args.h>
      int main() {
        using ArgStore= fmt::dynamic_format_arg_store<fmt::format_context>;
        ArgStore arg_store;
        int answer= 4321;
        arg_store.push_back(answer);
-       return fmt::vformat(\"{:L}\", arg_store).compare(\"4,321\");
+       return fmt::vformat(\"{}\", arg_store).compare(\"4321\");
      }" HAVE_SYSTEM_LIBFMT)
     SET(CMAKE_REQUIRED_INCLUDES)
   ENDIF()

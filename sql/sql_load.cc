@@ -191,7 +191,7 @@ class READ_INFO: public Load_data_param
     For example, suppose we have an ujis file with bytes 0x8FA10A, where:
     - 0x8FA1 is an incomplete prefix of a 3-byte character
       (it should be [8F][A1-FE][A1-FE] to make a full 3-byte character)
-    - 0x0A is a line demiliter
+    - 0x0A is a line delimiter
     This file has some broken data, the trailing [A1-FE] is missing.
 
     In this example it works as follows:
@@ -419,9 +419,9 @@ int mysql_load(THD *thd, const sql_exchange *ex, TABLE_LIST *table_list,
                                     thd->lex->first_select_lex()->leaf_tables,
                                     FALSE,
                                     INSERT_ACL | UPDATE_ACL,
-                                    INSERT_ACL | UPDATE_ACL, FALSE))
+                                    INSERT_ACL | UPDATE_ACL, false))
      DBUG_RETURN(-1);
-  if (!table_list->table ||               // do not suport join view
+  if (!table_list->table ||               // do not support join view
       !table_list->single_table_updatable() || // and derived tables
       check_key_in_view(thd, table_list))
   {
@@ -684,14 +684,9 @@ int mysql_load(THD *thd, const sql_exchange *ex, TABLE_LIST *table_list,
     thd->abort_on_warning= !ignore && thd->is_strict_mode();
     thd->get_stmt_da()->reset_current_row_for_warning(1);
 
-    bool create_lookup_handler= handle_duplicates != DUP_ERROR;
-    if ((table_list->table->file->ha_table_flags() & HA_DUPLICATE_POS))
-    {
-      create_lookup_handler= true;
-      if ((error= table_list->table->file->ha_rnd_init_with_error(0)))
-        goto err;
-    }
-    table->file->prepare_for_modify(true, create_lookup_handler);
+    if (prepare_for_replace(table, info.handle_duplicates, info.ignore))
+      DBUG_RETURN(1);
+
     thd_progress_init(thd, 2);
     fix_rownum_pointers(thd, thd->lex->current_select, &info.copied);
     if (table_list->table->validate_default_values_of_unset_fields(thd))
@@ -712,8 +707,8 @@ int mysql_load(THD *thd, const sql_exchange *ex, TABLE_LIST *table_list,
                             set_fields, set_values, read_info,
                             *ex->enclosed, skip_lines, ignore);
 
-    if (table_list->table->file->ha_table_flags() & HA_DUPLICATE_POS)
-      table_list->table->file->ha_rnd_end();
+    if (unlikely(finalize_replace(table, handle_duplicates, ignore)))
+      DBUG_RETURN(1);
 
     thd_proc_info(thd, "End bulk insert");
     if (likely(!error))
@@ -861,6 +856,8 @@ err:
               thd->transaction->stmt.modified_non_trans_table);
   table->file->ha_release_auto_increment();
   table->auto_increment_field_not_null= FALSE;
+  if (thd->tmp_table_binlog_handled)
+    table->mark_as_not_binlogged(); 		// tmp table changes are not in binlog
   thd->abort_on_warning= 0;
   DBUG_RETURN(error);
 }
@@ -996,6 +993,7 @@ static bool write_execute_load_query_log_event(THD *thd, const sql_exchange* ex,
   if (!(load_data_query= (char *)thd->strmake(query_str.ptr(), query_str.length())))
     return TRUE;
 
+  thd->tmp_table_binlog_handled= 1;
   Execute_load_query_log_event
     e(thd, load_data_query, query_str.length(),
       (uint) (fname_start - 1), (uint) fname_end,
@@ -1008,7 +1006,7 @@ static bool write_execute_load_query_log_event(THD *thd, const sql_exchange* ex,
 #endif
 
 /****************************************************************************
-** Read of rows of fixed size + optional garage + optonal newline
+** Read of rows of fixed size + optional garage + optional newline
 ****************************************************************************/
 
 static int
@@ -1029,6 +1027,8 @@ read_fixed_length(THD *thd, COPY_INFO &info, TABLE_LIST *table_list,
   progress_reports= 1;
   if ((thd->progress.max_counter= read_info.file_length()) == ~(my_off_t) 0)
     progress_reports= 0;
+
+  Write_record write(thd, table, &info, NULL);
 
   while (!read_info.read_fixed_length())
   {
@@ -1080,7 +1080,7 @@ read_fixed_length(THD *thd, COPY_INFO &info, TABLE_LIST *table_list,
         uchar save_chr;
         if ((length=(uint) (read_info.row_end - pos)) > fixed_length)
           length= fixed_length;
-        save_chr= pos[length]; pos[length]= '\0'; // Safeguard aganst malloc
+        save_chr= pos[length]; pos[length]= '\0'; // Safeguard against malloc
         dst->load_data_set_value(thd, (const char *) pos, length, &read_info);
         pos[length]= save_chr;
         if ((pos+= length) > read_info.row_end)
@@ -1112,7 +1112,7 @@ read_fixed_length(THD *thd, COPY_INFO &info, TABLE_LIST *table_list,
     }
 
     if (!trg_skip_row)
-      err= write_record(thd, table, &info);
+      err= write.write_record();
     table->auto_increment_field_not_null= FALSE;
     if (err)
       DBUG_RETURN(1);
@@ -1160,6 +1160,8 @@ read_sep_field(THD *thd, COPY_INFO &info, TABLE_LIST *table_list,
   progress_reports= 1;
   if ((thd->progress.max_counter= read_info.file_length()) == ~(my_off_t) 0)
     progress_reports= 0;
+
+  Write_record write(thd, table, &info, NULL);
 
   for (;;it.rewind())
   {
@@ -1270,7 +1272,7 @@ read_sep_field(THD *thd, COPY_INFO &info, TABLE_LIST *table_list,
       DBUG_RETURN(-1);
     }
 
-    err= write_record(thd, table, &info);
+    err= write.write_record();
     table->auto_increment_field_not_null= FALSE;
     if (err)
       DBUG_RETURN(1);
@@ -1314,7 +1316,9 @@ read_xml_field(THD *thd, COPY_INFO &info, TABLE_LIST *table_list,
   DBUG_ENTER("read_xml_field");
   
   no_trans_update_stmt= !table->file->has_transactions_and_rollback();
-  
+
+  Write_record write(thd, table, &info, NULL);
+
   for ( ; ; it.rewind())
   {
     bool err;
@@ -1398,7 +1402,7 @@ read_xml_field(THD *thd, COPY_INFO &info, TABLE_LIST *table_list,
       DBUG_RETURN(-1);
     }
     
-    err= write_record(thd, table, &info);
+    err= write.write_record();
     table->auto_increment_field_not_null= false;
     if (err)
       DBUG_RETURN(1);
@@ -1420,7 +1424,7 @@ read_xml_field(THD *thd, COPY_INFO &info, TABLE_LIST *table_list,
 char
 READ_INFO::unescape(char chr)
 {
-  /* keep this switch synchornous with the ESCAPE_CHARS macro */
+  /* keep this switch synchronous with the ESCAPE_CHARS macro */
   switch(chr) {
   case 'n': return '\n';
   case 't': return '\t';

@@ -105,7 +105,7 @@ private:
   */
   entry *m_free;
 
-  /* Correspondance between an id (a number) and a TABLE object */
+  /* Correspondence between an id (a number) and a TABLE object */
   HASH m_table_ids;
 };
 

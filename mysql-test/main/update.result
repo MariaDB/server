@@ -288,7 +288,7 @@ update t1 set a=9999 order by a limit 1;
 update t1 set b=9999 order by a limit 1;
 show status like 'handler_read%';
 Variable_name	Value
-Handler_read_first	1
+Handler_read_first	2
 Handler_read_key	0
 Handler_read_last	0
 Handler_read_next	0
@@ -296,7 +296,7 @@ Handler_read_prev	0
 Handler_read_retry	0
 Handler_read_rnd	2
 Handler_read_rnd_deleted	0
-Handler_read_rnd_next	9
+Handler_read_rnd_next	0
 flush status;
 delete from t1 order by a limit 1;
 show status like 'handler_read%';
@@ -916,6 +916,15 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t1	range	b	b	5	NULL	3	Using where
 2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	20000	
 drop table t1, t2;
+#
+# MDEV-35662 Assertion failure in diagnostics area upon EXPLAIN UPDATE
+#
+CREATE TABLE t1 (a INT);
+CREATE TABLE t2 (b INET6);
+INSERT INTO t2 VALUES ('::'),('::');
+EXPLAIN UPDATE t1 SET a = 10 WHERE a IN (SELECT b FROM t2) ORDER BY a LIMIT 1;
+ERROR HY000: Illegal parameter data types int and inet6 for operation '='
+DROP TABLE t1, t2;
 # End of 11.7 tests
 ALTER DATABASE test CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci;
 # MDEV-35955 Wrong result for UPDATE ... ORDER BY LIMIT which uses tmp.table

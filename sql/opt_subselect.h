@@ -117,6 +117,7 @@ public:
            bound
         5. But some of the IN-equalities aren't (so this can't be handled by 
            FirstMatch strategy)
+        6. LooseScan strategy is enabled for this SJ nest
     */
     best_loose_scan_cost= DBL_MAX;
     if (!join->emb_sjm_nest && s->emb_sj_nest &&                        // (1)
@@ -127,7 +128,8 @@ public:
         !(remaining_tables & 
           s->emb_sj_nest->nested_join->sj_corr_tables) &&               // (4)
         remaining_tables & s->emb_sj_nest->nested_join->sj_depends_on &&// (5)
-        optimizer_flag(join->thd, OPTIMIZER_SWITCH_LOOSE_SCAN))
+        (s->emb_sj_nest->nested_join->sj_enabled_strategies &           // (6)
+          OPTIMIZER_SWITCH_LOOSE_SCAN))
     {
       /* This table is an LooseScan scan candidate */
       bound_sj_equalities= get_bound_sj_equalities(s->emb_sj_nest, 
@@ -238,7 +240,7 @@ public:
         /*
           Now find out how many different keys we will get (for now we
           ignore the fact that we have "keypart_i=const" restriction for
-          some key components, that may make us think think that loose
+          some key components, that may make us think that loose
           scan will produce more distinct records than it actually will)
         */
         ulong rpc;

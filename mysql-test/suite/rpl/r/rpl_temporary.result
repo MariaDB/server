@@ -1,5 +1,6 @@
 SET sql_log_bin = 0;
 SET sql_log_bin = 1;
+set @@binlog_format="statement";
 include/master-slave.inc
 [connection master]
 connection slave;
@@ -84,6 +85,7 @@ select * from t2 ORDER BY f;
 f
 5
 7
+disconnect con3;
 drop table t1, t2;
 drop user zedjzlcsjhd@localhost;
 use test;

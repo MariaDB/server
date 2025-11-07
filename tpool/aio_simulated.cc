@@ -154,11 +154,58 @@ public:
 
   int bind(native_file_handle &fd) override { return 0; }
   int unbind(const native_file_handle &fd) override { return 0; }
+  const char *get_implementation() const override { return "simulated"; }
 };
 
 aio *create_simulated_aio(thread_pool *tp)
 {
   return new simulated_aio(tp);
+}
+
+void aio::finish_synchronous(aiocb *cb)
+{
+  if (!cb->m_err && cb->m_ret_len != cb->m_len)
+  {
+    /* partial read/write */
+    cb->m_buffer= (char *) cb->m_buffer + cb->m_ret_len;
+    cb->m_len-= (unsigned int) cb->m_ret_len;
+    cb->m_offset+= cb->m_ret_len;
+    synchronous(cb);
+  }
+}
+
+/**
+  Process the cb synchronously
+*/
+void aio::synchronous(aiocb *cb)
+{
+  intptr_t ret_len;
+  int err= 0;
+  switch (cb->m_opcode)
+  {
+  case aio_opcode::AIO_PREAD:
+    ret_len= pread(cb->m_fh, cb->m_buffer, cb->m_len, cb->m_offset);
+    break;
+  case aio_opcode::AIO_PWRITE:
+    ret_len= pwrite(cb->m_fh, cb->m_buffer, cb->m_len, cb->m_offset);
+    break;
+  default:
+    abort();
+  }
+
+  if (ret_len < 0)
+  {
+#ifdef _WIN32
+    err= GetLastError();
+#else
+    err= errno;
+#endif
+    ret_len= 0;
+  }
+  cb->m_ret_len = ret_len;
+  cb->m_err = err;
+  if (ret_len)
+    finish_synchronous(cb);
 }
 
 } // namespace tpool

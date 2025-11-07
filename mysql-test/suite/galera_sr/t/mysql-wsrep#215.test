@@ -120,7 +120,7 @@ SET DEBUG_SYNC = 'RESET';
 # that second insert should trigger fragment replication.
 # Currently 200 bytes is good choice here, but this may change with
 # future MySQL versions. 
-# => If this test fails after some MySQL merge, check if frgament size
+# => If this test fails after some MySQL merge, check if fragment size
 #    needs to be tuned to spot at second insert statement.
 #
 --connection node_1

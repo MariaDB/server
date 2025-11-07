@@ -5,8 +5,6 @@ use test;
 create user user1@localhost;
 grant usage on *.* to user1@localhost;
 flush privileges;
-drop table if exists t1;
-drop database if exists db1_secret;
 create database db1_secret;
 create procedure db1_secret.dummy() begin end;
 drop procedure db1_secret.dummy;
@@ -439,10 +437,10 @@ connection mysqltest_2_con;
 use mysqltest;
 CREATE DEFINER='a @ b @ c'@localhost PROCEDURE wl2897_p3() SELECT 3;
 Warnings:
-Note	1449	The user specified as a definer ('a @ b @ c'@'localhost') does not exist
+Note	1446	The user specified as a definer ('a @ b @ c'@'localhost') does not exist
 CREATE DEFINER='a @ b @ c'@localhost FUNCTION wl2897_f3() RETURNS INT RETURN 3;
 Warnings:
-Note	1449	The user specified as a definer ('a @ b @ c'@'localhost') does not exist
+Note	1446	The user specified as a definer ('a @ b @ c'@'localhost') does not exist
 connection con1root;
 USE mysqltest;
 SHOW CREATE PROCEDURE wl2897_p1;
@@ -461,11 +459,11 @@ SHOW CREATE FUNCTION wl2897_f3;
 Function	sql_mode	Create Function	character_set_client	collation_connection	Database Collation
 wl2897_f3	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`a @ b @ c`@`localhost` FUNCTION `wl2897_f3`() RETURNS int(11)
 RETURN 3	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
+disconnect mysqltest_1_con;
+disconnect mysqltest_2_con;
 DROP USER mysqltest_1@localhost;
 DROP USER mysqltest_2@localhost;
 DROP DATABASE mysqltest;
-disconnect mysqltest_1_con;
-disconnect mysqltest_2_con;
 connection con1root;
 DROP DATABASE IF EXISTS mysqltest;
 CREATE DATABASE mysqltest;
@@ -836,7 +834,7 @@ set @cmd:="create definer=u function f(i int) returns char binary reads sql data
 prepare s from @cmd;
 execute s;
 Warnings:
-Note	1449	The user specified as a definer ('u'@'%') does not exist
+Note	1446	The user specified as a definer ('u'@'%') does not exist
 execute s;
 ERROR 42000: FUNCTION f already exists
 drop function f;
@@ -1727,7 +1725,53 @@ connection default;
 disconnect conn1;
 drop user user@localhost;
 drop database test_db;
-#
 # End of 11.3 tests
 #
+# MDEV-37054: Implement INFORMATION_SCHEMA.PARAMETERS.PARAMETER_DEFAULT column
+#
+CREATE PROCEDURE proc(a INT DEFAULT 1, b INT DEFAULT (a+1), c INT DEFAULT POW(2,b)) AS
+BEGIN
+SELECT a, b, c FROM DUAL;
+END;
+//
+CREATE FUNCTION func(a INT DEFAULT 8, b INT DEFAULT LOG2(a)) RETURN INT AS
+BEGIN
+RETURN b;
+END;
+//
+CREATE USER user@localhost;
+GRANT EXECUTE ON PROCEDURE test.proc TO user@localhost;
+GRANT EXECUTE ON FUNCTION test.func TO user@localhost;
+CONNECT conn1, localhost, user, , test;
+SELECT specific_schema, specific_name, parameter_name, parameter_default FROM information_schema.PARAMETERS WHERE SPECIFIC_NAME = 'proc';
+specific_schema	specific_name	parameter_name	parameter_default
+test	proc	a	NULL
+test	proc	b	NULL
+test	proc	c	NULL
+SELECT specific_schema, specific_name, parameter_name, parameter_default FROM information_schema.PARAMETERS WHERE SPECIFIC_NAME = 'func';
+specific_schema	specific_name	parameter_name	parameter_default
+test	func	NULL	NULL
+test	func	a	NULL
+test	func	b	NULL
+connection default;
+disconnect conn1;
+GRANT SHOW CREATE ROUTINE ON PROCEDURE test.proc TO user@localhost;
+GRANT SHOW CREATE ROUTINE ON FUNCTION test.func TO user@localhost;
+CONNECT conn1, localhost, user, , test;
+SELECT specific_schema, specific_name, parameter_name, parameter_default FROM information_schema.PARAMETERS WHERE SPECIFIC_NAME = 'proc';
+specific_schema	specific_name	parameter_name	parameter_default
+test	proc	a	1
+test	proc	b	(`a` + 1)
+test	proc	c	pow(2,`b`)
+SELECT specific_schema, specific_name, parameter_name, parameter_default FROM information_schema.PARAMETERS WHERE SPECIFIC_NAME = 'func';
+specific_schema	specific_name	parameter_name	parameter_default
+test	func	NULL	NULL
+test	func	a	8
+test	func	b	log2(`a`)
+connection default;
+disconnect conn1;
+DROP USER user@localhost;
+DROP PROCEDURE proc;
+DROP FUNCTION func;
+# End of 12.2 tests
 set @@global.collation_server=@save_collation_server;

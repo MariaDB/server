@@ -95,7 +95,8 @@ public:
   longlong value_type_max();
   /* min value for the value type, e.g. -32768 for smallint. */
   longlong value_type_min();
-  bool check_and_adjust(THD *thd, bool set_reserved_until);
+  bool check_and_adjust(THD *thd, bool set_reserved_until,
+                        bool adjust_next= true);
   void store_fields(TABLE *table);
   void read_fields(TABLE *table);
   int write_initial_sequence(TABLE *table);
@@ -126,7 +127,7 @@ protected:
   It's also responsible to generate new values and updating the sequence
   table (engine=SQL_SEQUENCE) trough it's specialized handler interface.
 
-  If increment is 0 then the sequence will be be using
+  If increment is 0 then the sequence will be using
   auto_increment_increment and auto_increment_offset variables, just like
   AUTO_INCREMENT is using.
 */
@@ -153,6 +154,13 @@ public:
   longlong next_value(TABLE *table, bool second_round, int *error);
   int set_value(TABLE *table, longlong next_value, ulonglong round_arg,
                 bool is_used);
+  bool has_run_out()
+  {
+    return all_values_used ||
+      (!cycle &&
+       !within_bound(next_free_value, max_value + 1, min_value - 1,
+                     real_increment > 0));
+  }
 
   bool all_values_used;
   seq_init initialized;

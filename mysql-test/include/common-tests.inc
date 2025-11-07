@@ -1524,7 +1524,7 @@ INSERT INTO t4 (companynr, companyname) VALUES (00,'Unknown');
 --enable_query_log
 
 #
-# Test of stright join to force a full join.
+# Test of straight join to force a full join.
 #
 
 select STRAIGHT_JOIN t2.companynr,companyname from t4,t2 where t2.companynr=t4.companynr group by t2.companynr;
@@ -1592,7 +1592,7 @@ explain select distinct t2.companynr,t4.companynr from t2,t4 where t2.companynr=
 SET @@join_cache_level=@local_join_cache_level;
 
 #
-# Search using 'or' with the same referens group.
+# Search using 'or' with the same reference group.
 # An interval search will be done first with the first table and after that
 # the other table is referenced with a key with a 'test if key in use' for
 # each record
@@ -1737,17 +1737,21 @@ select t2.companynr,companyname,count(*) from t2,t4 where t2.companynr=t4.compan
 select count(*) from t2;
 select count(*) from t2 where fld1 < 098024;
 # PS does correct pre-zero here. MySQL can't do it as it returns a number.
+--disable_view_protocol
 --disable_ps_protocol
 select min(fld1) from t2 where fld1>= 098024;
 --enable_ps_protocol
+--enable_view_protocol
 select max(fld1) from t2 where fld1>= 098024;
 select count(*) from t3 where price2=76234234;
 select count(*) from t3 where companynr=512 and price2=76234234;
 explain select min(fld1),max(fld1),count(*) from t2;
 # PS does correct pre-zero here. MySQL can't do it as it returns a number.
+--disable_view_protocol
 --disable_ps_protocol
 select min(fld1),max(fld1),count(*) from t2;
 --enable_ps_protocol
+--enable_view_protocol
 select min(t2nr),max(t2nr) from t3 where t2nr=2115 and price2=823742;
 select count(*),min(t2nr),max(t2nr) from t3 where name='spates' and companynr=78;
 select t2nr,count(*) from t3 where name='gems' group by t2nr limit 20;

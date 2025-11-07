@@ -61,7 +61,6 @@ ${PCRE_INCLUDE_DIRS}
 ${ZLIB_INCLUDE_DIRS}
 ${SSL_INCLUDE_DIRS}
 ${CMAKE_BINARY_DIR}/sql
-${CMAKE_SOURCE_DIR}/tpool
 )
 
 ADD_CUSTOM_COMMAND(
@@ -107,6 +106,7 @@ SET (SQL_SOURCE
                hostname.cc init.cc item.cc item_buff.cc item_cmpfunc.cc
                item_create.cc item_func.cc item_geofunc.cc item_row.cc
                item_strfunc.cc item_subselect.cc item_sum.cc item_timefunc.cc
+               item_numconvfunc.cc
                key.cc log.cc log_cache.cc lock.cc
                log_event.cc log_event_server.cc
                rpl_record.cc rpl_reporting.cc
@@ -125,13 +125,15 @@ SET (SQL_SOURCE
                session_tracker.cc
                set_var.cc
                slave.cc sp.cc sp_cache.cc sp_head.cc sp_pcontext.cc
-               sp_rcontext.cc spatial.cc sql_acl.cc sql_analyse.cc sql_base.cc
+               sp_rcontext.cc sp_cursor.cc
+               spatial.cc sql_acl.cc sql_analyse.cc sql_base.cc
                sql_cache.cc sql_class.cc sql_client.cc sql_crypt.cc
                sql_cursor.cc sql_db.cc sql_delete.cc sql_derived.cc
                sql_digest.cc sql_do.cc
                sql_error.cc sql_handler.cc sql_get_diagnostics.cc
                sql_help.cc sql_insert.cc sql_lex.cc
                sql_list.cc sql_load.cc sql_manager.cc
+               sql_oracle_outer_join.cc
                sql_parse.cc sql_bootstrap.cc
                sql_partition.cc sql_plugin.cc sql_prepare.cc sql_rename.cc
                debug_sync.cc debug.cc
@@ -186,12 +188,18 @@ SET (SQL_SOURCE
                rowid_filter.cc rowid_filter.h
                optimizer_costs.h optimizer_defaults.h
                opt_trace.cc
+               opt_trace_ddl_info.cc
                table_cache.cc encryption.cc temporary_tables.cc
                json_table.cc
                proxy_protocol.cc backup.cc xa.cc
                socketpair.c socketpair.h
                opt_vcol_substitution.h
                opt_vcol_substitution.cc
+               opt_hints_parser.cc opt_hints_parser.h scan_char.h
+               opt_hints.cc opt_hints.h
+               sql_type_row.cc
+               sql_type_composite.cc sql_type_composite.h
+               item_composite.cc item_composite.h
                ${CMAKE_CURRENT_BINARY_DIR}/lex_hash.h
                ${CMAKE_CURRENT_BINARY_DIR}/lex_token.h
                ${GEN_SOURCES}
@@ -200,9 +208,15 @@ SET (SQL_SOURCE
 
 MY_CHECK_CXX_COMPILER_FLAG(-Wno-unused-but-set-variable)
 IF(have_CXX__Wno_unused_but_set_variable)
+  IF(CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64"
+     AND CMAKE_CXX_COMPILER_ID STREQUAL "GNU"
+     AND CMAKE_CXX_COMPILER_VERSION VERSION_LESS "9.0")
+    # Avoid excessive compile time on RHEL8 aarch64
+    SET(ARM_OLD_GCC_FLAGS -fno-strict-aliasing)
+  ENDIF()
   ADD_COMPILE_FLAGS(${CMAKE_CURRENT_BINARY_DIR}/yy_mariadb.cc
     ${CMAKE_CURRENT_BINARY_DIR}/yy_oracle.cc
-    COMPILE_FLAGS "-Wno-unused-but-set-variable")
+    COMPILE_FLAGS "${ARM_OLD_GCC_FLAGS} -Wno-unused-but-set-variable")
 ENDIF()
 
 IF ((CMAKE_SYSTEM_NAME MATCHES "Linux" OR
@@ -540,6 +554,11 @@ ENDIF(WIN32)
 IF(NOT WITH_WSREP)
   SET(EXCL_WSREP "wsrep_[a-np-z]*.h")
 ENDIF()
+INSTALL(FILES
+    ${CMAKE_CURRENT_BINARY_DIR}/lex_hash.h
+    ${CMAKE_CURRENT_BINARY_DIR}/lex_token.h
+    DESTINATION ${INSTALL_INCLUDEDIR}/server/private
+    COMPONENT Development)
 INSTALL(DIRECTORY . DESTINATION ${INSTALL_INCLUDEDIR}/server/private COMPONENT Development
   FILES_MATCHING PATTERN "*.h"
   PATTERN share EXCLUDE

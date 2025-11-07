@@ -1,5 +1,7 @@
 -- source include/have_innodb.inc
 -- source include/have_innodb_16k.inc
+# autocommit=0 everywhere below, so
+-- source include/no_view_protocol.inc
 
 let $MYSQLD_DATADIR= `select @@datadir`;
 
@@ -911,7 +913,7 @@ DROP TABLE t1,t2,t3;
 
 CREATE TABLE t1 (a int not null primary key, b int not null, unique (b)) engine=innodb;
 INSERT INTO t1 values (1,1),(2,2),(3,3),(4,4),(5,5),(6,6),(7,7),(8,8),(9,9);
-# We need the a < 1000 test here to quard against the halloween problems
+# We need the a < 1000 test here to guard against the halloween problems
 UPDATE t1 set a=a+100 where b between 2 and 3 and a < 1000;
 SELECT * from t1;
 drop table t1;
@@ -1006,7 +1008,7 @@ SELECT * from t1;
 drop table t1;
 
 #
-# Test dictionary handling with spaceand quoting
+# Test dictionary handling with space and quoting
 #
 
 CREATE TABLE t1 (`id 1` INT NOT NULL, PRIMARY KEY (`id 1`)) ENGINE=INNODB;
@@ -1797,9 +1799,9 @@ drop table t2,t1;
 CREATE TABLE t1(a INT, PRIMARY KEY(a)) ENGINE=InnoDB;
 CREATE TABLE t2(a INT) ENGINE=InnoDB;
 ALTER TABLE t2 ADD FOREIGN KEY (a) REFERENCES t1(a);
-ALTER TABLE t2 DROP FOREIGN KEY t2_ibfk_1;
-ALTER TABLE t2 ADD CONSTRAINT t2_ibfk_0 FOREIGN KEY (a) REFERENCES t1(a);
-ALTER TABLE t2 DROP FOREIGN KEY t2_ibfk_0;
+ALTER TABLE t2 DROP FOREIGN KEY `1`;
+ALTER TABLE t2 ADD CONSTRAINT `0` FOREIGN KEY (a) REFERENCES t1(a);
+ALTER TABLE t2 DROP FOREIGN KEY `0`;
 SHOW CREATE TABLE t2;
 DROP TABLE t2,t1;
 SET sql_mode = default;

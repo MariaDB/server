@@ -1,0 +1,31 @@
+--echo #
+--echo # MDEV-20034 Add support for the pre-defined weak SYS_REFCURSOR
+--echo #
+
+SET @@max_open_cursors=1;
+
+# Make sure @@max_open_cursors counts both static cursors and SYS_REFCURSORs.
+DELIMITER $$;
+--error ER_TOO_MANY_OPEN_CURSORS
+BEGIN NOT ATOMIC
+  DECLARE c0 SYS_REFCURSOR;
+  DECLARE c1 CURSOR FOR SELECT 'c1val' FROM DUAL;
+  OPEN c0 FOR SELECT 'c0val' FROM DUAL;
+  OPEN c1;
+END;
+$$
+DELIMITER ;$$
+
+# Same as above, but with the opposite OPEN order
+DELIMITER $$;
+--error ER_TOO_MANY_OPEN_CURSORS
+BEGIN NOT ATOMIC
+  DECLARE c0 SYS_REFCURSOR;
+  DECLARE c1 CURSOR FOR SELECT 'c1val' FROM DUAL;
+  OPEN c1;
+  OPEN c0 FOR SELECT 'c0val' FROM DUAL;
+END;
+$$
+DELIMITER ;$$
+
+SET @@max_open_cursors=DEFAULT;

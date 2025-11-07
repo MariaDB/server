@@ -261,7 +261,7 @@ setup_windows(THD *thd, Ref_ptr_array ref_pointer_array, TABLE_LIST *tables,
     }
     /*
        For  "win_func() OVER (ORDER BY order_list RANGE BETWEEN ...)",
-       - ORDER BY order_list must not be ommitted
+       - ORDER BY order_list must not be omitted
        - the list must have a single element.
        But it really only matters if the frame is bounded.
     */
@@ -676,12 +676,12 @@ int compare_window_funcs_by_window_specs(Item_window_func *win_func1,
     */
     if (!win_spec1->name().str && win_spec2->name().str)
     {
-      win_spec1->save_order_list= win_spec2->order_list;
+      win_spec1->save_order_list= win_spec1->order_list;
       win_spec1->order_list= win_spec2->order_list;
     }
     else
     {
-      win_spec1->save_order_list= win_spec2->order_list;
+      win_spec2->save_order_list= win_spec2->order_list;
       win_spec2->order_list= win_spec1->order_list;
     }
 
@@ -985,7 +985,7 @@ public:
   }
 
 private:
-  /* The table that is acccesed by this cursor. */
+  /* The table that is accessed by this cursor. */
   TABLE *table;
   /* Buffer where to store the table's record data. */
   uchar *record;
@@ -2501,13 +2501,25 @@ Frame_cursor *get_frame_cursor(THD *thd, Window_spec *spec, bool is_top_bound)
     }
     else
     {
+      /*
+        compare_window_funcs_by_window_specs() will try to get the 
+        Window Specs to reuse the ORDER BY lists.
+        RANGE-type window frame expects a single ORDER BY element,
+        and if the list from a different window spec having more than 1 
+        ORDER BY element is used, then an ASSERT is raised.
+        
+        So, use the original ORDER BY list when constructing 
+        RANGE-type frames.
+      */
+      SQL_I_List<ORDER> *order_list=
+          spec->save_order_list ? spec->save_order_list : spec->order_list;
       if (is_top_bound)
         return new Frame_range_n_top(
-            thd, spec->partition_list, spec->order_list,
+            thd, spec->partition_list, order_list,
             is_preceding, bound->offset);
 
       return new Frame_range_n_bottom(thd,
-          spec->partition_list, spec->order_list,
+          spec->partition_list, order_list,
           is_preceding, bound->offset);
     }
   }
@@ -3335,7 +3347,7 @@ bool st_select_lex::add_window_func(Item_window_func *win_func)
       // over (partition by a, order by x) && over (order by x).
       //
       // The first function requires an ordering by a first and then by x,
-      // while the seond function requires an ordering by x first.
+      // while the second function requires an ordering by x first.
       // The same restriction is not required for the order by clause.
       if (largest_partition.elements && !spec->partition_list.elements)
       {

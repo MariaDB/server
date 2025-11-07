@@ -160,7 +160,7 @@ sub create_process {
       die "create_process failed: $^E";
     }
 
-    # Retore IO redirects
+    # Restore IO redirects
     open STDERR, '>&', $olderr
       or croak("unable to reestablish STDERR");
     open STDOUT, '>&', $oldout

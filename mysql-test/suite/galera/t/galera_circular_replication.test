@@ -45,12 +45,13 @@ ALTER TABLE mysql.gtid_slave_pos ENGINE=InnoDB;
 --let $node_1 = replica1
 --let $node_2 = node_2
 --let $node_3 = primary2
+--let $node_4 = primary1
 --source include/auto_increment_offset_save.inc
 
 --connection replica1
 --echo # Galera replica changing master to primary1
 --disable_query_log
---eval CHANGE MASTER TO master_host='127.0.0.1', master_user='repl', master_password='repl', master_port=$NODE_MYPORT_4, master_use_gtid=slave_pos;
+--eval CHANGE MASTER TO master_host='127.0.0.1', master_user='repl', master_password='repl', master_ssl_verify_server_cert=0, master_port=$NODE_MYPORT_4, master_use_gtid=slave_pos;
 --enable_query_log
 START SLAVE;
 
@@ -62,7 +63,7 @@ grant all on *.* to  repl2@'%';
 --connection replica2
 --echo # replica2 changing master to primary2
 --disable_query_log
---eval CHANGE MASTER TO master_host='127.0.0.1', master_user='repl2', master_password='repl2', master_port=$NODE_MYPORT_3, master_use_gtid=slave_pos;
+--eval CHANGE MASTER TO master_host='127.0.0.1', master_user='repl2', master_password='repl2', master_ssl_verify_server_cert=0, master_port=$NODE_MYPORT_3, master_use_gtid=slave_pos;
 --enable_query_log
 START SLAVE;
 

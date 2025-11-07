@@ -1,4 +1,5 @@
 --source include/have_perfschema.inc
+--source include/have_profiling.inc
 --source include/word_size.inc
 --source include/platform.inc
 --vertical_results

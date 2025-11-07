@@ -2,7 +2,7 @@
 # Test spatial index with isolation level Repeatable Read on DML
 # This will also test the no phantom rows happens 
 # Check the COUNT(*) and SELECT results before & after COMMIT in
-# the last con1 statment
+# the last con1 statement
 # Test at con1: Global Repeatable Read con2 : Sess Read Committed
 # Test at con1: Sess Repeatable Read   con2 : Sess Read Committed
 # *****************************************************************
@@ -95,7 +95,6 @@ SELECT COUNT(*) FROM tab;
 COMMIT;
 
 disconnect con2;
---source include/wait_until_disconnected.inc
 
 --echo "In connection 1"
 connection con1;
@@ -120,8 +119,6 @@ SELECT COUNT(*) FROM tab;
 SELECT c1,ST_AsText(c2),ST_AsText(c4),ST_AsText(c5) FROM tab;
 
 disconnect con1;
---source include/wait_until_disconnected.inc
-
 --connection default
 DROP TABLE tab; 
 
@@ -210,7 +207,6 @@ SELECT COUNT(*) FROM tab;
 COMMIT;
 
 disconnect con2;
---source include/wait_until_disconnected.inc
 
 --echo "In connection 1"
 connection con1;
@@ -235,7 +231,5 @@ SELECT COUNT(*) FROM tab;
 SELECT c1,ST_AsText(c2),ST_AsText(c4),ST_AsText(c5) FROM tab;
 
 disconnect con1;
---source include/wait_until_disconnected.inc
-
 --connection default
 DROP TABLE tab; 

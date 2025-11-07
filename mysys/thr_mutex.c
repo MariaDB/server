@@ -179,7 +179,7 @@ int safe_mutex_init(safe_mutex_t *mp,
                     const char *name, const char *file, uint line)
 {
   DBUG_ENTER("safe_mutex_init");
-  DBUG_PRINT("enter",("mutex: 0x%lx  name: %s", (ulong) mp, name));
+  DBUG_PRINT("enter",("mutex: %p  name: %s", mp, name));
   bzero((char*) mp,sizeof(*mp));
   pthread_mutex_init(&mp->global,MY_MUTEX_INIT_ERRCHK);
   pthread_mutex_init(&mp->mutex,attr);
@@ -227,8 +227,8 @@ int safe_mutex_lock(safe_mutex_t *mp, myf my_flags, const char *file,
                     uint line)
 {
   int error;
-  DBUG_PRINT("mutex", ("%s (0x%lx) locking", mp->name ? mp->name : "Null",
-                       (ulong) mp));
+  DBUG_PRINT("mutex", ("%s (%p) locking", mp->name, mp));
+  DBUG_ASSERT(mp->name);
   DBUG_PUSH_EMPTY;
 
   pthread_mutex_lock(&mp->global);
@@ -394,7 +394,7 @@ int safe_mutex_lock(safe_mutex_t *mp, myf my_flags, const char *file,
 end:
   DBUG_POP_EMPTY;
   if (!error)
-    DBUG_PRINT("mutex", ("%s (0x%lx) locked", mp->name, (ulong) mp));
+    DBUG_PRINT("mutex", ("%s (%p) locked", mp->name, mp));
   return error;
 }
 
@@ -402,7 +402,7 @@ end:
 int safe_mutex_unlock(safe_mutex_t *mp,const char *file, uint line)
 {
   int error;
-  DBUG_PRINT("mutex", ("%s (0x%lx) unlocking", mp->name, (ulong) mp));
+  DBUG_PRINT("mutex", ("%s (%p) unlocking", mp->name, mp));
   pthread_mutex_lock(&mp->global);
   if (mp->count == 0)
   {
@@ -578,7 +578,7 @@ int safe_mutex_destroy(safe_mutex_t *mp, const char *file, uint line)
 {
   int error=0;
   DBUG_ENTER("safe_mutex_destroy");
-  DBUG_PRINT("enter", ("mutex: 0x%lx  name: %s", (ulong) mp, mp->name));
+  DBUG_PRINT("enter", ("mutex: %p  name: %s", mp, mp->name));
   if (!mp->file)
   {
     fprintf(stderr,

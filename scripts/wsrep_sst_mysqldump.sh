@@ -19,7 +19,7 @@ set -ue
 # Free Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston
 # MA  02110-1335  USA.
 
-# This is a reference script for mariadb-dump-based state snapshot tansfer.
+# This is a reference script for mariadb-dump-based state snapshot transfer.
 
 . $(dirname "$0")/wsrep_sst_common
 
@@ -199,6 +199,10 @@ then
 else
     wsrep_log_info "Bypassing state dump."
     echo "$SET_START_POSITION" | $MYSQL || exit $?
+fi
+
+if [ "$WSREP_SST_OPT_ROLE" = 'joiner' ]; then
+    simulate_long_sst
 fi
 
 echo "done $STATE"

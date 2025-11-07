@@ -98,7 +98,7 @@ extern MYSQL_PLUGIN_IMPORT CHARSET_INFO *national_charset_info;
 extern MYSQL_PLUGIN_IMPORT CHARSET_INFO *table_alias_charset;
 
 /**
-  Character set of the buildin error messages loaded from errmsg.sys.
+  Character set of the builtin error messages loaded from errmsg.sys.
 */
 extern CHARSET_INFO *error_message_charset_info;
 
@@ -129,7 +129,7 @@ extern ulong rpl_transactions_multi_engine;
 extern ulong transactions_gtid_foreign_engine;
 extern ulong slave_run_triggers_for_rbr;
 extern ulonglong slave_type_conversions_options;
-extern my_bool read_only, opt_readonly;
+extern ulong read_only, opt_readonly;
 extern MYSQL_PLUGIN_IMPORT my_bool lower_case_file_system;
 extern my_bool opt_enable_named_pipe, opt_sync_frm, opt_allow_suspicious_udfs;
 extern my_bool opt_secure_auth;
@@ -498,6 +498,7 @@ extern PSI_memory_key key_memory_Query_cache;
 extern PSI_memory_key key_memory_Table_trigger_dispatcher;
 extern PSI_memory_key key_memory_native_functions;
 extern PSI_memory_key key_memory_WSREP;
+extern PSI_memory_key key_memory_trace_ddl_info;
 
 /*
   MAINTAINER: Please keep this list in order, to limit merge collisions.
@@ -562,6 +563,7 @@ extern PSI_stage_info stage_preparing;
 extern PSI_stage_info stage_purging_old_relay_logs;
 extern PSI_stage_info stage_query_end;
 extern PSI_stage_info stage_starting_cleanup;
+extern PSI_stage_info stage_slave_sql_cleanup;
 extern PSI_stage_info stage_rollback;
 extern PSI_stage_info stage_rollback_implicit;
 extern PSI_stage_info stage_commit;
@@ -684,7 +686,6 @@ extern LEX_CUSTRING ssl_acceptor_fingerprint();
   The following variables were under INNODB_COMPABILITY_HOOKS
  */
 extern my_bool opt_large_pages;
-extern uint opt_large_page_size;
 extern MYSQL_PLUGIN_IMPORT char lc_messages_dir[FN_REFLEN];
 extern char *lc_messages_dir_ptr, *log_error_file_ptr;
 extern MYSQL_PLUGIN_IMPORT char reg_ext[FN_EXTLEN];
@@ -732,6 +733,9 @@ extern mysql_cond_t COND_manager;
 extern my_bool opt_use_ssl;
 extern char *opt_ssl_ca, *opt_ssl_capath, *opt_ssl_cert, *opt_ssl_cipher,
   *opt_ssl_key, *opt_ssl_crl, *opt_ssl_crlpath;
+
+extern const char *get_ssl_passphrase();
+
 extern ulonglong tls_version;
 
 #ifdef MYSQL_SERVER
@@ -857,7 +861,7 @@ enum enum_query_type
   QT_SHOW_SELECT_NUMBER= (1<<10),
 
   /// Do not print database name or table name in the identifiers (even if
-  /// this means the printout will be ambigous). It is assumed that the caller
+  /// this means the printout will be ambiguous). It is assumed that the caller
   ///  passing this flag knows what they are doing.
   QT_ITEM_IDENT_DISABLE_DB_TABLE_NAMES= (1 <<11),
 
@@ -876,7 +880,12 @@ enum enum_query_type
   QT_FOR_FRM= (1 << 13),
 
   // Print only the SELECT part, even for INSERT...SELECT
-  QT_SELECT_ONLY = (1 << 14)
+  QT_SELECT_ONLY = (1 << 14),
+  /// Used for printing default stored routine parameter for Information Schema.
+  /// Parameters are considered SP local variables and they're usually printed
+  /// in `var_name`@`var_index` format. Setting this prevents such formatting
+  /// and just prints the `var_name`
+  QT_DEFAULT_PARAM_INFO_SCHEMA = (1 << 15)
 };
 
 

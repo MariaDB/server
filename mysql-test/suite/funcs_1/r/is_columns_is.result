@@ -59,10 +59,11 @@ def	information_schema	CLIENT_STATISTICS	TOTAL_SSL_CONNECTIONS	26	NULL	NO	bigint
 def	information_schema	CLIENT_STATISTICS	UPDATE_COMMANDS	18	NULL	NO	bigint	NULL	NULL	19	0	NULL	NULL	NULL	bigint(21)			select		NEVER	NULL	NO	NO
 def	information_schema	COLLATIONS	CHARACTER_SET_NAME	2	NULL	YES	varchar	32	96	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	varchar(32)			select		NEVER	NULL	NO	NO
 def	information_schema	COLLATIONS	COLLATION_NAME	1	NULL	NO	varchar	64	192	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	varchar(64)			select		NEVER	NULL	NO	NO
-def	information_schema	COLLATIONS	COMMENT	7	NULL	NO	varchar	80	240	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	varchar(80)			select		NEVER	NULL	NO	NO
+def	information_schema	COLLATIONS	COMMENT	8	NULL	NO	varchar	80	240	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	varchar(80)			select		NEVER	NULL	NO	NO
 def	information_schema	COLLATIONS	ID	3	NULL	YES	bigint	NULL	NULL	19	0	NULL	NULL	NULL	bigint(11)			select		NEVER	NULL	NO	NO
 def	information_schema	COLLATIONS	IS_COMPILED	5	NULL	NO	varchar	3	9	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	varchar(3)			select		NEVER	NULL	NO	NO
 def	information_schema	COLLATIONS	IS_DEFAULT	4	NULL	YES	varchar	3	9	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	varchar(3)			select		NEVER	NULL	NO	NO
+def	information_schema	COLLATIONS	PAD_ATTRIBUTE	7	NULL	NO	enum	3	9	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	enum('PAD SPACE','NO PAD')			select		NEVER	NULL	NO	NO
 def	information_schema	COLLATIONS	SORTLEN	6	NULL	NO	bigint	NULL	NULL	19	0	NULL	NULL	NULL	bigint(3)			select		NEVER	NULL	NO	NO
 def	information_schema	COLLATION_CHARACTER_SET_APPLICABILITY	CHARACTER_SET_NAME	2	NULL	NO	varchar	32	96	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	varchar(32)			select		NEVER	NULL	NO	NO
 def	information_schema	COLLATION_CHARACTER_SET_APPLICABILITY	COLLATION_NAME	1	NULL	NO	varchar	64	192	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	varchar(64)			select		NEVER	NULL	NO	NO
@@ -250,6 +251,7 @@ def	information_schema	PARAMETERS	DTD_IDENTIFIER	15	NULL	NO	longtext	4294967295	
 def	information_schema	PARAMETERS	NUMERIC_PRECISION	10	NULL	YES	int	NULL	NULL	10	0	NULL	NULL	NULL	int(21)			select		NEVER	NULL	NO	NO
 def	information_schema	PARAMETERS	NUMERIC_SCALE	11	NULL	YES	int	NULL	NULL	10	0	NULL	NULL	NULL	int(21)			select		NEVER	NULL	NO	NO
 def	information_schema	PARAMETERS	ORDINAL_POSITION	4	NULL	NO	int	NULL	NULL	10	0	NULL	NULL	NULL	int(21)			select		NEVER	NULL	NO	NO
+def	information_schema	PARAMETERS	PARAMETER_DEFAULT	17	NULL	YES	longtext	4294967295	4294967295	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	longtext			select		NEVER	NULL	NO	NO
 def	information_schema	PARAMETERS	PARAMETER_MODE	5	NULL	YES	varchar	5	15	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	varchar(5)			select		NEVER	NULL	NO	NO
 def	information_schema	PARAMETERS	PARAMETER_NAME	6	NULL	YES	varchar	64	192	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	varchar(64)			select		NEVER	NULL	NO	NO
 def	information_schema	PARAMETERS	ROUTINE_TYPE	16	NULL	NO	varchar	9	27	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	varchar(9)			select		NEVER	NULL	NO	NO
@@ -549,6 +551,13 @@ def	information_schema	TABLE_STATISTICS	ROWS_READ	3	NULL	NO	bigint	NULL	NULL	19	
 def	information_schema	TABLE_STATISTICS	ROWS_UPDATED	7	NULL	NO	bigint	NULL	NULL	19	0	NULL	NULL	NULL	bigint(21)			select		NEVER	NULL	NO	NO
 def	information_schema	TABLE_STATISTICS	TABLE_NAME	2	NULL	NO	varchar	192	576	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	varchar(192)			select		NEVER	NULL	NO	NO
 def	information_schema	TABLE_STATISTICS	TABLE_SCHEMA	1	NULL	NO	varchar	192	576	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	varchar(192)			select		NEVER	NULL	NO	NO
+def	information_schema	TRIGGERED_UPDATE_COLUMNS	EVENT_OBJECT_CATALOG	4	NULL	NO	varchar	512	1536	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	varchar(512)			select		NEVER	NULL	NO	NO
+def	information_schema	TRIGGERED_UPDATE_COLUMNS	EVENT_OBJECT_COLUMN	7	NULL	NO	varchar	64	192	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	varchar(64)			select		NEVER	NULL	NO	NO
+def	information_schema	TRIGGERED_UPDATE_COLUMNS	EVENT_OBJECT_SCHEMA	5	NULL	NO	varchar	64	192	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	varchar(64)			select		NEVER	NULL	NO	NO
+def	information_schema	TRIGGERED_UPDATE_COLUMNS	EVENT_OBJECT_TABLE	6	NULL	NO	varchar	64	192	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	varchar(64)			select		NEVER	NULL	NO	NO
+def	information_schema	TRIGGERED_UPDATE_COLUMNS	TRIGGER_CATALOG	1	NULL	NO	varchar	512	1536	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	varchar(512)			select		NEVER	NULL	NO	NO
+def	information_schema	TRIGGERED_UPDATE_COLUMNS	TRIGGER_NAME	3	NULL	NO	varchar	64	192	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	varchar(64)			select		NEVER	NULL	NO	NO
+def	information_schema	TRIGGERED_UPDATE_COLUMNS	TRIGGER_SCHEMA	2	NULL	NO	varchar	64	192	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	varchar(64)			select		NEVER	NULL	NO	NO
 def	information_schema	TRIGGERS	ACTION_CONDITION	9	NULL	YES	longtext	4294967295	4294967295	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	longtext			select		NEVER	NULL	NO	NO
 def	information_schema	TRIGGERS	ACTION_ORDER	8	NULL	NO	bigint	NULL	NULL	19	0	NULL	NULL	NULL	bigint(4)			select		NEVER	NULL	NO	NO
 def	information_schema	TRIGGERS	ACTION_ORIENTATION	11	NULL	NO	varchar	9	27	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	varchar(9)			select		NEVER	NULL	NO	NO
@@ -563,7 +572,7 @@ def	information_schema	TRIGGERS	COLLATION_CONNECTION	21	NULL	NO	varchar	64	192	N
 def	information_schema	TRIGGERS	CREATED	17	NULL	YES	datetime	NULL	NULL	NULL	NULL	2	NULL	NULL	datetime(2)			select		NEVER	NULL	NO	NO
 def	information_schema	TRIGGERS	DATABASE_COLLATION	22	NULL	NO	varchar	64	192	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	varchar(64)			select		NEVER	NULL	NO	NO
 def	information_schema	TRIGGERS	DEFINER	19	NULL	NO	varchar	384	1152	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	varchar(384)			select		NEVER	NULL	NO	NO
-def	information_schema	TRIGGERS	EVENT_MANIPULATION	4	NULL	NO	varchar	6	18	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	varchar(6)			select		NEVER	NULL	NO	NO
+def	information_schema	TRIGGERS	EVENT_MANIPULATION	4	NULL	NO	varchar	20	60	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	varchar(20)			select		NEVER	NULL	NO	NO
 def	information_schema	TRIGGERS	EVENT_OBJECT_CATALOG	5	NULL	NO	varchar	512	1536	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	varchar(512)			select		NEVER	NULL	NO	NO
 def	information_schema	TRIGGERS	EVENT_OBJECT_SCHEMA	6	NULL	NO	varchar	64	192	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	varchar(64)			select		NEVER	NULL	NO	NO
 def	information_schema	TRIGGERS	EVENT_OBJECT_TABLE	7	NULL	NO	varchar	64	192	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	varchar(64)			select		NEVER	NULL	NO	NO
@@ -643,6 +652,7 @@ AND table_name <> 'profiling' AND table_name not like 'innodb_%'
 AND CHARACTER_OCTET_LENGTH / CHARACTER_MAXIMUM_LENGTH <> 1
 ORDER BY CHARACTER_SET_NAME, COLLATION_NAME, COL_CML;
 COL_CML	DATA_TYPE	CHARACTER_SET_NAME	COLLATION_NAME
+3.0000	enum	utf8mb3	utf8mb3_general_ci
 3.0000	varchar	utf8mb3	utf8mb3_general_ci
 SELECT DISTINCT
 CHARACTER_OCTET_LENGTH / CHARACTER_MAXIMUM_LENGTH AS COL_CML,
@@ -740,6 +750,7 @@ NULL	information_schema	COLLATIONS	ID	bigint	NULL	NULL	NULL	NULL	bigint(11)
 3.0000	information_schema	COLLATIONS	IS_DEFAULT	varchar	3	9	utf8mb3	utf8mb3_general_ci	varchar(3)
 3.0000	information_schema	COLLATIONS	IS_COMPILED	varchar	3	9	utf8mb3	utf8mb3_general_ci	varchar(3)
 NULL	information_schema	COLLATIONS	SORTLEN	bigint	NULL	NULL	NULL	NULL	bigint(3)
+3.0000	information_schema	COLLATIONS	PAD_ATTRIBUTE	enum	3	9	utf8mb3	utf8mb3_general_ci	enum('PAD SPACE','NO PAD')
 3.0000	information_schema	COLLATIONS	COMMENT	varchar	80	240	utf8mb3	utf8mb3_general_ci	varchar(80)
 3.0000	information_schema	COLLATION_CHARACTER_SET_APPLICABILITY	COLLATION_NAME	varchar	64	192	utf8mb3	utf8mb3_general_ci	varchar(64)
 3.0000	information_schema	COLLATION_CHARACTER_SET_APPLICABILITY	CHARACTER_SET_NAME	varchar	32	96	utf8mb3	utf8mb3_general_ci	varchar(32)
@@ -933,6 +944,7 @@ NULL	information_schema	PARAMETERS	DATETIME_PRECISION	bigint	NULL	NULL	NULL	NULL
 3.0000	information_schema	PARAMETERS	COLLATION_NAME	varchar	64	192	utf8mb3	utf8mb3_general_ci	varchar(64)
 1.0000	information_schema	PARAMETERS	DTD_IDENTIFIER	longtext	4294967295	4294967295	utf8mb3	utf8mb3_general_ci	longtext
 3.0000	information_schema	PARAMETERS	ROUTINE_TYPE	varchar	9	27	utf8mb3	utf8mb3_general_ci	varchar(9)
+1.0000	information_schema	PARAMETERS	PARAMETER_DEFAULT	longtext	4294967295	4294967295	utf8mb3	utf8mb3_general_ci	longtext
 3.0000	information_schema	PARTITIONS	TABLE_CATALOG	varchar	512	1536	utf8mb3	utf8mb3_general_ci	varchar(512)
 3.0000	information_schema	PARTITIONS	TABLE_SCHEMA	varchar	64	192	utf8mb3	utf8mb3_general_ci	varchar(64)
 3.0000	information_schema	PARTITIONS	TABLE_NAME	varchar	64	192	utf8mb3	utf8mb3_general_ci	varchar(64)
@@ -1226,10 +1238,17 @@ NULL	information_schema	TABLE_STATISTICS	KEY_READ_HITS	bigint	NULL	NULL	NULL	NUL
 NULL	information_schema	TABLE_STATISTICS	KEY_READ_MISSES	bigint	NULL	NULL	NULL	NULL	bigint(21)
 NULL	information_schema	TABLE_STATISTICS	PAGES_ACCESSED	bigint	NULL	NULL	NULL	NULL	bigint(21)
 NULL	information_schema	TABLE_STATISTICS	PAGES_READ_FROM_DISK	bigint	NULL	NULL	NULL	NULL	bigint(21)
+3.0000	information_schema	TRIGGERED_UPDATE_COLUMNS	TRIGGER_CATALOG	varchar	512	1536	utf8mb3	utf8mb3_general_ci	varchar(512)
+3.0000	information_schema	TRIGGERED_UPDATE_COLUMNS	TRIGGER_SCHEMA	varchar	64	192	utf8mb3	utf8mb3_general_ci	varchar(64)
+3.0000	information_schema	TRIGGERED_UPDATE_COLUMNS	TRIGGER_NAME	varchar	64	192	utf8mb3	utf8mb3_general_ci	varchar(64)
+3.0000	information_schema	TRIGGERED_UPDATE_COLUMNS	EVENT_OBJECT_CATALOG	varchar	512	1536	utf8mb3	utf8mb3_general_ci	varchar(512)
+3.0000	information_schema	TRIGGERED_UPDATE_COLUMNS	EVENT_OBJECT_SCHEMA	varchar	64	192	utf8mb3	utf8mb3_general_ci	varchar(64)
+3.0000	information_schema	TRIGGERED_UPDATE_COLUMNS	EVENT_OBJECT_TABLE	varchar	64	192	utf8mb3	utf8mb3_general_ci	varchar(64)
+3.0000	information_schema	TRIGGERED_UPDATE_COLUMNS	EVENT_OBJECT_COLUMN	varchar	64	192	utf8mb3	utf8mb3_general_ci	varchar(64)
 3.0000	information_schema	TRIGGERS	TRIGGER_CATALOG	varchar	512	1536	utf8mb3	utf8mb3_general_ci	varchar(512)
 3.0000	information_schema	TRIGGERS	TRIGGER_SCHEMA	varchar	64	192	utf8mb3	utf8mb3_general_ci	varchar(64)
 3.0000	information_schema	TRIGGERS	TRIGGER_NAME	varchar	64	192	utf8mb3	utf8mb3_general_ci	varchar(64)
-3.0000	information_schema	TRIGGERS	EVENT_MANIPULATION	varchar	6	18	utf8mb3	utf8mb3_general_ci	varchar(6)
+3.0000	information_schema	TRIGGERS	EVENT_MANIPULATION	varchar	20	60	utf8mb3	utf8mb3_general_ci	varchar(20)
 3.0000	information_schema	TRIGGERS	EVENT_OBJECT_CATALOG	varchar	512	1536	utf8mb3	utf8mb3_general_ci	varchar(512)
 3.0000	information_schema	TRIGGERS	EVENT_OBJECT_SCHEMA	varchar	64	192	utf8mb3	utf8mb3_general_ci	varchar(64)
 3.0000	information_schema	TRIGGERS	EVENT_OBJECT_TABLE	varchar	64	192	utf8mb3	utf8mb3_general_ci	varchar(64)

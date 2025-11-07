@@ -270,7 +270,7 @@ Sql_cmd_truncate_table::handler_truncate(THD *thd, TABLE_LIST *table_ref,
     /*
       If truncate method is not implemented then we don't binlog the
       statement. If truncation has failed in a transactional engine then also
-      we don't binlog the statment. Only in non transactional engine we binlog
+      we don't binlog the statement. Only in non transactional engine we binlog
       inspite of errors.
      */
     if (error == HA_ERR_WRONG_COMMAND ||
@@ -299,7 +299,7 @@ Sql_cmd_truncate_table::handler_truncate(THD *thd, TABLE_LIST *table_ref,
 bool Sql_cmd_truncate_table::lock_table(THD *thd, TABLE_LIST *table_ref,
                                         bool *hton_can_recreate)
 {
-  handlerton *hton;
+  const handlerton *hton;
   bool versioned;
   bool sequence= false;
   TABLE *table= NULL;
@@ -370,8 +370,12 @@ bool Sql_cmd_truncate_table::lock_table(THD *thd, TABLE_LIST *table_ref,
          table we need to find out default partition
          handlerton.
       */
-      const handlerton *ht= share->default_part_plugin ?
-        plugin_hton(share->default_part_plugin) : hton;
+      const handlerton* const ht=
+#ifdef WITH_PARTITION_STORAGE_ENGINE
+        share->default_part_plugin ?
+          plugin_hton(share->default_part_plugin) :
+#endif
+        hton;
 
       if (ht && !wsrep_should_replicate_ddl(thd, ht))
       {
@@ -453,8 +457,12 @@ bool Sql_cmd_truncate_table::truncate_table(THD *thd, TABLE_LIST *table_ref)
   /* If it is a temporary table, no need to take locks. */
   if (is_temporary_table(table_ref))
   {
-    /* In RBR, the statement is not binlogged if the table is temporary. */
-    binlog_stmt= !thd->is_current_stmt_binlog_format_row();
+    /*
+      In RBR, the statement is not binlogged if the table is temporary or
+      table is not up to date in binlog.
+    */
+    binlog_stmt= (!thd->is_binlog_format_row() &&
+                  table_ref->table->s->using_binlog());
 
     thd->close_unused_temporary_table_instances(table_ref);
 

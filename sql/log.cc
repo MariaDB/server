@@ -162,8 +162,8 @@ static SHOW_VAR binlog_status_vars_detail[]=
 };
 
 /**
-  This class implementes the feature to rename a binlog cache temporary file to
-  a binlog file. It is used to avoid holding LOCK_log long time when writting a
+  This class implements the feature to rename a binlog cache temporary file to
+  a binlog file. It is used to avoid holding LOCK_log long time when writing a
   huge binlog cache to binlog file.
 
   With this feature, temporary files of binlog caches will be created in
@@ -558,28 +558,6 @@ private:
   binlog_cache_mngr(const binlog_cache_mngr& info);
 };
 
-
-/*
-  Remove all row event from all binlog caches and clear all caches.
-  This is only called from CREATE .. SELECT, in which case it safe to delete
-  also events from the statement cache.
-*/
-
-void THD::binlog_remove_rows_events()
-{
-  binlog_cache_mngr *cache_mngr= binlog_get_cache_mngr();
-  DBUG_ENTER("THD::binlog_remove_rows_events");
-
-  if (!cache_mngr ||
-      (!WSREP_EMULATE_BINLOG_NNULL(this) && !mysql_bin_log.is_open()))
-    DBUG_VOID_RETURN;
-
-  MYSQL_BIN_LOG::remove_pending_rows_event(this, &cache_mngr->stmt_cache);
-  MYSQL_BIN_LOG::remove_pending_rows_event(this, &cache_mngr->trx_cache);
-  cache_mngr->reset(1,1);
-  DBUG_VOID_RETURN;
-}
-
 /**
   The function handles the first phase of two-phase binlogged ALTER.
   On master binlogs START ALTER when that is configured to do so.
@@ -717,6 +695,33 @@ bool LOGGER::is_log_table_enabled(uint log_table_type)
   }
 }
 
+
+int check_if_log_table(const TABLE_LIST *table)
+{
+  if (MYSQL_SCHEMA_NAME.streq(table->db))
+  {
+    if (GENERAL_LOG_NAME.streq(table->table_name))
+      return QUERY_LOG_GENERAL;;
+
+    if (SLOW_LOG_NAME.streq(table->table_name))
+      return QUERY_LOG_SLOW;
+  }
+  return 0;
+}
+
+
+bool HA_CREATE_INFO::check_if_valid_log_table()
+{
+  if (!(db_type->flags & HTON_SUPPORT_LOG_TABLES) ||
+      (db_type == maria_hton && transactional != HA_CHOICE_NO))
+  {
+    my_error(ER_UNSUPORTED_LOG_ENGINE, MYF(0), hton_name(db_type)->str);
+    return true;
+  }
+  return false;
+}
+
+
 /**
    Check if a given table is opened log table
 
@@ -732,25 +737,9 @@ int check_if_log_table(const TABLE_LIST *table,
                        bool check_if_opened,
                        const char *error_msg)
 {
-  int result= 0;
-  if (table->db.streq(MYSQL_SCHEMA_NAME))
-  {
-    if (table->table_name.streq(GENERAL_LOG_NAME))
-    {
-      result= QUERY_LOG_GENERAL;
-      goto end;
-    }
-
-    if (table->table_name.streq(SLOW_LOG_NAME))
-    {
-      result= QUERY_LOG_SLOW;
-      goto end;
-    }
-  }
-  return 0;
-
-end:
-  if (!check_if_opened || logger.is_log_table_enabled(result))
+  int result= check_if_log_table(table);
+  if (result &&
+      (!check_if_opened || logger.is_log_table_enabled(result)))
   {
     if (error_msg)
       my_error(ER_BAD_LOG_STATEMENT, MYF(0), error_msg);
@@ -1910,6 +1899,16 @@ binlog_flush_cache(THD *thd, binlog_cache_mngr *cache_mngr,
     if (using_trx && thd->binlog_flush_pending_rows_event(TRUE, TRUE))
       DBUG_RETURN(1);
 
+#ifdef WITH_WSREP
+    /* Wsrep transaction was BF aborted but it must replay because certification
+       succeeded. The transaction must not be written into binlog yet, it will
+       be done during commit after the replay. */
+    if (WSREP(thd) && wsrep_must_replay(thd))
+    {
+      DBUG_RETURN(0);
+    }
+#endif /* WITH_WSREP */
+
     /*
       Doing a commit or a rollback including non-transactional tables,
       i.e., ending a transaction where we might write the transaction
@@ -2227,7 +2226,7 @@ inline bool is_prepared_xa(THD *thd)
 
 
 /*
-  We flush the cache wrapped in a beging/rollback if:
+  We flush the cache wrapped in a beginning/rollback if:
     . aborting a single or multi-statement transaction and;
     . the OPTION_BINLOG_THIS_TRX is active or;
     . the format is STMT and a non-trans table was updated or;
@@ -2400,7 +2399,7 @@ int binlog_commit(THD *thd, bool all, bool ro_1pc)
   else if (thd->lock)
   {
     /* If not in LOCK TABLES, flush the transaction log */
-    error= thd->binlog_flush_pending_rows_event(TRUE, TRUE);
+    thd->binlog_flush_pending_rows_event(TRUE, TRUE);
   }
   /*
     This is part of the stmt rollback.
@@ -2532,6 +2531,18 @@ void binlog_reset_cache(THD *thd)
     cache_mngr->reset(true, true);
   }
   DBUG_VOID_RETURN;
+}
+
+
+void binlog_clear_incident(THD *thd)
+{
+  binlog_cache_mngr *const cache_mngr= opt_bin_log ?
+    (binlog_cache_mngr*) thd_get_ha_data(thd, &binlog_tp) : 0;
+  if (cache_mngr)
+  {
+    cache_mngr->stmt_cache.clear_incident();
+    cache_mngr->trx_cache.clear_incident();
+  }
 }
 
 
@@ -3274,7 +3285,7 @@ void MYSQL_QUERY_LOG::reopen_file()
 
   DESCRIPTION
 
-   Log given command to to normal (not rotable) log file
+   Log given command to normal (not rotable) log file
 
   RETURN
     FASE - OK
@@ -3774,7 +3785,6 @@ void MYSQL_BIN_LOG::init_pthread_objects()
   mysql_cond_init(key_BINLOG_COND_binlog_background_thread_end,
                   &COND_binlog_background_thread_end, 0);
 
-  /* Fix correct mutex order to catch violations quicker (MDEV-35197). */
   mysql_mutex_record_order(&LOCK_log, &LOCK_global_system_variables);
 }
 
@@ -4696,7 +4706,7 @@ bool MYSQL_BIN_LOG::reset_logs(THD *thd, bool create_new_log,
 
   /*
     Close the active log.
-    Close the active GTID index synchroneously. We don't want the close
+    Close the active GTID index synchronously. We don't want the close
     running in the background while we delete the gtid index file. And we just
     pushed a sentinel through the binlog background thread while holding
     LOCK_log, so no other GTID index operations can be pending.
@@ -5724,7 +5734,7 @@ error:
     /* Remove directory (to keep things shorter and compatible */
     log_file_name_arg+= dirname_length(log_file_name_arg);
 
-    /* purge_warning_given is reset after next sucessful purge */
+    /* purge_warning_given is reset after next successful purge */
     purge_warning_given= 1;
     if (interactive)
     {
@@ -5870,7 +5880,7 @@ bool MYSQL_BIN_LOG::is_active(const char *log_file_name_arg)
    * #12 next_event
    * #13 exec_relay_log_event
    *
-   * I didn't investigate if this is ligit...(i.e if my comment is wrong)
+   * I didn't investigate if this is legit...(i.e if my comment is wrong)
    */
   return !strcmp(log_file_name, log_file_name_arg);
 }
@@ -5957,8 +5967,11 @@ int MYSQL_BIN_LOG::new_file_impl(bool commit_by_rotate)
       We log the whole file name for log file as the user may decide
       to change base names at some point.
     */
-    Rotate_log_event r(new_name + dirname_length(new_name), 0, LOG_EVENT_OFFSET,
-                       is_relay_log ? Rotate_log_event::RELAY_LOG : 0);
+    Rotate_log_event r(
+      &new_name[dirname_length(new_name)], /* strlen() */ 0,
+      BIN_LOG_HEADER_SIZE,
+      is_relay_log ? Rotate_log_event::RELAY_LOG : 0
+    );
     enum_binlog_checksum_alg checksum_alg = BINLOG_CHECKSUM_ALG_UNDEF;
     /*
       The current relay-log's closing Rotate event must have checksum
@@ -5994,6 +6007,13 @@ int MYSQL_BIN_LOG::new_file_impl(bool commit_by_rotate)
     goto end;
   }
   update_binlog_end_pos();
+
+  DBUG_EXECUTE_IF("stop_after_rotate_written", {
+    DBUG_ASSERT(!debug_sync_set_action(
+        current_thd,
+        STRING_WITH_LEN("now SIGNAL rotate_written WAIT_FOR finish_rotate")));
+  });
+
   old_name=name;
   name=0;				// Don't free name
   close_flag= LOG_CLOSE_TO_BE_OPENED | LOG_CLOSE_INDEX;
@@ -6620,6 +6640,13 @@ binlog_start_consistent_snapshot(THD *thd)
 
 /**
    Prepare all tables that are updated for row logging
+   Note that this function can be called multiple time for statements
+   like inserts that uses a function that modifies rows.
+
+   The binlog_table_maps may have already been set here (which means
+   that the table map for all current tables in current statement have
+   already been written).  In this case the function is marking tables
+   to be used later after commit.
 
    Annotate events and table maps are written by binlog_write_table_maps()
 */
@@ -6639,7 +6666,7 @@ void THD::binlog_prepare_for_row_logging()
    Write annnotated row event (the query) if needed
 */
 
-bool THD::binlog_write_annotated_row(Log_event_writer *writer)
+bool THD::binlog_write_annotated_row(bool use_trans_cache)
 {
   DBUG_ENTER("THD::binlog_write_annotated_row");
 
@@ -6649,7 +6676,26 @@ bool THD::binlog_write_annotated_row(Log_event_writer *writer)
     DBUG_RETURN(0);
 
   Annotate_rows_log_event anno(this, 0, false);
-  DBUG_RETURN(writer->write(&anno));
+
+  binlog_cache_mngr *const cache_mngr=
+    (binlog_cache_mngr*) thd_get_ha_data(this, &binlog_tp);
+  binlog_cache_data *cache_data= (cache_mngr->
+                                  get_binlog_cache_data(use_trans_cache));
+  IO_CACHE *file= &cache_data->cache_log;
+  Log_event_writer writer(file, cache_data,
+                          anno.select_checksum_alg(cache_data), NULL);
+  if (!writer.write(&anno))
+    DBUG_RETURN(0);
+
+  mysql_bin_log.set_write_error(this, use_trans_cache);
+  /*
+    When using the non trans cache and writing to binary log failed, then
+    rollback is not possible. Hence report an incident.
+  */
+  if (mysql_bin_log.check_cache_error(this, cache_data) &&
+      lex->stmt_accessed_table(LEX::STMT_WRITES_NON_TRANS_TABLE))
+    cache_data->set_incident();
+  DBUG_RETURN(1);
 }
 
 
@@ -6665,7 +6711,7 @@ bool THD::binlog_write_annotated_row(Log_event_writer *writer)
 
 bool THD::binlog_write_table_maps()
 {
-  bool with_annotate;
+  bool binlog_using_only_trans_tables= 1;
   MYSQL_LOCK *locks[2], **locks_end= locks;
   DBUG_ENTER("THD::binlog_write_table_maps");
 
@@ -6674,44 +6720,76 @@ bool THD::binlog_write_table_maps()
 
   /* Initialize cache_mngr once per statement */
   binlog_start_trans_and_stmt();
-  with_annotate= 1;                    // Write annotate with first map
 
   if ((*locks_end= extra_lock))
     locks_end++;
   if ((*locks_end= lock))
     locks_end++;
 
+  /*
+    Check if we are updating any non transactional tables
+    We also call prepare_for_row_logging() for not yet used tables
+  */
+  for (MYSQL_LOCK **cur_lock= locks; cur_lock < locks_end ; cur_lock++)
+  {
+    TABLE **const end_ptr= (*cur_lock)->table + (*cur_lock)->table_count;
+    for (TABLE **table_ptr= (*cur_lock)->table;
+         table_ptr != end_ptr ;
+         table_ptr++)
+    {
+      TABLE *table= *table_ptr;
+      handler *file= table->file;
+      if (table->current_lock != F_WRLCK)
+        continue;
+      table->restore_row_logging= 0;
+      if (file->row_logging)
+        binlog_using_only_trans_tables&= file->row_logging_has_trans;
+      else
+      {
+        /*
+          We have to also write table maps for tables that have not yet been
+          used, like for tables in after triggers.
+        */
+        if (table->query_id != query_id && file->prepare_for_row_logging())
+        {
+          table->restore_row_logging= 1;
+          binlog_using_only_trans_tables&= file->row_logging_has_trans;
+        }
+      }
+    }
+  }
+
+  /*
+    We write the Annotate_rows to the non_transactional cache if there
+    is a single non-transactional table and OPTION_GTID_BEGIN is not
+    set.  If not we write to the transactional cache.  This ensures
+    that the Annotate_rows events are written before any table maps
+    events to the binary log.
+  */
+
+  if (binlog_write_annotated_row(binlog_using_only_trans_tables ||
+                                 variables.option_bits & OPTION_GTID_BEGIN))
+    DBUG_RETURN(1);
+
   for (MYSQL_LOCK **cur_lock= locks ; cur_lock < locks_end ; cur_lock++)
   {
     TABLE **const end_ptr= (*cur_lock)->table + (*cur_lock)->table_count;
     for (TABLE **table_ptr= (*cur_lock)->table;
          table_ptr != end_ptr ;
-         ++table_ptr)
+         table_ptr++)
     {
       TABLE *table= *table_ptr;
-      bool restore= 0;
-      /*
-        We have to also write table maps for tables that have not yet been
-        used, like for tables in after triggers
-      */
-      if (!table->file->row_logging &&
-          table->query_id != query_id && table->current_lock == F_WRLCK)
-      {
-        if (table->file->prepare_for_row_logging())
-          restore= 1;
-      }
-      if (table->file->row_logging)
-      {
-        if (mysql_bin_log.write_table_map(this, table, with_annotate))
-          DBUG_RETURN(1);
-        with_annotate= 0;
-      }
-      if (restore)
+      if (table->current_lock != F_WRLCK || ! table->file->row_logging)
+        continue;
+      if (mysql_bin_log.write_table_map(this, table))
+        DBUG_RETURN(1);
+      if (table->restore_row_logging)
       {
         /*
-          Restore original setting so that it doesn't cause problem for the
-          next statement
+          Restore original setting, changed in the previous loop,
+          so that it doesn't cause problem for the next statement
         */
+        table->restore_row_logging= 0;
         table->file->row_logging= table->file->row_logging_init= 0;
       }
     }
@@ -6735,7 +6813,7 @@ bool THD::binlog_write_table_maps()
     nonzero if an error pops up when writing the table map event.
 */
 
-bool MYSQL_BIN_LOG::write_table_map(THD *thd, TABLE *table, bool with_annotate)
+bool MYSQL_BIN_LOG::write_table_map(THD *thd, TABLE *table)
 {
   int error= 1;
   bool is_transactional= table->file->row_logging_has_trans;
@@ -6761,10 +6839,6 @@ bool MYSQL_BIN_LOG::write_table_map(THD *thd, TABLE *table, bool with_annotate)
   IO_CACHE *file= &cache_data->cache_log;
   Log_event_writer writer(file, cache_data,
                           the_event.select_checksum_alg(cache_data), NULL);
-
-  if (with_annotate)
-    if (thd->binlog_write_annotated_row(&writer))
-      goto write_err;
 
   DBUG_EXECUTE_IF("table_map_write_error",
   {
@@ -7934,7 +8008,7 @@ void MYSQL_BIN_LOG::checkpoint_and_purge(ulong binlog_id)
 
 
 /**
-  Searches for the first (oldest) binlog file name in in the binlog index.
+  Searches for the first (oldest) binlog file name in the binlog index.
 
   @param[in,out]  buf_arg  pointer to a buffer to hold found
                            the first binary log file name
@@ -8071,7 +8145,7 @@ int MYSQL_BIN_LOG::rotate_and_purge(bool force_rotate,
 
   if ((err_gtid= do_delete_gtid_domain(domain_drop_lex)))
   {
-    // inffective attempt to delete merely skips rotate and purge
+    // ineffective attempt to delete merely skips rotate and purge
     if (err_gtid < 0)
       error= 1; // otherwise error is propagated the user
   }
@@ -8486,7 +8560,12 @@ MYSQL_BIN_LOG::write_transaction_to_binlog(THD *thd,
   {
     DBUG_RETURN(0);
   }
-  else if (!(thd->variables.option_bits & OPTION_BIN_LOG))
+
+  if (!(thd->variables.option_bits & OPTION_BIN_LOG)
+#ifdef WITH_WSREP
+      && !WSREP(thd)
+#endif
+      )
   {
     cache_mngr->need_unlog= false;
     DBUG_RETURN(0);
@@ -8600,7 +8679,7 @@ MYSQL_BIN_LOG::queue_for_group_commit(group_commit_entry *orig_entry)
 
       If waitee->commit_started is set, it means that the transaction we need
       to wait for has already queued up for group commit. In this case it is
-      safe for us to queue up immediately as well, increasing the opprtunities
+      safe for us to queue up immediately as well, increasing the opportunities
       for group commit. Because waitee has taken the LOCK_prepare_ordered
       before setting the flag, so there is no risk that we can queue ahead of
       it.
@@ -9432,6 +9511,13 @@ int MYSQL_BIN_LOG::write_transaction_or_stmt(group_commit_entry *entry,
   bool has_xid= entry->end_event->get_type_code() == XID_EVENT;
 
   DBUG_ENTER("MYSQL_BIN_LOG::write_transaction_or_stmt");
+#ifdef WITH_WSREP
+  if (WSREP(entry->thd) &&
+      !(entry->thd->variables.option_bits & OPTION_BIN_LOG))
+  {
+    DBUG_RETURN(0);
+  }
+#endif /* WITH_WSREP */
 
   /*
     An error in the trx_cache will truncate the cache to the last good
@@ -11317,7 +11403,7 @@ TC_LOG_BINLOG::mark_xid_done(ulong binlog_id, bool write_checkpoint)
     most recent binlog.
 
     Note also that we need to first release LOCK_xid_list, then acquire
-    LOCK_log, then re-aquire LOCK_xid_list. If we were to take LOCK_log while
+    LOCK_log, then re-acquire LOCK_xid_list. If we were to take LOCK_log while
     holding LOCK_xid_list, we might deadlock with other threads that take the
     locks in the opposite order.
   */
@@ -11842,7 +11928,7 @@ public:
     Otherwise enumeration starts with zero for the first file, increments
     by one for any next file except for the last file in the list, which
     is also the initial binlog file for recovery,
-    that is enumberated with UINT_MAX.
+    that is enumerated with UINT_MAX.
   */
   Binlog_file_id id_binlog;
   enum_binlog_checksum_alg checksum_alg;
@@ -11925,7 +12011,7 @@ public:
     Is invoked when a standalone or non-2pc group is detected.
     Both are unsafe to truncate in the semisync-slave recovery so
     the maximum unsafe coordinate may be updated.
-    In the non-2pc group case though, *exeptionally*,
+    In the non-2pc group case though, *exceptionally*,
     the no-engine group is considered safe, to be invalidated
     to not contribute to binlog state.
   */
@@ -12136,7 +12222,7 @@ bool Recovery_context::decide_or_assess(xid_recovery_member *member, int round,
         if (!truncate_validated)
         {
           if (truncate_gtid.seq_no == 0 /* was reset or never set */ ||
-              (truncate_set_in_1st && round == 2 /* reevaluted at round turn */))
+              (truncate_set_in_1st && round == 2 /* reevaluated at round turn */))
           {
             if (set_truncate_coord(linfo, round, fdle->used_checksum_alg))
               return true;

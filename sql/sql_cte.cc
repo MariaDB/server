@@ -358,7 +358,7 @@ struct st_unit_ctxt_elem
   @details
     For each table reference ref(T) from the FROM list of every select sl 
     immediately contained in the specification query of this element this
-    method searches for the definition of T in the the with clause which
+    method searches for the definition of T in the with clause which
     this element belongs to. If such definition is found then the dependency
     on it is set in sl->with_dep and in this->base_dep_map.  
 */
@@ -622,7 +622,7 @@ TABLE_LIST *With_element::find_first_sq_rec_ref_in_select(st_select_lex *sel)
   @param  dep_map  IN/OUT The bit where to mark the found dependencies
 
   @details
-    This method searches in the unit 'unit' for the the references in FROM
+    This method searches in the unit 'unit' for the references in FROM
     lists of all selects contained in this unit and in the with clause
     attached to this unit that refer to definitions of tables from the
     same with clause as this element.
@@ -666,7 +666,7 @@ void With_element::check_dependencies_in_unit(st_select_lex_unit *unit,
   @param  dep_map      IN/OUT The bit where to mark the found dependencies
 
   @details
-    This method searches in the with_clause for the the references in FROM
+    This method searches in the with_clause for the references in FROM
     lists of all selects contained in the specifications of the with elements
     from this with_clause that refer to definitions of tables from the
     same with clause as this element.
@@ -692,7 +692,7 @@ With_element::check_dependencies_in_with_clause(With_clause *with_clause,
 
 /**
   @brief
-    Find mutually recursive with elements and check that they have ancors
+    Find mutually recursive with elements and check that they have anchors
  
   @details
     This method performs the following:
@@ -821,7 +821,7 @@ bool With_clause::check_anchors()
 	    el->work_dep_map|= elem->work_dep_map;          
         }
       }
-      /* If the transitive closure displays any cycle report an arror */
+      /* If the transitive closure displays any cycle report an error */
       elem= with_elem;
       while ((elem= elem->get_next_mutually_recursive()) != with_elem)
       {
@@ -1336,7 +1336,7 @@ With_element *st_select_lex::find_table_def_in_with_clauses(TABLE_LIST *table,
     /* 
       If sl->master_unit() is the spec of a with element then the search for 
       a definition was already done by With_element::check_dependencies_in_spec
-      and it was unsuccesful. Yet for units cloned from the spec it has not 
+      and it was unsuccessful. Yet for units cloned from the spec it has not
       been done yet.
     */
     With_clause *attached_with_clause= sl->get_with_clause();
@@ -1439,7 +1439,7 @@ bool st_select_lex::check_unrestricted_recursive(bool only_standard_compliant)
   if (!with_elem ||!with_elem->is_recursive)
   {
     /*
-      If this select is not from the specifiocation of a with elememt or
+      If this select is not from the specification of a with elememt or
       if this not a recursive with element then there is nothing to check.
     */
     return false;

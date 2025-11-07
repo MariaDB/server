@@ -844,225 +844,6 @@ error_alloc_alter_table:
   DBUG_RETURN(error_num);
 }
 
-bool spider_cmp_trx_alter_table(
-  SPIDER_ALTER_TABLE *cmp1,
-  SPIDER_ALTER_TABLE *cmp2
-) {
-  int roop_count;
-  DBUG_ENTER("spider_cmp_trx_alter_table");
-  if (
-    cmp1->tmp_priority != cmp2->tmp_priority ||
-    cmp1->link_count != cmp2->link_count ||
-    cmp1->all_link_count != cmp2->all_link_count
-  )
-    DBUG_RETURN(TRUE);
-
-  for (roop_count = 0; roop_count < (int) cmp1->all_link_count; roop_count++)
-  {
-    if (
-      (
-        cmp1->tmp_server_names[roop_count] !=
-          cmp2->tmp_server_names[roop_count] &&
-        (
-          !cmp1->tmp_server_names[roop_count] ||
-          !cmp2->tmp_server_names[roop_count] ||
-          strcmp(cmp1->tmp_server_names[roop_count],
-            cmp2->tmp_server_names[roop_count])
-        )
-      ) ||
-      (
-        cmp1->tmp_tgt_table_names[roop_count] !=
-          cmp2->tmp_tgt_table_names[roop_count] &&
-        (
-          !cmp1->tmp_tgt_table_names[roop_count] ||
-          !cmp2->tmp_tgt_table_names[roop_count] ||
-          strcmp(cmp1->tmp_tgt_table_names[roop_count],
-            cmp2->tmp_tgt_table_names[roop_count])
-        )
-      ) ||
-      (
-        cmp1->tmp_tgt_dbs[roop_count] !=
-          cmp2->tmp_tgt_dbs[roop_count] &&
-        (
-          !cmp1->tmp_tgt_dbs[roop_count] ||
-          !cmp2->tmp_tgt_dbs[roop_count] ||
-          strcmp(cmp1->tmp_tgt_dbs[roop_count],
-            cmp2->tmp_tgt_dbs[roop_count])
-        )
-      ) ||
-      (
-        cmp1->tmp_tgt_hosts[roop_count] !=
-          cmp2->tmp_tgt_hosts[roop_count] &&
-        (
-          !cmp1->tmp_tgt_hosts[roop_count] ||
-          !cmp2->tmp_tgt_hosts[roop_count] ||
-          strcmp(cmp1->tmp_tgt_hosts[roop_count],
-            cmp2->tmp_tgt_hosts[roop_count])
-        )
-      ) ||
-      (
-        cmp1->tmp_tgt_usernames[roop_count] !=
-          cmp2->tmp_tgt_usernames[roop_count] &&
-        (
-          !cmp1->tmp_tgt_usernames[roop_count] ||
-          !cmp2->tmp_tgt_usernames[roop_count] ||
-          strcmp(cmp1->tmp_tgt_usernames[roop_count],
-            cmp2->tmp_tgt_usernames[roop_count])
-        )
-      ) ||
-      (
-        cmp1->tmp_tgt_passwords[roop_count] !=
-          cmp2->tmp_tgt_passwords[roop_count] &&
-        (
-          !cmp1->tmp_tgt_passwords[roop_count] ||
-          !cmp2->tmp_tgt_passwords[roop_count] ||
-          strcmp(cmp1->tmp_tgt_passwords[roop_count],
-            cmp2->tmp_tgt_passwords[roop_count])
-        )
-      ) ||
-      (
-        cmp1->tmp_tgt_sockets[roop_count] !=
-          cmp2->tmp_tgt_sockets[roop_count] &&
-        (
-          !cmp1->tmp_tgt_sockets[roop_count] ||
-          !cmp2->tmp_tgt_sockets[roop_count] ||
-          strcmp(cmp1->tmp_tgt_sockets[roop_count],
-            cmp2->tmp_tgt_sockets[roop_count])
-        )
-      ) ||
-      (
-        cmp1->tmp_tgt_wrappers[roop_count] !=
-          cmp2->tmp_tgt_wrappers[roop_count] &&
-        (
-          !cmp1->tmp_tgt_wrappers[roop_count] ||
-          !cmp2->tmp_tgt_wrappers[roop_count] ||
-          strcmp(cmp1->tmp_tgt_wrappers[roop_count],
-            cmp2->tmp_tgt_wrappers[roop_count])
-        )
-      ) ||
-      (
-        cmp1->tmp_tgt_ssl_cas[roop_count] !=
-          cmp2->tmp_tgt_ssl_cas[roop_count] &&
-        (
-          !cmp1->tmp_tgt_ssl_cas[roop_count] ||
-          !cmp2->tmp_tgt_ssl_cas[roop_count] ||
-          strcmp(cmp1->tmp_tgt_ssl_cas[roop_count],
-            cmp2->tmp_tgt_ssl_cas[roop_count])
-        )
-      ) ||
-      (
-        cmp1->tmp_tgt_ssl_capaths[roop_count] !=
-          cmp2->tmp_tgt_ssl_capaths[roop_count] &&
-        (
-          !cmp1->tmp_tgt_ssl_capaths[roop_count] ||
-          !cmp2->tmp_tgt_ssl_capaths[roop_count] ||
-          strcmp(cmp1->tmp_tgt_ssl_capaths[roop_count],
-            cmp2->tmp_tgt_ssl_capaths[roop_count])
-        )
-      ) ||
-      (
-        cmp1->tmp_tgt_ssl_certs[roop_count] !=
-          cmp2->tmp_tgt_ssl_certs[roop_count] &&
-        (
-          !cmp1->tmp_tgt_ssl_certs[roop_count] ||
-          !cmp2->tmp_tgt_ssl_certs[roop_count] ||
-          strcmp(cmp1->tmp_tgt_ssl_certs[roop_count],
-            cmp2->tmp_tgt_ssl_certs[roop_count])
-        )
-      ) ||
-      (
-        cmp1->tmp_tgt_ssl_ciphers[roop_count] !=
-          cmp2->tmp_tgt_ssl_ciphers[roop_count] &&
-        (
-          !cmp1->tmp_tgt_ssl_ciphers[roop_count] ||
-          !cmp2->tmp_tgt_ssl_ciphers[roop_count] ||
-          strcmp(cmp1->tmp_tgt_ssl_ciphers[roop_count],
-            cmp2->tmp_tgt_ssl_ciphers[roop_count])
-        )
-      ) ||
-      (
-        cmp1->tmp_tgt_ssl_keys[roop_count] !=
-          cmp2->tmp_tgt_ssl_keys[roop_count] &&
-        (
-          !cmp1->tmp_tgt_ssl_keys[roop_count] ||
-          !cmp2->tmp_tgt_ssl_keys[roop_count] ||
-          strcmp(cmp1->tmp_tgt_ssl_keys[roop_count],
-            cmp2->tmp_tgt_ssl_keys[roop_count])
-        )
-      ) ||
-      (
-        cmp1->tmp_tgt_default_files[roop_count] !=
-          cmp2->tmp_tgt_default_files[roop_count] &&
-        (
-          !cmp1->tmp_tgt_default_files[roop_count] ||
-          !cmp2->tmp_tgt_default_files[roop_count] ||
-          strcmp(cmp1->tmp_tgt_default_files[roop_count],
-            cmp2->tmp_tgt_default_files[roop_count])
-        )
-      ) ||
-      (
-        cmp1->tmp_tgt_default_groups[roop_count] !=
-          cmp2->tmp_tgt_default_groups[roop_count] &&
-        (
-          !cmp1->tmp_tgt_default_groups[roop_count] ||
-          !cmp2->tmp_tgt_default_groups[roop_count] ||
-          strcmp(cmp1->tmp_tgt_default_groups[roop_count],
-            cmp2->tmp_tgt_default_groups[roop_count])
-        )
-      ) ||
-      (
-        cmp1->tmp_tgt_dsns[roop_count] !=
-          cmp2->tmp_tgt_dsns[roop_count] &&
-        (
-          !cmp1->tmp_tgt_dsns[roop_count] ||
-          !cmp2->tmp_tgt_dsns[roop_count] ||
-          strcmp(cmp1->tmp_tgt_dsns[roop_count],
-            cmp2->tmp_tgt_dsns[roop_count])
-        )
-      ) ||
-      (
-        cmp1->tmp_tgt_filedsns[roop_count] !=
-          cmp2->tmp_tgt_filedsns[roop_count] &&
-        (
-          !cmp1->tmp_tgt_filedsns[roop_count] ||
-          !cmp2->tmp_tgt_filedsns[roop_count] ||
-          strcmp(cmp1->tmp_tgt_filedsns[roop_count],
-            cmp2->tmp_tgt_filedsns[roop_count])
-        )
-      ) ||
-      (
-        cmp1->tmp_tgt_drivers[roop_count] !=
-          cmp2->tmp_tgt_drivers[roop_count] &&
-        (
-          !cmp1->tmp_tgt_drivers[roop_count] ||
-          !cmp2->tmp_tgt_drivers[roop_count] ||
-          strcmp(cmp1->tmp_tgt_drivers[roop_count],
-            cmp2->tmp_tgt_drivers[roop_count])
-        )
-      ) ||
-      (
-        cmp1->tmp_static_link_ids[roop_count] !=
-          cmp2->tmp_static_link_ids[roop_count] &&
-        (
-          !cmp1->tmp_static_link_ids[roop_count] ||
-          !cmp2->tmp_static_link_ids[roop_count] ||
-          strcmp(cmp1->tmp_static_link_ids[roop_count],
-            cmp2->tmp_static_link_ids[roop_count])
-        )
-      ) ||
-      cmp1->tmp_tgt_ports[roop_count] != cmp2->tmp_tgt_ports[roop_count] ||
-      cmp1->tmp_tgt_ssl_vscs[roop_count] !=
-        cmp2->tmp_tgt_ssl_vscs[roop_count] ||
-      cmp1->tmp_monitoring_binlog_pos_at_failing[roop_count] !=
-        cmp2->tmp_monitoring_binlog_pos_at_failing[roop_count] ||
-      cmp1->tmp_link_statuses[roop_count] !=
-        cmp2->tmp_link_statuses[roop_count]
-    )
-      DBUG_RETURN(TRUE);
-  }
-  DBUG_RETURN(FALSE);
-}
-
 int spider_free_trx_alloc(
   SPIDER_TRX *trx
 ) {
@@ -3104,21 +2885,15 @@ int spider_commit(
     {
       if (trx->trx_xa)
       {
-        if (trx->internal_xa && !trx->trx_xa_prepared)
+        if ((trx->internal_xa || thd->lex->xa_opt == XA_ONE_PHASE) &&
+            !trx->trx_xa_prepared)
         {
           if (
             (error_num = spider_internal_xa_prepare(
               thd, trx, table_xa, table_xa_member, TRUE))
           ) {
-/*
-            if (!thd_test_options(thd, OPTION_NOT_AUTOCOMMIT | OPTION_BEGIN))
-            {
-*/
               /* rollback for semi_trx */
               spider_rollback(thd, all);
-/*
-            }
-*/
             DBUG_RETURN(error_num);
           }
           trx->trx_xa_prepared = TRUE;
@@ -3809,8 +3584,7 @@ void spider_trx_set_link_idx_for_all(
         spider_set_bit(conn_can_fo, link_idx);
       DBUG_PRINT("info",("spider set conn_link_idx[%d]=%d",
         link_idx, all_link_idx));
-    } else
-    {
+    } else {
       conn_link_idx[link_idx] = link_idx;
       DBUG_PRINT("info",("spider set2 conn_link_idx[%d]=%d",
         link_idx, link_idx));

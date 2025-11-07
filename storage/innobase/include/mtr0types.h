@@ -191,7 +191,7 @@ The end of the mini-transaction would be indicated by the end byte
 0x00 or 0x01; @see log_sys.get_sequence_bit().
 If log_sys.is_encrypted(), that is followed by 8 bytes of nonce
 (part of initialization vector). That will be followed by 4 bytes
-of CRC-32C of the entire mini-tranasction, excluding the end byte. */
+of CRC-32C of the entire mini-transaction, excluding the end byte. */
 
 /** Redo log record types. These bit patterns (3 bits) will be written
 to the redo log file, so the existing codes or their interpretation on

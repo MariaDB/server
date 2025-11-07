@@ -315,7 +315,7 @@ int main(int argc,char *argv[])
       code=atoi(*argv);
       msg = strerror(code);
 
-      // On AIX, unknow error return " Error <CODE> occurred."
+      // On AIX, unknown error returns " Error <CODE> occurred."
       snprintf(unknow_aix, sizeof(unknow_aix), " Error %3d occurred.", code);
 
       /*
@@ -353,8 +353,13 @@ int main(int argc,char *argv[])
       {
         found= 1;
         if (verbose)
+        {
+          int hundred= code / 100;
           printf("MariaDB error code %3d (%s): %s\n"
-                 "Learn more: https://mariadb.com/kb/en/e%3d/\n", code, name, msg, code);
+                 "Learn more: https://mariadb.com/docs/server/reference/"
+                 "error-codes/mariadb-error-codes-%d00-to-%d99/e%3d\n",
+                 code, name, msg, hundred, hundred, code);
+        }
         else
           puts(msg);
       }

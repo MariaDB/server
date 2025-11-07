@@ -92,7 +92,6 @@ show status like "performance%";
 select * from performance_schema.PERFORMANCE_TIMERS;
 select * from performance_schema.SETUP_CONSUMERS;
 select * from performance_schema.SETUP_INSTRUMENTS;
-select * from performance_schema.SETUP_TIMERS;
 
 Post-test queries
 -----------------
@@ -140,7 +139,6 @@ show status like "performance%";
 select * from performance_schema.PERFORMANCE_TIMERS;
 select * from performance_schema.SETUP_CONSUMERS;
 select * from performance_schema.SETUP_INSTRUMENTS;
-select * from performance_schema.SETUP_TIMERS;
 
 Post-test queries
 -----------------
@@ -192,7 +190,6 @@ show status like "performance%";
 select * from performance_schema.PERFORMANCE_TIMERS;
 select * from performance_schema.SETUP_CONSUMERS;
 select * from performance_schema.SETUP_INSTRUMENTS;
-select * from performance_schema.SETUP_TIMERS;
 
 Post-test queries
 -----------------
@@ -229,9 +226,6 @@ Configuration
 UPDATE performance_schema.SETUP_INSTRUMENTS
   set enabled='YES', timed='YES';
 
-UPDATE performance_schema.SETUP_TIMERS
-  set timer_name='CYCLE';
-
 UPDATE performance_schema.SETUP_CONSUMERS
   set enabled='NO';
 
@@ -248,7 +242,6 @@ show status like "performance%";
 select * from performance_schema.PERFORMANCE_TIMERS;
 select * from performance_schema.SETUP_CONSUMERS;
 select * from performance_schema.SETUP_INSTRUMENTS;
-select * from performance_schema.SETUP_TIMERS;
 
 Post-test queries
 -----------------
@@ -284,9 +277,6 @@ Configuration
 UPDATE performance_schema.SETUP_INSTRUMENTS
   set enabled='YES', timed='YES';
 
-UPDATE performance_schema.SETUP_TIMERS
-  set timer_name='CYCLE';
-
 UPDATE performance_schema.SETUP_CONSUMERS
   set enabled='NO';
 
@@ -306,7 +296,6 @@ show status like "performance%";
 select * from performance_schema.PERFORMANCE_TIMERS;
 select * from performance_schema.SETUP_CONSUMERS;
 select * from performance_schema.SETUP_INSTRUMENTS;
-select * from performance_schema.SETUP_TIMERS;
 
 Post-test queries
 -----------------
@@ -342,9 +331,6 @@ Configuration
 UPDATE performance_schema.SETUP_INSTRUMENTS
   set enabled='YES', timed='YES';
 
-UPDATE performance_schema.SETUP_TIMERS
-  set timer_name='CYCLE';
-
 UPDATE performance_schema.SETUP_CONSUMERS
   set enabled='NO';
 
@@ -364,7 +350,6 @@ show status like "performance%";
 select * from performance_schema.PERFORMANCE_TIMERS;
 select * from performance_schema.SETUP_CONSUMERS;
 select * from performance_schema.SETUP_INSTRUMENTS;
-select * from performance_schema.SETUP_TIMERS;
 
 Post-test queries
 -----------------
@@ -400,9 +385,6 @@ Configuration
 UPDATE performance_schema.SETUP_INSTRUMENTS
   set enabled='YES', timed='YES';
 
-UPDATE performance_schema.SETUP_TIMERS
-  set timer_name='CYCLE';
-
 UPDATE performance_schema.SETUP_CONSUMERS
   set enabled='YES';
 
@@ -416,7 +398,6 @@ show status like "performance%";
 select * from performance_schema.PERFORMANCE_TIMERS;
 select * from performance_schema.SETUP_CONSUMERS;
 select * from performance_schema.SETUP_INSTRUMENTS;
-select * from performance_schema.SETUP_TIMERS;
 
 Post-test queries
 -----------------

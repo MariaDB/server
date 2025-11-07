@@ -94,6 +94,21 @@ $$
 CALL p1();
 par1	par2	par3	par4	par5	par6	par7	par8	par9.b	par10	par11	par12.b	par13.b
 1	abc	2010-01-01 12:34:56	123.45	123.45	123.45	a	1	abc	10	10	cde	cde
+SELECT * FROM information_schema.PARAMETERS WHERE SPECIFIC_NAME = 'p1';
+SPECIFIC_CATALOG	SPECIFIC_SCHEMA	SPECIFIC_NAME	ORDINAL_POSITION	PARAMETER_MODE	PARAMETER_NAME	DATA_TYPE	CHARACTER_MAXIMUM_LENGTH	CHARACTER_OCTET_LENGTH	NUMERIC_PRECISION	NUMERIC_SCALE	DATETIME_PRECISION	CHARACTER_SET_NAME	COLLATION_NAME	DTD_IDENTIFIER	ROUTINE_TYPE	PARAMETER_DEFAULT
+def	test	p1	1	IN	par1	int	NULL	NULL	10	0	NULL	NULL	NULL	int(11)	PROCEDURE	1
+def	test	p1	2	IN	par2	varchar	10	40	NULL	NULL	NULL	utf8mb4	utf8mb4_uca1400_ai_ci	varchar(10)	PROCEDURE	'abc'
+def	test	p1	3	IN	par3	datetime	NULL	NULL	NULL	NULL	0	NULL	NULL	datetime	PROCEDURE	'2010-01-01 12:34:56'
+def	test	p1	4	IN	par4	decimal	NULL	NULL	10	2	NULL	NULL	NULL	decimal(10,2)	PROCEDURE	123.45
+def	test	p1	5	IN	par5	float	NULL	NULL	12	NULL	NULL	NULL	NULL	float	PROCEDURE	123.45
+def	test	p1	6	IN	par6	double	NULL	NULL	22	NULL	NULL	NULL	NULL	double	PROCEDURE	123.45
+def	test	p1	7	IN	par7	varchar	2000	8000	NULL	NULL	NULL	utf8mb4	utf8mb4_uca1400_ai_ci	varchar(2000)	PROCEDURE	'a'
+def	test	p1	8	IN	par8	tinyint	NULL	NULL	3	0	NULL	NULL	NULL	tinyint(1)	PROCEDURE	1
+def	test	p1	9	IN	par9	ROW	NULL	NULL	NULL	NULL	NULL	NULL	NULL	ROW	PROCEDURE	(1,'abc')
+def	test	p1	10	IN	par10	TYPE OF	NULL	NULL	NULL	NULL	NULL	NULL	NULL	"t1"."a"%TYPE	PROCEDURE	10
+def	test	p1	11	IN	par11	TYPE OF	NULL	NULL	NULL	NULL	NULL	NULL	NULL	"d1"."t1"."a"%TYPE	PROCEDURE	10
+def	test	p1	12	IN	par12	ROW TYPE OF	NULL	NULL	NULL	NULL	NULL	NULL	NULL	"t1"%ROWTYPE	PROCEDURE	(1,'cde')
+def	test	p1	13	IN	par13	ROW TYPE OF	NULL	NULL	NULL	NULL	NULL	NULL	NULL	"d1"."t1"%ROWTYPE	PROCEDURE	(1,'cde')
 DROP PROCEDURE p1;
 DROP TABLE t1;
 DROP DATABASE d1;
@@ -123,6 +138,9 @@ par1
 CALL p1();
 par1
 2
+SELECT * FROM information_schema.PARAMETERS WHERE SPECIFIC_NAME = 'p1';
+SPECIFIC_CATALOG	SPECIFIC_SCHEMA	SPECIFIC_NAME	ORDINAL_POSITION	PARAMETER_MODE	PARAMETER_NAME	DATA_TYPE	CHARACTER_MAXIMUM_LENGTH	CHARACTER_OCTET_LENGTH	NUMERIC_PRECISION	NUMERIC_SCALE	DATETIME_PRECISION	CHARACTER_SET_NAME	COLLATION_NAME	DTD_IDENTIFIER	ROUTINE_TYPE	PARAMETER_DEFAULT
+def	test	p1	1	IN	par1	int	NULL	NULL	10	0	NULL	NULL	NULL	int(11)	PROCEDURE	"f1"()
 DROP PROCEDURE p1;
 DROP FUNCTION f1;
 DROP TABLE t1;
@@ -144,6 +162,9 @@ par1
 CALL p1(10);
 par1
 10
+SELECT * FROM information_schema.PARAMETERS WHERE SPECIFIC_NAME = 'p1';
+SPECIFIC_CATALOG	SPECIFIC_SCHEMA	SPECIFIC_NAME	ORDINAL_POSITION	PARAMETER_MODE	PARAMETER_NAME	DATA_TYPE	CHARACTER_MAXIMUM_LENGTH	CHARACTER_OCTET_LENGTH	NUMERIC_PRECISION	NUMERIC_SCALE	DATETIME_PRECISION	CHARACTER_SET_NAME	COLLATION_NAME	DTD_IDENTIFIER	ROUTINE_TYPE	PARAMETER_DEFAULT
+def	test	p1	1	IN	par1	int	NULL	NULL	10	0	NULL	NULL	NULL	int(11)	PROCEDURE	(select "a" from "t1")
 DROP PROCEDURE p1;
 DROP TABLE t1;
 #
@@ -162,6 +183,10 @@ par1	par2
 CALL p1(10,20);
 par1	par2
 10	20
+SELECT * FROM information_schema.PARAMETERS WHERE SPECIFIC_NAME = 'p1';
+SPECIFIC_CATALOG	SPECIFIC_SCHEMA	SPECIFIC_NAME	ORDINAL_POSITION	PARAMETER_MODE	PARAMETER_NAME	DATA_TYPE	CHARACTER_MAXIMUM_LENGTH	CHARACTER_OCTET_LENGTH	NUMERIC_PRECISION	NUMERIC_SCALE	DATETIME_PRECISION	CHARACTER_SET_NAME	COLLATION_NAME	DTD_IDENTIFIER	ROUTINE_TYPE	PARAMETER_DEFAULT
+def	test	p1	1	IN	par1	int	NULL	NULL	10	0	NULL	NULL	NULL	int(11)	PROCEDURE	NULL
+def	test	p1	2	IN	par2	int	NULL	NULL	10	0	NULL	NULL	NULL	int(11)	PROCEDURE	`par1`
 DROP PROCEDURE p1;
 #
 # Default value referencing self
@@ -220,6 +245,163 @@ CREATE PROCEDURE sp1(p1 IN INT DEFAULT 0, p2 INOUT INT)
 BEGIN
 SET p2 = p2 + 1;
 END;
-DELIMITER ;$$
+$$
 ERROR 42000: This version of MariaDB doesn't yet support 'sparam1 IN <type> DEFAULT <expr>, spparam2 OUT <type>'
 # End of 11.8 tests
+#
+# MDEV-37054: Implement INFORMATION_SCHEMA.PARAMETERS.PARAMETER_DEFAULT column
+#
+# Default parameter values for procedure
+CREATE TABLE t (a INT);
+INSERT INTO t values (1);
+CREATE OR REPLACE FUNCTION func(a INT DEFAULT 123) RETURN INT
+AS
+BEGIN
+RETURN a;
+END;
+$$
+CREATE PROCEDURE proc(p0 INT,                                           # no default value for parameter
+p1 INT DEFAULT 1,                                 # constant default value
+p2 INT DEFAULT p1+1,                              # expression referring other parameter
+p3 INT DEFAULT pow(2,p2),                         # function as default value
+p4 INT DEFAULT (SELECT a from t),                 # subquery as default value
+p5 VARCHAR(5) DEFAULT 'maria',                    # varchar default
+p6 VARCHAR(10) DEFAULT CONCAT(p5, NULL, 'db'),    # sql_mode specific function
+p7 INET6 DEFAULT INET6_NTOA(UNHEX('0A000101')),   # misc. functions as default
+p8 INT DEFAULT func(),                            # stored function as default
+p9 TIMESTAMP DEFAULT NOW(),                       # timestmap function as default
+p10 DATE DEFAULT CURDATE())                       # date function as default
+AS
+BEGIN
+SELECT p6 FROM DUAL;
+END;
+$$
+SHOW CREATE PROCEDURE proc;
+Procedure	sql_mode	Create Procedure	character_set_client	collation_connection	Database Collation
+proc	PIPES_AS_CONCAT,ANSI_QUOTES,IGNORE_SPACE,ORACLE,NO_KEY_OPTIONS,NO_TABLE_OPTIONS,NO_FIELD_OPTIONS,NO_AUTO_CREATE_USER,SIMULTANEOUS_ASSIGNMENT	CREATE DEFINER="root"@"localhost" PROCEDURE "proc"(p0 INT,                                           # no default value for parameter
+p1 INT DEFAULT 1,                                 # constant default value
+p2 INT DEFAULT p1+1,                              # expression referring other parameter
+p3 INT DEFAULT pow(2,p2),                         # function as default value
+p4 INT DEFAULT (SELECT a from t),                 # subquery as default value
+p5 VARCHAR(5) DEFAULT 'maria',                    # varchar default
+p6 VARCHAR(10) DEFAULT CONCAT(p5, NULL, 'db'),    # sql_mode specific function
+p7 INET6 DEFAULT INET6_NTOA(UNHEX('0A000101')),   # misc. functions as default
+p8 INT DEFAULT func(),                            # stored function as default
+p9 TIMESTAMP DEFAULT NOW(),                       # timestmap function as default
+p10 DATE DEFAULT CURDATE())
+AS
+BEGIN
+SELECT p6 FROM DUAL;
+END	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
+# Default param value with sql_mode=ORACLE
+SELECT * FROM information_schema.PARAMETERS WHERE SPECIFIC_NAME = 'proc';
+SPECIFIC_CATALOG	SPECIFIC_SCHEMA	SPECIFIC_NAME	ORDINAL_POSITION	PARAMETER_MODE	PARAMETER_NAME	DATA_TYPE	CHARACTER_MAXIMUM_LENGTH	CHARACTER_OCTET_LENGTH	NUMERIC_PRECISION	NUMERIC_SCALE	DATETIME_PRECISION	CHARACTER_SET_NAME	COLLATION_NAME	DTD_IDENTIFIER	ROUTINE_TYPE	PARAMETER_DEFAULT
+def	test	proc	1	IN	p0	int	NULL	NULL	10	0	NULL	NULL	NULL	int(11)	PROCEDURE	NULL
+def	test	proc	2	IN	p1	int	NULL	NULL	10	0	NULL	NULL	NULL	int(11)	PROCEDURE	1
+def	test	proc	3	IN	p2	int	NULL	NULL	10	0	NULL	NULL	NULL	int(11)	PROCEDURE	(`p1` + 1)
+def	test	proc	4	IN	p3	int	NULL	NULL	10	0	NULL	NULL	NULL	int(11)	PROCEDURE	pow(2,`p2`)
+def	test	proc	5	IN	p4	int	NULL	NULL	10	0	NULL	NULL	NULL	int(11)	PROCEDURE	(select "a" from "t")
+def	test	proc	6	IN	p5	varchar	5	20	NULL	NULL	NULL	utf8mb4	utf8mb4_uca1400_ai_ci	varchar(5)	PROCEDURE	'maria'
+def	test	proc	7	IN	p6	varchar	10	40	NULL	NULL	NULL	utf8mb4	utf8mb4_uca1400_ai_ci	varchar(10)	PROCEDURE	concat_operator_oracle(`p5`,NULL,'db')
+def	test	proc	8	IN	p7	inet6	NULL	NULL	NULL	NULL	NULL	NULL	NULL	inet6	PROCEDURE	inet6_ntoa(unhex('0A000101'))
+def	test	proc	9	IN	p8	int	NULL	NULL	10	0	NULL	NULL	NULL	int(11)	PROCEDURE	"func"()
+def	test	proc	10	IN	p9	timestamp	NULL	NULL	NULL	NULL	0	NULL	NULL	timestamp	PROCEDURE	current_timestamp()
+def	test	proc	11	IN	p10	datetime	NULL	NULL	NULL	NULL	0	NULL	NULL	datetime	PROCEDURE	curdate()
+# Default param value with sql_mode=DEFAULT
+SET sql_mode=DEFAULT;
+SELECT * FROM information_schema.PARAMETERS WHERE SPECIFIC_NAME = 'proc';
+SPECIFIC_CATALOG	SPECIFIC_SCHEMA	SPECIFIC_NAME	ORDINAL_POSITION	PARAMETER_MODE	PARAMETER_NAME	DATA_TYPE	CHARACTER_MAXIMUM_LENGTH	CHARACTER_OCTET_LENGTH	NUMERIC_PRECISION	NUMERIC_SCALE	DATETIME_PRECISION	CHARACTER_SET_NAME	COLLATION_NAME	DTD_IDENTIFIER	ROUTINE_TYPE	PARAMETER_DEFAULT
+def	test	proc	1	IN	p0	int	NULL	NULL	10	0	NULL	NULL	NULL	int(11)	PROCEDURE	NULL
+def	test	proc	2	IN	p1	int	NULL	NULL	10	0	NULL	NULL	NULL	int(11)	PROCEDURE	1
+def	test	proc	3	IN	p2	int	NULL	NULL	10	0	NULL	NULL	NULL	int(11)	PROCEDURE	(`p1` + 1)
+def	test	proc	4	IN	p3	int	NULL	NULL	10	0	NULL	NULL	NULL	int(11)	PROCEDURE	pow(2,`p2`)
+def	test	proc	5	IN	p4	int	NULL	NULL	10	0	NULL	NULL	NULL	int(11)	PROCEDURE	(select "a" from "t")
+def	test	proc	6	IN	p5	varchar	5	20	NULL	NULL	NULL	utf8mb4	utf8mb4_uca1400_ai_ci	varchar(5)	PROCEDURE	'maria'
+def	test	proc	7	IN	p6	varchar	10	40	NULL	NULL	NULL	utf8mb4	utf8mb4_uca1400_ai_ci	varchar(10)	PROCEDURE	concat_operator_oracle(`p5`,NULL,'db')
+def	test	proc	8	IN	p7	inet6	NULL	NULL	NULL	NULL	NULL	NULL	NULL	inet6	PROCEDURE	inet6_ntoa(unhex('0A000101'))
+def	test	proc	9	IN	p8	int	NULL	NULL	10	0	NULL	NULL	NULL	int(11)	PROCEDURE	"func"()
+def	test	proc	10	IN	p9	timestamp	NULL	NULL	NULL	NULL	0	NULL	NULL	timestamp	PROCEDURE	current_timestamp()
+def	test	proc	11	IN	p10	datetime	NULL	NULL	NULL	NULL	0	NULL	NULL	datetime	PROCEDURE	curdate()
+SET sql_mode=ORACLE;
+DROP PROCEDURE proc;
+DROP FUNCTION func;
+DROP TABLE t;
+# Default parameter values of functions
+CREATE TABLE t (a INT);
+INSERT INTO t values (1);
+CREATE OR REPLACE FUNCTION f(a INT DEFAULT 123) RETURN INT
+AS
+BEGIN
+RETURN a;
+END;
+$$
+CREATE FUNCTION func(p0 INT,                                           # no default value for parameter
+p1 INT DEFAULT 1,                                 # constant default value
+p2 INT DEFAULT p1+1,                              # expression referring other parameter
+p3 INT DEFAULT pow(2,p2),                         # function as default value
+p4 INT DEFAULT (SELECT a from t),                 # subquery as default value
+p5 VARCHAR(5) DEFAULT 'maria',                    # varchar default
+p6 VARCHAR(10) DEFAULT CONCAT(p5, NULL, 'db'),    # sql_mode specific function
+p7 INET6 DEFAULT INET6_NTOA(UNHEX('0A000101')),   # misc. functions as default
+p8 INT DEFAULT func(),                            # stored function as default
+p9 TIMESTAMP DEFAULT NOW(),                       # timestmap function as default
+p10 DATE DEFAULT CURDATE())                       # date function as default
+RETURN VARCHAR(10)
+AS
+BEGIN
+RETURN p6;
+END;
+$$
+SHOW CREATE FUNCTION func;
+Function	sql_mode	Create Function	character_set_client	collation_connection	Database Collation
+func	PIPES_AS_CONCAT,ANSI_QUOTES,IGNORE_SPACE,ORACLE,NO_KEY_OPTIONS,NO_TABLE_OPTIONS,NO_FIELD_OPTIONS,NO_AUTO_CREATE_USER,SIMULTANEOUS_ASSIGNMENT	CREATE DEFINER="root"@"localhost" FUNCTION "func"(p0 INT,                                           # no default value for parameter
+p1 INT DEFAULT 1,                                 # constant default value
+p2 INT DEFAULT p1+1,                              # expression referring other parameter
+p3 INT DEFAULT pow(2,p2),                         # function as default value
+p4 INT DEFAULT (SELECT a from t),                 # subquery as default value
+p5 VARCHAR(5) DEFAULT 'maria',                    # varchar default
+p6 VARCHAR(10) DEFAULT CONCAT(p5, NULL, 'db'),    # sql_mode specific function
+p7 INET6 DEFAULT INET6_NTOA(UNHEX('0A000101')),   # misc. functions as default
+p8 INT DEFAULT func(),                            # stored function as default
+p9 TIMESTAMP DEFAULT NOW(),                       # timestmap function as default
+p10 DATE DEFAULT CURDATE()) RETURN varchar(10) CHARSET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci
+AS
+BEGIN
+RETURN p6;
+END	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
+# Default param value with sql_mode=ORACLE
+SELECT * FROM information_schema.PARAMETERS WHERE SPECIFIC_NAME = 'func';
+SPECIFIC_CATALOG	SPECIFIC_SCHEMA	SPECIFIC_NAME	ORDINAL_POSITION	PARAMETER_MODE	PARAMETER_NAME	DATA_TYPE	CHARACTER_MAXIMUM_LENGTH	CHARACTER_OCTET_LENGTH	NUMERIC_PRECISION	NUMERIC_SCALE	DATETIME_PRECISION	CHARACTER_SET_NAME	COLLATION_NAME	DTD_IDENTIFIER	ROUTINE_TYPE	PARAMETER_DEFAULT
+def	test	func	0	NULL	NULL	varchar	10	40	NULL	NULL	NULL	utf8mb4	utf8mb4_uca1400_ai_ci	varchar(10)	FUNCTION	NULL
+def	test	func	1	IN	p0	int	NULL	NULL	10	0	NULL	NULL	NULL	int(11)	FUNCTION	NULL
+def	test	func	2	IN	p1	int	NULL	NULL	10	0	NULL	NULL	NULL	int(11)	FUNCTION	1
+def	test	func	3	IN	p2	int	NULL	NULL	10	0	NULL	NULL	NULL	int(11)	FUNCTION	(`p1` + 1)
+def	test	func	4	IN	p3	int	NULL	NULL	10	0	NULL	NULL	NULL	int(11)	FUNCTION	pow(2,`p2`)
+def	test	func	5	IN	p4	int	NULL	NULL	10	0	NULL	NULL	NULL	int(11)	FUNCTION	(select "a" from "t")
+def	test	func	6	IN	p5	varchar	5	20	NULL	NULL	NULL	utf8mb4	utf8mb4_uca1400_ai_ci	varchar(5)	FUNCTION	'maria'
+def	test	func	7	IN	p6	varchar	10	40	NULL	NULL	NULL	utf8mb4	utf8mb4_uca1400_ai_ci	varchar(10)	FUNCTION	concat_operator_oracle(`p5`,NULL,'db')
+def	test	func	8	IN	p7	inet6	NULL	NULL	NULL	NULL	NULL	NULL	NULL	inet6	FUNCTION	inet6_ntoa(unhex('0A000101'))
+def	test	func	9	IN	p8	int	NULL	NULL	10	0	NULL	NULL	NULL	int(11)	FUNCTION	"func"()
+def	test	func	10	IN	p9	timestamp	NULL	NULL	NULL	NULL	0	NULL	NULL	timestamp	FUNCTION	current_timestamp()
+def	test	func	11	IN	p10	datetime	NULL	NULL	NULL	NULL	0	NULL	NULL	datetime	FUNCTION	curdate()
+# Default param value with sql_mode=DEFAULT
+SET sql_mode=DEFAULT;
+SELECT * FROM information_schema.PARAMETERS WHERE SPECIFIC_NAME = 'func';
+SPECIFIC_CATALOG	SPECIFIC_SCHEMA	SPECIFIC_NAME	ORDINAL_POSITION	PARAMETER_MODE	PARAMETER_NAME	DATA_TYPE	CHARACTER_MAXIMUM_LENGTH	CHARACTER_OCTET_LENGTH	NUMERIC_PRECISION	NUMERIC_SCALE	DATETIME_PRECISION	CHARACTER_SET_NAME	COLLATION_NAME	DTD_IDENTIFIER	ROUTINE_TYPE	PARAMETER_DEFAULT
+def	test	func	0	NULL	NULL	varchar	10	40	NULL	NULL	NULL	utf8mb4	utf8mb4_uca1400_ai_ci	varchar(10)	FUNCTION	NULL
+def	test	func	1	IN	p0	int	NULL	NULL	10	0	NULL	NULL	NULL	int(11)	FUNCTION	NULL
+def	test	func	2	IN	p1	int	NULL	NULL	10	0	NULL	NULL	NULL	int(11)	FUNCTION	1
+def	test	func	3	IN	p2	int	NULL	NULL	10	0	NULL	NULL	NULL	int(11)	FUNCTION	(`p1` + 1)
+def	test	func	4	IN	p3	int	NULL	NULL	10	0	NULL	NULL	NULL	int(11)	FUNCTION	pow(2,`p2`)
+def	test	func	5	IN	p4	int	NULL	NULL	10	0	NULL	NULL	NULL	int(11)	FUNCTION	(select "a" from "t")
+def	test	func	6	IN	p5	varchar	5	20	NULL	NULL	NULL	utf8mb4	utf8mb4_uca1400_ai_ci	varchar(5)	FUNCTION	'maria'
+def	test	func	7	IN	p6	varchar	10	40	NULL	NULL	NULL	utf8mb4	utf8mb4_uca1400_ai_ci	varchar(10)	FUNCTION	concat_operator_oracle(`p5`,NULL,'db')
+def	test	func	8	IN	p7	inet6	NULL	NULL	NULL	NULL	NULL	NULL	NULL	inet6	FUNCTION	inet6_ntoa(unhex('0A000101'))
+def	test	func	9	IN	p8	int	NULL	NULL	10	0	NULL	NULL	NULL	int(11)	FUNCTION	"func"()
+def	test	func	10	IN	p9	timestamp	NULL	NULL	NULL	NULL	0	NULL	NULL	timestamp	FUNCTION	current_timestamp()
+def	test	func	11	IN	p10	datetime	NULL	NULL	NULL	NULL	0	NULL	NULL	datetime	FUNCTION	curdate()
+SET sql_mode=ORACLE;
+DROP FUNCTION func;
+DROP FUNCTION f;
+DROP TABLE t;
+# End of 12.2 tests

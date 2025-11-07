@@ -93,7 +93,7 @@ use test;
 # Test of wrong values for float data (bug #2082)
 #
 
-# PS gives sligthly different numbers for max-float/max-double
+# PS gives slightly different numbers for max-float/max-double
 --disable_ps_protocol
 create table t1(number int auto_increment primary key, original_value varchar(50), f_double double, f_float float, f_double_7_2 double(7,2), f_float_4_3 float (4,3), f_double_u double unsigned, f_float_u float unsigned, f_double_15_1_u double(15,1) unsigned, f_float_3_1_u float (3,1) unsigned);
 
@@ -671,5 +671,59 @@ select * from t1;
 drop table t1;
 
 --echo #
---echo # End of 10.5 tests
+--echo # MDEV-32086 Server crash when inserting from derived table containing insert target table
+--echo # (part 2)
 --echo #
+
+create table t1 (pk int, id int);
+insert into t1 values (2,2), (3,3), (4,4);
+select * from t1;
+select 101+count(*)
+   from
+   (
+      select dt2.id
+      from (select id from t1) dt2, t1 t where t.id=dt2.id
+   ) dt
+   where dt.id<1000;
+prepare s from '
+insert into t1 values(
+  (select 101+count(*)
+   from
+   (
+      select dt2.id
+      from (select id from t1) dt2, t1 t where t.id=dt2.id
+   ) dt
+   where dt.id<1000
+  ), 123
+)
+';
+execute s;
+select * from t1;
+select 101+count(*)
+   from
+   (
+      select dt2.id
+      from (select id from t1) dt2, t1 t where t.id=dt2.id
+   ) dt
+   where dt.id<1000;
+execute s;
+select * from t1;
+
+drop table t1;
+
+--echo #
+--echo # Try this: INSERT INTO t1 VALUES ... reference to t1
+--echo #           RETURNING (subquery not touching t1)
+create table t1 (a int, b int);
+create table t2 (a int, b int);
+
+--echo # This is accepted:
+insert into t1 (a) values 
+  (3),
+  ((select max(a) from t1)) 
+returning 
+  a, b, (select max(a) from t2);
+
+drop table t1,t2;
+
+--echo # End of 10.5 tests

@@ -3,6 +3,7 @@
 -- source include/not_embedded.inc
 -- source include/have_innodb.inc
 -- source include/testdb_only.inc
+-- source include/hostname_is_not_localhost.inc
 
 set local sql_mode="";
 set global sql_mode="";
@@ -66,6 +67,7 @@ call mbase.p1();
 --enable_result_log
 
 connection default;
+disconnect user1;
 use `inf%`;
 drop user mysqltest_1@localhost;
 drop table t1;
@@ -80,7 +82,6 @@ drop function func2;
 drop database `inf%`;
 drop procedure mbase.p1;
 drop database mbase;
-disconnect user1;
 
 --echo #
 --echo # Bug#18282 INFORMATION_SCHEMA.TABLES provides inconsistent info about invalid views
@@ -206,13 +207,8 @@ connection default;
 use test;
 drop view testdb_1.v1, v2, testdb_1.v3, v4;
 drop database testdb_1;
-connection testdb_1;
 disconnect testdb_1;
---source include/wait_until_disconnected.inc
-connection testdb_2;
 disconnect testdb_2;
---source include/wait_until_disconnected.inc
-connection default;
 drop user testdb_1@localhost;
 drop user testdb_2@localhost;
 
@@ -241,12 +237,9 @@ where table_name='v1';
 show create view testdb_1.v1;
 
 connection default;
+disconnect user1;
 drop user mysqltest_1@localhost;
 drop database testdb_1;
-connection user1;
-disconnect user1;
---source include/wait_until_disconnected.inc
-connection default;
 
 set global sql_mode=default;
 
@@ -256,9 +249,13 @@ set global sql_mode=default;
 
 create user foo@localhost;
 grant select on test.* to foo@localhost;
+let $default_id= `select connection_id()`;
+connect foo,localhost,foo;
+let $foo_id= `select connection_id()`;
+connection default;
 create procedure rootonly() select 1;
-create sql security definer view v1d as select current_user(),user from information_schema.processlist where command!='daemon';
-create sql security invoker view v1i as select current_user(),user from information_schema.processlist where command!='daemon';
+evalp create sql security definer view v1d as select current_user(),user from information_schema.processlist where id in($default_id, $foo_id) order by user;
+evalp create sql security invoker view v1i as select current_user(),user from information_schema.processlist where id in($default_id, $foo_id) order by user;
 create sql security definer view v2d as select table_name from information_schema.tables where table_schema='mysql' and table_name like '%user%';
 create sql security invoker view v2i as select table_name from information_schema.tables where table_schema='mysql' and table_name like '%user%';
 create sql security definer view v3d as select schema_name from information_schema.schemata where schema_name like '%mysql%';
@@ -267,7 +264,7 @@ create sql security definer view v4d as select routine_name from information_sch
 create sql security invoker view v4i as select routine_name from information_schema.routines where routine_schema='test';
 create sql security definer view v5d as select view_definition > '' from information_schema.views where table_name='v1d';
 create sql security invoker view v5i as select view_definition > '' from information_schema.views where table_name='v1d';
-connect foo,localhost,foo;
+connection foo;
 select * from v1d;
 select * from v1i;
 select * from v2d;
@@ -344,7 +341,7 @@ drop database db;
 set @old_max_password_errors=@@max_password_errors;
 set global max_password_errors=2;
 
-# must use replace_regex for case insenstive replacement
+# must use replace_regex for case insensitive replacement
 let $hostname_re= `select concat('/@\'', @@hostname, '\'/@HOSTNAME/i')`;
 
 # set the password_last_changed value

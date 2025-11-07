@@ -34,6 +34,7 @@ Created 12/9/2009 Jimmy Yang
 #include "srv0srv.h"
 #include "trx0rseg.h"
 #include "trx0sys.h"
+#include "log.h"
 
 /* Macro to standardize the counter names for counters in the
 "monitor_buf_page" module as they have very structured defines */
@@ -1193,6 +1194,18 @@ srv_mon_set_module_control(
 	}
 }
 
+/** Reset all values.
+@param monitor  monitor identifier */
+void srv_mon_reset_all(monitor_id_t monitor) noexcept
+{
+  if (MONITOR_IS_ON(monitor))
+    sql_print_warning("InnoDB: Cannot reset all values for monitor counter '%s' "
+                      "while it is on. Please turn it off and retry.",
+                      srv_mon_get_name(monitor));
+  else
+    MONITOR_RESET_ALL(monitor);
+}
+
 /****************************************************************//**
 Get transaction system's rollback segment size in pages
 @return size in pages */
@@ -1288,12 +1301,13 @@ srv_mon_process_existing_counter(
 
 	/* innodb_buffer_pool_pages_total */
 	case MONITOR_OVLD_BUF_POOL_PAGE_TOTAL:
-		value = buf_pool.get_n_pages();
+	case MONITOR_OVLD_BUFFER_POOL_SIZE:
+		value = buf_pool.curr_size();
 		break;
 
 	/* innodb_buffer_pool_pages_misc */
 	case MONITOR_OVLD_BUF_POOL_PAGE_MISC:
-		value = buf_pool.get_n_pages()
+		value = buf_pool.curr_size()
 			- UT_LIST_GET_LEN(buf_pool.LRU)
 			- UT_LIST_GET_LEN(buf_pool.free);
 		break;
@@ -1375,7 +1389,7 @@ srv_mon_process_existing_counter(
 
 	/* innodb_os_log_written */
 	case MONITOR_OVLD_OS_LOG_WRITTEN:
-		value = log_sys.get_lsn() - recv_sys.lsn;
+		value = log_get_lsn() - recv_sys.lsn;
 		break;
 
 	/* innodb_log_waits */
@@ -1410,10 +1424,6 @@ srv_mon_process_existing_counter(
 	/* innodb_page_size */
 	case MONITOR_OVLD_SRV_PAGE_SIZE:
 		value = srv_page_size;
-		break;
-
-	case MONITOR_OVLD_BUFFER_POOL_SIZE:
-		value = srv_buf_pool_size;
 		break;
 
 	/* innodb_row_lock_current_waits */
@@ -1480,7 +1490,7 @@ srv_mon_process_existing_counter(
 		break;
 
 	case MONITOR_OVLD_LSN_CURRENT:
-		value = log_sys.get_lsn();
+		value = log_get_lsn();
 		break;
 
         case MONITOR_OVLD_CHECKPOINTS:
@@ -1488,10 +1498,10 @@ srv_mon_process_existing_counter(
 		break;
 
 	case MONITOR_LSN_CHECKPOINT_AGE:
-		log_sys.latch.rd_lock(SRW_LOCK_CALL);
+		log_sys.latch.wr_lock(SRW_LOCK_CALL);
 		value = static_cast<mon_type_t>(log_sys.get_lsn()
 						- log_sys.last_checkpoint_lsn);
-		log_sys.latch.rd_unlock();
+		log_sys.latch.wr_unlock();
 		break;
 
 	case MONITOR_OVLD_BUF_OLDEST_LSN:
@@ -1582,7 +1592,7 @@ srv_mon_process_existing_counter(
 			    & MONITOR_DISPLAY_CURRENT) {
 				MONITOR_SET(monitor_id, value);
 			} else {
-				/* Most status counters are montonically
+				/* Most status counters are monotonically
 				increasing, no need to update their
 				minimum values. Only do so
 				if "update_min" set to TRUE */

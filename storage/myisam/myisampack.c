@@ -250,9 +250,6 @@ int main(int argc, char **argv)
   free_defaults(default_argv);
   my_end(verbose ? MY_CHECK_ERROR | MY_GIVE_INFO : MY_CHECK_ERROR);
   exit(error ? 2 : 0);
-#ifndef _lint
-  return 0;					/* No compiler warning */
-#endif
 }
 
 enum options_mp {OPT_CHARSETS_DIR_MP=256};
@@ -410,7 +407,7 @@ static MI_INFO *open_isam_file(char *name,int mode)
     }
     if (verbose)
       puts("Recompressing already compressed table");
-    share->options&= ~HA_OPTION_READ_ONLY_DATA; /* We are modifing it */
+    share->options&= ~HA_OPTION_READ_ONLY_DATA; /* We are modifying it */
 
     /* We want to use the new checksums if we have null fields */
     if (share->has_null_fields)
@@ -1417,7 +1414,7 @@ test_space_compress(HUFF_COUNTS *huff_counts, my_off_t records,
   min_pos= -2;
   huff_counts->counts[(uint) ' ']=space_count;
 
-	/* Test with allways space-count */
+	/* Test with always space-count */
   new_length=huff_counts->bytes_packed+length_bits*records/8;
   if (new_length+1 < min_pack)
   {
@@ -2818,7 +2815,7 @@ static char *make_old_name(char *new_name, char *old_name)
   return fn_format(new_name,old_name,"",OLD_EXT,2+4);
 }
 
-	/* rutines for bit writing buffer */
+	/* routines for bit writing buffer */
 
 static void init_file_buffer(File file, pbool read_buffer)
 {

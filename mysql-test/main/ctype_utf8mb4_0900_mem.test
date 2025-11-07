@@ -1,0 +1,112 @@
+--echo #
+--echo # MDEV-36213 Doubled memory usage (11.4.4 <-> 11.4.5)
+--echo #
+
+SET NAMES utf8mb4;
+
+CREATE FUNCTION memory_used() RETURNS BIGINT RETURN
+(SELECT variable_value
+ FROM information_schema.global_status
+ WHERE variable_name='memory_used');
+
+DELIMITER /;
+
+CREATE PROCEDURE p1(cl VARCHAR(64))
+BEGIN
+  DECLARE mem_before BIGINT;
+  DECLARE mem_after BIGINT;
+  DECLARE query TEXT DEFAULT CONCAT('SET @a= _utf8mb4 0x20 COLLATE ', cl);
+
+  SET mem_before= memory_used();
+  EXECUTE IMMEDIATE query;
+  SET mem_after= memory_used();
+
+  SELECT
+    CASE
+      WHEN mem_after-mem_before >= 1024*1024 THEN '>=1M'
+      ELSE '<1M'
+    END AS diff,
+    CONCAT(query,';') AS query;
+END;
+/
+
+CREATE PROCEDURE p2(cl VARCHAR(64))
+BEGIN
+  DECLARE mem_before BIGINT;
+  DECLARE mem_after BIGINT;
+  DECLARE query TEXT DEFAULT CONCAT(
+    'SELECT id, full_collation_name'
+    ' FROM information_schema.collation_character_set_applicability'
+    ' WHERE full_collation_name LIKE ''PATTERN'' ORDER BY id');
+
+  SET query= REPLACE(query, 'PATTERN', cl);
+  SELECT query;
+  SET mem_before= memory_used();
+  EXECUTE IMMEDIATE query;
+  SET mem_after=memory_used();
+
+  SELECT
+    CASE
+      WHEN mem_before-mem_after >= 1024*1024 THEN '>=1M'
+      ELSE '<1M'
+    END AS diff;
+END;
+/
+DELIMITER ;/
+
+
+--disable_column_names
+--disable_query_log
+
+--echo #
+--echo # Initialize spanish2 collations, an UCA-14.0.0 collation goes first
+--echo #
+
+CALL p1('utf8mb4_uca1400_spanish2_ai_ci');
+CALL p1('utf8mb4_uca1400_spanish2_ai_cs');
+CALL p1('utf8mb4_uca1400_spanish2_as_ci');
+CALL p1('utf8mb4_uca1400_spanish2_as_cs');
+CALL p1('utf8mb4_uca1400_spanish2_nopad_ai_ci');
+CALL p1('utf8mb4_uca1400_spanish2_nopad_ai_cs');
+CALL p1('utf8mb4_uca1400_spanish2_nopad_as_ci');
+CALL p1('utf8mb4_uca1400_spanish2_nopad_as_cs');
+CALL p1('utf8mb4_es_trad_0900_ai_ci');
+CALL p1('utf8mb4_es_trad_0900_as_cs');
+
+--echo #
+--echo # I_S queries for initialized collations should not add memory
+--echo #
+
+CALL p2('utf8mb4_uca1400_spanish2%');
+CALL p2('utf8mb4_%es_trad_0900%');
+
+--echo #
+--echo # I_S queries for not initialized collations should not add memory
+--echo #
+
+CALL p2('utf8mb4_uca1400_german2%');
+CALL p2('utf8mb4_%de_pb_0900%');
+
+--echo #
+--echo # Initialize german2 collations, an UCA-9.0.0 alias goes first
+--echo #
+
+CALL p1('utf8mb4_de_pb_0900_ai_ci');
+CALL p1('utf8mb4_de_pb_0900_as_cs');
+CALL p1('utf8mb4_uca1400_german2_ai_ci');
+CALL p1('utf8mb4_uca1400_german2_ai_cs');
+CALL p1('utf8mb4_uca1400_german2_as_ci');
+CALL p1('utf8mb4_uca1400_german2_as_cs');
+CALL p1('utf8mb4_uca1400_german2_nopad_ai_ci');
+CALL p1('utf8mb4_uca1400_german2_nopad_ai_cs');
+CALL p1('utf8mb4_uca1400_german2_nopad_as_ci');
+CALL p1('utf8mb4_uca1400_german2_nopad_as_cs');
+--enable_query_log
+--enable_column_names
+
+
+DROP PROCEDURE p2;
+DROP PROCEDURE p1;
+DROP FUNCTION memory_used;
+
+--echo # End of 11.4 tests

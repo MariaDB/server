@@ -54,16 +54,6 @@ explain select * from t1 where a=1 or b=1	{
             }
           },
           {
-            "table_dependencies": [
-              {
-                "table": "t1",
-                "row_may_be_null": false,
-                "map_bit": 0,
-                "depends_on_map_bits": []
-              }
-            ]
-          },
-          {
             "ref_optimizer_key_uses": []
           },
           {
@@ -206,6 +196,16 @@ explain select * from t1 where a=1 or b=1	{
             ]
           },
           {
+            "table_dependencies": [
+              {
+                "table": "t1",
+                "row_may_be_null": false,
+                "map_bit": 0,
+                "depends_on_map_bits": []
+              }
+            ]
+          },
+          {
             "considered_execution_plans": [
               {
                 "plan_prefix": "",
@@ -271,12 +271,6 @@ explain select * from t1 where a=1 or b=1	{
             "make_join_readinfo": []
           }
         ]
-      }
-    },
-    {
-      "join_execution": {
-        "select_id": 1,
-        "steps": []
       }
     }
   ]
@@ -423,9 +417,7 @@ JS
             "cost": 0.573622393,
             "covering": false,
             "chosen": true
-        },
-        "analyzing_index_merge_union": 
-        []
+        }
     }
 ]
 select JSON_DETAILED(JSON_EXTRACT(trace, '$**.chosen_range_access_summary')) AS JS from INFORMATION_SCHEMA.OPTIMIZER_TRACE;

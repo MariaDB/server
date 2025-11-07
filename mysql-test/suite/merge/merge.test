@@ -4,9 +4,6 @@
 
 --source include/test_db_charset_latin1.inc
 
-# Save the initial number of concurrent sessions.
---source include/count_sessions.inc
-
 # MERGE tables require MyISAM tables
 set @save_default_storage_engine=@@global.default_storage_engine;
 set global default_storage_engine=myisam;
@@ -118,7 +115,7 @@ select count(*) from t3;
 alter table t3 ENGINE=MYISAM;
 select count(*) from t3;
 
-# Test that ALTER TABLE rembers the old UNION
+# Test that ALTER TABLE remembers the old UNION
 
 drop table t3;
 CREATE TABLE t3 (incr int not null, othr int not null, primary key(incr))
@@ -176,7 +173,7 @@ insert into t6 values (6,1),(6,2);
 select * from t1 order by a,b;
 select * from t2 order by a,b;
 select * from t4 order by a,b;
-# preperation for next test
+# preparation for next test
 insert into t3 values (3,1),(3,2),(3,3),(3,4);
 select * from t3 order by a,b;
 # now testing whether options are kept by alter table
@@ -280,7 +277,7 @@ INSERT INTO t4 SELECT * FROM t3;
 --echo # Alter temporary MERGE table.
 ALTER TABLE t4 UNION=(t1);
 LOCK TABLES t4 WRITE;
---echo # Alter temporary MERGE table under LOCk tables.
+--echo # Alter temporary MERGE table under LOCK tables.
 ALTER TABLE t4 UNION=(t1,t2);
 UNLOCK TABLES;
 --echo # MERGE table and function.
@@ -523,7 +520,7 @@ INSERT INTO t2 VALUES ('ss',2),(0xDF,2);
 SELECT COUNT(*) FROM t3 WHERE a=0xDF AND b=2;
 DROP TABLE t1,t2,t3;
 
-# End of 4.1 tests
+--echo # End of 4.1 tests
 
 #
 # BUG#19648 - Merge table does not work with bit types
@@ -632,7 +629,7 @@ SELECT * FROM m1;
 SELECT * FROM m2;
 DROP TABLE t1, t2, m1, m2;
 
---echo End of 5.0 tests
+--echo # End of 5.0 tests
 
 
 #
@@ -1829,7 +1826,7 @@ alter table tm_temp_temp insert_method=first;
 check table tm_temp_temp;
 drop temporary table t1_temp, tm_temp_temp;
 
---echo End of 5.1 tests
+--echo # End of 5.1 tests
 
 --echo # 
 --echo # MDEV-4277: Crash inside mi_killed_in_mariadb() with myisammrg
@@ -1866,7 +1863,7 @@ select * from t2, t5 where t5.a=999 and t5.b=999;
 drop table t5;
 drop table t1,t2,t3,t4;
 
---echo End of 5.3 tests
+--echo # End of 5.3 tests
 
 #
 # BUG#35274 - merge table doesn't need any base tables, gives error 124 when
@@ -2672,37 +2669,24 @@ insert into tmp (b) values (1);
 
 insert into t1 (a) values (1);
 insert into t3 (b) values (1);
---error ER_UPDATE_TABLE_USED
 insert into m1 (a) values ((select max(a) from m1));
---error ER_UPDATE_TABLE_USED
 insert into m1 (a) values ((select max(a) from m2));
---error ER_UPDATE_TABLE_USED
 insert into m1 (a) values ((select max(a) from t1));
---error ER_UPDATE_TABLE_USED
 insert into m1 (a) values ((select max(a) from t2));
 
---error ER_UPDATE_TABLE_USED
 insert into m1 (a) values ((select max(a) from t3, m1));
---error ER_UPDATE_TABLE_USED
 insert into m1 (a) values ((select max(a) from t3, m2));
---error ER_UPDATE_TABLE_USED
 insert into m1 (a) values ((select max(a) from t3, t1));
---error ER_UPDATE_TABLE_USED
 insert into m1 (a) values ((select max(a) from t3, t2));
 
---error ER_UPDATE_TABLE_USED
 insert into m1 (a) values ((select max(a) from tmp, m1));
---error ER_UPDATE_TABLE_USED
 insert into m1 (a) values ((select max(a) from tmp, m2));
---error ER_UPDATE_TABLE_USED
 insert into m1 (a) values ((select max(a) from tmp, t1));
---error ER_UPDATE_TABLE_USED
 insert into m1 (a) values ((select max(a) from tmp, t2));
- 
---error ER_VIEW_PREVENT_UPDATE
+
 insert into m1 (a) values ((select max(a) from v1));
---error ER_VIEW_PREVENT_UPDATE
 insert into m1 (a) values ((select max(a) from tmp, v1));
+select count(*) from m1;
 
 
 drop view v1;
@@ -2786,9 +2770,7 @@ EXECUTE stmt;
 DEALLOCATE PREPARE stmt;
 DROP TABLE t1, tmerge;
 
---echo #
 --echo # End of 5.5 tests
---echo #
 
 --echo #
 --echo # Additional coverage for refactoring which is made as part
@@ -2859,10 +2841,6 @@ DROP TABLE m1;
 
 set global default_storage_engine=@save_default_storage_engine;
 
-# Check that all connections opened by test cases in this file are really
-# gone so execution of other tests won't be affected by their presence.
---source include/wait_until_count_sessions.inc
-
 --echo #
 --echo # MDEV-31083 ASAN use-after-poison in myrg_attach_children
 --echo #
@@ -2873,11 +2851,7 @@ CREATE TABLE mrg (f TEXT) ENGINE=MERGE, UNION(t1);
 SELECT * FROM mrg;
 DROP TABLE mrg, t1;
 
---echo End of 10.5 tests
-
---echo #
 --echo # End of 10.0 tests
---echo #
 
 --echo #
 --echo # MDEV-27407 Different ASC/DESC index attributes on MERGE and underlying table can cause wrong results
@@ -2899,9 +2873,23 @@ insert into tm () values ();
 select * from tm;
 drop table tm, t;
 
---echo #
 --echo # End of 10.8 tests
+
 --echo #
+--echo # MDEV-35816 ASAN use-after-poison in st_select_lex::print
+--echo #
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 (a) VALUES (1),(2),(3),(4),(5);
+SET SESSION optimizer_trace = 'enabled=on';
+PREPARE stmt FROM 'SELECT STRAIGHT_JOIN * FROM t1 WHERE a IN (WITH cte AS (SELECT a FROM t1) SELECT * FROM cte)';
+EXECUTE stmt;
+EXECUTE stmt;
+PREPARE nested FROM 'SELECT STRAIGHT_JOIN * FROM t1 WHERE a IN (WITH cte AS (WITH cte2 AS (SELECT a FROM t1) SELECT * from cte2) SELECT * FROM cte)';
+EXECUTE nested;
+EXECUTE nested;
+DROP TABLE t1;
+
+--echo # End of 10.11 tests
 
 --echo #
 --echo # MDEV-30088 Assertion `cond_selectivity <= 1.0' failed in get_range_limit_read_cost
@@ -2948,9 +2936,8 @@ EXPLAIN SELECT DISTINCT a FROM t1;
 drop table t1;
 set use_stat_tables=default;
 
---echo #
 --echo # End of 11.0 tests
---echo #
+
 --echo #
 --echo # MDEV-29174: UPDATE of view that uses MERGE table
 --echo #
@@ -2962,5 +2949,4 @@ DROP VIEW v1;
 DROP TABLE t1;
 
 --echo # End of 11.1 tests
-
 --source include/test_db_charset_restore.inc

@@ -149,19 +149,19 @@ $client_ip=~ s/\.//g;
 %tests_files=(client => {mtime => 0, data => []},
               initdb => {mtime => 0, data => []});
 
-# Error codes and sub-strings with corresponding severity 
+# Error codes and sub-strings with corresponding severity
 #
 # S1 - Critical errors - cause immediately abort of testing. These errors
 #                        could be caused by server crash or impossibility
 #                        of test execution. 
 #
-# S2 - Serious errors - these errors are bugs for sure as it knowns that 
-#                       they shouldn't appear during stress testing  
+# S2 - Serious errors - these errors are bugs for sure as it's known that
+#                       they shouldn't appear during stress testing
 #
-# S3 - Unknown errors - Errors were returned but we don't know what they are 
+# S3 - Unknown errors - Errors were returned but we don't know what they are
 #                       so script can't determine if they are OK or not
 #
-# S4 - Non-seriuos errros - these errors could be caused by fact that 
+# S4 - Non-seriuos errors - these errors could be caused by fact that
 #                           we execute simultaneously statements that
 #                           affect tests executed by other threads
                             
@@ -414,7 +414,7 @@ if (!defined($opt_stress_tests_file) && !defined($opt_stress_init_file))
 {
   die <<EOF;
 You should run stress script either with --stress-tests-file or with 
---stress-init-file otions. See help for details.
+--stress-init-file options. See help for details.
 EOF
 }
 
@@ -1189,7 +1189,7 @@ mysql-stress-test.pl --stress-basedir=<dir> --stress-suite-basedir=<dir> --serve
       they specified in the list file. 
       
 --sleep-time=<time in seconds>
-  Delay between test execution. Could be useful in continued testsing 
+  Delay between test execution. Could be useful in continued testing
   when one of instance of stress script perform periodical cleanup or
   recreating of some database objects
 
@@ -1209,7 +1209,7 @@ mysql-stress-test.pl --stress-basedir=<dir> --stress-suite-basedir=<dir> --serve
   Force to clean up working directory (specified with --stress-basedir)
 
 --abort-on-error=<number>
-  Causes the script to abort if an error with severity <= number was encounterd
+  Causes the script to abort if an error with severity <= number was encountered
 
 --log-error-details
   Enable errors details in the global error log file. (Default: off)

@@ -7,52 +7,24 @@
 DROP DATABASE IF EXISTS auto_test_local;
 CREATE DATABASE auto_test_local;
 USE auto_test_local;
-if ($USE_CHILD_GROUP2)
-{
   --connection child2_1
-  if ($USE_GENERAL_LOG)
-  {
     SET @old_log_output = @@global.log_output;
     SET GLOBAL log_output = 'TABLE,FILE';
-  }
   DROP DATABASE IF EXISTS auto_test_remote;
   CREATE DATABASE auto_test_remote;
   USE auto_test_remote;
-}
 --enable_warnings
 
 --echo
 --echo test select 1
 --connection master_1
 SELECT 1;
-if ($USE_CHILD_GROUP2)
-{
-  if (!$OUTPUT_CHILD_GROUP2)
-  {
-    --disable_query_log
-    --disable_result_log
-  }
   --connection child2_1
   SELECT 1;
-  if (!$OUTPUT_CHILD_GROUP2)
-  {
-    --enable_query_log
-    --enable_result_log
-  }
-}
 
 --echo
 --echo create table and insert
-if ($USE_CHILD_GROUP2)
-{
-  if (!$OUTPUT_CHILD_GROUP2)
-  {
-    --disable_query_log
-    --disable_result_log
-  }
   --connection child2_1
-  if ($OUTPUT_CHILD_GROUP2)
-  {
     --disable_query_log
     echo CHILD2_1_DROP_TABLES;
     echo CHILD2_1_DROP_TABLES6;
@@ -60,29 +32,33 @@ if ($USE_CHILD_GROUP2)
     echo CHILD2_1_CREATE_TABLES;
     echo CHILD2_1_CREATE_TABLES6;
     echo CHILD2_1_CREATE_TABLES5;
-  }
   --disable_warnings
-  eval $CHILD2_1_DROP_TABLES;
-  eval $CHILD2_1_DROP_TABLES6;
-  eval $CHILD2_1_DROP_TABLES5;
+DROP TABLE IF EXISTS ta_r;
+DROP TABLE IF EXISTS ta_r_3;
+DROP TABLE IF EXISTS ta_r_int;
   --enable_warnings
-  eval $CHILD2_1_CREATE_TABLES;
-  eval $CHILD2_1_CREATE_TABLES6;
-  eval $CHILD2_1_CREATE_TABLES5;
-  if ($OUTPUT_CHILD_GROUP2)
-  {
+CREATE TABLE ta_r (
+a INT DEFAULT 10,
+b CHAR(1) DEFAULT 'c',
+c DATETIME DEFAULT '1999-10-10 10:10:10',
+PRIMARY KEY(a),
+KEY idx1(b)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+CREATE TABLE ta_r_3 (
+a INT DEFAULT 10,
+b CHAR(1) DEFAULT 'c',
+c DATETIME DEFAULT '1999-10-10 10:10:10'
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+CREATE TABLE ta_r_int (
+a INT AUTO_INCREMENT,
+b INT DEFAULT 10,
+c INT DEFAULT 11,
+PRIMARY KEY(a),
+KEY idx1(b),
+KEY idx2(c)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
     --enable_query_log
-  }
-  if ($USE_GENERAL_LOG)
-  {
     TRUNCATE TABLE mysql.general_log;
-  }
-  if (!$OUTPUT_CHILD_GROUP2)
-  {
-    --enable_query_log
-    --enable_result_log
-  }
-}
 --connection master_1
 --disable_warnings
 DROP TABLE IF EXISTS tbl_a;
@@ -95,23 +71,29 @@ echo CREATE TABLE tbl_a (
     PRIMARY KEY(a),
     KEY idx1(b)
 ) MASTER_1_ENGINE MASTER_1_CHARSET MASTER_1_COMMENT_2_1;
-eval CREATE TABLE tbl_a (
+eval
+CREATE TABLE tbl_a (
     a INT DEFAULT 10,
     b CHAR(1) DEFAULT 'c',
     c DATETIME DEFAULT '1999-10-10 10:10:10',
     PRIMARY KEY(a),
     KEY idx1(b)
-) $MASTER_1_ENGINE $MASTER_1_CHARSET $MASTER_1_COMMENT_2_1;
+) ENGINE=Spider DEFAULT CHARSET=utf8 COMMENT='database "auto_test_remote", table "ta_r"'
+    CONNECTION='host "localhost", socket "$CHILD2_1_MYSOCK", user "root",
+    password ""';
 echo CREATE TABLE tbl_b (
     a INT DEFAULT 10,
     b CHAR(1) DEFAULT 'c',
     c DATETIME DEFAULT '1999-10-10 10:10:10'
 ) MASTER_1_ENGINE MASTER_1_CHARSET MASTER_1_COMMENT5_2_1;
-eval CREATE TABLE tbl_b (
+eval
+CREATE TABLE tbl_b (
     a INT DEFAULT 10,
     b CHAR(1) DEFAULT 'c',
     c DATETIME DEFAULT '1999-10-10 10:10:10'
-) $MASTER_1_ENGINE $MASTER_1_CHARSET $MASTER_1_COMMENT5_2_1;
+) ENGINE=Spider DEFAULT CHARSET=utf8 COMMENT='database "auto_test_remote", table "ta_r_3"'
+    CONNECTION='host "localhost", socket "$CHILD2_1_MYSOCK", user "root",
+    password ""';
 echo CREATE TABLE tbl_c (
     a INT AUTO_INCREMENT,
     b INT DEFAULT 10,
@@ -120,14 +102,17 @@ echo CREATE TABLE tbl_c (
     KEY idx1(b),
     KEY idx2(c)
 ) MASTER_1_ENGINE MASTER_1_CHARSET MASTER_1_COMMENT4_2_1;
-eval CREATE TABLE tbl_c (
+eval
+CREATE TABLE tbl_c (
     a INT AUTO_INCREMENT,
     b INT DEFAULT 10,
     c INT DEFAULT 11,
     PRIMARY KEY(a),
     KEY idx1(b),
     KEY idx2(c)
-) $MASTER_1_ENGINE $MASTER_1_CHARSET $MASTER_1_COMMENT4_2_1;
+) ENGINE=Spider DEFAULT CHARSET=utf8 COMMENT='database "auto_test_remote", table "ta_r_int"'
+    CONNECTION='host "localhost", socket "$CHILD2_1_MYSOCK", user "root",
+    password ""';
 --enable_query_log
 --disable_ps_protocol
 insert into tbl_a values (1,'a','2000/01/01'),(2,'b','2000/01/02'),(3,'c','2000/01/03'),(4,'d','2000/01/04'),(5,'e','2000/01/05');
@@ -137,90 +122,50 @@ insert into tbl_c values (1,10,100),(2,20,200),(3,30,300),(4,40,400),(5,50,500);
 
 --echo
 --echo select test
-if ($USE_CHILD_GROUP2)
-{
-  if (!$OUTPUT_CHILD_GROUP2)
-  {
-    --disable_query_log
-    --disable_result_log
-  }
   --connection child2_1
-  if ($USE_GENERAL_LOG)
-  {
     TRUNCATE TABLE mysql.general_log;
-  }
-  if (!$OUTPUT_CHILD_GROUP2)
-  {
-    --enable_query_log
-    --enable_result_log
-  }
-}
 
 --connection master_1
 --disable_ps2_protocol
 SELECT a.a, c.b, c.c FROM tbl_a a, tbl_b b, tbl_c c WHERE a.a = b.a and a.a = c.a ORDER BY a.b DESC LIMIT 1,2;
 
-if ($USE_CHILD_GROUP2)
-{
-  if (!$OUTPUT_CHILD_GROUP2)
-  {
-    --disable_query_log
-    --disable_result_log
-  }
   --connection child2_1
-  if ($USE_GENERAL_LOG)
-  {
-    eval $CHILD2_1_SELECT_ARGUMENT1;
-  }
-  eval $CHILD2_1_SELECT_TABLES;
-  if (!$OUTPUT_CHILD_GROUP2)
-  {
-    --enable_query_log
-    --enable_result_log
-  }
-}
+    --disable_view_protocol
+SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %';
+    --enable_view_protocol
+SELECT a, b, date_format(c, '%Y-%m-%d %H:%i:%s') FROM ta_r ORDER BY a;
 --enable_ps2_protocol
 
 --echo
 --echo Test JOIN on a constant table.
 --echo Spider should NOT push down the join because the tbl_person table
 --echo is optimized as a constant table.
-if ($USE_CHILD_GROUP2)
-{
-  if (!$OUTPUT_CHILD_GROUP2)
-  {
-    --disable_query_log
-    --disable_result_log
-  }
   --connection child2_1
-  if ($OUTPUT_CHILD_GROUP2)
-  {
     --disable_query_log
     echo CHILD2_1_DROP_CONST_TABLE_JOIN;
     echo CHILD2_1_DROP_CONST_TABLE2_JOIN;
     echo CHILD2_1_CREATE_CONST_TABLE_JOIN;
     echo CHILD2_1_CREATE_CONST_TABLE2_JOIN;
-  }
   --disable_warnings
-  eval $CHILD2_1_DROP_CONST_TABLE_JOIN;
-  eval $CHILD2_1_DROP_CONST_TABLE2_JOIN;
+DROP TABLE IF EXISTS tbl_person;
+DROP TABLE IF EXISTS tbl_ncd_cm_person;
   --enable_warnings
-  eval $CHILD2_1_CREATE_CONST_TABLE_JOIN;
-  eval $CHILD2_1_CREATE_CONST_TABLE2_JOIN;
-  if ($OUTPUT_CHILD_GROUP2)
-  {
+CREATE TABLE tbl_person (
+id VARCHAR(50) NOT NULL,
+hr_status VARCHAR(50) NULL DEFAULT NULL,
+region_code VARCHAR(50) NULL DEFAULT NULL,
+region INT(11) NOT NULL,
+PRIMARY KEY (id, region) USING BTREE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8 ROW_FORMAT = Dynamic;
+CREATE TABLE tbl_ncd_cm_person (
+id VARCHAR(50) NOT NULL,
+person_id VARCHAR(50) NULL DEFAULT '',
+diseaseKind_id VARCHAR(50) NULL DEFAULT NULL,
+region INT(11) NOT NULL,
+PRIMARY KEY (id, region) USING BTREE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8 ROW_FORMAT = Dynamic;
     --enable_query_log
-  }
-  if ($USE_GENERAL_LOG)
-  {
     TRUNCATE TABLE mysql.general_log;
-  }
-  if (!$OUTPUT_CHILD_GROUP2)
-  {
-    --enable_query_log
-    --enable_result_log
-  }
-}
 --connection master_1
 --disable_warnings
 DROP TABLE IF EXISTS tbl_person;
@@ -235,14 +180,16 @@ echo CREATE TABLE tbl_person (
     PRIMARY KEY (id, region) USING BTREE
   ) MASTER_1_ENGINE MASTER_1_CHARSET MASTER_1_COMMENT_CONST_TABLE_JOIN
     MASTER_1_ROW_FORMAT_CONST_TABLE_JOIN MASTER_1_PART_CONST_TABLE_JOIN;
-eval CREATE TABLE tbl_person (
+CREATE TABLE tbl_person (
     id VARCHAR(50) NOT NULL,
     hr_status VARCHAR(50) NULL DEFAULT NULL,
     region_code VARCHAR(50) NULL DEFAULT NULL,
     region INT(11) NOT NULL,
     PRIMARY KEY (id, region) USING BTREE
-  ) $MASTER_1_ENGINE $MASTER_1_CHARSET $MASTER_1_COMMENT_CONST_TABLE_JOIN
-    $MASTER_1_ROW_FORMAT_CONST_TABLE_JOIN $MASTER_1_PART_CONST_TABLE_JOIN;
+) ENGINE=Spider DEFAULT CHARSET=utf8 COMMENT 'table "tbl_ncd_cm_person"'
+ROW_FORMAT = Dynamic PARTITION BY LIST COLUMNS (region) PARTITIONS 1
+(PARTITION pt1 values in (510411)
+COMMENT = 'tbl "tbl_person", srv "s_2_1"' MAX_ROWS = 0 MIN_ROWS = 0);
 echo SHOW CREATE TABLE tbl_person;
 --disable_ps_protocol
 SHOW CREATE TABLE tbl_person;
@@ -255,14 +202,16 @@ echo CREATE TABLE tbl_ncd_cm_person (
     PRIMARY KEY (id, region) USING BTREE
   ) MASTER_1_ENGINE MASTER_1_CHARSET MASTER_1_COMMENT_CONST_TABLE2_JOIN
     MASTER_1_ROW_FORMAT_CONST_TABLE_JOIN MASTER_1_PART_CONST_TABLE2_JOIN;
-eval CREATE TABLE tbl_ncd_cm_person (
+CREATE TABLE tbl_ncd_cm_person (
     id VARCHAR(50) NOT NULL,
     person_id VARCHAR(50) NULL DEFAULT '',
     diseaseKind_id VARCHAR(50) NULL DEFAULT NULL,
     region INT(11) NOT NULL,
     PRIMARY KEY (id, region) USING BTREE
-  ) $MASTER_1_ENGINE $MASTER_1_CHARSET $MASTER_1_COMMENT_CONST_TABLE2_JOIN
-    $MASTER_1_ROW_FORMAT_CONST_TABLE_JOIN $MASTER_1_PART_CONST_TABLE2_JOIN;
+) ENGINE=Spider DEFAULT CHARSET=utf8 
+ROW_FORMAT = Dynamic PARTITION BY LIST COLUMNS (region) PARTITIONS 1
+(PARTITION pt1 values in (510411)
+COMMENT = 'tbl "tbl_ncd_cm_person", srv "s_2_1"' MAX_ROWS = 0 MIN_ROWS = 0);
 echo SHOW CREATE TABLE tbl_ncd_cm_person;
 --disable_ps_protocol
 SHOW CREATE TABLE tbl_ncd_cm_person;
@@ -289,48 +238,18 @@ INSERT INTO tbl_ncd_cm_person VALUES ('123456789AB',
                                       '123456789012345678901234567890AB',
                                       '52A0328740914BCE86ED10A4D2521816',
                                       510411);
-if ($USE_CHILD_GROUP2)
-{
-  if (!$OUTPUT_CHILD_GROUP2)
-  {
-    --disable_query_log
-    --disable_result_log
-  }
   --connection child2_1
-  if ($USE_GENERAL_LOG)
-  {
     TRUNCATE TABLE mysql.general_log;
-  }
-  if (!$OUTPUT_CHILD_GROUP2)
-  {
-    --enable_query_log
-    --enable_result_log
-  }
-}
 
 --connection master_1
 --disable_ps2_protocol
 SELECT count(0) FROM tbl_person tp INNER JOIN tbl_ncd_cm_person tncp ON tp.id = tncp.person_id WHERE 1 = 1 AND tp.hr_status != "99" AND tp.hr_status != "2" AND tp.region_code LIKE CONCAT(CONCAT('%', '51041110620301', '%')) AND tp.id = '24FC3F0A5119432BAE13DD65AABAA39C' AND tncp.diseaseKind_id = '52A0328740914BCE86ED10A4D2521816' AND tp.region = 510411;
-if ($USE_CHILD_GROUP2)
-{
-  if (!$OUTPUT_CHILD_GROUP2)
-  {
-    --disable_query_log
-    --disable_result_log
-  }
   --connection child2_1
-  if ($USE_GENERAL_LOG)
-  {
-    eval $CHILD2_1_SELECT_ARGUMENT1;
-  }
-  eval $CHILD2_1_SELECT_CONST_TABLE_JOIN;
-  eval $CHILD2_1_SELECT_CONST_TABLE2_JOIN;
-  if (!$OUTPUT_CHILD_GROUP2)
-  {
-    --enable_query_log
-    --enable_result_log
-  }
-}
+    --disable_view_protocol
+SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %';
+    --enable_view_protocol
+SELECT * FROM tbl_person;
+SELECT * FROM tbl_ncd_cm_person;
 --enable_ps2_protocol
 
 --echo
@@ -338,15 +257,9 @@ if ($USE_CHILD_GROUP2)
 --disable_warnings
 --connection master_1
 DROP DATABASE IF EXISTS auto_test_local;
-if ($USE_CHILD_GROUP2)
-{
   --connection child2_1
   DROP DATABASE IF EXISTS auto_test_remote;
-  if ($USE_GENERAL_LOG)
-  {
     SET GLOBAL log_output = @old_log_output;
-  }
-}
 --enable_warnings
 --source ../include/direct_join_deinit.inc
 --echo

@@ -115,7 +115,7 @@ Parse an SQL string.
 que_t*
 fts_parse_sql(
 /*==========*/
-	fts_table_t*	fts_table,	/*!< in: FTS auxiliarry table info */
+	fts_table_t*	fts_table,	/*!< in: FTS auxiliary table info */
 	pars_info_t*	info,		/*!< in: info struct, or NULL */
 	const char*	sql)		/*!< in: SQL string to evaluate */
 {

@@ -1,13 +1,12 @@
 --source include/have_innodb.inc
 --source include/have_debug_sync.inc
---source include/count_sessions.inc
 
 --disable_query_log
 call mtr.add_suppression("InnoDB: Transaction was aborted due to ");
 --enable_query_log
 
 # Purge can cause deadlock in the test, requesting page's RW_X_LATCH for trx
-# ids reseting, after trx 2 acqured RW_S_LATCH and suspended in debug sync point
+# ids resetting, after trx 2 acqured RW_S_LATCH and suspended in debug sync point
 # lock_trx_handle_wait_enter, waiting for upd_cont signal, which must be
 # emitted after the last SELECT in this test. The last SELECT will hang waiting
 # for purge RW_X_LATCH releasing, and trx 2 will be rolled back by timeout.
@@ -73,4 +72,3 @@ SET DEBUG_SYNC="now SIGNAL upd_cont_2";
 SET DEBUG_SYNC = 'RESET';
 DROP TABLE t;
 DROP TABLE t2;
---source include/wait_until_count_sessions.inc

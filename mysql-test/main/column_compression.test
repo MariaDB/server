@@ -346,7 +346,7 @@ DELIMITER ;$$
 
 
 # Let's override the default threshold (100) to force
-# comression for VARCHAR1+MB, for example, for:
+# compression for VARCHAR1+MB, for example, for:
 # VARCHAR(80) CHARACTER SET utf8mb3
 
 SET @@column_compression_threshold=32;
@@ -523,5 +523,58 @@ CREATE TABLE t1 (a CHAR(1), b TEXT /*!100302 COMPRESSED */);
 INSERT INTO t1 VALUES ('c','n'),('d','mmmmmmmmmm');
 SELECT GROUP_CONCAT( b, a ORDER BY 2 ) AS f FROM t1;
 DROP TABLE t1;
+
+--echo #
+--echo # MDEV-24726 Assertion `0' failed in Field_varstring_compressed::key_cmp
+--echo #
+
+--echo # VARCHAR
+create table t1 (a varchar(8) compressed) character set utf8mb4;
+create algorithm=temptable view v1 as select * from t1;
+insert into t1 values ('foo'),('bar'),('foo');
+select * from v1 where a in (select a from t1);
+# cleanup
+drop view v1;
+drop table t1;
+
+create table t1 (f1 varchar(8)) charset=eucjpms collate=eucjpms_nopad_bin;
+insert into t1 values ('');
+create table t2 (f2 varchar(8) compressed) charset=eucjpms collate=eucjpms_nopad_bin;
+insert into t2 values ('a'),('b');
+select t1.* from t1 left join (select distinct f2 from t2) sq on sq.f2 = t1.f1;
+# cleanup
+drop table t1, t2;
+
+--echo # BLOB
+create table t1 (a text compressed) character set utf8mb4;
+create algorithm=temptable view v1 as select * from t1;
+insert into t1 values ('foo'),('bar'),('foo');
+select * from v1 where a in (select a from t1);
+# cleanup
+drop view v1;
+drop table t1;
+
+create table t1 (f1 text) charset=eucjpms collate=eucjpms_nopad_bin;
+insert into t1 values ('');
+create table t2 (f2 text compressed) charset=eucjpms collate=eucjpms_nopad_bin;
+insert into t2 values ('a'),('b');
+select t1.* from t1 left join (select distinct f2 from t2) sq on sq.f2 = t1.f1;
+# cleanup
+drop table t1, t2;
+
+--echo #
+--echo # MDEV-16808 Assertion on compressed blob as key field
+--echo #
+set join_cache_level= 3;
+create table t1 (col_blob text) engine=innodb;
+create table t2 (col_blob text compressed) engine=innodb;
+select * from t1 join t2 using ( col_blob );
+drop tables t1, t2;
+
+create table t (a text compressed,b text) engine=innodb;
+create table t4 like t;
+set session join_cache_level=3;
+select * from (select * from t) as t natural join (select * from t) as t1;
+drop tables t, t4;
 
 --echo # End of 10.5 tests

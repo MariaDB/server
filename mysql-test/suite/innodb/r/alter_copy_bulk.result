@@ -37,7 +37,7 @@ info: Records: 0  Duplicates: 0  Warnings: 0
 INSERT INTO t1 VALUES (1, 1);
 INSERT INTO t2 VALUES (1, 2);
 ALTER TABLE t2 ADD CONSTRAINT FOREIGN KEY(f2) REFERENCES t1(f1);
-ERROR 23000: Cannot add or update a child row: a foreign key constraint fails (`test`.`#sql-alter`, CONSTRAINT `#sql-alter_ibfk_2` FOREIGN KEY (`f2`) REFERENCES `t1` (`f1`))
+ERROR 23000: Cannot add or update a child row: a foreign key constraint fails (`test`.`#sql-alter`, CONSTRAINT `2` FOREIGN KEY (`f2`) REFERENCES `t1` (`f1`))
 INSERT INTO t1 VALUES(3, 1);
 SET STATEMENT foreign_key_checks=0 FOR
 ALTER TABLE t2 ALGORITHM=COPY, ADD CONSTRAINT FOREIGN KEY(f2) REFERENCES t1(f1);
@@ -92,3 +92,46 @@ INSERT INTO t1 VALUES
 ALTER TABLE t1 FORCE, ALGORITHM=COPY;
 DROP TABLE t1;
 SET GLOBAL innodb_stats_persistent=@default_stats_persistent;
+#
+#  MDEV-36504 Memory leak after insert into empty table
+#
+CREATE TABLE t1 (k INT PRIMARY KEY)ENGINE=InnoDB;
+INSERT INTO t1 SET k= 1;
+START TRANSACTION;
+INSERT INTO t1 SET k= 2;
+SELECT COUNT(*) > 0 FROM mysql.innodb_index_stats LOCK IN SHARE MODE;
+COUNT(*) > 0
+1
+connect con1,localhost,root,,,;
+SET innodb_lock_wait_timeout=0;
+CREATE TABLE t2(f1 INT DEFAULT 1 PRIMARY KEY)
+STATS_PERSISTENT= 1 ENGINE=InnoDB as SELECT k FROM t1;
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+disconnect con1;
+connection default;
+SET innodb_lock_wait_timeout=default;
+DROP TABLE t1;
+DROP TABLE IF EXISTS t2;
+# restart
+#
+#  MDEV-37296 ALTER TABLE allows adding unique hash key
+#		with duplicate values
+#
+CREATE TABLE t (pk INT PRIMARY KEY, a INT, b TEXT) ENGINE=InnoDB;
+INSERT INTO t VALUES (5,3,'foo'), (1,NULL,'bar'), (3,3,'foo');
+ALTER TABLE t ADD UNIQUE (a,b);
+ERROR 23000: Duplicate entry '3-foo' for key 'a'
+SHOW CREATE TABLE t;
+Table	Create Table
+t	CREATE TABLE `t` (
+  `pk` int(11) NOT NULL,
+  `a` int(11) DEFAULT NULL,
+  `b` text DEFAULT NULL,
+  PRIMARY KEY (`pk`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+SELECT * FROM t;
+pk	a	b
+1	NULL	bar
+3	3	foo
+5	3	foo
+DROP TABLE t;

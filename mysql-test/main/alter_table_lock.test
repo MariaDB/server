@@ -1,36 +1,5 @@
---source include/not_msan.inc
 --source include/not_embedded.inc
 --source include/have_innodb.inc
-
---echo #
---echo # MDEV-23836: Assertion `! is_set() || m_can_overwrite_status' in
---echo # Diagnostics_area::set_error_status (interrupted ALTER TABLE under LOCK)
---echo #
-
-SET @max_session_mem_used_save= @@max_session_mem_used;
-
-CREATE TABLE t1 (a INT);
-SELECT * FROM t1;
-
---error ER_NO_SUCH_TABLE
-ALTER TABLE x MODIFY xx INT;
-
-SET SESSION max_session_mem_used= 8192;
---error 0,ER_OPTION_PREVENTS_STATEMENT
-LOCK TABLE t1 WRITE;
-
---disable_warnings
---error 0,ER_OPTION_PREVENTS_STATEMENT
-ALTER TABLE t1 CHANGE COLUMN IF EXISTS b c INT;
---enable_warnings
-
-SET SESSION max_session_mem_used = @max_session_mem_used_save;
-UNLOCK TABLES;
-DROP TABLE t1;
-
---echo #
---echo # End of 10.5 tests
---echo #
 
 --echo #
 --echo # MDEV-28943 Online alter fails under LOCK TABLE with ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
@@ -77,5 +46,21 @@ alter online table t1 add column s blob not null, algorithm=inplace;
 drop table t1;
 
 --echo #
---echo # End of 10.11 tests
+--echo # MDEV-35611 Assertion failure in Diagnostics_area::sql_errno upon interrupted ALTER
 --echo #
+CREATE TABLE t (a INT) ENGINE=MyISAM;
+INSERT INTO t VALUES (1);
+LOCK TABLE t READ;
+--connection con1
+SET max_statement_time=0.001;
+--error ER_STATEMENT_TIMEOUT
+ALTER TABLE t FORCE;
+--error ER_STATEMENT_TIMEOUT
+ALTER TABLE IF EXISTS t FORCE;
+# Cleanup
+--disconnect con1
+--connection default
+UNLOCK TABLES;
+DROP TABLE t;
+
+--echo # End of 11.4 tests

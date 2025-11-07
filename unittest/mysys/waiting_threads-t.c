@@ -16,15 +16,16 @@
 #include "thr_template.c"
 #include <waiting_threads.h>
 #include <m_string.h>
+#include <my_rnd.h>
 
 struct test_wt_thd {
   WT_THD thd;
-  pthread_mutex_t lock;
+  mysql_mutex_t lock;
 } thds[THREADS];
 
 uint i, cnt;
-pthread_mutex_t lock;
-pthread_cond_t thread_sync;
+mysql_mutex_t lock;
+mysql_cond_t thread_sync;
 
 ulong wt_timeout_short=100, wt_deadlock_search_depth_short=4;
 ulong wt_timeout_long=10000, wt_deadlock_search_depth_long=15;
@@ -49,7 +50,7 @@ pthread_handler_t test_wt(void *arg)
 
   my_thread_init();
 
-  pthread_mutex_lock(&mutex);
+  mysql_mutex_lock(&mutex);
   id= cnt++;
   wt_thd_lazy_init(& thds[id].thd,
                    & wt_deadlock_search_depth_short, & wt_timeout_short,
@@ -57,11 +58,11 @@ pthread_handler_t test_wt(void *arg)
 
   /* now, wait for everybody to be ready to run */
   if (cnt >= THREADS)
-    pthread_cond_broadcast(&thread_sync);
+    mysql_cond_broadcast(&thread_sync);
   else
     while (cnt < THREADS)
-      pthread_cond_wait(&thread_sync, &mutex);
-  pthread_mutex_unlock(&mutex);
+      mysql_cond_wait(&thread_sync, &mutex);
+  mysql_mutex_unlock(&mutex);
 
   my_rnd_init(&rand, (ulong)(intptr)&m, id);
   if (kill_strategy == YOUNGEST)
@@ -72,7 +73,7 @@ pthread_handler_t test_wt(void *arg)
   for (m= *(int *)arg; m ; m--)
   {
     WT_RESOURCE_ID resid;
-    int blockers[THREADS/10], j, k;
+    int blockers[THREADS/10]={0}, j, k;
 
     resid.value= id;
     resid.type= &restype;
@@ -94,25 +95,25 @@ retry:
       if (kill_strategy == RANDOM)
         thds[id].thd.weight= rnd();
 
-      pthread_mutex_lock(& thds[i].lock);
+      mysql_mutex_lock(& thds[i].lock);
       res= wt_thd_will_wait_for(& thds[id].thd, & thds[i].thd, &resid);
-      pthread_mutex_unlock(& thds[i].lock);
+      mysql_mutex_unlock(& thds[i].lock);
     }
 
     if (!res)
     {
-      pthread_mutex_lock(&lock);
+      mysql_mutex_lock(&lock);
       res= wt_thd_cond_timedwait(& thds[id].thd, &lock);
-      pthread_mutex_unlock(&lock);
+      mysql_mutex_unlock(&lock);
     }
 
     if (res)
     {
-      pthread_mutex_lock(& thds[id].lock);
-      pthread_mutex_lock(&lock);
+      mysql_mutex_lock(& thds[id].lock);
+      mysql_mutex_lock(&lock);
       wt_thd_release_all(& thds[id].thd);
-      pthread_mutex_unlock(&lock);
-      pthread_mutex_unlock(& thds[id].lock);
+      mysql_mutex_unlock(&lock);
+      mysql_mutex_unlock(& thds[id].lock);
       if (kill_strategy == LOCKS)
         thds[id].thd.weight= 0;
       if (kill_strategy == YOUNGEST)
@@ -122,21 +123,21 @@ retry:
       thds[id].thd.weight++;
   }
 
-  pthread_mutex_lock(&mutex);
+  mysql_mutex_lock(&mutex);
   /* wait for everybody to finish */
   if (!--cnt)
-    pthread_cond_broadcast(&thread_sync);
+    mysql_cond_broadcast(&thread_sync);
   else
     while (cnt)
-      pthread_cond_wait(&thread_sync, &mutex);
+      mysql_cond_wait(&thread_sync, &mutex);
 
-  pthread_mutex_lock(& thds[id].lock);
-  pthread_mutex_lock(&lock);
+  mysql_mutex_lock(& thds[id].lock);
+  mysql_mutex_lock(&lock);
   wt_thd_release_all(& thds[id].thd);
-  pthread_mutex_unlock(&lock);
-  pthread_mutex_unlock(& thds[id].lock);
+  mysql_mutex_unlock(&lock);
+  mysql_mutex_unlock(& thds[id].lock);
   wt_thd_destroy(& thds[id].thd);
-  pthread_mutex_unlock(&mutex);
+  mysql_mutex_unlock(&mutex);
 
   DBUG_PRINT("wt", ("exiting"));
   my_thread_end();
@@ -152,7 +153,8 @@ void do_one_test()
   reset(wt_wait_stats);
   wt_success_stats=0;
   cnt=0;
-  test_concurrently("waiting_threads", test_wt, THREADS, CYCLES);
+  test_concurrently("waiting_threads", test_wt, THREADS,
+                    CYCLES/(skip_big_tests?500:10));
 
   sum=sum0=0;
   for (cnt=0; cnt < WT_CYCLE_STATS; cnt++)
@@ -179,21 +181,16 @@ void do_one_test()
 void do_tests()
 {
   DBUG_ENTER("do_tests");
-  if (skip_big_tests)
-  {
-    skip(1, "Big test skipped");
-    return;
-  }
   plan(13);
   compile_time_assert(THREADS >= 4);
 
   DBUG_PRINT("wt", ("================= initialization ==================="));
 
-  pthread_cond_init(&thread_sync, 0);
-  pthread_mutex_init(&lock, 0);
+  mysql_cond_init(PSI_NOT_INSTRUMENTED, &thread_sync, 0);
+  mysql_mutex_init(PSI_NOT_INSTRUMENTED, &lock, 0);
   wt_init();
   for (cnt=0; cnt < THREADS; cnt++)
-    pthread_mutex_init(& thds[cnt].lock, 0);
+    mysql_mutex_init(PSI_NOT_INSTRUMENTED, & thds[cnt].lock, 0);
   {
     WT_RESOURCE_ID resid[4];
     for (i=0; i < array_elements(resid); i++)
@@ -218,16 +215,16 @@ void do_tests()
     ok_wait(0,2,0);
     ok_wait(0,3,0);
 
-    pthread_mutex_lock(&lock);
+    mysql_mutex_lock(&lock);
     bad= wt_thd_cond_timedwait(& thds[0].thd, &lock);
-    pthread_mutex_unlock(&lock);
+    mysql_mutex_unlock(&lock);
     ok(bad == WT_TIMEOUT, "timeout test returned %d", bad);
 
     ok_wait(0,1,0);
     ok_wait(1,2,1);
     ok_deadlock(2,0,2);
 
-    pthread_mutex_lock(&lock);
+    mysql_mutex_lock(&lock);
     ok(wt_thd_cond_timedwait(& thds[0].thd, &lock) == WT_TIMEOUT, "as always");
     ok(wt_thd_cond_timedwait(& thds[1].thd, &lock) == WT_TIMEOUT, "as always");
     wt_thd_release_all(& thds[0].thd);
@@ -240,7 +237,7 @@ void do_tests()
       wt_thd_release_all(& thds[i].thd);
       wt_thd_destroy(& thds[i].thd);
     }
-    pthread_mutex_unlock(&lock);
+    mysql_mutex_unlock(&lock);
   }
 
   wt_deadlock_search_depth_short=6;
@@ -277,9 +274,9 @@ void do_tests()
 
   DBUG_PRINT("wt", ("================= cleanup ==================="));
   for (cnt=0; cnt < THREADS; cnt++)
-    pthread_mutex_destroy(& thds[cnt].lock);
+    mysql_mutex_destroy(& thds[cnt].lock);
   wt_end();
-  pthread_mutex_destroy(&lock);
-  pthread_cond_destroy(&thread_sync);
+  mysql_mutex_destroy(&lock);
+  mysql_cond_destroy(&thread_sync);
   DBUG_VOID_RETURN;
 }

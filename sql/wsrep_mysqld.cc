@@ -1,5 +1,5 @@
-/* Copyright (c) 2008, 2024, Codership Oy <http://www.codership.com>
-   Copyright (c) 2020, 2024, MariaDB
+/* Copyright (c) 2008, 2025, Codership Oy <http://www.codership.com>
+   Copyright (c) 2020, 2025, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -127,6 +127,7 @@ ulong wsrep_trx_fragment_unit= WSREP_FRAG_BYTES;
                                                 // unit for fragment size
 ulong wsrep_SR_store_type= WSREP_SR_STORE_TABLE;
 uint  wsrep_ignore_apply_errors= 0;
+uint wsrep_applier_retry_count= 0;
 
 std::atomic <bool> wsrep_thread_create_failed;
 
@@ -833,7 +834,8 @@ void wsrep_init_globals()
     wsrep_server_gtid_t new_gtid;
     new_gtid.domain_id= wsrep_gtid_domain_id;
     new_gtid.server_id= global_system_variables.server_id;
-    new_gtid.seqno= 0;
+    /* Use seqno which was recovered in wsrep_init_gtid() */
+    new_gtid.seqno= wsrep_gtid_server.seqno();
     /* Try to search for domain_id and server_id combination in binlog if found continue from last seqno */
     wsrep_get_binlog_gtid_seqno(new_gtid);
     wsrep_gtid_server.gtid(new_gtid);
@@ -1022,7 +1024,7 @@ void wsrep_init_startup (bool sst_first)
     either SST was not necessary or SST has been delivered.
 
     With mysqldump SST (!sst_first) wait until the server reaches
-    joiner state and procedd to accepting connections.
+    joiner state and proceed to accepting connections.
   */
   int err= 0;
   if (sst_first)
@@ -1447,10 +1449,16 @@ bool wsrep_check_mode_after_open_table (THD *thd,
   if (!is_dml_stmt)
     return true;
 
-  const legacy_db_type db_type= hton->db_type;
+  TABLE *tbl= tables->table;
+  /* If this is partitioned table we need to find out
+     implementing storage engine handlerton.
+  */
+  const handlerton *ht= tbl->file->partition_ht();
+  if (!ht) ht= hton;
+
+  const legacy_db_type db_type= ht->db_type;
   bool replicate= ((db_type == DB_TYPE_MYISAM && wsrep_check_mode(WSREP_MODE_REPLICATE_MYISAM)) ||
                    (db_type == DB_TYPE_ARIA && wsrep_check_mode(WSREP_MODE_REPLICATE_ARIA)));
-  TABLE *tbl= tables->table;
 
   DBUG_ASSERT(tbl);
   if (replicate)
@@ -1475,7 +1483,8 @@ bool wsrep_check_mode_after_open_table (THD *thd,
       }
 
       // Check are we inside a transaction
-      uint rw_ha_count= ha_check_and_coalesce_trx_read_only(thd, thd->transaction->all.ha_list, true);
+      bool not_used;
+      uint rw_ha_count= ha_check_and_coalesce_trx_read_only(thd, thd->transaction->all.ha_list, true, &not_used);
       bool changes= wsrep_has_changes(thd);
 
       // Roll back current stmt if exists
@@ -2515,37 +2524,35 @@ bool wsrep_should_replicate_ddl(THD* thd, const handlerton *hton)
   if (!wsrep_check_mode(WSREP_MODE_STRICT_REPLICATION))
     return true;
 
-  if (!hton)
-    return true;
-
   DBUG_ASSERT(hton != nullptr);
 
   switch (hton->db_type)
   {
+    case DB_TYPE_UNKNOWN:
+      /* Special pseudo-handlertons (such as 10.6+ JSON tables). */
+      return true;
+      break;
     case DB_TYPE_INNODB:
       return true;
       break;
     case DB_TYPE_MYISAM:
       if (wsrep_check_mode(WSREP_MODE_REPLICATE_MYISAM))
         return true;
-      else
-        WSREP_DEBUG("wsrep OSU failed for %s", wsrep_thd_query(thd));
+      break;
+    case DB_TYPE_ARIA:
+      if (wsrep_check_mode(WSREP_MODE_REPLICATE_ARIA))
+        return true;
       break;
     case DB_TYPE_PARTITION_DB:
       /* In most cases this means we could not find out
          table->file->partition_ht() */
       return true;
       break;
-    case DB_TYPE_ARIA:
-      if (wsrep_check_mode(WSREP_MODE_REPLICATE_ARIA))
-	return true;
-      else
-        WSREP_DEBUG("wsrep OSU failed for %s", wsrep_thd_query(thd));
-      break;
     default:
-      WSREP_DEBUG("wsrep OSU failed for %s", wsrep_thd_query(thd));
       break;
   }
+
+  WSREP_DEBUG("wsrep OSU failed for %s", wsrep_thd_query(thd));
 
   /* wsrep_mode = STRICT_REPLICATION, treat as error */
   my_error(ER_GALERA_REPLICATION_NOT_SUPPORTED, MYF(0));
@@ -2561,15 +2568,14 @@ bool wsrep_should_replicate_ddl_iterate(THD* thd, const TABLE_LIST* table_list)
 {
   for (const TABLE_LIST* it= table_list; it; it= it->next_global)
   {
-    if (it->table)
+    const TABLE* table= it->table;
+    if (table && !it->table_function)
     {
       /* If this is partitioned table we need to find out
          implementing storage engine handlerton.
       */
-      const handlerton *ht= it->table->file->partition_ht() ?
-                              it->table->file->partition_ht() :
-                              it->table->s->db_type();
-
+      const handlerton *ht= table->file->partition_ht();
+      if (!ht) ht= table->s->db_type();
       if (!wsrep_should_replicate_ddl(thd, ht))
         return false;
     }
@@ -2822,7 +2828,6 @@ fail:
   unireg_abort(1);
 }
 
-
 /*
   returns:
    0: statement was replicated as TOI
@@ -2838,10 +2843,19 @@ static int wsrep_TOI_begin(THD *thd, const char *db, const char *table,
   DBUG_ASSERT(wsrep_OSU_method_get(thd) == WSREP_OSU_TOI);
 
   WSREP_DEBUG("TOI Begin: %s", wsrep_thd_query(thd));
+  DEBUG_SYNC(thd, "wsrep_toi_begin");
 
-  if (wsrep_can_run_in_toi(thd, db, table, table_list, create_info) == false)
+  if (!wsrep_ready ||
+      wsrep_can_run_in_toi(thd, db, table, table_list, create_info) == false)
   {
     WSREP_DEBUG("No TOI for %s", wsrep_thd_query(thd));
+    if (!wsrep_ready)
+    {
+      my_error(ER_GALERA_REPLICATION_NOT_SUPPORTED, MYF(0));
+      push_warning_printf(thd, Sql_state_errno_level::WARN_LEVEL_WARN,
+                          ER_GALERA_REPLICATION_NOT_SUPPORTED,
+                          "Galera cluster is not ready to execute replication");
+    }
     return 1;
   }
 
@@ -3078,12 +3092,13 @@ int wsrep_to_isolation_begin(THD *thd, const char *db_, const char *table_,
                              const wsrep::key_array *fk_tables,
                              const HA_CREATE_INFO *create_info)
 {
+  DEBUG_SYNC(thd, "wsrep_kill_thd_before_enter_toi");
   mysql_mutex_lock(&thd->LOCK_thd_kill);
   const killed_state killed = thd->killed;
   mysql_mutex_unlock(&thd->LOCK_thd_kill);
   if (killed)
   {
-    DBUG_ASSERT(FALSE);
+    /* The thread may have been killed as a result of memory pressure. */
     return -1;
   }
 
@@ -3260,19 +3275,20 @@ void wsrep_handle_mdl_conflict(MDL_context *requestor_ctx,
                                const MDL_key *key)
 {
   THD *request_thd= requestor_ctx->get_thd();
-  THD *granted_thd= ticket->get_ctx()->get_thd();
 
   /* Fallback to the non-wsrep behaviour */
   if (!WSREP(request_thd)) return;
-
-  const char* schema= key->db_name();
-  int schema_len= key->db_name_length();
 
   mysql_mutex_lock(&request_thd->LOCK_thd_data);
 
   if (wsrep_thd_is_toi(request_thd) ||
       wsrep_thd_is_applying(request_thd))
   {
+    THD *granted_thd= ticket->get_ctx()->get_thd();
+
+    const char* schema= key->db_name();
+    int schema_len= key->db_name_length();
+
     WSREP_DEBUG("wsrep_handle_mdl_conflict request TOI/APPLY for %s",
                 wsrep_thd_query(request_thd));
     THD_STAGE_INFO(request_thd, stage_waiting_isolation);
@@ -3292,7 +3308,6 @@ void wsrep_handle_mdl_conflict(MDL_context *requestor_ctx,
     /* Here we will call wsrep_abort_transaction so we should hold
     THD::LOCK_thd_data to protect victim from concurrent usage
     and THD::LOCK_thd_kill to protect from disconnect or delete.
-
     */
     mysql_mutex_lock(&granted_thd->LOCK_thd_kill);
     mysql_mutex_lock(&granted_thd->LOCK_thd_data);
@@ -3998,6 +4013,16 @@ bool THD::wsrep_parallel_slave_wait_for_prior_commit()
   return false;
 }
 
+void wsrep_parallel_slave_wakeup_subsequent_commits(void *thd_ptr)
+{
+  THD *thd = (THD*)thd_ptr;
+  if (thd->rgi_slave && thd->rgi_slave->is_parallel_exec &&
+      thd->wait_for_commit_ptr)
+  {
+    thd->wait_for_commit_ptr->wakeup_subsequent_commits(0);
+  }
+}
+
 /***** callbacks for wsrep service ************/
 
 my_bool get_wsrep_recovery()
@@ -4124,5 +4149,38 @@ bool wsrep_table_list_has_non_temp_tables(THD *thd, TABLE_LIST *tables)
       return true;
     }
   }
+  return false;
+}
+
+bool wsrep_foreign_key_append(THD *thd, FOREIGN_KEY_INFO *fk)
+{
+  if (WSREP(thd) && !thd->wsrep_applier &&
+      wsrep_is_active(thd) &&
+      (sql_command_flags[thd->lex->sql_command] &
+       (CF_UPDATES_DATA | CF_DELETES_DATA | CF_INSERTS_DATA)))
+  {
+    wsrep::key key(wsrep::key::shared);
+    key.append_key_part(fk->foreign_db->str, fk->foreign_db->length);
+    key.append_key_part(fk->foreign_table->str, fk->foreign_table->length);
+
+    if (thd->wsrep_cs().append_key(key))
+    {
+      WSREP_ERROR("Appending table key failed: %s",
+                  wsrep_thd_query(thd));
+      sql_print_information("Failed Foreign key referenced table found: "
+                            "%s.%s",
+                            fk->foreign_db->str,
+                            fk->foreign_table->str);
+      return true;
+    }
+
+    DBUG_EXECUTE_IF(
+      "wsrep_print_foreign_keys_table",
+      sql_print_information("Foreign key referenced table found: %s.%s",
+                            fk->foreign_db->str,
+                            fk->foreign_table->str);
+    );
+  }
+
   return false;
 }

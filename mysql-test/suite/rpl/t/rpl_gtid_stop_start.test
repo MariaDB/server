@@ -180,7 +180,7 @@ SELECT * FROM t1 ORDER BY a;
 # with duplicate key errors due to switching to non-GTID mode at a wrong
 # position too far back in the binlog.
 #
-# Work-around this by injecting an extra dummt event and syncing the slave to
+# Work-around this by injecting an extra dummy event and syncing the slave to
 # it, ensuring the old-style position will be updated.
 #
 # This work-around could be removed after MDEV-33996 is fixed.

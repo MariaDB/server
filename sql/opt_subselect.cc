@@ -28,6 +28,7 @@
 #include "sql_select.h"
 #include "sql_update.h"  // class Sql_cmd_update
 #include "sql_delete.h"  // class Sql_cmd_delete
+#include "sql_table.h"   // make_tmp_table_name
 #include "filesort.h"
 #include "opt_subselect.h"
 #include "sql_test.h"
@@ -345,7 +346,7 @@ with the first one:
 
 When SJM nests are present, we should take care not to construct equalities
 that violate the (SJM-RULE). This is achieved by generating separate sets of
-equalites for top-level tables and for inner tables. That is, for the join
+equalities for top-level tables and for inner tables. That is, for the join
 order 
 
   ot1 - ot2 --\                    /--- ot3 -- ot5 
@@ -465,6 +466,7 @@ enum_nested_loop_state
 end_sj_materialize(JOIN *join, JOIN_TAB *join_tab, bool end_of_records);
 
 
+
 /*
   Check if Materialization strategy is allowed for given subquery predicate.
 
@@ -484,7 +486,7 @@ bool is_materialization_applicable(THD *thd, Item_in_subselect *in_subs,
   /*
     Check if the subquery predicate can be executed via materialization.
     The required conditions are:
-    0. The materialization optimizer switch was set.
+    0. The materialization optimizer switch/hint was set.
     1. Subquery is a single SELECT (not a UNION).
        TODO: this is a limitation that can be fixed
     2. Subquery is not a table-less query. In this case there is no
@@ -513,7 +515,8 @@ bool is_materialization_applicable(THD *thd, Item_in_subselect *in_subs,
   select_lex->sj_subselects list to be populated for every EXECUTE. 
 
   */
-  if (optimizer_flag(thd, OPTIMIZER_SWITCH_MATERIALIZATION) &&      // 0
+  uint strategies_allowed= child_select->subquery_strategies_allowed(thd);
+  if ((strategies_allowed & SUBS_MATERIALIZATION) &&                  // 0
         !child_select->is_part_of_union() &&                          // 1
         parent_unit->first_select()->leaf_tables.elements &&          // 2
         child_select->outer_select() &&
@@ -546,7 +549,7 @@ bool is_materialization_applicable(THD *thd, Item_in_subselect *in_subs,
     The disjunctive members
       !((Sql_cmd_update *) cmd)->is_multitable()
       !((Sql_cmd_delete *) cmd)->is_multitable()
-    will be removed when conversions of IN predicands to semi-joins are
+    will be removed when conversions of IN predicants to semi-joins are
     fully supported for single-table UPDATE/DELETE statements.
 */
 
@@ -739,7 +742,7 @@ int check_and_do_in_subquery_rewrites(JOIN *join)
       yet. They are checked later in convert_join_subqueries_to_semijoins(),
       look for calls to block_conversion_to_sj().
     */
-    if (optimizer_flag(thd, OPTIMIZER_SWITCH_SEMIJOIN) &&
+    if (select_lex->semijoin_enabled(thd) &&
         in_subs &&                                                    // 1
         !select_lex->is_part_of_union() &&                            // 2
         !select_lex->group_list.elements && !join->order &&           // 3
@@ -815,7 +818,7 @@ int check_and_do_in_subquery_rewrites(JOIN *join)
             with jtbm strategy
           */
           if (in_subs->emb_on_expr_nest == NO_JOIN_NEST &&
-              optimizer_flag(thd, OPTIMIZER_SWITCH_SEMIJOIN))
+              select_lex->semijoin_enabled(thd))
           {
             in_subs->is_flattenable_semijoin= FALSE;
             if (!in_subs->is_registered_semijoin)
@@ -833,11 +836,11 @@ int check_and_do_in_subquery_rewrites(JOIN *join)
 
         /*
           IN-TO-EXISTS is the only universal strategy. Choose it if the user
-          allowed it via an optimizer switch, or if materialization is not
+          allowed it via an optimizer switch/hint, or if materialization is not
           possible.
         */
-        if (optimizer_flag(thd, OPTIMIZER_SWITCH_IN_TO_EXISTS) ||
-            !in_subs->has_strategy())
+        uint strategies_allowed= select_lex->subquery_strategies_allowed(thd);
+        if (strategies_allowed & SUBS_IN_TO_EXISTS || !in_subs->has_strategy())
           in_subs->add_strategy(SUBS_IN_TO_EXISTS);
       }
 
@@ -1984,7 +1987,7 @@ static bool convert_subq_to_sj(JOIN *parent_join, Item_in_subselect *subq_pred)
   else if (left_exp->type() == Item::ROW_ITEM)
   {
     /*
-      disassemple left expression and add
+      disassemble left expression and add
       left1 = select_list_element1 and left2 = select_list_element2 ...
     */
     for (uint i= 0; i < ncols; i++)
@@ -2558,11 +2561,11 @@ bool optimize_semijoin_nests(JOIN *join, table_map all_table_map)
 
     sj_nest->sj_mat_info= NULL;
     /*
-      The statement may have been executed with 'semijoin=on' earlier.
-      We need to verify that 'semijoin=on' still holds.
+      The statement may have been executed as a semijoin earlier.
+      We need to verify that semijoin materialization is still allowed.
      */
-    if (optimizer_flag(join->thd, OPTIMIZER_SWITCH_SEMIJOIN) &&
-        optimizer_flag(join->thd, OPTIMIZER_SWITCH_MATERIALIZATION))
+    if (sj_nest->nested_join->sj_enabled_strategies &
+        OPTIMIZER_SWITCH_MATERIALIZATION)
     {
       if ((sj_nest->sj_inner_tables  & ~join->const_table_map) && /* not everything was pulled out */
           !sj_nest->sj_subq_pred->is_correlated && 
@@ -2774,12 +2777,18 @@ get_tmp_table_costs(THD *thd, double row_count, uint row_size, bool blobs_used,
                            tmp_table_optimizer_costs.row_copy_cost :
                            0);
     /* Disk based table */
-    cost.lookup=          ((tmp_table_optimizer_costs.key_lookup_cost *
-                            tmp_table_optimizer_costs.disk_read_ratio) +
-                           row_copy_cost);
+    cost.lookup=         ((tmp_table_optimizer_costs.key_lookup_cost +
+                           tmp_table_optimizer_costs.disk_read_cost *
+                           tmp_table_optimizer_costs.disk_read_ratio) +
+                         row_copy_cost);
+    /*
+      Don't have numbers for cost of writing, assume it's the same as cost
+      of reading for lack of a better number.
+    */
     cost.write=           cost.lookup;
     cost.create=          DISK_TEMPTABLE_CREATE_COST;
     cost.block_size=      DISK_TEMPTABLE_BLOCK_SIZE;
+    /* The following costs are only used for table scans */
     cost.avg_io_cost=     tmp_table_optimizer_costs.disk_read_cost;
     cost.cache_hit_ratio= tmp_table_optimizer_costs.disk_read_ratio;
   }
@@ -3041,7 +3050,7 @@ void optimize_semi_joins(JOIN *join, table_map remaining_tables, uint idx,
                 1. strategy X removes fanout for semijoin X,Y
                 2. using strategy Z is cheaper, but it only removes
                    fanout from semijoin X.
-                3. We have no clue what to do about fanount of semi-join Y.
+                3. We have no clue what to do about fanout of semi-join Y.
 
           For the first iteration read_time will always be bigger than
           *current_read_time (as the 'strategy' is an addition to the
@@ -3049,15 +3058,25 @@ void optimize_semi_joins(JOIN *join, table_map remaining_tables, uint idx,
           (dusp_producing_tables & handled_fanout is true), then
           *current_read_time is updated and the cost for the next
           strategy can be smaller than *current_read_time.
+
+          The strategy may be disabled by an optimizer switch or a hint,
+          which is checked at (1). Currently, this is applicable only to
+          Duplicate Weedout since other disabled strategies will will be
+          cut off earlier and will not make it here. However, since
+          Duplicate Weedout serves as the default fallback strategy, it is
+          chosen even when disabled, provided no other viable alternatives
+          are available.
         */
-        if ((dups_producing_tables & handled_fanout) ||
+        if (((dups_producing_tables & handled_fanout) ||
             (read_time + COST_EPS < *current_read_time &&
-             !(handled_fanout & pos->inner_tables_handled_with_other_sjs)))
+             !(handled_fanout & pos->inner_tables_handled_with_other_sjs))) &&
+            (!(*strategy)->is_disabled() ||
+              pos->sj_strategy == SJ_OPT_NONE)) // (1)
         {
           DBUG_ASSERT(pos->sj_strategy != sj_strategy);
           /*
             If the strategy chosen first time or
-            the strategy replace strategy which was used to exectly the same
+            the strategy replace strategy which was used to exactly the same
             tables
           */
           if (pos->sj_strategy == SJ_OPT_NONE ||
@@ -3093,7 +3112,7 @@ void optimize_semi_joins(JOIN *join, table_map remaining_tables, uint idx,
             (*prev_strategy)->set_empty();
             dups_producing_tables= prev_dups_producing_tables;
             join->sjm_lookup_tables= prev_sjm_lookup_tables;
-            // mark it 'none' to avpoid loops
+            // mark it 'none' to avoid loops
             pos->sj_strategy= SJ_OPT_NONE;
             // next skip to last;
             strategy= pickers +
@@ -3149,7 +3168,7 @@ void optimize_semi_joins(JOIN *join, table_map remaining_tables, uint idx,
   Update JOIN's semi-join optimization state after the join tab new_tab
   has been added into the join prefix.
 
-  @seealso restore_prev_sj_state() does the reverse actoion
+  @seealso restore_prev_sj_state() does the reverse action
 */
 
 void update_sj_state(JOIN *join, const JOIN_TAB *new_tab,
@@ -3389,11 +3408,24 @@ bool LooseScan_picker::check_qep(JOIN *join,
     then 
        stop considering loose scan
   */
-  if ((first_loosescan_table != MAX_TABLES) &&   // (1)
-      (first->table->emb_sj_nest->sj_inner_tables & remaining_tables) && //(2)
-      new_join_tab->emb_sj_nest != first->table->emb_sj_nest) //(2)
+  if (first_loosescan_table != MAX_TABLES)
+      //(first->table->emb_sj_nest->sj_inner_tables & remaining_tables) && //(2)
   {
-    first_loosescan_table= MAX_TABLES;
+    bool interleaving=false;
+    if (new_join_tab->emb_sj_nest)
+    {
+      interleaving= 
+        MY_TEST(new_join_tab->emb_sj_nest != first->table->emb_sj_nest);
+    }
+    else
+    {
+      interleaving= (first->table->emb_sj_nest->sj_inner_tables & remaining_tables);
+    }
+    if (interleaving)
+    {
+      first_loosescan_table= MAX_TABLES;
+      return FALSE;
+    }
   }
 
   /*
@@ -3480,7 +3512,8 @@ bool Firstmatch_picker::check_qep(JOIN *join,
                                   POSITION *loose_scan_pos)
 {
   if (new_join_tab->emb_sj_nest &&
-      optimizer_flag(join->thd, OPTIMIZER_SWITCH_FIRSTMATCH) &&
+      (new_join_tab->emb_sj_nest->nested_join->sj_enabled_strategies &
+         OPTIMIZER_SWITCH_FIRSTMATCH) &&
       !join->outer_join)
   {
     const table_map outer_corr_tables=
@@ -3724,10 +3757,22 @@ bool Duplicate_weedout_picker::check_qep(JOIN *join,
       POSITION *p= join->positions + j;
       dups_cost= COST_ADD(dups_cost, p->read_time);
 
-      if (p->table->emb_sj_nest)
+      TABLE_LIST *emb_sj_nest= p->table->emb_sj_nest;
+      if (emb_sj_nest)
       {
         sj_inner_fanout= COST_MULT(sj_inner_fanout, p->records_out);
         dups_removed_fanout |= p->table->table->map;
+
+        /*
+          Duplicate Weedout is the default fallback strategy. It is used when
+          all other strategies are disabled by either an optimizer switch or
+          a hint. So, mark it as disabled for when there are other enabled
+          strategies to choose from
+        */
+        disabled |=
+            emb_sj_nest->nested_join->sj_enabled_strategies != 0 && // (1)
+            !(emb_sj_nest->nested_join->sj_enabled_strategies &
+              OPTIMIZER_SWITCH_DUPSWEEDOUT);
       }
       else
       {
@@ -3814,7 +3859,7 @@ void JOIN::dbug_verify_sj_inner_tables(uint prefix_size) const
 #endif
 
 /*
-  Remove the last join tab from from join->cur_sj_inner_tables bitmap
+  Remove the last join tab from join->cur_sj_inner_tables bitmap
 
   @note
   remaining_tables contains @tab.
@@ -3935,7 +3980,9 @@ at_sjmat_pos(const JOIN *join, table_map remaining_tables, const JOIN_TAB *tab,
   TABLE_LIST *emb_sj_nest= tab->emb_sj_nest;
   table_map suffix= remaining_tables & ~tab->table->map;
   if (emb_sj_nest && emb_sj_nest->sj_mat_info &&
-      !(suffix & emb_sj_nest->sj_inner_tables))
+      !(suffix & emb_sj_nest->sj_inner_tables) &&
+      (emb_sj_nest->nested_join->sj_enabled_strategies &
+        OPTIMIZER_SWITCH_MATERIALIZATION))
   {
     /* 
       Walk back and check if all immediately preceding tables are from
@@ -4326,7 +4373,7 @@ uint get_number_of_tables_at_top_level(JOIN *join)
     Setup execution structures for one semi-join materialization nest:
     - Create the materialization temporary table
     - If we're going to do index lookups
-        create TABLE_REF structure to make the lookus
+        create TABLE_REF structure to make the lookups
     - else (if we're going to do a full scan of the temptable)
         create Copy_field structures to do copying.
 
@@ -4780,8 +4827,8 @@ SJ_TMP_TABLE::create_sj_weedout_tmp_table(THD *thd)
   else
   {
     /* if we run out of slots or we are not using tempool */
-    sprintf(path,"%s-subquery-%lx-%lx-%x", tmp_file_prefix,current_pid,
-            (ulong) thd->thread_id, thd->tmp_table++);
+    LEX_STRING tmp= { path, sizeof(path) };
+    make_tmp_table_name(thd, &tmp, "subquery");
   }
   fn_format(path, path, mysql_tmpdir, "", MY_REPLACE_EXT|MY_UNPACK_FILENAME);
 
@@ -5082,7 +5129,7 @@ int SJ_TMP_TABLE::sj_weedout_check_row(THD *thd)
 
   ptr= tmp_table->record[0] + 1;
 
-  /* Put the the rowids tuple into table->record[0]: */
+  /* Put the rowids tuple into table->record[0]: */
 
   // 1. Store the length 
   if (((Field_varstring*)(tmp_table->field[0]))->length_bytes == 1)
@@ -5360,7 +5407,7 @@ int setup_semijoin_loosescan(JOIN *join)
             application of FirstMatch strategy, with the exception that
             outer IN-correlated tables are considered to be non-correlated.
 
-      (4) - THe suffix of outer and outer non-correlated tables.
+      (4) - The suffix of outer and outer non-correlated tables.
 
   
   The choice between the strategies is made by the join optimizer (see
@@ -5984,7 +6031,7 @@ enum_nested_loop_state join_tab_execution_startup(JOIN_TAB *tab)
   Create a dummy temporary table, useful only for the sake of having a 
   TABLE* object with map,tablenr and maybe_null properties.
   
-  This is used by non-mergeable semi-join materilization code to handle
+  This is used by non-mergeable semi-join materialization code to handle
   degenerate cases where materialized subquery produced "Impossible WHERE" 
   and thus wasn't materialized.
 */
@@ -6320,7 +6367,7 @@ Item *and_new_conditions_to_optimized_cond(THD *thd, Item *cond,
     }
   }
 
-  if (!cond)
+  if (!cond || cond->fix_fields_if_needed(thd, &cond))
     return NULL;
 
   if (*cond_eq)
@@ -6352,9 +6399,6 @@ Item *and_new_conditions_to_optimized_cond(THD *thd, Item *cond,
   */
   if (cond && is_simplified_cond)
     cond= cond->remove_eq_conds(thd, cond_value, true);
-
-  if (cond && cond->fix_fields_if_needed(thd, NULL))
-    return NULL;
 
   return cond;
 }
@@ -6557,7 +6601,7 @@ bool setup_degenerate_jtbm_semi_joins(JOIN *join,
     The function saves the equalities between all pairs of the expressions
     from the left part of the IN subquery predicate and the corresponding
     columns of the subquery from the predicate in eq_list appending them
-    to the list. The equalities of eq_list will be later conjucted with the
+    to the list. The equalities of eq_list will be later conjuncted with the
     condition of the WHERE clause.
 
     In the case when a table is nested in another table 'nested_join' the
@@ -7031,7 +7075,7 @@ bool JOIN::choose_tableless_subquery_plan()
     }
     
     /*
-      For IN subqueries, use IN->EXISTS transfomation, unless the subquery 
+      For IN subqueries, use IN->EXISTS transformation, unless the subquery
       has been converted to a JTBM semi-join. In that case, just leave
       everything as-is, setup_jtbm_semi_joins() has special handling for cases
       like this.

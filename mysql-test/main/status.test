@@ -3,9 +3,7 @@
 
 # embedded server causes different stat
 -- source include/not_embedded.inc
-
-# Save the initial number of concurrent sessions
---source include/count_sessions.inc
+-- source include/no_view_protocol.inc
 
 # Disable concurrent inserts to avoid sporadic test failures as it might
 # affect the the value of variables used throughout the test case.
@@ -96,7 +94,7 @@ insert into t1 values (1),(2),(3),(4),(5),(6),(7),(8),(9),(10);
 insert into t1 values (1),(2),(3),(4),(5),(6),(7),(8),(9),(10);
 select * from t1 where a=6;
 show status like 'last_query_cost';
-# Ensure value dosn't change by second status call
+# Ensure value doesn't change by second status call
 show status like 'last_query_cost';
 select 1;
 show status like 'last_query_cost';
@@ -438,9 +436,6 @@ SHOW STATUS LIKE 'Feature_json';
 --connection default
 set @@global.concurrent_insert= @old_concurrent_insert;
 SET GLOBAL log_output = @old_log_output;
-
-# Wait till we reached the initial number of concurrent sessions
---source include/wait_until_count_sessions.inc
 
 --echo #
 --echo # MDEV-30543 New status variable: Max_used_connections_time

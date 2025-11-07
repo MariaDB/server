@@ -70,7 +70,7 @@ my_bool _ma_dynmap_file(MARIA_HA *info, my_off_t size)
   */
   info->s->file_map= (uchar*)
                   my_mmap(0, (size_t)(size + MEMMAP_EXTRA_MARGIN),
-                          info->s->mode==O_RDONLY ? PROT_READ :
+                          info->s->index_mode==O_RDONLY ? PROT_READ :
                           PROT_READ | PROT_WRITE,
                           MAP_SHARED | MAP_NORESERVE,
                           info->dfile.file, 0L);
@@ -903,7 +903,7 @@ static my_bool update_dynamic_record(MARIA_HA *info, MARIA_RECORD_POS filepos,
 	    Check if next block is a deleted block
 	    Above we have MARIA_MIN_BLOCK_LENGTH to avoid the problem where
 	    the next block is so small it can't be splited which could
-	    casue problems
+	    cause problems
 	  */
 
 	  MARIA_BLOCK_INFO del_block;

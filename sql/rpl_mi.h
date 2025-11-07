@@ -395,7 +395,7 @@ class Master_info : public Slave_reporting_capability
     Flag is raised at the parallel worker slave stop. Its purpose
     is to mark the whole start_alter_list when slave stops.
     The flag is read by Start Alter event to self-mark its state accordingly
-    at time its alter info struct is about to be appened to the list.
+    at time its alter info struct is about to be appended to the list.
   */
   bool is_shutdown= false;
 
@@ -493,6 +493,17 @@ uchar *get_key_master_info(Master_info *mi, size_t *length,
 void free_key_master_info(Master_info *mi);
 uint any_slave_sql_running(bool already_locked);
 bool give_error_if_slave_running(bool already_lock);
+
+/*
+  Sets up the basic options for a MYSQL connection, mysql, to connect to the
+  primary server described by the Master_info parameter, mi. The timeout must
+  be passed explicitly, as different types of connections created by the slave
+  will use different values.
+
+  Assumes mysql_init() has already been called on the mysql connection object.
+*/
+void setup_mysql_connection_for_master(MYSQL *mysql, Master_info *mi,
+                                       uint timeout);
 
 #endif /* HAVE_REPLICATION */
 #endif /* RPL_MI_H */

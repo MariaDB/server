@@ -13,5 +13,3 @@ log_bin=binlog
 log_slave_updates=ON
 wsrep_sst_method=rsync
 thread_handling = pool-of-threads
-
-

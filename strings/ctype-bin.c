@@ -280,6 +280,7 @@ void my_hash_sort_bin(CHARSET_INFO *cs __attribute__((unused)),
   const uchar *end = key + len;
   ulong tmp1= *nr1;
   ulong tmp2= *nr2;
+  DBUG_ASSERT(key); /* Avoid UBSAN nullptr-with-offset */
 
   for (; key < end ; key++)
   {
@@ -300,6 +301,7 @@ void my_hash_sort_8bit_bin(CHARSET_INFO *cs __attribute__((unused)),
     'A ' and 'A' as identical
   */
   const uchar *end= skip_trailing_space(key, len);
+  DBUG_ASSERT(key); /* Avoid UBSAN nullptr-with-offset */
   my_hash_sort_bin(cs, key, end - key, nr1, nr2);
 }
 
@@ -524,7 +526,8 @@ MY_COLLATION_HANDLER my_collation_8bit_bin_handler =
   my_min_str_8bit_simple,
   my_max_str_8bit_simple,
   my_ci_get_id_generic,
-  my_ci_get_collation_name_generic
+  my_ci_get_collation_name_generic,
+  my_ci_eq_collation_generic
 };
 
 
@@ -544,7 +547,8 @@ MY_COLLATION_HANDLER my_collation_8bit_nopad_bin_handler =
   my_min_str_8bit_simple_nopad,
   my_max_str_8bit_simple,
   my_ci_get_id_generic,
-  my_ci_get_collation_name_generic
+  my_ci_get_collation_name_generic,
+  my_ci_eq_collation_generic
 };
 
 
@@ -564,7 +568,8 @@ static MY_COLLATION_HANDLER my_collation_binary_handler =
   my_min_str_8bit_simple_nopad,
   my_max_str_8bit_simple,
   my_ci_get_id_generic,
-  my_ci_get_collation_name_generic
+  my_ci_get_collation_name_generic,
+  my_ci_eq_collation_generic
 };
 
 

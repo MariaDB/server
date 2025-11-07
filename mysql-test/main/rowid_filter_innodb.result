@@ -1,6 +1,8 @@
 SET SESSION DEFAULT_STORAGE_ENGINE='InnoDB';
 SET @save_stats_persistent=@@GLOBAL.innodb_stats_persistent;
 SET GLOBAL innodb_stats_persistent=0;
+SET @save_ahi=@@GLOBAL.innodb_adaptive_hash_index;
+SET GLOBAL innodb_adaptive_hash_index=OFF;
 DROP DATABASE IF EXISTS dbt3_s001;
 CREATE DATABASE dbt3_s001;
 use dbt3_s001;
@@ -2059,7 +2061,7 @@ ANALYZE
           "r_table_time_ms": "REPLACED",
           "r_other_time_ms": "REPLACED",
           "r_engine_stats": {
-            "pages_accessed": 84
+            "pages_accessed": 90
           },
           "filtered": "REPLACED",
           "r_total_filtered": 2.43902439,
@@ -2091,7 +2093,7 @@ ANALYZE
           "r_table_time_ms": "REPLACED",
           "r_other_time_ms": "REPLACED",
           "r_engine_stats": {
-            "pages_accessed": 2
+            "pages_accessed": 4
           },
           "filtered": "REPLACED",
           "r_total_filtered": 66.66666667,
@@ -2227,7 +2229,7 @@ ANALYZE
           "r_table_time_ms": "REPLACED",
           "r_other_time_ms": "REPLACED",
           "r_engine_stats": {
-            "pages_accessed": 84
+            "pages_accessed": 90
           },
           "filtered": "REPLACED",
           "r_total_filtered": 2.43902439,
@@ -2259,7 +2261,7 @@ ANALYZE
           "r_table_time_ms": "REPLACED",
           "r_other_time_ms": "REPLACED",
           "r_engine_stats": {
-            "pages_accessed": 2
+            "pages_accessed": 4
           },
           "filtered": "REPLACED",
           "r_total_filtered": 66.66666667,
@@ -2287,6 +2289,7 @@ ALTER TABLE orders DROP COLUMN o_totaldiscount;
 DROP VIEW v1;
 DROP DATABASE dbt3_s001;
 use test;
+SET GLOBAL innodb_adaptive_hash_index=@save_ahi;
 SET GLOBAL innodb_stats_persistent=@save_stats_persistent;
 #
 # MDEV-18755: possible RORI-plan and possible plan with range filter
@@ -3662,13 +3665,13 @@ count(*)
 # Test for type 'range|filter'
 EXPLAIN SELECT count(*) FROM t1 WHERE a<100 and b <100;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range|filter	b,a	b|a	5|5	NULL	49 (10%)	Using where; Using rowid filter
+1	SIMPLE	t1	range	b,a	a	5	NULL	99	Using where; Using index
 SELECT count(*) FROM t1 WHERE a<100 and b <100;
 count(*)
 49
 EXPLAIN SELECT count(*) FROM t1 WHERE a<100 and b <100 FOR UPDATE;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range|filter	b,a	b|a	5|5	NULL	49 (10%)	Using where; Using rowid filter
+1	SIMPLE	t1	range	b,a	a	5	NULL	99	Using where; Using index
 SELECT count(*) FROM t1 WHERE a<100 and b <100 FOR UPDATE;
 count(*)
 49
@@ -3706,13 +3709,13 @@ count(*)
 # Test for type 'range|filter'
 EXPLAIN SELECT count(*) FROM t1 WHERE a<100 and b <100;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range|filter	b,a	b|a	5|5	NULL	49 (10%)	Using where; Using rowid filter
+1	SIMPLE	t1	range	b,a	a	5	NULL	99	Using where; Using index
 SELECT count(*) FROM t1 WHERE a<100 and b <100;
 count(*)
 49
 EXPLAIN SELECT count(*) FROM t1 WHERE a<100 and b <100 FOR UPDATE;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range|filter	b,a	b|a	5|5	NULL	49 (10%)	Using where; Using rowid filter
+1	SIMPLE	t1	range	b,a	a	5	NULL	99	Using where; Using index
 SELECT count(*) FROM t1 WHERE a<100 and b <100 FOR UPDATE;
 count(*)
 49
@@ -3752,7 +3755,6 @@ analyze table t1;
 Table	Op	Msg_type	Msg_text
 test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
-# The following must NOT use Rowid Filter:
 analyze format=json select * from t1
 where
 a =30100 and b in (30100,30101,30102)
@@ -3778,9 +3780,23 @@ ANALYZE
           "key_length": "5",
           "used_key_parts": ["a"],
           "ref": ["const"],
+          "rowid_filter": {
+            "range": {
+              "key": "b",
+              "used_key_parts": ["b"]
+            },
+            "rows": 252,
+            "selectivity_pct": 4.799085888,
+            "r_rows": 250,
+            "r_lookups": 250,
+            "r_selectivity_pct": 100,
+            "r_buffer_size": "REPLACED",
+            "r_filling_time_ms": "REPLACED"
+          },
           "loops": 1,
           "r_loops": 1,
           "rows": 250,
+          "r_index_rows": 250,
           "r_rows": 250,
           "cost": "REPLACED",
           "r_table_time_ms": "REPLACED",
@@ -3795,6 +3811,115 @@ ANALYZE
     ]
   }
 }
+set @save_optimizer_switch= @@optimizer_switch;
+set optimizer_switch='rowid_filter=off';
+analyze format=json select * from t1
+where
+a =30100 and b in (30100,30101,30102)
+and
+(a+pk)>30100+8439
+order by pk desc;
+ANALYZE
+{
+  "query_optimization": {
+    "r_total_time_ms": "REPLACED"
+  },
+  "query_block": {
+    "select_id": 1,
+    "cost": "REPLACED",
+    "r_loops": 1,
+    "r_total_time_ms": "REPLACED",
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "ref",
+          "possible_keys": ["a", "b"],
+          "key": "a",
+          "key_length": "5",
+          "used_key_parts": ["a"],
+          "ref": ["const"],
+          "loops": 1,
+          "r_loops": 1,
+          "rows": 250,
+          "r_index_rows": 250,
+          "r_rows": 2,
+          "cost": "REPLACED",
+          "r_table_time_ms": "REPLACED",
+          "r_other_time_ms": "REPLACED",
+          "r_engine_stats": REPLACED,
+          "filtered": 4.799086094,
+          "r_total_filtered": 0.8,
+          "index_condition": "30100 + t1.pk > 38539",
+          "r_icp_filtered": 0.8,
+          "attached_condition": "t1.a <=> 30100 and t1.b in (30100,30101,30102)",
+          "r_filtered": 100
+        }
+      }
+    ]
+  }
+}
+set optimizer_switch='rowid_filter=on';
+analyze format=json select * from t1
+where
+a =30100 and b in (30100,30101,30102)
+and
+(a+pk)>30100+8439
+order by pk desc;
+ANALYZE
+{
+  "query_optimization": {
+    "r_total_time_ms": "REPLACED"
+  },
+  "query_block": {
+    "select_id": 1,
+    "cost": "REPLACED",
+    "r_loops": 1,
+    "r_total_time_ms": "REPLACED",
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "ref",
+          "possible_keys": ["a", "b"],
+          "key": "a",
+          "key_length": "5",
+          "used_key_parts": ["a"],
+          "ref": ["const"],
+          "rowid_filter": {
+            "range": {
+              "key": "b",
+              "used_key_parts": ["b"]
+            },
+            "rows": 252,
+            "selectivity_pct": 4.799085888,
+            "r_rows": 250,
+            "r_lookups": 2,
+            "r_selectivity_pct": 100,
+            "r_buffer_size": "REPLACED",
+            "r_filling_time_ms": "REPLACED"
+          },
+          "loops": 1,
+          "r_loops": 1,
+          "rows": 250,
+          "r_index_rows": 250,
+          "r_rows": 2,
+          "cost": "REPLACED",
+          "r_table_time_ms": "REPLACED",
+          "r_other_time_ms": "REPLACED",
+          "r_engine_stats": REPLACED,
+          "filtered": 4.799086094,
+          "r_total_filtered": 0.8,
+          "index_condition": "30100 + t1.pk > 38539",
+          "r_icp_filtered": 0.8,
+          "attached_condition": "t1.a <=> 30100 and t1.b in (30100,30101,30102)",
+          "r_filtered": 100
+        }
+      }
+    ]
+  }
+}
+set optimizer_switch=@save_optimizer_switch;
 drop table t1;
 # End of 10.6 tests
 set global innodb_stats_persistent= @stats.save;

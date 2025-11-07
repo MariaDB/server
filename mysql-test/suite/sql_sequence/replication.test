@@ -2,7 +2,7 @@
 # This test is originally sequence.test from ALISQL by Jianwei modified for
 # MariaDB
 #
-# It tests basic sequence functionallity together with replication
+# It tests basic sequence functionality together with replication
 #
 
 --source include/have_binlog_format_row.inc
@@ -876,6 +876,8 @@ drop table t1,s1;
 #
 
 connection master;
+disconnect m_normal_1;
+disconnect m_normal_2;
 drop database s_db;
 drop user normal_1@'%';
 drop user normal_2@'%';

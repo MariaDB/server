@@ -9,7 +9,7 @@ set global read_only=0;
 connection con1;
 select @@global.read_only;
 @@global.read_only
-0
+OFF
 show grants;
 Grants for pfsuser@localhost
 GRANT USAGE ON *.* TO `pfsuser`@`localhost`
@@ -23,14 +23,16 @@ set global read_only=1;
 connection con1;
 select @@global.read_only;
 @@global.read_only
-1
+ON
 show grants;
 Grants for pfsuser@localhost
 GRANT USAGE ON *.* TO `pfsuser`@`localhost`
 GRANT SELECT, UPDATE ON `performance_schema`.* TO `pfsuser`@`localhost`
 select * from performance_schema.setup_instruments;
 update performance_schema.setup_instruments set enabled='NO';
+ERROR HY000: The MariaDB server is running with the --read-only=ON option so it cannot execute this statement
 update performance_schema.setup_instruments set enabled='YES';
+ERROR HY000: The MariaDB server is running with the --read-only=ON option so it cannot execute this statement
 connection default;
 grant READ_ONLY ADMIN on *.* to pfsuser@localhost;
 flush privileges;
@@ -38,7 +40,7 @@ disconnect con1;
 connect  con1, localhost, pfsuser, ,"*NO-ONE*";
 select @@global.read_only;
 @@global.read_only
-1
+ON
 show grants;
 Grants for pfsuser@localhost
 GRANT READ_ONLY ADMIN ON *.* TO `pfsuser`@`localhost`

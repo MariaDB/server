@@ -20,6 +20,7 @@
 #include <fcntl.h>
 #include <string.h>
 #include <sys/stat.h>
+#include <my_attribute.h>
 
 #ifdef WIN32
 # include <io.h>
@@ -43,6 +44,8 @@
 # include "grn_string.h"
 # include <onigmo.h>
 #endif
+
+#include "my_attribute.h"
 
 #define MAX_PSEG                 0x20000
 #define MAX_PSEG_SMALL           0x00200
@@ -297,6 +300,8 @@ buffer_segment_new(grn_ctx *ctx, grn_ii *ii, uint32_t *segno)
   }
 }
 
+PRAGMA_DISABLE_CHECK_STACK_FRAME
+
 static grn_rc
 buffer_segment_reserve(grn_ctx *ctx, grn_ii *ii,
                        uint32_t *lseg0, uint32_t *pseg0,
@@ -382,6 +387,8 @@ buffer_segment_reserve(grn_ctx *ctx, grn_ii *ii,
   */
   return ctx->rc;
 }
+
+PRAGMA_REENABLE_CHECK_STACK_FRAME
 
 #define BGQENQUE(lseg) do {\
   if (ii->header->binfo[lseg] != GRN_II_PSEG_NOT_ASSIGNED) {\
@@ -481,7 +488,7 @@ chunk_new(grn_ctx *ctx, grn_ii *ii, uint32_t *res, uint32_t size)
     return ctx->rc;
   } else {
     uint32_t *vp;
-    int m, aligned_size;
+    int m;
     if (size > (1 << GRN_II_W_LEAST_CHUNK)) {
       int es = size - 1;
       GRN_BIT_SCAN_REV(es, m);
@@ -489,7 +496,6 @@ chunk_new(grn_ctx *ctx, grn_ii *ii, uint32_t *res, uint32_t size)
     } else {
       m = GRN_II_W_LEAST_CHUNK;
     }
-    aligned_size = 1 << (m - GRN_II_W_LEAST_CHUNK);
     if (ii->header->ngarbages[m - GRN_II_W_LEAST_CHUNK] > N_GARBAGES_TH) {
       grn_ii_ginfo *ginfo;
       uint32_t *gseg;
@@ -2049,7 +2055,7 @@ grn_p_decv(grn_ctx *ctx, uint8_t *data, uint32_t data_size, datavec *dv, uint32_
   if ((df & 1)) {
     df >>= 1;
     size = nreq == dvlen ? data_size : df * nreq;
-    if (dv[dvlen].data < dv[0].data + size) {
+    if (!dv[0].data || dv[dvlen].data < dv[0].data + size) {
       if (dv[0].data) { GRN_FREE(dv[0].data); }
       if (!(rp = GRN_MALLOC(size * sizeof(uint32_t)))) { return 0; }
       dv[dvlen].data = rp + size;
@@ -2833,6 +2839,8 @@ chunk_flush(grn_ctx *ctx, grn_ii *ii, chunk_info *cinfo, uint8_t *enc, uint32_t 
   return ctx->rc;
 }
 
+PRAGMA_DISABLE_CHECK_STACK_FRAME
+
 static grn_rc
 chunk_merge(grn_ctx *ctx, grn_ii *ii, buffer *sb, buffer_term *bt,
             chunk_info *cinfo, grn_id rid, datavec *dv,
@@ -2847,7 +2855,7 @@ chunk_merge(grn_ctx *ctx, grn_ii *ii, buffer *sb, buffer_term *bt,
 
   if (scp) {
     uint16_t nextb = *nextbp;
-    uint32_t snn = 0, *srp, *ssp = NULL, *stp, *sop = NULL, *snp;
+    uint32_t *srp, *ssp = NULL, *stp, *sop = NULL, *snp;
     uint8_t *sbp = *sbpp;
     datavec rdv[MAX_N_ELEMENTS + 1];
     size_t bufsize = S_SEGMENT * ii->n_elements;
@@ -2864,7 +2872,6 @@ chunk_merge(grn_ctx *ctx, grn_ii *ii, buffer *sb, buffer_term *bt,
       if ((ii->header->flags & GRN_OBJ_WITH_SECTION)) { ssp = rdv[j++].data; }
       stp = rdv[j++].data;
       if ((ii->header->flags & GRN_OBJ_WITH_WEIGHT)) { sop = rdv[j++].data; }
-      snn = rdv[j].data_size;
       snp = rdv[j].data;
     }
     datavec_reset(ctx, dv, ii->n_elements, sdf + S_SEGMENT, bufsize);
@@ -2940,6 +2947,8 @@ chunk_merge(grn_ctx *ctx, grn_ii *ii, buffer *sb, buffer_term *bt,
   return ctx->rc;
 }
 
+PRAGMA_REENABLE_CHECK_STACK_FRAME
+
 static void
 buffer_merge_dump_datavec(grn_ctx *ctx,
                           grn_ii *ii,
@@ -2989,6 +2998,8 @@ buffer_merge_dump_datavec(grn_ctx *ctx,
   GRN_OBJ_FIN(ctx, &buffer);
 }
 
+PRAGMA_DISABLE_CHECK_STACK_FRAME
+
 /* If dc doesn't have enough space, program may be crashed.
  * TODO: Support auto space extension or max size check.
  */
@@ -3031,7 +3042,7 @@ buffer_merge(grn_ctx *ctx, grn_ii *ii, uint32_t seg, grn_hash *h,
     chunk_info *cinfo = NULL;
     grn_id crid = GRN_ID_NIL;
     docinfo cid = {0, 0, 0, 0, 0}, lid = {0, 0, 0, 0, 0}, bid = {0, 0, 0, 0, 0};
-    uint32_t sdf = 0, snn = 0, ndf;
+    uint32_t sdf = 0, ndf;
     uint32_t *srp = NULL, *ssp = NULL, *stp = NULL, *sop = NULL, *snp = NULL;
     if (!bt->tid) {
       nterms_void++;
@@ -3117,7 +3128,6 @@ buffer_merge(grn_ctx *ctx, grn_ii *ii, uint32_t seg, grn_hash *h,
           if ((ii->header->flags & GRN_OBJ_WITH_SECTION)) { ssp = rdv[j++].data; }
           stp = rdv[j++].data;
           if ((ii->header->flags & GRN_OBJ_WITH_WEIGHT)) { sop = rdv[j++].data; }
-          snn = rdv[j].data_size;
           snp = rdv[j].data;
         }
         datavec_reset(ctx, dv, ii->n_elements, sdf + S_SEGMENT, size);
@@ -3314,6 +3324,8 @@ buffer_merge(grn_ctx *ctx, grn_ii *ii, uint32_t seg, grn_hash *h,
   return ctx->rc;
 }
 
+PRAGMA_REENABLE_CHECK_STACK_FRAME
+
 static void
 fake_map(grn_ctx *ctx, grn_io *io, grn_io_win *iw, void *addr, uint32_t seg, uint32_t size)
 {
@@ -3327,6 +3339,8 @@ fake_map(grn_ctx *ctx, grn_io *io, grn_io_win *iw, void *addr, uint32_t seg, uin
   iw->cached = 0;
   iw->addr = addr;
 }
+
+PRAGMA_DISABLE_CHECK_STACK_FRAME
 
 static grn_rc
 buffer_flush(grn_ctx *ctx, grn_ii *ii, uint32_t seg, grn_hash *h)
@@ -3460,6 +3474,8 @@ buffer_flush(grn_ctx *ctx, grn_ii *ii, uint32_t seg, grn_hash *h)
   return ctx->rc;
 }
 
+PRAGMA_REENABLE_CHECK_STACK_FRAME
+
 void
 grn_ii_buffer_check(grn_ctx *ctx, grn_ii *ii, uint32_t seg)
 {
@@ -3522,8 +3538,12 @@ grn_ii_buffer_check(grn_ctx *ctx, grn_ii *ii, uint32_t seg)
     chunk_info *cinfo = NULL;
     grn_id crid = GRN_ID_NIL;
     docinfo bid = {0, 0, 0, 0, 0};
-    uint32_t sdf = 0, snn = 0;
-    uint32_t *srp = NULL, *ssp = NULL, *stp = NULL, *sop = NULL, *snp = NULL;
+    uint32_t sdf = 0;
+    uint32_t *srp __attribute__((unused)) = NULL;
+    uint32_t *ssp __attribute__((unused)) = NULL;
+    uint32_t *stp __attribute__((unused)) = NULL;
+    uint32_t *sop __attribute__((unused)) = NULL;
+    uint32_t *snp __attribute__((unused)) = NULL;
     if (!bt->tid && !bt->pos_in_buffer && !bt->size_in_buffer) {
       nterms_void++;
       continue;
@@ -3578,7 +3598,6 @@ grn_ii_buffer_check(grn_ctx *ctx, grn_ii *ii, uint32_t seg)
           stp = rdv[j++].data;
           if ((ii->header->flags & GRN_OBJ_WITH_WEIGHT)) { sop = rdv[j++].data; }
           GRN_OUTPUT_INT64(rdv[j].data_size);
-          snn = rdv[j].data_size;
           snp = rdv[j].data;
         }
         nterm_with_chunk++;
@@ -3725,6 +3744,8 @@ array_update(grn_ctx *ctx, grn_ii *ii, uint32_t dls, buffer *db)
     pos += sizeof(buffer_term) >> 2;
   }
 }
+
+PRAGMA_DISABLE_CHECK_STACK_FRAME
 
 static grn_rc
 buffer_split(grn_ctx *ctx, grn_ii *ii, uint32_t seg, grn_hash *h)
@@ -3971,6 +3992,8 @@ buffer_split(grn_ctx *ctx, grn_ii *ii, uint32_t seg, grn_hash *h)
   return ctx->rc;
 }
 
+PRAGMA_REENABLE_CHECK_STACK_FRAME
+
 #define SCALE_FACTOR 2048
 #define MAX_NTERMS   8192
 #define SPLIT_COND(ii, buffer)\
@@ -4096,7 +4119,7 @@ buffer_new_lexicon_pat(grn_ctx *ctx,
                  *lseg == GRN_II_PSEG_NOT_ASSIGNED &&
                  (tid = grn_pat_cursor_next(ctx, cursor))) {
             void *current_key;
-            int current_key_size;
+            int current_key_size __attribute__((unused));
 
             current_key_size = grn_pat_cursor_get_key(ctx, cursor, &current_key);
             if (memcmp(((char *)current_key) + target_key_size,
@@ -4509,8 +4532,11 @@ grn_ii_get_disk_usage(grn_ctx *ctx, grn_ii *ii)
   return usage;
 }
 
+
 #define BIT11_01(x) ((x >> 1) & 0x7ff)
 #define BIT31_12(x) (x >> 12)
+
+PRAGMA_DISABLE_CHECK_STACK_FRAME
 
 grn_rc
 grn_ii_update_one(grn_ctx *ctx, grn_ii *ii, grn_id tid, grn_ii_updspec *u, grn_hash *h)
@@ -4784,6 +4810,7 @@ exit :
   return ctx->rc;
 }
 
+
 grn_rc
 grn_ii_delete_one(grn_ctx *ctx, grn_ii *ii, grn_id tid, grn_ii_updspec *u, grn_hash *h)
 {
@@ -4896,6 +4923,8 @@ exit :
   if (bs) { GRN_FREE(bs); }
   return ctx->rc;
 }
+
+PRAGMA_REENABLE_CHECK_STACK_FRAME
 
 #define CHUNK_USED    1
 #define BUFFER_USED   2
@@ -6294,6 +6323,8 @@ grn_uvector2updspecs(grn_ctx *ctx, grn_ii *ii, grn_id rid,
   }
 }
 
+PRAGMA_DISABLE_CHECK_STACK_FRAME
+
 grn_rc
 grn_ii_column_update(grn_ctx *ctx, grn_ii *ii, grn_id rid, unsigned int section,
                      grn_obj *oldvalue, grn_obj *newvalue, grn_obj *posting)
@@ -6612,6 +6643,8 @@ exit :
   if (new && new != newvalue) { grn_obj_close(ctx, new); }
   return ctx->rc;
 }
+
+PRAGMA_REENABLE_CHECK_STACK_FRAME
 
 /* token_info */
 
@@ -7916,6 +7949,8 @@ grn_ii_select_cursor_open(grn_ctx *ctx,
   return cursor;
 }
 
+PRAGMA_DISABLE_CHECK_STACK_FRAME
+
 static grn_ii_select_cursor_posting *
 grn_ii_select_cursor_next(grn_ctx *ctx,
                           grn_ii_select_cursor *cursor)
@@ -8082,6 +8117,9 @@ grn_ii_select_cursor_next(grn_ctx *ctx,
     }
   }
 }
+
+PRAGMA_REENABLE_CHECK_STACK_FRAME
+
 
 static void
 grn_ii_select_cursor_unshift(grn_ctx *ctx,
@@ -8526,6 +8564,8 @@ grn_ii_select_sequential_search(grn_ctx *ctx,
 }
 #endif
 
+PRAGMA_DISABLE_CHECK_STACK_FRAME
+
 grn_rc
 grn_ii_select(grn_ctx *ctx, grn_ii *ii,
               const char *string, unsigned int string_len,
@@ -8831,6 +8871,8 @@ exit :
 #endif /* DEBUG */
   return rc;
 }
+
+PRAGMA_REENABLE_CHECK_STACK_FRAME
 
 static uint32_t
 grn_ii_estimate_size_for_query_regexp(grn_ctx *ctx, grn_ii *ii,
@@ -10653,7 +10695,7 @@ grn_ii_builder_options_fix(grn_ii_builder_options *options)
 }
 
 #define GRN_II_BUILDER_TERM_INPLACE_SIZE\
-  (sizeof(grn_ii_builder_term) - (uintptr_t)&((grn_ii_builder_term *)0)->dummy)
+  (sizeof(grn_ii_builder_term) - offsetof(grn_ii_builder_term, dummy))
 
 typedef struct {
   grn_id   rid;    /* Last record ID */

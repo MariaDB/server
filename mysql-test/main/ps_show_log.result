@@ -49,7 +49,7 @@ DEALLOCATE PREPARE stmt_1;
 # Create the user u1 without the REPLICATION SLAVE privilege required
 # for running the statements SHOW BINLOG EVENTS/SHOW RELAYLOG EVENTS
 # and check that attempt to execute the statements SHOW BINLOG EVENTS/
-# SHOW RELAYLOG EVENTS as a prepred statements by a user without required
+# SHOW RELAYLOG EVENTS as a prepared statements by a user without required
 # privileges results in error.
 connect  con2,localhost,u1,,"*NO-ONE*";
 PREPARE stmt_1 FROM 'SHOW BINLOG EVENTS';
@@ -61,5 +61,6 @@ ERROR 42000: Access denied; you need (at least one of) the SLAVE MONITOR privile
 DEALLOCATE PREPARE stmt_1;
 include/rpl_end.inc
 connection default;
+disconnect con2;
 DROP USER u1;
 # End of 10.2 tests

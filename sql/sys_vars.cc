@@ -82,6 +82,8 @@
 */
 #define export /* not static */
 
+PRAGMA_DISABLE_CHECK_STACK_FRAME
+
 #ifdef WITH_PERFSCHEMA_STORAGE_ENGINE
 
 static Sys_var_mybool Sys_pfs_enabled(
@@ -456,6 +458,19 @@ static Sys_var_double Sys_analyze_sample_percentage(
        CMD_LINE(REQUIRED_ARG), VALID_RANGE(0, 100),
        DEFAULT(100));
 
+/*
+  The max length have to be UINT_MAX32 to not remove GEOMETRY fields
+  from analyze.
+*/
+
+static Sys_var_uint Sys_analyze_max_length(
+       "analyze_max_length",
+       "Fields which length in bytes more than this are skipped by ANALYZE "
+       "TABLE PERSISTENT unless explicitly listed in the FOR COLUMNS () clause",
+       SESSION_VAR(analyze_max_length),
+       CMD_LINE(REQUIRED_ARG), VALID_RANGE(32, UINT_MAX32),
+       DEFAULT(UINT_MAX32), BLOCK_SIZE(1));
+
 static Sys_var_ulong Sys_auto_increment_increment(
        "auto_increment_increment",
        "Auto-increment columns are incremented by this",
@@ -632,11 +647,11 @@ static bool binlog_format_check(sys_var *self, THD *thd, set_var *var)
                         binlog_format_names[var->save_result.ulonglong_value]);
     /*
       We allow setting up binlog_format other then ROW for session scope when
-      wsrep/flasback is enabled.This is done because of 2 reasons
+      wsrep/flashback is enabled. This is done because of 2 reasons
       1. User might want to run pt-table-checksum.
       2. SuperUser knows what is doing :-)
 
-      For refrence:- MDEV-7322
+      For reference:- MDEV-7322
     */
     if (var->type == OPT_GLOBAL)
     {
@@ -663,11 +678,10 @@ static bool binlog_format_check(sys_var *self, THD *thd, set_var *var)
      switching @@SESSION.binlog_format from MIXED to STATEMENT when there are
      open temp tables and we are logging in row format.
   */
-  if (thd->has_thd_temporary_tables() &&
+  if (thd->has_not_logged_temporary_tables() &&
       var->type == OPT_SESSION &&
       var->save_result.ulonglong_value == BINLOG_FORMAT_STMT &&
-      ((thd->variables.binlog_format == BINLOG_FORMAT_MIXED &&
-        thd->is_current_stmt_binlog_format_row()) ||
+      (thd->variables.binlog_format == BINLOG_FORMAT_MIXED ||
        thd->variables.binlog_format == BINLOG_FORMAT_ROW))
   {
     my_error(ER_TEMP_TABLE_PREVENTS_SWITCH_OUT_OF_RBR, MYF(0));
@@ -731,6 +745,40 @@ Sys_binlog_direct(
        SESSION_VAR(binlog_direct_non_trans_update),
        CMD_LINE(OPT_ARG), DEFAULT(FALSE),
        NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(binlog_direct_check));
+
+
+static bool binlog_create_tmp_format_check(sys_var *self, THD *thd,
+                                           set_var *var)
+{
+  if (var->save_result.ulonglong_value == 0)
+    return true;
+  /*
+    Logging of temporary tables is always done in STATEMENT format.
+    Because of this MIXED implies STATEMENT.
+  */
+  if (!(var->save_result.ulonglong_value & (1 << BINLOG_FORMAT_STMT)))
+  {
+    throw_bounds_warning(thd, self->name.str, "MIXED");
+    var->save_result.ulonglong_value|= (1 << BINLOG_FORMAT_STMT);
+  }
+  return false;
+}
+
+static Sys_var_on_access<Sys_var_set,
+                         PRIV_SET_SYSTEM_VAR_BINLOG_FORMAT,
+                         PRIV_SET_SYSTEM_VAR_BINLOG_FORMAT>
+Sys_binlog_create_tmptable_format(
+       "create_tmp_table_binlog_formats",
+       "The binary logging formats under which the master will log "
+       "CREATE TEMPORARY statments to the binary log. If CREATE TEMPORARY "
+       "is not logged, all usage of the temporary table will be logged in "
+       "ROW format. Allowed values are STATEMENT or MIXED,STATEMENT",
+       SESSION_VAR(create_temporary_table_binlog_formats),
+       CMD_LINE(REQUIRED_ARG, OPT_BINLOG_FORMAT),
+       binlog_formats_create_tmp_names,
+       DEFAULT((ulong) (1 << BINLOG_FORMAT_STMT)),
+       NO_MUTEX_GUARD, NOT_IN_BINLOG,
+       ON_CHECK(binlog_create_tmp_format_check));
 
 static bool deprecated_explicit_defaults_for_timestamp(sys_var *self, THD *thd,
                                                        set_var *var)
@@ -1165,7 +1213,7 @@ static bool event_scheduler_update(sys_var *self, THD *thd, enum_var_type type)
     start/stop, there is a possibility that the server variable
     can become out of sync with the real event scheduler state.
 
-    This can happen with two concurrent statments if the first gets
+    This can happen with two concurrent statements if the first gets
     interrupted after start/stop but before retaking
     LOCK_global_system_variables. However, this problem should be quite
     rare and it's difficult to avoid it without opening up possibilities
@@ -1519,14 +1567,6 @@ static Sys_var_mybool Sys_large_files_support(
        READ_ONLY GLOBAL_VAR(opt_large_files),
        CMD_LINE_HELP_ONLY, DEFAULT(sizeof(my_off_t) > 4));
 
-static Sys_var_uint Sys_large_page_size(
-       "large_page_size",
-       UNUSED_HELP,
-       READ_ONLY GLOBAL_VAR(opt_large_page_size), NO_CMD_LINE,
-       VALID_RANGE(0, UINT_MAX), DEFAULT(0), BLOCK_SIZE(1),
-       NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0), ON_UPDATE(0),
-       DEPRECATED_NO_REPLACEMENT(1005));
-
 static Sys_var_mybool Sys_large_pages(
        "large_pages", "Enable support for large pages",
        READ_ONLY GLOBAL_VAR(opt_large_pages),
@@ -1818,9 +1858,8 @@ Sys_max_binlog_stmt_cache_size(
 
 static bool fix_max_binlog_size(sys_var *self, THD *thd, enum_var_type type)
 {
-  ulong saved= max_binlog_size;
   mysql_mutex_unlock(&LOCK_global_system_variables);
-  mysql_bin_log.set_max_size(saved);
+  mysql_bin_log.set_max_size(max_binlog_size);
   mysql_mutex_lock(&LOCK_global_system_variables);
   return false;
 }
@@ -1954,6 +1993,14 @@ static Sys_var_ulong Sys_metadata_locks_hash_instances(
        BLOCK_SIZE(1), NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0), ON_UPDATE(0),
        DEPRECATED(1105, ""));
 
+static Sys_var_uint Sys_metadata_locks_instances(
+       "metadata_locks_instances",
+       "Number of fast lanes to create for metadata locks. Can be used to "
+       "improve DML scalability by eliminating MDL_lock::rwlock load. "
+       "Use 1 to disable MDL fast lanes. Supported MDL namespaces: BACKUP",
+       READ_ONLY GLOBAL_VAR(mdl_instances), CMD_LINE(REQUIRED_ARG),
+       VALID_RANGE(1, 256), DEFAULT(8), BLOCK_SIZE(1));
+
 static Sys_var_on_access_session<Sys_var_ulonglong,
                                  PRIV_SET_SYSTEM_SESSION_VAR_PSEUDO_THREAD_ID>
 Sys_pseudo_thread_id(
@@ -1976,19 +2023,17 @@ check_gtid_domain_id(sys_var *self, THD *thd, set_var *var)
       All binlogged statements on a temporary table must be binlogged in the
       same domain_id; it is not safe to run them in parallel in different
       domains, temporary table must be exclusive to a single thread.
-      In row-based binlogging, temporary tables do not end up in the binlog,
-      so there is no such issue.
 
       ToDo: When merging to next (non-GA) release, introduce a more specific
       error that describes that the problem is changing gtid_domain_id with
       open temporary tables in statement/mixed binlogging mode; it is not
       really due to doing it inside a "transaction".
     */
-    if (thd->has_thd_temporary_tables() &&
-        !thd->is_current_stmt_binlog_format_row() &&
+
+    if (thd->has_logged_temporary_tables() &&
         var->save_result.ulonglong_value != thd->variables.gtid_domain_id)
     {
-      my_error(ER_INSIDE_TRANSACTION_PREVENTS_SWITCH_GTID_DOMAIN_ID_SEQ_NO,
+      my_error(ER_TEMPORARY_TABLES_PREVENT_SWITCH_GTID_DOMAIN_ID,
                MYF(0));
         return true;
     }
@@ -2738,6 +2783,12 @@ static Sys_var_ulong Sys_max_sp_recursion_depth(
        VALID_RANGE(0, 255), DEFAULT(0), BLOCK_SIZE(1));
 
 
+static Sys_var_uint Sys_max_open_cursors(
+       "max_open_cursors",
+       "The maximum number of open cursors allowed per session",
+       SESSION_VAR(max_open_cursors), CMD_LINE(REQUIRED_ARG),
+       VALID_RANGE(0, 64*1024), DEFAULT(50), BLOCK_SIZE(1));
+
 static bool if_checking_enabled(sys_var *self, THD *thd,  set_var *var)
 {
   if (session_readonly(self, thd, var))
@@ -3015,7 +3066,8 @@ export const char *optimizer_switch_names[]=
   "index_merge_intersection","index_merge_sort_intersection",
   "index_condition_pushdown",
   "derived_merge", "derived_with_keys",
-  "firstmatch","loosescan","materialization","in_to_exists","semijoin",
+  "firstmatch","loosescan","duplicateweedout","materialization",
+  "in_to_exists","semijoin",
   "partial_match_rowid_merge",
   "partial_match_table_scan",
   "subquery_cache",
@@ -3078,6 +3130,13 @@ static Sys_var_ulong Sys_optimizer_trace_max_mem_size(
     "Maximum allowed size of an optimizer trace",
     SESSION_VAR(optimizer_trace_max_mem_size), CMD_LINE(REQUIRED_ARG),
     VALID_RANGE(0, ULONG_MAX), DEFAULT(1024 * 1024), BLOCK_SIZE(1));
+
+static Sys_var_mybool Sys_optimizer_record_context(
+    "optimizer_record_context",
+    "Controls storing of optmizer context of all the tables "
+    "that are referenced in a query",
+    SESSION_VAR(optimizer_record_context), CMD_LINE(OPT_ARG),
+    DEFAULT(FALSE));
 
 static Sys_var_ulong Sys_optimizer_adjust_secondary_key_costs(
     "optimizer_adjust_secondary_key_costs",
@@ -3159,8 +3218,14 @@ static bool check_read_only(sys_var *self, THD *thd, set_var *var)
 static bool fix_read_only(sys_var *self, THD *thd, enum_var_type type)
 {
   bool result= true;
-  my_bool new_read_only= read_only; // make a copy before releasing a mutex
+  ulong new_read_only;
   DBUG_ENTER("sys_var_opt_readonly::update");
+
+  /* Change old options FALSE and TRUE to OFF and ON */
+  if (read_only > READONLY_NO_LOCK_NO_ADMIN)
+    read_only-= ((ulong) READONLY_NO_LOCK_NO_ADMIN + 1);
+
+  new_read_only= read_only; // make a copy before releasing a mutex
 
   if (read_only == FALSE || read_only == opt_readonly)
   {
@@ -3226,16 +3291,28 @@ static bool fix_read_only(sys_var *self, THD *thd, enum_var_type type)
   fix_read_only() compares them and runs needed operations for the
   transition (especially when transitioning from false to true) and
   synchronizes both booleans in the end.
+  The FALSE and TRUE options are only for compatability with old config files.
+  They will be mapped to OFF and ON respectively.
 */
-static Sys_var_on_access_global<Sys_var_mybool,
+
+const char *read_only_mode_names[]=
+{"OFF", "ON", "NO_LOCK", "NO_LOCK_NO_ADMIN", "FALSE", "TRUE", NullS };
+
+static Sys_var_on_access_global<Sys_var_enum,
                                 PRIV_SET_SYSTEM_GLOBAL_VAR_READ_ONLY>
 Sys_readonly(
        "read_only",
-       "Make all non-temporary tables read-only, with the exception for "
-       "replication (slave) threads and users with the 'READ ONLY ADMIN' "
-       "privilege",
-       GLOBAL_VAR(read_only), CMD_LINE(OPT_ARG), DEFAULT(FALSE),
-       NO_MUTEX_GUARD, NOT_IN_BINLOG,
+       "Do not allow changes to non-temporary tables. Options are:"
+       "OFF changes allowed. "
+       "ON Disallow changes for users without the READ ONLY ADMIN "
+       "privilege. "
+       "NO_LOCK Additionally disallows LOCK TABLES and "
+       "SELECT IN SHARE MODE. "
+       "NO_LOCK_NO_ADMIN Disallows also for users with "
+       "READ_ONLY ADMIN privilege. "
+       "Replication (slave) threads are not affected by this option",
+       GLOBAL_VAR(read_only), CMD_LINE(OPT_ARG),
+       read_only_mode_names, DEFAULT(0), NO_MUTEX_GUARD, NOT_IN_BINLOG,
        ON_CHECK(check_read_only), ON_UPDATE(fix_read_only));
 
 // Small lower limit to be able to test MRR
@@ -4090,6 +4167,75 @@ static Sys_var_set Sys_old_behavior(
        old_mode_names, DEFAULT(OLD_MODE_DEFAULT_VALUE),
        NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(old_mode_deprecated));
 
+
+/*
+  Current 'not yet default' @@new_mode flag names see sql_class.h /NEW_MODE_ 
+  These need to be be kept in the same order as the value of definitions above
+*/
+static const char *new_mode_all_names[]=
+{
+  "FIX_DISK_TMPTABLE_COSTS",
+  "FIX_INDEX_STATS_FOR_ALL_NULLS",
+  "TEST_WARNING1",                       // Default from here, See NEW_MODE_MAX
+  "TEST_WARNING2",
+  0
+};
+
+static int new_mode_hidden_names[] =
+{
+  0,  // FIX_DISK_TMPTABLE_COSTS
+  1,  // FIX_INDEX_STATS_FOR_ALL_NULLS
+  2,  // TEST_WARNING1
+  3,  // TEST_WARNING2
+  -1
+};
+
+/*
+  @@new_mode flag names that are now default and thus not configurable
+  see previous comment
+*/
+const char **new_mode_default_names= &new_mode_all_names[NEW_MODE_MAX];
+
+
+/*
+  @brief
+    Emit warnings if the value of @@new_mode in *v contains flags that are
+    already included in the default behavior.
+
+  @param v INOUT  Bitmap where bits represent indexes in new_mode_all_names
+                  array.
+                  Bits representing obsolete elements will be cleared.
+*/
+
+void check_new_mode_value(THD *thd, ulonglong *v)
+{
+  ulonglong vl= *v >> NEW_MODE_MAX;
+  for (uint i=0; new_mode_default_names[i]; i++)
+  {
+    if ((1ULL<<i) & vl)
+    {
+      char buf1[NAME_CHAR_LEN*2 + 3];
+      strxnmov(buf1, sizeof(buf1)-1, "new_mode=", new_mode_default_names[i], 0);
+      my_error(ER_VARIABLE_IGNORED, MYF(ME_WARNING), buf1);
+      (*v)&= ~(1ULL << (i+NEW_MODE_MAX));
+    }
+  }
+}
+
+static bool check_new_mode_var_value(sys_var *self, THD *thd, set_var *var)
+{
+  check_new_mode_value(thd, &var->save_result.ulonglong_value);
+  return false;
+}
+
+static Sys_var_set Sys_new_behavior(
+       "new_mode",
+       "Used to introduce new behavior to existing MariaDB versions",
+       SESSION_VAR(new_behavior), CMD_LINE(REQUIRED_ARG),
+       new_mode_all_names, DEFAULT(0),
+       NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(check_new_mode_var_value), 0, 0,
+       new_mode_hidden_names);
+
 #if defined(HAVE_OPENSSL) && !defined(EMBEDDED_LIBRARY)
 #define SSL_OPT(X) CMD_LINE(REQUIRED_ARG,X)
 #else
@@ -4134,6 +4280,68 @@ static Sys_var_charptr_fscs Sys_ssl_crlpath(
        "CRL directory (check OpenSSL docs, implies --ssl)",
        READ_ONLY GLOBAL_VAR(opt_ssl_crlpath), SSL_OPT(OPT_SSL_CRLPATH),
        DEFAULT(0));
+
+static char *opt_ssl_passphrase;
+static Sys_var_charptr Sys_ssl_passphrase(
+       "ssl_passphrase",
+       "SSL certificate key passphrase",
+       READ_ONLY GLOBAL_VAR(opt_ssl_passphrase), CMD_LINE(REQUIRED_ARG),
+       DEFAULT(0));
+
+/**
+  Retrieve ssl passphrase.
+
+  This function should be used instead of directly accessing
+  opt_ssl_passphrase.
+
+  If system variable ssl_passphrase is set, this function
+  saves the original value of, then changes system variable,
+  hiding security sensitive info in SHOW VARIABLES.
+
+  We store original value internally, it will be needed in
+  FLUSH SSL
+*/
+const char *get_ssl_passphrase()
+{
+  static std::string saved_ssl_passphrase;
+
+  if (!saved_ssl_passphrase.empty())
+    return saved_ssl_passphrase.c_str();
+
+  if (!opt_ssl_passphrase)
+    return NULL;
+
+  /*
+    Warn, if file-based passphrase is readable by LOAD_FILE()
+    or LOAD DATA INFILE.
+  */
+  if (!strncmp(opt_ssl_passphrase, STRING_WITH_LEN("file:")))
+  {
+    char *file= opt_ssl_passphrase + 5;
+    if (is_secure_file_path(file))
+    {
+      sql_print_warning("ssl passphrase file '%s' is not secure, can be read "
+        "by LOAD_FILE() or LOAD DATA. Define secure-file-dir, and place "
+        "passphrase file outside of this directory, to avoid this warning",
+        file);
+    }
+  }
+  saved_ssl_passphrase= opt_ssl_passphrase;
+  /*
+    Modify opt_ssl_passphrase to wipe everything after prefix ending
+    in colon char.It will just leave just one of "file:", "env:", or "pass:"
+    at the end.
+  */
+  char *p= strchr(opt_ssl_passphrase, ':');
+  if (p)
+  {
+    p++;
+    char *end= opt_ssl_passphrase + strlen(opt_ssl_passphrase);
+    if (p < end)
+      memset(p, 0, size_t(end - p));
+  }
+  return saved_ssl_passphrase.c_str();
+}
 
 static const char *tls_version_names[]=
 {
@@ -4403,7 +4611,7 @@ static bool check_tx_isolation(sys_var *self, THD *thd, set_var *var)
   if (var->type == OPT_DEFAULT && thd->in_active_multi_stmt_transaction())
   {
     DBUG_ASSERT(thd->in_multi_stmt_transaction_mode());
-    my_error(ER_CANT_CHANGE_TX_CHARACTERISTICS, MYF(0));
+    my_error(ER_CANT_SET_IN_TRANSACTION, MYF(0), "TRANSACTION ISOLATION");
     return TRUE;
   }
   return FALSE;
@@ -4434,7 +4642,9 @@ static bool check_tx_read_only(sys_var *self, THD *thd, set_var *var)
   if (var->type == OPT_DEFAULT && thd->in_active_multi_stmt_transaction())
   {
     DBUG_ASSERT(thd->in_multi_stmt_transaction_mode());
-    my_error(ER_CANT_CHANGE_TX_CHARACTERISTICS, MYF(0));
+    my_error(ER_CANT_SET_IN_TRANSACTION, MYF(0),
+             var->save_result.ulonglong_value ? "TRANSACTION READ ONLY"
+             : "TRANSACTION READ WRITE");
     return true;
   }
   return false;
@@ -4597,13 +4807,6 @@ static Sys_var_plugin Sys_default_storage_engine(
        MYSQL_STORAGE_ENGINE_PLUGIN, DEFAULT(&default_storage_engine),
        NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(check_not_null));
 
-static Sys_var_plugin Sys_storage_engine(
-       "storage_engine", "Alias for @@default_storage_engine. Deprecated",
-       SESSION_VAR(table_plugin), NO_CMD_LINE,
-       MYSQL_STORAGE_ENGINE_PLUGIN, DEFAULT(&default_storage_engine),
-       NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(check_not_null), ON_UPDATE(0),
-       DEPRECATED(1005, "default_storage_engine"));
-
 static Sys_var_plugin Sys_default_tmp_storage_engine(
        "default_tmp_storage_engine", "The default storage engine for user-created temporary tables",
        SESSION_VAR(tmp_table_plugin), NO_CMD_LINE,
@@ -4743,14 +4946,6 @@ static Sys_var_bit Sys_autocommit(
        OPTION_AUTOCOMMIT, DEFAULT(TRUE),
        NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0), ON_UPDATE(fix_autocommit));
 export sys_var *Sys_autocommit_ptr= &Sys_autocommit; // for sql_yacc.yy
-
-static Sys_var_mybool Sys_big_tables(
-       "big_tables", "Old variable, which if set to 1, allows large result sets "
-       "by saving all temporary sets to disk, avoiding 'table full' errors. No "
-       "longer needed, as the server now handles this automatically",
-       SESSION_VAR(big_tables), CMD_LINE(OPT_ARG), DEFAULT(FALSE),
-       NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0), ON_UPDATE(0),
-       DEPRECATED_NO_REPLACEMENT(1005));
 
 static Sys_var_bit Sys_big_selects(
        "sql_big_selects", "If set to 0, MariaDB will not perform large SELECTs."
@@ -4895,7 +5090,7 @@ static Sys_var_bit Sys_foreign_key_checks(
        " (including ON UPDATE and ON DELETE behavior) InnoDB tables are checked,"
        " while if set to 0, they are not checked. 0 is not recommended for normal "
        "use, though it can be useful in situations where you know the data is "
-       "consistent, but want to reload data in a different order from that that "
+       "consistent, but want to reload data in a different order from that "
        "specified by parent/child relationships. Setting this variable to 1 does "
        "not retrospectively check for inconsistencies introduced while set to 0",
        SESSION_VAR(option_bits), NO_CMD_LINE,
@@ -5059,7 +5254,7 @@ static Sys_var_session_special Sys_identity(
   We want statements referring explicitly to @@session.insert_id to be
   unsafe, because insert_id is modified internally by the slave sql
   thread when NULL values are inserted in an AUTO_INCREMENT column.
-  This modification interfers with the value of the
+  This modification interferes with the value of the
   @@session.insert_id variable if @@session.insert_id is referred
   explicitly by an insert statement (as is seen by executing "SET
   @@session.insert_id=0; CREATE TABLE t (a INT, b INT KEY
@@ -5217,6 +5412,12 @@ static Sys_var_uint Sys_repl_report_port(
        "to the slave. If not sure, leave this option unset",
        READ_ONLY GLOBAL_VAR(report_port), CMD_LINE(REQUIRED_ARG),
        VALID_RANGE(0, UINT_MAX), DEFAULT(0), BLOCK_SIZE(1));
+
+static Sys_var_mybool Sys_show_slave_auth_info(
+       "show_slave_auth_info",
+       "Show user and password in SHOW SLAVE HOSTS on this master",
+       READ_ONLY GLOBAL_VAR(opt_show_slave_auth_info), CMD_LINE(OPT_ARG),
+       DEFAULT(FALSE));
 #endif
 
 static Sys_var_mybool Sys_keep_files_on_create(
@@ -5468,7 +5669,8 @@ static Sys_var_charptr Sys_have_santitizer(
        "have_sanitizer",
        "If the server is compiled with sanitize (compiler option), this "
        "variable is set to the sanitizer mode used. Possible values are "
-       "ASAN (Address sanitizer) or UBSAN (The Undefined Behavior Sanitizer)",
+       "ASAN (Address sanitizer) and/or UBSAN (Undefined Behavior Sanitizer),"
+       " or MSAN (memory sanitizer)",
         READ_ONLY GLOBAL_VAR(have_sanitizer), NO_CMD_LINE,
        DEFAULT(SANITIZER_MODE));
 #endif /* defined(__SANITIZE_ADDRESS__) || defined(WITH_UBSAN) */
@@ -5617,6 +5819,13 @@ static Sys_var_charptr_fscs Sys_relay_log_info_file(
        READ_ONLY GLOBAL_VAR(relay_log_info_file), CMD_LINE(REQUIRED_ARG),
        DEFAULT(0));
 
+static Sys_var_charptr_fscs Sys_master_info_file(
+       "master_info_file", "The location and name of the file that "
+       "remembers the master and where the I/O replication thread "
+       "is in the master's binlogs. Defaults to master.info",
+       READ_ONLY GLOBAL_VAR(master_info_file), CMD_LINE(REQUIRED_ARG),
+       DEFAULT(0));
+
 static Sys_var_on_access_global<Sys_var_mybool,
                                 PRIV_SET_SYSTEM_GLOBAL_VAR_RELAY_LOG_PURGE>
 Sys_relay_log_purge(
@@ -5671,7 +5880,7 @@ bool Sys_var_rpl_filter::set_filter_value(const char *value, Master_info *mi)
   bool status= true;
   Rpl_filter* rpl_filter= mi->rpl_filter;
 
-  /* Proctect against other threads */
+  /* Protect against other threads */
   mysql_mutex_lock(&LOCK_active_mi);
   switch (opt_id) {
   case OPT_REPLICATE_REWRITE_DB:
@@ -6212,7 +6421,7 @@ static Sys_var_ulong Sys_wsrep_slave_threads(
        GLOBAL_VAR(wsrep_slave_threads), CMD_LINE(REQUIRED_ARG),
        VALID_RANGE(1, 512), DEFAULT(1), BLOCK_SIZE(1),
        NO_MUTEX_GUARD, NOT_IN_BINLOG,
-       ON_CHECK(0),
+       ON_CHECK(wsrep_slave_threads_check),
        ON_UPDATE(wsrep_slave_threads_update));
 
 static Sys_var_charptr Sys_wsrep_dbug_option(
@@ -6409,6 +6618,7 @@ static const char *wsrep_mode_names[]=
   "REPLICATE_ARIA",
   "DISALLOW_LOCAL_GTID",
   "BF_ABORT_MARIABACKUP",
+  "APPLIER_SKIP_FK_CHECKS_IN_IST",
   NullS
 };
 static Sys_var_set Sys_wsrep_mode(
@@ -6560,6 +6770,12 @@ static Sys_var_charptr Sys_wsrep_allowlist(
        "wsrep_allowlist", "Allowed IP addresses split by comma delimiter",
        READ_ONLY GLOBAL_VAR(wsrep_allowlist), CMD_LINE(REQUIRED_ARG),
        DEFAULT(""));
+
+static Sys_var_uint Sys_wsrep_applier_retry_count (
+       "wsrep_applier_retry_count", "Maximum number of applier retry attempts",
+       GLOBAL_VAR(wsrep_applier_retry_count), CMD_LINE(OPT_ARG),
+       VALID_RANGE(0, UINT_MAX), DEFAULT(0), BLOCK_SIZE(1),
+       NO_MUTEX_GUARD, NOT_IN_BINLOG);
 
 #endif /* WITH_WSREP */
 
@@ -6761,7 +6977,7 @@ static const char *default_regex_flags_names[]=
   "DOTALL",    // (?s)  . matches anything including NL
   "DUPNAMES",  // (?J)  Allow duplicate names for subpatterns
   "EXTENDED",  // (?x)  Ignore white space and # comments
-  "EXTENDED_MORE",//(?xx)  Ignore white space and # comments inside cheracter
+  "EXTENDED_MORE",//(?xx)  Ignore white space and # comments inside character
   "EXTRA",     // means nothing since PCRE2
   "MULTILINE", // (?m)  ^ and $ match newlines within data
   "UNGREEDY",  // (?U)  Invert greediness of quantifiers
@@ -6817,7 +7033,7 @@ static Sys_var_ulong Sys_log_slow_rate_limit(
 
 /*
   Full is not needed below anymore as one can set all bits with '= ALL', but
-  we need it for compatiblity with earlier versions.
+  we need it for compatibility with earlier versions.
 */
 static const char *log_slow_verbosity_names[]=
 { "innodb", "query_plan", "explain", "engine", "warnings", "full", 0};
@@ -6890,6 +7106,14 @@ static Sys_var_mybool Sys_replicate_annotate_row_events(
        "to its own binary log. Ignored if log_slave_updates is not set",
        READ_ONLY GLOBAL_VAR(opt_replicate_annotate_row_events),
        CMD_LINE(OPT_ARG), DEFAULT(TRUE));
+
+static Sys_var_mybool Sys_replicate_same_server_id(
+       "replicate_same_server_id",
+       "In replication, if set to 1, do not skip events having our server id. "
+       "Default value is 0 (to break infinite loops in circular replication). "
+       "Can't be set to 1 if --log-slave-updates is used",
+       READ_ONLY GLOBAL_VAR(replicate_same_server_id),
+       CMD_LINE(OPT_ARG), DEFAULT(FALSE));
 #endif
 
 static Sys_var_ulonglong Sys_join_buffer_space_limit(

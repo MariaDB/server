@@ -29,7 +29,7 @@ static double calc_distance_euclidean(float *v1, float *v2, size_t v_len)
   double d= 0;
   for (size_t i= 0; i < v_len; i++, v1++, v2++)
   {
-    float dist= get_float(v1) - get_float(v2);
+    double dist= get_float(v1) - get_float(v2);
     d+= dist * dist;
   }
   return sqrt(d);
@@ -177,10 +177,15 @@ Item_func_vec_totext::Item_func_vec_totext(THD *thd, Item *a)
 Item_func_vec_fromtext::Item_func_vec_fromtext(THD *thd, Item *a)
     : Item_str_func(thd, a)
 {
+  mem_root_inited= false;
 }
 
 bool Item_func_vec_fromtext::fix_length_and_dec(THD *thd)
 {
+  mem_root_dynamic_array_init(thd->mem_root, PSI_INSTRUMENT_MEM,
+                              &je.stack, sizeof(int), NULL,
+                              JSON_DEPTH_DEFAULT, JSON_DEPTH_INC, MYF(0));
+
   decimals= 0;
   /* Worst case scenario, for a valid input we have a string of the form:
      [1,2,3,4,5,...] single digit numbers.
@@ -193,7 +198,6 @@ bool Item_func_vec_fromtext::fix_length_and_dec(THD *thd)
 
 String *Item_func_vec_fromtext::val_str(String *buf)
 {
-  json_engine_t je;
   bool end_ok= false;
   String *value = args[0]->val_json(&tmp_js);
 

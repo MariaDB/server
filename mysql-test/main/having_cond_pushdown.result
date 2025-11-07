@@ -2030,7 +2030,7 @@ EXPLAIN
     }
   }
 }
-# conjuctive subformula : pushdown using WHERE multiple equalities
+# conjunctive subformula : pushdown using WHERE multiple equalities
 set statement optimizer_switch='condition_pushdown_from_having=off' for SELECT t1.a,MAX(t1.b),t1.c
 FROM t1
 WHERE (t1.a=t1.c)
@@ -6304,3 +6304,165 @@ SELECT LOAD_FILE('') AS f, a FROM t1 GROUP BY f, a HAVING f = a;
 f	a
 DROP TABLE t1;
 End of 10.5 tests
+#
+# MDEV-19269 Pushdown into IN subquery is not made on the second
+# execution of stmt
+#
+create table t1 (a int, b int);
+create table t2 (x int, y int);
+insert into t1 values (1,1),(2,2);
+insert into t2 values (1,1),(2,2),(2,3);
+prepare stmt from "
+EXPLAIN FORMAT=JSON
+SELECT * FROM t1
+WHERE a = b 
+      AND (a,b) IN (SELECT t2.x, COUNT(t2.y) FROM t2 WHERE @a=1 GROUP BY t2.x);";
+set @a=2;
+execute stmt;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "message": "Impossible WHERE noticed after reading const tables"
+    },
+    "subqueries": [
+      {
+        "materialization": {
+          "query_block": {
+            "select_id": 2,
+            "table": {
+              "message": "Impossible WHERE"
+            }
+          }
+        }
+      }
+    ]
+  }
+}
+set @a=1;
+# we expect to see having_condition in both the below statements
+execute stmt;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": 0.021147833,
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "ALL",
+          "loops": 1,
+          "rows": 2,
+          "cost": 0.01034841,
+          "filtered": 100,
+          "attached_condition": "t1.b = t1.a and t1.a is not null and t1.a is not null"
+        }
+      },
+      {
+        "table": {
+          "table_name": "<subquery2>",
+          "access_type": "eq_ref",
+          "possible_keys": ["distinct_key"],
+          "key": "distinct_key",
+          "key_length": "12",
+          "used_key_parts": ["x", "COUNT(t2.y)"],
+          "ref": ["test.t1.a", "test.t1.a"],
+          "loops": 2,
+          "rows": 1,
+          "cost": 0.010799423,
+          "filtered": 100,
+          "attached_condition": "t1.a = `<subquery2>`.`COUNT(t2.y)`",
+          "materialized": {
+            "unique": 1,
+            "materialization": {
+              "query_block": {
+                "select_id": 2,
+                "cost": 0.012403489,
+                "having_condition": "`COUNT(t2.y)` = t2.x",
+                "temporary_table": {
+                  "nested_loop": [
+                    {
+                      "table": {
+                        "table_name": "t2",
+                        "access_type": "ALL",
+                        "loops": 1,
+                        "rows": 3,
+                        "cost": 0.010504815,
+                        "filtered": 100
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    ]
+  }
+}
+execute stmt;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": 0.021147833,
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "ALL",
+          "loops": 1,
+          "rows": 2,
+          "cost": 0.01034841,
+          "filtered": 100,
+          "attached_condition": "t1.b = t1.a and t1.a is not null and t1.a is not null"
+        }
+      },
+      {
+        "table": {
+          "table_name": "<subquery2>",
+          "access_type": "eq_ref",
+          "possible_keys": ["distinct_key"],
+          "key": "distinct_key",
+          "key_length": "12",
+          "used_key_parts": ["x", "COUNT(t2.y)"],
+          "ref": ["test.t1.a", "test.t1.a"],
+          "loops": 2,
+          "rows": 1,
+          "cost": 0.010799423,
+          "filtered": 100,
+          "attached_condition": "t1.a = `<subquery2>`.`COUNT(t2.y)`",
+          "materialized": {
+            "unique": 1,
+            "materialization": {
+              "query_block": {
+                "select_id": 2,
+                "cost": 0.012403489,
+                "having_condition": "`COUNT(t2.y)` = t2.x",
+                "temporary_table": {
+                  "nested_loop": [
+                    {
+                      "table": {
+                        "table_name": "t2",
+                        "access_type": "ALL",
+                        "loops": 1,
+                        "rows": 3,
+                        "cost": 0.010504815,
+                        "filtered": 100
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    ]
+  }
+}
+drop table t1, t2;
+End of 10.11 tests

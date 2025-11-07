@@ -97,7 +97,6 @@ unlock tables;
 connection addconroot1;
 connection addconroot2;
 disconnect addconroot2;
-connection addconroot1;
 disconnect addconroot1;
 connection default;
 drop table if exists t1,t2;

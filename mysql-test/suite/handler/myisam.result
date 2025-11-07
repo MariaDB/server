@@ -1217,11 +1217,8 @@ connection default;
 # Reaping 'handler t1 read a next'...
 ERROR 42S02: Table 'test.t1' doesn't exist
 handler t1 close;
-connection con1;
 disconnect con1;
-connection con2;
 disconnect con2;
-connection con3;
 disconnect con3;
 connection default;
 #
@@ -1352,7 +1349,7 @@ set autocommit=default;
 drop table t2, t3;
 # 
 # HANDLER statement and operation-type aware metadata locks.
-# Check that when we clone a ticket for HANDLER we downrade
+# Check that when we clone a ticket for HANDLER we downgrade
 # the lock.
 #
 connect  con1,localhost,root,,;
@@ -1377,7 +1374,6 @@ a	b
 handler t1 close;
 # Cleanup.
 drop table t1;
-connection con1;
 disconnect con1;
 connection default;
 #
@@ -1527,7 +1523,6 @@ ERROR 42S02: Table 'test.t1' doesn't exist
 HANDLER t1 READ id NEXT;
 ERROR 42S02: Table 'test.t1' doesn't exist
 HANDLER t1 CLOSE;
-connection con51355;
 disconnect con51355;
 connection default;
 #

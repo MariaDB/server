@@ -962,7 +962,7 @@ bool Explain_node::print_explain_json_cache(Json_writer *writer,
   if (cache_tracker)
   {
     cache_tracker->fetch_current_stats();
-    writer->add_member("expression_cache").start_object();
+    writer->add_member("subquery_cache").start_object();
     if (cache_tracker->state != Expression_cache_tracker::OK)
     {
       writer->add_member("state").
@@ -1377,7 +1377,7 @@ void Explain_table_access::push_extra(enum explain_extra_tag extra_tag)
 
 
 /*
-  Put the contents of 'key' field of EXPLAIN otuput into key_str.
+  Put the contents of 'key' field of EXPLAIN output into key_str.
 
   It is surprisingly complex:
   - hash join shows #hash#used_key
@@ -1427,7 +1427,7 @@ void Explain_table_access::fill_key_str(String *key_str, bool is_json) const
    - for hash join, it is key_len:pseudo_key_len
    - [tabular form only] rowid filter length is added after "|".
 
-  In JSON, we consider this column to be legacy, it is superceded by
+  In JSON, we consider this column to be legacy, it is superseded by
   used_key_parts.
 */
 
@@ -1753,7 +1753,7 @@ int Explain_table_access::print_explain(select_result_sink *output,
 
   @return
     NULL - out of memory error
-    poiner on allocated copy of the string
+    pointer on allocated copy of the string
 */
 
 const char *String_list::append_str(MEM_ROOT *mem_root, const char *str)
@@ -2932,8 +2932,8 @@ void Explain_update::print_explain_json(Explain_query *query,
 
     if (table_tracker.has_timed_statistics())
     {
-      writer->add_member("r_total_time_ms").
-              add_double(table_tracker.get_time_ms());
+      writer->add_member("r_table_time_ms").add_double(table_tracker.get_time_ms());
+      writer->add_member("r_other_time_ms").add_double(extra_time_tracker.get_time_ms());
     }
   }
 
@@ -3029,13 +3029,13 @@ void create_explain_query_if_not_exists(LEX *lex, MEM_ROOT *mem_root)
 
 
 /**
-  Build arrays for collectiong keys statistics, sdd possible key names
+  Build arrays for collecting keys statistics, add possible key names
   to the list and name array
 
   @param alloc           MEM_ROOT to put data in
   @param list            list of possible key names to fill
   @param table           table of the keys
-  @patam possible_keys   possible keys map
+  @param possible_keys   possible keys map
 
   @retval 0 - OK
   @retval 1 - Error

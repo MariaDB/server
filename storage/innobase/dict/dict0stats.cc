@@ -25,7 +25,6 @@ Created Jan 06, 2010 Vasil Dimov
 *******************************************************/
 
 #include "dict0stats.h"
-#include "dyn0buf.h"
 #include "row0sel.h"
 #include "trx0trx.h"
 #include "lock0lock.h"
@@ -383,7 +382,15 @@ dict_table_schema_check(
 		return DB_STATS_DO_NOT_EXIST;
 	}
 
-	if (!table->is_readable() || !table->space) {
+	if (!table->is_readable()) {
+		/* table is not readable */
+		snprintf(errstr, errstr_sz,
+			 "Table %s is not readable.",
+			 req_schema->table_name_sql);
+		return DB_ERROR;
+	}
+
+	if (!table->space) {
 		/* missing tablespace */
 		snprintf(errstr, errstr_sz,
 			 "Tablespace for table %s is missing.",
@@ -425,12 +432,12 @@ dict_table_schema_check(
 
 		/* check length for exact match */
 		if (req_schema->columns[i].len != table->cols[j].len) {
-			sql_print_warning("InnoDB: Table %s has"
-					  " length mismatch in the"
-					  " column name %s."
-					  " Please run mariadb-upgrade",
-					  req_schema->table_name_sql,
-					  req_schema->columns[i].name.str);
+			snprintf(errstr, errstr_sz,
+				 "Unexpected length of %s.%s. Please run "
+				 "mariadb-upgrade or ALTER TABLE",
+				 req_schema->table_name_sql,
+				 req_schema->columns[i].name.str);
+			return DB_ERROR;
 		}
 
 		/*
@@ -824,7 +831,7 @@ btr_estimate_number_of_different_key_vals(dict_index_t* index,
 	ulint		not_empty_flag	= 0;
 	ulint		total_external_size = 0;
 	uintmax_t	add_on;
-	mtr_t		mtr;
+	mtr_t		mtr{nullptr};
 	mem_heap_t*	heap		= NULL;
 	rec_offs*	offsets_rec	= NULL;
 	rec_offs*	offsets_next_rec = NULL;
@@ -880,7 +887,7 @@ btr_estimate_number_of_different_key_vals(dict_index_t* index,
 			n_sample_pages = srv_stats_transient_sample_pages;
 		}
 	} else {
-		/* New logaritmic number of pages that are estimated.
+		/* New logarithmic number of pages that are estimated.
 		Number of pages estimated should be between 1 and
 		index->stat_index_size.
 
@@ -1091,13 +1098,12 @@ Calculates new estimates for index statistics. This function is
 relatively quick and is used to calculate transient statistics that
 are not saved on disk. This was the only way to calculate statistics
 before the Persistent Statistics feature was introduced.
+@param trx    transaction
+@param index  B-tree
 @return error code
 @retval DB_SUCCESS_LOCKED_REC if the table under bulk insert operation */
-static
-dberr_t
-dict_stats_update_transient_for_index(
-/*==================================*/
-	dict_index_t*	index)	/*!< in/out: index */
+static dberr_t
+dict_stats_update_transient_for_index(trx_t *trx, dict_index_t* index) noexcept
 {
 	dberr_t err = DB_SUCCESS;
 	if (srv_force_recovery >= SRV_FORCE_NO_TRX_UNDO
@@ -1118,7 +1124,7 @@ dummy_empty:
 		   || !index->table->space) {
 		goto dummy_empty;
 	} else {
-		mtr_t	mtr;
+		mtr_t mtr{trx};
 
 		mtr.start();
 		mtr_sx_lock_index(index, &mtr);
@@ -1180,7 +1186,7 @@ invalid:
 	return err;
 }
 
-dberr_t dict_stats_update_transient(dict_table_t *table) noexcept
+dberr_t dict_stats_update_transient(trx_t *trx, dict_table_t *table) noexcept
 {
 	ut_ad(!table->stats_mutex_is_owner());
 
@@ -1219,7 +1225,7 @@ dberr_t dict_stats_update_transient(dict_table_t *table) noexcept
 			continue;
 		}
 
-		err = dict_stats_update_transient_for_index(index);
+		err = dict_stats_update_transient_for_index(trx, index);
 
 		sum_of_index_sizes += index->stat_index_size;
 	}
@@ -1808,6 +1814,7 @@ distinct records on the leaf page, when looking at the fist n_prefix
 columns. Also calculate the number of external pages pointed by records
 on the leaf page.
 @param[in]	cur			cursor
+@param[in,out]	mtr			mini-transaction
 @param[in]	n_prefix		look at the first n_prefix columns
 when comparing records
 @param[out]	n_diff			number of distinct records
@@ -1817,6 +1824,7 @@ static
 void
 dict_stats_analyze_index_below_cur(
 	const btr_cur_t*	cur,
+	mtr_t*			mtr,
 	ulint			n_prefix,
 	ib_uint64_t*		n_diff,
 	ib_uint64_t*		n_external_pages)
@@ -1830,8 +1838,8 @@ dict_stats_analyze_index_below_cur(
 	rec_offs*	offsets2;
 	rec_offs*	offsets_rec;
 	ulint		size;
-	mtr_t		mtr;
 
+	const auto sp = mtr->get_savepoint();
 	index = btr_cur_get_index(cur);
 
 	/* Allocate offsets for the record and the node pointer, for
@@ -1871,15 +1879,13 @@ dict_stats_analyze_index_below_cur(
 	function without analyzing any leaf pages */
 	*n_external_pages = 0;
 
-	mtr_start(&mtr);
-
 	/* descend to the leaf level on the B-tree */
 	for (;;) {
 		dberr_t err;
 
 		block = buf_page_get_gen(page_id, zip_size,
 					 RW_S_LATCH, NULL, BUF_GET,
-					 &mtr, &err);
+					 mtr, &err);
 		if (!block) {
 			goto func_exit;
 		}
@@ -1905,17 +1911,14 @@ dict_stats_analyze_index_below_cur(
 		ut_a(*n_diff > 0);
 
 		if (*n_diff == 1) {
-			mtr_commit(&mtr);
-
 			/* page has all keys equal and the end of the page
 			was reached by dict_stats_scan_page(), no need to
 			descend to the leaf level */
-			mem_heap_free(heap);
 			/* can't get an estimate for n_external_pages here
 			because we do not dive to the leaf level, assume no
 			external pages (*n_external_pages was assigned to 0
 			above). */
-			return;
+			goto func_exit;
 		}
 		/* else */
 
@@ -1950,7 +1953,7 @@ dict_stats_analyze_index_below_cur(
 #endif
 
 func_exit:
-	mtr_commit(&mtr);
+	mtr->rollback_to_savepoint(sp);
 	mem_heap_free(heap);
 }
 
@@ -2145,7 +2148,7 @@ dict_stats_analyze_index_for_n_prefix(
 		ib_uint64_t	n_external_pages;
 
 		dict_stats_analyze_index_below_cur(btr_pcur_get_btr_cur(&pcur),
-						   n_prefix,
+						   mtr, n_prefix,
 						   &n_diff_on_leaf_page,
 						   &n_external_pages);
 
@@ -2281,14 +2284,14 @@ members stat_n_diff_key_vals[], stat_n_sample_sizes[], stat_index_size and
 stat_n_leaf_pages. This function can be slow.
 @param[in]	index	index to analyze
 @return index stats */
-static index_stats_t dict_stats_analyze_index(dict_index_t* index)
+static index_stats_t dict_stats_analyze_index(trx_t *trx, dict_index_t* index)
 {
 	bool		level_is_analyzed;
 	ulint		n_uniq;
 	ulint		n_prefix;
 	ib_uint64_t	total_recs;
 	ib_uint64_t	total_pages;
-	mtr_t		mtr;
+	mtr_t		mtr{trx};
 	index_stats_t	result(index->n_uniq);
 	DBUG_ENTER("dict_stats_analyze_index");
 
@@ -2587,7 +2590,7 @@ found_level:
 	DBUG_RETURN(result);
 }
 
-dberr_t dict_stats_update_persistent(dict_table_t *table) noexcept
+dberr_t dict_stats_update_persistent(trx_t *trx, dict_table_t *table) noexcept
 {
 	dict_index_t*	index;
 
@@ -2596,7 +2599,7 @@ dberr_t dict_stats_update_persistent(dict_table_t *table) noexcept
 	DEBUG_SYNC_C("dict_stats_update_persistent");
 
 	if (trx_id_t bulk_trx_id = table->bulk_trx_id) {
-		if (trx_sys.find(nullptr, bulk_trx_id, false)) {
+		if (trx_sys.find(trx, bulk_trx_id, false)) {
 			dict_stats_empty_table(table);
 			return DB_SUCCESS_LOCKED_REC;
 		}
@@ -2620,7 +2623,7 @@ dberr_t dict_stats_update_persistent(dict_table_t *table) noexcept
 	dict_stats_empty_index(index);
 	table->stats_mutex_unlock();
 
-	index_stats_t stats = dict_stats_analyze_index(index);
+	index_stats_t stats = dict_stats_analyze_index(trx, index);
 
 	if (stats.is_bulk_operation()) {
 		dict_stats_empty_table(table);
@@ -2661,7 +2664,7 @@ dberr_t dict_stats_update_persistent(dict_table_t *table) noexcept
 		}
 
 		table->stats_mutex_unlock();
-		stats = dict_stats_analyze_index(index);
+		stats = dict_stats_analyze_index(trx, index);
 		table->stats_mutex_lock();
 
 		if (stats.is_bulk_operation()) {
@@ -2699,12 +2702,13 @@ dberr_t dict_stats_update_persistent(dict_table_t *table) noexcept
 	return(DB_SUCCESS);
 }
 
-dberr_t dict_stats_update_persistent_try(dict_table_t *table)
+dberr_t dict_stats_update_persistent_try(trx_t *trx, dict_table_t *table)
+  noexcept
 {
   if (table->stats_is_persistent() &&
       dict_stats_persistent_storage_check(false) == SCHEMA_OK)
   {
-    if (dberr_t err= dict_stats_update_persistent(table))
+    if (dberr_t err= dict_stats_update_persistent(trx, table))
       return err;
     return dict_stats_save(table);
   }
@@ -2843,12 +2847,20 @@ dberr_t dict_stats_save(dict_table_t* table, index_id_t index_id)
 	pars_info_t*	pinfo;
 	char		db_utf8[MAX_DB_UTF8_LEN];
 	char		table_utf8[MAX_TABLE_UTF8_LEN];
+	THD* const	thd = current_thd;
 
 #ifdef ENABLED_DEBUG_SYNC
 	DBUG_EXECUTE_IF("dict_stats_save_exit_notify",
+	   SCOPE_EXIT([thd] {
+	       debug_sync_set_action(thd,
+	       STRING_WITH_LEN("now SIGNAL dict_stats_save_finished"));
+	    });
+	);
+	DBUG_EXECUTE_IF("dict_stats_save_exit_notify_and_wait",
 	   SCOPE_EXIT([] {
 	       debug_sync_set_action(current_thd,
-	       STRING_WITH_LEN("now SIGNAL dict_stats_save_finished"));
+	       STRING_WITH_LEN("now SIGNAL dict_stats_save_finished"
+			       " WAIT_FOR dict_stats_save_unblock"));
 	    });
 	);
 #endif /* ENABLED_DEBUG_SYNC */
@@ -2861,41 +2873,10 @@ dberr_t dict_stats_save(dict_table_t* table, index_id_t index_id)
 		return (dict_stats_report_error(table));
 	}
 
-	THD* thd = current_thd;
-	MDL_ticket *mdl_table = nullptr, *mdl_index = nullptr;
-	dict_table_t* table_stats = dict_table_open_on_name(
-		TABLE_STATS_NAME, false, DICT_ERR_IGNORE_NONE);
-	if (table_stats) {
-		dict_sys.freeze(SRW_LOCK_CALL);
-		table_stats = dict_acquire_mdl_shared<false>(table_stats, thd,
-							     &mdl_table);
-		dict_sys.unfreeze();
-	}
-	if (!table_stats
-	    || strcmp(table_stats->name.m_name, TABLE_STATS_NAME)) {
-release_and_exit:
-		if (table_stats) {
-			dict_table_close(table_stats, thd, mdl_table);
-		}
+	dict_stats stats;
+	if (stats.open(thd)) {
 		return DB_STATS_DO_NOT_EXIST;
 	}
-
-	dict_table_t* index_stats = dict_table_open_on_name(
-		INDEX_STATS_NAME, false, DICT_ERR_IGNORE_NONE);
-	if (index_stats) {
-		dict_sys.freeze(SRW_LOCK_CALL);
-		index_stats = dict_acquire_mdl_shared<false>(index_stats, thd,
-							     &mdl_index);
-		dict_sys.unfreeze();
-	}
-	if (!index_stats) {
-		goto release_and_exit;
-	}
-	if (strcmp(index_stats->name.m_name, INDEX_STATS_NAME)) {
-		dict_table_close(index_stats, thd, mdl_index);
-		goto release_and_exit;
-	}
-
 	dict_fs2utf8(table->name.m_name, db_utf8, sizeof(db_utf8),
 		     table_utf8, sizeof(table_utf8));
 	const time_t now = time(NULL);
@@ -2904,9 +2885,9 @@ release_and_exit:
 	trx_start_internal(trx);
 	dberr_t ret = trx->read_only
 		? DB_READ_ONLY
-		: lock_table_for_trx(table_stats, trx, LOCK_X);
+		: lock_table_for_trx(stats.table(), trx, LOCK_X);
 	if (ret == DB_SUCCESS) {
-		ret = lock_table_for_trx(index_stats, trx, LOCK_X);
+		ret = lock_table_for_trx(stats.index(), trx, LOCK_X);
 	}
 	if (ret != DB_SUCCESS) {
 		if (trx->state != TRX_STATE_NOT_STARTED) {
@@ -2967,8 +2948,7 @@ free_and_exit:
 		dict_sys.unlock();
 unlocked_free_and_exit:
 		trx->free();
-		dict_table_close(table_stats, thd, mdl_table);
-		dict_table_close(index_stats, thd, mdl_index);
+		stats.close();
 		return ret;
 	}
 
@@ -3431,41 +3411,10 @@ dberr_t dict_stats_fetch_from_ps(dict_table_t *table)
 	stats. */
 	dict_stats_empty_table(table);
 
-	THD* thd = current_thd;
-	MDL_ticket *mdl_table = nullptr, *mdl_index = nullptr;
-	dict_table_t* table_stats = dict_table_open_on_name(
-		TABLE_STATS_NAME, false, DICT_ERR_IGNORE_NONE);
-	if (!table_stats) {
+	THD* const thd = current_thd;
+	dict_stats stats;
+	if (stats.open(thd)) {
 		return DB_STATS_DO_NOT_EXIST;
-	}
-	dict_table_t* index_stats = dict_table_open_on_name(
-		INDEX_STATS_NAME, false, DICT_ERR_IGNORE_NONE);
-	if (!index_stats) {
-		table_stats->release();
-		return DB_STATS_DO_NOT_EXIST;
-	}
-
-	dict_sys.freeze(SRW_LOCK_CALL);
-	table_stats = dict_acquire_mdl_shared<false>(table_stats, thd,
-						     &mdl_table);
-	if (!table_stats
-	    || strcmp(table_stats->name.m_name, TABLE_STATS_NAME)) {
-release_and_exit:
-		dict_sys.unfreeze();
-		if (table_stats) {
-			dict_table_close(table_stats, thd, mdl_table);
-		}
-		if (index_stats) {
-			dict_table_close(index_stats, thd, mdl_index);
-		}
-		return DB_STATS_DO_NOT_EXIST;
-	}
-
-	index_stats = dict_acquire_mdl_shared<false>(index_stats, thd,
-						     &mdl_index);
-	if (!index_stats
-	    || strcmp(index_stats->name.m_name, INDEX_STATS_NAME)) {
-		goto release_and_exit;
 	}
 
 #ifdef ENABLED_DEBUG_SYNC
@@ -3492,7 +3441,6 @@ release_and_exit:
 			        "fetch_index_stats_step",
 			        dict_stats_fetch_index_stats_step,
 			        &index_fetch_arg);
-	dict_sys.unfreeze();
 	dict_sys.lock(SRW_LOCK_CALL);
 	que_t* graph = pars_sql(
 		pinfo,
@@ -3558,27 +3506,15 @@ release_and_exit:
 	trx_start_internal_read_only(trx);
 	que_run_threads(que_fork_start_command(graph));
 	que_graph_free(graph);
-
-	dict_table_close(table_stats, thd, mdl_table);
-	dict_table_close(index_stats, thd, mdl_index);
-
 	trx_commit_for_mysql(trx);
-	dberr_t ret = trx->error_state;
+	dberr_t ret = index_fetch_arg.stats_were_modified
+		? trx->error_state : DB_STATS_DO_NOT_EXIST;
 	trx->free();
-
-	if (!index_fetch_arg.stats_were_modified) {
-		return DB_STATS_DO_NOT_EXIST;
-	}
-
+	stats.close();
 	return ret;
 }
 
-/*********************************************************************//**
-Fetches or calculates new estimates for index statistics. */
-void
-dict_stats_update_for_index(
-/*========================*/
-	dict_index_t*	index)	/*!< in/out: index */
+void dict_stats_update_for_index(trx_t *trx, dict_index_t *index) noexcept
 {
   dict_table_t *const table= index->table;
   ut_ad(table->stat_initialized());
@@ -3603,7 +3539,7 @@ dict_stats_update_for_index(
                             table->name.basename(), index->name());
       break;
     case SCHEMA_OK:
-      index_stats_t stats{dict_stats_analyze_index(index)};
+      index_stats_t stats{dict_stats_analyze_index(trx, index)};
       table->stats_mutex_lock();
       index->stat_index_size = stats.index_size;
       index->stat_n_leaf_pages = stats.n_leaf_pages;
@@ -3619,7 +3555,7 @@ dict_stats_update_for_index(
       return;
     }
 
-  dict_stats_update_transient_for_index(index);
+  dict_stats_update_transient_for_index(trx, index);
 }
 
 /** Execute DELETE FROM mysql.innodb_table_stats
@@ -3730,8 +3666,9 @@ dberr_t dict_stats_rename_table(const char *old_name, const char *new_name,
   dict_fs2utf8(old_name, old_db, sizeof old_db, old_table, sizeof old_table);
   dict_fs2utf8(new_name, new_db, sizeof new_db, new_table, sizeof new_table);
 
-  if (dict_table_t::is_temporary_name(old_name) ||
-      dict_table_t::is_temporary_name(new_name))
+  /* Delete the stats only if renaming the table from old table to
+  intermediate table during COPY algorithm */
+  if (dict_table_t::is_temporary_name(new_name))
   {
     if (dberr_t e= dict_stats_delete_from_table_stats(old_db, old_table, trx))
       return e;

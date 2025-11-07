@@ -568,7 +568,7 @@ read_cnf()
         if [ "$tmode" != 'DISABLED' ]; then
             if [ 0 -eq $encrypt -a -n "$tpem" -a -n "$tkey" ]
             then
-                encrypt=3 # enable cert/key SSL encyption
+                encrypt=3 # enable cert/key SSL encryption
                 # avoid CA verification if not set explicitly:
                 # nodes may happen to have different CA if self-generated,
                 # zeroing up tcert and tcap does the trick:
@@ -1573,6 +1573,8 @@ else # joiner
                         "not found or not readable"
         exit 2
     fi
+
+    simulate_long_sst
 
     # use donor magic file, if present
     # if IST was used, donor magic file was not created

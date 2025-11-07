@@ -4,7 +4,6 @@
 
 --source include/have_innodb.inc
 --source include/have_debug.inc
---source include/count_sessions.inc
 
 --connect (prevent_purge,localhost,root,,)
 START TRANSACTION WITH CONSISTENT SNAPSHOT;
@@ -27,7 +26,7 @@ START TRANSACTION WITH CONSISTENT SNAPSHOT;
 # innodb.monitor test failure due to MDEV-32553. 10.5 is not affected, as
 # innodb.monitor differs there.
 #
-# Disable not all monitors at the beggining of the test,
+# Disable not all monitors at the beginning of the test,
 # but only the monitor, which causes hanging, i.e. lock_row_lock_time_avg.
 SET GLOBAL innodb_monitor_disable='lock_row_lock_time_avg';
 # 'lock_row_lock_current_waits' should be enabled by default;
@@ -94,4 +93,3 @@ SET GLOBAL innodb_monitor_reset_all=default;
 SET GLOBAL innodb_monitor_enable=default;
 --enable_warnings
 --disconnect prevent_purge
---source include/wait_until_count_sessions.inc

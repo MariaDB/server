@@ -39,6 +39,7 @@ static void init_service_thd(THD* thd, void* thread_stack)
   thd->thread_stack= thread_stack;
   thd->real_id= pthread_self();
   thd->prior_thr_create_utime= thd->start_utime= microsecond_interval_timer();
+  thd->security_ctx->skip_grants();
   thd->mark_connection_idle();
   thd->reset_for_next_command(true);
   server_threads.insert(thd); // as wsrep_innobase_kill_one_trx() uses find_thread_by_id()
@@ -192,6 +193,7 @@ void Wsrep_server_service::log_message(enum wsrep::log::level level,
     break;
   case wsrep::log::unknown:
     WSREP_UNKNOWN("%s", message);
+    assert(0);
     break;
   }
 }

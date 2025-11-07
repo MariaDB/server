@@ -29,7 +29,7 @@
 /* extra 4+4 bytes for slave tmp tables */
 #define MAX_DBKEY_LENGTH (NAME_LEN*2+1+1+4+4)
 #define MAX_ALIAS_NAME 256
-#define MAX_FIELD_NAME (NAME_LEN+1)             /* Max colum name length +1 */
+#define MAX_FIELD_NAME (NAME_LEN+1)             /* Max column name length +1 */
 #define MAX_SYS_VAR_LENGTH 32
 #define MAX_KEY MAX_INDEXES                     /* Max used keys */
 #define MAX_REF_PARTS 32			/* Max parts used as ref */
@@ -172,7 +172,14 @@
   Feel free to raise this by the smallest amount you can to get the
   "execution_constants" test to pass.
 */
+#ifndef __has_feature
+#define __has_feature(x) 0
+#endif
+#if defined(__clang__) && __has_feature(memory_sanitizer) && !defined(DBUG_OFF)
+#define STACK_MIN_SIZE          44000
+#else
 #define STACK_MIN_SIZE          16000   // Abort if less stack during eval.
+#endif
 
 #define STACK_MIN_SIZE_FOR_OPEN (1024*80)
 #define STACK_BUFF_ALLOC        352     ///< For stack overrun checks
@@ -211,12 +218,12 @@
 
 /*
   The lower bound of accepted rows when using filter.
-  This is used to ensure that filters are not too agressive.
+  This is used to ensure that filters are not too aggressive.
 */
 #define MIN_ROWS_AFTER_FILTERING 1.0
 
 /**
-  Number of rows in a reference table when refered through a not unique key.
+  Number of rows in a reference table when referred through a not unique key.
   This value is only used when we don't know anything about the key
   distribution.
 */
@@ -263,6 +270,6 @@
 */
 #define MAX_TIME_ZONE_NAME_LENGTH       (NAME_LEN + 1)
 
-#define SP_PSI_STATEMENT_INFO_COUNT 19
+#define SP_PSI_STATEMENT_INFO_COUNT 23
 
 #endif /* SQL_CONST_INCLUDED */

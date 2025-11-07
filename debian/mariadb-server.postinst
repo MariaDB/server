@@ -145,7 +145,7 @@ EOF
     then
       mkdir -Z "$mariadb_logdir"
     fi
-    # When creating an ext3 jounal on an already mounted filesystem like e.g.
+    # When creating an ext3 journal on an already mounted filesystem like e.g.
     # /var/lib/mysql, you get a .journal file that is not modifiable by chown.
     # The mariadb_statedir must not be writable by the mysql user under any
     # circumstances as it contains scripts that are executed by root.
@@ -172,7 +172,7 @@ EOF
     # 3. Allow user 'mysql' to see and execute auth_pam_tool
     # -> Now user mysql owns the directory and can see and execute the binary inside
     # -> Since the binary is setuid, user mysql gets limited root powers here to
-    #    run the PAM authetications, which need root (e.g. to validate passwords
+    #    run the PAM authentications, which need root (e.g. to validate passwords
     #    against /etc/shadow)
     chown mysql /usr/lib/mysql/plugin/auth_pam_tool_dir
 
@@ -241,6 +241,23 @@ EOF
     # Keep it only root-readable, as it always was
     chown 0:0 $dc
     chmod 0600 $dc
+
+    feedback_cnf=$mariadb_cfgdir/mariadb.conf.d/feedback.cnf
+    if [ ! -f $feedback_cnf ]; then
+      if db_input high mariadb-server/feedback_optin; then
+        db_go || true
+      fi
+      db_get mariadb-server/feedback_optin
+      {
+        echo "# THIS IS A GENERATED FILE. ALL CHANGES TO IT MIGHT BE LOST.";
+        echo "[server]";
+        if [ "$RET" = true ]; then
+          echo "feedback=ON";
+        else
+          echo "feedback=OFF";
+        fi
+      } >> $feedback_cnf
+    fi
 
     # If there is a real AppArmor profile, we reload it.
     # If the default empty profile is installed, then we remove any old

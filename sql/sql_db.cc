@@ -826,7 +826,7 @@ mysql_create_db_internal(THD *thd, const Lex_ident_db &db,
     /*
       We come here when we managed to create the database, but not the option
       file.  In this case it's best to just continue as if nothing has
-      happened.  (This is a very unlikely senario)
+      happened.  (This is a very unlikely scenario)
     */
     thd->clear_error();
   }
@@ -1413,7 +1413,7 @@ static bool find_db_tables_and_rm_known_files(THD *thd, MY_DIR *dirp,
 
   SYNOPSIS
     rm_dir_w_symlink()
-    org_path    path of derictory
+    org_path    path of directory
     send_error  send errors
   RETURN
     0 OK
@@ -1897,7 +1897,7 @@ bool mysql_upgrade_db(THD *thd, const Lex_ident_db &old_db)
       LEX_CSTRING table_str;
       DBUG_PRINT("info",("Examining: %s", file->name));
 
-      /* skiping non-FRM files */
+      /* skipping non-FRM files */
       if (!(extension= (char*) fn_frm_ext(file->name)))
         continue;
 
@@ -1937,7 +1937,7 @@ bool mysql_upgrade_db(THD *thd, const Lex_ident_db &old_db)
       old database and some tables in the new database.
       Let's delete the option file, and then the new database directory.
       If some tables were left in the new directory, rmdir() will fail.
-      It garantees we never loose any tables.
+      It guarantees we never lose any tables.
     */
     build_table_filename(path, sizeof(path)-1,
                          new_db.str,"",MY_DB_OPT_FILE, 0);
@@ -1986,7 +1986,7 @@ bool mysql_upgrade_db(THD *thd, const Lex_ident_db &old_db)
       char oldname[FN_REFLEN + 1], newname[FN_REFLEN + 1];
       DBUG_PRINT("info",("Examining: %s", file->name));
 
-      /* skiping MY_DB_OPT_FILE */
+      /* skipping MY_DB_OPT_FILE */
       if (!files_charset_info->strnncoll(Lex_cstring_strlen(file->name),
                                          Lex_cstring_strlen(MY_DB_OPT_FILE)))
         continue;

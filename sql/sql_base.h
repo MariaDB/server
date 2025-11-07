@@ -95,7 +95,7 @@ TABLE *open_ltable(THD *thd, TABLE_LIST *table_list, thr_lock_type update,
 */
 #define MYSQL_OPEN_GET_NEW_TABLE                0x0040
 /* 0x0080 used to be MYSQL_OPEN_SKIP_TEMPORARY */
-/** Fail instead of waiting when conficting metadata lock is discovered. */
+/** Fail instead of waiting when conflicting metadata lock is discovered. */
 #define MYSQL_OPEN_FAIL_ON_MDL_CONFLICT         0x0100
 /** Open tables using MDL_SHARED lock instead of one specified in parser. */
 #define MYSQL_OPEN_FORCE_SHARED_MDL             0x0200
@@ -158,7 +158,7 @@ thr_lock_type read_lock_type_for_table(THD *thd,
 my_bool mysql_rm_tmp_tables(void);
 void close_tables_for_reopen(THD *thd, TABLE_LIST **tables,
                              const MDL_savepoint &start_of_statement_svp,
-                             bool remove_implicit_dependencies);
+                             bool remove_indirect);
 bool table_already_fk_prelocked(TABLE_LIST *tl, LEX_CSTRING *db,
                                 LEX_CSTRING *table, thr_lock_type lock_type);
 TABLE_LIST *find_table_in_list(TABLE_LIST *table,
@@ -247,7 +247,7 @@ void update_non_unique_table_error(TABLE_LIST *update,
                                    const char *operation,
                                    TABLE_LIST *duplicate);
 int setup_conds(THD *thd, TABLE_LIST *tables, List<TABLE_LIST> &leaves,
-		COND **conds);
+		COND **conds, List<Item> *all_fields);
 void wrap_ident(THD *thd, Item **conds);
 int setup_ftfuncs(SELECT_LEX* select);
 void cleanup_ftfuncs(SELECT_LEX *select_lex);
@@ -303,6 +303,8 @@ bool open_tables_for_query(THD *thd, TABLE_LIST *tables,
 bool lock_tables(THD *thd, TABLE_LIST *tables, uint counter, uint flags);
 int decide_logging_format(THD *thd, TABLE_LIST *tables);
 void close_thread_table(THD *thd, TABLE **table_ptr);
+TABLE_LIST*
+unique_table_in_insert_returning_subselect(THD *thd, TABLE_LIST *table, SELECT_LEX *sel);
 TABLE_LIST *unique_table(THD *thd, TABLE_LIST *table, TABLE_LIST *table_list,
                          uint check_flag);
 bool is_equal(const LEX_CSTRING *a, const LEX_CSTRING *b);
@@ -586,23 +588,6 @@ public:
     return m_timeout;
   }
 
-  /**
-    Return true in case tables and routines the statement implicilty
-    dependent on should be removed, else return false.
-
-    @note The use case when routines and tables the statement implicitly
-    dependent on shouldn't be removed is the one when a new partition be
-    created on handling the INSERT statement against a versioning partitioned
-    table. For this case re-opening a versioning table would result in adding
-    implicitly dependent routines (e.g. table's triggers) that lead to
-    allocation of memory on PS mem_root and so leaking a memory until the PS
-    statement be deallocated.
-  */
-  bool remove_implicitly_used_deps() const
-  {
-    return m_action != OT_ADD_HISTORY_PARTITION;
-  }
-
   uint get_flags() const { return m_flags; }
 
   /**
@@ -709,4 +694,11 @@ private:
   int m_unhandled_errors;
   uint first_error;
 };
+
+bool setup_oracle_join(THD *thd, Item **conds,
+                       TABLE_LIST *tables,
+                       SQL_I_List<TABLE_LIST> &select_table_list,
+                       List<TABLE_LIST> *select_join_list,
+                       List<Item> *all_fields);
+
 #endif /* SQL_BASE_INCLUDED */

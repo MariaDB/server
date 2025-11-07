@@ -365,7 +365,7 @@ bool Item_subselect::enumerate_field_refs_processor(void *arg)
   while ((upper= it++))
   {
     if (upper->item &&
-        upper->item->walk(&Item::enumerate_field_refs_processor, FALSE, arg))
+        upper->item->walk(&Item::enumerate_field_refs_processor, arg, 0))
       return TRUE;
   }
   return FALSE;
@@ -429,7 +429,7 @@ bool Item_subselect::update_table_bitmaps_processor(void *arg)
   while ((upper= it++))
   {
     if (upper->item &&
-        upper->item->walk(&Item::update_table_bitmaps_processor, FALSE, arg))
+        upper->item->walk(&Item::update_table_bitmaps_processor, arg, 0))
       return TRUE;
   }
   return FALSE;
@@ -534,9 +534,9 @@ void Item_subselect::recalc_used_tables(st_select_lex *new_parent,
           Field_fixer fixer;
           fixer.used_tables= 0;
           fixer.new_parent= new_parent;
-          upper->item->walk(&Item::enumerate_field_refs_processor, 0, &fixer);
+          upper->item->walk(&Item::enumerate_field_refs_processor, &fixer, 0);
           used_tables_cache |= fixer.used_tables;
-          upper->item->walk(&Item::update_table_bitmaps_processor, FALSE, NULL);
+          upper->item->walk(&Item::update_table_bitmaps_processor, 0, 0);
 /*
           if (after_pullout)
             upper->item->fix_after_pullout(new_parent, &(upper->item));
@@ -658,7 +658,8 @@ bool Item_subselect::is_expensive()
 
 static
 int walk_items_for_table_list(Item_processor processor,
-                              bool walk_subquery, void *argument,
+                              void *argument,
+                              item_walk_flags flags,
                               List<TABLE_LIST>& join_list)
 {
   List_iterator<TABLE_LIST> li(join_list);
@@ -667,12 +668,12 @@ int walk_items_for_table_list(Item_processor processor,
   {
     if (table->on_expr)
     {
-      if ((res= table->on_expr->walk(processor, walk_subquery, argument)))
+      if ((res= table->on_expr->walk(processor, argument, flags)))
         return res;
     }
     if (Table_function_json_table *tf= table->table_function)
     {
-      if ((res= tf->walk_items(processor, walk_subquery, argument)))
+      if ((res= tf->walk_items(processor, argument, flags)))
       {
         return res;
       }
@@ -680,7 +681,7 @@ int walk_items_for_table_list(Item_processor processor,
 
     if (table->nested_join)
     {
-      if ((res= walk_items_for_table_list(processor, walk_subquery, argument,
+      if ((res= walk_items_for_table_list(processor, argument, flags,
                                           table->nested_join->join_list)))
         return res;
     }
@@ -708,14 +709,14 @@ bool Item_subselect::unknown_splocal_processor(void *argument)
     List_iterator<Item> li(lex->item_list);
     Item *item;
     if (lex->where && (lex->where)->walk(&Item::unknown_splocal_processor,
-                                         false, argument))
+                                         argument, 0))
       return true;
     if (lex->having && (lex->having)->walk(&Item::unknown_splocal_processor,
-                                           false, argument))
+                                           argument, 0))
       return true;
     while ((item=li++))
     {
-      if (item->walk(&Item::unknown_splocal_processor, false, argument))
+      if (item->walk(&Item::unknown_splocal_processor, argument, 0))
         return true;
     }
   }
@@ -723,8 +724,8 @@ bool Item_subselect::unknown_splocal_processor(void *argument)
 }
 
 
-bool Item_subselect::walk(Item_processor processor, bool walk_subquery,
-                          void *argument)
+bool Item_subselect::walk(Item_processor processor, void *argument,
+                          item_walk_flags flags)
 {
   if (!(unit->uncacheable & ~UNCACHEABLE_DEPENDENT) && engine->is_executed() &&
       !unit->describe)
@@ -741,36 +742,35 @@ bool Item_subselect::walk(Item_processor processor, bool walk_subquery,
     return (this->*processor)(argument);
   }
 
-  if (walk_subquery)
+  if (flags & WALK_SUBQUERY)
   {
     for (SELECT_LEX *lex= unit->first_select(); lex; lex= lex->next_select())
     {
       List_iterator<Item> li(lex->item_list);
       ORDER *order;
 
-      if (lex->where && (lex->where)->walk(processor, walk_subquery, argument))
+      if (lex->where && (lex->where)->walk(processor, argument, flags))
         return 1;
-      if (lex->having && (lex->having)->walk(processor, walk_subquery,
-                                             argument))
+      if (lex->having && (lex->having)->walk(processor,argument, flags))
         return 1;
 
-      if (walk_items_for_table_list(processor, walk_subquery, argument,
+      if (walk_items_for_table_list(processor, argument, flags,
                                     *lex->join_list))
         return 1;
 
       while (Item *item= li++)
       {
-        if (item->walk(processor, walk_subquery, argument))
+        if (item->walk(processor, argument, flags))
           return 1;
       }
       for (order= lex->order_list.first ; order; order= order->next)
       {
-        if ((*order->item)->walk(processor, walk_subquery, argument))
+        if ((*order->item)->walk(processor, argument, flags))
           return 1;
       }
       for (order= lex->group_list.first ; order; order= order->next)
       {
-        if ((*order->item)->walk(processor, walk_subquery, argument))
+        if ((*order->item)->walk(processor, argument, flags))
           return 1;
       }
     }
@@ -836,7 +836,7 @@ void Item_subselect::get_cache_parameters(List<Item> &parameters)
     unit->first_select()->nest_level,      // nest_level
     TRUE                                   // collect
   };
-  walk(&Item::collect_outer_ref_processor, TRUE, &prm);
+  walk(&Item::collect_outer_ref_processor,&prm,  WALK_SUBQUERY);
 }
 
 int Item_in_subselect::optimize(double *out_rows, double *cost)
@@ -1368,7 +1368,7 @@ bool subselect_single_select_engine::always_returns_one_row() const
 
   @details
   The function checks whether an expression cache is needed for this item
-  and if if so wraps the item into an item of the class
+  and if so wraps the item into an item of the class
   Item_cache_wrapper with an appropriate expression cache set up there.
 
   @note
@@ -1797,7 +1797,7 @@ bool Item_in_subselect::fix_length_and_dec()
 
   @details
   The function checks whether an expression cache is needed for this item
-  and if if so wraps the item into an item of the class
+  and if so wraps the item into an item of the class
   Item_cache_wrapper with an appropriate expression cache set up there.
 
   @note
@@ -2093,8 +2093,8 @@ Item_in_subselect::single_value_transformer(JOIN *join)
       remove the dependence mark since the item is moved to upper
       select and is not outer anymore.
     */
-    where_item->walk(&Item::remove_dependence_processor, 0,
-                     select_lex->outer_select());
+    where_item->walk(&Item::remove_dependence_processor,
+                     select_lex->outer_select(), 0);
     /*
       fix_field of substitution item will be done in time of
       substituting.
@@ -2154,7 +2154,7 @@ Item_in_subselect::single_value_transformer(JOIN *join)
 
 
 /**
-  Apply transformation max/min  transwormation to ALL/ANY subquery if it is
+  Apply transformation max/min transformation to ALL/ANY subquery if it is
   possible.
 
   @param join  Join object of the subquery (i.e. 'child' join).
@@ -3150,13 +3150,13 @@ bool Item_exists_subselect::exists2in_processor(void *opt_arg)
     DBUG_RETURN(FALSE);
 
   /*
-    EXISTS-to-IN coversion and ORDER BY ... LIMIT clause:
+    EXISTS-to-IN conversion and ORDER BY ... LIMIT clause:
 
     - "[ORDER BY ...] LIMIT n" clause with a non-zero n does not affect
       the result of the EXISTS(...) predicate, and so we can discard
       it during the conversion.
     - "[ORDER BY ...] LIMIT m, n" can turn a non-empty resultset into empty
-      one, so it affects tthe EXISTS(...) result and cannot be discarded.
+      one, so it affects the EXISTS(...) result and cannot be discarded.
 
     Disallow exists-to-in conversion if
     (1). three is a LIMIT which is not a basic constant
@@ -3193,7 +3193,7 @@ bool Item_exists_subselect::exists2in_processor(void *opt_arg)
       unit->first_select()->nest_level,      // nest_level
       FALSE                                  // collect
     };
-    walk(&Item::collect_outer_ref_processor, TRUE, &prm);
+    walk(&Item::collect_outer_ref_processor, &prm, WALK_SUBQUERY);
     DBUG_ASSERT(prm.count > 0);
     DBUG_ASSERT(prm.count >= (uint)eqs.elements());
     will_be_correlated= prm.count > (uint)eqs.elements();
@@ -3270,7 +3270,7 @@ bool Item_exists_subselect::exists2in_processor(void *opt_arg)
     }
   }
 
-  /* make EXISTS->IN permanet (see Item_subselect::init()) */
+  /* make EXISTS->IN permanent (see Item_subselect::init()) */
   set_exists_transformed();
 
   first_select->limit_params.select_limit= NULL;
@@ -3329,7 +3329,7 @@ bool Item_exists_subselect::exists2in_processor(void *opt_arg)
         uint i;
         for (i= 0; i < (uint)eqs.elements(); i++)
           if (eqs.at(i).outer_exp->
-              walk(&Item::find_item_processor, TRUE, upper->item))
+              walk(&Item::find_item_processor, upper->item, WALK_SUBQUERY))
             break;
         DBUG_ASSERT(thd->stmt_arena->is_stmt_prepare_or_first_stmt_execute() ||
                     thd->stmt_arena->is_conventional());
@@ -3583,7 +3583,7 @@ bool Item_in_subselect::fix_fields(THD *thd_arg, Item **ref)
     test for each Item happens later in
     Item_in_subselect::row_value_in_to_exists_transformer.
     The reason for this mess is that our JOIN::prepare phase works top-down
-    instead of bottom-up, so we first do name resoluton and semantic checks
+    instead of bottom-up, so we first do name resolution and semantic checks
     for the outer selects, then for the inner.
   */
   if (engine &&
@@ -3614,11 +3614,13 @@ bool Item_in_subselect::fix_fields(THD *thd_arg, Item **ref)
     }
   }
 
-  if (left_expr && left_expr->fix_fields_if_needed(thd_arg, &left_expr))
+  if (!left_expr || left_expr->fix_fields_if_needed(thd_arg, &left_expr))
     goto err;
   else
   if (Item_subselect::fix_fields(thd_arg, ref))
     goto err;
+  if (left_expr->with_ora_join())
+    copy_flags(left_expr, item_with_t::ORA_JOIN);
   base_flags|= item_base_t::FIXED;
   thd->where= save_where;
   DBUG_RETURN(FALSE);
@@ -3713,7 +3715,7 @@ bool Item_in_subselect::init_left_expr_cache()
   outer_join= unit->outer_select()->join;
   /*
     An IN predicate might be evaluated in a query for which all tables have
-    been optimzied away.
+    been optimized away.
   */ 
   if (!outer_join || !outer_join->table_count || !outer_join->tables_list)
     return TRUE;
@@ -4029,7 +4031,7 @@ bool subselect_single_select_engine::no_rows()
 
 
 /**
- Makes storage for the output values for the subquery and calcuates
+ Makes storage for the output values for the subquery and calculates
  their data and column types and their nullability.
 */
 bool subselect_engine::set_row(List<Item> &item_list, Item_cache **row)
@@ -5338,7 +5340,7 @@ bool subselect_hash_sj_engine::init(List<Item> *tmp_columns, uint subquery_id)
     the extra key part created when s->uniques > 0.
 
     NOTE: item have to be Item_in_subselect, because class constructor
-    accept Item_in_subselect as the parmeter.
+    accepts Item_in_subselect as the parameter.
   */
   DBUG_ASSERT(tmp_table->s->keys == 1 &&
               item->get_IN_subquery()->left_expr->cols() ==
@@ -5438,7 +5440,7 @@ bool subselect_hash_sj_engine::make_semi_join_conds()
 
 
 /**
-  Create a new uniquesubquery engine for the execution of an IN predicate.
+  Create a new unique subquery engine for the execution of an IN predicate.
 
   @details
   Create and initialize a new JOIN_TAB, and Table_ref objects to perform
@@ -5754,8 +5756,8 @@ double get_post_group_estimate(JOIN* join, double join_op_rows)
   Execute a subquery IN predicate via materialization.
 
   @details
-  If needed materialize the subquery into a temporary table, then
-  copmpute the predicate via a lookup into this table.
+  If needed to materialize the subquery into a temporary table, then
+  compute the predicate via a lookup into this table.
 
   @retval TRUE  if error
   @retval FALSE otherwise
@@ -6292,7 +6294,7 @@ bool Ordered_key::lookup()
     mid= lo + (hi - lo) / 2;
     cmp_res= cmp_key_with_search_key(key_buff[mid]);
     /*
-      In order to find the minimum match, check if the pevious element is
+      In order to find the minimum match, check if the previous element is
       equal or smaller than the found one. If equal, we need to search further
       to the left.
     */
@@ -6855,7 +6857,7 @@ bool subselect_rowid_merge_engine::partial_match()
 
   /* If there is a non-NULL key, it must be the first key in the keys array. */
   DBUG_ASSERT(!non_null_key || (non_null_key && merge_keys[0] == non_null_key));
-  /* The prioryty queue for keys must be empty. */
+  /* The priority queue for keys must be empty. */
   DBUG_ASSERT(pq.is_empty());
 
   /* All data accesses during execution are via handler::ha_rnd_pos() */
@@ -7193,3 +7195,27 @@ void Subq_materialization_tracker::report_partial_merge_keys(
   for (uint i= 0; i < merge_keys_count; i++)
     partial_match_array_sizes[i]= merge_keys[i]->get_key_buff_elements();
 }
+
+
+/*
+  Check if somewhere inside this subselect we read the table. This means a
+  full read "(SELECT ... FROM tbl)", outside reference to tbl.column does not
+  count
+*/
+
+bool
+Item_subselect::subselect_table_finder_processor(void *arg)
+{
+  subselect_table_finder_param *param= (subselect_table_finder_param *)arg;
+  for (SELECT_LEX *sl= unit->first_select(); sl; sl= sl->next_select())
+  {
+    TABLE_LIST *dup;
+    if ((dup= sl->find_table(param->thd, &param->find->db,
+                             &param->find->table_name)))
+    {
+      param->dup= dup;
+      return TRUE;
+    }
+  }
+  return FALSE;
+};

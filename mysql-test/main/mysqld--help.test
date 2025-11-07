@@ -2,8 +2,6 @@
 # mysqld --help
 #
 --source include/not_embedded.inc
---source include/not_asan.inc
---source include/not_ubsan.inc
 --source include/have_perfschema.inc
 --source include/have_profiling.inc
 --source include/platform.inc
@@ -20,7 +18,7 @@ exec $MYSQLD_BOOTSTRAP_CMD --symbolic-links=0 --log-bin=foo --lower-case-table-n
 
 perl;
   # Variables which we don't want to display in the result file since
-  # their paths may vary:
+  # their paths may vary or they may use a default of 4294967295 :
   @skipvars=qw/basedir open-files-limit general-log-file log plugin-dir plugin-maturity
                log-slow-queries pid-file slow-query-log-file log-basename
                log-slow-query-file
@@ -30,7 +28,7 @@ perl;
                table-open-cache table-open-cache-instances max-connections
                server-uid tls-version version.* password-reuse-check
                provider-bzip2 provider-lzma provider-lzo
-               password-reuse-check-interval/;
+               password-reuse-check-interval analyze-max-length thread-stack/;
 
   # Plugins which may or may not be there:
   @plugins=qw/innodb archive blackhole federated partition s3
@@ -40,7 +38,7 @@ perl;
               test-sql-discovery query-cache-info password-reuse-check
               query-response-time metadata-lock-info locales unix-socket
               wsrep file-key-management cracklib-password-check user-variables
-              provider-bzip2 provider-lzma provider-lzo
+              provider-bzip2 provider-lzma provider-lzo caching-sha2-password
               thread-pool-groups thread-pool-queues thread-pool-stats
               thread-pool-waits hashicorp provider gssapi parsec/;
 

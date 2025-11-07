@@ -606,7 +606,7 @@ bool Arg_comparator::set_cmp_func_string(THD *thd)
     /*
       We must set cmp_collation here as we may be called from for an automatic
       generated item, like in natural join.
-      Allow reinterpted superset as subset.
+      Allow reinterpreted superset as subset.
       Use charset narrowing only for equalities, as that would allow
       to construct ref access.
       Non-equality comparisons with constants work without charset narrowing,
@@ -638,7 +638,7 @@ bool Arg_comparator::set_cmp_func_string(THD *thd)
     else if ((*b)->type() == Item::FUNC_ITEM &&
              ((Item_func *) (*b))->functype() == Item_func::JSON_EXTRACT_FUNC)
     {
-      func= is_owner_equal_func() ? &Arg_comparator::compare_e_json_str:
+      func= is_owner_equal_func() ? &Arg_comparator::compare_e_str_json:
                                     &Arg_comparator::compare_str_json;
       return 0;
     }
@@ -1537,7 +1537,7 @@ bool Item_in_optimizer::fix_fields(THD *thd, Item **ref)
     - subqueries that were originally EXISTS subqueries (and were coinverted by
       the EXISTS->IN rewrite)
 
-   When Item_in_optimizer is not not working as a pass-through, it
+   When Item_in_optimizer is not working as a pass-through, it
     - caches its "left argument", args[0].
     - makes adjustments to subquery item's return value for proper NULL
       value handling
@@ -1551,17 +1551,17 @@ bool Item_in_optimizer::invisible_mode()
 
 
 bool Item_in_optimizer::walk(Item_processor processor,
-                             bool walk_subquery,
-                             void *arg)
+                             void *arg,
+                             item_walk_flags flags)
 {
   bool res= FALSE;
   if (args[1]->type() == Item::SUBSELECT_ITEM &&
       ((Item_subselect *)args[1])->substype() != Item_subselect::EXISTS_SUBS &&
       !(((Item_subselect *)args[1])->substype() == Item_subselect::IN_SUBS &&
         ((Item_in_subselect *)args[1])->test_strategy(SUBS_IN_TO_EXISTS)))
-    res= args[0]->walk(processor, walk_subquery, arg);
+    res= args[0]->walk(processor, arg,  flags);
   if (!res)
-    res= args[1]->walk(processor, walk_subquery, arg);
+    res= args[1]->walk(processor, arg, flags);
 
   return res || (this->*processor)(arg);
 }
@@ -1574,7 +1574,7 @@ bool Item_in_optimizer::walk(Item_processor processor,
 
   @details
   The function checks whether an expression cache is needed for this item
-  and if if so wraps the item into an item of the class
+  and if so wraps the item into an item of the class
   Item_cache_wrapper with an appropriate expression cache set up there.
 
   @note
@@ -1825,7 +1825,7 @@ bool Item_in_optimizer::is_null()
   @detail
     Recursively transform the left and the right operand of this Item. The
     Right operand is an Item_in_subselect or its subclass. To avoid the
-    creation of new Items, we use the fact the the left operand of the
+    creation of new Items, we use the fact the left operand of the
     Item_in_subselect is the same as the one of 'this', so instead of
     transforming its operand, we just assign the left operand of the
     Item_in_subselect to be equal to the left operand of 'this'.
@@ -1995,7 +1995,7 @@ longlong Item_func_strcmp::val_int()
 }
 
 
-bool Item_func_opt_neg::eq(const Item *item, bool binary_cmp) const
+bool Item_func_opt_neg::eq(const Item *item, const Eq_config &config) const
 {
   /* Assume we don't have rtti */
   if (this == item)
@@ -2008,7 +2008,7 @@ bool Item_func_opt_neg::eq(const Item *item, bool binary_cmp) const
     return 0;
   if (negated != ((Item_func_opt_neg *) item_func)->negated)
     return 0;
-  return Item_args::eq(item_func, binary_cmp);
+  return Item_args::eq(item_func, config);
 }
 
 
@@ -2586,6 +2586,14 @@ bool Item_func_ifnull::time_op(THD *thd, MYSQL_TIME *ltime)
 }
 
 
+Type_ref_null Item_func_ifnull::ref_op(THD *thd)
+{
+  DBUG_ASSERT(fixed());
+  const Type_ref_null res= args[0]->val_ref(thd);
+  return !res.is_null() ? res : args[1]->val_ref(thd);
+}
+
+
 /**
   Perform context analysis of an IF item tree.
 
@@ -2669,7 +2677,7 @@ void Item_func_nullif::split_sum_func(THD *thd, Ref_ptr_array ref_pointer_array,
 
 
 bool Item_func_nullif::walk(Item_processor processor,
-                            bool walk_subquery, void *arg)
+                            void *arg, item_walk_flags flags)
 {
   /*
     No needs to iterate through args[2] when it's just a copy of args[0].
@@ -2678,7 +2686,7 @@ bool Item_func_nullif::walk(Item_processor processor,
   uint tmp_count= arg_count == 2 || args[0] == args[2] ? 2 : 3;
   for (uint i= 0; i < tmp_count; i++)
   {
-    if (args[i]->walk(processor, walk_subquery, arg))
+    if (args[i]->walk(processor, arg, flags))
       return true;
   }
   return (this->*processor)(arg);
@@ -2712,10 +2720,21 @@ bool
 Item_func_nullif::fix_length_and_dec(THD *thd)
 {
   /*
+    The returned data type is determined only by args[0].
+    Check it here to be a valid returned type for a hybrid function.
+    args[1] will be checked below, to be comparable to args[0],
+    its data type does not affect the returned data type.
+  */
+  if (args[0]->type_handler()->
+         Item_hybrid_func_fix_attributes(current_thd, func_name_cstring(),
+                                         this, this, &args[0], 1))
+    return true;
+
+  /*
     If this is the first invocation of fix_length_and_dec(), create the
     third argument as a copy of the first. This cannot be done before
     fix_fields(), because fix_fields() might replace items,
-    for exampe NOT x --> x==0, or (SELECT 1) --> 1.
+    for example NOT x --> x==0, or (SELECT 1) --> 1.
     See also class Item_func_nullif declaration.
   */
   if (arg_count == 2)
@@ -2731,7 +2750,7 @@ Item_func_nullif::fix_length_and_dec(THD *thd)
                                          l_expr
       args[2]= >------------------------/
 
-    Otherwise (during PREPARE or convensional execution),
+    Otherwise (during PREPARE or conventional execution),
     args[0] and args[2] should still point to the same original l_expr.
   */
   DBUG_ASSERT(args[0] == args[2] || thd->stmt_arena->is_stmt_execute());
@@ -2814,7 +2833,7 @@ Item_func_nullif::fix_length_and_dec(THD *thd)
                    l_expr                            (Item_field for t1.a)
           args[2] /
 
-        d. Conversion of only args[0] happened (by equal field proparation):
+        d. Conversion of only args[0] happened (by equal field propagation):
 
            CREATE OR REPLACE TABLE t1 (
              a CHAR(10),
@@ -3166,7 +3185,8 @@ Item *Item_func_case_simple::find_item()
 {
   /* Compare every WHEN argument with it and return the first match */
   uint idx;
-  if (!Predicant_to_list_comparator::cmp(this, &idx, NULL))
+  bool found_unknown_values;
+  if (!Predicant_to_list_comparator::cmp(this, &idx, &found_unknown_values))
     return args[idx + when_count()];
   Item **pos= Item_func_case_simple::else_expr_addr();
   return pos ? pos[0] : 0;
@@ -3282,6 +3302,13 @@ bool Item_func_case::native_op(THD *thd, Native *to)
   return val_native_with_conversion_from_item(thd, item, to, type_handler());
 }
 
+
+Type_ref_null Item_func_case::ref_op(THD *thd)
+{
+  DBUG_ASSERT(fixed());
+  Item *item= find_item();
+  return item ? item->val_ref(thd) : Type_ref_null();
+}
 
 bool Item_func_case::fix_fields(THD *thd, Item **ref)
 {
@@ -3403,7 +3430,7 @@ bool Item_func_case_simple::aggregate_switch_and_when_arguments(THD *thd,
       If we'll do string comparison, we also need to aggregate
       character set and collation for first/WHEN items and
       install converters for some of them to cmp_collation when necessary.
-      This is done because cmp_item compatators cannot compare
+      This is done because cmp_item comparators cannot compare
       strings in two different character sets.
       Some examples when we install converters:
 
@@ -3425,6 +3452,14 @@ bool Item_func_case_simple::aggregate_switch_and_when_arguments(THD *thd,
     */
     if (agg_arg_charsets_for_comparison(cmp_collation, args, ncases + 1))
       return true;
+  }
+
+  if (m_found_types & (1U << ROW_RESULT))
+  {
+    // ROWs are not supported yet in CASE ROW(..) WHEN ROW(..)
+    my_error(ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION, MYF(0),
+             type_handler_row.name().ptr(), "CASE WHEN");
+    return true;
   }
 
   if (make_unique_cmp_items(thd, cmp_collation.collation))
@@ -3672,6 +3707,20 @@ my_decimal *Item_func_coalesce::decimal_op(my_decimal *decimal_value)
   null_value=1;
   return 0;
 }
+
+
+Type_ref_null Item_func_coalesce::ref_op(THD *thd)
+{
+  DBUG_ASSERT(fixed());
+  for (uint i=0 ; i < arg_count ; i++)
+  {
+    const Type_ref_null res= args[i]->val_ref(thd);
+    if (!res.is_null())
+      return res;
+  }
+  return Type_ref_null();
+}
+
 
 
 /****************************************************************************
@@ -4709,7 +4758,7 @@ void Item_func_in::fix_in_vector()
     else
     {
       /*
-        We don't put NULL values in array, to avoid erronous matches in
+        We don't put NULL values in array, to avoid erroneous matches in
         bisection.
       */
       have_null= 1;
@@ -4760,7 +4809,7 @@ bool Item_func_in::value_list_convert_const_to_int(THD *thd)
         m_comparator.set_handler(&type_handler_slonglong);
     }
   }
-  return thd->is_fatal_error; // Catch errrors in convert_const_to_int
+  return thd->is_fatal_error; // Catch errors in convert_const_to_int
 }
 
 
@@ -4982,6 +5031,33 @@ void Item_func_in::mark_as_condition_AND_part(TABLE_LIST *embedding)
     thd->restore_active_arena(arena, &backup);
 
   emb_on_expr_nest= embedding;
+}
+
+
+bool Item_func_in::ora_join_processor(void *arg)
+{
+  if (with_ora_join())
+  {
+    if (args[0]->cols() > 1 && args[0]->with_ora_join())
+    {
+        // used in ROW operaton
+        my_error(ER_INVALID_USE_OF_ORA_JOIN_WRONG_FUNC, MYF(0));
+        return TRUE;
+    }
+    uint n= argument_count();
+    DBUG_ASSERT(n >= 2);
+    // first argument (0) is right part of IN where oracle joins are allowed
+    for (uint i= 1; i < n; i++)
+    {
+      if (args[i]->with_ora_join())
+      {
+        // used in right part of IN
+        my_error(ER_INVALID_USE_OF_ORA_JOIN_WRONG_FUNC, MYF(0));
+        return TRUE ;
+      }
+    }
+  }
+  return FALSE;
 }
 
 
@@ -5373,14 +5449,15 @@ void Item_cond::fix_after_pullout(st_select_lex *new_parent, Item **ref,
 }
 
 
-bool Item_cond::walk(Item_processor processor, bool walk_subquery, void *arg)
+bool Item_cond::walk(Item_processor processor,
+                     void *arg, item_walk_flags flags)
 {
   List_iterator_fast<Item> li(list);
   Item *item;
   while ((item= li++))
-    if (item->walk(processor, walk_subquery, arg))
+    if (item->walk(processor, arg, flags))
       return 1;
-  return Item_func::walk(processor, walk_subquery, arg);
+  return Item_func::walk(processor, arg,  flags);
 }
 
 /**
@@ -5435,7 +5512,7 @@ Item *Item_cond::do_transform(THD *thd, Item_transformer transformer, uchar *arg
   callback functions.
   
     First the function applies the analyzer to the root node of
-    the Item_func object. Then if the analyzer succeeeds (returns TRUE)
+    the Item_func object. Then if the analyzer succeeds (returns TRUE)
     the function recursively applies the compile method to member
     item of the condition list.
     If the call of the method for a member item returns a new item
@@ -5783,6 +5860,17 @@ bool Item_func_null_predicate::count_sargable_conds(void *arg)
 {
   ((SELECT_LEX*) arg)->cond_count++;
   return 0;
+}
+
+
+bool Item_func_null_predicate::check_arguments() const
+{
+  DBUG_ASSERT(arg_count == 1);
+  if (args[0]->type_handler()->has_null_predicate())
+    return false;
+  my_error(ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION, MYF(0),
+           args[0]->type_handler()->name().ptr(), func_name());
+  return true;
 }
 
 
@@ -7019,7 +7107,7 @@ void Item_equal::add_const(THD *thd, Item *c)
 
     - Also, Field_str::test_if_equality_guarantees_uniqueness() guarantees
     that the comparison collation of all equalities handled by Item_equal
-    match the the collation of the field.
+    match the collation of the field.
 
     Therefore, at Item_equal::add_const() time all constants constXXX
     should be directly comparable to each other without an additional
@@ -7507,16 +7595,17 @@ bool Item_equal::fix_length_and_dec(THD *thd)
 }
 
 
-bool Item_equal::walk(Item_processor processor, bool walk_subquery, void *arg)
+bool Item_equal::walk(Item_processor processor,
+                      void *arg, item_walk_flags flags)
 {
   Item *item;
   Item_equal_fields_iterator it(*this);
   while ((item= it++))
   {
-    if (item->walk(processor, walk_subquery, arg))
+    if (item->walk(processor, arg, flags))
       return 1;
   }
-  return Item_func::walk(processor, walk_subquery, arg);
+  return Item_func::walk(processor, arg, flags);
 }
 
 
@@ -7897,7 +7986,7 @@ Item_equal::excl_dep_on_grouping_fields(st_select_lex *sel)
 
     2. After this all equalities of the form x=a (where x designates the first
        non-constant member for which checker returns true and a is some other
-       such member of the multiplle equality) are created. When constructing
+       such member of the multiple equality) are created. When constructing
        an equality item both its parts are taken as clones of x and a.
     
        Suppose in the examples above that for 'x', 'a', and 'b' the function
@@ -7979,8 +8068,8 @@ bool Item_equal::create_pushable_equalities(THD *thd,
         where a fixed item has non-fixed items inside it.
       */
       int16 new_flag= MARKER_IMMUTABLE;
-      right_item->walk(&Item::set_extraction_flag_processor, false,
-                       (void*)&new_flag);
+      right_item->walk(&Item::set_extraction_flag_processor,
+                       (void*)&new_flag, 0);
     }
   }
 

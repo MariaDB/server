@@ -121,7 +121,7 @@ static void get_options(int *argc, char ***argv);
 
 
 /*
-  Abort unless given experssion is non-zero.
+  Abort unless given expression is non-zero.
 
   SYNOPSIS
     DIE_UNLESS(expr)
@@ -1442,7 +1442,9 @@ int main(int argc, char **argv)
   this limited check is enough, if sizeof(MYSQL) changes, it changes
   everywhere
 */
-#if defined __x86_64__
+#if defined _M_AMD64
+  compile_time_assert(sizeof(MYSQL) == 1208);
+#elif defined __x86_64__
   compile_time_assert(sizeof(MYSQL) == 1272);
 #elif defined __i386__
   compile_time_assert(sizeof(MYSQL) == 964);

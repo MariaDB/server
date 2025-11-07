@@ -37,6 +37,7 @@
 #include "sql_time.h"
 #include "sql_type_geom.h"
 #include "item_vectorfunc.h"
+#include "item_numconvfunc.h"
 #include <mysql/plugin_function.h>
 
 
@@ -1916,6 +1917,18 @@ protected:
   ~Create_func_monthname() override = default;
 };
 
+class Create_func_months_between : public Create_func_arg2
+{
+public:
+  Item *create_2_arg(THD *thd, Item *arg1, Item *arg2) override;
+
+  static Create_func_months_between s_singleton;
+
+protected:
+  Create_func_months_between() = default;
+  ~Create_func_months_between() override = default;
+};
+
 
 class Create_func_name_const : public Create_func_arg2
 {
@@ -2587,6 +2600,41 @@ public:
 protected:
   Create_func_to_seconds() = default;
   ~Create_func_to_seconds() override = default;
+};
+
+
+class Create_func_trunc : public Create_native_func
+{
+public:
+  Item *create_native(THD *thd, const LEX_CSTRING *name,
+                              List<Item> *item_list) override
+  {
+    Item *a[2];
+    uint arg_count= item_list == nullptr ? 0 : item_list->elements;
+
+    for (uint i=0; i < MY_MIN(array_elements(a), arg_count); i++)
+      a[i]= item_list->pop();
+    switch (arg_count)
+    {
+    case 1:
+      {
+        a[1]= new (thd->mem_root) Item_string_sys(thd, "DD",  2);
+        if (unlikely(a[1] == nullptr))
+          return nullptr;
+      }
+      /*fall through*/
+    case 2:
+      return new (thd->mem_root) Item_func_trunc(thd, a[0], a[1]);
+    }
+    my_error(ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT, MYF(0), name->str);
+    return NULL;
+  }
+
+  static Create_func_trunc s_singleton;
+
+protected:
+  Create_func_trunc() = default;
+  ~Create_func_trunc() override = default;
 };
 
 
@@ -5340,6 +5388,15 @@ Create_func_monthname::create_1_arg(THD *thd, Item *arg1)
 }
 
 
+Create_func_months_between Create_func_months_between::s_singleton;
+
+Item*
+Create_func_months_between::create_2_arg(THD *thd, Item *arg1, Item *arg2)
+{
+  return new (thd->mem_root) Item_func_months_between(thd, arg1, arg2);
+}
+
+
 Create_func_name_const Create_func_name_const::s_singleton;
 
 Item*
@@ -5500,7 +5557,7 @@ Create_func_rand::create_native(THD *thd, const LEX_CSTRING *name,
     between master and slave, because the order is undefined.  Hence,
     the statement is unsafe to log in statement format.
 
-    For normal INSERT's this is howevever safe
+    For normal INSERT's this is however safe
   */
   if (thd->lex->sql_command != SQLCOM_INSERT)
     thd->lex->set_stmt_unsafe(LEX::BINLOG_STMT_UNSAFE_SYSTEM_FUNCTION);
@@ -5984,6 +6041,9 @@ Create_func_to_seconds::create_1_arg(THD *thd, Item *arg1)
 {
   return new (thd->mem_root) Item_func_to_seconds(thd, arg1);
 }
+
+
+Create_func_trunc Create_func_trunc::s_singleton;
 
 
 Create_func_ucase Create_func_ucase::s_singleton;
@@ -6493,6 +6553,7 @@ const Native_func_registry func_array[] =
   { { STRING_WITH_LEN("MICROSECOND") }, BUILDER(Create_func_microsecond)},
   { { STRING_WITH_LEN("MOD") }, BUILDER(Create_func_mod)},
   { { STRING_WITH_LEN("MONTHNAME") }, BUILDER(Create_func_monthname)},
+  { { STRING_WITH_LEN("MONTHS_BETWEEN") }, BUILDER(Create_func_months_between)},
   { { STRING_WITH_LEN("NAME_CONST") }, BUILDER(Create_func_name_const)},
   {  {STRING_WITH_LEN("NATURAL_SORT_KEY")}, BUILDER(Create_func_natural_sort_key)},
   { { STRING_WITH_LEN("NVL") }, BUILDER(Create_func_ifnull)},
@@ -6553,8 +6614,10 @@ const Native_func_registry func_array[] =
   { { STRING_WITH_LEN("TIME_TO_SEC") }, BUILDER(Create_func_time_to_sec)},
   { { STRING_WITH_LEN("TO_BASE64") }, BUILDER(Create_func_to_base64)},
   { { STRING_WITH_LEN("TO_CHAR") }, BUILDER(Create_func_to_char)},
+  { { STRING_WITH_LEN("TO_NUMBER") }, &create_func_to_number},
   { { STRING_WITH_LEN("TO_DAYS") }, BUILDER(Create_func_to_days)},
   { { STRING_WITH_LEN("TO_SECONDS") }, BUILDER(Create_func_to_seconds)},
+  { { STRING_WITH_LEN("TRUNC") }, BUILDER(Create_func_trunc)},
   { { STRING_WITH_LEN("UCASE") }, BUILDER(Create_func_ucase)},
   { { STRING_WITH_LEN("UNCOMPRESS") }, BUILDER(Create_func_uncompress)},
   { { STRING_WITH_LEN("UNCOMPRESSED_LENGTH") }, BUILDER(Create_func_uncompressed_length)},
@@ -6846,6 +6909,15 @@ Item *create_func_dyncol_get(THD *thd,  Item *str, Item *num,
 
   if (likely(!(res= new (thd->mem_root) Item_dyncol_get(thd, str, num))))
     return res;                                 // Return NULL
-  return handler->create_typecast_item(thd, res,
-                                       Type_cast_attributes(length_dec, cs));
+  if (likely((res= handler->create_typecast_item(thd, res,
+                                     Type_cast_attributes(length_dec, cs)))))
+   return res;
+  // Type cast to handler's data type does not exist
+  const Name name= handler->name();
+  char buf[128];
+  size_t length= my_snprintf(buf, sizeof(buf), "CAST(expr AS %.*s)",
+                             (int) name.length(), name.ptr());
+  my_error(ER_UNKNOWN_OPERATOR, MYF(0),
+           ErrConvString(buf, length, system_charset_info).ptr());
+  return nullptr;
 }

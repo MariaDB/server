@@ -1,5 +1,4 @@
 --source include/have_innodb.inc
---source include/count_sessions.inc
 
 --echo #
 --echo # Bug #19183565 CREATE DYNAMIC INNODB_TMPDIR VARIABLE TO CONTROL
@@ -57,5 +56,3 @@ disconnect con3;
 connection default;
 set global innodb_tmpdir=NULL;
 drop table t1;
-
---source include/wait_until_count_sessions.inc

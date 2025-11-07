@@ -15,7 +15,7 @@
 
 /** @file wsrep_client_service.h
 
-  This file provides declaratios for client service implementation.
+  This file provides declarations for client service implementation.
   See wsrep/client_service.hpp for interface documentation.
 */
 

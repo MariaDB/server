@@ -130,13 +130,16 @@ endif()
 # Silence some warnings
 if(MSVC)
   # truncation warnings
-  target_compile_options(wolfssl PRIVATE $<$<COMPILE_LANGUAGE:C>:/wd4244>)
+  target_compile_options(wolfssl PRIVATE $<$<COMPILE_LANGUAGE:C>:/wd4244 /wd5287 /wd5286>)
+  target_compile_definitions(wolfssl PUBLIC WC_NO_STATIC_ASSERT)
   if(CMAKE_C_COMPILER_ID MATCHES Clang)
     target_compile_options(wolfssl PRIVATE $<$<COMPILE_LANGUAGE:C>:-Wno-incompatible-function-pointer-types>)
   endif()
   remove_definitions(-DHAVE_CONFIG_H)
   target_compile_definitions(wolfssl PRIVATE
     WOLFSSL_HAVE_MIN WOLFSSL_HAVE_MAX)
+  # Workaround https://github.com/wolfSSL/wolfssl/issues/9004
+  target_compile_definitions(wolfssl PRIVATE WOLFSSL_NO_SOCK SOCKET_INVALID=-1)
 endif()
 
 set_property(TARGET wolfssl PROPERTY POSITION_INDEPENDENT_CODE ON)

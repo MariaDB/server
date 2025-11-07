@@ -213,7 +213,7 @@ DROP TABLE t1;
 DROP TABLE t2;
 
 --echo # < CASE 5 >
---echo # REPLCAE Queries
+--echo # REPLACE Queries
 --echo #
 
 CREATE TABLE t1 (a INT PRIMARY KEY, b INT, UNIQUE uk(b)) ENGINE=InnoDB;

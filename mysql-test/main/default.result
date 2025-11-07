@@ -437,7 +437,7 @@ ERROR 01000: Expression for field `a` is referring to uninitialized field `b`
 show create table t1;
 ERROR 42S02: Table 'test.t1' doesn't exist
 #
-# Refering to other columns
+# Referring to other columns
 #
 create or replace table t1 (a int default 1, b int default a);
 create or replace table t1 (a int default 1, b int as (a));
@@ -3219,7 +3219,7 @@ a	b
 6	7
 drop table t1;
 #
-# DEVAULT & PS adoption
+# DEFAULT & PS adoption
 #
 CREATE TABLE t1 (a INT DEFAULT 10, b INT DEFAULT NULL);
 EXECUTE IMMEDIATE 'INSERT INTO t1 VALUES (?,?)' USING IGNORE, IGNORE;
@@ -3433,9 +3433,7 @@ DEFAULT(a)	CASE a WHEN 0 THEN 1 ELSE 2 END
 NULL	2
 DROP TABLE t;
 DROP VIEW v;
-#
 # End of 10.2 test
-#
 #
 # MDEV-22703 DEFAULT() on a BLOB column can overwrite the default
 # record, which can cause crashes when accessing already released
@@ -3451,9 +3449,7 @@ length(DEFAULT(h))
 25
 INSERT INTO t1 () VALUES ();
 drop table t1;
-#
 # End of 10.3 test
-#
 #
 # MDEV-26423: MariaDB server crash in Create_tmp_table::finalize
 #
@@ -3484,7 +3480,15 @@ column_name	column_default	has_default	is_nullable
 a	NULL	1	YES
 drop view v1;
 drop table t1;
-#
 # End of 10.4 test
 #
+# MDEV-37320 ASAN errors in Field::is_null / Item_param::assign_default
+#
+create table t1 (f01 timestamp, f03 timestamp);
+insert into t1 () values ();
+create trigger tr before insert on t1 for each row set @a=1;
+prepare stmt from "update t1 set f03 = ?";
+execute stmt using default;
+drop table t1;
+# End of 10.6 test
 ALTER DATABASE test CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci;

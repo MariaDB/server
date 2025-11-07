@@ -12,10 +12,6 @@
 # is fixed this test can't be run on embedded version of server.
 --source include/not_embedded.inc
 
-# Save the initial number of concurrent sessions.
---source include/count_sessions.inc
-
-
 --echo #
 --echo # Test how we handle locking in various cases when
 --echo # we read data from MyISAM tables.
@@ -921,7 +917,6 @@ connection con1;
 --echo # Reaping: DROP EVENT t1
 --reap
 disconnect con1;
---source include/wait_until_disconnected.inc
 
 connection default;
 DROP EVENT e2;
@@ -931,12 +926,6 @@ SET DEBUG_SYNC="RESET";
 --echo #
 --echo # Bug#57130 crash in Item_field::print during SHOW CREATE TABLE or VIEW
 --echo #
-
---disable_warnings
-DROP TABLE IF EXISTS t1;
-DROP VIEW IF EXISTS v1;
-DROP FUNCTION IF EXISTS f1;
---enable_warnings
 
 CREATE TABLE t1(a INT);
 CREATE FUNCTION f1() RETURNS INTEGER RETURN 1;
@@ -1028,7 +1017,6 @@ set debug_sync='RESET';
 --echo # during metadata lock upgrade which happens when one tries
 --echo # to use LOCK TABLES ... READ LOCAL for InnoDB tables.
 
---enable_connect_log
 CREATE TABLE t1 (i INT) ENGINE=InnoDB;
 CREATE TABLE t2 (j INT) ENGINE=InnoDB;
 
@@ -1074,11 +1062,6 @@ SET DEBUG_SYNC="RESET";
 disconnect con1;
 disconnect con2;
 DROP TABLES t1, t2;
---disable_connect_log
-
-# Check that all connections opened by test cases in this file are really
-# gone so execution of other tests won't be affected by their presence.
---source include/wait_until_count_sessions.inc
 
 --echo #
 --echo # MDEV-28567 Assertion `0' in open_tables upon function-related operation
@@ -1127,7 +1110,7 @@ SELECT f() FROM t2;
 # Now we hold test/f, the below code creates concurrent
 # waiting of 3 threads for test/f which leads to deadlock (Bad)
 
-# To achive Good comment out 'now wait_for s1' below and run multiple times.
+# To achieve Good comment out 'now wait_for s1' below and run multiple times.
 
 --connect (con2,localhost,root,,test)
 set debug_sync= 'after_open_table_mdl_shared signal s1';
@@ -1194,7 +1177,6 @@ COMMIT;
 --disconnect con1
 --disconnect con2
 --connection default
---source include/wait_until_count_sessions.inc
 DROP VIEW v1;
 DROP FUNCTION IF EXISTS f;
 DROP TABLE t1, t2;

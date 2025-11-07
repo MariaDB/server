@@ -187,6 +187,19 @@ my_collation_id_is_uca1400(uint id)
                     id <= MY_UCA1400_COLLATION_ID_POSSIBLE_MAX);
 }
 
+
+typedef struct my_uca1400_collation_definition_st
+{
+  const char * tailoring;
+  const char * name;
+  uint16 id_utf8mb3;
+  uint16 id_utf8mb4;
+  uint16 id_ucs2;
+  uint16 id_utf16;
+  uint16 id_utf32;
+} MY_UCA1400_COLLATION_DEFINITION;
+
+
 /*
   UCA1400 collation ID:
 
@@ -204,6 +217,7 @@ my_collation_id_is_uca1400(uint id)
 static inline my_cs_encoding_t
 my_uca1400_collation_id_to_charset_id(uint id)
 {
+  DBUG_ASSERT(id);
   return (my_cs_encoding_t) ((id >> 8) & 0x07);
 }
 
@@ -211,6 +225,7 @@ my_uca1400_collation_id_to_charset_id(uint id)
 static inline uint
 my_uca1400_collation_id_to_tailoring_id(uint id)
 {
+  DBUG_ASSERT(id);
   return (id >> 3) & 0x1F;
 }
 
@@ -218,19 +233,50 @@ my_uca1400_collation_id_to_tailoring_id(uint id)
 static inline my_bool
 my_uca1400_collation_id_to_nopad_flag(uint id)
 {
+  DBUG_ASSERT(id);
   return (my_bool) ((id >> 2) & 0x01);
 }
 
 static inline my_bool
 my_uca1400_collation_id_to_secondary_level_flag(uint id)
 {
+  DBUG_ASSERT(id);
   return (my_bool) ((id >> 1) & 0x01);
 }
 
 static inline my_bool
 my_uca1400_collation_id_to_tertiary_level_flag(uint id)
 {
+  DBUG_ASSERT(id);
   return (my_bool) ((id >> 0) & 0x01);
+}
+
+static inline uint
+my_uca1400_collation_id_to_level_flags(uint id)
+{
+  my_bool secondary_level, tertiary_level;
+  DBUG_ASSERT(id);
+  secondary_level= my_uca1400_collation_id_to_secondary_level_flag(id);
+  tertiary_level=  my_uca1400_collation_id_to_tertiary_level_flag(id);
+  return (1 << MY_CS_LEVEL_BIT_PRIMARY) |
+         (secondary_level ? 1 << MY_CS_LEVEL_BIT_SECONDARY : 0) |
+         (tertiary_level  ? 1 << MY_CS_LEVEL_BIT_TERTIARY  : 0);
+}
+
+
+/*
+  Return an UCA-14.0.0 collation properties using its ID.
+*/
+static inline uca_collation_def_param_t
+my_uca1400_collation_param_by_id(uint id)
+{
+  uca_collation_def_param_t res;
+  DBUG_ASSERT(id);
+  res.cs_id= my_uca1400_collation_id_to_charset_id(id);
+  res.tailoring_id= my_uca1400_collation_id_to_tailoring_id(id);
+  res.nopad_flags= my_uca1400_collation_id_to_nopad_flag(id);
+  res.level_flags= my_uca1400_collation_id_to_level_flags(id);
+  return res;
 }
 
 
@@ -241,13 +287,36 @@ my_uca1400_make_builtin_collation_id(my_cs_encoding_t charset_id,
                                      my_bool secondary_level,
                                      my_bool tertiary_level);
 
-my_bool
-my_uca1400_collation_definition_init(MY_CHARSET_LOADER *loader,
-                                     struct charset_info_st *dst,
-                                     uint collation_id);
+LEX_CSTRING
+my_uca1400_collation_build_name(char *buffer, size_t buffer_size,
+                                const LEX_CSTRING *cs_name,
+                                const char *tailoring_name,
+                                const uca_collation_def_param_t *prm);
 
+my_bool
+my_uca1400_collation_alloc_and_init(MY_CHARSET_LOADER *loader,
+                                    LEX_CSTRING name,
+                                    LEX_CSTRING comment,
+                                    const uca_collation_def_param_t *param,
+                                    uint id);
+
+LEX_CSTRING my_ci_get_collation_name_uca1400_context(CHARSET_INFO *cs);
+
+uint my_uca1400_collation_id_uca400_compat(uint id);
+
+my_bool my_uca1400_collation_definitions_add(MY_CHARSET_LOADER *loader);
+
+
+/* Exported data */
 #define MY_UCA1400_COLLATION_DEFINITION_COUNT 26
 
-my_bool mysql_utf8mb4_0900_collation_definitions_add();
+extern MY_UCA1400_COLLATION_DEFINITION
+my_uca1400_collation_definitions[MY_UCA1400_COLLATION_DEFINITION_COUNT];
+
+extern MY_UCA_INFO my_uca_v1400;
+
+
+extern MY_UCA_INFO my_uca1400_info_tailored[MY_CS_ENCODING_LAST+1]
+                                      [MY_UCA1400_COLLATION_DEFINITION_COUNT];
 
 #endif /* CTYPE_UCA_1400_H */

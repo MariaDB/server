@@ -176,9 +176,18 @@ double TIME_to_double(const MYSQL_TIME *my_time);
 int check_time_range(struct st_mysql_time *my_time, uint dec, int *warning);
 my_bool check_datetime_range(const MYSQL_TIME *ltime);
 
+/*
+  Accurate only for the past couple of centuries.
+  Also works with 2 digit year 01-99 (1971-2069)
+  Year 0 is ignored as MariaDB uses year 0 as 'not specifed'. This
+  matches how things how leap year was calculated in calc_days_in_year().
+*/
+
+#define isleap(y) (((y) & 3) == 0 && (((y) % 100) != 0 || (((y) % 400) == 0 && y != 0)))
 
 long calc_daynr(uint year,uint month,uint day);
 uint calc_days_in_year(uint year);
+uint calc_days_in_month(uint year, uint month);
 uint year_2000_handling(uint year);
 
 void my_init_time(void);
@@ -248,7 +257,6 @@ static inline longlong sec_part_unshift(longlong second_part, uint digits)
 /* Date/time rounding and truncation functions */
 static inline long my_time_fraction_remainder(long nr, uint decimals)
 {
-  DBUG_ASSERT(decimals <= TIME_SECOND_PART_DIGITS);
   return nr % (long) log_10_int[TIME_SECOND_PART_DIGITS - decimals];
 }
 static inline void my_datetime_trunc(MYSQL_TIME *ltime, uint decimals)

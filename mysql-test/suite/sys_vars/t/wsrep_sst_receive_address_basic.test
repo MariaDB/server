@@ -32,7 +32,7 @@ SELECT @@global.wsrep_sst_receive_address;
 SET @@global.wsrep_sst_receive_address=NULL;
 SELECT @@global.wsrep_sst_receive_address;
 # Currently there is no strict checking performed for wsrep_sst_receive_address
-# so following values jusr pass through.
+# so following values just pass through.
 SET @@global.wsrep_sst_receive_address='OFF';
 SELECT @@global.wsrep_sst_receive_address;
 SET @@global.wsrep_sst_receive_address=ON;

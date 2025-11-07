@@ -129,6 +129,7 @@ bool Update_plan::save_explain_data_intern(THD *thd,
       (thd->variables.log_slow_verbosity &
        LOG_SLOW_VERBOSITY_ENGINE))
   {
+    explain->table_tracker.set_gap_tracker(&explain->extra_time_tracker);
     table->file->set_time_tracker(&explain->table_tracker);
 
     if (table->file->handler_stats && table->s->tmp_table != INTERNAL_TMP_TABLE)
@@ -289,32 +290,93 @@ int update_portion_of_time(THD *thd, TABLE *table,
   return res;
 }
 
-inline
-int TABLE::delete_row()
-{
-  if (!versioned(VERS_TIMESTAMP) || !vers_end_field()->is_max())
-    return file->ha_delete_row(record[0]);
+/**
+  Delete a record stored in:
+  replace= true: record[0]
+  replace= false: record[1]
 
-  store_record(this, record[1]);
-  vers_update_end();
-  int err;
+  with regard to the treat_versioned flag, which can be false for a versioned
+  table in case of versioned->versioned replication.
+
+ For a versioned case, we detect a few conditions, under which we should delete
+ a row instead of updating it to a history row.
+ This includes:
+ * History deletion by user;
+ * History collision, in case of REPLACE or very fast sequence of dmls
+   so that timestamp doesn't change;
+ * History collision in the parent table
+
+ A normal delete is processed here as well.
+*/
+template <bool replace>
+int TABLE::delete_row(bool treat_versioned)
+{
+  int err= 0;
+  uchar *del_buf= record[replace ? 1 : 0];
+  bool delete_row= !treat_versioned
+                   || in_use->lex->vers_conditions.delete_history
+                   || versioned(VERS_TRX_ID)
+                   || !vers_end_field()->is_max(
+                           vers_end_field()->ptr_in_record(del_buf));
+
   if ((err= file->extra(HA_EXTRA_REMEMBER_POS)))
     return err;
-  if ((err= file->ha_update_row(record[1], record[0])))
+
+  if (!delete_row)
   {
-    /*
-      MDEV-23644: we get HA_ERR_FOREIGN_DUPLICATE_KEY iff we already got
-      history row with same trx_id which is the result of foreign key action,
-      so we don't need one more history row.
-    */
-    if (err == HA_ERR_FOREIGN_DUPLICATE_KEY)
-      file->ha_delete_row(record[0]);
+    if (replace)
+    {
+      store_record(this, record[2]);
+      restore_record(this, record[1]);
+    }
     else
-      return err;
+    {
+      store_record(this, record[1]);
+    }
+    vers_update_end();
+
+    Field *row_start= vers_start_field();
+    Field *row_end= vers_end_field();
+    // Don't make history row with negative lifetime
+    delete_row= row_start->cmp(row_start->ptr, row_end->ptr) > 0;
+
+    if (likely(!delete_row))
+      err= file->ha_update_row(record[1], record[0]);
+    if (unlikely(err))
+    {
+      /*
+        MDEV-23644: we get HA_ERR_FOREIGN_DUPLICATE_KEY iff we already got
+        history row with same trx_id which is the result of foreign key
+        action, so we don't need one more history row.
+
+        Additionally, delete the row if versioned record already exists.
+        This happens on replace, a very fast sequence of inserts and deletes,
+        or if timestamp is frozen.
+      */
+      delete_row= err == HA_ERR_FOUND_DUPP_KEY
+                  || err == HA_ERR_FOUND_DUPP_UNIQUE
+                  || err == HA_ERR_FOREIGN_DUPLICATE_KEY;
+      if (!delete_row)
+        return err;
+    }
+
+    if (delete_row)
+      del_buf= record[1];
+
+    if (replace)
+      restore_record(this, record[2]);
   }
-  return file->extra(HA_EXTRA_RESTORE_POS);
+
+  if (delete_row)
+    err= file->ha_delete_row(del_buf);
+
+  (void) file->extra(HA_EXTRA_RESTORE_POS);
+
+  return err;
 }
 
+template int TABLE::delete_row<true>(bool treat_versioned);
+template int TABLE::delete_row<false>(bool treat_versioned);
 
 /**
   @brief Special handling of single-table deletes after prepare phase
@@ -332,11 +394,11 @@ bool Sql_cmd_delete::delete_from_single_table(THD *thd)
   bool safe_update;
   bool const_cond_result;
   bool return_error= 0;
+  bool binlogged= 0;
   TABLE	*table;
   SQL_SELECT *select= 0;
   SORT_INFO *file_sort= 0;
   READ_RECORD info;
-  ha_rows deleted= 0;
   bool reverse= FALSE;
   bool binlog_is_row;
   killed_state killed_status= NOT_KILLED;
@@ -446,7 +508,7 @@ bool Sql_cmd_delete::delete_from_single_table(THD *thd)
       not in safe mode (not using option --safe-mode)
     - There is no limit clause
     - The condition is constant
-    - If there is a condition, then it it produces a non-zero value
+    - If there is a condition, then it produces a non-zero value
     - If the current command is DELETE FROM with no where clause, then:
       - We should not be binlogging this statement in row-based, and
       - there should be no delete triggers associated with the table.
@@ -454,10 +516,11 @@ bool Sql_cmd_delete::delete_from_single_table(THD *thd)
 
   has_triggers= table->triggers && table->triggers->has_delete_triggers();
   transactional_table= table->file->has_transactions_and_rollback();
+  deleted= 0;
 
   if (!returning && !using_limit && const_cond_result &&
-      (!thd->is_current_stmt_binlog_format_row() && !has_triggers)
-      && !table->versioned(VERS_TIMESTAMP) && !table_list->has_period())
+      !thd->is_current_stmt_binlog_format_row() && !has_triggers &&
+      !table->versioned(VERS_TIMESTAMP) && !table_list->has_period())
   {
     /* Update the table->file->stats.records number */
     table->file->info(HA_STATUS_VARIABLE | HA_STATUS_NO_LOCK);
@@ -516,7 +579,8 @@ bool Sql_cmd_delete::delete_from_single_table(THD *thd)
                                           (uchar *) 0);
   }
 
-  if (conds && substitute_indexed_vcols_for_table(table, conds))
+  if ((conds || order) && substitute_indexed_vcols_for_table(table, conds,
+                                                             order, select_lex))
    DBUG_RETURN(1); // Fatal error
 
 #ifdef WITH_PARTITION_STORAGE_ENGINE
@@ -834,7 +898,7 @@ bool Sql_cmd_delete::delete_from_single_table(THD *thd)
 
   /*
     From SQL2016, Part 2, 15.7 <Effect of deleting rows from base table>,
-    General Rules, 8), we can conclude that DELETE FOR PORTTION OF time performs
+    General Rules, 8), we can conclude that DELETE FOR PORTION OF time performs
     0-2 INSERTS + DELETE. We can substitute INSERT+DELETE with one UPDATE, with
     a condition of no side effects. The side effect is possible if there is a
     BEFORE INSERT trigger, since it is the only one splitting DELETE and INSERT
@@ -991,10 +1055,11 @@ cleanup:
       thd->transaction->all.modified_non_trans_table= TRUE;
 
   /* See similar binlogging code in sql_update.cc, for comments */
-  if (likely((error < 0) || thd->transaction->stmt.modified_non_trans_table
-      || thd->log_current_statement()))
+  if (likely((error < 0) || thd->transaction->stmt.modified_non_trans_table ||
+             thd->log_current_statement()))
   {
-    if (WSREP_EMULATE_BINLOG(thd) || mysql_bin_log.is_open())
+    if ((WSREP_EMULATE_BINLOG(thd) || mysql_bin_log.is_open()) &&
+        table->s->using_binlog())
     {
       int errcode= 0;
       if (error < 0)
@@ -1019,8 +1084,13 @@ cleanup:
       {
         error=1;
       }
+      else
+        binlogged= 1;
     }
   }
+  if (!binlogged)
+    table->mark_as_not_binlogged();
+
   DBUG_ASSERT(transactional_table || !deleted || thd->transaction->stmt.modified_non_trans_table);
   
   if (likely(error < 0) ||
@@ -1035,7 +1105,7 @@ cleanup:
       result->send_eof();
     else
       my_ok(thd, deleted);
-    DBUG_PRINT("info",("%ld records deleted",(long) deleted));
+    DBUG_PRINT("info", ("%ld records deleted", (long) deleted));
   }
   delete file_sort;
   if (optimize_subqueries && select_lex->optimize_unflattened_subqueries(false))
@@ -1214,7 +1284,7 @@ multi_delete::initialize_tables(JOIN *join)
       /*
         If the table we are going to delete from appears
         in join, we need to defer delete. So the delete
-        doesn't interfers with the scaning of results.
+        doesn't interfere with the scanning of results.
       */
       delete_while_scanning= false;
     }
@@ -1412,6 +1482,8 @@ int multi_delete::send_data(List<Item> &values)
               }
               found++;
           }
+          else
+            error= 0; /* Clear HA_ERR_FOUND_DUPP_{KEY,UNIQUE} error */
       }
     }
   }
@@ -1421,6 +1493,7 @@ int multi_delete::send_data(List<Item> &values)
 
 void multi_delete::abort_result_set()
 {
+  TABLE_LIST *cur_table;
   DBUG_ENTER("multi_delete::abort_result_set");
 
   /****************************************************************************
@@ -1480,6 +1553,13 @@ void multi_delete::abort_result_set()
                                transactional_tables, FALSE, FALSE, errcode);
     }
   }
+  /*
+    Mark all temporay tables as not completely binlogged
+    All future usage of these tables will enforce row level logging, which
+    ensures that all future usage of them enforces row level logging.
+  */
+  for (cur_table= delete_tables; cur_table; cur_table= cur_table->next_local)
+    cur_table->table->mark_as_not_binlogged();
   DBUG_VOID_RETURN;
 }
 
@@ -1619,7 +1699,7 @@ int multi_delete::rowid_table_deletes(TABLE *table, bool ignore)
       during ha_delete_row.
       Also, don't execute the AFTER trigger if the row operation failed.
     */
-    if (unlikely(!local_error))
+    if (likely(!local_error))
     {
       deleted++;
       if (table->triggers &&
@@ -1647,6 +1727,10 @@ int multi_delete::rowid_table_deletes(TABLE *table, bool ignore)
 err:
   if (err_table)
     err_table->file->print_error(local_error,MYF(ME_FATAL));
+  if (tmp_table->file->inited == handler::init_stat::RND)
+    tmp_table->file->ha_rnd_end();
+  if (table->file->inited == handler::init_stat::RND)
+    table->file->ha_rnd_end();
   DBUG_RETURN(local_error);
 }
 
@@ -1999,7 +2083,7 @@ bool Sql_cmd_delete::prepare_inner(THD *thd)
     }
 
     /*
-      Reset the exclude flag to false so it doesn't interfare
+      Reset the exclude flag to false so it doesn't interfere
       with further calls to unique_table
     */
     lex->first_select_lex()->exclude_from_table_unique_test= FALSE;
@@ -2049,6 +2133,8 @@ err:
 
 bool Sql_cmd_delete::execute_inner(THD *thd)
 {
+  Running_stmt_guard guard(thd, active_dml_stmt::DELETING_STMT);
+
   if (!multitable)
   {
     if (lex->has_returning())
@@ -2103,6 +2189,9 @@ bool Sql_cmd_delete::execute_inner(THD *thd)
 
   if (result)
   {
+    /* In single table case, this->deleted set by delete_from_single_table */
+    if (res && multitable)
+      deleted= ((multi_delete*)get_result())->num_deleted();
     res= false;
     delete result;
   }

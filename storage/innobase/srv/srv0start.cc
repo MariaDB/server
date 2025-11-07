@@ -433,7 +433,7 @@ static dberr_t srv_undo_delete_old_tablespaces()
 /** Recreate the undo log tablespaces */
 ATTRIBUTE_COLD static dberr_t srv_undo_tablespaces_reinit()
 {
-  mtr_t mtr;
+  mtr_t mtr{nullptr};
   dberr_t err;
   buf_block_t *first_rseg_hdr;
   uint32_t latest_space_id;
@@ -626,7 +626,7 @@ static dberr_t srv_undo_tablespaces_reinitialize()
 static uint32_t trx_rseg_get_n_undo_tablespaces()
 {
   std::set<uint32_t> space_ids;
-  mtr_t mtr;
+  mtr_t mtr{nullptr};
   mtr.start();
 
   if (const buf_block_t *sys_header=
@@ -879,6 +879,8 @@ unused_undo:
   return DB_SUCCESS;
 }
 
+PRAGMA_DISABLE_CHECK_STACK_FRAME
+
 /** Open the configured number of dedicated undo tablespaces.
 @param[in]	create_new_undo	whether the undo tablespaces has to be created
 @param[in,out]	mtr		mini-transaction
@@ -940,6 +942,9 @@ dberr_t srv_undo_tablespaces_init(bool create_new_undo, mtr_t *mtr)
   return err;
 }
 
+PRAGMA_REENABLE_CHECK_STACK_FRAME
+
+
 /** Create the temporary file tablespace.
 @param[in]	create_new_db	whether we are creating a new database
 @return DB_SUCCESS or error code. */
@@ -974,7 +979,7 @@ srv_open_tmp_tablespace(bool create_new_db)
 		ib::error() << "Unable to create the shared innodb_temporary";
 	} else if (fil_system.temp_space->open(true)) {
 		/* Initialize the header page */
-		mtr_t mtr;
+		mtr_t mtr{nullptr};
 		mtr.start();
 		mtr.set_log_mode(MTR_LOG_NO_REDO);
 		err = fsp_header_init(fil_system.temp_space,
@@ -995,12 +1000,19 @@ srv_open_tmp_tablespace(bool create_new_db)
 	return(err);
 }
 
-/** Shutdown background threads, except the page cleaner. */
-static void srv_shutdown_threads()
+/** Shutdown background threads, except the page cleaner.
+@param init_abort set to true when InnoDB startup aborted */
+static void srv_shutdown_threads(bool init_abort= false)
 {
 	ut_ad(!srv_undo_sources);
 	srv_master_timer.reset();
-	srv_shutdown_state = SRV_SHUTDOWN_EXIT_THREADS;
+	/* In case of InnoDB start up aborted, Don't change
+	the srv_shutdown_state. Because innodb_shutdown()
+	does call innodb_preshutdown() which changes the
+	srv_shutdown_state back to SRV_SHUTDOWN_INITIATED */
+	if (!init_abort) {
+		srv_shutdown_state = SRV_SHUTDOWN_EXIT_THREADS;
+	}
 
 	if (purge_sys.enabled()) {
 		srv_purge_shutdown();
@@ -1070,14 +1082,14 @@ srv_init_abort_low(
 	}
 
 	srv_shutdown_bg_undo_sources();
-	srv_shutdown_threads();
+	srv_shutdown_threads(true);
 	return(err);
 }
 
 /** Prepare to delete the redo log file. Flush the dirty pages from all the
 buffer pools.  Flush the redo log buffer to the redo log file.
 @return lsn upto which data pages have been flushed. */
-ATTRIBUTE_COLD static lsn_t srv_prepare_to_delete_redo_log_file()
+ATTRIBUTE_COLD static lsn_t srv_prepare_to_delete_redo_log_file() noexcept
 {
   DBUG_ENTER("srv_prepare_to_delete_redo_log_file");
 
@@ -1091,7 +1103,7 @@ ATTRIBUTE_COLD static lsn_t srv_prepare_to_delete_redo_log_file()
 
   log_sys.latch.wr_lock(SRW_LOCK_CALL);
   const bool latest_format{log_sys.is_latest()};
-  lsn_t flushed_lsn{log_sys.get_lsn()};
+  lsn_t flushed_lsn{log_sys.get_flushed_lsn(std::memory_order_relaxed)};
 
   if (latest_format && !(log_sys.file_size & 4095) &&
       flushed_lsn != log_sys.next_checkpoint_lsn +
@@ -1099,6 +1111,11 @@ ATTRIBUTE_COLD static lsn_t srv_prepare_to_delete_redo_log_file()
        ? SIZE_OF_FILE_CHECKPOINT + 8
        : SIZE_OF_FILE_CHECKPOINT))
   {
+#ifdef HAVE_PMEM
+    if (!log_sys.is_opened())
+      log_sys.buf_size= unsigned(std::min<uint64_t>(log_sys.capacity(),
+                                                    log_sys.buf_size_max));
+#endif
     fil_names_clear(flushed_lsn);
     flushed_lsn= log_sys.get_lsn();
   }
@@ -1139,7 +1156,7 @@ same_size:
   if (latest_format)
     log_write_up_to(flushed_lsn, false);
 
-  ut_ad(flushed_lsn == log_sys.get_lsn());
+  ut_ad(flushed_lsn == log_get_lsn());
   ut_ad(!os_aio_pending_reads());
   ut_d(mysql_mutex_lock(&buf_pool.flush_list_mutex));
   ut_ad(!buf_pool.get_oldest_modification(0));
@@ -1196,7 +1213,7 @@ static dberr_t srv_log_rebuild_if_needed()
 
   if (log_sys.file_size == srv_log_file_size &&
       log_sys.format ==
-      (srv_encrypt_log ? log_t::FORMAT_ENC_10_8 : log_t::FORMAT_10_8))
+      (srv_encrypt_log ? log_t::FORMAT_ENC_11 : log_t::FORMAT_10_8))
   {
     /* No need to add or remove encryption, upgrade, or resize. */
     delete_log_files();
@@ -1223,13 +1240,67 @@ ATTRIBUTE_COLD static dberr_t ibuf_log_rebuild_if_needed()
   return err;
 }
 
+
+inline lsn_t log_t::init_lsn() noexcept
+{
+  latch.wr_lock(SRW_LOCK_CALL);
+  ut_ad(!write_lsn_offset);
+  write_lsn_offset= 0;
+  const lsn_t lsn{base_lsn.load(std::memory_order_relaxed)};
+  flushed_to_disk_lsn.store(lsn, std::memory_order_relaxed);
+  write_lsn= lsn;
+  latch.wr_unlock();
+  return lsn;
+}
+
+PRAGMA_DISABLE_CHECK_STACK_FRAME
+
+/** Load the dictionary tables */
+static dberr_t srv_load_tables(bool must_upgrade_ibuf) noexcept
+{
+  mem_heap_t *heap= mem_heap_create(1000);
+  mtr_t mtr{nullptr};
+  dict_sys.lock(SRW_LOCK_CALL);
+  dberr_t err = dict_load_indexes(&mtr, dict_sys.sys_tables, false, heap,
+                                  DICT_ERR_IGNORE_NONE);
+  mem_heap_empty(heap);
+  if ((err == DB_SUCCESS || srv_force_recovery >= SRV_FORCE_NO_DDL_UNDO) &&
+      UNIV_UNLIKELY(must_upgrade_ibuf))
+  {
+    dict_sys.unlock();
+    dict_load_tablespaces(nullptr, true);
+    err= ibuf_upgrade();
+    dict_sys.lock(SRW_LOCK_CALL);
+  }
+  if (err == DB_SUCCESS || srv_force_recovery >= SRV_FORCE_NO_DDL_UNDO)
+  {
+    err = dict_load_indexes(&mtr, dict_sys.sys_columns, false, heap,
+                            DICT_ERR_IGNORE_NONE);
+    mem_heap_empty(heap);
+  }
+  if (err == DB_SUCCESS || srv_force_recovery >= SRV_FORCE_NO_DDL_UNDO)
+  {
+    err = dict_load_indexes(&mtr, dict_sys.sys_indexes, false, heap,
+                            DICT_ERR_IGNORE_NONE);
+    mem_heap_empty(heap);
+  }
+  if (err == DB_SUCCESS || srv_force_recovery >= SRV_FORCE_NO_DDL_UNDO) {
+    err = dict_load_indexes(&mtr, dict_sys.sys_fields, false, heap,
+                            DICT_ERR_IGNORE_NONE);
+  }
+  mem_heap_free(heap);
+  dict_sys.unlock();
+  dict_sys.load_sys_tables();
+  return err;
+}
+
 /** Start InnoDB.
 @param[in]	create_new_db	whether to create a new database
 @return DB_SUCCESS or error code */
 dberr_t srv_start(bool create_new_db)
 {
 	dberr_t		err		= DB_SUCCESS;
-	mtr_t		mtr;
+	mtr_t		mtr{nullptr};
 
 	ut_ad(srv_operation <= SRV_OPERATION_RESTORE_EXPORT
 	      || srv_operation == SRV_OPERATION_RESTORE
@@ -1350,52 +1421,18 @@ dberr_t srv_start(bool create_new_db)
 	}
 
 	if (os_aio_init()) {
-		ib::error() << "Cannot initialize AIO sub-system";
-
 		return(srv_init_abort(DB_ERROR));
 	}
-
-#ifdef LINUX_NATIVE_AIO
-	if (srv_use_native_aio) {
-		ib::info() << "Using Linux native AIO";
-	}
-#endif
-#ifdef HAVE_URING
-	if (srv_use_native_aio) {
-		ib::info() << "Using liburing";
-	}
-#endif
 
 	fil_system.create(srv_file_per_table ? 50000 : 5000);
 
-	ib::info() << "Initializing buffer pool, total size = "
-		<< ib::bytes_iec{srv_buf_pool_size}
-		<< ", chunk size = " << ib::bytes_iec{srv_buf_pool_chunk_unit};
-
 	if (buf_pool.create()) {
-		ib::error() << "Cannot allocate memory for the buffer pool";
-
 		return(srv_init_abort(DB_ERROR));
 	}
 
-	ib::info() << "Completed initialization of buffer pool";
-
-#ifdef UNIV_DEBUG
-	/* We have observed deadlocks with a 5MB buffer pool but
-	the actual lower limit could very well be a little higher. */
-
-	if (srv_buf_pool_size <= 5 * 1024 * 1024) {
-
-		ib::info() << "Small buffer pool size ("
-			<< ib::bytes_iec{srv_buf_pool_size}
-			<< "), the flst_validate() debug function can cause a"
-			<< " deadlock if the buffer pool fills up.";
-	}
-#endif /* UNIV_DEBUG */
-
 	log_sys.create();
 	recv_sys.create();
-	lock_sys.create(srv_lock_table_size);
+	lock_sys.create(srv_lock_table_size = 5 * buf_pool.curr_size());
 
 	srv_startup_is_before_trx_rollback_phase = true;
 
@@ -1476,7 +1513,6 @@ dberr_t srv_start(bool create_new_db)
 
 
 	if (err == DB_SUCCESS) {
-		mtr_t mtr;
 		mtr.start();
 		err= srv_undo_tablespaces_init(create_new_db, &mtr);
 		mtr.commit();
@@ -1638,24 +1674,10 @@ dberr_t srv_start(bool create_new_db)
 			DBUG_PRINT("ib_log", ("apply completed"));
 
 			if (srv_operation != SRV_OPERATION_RESTORE) {
-				dict_sys.lock(SRW_LOCK_CALL);
-				dict_load_sys_table(dict_sys.sys_tables);
-				dict_sys.unlock();
-
-				if (UNIV_UNLIKELY(must_upgrade_ibuf)) {
-					dict_load_tablespaces(nullptr, true);
-					err = ibuf_upgrade();
-					if (err != DB_SUCCESS) {
-						return srv_init_abort(err);
-					}
+				err = srv_load_tables(must_upgrade_ibuf);
+				if (err != DB_SUCCESS) {
+					return srv_init_abort(err);
 				}
-
-				dict_sys.lock(SRW_LOCK_CALL);
-				dict_load_sys_table(dict_sys.sys_columns);
-				dict_load_sys_table(dict_sys.sys_indexes);
-				dict_load_sys_table(dict_sys.sys_fields);
-				dict_sys.unlock();
-				dict_sys.load_sys_tables();
 
 				err = trx_lists_init_at_db_start();
 				if (err != DB_SUCCESS) {
@@ -2009,6 +2031,8 @@ skip_monitors:
 
 	return(DB_SUCCESS);
 }
+
+PRAGMA_REENABLE_CHECK_STACK_FRAME
 
 /**
   Shutdown purge to make sure that there is no possibility that we call any

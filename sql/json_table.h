@@ -57,13 +57,16 @@ public:
   /*** Construction interface ***/
   Json_table_nested_path():
     m_null(TRUE), m_nested(NULL), m_next_nested(NULL)
-  {}
+  {
+    init_json_engine();
+  }
 
   int set_path(THD *thd, const LEX_CSTRING &path);
 
   /*** Methods for performing a scan ***/
   void scan_start(CHARSET_INFO *i_cs, const uchar *str, const uchar *end);
   int scan_next();
+  void init_json_engine();
   bool check_error(const char *str);
 
   /*** Members for getting the values we've scanned to ***/
@@ -167,6 +170,7 @@ public:
   {
     m_on_error.m_response= RESPONSE_NOT_SPECIFIED;
     m_on_empty.m_response= RESPONSE_NOT_SPECIFIED;
+    m_format_json= false;
   }
   int print(THD *tnd, Field **f, String *str);
 };
@@ -194,7 +198,7 @@ public:
   In the current MariaDB code, evaluation of JSON_TABLE is deterministic,
   that is, for a given input string JSON_TABLE will always produce the same
   set of rows in the same order.  However one can think of JSON documents
-  that one can consider indentical which will produce different output.
+  that one can consider identical which will produce different output.
   In order to be feature-proof and withstand changes like:
   - sorting JSON object members by name (like MySQL does)
   - changing the way duplicate object members are handled
@@ -218,8 +222,8 @@ public:
   /*** Name resolution functions ***/
   bool setup(THD *thd, TABLE_LIST *sql_table, SELECT_LEX *s_lex);
 
-  int walk_items(Item_processor processor, bool walk_subquery,
-                 void *argument);
+  int walk_items(Item_processor processor,
+                 void *argument, item_walk_flags flags);
 
   /*** Functions for interaction with the Query Optimizer ***/
   void fix_after_pullout(TABLE_LIST *sql_table,
@@ -274,7 +278,7 @@ private:
   /*
     Pointer to the list tail where we add the next NESTED PATH.
     It points to the cur_parnt->m_nested for the first nested
-    and prev_nested->m_next_nested for the coesequent ones.
+    and prev_nested->m_next_nested for the consequent ones.
   */
   Json_table_nested_path **last_sibling_hook;
 };
@@ -284,7 +288,7 @@ bool push_table_function_arg_context(LEX *lex, MEM_ROOT *alloc);
 TABLE *create_table_for_function(THD *thd, TABLE_LIST *sql_table);
 
 table_map add_table_function_dependencies(List<TABLE_LIST> *join_list,
-                                          table_map nest_tables);
+                                          table_map nest_tables, bool *error);
 
 #endif /* JSON_TABLE_INCLUDED */
 

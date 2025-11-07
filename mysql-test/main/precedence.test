@@ -1,5 +1,5 @@
 #
-# A fairly exhastive test for operator precedence
+# A fairly exhaustive test for operator precedence
 #
 
 disable_warnings;

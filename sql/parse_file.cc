@@ -175,7 +175,7 @@ write_parameter(IO_CACHE *file, const uchar* base, File_option *parameter)
     LEX_STRING *val_s= (LEX_STRING *)(base + parameter->offset);
     // number of microseconds since Epoch, timezone-independent
     my_hrtime_t tm= my_hrtime();
-    // Paded to 19 characters for compatibility
+    // Padded to 19 characters for compatibility
     val_s->length= snprintf(val_s->str, MICROSECOND_TIMESTAMP_BUFFER_SIZE,
                             "%019lld", tm.val);
     DBUG_ASSERT(val_s->length == MICROSECOND_TIMESTAMP_BUFFER_SIZE-1);
@@ -452,8 +452,6 @@ sql_parse_prepare(const LEX_CSTRING *file_name, MEM_ROOT *mem_root,
   {
     DBUG_RETURN(0);
   }
-
-  MSAN_STAT_WORKAROUND(&stat_info);
 
   if (stat_info.st_size > INT_MAX-1)
   {

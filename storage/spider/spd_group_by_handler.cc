@@ -631,7 +631,8 @@ bool spider_fields::has_conn_holder(
   DBUG_RETURN(first_conn_holder);
 }
 
-void spider_fields::clear_conn_holder_from_conn(
+/* Mark checked_for_same_conn to false for all conn holders */
+void spider_fields::clear_conn_holder_checked(
 ) {
   DBUG_ENTER("spider_fields::clear_conn_checked_for_same_conn");
   DBUG_PRINT("info",("spider this=%p", this));
@@ -643,6 +644,9 @@ void spider_fields::clear_conn_holder_from_conn(
   DBUG_VOID_RETURN;
 }
 
+/* Set current conn holder to be the first conn holder with a matching
+  conn and mark its checked_for_same_conn to be true. Return true if
+  one is found and vice versa. */
 bool spider_fields::check_conn_same_conn(
   SPIDER_CONN *conn_arg
 ) {
@@ -660,6 +664,7 @@ bool spider_fields::check_conn_same_conn(
   DBUG_RETURN(FALSE);
 }
 
+/* Remove all conn holders with false checked_for_same_conn */
 bool spider_fields::remove_conn_if_not_checked(
 ) {
   SPIDER_CONN_HOLDER *conn_holder;
@@ -1457,6 +1462,7 @@ group_by_handler *spider_create_group_by_handler(
     goto skip_free_table_holder;
   }
   memset(dbton_bitmap, 0, spider_bitmap_size(SPIDER_DBTON_SIZE));
+  /* Find all backends used by the first table. */
   for (roop_count = 0; roop_count < (int) share->use_dbton_count; ++roop_count)
   {
     dbton_id = share->use_sql_dbton_ids[roop_count];
@@ -1487,6 +1493,7 @@ group_by_handler *spider_create_group_by_handler(
       DBUG_PRINT("info",("spider can not add a table"));
       goto skip_free_table_holder;
     }
+    /* Find all backends used by the current table */
     memset(dbton_bitmap_tmp, 0, spider_bitmap_size(SPIDER_DBTON_SIZE));
     for (roop_count = 0; roop_count < (int) share->use_dbton_count; ++roop_count)
     {
@@ -1498,6 +1505,7 @@ group_by_handler *spider_create_group_by_handler(
         spider_set_bit(dbton_bitmap_tmp, dbton_id);
       }
     }
+    /* Intersect to get common backends used by all tables (so far) */
     for (roop_count = 0;
       roop_count < spider_bitmap_size(SPIDER_DBTON_SIZE); ++roop_count)
     {
@@ -1547,6 +1555,16 @@ group_by_handler *spider_create_group_by_handler(
         DBUG_PRINT("info",("spider select item=%p", item));
         if (item->const_item())
         {
+          /*
+            Do not create the GBH when a derived table or view is
+            involved
+          */
+          if (thd->derived_tables != NULL)
+          {
+            keep_going= FALSE;
+            break;
+          }
+
           /*
             Do not handle the complex case where there's a const item
             in the auxiliary fields. It is too unlikely (if at all) to
@@ -1730,7 +1748,7 @@ group_by_handler *spider_create_group_by_handler(
 
   while ((from = from->next_local))
   {
-    fields->clear_conn_holder_from_conn();
+    fields->clear_conn_holder_checked();
 
     if (from->table->part_info)
     {
@@ -1764,10 +1782,13 @@ group_by_handler *spider_create_group_by_handler(
       DBUG_PRINT("info",("spider conn=%p", conn));
       if (!fields->check_conn_same_conn(conn))
       {
-        DBUG_PRINT("info",("spider connection %p can not be used for this query with locking",
-          conn));
         if (lock_mode)
+        {
+          DBUG_PRINT("info", ("spider connection %p can not be used for this "
+                              "query with locking",
+                              conn));
           goto skip_free_fields;
+        }
         continue;
       }
       if (fields->add_link_idx(conn->conn_holder_for_direct_join, spider, roop_count))
@@ -1785,6 +1806,10 @@ group_by_handler *spider_create_group_by_handler(
         goto skip_free_fields;
       }
     }
+    /* Do not create if all conn holders have been removed. This
+      happens if the current table does not share usable conns with
+      the first table. One typical example is when the current table
+      is located on a different server from the first table. */
     if (!fields->has_conn_holder())
     {
       goto skip_free_fields;

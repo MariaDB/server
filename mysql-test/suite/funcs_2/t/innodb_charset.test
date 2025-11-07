@@ -6,7 +6,7 @@
 # Checking of other prerequisites is in charset_master.test                    #
 ################################################################################
 
---source include/no_valgrind_without_big.inc
+--source include/long_test.inc
 --source include/have_innodb.inc
 
 # Starting with MariaDB 10.6, ensure that DDL recovery will have completed

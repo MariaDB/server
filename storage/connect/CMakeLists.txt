@@ -46,7 +46,7 @@ user_connect.h valblk.h value.h xindex.h xobject.h xtable.h)
 #
 # Definitions that are shared for all OSes
 #
-add_definitions( -DMARIADB -DFORCE_INIT_OF_VARS -Dconnect_EXPORTS)
+add_definitions( -DMARIADB -Dconnect_EXPORTS)
 add_definitions( -DHUGE_SUPPORT -DGZ_SUPPORT )
 
 macro(DISABLE_WARNING W)
@@ -412,14 +412,16 @@ IF(NOT TARGET connect)
   RETURN()
 ENDIF()
 
-IF(MSVC AND (CMAKE_CXX_FLAGS MATCHES "/MP"))
+IF(CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
   # domdoc.cpp uses compiler directive #import which is not compatible
   # with the /MP option, resulting in  compiler error C2813.
   # Remove /MP for this file.
+  GET_TARGET_PROPERTY(CURRENT_COMPILE_OPTIONS connect COMPILE_OPTIONS)
+  LIST(REMOVE_ITEM CURRENT_COMPILE_OPTIONS "$<$<COMPILE_LANGUAGE:C,CXX>:/MP>")
+  SET_TARGET_PROPERTIES(connect PROPERTIES COMPILE_OPTIONS "${CURRENT_COMPILE_OPTIONS}")
   SET(src_list ${CONNECT_SOURCES})
   LIST(FIND src_list  domdoc.cpp idx)
   IF(idx GREATER -1)
-    STRING(REPLACE "/MP" "" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
     LIST(REMOVE_AT src_list ${idx})
     SET_SOURCE_FILES_PROPERTIES(${src_list} PROPERTIES COMPILE_FLAGS "/MP")
   ENDIF()

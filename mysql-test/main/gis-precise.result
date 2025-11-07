@@ -776,7 +776,7 @@ SELECT ST_DISTANCE_SPHERE(1, 1, NULL);
 ST_DISTANCE_SPHERE(1, 1, NULL)
 NULL
 SELECT ST_DISTANCE_SPHERE(ST_GEOMFROMTEXT('POINT(1 0)'), ST_GEOMFROMTEXT('LINESTRING(0 0, 1 1)')) as result;
-ERROR HY000: Internal error: st_distance_sphere
+ERROR HY000: Calling geometry function st_distance_sphere with unsupported types of arguments.
 # Test Points and radius
 SELECT ST_DISTANCE_SPHERE(ST_GEOMFROMTEXT('POINT(0 0)'), ST_GEOMFROMTEXT('POINT(1 1)')) as result;
 result
@@ -788,9 +788,9 @@ SELECT ST_DISTANCE_SPHERE(ST_GEOMFROMTEXT('POINT(0 0)'), ST_GEOMFROMTEXT('POINT(
 result
 0.024682056391766436
 SELECT ST_DISTANCE_SPHERE(ST_GEOMFROMTEXT('POINT(0 0)'), ST_GEOMFROMTEXT('POINT(1 1)'), 0) as result;
-ERROR HY000: Internal error: Radius must be greater than zero.
+ERROR HY000: Calling geometry function st_distance_sphere with unsupported types of arguments.
 SELECT ST_DISTANCE_SPHERE(ST_GEOMFROMTEXT('POINT(0 0)'), ST_GEOMFROMTEXT('POINT(1 1)'), -1) as result;
-ERROR HY000: Internal error: Radius must be greater than zero.
+ERROR HY000: Calling geometry function st_distance_sphere with unsupported types of arguments.
 # Test longitude/lattitude
 SELECT TRUNCATE(ST_DISTANCE_SPHERE(ST_GEOMFROMTEXT('POINT(0 1)'), ST_GEOMFROMTEXT('POINT(1 2)')), 10) as result;
 result
@@ -843,7 +843,7 @@ SELECT TRUNCATE(ST_DISTANCE_SPHERE(ST_GEOMFROMTEXT('MULTIPOINT(1 2,1 1 )'), ST_G
 result
 0.04933028646581131
 SELECT ST_DISTANCE_SPHERE(ST_GEOMFROMTEXT('MULTIPOINT(1 2,1 1 )'), ST_GEOMFROMTEXT('MULTIPOINT(8 9,3 4 )'),0) as result;
-ERROR HY000: Internal error: Radius must be greater than zero.
+ERROR HY000: Calling geometry function st_distance_sphere with unsupported types of arguments.
 set @pt1 = ST_GeomFromText('POINT(190 -30)');
 set @pt2 = ST_GeomFromText('POINT(-30  50)');
 SELECT ST_Distance_Sphere(@pt1, @pt2);
@@ -860,3 +860,11 @@ TRUNCATE(ST_Distance_Sphere(@zenica, @sarajevo), 10)
 SELECT TRUNCATE(ST_Distance_Sphere(@sarajevo, @zenica), 10);
 TRUNCATE(ST_Distance_Sphere(@sarajevo, @zenica), 10)
 55878.5933759170
+#
+# MDEV-31499 Assertion `(0)' failed in Gis_geometry_collection::init_from_opresult.
+#
+SELECT ST_NUMGEOMETRIES(
+ST_INTERSECTION(
+ST_MULTIPOLYGONFROMTEXT(' MULTIPOLYGON(((3.8571428571428568 2.857142857142857,5.571428571428571 4.571428571428571,9 4,3.8571428571428568 2.857142857142857)),((4.5 4.75,3 5,4.6 7.4,6 6,4.5 4.75))) '),                   ST_MULTIPOLYGONFROMTEXT(' MULTIPOLYGON(((3 4,3 5,2 5,2 7,5 4,3 4),(5 4,7.4 7,8 7,8 4,5 4))) ') )) as V;
+V
+3

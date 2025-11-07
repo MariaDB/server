@@ -469,6 +469,11 @@ int chk_key(HA_CHECK *param, register MI_INFO *info)
     if (chk_index(param,info,keyinfo,share->state.key_root[key],info->buff,
 		  &keys, param->key_crc+key,1))
       DBUG_RETURN(-1);
+    if ((param->testflag & T_WRITE_LOOP) && param->verbose)
+    {
+      puts("                                        \r");
+      fflush(stdout);
+    }
     if (keyinfo->key_alg <= HA_KEY_ALG_BTREE)
     {
       if (keys != info->state->records)
@@ -565,7 +570,8 @@ do_stat:
       puts("");
   }
   if (param->key_file_blocks != info->state->key_file_length &&
-      param->keys_in_use != ~(ulonglong) 0)
+      mi_is_all_keys_active(share->state.key_map, share->base.keys) &&
+      !full_text_keys)
     mi_check_print_warning(param, "Some data are unreferenced in keyfile");
   if (found_keys != full_text_keys)
     param->record_checksum=old_record_checksum-init_checksum;	/* Remove delete links */
@@ -870,6 +876,15 @@ static int chk_index(HA_CHECK *param, MI_INFO *info, MI_KEYDEF *keyinfo,
       goto err;
     }
     param->record_checksum+=(ha_checksum) record;
+    if ((param->testflag & T_WRITE_LOOP) && param->verbose &&
+        (*keys % WRITE_COUNT) == 0)
+    {
+      char llbuff[22];
+      ulonglong records= info->state->records;
+      printf("%15s (%3.4f%%)\r", llstr(*keys, llbuff),
+             ((double) *keys / (records > *keys ? records : *keys)) *100);
+      fflush(stdout);
+    }
   }
   if (keypos != endpos)
   {
@@ -1750,7 +1765,7 @@ err:
 }
 
 
-/* Uppate keyfile when doing repair */
+/* Update keyfile when doing repair */
 
 static int writekeys(MI_SORT_PARAM *sort_param)
 {
@@ -2976,7 +2991,7 @@ int mi_repair_parallel(HA_CHECK *param, register MI_INFO *info,
   if (sort_param[0].fix_datafile)
   {
     /*
-      Append some nuls to the end of a memory mapped file. Destroy the
+      Append some nulls to the end of a memory mapped file. Destroy the
       write cache. The master thread did already detach from the share
       by remove_io_thread() in sort.c:thr_find_all_keys().
     */
@@ -3874,6 +3889,7 @@ static int sort_key_write(MI_SORT_PARAM *sort_param, const void *a)
   {
     mi_check_print_error(param,
 			 "Internal error: Keys are not in order from sort");
+    DBUG_ASSERT(0);
     return(1);
   }
 #endif
@@ -4397,7 +4413,7 @@ int recreate_table(HA_CHECK *param, MI_INFO **org_info, char *filename)
 		my_errno);
     goto end;
   }
-  /* We are modifing */
+  /* We are modifying */
   (*org_info)->s->options&= ~HA_OPTION_READ_ONLY_DATA;
   (void) _mi_readinfo(*org_info,F_WRLCK,0);
   (*org_info)->state->records=info.state->records;

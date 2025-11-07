@@ -956,8 +956,9 @@ page_delete_rec_list_end(
       size+= s;
       n_recs++;
 
-      if (scrub)
-        mtr->memset(block, rec2 - page, rec_offs_data_size(offsets), 0);
+      if (UNIV_LIKELY(!scrub));
+      else if (size_t size= rec_offs_data_size(offsets))
+        mtr->memset(block, rec2 - page, size, 0);
 
       rec2= page_rec_get_next(rec2);
     }
@@ -1978,6 +1979,8 @@ func_exit:
 	return(ret);
 }
 
+PRAGMA_DISABLE_CHECK_STACK_FRAME
+
 /** Check the consistency of an index page.
 @param[in]	page	index page
 @param[in]	index	B-tree or R-tree index
@@ -2205,7 +2208,7 @@ wrong_page_type:
 			int	ret = cmp_rec_rec(
 				rec, old_rec, offsets, old_offsets, index);
 
-			/* For spatial index, on nonleaf leavel, we
+			/* For spatial index, on nonleaf level, we
 			allow recs to be equal. */
 			if (ret <= 0 && !(ret == 0 && index->is_spatial()
 					  && !page_is_leaf(page))) {
@@ -2413,6 +2416,8 @@ next_free:
 
 	return(ret);
 }
+
+PRAGMA_REENABLE_CHECK_STACK_FRAME
 
 /***************************************************************//**
 Looks in the page record list for a record with the given heap number.

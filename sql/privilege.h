@@ -213,7 +213,7 @@ static inline constexpr privilege_t operator|(privilege_t a, privilege_t b)
 }
 
 
-// Dyadyc bitwise assignment operators
+// Dyadic bitwise assignment operators
 static inline privilege_t& operator&=(privilege_t &a, privilege_t b)
 {
   return a= a & b;
@@ -331,6 +331,8 @@ constexpr privilege_t PRIV_DEFINER_CLAUSE= SET_USER_ACL;
   Was SUPER prior to 10.5.2
 */
 constexpr privilege_t PRIV_REVEAL_MISSING_DEFINER= SET_USER_ACL;
+
+constexpr privilege_t PRIV_SUDO_CHANGE_USER= SET_USER_ACL;
 
 /* Actions that require only the SUPER privilege */
 constexpr privilege_t PRIV_DES_DECRYPT_ONE_ARG= SUPER_ACL;

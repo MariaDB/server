@@ -1118,24 +1118,16 @@ t1	CREATE TABLE `t1` (
   `c` char(100) CHARACTER SET utf8mb3 COLLATE utf8mb3_unicode_nopad_ci DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 INSERT INTO t1 VALUES ('ss'),('ß');
-SET big_tables=0;
-Warnings:
-Warning	1287	'@@big_tables' is deprecated and will be removed in a future release
 SELECT DISTINCT c FROM t1;
 c
 ss
 ß
-SET big_tables=1;
-Warnings:
-Warning	1287	'@@big_tables' is deprecated and will be removed in a future release
+set statement tmp_memory_table_size=0 for
 SELECT DISTINCT c FROM t1;
 c
 ss
 ß
 DROP TABLE t1;
-SET big_tables=DEFAULT;
-Warnings:
-Warning	1287	'@@big_tables' is deprecated and will be removed in a future release
 SET default_storage_engine=MEMORY;
 #
 # MDEV-30048 Prefix keys for CHAR work differently for MyISAM vs InnoDB
@@ -1187,24 +1179,16 @@ t1	CREATE TABLE `t1` (
   `c` char(100) CHARACTER SET utf8mb3 COLLATE utf8mb3_unicode_nopad_ci DEFAULT NULL
 ) ENGINE=MEMORY DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 INSERT INTO t1 VALUES ('ss'),('ß');
-SET big_tables=0;
-Warnings:
-Warning	1287	'@@big_tables' is deprecated and will be removed in a future release
 SELECT DISTINCT c FROM t1;
 c
 ss
 ß
-SET big_tables=1;
-Warnings:
-Warning	1287	'@@big_tables' is deprecated and will be removed in a future release
+set statement tmp_memory_table_size=0 for
 SELECT DISTINCT c FROM t1;
 c
 ss
 ß
 DROP TABLE t1;
-SET big_tables=DEFAULT;
-Warnings:
-Warning	1287	'@@big_tables' is deprecated and will be removed in a future release
 SET default_storage_engine=DEFAULT;
 #
 # End of 10.4 tests

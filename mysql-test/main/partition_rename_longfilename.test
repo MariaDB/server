@@ -20,7 +20,7 @@ PARTITION BY RANGE (a)
  PARTITION `p1....................` VALUES LESS THAN (9),
  PARTITION p2 VALUES LESS THAN MAXVALUE);
 # partition p1 is 't1#P#p1' + @002e * 20 = 107 characters + file ending
-# total path lenght of './test/t1#P#p1@002e@002e<...>@002e.MY[ID]' is 118 chars
+# total path length of './test/t1#P#p1@002e@002e<...>@002e.MY[ID]' is 118 chars
 --echo # List of files in database `test`, all original t1-files here
 --list_files $MYSQLD_DATADIR/test t1*
 INSERT INTO t1 VALUES (1), (2), (3), (4), (5), (6), (7), (8), (9), (10);

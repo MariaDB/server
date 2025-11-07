@@ -50,7 +50,7 @@ PageBulk::init()
 	m_index->set_modified(m_mtr);
 
 	if (m_page_no == FIL_NULL) {
-		mtr_t	alloc_mtr;
+		mtr_t	alloc_mtr{m_mtr.trx};
 		dberr_t err= DB_SUCCESS;
 
 		/* We commit redo log for allocation by a separate mtr,
@@ -110,7 +110,7 @@ PageBulk::init()
 	m_page_zip = buf_block_get_page_zip(new_block);
 
 	if (!m_level && !m_index->is_primary()) {
-		page_update_max_trx_id(new_block, m_page_zip, m_trx_id,
+		page_update_max_trx_id(new_block, m_page_zip, m_mtr.trx->id,
 				       &m_mtr);
 	}
 
@@ -872,7 +872,7 @@ BtrBulk::pageSplit(
 	}
 
 	/* Initialize a new page */
-	PageBulk new_page_bulk(m_index, m_trx->id, FIL_NULL,
+	PageBulk new_page_bulk(m_index, m_trx, FIL_NULL,
 			       page_bulk->getLevel());
 	dberr_t	err = new_page_bulk.init();
 	if (err != DB_SUCCESS) {
@@ -1004,7 +1004,7 @@ BtrBulk::insert(
 	/* Check if we need to create a PageBulk for the level. */
 	if (level + 1 > m_page_bulks.size()) {
 		PageBulk*	new_page_bulk
-			= UT_NEW_NOKEY(PageBulk(m_index, m_trx->id, FIL_NULL,
+			= UT_NEW_NOKEY(PageBulk(m_index, m_trx, FIL_NULL,
 						level));
 		err = new_page_bulk->init();
 		if (err != DB_SUCCESS) {
@@ -1058,7 +1058,7 @@ BtrBulk::insert(
 	if (!page_bulk->isSpaceAvailable(rec_size)) {
 		/* Create a sibling page_bulk. */
 		PageBulk*	sibling_page_bulk;
-		sibling_page_bulk = UT_NEW_NOKEY(PageBulk(m_index, m_trx->id,
+		sibling_page_bulk = UT_NEW_NOKEY(PageBulk(m_index, m_trx,
 							  FIL_NULL, level));
 		err = sibling_page_bulk->init();
 		if (err != DB_SUCCESS) {
@@ -1169,9 +1169,9 @@ BtrBulk::finish(dberr_t	err)
 
 	if (err == DB_SUCCESS) {
 		rec_t*		first_rec;
-		mtr_t		mtr;
+		mtr_t		mtr{m_trx};
 		buf_block_t*	last_block;
-		PageBulk	root_page_bulk(m_index, m_trx->id,
+		PageBulk	root_page_bulk(m_index, m_trx,
 					       m_index->page, m_root_level);
 
 		mtr.start();
@@ -1214,6 +1214,6 @@ err_exit:
 	}
 
 	ut_ad(err != DB_SUCCESS
-	      || btr_validate_index(m_index, NULL) == DB_SUCCESS);
+	      || btr_validate_index(m_index, m_trx) == DB_SUCCESS);
 	return(err);
 }

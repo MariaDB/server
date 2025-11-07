@@ -609,7 +609,7 @@ int my_strnncollsp_tis620_nopad(CHARSET_INFO * cs __attribute__((unused)),
   return my_strnncoll_tis620(cs, a0, a_length, b0, b_length, FALSE);
 }
 /*
-  strnxfrm replacment, convert Thai string to sortable string
+  strnxfrm replacement, convert Thai string to sortable string
 
   Arg: Destination buffer, source string, dest length and source length
   Ret: Converted string size
@@ -897,7 +897,8 @@ static MY_COLLATION_HANDLER my_collation_ci_handler =
     my_min_str_8bit_simple,
     my_max_str_8bit_simple,
     my_ci_get_id_generic,
-    my_ci_get_collation_name_generic
+    my_ci_get_collation_name_generic,
+    my_ci_eq_collation_generic
 };
 
 static MY_COLLATION_HANDLER my_collation_nopad_ci_handler =
@@ -916,7 +917,8 @@ static MY_COLLATION_HANDLER my_collation_nopad_ci_handler =
     my_min_str_8bit_simple_nopad,
     my_max_str_8bit_simple,
     my_ci_get_id_generic,
-    my_ci_get_collation_name_generic
+    my_ci_get_collation_name_generic,
+    my_ci_eq_collation_generic
 };
 
 static MY_CHARSET_HANDLER my_charset_handler=

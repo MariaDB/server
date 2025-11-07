@@ -11,11 +11,11 @@
 # The test creates a table with no primary key definition and executes two
 # transactions (in node1) modifying separate rows in the table. In node2
 # first applier is paused before commit phase, and second transaction is
-# then submitted to see if it can interfere with the first transaciton.
+# then submitted to see if it can interfere with the first transaction.
 # The fix for MDEV-25551 has disabled parallel applying for tables with no PK,
-# and in the test applying of the send trasnaction should not even start, before
-# the fisrt trkansaction is released from the sync point.
-# The test also verifies that certification depedency status reflects the fact
+# and in the test applying of the send transaction should not even start, before
+# the first transaction is released from the sync point.
+# The test also verifies that certification dependency status reflects the fact
 # that the two transactions depend on each other.
 #
 # The test has two scenarios where both UPDATE and DELETE statements are verified
@@ -25,7 +25,6 @@
 --source include/galera_cluster.inc
 --source include/have_debug_sync.inc
 --source include/galera_have_debug_sync.inc
-
 
 # Setup
 
@@ -44,7 +43,7 @@ SET SESSION wsrep_sync_wait = 0;
 SET GLOBAL wsrep_slave_threads = 2;
 
 --echo ***************************************************************
---echo scenario 1,  conflicting UPDATE
+--echo scenario 1, conflicting UPDATE
 --echo ***************************************************************
 
 # Set up a synchronization point to catch the first transaction
@@ -99,9 +98,8 @@ COMMIT;
 --source include/galera_signal_sync_point.inc
 --source include/galera_clear_sync_point.inc
 
-
 --echo ***************************************************************
---echo scenario 2,  conflicting DELETE
+--echo scenario 2, conflicting DELETE
 --echo ***************************************************************
 
 # Set up a synchronization point to catch the first transaction
@@ -164,5 +162,6 @@ SET GLOBAL wsrep_slave_threads = DEFAULT;
 
 DROP TABLE t1;
 DROP TABLE t2;
+
 --connection node_2
 SET GLOBAL wsrep_slave_threads = DEFAULT;

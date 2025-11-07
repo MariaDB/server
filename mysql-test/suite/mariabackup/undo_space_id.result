@@ -7,7 +7,7 @@ INSERT INTO t1 VALUES(1);
 undo001
 undo002
 # xtrabackup prepare
-# Display undo log files from targer directory
+# Display undo log files from target directory
 undo001
 undo002
 DROP TABLE t1;

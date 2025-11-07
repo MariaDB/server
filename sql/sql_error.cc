@@ -329,18 +329,16 @@ Diagnostics_area::reset_diagnostics_area()
 #endif
   get_warning_info()->clear_error_condition();
   set_is_sent(false);
-  /** Tiny reset in debug mode to see garbage right away */
-  if (!is_bulk_op())
-    /*
-      For BULK DML operations (e.g. UPDATE) the data member m_status
-      has the value DA_OK_BULK. Keep this value in order to handle
-      m_affected_rows, m_statement_warn_count in correct way. Else,
-      the number of rows and the number of warnings affected by
-      the last statement executed as part of a trigger fired by the dml
-      (e.g. UPDATE statement fires a trigger on AFTER UPDATE) would counts
-      rows modified by trigger's statement.
-    */
-    m_status= DA_EMPTY;
+  /*
+    For BULK DML operations (e.g. UPDATE) the data member m_status
+    has the value DA_OK_BULK. Keep this value in order to handle
+    m_affected_rows, m_statement_warn_count in correct way. Else,
+    the number of rows and the number of warnings affected by
+    the last statement executed as part of a trigger fired by the dml
+    (e.g. UPDATE statement fires a trigger on AFTER UPDATE) would counts
+    rows modified by trigger's statement.
+  */
+  m_status= is_bulk_op() ? DA_OK_BULK : DA_EMPTY;
   DBUG_VOID_RETURN;
 }
 
@@ -362,7 +360,7 @@ Diagnostics_area::set_ok_status(ulonglong affected_rows,
     with an OK packet.
   */
   if (unlikely(is_error() || is_disabled()))
-    return;
+    DBUG_VOID_RETURN;
   /*
     When running a bulk operation, m_status will be DA_OK for the first
     operation and set to DA_OK_BULK for all following operations.
@@ -763,6 +761,7 @@ void push_warning(THD *thd, Sql_condition::enum_warning_level level,
   if (level == Sql_condition::WARN_LEVEL_ERROR)
     level= Sql_condition::WARN_LEVEL_WARN;
 
+  DBUG_ASSERT(strlen(msg));
   DBUG_ASSERT(msg[strlen(msg)-1] != '\n');
   (void) thd->raise_condition(code, "\0\0\0\0\0", level, msg);
 
@@ -785,22 +784,36 @@ void push_warning(THD *thd, Sql_condition::enum_warning_level level,
 */
 
 void push_warning_printf(THD *thd, Sql_condition::enum_warning_level level,
-			 uint code, const char *format, ...)
+                        uint code, const char *format, ...)
 {
   va_list args;
-  char    warning[MYSQL_ERRMSG_SIZE];
   DBUG_ENTER("push_warning_printf");
   DBUG_PRINT("enter",("warning: %u", code));
+
+  va_start(args,format);
+  push_warning_printf_va_list(thd, level,code, format, args);
+  va_end(args);
+  DBUG_VOID_RETURN;
+}
+
+
+/*
+  This is an overload of push_warning_printf() accepting va_list as a list
+  of format arguments.
+*/
+
+void push_warning_printf_va_list(THD *thd,
+                                 Sql_condition::enum_warning_level level,
+                                 uint code, const char *format, va_list args)
+{
+  char warning[MYSQL_ERRMSG_SIZE];
 
   DBUG_ASSERT(code != 0);
   DBUG_ASSERT(format != NULL);
 
-  va_start(args,format);
   my_vsnprintf_ex(&my_charset_utf8mb3_general_ci, warning,
                   sizeof(warning), format, args);
-  va_end(args);
   push_warning(thd, level, code, warning);
-  DBUG_VOID_RETURN;
 }
 
 
@@ -981,7 +994,7 @@ size_t err_conv(char *buff, uint to_length, const char *from,
 
    @param to          buffer to convert
    @param to_length   buffer length
-   @param to_cs       chraset to convert
+   @param to_cs       charset to convert
    @param from        string from convert
    @param from_length string length
    @param from_cs     charset from convert

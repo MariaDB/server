@@ -70,7 +70,6 @@ extern "C" unsigned char *mysql_net_store_length(unsigned char *packet, size_t l
 
 Rpl_filter *binlog_filter= 0;
 
-#define BIN_LOG_HEADER_SIZE	4
 #define PROBE_HEADER_LEN	(EVENT_LEN_OFFSET+4)
 
 /* Needed for Rpl_filter */
@@ -160,8 +159,14 @@ static Server_gtid_event_filter *server_id_gtid_filter= NULL;
 
 static char *start_datetime_str, *stop_datetime_str;
 static my_time_t start_datetime= 0, stop_datetime= 0;
-static my_time_t last_processed_datetime= MY_TIME_T_MAX;
 static bool stop_datetime_given= false;
+
+typedef struct _last_processed_ev_t
+{
+  ulonglong position;
+  my_time_t datetime;
+} last_processed_ev_t;
+static last_processed_ev_t last_processed_ev= {0, MY_TIME_T_MAX};
 
 static ulonglong rec_count= 0;
 static MYSQL* mysql = NULL;
@@ -1027,9 +1032,16 @@ Exit_status process_event(PRINT_EVENT_INFO *print_event_info, Log_event *ev,
         binlog, even if they have a server_id.  Also, we have to read
         the format_description event so that we can parse subsequent
         events.
+        Don't skip Unknown events either since we don't know their `server_id`s.
       */
-      if (ev_type != ROTATE_EVENT && is_server_id_excluded(ev->server_id))
-        goto end;
+      switch (ev_type) {
+      case ROTATE_EVENT:
+      case UNKNOWN_EVENT:
+        break;
+      default:
+        if (is_server_id_excluded(ev->server_id))
+          goto end;
+      }
     }
     if ((stop_datetime_given && ev->when >= stop_datetime)
         || (pos >= stop_position_mot))
@@ -1369,7 +1381,19 @@ err:
 end:
   rec_count++;
 end_skip_count:
-  last_processed_datetime= ev_when;
+  /*
+    Update the last_processed_ev, unless the event is a fake event (i.e. format
+    description (ev pointer is reset to 0) or rotate event (ev->when is 0)), or
+    the event is encrypted (i.e. type is Unknown).
+  */
+  if (ev &&
+      !(ev_type == UNKNOWN_EVENT &&
+        ((Unknown_log_event *) ev)->what == Unknown_log_event::ENCRYPTED) &&
+      !(ev_type == ROTATE_EVENT && !ev->when))
+  {
+    last_processed_ev.position= pos + ev->data_written;
+    last_processed_ev.datetime= ev_when;
+  }
 
   DBUG_PRINT("info", ("end event processing"));
   /*
@@ -2661,6 +2685,9 @@ static Exit_status handle_event_text_mode(PRINT_EVENT_INFO *print_event_info,
       if (old_off != BIN_LOG_HEADER_SIZE)
         *len= 1;         // fake event, don't increment old_off
     }
+    DBUG_ASSERT(old_off + ev->data_written == old_off + (*len - 1) ||
+                (*len == 1 &&
+                 (type == ROTATE_EVENT || type == FORMAT_DESCRIPTION_EVENT)));
     Exit_status retval= process_event(print_event_info, ev, old_off, logname);
     if (retval != OK_CONTINUE)
       DBUG_RETURN(retval);
@@ -3035,6 +3062,8 @@ static Exit_status check_header(IO_CACHE* file,
             the new one, so we should not do it ourselves in this
             case.
           */
+          DBUG_ASSERT(tmp_pos + new_description_event->data_written ==
+                      my_b_tell(file));
           Exit_status retval= process_event(print_event_info,
                                             new_description_event, tmp_pos,
                                             logname);
@@ -3188,20 +3217,17 @@ static Exit_status dump_local_log_entries(PRINT_EVENT_INFO *print_event_info,
       }
       // else read_error == 0 means EOF, that's OK, we break in this case
 
-      /*
-        Emit a warning in the event that we finished processing input
-        before reaching the boundary indicated by --stop-position.
-      */
-      if (((longlong)stop_position != stop_position_default) &&
-          stop_position > my_b_tell(file))
-      {
-          retval = OK_STOP;
-          warning("Did not reach stop position %llu before "
-                  "end of input", stop_position);
-      }
-
       goto end;
     }
+
+    /*
+      The real location that we have read up to in the file should align with
+      the size of the event, unless the event is encrypted.
+    */
+    DBUG_ASSERT(
+        ((ev->get_type_code() == UNKNOWN_EVENT &&
+          ((Unknown_log_event *) ev)->what == Unknown_log_event::ENCRYPTED)) ||
+        old_off + ev->data_written == my_b_tell(file));
     if ((retval= process_event(print_event_info, ev, old_off, logname)) !=
         OK_CONTINUE)
       goto end;
@@ -3380,9 +3406,20 @@ int main(int argc, char** argv)
     start_position= BIN_LOG_HEADER_SIZE;
   }
 
-  if (stop_datetime_given && stop_datetime > last_processed_datetime)
+  /*
+    Emit warning(s) (in Gtid_event_filter::verify_completed_state() for GTID(s))
+    if we finished processing input before reaching the stop
+    boundaries indicated by --stop-datetime or --stop-position.
+  */
+  if (stop_datetime_given && stop_datetime > last_processed_ev.datetime)
     warning("Did not reach stop datetime '%s' before end of input",
             stop_datetime_str);
+  if ((static_cast<longlong>(stop_position) != stop_position_default) &&
+      stop_position > last_processed_ev.position)
+    warning("Did not reach stop position %llu before end of input",
+            stop_position);
+  if (position_gtid_filter)
+    position_gtid_filter->verify_final_state();
 
   /*
     If enable flashback, need to print the events from the end to the

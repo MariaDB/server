@@ -1,0 +1,44 @@
+#
+# Test for MDEV-36554
+#
+
+--source include/galera_cluster.inc
+
+CALL mtr.add_suppression("Event .* Update_rows.* apply failed");
+CALL mtr.add_suppression("mariadbd: Can't find record in 't1'");
+CALL mtr.add_suppression("Failed to apply write set.*");
+CALL mtr.add_suppression("Inconsistency detected");
+
+--connection node_1
+CREATE TABLE t1 (f1 INTEGER);
+INSERT INTO t1 VALUES (1);
+
+--connection node_2
+SET SESSION wsrep_on = OFF;
+DELETE FROM t1;
+SET SESSION wsrep_on = ON;
+SET GLOBAL wsrep_applier_retry_count=1;
+
+--connection node_1
+UPDATE t1 SET f1 = f1 + 1;
+
+# restart node 2
+--connection node_2
+--echo Shutting down server ...
+SET wsrep_on=OFF;
+--source include/shutdown_mysqld.inc
+--source include/wait_until_disconnected.inc
+--remove_file $MYSQLTEST_VARDIR/mysqld.2/data/grastate.dat
+--echo Restarting server ...
+--source include/start_mysqld.inc
+
+# wait till node 2 is back in the cluster
+--connection node_1
+SET wsrep_sync_wait=0;
+--let $wait_condition = SELECT VARIABLE_VALUE = 2 FROM performance_schema.global_status WHERE VARIABLE_NAME = 'wsrep_cluster_size'
+--source include/wait_condition.inc
+
+# cleanup
+--connection node_1
+SET GLOBAL wsrep_applier_retry_count = 0;
+DROP TABLE t1;

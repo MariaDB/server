@@ -336,6 +336,7 @@ a
 connection master;
 drop procedure foo;
 connection slave;
+disconnect con1;
 connection master;
 drop function fn1;
 drop database mysqltest1;
@@ -1225,7 +1226,7 @@ End of 5.0 tests
 # drop the routine. Verify that this attempt 
 # blocks and waits for INSERT to complete. Commit and 
 # reap the chain of events. Master and slave must contain
-# identical data. Statements in the binrary log must be
+# identical data. Statements in the binary log must be
 # consistent with data in the table.
 #
 connection default;

@@ -921,6 +921,7 @@ insert t3 values (2);
 update t1 left join t3 on t1.id = t3.id set t1.v1 = 'hello';
 select * from t2;
 
+disconnect a;
 drop table t1,t2, t3;
 drop user foo;
 
@@ -1201,6 +1202,34 @@ select * from t1;
 drop table t1,t2,t3,t;
 
 --echo # End of 10.4 tests
+
+--echo #
+--echo # MDEV-31647 Stack looping and SIGSEGV in Item_args::walk_args on UPDATE
+--echo #
+--source include/have_innodb.inc
+create table t1 (c int, c2 int) engine=innodb;
+
+--error ER_INVALID_GROUP_FUNC_USE
+update t1 set c=0 where c=(
+  select 1 from (select 1 as v1) as v2
+  natural join t1) order by last_value (c2) over (order by c2);
+
+--error ER_INVALID_GROUP_FUNC_USE
+update t1 set c=0 where c=(
+  select 1 from (select 1 as v1) as v2
+  natural join t1) order by last_value (c2) over ();
+
+update t1 set c=0 where c=(
+  select 1 from (select 1 as v1) as v2
+  natural join t1) order by c2;
+
+select 1 from (select 1 as v1) as v2
+  natural join t1 order by last_value (c2) over (order by c2);
+
+
+drop table t1;
+
+--echo # End of 10.5 tests
 
 --echo #
 --echo # MDEV-31150: 2nd execution of multi-update with

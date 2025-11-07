@@ -21,6 +21,7 @@
 #include "sql_statistics.h"
 #include "rowid_filter.h"
 #include "optimizer_defaults.h"
+#include "opt_hints.h"
 
 static void get_sweep_read_cost(TABLE *table, ha_rows nrows, bool interrupted,
                                 Cost_estimate *cost);
@@ -163,7 +164,7 @@ handler::multi_range_read_info_const(uint keyno, RANGE_SEQ_IF *seq,
   */
   ulonglong single_point_ranges= 0;
   /*
-    The counter of of single point ranges that we succeded to assign
+    The counter of single point ranges that we succeded to assign
     to some blocks
   */
   ulonglong assigned_single_point_ranges= 0;
@@ -1148,7 +1149,9 @@ int DsMrr_impl::dsmrr_init(handler *h_arg, RANGE_SEQ_IF *seq_funcs,
   buf_manager.reset_buffer_sizes= do_nothing;
   buf_manager.redistribute_buffer_space= do_nothing;
 
-  if (mode & (HA_MRR_USE_DEFAULT_IMPL | HA_MRR_SORTED))
+  if (!hint_key_state(thd, table, h_arg->active_index,
+                MRR_HINT_ENUM, optimizer_flag(thd, OPTIMIZER_SWITCH_MRR)) ||
+      mode & (HA_MRR_USE_DEFAULT_IMPL | HA_MRR_SORTED))
     goto use_default_impl;
   
   /*
@@ -1420,7 +1423,7 @@ int DsMrr_impl::setup_two_handlers()
   {
     DBUG_ASSERT(secondary_file && secondary_file->inited==handler::INDEX);
     /* 
-      We get here when the access alternates betwen MRR scan(s) and non-MRR
+      We get here when the access alternates between MRR scan(s) and non-MRR
       scans.
 
       Calling primary_file->index_end() will invoke dsmrr_close() for this
@@ -1901,10 +1904,16 @@ bool DsMrr_impl::choose_mrr_impl(uint keyno, ha_rows rows, uint *flags,
   THD *thd= primary_file->get_table()->in_use;
   TABLE_SHARE *share= primary_file->get_table_share();
 
+  const bool mrr_on= hint_key_state(thd, table, keyno, MRR_HINT_ENUM,
+                                    optimizer_flag(thd, OPTIMIZER_SWITCH_MRR));
+  const bool force_dsmrr_by_hints=
+    hint_key_state(thd, table, keyno, MRR_HINT_ENUM, false) ||
+    hint_table_state(thd, table, BKA_HINT_ENUM, false);
+
   bool doing_cpk_scan= check_cpk_scan(thd, share, keyno, *flags); 
   bool using_cpk= primary_file->is_clustering_key(keyno);
   *flags &= ~HA_MRR_IMPLEMENTATION_FLAGS;
-  if (!optimizer_flag(thd, OPTIMIZER_SWITCH_MRR) ||
+  if (!(mrr_on || force_dsmrr_by_hints) ||
       *flags & HA_MRR_INDEX_ONLY ||
       (using_cpk && !doing_cpk_scan) || key_uses_partial_cols(share, keyno))
   {
@@ -1919,15 +1928,17 @@ bool DsMrr_impl::choose_mrr_impl(uint keyno, ha_rows rows, uint *flags,
                               &dsmrr_cost))
     return TRUE;
 
-  bool force_dsmrr;
   /* 
     If mrr_cost_based flag is not set, then set cost of DS-MRR to be minimum of
     DS-MRR and Default implementations cost. This allows one to force use of
     DS-MRR whenever it is applicable without affecting other cost-based
-    choices.
+    choices. Note that if MRR or BKA hint is
+    specified, DS-MRR will be used regardless of cost.
   */
-  if ((force_dsmrr= !optimizer_flag(thd, OPTIMIZER_SWITCH_MRR_COST_BASED)) &&
-      dsmrr_cost.total_cost() > cost->total_cost())
+  const bool force_dsmrr=
+    (force_dsmrr_by_hints ||
+     !optimizer_flag(thd, OPTIMIZER_SWITCH_MRR_COST_BASED));
+  if (force_dsmrr && dsmrr_cost.total_cost() > cost->total_cost())
     dsmrr_cost= *cost;
 
   if (force_dsmrr || dsmrr_cost.total_cost() <= cost->total_cost())

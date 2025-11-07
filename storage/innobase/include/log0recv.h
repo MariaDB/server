@@ -118,15 +118,17 @@ struct recv_dblwr_t
                         const fil_space_t *space= nullptr,
                         byte *tmp_buf= nullptr) const noexcept;
 
-  /** Find the doublewrite copy of an encrypted page with the
-  smallest FIL_PAGE_LSN that is large enough for recovery.
+  /** Find the doublewrite copy of an encrypted/page_compressed
+  page with the smallest FIL_PAGE_LSN that is large enough for
+  recovery.
   @param space    tablespace object
   @param page_no  page number to find
-  @param buf      buffer for unencrypted page
+  @param buf      buffer for unencrypted/uncompressed page
   @return buf
   @retval nullptr if the page was not found in doublewrite buffer */
-  byte *find_encrypted_page(const fil_node_t &space, uint32_t page_no,
-                            byte *buf) noexcept;
+  ATTRIBUTE_COLD byte *find_deferred_page(const fil_node_t &space,
+                                          uint32_t page_no,
+                                          byte *buf) noexcept;
 
   /** Restore the first page of the given tablespace from
   doublewrite buffer.
@@ -237,8 +239,12 @@ public:
   size_t len;
   /** start offset of non-parsed log records in log_sys.buf */
   size_t offset;
+  /** start offset of the currently parsed mini-transaction */
+  size_t start_offset;
   /** log sequence number of the first non-parsed record */
   lsn_t lsn;
+  /** log sequence number at the start of parse_tail() */
+  lsn_t start_lsn;
   /** log sequence number of the last parsed mini-transaction */
   lsn_t scanned_lsn;
   /** log sequence number at the end of the FILE_CHECKPOINT record, or 0 */
@@ -256,10 +262,17 @@ private:
   /** iterator to pages, used by parse() */
   map::iterator pages_it;
 
+  /** The allocated size of tmp_buf. The 1+8 extra bytes are
+  needed for FORMAT_ENC_11 in parse(). */
+  static constexpr size_t tmp_buf_size{MTR_SIZE_MAX + 9};
+  /** buffer for decrypting mini-transactions or handling non-contiguous
+  mini-transactions */
+  byte *tmp_buf;
+
   /** Process a record that indicates that a tablespace size is being shrunk.
   @param page_id first page that is not in the file
   @param lsn     log sequence number of the shrink operation */
-  inline void trim(const page_id_t page_id, lsn_t lsn);
+  ATTRIBUTE_COLD void trim(const page_id_t page_id, lsn_t lsn);
 
   /** Undo tablespaces for which truncate has been logged
   (indexed by page_id_t::space() - srv_undo_space_id_start) */
@@ -278,20 +291,23 @@ public:
   /** The contents of the doublewrite buffer */
   recv_dblwr_t dblwr;
 
-  __attribute__((warn_unused_result)) 
+  /** Free tmp_buf after the log will no longer be parsed. */
+  void tmp_free() noexcept;
+
+  __attribute__((warn_unused_result))
   inline dberr_t read(os_offset_t offset, span<byte> buf);
   inline size_t files_size();
   void close_files();
 
   /** Advance pages_it if it matches the iterator */
-  void pages_it_invalidate(const map::iterator &p)
+  void pages_it_invalidate(const map::iterator &p) noexcept
   {
     mysql_mutex_assert_owner(&mutex);
     if (pages_it == p)
       pages_it++;
   }
   /** Invalidate pages_it if it points to the given tablespace */
-  void pages_it_invalidate(uint32_t space_id)
+  void pages_it_invalidate(uint32_t space_id) noexcept
   {
     mysql_mutex_assert_owner(&mutex);
     if (pages_it != pages.end() && pages_it->first.space() == space_id)
@@ -305,6 +321,29 @@ public:
   bool check_sys_truncate();
 
 private:
+  /** In parse_tail<storing=NO>(), handle INIT_PAGE or FREE_PAGE
+  @param id        page that is being initialized or freed */
+  void parse_init(const page_id_t id) noexcept;
+
+  /** Handle WRITE to FSP_SPACE_SIZE and FSP_SPACE_FLAGS.
+  @param id       tablespace header page
+  @param b        log record snippet
+  @param size     whether FSP_SPACE_SIZE is being changed
+  @param flags    whether FSP_SPACE_FLAGS is being changed */
+  void parse_page0(const page_id_t id, const byte *b, bool size, bool flags)
+    noexcept;
+
+  /** @return whether parse_store() needs to be invoked
+  @param space_id  tablespace identifier */
+  bool parse_store_if_exists(uint32_t space_id) const noexcept;
+
+  /** Store a parsed log record.
+  @param id          page identifier
+  @param l           log record
+  @param size        size of the log record
+  @return whether we ran out of memory */
+  bool parse_store(const page_id_t id, const byte *l, size_t size) noexcept;
+
   /** Attempt to initialize a page based on redo log records.
   @param p        iterator
   @param mtr      mini-transaction
@@ -369,13 +408,10 @@ public:
 
   /** Register a redo log snippet for a page.
   @param it       page iterator
-  @param start_lsn start LSN of the mini-transaction
-  @param lsn      @see mtr_t::commit_lsn()
   @param l        redo log snippet
   @param len      length of l, in bytes
   @return whether we ran out of memory */
-  bool add(map::iterator it, lsn_t start_lsn, lsn_t lsn,
-           const byte *l, size_t len);
+  bool add(map::iterator it, const byte *l, size_t len);
 
   /** Parsing result */
   enum parse_mtr_result {
@@ -385,7 +421,7 @@ public:
     PREMATURE_EOF,
     /** the end of the log was reached */
     GOT_EOF,
-    /** parse<true>(l, false) ran out of memory */
+    /** parse<YES>(l, false) ran out of memory */
     GOT_OOM
   };
 
@@ -393,34 +429,59 @@ public:
   enum store{NO,BACKUP,YES};
 
 private:
-  /** Parse and register one log_t::FORMAT_10_8 mini-transaction.
+  /** Parse and register one mini-transaction.
+  @tparam source    type of log data source
   @tparam storing   whether to store the records
+  @tparam format    log record format (log_sys.format)
   @param  l         log data source
   @param  if_exists if store: whether to check if the tablespace exists */
-  template<typename source,store storing>
-  inline parse_mtr_result parse(source &l, bool if_exists) noexcept;
+  template<typename source,store storing,uint32_t format>
+  inline __attribute__((always_inline))
+  parse_mtr_result parse(source l, bool if_exists) noexcept;
 
-  /** Rewind a mini-transaction when parse() runs out of memory.
-  @param  l         log data source
-  @param  begin     start of the mini-transaction */
-  template<typename source>
-  ATTRIBUTE_COLD void rewind(source &l, source &begin) noexcept;
+  /** Report that multi-batch recovery is needed.
+  @retval GOT_OOM   always */
+  parse_mtr_result parse_oom() noexcept;
+
+  /** Parse and register one mini-transaction.
+  @tparam ENC_10_8    whether this in log_t::FORMAT_ENC_10_8
+  @tparam storing     whether to store the records
+  @param  begin       start of the mini-transaction
+  @param  if_exists   if store: whether to check if the tablespace exists
+  @param  size        size of the mini-transaction
+  @retval OK          on success
+  @retval GOT_EOF     on corruption
+  @retval GOT_OOM     if we ran out of memory for recv_sys.pages */
+  template<bool ENC_10_8,recv_sys_t::store storing>
+  parse_mtr_result parse_tail(const byte *begin, bool if_exists, size_t size)
+    noexcept;
+
+  /** Rewind a mini-transaction when parse_tail() runs out of memory.
+  @param  begin     start of the mini-transaction
+  @param  end       start of the first unprocessed record */
+  ATTRIBUTE_COLD void rewind(const byte *begin, const byte *end) noexcept;
 
   /** Report progress in terms of LSN or pages remaining */
   ATTRIBUTE_COLD void report_progress() const;
-public:
-  /** Parse and register one log_t::FORMAT_10_8 mini-transaction,
+  /** Parse and register a mini-transaction,
   without handling any log_sys.is_mmap() buffer wrap-around.
   @tparam storing   whether to store the records
+  @tparam format    log_sys.format
   @param  if_exists storing=YES: whether to check if the tablespace exists */
-  template<store storing>
-  static parse_mtr_result parse_mtr(bool if_exists) noexcept;
-  /** Parse and register one log_t::FORMAT_10_8 mini-transaction,
+  template<store storing,uint32_t format>
+  static parse_mtr_result parse_mtr(bool if_exists);
+public:
+  /** Parse and register a mini-transaction,
   handling log_sys.is_mmap() buffer wrap-around.
   @tparam storing   whether to store the records
+  @tparam format    log_sys.format
   @param  if_exists storing=YES: whether to check if the tablespace exists */
-  template<store storing>
-  static parse_mtr_result parse_mmap(bool if_exists) noexcept;
+  template<store storing,uint32_t format>
+  static parse_mtr_result parse_mmap(bool if_exists);
+  /** mini-transaction parser */
+  using parser= parse_mtr_result(*)(bool if_exists);
+  /** @return the parsing function for mariadb-backup --backup */
+  static parser get_backup_parser() noexcept;
 
   /** Erase log records for a page. */
   void erase(map::iterator p);
@@ -450,8 +511,9 @@ public:
 
   /** Flag data file corruption during recovery. */
   ATTRIBUTE_COLD void set_corrupt_fs() noexcept;
-  /** Flag log file corruption during recovery. */
-  ATTRIBUTE_COLD void set_corrupt_log() noexcept;
+  /** Flag log file corruption during recovery.
+  @retval GOT_EOF   always */
+  ATTRIBUTE_COLD parse_mtr_result set_corrupt_log() noexcept;
 
   /** @return whether data file corruption was found */
   bool is_corrupt_fs() const { return UNIV_UNLIKELY(found_corrupt_fs); }

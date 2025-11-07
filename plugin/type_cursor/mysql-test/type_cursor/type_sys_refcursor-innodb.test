@@ -1,0 +1,40 @@
+--source include/have_innodb.inc
+
+--echo #
+--echo # MDEV-20034 Add support for the pre-defined weak SYS_REFCURSOR
+--echo #
+
+SET default_storage_engine=InnoDB;
+--source type_sys_refcursor-select_for_update.inc
+SET default_storage_engine=DEFAULT;
+
+--echo #
+--echo # MDEV-36377 Assertion `thd->lex == sp_instr_lex' failed in LEX *sp_lex_instr::parse_expr(THD *, sp_head *, LEX *)
+--echo #
+
+--source include/have_innodb.inc
+CREATE TABLE t (a INT) ENGINE=INNODB;
+--delimiter $
+CREATE PROCEDURE p (OUT c sys_refcursor)
+BEGIN
+  OPEN c FOR SELECT a FROM t ;
+END;
+$
+--delimiter ;
+CREATE TEMPORARY TABLE t (c INT) ENGINE=INNODB;
+SET GLOBAL innodb_file_per_table=0;
+SET innodb_compression_default=ON;
+--error ER_BAD_FIELD_ERROR
+CALL p (@a);
+
+--error ER_CANT_CREATE_TABLE
+CREATE OR REPLACE TEMPORARY TABLE t (c INT) ENGINE=INNODB;
+PREPARE s FROM 'CALL p(?)';
+--error ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION
+EXECUTE s USING @a;
+CALL p(@a);
+--error ER_SP_WRONG_NO_OF_ARGS
+CALL p;
+DROP PROCEDURE p;
+DROP TABLE t;
+SET GLOBAL innodb_file_per_table=DEFAULT;

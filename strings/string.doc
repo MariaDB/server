@@ -29,7 +29,7 @@ Speciella användbara nya string-rutiner:
   unsigned is what you generally want.
 
   m_ctype.h
-  A better inplementation of the UNIX ctype(3) library.
+  A better implementation of the UNIX ctype(3) library.
   Notes:   global.h should be included before ctype.h
     - Se efter i filen \c\local\include\m_ctype.h
     - Används istället för ctype.h för att klara internationella karakterer.
@@ -45,7 +45,7 @@ Speciella användbara nya string-rutiner:
 
   strappend(dest, len, fill) appends fill-characters to a string so that
   the result length == len. If the string is longer than len it's
-  trunked. The des+len character is allways set to NULL.
+  trunked. The des+len character is always set to NULL.
 
   strcat(s, t) concatenates t on the end of s.  There  had  better  be
   enough  room  in  the  space s points to; strcat has no way to tell.
@@ -69,7 +69,7 @@ Speciella användbara nya string-rutiner:
   the end of strings.  It is redundant, because  strchr(s,'\0')  could
 
   strfill(dest, len, fill) makes a string of fill-characters. The result
-  string is of length == len. The des+len character is allways set to NULL.
+  string is of length == len. The des+len character is always set to NULL.
   strfill() returns pointer to dest+len;
 
   strfind(src, pat) looks for an instance of pat in src.  pat is not a

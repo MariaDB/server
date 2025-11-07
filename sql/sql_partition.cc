@@ -156,9 +156,8 @@ Item* convert_charset_partition_constant(Item *item, CHARSET_INFO *cs)
   @param name        String searched for
   @param list_names  A list of names searched in
 
-  @return True if if the name is in the list.
-    @retval true   String found
-    @retval false  String not found
+  @retval true   String found
+  @retval false  String not found
 */
 
 static bool is_name_in_list(const Lex_ident_partition &name,
@@ -831,8 +830,8 @@ static bool fix_fields_part_func(THD *thd, Item* func_expr, TABLE *table,
     goto end;
   table->get_fields_in_item_tree= true;
 
-  func_expr->walk(&Item::change_context_processor, 0,
-                  &lex.first_select_lex()->context);
+  func_expr->walk(&Item::change_context_processor,
+                  &lex.first_select_lex()->context, 0);
   thd->where= THD_WHERE::PARTITION_FUNCTION;
   /*
     In execution we must avoid the use of thd->change_item_tree since
@@ -857,7 +856,7 @@ static bool fix_fields_part_func(THD *thd, Item* func_expr, TABLE *table,
     thd->lex->allow_sum_func.clear_all();
 
     if (likely(!(error= func_expr->fix_fields_if_needed(thd, (Item**)&func_expr))))
-      func_expr->walk(&Item::post_fix_fields_part_expr_processor, 0, NULL);
+      func_expr->walk(&Item::post_fix_fields_part_expr_processor, 0, 0);
 
     /*
       Restore agg_field/agg_func  and allow_sum_func,
@@ -887,7 +886,7 @@ static bool fix_fields_part_func(THD *thd, Item* func_expr, TABLE *table,
     easier maintenance. This exception should be deprecated at some point
     in future so that we always throw an error.
   */
-  if (func_expr->walk(&Item::check_valid_arguments_processor, 0, NULL))
+  if (func_expr->walk(&Item::check_valid_arguments_processor, 0, 0))
   {
     if (is_create_table_ind)
     {
@@ -1909,7 +1908,7 @@ bool check_part_func_fields(Field **ptr, bool ok_with_charsets)
 NOTES
     This function is called as part of opening the table by opening the .frm
     file. It is a part of CREATE TABLE to do this so it is quite permissible
-    that errors due to erroneus syntax isn't found until we come here.
+    that errors due to erroneous syntax isn't found until we come here.
     If the user has used a non-existing field in the table is one such example
     of an error that is not discovered until here.
 */
@@ -2129,10 +2128,10 @@ static int add_keyword_string(String *str, const char *keyword,
 
 
 /**
-  @brief  Truncate the partition file name from a path it it exists.
+  @brief  Truncate the partition file name from a path it exists.
 
-  @note  A partition file name will contian one or more '#' characters.
-One of the occurances of '#' will be either "#P#" or "#p#" depending
+  @note  A partition file name will contain one or more '#' characters.
+One of the occurrences of '#' will be either "#P#" or "#p#" depending
 on whether the storage engine has converted the filename to lower case.
 */
 void truncate_partition_filename(char *path)
@@ -2456,7 +2455,7 @@ end:
 
 
 /**
-  Add 'KEY' word, with optional 'ALGORTIHM = N'.
+  Add 'KEY' word, with optional 'ALGORITHM = N'.
 
   @param str                    String to write to.
   @param part_info              partition_info holding the used key_algorithm
@@ -3404,7 +3403,7 @@ uint32 get_list_array_idx_for_endpoint(partition_info *part_info,
       '2000-00-00' can be compared to '2000-01-01' but TO_DAYS('2000-00-00')
       returns NULL which cannot be compared used <, >, <=, >= etc.
 
-      Otherwise, just return the the first index (lowest value).
+      Otherwise, just return the first index (lowest value).
     */
     enum_monotonicity_info monotonic;
     monotonic= part_info->part_expr->get_monotonicity_info();
@@ -4769,7 +4768,7 @@ bool set_part_state(Alter_info *alter_info, partition_info *tab_part_info,
 
   @retval FALSE if they are equal, otherwise TRUE.
 
-  @note Any differens that would cause a change in the frm file is prohibited.
+  @note Any differences that would cause a change in the frm file is prohibited.
   Such options as data_file_name, index_file_name, min_rows, max_rows etc. are
   not allowed to differ. But comment is allowed to differ.
 */
@@ -4860,6 +4859,21 @@ static void check_datadir_altered_for_innodb(THD *thd,
 }
 
 
+static bool check_name_in_fields(const Field * const *fields, Lex_ident_column &name)
+{
+  if (!fields)
+    return FALSE;
+
+  for (; *fields; fields++)
+  {
+    if ((*fields)->field_name.streq(name))
+      return TRUE;
+  }
+
+  return FALSE;
+}
+
+
 /*
   Prepare for ALTER TABLE of partition structure
 
@@ -4907,6 +4921,31 @@ uint prep_alter_part_table(THD *thd, TABLE *table, Alter_info *alter_info,
   {
     my_error(ER_PARTITION_MGMT_ON_NONPARTITIONED, MYF(0));
     DBUG_RETURN(TRUE);
+  }
+
+  if (table->part_info && alter_info->partition_flags == 0 &&
+      (alter_info->flags & ALTER_PARSER_DROP_COLUMN))
+  {
+    List_iterator<Alter_drop> drop_it(alter_info->drop_list);
+    Alter_drop *drop;
+
+    while ((drop= drop_it++))
+    {
+      if (drop->type != Alter_drop::COLUMN)
+        continue;
+
+      if (check_name_in_fields(table->part_info->part_field_array,
+                               drop->name) ||
+          check_name_in_fields(table->part_info->subpart_field_array,
+                               drop->name))
+      {
+        /*
+          The ALTER drops column used in partitioning expression.
+          That cannot be done INPLACE.
+        */
+        *partition_changed= TRUE;
+      }
+    }
   }
 
   partition_info *alt_part_info= thd->lex->part_info;
@@ -5125,7 +5164,7 @@ uint prep_alter_part_table(THD *thd, TABLE *table, Alter_info *alter_info,
           }
           /*
             Adding history partitions to non-history partitioning or
-            non-history parittions to history partitioning is prohibited.
+            non-history partitions to history partitioning is prohibited.
           */
           else if (thd->work_part_info->part_type == VERSIONING_PARTITION ||
                    tab_part_info->part_type == VERSIONING_PARTITION)
@@ -6746,7 +6785,7 @@ static bool write_log_rename_frm(ALTER_PARTITION_PARAM_TYPE *lpt)
     goto error;
   log_entry= part_info->list;
   part_info->main_entry= log_entry;
-  if (ddl_log_write_execute_entry(log_entry->entry_pos,
+  if (ddl_log_write_execute_entry(log_entry->entry_pos, 0,
                                   &exec_log_entry))
     goto error;
   release_part_info_log_entries(old_first_log_entry);
@@ -6802,7 +6841,7 @@ static bool write_log_drop_partition(ALTER_PARTITION_PARAM_TYPE *lpt)
     goto error;
   log_entry= part_info->list;
   part_info->main_entry= log_entry;
-  if (ddl_log_write_execute_entry(log_entry->entry_pos,
+  if (ddl_log_write_execute_entry(log_entry->entry_pos, 0,
                                   &exec_log_entry))
     goto error;
   release_part_info_log_entries(old_first_log_entry);
@@ -6836,7 +6875,7 @@ static bool write_log_convert_partition(ALTER_PARTITION_PARAM_TYPE *lpt)
   if (write_log_convert_partition(lpt, &next_entry, (const char*)path))
     goto error;
   DBUG_ASSERT(next_entry == part_info->list->entry_pos);
-  if (ddl_log_write_execute_entry(part_info->list->entry_pos,
+  if (ddl_log_write_execute_entry(part_info->list->entry_pos, 0,
                                   &part_info->execute_entry))
     goto error;
   mysql_mutex_unlock(&LOCK_gdl);
@@ -6892,7 +6931,7 @@ static bool write_log_add_change_partition(ALTER_PARTITION_PARAM_TYPE *lpt)
     goto error;
   log_entry= part_info->list;
 
-  if (ddl_log_write_execute_entry(log_entry->entry_pos,
+  if (ddl_log_write_execute_entry(log_entry->entry_pos, 0,
                                   &part_info->execute_entry))
     goto error;
   mysql_mutex_unlock(&LOCK_gdl);
@@ -6960,7 +6999,7 @@ static bool write_log_final_change_partition(ALTER_PARTITION_PARAM_TYPE *lpt)
   log_entry= part_info->list;
   part_info->main_entry= log_entry;
   /* Overwrite the revert execute log entry with this retry execute entry */
-  if (ddl_log_write_execute_entry(log_entry->entry_pos,
+  if (ddl_log_write_execute_entry(log_entry->entry_pos, 0,
                                   &exec_log_entry))
     goto error;
   release_part_info_log_entries(old_first_log_entry);
@@ -7623,7 +7662,7 @@ uint fast_alter_partition_table(THD *thd, TABLE *table,
         ERROR_INJECT("convert_partition_1") ||
         write_log_drop_shadow_frm(lpt) ||
         ERROR_INJECT("convert_partition_2") ||
-        mysql_write_frm(lpt, WFRM_WRITE_SHADOW) ||
+        mysql_write_frm(lpt, WFRM_WRITE_SHADOW|WFRM_ALTER_INFO_PREPARED) ||
         ERROR_INJECT("convert_partition_3") ||
         wait_while_table_is_used(thd, table, HA_EXTRA_NOT_USED) ||
         ERROR_INJECT("convert_partition_4") ||
@@ -7737,7 +7776,7 @@ uint fast_alter_partition_table(THD *thd, TABLE *table,
          can release all other locks on the table and since no one can open
          the table, there can be no new threads accessing the table. They
          will be hanging on this exclusive lock.
-      3) Write an entry to remove the new parttions if crash occurs
+      3) Write an entry to remove the new partitions if crash occurs
       4) Add the new partitions.
       5) Close all instances of the table and remove them from the table cache.
       6) Old place for write binlog

@@ -869,8 +869,7 @@ static int upgrade_already_done(int silent)
   s= strchr(version, '.');
   s= strchr(s + 1, '.');
 
-  if (strncmp(upgrade_from_version, version,
-              (size_t)(s - version + 1)))
+  if (strncmp(upgrade_from_version, version, (size_t)(s - version + 1)))
   {
     if (calc_server_version(upgrade_from_version) <= MYSQL_VERSION_ID)
     {
@@ -884,9 +883,14 @@ static int upgrade_already_done(int silent)
   }
   if (!silent)
   {
-    verbose("This installation of MariaDB is already upgraded to %s.\n"
-            "There is no need to run mariadb-upgrade again for %s.",
-            upgrade_from_version, version);
+    if (strcmp(upgrade_from_version, version))
+      verbose("This installation of MariaDB is already upgraded to %s.\n"
+              "There is no need to run mariadb-upgrade again for %s, because "
+              "they're both %.*s.",
+              upgrade_from_version, version, (int)(s - version), version);
+    else
+      verbose("This installation of MariaDB is already upgraded to %s.\n"
+              "There is no need to run mariadb-upgrade again.", version);
     if (!opt_check_upgrade)
       verbose("You can use --force if you still want to run mariadb-upgrade");
   }

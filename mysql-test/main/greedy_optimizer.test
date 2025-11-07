@@ -2,7 +2,7 @@
 
 #
 # A simple test of the greedy query optimization algorithm and the switches that
-# control the optimizationprocess.
+# controls the optimization process.
 #
 
 #
@@ -140,7 +140,7 @@ insert into t7 values (21,2,3,4,5,6);
 # The actual test begins here
 #
 
-# This value swithes back to the old implementation of 'find_best()'
+# This value switches back to the old implementation of 'find_best()'
 # set optimizer_search_depth=63; - old (independent of the optimizer_prune_level)
 #
 # These are the values for the parameters that control the greedy optimizer
@@ -729,7 +729,7 @@ WHERE x.k=t10.i
 --echo # plans without restricting 'optimizer_search_depth'.
 --echo # Fix problems like those reported as bug#41740 & bug#58225.
 --echo #
---echo # EPLAIN of queries using T1-T62 will timeout/hang wo/ fixes
+--echo # EXPLAIN of queries using T1-T62 will timeout/hang wo/ fixes
 --echo #
 
 DROP TABLE t10, t10000;

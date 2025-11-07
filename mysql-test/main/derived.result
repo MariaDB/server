@@ -1,4 +1,3 @@
-drop table if exists t1,t2,t3;
 ALTER DATABASE test CHARACTER SET latin1 COLLATE latin1_swedish_ci;
 set @save_derived_optimizer_switch=@@optimizer_switch;
 set optimizer_switch='derived_merge=off,derived_with_keys=off';
@@ -398,7 +397,6 @@ ID	DATA	FID
 select t2.* from (select * from t1) as A inner join t2 on A.ID = t2.FID;
 ID	DATA	FID
 drop table t1, t2;
-connection con1;
 disconnect con1;
 connection default;
 drop user mysqltest_1;
@@ -1384,6 +1382,152 @@ drop table t1,t2,t3;
 # End of 10.3 tests
 #
 #
+# MDEV-24588: Fix crash with unnamed column in derived table.
+# Assertion `item->name.str && item->name.str[0]` in
+# `TABLE_LIST::create_field_translation` fails when a SELECT
+# query includes a derived table containing unnamed column
+# (eg: `SELECT '' from t`).
+#
+# Tests from the bug report
+CREATE TABLE t (pk INT PRIMARY KEY);
+INSERT INTO t VALUES (1), (2), (3);
+SELECT SHA(pk) IN (SELECT * FROM (SELECT '' FROM t) AS a) FROM t;
+SHA(pk) IN (SELECT * FROM (SELECT '' FROM t) AS a)
+0
+0
+0
+SET sql_mode='';
+PREPARE p FROM 'SELECT SHA(pk) IN (SELECT * FROM (SELECT \'\' FROM t) AS a) FROM t;';
+EXECUTE p;
+SHA(pk) IN (SELECT * FROM (SELECT '' FROM t) AS a)
+0
+0
+0
+EXECUTE p;
+SHA(pk) IN (SELECT * FROM (SELECT '' FROM t) AS a)
+0
+0
+0
+DEALLOCATE PREPARE p;
+# Tests on derived tables
+SELECT * FROM (SELECT 1, '' FROM t) AS a;
+1	
+1	
+1	
+1	
+SELECT * FROM (SELECT '', 1 FROM t) AS a;
+	1
+	1
+	1
+	1
+SELECT * FROM (SELECT 1, 2, '' FROM t) AS a;
+1	2	
+1	2	
+1	2	
+1	2	
+SELECT * FROM (SELECT pk, '' FROM t) AS a;
+pk	
+1	
+2	
+3	
+SELECT '/', '/';
+/	/
+/	/
+SELECT * FROM (SELECT pk, '', '' as c1 FROM t) AS a;
+pk		c1
+1		
+2		
+3		
+SELECT * FROM (SELECT '', '' from t) AS a;
+ERROR 42S21: Duplicate column name ''
+SELECT * FROM (SELECT '/', '/' FROM t) AS a;
+ERROR 42S21: Duplicate column name '/'
+SELECT * FROM (SELECT '/', '/') AS a;
+ERROR 42S21: Duplicate column name '/'
+DROP TABLE t;
+# Tests on views
+CREATE TABLE t (pk INT PRIMARY KEY);
+INSERT INTO t VALUES (1), (2), (3);
+CREATE VIEW v_t AS SELECT * FROM t;
+SHOW CREATE VIEW v_t;
+View	Create View	character_set_client	collation_connection
+v_t	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v_t` AS select `t`.`pk` AS `pk` from `t`	latin1	latin1_swedish_ci
+SELECT SHA(pk) IN (SELECT * FROM (SELECT '' FROM v_t) AS a) FROM v_t;
+SHA(pk) IN (SELECT * FROM (SELECT '' FROM v_t) AS a)
+0
+0
+0
+SELECT * FROM (SELECT pk, '', '' as c1 FROM v_t) AS a;
+pk		c1
+1		
+2		
+3		
+SELECT * FROM (SELECT '', '' from v_t) AS a;
+ERROR 42S21: Duplicate column name ''
+SELECT * FROM (SELECT '/', '/' from v_t) AS a;
+ERROR 42S21: Duplicate column name '/'
+CREATE VIEW v1 AS SELECT '/', '/';
+SHOW CREATE VIEW v1;
+View	Create View	character_set_client	collation_connection
+v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select '/' AS `/`,'/' AS `My_exp_/`	latin1	latin1_swedish_ci
+DROP VIEW v_t, v1;
+DROP TABLE t;
+# Tests on views created using SELECT statements that contain derived columns
+CREATE TABLE t (pk INT PRIMARY KEY);
+INSERT INTO t VALUES (1), (2), (3);
+CREATE VIEW v1_t AS SELECT '' FROM t;
+SHOW CREATE VIEW v1_t;
+View	Create View	character_set_client	collation_connection
+v1_t	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1_t` AS select '' AS `Name_exp_1` from `t`	latin1	latin1_swedish_ci
+SELECT * FROM v1_t;
+Name_exp_1
+
+
+
+CREATE VIEW v2_t AS SELECT * FROM (SELECT '' FROM t) AS a;
+SHOW CREATE VIEW v2_t;
+View	Create View	character_set_client	collation_connection
+v2_t	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v2_t` AS select `tmp_field` AS `Name_exp_1` from (select '' from `t`) `a`	latin1	latin1_swedish_ci
+Warnings:
+Warning	1356	View 'test.v2_t' references invalid table(s) or column(s) or function(s) or definer/invoker of view lack rights to use them
+SELECT * FROM v2_t;
+ERROR HY000: View 'test.v2_t' references invalid table(s) or column(s) or function(s) or definer/invoker of view lack rights to use them
+CREATE VIEW v3_t AS SELECT * FROM (SELECT '' as c1 FROM t) AS a;
+SHOW CREATE VIEW v3_t;
+View	Create View	character_set_client	collation_connection
+v3_t	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v3_t` AS select `a`.`c1` AS `c1` from (select '' AS `c1` from `t`) `a`	latin1	latin1_swedish_ci
+SELECT * FROM v3_t;
+c1
+
+
+
+CREATE VIEW v4_t AS SELECT * FROM (SELECT 1, '' FROM t) AS a;
+SHOW CREATE VIEW v4_t;
+View	Create View	character_set_client	collation_connection
+v4_t	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v4_t` AS select `a`.`1` AS `1`,`tmp_field` AS `Name_exp_2` from (select 1 AS `1`,'' from `t`) `a`	latin1	latin1_swedish_ci
+Warnings:
+Warning	1356	View 'test.v4_t' references invalid table(s) or column(s) or function(s) or definer/invoker of view lack rights to use them
+SELECT * from v4_t;
+ERROR HY000: View 'test.v4_t' references invalid table(s) or column(s) or function(s) or definer/invoker of view lack rights to use them
+CREATE VIEW v5_t AS SELECT '';
+SHOW CREATE VIEW v5_t;
+View	Create View	character_set_client	collation_connection
+v5_t	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v5_t` AS select '' AS `Name_exp_1`	latin1	latin1_swedish_ci
+SELECT * FROM v5_t;
+Name_exp_1
+
+CREATE VIEW v6_t AS SELECT * FROM (SELECT '') AS a;
+SHOW CREATE VIEW v6_t;
+View	Create View	character_set_client	collation_connection
+v6_t	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v6_t` AS select `tmp_field` AS `Name_exp_1` from (select '') `a`	latin1	latin1_swedish_ci
+Warnings:
+Warning	1356	View 'test.v6_t' references invalid table(s) or column(s) or function(s) or definer/invoker of view lack rights to use them
+SELECT * FROM v6_t;
+ERROR HY000: View 'test.v6_t' references invalid table(s) or column(s) or function(s) or definer/invoker of view lack rights to use them
+DROP VIEW v1_t, v2_t, v3_t, v4_t, v5_t, v6_t;
+DROP TABLE t;
+# End of 10.11 tests
+#
 # Test of "Derived tables and union can now create distinct keys"
 #
 create table t1 (a int);
@@ -1507,25 +1651,19 @@ CREATE TABLE t1 (c CHAR(1) NULL) ENGINE=MyISAM;
 INSERT INTO t1 (c) VALUES (1);
 SET statement
 optimizer_where_cost=1,
-big_tables=1,
+tmp_memory_table_size=0,
 in_predicate_conversion_threshold=2
 FOR
 SELECT * FROM t1 WHERE c IN ('','');
 c
-Warnings:
-Warning	1287	'@@big_tables' is deprecated and will be removed in a future release
-Warning	1287	'@@big_tables' is deprecated and will be removed in a future release
 SET statement
 optimizer_where_cost=1,
-big_tables=1,
+tmp_memory_table_size=0,
 in_predicate_conversion_threshold=2,
 sql_mode=''
 FOR
 SELECT * FROM t1 WHERE c IN ('','');
 c
-Warnings:
-Warning	1287	'@@big_tables' is deprecated and will be removed in a future release
-Warning	1287	'@@big_tables' is deprecated and will be removed in a future release
 DROP TABLE t1;
 #
 # End of 11.0 tests
@@ -5214,5 +5352,121 @@ drop view v10, v20, v11, v21;
 drop table t10, t20, t30;
 #
 # End of 11.7 tests
+#
+#
+# MDEV-37044 derived_wth_keys optimization not applied where it should
+#
+# MI_MAX_KEY_LENGTH < key length < tmp_table_max_key_length()
+# must use <derived2>, <derived3> with ref access (not ALL)
+create table t1
+(
+`CTC_DATABASE` varchar(128) NOT NULL,
+`CTC_TABLE` varchar(256) DEFAULT NULL,
+`CTC_PARTITION` varchar(767) DEFAULT NULL
+) DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci;
+insert into t1
+select
+concat('db-', seq),
+concat('tbl-', seq),
+concat('part-', seq)
+from
+seq_1_to_100;
+explain select * from
+(select * from t1 limit 100) A,
+(select * from t1 limit 101) B
+where
+A.ctc_database=B.ctc_database and
+A.ctc_table=B.ctc_table and
+A.ctc_partition=B.ctc_partition;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	100	Using where
+1	PRIMARY	<derived3>	ref	key0	key0	1159	A.CTC_DATABASE,A.CTC_TABLE,A.CTC_PARTITION	10	
+3	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	100	
+2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	100	
+# key length > tmp_table_max_key_length()
+# This uses <derived2>, <derived3> with type=ALL as index on temp table
+# would be too long
+alter table t1 CONVERT TO CHARACTER SET utf8;
+explain select * from
+(select * from t1 limit 100) A,
+(select * from t1 limit 101) B
+where
+A.ctc_database=B.ctc_database and
+A.ctc_table=B.ctc_table and
+A.ctc_partition=B.ctc_partition;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	100	
+1	PRIMARY	<derived3>	ALL	NULL	NULL	NULL	NULL	100	Using where; Using join buffer (flat, BNL join)
+3	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	100	
+2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	100	
+drop table t1;
+# number of key parts > tmp_table_max_key_parts()
+# This uses <derived2>, <derived3> with type=ALL as index on temp table
+# would have too many parts
+create table t1
+(
+c0  varchar(10) NOT NULL,
+c1  varchar(10),
+c2  varchar(10),
+c3  varchar(10),
+c4  varchar(10),
+c5  varchar(10),
+c6  varchar(10),
+c7  varchar(10),
+c8  varchar(10),
+c9  varchar(10),
+c10  varchar(10),
+c11  varchar(10),
+c12  varchar(10),
+c13  varchar(10),
+c14  varchar(10),
+c15  varchar(10),
+c16  varchar(10),
+c17  varchar(10),
+c18  varchar(10),
+c19  varchar(10),
+c20  varchar(10),
+c21  varchar(10),
+c22  varchar(10),
+c23  varchar(10),
+c24  varchar(10),
+c25  varchar(10),
+c26  varchar(10),
+c27  varchar(10),
+c28  varchar(10),
+c29  varchar(10),
+c30  varchar(10),
+c31  varchar(10),
+c32  varchar(10),
+c33  varchar(10)
+);
+insert into t1
+select
+seq, seq, seq, seq, seq, seq, seq, seq, seq, seq, seq, seq, seq, seq, seq,
+seq, seq, seq, seq, seq, seq, seq, seq, seq, seq, seq, seq, seq, seq, seq,
+seq, seq, seq, seq
+from
+seq_1_to_100;
+explain select * from
+(select * from t1 limit 100) A,
+(select * from t1 limit 101) B
+where
+A.c0 = B.c0 and A.c1 = B.c1 and A.c2 = B.c2 and A.c3 = B.c3 and
+A.c4 = B.c4 and A.c5 = B.c5 and A.c6 = B.c6 and A.c7 = B.c7 and
+A.c8 = B.c8 and A.c9 = B.c9 and A.c10 = B.c10 and A.c11 = B.c11 and
+A.c12 = B.c12 and A.c13 = B.c13 and A.c14 = B.c14 and A.c15 = B.c15 and
+A.c16 = B.c16 and A.c17 = B.c17 and A.c18 = B.c18 and A.c19 = B.c19 and
+A.c20 = B.c20 and A.c21 = B.c21 and A.c22 = B.c22 and A.c23 = B.c23 and
+A.c24 = B.c24 and A.c25 = B.c25 and A.c26 = B.c26 and A.c27 = B.c27 and
+A.c28 = B.c28 and A.c29 = B.c29 and A.c30 = B.c30 and A.c31 = B.c31 and
+A.c32 = B.c32 and A.c33 = B.c33;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	100	
+1	PRIMARY	<derived3>	ALL	NULL	NULL	NULL	NULL	100	Using where; Using join buffer (flat, BNL join)
+3	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	100	
+2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	100	
+drop table t1;
+#
+# End of 12.0 tests
 #
 ALTER DATABASE test CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci;

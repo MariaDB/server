@@ -457,7 +457,7 @@ drop database world;
 #   IN_EXIST transformations are applied to both subqueries
 #   outer subquery is materialized while the inner subquery  is not
 #(IN_EXIST transformation is applied to it)
-#   inner subqyery is materialized while the outer subquery  is not (
+#   inner subquery is materialized while the outer subquery  is not (
 #IN_EXIST transformation is applied to it)
 
 set optimizer_switch=default;

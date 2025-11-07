@@ -19,7 +19,7 @@ this program; if not, write to the Free Software Foundation, Inc.,
 
 /**************************************************//**
 @file buf/buf0dblwr.cc
-Doublwrite buffer module
+Doublewrite buffer module
 
 Created 2011/12/19
 *******************************************************/
@@ -87,7 +87,7 @@ bool buf_dblwr_t::create() noexcept
   if (is_created())
     return true;
 
-  mtr_t mtr;
+  mtr_t mtr{nullptr};
   const ulint size= block_size;
 
 start_again:
@@ -366,7 +366,7 @@ void buf_dblwr_t::recover() noexcept
   ut_ad(log_sys.last_checkpoint_lsn);
   if (!is_created())
     return;
-  const lsn_t max_lsn{log_sys.get_lsn()};
+  const lsn_t max_lsn{log_sys.get_flushed_lsn(std::memory_order_relaxed)};
   ut_ad(recv_sys.scanned_lsn == max_lsn);
   ut_ad(recv_sys.scanned_lsn >= recv_sys.lsn);
 
@@ -375,7 +375,7 @@ void buf_dblwr_t::recover() noexcept
                                                     srv_page_size));
   byte *const buf= read_buf + srv_page_size;
 
-  std::deque<byte*> encrypted_pages;
+  std::deque<byte*> deferred_pages;
   for (recv_dblwr_t::list::iterator i= recv_sys.dblwr.pages.begin();
        i != recv_sys.dblwr.pages.end(); ++i, ++page_no_dblwr)
   {
@@ -394,11 +394,12 @@ void buf_dblwr_t::recover() noexcept
     {
       /* These pages does not appear to belong to any tablespace.
       There is a possibility that this page could be
-      encrypted using full_crc32 format. If innodb encounters
-      any corrupted encrypted page during recovery then
-      InnoDB should use this page to find the valid page.
-      See find_encrypted_page() */
-      encrypted_pages.push_back(*i);
+      encrypted/compressed using full_crc32 format.
+      If innodb encounters any corrupted encrypted/compressed
+      page during recovery then InnoDB should use this page to
+      find the valid page.
+      See find_encrypted_page()/find_page_compressed() */
+      deferred_pages.push_back(*i);
       continue;
     }
 
@@ -479,7 +480,7 @@ next_page:
   }
 
   recv_sys.dblwr.pages.clear();
-  for (byte *page : encrypted_pages)
+  for (byte *page : deferred_pages)
     recv_sys.dblwr.pages.push_back(page);
   fil_flush_file_spaces();
   aligned_free(read_buf);
@@ -599,20 +600,67 @@ static void buf_dblwr_check_block(const buf_page_t *bpage) noexcept
 }
 #endif /* UNIV_DEBUG */
 
+ATTRIBUTE_COLD void buf_dblwr_t::print_info() const noexcept
+{
+  mysql_mutex_assert_owner(&mutex);
+  const slot *flush_slot= active_slot == &slots[0] ? &slots[1] : &slots[0];
+
+  sql_print_information("InnoDB: Double Write State\n"
+      "-------------------\n"
+      "Batch running : %s\n"
+      "Active Slot - first_free: %zu reserved:  %zu\n"
+      "Flush Slot  - first_free: %zu reserved:  %zu\n"
+      "-------------------",
+      (batch_running ? "true" : "false"),
+      active_slot->first_free, active_slot->reserved,
+      flush_slot->first_free, flush_slot->reserved);
+}
+
 bool buf_dblwr_t::flush_buffered_writes(const ulint size) noexcept
 {
   mysql_mutex_assert_owner(&mutex);
   ut_ad(size == block_size);
 
-  for (;;)
+  const size_t max_count= 60 * 60;
+  const size_t first_log_count= 30;
+  const size_t fatal_threshold=
+      static_cast<size_t>(srv_fatal_semaphore_wait_threshold);
+  size_t log_count= first_log_count;
+
+  for (size_t count= 0;;)
   {
     if (!active_slot->first_free)
       return false;
     if (!batch_running)
       break;
-    my_cond_wait(&cond, &mutex.m_mutex);
-  }
 
+    timespec abstime;
+    set_timespec(abstime, 1);
+    my_cond_timedwait(&cond, &mutex.m_mutex, &abstime);
+
+    if (count > fatal_threshold)
+    {
+      buf_pool.print_flush_info();
+      print_info();
+      ib::fatal() << "InnoDB: Long wait (" << count
+                  << " seconds) for double-write buffer flush.";
+    }
+    else if (++count < first_log_count && !(count % 5))
+    {
+      sql_print_information("InnoDB: Long wait (%zu seconds) for double-write"
+                            " buffer flush.", count);
+      buf_pool.print_flush_info();
+      print_info();
+    }
+    else if (!(count % log_count))
+    {
+      sql_print_warning("InnoDB: Long wait (%zu seconds) for double-write"
+                        " buffer flush.", count);
+      buf_pool.print_flush_info();
+      print_info();
+      log_count= log_count >= max_count ? max_count : log_count * 2;
+    }
+  }
   ut_ad(active_slot->reserved == active_slot->first_free);
   ut_ad(!flushing_buffered_writes);
 
@@ -737,6 +785,9 @@ void buf_dblwr_t::flush_buffered_writes_completed(const IORequest &request)
     ut_ad(lsn);
     ut_ad(lsn >= bpage->oldest_modification());
     log_write_up_to(lsn, true);
+    ut_ad(!e.request.node->space->full_crc32() ||
+          !buf_page_is_corrupted(true, static_cast<const byte*>(frame),
+                                 e.request.node->space->flags));
     e.request.node->space->io(e.request, bpage->physical_offset(), e_size,
                               frame, bpage);
   }

@@ -60,6 +60,8 @@ const char *trim_dotslash(const char *path);
 bool backup_files_from_datadir(ds_ctxt_t *ds_data,
                                const char *dir_path,
                                const char *prefix);
+bool backup_mroonga_files_from_datadir(ds_ctxt_t *ds_data,
+                                       const char *dir_path);
 
 bool is_system_table(const char *dbname, const char *tablename);
 std::unique_ptr<std::vector<std::string>>

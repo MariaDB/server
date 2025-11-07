@@ -1,0 +1,125 @@
+#
+# MDEV-20022 sql_mode="oracle" does not support TO_NUMBER() function
+#
+SET debug_dbug='+d,numconv_format';
+SELECT to_number('', '9') AS c;
+c
+0
+Warnings:
+Note	1105	A='9'
+SELECT to_number('', '0') AS c;
+c
+0
+Warnings:
+Note	1105	A='0'
+SELECT to_number('', '9.9') AS c;
+c
+0
+Warnings:
+Note	1105	A='9[.]9'
+SELECT to_number('', '0.0') AS c;
+c
+0
+Warnings:
+Note	1105	A='0[.]0'
+SELECT to_number('', '.9') AS c;
+c
+0
+Warnings:
+Note	1105	A='[.]9'
+SELECT to_number('', '.0') AS c;
+c
+0
+Warnings:
+Note	1105	A='[.]0'
+SELECT to_number('', '9$9') AS c;
+c
+0
+Warnings:
+Note	1105	A='9$9'
+SELECT to_number('', '0$0') AS c;
+c
+0
+Warnings:
+Note	1105	A='0$0'
+SELECT to_number('', '9B9') AS c;
+c
+0
+Warnings:
+Note	1105	A='9B9'
+SELECT to_number('', '0B0') AS c;
+c
+0
+Warnings:
+Note	1105	A='0B0'
+SELECT to_number('', '9.9$') AS c;
+c
+0
+Warnings:
+Note	1105	A='9[.]9$'
+SELECT to_number('', '9.9B') AS c;
+c
+0
+Warnings:
+Note	1105	A='9[.]9B'
+SELECT to_number('', '9C9') AS c;
+ERROR 42000: This version of MariaDB doesn't yet support '<number format>='9C9''
+SHOW WARNINGS;
+Level	Code	Message
+Note	1105	A='9[C]9'
+Error	1235	This version of MariaDB doesn't yet support '<number format>='9C9''
+SELECT to_number('', '9.9C') AS c;
+ERROR 42000: This version of MariaDB doesn't yet support '<number format>='9.9C''
+SHOW WARNINGS;
+Level	Code	Message
+Note	1105	A='9[.]9'RC='C'
+Error	1235	This version of MariaDB doesn't yet support '<number format>='9.9C''
+SELECT to_number('', '$9') AS c;
+c
+0
+Warnings:
+Note	1105	CFl='$'A='9'
+SELECT to_number('', '$0') AS c;
+c
+0
+Warnings:
+Note	1105	CFl='$'A='0'
+SELECT to_number('', 'B9') AS c;
+c
+0
+Warnings:
+Note	1105	CFl='B'A='9'
+SELECT to_number('', 'B0') AS c;
+c
+0
+Warnings:
+Note	1105	CFl='B'A='0'
+SELECT to_number('', 'C9') AS c;
+ERROR 42000: This version of MariaDB doesn't yet support '<number format>='C9''
+SHOW WARNINGS;
+Level	Code	Message
+Note	1105	LC='C'A='9'
+Error	1235	This version of MariaDB doesn't yet support '<number format>='C9''
+SELECT to_number('', 'L0') AS c;
+ERROR 42000: This version of MariaDB doesn't yet support '<number format>='L0''
+SHOW WARNINGS;
+Level	Code	Message
+Note	1105	LC='L'A='0'
+Error	1235	This version of MariaDB doesn't yet support '<number format>='L0''
+SELECT to_number('', '9PR') AS c;
+c
+0
+Warnings:
+Note	1105	A='9'RS='PR'
+SELECT to_number('', 'FMS9') AS c;
+c
+0
+Warnings:
+Note	1105	FFl='FM'LS='S'A='9'
+SELECT to_number('', 'FMTM') AS c;
+ERROR 42000: This version of MariaDB doesn't yet support '<number format>='FMTM''
+SHOW WARNINGS;
+Level	Code	Message
+Note	1105	FFl='FM'A=''TM='TM'
+Error	1235	This version of MariaDB doesn't yet support '<number format>='FMTM''
+SET debug_dbug=DEFAULT;

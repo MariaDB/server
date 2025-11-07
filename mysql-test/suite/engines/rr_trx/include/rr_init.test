@@ -21,7 +21,7 @@ SHOW VARIABLES LIKE 'transaction_isolation';
 #
 # Create table for keeping track of test metadata/statistics (counters etc.).
 # (Need a data structure that will hold across tests, clients, sessions).
-# Expand/modify if needeed, but take care of test files using it.
+# Expand/modify if needed, but take care of test files using it.
 #
 # Columns:
 #   deadlocks - keeps track of the total number of deadlocks so far.
@@ -72,7 +72,7 @@ CREATE TABLE t1 (
 # Check that the table was really created with the intended storage engine.
 SHOW CREATE TABLE t1;
 
-## Procedure for inserting the value 1000 into integer fieds, "rows" times.
+## Procedure for inserting the value 1000 into integer fields, "rows" times.
 
 --delimiter //
 

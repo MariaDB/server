@@ -1919,7 +1919,7 @@ SELECT SUBSTRING(a,1,10), LENGTH(a), GROUP_CONCAT(b) FROM t1 GROUP BY a;
 SUBSTRING(a,1,10)	LENGTH(a)	GROUP_CONCAT(b)
 1111111111	1300	one,two
 Warnings:
-Warning	4203	2 values were longer than max_sort_length. Sorting used only the first 1024 bytes
+Warning	4202	2 values were longer than max_sort_length. Sorting used only the first 1024 bytes
 EXPLAIN 
 SELECT SUBSTRING(a,1,10), LENGTH(a) FROM t1 GROUP BY a;
 id	1
@@ -1936,7 +1936,7 @@ SELECT SUBSTRING(a,1,10), LENGTH(a) FROM t1 GROUP BY a;
 SUBSTRING(a,1,10)	LENGTH(a)
 1111111111	1300
 Warnings:
-Warning	4203	1 values were longer than max_sort_length. Sorting used only the first 1024 bytes
+Warning	4202	1 values were longer than max_sort_length. Sorting used only the first 1024 bytes
 DROP TABLE t1;
 #
 # Bug#57688 Assertion `!table || (!table->write_set || bitmap_is_set(table->write_set, field
@@ -2733,7 +2733,7 @@ f1	f2
 	NULL
 NULL	NULL
 Warnings:
-Warning	4203	116 values were longer than max_sort_length. Sorting used only the first 1024 bytes
+Warning	4202	116 values were longer than max_sort_length. Sorting used only the first 1024 bytes
 SET @@sort_buffer_size = @old_sort_buff_size;
 DROP TABLE t1;
 #
@@ -3015,6 +3015,80 @@ ERROR 42S22: Unknown column 'c' in 'SET'
 UPDATE t1 SET c=1 ORDER BY (SELECT c);
 ERROR 42S22: Unknown column 'c' in 'SET'
 DROP TABLE t1;
+#
+# MDEV-35238: Wrong results from a tables with a single record and an aggregate
+#
+CREATE OR REPLACE TABLE t1 (a int) ENGINE=myisam;
+SELECT 1+0, min(1) FROM t1 WHERE if(uuid_short(), a,1);
+1+0	min(1)
+1	NULL
+explain format=json SELECT 1+0, min(1) FROM t1 WHERE if(uuid_short(), a,1);
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "message": "Impossible WHERE noticed after reading const tables"
+    }
+  }
+}
+INSERT INTO t1 VALUES (NULL);
+SELECT 1+0, min(1) FROM t1 WHERE if(uuid_short(), a,1);
+1+0	min(1)
+1	NULL
+explain format=json SELECT 1+0, min(1) FROM t1 WHERE if(uuid_short(), a,1);
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "pseudo_bits_condition": "if(uuid_short(),NULL,1)",
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "system",
+          "rows": 1,
+          "filtered": 100
+        }
+      }
+    ]
+  }
+}
+DROP TABLE t1;
+CREATE TABLE t1 (a int PRIMARY KEY) ENGINE=myisam;
+INSERT INTO t1 VALUES (1);
+CREATE TABLE t2 (a int NOT NULL) ENGINE=myisam;
+INSERT INTO t2 VALUES (10);
+SELECT 1+0, MIN(t1.a) FROM t1,t2 WHERE t2.a = rand();
+1+0	MIN(t1.a)
+1	1
+explain format=json SELECT 1+0, MIN(t1.a) FROM t1,t2 WHERE t2.a = rand();
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "pseudo_bits_condition": "10 = rand()",
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "system",
+          "rows": 1,
+          "filtered": 100
+        }
+      },
+      {
+        "table": {
+          "table_name": "t2",
+          "access_type": "system",
+          "rows": 1,
+          "filtered": 100
+        }
+      }
+    ]
+  }
+}
+DROP TABLE t1,t2;
 #
 # End of 10.5 tests
 #

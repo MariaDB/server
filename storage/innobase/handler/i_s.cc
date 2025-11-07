@@ -273,6 +273,8 @@ static const LEX_CSTRING isolation_level_values[] =
 
 static TypelibBuffer<4> isolation_level_values_typelib(isolation_level_values);
 
+PRAGMA_DISABLE_CHECK_STACK_FRAME
+
 namespace Show {
 
 /* Fields of the dynamic table INFORMATION_SCHEMA.innodb_trx */
@@ -986,7 +988,7 @@ i_s_cmp_fill_low(
 		mutex.  Thus, some operation in page0zip.cc could
 		increment a counter between the time we read it and
 		clear it.  We could introduce mutex protection, but it
-		could cause a measureable performance hit in
+		could cause a measurable performance hit in
 		page0zip.cc. */
 		table->field[1]->store(zip_stat->compressed, true);
 		table->field[2]->store(zip_stat->compressed_ok, true);
@@ -1150,6 +1152,7 @@ struct st_maria_plugin	i_s_innodb_cmp_reset =
 	MariaDB_PLUGIN_MATURITY_STABLE
 };
 
+PRAGMA_DISABLE_CHECK_STACK_FRAME_EXTRA
 
 namespace Show {
 /* Fields of the dynamic tables
@@ -3381,7 +3384,7 @@ static int i_s_innodb_stats_fill(THD *thd, TABLE_LIST * tables, Item *)
 		DBUG_RETURN(0);
 	}
 
-	buf_stats_get_pool_info(&info);
+	buf_pool.get_info(&info);
 
 	table = tables->table;
 
@@ -3925,87 +3928,37 @@ and fetch information to information schema tables: INNODB_BUFFER_PAGE.
 @return 0 on success, 1 on failure */
 static int i_s_innodb_buffer_page_fill(THD *thd, TABLE_LIST *tables, Item *)
 {
-	int			status	= 0;
-	mem_heap_t*		heap;
+  DBUG_ENTER("i_s_innodb_buffer_page_fill");
+  RETURN_IF_INNODB_NOT_STARTED(tables->schema_table_name.str);
 
-	DBUG_ENTER("i_s_innodb_buffer_page_fill");
+  /* deny access to user without PROCESS privilege */
+  if (check_global_access(thd, PROCESS_ACL))
+    DBUG_RETURN(0);
 
-	RETURN_IF_INNODB_NOT_STARTED(tables->schema_table_name.str);
+  int status;
+  buf_page_info_t *b=
+    static_cast<buf_page_info_t*>(my_malloc(PSI_INSTRUMENT_ME,
+                                            MAX_BUF_INFO_CACHED * sizeof *b,
+                                            MYF(MY_WME)));
+  if (!b)
+    DBUG_RETURN(1);
+  for (size_t j= 0;;)
+  {
+    memset((void*) b, 0, MAX_BUF_INFO_CACHED * sizeof *b);
+    mysql_mutex_lock(&buf_pool.mutex);
+    const size_t N= buf_pool.curr_size();
+    const size_t n= std::min<size_t>(N, MAX_BUF_INFO_CACHED);
+    for (size_t i= 0; i < n && j < N; i++, j++)
+      i_s_innodb_buffer_page_get_info(&buf_pool.get_nth_page(j)->page, j,
+                                      &b[i]);
 
-	/* deny access to user without PROCESS privilege */
-	if (check_global_access(thd, PROCESS_ACL)) {
-		DBUG_RETURN(0);
-	}
-
-	heap = mem_heap_create(10000);
-
-	for (ulint n = 0;
-	     n < ut_min(buf_pool.n_chunks, buf_pool.n_chunks_new); n++) {
-		const buf_block_t*	block;
-		ulint			n_blocks;
-		buf_page_info_t*	info_buffer;
-		ulint			num_page;
-		ulint			mem_size;
-		ulint			chunk_size;
-		ulint			num_to_process = 0;
-		ulint			block_id = 0;
-
-		/* Get buffer block of the nth chunk */
-		block = buf_pool.chunks[n].blocks;
-		chunk_size = buf_pool.chunks[n].size;
-		num_page = 0;
-
-		while (chunk_size > 0) {
-			/* we cache maximum MAX_BUF_INFO_CACHED number of
-			buffer page info */
-			num_to_process = ut_min(chunk_size,
-				(ulint)MAX_BUF_INFO_CACHED);
-
-			mem_size = num_to_process * sizeof(buf_page_info_t);
-
-			/* For each chunk, we'll pre-allocate information
-			structures to cache the page information read from
-			the buffer pool. Doing so before obtain any mutex */
-			info_buffer = (buf_page_info_t*) mem_heap_zalloc(
-				heap, mem_size);
-
-			/* Obtain appropriate mutexes. Since this is diagnostic
-			buffer pool info printout, we are not required to
-			preserve the overall consistency, so we can
-			release mutex periodically */
-			mysql_mutex_lock(&buf_pool.mutex);
-
-			/* GO through each block in the chunk */
-			for (n_blocks = num_to_process; n_blocks--; block++) {
-				i_s_innodb_buffer_page_get_info(
-					&block->page, block_id,
-					info_buffer + num_page);
-				block_id++;
-				num_page++;
-			}
-
-			mysql_mutex_unlock(&buf_pool.mutex);
-
-			/* Fill in information schema table with information
-			just collected from the buffer chunk scan */
-			status = i_s_innodb_buffer_page_fill(
-				thd, tables, info_buffer,
-				num_page);
-
-			/* If something goes wrong, break and return */
-			if (status) {
-				break;
-			}
-
-			mem_heap_empty(heap);
-			chunk_size -= num_to_process;
-			num_page = 0;
-		}
-	}
-
-	mem_heap_free(heap);
-
-	DBUG_RETURN(status);
+    mysql_mutex_unlock(&buf_pool.mutex);
+    status= i_s_innodb_buffer_page_fill(thd, tables, b, n);
+    if (status || j >= N)
+      break;
+  }
+  my_free(b);
+  DBUG_RETURN(status);
 }
 
 /*******************************************************************//**
@@ -4304,7 +4257,7 @@ static int i_s_innodb_fill_buffer_lru(THD *thd, TABLE_LIST *tables, Item *)
 		DBUG_RETURN(0);
 	}
 
-	/* Aquire the mutex before allocating info_buffer, since
+	/* Acquire the mutex before allocating info_buffer, since
 	UT_LIST_GET_LEN(buf_pool.LRU) could change */
 	mysql_mutex_lock(&buf_pool.mutex);
 
@@ -4582,10 +4535,6 @@ i_s_sys_tables_fill_table(
 	TABLE_LIST*	tables,	/*!< in/out: tables to fill */
 	Item*		)	/*!< in: condition (not used) */
 {
-	btr_pcur_t	pcur;
-	mtr_t		mtr;
-	int		err = 0;
-
 	DBUG_ENTER("i_s_sys_tables_fill_table");
 	RETURN_IF_INNODB_NOT_STARTED(tables->schema_table_name.str);
 
@@ -4593,6 +4542,10 @@ i_s_sys_tables_fill_table(
 	if (check_global_access(thd, PROCESS_ACL)) {
 		DBUG_RETURN(0);
 	}
+
+	btr_pcur_t	pcur;
+	mtr_t		mtr{thd_to_trx(thd)};
+	int		err = 0;
 
 	mtr.start();
 	dict_sys.lock(SRW_LOCK_CALL);
@@ -4811,11 +4764,6 @@ i_s_sys_tables_fill_table_stats(
 	TABLE_LIST*	tables,	/*!< in/out: tables to fill */
 	Item*		)	/*!< in: condition (not used) */
 {
-	btr_pcur_t	pcur;
-	const rec_t*	rec;
-	mtr_t		mtr;
-	int		err = 0;
-
 	DBUG_ENTER("i_s_sys_tables_fill_table_stats");
 	RETURN_IF_INNODB_NOT_STARTED(tables->schema_table_name.str);
 
@@ -4823,6 +4771,11 @@ i_s_sys_tables_fill_table_stats(
 	if (check_global_access(thd, PROCESS_ACL)) {
 		DBUG_RETURN(0);
 	}
+
+	btr_pcur_t	pcur;
+	const rec_t*	rec;
+	mtr_t		mtr{thd_to_trx(thd)};
+	int		err = 0;
 
 	mtr.start();
 	dict_sys.lock(SRW_LOCK_CALL);
@@ -5033,12 +4986,6 @@ i_s_sys_indexes_fill_table(
 	TABLE_LIST*	tables,	/*!< in/out: tables to fill */
 	Item*		)	/*!< in: condition (not used) */
 {
-	btr_pcur_t		pcur;
-	const rec_t*		rec;
-	mem_heap_t*		heap;
-	mtr_t			mtr;
-	int			err = 0;
-
 	DBUG_ENTER("i_s_sys_indexes_fill_table");
 	RETURN_IF_INNODB_NOT_STARTED(tables->schema_table_name.str);
 
@@ -5046,6 +4993,12 @@ i_s_sys_indexes_fill_table(
 	if (check_global_access(thd, PROCESS_ACL)) {
 		DBUG_RETURN(0);
 	}
+
+	btr_pcur_t		pcur;
+	const rec_t*		rec;
+	mem_heap_t*		heap;
+	mtr_t			mtr{thd_to_trx(thd)};
+	int			err = 0;
 
 	heap = mem_heap_create(1000);
 	dict_sys.lock(SRW_LOCK_CALL);
@@ -5245,13 +5198,6 @@ i_s_sys_columns_fill_table(
 	TABLE_LIST*	tables,	/*!< in/out: tables to fill */
 	Item*		)	/*!< in: condition (not used) */
 {
-	btr_pcur_t	pcur;
-	const rec_t*	rec;
-	const char*	col_name;
-	mem_heap_t*	heap;
-	mtr_t		mtr;
-	int		err = 0;
-
 	DBUG_ENTER("i_s_sys_columns_fill_table");
 	RETURN_IF_INNODB_NOT_STARTED(tables->schema_table_name.str);
 
@@ -5259,6 +5205,13 @@ i_s_sys_columns_fill_table(
 	if (check_global_access(thd, PROCESS_ACL)) {
 		DBUG_RETURN(0);
 	}
+
+	btr_pcur_t	pcur;
+	const rec_t*	rec;
+	const char*	col_name;
+	mem_heap_t*	heap;
+	mtr_t		mtr{thd_to_trx(thd)};
+	int		err = 0;
 
 	heap = mem_heap_create(1000);
 	mtr.start();
@@ -5437,13 +5390,6 @@ i_s_sys_virtual_fill_table(
 	TABLE_LIST*	tables,
 	Item*		)
 {
-	btr_pcur_t	pcur;
-	const rec_t*	rec;
-	ulint		pos;
-	ulint		base_pos;
-	mtr_t		mtr;
-	int		err = 0;
-
 	DBUG_ENTER("i_s_sys_virtual_fill_table");
 	RETURN_IF_INNODB_NOT_STARTED(tables->schema_table_name.str);
 
@@ -5451,6 +5397,13 @@ i_s_sys_virtual_fill_table(
 	if (check_global_access(thd, PROCESS_ACL) || !dict_sys.sys_virtual) {
 		DBUG_RETURN(0);
 	}
+
+	btr_pcur_t	pcur;
+	const rec_t*	rec;
+	ulint		pos;
+	ulint		base_pos;
+	mtr_t		mtr{thd_to_trx(thd)};
+	int		err = 0;
 
 	mtr.start();
 	dict_sys.lock(SRW_LOCK_CALL);
@@ -5619,13 +5572,6 @@ i_s_sys_fields_fill_table(
 	TABLE_LIST*	tables,	/*!< in/out: tables to fill */
 	Item*		)	/*!< in: condition (not used) */
 {
-	btr_pcur_t	pcur;
-	const rec_t*	rec;
-	mem_heap_t*	heap;
-	index_id_t	last_id;
-	mtr_t		mtr;
-	int		err = 0;
-
 	DBUG_ENTER("i_s_sys_fields_fill_table");
 	RETURN_IF_INNODB_NOT_STARTED(tables->schema_table_name.str);
 
@@ -5634,6 +5580,13 @@ i_s_sys_fields_fill_table(
 
 		DBUG_RETURN(0);
 	}
+
+	btr_pcur_t	pcur;
+	const rec_t*	rec;
+	mem_heap_t*	heap;
+	index_id_t	last_id;
+	mtr_t		mtr{thd_to_trx(thd)};
+	int		err = 0;
 
 	heap = mem_heap_create(1000);
 	mtr.start();
@@ -5791,7 +5744,7 @@ i_s_dict_fill_sys_foreign(
 
 	fields = table_to_fill->field;
 
-	OK(field_store_string(fields[SYS_FOREIGN_ID], foreign->id));
+	OK(field_store_string(fields[SYS_FOREIGN_ID], foreign->sql_id()));
 
 	OK(field_store_string(fields[SYS_FOREIGN_FOR_NAME],
 			      foreign->foreign_table_name));
@@ -5821,12 +5774,6 @@ i_s_sys_foreign_fill_table(
 	TABLE_LIST*	tables,	/*!< in/out: tables to fill */
 	Item*		)	/*!< in: condition (not used) */
 {
-	btr_pcur_t	pcur;
-	const rec_t*	rec;
-	mem_heap_t*	heap;
-	mtr_t		mtr;
-	int		err = 0;
-
 	DBUG_ENTER("i_s_sys_foreign_fill_table");
 	RETURN_IF_INNODB_NOT_STARTED(tables->schema_table_name.str);
 
@@ -5834,6 +5781,12 @@ i_s_sys_foreign_fill_table(
 	if (check_global_access(thd, PROCESS_ACL) || !dict_sys.sys_foreign) {
 		DBUG_RETURN(0);
 	}
+
+	btr_pcur_t	pcur;
+	const rec_t*	rec;
+	mem_heap_t*	heap;
+	mtr_t		mtr{thd_to_trx(thd)};
+	int		err = 0;
 
 	heap = mem_heap_create(1000);
 	mtr.start();
@@ -5983,8 +5936,11 @@ i_s_dict_fill_sys_foreign_cols(
 	DBUG_ENTER("i_s_dict_fill_sys_foreign_cols");
 
 	fields = table_to_fill->field;
+	const char* id = strchr(name, '\377');
+	if (!id) id = strchr(name, '/');
+	id = id ? id + 1 : name;
 
-	OK(field_store_string(fields[SYS_FOREIGN_COL_ID], name));
+	OK(field_store_string(fields[SYS_FOREIGN_COL_ID], id));
 
 	OK(field_store_string(fields[SYS_FOREIGN_COL_FOR_NAME], for_col_name));
 
@@ -6009,12 +5965,6 @@ i_s_sys_foreign_cols_fill_table(
 	TABLE_LIST*	tables,	/*!< in/out: tables to fill */
 	Item*		)	/*!< in: condition (not used) */
 {
-	btr_pcur_t	pcur;
-	const rec_t*	rec;
-	mem_heap_t*	heap;
-	mtr_t		mtr;
-	int		err = 0;
-
 	DBUG_ENTER("i_s_sys_foreign_cols_fill_table");
 	RETURN_IF_INNODB_NOT_STARTED(tables->schema_table_name.str);
 
@@ -6023,6 +5973,12 @@ i_s_sys_foreign_cols_fill_table(
 	    || !dict_sys.sys_foreign_cols) {
 		DBUG_RETURN(0);
 	}
+
+	btr_pcur_t	pcur;
+	const rec_t*	rec;
+	mem_heap_t*	heap;
+	mtr_t		mtr{thd_to_trx(thd)};
+	int		err = 0;
 
 	heap = mem_heap_create(1000);
 	mtr.start();

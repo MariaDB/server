@@ -43,7 +43,7 @@ class XID_cache_element
 {
   /*
     m_state is used to prevent elements from being deleted while XA RECOVER
-    iterates xid cache and to prevent recovered elments from being acquired by
+    iterates xid cache and to prevent recovered elements from being acquired by
     multiple threads.
 
     bits 1..29 are reference counter
@@ -632,7 +632,7 @@ bool trans_xa_commit(THD *thd)
   if (!xid_state.is_explicit_XA() ||
       !xid_state.xid_cache_element->xid.eq(thd->lex->xid))
   {
-    if (thd->in_multi_stmt_transaction_mode())
+    if (thd->in_multi_stmt_transaction_mode() || xid_state.xid_cache_element)
     {
       /*
         Not allow to commit from inside an not-"native" to xid
@@ -662,9 +662,8 @@ bool trans_xa_commit(THD *thd)
       MDL_request mdl_request;
       bool rw_trans= (xs->rm_error != ER_XA_RBROLLBACK);
 
-      if (rw_trans && thd->is_read_only_ctx())
+      if (rw_trans && thd->check_read_only_with_error())
       {
-        my_error(ER_OPTION_PREVENTS_STATEMENT, MYF(0), "--read-only");
         res= 1;
         goto _end_external_xid;
       }
@@ -707,11 +706,10 @@ bool trans_xa_commit(THD *thd)
     DBUG_RETURN(res);
   }
 
-  if (thd->transaction->all.is_trx_read_write() && thd->is_read_only_ctx())
-  {
-    my_error(ER_OPTION_PREVENTS_STATEMENT, MYF(0), "--read-only");
+  if (thd->transaction->all.is_trx_read_write() && thd->check_read_only_with_error())
     DBUG_RETURN(TRUE);
-  } else if (xa_trans_rolled_back(xid_state.xid_cache_element))
+
+  if (xa_trans_rolled_back(xid_state.xid_cache_element))
   {
     xa_trans_force_rollback(thd);
     DBUG_RETURN(thd->is_error());
@@ -805,7 +803,7 @@ bool trans_xa_rollback(THD *thd)
   if (!xid_state.is_explicit_XA() ||
       !xid_state.xid_cache_element->xid.eq(thd->lex->xid))
   {
-    if (thd->in_multi_stmt_transaction_mode())
+    if (thd->in_multi_stmt_transaction_mode() || xid_state.xid_cache_element)
     {
       my_error(ER_XAER_OUTSIDE, MYF(0));
       DBUG_RETURN(TRUE);
@@ -822,9 +820,8 @@ bool trans_xa_rollback(THD *thd)
       bool xid_deleted= false;
       bool rw_trans= (xs->rm_error != ER_XA_RBROLLBACK);
 
-      if (rw_trans && thd->is_read_only_ctx())
+      if (rw_trans && thd->check_read_only_with_error())
       {
-        my_error(ER_OPTION_PREVENTS_STATEMENT, MYF(0), "--read-only");
         res= 1;
         goto _end_external_xid;
       }
@@ -863,11 +860,10 @@ bool trans_xa_rollback(THD *thd)
     DBUG_RETURN(thd->get_stmt_da()->is_error());
   }
 
-  if (thd->transaction->all.is_trx_read_write() && thd->is_read_only_ctx())
-  {
-    my_error(ER_OPTION_PREVENTS_STATEMENT, MYF(0), "--read-only");
+  if (thd->transaction->all.is_trx_read_write() && thd->check_read_only_with_error())
     DBUG_RETURN(TRUE);
-  } else if (xid_state.xid_cache_element->xa_state == XA_ACTIVE)
+
+  if (xid_state.xid_cache_element->xa_state == XA_ACTIVE)
   {
     xid_state.er_xaer_rmfail();
     DBUG_RETURN(TRUE);

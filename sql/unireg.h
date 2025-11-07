@@ -131,7 +131,7 @@
 #define OPEN_TRIGGER_ONLY      (1 << 21)
 
 /**
-  This flag is used in information schema to determine if handling funciton
+  This flag is used in information schema to determine if handling function
   can treat open result extensively and provide some user output even if
   table open fails.
 */
@@ -143,14 +143,6 @@
   wildcards in class Item_func_like.
 */
 #define MIN_TURBOBM_PATTERN_LEN 3
-
-/* 
-   Defines for binary logging.
-   Do not decrease the value of BIN_LOG_HEADER_SIZE.
-   Do not even increase it before checking code.
-*/
-
-#define BIN_LOG_HEADER_SIZE    4 
 
 #define DEFAULT_KEY_CACHE_NAME "default"
 

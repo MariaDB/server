@@ -1,0 +1,136 @@
+#
+# MDEV-34822: Skip FK checks in Galera during applying in IST.
+#
+
+--source include/have_innodb.inc
+--source include/galera_cluster.inc
+--source include/big_test.inc
+
+# Save original auto_increment_offset values.
+--let $node_1=node_1
+--let $node_2=node_2
+--let $node_3=node_3
+--let $node_4=node_4
+--source include/auto_increment_offset_save.inc
+
+# Create parent and child tables.
+--connection node_1
+CREATE TABLE parent (
+	id INT PRIMARY KEY
+) ENGINE=InnoDB;
+
+CREATE TABLE child (
+	id INT PRIMARY KEY,
+	parent_id INT,
+	KEY (parent_id),
+	CONSTRAINT FOREIGN KEY (parent_id) REFERENCES parent(id)
+) ENGINE=InnoDB;
+
+# Fill the parent table with rows that will later be used by the child.
+INSERT INTO parent VALUES (1), (2);
+
+# Wait until the row is replicated on node #4.
+--connection node_4
+--let $wait_condition = SELECT COUNT(*) = 2 FROM parent
+--source include/wait_condition.inc
+
+# Clear the parent table on node #4 and leave the cluster.
+SET SESSION wsrep_on = OFF;
+DELETE FROM parent;
+SET SESSION wsrep_on = ON;
+--echo Shutting down server 4
+--source include/shutdown_mysqld.inc
+
+# Wait for node #4 to leave the cluster.
+--let $members = 3
+--connection node_1
+--source include/wsrep_wait_membership.inc
+--connection node_2
+--source include/wsrep_wait_membership.inc
+--connection node_3
+--source include/wsrep_wait_membership.inc
+--echo Server 4 left the cluster
+
+# Insert a child row that will be sent to node #4 with IST.
+--connection node_1
+INSERT INTO child VALUES (1, 1);
+
+--connection node_4
+--echo Restarting server 4 with disabled FK checks during IST
+--let $start_mysqld_params = --wsrep_mode=APPLIER_SKIP_FK_CHECKS_IN_IST
+--source include/start_mysqld.inc
+
+--let $assert_select = foreign key constraint fails
+--let $assert_count = 0
+--let $assert_text = no FK constraint failure
+--let $assert_only_after = CURRENT_TEST
+--let $assert_file = $MYSQLTEST_VARDIR/log/mysqld.4.err
+--source include/assert_grep.inc
+
+# Child row insert is applied even though there's no parent row.
+--echo Server 4
+SELECT COUNT(*) AS EXPECT_0 FROM parent;
+SELECT COUNT(*) AS EXPECT_1 FROM child;
+
+# Check other nodes have both parent and child rows.
+--connection node_1
+--echo Server 1
+SELECT COUNT(*) AS EXPECT_2 FROM parent;
+SELECT COUNT(*) AS EXPECT_1 FROM child;
+
+--connection node_2
+--echo Server 2
+SELECT COUNT(*) AS EXPECT_2 FROM parent;
+SELECT COUNT(*) AS EXPECT_1 FROM child;
+
+--connection node_3
+--echo Server 3
+SELECT COUNT(*) AS EXPECT_2 FROM parent;
+SELECT COUNT(*) AS EXPECT_1 FROM child;
+
+# Test part below ensures that regular apply still fails on FK check.
+
+--echo Causing server 4 inconsistency with failed FK check on apply
+INSERT INTO child VALUES (2, 2);
+
+# Wait for node #4 to become inconsistent and leave the primary component.
+--let $members = 3
+--connection node_1
+--source include/wsrep_wait_membership.inc
+--connection node_2
+--source include/wsrep_wait_membership.inc
+--connection node_3
+--source include/wsrep_wait_membership.inc
+--echo Server 4 is non-primary
+
+--connection node_4
+SET SESSION wsrep_on = OFF;
+--let $assert_select = foreign key constraint fails
+# Exact count may depend on the log level.
+--let $assert_count =
+--let $assert_match = foreign key constraint fails
+--let $assert_text = FK constraint failure
+--let $assert_only_after = CURRENT_TEST
+--let $assert_file = $MYSQLTEST_VARDIR/log/mysqld.4.err
+--source include/assert_grep.inc
+
+--echo Restarting server 4 with enabled FK checks during IST
+--let $start_mysqld_params =
+--source include/restart_mysqld.inc
+
+# Now everything is in sync.
+SELECT COUNT(*) AS EXPECT_2 FROM parent;
+SELECT COUNT(*) AS EXPECT_2 FROM child;
+
+CALL mtr.add_suppression("Slave SQL: Could not execute Write_rows_v1 event");
+CALL mtr.add_suppression("Event 3 Write_rows_v1 apply failed");
+CALL mtr.add_suppression("Inconsistency detected: Inconsistent by consensus");
+CALL mtr.add_suppression("Failed to apply write set");
+
+DROP TABLE child;
+DROP TABLE parent;
+
+# Restore original auto_increment_offset values.
+--source include/auto_increment_offset_restore.inc
+
+--source include/galera_end.inc

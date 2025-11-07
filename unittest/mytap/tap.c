@@ -470,7 +470,7 @@ static void end_timer(ulong start_time,char *buff)
 
    This is to test that the component have the expected behaviour.
    This is just plain simple: test that it works.  For example, test
-   that you can unpack what you packed, adding gives the sum, pincing
+   that you can unpack what you packed, adding gives the sum, pinching
    the duck makes it quack.
 
    This is what everybody does when they write tests.
@@ -630,7 +630,7 @@ static void end_timer(ulong start_time,char *buff)
    @subsection JustToBeSafeTest Writing unnecessarily large tests
 
    Don't write tests that use parameters in the range 1-1024 unless
-   you have a very good reason to belive that the component will
+   you have a very good reason to believe that the component will
    succeed for 562 but fail for 564 (the numbers picked are just
    examples).
 

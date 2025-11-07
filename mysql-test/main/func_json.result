@@ -424,7 +424,7 @@ coercibility(json_unquote(json_object('bar', c))) as coer_json_unquote,
 coercibility('bar') as coer_literal
 from t1 limit 1;
 coll_json_unquote	coer_json_unquote	coer_literal
-utf8mb3_general_ci	4	6
+utf8mb4_bin	4	6
 create table t2 as select json_object('foo', json_unquote(json_object('bar', c)),'qux', c) as fld from t1 limit 0;
 show create table t2;
 Table	Create Table
@@ -640,24 +640,20 @@ ex
 set @save_max_allowed_packet=@@max_allowed_packet;
 set @save_net_buffer_length=@@net_buffer_length;
 set @@global.net_buffer_length=1024;
-set @@global.max_allowed_packet=2048;
+set @@global.max_allowed_packet=4096;
 connect  newconn, localhost, root,,;
 show variables like 'net_buffer_length';
 Variable_name	Value
 net_buffer_length	1024
 show variables like 'max_allowed_packet';
 Variable_name	Value
-max_allowed_packet	2048
+max_allowed_packet	4096
 select json_array(repeat('a',1024),repeat('a',1024)) as ex;
 ex
-NULL
-Warnings:
-Warning	1301	Result of json_array() was larger than max_allowed_packet (2048) - truncated
+["aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"]
 select json_object("a", repeat('a',1024),"b", repeat('a',1024)) as ex;
 ex
-NULL
-Warnings:
-Warning	1301	Result of json_object() was larger than max_allowed_packet (2048) - truncated
+{"a": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "b": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}
 connection default;
 set @@global.max_allowed_packet = @save_max_allowed_packet;
 set @@global.net_buffer_length = @save_net_buffer_length;
@@ -978,9 +974,7 @@ FROM (SELECT * FROM json_test) AS json_test_values;
 json_object("a", json_compact(a), "b", json_compact(b))
 {"a": [1,2,3], "b": {"a":"foo"}}
 DROP TABLE json_test;
-#
 # End of 10.2 tests
-#
 #
 # MDEV-12854 Synchronize CREATE..SELECT data type and result set metadata data type for INT functions
 #
@@ -1513,9 +1507,7 @@ JSON_VALID(' {"number": 01E-4}')
 select JSON_VALID(' {"number": 0E-4.0}');
 JSON_VALID(' {"number": 0E-4.0}')
 0
-#
 # End of 10.4 tests
-#
 #
 # MDEV-16620 JSON_ARRAYAGG
 #
@@ -1748,9 +1740,7 @@ NULL
 Warnings:
 Warning	4036	Character disallowed in JSON in argument 1 to function 'json_extract' at position 2
 SET @@collation_connection= @save_collation_connection;
-#
 # End of 10.5 tests
-#
 #
 # MDEV-26054 Server crashes in Item_func_json_arrayagg::get_str_from_field
 #
@@ -1787,8 +1777,51 @@ FROM JSON_TABLE (@data, '$[*]' COLUMNS (data text PATH '$.Data')) AS t;
 data
 <root language="de"></root>
 #
+# MDEV-21530: json_extract STILL crashes in Item_func_json_extract::read_json
+#
+select null<=>json_extract('1',json_object(null,'{ }',null,null),'{}');
+null<=>json_extract('1',json_object(null,'{ }',null,null),'{}')
+1
+Warnings:
+Warning	4042	Syntax error in JSON path in argument 2 to function 'json_extract' at position 1
 # End of 10.6 tests
 #
+# MDEV-35614 JSON_UNQUOTE doesn't work with emojis
+#
+SELECT HEX(JSON_UNQUOTE('"\\ud83d\\ude0a"')) as hex_smiley;
+hex_smiley
+F09F988A
+set names utf8mb4;
+SELECT JSON_UNQUOTE('"\\ud83d\\ude0a"') as smiley;
+smiley
+😊
+SELECT JSON_UNQUOTE('"\\ud83d\\ude0a"') = JSON_UNQUOTE('"\\ud83d\\ude0a"') as equal_smileys;
+equal_smileys
+1
+SELECT JSON_UNQUOTE('"\\ud83d\\ude0a"') <= JSON_UNQUOTE('"\\ud83d\\ude0a"') as less_or_equal_smileys;
+less_or_equal_smileys
+1
+set @v='{ "color":"😊" }';
+select @v as v, collation(@v) as collation_v;
+v	collation_v
+{ "color":"😊" }	utf8mb4_uca1400_ai_ci
+select json_valid(@v) as valid;
+valid
+1
+select json_extract(@v,'$.color') as color_extraction, collation(json_extract(@v,'$.color')) as color_extraction_collation;
+color_extraction	color_extraction_collation
+"😊"	utf8mb4_uca1400_ai_ci
+select json_unquote(json_extract(@v,'$.color')) as unquoted, collation(json_unquote(json_extract(@v,'$.color'))) as unquoted_collation;
+unquoted	unquoted_collation
+😊	utf8mb4_bin
+SELECT JSON_UNQUOTE('"\\uc080\\ude0a"') as invalid_utf8mb4;
+invalid_utf8mb4
+"\uc080\ude0a"
+Warnings:
+Warning	4035	Broken JSON string in argument 1 to function 'json_unquote' at position 13
+show warnings;
+Level	Code	Message
+Warning	4035	Broken JSON string in argument 1 to function 'json_unquote' at position 13
 #
 # MDEV-31147 json_normalize does not work correctly with MSAN build
 #
@@ -1799,9 +1832,7 @@ SELECT * FROM t1;
 val	normalized_json
 15	1.5E1
 DROP TABLE t1;
-#
 # End of 10.8 tests
-#
 #
 # MDEV-27677: Implement JSON_OVERLAPS()
 #
@@ -2654,9 +2685,102 @@ SELECT JSON_VALUE(@json,'$.A[last-1][last-1].key1');
 JSON_VALUE(@json,'$.A[last-1][last-1].key1')
 NULL
 SET @@collation_connection= @save_collation_connection;
-#
 # End of 10.9 Test
 #
+# MDEV-30691 Assertion `strlen(Ptr) == str_length' failed in void Binary_string::chop()
+#
+set @@collation_connection=utf32_czech_ci;
+select json_detailed('[[123],456]');
+json_detailed('[[123],456]')
+[
+    [123],
+    456
+]
+set @@collation_connection=@save_collation_connection;
+select json_detailed('[[123],456]');
+json_detailed('[[123],456]')
+[
+    [123],
+    456
+]
+#
+# MDEV-37428 JSON_VALUE returns NULL for a key with an empty string value rather than an empty string
+#
+SELECT JSON_VALUE(JSON_OBJECT("a", ""), '$.a') = "" AS not_null;
+not_null
+1
+#
+# MDEV-36319: Wrong result json_table
+#
+SET @JSON='
+{
+  "SZ": [
+    {
+      "NAME": "S0",
+      "OFFERS": [
+        {
+          "NAME": "S0A0"
+        }
+      ]
+    },
+    {
+      "NAME": "S1",
+      "OFFERS": [
+        {
+          "NAME": "S1A0"
+        },
+        {
+          "NAME": "S1A1"
+        }
+      ]
+    },
+    {
+      "NAME": "S2",
+      "OFFERS": [
+        {
+          "NAME": "S2A0"
+        }
+      ]
+    },
+    {
+      "NAME": "S3",
+      "OFFERS": [
+        {
+          "NAME": "S3A0"
+        }
+      ]
+    },
+    {
+      "NAME": "S4",
+      "OFFERS": [
+        {
+          "NAME": "S4A0"
+        }
+      ]
+    },
+    {
+      "NAME": "S5",
+      "OFFERS": [
+        {
+          "NAME": "S5A0"
+        }
+      ]
+    }
+  ]
+}
+ 
+'
+;
+# Should return EMPTY result
+SELECT * FROM json_table(@JSON, '$.SZ[0].OFFERS[1]' 
+COLUMNS(NAME VARCHAR(30) PATH '$.NAME')) AS t_sz;
+NAME
+# Should return S1A1
+SELECT * FROM json_table(@JSON, '$.SZ[1].OFFERS[1]' 
+COLUMNS(NAME VARCHAR(30) PATH '$.NAME')) AS t_sz;
+NAME
+S1A1
+# End of 10.11 Test
 #
 # MDEV-32007: JSON_VALUE and JSON_EXTRACT doesn't handle dash (-)
 #             as first character in key
@@ -3987,7 +4111,7 @@ JSON_SCHEMA_VALID(@object_schema, '{"key1":"val1", "key2": 10, "I_int":20, "S_":
 SELECT JSON_SCHEMA_VALID(@object_schema, '{"key1":"val1", "key2": 10, "I_int":[1,2,3], "S_":[1,2,3], "some_prop1":[1,2,3]}');
 JSON_SCHEMA_VALID(@object_schema, '{"key1":"val1", "key2": 10, "I_int":[1,2,3], "S_":[1,2,3], "some_prop1":[1,2,3]}')
 1
-# Remvoing additionalProperties to check that validation falls back on unevaluatedProperties
+# Removing additionalProperties to check that validation falls back on unevaluatedProperties
 SET @object_schema= '{
                        "type":"object",
                        "properties": {
@@ -4809,16 +4933,16 @@ JSON_SCHEMA_VALID(@schema_array, '[')
 0
 Warnings:
 Warning	4037	Unexpected end of JSON text in argument 2 to function 'json_schema_valid'
-SELECT JSON_SCHEMA_VALID(repeat('[', 100000), json_object());
-JSON_SCHEMA_VALID(repeat('[', 100000), json_object())
+SELECT JSON_SCHEMA_VALID(repeat('[', 100), json_object());
+JSON_SCHEMA_VALID(repeat('[', 100), json_object())
 NULL
 Warnings:
-Warning	4040	Limit of 32 on JSON nested structures depth is reached in argument 1 to function 'json_schema_valid' at position 32
-SELECT JSON_SCHEMA_VALID(json_object(), repeat('[', 10000000));
-JSON_SCHEMA_VALID(json_object(), repeat('[', 10000000))
+Warning	4037	Unexpected end of JSON text in argument 1 to function 'json_schema_valid'
+SELECT JSON_SCHEMA_VALID(json_object(), repeat('[', 100));
+JSON_SCHEMA_VALID(json_object(), repeat('[', 100))
 0
 Warnings:
-Warning	4040	Limit of 32 on JSON nested structures depth is reached in argument 2 to function 'json_schema_valid' at position 32
+Warning	4037	Unexpected end of JSON text in argument 2 to function 'json_schema_valid'
 #
 # MDEV-30677: Incorrect result for "SELECT JSON_SCHEMA_VALID('{}', NULL)"
 #
@@ -4846,7 +4970,6 @@ SELECT JSON_SCHEMA_VALID(@a,'{}');
 JSON_SCHEMA_VALID(@a,'{}')
 NULL
 # End of 11.1 test
-# Beginning of 11.2
 #
 # MDEV-30145: JSON_TABLE: allow to retrieve the key when iterating on JSON objects
 #
@@ -4863,6 +4986,8 @@ NULL
 SELECT JSON_KEY_VALUE('', '$.a');
 JSON_KEY_VALUE('', '$.a')
 NULL
+Warnings:
+Warning	4037	Unexpected end of JSON text in argument 1 to function 'json_key_value'
 SELECT JSON_KEY_VALUE('[1,2,3]', '');
 JSON_KEY_VALUE('[1,2,3]', '')
 NULL
@@ -5037,9 +5162,6 @@ FROM JSON_TABLE(
 JSON_KEY_VALUE('{"key1":{"a":1, "b": [1,2,3, {"some_key":"some_val", "c":3}]}, "key2":"val2"}', '$.key1.b[0]'), '$[*]'
     COLUMNS (k VARCHAR(20) PATH '$.key', v VARCHAR(20) PATH '$.value', id FOR ORDINALITY)) AS jt;
 k	v	id
-# End of 11.2 test
-#
-# Beginning of 11.2 tests
 #
 # MDEV-26182: Implement json_array_intersect()
 #
@@ -5236,6 +5358,39 @@ SET @obj1='{ "a": 1,"b": 2,"c": 3}';
 SELECT JSON_OBJECT_FILTER_KEYS (@obj1,@arr1);
 JSON_OBJECT_FILTER_KEYS (@obj1,@arr1)
 NULL
-#
+SET character_set_database=default;
+SET CHARACTER SET default;
 # End of 11.2 Test
+# Beginning of 11.4 Test
 #
+# MDEV-33149: JSON_ARRAY_INTERSECT function crashes the server when
+# called with empty json arrays, UBSAN runtime error: member access
+# within null pointer of type 'struct String' in
+# Item_func_json_array_intersect::prepare_json_and_create_hash
+#
+SELECT json_array_intersect(@a,@b);
+json_array_intersect(@a,@b)
+NULL
+# MDEV-36809: json_array_intersect crashs when unused table ref provided
+#
+select json_array_intersect('[["1", "7"], ["2", "6"], ["4", "5"], ["3", "8"]]', '[["2","6"],["3","8"],["4","5"],["1","7"]]') as result from mysql.user;
+result
+[["2", "6"], ["3", "8"], ["4", "5"], ["1", "7"]]
+[["2", "6"], ["3", "8"], ["4", "5"], ["1", "7"]]
+[["2", "6"], ["3", "8"], ["4", "5"], ["1", "7"]]
+[["2", "6"], ["3", "8"], ["4", "5"], ["1", "7"]]
+[["2", "6"], ["3", "8"], ["4", "5"], ["1", "7"]]
+SELECT ( WITH x AS ( WITH x ( x ) AS ( SELECT ( 1.000000 ) ) SELECT x FROM x ) SELECT * FROM x WHERE ( SELECT AVG ( x ) OVER ( ORDER BY JSON_ARRAY_INTERSECT ( '[["1", "7"], ["2", "6"], ["3", "8"]]' , '[["2","6"],["3","8"],["4","5"],["1","7"]]' ) ) FROM x ) ) as result;
+result
+1.000000
+#
+# MDEV-37864: mysql-test/mtr --cursor main.func_json fails
+#
+select json_array_intersect('[["1", "7"], ["2", "6"], ["4", "5"], ["3", "8"]]', '[["2","6"],["3","8"],["4","5"],["1","7"]]') as result from mysql.user;
+result
+[["2", "6"], ["3", "8"], ["4", "5"], ["1", "7"]]
+[["2", "6"], ["3", "8"], ["4", "5"], ["1", "7"]]
+[["2", "6"], ["3", "8"], ["4", "5"], ["1", "7"]]
+[["2", "6"], ["3", "8"], ["4", "5"], ["1", "7"]]
+[["2", "6"], ["3", "8"], ["4", "5"], ["1", "7"]]
+# End of 11.4 Test

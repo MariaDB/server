@@ -1943,10 +1943,6 @@ SELECT * from t1 where f2 = f1' at line 1
 CREATE PROCEDURE function()
 SELECT * from t1 where f2=f1;
 DROP PROCEDURE function;
-CREATE PROCEDURE accessible()
-SELECT * from t1 where f2=f1;
-ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'accessible()
-SELECT * from t1 where f2=f1' at line 1
 CREATE PROCEDURE add()
 SELECT * from t1 where f2=f1;
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'add()
@@ -3940,13 +3936,6 @@ Testcase ....:
 
 --------------------------------------------------------------------------------
 DROP PROCEDURE IF EXISTS sp1;
-CREATE PROCEDURE sp1()
-accessible:BEGIN
-SELECT @x;
-END//
-ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'accessible:BEGIN
-SELECT @x;
-END' at line 2
 DROP PROCEDURE IF EXISTS sp1;
 CREATE PROCEDURE sp1()
 add:BEGIN
@@ -7597,12 +7586,6 @@ ERROR 42000: You have an error in your SQL syntax; check the manual that corresp
 SELECT f2 into x from t2 limit 1;
 END' at line 3
 DROP PROCEDURE IF EXISTS sp1;
-CREATE PROCEDURE sp1()
-BEGIN
-declare accessible char;
-END//
-ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'accessible char;
-END' at line 3
 DROP PROCEDURE IF EXISTS sp1;
 CREATE PROCEDURE sp1()
 BEGIN
@@ -9389,13 +9372,6 @@ ERROR HY000: Unknown data type: 'char1'
 DROP PROCEDURE IF EXISTS sp1;
 Warnings:
 Note	1305	PROCEDURE db_storedproc.sp1 does not exist
-CREATE PROCEDURE sp1( )
-BEGIN
-declare accessible condition for sqlstate '02000';
-declare exit handler for add set @var2 = 1;
-END//
-ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'accessible condition for sqlstate '02000';
-declare exit handler for add set @...' at line 3
 DROP PROCEDURE IF EXISTS sp1;
 Warnings:
 Note	1305	PROCEDURE db_storedproc.sp1 does not exist
@@ -11719,18 +11695,6 @@ insert into t values (1);
 set @x = 3;
 END//
 ERROR HY000: Unknown data type: 'handler'
-DROP PROCEDURE IF EXISTS sp1;
-Warnings:
-Note	1305	PROCEDURE db_storedproc.sp1 does not exist
-CREATE PROCEDURE sp1( )
-BEGIN
-declare accessible handler for sqlstate '02000' set @var2 = 1;
-END//
-ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'accessible handler for sqlstate '02000' set @var2 = 1;
-END' at line 3
-DROP PROCEDURE IF EXISTS sp1;
-Warnings:
-Note	1305	PROCEDURE db_storedproc.sp1 does not exist
 CREATE PROCEDURE sp1( )
 BEGIN
 declare add handler for sqlstate '02000' set @var2 = 1;

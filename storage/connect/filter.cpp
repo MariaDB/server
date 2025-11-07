@@ -547,7 +547,7 @@ bool FILTER::FindJoinFilter(POPJOIN opj, PFIL fprec, bool teq, bool tek,
     return (Opc < 0);
 
   // Keep only equi-joins and specific joins (Outer and Distinct)
-  // Normally specific join operators comme first because they have
+  // Normally specific join operators come first because they have
   // been placed first by SortJoin.
   if (teq && Opc > OP_EQ)
     return FALSE;
@@ -747,7 +747,7 @@ bool FILTER::CheckHaving(PGLOBAL g, PSQL sqlp)
       return FALSE;
     default:
       if (CheckColumn(g, sqlp, xp, agg) < -1)
-        return TRUE;       // Unrecovable error
+        return TRUE;       // Unrecoverable error
 
       break;
     } // endswitch Opc
@@ -1179,7 +1179,7 @@ bool FILTER::Convert(PGLOBAL g, bool having)
       case OP_GT:
       case OP_GE:
       case OP_LT:
-      case OP_LE:  new(this) FILTERCMP(g); break;
+      case OP_LE:  new(this) FILTERCMP(g, Opc); break;
       case OP_AND: new(this) FILTERAND; break;
       case OP_OR:  new(this) FILTEROR;  break;
       case OP_NOT: new(this) FILTERNOT; break;
@@ -1589,8 +1589,9 @@ void FILTER::Prints(PGLOBAL g, char *ps, uint z)
 /***********************************************************************/
 /*  FILTERCMP constructor.                                             */
 /***********************************************************************/
-FILTERCMP::FILTERCMP(PGLOBAL g)
+FILTERCMP::FILTERCMP(PGLOBAL g, OPVAL Opc)
   {
+  this->Opc= Opc;
   Bt = OpBmp(g, Opc);
   } // end of FILTERCMP constructor
 

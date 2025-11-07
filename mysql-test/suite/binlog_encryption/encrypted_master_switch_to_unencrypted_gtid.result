@@ -59,6 +59,9 @@ INSERT INTO table3_no_encryption SELECT NULL,NOW(),b FROM table3_no_encryption;
 connection server_2;
 start slave;
 include/wait_for_slave_io_error.inc [errno=1236]
+SELECT MASTER_GTID_WAIT("LAST_UNENCRYPTED_GTID", 60);
+MASTER_GTID_WAIT("LAST_UNENCRYPTED_GTID", 60)
+0
 # Ensuring slave was unable to replicate any encrypted transactions..
 # ..success
 SHOW TABLES;

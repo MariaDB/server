@@ -56,8 +56,8 @@ if(`SELECT COUNT(*) $part1`)
 #
 #    If we run this check sufficient frequent than AVG_TIMER_* can be removed from other checks.
 #===============================================================================================
-let $my_lo= 0.98;
-let $my_hi= 1.02;
+let $my_lo= 0.95;
+let $my_hi= 1.05;
 
 let $my_rules=
 COUNT_STAR  * AVG_TIMER_WAIT  BETWEEN SUM_TIMER_WAIT  * $my_lo AND SUM_TIMER_WAIT  * $my_hi AND

@@ -1,4 +1,4 @@
-/* Copyright 2016-2023 Codership Oy <http://www.codership.com>
+/* Copyright 2016-2025 Codership Oy <http://www.codership.com>
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -27,6 +27,7 @@
 class THD;
 
 void wsrep_commit_empty(THD* thd, bool all);
+void wsrep_parallel_slave_wakeup_subsequent_commits(void *);
 
 /*
    Return true if THD has active wsrep transaction.
@@ -165,7 +166,7 @@ static inline int wsrep_start_trx_if_not_started(THD* thd)
 /*
   Called after each row operation.
 
-  Return zero on succes, non-zero on failure.
+  Return zero on success, non-zero on failure.
  */
 static inline int wsrep_after_row_internal(THD* thd)
 {
@@ -253,7 +254,7 @@ static inline bool wsrep_run_commit_hook(THD* thd, bool all)
 /*
   Called before the transaction is prepared.
 
-  Return zero on succes, non-zero on failure.
+  Return zero on success, non-zero on failure.
  */
 static inline int wsrep_before_prepare(THD* thd, bool all)
 {
@@ -265,12 +266,18 @@ static inline int wsrep_before_prepare(THD* thd, bool all)
   {
     DBUG_RETURN(ret);
   }
-  if ((ret= thd->wsrep_cs().before_prepare()) == 0)
+  wsrep::provider::seq_cb_t seq_cb{
+      thd, wsrep_parallel_slave_wakeup_subsequent_commits};
+  if ((ret= thd->wsrep_cs().before_prepare(&seq_cb)) == 0)
   {
     DBUG_ASSERT(!thd->wsrep_trx().ws_meta().gtid().is_undefined());
+    /* Here we init xid with UUID and wsrep seqno. GTID is
+       set to undefined because commit order is decided later
+       in wsrep_before_commit(). wsrep_before_prepare() is
+       executed out of order. */
     wsrep_xid_init(&thd->wsrep_xid,
                    thd->wsrep_trx().ws_meta().gtid(),
-                   wsrep_gtid_server.gtid());
+                   wsrep_gtid_server.undefined());
   }
 
   mysql_mutex_lock(&thd->LOCK_thd_kill);
@@ -283,7 +290,7 @@ static inline int wsrep_before_prepare(THD* thd, bool all)
 /*
   Called after the transaction has been prepared.
 
-  Return zero on succes, non-zero on failure.
+  Return zero on success, non-zero on failure.
  */
 static inline int wsrep_after_prepare(THD* thd, bool all)
 {
@@ -302,7 +309,7 @@ static inline int wsrep_after_prepare(THD* thd, bool all)
   This function must be called from both client and
   applier contexts before commit.
 
-  Return zero on succes, non-zero on failure.
+  Return zero on success, non-zero on failure.
  */
 static inline int wsrep_before_commit(THD* thd, bool all)
 {
@@ -314,7 +321,9 @@ static inline int wsrep_before_commit(THD* thd, bool all)
   int ret= 0;
   DBUG_ASSERT(wsrep_run_commit_hook(thd, all));
 
-  if ((ret= thd->wsrep_cs().before_commit()) == 0)
+  wsrep::provider::seq_cb_t seq_cb{
+      thd, wsrep_parallel_slave_wakeup_subsequent_commits};
+  if ((ret= thd->wsrep_cs().before_commit(&seq_cb)) == 0)
   {
     DBUG_ASSERT(!thd->wsrep_trx().ws_meta().gtid().is_undefined());
     if (!thd->variables.gtid_seq_no &&
@@ -364,7 +373,7 @@ static inline int wsrep_before_commit(THD* thd, bool all)
   @param all 
   @param err Error buffer in case of applying error
 
-  Return zero on succes, non-zero on failure.
+  Return zero on success, non-zero on failure.
  */
 static inline int wsrep_ordered_commit(THD* thd, bool all)
 {
@@ -378,7 +387,7 @@ static inline int wsrep_ordered_commit(THD* thd, bool all)
 /*
   Called after the transaction has been committed.
 
-  Return zero on succes, non-zero on failure.
+  Return zero on success, non-zero on failure.
  */
 static inline int wsrep_after_commit(THD* thd, bool all)
 {
@@ -404,7 +413,7 @@ static inline int wsrep_after_commit(THD* thd, bool all)
 /*
   Called before the transaction is rolled back.
 
-  Return zero on succes, non-zero on failure.
+  Return zero on success, non-zero on failure.
  */
 static inline int wsrep_before_rollback(THD* thd, bool all)
 {
@@ -450,7 +459,7 @@ static inline int wsrep_before_rollback(THD* thd, bool all)
 /*
   Called after the transaction has been rolled back.
 
-  Return zero on succes, non-zero on failure.
+  Return zero on success, non-zero on failure.
  */
 static inline int wsrep_after_rollback(THD* thd, bool all)
 {
@@ -472,12 +481,6 @@ static inline
 int wsrep_after_statement(THD* thd)
 {
   DBUG_ENTER("wsrep_after_statement");
-  WSREP_DEBUG("wsrep_after_statement for %lu client_state %s "
-              " client_mode %s trans_state %s",
-              thd_get_thread_id(thd),
-              wsrep::to_c_string(thd->wsrep_cs().state()),
-              wsrep::to_c_string(thd->wsrep_cs().mode()),
-              wsrep::to_c_string(thd->wsrep_cs().transaction().state()));
   int ret= ((thd->wsrep_cs().state() != wsrep::client_state::s_none &&
                thd->wsrep_cs().mode() == Wsrep_client_state::m_local) &&
               !thd->internal_transaction() ?

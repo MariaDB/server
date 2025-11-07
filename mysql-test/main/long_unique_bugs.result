@@ -356,6 +356,7 @@ ERROR 42000: Specified key was too long; max key length is 2300 bytes
 #
 create table t1(a int, unique(a) using hash);
 #BULK insert > 100 rows (MI_MIN_ROWS_TO_DISABLE_INDEXES)
+insert into t1 values(200),(150),(149),(148),(147),(146),(145),(144),(143),(142),(141),(140),(139),(138),(137),(136),(135),(134),(133),(132),(131),(130),(129),(128),(127),(126),(125),(124),(123),(122),(121),(120),(119),(118),(117),(116),(115),(114),(113),(112),(111),(110),(109),(108),(107),(106),(105),(104),(103),(102),(101),(100),(99),(98),(97),(96),(95),(94),(93),(92),(91),(90),(89),(88),(87),(86),(85),(84),(83),(82),(81),(80),(79),(78),(77),(76),(75),(74),(73),(72),(71),(70),(69),(68),(67),(66),(65),(64),(63),(62),(61),(60),(59),(58),(57),(56),(55),(54),(53),(52),(51),(50),(49),(48),(47),(46),(45),(44),(43),(42),(41),(40),(39),(38),(37),(36),(35),(34),(33),(32),(31),(30),(29),(28),(27),(26),(25),(24),(23),(22),(21),(20),(19),(18),(17),(16),(15),(14),(13),(12),(11),(10),(9),(8),(7),(6),(5),(4),(3),(2),(1);
 drop table t1;
 #
 # MDEV-21804 Assertion `marked_for_read()' failed upon INSERT into table with long unique blob under binlog_row_image=NOBLOB
@@ -764,10 +765,89 @@ b	CREATE TABLE `b` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 drop table b;
 drop table a;
-# veirfy that duplicate has unique is detected
+# verify that duplicate has unique is detected
 create table t1 (a blob unique);
 alter table t1 add constraint constraint_1 unique (a);
 Warnings:
 Note	1831	Duplicate index `constraint_1`. This is deprecated and will be disallowed in a future release
 drop table t1;
+#
+# MDEV-33675 assertion(reclength < vreclength) in setup_vcols_for_repair()
+#
+create table t (c1 bit, unique key(c1) using hash) engine=myisam;
+insert into t values (0);
+check table t;
+Table	Op	Msg_type	Msg_text
+test.t	check	status	OK
+insert into t values();
+select cast(c1 as unsigned) c1 from t;
+c1
+0
+NULL
+drop table t;
+create table t1 (c1 bit, c2 long as (c1) virtual, c3 char(10),
+c4 long as (c1) stored) engine=myisam;
+insert into t1 (c1, c3) values (1, "a");
+check table t1;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+insert into t1 values();
+select hex(c1), hex(c2), c3, hex(c4) from t1;
+hex(c1)	hex(c2)	c3	hex(c4)
+1	01	a	01
+NULL	NULL	NULL	NULL
+drop table t1;
+create table t1 (c1 bit, c2 long as (c1) virtual, c3 char(10),
+c4 long as (c1) stored) engine=aria;
+insert into t1 (c1, c3) values (1, "a");
+check table t1;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+insert into t1 values();
+select hex(c1), hex(c2), c3, hex(c4) from t1;
+hex(c1)	hex(c2)	c3	hex(c4)
+1	01	a	01
+NULL	NULL	NULL	NULL
+drop table t1;
 # End of 10.5 tests
+#
+# MDEV-36852 Table definition gets corrupt after adding unique hash key
+#
+create table t1 (a text, b int, foreign key(a) references x(x)) engine=myisam;
+Warnings:
+Note	1071	Specified key was too long; max key length is 1000 bytes
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` text DEFAULT NULL,
+  `b` int(11) DEFAULT NULL,
+  KEY `a` (`a`(250))
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+alter table t1 add unique(a), add key(a);
+Warnings:
+Note	1071	Specified key was too long; max key length is 1000 bytes
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` text DEFAULT NULL,
+  `b` int(11) DEFAULT NULL,
+  UNIQUE KEY `a` (`a`) USING HASH,
+  KEY `a_2` (`a`(250))
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+drop table t1;
+#
+# MDEV-37203 UBSAN: applying zero offset to null pointer in strings/ctype-uca.inl | my_uca_strnncollsp_onelevel_utf8mb4 | handler::check_duplicate_long_entries_update
+#
+create table t (a int,b text unique key);
+insert into t (a) values (1);
+update t set a=2;
+drop table t;
+# End of 10.6 tests
+#
+# MDEV-37404 InnoDB: Failing assertion: node->pcur->rel_pos == BTR_PCUR_ON
+#
+create table t(c int primary key, c2 blob unique) engine=innodb;
+insert into t values (0, '');
+replace into t values (0, '123');
+drop table t;
+# End of 10.11 tests

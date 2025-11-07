@@ -3,8 +3,11 @@ connection node_1;
 CREATE TABLE t1(id int not null primary key, b int) engine=InnoDB;
 INSERT INTO t1 VALUES (0,0),(1,1),(2,2),(3,3);
 BEGIN;
+SET DEBUG_SYNC = 'wsrep_after_statement_enter SIGNAL blocked';
 UPDATE t1 set b = 100 where id between 1 and 2;;
 connect node_1b, 127.0.0.1, root, , test, $NODE_MYPORT_1;
+SET DEBUG_SYNC = 'now WAIT_FOR blocked';
+SET DEBUG_SYNC = 'wsrep_after_statement_enter CLEAR';
 connection node_1b;
 SET @save_dbug = @@SESSION.debug_dbug;
 SET @@SESSION.innodb_lock_wait_timeout=2;
@@ -20,5 +23,6 @@ id	b
 1	100
 2	100
 3	3
+SET DEBUG_SYNC = 'RESET';
 disconnect node_1b;
 DROP TABLE t1;

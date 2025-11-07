@@ -1,7 +1,11 @@
 #include "tap.h"
 
-#define SUX_LOCK_GENERIC
-#define NO_ELISION
+#ifndef SUX_LOCK_GENERIC
+# define SUX_LOCK_GENERIC
+#endif
+#ifndef NO_ELISION
+# define NO_ELISION
+#endif
 #define thd_kill_level(thd) 0
 #define srv0mon_h
 #define MONITOR_INC(x)
@@ -15,8 +19,9 @@ uint32_t srv_page_size_shift= 14;
 ulong srv_page_size= 1 << 14;
 dict_sys_t dict_sys;
 buf_pool_t buf_pool;
-buf_pool_t::chunk_t::map *buf_pool_t::chunk_t::map_reg;
-buf_pool_t::chunk_t::map *buf_pool_t::chunk_t::map_ref;
+buf_block_t *buf_pool_t::block_from(const void *ptr) noexcept
+{ return nullptr; }
+void buf_pool_t::clear_hash_index() noexcept {}
 
 void buf_pool_t::free_block(buf_block_t*) noexcept {}
 void dict_mem_table_free(dict_table_t*) {}
@@ -30,12 +35,13 @@ buf_block_t *buf_page_get_gen(const page_id_t, ulint, rw_lock_type_t,
 { return nullptr; }
 bool buf_page_make_young_if_needed(buf_page_t*) { return false; }
 
-mtr_t::mtr_t()= default;
+mtr_t::mtr_t(trx_t *trx) : trx(trx) {}
 mtr_t::~mtr_t()= default;
 void mtr_t::start() {}
 void mtr_t::commit() {}
 void mtr_t::rollback_to_savepoint(ulint, ulint) {}
 void small_vector_base::grow_by_1(void *, size_t) noexcept {}
+void buf_inc_get(trx_t*) noexcept {}
 
 void sql_print_error(const char*, ...) {}
 ulint ut_find_prime(ulint n) { return n; }
@@ -45,9 +51,15 @@ std::ostream &operator<<(std::ostream &out, const page_id_t) { return out; }
 
 #ifdef UNIV_DEBUG
 byte data_error;
+void srw_lock_debug::SRW_LOCK_INIT(mysql_pfs_key_t) noexcept {}
+void srw_lock_debug::destroy() noexcept {}
 bool srw_lock_debug::have_wr() const noexcept { return false; }
+bool srw_lock_debug::have_rd() const noexcept { return false; }
+bool srw_lock_debug::have_any() const noexcept { return false; }
 void srw_lock_debug::rd_unlock() noexcept {}
 void srw_lock_debug::rd_lock(SRW_LOCK_ARGS(const char*,unsigned)) noexcept {}
+void srw_lock_debug::wr_lock(SRW_LOCK_ARGS(const char*,unsigned)) noexcept {}
+void srw_lock_debug::wr_unlock() noexcept {}
 #endif
 
 void page_hash_latch::read_lock_wait() noexcept {}
@@ -58,6 +70,7 @@ template<> void srw_lock_<true>::rd_wait() noexcept {}
 template<> void srw_lock_<true>::wr_wait() noexcept {}
 template<bool spin> void ssux_lock_impl<spin>::wake() noexcept {}
 template<bool spin> void srw_mutex_impl<spin>::wake() noexcept {}
+void page_hash_latch::write_lock_wait() noexcept {}
 
 #ifdef UNIV_PFS_MEMORY
 PSI_memory_key ut_new_get_key_by_file(uint32_t){ return PSI_NOT_INSTRUMENTED; }

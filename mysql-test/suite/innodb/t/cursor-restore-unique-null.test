@@ -1,8 +1,6 @@
 --source include/have_innodb.inc
 --source include/have_debug.inc
 --source include/have_debug_sync.inc
---source include/count_sessions.inc
-
 
 CREATE TABLE t(a INT PRIMARY KEY, b INT, c INT, UNIQUE KEY `b_c` (`b`,`c`))
   ENGINE=InnoDB, STATS_PERSISTENT=0;
@@ -33,4 +31,3 @@ SET DEBUG_SYNC="RESET";
 
 --disconnect con1
 DROP TABLE t;
---source include/wait_until_count_sessions.inc

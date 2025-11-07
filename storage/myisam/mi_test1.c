@@ -210,6 +210,11 @@ static int run_test(const char *filename)
     if (!silent)
       printf("- Updating rows\n");
 
+    create_key(key, j);
+    if ((mi_rkey(file, read_record, 0, key,
+                 HA_WHOLE_KEY, HA_READ_KEY_EXACT)))
+      printf("Can't find last written row with mi_rkey\n");
+
     /* Update first last row to force extend of file */
     if (mi_rsame(file,read_record,-1))
     {
@@ -380,7 +385,7 @@ static void create_key(uchar *key,uint rownr)
     if (rownr == 0)
     {
       key[0]=1;					/* null key */
-      key[1]=0;					/* Fore easy print of key */
+      key[1]=0;					/* For easy print of key */
       return;
     }
     *key++=0;

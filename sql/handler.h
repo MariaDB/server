@@ -334,8 +334,7 @@ enum chf_create_flags {
 #define HA_REUSES_FILE_NAMES             (1ULL << 49)
 
 /*
-  Set of all binlog flags. Currently only contain the capabilities
-  flags.
+  Set of all binlog flags. Currently only contain the capabilities flags.
  */
 #define HA_BINLOG_FLAGS (HA_BINLOG_ROW_CAPABLE | HA_BINLOG_STMT_CAPABLE)
 
@@ -384,11 +383,12 @@ enum chf_create_flags {
 /* Implements SELECT ... FOR UPDATE SKIP LOCKED */
 #define HA_CAN_SKIP_LOCKED  (1ULL << 61)
 
+#define HA_CHECK_UNIQUE_AFTER_WRITE  (1ULL << 62)
+
 /* This engine is not compatible with Online ALTER TABLE */
-#define HA_NO_ONLINE_ALTER  (1ULL << 62)
+#define HA_NO_ONLINE_ALTER  (1ULL << 63)
 
 #define HA_LAST_TABLE_FLAG HA_NO_ONLINE_ALTER
-
 
 /* bits in index_flags(index_number) for what you can do with index */
 #define HA_READ_NEXT            1       /* TODO really use this flag */
@@ -861,7 +861,7 @@ typedef bool Log_func(THD*, TABLE*, Event_log *, binlog_cache_data *, bool,
 #define ALTER_PARTITION_ALL         (1ULL << 8)
 // Set for REMOVE PARTITIONING
 #define ALTER_PARTITION_REMOVE      (1ULL << 9)
-// Set for EXCHANGE PARITION
+// Set for EXCHANGE PARTITION
 #define ALTER_PARTITION_EXCHANGE    (1ULL << 10)
 // Set by Sql_cmd_alter_table_truncate_partition::execute()
 #define ALTER_PARTITION_TRUNCATE    (1ULL << 11)
@@ -1026,7 +1026,7 @@ struct xid_recovery_member
   */
   Binlog_offset binlog_coord;
   XID *full_xid;           // needed by wsrep or past it recovery
-  decltype(::server_id) server_id;         // server id of orginal server
+  decltype(::server_id) server_id;         // server id of original server
 
   xid_recovery_member(my_xid xid_arg, uint prepare_arg, bool decided_arg,
                       XID *full_xid_arg, decltype(::server_id) server_id_arg)
@@ -1106,13 +1106,15 @@ enum enum_schema_tables
   SCH_TABLE_NAMES,
   SCH_TABLE_PRIVILEGES,
   SCH_TRIGGERS,
+  SCH_TRIGGERED_UPDATE_COLUMNS,
   SCH_USERS,
   SCH_USER_PRIVILEGES,
   SCH_VIEWS,
 #ifdef HAVE_REPLICATION
   SCH_SLAVE_STATUS,
 #endif
-  SCH_ENUM_SIZE
+  SCH_N_SERVER_TABLES, /* How many SCHEMA tables in the server. */
+  SCH_PLUGIN_TABLE     /* Schema table defined in plugin. */
 };
 
 struct TABLE_SHARE;
@@ -1438,7 +1440,7 @@ struct transaction_participant
     consistent between 2pc participants. Such engine is no longer required to
     durably flush to disk transactions in commit(), provided that the
     transaction has been successfully prepare()d and commit_ordered(); thus
-    potentionally saving one fsync() call. (Engine must still durably flush
+    potentially saving one fsync() call. (Engine must still durably flush
     to disk in commit() when no prepare()/commit_ordered() steps took place,
     at least if durable commits are wanted; this happens eg. if binlog is
     disabled).
@@ -2010,6 +2012,16 @@ public:
     DBUG_ASSERT(is_started());
     return m_flags & (int) TRX_READ_WRITE;
   }
+  void set_trx_no_rollback()
+  {
+    DBUG_ASSERT(is_started());
+    m_flags|= (int) TRX_NO_ROLLBACK;
+  }
+  bool is_trx_no_rollback() const
+  {
+    DBUG_ASSERT(is_started());
+    return m_flags & (int) TRX_NO_ROLLBACK;
+  }
   bool is_started() const { return m_ht != NULL; }
   /** Mark this transaction read-write if the argument is read-write. */
   void coalesce_trx_with(const Ha_trx_info *stmt_trx)
@@ -2034,7 +2046,7 @@ public:
     return m_ht;
   }
 private:
-  enum { TRX_READ_ONLY= 0, TRX_READ_WRITE= 1 };
+  enum { TRX_READ_ONLY= 0, TRX_READ_WRITE= 1, TRX_NO_ROLLBACK= 2 };
   /** Auxiliary, used for ha_list management */
   Ha_trx_info *m_next;
   /**
@@ -2183,8 +2195,6 @@ struct Vers_parse_info: public Table_period_info
   }
 
 protected:
-  bool is_start(const LEX_CSTRING &name) const;
-  bool is_end(const LEX_CSTRING &name) const;
   bool is_start(const Create_field &f) const;
   bool is_end(const Create_field &f) const;
   bool fix_implicit(THD *thd, Alter_info *alter_info);
@@ -2336,8 +2346,7 @@ struct Table_scope_and_contents_source_st:
   bool fix_period_fields(THD *thd, Alter_info *alter_info);
   bool check_fields(THD *thd, Alter_info *alter_info,
                     const Lex_ident_table &table_name,
-                    const Lex_ident_db &db,
-                    int select_count= 0);
+                    const Lex_ident_db &db);
   bool check_period_fields(THD *thd, Alter_info *alter_info);
 
   void vers_check_native();
@@ -2346,8 +2355,7 @@ struct Table_scope_and_contents_source_st:
 
   bool vers_check_system_fields(THD *thd, Alter_info *alter_info,
                                 const Lex_ident_table &table_name,
-                                const Lex_ident_db &db,
-                                int select_count= 0);
+                                const Lex_ident_db &db);
 };
 
 
@@ -2361,12 +2369,14 @@ struct HA_CREATE_INFO: public Table_scope_and_contents_source_st,
 {
   /* TODO: remove after MDEV-20865 */
   Alter_info *alter_info;
+  bool repair;
 
   void init()
   {
     Table_scope_and_contents_source_st::init();
     Schema_specification_st::init();
     alter_info= NULL;
+    repair= 0;
   }
   ulong table_options_with_row_type()
   {
@@ -2379,6 +2389,7 @@ struct HA_CREATE_INFO: public Table_scope_and_contents_source_st,
                   const Lex_table_charset_collation_attrs_st &default_cscl,
                   const Lex_table_charset_collation_attrs_st &convert_cscl,
                   const Charset_collation_context &ctx);
+  bool check_if_valid_log_table();
 };
 
 
@@ -2644,7 +2655,7 @@ public:
   */
   alter_table_operations handler_flags= 0;
 
-  /* Alter operations involving parititons are strored here */
+  /* Alter operations involving partitions are stored here */
   ulong partition_flags;
 
   /**
@@ -2662,7 +2673,7 @@ public:
   bool online= false;
 
   /**
-    When ha_commit_inplace_alter_table() is called the the engine can
+    When ha_commit_inplace_alter_table() is called the engine can
     set this to a function to be called after the ddl log
     is committed.
   */
@@ -3244,6 +3255,17 @@ class handler :public Sql_alloc
 {
 public:
   typedef ulonglong Table_flags;
+
+  /*
+    The direction of the current range or index scan. This is used by
+    the ICP implementation to determine if it has reached the end
+    of the current range.
+  */
+  enum enum_range_scan_direction {
+    RANGE_SCAN_ASC,
+    RANGE_SCAN_DESC
+  };
+
 protected:
   TABLE_SHARE *table_share;   /* The table definition */
   TABLE *table;               /* The current open table */
@@ -3259,6 +3281,7 @@ protected:
   */
   ha_handler_stats active_handler_stats;
   void set_handler_stats();
+
 public:
   handlerton *ht;               /* storage engine of this handler */
   OPTIMIZER_COSTS *costs;       /* Points to table->share->costs */
@@ -3285,7 +3308,11 @@ public:
 
   KEY_MULTI_RANGE mrr_cur_range;
 
-  /** The following are for read_range() */
+private:
+  /* Used by Index Condition Pushdown, handler_index_cond_check()/compare_key2() */
+  enum_range_scan_direction range_scan_direction{RANGE_SCAN_ASC};
+public:
+  /** The following are for read_range_first/next() and ICP */
   key_range save_end_range, *end_range;
   KEY_PART_INFO *range_key_part;
   int key_compare_result_on_equal;
@@ -3463,8 +3490,8 @@ private:
   Handler_share **ha_share;
 public:
 
-  double optimizer_where_cost;          // Copy of THD->...optimzer_where_cost
-  double optimizer_scan_setup_cost;     // Copy of THD->...optimzer_scan_...
+  double optimizer_where_cost;          // Copy of THD->...optimizer_where_cost
+  double optimizer_scan_setup_cost;     // Copy of THD->...optimizer_scan_...
 
   handler(handlerton *ht_arg, TABLE_SHARE *share_arg)
     :table_share(share_arg), table(0),
@@ -3513,7 +3540,7 @@ public:
     DBUG_ASSERT(m_lock_type == F_UNLCK);
     DBUG_ASSERT(inited == NONE);
   }
-  /* To check if table has been properely opened */
+  /* To check if table has been properly opened */
   bool is_open()
   {
     return ref != 0;
@@ -3535,7 +3562,8 @@ public:
     DBUG_ASSERT(inited==INDEX);
     inited=       NONE;
     active_index= MAX_KEY;
-    end_range=    NULL;
+    end_range= NULL;
+    range_scan_direction= RANGE_SCAN_ASC;
     DBUG_RETURN(index_end());
   }
   /* This is called after index_init() if we need to do a index scan */
@@ -3580,7 +3608,7 @@ public:
   */
   Table_flags ha_table_flags() const
   {
-    DBUG_ASSERT(cached_table_flags < (HA_LAST_TABLE_FLAG << 1));
+    DBUG_ASSERT((cached_table_flags >> 1) < HA_LAST_TABLE_FLAG);
     return cached_table_flags;
   }
   /**
@@ -3605,7 +3633,7 @@ public:
   }
   inline int ha_end_keyread()
   {
-    if (!keyread_enabled())                    /* Enably lazy usage */
+    if (!keyread_enabled())                    /* Enable lazy usage */
       return 0;
     keyread= MAX_KEY;
     return extra(HA_EXTRA_NO_KEYREAD);
@@ -3685,7 +3713,6 @@ public:
   virtual void print_error(int error, myf errflag);
   virtual bool get_error_message(int error, String *buf);
   uint get_dup_key(int error);
-  bool has_dup_ref() const;
   /**
     Retrieves the names of the table and the key for which there was a
     duplicate entry in the case of HA_ERR_FOREIGN_DUPLICATE_KEY.
@@ -3843,7 +3870,7 @@ public:
 
   /*
     Set handler optimizer cost variables.
-    Called for each table used by the statment
+    Called for each table used by the statement
     This is virtual mainly for the partition engine.
   */
   virtual void set_optimizer_costs(THD *thd);
@@ -4311,7 +4338,7 @@ public:
     This is intended to be used for EXPLAIN, via the following scenario:
     1. SQL layer calls handler->multi_range_read_info().
     1.1. Storage engine figures out whether it will use some non-default
-         MRR strategy, sets appropritate bits in *mrr_mode, and returns 
+         MRR strategy, sets appropriate bits in *mrr_mode, and returns
          control to SQL layer
     2. SQL layer remembers the returned mrr_mode
     3. SQL layer compares various options and choses the final query plan. As
@@ -4335,7 +4362,8 @@ public:
                                const key_range *end_key,
                                bool eq_range, bool sorted);
   virtual int read_range_next();
-  void set_end_range(const key_range *end_key);
+  virtual void set_end_range(const key_range *end_key,
+                             enum_range_scan_direction direction = RANGE_SCAN_ASC);
   int compare_key(key_range *range);
   int compare_key2(key_range *range) const;
   virtual int ft_init() { return HA_ERR_WRONG_COMMAND; }
@@ -4410,8 +4438,8 @@ public:
   virtual int extra_opt(enum ha_extra_function operation, ulong arg)
   { return extra(operation); }
   /*
-    Table version id for the the table. This should change for each
-    sucessfull ALTER TABLE.
+    Table version id for the table. This should change for each
+    successful ALTER TABLE.
     This is used by the handlerton->check_version() to ask the engine
     if the table definition has been updated.
     Storage engines that does not support inplace alter table does not
@@ -4650,7 +4678,7 @@ public:
     Count tables invisible from all tables list on which current one built
     (like myisammrg and partitioned tables)
 
-    tables_type          mask for the tables should be added herdde
+    tables_type          mask for the tables should be added here
 
     returns number of such tables
   */
@@ -5187,11 +5215,11 @@ private:
 
   int create_lookup_handler();
   void alloc_lookup_buffer();
-  int check_duplicate_long_entries(const uchar *new_rec);
-  int check_duplicate_long_entries_update(const uchar *new_rec);
   int check_duplicate_long_entry_key(const uchar *new_rec, uint key_no);
   /** PRIMARY KEY/UNIQUE WITHOUT OVERLAPS check */
   int ha_check_overlaps(const uchar *old_data, const uchar* new_data);
+  int ha_check_long_uniques(const uchar *old_rec, const uchar *new_rec);
+  int ha_check_inserver_constraints(const uchar *old_data, const uchar* new_data);
 
 protected:
   /*
@@ -5490,8 +5518,8 @@ public:
 
     @param record        record to find (also will be fillded with
                          actual record fields)
-    @param unique_ref    index or unique constraiun number (depends
-                         on what used in the engine
+    @param unique_ref    index or unique constraint number (depends
+                         on how it is implemented by the engine)
 
     @retval -1 Error
     @retval  1 Not found
@@ -5571,6 +5599,7 @@ bool key_uses_partial_cols(TABLE_SHARE *table, uint keyno);
 extern const LEX_CSTRING ha_row_type[];
 extern MYSQL_PLUGIN_IMPORT const char *tx_isolation_names[];
 extern MYSQL_PLUGIN_IMPORT const char *binlog_format_names[];
+extern MYSQL_PLUGIN_IMPORT const char *binlog_formats_create_tmp_names[];
 extern TYPELIB tx_isolation_typelib;
 extern const char *myisam_stats_method_names[];
 extern ulong total_ha, total_ha_2pc;
@@ -5826,17 +5855,16 @@ uint ha_count_rw_all(THD *thd, Ha_trx_info **ptr_ha_info);
 bool non_existing_table_error(int error);
 uint ha_count_rw_2pc(THD *thd, bool all);
 uint ha_check_and_coalesce_trx_read_only(THD *thd, Ha_trx_info *ha_list,
-                                         bool all);
+                                         bool all, bool *no_rollback);
 inline void Cost_estimate::reset(handler *file)
 {
   reset();
   avg_io_cost= file->DISK_READ_COST * file->DISK_READ_RATIO;
 }
 
-int get_select_field_pos(Alter_info *alter_info, int select_field_count,
-                         bool versioned);
+int get_select_field_pos(Alter_info *alter_info, bool versioned);
 
 #ifndef DBUG_OFF
-const char* dbug_print_row(TABLE *table, const uchar *rec, bool print_names= true);
+String dbug_format_row(TABLE *table, const uchar *rec, bool print_names= true);
 #endif /* DBUG_OFF */
 #endif /* HANDLER_INCLUDED */

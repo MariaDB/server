@@ -55,6 +55,7 @@
 #endif
 #include <signal.h>
 #include <my_stacktrace.h>
+#include <my_attribute.h>
 
 #include <welcome_copyright_notice.h> // ORACLE_WELCOME_COPYRIGHT_NOTICE
 
@@ -78,7 +79,7 @@ static my_bool non_blocking_api_enabled= 0;
 #define MAX_DELIMITER_LENGTH 16
 #define DEFAULT_MAX_CONN        64
 
-#define DIE_BUFF_SIZE           15*1024
+#define DIE_BUFF_SIZE           64*1024
 
 #define RESULT_STRING_INIT_MEM 2048
 #define RESULT_STRING_INCREMENT_MEM 2048
@@ -1631,6 +1632,8 @@ static void make_error_message(char *buf, size_t len, const char *fmt, va_list a
   s+= my_snprintf(s, end -s, "\n");
 }
 
+PRAGMA_DISABLE_CHECK_STACK_FRAME
+
 static void die(const char *fmt, ...)
 {
   char buff[DIE_BUFF_SIZE];
@@ -1641,6 +1644,8 @@ static void die(const char *fmt, ...)
   make_error_message(buff, sizeof(buff), fmt, args);
   really_die(buff);
 }
+
+PRAGMA_REENABLE_CHECK_STACK_FRAME
 
 static void really_die(const char *msg)
 {
@@ -1669,6 +1674,8 @@ static void really_die(const char *msg)
 
   cleanup_and_exit(1, 1);
 }
+
+PRAGMA_DISABLE_CHECK_STACK_FRAME
 
 void report_or_die(const char *fmt, ...)
 {
@@ -1724,6 +1731,7 @@ void abort_not_supported_test(const char *fmt, ...)
   cleanup_and_exit(62, 0);
 }
 
+PRAGMA_REENABLE_CHECK_STACK_FRAME
 
 void abort_not_in_this_version()
 {
@@ -2864,6 +2872,7 @@ do_result_format_version(struct st_command *command)
   dynstr_append_mem(&ds_res, ds_version.str, ds_version.length);
   dynstr_append_mem(&ds_res, STRING_WITH_LEN("\n"));
   dynstr_free(&ds_version);
+  DBUG_VOID_RETURN;
 }
 
 
@@ -4115,6 +4124,10 @@ void do_rmdir(struct st_command *command)
 
   DESCRIPTION
   list all entries in directory (matching ds_wild if given)
+
+  RETURN
+  -1 on error
+   # number of found files
 */
 
 static int get_list_files(DYNAMIC_STRING *ds, const DYNAMIC_STRING *ds_dirname,
@@ -4123,11 +4136,12 @@ static int get_list_files(DYNAMIC_STRING *ds, const DYNAMIC_STRING *ds_dirname,
   size_t i;
   MY_DIR *dir_info;
   FILEINFO *file;
+  int found= 0;
   DBUG_ENTER("get_list_files");
 
   DBUG_PRINT("info", ("listing directory: %s", ds_dirname->str));
   if (!(dir_info= my_dir(ds_dirname->str, MYF(MY_WANT_SORT))))
-    DBUG_RETURN(1);
+    DBUG_RETURN(-1);
   set_wild_chars(1);
   for (i= 0; i < dir_info->number_of_files; i++)
   {
@@ -4137,10 +4151,11 @@ static int get_list_files(DYNAMIC_STRING *ds, const DYNAMIC_STRING *ds_dirname,
       continue;
     replace_dynstr_append(ds, file->name);
     dynstr_append_mem(ds, STRING_WITH_LEN("\n"));
+    found++;
   }
   set_wild_chars(0);
   my_dirend(dir_info);
-  DBUG_RETURN(0);
+  DBUG_RETURN(found);
 }
 
 
@@ -4172,7 +4187,8 @@ static void do_list_files(struct st_command *command)
                      sizeof(list_files_args)/sizeof(struct command_arg), ' ');
 
   error= get_list_files(&ds_res, &ds_dirname, &ds_wild);
-  handle_command_error(command, error, my_errno);
+  var_set_int("$sys_files",error);
+  handle_command_error(command, error < 0, my_errno);
   dynstr_free(&ds_dirname);
   dynstr_free(&ds_wild);
   DBUG_VOID_RETURN;
@@ -4217,7 +4233,7 @@ static void do_list_files_write_file_command(struct st_command *command,
     DBUG_VOID_RETURN;
 
   init_dynamic_string(&ds_content, "", 1024, 1024);
-  error= get_list_files(&ds_content, &ds_dirname, &ds_wild);
+  error= get_list_files(&ds_content, &ds_dirname, &ds_wild) < 0;
   handle_command_error(command, error, my_errno);
   str_to_file2(ds_filename.str, ds_content.str, ds_content.length, append);
   dynstr_free(&ds_content);
@@ -4655,6 +4671,24 @@ void do_change_user(struct st_command *command)
       dynstr_set(&ds_db, mysql->db);
   }
 
+  /* Connection logging if enabled */
+  if (!disable_query_log)
+  {
+    DYNAMIC_STRING *ds= &ds_res;
+
+    dynstr_append_mem(ds, STRING_WITH_LEN("change_user "));
+    replace_dynstr_append(ds, ds_user.str);
+    dynstr_append_mem(ds, STRING_WITH_LEN(","));
+
+    if (ds_passwd.length)
+      replace_dynstr_append(ds, ds_passwd.str);
+    dynstr_append_mem(ds, STRING_WITH_LEN(","));
+
+    if (ds_db.length)
+      replace_dynstr_append(ds, ds_db.str);
+    dynstr_append_mem(ds, STRING_WITH_LEN(";\n"));
+  }
+
   DBUG_PRINT("info",("connection: '%s' user: '%s' password: '%s' database: '%s'",
                       cur_con->name, ds_user.str, ds_passwd.str, ds_db.str));
 
@@ -4662,7 +4696,11 @@ void do_change_user(struct st_command *command)
     handle_error(command, mysql_errno(mysql), mysql_error(mysql),
 		 mysql_sqlstate(mysql), &ds_res);
   else
+  {
+    if (display_session_track_info)
+      append_session_track_info(&ds_res, mysql);
     handle_no_error(command);
+  }
 
   dynstr_free(&ds_user);
   dynstr_free(&ds_passwd);
@@ -5799,8 +5837,12 @@ void do_close_connection(struct st_command *command)
   DBUG_PRINT("info", ("Closing connection %s", con->name));
 #ifndef EMBEDDED_LIBRARY
   if (command->type == Q_DIRTY_CLOSE)
-  {
     mariadb_cancel(con->mysql);
+  else
+  {
+    simple_command(con->mysql,COM_QUIT,0,0,0);
+    if (con->util_mysql)
+      simple_command(con->util_mysql,COM_QUIT,0,0,0);
   }
 #endif /*!EMBEDDED_LIBRARY*/
   if (con->stmt)
@@ -6807,7 +6849,7 @@ int read_line()
   my_bool have_slash= FALSE;
   
   enum {R_NORMAL, R_Q, R_SLASH_IN_Q,
-        R_COMMENT, R_LINE_START} state= R_LINE_START;
+        R_COMMENT, R_LINE_START, R_CSTYLE_COMMENT, R_HINT} state= R_LINE_START;
   DBUG_ENTER("read_line");
 
   *p= 0;
@@ -6864,8 +6906,10 @@ int read_line()
         p--;
     }
 
+    bool drop_last_char= false;
     switch(state) {
     case R_NORMAL:
+    case R_HINT:
       if (end_of_query(c))
       {
 	*p= 0;
@@ -6894,7 +6938,34 @@ int read_line()
 	  state= R_Q;
 	}
       }
+      else if (c == '*' && last_char == '/')
+      {
+        state= R_CSTYLE_COMMENT;
+        break;
+      }
+      else if (c == '/' && last_char == '*') // Closing sequence `*/`
+      {
+        state= R_NORMAL;
+        // The hint is finished, and we don't want to interpret the current slash
+        // as an opener for a next hint or a C-style comment like it can happen
+        // for a statement like `SELECT /*+ BNL(t1) */* FROM t1` where there is
+        //no space between `*/` and `*`. So discard the current slash
+        drop_last_char= true;
+      }
       have_slash= is_escape_char(c, last_quote);
+      break;
+
+    case R_CSTYLE_COMMENT:
+      if (c == '!' || c == '+')
+      {
+        // Got hint introducer '/*!' or '/*+'
+        state= R_HINT;
+      }
+      else if (c == '/' && last_char == '*')
+      {
+        state= R_NORMAL;
+        drop_last_char= true; // See comment for `drop_last_char` above
+      }
       break;
 
     case R_COMMENT:
@@ -6974,7 +7045,15 @@ int read_line()
 
     }
 
-    last_char= c;
+    if (!drop_last_char)
+    {
+      last_char= c;
+    }
+    else
+    {
+      last_char= 0;
+      drop_last_char= false;
+    }
 
     if (!skip_char)
     {
@@ -8625,7 +8704,7 @@ void handle_no_error(struct st_command *command)
 
   SYNOPSIS
   read_stmt_results
-  stmt - prepare statemet
+  stmt - prepare statement
   mysql - mysql handle
   command - current command pointer
   ds - output buffer where to store result form query
@@ -9445,6 +9524,7 @@ int util_query(MYSQL* org_mysql, const char* query){
       /* enable local infile, in non-binary builds often disabled by default */
       mysql_options(mysql, MYSQL_OPT_LOCAL_INFILE, 0);
       mysql_options(mysql, MYSQL_OPT_NONBLOCK, 0);
+      mysql_options(mysql,MYSQL_OPT_PROTOCOL,(char*)&(org_mysql->options.protocol));
       SET_SSL_OPTS(mysql);
       safe_connect(mysql, "util", org_mysql->host, org_mysql->user,
           org_mysql->passwd, org_mysql->db, org_mysql->port,
@@ -9534,7 +9614,7 @@ void run_query(struct st_connection *cn, struct st_command *command, int flags)
     rs_output= &rs_cmp_result;
   }
   else
-    rs_output= &ds_res; // will be shown to colsole
+    rs_output= &ds_res; // will be shown to console
 
   /*
     Log the query into the output buffer
@@ -9566,7 +9646,7 @@ void run_query(struct st_connection *cn, struct st_command *command, int flags)
   dynstr_set(&ds_res, 0);
 
   if (view_protocol_enabled && mysql &&
-      complete_query &&
+      complete_query && !(mysql->server_status & SERVER_STATUS_IN_TRANS) &&
       match_re(&view_re, query))
   {
     /*

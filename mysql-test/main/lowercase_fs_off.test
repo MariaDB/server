@@ -3,6 +3,7 @@
 # i.e. lower_case_filesystem=OFF
 #
 -- source include/have_case_sensitive_file_system.inc
+-- source include/have_lowercase0.inc
 -- source include/not_embedded.inc
 -- source include/have_perfschema.inc
 
@@ -22,16 +23,14 @@ create database d2;
 --error ER_DBACCESS_DENIED_ERROR
 create database D1;
 disconnect sample;
---source include/wait_until_disconnected.inc
 
 connection master;
 drop user 'sample'@'localhost';
 drop database if exists d1;
 disconnect master;
---source include/wait_until_disconnected.inc
 connection default;
 
-# End of 4.1 tests
+--echo # End of 4.1 tests
 
 #
 # Bug#41049 does syntax "grant" case insensitive?
@@ -148,6 +147,25 @@ CREATE TABLE t1 (a mariadb_schema.date);
 DROP TABLE t1;
 
 --echo # End of 10.3 tests
+
+--echo #
+--echo # MDEV-36979 Same alias name with different case on same table is not working in functions
+--echo #
+create table t1 (a int);
+insert t1 values (1);
+create table T1 (b int);
+insert T1 values (10);
+delimiter //;
+create function t1test(val int) returns int
+begin
+  return (select a from t1 where exists (select b from T1 where b > val));
+end//
+delimiter ;//
+select t1test(1);
+drop function t1test;
+drop table t1, T1;
+
+--echo # End of 10.11 tests
 
 --echo #
 --echo # MDEV-32973 SHOW TABLES LIKE shows temporary tables with non-matching names

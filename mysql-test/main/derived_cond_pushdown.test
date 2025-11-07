@@ -4280,6 +4280,9 @@ INSERT INTO t1 VALUES
 (97,3290777,983,'2021-02-15 19:00:10'),(98,3290811,488,'2021-02-15 19:00:10'),
 (99,3290917,1283,'2021-02-15 19:00:36'),(100,3290858,482,'2021-02-15 19:00:42');
 
+insert into t1 select seq, 3300000+seq, 100+seq, '2021-02-09 18:31:35'
+from seq_101_to_1000;
+
 CREATE TABLE t2 (a int) ENGINE=MYISAM;
 INSERT INTO t2 VALUES
 (3289475),(3289496),(3289562),(3289593),(3289594),(3289595),(3289626),
@@ -4470,6 +4473,28 @@ SELECT
   ( SELECT 1 FROM ( SELECT 1 FROM cte1) dt GROUP BY x HAVING x= 1 )
 FROM cte2
   GROUP BY 1 ;
+
+create table t1 (f int);
+create view v1 as select f, count(*) c from t1 group by f;
+
+--echo #
+--echo # MDEV-25012 Server crash in find_field_in_tables, Assertion `name' failed in find_field_in_table_ref
+--echo #
+select * from v1 where export_set(1, default(f), 'x', aes_decrypt('secret', f));
+show warnings;
+# cleanup
+drop view v1;
+drop table t1;
+
+create table t(c3 longtext) ;
+with cte1 as
+(
+  select default(c3) as a
+  from t group by 1
+)
+select * from cte1
+where cte1.a >= 1;
+drop table t;
 
 --echo # End of 10.5 tests
 

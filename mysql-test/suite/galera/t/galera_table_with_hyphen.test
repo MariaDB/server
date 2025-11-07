@@ -10,7 +10,7 @@
 # The test creates two tables having foreign key constraint
 # reference and executes two transactions which modify
 # same rows. The same test is executed with different names
-# containin special characters to see if the certification
+# containing special characters to see if the certification
 # can detect the conflicts
 #
 # Actual test is in include file galera_table_with_hyphen.inc

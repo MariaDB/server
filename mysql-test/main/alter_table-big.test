@@ -1,5 +1,5 @@
 #
-# Tests for various concurrency-related aspects of ALTER TABLE implemetation
+# Tests for various concurrency-related aspects of ALTER TABLE implementation
 #
 # This test takes rather long time so let us run it only in --big-test mode
 --source include/big_test.inc

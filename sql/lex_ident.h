@@ -18,8 +18,11 @@
    Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA
 */
 
+#include "my_global.h"
+#include "m_ctype.h"
 #include "char_buffer.h"
 #include "lex_string.h"
+#include "my_sys.h"
 
 extern MYSQL_PLUGIN_IMPORT CHARSET_INFO *table_alias_charset;
 
@@ -53,7 +56,7 @@ struct Compare_ident_ci
     1.  {ptr==NULL,length==0} is valid and means "NULL identifier".
     2a. {ptr<>NULL,length==0} means "empty identifier".
     2b. {ptr<>NULL,length>0}  means "not empty identifier.
-  In case of 2a and 2b, ptr must be a '\0'-terninated string.
+  In case of 2a and 2b, ptr must be a '\0'-terminated string.
 
   Comparison operands passed to streq() are not required to be 0-terminated.
 
@@ -61,7 +64,7 @@ struct Compare_ident_ci
   - inside methods of this class
   - inside st_charset_info::streq() in include/m_ctype.h
   The caller must make sure to maintain the object in the valid state,
-  as well as provide valid LEX_CSTRING instances for comparion.
+  as well as provide valid LEX_CSTRING instances for comparison.
 
   For better code stability, the Lex_cstring base should eventually be
   encapsulated, so the object debug validation is done at constructor
@@ -165,6 +168,7 @@ public:
 */
 class Lex_ident_db: public Lex_ident_fs
 {
+public:
   bool is_null() const
   {
     return length == 0 && str == NULL;
@@ -174,7 +178,6 @@ class Lex_ident_db: public Lex_ident_fs
   {
     return length == 0 && str != NULL;
   }
-public:
   static bool check_name(const LEX_CSTRING &str);
   static bool check_name_with_error(const LEX_CSTRING &str);
 public:
@@ -468,7 +471,7 @@ public:
   Lex_ident_db::check_name().
 
   Note, the database name passed to the constructor can originally
-  come from the parser and can be of an atribtrary long length.
+  come from the parser and can be of an arbitrary long length.
   Let's reserve additional buffer space for one extra character
   (SYSTEM_CHARSET_MBMAXLEN bytes), so Lex_ident_db::check_name() can
   still detect too long names even if the constructor cuts the data.

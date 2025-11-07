@@ -1,5 +1,4 @@
 --source include/have_innodb.inc
---source include/count_sessions.inc
 --source include/have_debug.inc
 --source include/have_debug_sync.inc
 
@@ -27,7 +26,7 @@ SET DEBUG_SYNC="lock_rec_store_on_page_infimum_end SIGNAL trx2_moved_locks WAIT_
 --connect(trx3, localhost,root,,)
 SET DEBUG_SYNC="now WAIT_FOR trx2_start_waiting";
 #################
-# The condition wariable waiting in lock_wait() must be finished by timeout
+# The condition variable waiting in lock_wait() must be finished by timeout
 ###
 SET innodb_lock_wait_timeout=1;
 BEGIN;
@@ -56,4 +55,3 @@ SET DEBUG_SYNC="now SIGNAL trx2_cont";
 --connection default
 SET DEBUG_SYNC="RESET";
 DROP TABLE t;
---source include/wait_until_count_sessions.inc

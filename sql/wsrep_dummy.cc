@@ -94,6 +94,9 @@ long long wsrep_thd_trx_seqno(const THD *)
 my_bool wsrep_thd_is_aborting(const THD *)
 { return 0; }
 
+my_bool wsrep_thd_in_rollback(const THD *)
+{ return 0; }
+
 void wsrep_set_data_home_dir(const char *)
 { }
 

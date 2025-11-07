@@ -1619,8 +1619,8 @@ set optimizer_switch='subquery_cache=on';
 --echo # LP BUG#615378 (incorrect NULL result returning in Item_cache)
 #
 # if bug present here will be valgrind warnings (due to attempt to process
-# uninialized decimal value) but the result will be correct (due to 
-# Item::null_value) 
+# uninitialized decimal value) but the result will be correct (due to
+# Item::null_value)
 
 CREATE TABLE `t1` (
   `pk` int(11) NOT NULL AUTO_INCREMENT,

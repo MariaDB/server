@@ -101,7 +101,7 @@ DROP TABLE t1;
 --sync_slave_with_master
 
 
-# assertion: the slave woul hit an/several assertions:
+# assertion: the slave would hit an/several assertions:
 #            before and during slave conversion procedure
 #            Now that is fixed, it wont.
 

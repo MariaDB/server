@@ -137,7 +137,7 @@ select count(b)           from t2;
 select count(pk),count(a) from t3;
 select count(b)           from t3;
 
-# Create a dummy file with a bulk load extesion.  It should be removed when
+# Create a dummy file with a bulk load extension.  It should be removed when
 # the server starts
 --let $tmpext = .bulk_load.tmp
 --let $MYSQLD_DATADIR= `SELECT @@datadir`

@@ -237,9 +237,6 @@ end:
   }
   maria_end();
   my_exit(error);
-#ifndef _lint
-  return 0;				/* No compiler warning */
-#endif
 } /* main */
 
 enum options_mc {
@@ -252,7 +249,7 @@ enum options_mc {
   OPT_MAX_RECORD_LENGTH, OPT_AUTO_CLOSE, OPT_STATS_METHOD, OPT_TRANSACTION_LOG,
   OPT_ZEROFILL_KEEP_LSN,
   OPT_REQUIRE_CONTROL_FILE, OPT_IGNORE_CONTROL_FILE,
-  OPT_LOG_DIR, OPT_WARNING_FOR_WRONG_TRANSID
+  OPT_LOG_DIR, OPT_WARNING_FOR_WRONG_TRANSID,OPT_ACTIVE_KEYS
 };
 
 static struct my_option my_long_options[] =
@@ -323,10 +320,16 @@ static struct my_option my_long_options[] =
     (uchar**)&opt_ignore_control_file, 0, 0, GET_BOOL, NO_ARG,
     0, 0, 0, 0, 0, 0},
   {"keys-used", 'k',
-   "Tell Aria to update only some specific keys. # is a bit mask of which keys to use. This can be used to get faster inserts.",
+   "Tell Aria to update only some specific keys. # is a bit mask of which keys to use. This can be used to get faster inserts. See also keys-active",
    &check_param.keys_in_use,
    &check_param.keys_in_use,
    0, GET_ULL, REQUIRED_ARG, -1, 0, 0, 0, 0, 0},
+  {"keys-active", OPT_ACTIVE_KEYS,
+   "Threat all not listed keys as disabled. If used with repair, the keys "
+   "will be disabled permanently. The argument is a list of key numbers, "
+   "starting from 1, separated by ','. "
+   "keys-active and keys-used are two ways to do the same thing",
+   0, 0, 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"datadir", 'h',
    "Path for control file (and logs if --logdir not used).",
    (char**) &maria_data_root, 0, 0, GET_STR, REQUIRED_ARG,
@@ -458,7 +461,7 @@ static struct my_option my_long_options[] =
     REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   { "stats_method", OPT_STATS_METHOD,
     "Specifies how index statistics collection code should treat NULLs. "
-    "Possible values of name are \"nulls_unequal\" (default behavior for 4.1/5.0), "
+    "Possible values of name are \"nulls_unequal\" (default behavior for MySQL 4.1/5.0), "
     "\"nulls_equal\" (emulate 4.0 behavior), and \"nulls_ignored\".",
     (char**) &maria_stats_method_str, (char**) &maria_stats_method_str, 0,
     GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
@@ -517,7 +520,7 @@ static void usage(void)
 
   puts("Check options (check is the default action for aria_chk):\n\
   -c, --check	      Check table for errors.\n\
-  -e, --extend-check  Check the table VERY throughly.  Only use this in\n\
+  -e, --extend-check  Check the table VERY thoroughly. Only use this in\n\
                       extreme cases as aria_chk should normally be able to\n\
                       find out if the table is ok even without this switch.\n\
   -F, --fast	      Check only tables that haven't been closed properly.\n\
@@ -549,7 +552,7 @@ Recover (repair)/ options (When using '--recover' or '--safe-recover'):\n\
                       file when it's full).\n\
  --create-missing-keys\n\
                       Create missing keys. This assumes that the data\n\
-                      file is correct and that the the number of rows stored\n\
+                      file is correct and that the number of rows stored\n\
                       in the index file is correct. Enables --quick.\n\
   -e, --extend-check  Try to recover every possible row from the data file\n\
 		      Normally this will also find a lot of garbage rows;\n\
@@ -562,6 +565,11 @@ Recover (repair)/ options (When using '--recover' or '--safe-recover'):\n\
   -k, --keys-used=#   Tell Aria to update only some specific keys. # is a\n\
 	              bit mask of which keys to use. This can be used to\n\
 		      get faster inserts.\n\
+  --keys-active\n\
+   Treat all not listed keys as disabled. If used with repair, the keys\n\
+   will be disabled permanently. The argument is a list of key numbers,\n\
+   starting from 1, separated by ','\n\
+   keys-active and keys-used are two ways to do the same thing\n\
   --max-record-length=#\n\
                       Skip rows bigger than this if aria_chk can't allocate\n\
 		      memory to hold it.\n\
@@ -743,6 +751,32 @@ get_one_option(const struct my_option *opt,
     break;
   case 'k':
     check_param.keys_in_use= (ulonglong) strtoll(argument, NULL, 10);
+    break;
+  case OPT_ACTIVE_KEYS:
+    if (argument == disabled_my_option)
+      check_param.keys_in_use= ~0LL;
+    else
+    {
+      const char *start;
+      char *end, *str_end= strend(argument);
+      check_param.keys_in_use= 0;
+      for (start= argument; *start ; start= end)
+      {
+        int error;
+        longlong key;
+        end= str_end;
+        key= my_strtoll10(start, &end, &error);
+        if (error || key > 64 || (*end && *end != ','))
+        {
+          fprintf(stderr, "Wrong argument to active-keys. Expected a list of "
+                  "numbers like 1,2,3,4\n");
+          exit(1);                              /* Change to my_exit after merge */
+        }
+        check_param.keys_in_use|= 1LL << (key-1);
+        if (*end == ',')
+          end++;
+      }
+    }
     break;
   case 'm':
     if (argument == disabled_my_option)
@@ -1026,7 +1060,9 @@ static int maria_chk(HA_CHECK *param, char *filename)
   if (!(info=maria_open(filename,
                         (param->testflag & (T_DESCRIPT | T_READONLY)) ?
                         O_RDONLY : O_RDWR,
-                        HA_OPEN_FOR_REPAIR |
+                        HA_OPEN_FOR_REPAIR | HA_OPEN_FORCE_MODE |
+                        ((param->testflag & T_QUICK) ?
+                         HA_OPEN_DATA_READONLY : 0) |
                         ((param->testflag & T_WAIT_FOREVER) ?
                          HA_OPEN_WAIT_IF_LOCKED :
                          (param->testflag & T_DESCRIPT) ?
@@ -1154,6 +1190,13 @@ static int maria_chk(HA_CHECK *param, char *filename)
       DBUG_RETURN(0);
     }
   }
+
+  /* Don't allow disable of active auto_increment keys for repair */
+  if (share->base.auto_key &&
+      (share->state.key_map & (1LL << share->base.auto_key)) &&
+      param->testflag & (T_REP_ANY | T_SORT_RECORDS | T_SORT_INDEX))
+    check_param.keys_in_use|= (1LL << share->base.auto_key);
+
   if ((param->testflag & (T_REP_ANY | T_STATISTICS |
 			  T_SORT_RECORDS | T_SORT_INDEX)) &&
       (((param->testflag & T_UNPACK) &&
@@ -1224,14 +1267,16 @@ static int maria_chk(HA_CHECK *param, char *filename)
   */
   maria_lock_database(info, F_EXTRA_LCK);
   datafile= info->dfile.file;
-  if (init_pagecache(maria_pagecache, (size_t) param->use_buffers, 0, 0,
-                     maria_block_size, 0, MY_WME) == 0)
+  if (multi_init_pagecache(&maria_pagecaches, 1, (size_t) param->use_buffers,
+                           0, 0, maria_block_size, 0, MY_WME))
   {
     _ma_check_print_error(param, "Can't initialize page cache with %lu memory",
                           (ulong) param->use_buffers);
     error= 1;
     goto end2;
   }
+  /* The pagecache is initialized. Update the table pagecaches pointers */
+  ma_change_pagecache(info);
 
   if (param->testflag & (T_REP_ANY | T_SORT_RECORDS | T_SORT_INDEX |
                          T_ZEROFILL))
@@ -1472,7 +1517,7 @@ end2:
     _ma_check_print_error(param, default_close_errmsg, my_errno, filename);
     DBUG_RETURN(1);
   }
-  end_pagecache(maria_pagecache, 1);
+  multi_end_pagecache(&maria_pagecaches);
   if (error == 0)
   {
     if (param->out_flag & O_NEW_DATA)

@@ -4488,10 +4488,7 @@ use test;
 #
 # MDEV-23406: query with mutually recursive CTEs when big_tables=1
 #
-set @save_big_tables=@@big_tables;
-set big_tables=1;
-Warnings:
-Warning	1287	'@@big_tables' is deprecated and will be removed in a future release
+set tmp_memory_table_size=0;
 create table  folks(id int, name char(32), dob date, father int, mother int);
 insert into folks values
 (100, 'Me', '2000-01-01', 20, 30),
@@ -4705,9 +4702,7 @@ Grandpa Bill	1940-04-05	Grandma Ann	1941-10-15
 Grandpa Ben	1940-10-21	Grandma Sally	1943-08-23
 deallocate prepare stmt;
 drop table folks;
-set big_tables=@save_big_tables;
-Warnings:
-Warning	1287	'@@big_tables' is deprecated and will be removed in a future release
+set tmp_memory_table_size=default;
 #
 # MDEV-26135: execution of PS for query with hanging recursive CTE
 #
@@ -6057,3 +6052,10 @@ b	rank() over (order by c)
 drop view v1;
 drop table t1;
 # End of 10.4 tests
+#
+# MDEV-32308: Server crash on cleanup of
+# non-fully-constructed-due-to-an-error CTE
+#
+SELECT ( WITH RECURSIVE x AS ( WITH x AS ( SELECT 1 FROM t14 ) SELECT x ) , t14 AS ( SELECT 1 UNION SELECT 'x' FROM x ) SELECT x FROM x WHERE ( SELECT x FROM x ) ) ;
+ERROR 42S22: Unknown column 'x' in 'SELECT'
+# End of 10.6 tests

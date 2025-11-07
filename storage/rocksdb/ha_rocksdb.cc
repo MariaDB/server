@@ -86,15 +86,18 @@
 #include "./rdb_threads.h"
 #include "./rdb_mariadb_server_port.h"
 
-// Internal MySQL APIs not exposed in any header.
-extern "C" {
 /**
   Mark transaction to rollback and mark error as fatal to a sub-statement.
   @param  thd   Thread handle
   @param  all   TRUE <=> rollback main transaction.
 */
-void thd_mark_transaction_to_rollback(MYSQL_THD thd, bool all);
+static inline void thd_mark_transaction_to_rollback(MYSQL_THD thd, bool all)
+{
+  return thd->mark_transaction_to_rollback(all);
+}
 
+// Internal MariaDB APIs not exposed in any header.
+extern "C" {
 /**
  *   Get the user thread's binary logging format
  *   @param thd  user thread
@@ -1238,7 +1241,7 @@ static MYSQL_SYSVAR_UINT(
     "Statistics Level for RocksDB. Default is 0 (kExceptHistogramOrTimers)",
     nullptr, rocksdb_set_rocksdb_stats_level,
     /* default */ (uint)rocksdb::StatsLevel::kExceptHistogramOrTimers,
-    /* min */ (uint)rocksdb::StatsLevel::kExceptHistogramOrTimers,
+    /* min */ (uint)rocksdb::StatsLevel::kDisableAll,
     /* max */ (uint)rocksdb::StatsLevel::kAll, 0);
 
 static MYSQL_SYSVAR_SIZE_T(compaction_readahead_size,
@@ -1547,7 +1550,7 @@ static MYSQL_SYSVAR_BOOL(
     nullptr, true);
 
 // When pin_l0_filter_and_index_blocks_in_cache is true, RocksDB will  use the
-// LRU cache, but will always keep the filter & idndex block's handle checked
+// LRU cache, but will always keep the filter & index block's handle checked
 // out (=won't call ShardedLRUCache::Release), plus the parsed out objects
 // the LRU cache will never push flush them out, hence they're pinned.
 //
@@ -1584,7 +1587,7 @@ static MYSQL_SYSVAR_BOOL(
     "BlockBasedTableOptions::no_block_cache for RocksDB", nullptr, nullptr,
     rocksdb_tbl_options->no_block_cache);
 
-static MYSQL_SYSVAR_SIZE_T(block_size, rocksdb_tbl_options->block_size,
+static MYSQL_SYSVAR_UINT64_T(block_size, rocksdb_tbl_options->block_size,
                           PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
                           "BlockBasedTableOptions::block_size for RocksDB",
                           nullptr, nullptr, rocksdb_tbl_options->block_size,
@@ -3366,7 +3369,7 @@ private:
   rocksdb::Status get(rocksdb::ColumnFamilyHandle *const column_family,
                       const rocksdb::Slice &key,
                       rocksdb::PinnableSlice *const value) const override {
-    // clean PinnableSlice right begfore Get() for multiple gets per statement
+    // clean PinnableSlice right before Get() for multiple gets per statement
     // the resources after the last Get in a statement are cleared in
     // handler::reset call
     value->Reset();
@@ -3966,7 +3969,7 @@ static int rocksdb_commit_by_xid(XID *const xid) {
   DBUG_ASSERT(xid != nullptr);
   DBUG_ASSERT(commit_latency_stats != nullptr);
 
-  rocksdb::StopWatchNano timer(rocksdb::Env::Default(), true);
+  rocksdb::StopWatchNano timer(rocksdb::SystemClock::Default().get(), true);
 
   const auto name = rdb_xid_to_string(*xid);
   DBUG_ASSERT(!name.empty());
@@ -4158,7 +4161,7 @@ static int rocksdb_commit(THD* thd, bool commit_tx)
   DBUG_ASSERT(thd != nullptr);
   DBUG_ASSERT(commit_latency_stats != nullptr);
 
-  rocksdb::StopWatchNano timer(rocksdb::Env::Default(), true);
+  rocksdb::StopWatchNano timer(rocksdb::SystemClock::Default().get(), true);
 
   /* note: h->external_lock(F_UNLCK) is called after this function is called) */
   Rdb_transaction *tx = get_tx_from_thd(thd);
@@ -4702,8 +4705,7 @@ static bool rocksdb_show_status(handlerton *const hton, THD *const thd,
 
         if (tf_name.find("BlockBasedTable") != std::string::npos) {
           const rocksdb::BlockBasedTableOptions *const bbt_opt =
-              reinterpret_cast<rocksdb::BlockBasedTableOptions *>(
-                  table_factory->GetOptions());
+                  table_factory->GetOptions<rocksdb::BlockBasedTableOptions>();
 
           if (bbt_opt != nullptr) {
             if (bbt_opt->block_cache.get() != nullptr) {
@@ -7839,17 +7841,17 @@ int ha_rocksdb::create(const char *const name, TABLE *const table_arg,
     // outside the MySQL data directory. We don't support this for MyRocks.
     // The `rocksdb_datadir` setting should be used to configure RocksDB data
     // directory.
-    DBUG_RETURN(HA_ERR_ROCKSDB_TABLE_DATA_DIRECTORY_NOT_SUPPORTED);
+    my_error(WARN_OPTION_IGNORED, ME_NOTE, "DATA DIRECTORY");
   }
 
-  if (create_info->index_file_name) {
+  if (create_info->index_file_name && table_arg->s->keys) {
     // Similar check for INDEX DIRECTORY as well.
-    DBUG_RETURN(HA_ERR_ROCKSDB_TABLE_INDEX_DIRECTORY_NOT_SUPPORTED);
+    my_error(WARN_OPTION_IGNORED, ME_NOTE, "INDEX DIRECTORY");
   }
 
   int err;
   /*
-    Construct dbname.tablename ourselves, because parititioning
+    Construct dbname.tablename ourselves, because partitioning
     passes strings like "./test/t14#P#p0" for individual partitions,
     while table_arg->s->table_name has none of that.
   */
@@ -8262,7 +8264,7 @@ int ha_rocksdb::read_row_from_secondary_key(uchar *const buf,
     keyparts whose datatype is not yet known.
 
     We walk around this problem by using check_keyread_allowed(), which uses
-    table_share object and is careful not to step on unitialized data.
+    table_share object and is careful not to step on uninitialized data.
 
     When we get a call with all_parts=TRUE, we try to analyze all parts but
     ignore those that have key_part->field==nullptr (these are not initialized
@@ -9552,7 +9554,7 @@ const std::string ha_rocksdb::generate_cf_name(
   DBUG_ASSERT(per_part_match_found != nullptr);
 
   // When creating CF-s the caller needs to know if there was a custom CF name
-  // specified for a given paritition.
+  // specified for a given partition.
   *per_part_match_found = false;
 
   // Index comment is used to define the column family name specification(s).
@@ -9928,7 +9930,7 @@ int ha_rocksdb::check_and_lock_sk(const uint key_id,
 }
 
 /**
-   Enumerate all keys to check their uniquess and also lock it
+   Enumerate all keys to check their uniqueness and also lock it
 
   @param[in] row_info         hold all data for update row, such as old row
                               data and new row data
@@ -11010,7 +11012,7 @@ int ha_rocksdb::info(uint flag) {
         uint64_t memtableCount;
         uint64_t memtableSize;
 
-        // the stats below are calculated from skiplist wich is a probablistic
+        // the stats below are calculated from skiplist which is a probabilistic
         // data structure, so the results vary between test runs
         // it also can return 0 for quite a large tables which means that
         // cardinality for memtable only indxes will be reported as 0
@@ -12313,7 +12315,7 @@ void ha_rocksdb::get_auto_increment(ulonglong off, ulonglong inc,
     // Optimization for the standard case where we are always simply
     // incrementing from the last position
 
-    // Use CAS operation in a loop to make sure automically get the next auto
+    // Use CAS operation in a loop to atomically get the next auto
     // increment value while ensuring that we don't wrap around to a negative
     // number.
     //

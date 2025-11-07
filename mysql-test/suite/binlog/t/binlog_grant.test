@@ -96,7 +96,7 @@ REVOKE REPLICATION CLIENT ON *.* FROM user1@localhost;
 SHOW GRANTS FOR user1@localhost;
 DROP USER user1@localhost;
 
---echo # Test if SHOW BINARY LOGS and SHOW BINGLOG STATUS are not allowed without REPLICATION CLIENT
+--echo # Test if SHOW BINARY LOGS and SHOW BINLOG STATUS are not allowed without REPLICATION CLIENT
 CREATE USER user1@localhost;
 GRANT ALL PRIVILEGES ON *.* TO user1@localhost;
 REVOKE REPLICATION CLIENT ON *.* FROM user1@localhost;
@@ -193,8 +193,11 @@ call mtr.add_suppression("Access denied; you need (at least one of) the BINLOG R
 
 --echo #  Test cleanup
 --remove_file $MYSQLTEST_VARDIR/tmp/mysqlbinlog.sql
+--disconnect user1
 DROP TABLE t2,t1;
+--disable_warnings
 DROP USER user1@localhost;
+--enable_warnings
 
 --echo #
 --echo # End of 10.5 test

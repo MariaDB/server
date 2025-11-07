@@ -25,9 +25,6 @@
 #else
 # include <cpuid.h>
 # ifdef __APPLE__ /* AVX512 states are not enabled in XCR0 */
-# elif __GNUC__ >= 14 || (defined __clang_major__ && __clang_major__ >= 18)
-#  define TARGET "pclmul,evex512,avx512f,avx512dq,avx512bw,avx512vl,vpclmulqdq"
-#  define USE_VPCLMULQDQ __attribute__((target(TARGET)))
 # elif __GNUC__ >= 11 || (defined __clang_major__ && __clang_major__ >= 9)
 /* clang 8 does not support _xgetbv(), which we also need */
 #  define TARGET "pclmul,avx512f,avx512dq,avx512bw,avx512vl,vpclmulqdq"
@@ -210,7 +207,7 @@ USE_VPCLMULQDQ
 static unsigned crc32_avx512(unsigned crc, const char *buf, size_t size,
                              const crc32_tab &tab)
 {
-  const __m512i crc_in = _mm512_castsi128_si512(_mm_cvtsi32_si128(~crc)),
+  const __m512i crc_in = _mm512_zextsi128_si512(_mm_cvtsi32_si128(~crc)),
     b512 = _mm512_broadcast_i32x4(_mm_load_epi32(tab.b512));
   __m128i crc_out;
   __m512i lo;

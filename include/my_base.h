@@ -51,6 +51,13 @@
 #define HA_OPEN_FOR_DROP                (1U << 13) /* Open part of drop */
 #define HA_OPEN_GLOBAL_TMP_TABLE	(1U << 14) /* TMP table used by repliction */
 #define HA_OPEN_SIZE_TRACKING           (1U << 15)
+/*
+  This is to signal that the table will not be cached by the caller
+  and the table should be open in read-only mode if the tool requests
+  that
+*/
+#define HA_OPEN_FORCE_MODE              (1U << 16) /* Force open mode */
+#define HA_OPEN_DATA_READONLY           (1U << 17) /* Use readonly for data */
 
 /*
   Allow opening even if table is incompatible as this is for ALTER TABLE which
@@ -223,7 +230,10 @@ enum ha_extra_function {
   /** Start writing rows during ALTER TABLE...ALGORITHM=COPY. */
   HA_EXTRA_BEGIN_ALTER_COPY,
   /** Finish writing rows during ALTER TABLE...ALGORITHM=COPY. */
-  HA_EXTRA_END_ALTER_COPY
+  HA_EXTRA_END_ALTER_COPY,
+  /** Abort of writing rows during ALTER TABLE..ALGORITHM=COPY or
+  CREATE..SELCT */
+  HA_EXTRA_ABORT_ALTER_COPY
 };
 
 /* Compatible option, to be deleted in 6.0 */
@@ -463,7 +473,7 @@ enum ha_base_keytype {
 #define HA_ERR_RETRY_INIT 129 /* Initialization failed and should be retried */
 #define HA_ERR_NOT_A_TABLE      130     /* not a MYI file - no signature */
 #define HA_ERR_WRONG_COMMAND	131	/* Command not supported */
-#define HA_ERR_OLD_FILE		132	/* old databasfile */
+#define HA_ERR_OLD_FILE		132	/* old database file */
 #define HA_ERR_NO_ACTIVE_RECORD 133	/* No record read in update() */
 #define HA_ERR_RECORD_DELETED	134	/* A record is not there */
 #define HA_ERR_RECORD_FILE_FULL 135	/* No more room in file */

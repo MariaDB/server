@@ -838,7 +838,7 @@ static LEX_STRING copy_definition_string(String *defstr,
 
 
 /**
-  @brief    The function parses input strings and returns SP stucture.
+  @brief    The function parses input strings and returns SP structure.
 
   @param[in]      thd               Thread handler
   @param[in]      defstr            CREATE... string
@@ -984,7 +984,7 @@ Sp_handler::db_load_routine(THD *thd, const Database_qualified_name *name,
   defstr.set_thread_specific();
 
   /*
-    We have to add DEFINER clause and provide proper routine characterstics in
+    We have to add DEFINER clause and provide proper routine characteristics in
     routine definition statement that we build here to be able to use this
     definition for SHOW CREATE PROCEDURE later.
    */
@@ -1198,7 +1198,7 @@ Sp_handler::sp_drop_routine_internal(THD *thd,
   sp_cache **spc= get_cache(thd);
   DBUG_ASSERT(spc);
   if ((sp= sp_cache_lookup(spc, name)))
-    sp_cache_flush_obsolete(spc, &sp);
+    sp_cache_remove(spc, &sp);
   /* Drop statistics for this stored program from performance schema. */
   MYSQL_DROP_SP(type(), name->m_db.str, static_cast<uint>(name->m_db.length),
                         name->m_name.str, static_cast<uint>(name->m_name.length));
@@ -1238,7 +1238,7 @@ Sp_handler_package_spec::
       - SP_OK means that "CREATE PACKAGE pkg" had a correspoinding
         "CREATE PACKAGE BODY pkg", which was successfully dropped.
     */
-    return ret; // Other codes mean an unexpecte error
+    return ret; // Other codes mean an unexpected error
   }
   return Sp_handler::sp_find_and_drop_routine(thd, table, name);
 }
@@ -1550,7 +1550,7 @@ log:
       my_error(ER_OUT_OF_RESOURCES, MYF(0));
       goto done;
     }
-    /* restore sql_mode when binloging */
+    /* restore sql_mode when binlogging */
     thd->variables.sql_mode= org_sql_mode;
     /* Such a statement can always go directly to binlog, no trans cache */
     if (thd->binlog_query(THD::STMT_QUERY_TYPE,
@@ -2487,8 +2487,12 @@ is_package_public_routine(THD *thd,
 {
   sp_head *sp= NULL;
   Database_qualified_name tmp(db, package);
-  bool ret= sp_handler_package_spec.
-              sp_cache_routine_reentrant(thd, &tmp, &sp);
+
+  Dummy_error_handler err_handler;
+  thd->push_internal_handler(&err_handler);
+  bool ret= sp_handler_package_spec.sp_cache_routine_reentrant(thd, &tmp, &sp);
+  thd->pop_internal_handler();
+
   sp_package *spec= (!ret && sp) ? sp->get_package() : NULL;
   return spec && spec->m_routine_declarations.find(routine, type);
 }
@@ -2897,10 +2901,12 @@ int Sp_handler::sp_cache_routine(THD *thd,
   DBUG_ASSERT(spc);
 
   *sp= sp_cache_lookup(spc, name);
+  thd->set_sp_cache_version_if_needed(sp_cache_version());
 
   if (*sp)
   {
-    sp_cache_flush_obsolete(spc, sp);
+    if ((*sp)->sp_cache_version() < thd->sp_cache_version())
+      sp_cache_remove(spc, sp);
     if (*sp)
       DBUG_RETURN(SP_OK);
   }
@@ -3107,7 +3113,7 @@ Sp_handler::show_create_sp(THD *thd, String *buf,
             (used for I_S ROUTINES & PARAMETERS tables).
 
   @param[in]      thd               thread handler
-  @param[in]      proc_table        mysql.proc table structurte
+  @param[in]      proc_table        mysql.proc table structure
   @param[in]      db                database name
   @param[in]      name              sp name
   @param[in]      sql_mode          SQL mode

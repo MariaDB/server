@@ -719,10 +719,10 @@ public:
                                            FbtImpl::binary_length(), &my_charset_bin);
     }
 
-    uchar *pack(uchar *to, const uchar *from, uint max_length) override
+    uchar *pack(uchar *to, const uchar *from) const override
     {
       DBUG_PRINT("debug", ("Packing field '%s'", field_name.str));
-      return FbtImpl::pack(to, from, max_length);
+      return FbtImpl::pack(to, from);
     }
 
     const uchar *unpack(uchar *to, const uchar *from, const uchar *from_end,
@@ -731,14 +731,15 @@ public:
       return FbtImpl::unpack(to, from, from_end, param_data);
     }
 
-    uint max_packed_col_length(uint max_length) override
+    uint max_packed_col_length(uint max_length) const override
     {
       return StringPack::max_packed_col_length(max_length);
     }
 
-    uint packed_col_length(const uchar *fbt_ptr, uint length) override
+    uint packed_col_length() const override
     {
-      return StringPack::packed_col_length(fbt_ptr, length);
+      return StringPack(&my_charset_bin, pack_length()).
+               packed_col_length(ptr);
     }
 
     uint size_of() const override { return sizeof(*this); }
@@ -949,7 +950,7 @@ public:
 
     Item_func::Functype functype() const override
     { return Item_func::CHAR_TYPECAST_FUNC; }
-    bool eq(const Item *item, bool binary_cmp) const override
+    bool eq(const Item *item, const Item::Eq_config &config) const override
     {
       if (this == item)
         return true;
@@ -959,7 +960,7 @@ public:
       if (Item_fbt_func::type_handler() != item->type_handler())
         return false;
       Item_typecast_fbt *cast= (Item_typecast_fbt*) item;
-      return Item_fbt_func::args[0]->eq(cast->args[0], binary_cmp);
+      return Item_fbt_func::args[0]->eq(cast->args[0], config);
     }
     LEX_CSTRING func_name_cstring() const override
     {
@@ -1177,6 +1178,7 @@ public:
 
   bool is_scalar_type() const override { return true; }
   bool is_val_native_ready() const override { return true; }
+  bool can_return_bool() const override { return true; }
   bool can_return_int() const override { return false; }
   bool can_return_decimal() const override { return false; }
   bool can_return_real() const override { return false; }
@@ -1599,17 +1601,40 @@ public:
       - either by the most generic way in Item_func::fix_fields()
       - or by Item_func_xxx::fix_length_and_dec() before the call of
         Item_hybrid_func_fix_attributes()
-      IFNULL() is special. It does not need to test args[0].
+      IFNULL and COALESCE are special-
+      If the first non-null arg can be safely converted to result type,
+      the result is guaranteed to be NOT NULL
     */
-    uint first= dynamic_cast<Item_func_ifnull*>(attr) ? 1 : 0;
-    for (uint i= first; i < nitems; i++)
+    bool not_null_on_conversion= false;
+    if (dynamic_cast<Item_func_ifnull*>(attr) ||
+        dynamic_cast<Item_func_coalesce*>(attr))
     {
-      if (Fbt::fix_fields_maybe_null_on_conversion_to_fbt(items[i]))
+      for (uint i= 0; i< nitems; i++)
       {
-        attr->set_type_maybe_null(true);
-        break;
+        if (!items[i]->maybe_null() &&
+            !Fbt::fix_fields_maybe_null_on_conversion_to_fbt(items[i]))
+        {
+          not_null_on_conversion= true;
+          break;
+        }
       }
     }
+    else
+    {
+      not_null_on_conversion= true;
+      for (uint i= 0; i < nitems; i++)
+      {
+        if (Fbt::fix_fields_maybe_null_on_conversion_to_fbt(items[i]))
+        {
+          not_null_on_conversion= false;
+          break;
+        }
+      }
+    }
+    if (not_null_on_conversion)
+      attr->set_type_maybe_null(false);
+    else
+      attr->set_type_maybe_null(true);
     return false;
   }
   bool Item_func_min_max_fix_attributes(THD *thd, Item_func_min_max *func,

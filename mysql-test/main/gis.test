@@ -777,7 +777,7 @@ SET @a=POLYFROMWKB(@a);
 #
 
 #The SELECT statement cannot contain a subquery in the FROM clause
-#fore  --view-protocol
+#for  --view-protocol
 --disable_view_protocol
 create table t1(a geometry NOT NULL)engine=myisam;
 insert into t1 values (geomfromtext("point(0 1)"));
@@ -2629,6 +2629,13 @@ SELECT ST_ISSIMPLE(1);
 SELECT ST_ISSIMPLE('test');
 
 --error ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION
+SELECT ST_ISVALID(ROW(1,1));
+--error ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION
+SELECT ST_ISVALID(1);
+--error ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION
+SELECT ST_ISVALID('test');
+
+--error ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION
 SELECT ST_ISRING(ROW(1,1));
 --error ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION
 SELECT ST_ISRING(1);
@@ -3497,6 +3504,12 @@ FROM (
     MULTIPOLYGON(POLYGON(LINESTRING(POINT(4, 3), POINT(4, 4), POINT(3, 4), POINT(4, 3)))) AS g7
 ) AS t;
 
+--echo #
+--echo # MDEV-35117 Error message "ERROR 1815 (HY000): Internal error: st_distance_sphere' could be improved
+--echo #
+--error ER_GIS_UNSUPPORTED_ARGUMENT
+SELECT ST_DISTANCE_SPHERE(st_geomfromtext('linestring( 2 2, 2 8) '), ST_GeomFromText('POINT(18.413076 43.856258)')) ;
+
 --echo # End of 10.5 tests
 
 --echo #
@@ -3567,4 +3580,46 @@ CREATE TABLE t1 (a INT, b POINT GENERATED ALWAYS AS (a));
 --error ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION
 CREATE TABLE t1 (a POINT, b INT GENERATED ALWAYS AS (a));
 
+
+--echo #
 --echo # End of 11.5 tests
+--echo #
+
+--echo #
+--echo # Start of 11.6 tests
+--echo #
+
+--echo #
+--echo # MDEV-34276 Tests for ST_isValid
+--echo #
+
+--echo # Some tests for Point, multipoint, linestring
+
+SET @g = ST_GEOMFROMTEXT('POINT(0 0)');
+SELECT ST_ISVALID(@g);
+SELECT ISVALID(@g);
+
+SET @g = ST_GEOMFROMTEXT('POINT(15 0)');
+SELECT ST_ISVALID(@g);
+
+SET @g = ST_GEOMFROMTEXT('MULTIPOINT(15 0, 10 0, 0 0, 11 11)');
+SELECT ST_ISVALID(@g);
+
+SET @g = ST_GEOMFROMTEXT('LINESTRING(0 0, 1 1, 2 2, 2 3)');
+SELECT ST_ISVALID(@g);
+
+--echo # Some tests for Polygons
+
+SELECT ST_ISVALID(ST_GEOMFROMTEXT('POLYGON((40 40, 20 45, 45 30, 40 40)), ((20 35, 10 30, 10 10, 30 5, 45 20, 20 35), (30 20, 20 15, 20 25, 30 20))')) c;
+
+SELECT ST_ISVALID(ST_GEOMFROMTEXT('POLYGON((30 10, 40 40, 20 40, 10 20, 30 10))')) c;
+
+SELECT ST_ISVALID(ST_GEOMFROMTEXT('POLYGON((0 0, 0 2, 2 2, 1 1, 2 0, 0 0))')) c;
+
+SELECT ST_ISVALID(ST_GEOMFROMTEXT('MULTIPOLYGON(((0 0, 0 2, 2 2, 2 0, 0 0)),((4 4, 4 5, 5 5, 5 4, 4 4)))')) AS a;
+
+SELECT ST_ISVALID(ST_GEOMFROMTEXT('POLYGON((0 0, 10 0, 10 10, 0 10, 0 0), (15 15, 15 20, 20 20, 20 15, 15 15))')) as t;
+
+--echo #
+--echo # End of 11.6 tests
+--echo #

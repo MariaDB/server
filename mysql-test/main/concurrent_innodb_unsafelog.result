@@ -593,7 +593,7 @@ eta	tipo	c
 70	1	iiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiii
 80	22	jjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjj
 90	11	kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk
-** Commit transacton on thread 2.
+** Commit transaction on thread 2.
 commit;
 connection thread1;
 ** Commit transaction on thread 1.

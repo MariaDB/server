@@ -932,7 +932,7 @@ SET @@sort_buffer_size        = @save_sort_buffer_size;
 
 #
 # Percona sever bug#1341606
-# SET STATEMENT incorrectly restore vaues of some variables
+# SET STATEMENT incorrectly restore values of some variables
 #
 --echo #Correctly set timestamp
 set session timestamp=4646464;

@@ -466,21 +466,30 @@ int select_unit::update_counter(Field* counter, longlong value)
     Try to disable index
   
   @retval
-    true    index is disabled this time
+    true    index is disabled and unfold is needed
     false   this time did not disable the index
 */
 
 bool select_unit_ext::disable_index_if_needed(SELECT_LEX *curr_sl)
 { 
+  const bool oracle_mode= thd->variables.sql_mode & MODE_ORACLE;
   if (is_index_enabled && 
-      (curr_sl == curr_sl->master_unit()->union_distinct || 
+      ((!oracle_mode &&
+        curr_sl == curr_sl->master_unit()->union_distinct) ||
         !curr_sl->next_select()) )
   {
     is_index_enabled= false;
-    if (table->file->ha_disable_indexes(key_map(0), false))
+    int error= table->file->ha_disable_indexes(key_map(0), false);
+    if (error)
+    {
+      table->file->print_error(error, MYF(0));
+      DBUG_ASSERT(0);
       return false;
+    }
     table->no_keyread=1;
-    return true;
+    /* In case of Oracle mode we unfold at the last operator */
+    DBUG_ASSERT(!oracle_mode || !curr_sl->next_select());
+    return oracle_mode || !curr_sl->distinct;
   }
   return false;
 }
@@ -763,8 +772,7 @@ bool select_unit_ext::send_eof()
                         next_sl &&
                         next_sl->get_linkage() == INTERSECT_TYPE &&
                         !next_sl->distinct;
-  bool need_unfold= (disable_index_if_needed(curr_sl) &&
-                    !curr_sl->distinct);
+  bool need_unfold= disable_index_if_needed(curr_sl);
 
   if (((curr_sl->distinct && !is_next_distinct) ||
       curr_op_type == INTERSECT_ALL ||
@@ -772,7 +780,8 @@ bool select_unit_ext::send_eof()
       !need_unfold)
   {
     if (!next_sl)
-      DBUG_ASSERT(curr_op_type != INTERSECT_ALL);
+      DBUG_ASSERT((thd->variables.sql_mode & MODE_ORACLE) ||
+                  curr_op_type != INTERSECT_ALL);
     bool need_update_row;
     if (unlikely(table->file->ha_rnd_init_with_error(1)))
       return 1;
@@ -1126,7 +1135,7 @@ bool st_select_lex_unit::prepare_join(THD *thd_arg, SELECT_LEX *sl,
   {
     for (ORDER *ord= (ORDER *)sl->order_list.first; ord; ord= ord->next)
     {
-      (*ord->item)->walk(&Item::eliminate_subselect_processor, FALSE, NULL);
+      (*ord->item)->walk(&Item::eliminate_subselect_processor, 0, 0);
     }
   }
   DBUG_RETURN(false);
@@ -1409,8 +1418,8 @@ bool st_select_lex_unit::prepare(TABLE_LIST *derived_arg,
   uint union_part_count= 0;
   select_result *tmp_result;
   bool is_union_select;
-  bool have_except= false, have_intersect= false,
-    have_except_all_or_intersect_all= false;
+  bool have_except= false, have_intersect= false;
+  have_except_all_or_intersect_all= false;
   bool instantiate_tmp_table= false;
   bool use_direct_union_result= false;
   bool single_tvc= !first_sl->next_select() && first_sl->tvc;
@@ -1686,7 +1695,7 @@ bool st_select_lex_unit::prepare(TABLE_LIST *derived_arg,
 
     /*
       setup_tables_done_option should be set only for very first SELECT,
-      because it protect from secont setup_tables call for select-like non
+      because it protect from second setup_tables call for select-like non
       select commands (DELETE/INSERT/...) and they use only very first
       SELECT (for union it can be only INSERT ... SELECT).
     */
@@ -1843,7 +1852,7 @@ cont:
       ORDER *ord;
       Item_func::Functype ft=  Item_func::FT_FUNC;
       for (ord= global_parameters()->order_list.first; ord; ord= ord->next)
-        if ((*ord->item)->walk (&Item::find_function_processor, FALSE, &ft))
+        if ((*ord->item)->walk (&Item::find_function_processor, &ft, 0))
         {
           my_error (ER_CANT_USE_OPTION_HERE, MYF(0), "MATCH()");
           goto err;
@@ -1855,7 +1864,7 @@ cont:
                      TMP_TABLE_ALL_COLUMNS);
     /*
       Force the temporary table to be a MyISAM table if we're going to use
-      fullext functions (MATCH ... AGAINST .. IN BOOLEAN MODE) when reading
+      fulltext functions (MATCH ... AGAINST .. IN BOOLEAN MODE) when reading
       from it (this should be removed in 5.2 when fulltext search is moved 
       out of MyISAM).
     */
@@ -2240,7 +2249,7 @@ bool st_select_lex_unit::optimize()
     {
       if (item->assigned())
       {
-        item->assigned(0); // We will reinit & rexecute unit
+        item->assigned(0); // We will reinit & reexecute unit
         item->reset();
       }
       if (table->is_created())
@@ -2350,6 +2359,7 @@ bool st_select_lex_unit::exec_inner()
   ulonglong add_rows=0;
   bool first_execution= !executed;
   bool was_executed= executed;
+  int error;
 
   executed= 1;
   if (!(uncacheable & ~UNCACHEABLE_EXPLAIN) && item &&
@@ -2363,8 +2373,14 @@ bool st_select_lex_unit::exec_inner()
   if (!saved_error && !was_executed)
     save_union_explain(thd->lex->explain);
 
-  if (unlikely(saved_error))
-    return saved_error;
+  error= saved_error;
+
+  if (unlikely(error))
+  {
+  err:
+    thd->lex->current_select= lex_select_save;
+    return error;
+  }
 
   if (union_result)
   {
@@ -2431,41 +2447,57 @@ bool st_select_lex_unit::exec_inner()
       if (likely(!saved_error))
       {
 	records_at_start= table->file->stats.records;
+
+        /* select_unit::send_data() writes rows to (temporary) table */
 	if (sl->tvc)
 	  sl->tvc->exec(sl);
 	else
 	  saved_error= sl->join->exec();
+        /*
+          Allow UNION ALL to work: disable unique key. We cannot disable indexes
+          in the middle of the query because enabling indexes requires table to be empty
+          (see heap_enable_indexes()). So there is special union_distinct property
+          which is the rightmost distinct UNION in the expression and we release
+          the unique key after the last (rightmost) distinct UNION, therefore only the
+          subsequent UNION ALL work as non-distinct.
+        */
         if (sl == union_distinct && !have_except_all_or_intersect_all &&
             !(with_element && with_element->is_recursive))
 	{
           // This is UNION DISTINCT, so there should be a fake_select_lex
           DBUG_ASSERT(fake_select_lex != NULL);
-	  if (table->file->ha_disable_indexes(key_map(0), false))
-            return true;
+          error= table->file->ha_disable_indexes(key_map(0), false);
+          if (error)
+          {
+            table->file->print_error(error, MYF(0));
+            DBUG_ASSERT(0);
+            error= true;
+            goto err;
+          }
 	  table->no_keyread=1;
 	}
 	if (likely(!saved_error))
 	{
 	  if (union_result->flush())
 	  {
-	    thd->lex->current_select= lex_select_save;
-	    return true;
+            error= true;
+            goto err;
 	  }
 	}
       }
       if (unlikely(saved_error))
       {
-	thd->lex->current_select= lex_select_save;
-	return saved_error;
+        error= saved_error;
+        goto err;
       }
       if (fake_select_lex != NULL)
       {
         /* Needed for the following test and for records_at_start in next loop */
-        int error= table->file->info(HA_STATUS_VARIABLE);
+        error= table->file->info(HA_STATUS_VARIABLE);
         if (unlikely(error))
         {
           table->file->print_error(error, MYF(0));
-          return true;
+          goto err;
         }
       }
       if (found_rows_for_union && !sl->braces &&
@@ -2499,20 +2531,19 @@ bool st_select_lex_unit::exec_inner()
 
   DBUG_EXECUTE_IF("show_explain_probe_union_read", 
                    dbug_serve_apcs(thd, 1););
-  {
-    List<Item_func_match> empty_list;
-    empty_list.empty();
-    /*
-      Disable LIMIT ROWS EXAMINED in order to produce the possibly incomplete
-      result of the UNION without interruption due to exceeding the limit.
-    */
-    thd->lex->limit_rows_examined_cnt= ULONGLONG_MAX;
+  /*
+    Temporarily deactivate LIMIT ROWS EXAMINED to avoid producing potentially
+    incomplete result of the UNION due to exceeding of the limit. It will be
+    re-activated upon the function exit
+  */
+  const bool limit_rows_was_activated=
+    thd->lex->deactivate_limit_rows_examined();
 
-    // Check if EOM
-    if (fake_select_lex != NULL && likely(!thd->is_fatal_error))
-    {
-       /* Send result to 'result' */
-       saved_error= true;
+  // Check if EOM
+  if (fake_select_lex != NULL && likely(!thd->is_fatal_error))
+  {
+      /* Send result to 'result' */
+      saved_error= true;
 
       set_limit(global_parameters());
       JOIN *join= fake_select_lex->join;
@@ -2561,17 +2592,15 @@ bool st_select_lex_unit::exec_inner()
 
       fake_select_lex->table_list.empty();
       if (likely(!saved_error))
-      {
-	thd->limit_found_rows = (ulonglong)table->file->stats.records + add_rows;
-      }
+        thd->limit_found_rows= (ulonglong)table->file->stats.records + add_rows;
       /*
 	Mark for slow query log if any of the union parts didn't use
 	indexes efficiently
       */
-    }
   }
   thd->lex->current_select= lex_select_save;
-  thd->lex->set_limit_rows_examined();
+  if (limit_rows_was_activated)
+    thd->lex->set_limit_rows_examined();
   return saved_error;
 }
 
@@ -2703,13 +2732,14 @@ bool st_select_lex_unit::exec_recursive()
 
   thd->lex->current_select= lex_select_save;
 err:
-  thd->lex->set_limit_rows_examined();
   DBUG_RETURN(saved_error);    
 }
 
 
 bool st_select_lex_unit::cleanup()
 {
+  cleanup_stranded_units();
+
   bool error= 0;
   DBUG_ENTER("st_select_lex_unit::cleanup");
 
@@ -2739,7 +2769,8 @@ bool st_select_lex_unit::cleanup()
       With_element *with_elem= with_element;
       while ((with_elem= with_elem->get_next_mutually_recursive()) !=
              with_element)
-        with_elem->rec_result->cleanup_count++;
+        if (with_elem->rec_result)
+          with_elem->rec_result->cleanup_count++;
       DBUG_RETURN(FALSE);
     }
   }

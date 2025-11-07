@@ -20,13 +20,13 @@ ALTER VIEW vw AS SELECT 1;
 Got one of the listed errors
 CREATE DATABASE db;
 Got one of the listed errors
-CREATE EVENT ev1 ON SCHEDULE AT CURRENT_TIMESTAMP  DO SELECT 1;
+CREATE EVENT ev1 ON SCHEDULE AT CURRENT_TIMESTAMP DO SELECT 1;
 Got one of the listed errors
 CREATE FUNCTION fun1() RETURNS int RETURN(1);
 Got one of the listed errors
 CREATE FUNCTION fun1 RETURNS STRING SONAME 'funlib.so';
 Got one of the listed errors
-CREATE PROCEDURE proc1()  BEGIN END;
+CREATE PROCEDURE proc1() BEGIN END;
 Got one of the listed errors
 CREATE INDEX idx ON tbl(id);
 Got one of the listed errors
@@ -92,6 +92,8 @@ UNINSTALL PLUGIN plg;
 Got one of the listed errors
 connection node_1;
 DROP USER 'userMW416'@'localhost';
+Warnings:
+Note	4226	Dropped users 'userMW416'@'localhost' have active connections. Use KILL CONNECTION if they should not be used anymore.
 SHOW DATABASES;
 Database
 information_schema
@@ -100,3 +102,4 @@ mysql
 performance_schema
 sys
 test
+disconnect userMW416;

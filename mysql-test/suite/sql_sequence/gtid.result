@@ -174,7 +174,7 @@ create sequence s_db.s2;
 drop sequence s_db.s2;
 connection m_normal_2;
 select next value for s_db.s1;
-ERROR 42000: INSERT command denied to user 'normal_2'@'localhost' for table `s_db`.`s1`
+ERROR 42000: SELECT, INSERT command denied to user 'normal_2'@'localhost' for table `s_db`.`s1`
 create sequence s_db.s2;
 ERROR 42000: CREATE command denied to user 'normal_2'@'localhost' for table `s_db`.`s2`
 connection m_normal_1;
@@ -239,7 +239,7 @@ show global variables like 'read_only';
 Variable_name	Value
 read_only	ON
 select next value for s_db.s1;
-ERROR HY000: The MariaDB server is running with the --read-only option so it cannot execute this statement
+ERROR HY000: The MariaDB server is running with the --read-only=ON option so it cannot execute this statement
 connection m_normal_1;
 drop sequence s_db.s1;
 ###########################################
@@ -823,6 +823,9 @@ drop sequence s1;
 connection master;
 use s_db;
 drop database s_db;
+disconnect m_normal_1;
+disconnect m_normal_2;
+disconnect m_normal_3;
 drop user normal_1@'%';
 drop user normal_2@'%';
 drop user normal_3@'%';

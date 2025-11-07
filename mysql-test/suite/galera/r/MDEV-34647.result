@@ -95,7 +95,6 @@ id	val
 4	d
 5	d
 6	d
-set global wsrep_mode=default;
 connection node_1;
 drop table t1,t2,t3,t4,t5;
 set global wsrep_mode=default;

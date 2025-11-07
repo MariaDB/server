@@ -1,5 +1,6 @@
 create user foo@localhost;
 grant create user on *.* to foo@localhost;
+change_user foo,,;
 create user current_user;
 ERROR HY000: Operation CREATE USER failed for CURRENT_USER
 create user current_role;
@@ -9,6 +10,8 @@ ERROR 42000: You have an error in your SQL syntax; check the manual that corresp
 create role current_role;
 ERROR HY000: Operation CREATE ROLE failed for CURRENT_ROLE
 drop user current_user;
+Warnings:
+Note	4227	Dropped users 'foo'@'localhost' have active connections. Use KILL CONNECTION if they should not be used anymore.
 drop user current_role;
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'current_role' at line 1
 drop role current_user;
@@ -17,8 +20,9 @@ drop role current_role;
 ERROR HY000: Operation DROP ROLE failed for CURRENT_ROLE
 show warnings;
 Level	Code	Message
-Error	1446	Invalid definer
+Error	1959	Invalid role specification `NONE`
 Error	1396	Operation DROP ROLE failed for CURRENT_ROLE
+change_user root,,;
 create role r1;
 grant r1 to current_user;
 set role r1;

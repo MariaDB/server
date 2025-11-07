@@ -88,7 +88,7 @@ public:
     Skip all existing log files and find the greatest missing log file.
 
     @param datadir  - Search files in this directory
-    @param start    - Start searching from this log number and go downto 1.
+    @param start    - Start searching from this log number and go down to 1.
     @param kind     - true  - search for an existing file
                       false - search for a missing file.
     @returns        - [1..start] - the greatest found log file
@@ -399,21 +399,19 @@ bool Table::copy(ds_ctxt_t *ds, bool is_index, unsigned thread_num) {
 
 		for (ulonglong block= 0 ; ; block++) {
 			size_t length = m_cap.block_size;
-			if (is_index) {
-				if ((error= aria_read_index(
-							partition.m_index_file, &m_cap, block, copy_buffer) ==
-							HA_ERR_END_OF_FILE))
-					break;
-			} else {
-				if ((error= aria_read_data(
-							partition.m_data_file, &m_cap, block, copy_buffer, &length) ==
-							HA_ERR_END_OF_FILE))
-					break;
-			}
-			if (error) {
-				msg(thread_num, "error: aria_read %s failed:  %d",
-					is_index ? "index" : "data", error);
-				goto err;
+			if (is_index)
+                          error= aria_read_index(partition.m_index_file, &m_cap,
+                                                       block, copy_buffer);
+                        else
+                          error= aria_read_data(partition.m_data_file, &m_cap,
+                                                block, copy_buffer, &length);
+			if (error)
+                        {
+                          if (error == HA_ERR_END_OF_FILE)
+                            break;
+                          msg(thread_num, "error: aria_read %s failed:  %d",
+                              is_index ? "index" : "data", error);
+                          goto err;
 			}
 			xtrabackup_io_throttling();
 			if ((error = ds_write(dst_file, copy_buffer, length))) {
@@ -955,6 +953,7 @@ void Backup::set_post_copy_table_hook(const post_copy_table_hook_t &hook) {
 
 bool prepare(const char *target_dir) {
 	maria_data_root= (char *)target_dir;
+        maria_tmpdir= &mysql_tmpdir_list;
 
 	if (maria_init())
 		die("Can't init Aria engine (%d)", errno);
@@ -989,8 +988,8 @@ bool prepare(const char *target_dir) {
         logs.find_logs_after_last(target_dir);
         last_logno= logs.last(); // Update last_logno if extra logs were found
 
-	if (init_pagecache(maria_pagecache, 1024L*1024L, 0, 0,
-		static_cast<uint>(maria_block_size), 0, MY_WME) == 0)
+	if (multi_init_pagecache(&maria_pagecaches, 1, 1024L*1024L, 0, 0,
+		static_cast<uint>(maria_block_size), 0, MY_WME))
 		die("Got error in Aria init_pagecache() (errno: %d)", errno);
 
 	if (init_pagecache(maria_log_pagecache, 1024L*1024L,

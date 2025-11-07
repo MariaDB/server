@@ -19,9 +19,6 @@ if ($innodb_lock_wait_timeout < 10)
    exit;
 }
 
-# Save the initial number of concurrent sessions
---source include/count_sessions.inc
-
 # First session
 connection default;
 
@@ -61,7 +58,7 @@ let $field= State;
 let $condition= = 'Updating';
 --source include/wait_show_condition.inc
 
-# If the testing box is overloadeded and innodb_lock_wait_timeout is too small
+# If the testing box is overloaded and innodb_lock_wait_timeout is too small
 # we might get here ER_LOCK_WAIT_TIMEOUT.
 --error ER_LOCK_DEADLOCK
 INSERT INTO t1_tmp (b) SELECT b FROM t1 WHERE a = 1;
@@ -77,8 +74,5 @@ UPDATE t1 SET a = (SELECT new_a FROM t2_tmp WHERE t2_tmp.a = t1.a) WHERE a = 3;
 connection default;
 disconnect user2;
 DROP TABLE t1;
-
-# Wait till all disconnects are completed
---source include/wait_until_count_sessions.inc
 
 call mtr.add_suppression("Deadlock found when trying to get lock; try restarting transaction");

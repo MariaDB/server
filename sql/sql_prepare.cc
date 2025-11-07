@@ -96,7 +96,7 @@ When one supplies long data for a placeholder:
 #include "sql_cache.h"                          // query_cache_*
 #include "sql_view.h"                          // create_view_precheck
 #include "sql_select.h" // for JOIN
-#include "sql_insert.h" // upgrade_lock_type_for_insert, mysql_prepare_insert
+#include "sql_insert.h" // mysql_prepare_insert
 #include "sql_db.h"     // mysql_opt_change_db, mysql_change_db
 #include "sql_derived.h" // mysql_derived_prepare,
                          // mysql_handle_derived
@@ -260,6 +260,19 @@ private:
   bool reprepare();
   bool validate_metadata(Prepared_statement  *copy);
   void swap_prepared_statement(Prepared_statement *copy);
+
+  // Run the expression event handler for all placeholders
+  void placeholders_expr_event_handler(expr_event_t event)
+  {
+    List_iterator_fast<Item_param> item_param_it(lex->param_list);
+    for (Item_param *item_param= item_param_it++;
+         item_param;
+         item_param= item_param_it++)
+    {
+      item_param->expr_event_handler(thd, event);
+    }
+  }
+
 };
 
 /**
@@ -1316,13 +1329,12 @@ static bool mysql_test_insert_common(Prepared_statement *stmt,
   THD *thd= stmt->thd;
   List_iterator_fast<List_item> its(values_list);
   List_item *values;
+  bool cache_results= FALSE;
   DBUG_ENTER("mysql_test_insert_common");
 
   if (insert_precheck(thd, table_list))
     goto error;
 
-  //upgrade_lock_type_for_insert(thd, &table_list->lock_type, duplic,
-  //                             values_list.elements > 1);
   /*
     open temporary memory pool for temporary data allocated by derived
     tables & preparation procedure
@@ -1348,7 +1360,8 @@ static bool mysql_test_insert_common(Prepared_statement *stmt,
 
     if (mysql_prepare_insert(thd, table_list, fields, values, update_fields,
                              update_values, duplic, ignore,
-                             &unused_conds, FALSE))
+                             &unused_conds, FALSE,
+                             &cache_results))
       goto error;
 
     value_count= values->elements;
@@ -1974,7 +1987,7 @@ static bool mysql_test_create_view(Prepared_statement *stmt)
   res= select_like_stmt_test(stmt, 0, 0);
 
 err:
-  /* put view back for PS rexecuting */
+  /* put view back for PS reexecuting */
   lex->link_first_table_back(view, link_to_local);
   DBUG_RETURN(res);
 }
@@ -2206,6 +2219,7 @@ static bool check_prepared_statement(Prepared_statement *stmt)
 
   lex->first_lists_tables_same();
   lex->fix_first_select_number();
+  lex->resolve_optimizer_hints();
   tables= lex->query_tables;
 
   /* set context for commands which do not use setup_tables */
@@ -2241,18 +2255,8 @@ static bool check_prepared_statement(Prepared_statement *stmt)
   }
 
 #ifdef WITH_WSREP
-    if (wsrep_sync_wait(thd, sql_command))
-      goto error;
-    if (!stmt->is_sql_prepare())
-    {
-      wsrep_after_command_before_result(thd);
-      if (wsrep_current_error(thd))
-      {
-        wsrep_override_error(thd, wsrep_current_error(thd),
-                             wsrep_current_error_status(thd));
-        goto error;
-      }
-    }
+  if (wsrep_sync_wait(thd, sql_command))
+    goto error;
 #endif
   switch (sql_command) {
   case SQLCOM_REPLACE:
@@ -2454,6 +2458,20 @@ static bool check_prepared_statement(Prepared_statement *stmt)
   default:
     break;
   }
+
+#ifdef WITH_WSREP
+  if (!stmt->is_sql_prepare())
+  {
+    wsrep_after_command_before_result(thd);
+    if (wsrep_current_error(thd))
+    {
+      wsrep_override_error(thd, wsrep_current_error(thd),
+                           wsrep_current_error_status(thd));
+      goto error;
+    }
+  }
+#endif
+
   if (res == 0)
   {
     if (!stmt->is_sql_prepare())
@@ -2616,7 +2634,7 @@ end:
 
   mysql_sql_stmt_prepare() and mysql_sql_stmt_execute_immediate()
   call get_dynamic_sql_string() and then call respectively
-  Prepare_statement::prepare() and Prepare_statment::execute_immediate(),
+  Prepare_statement::prepare() and Prepare_statement::execute_immediate(),
   who store the returned result into its permanent location using
   alloc_query(). "buffer" is still not destructed at that time.
 
@@ -3507,6 +3525,9 @@ void mysqld_stmt_fetch(THD *thd, char *packet, uint packet_length)
 
   cursor->fetch(num_rows);
 
+  if (!thd->get_sent_row_count())
+    status_var_increment(thd->status_var.empty_queries);
+
   if (!cursor->is_open())
   {
     stmt->close_cursor();
@@ -4312,7 +4333,7 @@ bool Prepared_statement::prepare(const char *packet, uint packet_len)
                          NULL in case of SQL PS
   @param packet_end      end of the packet. NULL in case of SQL PS
 
-  @todo Use a paremeter source class family instead of 'if's, and
+  @todo Use a parameter source class family instead of 'if's, and
   support stored procedure variables.
 
   @retval TRUE an error occurred when assigning a parameter (likely
@@ -4348,6 +4369,8 @@ Prepared_statement::set_parameters(String *expanded_query,
     res= set_params_data(this, expanded_query);
 #endif
   }
+  lex->default_used= thd->lex->default_used;
+  thd->lex->default_used= false;
   if (res)
   {
     my_error(ER_WRONG_ARGUMENTS, MYF(0),
@@ -4926,7 +4949,7 @@ Prepared_statement::swap_prepared_statement(Prepared_statement *copy)
   @param expanded_query     A query for binlogging which has all parameter
                             markers ('?') replaced with their actual values.
   @param open_cursor        True if an attempt to open a cursor should be made.
-                            Currenlty used only in the binary protocol.
+                            Currently used only in the binary protocol.
 
   @note
     Preconditions, postconditions.
@@ -5126,7 +5149,7 @@ bool Prepared_statement::execute(String *expanded_query, bool open_cursor)
     SET STATEMENT clause is performed on return from the method
     Prepared_statement::execute(), by the time the function log_slow_statement()
     be invoked from the function dispatch_command() all variables set by
-    the SET STATEMEN clause would be already reset to their original values
+    the SET STATEMENT clause would be already reset to their original values
     that break semantic of the SET STATEMENT clause.
 
     E.g., lets consider the following statements
@@ -5191,6 +5214,8 @@ bool Prepared_statement::execute(String *expanded_query, bool open_cursor)
     else
       thd->protocol->send_out_parameters(&this->lex->param_list);
   }
+
+  placeholders_expr_event_handler(expr_event_t::DESTRUCT_DYNAMIC_PARAM);
 
 error:
   error|= thd->lex->restore_set_statement_var();
@@ -5493,8 +5518,8 @@ public:
 
   my_bool do_log_bin;
 
-  Protocol_local(THD *thd_arg, THD *new_thd_arg, ulong prealloc) :
-    Protocol_text(thd_arg, prealloc),
+  Protocol_local(THD *thd_arg, THD *new_thd_arg) :
+    Protocol_text(thd_arg),
     cur_data(0), first_data(0), data_tail(&first_data), alloc(0),
     new_thd(new_thd_arg), do_log_bin(FALSE)
   {}
@@ -6296,6 +6321,7 @@ extern "C" MYSQL *mysql_real_connect_local(MYSQL *mysql)
     new_thd->variables.wsrep_on= 0;
     new_thd->client_capabilities= client_flag;
     new_thd->variables.sql_log_bin= 0;
+    new_thd->affected_rows= 0;
     new_thd->set_binlog_bit();
     /*
       TOSO: decide if we should turn the auditing off
@@ -6310,7 +6336,7 @@ extern "C" MYSQL *mysql_real_connect_local(MYSQL *mysql)
   else
     new_thd= NULL;
 
-  p= new Protocol_local(thd_orig, new_thd, 0);
+  p= new Protocol_local(thd_orig, new_thd);
   if (new_thd)
     new_thd->protocol= p;
   else

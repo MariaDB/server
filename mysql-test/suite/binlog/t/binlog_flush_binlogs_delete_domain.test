@@ -98,7 +98,7 @@ eval INSERT INTO t SELECT 1+MAX(a) FROM t;
 --error ER_BINLOG_CANT_DELETE_GTID_DOMAIN
 --eval FLUSH BINARY LOGS DELETE_DOMAIN_ID = ($domain_list)
 
-# Now satisfy the safety condtion to purge log files containing $domain list
+# Now satisfy the safety condition to purge log files containing $domain list
 FLUSH BINARY LOGS;
 --let $purge_to_binlog= query_get_value(SHOW MASTER STATUS, File, 1)
 --eval PURGE BINARY LOGS TO '$purge_to_binlog'
@@ -159,6 +159,22 @@ RESET MASTER;
 --let $d_max=`SELECT (1 << 32) - 1`
 --error 0
 --eval FLUSH BINARY LOGS DELETE_DOMAIN_ID = ($d_max)
+
+#
+# MDEV-37885
+# Server crash or ASAN errors in rpl_binlog_state::drop_domain
+#
+RESET MASTER;
+SET @@GLOBAL.gtid_domain_id=0;
+SET @@SESSION.gtid_domain_id=0;
+CREATE USER u;
+FLUSH BINARY LOGS;
+--let $purge_to_binlog= query_get_value(SHOW MASTER STATUS, File, 1)
+--eval PURGE BINARY LOGS TO '$purge_to_binlog'
+--error 0
+FLUSH BINARY LOGS DELETE_DOMAIN_ID = (0), BINARY LOGS DELETE_DOMAIN_ID = (0);
+DROP USER u;
+
 
 #
 # Cleanup

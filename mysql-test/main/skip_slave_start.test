@@ -1,0 +1,14 @@
+# Test `--skip-slave-start`
+
+CHANGE MASTER TO
+master_host='127.0.0.1', master_user='root', master_ssl_verify_server_cert=0;
+
+--let $restart_parameters= --skip-slave-start
+--source include/restart_mysqld.inc # not_embedded
+# Outside of `--skip-slave-start`, `mariadbd` will start the CHANGE MASTER TO
+# above when restarting even though it had no explicit START REPLICA.
+
+--let SEARCH_FILE= `SELECT @@log_error`
+--let SEARCH_PATTERN=\[Note\] .*skip-slave-start.*
+--source include/search_pattern_in_file.inc
+SELECT Slave_SQL_Running, Slave_IO_Running FROM INFORMATION_SCHEMA.SLAVE_STATUS;

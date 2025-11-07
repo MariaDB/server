@@ -1,5 +1,6 @@
 --source include/not_embedded.inc
 --source include/have_innodb.inc
+--source include/hostname_is_not_localhost.inc
 
 # Basic test case for --table (restore single table)
 create table t1(i int);
@@ -105,6 +106,7 @@ drop database db2;
 drop database db2;
 create database db2;
 use db2;
+set rand_seed1=1, rand_seed2=2;
 
 # Test with vector/fulltext/spatial indexes
 create table vec (id int auto_increment primary key, v vector(5) not null,
@@ -127,6 +129,14 @@ create spatial index idx_geom on locations (geom);
 insert into locations (geom) values (ST_GeomFromText('POINT(40.785091 -73.968285)'));
 --mkdir $MYSQLTEST_VARDIR/tmp/dump
 --exec $MYSQL_DUMP --dir=$MYSQLTEST_VARDIR/tmp/dump db2
+
+# vector index uses randomization when building the index
+# so unless one sets rand_seed variables, results are inherently
+# non-repeatable
+--append_file $MYSQLTEST_VARDIR/tmp/dump/db2/vec.sql
+set rand_seed1=1, rand_seed2=2;
+EOF
+
 --echo # use --verbose to see "Adding secondary indexes" in the output
 --replace_result $MYSQLTEST_VARDIR vardir
 --exec $MYSQL_IMPORT --verbose --dir $MYSQLTEST_VARDIR/tmp/dump --database=db2

@@ -167,6 +167,8 @@ disconnect foo_node_2;
 # Connect with node_1
 connection node_1;
 DROP USER foo@localhost;
+Warnings:
+Note	4226	Dropped users 'foo'@'localhost' have active connections. Use KILL CONNECTION if they should not be used anymore.
 DROP DATABASE test1;
 #
 # MDEV-10566: Create role statement replicated inconsistently in Galera Cluster

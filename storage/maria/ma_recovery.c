@@ -236,7 +236,7 @@ int maria_recovery_from_log(void)
   trace_file= NULL; /* no trace file for being fast */
 #endif
   tprint(trace_file, "TRACE of the last Aria recovery from mysqld\n");
-  DBUG_ASSERT(maria_pagecache->inited);
+  DBUG_ASSERT(maria_pagecaches.initialized);
   res= maria_apply_log(LSN_IMPOSSIBLE, LSN_IMPOSSIBLE, 0, MARIA_LOG_APPLY,
                        trace_file, TRUE, TRUE, &warnings_count);
   if (!res)
@@ -277,6 +277,7 @@ int maria_recovery_from_log(void)
      @retval 0      OK
      @retval !=0    Error
 */
+PRAGMA_DISABLE_CHECK_STACK_FRAME
 
 int maria_apply_log(LSN from_lsn, LSN end_redo_lsn, LSN end_undo_lsn,
                     enum maria_apply_log_way apply,
@@ -564,6 +565,7 @@ end:
   */
   DBUG_RETURN(error);
 }
+PRAGMA_REENABLE_CHECK_STACK_FRAME
 
 
 /* very basic info about the record's header */
@@ -685,7 +687,7 @@ prototype_redo_exec_hook(INCOMPLETE_LOG)
 {
   MARIA_HA *info;
 
-  /* We try to get table first, so that we get the table in in the trace log */
+  /* We try to get table first, so that we get the table in the trace log */
   info= get_MARIA_HA_from_REDO_record(rec);
 
   if (skip_DDLs)
@@ -757,7 +759,7 @@ static my_bool create_database_if_not_exists(const char *name)
   dirname_part(dirname, name, &length);
   if (!length)
   {
-    /* Skip files without directores */
+    /* Skip files without directories */
     DBUG_RETURN(0);
   }
   /*
@@ -1175,7 +1177,7 @@ prototype_redo_exec_hook(REDO_REPAIR_TABLE)
   my_bool quick_repair;
   DBUG_ENTER("exec_REDO_LOGREC_REDO_REPAIR_TABLE");
 
-  /* We try to get table first, so that we get the table in in the trace log */
+  /* We try to get table first, so that we get the table in the trace log */
   info= get_MARIA_HA_from_REDO_record(rec);
 
   if (!info)
@@ -3930,7 +3932,7 @@ state is current and can be flushed. So we have a per-table sequence:
     Launch one or more threads to do the background rollback. Don't wait for
     them to complete their rollback (background rollback; for debugging, we
     can have an option which waits). Set a counter (total_of_rollback_threads)
-    to the number of threads to lauch.
+    to the number of threads to launch.
 
     Note that InnoDB's rollback-in-background works as long as InnoDB is the
     last engine to recover, otherwise MySQL will refuse new connections until

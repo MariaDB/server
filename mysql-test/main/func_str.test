@@ -95,7 +95,7 @@ SELECT CONCAT('"',CONCAT_WS('";"',repeat('a',60),repeat('b',60),repeat('c',60),r
 select insert('txs',2,1,'hi'),insert('is ',4,0,'a'),insert('txxxxt',2,4,'es');
 select replace('aaaa','a','b'),replace('aaaa','aa','b'),replace('aaaa','a','bb'),replace('aaaa','','b'),replace('bbbb','a','c');
 --disable_view_protocol
-#chaeck after fix MDEV-31540
+#check after fix MDEV-31540
 --disable_cursor_protocol
 --enable_metadata
 select replace('aaaa','a','bbbb');
@@ -463,7 +463,7 @@ select charset(a), collation(a), coercibility(a) from t1;
 drop table t1;
 select charset(null), collation(null), coercibility(null);
 #
-# Make sure OUTER JOIN is not replaced with a regular joun
+# Make sure OUTER JOIN is not replaced with a regular join
 #
 CREATE TABLE t1 (a int, b int);
 CREATE TABLE t2 (a int, b int);
@@ -490,7 +490,7 @@ select SUBSTR('abcdefg',1,-1) FROM DUAL;
 
 #
 # Test that fix_fields doesn't follow to upper level (to comparison)
-# when an error on a lower level (in concat) has accured:
+# when an error on a lower level (in concat) has occured:
 #
 create table t7 (s1 char);
 --error 1267
@@ -1627,7 +1627,7 @@ SELECT format(12345678901234567890.123, 3, 'en_US');
 --enable_cursor_protocol
 SELECT format(12345678901234567890.123, 3, 'it_CH');
 SELECT format(12345678901234567890.123, 3, 'ru_RU');
-#checkafter fix MDEV-31512
+#check after fix MDEV-31512
 --disable_cursor_protocol
 SELECT format(12345678901234567890.123, 3, 'ta_IN');
 --enable_cursor_protocol
@@ -2451,8 +2451,11 @@ SHOW CREATE TABLE t1;
 DROP TABLE t1;
 
 --echo #
---echo # End of 10.6 tests
+--echo # MDEV-37947 Item_func_hex doesn't check for max_allowed_packet
 --echo #
+select hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex('\\'))))))))))))))))))))))))))))))))))))))))))))) as x;
+
+--echo # End of 10.6 tests
 
 --echo #
 --echo # MDEV-25704 Function random_bytes
@@ -2576,8 +2579,19 @@ DROP TABLE t1;
 SET sql_mode=DEFAULT;
 
 --echo #
---echo # End of 10.11 tests
+--echo # MDEV-37740 LOCATE(X,Y,NULL) is not NULL
 --echo #
+select locate(1,2,NULL);
+
+--echo #
+--echo # MDEV-37835 mysqli silently trims each json_arrayagg result to modulo 64KB
+--echo #
+let $a=`select repeat('a', 65540)`;
+let $b=`select repeat('b', 65540)`;
+replace_regex /a{65535}/a.../ /b{65535}/b.../;
+evalp select group_concat(v) from ( select '$a' as v union all select '$b' as v) t;
+
+--echo # End of 10.11 tests
 
 --echo #
 --echo # MDEV-9069 extend AES_ENCRYPT() and AES_DECRYPT() to support IV and the algorithm

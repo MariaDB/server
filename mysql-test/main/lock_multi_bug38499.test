@@ -5,9 +5,6 @@
 # The test can take hours with valgrind
 --source include/not_valgrind.inc
 
-# Save the initial number of concurrent sessions
---source include/count_sessions.inc
-
 SET @odl_sync_frm = @@global.sync_frm;
 SET @@global.sync_frm = OFF;
 
@@ -15,9 +12,6 @@ connect (locker,localhost,root,,);
 connect (writer,localhost,root,,);
 
 --connection default
---disable_warnings
-DROP TABLE IF EXISTS t1;
---enable_warnings
 CREATE TABLE t1( a INT, b INT );
 CREATE TABLE t2( a INT, b INT );
 INSERT INTO t1 VALUES (1, 1), (2, 2), (3, 3), (4, 4);
@@ -224,8 +218,4 @@ DROP TABLE t1,t2;
 
 SET @@global.sync_frm = @odl_sync_frm;
 
-# End of 5.0 tests
-
-# Wait till all disconnects are completed
---source include/wait_until_count_sessions.inc
-
+--echo # End of 5.0 tests

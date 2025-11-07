@@ -1,5 +1,3 @@
-drop table if exists t1,t2;
-drop DATABASE if exists mysqltest_1;
 connect  locker,localhost,root,,;
 connect  locker2,localhost,root,,;
 connect  reader,localhost,root,,;
@@ -176,9 +174,7 @@ disconnect con2;
 DROP DATABASE mysqltest_1;
 ERROR HY000: Can't drop database 'mysqltest_1'; database doesn't exist
 connection locker;
-set sql_mode="";
-create table t1 (f1 int(12) unsigned not null auto_increment, primary key(f1)) engine=innodb;
-set sql_mode=default;
+create table t1 (f1 int(12) unsigned not null auto_increment, primary key(f1));
 lock tables t1 write;
 connection writer;
 alter table t1 auto_increment=0;
@@ -289,7 +285,6 @@ disconnect locker;
 disconnect locker2;
 disconnect reader;
 disconnect writer;
-drop table if exists t1;
 create table t1 (i int);
 connect  flush,localhost,root,,test,,;
 connection default;
@@ -315,7 +310,6 @@ i	j
 drop table t1;
 disconnect flush;
 disconnect insert;
-drop table if exists t1;
 create table t1 (i int);
 connect  flush,localhost,root,,test,,;
 connection default;
@@ -329,7 +323,6 @@ connection flush;
 connection default;
 disconnect flush;
 drop table t1;
-drop table if exists t1,t2;
 create table t1 (a int);
 flush status;
 lock tables t1 read;
@@ -346,7 +339,6 @@ select @tlwa < @tlwb;
 @tlwa < @tlwb
 1
 End of 5.1 tests
-drop table if exists t1;
 create table t1 (i int);
 connect  flush,localhost,root,,test,,;
 connection default;
@@ -362,7 +354,6 @@ disconnect flush;
 #
 # Test for bug #46272 "MySQL 5.4.4, new MDL: unnecessary deadlock".
 #
-drop table if exists t1;
 create table t1 (c1 int primary key, c2 int, c3 int);
 insert into t1 values (1,1,0),(2,2,0),(3,3,0),(4,4,0),(5,5,0);
 begin;
@@ -390,8 +381,6 @@ drop table t1;
 #
 # Bug#47249 assert in MDL_global_lock::is_lock_type_compatible
 #
-DROP TABLE IF EXISTS t1;
-DROP VIEW  IF EXISTS v1;
 #
 # Test 1: LOCK TABLES v1 WRITE, t1 READ;
 #
@@ -426,8 +415,6 @@ DROP VIEW v1;
 # Test for bug #50913 "Deadlock between open_and_lock_tables_derived
 # and MDL". Also see additional coverage in mdl_sync.test.
 # 
-drop table if exists t1;
-drop view if exists v1;
 connect  con50913,localhost,root;
 connection default;
 create table t1 (i int);
@@ -477,7 +464,6 @@ drop table t1;
 # These tests also provide function coverage for the
 # lock_wait_timeout server variable.
 #
-DROP TABLE IF EXISTS t1;
 CREATE TABLE t1 (id int);
 connect con2, localhost, root,,;
 SET SESSION lock_wait_timeout= 1;
@@ -570,7 +556,6 @@ disconnect con3;
 # Test for bug #51134 "Crash in MDL_lock::destroy on a concurrent
 #                      DDL workload".
 #
-drop tables if exists t1, t2, t3;
 connect  con1, localhost, root, , ;
 connect  con2, localhost, root, , ;
 connection default;
@@ -602,7 +587,6 @@ drop table t3;
 # even if the table to altered was temporary.
 # Bug found while working on the related bug #51240.
 #
-DROP TABLE IF EXISTS t1;
 CREATE TABLE t1 (id INT);
 LOCK TABLE t1 WRITE;
 connect  con1, localhost, root;

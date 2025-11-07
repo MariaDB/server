@@ -61,6 +61,7 @@ extern my_bool bitmap_exists_intersection(MY_BITMAP **bitmap_array,
 extern uint bitmap_set_next(MY_BITMAP *map);
 extern uint bitmap_get_first_clear(const MY_BITMAP *map);
 extern uint bitmap_get_first_set(const MY_BITMAP *map);
+extern uint bitmap_get_last_set(const MY_BITMAP *map);
 extern uint bitmap_bits_set(const MY_BITMAP *map);
 extern uint bitmap_get_next_set(const MY_BITMAP *map, uint bitmap_bit);
 extern void my_bitmap_free(MY_BITMAP *map);

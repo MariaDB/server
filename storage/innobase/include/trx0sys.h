@@ -24,6 +24,7 @@ Transaction system
 Created 3/26/1996 Heikki Tuuri
 *******************************************************/
 
+#ifndef UNIV_INNOCHECKSUM
 #pragma once
 #include "buf0buf.h"
 #include "fil0fil.h"
@@ -71,11 +72,6 @@ inline buf_block_t *trx_sysf_get(mtr_t* mtr, bool rw= true)
   return buf_page_get(page_id_t(TRX_SYS_SPACE, TRX_SYS_PAGE_NO),
                       0, rw ? RW_X_LATCH : RW_S_LATCH, mtr);
 }
-
-#ifdef UNIV_DEBUG
-/* Flag to control TRX_RSEG_N_SLOTS behavior debugging. */
-extern uint			trx_rseg_n_slots_debug;
-#endif
 
 /** Write DB_TRX_ID.
 @param[out]	db_trx_id	the DB_TRX_ID field to be written to
@@ -279,6 +275,7 @@ FIXED WSREP XID info offsets for 4k page size 10.0.32-galera
 #define TRX_SYS_WSREP_XID_BQUAL_LEN 12
 #define TRX_SYS_WSREP_XID_DATA      16
 #endif /* WITH_WSREP*/
+#endif /* !UNIV_INNOCHECKSUM */
 
 /** Doublewrite buffer */
 /* @{ */
@@ -327,7 +324,7 @@ constexpr uint32_t TRX_SYS_DOUBLEWRITE_MAGIC_N= 536853855;
 /** Contents of TRX_SYS_DOUBLEWRITE_SPACE_ID_STORED */
 constexpr uint32_t TRX_SYS_DOUBLEWRITE_SPACE_ID_STORED_N= 1783657386;
 /* @} */
-
+#ifndef UNIV_INNOCHECKSUM
 trx_t* current_trx();
 
 struct rw_trx_hash_element_t
@@ -1068,7 +1065,7 @@ public:
   /**
     Takes MVCC snapshot.
 
-    To reduce malloc probablility we reserve rw_trx_hash.size() + 32 elements
+    To reduce malloc probability we reserve rw_trx_hash.size() + 32 elements
     in ids.
 
     For details about get_rw_trx_hash_version() != get_max_trx_id() spin
@@ -1330,3 +1327,4 @@ private:
 
 /** The transaction system */
 extern trx_sys_t trx_sys;
+#endif /* !UNIV_INNOCHECKSUM */

@@ -121,7 +121,9 @@ table_tiws_by_table::get_row_count(void)
 table_tiws_by_table::table_tiws_by_table()
   : PFS_engine_table(&m_share, &m_pos),
     m_row_exists(false), m_pos(0), m_next_pos(0)
-{}
+{
+  m_normalizer= time_normalizer::get_wait();
+}
 
 void table_tiws_by_table::reset_position(void)
 {
@@ -131,7 +133,6 @@ void table_tiws_by_table::reset_position(void)
 
 int table_tiws_by_table::rnd_init(bool scan)
 {
-  m_normalizer= time_normalizer::get(wait_timer);
   return 0;
 }
 

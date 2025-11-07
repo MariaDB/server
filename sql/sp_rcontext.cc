@@ -30,10 +30,37 @@
 
 Sp_rcontext_handler_local sp_rcontext_handler_local;
 Sp_rcontext_handler_package_body sp_rcontext_handler_package_body;
+Sp_rcontext_handler_statement sp_rcontext_handler_statement;
+
+
+const sp_variable *
+Sp_rcontext_handler_local::get_pvariable(const sp_pcontext *pctx, uint i) const
+{
+  return pctx->find_variable(i);
+}
+
+sp_cursor *Sp_rcontext_handler::get_open_cursor_or_error(THD *thd,
+                                                 const sp_rcontext_ref &ref)
+{
+  sp_cursor *cursor= get_cursor(thd, ref);
+  if (cursor && cursor->is_open())
+    return cursor;
+  my_error(ER_SP_CURSOR_NOT_OPEN, MYF(0));
+  return nullptr;
+}
+
 
 sp_rcontext *Sp_rcontext_handler_local::get_rcontext(sp_rcontext *ctx) const
 {
   return ctx;
+}
+
+const sp_variable *
+Sp_rcontext_handler_package_body::get_pvariable(const sp_pcontext *pctx, uint i)
+                                                                           const
+{
+  DBUG_ASSERT(0);
+  return nullptr;
 }
 
 sp_rcontext *Sp_rcontext_handler_package_body::get_rcontext(sp_rcontext *ctx) const
@@ -53,6 +80,45 @@ const LEX_CSTRING *Sp_rcontext_handler_package_body::get_name_prefix() const
   return &sp_package_body_variable_prefix_clex_str;
 }
 
+const LEX_CSTRING *Sp_rcontext_handler_statement::get_name_prefix() const
+{
+  static const LEX_CSTRING prefix= {STRING_WITH_LEN("STMT.")};
+  return &prefix;
+}
+
+
+Item_field *Sp_rcontext_handler_local::get_variable(THD *thd,
+                                                    uint offset) const
+{
+  return thd->spcont->get_variable(offset);
+}
+
+
+Item_field *Sp_rcontext_handler_package_body::get_variable(THD *thd,
+                                                           uint offset) const
+{
+  return Sp_rcontext_handler_package_body::get_rcontext(thd->spcont)->
+                                             get_variable(offset);
+}
+
+
+sp_cursor *Sp_rcontext_handler_local::get_cursor(THD *thd, uint offset) const
+{
+  return thd->spcont->get_cursor(offset);
+}
+
+sp_cursor *Sp_rcontext_handler_statement::get_cursor(THD *thd, uint offset) const
+{
+  return &thd->statement_cursors()->at(offset);
+}
+
+sp_cursor *Sp_rcontext_handler_statement::get_cursor_by_ref(THD *thd,
+                                            const sp_rcontext_addr &ref,
+                                            bool for_open) const
+{
+  Field *field= ref.rcontext_handler()->get_variable(thd, ref.offset())->field;
+  return thd->statement_cursors()->get_cursor_by_ref(thd, field, for_open);
+}
 
 ///////////////////////////////////////////////////////////////////////////
 // sp_rcontext implementation.
@@ -115,6 +181,29 @@ sp_rcontext *sp_rcontext::create(THD *thd,
 
   thd->lex->current_select= save_current_select;
   return ctx;
+}
+
+
+/*
+  Create a deep copy.
+  Used e.g. for "TYPE IS RECORD" variables.
+*/
+Row_definition_list *Row_definition_list::deep_copy(THD *thd) const
+{
+  Row_definition_list *row= new (thd->mem_root) Row_definition_list();
+  if (unlikely(row == NULL))
+    return nullptr;
+
+  // Create a deep copy of the elements
+  List_iterator<Spvar_definition> it(*const_cast<Row_definition_list*>(this));
+  for (Spvar_definition *def= it++; def; def= it++)
+  {
+    Spvar_definition *new_def= new (thd->mem_root) Spvar_definition(*def);
+    if (unlikely(new_def == NULL) ||
+        row->push_back(new_def, thd->mem_root))
+      return nullptr;
+  }
+  return row;
 }
 
 
@@ -350,25 +439,6 @@ bool Row_definition_list::resolve_type_refs(THD *thd)
 };
 
 
-Item_field_row *Spvar_definition::make_item_field_row(THD *thd,
-                                                      Field_row *field)
-{
-  Item_field_row *item= new (thd->mem_root) Item_field_row(thd, field);
-  if (!item)
-    return nullptr;
-
-  if (field->row_create_fields(thd, *this))
-    return nullptr;
-
-  // field->virtual_tmp_table() returns nullptr in case of ROW TYPE OF cursor
-  if (field->virtual_tmp_table() &&
-      item->add_array_of_item_field(thd, *field->virtual_tmp_table()))
-    return nullptr;
-
-  return item;
-}
-
-
 bool sp_rcontext::init_var_items(THD *thd,
                                  List<Spvar_definition> &field_def_lst)
 {
@@ -386,13 +456,18 @@ bool sp_rcontext::init_var_items(THD *thd,
   for (uint idx= 0; idx < num_vars; ++idx, def= it++)
   {
     Field *field= m_var_table->field[idx];
-    Field_row *field_row= dynamic_cast<Field_row*>(field);
-    if (!(m_var_items[idx]= field_row ?
-                            def->make_item_field_row(thd, field_row) :
-                            new (thd->mem_root) Item_field(thd, field)))
+    if (!(m_var_items[idx]= field->make_item_field_spvar(thd, *def)))
       return true;
   }
   return false;
+}
+
+
+void sp_rcontext::expr_event_handler(THD *thd, expr_event_t event,
+                                     uint start, uint end)
+{
+  if (m_var_table)
+    m_var_table->expr_event_handler(thd, event, start, end);
 }
 
 
@@ -602,7 +677,10 @@ int sp_rcontext::set_variable(THD *thd, uint idx, Item **value)
 {
   DBUG_ENTER("sp_rcontext::set_variable");
   DBUG_ASSERT(value);
-  DBUG_RETURN(thd->sp_eval_expr(m_var_table->field[idx], value));
+
+  auto handler= get_variable(idx)->type_handler()->to_composite();
+  DBUG_RETURN(thd->sp_eval_expr(m_var_table->field[idx], value) ||
+              (handler && handler->finalize_for_set(get_variable(idx))));
 }
 
 
@@ -613,18 +691,6 @@ int sp_rcontext::set_variable_row_field(THD *thd, uint var_idx, uint field_idx,
   DBUG_ASSERT(value);
   Virtual_tmp_table *vtable= virtual_tmp_table_for_row(var_idx);
   DBUG_RETURN(thd->sp_eval_expr(vtable->field[field_idx], value));
-}
-
-
-int sp_rcontext::set_variable_row_field_by_name(THD *thd, uint var_idx,
-                                                const LEX_CSTRING &field_name,
-                                                Item **value)
-{
-  DBUG_ENTER("sp_rcontext::set_variable_row_field_by_name");
-  uint field_idx;
-  if (find_row_field_by_name_or_error(&field_idx, var_idx, field_name))
-    DBUG_RETURN(1);
-  DBUG_RETURN(set_variable_row_field(thd, var_idx, field_idx, value));
 }
 
 
@@ -645,6 +711,68 @@ Virtual_tmp_table *sp_rcontext::virtual_tmp_table_for_row(uint var_idx)
   Field *field= m_var_table->field[var_idx];
   DBUG_ASSERT(field->virtual_tmp_table());
   return field->virtual_tmp_table();
+}
+
+
+int sp_rcontext::set_variable_composite_by_name(THD *thd, uint var_idx,
+                                                const LEX_CSTRING &name,
+                                                Item **value)
+{
+  DBUG_ENTER("sp_rcontext::set_variable_composite_by_name");
+  DBUG_ASSERT(get_variable(var_idx)->type() == Item::FIELD_ITEM);
+  DBUG_ASSERT(get_variable(var_idx)->cmp_type() == ROW_RESULT);
+
+  DBUG_RETURN(set_variable_composite_by_name(thd, get_variable(var_idx),
+                                             name, value));
+}
+
+
+int sp_rcontext::set_variable_composite_by_name(THD *thd, Item_field *composite,
+                                                const LEX_CSTRING &name,
+                                                Item **value)
+{
+  DBUG_ENTER("sp_rcontext::set_variable_composite_by_name");
+
+  auto handler= composite->type_handler()->to_composite();
+  DBUG_ASSERT(handler);
+
+  auto elem= handler->get_or_create_item(thd, composite, name);
+  if (!elem)
+    DBUG_RETURN(1);
+
+  elem= handler->prepare_for_set(elem);
+  DBUG_ASSERT(elem);
+
+  DBUG_RETURN(thd->sp_eval_expr(elem->field, value) ||
+              handler->finalize_for_set(elem));
+}
+
+
+int
+sp_rcontext::set_variable_composite_field_by_key(THD *thd,
+                                                 uint var_idx,
+                                                 const LEX_CSTRING &elem_name,
+                                                 const LEX_CSTRING &field_name,
+                                                 Item **value)
+{
+  DBUG_ENTER("sp_rcontext::set_variable_composite_field_by_key");
+  DBUG_ASSERT(value);
+
+  DBUG_ASSERT(get_variable(var_idx)->type() == Item::FIELD_ITEM);
+
+  auto composite= get_variable(var_idx);
+  auto handler= composite->type_handler()->to_composite();
+  DBUG_ASSERT(handler);
+
+  auto elem= handler->get_item(thd, composite, elem_name);
+  if (!elem)
+    DBUG_RETURN(1);
+
+  elem= handler->prepare_for_set(elem);
+  DBUG_ASSERT(elem);
+
+  DBUG_RETURN(set_variable_composite_by_name(thd, elem, field_name, value) ||
+              handler->finalize_for_set(elem));
 }
 
 
@@ -686,8 +814,9 @@ bool sp_rcontext::set_case_expr(THD *thd, int case_expr_id,
       m_case_expr_holders[case_expr_id]->result_type() !=
         case_expr_item->result_type())
   {
-    m_case_expr_holders[case_expr_id]=
-      create_case_expr_holder(thd, case_expr_item);
+    if (!(m_case_expr_holders[case_expr_id]=
+          create_case_expr_holder(thd, case_expr_item)))
+      return true; // A data type not allowed in CASE WHEN, or EOM
   }
 
   m_case_expr_holders[case_expr_id]->store(case_expr_item);
@@ -713,7 +842,7 @@ bool sp_rcontext::set_case_expr(THD *thd, int case_expr_id,
    0 in case of success, -1 otherwise
 */
 
-int sp_cursor::open(THD *thd)
+int sp_cursor::open(THD *thd, bool check_open_cursor_counter)
 {
   if (server_side_cursor)
   {
@@ -722,8 +851,18 @@ int sp_cursor::open(THD *thd)
                MYF(0));
     return -1;
   }
+
+  if (check_open_cursor_counter &&
+      thd->open_cursors_counter() >= thd->variables.max_open_cursors)
+  {
+    my_error(ER_TOO_MANY_OPEN_CURSORS, MYF(0),
+             thd->variables.max_open_cursors);
+    return -1;
+  }
+
   if (mysql_open_cursor(thd, &result, &server_side_cursor))
     return -1;
+  thd->open_cursors_counter_increment();
   return 0;
 }
 
@@ -736,6 +875,7 @@ int sp_cursor::close(THD *thd)
                MYF(0));
     return -1;
   }
+  thd->open_cursors_counter_decrement();
   sp_cursor_statistics::reset();
   destroy();
   return 0;

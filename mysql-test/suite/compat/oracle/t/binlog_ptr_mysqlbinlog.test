@@ -7,7 +7,7 @@
 # 1) "Gtid_log_event::print"
 # 2) "Xid_log_event::print" if flashback is enabled
 # 3) "Query_log_event::print" if flashback is enabled and engine is
-#    non-transacional.
+#    non-transactional.
 #
 # Test verifies all these cases.
 #

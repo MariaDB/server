@@ -171,12 +171,14 @@ bool trans_begin(THD *thd, uint flags)
       Implicitly starting a RW transaction is allowed for backward
       compatibility.
     */
-    const bool user_is_super=
-      MY_TEST(thd->security_ctx->master_access & PRIV_IGNORE_READ_ONLY);
-    if (opt_readonly && !user_is_super)
+    if (opt_readonly)
     {
-      my_error(ER_OPTION_PREVENTS_STATEMENT, MYF(0), "--read-only");
-      DBUG_RETURN(true);
+      if (!(thd->security_ctx->master_access & PRIV_IGNORE_READ_ONLY) ||
+          opt_readonly == READONLY_NO_LOCK_NO_ADMIN)
+      {
+        mariadb_error_read_only();
+        DBUG_RETURN(true);
+      }
     }
     thd->tx_read_only= false;
     /*
@@ -439,11 +441,11 @@ bool trans_rollback_implicit(THD *thd)
   DBUG_PRINT("info", ("clearing SERVER_STATUS_IN_TRANS"));
   res= ha_rollback_trans(thd, true);
   /*
-    We don't reset OPTION_BEGIN flag below to simulate implicit start
-    of new transacton in @@autocommit=1 mode. This is necessary to
-    preserve backward compatibility.
+    Implicit rollback should reset OPTION_BEGIN flag to avoid starting a
+    new transaction implicitly in next statement. It makes the behaviour
+    uniform with direct commit and rollback.
   */
-  thd->variables.option_bits&= ~(OPTION_BINLOG_THIS_TRX);
+  thd->variables.option_bits&= ~(OPTION_BEGIN | OPTION_BINLOG_THIS_TRX);
   thd->transaction->all.reset();
 
   /* Rollback should clear transaction_rollback_request flag. */
@@ -782,3 +784,13 @@ bool trans_release_savepoint(THD *thd, LEX_CSTRING name)
 
   DBUG_RETURN(MY_TEST(res));
 }
+
+#ifdef WITH_WSREP
+/* check if a named savepoint exists for the current transaction */
+bool trans_savepoint_exists(THD *thd, LEX_CSTRING name)
+{
+  SAVEPOINT **sv = find_savepoint(thd, Lex_ident_savepoint(name));
+
+  return (*sv != NULL);
+}
+#endif /* WITH_WSREP */

@@ -25,6 +25,23 @@ while ($i > 0) {
   dec $i;
 }
 
+CREATE TABLE t2 (j LONGBLOB) ENGINE = InnoDB
+ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=2;
+
+CREATE TABLE t3 (j LONGBLOB) ENGINE = InnoDB
+ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=4;
+
+CREATE TABLE t4(c1 INT PRIMARY KEY,c2 VARCHAR(20),
+		INDEX(c2(10))) ENGINE=InnoDB;
+
+let FLAG= `SELECT flag FROM INFORMATION_SCHEMA.INNODB_SYS_TABLESPACES WHERE NAME="test/t1"`;
+
+let FLAG2= `SELECT flag FROM INFORMATION_SCHEMA.INNODB_SYS_TABLESPACES WHERE NAME="test/t2"`;
+
+let FLAG3= `SELECT flag FROM INFORMATION_SCHEMA.INNODB_SYS_TABLESPACES WHERE NAME="test/t3"`;
+
+let FLAG4= `SELECT flag FROM INFORMATION_SCHEMA.INNODB_SYS_TABLESPACES WHERE NAME="test/t4"`;
+
 --echo # stop the server
 --source include/shutdown_mysqld.inc
 
@@ -65,7 +82,7 @@ while(<IN_FILE>) {
 }
 close(IN_FILE);
 close(OUT_FILE);
-# move the new content from tmp file to the orginal file.
+# move the new content from tmp file to the original file.
 move ("$dir/tmp/tmpfile", "$dir/tmp/$file");
 EOF
 
@@ -81,9 +98,23 @@ EOF
 
 --echo [4]:# Print the version of innochecksum and exit
 --replace_regex /for \S+/for OS/ /\d+/#/ /#[-_A-Za-z0-9]*-MariaDB,/#-MariaDB,/ /\(.*\)/(ARCH)/ /^.*innochecksum(\.exe)?/innochecksum/
---exec $INNOCHECKSUM -V $MYSQLD_DATADIR/test/t1.ibd
+--exec $INNOCHECKSUM -V
 
+--echo [5]:# check t1.ibd and t2.ibd summary with and without tablespace_flags
+let $resultlog=$MYSQLTEST_VARDIR/tmp/result.log;
+--exec $INNOCHECKSUM -S $MYSQLD_DATADIR/test/t1.ibd -s 3 -e 5 > $resultlog
+--exec $INNOCHECKSUM -S $MYSQLD_DATADIR/test/t2.ibd -s 3 -e 5 > $resultlog
+--exec $INNOCHECKSUM -S $MYSQLD_DATADIR/test/t3.ibd -s 3 -e 5 > $resultlog
+--exec $INNOCHECKSUM -S $MYSQLD_DATADIR/test/t4.ibd -s 3 -e 5 > $resultlog
+
+
+--exec $INNOCHECKSUM -S $MYSQLD_DATADIR/test/t1.ibd --tablespace_flags=$FLAG -s 3 -e 5 > $resultlog
+--exec $INNOCHECKSUM -S $MYSQLD_DATADIR/test/t2.ibd --tablespace_flags=$FLAG2 -s 3 -e 5 > $resultlog
+--exec $INNOCHECKSUM -S $MYSQLD_DATADIR/test/t3.ibd --tablespace_flags=$FLAG3 -s 3 -e 5 > $resultlog
+--exec $INNOCHECKSUM -S $MYSQLD_DATADIR/test/t4.ibd --tablespace_flags=$FLAG4 -s 3 -e 5 > $resultlog
+
+remove_file $resultlog;
 --echo # Restart the DB server
 --source include/start_mysqld.inc
 
-DROP TABLE t1;
+DROP TABLE t4, t3, t2, t1;

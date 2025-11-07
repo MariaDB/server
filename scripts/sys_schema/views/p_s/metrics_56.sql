@@ -24,7 +24,7 @@
 --    *  Current time
 --
 -- This is the same as the metrics view with the exception that the global status is taken from information_schema.GLOBAL_STATUS instead of
--- from the Peformance Schema. Use this view if one of the following conditions are fulfilled:
+-- from the Performance Schema. Use this view if one of the following conditions are fulfilled:
 --
 --    * The MySQL version is 5.6 or 5.7.0-5.7.5
 --    * In 5.7.6 and later if show_compatibility_56 is ON. See also https://dev.mysql.com/doc/refman/5.7/en/server-system-variables.html#sysvar_show_compatibility_56

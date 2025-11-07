@@ -17,7 +17,7 @@
 /*
 =======================================================================
   NOTE: this library implements SQL standard "exact numeric" type
-  and is not at all generic, but rather intentinally crippled to
+  and is not at all generic, but rather intentionally crippled to
   follow the standard :)
 =======================================================================
   Quoting the standard
@@ -579,12 +579,12 @@ void do_mini_right_shift(decimal_t *dec, int shift, int beg, int last)
     dec       number to be shifted
     shift     number of decimal positions
               shift > 0 means shift to left shift
-              shift < 0 meand right shift
+              shift < 0 means right shift
   NOTE
-    In fact it is multipling on 10^shift.
+    In fact it is multiplying on 10^shift.
   RETURN
     E_DEC_OK          OK
-    E_DEC_OVERFLOW    operation lead to overflow, number is untoched
+    E_DEC_OVERFLOW    operation lead to overflow, number is untouched
     E_DEC_TRUNCATED   number was rounded to fit into buffer
 */
 

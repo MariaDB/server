@@ -689,7 +689,7 @@ ERROR 42000: Incorrect number of arguments for FUNCTION sp.f; expected 2, got 3
 INSERT INTO t1;
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '' at line 1
 # the below query on PS table doesn't expose any statistics as 
-# execution of the created stored porgrams failed.
+# execution of the created stored programs failed.
 SELECT OBJECT_TYPE, OBJECT_SCHEMA, OBJECT_NAME, COUNT_STAR, COUNT_STATEMENTS
 FROM performance_schema.events_statements_summary_by_program
 WHERE OBJECT_SCHEMA='sp';

@@ -30,7 +30,7 @@
     Walk through all VALUES items.
   @param
      @param processor      - the processor to call for each Item
-     @param walk_qubquery  - if should dive into subquery items
+     @param walk_subquery  - if should dive into subquery items
      @param argument       - the argument to pass recursively
   @retval
     true   on error
@@ -46,7 +46,7 @@ bool table_value_constr::walk_values(Item_processor processor,
     List_iterator_fast<Item> item_it(*list);
     while (Item *item= item_it++)
     {
-       if (item->walk(&Item::unknown_splocal_processor, false, argument))
+       if (item->walk(&Item::unknown_splocal_processor, argument, 0))
          return true;
     }
   }
@@ -118,8 +118,8 @@ bool fix_fields_for_tvc(THD *thd, List_iterator_fast<List_item> &li)
     types and aggregates them with the previous ones stored in holders. If
     list_a is the first one in the list of lists its elements types are put in
     holders. The errors can be reported when count of list_a elements is
-    different from the first_list_el_count. Also error can be reported whe
-    n aggregation can't be made.
+    different from the first_list_el_count. Also error can be reported when
+    aggregation can't be made.
 
   @retval
     true    if an error was reported
@@ -683,7 +683,7 @@ bool table_value_constr::to_be_wrapped_as_with_tail()
     the select of the form
     SELECT * FROM (VALUES (v1), ... (vn)) tvc_x
 
-  @retval pointer to the result of of the transformation if successful
+  @retval pointer to the result of the transformation if successful
           NULL - otherwise
 */
 
@@ -736,7 +736,7 @@ st_select_lex *wrap_tvc(THD *thd, st_select_lex *tvc_sl,
 
   /*
     Create a unit for the substituted select used for TVC and attach it
-    to the the wrapper select wrapper_sl as the only unit. The created
+    to the wrapper select wrapper_sl as the only unit. The created
     unit is the unit for the derived table tvc_x of the transformation.
   */
   if (!(derived_unit= new (thd->mem_root) SELECT_LEX_UNIT()))
@@ -804,7 +804,7 @@ err:
     SELECT * FROM (VALUES (v1), ... (vn)) tvc_x
       ORDER BY ... LIMIT n [OFFSET m]
 
-  @retval pointer to the result of of the transformation if successful
+  @retval pointer to the result of the transformation if successful
           NULL - otherwise
 */
 
@@ -1171,7 +1171,7 @@ bool Item_func_in::to_be_transformed_into_in_subq(THD *thd)
   @details
     For each IN predicate from AND parts of the WHERE condition and/or
     ON expressions of the SELECT for this join the method performs
-    the intransformation into an equivalent IN sunquery if it's needed.
+    the intransformation into an equivalent IN subquery if it's needed.
 
   @retval
     false     always

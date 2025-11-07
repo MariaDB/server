@@ -62,8 +62,8 @@ id	jpath_i	jpath_r	jsn_path	jexst
 4	0	0.33	0.33	0
 5	0	0	"asd"	0
 Warnings:
-Warning	1366	Incorrect integer value: 'asd' for column ``.`(temporary)`.`jpath_i` at row 5
-Warning	1366	Incorrect double value: 'asd' for column ``.`(temporary)`.`jpath_r` at row 5
+Warning	1366	Incorrect integer value: 'asd' for column `*any*`.`json_table`.`jpath_i` at row 5
+Warning	1366	Incorrect double value: 'asd' for column `*any*`.`json_table`.`jpath_r` at row 5
 select * from
 json_table(
 '[{"x":"3"},{"a":2},{"b":1},{"a":0},{"a":[1,2]}]',
@@ -410,7 +410,7 @@ SELECT * FROM JSON_TABLE('"asdf"',
 a
 0
 Warnings:
-Warning	1366	Incorrect integer value: 'asdf' for column ``.`(temporary)`.`a` at row 1
+Warning	1366	Incorrect integer value: 'asdf' for column `*any*`.`json_table`.`a` at row 1
 SELECT * FROM
 JSON_TABLE('[{"a":1},{"a":2}]',
 '$' COLUMNS (a INT PATH '$[*].a' ERROR ON ERROR)) AS jt;
@@ -469,7 +469,7 @@ id	jid	val
 2	1	2
 2	2	4
 2	3	6
-SELECT /*+ JOIN_ORDER(jt, t1) */ id, jt.*
+SELECT id, jt.*
 FROM t1,
 JSON_TABLE(jd, '$[*]' COLUMNS (jid FOR ORDINALITY,
 val INT PATH '$')) AS jt;
@@ -480,14 +480,14 @@ id	jid	val
 2	1	2
 2	2	4
 2	3	6
-EXPLAIN SELECT /*+ JOIN_ORDER(jt, t1) */ id, jt.*
+EXPLAIN SELECT id, jt.*
 FROM t1,
 JSON_TABLE(jd, '$[*]' COLUMNS (jid FOR ORDINALITY,
 val INT PATH '$')) AS jt;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	
 1	SIMPLE	jt	ALL	NULL	NULL	NULL	NULL	40	Table function: json_table
-SELECT /*+ JOIN_ORDER(t2,jt) */ t1.id, t2.id, jt.*
+SELECT t1.id, t2.id, jt.*
 FROM t1,
 JSON_TABLE(t1.jd, '$[*]' COLUMNS (jid FOR ORDINALITY,
 val INT PATH '$')) AS jt,
@@ -514,7 +514,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	
 1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	2	Using join buffer (flat, BNL join)
 1	SIMPLE	jt	ALL	NULL	NULL	NULL	NULL	40	Table function: json_table
-EXPLAIN SELECT /*+ JOIN_ORDER(t2,jt) */ t1.id, t2.id, jt.*
+EXPLAIN SELECT t1.id, t2.id, jt.*
 FROM t1,
 JSON_TABLE(t1.jd, '$[*]' COLUMNS (jid FOR ORDINALITY,
 val INT PATH '$')) AS jt,
@@ -547,9 +547,9 @@ tm	dt	i	f	d
 Warnings:
 Warning	1265	Data truncated for column 'tm' at row 1
 Warning	1265	Data truncated for column 'dt' at row 1
-Warning	1366	Incorrect integer value: 'asdf' for column ``.`(temporary)`.`i` at row 1
-Warning	1366	Incorrect double value: 'asdf' for column ``.`(temporary)`.`f` at row 1
-Warning	1366	Incorrect decimal value: 'asdf' for column ``.`(temporary)`.`d` at row 1
+Warning	1366	Incorrect integer value: 'asdf' for column `*any*`.`json_table`.`i` at row 1
+Warning	1366	Incorrect double value: 'asdf' for column `*any*`.`json_table`.`f` at row 1
+Warning	1366	Incorrect decimal value: 'asdf' for column `*any*`.`json_table`.`d` at row 1
 SELECT * FROM
 JSON_TABLE('{}', '$' COLUMNS (x INT PATH '$.x' DEFAULT NULL ON EMPTY)) jt;
 x
@@ -865,8 +865,8 @@ col18
 0.000
 0.000
 Warnings:
-Warning	1366	Incorrect decimal value: 'asdf' for column ``.`(temporary)`.`col18` at row 1
-Warning	1366	Incorrect decimal value: 'ghjk' for column ``.`(temporary)`.`col18` at row 2
+Warning	1366	Incorrect decimal value: 'asdf' for column `*any*`.`json_table`.`col18` at row 1
+Warning	1366	Incorrect decimal value: 'ghjk' for column `*any*`.`json_table`.`col18` at row 2
 CREATE TABLE t1(jd JSON);
 INSERT INTO t1 VALUES('["asdf"]'),('["ghjk"]');
 SELECT * FROM t1,
@@ -878,8 +878,8 @@ jd	col18
 ["asdf"]	0.000
 ["ghjk"]	0.000
 Warnings:
-Warning	1366	Incorrect decimal value: 'asdf' for column ``.`(temporary)`.`col18` at row 1
-Warning	1366	Incorrect decimal value: 'ghjk' for column ``.`(temporary)`.`col18` at row 1
+Warning	1366	Incorrect decimal value: 'asdf' for column `*any*`.`json_table`.`col18` at row 1
+Warning	1366	Incorrect decimal value: 'ghjk' for column `*any*`.`json_table`.`col18` at row 1
 DROP TABLE t1;
 #
 # Bug#25540027: SIG 11 IN FIND_FIELD_IN_TABLE | SQL/SQL_BASE.CC

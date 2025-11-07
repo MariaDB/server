@@ -31,7 +31,7 @@ ENDIF()
 # in RPM's:
 
 #set(CPACK_RPM_SPEC_MORE_DEFINE "%define __spec_install_post /bin/true")
-FOREACH(p CMP0022 CMP0046 CMP0040 CMP0048 CMP0054 CMP0067 CMP0074 CMP0075 CMP0069 CMP0135)
+FOREACH(p CMP0022 CMP0046 CMP0040 CMP0048 CMP0054 CMP0056 CMP0067 CMP0074 CMP0075 CMP0069 CMP0135 CMP0091)
   IF(POLICY ${p})
     CMAKE_POLICY(SET ${p} NEW)
   ENDIF()
@@ -118,6 +118,10 @@ ENDFOREACH()
 ENDIF()
 
 FIND_PACKAGE(Git)
+
+IF(WIN32 AND (CMAKE_VERSION VERSION_GREATER "3.21"))
+ OPTION(INSTALL_RUNTIME_DEPENDENCIES "Install runtime dependencies" ON)
+ENDIF()
 
 # Following autotools tradition, add preprocessor definitions
 # specified in environment variable CPPFLAGS
@@ -241,7 +245,7 @@ ENDIF()
 
 OPTION(WITH_MSAN "Enable memory sanitizer" OFF)
 IF (WITH_MSAN)
-  MY_CHECK_AND_SET_COMPILER_FLAG("-fsanitize=memory -fsanitize-memory-track-origins -U_FORTIFY_SOURCE" DEBUG RELWITHDEBINFO)
+  MY_CHECK_AND_SET_COMPILER_FLAG("-fsanitize=memory -fsanitize-memory-track-origins -U_FORTIFY_SOURCE")
   IF(NOT (have_C__fsanitize_memory__fsanitize_memory_track_origins__U_FORTIFY_SOURCE
           AND have_CXX__fsanitize_memory__fsanitize_memory_track_origins__U_FORTIFY_SOURCE))
     MESSAGE(FATAL_ERROR "Compiler doesn't support -fsanitize=memory flags")
@@ -251,7 +255,7 @@ IF (WITH_MSAN)
     MESSAGE(FATAL_ERROR "C++ Compiler requires support for -stdlib=libc++")
   ENDIF()
   SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -stdlib=libc++")
-  MY_CHECK_AND_SET_LINKER_FLAG("-fsanitize=memory" DEBUG RELWITHDEBINFO)
+  MY_CHECK_AND_SET_LINKER_FLAG("-fsanitize=memory")
   IF(NOT HAVE_LINK_FLAG__fsanitize_memory)
     MESSAGE(FATAL_ERROR "Linker doesn't support -fsanitize=memory flags")
   ENDIF()
@@ -287,14 +291,18 @@ ENDIF()
 SET(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -DENABLED_DEBUG_SYNC")
 SET(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} -DENABLED_DEBUG_SYNC")
 
-IF(CMAKE_COMPILER_IS_GNUCC AND NOT CMAKE_CXX_COMPILER_VERSION VERSION_LESS "10")
+IF(CMAKE_C_COMPILER_ID STREQUAL "GNU" AND NOT CMAKE_CXX_COMPILER_VERSION VERSION_LESS "10")
   # Enable extra checks when using a recent enough version of GNU libstdc++
   SET(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -D_GLIBCXX_DEBUG -D_GLIBCXX_ASSERTIONS")
 ENDIF()
 
-OPTION(ENABLE_GCOV "Enable gcov (debug, Linux builds only)" OFF)
+OPTION(ENABLE_GCOV "Enable gcov (debug, macOS and Linux builds only)" OFF)
 IF (ENABLE_GCOV)
-  MY_CHECK_AND_SET_COMPILER_FLAG("-DHAVE_gcov -fprofile-arcs -ftest-coverage -lgcov" DEBUG)
+  IF (CMAKE_CXX_COMPILER_ID STREQUAL "AppleClang")
+    MY_CHECK_AND_SET_COMPILER_FLAG("--coverage" DEBUG)
+  ELSE()
+    MY_CHECK_AND_SET_COMPILER_FLAG("-DHAVE_gcov -fprofile-arcs -ftest-coverage -lgcov" DEBUG)
+  ENDIF()
 ENDIF()
 
 OPTION(WITHOUT_PACKED_SORT_KEYS "disable packed sort keys"  OFF)
@@ -337,7 +345,13 @@ SET(WITH_SAFEMALLOC "AUTO" CACHE STRING "Use safemalloc memory debugger. Will re
 
 IF(WITH_SAFEMALLOC MATCHES "ON")
   ADD_DEFINITIONS( -DSAFEMALLOC)
-ELSEIF(WITH_SAFEMALLOC MATCHES "AUTO" AND NOT WIN32 AND NOT WITH_VALGRIND)
+ELSEIF(WITH_SAFEMALLOC MATCHES "AUTO"
+       AND NOT WIN32
+       AND NOT WITH_VALGRIND
+       AND NOT WITH_ASAN
+       AND NOT WITH_UBSAN
+       AND NOT WITH_TSAN
+       AND NOT WITH_MSAN)
   SET(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} -DSAFEMALLOC")
   SET(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -DSAFEMALLOC")
 ENDIF()
@@ -361,6 +375,7 @@ IF(WIN32)
 ELSE()
   SET(DEFAULT_MYSQL_HOME ${CMAKE_INSTALL_PREFIX})
   SET(SHAREDIR ${INSTALL_MYSQLSHAREDIRABS})
+  SET(HOSTNAME "uname -n" CACHE STRING "Command for determining hostname")
 ENDIF()
 
 SET(DEFAULT_BASEDIR "${DEFAULT_MYSQL_HOME}")
@@ -542,31 +557,7 @@ IF(SOURCE_REVISION OR
                ${PROJECT_BINARY_DIR}/include/source_revision.h )
 ENDIF()
 
-CONFIGURE_FILE(
-    ${CMAKE_SOURCE_DIR}/cmake/info_macros.cmake.in
-    ${CMAKE_BINARY_DIR}/info_macros.cmake @ONLY)
-
-# Handle the "INFO_*" files.
-INCLUDE(${CMAKE_BINARY_DIR}/info_macros.cmake)
-# Source: This can be done during the cmake phase, all information is
-# available, but should be repeated on each "make" just in case someone
-# does "cmake ; make ; git pull ; make".
-CREATE_INFO_SRC(${CMAKE_BINARY_DIR}/Docs)
-ADD_CUSTOM_TARGET(INFO_SRC ALL
-  COMMAND ${CMAKE_COMMAND} -P ${CMAKE_SOURCE_DIR}/cmake/info_src.cmake
-  WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
-)
-# Build flags: This must be postponed to the make phase.
-ADD_CUSTOM_TARGET(INFO_BIN ALL
-  COMMAND ${CMAKE_COMMAND} -P ${CMAKE_SOURCE_DIR}/cmake/info_bin.cmake
-  WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
-)
-
 INSTALL_DOCUMENTATION(README.md CREDITS COPYING THIRDPARTY COMPONENT Readme)
-
-# MDEV-6526 these files are not installed anymore
-#INSTALL_DOCUMENTATION(${CMAKE_BINARY_DIR}/Docs/INFO_SRC
-#                      ${CMAKE_BINARY_DIR}/Docs/INFO_BIN)
 
 IF(UNIX)
   INSTALL_DOCUMENTATION(Docs/INSTALL-BINARY COMPONENT Readme)
@@ -584,6 +575,7 @@ IF(WITH_SBOM)
   GENERATE_SBOM()
 ENDIF()
 
+INSTALL_RUNTIME_DEPS()
 INCLUDE(CPack)
 
 IF(WIN32 AND SIGNCODE)
@@ -635,7 +627,7 @@ IF(NOT WITHOUT_SERVER)
    perror
    replace)
   IF(WIN32)
-    ADD_DEPENDENCIES(minbuild echo mariadb-install-db my_safe_kill)
+    ADD_DEPENDENCIES(minbuild echo mariadb-install-db my_safe_kill mariadb-upgrade-service)
   ENDIF()
   ADD_CUSTOM_TARGET(smoketest
     COMMAND perl ./mysql-test-run.pl main.1st

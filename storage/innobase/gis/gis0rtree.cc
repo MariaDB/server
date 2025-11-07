@@ -74,7 +74,7 @@ rtr_page_split_initialize_nodes(
 	n_recs = ulint(page_get_n_recs(page)) + 1;
 
 	/*We reserve 2 MBRs memory space for temp result of split
-	algrithm. And plus the new mbr that need to insert, we
+	algorithm. And plus the new mbr that need to insert, we
 	need (n_recs + 3)*MBR size for storing all MBRs.*/
 	buf = static_cast<double*>(mem_heap_alloc(
 		heap, DATA_MBR_LEN * (n_recs + 3)
@@ -96,6 +96,7 @@ rtr_page_split_initialize_nodes(
 	for (cur = task; cur < stop - 1; ++cur) {
 		cur->coords = reserve_coords(buf_pos, SPDIMS);
 		cur->key = rec;
+		cur->key_len = static_cast<uint16_t>(len);
 
 		memcpy(cur->coords, source_cur, DATA_MBR_LEN);
 
@@ -109,11 +110,11 @@ rtr_page_split_initialize_nodes(
 	source_cur = static_cast<const byte*>(dfield_get_data(
 		dtuple_get_nth_field(tuple, 0)));
 	cur->coords = reserve_coords(buf_pos, SPDIMS);
-	rec = (byte*) mem_heap_alloc(
-		heap, rec_get_converted_size(cursor->index(), tuple, 0));
-
+	len = rec_get_converted_size(cursor->index(), tuple, 0);
+	rec = (byte*) mem_heap_alloc(heap, len);
 	rec = rec_convert_dtuple_to_rec(rec, cursor->index(), tuple, 0);
 	cur->key = rec;
+	cur->key_len = static_cast<uint16_t>(len);
 
 	memcpy(cur->coords, source_cur, DATA_MBR_LEN);
 
@@ -277,7 +278,7 @@ rtr_update_mbr_field(
 				ins_suc = false;
 
 				/* Since btr_cur_update_alloc_zip could
-				reorganize the page, we need to repositon
+				reorganize the page, we need to reposition
 				cursor2. */
 				if (cursor2) {
 					cursor2->page_cur.rec =
@@ -1102,8 +1103,10 @@ corrupted:
 
 	/* Reposition the cursor for insert and try insertion */
 	page_cursor = btr_cur_get_page_cur(cursor);
-	page_cursor->block = cur_split_node->n_node != first_rec_group
-		? new_block : block;
+	buf_block_t *insert_block = (cur_split_node->n_node != first_rec_group)
+				    ? new_block
+				    : block;
+	page_cursor->block = insert_block;
 
 	uint16_t up_match = 0, low_match = 0;
 
@@ -1130,7 +1133,7 @@ corrupted:
 	attempted this already. */
 	if (rec == NULL) {
 		if (!is_page_cur_get_page_zip(page_cursor)
-		    && btr_page_reorganize(page_cursor, mtr)) {
+		    && !btr_page_reorganize(page_cursor, mtr)) {
 			rec = page_cur_tuple_insert(page_cursor, tuple,
 						    offsets,
 						    heap, n_ext, mtr);
@@ -1183,11 +1186,11 @@ after_insert:
 		IF_DBUG(iterated=true,);
 
 		rec_t* i_rec = page_rec_get_next(page_get_infimum_rec(
-			buf_block_get_frame(block)));
+			buf_block_get_frame(insert_block)));
 		if (UNIV_UNLIKELY(!i_rec)) {
 			goto corrupted;
 		}
-		btr_cur_position(cursor->index(), i_rec, block, cursor);
+		btr_cur_position(cursor->index(), i_rec, insert_block, cursor);
 
 		goto func_start;
 	}
@@ -1888,7 +1891,7 @@ Calculates MBR_AREA(a+b) - MBR_AREA(a)
 Note: when 'a' and 'b' objects are far from each other,
 the area increase can be really big, so this function
 can return 'inf' as a result.
-Return the area increaed. */
+Return the area increased. */
 static double
 rtree_area_increase(
 	const uchar*	a,		/*!< in: original mbr. */
@@ -2019,12 +2022,14 @@ rtr_rec_cal_increase(
 }
 
 /** Estimates the number of rows in a given area.
+@param[in,out]	trx	transaction
 @param[in]	index	index
 @param[in]	tuple	range tuple containing mbr, may also be empty tuple
 @param[in]	mode	search mode
 @return estimated number of rows */
 ha_rows
 rtr_estimate_n_rows_in_range(
+	trx_t*		trx,
 	dict_index_t*	index,
 	const dtuple_t*	tuple,
 	page_cur_mode_t	mode)
@@ -2065,7 +2070,7 @@ rtr_estimate_n_rows_in_range(
 		 * (range_mbr.ymax - range_mbr.ymin);
 
 	/* Get index root page. */
-	mtr_t		mtr;
+	mtr_t mtr{trx};
 
 	mtr.start();
 	index->set_modified(mtr);

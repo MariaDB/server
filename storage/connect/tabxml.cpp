@@ -25,6 +25,9 @@
 #include <netinet/in.h>
 #include <unistd.h>
 //#include <ctype.h>
+#ifdef LIBXML2_SUPPORT
+#include <libxml/tree.h>
+#endif
 #include "osutil.h"
 #define _O_RDONLY O_RDONLY
 #endif  // !_WIN32
@@ -382,7 +385,7 @@ PQRYRES XMLColumns(PGLOBAL g, char *db, char *tab, PTOS topt, bool info)
       xcp->Found = false;
       } // endfor xcp
 
-    } // endor i
+    } // endfor i
 
   txmp->CloseDB(g);
 
@@ -818,7 +821,7 @@ int TDBXML::LoadTableFile(PGLOBAL g, char *filename)
 
 /***********************************************************************/
 /*  Initialize the processing of the XML file.                         */
-/*  Note: this function can be called several times, eventally before  */
+/*  Note: this function can be called several times, eventually before */
 /*  the columns are known (from TBL for instance)                      */
 /***********************************************************************/
 bool TDBXML::Initialize(PGLOBAL g)
@@ -1608,7 +1611,9 @@ bool XMLCOL::ParseXpath(PGLOBAL g, bool mode)
     if (Tdbp->Xpand)
       n = Tdbp->Limit;
 
+    auto oLong = Long;
     new(this) XMULCOL(Value);        // Change the class of this column
+    Long = oLong;
     } // endif Inod
 
   Valbuf = (char*)PlugSubAlloc(g, NULL, n * (Long + 1));

@@ -4,31 +4,40 @@
 #include <stddef.h>
 
 typedef unsigned (*my_crc32_t)(unsigned, const void *, size_t);
+unsigned crc32_aarch64(unsigned, const void *, size_t);
 
 #ifdef HAVE_ARMV8_CRC
 
-#ifdef _WIN32
-#include <windows.h>
+# ifdef HAVE_ARMV8_CRYPTO
+static unsigned crc32c_aarch64_pmull(unsigned, const void *, size_t);
+# endif
+
+# ifdef _WIN32
+#  include <windows.h>
+#  ifdef __clang__
+#   include <arm_acle.h>
+#   include <arm_neon.h>
+# endif
 int crc32_aarch64_available(void)
 {
   return IsProcessorFeaturePresent(PF_ARM_V8_CRC32_INSTRUCTIONS_AVAILABLE);
 }
 
-const char *crc32c_aarch64_available(void)
+unsigned crc32c_aarch64(unsigned, const void *, size_t);
+
+my_crc32_t crc32c_aarch64_available(void)
 {
   if (crc32_aarch64_available() == 0)
     return NULL;
-  /* TODO : pmull seems supported, but does not compile*/
-  return "Using ARMv8 crc32 instructions";
+
+  if (IsProcessorFeaturePresent(PF_ARM_V8_CRYPTO_INSTRUCTIONS_AVAILABLE))
+    return crc32c_aarch64_pmull;
+  return crc32c_aarch64;
 }
-#endif /* _WIN32 */
 
-#ifdef HAVE_ARMV8_CRYPTO
-static unsigned crc32c_aarch64_pmull(unsigned, const void *, size_t);
-# endif
-
-# ifdef __APPLE__
-#  include <sys/sysctl.h>
+# else /* _WIN32 */
+#  ifdef __APPLE__
+#   include <sys/sysctl.h>
 
 int crc32_aarch64_available(void)
 {
@@ -41,16 +50,16 @@ int crc32_aarch64_available(void)
 
 my_crc32_t crc32c_aarch64_available(void)
 {
-# ifdef HAVE_ARMV8_CRYPTO
+#   ifdef HAVE_ARMV8_CRYPTO
   if (crc32_aarch64_available())
     return crc32c_aarch64_pmull;
-# endif
+#   endif
   return NULL;
 }
 
-# else /* __APPLE__ */
-#  include <sys/auxv.h>
-#  ifdef __FreeBSD__
+#  else /* __APPLE__ */
+#   include <sys/auxv.h>
+#   if defined(__FreeBSD__) || defined(__OpenBSD__)
 static unsigned long getauxval(unsigned int key)
 {
   unsigned long val;
@@ -58,17 +67,17 @@ static unsigned long getauxval(unsigned int key)
     return 0ul;
   return val;
 }
-#  else
-#   include <asm/hwcap.h>
-#  endif
+#   else
+#    include <asm/hwcap.h>
+#   endif
 
-#  ifndef HWCAP_CRC32
-#   define HWCAP_CRC32 (1 << 7)
-#  endif
+#   ifndef HWCAP_CRC32
+#    define HWCAP_CRC32 (1 << 7)
+#   endif
 
-#  ifndef HWCAP_PMULL
-#   define HWCAP_PMULL (1 << 4)
-#  endif
+#   ifndef HWCAP_PMULL
+#    define HWCAP_PMULL (1 << 4)
+#   endif
 
 /* ARM made crc32 default from ARMv8.1 but optional in ARMv8A
  * Runtime check API.
@@ -78,9 +87,9 @@ int crc32_aarch64_available(void)
   unsigned long auxv= getauxval(AT_HWCAP);
   return (auxv & HWCAP_CRC32) != 0;
 }
-# endif /* __APPLE__ */
+#  endif /* __APPLE__ */
 
-# ifndef __APPLE__
+#  ifndef __APPLE__
 static unsigned crc32c_aarch64(unsigned, const void *, size_t);
 
 my_crc32_t crc32c_aarch64_available(void)
@@ -88,14 +97,15 @@ my_crc32_t crc32c_aarch64_available(void)
   unsigned long auxv= getauxval(AT_HWCAP);
   if (!(auxv & HWCAP_CRC32))
     return NULL;
-#  ifdef HAVE_ARMV8_CRYPTO
+#   ifdef HAVE_ARMV8_CRYPTO
   /* Raspberry Pi 4 supports crc32 but doesn't support pmull (MDEV-23030). */
   if (auxv & HWCAP_PMULL)
     return crc32c_aarch64_pmull;
-#  endif
+#   endif
   return crc32c_aarch64;
 }
-# endif /* __APPLE__ */
+#  endif /* __APPLE__ */
+# endif /* _WIN32 */
 
 const char *crc32c_aarch64_impl(my_crc32_t c)
 {
@@ -133,9 +143,9 @@ asm(".arch_extension crypto");
 
 
 #define CRC32C3X8(buffer, ITR) \
-  __asm__("crc32cx %w[c1], %w[c1], %x[v]":[c1]"+r"(crc1):[v]"r"(*((const uint64_t *)buffer + 42*1 + (ITR))));\
-  __asm__("crc32cx %w[c2], %w[c2], %x[v]":[c2]"+r"(crc2):[v]"r"(*((const uint64_t *)buffer + 42*2 + (ITR))));\
-  __asm__("crc32cx %w[c0], %w[c0], %x[v]":[c0]"+r"(crc0):[v]"r"(*((const uint64_t *)buffer + 42*0 + (ITR))));
+  __asm__("crc32cx %w[c1], %w[c1], %x[v]":[c1]"+r"(crc1):[v]"r"(uint8korr(buffer + (42*1 + (ITR)) * sizeof(uint64_t))));\
+  __asm__("crc32cx %w[c2], %w[c2], %x[v]":[c2]"+r"(crc2):[v]"r"(uint8korr(buffer + (42*2 + (ITR)) * sizeof(uint64_t))));\
+  __asm__("crc32cx %w[c0], %w[c0], %x[v]":[c0]"+r"(crc0):[v]"r"(uint8korr(buffer + (42*0 + (ITR)) * sizeof(uint64_t))));
 
 #else /* HAVE_ARMV8_CRC_CRYPTO_INTRINSICS  */
 
@@ -157,9 +167,9 @@ asm(".arch_extension crypto");
 #define CRC32B(crc, value) (crc) = __crc32b((crc), (value))
 
 #define CRC32C3X8(buffer, ITR) \
-  crc1 = __crc32cd(crc1, *((const uint64_t *)buffer + 42*1 + (ITR)));\
-  crc2 = __crc32cd(crc2, *((const uint64_t *)buffer + 42*2 + (ITR)));\
-  crc0 = __crc32cd(crc0, *((const uint64_t *)buffer + 42*0 + (ITR)));
+  crc1 = __crc32cd(crc1, uint8korr(buffer + (42*1 + (ITR)) * sizeof(uint64_t)));\
+  crc2 = __crc32cd(crc2, uint8korr(buffer + (42*2 + (ITR)) * sizeof(uint64_t)));\
+  crc0 = __crc32cd(crc0, uint8korr(buffer + (42*0 + (ITR)) * sizeof(uint64_t)));
 
 #endif /* HAVE_ARMV8_CRC_CRYPTO_INTRINSICS */
 
@@ -173,11 +183,19 @@ asm(".arch_extension crypto");
   CRC32C3X8(buffer, ((ITR) * 7 + 6)) \
 } while(0)
 
+#if defined _MSC_VER && !defined __clang__
+#define PREF4X64L1(buffer, offset, itr)\
+  __prefetch(buffer + (offset) + ((itr) + 0)*64);\
+  __prefetch(buffer + (offset) + ((itr) + 1)*64);\
+  __prefetch(buffer + (offset) + ((itr) + 2)*64);\
+  __prefetch(buffer + (offset) + ((itr) + 3)*64);
+#else
 #define PREF4X64L1(buffer, PREF_OFFSET, ITR) \
   __asm__("PRFM PLDL1KEEP, [%x[v],%[c]]"::[v]"r"(buffer), [c]"I"((PREF_OFFSET) + ((ITR) + 0)*64));\
   __asm__("PRFM PLDL1KEEP, [%x[v],%[c]]"::[v]"r"(buffer), [c]"I"((PREF_OFFSET) + ((ITR) + 1)*64));\
   __asm__("PRFM PLDL1KEEP, [%x[v],%[c]]"::[v]"r"(buffer), [c]"I"((PREF_OFFSET) + ((ITR) + 2)*64));\
   __asm__("PRFM PLDL1KEEP, [%x[v],%[c]]"::[v]"r"(buffer), [c]"I"((PREF_OFFSET) + ((ITR) + 3)*64));
+#endif
 
 #define PREF1KL1(buffer, PREF_OFFSET) \
   PREF4X64L1(buffer,(PREF_OFFSET), 0) \
@@ -185,11 +203,20 @@ asm(".arch_extension crypto");
   PREF4X64L1(buffer,(PREF_OFFSET), 8) \
   PREF4X64L1(buffer,(PREF_OFFSET), 12)
 
+#if defined _MSC_VER && !defined __clang__
+#define MY_PLDL2KEEP 2 /* PLDL2KEEP is 2 in ARMv8 */
+#define PREF4X64L2(buffer,offset,itr)\
+  __prefetch2(buffer + offset + ((itr) + 0) * 64, MY_PLDL2KEEP);\
+  __prefetch2(buffer + offset + ((itr) + 1) * 64, MY_PLDL2KEEP);\
+  __prefetch2(buffer + offset + ((itr) + 2) * 64, MY_PLDL2KEEP);\
+  __prefetch2(buffer + offset + ((itr) + 3) * 64, MY_PLDL2KEEP);
+#else
 #define PREF4X64L2(buffer, PREF_OFFSET, ITR) \
   __asm__("PRFM PLDL2KEEP, [%x[v],%[c]]"::[v]"r"(buffer), [c]"I"((PREF_OFFSET) + ((ITR) + 0)*64));\
   __asm__("PRFM PLDL2KEEP, [%x[v],%[c]]"::[v]"r"(buffer), [c]"I"((PREF_OFFSET) + ((ITR) + 1)*64));\
   __asm__("PRFM PLDL2KEEP, [%x[v],%[c]]"::[v]"r"(buffer), [c]"I"((PREF_OFFSET) + ((ITR) + 2)*64));\
   __asm__("PRFM PLDL2KEEP, [%x[v],%[c]]"::[v]"r"(buffer), [c]"I"((PREF_OFFSET) + ((ITR) + 3)*64));
+#endif
 
 #define PREF1KL2(buffer, PREF_OFFSET) \
   PREF4X64L2(buffer,(PREF_OFFSET), 0) \
@@ -207,20 +234,20 @@ static unsigned crc32c_aarch64(unsigned crc, const void *buf, size_t len)
 
   while ((length-= sizeof(uint64_t)) >= 0)
   {
-    CRC32CX(crc, *(uint64_t *)buffer);
+    CRC32CX(crc, uint8korr(buffer));
     buffer+= sizeof(uint64_t);
   }
 
   /* The following is more efficient than the straight loop */
   if (length & sizeof(uint32_t))
   {
-    CRC32CW(crc, *(uint32_t *)buffer);
+    CRC32CW(crc, uint4korr(buffer));
     buffer+= sizeof(uint32_t);
   }
 
   if (length & sizeof(uint16_t))
   {
-    CRC32CH(crc, *(uint16_t *)buffer);
+    CRC32CH(crc, uint2korr(buffer));
     buffer+= sizeof(uint16_t);
   }
 
@@ -232,6 +259,16 @@ static unsigned crc32c_aarch64(unsigned crc, const void *buf, size_t len)
 #endif
 
 #ifdef HAVE_ARMV8_CRYPTO
+
+static inline uint64_t poly_mul(uint64_t a, uint64_t b)
+{
+#if defined _MSC_VER && !defined __clang__
+  return vgetq_lane_u64(vreinterpretq_u64_p128(neon_pmull_64(vcreate_p64(a), vcreate_p64(b))),0);
+#else
+  return (uint64_t) vmull_p64(a, b);
+#endif
+}
+
 static unsigned crc32c_aarch64_pmull(unsigned crc, const void *buf, size_t len)
 {
   int64_t length= (int64_t)len;
@@ -254,7 +291,7 @@ static unsigned crc32c_aarch64_pmull(unsigned crc, const void *buf, size_t len)
     /* Prefetch 3*1024 data for avoiding L2 cache miss */
     PREF1KL2(buffer, 1024*3);
     /* Do first 8 bytes here for better pipelining */
-    crc0= __crc32cd(crc, *(const uint64_t *)buffer);
+    crc0= __crc32cd(crc, uint8korr(buffer));
     crc1= 0;
     crc2= 0;
     buffer+= sizeof(uint64_t);
@@ -278,9 +315,9 @@ static unsigned crc32c_aarch64_pmull(unsigned crc, const void *buf, size_t len)
      * crc1 multiply by K2
      * crc0 multiply by K1
      */
-    t1= (uint64_t)vmull_p64(crc1, k2);
-    t0= (uint64_t)vmull_p64(crc0, k1);
-    crc= __crc32cd(crc2, *(const uint64_t *)buffer);
+    t1= poly_mul(crc1, k2);
+    t0= poly_mul(crc0, k1);
+    crc= __crc32cd(crc2, uint8korr(buffer));
     crc1= __crc32cd(0, t1);
     crc^= crc1;
     crc0= __crc32cd(0, t0);
@@ -305,7 +342,7 @@ static unsigned crc32c_aarch64_pmull(unsigned crc, const void *buf, size_t len)
 
     PREF1KL2(buffer, 1024*3);
     __asm__("crc32cx %w[c0], %w[c], %x[v]\n\t"
-            :[c0]"=r"(crc0):[c]"r"(crc), [v]"r"(*(const uint64_t *)buffer):);
+            :[c0]"=r"(crc0):[c]"r"(crc), [v]"r"(uint8korr(buffer)):);
     crc1= 0;
     crc2= 0;
     buffer+= sizeof(uint64_t);
@@ -331,7 +368,7 @@ static unsigned crc32c_aarch64_pmull(unsigned crc, const void *buf, size_t len)
             "crc32cx        %w[c0],         wzr,    %x[c0]  \n\t"
             "eor            %w[c],          %w[c],  %w[c0]  \n\t"
             :[c1]"+r"(crc1), [c0]"+r"(crc0), [c2]"+r"(crc2), [c]"+r"(crc)
-            :[v]"r"(*((const uint64_t *)buffer)));
+            :[v]"r"(uint8korr(buffer)));
     buffer+= sizeof(uint64_t);
   }
 # endif /* HAVE_ARMV8_CRC_CRYPTO_INTRINSICS */
@@ -342,20 +379,20 @@ static unsigned crc32c_aarch64_pmull(unsigned crc, const void *buf, size_t len)
   {
     while ((length-= sizeof(uint64_t)) >= 0)
     {
-      CRC32CX(crc, *(uint64_t *)buffer);
+      CRC32CX(crc, uint8korr(buffer));
       buffer+= sizeof(uint64_t);
     }
 
     /* The following is more efficient than the straight loop */
     if (length & sizeof(uint32_t))
     {
-      CRC32CW(crc, *(uint32_t *)buffer);
+      CRC32CW(crc, uint4korr(buffer));
       buffer+= sizeof(uint32_t);
     }
 
     if (length & sizeof(uint16_t))
     {
-      CRC32CH(crc, *(uint16_t *)buffer);
+      CRC32CH(crc, uint2korr(buffer));
       buffer+= sizeof(uint16_t);
     }
 
@@ -370,7 +407,7 @@ static unsigned crc32c_aarch64_pmull(unsigned crc, const void *buf, size_t len)
 /* There are multiple approaches to calculate crc.
 Approach-1: Process 8 bytes then 4 bytes then 2 bytes and then 1 bytes
 Approach-2: Process 8 bytes and remaining workload using 1 bytes
-Apporach-3: Process 64 bytes at once by issuing 8 crc call and remaining
+Approach-3: Process 64 bytes at once by issuing 8 crc call and remaining
             using 8/1 combination.
 
 Based on micro-benchmark testing we found that Approach-2 works best especially
@@ -389,8 +426,10 @@ unsigned int crc32_aarch64(unsigned int crc, const void *buf, size_t len)
     len--;
   }
 
-  for (; len >= 8; len-= 8)
-    CRC32X(crc, *buf8++);
+  for (; len >= 8; len-= 8) {
+    CRC32X(crc, uint8korr((uchar *)buf8));
+    buf8++;
+  }
 
   buf1= (const uint8_t *) buf8;
   while (len--)

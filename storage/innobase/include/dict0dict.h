@@ -61,16 +61,6 @@ void
 dict_foreign_free(
 /*==============*/
 	dict_foreign_t*	foreign);	/*!< in, own: foreign key struct */
-/*********************************************************************//**
-Finds the highest [number] for foreign key constraints of the table. Looks
-only at the >= 4.0.18-format id's, which are of the form
-databasename/tablename_ibfk_[number].
-@return highest number, 0 if table has no new format foreign key constraints */
-ulint
-dict_table_get_highest_foreign_id(
-/*==============================*/
-	dict_table_t*	table);		/*!< in: table in the dictionary
-					memory cache */
 /** Check whether the dict_table_t is a partition.
 A partitioned table on the SQL level is composed of InnoDB tables,
 where each InnoDB table is a [sub]partition including its secondary indexes
@@ -1383,7 +1373,7 @@ public:
   inline void add(dict_table_t *table) noexcept;
   /** Remove a table definition from the data dictionary cache.
   @param[in,out]	table	cached table definition to be evicted
-  @param[in]	lru	whether this is part of least-recently-used evictiono
+  @param[in]	lru	whether this is part of least-recently-used eviction
   @param[in]	keep	whether to keep (not free) the object */
   void remove(dict_table_t *table, bool lru= false, bool keep= false) noexcept;
 
@@ -1504,6 +1494,14 @@ public:
   bool load_sys_tables() noexcept;
   /** Create or check system tables on startup */
   dberr_t create_or_check_sys_tables() noexcept;
+
+  bool is_sys_table(table_id_t table_id) const noexcept
+  {
+    return (table_id > 0 && table_id <= 4) ||
+      table_id == sys_foreign->id ||
+      table_id == sys_foreign_cols->id ||
+      table_id == sys_virtual->id;
+  }
 };
 
 /** the data dictionary cache */
@@ -1527,16 +1525,19 @@ dict_fs2utf8(
 
 /** Flag an index corrupted both in the data dictionary cache
 and in the system table SYS_INDEXES.
+@param trx         transaction
 @param index       index to be flagged as corrupted
 @param ctx         context (for error log reporting) */
-void dict_set_corrupted(dict_index_t *index, const char *ctx)
+void dict_set_corrupted(trx_t *trx, dict_index_t *index, const char *ctx)
   ATTRIBUTE_COLD __attribute__((nonnull));
 
 /** Sets merge_threshold in the SYS_INDEXES
+@param[in]	thd		current_thd
 @param[in,out]	index		index
 @param[in]	merge_threshold	value to set */
 void
 dict_index_set_merge_threshold(
+	const THD&	thd,
 	dict_index_t*	index,
 	ulint		merge_threshold);
 
@@ -1637,6 +1638,27 @@ UNIV_INLINE
 bool
 dict_table_have_virtual_index(
 	dict_table_t*	table);
+
+/** Helper for opening the InnoDB persistent statistics tables */
+class dict_stats final
+{
+  MDL_context *mdl_context= nullptr;
+  MDL_ticket *mdl_table= nullptr, *mdl_index= nullptr;
+  dict_table_t *table_stats= nullptr, *index_stats= nullptr;
+
+public:
+  dict_stats()= default;
+
+  /** Open the statistics tables.
+  @return whether the operation failed */
+  bool open(THD *thd) noexcept;
+
+  /** Close the statistics tables after !open_tables(thd). */
+  void close() noexcept;
+
+  dict_table_t *table() const noexcept { return table_stats; }
+  dict_table_t *index() const noexcept { return index_stats; }
+};
 
 #include "dict0dict.inl"
 

@@ -201,7 +201,7 @@ err_open:
 
 /*
 *****************************************************************************
-** Read long filename using windows rutines
+** Read long filename using windows routines
 *****************************************************************************
 */
 
@@ -334,13 +334,6 @@ int my_fstat(File Filedes, MY_STAT *stat_area,
   DBUG_PRINT("my",("fd: %d  MyFlags: %lu", Filedes, MyFlags));
 #ifdef _WIN32
   DBUG_RETURN(my_win_fstat(Filedes, stat_area));
-#elif defined HAVE_valgrind
-  {
-    int s= fstat(Filedes, stat_area);
-    if (!s)
-      MSAN_STAT_WORKAROUND(stat_area);
-    DBUG_RETURN(s);
-  }
 #else
   DBUG_RETURN(fstat(Filedes, (struct stat *) stat_area));
 #endif
@@ -361,7 +354,6 @@ MY_STAT *my_stat(const char *path, MY_STAT *stat_area, myf my_flags)
 #ifndef _WIN32
   if (!stat((char *) path, (struct stat *) stat_area))
   {
-    MSAN_STAT_WORKAROUND(stat_area);
     DBUG_RETURN(stat_area);
   }
 #else

@@ -1,6 +1,6 @@
 ---
 # This Gitlab-CI pipeline offers basic validation that a commit did not
-# introduce easily detectable regressions. Builds run primairly on a new Fedora,
+# introduce easily detectable regressions. Builds run primarily on a new Fedora,
 # which has all the latest upstream build dependencies and thus is the primary
 # testing target, as eventually everything in Fedora becomes the next CentOS and
 # Red Hat releases.
@@ -315,7 +315,7 @@ mysql-test-run:
 #
 # Additionally, for each sanitizer MTR job, we enable --force-restart so that
 # sanitizer errors can be traced to individual tests. The difference in test
-# suite runtime as a result of this flag is negligable (~30s for the entire test suite).
+# suite runtime as a result of this flag is negligible (~30s for the entire test suite).
 # (see https://dev.mysql.com/doc/dev/mysql-server/latest/PAGE_MYSQL_TEST_RUN_PL.html)
 mysql-test-run-asan:
   stage: test
@@ -530,14 +530,12 @@ fedora upgrade-from:
     matrix:
       # Get latest versions of all major versions
       - UPGRADE_PATH:
-        - "10.6>11.4"
-        - "10.3"
-        - "10.4"
-        - "10.4.8" # Test unexpected table rebuilds as in https://jira.mariadb.org/browse/MDEV-28727
+        - "10.6>11.8"
         - "10.5"
         - "10.6"
         - "10.11"
         - "11.4"
+        - "11.8"
   script:
     - |
       if [[ $UPGRADE_PATH == *">"* ]]; then

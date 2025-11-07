@@ -860,7 +860,7 @@ xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxab
 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxaa
 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxz
 Warnings:
-Warning	4203	2 values were longer than max_sort_length. Sorting used only the first 64 bytes
+Warning	4202	2 values were longer than max_sort_length. Sorting used only the first 64 bytes
 drop table t1;
 create table t1 (
 `sid` decimal(8,0) default null,
@@ -4125,7 +4125,7 @@ a	substr(b, @save_max_sort_length+1)
 2	AB
 1	A
 Warnings:
-Warning	4203	5 values were longer than max_sort_length. Sorting used only the first 1024 bytes
+Warning	4202	5 values were longer than max_sort_length. Sorting used only the first 1024 bytes
 analyze format=json
 select a, substr(b, @save_max_sort_length+1) from t1 order by b desc;
 ANALYZE
@@ -4172,7 +4172,7 @@ ANALYZE
   }
 }
 Warnings:
-Warning	4203	5 values were longer than max_sort_length. Sorting used only the first 1024 bytes
+Warning	4202	5 values were longer than max_sort_length. Sorting used only the first 1024 bytes
 drop table t1;
 #
 # Packing sort keys with complex collations
@@ -4538,7 +4538,7 @@ ANALYZE
     ],
     "subqueries": [
       {
-        "expression_cache": {
+        "subquery_cache": {
           "r_loops": 50,
           "r_hit_ratio": 0,
           "query_block": {

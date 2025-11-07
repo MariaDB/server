@@ -1,9 +1,7 @@
-SET DEBUG_SYNC= 'RESET';
 connect  con1,localhost,root,,test,,;
 connect  con2,localhost,root,,test,,;
 connect  con3,localhost,root,,test,,;
 connection default;
-drop table if exists t1,t2,t3;
 create table t1 (i int);
 create table t2 (i int);
 connection: default
@@ -44,7 +42,7 @@ connection default;
 set debug_sync= 'RESET';
 create table t1 (c1 int);
 # 
-# A) First let us check compatibility rules between differend kinds of
+# A) First let us check compatibility rules between different kinds of
 #    type-of-operation aware metadata locks.
 #    Of course, these rules are already covered by the tests scattered
 #    across the test suite. But it still makes sense to have one place
@@ -1981,7 +1979,7 @@ connection deadlock_con2;
 set debug_sync='now WAIT_FOR parked2';
 # Resume ALTER execution. Eventually it will release its
 # metadata lock and INSERT's request for SW lock will be
-# satisified.
+# satisfied.
 set debug_sync='now SIGNAL go1';
 #
 connection default;
@@ -2431,9 +2429,6 @@ create table t1 (a int) engine=myisam;
 create table t2 (a int) stats_persistent=0, engine=innodb;
 insert into t1 values (1);
 insert into t2 values (1);
-connect  con1, localhost, root;
-start transaction with consistent snapshot;
-connection default;
 SET DEBUG_SYNC= 'after_open_table_mdl_shared SIGNAL table_opened WAIT_FOR grlwait execute 2';
 update t1,t2 set t1.a=2,t2.a=3;
 connection con2;
@@ -2456,6 +2451,7 @@ SET DEBUG_SYNC= 'now SIGNAL grlwait';
 SET DEBUG_SYNC= 'now WAIT_FOR table_opened';
 SET DEBUG_SYNC= 'mdl_acquire_lock_wait SIGNAL grlwait';
 FLUSH TABLES WITH READ LOCK;
+InnoDB		0 transactions not purged
 SELECT LOCK_MODE, LOCK_TYPE, TABLE_SCHEMA, TABLE_NAME FROM information_schema.metadata_lock_info;
 LOCK_MODE	LOCK_TYPE	TABLE_SCHEMA	TABLE_NAME
 MDL_BACKUP_FTWRL2	Backup lock		
@@ -2465,12 +2461,11 @@ connection default;
 SET DEBUG_SYNC= 'RESET';
 drop table t1,t2;
 disconnect con2;
-disconnect con1;
 #
 # Bug#50786 Assertion `thd->mdl_context.trans_sentinel() == __null' 
 #           failed in open_ltable()
 #
-# Supress warnings written to the log file
+# Suppress warnings written to the log file
 call mtr.add_suppression("Wait on a lock was aborted due to a pending exclusive lock");
 connect  con1,localhost,root;
 connect  con2,localhost,root;
@@ -3018,3 +3013,54 @@ connection default;
 SET debug_sync='RESET';
 DROP TABLE t1;
 disconnect con1;
+#
+# MDEV-28567 Assertion `0' in open_tables upon function-related operation
+#
+CREATE VIEW v1 AS SELECT 1;
+CREATE FUNCTION f1() RETURNS INT RETURN (SELECT * FROM v1);
+connect con1, localhost, root;
+SET debug_sync='open_and_process_table SIGNAL ready1 WAIT_FOR go1';
+ALTER VIEW v1 AS SELECT f1();
+connect con2, localhost, root;
+SET debug_sync='now WAIT_FOR ready1';
+SET debug_sync='mdl_after_find_deadlock SIGNAL ready2';
+SELECT f1();
+connect con3, localhost, root;
+SET debug_sync='now WAIT_FOR ready2';
+SET debug_sync='mdl_after_find_deadlock SIGNAL ready3';
+DROP FUNCTION f1;
+connection default;
+SET debug_sync='now WAIT_FOR ready3';
+SET debug_sync='now SIGNAL go1';
+connection con3;
+disconnect con3;
+connection con2;
+f1()
+1
+disconnect con2;
+connection con1;
+ERROR 42000: FUNCTION test.f1 does not exist
+disconnect con1;
+connection default;
+DROP VIEW v1;
+SET debug_sync='reset';
+#
+# MDEV-30364 Assertion MDL_EXCLUSIVE on DISCARD TABLESPACE in LOCK TABLE mode
+#
+create table t (c int) engine=innodb;
+set debug_sync='get_schema_column SIGNAL waiting WAIT_FOR go';
+select column_name from information_schema.columns
+where table_schema='test' and table_name='t';
+connect con1,localhost,root;
+set debug_sync= 'now WAIT_FOR waiting';
+lock table t write;
+set statement lock_wait_timeout=0 for alter table t discard tablespace;
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+unlock tables;
+set debug_sync='now SIGNAL go';
+disconnect con1;
+connection default;
+column_name
+c
+drop table t;
+set debug_sync= 'reset';

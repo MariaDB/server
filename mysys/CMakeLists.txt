@@ -47,7 +47,8 @@ SET(MYSYS_SOURCES  array.c charset-def.c charset.c my_default.c
 				my_rdtsc.c psi_noop.c
                                 my_atomic_writes.c my_cpu.c my_likely.c my_largepage.c
                                 file_logger.c my_dlerror.c   crc32/crc32c.cc
-                                my_timezone.cc  my_thread_name.cc)
+                                my_timezone.cc  my_thread_name.cc
+                                my_virtual_mem.c)
 
 IF (WIN32)
   SET (MYSYS_SOURCES ${MYSYS_SOURCES}
@@ -67,25 +68,38 @@ IF(MSVC_INTEL)
   ENDIF()
 ELSEIF(MSVC_ARM64)
   SET (MYSYS_SOURCES ${MYSYS_SOURCES} crc32/crc32_arm64.c)
-  ADD_DEFINITIONS(-DHAVE_ARMV8_CRC -DHAVE_ARMV8_CRC_CRYPTO_INTRINSICS)
+  ADD_DEFINITIONS(-DHAVE_ARMV8_CRC -DHAVE_ARMV8_CRC_CRYPTO_INTRINSICS -DHAVE_ARMV8_CRYPTO)
+  IF(CLANG_CL)
+    SET_SOURCE_FILES_PROPERTIES(
+      crc32/crc32_arm64.c
+      PROPERTIES
+      COMPILE_FLAGS "-march=armv8-a+crc+crypto"
+  )
+  ENDIF()
 ELSEIF(CMAKE_SYSTEM_PROCESSOR MATCHES "x86_64|amd64|i386|i686")
   SET(MYSYS_SOURCES ${MYSYS_SOURCES} crc32/crc32_x86.c crc32/crc32c_x86.cc)
-  IF(CMAKE_COMPILER_IS_GNUCC AND CMAKE_C_COMPILER_VERSION VERSION_LESS "5")
+  IF(CMAKE_C_COMPILER_ID STREQUAL "GNU" AND CMAKE_C_COMPILER_VERSION VERSION_LESS "5")
     SET_SOURCE_FILES_PROPERTIES(crc32/crc32_x86.c PROPERTIES
       COMPILE_FLAGS "-msse4.2 -mpclmul")
   ENDIF()
   IF(CMAKE_SIZEOF_VOID_P EQUAL 8)
     SET(MYSYS_SOURCES ${MYSYS_SOURCES} crc32/crc32c_amd64.cc)
-    IF(CMAKE_COMPILER_IS_GNUCC AND CMAKE_C_COMPILER_VERSION VERSION_LESS "5")
+    IF(CMAKE_C_COMPILER_ID STREQUAL "GNU" AND CMAKE_C_COMPILER_VERSION VERSION_LESS "5")
       SET_SOURCE_FILES_PROPERTIES(crc32/crc32c_amd64.cc PROPERTIES
         COMPILE_FLAGS "-msse4.2 -mpclmul")
     ENDIF()
   ENDIF()
 ELSEIF(CMAKE_SYSTEM_PROCESSOR MATCHES "aarch64|AARCH64")
-  IF(CMAKE_COMPILER_IS_GNUCC)
-    include(CheckCXXSourceCompiles)
+  IF(CMAKE_C_COMPILER_ID MATCHES "Clang|GNU")
+    include(CheckCSourceCompiles)
 
-    CHECK_CXX_SOURCE_COMPILES("
+    CHECK_C_COMPILER_FLAG(-march=armv8-a+crc+crypto HAVE_ARMV8_CRC_CRYPTO_MARCH)
+    IF(HAVE_ARMV8_CRC_CRYPTO_MARCH)
+      SET(SAVE_CMAKE_REQUIRED_FLAGS "${CMAKE_REQUIRED_FLAGS}")
+      SET(CMAKE_REQUIRED_FLAGS "${CMAKE_REQUIRED_FLAGS} -march=armv8-a+crc+crypto")
+    ENDIF()
+
+    CHECK_C_SOURCE_COMPILES("
     #define CRC32CX(crc, value) __asm__(\"crc32cx %w[c], %w[c], %x[v]\":[c]\"+r\"(crc):[v]\"r\"(value))
     asm(\".arch_extension crc\");
     unsigned int foo(unsigned int ret) {
@@ -102,7 +116,7 @@ ELSEIF(CMAKE_SYSTEM_PROCESSOR MATCHES "aarch64|AARCH64")
     #endif
     }" HAVE_ARMV8_CRC)
 
-    CHECK_CXX_SOURCE_COMPILES("
+    CHECK_C_SOURCE_COMPILES("
     asm(\".arch_extension crypto\");
     unsigned int foo(unsigned int ret) {
       __asm__(\"pmull  v2.1q,          v2.1d,  v1.1d\");
@@ -118,10 +132,8 @@ ELSEIF(CMAKE_SYSTEM_PROCESSOR MATCHES "aarch64|AARCH64")
     #endif
     }" HAVE_ARMV8_CRYPTO)
 
-    CHECK_C_COMPILER_FLAG(-march=armv8-a+crc+crypto HAVE_ARMV8_CRC_CRYPTO_MARCH)
-
     IF(HAVE_ARMV8_CRC_CRYPTO_MARCH)
-      CHECK_INCLUDE_FILE(arm_acle.h HAVE_ARM_ACLE_H -march=armv8-a+crc+crypto)
+      CHECK_INCLUDE_FILE(arm_acle.h HAVE_ARM_ACLE_H)
       IF(HAVE_ARM_ACLE_H)
        ADD_DEFINITIONS(-DHAVE_ARMV8_CRC_CRYPTO_INTRINSICS)
       ENDIF()
@@ -134,6 +146,8 @@ ELSEIF(CMAKE_SYSTEM_PROCESSOR MATCHES "aarch64|AARCH64")
       SET(MYSYS_SOURCES ${MYSYS_SOURCES} crc32/crc32_arm64.c)
       SET_SOURCE_FILES_PROPERTIES(crc32/crc32_arm64.c PROPERTIES
         COMPILE_FLAGS "-march=armv8-a+crc+crypto")
+
+      SET(CMAKE_REQUIRED_FLAGS "${SAVE_CMAKE_REQUIRED_FLAGS}")
     ENDIF()
   ENDIF()
 ENDIF()
@@ -172,7 +186,7 @@ IF(HAVE_BFD_H)
 ENDIF(HAVE_BFD_H)
 
 IF (WIN32)
-  TARGET_LINK_LIBRARIES(mysys iphlpapi dbghelp)
+  TARGET_LINK_LIBRARIES(mysys iphlpapi dbghelp ws2_32 synchronization)
 ENDIF(WIN32)
 
 # Need explicit pthread for gcc -fsanitize=address

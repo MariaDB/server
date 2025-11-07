@@ -1,6 +1,4 @@
-SET SESSION STORAGE_ENGINE='InnoDB';
-Warnings:
-Warning	1287	'@@storage_engine' is deprecated and will be removed in a future release. Please use '@@default_storage_engine' instead
+SET SESSION DEFAULT_STORAGE_ENGINE='InnoDB';
 set @save_optimizer_switch_for_selectivity_test=@@optimizer_switch;
 set optimizer_switch='extended_keys=on';
 drop table if exists t0,t1,t2,t3;
@@ -298,6 +296,7 @@ JS
         "chosen_access_method": 
         {
             "type": "range",
+            "index": "PRIMARY",
             "rows_read": 5,
             "rows_out": 2.490196078,
             "cost": 0.00948507,
@@ -314,6 +313,4 @@ set optimizer_use_condition_selectivity= @save_optimizer_use_condition_selectivi
 set use_stat_tables= @save_use_stat_tables;
 set @@global.histogram_size=@save_histogram_size;
 set optimizer_switch=@save_optimizer_switch_for_selectivity_test;
-SET SESSION STORAGE_ENGINE=DEFAULT;
-Warnings:
-Warning	1287	'@@storage_engine' is deprecated and will be removed in a future release. Please use '@@default_storage_engine' instead
+SET SESSION DEFAULT_STORAGE_ENGINE=DEFAULT;

@@ -72,6 +72,8 @@ ulong plugin_maturity;
 
 static LEX_CSTRING MYSQL_PLUGIN_NAME= {STRING_WITH_LEN("plugin") };
 
+enum mysql_plugin_fields { PLUGIN_NAME, PLUGIN_SONAME, PLUGIN_FIELDS_COUNT };
+
 /*
   not really needed now, this map will become essential when we add more
   maturity levels. We cannot change existing maturity constants,
@@ -238,7 +240,7 @@ static struct
 /*
   A mutex LOCK_plugin must be acquired before accessing the
   following variables/structures.
-  We are always manipulating ref count, so a rwlock here is unneccessary.
+  We are always manipulating ref count, so a rwlock here is unnecessary.
 */
 mysql_mutex_t LOCK_plugin;
 static DYNAMIC_ARRAY plugin_dl_array;
@@ -1666,6 +1668,8 @@ int plugin_init(int *argc, char **argv, int flags)
       tmp.name= tmp_plugin_name;
       tmp.state= 0;
       tmp.load_option= mandatory ? PLUGIN_FORCE : PLUGIN_ON;
+      DBUG_ASSERT(!mandatory ||
+        plugin_maturity_map[plugin->maturity] >= SERVER_MATURITY_LEVEL);
 
       for (i=0; i < array_elements(override_plugin_load_policy); i++)
       {
@@ -1859,6 +1863,19 @@ static bool register_builtin(struct st_maria_plugin *plugin,
 }
 
 
+static bool plugin_table_is_valid(TABLE *table)
+{
+  if (table->s->fields < PLUGIN_FIELDS_COUNT ||
+      table->s->primary_key == MAX_KEY)
+  {
+    my_error(ER_CANNOT_LOAD_FROM_TABLE_V2, MYF(0),
+             table->s->db.str, table->s->table_name.str);
+    return false;
+  }
+  return true;
+}
+
+
 /*
   called only by plugin_init()
 */
@@ -1904,6 +1921,9 @@ static void plugin_load(MEM_ROOT *tmp_root)
     goto end;
   }
 
+  if (!plugin_table_is_valid(table))
+    goto end2;
+
   if (init_read_record(&read_record_info, new_thd, table, NULL, NULL, 1, 0,
                        FALSE))
   {
@@ -1915,6 +1935,8 @@ static void plugin_load(MEM_ROOT *tmp_root)
   while (!(error= read_record_info.read_record()))
   {
     DBUG_PRINT("info", ("init plugin record"));
+    static_assert(PLUGIN_NAME == 0, "");
+    static_assert(PLUGIN_SONAME == 1, "");
     DBUG_ASSERT(new_thd == table->field[0]->get_thd());
     DBUG_ASSERT(new_thd == table->field[1]->get_thd());
     DBUG_ASSERT(!(new_thd->variables.sql_mode & MODE_PAD_CHAR_TO_FULL_LENGTH));
@@ -1964,6 +1986,7 @@ static void plugin_load(MEM_ROOT *tmp_root)
     sql_print_error(ER_DEFAULT(ER_GET_ERRNO), my_errno,
                            table->file->table_type());
   end_read_record(&read_record_info);
+end2:
   table->mark_table_for_reopen();
   close_mysql_tables(new_thd);
 end:
@@ -2235,9 +2258,8 @@ static bool finalize_install(THD *thd, TABLE *table, const LEX_CSTRING *name,
   DBUG_ASSERT(!table->file->row_logging);
   table->use_all_columns();
   restore_record(table, s->default_values);
-  table->field[0]->store(name->str, name->length, system_charset_info);
-  table->field[1]->store(tmp->plugin_dl->dl.str, tmp->plugin_dl->dl.length,
-                         files_charset_info);
+  table->field[PLUGIN_NAME]->store(name->str, name->length, system_charset_info);
+  table->field[PLUGIN_SONAME]->store(&tmp->plugin_dl->dl, files_charset_info);
   error= table->file->ha_write_row(table->record[0]);
   if (unlikely(error))
   {
@@ -2267,8 +2289,8 @@ bool mysql_install_plugin(THD *thd, const LEX_CSTRING *name,
   WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, NULL, NULL);
 
   /* need to open before acquiring LOCK_plugin or it will deadlock */
-  if (! (table = open_ltable(thd, &tables, TL_WRITE,
-                             MYSQL_LOCK_IGNORE_TIMEOUT)))
+  table= open_ltable(thd, &tables, TL_WRITE, MYSQL_LOCK_IGNORE_TIMEOUT);
+  if (!table || !plugin_table_is_valid(table))
     DBUG_RETURN(TRUE);
 
   if (my_load_defaults(MYSQL_CONFIG_NAME, load_default_groups, &argc, &argv, NULL))
@@ -2376,7 +2398,7 @@ static bool do_uninstall(THD *thd, TABLE *table, const LEX_CSTRING *name)
 
   uchar user_key[MAX_KEY_LENGTH];
   table->use_all_columns();
-  table->field[0]->store(name->str, name->length, system_charset_info);
+  table->field[PLUGIN_NAME]->store(name->str, name->length, system_charset_info);
   key_copy(user_key, table->record[0], table->key_info,
            table->key_info->key_length);
   if (! table->file->ha_index_read_idx_map(table->record[0], 0, user_key,
@@ -2425,18 +2447,9 @@ bool mysql_uninstall_plugin(THD *thd, const LEX_CSTRING *name,
   WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, NULL, NULL);
 
   /* need to open before acquiring LOCK_plugin or it will deadlock */
-  if (! (table= open_ltable(thd, &tables, TL_WRITE, MYSQL_LOCK_IGNORE_TIMEOUT)))
+  table= open_ltable(thd, &tables, TL_WRITE, MYSQL_LOCK_IGNORE_TIMEOUT);
+  if (!table || !plugin_table_is_valid(table))
     DBUG_RETURN(TRUE);
-
-  if (!table->key_info)
-  {
-    my_printf_error(ER_UNKNOWN_ERROR,
-                    "The table %s.%s has no primary key. "
-                    "Please check the table definition and "
-                    "create the primary key accordingly.", MYF(0),
-                    table->s->db.str, table->s->table_name.str);
-    DBUG_RETURN(TRUE);
-  }
 
   /*
     Pre-acquire audit plugins for events that may potentially occur
@@ -3824,7 +3837,7 @@ void plugin_opt_set_limits(struct my_option *options,
 
   The set is stored in the pre-allocated static array supplied to the function.
   The size of the array is calculated as (number_of_plugin_varaibles*2+3). The
-  reason is that each option can have a prefix '--plugin-' in addtion to the
+  reason is that each option can have a prefix '--plugin-' in addition to the
   shorter form '--&lt;plugin-name&gt;'. There is also space allocated for
   terminating NULL pointers.
 

@@ -339,7 +339,7 @@ SORT_INFO *filesort(THD *thd, TABLE *table, Filesort *filesort,
   if (costs.fastest_sort == PQ_SORT_ALL_FIELDS ||
       costs.fastest_sort == PQ_SORT_ORDER_BY_FIELDS)
   {
-    /* We are going to use priorty queue */
+    /* We are going to use priority queue */
     thd->query_plan_flags|= QPLAN_FILESORT_PRIORITY_QUEUE;
     status_var_increment(thd->status_var.filesort_pq_sorts_);
     tracker->incr_pq_used();
@@ -359,7 +359,7 @@ SORT_INFO *filesort(THD *thd, TABLE *table, Filesort *filesort,
       param.res_length= param.ref_length;
       /*
         Add the ref (rowid which is stored last in the sort key) to the sort,
-        as we want to retrive rows in id order, if possible.
+        as we want to retrieve rows in id order, if possible.
       */
       param.sort_length+= param.ref_length;
       param.rec_length= param.sort_length;
@@ -730,26 +730,16 @@ static uchar *read_buffpek_from_file(IO_CACHE *buffpek_pointers, uint count,
 }
 
 #ifndef DBUG_OFF
-/*
-  Print table's current row into a buffer and return a pointer to it.
 
-  This is intended to be used from gdb:
-  
-    (gdb) p dbug_print_table_row(table)
-      $33 = "SUBQUERY2_t1(col_int_key,col_varchar_nokey)=(7,c)"
-    (gdb)
+static char dbug_row_print_buf[4096];
 
-  Only columns in table->read_set are printed
-*/
 
-const char* dbug_print_row(TABLE *table, const uchar *rec, bool print_names)
+String dbug_format_row(TABLE *table, const uchar *rec, bool print_names)
 {
   Field **pfield;
-  const size_t alloc_size= 512;
-  char *row_buff= (char *) alloc_root(&table->mem_root, alloc_size);
-  char *row_buff_tmp= (char *) alloc_root(&table->mem_root, alloc_size);
-  String tmp(row_buff_tmp, alloc_size, &my_charset_bin);
-  String output(row_buff, alloc_size, &my_charset_bin);
+  char row_buff_tmp[512];
+  String tmp(row_buff_tmp, sizeof(row_buff_tmp), &my_charset_bin);
+  String output(dbug_row_print_buf, sizeof(dbug_row_print_buf), &my_charset_bin);
 
   auto move_back_lambda= [table, rec]() mutable {
     table->move_fields(table->field, table->record[0], rec);
@@ -762,7 +752,7 @@ const char* dbug_print_row(TABLE *table, const uchar *rec, bool print_names)
     move_back_guard.engage();
   }
 
-  SCOPE_VALUE(table->read_set, (table->read_set && table->write_set) ?
+  SCOPE_VALUE(table->read_set, (table->reginfo.lock_type >= TL_WRITE_ALLOW_WRITE) ?
                                 table->write_set : table->read_set);
 
   output.length(0);
@@ -814,10 +804,35 @@ const char* dbug_print_row(TABLE *table, const uchar *rec, bool print_names)
   }
   output.append(')');
 
-  return output.c_ptr_safe();
+  return output;
 }
 
+/**
+  A function to display a row in debugger.
 
+  Example usage:
+  (gdb) p dbug_print_row(table, table->record[1])
+*/
+const char *dbug_print_row(TABLE *table, const uchar *rec)
+{
+  String row= dbug_format_row(table, rec);
+  if (row.length() > sizeof dbug_row_print_buf - 1)
+    return "Couldn't fit into buffer";
+  memcpy(dbug_row_print_buf, row.c_ptr(), row.length());
+  return dbug_row_print_buf;
+}
+
+/**
+  Print table's current row into a buffer and return a pointer to it.
+
+  This is intended to be used from gdb:
+
+    (gdb) p dbug_print_table_row(table)
+      $33 = "SUBQUERY2_t1(col_int_key,col_varchar_nokey)=(7,c)"
+    (gdb)
+
+  Only columns in table->read_set are printed
+*/
 const char* dbug_print_table_row(TABLE *table)
 {
   return dbug_print_row(table, table->record[0]);
@@ -983,7 +998,8 @@ static ha_rows find_all_keys(THD *thd, Sort_param *param, SQL_SELECT *select,
               (!select->pre_idx_push_select_cond ?
                select->cond : select->pre_idx_push_select_cond));
   if (sort_cond)
-    sort_cond->walk(&Item::register_field_in_read_map, 1, sort_form);
+    sort_cond->walk(&Item::register_field_in_read_map,
+                    sort_form, WALK_SUBQUERY);
   sort_form->file->column_bitmaps_signal();
 
   if (quick_select)
@@ -1534,7 +1550,8 @@ static void register_used_fields(Sort_param *param)
     }
     else
     {						// Item
-      sort_field->item->walk(&Item::register_field_in_read_map, 1, table);
+      sort_field->item->walk(&Item::register_field_in_read_map,
+                             table, WALK_SUBQUERY);
     }
   }
 
@@ -2359,7 +2376,7 @@ get_addon_fields(TABLE *table, uint sortlength,
 
   /*
     If there is a reference to a field in the query add it
-    to the the set of appended fields.
+    to the set of appended fields.
     Note for future refinement:
     This this a too strong condition.
     Actually we need only the fields referred in the

@@ -177,7 +177,7 @@ static const char* fts_config_table_insert_values_sql =
 		FTS_TABLE_STATE "', '0');\n"
 	"END;\n";
 
-/** FTS tokenize parmameter for plugin parser */
+/** FTS tokenize parameter for plugin parser */
 struct fts_tokenize_param_t {
 	fts_doc_t*	result_doc;	/*!< Result doc for tokens */
 	ulint		add_pos;	/*!< Added position for tokens */
@@ -1504,10 +1504,6 @@ fts_rename_aux_tables(
 			err = fts_rename_one_aux_table(
 				new_name, old_table_name, trx);
 
-			DBUG_EXECUTE_IF("fts_rename_failure",
-					err = DB_DEADLOCK;
-					fts_sql_rollback(trx););
-
 			if (err != DB_SUCCESS) {
 				return(err);
 			}
@@ -2032,7 +2028,7 @@ fts_create_one_index_table(
 			       FTS_INDEX_DOC_COUNT_LEN);
 
 	/* The precise type calculation is as follows:
-	least signficiant byte: MySQL type code (not applicable for sys cols)
+	least significant byte: MySQL type code (not applicable for sys cols)
 	second least : DATA_NOT_NULL | DATA_BINARY_TYPE
 	third least  : the MySQL charset-collation code (DATA_MTYPE_MAX) */
 
@@ -3307,7 +3303,7 @@ fts_add_doc_from_tuple(
        doc_id_t        doc_id,
        const dtuple_t* tuple)
 {
-       mtr_t           mtr;
+       mtr_t mtr{ftt->fts_trx->trx};
        fts_cache_t*    cache = ftt->table->fts->cache;
 
        ut_ad(cache->get_docs);
@@ -3376,7 +3372,7 @@ fts_add_doc_by_id(
 	fts_trx_table_t*ftt,		/*!< in: FTS trx table */
 	doc_id_t	doc_id)		/*!< in: doc id */
 {
-	mtr_t		mtr;
+	mtr_t		mtr{ftt->fts_trx->trx};
 	mem_heap_t*	heap;
 	btr_pcur_t	pcur;
 	dict_table_t*	table;
@@ -3624,7 +3620,7 @@ fts_get_max_doc_id(
 	dict_index_t*	index;
 	dict_field_t*	dfield MY_ATTRIBUTE((unused)) = NULL;
 	doc_id_t	doc_id = 0;
-	mtr_t		mtr;
+	mtr_t		mtr{nullptr};
 	btr_pcur_t	pcur;
 
 	index = table->fts_doc_id_index;
@@ -4423,7 +4419,7 @@ or greater than fts_max_token_size.
 @param[in]	stopwords	stopwords rb tree
 @param[in]	cs		token charset
 @retval	true	if it is not stopword and length in range
-@retval	false	if it is stopword or lenght not in range */
+@retval	false	if it is stopword or length not in range */
 bool
 fts_check_token(
 	const fts_string_t*		token,

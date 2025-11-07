@@ -340,7 +340,7 @@ drop procedure f21;
 
 DELIMITER $$;
 --echo #
---echo # Jump beetween handler
+--echo # Jump between handler
 --error ER_SP_LILABEL_MISMATCH
 CREATE or replace procedure f22(lim INT, res OUT VARCHAR)
 AS

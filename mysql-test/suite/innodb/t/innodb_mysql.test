@@ -301,7 +301,7 @@ BEGIN
 END||
 delimiter ;||
 
---echo ** DELETE is prevented by foreign key constrains but errors are silenced.
+--echo ** DELETE is prevented by foreign key constraints but errors are silenced.
 --echo ** The AFTER trigger isn't fired.
 DELETE IGNORE t1 FROM t3 LEFT JOIN t1 ON t1.i=t3.i;
 --echo ** Tables are modified by best effort:
@@ -970,7 +970,6 @@ UPDATE t1 SET y = 1 WHERE x = 1;
 COMMIT;
 
 disconnect con2;
---source include/wait_until_disconnected.inc
 connection default;
 COMMIT;
 DROP TABLE t1;

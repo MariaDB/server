@@ -4,6 +4,7 @@
 
 -- source include/have_log_bin.inc
 -- source include/binlog_start_pos.inc
+-- source include/count_sessions.inc
 
 --disable_query_log
 CALL mtr.add_suppression("Unsafe statement written to the binary log using statement format since BINLOG_FORMAT = STATEMENT");
@@ -151,7 +152,7 @@ EOF
 --exec $MYSQL test < $MYSQLTEST_VARDIR/tmp/bug14157.sql
 --remove_file $MYSQLTEST_VARDIR/tmp/bug14157.sql
 
-# resulted binlog, parly consisting of multi-byte utf8 chars,
+# resulted binlog, partly consisting of multi-byte utf8 chars,
 # must be digestable for both client and server. In 4.1 the client
 # should use default-character-set same as the server.
 
@@ -365,16 +366,19 @@ echo mysql mysqltest1 -uuntrusted < var/tmp/bug31611.sql;
 error 1;
 exec $MYSQL mysqltest1 -uuntrusted < $MYSQLTEST_VARDIR/tmp/bug31611.sql;
 --remove_file $MYSQLTEST_VARDIR/tmp/bug31611.sql
+
 connection unsecure;
 error ER_TABLEACCESS_DENIED_ERROR;
 INSERT INTO t1 VALUES (1,USER());
 
 SELECT * FROM t1;
 connection default;
+disconnect unsecure;
 DROP DATABASE mysqltest1;
+--source include/wait_until_count_sessions.inc
 DROP USER untrusted@localhost;
 
---echo Bug#32580 mysqlbinlog cannot read binlog event with user variables
+--echo # Bug#32580 mysqlbinlog cannot read binlog event with user variables
 
 # Testing that various kinds of events can be read and restored properly.
 
@@ -449,7 +453,7 @@ FLUSH LOGS;
 RESET MASTER;
 FLUSH LOGS;
 
-# The following three test cases were wrtten into binlog_transaction.000001
+# The following three test cases were written into binlog_transaction.000001
 # Test case1: Test if the 'BEGIN' and 'COMMIT' are output for the 'test' database 
 # in transaction1 base on innodb engine tables
 # use test;

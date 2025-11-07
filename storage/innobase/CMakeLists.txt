@@ -95,7 +95,7 @@ ENDIF()
 
 IF(NOT MSVC)
   # Work around MDEV-18417, MDEV-18656, MDEV-18417
-  IF(WITH_ASAN AND CMAKE_COMPILER_IS_GNUCC AND
+  IF(WITH_ASAN AND CMAKE_C_COMPILER_ID STREQUAL "GNU" AND
      CMAKE_C_COMPILER_VERSION VERSION_LESS "6.0.0")
     SET_SOURCE_FILES_PROPERTIES(trx/trx0rec.cc PROPERTIES COMPILE_FLAGS -O1)
   ENDIF()
@@ -131,7 +131,6 @@ ENDIF()
 INCLUDE_DIRECTORIES(${CMAKE_SOURCE_DIR}/storage/innobase/include
                     ${CMAKE_SOURCE_DIR}/storage/innobase/handler
                     ${CMAKE_SOURCE_DIR}/libbinlogevents/include)
-INCLUDE_DIRECTORIES(${PROJECT_SOURCE_DIR}/tpool)
 
 SET(INNOBASE_SOURCES
 	btr/btr0btr.cc
@@ -435,17 +434,19 @@ MYSQL_ADD_PLUGIN(innobase ${INNOBASE_SOURCES} STORAGE_ENGINE
 	${ZLIB_LIBRARIES}
 	${NUMA_LIBRARY}
 	${LIBSYSTEMD}
-	${LINKER_SCRIPT})
+	${LINKER_SCRIPT}
+	tpool
+	)
 
 IF(NOT TARGET innobase)
   RETURN()
 ENDIF()
 
-ADD_DEFINITIONS(${SSL_DEFINES} ${TPOOL_DEFINES})
 
+ADD_DEFINITIONS(${SSL_DEFINES})
 # A GCC bug causes crash when compiling these files on ARM64 with -O1+
 # Compile them with -O0 as a workaround.
-IF(CMAKE_COMPILER_IS_GNUCXX AND CMAKE_SYSTEM_PROCESSOR MATCHES "aarch64"
+IF(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" AND CMAKE_SYSTEM_PROCESSOR MATCHES "aarch64"
    AND CMAKE_C_COMPILER_VERSION VERSION_LESS "5.2.0")
   ADD_COMPILE_FLAGS(
       btr/btr0btr.cc
@@ -460,6 +461,42 @@ IF(CMAKE_COMPILER_IS_GNUCXX AND CMAKE_SYSTEM_PROCESSOR MATCHES "aarch64"
       srv/srv0srv.cc
       COMPILE_FLAGS "-O0"
       )
+ENDIF()
+
+# clang ~16+ with return values being uninitialized is resolved by basic optimization
+# compiler flags. The inlining of these function means the uninitalized paths are
+# elimated from mach_read_from_2 (per MDEV-36316) and i_s_dict_fill_sys_columns MDEV-36327
+IF(WITH_MSAN AND CMAKE_BUILD_TYPE STREQUAL "Debug")
+    SET_SOURCE_FILES_PROPERTIES(
+        btr/btr0btr.cc
+        btr/btr0bulk.cc
+        data/data0data.cc
+        dict/dict0load.cc
+        dict/dict0mem.cc
+        fil/fil0crypt.cc
+        fil/fil0pagecompress.cc
+        fsp/fsp0fsp.cc
+        fut/fut0lst.cc
+        gis/gis0rtree.cc
+        handler/ha_innodb.cc
+        handler/i_s.cc
+        ibuf/ibuf0ibuf.cc
+        log/log0recv.cc
+        page/page0cur.cc
+        page/page0page.cc
+        page/page0zip.cc
+        rem/rem0rec.cc
+        row/row0import.cc
+        row/row0mysql.cc
+        row/row0purge.cc
+        row/row0uins.cc
+        row/row0undo.cc
+        row/row0upd.cc
+        trx/trx0purge.cc
+        trx/trx0rec.cc
+        trx/trx0trx.cc
+        trx/trx0undo.cc
+        PROPERTIES COMPILE_FLAGS -Og)
 ENDIF()
 
 # Older gcc version insist on -mhtm flag for including the
@@ -495,7 +532,7 @@ IF(INNODB_ENABLE_XAP_UNLOCK_UNMODIFIED_FOR_PRIMARY)
 ENDIF()
 
 IF(NOT (PLUGIN_INNOBASE STREQUAL DYNAMIC))
-  TARGET_LINK_LIBRARIES(innobase tpool mysys)
+  TARGET_LINK_LIBRARIES(innobase mysys)
   ADD_SUBDIRECTORY(${CMAKE_SOURCE_DIR}/extra/mariabackup ${CMAKE_BINARY_DIR}/extra/mariabackup)
 ENDIF()
 

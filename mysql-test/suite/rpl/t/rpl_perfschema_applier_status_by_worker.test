@@ -214,7 +214,7 @@ select Last_Error_Message from performance_schema.replication_applier_status_by_
 # The timestamp format is slightly different in SSS and PS.
 # SSS => YYMMDD HH:MM:SS
 # PS  => YYYY-MM-DD HH:MM:SS
-# To match the two, we get rid of hyphons from PS output and first two digits
+# To match the two, we get rid of hyphens from PS output and first two digits
 # the year field so that it can be matched directly.
 
 #--- TODO: Can we include Last_SQL_Error_Timestamp as part of SSS

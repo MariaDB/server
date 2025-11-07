@@ -332,17 +332,8 @@ CREATE TABLE t1 (a TEXT, UNIQUE(a)) ENGINE=Aria;
 --echo # MDEV-20001 Potential dangerous regression: INSERT INTO >=100 rows fail for myisam table with HASH indexes
 --echo #
 create table t1(a int, unique(a) using hash);
---let $count=150
---let insert_stmt= insert into t1 values(200)
-while ($count)
-{
-  --let $insert_stmt=$insert_stmt,($count)
-  --dec $count
-}
---disable_query_log
 --echo #BULK insert > 100 rows (MI_MIN_ROWS_TO_DISABLE_INDEXES)
---eval $insert_stmt
---enable_query_log
+insert into t1 values(200),(150),(149),(148),(147),(146),(145),(144),(143),(142),(141),(140),(139),(138),(137),(136),(135),(134),(133),(132),(131),(130),(129),(128),(127),(126),(125),(124),(123),(122),(121),(120),(119),(118),(117),(116),(115),(114),(113),(112),(111),(110),(109),(108),(107),(106),(105),(104),(103),(102),(101),(100),(99),(98),(97),(96),(95),(94),(93),(92),(91),(90),(89),(88),(87),(86),(85),(84),(83),(82),(81),(80),(79),(78),(77),(76),(75),(74),(73),(72),(71),(70),(69),(68),(67),(66),(65),(64),(63),(62),(61),(60),(59),(58),(57),(56),(55),(54),(53),(52),(51),(50),(49),(48),(47),(46),(45),(44),(43),(42),(41),(40),(39),(38),(37),(36),(35),(34),(33),(32),(31),(30),(29),(28),(27),(26),(25),(24),(23),(22),(21),(20),(19),(18),(17),(16),(15),(14),(13),(12),(11),(10),(9),(8),(7),(6),(5),(4),(3),(2),(1);
 drop table t1;
 
 --echo #
@@ -724,9 +715,65 @@ show create table b;
 drop table b;
 drop table a;
 
---echo # veirfy that duplicate has unique is detected
+--echo # verify that duplicate has unique is detected
 create table t1 (a blob unique);
 alter table t1 add constraint constraint_1 unique (a);
 drop table t1;
 
+--echo #
+--echo # MDEV-33675 assertion(reclength < vreclength) in setup_vcols_for_repair()
+--echo #
+create table t (c1 bit, unique key(c1) using hash) engine=myisam;
+insert into t values (0);
+check table t;
+insert into t values();
+select cast(c1 as unsigned) c1 from t;
+drop table t;
+
+create table t1 (c1 bit, c2 long as (c1) virtual, c3 char(10),
+                 c4 long as (c1) stored) engine=myisam;
+insert into t1 (c1, c3) values (1, "a");
+check table t1;
+insert into t1 values();
+select hex(c1), hex(c2), c3, hex(c4) from t1;
+drop table t1;
+
+create table t1 (c1 bit, c2 long as (c1) virtual, c3 char(10),
+                 c4 long as (c1) stored) engine=aria;
+insert into t1 (c1, c3) values (1, "a");
+check table t1;
+insert into t1 values();
+select hex(c1), hex(c2), c3, hex(c4) from t1;
+drop table t1;
+
 --echo # End of 10.5 tests
+
+--echo #
+--echo # MDEV-36852 Table definition gets corrupt after adding unique hash key
+--echo #
+
+create table t1 (a text, b int, foreign key(a) references x(x)) engine=myisam;
+show create table t1;
+alter table t1 add unique(a), add key(a);
+show create table t1;
+drop table t1;
+
+--echo #
+--echo # MDEV-37203 UBSAN: applying zero offset to null pointer in strings/ctype-uca.inl | my_uca_strnncollsp_onelevel_utf8mb4 | handler::check_duplicate_long_entries_update
+--echo #
+create table t (a int,b text unique key);
+insert into t (a) values (1);
+update t set a=2;
+drop table t;
+
+--echo # End of 10.6 tests
+
+--echo #
+--echo # MDEV-37404 InnoDB: Failing assertion: node->pcur->rel_pos == BTR_PCUR_ON
+--echo #
+create table t(c int primary key, c2 blob unique) engine=innodb;
+insert into t values (0, '');
+replace into t values (0, '123');
+drop table t;
+
+--echo # End of 10.11 tests

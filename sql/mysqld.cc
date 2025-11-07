@@ -301,7 +301,7 @@ static const char *tc_heuristic_recover_names[]=
 static TYPELIB tc_heuristic_recover_typelib=
 {
   array_elements(tc_heuristic_recover_names)-1,"",
-  tc_heuristic_recover_names, NULL
+  tc_heuristic_recover_names, NULL, NULL
 };
 
 const char *first_keyword= "first";
@@ -419,7 +419,7 @@ handlerton *heap_hton;
 handlerton *myisam_hton;
 handlerton *partition_hton;
 
-my_bool read_only= 0, opt_readonly= 0;
+ulong read_only= 0, opt_readonly= 0;
 my_bool use_temp_pool, relay_log_purge;
 my_bool relay_log_recovery;
 my_bool opt_sync_frm, opt_allow_suspicious_udfs;
@@ -428,9 +428,10 @@ my_bool opt_require_secure_transport= 0;
 char* opt_secure_file_priv;
 my_bool lower_case_file_system= 0;
 my_bool opt_large_pages= 0;
+#ifdef HAVE_SOLARIS_LARGE_PAGES
 my_bool opt_super_large_pages= 0;
+#endif
 my_bool opt_myisam_use_mmap= 0;
-uint   opt_large_page_size= 0;
 #if defined(ENABLED_DEBUG_SYNC)
 MYSQL_PLUGIN_IMPORT uint    opt_debug_sync_timeout= 0;
 #endif /* defined(ENABLED_DEBUG_SYNC) */
@@ -454,6 +455,7 @@ uint opt_binlog_gtid_index_span_min= 65536;
 my_bool opt_master_verify_checksum= 0;
 my_bool opt_slave_sql_verify_checksum= 1;
 const char *binlog_format_names[]= {"MIXED", "STATEMENT", "ROW", NullS};
+const char *binlog_formats_create_tmp_names[]= {"MIXED", "STATEMENT", NullS};
 volatile sig_atomic_t calling_initgroups= 0; /**< Used in SIGSEGV handler. */
 uint mysqld_port, select_errors, ha_open_options;
 uint mysqld_extra_port;
@@ -1423,10 +1425,6 @@ Dynamic_array<MYSQL_SOCKET> listen_sockets(PSI_INSTRUMENT_MEM, 0);
 bool unix_sock_is_online= false;
 static int systemd_sock_activation; /* systemd socket activation */
 
-/** wakeup listening(main) thread by writing to this descriptor */
-static int termination_event_fd= -1;
-
-
 
 C_MODE_START
 #ifdef WITH_PERFSCHEMA_STORAGE_ENGINE
@@ -1482,9 +1480,14 @@ static pthread_t select_thread;
 #endif
 
 /* OS specific variables */
-
+#ifndef EMBEDDED_LIBRARY
 #ifdef _WIN32
+/** wakeup main thread by signaling this event */
 HANDLE hEventShutdown;
+#else
+/** wakeup listening(main) thread by writing to this descriptor */
+static int termination_event_fd= -1;
+#endif
 #endif
 
 
@@ -1909,7 +1912,7 @@ extern "C" void unireg_abort(int exit_code)
   {
     /*
       This is an abort situation, we cannot expect to gracefully close all
-      wsrep threads here, we can only diconnect from service
+      wsrep threads here, we can only disconnect from service
     */
     wsrep_close_client_connections(FALSE);
     Wsrep_server_state::instance().disconnect();
@@ -2419,8 +2422,8 @@ static void activate_tcp_port(uint port,
     else 
     {
       ip_sock.address_family= a->ai_family;
-      sql_print_information("Server socket created on IP: '%s'.",
-                          (const char *) ip_addr);
+      sql_print_information("Server socket created on IP: '%s', port: '%u'.",
+                          (const char *) ip_addr, port);
 
       if (mysql_socket_getfd(ip_sock) == INVALID_SOCKET)
       {
@@ -2881,7 +2884,7 @@ void unlink_thd(THD *thd)
 }
 
 
-#if defined(_WIN32)
+#if defined(_WIN32) && !defined(EMBEDDED_LIBRARY)
 /*
   If server is started as service, the service routine will set
   the callback function.
@@ -3726,12 +3729,12 @@ static void my_malloc_size_cb_func(long long size, my_bool is_thread_specific)
 #endif
 
   /*
-    When thread specific is set, both mysqld_server_initialized and thd
-    must be set, and we check that with DBUG_ASSERT.
-
-    However, do not crash, if current_thd is NULL, in release version.
+    is_thread_specific is only relevant when a THD exist and the server
+    has fully started. is_thread_specific can be set during recovery by
+    Aria for functions that are normally only run in one thread.
+    However InnoDB sets thd early, so we can use it.
   */
-  DBUG_ASSERT(!is_thread_specific || (mysqld_server_initialized && thd));
+  DBUG_ASSERT(!is_thread_specific || thd || !plugins_are_initialized);
 
   if (is_thread_specific && likely(thd))  /* If thread specific memory */
   {
@@ -3897,7 +3900,7 @@ static const char *rpl_make_log_name(PSI_memory_key key, const char *opt,
     MY_REPLACE_EXT | MY_UNPACK_FILENAME | MY_SAFE_PATH;
 
   /* mysql_real_data_home_ptr  may be null if no value of datadir has been
-     specified through command-line or througha cnf file. If that is the
+     specified through command-line or through a cnf file. If that is the
      case we make mysql_real_data_home_ptr point to mysql_real_data_home
      which, in that case holds the default path for data-dir.
   */
@@ -4130,7 +4133,7 @@ static int init_common_variables()
   if (opt_large_pages)
   {
     DBUG_PRINT("info", ("Large page set"));
-    if (my_init_large_pages(opt_super_large_pages))
+    if (my_init_large_pages())
     {
       return 1;
     }
@@ -4251,7 +4254,7 @@ static int init_common_variables()
     SYSVAR_AUTOSIZE(back_log, MY_MIN(900, (50 + max_connections / 5)));
   }
 
-  unireg_init(opt_specialflag); /* Set up extern variabels */
+  unireg_init(opt_specialflag); /* Set up extern variables */
   if (!(my_default_lc_messages=
         my_locale_by_name(Lex_cstring_strlen(lc_messages))))
   {
@@ -4264,6 +4267,7 @@ static int init_common_variables()
   global_system_variables.lc_messages= my_default_lc_messages;
   global_system_variables.errmsgs= my_default_lc_messages->errmsgs->errmsgs;
   init_client_errs();
+  check_new_mode_value(NULL, &global_system_variables.new_behavior);
   mysql_library_init(unused,unused,unused); /* for replication */
   lex_init();
   if (item_create_init())
@@ -4341,7 +4345,7 @@ static int init_common_variables()
     }
     default_charset_info= default_collation;
   }
-  /* Set collactions that depends on the default collation */
+  /* Set collations that depend on the default collation */
   global_system_variables.collation_server= default_charset_info;
   global_system_variables.collation_database= default_charset_info;
   if (is_supported_parser_charset(default_charset_info))
@@ -4470,6 +4474,10 @@ static int init_common_variables()
 
   if (tls_version & (VIO_TLSv1_0 + VIO_TLSv1_1))
       sql_print_warning("TLSv1.0 and TLSv1.1 are insecure and should not be used for tls_version");
+
+  /* create_temporary_table... must always have the flag BINLOG_FORMAT_STMT */
+  global_system_variables.create_temporary_table_binlog_formats|=
+    (1ULL << BINLOG_FORMAT_STMT);
 
 #ifdef WITH_WSREP
   /*
@@ -4735,10 +4743,10 @@ static void init_ssl()
 
     /* having ssl_acceptor_fd != 0 signals the use of SSL */
     ssl_acceptor_fd= new_VioSSLAcceptorFd(opt_ssl_key, opt_ssl_cert,
-					  opt_ssl_ca, opt_ssl_capath,
-					  opt_ssl_cipher, &error,
-					  opt_ssl_crl, opt_ssl_crlpath,
-					  tls_version);
+                                          opt_ssl_ca, opt_ssl_capath,
+                                          opt_ssl_cipher, &error,
+                                          opt_ssl_crl, opt_ssl_crlpath,
+                                          tls_version, get_ssl_passphrase());
     DBUG_PRINT("info",("ssl_acceptor_fd: %p", ssl_acceptor_fd));
     if (!ssl_acceptor_fd)
     {
@@ -4787,7 +4795,7 @@ int reinit_ssl()
   enum enum_ssl_init_error error = SSL_INITERR_NOERROR;
   st_VioSSLFd *new_fd = new_VioSSLAcceptorFd(opt_ssl_key, opt_ssl_cert,
     opt_ssl_ca, opt_ssl_capath, opt_ssl_cipher, &error, opt_ssl_crl,
-    opt_ssl_crlpath, tls_version);
+    opt_ssl_crlpath, tls_version, get_ssl_passphrase());
 
   if (!new_fd)
   {
@@ -5193,7 +5201,7 @@ static int init_server_components()
 
   if (WSREP_ON && !wsrep_recovery && !opt_abort)
   {
-    if (opt_bootstrap) // bootsrap option given - disable wsrep functionality
+    if (opt_bootstrap) // bootstrap option given - disable wsrep functionality
     {
       wsrep_provider_init(WSREP_NONE);
       if (wsrep_init())
@@ -5415,7 +5423,7 @@ static int init_server_components()
       MARIADB_REMOVED_OPTION("innodb-log-optimize-ddl"),
       MARIADB_REMOVED_OPTION("innodb-lru-flush-size"),
       MARIADB_REMOVED_OPTION("innodb-page-cleaners"),
-      MARIADB_REMOVED_OPTION("innodb-purge-truncate-frequency"),
+      MARIADB_REMOVED_OPTION("innodb-purge-rseg-truncate-frequency"),
       MARIADB_REMOVED_OPTION("innodb-replication-delay"),
       MARIADB_REMOVED_OPTION("innodb-scrub-log"),
       MARIADB_REMOVED_OPTION("innodb-scrub-log-speed"),
@@ -5436,6 +5444,10 @@ static int init_server_components()
       /* removed in 11.5 */
       MARIADB_REMOVED_OPTION("wsrep-load-data-splitting"),
 
+      /* removed in 12.0 */
+      MARIADB_REMOVED_OPTION("big-tables"),
+      MARIADB_REMOVED_OPTION("large-page-size"),
+      MARIADB_REMOVED_OPTION("storage-engine"),
       {0, 0, 0, 0, 0, 0, GET_NO_ARG, NO_ARG, 0, 0, 0, 0, 0, 0}
     };
     /*
@@ -5749,7 +5761,7 @@ static void run_main_loop()
 int mysqld_main(int argc, char **argv)
 {
 #ifndef _WIN32
-  /* We can't close stdin just now, because it may be booststrap mode. */
+  /* We can't close stdin until we know we're not in bootstrap mode. */
   bool please_close_stdin= fcntl(STDIN_FILENO, F_GETFD) >= 0;
 #endif
 
@@ -6157,8 +6169,8 @@ int mysqld_main(int argc, char **argv)
   (void)MYSQL_SET_STAGE(0 ,__FILE__, __LINE__);
 
   /* Memory used when everything is setup */
-  start_memory_used= global_status_var.global_memory_used;
-
+  start_memory_used= (global_status_var.global_memory_used +
+                      my_malloc_init_memory_allocated);
   run_main_loop();
 
   /* Shutdown requested */
@@ -6771,7 +6783,9 @@ struct my_option my_long_options[]=
    "names at once (in 'datadir') and is normally the only option you need "
    "for specifying log files. Sets names for --log-bin, --log-bin-index, "
    "--relay-log, --relay-log-index, --general-log-file, "
-   "--log-slow-query-file, --log-error-file, and --pid-file",
+   "--log-slow-query-file, --log-error-file, and --pid-file. "
+   "If log-basename includes a path, the path will apply for all above "
+   "variables except pid-file that will use it without the path",
    &opt_log_basename, &opt_log_basename, 0, GET_STR, REQUIRED_ARG,
    0, 0, 0, 0, 0, 0},
   {"log-bin", OPT_BIN_LOG,
@@ -6807,12 +6821,6 @@ struct my_option my_long_options[]=
    "Path to transaction coordinator log (used for transactions that affect "
    "more than one storage engine, when binary log is disabled)",
    &opt_tc_log_file, &opt_tc_log_file, 0, GET_STR,
-   REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
-  {"master-info-file", 0,
-   "The location and name of the file that remembers the master and where "
-   "the I/O replication thread is in the master's binlogs. Defaults to "
-   "master.info",
-   &master_info_file, &master_info_file, 0, GET_STR,
    REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"master-retry-count", 0,
    "The number of tries the slave will make to connect to the master before giving up",
@@ -6864,14 +6872,6 @@ struct my_option my_long_options[]=
    "Updates to a database with a different name than the original. Example: "
    "replicate-rewrite-db=master_db_name->slave_db_name",
    0, 0, 0, GET_STR | GET_ASK_ADDR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
-#ifdef HAVE_REPLICATION
-  {"replicate-same-server-id", 0,
-   "In replication, if set to 1, do not skip events having our server id. "
-   "Default value is 0 (to break infinite loops in circular replication). "
-   "Can't be set to 1 if --log-slave-updates is used",
-   &replicate_same_server_id, &replicate_same_server_id,
-   0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
-#endif
   {"replicate-wild-do-table", OPT_REPLICATE_WILD_DO_TABLE,
    "Tells the slave thread to restrict replication to the tables that match "
    "the specified wildcard pattern. To specify more than one table, use the "
@@ -6894,10 +6894,6 @@ struct my_option my_long_options[]=
    "Don't allow new user creation by the user who has no write privileges to the mysql.user table",
    &opt_safe_user_create, &opt_safe_user_create, 0, GET_BOOL,
    NO_ARG, 0, 0, 0, 0, 0, 0},
-  {"show-slave-auth-info", 0,
-   "Show user and password in SHOW SLAVE HOSTS on this master",
-   &opt_show_slave_auth_info, &opt_show_slave_auth_info, 0,
-   GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
   {"silent-startup", OPT_SILENT, "Don't print [Note] to the error log during startup",
    &opt_silent_startup, &opt_silent_startup, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
   {"skip-host-cache", OPT_SKIP_HOST_CACHE, "Don't cache host names", 0, 0, 0,
@@ -6985,7 +6981,7 @@ struct my_option my_long_options[]=
    OPT_ARG, 0, 0, 0, 0, 0, 0},
   {"plugin-load", OPT_PLUGIN_LOAD,
    "Semicolon-separated list of plugins to load, where each plugin is "
-   "specified as ether a plugin_name=library_file pair or only a library_file. "
+   "specified as either a plugin_name=library_file pair or only a library_file. "
    "If the latter case, all plugins from a given library_file will be loaded",
    0, 0, 0,
    GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
@@ -7440,7 +7436,7 @@ static int show_memory_used(THD *thd, SHOW_VAR *var, void *buff,
   if (scope == OPT_GLOBAL)
   {
     calc_sum_of_all_status_if_needed(status_var);
-    *(longlong*) buff= (status_var->global_memory_used +
+    *(longlong*) buff= (status_var->global_memory_used + my_malloc_init_memory_allocated +
                         status_var->local_memory_used);
   }
   else
@@ -7626,6 +7622,7 @@ SHOW_VAR status_vars[]= {
   {"Feature_application_time_periods", (char*) offsetof(STATUS_VAR, feature_application_time_periods), SHOW_LONG_STATUS},
   {"Feature_timezone",         (char*) offsetof(STATUS_VAR, feature_timezone), SHOW_LONG_STATUS},
   {"Feature_trigger",          (char*) offsetof(STATUS_VAR, feature_trigger), SHOW_LONG_STATUS},
+  {"Feature_vector_index",     (char*) offsetof(STATUS_VAR, feature_vector_index), SHOW_LONG_STATUS},
   {"Feature_window_functions", (char*) offsetof(STATUS_VAR, feature_window_functions), SHOW_LONG_STATUS},
   {"Feature_xml",              (char*) offsetof(STATUS_VAR, feature_xml), SHOW_LONG_STATUS},
   {"Handler_commit",           (char*) offsetof(STATUS_VAR, ha_commit_count), SHOW_LONG_STATUS},
@@ -7889,7 +7886,6 @@ static void print_help()
   sys_var_add_options(&all_options, sys_var::PARSE_EARLY);
   add_plugin_options(&all_options, &mem_root);
   sort_dynamic(&all_options, (qsort_cmp) option_cmp);
-  sort_dynamic(&all_options, (qsort_cmp) option_cmp);
   add_terminator(&all_options);
 
   my_print_help((my_option*) all_options.buffer);
@@ -8015,7 +8011,9 @@ static int mysql_init_variables(void)
   bzero((uchar*) &mysql_tmpdir_list, sizeof(mysql_tmpdir_list));
   bzero((char*) &global_status_var, clear_for_server_start);
   opt_large_pages= 0;
+#ifdef HAVE_SOLARIS_LARGE_PAGES
   opt_super_large_pages= 0;
+#endif
 #if defined(ENABLED_DEBUG_SYNC)
   opt_debug_sync_timeout= 0;
 #endif /* defined(ENABLED_DEBUG_SYNC) */
@@ -8292,10 +8290,12 @@ mysqld_get_one_option(const struct my_option *opt, const char *argument,
   case (int) OPT_LOG_BASENAME:
   {
     if (opt_log_basename[0] == 0 || strchr(opt_log_basename, FN_EXTCHAR) ||
-        strchr(opt_log_basename,FN_LIBCHAR) ||
+        !my_basename(opt_log_basename)[0] ||
         !is_filename_allowed(opt_log_basename, strlen(opt_log_basename), FALSE))
     {
-      sql_print_error("Wrong argument for --log-basename. It can't be empty or contain '.' or '" FN_DIRSEP "'. It must be valid filename.");
+      sql_print_error("Wrong argument for --log-basename. It can't be empty, "
+                      "contain '.' or be a directory name'. "
+                      "It must be valid filename.");
       return 1;
     }
     if (log_error_file_ptr != disabled_my_option)
@@ -8329,7 +8329,8 @@ mysqld_get_one_option(const struct my_option *opt, const char *argument,
     {
       SYSVAR_AUTOSIZE(pidfile_name_ptr, pidfile_name);
       /* PID file */
-      strmake(pidfile_name, argument, sizeof(pidfile_name)-5);
+      strmake(pidfile_name, my_basename(opt_log_basename),
+              sizeof(pidfile_name)-5);
       strmov(fn_ext(pidfile_name),".pid");
     }
     break;
@@ -8745,6 +8746,9 @@ static void option_error_reporter(enum loglevel level, const char *format, ...)
 
 C_MODE_END
 
+extern const char **new_mode_default_names;
+
+
 /**
   Get server options from the command line,
   and perform related server initializations.
@@ -8791,7 +8795,7 @@ static int get_options(int *argc_ptr, char ***argv_ptr)
 
   /*
     Options have been parsed. Now some of them need additional special
-    handling, like custom value checking, checking of incompatibilites
+    handling, like custom value checking, checking of incompatibilities
     between options, setting of multiple variables, etc.
     Do them here.
   */
@@ -8956,7 +8960,7 @@ static int get_options(int *argc_ptr, char ***argv_ptr)
   /*
     It looks like extra_connection_count should be passed here but
     its been using connection_count for the last 10+ years and
-    no-one was requested a change so lets not suprise anyone.
+    no-one has requested a change so lets not surprise anyone.
   */
   one_thread_scheduler(extra_thread_scheduler, &connection_count);
 #else
@@ -9027,15 +9031,22 @@ char *set_server_version(char *buf, size_t size)
   bool is_log= opt_log || global_system_variables.sql_log_slow || opt_bin_log;
   bool is_debug= IF_DBUG(!strstr(MYSQL_SERVER_SUFFIX_STR, "-debug"), 0);
   const char *is_valgrind=
-#ifdef HAVE_VALGRIND
+#if defined(HAVE_valgrind) && !__has_feature(memory_sanitizer)
     !strstr(MYSQL_SERVER_SUFFIX_STR, "-valgrind") ? "-valgrind" :
 #endif
     "";
+  const char *is_asan=
+#ifdef __SANITIZE_ADDRESS__
+    !strstr(MYSQL_SERVER_SUFFIX_STR, "-asan") ? "-asan" :
+#endif
+    "";
+
   return strxnmov(buf, size - 1,
                   MYSQL_SERVER_VERSION,
                   MYSQL_SERVER_SUFFIX_STR,
                   IF_EMBEDDED("-embedded", ""),
                   is_valgrind,
+                  is_asan,
                   is_debug ? "-debug" : "",
                   is_log ? "-log" : "",
                   NullS);
@@ -9345,7 +9356,7 @@ void refresh_global_status()
   */
   reset_status_vars();
   /*
-    Reset accoumulated thread's status variables.
+    Reset accumulated thread's status variables.
     These are the variables in 'status_vars[]' with the prefix _STATUS.
  */
   bzero(&global_status_var, clear_for_flush_status);
@@ -9363,7 +9374,8 @@ void refresh_global_status()
 #endif
 
   /* Reset the counters of all key caches (default and named). */
-  process_key_caches(reset_key_cache_counters, 0);
+  process_key_caches(reset_key_cache_counters, 0); // MyISAM page caches
+  aria_reset_pagecache_counters();                 // Aria page cache
   global_status_var.flush_status_time= my_time(0);
   mysql_mutex_unlock(&LOCK_status);
 
@@ -9393,7 +9405,7 @@ void refresh_status_legacy(THD *thd)
   reset_pfs_status_stats();
 #endif
 
-  /* Add thread's status variabes to global status */
+  /* Add thread's status variables to global status */
   add_to_status(&global_status_var, &thd->status_var);
 
   /* Reset thread's status variables */
@@ -9531,6 +9543,7 @@ PSI_stage_info stage_preparing= { 0, "Preparing", 0};
 PSI_stage_info stage_purging_old_relay_logs= { 0, "Purging old relay logs", 0};
 PSI_stage_info stage_query_end= { 0, "Query end", 0};
 PSI_stage_info stage_starting_cleanup= { 0, "Starting cleanup", 0};
+PSI_stage_info stage_slave_sql_cleanup= { 0, "Slave SQL thread ending", 0};
 PSI_stage_info stage_rollback= { 0, "Rollback", 0};
 PSI_stage_info stage_rollback_implicit= { 0, "Rollback_implicit", 0};
 PSI_stage_info stage_commit= { 0, "Commit", 0};
@@ -9616,7 +9629,7 @@ PSI_stage_info stage_waiting_for_flush= { 0, "Waiting for non trans tables to be
 PSI_stage_info stage_waiting_for_ddl= { 0, "Waiting for DDLs", 0};
 
 #ifdef WITH_WSREP
-// Aditional Galera thread states
+// Additional Galera thread states
 PSI_stage_info stage_waiting_isolation= { 0, "Waiting to execute in isolation", 0};
 PSI_stage_info stage_waiting_certification= {0, "Waiting for certification", 0};
 PSI_stage_info stage_waiting_ddl= {0, "Waiting for TOI DDL", 0};
@@ -9705,6 +9718,7 @@ PSI_memory_key key_memory_user_var_entry;
 PSI_memory_key key_memory_user_var_entry_value;
 PSI_memory_key key_memory_String_value;
 PSI_memory_key key_memory_WSREP;
+PSI_memory_key key_memory_trace_ddl_info;
 
 #ifdef HAVE_PSI_INTERFACE
 
@@ -9773,6 +9787,7 @@ PSI_stage_info *all_server_stages[]=
   & stage_preparing,
   & stage_purging_old_relay_logs,
   & stage_starting_cleanup,
+  & stage_slave_sql_cleanup,
   & stage_query_end,
   & stage_queueing_master_event_to_the_relay_log,
   & stage_reading_event_from_the_relay_log,
@@ -9950,7 +9965,8 @@ static PSI_memory_info all_server_memory[]=
   { &key_memory_Query_cache, "Query_cache", PSI_FLAG_GLOBAL},
   { &key_memory_Table_trigger_dispatcher, "Table_trigger_dispatcher::m_mem_root", 0},
   { &key_memory_native_functions, "native_functions", PSI_FLAG_GLOBAL},
-  { &key_memory_WSREP, "wsrep", 0 }
+  { &key_memory_WSREP, "wsrep", 0 },
+  { &key_memory_trace_ddl_info, "TRACE_DDL_INFO", 0}
 };
 
 /**

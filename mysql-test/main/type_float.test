@@ -416,7 +416,7 @@ SELECT t1.* FROM t1 LEFT JOIN t2 USING(a);
 ALTER TABLE t2 ADD PRIMARY KEY(a);
 SELECT t1.* FROM t1 JOIN t2 USING(a);
 SELECT t1.* FROM t1 LEFT JOIN t2 USING(a);
---echo # t2 should NOT be elimitated
+--echo # t2 should NOT be eliminated
 EXPLAIN SELECT t1.* FROM t1 LEFT JOIN t2 USING(a);
 DROP TABLE t1,t2;
 

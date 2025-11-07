@@ -143,7 +143,7 @@ void maria_chk_init_for_check(HA_CHECK *param, MARIA_HA *info)
   if (!info->s->base.born_transactional)
   {
     /*
-      There are no trids. Howver we want to set max_trid to make test of
+      There are no trids. However we want to set max_trid to make test of
       create_trid simpler.
     */
     param->max_trid= ~(TrID) 0;
@@ -594,6 +594,11 @@ int maria_chk_key(HA_CHECK *param, register MARIA_HA *info)
     param->max_level=0;
     if (chk_index(param, info,keyinfo, &page, &keys, param->key_crc+key,1))
       DBUG_RETURN(-1);
+    if ((param->testflag & T_WRITE_LOOP) && param->verbose)
+    {
+      puts("                                        \r");
+      fflush(stdout);
+    }
     if (keyinfo->key_alg <= HA_KEY_ALG_BTREE)
     {
       if (keys != share->state.state.records)
@@ -695,7 +700,8 @@ do_stat:
       puts("");
   }
   if (param->key_file_blocks != share->state.state.key_file_length &&
-      share->state.key_map == ~(ulonglong) 0)
+      maria_is_all_keys_active(share->state.key_map, share->base.keys) &&
+      !full_text_keys)
     _ma_check_print_warning(param, "Some data are unreferenced in keyfile");
   if (found_keys != full_text_keys)
     param->record_checksum=old_record_checksum-init_checksum;	/* Remove delete links */
@@ -1088,6 +1094,15 @@ static int chk_index(HA_CHECK *param, MARIA_HA *info, MARIA_KEYDEF *keyinfo,
       goto err;
     }
     param->record_checksum+= (ha_checksum) record;
+    if ((param->testflag & T_WRITE_LOOP) && param->verbose &&
+        (*keys % WRITE_COUNT) == 0)
+    {
+      char llbuff[22];
+      ulonglong records= info->state->records;
+      printf("%15s (%3.4f%%)\r", llstr(*keys, llbuff),
+             ((double) *keys / (records > *keys ? records : *keys)) *100);
+      fflush(stdout);
+    }
   }
   if (keypos != endpos)
   {
@@ -1667,7 +1682,7 @@ static int check_page_layout(HA_CHECK *param, MARIA_HA *info,
   }
   *free_slots_found= free_entries;
 
-  /* Check directry */
+  /* Check directory */
   dir_entry= page+ block_size - PAGE_SUFFIX_SIZE;
   first_dir_entry= (block_size - row_count * DIR_ENTRY_SIZE -
                     PAGE_SUFFIX_SIZE);
@@ -1739,7 +1754,7 @@ static int check_page_layout(HA_CHECK *param, MARIA_HA *info,
     This is for rows-in-block format.
 
     Before this, we have already called check_page_layout(), so
-    we know the block is logicaly correct (even if the rows may not be that)
+    we know the block is logically correct (even if the rows may not be that)
 
   RETURN
    0  ok
@@ -2894,7 +2909,7 @@ int maria_repair(HA_CHECK *param, register MARIA_HA *info,
 
   if (param->testflag & T_SAFE_REPAIR)
   {
-    /* Don't repair if we loosed more than one row */
+    /* Don't repair if we lost more than one row */
     if (sort_info.new_info->s->state.state.records+1 < start_records)
     {
       share->state.state.records= start_records;
@@ -5726,6 +5741,7 @@ static int sort_key_write(MARIA_SORT_PARAM *sort_param, const uchar *a)
   {
     _ma_check_print_error(param,
 			 "Internal error: Keys are not in order from sort");
+    DBUG_ASSERT(0);
     return(1);
   }
 #endif
@@ -6327,7 +6343,7 @@ int maria_recreate_table(HA_CHECK *param, MARIA_HA **org_info, char *filename)
                           "indexfile", my_errno);
     goto end;
   }
-  /* We are modifing */
+  /* We are modifying */
   (*org_info)->s->options&= ~HA_OPTION_READ_ONLY_DATA;
   _ma_readinfo(*org_info,F_WRLCK,0);
   (*org_info)->s->state.state.records= info.state->records;

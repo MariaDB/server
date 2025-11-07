@@ -92,6 +92,7 @@ extern bool        wsrep_gtid_mode;
 extern uint32      wsrep_gtid_domain_id;
 extern std::atomic <bool > wsrep_thread_create_failed;
 extern ulonglong   wsrep_mode;
+extern uint        wsrep_applier_retry_count;
 
 enum enum_wsrep_reject_types {
   WSREP_REJECT_NONE,    /* nothing rejected */
@@ -131,7 +132,8 @@ enum enum_wsrep_mode {
   WSREP_MODE_REPLICATE_MYISAM= (1ULL << 3),
   WSREP_MODE_REPLICATE_ARIA= (1ULL << 4),
   WSREP_MODE_DISALLOW_LOCAL_GTID= (1ULL << 5),
-  WSREP_MODE_BF_MARIABACKUP= (1ULL << 6)
+  WSREP_MODE_BF_MARIABACKUP= (1ULL << 6),
+  WSREP_MODE_APPLIER_SKIP_FK_CHECKS_IN_IST= (1ULL << 7)
 };
 
 // Streaming Replication
@@ -166,7 +168,7 @@ int  wsrep_show_ready(THD *thd, SHOW_VAR *var, void *buff,
 void wsrep_free_status(THD *thd);
 void wsrep_update_cluster_state_uuid(const char* str);
 
-/* Filters out --wsrep-new-cluster oprtion from argv[]
+/* Filters out --wsrep-new-cluster option from argv[]
  * should be called in the very beginning of main() */
 void wsrep_filter_new_cluster (int* argc, char* argv[]);
 
@@ -599,6 +601,16 @@ void wsrep_ready_set(bool ready_value);
  * non-temporary table.
  */
 bool wsrep_table_list_has_non_temp_tables(THD *thd, TABLE_LIST *tables);
+
+/**
+ * Append foreign key to wsrep.
+ *
+ * @param thd           Thread object
+ * @param fk            Foreign Key Info
+ *
+ * @return true if error, otherwise false.
+ */
+bool wsrep_foreign_key_append(THD *thd, FOREIGN_KEY_INFO *fk);
 
 #else /* !WITH_WSREP */
 

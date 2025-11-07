@@ -125,10 +125,18 @@ int main(int argc, char **argv)
   my_end(check_param.testflag & T_INFO ? MY_CHECK_ERROR | MY_GIVE_INFO : MY_CHECK_ERROR);
   rc= (uchar) error;
   exit(rc);
-#ifndef _lint
-  return 0;				/* No compiler warning */
-#endif
 } /* main */
+
+
+/* Free memory and exit */
+
+void __attribute__ ((noreturn)) my_exit(int exit_state)
+{
+  free_defaults(default_argv);
+  my_end(MY_CHECK_ERROR);
+  exit(exit_state);
+}
+
 
 enum options_mc {
   OPT_CHARSETS_DIR=256, OPT_SET_COLLATION,OPT_START_CHECK_POS,
@@ -137,7 +145,7 @@ enum options_mc {
   OPT_READ_BUFFER_SIZE, OPT_WRITE_BUFFER_SIZE, OPT_SORT_BUFFER_SIZE,
   OPT_SORT_KEY_BLOCKS, OPT_DECODE_BITS, OPT_FT_MIN_WORD_LEN,
   OPT_FT_MAX_WORD_LEN, OPT_FT_STOPWORD_FILE,
-  OPT_MAX_RECORD_LENGTH, OPT_STATS_METHOD
+  OPT_MAX_RECORD_LENGTH, OPT_STATS_METHOD, OPT_ACTIVE_KEYS
 };
 
 static struct my_option my_long_options[] =
@@ -165,7 +173,7 @@ static struct my_option my_long_options[] =
    0, 0, 0, GET_NO_ARG, NO_ARG, 0, 0, 0, 0, 0, 0},
   {"create-missing-keys", OPT_CREATE_MISSING_KEYS,
    "Create missing keys. This assumes that the data file is correct and that "
-   "the the number of rows stored in the index file is correct. Enables "
+   "the number of rows stored in the index file is correct. Enables "
    "--quick",
    0, 0, 0, GET_NO_ARG, NO_ARG, 0, 0, 0, 0, 0, 0},
 #ifndef DBUG_OFF
@@ -200,10 +208,16 @@ static struct my_option my_long_options[] =
    "Print statistics information about table that is checked.",
    0, 0, 0, GET_NO_ARG, NO_ARG, 0, 0, 0, 0, 0, 0},
   {"keys-used", 'k',
-   "Tell MyISAM to update only some specific keys. # is a bit mask of which keys to use. This can be used to get faster inserts.",
+   "Tell MyISAM to update only some specific keys. # is a bit mask of which keys to use. This can be used to get faster inserts. See also keys-active",
    &check_param.keys_in_use,
    &check_param.keys_in_use,
    0, GET_ULL, REQUIRED_ARG, -1, 0, 0, 0, 0, 0},
+  {"keys-active", OPT_ACTIVE_KEYS,
+   "Treat all not listed keys as disabled. If used with repair, the keys "
+   "will be disabled permanently. The argument is a list of key numbers, "
+   "starting from 1, separated by ','. "
+   "keys-active and keys-used are two ways to do the same thing",
+   0, 0, 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"max-record-length", OPT_MAX_RECORD_LENGTH,
    "Skip rows bigger than this if myisamchk can't allocate memory to hold it",
    &check_param.max_record_length,
@@ -324,7 +338,7 @@ static struct my_option my_long_options[] =
     REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"stats_method", OPT_STATS_METHOD,
    "Specifies how index statistics collection code should treat NULLs. "
-   "Possible values of name are \"nulls_unequal\" (default behavior for 4.1/5.0), "
+   "Possible values of name are \"nulls_unequal\" (default behavior for MySQL 4.1/5.0), "
    "\"nulls_equal\" (emulate 4.0 behavior), and \"nulls_ignored\".",
    (char**) &myisam_stats_method_str, (char**) &myisam_stats_method_str, 0,
     GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
@@ -399,6 +413,11 @@ static void usage(void)
   -k, --keys-used=#   Tell MyISAM to update only some specific keys. # is a\n\
 	              bit mask of which keys to use. This can be used to\n\
 		      get faster inserts.\n\
+  --keys-active\n\
+   Threat all not listed keys as disabled. If used with repair, the keys\n\
+   will be disabled permanently. The argument is a list of key numbers,\n\
+   starting from 1, separated by ','\n\
+   keys-active and keys-used are two ways to do the same thing\n\
   --create-missing-keys\n\
                       Create missing keys. This assumes that the data\n\
                       file is correct and that the the number of rows stored\n\
@@ -563,6 +582,32 @@ get_one_option(const struct my_option *opt,
   case 'k':
     check_param.keys_in_use= (ulonglong) strtoll(argument, NULL, 10);
     break;
+  case OPT_ACTIVE_KEYS:
+    if (argument == disabled_my_option)
+      check_param.keys_in_use= ~0LL;
+    else
+    {
+      const char *start;
+      char *end, *str_end= strend(argument);
+      check_param.keys_in_use= 0;
+      for (start= argument; *start ; start= end)
+      {
+        int error;
+        longlong key;
+        end= str_end;
+        key= my_strtoll10(start, &end, &error);
+        if (error || key > 64 || (*end && *end != ','))
+        {
+          fprintf(stderr, "Wrong argument to active-keys. Expected a list of "
+                  "numbers like 1,2,3,4\n");
+          exit(1);                              /* Change to my_exit after merge */
+        }
+        check_param.keys_in_use|= 1LL << (key-1);
+        if (*end == ',')
+          end++;
+      }
+    }
+    break;
   case 'm':
     if (argument == disabled_my_option)
       check_param.testflag&= ~T_MEDIUM;
@@ -653,7 +698,7 @@ get_one_option(const struct my_option *opt,
 	fprintf(stderr,
 		"The value of the sort key is bigger than max key: %d.\n",
 		MI_MAX_KEY);
-	exit(1);
+	my_exit(1);
       }
     }
     break;
@@ -687,7 +732,7 @@ get_one_option(const struct my_option *opt,
     break;
   case 'V':
     print_version();
-    exit(0);
+    my_exit(0);
   case OPT_CORRECT_CHECKSUM:
     if (argument == disabled_my_option)
       check_param.testflag&= ~T_CALC_CHECKSUM;
@@ -704,7 +749,7 @@ get_one_option(const struct my_option *opt,
                            FIND_TYPE_BASIC)) <= 0)
     {
       fprintf(stderr, "Invalid value of stats_method: %s.\n", argument);
-      exit(1);
+      my_exit(1);
     }
     switch (method-1) {
     case 0: 
@@ -728,10 +773,10 @@ get_one_option(const struct my_option *opt,
 #endif
   case 'H':
     my_print_help(my_long_options);
-    exit(0);
+    my_exit(0);
   case '?':
     usage();
-    exit(0);
+    my_exit(0);
   }
   return 0;
 }
@@ -747,7 +792,7 @@ static void get_options(register int *argc,register char ***argv)
     check_param.testflag|=T_WRITE_LOOP;
 
   if ((ho_error=handle_options(argc, argv, my_long_options, get_one_option)))
-    exit(ho_error);
+    my_exit(ho_error);
 
   /* If using repair, then update checksum if one uses --update-state */
   if ((check_param.testflag & T_UPDATE_STATE) &&
@@ -757,7 +802,7 @@ static void get_options(register int *argc,register char ***argv)
   if (*argc == 0)
   {
     usage();
-    exit(-1);
+    my_exit(-1);
   }
 
   if ((check_param.testflag & T_UNPACK) &&
@@ -766,7 +811,7 @@ static void get_options(register int *argc,register char ***argv)
     (void) fprintf(stderr,
 		 "%s: --unpack can't be used with --quick or --sort-records\n",
 		 my_progname_short);
-    exit(1);
+    my_exit(1);
   }
   if ((check_param.testflag & T_READONLY) &&
       (check_param.testflag &
@@ -776,11 +821,11 @@ static void get_options(register int *argc,register char ***argv)
     (void) fprintf(stderr,
 		 "%s: Can't use --readonly when repairing or sorting\n",
 		 my_progname_short);
-    exit(1);
+    my_exit(1);
   }
 
   if (init_tmpdir(&myisamchk_tmpdir, opt_tmpdir))
-    exit(1);
+    my_exit(1);
 
   check_param.tmpdir=&myisamchk_tmpdir;
   check_param.key_cache_block_size= opt_key_cache_block_size;
@@ -788,7 +833,7 @@ static void get_options(register int *argc,register char ***argv)
   if (set_collation_name)
     if (!(set_collation= get_charset_by_name(set_collation_name,
                                              MYF(MY_UTF8_IS_UTF8MB3 | MY_WME))))
-      exit(1);
+      my_exit(1);
 
   myisam_block_size=(uint) 1 << my_bit_log2_uint64(opt_myisam_block_size);
   return;
@@ -821,7 +866,10 @@ static int myisamchk(HA_CHECK *param, char * filename)
     open_flags|= HA_OPEN_IGNORE_IF_LOCKED | HA_OPEN_FROM_SQL_LAYER;
   else
     open_flags|= HA_OPEN_ABORT_IF_LOCKED;
-  if (!(info=mi_open(filename, open_mode, open_flags)))
+  if (param->testflag & T_QUICK)
+    open_flags|= HA_OPEN_DATA_READONLY;
+
+  if (!(info=mi_open(filename, open_mode, open_flags | HA_OPEN_FORCE_MODE)))
   {
     /* Avoid twice printing of isam file name */
     param->error_printed=1;
@@ -861,7 +909,7 @@ static int myisamchk(HA_CHECK *param, char * filename)
     DBUG_RETURN(1);
   }
   share=info->s;
-  share->options&= ~HA_OPTION_READ_ONLY_DATA; /* We are modifing it */
+  share->options&= ~HA_OPTION_READ_ONLY_DATA; /* We are modifying it */
   share->tot_locks-= share->r_locks;
   share->r_locks=0;
 
@@ -909,6 +957,13 @@ static int myisamchk(HA_CHECK *param, char * filename)
       DBUG_RETURN(0);
     }
   }
+
+  /* Don't allow disable of active auto_increment keys for repair */
+  if (share->base.auto_key &&
+      (share->state.key_map & (1LL << share->base.auto_key)) &&
+      param->testflag & (T_REP_ANY | T_SORT_RECORDS | T_SORT_INDEX))
+    check_param.keys_in_use|= (1LL << share->base.auto_key);
+
   if ((param->testflag & (T_REP_ANY | T_STATISTICS |
 			  T_SORT_RECORDS | T_SORT_INDEX)) &&
       (((param->testflag & T_UNPACK) &&
@@ -1263,18 +1318,18 @@ static void descript(HA_CHECK *param, register MI_INFO *info, char * name)
     printf("Status:              %s\n",buff);
     if (share->base.auto_key)
     {
-      printf("Auto increment key:  %13d  Last value:         %13s\n",
+      printf("Auto increment key:  %15d  Last value:              %13s\n",
 	     share->base.auto_key,
 	     llstr(share->state.auto_increment,llbuff));
     }
     if (share->options & (HA_OPTION_CHECKSUM | HA_OPTION_COMPRESS_RECORD))
-      printf("Checksum:  %23s\n",llstr(info->state->checksum,llbuff));
+      printf("Checksum:  %25s\n",llstr(info->state->checksum,llbuff));
 
     if (share->options & HA_OPTION_DELAY_KEY_WRITE)
       printf("Keys are only flushed at close\n");
 
   }
-  printf("Data records:        %13s  Deleted blocks:     %13s\n",
+  printf("Data records:        %15s  Deleted blocks:     %18s\n",
 	 llstr(info->state->records,llbuff),llstr(info->state->del,llbuff2));
   if (param->testflag & T_SILENT)
     DBUG_VOID_RETURN;				/* This is enough */
@@ -1282,14 +1337,14 @@ static void descript(HA_CHECK *param, register MI_INFO *info, char * name)
   if (param->testflag & T_VERBOSE)
   {
 #ifdef USE_RELOC
-    printf("Init-relocation:     %13s\n",llstr(share->base.reloc,llbuff));
+    printf("Init-relocation:     %15s\n",llstr(share->base.reloc,llbuff));
 #endif
-    printf("Datafile parts:      %13s  Deleted data:       %13s\n",
+    printf("Datafile parts:      %15s  Deleted data:       %18s\n",
 	   llstr(share->state.split,llbuff),
 	   llstr(info->state->empty,llbuff2));
-    printf("Datafile pointer (bytes):%9d  Keyfile pointer (bytes):%9d\n",
+    printf("Datafile pointer (bytes):%11d  Keyfile pointer (bytes): %13d\n",
 	   share->rec_reflength,share->base.key_reflength);
-    printf("Datafile length:     %13s  Keyfile length:     %13s\n",
+    printf("Datafile length:   %17s  Keyfile length:     %18s\n",
 	   llstr(info->state->data_file_length,llbuff),
 	   llstr(info->state->key_file_length,llbuff2));
 
@@ -1299,13 +1354,13 @@ static void descript(HA_CHECK *param, register MI_INFO *info, char * name)
     {
       if (share->base.max_data_file_length != HA_OFFSET_ERROR ||
 	  share->base.max_key_file_length != HA_OFFSET_ERROR)
-	printf("Max datafile length: %13s  Max keyfile length: %13s\n",
+	printf("Max datafile length: %15s  Max keyfile length: %18s\n",
 	       llstr(share->base.max_data_file_length-1,llbuff),
                ullstr(share->base.max_key_file_length - 1, llbuff2));
     }
   }
 
-  printf("Recordlength:        %13d\n",(int) share->base.pack_reclength);
+  printf("Recordlength:        %15d\n",(int) share->base.pack_reclength);
   if (! mi_is_all_keys_active(share->state.key_map, share->base.keys))
   {
     longlong2str(share->state.key_map,buff,2);
@@ -1315,7 +1370,7 @@ static void descript(HA_CHECK *param, register MI_INFO *info, char * name)
   puts("\ntable description:");
   printf("Key Start Len Index   Type");
   if (param->testflag & T_VERBOSE)
-    printf("                     Rec/key         Root  Blocksize");
+    printf("                     Rec/key           Root  Blocksize");
   (void) putchar('\n');
 
   for (key=keyseg_nr=0, keyinfo= &share->keyinfo[0] ;
@@ -1352,7 +1407,7 @@ static void descript(HA_CHECK *param, register MI_INFO *info, char * name)
     else
       buff[0]=0;
     if (param->testflag & T_VERBOSE)
-      printf("%11lu %12s %10d",
+      printf("%11lu %14s %10d",
 	     share->state.rec_per_key_part[keyseg_nr++],
 	     buff,keyinfo->block_length);
     (void) putchar('\n');

@@ -52,10 +52,17 @@ static bool json_unescape_to_string(const char *val, int val_len, String* out)
       out->length(res);
       return false; // Ok
     }
+    if (res == JSON_ERROR_ILLEGAL_SYMBOL)
+      return true; // Invalid character
 
     // We get here if the unescaped string didn't fit into memory.
-    if (out->alloc(out->alloced_length()*2))
-      return true;
+    if (res == JSON_ERROR_OUT_OF_SPACE)
+    {
+      if (out->alloc(out->alloced_length()*2))
+        return true;
+    }
+    else
+      return true; // unknown error
   }
 }
 
@@ -492,7 +499,7 @@ bool read_bucket_endpoint(json_engine_t *je, Field *field, String *out,
   const char* je_value= (const char*)je->value;
   if (je->value_type == JSON_VALUE_STRING && je->value_escaped)
   {
-    StringBuffer<128> unescape_buf;
+    StringBuffer<128> unescape_buf(field->charset() ? field->charset() : &my_charset_bin);
     if (json_unescape_to_string(je_value, je->value_len, &unescape_buf))
     {
       *err= "Un-escape error";
@@ -548,7 +555,7 @@ bool read_hex_bucket_endpoint(json_engine_t *je, Field *field, String *out,
 
 
 /*
-  @brief  Parse a JSON reprsentation for one histogram bucket
+  @brief  Parse a JSON representation for one histogram bucket
 
   @param je     The JSON parser object
   @param field  Table field we are using histogram (used to convert
@@ -599,10 +606,14 @@ int Histogram_json_hb::parse_bucket(json_engine_t *je, Field *field,
   bool have_start= false;
   bool have_size= false;
   bool have_ndv= false;
+  CHARSET_INFO *cs;
+
+  if (!(cs= field->charset()))
+    cs= &my_charset_bin;
 
   double size_d;
   longlong ndv_ll= 0;
-  StringBuffer<128> value_buf;
+  StringBuffer<128> value_buf(cs);
   int rc;
 
   while (!(rc= json_scan_next(je)) && je->state != JST_OBJ_END)
@@ -670,7 +681,7 @@ int Histogram_json_hb::parse_bucket(json_engine_t *je, Field *field,
     }
     save1.restore_to(je);
 
-    // Less common endoints:
+    // Less common endpoints:
     Json_string start_hex_str("start_hex");
     if (json_key_matches(je, start_hex_str.get()))
     {
@@ -750,7 +761,12 @@ bool Histogram_json_hb::parse(MEM_ROOT *mem_root, const char *db_name,
   double total_size;
   int end_element;
   bool end_assigned;
+
   DBUG_ENTER("Histogram_json_hb::parse");
+
+  mem_root_dynamic_array_init(mem_root, PSI_INSTRUMENT_MEM,
+                              &je.stack, sizeof(int), NULL,
+                              JSON_DEPTH_DEFAULT, JSON_DEPTH_INC, MYF(0));
 
   json_scan_start(&je, &my_charset_utf8mb4_bin,
                   (const uchar*)hist_data,
@@ -801,7 +817,9 @@ bool Histogram_json_hb::parse(MEM_ROOT *mem_root, const char *db_name,
     {
       // Some unknown member. Skip it.
       if (json_skip_key(&je))
+      {
         return 1;
+      }
     }
   }
 

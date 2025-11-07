@@ -575,7 +575,7 @@ SPIDER_TABLE_MON_LIST *spider_get_ping_table_tgt(
       tmp_share, name, name_length
     )) ||
     (*error_num = spider_create_conn_keys(tmp_share)) ||
-    /* Pinally, populate `table_mon_list' with newly created
+    /* Finally, populate `table_mon_list' with newly created
     `SPIDER_TABLE_MON's */
     (*error_num = spider_get_ping_table_mon(
       thd, table_mon_list, name, name_length, link_idx, server_id, &mem_root,
@@ -1580,11 +1580,11 @@ int spider_ping_table_mon_from_table(
   SPIDER_TRX *trx,
   THD *thd,
   SPIDER_SHARE *share,
-  int base_link_idx,
+  int link_idx,                 /* TODO: unused */
   uint32 server_id,
   char *conv_name,              /* Usually fully qualified table name */
   uint conv_name_length,
-  int link_idx,                 /* The link id to ping */
+  int all_link_idx,             /* The link id to ping */
   char *where_clause,
   uint where_clause_length,
   long monitoring_kind,
@@ -1629,14 +1629,14 @@ int spider_ping_table_mon_from_table(
     DBUG_RETURN(ER_SPIDER_COND_SKIP_NUM);
   }
 
-  if (share->static_link_ids[link_idx])
+  if (share->static_link_ids[all_link_idx])
   {
-    memcpy(link_idx_str, share->static_link_ids[link_idx],
-      share->static_link_ids_lengths[link_idx] + 1);
-    link_idx_str_length = share->static_link_ids_lengths[link_idx];
+    memcpy(link_idx_str, share->static_link_ids[all_link_idx],
+      share->static_link_ids_lengths[all_link_idx] + 1);
+    link_idx_str_length = share->static_link_ids_lengths[all_link_idx];
   } else {
     link_idx_str_length = my_sprintf(link_idx_str, (link_idx_str, "%010d",
-      link_idx));
+      all_link_idx));
   }
   char *buf = (char *) my_alloca(conv_name_length + link_idx_str_length + 1);
   if (!buf)
@@ -1665,9 +1665,9 @@ int spider_ping_table_mon_from_table(
 
   /* Get or create `table_mon_list' for `conv_name_str'. */
   if (!(table_mon_list = spider_get_ping_table_mon_list(trx, thd,
-    &conv_name_str, conv_name_length, link_idx,
-    share->static_link_ids[link_idx],
-    share->static_link_ids_lengths[link_idx],
+    &conv_name_str, conv_name_length, all_link_idx,
+    share->static_link_ids[all_link_idx],
+    share->static_link_ids_lengths[all_link_idx],
     server_id, need_lock, &error_num)))
   {
     my_afree(buf);
@@ -1682,7 +1682,7 @@ int spider_ping_table_mon_from_table(
     DBUG_PRINT("info",
       ("spider share->link_statuses[%d]=SPIDER_LINK_STATUS_NG", link_idx));
     pthread_mutex_lock(&spider_udf_table_mon_mutexes[table_mon_list->mutex_hash]);
-    share->link_statuses[link_idx] = SPIDER_LINK_STATUS_NG;
+    share->link_statuses[all_link_idx] = SPIDER_LINK_STATUS_NG;
     pthread_mutex_unlock(&spider_udf_table_mon_mutexes[table_mon_list->mutex_hash]);
     error_num = ER_SPIDER_LINK_MON_NG_NUM;
     my_printf_error(error_num,
@@ -1741,7 +1741,7 @@ int spider_ping_table_mon_from_table(
         ) {
           if (!spider_db_udf_ping_table_mon_next(
             thd, table_mon, mon_conn, &mon_table_result, conv_name,
-            conv_name_length, link_idx,
+            conv_name_length, all_link_idx,
             where_clause, where_clause_length, /*first_sid=*/-1, table_mon_list->list_size,
             0, 0, 0, flags, monitoring_limit))
           {
@@ -1757,11 +1757,11 @@ int spider_ping_table_mon_from_table(
                 DBUG_PRINT("info", (
                   "spider share->link_statuses[%d]=SPIDER_LINK_STATUS_NG",
                   link_idx));
-                share->link_statuses[link_idx] = SPIDER_LINK_STATUS_NG;
+                share->link_statuses[all_link_idx] = SPIDER_LINK_STATUS_NG;
                 spider_sys_update_tables_link_status(thd, conv_name,
-                  conv_name_length, link_idx, SPIDER_LINK_STATUS_NG);
+                  conv_name_length, all_link_idx, SPIDER_LINK_STATUS_NG);
                 spider_sys_log_tables_link_failed(thd, conv_name,
-                  conv_name_length, link_idx);
+                  conv_name_length, all_link_idx);
               }
               pthread_mutex_unlock(&spider_udf_table_mon_mutexes[table_mon_list->mutex_hash]);
             }

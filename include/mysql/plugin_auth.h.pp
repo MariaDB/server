@@ -128,26 +128,36 @@ extern struct logger_service_st {
   void (*logger_init_mutexes)();
   LOGGER_HANDLE* (*open)(const char *path,
                          unsigned long long size_limit,
-                         unsigned int rotations);
+                         unsigned int rotations, size_t buffer_size);
   int (*close)(LOGGER_HANDLE *log);
   int (*vprintf)(LOGGER_HANDLE *log, const char *fmt, va_list argptr)
     __attribute__((format(printf, 2, 0)));
   int (*printf)(LOGGER_HANDLE *log, const char *fmt, ...)
     __attribute__((format(printf, 2, 3)));
-  int (*write)(LOGGER_HANDLE *log, const char *buffer, size_t size);
+  int (*write)(LOGGER_HANDLE *log, const void *data, size_t size);
   int (*rotate)(LOGGER_HANDLE *log);
+  int (*sync)(LOGGER_HANDLE *log);
+  int (*resize_buffer)(LOGGER_HANDLE *log, size_t new_buffer_size);
+  int (*set_filesize_limit)(LOGGER_HANDLE *log,
+                            unsigned long long new_file_limit);
+  int (*set_rotations)(LOGGER_HANDLE *log, unsigned int new_rotations);
 } *logger_service;
   void logger_init_mutexes();
   LOGGER_HANDLE *logger_open(const char *path,
                              unsigned long long size_limit,
-                             unsigned int rotations);
+                             unsigned int rotations, size_t buffer_size);
   int logger_close(LOGGER_HANDLE *log);
   int logger_vprintf(LOGGER_HANDLE *log, const char *fmt, va_list argptr)
     __attribute__((format(printf, 2, 0)));
   int logger_printf(LOGGER_HANDLE *log, const char *fmt, ...)
     __attribute__((format(printf, 2, 3)));
-  int logger_write(LOGGER_HANDLE *log, const char *buffer, size_t size);
+  int logger_write(LOGGER_HANDLE *log, const void *data, size_t size);
   int logger_rotate(LOGGER_HANDLE *log);
+  int logger_sync(LOGGER_HANDLE *log);
+  int logger_resize_buffer(LOGGER_HANDLE *log, size_t new_buffer_size);
+  int logger_set_filesize_limit(LOGGER_HANDLE *log,
+                                unsigned long long new_file_limit);
+  int logger_set_rotations(LOGGER_HANDLE *log, unsigned int new_rotations);
 }
 extern "C" {
 extern struct my_md5_service_st {
@@ -169,6 +179,8 @@ extern "C" {
 enum my_aes_mode {
     MY_AES_ECB, MY_AES_CBC
 };
+enum my_digest { MY_DIGEST_SHA1, MY_DIGEST_SHA224, MY_DIGEST_SHA256,
+                 MY_DIGEST_SHA384, MY_DIGEST_SHA512 };
 extern struct my_crypt_service_st {
   int (*my_aes_crypt_init)(void *ctx, enum my_aes_mode mode, int flags,
                       const unsigned char* key, unsigned int klen,
@@ -182,6 +194,10 @@ extern struct my_crypt_service_st {
   unsigned int (*my_aes_get_size)(enum my_aes_mode mode, unsigned int source_length);
   unsigned int (*my_aes_ctx_size)(enum my_aes_mode mode);
   int (*my_random_bytes)(unsigned char* buf, int num);
+  void (*my_bytes_to_key)(const unsigned char *salt, const unsigned char *input,
+                          unsigned int input_len, unsigned char *key,
+                          unsigned char *iv, enum my_digest digest,
+                          unsigned int use_pbkdf2);
 } *my_crypt_service;
 int my_aes_crypt_init(void *ctx, enum my_aes_mode mode, int flags,
                       const unsigned char* key, unsigned int klen,
@@ -193,6 +209,10 @@ int my_aes_crypt(enum my_aes_mode mode, int flags,
                  const unsigned char *src, unsigned int slen, unsigned char *dst, unsigned int *dlen,
                  const unsigned char *key, unsigned int klen, const unsigned char *iv, unsigned int ivlen);
 int my_random_bytes(unsigned char* buf, int num);
+void my_bytes_to_key(const unsigned char *salt, const unsigned char *input,
+                     unsigned int input_len, unsigned char *key,
+                     unsigned char *iv, enum my_digest digest,
+                     unsigned int use_pbkdf2);
 unsigned int my_aes_get_size(enum my_aes_mode mode, unsigned int source_length);
 unsigned int my_aes_ctx_size(enum my_aes_mode mode);
 }
@@ -697,6 +717,7 @@ typedef struct st_plugin_vio_info
   enum { MYSQL_VIO_INVALID, MYSQL_VIO_TCP, MYSQL_VIO_SOCKET,
          MYSQL_VIO_PIPE, MYSQL_VIO_MEMORY } protocol;
   int socket;
+  int tls;
 } MYSQL_PLUGIN_VIO_INFO;
 typedef struct st_plugin_vio
 {

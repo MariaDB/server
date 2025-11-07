@@ -5,9 +5,7 @@
 --source include/have_partition.inc
 --source include/have_debug.inc
 --source include/have_debug_sync.inc
-# Save the initial number of concurrent sessions.
---source include/count_sessions.inc
-
+--source include/no_view_protocol.inc
 
 --echo #
 --echo # Bug 42074 concurrent optimize table and 
@@ -43,10 +41,6 @@ SET DEBUG_SYNC='RESET';
 --echo #           OPTIMIZE TABLE
 --echo #
 
---disable_warnings
-DROP TABLE IF EXISTS t1;
---enable_warnings
-
 connect (con1, localhost, root);
 connection default;
 
@@ -75,10 +69,6 @@ SET DEBUG_SYNC= "RESET";
 --echo # Bug#53757 assert in mysql_truncate_by_delete
 --echo #
 
---disable_warnings
-DROP TABLE IF EXISTS t1, t2;
---enable_warnings
-
 CREATE TABLE t1(a INT) Engine=InnoDB;
 CREATE TABLE t2(id INT);
 INSERT INTO t1 VALUES (1), (2);
@@ -96,7 +86,6 @@ KILL @id;
 SET DEBUG_SYNC= "now SIGNAL killed";
 DROP TABLE t1, t2;
 disconnect con1;
---source include/wait_until_count_sessions.inc
 SET DEBUG_SYNC= "RESET";
 
 
@@ -104,10 +93,6 @@ SET DEBUG_SYNC= "RESET";
 --echo # Bug#58933 Assertion `thd- >is_error()' fails on shutdown with ongoing
 --echo #           OPTIMIZE TABLE
 --echo #
-
---disable_warnings
-DROP TABLE IF EXISTS t1;
---enable_warnings
 
 CREATE TABLE t1 (a INT) ENGINE=InnoDB;
 INSERT INTO t1 VALUES (1), (2);
@@ -138,11 +123,6 @@ disconnect con1;
 --echo # Bug#42230 during add index, cannot do queries on storage engines
 --echo #           that implement add_index
 --echo #
-
---disable_warnings
-DROP DATABASE IF EXISTS db1;
-DROP TABLE IF EXISTS t1;
---enable_warnings
 
 connect(con1,localhost,root);
 connect(con2,localhost,root);
@@ -257,10 +237,6 @@ DROP TABLE t1;
 --echo #              IN INNODB
 --echo #
 
---disable_warnings
-DROP TABLE IF EXISTS t1;
---enable_warnings
-
 CREATE TABLE t1(a INT NOT NULL, b INT NOT NULL) engine=innodb;
 INSERT INTO t1 VALUES (1, 12345), (2, 23456);
 
@@ -279,11 +255,6 @@ disconnect con1;
 --echo #
 --echo # Bug#13417754 ASSERT IN ROW_DROP_DATABASE_FOR_MYSQL DURING DROP SCHEMA
 --echo #
-
---disable_warnings
-DROP TABLE IF EXISTS t1;
-DROP DATABASE IF EXISTS db1;
---enable_warnings
 
 CREATE TABLE t1(a int) engine=InnoDB;
 CREATE DATABASE db1;
@@ -332,10 +303,6 @@ disconnect con2;
 
 --echo # Multi thread tests.
 --echo # See alter_table.test for single thread tests.
-
---disable_warnings
-DROP TABLE IF EXISTS t1;
---enable_warnings
 
 CREATE TABLE t1(a INT PRIMARY KEY, b INT) engine=InnoDB;
 INSERT INTO t1 VALUES (1,1), (2,2);
@@ -698,8 +665,3 @@ SET DEBUG_SYNC= 'now WAIT_FOR rebuild';
 
 SET DEBUG_SYNC= 'RESET';
 DROP TABLE t1;
-
-
-# Check that all connections opened by test cases in this file are really
-# gone so execution of other tests won't be affected by their presence.
---source include/wait_until_count_sessions.inc

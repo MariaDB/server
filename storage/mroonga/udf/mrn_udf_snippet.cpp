@@ -248,7 +248,7 @@ error:
 }
 
 MRN_API char *mroonga_snippet(UDF_INIT *init, UDF_ARGS *args, char *result,
-                              unsigned long *length, char *is_null, char *error)
+                              unsigned long *length, uchar *is_null, uchar *error)
 {
   st_mrn_snip_info *snip_info = (st_mrn_snip_info *) init->ptr;
   grn_ctx *ctx = snip_info->ctx;

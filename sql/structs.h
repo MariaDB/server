@@ -173,7 +173,17 @@ typedef struct st_key {
   engine_option_value *option_list;
   ha_index_option_struct *option_struct;                  /* structure with parsed options */
 
-  double actual_rec_per_key(uint i) const;
+  /*
+    Bitmap of key parts where all values are NULL (nulls_ratio == 1.0).
+    Bit N set means key part N has all NULLs in the corresponding column.
+    Used for NULL-aware cardinality estimation.
+    It is computed based on EITS data, otherwise it is 0.
+  */
+  key_part_map all_nulls_key_parts;
+
+  double actual_rec_per_key(uint last_key_part_in_prefix) const;
+  double rec_per_key_null_aware(uint last_key_part_in_prefix,
+                                key_part_map notnull_part) const;
 } KEY;
 
 
@@ -236,7 +246,7 @@ struct AUTHID
   LEX_CSTRING user, host;
   void init() { memset(this, 0, sizeof(*this)); }
   void copy(MEM_ROOT *root, const LEX_CSTRING *usr, const LEX_CSTRING *host);
-  bool is_role() const { return user.str[0] && !host.str[0]; }
+  bool is_role() const { return user.str[0] && (!host.str || !host.str[0]); }
   void set_lex_string(LEX_CSTRING *l, char *buf)
   {
     if (is_role())
@@ -1127,5 +1137,38 @@ protected:
   const class Sp_rcontext_handler *m_rcontext_handler;
   uint m_offset;               ///< Frame offset
 };
+
+
+/*
+  This class stores run time references
+    (variables that store offsets of another variable or a cursor).
+
+  - The "sp_rcontext_addr" contains the address of the reference variable.
+    Its value is evaluated (using val_ref() of the variable's Field)
+    to get the rcontext offset of the referenced variable.
+
+  - The m_deref_rcontext_handler member contains the rcontext handler of
+    the referenced variable (or cursor).
+    m_deref_rcontext_handler can be set to nullptr to mean that
+    the sp_rcontext_ref instance is not a reference. In this case its
+    sp_rcontext_addr contains the direct address of the target variable/cursor
+    and does not need dereferencing.
+*/
+class sp_rcontext_ref: public sp_rcontext_addr
+{
+public:
+  sp_rcontext_ref(const sp_rcontext_addr &addr,
+                  const Sp_rcontext_handler *deref_rcontext_handler)
+   :sp_rcontext_addr(addr),
+    m_deref_rcontext_handler(deref_rcontext_handler)
+  { }
+  const Sp_rcontext_handler *deref_rcontext_handler() const
+  {
+    return m_deref_rcontext_handler;
+  }
+protected:
+  const Sp_rcontext_handler *m_deref_rcontext_handler;
+};
+
 
 #endif /* STRUCTS_INCLUDED */

@@ -1,5 +1,6 @@
 # Test case for validating acl statistics for the feedback plugin.
 --source include/not_embedded.inc
+--source include/hostname_is_not_localhost.inc
 
 # First get a baseline of the initial statistics.
 SHOW STATUS LIKE 'Acl%';
@@ -47,7 +48,7 @@ GRANT EXECUTE ON FUNCTION mysql.test_func TO u1;
 GRANT EXECUTE ON FUNCTION mysql.test_func TO r2;
 
 # Recheck how statistics are updated. Make sure that both the information
-# schema and the actualy physical rows are the same.
+# schema and the actual physical rows are the same.
 SHOW STATUS LIKE 'Acl%';
 SELECT count(*) COLUMN_GRANTS from mysql.columns_priv;
 SELECT count(*) DATABASE_GRANTS from mysql.db;

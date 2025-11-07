@@ -1,7 +1,4 @@
-set @save_big_tables=@@big_tables;
-set big_tables=1;
-Warnings:
-Warning	1287	'@@big_tables' is deprecated and will be removed in a future release
+set tmp_memory_table_size=0;
 create table  folks(id int, name char(32), dob date, father int, mother int);
 insert into folks values
 (100, 'Me', '2000-01-01', 20, 30),
@@ -47,7 +44,5 @@ select h_name, h_dob, w_name, w_dob
 from ancestor_couples;
 ERROR HY000: Table '(temporary)' is marked as crashed and should be repaired
 drop table folks;
-set big_tables=@save_big_tables;
-Warnings:
-Warning	1287	'@@big_tables' is deprecated and will be removed in a future release
+set tmp_memory_table_size=default;
 SET @@SESSION.debug_dbug=@saved_dbug;

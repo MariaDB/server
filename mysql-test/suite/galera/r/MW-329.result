@@ -14,9 +14,11 @@ END|
 connect node_1b, 127.0.0.1, root, , test, $NODE_MYPORT_1;
 connection node_1b;
 connection node_1;
+connect node_1c, 127.0.0.1, root, , test, $NODE_MYPORT_1;
+connection node_1c;
 connection node_1b;
 connection node_1;
 DROP PROCEDURE proc_insert;
 DROP TABLE t1;
-CALL mtr.add_suppression("WSREP: .* conflict state after post commit ");
-set global innodb_status_output=Default;
+disconnect node_1b;
+disconnect node_1c;

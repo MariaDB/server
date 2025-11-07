@@ -2849,7 +2849,7 @@ Election	Voted	ElectionID
 drop table t1, t2;
 drop view v1;
 #
-# and another contrived example showing a bit of heirarchy
+# and another contrived example showing a bit of hierarchy
 #
 create table t10 (a int);
 create table t20 (b int);
@@ -2911,4 +2911,22 @@ Z	1	Y	1	X	1
 drop view v0, v1, v2, v3;
 drop table t1, t2, t3;
 # end of 10.3 tests
+#
+# MDEV-37653 Unexpected result of prepared statement when use boolean value as parameters
+#
+create table t0(c0 real);
+create table t1 like t0;
+insert into t1 values (1);
+insert into t0 values (1);
+select t1.c0, t0.c0 from t1 left join t0 on 0 where not (t0.c0 is true);
+c0	c0
+1	NULL
+select t1.c0, t0.c0 from t1 left join t0 on 0 where not (t0.c0 is false);
+c0	c0
+1	NULL
+select t1.c0, t0.c0 from t1 left join t0 on false where (false or ((t0.c0 is true) in (false)));
+c0	c0
+1	NULL
+drop table t0, t1;
+# end of 10.11 tests
 SET optimizer_switch=@org_optimizer_switch;

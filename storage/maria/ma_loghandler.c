@@ -395,7 +395,7 @@ struct st_translog_descriptor
   DYNAMIC_ARRAY unfinished_files;
 
   /*
-    minimum number of still need file calculeted during last
+    minimum number of still needed file calculated during last
     translog_purge call
   */
   uint32 min_need_file;
@@ -1480,7 +1480,7 @@ LSN translog_get_file_max_lsn_stored(uint32 file)
 
   if (file >= limit)
   {
-    DBUG_PRINT("info", ("The file in in progress"));
+    DBUG_PRINT("info", ("The file in progress"));
     DBUG_RETURN(LSN_IMPOSSIBLE);
   }
 
@@ -1582,7 +1582,7 @@ static my_bool translog_buffer_init(struct st_translog_buffer *buffer, int num)
 /*
   @brief close transaction log file by descriptor
 
-  @param file            pagegecache file descriptor reference
+  @param file            pagecache file descriptor reference
 
   @return Operation status
     @retval 0  OK
@@ -1939,7 +1939,7 @@ static void translog_finish_page(TRANSLOG_ADDRESS *horizon,
   DBUG_ASSERT(LSN_FILE_NO(*horizon) == LSN_FILE_NO(cursor->buffer->offset)
               || translog_status == TRANSLOG_UNINITED);
   if ((LSN_FILE_NO(*horizon) != LSN_FILE_NO(cursor->buffer->offset)))
-    DBUG_VOID_RETURN; // everything wrong do not write to awoid more problems
+    DBUG_VOID_RETURN; // everything wrong do not write to avoid more problems
   translog_check_cursor(cursor);
   if (cursor->protected)
   {
@@ -3609,7 +3609,6 @@ static my_bool translog_is_LSN_chunk(uchar type)
   @retval 1 Error
 */
 
-/* Stack size 26120 from clang */
 PRAGMA_DISABLE_CHECK_STACK_FRAME
 
 my_bool translog_init_with_table(const char *directory,
@@ -3875,6 +3874,7 @@ my_bool translog_init_with_table(const char *directory,
 
   if (logs_found)
   {
+    TRANSLOG_PAGE_SIZE_BUFF psize_buff;
     TRANSLOG_ADDRESS current_page= sure_page;
     my_bool pageok;
 
@@ -3916,7 +3916,6 @@ my_bool translog_init_with_table(const char *directory,
         do
         {
           TRANSLOG_VALIDATOR_DATA data;
-          TRANSLOG_PAGE_SIZE_BUFF psize_buff;
           uchar *page;
           data.addr= &current_page;
           if ((page= translog_get_page(&data, psize_buff.buffer, NULL)) == NULL)
@@ -3966,7 +3965,6 @@ my_bool translog_init_with_table(const char *directory,
     if (logs_found && !old_log_was_recovered && old_flags == flags)
     {
       TRANSLOG_VALIDATOR_DATA data;
-      TRANSLOG_PAGE_SIZE_BUFF psize_buff;
       uchar *page;
       uint16 chunk_offset;
       data.addr= &last_valid_page;
@@ -4264,8 +4262,8 @@ err:
   ma_message_no_user(0, "log initialization failed");
   DBUG_RETURN(1);
 }
-PRAGMA_REENABLE_CHECK_STACK_FRAME
 
+PRAGMA_REENABLE_CHECK_STACK_FRAME
 
 /*
   @brief Free transaction log file buffer.
@@ -4551,7 +4549,7 @@ static my_bool translog_write_parts_on_page(TRANSLOG_ADDRESS *horizon,
   if (!cursor->chaser)
     cursor->buffer->size+= length;
   /*
-    We do not not updating parts->total_record_length here because it is
+    We do not updating parts->total_record_length here because it is
     need only before writing record to have total length
   */
   DBUG_PRINT("info", ("Write parts buffer #%u: %p  "
@@ -6503,7 +6501,7 @@ my_bool translog_write_record(LSN *lsn,
     for (i= TRANSLOG_INTERNAL_PARTS; i < part_no; i++)
     {
 #ifdef HAVE_valgrind
-      /* Find unitialized bytes early */
+      /* Find uninitialized bytes early */
       checksum+= my_checksum(checksum, parts_data[i].str,
                              parts_data[i].length);
 #endif
@@ -6740,7 +6738,7 @@ translog_scanner_get_page(TRANSLOG_SCANNER_DATA *scanner)
   @param fixed_horizon   true if it is OK do not read records which was written
                          after scanning beginning
   @param scanner         scanner which have to be inited
-  @param use_direct      prefer using direct lings from page handler
+  @param use_direct      prefer using direct links from page handler
                          where it is possible.
 
   @note If direct link was used translog_destroy_scanner should be
@@ -6844,7 +6842,7 @@ static my_bool translog_scanner_eol(TRANSLOG_SCANNER_DATA *scanner)
 
 
 /**
-  @brief Cheks End of the Page
+  @brief Checks End of the Page
 
   @param scanner         Information about current chunk during scanning
 

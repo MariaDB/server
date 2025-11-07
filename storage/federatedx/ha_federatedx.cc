@@ -1492,20 +1492,20 @@ static void fill_server(MEM_ROOT *mem_root, FEDERATEDX_SERVER *server,
        sizeof(int) + 8);
   key.append(scheme);
   key.q_append('\0');
-  server->hostname= (const char *) (intptr) key.length();
+  size_t hostname_pos= key.length();
   key.append(hostname);
   key.q_append('\0');
-  server->database= (const char *) (intptr) key.length();
+  size_t database_pos= key.length();
   key.append(database);
   key.q_append('\0');
   key.q_append((uint32) share->port);
-  server->socket= (const char *) (intptr) key.length();
+  size_t socket_pos= key.length();
   key.append(socket);
   key.q_append('\0');
-  server->username= (const char *) (intptr) key.length();
+  size_t username_pos= key.length();
   key.append(username);
   key.q_append('\0');
-  server->password= (const char *) (intptr) key.length();
+  size_t password_pos= key.length();
   key.append(password);
   key.c_ptr_safe();                             // Ensure we have end \0
 
@@ -1513,13 +1513,12 @@ static void fill_server(MEM_ROOT *mem_root, FEDERATEDX_SERVER *server,
   /* Copy and add end \0 */
   server->key= (uchar *)  strmake_root(mem_root, key.ptr(), key.length());
 
-  /* pointer magic */
-  server->scheme+= (intptr) server->key;
-  server->hostname+= (intptr) server->key;
-  server->database+= (intptr) server->key;
-  server->username+= (intptr) server->key;
-  server->password+= (intptr) server->key;
-  server->socket+= (intptr) server->key;
+  server->scheme= (const char *)server->key;
+  server->hostname= (const char *)server->key + hostname_pos;
+  server->database= (const char *)server->key + database_pos;
+  server->username= (const char *)server->key + username_pos;
+  server->password= (const char *)server->key + password_pos;
+  server->socket= (const char*)server->key + socket_pos;
   server->port= share->port;
 
   if (!share->socket)
@@ -3404,6 +3403,12 @@ int ha_federatedx::create(const char *name, TABLE *table_arg,
   federatedx_io *tmp_io= NULL;
   DBUG_ENTER("ha_federatedx::create");
 
+  if (table_arg->s->hlindexes())
+  {
+    my_error(ER_ILLEGAL_HA_CREATE_OPTION, MYF(0), "FEDERATEDX", "VECTOR");
+    DBUG_RETURN(HA_ERR_UNSUPPORTED);
+  }
+
   if ((retval= parse_url(thd->mem_root, &tmp_share, table_arg->s, 1)))
     goto error;
 
@@ -3707,6 +3712,15 @@ err2:
 err1:
   if (error)
     my_error(ER_CONNECT_TO_FOREIGN_DATA_SOURCE, MYF(0), mysql_error(&mysql));
+  else if ((error= table_s->hlindexes()))
+  {
+    my_error(ER_ILLEGAL_HA_CREATE_OPTION, MYF(0), "FEDERATEDX", "VECTOR");
+    char file_name[FN_REFLEN+1];
+    strxnmov(file_name, sizeof(file_name)-1, table_s->normalized_path.str,
+             reg_ext, NullS);
+    my_delete(file_name, MYF(0));
+    plugin_unlock(0, table_s->db_plugin);
+  }
   mysql_close(&mysql);
   return error;
 }

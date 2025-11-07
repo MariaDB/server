@@ -444,7 +444,7 @@ public:
      CREATE TABLE t2 (a CHAR(10) BINARY) CHARACTER SET latin2; -- (3a)
      CREATE TABLE t2 (a CHAR(10) BINARY);                      -- (3b)
      CREATE TABLE t2 (a CHAR(10) COLLATE DEFAULT)
-       CHARACER SET latin2 COLLATE latin2_bin;                 -- (3c)
+       CHARACTER SET latin2 COLLATE latin2_bin;                 -- (3c)
 
   In case of an empty or a contextually typed collation,
   it is a subject to later resolution, when the context

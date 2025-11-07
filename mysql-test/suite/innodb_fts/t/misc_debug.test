@@ -1,4 +1,4 @@
-# Miscellanous FULLTEXT INDEX tests for debug-instrumented servers.
+# Miscellaneous FULLTEXT INDEX tests for debug-instrumented servers.
 # Note: These tests used to be part of a larger test, innodb_fts_misc_debug
 # or innodb_fts.misc_debug. A large part of that test can be run on a
 # non-debug server and has been renamed to innodb_fts.crash_recovery.
@@ -6,7 +6,6 @@
 --source include/have_innodb.inc
 --source include/have_debug.inc
 --source include/have_debug_sync.inc
---source include/count_sessions.inc
 --source include/maybe_versioning.inc
 
 # Following test is for Bug 14668777 - ASSERT ON IB_VECTOR_SIZE(
@@ -94,7 +93,6 @@ SET DEBUG_SYNC=RESET;
 ALTER TABLE t1 ADD bl INT AS (LENGTH(b)) VIRTUAL;
 CHECK TABLE t1;
 DROP TABLE t1;
---source include/wait_until_count_sessions.inc
 }
 
 --echo #

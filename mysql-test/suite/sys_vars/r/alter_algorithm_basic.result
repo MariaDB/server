@@ -4,7 +4,7 @@ SELECT @@global.alter_algorithm;
 DEFAULT
 SET GLOBAL alter_algorithm=2;
 Warnings:
-Warning	4201	The variable '@@alter_algorithm' is ignored. It only exists for compatibility with old installations and will be removed in a future release
+Warning	4200	The setting 'alter_algorithm' is ignored. It only exists for compatibility with old installations and will be removed in a future release
 SELECT @@global.alter_algorithm;
 @@global.alter_algorithm
 DEFAULT
@@ -15,7 +15,7 @@ SELECT @@global.alter_algorithm;
 DEFAULT
 SET SESSION alter_algorithm=INSTANT;
 Warnings:
-Warning	4201	The variable '@@alter_algorithm' is ignored. It only exists for compatibility with old installations and will be removed in a future release
+Warning	4200	The setting 'alter_algorithm' is ignored. It only exists for compatibility with old installations and will be removed in a future release
 SHOW SESSION VARIABLES LIKE 'alter_algorithm';
 Variable_name	Value
 alter_algorithm	DEFAULT

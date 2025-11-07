@@ -87,9 +87,6 @@ endif
 	# quality standards in Debian. Also building it requires an extra 4 GB of disk
 	# space which makes native Debian builds fail as the total disk space needed
 	# for MariaDB becomes over 10 GB. Only build CS via autobake-deb.sh.
-	#
-	# Note: Don't use '-DWITH_URING=ON' as some Buildbot builders are missing it
-	# and would fail permanently.
 	PATH=$${MYSQL_BUILD_PATH:-"/usr/lib/ccache:/usr/local/bin:/usr/bin:/bin"} \
 	    dh_auto_configure --builddirectory=$(BUILDDIR) -- \
 	    -DCMAKE_BUILD_TYPE=RelWithDebInfo \
@@ -103,6 +100,8 @@ endif
 	    -DPLUGIN_AWS_KEY_MANAGEMENT=NO \
 	    -DPLUGIN_COLUMNSTORE=NO \
 	    -DIGNORE_AIO_CHECK=ON \
+	    -DWITH_URING=ON \
+	    -DWITH_LIBAIO=ON \
 	    -DDEB=$(DEB_VENDOR)
 
 # This is needed, otherwise 'make test' will run before binaries have been built
@@ -160,6 +159,17 @@ override_dh_auto_install:
 
 	# Rename and install AppArmor profile
 	install -D -m 644 debian/apparmor-profile $(TMP)/etc/apparmor.d/usr.sbin.mariadbd
+
+	# Rename mariadb.pc as mariadb-embedded-server.pc as to be more descriptive
+	mv -v $(TMP)/usr/lib/$(DEB_HOST_MULTIARCH)/pkgconfig/mariadb.pc $(TMP)/usr/lib/$(DEB_HOST_MULTIARCH)/pkgconfig/mariadb-embedded-server.pc
+	# Keep libmariadbd.pc around for backwards compatibility as all Debian users
+	# have had it for embedded server since April 2021
+	ln -sf mariadb-embedded-server.pc $(TMP)/usr/lib/$(DEB_HOST_MULTIARCH)/pkgconfig/libmariadbd.pc
+
+	# Rename libmariadb.pc as mariadb.pc as it better fits the client library,
+	# and keep old libmariadb.pc as symlink for backwards compatibility
+	mv -v $(TMP)/usr/lib/$(DEB_HOST_MULTIARCH)/pkgconfig/libmariadb.pc $(TMP)/usr/lib/$(DEB_HOST_MULTIARCH)/pkgconfig/mariadb.pc
+	ln -sf mariadb.pc $(TMP)/usr/lib/$(DEB_HOST_MULTIARCH)/pkgconfig/libmariadb.pc
 
 	# Install libmariadbclient18 compatibility links
 	ln -s libmariadb.so.3 $(TMP)/usr/lib/$(DEB_HOST_MULTIARCH)/libmariadbclient.so

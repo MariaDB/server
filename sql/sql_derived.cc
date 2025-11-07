@@ -41,6 +41,8 @@ typedef bool (*dt_processor)(THD *thd, LEX *lex, TABLE_LIST *derived);
 static bool mysql_derived_init(THD *thd, LEX *lex, TABLE_LIST *derived);
 static bool mysql_derived_prepare(THD *thd, LEX *lex, TABLE_LIST *derived);
 static bool mysql_derived_optimize(THD *thd, LEX *lex, TABLE_LIST *derived);
+static bool mysql_derived_optimize_stage2(THD *thd, LEX *lex,
+            TABLE_LIST *derived);
 static bool mysql_derived_merge(THD *thd, LEX *lex, TABLE_LIST *derived);
 static bool mysql_derived_create(THD *thd, LEX *lex, TABLE_LIST *derived);
 static bool mysql_derived_fill(THD *thd, LEX *lex, TABLE_LIST *derived);
@@ -58,6 +60,7 @@ dt_processor processors[]=
   &mysql_derived_create,
   &mysql_derived_fill,
   &mysql_derived_reinit,
+  &mysql_derived_optimize_stage2
 };
 
 /*
@@ -109,8 +112,8 @@ mysql_handle_derived(LEX *lex, uint phases)
       {
         if (!cursor->is_view_or_derived() && phases == DT_MERGE_FOR_INSERT)
           continue;
-        uint8 allowed_phases= (cursor->is_merged_derived() ? DT_PHASES_MERGE :
-                               DT_PHASES_MATERIALIZE | DT_MERGE_FOR_INSERT);
+        uint allowed_phases= (cursor->is_merged_derived() ? DT_PHASES_MERGE :
+                              DT_PHASES_MATERIALIZE | DT_MERGE_FOR_INSERT);
         /*
           Skip derived tables to which the phase isn't applicable.
           TODO: mark derived at the parse time, later set it's type
@@ -170,7 +173,7 @@ bool
 mysql_handle_single_derived(LEX *lex, TABLE_LIST *derived, uint phases)
 {
   bool res= FALSE;
-  uint8 allowed_phases= (derived->is_merged_derived() ? DT_PHASES_MERGE :
+  uint allowed_phases= (derived->is_merged_derived() ? DT_PHASES_MERGE :
                          DT_PHASES_MATERIALIZE);
   DBUG_ENTER("mysql_handle_single_derived");
   DBUG_PRINT("enter", ("phases: 0x%x  allowed: 0x%x  alias: '%s'",
@@ -702,7 +705,7 @@ bool mysql_derived_prepare(THD *thd, LEX *lex, TABLE_LIST *derived)
   {
     /* 
       Here 'derived' is either a non-recursive table reference to a recursive
-      with table or a recursive table reference to a recursvive table whose
+      with table or a recursive table reference to a recursive table whose
       specification has been already prepared (a secondary recursive table
       reference.
     */ 
@@ -883,6 +886,14 @@ bool mysql_derived_prepare(THD *thd, LEX *lex, TABLE_LIST *derived)
                                                    0))
   { 
     thd->create_tmp_table_for_derived= FALSE;
+    if (thd->is_error())
+    {
+      /*
+        EOM error, or attempted to a create a table with a Field
+        of a not allowed data type, e.g. SYS_REFCURSOR.
+      */
+      res= true;
+    }
     goto exit;
   }
   thd->create_tmp_table_for_derived= FALSE;
@@ -1060,6 +1071,43 @@ bool mysql_derived_optimize(THD *thd, LEX *lex, TABLE_LIST *derived)
 err:
   lex->current_select= save_current_select;
   DBUG_RETURN(res);
+}
+
+
+/*
+  @brief
+    Call JOIN::optimize_stage2_and_finish() for all child selects that use
+    two-phase optimization.
+*/
+
+static
+bool mysql_derived_optimize_stage2(THD *thd, LEX *lex, TABLE_LIST *derived)
+{
+  SELECT_LEX_UNIT *unit= derived->get_unit();
+  SELECT_LEX *first_select= unit->first_select();
+  SELECT_LEX *save_current_select= lex->current_select;
+  bool res= FALSE;
+
+  if (derived->merged || unit->is_unit_op())
+  {
+    /*
+      Two-phase join optimization is not applicable for merged derived tables
+      and UNIONs.
+    */
+    return FALSE;
+  }
+
+  lex->current_select= first_select;
+  /* Same condition as in mysql_derived_optimize(): */
+  if (unit->derived && !derived->is_merged_derived())
+  {
+    JOIN *join= first_select->join;
+    if (join && join->optimization_state == JOIN::OPTIMIZATION_PHASE_1_DONE)
+      res= join->optimize_stage2_and_finish();
+  }
+
+  lex->current_select= save_current_select;
+  return res;
 }
 
 

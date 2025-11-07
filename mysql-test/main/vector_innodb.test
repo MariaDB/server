@@ -1,5 +1,6 @@
 source include/have_innodb.inc;
 source include/have_sequence.inc;
+set rand_seed1=1, rand_seed2=2;
 
 create table t1 (id int auto_increment primary key, v vector(8) not null, vector index (v)) engine=innodb;
 show create table t1;
@@ -158,7 +159,7 @@ DROP TABLE t;
 --echo #
 --echo # MDEV-35104 Invalid (old?) table or database name upon DDL on table with vector key and unique key
 --echo #
-create table t (f varchar(1024) not null, v vector(2) not null, unique(f)) engine=innodb charset=utf8mb3;
+create table t (f varchar(1024) not null, v vector(2) not null, unique(f)) engine=innodb;
 alter table t add vector (v);
 drop table t;
 
@@ -269,11 +270,18 @@ set global innodb_force_primary_key=1;
 insert into t values (0x31313131);
 insert into t values (0x32323232);
 drop table t;
-
-# vector index table has no PK, so cannot be created:
---error ER_REQUIRES_PRIMARY_KEY
-create table t (v vector (1) not null,vector index (v)) engine=innodb;
 set global innodb_force_primary_key=0;
+
+--echo #
+--echo # MDEV-36777 create vector table failed with VECTOR INDEX when innodb_force_primary_key=on
+--echo #
+set global innodb_force_primary_key=on;
+--error ER_REQUIRES_PRIMARY_KEY
+create table t1 (v vector(5) not null, vector index (v)) engine=innodb;
+create table t1 (id int primary key, v vector(5) not null, vector index (v)) engine=innodb;
+show create table t1;
+drop table t1;
+set global innodb_force_primary_key=default;
 
 --echo #
 --echo # MDEV-35922 Server crashes in mhnsw_read_first upon using vector key with views
@@ -321,3 +329,44 @@ select id,vec_distance_euclidean(v, x'B047263c9f87233fcfd27e3eae493e3f0329f43e')
 drop table t1, t2;
 
 --echo # End of 11.7 tests
+
+--echo #
+--echo # MDEV-36163 InnoDB assert with vector index under LOCK TABLES
+--echo #
+create table t (a int,v vector (1) not null,vector index (v)) engine=innodb;
+lock table t write;
+insert into t values (1,0x30303030);
+insert into t values (1,0x31313131);
+drop table t;
+
+--echo #
+--echo # MDEV-36177 InnoDB: Failing assertion: prebuilt->select_lock_type != LOCK_NONE || srv_read_only_mode || trx->read_view.is_open()
+--echo #
+--disable_service_connection
+create table t (id int key,v vector (1) not null,vector index (v)) engine=innodb;
+flush tables t for export;
+select vec_distance_euclidean (v,0x30303030) d from t order by d limit 1;
+select vec_distance_euclidean (v,0x30303030) d from t order by d limit 1;
+unlock tables;
+drop table t;
+--enable_service_connection
+
+--echo #
+--echo # MDEV-36188 assert with vector index and very long PK
+--echo #
+--error ER_TOO_LONG_KEY
+create table t (c1 varchar(1024) not null,c2 vector(1) not null,  unique key c1(c1), vector key c2 (c2)) engine=innodb default charset=utf8mb3 ;
+
+--echo #
+--echo # MDEV-37068 Can't find record in 't1' on INSERT to Vector table
+--echo #
+SET sql_mode='';
+create table t1 (v vector (1) not null,vector vec (v),unique vu (v)) engine=innodb;
+start transaction;
+--error ER_DUP_ENTRY
+insert t1 values (10), (20);
+insert t1 values (1);
+drop table t1;
+set sql_mode=default;
+
+--echo # End of 11.8 tests

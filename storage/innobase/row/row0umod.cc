@@ -245,7 +245,7 @@ row_undo_mod_clust(
 	que_thr_t*	thr)	/*!< in: query thread */
 {
 	btr_pcur_t*	pcur;
-	mtr_t		mtr;
+	mtr_t		mtr{node->trx};
 	dberr_t		err;
 	dict_index_t*	index;
 
@@ -478,6 +478,7 @@ corresponds to a secondary index entry.
 @param index  secondary index
 @param ientry secondary index entry
 @param mtr    mini-transaction
+@param trx    transaction connected to current_thd
 @return whether an accessible non-dete-marked version of rec
 corresponds to ientry */
 static bool row_undo_mod_sec_is_unsafe(const rec_t *rec, dict_index_t *index,
@@ -525,8 +526,8 @@ static bool row_undo_mod_sec_is_unsafe(const rec_t *rec, dict_index_t *index,
 
 		trx_undo_prev_version_build(version,
 					    clust_index, clust_offsets,
-					    heap, &prev_version,
-					    mtr, TRX_UNDO_CHECK_PURGEABILITY,
+					    heap, &prev_version, mtr,
+					    TRX_UNDO_CHECK_PURGEABILITY,
 					    nullptr,
 					    dict_index_has_virtual(index)
 					    ? &vrow : nullptr);
@@ -626,7 +627,7 @@ row_undo_mod_del_mark_or_remove_sec_low(
 	btr_pcur_t		pcur;
 	btr_cur_t*		btr_cur;
 	dberr_t			err	= DB_SUCCESS;
-	mtr_t			mtr;
+	mtr_t			mtr{thr->graph->trx};
 	const bool		modify_leaf = mode == BTR_MODIFY_LEAF;
 
 	row_mtr_start(&mtr, index);
@@ -791,8 +792,8 @@ row_undo_mod_del_unmark_sec_and_undo_update(
 	upd_t*			update;
 	dberr_t			err		= DB_SUCCESS;
 	big_rec_t*		dummy_big_rec;
-	mtr_t			mtr;
 	trx_t*			trx		= thr_get_trx(thr);
+	mtr_t			mtr{trx};
 	const ulint		flags
 		= BTR_KEEP_SYS_FLAG | BTR_NO_LOCKING_FLAG;
 	const auto		orig_mode = mode;
@@ -1105,9 +1106,8 @@ row_undo_mod_upd_exist_sec(
 		dtuple_t* entry = row_build_index_entry(
 			node->row, node->ext, index, heap);
 		if (UNIV_UNLIKELY(!entry)) {
-			/* The server must have crashed in
-			row_upd_clust_rec_by_insert() before
-			the updated externally stored columns (BLOBs)
+			/* InnoDB must have run of space or been killed
+			before the updated externally stored columns (BLOBs)
 			of the new clustered index entry were written. */
 
 			/* The table must be in DYNAMIC or COMPRESSED
@@ -1115,19 +1115,6 @@ row_undo_mod_upd_exist_sec(
 			store a local 768-byte prefix of each
 			externally stored column. */
 			ut_a(dict_table_has_atomic_blobs(index->table));
-
-			/* This is only legitimate when
-			rolling back an incomplete transaction
-			after crash recovery. */
-			ut_a(thr_get_trx(thr)->is_recovered);
-
-			/* The server must have crashed before
-			completing the insert of the new
-			clustered index entry and before
-			inserting to the secondary indexes.
-			Because node->row was not yet written
-			to this index, we can ignore it.  But
-			we must restore node->undo_row. */
 		} else {
 			/* NOTE that if we updated the fields of a
 			delete-marked secondary index record so that

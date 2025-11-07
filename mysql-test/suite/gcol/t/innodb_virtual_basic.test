@@ -1,6 +1,6 @@
 --source include/have_innodb.inc
 --source include/have_partition.inc
---source include/big_test.inc
+--source include/not_embedded.inc
 
 call mtr.add_suppression("\\[Warning\\] InnoDB: Compute virtual");
 
@@ -66,6 +66,41 @@ delete from t where a =13;
 DROP INDEX idx1 ON t;
 DROP INDEX idx2 ON t;
 DROP TABLE t;
+
+let MYSQLD_DATADIR=`select @@datadir`;
+let PAGE_SIZE=`select @@innodb_page_size`;
+--source include/shutdown_mysqld.inc
+perl;
+do "$ENV{MTR_SUITE_DIR}/../innodb/include/crc32.pl";
+my $file = "$ENV{MYSQLD_DATADIR}/ibdata1";
+open(FILE, "+<$file") || die "Unable to open $file";
+binmode FILE;
+my $ps= $ENV{PAGE_SIZE};
+my $page;
+die "Unable to read $file" unless sysread(FILE, $page, $ps) == $ps;
+my $full_crc32 = unpack("N",substr($page,54,4)) & 0x10; # FIL_SPACE_FLAGS
+sysseek(FILE, 7*$ps, 0) || die "Unable to seek $file\n";
+die "Unable to read $file" unless sysread(FILE, $page, $ps) == $ps;
+substr($page,54,4)=pack("N",0xc001cafe); # 32 MSB of 64-bit DICT_HDR_INDEX_ID
+my $polynomial = 0x82f63b78; # CRC-32C
+if ($full_crc32)
+{
+    my $ck = mycrc32(substr($page, 0, $ps-4), 0, $polynomial);
+    substr($page, $ps-4, 4) = pack("N", $ck);
+}
+else
+{
+    my $ck= pack("N",mycrc32(substr($page, 4, 22), 0, $polynomial) ^
+		 mycrc32(substr($page, 38, $ps - 38 - 8), 0, $polynomial));
+    substr($page,0,4)=$ck;
+    substr($page,$ps-8,4)=$ck;
+}
+sysseek(FILE, 7*$ps, 0) || die "Unable to rewind $file\n";
+syswrite(FILE, $page, $ps)==$ps || die "Unable to write $file\n";
+close(FILE) || die "Unable to close $file";
+EOF
+--source include/start_mysqld.inc
+set default_storage_engine=innodb;
 
 /* Test large BLOB data */
 CREATE TABLE `t` (
@@ -211,8 +246,8 @@ DROP TABLE t1;
 CREATE TABLE t1(a INT);
 CREATE INDEX idx ON t1(a);
 CREATE TABLE t3(a INT, b INT , INDEX(b), CONSTRAINT x FOREIGN KEY(b) REFERENCES t1(a));
---error ER_CANT_CREATE_TABLE
 CREATE TABLE t2(a INT, b INT generated always as (a+1) virtual, INDEX(b), CONSTRAINT x FOREIGN KEY(b) REFERENCES t1(a));
+DROP TABLE t2;
 CREATE TABLE t2(a INT, b INT generated always as (a+1) virtual, INDEX(b));
 DROP TABLE t3;
 DROP TABLE t2;

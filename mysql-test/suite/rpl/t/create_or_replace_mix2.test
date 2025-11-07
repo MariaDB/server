@@ -1,0 +1,7 @@
+# Testing create or replace table in mixed mode.
+
+set @@global.create_tmp_table_binlog_formats="mixed";
+set @@session.create_tmp_table_binlog_formats="mixed";
+--source include/have_binlog_format_mixed.inc
+--source create_or_replace.inc
+set @@global.create_tmp_table_binlog_formats=default;

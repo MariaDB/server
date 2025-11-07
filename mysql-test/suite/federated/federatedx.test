@@ -1505,7 +1505,7 @@ DROP TABLE federated.test;
 # cases this resulted in incorrect (garbage) values of OLD variables
 # and lost changes to NEW variables.
 # Since for federated engine only operation which is affected by wrong
-# fields mark-up is handler::write_row() this file constains coverage
+# fields mark-up is handler::write_row() this file contains coverage
 # for ON INSERT triggers only.
 #
 connection slave;
@@ -2111,5 +2111,21 @@ SELECT * FROM v WHERE a IN ( SELECT b FROM t2);
 DROP VIEW v;
 DROP TABLE t1_fed, t1, t2;
 DROP SERVER s;
+
+--echo # End of 11.0 tests
+
+--echo #
+--echo # MDEV-35184 Corruption errors upon creation or usage of Federated table with vector key
+--echo #
+evalp create server s foreign data wrapper mysql options (host "127.0.0.1", database "test", user "root", port $MASTER_MYPORT);
+create table t1 (a vector(1) not null, vector(a));
+--error ER_ILLEGAL_HA_CREATE_OPTION
+create table t1_fed1 engine=federated connection = 's/t1';
+--error ER_ILLEGAL_HA_CREATE_OPTION
+create table t1_fed2 (a vector(1) not null, vector(a)) engine=federated connection = 's/t1';
+drop table t1;
+drop server s;
+
+--echo # End of 11.8 tests
 
 source include/federated_cleanup.inc;

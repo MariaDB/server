@@ -201,7 +201,7 @@ public:
 
 /*
   class Sql_user_condition_identity.
-  Instances of this class uniquely idetify user defined conditions (EXCEPTION).
+  Instances of this class uniquely identify user defined conditions (EXCEPTION).
 
     SET sql_mode=ORACLE;
     CREATE PROCEDURE p1
@@ -403,7 +403,7 @@ private:
 
   /**
     Default constructor.
-    This constructor is usefull when allocating arrays.
+    This constructor is useful when allocating arrays.
     Note that the init() method should be called to complete the Sql_condition.
   */
   Sql_condition()
@@ -1334,6 +1334,10 @@ void push_warning(THD *thd, Sql_condition::enum_warning_level level,
 void push_warning_printf(THD *thd, Sql_condition::enum_warning_level level,
                          uint code, const char *format, ...)
                          ATTRIBUTE_FORMAT(printf, 4, 5);
+
+void push_warning_printf_va_list(THD *thd,
+                                 Sql_condition::enum_warning_level level,
+                                 uint code, const char *format, va_list args);
 
 bool mysqld_show_warnings(THD *thd, ulong levels_to_show);
 

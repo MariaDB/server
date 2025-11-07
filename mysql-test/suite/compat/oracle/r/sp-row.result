@@ -175,7 +175,7 @@ SELECT COALESCE(a);
 END;
 $$
 CALL p1();
-ERROR 21000: Operand should contain 1 column(s)
+ERROR HY000: Illegal parameter data type row for operation 'coalesce'
 DROP PROCEDURE p1;
 CREATE PROCEDURE p1()
 AS
@@ -185,7 +185,7 @@ SELECT COALESCE(a);
 END;
 $$
 CALL p1();
-ERROR 21000: Operand should contain 1 column(s)
+ERROR HY000: Illegal parameter data type row for operation 'coalesce'
 DROP PROCEDURE p1;
 CREATE PROCEDURE p1()
 AS

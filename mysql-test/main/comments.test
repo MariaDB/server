@@ -45,7 +45,7 @@ SELECT 1 /*!210000 +1*/;
 SELECT 1 /*!190000 +1*/;
 
 --echo #
---echo # Tesing that versions >= 5.7.x and < 10.0.0 are not ignored 
+--echo # Testing that versions >= 5.7.x and < 10.0.0 are not ignored
 --echo # when used with the MariaDB executable comment syntax.
 --echo #
 SELECT 1 /*M!50699 +1*/;

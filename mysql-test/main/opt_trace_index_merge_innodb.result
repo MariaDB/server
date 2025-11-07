@@ -62,16 +62,6 @@ explain select * from t1 where pk1 != 0  and key1 = 1	{
             }
           },
           {
-            "table_dependencies": [
-              {
-                "table": "t1",
-                "row_may_be_null": false,
-                "map_bit": 0,
-                "depends_on_map_bits": []
-              }
-            ]
-          },
-          {
             "ref_optimizer_key_uses": [
               {
                 "table": "t1",
@@ -148,13 +138,15 @@ explain select * from t1 where pk1 != 0  and key1 = 1	{
                         }
                       ],
                       "clustered_pk": {
+                        "index_scan_cost": 0.000002653,
+                        "cumulated_index_scan_cost": 0.001664258,
+                        "disk_sweep_cost": 0.00171364,
                         "clustered_pk_added_to_intersect": false,
                         "cause": "cost"
                       },
                       "chosen": false,
                       "cause": "too few indexes to merge"
-                    },
-                    "analyzing_index_merge_union": []
+                    }
                   },
                   "group_index_range": {
                     "chosen": false,
@@ -200,6 +192,16 @@ explain select * from t1 where pk1 != 0  and key1 = 1	{
             ]
           },
           {
+            "table_dependencies": [
+              {
+                "table": "t1",
+                "row_may_be_null": false,
+                "map_bit": 0,
+                "depends_on_map_bits": []
+              }
+            ]
+          },
+          {
             "considered_execution_plans": [
               {
                 "plan_prefix": "",
@@ -227,6 +229,7 @@ explain select * from t1 where pk1 != 0  and key1 = 1	{
                       ],
                       "chosen_access_method": {
                         "type": "ref",
+                        "index": "key1",
                         "rows_read": 1,
                         "rows_out": 1,
                         "cost": 0.00345856,
@@ -275,12 +278,6 @@ explain select * from t1 where pk1 != 0  and key1 = 1	{
             ]
           }
         ]
-      }
-    },
-    {
-      "join_execution": {
-        "select_id": 1,
-        "steps": []
       }
     }
   ]

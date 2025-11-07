@@ -1628,7 +1628,7 @@ int Rdb_key_def::unpack_record(TABLE *const table, uchar *const buf,
   Rdb_string_reader reader(packed_key);
   Rdb_string_reader unp_reader = Rdb_string_reader::read_or_empty(unpack_info);
 
-  // There is no checksuming data after unpack_info for primary keys, because
+  // There is no checksumming data after unpack_info for primary keys, because
   // the layout there is different. The checksum is verified in
   // ha_rocksdb::convert_record_from_storage_format instead.
   DBUG_ASSERT_IMP(!(m_index_type == INDEX_TYPE_SECONDARY),
@@ -2202,7 +2202,7 @@ void Rdb_key_def::pack_legacy_variable_format(
     flag is set to N.
 
   For N=9, the following input values encode to the specified
-  outout (where 'X' indicates a byte of the original input):
+  output (where 'X' indicates a byte of the original input):
   - 0 bytes  is encoded as 0 0 0 0 0 0 0 0 0
   - 1 byte   is encoded as X 0 0 0 0 0 0 0 1
   - 2 bytes  is encoded as X X 0 0 0 0 0 0 2
@@ -2710,7 +2710,7 @@ int Rdb_key_def::unpack_binary_or_utf8_varchar_space_pad(
 */
 
 void Rdb_key_def::make_unpack_unknown(
-    const Rdb_collation_codec *codec MY_ATTRIBUTE((__unused__)),
+    const Rdb_collation_codec *,
     const Field *const field, Rdb_pack_field_context *const pack_ctx) {
   pack_ctx->writer->write(field->ptr, field->pack_length());
 }
@@ -2724,9 +2724,9 @@ void Rdb_key_def::make_unpack_unknown(
 */
 
 void Rdb_key_def::dummy_make_unpack_info(
-    const Rdb_collation_codec *codec MY_ATTRIBUTE((__unused__)),
-    const Field *field MY_ATTRIBUTE((__unused__)),
-    Rdb_pack_field_context *pack_ctx MY_ATTRIBUTE((__unused__))) {
+    const Rdb_collation_codec *,
+    const Field *,
+    Rdb_pack_field_context *) {
   // Do nothing
 }
 
@@ -2759,7 +2759,7 @@ int Rdb_key_def::unpack_unknown(Rdb_field_packing *const fpi,
 */
 
 void Rdb_key_def::make_unpack_unknown_varchar(
-    const Rdb_collation_codec *const codec MY_ATTRIBUTE((__unused__)),
+    const Rdb_collation_codec *,
     const Field *const field, Rdb_pack_field_context *const pack_ctx) {
   const auto f = static_cast<const Field_varstring *>(field);
   uint len = f->length_bytes == 1 ? (uint)*f->ptr : uint2korr(f->ptr);
@@ -3378,6 +3378,11 @@ bool Rdb_field_packing::setup(const Rdb_key_def *const key_descr,
         m_skip_func = Rdb_key_def::skip_variable_space_pad;
         m_pack_func = Rdb_key_def::pack_with_varchar_space_pad;
         m_make_unpack_info_func = Rdb_key_def::dummy_make_unpack_info;
+#if __has_feature(memory_sanitizer)
+        // dummy_make_unpack_info doesn't use arguments but MSAN expects
+        // them to be initialized.
+        m_charset_codec = nullptr;
+#endif
         m_segment_size = get_segment_size_from_collation(cs);
         m_max_image_len =
             (max_image_len_before_chunks / (m_segment_size - 1) + 1) *
@@ -3451,6 +3456,15 @@ bool Rdb_field_packing::setup(const Rdb_key_def *const key_descr,
                                       : Rdb_key_def::make_unpack_unknown;
         m_unpack_func = is_varchar ? Rdb_key_def::unpack_unknown_varchar
                                    : Rdb_key_def::unpack_unknown;
+#if __has_feature(memory_sanitizer)
+       // Rdb_key_def::make_unpack_info_unknown and
+       // Rdb_key_def::make_unpack_unknown_varchar when called
+       // via m_make_unpack_info_func do not make use of the m_charset_codec
+       // provided as an argument. MemorySanitizer doesn't make the logical
+       // there is no risk in m_charset_codec being uninitialized. Therefore we
+       // initialize to make MemorySanitizer satisified.
+       m_charset_codec = nullptr;
+#endif
       } else {
         // Same as above: we don't know how to restore the value from its
         // mem-comparable form.
@@ -4161,7 +4175,7 @@ bool Rdb_ddl_manager::init(Rdb_dict_manager *const dict_arg,
 
   /*
     If validate_tables is greater than 0 run the validation.  Only fail the
-    initialzation if the setting is 1.  If the setting is 2 we continue.
+    initialization if the setting is 1.  If the setting is 2 we continue.
   */
   if (validate_tables > 0) {
     std::string msg;

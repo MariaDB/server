@@ -87,7 +87,7 @@ a	z1	z2	z3
 4	5	6	6
 5	6	7	7
 6	7	8	8
-#DELETE quert
+#DELETE query
 connection master;
 delete from t1 where a > 2 and a < 4;
 select * from t1 order by a;

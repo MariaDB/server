@@ -38,6 +38,7 @@ Created 6/2/1994 Heikki Tuuri
 #include "lock0lock.h"
 #include "trx0trx.h"
 #include "srv0mon.h"
+#include "que0que.h"
 #include "gis0geo.h"
 #include "dict0boot.h"
 #include "row0sel.h" /* row_search_max_autoinc() */
@@ -67,7 +68,7 @@ either in S (shared) or X (exclusive) mode and block->lock was not acquired on
 node pointer pages.
 
 After MariaDB 10.2.2, block->lock S-latch or X-latch is used to protect
-node pointer pages and obtaiment of node pointer page latches is protected by
+node pointer pages and obtainment of node pointer page latches is protected by
 index->lock.
 
 (0) Definition: B-tree level.
@@ -130,7 +131,7 @@ NOTE: New rules after MariaDB 10.2.2 does not affect the latching rules of leaf 
 
 index->lock S-latch is needed in read for the node pointer traversal. When the leaf
 level is reached, index-lock can be released (and with the MariaDB 10.2.2 changes, all
-node pointer latches). Left to right index travelsal in leaf page level can be safely done
+node pointer latches). Left to right index traversal in leaf page level can be safely done
 by obtaining right sibling leaf page latch and then releasing the old page latch.
 
 Single leaf page modifications (BTR_MODIFY_LEAF) are protected by index->lock
@@ -371,14 +372,13 @@ btr_root_fseg_adjust_on_import(
 
 /**************************************************************//**
 Checks and adjusts the root node of a tree during IMPORT TABLESPACE.
-@return error code, or DB_SUCCESS */
-dberr_t
-btr_root_adjust_on_import(
-/*======================*/
-	const dict_index_t*	index)	/*!< in: index tree */
+@param trx    transaction
+@param index  index tree
+@return error code */
+dberr_t btr_root_adjust_on_import(trx_t *trx, const dict_index_t *index)
 {
 	dberr_t			err;
-	mtr_t			mtr;
+	mtr_t			mtr{trx};
 	page_t*			page;
 	page_zip_des_t*		page_zip;
 	dict_table_t*		table = index->table;
@@ -1006,25 +1006,25 @@ btr_create(
 /** Free a B-tree except the root page. The root page MUST be freed after
 this by calling btr_free_root.
 @param[in,out]	block		root page
-@param[in]	log_mode	mtr logging mode */
+@param[in]	outer_mtr	surrounding mini-transaction */
 static
 void
 btr_free_but_not_root(
 	buf_block_t*	block,
-	mtr_log_t	log_mode
+	const mtr_t&	outer_mtr
 #ifdef BTR_CUR_HASH_ADAPT
 	,bool		ahi=false
 #endif
 	)
 {
-	mtr_t	mtr;
+	mtr_t mtr{outer_mtr.trx};
 
 	ut_ad(fil_page_index_page_check(block->page.frame));
 	ut_ad(!page_has_siblings(block->page.frame));
 leaf_loop:
 	mtr_start(&mtr);
 	ut_d(mtr.freeing_tree());
-	mtr_set_log_mode(&mtr, log_mode);
+	mtr_set_log_mode(&mtr, outer_mtr.get_log_mode());
 	fil_space_t *space = mtr.set_named_space_id(block->page.id().space());
 
 	if (!btr_root_fseg_validate(FIL_PAGE_DATA + PAGE_BTR_SEG_LEAF,
@@ -1052,7 +1052,7 @@ leaf_loop:
 	}
 top_loop:
 	mtr_start(&mtr);
-	mtr_set_log_mode(&mtr, log_mode);
+	mtr_set_log_mode(&mtr, outer_mtr.get_log_mode());
 	space = mtr.set_named_space_id(block->page.id().space());
 
 	finished = !btr_root_fseg_validate(FIL_PAGE_DATA + PAGE_BTR_SEG_TOP,
@@ -1075,10 +1075,9 @@ top_loop:
 rollback of TRX_UNDO_EMPTY. The BTR_SEG_LEAF is freed and reinitialized.
 @param thr query thread
 @return error code */
-TRANSACTIONAL_TARGET
 dberr_t dict_index_t::clear(que_thr_t *thr)
 {
-  mtr_t mtr;
+  mtr_t mtr{thr_get_trx(thr)};
   mtr.start();
   if (table->is_temporary())
     mtr.set_log_mode(MTR_LOG_NO_REDO);
@@ -1099,7 +1098,7 @@ dberr_t dict_index_t::clear(que_thr_t *thr)
                                RW_X_LATCH, guess, BUF_GET, &mtr, &err);
   if (root_block)
   {
-    btr_free_but_not_root(root_block, mtr.get_log_mode()
+    btr_free_but_not_root(root_block, mtr
 #ifdef BTR_CUR_HASH_ADAPT
 		          ,any_ahi_pages()
 #endif
@@ -1131,19 +1130,20 @@ void btr_free_if_exists(fil_space_t *space, uint32_t page,
 					     space->zip_size(),
 					     index_id, mtr))
   {
-    btr_free_but_not_root(root, mtr->get_log_mode());
+    btr_free_but_not_root(root, *mtr);
     mtr->set_named_space(space);
     btr_free_root(root, *space, mtr);
   }
 }
 
 /** Drop a temporary table
+@param trx    transaction
 @param table   temporary table */
-void btr_drop_temporary_table(const dict_table_t &table)
+void btr_drop_temporary_table(trx_t *trx, const dict_table_t &table)
 {
   ut_ad(table.is_temporary());
   ut_ad(table.space == fil_system.temp_space);
-  mtr_t mtr;
+  mtr_t mtr{trx};
   mtr.start();
   for (const dict_index_t *index= table.indexes.start; index;
        index= dict_table_get_next_index(index))
@@ -1157,8 +1157,8 @@ void btr_drop_temporary_table(const dict_table_t &table)
                                              0, RW_X_LATCH, guess, BUF_GET,
                                              &mtr, nullptr))
     {
-      btr_free_but_not_root(block, MTR_LOG_NO_REDO);
       mtr.set_log_mode(MTR_LOG_NO_REDO);
+      btr_free_but_not_root(block, mtr);
       btr_free_root(block, *fil_system.temp_space, &mtr);
       mtr.commit();
       mtr.start();
@@ -1177,7 +1177,7 @@ btr_read_autoinc(dict_index_t* index)
   ut_ad(index->is_primary());
   ut_ad(index->table->persistent_autoinc);
   ut_ad(!index->table->is_temporary());
-  mtr_t mtr;
+  mtr_t mtr{nullptr};
   mtr.start();
   dberr_t err;
   uint64_t autoinc;
@@ -1215,7 +1215,7 @@ uint64_t btr_read_autoinc_with_fallback(const dict_table_t *table,
   ut_ad(!table->is_temporary());
 
   uint64_t autoinc= 0;
-  mtr_t mtr;
+  mtr_t mtr{nullptr};
   mtr.start();
   const dict_index_t *const first_index= dict_table_get_first_index(table);
 
@@ -1258,19 +1258,20 @@ uint64_t btr_read_autoinc_with_fallback(const dict_table_t *table,
 }
 
 /** Write the next available AUTO_INCREMENT value to PAGE_ROOT_AUTO_INC.
+@param[in,out]	trx	transaction
 @param[in,out]	index	clustered index
 @param[in]	autoinc	the AUTO_INCREMENT value
 @param[in]	reset	whether to reset the AUTO_INCREMENT
 			to a possibly smaller value than currently
 			exists in the page */
-void
-btr_write_autoinc(dict_index_t* index, ib_uint64_t autoinc, bool reset)
+void btr_write_autoinc(trx_t *trx, dict_index_t *index, uint64_t autoinc,
+                       bool reset)
 {
   ut_ad(index->is_primary());
   ut_ad(index->table->persistent_autoinc);
   ut_ad(!index->table->is_temporary());
 
-  mtr_t mtr;
+  mtr_t mtr{trx};
   mtr.start();
   fil_space_t *space= index->table->space;
   if (buf_block_t *root= buf_page_get(page_id_t(space->id, index->page),
@@ -4358,8 +4359,6 @@ btr_print_index(
 	}
 
 	mtr_commit(&mtr);
-
-	ut_ad(btr_validate_index(index, 0));
 }
 #endif /* UNIV_BTR_PRINT */
 
@@ -4704,7 +4703,7 @@ dberr_t
 btr_validate_level(
 /*===============*/
 	dict_index_t*	index,	/*!< in: index tree */
-	const trx_t*	trx,	/*!< in: transaction or NULL */
+	trx_t*		trx,	/*!< in: transaction */
 	ulint		level)	/*!< in: level number */
 {
 	buf_block_t*	block;
@@ -4717,7 +4716,7 @@ btr_validate_level(
 	rec_t*		rec;
 	page_cur_t	cursor;
 	dtuple_t*	node_ptr_tuple;
-	mtr_t		mtr;
+	mtr_t		mtr{trx};
 	mem_heap_t*	heap	= mem_heap_create(256);
 	rec_offs*	offsets	= NULL;
 	rec_offs*	offsets2= NULL;
@@ -4742,7 +4741,7 @@ btr_validate_level(
 	while (level != btr_page_get_level(page)) {
 		const rec_t*	node_ptr;
 		switch (dberr_t e =
-			fseg_page_is_allocated(space,
+			fseg_page_is_allocated(&mtr, space,
 					       block->page.id().page_no())) {
 		case DB_SUCCESS_LOCKED_REC:
 			break;
@@ -4832,7 +4831,8 @@ func_exit:
 #endif /* UNIV_ZIP_DEBUG */
 
 	if (DB_SUCCESS_LOCKED_REC
-	    != fseg_page_is_allocated(space, block->page.id().page_no())) {
+	    != fseg_page_is_allocated(&mtr, space,
+				      block->page.id().page_no())) {
 		btr_validate_report1(index, level, block);
 
 		ib::warn() << "Page is marked as free";
@@ -5135,9 +5135,9 @@ dberr_t
 btr_validate_index(
 /*===============*/
 	dict_index_t*	index,	/*!< in: index */
-	const trx_t*	trx)	/*!< in: transaction or NULL */
+	trx_t*		trx)	/*!< in: transaction */
 {
-  mtr_t mtr;
+  mtr_t mtr{trx};
   mtr.start();
 
   mtr_x_lock_index(index, &mtr);

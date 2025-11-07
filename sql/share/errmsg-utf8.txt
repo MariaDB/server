@@ -364,7 +364,7 @@ ER_CANT_GET_WD
         slo "Nemôžem zistiť pracovný adresár (chybový kód: %iE)"
         spa "No puedo obtener directorio de trabajo (Error: %iE)"
         sw "Haiwezi kupata saraka ya kufanya kazi (kosa: %iE)"
-        swe "Kan inte inte läsa aktivt bibliotek. (Felkod: %iE)"
+        swe "Kan inte läsa aktivt bibliotek. (Felkod: %iE)"
         ukr "Не можу визначити робочу теку (помилка: %iE)"
 ER_CANT_LOCK  
         chi "无法锁定文件（错误号码：%iE）"
@@ -2233,7 +2233,7 @@ ER_BLOBS_AND_NO_TERMINATED 42000 S1009
         est "BLOB-tüüpi väljade olemasolul ei saa kasutada fikseeritud väljapikkust. Vajalik 'fields terminated by' määrang"
         fre "Vous ne pouvez utiliser des lignes de longueur fixe avec des BLOBs. Utiliser 'fields terminated by'"
         ger "Eine feste Zeilenlänge kann für BLOB-Felder nicht verwendet werden. Bitte 'fields terminated by' verwenden"
-        geo "ფიქსირებულზომიანი მწკრივის სიგრძეს BLOB-თან ერთად ვერ გამოიყენებთ. გამოიყენეთ 'fieds terminated by'"
+        geo "ფიქსირებულზომიანი მწკრივის სიგრძეს BLOB-თან ერთად ვერ გამოიყენებთ. გამოიყენეთ 'fields terminated by'"
         greek "Δεν μπορείτε να χρησιμοποιήσετε fixed rowlength σε BLOBs. Παρακαλώ χρησιμοποιείστε 'fields terminated by'"
         hindi "BLOBs को निश्चित लंबाई की पंक्ति के साथ प्रयोग नहीं किया जा सकता है; 'FIELDS TERMINATED BY' का इस्तेमाल करें"
         hun "Fix hosszusagu BLOB-ok nem hasznalhatok. Hasznalja a 'mezoelvalaszto jelet' "
@@ -2379,7 +2379,7 @@ ER_WRONG_SUB_KEY
         ita "Sotto-parte della chiave errata. La parte di chiave utilizzata non e` una stringa o la lunghezza e` maggiore della parte di chiave"
         jpn "キーのプレフィックスが不正です。キーが文字列ではないか、プレフィックス長がキーよりも長いか、ストレージエンジンが一意索引のプレフィックス指定をサポートしていません。"
         kor "부정확한 서버 파트 키. 사용된 키 파트가 스트링이 아니거나 키 파트의 길이가 너무 깁니다."
-        nla "Foutief sub-gedeelte van de zoeksleutel. De gebruikte zoeksleutel is geen onderdeel van een string of of de gebruikte lengte is langer dan de zoeksleutel"
+        nla "Foutief sub-gedeelte van de zoeksleutel. De gebruikte zoeksleutel is geen onderdeel van een string of de gebruikte lengte is langer dan de zoeksleutel"
         nor "Feil delnøkkel. Den brukte delnøkkelen er ikke en streng eller den oppgitte lengde er lengre enn nøkkel lengden"
         norwegian-ny "Feil delnykkel. Den brukte delnykkelen er ikkje ein streng eller den oppgitte lengda er lengre enn nykkellengden"
         pol "Błędna podczę?ć klucza. Użyta czę?ć klucza nie jest łańcuchem lub użyta długo?ć  jest większa niż czę?ć klucza"
@@ -4737,7 +4737,7 @@ ER_FT_MATCHING_KEY_NOT_FOUND
         eng "Can't find FULLTEXT index matching the column list"
         est "Ei suutnud leida FULLTEXT indeksit, mis kattuks kasutatud tulpadega"
         fre "Impossible de trouver un index FULLTEXT correspondant à cette liste de colonnes"
-        ger "Kann keinen FULLTEXT-Index finden, der der Feldliste entspricht"
+        ger "Kann keinen FULLTEXT-Index finden, der Feldliste entspricht"
         geo "სვეტების სიის შესაბამისი FULLTEXT ინდექსი ვერ ვიპოვე"
         ita "Impossibile trovare un indice FULLTEXT che corrisponda all'elenco delle colonne"
         jpn "列リストに対応する全文索引(FULLTEXT)が見つかりません。"
@@ -7176,12 +7176,13 @@ ER_SP_CANT_SET_AUTOCOMMIT
         geo "შენახული ფუნქციიდან და ტრიგერიდან ავტოკომიტის დაყენება დაშვებული არაა"
         spa "No permitido usar auto acometida (autocommit) desde una función almacenada o disparador"
         sw "Hairuhusiwi kuweka ahadi otomatiki kutoka kwa kitendaji iliyohifadhiwa au kichochezi"
-ER_MALFORMED_DEFINER 0L000
-        chi "无效的定义"
-        eng "Invalid definer"
-        geo "არასწორი აღმწერი"
-        spa "Definidor inválido"
-        sw "Kibainisha batili"
+ER_MALFORMED_DEFINER
+        chi "指定为定义的用户（'%-.64s'@'%-.64s'）不存在"
+        eng "The user specified as a definer ('%-.64s'@'%-.64s') does not exist"
+        ger "Der als Definierer angegebene Benutzer ('%-.64s'@'%-.64s') existiert nicht"
+        geo "('%-.64s'@'%-.64s')-ის აღმწერად მითითებული მომხმარებელი არ არსებობს"
+        spa "El usuario especificado como definidor ('%-.64s'@'%-.64s') no existe"
+        sw "Mtumiaji aliyebainishwa kama kibainishaji ('%-.64s'@'%-.64s') hayupo"
 ER_VIEW_FRM_NO_USER
         chi "VIEW'%-.192s'。'%-.192s'没有绝定的信息（旧表格式）。当前用户用作定义。请重新创建视图！"
         eng "View '%-.192s'.'%-.192s' has no definer information (old table format). Current user is used as definer. Please recreate the view!"
@@ -7194,8 +7195,8 @@ ER_UNUSED_30
         sw "Hupaswi kuiona kamwe"
 ER_NO_SUCH_USER
         chi "指定为定义的用户（'%-.64s'@'%-.64s'）不存在"
-        eng "The user specified as a definer ('%-.64s'@'%-.64s') does not exist"
-        ger "Der als Definierer angegebene Benutzer ('%-.64s'@'%-.64s') existiert nicht"
+        eng "The user '%-.64s'@'%-.64s' does not exist"
+        ger "Der Benutzer '%-.64s'@'%-.64s' existiert nicht"
         geo "('%-.64s'@'%-.64s')-ის აღმწერად მითითებული მომხმარებელი არ არსებობს"
         spa "El usuario especificado como definidor ('%-.64s'@'%-.64s') no existe"
         sw "Mtumiaji aliyebainishwa kama kibainishaji ('%-.64s'@'%-.64s') hayupo"
@@ -8080,12 +8081,8 @@ ER_WRONG_PARTITION_NAME
         spa "Nombre incorrecto de partición"
         sw "Jina lisilo sahihi la kizigeu"
         swe "Felaktigt partitionsnamn"
-ER_CANT_CHANGE_TX_CHARACTERISTICS 25001
-        chi "交易正在进行，无法更改事务特性"
-        eng "Transaction characteristics can't be changed while a transaction is in progress"
-        geo "ტრანზაქციის მიმდინარეობისას მისი მახასიათებლების შეცვლა შეუძლებელია"
-        spa "No se pueden cambiar las característias de transacción mientras que una transacción se ecuentre en proceso"
-        sw "Sifa za muamala haziwezi kubadilishwa wakati shughuli inaendelea"
+ER_CANT_SET_IN_TRANSACTION 25001
+        eng "%s can't be set while a transaction is in progress"
 ER_DUP_ENTRY_AUTOINCREMENT_CASE
         chi "ALTER TABLE表会导致AUTO_INCREMENT重建，导致重复的条目'%-.192sT'用于索引'%-.192s'"
         eng "ALTER TABLE causes auto_increment resequencing, resulting in duplicate entry '%-.192sT' for key '%-.192s'"
@@ -8445,11 +8442,11 @@ WARN_NO_MASTER_INFO
         spa "No existe conexión maestra '%.*s'"
         sw "Hakuna muunganisho mkuu '%.*s'"
 WARN_OPTION_IGNORED
-        eng "<%-.64s> option ignored"
-        ger "Option <%-.64s> ignoriert"
-        geo "პარამეტრი <%-.64s> იგნორირებულია"
-        spa "Opción <%-.64s> ignorada"
-        sw "<%-.64s> chaguo limepuuzwa"
+        eng "%s option ignored"
+        ger "Option %s ignoriert"
+        geo "პარამეტრი %s იგნორირებულია"
+        spa "Opción %s ignorada"
+        sw "%s chaguo limepuuzwa"
 ER_PLUGIN_DELETE_BUILTIN
         chi "内置插件无法删除"
         eng "Built-in plugins cannot be deleted"
@@ -10105,11 +10102,11 @@ ER_SLAVE_RLI_INIT_REPOSITORY
         sw "Mtumwa alishindwa kuanzisha muundo wa habari ya relay wa logi kutoka kwa hazina"
 
 ER_ACCESS_DENIED_CHANGE_USER_ERROR 28000 
-        bgn "Отказан достъп при опит за смяна към потребител %-.48s'@'%-.64s' (използвана парола: %s). Затваряне на връзката"
-        chi "访问拒绝尝试更改为用户'%-.48s'@'%-.64s'（使用密码：%s）。断开连接"
-        eng "Access denied trying to change to user '%-.48s'@'%-.64s' (using password: %s). Disconnecting"
-        spa "Acceso denegado intentando cambiar a usuario '%-.48s'@'%-.64s' (usando contraseña: %s). Desconectando"
-        sw "Ufikiaji umekataliwa kujaribu kubadilisha hadi mtumiaji '%-.48s'@'%-.64s' (kwa kutumia nenosiri: %s). Inatenganisha"
+        bgn "Отказан достъп при опит за смяна към потребител %-.48s'@'%-.64s'"
+        chi "访问拒绝尝试更改为用户'%-.48s'@'%-.64s'"
+        eng "Access denied trying to change to user '%-.48s'@'%-.64s'"
+        spa "Acceso denegado intentando cambiar a usuario '%-.48s'@'%-.64s'"
+        sw "Ufikiaji umekataliwa kujaribu kubadilisha hadi mtumiaji '%-.48s'@'%-.64s'"
 
 ER_INNODB_READ_ONLY
         chi "innodb是只读模式"
@@ -10594,10 +10591,10 @@ ER_WARN_AGGFUNC_DEPENDENCE
         sw "Jumla ya kukokotoa '%-.192s)' ya SELECT #%d ni ya SELECT #%d"
         ukr "Агрегатна функція '%-.192s)' з SELECTу #%d належить до SELECTу #%d"
 WARN_INNODB_PARTITION_OPTION_IGNORED
-        chi "<%-.64s> innodb分区忽略的选项"
-        eng "<%-.64s> option ignored for InnoDB partition"
-        spa "<%-.64s> opción ignorada para partición InnoDB"
-        sw "<%-.64s> chaguo limepuuzwa kwa kizigeu cha InnoDB"
+        chi "%s innodb分区忽略的选项"
+        eng "%s option ignored for InnoDB partition"
+        spa "%s opción ignorada para partición InnoDB"
+        sw " %s chaguo limepuuzwa kwa kizigeu cha InnoDB"
 
 #
 # Internal errors, not used
@@ -12266,8 +12263,6 @@ ER_JSON_SCHEMA_KEYWORD_UNSUPPORTED
         sw "%s neno kuu halitumiki"
 ER_JSON_NO_VARIABLE_SCHEMA
         eng "Variable schema is not supported."
-ER_PSEUDO_THREAD_ID_OVERWRITE
-        eng "Pseudo thread id should not be modified by the client as it will be overwritten"
 ER_SEQUENCE_TABLE_HAS_WRONG_NUMBER_OF_COLUMNS
         eng "Wrong number of columns"
 ER_SEQUENCE_TABLE_CANNOT_HAVE_ANY_KEYS
@@ -12277,7 +12272,7 @@ ER_SEQUENCE_TABLE_CANNOT_HAVE_ANY_CONSTRAINTS
 ER_SEQUENCE_TABLE_ORDER_BY
         eng "ORDER BY"
 ER_VARIABLE_IGNORED
-        eng "The variable '%s' is ignored. It only exists for compatibility with old installations and will be removed in a future release"
+        eng "The setting '%s' is ignored. It only exists for compatibility with old installations and will be removed in a future release"
 ER_INCORRECT_COLUMN_NAME_COUNT
         eng "Incorrect column name count for derived table"
         chi "派生表的列名计数不正确"
@@ -12290,6 +12285,8 @@ ER_VECTOR_BINARY_FORMAT_INVALID
         eng "Invalid binary vector format. Must use IEEE standard float representation in little-endian format. Use VEC_FromText() to generate it."
 ER_VECTOR_FORMAT_INVALID
         eng "Invalid vector format at offset: %d for '%-.100s'. Must be a valid JSON array of numbers."
+ER_PSEUDO_THREAD_ID_OVERWRITE
+        eng "Pseudo thread id should not be modified by the client as it will be overwritten"
 ER_VEC_DISTANCE_TYPE
         eng "Cannot determine distance type for VEC_DISTANCE, index is not found"
 WARN_INDEX_HINTS_IGNORED
@@ -12297,3 +12294,71 @@ WARN_INDEX_HINTS_IGNORED
         ukr "Підказки по використанню индексів ігноруются тому що вони несумісні з RETURNING"
 ER_SIGNAL_SKIP_ROW_FROM_TRIGGER
         eng "The row is skipped by a trigger implementation"
+ER_TEMPORARY_TABLES_PREVENT_SWITCH_GTID_DOMAIN_ID
+	eng "Cannot modify @@session.gtid_domain_id while there are open temporary tables being binlogged"
+ER_TOO_MANY_OPEN_CURSORS
+        eng "Too many open cursors; max %u cursors allowed"
+ER_INCOMPATIBLE_EVENT_FLAG
+        eng "Event flag '%s' in the condition expression is not compatible with the trigger event type '%s'"
+ER_NOT_IMPLEMENTED_FOR_GEOGRAPHIC_SRS
+        eng "%s has not been implemented for geographic spatial reference systems."
+ER_LONGITUDE_OUT_OF_RANGE
+        eng "Longitude %f is out of range in function %s. It must be within (-180.000000, 180.000000]."
+ER_LATITUDE_OUT_OF_RANGE
+        eng "Latitude %f is out of range in function %s. It must be within [-90.000000, 90.000000]."
+ER_GIS_DIFFERENT_SRIDS_AGGREGATION
+        eng "Arguments to function %s contains geometries with different SRIDs: %d and %d. All geometries must have the same SRID."
+ER_SEQUENCE_TABLE_HAS_TOO_FEW_ROWS
+        eng "Fewer than one row in the table"
+ER_SEQUENCE_TABLE_HAS_TOO_MANY_ROWS
+        eng "More than one row in the table"
+ER_WARN_OPTIMIZER_HINT_SYNTAX_ERROR
+        eng "Optimizer hint syntax error"
+ER_WARN_CONFLICTING_HINT
+        eng "Hint %s is ignored as conflicting/duplicated"
+ER_WARN_UNKNOWN_QB_NAME
+        eng "Query block name %s is not found for %s hint"
+ER_UNRESOLVED_TABLE_HINT_NAME
+        eng "Unresolved table name %s for %s hint"
+ER_UNRESOLVED_INDEX_HINT_NAME
+        eng "Unresolved index name %s for %s hint"
+ER_HINTS_INSIDE_VIEWS_NOT_SUPPORTED
+        eng "Optimizer hints are not supported inside view definitions"
+ER_WARN_MALFORMED_HINT
+        eng "Hint %s is ignored as malformed"
+ER_WARN_HINTS_ON_INSERT_PART_OF_INSERT_SELECT
+        eng "Optimizer hints at the INSERT part of a INSERT..SELECT statement are not supported"
+ER_INIT_SLAVE_ERROR
+        eng "Slave SQL thread aborted. Can't execute init_slave query due to error code %u: %s"
+ER_ACTIVE_CONNECTIONS_FOR_USER_TO_DROP
+        eng "Dropped users %s have active connections. Use KILL CONNECTION if they should not be used anymore."
+ER_ASSOC_ARRAY_ELEM_NOT_FOUND
+        eng "Element not found with key '%s'"
+ER_NULL_FOR_ASSOC_ARRAY_INDEX
+        eng "NULL key used for associative array '%s'"
+ER_NEED_NAMED_ASSOCIATION
+        eng "Initializing %s requires named association"
+ER_INVALID_USE_OF_ORA_JOIN
+        eng "Invalid usage of (+) operator"
+ER_INVALID_USE_OF_ORA_JOIN_CYCLE
+        eng "Invalid usage of (+) operator: cycle dependencies"
+ER_INVALID_USE_OF_ORA_JOIN_OUTER_REF
+        eng "Invalid usage of (+) operator with outer reference %s"
+ER_INVALID_USE_OF_ORA_JOIN_ONE_TABLE
+        eng "Invalid usage of (+) operator: both tables %s and %s are of %s type in the relation"
+ER_INVALID_USE_OF_ORA_JOIN_WRONG_FUNC
+        eng "Invalid usage of (+) operator: used in OR, IN or ROW operation"
+ER_INVALID_USE_OF_ORA_JOIN_MIX
+        eng "Invalid usage of (+) operator: mixed with other type of join"
+WARN_ORA_JOIN_IGNORED
+        eng "Oracle outer join operator (+) ignored in '%-.100s'"
+ER_WARN_CONFLICTING_INDEX_HINT_FOR_TABLE
+        eng "Hint %s is ignored as conflicting/duplicated (an index hint of the same type has already been specified for this table)"
+ER_WARN_CONFLICTING_INDEX_HINT_FOR_KEY
+        eng "Hint %s is ignored as conflicting/duplicated (an index hint of the same type has already been specified for this key)"
+ER_WARN_CONFLICTING_COMPOUND_INDEX_HINT_FOR_TABLE
+        eng "Hint %s is ignored as conflicting/duplicated (an index hint of the same type or opposite kind has already been specified for this table)"
+ER_WARN_CONFLICTING_COMPOUND_INDEX_HINT_FOR_KEY
+        eng "Hint %s is ignored as conflicting/duplicated (an index hint of the same type or opposite kind has already been specified for the key)"
+ER_WARN_NO_IMPLICIT_QB_NAMES_IN_VIEW
+	eng "Implicit query block names are ignored for hints specified within VIEWs"

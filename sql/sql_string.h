@@ -278,7 +278,7 @@ public:
   }
   /*
     NOTE: If one intend to use the c_ptr() method, the following two
-    contructors need the size of memory for STR to be at least LEN+1 (to make
+    constructors need the size of memory for STR to be at least LEN+1 (to make
     room for zero termination).
   */
   Binary_string(const char *str, size_t len)
@@ -332,37 +332,6 @@ public:
            !memcmp(ptr(), other->ptr(), length());
   }
 
-  /*
-    PMG 2004.11.12
-    This is a method that works the same as perl's "chop". It simply
-    drops the last character of a string. This is useful in the case
-    of the federated storage handler where I'm building a unknown
-    number, list of values and fields to be used in a sql insert
-    statement to be run on the remote server, and have a comma after each.
-    When the list is complete, I "chop" off the trailing comma
-
-    ex.
-      String stringobj;
-      stringobj.append("VALUES ('foo', 'fi', 'fo',");
-      stringobj.chop();
-      stringobj.append(")");
-
-    In this case, the value of string was:
-
-    VALUES ('foo', 'fi', 'fo',
-    VALUES ('foo', 'fi', 'fo'
-    VALUES ('foo', 'fi', 'fo')
-  */
-  inline void chop()
-  {
-    if (str_length)
-    {
-      str_length--;
-      Ptr[str_length]= '\0';
-      DBUG_ASSERT(strlen(Ptr) == str_length);
-    }
-  }
-
   // Returns offset to substring or -1
   int strstr(const Binary_string &search, uint32 offset=0) const;
   int strstr(const char *search, uint32 search_length, uint32 offset=0) const;
@@ -391,6 +360,12 @@ public:
     ASSERT_LENGTH(4);
     int4store(Ptr + str_length, n);
     str_length += 4;
+  }
+  void q_append_int64(const longlong n)
+  {
+    ASSERT_LENGTH(8);
+    int8store(Ptr + str_length, n);
+    str_length += 8;
   }
   void q_append(double d)
   {
@@ -475,11 +450,17 @@ public:
     str_length+= (uint32) (end-buff);
   }
 
+  void qs_append_int64(longlong i);
+
   /* Mark variable thread specific it it's not allocated already */
   inline void set_thread_specific()
   {
     if (!alloced)
       thread_specific= 1;
+  }
+  bool get_thread_specific() const
+  {
+    return thread_specific;
   }
   bool is_alloced() const { return alloced; }
   inline uint32 alloced_length() const { return Alloced_length;}
@@ -686,14 +667,14 @@ public:
     if (unlikely(!Ptr))
       return (char*) "";
     /*
-      Here we assume that any buffer used to initalize String has
+      Here we assume that any buffer used to initialize String has
       an end \0 or have at least an accessable character at end.
       This is to handle the case of String("Hello",5) and
       String("hello",5) efficiently.
 
       We have two options here. To test for !Alloced_length or !alloced.
       Using "Alloced_length" is slightly safer so that we do not read
-      from potentially unintialized memory (normally not dangerous but
+      from potentially uninitialized memory (normally not dangerous but
       may give warnings in valgrind), but "alloced" is safer as there
       are less change to get memory loss from code that is using
       String((char*), length) or String.set((char*), length) and does
@@ -713,7 +694,7 @@ public:
   }
   /*
     One should use c_ptr() instead for most cases. This will be deleted soon,
-    kept for compatiblity.
+    kept for compatibility.
   */
   inline char *c_ptr_quick()
   {
@@ -723,7 +704,7 @@ public:
     This is to be used only in the case when one cannot use c_ptr().
     The cases are:
     - When one initializes String with an external buffer and length and
-      buffer[length] could be uninitalized when c_ptr() is called.
+      buffer[length] could be uninitialized when c_ptr() is called.
     - When valgrind gives warnings about uninitialized memory with c_ptr().
   */
   inline char *c_ptr_safe()
@@ -857,7 +838,7 @@ public:
   { }
   /*
     NOTE: If one intend to use the c_ptr() method, the following two
-    contructors need the size of memory for STR to be at least LEN+1 (to make
+    constructors need the size of memory for STR to be at least LEN+1 (to make
     room for zero termination).
   */
   String(const char *str, size_t len, CHARSET_INFO *cs)
@@ -867,6 +848,8 @@ public:
    :Charset(cs), Binary_string(str, len)
   { }
   String(const String &str) = default;
+  String(String &&str) noexcept
+   :Charset(std::move(str)), Binary_string(std::move(str)){}
 
   void set(String &str,size_t offset,size_t arg_length)
   {
@@ -1015,10 +998,9 @@ public:
   {
     return Binary_string::append(s);
   }
-
   inline bool append(char chr)
   {
-    return Binary_string::append_char(chr);
+    return append(&chr, 1);
   }
   bool append_hex(const char *src, uint32 srclen)
   {
@@ -1132,6 +1114,15 @@ public:
     if (flags && append(')'))
       return true;
     return false;
+  }
+
+  inline void chop()
+  {
+    if (str_length)
+    {
+      str_length--;
+      str_length= well_formed_length();
+    }
   }
 
   void strip_sp();

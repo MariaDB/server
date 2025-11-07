@@ -428,15 +428,13 @@ void sys_var::do_deprecated_warning(THD *thd)
 {
   if (option.deprecation_substitute != NULL)
   {
-    char buf1[NAME_CHAR_LEN + 3];
-    strxnmov(buf1, sizeof(buf1)-1, "@@", name.str, 0);
-
     if (option.comment == UNUSED_HELP ||
         strcmp(option.comment, UNUSED_HELP) == 0)
-      my_error(ER_VARIABLE_IGNORED, MYF(ME_WARNING), buf1);
+      my_error(ER_VARIABLE_IGNORED, MYF(ME_WARNING), name.str);
     else
     {
-      char buf2[NAME_CHAR_LEN + 3];
+      char buf1[NAME_CHAR_LEN + 3], buf2[NAME_CHAR_LEN + 3];
+      strxnmov(buf1, sizeof(buf1)-1, "@@", name.str, 0);
       if (!IS_DEPRECATED_NO_REPLACEMENT(option.deprecation_substitute))
         strxnmov(buf2, sizeof(buf2)-1, "@@", option.deprecation_substitute, 0);
       else
@@ -860,7 +858,7 @@ int set_var::light_check(THD *thd)
   @returns 0|1    ok or ERROR
 
   @note ERROR can be only due to abnormal operations involving
-  the server's execution evironment such as
+  the server's execution environment such as
   out of memory, hard disk failure or the computer blows up.
   Consider set_var::check() method if there is a need to return
   an error due to logics.
@@ -967,6 +965,39 @@ int set_var_password::update(THD *thd)
   thd->m_reprepare_observer= 0;
   int res= change_password(thd, user);
   thd->m_reprepare_observer= save_reprepare_observer;
+  return res;
+#else
+  return 0;
+#endif
+}
+
+/*****************************************************************************
+  Functions to handle SET SESSION AUTHORIZATION
+*****************************************************************************/
+
+int set_var_authorization::check(THD *thd)
+{
+  /*
+    SET SESSION AUTHORIZATION cannot be combined with other variables,
+    so most of the checks are only done in update.
+  */
+  if (!thd->stmt_arena->is_conventional())
+    my_error(ER_UNSUPPORTED_PS, MYF(0));
+  else
+  if (thd->in_active_multi_stmt_transaction())
+    my_error(ER_CANT_SET_IN_TRANSACTION, MYF(0), "SESSION AUTHORIZATION");
+  else
+    return 0;
+
+  return 1;
+}
+
+int set_var_authorization::update(THD *thd)
+{
+#ifndef NO_EMBEDDED_ACCESS_CHECKS
+  int res= acl_setauthorization(thd, user);
+  if (!res)
+    thd->session_tracker.state_change.mark_as_changed(thd);
   return res;
 #else
   return 0;
@@ -1232,9 +1263,21 @@ int fill_sysvars(THD *thd, TABLE_LIST *tables, COND *cond)
       strbuf.length(0);
       for (i=0; i < tl->count; i++)
       {
-        const char *name= tl->type_names[i];
-        strbuf.append(name, strlen(name));
-        strbuf.append(',');
+        bool show= TRUE;
+        if (tl->hidden_values)
+        {
+          for (uint j= 0; tl->hidden_values[j] >= 0; j++)
+          {
+            if (tl->hidden_values[j] == (int)i)
+              show= FALSE;
+          }
+        }
+        if (show)
+        {
+          const char *name= tl->type_names[i];
+          strbuf.append(name, strlen(name));
+          strbuf.append(',');
+        }
       }
       if (!strbuf.is_empty())
         strbuf.chop();

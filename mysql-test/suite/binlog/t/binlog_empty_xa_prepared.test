@@ -3,6 +3,42 @@
 
 --source include/have_binlog_format_mixed.inc
 --source include/have_innodb.inc
+--source include/count_sessions.inc
+
+RESET MASTER; # clear binlogs
+# MDEV-22420 DDL on temporary object is prohibited when XA is in prepare state
+
+# Temporary sequence may not be created within a transaction
+CREATE TEMPORARY SEQUENCE seq_1;
+
+XA START '3';
+CREATE TEMPORARY TABLE tmp_1(c INT);
+XA END '3';
+XA PREPARE '3';
+--error ER_XAER_RMFAIL
+DROP TEMPORARY TABLE tmp_1;
+--error ER_XAER_RMFAIL
+ALTER TABLE tmp_1 DROP COLUMN c;
+--error ER_XAER_RMFAIL
+DROP TEMPORARY SEQUENCE seq_1;
+--error ER_XAER_RMFAIL
+ALTER SEQUENCE seq_1 INCREMENT BY 1;
+
+--error ER_XAER_RMFAIL
+CREATE TEMPORARY TABLE tmp_2(c INT);
+--error ER_XAER_RMFAIL
+CREATE TEMPORARY SEQUENCE seq_2;
+
+# Cleanup
+XA ROLLBACK '3';
+
+DROP SEQUENCE seq_1;
+DROP TABLE tmp_1;
+
+--echo # Proof of  correct logging incl empty XA-PREPARE
+--source include/show_binlog_events.inc
+
+SET @@binlog_format="statement";
 
 RESET MASTER; # clear binlogs
 # MDEV-22420 DDL on temporary object is prohibited when XA is in prepare state
@@ -30,6 +66,8 @@ CREATE TEMPORARY SEQUENCE seq_2;
 
 # Cleanup
 XA ROLLBACK '3';
+
+SET @@binlog_format="mixed";
 
 --echo # Proof of  correct logging incl empty XA-PREPARE
 --source include/show_binlog_events.inc
@@ -89,7 +127,6 @@ DROP TABLE t1;
 CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=InnoDB;
 INSERT INTO t1 VALUES (1);
 
---source include/count_sessions.inc
 --connect(con1,localhost,root,,)
 
 XA START '1';
@@ -110,8 +147,6 @@ XA COMMIT '1';
 --echo Must be no XA PREPARE group nor XA completion one:
 --source include/show_binlog_events.inc
 DROP TABLE t1;
-
---source include/count_sessions.inc
 
 --connect(con2,localhost,root,,)
 CREATE TABLE tm (a INT PRIMARY KEY) ENGINE=MyISAM;

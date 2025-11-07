@@ -62,7 +62,7 @@ SET GLOBAL debug_dbug="+d,rpl_parallel_delay_gtid_0_x_100_start";
 SET GLOBAL debug_dbug="+d,rpl_write_record_small_sleep_gtid_100_200";
 
 # Small delay after T2's wait on the X lock, to give time for T1 retry to
-# re-aquire the T1 S lock first.
+# re-acquire the T1 S lock first.
 SET GLOBAL debug_dbug="+d,small_sleep_after_lock_wait";
 
 # Delay deadlock kill of T2.

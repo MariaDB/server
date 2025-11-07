@@ -15,6 +15,7 @@ lib/systemd/system/mariadb@.socket
 lib/systemd/system/mysql.service
 lib/systemd/system/mysqld.service
 support-files/rpm/enable_encryption.preset etc/mysql/mariadb.conf.d/99-enable-encryption.cnf.preset
+usr/lib/tmpfiles.d/mariadb.conf
 usr/bin/aria_chk
 usr/bin/aria_dump_log
 usr/bin/aria_ftdump
@@ -36,6 +37,7 @@ usr/bin/wsrep_sst_mysqldump
 usr/bin/wsrep_sst_rsync
 usr/bin/wsrep_sst_rsync_wan
 usr/lib/mysql/plugin/auth_ed25519.so
+usr/lib/mysql/plugin/auth_mysql_sha2.so
 usr/lib/mysql/plugin/auth_pam.so
 usr/lib/mysql/plugin/auth_pam_tool_dir/auth_pam_tool
 usr/lib/mysql/plugin/auth_pam_v1.so

@@ -41,6 +41,84 @@ static int cmp_rqp_locations(const void *a_, const void *b_)
 }
 
 
+/**
+  Traverse the list of Item_param instances created on the fist parsing of
+  SP instruction's statement and put them back into sp_inst_lex->free list
+  for releasing them on deallocating statement's resources to avoid
+  memory leaks.
+*/
+
+void
+sp_lex_instr::put_back_item_params(THD *thd, LEX *lex,
+                                   const List<Item_param>& param_values)
+{
+  /*
+    Instance of Item_param must be ignored on re-parsing a statement
+    of failed SP instruction, therefore lex->param_list must be empty.
+    Instance of the class Item_param created on first (initial) parsing of
+    Prepared Statement is used for whole its life.
+  */
+  DBUG_ASSERT(lex->param_list.is_empty());
+
+  for (auto it= param_values.begin();
+       it != param_values.end(); ++it)
+  {
+    /*
+      Put retained instances of Item_param back into sp_lex_inst::free_list
+      to avoid leaking them. Original ordering of Item_param objects
+      are preserved since param_values contains items in reverse order.
+    */
+    Item_param *param_for_adding_to_free_list= it.operator->();
+
+    Item *prev_head= free_list;
+    free_list= param_for_adding_to_free_list;
+    param_for_adding_to_free_list->next= prev_head;
+  }
+}
+
+
+static constexpr LEX_CSTRING cursor_str= {C_STRING_WITH_LEN("cursor")};
+
+/*
+  Print the instruction name with an array variable element:
+  @param str [OUT]     The destination string
+  @param cmd           The instruction name
+  @param rcontext_name The name of the array rcontext
+  @param array_name    The array name
+  @param index_offest  The offset of the index variable.
+
+  Example: "cclose SESSION.cursor[c@1]"
+  - cclose is the command name
+  - SESSION is the name of the cursor rcontext
+  - c@1 is the index variable name and offset
+*/
+void sp_instr::print_cmd_and_array_element(String *str,
+                                           const LEX_CSTRING &cmd,
+                                           const LEX_CSTRING &rcontext_name,
+                                           const LEX_CSTRING &array_name,
+                                           uint index_offset) const
+{
+  const sp_variable *pv= m_ctx->find_variable(index_offset);
+  size_t rsrv= cmd.length + 1/*space*/ +
+               rcontext_name.length +
+               array_name.length + 2/*[]*/ +
+               (pv ? pv->name.length + 1/*@*/ + SP_INSTR_UINT_MAXLEN : 0);
+  if (str->reserve(rsrv))
+    return;
+  str->qs_append(cmd.str, cmd.length);
+  str->qs_append(' ');
+  if (pv)
+  {
+    str->qs_append(&rcontext_name);
+    str->qs_append(&array_name);
+    str->qs_append('[');
+    str->qs_append(&pv->name);
+    str->qs_append('@');
+    str->qs_append(pv->offset);
+    str->qs_append(']');
+  }
+}
+
 /*
   StoredRoutinesBinlogging
   This paragraph applies only to statement-based binlogging. Row-based
@@ -104,7 +182,7 @@ static int cmp_rqp_locations(const void *a_, const void *b_)
   2) We need to empty thd->user_var_events after we have wrote a function
      call. This is currently done by making
      reset_dynamic(&thd->user_var_events);
-     calls in several different places. (TODO cosider moving this into
+     calls in several different places. (TODO consider moving this into
      mysql_bin_log.write() function)
 
   4.2 Auto_increment storage in binlog
@@ -198,6 +276,25 @@ subst_spvars(THD *thd, sp_instr *instr, LEX_STRING *query_str)
   DBUG_RETURN(false);
 }
 
+
+#ifndef DBUG_OFF
+/*
+  Check if all rewrittable query params in an instruction are fixed.
+  They can be fixed e.g. if append_for_log() already happened.
+*/
+bool dbug_rqp_are_fixed(sp_instr *instr)
+{
+  for (Item *item= instr->free_list; item; item= item->next)
+  {
+    Rewritable_query_parameter *rqp= item->get_rewritable_query_parameter();
+    if (rqp && rqp->pos_in_query && !item->fixed())
+      return false;
+  }
+  return true;
+}
+#endif
+
+
 /**
   Prepare LEX and thread for execution of instruction, if requested open
   and lock LEX's tables, execute instruction's core function, perform
@@ -244,7 +341,14 @@ sp_lex_keeper::reset_lex_and_exec_core(THD *thd, uint *nextp,
   thd->transaction->stmt.m_unsafe_rollback_flags= 0;
 
   DBUG_ASSERT(!thd->derived_tables);
-  DBUG_ASSERT(thd->Item_change_list::is_empty());
+  /*
+    Item*::append_for_log() called from subst_spvars (which already happened
+    at this point) can create new Items in some cases. For example:
+      INSERT INTO t1 VALUES
+       (assoc_array(spvar_latin1 || CONVERT(' ' USING ucs2)));
+    wraps CONVERT into Item_func_conv_charset.
+  */
+  DBUG_ASSERT(dbug_rqp_are_fixed(instr) || thd->Item_change_list::is_empty());
   /*
     Use our own lex.
     We should not save old value since it is saved/restored in
@@ -555,6 +659,24 @@ int sp_lex_keeper::cursor_reset_lex_and_exec_core(THD *thd, uint *nextp,
   sp_instr class functions
 */
 
+void sp_instr::print_fetch_into(String *str, List<sp_fetch_target> varlist)
+{
+  List_iterator_fast<sp_fetch_target> li(varlist);
+  sp_fetch_target *pv;
+  while ((pv= li++))
+  {
+    const LEX_CSTRING *prefix= pv->rcontext_handler()->get_name_prefix();
+    if (str->reserve(pv->name.length + prefix->length + SP_INSTR_UINT_MAXLEN+2))
+      return;
+    str->qs_append(' ');
+    str->qs_append(prefix);
+    str->qs_append(&pv->name);
+    str->qs_append('@');
+    str->qs_append(pv->offset());
+  }
+}
+
+
 int sp_instr::exec_open_and_lock_tables(THD *thd, TABLE_LIST *tables)
 {
   int result;
@@ -609,14 +731,30 @@ void sp_lex_instr::get_query(String *sql_query) const
 }
 
 
-void sp_lex_instr::cleanup_before_parsing(enum_sp_type sp_type)
+List<Item_param>
+sp_lex_instr::cleanup_before_parsing(enum_sp_type sp_type)
 {
   Item *current= free_list;
+  List<Item_param> param_values{};
 
   while (current)
   {
     Item *next= current->next;
-    current->delete_self();
+
+    if (current->is_stored_routine_parameter())
+      /*
+        `current` points to an instance of the class Item_param.
+        Place an instance of the class Item_param into the list `param_values`
+        and skip the item in free_list (don't invoke the method delete_self()
+        on it). Since the `free_list` stores items in reverse order of creation
+        (that is the last created item is the one pointed by the `free_list`),
+        place items in the list `param_values` using push_front to save
+        original ordering of items
+      */
+      param_values.push_front((Item_param*)current);
+    else
+      current->delete_self();
+
     current= next;
   }
 
@@ -629,6 +767,8 @@ void sp_lex_instr::cleanup_before_parsing(enum_sp_type sp_type)
       dangling references.
     */
     m_cur_trigger_stmt_items.empty();
+
+  return param_values;
 }
 
 
@@ -679,11 +819,16 @@ bool sp_lex_instr::setup_table_fields_for_trigger(
   re-parsing.
 
   @param sphead  The stored program.
+  @param[out] new_memroot_allocated  true in case a new memory root for
+                                     re-parsing was created, else false meaning
+                                     that already allocated memory root is
+                                     reused
 
   @return false on success, true on error (OOM)
 */
 
-bool sp_lex_instr::setup_memroot_for_reparsing(sp_head *sphead)
+bool sp_lex_instr::setup_memroot_for_reparsing(sp_head *sphead,
+                                               bool *new_memroot_allocated)
 {
   if (!m_mem_root_for_reparsing)
   {
@@ -728,6 +873,8 @@ bool sp_lex_instr::setup_memroot_for_reparsing(sp_head *sphead)
 
     if (!m_mem_root_for_reparsing)
       return true;
+
+    *new_memroot_allocated= true;
   }
   else
   {
@@ -738,6 +885,7 @@ bool sp_lex_instr::setup_memroot_for_reparsing(sp_head *sphead)
       statement.
     */
     free_root(m_mem_root_for_reparsing, MYF(0));
+    *new_memroot_allocated= false;
   }
 
   init_sql_alloc(key_memory_sp_head_main_root, m_mem_root_for_reparsing,
@@ -779,10 +927,13 @@ LEX* sp_lex_instr::parse_expr(THD *thd, sp_head *sp, LEX *sp_instr_lex)
       m_cur_trigger_stmt_items.first->next_trig_field_list;
 
   /*
-    Clean up items owned by this SP instruction.
+    Clean up items owned by this SP instruction except instances of Item_param.
+    `sp_statement_param_values` stores instances of the class Item_param
+    associated with the SP instruction's statement before the statement
+    has been re-parsed.
   */
-  cleanup_before_parsing(sp->m_handler->type());
-
+  List<Item_param> sp_statement_param_values=
+    cleanup_before_parsing(sp->m_handler->type());
   DBUG_ASSERT(mem_root != thd->mem_root);
   /*
     Back up the current free_list pointer and reset it to nullptr.
@@ -804,7 +955,8 @@ LEX* sp_lex_instr::parse_expr(THD *thd, sp_head *sp, LEX *sp_instr_lex)
   /*
     First, set up a men_root for the statement is going to re-compile.
   */
-  if (setup_memroot_for_reparsing(sp))
+  bool mem_root_allocated;
+  if (setup_memroot_for_reparsing(sp, &mem_root_allocated))
     return nullptr;
 
   /*
@@ -820,10 +972,17 @@ LEX* sp_lex_instr::parse_expr(THD *thd, sp_head *sp, LEX *sp_instr_lex)
   if (parser_state.init(thd, sql_query.c_ptr(), sql_query.length()))
     return nullptr;
 
+  /*
+    Direct the parser to handle the '?' symbol in special way, that is as
+    a positional parameter inside a prepared statement.
+  */
+  parser_state.m_lip.stmt_prepare_mode= true;
+
   // Create a new LEX and initialize it.
 
   LEX *lex_saved= thd->lex;
   Item **cursor_free_list= nullptr;
+  st_lex_local *lex_local= nullptr;
 
   /*
     sp_instr_lex != nullptr for cursor relating SP instructions (sp_instr_cpush,
@@ -831,7 +990,11 @@ LEX* sp_lex_instr::parse_expr(THD *thd, sp_head *sp, LEX *sp_instr_lex)
   */
   if (sp_instr_lex == nullptr)
   {
-    thd->lex= new (thd->mem_root) st_lex_local;
+    lex_local= new (thd->mem_root) st_lex_local;
+    thd->lex= lex_local;
+
+    lex_local->sp_statement_param_values= std::move(sp_statement_param_values);
+    lex_local->param_values_it= lex_local->sp_statement_param_values.begin();
     lex_start(thd);
     if (sp->m_handler->type() == SP_TYPE_TRIGGER)
     {
@@ -842,7 +1005,7 @@ LEX* sp_lex_instr::parse_expr(THD *thd, sp_head *sp, LEX *sp_instr_lex)
       */
       thd->lex->trg_chistics.action_time=
         thd->spcont->m_sp->m_trg->action_time;
-      thd->lex->trg_chistics.event= thd->spcont->m_sp->m_trg->event;
+      thd->lex->trg_chistics.events= thd->spcont->m_sp->m_trg->events;
     }
   }
   else
@@ -859,9 +1022,30 @@ LEX* sp_lex_instr::parse_expr(THD *thd, sp_head *sp, LEX *sp_instr_lex)
       data member. So, for the sp_instr_cpush instruction by the time we reach
       this block cursor_lex->free_list is already empty.
     */
-    cleanup_items(cursor_lex->free_list);
+    if (mem_root_allocated)
+      /*
+        If the new memory root for re-parsing has been just created,
+        then delete every item from the free item list of sp_lex_cursor.
+        In case the memory root for re-parsing is re-used from previous
+        re-parsing of failed instruction, don't do anything since all memory
+        allocated for items were already released on calling free_root
+        inside the method sp_lex_instr::setup_memroot_for_reparsing
+      */
+      cursor_lex->free_items();
+
+    /* Nullify free_list to don't have a dangling pointer */
+    cursor_lex->free_list= nullptr;
+
     cursor_free_list= &cursor_lex->free_list;
+    cursor_lex->mem_root= m_mem_root_for_reparsing;
     DBUG_ASSERT(thd->lex == sp_instr_lex);
+    /*
+      Adjust mem_root of the cursor's Query_arena to point the just created
+      memory root allocated for re-parsing, else we would have the pointer to
+      sp_head's memory_root that has already been marked as read_only after
+      the first successful execution of the stored routine.
+    */
+    cursor_lex->query_arena()->mem_root= m_mem_root_for_reparsing;
     lex_start(thd);
   }
 
@@ -886,7 +1070,17 @@ LEX* sp_lex_instr::parse_expr(THD *thd, sp_head *sp, LEX *sp_instr_lex)
   const char *m_tmp_query_bak= sp->m_tmp_query;
   sp->m_tmp_query= sql_query.c_ptr();
 
+  /*
+    Hint the parser that re-parsing of a failed SP instruction is in progress
+    and instances of the class Item_param associated with SP instruction
+    should be handled carefully (re-used on re-parsing the instruction's
+    statement).
+    @sa param_push_or_clone
+    @sa LEX::add_placeholder
+  */
+  thd->reparsing_sp_stmt= true;
   bool parsing_failed= parse_sql(thd, &parser_state, nullptr);
+  thd->reparsing_sp_stmt= false;
 
   sp->m_tmp_query= m_tmp_query_bak;
   thd->m_digest= parent_digest;
@@ -909,11 +1103,16 @@ LEX* sp_lex_instr::parse_expr(THD *thd, sp_head *sp, LEX *sp_instr_lex)
       */
       *cursor_free_list= thd->free_list;
     else
+    {
       /*
         Assign the list of items created on re-parsing the statement to
         the current stored routine's instruction.
       */
       free_list= thd->free_list;
+
+      put_back_item_params(thd, thd->lex,
+                           lex_local->sp_statement_param_values);
+    }
 
     thd->free_list= nullptr;
   }
@@ -1223,13 +1422,25 @@ sp_instr_set_row_field::print(String *str)
 
 
 /*
-  sp_instr_set_field_by_name class functions
+  sp_instr_set_composite_field_by_name class functions
 */
 
 int
-sp_instr_set_row_field_by_name::exec_core(THD *thd, uint *nextp)
+sp_instr_set_composite_field_by_name::exec_core(THD *thd, uint *nextp)
 {
-  int res= get_rcontext(thd)->set_variable_row_field_by_name(thd, m_offset,
+  StringBuffer<64> buffer;
+  if (m_key)
+  {
+    auto var= get_rcontext(thd)->get_variable(m_offset);
+    auto handler= var->type_handler()->to_composite();
+    DBUG_ASSERT(handler);
+
+    m_field_name= handler->key_to_lex_cstring(thd, *this, &m_key, &buffer);
+    if (!m_field_name.str)
+      return true;
+  }
+
+  int res= get_rcontext(thd)->set_variable_composite_by_name(thd, m_offset,
                                                              m_field_name,
                                                              &m_value);
   *nextp= m_ip + 1;
@@ -1238,30 +1449,95 @@ sp_instr_set_row_field_by_name::exec_core(THD *thd, uint *nextp)
 
 
 void
-sp_instr_set_row_field_by_name::print(String *str)
+sp_instr_set_composite_field_by_name::print(String *str)
 {
   /* set name.field@offset["field"] ... */
-  size_t rsrv= SP_INSTR_UINT_MAXLEN + 6 + 6 + 3 + 2;
+  /* set name.field["key"] ... */
   sp_variable *var= m_ctx->find_variable(m_offset);
   const LEX_CSTRING *prefix= m_rcontext_handler->get_name_prefix();
   DBUG_ASSERT(var);
-  DBUG_ASSERT(var->field_def.is_table_rowtype_ref() ||
-              var->field_def.is_cursor_rowtype_ref());
+  DBUG_ASSERT(dynamic_cast<const Type_handler_composite*>(var->type_handler()));
 
-  rsrv+= var->name.length + 2 * m_field_name.length + prefix->length;
-  if (str->reserve(rsrv))
-    return;
-  str->qs_append(STRING_WITH_LEN("set "));
-  str->qs_append(prefix);
-  str->qs_append(&var->name);
-  str->qs_append('.');
-  str->qs_append(&m_field_name);
-  str->qs_append('@');
-  str->qs_append(m_offset);
-  str->qs_append("[\"",2);
-  str->qs_append(&m_field_name);
-  str->qs_append("\"]",2);
-  str->qs_append(' ');
+  str->append(STRING_WITH_LEN("set "));
+  str->append(prefix);
+  str->append(&var->name);
+
+  if (!m_key)
+  {
+    str->append('.');
+    str->append(&m_field_name);
+  }
+
+  str->append('@');
+  str->append_ulonglong(m_offset);
+
+  if (!m_key)
+  {
+    str->append(STRING_WITH_LEN("[\""));
+    str->append(&m_field_name);
+    str->append(STRING_WITH_LEN("\"]"));
+  }
+  else
+  {
+    str->append('[');
+    m_key->print(str, enum_query_type(QT_ORDINARY |
+                                      QT_ITEM_ORIGINAL_FUNC_NULLIF));
+    str->append(']');
+  }
+
+  str->append(' ');
+  m_value->print(str, enum_query_type(QT_ORDINARY |
+                                      QT_ITEM_ORIGINAL_FUNC_NULLIF));
+}
+
+
+/*
+  sp_instr_set_composite_field_by_key class functions
+*/
+
+int
+sp_instr_set_composite_field_by_key::exec_core(THD *thd, uint *nextp)
+{
+  auto var= get_rcontext(thd)->get_variable(m_offset);
+  auto handler= var->type_handler()->to_composite();
+  DBUG_ASSERT(handler);
+
+  StringBuffer<64> buffer;
+  const LEX_CSTRING key= handler->key_to_lex_cstring(thd, *this, &m_key,
+                                                     &buffer);
+  if (!key.str)
+    return true;
+
+  int res= get_rcontext(thd)->set_variable_composite_field_by_key(thd,
+                                                                  m_offset,
+                                                                  key,
+                                                                  m_field_name,
+                                                                  &m_value);
+  *nextp= m_ip + 1;
+  return res;
+}
+
+
+void
+sp_instr_set_composite_field_by_key::print(String *str)
+{
+  sp_variable *var= m_ctx->find_variable(m_offset);
+  const LEX_CSTRING *prefix= m_rcontext_handler->get_name_prefix();
+  DBUG_ASSERT(var);
+  DBUG_ASSERT(dynamic_cast<const Type_handler_composite*>(var->type_handler()));
+
+  str->append(STRING_WITH_LEN("set "));
+  str->append(prefix);
+  str->append(&var->name);
+  str->append('@');
+  str->append_ulonglong(m_offset);
+  str->append('[');
+  m_key->print(str, enum_query_type(QT_ORDINARY |
+                                    QT_ITEM_ORIGINAL_FUNC_NULLIF));
+  str->append(']');
+  str->append('.');
+  str->append(&m_field_name);
+  str->append(' ');
   m_value->print(str, enum_query_type(QT_ORDINARY |
                                       QT_ITEM_ORIGINAL_FUNC_NULLIF));
 }
@@ -1396,6 +1672,44 @@ bool sp_instr_set_trigger_field::on_after_expr_parsing(THD *thd)
 
 
 /*
+  sp_instr_destruct_variable class
+*/
+PSI_statement_info sp_instr_destruct_variable::psi_info=
+{0, "destruct", 0};
+
+
+void sp_instr_destruct_variable::print(String *str)
+{
+  const LEX_CSTRING instr_name= {STRING_WITH_LEN("destruct")};
+  const sp_variable *spv= m_ctx->find_variable(m_offset);
+  const LEX_CSTRING data_type= spv->type_handler()->name().lex_cstring();
+  /* destruct datatype name@offset */
+  size_t rsrv= instr_name.length + 1 +
+               data_type.length + 1 +
+               spv->name.length + 1 +
+               SP_INSTR_UINT_MAXLEN;
+  if (str->reserve(rsrv))
+    return;
+  str->qs_append(&instr_name);
+  str->qs_append(' ');
+  str->qs_append(&data_type);
+  str->qs_append(' ');
+  str->qs_append(&spv->name);
+  str->qs_append('@');
+  str->qs_append(spv->offset);
+}
+
+
+int sp_instr_destruct_variable::execute(THD *thd, uint *nextp)
+{
+  *nextp= m_ip + 1;
+  thd->spcont->get_variable(m_offset)->
+    field->expr_event_handler(thd, expr_event_t::DESTRUCT_OUT_OF_SCOPE);
+  return 0;
+}
+
+
+/*
   sp_instr_jump_if_not class functions
 */
 
@@ -1418,7 +1732,7 @@ sp_instr_jump_if_not::exec_core(THD *thd, uint *nextp)
   int res;
 
   it= thd->sp_prepare_func_item(&m_expr, 1);
-  if (! it)
+  if (! it || it->check_type_can_return_bool({STRING_WITH_LEN("IF")}))
   {
     res= -1;
   }
@@ -1854,13 +2168,13 @@ PSI_statement_info sp_instr_copen::psi_info=
 int
 sp_instr_copen::execute(THD *thd, uint *nextp)
 {
+  DBUG_ENTER("sp_instr_copen::execute");
   /*
     We don't store a pointer to the cursor in the instruction to be
     able to reuse the same instruction among different threads in future.
   */
   sp_cursor *c= thd->spcont->get_cursor(m_cursor);
   int res;
-  DBUG_ENTER("sp_instr_copen::execute");
 
   if (! c)
     res= -1;
@@ -1982,7 +2296,6 @@ sp_instr_cfetch::execute(THD *thd, uint *nextp)
 {
   sp_cursor *c= thd->spcont->get_cursor(m_cursor);
   int res;
-  Query_arena backup_arena;
   DBUG_ENTER("sp_instr_cfetch::execute");
 
   res= c ? c->fetch(thd, &m_fetch_target_list, m_error_on_no_data) : -1;
@@ -1995,8 +2308,6 @@ sp_instr_cfetch::execute(THD *thd, uint *nextp)
 void
 sp_instr_cfetch::print(String *str)
 {
-  List_iterator_fast<sp_fetch_target> li(m_fetch_target_list);
-  sp_fetch_target *pv;
   const LEX_CSTRING *cursor_name= m_ctx->find_cursor(m_cursor);
 
   /* cfetch name@offset vars... */
@@ -2013,17 +2324,7 @@ sp_instr_cfetch::print(String *str)
     str->qs_append('@');
   }
   str->qs_append(m_cursor);
-  while ((pv= li++))
-  {
-    const LEX_CSTRING *prefix= pv->rcontext_handler()->get_name_prefix();
-    if (str->reserve(pv->name.length+prefix->length+SP_INSTR_UINT_MAXLEN+2))
-      return;
-    str->qs_append(' ');
-    str->qs_append(prefix);
-    str->qs_append(&pv->name);
-    str->qs_append('@');
-    str->qs_append(pv->offset());
-  }
+  print_fetch_into(str, m_fetch_target_list);
 }
 
 /*
@@ -2159,6 +2460,149 @@ sp_instr_cursor_copy_struct::print(String *str)
   str->append(&var->name);
   str->append('@');
   str->append_ulonglong(m_var);
+}
+
+
+/*
+  sp_instr_copen_by_ref class functions.
+  Handles the "OPEN sys_ref_cyrsor FOR stmt" statement.
+*/
+
+PSI_statement_info sp_instr_copen_by_ref::psi_info=
+{ 0, "copen_by_ref", 0};
+
+
+int
+sp_instr_copen_by_ref::execute(THD *thd, uint *nextp)
+{
+  DBUG_ENTER("sp_instr_copen_by_ref::execute");
+  m_lex_keeper.disable_query_cache();
+  int res= m_lex_keeper.cursor_reset_lex_and_exec_core(thd, nextp, false, this);
+  *nextp= m_ip + 1;
+  DBUG_RETURN(res);
+}
+
+
+int sp_instr_copen_by_ref::exec_core(THD *thd, uint *nextp)
+{
+  DBUG_ENTER("sp_instr_copen_by_ref::exec_core");
+  sp_cursor *cursor;
+  if (thd->open_cursors_counter() < thd->variables.max_open_cursors)
+  {
+    // The limit allows to open new cursors
+    if (!(cursor= m_deref_rcontext_handler->get_cursor_by_ref(thd,
+                                                              *this, true)))
+      DBUG_RETURN(-1); // EOM
+    /*
+      The sp_rcontext_addr part of "this" points to an initialized sp_cursor.
+      It can be a newly added cursor, or an old one (closed or open).
+      Two consequent OPEN (without a CLOSE in between) are allowed
+      for SYS_REFCURSORs (unlike for static CURSORs).
+      Close the first cursor automatically if it's open, e.g.:
+        OPEN c FOR SELECT 1;
+        OPEN c FOR SELECT 2; -- this closes "c" and opens it for the new query
+    */
+    cursor->reset_for_reopen(thd);
+    DBUG_ASSERT(thd->lex == m_lex_keeper.lex());
+    // TODO: check with DmitryS if hiding ROOT_FLAG_READ_ONLY is OK:
+    auto flags_backup= thd->lex->query_arena()->mem_root->flags;
+    thd->lex->query_arena()->mem_root->flags&= ~ROOT_FLAG_READ_ONLY;
+    int rc= cursor->open(thd);
+    thd->lex->query_arena()->mem_root->flags= flags_backup;
+    DBUG_RETURN(rc);
+  }
+
+  /*
+    The limit does not allow to create new open cursors.
+    Only an existing cursor pointed by the sp_rcontext_addr part of
+    "this" can be reused, and it must be open.
+  */
+  if (!(cursor= m_deref_rcontext_handler->get_cursor_by_ref(thd,
+                                                            *this, false)) ||
+      !cursor->is_open())
+  {
+    /*
+      - The SYS_REFCURSOR variable pointed by the sp_rcontext_addr
+        part of "this" is not linked to any session cursors.
+      - Or it is linked, but the referenced session cursor is not open.
+    */
+    my_error(ER_TOO_MANY_OPEN_CURSORS, MYF(0),
+             thd->variables.max_open_cursors);
+    DBUG_RETURN(-1);
+  }
+  cursor->reset_for_reopen(thd);
+  DBUG_RETURN(cursor->open(thd, false/*don't check max_open_cursors*/));
+}
+
+
+void
+sp_instr_copen_by_ref::print(String *str)
+{
+  static constexpr LEX_CSTRING instr{STRING_WITH_LEN("copen")};
+  print_cmd_and_array_element(str, instr,
+                              m_deref_rcontext_handler->get_name_prefix()[0],
+                              cursor_str, m_offset);
+}
+
+
+/*
+  sp_instr_cclose_by_ref class functions
+*/
+
+PSI_statement_info sp_instr_cclose_by_ref::psi_info
+{ 0, "cclose_by_ref", 0};
+
+int
+sp_instr_cclose_by_ref::execute(THD *thd, uint *nextp)
+{
+  DBUG_ENTER("sp_instr_cclose_by_ref::execute");
+  sp_cursor *cursor= Sp_rcontext_handler::get_open_cursor_or_error(thd, *this);
+  if (!cursor)
+    DBUG_RETURN(-1);
+  int res= cursor->close(thd);
+  *nextp= m_ip + 1;
+  DBUG_RETURN(res);
+}
+
+
+void
+sp_instr_cclose_by_ref::print(String *str)
+{
+  static constexpr LEX_CSTRING instr{STRING_WITH_LEN("cclose")};
+  print_cmd_and_array_element(str, instr,
+                              m_deref_rcontext_handler->get_name_prefix()[0],
+                              cursor_str, m_offset);
+}
+
+
+/*
+  sp_instr_cfetch_by_ref class functions
+*/
+
+PSI_statement_info sp_instr_cfetch_by_ref::psi_info=
+{ 0, "cfetch_by_ref", 0};
+
+int
+sp_instr_cfetch_by_ref::execute(THD *thd, uint *nextp)
+{
+  DBUG_ENTER("sp_instr_cfetch_by_ref::execute");
+  sp_cursor *cursor= Sp_rcontext_handler::get_open_cursor_or_error(thd, *this);
+  if (!cursor)
+    DBUG_RETURN(-1);
+  int res= cursor->fetch(thd, &m_fetch_target_list, m_error_on_no_data);
+  *nextp= m_ip + 1;
+  DBUG_RETURN(res);
+}
+
+
+void
+sp_instr_cfetch_by_ref::print(String *str)
+{
+  static constexpr LEX_CSTRING instr= LEX_CSTRING{STRING_WITH_LEN("cfetch")};
+  print_cmd_and_array_element(str, instr,
+                              m_deref_rcontext_handler->get_name_prefix()[0],
+                              cursor_str, m_offset);
+  print_fetch_into(str, m_fetch_target_list);
 }
 
 

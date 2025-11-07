@@ -114,7 +114,11 @@ static struct logger_service_st logger_service_handler= {
   logger_vprintf,
   logger_printf,
   logger_write,
-  logger_rotate
+  logger_rotate,
+  logger_sync,
+  logger_resize_buffer,
+  logger_set_filesize_limit,
+  logger_set_rotations
 };
 
 static struct thd_autoinc_service_st thd_autoinc_handler= {
@@ -159,6 +163,7 @@ static struct wsrep_service_st wsrep_handler = {
   wsrep_thd_ignore_table,
   wsrep_thd_trx_seqno,
   wsrep_thd_is_aborting,
+  wsrep_thd_in_rollback,
   wsrep_set_data_home_dir,
   wsrep_thd_is_BF,
   wsrep_thd_is_local,
@@ -210,7 +215,8 @@ static struct my_crypt_service_st crypt_handler=
   my_aes_crypt,
   my_aes_get_size,
   my_aes_ctx_size,
-  my_random_bytes
+  my_random_bytes,
+  my_bytes_to_key,
 };
 
 static struct my_print_error_service_st my_print_error_handler=

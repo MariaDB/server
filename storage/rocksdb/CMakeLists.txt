@@ -33,6 +33,11 @@ IF(HAVE_SCHED_GETCPU)
   ADD_DEFINITIONS(-DHAVE_SCHED_GETCPU=1 -DROCKSDB_SCHED_GETCPU_PRESENT)
 ENDIF()
 
+CHECK_FUNCTION_EXISTS(getauxval  HAVE_AUXV_GETAUXVAL)
+IF(HAVE_AUXV_GETAUXVAL)
+  ADD_DEFINITIONS(-DROCKSDB_AUXV_GETAUXVAL_PRESENT)
+ENDIF()
+
 IF(WITH_VALGRIND)
   ADD_DEFINITIONS(-DROCKSDB_VALGRIND_RUN=1)
 ENDIF()
@@ -63,15 +68,6 @@ IF (WIN32 AND CMAKE_SIZEOF_VOID_P EQUAL 4)
 ENDIF()
 IF(MSVC_ARM64)
  SKIP_ROCKSDB_PLUGIN("Windows ARM64 not supported")
-ENDIF()
-
-#
-# Also, disable on ARM64 when not Linux
-# Requires submodule update to v6.16.3
-# containing commit https://github.com/facebook/rocksdb/commit/ee4bd4780b321ddb5f92a0f4eb956f2a2ebd60dc
-#
-IF(CMAKE_SYSTEM_PROCESSOR MATCHES "(arm64|aarch64)" AND NOT CMAKE_SYSTEM_NAME STREQUAL "Linux")
-  SKIP_ROCKSDB_PLUGIN("ARM64 disabled on all except Linux")
 ENDIF()
 
 # This plugin needs recent C++ compilers (it is using C++11 features)

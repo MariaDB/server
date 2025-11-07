@@ -464,7 +464,7 @@ are used to register file deletion operations*/
 				      src_file, src_line)		\
 do {									\
 	locker = PSI_FILE_CALL(get_thread_file_name_locker)(		\
-		state, key, op, name, &locker);				\
+		state, key, op, name, nullptr);				\
 	if (locker != NULL) {						\
 		PSI_FILE_CALL(start_file_open_wait)(			\
 			locker, src_file, src_line);			\
@@ -1015,6 +1015,8 @@ size_t os_aio_pending_reads() noexcept;
 size_t os_aio_pending_reads_approx() noexcept;
 /** @return number of pending writes */
 size_t os_aio_pending_writes() noexcept;
+/** @return approximate number of pending writes */
+size_t os_aio_pending_writes_approx() noexcept;
 
 /** Wait until there are no pending asynchronous writes.
 @param declare  whether the wait will be declared in tpool */

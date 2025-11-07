@@ -39,9 +39,6 @@ set system_versioning_asof= DEFAULT;
 --echo # DELETE HISTORY and privileges
 --echo #
 
-# Save the initial number of concurrent sessions
---source include/count_sessions.inc
-
 connect (root,localhost,root,,test);
 connection root;
 
@@ -73,9 +70,9 @@ connection root;
 grant all on *.* to mysqltest_1@localhost;
 show grants for mysqltest_1@localhost;
 
+--disconnect user1
 drop user mysqltest_1@localhost;
 drop database mysqltest;
---disconnect user1
 --disconnect root
 --connection default
 

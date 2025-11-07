@@ -35,7 +35,7 @@ SOFTWARE.
   implementation for now.
 */
 #define DEFAULT_IMPLEMENTATION
-#if __GNUC__ > 7
+#if __GNUC__ > 7 && defined(__GLIBC__)
 #ifdef __x86_64__
 #ifdef HAVE_IMMINTRIN_H
 #include <immintrin.h>
@@ -52,6 +52,10 @@ SOFTWARE.
 #undef DEFAULT_IMPLEMENTATION
 #define NEON_IMPLEMENTATION
 #endif
+#endif
+#if defined __powerpc64__ && defined __VSX__
+#include <altivec.h>
+#define POWER_IMPLEMENTATION
 #endif
 
 template <typename T>

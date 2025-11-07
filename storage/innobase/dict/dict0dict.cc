@@ -25,6 +25,7 @@ Data dictionary system
 Created 1/8/1996 Heikki Tuuri
 ***********************************************************************/
 
+#define MYSQL_SERVER
 #include <my_config.h>
 #include <string>
 
@@ -38,12 +39,12 @@ Created 1/8/1996 Heikki Tuuri
 #include <algorithm>
 #include "sql_class.h"
 #include "sql_table.h"
-#include <mysql/service_thd_mdl.h>
 
 #include "btr0btr.h"
 #include "btr0cur.h"
 #include "btr0sea.h"
 #include "buf0buf.h"
+#include "buf0flu.h"
 #include "data0type.h"
 #include "dict0boot.h"
 #include "dict0load.h"
@@ -105,9 +106,6 @@ ulong	zip_pad_max = 50;
 					hash table fixed size in bytes */
 #define DICT_POOL_PER_VARYING	4	/*!< buffer pool max size per data
 					dictionary varying size in bytes */
-
-/** Identifies generated InnoDB foreign key names */
-static char	dict_ibfk[] = "_ibfk_";
 
 /*******************************************************************//**
 Tries to find column names for the index and sets the col field of the
@@ -517,10 +515,8 @@ dict_index_get_nth_field_pos(
 
 void mdl_release(THD *thd, MDL_ticket *mdl) noexcept
 {
-  if (!thd || !mdl);
-  else if (MDL_context *mdl_context= static_cast<MDL_context*>
-           (thd_mdl_context(thd)))
-    mdl_context->release_lock(mdl);
+  if (thd && mdl)
+    thd->mdl_context.release_lock(mdl);
 }
 
 /** Parse the table file name into table name and database name.
@@ -631,32 +627,28 @@ dict_acquire_mdl_shared(dict_table_t *table,
                         MDL_context *mdl_context, MDL_ticket **mdl,
                         dict_table_op_t table_op)
 {
-  table_id_t table_id= table->id;
   char db_buf[NAME_LEN + 1], db_buf1[NAME_LEN + 1];
   char tbl_buf[NAME_LEN + 1], tbl_buf1[NAME_LEN + 1];
   size_t db_len, tbl_len;
-  bool unaccessible= false;
 
   if (!table->parse_name<!trylock>(db_buf, tbl_buf, &db_len, &tbl_len))
     /* The name of an intermediate table starts with #sql */
     return table;
 
 retry:
-  if (!unaccessible && (!table->is_readable() || table->corrupted))
+  ut_ad(!trylock == dict_sys.frozen());
+
+  if (!table->is_readable() || table->corrupted)
   {
     if (*mdl)
     {
       mdl_context->release_lock(*mdl);
       *mdl= nullptr;
     }
-    unaccessible= true;
+    return nullptr;
   }
 
-  if (!trylock)
-    table->release();
-
-  if (unaccessible)
-    return nullptr;
+  const table_id_t table_id{table->id};
 
   if (!trylock)
     dict_sys.unfreeze();
@@ -685,11 +677,38 @@ retry:
     }
   }
 
+  size_t db1_len, tbl1_len;
+lookup:
   dict_sys.freeze(SRW_LOCK_CALL);
   table= dict_sys.find_table(table_id);
   if (table)
-    table->acquire();
-  if (!table && table_op != DICT_TABLE_OP_OPEN_ONLY_IF_CACHED)
+  {
+    if (!table->is_accessible())
+    {
+      table= nullptr;
+    unlock_and_return_without_mdl:
+      if (trylock)
+        dict_sys.unfreeze();
+    return_without_mdl:
+      if (*mdl)
+      {
+        mdl_context->release_lock(*mdl);
+        *mdl= nullptr;
+      }
+      return table;
+    }
+
+    if (trylock)
+      table->acquire();
+
+    if (!table->parse_name<true>(db_buf1, tbl_buf1, &db1_len, &tbl1_len))
+    {
+      /* The table was renamed to #sql prefix.
+      Release MDL (if any) for the old name and return. */
+      goto unlock_and_return_without_mdl;
+    }
+  }
+  else if (table_op != DICT_TABLE_OP_OPEN_ONLY_IF_CACHED)
   {
     dict_sys.unfreeze();
     dict_sys.lock(SRW_LOCK_CALL);
@@ -697,33 +716,19 @@ retry:
                                  table_op == DICT_TABLE_OP_LOAD_TABLESPACE
                                  ? DICT_ERR_IGNORE_RECOVER_LOCK
                                  : DICT_ERR_IGNORE_FK_NOKEY);
-    if (table)
-      table->acquire();
     dict_sys.unlock();
-    dict_sys.freeze(SRW_LOCK_CALL);
-  }
-
-  if (!table || !table->is_accessible())
-  {
-return_without_mdl:
-    if (trylock)
-      dict_sys.unfreeze();
-    if (*mdl)
-    {
-      mdl_context->release_lock(*mdl);
-      *mdl= nullptr;
-    }
-    return nullptr;
-  }
-
-  size_t db1_len, tbl1_len;
-
-  if (!table->parse_name<true>(db_buf1, tbl_buf1, &db1_len, &tbl1_len))
-  {
-    /* The table was renamed to #sql prefix.
-    Release MDL (if any) for the old name and return. */
+    /* At this point, the freshly loaded table may already have been evicted.
+    We must look it up again while holding a shared dict_sys.latch.  We keep
+    trying this until the table is found in the cache or it cannot be found
+    in the dictionary (because the table has been dropped or rebuilt). */
+    if (table)
+      goto lookup;
+    if (!trylock)
+      dict_sys.freeze(SRW_LOCK_CALL);
     goto return_without_mdl;
   }
+  else
+    goto return_without_mdl;
 
   if (*mdl)
   {
@@ -771,7 +776,6 @@ dict_acquire_mdl_shared(dict_table_t *table,
   if (!table || !mdl)
     return table;
 
-  MDL_context *mdl_context= static_cast<MDL_context*>(thd_mdl_context(thd));
   size_t db_len;
 
   if (trylock)
@@ -789,9 +793,7 @@ dict_acquire_mdl_shared(dict_table_t *table,
   if (db_len == 0)
     return table; /* InnoDB system tables are not covered by MDL */
 
-  return mdl_context
-    ? dict_acquire_mdl_shared<trylock>(table, mdl_context, mdl, table_op)
-    : nullptr;
+  return dict_acquire_mdl_shared<trylock>(table, &thd->mdl_context, mdl, table_op);
 }
 
 template dict_table_t* dict_acquire_mdl_shared<false>
@@ -810,6 +812,7 @@ dict_table_t *dict_table_open_on_id(table_id_t table_id, bool dict_locked,
                                     dict_table_op_t table_op, THD *thd,
                                     MDL_ticket **mdl)
 {
+retry:
   if (!dict_locked)
     dict_sys.freeze(SRW_LOCK_CALL);
 
@@ -817,9 +820,21 @@ dict_table_t *dict_table_open_on_id(table_id_t table_id, bool dict_locked,
 
   if (table)
   {
-    table->acquire();
-    if (thd && !dict_locked)
-      table= dict_acquire_mdl_shared<false>(table, thd, mdl, table_op);
+    if (!dict_locked)
+    {
+      if (thd)
+      {
+        table= dict_acquire_mdl_shared<false>(table, thd, mdl, table_op);
+        if (table)
+          goto acquire;
+      }
+      else
+      acquire:
+        table->acquire();
+      dict_sys.unfreeze();
+    }
+    else
+      table->acquire();
   }
   else if (table_op != DICT_TABLE_OP_OPEN_ONLY_IF_CACHED)
   {
@@ -832,22 +847,16 @@ dict_table_t *dict_table_open_on_id(table_id_t table_id, bool dict_locked,
                                  table_op == DICT_TABLE_OP_LOAD_TABLESPACE
                                  ? DICT_ERR_IGNORE_RECOVER_LOCK
                                  : DICT_ERR_IGNORE_FK_NOKEY);
-    if (table)
-      table->acquire();
     if (!dict_locked)
     {
       dict_sys.unlock();
-      if (table && thd)
-      {
-        dict_sys.freeze(SRW_LOCK_CALL);
-        table= dict_acquire_mdl_shared<false>(table, thd, mdl, table_op);
-        dict_sys.unfreeze();
-      }
-      return table;
+      if (table)
+        goto retry;
     }
+    else if (table)
+      table->acquire();
   }
-
-  if (!dict_locked)
+  else if (!dict_locked)
     dict_sys.unfreeze();
 
   return table;
@@ -912,7 +921,7 @@ void dict_sys_t::create() noexcept
   UT_LIST_INIT(table_LRU, &dict_table_t::table_LRU);
   UT_LIST_INIT(table_non_LRU, &dict_table_t::table_LRU);
 
-  const ulint hash_size = buf_pool_get_curr_size()
+  const ulint hash_size = buf_pool.curr_pool_size()
     / (DICT_POOL_PER_TABLE_HASH * UNIV_WORD_SIZE);
 
   table_hash.create(hash_size);
@@ -949,7 +958,10 @@ void dict_sys_t::lock_wait(SRW_LOCK_ARGS(const char *file, unsigned line)) noexc
   const ulong threshold= srv_fatal_semaphore_wait_threshold;
 
   if (waited >= threshold)
+  {
+    buf_pool.print_flush_info();
     ib::fatal() << fatal_msg;
+  }
 
   if (waited > threshold / 4)
     ib::warn() << "A long wait (" << waited
@@ -1066,6 +1078,53 @@ dict_table_open_on_name(
   DBUG_RETURN(table);
 }
 
+bool dict_stats::open(THD *thd) noexcept
+{
+  ut_ad(!mdl_table);
+  ut_ad(!mdl_index);
+  ut_ad(!table_stats);
+  ut_ad(!index_stats);
+  ut_ad(!mdl_context);
+
+  mdl_context= &thd->mdl_context;
+  /* FIXME: use compatible type, and maybe remove this parameter altogether! */
+  const double timeout= double(global_system_variables.lock_wait_timeout);
+  MDL_request request;
+  MDL_REQUEST_INIT(&request, MDL_key::TABLE, "mysql", "innodb_table_stats",
+                   MDL_SHARED, MDL_EXPLICIT);
+  if (UNIV_UNLIKELY(mdl_context->acquire_lock(&request, timeout)))
+    return true;
+  mdl_table= request.ticket;
+  MDL_REQUEST_INIT(&request, MDL_key::TABLE, "mysql", "innodb_index_stats",
+                   MDL_SHARED, MDL_EXPLICIT);
+  if (UNIV_UNLIKELY(mdl_context->acquire_lock(&request, timeout)))
+    goto release_mdl;
+  mdl_index= request.ticket;
+  table_stats= dict_table_open_on_name("mysql/innodb_table_stats", false,
+                                       DICT_ERR_IGNORE_NONE);
+  if (!table_stats)
+    goto release_mdl;
+  index_stats= dict_table_open_on_name("mysql/innodb_index_stats", false,
+                                       DICT_ERR_IGNORE_NONE);
+  if (index_stats)
+    return false;
+
+  table_stats->release();
+release_mdl:
+  if (mdl_index)
+    mdl_context->release_lock(mdl_index);
+  mdl_context->release_lock(mdl_table);
+  return true;
+}
+
+void dict_stats::close() noexcept
+{
+  table_stats->release();
+  index_stats->release();
+  mdl_context->release_lock(mdl_table);
+  mdl_context->release_lock(mdl_index);
+}
+
 /**********************************************************************//**
 Adds system columns to a table object. */
 void
@@ -1146,7 +1205,6 @@ inline void dict_sys_t::add(dict_table_t *table) noexcept
 /** Test whether a table can be evicted from dict_sys.table_LRU.
 @param table   table to be considered for eviction
 @return whether the table can be evicted */
-TRANSACTIONAL_TARGET
 static bool dict_table_can_be_evicted(dict_table_t *table)
 {
 	ut_ad(dict_sys.locked());
@@ -1421,26 +1479,6 @@ dict_table_t::rename_tablespace(span<const char> new_name, bool replace) const
   return err;
 }
 
-/**********************************************************************
-Converts an identifier from my_charset_filename to UTF-8 charset.
-@return result string length, as returned by strconvert() */
-static
-uint
-innobase_convert_to_filename_charset(
-/*=================================*/
-	char*		to,	/* out: converted identifier */
-	const char*	from,	/* in: identifier to convert */
-	ulint		len)	/* in: length of 'to', in bytes */
-{
-	uint		errors;
-	CHARSET_INFO*	cs_to = &my_charset_filename;
-	CHARSET_INFO*	cs_from = system_charset_info;
-
-	return(static_cast<uint>(strconvert(
-				cs_from, from, uint(strlen(from)),
-				cs_to, to, static_cast<uint>(len), &errors)));
-}
-
 /**********************************************************************//**
 Renames a table object.
 @return TRUE if success */
@@ -1580,150 +1618,17 @@ dict_table_rename_in_cache(
 			foreign->heap, table->name.m_name);
 		foreign->foreign_table_name_lookup_set();
 
-		if (strchr(foreign->id, '/')) {
-			/* This is a >= 4.0.18 format id */
-
-			ulint	db_len;
-			char*	old_id;
-			char    old_name_cs_filename[MAX_FULL_NAME_LEN+1];
-			uint    errors = 0;
-
-			/* All table names are internally stored in charset
-			my_charset_filename (except the temp tables and the
-			partition identifier suffix in partition tables). The
-			foreign key constraint names are internally stored
-			in UTF-8 charset.  The variable fkid here is used
-			to store foreign key constraint name in charset
-			my_charset_filename for comparison further below. */
-			char    fkid[MAX_TABLE_NAME_LEN * 2 + 20];
-
-			/* The old table name in my_charset_filename is stored
-			in old_name_cs_filename */
-
-			strcpy(old_name_cs_filename, old_name);
-			old_name_cs_filename[MAX_FULL_NAME_LEN] = '\0';
-			if (!dict_table_t::is_temporary_name(old_name)) {
-				innobase_convert_to_system_charset(
-					strchr(old_name_cs_filename, '/') + 1,
-					strchr(old_name, '/') + 1,
-					MAX_TABLE_NAME_LEN, &errors);
-
-				if (errors) {
-					/* There has been an error to convert
-					old table into UTF-8.  This probably
-					means that the old table name is
-					actually in UTF-8. */
-					innobase_convert_to_filename_charset(
-						strchr(old_name_cs_filename,
-						       '/') + 1,
-						strchr(old_name, '/') + 1,
-						MAX_TABLE_NAME_LEN);
-				} else {
-					/* Old name already in
-					my_charset_filename */
-					strcpy(old_name_cs_filename, old_name);
-					old_name_cs_filename[MAX_FULL_NAME_LEN]
-						= '\0';
-				}
-			}
-
-			strncpy(fkid, foreign->id, (sizeof fkid) - 1);
-			fkid[(sizeof fkid) - 1] = '\0';
-
-			const bool on_tmp = dict_table_t::is_temporary_name(
-				fkid);
-
-			if (!on_tmp) {
-				innobase_convert_to_filename_charset(
-					strchr(fkid, '/') + 1,
-					strchr(foreign->id, '/') + 1,
-					MAX_TABLE_NAME_LEN+20);
-			}
-
-			old_id = mem_strdup(foreign->id);
-
-			if (strlen(fkid) > strlen(old_name_cs_filename)
-			    + ((sizeof dict_ibfk) - 1)
-			    && !memcmp(fkid, old_name_cs_filename,
-				       strlen(old_name_cs_filename))
-			    && !memcmp(fkid + strlen(old_name_cs_filename),
-				       dict_ibfk, (sizeof dict_ibfk) - 1)) {
-
-				/* This is a generated >= 4.0.18 format id */
-
-				char	table_name[MAX_TABLE_NAME_LEN + 1];
-				uint	errors = 0;
-
-				if (strlen(table->name.m_name)
-				    > strlen(old_name)) {
-					foreign->id = static_cast<char*>(
-						mem_heap_alloc(
-						foreign->heap,
-						strlen(table->name.m_name)
-						+ strlen(old_id) + 1));
-				}
-
-				/* Convert the table name to UTF-8 */
-				strncpy(table_name, table->name.m_name,
-					MAX_TABLE_NAME_LEN);
-				table_name[MAX_TABLE_NAME_LEN] = '\0';
-				innobase_convert_to_system_charset(
-					strchr(table_name, '/') + 1,
-					strchr(table->name.m_name, '/') + 1,
-					MAX_TABLE_NAME_LEN, &errors);
-
-				if (errors) {
-					/* Table name could not be converted
-					from charset my_charset_filename to
-					UTF-8. This means that the table name
-					is already in UTF-8 (#mysql50#). */
-					strncpy(table_name, table->name.m_name,
-						MAX_TABLE_NAME_LEN);
-					table_name[MAX_TABLE_NAME_LEN] = '\0';
-				}
-
-				/* Replace the prefix 'databasename/tablename'
-				with the new names */
-				strcpy(foreign->id, table_name);
-				if (on_tmp) {
-					strcat(foreign->id,
-					       old_id + strlen(old_name));
-				} else {
-					sprintf(strchr(foreign->id, '/') + 1,
-						"%s%s",
-						strchr(table_name, '/') +1,
-						strstr(old_id, "_ibfk_") );
-				}
-
-			} else {
-				/* This is a >= 4.0.18 format id where the user
-				gave the id name */
-				db_len = dict_get_db_name_len(
-					table->name.m_name) + 1;
-
-				if (db_len - 1
-				    > dict_get_db_name_len(foreign->id)) {
-
-					foreign->id = static_cast<char*>(
-						mem_heap_alloc(
-						foreign->heap,
-						db_len + strlen(old_id) + 1));
-				}
-
-				/* Replace the database prefix in id with the
-				one from table->name */
-
-				memcpy(foreign->id,
-				       table->name.m_name, db_len);
-
-				strcpy(foreign->id + db_len,
-				       dict_remove_db_name(old_id));
-			}
-
-			ut_free(old_id);
+		const char* sql_id = foreign->sql_id();
+		size_t fklen = snprintf(nullptr, 0, "%s\377%s",
+					table->name.m_name, sql_id);
+		char* id = foreign->id;
+		if (fklen++ > strlen(id)) {
+			id = static_cast<char*>(
+				mem_heap_alloc(foreign->heap, fklen));
 		}
-
 		table->foreign_set.erase(it);
+		foreign->id = id;
+		snprintf(id, fklen, "%s\377%s", table->name.m_name, sql_id);
 		fk_set.insert(foreign);
 
 		if (foreign->referenced_table) {
@@ -1992,7 +1897,6 @@ dict_index_add_to_cache(
 
 /**********************************************************************//**
 Removes an index from the dictionary cache. */
-TRANSACTIONAL_TARGET
 static
 void
 dict_index_remove_from_cache_low(
@@ -3235,69 +3139,6 @@ end_of_string:
 	}
 }
 
-/*********************************************************************//**
-Finds the highest [number] for foreign key constraints of the table. Looks
-only at the >= 4.0.18-format id's, which are of the form
-databasename/tablename_ibfk_[number].
-@return highest number, 0 if table has no new format foreign key constraints */
-ulint
-dict_table_get_highest_foreign_id(
-/*==============================*/
-	dict_table_t*	table)	/*!< in: table in the dictionary memory cache */
-{
-	dict_foreign_t*	foreign;
-	char*		endp;
-	ulint		biggest_id	= 0;
-	ulint		id;
-	ulint		len;
-
-	DBUG_ENTER("dict_table_get_highest_foreign_id");
-
-	ut_a(table);
-
-	len = strlen(table->name.m_name);
-
-	for (dict_foreign_set::iterator it = table->foreign_set.begin();
-	     it != table->foreign_set.end();
-	     ++it) {
-		char    fkid[MAX_TABLE_NAME_LEN * 2 + 20];
-		foreign = *it;
-
-		strncpy(fkid, foreign->id, (sizeof fkid) - 1);
-		fkid[(sizeof fkid) - 1] = '\0';
-		/* Convert foreign key identifier on dictionary memory
-		cache to filename charset. */
-		innobase_convert_to_filename_charset(
-				strchr(fkid, '/') + 1,
-				strchr(foreign->id, '/') + 1,
-				MAX_TABLE_NAME_LEN);
-
-		if (strlen(fkid) > ((sizeof dict_ibfk) - 1) + len
-		    && 0 == memcmp(fkid, table->name.m_name, len)
-		    && 0 == memcmp(fkid + len,
-				   dict_ibfk, (sizeof dict_ibfk) - 1)
-		    && fkid[len + ((sizeof dict_ibfk) - 1)] != '0') {
-			/* It is of the >= 4.0.18 format */
-
-			id = strtoul(fkid + len
-				     + ((sizeof dict_ibfk) - 1),
-				     &endp, 10);
-			if (*endp == '\0') {
-				ut_a(id != biggest_id);
-
-				if (id > biggest_id) {
-					biggest_id = id;
-				}
-			}
-		}
-	}
-
-	DBUG_PRINT("dict_table_get_highest_foreign_id",
-		   ("id: " ULINTPF, biggest_id));
-
-	DBUG_RETURN(biggest_id);
-}
-
 /**********************************************************************//**
 Parses the CONSTRAINT id's to be dropped in an ALTER TABLE statement.
 @return DB_SUCCESS or DB_CANNOT_DROP_CONSTRAINT if syntax error or the
@@ -3325,7 +3166,7 @@ dict_foreign_parse_drop_constraints(
 
 	ut_a(trx->mysql_thd);
 
-	cs = thd_charset(trx->mysql_thd);
+	cs = trx->mysql_thd->charset();
 
 	*n = 0;
 
@@ -3365,8 +3206,25 @@ loop:
 	ptr = dict_accept(cs, ptr, "KEY", &success);
 
 	if (!success) {
+syntax_error:
+		if (!srv_read_only_mode) {
+			FILE*	ef = dict_foreign_err_file;
 
-		goto syntax_error;
+			mysql_mutex_lock(&dict_foreign_err_mutex);
+			rewind(ef);
+			ut_print_timestamp(ef);
+                        fputs(" Syntax error in dropping of a"
+			      " foreign key constraint of table ", ef);
+			ut_print_name(ef, NULL, table->name.m_name);
+			fprintf(ef, ",\n"
+				"close to:\n%s\n in SQL command\n%s\n",
+				ptr, str);
+			mysql_mutex_unlock(&dict_foreign_err_mutex);
+		}
+
+		ut_free(str);
+
+		return DB_CANNOT_DROP_CONSTRAINT;
 	}
 
 	ptr1 = dict_accept(cs, ptr, "IF", &success);
@@ -3381,16 +3239,16 @@ loop:
 
 	ptr = dict_scan_id(cs, ptr, heap, &id);
 
-	if (id == NULL) {
-
+	if (!id) {
 		goto syntax_error;
 	}
 
-	if (std::find_if(table->foreign_set.begin(),
-			    table->foreign_set.end(),
-			    dict_foreign_matches_id(id))
-	        == table->foreign_set.end()) {
+	const Lex_ident_column i{Lex_cstring_strlen(id)};
 
+	if (std::find_if(table->foreign_set.begin(), table->foreign_set.end(),
+			 [&i](const dict_foreign_t *fk)
+			 {return i.streq(Lex_cstring_strlen(fk->sql_id()));})
+	    == table->foreign_set.end()) {
 		if (if_exists) {
 			goto loop;
 		}
@@ -3419,25 +3277,6 @@ loop:
 	(*constraints_to_drop)[*n] = id;
 	(*n)++;
 	goto loop;
-
-syntax_error:
-	if (!srv_read_only_mode) {
-		FILE*	ef = dict_foreign_err_file;
-
-		mysql_mutex_lock(&dict_foreign_err_mutex);
-		rewind(ef);
-		ut_print_timestamp(ef);
-		fputs(" Syntax error in dropping of a"
-		      " foreign key constraint of table ", ef);
-		ut_print_name(ef, NULL, table->name.m_name);
-		fprintf(ef, ",\n"
-			"close to:\n%s\n in SQL command\n%s\n", ptr, str);
-		mysql_mutex_unlock(&dict_foreign_err_mutex);
-	}
-
-	ut_free(str);
-
-	return(DB_CANNOT_DROP_CONSTRAINT);
 }
 
 /*==================== END OF FOREIGN KEY PROCESSING ====================*/
@@ -3643,17 +3482,9 @@ dict_print_info_on_foreign_key_in_create_format(const trx_t *trx,
                                                 const dict_foreign_t *foreign,
                                                 bool add_newline)
 {
-	const char*	stripped_id;
+	const char*	id = foreign->sql_id();
 	ulint	i;
 	std::string	str;
-
-	if (strchr(foreign->id, '/')) {
-		/* Strip the preceding database name from the constraint id */
-		stripped_id = foreign->id + 1
-			+ dict_get_db_name_len(foreign->id);
-	} else {
-		stripped_id = foreign->id;
-	}
 
 	str.append(",");
 
@@ -3666,7 +3497,7 @@ dict_print_info_on_foreign_key_in_create_format(const trx_t *trx,
 
 	str.append(" CONSTRAINT ");
 
-	str.append(innobase_quote_identifier(trx, stripped_id));
+	str.append(innobase_quote_identifier(trx, id));
 	str.append(" FOREIGN KEY (");
 
 	for (i = 0;;) {
@@ -3823,10 +3654,10 @@ dict_print_info_on_foreign_keys(
 /**********************************************************************//**
 Flags an index corrupted both in the data dictionary cache
 and in the SYS_INDEXES */
-void dict_set_corrupted(dict_index_t *index, const char *ctx)
+void dict_set_corrupted(trx_t *trx, dict_index_t *index, const char *ctx)
 {
 	mem_heap_t*	heap;
-	mtr_t		mtr;
+	mtr_t		mtr{trx};
 	dict_index_t*	sys_index;
 	dtuple_t*	tuple;
 	dfield_t*	dfield;
@@ -3915,15 +3746,17 @@ func_exit:
 }
 
 /** Sets merge_threshold in the SYS_INDEXES
+@param[in]	thd		current_thd
 @param[in,out]	index		index
 @param[in]	merge_threshold	value to set */
 void
 dict_index_set_merge_threshold(
+	const THD&	thd,
 	dict_index_t*	index,
 	ulint		merge_threshold)
 {
 	mem_heap_t*	heap;
-	mtr_t		mtr;
+	mtr_t		mtr{thd_to_trx(&thd)};
 	dict_index_t*	sys_index;
 	dtuple_t*	tuple;
 	dfield_t*	dfield;
@@ -4267,7 +4100,7 @@ void dict_sys_t::resize() noexcept
   table_id_hash.free();
   temp_id_hash.free();
 
-  const ulint hash_size = buf_pool_get_curr_size()
+  const ulint hash_size = buf_pool.curr_pool_size()
     / (DICT_POOL_PER_TABLE_HASH * UNIV_WORD_SIZE);
   table_hash.create(hash_size);
   table_id_hash.create(hash_size);

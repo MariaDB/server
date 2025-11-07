@@ -38,6 +38,7 @@ Returns a new table, index, or space id. */
 void
 dict_hdr_get_new_id(
 /*================*/
+	trx_t*			trx,		/*!< in/out: transaction */
 	table_id_t*		table_id,	/*!< out: table id
 						(not assigned if NULL) */
 	index_id_t*		index_id,	/*!< out: index id
@@ -257,7 +258,7 @@ enum dict_fld_sys_virtual_enum {
 };
 
 /* A number of the columns above occur in multiple tables.  These are the
-length of thos fields. */
+length of those fields. */
 #define	DICT_FLD_LEN_SPACE	4
 #define	DICT_FLD_LEN_FLAGS	4
 

@@ -35,17 +35,11 @@ extern int memcntl(caddr_t, size_t, int, caddr_t, int, int);
 #endif /* __sun__ ... */
 #endif /* HAVE_SOLARIS_LARGE_PAGES */
 
-#if defined(_WIN32)
-static size_t my_large_page_size;
-#define HAVE_LARGE_PAGES
-#elif defined(HAVE_MMAP)
-#define HAVE_LARGE_PAGES
-#endif
 
-#ifdef HAVE_LARGE_PAGES
-static my_bool my_use_large_pages= 0;
-#else
-#define my_use_large_pages 0
+my_bool my_use_large_pages;
+
+#ifdef _WIN32
+static size_t my_large_page_size;
 #endif
 
 #if defined(HAVE_GETPAGESIZES) || defined(__linux__)
@@ -172,7 +166,7 @@ static void my_get_large_page_sizes(size_t sizes[])
   @retval  a large page size that is valid on this system or 0 if no large page
            size possible.
 */
-#if defined(HAVE_MMAP) && !defined(_WIN32)
+#ifndef _WIN32
 static size_t my_next_large_page_size(size_t sz, int *start)
 {
   DBUG_ENTER("my_next_large_page_size");
@@ -188,11 +182,12 @@ static size_t my_next_large_page_size(size_t sz, int *start)
   }
   DBUG_RETURN(0);
 }
-#endif /* defined(MMAP) || !defined(_WIN32) */
+#endif
 
 
-int my_init_large_pages(my_bool super_large_pages)
+int my_init_large_pages(void)
 {
+  my_use_large_pages= 1;
 #ifdef _WIN32
   if (!my_obtain_privilege(SE_LOCK_MEMORY_NAME))
   {
@@ -200,19 +195,15 @@ int my_init_large_pages(my_bool super_large_pages)
                     "Lock Pages in memory access rights required for use with"
                     " large-pages, see https://mariadb.com/kb/en/library/"
                     "mariadb-memory-allocation/#huge-pages", MYF(MY_WME));
+    my_use_large_pages= 0;
   }
   my_large_page_size= GetLargePageMinimum();
 #endif
 
-  my_use_large_pages= 1;
   my_get_large_page_sizes(my_large_page_sizes);
 
-#ifndef HAVE_LARGE_PAGES
-  my_printf_error(EE_OUTOFMEMORY, "No large page support on this platform",
-                  MYF(MY_WME));
-#endif
-
 #ifdef HAVE_SOLARIS_LARGE_PAGES
+  extern my_bool opt_super_large_pages;
   /*
     tell the kernel that we want to use 4/256MB page for heap storage
     and also for the stack. We use 4 MByte as default and if the
@@ -222,9 +213,15 @@ int my_init_large_pages(my_bool super_large_pages)
     measured in a number of GBytes.
     We use as big pages as possible which isn't bigger than the above
     desired page sizes.
+
+    Note: This refers to some implementations of the SPARC ISA,
+    where the supported page sizes are
+    8KiB, 64KiB, 512KiB, 4MiB, 32MiB, 256MiB, 2GiB, and 16GiB.
+    On implementations of the AMD64 ISA, the available page sizes
+    should be 4KiB, 2MiB, and 1GiB.
   */
   int nelem= 0;
-  size_t max_desired_page_size= (super_large_pages ? 256 : 4) * 1024 * 1024;
+  size_t max_desired_page_size= opt_super_large_pages ? 256 << 20 : 4 << 20;
   size_t max_page_size= my_next_large_page_size(max_desired_page_size, &nelem);
 
   if (max_page_size > 0)
@@ -426,6 +423,78 @@ uchar *my_large_malloc(size_t *size, myf my_flags)
   DBUG_RETURN(ptr);
 }
 
+#ifndef _WIN32
+/**
+  Special large pages allocator, with possibility to commit to allocating
+  more memory later.
+  Every implementation returns a zero filled buffer here.
+*/
+char *my_large_virtual_alloc(size_t *size)
+{
+  char *ptr;
+  DBUG_ENTER("my_large_virtual_alloc");
+
+  if (my_use_large_pages)
+  {
+    size_t large_page_size;
+    int page_i= 0;
+
+    while ((large_page_size= my_next_large_page_size(*size, &page_i)) != 0)
+    {
+      int mapflag= MAP_PRIVATE |
+# ifdef MAP_POPULATE
+        MAP_POPULATE |
+# endif
+# if defined MAP_HUGETLB /* linux 2.6.32 */
+        MAP_HUGETLB |
+#  if defined MAP_HUGE_SHIFT /* Linux-3.8+ */
+        my_bit_log2_size_t(large_page_size) << MAP_HUGE_SHIFT |
+#  else
+#   warning "No explicit large page (HUGETLB pages) support in Linux < 3.8"
+#  endif
+# elif defined MAP_ALIGNED
+        MAP_ALIGNED(my_bit_log2_size_t(large_page_size)) |
+#  if defined MAP_ALIGNED_SUPER
+        MAP_ALIGNED_SUPER |
+#  endif
+# endif
+        OS_MAP_ANON;
+
+      size_t aligned_size= MY_ALIGN(*size, (size_t) large_page_size);
+      ptr= mmap(NULL, aligned_size, PROT_READ | PROT_WRITE, mapflag, -1, 0);
+      if (ptr == (void*) -1)
+      {
+        ptr= NULL;
+        /* try next smaller memory size */
+        if (errno == ENOMEM)
+          continue;
+
+        /* other errors are more serious */
+        break;
+      }
+      else /* success */
+      {
+        /*
+          we do need to record the adjustment so that munmap gets called with
+          the right size. This is only the case for HUGETLB pages.
+        */
+        *size= aligned_size;
+        DBUG_RETURN(ptr);
+      }
+    }
+  }
+
+  ptr= mmap(NULL, *size, PROT_READ | PROT_WRITE,
+            MAP_PRIVATE | OS_MAP_ANON, -1, 0);
+  if (ptr == MAP_FAILED)
+  {
+    my_error(EE_OUTOFMEMORY, MYF(ME_BELL + ME_ERROR_LOG), size);
+    ptr= NULL;
+  }
+
+  DBUG_RETURN(ptr);
+}
+#endif
 
 /**
   General large pages deallocator.
@@ -443,10 +512,10 @@ void my_large_free(void *ptr, size_t size)
 
     For ASAN, we need to explicitly unpoison this memory region because the OS
     may reuse that memory for some TLS or stack variable. It will remain
-    poisoned if it was explicitly poisioned before release. If this happens,
+    poisoned if it was explicitly poisoned before release. If this happens,
     we'll have hard to debug false positives like in MDEV-21239.
     For valgrind, we mark it as UNDEFINED rather than NOACCESS because of the
-    implict reuse possiblility.
+    implicit reuse possibility.
   */
 #if defined(HAVE_MMAP) && !defined(_WIN32)
   if (munmap(ptr, size))
@@ -482,7 +551,7 @@ void my_large_free(void *ptr, size_t size)
 #endif /* memory_sanitizer */
 #else
   my_free_lock(ptr);
-#endif /* HAVE_MMMAP */
+#endif /* HAVE_MMAP */
 
   DBUG_VOID_RETURN;
 }

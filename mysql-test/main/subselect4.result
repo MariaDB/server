@@ -49,7 +49,7 @@ INSERT INTO t2 SELECT * FROM t1;
 CREATE TABLE t3 LIKE t1;
 INSERT INTO t3 SELECT * FROM t1;
 # Should not crash.
-# Should have 1 impossible where and 2 dependent subqs.
+# Should have 1 impossible where and 2 dependent subqueries.
 EXPLAIN
 SELECT
 (SELECT 1 FROM t1,t2 WHERE t2.b > t3.b)
@@ -2766,7 +2766,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	5	Using where
 set names utf8 collate utf8_general_ci;
 #
-# IN predicate to IN subquery is performed as materialization is llowed
+# IN predicate to IN subquery is performed as materialization is allowed
 # The character set on the inner side is a proper subset of the outer side
 #
 # this test in 10.5 has only 2 rows in the IN predicate
@@ -2912,7 +2912,7 @@ ANALYZE
         ],
         "subqueries": [
           {
-            "expression_cache": {
+            "subquery_cache": {
               "state": "disabled",
               "r_loops": 0,
               "query_block": {
@@ -3367,3 +3367,11 @@ Variable_name	Value
 Handler_read_rnd_next	0
 drop table t1,t2,t3;
 # End of 10.4 tests
+#
+# MDEV-29300 Assertion `*ref && (*ref)->fixed()' failed in Item_field::fix_outer_field on SELECT
+#
+CREATE TABLE t(c INT);
+SELECT (SELECT 0 GROUP BY c HAVING (SELECT c)) FROM t GROUP BY c;
+(SELECT 0 GROUP BY c HAVING (SELECT c))
+DROP TABLE t;
+# End of 10.11 tests

@@ -61,7 +61,7 @@ bool records_are_comparable(const TABLE *table) {
 
 
 /**
-   Compares the input and outbut record buffers of the table to see if a row
+   Compares the input and output record buffers of the table to see if a row
    has changed.
 
    @return true if row has changed.
@@ -254,7 +254,7 @@ static void prepare_record_for_error_message(int error, TABLE *table)
 
   /*
     Only duplicate key errors print the key value.
-    If storage engine does always read all columns, we have the value alraedy.
+    If storage engine does always read all columns, we have the value already.
   */
   if ((error != HA_ERR_FOUND_DUPP_KEY) ||
       !(table->file->ha_table_flags() & HA_PARTIAL_COLUMN_READ))
@@ -361,12 +361,13 @@ bool Sql_cmd_update::update_single_table(THD *thd)
   bool          used_key_is_modified= FALSE, transactional_table;
   bool          will_batch= FALSE;
   bool		can_compare_record;
+  bool          binlogged= 0;
   int           res;
   int		error, loc_error;
   ha_rows       dup_key_found;
   bool          need_sort= TRUE;
   bool          reverse= FALSE;
-  ha_rows	updated, updated_or_same, found;
+  ha_rows	updated_or_same;
   key_map	old_covering_keys;
   TABLE		*table;
   SQL_SELECT	*select= NULL;
@@ -470,7 +471,8 @@ bool Sql_cmd_update::update_single_table(THD *thd)
                                           (uchar *) 0);
   }
 
-  if (conds && substitute_indexed_vcols_for_table(table, conds))
+  if ((conds || order) && substitute_indexed_vcols_for_table(table, conds,
+                                                             order, select_lex))
     DBUG_RETURN(1); // Fatal error
 
   // Don't count on usage of 'only index' when calculating which key to use
@@ -1275,7 +1277,8 @@ update_end:
   if (likely(error < 0) || thd->transaction->stmt.modified_non_trans_table ||
       thd->log_current_statement())
   {
-    if (WSREP_EMULATE_BINLOG(thd) || mysql_bin_log.is_open())
+    if ((WSREP_EMULATE_BINLOG(thd) || mysql_bin_log.is_open()) &&
+        table->s->using_binlog())
     {
       int errcode= 0;
       if (likely(error < 0))
@@ -1291,8 +1294,12 @@ update_end:
       {
         error=1;				// Rollback update
       }
+      binlogged= 1;
     }
   }
+  if (!binlogged)
+    table->mark_as_not_binlogged();
+
   DBUG_ASSERT(transactional_table || !updated || thd->transaction->stmt.modified_non_trans_table);
   free_underlaid_joins(thd, select_lex);
   delete file_sort;
@@ -1377,13 +1384,13 @@ produce_explain_and_leave:
     goto err;
 
 emit_explain_and_leave:
+  if (!thd->is_error() && need_to_optimize &&
+      select_lex->optimize_unflattened_subqueries(false))
+    DBUG_RETURN(TRUE);
   bool extended= thd->lex->describe & DESCRIBE_EXTENDED;
   int err2= thd->lex->explain->send_explain(thd, extended);
 
   delete select;
-  if (!thd->is_error() && need_to_optimize &&
-      select_lex->optimize_unflattened_subqueries(false))
-    DBUG_RETURN(TRUE);
   free_underlaid_joins(thd, select_lex);
   DBUG_RETURN((err2 || thd->is_error()) ? 1 : 0);
 }
@@ -1584,7 +1591,7 @@ static bool multi_update_check_table_access(THD *thd, TABLE_LIST *table,
       if (multi_update_check_table_access(thd, tbl, tables_for_update,
                                           &updated))
       {
-        tbl->hide_view_error(thd);
+        tbl->replace_view_error_with_generic(thd);
         return true;
       }
     }
@@ -1666,7 +1673,7 @@ bool Multiupdate_prelocking_strategy::handle_end(THD *thd)
 
   if (setup_tables_and_check_access(thd, &select_lex->context,
       &select_lex->top_join_list, table_list, select_lex->leaf_tables,
-      FALSE, UPDATE_ACL, SELECT_ACL, TRUE))
+      false, UPDATE_ACL, SELECT_ACL, true))
     DBUG_RETURN(1);
 
   if (table_list->has_period() &&
@@ -1682,7 +1689,7 @@ bool Multiupdate_prelocking_strategy::handle_end(THD *thd)
   for (tl= table_list; tl ; tl= tl->next_local)
     if (tl->view)
       break;
-  // ... and pass this knowlage in check_fields call
+  // ... and pass this knowledge in check_fields call
   if (check_fields(thd, table_list, *fields, tl != NULL ))
     DBUG_RETURN(1);
 
@@ -1810,7 +1817,7 @@ multi_update::multi_update(THD *thd_arg,
     updated_sys_ver(0),
     tables_to_update(get_table_map(fields))
 {
-  // Defer error reporting to multi_update::init whne tables_to_update is zero
+  // Defer error reporting to multi_update::init when tables_to_update is zero
   // because we don't have exceptions and we can't return values from a constructor.
 }
 
@@ -1928,8 +1935,6 @@ int multi_update::prepare(List<Item> &not_used_values,
     TABLE *table= table_ref->table;
     table->read_set= &table->def_read_set;
     bitmap_union(table->read_set, &table->tmp_set);
-    if (!(thd->lex->context_analysis_only & CONTEXT_ANALYSIS_ONLY_PREPARE))
-      table->file->prepare_for_modify(true, true);
   }
 
   /*
@@ -2117,7 +2122,8 @@ multi_update::initialize_tables(JOIN *join)
   if (unlikely((thd->variables.option_bits & OPTION_SAFE_UPDATES) &&
                error_if_full_join(join)))
     DBUG_RETURN(1);
-  if (join->implicit_grouping)
+  if (join->implicit_grouping ||
+      join->select_lex->have_window_funcs())
   {
     my_error(ER_INVALID_GROUP_FUNC_USE, MYF(0));
     DBUG_RETURN(1);
@@ -2143,6 +2149,8 @@ multi_update::initialize_tables(JOIN *join)
     List<Item> temp_fields;
     ORDER     group;
     TMP_TABLE_PARAM *tmp_param;
+
+    table->file->prepare_for_modify(true, true);
 
     if (ignore)
       table->file->extra(HA_EXTRA_IGNORE_DUP_KEY);
@@ -2243,13 +2251,9 @@ loop_end:
     tmp_param->field_count= temp_fields.elements;
     tmp_param->func_count=  temp_fields.elements - 1;
     calc_group_buffer(tmp_param, &group);
-    /* small table, ignore @@big_tables */
-    my_bool save_big_tables= thd->variables.big_tables; 
-    thd->variables.big_tables= FALSE;
     tmp_tables[index]=create_tmp_table(thd, tmp_param, temp_fields,
                                      (ORDER*) &group, 0, 0,
                                      TMP_TABLE_ALL_COLUMNS, HA_POS_ERROR, &empty_clex_str);
-    thd->variables.big_tables= save_big_tables;
     if (!tmp_tables[index])
       DBUG_RETURN(1);
     tmp_tables[index]->file->extra(HA_EXTRA_WRITE_CACHE);
@@ -2526,10 +2530,12 @@ error:
 
 void multi_update::abort_result_set()
 {
+  TABLE_LIST *cur_table;
+
   /* the error was handled or nothing deleted and no side effects return */
   if (unlikely(error_handled ||
                (!thd->transaction->stmt.modified_non_trans_table && !updated)))
-    return;
+    goto end;
 
   /****************************************************************************
 
@@ -2581,6 +2587,15 @@ void multi_update::abort_result_set()
   thd->transaction->all.m_unsafe_rollback_flags|=
     (thd->transaction->stmt.m_unsafe_rollback_flags & THD_TRANS::DID_WAIT);
   DBUG_ASSERT(trans_safe || !updated || thd->transaction->stmt.modified_non_trans_table);
+
+end:
+  /*
+    Mark all temporay tables as not completely binlogged
+    All future usage of these tables will enforce row level logging, which
+    ensures that all future usage of them enforces row level logging.
+  */
+  for (cur_table= update_tables; cur_table; cur_table= cur_table->next_local)
+    cur_table->table->mark_as_not_binlogged();
 }
 
 
@@ -2607,7 +2622,8 @@ int multi_update::do_updates()
     if (Field **vf= tbl->vfield)
       for (; *vf; vf++)
         if (bitmap_is_set(tbl->read_set, (*vf)->field_index))
-          (*vf)->vcol_info->expr->walk(&Item::register_field_in_read_map, 1, 0);
+          (*vf)->vcol_info->expr->walk(&Item::register_field_in_read_map,
+                                       0, WALK_SUBQUERY);
 
   for (cur_table= update_tables; cur_table; cur_table= cur_table->next_local)
   {
@@ -3169,6 +3185,11 @@ bool Sql_cmd_update::prepare_inner(THD *thd)
     table_list->table->no_cache= true;
   }
 
+  {
+    List_iterator_fast<Item> fs(select_lex->item_list), vs(lex->value_list);
+    while (Item *f= fs++)
+      vs++->associate_with_target_field(thd, static_cast<Item_field*>(f));
+  }
 
   free_join= false;
 
@@ -3195,6 +3216,7 @@ err:
 bool Sql_cmd_update::execute_inner(THD *thd)
 {
   bool res= 0;
+  Running_stmt_guard guard(thd, active_dml_stmt::UPDATING_STMT);
 
   thd->get_stmt_da()->reset_current_row_for_warning(1);
   if (!multitable)
@@ -3222,6 +3244,13 @@ bool Sql_cmd_update::execute_inner(THD *thd)
 
   if (result)
   {
+    /* In single table case, this->updated set by update_single_table */
+    if (res && multitable)
+    {
+      found= ((multi_update*)get_result())->num_found();
+      updated= ((multi_update*)get_result())->num_updated();
+    }
+
     res= false;
     delete result;
   }

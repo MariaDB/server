@@ -5,10 +5,9 @@
 # Can't test with embedded server that doesn't support grants
 --source include/not_embedded.inc
 --source include/default_charset.inc
+--disable_service_connection
 set @@global.collation_server=@@session.collation_server;
 
-# Save the initial number of concurrent sessions
---source include/count_sessions.inc
 connect (con1root,localhost,root,,);
 
 connection con1root;
@@ -19,10 +18,6 @@ create user user1@localhost;
 grant usage on *.* to user1@localhost;
 flush privileges;
 
---disable_warnings
-drop table if exists t1;
-drop database if exists db1_secret;
---enable_warnings
 # Create our secret database
 create database db1_secret;
 
@@ -650,14 +645,12 @@ SHOW CREATE FUNCTION wl2897_f3;
 
 # Cleanup.
 
+--disconnect mysqltest_1_con
+--disconnect mysqltest_2_con
 DROP USER mysqltest_1@localhost;
 DROP USER mysqltest_2@localhost;
 
 DROP DATABASE mysqltest;
-
---disconnect mysqltest_1_con
---disconnect mysqltest_2_con
-
 
 #
 # Bug#13198 SP executes if definer does not exist
@@ -722,10 +715,10 @@ DROP USER mysqltest_1@localhost;
 
 USE mysqltest;
 
---error ER_NO_SUCH_USER
+--error ER_MALFORMED_DEFINER
 CALL bug13198_p1();
 
---error ER_NO_SUCH_USER
+--error ER_MALFORMED_DEFINER
 SELECT bug13198_f1();
 
 # Cleanup.
@@ -1040,9 +1033,6 @@ connection default;
 disconnect conn1;
 drop user bug12602983_user@localhost;
 drop database mysqltest_db;
-
-# Wait till all disconnects are completed
---source include/wait_until_count_sessions.inc
 
 create user u1@localhost;
 grant all privileges on *.* to u1@localhost with grant option;
@@ -1674,8 +1664,54 @@ disconnect conn1;
 drop user user@localhost;
 drop database test_db;
 
---echo #
 --echo # End of 11.3 tests
+
 --echo #
+--echo # MDEV-37054: Implement INFORMATION_SCHEMA.PARAMETERS.PARAMETER_DEFAULT column
+--echo #
+
+DELIMITER //;
+CREATE PROCEDURE proc(a INT DEFAULT 1, b INT DEFAULT (a+1), c INT DEFAULT POW(2,b)) AS
+BEGIN
+  SELECT a, b, c FROM DUAL;
+END;
+//
+
+CREATE FUNCTION func(a INT DEFAULT 8, b INT DEFAULT LOG2(a)) RETURN INT AS
+BEGIN
+  RETURN b;
+END;
+//
+DELIMITER ;//
+
+# Tests to verify access control for procedures
+CREATE USER user@localhost;
+GRANT EXECUTE ON PROCEDURE test.proc TO user@localhost;
+GRANT EXECUTE ON FUNCTION test.func TO user@localhost;
+CONNECT conn1, localhost, user, , test;
+
+# should not display default parameter values
+SELECT specific_schema, specific_name, parameter_name, parameter_default FROM information_schema.PARAMETERS WHERE SPECIFIC_NAME = 'proc';
+SELECT specific_schema, specific_name, parameter_name, parameter_default FROM information_schema.PARAMETERS WHERE SPECIFIC_NAME = 'func';
+
+CONNECTION default;
+DISCONNECT conn1;
+
+GRANT SHOW CREATE ROUTINE ON PROCEDURE test.proc TO user@localhost;
+GRANT SHOW CREATE ROUTINE ON FUNCTION test.func TO user@localhost;
+CONNECT conn1, localhost, user, , test;
+
+# should display default parameter values
+SELECT specific_schema, specific_name, parameter_name, parameter_default FROM information_schema.PARAMETERS WHERE SPECIFIC_NAME = 'proc';
+SELECT specific_schema, specific_name, parameter_name, parameter_default FROM information_schema.PARAMETERS WHERE SPECIFIC_NAME = 'func';
+
+CONNECTION default;
+DISCONNECT conn1;
+
+DROP USER user@localhost;
+DROP PROCEDURE proc;
+DROP FUNCTION func;
+
+--echo # End of 12.2 tests
 
 set @@global.collation_server=@save_collation_server;

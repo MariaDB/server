@@ -96,7 +96,6 @@ void sql_print_error(const char *format, ...)
 
 /*** end of encryption tweaks and stubs ****************************/
 
-PRAGMA_DISABLE_CHECK_STACK_FRAME
 
 static IO_CACHE info;
 #define CACHE_SIZE 16384
@@ -118,8 +117,8 @@ int data_bad(const uchar *buf, size_t len)
 void temp_io_cache()
 {
   int res;
-  uchar buf[CACHE_SIZE + 200];
-  memset(buf, FILL, sizeof(buf));
+  uchar *buf= (uchar *)malloc(CACHE_SIZE + 200);
+  memset(buf, FILL, CACHE_SIZE + 200);
 
   diag("temp io_cache with%s encryption", encrypt_tmp_files?"":"out");
 
@@ -131,13 +130,13 @@ void temp_io_cache()
   res= my_b_write(&info, buf, 100);
   ok(res == 0 && info.pos_in_file == 0, "small write" INFO_TAIL );
 
-  res= my_b_write(&info, buf, sizeof(buf));
+  res= my_b_write(&info, buf, CACHE_SIZE + 200);
   ok(res == 0 && info.pos_in_file == CACHE_SIZE, "large write" INFO_TAIL);
 
   res= reinit_io_cache(&info, WRITE_CACHE, 250, 0, 0);
   ok(res == 0, "reinit with rewind" INFO_TAIL);
 
-  res= my_b_write(&info, buf, sizeof(buf));
+  res= my_b_write(&info, buf, CACHE_SIZE + 200);
   ok(res == 0, "large write" INFO_TAIL);
 
   res= my_b_flush_io_cache(&info, 1);
@@ -153,16 +152,17 @@ void temp_io_cache()
   res= my_b_read(&info, buf, 50) || data_bad(buf, 50);
   ok(res == 0 && info.pos_in_file == 0, "small read" INFO_TAIL);
 
-  res= my_b_read(&info, buf, sizeof(buf)) || data_bad(buf, sizeof(buf));
+  res= my_b_read(&info, buf, CACHE_SIZE + 200) || data_bad(buf, CACHE_SIZE + 200);
   ok(res == 0 && info.pos_in_file == CACHE_SIZE, "large read" INFO_TAIL);
 
   close_cached_file(&info);
+  free(buf);
 }
 
 void mdev9044()
 {
   int res;
-  uchar buf[CACHE_SIZE + 200];
+  uchar *buf= (uchar *)malloc(CACHE_SIZE + 200);
 
   diag("MDEV-9044 Binlog corruption in Galera");
 
@@ -190,10 +190,11 @@ void mdev9044()
   res= reinit_io_cache(&info, READ_CACHE, 0, 0, 0);
   ok(res == 0, "reinit READ_CACHE" INFO_TAIL);
 
-  res= my_b_read(&info, buf, sizeof(buf));
+  res= my_b_read(&info, buf, CACHE_SIZE + 200);
   ok(res == 1 && strcmp((char*)buf, "second write") == 0, "read '%s'", buf);
 
   close_cached_file(&info);
+  free(buf);
 }
 
 /* 2 Reads (with my_b_fill) in cache makes second read to fail */
@@ -294,20 +295,23 @@ void mdev14014()
   close_cached_file(&info);
 }
 
+#define BUFF_SIZE17133 (1024*256)
 void mdev17133()
 {
   my_off_t res;
   int k;
   const int eof_iter=4, read_iter= 4;
-  uchar buf_i[1024*256];      // read
-  uchar buf_o[sizeof(buf_i)]; // write
-  const size_t eof_block_size= sizeof(buf_o) / eof_iter;
+  // read
+  uchar *buf_i= (uchar *)malloc(BUFF_SIZE17133);
+  // write
+  uchar *buf_o= (uchar *)malloc(BUFF_SIZE17133);
+  const size_t eof_block_size= BUFF_SIZE17133 / eof_iter;
   const size_t read_size= eof_block_size / read_iter;
   size_t total;
 
   srand((uint) time(NULL));
-  memset(buf_i,    0, sizeof( buf_i));
-  memset(buf_o, FILL, sizeof(buf_o));
+  memset(buf_i,    0, BUFF_SIZE17133);
+  memset(buf_o, FILL, BUFF_SIZE17133);
 
   diag("MDEV-17133 Dump thread reads from the past");
 
@@ -316,10 +320,10 @@ void mdev17133()
   res= open_cached_file(&info, 0, 0, CACHE_SIZE, 0);
   ok(res == 0, "open_cached_file" INFO_TAIL);
 
-  res= my_b_write(&info, buf_o, sizeof(buf_o));
+  res= my_b_write(&info, buf_o, BUFF_SIZE17133);
   ok(res == 0, "buffer is written" INFO_TAIL);
   res= my_b_tell(&info);
-  ok(res == sizeof(buf_o), "cache size as expected");
+  ok(res == BUFF_SIZE17133, "cache size as expected");
 
   res= my_b_flush_io_cache(&info, 1);
   ok(res == 0, "flush" INFO_TAIL);
@@ -332,8 +336,8 @@ void mdev17133()
     int i;
     size_t curr_read_size;
     info.end_of_file=
-      k == 1 ? sizeof(buf_o) :
-      MY_MIN(sizeof(buf_o),
+      k == 1 ? BUFF_SIZE17133 :
+      MY_MIN(BUFF_SIZE17133,
              info.end_of_file + eof_block_size +
              // plus 25% of block for randomization to the average
              eof_block_size/4 - rand() % (eof_block_size/2));
@@ -342,7 +346,7 @@ void mdev17133()
     // the last block completes the current chunk
     for (i= 0; i < read_iter; i++, total += curr_read_size)
     {
-      char buf_check[eof_block_size];
+      char *buf_check= (char *)malloc(eof_block_size);
       size_t a,b;
 
       a= (size_t)(info.end_of_file - total);
@@ -368,29 +372,33 @@ void mdev17133()
       memset(buf_check, FILL, curr_read_size);
       ok(memcmp(buf_i + total, buf_check, curr_read_size) == 0,
          "read correct data");
+      free(buf_check);
     }
     ok(info.pos_in_file + (info.read_end - info.buffer) == info.end_of_file,
        "cache is read up to eof");
     ok(total == info.end_of_file, "total matches eof");
   }
-  ok(total == sizeof(buf_i), "read total size match");
-  ok(buf_i[sizeof(buf_i) - 1] == FILL, "data read correctly");
+  ok(total == BUFF_SIZE17133, "read total size match");
+  ok(buf_i[BUFF_SIZE17133 - 1] == FILL, "data read correctly");
 
   close_cached_file(&info);
+  free(buf_i);
+  free(buf_o);
 }
 
 
+#define BUFF_SIZE10963 (1024*512)
 void mdev10963()
 {
   int res;
   uint n_checks= 8;
-  uchar buf[1024 * 512];
-  uint n_frag= sizeof(buf)/(2 * CACHE_SIZE);
+  uchar *buf= (uchar *)malloc(BUFF_SIZE10963);
+  uint n_frag= BUFF_SIZE10963/(2 * CACHE_SIZE);
   FILE *file;
   myf my_flags= MYF(MY_WME);
   const char *file_name="cache.log";
 
-  memset(buf, FILL, sizeof(buf));
+  memset(buf, FILL, BUFF_SIZE10963);
   diag("MDEV-10963 Fragmented BINLOG query");
 
   init_io_cache_encryption();
@@ -399,10 +407,10 @@ void mdev10963()
   /* copying source */
   res= open_cached_file(&info, 0, 0, CACHE_SIZE, 0);
   ok(res == 0, "open_cached_file" INFO_TAIL);
-  res= my_b_write(&info, buf, sizeof(buf));
+  res= my_b_write(&info, buf, BUFF_SIZE10963);
 
   ulonglong total_size= my_b_tell(&info);
-  ok(res == 0 && total_size == sizeof(buf), "cache is written");
+  ok(res == 0 && total_size == BUFF_SIZE10963, "cache is written");
 
   /* destination */
   file= my_fopen(file_name, O_RDWR | O_TRUNC | O_CREAT, my_flags);
@@ -414,7 +422,7 @@ void mdev10963()
   */
   for (; n_checks; n_checks--, rewind(file))
   {
-    // copied size is an estimate can be incremeneted to greater than total_size
+    // copied size is an estimate can be incremented to greater than total_size
     ulong copied_size= 0;
 
     res= reinit_io_cache(&info, READ_CACHE, 0L, FALSE, FALSE);
@@ -436,15 +444,16 @@ void mdev10963()
     */
     res= my_b_copy_to_file(&info, file, (size_t) total_size - copied_size);
     ok(res == 0, "%llu of the cache copied to file", total_size - copied_size);
-    ok(my_ftell(file, my_flags) == sizeof(buf),
+    ok(my_ftell(file, my_flags) == BUFF_SIZE10963,
        "file written in %d fragments", n_frag+1);
 
     res= reinit_io_cache(&info, WRITE_CACHE, total_size, 0, 0);
-    ok(res == 0 && my_b_tell(&info) == sizeof(buf), "cache turned to write");
+    ok(res == 0 && my_b_tell(&info) == BUFF_SIZE10963, "cache turned to write");
   }
   close_cached_file(&info);
   my_fclose(file, my_flags);
   my_delete(file_name, MYF(MY_WME));
+  free(buf);
 }
 
 int main(int argc __attribute__((unused)),char *argv[])
@@ -474,4 +483,3 @@ int main(int argc __attribute__((unused)),char *argv[])
   return exit_status();
 }
 
-PRAGMA_REENABLE_CHECK_STACK_FRAME

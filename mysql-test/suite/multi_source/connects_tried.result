@@ -3,13 +3,14 @@ include/master-slave.inc [rpl_server_count=3]
 include/rpl_stop_server.inc [server_number=1]
 include/rpl_stop_server.inc [server_number=3]
 connection slave;
-CHANGE MASTER TO master_connect_retry=1;
-CHANGE MASTER 'named' TO master_host='127.0.0.1', master_port=SERVER_MYPORT_3, master_user='root', master_ssl_verify_server_cert=0, master_connect_retry=2;
+CHANGE MASTER TO master_connect_retry=2;
+CHANGE MASTER 'named' TO master_host='127.0.0.1', master_port=SERVER_MYPORT_3, master_user='root', master_ssl_verify_server_cert=0, master_connect_retry=1;
 # `Connects_Tried` is 0 before connections begin.
 SELECT Connection_name, Connects_Tried FROM information_schema.SLAVE_STATUS;
 Connection_name	Connects_Tried
 	0
 named	0
+SET @time_begin= CURRENT_TIMESTAMP(1);
 START ALL SLAVES;
 SET @@SESSION.default_master_connection= 'named';
 include/wait_for_slave_io_error.inc [errno=2003]
@@ -17,21 +18,25 @@ SET @@SESSION.default_master_connection= '';
 include/wait_for_slave_io_error.inc [errno=2003]
 CREATE TEMPORARY TABLE status_begin AS
 SELECT Connection_name, Connects_Tried FROM information_schema.SLAVE_STATUS;
-# `Connects_Tried` is 1 immediately after connections begin.
+# `Connects_Tried` is 1 immediately after connection begins.
 SELECT Connection_name, Connects_Tried
 FROM status_begin
 WHERE Connects_Tried <= 0;
 Connection_name	Connects_Tried
-DO SLEEP(3);
-# `Connects_Tried` increments (at least) 3 for connection '' and 1 for 'named'.
-CREATE TEMPORARY TABLE status_sleep AS
-SELECT Connection_name, Connects_Tried FROM information_schema.SLAVE_STATUS;
-SELECT *
-FROM status_begin JOIN status_sleep USING(Connection_name)
-WHERE status_sleep.Connects_Tried - status_begin.Connects_Tried <
-IF(LENGTH(Connection_name), 1, 3);
-Connection_name	Connects_Tried	Connects_Tried
-# Boot replication up and assert final count
+# `Connects_Tried` takes (at least) 2s to increment for connection '' and 1s for 'named'.
+SET @@SESSION.default_master_connection= 'named';
+include/wait_for_slave_param.inc [Connects_Tried]
+SELECT @time_begin, CURRENT_TIMESTAMP(1)
+WHERE TIMESTAMPDIFF(SECOND, @time_begin, CURRENT_TIMESTAMP(1)) < 1;
+@time_begin	CURRENT_TIMESTAMP(1)
+CREATE TEMPORARY TABLE status_sleep AS SELECT 'named' Connection_name, Connects_Tried Connects_Tried;
+SET @@SESSION.default_master_connection= '';
+include/wait_for_slave_param.inc [Connects_Tried]
+SELECT @time_begin, CURRENT_TIMESTAMP(1)
+WHERE TIMESTAMPDIFF(SECOND, @time_begin, CURRENT_TIMESTAMP(1)) < 2;
+@time_begin	CURRENT_TIMESTAMP(1)
+INSERT INTO status_sleep SET Connection_name= '', Connects_Tried= Connects_Tried;
+# Boot replication up and compare the final counts
 include/rpl_start_server.inc [server_number=1]
 include/rpl_start_server.inc [server_number=3]
 connection slave;
@@ -58,11 +63,11 @@ Connection_name	Connects_Tried	Connects_Tried
 SELECT * FROM status_end;
 Connection_name	Connects_Tried
 	connects_tried
-named	connects_tried_named
+named	connects_tried
 SELECT * FROM status_end;
 Connection_name	Connects_Tried
 	connects_tried
-named	connects_tried_named
+named	connects_tried
 STOP ALL SLAVES;
 SET @@SESSION.default_master_connection= 'named';
 include/wait_for_slave_to_stop.inc
@@ -75,27 +80,36 @@ SELECT *
 FROM status_after JOIN status_stop USING(Connection_name)
 WHERE status_stop.Connects_Tried <> status_after.Connects_Tried;
 Connection_name	Connects_Tried	Connects_Tried
-START SLAVE;
-include/wait_for_slave_to_start.inc
+include/start_slave.inc
 # START SLAVE recounts `Connects_Tried` from 1 (for the restarted connection only).
 CREATE TEMPORARY TABLE status_restart AS
 SELECT Connection_name, Connects_Tried FROM information_schema.SLAVE_STATUS;
 SELECT *
-FROM status_restart JOIN status_stop USING(Connection_name)
+FROM status_stop JOIN status_restart USING(Connection_name)
 WHERE status_restart.Connects_Tried NOT BETWEEN IF(
-LENGTH(Connection_name), status_stop.Connects_Tried, 1
+Connection_name = '', 1, status_stop.Connects_Tried
 ) AND status_stop.Connects_Tried;
 Connection_name	Connects_Tried	Connects_Tried
-STOP SLAVE;
-include/wait_for_slave_to_stop.inc
+include/stop_slave.inc
+CHANGE MASTER TO Master_Retry_Count=777;
+# Setting `Master_Retry_Count` resets `Connects_Tried` to 0 (for the changed connection only).
+CREATE TEMPORARY TABLE status_change AS
+SELECT Connection_name, Connects_Tried FROM information_schema.SLAVE_STATUS;
+SELECT *
+FROM status_restart JOIN status_change USING(Connection_name)
+WHERE status_change.Connects_Tried <>
+IF(Connection_name = '', 0, status_restart.Connects_Tried);
+Connection_name	Connects_Tried	Connects_Tried
+include/start_slave.inc
+include/stop_slave.inc
 RESET SLAVE;
 # RESET SLAVE resets `Connects_Tried` to 0 (for the resetted connection only).
 CREATE TEMPORARY TABLE status_reset AS
 SELECT Connection_name, Connects_Tried FROM information_schema.SLAVE_STATUS;
 SELECT *
-FROM status_reset JOIN status_restart USING(Connection_name)
+FROM status_change JOIN status_reset USING(Connection_name)
 WHERE status_reset.Connects_Tried <>
-IF(LENGTH(Connection_name), status_restart.Connects_Tried, 0);
+IF(Connection_name = '', 0, status_change.Connects_Tried);
 Connection_name	Connects_Tried	Connects_Tried
 # Cleanup
 RESET SLAVE 'named' ALL;

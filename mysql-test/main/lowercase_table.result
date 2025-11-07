@@ -208,3 +208,30 @@ DROP PACKAGE test.pkg;
 #
 # End of 11.4 tests
 #
+#
+# Start of 11.7 tests
+#
+#
+# MDEV-33281 Implement optimizer hints like in MySQL
+#
+SET NAMES utf8mb4;
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1), (2);
+SELECT /*+BKA(a) BKA(å)*/ a.a FROM t1 a, t1 å;
+a
+1
+2
+1
+2
+SELECT a.a, A.a FROM t1 a, t1 A;
+ERROR 42000: Not unique table/alias: 'A'
+SELECT /*+BKA(a) BKA(A)*/ a.a FROM t1 a;
+a
+1
+2
+Warnings:
+Warning	4219	Hint BKA("A") is ignored as conflicting/duplicated
+DROP TABLE t1;
+#
+# End of 11.7 tests
+#

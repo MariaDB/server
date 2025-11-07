@@ -19,6 +19,8 @@ DROP TEMPORARY TABLE t;
 #
 SET @save_ahi = @@global.innodb_adaptive_hash_index;
 SET GLOBAL innodb_adaptive_hash_index = 1;
+SET @save_ahi_cells = @@global.innodb_adaptive_hash_index_cells;
+SET GLOBAL innodb_adaptive_hash_index_cells=1048576;
 CREATE TABLE t1(f1 INT NOT NULL)ENGINE=InnoDB;
 SET @old_bulk_op=
 (SELECT variable_value FROM information_schema.global_status
@@ -43,6 +45,7 @@ INSERT INTO t1 SELECT * FROM seq_1_to_500;
 ROLLBACK;
 DROP TABLE t1;
 SET GLOBAL innodb_adaptive_hash_index = @save_ahi;
+SET GLOBAL innodb_adaptive_hash_index_cells = @save_ahi_cells;
 #
 # MDEV-24951 Assertion m.first->second.valid(trx->undo_no) failed
 # in trx_undo_report_row_operation
@@ -579,6 +582,22 @@ SELECT variable_value-@old_bulk_op bulk_operations
 FROM information_schema.global_status
 WHERE variable_name = 'innodb_bulk_operations';
 bulk_operations
+1
+DROP TABLE t1;
+call mtr.add_suppression("Found 1 prepared XA transactions");
+#
+#  MDEV-36771 Assertion `bulk_insert == TRX_NO_BULK' failed
+#           in trx_t::assert_freed from innodb_shutdown
+#
+CREATE TABLE t1(f1 INT)ENGINE=InnoDB;
+XA START 'a';
+INSERT INTO t1 VALUES(1);
+XA END 'a';
+XA PREPARE 'a';
+# restart
+XA COMMIT 'a';
+SELECT * FROM t1;
+f1
 1
 DROP TABLE t1;
 # End of 10.11 tests

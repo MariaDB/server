@@ -1,0 +1,41 @@
+connection node_2;
+connection node_1;
+connection node_1;
+connection node_2;
+connection node_2;
+select @@wsrep_slave_threads;
+@@wsrep_slave_threads
+1
+SET @cluster_address_orig = @@wsrep_cluster_address;
+SET GLOBAL wsrep_cluster_address=AUTO;
+SET GLOBAL wsrep_slave_threads=12;
+ERROR 42000: Variable 'wsrep_slave_threads' can't be set to the value of '12'
+SHOW WARNINGS;
+Level	Code	Message
+Warning	1231	Cannot set 'wsrep_slave_threads' because wsrep is disconnected
+Error	1231	Variable 'wsrep_slave_threads' can't be set to the value of '12'
+SET GLOBAL wsrep_cluster_address=ON;
+SET GLOBAL wsrep_slave_threads=0;
+ERROR 42000: Variable 'wsrep_slave_threads' can't be set to the value of '0'
+SHOW WARNINGS;
+Level	Code	Message
+Warning	1292	Truncated incorrect wsrep_slave_threads value: '0'
+Warning	1231	Cannot set 'wsrep_slave_threads' because wsrep is disconnected
+Error	1231	Variable 'wsrep_slave_threads' can't be set to the value of '0'
+SET GLOBAL wsrep_cluster_address='a';
+SET GLOBAL wsrep_slave_threads=2;
+ERROR 42000: Variable 'wsrep_slave_threads' can't be set to the value of '2'
+SHOW WARNINGS;
+Level	Code	Message
+Warning	1231	Cannot set 'wsrep_slave_threads' because wsrep is disconnected
+Error	1231	Variable 'wsrep_slave_threads' can't be set to the value of '2'
+select @@wsrep_slave_threads;
+@@wsrep_slave_threads
+1
+show status like 'wsrep_cluster_size';
+Variable_name	Value
+wsrep_cluster_size	2
+show status like 'wsrep_cluster_status';
+Variable_name	Value
+wsrep_cluster_status	Primary
+call mtr.add_suppression("WSREP:.*");

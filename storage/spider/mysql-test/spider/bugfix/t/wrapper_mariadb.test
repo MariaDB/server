@@ -22,7 +22,10 @@ USE auto_test_remote;
 --connection child2_1
 --disable_query_log
 echo CHILD2_1_CREATE_TABLES;
-eval $CHILD2_1_CREATE_TABLES;
+CREATE TABLE tbl_a (
+pkey int NOT NULL,
+PRIMARY KEY (pkey)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 --enable_query_log
 TRUNCATE TABLE mysql.general_log;
 
@@ -32,10 +35,10 @@ echo CREATE TABLE tbl_a (
     pkey int NOT NULL,
     PRIMARY KEY (pkey)
 ) MASTER_1_ENGINE MASTER_1_CHARSET MASTER_1_COMMENT_2_1;
-eval CREATE TABLE tbl_a (
+CREATE TABLE tbl_a (
     pkey int NOT NULL,
     PRIMARY KEY (pkey)
-) $MASTER_1_ENGINE $MASTER_1_CHARSET $MASTER_1_COMMENT_2_1;
+) ENGINE=Spider DEFAULT CHARSET=utf8 COMMENT='table "tbl_a", srv "s_2_1", wrapper "mariadb"';
 --enable_query_log
 --disable_ps_protocol
 INSERT INTO tbl_a (pkey) VALUES (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
@@ -49,13 +52,15 @@ TRUNCATE TABLE mysql.general_log;
 
 --disable_ps2_protocol
 --connection master_1
+--disable_view_protocol
 SELECT * FROM tbl_a ORDER BY pkey;
+--enable_view_protocol
 
 --connection child2_1
-# in --ps a query is logged differently in a general log
-replace_regex /order by t0.`pkey`/order by `pkey`/;
-eval $CHILD2_1_SELECT_ARGUMENT1;
-eval $CHILD2_1_SELECT_TABLES;
+--disable_view_protocol
+SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %';
+--enable_view_protocol
+SELECT pkey FROM tbl_a ORDER BY pkey;
 --enable_ps2_protocol
 
 --echo
