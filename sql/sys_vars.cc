@@ -6387,7 +6387,7 @@ static Sys_var_enum Sys_wsrep_trx_fragment_unit(
       wsrep_fragment_units,
       DEFAULT(WSREP_FRAG_BYTES),
       NO_MUTEX_GUARD, NOT_IN_BINLOG,
-      ON_CHECK(0),
+      ON_CHECK(wsrep_trx_fragment_unit_check),
       ON_UPDATE(wsrep_trx_fragment_unit_update));
 
 extern const char *wsrep_SR_store_types[];
