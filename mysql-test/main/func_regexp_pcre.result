@@ -791,7 +791,7 @@ SELECT 'AB' RLIKE 'A# this is a comment\nB';
 1
 SET default_regex_flags=DEFAULT;
 SELECT 'Aq' RLIKE 'A\\q';
-ERROR 42000: Regex error 'unrecognized character follows \ at offset 2'
+ERROR 42000: Regex error 'unrecognized character follows \ at offset 3'
 SET default_regex_flags='EXTRA';
 SELECT 'A' RLIKE 'B';
 'A' RLIKE 'B'
