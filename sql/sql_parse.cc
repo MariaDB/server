@@ -3539,7 +3539,6 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
   */
   lex->first_lists_tables_same();
   lex->fix_first_select_number();
-  lex->resolve_optimizer_hints();
   /* should be assigned after making first tables same */
   all_tables= lex->query_tables;
   /* set context for commands which do not use setup_tables */
@@ -4674,6 +4673,7 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
       select_lex->table_list.first= second_table;
       select_lex->context.table_list=
         select_lex->context.first_name_resolution_table= second_table;
+      lex->resolve_optimizer_hints();
       res= mysql_insert_select_prepare(thd, result);
       Write_record write;
       if (!res &&
@@ -6129,6 +6129,7 @@ static bool execute_sqlcom_select(THD *thd, TABLE_LIST *all_tables)
 
   if (!(res= open_and_lock_tables(thd, all_tables, TRUE, 0)))
   {
+    lex->resolve_optimizer_hints();
     if (lex->describe)
     {
       /*
