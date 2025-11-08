@@ -1375,6 +1375,7 @@ mysqld_show_create(THD *thd, TABLE_LIST *table_list)
   if (mysqld_show_create_get_fields(thd, table_list, &field_list, &buffer))
     goto exit;
 
+  thd->lex->resolve_optimizer_hints();
   if (protocol->send_result_set_metadata(&field_list,
                                          Protocol::SEND_NUM_ROWS |
                                          Protocol::SEND_EOF))
