@@ -248,11 +248,31 @@ SET f3 = 'mnbv' WHERE f1 > 30 AND f1 < 33 AND (t3.f1, t3.f2, t3.f3) IN
   (SELECT /*+ BKA(t2) NO_BNL(t1) */ t2.f1, t2.f2, t2.f3 FROM t1,t2 WHERE t1.f1=t2.f1 AND
     t2.f2 BETWEEN t1.f1 AND t1.f2 AND t2.f2 + 1 >= t1.f1 + 1);
 
+--echo # Same as above but addressing tables with QB name
+EXPLAIN EXTENDED
+UPDATE /*+ NO_RANGE_OPTIMIZATION(t3 PRIMARY) BKA(t2@QB1) NO_BNL(t1@QB1)*/ t3
+  SET f3 = 'mnbv' WHERE f1 > 30 AND f1 < 33 AND (t3.f1, t3.f2, t3.f3) IN
+  (SELECT /*+ QB_NAME(QB1) */ t2.f1, t2.f2, t2.f3 FROM t1,t2 WHERE t1.f1=t2.f1 AND
+    t2.f2 BETWEEN t1.f1 AND t1.f2 AND t2.f2 + 1 >= t1.f1 + 1);
+
 --echo # Turn off range access for all keys.
 EXPLAIN EXTENDED UPDATE /*+ NO_RANGE_OPTIMIZATION(t3) */ t3
 SET f3 = 'mnbv' WHERE f1 > 30 AND f1 < 33 AND (t3.f1, t3.f2, t3.f3) IN
   (SELECT t2.f1, t2.f2, t2.f3 FROM t1,t2 WHERE t1.f1=t2.f1 AND
     t2.f2 BETWEEN t1.f1 AND t1.f2 AND t2.f2 + 1 >= t1.f1 + 1);
+
+--echo # Multi-table UPDATE with a derived table
+EXPLAIN EXTENDED
+UPDATE /*+ NO_RANGE_OPTIMIZATION(t2@dt)*/ t3,
+  (SELECT /*+ qb_name(dt)*/ t1.* FROM t1, t2 WHERE t1.f1 > t2.f1) AS dt
+SET t3.f3 = 'mnbv' WHERE t3.f1 = dt.f1;
+
+--echo # Multi-table UPDATE with a derived table and both table-level and
+--echo # query block-level hints
+EXPLAIN EXTENDED
+UPDATE /*+ NO_RANGE_OPTIMIZATION(t2@dt) NO_BNL(@dt)*/ t3,
+  (SELECT /*+ qb_name(dt)*/ t1.* FROM t1, t2 WHERE t1.f1 > t2.f1) AS dt
+SET t3.f3 = 'mnbv' WHERE t3.f1 = dt.f1;
 
 EXPLAIN EXTENDED DELETE FROM t3
 WHERE f1 > 30 AND f1 < 33 AND (t3.f1, t3.f2, t3.f3) IN
@@ -282,7 +302,7 @@ EXPLAIN EXTENDED INSERT INTO t3(f1, f2, f3)
 
 --echo # Turn off ICP for a particular table and a key
 EXPLAIN EXTENDED INSERT INTO t3(f1, f2, f3)
-  (SELECT /*+ QB_NAME(qb1) NO_ICP(t5@QB1 x_idx)*/ t4.x, t5.y, 'filler' FROM t4, t4 t5
+  (SELECT /*+ NO_ICP(t5@QB1 x_idx) QB_NAME(qb1) */ t4.x, t5.y, 'filler' FROM t4, t4 t5
    WHERE t4.y = 8 AND t5.x BETWEEN 7 AND t4.y+0);
 
 --echo # Make sure ICP is expected to be used when there are no hints
@@ -308,8 +328,8 @@ EXPLAIN EXTENDED REPLACE INTO t3(f1, f2, f3)
 
 --echo # Should issue warning
 EXPLAIN EXTENDED SELECT /*+ QB_NAME(qb1) QB_NAME(qb1 ) */ * FROM t2;
---echo # Should issue warning
-EXPLAIN EXTENDED SELECT /*+ BKA(@qb1) QB_NAME(qb1) */ t2.f1, t2.f2, t2.f3 FROM t1,t2
+--echo # QB_NAME may appear after the hint, but the hint is still resolved
+EXPLAIN EXTENDED SELECT /*+ NO_BNL(@qb1) QB_NAME(qb1) */ t2.f1, t2.f2, t2.f3 FROM t1,t2
 WHERE t1.f1=t2.f1 AND t2.f2 BETWEEN t1.f1 and t1.f2 and t2.f2 + 1 >= t1.f1 + 1;
 
 --echo # Should not crash

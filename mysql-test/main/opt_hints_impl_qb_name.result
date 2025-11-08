@@ -1,0 +1,695 @@
+create table t1 (a int, b int, c char(20), key idx_a(a), key idx_ab(a, b));
+insert into t1 select seq, seq, 'filler' from seq_1_to_100;
+create table t2 as select * from t1;
+analyze table t1,t2 persistent for all;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	Table is already up to date
+test.t2	analyze	status	Engine-independent statistics collected
+test.t2	analyze	status	OK
+
+================================================================
+set optimizer_switch= 'derived_merge=on';
+# Table-level hint
+explain extended select /*+ no_bnl(t2@dt)*/ * from
+(select t1.* from t1, t2 where t1.a > t2.a) as dt;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	idx_a,idx_ab	NULL	NULL	NULL	100	100.00	
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	100	100.00	Using where
+Warnings:
+Note	1003	select /*+ NO_BNL(`t2`@`select#2`) */ `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b`,`test`.`t1`.`c` AS `c` from `test`.`t1` join `test`.`t2` where `test`.`t1`.`a` > `test`.`t2`.`a`
+# QB-level hint
+explain extended select /*+ no_bnl(@dt)*/ * from
+(select t1.* from t1, t2 where t1.a > t2.a) as dt;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	idx_a,idx_ab	NULL	NULL	NULL	100	100.00	
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	100	100.00	Using where
+Warnings:
+Note	1003	select /*+ NO_BNL(@`select#2`) */ `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b`,`test`.`t1`.`c` AS `c` from `test`.`t1` join `test`.`t2` where `test`.`t1`.`a` > `test`.`t2`.`a`
+# Index-level hints
+# Without the hint 'range' index access would be chosen
+explain extended select /*+ no_index(t1@`T`)*/ * from
+(select * from t1 where a < 3) T;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	100	2.00	Using where
+Warnings:
+Note	1003	select /*+ NO_INDEX(`t1`@`select#2`) */ `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b`,`test`.`t1`.`c` AS `c` from `test`.`t1` where `test`.`t1`.`a` < 3
+# Without the hint 'range' index access would be chosen
+explain extended select /*+ no_range_optimization(t1@t1)*/ *  from
+(select * from t1 where a > 100 and a < 120) as t1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	idx_a,idx_ab	NULL	NULL	NULL	100	1.00	Using where
+Warnings:
+Note	1003	select /*+ NO_RANGE_OPTIMIZATION(`t1`@`select#2`) */ `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b`,`test`.`t1`.`c` AS `c` from `test`.`t1` where `test`.`t1`.`a` > 100 and `test`.`t1`.`a` < 120
+# Regular and derived tables share same name but the hint is applied correctly
+explain extended select /*+ index(t1@t1 idx_ab)*/ * from
+(select * from t1 where a < 3) as t1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	range	idx_ab	idx_ab	5	NULL	2	100.00	Using index condition
+Warnings:
+Note	1003	select /*+ INDEX(`t1`@`select#2` `idx_ab`) */ `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b`,`test`.`t1`.`c` AS `c` from `test`.`t1` where `test`.`t1`.`a` < 3
+explain extended select /*+ no_index(t1@t2 idx_a) index(t1@t1 idx_ab)*/ * from
+(select * from t1 where a < 3) as t1, (select * from t1 where a < 5) as t2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	range	idx_ab	idx_ab	5	NULL	2	100.00	Using index condition
+1	SIMPLE	t1	range	idx_ab	idx_ab	5	NULL	3	100.00	Using index condition; Using where; Using join buffer (flat, BNL join)
+Warnings:
+Note	1003	select /*+ NO_INDEX(`t1`@`select#3` `idx_a`) INDEX(`t1`@`select#2` `idx_ab`) */ `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b`,`test`.`t1`.`c` AS `c`,`test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b`,`test`.`t1`.`c` AS `c` from `test`.`t1` join `test`.`t1` where `test`.`t1`.`a` < 5 and `test`.`t1`.`a` < 3
+explain extended select /*+ no_index(t1@t1 idx_a, idx_ab)*/ * from
+(select * from t1 where a < 3) as t1, (select * from t1 where a < 5) as t2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	100	2.00	Using where
+1	SIMPLE	t1	range	idx_a,idx_ab	idx_a	5	NULL	2	100.00	Using index condition; Using where; Using join buffer (flat, BNL join)
+Warnings:
+Note	1003	select /*+ NO_INDEX(`t1`@`select#2` `idx_a`,`idx_ab`) */ `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b`,`test`.`t1`.`c` AS `c`,`test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b`,`test`.`t1`.`c` AS `c` from `test`.`t1` join `test`.`t1` where `test`.`t1`.`a` < 5 and `test`.`t1`.`a` < 3
+# Nested derived tables
+explain extended select /*+ no_bnl(t1@dt2)*/ * from
+(select count(*) from t1, (select * from t1 where a < 5) dt1) as dt2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	200	100.00	
+2	DERIVED	t1	range	idx_a,idx_ab	idx_a	5	NULL	2	100.00	Using where; Using index
+2	DERIVED	t1	index	NULL	idx_a	5	NULL	100	100.00	Using index
+Warnings:
+Note	1003	/* select#1 */ select /*+ NO_BNL(`t1`@`select#2`) */ `dt2`.`count(*)` AS `count(*)` from (/* select#2 */ select count(0) AS `count(*)` from `test`.`t1` join `test`.`t1` where `test`.`t1`.`a` < 5) `dt2`
+explain extended select /*+ no_index(t1@DT2)*/ * from
+(select count(*) from t1, (select * from t1 where a < 5) dt1) as dt2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	200	100.00	
+2	DERIVED	t1	range	idx_a,idx_ab	idx_a	5	NULL	2	100.00	Using where; Using index
+2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	100	100.00	Using join buffer (flat, BNL join)
+Warnings:
+Note	1003	/* select#1 */ select /*+ NO_INDEX(`t1`@`select#2`) */ `dt2`.`count(*)` AS `count(*)` from (/* select#2 */ select count(0) AS `count(*)` from `test`.`t1` join `test`.`t1` where `test`.`t1`.`a` < 5) `dt2`
+# Explicit QB name overrides the implicit one
+explain extended select /*+ no_index(t1@dt2)*/ * from
+(select count(*) from t1, (select /*+ qb_name(dt2)*/ * from t1 where a < 5) dt1) as dt2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	400	100.00	
+2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	100	4.00	Using where
+2	DERIVED	t1	index	NULL	idx_a	5	NULL	100	100.00	Using index; Using join buffer (flat, BNL join)
+Warnings:
+Note	1003	/* select#1 */ select /*+ NO_INDEX(`t1`@`dt2`) */ `dt2`.`count(*)` AS `count(*)` from (/* select#2 */ select count(0) AS `count(*)` from `test`.`t1` join `test`.`t1` where `test`.`t1`.`a` < 5) `dt2`
+# Both hints are applied
+explain extended select /*+ no_index(t1@dt1) no_bnl(t1@dt2)*/ * from
+(select count(*) from t1, (select * from t1 where a < 5) dt1) as dt2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	400	100.00	
+2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	100	4.00	Using where
+2	DERIVED	t1	index	NULL	idx_a	5	NULL	100	100.00	Using index
+Warnings:
+Note	1003	/* select#1 */ select /*+ NO_INDEX(`t1`@`select#3`) NO_BNL(`t1`@`select#2`) */ `dt2`.`count(*)` AS `count(*)` from (/* select#2 */ select count(0) AS `count(*)` from `test`.`t1` join `test`.`t1` where `test`.`t1`.`a` < 5) `dt2`
+# Nested derived tables with ambiguous names
+explain extended select * from
+(select count(*) from t1, (select * from t1 where a < 5) t1) as t1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	200	100.00	
+2	DERIVED	t1	range	idx_a,idx_ab	idx_a	5	NULL	2	100.00	Using where; Using index
+2	DERIVED	t1	index	NULL	idx_a	5	NULL	100	100.00	Using index; Using join buffer (flat, BNL join)
+Warnings:
+Note	1003	/* select#1 */ select `t1`.`count(*)` AS `count(*)` from (/* select#2 */ select count(0) AS `count(*)` from `test`.`t1` join `test`.`t1` where `test`.`t1`.`a` < 5) `t1`
+# Warning on ambiguous query block name, hint is ignored
+explain extended select /*+ no_index(t1@t1)*/* from
+(select count(*) from t1, (select * from t1 where a < 5) t1) as t1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	200	100.00	
+2	DERIVED	t1	range	idx_a,idx_ab	idx_a	5	NULL	2	100.00	Using where; Using index
+2	DERIVED	t1	index	NULL	idx_a	5	NULL	100	100.00	Using index; Using join buffer (flat, BNL join)
+Warnings:
+Warning	4243	Query block name `t1` is ambiguous for NO_INDEX hint
+Note	1003	/* select#1 */ select `t1`.`count(*)` AS `count(*)` from (/* select#2 */ select count(0) AS `count(*)` from `test`.`t1` join `test`.`t1` where `test`.`t1`.`a` < 5) `t1`
+# The hint cannot be applied to a derived table with UNION
+explain extended select /*+ no_index(t2@t1)*/* from
+(select * from t1 where a < 3 union select * from t2 where a < 9) as t1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	9	100.00	
+2	DERIVED	t1	range	idx_a,idx_ab	idx_a	5	NULL	1	100.00	Using index condition
+3	UNION	t2	ALL	NULL	NULL	NULL	NULL	100	8.00	Using where
+NULL	UNION RESULT	<union2,3>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
+Warnings:
+Warning	4244	Implicit query block name `t1` is not supported for derived tables and views with UNION/EXCEPT/INTERSECT and is ignored for NO_INDEX hint
+Note	1003	/* select#1 */ select `t1`.`a` AS `a`,`t1`.`b` AS `b`,`t1`.`c` AS `c` from (/* select#2 */ select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b`,`test`.`t1`.`c` AS `c` from `test`.`t1` where `test`.`t1`.`a` < 3 union /* select#3 */ select `test`.`t2`.`a` AS `a`,`test`.`t2`.`b` AS `b`,`test`.`t2`.`c` AS `c` from `test`.`t2` where `test`.`t2`.`a` < 9) `t1`
+explain extended select /*+ no_index(t1@t1)*/* from
+(select * from t1 where a < 3 union select * from t2 where a < 9) as t1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	9	100.00	
+2	DERIVED	t1	range	idx_a,idx_ab	idx_a	5	NULL	1	100.00	Using index condition
+3	UNION	t2	ALL	NULL	NULL	NULL	NULL	100	8.00	Using where
+NULL	UNION RESULT	<union2,3>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
+Warnings:
+Warning	4244	Implicit query block name `t1` is not supported for derived tables and views with UNION/EXCEPT/INTERSECT and is ignored for NO_INDEX hint
+Note	1003	/* select#1 */ select `t1`.`a` AS `a`,`t1`.`b` AS `b`,`t1`.`c` AS `c` from (/* select#2 */ select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b`,`test`.`t1`.`c` AS `c` from `test`.`t1` where `test`.`t1`.`a` < 3 union /* select#3 */ select `test`.`t2`.`a` AS `a`,`test`.`t2`.`b` AS `b`,`test`.`t2`.`c` AS `c` from `test`.`t2` where `test`.`t2`.`a` < 9) `t1`
+# Test INSERT..SELECT
+explain extended insert into t2 select /*+ no_bnl(t2@dt)*/ * from
+(select t1.* from t1, t2 where t1.a > t2.a) as dt;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	idx_a,idx_ab	NULL	NULL	NULL	100	100.00	Using temporary
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	100	100.00	Using where
+Warnings:
+Note	1003	insert into `test`.`t2` select /*+ NO_BNL(`t2`@`select#2`) */ sql_buffer_result `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b`,`test`.`t1`.`c` AS `c` from `test`.`t1` join `test`.`t2` where `test`.`t1`.`a` > `test`.`t2`.`a`
+# MERGE/NO_MERGE hints are resolved early and so do not support
+# implicit QB names. Warning is expected
+explain extended select /*+ no_merge(@dt)*/ * from
+(select * from (select t1.* from t1, t2 where t1.a > t2.a) as dt1) as dt;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	idx_a,idx_ab	NULL	NULL	NULL	100	100.00	
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	100	100.00	Using where; Using join buffer (flat, BNL join)
+Warnings:
+Warning	4220	Query block name `dt` is not found for NO_MERGE hint
+Note	1003	select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b`,`test`.`t1`.`c` AS `c` from `test`.`t1` join `test`.`t2` where `test`.`t1`.`a` > `test`.`t2`.`a`
+# ======================================
+# Test CTEs
+# By default BNL and index access to t1 is used.
+explain extended
+with cte as (select count(*) from t1, (select * from t1 where a < 5) dt1)
+select * from cte;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	200	100.00	
+2	DERIVED	t1	range	idx_a,idx_ab	idx_a	5	NULL	2	100.00	Using where; Using index
+2	DERIVED	t1	index	NULL	idx_a	5	NULL	100	100.00	Using index; Using join buffer (flat, BNL join)
+Warnings:
+Note	1003	with cte as (/* select#2 */ select count(0) AS `count(*)` from `test`.`t1` join `test`.`t1` where `test`.`t1`.`a` < 5)/* select#1 */ select `cte`.`count(*)` AS `count(*)` from `cte`
+explain extended
+with cte as (select count(*) from t1, (select * from t1 where a < 5) dt1)
+select /*+ no_bnl(t1@cte)*/ * from cte;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	200	100.00	
+2	DERIVED	t1	range	idx_a,idx_ab	idx_a	5	NULL	2	100.00	Using where; Using index
+2	DERIVED	t1	index	NULL	idx_a	5	NULL	100	100.00	Using index
+Warnings:
+Note	1003	with cte as (/* select#2 */ select count(0) AS `count(*)` from `test`.`t1` join `test`.`t1` where `test`.`t1`.`a` < 5)/* select#1 */ select /*+ NO_BNL(`t1`@`select#2`) */ `cte`.`count(*)` AS `count(*)` from `cte`
+explain extended
+with cte as (select count(*) from t1, (select * from t1 where a < 5) dt1)
+select /*+ no_bnl(@cte)*/ * from cte;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	200	100.00	
+2	DERIVED	t1	range	idx_a,idx_ab	idx_a	5	NULL	2	100.00	Using where; Using index
+2	DERIVED	t1	index	NULL	idx_a	5	NULL	100	100.00	Using index
+Warnings:
+Note	1003	with cte as (/* select#2 */ select count(0) AS `count(*)` from `test`.`t1` join `test`.`t1` where `test`.`t1`.`a` < 5)/* select#1 */ select /*+ NO_BNL(@`select#2`) */ `cte`.`count(*)` AS `count(*)` from `cte`
+explain extended
+with cte as (select count(*) from t1, (select * from t1 where a < 5) dt1)
+select /*+ no_index(t1@cte)*/ * from cte;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	200	100.00	
+2	DERIVED	t1	range	idx_a,idx_ab	idx_a	5	NULL	2	100.00	Using where; Using index
+2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	100	100.00	Using join buffer (flat, BNL join)
+Warnings:
+Note	1003	with cte as (/* select#2 */ select count(0) AS `count(*)` from `test`.`t1` join `test`.`t1` where `test`.`t1`.`a` < 5)/* select#1 */ select /*+ NO_INDEX(`t1`@`select#2`) */ `cte`.`count(*)` AS `count(*)` from `cte`
+explain extended
+with cte as (select count(*) from t1, (select * from t1 where a < 5) dt1)
+select /*+ no_index(t1@cte) no_index(t1@dt1)*/ * from cte;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	400	100.00	
+2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	100	4.00	Using where
+2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	100	100.00	Using join buffer (flat, BNL join)
+Warnings:
+Note	1003	with cte as (/* select#2 */ select count(0) AS `count(*)` from `test`.`t1` join `test`.`t1` where `test`.`t1`.`a` < 5)/* select#1 */ select /*+ NO_INDEX(`t1`@`select#2`) NO_INDEX(`t1`@`select#3`) */ `cte`.`count(*)` AS `count(*)` from `cte`
+explain extended
+with cte as (select count(*) from t1, (select * from t1 where a < 5) dt1)
+select /*+ no_index(t1@dt1 idx_a) no_bnl(@cte)*/ * from cte;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	300	100.00	
+2	DERIVED	t1	range	idx_ab	idx_ab	5	NULL	3	100.00	Using where; Using index
+2	DERIVED	t1	index	NULL	idx_a	5	NULL	100	100.00	Using index
+Warnings:
+Note	1003	with cte as (/* select#2 */ select count(0) AS `count(*)` from `test`.`t1` join `test`.`t1` where `test`.`t1`.`a` < 5)/* select#1 */ select /*+ NO_INDEX(`t1`@`select#3` `idx_a`) NO_BNL(@`select#2`) */ `cte`.`count(*)` AS `count(*)` from `cte`
+# Ambiguity: multiple occurencies of `cte`, the hint is ignored
+explain extended
+with cte as (select count(*) as cnt from t1, (select * from t1 where a < 5) dt1)
+select /*+ no_bnl(@cte)*/ * from cte where cnt > 10
+union
+select * from cte where cnt < 100;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	200	100.00	Using where
+2	DERIVED	t1	range	idx_a,idx_ab	idx_a	5	NULL	2	100.00	Using where; Using index
+2	DERIVED	t1	index	NULL	idx_a	5	NULL	100	100.00	Using index; Using join buffer (flat, BNL join)
+4	UNION	<derived5>	ALL	NULL	NULL	NULL	NULL	200	100.00	Using where
+5	DERIVED	t1	range	idx_a,idx_ab	idx_a	5	NULL	2	100.00	Using where; Using index
+5	DERIVED	t1	index	NULL	idx_a	5	NULL	100	100.00	Using index; Using join buffer (flat, BNL join)
+NULL	UNION RESULT	<union1,4>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
+Warnings:
+Warning	4243	Query block name `cte` is ambiguous for NO_BNL hint
+Note	1003	with cte as (/* select#2 */ select count(0) AS `cnt` from `test`.`t1` join `test`.`t1` where `test`.`t1`.`a` < 5 having `cnt` > 10)/* select#1 */ select `cte`.`cnt` AS `cnt` from `cte` where `cte`.`cnt` > 10 union /* select#4 */ select `cte`.`cnt` AS `cnt` from `cte` where `cte`.`cnt` < 100
+# However, if CTE occurencies have different aliases, the hint can be applied
+explain extended
+with cte as (select count(*) as cnt from t1, (select * from t1 where a < 5) dt1)
+select /*+ no_index(t1@cte1)*/ * from cte as cte1 where cnt > 10
+union
+select * from cte where cnt < 100;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	200	100.00	Using where
+2	DERIVED	t1	range	idx_a,idx_ab	idx_a	5	NULL	2	100.00	Using where; Using index
+2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	100	100.00	Using join buffer (flat, BNL join)
+4	UNION	<derived5>	ALL	NULL	NULL	NULL	NULL	200	100.00	Using where
+5	DERIVED	t1	range	idx_a,idx_ab	idx_a	5	NULL	2	100.00	Using where; Using index
+5	DERIVED	t1	index	NULL	idx_a	5	NULL	100	100.00	Using index; Using join buffer (flat, BNL join)
+NULL	UNION RESULT	<union1,4>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
+Warnings:
+Note	1003	with cte as (/* select#2 */ select count(0) AS `cnt` from `test`.`t1` join `test`.`t1` where `test`.`t1`.`a` < 5 having `cnt` > 10)/* select#1 */ select /*+ NO_INDEX(`t1`@`select#2`) */ `cte1`.`cnt` AS `cnt` from `cte` `cte1` where `cte1`.`cnt` > 10 union /* select#4 */ select `cte`.`cnt` AS `cnt` from `cte` where `cte`.`cnt` < 100
+# ======================================
+# Test views
+create view v1 as select * from t1 where a < 100;
+# Default execution plan
+explain extended select *
+from v1, v1 as v2 where v1.a = v2.a and v1.a < 3;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	range	idx_a,idx_ab	idx_a	5	NULL	1	100.00	Using index condition
+1	SIMPLE	t1	ref	idx_a,idx_ab	idx_a	5	test.t1.a	1	100.00	
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b`,`test`.`t1`.`c` AS `c`,`test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b`,`test`.`t1`.`c` AS `c` from `test`.`t1` join `test`.`t1` where `test`.`t1`.`a` = `test`.`t1`.`a` and `test`.`t1`.`a` < 3 and `test`.`t1`.`a` < 100 and `test`.`t1`.`a` < 100
+explain extended
+select /*+ index(t1@`v1` idx_ab) no_index(t1@`v2`)*/ *
+from v1, v1 as v2 where v1.a = v2.a and v1.a < 3;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	range	idx_ab	idx_ab	5	NULL	2	100.00	Using index condition
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	100	99.00	Using where; Using join buffer (flat, BNL join)
+Warnings:
+Note	1003	select /*+ INDEX(`t1` `idx_ab`) NO_INDEX(`t1`) */ `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b`,`test`.`t1`.`c` AS `c`,`test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b`,`test`.`t1`.`c` AS `c` from `test`.`t1` join `test`.`t1` where `test`.`t1`.`a` = `test`.`t1`.`a` and `test`.`t1`.`a` < 3 and `test`.`t1`.`a` < 100 and `test`.`t1`.`a` < 100
+# Nested views
+create view v2 as select * from v1 where a < 300;
+# Default execution plan
+explain extended select * from v2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	idx_a,idx_ab	NULL	NULL	NULL	100	94.00	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b`,`test`.`t1`.`c` AS `c` from `test`.`t1` where `test`.`t1`.`a` < 300 and `test`.`t1`.`a` < 100
+# Addressing an object inside a nested view
+explain extended select /*+ index(t1@`v1` idx_ab)*/ * from v2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	range	idx_ab	idx_ab	5	NULL	99	100.00	Using index condition
+Warnings:
+Note	1003	select /*+ INDEX(`t1` `idx_ab`) */ `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b`,`test`.`t1`.`c` AS `c` from `test`.`t1` where `test`.`t1`.`a` < 300 and `test`.`t1`.`a` < 100
+create view v3 as select * from t1 union select * from t2;
+# Unable to apply the hint to a table with UNION
+explain extended select /*+ no_index(t1@v3) */ * from v3;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	200	100.00	
+2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	100	100.00	
+3	UNION	t2	ALL	NULL	NULL	NULL	NULL	100	100.00	
+NULL	UNION RESULT	<union2,3>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
+Warnings:
+Warning	4244	Implicit query block name `v3` is not supported for derived tables and views with UNION/EXCEPT/INTERSECT and is ignored for NO_INDEX hint
+Note	1003	/* select#1 */ select `v3`.`a` AS `a`,`v3`.`b` AS `b`,`v3`.`c` AS `c` from `test`.`v3`
+# Ambiguity: view `v1` appears two times - should warn and ignore hint
+explain extended select /*+ index(t2@v1) */ * from v1,
+(select a from v1 where b > 5) dt;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	range	idx_a,idx_ab	idx_ab	5	NULL	99	90.20	Using where; Using index
+1	SIMPLE	t1	ALL	idx_a,idx_ab	NULL	NULL	NULL	100	94.00	Using where; Using join buffer (flat, BNL join)
+Warnings:
+Warning	4243	Query block name `v1` is ambiguous for INDEX hint
+Note	1003	select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b`,`test`.`t1`.`c` AS `c`,`test`.`t1`.`a` AS `a` from `test`.`t1` join `test`.`t1` where `test`.`t1`.`b` > 5 and `test`.`t1`.`a` < 100 and `test`.`t1`.`a` < 100
+# Implicit QB names are not supported inside views
+create view v4 as select /*+ no_bnl(t2@dt)*/ * from
+(select t1.* from t1, t2 where t1.a > t2.a) as dt;
+Warnings:
+Warning	4242	Implicit query block names are ignored for hints specified within VIEWs
+show create view v4;
+View	Create View	character_set_client	collation_connection
+v4	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v4` AS select `dt`.`a` AS `a`,`dt`.`b` AS `b`,`dt`.`c` AS `c` from (select `t1`.`a` AS `a`,`t1`.`b` AS `b`,`t1`.`c` AS `c` from (`t1` join `t2`) where `t1`.`a` > `t2`.`a`) `dt`	latin1	latin1_swedish_ci
+# However, a derived table inside a view can be addressed from outer query
+create view v5 as select dt.a from
+t1, (select t1.* from t1, t2 where t1.a > t2.a) as dt where t1.a=dt.a;
+# Addressing a single table
+explain extended select /*+ no_bnl(t2@dt) */* from v5;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	index	idx_a,idx_ab	idx_a	5	NULL	100	100.00	Using where; Using index
+1	SIMPLE	t1	ref	idx_a,idx_ab	idx_a	5	test.t1.a	1	100.00	Using index
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	100	100.00	Using where
+Warnings:
+Note	1003	select /*+ NO_BNL(`t2`) */ `test`.`t1`.`a` AS `a` from `test`.`t1` join `test`.`t1` join `test`.`t2` where `test`.`t1`.`a` = `test`.`t1`.`a` and `test`.`t1`.`a` > `test`.`t2`.`a`
+# Addressing the whole derived table
+explain extended select /*+ no_bnl(@dt) */* from v5;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	index	idx_a,idx_ab	idx_a	5	NULL	100	100.00	Using where; Using index
+1	SIMPLE	t1	ref	idx_a,idx_ab	idx_a	5	test.t1.a	1	100.00	Using index
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	100	100.00	Using where
+Warnings:
+Note	1003	select /*+ NO_BNL() */ `test`.`t1`.`a` AS `a` from `test`.`t1` join `test`.`t1` join `test`.`t2` where `test`.`t1`.`a` = `test`.`t1`.`a` and `test`.`t1`.`a` > `test`.`t2`.`a`
+# Derived tables inside views can be addressed by their aliases
+explain extended select /*+ no_bnl(t2@dt) */ * from v4;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	idx_a,idx_ab	NULL	NULL	NULL	100	100.00	
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	100	100.00	Using where
+Warnings:
+Note	1003	select /*+ NO_BNL(`t2`) */ `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b`,`test`.`t1`.`c` AS `c` from `test`.`t1` join `test`.`t2` where `test`.`t1`.`a` > `test`.`t2`.`a`
+drop view v1, v2, v3, v4, v5;
+
+================================================================
+set optimizer_switch= 'derived_merge=off';
+# Table-level hint
+explain extended select /*+ no_bnl(t2@dt)*/ * from
+(select t1.* from t1, t2 where t1.a > t2.a) as dt;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	10000	100.00	
+2	DERIVED	t1	ALL	idx_a,idx_ab	NULL	NULL	NULL	100	100.00	
+2	DERIVED	t2	ALL	NULL	NULL	NULL	NULL	100	100.00	Using where
+Warnings:
+Note	1003	/* select#1 */ select /*+ NO_BNL(`t2`@`select#2`) */ `dt`.`a` AS `a`,`dt`.`b` AS `b`,`dt`.`c` AS `c` from (/* select#2 */ select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b`,`test`.`t1`.`c` AS `c` from `test`.`t1` join `test`.`t2` where `test`.`t1`.`a` > `test`.`t2`.`a`) `dt`
+# QB-level hint
+explain extended select /*+ no_bnl(@dt)*/ * from
+(select t1.* from t1, t2 where t1.a > t2.a) as dt;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	10000	100.00	
+2	DERIVED	t1	ALL	idx_a,idx_ab	NULL	NULL	NULL	100	100.00	
+2	DERIVED	t2	ALL	NULL	NULL	NULL	NULL	100	100.00	Using where
+Warnings:
+Note	1003	/* select#1 */ select /*+ NO_BNL(@`select#2`) */ `dt`.`a` AS `a`,`dt`.`b` AS `b`,`dt`.`c` AS `c` from (/* select#2 */ select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b`,`test`.`t1`.`c` AS `c` from `test`.`t1` join `test`.`t2` where `test`.`t1`.`a` > `test`.`t2`.`a`) `dt`
+# Index-level hints
+# Without the hint 'range' index access would be chosen
+explain extended select /*+ no_index(t1@`T`)*/ * from
+(select * from t1 where a < 3) T;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	2	100.00	
+2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	100	2.00	Using where
+Warnings:
+Note	1003	/* select#1 */ select /*+ NO_INDEX(`t1`@`select#2`) */ `T`.`a` AS `a`,`T`.`b` AS `b`,`T`.`c` AS `c` from (/* select#2 */ select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b`,`test`.`t1`.`c` AS `c` from `test`.`t1` where `test`.`t1`.`a` < 3) `T`
+# Without the hint 'range' index access would be chosen
+explain extended select /*+ no_range_optimization(t1@t1)*/ *  from
+(select * from t1 where a > 100 and a < 120) as t1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	2	100.00	
+2	DERIVED	t1	ALL	idx_a,idx_ab	NULL	NULL	NULL	100	1.00	Using where
+Warnings:
+Note	1003	/* select#1 */ select /*+ NO_RANGE_OPTIMIZATION(`t1`@`select#2`) */ `t1`.`a` AS `a`,`t1`.`b` AS `b`,`t1`.`c` AS `c` from (/* select#2 */ select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b`,`test`.`t1`.`c` AS `c` from `test`.`t1` where `test`.`t1`.`a` > 100 and `test`.`t1`.`a` < 120) `t1`
+# Regular and derived tables share same name but the hint is applied correctly
+explain extended select /*+ index(t1@t1 idx_ab)*/ * from
+(select * from t1 where a < 3) as t1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	2	100.00	
+2	DERIVED	t1	range	idx_ab	idx_ab	5	NULL	2	100.00	Using index condition
+Warnings:
+Note	1003	/* select#1 */ select /*+ INDEX(`t1`@`select#2` `idx_ab`) */ `t1`.`a` AS `a`,`t1`.`b` AS `b`,`t1`.`c` AS `c` from (/* select#2 */ select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b`,`test`.`t1`.`c` AS `c` from `test`.`t1` where `test`.`t1`.`a` < 3) `t1`
+explain extended select /*+ no_index(t1@t2 idx_a) index(t1@t1 idx_ab)*/ * from
+(select * from t1 where a < 3) as t1, (select * from t1 where a < 5) as t2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	2	100.00	
+1	PRIMARY	<derived3>	ALL	NULL	NULL	NULL	NULL	3	100.00	Using join buffer (flat, BNL join)
+3	DERIVED	t1	range	idx_ab	idx_ab	5	NULL	3	100.00	Using index condition
+2	DERIVED	t1	range	idx_ab	idx_ab	5	NULL	2	100.00	Using index condition
+Warnings:
+Note	1003	/* select#1 */ select /*+ NO_INDEX(`t1`@`select#3` `idx_a`) INDEX(`t1`@`select#2` `idx_ab`) */ `t1`.`a` AS `a`,`t1`.`b` AS `b`,`t1`.`c` AS `c`,`t2`.`a` AS `a`,`t2`.`b` AS `b`,`t2`.`c` AS `c` from (/* select#2 */ select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b`,`test`.`t1`.`c` AS `c` from `test`.`t1` where `test`.`t1`.`a` < 3) `t1` join (/* select#3 */ select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b`,`test`.`t1`.`c` AS `c` from `test`.`t1` where `test`.`t1`.`a` < 5) `t2`
+explain extended select /*+ no_index(t1@t1 idx_a, idx_ab)*/ * from
+(select * from t1 where a < 3) as t1, (select * from t1 where a < 5) as t2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	2	100.00	
+1	PRIMARY	<derived3>	ALL	NULL	NULL	NULL	NULL	2	100.00	Using join buffer (flat, BNL join)
+3	DERIVED	t1	range	idx_a,idx_ab	idx_a	5	NULL	2	100.00	Using index condition
+2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	100	2.00	Using where
+Warnings:
+Note	1003	/* select#1 */ select /*+ NO_INDEX(`t1`@`select#2` `idx_a`,`idx_ab`) */ `t1`.`a` AS `a`,`t1`.`b` AS `b`,`t1`.`c` AS `c`,`t2`.`a` AS `a`,`t2`.`b` AS `b`,`t2`.`c` AS `c` from (/* select#2 */ select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b`,`test`.`t1`.`c` AS `c` from `test`.`t1` where `test`.`t1`.`a` < 3) `t1` join (/* select#3 */ select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b`,`test`.`t1`.`c` AS `c` from `test`.`t1` where `test`.`t1`.`a` < 5) `t2`
+# Nested derived tables
+explain extended select /*+ no_bnl(t1@dt2)*/ * from
+(select count(*) from t1, (select * from t1 where a < 5) dt1) as dt2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	200	100.00	
+2	DERIVED	<derived3>	ALL	NULL	NULL	NULL	NULL	2	100.00	
+2	DERIVED	t1	index	NULL	idx_a	5	NULL	100	100.00	Using index
+3	DERIVED	t1	range	idx_a,idx_ab	idx_a	5	NULL	2	100.00	Using index condition
+Warnings:
+Note	1003	/* select#1 */ select /*+ NO_BNL(`t1`@`select#2`) */ `dt2`.`count(*)` AS `count(*)` from (/* select#2 */ select count(0) AS `count(*)` from `test`.`t1` join (/* select#3 */ select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b`,`test`.`t1`.`c` AS `c` from `test`.`t1` where `test`.`t1`.`a` < 5) `dt1`) `dt2`
+explain extended select /*+ no_index(t1@DT2)*/ * from
+(select count(*) from t1, (select * from t1 where a < 5) dt1) as dt2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	200	100.00	
+2	DERIVED	<derived3>	ALL	NULL	NULL	NULL	NULL	2	100.00	
+2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	100	100.00	Using join buffer (flat, BNL join)
+3	DERIVED	t1	range	idx_a,idx_ab	idx_a	5	NULL	2	100.00	Using index condition
+Warnings:
+Note	1003	/* select#1 */ select /*+ NO_INDEX(`t1`@`select#2`) */ `dt2`.`count(*)` AS `count(*)` from (/* select#2 */ select count(0) AS `count(*)` from `test`.`t1` join (/* select#3 */ select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b`,`test`.`t1`.`c` AS `c` from `test`.`t1` where `test`.`t1`.`a` < 5) `dt1`) `dt2`
+# Explicit QB name overrides the implicit one
+explain extended select /*+ no_index(t1@dt2)*/ * from
+(select count(*) from t1, (select /*+ qb_name(dt2)*/ * from t1 where a < 5) dt1) as dt2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	400	100.00	
+2	DERIVED	<derived3>	ALL	NULL	NULL	NULL	NULL	4	100.00	
+2	DERIVED	t1	index	NULL	idx_a	5	NULL	100	100.00	Using index; Using join buffer (flat, BNL join)
+3	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	100	4.00	Using where
+Warnings:
+Note	1003	/* select#1 */ select /*+ NO_INDEX(`t1`@`dt2`) */ `dt2`.`count(*)` AS `count(*)` from (/* select#2 */ select count(0) AS `count(*)` from `test`.`t1` join (/* select#3 */ select /*+ QB_NAME(`dt2`) */ `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b`,`test`.`t1`.`c` AS `c` from `test`.`t1` where `test`.`t1`.`a` < 5) `dt1`) `dt2`
+# Both hints are applied
+explain extended select /*+ no_index(t1@dt1) no_bnl(t1@dt2)*/ * from
+(select count(*) from t1, (select * from t1 where a < 5) dt1) as dt2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	400	100.00	
+2	DERIVED	<derived3>	ALL	NULL	NULL	NULL	NULL	4	100.00	
+2	DERIVED	t1	index	NULL	idx_a	5	NULL	100	100.00	Using index
+3	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	100	4.00	Using where
+Warnings:
+Note	1003	/* select#1 */ select /*+ NO_INDEX(`t1`@`select#3`) NO_BNL(`t1`@`select#2`) */ `dt2`.`count(*)` AS `count(*)` from (/* select#2 */ select count(0) AS `count(*)` from `test`.`t1` join (/* select#3 */ select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b`,`test`.`t1`.`c` AS `c` from `test`.`t1` where `test`.`t1`.`a` < 5) `dt1`) `dt2`
+# Nested derived tables with ambiguous names
+explain extended select * from
+(select count(*) from t1, (select * from t1 where a < 5) t1) as t1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	200	100.00	
+2	DERIVED	<derived3>	ALL	NULL	NULL	NULL	NULL	2	100.00	
+2	DERIVED	t1	index	NULL	idx_a	5	NULL	100	100.00	Using index; Using join buffer (flat, BNL join)
+3	DERIVED	t1	range	idx_a,idx_ab	idx_a	5	NULL	2	100.00	Using index condition
+Warnings:
+Note	1003	/* select#1 */ select `t1`.`count(*)` AS `count(*)` from (/* select#2 */ select count(0) AS `count(*)` from `test`.`t1` join (/* select#3 */ select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b`,`test`.`t1`.`c` AS `c` from `test`.`t1` where `test`.`t1`.`a` < 5) `t1`) `t1`
+# Warning on ambiguous query block name, hint is ignored
+explain extended select /*+ no_index(t1@t1)*/* from
+(select count(*) from t1, (select * from t1 where a < 5) t1) as t1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	200	100.00	
+2	DERIVED	<derived3>	ALL	NULL	NULL	NULL	NULL	2	100.00	
+2	DERIVED	t1	index	NULL	idx_a	5	NULL	100	100.00	Using index; Using join buffer (flat, BNL join)
+3	DERIVED	t1	range	idx_a,idx_ab	idx_a	5	NULL	2	100.00	Using index condition
+Warnings:
+Warning	4243	Query block name `t1` is ambiguous for NO_INDEX hint
+Note	1003	/* select#1 */ select `t1`.`count(*)` AS `count(*)` from (/* select#2 */ select count(0) AS `count(*)` from `test`.`t1` join (/* select#3 */ select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b`,`test`.`t1`.`c` AS `c` from `test`.`t1` where `test`.`t1`.`a` < 5) `t1`) `t1`
+# The hint cannot be applied to a derived table with UNION
+explain extended select /*+ no_index(t2@t1)*/* from
+(select * from t1 where a < 3 union select * from t2 where a < 9) as t1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	9	100.00	
+2	DERIVED	t1	range	idx_a,idx_ab	idx_a	5	NULL	1	100.00	Using index condition
+3	UNION	t2	ALL	NULL	NULL	NULL	NULL	100	8.00	Using where
+NULL	UNION RESULT	<union2,3>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
+Warnings:
+Warning	4244	Implicit query block name `t1` is not supported for derived tables and views with UNION/EXCEPT/INTERSECT and is ignored for NO_INDEX hint
+Note	1003	/* select#1 */ select `t1`.`a` AS `a`,`t1`.`b` AS `b`,`t1`.`c` AS `c` from (/* select#2 */ select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b`,`test`.`t1`.`c` AS `c` from `test`.`t1` where `test`.`t1`.`a` < 3 union /* select#3 */ select `test`.`t2`.`a` AS `a`,`test`.`t2`.`b` AS `b`,`test`.`t2`.`c` AS `c` from `test`.`t2` where `test`.`t2`.`a` < 9) `t1`
+explain extended select /*+ no_index(t1@t1)*/* from
+(select * from t1 where a < 3 union select * from t2 where a < 9) as t1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	9	100.00	
+2	DERIVED	t1	range	idx_a,idx_ab	idx_a	5	NULL	1	100.00	Using index condition
+3	UNION	t2	ALL	NULL	NULL	NULL	NULL	100	8.00	Using where
+NULL	UNION RESULT	<union2,3>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
+Warnings:
+Warning	4244	Implicit query block name `t1` is not supported for derived tables and views with UNION/EXCEPT/INTERSECT and is ignored for NO_INDEX hint
+Note	1003	/* select#1 */ select `t1`.`a` AS `a`,`t1`.`b` AS `b`,`t1`.`c` AS `c` from (/* select#2 */ select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b`,`test`.`t1`.`c` AS `c` from `test`.`t1` where `test`.`t1`.`a` < 3 union /* select#3 */ select `test`.`t2`.`a` AS `a`,`test`.`t2`.`b` AS `b`,`test`.`t2`.`c` AS `c` from `test`.`t2` where `test`.`t2`.`a` < 9) `t1`
+# Test INSERT..SELECT
+explain extended insert into t2 select /*+ no_bnl(t2@dt)*/ * from
+(select t1.* from t1, t2 where t1.a > t2.a) as dt;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	10000	100.00	
+2	DERIVED	t1	ALL	idx_a,idx_ab	NULL	NULL	NULL	100	100.00	
+2	DERIVED	t2	ALL	NULL	NULL	NULL	NULL	100	100.00	Using where
+Warnings:
+Note	1003	insert into `test`.`t2` /* select#1 */ select /*+ NO_BNL(`t2`@`select#2`) */ `dt`.`a` AS `a`,`dt`.`b` AS `b`,`dt`.`c` AS `c` from (/* select#2 */ select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b`,`test`.`t1`.`c` AS `c` from `test`.`t1` join `test`.`t2` where `test`.`t1`.`a` > `test`.`t2`.`a`) `dt`
+# MERGE/NO_MERGE hints are resolved early and so do not support
+# implicit QB names. Warning is expected
+explain extended select /*+ no_merge(@dt)*/ * from
+(select * from (select t1.* from t1, t2 where t1.a > t2.a) as dt1) as dt;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	10000	100.00	
+2	DERIVED	<derived3>	ALL	NULL	NULL	NULL	NULL	10000	100.00	
+3	DERIVED	t1	ALL	idx_a,idx_ab	NULL	NULL	NULL	100	100.00	
+3	DERIVED	t2	ALL	NULL	NULL	NULL	NULL	100	100.00	Using where; Using join buffer (flat, BNL join)
+Warnings:
+Warning	4220	Query block name `dt` is not found for NO_MERGE hint
+Note	1003	/* select#1 */ select `dt`.`a` AS `a`,`dt`.`b` AS `b`,`dt`.`c` AS `c` from (/* select#2 */ select `dt1`.`a` AS `a`,`dt1`.`b` AS `b`,`dt1`.`c` AS `c` from (/* select#3 */ select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b`,`test`.`t1`.`c` AS `c` from `test`.`t1` join `test`.`t2` where `test`.`t1`.`a` > `test`.`t2`.`a`) `dt1`) `dt`
+# ======================================
+# Test CTEs
+# By default BNL and index access to t1 is used.
+explain extended
+with cte as (select count(*) from t1, (select * from t1 where a < 5) dt1)
+select * from cte;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	200	100.00	
+2	DERIVED	<derived3>	ALL	NULL	NULL	NULL	NULL	2	100.00	
+2	DERIVED	t1	index	NULL	idx_a	5	NULL	100	100.00	Using index; Using join buffer (flat, BNL join)
+3	DERIVED	t1	range	idx_a,idx_ab	idx_a	5	NULL	2	100.00	Using index condition
+Warnings:
+Note	1003	with cte as (/* select#2 */ select count(0) AS `count(*)` from `test`.`t1` join (/* select#3 */ select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b`,`test`.`t1`.`c` AS `c` from `test`.`t1` where `test`.`t1`.`a` < 5) `dt1`)/* select#1 */ select `cte`.`count(*)` AS `count(*)` from `cte`
+explain extended
+with cte as (select count(*) from t1, (select * from t1 where a < 5) dt1)
+select /*+ no_bnl(t1@cte)*/ * from cte;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	200	100.00	
+2	DERIVED	<derived3>	ALL	NULL	NULL	NULL	NULL	2	100.00	
+2	DERIVED	t1	index	NULL	idx_a	5	NULL	100	100.00	Using index
+3	DERIVED	t1	range	idx_a,idx_ab	idx_a	5	NULL	2	100.00	Using index condition
+Warnings:
+Note	1003	with cte as (/* select#2 */ select count(0) AS `count(*)` from `test`.`t1` join (/* select#3 */ select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b`,`test`.`t1`.`c` AS `c` from `test`.`t1` where `test`.`t1`.`a` < 5) `dt1`)/* select#1 */ select /*+ NO_BNL(`t1`@`select#2`) */ `cte`.`count(*)` AS `count(*)` from `cte`
+explain extended
+with cte as (select count(*) from t1, (select * from t1 where a < 5) dt1)
+select /*+ no_bnl(@cte)*/ * from cte;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	200	100.00	
+2	DERIVED	<derived3>	ALL	NULL	NULL	NULL	NULL	2	100.00	
+2	DERIVED	t1	index	NULL	idx_a	5	NULL	100	100.00	Using index
+3	DERIVED	t1	range	idx_a,idx_ab	idx_a	5	NULL	2	100.00	Using index condition
+Warnings:
+Note	1003	with cte as (/* select#2 */ select count(0) AS `count(*)` from `test`.`t1` join (/* select#3 */ select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b`,`test`.`t1`.`c` AS `c` from `test`.`t1` where `test`.`t1`.`a` < 5) `dt1`)/* select#1 */ select /*+ NO_BNL(@`select#2`) */ `cte`.`count(*)` AS `count(*)` from `cte`
+explain extended
+with cte as (select count(*) from t1, (select * from t1 where a < 5) dt1)
+select /*+ no_index(t1@cte)*/ * from cte;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	200	100.00	
+2	DERIVED	<derived3>	ALL	NULL	NULL	NULL	NULL	2	100.00	
+2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	100	100.00	Using join buffer (flat, BNL join)
+3	DERIVED	t1	range	idx_a,idx_ab	idx_a	5	NULL	2	100.00	Using index condition
+Warnings:
+Note	1003	with cte as (/* select#2 */ select count(0) AS `count(*)` from `test`.`t1` join (/* select#3 */ select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b`,`test`.`t1`.`c` AS `c` from `test`.`t1` where `test`.`t1`.`a` < 5) `dt1`)/* select#1 */ select /*+ NO_INDEX(`t1`@`select#2`) */ `cte`.`count(*)` AS `count(*)` from `cte`
+explain extended
+with cte as (select count(*) from t1, (select * from t1 where a < 5) dt1)
+select /*+ no_index(t1@cte) no_index(t1@dt1)*/ * from cte;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	400	100.00	
+2	DERIVED	<derived3>	ALL	NULL	NULL	NULL	NULL	4	100.00	
+2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	100	100.00	Using join buffer (flat, BNL join)
+3	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	100	4.00	Using where
+Warnings:
+Note	1003	with cte as (/* select#2 */ select count(0) AS `count(*)` from `test`.`t1` join (/* select#3 */ select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b`,`test`.`t1`.`c` AS `c` from `test`.`t1` where `test`.`t1`.`a` < 5) `dt1`)/* select#1 */ select /*+ NO_INDEX(`t1`@`select#2`) NO_INDEX(`t1`@`select#3`) */ `cte`.`count(*)` AS `count(*)` from `cte`
+explain extended
+with cte as (select count(*) from t1, (select * from t1 where a < 5) dt1)
+select /*+ no_index(t1@dt1 idx_a) no_bnl(@cte)*/ * from cte;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	300	100.00	
+2	DERIVED	<derived3>	ALL	NULL	NULL	NULL	NULL	3	100.00	
+2	DERIVED	t1	index	NULL	idx_a	5	NULL	100	100.00	Using index
+3	DERIVED	t1	range	idx_ab	idx_ab	5	NULL	3	100.00	Using index condition
+Warnings:
+Note	1003	with cte as (/* select#2 */ select count(0) AS `count(*)` from `test`.`t1` join (/* select#3 */ select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b`,`test`.`t1`.`c` AS `c` from `test`.`t1` where `test`.`t1`.`a` < 5) `dt1`)/* select#1 */ select /*+ NO_INDEX(`t1`@`select#3` `idx_a`) NO_BNL(@`select#2`) */ `cte`.`count(*)` AS `count(*)` from `cte`
+# Ambiguity: multiple occurencies of `cte`, the hint is ignored
+explain extended
+with cte as (select count(*) as cnt from t1, (select * from t1 where a < 5) dt1)
+select /*+ no_bnl(@cte)*/ * from cte where cnt > 10
+union
+select * from cte where cnt < 100;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	200	100.00	Using where
+2	DERIVED	<derived3>	ALL	NULL	NULL	NULL	NULL	2	100.00	
+2	DERIVED	t1	index	NULL	idx_a	5	NULL	100	100.00	Using index; Using join buffer (flat, BNL join)
+3	DERIVED	t1	range	idx_a,idx_ab	idx_a	5	NULL	2	100.00	Using index condition
+4	UNION	<derived5>	ALL	NULL	NULL	NULL	NULL	200	100.00	Using where
+5	DERIVED	<derived6>	ALL	NULL	NULL	NULL	NULL	2	100.00	
+5	DERIVED	t1	index	NULL	idx_a	5	NULL	100	100.00	Using index; Using join buffer (flat, BNL join)
+6	DERIVED	t1	range	idx_a,idx_ab	idx_a	5	NULL	2	100.00	Using index condition
+NULL	UNION RESULT	<union1,4>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
+Warnings:
+Warning	4243	Query block name `cte` is ambiguous for NO_BNL hint
+Note	1003	with cte as (/* select#2 */ select count(0) AS `cnt` from `test`.`t1` join (/* select#3 */ select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b`,`test`.`t1`.`c` AS `c` from `test`.`t1` where `test`.`t1`.`a` < 5) `dt1` having `cnt` > 10)/* select#1 */ select `cte`.`cnt` AS `cnt` from `cte` where `cte`.`cnt` > 10 union /* select#4 */ select `cte`.`cnt` AS `cnt` from `cte` where `cte`.`cnt` < 100
+# However, if CTE occurencies have different aliases, the hint can be applied
+explain extended
+with cte as (select count(*) as cnt from t1, (select * from t1 where a < 5) dt1)
+select /*+ no_index(t1@cte1)*/ * from cte as cte1 where cnt > 10
+union
+select * from cte where cnt < 100;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	200	100.00	Using where
+2	DERIVED	<derived3>	ALL	NULL	NULL	NULL	NULL	2	100.00	
+2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	100	100.00	Using join buffer (flat, BNL join)
+3	DERIVED	t1	range	idx_a,idx_ab	idx_a	5	NULL	2	100.00	Using index condition
+4	UNION	<derived5>	ALL	NULL	NULL	NULL	NULL	200	100.00	Using where
+5	DERIVED	<derived6>	ALL	NULL	NULL	NULL	NULL	2	100.00	
+5	DERIVED	t1	index	NULL	idx_a	5	NULL	100	100.00	Using index; Using join buffer (flat, BNL join)
+6	DERIVED	t1	range	idx_a,idx_ab	idx_a	5	NULL	2	100.00	Using index condition
+NULL	UNION RESULT	<union1,4>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
+Warnings:
+Note	1003	with cte as (/* select#2 */ select count(0) AS `cnt` from `test`.`t1` join (/* select#3 */ select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b`,`test`.`t1`.`c` AS `c` from `test`.`t1` where `test`.`t1`.`a` < 5) `dt1` having `cnt` > 10)/* select#1 */ select /*+ NO_INDEX(`t1`@`select#2`) */ `cte1`.`cnt` AS `cnt` from `cte` `cte1` where `cte1`.`cnt` > 10 union /* select#4 */ select `cte`.`cnt` AS `cnt` from `cte` where `cte`.`cnt` < 100
+# ======================================
+# Test views
+create view v1 as select * from t1 where a < 100;
+# Default execution plan
+explain extended select *
+from v1, v1 as v2 where v1.a = v2.a and v1.a < 3;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	range	idx_a,idx_ab	idx_a	5	NULL	1	100.00	Using index condition
+1	SIMPLE	t1	ref	idx_a,idx_ab	idx_a	5	test.t1.a	1	100.00	
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b`,`test`.`t1`.`c` AS `c`,`test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b`,`test`.`t1`.`c` AS `c` from `test`.`t1` join `test`.`t1` where `test`.`t1`.`a` = `test`.`t1`.`a` and `test`.`t1`.`a` < 3 and `test`.`t1`.`a` < 100 and `test`.`t1`.`a` < 100
+explain extended
+select /*+ index(t1@`v1` idx_ab) no_index(t1@`v2`)*/ *
+from v1, v1 as v2 where v1.a = v2.a and v1.a < 3;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	range	idx_ab	idx_ab	5	NULL	2	100.00	Using index condition
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	100	99.00	Using where; Using join buffer (flat, BNL join)
+Warnings:
+Note	1003	select /*+ INDEX(`t1` `idx_ab`) NO_INDEX(`t1`) */ `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b`,`test`.`t1`.`c` AS `c`,`test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b`,`test`.`t1`.`c` AS `c` from `test`.`t1` join `test`.`t1` where `test`.`t1`.`a` = `test`.`t1`.`a` and `test`.`t1`.`a` < 3 and `test`.`t1`.`a` < 100 and `test`.`t1`.`a` < 100
+# Nested views
+create view v2 as select * from v1 where a < 300;
+# Default execution plan
+explain extended select * from v2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	idx_a,idx_ab	NULL	NULL	NULL	100	94.00	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b`,`test`.`t1`.`c` AS `c` from `test`.`t1` where `test`.`t1`.`a` < 300 and `test`.`t1`.`a` < 100
+# Addressing an object inside a nested view
+explain extended select /*+ index(t1@`v1` idx_ab)*/ * from v2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	range	idx_ab	idx_ab	5	NULL	99	100.00	Using index condition
+Warnings:
+Note	1003	select /*+ INDEX(`t1` `idx_ab`) */ `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b`,`test`.`t1`.`c` AS `c` from `test`.`t1` where `test`.`t1`.`a` < 300 and `test`.`t1`.`a` < 100
+create view v3 as select * from t1 union select * from t2;
+# Unable to apply the hint to a table with UNION
+explain extended select /*+ no_index(t1@v3) */ * from v3;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	200	100.00	
+2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	100	100.00	
+3	UNION	t2	ALL	NULL	NULL	NULL	NULL	100	100.00	
+NULL	UNION RESULT	<union2,3>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
+Warnings:
+Warning	4244	Implicit query block name `v3` is not supported for derived tables and views with UNION/EXCEPT/INTERSECT and is ignored for NO_INDEX hint
+Note	1003	/* select#1 */ select `v3`.`a` AS `a`,`v3`.`b` AS `b`,`v3`.`c` AS `c` from `test`.`v3`
+# Ambiguity: view `v1` appears two times - should warn and ignore hint
+explain extended select /*+ index(t2@v1) */ * from v1,
+(select a from v1 where b > 5) dt;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	ALL	idx_a,idx_ab	NULL	NULL	NULL	100	94.00	Using where
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	99	100.00	Using join buffer (flat, BNL join)
+2	DERIVED	t1	range	idx_a,idx_ab	idx_ab	5	NULL	99	90.20	Using where; Using index
+Warnings:
+Warning	4243	Query block name `v1` is ambiguous for INDEX hint
+Note	1003	/* select#1 */ select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b`,`test`.`t1`.`c` AS `c`,`dt`.`a` AS `a` from `test`.`t1` join (/* select#2 */ select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`b` > 5 and `test`.`t1`.`a` < 100) `dt` where `test`.`t1`.`a` < 100
+# Implicit QB names are not supported inside views
+create view v4 as select /*+ no_bnl(t2@dt)*/ * from
+(select t1.* from t1, t2 where t1.a > t2.a) as dt;
+Warnings:
+Warning	4242	Implicit query block names are ignored for hints specified within VIEWs
+show create view v4;
+View	Create View	character_set_client	collation_connection
+v4	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v4` AS select `dt`.`a` AS `a`,`dt`.`b` AS `b`,`dt`.`c` AS `c` from (select `t1`.`a` AS `a`,`t1`.`b` AS `b`,`t1`.`c` AS `c` from (`t1` join `t2`) where `t1`.`a` > `t2`.`a`) `dt`	latin1	latin1_swedish_ci
+# However, a derived table inside a view can be addressed from outer query
+create view v5 as select dt.a from
+t1, (select t1.* from t1, t2 where t1.a > t2.a) as dt where t1.a=dt.a;
+# Addressing a single table
+explain extended select /*+ no_bnl(t2@dt) */* from v5;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	index	idx_a,idx_ab	idx_a	5	NULL	100	100.00	Using where; Using index
+1	PRIMARY	<derived3>	ref	key0	key0	5	test.t1.a	100	100.00	
+3	DERIVED	t1	ALL	idx_a,idx_ab	NULL	NULL	NULL	100	100.00	
+3	DERIVED	t2	ALL	NULL	NULL	NULL	NULL	100	100.00	Using where
+Warnings:
+Note	1003	/* select#1 */ select /*+ NO_BNL(`t2`) */ `dt`.`a` AS `a` from `test`.`t1` join (/* select#3 */ select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b`,`test`.`t1`.`c` AS `c` from `test`.`t1` join `test`.`t2` where `test`.`t1`.`a` > `test`.`t2`.`a`) `dt` where `dt`.`a` = `test`.`t1`.`a`
+# Addressing the whole derived table
+explain extended select /*+ no_bnl(@dt) */* from v5;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	index	idx_a,idx_ab	idx_a	5	NULL	100	100.00	Using where; Using index
+1	PRIMARY	<derived3>	ref	key0	key0	5	test.t1.a	100	100.00	
+3	DERIVED	t1	ALL	idx_a,idx_ab	NULL	NULL	NULL	100	100.00	
+3	DERIVED	t2	ALL	NULL	NULL	NULL	NULL	100	100.00	Using where
+Warnings:
+Note	1003	/* select#1 */ select /*+ NO_BNL() */ `dt`.`a` AS `a` from `test`.`t1` join (/* select#3 */ select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b`,`test`.`t1`.`c` AS `c` from `test`.`t1` join `test`.`t2` where `test`.`t1`.`a` > `test`.`t2`.`a`) `dt` where `dt`.`a` = `test`.`t1`.`a`
+# Derived tables inside views can be addressed by their aliases
+explain extended select /*+ no_bnl(t2@dt) */ * from v4;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	<derived3>	ALL	NULL	NULL	NULL	NULL	10000	100.00	
+3	DERIVED	t1	ALL	idx_a,idx_ab	NULL	NULL	NULL	100	100.00	
+3	DERIVED	t2	ALL	NULL	NULL	NULL	NULL	100	100.00	Using where
+Warnings:
+Note	1003	/* select#1 */ select /*+ NO_BNL(`t2`) */ `dt`.`a` AS `a`,`dt`.`b` AS `b`,`dt`.`c` AS `c` from (/* select#3 */ select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b`,`test`.`t1`.`c` AS `c` from `test`.`t1` join `test`.`t2` where `test`.`t1`.`a` > `test`.`t2`.`a`) `dt`
+drop view v1, v2, v3, v4, v5;
+set optimizer_switch= default;
+drop table t1, t2;

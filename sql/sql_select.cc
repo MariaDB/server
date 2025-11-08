@@ -34652,7 +34652,7 @@ bool Sql_cmd_dml::prepare(THD *thd)
   MYSQL_DML_START(thd);
 
   lex->context_analysis_only|= CONTEXT_ANALYSIS_ONLY_DERIVED;
-
+  lex->resolve_optimizer_hints();
   if (open_tables_for_query(thd, lex->query_tables, &table_count, 0,
                             get_dml_prelocking_strategy()))
   {

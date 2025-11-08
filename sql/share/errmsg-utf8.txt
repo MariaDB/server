@@ -12362,3 +12362,7 @@ ER_WARN_CONFLICTING_COMPOUND_INDEX_HINT_FOR_KEY
         eng "Hint %s is ignored as conflicting/duplicated (an index hint of the same type or opposite kind has already been specified for the key)"
 ER_WARN_NO_IMPLICIT_QB_NAMES_IN_VIEW
 	eng "Implicit query block names are ignored for hints specified within VIEWs"
+ER_WARN_AMBIGUOUS_QB_NAME
+	eng "Query block name %s is ambiguous for %s hint"
+ER_WARN_IMPLICIT_QB_NAME_FOR_UNION
+	eng "Implicit query block name %s is not supported for derived tables and views with UNION/EXCEPT/INTERSECT and is ignored for %s hint"

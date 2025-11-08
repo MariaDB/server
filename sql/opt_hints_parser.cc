@@ -17,6 +17,7 @@
 */
 
 #include "opt_hints_parser.h"
+#include "mysqld.h"
 #include "sql_error.h"
 #include "mysqld_error.h"
 #include "sql_class.h"
@@ -53,11 +54,15 @@ void append_table_name(THD *thd, String *str, const LEX_CSTRING &table_name,
 
 static const Lex_ident_sys null_ident_sys;
 
-Parse_context::Parse_context(THD *thd, st_select_lex *select)
+
+Parse_context::Parse_context(THD *thd, st_select_lex *select,
+                             hint_resolution_stage stage)
 : thd(thd),
   mem_root(thd->mem_root),
-  select(select)
+  select(select),
+  resolution_stage(stage)
 {}
+
 
 Parse_context::Parse_context(Parse_context *pc, st_select_lex *select)
 : thd(pc->thd),
@@ -294,6 +299,19 @@ void Parser::push_warning_syntax_error(THD *thd, uint start_lineno)
                       msg, txt.ptr(), start_lineno + lineno());
 }
 
+/*
+  Returns true if the hint should be resolved in the current stage
+  (early or late) and false otherwise.
+  Some hints must be resolved in the early stage (before opening tables),
+  others in the late stage (after opening tables), this is specified in
+  opt_hint_info[].
+*/
+bool Parser::is_appropriate_resolution_stage(opt_hints_enum hint_type,
+                                             Parse_context *pc)
+{
+  return pc->resolution_stage == opt_hint_info[hint_type].resolution_stage;
+}
+
 
 bool
 Parser::Table_name_list_container::add(Optimizer_hint_parser *p,
@@ -411,6 +429,9 @@ bool Parser::Table_level_hint::resolve(Parse_context *pc) const
     DBUG_ASSERT(0);
     return true;
   }
+
+  if (!is_appropriate_resolution_stage(hint_type, pc))
+    return false;
 
   if (const At_query_block_name_opt_table_name_list &
           at_query_block_name_opt_table_name_list= *this)
@@ -624,6 +645,9 @@ bool Parser::Index_level_hint::resolve(Parse_context *pc) const
     return true;
   }
 
+  if (!is_appropriate_resolution_stage(hint_type, pc))
+    return false;
+
   const Hint_param_table_ext &table_ext= *this;
   const Lex_ident_sys qb_name_sys= table_ext.Query_block_name::
                                    to_ident_sys(pc->thd);
@@ -775,6 +799,10 @@ Return value:
 */
 bool Parser::Qb_name_hint::resolve(Parse_context *pc) const
 {
+  const opt_hints_enum hint_type= QB_NAME_HINT_ENUM;
+  if (!is_appropriate_resolution_stage(hint_type, pc))
+    return false;
+
   Opt_hints_qb *qb= pc->select->opt_hints_qb;
 
   DBUG_ASSERT(qb);
@@ -784,7 +812,7 @@ bool Parser::Qb_name_hint::resolve(Parse_context *pc) const
   if (qb->get_name().str ||                        // QB name is already set
       qb->get_parent()->find_by_name(qb_name_sys)) // Name is already used
   {
-    print_warn(pc->thd, ER_WARN_CONFLICTING_HINT, QB_NAME_HINT_ENUM, true,
+    print_warn(pc->thd, ER_WARN_CONFLICTING_HINT, hint_type, true,
                &qb_name_sys, nullptr, nullptr, nullptr);
     return false;
   }
@@ -841,6 +869,9 @@ Return value:
 */
 bool Parser::Semijoin_hint::resolve(Parse_context *pc) const
 {
+  if (!is_appropriate_resolution_stage(SEMIJOIN_HINT_ENUM, pc))
+    return false;
+
   const Semijoin_hint_type &semijoin_hint_type= *this;
   bool hint_state; // true - SEMIJOIN(), false - NO_SEMIJOIN()
   if (semijoin_hint_type.id() == TokenID::keyword_SEMIJOIN)
@@ -957,6 +988,9 @@ Return value:
 */
 bool Parser::Subquery_hint::resolve(Parse_context *pc) const
 {
+  if (!is_appropriate_resolution_stage(SUBQUERY_HINT_ENUM, pc))
+    return false;
+
   Opt_hints_qb *qb;
   if (const At_query_block_name_subquery_strategy &
           at_query_block_name_subquery_strategy= *this)
@@ -1072,6 +1106,9 @@ void Parser::Subquery_hint::append_args(THD *thd, String *str) const
 */
 bool Parser::Max_execution_time_hint::resolve(Parse_context *pc) const
 {
+  if (!is_appropriate_resolution_stage(MAX_EXEC_TIME_HINT_ENUM, pc))
+    return false;
+
   const Unsigned_Number& hint_arg= *this;
   const ULonglong_null time_ms= hint_arg.get_ulonglong();
 
@@ -1141,6 +1178,9 @@ bool Parser::Join_order_hint::resolve(Parse_context *pc)
     DBUG_ASSERT(0);
     return true;
   }
+
+  if (!is_appropriate_resolution_stage(hint_type, pc))
+    return false;
 
   Opt_hints_qb *qb= nullptr;
   Lex_ident_sys qb_name;
@@ -1283,6 +1323,20 @@ bool Parser::Hint_list::resolve(Parse_context *pc) const
   if (!get_qb_hints(pc))
     return true;
 
+  /*
+    QB_NAME hints are resolved first so following hints can be attached to
+    the pre-configured query blocks
+  */
+  for (Hint_list::iterator li= this->begin(); li != this->end(); ++li)
+  {
+    Parser::Hint &hint= *li;
+    if (const Qb_name_hint &qb_hint= hint)
+    {
+      if (qb_hint.resolve(pc))
+        return true;
+    }
+  }
+
   for (Hint_list::iterator li= this->begin(); li != this->end(); ++li)
   {
     Parser::Hint &hint= *li;
@@ -1294,11 +1348,6 @@ bool Parser::Hint_list::resolve(Parse_context *pc) const
     else if (const Index_level_hint &index_hint= hint)
     {
       if (index_hint.resolve(pc))
-        return true;
-    }
-    else if (const Qb_name_hint &qb_hint= hint)
-    {
-      if (qb_hint.resolve(pc))
         return true;
     }
     else if (const Max_execution_time_hint &max_hint= hint)
@@ -1320,6 +1369,11 @@ bool Parser::Hint_list::resolve(Parse_context *pc) const
     {
       if (join_order_hint.resolve(pc))
         return true;
+    }
+    else if (const Qb_name_hint &qb_hint __attribute__((unused)) = hint)
+    {
+      // QB_NAME hints have been resolved earlier
+      continue;
     }
     else {
       DBUG_ASSERT(0);
