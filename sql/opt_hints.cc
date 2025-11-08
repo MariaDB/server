@@ -15,10 +15,12 @@
    Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
 
 #include "my_global.h"
+#include "opt_hints_structs.h"
 #include "sql_class.h"
 #include "sql_lex.h"
 #include "sql_select.h"
 #include "opt_hints.h"
+#include "opt_trace.h"
 
 /**
   Information about hints. Must be in sync with opt_hints_enum.
@@ -46,15 +48,15 @@ struct st_opt_hint_info opt_hint_info[]=
   {{STRING_WITH_LEN("JOIN_SUFFIX")},           false,     true,         true},
   {{STRING_WITH_LEN("JOIN_ORDER")},            false,     true,         true},
   {{STRING_WITH_LEN("JOIN_FIXED_ORDER")},      false,     true,         false},
-  {{STRING_WITH_LEN("DERIVED_CONDITION_PUSHDOWN")}, false, false, false},
-  {{STRING_WITH_LEN("MERGE")}, true, false, false},
-  {{STRING_WITH_LEN("SPLIT_MATERIALIZED")}, false, false, false},
+  {{STRING_WITH_LEN("DERIVED_CONDITION_PUSHDOWN")}, false, false,       false},
+  {{STRING_WITH_LEN("MERGE")},                 true,      false,        false},
+  {{STRING_WITH_LEN("SPLIT_MATERIALIZED")},    false,     false,        false},
   {{STRING_WITH_LEN("INDEX")},                 false,     true,         false},
   {{STRING_WITH_LEN("JOIN_INDEX")},            false,     true,         false},
   {{STRING_WITH_LEN("GROUP_INDEX")},           false,     true,         false},
   {{STRING_WITH_LEN("ORDER_INDEX")},           false,     true,         false},
   {{STRING_WITH_LEN("ROWID_FILTER")},          false,     true,         false},
-  {{STRING_WITH_LEN("INDEX_MERGE")}, false, false, false},
+  {{STRING_WITH_LEN("INDEX_MERGE")},           false,     false,        false},
   {null_clex_str, 0, 0, 0}
 };
 
@@ -83,7 +85,6 @@ int cmp_lex_string(const LEX_CSTRING &s, const LEX_CSTRING &t,
   return cs->coll->strnncollsp(cs, (const uchar*)s.str, s.length,
                                    (const uchar*)t.str, t.length);
 }
-
 
 /*
   This is a version of push_warning_printf() guaranteeing no escalation of
@@ -137,7 +138,9 @@ void print_warn(THD *thd, uint err_code, opt_hints_enum hint_type,
   str.append(opt_hint_info[hint_type].hint_type);
 
   /* ER_WARN_UNKNOWN_QB_NAME with two arguments */
-  if (err_code == ER_WARN_UNKNOWN_QB_NAME)
+  if (err_code == ER_WARN_UNKNOWN_QB_NAME ||
+      err_code == ER_WARN_AMBIGUOUS_QB_NAME ||
+      err_code == ER_WARN_IMPLICIT_QB_NAME_FOR_UNION)
   {
     String qb_name_str;
     append_identifier(thd, &qb_name_str, qb_name_arg->str, qb_name_arg->length);
@@ -287,6 +290,95 @@ static Opt_hints_qb *find_hints_by_select_number(Parse_context *pc,
   return qb;
 }
 
+/**
+   Helper function to find_qb_hints whereby it matches a qb_name to
+   an alias of a derived table, view or CTE used in the current query.
+   For example, for query
+     `select * from (select ... from t1 ...) as DT`
+   and given qb_name "DT", this function will return the query block
+   corresponding to the derived table DT, just like if the name was specified
+   explicitly using the QB_NAME hint:
+     `select * from (select / *+ QB_NAME(DT) * / ... from t1 ...) as DT`
+
+   For query
+     `select * from v1, v1 as v2 where v1.a = v2.a and v1.a < 3`
+   and given qb_name "v2", this function will return the query block
+   corresponding to the view v2.
+
+   For query
+     `with lda as (select ... from t1 ...)
+      select * from lda`
+   and given qb_name "lda", this function will return the query block
+   corresponding to the CTE "lda", just like if the name was specified
+   explicitly using the QB_NAME hint:
+     `with lda as (select / *+ QB_NAME(lda) * / ... from t1 ...)
+      select * from lda`
+
+   Note: Implicit QB names are only supported for SELECTs. DML operations
+   (UPDATE, DELETE, INSERT) only support explicit QB names. This is caused by
+   the fact that optimizer hints are resolved before `open_tables()`
+   at `Sql_cmd_dml::prepare()`.
+
+   @return the pair: - result code
+                     - matching query block hints object, if it exists,
+                       and NULL otherwise
+ */
+
+enum class implicit_qb_result
+{
+  OK,        // Found exactly one match, success
+  // Failure statuses:
+  NOT_FOUND, // No matches found
+  AMBIGUOUS, // More than one alias matches qb_name in the current query
+  UNION      // DT/view/CTE has UNION/EXCEPT/INTERSECT inside
+             // (i.e., multiple query blocks), so the hint cannot be resolved
+             // unambiguously
+};
+
+static std::pair<implicit_qb_result, Opt_hints_qb*>
+find_hints_by_implicit_qb_name(Parse_context *pc, const Lex_ident_sys &qb_name)
+{
+  Opt_hints_qb *qb= nullptr;
+
+  // Traverse the global table list to find all derived tables and views
+  for (TABLE_LIST *tbl= pc->thd->lex->query_tables; tbl; tbl= tbl->next_global)
+  {
+    // Skip if neither a derived table nor a view
+    if (tbl->is_non_derived())
+      continue;
+
+    // Check if the alias equals the implicit QB name
+    if (cmp_lex_string(tbl->alias, qb_name, system_charset_info))
+      continue;  // not a match, continue to next table
+
+    /*
+      If `qb` was already set before, this means there are multiple tables with
+      same alias in the query. The name cannot be resolved unambiguously.
+    */
+    if (qb)
+      return {implicit_qb_result::AMBIGUOUS, nullptr};
+
+    SELECT_LEX *child_select= tbl->get_unit()->first_select();
+    /*
+      Check if the derived table/view does not contain UNION, because
+      implicit QB names for UNIONs are ambiguous - we do not know which SELECT
+      should the hint be applied to. So we only support implicit names
+      for single-SELECT derived tables/views.
+    */
+    if (child_select->next_select())
+      return {implicit_qb_result::UNION, nullptr};
+
+    Parse_context child_ctx(pc, child_select);
+    /*
+      qb should be set only this one time.  Ambiguous references to
+      the same query block will fail on subsequent iterations (see above).
+    */
+    qb= get_qb_hints(&child_ctx);
+  }
+
+  return {(qb ? implicit_qb_result::OK : implicit_qb_result::NOT_FOUND), qb};
+}
+
 
 /**
   Find existing Opt_hints_qb object, print warning
@@ -316,13 +408,37 @@ Opt_hints_qb *find_qb_hints(Parse_context *pc,
   if (qb_by_name == nullptr)
     qb_by_number= find_hints_by_select_number(pc, qb_name);
 
+  Opt_hints_qb *qb_by_implicit_name= nullptr;
+  if (qb_by_name == nullptr && qb_by_number == nullptr)
+  {
+    std::pair<implicit_qb_result, Opt_hints_qb*> find_res=
+      find_hints_by_implicit_qb_name(pc, qb_name);
+    if (find_res.first == implicit_qb_result::AMBIGUOUS)
+    {
+      // Warn on ambiguous derived table name
+      print_warn(pc->thd, ER_WARN_AMBIGUOUS_QB_NAME,
+                 hint_type, hint_state, &qb_name,
+                 nullptr, nullptr, nullptr);
+      return nullptr;
+    }
+    if (find_res.first == implicit_qb_result::UNION)
+    {
+      print_warn(pc->thd, ER_WARN_IMPLICIT_QB_NAME_FOR_UNION,
+                 hint_type, hint_state, &qb_name,
+                 nullptr, nullptr, nullptr);
+      return nullptr;
+    }
+    qb_by_implicit_name= find_res.second;
+  }
+
   // C++-style comment here, otherwise compiler warns of /* within comment.
   // We don't allow implicit query block names to be specified for hints local
   // to a view (e.g. CREATE VIEW v1 AS SELECT /*+ NO_ICP(@`select#2` t1) ...
   // because of select numbering issues.  When we're ready to fix that, then we
   // can remove this gate.
+  // Implicit QB naming using DT/view aliases is also not supported inside views
   if (pc->thd->lex->sql_command == SQLCOM_CREATE_VIEW &&
-      qb_by_number)
+      (qb_by_number || qb_by_implicit_name))
   {
     print_warn(pc->thd, ER_WARN_NO_IMPLICIT_QB_NAMES_IN_VIEW,
                hint_type, hint_state, &qb_name,
@@ -330,10 +446,21 @@ Opt_hints_qb *find_qb_hints(Parse_context *pc,
     return nullptr;
   }
 
-  Opt_hints_qb *qb= qb_by_name ? qb_by_name : qb_by_number;
+  Opt_hints_qb *qb= qb_by_name ? qb_by_name :
+                    (qb_by_number ? qb_by_number : qb_by_implicit_name);
   if (qb == nullptr)
+  {
     print_warn(pc->thd, ER_WARN_UNKNOWN_QB_NAME, hint_type, hint_state,
                &qb_name, NULL, NULL, NULL);
+  }
+  else if (qb == qb_by_implicit_name && qb->get_name().length == 0)
+  {
+    /*
+      If the block is addressed by an implicit name, assign a name to the block,
+      so it is properly printed in warnings
+    */
+    qb->set_name(qb_name);
+  }
 
   return qb;
 }
@@ -1656,7 +1783,7 @@ bool is_compound_hint(opt_hints_enum type_arg)
 /*
   @brief
     Perform "Hint Resolution" for Optimizer Hints (see opt_hints.h for
-    definition)
+    definition).
 
   @detail
     Hints use "Explain select numbering", so this must be called after the
@@ -1665,16 +1792,13 @@ bool is_compound_hint(opt_hints_enum type_arg)
     On the other hand, this must be called before the first attempt to check
     any hint.
 */
-
 void LEX::resolve_optimizer_hints()
 {
+  if (selects_for_hint_resolution.is_empty())
+    return;
+
   Query_arena *arena, backup;
   arena= thd->activate_stmt_arena_if_needed(&backup);
-  SCOPE_EXIT([&] () mutable {
-    selects_for_hint_resolution.empty();
-    if (arena)
-      thd->restore_active_arena(arena, &backup);
-  });
 
   List_iterator<SELECT_LEX> it(selects_for_hint_resolution);
   SELECT_LEX *sel;
@@ -1685,7 +1809,12 @@ void LEX::resolve_optimizer_hints()
     Parse_context pc(thd, sel);
     sel->parsed_optimizer_hints->resolve(&pc);
   }
+
+  selects_for_hint_resolution.empty();
+  if (arena)
+    thd->restore_active_arena(arena, &backup);
 }
+
 
 #ifndef DBUG_OFF
 static char dbug_print_hint_buf[64];
