@@ -5816,6 +5816,8 @@ bool open_normal_and_derived_tables(THD *thd, TABLE_LIST *tables, uint flags,
   if ((dt_phases & DT_INIT) && mysql_handle_derived(thd->lex, DT_INIT))
     goto end;
 
+  thd->lex->resolve_optimizer_hints();
+
   // Process all phases remaining after DT_INIT
   if (mysql_handle_derived(thd->lex, dt_phases & ~DT_INIT))
     goto end;

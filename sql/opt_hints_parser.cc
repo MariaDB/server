@@ -53,11 +53,13 @@ void append_table_name(THD *thd, String *str, const LEX_CSTRING &table_name,
 
 static const Lex_ident_sys null_ident_sys;
 
+
 Parse_context::Parse_context(THD *thd, st_select_lex *select)
 : thd(thd),
   mem_root(thd->mem_root),
   select(select)
 {}
+
 
 Parse_context::Parse_context(Parse_context *pc, st_select_lex *select)
 : thd(pc->thd),
@@ -1283,6 +1285,20 @@ bool Parser::Hint_list::resolve(Parse_context *pc) const
   if (!get_qb_hints(pc))
     return true;
 
+  /*
+    QB_NAME hints are resolved first so following hints can be attached to
+    the pre-configured query blocks
+  */
+  for (Hint_list::iterator li= this->begin(); li != this->end(); ++li)
+  {
+    Parser::Hint &hint= *li;
+    if (const Qb_name_hint &qb_hint= hint)
+    {
+      if (qb_hint.resolve(pc))
+        return true;
+    }
+  }
+
   for (Hint_list::iterator li= this->begin(); li != this->end(); ++li)
   {
     Parser::Hint &hint= *li;
@@ -1294,11 +1310,6 @@ bool Parser::Hint_list::resolve(Parse_context *pc) const
     else if (const Index_level_hint &index_hint= hint)
     {
       if (index_hint.resolve(pc))
-        return true;
-    }
-    else if (const Qb_name_hint &qb_hint= hint)
-    {
-      if (qb_hint.resolve(pc))
         return true;
     }
     else if (const Max_execution_time_hint &max_hint= hint)
@@ -1320,6 +1331,12 @@ bool Parser::Hint_list::resolve(Parse_context *pc) const
     {
       if (join_order_hint.resolve(pc))
         return true;
+    }
+    else if (const Qb_name_hint &qb_hint __attribute__((unused)) = hint)
+    {
+      // QB_NAME hints have been resolved earlier
+      DBUG_ASSERT(pc->select->opt_hints_qb->get_name().length > 0);
+      continue;
     }
     else {
       DBUG_ASSERT(0);
