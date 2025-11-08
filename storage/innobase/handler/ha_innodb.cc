@@ -55,6 +55,8 @@ this program; if not, write to the Free Software Foundation, Inc.,
 #include "scope.h"
 #include "srv0srv.h"
 
+bool is_update_query(enum enum_sql_command command);
+
 // MYSQL_PLUGIN_IMPORT extern my_bool lower_case_file_system;
 // MYSQL_PLUGIN_IMPORT extern char mysql_unpacked_real_data_home[];
 
@@ -16667,7 +16669,7 @@ ha_innobase::store_lock(
 
 	DBUG_ASSERT(EQ_CURRENT_THD(thd));
 	const bool in_lock_tables = thd_in_lock_tables(thd);
-	const int sql_command = thd_sql_command(thd);
+	const enum enum_sql_command sql_command = thd_sql_command(thd);
 
 	if (srv_read_only_mode
 	    && (sql_command == SQLCOM_UPDATE
@@ -16721,25 +16723,21 @@ ha_innobase::store_lock(
 
 	/* Check for LOCK TABLE t1,...,tn WITH SHARED LOCKS */
 	} else if ((lock_type == TL_READ && in_lock_tables)
-		   || (lock_type == TL_READ_HIGH_PRIORITY && in_lock_tables)
 		   || lock_type == TL_READ_WITH_SHARED_LOCKS
 		   || lock_type == TL_READ_SKIP_LOCKED
 		   || lock_type == TL_READ_NO_INSERT
-		   || (lock_type != TL_IGNORE
-		       && sql_command != SQLCOM_SELECT)) {
+		   || (lock_type != TL_IGNORE && is_update_query(sql_command))) {
 
 		/* The OR cases above are in this order:
-		1) MySQL is doing LOCK TABLES ... READ LOCAL, or we
-		are processing a stored procedure or function, or
-		2) (we do not know when TL_READ_HIGH_PRIORITY is used), or
-		3) this is a SELECT ... IN SHARE MODE, or
-		4) this is a SELECT ... IN SHARE MODE SKIP LOCKED, or
-		5) we are doing a complex SQL statement like
+		1) MySQL is doing LOCK TABLES ... READ LOCAL, or
+		2) this is a SELECT ... IN SHARE MODE, or
+		3) this is a SELECT ... IN SHARE MODE SKIP LOCKED, or
+		4) we are doing a complex SQL statement like
 		INSERT INTO ... SELECT ... and the logical logging (MySQL
 		binlog) requires the use of a locking read, or
 		MySQL is doing LOCK TABLES ... READ.
-		6) we let InnoDB do locking reads for all SQL statements that
-		are not simple SELECTs; note that select_lock_type in this
+		5) we let InnoDB do locking reads for all SQL statements that
+		may modify data; note that select_lock_type in this
 		case may get strengthened in ::external_lock() to LOCK_X.
 		Note that we MUST use a locking read in all data modifying
 		SQL statements, because otherwise the execution would not be
