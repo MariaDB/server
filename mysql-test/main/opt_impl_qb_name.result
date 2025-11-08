@@ -1,0 +1,96 @@
+create table t1 (a int, b int, key idx_a(a));
+insert into t1 select seq, seq from seq_1_to_1000;
+create table t2 as select * from t1;
+analyze table t1,t2 persistent for all;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	Table is already up to date
+test.t2	analyze	status	Engine-independent statistics collected
+test.t2	analyze	status	OK
+# Sample query with no hints
+explain select * from
+(select * from t1 where a < 3) T;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	idx_a	idx_a	5	NULL	2	Using index condition
+explain select /*+ no_index(t1@`qb__T`)*/ * from
+(select * from t1 where a < 3) T;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	1000	Using where
+# Regular and derived tables share same name but the hint is applied correctly
+explain select /*+ no_index(t1@qb__t1)*/ * from
+(select * from t1 where a < 3) as T1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	1000	Using where
+explain select /*+ no_index(t1@qb__t2) no_index(t1@qb__t1)*/ * from
+(select * from t1 where a < 3) as T1, (select * from t1 where a < 5) as T2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	1000	Using where
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	1000	Using where; Using join buffer (flat, BNL join)
+explain select /*+ no_index(t1@qb__t1)*/ * from
+(select * from t1 where a < 3) as T1, (select * from t1 where a < 5) as T2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	1000	Using where
+1	SIMPLE	t1	range	idx_a	idx_a	5	NULL	4	Using index condition; Using where; Using join buffer (flat, BNL join)
+# Nested derived tables
+explain select /*+ no_index(t1@qb__dt1)*/ * from
+(select count(*) from t1, (select * from t1 where a < 5) DT1) as DT2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	4000	
+2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	1000	Using where
+2	DERIVED	t1	index	NULL	idx_a	5	NULL	1000	Using index; Using join buffer (flat, BNL join)
+explain select /*+ no_index(t1@qb__DT2)*/ * from
+(select count(*) from t1, (select * from t1 where a < 5) DT1) as DT2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	4000	
+2	DERIVED	t1	range	idx_a	idx_a	5	NULL	4	Using where; Using index
+2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	1000	Using join buffer (flat, BNL join)
+# Both hints are applied
+explain select /*+ no_index(t1@qb__dt1) no_index(t1@qb__dt2)*/ * from
+(select count(*) from t1, (select * from t1 where a < 5) DT1) as DT2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	4000	
+2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	1000	Using where
+2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	1000	Using join buffer (flat, BNL join)
+# Nested derived tables with ambiguous names
+explain select * from
+(select count(*) from t1, (select * from t1 where a < 5) T1) as T1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	4000	
+2	DERIVED	t1	range	idx_a	idx_a	5	NULL	4	Using where; Using index
+2	DERIVED	t1	index	NULL	idx_a	5	NULL	1000	Using index; Using join buffer (flat, BNL join)
+# Warning on ambiguous query block name, hint is ignored
+explain select /*+ no_index(t1@qb__t1)*/* from
+(select count(*) from t1, (select * from t1 where a < 5) T1) as T1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	4000	
+2	DERIVED	t1	range	idx_a	idx_a	5	NULL	4	Using where; Using index
+2	DERIVED	t1	index	NULL	idx_a	5	NULL	1000	Using index; Using join buffer (flat, BNL join)
+Warnings:
+Warning	4243	Query block name `qb__t1` is ambiguous for NO_INDEX hint
+explain select * from
+(select * from t1 where a < 3 union select * from t2 where a < 9) as T1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	10	
+2	DERIVED	t1	range	idx_a	idx_a	5	NULL	2	Using index condition
+3	UNION	t2	ALL	NULL	NULL	NULL	NULL	1000	Using where
+NULL	UNION RESULT	<union2,3>	ALL	NULL	NULL	NULL	NULL	NULL	
+# The hint cannot be applied to a derived table with UNION
+explain select /*+ no_index(t2@qb__t1)*/* from
+(select * from t1 where a < 3 union select * from t2 where a < 9) as T1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	10	
+2	DERIVED	t1	range	idx_a	idx_a	5	NULL	2	Using index condition
+3	UNION	t2	ALL	NULL	NULL	NULL	NULL	1000	Using where
+NULL	UNION RESULT	<union2,3>	ALL	NULL	NULL	NULL	NULL	NULL	
+Warnings:
+Warning	4244	Implicit query block name `qb__t1` is not supported for derived tables with UNION/EXCEPT/INTERSECT and is ignored for NO_INDEX hint
+explain select /*+ no_index(t1@qb__t1)*/* from
+(select * from t1 where a < 3 union select * from t2 where a < 9) as T1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	10	
+2	DERIVED	t1	range	idx_a	idx_a	5	NULL	2	Using index condition
+3	UNION	t2	ALL	NULL	NULL	NULL	NULL	1000	Using where
+NULL	UNION RESULT	<union2,3>	ALL	NULL	NULL	NULL	NULL	NULL	
+Warnings:
+Warning	4244	Implicit query block name `qb__t1` is not supported for derived tables with UNION/EXCEPT/INTERSECT and is ignored for NO_INDEX hint
+drop table t1, t2;

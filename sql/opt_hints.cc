@@ -137,7 +137,9 @@ void print_warn(THD *thd, uint err_code, opt_hints_enum hint_type,
   str.append(opt_hint_info[hint_type].hint_type);
 
   /* ER_WARN_UNKNOWN_QB_NAME with two arguments */
-  if (err_code == ER_WARN_UNKNOWN_QB_NAME)
+  if (err_code == ER_WARN_UNKNOWN_QB_NAME ||
+      err_code == ER_WARN_AMBIGUOUS_QB_NAME ||
+      err_code == ER_WARN_IMPLICIT_QB_NAME_FOR_UNION)
   {
     String qb_name_str;
     append_identifier(thd, &qb_name_str, qb_name_arg->str, qb_name_arg->length);
@@ -287,6 +289,70 @@ static Opt_hints_qb *find_hints_by_select_number(Parse_context *pc,
   return qb;
 }
 
+/**
+   Helper function to find_qb_hints whereby it matches a qb_name to
+   a select number under the presumption that qb_name has a value
+   like `select#X` (where X is a select number).
+
+   @return the matching query block hints object, if it exists.
+
+   OLEGS: todo ^^^
+ */
+
+enum class implicit_qb_result
+{
+  OK,
+  AMBIGUOUS,
+  UNION,
+  NOT_FOUND
+};
+
+static std::pair<implicit_qb_result, Opt_hints_qb *> find_hints_by_implicit_qb_name(Parse_context *pc,
+                                                 const Lex_ident_sys &qb_name)
+{
+  Opt_hints_qb *qb= nullptr;
+
+  // Traverse the global table list to find all derived tables
+  for (TABLE_LIST *tbl= pc->thd->lex->query_tables; tbl; tbl= tbl->next_global)
+  {
+    // Skip non-derived tables
+    if (!tbl->derived)
+      continue;
+
+    LEX_CSTRING implicit_name;
+    const char FORMAT_PREFIX[5]= "qb__";
+    char buff[4 + NAME_CHAR_LEN + 1];  // "qb__" + alias + '\0'
+    implicit_name.str= buff;
+    implicit_name.length= snprintf(buff, sizeof(buff), "%s%s",
+                                   FORMAT_PREFIX, tbl->alias.str);
+    if (cmp_lex_string(implicit_name, qb_name, system_charset_info))
+      continue;  // not a match, continue to next table
+    
+    if (qb)
+    {
+      /*
+        `qb` was already set before, this means there are multiple tables with
+        same alias in the query. The name cannot be resolved unambiguously.
+      */
+      return std::make_pair(implicit_qb_result::AMBIGUOUS, nullptr);
+    }
+
+    SELECT_LEX *derived_sl= tbl->derived->first_select();
+    /*
+      Check if the derived table does not contain UNION, because
+      implicit QB names for UNIONs are ambiguous - which SELECT should
+      the hint apply to? We only support implicit names for single-SELECT derived tables.
+    */
+    if (derived_sl->next_select())
+      return std::make_pair(implicit_qb_result::UNION, nullptr);
+
+    Parse_context derived_ctx(pc, derived_sl);
+    qb= get_qb_hints(&derived_ctx);
+  }
+
+  return std::make_pair(implicit_qb_result::OK, qb);
+}
+
 
 /**
   Find existing Opt_hints_qb object, print warning
@@ -316,13 +382,38 @@ Opt_hints_qb *find_qb_hints(Parse_context *pc,
   if (qb_by_name == nullptr)
     qb_by_number= find_hints_by_select_number(pc, qb_name);
 
+  Opt_hints_qb *qb_by_dt_name= nullptr;
+  if (qb_by_name == nullptr && qb_by_number == nullptr)
+  {
+    std::pair<implicit_qb_result, Opt_hints_qb *> find_res=
+      find_hints_by_implicit_qb_name(pc, qb_name);
+    if (find_res.first == implicit_qb_result::AMBIGUOUS)
+    {
+      // Warn on ambiguous derived table name
+      print_warn(pc->thd, ER_WARN_AMBIGUOUS_QB_NAME,
+                 hint_type, hint_state, &qb_name,
+                 nullptr, nullptr, nullptr);
+      return nullptr;
+    }
+    if (find_res.first == implicit_qb_result::UNION)
+    {
+      // OLEGS: new warning?
+      print_warn(pc->thd, ER_WARN_IMPLICIT_QB_NAME_FOR_UNION,
+                 hint_type, hint_state, &qb_name,
+                 nullptr, nullptr, nullptr);
+      return nullptr;
+    }
+    qb_by_dt_name= find_res.second;
+  }
+
   // C++-style comment here, otherwise compiler warns of /* within comment.
   // We don't allow implicit query block names to be specified for hints local
   // to a view (e.g. CREATE VIEW v1 AS SELECT /*+ NO_ICP(@`select#2` t1) ...
   // because of select numbering issues.  When we're ready to fix that, then we
   // can remove this gate.
+// OLEGS: update ^^^ , duplication with find_hints_by_number
   if (pc->thd->lex->sql_command == SQLCOM_CREATE_VIEW &&
-      qb_by_number)
+      (qb_by_number || qb_by_dt_name))
   {
     print_warn(pc->thd, ER_WARN_NO_IMPLICIT_QB_NAMES_IN_VIEW,
                hint_type, hint_state, &qb_name,
@@ -330,7 +421,8 @@ Opt_hints_qb *find_qb_hints(Parse_context *pc,
     return nullptr;
   }
 
-  Opt_hints_qb *qb= qb_by_name ? qb_by_name : qb_by_number;
+  Opt_hints_qb *qb= qb_by_name ? qb_by_name : 
+                    (qb_by_number ? qb_by_number : qb_by_dt_name);
   if (qb == nullptr)
     print_warn(pc->thd, ER_WARN_UNKNOWN_QB_NAME, hint_type, hint_state,
                &qb_name, NULL, NULL, NULL);
