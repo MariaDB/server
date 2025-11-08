@@ -1,0 +1,5 @@
+[MERGE_ON]
+optimizer_switch=derived_merge=on
+
+[MERGE_OFF]
+optimizer_switch=derived_merge=off
