@@ -315,6 +315,9 @@ static inline int safe_strcat(char *dst, size_t dst_size, const char *src)
 #ifdef __cplusplus
 static inline char *safe_str(char *str)
 { return str ? str : const_cast<char*>(""); }
+
+static inline const char *safe_str(const LEX_CSTRING *lcs)
+{ return lcs && lcs->str ? lcs->str : ""; }
 #endif
 
 static inline const char *safe_str(const char *str)

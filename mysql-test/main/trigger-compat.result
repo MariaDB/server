@@ -1,9 +1,3 @@
-DELETE FROM mysql.user WHERE User LIKE 'mysqltest_%';
-DELETE FROM mysql.db WHERE User LIKE 'mysqltest_%';
-DELETE FROM mysql.tables_priv WHERE User LIKE 'mysqltest_%';
-DELETE FROM mysql.columns_priv WHERE User LIKE 'mysqltest_%';
-FLUSH PRIVILEGES;
-DROP DATABASE IF EXISTS mysqltest_db1;
 CREATE DATABASE mysqltest_db1;
 CREATE USER mysqltest_dfn@localhost;
 CREATE USER mysqltest_inv@localhost;
@@ -55,7 +49,6 @@ USE test;
 #
 # Bug#45235: 5.1 does not support 5.0-only syntax triggers in any way
 #
-DROP TABLE IF EXISTS t1, t2, t3;
 CREATE TABLE t1 ( a INT );
 CREATE TABLE t2 ( a INT );
 CREATE TABLE t3 ( a INT );
@@ -445,3 +438,18 @@ DROP TABLE t1;
 # Listing trigger files
 # Listing trigger files done
 # END: Total triggers 2, broken triggers 1, using DROP TRIGGER
+#
+# MDEV-38001 NULL dereference in Trigger_creation_ctx::create()
+#
+call mtr.add_suppression('Trigger for table ''test''.''mdev38801''');
+create table mdev38801 (a int);
+insert into mdev38801 values (1);
+show triggers like 'mdev38801';
+Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation
+Warnings:
+Warning	1604	Trigger creation context of table `test`.`mdev38801` is invalid
+drop table mdev38801;
+Warnings:
+Warning	1603	Triggers for table `test`.`mdev38801` have no creation context
+Warning	1604	Trigger creation context of table `test`.`mdev38801` is invalid
+# End of 10.11 tests
