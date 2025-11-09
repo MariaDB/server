@@ -456,37 +456,37 @@ SELECT * FROM t1 WHERE indexed_col=TIME'10:20:30';
 indexed_col
 Warnings:
 Note	1105	Cannot use key `indexed_col` part[0] for lookup: `test`.`t1`.`indexed_col` of type `bit` = "TIME'10:20:30'" of type `time`
-Warning	1292	Truncated incorrect time value: '20230101'
-Warning	1292	Truncated incorrect time value: '20230102'
-Warning	1292	Truncated incorrect time value: '20230103'
-Warning	1292	Truncated incorrect time value: '20230104'
-Warning	1292	Truncated incorrect time value: '20230105'
-Warning	1292	Truncated incorrect time value: '20230106'
-Warning	1292	Truncated incorrect time value: '20230107'
-Warning	1292	Truncated incorrect time value: '20230108'
-Warning	1292	Truncated incorrect time value: '20230109'
-Warning	1292	Truncated incorrect time value: '20230110'
-Warning	1292	Truncated incorrect time value: '20230111'
-Warning	1292	Truncated incorrect time value: '20230112'
-Warning	1292	Truncated incorrect time value: '20230113'
-Warning	1292	Truncated incorrect time value: '20230114'
-Warning	1292	Truncated incorrect time value: '20230115'
-Warning	1292	Truncated incorrect time value: '20230116'
-Warning	1292	Truncated incorrect time value: '20230117'
-Warning	1292	Truncated incorrect time value: '20230118'
-Warning	1292	Truncated incorrect time value: '20230119'
-Warning	1292	Truncated incorrect time value: '20230120'
-Warning	1292	Truncated incorrect time value: '20230121'
-Warning	1292	Truncated incorrect time value: '20230122'
-Warning	1292	Truncated incorrect time value: '20230123'
-Warning	1292	Truncated incorrect time value: '20230124'
-Warning	1292	Truncated incorrect time value: '20230125'
-Warning	1292	Truncated incorrect time value: '20230126'
-Warning	1292	Truncated incorrect time value: '20230127'
-Warning	1292	Truncated incorrect time value: '20230128'
-Warning	1292	Truncated incorrect time value: '20230129'
-Warning	1292	Truncated incorrect time value: '20230130'
-Warning	1292	Truncated incorrect time value: '20230131'
+Warning	1292	Incorrect time value: '20230101' for column `test`.`t1`.`indexed_col` at row 1
+Warning	1292	Incorrect time value: '20230102' for column `test`.`t1`.`indexed_col` at row 2
+Warning	1292	Incorrect time value: '20230103' for column `test`.`t1`.`indexed_col` at row 3
+Warning	1292	Incorrect time value: '20230104' for column `test`.`t1`.`indexed_col` at row 4
+Warning	1292	Incorrect time value: '20230105' for column `test`.`t1`.`indexed_col` at row 5
+Warning	1292	Incorrect time value: '20230106' for column `test`.`t1`.`indexed_col` at row 6
+Warning	1292	Incorrect time value: '20230107' for column `test`.`t1`.`indexed_col` at row 7
+Warning	1292	Incorrect time value: '20230108' for column `test`.`t1`.`indexed_col` at row 8
+Warning	1292	Incorrect time value: '20230109' for column `test`.`t1`.`indexed_col` at row 9
+Warning	1292	Incorrect time value: '20230110' for column `test`.`t1`.`indexed_col` at row 10
+Warning	1292	Incorrect time value: '20230111' for column `test`.`t1`.`indexed_col` at row 11
+Warning	1292	Incorrect time value: '20230112' for column `test`.`t1`.`indexed_col` at row 12
+Warning	1292	Incorrect time value: '20230113' for column `test`.`t1`.`indexed_col` at row 13
+Warning	1292	Incorrect time value: '20230114' for column `test`.`t1`.`indexed_col` at row 14
+Warning	1292	Incorrect time value: '20230115' for column `test`.`t1`.`indexed_col` at row 15
+Warning	1292	Incorrect time value: '20230116' for column `test`.`t1`.`indexed_col` at row 16
+Warning	1292	Incorrect time value: '20230117' for column `test`.`t1`.`indexed_col` at row 17
+Warning	1292	Incorrect time value: '20230118' for column `test`.`t1`.`indexed_col` at row 18
+Warning	1292	Incorrect time value: '20230119' for column `test`.`t1`.`indexed_col` at row 19
+Warning	1292	Incorrect time value: '20230120' for column `test`.`t1`.`indexed_col` at row 20
+Warning	1292	Incorrect time value: '20230121' for column `test`.`t1`.`indexed_col` at row 21
+Warning	1292	Incorrect time value: '20230122' for column `test`.`t1`.`indexed_col` at row 22
+Warning	1292	Incorrect time value: '20230123' for column `test`.`t1`.`indexed_col` at row 23
+Warning	1292	Incorrect time value: '20230124' for column `test`.`t1`.`indexed_col` at row 24
+Warning	1292	Incorrect time value: '20230125' for column `test`.`t1`.`indexed_col` at row 25
+Warning	1292	Incorrect time value: '20230126' for column `test`.`t1`.`indexed_col` at row 26
+Warning	1292	Incorrect time value: '20230127' for column `test`.`t1`.`indexed_col` at row 27
+Warning	1292	Incorrect time value: '20230128' for column `test`.`t1`.`indexed_col` at row 28
+Warning	1292	Incorrect time value: '20230129' for column `test`.`t1`.`indexed_col` at row 29
+Warning	1292	Incorrect time value: '20230130' for column `test`.`t1`.`indexed_col` at row 30
+Warning	1292	Incorrect time value: '20230131' for column `test`.`t1`.`indexed_col` at row 31
 SELECT * FROM t1 WHERE indexed_col=TIMESTAMP'2001-01-01 10:20:30';
 indexed_col
 Warnings:

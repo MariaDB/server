@@ -2217,15 +2217,15 @@ pk
 17
 70
 Warnings:
-Warning	1292	Truncated incorrect time value: 'k'
-Warning	1292	Truncated incorrect time value: 'k'
+Warning	1292	Incorrect time value: 'k' for column `test`.`t1`.`x2` at row 1
+Warning	1292	Incorrect time value: 'k' for column `test`.`t1`.`x2` at row 2
 SELECT pk FROM v1 WHERE x1 >x2;
 pk
 17
 70
 Warnings:
-Warning	1292	Truncated incorrect time value: 'k'
-Warning	1292	Truncated incorrect time value: 'k'
+Warning	1292	Incorrect time value: 'k' for column `test`.`t1`.`x2` at row 1
+Warning	1292	Incorrect time value: 'k' for column `test`.`t1`.`x2` at row 2
 DROP VIEW v1;
 DROP TABLE t1;
 CREATE TABLE t1 (pk int, x1 time, x2 varchar(1));
@@ -2236,15 +2236,15 @@ pk
 17
 70
 Warnings:
-Warning	1292	Truncated incorrect time value: ''
-Warning	1292	Truncated incorrect time value: 'k'
+Warning	1292	Incorrect time value: '' for column `test`.`t1`.`x2` at row 1
+Warning	1292	Incorrect time value: 'k' for column `test`.`t1`.`x2` at row 2
 SELECT pk FROM v1 WHERE x1 >x2;
 pk
 17
 70
 Warnings:
-Warning	1292	Truncated incorrect time value: ''
-Warning	1292	Truncated incorrect time value: 'k'
+Warning	1292	Incorrect time value: '' for column `test`.`t1`.`x2` at row 1
+Warning	1292	Incorrect time value: 'k' for column `test`.`t1`.`x2` at row 2
 DROP VIEW IF EXISTS v1;
 DROP TABLE IF EXISTS t1;
 #
@@ -2591,16 +2591,16 @@ INSERT INTO t2 VALUES ('2001-01-01'),('2001-01-02');
 SELECT * FROM t1, t2 WHERE indexed_col=not_indexed_col;
 indexed_col	not_indexed_col
 Warnings:
-Warning	1292	Truncated incorrect time value: '2001-01-01'
-Warning	1292	Truncated incorrect time value: '2001-01-02'
+Warning	1292	Incorrect time value: '2001-01-01' for column `test`.`t2`.`not_indexed_col` at row 1
+Warning	1292	Incorrect time value: '2001-01-02' for column `test`.`t2`.`not_indexed_col` at row 1
 DROP TABLE t2;
 CREATE TABLE t2 (not_indexed_col VARCHAR(32) CHARACTER SET utf8mb3);
 INSERT INTO t2 VALUES ('2001-01-01'),('2001-01-02');
 SELECT * FROM t1, t2 WHERE indexed_col=not_indexed_col;
 indexed_col	not_indexed_col
 Warnings:
-Warning	1292	Truncated incorrect time value: '2001-01-01'
-Warning	1292	Truncated incorrect time value: '2001-01-02'
+Warning	1292	Incorrect time value: '2001-01-01' for column `test`.`t2`.`not_indexed_col` at row 1
+Warning	1292	Incorrect time value: '2001-01-02' for column `test`.`t2`.`not_indexed_col` at row 1
 DROP TABLE t2;
 DROP TABLE t1;
 SET note_verbosity=DEFAULT;
