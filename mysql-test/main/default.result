@@ -3121,7 +3121,7 @@ create table t3 as select max(a), max(b), max(c) from t1;
 show create table t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
-  `a` int(11) DEFAULT 5 CHECK (`a` > 10),
+  `a` int(11) DEFAULT 5,
   `b` int(11) DEFAULT (5 + 5),
   `c` int(11) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci

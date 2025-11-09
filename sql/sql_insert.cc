@@ -4842,6 +4842,14 @@ TABLE *select_create::create_table_from_items(THD *thd, List<Item> *items,
 
     Create_field *cr_field= new (thd->mem_root)
                                   Create_field(thd, tmp_field, table_field);
+    /*
+      rather inconsistently we copy constant defaults and compression
+      from the original field, but not default expression or check constraint
+    */
+    if (table_field && table_field->default_value &&
+        !table_field->default_value->expr->const_item())
+      cr_field->default_value= 0;
+    cr_field->check_constraint= 0;
 
     if (!cr_field)
       DBUG_RETURN(NULL);
