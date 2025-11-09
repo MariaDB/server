@@ -1909,30 +1909,32 @@ longlong number_to_datetime_or_date(longlong nr, ulong sec_part,
 int number_to_time_only(my_bool neg, ulonglong nr, ulong sec_part,
                         ulong max_hour, MYSQL_TIME *ltime, int *was_cut)
 {
-  static const ulonglong TIME_MAX_mmss= TIME_MAX_MINUTE*100 + TIME_MAX_SECOND;
-  ulonglong time_max_value= max_hour * 10000ULL + TIME_MAX_mmss;
   *was_cut= 0;
   ltime->year= ltime->month= ltime->day= 0;
   ltime->time_type= MYSQL_TIMESTAMP_TIME;
 
   ltime->neg= neg;
 
-  if (nr > time_max_value)
-  {
-    nr= time_max_value;
-    sec_part= TIME_MAX_SECOND_PART;
-    *was_cut= MYSQL_TIME_WARN_OUT_OF_RANGE;
-  }
   ltime->hour  = (uint)(nr/100/100);
   ltime->minute= nr/100%100;
   ltime->second= nr%100;
   ltime->second_part= sec_part;
 
-  if (ltime->minute < 60 && ltime->second < 60 && sec_part <= TIME_MAX_SECOND_PART)
-    return 0;
+  if (ltime->minute >= 60 || ltime->second >= 60 || sec_part >= TIME_MAX_SECOND_PART)
+  {
+    *was_cut= MYSQL_TIME_WARN_TRUNCATED;
+    return -1;
+  }
+  if (ltime->hour > max_hour)
+  {
+    ltime->hour  = max_hour;
+    ltime->minute= TIME_MAX_MINUTE;
+    ltime->second= TIME_MAX_SECOND;
+    ltime->second_part= TIME_MAX_SECOND_PART;
+    *was_cut= MYSQL_TIME_WARN_OUT_OF_RANGE;
+  }
 
-  *was_cut= MYSQL_TIME_WARN_TRUNCATED;
-  return -1;
+  return 0;
 }
 
 

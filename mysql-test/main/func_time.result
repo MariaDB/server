@@ -501,12 +501,12 @@ SELECT month(updated) from t1;
 month(updated)
 NULL
 Warnings:
-Warning	1292	Incorrect datetime value: ''
+Warning	1292	Incorrect datetime value: '' for column `test`.`t1`.`updated` at row 1
 SELECT year(updated) from t1;
 year(updated)
 NULL
 Warnings:
-Warning	1292	Incorrect datetime value: ''
+Warning	1292	Incorrect datetime value: '' for column `test`.`t1`.`updated` at row 1
 drop table t1;
 create table t1 (d date, dt datetime, t timestamp, c char(10));
 insert into t1 values ("0000-00-00", "0000-00-00", "0000-00-00", "0000-00-00");
@@ -515,7 +515,7 @@ dayofyear("0000-00-00")	dayofyear(d)	dayofyear(dt)	dayofyear(t)	dayofyear(c)
 NULL	NULL	NULL	NULL	NULL
 Warnings:
 Warning	1292	Incorrect datetime value: '0000-00-00'
-Warning	1292	Incorrect datetime value: '0000-00-00'
+Warning	1292	Incorrect datetime value: '0000-00-00' for column `test`.`t1`.`c` at row 1
 select dayofmonth("0000-00-00"),dayofmonth(d),dayofmonth(dt),dayofmonth(t),dayofmonth(c) from t1;
 dayofmonth("0000-00-00")	dayofmonth(d)	dayofmonth(dt)	dayofmonth(t)	dayofmonth(c)
 0	0	0	0	0
@@ -530,7 +530,7 @@ week("0000-00-00")	week(d)	week(dt)	week(t)	week(c)
 NULL	NULL	NULL	NULL	NULL
 Warnings:
 Warning	1292	Incorrect datetime value: '0000-00-00'
-Warning	1292	Incorrect datetime value: '0000-00-00'
+Warning	1292	Incorrect datetime value: '0000-00-00' for column `test`.`t1`.`c` at row 1
 select year("0000-00-00"),year(d),year(dt),year(t),year(c) from t1;
 year("0000-00-00")	year(d)	year(dt)	year(t)	year(c)
 0	0	0	0	0
@@ -539,13 +539,13 @@ yearweek("0000-00-00")	yearweek(d)	yearweek(dt)	yearweek(t)	yearweek(c)
 NULL	NULL	NULL	NULL	NULL
 Warnings:
 Warning	1292	Incorrect datetime value: '0000-00-00'
-Warning	1292	Incorrect datetime value: '0000-00-00'
+Warning	1292	Incorrect datetime value: '0000-00-00' for column `test`.`t1`.`c` at row 1
 select to_days("0000-00-00"),to_days(d),to_days(dt),to_days(t),to_days(c) from t1;
 to_days("0000-00-00")	to_days(d)	to_days(dt)	to_days(t)	to_days(c)
 NULL	NULL	NULL	NULL	NULL
 Warnings:
 Warning	1292	Incorrect datetime value: '0000-00-00'
-Warning	1292	Incorrect datetime value: '0000-00-00'
+Warning	1292	Incorrect datetime value: '0000-00-00' for column `test`.`t1`.`c` at row 1
 select extract(MONTH FROM "0000-00-00"),extract(MONTH FROM d),extract(MONTH FROM dt),extract(MONTH FROM t),extract(MONTH FROM c) from t1;
 extract(MONTH FROM "0000-00-00")	extract(MONTH FROM d)	extract(MONTH FROM dt)	extract(MONTH FROM t)	extract(MONTH FROM c)
 0	0	0	0	0
@@ -1386,9 +1386,9 @@ SELECT COUNT(*) FROM t1 GROUP BY TIME_TO_SEC(a);
 COUNT(*)
 2
 Warnings:
-Warning	1292	Incorrect time value: ''
-Warning	1292	Incorrect time value: ''
-Warning	1292	Incorrect time value: ''
+Warning	1292	Incorrect time value: '' for column `test`.`t1`.`a` at row 1
+Warning	1292	Incorrect time value: '' for column `test`.`t1`.`a` at row 1
+Warning	1292	Incorrect time value: '' for column `test`.`t1`.`a` at row 2
 DROP TABLE t1;
 #
 # Bug#11766112  59151:UNINITIALIZED VALUES IN EXTRACT_DATE_TIME WITH STR_TO_DATE(SPACE(..) ...
@@ -6435,6 +6435,20 @@ a
 NULL
 SET @@time_zone=DEFAULT;
 DROP TABLE t1;
-#
 # End of 10.5 tests
 #
+# MDEV-38006 Inconsistent behaviors when casting into time
+#
+create table t1 (c1 char(20), c2 mediumint unsigned);
+insert into t1 values (9430886, 9430886), (9430816, 9430816);
+select cast(c1 as time), cast(c2 as time) from t1;
+cast(c1 as time)	cast(c2 as time)
+NULL	NULL
+838:59:59	838:59:59
+Warnings:
+Warning	1292	Incorrect time value: '9430886' for column `test`.`t1`.`c1` at row 1
+Warning	1292	Incorrect time value: '9430886' for column `test`.`t1`.`c2` at row 1
+Warning	1292	Incorrect time value: '9430816' for column `test`.`t1`.`c1` at row 2
+Warning	1292	Incorrect time value: '9430816' for column `test`.`t1`.`c2` at row 2
+drop table t1;
+# End of 10.11 tests

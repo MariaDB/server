@@ -34,11 +34,11 @@ d	h	a	cast_itds
 NULL	NULL	87649416:00:00	NULL
 NULL	NULL	3652059 00:00:00	NULL
 Warnings:
-Warning	1292	Incorrect interval value: '87649416:00:00'
-Warning	1292	Incorrect interval value: '87649416:00:00'
+Warning	1292	Incorrect interval value: '87649416:00:00' for column `test`.`t1`.`a` at row 9
+Warning	1292	Incorrect interval value: '87649416:00:00' for column `test`.`t1`.`a` at row 9
 Warning	1292	Incorrect INTERVAL DAY TO SECOND value: '87649416:00:00'
-Warning	1292	Incorrect interval value: '3652059 00:00:00'
-Warning	1292	Incorrect interval value: '3652059 00:00:00'
+Warning	1292	Incorrect interval value: '3652059 00:00:00' for column `test`.`t1`.`a` at row 10
+Warning	1292	Incorrect interval value: '3652059 00:00:00' for column `test`.`t1`.`a` at row 10
 Warning	1292	Incorrect INTERVAL DAY TO SECOND value: '3652059 00:00:00'
 DROP TABLE t1;
 CREATE TABLE t1 (a DECIMAL(32,9));
