@@ -3456,8 +3456,8 @@ SELECT DISTINCT - GREATEST( b, CAST( NULL AS DATETIME ) ) AS f FROM t1;
 f
 NULL
 Warnings:
-Warning	1292	Truncated incorrect datetime value: 'foo'
-Warning	1292	Truncated incorrect datetime value: 'bar'
+Warning	1292	Incorrect datetime value: 'foo' for column `test`.`t1`.`b` at row 1
+Warning	1292	Incorrect datetime value: 'bar' for column `test`.`t1`.`b` at row 2
 DROP TABLE t1;
 CREATE TABLE t1 (b LONGBLOB);
 INSERT IGNORE INTO t1 VALUES ('foo'),('bar');
@@ -3465,8 +3465,8 @@ SELECT DISTINCT - GREATEST( b, CAST( NULL AS TIME) ) AS f FROM t1;
 f
 NULL
 Warnings:
-Warning	1292	Incorrect time value: 'foo'
-Warning	1292	Incorrect time value: 'bar'
+Warning	1292	Incorrect time value: 'foo' for column `test`.`t1`.`b` at row 1
+Warning	1292	Incorrect time value: 'bar' for column `test`.`t1`.`b` at row 2
 DROP TABLE t1;
 CREATE TABLE t1 (b LONGBLOB);
 INSERT IGNORE INTO t1 VALUES ('foo'),('bar');
@@ -3474,8 +3474,8 @@ SELECT DISTINCT - GREATEST( b, CAST( NULL AS DATE) ) AS f FROM t1;
 f
 NULL
 Warnings:
-Warning	1292	Truncated incorrect datetime value: 'foo'
-Warning	1292	Truncated incorrect datetime value: 'bar'
+Warning	1292	Incorrect datetime value: 'foo' for column `test`.`t1`.`b` at row 1
+Warning	1292	Incorrect datetime value: 'bar' for column `test`.`t1`.`b` at row 2
 DROP TABLE t1;
 #
 # End of 10.1 tests

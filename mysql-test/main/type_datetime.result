@@ -1571,15 +1571,15 @@ pk
 17
 18
 Warnings:
-Warning	1292	Truncated incorrect datetime value: ''
-Warning	1292	Truncated incorrect datetime value: 'k'
+Warning	1292	Incorrect datetime value: '' for column `test`.`t1`.`x2` at row 1
+Warning	1292	Incorrect datetime value: 'k' for column `test`.`t1`.`x2` at row 2
 SELECT pk FROM v1 WHERE x1 >x2;
 pk
 17
 18
 Warnings:
-Warning	1292	Truncated incorrect datetime value: ''
-Warning	1292	Truncated incorrect datetime value: 'k'
+Warning	1292	Incorrect datetime value: '' for column `test`.`t1`.`x2` at row 1
+Warning	1292	Incorrect datetime value: 'k' for column `test`.`t1`.`x2` at row 2
 DROP VIEW v1;
 DROP TABLE t1;
 #
@@ -1692,8 +1692,8 @@ INSERT INTO t2 VALUES (0x30),(0x31);
 SELECT * FROM t1, t2 WHERE indexed_col=not_indexed_col;
 indexed_col	not_indexed_col
 Warnings:
-Warning	1292	Incorrect datetime value: '0'
-Warning	1292	Incorrect datetime value: '1'
+Warning	1292	Incorrect datetime value: '0' for column `test`.`t2`.`not_indexed_col` at row 1
+Warning	1292	Incorrect datetime value: '1' for column `test`.`t2`.`not_indexed_col` at row 1
 DROP TABLE t2;
 CREATE TABLE t2 (not_indexed_col VARCHAR(32));
 INSERT INTO t2 VALUES ('2001-01-01'),('2001-01-02');

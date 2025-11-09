@@ -8160,12 +8160,12 @@ SELECT * FROM t1 WHERE (a,a)=('2001-01-01x',DATE'2001-01-01');
 a
 2001-01-01x
 Warnings:
-Warning	1292	Truncated incorrect date value: '2001-01-01x'
+Warning	1292	Incorrect date value: '2001-01-01x' for column `test`.`t1`.`a` at row 2
 SELECT * FROM t1 WHERE (a,a)=(DATE'2001-01-01','2001-01-01x');
 a
 2001-01-01x
 Warnings:
-Warning	1292	Truncated incorrect date value: '2001-01-01x'
+Warning	1292	Incorrect date value: '2001-01-01x' for column `test`.`t1`.`a` at row 2
 SELECT * FROM t1 WHERE (a,a)=('2001-01-01',DATE'2001-01-01');
 a
 2001-01-01
@@ -8185,12 +8185,12 @@ SELECT * FROM t1 WHERE (a,a)=('2001-01-01x',DATE'2001-01-01');
 a
 2001-01-01x
 Warnings:
-Warning	1292	Truncated incorrect date value: '2001-01-01x'
+Warning	1292	Incorrect date value: '2001-01-01x' for column `test`.`t1`.`a` at row 2
 SELECT * FROM t1 WHERE (a,a)=(DATE'2001-01-01','2001-01-01x');
 a
 2001-01-01x
 Warnings:
-Warning	1292	Truncated incorrect date value: '2001-01-01x'
+Warning	1292	Incorrect date value: '2001-01-01x' for column `test`.`t1`.`a` at row 2
 SELECT * FROM t1 WHERE (a,a)=('2001-01-01',DATE'2001-01-01');
 a
 2001-01-01
