@@ -16002,7 +16002,8 @@ ha_innobase::extra(
 		alter_stats_rebuild(m_prebuilt->table, trx);
 		break;
 	case HA_EXTRA_ABORT_ALTER_COPY:
-		if (m_prebuilt->table->skip_alter_undo) {
+		if (m_prebuilt->table->skip_alter_undo &&
+		    !m_prebuilt->table->is_temporary()) {
 			trx = check_trx_exists(ha_thd());
 			m_prebuilt->table->skip_alter_undo = 0;
 			trx->rollback();
