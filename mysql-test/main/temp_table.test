@@ -768,3 +768,20 @@ DROP TABLE t1;
 --echo #
 --echo # End of 10.6 tests
 --echo #
+
+--echo #
+--echo # Failed CREATE TEMPORARY ... SELECT must not roll back transaction
+--echo #
+
+CREATE TABLE t (pk INT PRIMARY KEY) ENGINE=InnoDB;
+START TRANSACTION;
+INSERT INTO t VALUES (0);
+INSERT INTO t VALUES (1);
+--error ER_TRUNCATED_WRONG_VALUE_FOR_FIELD
+CREATE TEMPORARY TABLE tmp2 (a INT) ENGINE=InnoDB SELECT 'x' AS a;
+SELECT * FROM t ORDER BY pk;
+--error ER_DUP_ENTRY
+INSERT INTO t VALUES (1);
+COMMIT;
+SELECT * FROM t ORDER BY pk;
+DROP TABLE t;
