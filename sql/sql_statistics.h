@@ -614,13 +614,7 @@ public:
 
   void mark_stats_as_read() { stats_were_read= true; }
 
-  bool has_stats(THD *thd) const
-  {
-    if (TEST_NEW_MODE_FLAG(thd, NEW_MODE_FIX_INDEX_STATS_FOR_ALL_NULLS))
-      return stats_were_read;
-    else
-      return get_avg_frequency(0) > 0.5;
-  }
+  bool has_stats() const { return stats_were_read; }
 
   bool avg_frequency_is_inited() { return avg_frequency != NULL; }
 

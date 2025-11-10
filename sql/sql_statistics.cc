@@ -4164,11 +4164,10 @@ void set_statistics_for_table(THD *thd, TABLE *table)
         (check_eits_preferred(thd) &&
          table->stats_is_read &&
          key_info->read_stats->avg_frequency_is_inited() &&
-         key_info->read_stats->has_stats(thd));
+         key_info->read_stats->has_stats());
 
     // Fill out `all_nulls_key_parts` bitmap
-    if (TEST_NEW_MODE_FLAG(thd, NEW_MODE_FIX_INDEX_STATS_FOR_ALL_NULLS) &&
-        key_info->is_statistics_from_stat_tables)
+    if (key_info->is_statistics_from_stat_tables)
     {
       for (uint part_idx= 0; part_idx < key_info->usable_key_parts; part_idx++)
       {
