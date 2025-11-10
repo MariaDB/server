@@ -1771,48 +1771,48 @@ Testcase 4.1.9:
 drop procedure
 --------------------------------------------------------------------------------
 SELECT * from mysql.proc where specific_name='sp9';
-db	name	type	specific_name	language	sql_data_access	is_deterministic	security_type	param_list	returns	body	definer	created	modified	sql_mode	comment	character_set_client	collation_connection	db_collation	body_utf8	aggregate
+db	name	type	specific_name	language	sql_data_access	is_deterministic	security_type	param_list	returns	body	definer	created	modified	sql_mode	path	comment	character_set_client	collation_connection	db_collation	body_utf8	aggregate
 DROP PROCEDURE IF EXISTS sp9;
 SELECT * from mysql.proc where specific_name='sp9';
-db	name	type	specific_name	language	sql_data_access	is_deterministic	security_type	param_list	returns	body	definer	created	modified	sql_mode	comment	character_set_client	collation_connection	db_collation	body_utf8	aggregate
+db	name	type	specific_name	language	sql_data_access	is_deterministic	security_type	param_list	returns	body	definer	created	modified	sql_mode	path	comment	character_set_client	collation_connection	db_collation	body_utf8	aggregate
 CREATE PROCEDURE sp9()SELECT * from t1;
 SELECT * from mysql.proc where specific_name='sp9';
-db	name	type	specific_name	language	sql_data_access	is_deterministic	security_type	param_list	returns	body	definer	created	modified	sql_mode	comment	character_set_client	collation_connection	db_collation	body_utf8	aggregate
-db_storedproc	sp9	PROCEDURE	sp9	SQL	CONTAINS_SQL	NO	DEFINER			SELECT * from t1	root@localhost	created	modified			latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci	SELECT * from t1	NONE
+db	name	type	specific_name	language	sql_data_access	is_deterministic	security_type	param_list	returns	body	definer	created	modified	sql_mode	path	comment	character_set_client	collation_connection	db_collation	body_utf8	aggregate
+db_storedproc	sp9	PROCEDURE	sp9	SQL	CONTAINS_SQL	NO	DEFINER			SELECT * from t1	root@localhost	created	modified		NULL		latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci	SELECT * from t1	NONE
 DROP PROCEDURE sp9;
 SELECT * from mysql.proc where specific_name='sp9';
-db	name	type	specific_name	language	sql_data_access	is_deterministic	security_type	param_list	returns	body	definer	created	modified	sql_mode	comment	character_set_client	collation_connection	db_collation	body_utf8	aggregate
+db	name	type	specific_name	language	sql_data_access	is_deterministic	security_type	param_list	returns	body	definer	created	modified	sql_mode	path	comment	character_set_client	collation_connection	db_collation	body_utf8	aggregate
 CREATE PROCEDURE sp9()SELECT * from t1;
 SELECT * from mysql.proc where specific_name='sp9';
-db	name	type	specific_name	language	sql_data_access	is_deterministic	security_type	param_list	returns	body	definer	created	modified	sql_mode	comment	character_set_client	collation_connection	db_collation	body_utf8	aggregate
-db_storedproc	sp9	PROCEDURE	sp9	SQL	CONTAINS_SQL	NO	DEFINER			SELECT * from t1	root@localhost	created	modified			latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci	SELECT * from t1	NONE
+db	name	type	specific_name	language	sql_data_access	is_deterministic	security_type	param_list	returns	body	definer	created	modified	sql_mode	path	comment	character_set_client	collation_connection	db_collation	body_utf8	aggregate
+db_storedproc	sp9	PROCEDURE	sp9	SQL	CONTAINS_SQL	NO	DEFINER			SELECT * from t1	root@localhost	created	modified		NULL		latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci	SELECT * from t1	NONE
 DROP PROCEDURE IF EXISTS sp9;
 SELECT * from mysql.proc where specific_name='sp9';
-db	name	type	specific_name	language	sql_data_access	is_deterministic	security_type	param_list	returns	body	definer	created	modified	sql_mode	comment	character_set_client	collation_connection	db_collation	body_utf8	aggregate
+db	name	type	specific_name	language	sql_data_access	is_deterministic	security_type	param_list	returns	body	definer	created	modified	sql_mode	path	comment	character_set_client	collation_connection	db_collation	body_utf8	aggregate
 
 Testcase 4.1.10:
 ----------------
 DROP FUNCTION
 --------------------------------------------------------------------------------
 SELECT * from mysql.proc where specific_name='fn10' and type='function';
-db	name	type	specific_name	language	sql_data_access	is_deterministic	security_type	param_list	returns	body	definer	created	modified	sql_mode	comment	character_set_client	collation_connection	db_collation	body_utf8	aggregate
+db	name	type	specific_name	language	sql_data_access	is_deterministic	security_type	param_list	returns	body	definer	created	modified	sql_mode	path	comment	character_set_client	collation_connection	db_collation	body_utf8	aggregate
 DROP FUNCTION IF EXISTS fn10;
 SELECT * from mysql.proc where specific_name='fn10' and type='function';
-db	name	type	specific_name	language	sql_data_access	is_deterministic	security_type	param_list	returns	body	definer	created	modified	sql_mode	comment	character_set_client	collation_connection	db_collation	body_utf8	aggregate
+db	name	type	specific_name	language	sql_data_access	is_deterministic	security_type	param_list	returns	body	definer	created	modified	sql_mode	path	comment	character_set_client	collation_connection	db_collation	body_utf8	aggregate
 CREATE FUNCTION fn10() returns int return 100;
 SELECT * from mysql.proc where specific_name='fn10' and type='function';
-db	name	type	specific_name	language	sql_data_access	is_deterministic	security_type	param_list	returns	body	definer	created	modified	sql_mode	comment	character_set_client	collation_connection	db_collation	body_utf8	aggregate
-db_storedproc	fn10	FUNCTION	fn10	SQL	CONTAINS_SQL	NO	DEFINER		int(11)	return 100	root@localhost	created	modified			latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci	return 100	NONE
+db	name	type	specific_name	language	sql_data_access	is_deterministic	security_type	param_list	returns	body	definer	created	modified	sql_mode	path	comment	character_set_client	collation_connection	db_collation	body_utf8	aggregate
+db_storedproc	fn10	FUNCTION	fn10	SQL	CONTAINS_SQL	NO	DEFINER		int(11)	return 100	root@localhost	created	modified		NULL		latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci	return 100	NONE
 DROP FUNCTION fn10;
 SELECT * from mysql.proc where specific_name='fn10' and type='function';
-db	name	type	specific_name	language	sql_data_access	is_deterministic	security_type	param_list	returns	body	definer	created	modified	sql_mode	comment	character_set_client	collation_connection	db_collation	body_utf8	aggregate
+db	name	type	specific_name	language	sql_data_access	is_deterministic	security_type	param_list	returns	body	definer	created	modified	sql_mode	path	comment	character_set_client	collation_connection	db_collation	body_utf8	aggregate
 CREATE FUNCTION fn10() returns int return 100;
 SELECT * from mysql.proc where specific_name='fn10' and type='function';
-db	name	type	specific_name	language	sql_data_access	is_deterministic	security_type	param_list	returns	body	definer	created	modified	sql_mode	comment	character_set_client	collation_connection	db_collation	body_utf8	aggregate
-db_storedproc	fn10	FUNCTION	fn10	SQL	CONTAINS_SQL	NO	DEFINER		int(11)	return 100	root@localhost	created	modified			latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci	return 100	NONE
+db	name	type	specific_name	language	sql_data_access	is_deterministic	security_type	param_list	returns	body	definer	created	modified	sql_mode	path	comment	character_set_client	collation_connection	db_collation	body_utf8	aggregate
+db_storedproc	fn10	FUNCTION	fn10	SQL	CONTAINS_SQL	NO	DEFINER		int(11)	return 100	root@localhost	created	modified		NULL		latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci	return 100	NONE
 DROP FUNCTION IF EXISTS fn10;
 SELECT * from mysql.proc where specific_name='fn10' and type='function';
-db	name	type	specific_name	language	sql_data_access	is_deterministic	security_type	param_list	returns	body	definer	created	modified	sql_mode	comment	character_set_client	collation_connection	db_collation	body_utf8	aggregate
+db	name	type	specific_name	language	sql_data_access	is_deterministic	security_type	param_list	returns	body	definer	created	modified	sql_mode	path	comment	character_set_client	collation_connection	db_collation	body_utf8	aggregate
 
 Testcase 4.1.11:
 ----------------
@@ -5113,7 +5113,10 @@ CREATE PROCEDURE sp1()
 path:BEGIN
 SELECT @x;
 END//
-DROP PROCEDURE sp1;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near ':BEGIN
+SELECT @x;
+END' at line 2
+DROP PROCEDURE IF EXISTS sp1;
 CREATE PROCEDURE sp1()
 precision:BEGIN
 SELECT @x;
@@ -16167,15 +16170,15 @@ insert into t43 values('abcde', 'a!@#$%^&*(');
 CREATE PROCEDURE d1.sp4()
 SELECT * from d1.t43;
 SELECT * from mysql.proc where specific_name = 'sp4';
-db	name	type	specific_name	language	sql_data_access	is_deterministic	security_type	param_list	returns	body	definer	created	modified	sql_mode	comment	character_set_client	collation_connection	db_collation	body_utf8	aggregate
-d1	sp4	PROCEDURE	sp4	SQL	CONTAINS_SQL	NO	DEFINER			SELECT * from d1.t43	root@localhost	modified	created			latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci	SELECT * from d1.t43	NONE
+db	name	type	specific_name	language	sql_data_access	is_deterministic	security_type	param_list	returns	body	definer	created	modified	sql_mode	path	comment	character_set_client	collation_connection	db_collation	body_utf8	aggregate
+d1	sp4	PROCEDURE	sp4	SQL	CONTAINS_SQL	NO	DEFINER			SELECT * from d1.t43	root@localhost	modified	created		NULL		latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci	SELECT * from d1.t43	NONE
 USE db_storedproc;
 DROP DATABASE d1;
 CREATE DATABASE d1;
 USE d1;
 create table t44(a char(5), b char(10));
 SELECT * from mysql.proc where specific_name = 'sp4';
-db	name	type	specific_name	language	sql_data_access	is_deterministic	security_type	param_list	returns	body	definer	created	modified	sql_mode	comment	character_set_client	collation_connection	db_collation	body_utf8	aggregate
+db	name	type	specific_name	language	sql_data_access	is_deterministic	security_type	param_list	returns	body	definer	created	modified	sql_mode	path	comment	character_set_client	collation_connection	db_collation	body_utf8	aggregate
 USE db_storedproc;
 DROP DATABASE d1;
 
@@ -16217,8 +16220,8 @@ CREATE PROCEDURE sp8 ( n char(20) ) sql security DEFINER comment 'initial'
 USE d2;
 alter procedure d1.sp8 sql security DEFINER comment 'updated';
 SELECT * from mysql.proc where specific_name='sp8' and db='d1';
-db	name	type	specific_name	language	sql_data_access	is_deterministic	security_type	param_list	returns	body	definer	created	modified	sql_mode	comment	character_set_client	collation_connection	db_collation	body_utf8	aggregate
-d1	sp8	PROCEDURE	sp8	SQL	CONTAINS_SQL	NO	DEFINER	 n char(20) 		SELECT * from t1 where t1.f1 = n	root@localhost	modified	created		updated	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci	SELECT * from t1 where t1.f1 = n	NONE
+db	name	type	specific_name	language	sql_data_access	is_deterministic	security_type	param_list	returns	body	definer	created	modified	sql_mode	path	comment	character_set_client	collation_connection	db_collation	body_utf8	aggregate
+d1	sp8	PROCEDURE	sp8	SQL	CONTAINS_SQL	NO	DEFINER	 n char(20) 		SELECT * from t1 where t1.f1 = n	root@localhost	modified	created		NULL	updated	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci	SELECT * from t1 where t1.f1 = n	NONE
 
 Testcase 4.4.9:
 --------------------------------------------------------------------------------
@@ -16234,12 +16237,12 @@ END//
 USE d2;
 alter function d1.fn2 sql security DEFINER comment 'updated';
 SELECT * from mysql.proc where specific_name='fn2' and db='d1';
-db	name	type	specific_name	language	sql_data_access	is_deterministic	security_type	param_list	returns	body	definer	created	modified	sql_mode	comment	character_set_client	collation_connection	db_collation	body_utf8	aggregate
+db	name	type	specific_name	language	sql_data_access	is_deterministic	security_type	param_list	returns	body	definer	created	modified	sql_mode	path	comment	character_set_client	collation_connection	db_collation	body_utf8	aggregate
 d1	fn2	FUNCTION	fn2	SQL	CONTAINS_SQL	NO	DEFINER	n int	int(11)	BEGIN
 declare a int;
 set a = 0.9 * n;
 return a;
-END	root@localhost	modified	created		updated	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci	BEGIN
+END	root@localhost	modified	created		NULL	updated	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci	BEGIN
 declare a int;
 set a = 0.9 * n;
 return a;
@@ -16253,7 +16256,7 @@ SELECT * from t1 where t1.f1 = n;
 USE d2;
 DROP PROCEDURE d1.sp9;
 SELECT * from mysql.proc where specific_name='sp9' and db='d1';
-db	name	type	specific_name	language	sql_data_access	is_deterministic	security_type	param_list	returns	body	definer	created	modified	sql_mode	comment	character_set_client	collation_connection	db_collation	body_utf8	aggregate
+db	name	type	specific_name	language	sql_data_access	is_deterministic	security_type	param_list	returns	body	definer	created	modified	sql_mode	path	comment	character_set_client	collation_connection	db_collation	body_utf8	aggregate
 
 Testcase 4.4.11:
 --------------------------------------------------------------------------------
@@ -16267,7 +16270,7 @@ END//
 USE d2;
 DROP FUNCTION d1.fn3;
 SELECT * from mysql.proc where specific_name='fn3' and db='d1';
-db	name	type	specific_name	language	sql_data_access	is_deterministic	security_type	param_list	returns	body	definer	created	modified	sql_mode	comment	character_set_client	collation_connection	db_collation	body_utf8	aggregate
+db	name	type	specific_name	language	sql_data_access	is_deterministic	security_type	param_list	returns	body	definer	created	modified	sql_mode	path	comment	character_set_client	collation_connection	db_collation	body_utf8	aggregate
 USE db_storedproc;
 DROP DATABASE d1;
 DROP DATABASE d2;

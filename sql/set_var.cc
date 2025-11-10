@@ -114,6 +114,9 @@ void sys_var_end()
   for (sys_var *var=all_sys_vars.first; var; var= var->next)
     var->cleanup();
 
+  global_system_variables.path.free();
+  max_system_variables.path.free();
+
   DBUG_VOID_RETURN;
 }
 

@@ -1,0 +1,191 @@
+#
+# MDEV-34391 Path resolution
+# View tests with embedded PATH
+#
+CREATE DATABASE test2;
+CREATE FUNCTION test2.func(a INT) RETURNS TEXT RETURN a * 2;
+CREATE FUNCTION test2.func2(a INT) RETURNS TEXT RETURN a + 10;
+CREATE FUNCTION test2.func4(a INT) RETURNS TEXT RETURN func(a) + 5;
+CREATE FUNCTION test2.cross_schema(a INT) RETURNS TEXT RETURN func3(a) + 5;
+CREATE DATABASE test3;
+CREATE FUNCTION test3.func(a INT) RETURNS TEXT RETURN a + 16;
+CREATE FUNCTION test3.func3(a INT) RETURNS TEXT RETURN a + 20;
+CREATE TABLE t1(a INT);
+INSERT INTO t1 VALUES(1);
+INSERT INTO t1 VALUES(2);
+#
+# View with function call and embedded PATH
+#
+SET PATH 'test2';
+CREATE VIEW v1 AS SELECT func(1);
+SET PATH 'CURRENT_SCHEMA';
+SELECT * FROM v1;
+func(1)
+2
+#
+# View with function call and embedded PATH, using a table
+# from CURRENT_SCHEMA's database
+#
+SET PATH 'test2';
+CREATE VIEW v2 AS SELECT a, func(a) FROM t1;
+SET PATH 'CURRENT_SCHEMA';
+SELECT * FROM v2;
+a	func(a)
+1	2
+2	4
+#
+# Session PATH does not impact view's routine resolution
+#
+SET PATH 'test4';
+SELECT * FROM v1;
+func(1)
+2
+SELECT * FROM v2;
+a	func(a)
+1	2
+2	4
+#
+# Altered view should use the new embedded PATH
+#
+SET PATH 'test3';
+ALTER VIEW v1 AS SELECT func(1);
+SET PATH 'CURRENT_SCHEMA';
+SELECT * FROM v1;
+func(1)
+17
+#
+# Renaming a view should not change it's embedded PATH
+#
+SET PATH 'CURRENT_SCHEMA';
+RENAME TABLE v1 TO v4;
+SELECT * FROM v4;
+func(1)
+17
+DROP VIEW v4;
+#
+# Specify ALGORITHM= MERGE together with the embedded PATH when
+# CREATEing a view
+#
+DROP VIEW v2;
+SET PATH 'test2';
+CREATE ALGORITHM=MERGE VIEW v2 AS SELECT a, func(a) FROM t1;
+SET PATH 'CURRENT_SCHEMA';
+SELECT * FROM v2;
+a	func(a)
+1	2
+2	4
+#
+# Specify ALGORITHM= TEMPTABLE together with the embedded PATH when
+# CREATEing a view
+#
+DROP VIEW v2;
+SET PATH 'test2';
+CREATE ALGORITHM=TEMPTABLE VIEW v2 AS SELECT a, func(a) FROM t1;
+SET PATH 'CURRENT_SCHEMA';
+SELECT * FROM v2;
+a	func(a)
+1	2
+2	4
+#
+# Specify ALGORITHM= MERGE together with the embedded PATH when
+# ALTERing a view
+#
+SET PATH 'test2';
+ALTER VIEW v2 AS SELECT a, func(a) FROM t1;
+SET PATH 'CURRENT_SCHEMA';
+SELECT * FROM v2;
+a	func(a)
+1	2
+2	4
+#
+# Specify ALGORITHM= TEMPTABLE together with the embedded PATH when
+# ALTERing a view
+#
+SET PATH 'test2';
+ALTER VIEW v2 AS SELECT a, func(a) FROM t1;
+SET PATH 'CURRENT_SCHEMA';
+SELECT * FROM v2;
+a	func(a)
+1	2
+2	4
+#
+# Chaining function calls in a view with an embedded PATH
+#
+SET PATH 'test2';
+ALTER VIEW v2 AS SELECT a, func2(func(a)) AS b FROM t1;
+SET PATH 'CURRENT_SCHEMA';
+SELECT * FROM v2;
+a	b
+1	12
+2	14
+#
+# Chaining views with different embedded PATHs
+#
+SET PATH 'test3';
+CREATE VIEW v1 AS SELECT a, b, func3(b) FROM v2;
+SET PATH 'CURRENT_SCHEMA';
+SELECT * FROM v1;
+a	b	func3(b)
+1	12	32
+2	14	34
+#
+# Chaining function calls in a view with an embedded PATH in different
+# schemas
+#
+SET PATH 'test2,test3';
+ALTER VIEW v2 AS SELECT a, func3(func2(a)) FROM t1;
+SET PATH 'CURRENT_SCHEMA';
+SELECT * FROM v2;
+a	func3(func2(a))
+1	31
+2	32
+DROP VIEW v2;
+#
+# CREATE VIEW with wrong PATH while referring to a function
+#
+SET PATH 'test4';
+CREATE VIEW v2 AS SELECT a, func(a) FROM t1;
+ERROR 42000: FUNCTION test.func does not exist
+#
+# CREATE VIEW using a function that calls another function in the same schema
+#
+SET PATH 'test2';
+CREATE VIEW v2 AS SELECT a, func4(a) FROM t1;
+SET PATH 'CURRENT_SCHEMA';
+SELECT * FROM v2;
+a	func4(a)
+1	7
+2	9
+DROP VIEW v2;
+#
+# CREATE VIEW using a function that calls another function in a different schema
+#
+SET PATH 'test2';
+CREATE VIEW v2 AS SELECT a, cross_schema(a) FROM t1;
+SET PATH 'test3';
+SELECT * FROM v2;
+a	cross_schema(a)
+1	26
+2	27
+DROP VIEW v2;
+#
+# Shadow SCHEMA with incomplete PACKAGE and qualified function call
+#
+SET PATH 'CURRENT_SCHEMA';
+CREATE VIEW v2 AS SELECT a, test2.func(a) FROM t1;
+CREATE PACKAGE test2
+FUNCTION func(a INT) RETURNS INT;
+END;
+/
+SET PATH 'CURRENT_SCHEMA';
+SELECT * FROM v2;
+ERROR HY000: View 'test.v2' references invalid table(s) or column(s) or function(s) or definer/invoker of view lack rights to use them
+SET PATH 'test2';
+SELECT * FROM v2;
+ERROR HY000: View 'test.v2' references invalid table(s) or column(s) or function(s) or definer/invoker of view lack rights to use them
+DROP PACKAGE test2;
+DROP VIEW v2;
+DROP VIEW v1;
+DROP TABLE t1;
+DROP DATABASE test3;
+DROP DATABASE test2;

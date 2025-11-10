@@ -1,0 +1,144 @@
+--echo #
+--echo # MDEV-34391 Path resolution
+--echo # Stored function tests with embedded PATH
+--echo #
+SET sql_mode=ORACLE;
+
+CREATE DATABASE test2;
+DELIMITER /;
+CREATE FUNCTION test2.func2() RETURN TEXT
+AS
+BEGIN
+  RETURN 'test2.func2';
+END;
+/
+DELIMITER ;/
+
+CREATE DATABASE test3;
+DELIMITER /;
+CREATE FUNCTION test3.func2() RETURN TEXT
+AS
+BEGIN
+  RETURN 'test3.func2';
+END;
+/
+DELIMITER ;/
+
+CREATE DATABASE test4;
+DELIMITER /;
+CREATE FUNCTION test4.func4() RETURN TEXT
+AS
+BEGIN
+  RETURN 'test4.func4';
+END;
+/
+DELIMITER ;/
+
+--echo #
+--echo # Embed a path in a stored function
+--echo #
+DELIMITER /;
+CREATE FUNCTION func() RETURN TEXT
+PATH 'test2'
+AS
+BEGIN
+  RETURN func2();
+END;
+/
+DELIMITER ;/
+
+SELECT func();
+SET PATH 'test3';
+SELECT test.func();
+
+DROP FUNCTION func;
+SET PATH 'CURRENT_SCHEMA';
+
+--echo #
+--echo # Ensure that multiple references are resolved properly
+--echo #
+DELIMITER /;
+CREATE FUNCTION func() RETURN TEXT
+PATH 'test2'
+AS
+BEGIN
+  RETURN func2() || '+' || func2();
+END;
+/
+DELIMITER ;/
+
+SELECT func();
+SET PATH 'test3';
+SELECT test.func();
+
+DROP FUNCTION func;
+SET PATH 'CURRENT_SCHEMA';
+
+--echo #
+--echo # Use multiple schemas in embedded PATH
+--echo #
+DELIMITER /;
+CREATE FUNCTION func() RETURN TEXT
+PATH 'test2,test3,test4'
+AS
+BEGIN
+  RETURN func2() || '+' || func2() || '+' || func4();
+END;
+/
+DELIMITER ;/
+
+SELECT func();
+SET PATH 'test3';
+SELECT test.func();
+
+DROP FUNCTION func;
+SET PATH 'CURRENT_SCHEMA';
+
+--echo #
+--echo # Use empty PATH in stored routine (resolution should fail)
+--echo #
+DELIMITER /;
+CREATE FUNCTION func() RETURN TEXT
+PATH ''
+AS
+BEGIN
+  RETURN func2();
+END;
+/
+DELIMITER ;/
+
+--error ER_SP_DOES_NOT_EXIST
+SELECT func();
+
+--echo #
+--echo # ALTER FUNCTION's previously empty PATH
+--echo #
+ALTER FUNCTION func PATH 'test2';
+SELECT func();
+
+DROP FUNCTION func;
+
+--echo #
+--echo # No PATH specified in stored routine
+--echo # Resolution follows the caller's PATH
+--echo #
+DELIMITER /;
+CREATE FUNCTION func() RETURN TEXT
+AS
+BEGIN
+  RETURN func2();
+END;
+/
+DELIMITER ;/
+
+--error ER_SP_DOES_NOT_EXIST
+SELECT func();
+
+SET PATH 'CURRENT_SCHEMA,test2';
+SELECT func();
+
+DROP FUNCTION func;
+
+DROP DATABASE test2;
+DROP DATABASE test3;
+DROP DATABASE test4;
