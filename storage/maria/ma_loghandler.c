@@ -3201,7 +3201,7 @@ restart:
         translog_buffer_unlock(buffer_unlock);
         buffer_unlock= curr_buffer;
         /* we can't make a full circle */
-        DBUG_ASSERT(buffer_start != buffer_no);
+        DBUG_ASSERT_NO_ASSUME(buffer_start != buffer_no);
       }
     }
     translog_unlock();

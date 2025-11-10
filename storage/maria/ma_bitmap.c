@@ -3128,7 +3128,7 @@ flush_log_for_bitmap(PAGECACHE_IO_HOOK_ARGS *args __attribute__ ((unused)))
   const MARIA_SHARE *share= (MARIA_SHARE*)args->data;
 #endif
   DBUG_ENTER("flush_log_for_bitmap");
-  DBUG_ASSERT(share->now_transactional);
+  DBUG_ASSERT_NO_ASSUME(share->now_transactional);
   /*
     WAL imposes that UNDOs reach disk before bitmap is flushed. We don't know
     the LSN of the last UNDO about this bitmap page, so we flush whole log.

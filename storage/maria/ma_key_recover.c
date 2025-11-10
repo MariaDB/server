@@ -1182,7 +1182,7 @@ uint _ma_apply_redo_index(MARIA_HA *info,
     }
   } while (header < header_end);
   DBUG_ASSERT(header == header_end);
-  DBUG_ASSERT(new_page_length == 0 || new_page_length == page_length);
+  DBUG_ASSERT_NO_ASSUME(new_page_length == 0 || new_page_length == page_length);
 
   /* Write modified page */
   page.size= page_length;

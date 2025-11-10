@@ -1005,7 +1005,7 @@ static int collect_tables(LEX_STRING *str, LSN checkpoint_start_log_horizon)
 
     /* locate our state among these cached ones */
     for ( ; state_copy->index != i; state_copy++)
-      DBUG_ASSERT(state_copy <= state_copies_end);
+      DBUG_ASSERT_NO_ASSUME(state_copy <= state_copies_end);
 
     /* OS file descriptors are ints which we stored in 4 bytes */
     compile_time_assert(sizeof(int) <= 4);

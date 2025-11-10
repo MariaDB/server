@@ -6971,8 +6971,8 @@ uint _ma_apply_redo_insert_row_blobs(MARIA_HA *info,
                                        LSN_IMPOSSIBLE, 0, FALSE);
               goto fix_bitmap;
             }
-            DBUG_ASSERT((found_page_type == (uchar) BLOB_PAGE) ||
-                        (found_page_type == (uchar) UNALLOCATED_PAGE));
+            DBUG_ASSERT_NO_ASSUME((found_page_type == (uchar) BLOB_PAGE) ||
+                                 (found_page_type == (uchar) UNALLOCATED_PAGE));
           }
           unlock_method= PAGECACHE_LOCK_WRITE_UNLOCK;
           unpin_method=  PAGECACHE_UNPIN;

@@ -207,11 +207,7 @@ extern void (*my_dbug_assert_failed)(const char *assert_expr, const char* file, 
 #define DBUG_ASSERT_EXISTS
 #define IF_DBUG_ASSERT(A,B)             A
 #else
-#ifdef __cplusplus
 #define DBUG_ASSERT(A)                  MY_ASSUME(A)
-#else
-#define DBUG_ASSERT(A)                  do { } while (0)
-#endif 
 #define DBUG_ASSERT_NO_ASSUME(A)        do { } while (0)
 #define IF_DBUG_ASSERT(A,B)             B
 #endif /* DBUG_ASSERT_AS_PRINTF */

@@ -425,9 +425,7 @@ static int keycache_pthread_cond_signal(mysql_cond_t *cond);
 static int fail_hlink(HASH_LINK *hlink);
 static int cache_empty(SIMPLE_KEY_CACHE_CB *keycache);
 #endif
-#ifdef DBUG_ASSERT_EXISTS
 static int fail_block(BLOCK_LINK *block);
-#endif
 
 static inline uint next_power(uint value)
 {
@@ -4811,8 +4809,9 @@ void keycache_debug_log_close(void)
 
 #endif /* defined(KEYCACHE_DEBUG) */
 
-#ifdef DBUG_ASSERT_EXISTS 
+#ifndef DBUG_OFF
 #define F_B_PRT(_f_, _v_) DBUG_PRINT("assert_fail", (_f_, _v_))
+#endif
 
 static int fail_block(BLOCK_LINK *block  __attribute__((unused)))
 {
@@ -4830,7 +4829,6 @@ static int fail_block(BLOCK_LINK *block  __attribute__((unused)))
 #endif
   return 0; /* Let the assert fail. */
 }
-#endif
 
 #ifndef DBUG_OFF
 static int fail_hlink(HASH_LINK *hlink  __attribute__((unused)))
