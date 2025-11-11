@@ -4394,6 +4394,7 @@ public:
   {
     typedef std::pair<unsigned int, unsigned int> uint_pair;
     typedef std::vector<std::string> str_vector;
+    bool allocation_error; /* Set if allocation of data structures fails */
 
     struct Default_charset
     {
@@ -4417,7 +4418,7 @@ public:
     std::vector<unsigned int> m_column_charset;
     // Character set number of every ENUM or SET column.
     std::vector<unsigned int> m_enum_and_set_column_charset;
-    std::vector<std::string> m_column_name;
+    LEX_CSTRING *m_column_name;
     // each str_vector stores values of one enum/set column
     std::vector<str_vector> m_enum_str_value;
     std::vector<str_vector> m_set_str_value;
@@ -4431,12 +4432,17 @@ public:
     /*
       It parses m_optional_metadata and populates into above variables.
 
+      @param[in] mem_root          Allocate memory here
+      @param[in] master_cols       Number of columns in data from master
       @param[in] optional_metadata points to the begin of optional metadata
                                    fields in table_map_event.
       @param[in] optional_metadata_len length of optional_metadata field.
+      @param[in] only_column_names Only read column names
      */
-    Optional_metadata_fields(unsigned char* optional_metadata,
-                             unsigned int optional_metadata_len);
+    Optional_metadata_fields(MEM_ROOT *root, uint master_cols,
+                             uchar* optional_metadata,
+                             uint optional_metadata_len,
+                             bool only_column_names);
   };
 
   /**

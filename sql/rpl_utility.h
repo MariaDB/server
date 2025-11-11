@@ -251,7 +251,7 @@ public:
   LEX_CUSTRING optional_metadata;
   uint *master_to_slave_map;
   uint *master_to_slave_error;
-  char **master_column_name;
+  char const **master_column_name;
 };
 
 /* Different errors when converting a field from master to slave */

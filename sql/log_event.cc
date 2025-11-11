@@ -3633,21 +3633,25 @@ static void parse_column_charset(std::vector<unsigned int> &vec,
 /**
    Parses COLUMN_NAME field.
 
-   @param[out] vec     stores column names extracted from field.
+   @param[in]  root    Allocate memory here
+   @param[out] name    Store column names extracted from field here
    @param[in]  field   COLUMN_NAME field in table_map_event.
    @param[in]  length  length of the field
  */
-static void parse_column_name(std::vector<std::string> &vec,
+static bool parse_column_name(MEM_ROOT *root, LEX_CSTRING *name,
                               unsigned char *field, unsigned int length)
 {
-  unsigned char* p= field;
-
-  while (p < field + length)
+  for (uchar *end= field+length; field < end ; name++)
   {
-    unsigned len= net_field_length(&p);
-    vec.push_back(std::string(reinterpret_cast<char *>(p), len));
-    p+= len;
+    uint name_length= net_field_length(&field);
+    if (!(name->str= strmake_root(root, (char*) field, name_length)))
+      return 1;
+    name->length= name_length;
+    field+= name_length;
   }
+
+  name->str= 0;                                 // End marker
+  return 0;
 }
 
 /**
@@ -3741,26 +3745,32 @@ static void parse_pk_with_prefix(std::vector<Table_map_log_event::
 }
 
 Table_map_log_event::Optional_metadata_fields::
-Optional_metadata_fields(unsigned char* optional_metadata,
-                         unsigned int optional_metadata_len)
+Optional_metadata_fields(MEM_ROOT *root, uint master_columns,
+                         uchar* optional_metadata,
+                         uint optional_metadata_len,
+                         bool only_column_names)
 {
-  unsigned char* field= optional_metadata;
+  unsigned int len;
+  uchar *metadata_end;
 
+  allocation_error= 0;
+  m_column_name= 0;
   if (optional_metadata == NULL)
     return;
 
-  while (field < optional_metadata + optional_metadata_len)
+  metadata_end= optional_metadata + optional_metadata_len;
+  for (uchar *field= optional_metadata ; field < metadata_end ; field+= len)
   {
-    unsigned int len;
     Optional_metadata_field_type type=
       static_cast<Optional_metadata_field_type>(field[0]);
 
     // Get length and move field to the value.
     field++;
     len= net_field_length(&field);
+    if (only_column_names && type != COLUMN_NAME)
+      continue;
 
-    switch(type)
-    {
+    switch(type) {
     case SIGNEDNESS:
       parse_signedness(m_signedness, field, len);
       break;
@@ -3771,7 +3781,12 @@ Optional_metadata_fields(unsigned char* optional_metadata,
       parse_column_charset(m_column_charset, field, len);
       break;
     case COLUMN_NAME:
-      parse_column_name(m_column_name, field, len);
+      if (!(m_column_name= (LEX_CSTRING*) alloc_root(root,
+                                                     sizeof(LEX_CSTRING) *
+                                                     (master_columns +1 ))))
+        goto error;
+      if (parse_column_name(root, m_column_name, field, len))
+        goto error;
       break;
     case SET_STR_VALUE:
       parse_set_str_value(m_set_str_value, field, len);
@@ -3797,9 +3812,12 @@ Optional_metadata_fields(unsigned char* optional_metadata,
     default:
       DBUG_ASSERT(0);
     }
-    // next field
-    field+= len;
   }
+  return;
+
+error:
+  allocation_error= 1;
+  return;
 }
 
 

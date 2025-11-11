@@ -1348,11 +1348,14 @@ default_column_mapping:
     DBUG_VOID_RETURN;
   }
 
-  Table_map_log_event::Optional_metadata_fields
-    opt_metadata((uchar*) m_tabledef.optional_metadata.str,
-                 m_tabledef.optional_metadata.length);
+  /* Note that the following may fail with out of memory. Need to be handled */
 
-  if (!opt_metadata.m_column_name.size())
+  Table_map_log_event::Optional_metadata_fields
+    opt_metadata(rgi->thd->mem_root, master_cols,
+                 (uchar*) m_tabledef.optional_metadata.str,
+                 m_tabledef.optional_metadata.length, 1);
+
+  if (!opt_metadata.m_column_name)
   {
     /*
       If there are no column names provided in the optional metadata
@@ -1364,27 +1367,11 @@ default_column_mapping:
 
   for (uint col= 0; col < master_cols; col++)
   {
-    std::string master_col_name_cppstr= opt_metadata.m_column_name[col];
-    LEX_CSTRING field_name=
-      { master_col_name_cppstr.c_str(), master_col_name_cppstr.length() };
-    Field *field= table->find_field_by_name(&field_name);
+    const LEX_CSTRING *field_name= &opt_metadata.m_column_name[col];
+    Field *field= table->find_field_by_name(field_name);
     if (unlikely(!field))
     {
-      DBUG_ASSERT(m_tabledef.master_column_name[col] == NULL);
-
-      /*
-        This field name will be referenced later in the execution path when
-        writing errors/warnings, so allocate memory to hold the table name, as
-        the ones that currently exist (opt_metadata.m_column_name[col] and
-        field_name) are stored on the stack.
-      */
-      size_t field_name_sz= master_col_name_cppstr.size();
-      m_tabledef.master_column_name[col]= (char *) alloc_root(
-          rgi->thd->mem_root, field_name_sz * sizeof(char) + 1);
-      strncpy(m_tabledef.master_column_name[col],
-              master_col_name_cppstr.c_str(), field_name_sz);
-      m_tabledef.master_column_name[col][field_name_sz] = '\0';
-
+      m_tabledef.master_column_name[col]= field_name->str;
       /*
         Note master_to_slave_map[col] is set to UINT_MAX32, but is never
         actually used - the master_to_slave_error check always happens
@@ -1395,7 +1382,7 @@ default_column_mapping:
       continue;                               // ok that field did not exists
     }
     m_tabledef.master_to_slave_map[col]= field->field_index;
-    DBUG_PRINT("info", ("Found mapping for %s", field_name.str));
+    DBUG_PRINT("info", ("Found mapping for %s", field_name->str));
   }
   DBUG_VOID_RETURN;
 }

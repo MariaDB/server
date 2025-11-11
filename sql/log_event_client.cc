@@ -3174,11 +3174,20 @@ bool Table_map_log_event::print(FILE *file, PRINT_EVENT_INFO *print_event_info)
 
     if (print_event_info->print_table_metadata)
     {
-      Optional_metadata_fields fields(m_optional_metadata,
-                                      m_optional_metadata_len);
-
+      MEM_ROOT root;
+      init_alloc_root(0, &root, 4096, 0, 0);
+      Optional_metadata_fields fields(&root, m_colcnt,
+                                      m_optional_metadata,
+                                      m_optional_metadata_len,
+                                      0);
+      if (fields.allocation_error)
+      {
+        free_root(&root, 0);
+        goto err;
+      }
       print_columns(&print_event_info->head_cache, fields);
       print_primary_key(&print_event_info->head_cache, fields);
+      free_root(&root, 0);
     }
     bool do_print_encoded=
       print_event_info->base64_output_mode != BASE64_OUTPUT_NEVER &&
@@ -3450,14 +3459,13 @@ void Table_map_log_event::print_columns(IO_CACHE *file,
       Charset_iterator::create_charset_iterator(
           fields.m_enum_and_set_default_charset,
           fields.m_enum_and_set_column_charset);
-  std::vector<std::string>::const_iterator col_names_it=
-    fields.m_column_name.begin();
   std::vector<Optional_metadata_fields::str_vector>::const_iterator
     set_str_values_it= fields.m_set_str_value.begin();
   std::vector<Optional_metadata_fields::str_vector>::const_iterator
     enum_str_values_it= fields.m_enum_str_value.begin();
   std::vector<unsigned int>::const_iterator geometry_type_it=
     fields.m_geometry_type.begin();
+  LEX_CSTRING *col_names= fields.m_column_name;
 
   uint geometry_type= 0;
 
@@ -3480,13 +3488,12 @@ void Table_map_log_event::print_columns(IO_CACHE *file,
       cs = enum_and_set_charset_it->next();
 
     // Print column name
-    if (col_names_it != fields.m_column_name.end())
+    if (col_names && col_names->str)
     {
-      pretty_print_identifier(file, col_names_it->c_str(), col_names_it->size());
+      pretty_print_identifier(file, col_names->str, col_names->length);
       my_b_printf(file, " ");
-      col_names_it++;
+      col_names++;
     }
-
 
     // update geometry_type for geometry columns
     if (real_type == MYSQL_TYPE_GEOMETRY)
@@ -3575,10 +3582,10 @@ void Table_map_log_event::print_primary_key
         my_b_printf(file, ", ");
 
       // Print column name or column index
-      if (it->first >= fields.m_column_name.size())
+      if (!fields.m_column_name)
         my_b_printf(file, "%u", it->first);
       else
-        my_b_printf(file, "%s", fields.m_column_name[it->first].c_str());
+        my_b_printf(file, "%s", fields.m_column_name[it->first].str);
 
       // Print prefix length
       if (it->second != 0)
