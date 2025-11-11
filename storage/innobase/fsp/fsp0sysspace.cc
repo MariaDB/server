@@ -955,10 +955,6 @@ SysTablespace::open_or_create(
 			space = fil_space_t::create(
 				SRV_TMP_SPACE_ID, flags(), false, nullptr);
 			ut_ad(space == fil_system.temp_space);
-			if (!space) {
-				err = DB_ERROR;
-				break;
-			}
 			ut_ad(!space->is_compressed());
 			ut_ad(space->full_crc32());
 		} else {
@@ -966,10 +962,6 @@ SysTablespace::open_or_create(
 			space = fil_space_t::create(
 				TRX_SYS_SPACE, it->flags(), false, nullptr);
 			ut_ad(space == fil_system.sys_space);
-			if (!space) {
-				err = DB_ERROR;
-				break;
-			}
 		}
 
 		uint32_t max_size = (++node_counter == m_files.size()

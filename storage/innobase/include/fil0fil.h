@@ -607,6 +607,24 @@ public:
     n_pending.fetch_and(~NEEDS_FSYNC, std::memory_order_release);
   }
 
+  /** Set the STOPPING flags when creating a file,
+  to block premature fil_crypt_find_space_to_rotate() */
+  inline void set_stopped() noexcept
+  {
+    ut_d(uint32_t n=)
+      n_pending.fetch_add(STOPPING + 1, std::memory_order_relaxed);
+    ut_ad(n == CLOSING);
+  }
+
+  /** Clear the STOPPING flags after creating a file */
+  inline void clear_stopped() noexcept
+  {
+    ut_d(uint32_t n=)
+      n_pending.fetch_sub(STOPPING + CLOSING + 1, std::memory_order_relaxed);
+    ut_ad(n & PENDING);
+    ut_ad((n & ~PENDING) == (STOPPING | CLOSING));
+  }
+
 private:
   /** Clear the CLOSING flag */
   void clear_closing() noexcept
@@ -914,8 +932,7 @@ public:
   @param crypt_data      encryption information
   @param mode            encryption mode
   @param opened          whether the tablespace files are open
-  @return pointer to created tablespace, to be filled in with add()
-  @retval nullptr on failure (such as when the same tablespace exists) */
+  @return pointer to created tablespace, to be filled in with add() */
   static fil_space_t *create(uint32_t id, uint32_t flags, bool being_imported,
                              fil_space_crypt_t *crypt_data,
                              fil_encryption_t mode= FIL_ENCRYPTION_DEFAULT,
@@ -1081,7 +1098,7 @@ struct fil_node_t final
   /** whether the file actually is a raw device or disk partition */
   unsigned is_raw_disk:1;
   /** whether the tablespace discovery is being deferred during crash
-  recovery due to incompletely written page 0 */
+  recovery due to missing file or incompletely written page 0 */
   unsigned deferred:1;
 
   /** size of the file in database pages (0 if not known yet);

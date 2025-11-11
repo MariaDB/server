@@ -647,6 +647,9 @@ struct file_name_t {
 	/** Status of the tablespace */
 	fil_status	status;
 
+	/** Log sequence number of a FILE_CREATE record, or 0 */
+	lsn_t		create_lsn = 0;
+
 	/** FSP_SIZE of tablespace */
 	uint32_t	size = 0;
 
@@ -1297,7 +1300,8 @@ inline size_t recv_sys_t::files_size()
 @param[in]	name		file name
 @param[in]	len		length of the file name
 @param[in]	space_id	the tablespace ID
-@param[in]	ftype		FILE_MODIFY, FILE_DELETE, or FILE_RENAME
+@param[in]	ftype		FILE_CREATE, FILE_MODIFY, FILE_DELETE,
+				or FILE_RENAME
 @param[in]	lsn		lsn of the redo log
 @param[in]	if_exists	whether to check if the tablespace exists */
 static void fil_name_process(const char *name, ulint len, uint32_t space_id,
@@ -1340,6 +1344,7 @@ got_deleted:
 		}
 
 		ut_ad(f.space == NULL);
+		goto reset_create;
 	} else if (p.second // the first FILE_MODIFY or FILE_RENAME
 		   || f.name != fname.name) {
 reload:
@@ -1408,6 +1413,10 @@ rename:
 				break;
 			}
 
+			if (f.create_lsn) {
+				return;
+			}
+
 			if (srv_force_recovery
 			    || srv_operation == SRV_OPERATION_RESTORE) {
 				/* Without innodb_force_recovery,
@@ -1425,7 +1434,7 @@ rename:
 					int(fname.name.size()),
 					fname.name.data(), space_id);
 			}
-			break;
+			return;
 
 		case FIL_LOAD_DEFER:
 			if (d && ftype == FILE_RENAME
@@ -1461,6 +1470,10 @@ rename:
 					  " due to innodb_force_recovery",
 					  int(len), name, space_id);
 		}
+reset_create:
+		f.create_lsn = 0;
+	} else if (ftype == FILE_CREATE && !f.space) {
+		f.create_lsn = lsn;
 	}
 }
 
@@ -2862,7 +2875,7 @@ log_parse_file(const page_id_t id, bool if_exists,
     }
 
     fil_name_process(reinterpret_cast<const char*>(l), fnend - l, space_id,
-                     (b & 0xf0) == FILE_DELETE ? FILE_DELETE : FILE_MODIFY,
+                     fn2 ? FILE_MODIFY : mfile_type_t(b & 0xf0),
                      recv_sys.start_lsn, if_exists);
 
     if (fn2)
@@ -4529,6 +4542,11 @@ next:
 		case file_name_t::NORMAL:
 			goto next;
 		case file_name_t::MISSING:
+			if (srv_operation != SRV_OPERATION_NORMAL) {
+			} else if (const lsn_t c = i->second.create_lsn) {
+				deferred_spaces.add(space, i->second.name, c);
+				goto next;
+			}
 			err = recv_init_missing_space(err, i);
 			i->second.status = file_name_t::DELETED;
 			/* fall through */
