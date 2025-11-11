@@ -28,7 +28,7 @@
   Raise the error ER_TRG_ALREADY_EXISTS
 */
 
-static void report_error(uint error_num, sp_name *spname)
+static void report_error(uint error_num, const sp_name *spname)
 {
   /*
     Report error in case there is a trigger on DML event with
@@ -101,7 +101,8 @@ static bool find_sys_trigger_by_name(TABLE *event_table, sp_name *spname)
 
 static bool store_trigger_metadata(THD *thd, LEX *lex, TABLE *event_table,
                                    sp_head *sphead,
-                                   const st_trg_chistics &trg_chistics)
+                                   const st_trg_chistics &trg_chistics,
+                                   sql_mode_t sql_mode)
 {
   restore_record(event_table, s->default_values);
 
@@ -181,7 +182,6 @@ static bool store_trigger_metadata(THD *thd, LEX *lex, TABLE *event_table,
 
   }
 
-
   ret= fields[ET_FIELD_ON_COMPLETION]->store(
     (longlong)Event_parse_data::ON_COMPLETION_DEFAULT, true);
   if (ret)
@@ -208,9 +208,18 @@ static bool store_trigger_metadata(THD *thd, LEX *lex, TABLE *event_table,
     return true;
   }
 
-  if (fields[ET_FIELD_BODY]->store(sphead->m_body.str,
-                                   sphead->m_body.length,
-                                   system_charset_info))
+  ret= fields[ET_FIELD_SQL_MODE]->store((longlong)sql_mode, true);
+  if (ret)
+  {
+    my_error(ER_EVENT_STORE_FAILED, MYF(0),
+             fields[ET_FIELD_SQL_MODE]->field_name.str, ret);
+    return true;
+  }
+
+  ret= fields[ET_FIELD_BODY]->store(sphead->m_body.str,
+                                    sphead->m_body.length,
+                                    system_charset_info);
+  if (ret)
   {
     my_error(ER_EVENT_STORE_FAILED, MYF(0),
              fields[ET_FIELD_BODY]->field_name.str, ret);
@@ -274,6 +283,79 @@ private:
   sql_mode_t m_saved_mode;
 };
 
+static THD *thd_for_before_sys_triggers= nullptr;
+
+static Sys_trigger*
+sys_triggers[TRG_ACTION_MAX][TRG_SYS_EVENT_MAX - TRG_SYS_EVENT_MIN]= {{nullptr}};
+
+static void register_trigger(Sys_trigger *sys_trg,
+                             longlong trg_when,
+                             longlong trg_kind)
+{
+  /*
+    TRG_EVENT_STARTUP= TRG_SYS_EVENT_MIN, // 3
+    TRG_EVENT_SHUTDOWN, // 4
+    TRG_EVENT_LOGON, // 5
+    TRG_EVENT_LOGOFF, // 6
+    TRG_EVENT_DDL, // 7
+    TRG_SYS_EVENT_MAX // 8
+  */
+  Sys_trigger *cur_trg= sys_triggers[trg_when][trg_kind];
+
+  if (cur_trg)
+  {
+    /*
+      Add the trigger to the end of the list of trigger sharing
+      the same trigger time/type
+    */
+    while (cur_trg)
+    {
+      if (cur_trg->next == nullptr)
+      {
+        // cur_ptr references the last trigger in the list
+        cur_trg->next= sys_trg;
+        break;
+      }
+      else
+        cur_trg= cur_trg->next;
+    }
+  }
+  else
+    sys_triggers[trg_when][trg_kind]= sys_trg;
+}
+
+
+static void register_system_triggers(Sys_trigger *sys_trg,
+                                     longlong trg_when,
+                                     trg_all_events_set trg_kind)
+{
+  /*
+    trg_kind is a bit set . Every turned on bit of the set specifies
+    the event type. trg_kind is stored in the table mysql.event and
+    declared as SET('SCHEDULE','STARTUP','SHUTDOWN','LOGON','LOGOFF','DDL')
+    So, binary representation of different event kinds are as following:
+      0x01 -- SCHEDULE (special value to represent events
+                        rather than triggers)
+      0x02 -- STARTUP
+      0x04 -- SHUTDOWN
+      0x08 -- LOGON
+      0x10 -- LOGOFF
+      0x20 -- DDL
+   On the other hand, values of trg_sys_event_type are sequentially
+   enumerated values, so need to do translation from bit mask to enumeration
+  */
+  trg_all_events_set trg_event_for_registering = TRG_EVENT_STARTUP;
+  for (trg_all_events_set tk= trg_kind >> 1; tk != 0;
+       tk= tk >>1, trg_event_for_registering++)
+  {
+    if (tk & 0x01)
+      register_trigger(sys_trg->inc_ref_count(),
+                       (trg_action_time_type)(trg_when - 1),
+                       trg_event_for_registering - TRG_EVENT_STARTUP);
+  }
+}
+
+
 bool mysql_create_sys_trigger(THD *thd)
 {
   if (!thd->lex->spname->m_db.length)
@@ -323,13 +405,13 @@ bool mysql_create_sys_trigger(THD *thd)
     return true;
 
   /* Reset sql_mode during data dictionary operations. */
-  sql_mode_t saved_mode= thd->variables.sql_mode;
+  sql_mode_t saved_sql_mode= thd->variables.sql_mode;
   thd->variables.sql_mode= 0;
 
   TABLE *event_table;
   if (Event_db_repository::open_event_table(thd, TL_WRITE, &event_table))
   {
-    thd->variables.sql_mode= saved_mode;
+    thd->variables.sql_mode= saved_sql_mode;
 
     return true;
   }
@@ -337,7 +419,7 @@ bool mysql_create_sys_trigger(THD *thd)
     Activate the guard to release mdl lock to the savepoint and commit
     transaction on any return path from this function.
   */
-  Transaction_Resources_Guard mdl_savepoint_guard{thd, saved_mode};
+  Transaction_Resources_Guard mdl_savepoint_guard{thd, saved_sql_mode};
 
   if (find_sys_trigger_by_name(event_table, thd->lex->spname))
   {
@@ -349,8 +431,19 @@ bool mysql_create_sys_trigger(THD *thd)
   }
 
   if (store_trigger_metadata(thd, thd->lex, event_table, thd->lex->sphead,
-                             thd->lex->trg_chistics))
+                             thd->lex->trg_chistics, saved_sql_mode))
     return true;
+
+  Sys_trigger *sys_trg= new Sys_trigger(thd_for_before_sys_triggers,
+                                        thd->lex->sphead);
+  char definer_buf[USER_HOST_BUFF_SIZE];
+  LEX_CSTRING definer;
+  thd->lex->definer->set_lex_string(&definer, definer_buf);
+
+  thd->lex->sphead->set_definer(definer.str, definer.length);
+
+  register_system_triggers(sys_trg, thd->lex->trg_chistics.action_time,
+                           (thd->lex->trg_chistics.events >> 3));
 
   my_ok(thd);
   return false;
@@ -408,11 +501,6 @@ bool mysql_drop_sys_or_ddl_trigger(THD *thd, bool *no_ddl_trigger_found)
   return ret;
 }
 
-static Sys_trigger*
-sys_triggers[TRG_ACTION_MAX][TRG_SYS_EVENT_MAX - TRG_SYS_EVENT_MIN]= {{nullptr}};
-
-static THD *thd_for_before_sys_triggers= nullptr;
-
 Sys_trigger *
 get_trigger_by_type(trg_action_time_type action_time,
                     trg_sys_event_type trg_type)
@@ -433,14 +521,11 @@ static LEX_CSTRING events_to_string(const LEX_CSTRING base_event_names[],
 {
   size_t offset= 0;
 
-  for (int idx= 0; trg_kind != 0; trg_kind= trg_kind >> 1)
+  for (int idx= 0; trg_kind != 0; trg_kind= trg_kind >> 1, idx++)
   {
     if (trg_kind & 0x1)
-      idx++;
-    else
-      continue;
-
-    offset+= sprintf(set_of_events + offset, "%s,", base_event_names[idx].str);
+      offset+= sprintf(set_of_events + offset, "%s,",
+                       base_event_names[idx].str);
   }
   set_of_events[offset - 1]= 0;
 
@@ -459,6 +544,7 @@ static bool reconstruct_create_trigger_stmt(THD *thd, String *create_trg_stmt,
   static const LEX_CSTRING trigger_clause{STRING_WITH_LEN(" TRIGGER ")};
 
   static constexpr LEX_CSTRING base_event_names[]= {
+    LEX_CSTRING{STRING_WITH_LEN("SCHEDULE")},
     LEX_CSTRING{STRING_WITH_LEN("STARTUP")},
     LEX_CSTRING{STRING_WITH_LEN("SHUTDOWN")},
     LEX_CSTRING{STRING_WITH_LEN("LOGON")},
@@ -474,7 +560,8 @@ static bool reconstruct_create_trigger_stmt(THD *thd, String *create_trg_stmt,
     (base_event_names[0].length + 1) +
     (base_event_names[1].length + 1) +
     (base_event_names[2].length + 1) +
-    (base_event_names[3].length + 1);
+    (base_event_names[3].length + 1) +
+    (base_event_names[4].length + 1);
 
   char *buffer;
   size_t buffer_len= prefix.length + trg_definer.length +
@@ -497,7 +584,7 @@ static bool reconstruct_create_trigger_stmt(THD *thd, String *create_trg_stmt,
   create_trg_stmt->append(trigger_clause);
   create_trg_stmt->append(trg_name);
   create_trg_stmt->append(' ');
-  create_trg_stmt->append(base_event_time[trg_when - 1]);
+  create_trg_stmt->append(base_event_time[trg_when]);
   create_trg_stmt->append(' ');
   char event_names_buf[max_event_names_length];
   create_trg_stmt->append(events_to_string(base_event_names, event_names_buf,
@@ -527,7 +614,8 @@ private:
 static sp_head *compile_trigger_stmt(THD *thd,
                                      const LEX_CSTRING &db_name,
                                      String *create_trigger_stmt,
-                                     Stored_program_creation_ctx *ctx)
+                                     Stored_program_creation_ctx *ctx,
+                                     bool *parse_error)
 {
   LEX *old_lex= thd->lex;
   LEX lex;
@@ -546,9 +634,9 @@ static sp_head *compile_trigger_stmt(THD *thd,
   lex.trg_chistics.events= TRG_EVENT_UNKNOWN;
   lex.trg_chistics.action_time= TRG_ACTION_MAX;
 
-  bool parse_error= parse_sql(thd, & parser_state, ctx);
+  *parse_error= parse_sql(thd, & parser_state, ctx);
 
-  if (parse_error)
+  if (*parse_error)
     return nullptr;
 
   sp_head *sphead= thd->lex->sphead;
@@ -571,7 +659,8 @@ static Sys_trigger *instantiate_sys_trigger(THD *thd,
                                             ulonglong trg_when,
                                             const LEX_CSTRING &trg_body,
                                             sql_mode_t sql_mode,
-                                            Stored_program_creation_ctx *ctx)
+                                            Stored_program_creation_ctx *ctx,
+                                            bool *parse_error)
 {
   String create_trigger_stmt;
 
@@ -597,7 +686,8 @@ static Sys_trigger *instantiate_sys_trigger(THD *thd,
 
   Sys_trigger *sys_trg= nullptr;
 
-  sp_head *sp= compile_trigger_stmt(thd, db_name, &create_trigger_stmt, ctx);
+  sp_head *sp= compile_trigger_stmt(thd, db_name, &create_trigger_stmt, ctx,
+                                    parse_error);
   if (sp)
   {
     // TODO: Check whether it should be allocated on memory root!!!
@@ -610,42 +700,6 @@ static Sys_trigger *instantiate_sys_trigger(THD *thd,
 }
 
 static class Stored_program_creation_ctx *creation_ctx= nullptr;
-
-static void register_trigger(Sys_trigger *sys_trg,
-                             trg_action_time_type trg_when,
-                             trg_all_events_set trg_kind)
-{
-  /*
-    TRG_EVENT_STARTUP= TRG_SYS_EVENT_MIN, // 3 (1 << (3 - 1) ==
-    TRG_EVENT_SHUTDOWN, // 4
-    TRG_EVENT_LOGON, // 5
-    TRG_EVENT_LOGOFF, // 6
-    TRG_EVENT_DDL, // 7
-    TRG_SYS_EVENT_MAX // 8
-  */
-  Sys_trigger *cur_trg= sys_triggers[trg_when - 1][trg_kind];
-
-  if (cur_trg)
-  {
-    /*
-      Add the trigger to the end of the list of trigger sharing
-      the same trigger time/type
-    */
-    while (cur_trg)
-    {
-      if (cur_trg->next == nullptr)
-      {
-        // cur_ptr references the last trigger in the list
-        cur_trg->next= sys_trg;
-        break;
-      }
-      else
-        cur_trg= cur_trg->next;
-    }
-  }
-  else
-    sys_triggers[trg_when - 1][trg_kind]= sys_trg;
-}
 
 static bool load_system_triggers(THD *thd)
 {
@@ -663,7 +717,7 @@ static bool load_system_triggers(THD *thd)
   }
 
   bool ret= false;
-  trg_action_time_type trg_when;
+
   Event_parse_data::enum_status trg_status;
   sql_mode_t sql_mode;
 
@@ -725,37 +779,41 @@ static bool load_system_triggers(THD *thd)
                                       db_name.str, trg_name.str,
                                       event_table,
                                       &creation_ctx);
-    trg_when=
+    /*
+      trigger event time is stored in the mysql.event table in the column
+      `when` declared as enum('BEFORE','AFTER'). So, enumerators has
+      the following values: 1 - `BEFORE`, 2 - `AFTER`.
+      On the other hand, the enum trg_action_time_type has values starting
+      from 0, so adjust values restored from the table mysql.event before using
+      them for calculations.
+    */
+    longlong trg_when=
       (trg_action_time_type)event_table->field[ET_FIELD_WHEN]->val_int();
 
+    bool parse_error= false;
     Sys_trigger *sys_trg=
       instantiate_sys_trigger(thd, db_name, trg_name,
-                              trg_definer, trg_kind, trg_when,
-                              trg_body, sql_mode, creation_ctx);
+                              trg_definer, trg_kind,
+                              (trg_action_time_type)(trg_when - 1),
+                              trg_body, sql_mode, creation_ctx,
+                              &parse_error);
 
-    /*
-      trg_kind is a bit set . Every turned on bit of the set specifies
-      the event type. trg_kind is stored in the table mysql.event and
-      declared as SET('SCHEDULE','STARTUP','SHUTDOWN','LOGON','LOGOFF','DDL')
-      So, binary representation of different event kinds are as following:
-        0x01 -- SCHEDULE (special value to represent events
-                          rather than triggers)
-        0x02 -- STARTUP
-        0x04 -- SHUTDOWN
-        0x08 -- LOGON
-        0x10 -- LOGOFF
-        0x20 -- DDL
-     On the other hand, values of trg_sys_event_type are sequentially
-     enumerated values, so need to do translation from bit mask to enumeration
-    */
-    trg_all_events_set trg_event_for_registering = TRG_EVENT_STARTUP;
-    for (trg_all_events_set tk= trg_kind >> 1; tk != 0;
-         tk= tk >>1, trg_event_for_registering++)
+    if (parse_error)
+      /*
+        Skip triggers containing non-parsable body, probably updated
+        intentionally for some records in the table mysql.event. Doing this way
+        we allow to start server even on presence of unparseable triggers
+      */
+      continue;
+
+    if (sys_trg == nullptr)
     {
-      if (tk & 0x01)
-        register_trigger(sys_trg->inc_ref_count(), trg_when,
-                         trg_event_for_registering - TRG_EVENT_STARTUP);
+      /* OOM error happened */
+      ret= true;
+      break;
     }
+
+    register_system_triggers(sys_trg, trg_when, trg_kind);
   }
 
   end_read_record(&read_record_info);
@@ -763,6 +821,7 @@ static bool load_system_triggers(THD *thd)
 
   return ret;
 }
+
 
 bool run_after_startup_triggers()
 {
@@ -787,6 +846,9 @@ bool run_after_startup_triggers()
   if (load_system_triggers(thd_for_before_sys_triggers))
     return true;
 
+  /*
+    Then get a list of AFTER STARTUP triggers and execute them one by one
+  */
   Sys_trigger *trg=
       get_trigger_by_type(TRG_ACTION_AFTER, TRG_EVENT_STARTUP);
   while (trg)
@@ -845,4 +907,171 @@ void run_before_shutdown_triggers()
   destroy_sys_triggers();
   thd_for_before_sys_triggers->thread_stack= nullptr;
   delete thd_for_before_sys_triggers;
+}
+
+
+static bool send_show_create_trigger_result(
+  THD *thd, MEM_ROOT *mem_root,
+  Protocol *protocol,
+  const LEX_CSTRING &trg_name,
+  const LEX_CSTRING &trg_sql_mode,
+  const LEX_CSTRING &trg_create_sql_stmt,
+  MYSQL_TIME created,
+  CHARSET_INFO *client_cs,
+  CHARSET_INFO *connection_cl,
+  CHARSET_INFO *db_cl)
+{
+  if (send_show_create_trigger_metadata(thd, mem_root, protocol,
+                                        trg_sql_mode, trg_create_sql_stmt))
+    return true;
+
+  protocol->prepare_for_resend();
+
+  protocol->store(trg_name.str,
+                  trg_name.length,
+                  system_charset_info);
+
+  protocol->store(trg_sql_mode.str,
+                  trg_sql_mode.length,
+                  system_charset_info);
+
+  protocol->store(trg_create_sql_stmt.str,
+                  trg_create_sql_stmt.length,
+                  client_cs);
+
+  protocol->store(&client_cs->cs_name, system_charset_info);
+
+  protocol->store(&connection_cl->coll_name, system_charset_info);
+
+  protocol->store(&db_cl->coll_name, system_charset_info);
+
+  protocol->store_datetime(&created, 2);
+
+  bool ret= protocol->write();
+
+  if (!ret)
+    my_eof(thd);
+
+  return ret;
+}
+
+bool show_create_sys_trigger(THD *thd, const sp_name *trg_name)
+{
+  TABLE *event_table;
+  sql_mode_t saved_mode= thd->variables.sql_mode;
+  thd->variables.sql_mode= 0;
+
+  if (Event_db_repository::open_event_table(thd, TL_READ, &event_table))
+  {
+    thd->variables.sql_mode= saved_mode;
+
+    return true;
+  }
+
+  Transaction_Resources_Guard transaction_guard{thd, saved_mode};
+
+  event_table->field[ET_FIELD_DB]->store(trg_name->m_db.str,
+                                         trg_name->m_db.length,
+                                         &my_charset_bin);
+  event_table->field[ET_FIELD_NAME]->store(trg_name->m_name.str,
+                                           trg_name->m_name.length,
+                                           &my_charset_bin);
+
+  uchar key[MAX_KEY_LENGTH];
+  key_copy(key, event_table->record[0], event_table->key_info,
+           event_table->key_info->key_length);
+
+  int ret= event_table->file->ha_index_read_idx_map(event_table->record[0], 0,
+                                                    key, HA_WHOLE_KEY,
+                                                    HA_READ_KEY_EXACT);
+
+  /*
+    ret != 0 in case 'row not found'; ret == 0 if 'row found'
+  */
+  if (ret)
+  {
+    my_error(ER_TRG_DOES_NOT_EXIST, MYF(0));
+    return true;
+  }
+
+  trg_all_events_set trg_kind=
+      (trg_all_events_set)event_table->field[ET_FIELD_KIND]->val_int();
+
+  /*
+    Trigger doesn't exist in case the record is for the real event
+  */
+  if ((Event_parse_data::enum_kind)trg_kind ==
+         Event_parse_data::SCHEDULE_EVENT)
+  {
+    my_error(ER_TRG_DOES_NOT_EXIST, MYF(0));
+    return true;
+  }
+
+  const Lex_cstring trg_definer(
+    event_table->field[ET_FIELD_DEFINER]->val_lex_string_strmake(
+      thd->mem_root));
+
+  if (trg_definer.str == nullptr)
+    return true;
+
+  const Lex_cstring trg_body{
+    event_table->field[ET_FIELD_BODY]->val_lex_string_strmake(
+        thd->mem_root)};
+  if (trg_body.str == nullptr)
+    return true;
+
+  sql_mode_t sql_mode=
+    (sql_mode_t) event_table->field[ET_FIELD_SQL_MODE]->val_int();
+
+  trg_action_time_type trg_when=
+    (trg_action_time_type) event_table->field[ET_FIELD_WHEN]->val_int();
+
+  String create_trg_stmt;
+  if (reconstruct_create_trigger_stmt(thd, &create_trg_stmt, trg_definer,
+                                      trg_name->m_name, trg_kind, trg_when - 1,
+                                      trg_body))
+    return true;
+
+  LEX_CSTRING trg_sql_mode_str;
+  sql_mode_string_representation(thd, sql_mode, &trg_sql_mode_str);
+
+  CHARSET_INFO *client_cs;
+  CHARSET_INFO *connection_cl;
+  CHARSET_INFO *db_cl;
+
+  if (load_charset(thd, thd->mem_root,
+                   event_table->field[ET_FIELD_CHARACTER_SET_CLIENT],
+                   thd->variables.character_set_client,
+                   &client_cs))
+    return true;
+
+  if (load_collation(thd, thd->mem_root,
+                     event_table->field[ET_FIELD_COLLATION_CONNECTION],
+                     thd->variables.collation_connection,
+                     &connection_cl))
+    return true;
+
+  if (load_collation(thd, thd->mem_root,
+                     event_table->field[ET_FIELD_DB_COLLATION],
+                     NULL,
+                     &db_cl))
+    return true;
+
+  if (!db_cl)
+    db_cl= get_default_db_collation(thd, trg_name->m_db.str);
+
+  ulonglong created= event_table->field[ET_FIELD_CREATED]->val_int();
+  MYSQL_TIME created_timestamp;
+  int not_used=0;
+  number_to_datetime_or_date(created, 0, &created_timestamp, 0, &not_used);
+
+  if (send_show_create_trigger_result(thd, thd->mem_root, thd->protocol,
+                                      trg_name->m_name,
+                                      trg_sql_mode_str,
+                                      create_trg_stmt.to_lex_cstring(),
+                                      created_timestamp,
+                                      client_cs, connection_cl, db_cl))
+    return true;
+
+  return false;
 }

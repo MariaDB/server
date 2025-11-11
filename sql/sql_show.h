@@ -128,6 +128,10 @@ ulonglong get_status_vars_version(void);
 void init_status_vars();
 void free_status_vars();
 void reset_status_vars();
+bool send_show_create_trigger_metadata(THD *thd, MEM_ROOT *mem_root,
+                                       Protocol *p,
+                                       const LEX_CSTRING &trg_sql_mode_str,
+                                       LEX_CSTRING trg_sql_original_stmt);
 bool show_create_trigger(THD *thd, const sp_name *trg_name);
 void view_store_options(THD *thd, TABLE_LIST *table, String *buff);
 

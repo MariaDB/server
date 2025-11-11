@@ -1178,7 +1178,7 @@ Events::load_events_from_db(THD *thd)
   bool save_tx_read_only= thd->tx_read_only;
   thd->tx_read_only= false;
 
-  ret= db_repository->open_event_table(thd, TL_WRITE, &table);
+  ret= db_repository->open_event_table(thd, TL_READ, &table);
 
   thd->tx_read_only= save_tx_read_only;
   thd->security_ctx->master_access= saved_master_access;

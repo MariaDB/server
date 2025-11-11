@@ -646,6 +646,9 @@ Event_timed::load_from_row(THD *thd, TABLE *table)
   if (Event_queue_element::load_from_row(thd, table))
     DBUG_RETURN(TRUE);
 
+  if (trigger_event)
+    DBUG_RETURN(false);
+
   if (load_string_fields(table->field,
                          ET_FIELD_BODY, &body,
                          ET_FIELD_BODY_UTF8, &body_utf8,

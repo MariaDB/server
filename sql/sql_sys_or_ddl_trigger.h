@@ -11,12 +11,12 @@
 enum trg_sys_event_type
 {
   TRG_SYS_EVENT_MIN= TRG_EVENT_MAX,
-  TRG_EVENT_STARTUP= TRG_SYS_EVENT_MIN, // 3
-  TRG_EVENT_SHUTDOWN, // 4
-  TRG_EVENT_LOGON, // 5
-  TRG_EVENT_LOGOFF, // 6
-  TRG_EVENT_DDL, // 7
-  TRG_SYS_EVENT_MAX // 8
+  TRG_EVENT_STARTUP= TRG_SYS_EVENT_MIN, // bit #3
+  TRG_EVENT_SHUTDOWN, // bit #4
+  TRG_EVENT_LOGON, // bit #5
+  TRG_EVENT_LOGOFF, // bit #6
+  TRG_EVENT_DDL, // bit #7
+  TRG_SYS_EVENT_MAX
 };
 
 static inline trg_all_events_set sys_trg2bit(enum trg_sys_event_type trg)
@@ -93,5 +93,7 @@ void run_before_shutdown_triggers();
 
 Sys_trigger *get_trigger_by_type(trg_action_time_type action_time,
                                  trg_sys_event_type trg_type);
+
+bool show_create_sys_trigger(THD *thd, const sp_name *trg_name);
 
 #endif /* SQL_SQL_SYS_OR_DDL_TRIGGER_H */
