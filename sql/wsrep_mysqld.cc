@@ -1472,24 +1472,30 @@ bool wsrep_check_mode_after_open_table (THD *thd,
         wsrep_push_warning(thd, WSREP_REQUIRE_PRIMARY_KEY, hton, tables);
       }
 
+      if (wsrep_check_mode(WSREP_MODE_STRICT_REPLICATION))
+      {
+        /* Table is not an InnoDB table and strict replication is requested*/
+        wsrep_push_warning(thd, WSREP_REQUIRE_INNODB, hton, tables);
+      }
+
       // Check are we inside a transaction
-      bool not_used;
-      uint rw_ha_count= ha_check_and_coalesce_trx_read_only(thd, thd->transaction->all.ha_list, true, &not_used);
-      bool changes= wsrep_has_changes(thd);
+      const bool changes= wsrep_has_changes(thd);
+      const bool active= wsrep_is_active(thd);
+
+      // We should not start TOI if transaction has made already
+      // changes and is active
+      if (changes && active)
+      {
+        my_message(ER_ERROR_DURING_COMMIT, "Transactional commit not supported "
+                   "by involved engine(s)", MYF(0));
+        wsrep_push_warning(thd, WSREP_EXPERIMENTAL, hton, tables);
+        return false;
+      }
 
       // Roll back current stmt if exists
       wsrep_before_rollback(thd, true);
       wsrep_after_rollback(thd, true);
       wsrep_after_statement(thd);
-
-      // If there is updates, they would be lost above rollback
-      if (rw_ha_count > 0 && changes)
-      {
-	my_message(ER_ERROR_DURING_COMMIT, "Transactional commit not supported "
-                     "by involved engine(s)", MYF(0));
-        wsrep_push_warning(thd, WSREP_EXPERIMENTAL, hton, tables);
-	return false;
-      }
 
       WSREP_TO_ISOLATION_BEGIN(NULL, NULL, (tables));
     }
