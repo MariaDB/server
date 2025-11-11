@@ -1611,7 +1611,9 @@ MY_CHARSET_HANDLER my_charset_utf16_handler=
   my_uni_utf16,
   my_wc_to_printable_generic,
   my_casefold_multiply_1,
-  my_casefold_multiply_1
+  my_casefold_multiply_1,
+  NULL,
+  NULL
 };
 
 
@@ -1962,7 +1964,9 @@ static MY_CHARSET_HANDLER my_charset_utf16le_handler=
   my_uni_utf16le,
   my_wc_to_printable_generic,
   my_casefold_multiply_1,
-  my_casefold_multiply_1
+  my_casefold_multiply_1,
+  NULL,
+  NULL
 };
 
 
@@ -2742,7 +2746,9 @@ MY_CHARSET_HANDLER my_charset_utf32_handler=
   my_uni_utf32,
   my_wc_to_printable_generic,
   my_casefold_multiply_1,
-  my_casefold_multiply_1
+  my_casefold_multiply_1,
+  NULL,
+  NULL
 };
 
 
@@ -3338,7 +3344,9 @@ MY_CHARSET_HANDLER my_charset_ucs2_handler=
     my_uni_ucs2,
     my_wc_to_printable_generic,
     my_casefold_multiply_1,
-    my_casefold_multiply_1
+    my_casefold_multiply_1,
+    NULL,
+    NULL
 };
 
 

@@ -1042,7 +1042,9 @@ MY_CHARSET_HANDLER my_charset_utf8mb3_handler=
     my_uni_utf8mb3,
     my_wc_to_printable_generic,
     my_casefold_multiply_utf8mbx,
-    my_casefold_multiply_utf8mbx
+    my_casefold_multiply_utf8mbx,
+    NULL,
+    NULL
 };
 
 
@@ -2715,7 +2717,9 @@ static MY_CHARSET_HANDLER my_charset_filename_handler=
     my_wc_mb_filename,
     my_wc_to_printable_filename,
     my_casefold_multiply_1,
-    my_casefold_multiply_1
+    my_casefold_multiply_1,
+    NULL,
+    NULL
 };
 
 
@@ -3331,7 +3335,9 @@ MY_CHARSET_HANDLER my_charset_utf8mb4_handler=
   my_wc_mb_utf8mb4,
   my_wc_to_printable_generic,
   my_casefold_multiply_utf8mbx,
-  my_casefold_multiply_utf8mbx
+  my_casefold_multiply_utf8mbx,
+  NULL,
+  NULL
 };
 
 

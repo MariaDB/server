@@ -23,6 +23,16 @@
 
 #ifdef HAVE_CHARSET_sjis
 
+extern size_t
+my_halfwidth_fullwidth(CHARSET_INFO *cs, int to_hiragana, const char *src,
+    size_t srclen, char *dst, size_t dstlen);
+
+extern size_t
+my_fullwidth_halfwidth(CHARSET_INFO *cs, int from_fullwidth_only,
+    const char *src, size_t srclen, char *dst, size_t dstlen);
+
+extern const MY_FULLWIDTH_HALFWIDTH_TUPLE my_halfwidth[];
+
 const char charset_name_sjis[]= "sjis";
 #define charset_name_sjis_length (sizeof(charset_name_sjis)-1)
 
@@ -34172,7 +34182,9 @@ static MY_CHARSET_HANDLER my_charset_handler=
   my_native_to_mb_sjis,
   my_wc_to_printable_sjis,
   my_casefold_multiply_1,
-  my_casefold_multiply_1
+  my_casefold_multiply_1,
+  my_halfwidth_fullwidth,
+  my_fullwidth_halfwidth
 };
 
 

@@ -32,6 +32,8 @@
 #include "log.h"
 #include "rpl_tblmap.h"
 #include "mdl.h"
+#include "backtrace.h"
+#include "integer_cursor.h"
 #include "field.h"                              // Create_field
 #include "opt_trace_context.h"
 #include "probes_mysql.h"
@@ -954,6 +956,9 @@ typedef struct system_variables
   my_bool binlog_alter_two_phase;
 
   Charset_collation_map_st character_set_collations;
+
+  const char* backtrace_str;
+  const char* errstack_str;
 } SV;
 
 /**
@@ -3090,6 +3095,8 @@ class THD: public THD_count, /* this must be first */
            public MDL_context_owner,
            public Open_tables_state,
            public Sp_caches,
+           public Dbms_sql,
+           public Backtrace,
            public Statement_rcontext
 {
 private:
@@ -8583,6 +8590,7 @@ LEX_CSTRING make_string(THD *thd, const char *start_ptr,
                         const char *end_ptr);
 
 #include "deprecation.h"
+#include "backtrace-inl.h"
 
 #endif /* MYSQL_SERVER */
 #endif /* SQL_CLASS_INCLUDED */
