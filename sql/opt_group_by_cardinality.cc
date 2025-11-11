@@ -384,20 +384,20 @@ whole_table:
 
 /**
   @brief
-    Return the number of keypart that matches the item, -1 if there is no match
+    Check if table field number $idx is a part of the index keyinfo.
+    Return TRUE if it is, FALSE otherwise
 */
 
-static int item_index_in_key(Item *item, const KEY *keyinfo, uint key_parts)
+static bool item_index_in_key(field_index_t idx,
+                              const KEY *keyinfo,
+                              uint key_parts)
 {
-  if (item->real_item()->type() == Item::FIELD_ITEM)
+  for (field_index_t i= 0; i < key_parts; i++)
   {
-    for (uint i= 0; i < key_parts; i++)
-    {
-      if (!cmp(item->name, keyinfo->key_part[i].field->field_name))
-        return (int)i;
-    }
+    if (idx == keyinfo->key_part[i].field->field_index)
+      return TRUE;
   }
-  return -1;
+  return FALSE;
 }
 
 
@@ -409,11 +409,37 @@ static int item_index_in_key(Item *item, const KEY *keyinfo, uint key_parts)
 static
 bool all_list_contained_in_keyparts(const KEY *keyinfo,
                                     uint key_parts,
+                                    SELECT_LEX *sel,
                                     SQL_I_List<st_order> *list)
 {
   for (ORDER *grp= list->first; grp; grp= grp->next)
   {
-    if (item_index_in_key((*grp->item), keyinfo, key_parts) < 0)
+    // Find this GROUP BY entry in the select list:
+    List_iterator it(sel->item_list);
+    Item *sel_item;
+    field_index_t idx= 0;
+    bool found= false;
+    while ((sel_item= it++))
+    {
+      // compare the underlying fields to obtain the index
+      if (sel_item->eq(*grp->item, {true}))
+      {
+        found= true;
+        break;
+      }
+      idx++;
+    }
+
+    if (!found)
+      return false;
+
+    /*
+      Ok, the item has number idx in the select list (I mean the original
+      select list as was specified in the query).
+      The indexes in that list are also indexes in the temporary table.
+    */
+
+    if (!item_index_in_key(idx, keyinfo, key_parts))
       return FALSE;
   }
   return TRUE;
@@ -474,35 +500,48 @@ void infer_derived_key_statistics(st_select_lex_unit* derived,
     do
     {
       bool this_select_covered= FALSE;
+      uint non_const_select_elements= 0;
       /*
-        This is a SELECT DISTINCT query with $key_parts elements in the
-        select list.  This select in the union will produce one record
+        This is a SELECT DISTINCT query with $key_parts non-const elements in
+        the select list.  This select in the union will produce one record
         per key.
         @todo
         If we come across multiple SELECT DISTINCT selects in this union
         have a problem in that we do not know anything about how they might
         intersect
       */
-      if (key_parts == select->item_list.elements &&
-          select->options & SELECT_DISTINCT)
+      if (select->options & SELECT_DISTINCT)
       {
-        select_proc.add("distinct_in_query_block");
-        this_select_covered= TRUE;
-        rec_per_key++;
-      }
+        List_iterator it(select->item_list);
+        for (Item *sel_item; (sel_item= it++); )
+        {
+          if (!sel_item->const_item())
+            non_const_select_elements++;
+        }
 
-      /*
-        This is a grouping select and the group list is a subset of our key.
-        Our key can have additional fields, the rows will still be unique.
-      */
-      if (select->group_list.elements &&
-          all_list_contained_in_keyparts(keyinfo,
-                                         key_parts,
-                                         &select->group_list))
+        if (key_parts >= non_const_select_elements)
+        {
+          select_proc.add("distinct_in_query_block");
+          this_select_covered= TRUE;
+          rec_per_key++;
+        }
+      }
+      else
       {
-        select_proc.add("group_list_in_key");
-        this_select_covered= TRUE;
-        rec_per_key++;
+        /*
+          This is a grouping select and the group list is a subset of our key.
+          Our key can have additional fields, the rows will still be unique.
+        */
+        if (select->group_list.elements &&
+            all_list_contained_in_keyparts(keyinfo,
+                                           key_parts,
+                                           select,
+                                           &select->group_list))
+        {
+          select_proc.add("group_list_in_key");
+          this_select_covered= TRUE;
+          rec_per_key++;
+        }
       }
 
       if (!this_select_covered)
