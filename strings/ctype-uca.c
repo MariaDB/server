@@ -34240,12 +34240,15 @@ my_uca_level_booster_1byte_to_1weight_standalone_populate(
                                             const MY_UCA_WEIGHT_LEVEL *src)
 {
   size_t i;
-  for (i= 0; i <= 0x7F; i++)
+  /* One array element for every possible byte value */
+  compile_time_assert(array_elements(dst->weight_1byte_to_1weight_standalone) ==
+                      256);
+  for (i= 0; i < 0x80; i++)
   {
     const uint16 *w= src->weights[0] + i * src->lengths[0];
     dst->weight_1byte_to_1weight_standalone[i]= w[1] ? 0 : w[0];
   }
-  for (i= 0x80; i <= 0xFF; i++)
+  for (i= 0x80; i < 0x100; i++)
   {
     /*
       Invalid utf8 one-byte character.
