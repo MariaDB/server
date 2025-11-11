@@ -136,8 +136,8 @@ CREATE DEFINER='mariadb.sys'@'localhost' PACKAGE BODY UTL_I18N
     BEGIN
       DECLARE
         dst_charset VARCHAR(65532);
-        sourced_jc VARCHAR2(65532);
-        targeted_sourced_jc VARCHAR2(65532);
+        sourced_jc VARCHAR(65532);
+        targeted_sourced_jc VARCHAR(65532);
         unhexed_hexed_data BLOB;
       BEGIN
         SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.SESSION_VARIABLES WHERE VARIABLE_NAME = 'character_set_results' into dst_charset;
@@ -146,16 +146,20 @@ CREATE DEFINER='mariadb.sys'@'localhost' PACKAGE BODY UTL_I18N
           WHEN 'utf8' THEN
             CASE dst_charset
               WHEN 'utf8mb3' THEN
-                SET sourced_jc = CAST(CONVERT(jc USING utf8) AS VARCHAR2);
-                SET targeted_sourced_jc = CONVERT(sourced_jc USING utf8mb3);
+                BEGIN
+                  SET sourced_jc = CONVERT(jc USING utf8);
+                  SET targeted_sourced_jc = CONVERT(sourced_jc USING utf8mb3);
+                END;
               ELSE
                 RETURN NULL;
             END CASE;
           WHEN 'utf8mb3' THEN
             CASE dst_charset
               WHEN 'utf8mb4' THEN
-                SET sourced_jc = CAST(CONVERT(jc USING utf8mb3) AS VARCHAR2);
-                SET targeted_sourced_jc = CONVERT(sourced_jc USING utf8mb4);
+                BEGIN
+                  SET sourced_jc = CONVERT(jc USING utf8mb3);
+                  SET targeted_sourced_jc = CONVERT(sourced_jc USING utf8mb4);
+                END;
               ELSE
                 RETURN NULL;
             END CASE;
