@@ -43,12 +43,13 @@ public:
   int add_cursor()
   {
     int tmp_cursor= (last_cursor + 1) % INT_MAX;
-    size_t cursor_pos= cursor_idx(tmp_cursor);
-    while (tmp_cursor != last_cursor && cursor_pos > -1 && cursor_pos <
-        cursor_list.elements())
+    int cursor_pos= cursor_idx(tmp_cursor);
+    int elements = (int) cursor_list.elements();
+    while (tmp_cursor != last_cursor && cursor_pos != -1 && cursor_pos < elements)
     {
       tmp_cursor= (tmp_cursor + 1) % INT_MAX;
       cursor_pos= cursor_idx(tmp_cursor);
+      elements = (int) cursor_list.elements();
     }
 
     if (tmp_cursor == last_cursor)

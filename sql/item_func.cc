@@ -854,9 +854,9 @@ bool Item_func_dbmssql_open_cursor::fix_length_and_dec(THD *thd)
 
 bool Item_func_dbmssql_open_cursor::is_cursor_existent(THD *thd, int cursor_id)
 {
-  size_t cursor_pos;
-  if ((cursor_pos= thd->cursor_idx(cursor_id)) > -1 && cursor_pos <
-      thd->cursor_list.elements())
+  int cursor_pos;
+  int elements = (int) thd->cursor_list.elements();
+  if ((cursor_pos= thd->cursor_idx(cursor_id)) > -1 && cursor_pos < elements)
     return TRUE;
   else
     return FALSE;
@@ -3346,14 +3346,15 @@ void Item_func_locate::print(String *str, enum_query_type query_type)
 longlong Item_func_dbmssql_parse::val_int()
 {
   DBUG_ASSERT(fixed());
-  int cursor_id= args[0]->val_int();
-  int cursor_stmt_cmd= args[1]->val_int();
-  
+  longlong cursor_id= args[0]->val_int();
+  longlong cursor_stmt_cmd= args[1]->val_int();
+
   for (size_t i= 0; i < thd->cursor_list.elements(); i++)
   {
     if (thd->cursor_list[i].cursor_id == cursor_id)
     {
-      thd->cursor_list[i].cursor_stmt_cmd= cursor_stmt_cmd;
+      thd->cursor_list[i].cursor_stmt_cmd=
+          static_cast<long long int>(cursor_stmt_cmd);
       break;
     }
   }
