@@ -6117,16 +6117,12 @@ exit:
 	ut_ad(fil_space_t::physical_size(flags) == info.page_size);
 
 	mysql_mutex_lock(&fil_system.mutex);
-	fil_space_t* space = fil_space_t::create(uint32_t(info.space_id),
-						 flags, false, 0,
-						 FIL_ENCRYPTION_DEFAULT, true);
+	std::ignore = fil_space_t::create(uint32_t(info.space_id),
+					  flags, false, 0,
+					  FIL_ENCRYPTION_DEFAULT, true);
 	mysql_mutex_unlock(&fil_system.mutex);
-	if (space) {
-		*success = xb_space_create_file(real_name, info.space_id,
-						flags, &file);
-	} else {
-		msg("Can't create tablespace %s\n", dest_space_name);
-	}
+	*success = xb_space_create_file(real_name, info.space_id,
+					flags, &file);
 
 	goto exit;
 }

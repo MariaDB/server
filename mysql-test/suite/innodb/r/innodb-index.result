@@ -1920,16 +1920,10 @@ CREATE TABLE t2(f1 INT PRIMARY KEY)ENGINE=InnoDB;
 # Kill the server
 # Wrong space_id in a dirty file and a missing file
 # restart
-SELECT * FROM INFORMATION_SCHEMA.ENGINES
-WHERE engine = 'innodb'
-AND support IN ('YES', 'DEFAULT', 'ENABLED');
-ENGINE	SUPPORT	COMMENT	TRANSACTIONS	XA	SAVEPOINTS
-# Restore t1 and t2
-# restart
-SELECT * FROM t1;
-f1
-SELECT * FROM t2;
-f1
+CHECK TABLE t1, t2;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+test.t2	check	status	OK
 DROP TABLE t1, t2;
 #
 #  MDEV-18186 assertion failure on missing InnoDB index

@@ -226,4 +226,18 @@ disconnect ddl;
 CHECK TABLE t1;
 SHOW CREATE TABLE t1;
 SELECT * FROM t1;
+
+connect ddl, localhost, root;
+SET DEBUG_SYNC = 'fil_ibd_create_logged SIGNAL stuck WAIT_FOR ever';
+send ALTER TABLE t1 FORCE;
+connection default;
+SET DEBUG_SYNC = 'now WAIT_FOR stuck';
+
+--source include/kill_mysqld.inc
+disconnect ddl;
+--source include/start_mysqld.inc
+
+CHECK TABLE t1;
+SHOW CREATE TABLE t1;
+SELECT * FROM t1;
 DROP TABLE t1;

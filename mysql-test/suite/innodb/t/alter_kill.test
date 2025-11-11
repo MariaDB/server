@@ -142,6 +142,17 @@ INSERT INTO t1 VALUES(42);
 
 CREATE TABLE bug16735660 (a INT PRIMARY KEY) ENGINE=InnoDB;
 
+# Force a log checkpoint to "discard" any FILE_CREATE records.
+SET GLOBAL innodb_max_purge_lag_wait=2;
+SET GLOBAL innodb_max_dirty_pages_pct_lwm=0.0;
+SET GLOBAL innodb_max_dirty_pages_pct=0.0;
+let $wait_condition =
+SELECT variable_value = 0
+FROM information_schema.global_status
+WHERE variable_name = 'INNODB_BUFFER_POOL_PAGES_DIRTY';
+--source include/wait_condition.inc
+SET GLOBAL innodb_max_dirty_pages_pct=90.0;
+
 XA START 'x';
 --source ../include/no_checkpoint_start.inc
 INSERT INTO bug16735660 VALUES(1),(2),(3);

@@ -1,3 +1,4 @@
+--source include/have_perfschema.inc
 --echo #
 --echo # MDEV-6610 Assertion `thd->is_error() || thd->killed' failed in mysql_execute_command on executing an SP with repeated CREATE TABLE .. SELECT
 --echo #

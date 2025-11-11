@@ -106,6 +106,7 @@
 #ifdef WITH_WSREP
 #include "wsrep_thd.h"
 #include "wsrep_trans_observer.h" /* wsrep transaction hooks */
+#include "wsrep_schema.h"
 
 static bool wsrep_mysql_parse(THD *thd, char *rawbuf, uint length,
                               Parser_state *parser_state);
@@ -1138,7 +1139,7 @@ void cleanup_items(Item *item)
 }
 
 #ifdef WITH_WSREP
-static bool wsrep_tables_accessible_when_detached(const TABLE_LIST *tables)
+static inline bool wsrep_tables_accessible_when_detached(const TABLE_LIST *tables)
 {
   for (const TABLE_LIST *table= tables; table; table= table->next_global)
   {
@@ -1150,13 +1151,27 @@ static bool wsrep_tables_accessible_when_detached(const TABLE_LIST *tables)
   return tables != NULL;
 }
 
-static bool wsrep_command_no_result(char command)
+static inline bool wsrep_is_streaming_log(const TABLE_LIST *tables)
+{
+  for (const TABLE_LIST *table= tables; table; table= table->next_global)
+  {
+    const Lex_ident_db db(table->db);
+    const Lex_ident_table name(table->table_name);
+    if (db.streq(WSREP_LEX_SCHEMA) &&
+        name.streq(WSREP_LEX_STREAMING))
+      return true;
+  }
+  return false;
+}
+
+static inline bool wsrep_command_no_result(char command)
 {
   return (command == COM_STMT_FETCH            ||
           command == COM_STMT_SEND_LONG_DATA   ||
           command == COM_STMT_CLOSE);
 }
 #endif /* WITH_WSREP */
+
 #ifndef EMBEDDED_LIBRARY
 static enum enum_server_command fetch_command(THD *thd, char *packet)
 {
@@ -4573,10 +4588,21 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
 #ifdef WITH_WSREP
       if (wsrep && !first_table->view)
       {
-        const legacy_db_type db_type= first_table->table->file->partition_ht()->db_type;
+        const handlerton *hton= first_table->table->file->partition_ht() ?
+          first_table->table->file->partition_ht() :
+          first_table->table->file->ht;
+
+        const legacy_db_type db_type= hton->db_type;
         // For InnoDB we don't need to worry about anything here:
         if (db_type != DB_TYPE_INNODB)
         {
+          /* Only TOI allowed to !InnoDB tables */
+          if (thd->variables.wsrep_OSU_method != WSREP_OSU_TOI)
+          {
+            my_error(ER_NOT_SUPPORTED_YET, MYF(0), "RSU on this table engine");
+            break;
+          }
+
           // For consistency check inserted table needs to be InnoDB
           if (thd->wsrep_consistency_check != NO_CONSISTENCY_CHECK)
           {
@@ -4586,16 +4612,10 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
                                 " for InnoDB tables.");
             thd->wsrep_consistency_check= NO_CONSISTENCY_CHECK;
           }
-          /* Only TOI allowed to !InnoDB tables */
-          if (wsrep_OSU_method_get(thd) != WSREP_OSU_TOI)
-          {
-            my_error(ER_NOT_SUPPORTED_YET, MYF(0), "RSU on this table engine");
-            break;
-          }
           // For !InnoDB we start TOI if it is not yet started and hope for the best
           if (!wsrep_toi)
           {
-            /* Currently we support TOI for MyISAM only. */
+            /* Currently we support TOI for MyISAM && Aria only. */
             if ((db_type == DB_TYPE_MYISAM && wsrep_check_mode(WSREP_MODE_REPLICATE_MYISAM)) ||
                 (db_type == DB_TYPE_ARIA   && wsrep_check_mode(WSREP_MODE_REPLICATE_ARIA)))
             {
@@ -4748,6 +4768,19 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
     {
       if (check_table_access(thd, DROP_ACL, all_tables, FALSE, UINT_MAX, FALSE))
 	goto error;				/* purecov: inspected */
+#ifdef WITH_WSREP
+      /* In Galera do not allow dropping mysql.wsrep_streaming_log
+         because it would make streaming replication to fail.
+      */
+      if (WSREP(thd) && wsrep_is_streaming_log(all_tables))
+      {
+        my_error(ER_TABLEACCESS_DENIED_ERROR, MYF(0), "DROP",
+                 thd->security_ctx->priv_user,
+                 thd->security_ctx->host_or_ip,
+                 "mysql", "wsrep_streaming_log");
+        goto error;
+      }
+#endif /* WITH_WSREP */
     }
     else
     {
