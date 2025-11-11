@@ -144,8 +144,6 @@ SELECT a FROM t1 ORDER BY rand(1);
 --echo #cleanup
 DROP TABLE t1, pid_table;
 
-
-
 --echo #
 --echo # MDEV-12416 OOM in create_virtual_tmp_table() makes the server crash
 --echo #
@@ -158,15 +156,4 @@ SELECT f1(1);
 DROP FUNCTION f1;
 SET debug_dbug= @saved_dbug;
 
---echo #
---echo # MDEV-27978 wrong option name in error when exceeding max_session_mem_used
---echo #
-SET SESSION max_session_mem_used = 8192;
---error ER_OPTION_PREVENTS_STATEMENT
-SELECT * FROM information_schema.processlist;
-SET SESSION max_session_mem_used = DEFAULT;
-
-
---echo #
 --echo # End of 10.2 tests
---echo #

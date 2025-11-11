@@ -5333,21 +5333,19 @@ static int fill_schema_table_from_frm(THD *thd, MEM_ROOT *mem_root,
   res= open_table_from_share(thd, share, table_name, 0,
                              EXTRA_RECORD | OPEN_FRM_FILE_ONLY,
                              thd->open_options, &tbl, FALSE);
-  if (res && hide_object_error(thd->get_stmt_da()->sql_errno()))
-    res= 0;
+  if (res)
+  {
+    if (hide_object_error(thd->get_stmt_da()->sql_errno()))
+      res= 0;
+  }
   else
   {
-    char buf[NAME_CHAR_LEN + 1];
-    if (unlikely(res))
-      get_table_engine_for_i_s(thd, buf, &table_list, db_name, table_name);
-
     tbl.s= share;
     table_list.table= &tbl;
     table_list.view= (LEX*) share->is_view;
     bool res2= schema_table->process_table(thd, &table_list, table, res,
                                            db_name, table_name);
-    if (res == 0)
-      closefrm(&tbl);
+    closefrm(&tbl);
     res= res2;
   }
 
@@ -5490,30 +5488,6 @@ int get_all_tables(THD *thd, TABLE_LIST *tables, COND *cond)
   uint table_open_method= tables->table_open_method;
   bool can_deadlock;
   MEM_ROOT tmp_mem_root;
-  /*
-    We're going to open FRM files for tables.
-    In case of VIEWs that contain stored function calls,
-    these stored functions will be parsed and put to the SP cache.
-
-    Suppose we have a view containing a stored function call:
-      CREATE VIEW v1 AS SELECT f1() AS c1;
-    and now we're running:
-      SELECT * FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME=f1();
-    If a parallel thread invalidates the cache,
-    e.g. by creating or dropping some stored routine,
-    the SELECT query will re-parse f1() when processing "v1"
-    and replace the outdated cached version of f1() to a new one.
-    But the old version of f1() is referenced from the m_sp member
-    of the Item_func_sp instances used in the WHERE condition.
-    We cannot destroy it. To avoid such clashes, let's remember
-    all old routines into a temporary SP cache collection
-    and process tables with a new empty temporary SP cache collection.
-    Then restore to the old SP cache collection at the end.
-  */
-  Sp_caches old_sp_caches;
-
-  old_sp_caches.sp_caches_swap(*thd);
-
   bzero(&tmp_mem_root, sizeof(tmp_mem_root));
 
   /*
@@ -5739,14 +5713,6 @@ int get_all_tables(THD *thd, TABLE_LIST *tables, COND *cond)
 err:
   thd->restore_backup_open_tables_state(&open_tables_state_backup);
   free_root(&tmp_mem_root, 0);
-
-  /*
-    Now restore to the saved SP cache collection
-    and clear the temporary SP cache collection.
-  */
-  old_sp_caches.sp_caches_swap(*thd);
-  old_sp_caches.sp_caches_clear();
-
   DBUG_RETURN(error);
 }
 

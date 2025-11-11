@@ -470,6 +470,6 @@ c
 #
 # MDEV-36042 Assertion failed in Binary_string::q_append
 #
-SELECT st_astext(ST_VALIDATE(ST_SYMDIFFERENCE(ST_GEOMFROMTEXT(' MULTIPOLYGON( ( ( 2 2, 2 8, 8 8, 8 2, 2 2 ), ( 4 4, 4 6, 6 6, 6 4, 4 4 ) ), ( (0 2,1 2,1 3,0 3,0 2) ) ) '),  ST_GEOMFROMTEXT(' POLYGON( ( 2 4, 5 8, 0 8, 8 1, 7 6, 2 4 ) ) ') ) ) ) <> '' c;
+SELECT st_astext(ST_VALIDATE(ST_SYMDIFFERENCE(ST_GEOMFROMTEXT(' MULTIPOLYGON( ( ( 2 2, 2 8, 8 8, 8 2, 2 2 ), ( 4 4, 4 6, 6 6, 6 4, 4 4 ) ), ( (0 2,1 2,1 3,0 3,0 2) ) ) '),  ST_GEOMFROMTEXT(' POLYGON( ( 6 6, 5 8, 0 8, 8 1, 7 6, 6 6 ) ) ') ) ) ) <> '' c;
 c
 1

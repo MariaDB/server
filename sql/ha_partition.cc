@@ -2253,6 +2253,13 @@ int ha_partition::copy_partitions(ulonglong * const copied,
       }
       else
       {
+        if (m_new_file[new_part]->m_lock_type != F_WRLCK)
+        {
+          m_last_part= reorg_part;
+          m_err_rec= table->record[0];
+          result= HA_ERR_ROW_IN_WRONG_PARTITION;
+          goto error;
+        }
         /* Copy record to new handler */
         (*copied)++;
         DBUG_ASSERT(!m_new_file[new_part]->row_logging);
@@ -10447,11 +10454,12 @@ void ha_partition::print_error(int error, myf errflag)
   }
   else if (error == HA_ERR_ROW_IN_WRONG_PARTITION)
   {
-    /* Should only happen on DELETE or UPDATE! */
+    /* Should only happen on DELETE, UPDATE or REBUILD PARTITION! */
     DBUG_ASSERT(thd_sql_command(thd) == SQLCOM_DELETE ||
                 thd_sql_command(thd) == SQLCOM_DELETE_MULTI ||
                 thd_sql_command(thd) == SQLCOM_UPDATE ||
-                thd_sql_command(thd) == SQLCOM_UPDATE_MULTI);
+                thd_sql_command(thd) == SQLCOM_UPDATE_MULTI ||
+                thd_sql_command(thd) == SQLCOM_ALTER_TABLE);
     DBUG_ASSERT(m_err_rec);
     if (m_err_rec)
     {
@@ -12277,10 +12285,13 @@ int ha_partition::direct_delete_rows(ha_rows *delete_rows_result)
                    file->pre_direct_delete_rows() :
                    file->ha_direct_delete_rows(&delete_rows))))
       {
-        if (m_pre_calling)
-          file->ha_pre_rnd_end();
-        else
-          file->ha_rnd_end();
+        if (rnd_seq)
+        {
+          if (m_pre_calling)
+            file->ha_pre_rnd_end();
+          else
+            file->ha_rnd_end();
+        }
         DBUG_RETURN(error);
       }
       delete_rows_result+= delete_rows;

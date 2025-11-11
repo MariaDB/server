@@ -235,6 +235,7 @@ void old_mode_deprecated_warnings(ulonglong v);
 #define NEW_MODE_TEST_WARNING1                               NOW_DEFAULT
 #define NEW_MODE_TEST_WARNING2                               NOW_DEFAULT
 #define NEW_MODE_FIX_DISK_TMPTABLE_COSTS                     NOW_DEFAULT
+#define NEW_MODE_FIX_INDEX_STATS_FOR_ALL_NULLS               NOW_DEFAULT
 
 #define TEST_NEW_MODE_FLAG(thd, flag) \
   (flag == NOW_DEFAULT ? TRUE : thd->variables.new_behavior & flag)
@@ -2824,16 +2825,16 @@ struct wait_for_commit
 
 class Sp_caches
 {
+protected:
+  ulong m_sp_cache_version;
 public:
   sp_cache *sp_proc_cache;
   sp_cache *sp_func_cache;
   sp_cache *sp_package_spec_cache;
   sp_cache *sp_package_body_cache;
   Sp_caches()
-   :sp_proc_cache(NULL),
-    sp_func_cache(NULL),
-    sp_package_spec_cache(NULL),
-    sp_package_body_cache(NULL)
+   :m_sp_cache_version(0), sp_proc_cache(NULL), sp_func_cache(NULL),
+    sp_package_spec_cache(NULL), sp_package_body_cache(NULL)
   { }
   ~Sp_caches()
   {
@@ -2843,19 +2844,22 @@ public:
     DBUG_ASSERT(sp_package_spec_cache == NULL);
     DBUG_ASSERT(sp_package_body_cache == NULL);
   }
-  void sp_caches_swap(Sp_caches &rhs)
-  {
-    swap_variables(sp_cache*, sp_proc_cache, rhs.sp_proc_cache);
-    swap_variables(sp_cache*, sp_func_cache, rhs.sp_func_cache);
-    swap_variables(sp_cache*, sp_package_spec_cache, rhs.sp_package_spec_cache);
-    swap_variables(sp_cache*, sp_package_body_cache, rhs.sp_package_body_cache);
-  }
   void sp_caches_clear();
   /**
     Clear content of sp related caches.
     Don't delete cache objects itself.
   */
   void sp_caches_empty();
+  ulong sp_cache_version() const
+  {
+    DBUG_ASSERT(m_sp_cache_version);
+    return m_sp_cache_version;
+  }
+  void set_sp_cache_version_if_needed(ulong version)
+  {
+    if (!m_sp_cache_version)
+      m_sp_cache_version= version;
+  }
 };
 
 
@@ -6314,6 +6318,11 @@ class start_new_trans
   uint in_sub_stmt;
   uint server_status;
   my_bool wsrep_on;
+  /*
+    THD:rgi_slave may hold a part of the replicated "old" transaction's
+    execution context. Therefore it has to be reset/restored too.
+  */
+  rpl_group_info* org_rgi_slave;
 
 public:
   start_new_trans(THD *thd);
@@ -7854,27 +7863,23 @@ public:
   If command creates or drops a database
 */
 #define CF_DB_CHANGE (1U << 23)
-
-#ifdef WITH_WSREP
-/**
-  DDL statement that may be subject to error filtering.
-*/
-#define CF_WSREP_MAY_IGNORE_ERRORS (1U << 24)
-/**
-   Basic DML statements that create writeset.
-*/
-#define CF_WSREP_BASIC_DML (1u << 25)
-
-#endif /* WITH_WSREP */
-
-
-/* Bits in server_command_flags */
-
 /**
   Statement that deletes existing rows (DELETE, DELETE_MULTI)
 */
 #define CF_DELETES_DATA (1U << 24)
 
+#ifdef WITH_WSREP
+/**
+  DDL statement that may be subject to error filtering.
+*/
+#define CF_WSREP_MAY_IGNORE_ERRORS (1U << 25)
+/**
+   Basic DML statements that create writeset.
+*/
+#define CF_WSREP_BASIC_DML (1u << 26)
+#endif /* WITH_WSREP */
+
+/* Bits in server_command_flags */
 /**
   Skip the increase of the global query id counter. Commonly set for
   commands that are stateless (won't cause any change on the server

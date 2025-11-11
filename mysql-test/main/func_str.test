@@ -2451,8 +2451,11 @@ SHOW CREATE TABLE t1;
 DROP TABLE t1;
 
 --echo #
---echo # End of 10.6 tests
+--echo # MDEV-37947 Item_func_hex doesn't check for max_allowed_packet
 --echo #
+select hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex('\\'))))))))))))))))))))))))))))))))))))))))))))) as x;
+
+--echo # End of 10.6 tests
 
 --echo #
 --echo # MDEV-25704 Function random_bytes
@@ -2576,8 +2579,19 @@ DROP TABLE t1;
 SET sql_mode=DEFAULT;
 
 --echo #
---echo # End of 10.11 tests
+--echo # MDEV-37740 LOCATE(X,Y,NULL) is not NULL
 --echo #
+select locate(1,2,NULL);
+
+--echo #
+--echo # MDEV-37835 mysqli silently trims each json_arrayagg result to modulo 64KB
+--echo #
+let $a=`select repeat('a', 65540)`;
+let $b=`select repeat('b', 65540)`;
+replace_regex /a{65535}/a.../ /b{65535}/b.../;
+evalp select group_concat(v) from ( select '$a' as v union all select '$b' as v) t;
+
+--echo # End of 10.11 tests
 
 --echo #
 --echo # MDEV-9069 extend AES_ENCRYPT() and AES_DECRYPT() to support IV and the algorithm

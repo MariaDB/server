@@ -1,6 +1,6 @@
-#
-# MDEV-6610 Assertion `thd->is_error() || thd->killed' failed in mysql_execute_command on executing an SP with repeated CREATE TABLE .. SELECT
-#
+--echo #
+--echo # MDEV-6610 Assertion `thd->is_error() || thd->killed' failed in mysql_execute_command on executing an SP with repeated CREATE TABLE .. SELECT
+--echo #
 CREATE TABLE t1 (i INT);
 SET @a = 2; 
 
@@ -97,6 +97,35 @@ CALL p1();
 DROP FUNCTION cnt;
 DROP PROCEDURE p1;
 
+--echo #
+--echo # MDEV-37710 ASAN errors in find_type2 upon executing a procedure from sys schema
+--echo #
+set names utf8mb3 collate utf8mb3_general_ci;
+delimiter $$;
+create procedure p1()
+begin
+  declare found int;
+  repeat
+    set found = exists (select * from information_schema.routines where routine_name='f');
+    if (sys.ps_is_consumer_enabled('events_waits_history_long') = 'yes') then
+        select * from mysql.user;
+    end if;
+    select release_all_locks();
+  until found end repeat;
+end$$
+delimiter ;$$
+select get_lock('p1', 300);
+--send call p1()
+--connect con1,localhost,root,,
+select get_lock('p1', 300);
+create function f() returns int return 1;
+--connection default
+--disable_result_log
+--reap
+--enable_result_log
+drop function f;
+drop procedure p1;
+set names utf8mb3;
 
 --echo # End of 10.11 tests
 

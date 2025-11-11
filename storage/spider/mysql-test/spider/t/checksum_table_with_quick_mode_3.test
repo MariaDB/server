@@ -5,59 +5,34 @@
 --disable_warnings
 CREATE DATABASE auto_test_local;
 USE auto_test_local;
-if ($USE_CHILD_GROUP2)
-{
   --connection child2_1
-  if ($USE_GENERAL_LOG)
-  {
     SET @old_log_output = @@global.log_output;
     SET GLOBAL log_output = 'TABLE,FILE';
-  }
   CREATE DATABASE auto_test_remote;
   USE auto_test_remote;
-}
 --enable_warnings
 
 --echo
 --echo create table and insert
-if ($USE_CHILD_GROUP2)
-{
-  if (!$OUTPUT_CHILD_GROUP2)
-  {
-    --disable_query_log
-    --disable_result_log
-  }
   --connection child2_1
-  if ($OUTPUT_CHILD_GROUP2)
-  {
     --disable_query_log
     echo CHILD2_1_CREATE_TABLES;
-  }
-  eval $CHILD2_1_CREATE_TABLES;
-  if ($OUTPUT_CHILD_GROUP2)
-  {
+CREATE TABLE tbl_a (
+pkey int NOT NULL,
+PRIMARY KEY (pkey)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
     --enable_query_log
-  }
-  if ($USE_GENERAL_LOG)
-  {
     TRUNCATE TABLE mysql.general_log;
-  }
-  if (!$OUTPUT_CHILD_GROUP2)
-  {
-    --enable_query_log
-    --enable_result_log
-  }
-}
 --connection master_1
 --disable_query_log
 echo CREATE TABLE tbl_a (
     pkey int NOT NULL,
     PRIMARY KEY (pkey)
 ) MASTER_1_ENGINE MASTER_1_CHARSET MASTER_1_COMMENT_2_1;
-eval CREATE TABLE tbl_a (
+CREATE TABLE tbl_a (
     pkey int NOT NULL,
     PRIMARY KEY (pkey)
-) $MASTER_1_ENGINE $MASTER_1_CHARSET $MASTER_1_COMMENT_2_1;
+) ENGINE=Spider DEFAULT CHARSET=utf8 COMMENT='table "tbl_a", srv "s_2_1"';
 --enable_query_log
 --disable_ps_protocol
 INSERT INTO tbl_a (pkey) VALUES (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
@@ -68,64 +43,26 @@ FLUSH TABLES;
 
 --echo
 --echo select test 1
-if ($USE_CHILD_GROUP2)
-{
-  if (!$OUTPUT_CHILD_GROUP2)
-  {
-    --disable_query_log
-    --disable_result_log
-  }
   --connection child2_1
-  if ($USE_GENERAL_LOG)
-  {
     TRUNCATE TABLE mysql.general_log;
-  }
-  if (!$OUTPUT_CHILD_GROUP2)
-  {
-    --enable_query_log
-    --enable_result_log
-  }
-}
 --connection master_1
 CHECKSUM TABLE tbl_a EXTENDED;
-if ($USE_CHILD_GROUP2)
-{
-  if (!$OUTPUT_CHILD_GROUP2)
-  {
-    --disable_query_log
-    --disable_result_log
-  }
   --connection child2_1
-  if ($USE_GENERAL_LOG)
-  {
     --disable_view_protocol
     --disable_ps2_protocol
-    eval $CHILD2_1_SELECT_ARGUMENT1;
+SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%checksum %';
     --enable_ps2_protocol
     --enable_view_protocol
-  }
-  eval $CHILD2_1_SELECT_TABLES;
-  if (!$OUTPUT_CHILD_GROUP2)
-  {
-    --enable_query_log
-    --enable_result_log
-  }
-}
+SELECT pkey FROM tbl_a ORDER BY pkey;
 
 --echo
 --echo deinit
 --disable_warnings
 --connection master_1
 DROP DATABASE IF EXISTS auto_test_local;
-if ($USE_CHILD_GROUP2)
-{
   --connection child2_1
   DROP DATABASE IF EXISTS auto_test_remote;
-  if ($USE_GENERAL_LOG)
-  {
     SET GLOBAL log_output = @old_log_output;
-  }
-}
 --enable_warnings
 --source ../include/checksum_table_with_quick_mode_3_deinit.inc
 --echo

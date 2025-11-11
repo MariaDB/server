@@ -190,14 +190,12 @@ int json_path_parts_compare(const MEM_ROOT_DYNAMIC_ARRAY *a_arr,
                             enum json_value_types vt,
                             MEM_ROOT_DYNAMIC_ARRAY *array_sizes)
 {
-  int res, res2;
-
+ int res, res2;
+  const json_path_step_t *temp_b= b;
   DBUG_EXECUTE_IF("json_check_min_stack_requirement",
                   return dbug_json_check_min_stack_requirement(););
-
   if (check_stack_overrun(current_thd, STACK_MIN_SIZE , NULL))
     return 1;
-
   while (a <= a_end)
   {
     if (b > b_end)
@@ -211,55 +209,28 @@ int json_path_parts_compare(const MEM_ROOT_DYNAMIC_ARRAY *a_arr,
       }
       return -2;
     }
-
     DBUG_ASSERT((b->type & (JSON_PATH_WILD | JSON_PATH_DOUBLE_WILD)) == 0);
-
     if (a->type & JSON_PATH_ARRAY)
     {
       if (b->type & JSON_PATH_ARRAY)
       {
-        int res= 0, corrected_n_item_a= 0;
-        if (array_sizes)
+        int res = 0;
+        if (a->type & JSON_PATH_WILD)
+          res = 1;
+        else if (a->type & JSON_PATH_ARRAY_RANGE && array_sizes)
         {
-          corrected_n_item_a= a->n_item;
-          if (corrected_n_item_a < 0)
-          {
-            auto temp= (json_path_step_t *) (b_arr->buffer) + 1;
-            auto value_ptr= ((int *) array_sizes->buffer) + (b - temp);
-            if (value_ptr)
-            {
-              corrected_n_item_a += *value_ptr;
-            }
-          }
+            int start = (a->n_item >= 0) ? a->n_item
+                         : *((int*)(array_sizes->buffer)+(b - temp_b)) + a->n_item;
+            int end   = (a->n_item_end >= 0) ? a->n_item_end
+                                   : *((int*)(array_sizes->buffer)+(b - temp_b)) + a->n_item_end;
+            res = (b->n_item >= start && b->n_item <= end);
         }
-        if (a->type & JSON_PATH_ARRAY_RANGE)
-        {
-          int corrected_n_item_end_a= 0;
-          if (array_sizes)
-          {
-            corrected_n_item_end_a= a->n_item_end;
-            if (corrected_n_item_end_a < 0)
-            {
-              auto temp= (json_path_step_t *) (b_arr->buffer) + 1;
-              auto value_ptr= ((int *) array_sizes->buffer) + (b - temp);
-              if (value_ptr)
-              {
-                corrected_n_item_end_a += *value_ptr;
-              }
-            }
-          }
-          res= b->n_item >= corrected_n_item_a &&
-               b->n_item <= corrected_n_item_end_a;
-        }
-        else
-        {
-         res= corrected_n_item_a == b->n_item;
-        }
-
-        if (res || (a->type & JSON_PATH_WILD))
-        {
+        else if (a->n_item >= 0)
+          res = (a->n_item == b->n_item);
+        else if (a->n_item < 0 && array_sizes)
+          res = (a->n_item == b->n_item - *((int*)(array_sizes->buffer)+(b - temp_b)));
+        if (res)
           goto step_fits;
-        }
         goto step_failed;
       }
       if ((a->type & JSON_PATH_WILD) == 0 && a->n_item == 0)
@@ -270,12 +241,10 @@ int json_path_parts_compare(const MEM_ROOT_DYNAMIC_ARRAY *a_arr,
     {
       if (!(b->type & JSON_PATH_KEY))
         goto step_failed;
-
       if (!(a->type & JSON_PATH_WILD) &&
           (a->key_end - a->key != b->key_end - b->key ||
            memcmp(a->key, b->key, a->key_end - a->key) != 0))
         goto step_failed;
-
       goto step_fits;
     }
 step_failed:
@@ -283,46 +252,36 @@ step_failed:
       return -1;
     b++;
     continue;
-
 step_fits:
-   b++;
+    b++;
     if (!(a->type & JSON_PATH_DOUBLE_WILD))
     {
-     a++;
+      a++;
       continue;
     }
-
     /* Double wild handling needs recursions. */
     res= json_path_parts_compare(a_arr, a+1, a_end, b_arr, b, b_end,
                                  vt, array_sizes);
     if (res == 0)
       return 0;
-
     res2= json_path_parts_compare(a_arr, a, a_end, b_arr, b, b_end, vt,
                                   array_sizes);
-
     return (res2 >= 0) ? res2 : res;
-
 step_fits_autowrap:
     if (!(a->type & JSON_PATH_DOUBLE_WILD))
     {
-       a++;
+      a++;
       continue;
     }
-
     /* Double wild handling needs recursions. */
     res= json_path_parts_compare(a_arr, a+1, a_end, b_arr, b+1, b_end, vt,
                                  array_sizes);
     if (res == 0)
       return 0;
-
     res2= json_path_parts_compare(a_arr, a, a_end, b_arr, b+1, b_end, vt,
                                   array_sizes);
-
     return (res2 >= 0) ? res2 : res;
-
   }
-
   return b <= b_end;
 }
 
@@ -5684,7 +5643,8 @@ bool Item_func_json_key_value::fix_length_and_dec(THD *thd)
 }
 
 
-static bool create_hash(json_engine_t *value, HASH *items, bool &hash_inited,
+static bool create_hash(json_engine_t *value, HASH *items,
+                        bool &item_hash_inited,
                         MEM_ROOT *hash_root, MEM_ROOT *current_mem_root,
                         json_engine_t *temp_je, MEM_ROOT_DYNAMIC_ARRAY *stack)
 {
@@ -5692,7 +5652,7 @@ static bool create_hash(json_engine_t *value, HASH *items, bool &hash_inited,
   if (my_hash_init(PSI_INSTRUMENT_ME, items, value->s.cs, 0, 0, 0,
                    get_key_name, NULL, 0))
     return true;
-  hash_inited= true;
+  item_hash_inited= true;
 
   while (json_scan_next(value) == 0 && value->stack_p >= level)
   {
@@ -5762,6 +5722,11 @@ static bool get_current_value(json_engine_t *js, const uchar *&value_start,
   return false;
 }
 
+static my_bool restore_entry(void *element, void *arg)
+{
+    HASH *items = (HASH*) arg;
+    return my_hash_insert(items, (const uchar*) element);
+}
 
 /*
   If the outermost layer of JSON is an array,
@@ -5774,17 +5739,19 @@ static bool get_current_value(json_engine_t *js, const uchar *&value_start,
     FALSE  - if two array documents have intersection
     TRUE   - If two array documents do not have intersection
 */
-static bool get_intersect_between_arrays(String *str, json_engine_t *value,
-                                         HASH items,
-                                         MEM_ROOT *current_mem_root,
-                                         json_engine_t *temp_je,
-                                         MEM_ROOT_DYNAMIC_ARRAY *stack)
+bool Item_func_json_array_intersect::
+     get_intersect_between_arrays(String *str, json_engine_t *value,
+                                  HASH *items,
+                                  MEM_ROOT *current_mem_root,
+                                  json_engine_t *temp_je,
+                                  MEM_ROOT_DYNAMIC_ARRAY *stack, HASH *seen)
 {
   bool res= true, has_value= false;
   int level= value->stack_p;
-  String temp_str(0);
 
+  temp_str.length(0);
   temp_str.append('[');
+
   while (json_scan_next(value) == 0 && value->stack_p >= level)
   {
     const uchar *value_start= NULL;
@@ -5820,14 +5787,14 @@ static bool get_intersect_between_arrays(String *str, json_engine_t *value,
       of times the value appears in the hash table.
     */
     uchar * found= NULL;
-    if ((found= my_hash_search(&items,
+    if ((found= my_hash_search(items,
                                 (const uchar *) new_entry,
                                 strlen(new_entry))))
     {
       has_value= true;
       temp_str.append( (const char*) value_start, value_len);
       temp_str.append(',');
-      if (my_hash_delete(&items, found))
+      if (my_hash_delete(items, found) || my_hash_insert(seen, (const uchar *)found))
       {
         free(new_entry);
         goto error;
@@ -5846,6 +5813,8 @@ static bool get_intersect_between_arrays(String *str, json_engine_t *value,
   }
 
 error:
+  my_hash_iterate(seen, restore_entry, items);
+  my_hash_reset(seen);
   return res;
 }
 
@@ -5863,12 +5832,14 @@ String* Item_func_json_array_intersect::val_str(String *str)
   {
     if (args[0]->null_value)
       goto null_return;
-    if (hash_inited)
+    if (item_hash_inited)
       my_hash_free(&items);
+    if (seen_hash_inited)
+      my_hash_free(&seen);
     if (hash_root_inited)
       free_root(&hash_root, MYF(0));
     hash_root_inited= false;
-    hash_inited= false;
+    item_hash_inited= false;
     prepare_json_and_create_hash(&je1, js1);
   }
 
@@ -5884,7 +5855,7 @@ String* Item_func_json_array_intersect::val_str(String *str)
   if (json_read_value(&je2) || je2.value_type != JSON_VALUE_ARRAY)
     goto error_return;
 
-  if (get_intersect_between_arrays(str, &je2, items, current_thd->mem_root, &temp_je, &stack))
+  if (get_intersect_between_arrays(str, &je2, &items, current_thd->mem_root, &temp_je, &stack, &seen))
     goto error_return;
 
   if (str->length())
@@ -5911,7 +5882,7 @@ null_return:
   return NULL;
 }
 
-void Item_func_json_array_intersect::prepare_json_and_create_hash(json_engine_t *je1, String *js)
+bool Item_func_json_array_intersect::prepare_json_and_create_hash(json_engine_t *je1, String *js)
 {
   json_scan_start(je1, js->charset(), (const uchar *) js->ptr(),
                   (const uchar *) js->ptr() + js->length());
@@ -5919,20 +5890,27 @@ void Item_func_json_array_intersect::prepare_json_and_create_hash(json_engine_t 
     Scan value uses the hash table to get the intersection of two arrays.
   */
 
+  if (my_hash_init(PSI_INSTRUMENT_ME, &seen, je1->s.cs, 0, 0, 0,
+                   get_key_name, NULL, 0))
+    return true;
+  seen_hash_inited= true;
+
   if (!hash_root_inited)
     init_alloc_root(PSI_NOT_INSTRUMENTED, &hash_root, 1024, 0, MYF(0));
   hash_root_inited= true;
 
   if (json_read_value(je1) || je1->value_type != JSON_VALUE_ARRAY ||
-      create_hash(je1, &items, hash_inited, &hash_root, current_thd->mem_root, &temp_je, &stack))
+      create_hash(je1, &items, item_hash_inited, &hash_root, current_thd->mem_root, &temp_je, &stack))
     {
       if (je1->s.error)
         report_json_error(js, je1, 0);
       null_value= 1;
     }
 
-    max_length= (args[0]->max_length < args[1]->max_length) ?
-                 args[0]->max_length : args[1]->max_length;
+    max_length= 2*(args[0]->max_length < args[1]->max_length ?
+                 args[0]->max_length : args[1]->max_length);
+
+    return false;
 }
 
 bool Item_func_json_array_intersect::fix_length_and_dec(THD *thd)
@@ -5969,8 +5947,11 @@ bool Item_func_json_array_intersect::fix_length_and_dec(THD *thd)
       goto end;
     }
   }
-  if (js1)
-    prepare_json_and_create_hash(&je2, js1);
+
+  if (js1 && prepare_json_and_create_hash(&je1, js1))
+  {
+    return TRUE;
+  }
 
 end:
   set_maybe_null();

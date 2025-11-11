@@ -821,7 +821,6 @@ static void trx_assign_rseg_low(trx_t *trx)
 	undo tablespaces that are scheduled for truncation. */
 	static Atomic_counter<unsigned>	rseg_slot;
 	unsigned slot = rseg_slot++ % TRX_SYS_N_RSEGS;
-	ut_d(if (trx_rseg_n_slots_debug) slot = 0);
 	ut_d(const auto start_scan_slot = slot);
 	ut_d(bool look_for_rollover = false);
 	trx_rseg_t*	rseg;
@@ -833,7 +832,6 @@ static void trx_assign_rseg_low(trx_t *trx)
 			rseg = &trx_sys.rseg_array[slot];
 			ut_ad(!look_for_rollover || start_scan_slot != slot);
 			ut_d(look_for_rollover = true);
-			ut_d(if (!trx_rseg_n_slots_debug))
 			slot = (slot + 1) % TRX_SYS_N_RSEGS;
 
 			if (!rseg->space) {
@@ -1268,9 +1266,7 @@ static void trx_flush_log_if_needed(lsn_t lsn, trx_t *trx)
   if (log_sys.get_flushed_lsn(std::memory_order_relaxed) >= lsn)
     return;
 
-  const bool flush=
-    (!my_disable_sync &&
-     (srv_flush_log_at_trx_commit & 1));
+  const bool flush= srv_flush_log_at_trx_commit & 1;
   if (!log_sys.is_mmap())
   {
     completion_callback cb;
@@ -1973,7 +1969,7 @@ trx_prepare(
 
 		We must not be holding any mutexes or latches here. */
 		if (auto f = srv_flush_log_at_trx_commit) {
-			log_write_up_to(lsn, (f & 1) && !my_disable_sync);
+			log_write_up_to(lsn, f & 1);
 		}
 
 		if (!UT_LIST_GET_LEN(trx->lock.trx_locks)

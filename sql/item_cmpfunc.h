@@ -266,6 +266,8 @@ public:
   bool fix_length_and_dec(THD *thd) override;
   void print(String *str, enum_query_type query_type) override;
   enum precedence precedence() const override { return CMP_PRECEDENCE; }
+  table_map not_null_tables() const override
+  { return is_top_level_item() ? not_null_tables_cache : 0; }
   bool count_sargable_conds(void *arg) override;
   SEL_TREE *get_mm_tree(RANGE_OPT_PARAM *param, Item **cond_ptr) override;
   SEL_ARG *get_mm_leaf(RANGE_OPT_PARAM *param, Field *field,

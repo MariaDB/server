@@ -1,0 +1,137 @@
+for master_1
+for child2
+child2_1
+child2_2
+child2_3
+for child3
+child3_1
+child3_2
+child3_3
+
+drop and create databases
+connection master_1;
+DROP DATABASE IF EXISTS auto_test_local;
+CREATE DATABASE auto_test_local;
+USE auto_test_local;
+connection child2_1;
+SET @old_log_output = @@global.log_output;
+SET GLOBAL log_output = 'TABLE,FILE';
+DROP DATABASE IF EXISTS auto_test_remote;
+CREATE DATABASE auto_test_remote;
+USE auto_test_remote;
+
+test select 1
+connection master_1;
+SELECT 1;
+1
+1
+connection child2_1;
+SELECT 1;
+1
+1
+
+create table and insert
+connection child2_1;
+CHILD2_1_DROP_TABLES
+CHILD2_1_DROP_TABLES6
+CHILD2_1_DROP_TABLES4
+CHILD2_1_DROP_TABLES3
+CHILD2_1_CREATE_TABLES
+CHILD2_1_CREATE_TABLES6
+CHILD2_1_CREATE_TABLES4
+CHILD2_1_CREATE_TABLES3
+TRUNCATE TABLE mysql.general_log;
+connection master_1;
+DROP TABLE IF EXISTS tbl_a;
+CREATE TABLE tbl_a (
+a INT DEFAULT 10,
+b CHAR(1) DEFAULT 'c',
+c DATETIME DEFAULT '1999-10-10 10:10:10',
+KEY idx0(a),
+KEY idx1(b)
+) MASTER_1_ENGINE MASTER_1_CHARSET MASTER_1_COMMENT_2_1
+Warnings:
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
+CREATE TABLE tbl_b (
+a INT DEFAULT 10,
+b CHAR(1) DEFAULT 'c',
+c DATETIME DEFAULT '1999-10-10 10:10:10'
+) MASTER_1_ENGINE MASTER_1_CHARSET MASTER_1_COMMENT5_2_1
+Warnings:
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
+CREATE TABLE tbl_c (
+a INT AUTO_INCREMENT,
+b CHAR(1) DEFAULT 'c',
+c DATETIME DEFAULT '1999-10-10 10:10:10',
+KEY idx0(a),
+KEY idx1(b),
+KEY idx2(c)
+) MASTER_1_ENGINE MASTER_1_CHARSET MASTER_1_COMMENT3_2_1
+Warnings:
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
+CREATE TABLE tbl_d (
+a INT DEFAULT 10,
+b CHAR(1) DEFAULT 'c',
+c DATETIME DEFAULT '1999-10-10 10:10:10'
+) MASTER_1_ENGINE MASTER_1_CHARSET MASTER_1_COMMENT2_2_1
+Warnings:
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
+insert into tbl_a values (1,'a','2000/01/01'),(2,'b','2000/01/02');
+insert into tbl_b values (1,'a','2000/01/01'),(2,'b','2000/01/02'),(3,'c','2000/01/03');
+insert into tbl_c values (1,'a','2000/01/01'),(2,'b','2000/01/02'),(3,'c','2000/01/03'),(4,'d','2000/01/04');
+insert into tbl_d values (1,'a','2000/01/01'),(2,'b','2000/01/02'),(3,'c','2000/01/03'),(4,'d','2000/01/04'),(5,'e','2000/01/05');
+
+select test
+connection child2_1;
+TRUNCATE TABLE mysql.general_log;
+connection master_1;
+SELECT a.a, c.b, c.c, d.a FROM tbl_a a left join tbl_b b on a.a = b.a left join tbl_c c on b.c = c.c right join tbl_d d on c.b = d.b ORDER BY d.a DESC;
+a	b	c	a
+NULL	NULL	NULL	5
+NULL	NULL	NULL	4
+NULL	NULL	NULL	3
+2	b	2000-01-02 00:00:00	2
+1	a	2000-01-01 00:00:00	1
+connection child2_1;
+SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %';
+argument
+select `a`,`b` from `auto_test_remote`.`ta_r_no_idx`
+select `b`,`c` from `auto_test_remote`.`ta_r_auto_inc` where `b` = 'a'
+select `a`,`c` from `auto_test_remote`.`ta_r_3`
+select `a` from `auto_test_remote`.`ta_r` where `a` = 1
+select `b`,`c` from `auto_test_remote`.`ta_r_auto_inc` where `b` = 'b'
+select `a`,`c` from `auto_test_remote`.`ta_r_3`
+select `a` from `auto_test_remote`.`ta_r` where `a` = 2
+select `b`,`c` from `auto_test_remote`.`ta_r_auto_inc` where `b` = 'c'
+select `a`,`c` from `auto_test_remote`.`ta_r_3`
+select `a` from `auto_test_remote`.`ta_r` where `a` = 3
+select `b`,`c` from `auto_test_remote`.`ta_r_auto_inc` where `b` = 'd'
+select `a`,`c` from `auto_test_remote`.`ta_r_3`
+select `b`,`c` from `auto_test_remote`.`ta_r_auto_inc` where `b` = 'e'
+SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %'
+SELECT a, b, date_format(c, '%Y-%m-%d %H:%i:%s') FROM ta_r ORDER BY a;
+a	b	date_format(c, '%Y-%m-%d %H:%i:%s')
+1	a	2000-01-01 00:00:00
+2	b	2000-01-02 00:00:00
+
+deinit
+connection master_1;
+DROP DATABASE IF EXISTS auto_test_local;
+connection child2_1;
+DROP DATABASE IF EXISTS auto_test_remote;
+SET GLOBAL log_output = @old_log_output;
+for master_1
+for child2
+child2_1
+child2_2
+child2_3
+for child3
+child3_1
+child3_2
+child3_3
+
+end of test

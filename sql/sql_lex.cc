@@ -2036,6 +2036,12 @@ int Lex_input_stream::lex_one_token(YYSTYPE *yylval, THD *thd)
   const uchar *const state_map= cs->state_map;
   const uchar *const ident_map= cs->ident_map;
 
+  if (thd->killed)
+  {
+    thd->send_kill_message();
+    return END_OF_INPUT;
+  }
+
   start_token();
   state= next_state;
   next_state= MY_LEX_OPERATOR_OR_IDENT;
@@ -3004,6 +3010,41 @@ void st_select_lex_node::init_query_common()
   uncacheable= 0;
 }
 
+
+/*
+  We need to remember this unit for cleanup after it is stranded during CTE
+  merge (see mysql_derived_merge).  Walk to the root unit of this query tree
+  (the root unit lifetime extends for the entire query) and insert myself
+  into the front of the stranded_clean_list:
+    before: root -> B -> A
+     after: root -> this -> B -> A
+  During cleanup, the stranded units are cleaned in FIFO order.
+ */
+void st_select_lex_unit::remember_my_cleanup()
+{
+  // Walk to the root unit (which lives until the end of the query) ...
+  st_select_lex_node *root= this;
+  while (root->master)
+    root= root->master;
+
+  // ... and add myself to the front of the stranded_clean_list.
+  st_select_lex_unit *unit= static_cast<st_select_lex_unit*>(root);
+  st_select_lex_unit *prior_head= unit->stranded_clean_list;
+  unit->stranded_clean_list= this;
+  stranded_clean_list= prior_head;
+}
+
+
+void st_select_lex_unit::cleanup_stranded_units()
+{
+  if (!stranded_clean_list)
+    return;
+
+  stranded_clean_list->cleanup();
+  stranded_clean_list= nullptr;
+}
+
+
 void st_select_lex_unit::init_query()
 {
   init_query_common();
@@ -3434,6 +3475,7 @@ void st_select_lex_unit::exclude_level()
   }
   // Mark it excluded
   prev= NULL;
+  remember_my_cleanup();
 }
 
 
@@ -5116,6 +5158,27 @@ bool st_select_lex::optimize_unflattened_subqueries(bool const_only)
       }
       if (empty_union_result)
         subquery_predicate->no_rows_in_result();
+
+      /*
+        If any one SELECT in the subquery has UNCACHEABLE_RAND, then all
+        SELECTs should be marked as uncacheable.
+      */
+      bool has_rand= false;
+      for (SELECT_LEX *sl= un->first_select(); sl && !has_rand;
+           sl= sl->next_select())
+        has_rand= (sl->uncacheable & UNCACHEABLE_RAND);
+      if (has_rand)
+      {
+        for (SELECT_LEX *sl= un->first_select(); sl; sl= sl->next_select())
+          sl->uncacheable |= UNCACHEABLE_UNITED;
+      }
+
+      /*
+        If any SELECT in the unit is marked as UNCACHEABLE_RAND, then the
+        unit itself should also be marked as UNCACHEABLE_RAND.
+      */
+      DBUG_ASSERT(has_rand ==
+                  static_cast<bool>(un->uncacheable & UNCACHEABLE_RAND));
 
       if (is_correlated_unit)
       {
@@ -11353,6 +11416,7 @@ SELECT_LEX_UNIT *LEX::parsed_select_expr_cont(SELECT_LEX_UNIT *unit,
   }
   last->link_neighbour(sel1);
   sel1->set_master_unit(unit);
+  unit->uncacheable|= sel1->uncacheable;
   sel1->set_linkage_and_distinct(unit_type, distinct);
   unit->pre_last_parse= last;
   return unit;
