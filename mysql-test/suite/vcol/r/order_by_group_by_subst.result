@@ -222,3 +222,19 @@ a	b
 5	4
 5	5
 drop table t1, t2;
+#
+# MDEV-37422: SIGSEGV failed in base_list_iterator::replace, Assertion `n < m_size'
+#   in Baounds_checked_array, ASAN use-after-poison in JOIN::rollup_make_fields
+#
+CREATE TABLE t1 (
+a INT,
+b INT,
+a1 INT GENERATED ALWAYS AS (a) VIRTUAL,
+INDEX (a1)
+) ENGINE=INNODB;
+SELECT * FROM t1 GROUP BY a WITH ROLLUP;
+a	b	a1
+drop table t1;
+#
+# End of 12.1 tests
+#
