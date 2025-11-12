@@ -157,3 +157,22 @@ CREATE TABLE t (a INT,a1 INT AS (a) VIRTUAL,INDEX (a1));
 SELECT a FROM t GROUP BY a HAVING a>2;
 SELECT a FROM t WHERE a=(SELECT a FROM t GROUP BY a HAVING a>2);
 drop table t;
+
+--echo #
+--echo # MDEV-37422: SIGSEGV failed in base_list_iterator::replace, Assertion `n < m_size'
+--echo #   in Baounds_checked_array, ASAN use-after-poison in JOIN::rollup_make_fields
+--echo #
+--source include/have_innodb.inc
+CREATE TABLE t1 (
+  a INT,
+  b INT,
+  a1 INT GENERATED ALWAYS AS (a) VIRTUAL,
+  INDEX (a1)
+) ENGINE=INNODB;
+
+SELECT * FROM t1 GROUP BY a WITH ROLLUP;
+drop table t1;
+
+--echo #
+--echo # End of 12.1 tests
+--echo #

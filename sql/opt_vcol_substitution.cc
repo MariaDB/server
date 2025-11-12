@@ -300,7 +300,11 @@ bool substitute_indexed_vcols_for_join(JOIN *join)
   ctx.subst_count= 0;
   if (join->order)
     subst_vcols_in_order(&ctx, join->order, join, false);
-  if (join->group_list)
+  /*
+    Do not do substitution for CUBE/ROLLUP as that breaks some of structures
+    for those optimizations.
+  */
+  if (join->group_list && join->select_lex->olap == UNSPECIFIED_OLAP_TYPE)
     subst_vcols_in_order(&ctx, join->group_list, join, true);
   if (ctx.subst_count)
   {
