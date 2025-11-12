@@ -1512,6 +1512,8 @@ static void unlink_block(SIMPLE_KEY_CACHE_CB *keycache, BLOCK_LINK *block)
 #endif
 }
 
+#undef DBUG_ASSERT
+#define DBUG_ASSERT(x) DBUG_ASSERT_NO_ASSUME(x)
 
 /*
   Register requests for a block.
@@ -1750,9 +1752,6 @@ static void unlink_hash(SIMPLE_KEY_CACHE_CB *keycache, HASH_LINK *hash_link)
   hash_link->next= keycache->free_hash_list;
   keycache->free_hash_list= hash_link;
 }
-
-#undef DBUG_ASSERT
-#define DBUG_ASSERT(x) DBUG_ASSERT_NO_ASSUME(x)
 
 /*
   Get the hash link for a page
