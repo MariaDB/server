@@ -779,6 +779,22 @@ id
 Warnings:
 Warning	4207	Index hints are ignored because they are incompatible with RETURNING clause
 drop table t2;
-#
 # End of 11.4 test
 #
+# MDEV-38068 Query doesn't delete all data it should after update to 11.8.4
+#
+create table t1 (id varchar(32), d1 char, key (id), key (d1)) engine=myisam;
+insert into t1 values ('1','A'), ('1','B'), ('1','C'), ('2','D'), ('2','E');
+select count(*) from t1;
+count(*)
+5
+need "range" below
+explain delete from t1 where id = '1';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	id	id	131	NULL	3	Using where
+delete from t1 where id = '1';
+select count(*) from t1;
+count(*)
+2
+drop table t1;
+# End of 11.8 test

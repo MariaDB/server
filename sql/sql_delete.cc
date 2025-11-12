@@ -312,6 +312,7 @@ template <bool replace>
 int TABLE::delete_row(bool treat_versioned)
 {
   int err= 0;
+  bool remembered_pos= false;
   uchar *del_buf= record[replace ? 1 : 0];
   bool delete_row= !treat_versioned
                    || in_use->lex->vers_conditions.delete_history
@@ -319,11 +320,12 @@ int TABLE::delete_row(bool treat_versioned)
                    || !vers_end_field()->is_max(
                            vers_end_field()->ptr_in_record(del_buf));
 
-  if ((err= file->extra(HA_EXTRA_REMEMBER_POS)))
-    return err;
-
   if (!delete_row)
   {
+    if ((err= file->extra(HA_EXTRA_REMEMBER_POS)))
+      return err;
+    remembered_pos= true;
+
     if (replace)
     {
       store_record(this, record[2]);
@@ -370,7 +372,8 @@ int TABLE::delete_row(bool treat_versioned)
   if (delete_row)
     err= file->ha_delete_row(del_buf);
 
-  (void) file->extra(HA_EXTRA_RESTORE_POS);
+  if (remembered_pos)
+    (void) file->extra(HA_EXTRA_RESTORE_POS);
 
   return err;
 }
