@@ -1,0 +1,22 @@
+connection node_2;
+connection node_1;
+connection node_2;
+SET GLOBAL server_audit_logging=ON;
+connection node_1;
+CREATE TABLE t1(a INT);
+INSERT INTO t1 VALUES (1);
+connection node_2;
+# Now checking the audit log
+TIME,HOSTNAME,root,localhost,ID,ID,QUERY,test,'SET GLOBAL server_audit_logging=ON',0
+TIME,HOSTNAME,<wsrep_applier>,,ID,ID,CREATE,test,t1,
+TIME,HOSTNAME,<wsrep_applier>,,ID,ID,WRITE,test,t1,
+TIME,HOSTNAME,root,localhost,ID,ID,READ,test,t1,
+TIME,HOSTNAME,root,localhost,ID,ID,READ,mysql,table_stats,
+TIME,HOSTNAME,root,localhost,ID,ID,READ,mysql,column_stats,
+TIME,HOSTNAME,root,localhost,ID,ID,READ,mysql,index_stats,
+TIME,HOSTNAME,root,localhost,ID,ID,QUERY,test,'SELECT COUNT(*) = 1 FROM test.t1',0
+TIME,HOSTNAME,root,localhost,ID,ID,QUERY,test,'SELECT @@datadir',0
+# resetting the test state
+SET GLOBAL server_audit_logging=DEFAULT;
+connection node_1;
+DROP TABLE t1;
