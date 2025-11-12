@@ -4693,30 +4693,6 @@ done:
   return err;
 }
 
-dberr_t recv_recovery_read_checkpoint()
-{
-  ut_ad(srv_operation <= SRV_OPERATION_EXPORT_RESTORED ||
-        srv_operation == SRV_OPERATION_RESTORE ||
-        srv_operation == SRV_OPERATION_RESTORE_EXPORT);
-  ut_ad(!recv_sys.recovery_on);
-  ut_d(mysql_mutex_lock(&buf_pool.mutex));
-  ut_ad(UT_LIST_GET_LEN(buf_pool.LRU) == 0);
-  ut_ad(UT_LIST_GET_LEN(buf_pool.unzip_LRU) == 0);
-  ut_d(mysql_mutex_unlock(&buf_pool.mutex));
-
-  if (srv_force_recovery >= SRV_FORCE_NO_LOG_REDO)
-  {
-    sql_print_information("InnoDB: innodb_force_recovery=6"
-                          " skips redo log apply");
-    return DB_SUCCESS;
-  }
-
-  log_sys.latch.wr_lock(SRW_LOCK_CALL);
-  dberr_t err= recv_sys.find_checkpoint();
-  log_sys.latch.wr_unlock();
-  return err;
-}
-
 inline void log_t::set_recovered() noexcept
 {
   ut_ad(get_flushed_lsn() == get_lsn());

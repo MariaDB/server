@@ -1458,9 +1458,21 @@ dberr_t srv_start(bool create_new_db)
 		}
 		recv_sys.debug_free();
 	} else {
-		err = recv_recovery_read_checkpoint();
-		if (err != DB_SUCCESS) {
-			return srv_init_abort(err);
+		ut_ad(srv_operation <= SRV_OPERATION_EXPORT_RESTORED
+		      || srv_operation == SRV_OPERATION_RESTORE
+		      || srv_operation == SRV_OPERATION_RESTORE_EXPORT);
+		ut_ad(!recv_sys.recovery_on);
+
+		if (srv_force_recovery >= SRV_FORCE_NO_LOG_REDO) {
+			sql_print_information("InnoDB: innodb_force_recovery=6"
+					      " skips redo log apply");
+		} else {
+			log_sys.latch.wr_lock(SRW_LOCK_CALL);
+			err = recv_sys.find_checkpoint();
+			log_sys.latch.wr_unlock();
+			if (err != DB_SUCCESS) {
+				return srv_init_abort(err);
+			}
 		}
 	}
 

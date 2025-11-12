@@ -44,11 +44,6 @@ ATTRIBUTE_COLD MY_ATTRIBUTE((nonnull, warn_unused_result))
 @return whether the page was recovered correctly */
 bool recv_recover_page(fil_space_t* space, buf_page_t* bpage);
 
-/** Read the latest checkpoint information from log file
-and store it in log_sys.next_checkpoint and recv_sys.file_checkpoint
-@return error code or DB_SUCCESS */
-dberr_t recv_recovery_read_checkpoint();
-
 /** Start recovering from a redo log checkpoint.
 of first system tablespace page
 @return error code or DB_SUCCESS */
