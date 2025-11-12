@@ -1072,7 +1072,19 @@ static void backup_file_op_fail(uint32_t space_id, int type,
 				filename_to_spacename(name, len).c_str());
 		msg("DDL tracking : delete %" PRIu32 " \"%.*s\"",
 			space_id, int(len), name);
-                error= "delete";
+		if (fail && !opt_no_lock &&
+		    check_if_fts_table(
+		      filename_to_spacename(name, len).c_str())) {
+			/* Ignore the FTS internal table because InnoDB does
+			drop intermediate table and their associative FTS
+			internal table as a part of inplace rollback operation.
+			backup_set_alter_copy_lock() downgrades the
+			MDL_BACKUP_DDL before inplace phase of alter.
+			This leads to the FTS internal table being
+			dropped in the late phase of backup. */
+			fail = false;
+		}
+		error= "delete";
 		break;
 	default:
 		ut_ad(0);
