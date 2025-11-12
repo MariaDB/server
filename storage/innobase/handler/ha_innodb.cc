@@ -19430,6 +19430,16 @@ static MYSQL_SYSVAR_BOOL(data_file_write_through, fil_system.write_through,
   "Whether each write to data files writes through",
   nullptr, innodb_data_file_write_through_update, FALSE);
 
+static MYSQL_SYSVAR_UINT64_T(log_recovery_start, recv_sys.recovery_start,
+  PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
+  "checkpoint LSN to start recovery from (0=automatic)",
+  nullptr, nullptr, 0, 0, std::numeric_limits<ulonglong>::max(), 0);
+
+static MYSQL_SYSVAR_UINT64_T(log_recovery_target, recv_sys.rpo,
+  PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
+  "recovery point objective (end LSN; 0=unlimited)",
+  nullptr, nullptr, 0, 0, std::numeric_limits<ulonglong>::max(), 0);
+
 static MYSQL_SYSVAR_ULONGLONG(log_file_size, srv_log_file_size,
   PLUGIN_VAR_RQCMDARG,
   "Redo log size in bytes.",
@@ -19864,6 +19874,8 @@ static struct st_mysql_sys_var* innobase_system_variables[]= {
   MYSQL_SYSVAR(log_file_write_through),
   MYSQL_SYSVAR(data_file_buffering),
   MYSQL_SYSVAR(data_file_write_through),
+  MYSQL_SYSVAR(log_recovery_start),
+  MYSQL_SYSVAR(log_recovery_target),
   MYSQL_SYSVAR(log_file_size),
   MYSQL_SYSVAR(log_write_ahead_size),
   MYSQL_SYSVAR(log_spin_wait_delay),

@@ -1,6 +1,27 @@
 --- innodb-wl5522.result
 +++ innodb-wl5522,strict_crc32.result~
-@@ -131,8 +131,7 @@
+@@ -1,9 +1,6 @@
+ call mtr.add_suppression("InnoDB: Unable to import tablespace .* because it already exists.  Please DISCARD the tablespace before IMPORT\\.");
+ call mtr.add_suppression("Index for table 't2' is corrupt; try to repair it");
+ call mtr.add_suppression("InnoDB: Cannot save statistics for table `test`\\.`t1` because the \\.ibd file is missing");
+-call mtr.add_suppression("InnoDB: cannot fulfill innodb_log_recovery_target=123456<");
+-call mtr.add_suppression("InnoDB: Plugin initialization aborted");
+-call mtr.add_suppression("Plugin 'InnoDB' registration as a STORAGE ENGINE failed\\.");
+ FLUSH TABLES;
+ CREATE TABLE t1
+ (a INT AUTO_INCREMENT PRIMARY KEY,
+@@ -37,10 +34,6 @@
+ t1.ibd
+ t2.frm
+ t2.ibd
+-# restart: --innodb-log-recovery-target=123456
+-FOUND 1 /InnoDB: cannot fulfill innodb_log_recovery_target=123456</ in mysqld.1.err
+-FLUSH TABLE t1, t2 FOR EXPORT;
+-ERROR 42000: Unknown storage engine 'InnoDB'
+ # restart
+ FLUSH TABLE t1, t2 FOR EXPORT;
+ # List before copying files
+@@ -138,8 +131,7 @@
  ALTER TABLE t2 IMPORT TABLESPACE;
  ERROR HY000: Schema mismatch (Table flags don't match, server table has 0x21 and the meta-data file has 0x1; .cfg file uses ROW_FORMAT=COMPACT)
  ALTER TABLE t2 IMPORT TABLESPACE;
@@ -8,5 +29,5 @@
 -Warning	1810	IO Read error: (2, No such file or directory) Error opening './test/t2.cfg', will attempt to import without schema verification
 +ERROR HY000: Schema mismatch (Expected FSP_SPACE_FLAGS=0x*, .ibd file contains 0x*.)
  DROP TABLE t2;
- SET GLOBAL innodb_file_per_table = 1;
  SELECT @@innodb_file_per_table;
+ @@innodb_file_per_table
