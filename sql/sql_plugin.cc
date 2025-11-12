@@ -4543,6 +4543,8 @@ my_bool post_init_callback(THD *thd, void *)
     set_current_thd(thd);
     plugin_thdvar_init(thd);
 
+    // Restore proper transaction read-only context
+    thd->variables.tx_read_only= false;
     // Restore option_bits
     thd->variables.option_bits= option_bits_saved;
   }
