@@ -719,6 +719,9 @@ static void wsrep_init_thd_variables(THD *thd)
 {
   /* No Galera replication */
   thd->variables.wsrep_on= 0;
+  /* Allow modifications in a transaction read-only context */
+  thd->tx_read_only= false;
+  thd->variables.tx_read_only= false;
   /* No binlogging */
   thd->variables.sql_log_bin= 0;
   thd->variables.option_bits&= ~OPTION_BIN_LOG;
