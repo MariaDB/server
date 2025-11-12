@@ -950,6 +950,7 @@ static SHOW_VAR innodb_status_variables[]= {
   {"lsn_flushed", &export_vars.innodb_lsn_flushed, SHOW_ULONGLONG},
   {"lsn_last_checkpoint", &export_vars.innodb_lsn_last_checkpoint,
    SHOW_ULONGLONG},
+  {"lsn_archived", &log_sys.archived_lsn, SHOW_ULONGLONG},
   {"master_thread_active_loops", &srv_main_active_loops, SHOW_SIZE_T},
   {"master_thread_idle_loops", &srv_main_idle_loops, SHOW_SIZE_T},
   {"max_trx_id", &export_vars.innodb_max_trx_id, SHOW_ULONGLONG},
@@ -19430,6 +19431,34 @@ static MYSQL_SYSVAR_BOOL(data_file_write_through, fil_system.write_through,
   "Whether each write to data files writes through",
   nullptr, innodb_data_file_write_through_update, FALSE);
 
+static void innodb_log_archive_update(THD *, st_mysql_sys_var*,
+                                      void *, const void *save) noexcept
+{
+  const my_bool archive= *static_cast<const my_bool*>(save);
+  log_sys.latch.wr_lock(SRW_LOCK_CALL);
+  const lsn_t resizing{log_sys.resize_in_progress()};
+  if (archive && UNIV_UNLIKELY(resizing != 0))
+    my_printf_error(ER_WRONG_USAGE,
+                    "SET GLOBAL innodb_log_file_size is in progress", MYF(0));
+  else
+  {
+    log_sys.archive= archive;
+    if (!resizing)
+    {
+      if (archive)
+        log_sys.archive_set_size();
+      mtr_t::finisher_update();
+    }
+  }
+  log_sys.archived_lsn= 0; // FIXME: move this to log_t::write_checkpoint()
+  log_sys.latch.wr_unlock();
+}
+
+static MYSQL_SYSVAR_BOOL(log_archive, log_sys.archive,
+  PLUGIN_VAR_OPCMDARG,
+  "Whether log archiving is desired (innodb_lsn_archived>0 if enabled)",
+  nullptr, innodb_log_archive_update, FALSE);
+
 static MYSQL_SYSVAR_UINT64_T(log_recovery_start, recv_sys.recovery_start,
   PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
   "checkpoint LSN to start recovery from (0=automatic)",
@@ -19442,7 +19471,7 @@ static MYSQL_SYSVAR_UINT64_T(log_recovery_target, recv_sys.rpo,
 
 static MYSQL_SYSVAR_ULONGLONG(log_file_size, srv_log_file_size,
   PLUGIN_VAR_RQCMDARG,
-  "Redo log size in bytes.",
+  "Desired size of ib_logfile0 in bytes",
   nullptr, innodb_log_file_size_update,
   96 << 20, 4 << 20, std::numeric_limits<ulonglong>::max(), 4096);
 
@@ -19874,6 +19903,7 @@ static struct st_mysql_sys_var* innobase_system_variables[]= {
   MYSQL_SYSVAR(log_file_write_through),
   MYSQL_SYSVAR(data_file_buffering),
   MYSQL_SYSVAR(data_file_write_through),
+  MYSQL_SYSVAR(log_archive),
   MYSQL_SYSVAR(log_recovery_start),
   MYSQL_SYSVAR(log_recovery_target),
   MYSQL_SYSVAR(log_file_size),

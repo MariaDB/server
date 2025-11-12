@@ -617,6 +617,14 @@ log_t::resize_start_status log_t::resize_start(os_offset_t size, void *thd)
     status= RESIZE_NO_CHANGE;
   else if (resize_in_progress())
     status= RESIZE_IN_PROGRESS;
+  else if (archive)
+  {
+    status= RESIZE_NO_CHANGE;
+    /* When the current log becomes full and a new archivable log file
+    is being created, it will be of this size. At that point we will assign
+    file_size= resize_target, resize_target= 0; */
+    resize_target= size;
+  }
   else
   {
     lsn_t start_lsn;
@@ -758,10 +766,13 @@ void log_t::resize_abort(void *thd) noexcept
 }
 
 /** Write an aligned buffer to ib_logfile0.
-@param buf    buffer to be written
-@param length length of data to be written
-@param offset log file offset */
-static void log_write_buf(const byte *buf, size_t length, lsn_t offset)
+@param max_length the maximum length that can be written to the file
+@param buf        buffer to be written
+@param length     length of data to be written
+@param offset     log file offset */
+static void log_write_buf(lsn_t max_length,
+                          const byte *buf, size_t length, lsn_t offset)
+  noexcept
 {
   ut_ad(write_lock.is_owner());
   ut_ad(!recv_no_log_write);
@@ -770,19 +781,63 @@ static void log_write_buf(const byte *buf, size_t length, lsn_t offset)
   ut_ad(!(length & block_size_1));
   ut_ad(!(size_t(buf) & block_size_1));
   ut_ad(length);
+  ut_ad(max_length == log_sys.file_size - offset);
 
-  const lsn_t maximum_write_length{log_sys.file_size - offset};
-  ut_ad(maximum_write_length <= log_sys.file_size - log_sys.START_OFFSET);
-
-  if (UNIV_UNLIKELY(length > maximum_write_length))
+  if (UNIV_UNLIKELY(length > max_length))
   {
-    log_sys.log.write(offset, {buf, size_t(maximum_write_length)});
-    length-= size_t(maximum_write_length);
-    buf+= size_t(maximum_write_length);
+    ut_ad(!log_sys.archive);
+    ut_ad(!log_sys.archived_lsn);
+    log_sys.log.write(offset, {buf, size_t(max_length)});
+    length-= size_t(max_length);
+    buf+= size_t(max_length);
     ut_ad(log_sys.START_OFFSET + length < offset);
     offset= log_sys.START_OFFSET;
   }
   log_sys.log.write(offset, {buf, length});
+}
+
+static const char *const logfile_new= "ib_logfile_new";
+
+ATTRIBUTE_COLD void log_t::archive_new_write(const byte *buf, size_t length,
+                                             lsn_t offset) noexcept
+{
+  ut_ad(latch_have_wr());
+  ut_ad(write_lock.is_owner());
+  ut_ad(archive);
+  ut_ad(length >= file_size - offset);
+  ut_ad(!resize_log.is_opened());
+  ut_ad(!resize_buf);
+  ut_ad(!resize_in_progress());
+  ut_ad(resize_target >= 4U << 20);
+  ut_ad(is_latest());
+
+  const size_t first{size_t(file_size - offset)};
+  log.write(offset, {buf, first});
+  length-= first;
+  buf+= first;
+
+  std::string path{get_log_file_path(logfile_new)};
+  bool success;
+  pfs_os_file_t file=
+    os_file_create_func(path.c_str(), OS_FILE_CREATE, OS_LOG_FILE,
+                        false, &success);
+  ut_ad(success == (file != OS_FILE_CLOSED));
+  if (file != OS_FILE_CLOSED)
+  {
+    if (os_file_set_size(path.c_str(), file, resize_target))
+    {
+      log_sys.log.close();
+      log_sys.log.m_file= file;
+      if (length)
+        log_sys.log.write(START_OFFSET, {buf, length});
+      return;
+    }
+    os_file_close(file);
+    IF_WIN(DeleteFile(path.c_str()), unlink(path.c_str()));
+  }
+  sql_print_error("[FATAL] InnoDB: Failed to create %s of %" PRIu64
+                  " bytes", path.c_str(), resize_target);
+  abort();
 }
 
 /** Invoke commit_checkpoint_notify_ha() to notify that outstanding
@@ -911,6 +966,44 @@ static size_t log_pad(lsn_t lsn, size_t pad, byte *begin, byte *extra)
 #endif
 
 #ifdef HAVE_PMEM
+ATTRIBUTE_COLD void log_t::archive_new_mmap() noexcept
+{
+  ut_ad(latch_have_any());
+  ut_ad(!resize_log.is_opened());
+  ut_ad(!resize_buf);
+  ut_ad(!resize_in_progress());
+  ut_ad(resize_target >= 4U << 20);
+  ut_ad(is_latest());
+  std::string path{get_log_file_path(logfile_new)};
+  bool success;
+  pfs_os_file_t file=
+    os_file_create_func(path.c_str(), OS_FILE_CREATE, OS_LOG_FILE,
+                        false, &success);
+  ut_ad(success == (file != OS_FILE_CLOSED));
+  if (file != OS_FILE_CLOSED)
+  {
+    if (os_file_set_size(path.c_str(), file, resize_target))
+    {
+      bool is_pmem{false};
+      void *ptr= ::log_mmap(file, is_pmem, resize_target);
+      os_file_close(file);
+      if (ptr != MAP_FAILED)
+      {
+        buf= static_cast<byte*>(ptr);
+        file_size= resize_target;
+        return;
+      }
+    }
+    else
+      os_file_close(file);
+
+    IF_WIN(DeleteFile(path.c_str()), unlink(path.c_str()));
+  }
+  sql_print_error("[FATAL] InnoDB: Failed to create and map %s of %" PRIu64
+                  " bytes", path.c_str(), resize_target);
+  abort();
+}
+
 void log_t::persist(lsn_t lsn) noexcept
 {
   ut_ad(!is_opened());
@@ -1092,18 +1185,32 @@ lsn_t log_t::write_buf() noexcept
 
     ut_ad(base + (write_lsn_offset & (WRITE_TO_BUF - 1)) == lsn);
     write_to_log++;
+    DBUG_PRINT("ib_log", ("write " LSN_PF " to " LSN_PF " at " LSN_PF,
+                          write_lsn, lsn, offset));
+
+    const lsn_t max_length{file_size - offset};
+    ut_ad(max_length <= capacity());
+    if (UNIV_UNLIKELY(length >= max_length))
+    {
+      if (resizing != RESIZING && archive)
+      {
+        archive_new_write(write_buf, length, offset);
+        if (resizing != RETAIN_LATCH)
+          latch.wr_unlock();
+        goto written;
+      }
+      archived_lsn= 0;
+    }
 
     if (resizing != RETAIN_LATCH)
       latch.wr_unlock();
 
-    DBUG_PRINT("ib_log", ("write " LSN_PF " to " LSN_PF " at " LSN_PF,
-                          write_lsn, lsn, offset));
-
     /* Do the write to the log file */
-    log_write_buf(write_buf, length, offset);
+    log_write_buf(max_length, write_buf, length, offset);
 
     if (UNIV_LIKELY_NULL(re_write_buf))
       resize_write_buf(re_write_buf, length);
+  written:
     write_lsn= lsn;
 
     if (UNIV_UNLIKELY(srv_shutdown_state > SRV_SHUTDOWN_INITIATED))

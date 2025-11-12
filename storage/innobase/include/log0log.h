@@ -247,13 +247,16 @@ public:
   lsn_t (*writer)() noexcept;
   /** next checkpoint LSN (protected by latch.wr_lock()) */
   lsn_t next_checkpoint_lsn;
+  /** start of archived log, or 0 (proteted by latch.wr_lock()) */
+  lsn_t archived_lsn;
 
   /** Log file */
   log_file_t log;
 private:
   /** Log file being constructed during resizing; protected by latch */
   log_file_t resize_log;
-  /** size of resize_log; protected by latch */
+  /** size of resize_log, or the requested innodb_log_file_size
+  of the next file created if archive==TRUE; protected by latch */
   lsn_t resize_target;
   /** Buffer for writing to resize_log; @see buf */
   byte *resize_buf;
@@ -270,6 +273,8 @@ public:
   uint write_size;
   /** format of the redo log: e.g., FORMAT_10_8 */
   uint32_t format;
+  /** the current value of innodb_log_archive; protected by latch.wr_lock() */
+  my_bool archive;
   /** whether the memory-mapped interface is enabled for the log */
   my_bool log_mmap;
   /** the default value of log_mmap */
@@ -455,7 +460,24 @@ public:
   /** Persist the log.
   @param lsn            desired new value of flushed_to_disk_lsn */
   void persist(lsn_t lsn) noexcept;
+  /** Create, allocate and map a new log file. */
+  ATTRIBUTE_COLD void archive_new_mmap() noexcept;
 #endif
+  /** Create a new log file when the current one will fill up.
+  @param buf     log records to append
+  @param length  size of the log records, in bytes
+  @param offset  log file offset */
+  ATTRIBUTE_COLD void archive_new_write(const byte *buf, size_t length,
+                                        lsn_t offset) noexcept;
+
+  /** Ensure that innodb_log_archive=ON will default to the current
+  innodb_log_file_size if no size has been specified. */
+  void archive_set_size() noexcept
+  {
+    ut_ad(!resize_in_progress());
+    if (!resize_target)
+      resize_target= file_size;
+  }
 
   bool check_for_checkpoint() const
   {

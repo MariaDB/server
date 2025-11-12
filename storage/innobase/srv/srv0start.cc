@@ -1611,6 +1611,8 @@ dberr_t srv_start(bool create_new_db)
 		if (log_sys.resize_rename()) {
 			return(srv_init_abort(DB_ERROR));
 		}
+
+		if (log_sys.archive) log_sys.archive_set_size();
 	} else {
 		/* Suppress warnings in fil_space_t::create() for files
 		that are being read before dict_boot() has recovered
@@ -1731,6 +1733,8 @@ dberr_t srv_start(bool create_new_db)
 		}
 
 		recv_sys.debug_free();
+
+		if (log_sys.archive) log_sys.archive_set_size();
 
 		if (!srv_read_only_mode) {
 			const uint32_t flags = FSP_FLAGS_PAGE_SSIZE();
