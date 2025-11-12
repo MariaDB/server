@@ -884,8 +884,6 @@ static inline void dec_counter_for_resize_op(SIMPLE_KEY_CACHE_CB *keycache)
 }
 
 
-#undef DBUG_ASSERT
-#define DBUG_ASSERT(x) DBUG_ASSERT_NO_ASSUME(x)
 /*
   Change key cache parameters of a simple key cache
 
@@ -1315,6 +1313,10 @@ static void link_to_changed_list(SIMPLE_KEY_CACHE_CB *keycache,
   keycache->blocks_changed++;
   keycache->global_blocks_changed++;
 }
+
+
+#undef DBUG_ASSERT
+#define DBUG_ASSERT(x) DBUG_ASSERT_NO_ASSUME(x)
 
 
 /*
