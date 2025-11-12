@@ -9361,12 +9361,12 @@ int TABLE::update_virtual_fields(handler *h, enum_vcol_update_mode update_mode)
     if (update)
     {
       /* Compute the actual value of the virtual fields */
-      DBUG_FIX_WRITE_SET(vf);
+      DBUG_FIX_WRITE_SET(vf, write_set);
 # ifdef DBUG_TRACE
       int field_error=
 # endif
       vcol_info->expr->save_in_field(vf, 0);
-      DBUG_RESTORE_WRITE_SET(vf);
+      DBUG_RESTORE_WRITE_SET(vf, write_set);
       DBUG_PRINT("info", ("field '%s' - updated  error: %d",
                           vf->field_name.str, field_error));
       if (swap_values && (vf->flags & BLOB_FLAG))
@@ -9423,9 +9423,9 @@ int TABLE::update_virtual_field(Field *vf, bool ignore_warnings)
   in_use->set_n_backup_active_arena(expr_arena, &backup_arena);
   bitmap_clear_all(&tmp_set);
   vf->vcol_info->expr->walk(&Item::update_vcol_processor, &tmp_set, 0);
-  DBUG_FIX_WRITE_SET(vf);
+  DBUG_FIX_WRITE_SET(vf, write_set);
   vf->vcol_info->expr->save_in_field(vf, 0);
-  DBUG_RESTORE_WRITE_SET(vf);
+  DBUG_RESTORE_WRITE_SET(vf, write_set);
   in_use->restore_active_arena(expr_arena, &backup_arena);
   in_use->pop_internal_handler();
   if (ignore_warnings)

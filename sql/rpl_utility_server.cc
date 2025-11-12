@@ -1379,7 +1379,7 @@ default_column_mapping:
       */
       m_tabledef.master_to_slave_map[col]= UINT_MAX32;
       m_tabledef.master_to_slave_error[col]= SLAVE_FIELD_NAME_MISSING;
-      continue;                               // ok that field did not exists
+      continue;                               // ok that field did not exist
     }
     m_tabledef.master_to_slave_map[col]= field->field_index;
     DBUG_PRINT("info", ("Found mapping for %s", field_name->str));

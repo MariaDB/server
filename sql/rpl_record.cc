@@ -191,13 +191,12 @@ struct Unpack_record_state
     */
     DBUG_ASSERT(this->null_pos);
     DBUG_ASSERT(rpl_bitmap_is_set(this->null_ptr, this->null_pos - 1));
-    MY_BITMAP *write_set= f->table->write_set;
 
     if (f->maybe_null())
     {
-      DBUG_FIX_WRITE_SET(f);
+      DBUG_FIX_WRITE_SET(f, f->table->write_set);
       f->reset();
-      DBUG_RESTORE_WRITE_SET(f);
+      DBUG_RESTORE_WRITE_SET(f, f->table->write_set);
       f->set_null();
     }
     else
@@ -529,7 +528,7 @@ int unpack_row(const rpl_group_info *rgi, TABLE *table, uint const master_cols,
   DBUG_ASSERT(!table->default_field || table->default_field[0]);
   DBUG_ASSERT(!table->vfield || table->vfield[0]);
 
-  if (table->default_field && *(table->default_field) &&
+  if (table->default_field &&
       (rpl_data.is_online_alter() ||
        LOG_EVENT_IS_WRITE_ROW(rgi->current_event->get_type_code())))
   {
@@ -537,7 +536,7 @@ int unpack_row(const rpl_group_info *rgi, TABLE *table, uint const master_cols,
     if (unlikely(error))
       DBUG_RETURN(error);
   }
-  if (table->vfield && *(table->vfield))
+  if (table->vfield)
   {
     /*
       TODO MDEV-36892: Data Loss Replicating Persistent Fields if Slave Has

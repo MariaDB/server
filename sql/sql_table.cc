@@ -12720,7 +12720,7 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
     if (dfield_ptr == to->default_field)
       to->default_field= 0; // No default fields left
     else
-      *dfield_ptr= NULL;
+      *dfield_ptr= NULL; // Mark end of default field pointers
   }
 
   if (order)
