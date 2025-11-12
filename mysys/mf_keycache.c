@@ -1455,6 +1455,8 @@ static void link_block(SIMPLE_KEY_CACHE_CB *keycache, BLOCK_LINK *block,
 #endif
 }
 
+#undef DBUG_ASSERT
+#define DBUG_ASSERT(x) DBUG_ASSERT_NO_ASSUME(x)
 
 /*
   Unlink a block from the LRU chain
@@ -1512,8 +1514,6 @@ static void unlink_block(SIMPLE_KEY_CACHE_CB *keycache, BLOCK_LINK *block)
 #endif
 }
 
-#undef DBUG_ASSERT
-#define DBUG_ASSERT(x) DBUG_ASSERT_NO_ASSUME(x)
 
 /*
   Register requests for a block.
