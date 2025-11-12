@@ -5373,9 +5373,10 @@ SET CHARACTER SET default;
 SELECT json_array_intersect(@a,@b);
 json_array_intersect(@a,@b)
 NULL
+#
 # MDEV-36809: json_array_intersect crashs when unused table ref provided
 #
-select json_array_intersect('[["1", "7"], ["2", "6"], ["4", "5"], ["3", "8"]]', '[["2","6"],["3","8"],["4","5"],["1","7"]]') as result from mysql.user;
+select json_array_intersect('[["1", "7"], ["2", "6"], ["4", "5"], ["3", "8"]]', '[["2","6"],["3","8"],["4","5"],["1","7"]]') as result from (values (1),(2),(3),(4),(5)) x;
 result
 [["2", "6"], ["3", "8"], ["4", "5"], ["1", "7"]]
 [["2", "6"], ["3", "8"], ["4", "5"], ["1", "7"]]
@@ -5388,7 +5389,7 @@ result
 #
 # MDEV-37864: mysql-test/mtr --cursor main.func_json fails
 #
-select json_array_intersect('[["1", "7"], ["2", "6"], ["4", "5"], ["3", "8"]]', '[["2","6"],["3","8"],["4","5"],["1","7"]]') as result from mysql.user;
+select json_array_intersect('[["1", "7"], ["2", "6"], ["4", "5"], ["3", "8"]]', '[["2","6"],["3","8"],["4","5"],["1","7"]]') as result from (values (1),(2),(3),(4),(5)) x;
 result
 [["2", "6"], ["3", "8"], ["4", "5"], ["1", "7"]]
 [["2", "6"], ["3", "8"], ["4", "5"], ["1", "7"]]

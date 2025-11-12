@@ -28,6 +28,7 @@
 #include "wsrep_trans_observer.h"
 #include "wsrep_server_state.h"
 #include "wsrep_plugin.h" /* wsrep_provider_plugin_enabled() */
+#include "wsrep_schema.h"
 
 ulong   wsrep_reject_queries;
 
@@ -876,29 +877,47 @@ bool wsrep_trx_fragment_size_check (sys_var *self, THD* thd, set_var* var)
 
   const ulong new_trx_fragment_size= var->value->val_uint();
 
-  if (!WSREP(thd) && new_trx_fragment_size > 0) {
-    push_warning (thd, Sql_condition::WARN_LEVEL_WARN,
-                  ER_WRONG_VALUE_FOR_VAR,
-                  "Cannot set 'wsrep_trx_fragment_size' to a value other than "
-                  "0 because wsrep is switched off.");
-    return true;
-  }
+  if (new_trx_fragment_size)
+  {
+    // Give error if wsrep_trx_fragment_size is set and wsrep is disabled or
+    // provider is not loaded
+    if (!WSREP(thd) || !Wsrep_server_state::instance().is_provider_loaded())
+    {
+      push_warning (thd, Sql_condition::WARN_LEVEL_WARN,
+                    ER_WRONG_VALUE_FOR_VAR,
+                    "Cannot set 'wsrep_trx_fragment_size' to a value other than "
+                    "0 because wsrep is switched off.");
+      return true;
+    }
 
-  if (new_trx_fragment_size > 0 && !wsrep_provider_is_SR_capable()) {
-    push_warning (thd, Sql_condition::WARN_LEVEL_WARN,
-                  ER_WRONG_VALUE_FOR_VAR,
-                  "Cannot set 'wsrep_trx_fragment_size' to a value other than "
-                  "0 because the wsrep_provider does not support streaming "
-                  "replication.");
-    return true;
-  }
+    if (!wsrep_provider_is_SR_capable())
+    {
+      push_warning (thd, Sql_condition::WARN_LEVEL_WARN,
+                    ER_WRONG_VALUE_FOR_VAR,
+                    "Cannot set 'wsrep_trx_fragment_size' to a value other than "
+                    "0 because the wsrep_provider does not support streaming "
+                    "replication.");
+      return true;
+    }
 
-  if (wsrep_protocol_version < 4  && new_trx_fragment_size > 0) {
-    push_warning (thd, Sql_condition::WARN_LEVEL_WARN,
-                  ER_WRONG_VALUE_FOR_VAR,
-                  "Cannot set 'wsrep_trx_fragment_size' to a value other than "
-                  "0 because cluster is not yet operating in Galera 4 mode.");
-    return true;
+    if (wsrep_protocol_version < 4)
+    {
+      push_warning (thd, Sql_condition::WARN_LEVEL_WARN,
+                    ER_WRONG_VALUE_FOR_VAR,
+                    "Cannot set 'wsrep_trx_fragment_size' to a value other than "
+                    "0 because cluster is not yet operating in Galera 4 mode.");
+      return true;
+    }
+
+    if (!ha_table_exists(thd, &WSREP_LEX_SCHEMA, &WSREP_LEX_STREAMING))
+    {
+      push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+                          ER_WRONG_VALUE_FOR_VAR,
+                          "Cannot set 'wsrep_trx_fragment_size' to a value other than "
+                          "0 because streaming table %s.%s does not exists.",
+		          WSREP_LEX_SCHEMA.str, WSREP_LEX_STREAMING.str);
+      return true;
+    }
   }
 
   return false;
@@ -909,45 +928,56 @@ bool wsrep_trx_fragment_size_update(sys_var* self, THD *thd, enum_var_type)
   WSREP_DEBUG("wsrep_trx_fragment_size_update: %llu",
               thd->variables.wsrep_trx_fragment_size);
 
-  // Give error if wsrep_trx_fragment_size is set and wsrep is disabled or
-  // provider is not loaded
-  if (!WSREP_ON || !Wsrep_server_state::instance().is_provider_loaded())
-  {
-    push_warning (thd, Sql_condition::WARN_LEVEL_WARN,
-                  ER_WRONG_VALUE_FOR_VAR,
-                  "Cannot set 'wsrep_trx_fragment_size' because "
-                  "wsrep is switched off");
-    return true;
-  }
-
   if (thd->variables.wsrep_trx_fragment_size)
   {
     return thd->wsrep_cs().enable_streaming(
       wsrep_fragment_unit(thd->variables.wsrep_trx_fragment_unit),
       size_t(thd->variables.wsrep_trx_fragment_size));
   }
-  else
+  else if (wsrep_streaming_enabled(thd))
   {
     thd->wsrep_cs().disable_streaming();
-    return false;
   }
+  return false;
+}
+
+bool wsrep_trx_fragment_unit_check (sys_var *self, THD* thd, set_var* var)
+{
+  uint new_trx_fragment_unit= (uint)var->save_result.ulonglong_value;
+  // Do not allow setting fragment unit anything else than
+  // default if galera is not enabled and streaming replication
+  // table does not exists.
+  if (thd->variables.wsrep_trx_fragment_size ||
+      new_trx_fragment_unit != WSREP_FRAG_BYTES)
+  {
+    // Give error if wsrep_trx_fragment_unit is set and wsrep is disabled or
+    // provider is not loaded
+    if (!WSREP_ON || !Wsrep_server_state::instance().is_provider_loaded())
+    {
+      push_warning (thd, Sql_condition::WARN_LEVEL_WARN,
+                    ER_WRONG_VALUE_FOR_VAR,
+                   "Cannot set 'wsrep_trx_fragment_unit' because "
+                   "wsrep is switched off");
+      return true;
+    }
+
+    if (!ha_table_exists(thd, &WSREP_LEX_SCHEMA, &WSREP_LEX_STREAMING))
+    {
+      push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+                          ER_WRONG_VALUE_FOR_VAR,
+                          "Cannot set 'wsrep_trx_fragment_unit' "
+                          "because streaming table %s.%s does not exists.",
+                          WSREP_LEX_SCHEMA.str, WSREP_LEX_STREAMING.str);
+      return true;
+    }
+  }
+  return false;
 }
 
 bool wsrep_trx_fragment_unit_update(sys_var* self, THD *thd, enum_var_type)
 {
   WSREP_DEBUG("wsrep_trx_fragment_unit_update: %lu",
               thd->variables.wsrep_trx_fragment_unit);
-
-  // Give error if wsrep_trx_fragment_unit is set and wsrep is disabled or
-  // provider is not loaded
-  if (!WSREP_ON || !Wsrep_server_state::instance().is_provider_loaded())
-  {
-    push_warning (thd, Sql_condition::WARN_LEVEL_WARN,
-                  ER_WRONG_VALUE_FOR_VAR,
-                  "Cannot set 'wsrep_trx_fragment_unit' because "
-                  "wsrep is switched off");
-    return true;
-  }
 
   if (thd->variables.wsrep_trx_fragment_size)
   {

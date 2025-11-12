@@ -2379,7 +2379,7 @@ create or replace table t1 (x int) with system versioning engine innodb
 partition by system_time interval 1 hour auto;
 insert into t1 values (1);
 call mtr.add_suppression("rror number .*(File exists|file operation)");
-call mtr.add_suppression("InnoDB: Cannot create file");
+call mtr.add_suppression("InnoDB: The file '.*test/t1#P#p1\\.ibd' already exists");
 set timestamp= unix_timestamp('2000-01-01 01:00:00');
 update t1 set x= x + 2;
 ERROR HY000: Got error 184 "Tablespace already exists" from storage engine InnoDB

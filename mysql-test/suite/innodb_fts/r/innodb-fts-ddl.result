@@ -275,6 +275,7 @@ call mtr.add_suppression("InnoDB: Operating system error number .* in a file ope
 call mtr.add_suppression("InnoDB: Error number .* means");
 call mtr.add_suppression("InnoDB: Cannot create file");
 call mtr.add_suppression("InnoDB: Failed to create");
+call mtr.add_suppression("InnoDB: The file '.*test/FTS_[0-9a-f]*_BEING_DELETED\\.ibd' already exists");
 CREATE TABLE t1(a TEXT, FTS_DOC_ID BIGINT UNSIGNED NOT NULL UNIQUE) ENGINE=InnoDB;
 ALTER TABLE t1 ADD FULLTEXT(a), ALGORITHM=INPLACE;
 ERROR HY000: Got error 11 "Resource temporarily unavailable" from storage engine InnoDB

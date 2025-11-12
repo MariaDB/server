@@ -1905,7 +1905,7 @@ partition by system_time interval 1 hour auto;
 insert into t1 values (1);
 
 call mtr.add_suppression("rror number .*(File exists|file operation)");
-call mtr.add_suppression("InnoDB: Cannot create file");
+call mtr.add_suppression("InnoDB: The file '.*test/t1#P#p1\\.ibd' already exists");
 
 --let $datadir= `select @@datadir`
 --let $dummy= $datadir/test/t1#P#p1.ibd
