@@ -1094,7 +1094,7 @@ update_server_record(TABLE *table, FOREIGN_SERVER *server)
                                              server->server_name_length,
                                              system_charset_info))
   {
-    DBUG_ASSERT(0); /* Protected by servers_cache */
+    DBUG_ASSERT_NO_ASSUME(0); /* Protected by servers_cache */
     THD *thd= table->in_use;
     DBUG_ASSERT(thd->is_error());
     return thd->get_stmt_da()->get_sql_errno();

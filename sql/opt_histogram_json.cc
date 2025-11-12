@@ -1202,7 +1202,7 @@ int Histogram_json_hb::find_bucket(const Field *field, const uchar *lookup_val,
 
 end:
   // Verification: *cmp has correct value
-  DBUG_ASSERT(SGN(*cmp) ==
+  DBUG_ASSERT_NO_ASSUME(SGN(*cmp) ==
               SGN(field->key_cmp(lookup_val,
                                  (uchar*)buckets[low].start_value.data())));
   // buckets[low] <= lookup_val, with one exception of the first bucket.

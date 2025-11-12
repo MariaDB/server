@@ -527,7 +527,7 @@ public:
       case SP_EXTERIORRING:
         return exteriorring;
       default:
-	DBUG_ASSERT(0);  // Should never happened
+	DBUG_ASSERT_NO_ASSUME(0);  // Should never happened
         return unknown;
     }
   }
@@ -564,7 +564,7 @@ public:
       case SP_INTERIORRINGN:
         return interiorringn;
       default:
-	DBUG_ASSERT(0);  // Should never happened
+	DBUG_ASSERT_NO_ASSUME(0);  // Should never happened
         return unknown;
     }
   }

@@ -335,7 +335,7 @@ rpl_slave_state::update_nolock(uint32 domain_id, uint32 server_id, uint64 sub_id
 #endif
       uint32 count= elem->owner_count;
       DBUG_ASSERT(count > 0);
-      DBUG_ASSERT(elem->owner_rli == rli);
+      DBUG_ASSERT_NO_ASSUME(elem->owner_rli == rli);
       --count;
       elem->owner_count= count;
       if (count == 0)
@@ -2632,7 +2632,7 @@ slave_connection_state::remove(const rpl_gtid *in_gtid)
   err= 
 #endif
     my_hash_delete(&hash, rec);
-  DBUG_ASSERT(!err);
+  DBUG_ASSERT_NO_ASSUME(!err);
 }
 
 
@@ -3682,7 +3682,7 @@ Id_delegating_gtid_event_filter<T>::Id_delegating_gtid_event_filter()
   if (std::is_same<T,uint32>::value)
     free_func= free_u32_gtid_filter_element;
   else
-    DBUG_ASSERT(0);
+    DBUG_ASSERT_NO_ASSUME(0);
 
   my_hash_init(PSI_INSTRUMENT_ME, &m_filters_by_id_hash, &my_charset_bin, 32,
                offsetof(gtid_filter_element<T>, identifier),

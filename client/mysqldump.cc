@@ -2518,9 +2518,7 @@ static void print_xml_row(FILE *xml_file, const char *row_name,
       {
         create_stmt_ptr= (*row)[i];
         create_stmt_len= lengths[i];
-#ifdef DBUG_ASSERT_EXISTS
         body_found= 1;
-#endif
       }
       else
       {

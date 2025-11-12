@@ -1869,7 +1869,7 @@ bool Item_splocal::fix_fields(THD *thd, Item **ref)
 Item *
 Item_splocal::this_item()
 {
-  DBUG_ASSERT(m_sp == m_thd->spcont->m_sp);
+  DBUG_ASSERT_NO_ASSUME(m_sp == m_thd->spcont->m_sp);
   DBUG_ASSERT(fixed());
   return get_variable(m_thd->spcont);
 }
@@ -1877,7 +1877,7 @@ Item_splocal::this_item()
 const Item *
 Item_splocal::this_item() const
 {
-  DBUG_ASSERT(m_sp == m_thd->spcont->m_sp);
+  DBUG_ASSERT_NO_ASSUME(m_sp == m_thd->spcont->m_sp);
   DBUG_ASSERT(fixed());
   return get_variable(m_thd->spcont);
 }
@@ -1886,7 +1886,7 @@ Item_splocal::this_item() const
 Item **
 Item_splocal::this_item_addr(THD *thd, Item **)
 {
-  DBUG_ASSERT(m_sp == thd->spcont->m_sp);
+  DBUG_ASSERT_NO_ASSUME(m_sp == thd->spcont->m_sp);
   DBUG_ASSERT(fixed());
   return get_rcontext(thd->spcont)->get_variable_addr(m_var_idx);
 }
@@ -2013,7 +2013,7 @@ bool Item_splocal_row_field::fix_fields(THD *thd, Item **ref)
 Item *
 Item_splocal_row_field::this_item()
 {
-  DBUG_ASSERT(m_sp == m_thd->spcont->m_sp);
+  DBUG_ASSERT_NO_ASSUME(m_sp == m_thd->spcont->m_sp);
   DBUG_ASSERT(fixed());
   return get_variable(m_thd->spcont)->element_index(m_field_idx);
 }
@@ -2022,7 +2022,7 @@ Item_splocal_row_field::this_item()
 const Item *
 Item_splocal_row_field::this_item() const
 {
-  DBUG_ASSERT(m_sp == m_thd->spcont->m_sp);
+  DBUG_ASSERT_NO_ASSUME(m_sp == m_thd->spcont->m_sp);
   DBUG_ASSERT(fixed());
   return get_variable(m_thd->spcont)->element_index(m_field_idx);
 }
@@ -2031,7 +2031,7 @@ Item_splocal_row_field::this_item() const
 Item **
 Item_splocal_row_field::this_item_addr(THD *thd, Item **)
 {
-  DBUG_ASSERT(m_sp == thd->spcont->m_sp);
+  DBUG_ASSERT_NO_ASSUME(m_sp == thd->spcont->m_sp);
   DBUG_ASSERT(fixed());
   return get_variable(thd->spcont)->addr(m_field_idx);
 }
@@ -2123,7 +2123,7 @@ bool Item_case_expr::fix_fields(THD *thd, Item **ref)
 Item *
 Item_case_expr::this_item()
 {
-  DBUG_ASSERT(m_sp == m_thd->spcont->m_sp);
+  DBUG_ASSERT_NO_ASSUME(m_sp == m_thd->spcont->m_sp);
 
   return m_thd->spcont->get_case_expr(m_case_expr_id);
 }
@@ -2133,7 +2133,7 @@ Item_case_expr::this_item()
 const Item *
 Item_case_expr::this_item() const
 {
-  DBUG_ASSERT(m_sp == m_thd->spcont->m_sp);
+  DBUG_ASSERT_NO_ASSUME(m_sp == m_thd->spcont->m_sp);
 
   return m_thd->spcont->get_case_expr(m_case_expr_id);
 }
@@ -2142,7 +2142,7 @@ Item_case_expr::this_item() const
 Item **
 Item_case_expr::this_item_addr(THD *thd, Item **)
 {
-  DBUG_ASSERT(m_sp == thd->spcont->m_sp);
+  DBUG_ASSERT_NO_ASSUME(m_sp == thd->spcont->m_sp);
 
   return thd->spcont->get_case_expr_addr(m_case_expr_id);
 }
@@ -4728,7 +4728,7 @@ int Item_param::save_in_field(Field *field, bool no_conversions)
       switch (find_ignore_reaction(field->table->in_use))
       {
         case IGNORE_MEANS_DEFAULT:
-          DBUG_ASSERT(0); // impossible now, but fully working code if needed
+          DBUG_ASSERT_NO_ASSUME(0); // impossible now, but fully working code if needed
           return assign_default(field);
         case IGNORE_MEANS_FIELD_VALUE:
           m_associated_field->save_val(field);
@@ -4736,7 +4736,7 @@ int Item_param::save_in_field(Field *field, bool no_conversions)
         default:
           ; // fall through to error
       }
-      DBUG_ASSERT(0); //impossible
+      DBUG_ASSERT_NO_ASSUME(0); //impossible
       my_error(ER_INVALID_DEFAULT_PARAM, MYF(0));
       return true;
     }
@@ -4744,10 +4744,10 @@ int Item_param::save_in_field(Field *field, bool no_conversions)
                                              top_table() !=
                                              field->table->pos_in_table_list);
   case NO_VALUE:
-    DBUG_ASSERT(0); // Should not be possible
+    DBUG_ASSERT_NO_ASSUME(0); // Should not be possible
     return true;
   }
-  DBUG_ASSERT(0); // Garbage
+  DBUG_ASSERT_NO_ASSUME(0); // Garbage
   return 1;
 }
 
@@ -4799,10 +4799,10 @@ bool Item_param::can_return_value() const
   case NULL_VALUE:
     return false;
   case NO_VALUE:
-    DBUG_ASSERT(0); // Should not be possible
+    DBUG_ASSERT_NO_ASSUME(0); // Should not be possible
     return false;
   }
-  DBUG_ASSERT(0); // Garbage
+  DBUG_ASSERT_NO_ASSUME(0); // Garbage
   return false;
 }
 
@@ -5473,7 +5473,7 @@ bool Item_param::assign_default(Field *field)
 
 double Item_copy_string::val_real()
 {
-  DBUG_ASSERT(copied_in);
+  DBUG_ASSERT_NO_ASSUME(copied_in);
   int err_not_used;
   char *end_not_used;
   return (null_value ? 0.0 :
@@ -5484,7 +5484,7 @@ double Item_copy_string::val_real()
 
 longlong Item_copy_string::val_int()
 {
-  DBUG_ASSERT(copied_in);
+  DBUG_ASSERT_NO_ASSUME(copied_in);
   int err;
   return null_value ? 0 : str_value.charset()->strntoll(str_value.ptr(),
                                                         str_value.length(), 10,
@@ -5494,7 +5494,7 @@ longlong Item_copy_string::val_int()
 
 int Item_copy_string::save_in_field(Field *field, bool no_conversions)
 {
-  DBUG_ASSERT(copied_in);
+  DBUG_ASSERT_NO_ASSUME(copied_in);
   return save_str_value_in_field(field, &str_value);
 }
 
@@ -5513,7 +5513,7 @@ void Item_copy_string::copy()
 /* ARGSUSED */
 String *Item_copy_string::val_str(String *str)
 {
-  DBUG_ASSERT(copied_in);
+  DBUG_ASSERT_NO_ASSUME(copied_in);
   // Item_copy_string is used without fix_fields call
   if (null_value)
     return (String*) 0;
@@ -5523,7 +5523,7 @@ String *Item_copy_string::val_str(String *str)
 
 my_decimal *Item_copy_string::val_decimal(my_decimal *decimal_value)
 {
-  DBUG_ASSERT(copied_in);
+  DBUG_ASSERT_NO_ASSUME(copied_in);
   // Item_copy_string is used without fix_fields call
   if (null_value)
     return (my_decimal *) 0;
@@ -8220,7 +8220,7 @@ Item *get_field_item_for_having(THD *thd, Item *item, st_select_lex *sel)
                                                 field_item->field_name);
     return ref;
   }
-  DBUG_ASSERT(0);
+  DBUG_ASSERT_NO_ASSUME(0);
   return NULL; 
 }
 
@@ -10813,7 +10813,7 @@ int stored_field_cmp_to_item(THD *thd, Field *field, Item *item)
   if (cmp.aggregate_for_comparison(item->type_handler_for_comparison()))
   {
     // At fix_fields() time we checked that "field" and "item" are comparable
-    DBUG_ASSERT(0);
+    DBUG_ASSERT_NO_ASSUME(0);
     return 0;
   }
   return cmp.type_handler()->stored_field_cmp_to_item(thd, field, item);
@@ -11422,7 +11422,7 @@ void Item_cache_row::illegal_method_call(const char *method)
 {
   DBUG_ENTER("Item_cache_row::illegal_method_call");
   DBUG_PRINT("error", ("!!! %s method was called for row item", method));
-  DBUG_ASSERT(0);
+  DBUG_ASSERT_NO_ASSUME(0);
   my_error(ER_OPERAND_COLUMNS, MYF(0), 1);
   DBUG_VOID_RETURN;
 }

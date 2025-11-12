@@ -221,14 +221,14 @@ public:
   void init() noexcept
   {
     writer.init();
-    DBUG_ASSERT(is_vacant());
+    DBUG_ASSERT_NO_ASSUME(is_vacant());
 #ifdef SUX_LOCK_GENERIC
     pthread_cond_init(&readers_cond, nullptr);
 #endif
   }
   void destroy() noexcept
   {
-    DBUG_ASSERT(is_vacant());
+    DBUG_ASSERT_NO_ASSUME(is_vacant());
     writer.destroy();
 #ifdef SUX_LOCK_GENERIC
     pthread_cond_destroy(&readers_cond);

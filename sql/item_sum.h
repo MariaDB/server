@@ -485,7 +485,7 @@ public:
       should already be replaced to Item_aggregate_ref by the time when
       build_equal_items() is called. See Item::split_sum_func2().
     */
-    DBUG_ASSERT(0);
+    DBUG_ASSERT_NO_ASSUME(0);
     return Item::build_equal_items(thd, inherited, link_item_fields,
                                    cond_equal_ref);
   }
