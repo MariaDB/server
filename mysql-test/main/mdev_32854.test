@@ -1,3 +1,7 @@
+--echo #
+--echo # Beginning of 12.2 test
+--echo #
+
 SET @json_doc_obj_lev45_valid='{ "level1": { "level2": { "level3": { "level4": { "level5": { "level6": { "level7": { "level8": { "level9": { "level10": { "level11": { "level12": { "level13": { "level14": { "level15": { "level16": { "level17": { "level18": { "level19": { "level20": { "level21": { "level22": { "level23": { "level24": { "level25": { "level26": { "level27": { "level28": { "level29": { "level30": { "level31": { "level32": { "level33": { "level34": { "level35": { "level36": { "level37": { "level38": { "level39": { "level40": { "level41": { "level42": { "level43": { "level44": { "level45": "This is level 45" } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } }';
 
 SET @json_doc_arr_lev45_valid='[1, [2, [3, [4, [5, [6, [7, [8, [9, [10, [11, [12, [13, [14, [15, [16, [17, [18, [19, [20, [21, [22, [23, [24, [25, [26, [27, [28, [29, [30, [31, [32, [33, [34, [35, [36, [37, [38, [39, [40, [41, [42, [43, [44, [45, 45, 45]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]';
@@ -90,7 +94,6 @@ SELECT JSON_SCHEMA_VALID(@json_schema, @json_doc_obj_lev45_valid) AS found_path;
 SELECT JSON_SCHEMA_VALID(@json_schema, @json_doc_obj_lev45_valid2);
 
 
-
 SELECT JSON_SEARCH(@json_doc_obj_lev45_valid,'one', 'This is level 45');
 
 SET @json_updated = JSON_SET(@json_doc_obj_lev45_valid, 
@@ -111,3 +114,20 @@ SELECT JSON_VALUE(@json_doc_obj_lev45_valid, '$.level1.level2.level3.level4.leve
 SELECT JSON_VALUE(@json_doc_arr_lev45_valid, '$[1][1][1][1][1][1][1][1][1][1][1][1][1][1][1][1][1][1][1][1][1][1][1][1][1][1][1][1][1][1][1][1][1][1][1][1][1][1][1][1][1][1][1][1][1]');
 
 DROP TABLE t1 ,t2;
+
+--echo #
+--echo # MDEV-37082: Sig 11 in json_normalize_sort
+--echo #
+
+--source include/have_innodb.inc
+
+CREATE TABLE t (a JSON)Engine=InnoDB;
+
+INSERT INTO t VALUES (CONCAT (REPEAT('{"v":',5000),'1',REPEAT('}',5000)));
+INSERT INTO t VALUES (CONCAT (REPEAT('[',5000),'1',REPEAT(']',5000)));
+
+SELECT JSON_EQUALS (a,a) FROM t;
+
+DROP TABLE t;
+
+--echo # End of 12.2 test
