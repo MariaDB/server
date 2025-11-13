@@ -3838,7 +3838,7 @@ void* start_wsrep_THD(void *arg)
 
   thd->real_id=pthread_self(); // Keep purify happy
 
-  my_net_init(&thd->net,(st_vio*) 0, thd, MYF(0));
+  ma_net_init(&thd->net, nullptr);
 
   DBUG_PRINT("wsrep",(("creating thread %lld"), (long long)thd->thread_id));
   thd->prior_thr_create_utime= thd->start_utime= microsecond_interval_timer();
@@ -3941,7 +3941,7 @@ void* start_wsrep_THD(void *arg)
   */
   if (plugins_are_initialized)
   {
-    net_end(&thd->net);
+    ma_net_end(&thd->net);
     unlink_thd(thd);
   }
   else

@@ -3563,7 +3563,7 @@ public:
   {
     if (eq_def(from))
       return get_identical_copy_func();
-    switch (from->cmp_type()) {
+    switch (static_cast<int>(from->cmp_type())) {
     case STRING_RESULT:
     {
       const Type_handler *handler= from->type_handler();

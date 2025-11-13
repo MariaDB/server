@@ -67,7 +67,7 @@ protected:
   {
     ulonglong      option_bits;
     uint           server_status;
-    struct st_vio* vio;
+    MARIADB_PVIO  *vio;
     ulong          tx_isolation;
     char*          db;
     size_t         db_length;

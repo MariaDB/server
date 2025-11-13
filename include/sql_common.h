@@ -77,17 +77,16 @@ typedef struct st_mysql_methods
 
 #ifdef LIBMARIADB
 #define simple_command(mysql, command, arg, length, skip_check) \
-  (*(mysql)->methods->db_command)(mysql, command, arg, length, skip_check, NULL)
-#define stmt_command(mysql, command, arg, length, stmt) \
-  (*(mysql)->methods->db_command)(mysql, command, arg, length, 1, stmt)
+  (*(mysql)->methods->db_command)(mysql, command, \
+    static_cast<char *>(static_cast<void *>(arg)), length, skip_check, NULL)
 #else
 #define simple_command(mysql, command, arg, length, skip_check) \
   (*(mysql)->methods->advanced_command)(mysql, command, 0,  \
                                         0, arg, length, skip_check, NULL)
+#endif
 #define stmt_command(mysql, command, arg, length, stmt) \
   (*(mysql)->methods->advanced_command)(mysql, command, 0,  \
                                         0, arg, length, 1, stmt)
-#endif
 
 extern CHARSET_INFO *default_client_charset_info;
 MYSQL_FIELD *unpack_fields(MYSQL *mysql, MYSQL_DATA *data,MEM_ROOT *alloc,

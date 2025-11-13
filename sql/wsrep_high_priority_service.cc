@@ -137,7 +137,7 @@ Wsrep_high_priority_service::Wsrep_high_priority_service(THD* thd)
   LEX_CSTRING db_str= { NULL, 0 };
   m_shadow.option_bits  = thd->variables.option_bits;
   m_shadow.server_status= thd->server_status;
-  m_shadow.vio          = thd->net.vio;
+  m_shadow.vio          = thd->net.pvio;
   m_shadow.tx_isolation = thd->variables.tx_isolation;
   m_shadow.db           = (char *)thd->db.str;
   m_shadow.db_length    = thd->db.length;
@@ -154,7 +154,7 @@ Wsrep_high_priority_service::Wsrep_high_priority_service(THD* thd)
    */
   thd->variables.option_bits|= OPTION_BIN_LOG;
 
-  thd->net.vio= 0;
+  thd->net.pvio= nullptr;
   thd->reset_db(&db_str);
   thd->clear_error();
   thd->variables.tx_isolation= ISO_READ_COMMITTED;
@@ -180,7 +180,7 @@ Wsrep_high_priority_service::~Wsrep_high_priority_service()
   THD* thd= m_thd;
   thd->variables.option_bits = m_shadow.option_bits;
   thd->server_status         = m_shadow.server_status;
-  thd->net.vio               = m_shadow.vio;
+  thd->net.pvio              = m_shadow.vio;
   thd->variables.tx_isolation= m_shadow.tx_isolation;
   LEX_CSTRING db_str= { m_shadow.db, m_shadow.db_length };
   thd->reset_db(&db_str);

@@ -1,0 +1,137 @@
+include/master-slave.inc
+[connection master]
+# Case NULL
+SHOW SLAVE HOSTS;
+Server_id	Host	Port	Master_id
+2	127.0.0.1	19001	1
+connection slave;
+STOP SLAVE;
+SELECT master_retry_count INTO @orig_retry_count
+FROM information_schema.SLAVE_STATUS;
+CREATE TEMPORARY TABLE test_cases(
+i TINYINT AUTO_INCREMENT PRIMARY KEY,
+master_bind VARCHAR(39), # IPv6: 8 groups of 4 hex digits + 7 `:`s
+is_valid BOOL
+);
+INSERT INTO test_cases(master_bind, is_valid) VALUES
+('127.0.1.1', TRUE),
+('1.1.1.1', FALSE),
+('::1', TRUE),
+('2606:4700:4700::1111', FALSE),
+('localhost', TRUE),
+('one.one.one.one', FALSE),
+('', TRUE);
+# Case '127.0.1.1'
+include/wait_for_slave_to_stop.inc
+CHANGE MASTER TO
+master_bind='127.0.1.1', master_retry_count=30;
+START SLAVE IO_THREAD;
+include/wait_for_slave_io_to_start.inc
+connection master;
+SHOW PROCESSLIST;
+Id	User	Host	db	Command	Time	State	Info	Progress
+5	root	localhost	test	Sleep	0		NULL	0.000
+6	root	localhost:50642	test	Sleep	0		NULL	0.000
+8	root	localhost:50662	test	Query	0	starting	SHOW PROCESSLIST	0.000
+9	root	localhost:50676	test	Sleep	0		NULL	0.000
+10	root	localhost:50682	NULL	Binlog Dump	0	Master has sent all binlog to slave; waiting for more updates	NULL	0.000
+connection slave;
+STOP SLAVE IO_THREAD;
+# Case '1.1.1.1'
+include/wait_for_slave_to_stop.inc
+CHANGE MASTER TO
+master_bind='1.1.1.1', master_retry_count=1;
+START SLAVE IO_THREAD;
+include/wait_for_slave_io_to_start.inc
+connection master;
+SHOW PROCESSLIST;
+Id	User	Host	db	Command	Time	State	Info	Progress
+5	root	localhost	test	Sleep	0		NULL	0.000
+6	root	localhost:50642	test	Sleep	0		NULL	0.000
+8	root	localhost:50662	test	Query	0	starting	SHOW PROCESSLIST	0.000
+9	root	localhost:50676	test	Sleep	0		NULL	0.000
+11	root	localhost:50688	NULL	Binlog Dump	0	starting	NULL	0.000
+connection slave;
+STOP SLAVE IO_THREAD;
+# Case '::1'
+include/wait_for_slave_to_stop.inc
+CHANGE MASTER TO
+master_bind='::1', master_retry_count=30;
+START SLAVE IO_THREAD;
+include/wait_for_slave_io_to_start.inc
+connection master;
+SHOW PROCESSLIST;
+Id	User	Host	db	Command	Time	State	Info	Progress
+5	root	localhost	test	Sleep	0		NULL	0.000
+6	root	localhost:50642	test	Sleep	0		NULL	0.000
+8	root	localhost:50662	test	Query	0	starting	SHOW PROCESSLIST	0.000
+9	root	localhost:50676	test	Sleep	0		NULL	0.000
+12	root	localhost:50692	NULL	Binlog Dump	0	starting	NULL	0.000
+connection slave;
+STOP SLAVE IO_THREAD;
+# Case '2606:4700:4700::1111'
+include/wait_for_slave_to_stop.inc
+CHANGE MASTER TO
+master_bind='2606:4700:4700::1111', master_retry_count=1;
+START SLAVE IO_THREAD;
+include/wait_for_slave_io_to_start.inc
+connection master;
+SHOW PROCESSLIST;
+Id	User	Host	db	Command	Time	State	Info	Progress
+5	root	localhost	test	Sleep	0		NULL	0.000
+6	root	localhost:50642	test	Sleep	0		NULL	0.000
+8	root	localhost:50662	test	Query	0	starting	SHOW PROCESSLIST	0.000
+9	root	localhost:50676	test	Sleep	0		NULL	0.000
+13	root	localhost:50708	NULL	Binlog Dump	0	Master has sent all binlog to slave; waiting for more updates	NULL	0.000
+connection slave;
+STOP SLAVE IO_THREAD;
+# Case 'localhost'
+include/wait_for_slave_to_stop.inc
+CHANGE MASTER TO
+master_bind='localhost', master_retry_count=30;
+START SLAVE IO_THREAD;
+include/wait_for_slave_io_to_start.inc
+connection master;
+SHOW PROCESSLIST;
+Id	User	Host	db	Command	Time	State	Info	Progress
+5	root	localhost	test	Sleep	0		NULL	0.000
+6	root	localhost:50642	test	Sleep	0		NULL	0.000
+8	root	localhost:50662	test	Query	0	starting	SHOW PROCESSLIST	0.000
+9	root	localhost:50676	test	Sleep	0		NULL	0.000
+14	root	localhost:50718	NULL	Binlog Dump	0	starting	NULL	0.000
+connection slave;
+STOP SLAVE IO_THREAD;
+# Case 'one.one.one.one'
+include/wait_for_slave_to_stop.inc
+CHANGE MASTER TO
+master_bind='one.one.one.one', master_retry_count=1;
+START SLAVE IO_THREAD;
+include/wait_for_slave_io_to_start.inc
+connection master;
+SHOW PROCESSLIST;
+Id	User	Host	db	Command	Time	State	Info	Progress
+5	root	localhost	test	Sleep	0		NULL	0.000
+6	root	localhost:50642	test	Sleep	0		NULL	0.000
+8	root	localhost:50662	test	Query	0	starting	SHOW PROCESSLIST	0.000
+9	root	localhost:50676	test	Sleep	1		NULL	0.000
+15	root	localhost:50730	NULL	Binlog Dump	0	starting	NULL	0.000
+connection slave;
+STOP SLAVE IO_THREAD;
+# Case ''
+include/wait_for_slave_to_stop.inc
+CHANGE MASTER TO
+master_bind='', master_retry_count=30;
+START SLAVE IO_THREAD;
+include/wait_for_slave_io_to_start.inc
+connection master;
+SHOW PROCESSLIST;
+Id	User	Host	db	Command	Time	State	Info	Progress
+5	root	localhost	test	Sleep	1		NULL	0.000
+6	root	localhost:50642	test	Sleep	1		NULL	0.000
+8	root	localhost:50662	test	Query	0	starting	SHOW PROCESSLIST	0.000
+9	root	localhost:50676	test	Sleep	1		NULL	0.000
+16	root	localhost:50740	NULL	Binlog Dump	0	Master has sent all binlog to slave; waiting for more updates	NULL	0.000
+connection slave;
+STOP SLAVE IO_THREAD;
+# Cleanup
+include/rpl_end.inc

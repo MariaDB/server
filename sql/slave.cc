@@ -493,7 +493,7 @@ static void bg_slave_kill(void *victim)
 {
   THD *to_kill= (THD *)victim;
   DBUG_EXECUTE_IF("rpl_delay_deadlock_kill", my_sleep(1500000););
-  to_kill->awake(KILL_CONNECTION);
+  to_kill->awake(KILL_CONNECTION_SOFT);
   mysql_mutex_lock(&to_kill->LOCK_wakeup_ready);
   to_kill->rgi_slave->killed_for_retry= rpl_group_info::RETRY_KILL_KILLED;
   mysql_cond_broadcast(&to_kill->COND_wakeup_ready);
@@ -1453,8 +1453,8 @@ void skip_load_data_infile(NET *net)
   DBUG_ENTER("skip_load_data_infile");
 
   (void)net_request_file(net, "/dev/null");
-  (void)my_net_read(net);                               // discard response
-  (void)net_write_command(net, 0, (uchar*) "", 0, (uchar*) "", 0); // ok
+  (void)ma_net_read(net);                               // discard response
+  (void)ma_net_write_command(net, 0, "", 0, false); // ok
   DBUG_VOID_RETURN;
 }
 
@@ -1462,8 +1462,7 @@ void skip_load_data_infile(NET *net)
 bool net_request_file(NET* net, const char* fname)
 {
   DBUG_ENTER("net_request_file");
-  DBUG_RETURN(net_write_command(net, 251, (uchar*) fname, strlen(fname),
-                                (uchar*) "", 0));
+  DBUG_RETURN(ma_net_write_command(net, 251, fname, strlen(fname), false));
 }
 
 #endif /* HAVE_REPLICATION */
@@ -2828,7 +2827,8 @@ int register_slave_on_master(MYSQL* mysql, Master_info *mi,
   /* The master will fill in master_id */
   int4store(pos, 0);                    pos+= 4;
 
-  if (simple_command(mysql, COM_REGISTER_SLAVE, buf, (ulong) (pos- buf), 0))
+  if (simple_command(mysql, COM_REGISTER_SLAVE,
+      static_cast<char *>(static_cast<void *>(buf)), (ulong) (pos- buf), 0))
   {
     if (mysql_errno(mysql) == ER_NET_READ_INTERRUPTED)
     {
@@ -3233,7 +3233,7 @@ static int init_slave_thread(THD* thd, Master_info *mi,
   /* We must call store_globals() before doing my_net_init() */
   thd->store_globals();
 
-  if (my_net_init(&thd->net, 0, thd, MYF(MY_THREAD_SPECIFIC)) ||
+  if (ma_net_init(&thd->net, nullptr) ||
       IF_DBUG(simulate_error & (1<< thd_type), 0))
   {
     thd->cleanup();
@@ -6944,7 +6944,6 @@ static int connect_to_master(THD* thd, MYSQL* mysql, Master_info* mi,
     client_flag|= CLIENT_COMPRESS;                /* We will use compression */
 
   setup_mysql_connection_for_master(mi->mysql, mi, slave_net_timeout);
-  mysql_options(mysql, MYSQL_OPT_USE_THREAD_SPECIFIC_MEMORY, &my_true);
   if (mi->bind_addr[0])
     mysql_options(mysql, MYSQL_OPT_BIND, mi->bind_addr);
 
@@ -7005,10 +7004,10 @@ static int connect_to_master(THD* thd, MYSQL* mysql, Master_info* mi,
     }
     ++(mi->connects_tried); // count the final success in addition to failures
 #ifdef SIGNAL_WITH_VIO_CLOSE
-    thd->set_active_vio(mysql->net.vio);
+    thd->set_active_vio(mysql->net.pvio);
 #endif
   }
-  mysql->reconnect= 1;
+  mysql_options(mysql, MYSQL_OPT_RECONNECT, &my_true);
   DBUG_PRINT("exit",("slave_was_killed: %d", slave_was_killed));
   DBUG_RETURN(slave_was_killed);
 }

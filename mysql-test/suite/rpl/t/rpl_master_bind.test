@@ -54,9 +54,7 @@ while ($i < $count)
 #  {
     --source include/wait_for_slave_io_to_start.inc
     --connection master
-    --echo SLEEP begin
-      --sleep 10
-    --echo SLEEP end
+    SHOW PROCESSLIST;
     --connection slave
     STOP SLAVE IO_THREAD;
 #  }

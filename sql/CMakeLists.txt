@@ -62,6 +62,16 @@ ${ZLIB_INCLUDE_DIRS}
 ${SSL_INCLUDE_DIRS}
 ${CMAKE_BINARY_DIR}/sql
 )
+INCLUDE_DIRECTORIES(BEFORE
+  ${CMAKE_BINARY_DIR}/libmariadb/include
+  ${CMAKE_SOURCE_DIR}/libmariadb/include
+)
+INCLUDE_DIRECTORIES(BEFORE
+  ${CMAKE_SOURCE_DIR}/sql/libmariadb-shims
+  # don't use C/C's (possibly outdated) copy of mysqld_error.h
+  # - include/CMakeLists.txt
+  ${CMAKE_BINARY_DIR}/include
+)
 
 ADD_CUSTOM_COMMAND(
   OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/lex_token.h
@@ -94,7 +104,7 @@ ENDIF()
 SET (SQL_SOURCE
                ${CMAKE_CURRENT_BINARY_DIR}/yy_mariadb.cc
                ${CMAKE_CURRENT_BINARY_DIR}/yy_oracle.cc
-              ../sql-common/client.c
+               ../sql-common/client.c
                cset_narrowing.cc
                compat56.cc derror.cc des_key_file.cc
                discover.cc ../sql-common/errmsg.c

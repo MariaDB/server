@@ -637,7 +637,7 @@ enum killed_state
   KILL_HARD_BIT= 1,                             /* Bit for HARD KILL */
   KILL_BAD_DATA= 2,
   KILL_BAD_DATA_HARD= 3,
-  KILL_QUERY= 4,
+  KILL_QUERY_SOFT= 4, // Name collision with mysql_enum_shutdown_level
   KILL_QUERY_HARD= 5,
   /*
     ABORT_QUERY signals to the query processor to stop execution ASAP without
@@ -658,7 +658,7 @@ enum killed_state
     KILL_CONNECTION must be the first of these and it must start with
     an even number (becasue of HARD bit)!
   */
-  KILL_CONNECTION= 12,
+  KILL_CONNECTION_SOFT= 12, // Name collision with mysql_enum_shutdown_level
   KILL_CONNECTION_HARD= 13,
   KILL_SYSTEM_THREAD= 14,
   KILL_SYSTEM_THREAD_HARD= 15,
@@ -3650,7 +3650,7 @@ public:
   sigset_t signals;
 #endif
 #ifdef SIGNAL_WITH_VIO_CLOSE
-  Vio* active_vio;
+  MARIADB_PVIO *active_vio;
 #endif
 
   /*
@@ -4354,7 +4354,7 @@ public:
     return opt_trace.is_started();
   }
 #ifdef SIGNAL_WITH_VIO_CLOSE
-  inline void set_active_vio(Vio* vio)
+  inline void set_active_vio(MARIADB_PVIO *vio)
   {
     mysql_mutex_lock(&LOCK_thd_data);
     active_vio = vio;
@@ -4869,7 +4869,7 @@ public:
   }
 
 #ifndef EMBEDDED_LIBRARY
-  inline bool vio_ok() const { return net.vio != 0; }
+  inline bool vio_ok() const { return net.pvio; }
   /** Return FALSE if connection to client is broken. */
   bool is_connected()
   {
@@ -4878,7 +4878,7 @@ public:
       not using vio. So this function always returns true for all
       system threads.
     */
-    return system_thread || (vio_ok() ? vio_is_connected(net.vio) : FALSE);
+    return system_thread || (vio_ok() /*? vio_is_connected(net.pvio) : FALSE*/);
   }
 #else
   inline bool vio_ok() const { return TRUE; }
@@ -5075,7 +5075,7 @@ public:
   void reset_killed();
   inline void reset_kill_query()
   {
-    if (killed < KILL_CONNECTION)
+    if (killed < KILL_CONNECTION_SOFT)
     {
       reset_killed();
       mysys_var->abort= 0;
@@ -5631,20 +5631,22 @@ public:
       real_ip_str[0]= 0;
 
       /* For proxied connections, add the real IP to the warning message */
-      if (net.using_proxy_protocol && net.vio)
+      /*
+      if (net.using_proxy_protocol && net.pvio)
       {
-        if(net.vio->localhost)
+        if(net.pvio->localhost)
           snprintf(real_ip_str, sizeof(real_ip_str), " real ip: 'localhost'");
         else
         {
           char buf[INET6_ADDRSTRLEN];
-          if (!vio_getnameinfo((sockaddr *)&(net.vio->remote), buf,
+          if (!vio_getnameinfo((sockaddr *)&(net.pvio->remote), buf,
               sizeof(buf),NULL, 0, NI_NUMERICHOST))
           {
             snprintf(real_ip_str, sizeof(real_ip_str), " real ip: '%s'",buf);
           }
         }
       }
+      */
       Security_context *sctx= &main_security_ctx;
       sql_print_warning(ER_DEFAULT(ER_NEW_ABORTING_CONNECTION),
                         thread_id, (db.str ? db.str : "unconnected"),
