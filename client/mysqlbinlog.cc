@@ -2831,7 +2831,7 @@ static Exit_status dump_remote_log_entries(PRINT_EVENT_INFO *print_event_info,
                                            const char* logname)
 
 {
-  uchar buf[128];
+  char buf[128];
   ulong len;
   uint logname_len;
   NET* net;

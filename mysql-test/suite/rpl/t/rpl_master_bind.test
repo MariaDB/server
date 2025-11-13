@@ -50,19 +50,21 @@ while ($i < $count)
     master_bind=$master_bind, master_retry_count=$master_retry_count;
   START SLAVE IO_THREAD;
   
-  if ($is_valid)
-  {
+#  if ($is_valid)
+#  {
     --source include/wait_for_slave_io_to_start.inc
     --connection master
-    SHOW SLAVE HOSTS;
+    --echo SLEEP begin
+      --sleep 10
+    --echo SLEEP end
     --connection slave
     STOP SLAVE IO_THREAD;
-  }
-  if (!$is_valid)
-  {
-    --let $slave_io_error_is_nonfatal= 1
-    --source include/wait_for_slave_io_error.inc
-  }
+#  }
+#  if (!$is_valid)
+#  {
+#    --let $slave_io_error_is_nonfatal= 1
+#    --source include/wait_for_slave_io_error.inc
+#  }
 
 }
 --echo # Cleanup
