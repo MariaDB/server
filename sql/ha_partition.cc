@@ -64,6 +64,14 @@
 #include "debug_sync.h"
 #include <functional>
 
+#ifndef XXH_STATIC_LINKING_ONLY
+#define XXH_STATIC_LINKING_ONLY 1
+#endif // !defined(XXH_STATIC_LINKING_ONLY)
+#ifndef XXH_IMPLEMENTATION
+#define XXH_IMPLEMENTATION 1
+#endif // !defined(XXH_IMPLEMENTATION)
+#include "../mysys/xxhash/xxhash.h"
+
 /* First 4 bytes in the .par file is the number of 32-bit words in the file */
 #define PAR_WORD_SIZE 4
 /* offset to the .par file checksum */
@@ -10236,25 +10244,9 @@ uint8 ha_partition::table_cache_type()
   DBUG_RETURN(get_open_file_sample()->table_cache_type());
 }
 
-
-/**
-  Calculate hash value for KEY partitioning using an array of fields.
-
-  @param field_array   An array of the fields in KEY partitioning
-
-  @return hash_value calculated
-
-  @note Uses the hash function on the character set of the field.
-  Integer and floating point fields use the binary character set by default.
-*/
-
-uint32 ha_partition::calculate_key_hash_value(Field **field_array)
+static uint32 mysql5x_hash(Field **field_array, bool use_51_hash)
 {
   Hasher hasher;
-  bool use_51_hash;
-  use_51_hash= MY_TEST((*field_array)->table->part_info->key_algorithm ==
-                       partition_info::KEY_ALGORITHM_51);
-
   do
   {
     Field *field= *field_array;
@@ -10335,6 +10327,106 @@ uint32 ha_partition::calculate_key_hash_value(Field **field_array)
     field->hash(&hasher);
   } while (*(++field_array));
   return (uint32) hasher.finalize();
+}
+
+/*
+  A simple base-31 hash function. Note that it does not distinguish
+  between 0 and NULL
+*/
+static uint32 simple_hash(Field **field_array)
+{
+  Field *field;
+  uint32 result= 0;
+  while ((field= *field_array++))
+  {
+    uint len= field->pack_length();
+    uchar *key= field->ptr;
+    const uchar *end= key + len;
+    /* Not considering overflow */
+    for (; key < end; key++)
+      result= result * 31 + (uint32) (*key);
+  }
+  return result;
+}
+
+/* CRC32C hash function */
+static uint32 crc32c_hash(Field **field_array)
+{
+  Field *field;
+  uint32 result= 0;
+  while ((field= *field_array++))
+  {
+    if (field->is_null())
+      result= my_crc32c(result, field->ptr, 0);
+    else
+      result= my_crc32c(result, field->ptr, field->pack_length());
+  }
+  return result;
+}
+
+/* xxhash XXH32 hash function */
+static uint32 xxh32_hash(Field **field_array)
+{
+  Field *field;
+  uint32 result= 0;
+  while ((field= *field_array++))
+  {
+    if (field->is_null())
+      result= XXH32(field->ptr, 0, result);
+    else
+      result= XXH32(field->ptr, field->pack_length(), result);
+  }
+  return result;
+}
+
+/* xxhash XXH3 64 bits hash function */
+static uint32 xxh3_hash(Field **field_array)
+{
+  Field *field;
+  uint64 result= 0;
+  while ((field= *field_array++))
+  {
+    if (field->is_null())
+      result= XXH3_64bits_withSeed(field->ptr, 0, result);
+    else
+      result= XXH3_64bits_withSeed(field->ptr, field->pack_length(), result);
+  }
+  return static_cast<uint32>(result);
+}
+
+/**
+  Calculate hash value for KEY partitioning using an array of fields.
+
+  @param field_array   An array of the fields in KEY partitioning
+
+  @return hash_value calculated
+
+  @note mysql5x hash use the hash function on the character set of the field.
+  Integer and floating point fields use the binary character set by default.
+*/
+
+uint32 ha_partition::calculate_key_hash_value(Field **field_array)
+{
+  switch ((*field_array)->table->part_info->key_algorithm)
+  {
+  case partition_info::KEY_ALGORITHM_NONE:
+  case partition_info::KEY_ALGORITHM_55:
+    return mysql5x_hash(field_array, false);
+  case partition_info::KEY_ALGORITHM_51:
+    return mysql5x_hash(field_array, true);
+  case partition_info::KEY_ALGORITHM_SIMPLE:
+    return simple_hash(field_array);
+  case partition_info::KEY_ALGORITHM_CRC32C:
+    return crc32c_hash(field_array);
+  case partition_info::KEY_ALGORITHM_XXH32:
+    return xxh32_hash(field_array);
+  case partition_info::KEY_ALGORITHM_XXH3:
+    return xxh3_hash(field_array);
+  default:
+    DBUG_ASSERT(0);
+    /* Fall back to default hash */
+    return mysql5x_hash(field_array, false);
+  }
 }
 
 

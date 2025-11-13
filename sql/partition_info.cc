@@ -2319,7 +2319,7 @@ bool partition_info::fix_parser_data(THD *thd)
     if (part_type == HASH_PARTITION && list_of_part_fields)
     {
       /* KEY partitioning, check ALGORITHM = N. Should not pass the parser! */
-      if (key_algorithm > KEY_ALGORITHM_55)
+      if (key_algorithm >= KEY_ALGORITHM_END)
       {
         my_error(ER_PARTITION_FUNCTION_IS_NOT_ALLOWED, MYF(0));
         DBUG_RETURN(true);
@@ -2335,7 +2335,7 @@ bool partition_info::fix_parser_data(THD *thd)
   if (is_sub_partitioned() && list_of_subpart_fields)
   {
     /* KEY subpartitioning, check ALGORITHM = N. Should not pass the parser! */
-    if (key_algorithm > KEY_ALGORITHM_55)
+    if (key_algorithm >= KEY_ALGORITHM_END)
     {
       my_error(ER_PARTITION_FUNCTION_IS_NOT_ALLOWED, MYF(0));
       DBUG_RETURN(true);
@@ -2905,5 +2905,24 @@ bool partition_info::error_if_requires_values() const
     my_error(ER_PARTITION_REQUIRES_VALUES_ERROR, MYF(0), "LIST", "IN");
     return true;
   }
+  return false;
+}
+
+bool partition_info::set_key_algorithm(const LEX_CSTRING *str)
+{
+  if (lex_string_eq(str, STRING_WITH_LEN("MYSQL51")))
+    key_algorithm= KEY_ALGORITHM_51;
+  else if (lex_string_eq(str, STRING_WITH_LEN("MYSQL55")))
+    key_algorithm= KEY_ALGORITHM_55;
+  else if (lex_string_eq(str, STRING_WITH_LEN("SIMPLE")))
+    key_algorithm= KEY_ALGORITHM_SIMPLE;
+  else if (lex_string_eq(str, STRING_WITH_LEN("CRC32C")))
+    key_algorithm= KEY_ALGORITHM_CRC32C;
+  else if (lex_string_eq(str, STRING_WITH_LEN("XXH32")))
+    key_algorithm= KEY_ALGORITHM_XXH32;
+  else if (lex_string_eq(str, STRING_WITH_LEN("XXH3")))
+    key_algorithm= KEY_ALGORITHM_XXH3;
+  else
+    return true;
   return false;
 }

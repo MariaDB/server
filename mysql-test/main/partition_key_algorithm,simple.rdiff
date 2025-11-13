@@ -1,0 +1,161 @@
+@@ -1,13 +1,13 @@
+ # MDEV-9826 change the hash algorithm for PARTITION BY KEY
+ ## MDEV-9826 case with NULL
+-create table t1(c1 int, c2 date) partition by key  (c2) partitions 8;
++create table t1(c1 int, c2 date) partition by key ALGORITHM=SIMPLE (c2) partitions 8;
+ show create table t1;
+ Table	Create Table
+ t1	CREATE TABLE `t1` (
+   `c1` int(11) DEFAULT NULL,
+   `c2` date DEFAULT NULL
+ ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+- PARTITION BY KEY (`c2`)
++ PARTITION BY KEY ALGORITHM = SIMPLE (`c2`)
+ PARTITIONS 8
+ insert into t1 values (1, NULL);
+ insert into t1 values (1, '2014-04-22');
+@@ -21,94 +21,94 @@
+ insert into t1 values (1, '2014-04-30');
+ select partition_name, table_rows from information_schema.partitions where table_name='t1';
+ partition_name	table_rows
+-p0	3
+-p1	0
++p0	2
++p1	2
+ p2	1
+-p3	0
+-p4	2
+-p5	0
+-p6	4
+-p7	0
++p3	1
++p4	1
++p5	1
++p6	1
++p7	1
+ drop table t1;
+ ## MDEV-9826 case with more dates
+-create table t1(c1 int, c2 date) partition by key  (c2) partitions 8;
++create table t1(c1 int, c2 date) partition by key ALGORITHM=SIMPLE (c2) partitions 8;
+ show create table t1;
+ Table	Create Table
+ t1	CREATE TABLE `t1` (
+   `c1` int(11) DEFAULT NULL,
+   `c2` date DEFAULT NULL
+ ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+- PARTITION BY KEY (`c2`)
++ PARTITION BY KEY ALGORITHM = SIMPLE (`c2`)
+ PARTITIONS 8
+ insert into t1 values (1, NULL);
+ insert into t1 select 1, from_days(seq) from seq_735000_to_736000;
+ select partition_name, table_rows from information_schema.partitions where table_name='t1';
+ partition_name	table_rows
+-p0	297
+-p1	0
+-p2	1
+-p3	0
+-p4	428
+-p5	0
+-p6	276
+-p7	0
++p0	130
++p1	126
++p2	122
++p3	122
++p4	124
++p5	123
++p6	126
++p7	129
+ drop table t1;
+ ## MDEV-9826 case with more dates and linear key
+-create table t1(c1 int, c2 date) partition by linear key  (c2) partitions 8;
++create table t1(c1 int, c2 date) partition by linear key ALGORITHM=SIMPLE (c2) partitions 8;
+ show create table t1;
+ Table	Create Table
+ t1	CREATE TABLE `t1` (
+   `c1` int(11) DEFAULT NULL,
+   `c2` date DEFAULT NULL
+ ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+- PARTITION BY LINEAR KEY (`c2`)
++ PARTITION BY LINEAR KEY ALGORITHM = SIMPLE (`c2`)
+ PARTITIONS 8
+ insert into t1 values (1, NULL);
+ insert into t1 select 1, from_days(seq) from seq_735000_to_736000;
+ select partition_name, table_rows from information_schema.partitions where table_name='t1';
+ partition_name	table_rows
+-p0	297
+-p1	0
+-p2	1
+-p3	0
+-p4	428
+-p5	0
+-p6	276
+-p7	0
++p0	130
++p1	126
++p2	122
++p3	122
++p4	124
++p5	123
++p6	126
++p7	129
+ drop table t1;
+ ## MDEV-9826 case with more dates and multiple keys
+-create table t1(c1 int, c2 date) partition by key  (c1, c2) partitions 8;
++create table t1(c1 int, c2 date) partition by key ALGORITHM=SIMPLE (c1, c2) partitions 8;
+ show create table t1;
+ Table	Create Table
+ t1	CREATE TABLE `t1` (
+   `c1` int(11) DEFAULT NULL,
+   `c2` date DEFAULT NULL
+ ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+- PARTITION BY KEY (`c1`,`c2`)
++ PARTITION BY KEY ALGORITHM = SIMPLE (`c1`,`c2`)
+ PARTITIONS 8
+ insert into t1 values (1, NULL);
+ insert into t1 select 1, from_days(seq) from seq_735000_to_736000;
+ select partition_name, table_rows from information_schema.partitions where table_name='t1';
+ partition_name	table_rows
+-p0	153
+-p1	0
+-p2	542
+-p3	0
+-p4	306
+-p5	1
+-p6	0
+-p7	0
++p0	129
++p1	130
++p2	126
++p3	122
++p4	122
++p5	124
++p6	123
++p7	126
+ drop table t1;
+ ## MDEV-20791 case with INET6
+-create table t1 (a inet6) partition by key  (a) partitions 2;
++create table t1 (a inet6) partition by key ALGORITHM=SIMPLE (a) partitions 2;
+ insert into t1 values ('0:db8::ff00:42:8329'),('2001:db8::ff00:42:8329'),('::'),('::192.0.2.128'),('::ffff:192.0.2.128');
+ select partition_name, table_rows from information_schema.partitions where table_name='t1';
+ partition_name	table_rows
+-p0	0
+-p1	5
++p0	4
++p1	1
+ drop table t1;
+ ## MDEV-20791 case with BINARY
+-CREATE TABLE t1 (a BINARY(16)) PARTITION BY KEY  (a) PARTITIONS 2;
++CREATE TABLE t1 (a BINARY(16)) PARTITION BY KEY ALGORITHM=SIMPLE (a) PARTITIONS 2;
+ INSERT INTO t1 VALUES (X'00000DB8000000000000FF0000428329');
+ INSERT INTO t1 VALUES (X'20010DB8000000000000FF0000428329');
+ INSERT INTO t1 VALUES (X'00000000000000000000000000000000');
+@@ -116,6 +116,6 @@
+ INSERT INTO t1 VALUES (X'00000000000000000000FFFFC0000280');
+ select partition_name, table_rows from information_schema.partitions where table_name='t1';
+ partition_name	table_rows
+-p0	0
+-p1	5
++p0	4
++p1	1
+ drop table t1;
