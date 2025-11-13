@@ -25,9 +25,16 @@ typedef struct st_typelib {	/* Different types saved here */
   const char *name;		/* Name of typelib */
   const char **type_names;
   unsigned int *type_lengths;
+  /*
+    An array of indexes of enum values that are no longer supported and so are
+    hidden. One cannot specify hidden values, an attempt to do so will produce
+    a warning (while an attempt to use a name that was never part of this set
+    will produce an error).
+  */
+  const int *hidden_values;
 } TYPELIB;
 
-#define CREATE_TYPELIB_FOR(X) { (unsigned int)(sizeof(X)/sizeof(X[0])) - 1, "", X, NULL }
+#define CREATE_TYPELIB_FOR(X) { (unsigned int)(sizeof(X)/sizeof(X[0])) - 1, "", X, NULL, NULL }
 
 extern my_ulonglong find_typeset(const char *x, TYPELIB *typelib,
                                  int *error_position);

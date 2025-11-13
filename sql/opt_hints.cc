@@ -32,26 +32,29 @@
 
 struct st_opt_hint_info opt_hint_info[]=
 {
-  {{STRING_WITH_LEN("BKA")}, true, false, false},
-  {{STRING_WITH_LEN("BNL")}, true, false, false},
-  {{STRING_WITH_LEN("ICP")}, true, false, false},
-  {{STRING_WITH_LEN("MRR")}, true, false, false},
-  {{STRING_WITH_LEN("NO_RANGE_OPTIMIZATION")}, true, false, false},
-  {{STRING_WITH_LEN("QB_NAME")}, false, false, false},
-  {{STRING_WITH_LEN("MAX_EXECUTION_TIME")}, false, true, false},
-  {{STRING_WITH_LEN("SEMIJOIN")}, false, true, false},
-  {{STRING_WITH_LEN("SUBQUERY")}, false, true, false},
-  {{STRING_WITH_LEN("JOIN_PREFIX")}, false, true, true},
-  {{STRING_WITH_LEN("JOIN_SUFFIX")}, false, true, true},
-  {{STRING_WITH_LEN("JOIN_ORDER")}, false, true, true},
-  {{STRING_WITH_LEN("JOIN_FIXED_ORDER")}, false, true, false},
+  // hint_type                             check_upper   has_args     irregular
+  {{STRING_WITH_LEN("BKA")},                   true,      false,        false},
+  {{STRING_WITH_LEN("BNL")},                   true,      false,        false},
+  {{STRING_WITH_LEN("ICP")},                   true,      false,        false},
+  {{STRING_WITH_LEN("MRR")},                   true,      false,        false},
+  {{STRING_WITH_LEN("NO_RANGE_OPTIMIZATION")}, true,      false,        false},
+  {{STRING_WITH_LEN("QB_NAME")},               false,     false,        false},
+  {{STRING_WITH_LEN("MAX_EXECUTION_TIME")},    false,     true,         false},
+  {{STRING_WITH_LEN("SEMIJOIN")},              false,     true,         false},
+  {{STRING_WITH_LEN("SUBQUERY")},              false,     true,         false},
+  {{STRING_WITH_LEN("JOIN_PREFIX")},           false,     true,         true},
+  {{STRING_WITH_LEN("JOIN_SUFFIX")},           false,     true,         true},
+  {{STRING_WITH_LEN("JOIN_ORDER")},            false,     true,         true},
+  {{STRING_WITH_LEN("JOIN_FIXED_ORDER")},      false,     true,         false},
   {{STRING_WITH_LEN("DERIVED_CONDITION_PUSHDOWN")}, false, false, false},
-  {{STRING_WITH_LEN("MERGE")}, false, false, false},
+  {{STRING_WITH_LEN("MERGE")}, true, false, false},
   {{STRING_WITH_LEN("SPLIT_MATERIALIZED")}, false, false, false},
-  {{STRING_WITH_LEN("INDEX")}, false, true, false},
-  {{STRING_WITH_LEN("JOIN_INDEX")}, false, true, false},
-  {{STRING_WITH_LEN("GROUP_INDEX")}, false, true, false},
-  {{STRING_WITH_LEN("ORDER_INDEX")}, false, true, false},
+  {{STRING_WITH_LEN("INDEX")},                 false,     true,         false},
+  {{STRING_WITH_LEN("JOIN_INDEX")},            false,     true,         false},
+  {{STRING_WITH_LEN("GROUP_INDEX")},           false,     true,         false},
+  {{STRING_WITH_LEN("ORDER_INDEX")},           false,     true,         false},
+  {{STRING_WITH_LEN("ROWID_FILTER")},          false,     true,         false},
+  {{STRING_WITH_LEN("INDEX_MERGE")}, false, false, false},
   {null_clex_str, 0, 0, 0}
 };
 
@@ -61,6 +64,25 @@ struct st_opt_hint_info opt_hint_info[]=
 */
 
 const LEX_CSTRING sys_qb_prefix=  {"select#", 7};
+
+/*
+  Compare LEX_CSTRING objects.
+
+  @param s     The 1st string
+  @param t     The 2nd string
+  @param cs    Pointer to character set
+
+  @return  0 if strings are equal
+           1 if s is greater
+          -1 if t is greater
+*/
+
+int cmp_lex_string(const LEX_CSTRING &s, const LEX_CSTRING &t,
+                   const CHARSET_INFO *cs)
+{
+  return cs->coll->strnncollsp(cs, (const uchar*)s.str, s.length,
+                                   (const uchar*)t.str, t.length);
+}
 
 
 /*
@@ -230,6 +252,42 @@ Opt_hints_qb *get_qb_hints(Parse_context *pc)
   return qb;
 }
 
+
+/**
+   Helper function to find_qb_hints whereby it matches a qb_name to
+   a select number under the presumption that qb_name has a value
+   like `select#X` (where X is a select number).
+
+   @return the matching query block hints object, if it exists.
+ */
+
+static Opt_hints_qb *find_hints_by_select_number(Parse_context *pc,
+                                                 const Lex_ident_sys &qb_name)
+{
+  Opt_hints_qb *qb= nullptr;
+
+  for (SELECT_LEX *sl= pc->thd->lex->all_selects_list;
+       sl && !qb;  // have select and have not found matching query block hints
+       sl= sl->next_select_in_list())
+  {
+    LEX_CSTRING sys_name;  // System QB name
+    char buff[32];         // Buffer to hold sys name
+    sys_name.str= buff;
+    sys_name.length= snprintf(buff, sizeof(buff), "%s%u", sys_qb_prefix.str,
+                              sl->select_number);
+
+    if (cmp_lex_string(sys_name, qb_name, system_charset_info))
+      continue;  // not a match, continue to next select
+
+    // Found a matching `select#X` query block, get its attached hints.
+    Parse_context sl_ctx(pc, sl);
+    qb= get_qb_hints(&sl_ctx);
+  }
+
+  return qb;
+}
+
+
 /**
   Find existing Opt_hints_qb object, print warning
   if the query block is not found.
@@ -251,14 +309,32 @@ Opt_hints_qb *find_qb_hints(Parse_context *pc,
   if (qb_name.length == 0) // no QB NAME is used
     return pc->select->opt_hints_qb;
 
-  Opt_hints_qb *qb= static_cast<Opt_hints_qb *>
+  Opt_hints_qb *qb_by_name= static_cast<Opt_hints_qb *>
     (pc->thd->lex->opt_hints_global->find_by_name(qb_name));
 
-  if (qb == NULL)
+  Opt_hints_qb *qb_by_number= nullptr;
+  if (qb_by_name == nullptr)
+    qb_by_number= find_hints_by_select_number(pc, qb_name);
+
+  // C++-style comment here, otherwise compiler warns of /* within comment.
+  // We don't allow implicit query block names to be specified for hints local
+  // to a view (e.g. CREATE VIEW v1 AS SELECT /*+ NO_ICP(@`select#2` t1) ...
+  // because of select numbering issues.  When we're ready to fix that, then we
+  // can remove this gate.
+  if (pc->thd->lex->sql_command == SQLCOM_CREATE_VIEW &&
+      qb_by_number)
   {
+    print_warn(pc->thd, ER_WARN_NO_IMPLICIT_QB_NAMES_IN_VIEW,
+               hint_type, hint_state, &qb_name,
+               nullptr, nullptr, nullptr);
+    return nullptr;
+  }
+
+  Opt_hints_qb *qb= qb_by_name ? qb_by_name : qb_by_number;
+  if (qb == nullptr)
     print_warn(pc->thd, ER_WARN_UNKNOWN_QB_NAME, hint_type, hint_state,
                &qb_name, NULL, NULL, NULL);
-  }
+
   return qb;
 }
 
@@ -432,34 +508,27 @@ Opt_hints_qb::Opt_hints_qb(Opt_hints *opt_hints_arg,
 
 void Opt_hints_qb::fix_hints_for_derived_table(TABLE_LIST *table_list)
 {
-  Opt_hints_table *tab=
-    static_cast<Opt_hints_table *>(find_by_name(table_list->alias));
-
-  /*
-    If this is fixed and the corresponding Opt_hints_table doesn't exist (or it
-    exists and is fixed) then there's nothing to do, so return early.
-  */
-  if (are_all_fixed() && (!tab || tab->are_all_fixed()))
-    return;
+  DBUG_ASSERT(table_list->is_view_or_derived());
+  DBUG_ASSERT(!table_list->opt_hints_qb ||
+              (table_list->opt_hints_qb == this));
+  table_list->opt_hints_qb= this;
 
   /*
     This instance will have been marked as fixed on the basis of its
-    attachment to a SELECT_LEX (during get_qb_hints) but that is
-    insufficient to consider it fixed for the case where a TABLE
-    instance is required but not yet available.  If the associated
-    table isn't yet fixed, then fix this hint as though it were unfixed.
+    attachment to a SELECT_LEX (during get_qb_hints).
 
-    We mark the Opt_hints_table as 'fixed' here and this means we
+    We mark the opt_hints_table as 'fixed' here and this means we
     won't try to fix the child hints again later.  They will remain
     unfixed and will eventually produce "Unresolved index name" error
     in opt_hints_qb->check_unfixed().  This is acceptable because
     no child hints apply to derived tables.
   */
   DBUG_ASSERT(!table_list->opt_hints_table);
-  DBUG_ASSERT(tab);
-  table_list->opt_hints_qb= this;
-  table_list->opt_hints_table= tab;
-  tab->set_fixed();
+  table_list->opt_hints_table=
+    static_cast<Opt_hints_table *>(find_by_name(table_list->alias));
+  if (!table_list->opt_hints_table)
+    return;
+  table_list->opt_hints_table->set_fixed();
 }
 
 
@@ -565,10 +634,7 @@ bool Opt_hints_table::fix_key_hints(TABLE *table)
     {
       if (key_info->name.streq((*hint)->get_name()))
       {
-        (*hint)->set_fixed();
-        keyinfo_array[j]= static_cast<Opt_hints_key *>(*hint);
-        incr_fully_fixed_children();
-        set_compound_key_hint_map(*hint, j);
+        set_index_hint(*hint, j);
         break;
       }
     }
@@ -584,7 +650,8 @@ bool Opt_hints_table::fix_key_hints(TABLE *table)
   */
   for (opt_hints_enum
            hint_type : { INDEX_HINT_ENUM, JOIN_INDEX_HINT_ENUM,
-                         GROUP_INDEX_HINT_ENUM, ORDER_INDEX_HINT_ENUM })
+                         GROUP_INDEX_HINT_ENUM, ORDER_INDEX_HINT_ENUM,
+                         ROWID_FILTER_HINT_ENUM })
   {
     if (is_specified(hint_type))
     {
@@ -630,6 +697,8 @@ void Opt_hints_table::set_compound_key_hint_map(Opt_hints *hint, uint keynr)
     group_index_map.set_key_map(keynr);
   if (hint->is_specified(ORDER_INDEX_HINT_ENUM))
     order_index_map.set_key_map(keynr);
+  if (hint->is_specified(ROWID_FILTER_HINT_ENUM))
+    rowid_filter_map.set_key_map(keynr);
 }
 
 
@@ -644,6 +713,8 @@ Opt_hints_key_bitmap *Opt_hints_table::get_key_hint_bitmap(opt_hints_enum type)
       return &group_index_map;
     case ORDER_INDEX_HINT_ENUM:
       return &order_index_map;
+    case ROWID_FILTER_HINT_ENUM:
+      return &rowid_filter_map;
     default:
       DBUG_ASSERT(0);
       return nullptr;
@@ -666,6 +737,7 @@ void Opt_hints_table::update_index_hint_map(Key_map *keys_to_use,
   // Check if hint is resolved.
   if (is_fixed(type_arg))
   {
+    // Whitelisting hints: INDEX(), ORDER_INDEX(), etc
     Key_map *keys_specified_in_hint=
         get_key_hint_bitmap(type_arg)->get_key_map();
     if (get_switch(type_arg))
@@ -691,6 +763,7 @@ void Opt_hints_table::update_index_hint_map(Key_map *keys_to_use,
     }
     else
     {
+      // Blacklisting hints: NO_INDEX(), NO_JOIN_INDEX(), etc
       if (keys_specified_in_hint->is_clear_all())
       {
         /*
@@ -703,7 +776,7 @@ void Opt_hints_table::update_index_hint_map(Key_map *keys_to_use,
       {
         /*
           If hint is off and some keys are specified in the hint, then remove
-          the specified keys from "keys_to_use.
+          the specified keys from "keys_to_use"
         */
         keys_to_use->subtract(*keys_specified_in_hint);
       }
@@ -724,9 +797,9 @@ void Opt_hints_table::update_index_hint_map(Key_map *keys_to_use,
       GROUP_INDEX
     - tbl->keys_in_use_for_order_by if the hint is INDEX or
       ORDER_INDEX
+    - tbl->keys_in_use_for_rowid_filter if the hint is ROWID_FILTER
     conversely, subtract the index from the corresponding
     tbl->keys_in_use_for_... map if the hint is prefixed with NO_.
-
   See also: TABLE_LIST::process_index_hints(), which handles similar logic
   for old-style index hints.
 
@@ -741,20 +814,22 @@ void Opt_hints_table::update_index_hint_map(Key_map *keys_to_use,
 bool Opt_hints_table::update_index_hint_maps(THD *thd, TABLE *tbl)
 {
   if (!is_fixed(INDEX_HINT_ENUM) && !is_fixed(JOIN_INDEX_HINT_ENUM) &&
-      !is_fixed(GROUP_INDEX_HINT_ENUM) && !is_fixed(ORDER_INDEX_HINT_ENUM))
+      !is_fixed(GROUP_INDEX_HINT_ENUM) && !is_fixed(ORDER_INDEX_HINT_ENUM) &&
+      !is_fixed(ROWID_FILTER_HINT_ENUM))
     return false;  // No index hint is specified
 
   Key_map usable_index_map(tbl->s->usable_indexes(thd));
   tbl->keys_in_use_for_query= tbl->keys_in_use_for_group_by=
-      tbl->keys_in_use_for_order_by= usable_index_map;
+      tbl->keys_in_use_for_order_by= tbl->keys_in_use_for_rowid_filter=
+        usable_index_map;
 
-  bool is_force= is_force_index_hint(INDEX_HINT_ENUM);
-  tbl->force_index_join=
-      (is_force || is_force_index_hint(JOIN_INDEX_HINT_ENUM));
-  tbl->force_index_group=
-      (is_force || is_force_index_hint(GROUP_INDEX_HINT_ENUM));
-  tbl->force_index_order=
-      (is_force || is_force_index_hint(ORDER_INDEX_HINT_ENUM));
+  bool is_global_whitelisting= is_whitelisting_index_hint(INDEX_HINT_ENUM);
+  tbl->force_index_join= (is_global_whitelisting ||
+                          is_whitelisting_index_hint(JOIN_INDEX_HINT_ENUM));
+  tbl->force_index_group= (is_global_whitelisting ||
+                           is_whitelisting_index_hint(GROUP_INDEX_HINT_ENUM));
+  tbl->force_index_order= (is_global_whitelisting ||
+                           is_whitelisting_index_hint(ORDER_INDEX_HINT_ENUM));
 
   if (tbl->force_index_join)
     tbl->keys_in_use_for_query.clear_all();
@@ -762,6 +837,8 @@ bool Opt_hints_table::update_index_hint_maps(THD *thd, TABLE *tbl)
     tbl->keys_in_use_for_group_by.clear_all();
   if (tbl->force_index_order)
     tbl->keys_in_use_for_order_by.clear_all();
+  if (is_whitelisting_index_hint(ROWID_FILTER_HINT_ENUM))
+    tbl->keys_in_use_for_rowid_filter.clear_all();
 
   // See comment to the identical code at TABLE_LIST::process_index_hints
   tbl->force_index= (tbl->force_index_order | tbl->force_index_group |
@@ -779,6 +856,19 @@ bool Opt_hints_table::update_index_hint_maps(THD *thd, TABLE *tbl)
                         GROUP_INDEX_HINT_ENUM);
   update_index_hint_map(&tbl->keys_in_use_for_order_by, &usable_index_map,
                         ORDER_INDEX_HINT_ENUM);
+  if (is_fixed(ROWID_FILTER_HINT_ENUM))
+  {
+    update_index_hint_map(&tbl->keys_in_use_for_rowid_filter, &usable_index_map,
+                          ROWID_FILTER_HINT_ENUM);
+  }
+  else
+  {
+    /*
+      If ROWID_FILTER/NO_ROWID_FILTER hint is not specified, then keys
+      for building ROWID filters are the same as for retrieving data
+    */
+    tbl->keys_in_use_for_rowid_filter= tbl->keys_in_use_for_query;
+  }
   /* Make sure "covering_keys" does not include indexes disabled with a hint */
   Key_map covering_keys(tbl->keys_in_use_for_query);
   covering_keys.merge(tbl->keys_in_use_for_group_by);
@@ -805,9 +895,32 @@ void Opt_hints_table::append_hint_arguments(THD *thd, opt_hints_enum hint,
     case ORDER_INDEX_HINT_ENUM:
       order_index_map.parsed_hint->append_args(thd, str);
       break;
+    case ROWID_FILTER_HINT_ENUM:
+      rowid_filter_map.parsed_hint->append_args(thd, str);
+      break;
     default:
       DBUG_ASSERT(0);
   }
+}
+
+// See comment in header file.
+void Opt_hints_table::set_index_hint(Opt_hints *hint, uint arg)
+{
+  hint->set_fixed();
+  keyinfo_array[arg]= static_cast<Opt_hints_key *>(hint);
+  incr_fully_fixed_children();
+
+  /*
+    Update the index_merge_map to note that the key
+    is referenced by a [NO_]INDEX_HINT associated with
+    the table.
+  */
+  if (hint->is_specified(INDEX_MERGE_HINT_ENUM))
+    index_merge_map.set_key(arg);
+
+  set_compound_key_hint_map(hint, arg);
+
+  // In the future, other hint types can be managed here.
 }
 
 
@@ -905,31 +1018,187 @@ hint_state hint_table_state(const THD *thd,
 }
 
 
-/* 
-  @brief
-    Check whether a given optimization is enabled for table.keyno.
-  
-  @detail
-    First check if a hint is present, then check optimizer_switch
+/*
+  Inspects the table and corresponding index_merge_map to
+  interpret index merge hint state.
+
+  @param table          The table indicated by the hint
+  @param keyno          The particular key for the index hint
+  @param has_key_hint   [OUT] true if the hint is specified for keyno
+  @param other_key_hint [OUT] true if the hint is not specified for
+                        keyno but is specified for some other key on
+                        the table
+  @param has_table_hint [OUT] true if the hint is not specified for any
+                        specific key, but is specified for the table
+  @parma hint_value     [OUT] true if the hint is specified and enabled
+                        or false if: (1) the hint is specified and false
+                        or (2) the hint is not specified (in the case of
+                        (2), has_key_hint, other_key_hint, and
+                        has_table_hint will be false).
 */
+static void index_merge_hint_impl(const TABLE *table,
+                                  uint keyno,
+                                  bool &has_key_hint,
+                                  bool &other_key_hint,
+                                  bool &has_table_hint,
+                                  bool &hint_value)
+{
+  Opt_hints_table *table_hints= table->pos_in_table_list->opt_hints_table;
+  has_key_hint= false;
+  other_key_hint= false;
+  has_table_hint= false;
+  hint_value= false;
+
+  // Parent should always be initialized
+  if (!table_hints || keyno == MAX_KEY)
+    return;
+
+  const opt_hints_enum type_arg= INDEX_MERGE_HINT_ENUM;
+
+  // Get the hint state for the specific key, if named.
+  if (table_hints->keyinfo_array.size() > 0 &&
+      table_hints->keyinfo_array[keyno] &&
+      table_hints->keyinfo_array[keyno]->is_specified(type_arg))
+  {
+    has_key_hint= true;
+    hint_value= table_hints->keyinfo_array[keyno]->get_switch(type_arg);
+    return;
+  }
+
+  /*
+    The passed keyno doesn't have the hint specified, but see if another
+    has the [NO_]INDEX_MERGE hint specified.  If not, then see if the table
+    as a whole has the hint specified (implying all keys are affected).
+    There can't be a mix of NO_INDEX_MERGE and INDEX_MERGE hints for the
+    same table, so inspecting the first other specified key is enough.
+  */
+  const uint other_keyno= table_hints->index_merge_map.get_first_keyno();
+  if (table_hints->index_merge_map.has_key_specified() &&
+      table_hints->keyinfo_array[other_keyno] &&
+      table_hints->keyinfo_array[other_keyno]->is_specified(type_arg))
+  {
+    other_key_hint= true;
+    hint_value= table_hints->keyinfo_array[other_keyno]->get_switch(type_arg);
+    return;
+  }
+
+  // No specific key named, see if the table has the hint specified.
+  if (table_hints->is_specified(type_arg))
+  {
+    has_table_hint= true;
+    hint_value= table_hints->get_switch(type_arg);
+  }
+}
+
+
+// See comment in header file.
+index_merge_behavior index_merge_hint(const TABLE *table,
+                                      uint keyno,
+                                      bool *force_index_merge,
+                                      bool *use_cheapest_index_merge)
+{
+  bool has_key_hint= false,
+       other_has_hint= false,
+       has_table_hint= false,
+       hint_value= false;
+
+  index_merge_hint_impl(table,
+                        keyno,
+                        has_key_hint,
+                        other_has_hint,
+                        has_table_hint,
+                        hint_value);
+
+  if (has_key_hint && hint_value)
+  {
+    // Index merge is allowed for this key, so use it.
+    *force_index_merge= true;
+    return index_merge_behavior::USE_KEY;
+  }
+
+  if (other_has_hint && hint_value)
+    // keyno isn't the one with the hint, another key on the table has the hint.
+    return index_merge_behavior::SKIP_KEY;
+
+  if (has_key_hint && !hint_value)
+    // This key is not allowed, so skip it.
+    return index_merge_behavior::SKIP_KEY;
+
+  if (other_has_hint && !hint_value)
+    // Another key is disallowed by the hint, this key is allowed.
+    return index_merge_behavior::USE_KEY;
+
+  if (has_table_hint && hint_value)
+  {
+    // No specific keys mentioned in the hint, so all are implied for the table.
+    *force_index_merge= true;
+    *use_cheapest_index_merge= true;
+    return index_merge_behavior::TABLE_ENABLED;
+  }
+
+  if (has_table_hint && !hint_value)
+    // Merging is disabled for all keys on the table.
+    return index_merge_behavior::TABLE_DISABLED;
+
+  // No hint specified for the table.
+  return index_merge_behavior::NO_HINT;
+}
+
+
+// See comment in header file.
+index_merge_behavior index_merge_hint(const TABLE *table,
+                                      uint keyno)
+{
+  bool force_index_merge_IGNORED= false,
+       use_cheapest_index_merge_IGNORED= false;
+  return index_merge_hint(table,
+                          keyno,
+                          &force_index_merge_IGNORED,
+                          &use_cheapest_index_merge_IGNORED);
+}
+
 
 bool hint_key_state(const THD *thd, const TABLE *table,
                     uint keyno, opt_hints_enum type_arg,
-                    uint optimizer_switch)
+                    bool fallback_value)
 {
   Opt_hints_table *table_hints= table->pos_in_table_list->opt_hints_table;
 
-  /* Parent should always be initialized */
   if (table_hints && keyno != MAX_KEY)
   {
-    Opt_hints_key *key_hints= table_hints->keyinfo_array.size() > 0 ?
-      table_hints->keyinfo_array[keyno] : NULL;
-    bool ret_val= false;
-    if (get_hint_state(key_hints, table_hints, type_arg, &ret_val))
-      return ret_val;
+    if (!is_compound_hint(type_arg))
+    {
+      // Simple index hint
+      Opt_hints_key *key_hints= table_hints->keyinfo_array.size() > 0 ?
+                                     table_hints->keyinfo_array[keyno] : NULL;
+      bool ret_val= false;
+      if (get_hint_state(key_hints, table_hints, type_arg, &ret_val))
+        return ret_val;
+    }
+    else if (table_hints->is_fixed(type_arg))
+    {
+      // Compound index hint
+      Key_map *keys_specified_in_hint=
+          table_hints->get_key_hint_bitmap(type_arg)->get_key_map();
+      if (keys_specified_in_hint->is_clear_all())
+      {
+        /*
+          No keys are specified (i.e., it is a table-level hint).
+          This means either all or no keys can be used, depending on whether
+          the hint is whitelisting (INDEX, GROUP_INDEX) or blacklisting
+          (NO_INDEX, NO_ORDER_INDEX)
+        */
+        return table_hints->get_switch(type_arg);
+      }
+      else
+      {
+        bool is_specified= keys_specified_in_hint->is_set(keyno);
+        bool is_on= table_hints->get_switch(type_arg);
+        return (is_on && is_specified) || (!is_on && !is_specified);
+      }
+    }
   }
-
-  return optimizer_flag(thd, optimizer_switch);
+  return fallback_value;
 }
 
 
@@ -1307,7 +1576,9 @@ void Opt_hints_qb::print_join_order_warn(THD *thd, opt_hints_enum type,
 
 bool Opt_hints_global::fix_hint(THD *thd)
 {
-  if (thd->lex->is_ps_or_view_context_analysis())
+  if (thd->lex->context_analysis_only &
+      (CONTEXT_ANALYSIS_ONLY_PREPARE |
+       CONTEXT_ANALYSIS_ONLY_VCOL_EXPR))
     return false;
 
   if (!max_exec_time_hint)
@@ -1358,6 +1629,9 @@ bool is_index_hint_conflicting(Opt_hints_table *table_hint,
                                Opt_hints_key *key_hint,
                                opt_hints_enum hint_type)
 {
+  if (hint_type == ROWID_FILTER_HINT_ENUM)
+    return table_or_key_hint_type_specified(table_hint, key_hint,
+                                            ROWID_FILTER_HINT_ENUM);
   if (hint_type != INDEX_HINT_ENUM)
     return table_or_key_hint_type_specified(table_hint, key_hint,
                                             INDEX_HINT_ENUM);
@@ -1374,9 +1648,44 @@ bool is_compound_hint(opt_hints_enum type_arg)
 {
   return (
       type_arg == INDEX_HINT_ENUM || type_arg == JOIN_INDEX_HINT_ENUM ||
-      type_arg == GROUP_INDEX_HINT_ENUM || type_arg == ORDER_INDEX_HINT_ENUM);
+      type_arg == GROUP_INDEX_HINT_ENUM || type_arg == ORDER_INDEX_HINT_ENUM ||
+      type_arg == ROWID_FILTER_HINT_ENUM);
 }
 
+
+/*
+  @brief
+    Perform "Hint Resolution" for Optimizer Hints (see opt_hints.h for
+    definition)
+
+  @detail
+    Hints use "Explain select numbering", so this must be called after the
+    call to LEX::fix_first_select_number().
+
+    On the other hand, this must be called before the first attempt to check
+    any hint.
+*/
+
+void LEX::resolve_optimizer_hints()
+{
+  Query_arena *arena, backup;
+  arena= thd->activate_stmt_arena_if_needed(&backup);
+  SCOPE_EXIT([&] () mutable {
+    selects_for_hint_resolution.empty();
+    if (arena)
+      thd->restore_active_arena(arena, &backup);
+  });
+
+  List_iterator<SELECT_LEX> it(selects_for_hint_resolution);
+  SELECT_LEX *sel;
+  while ((sel= it++))
+  {
+    if (!sel->parsed_optimizer_hints)
+      continue;
+    Parse_context pc(thd, sel);
+    sel->parsed_optimizer_hints->resolve(&pc);
+  }
+}
 
 #ifndef DBUG_OFF
 static char dbug_print_hint_buf[64];

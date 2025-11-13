@@ -405,7 +405,7 @@ bool log_t::attach(log_file_t file, os_offset_t size) noexcept
 void log_t::header_write(byte *buf, lsn_t lsn, bool encrypted) noexcept
 {
   mach_write_to_4(my_assume_aligned<4>(buf) + LOG_HEADER_FORMAT,
-                  log_sys.FORMAT_10_8);
+                  log_sys.format);
   mach_write_to_8(my_assume_aligned<8>(buf + LOG_HEADER_START_LSN), lsn);
 
 #if defined __GNUC__ && __GNUC__ > 7
@@ -1321,10 +1321,10 @@ func_exit:
     }
 
     const lsn_t lsn= log_sys.get_lsn();
-    const lsn_t checkpoint= log_sys.last_checkpoint_lsn;
-    const lsn_t sync_lsn= checkpoint + log_sys.max_checkpoint_age;
+    const lsn_t max_age= log_sys.max_checkpoint_age;
+    const lsn_t age= lsn_t(lsn - log_sys.last_checkpoint_lsn);
 
-    if (lsn <= sync_lsn)
+    if (age <= max_age)
     {
 #ifndef DBUG_OFF
     skip_checkpoint:
@@ -1337,7 +1337,7 @@ func_exit:
     log_sys.latch.wr_unlock();
 
     /* We must wait to prevent the tail of the log overwriting the head. */
-    buf_flush_wait_flushed(std::min(sync_lsn, checkpoint + (1U << 20)));
+    buf_flush_wait_flushed(lsn - max_age);
     /* Sleep to avoid a thundering herd */
     std::this_thread::sleep_for(std::chrono::milliseconds(10));
   }

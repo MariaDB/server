@@ -271,7 +271,7 @@ typedef struct st_partition_part_key_multi_range_hld
   /* Owner object */
   ha_partition *partition;
 
-  /* id of the the partition this structure is for */
+  /* id of the partition this structure is for */
   uint32 part_id;
 
   /* Current range we're iterating through */
@@ -468,11 +468,11 @@ public:
   {
     return m_is_clone_of;
   }
-  virtual part_id_range *get_part_spec()
+  part_id_range *get_part_spec()
   {
     return &m_part_spec;
   }
-  virtual uint get_no_current_part_id()
+  uint get_no_current_part_id()
   {
     return NO_CURRENT_PART_ID;
   }
@@ -919,7 +919,7 @@ public:
   /* Range iterator structure to be supplied to partitions */
   RANGE_SEQ_IF m_part_seq_if;
 
-  virtual int multi_range_key_create_key(
+  int multi_range_key_create_key(
     RANGE_SEQ_IF *seq,
     range_seq_t seq_it
   );
@@ -1383,7 +1383,7 @@ public:
 private:
   int reset_auto_increment(ulonglong value) override;
   int update_next_auto_inc_val();
-  virtual void lock_auto_increment()
+  void lock_auto_increment()
   {
     /* lock already taken */
     if (auto_increment_safe_stmt_log_lock)
@@ -1395,7 +1395,7 @@ private:
       auto_increment_lock= TRUE;
     }
   }
-  virtual void unlock_auto_increment()
+  void unlock_auto_increment()
   {
     /*
       If auto_increment_safe_stmt_log_lock is true, we have to keep the lock.
@@ -1408,7 +1408,7 @@ private:
       part_share->unlock_auto_inc();
     }
   }
-  virtual void set_auto_increment_if_higher(Field *field)
+  void set_auto_increment_if_higher(Field *field)
   {
     ulonglong nr= (((Field_num*) field)->unsigned_flag ||
                    field->val_int() > 0) ? field->val_int() : 0;

@@ -322,8 +322,8 @@ maria_declare_plugin(wsrep_provider)
   NULL, /* Status variables */
   /* System variables, this will be assigned by wsrep plugin below. */
   NULL,
-  "1.0", /* Version (string) */
-  MariaDB_PLUGIN_MATURITY_ALPHA     /* Maturity */
+  "1.0.1", /* Version (string) */
+  MariaDB_PLUGIN_MATURITY_STABLE    /* Maturity */
 }
 maria_declare_plugin_end;
 

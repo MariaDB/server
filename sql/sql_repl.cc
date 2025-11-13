@@ -2261,7 +2261,9 @@ send_event_to_slave(binlog_send_info *info, Log_event_type event_type,
     return "Failed on my_net_write()";
   }
 
-  DBUG_PRINT("info", ("log event code %d", (*packet)[LOG_EVENT_OFFSET+1] ));
+  DBUG_PRINT("info", ("log event code %d",
+    (*packet)[/* Replication protocol status byte */ 1 + EVENT_TYPE_OFFSET]
+  ));
   if (event_type == LOAD_EVENT)
   {
     if (send_file(info->thd))
@@ -2528,7 +2530,9 @@ static int send_format_descriptor_event(binlog_send_info *info, IO_CACHE *log,
     DBUG_RETURN(1);
   }
 
-  event_type= (Log_event_type)((uchar)(*packet)[LOG_EVENT_OFFSET+ev_offset]);
+  event_type= static_cast<Log_event_type>(
+    static_cast<unsigned char>((*packet)[ev_offset + EVENT_TYPE_OFFSET])
+  );
 
   /*
     The packet has offsets equal to the normal offsets in a
@@ -2663,7 +2667,9 @@ static int send_format_descriptor_event(binlog_send_info *info, IO_CACHE *log,
     DBUG_RETURN(1);
   }
 
-  event_type= (Log_event_type)((uchar)(*packet)[LOG_EVENT_OFFSET + ev_offset]);
+  event_type= static_cast<Log_event_type>(
+    static_cast<unsigned char>((*packet)[ev_offset + EVENT_TYPE_OFFSET])
+  );
   if (event_type == START_ENCRYPTION_EVENT)
   {
     Start_encryption_log_event *sele= (Start_encryption_log_event *)
@@ -2931,8 +2937,10 @@ static int send_events(binlog_send_info *info, IO_CACHE* log, LOG_INFO* linfo,
       return 1;
     }
 
-    Log_event_type event_type=
-        (Log_event_type)((uchar)(*packet)[LOG_EVENT_OFFSET+ev_offset]);
+  Log_event_type event_type= static_cast<Log_event_type>(
+    static_cast<unsigned char>((*packet)[ev_offset + EVENT_TYPE_OFFSET])
+  );
+
 
 #ifndef DBUG_OFF
     if (info->dbug_reconnect_counter > 0)

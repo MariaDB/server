@@ -1755,7 +1755,7 @@ row_unlock_for_mysql(
 		const rec_t*	rec;
 		dict_index_t*	index;
 		trx_id_t	rec_trx_id;
-		mtr_t		mtr;
+		mtr_t		mtr{prebuilt->trx};
 		btr_pcur_t*	pcur	= prebuilt->pcur;
 
 		mtr_start(&mtr);
@@ -2216,7 +2216,7 @@ row_mysql_table_id_reassign(
 	dberr_t		err;
 	pars_info_t*	info	= pars_info_create();
 
-	dict_hdr_get_new_id(new_id, NULL, NULL);
+	dict_hdr_get_new_id(trx, new_id, NULL, NULL);
 
 	pars_info_add_ull_literal(info, "old_id", table->id);
 	pars_info_add_ull_literal(info, "new_id", *new_id);
@@ -2567,38 +2567,21 @@ row_rename_table_for_mysql(
 
 	/* MariaDB partition engine hard codes the file name
 	separator as "#P#" and "#SP#". The text case is fixed even if
-	lower_case_table_names is set to 1 or 2. InnoDB always
-	normalises file names to lower case on Windows, this
+	lower_case_table_names is set to 1 or 2. InnoDB used to
+	normalize file names to lower case on Windows, this
 	can potentially cause problems when copying/moving
-	tables between platforms.
-
-	1) If boot against an installation from Windows
-	platform, then its partition table name could
-	be all be in lower case in system tables. So we
-	will need to check lower case name when load table.
-
-	2) If  we boot an installation from other case
-	sensitive platform in Windows, we might need to
-	check the existence of table name without lowering
-	case them in the system table. */
+	tables between platforms, even if lower_case_table_names=1
+	was set on both platforms.
+	*/
 	if (!table && lower_case_table_names == 1
-	    && strstr(old_name, table_name_t::part_suffix)) {
+	    && dict_is_partition(old_name)) {
 		char par_case_name[MAX_FULL_NAME_LEN + 1];
-#ifndef _WIN32
 		/* Check for the table using lower
 		case name, including the partition
 		separator "P" */
 		system_charset_info->casedn_z(
 				old_name, strlen(old_name),
 				par_case_name, sizeof(par_case_name));
-#else
-		/* On Windows platfrom, check
-		whether there exists table name in
-		system table whose name is
-		not being normalized to lower case */
-		normalize_table_name_c_low(
-			par_case_name, sizeof(par_case_name), old_name, FALSE);
-#endif
 		table = dict_table_open_on_name(par_case_name, true,
 						DICT_ERR_IGNORE_FK_NOKEY);
 	}
@@ -2739,15 +2722,17 @@ row_rename_table_for_mysql(
 		/* We only want to switch off some of the type checking in
 		an ALTER TABLE, not in a RENAME. */
 		dict_names_t	fk_tables;
-
-		err = dict_load_foreigns(
-			new_name, nullptr, trx->id,
-			!old_is_tmp || trx->check_foreigns,
-			fk == RENAME_ALTER_COPY
-			? DICT_ERR_IGNORE_NONE
-			: DICT_ERR_IGNORE_FK_NOKEY,
-			fk_tables);
-
+		{
+			mtr_t mtr{trx};
+			err = dict_load_foreigns(mtr, new_name, nullptr,
+						 trx->id,
+						 !old_is_tmp
+						 || trx->check_foreigns,
+						 fk == RENAME_ALTER_COPY
+						 ? DICT_ERR_IGNORE_NONE
+						 : DICT_ERR_IGNORE_FK_NOKEY,
+						 fk_tables);
+		}
 		if (err != DB_SUCCESS) {
 			if (old_is_tmp) {
 				/* In case of copy alter, ignore the

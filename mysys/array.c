@@ -411,3 +411,126 @@ void freeze_size(DYNAMIC_ARRAY *array)
     array->max_element= elements;
   }
 }
+
+int mem_root_dynamic_array_resize_not_allowed(MEM_ROOT_DYNAMIC_ARRAY *array)
+{
+  return (array->malloc_flags & MY_BUFFER_NO_RESIZE);
+}
+
+int mem_root_dynamic_array_init(MEM_ROOT *current_mem_root,
+                                PSI_memory_key psi_key,
+                                MEM_ROOT_DYNAMIC_ARRAY *array,
+                                size_t element_size, void *init_buffer,
+                                size_t init_alloc, size_t alloc_increment,
+                                myf my_flags)
+{
+  DBUG_ENTER("init_mem_root_dynamic_array");
+
+  array->elements=0;
+  array->max_element=init_alloc;
+  array->alloc_increment=alloc_increment;
+  array->size_of_element=element_size;
+  array->m_psi_key= psi_key;
+  array->malloc_flags= my_flags;
+  array->mem_root= current_mem_root;
+
+  if ((array->buffer= (uchar*)init_buffer))
+  {
+    array->malloc_flags|= MY_INIT_BUFFER_USED;
+    memset(array->buffer, 0, array->size_of_element*array->max_element);
+    DBUG_RETURN(FALSE);
+  }
+
+  if (!alloc_increment && !(my_flags & MY_BUFFER_NO_RESIZE))
+  {
+    alloc_increment=MY_MAX((8192-MALLOC_OVERHEAD)/element_size,16);
+    if (init_alloc > 8 && alloc_increment > init_alloc * 2)
+      alloc_increment=init_alloc*2;
+  }
+
+  /*
+    Since the dynamic array is usable even if allocation fails here malloc
+    should not throw an error
+  */
+  if (init_alloc &&
+      !(array->buffer= (uchar*) alloc_root(array->mem_root,
+                                           array->size_of_element*
+                                                 array->max_element)))
+    array->max_element=0;
+  memset(array->buffer, 0, array->size_of_element*array->max_element);
+
+  DBUG_RETURN(FALSE);
+}
+
+void mem_root_dynamic_array_reset(MEM_ROOT_DYNAMIC_ARRAY *array)
+{
+  memset(array->buffer, 0, (array->size_of_element)*(array->max_element));
+}
+
+
+int mem_root_allocate_dynamic(MEM_ROOT *mem_root,
+                              MEM_ROOT_DYNAMIC_ARRAY *array,
+                              size_t idx)
+{
+  DBUG_ENTER("allocate_dynamic");
+
+  if (idx >= array->max_element)
+  {
+    size_t size;
+    uchar *new_ptr;
+
+    size= (idx + array->alloc_increment);
+    if (array->malloc_flags & MY_INIT_BUFFER_USED)
+    {
+       /*
+         In this senerio, the buffer is statically preallocated,
+         so we have to create an all-new malloc since we overflowed
+       */
+       if (!(new_ptr= (uchar *) alloc_root(mem_root,
+                                           size * array->size_of_element)))
+         DBUG_RETURN(0);
+       array->malloc_flags&= ~MY_INIT_BUFFER_USED;
+    }
+    else if (!(new_ptr= (uchar*) alloc_root(mem_root, size*array->size_of_element)))
+      DBUG_RETURN(TRUE);
+    /* copy old elements first. */
+    memcpy(new_ptr, array->buffer,
+              array->max_element * array->size_of_element);
+    /* set the remainging memory to 0. */
+    memset(new_ptr+((array->max_element) * array->size_of_element), 0,
+           array->alloc_increment*array->size_of_element);
+    array->buffer= new_ptr;
+    array->max_element= size;
+  }
+  DBUG_RETURN(FALSE);
+}
+
+/*
+  Note: If these two are merged, the resultant function will have to have
+  a conditional block of code. Now, these are called in recursive functions.
+  and although in non-recursive case it would probably not matter much,
+  calling functions with conditional block recursively introduces performance
+  delay.
+
+  Hence, to avoid the performance issue, where we know for sure
+  that there will be no need to resize, directly get value. And
+  in other places where there might be a need to resize the array,
+  use the one with resize.
+*/
+inline void* mem_root_dynamic_array_get_val(MEM_ROOT_DYNAMIC_ARRAY *array, size_t idx)
+{
+  void* element_ptr;
+
+  DBUG_ASSERT(idx < array->max_element);
+
+  // Calculate the pointer to the desired element in the array
+  element_ptr = array->buffer + (idx * array->size_of_element);
+  return element_ptr;
+}
+
+inline void mem_root_dynamic_array_copy_values(MEM_ROOT_DYNAMIC_ARRAY *dest, MEM_ROOT_DYNAMIC_ARRAY *src)
+{
+  size_t number_of_elements= dest->max_element < src->max_element ? dest->max_element : src->max_element;
+
+  memcpy(dest->buffer, src->buffer, dest->size_of_element * number_of_elements);
+}

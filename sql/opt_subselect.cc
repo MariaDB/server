@@ -2777,12 +2777,18 @@ get_tmp_table_costs(THD *thd, double row_count, uint row_size, bool blobs_used,
                            tmp_table_optimizer_costs.row_copy_cost :
                            0);
     /* Disk based table */
-    cost.lookup=          ((tmp_table_optimizer_costs.key_lookup_cost *
-                            tmp_table_optimizer_costs.disk_read_ratio) +
-                           row_copy_cost);
+    cost.lookup=         ((tmp_table_optimizer_costs.key_lookup_cost +
+                           tmp_table_optimizer_costs.disk_read_cost *
+                           tmp_table_optimizer_costs.disk_read_ratio) +
+                         row_copy_cost);
+    /*
+      Don't have numbers for cost of writing, assume it's the same as cost
+      of reading for lack of a better number.
+    */
     cost.write=           cost.lookup;
     cost.create=          DISK_TEMPTABLE_CREATE_COST;
     cost.block_size=      DISK_TEMPTABLE_BLOCK_SIZE;
+    /* The following costs are only used for table scans */
     cost.avg_io_cost=     tmp_table_optimizer_costs.disk_read_cost;
     cost.cache_hit_ratio= tmp_table_optimizer_costs.disk_read_ratio;
   }
@@ -3853,7 +3859,7 @@ void JOIN::dbug_verify_sj_inner_tables(uint prefix_size) const
 #endif
 
 /*
-  Remove the last join tab from from join->cur_sj_inner_tables bitmap
+  Remove the last join tab from join->cur_sj_inner_tables bitmap
 
   @note
   remaining_tables contains @tab.
@@ -5123,7 +5129,7 @@ int SJ_TMP_TABLE::sj_weedout_check_row(THD *thd)
 
   ptr= tmp_table->record[0] + 1;
 
-  /* Put the the rowids tuple into table->record[0]: */
+  /* Put the rowids tuple into table->record[0]: */
 
   // 1. Store the length 
   if (((Field_varstring*)(tmp_table->field[0]))->length_bytes == 1)
@@ -6361,7 +6367,7 @@ Item *and_new_conditions_to_optimized_cond(THD *thd, Item *cond,
     }
   }
 
-  if (!cond)
+  if (!cond || cond->fix_fields_if_needed(thd, &cond))
     return NULL;
 
   if (*cond_eq)
@@ -6393,9 +6399,6 @@ Item *and_new_conditions_to_optimized_cond(THD *thd, Item *cond,
   */
   if (cond && is_simplified_cond)
     cond= cond->remove_eq_conds(thd, cond_value, true);
-
-  if (cond && cond->fix_fields_if_needed(thd, NULL))
-    return NULL;
 
   return cond;
 }

@@ -566,4 +566,501 @@ DROP TABLE t1, t2;
 #
 # End of 10.3 tests
 #
+#
+# MDEV-36321 keys generated on derived tables produce wrong out_rows estimates
+#
+create table t1 (
+grp_id int,
+value int,
+index (grp_id)
+);
+insert into t1 select
+A.seq, B.seq
+from
+seq_1_to_100 A,
+seq_1_to_100 B;
+create table t2 (a int);
+insert into t2 select seq from seq_1_to_5;
+create table t3 (b int);
+insert into t3 select seq from seq_1_to_5;
+analyze table t1,t2;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	Table is already up to date
+test.t2	analyze	status	Engine-independent statistics collected
+test.t2	analyze	status	OK
+SET optimizer_trace='enabled=on';
+SET optimizer_trace_max_mem_size=10485760;
+select * from
+t2,
+(select max(value), grp_id from t1 group by grp_id) DT
+where
+t2.a= DT.grp_id;
+a	max(value)	grp_id
+1	100	1
+2	100	2
+3	100	3
+4	100	4
+5	100	5
+select
+json_detailed(json_extract(trace, '$**.infer_derived_key_statistics')) as t
+from information_schema.optimizer_trace;
+t
+[
+    {
+        "table_alias": "DT",
+        "key_name": "key0",
+        "key_parts": 1,
+        "select": 
+        ["group_list_in_key"],
+        "rec_per_key_estimate": 1
+    }
+]
+# Same as above, but try a UNION:
+select * from
+t2,
+(select max(value), grp_id from t1 group by grp_id
+union all
+select max(value), grp_id from t1 group by grp_id) DT
+where
+t2.a= DT.grp_id;
+a	max(value)	grp_id
+1	100	1
+1	100	1
+2	100	2
+2	100	2
+3	100	3
+3	100	3
+4	100	4
+4	100	4
+5	100	5
+5	100	5
+select
+json_detailed(json_extract(trace, '$**.infer_derived_key_statistics')) as t
+from information_schema.optimizer_trace;
+t
+[
+    {
+        "table_alias": "DT",
+        "key_name": "key0",
+        "key_parts": 1,
+        "select": 
+        [
+            "group_list_in_key",
+            "group_list_in_key"
+        ],
+        "rec_per_key_estimate": 2
+    }
+]
+# Same as the previous query but unhandled group by expression
+explain
+select * from
+t2,
+(select max(value), grp_id from t1 group by grp_id
+union all
+select max(value), grp_id from t1 group by MOD(grp_id,2)) DT
+where
+t2.a= DT.grp_id;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	5	Using where
+1	PRIMARY	<derived2>	ref	key0	key0	5	test.t2.a	101	
+2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	10000	Using temporary; Using filesort
+3	UNION	t1	ALL	NULL	NULL	NULL	NULL	10000	Using temporary; Using filesort
+select
+json_detailed(json_extract(trace, '$**.infer_derived_key_statistics')) as t
+from information_schema.optimizer_trace;
+t
+[
+    {
+        "table_alias": "DT",
+        "key_name": "key0",
+        "key_parts": 1,
+        "select": 
+        [
+            "group_list_in_key",
+            "unhandled query"
+        ]
+    }
+]
+# view/cte/derived merged inside our derived table
+create view v1 as select * from t1;
+explain
+select * from
+t2,
+(select grp_id, max(value) as maxval from v1 group by grp_id) DT
+where
+t2.a= DT.grp_id;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	5	Using where
+1	PRIMARY	<derived2>	ref	key0	key0	5	test.t2.a	1	
+2	DERIVED	t1	ALL	grp_id	NULL	NULL	NULL	10000	Using temporary; Using filesort
+drop view v1;
+explain
+with cte1 as (select * from t1)
+select * from
+t2,
+(select grp_id, max(value) as maxval from cte1 group by grp_id) DT
+where
+t2.a= DT.grp_id;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	5	Using where
+1	PRIMARY	<derived3>	ref	key0	key0	5	test.t2.a	1	
+3	DERIVED	t1	ALL	grp_id	NULL	NULL	NULL	10000	Using temporary; Using filesort
+explain
+select * from
+t2,
+(
+select grp_id, max(value) as maxval from
+(
+select * from t1, t3
+where t1.grp_id = t3.b
+) dt1
+group by grp_id
+) DT
+where
+t2.a= DT.grp_id;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	5	Using where
+1	PRIMARY	<derived2>	ref	key0	key0	5	test.t2.a	1	
+2	DERIVED	t3	ALL	NULL	NULL	NULL	NULL	5	Using where; Using temporary; Using filesort
+2	DERIVED	t1	ref	grp_id	grp_id	5	test.t3.b	100	
+# Example with equalities on GROUP BY columns and other columns
+# Must produce {table=<derived2>, ref=test.t2.col2,test.t2.a, rows=1}
+alter table t2 add col2 int;
+explain
+select * from
+t2,
+(select max(value) as maxval, grp_id from t1 group by grp_id) DT
+where
+t2.col2=maxval and
+t2.a= DT.grp_id;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	5	Using where
+1	PRIMARY	<derived2>	ref	key0	key0	10	test.t2.col2,test.t2.a	1	
+2	DERIVED	t1	ALL	grp_id	NULL	NULL	NULL	10000	Using temporary; Using filesort
+select
+json_detailed(json_extract(trace, '$**.infer_derived_key_statistics')) as t
+from information_schema.optimizer_trace;
+t
+[
+    {
+        "table_alias": "DT",
+        "key_name": "key0",
+        "key_parts": 2,
+        "select": 
+        ["group_list_in_key"],
+        "rec_per_key_estimate": 1
+    }
+]
+explain
+select * from
+t2,
+(select grp_id, max(value) as maxval from t1 group by grp_id) DT
+where
+t2.col2=maxval and
+t2.a= DT.grp_id;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	5	Using where
+1	PRIMARY	<derived2>	ref	key0	key0	10	test.t2.a,test.t2.col2	1	
+2	DERIVED	t1	ALL	grp_id	NULL	NULL	NULL	10000	Using temporary; Using filesort
+delete from t1;
+insert into t1 select 1, a.seq from seq_1_to_10 a;
+analyze table t1;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	Table is already up to date
+explain
+select * from
+t2,
+(select distinct grp_id from t1
+union all
+select distinct value from t1) DT
+where
+t2.a= DT.grp_id;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	5	Using where
+1	PRIMARY	<derived2>	ref	key0	key0	5	test.t2.a	2	
+2	DERIVED	t1	range	NULL	grp_id	5	NULL	2	Using index for group-by
+3	UNION	t1	ALL	NULL	NULL	NULL	NULL	10	Using temporary
+select
+json_detailed(json_extract(trace, '$**.infer_derived_key_statistics')) as t
+from information_schema.optimizer_trace;
+t
+[
+    {
+        "table_alias": "DT",
+        "key_name": "key0",
+        "key_parts": 1,
+        "select": 
+        [
+            "distinct_in_query_block",
+            "distinct_in_query_block"
+        ],
+        "rec_per_key_estimate": 2
+    }
+]
+drop table t1, t2;
+create table t1
+(
+a int not null,
+b int,
+c int,
+d int,
+amount decimal,
+key t1_ix1 (a,b)
+);
+# More complex examples
+insert into t1 values (0, NULL, 0, NULL, 10.0000), (1, 1, 1, 1, 10.0000),
+(2, 2, 2, 2, 20.0000), (3, 3, 3, 3, 30.0000), (4, 4, 4, 4, 40.0000),
+(5, 5, 5, 5, NULL), (6, 6, 6, 6, NULL), (7, 7, 7, 7, 70.0000),
+(8, 8, 8, 8, 80.0000);
+create table t2
+(
+a int NOT NULL,
+b int,
+name varchar(50),
+key t2_ix1 (a,b)
+) engine = innodb;
+insert into t2 values (0, NULL, 'a'), (1, NULL, 'A'), (2, 2, 'B'), (3,3, 'C'),
+(4,4, 'D'), (5,5, NULL), (6,6, NULL), (7,7, 'E'), (8,8, 'F'), (9,9, 'G'),
+(10,10,'H'), (11,11, NULL), (12,12, NULL);
+drop table t3;
+create table t3
+(
+a int not null,
+b int,
+description varchar(50),
+key t3_ix1 (a,b)
+) engine = innodb;
+insert into t3 values (1, 1, 'bar'),(2,2,'buz'), (3,3, 'silver');
+insert into t3 select seq, seq, 'junk' from seq_3_to_13;
+create table t4
+(
+c int not null,
+d int,
+descr varchar(50),
+key t4_ix1 (c,d)
+) engine = innodb;
+insert into t4 values (1, 1, 'iron'), (2,2,'aluminium'), (3,3, 'silver');
+insert into t4 select seq, seq, 'junk' from seq_3_to_13;
+# split materialized
+explain
+select * from t1
+join t2 on t1.a = t2.a and t1.b = t2.b
+join
+(
+select a, b, description from t3 group by a, b
+) dt on dt.a = t1.a and dt.b = t1.b and dt.b = t2.b
+where dt.a < 1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	range	t1_ix1	t1_ix1	4	NULL	1	Using index condition
+1	PRIMARY	t2	ref	t2_ix1	t2_ix1	9	test.t1.a,test.t1.b	1	
+1	PRIMARY	<derived2>	ref	key0	key0	9	test.t1.a,test.t1.b	1	
+2	LATERAL DERIVED	t3	ref	t3_ix1	t3_ix1	9	test.t1.a,test.t1.b	1	Using index condition
+select
+json_detailed(json_extract(trace, '$**.infer_derived_key_statistics')) as t
+from information_schema.optimizer_trace;
+t
+[
+    {
+        "table_alias": "dt",
+        "key_name": "key0",
+        "key_parts": 2,
+        "select": 
+        ["group_list_in_key"],
+        "rec_per_key_estimate": 1
+    },
+    {
+        "table_alias": "dt",
+        "key_name": "key1",
+        "key_parts": 2,
+        "select": 
+        ["group_list_in_key"],
+        "rec_per_key_estimate": 1
+    }
+]
+# union with distinct rows
+explain
+select * from t1
+join t2 on t1.a = t2.a and t1.b = t2.b
+join
+(
+select a, b, description from t3 group by a, b
+union
+select c, d, descr from t4 group by c, d
+) dt on dt.a = t1.a and dt.b = t1.b and dt.b = t2.b
+where dt.a < 1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	range	t1_ix1	t1_ix1	4	NULL	1	Using index condition
+1	PRIMARY	t2	ref	t2_ix1	t2_ix1	9	test.t1.a,test.t1.b	1	
+1	PRIMARY	<derived2>	ref	key1,distinct_key	key1	9	test.t1.a,test.t1.b	2	
+2	DERIVED	t3	range	t3_ix1	t3_ix1	4	NULL	1	Using index condition
+3	UNION	t4	range	t4_ix1	t4_ix1	4	NULL	1	Using index condition
+NULL	UNION RESULT	<union2,3>	ALL	NULL	NULL	NULL	NULL	NULL	
+select
+json_detailed(json_extract(trace, '$**.infer_derived_key_statistics')) as t
+from information_schema.optimizer_trace;
+t
+[
+    {
+        "table_alias": "dt",
+        "key_name": "key1",
+        "key_parts": 2,
+        "select": 
+        [
+            "group_list_in_key",
+            "group_list_in_key"
+        ],
+        "rec_per_key_estimate": 2
+    },
+    {
+        "table_alias": "dt",
+        "key_name": "key2",
+        "key_parts": 2,
+        "select": 
+        [
+            "group_list_in_key",
+            "group_list_in_key"
+        ],
+        "rec_per_key_estimate": 2
+    }
+]
+# union without distinct rows
+explain
+select * from t1
+join t2 on t1.a = t2.a and t1.b = t2.b
+join
+(
+select a, b, description from t3 group by a, b
+union all
+select c, d, descr from t4 group by c, d
+) dt on dt.a = t1.a and dt.b = t1.b and dt.b = t2.b
+where dt.a < 1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	range	t1_ix1	t1_ix1	4	NULL	1	Using index condition
+1	PRIMARY	t2	ref	t2_ix1	t2_ix1	9	test.t1.a,test.t1.b	1	
+1	PRIMARY	<derived2>	ref	key0	key0	9	test.t1.a,test.t1.b	2	
+2	DERIVED	t3	range	t3_ix1	t3_ix1	4	NULL	1	Using index condition
+3	UNION	t4	range	t4_ix1	t4_ix1	4	NULL	1	Using index condition
+select
+json_detailed(json_extract(trace, '$**.infer_derived_key_statistics')) as t
+from information_schema.optimizer_trace;
+t
+[
+    {
+        "table_alias": "dt",
+        "key_name": "key0",
+        "key_parts": 2,
+        "select": 
+        [
+            "group_list_in_key",
+            "group_list_in_key"
+        ],
+        "rec_per_key_estimate": 2
+    },
+    {
+        "table_alias": "dt",
+        "key_name": "key1",
+        "key_parts": 2,
+        "select": 
+        [
+            "group_list_in_key",
+            "group_list_in_key"
+        ],
+        "rec_per_key_estimate": 2
+    }
+]
+# union without distinct rows with simple non grouping 2nd select
+explain
+select * from t1
+join t2 on t1.a = t2.a and t1.b = t2.b
+join
+(
+select a, b, description from t3 group by a, b
+union all
+select c, d, descr from t4
+) dt on dt.a = t1.a and dt.b = t1.b and dt.b = t2.b
+where dt.a < 1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	range	t1_ix1	t1_ix1	4	NULL	1	Using index condition
+1	PRIMARY	t2	ref	t2_ix1	t2_ix1	9	test.t1.a,test.t1.b	1	
+1	PRIMARY	<derived2>	ref	key0	key0	9	test.t1.a,test.t1.b	1	
+2	DERIVED	t3	range	t3_ix1	t3_ix1	4	NULL	1	Using index condition
+3	UNION	t4	range	t4_ix1	t4_ix1	4	NULL	1	Using index condition
+select
+json_detailed(json_extract(trace, '$**.infer_derived_key_statistics')) as t
+from information_schema.optimizer_trace;
+t
+[
+    {
+        "table_alias": "dt",
+        "key_name": "key0",
+        "key_parts": 2,
+        "select": 
+        [
+            "group_list_in_key",
+            "unhandled query"
+        ]
+    },
+    {
+        "table_alias": "dt",
+        "key_name": "key1",
+        "key_parts": 2,
+        "select": 
+        [
+            "group_list_in_key",
+            "unhandled query"
+        ]
+    }
+]
+# intersect
+explain
+select * from t1
+join t2 on t1.a = t2.a and t1.b = t2.b
+join
+(
+select a, b, description from t3 group by a, b
+intersect
+select c, d, descr from t4 group by c, d
+) dt on dt.a = t1.a and dt.b = t1.b and dt.b = t2.b
+where dt.a > 2 and dt.a < 4;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	range	t1_ix1	t1_ix1	4	NULL	1	Using index condition
+1	PRIMARY	t2	ref	t2_ix1	t2_ix1	9	test.t1.a,test.t1.b	1	
+1	PRIMARY	<derived2>	ref	key1,distinct_key	key1	9	test.t1.a,test.t1.b	2	
+2	DERIVED	t3	range	t3_ix1	t3_ix1	4	NULL	2	Using index condition
+3	INTERSECT	t4	range	t4_ix1	t4_ix1	4	NULL	2	Using index condition
+NULL	INTERSECT RESULT	<intersect2,3>	ALL	NULL	NULL	NULL	NULL	NULL	
+select
+json_detailed(json_extract(trace, '$**.infer_derived_key_statistics')) as t
+from information_schema.optimizer_trace;
+t
+[
+    {
+        "table_alias": "dt",
+        "key_name": "key1",
+        "key_parts": 2,
+        "select": 
+        [
+            "group_list_in_key",
+            "group_list_in_key"
+        ],
+        "rec_per_key_estimate": 2
+    },
+    {
+        "table_alias": "dt",
+        "key_name": "key2",
+        "key_parts": 2,
+        "select": 
+        [
+            "group_list_in_key",
+            "group_list_in_key"
+        ],
+        "rec_per_key_estimate": 2
+    }
+]
+drop table t1, t2, t3, t4;
+#
+# End of 11.4 tests
+#
 set optimizer_switch=@exit_optimizer_switch;

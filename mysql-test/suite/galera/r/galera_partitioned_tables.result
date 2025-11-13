@@ -59,10 +59,10 @@ t2_v2	CREATE TABLE `t2_v2` (
 PARTITIONS 2
 SHOW CREATE VIEW x1;
 View	Create View	character_set_client	collation_connection
-x1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `x1` AS select `t1_v2`.`v1` AS `v1`,`t1_v2`.`v2` AS `v2`,`t1_v2`.`v3` AS `v3` from `t1_v2`	utf8mb4	utf8mb4_uca1400_ai_ci
+x1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `x1` AS select `t1_v2`.`v1` AS `v1`,`t1_v2`.`v2` AS `v2`,`t1_v2`.`v3` AS `v3` from `t1_v2`	latin1	latin1_swedish_ci
 SHOW CREATE VIEW x2;
 View	Create View	character_set_client	collation_connection
-x2	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `x2` AS select `t2_v2`.`v1` AS `v1`,`t2_v2`.`v2` AS `v2`,`t2_v2`.`v3` AS `v3` from `t2_v2`	utf8mb4	utf8mb4_uca1400_ai_ci
+x2	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `x2` AS select `t2_v2`.`v1` AS `v1`,`t2_v2`.`v2` AS `v2`,`t2_v2`.`v3` AS `v3` from `t2_v2`	latin1	latin1_swedish_ci
 SELECT * FROM t1_v2;
 v1	v2	v3
 SELECT * FROM t2_v2;
@@ -94,8 +94,6 @@ ALTER TABLE t1 ADD COLUMN v2 int;
 ALTER TABLE t2 ADD COLUMN v2 int;
 ERROR HY000: Galera replication not supported
 INSERT INTO t1 VALUES (1,1),(2,2);
-Warnings:
-Warning	1290	WSREP: wsrep_mode = STRICT_REPLICATION enabled. Storage engine partition for table 'test'.'t1' is not supported in Galera
 INSERT INTO t2 VALUES (1),(2);
 Warnings:
 Warning	1290	WSREP: wsrep_mode = STRICT_REPLICATION enabled. Storage engine partition for table 'test'.'t2' is not supported in Galera
@@ -104,8 +102,6 @@ ERROR HY000: Galera replication not supported
 ALTER TABLE t2 ADD COLUMN v3 int, ENGINE=Aria;
 ERROR HY000: Galera replication not supported
 UPDATE t1 SET v2 = v2 + 3;
-Warnings:
-Warning	1290	WSREP: wsrep_mode = STRICT_REPLICATION enabled. Storage engine partition for table 'test'.'t1' is not supported in Galera
 UPDATE t2 SET v1 = v1 + 3;
 Warnings:
 Warning	1290	WSREP: wsrep_mode = STRICT_REPLICATION enabled. Storage engine partition for table 'test'.'t2' is not supported in Galera
@@ -152,7 +148,7 @@ t2	CREATE TABLE `t2` (
 PARTITIONS 2
 SHOW CREATE VIEW x1;
 View	Create View	character_set_client	collation_connection
-x1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `x1` AS select `t1_v2`.`v1` AS `v1`,`t1_v2`.`v2` AS `v2` from `t1_v2`	utf8mb4	utf8mb4_uca1400_ai_ci
+x1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `x1` AS select `t1_v2`.`v1` AS `v1`,`t1_v2`.`v2` AS `v2` from `t1_v2`	latin1	latin1_swedish_ci
 SELECT * FROM t1_v2;
 v1	v2
 SELECT * FROM t2;
@@ -173,4 +169,61 @@ SELECT @@wsrep_mode;
 STRICT_REPLICATION
 ALTER TABLE t2 ENGINE=InnoDB;
 DROP TABLE t2;
-SET GLOBAL wsrep_mode = DEFAULT;
+connection node_1;
+#
+# MDEV-37373 InnoDB partition table disallow local GTIDs in galera
+# wsrep-mode= DISALLOW_LOCAL_GTID
+#
+SET GLOBAL wsrep_mode = "DISALLOW_LOCAL_GTID";
+SELECT @@wsrep_mode;
+@@wsrep_mode
+DISALLOW_LOCAL_GTID
+CREATE TABLE `sales` (
+`customer_id` int(11) NOT NULL,
+`customer_name` varchar(40) DEFAULT NULL,
+`store_id` varchar(20) NOT NULL,
+`bill_number` int(11) NOT NULL,
+`bill_date` date NOT NULL,
+`amount` decimal(8,2) NOT NULL,
+PRIMARY KEY (`bill_date`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+PARTITION BY RANGE (year(`bill_date`))
+(PARTITION `p0` VALUES LESS THAN (2016) ENGINE = InnoDB,
+PARTITION `p1` VALUES LESS THAN (2017) ENGINE = InnoDB,
+PARTITION `p2` VALUES LESS THAN (2018) ENGINE = InnoDB,
+PARTITION `p3` VALUES LESS THAN (2020) ENGINE = InnoDB);
+INSERT INTO sales
+VALUES (1, 'Michael', 'S001', 101, '2015-01-02', 125.56),
+(2, 'Jim', 'S003', 103, '2015-01-25', 476.50),
+(3, 'Dwight', 'S012', 122, '2016-02-15', 335.00),
+(4, 'Andy', 'S345', 121, '2016-03-26', 787.00),
+(5, 'Pam', 'S234', 132, '2017-04-19', 678.00),
+(6, 'Karen', 'S743', 111, '2017-05-31', 864.00),
+(7, 'Toby', 'S234', 115, '2018-06-11', 762.00),
+(8, 'Oscar', 'S012', 125, '2019-07-24', 300.00),
+(9, 'Darryl', 'S456', 119, '2019-08-02', 492.20);
+SELECT * FROM sales;
+customer_id	customer_name	store_id	bill_number	bill_date	amount
+1	Michael	S001	101	2015-01-02	125.56
+2	Jim	S003	103	2015-01-25	476.50
+3	Dwight	S012	122	2016-02-15	335.00
+4	Andy	S345	121	2016-03-26	787.00
+5	Pam	S234	132	2017-04-19	678.00
+6	Karen	S743	111	2017-05-31	864.00
+7	Toby	S234	115	2018-06-11	762.00
+8	Oscar	S012	125	2019-07-24	300.00
+9	Darryl	S456	119	2019-08-02	492.20
+SET GLOBAL wsrep_mode=DEFAULT;
+connection node_2;
+SELECT * FROM sales;
+customer_id	customer_name	store_id	bill_number	bill_date	amount
+1	Michael	S001	101	2015-01-02	125.56
+2	Jim	S003	103	2015-01-25	476.50
+3	Dwight	S012	122	2016-02-15	335.00
+4	Andy	S345	121	2016-03-26	787.00
+5	Pam	S234	132	2017-04-19	678.00
+6	Karen	S743	111	2017-05-31	864.00
+7	Toby	S234	115	2018-06-11	762.00
+8	Oscar	S012	125	2019-07-24	300.00
+9	Darryl	S456	119	2019-08-02	492.20
+DROP TABLE sales;

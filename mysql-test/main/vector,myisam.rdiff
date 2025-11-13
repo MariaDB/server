@@ -1,6 +1,6 @@
---- a/mysql-test/main/vector.result
-+++ b/mysql-test/main/vector.result
-@@ -305,8 +305,30 @@
+--- vector.result
++++ vector,myisam.reject
+@@ -388,8 +388,30 @@
  create table t1 (id int auto_increment primary key, v vector(5) not null, vector index (v));
  insert t1 (id, v) values (1, x'e360d63ebe554f3fcdbc523f4522193f5236083d');
  truncate table t1;
@@ -8,8 +8,8 @@
 +MyISAM file:         datadir/test/t1#i#01
 +Record format:       Packed
 +Character set:       ? (0)
-+Data records:                    0  Deleted blocks:                 0
-+Recordlength:                   30
++Data records:                      0  Deleted blocks:                      0
++Recordlength:                     30
 +
 +table description:
 +Key Start Len Index   Type
@@ -21,8 +21,8 @@
 +MyISAM file:         datadir/test/t1#i#01
 +Record format:       Packed
 +Character set:       ? (0)
-+Data records:                    0  Deleted blocks:                 0
-+Recordlength:                   30
++Data records:                      0  Deleted blocks:                      0
++Recordlength:                     30
 +
 +table description:
 +Key Start Len Index   Type
@@ -31,7 +31,7 @@
  insert t1 (id, v) values (1, x'e360d63ebe554f3fcdbc523f4522193f5236083d');
  select id, hex(v) from t1;
  id	hex(v)
-@@ -324,26 +346,32 @@
+@@ -407,27 +429,33 @@
  # Test RENAME TABLE with vector index
  create table t1 (id int auto_increment primary key, v vector(5) not null, vector index (v));
  db.opt
@@ -73,7 +73,8 @@
 -t1.ibd
  drop database test1;
  db.opt
-@@ -387,9 +387,11 @@
+ #
+@@ -504,9 +532,11 @@
  # ADD/DROP COLUMN, ALGORITHM=COPY
  alter table t1 add column a int, algorithm=copy;
  db.opt
@@ -87,7 +88,7 @@
  show create table t1;
  Table	Create Table
  t1	CREATE TABLE `t1` (
-@@ -398,12 +400,14 @@
+@@ -515,12 +545,14 @@
    `a` int(11) DEFAULT NULL,
    PRIMARY KEY (`id`),
    VECTOR KEY `v` (`v`)
@@ -105,7 +106,7 @@
  show create table t1;
  Table	Create Table
  t1	CREATE TABLE `t1` (
-@@ -415,13 +415,15 @@
+@@ -528,13 +560,15 @@
    `v` vector(5) NOT NULL,
    PRIMARY KEY (`id`),
    VECTOR KEY `v` (`v`)
@@ -124,7 +125,7 @@
  show create table t1;
  Table	Create Table
  t1	CREATE TABLE `t1` (
-@@ -432,12 +432,14 @@
+@@ -543,12 +577,14 @@
    PRIMARY KEY (`id`),
    KEY `a` (`id`),
    VECTOR KEY `v` (`v`)
@@ -142,7 +143,7 @@
  show create table t1;
  Table	Create Table
  t1	CREATE TABLE `t1` (
-@@ -445,13 +447,15 @@
+@@ -556,13 +592,15 @@
    `v` vector(5) NOT NULL,
    PRIMARY KEY (`id`),
    VECTOR KEY `v` (`v`)
@@ -161,7 +162,7 @@
  show create table t1;
  Table	Create Table
  t1	CREATE TABLE `t1` (
-@@ -464,12 +464,14 @@
+@@ -571,12 +609,14 @@
    PRIMARY KEY (`id`),
    KEY `a` (`id`),
    VECTOR KEY `v` (`v`)
@@ -179,7 +180,7 @@
  show create table t1;
  Table	Create Table
  t1	CREATE TABLE `t1` (
-@@ -479,13 +479,15 @@
+@@ -584,13 +624,15 @@
    `v` vector(5) NOT NULL,
    PRIMARY KEY (`id`),
    VECTOR KEY `v` (`v`)
@@ -198,7 +199,7 @@
  show create table t1;
  Table	Create Table
  t1	CREATE TABLE `t1` (
-@@ -494,12 +496,14 @@
+@@ -599,12 +641,14 @@
    `a` int(11) DEFAULT NULL,
    PRIMARY KEY (`id`),
    VECTOR KEY `v` (`v`)
@@ -215,8 +216,8 @@
 -t1.ibd
  show create table t1;
  Table	Create Table
- t1	CREATE TABLE `t1` ( 
-@@ -509,24 +511,27 @@
+ t1	CREATE TABLE `t1` (
+@@ -612,24 +656,27 @@
    `v` vector(5) NOT NULL,
    PRIMARY KEY (`id`),
    VECTOR KEY `v` (`v`)
@@ -249,7 +250,7 @@
  show create table t1;
  Table	Create Table
  t1	CREATE TABLE `t1` (
-@@ -539,24 +539,27 @@
+@@ -637,24 +684,27 @@
    `v` vector(5) NOT NULL,
    PRIMARY KEY (`id`),
    VECTOR KEY `v` (`v`)
@@ -282,7 +283,7 @@
  show create table t1;
  Table	Create Table
  t1	CREATE TABLE `t1` (
-@@ -567,7 +567,7 @@
+@@ -662,7 +712,7 @@
    `v` vector(5) NOT NULL,
    PRIMARY KEY (`id`),
    VECTOR KEY `v` (`v`)
@@ -291,8 +292,8 @@
  # ADD/DROP INDEX, ALGORITHM=INPLACE (non-vector)
  alter table t1 add index a(id), algorithm=inplace;
  ERROR 0A000: ALGORITHM=INPLACE is not supported for this operation. Try ALGORITHM=COPY
-@@ -590,31 +590,15 @@
- alter table t1 modify column v vector(6) not null, algorithm=inplace;
+@@ -685,31 +735,15 @@
+ alter table t1 modify column v vector(7) not null, algorithm=inplace;
  ERROR 0A000: ALGORITHM=INPLACE is not supported for this operation. Try ALGORITHM=COPY
  # ADD/CHANGE/DROP/MODIFY COLUMN, ALGORITHM=INPLACE (non-vector)
 -alter table t1 add column a varchar(10), algorithm=inplace;
@@ -327,7 +328,7 @@
  show create table t1;
  Table	Create Table
  t1	CREATE TABLE `t1` (
-@@ -606,13 +606,15 @@
+@@ -717,13 +751,15 @@
    `v` vector(5) NOT NULL,
    PRIMARY KEY (`id`),
    VECTOR KEY `v` (`v`)
@@ -346,7 +347,7 @@
  show create table t1;
  Table	Create Table
  t1	CREATE TABLE `t1` (
-@@ -622,14 +622,16 @@
+@@ -731,14 +767,16 @@
    `w` vector(5) NOT NULL,
    PRIMARY KEY (`id`),
    VECTOR KEY `v` (`w`)
@@ -366,7 +367,7 @@
  show create table t1;
  Table	Create Table
  t1	CREATE TABLE `t1` (
-@@ -639,7 +639,7 @@
+@@ -746,7 +784,7 @@
    `v` vector(5) NOT NULL,
    PRIMARY KEY (`id`),
    VECTOR KEY `w` (`v`)
@@ -375,7 +376,7 @@
  alter table t1 rename key w to v;
  # IF [NOT] EXISTS
  create vector index if not exists v on t1(v);
-@@ -650,15 +650,16 @@
+@@ -757,77 +795,22 @@
  Warnings:
  Note	1091	Can't DROP INDEX `v`; check that it exists
  db.opt
@@ -392,9 +393,8 @@
 -) ENGINE=InnoDB AUTO_INCREMENT=11 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 +) ENGINE=MyISAM AUTO_INCREMENT=11 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  create vector index if not exists v on t1(v);
- # CHANGE/MODIFY/DROP COLUMN (vector)
- alter table t1 modify column v int;
-@@ -666,62 +666,6 @@
+ alter table t1 rename key if exists v to w;
+ alter table t1 rename key if exists w to v;
  alter table t1 alter key if exists v ignored;
  alter table t1 alter key if exists v not ignored;
  # ENGINE
@@ -457,7 +457,7 @@
  # CHANGE/MODIFY/DROP COLUMN (vector)
  alter table t1 modify column v int;
  ERROR HY000: Incorrect arguments to VECTOR INDEX
-@@ -671,9 +672,11 @@
+@@ -839,9 +822,11 @@
  ERROR 42000: All parts of a VECTOR index must be NOT NULL
  alter table t1 modify column v vector(7) not null;
  db.opt
@@ -471,8 +471,8 @@
  show create table t1;
  Table	Create Table
  t1	CREATE TABLE `t1` (
-@@ -681,12 +684,14 @@
-   `v` vector(5) NOT NULL,
+@@ -849,12 +834,14 @@
+   `v` vector(7) NOT NULL,
    PRIMARY KEY (`id`),
    VECTOR KEY `v` (`v`)
 -) ENGINE=InnoDB AUTO_INCREMENT=11 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
@@ -489,7 +489,7 @@
  show create table t1;
  Table	Create Table
  t1	CREATE TABLE `t1` (
-@@ -699,15 +699,16 @@
+@@ -862,17 +849,18 @@
    `v` vector(5) NOT NULL,
    PRIMARY KEY (`id`),
    VECTOR KEY `v` (`v`)
@@ -509,7 +509,9 @@
 -) ENGINE=InnoDB AUTO_INCREMENT=11 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 +) ENGINE=MyISAM AUTO_INCREMENT=11 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  drop table t1;
-@@ -877,5 +877,5 @@
+ create table t1(v vector(5) not null, vector index(v));
+ alter table t1 add column a int;
+@@ -889,5 +877,5 @@
  t	CREATE TABLE `t` (
    `v` vector(1) NOT NULL,
    VECTOR KEY `v` (`v`) `distance`=cosine

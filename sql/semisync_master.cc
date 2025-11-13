@@ -964,7 +964,8 @@ int Repl_semi_sync_master::commit_trx(const char *trx_wait_binlog_name,
          * semi-sync was turned off then on, so on debug builds, we track
          * the number of times semi-sync turned off at binlogging, and compare
          * to the current value. */
-        DBUG_ASSERT(rpl_semi_sync_master_off_times > thd->expected_semi_sync_offs);
+        DBUG_ASSERT(rpl_semi_sync_master_off_times >
+                    thd->expected_semi_sync_offs);
 
         break;
       }
@@ -1033,10 +1034,11 @@ int Repl_semi_sync_master::commit_trx(const char *trx_wait_binlog_name,
       if (wait_result != 0)
       {
         /* This is a real wait timeout. */
-        sql_print_warning("Timeout waiting for reply of binlog (file: %s, pos: %lu), "
-                          "semi-sync up to file %s, position %lu.",
+        sql_print_warning("Timeout waiting for reply of binlog (file: %s, pos:"
+                          " %lu), last semi-sync at file %s, position %lu.",
                           trx_wait_binlog_name, (ulong)trx_wait_binlog_pos,
-                          m_reply_file_name, (ulong)m_reply_file_pos);
+                          (m_reply_file_name[0] == '\0') ? "(none)" :
+                           m_reply_file_name, (ulong)m_reply_file_pos);
         rpl_semi_sync_master_wait_timeouts++;
 
         /* switch semi-sync off */

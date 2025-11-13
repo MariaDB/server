@@ -6923,7 +6923,7 @@ int ha_spider::create(
           SPIDER_ALTER_PARTITION_COALESCE | SPIDER_ALTER_PARTITION_REORGANIZE |
           SPIDER_ALTER_PARTITION_TABLE_REORG | SPIDER_ALTER_PARTITION_REBUILD
         )
-      ) &&
+      ) && /* Does not support PART_CHANGED */
       memcmp(name + strlen(name) - 5, "#TMP#", 5)
     ) {
       if (

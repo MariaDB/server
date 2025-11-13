@@ -1949,6 +1949,26 @@ static char *cover_definer_clause(const char *stmt_str,
   return query_str;
 }
 
+
+static const char* build_path_for_table(char *to, const char *dir,
+                                        const char *table, const char *ext)
+{
+  char filename[FN_REFLEN], tmp_path[FN_REFLEN];
+  convert_dirname(tmp_path, dir, NULL);
+  my_load_path(tmp_path, tmp_path, NULL);
+  if (check_if_legal_tablename(table))
+    strxnmov(filename, sizeof(filename) - 1, table, "@@@", NULL);
+  else
+  {
+    uint errors, len;
+    len= my_convert(filename, sizeof(filename) - 1, &my_charset_filename,
+                    table, (uint32)strlen(table), charset_info, &errors);
+    filename[len]= 0;
+  }
+  return fn_format(to, filename, tmp_path, ext, MYF(MY_UNPACK_FILENAME));
+}
+
+
 /*
   Open a new .sql file to dump the table or view into
 
@@ -1964,7 +1984,7 @@ static char *cover_definer_clause(const char *stmt_str,
 static FILE* open_sql_file_for_table(const char *db, const char* table, int flags)
 {
   FILE* res;
-  char filename[FN_REFLEN], tmp_path[FN_REFLEN];
+  char filename[FN_REFLEN];
   char out_dir_buf[FN_REFLEN];
 
   char *out_dir= path;
@@ -1974,8 +1994,7 @@ static FILE* open_sql_file_for_table(const char *db, const char* table, int flag
     my_snprintf(out_dir_buf, sizeof(out_dir_buf), "%s/%s", opt_dir, db);
   }
 
-  convert_dirname(tmp_path, out_dir, NullS);
-  res= my_fopen(fn_format(filename, table, tmp_path, ".sql", 4),
+  res= my_fopen(build_path_for_table(filename, out_dir, table, ".sql"),
                 flags, MYF(MY_WME));
   return res;
 }
@@ -4297,7 +4316,7 @@ static void dump_table(const char *table, const char *db, const uchar *hash_key,
 
   if (multi_file_output)
   {
-    char filename[FN_REFLEN], tmp_path[FN_REFLEN];
+    char filename[FN_REFLEN];
     char out_dir_buf[FN_REFLEN];
     char *out_dir= path;
     if (!out_dir)
@@ -4310,9 +4329,7 @@ static void dump_table(const char *table, const char *db, const uchar *hash_key,
       Convert the path to native os format
       and resolve to the full filepath.
     */
-    convert_dirname(tmp_path,out_dir,NullS);
-    my_load_path(tmp_path, tmp_path, NULL);
-    fn_format(filename, table, tmp_path, ".txt", MYF(MY_UNPACK_FILENAME));
+    build_path_for_table(filename, out_dir, table, ".txt");
 
     /* Must delete the file that 'INTO OUTFILE' will write to */
     my_delete(filename, MYF(0));
@@ -4321,7 +4338,6 @@ static void dump_table(const char *table, const char *db, const uchar *hash_key,
     to_unix_path(filename);
 
     /* now build the query string */
-
     dynstr_append_checked(&query_string, "SELECT /*!40001 SQL_NO_CACHE */ ");
     dynstr_append_checked(&query_string, select_field_names.str);
     dynstr_append_checked(&query_string, " INTO OUTFILE '");

@@ -24,6 +24,7 @@ Database object creation
 Created 1/8/1996 Heikki Tuuri
 *******************************************************/
 
+#define MYSQL_SERVER
 #include "dict0crea.h"
 #include "btr0pcur.h"
 #ifdef BTR_CUR_HASH_ADAPT
@@ -45,7 +46,7 @@ Created 1/8/1996 Heikki Tuuri
 #include "fts0priv.h"
 #include "srv0start.h"
 #include "log.h"
-#include "ha_innodb.h"
+#include "sql_class.h"
 
 /*****************************************************************//**
 Based on a table object, this function builds the entry to be inserted
@@ -347,7 +348,10 @@ dict_build_table_def_step(
 	ut_ad(!table->is_temporary());
 	ut_ad(!table->space);
 	ut_ad(table->space_id == UINT32_MAX);
-	dict_hdr_get_new_id(&table->id, nullptr, nullptr);
+	dict_hdr_get_new_id(thr_get_trx(thr), &table->id, nullptr,
+			    DICT_TF2_FLAG_IS_SET(table,
+						 DICT_TF2_USE_FILE_PER_TABLE)
+			    ? &table->space_id : nullptr);
 
 	/* Always set this bit for all new created tables */
 	DICT_TF2_FLAG_SET(table, DICT_TF2_FTS_AUX_HEX_NAME);
@@ -357,8 +361,6 @@ dict_build_table_def_step(
 
 		ut_ad(DICT_TF_GET_ZIP_SSIZE(table->flags) == 0
 		      || dict_table_has_atomic_blobs(table));
-		/* Get a new tablespace ID */
-		dict_hdr_get_new_id(NULL, NULL, &table->space_id);
 
 		DBUG_EXECUTE_IF(
 			"ib_create_table_fail_out_of_space_ids",
@@ -663,7 +665,7 @@ dict_build_index_def_step(
 	ut_ad((UT_LIST_GET_LEN(table->indexes) > 0)
 	      || dict_index_is_clust(index));
 
-	dict_hdr_get_new_id(NULL, &index->id, NULL);
+	dict_hdr_get_new_id(trx, NULL, &index->id, NULL);
 
 	node->page_no = FIL_NULL;
 	row = dict_create_sys_indexes_tuple(index, node->heap);
@@ -695,7 +697,7 @@ dict_build_index_def(
 	ut_ad((UT_LIST_GET_LEN(table->indexes) > 0)
 	      || dict_index_is_clust(index));
 
-	dict_hdr_get_new_id(NULL, &index->id, NULL);
+	dict_hdr_get_new_id(trx, NULL, &index->id, NULL);
 
 	/* Note that the index was created by this transaction. */
 	index->trx_id = trx->id;
@@ -723,12 +725,9 @@ dict_build_field_def_step(
 Creates an index tree for the index.
 @return DB_SUCCESS or DB_OUT_OF_FILE_SPACE */
 static MY_ATTRIBUTE((nonnull, warn_unused_result))
-dberr_t
-dict_create_index_tree_step(
-/*========================*/
-	ind_node_t*	node)	/*!< in: index create node */
+dberr_t dict_create_index_tree_step(ind_node_t *node, trx_t *trx)
 {
-	mtr_t		mtr;
+	mtr_t		mtr{trx};
 	btr_pcur_t	pcur;
 	dict_index_t*	index;
 	dtuple_t*	search_tuple;
@@ -809,9 +808,9 @@ dberr_t
 dict_create_index_tree_in_mem(
 /*==========================*/
 	dict_index_t*	index,	/*!< in/out: index */
-	const trx_t*	trx)	/*!< in: InnoDB transaction handle */
+	trx_t*		trx)	/*!< in: InnoDB transaction handle */
 {
-	mtr_t		mtr;
+	mtr_t mtr{trx};
 
 	ut_ad(dict_sys.locked());
 	ut_ad(!(index->type & DICT_FTS));
@@ -1248,7 +1247,7 @@ dict_create_index_step(
 
 	if (node->state == INDEX_CREATE_INDEX_TREE) {
 
-		err = dict_create_index_tree_step(node);
+		err = dict_create_index_tree_step(node, trx);
 
 		DBUG_EXECUTE_IF("ib_dict_create_index_tree_fail",
 				err = DB_OUT_OF_MEMORY;);
@@ -1754,7 +1753,7 @@ dict_create_add_foreigns_to_dictionary(
     return DB_ERROR;
   }
 
-  bool strict_mode = thd_is_strict_mode(trx->mysql_thd);
+  bool strict_mode = trx->mysql_thd->is_strict_mode();
   for (auto fk : local_fk_set)
     if (strict_mode && !fk->check_fk_constraint_valid())
       return DB_CANNOT_ADD_CONSTRAINT;

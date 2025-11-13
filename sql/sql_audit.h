@@ -194,6 +194,8 @@ void mysql_audit_general(THD *thd, uint event_subtype,
       event.database= thd->db;
       event.query_id= thd->query_id;
       event.port= thd->peer_port;
+      DBUG_PRINT("info", ("mysql_audit_general: query_id=%lld, query=%.*s, subtype=%d, error_code=%d, msg=%s",
+                        thd->query_id, thd->query_length(), thd->query(), event_subtype, error_code, msg));
     }
     else
     {

@@ -1,0 +1,100 @@
+--source include/galera_cluster.inc
+--source include/have_sequence.inc
+
+# Save original auto_increment_offset values.
+--let $node_1=node_1
+--let $node_2=node_2
+--source include/auto_increment_offset_save.inc
+
+--connection node_1
+SET GLOBAL wsrep_provider_options ='pc.ignore_sb=true;pc.weight=2';
+
+--connection node_2
+--let $wsrep_cluster_address_saved = `SELECT @@global.wsrep_cluster_address`
+SET GLOBAL read_only=1;
+SET SESSION wsrep_trx_fragment_size = 64;
+set default_storage_engine=SEQUENCE;
+SET AUTOCOMMIT = OFF;
+--error 1005
+CREATE TABLE t1(c1 NUMERIC NOT NULL);
+CREATE TABLE t1 (id INT PRIMARY KEY) engine=innodb;
+SET SESSION SQL_MODE='HIGH_NOT_PRECEDENCE';
+INSERT INTO t1  VALUES (1),(2),(3);
+SET GLOBAL SQL_MODE='NO_ENGINE_SUBSTITUTION';
+--error 1051
+DROP TABLE dummy;
+INSERT INTO t1  VALUES('a');
+--echo # In this point there should be one fragment
+select count(*) AS EXPECT_1 from mysql.wsrep_streaming_log;
+SET @@global.wsrep_cluster_address='gcomm://';
+SET SESSION SQL_MODE='TRADITIONAL ';
+
+#
+# Kill the entire cluster and restart
+#
+--echo # Killing cluster because we have messed with wsrep_cluster_address
+--connection node_2
+SET SESSION wsrep_sync_wait = 0;
+--source include/kill_galera.inc
+
+--connection node_1
+SET SESSION wsrep_sync_wait = 0;
+--source include/kill_galera.inc
+
+--remove_file $MYSQLTEST_VARDIR/mysqld.1/data/grastate.dat
+--let $start_mysqld_params =--wsrep-new-cluster
+--let $_expect_file_name= $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
+--source include/start_mysqld.inc
+--source include/wait_until_ready.inc
+
+--connection node_2
+--remove_file $MYSQLTEST_VARDIR/mysqld.2/data/grastate.dat
+--let $start_mysqld_params =
+--let $_expect_file_name= $MYSQLTEST_VARDIR/tmp/mysqld.2.expect
+--source include/start_mysqld.inc
+--source include/wait_until_ready.inc
+
+--let $wait_condition = SELECT VARIABLE_VALUE = 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size'
+--source include/wait_condition.inc
+
+call mtr.add_suppression("WSREP: BF applier thread");
+call mtr.add_suppression("WSREP: Event");
+call mtr.add_suppression("WSREP: SR trx recovery applying returned 1290");
+call mtr.add_suppression("WSREP: Adopting a transaction");
+call mtr.add_suppression("WSREP: Could not find applier context for");
+call mtr.add_suppression("WSREP: It may not be safe to bootstrap the cluster");
+call mtr.add_suppression("WSREP: Failed to vote on request for");
+
+select count(*) AS EXPECT_0 from mysql.wsrep_streaming_log;
+
+--let $wait_condition = SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 't1'
+--source include/wait_condition.inc
+
+SELECT * FROM t1;
+
+--connection node_1
+--let $wait_condition = SELECT VARIABLE_VALUE = 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size'
+--source include/wait_condition.inc
+--let $wait_condition = SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 't1'
+--source include/wait_condition.inc
+select count(*) AS EXPECT_0 from mysql.wsrep_streaming_log;
+SELECT * FROM t1;
+DROP TABLE t1;
+SET GLOBAL wsrep_provider_options ='pc.ignore_sb=false;pc.weight=1';
+
+--connection node_2
+--let $wait_condition = SELECT COUNT(*) = 0 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 't1'
+--source include/wait_condition.inc
+
+--connection node_1
+call mtr.add_suppression("WSREP: Event");
+call mtr.add_suppression("WSREP: Inconsistency detected: Inconsistent by consensus on");
+call mtr.add_suppression("WSREP: Failed to apply write set: gtid");
+call mtr.add_suppression("WSREP: It may not be safe to bootstrap the cluster");
+call mtr.add_suppression("WSREP: Could not find applier context for");
+call mtr.add_suppression("WSREP: Failed to vote on request for");
+
+# Restore original auto_increment_offset values.
+--source include/auto_increment_offset_restore.inc
+
+--source include/galera_end.inc

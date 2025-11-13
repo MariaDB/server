@@ -43,6 +43,7 @@ Created 3/26/1996 Heikki Tuuri
 // Forward declaration
 struct mtr_t;
 struct rw_trx_hash_element_t;
+class ha_handler_stats;
 
 /******************************************************************//**
 Set detailed error message for the transaction. */
@@ -638,7 +639,8 @@ public:
   {
     /** The largest encountered transaction identifier for which no
     transaction was observed to be active. This is a cache to speed up
-    trx_sys_t::find_same_or_older().
+    trx_sys_t::find_same_or_older() as well as to elide some calls to
+    trx_sys_t::find().
 
     This will be zero-initialized in Pool::Pool() and not initialized
     when a transaction object in the pool is freed and reused. The
@@ -709,7 +711,7 @@ public:
 
   Regular transactions:
   * NOT_STARTED -> ACTIVE -> COMMITTED -> NOT_STARTED
-  * NOT_STARTED -> ABORTED (when thd_mark_transaction_to_rollback() is called)
+  * NOT_STARTED -> ABORTED (when THD::mark_transaction_to_rollback() is called)
   * ABORTED -> NOT_STARTED (acknowledging the rollback of a transaction)
 
   Auto-commit non-locking read-only:
@@ -835,7 +837,7 @@ public:
 					defer flush of the logs to disk
 					until after we release the
 					mutex. */
-	ulint		duplicates;	/*!< TRX_DUP_IGNORE | TRX_DUP_REPLACE */
+	byte		duplicates;	/*!< TRX_DUP_IGNORE | TRX_DUP_REPLACE */
   /** whether this modifies InnoDB dictionary tables */
   bool dict_operation;
 #ifdef UNIV_DEBUG
@@ -855,6 +857,11 @@ public:
 	/*------------------------------*/
 	THD*		mysql_thd;	/*!< MySQL thread handle corresponding
 					to this trx, or NULL */
+
+  /** EXPLAIN ANALYZE statistics, or nullptr if not active */
+  ha_handler_stats *active_handler_stats;
+  /** number of pages accessed in the buffer pool */
+  size_t pages_accessed;
 
 	const char*	mysql_log_file_name;
 					/*!< if MySQL binlog is used, this field
@@ -1014,16 +1021,13 @@ private:
   /** Process tables that were modified by the committing transaction. */
   inline void commit_tables();
   /** Mark a transaction committed in the main memory data structures.
-  @param mtr  mini-transaction (if there are any persistent modifications) */
-  inline void commit_in_memory(const mtr_t *mtr);
-  /** Write log for committing the transaction. */
+  @param mtr  mini-transaction */
+  inline void commit_in_memory(mtr_t *mtr);
+  /** Commit the transaction in the file system. */
   void commit_persist() noexcept;
   /** Clean up the transaction after commit_in_memory()
-  @return false (always) */
+  @retval false (always) */
   bool commit_cleanup() noexcept;
-  /** Commit the transaction in a mini-transaction.
-  @param mtr  mini-transaction (if there are any persistent modifications) */
-  void commit_low(mtr_t *mtr= nullptr);
   /** Commit an empty transaction.
   @param mtr   mini-transaction */
   void commit_empty(mtr_t *mtr);
@@ -1034,8 +1038,9 @@ private:
   @param mtr   mini-transaction */
   inline void write_serialisation_history(mtr_t *mtr);
 public:
-  /** Commit the transaction. */
-  void commit() noexcept;
+  /** Commit the transaction.
+  @retval false (always) */
+  bool commit() noexcept;
 
   /** Try to drop a persistent table.
   @param table       persistent table

@@ -19,6 +19,8 @@ DROP TEMPORARY TABLE t;
 #
 SET @save_ahi = @@global.innodb_adaptive_hash_index;
 SET GLOBAL innodb_adaptive_hash_index = 1;
+SET @save_ahi_cells = @@global.innodb_adaptive_hash_index_cells;
+SET GLOBAL innodb_adaptive_hash_index_cells=1048576;
 CREATE TABLE t1(f1 INT NOT NULL)ENGINE=InnoDB;
 SET @old_bulk_op=
 (SELECT variable_value FROM information_schema.global_status
@@ -43,6 +45,7 @@ INSERT INTO t1 SELECT * FROM seq_1_to_500;
 ROLLBACK;
 DROP TABLE t1;
 SET GLOBAL innodb_adaptive_hash_index = @save_ahi;
+SET GLOBAL innodb_adaptive_hash_index_cells = @save_ahi_cells;
 #
 # MDEV-24951 Assertion m.first->second.valid(trx->undo_no) failed
 # in trx_undo_report_row_operation

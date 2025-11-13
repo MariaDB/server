@@ -262,6 +262,7 @@ db2.parent: Records: 2  Deleted: 0  Skipped: 0  Warnings: 0
 drop database db2;
 create database db2;
 use db2;
+set rand_seed1=1, rand_seed2=2;
 create table vec (id int auto_increment primary key, v vector(5) not null,
 vector index (v)) ENGINE=InnoDB;
 insert vec(v) values (x'e360d63ebe554f3fcdbc523f4522193f5236083d'),

@@ -367,7 +367,7 @@ void wsrep_abort_thd(THD *bf_thd,
   /* Note that when you use RSU node is desynced from cluster, thus WSREP(thd)
   might not be true.
   */
-  if ((WSREP(bf_thd)
+  if ((WSREP_NNULL(bf_thd)
        || ((WSREP_ON || bf_thd->variables.wsrep_OSU_method == WSREP_OSU_RSU)
            &&  wsrep_thd_is_toi(bf_thd))
        || bf_thd->lex->sql_command == SQLCOM_KILL)

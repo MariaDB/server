@@ -1116,6 +1116,13 @@ class QUICK_RANGE :public Sql_alloc {
 class QUICK_SELECT_I
 {
 public:
+  /*
+    An INDEX_MERGE hint was present in the query that created this
+    QUICK_SELECT.  This QUICK_SELECT will use that fact to override
+    plan selection during best_access_path.
+  */
+  bool force_index_merge{false};
+
   ha_rows records;  /* estimate of # of records to be retrieved */
   double  read_time; /* time to perform this retrieval          */
   TABLE   *head;
@@ -1873,6 +1880,7 @@ public:
   Explain_quick_select *get_explain(MEM_ROOT *alloc) override;
 };
 
+bool using_with_ties_and_group_min_max(JOIN *join);
 
 class QUICK_SELECT_DESC: public QUICK_RANGE_SELECT
 {

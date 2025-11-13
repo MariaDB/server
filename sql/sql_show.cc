@@ -1918,6 +1918,38 @@ static bool get_field_default_value(THD *thd, Field *field, String *def_value,
 
 
 /**
+ @brief Get string representation of stored routine parameter's default value
+
+ @param item          stored routine parameter
+ @param default_value String to hold the default value
+
+ @return
+  TRUE  - if the parameter has default value
+  FALSE - if no default value
+ */
+
+static bool get_param_default_value(Item *item, String *default_value)
+{
+  StringBuffer<MAX_FIELD_WIDTH> buf(system_charset_info);
+
+  if (!item)
+    return false;
+
+  bool need_parantheses= item->need_parentheses_in_default();
+  if (need_parantheses)
+    default_value->append('(');
+
+  item->print_for_table_def(&buf);
+  default_value->append(buf);
+
+  if (need_parantheses)
+    default_value->append(')');
+
+  return true;
+}
+
+
+/**
   Appends list of options to string
 
   @param thd             thread handler
@@ -4489,6 +4521,12 @@ bool get_lookup_field_values(THD *thd, COND *cond, bool fix_table_name_case,
 
 enum enum_schema_tables get_schema_table_idx(ST_SCHEMA_TABLE *schema_table)
 {
+  if (schema_table < schema_tables ||
+      schema_table > &schema_tables[SCH_N_SERVER_TABLES])
+  {
+    return SCH_PLUGIN_TABLE;
+  }
+
   return (enum enum_schema_tables) (schema_table - &schema_tables[0]);
 }
 
@@ -5295,21 +5333,19 @@ static int fill_schema_table_from_frm(THD *thd, MEM_ROOT *mem_root,
   res= open_table_from_share(thd, share, table_name, 0,
                              EXTRA_RECORD | OPEN_FRM_FILE_ONLY,
                              thd->open_options, &tbl, FALSE);
-  if (res && hide_object_error(thd->get_stmt_da()->sql_errno()))
-    res= 0;
+  if (res)
+  {
+    if (hide_object_error(thd->get_stmt_da()->sql_errno()))
+      res= 0;
+  }
   else
   {
-    char buf[NAME_CHAR_LEN + 1];
-    if (unlikely(res))
-      get_table_engine_for_i_s(thd, buf, &table_list, db_name, table_name);
-
     tbl.s= share;
     table_list.table= &tbl;
     table_list.view= (LEX*) share->is_view;
     bool res2= schema_table->process_table(thd, &table_list, table, res,
                                            db_name, table_name);
-    if (res == 0)
-      closefrm(&tbl);
+    closefrm(&tbl);
     res= res2;
   }
 
@@ -5452,30 +5488,6 @@ int get_all_tables(THD *thd, TABLE_LIST *tables, COND *cond)
   uint table_open_method= tables->table_open_method;
   bool can_deadlock;
   MEM_ROOT tmp_mem_root;
-  /*
-    We're going to open FRM files for tables.
-    In case of VIEWs that contain stored function calls,
-    these stored functions will be parsed and put to the SP cache.
-
-    Suppose we have a view containing a stored function call:
-      CREATE VIEW v1 AS SELECT f1() AS c1;
-    and now we're running:
-      SELECT * FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME=f1();
-    If a parallel thread invalidates the cache,
-    e.g. by creating or dropping some stored routine,
-    the SELECT query will re-parse f1() when processing "v1"
-    and replace the outdated cached version of f1() to a new one.
-    But the old version of f1() is referenced from the m_sp member
-    of the Item_func_sp instances used in the WHERE condition.
-    We cannot destroy it. To avoid such clashes, let's remember
-    all old routines into a temporary SP cache collection
-    and process tables with a new empty temporary SP cache collection.
-    Then restore to the old SP cache collection at the end.
-  */
-  Sp_caches old_sp_caches;
-
-  old_sp_caches.sp_caches_swap(*thd);
-
   bzero(&tmp_mem_root, sizeof(tmp_mem_root));
 
   /*
@@ -5651,7 +5663,8 @@ int get_all_tables(THD *thd, TABLE_LIST *tables, COND *cond)
             if (fill_schema_table_names(thd, tables, db_name, table_name))
               continue;
           }
-          else if (schema_table_idx == SCH_TRIGGERS &&
+          else if ((schema_table_idx == SCH_TRIGGERS ||
+                   schema_table_idx == SCH_TRIGGERED_UPDATE_COLUMNS) &&
                    db_name == &INFORMATION_SCHEMA_NAME)
           {
             continue;
@@ -5700,14 +5713,6 @@ int get_all_tables(THD *thd, TABLE_LIST *tables, COND *cond)
 err:
   thd->restore_backup_open_tables_state(&open_tables_state_backup);
   free_root(&tmp_mem_root, 0);
-
-  /*
-    Now restore to the saved SP cache collection
-    and clear the temporary SP cache collection.
-  */
-  old_sp_caches.sp_caches_swap(*thd);
-  old_sp_caches.sp_caches_clear();
-
   DBUG_RETURN(error);
 }
 
@@ -7050,6 +7055,7 @@ int store_schema_params(THD *thd, TABLE *table, TABLE *proc_table,
     {
       const char *tmp_buff;
       sp_variable *spvar= spcont->find_variable(i);
+      StringBuffer<MAX_FIELD_WIDTH> default_value(cs);
       switch (spvar->mode) {
       case sp_variable::MODE_IN:
         tmp_buff= "IN";
@@ -7077,6 +7083,13 @@ int store_schema_params(THD *thd, TABLE *table, TABLE *proc_table,
       proc_table->field[MYSQL_PROC_MYSQL_TYPE]->val_str_nopad(thd->mem_root,
                                                               &tmp_string);
       table->field[15]->store(tmp_string, cs);
+
+      if (full_access &&
+          get_param_default_value(spvar->default_value, &default_value))
+      {
+        table->field[16]->store(default_value.ptr(), default_value.length(), cs);
+        table->field[16]->set_notnull();
+      }
 
       store_variable_type(thd, spvar->field_def, spvar->name,
                           &tbl, &share, cs, table, 6);
@@ -7843,6 +7856,95 @@ static int get_schema_triggers_record(THD *thd, TABLE_LIST *tables,
     }
   }
 ret:
+  DBUG_RETURN(0);
+}
+
+
+static bool
+store_triggered_update_columns(THD *thd, TABLE_LIST *tbl,
+                               Trigger *trigger, TABLE *table,
+                               const LEX_CSTRING *db_name,
+                               const LEX_CSTRING *table_name)
+{
+  bool error= 0;
+  CHARSET_INFO *cs= system_charset_info;
+  char definer_holder[USER_HOST_BUFF_SIZE];
+  LEX_STRING definer_buffer;
+  LEX_CSTRING trigger_stmt, trigger_body;
+  definer_buffer.str= definer_holder;
+  trigger->get_trigger_info(&trigger_stmt, &trigger_body, &definer_buffer);
+  List_iterator_fast<LEX_CSTRING> it(*trigger->updatable_columns);
+
+  /*
+    For TRIGGERED_UPDATE_COLUMNS table, the SQL standard requires the user to
+    have any non-SELECT privilege on the column and no table level privilege
+    is necessary.
+  */
+#ifndef NO_EMBEDDED_ACCESS_CHECKS
+  bool need_column_checks=
+    !get_schema_privileges_for_show(thd, tbl, (INSERT_ACL|UPDATE_ACL), false);
+#endif
+
+  restore_record(table, s->default_values);
+  while(LEX_CSTRING *trigger_column= it++)
+  {
+#ifndef NO_EMBEDDED_ACCESS_CHECKS
+    if (need_column_checks)
+    {
+      Lex_ident_column col(*trigger_column);
+      ulonglong col_access=
+        get_column_grant(thd, &tbl->grant, db_name->str, table_name->str, col) &
+        (INSERT_ACL | UPDATE_ACL); // non-SELECT privilege on the column
+      if (!col_access)
+        continue;
+    }
+#endif
+
+    table->field[0]->store(STRING_WITH_LEN("def"), cs);
+    table->field[1]->store(db_name->str, db_name->length, cs);
+    table->field[2]->store(trigger->name.str, trigger->name.length, cs);
+    table->field[3]->store(STRING_WITH_LEN("def"), cs);
+    table->field[4]->store(db_name->str, db_name->length, cs);
+    table->field[5]->store(table_name->str, table_name->length, cs);
+    table->field[6]->store(trigger_column->str, trigger_column->length, cs);
+
+    if (schema_table_store_record(thd, table))
+    {
+      error= 1;
+      break;
+    }
+  }
+  return error;
+}
+
+
+static int
+get_schema_triggered_update_columns_record(THD *thd, TABLE_LIST *tables,
+                                           TABLE *table, bool res,
+                                           const LEX_CSTRING *db_name,
+                                           const LEX_CSTRING *table_name)
+{
+  DBUG_ENTER("get_schema_triggered_updatable_columns_record");
+  if (!tables->view && tables->table->triggers)
+  {
+    Table_triggers_list *triggers= tables->table->triggers;
+    int timing;
+
+    for (timing= 0; timing < (int)TRG_ACTION_MAX; timing++)
+    {
+      Trigger *trigger;
+      for (trigger= triggers->
+              get_trigger(TRG_EVENT_UPDATE, (enum trg_action_time_type) timing);
+            trigger;
+            trigger= trigger->next[TRG_EVENT_UPDATE])
+      {
+        if (trigger->updatable_columns &&
+            store_triggered_update_columns(thd, tables, trigger,
+                                           table, db_name, table_name))
+          DBUG_RETURN(1);
+      }
+    }
+  }
   DBUG_RETURN(0);
 }
 
@@ -10584,6 +10686,8 @@ ST_FIELD_INFO parameters_fields_info[]=
   Column("COLLATION_NAME",          Varchar(64),     NULLABLE, OPEN_FULL_TABLE),
   Column("DTD_IDENTIFIER",          Longtext(65535), NOT_NULL, OPEN_FULL_TABLE),
   Column("ROUTINE_TYPE",            Varchar(9),      NOT_NULL, OPEN_FULL_TABLE),
+  Column("PARAMETER_DEFAULT",       Longtext(MAX_FIELD_VARCHARLENGTH),
+                                                     NULLABLE, OPEN_FRM_ONLY),
   CEnd()
 };
 
@@ -10700,6 +10804,18 @@ ST_FIELD_INFO check_constraints_fields_info[]=
   Column("LEVEL",              Varchar(6),NOT_NULL, OPEN_FULL_TABLE),
   Column("CHECK_CLAUSE",       Longtext(MAX_FIELD_VARCHARLENGTH),
                                           NOT_NULL, OPEN_FULL_TABLE),
+  CEnd()
+};
+
+ST_FIELD_INFO triggered_update_columns_info[]=
+{
+  Column("TRIGGER_CATALOG",       Catalog(), NOT_NULL,          OPEN_FRM_ONLY),
+  Column("TRIGGER_SCHEMA",        Name(), NOT_NULL,             OPEN_FRM_ONLY),
+  Column("TRIGGER_NAME",          Name(), NOT_NULL, "Trigger",  OPEN_FRM_ONLY),
+  Column("EVENT_OBJECT_CATALOG",  Catalog(), NOT_NULL,          OPEN_FRM_ONLY),
+  Column("EVENT_OBJECT_SCHEMA",   Name(), NOT_NULL,             OPEN_FRM_ONLY),
+  Column("EVENT_OBJECT_TABLE",    Name(), NOT_NULL, "Table",    OPEN_FRM_ONLY),
+  Column("EVENT_OBJECT_COLUMN",   Name(), NOT_NULL, "Column",   OPEN_FRM_ONLY),
   CEnd()
 };
 
@@ -10918,6 +11034,10 @@ ST_SCHEMA_TABLE schema_tables[]=
   {"TRIGGERS"_Lex_ident_i_s_table, Show::triggers_fields_info, 0,
    get_all_tables, make_old_format, get_schema_triggers_record, 5, 6, 0,
    OPEN_TRIGGER_ONLY|OPTIMIZE_I_S_TABLE},
+  {"TRIGGERED_UPDATE_COLUMNS"_Lex_ident_i_s_table,
+   Show::triggered_update_columns_info, 0, get_all_tables, 0,
+   get_schema_triggered_update_columns_record, 4, 5, 0,
+   OPEN_TRIGGER_ONLY|OPTIMIZE_I_S_TABLE},
   {"USERS"_Lex_ident_i_s_table, Show::users_fields_info, 0, fill_users_schema_table,
    0, 0, -1, -1, 0, 0},
   {"USER_PRIVILEGES"_Lex_ident_i_s_table,
@@ -10933,7 +11053,7 @@ ST_SCHEMA_TABLE schema_tables[]=
   {Lex_ident_i_s_table(), 0, 0, 0, 0, 0, 0, 0, 0, 0}
 };
 
-static_assert(array_elements(schema_tables) == SCH_ENUM_SIZE + 1,
+static_assert(array_elements(schema_tables) == SCH_N_SERVER_TABLES + 1,
               "Update enum_schema_tables as well.");
 
 int initialize_schema_table(void *plugin_)

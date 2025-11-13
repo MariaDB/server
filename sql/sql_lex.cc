@@ -1342,6 +1342,7 @@ void LEX::start(THD *thd_arg)
   opt_hints_global= 0;
 
   memset(&trg_chistics, 0, sizeof(trg_chistics));
+  selects_for_hint_resolution.empty();
   DBUG_VOID_RETURN;
 }
 
@@ -2034,6 +2035,12 @@ int Lex_input_stream::lex_one_token(YYSTYPE *yylval, THD *thd)
   CHARSET_INFO *const cs= thd->charset();
   const uchar *const state_map= cs->state_map;
   const uchar *const ident_map= cs->ident_map;
+
+  if (thd->killed)
+  {
+    thd->send_kill_message();
+    return END_OF_INPUT;
+  }
 
   start_token();
   state= next_state;
@@ -3003,6 +3010,41 @@ void st_select_lex_node::init_query_common()
   uncacheable= 0;
 }
 
+
+/*
+  We need to remember this unit for cleanup after it is stranded during CTE
+  merge (see mysql_derived_merge).  Walk to the root unit of this query tree
+  (the root unit lifetime extends for the entire query) and insert myself
+  into the front of the stranded_clean_list:
+    before: root -> B -> A
+     after: root -> this -> B -> A
+  During cleanup, the stranded units are cleaned in FIFO order.
+ */
+void st_select_lex_unit::remember_my_cleanup()
+{
+  // Walk to the root unit (which lives until the end of the query) ...
+  st_select_lex_node *root= this;
+  while (root->master)
+    root= root->master;
+
+  // ... and add myself to the front of the stranded_clean_list.
+  st_select_lex_unit *unit= static_cast<st_select_lex_unit*>(root);
+  st_select_lex_unit *prior_head= unit->stranded_clean_list;
+  unit->stranded_clean_list= this;
+  stranded_clean_list= prior_head;
+}
+
+
+void st_select_lex_unit::cleanup_stranded_units()
+{
+  if (!stranded_clean_list)
+    return;
+
+  stranded_clean_list->cleanup();
+  stranded_clean_list= nullptr;
+}
+
+
 void st_select_lex_unit::init_query()
 {
   init_query_common();
@@ -3397,6 +3439,15 @@ void st_select_lex_unit::exclude_level()
     SELECT_LEX_UNIT **last= 0;
     for (SELECT_LEX_UNIT *u= sl->first_inner_unit(); u; u= u->next_unit())
     {
+      for (SELECT_LEX *inner_sel= u->first_select();
+           inner_sel; inner_sel= inner_sel->next_select())
+      {
+        if (&sl->context == inner_sel->context.outer_context)
+          inner_sel->context.outer_context = &sl->outer_select()->context;
+      }
+      if (u->fake_select_lex &&
+          u->fake_select_lex->context.outer_context == &sl->context)
+        u->fake_select_lex->context.outer_context= &sl->outer_select()->context;
       u->master= master;
       last= (SELECT_LEX_UNIT**)&(u->next);
     }
@@ -3424,6 +3475,7 @@ void st_select_lex_unit::exclude_level()
   }
   // Mark it excluded
   prev= NULL;
+  remember_my_cleanup();
 }
 
 
@@ -3891,7 +3943,7 @@ void st_select_lex::print_limit(THD *thd,
                                 enum_query_type query_type)
 {
   SELECT_LEX_UNIT *unit= master_unit();
-  Item_subselect *item= unit->item;
+  Item_subselect *item= unit ? unit->item : nullptr;
 
   if (item && unit->global_parameters() == this)
   {
@@ -4661,6 +4713,7 @@ void LEX::first_lists_tables_same()
   }
 }
 
+
 void LEX::fix_first_select_number()
 {
   SELECT_LEX *first= first_select_lex();
@@ -5105,6 +5158,27 @@ bool st_select_lex::optimize_unflattened_subqueries(bool const_only)
       }
       if (empty_union_result)
         subquery_predicate->no_rows_in_result();
+
+      /*
+        If any one SELECT in the subquery has UNCACHEABLE_RAND, then all
+        SELECTs should be marked as uncacheable.
+      */
+      bool has_rand= false;
+      for (SELECT_LEX *sl= un->first_select(); sl && !has_rand;
+           sl= sl->next_select())
+        has_rand= (sl->uncacheable & UNCACHEABLE_RAND);
+      if (has_rand)
+      {
+        for (SELECT_LEX *sl= un->first_select(); sl; sl= sl->next_select())
+          sl->uncacheable |= UNCACHEABLE_UNITED;
+      }
+
+      /*
+        If any SELECT in the unit is marked as UNCACHEABLE_RAND, then the
+        unit itself should also be marked as UNCACHEABLE_RAND.
+      */
+      DBUG_ASSERT(has_rand ==
+                  static_cast<bool>(un->uncacheable & UNCACHEABLE_RAND));
 
       if (is_correlated_unit)
       {
@@ -6757,6 +6831,27 @@ void LEX::set_stmt_init()
   autocommit= 0;
   var_list.empty();
 };
+
+
+/**
+  Find a local or a package body type declaration by name
+  @param IN name - the data type name
+  @retval        - the data type (if found), or NULL otherwise.
+*/
+const sp_type_def *LEX::find_type_def(const LEX_CSTRING &name) const
+{
+  DBUG_ASSERT(spcont);
+  const sp_type_def *def= spcont->find_type_def(name, false);
+  if (def)
+    return def;
+  if (sphead->m_parent)
+  {
+    // Find a package body type definition
+    return sphead->m_parent->get_parse_context()->
+             child_context(0)->find_type_def(name, true);
+  }
+  return nullptr;
+}
 
 
 /**
@@ -10176,8 +10271,9 @@ bool LEX::call_statement_start_or_lvalue_assign(THD *thd,
                                                Qualified_ident *ident)
 {
   sp_variable *spv;
+  const Sp_rcontext_handler *rh;
   if (spcont &&
-      (spv= spcont->find_variable(&ident->part(0), false)) &&
+      (spv= find_variable(&ident->part(0), &rh)) &&
       (likely(spv->field_def.type_handler()->has_methods())))
   {
     ident->set_spvar(spv);
@@ -10642,7 +10738,6 @@ Item *LEX::make_item_func_or_method_call(THD *thd,
                                          List<Item> *args,
                                          const Lex_ident_cli_st &query_fragment)
 {
-  DBUG_ASSERT(!thd->is_error());
   const Lex_ident_sys sys_a(thd, &ca), sys_b(thd, &cb);
   if (sys_a.is_null() || sys_b.is_null())
     return nullptr; // EOM
@@ -11321,6 +11416,7 @@ SELECT_LEX_UNIT *LEX::parsed_select_expr_cont(SELECT_LEX_UNIT *unit,
   }
   last->link_neighbour(sel1);
   sel1->set_master_unit(unit);
+  unit->uncacheable|= sel1->uncacheable;
   sel1->set_linkage_and_distinct(unit_type, distinct);
   unit->pre_last_parse= last;
   return unit;
@@ -12019,7 +12115,7 @@ void mark_or_conds_to_avoid_pushdown(Item *cond)
        After that the transformed condition is attached into attach_to_conds
        list.
     2. Part of some other condition c1 that can't be entirely pushed
-       (if с1 isn't marked with any flag).
+       (if c1 isn't marked with any flag).
 
        For example:
 
@@ -12992,7 +13088,7 @@ bool LEX::set_field_type_typedef(Lex_field_type_st *type,
   *is_typedef= false;
   if (spcont)
   {
-    if (const sp_type_def *composite= spcont->find_type_def(name, false))
+    if (const sp_type_def *composite= find_type_def(name))
     {
       type->set(composite->type_handler(), NULL);
       last_field->set_attr_const_void_ptr(0, composite);
@@ -13336,7 +13432,7 @@ bool SELECT_LEX_UNIT::explainable() const
 
   @param thd          the current thread handle
   @param db_name      name of db of the table to look for
-  @param db_name      name of db of the table to look for
+  @param table_name   name of table
 
   @return first found table, NULL or ERROR_TABLE
 */
@@ -13443,18 +13539,33 @@ LEX::parse_optimizer_hints(const Lex_comment_st &hints_str)
 }
 
 
-void LEX::resolve_optimizer_hints_in_last_select()
+/*
+  @brief
+    After we've finished parsing a SELECT, handle its hints.
+
+  @detail
+    Hints in this SELECT have already been parsed, but not resolved.
+    Hint resoution requires that
+    A. Children SELECT have done their hint resolution.
+    B. SELECT_SELECT objects have their correct select_number.
+
+    Because of A, we have this call that is invoked at the end of each SELECT.
+    Due to B, we don't do resulution right here, we just remember the order in
+    which SELECTs must do name resolution.
+    See opt_hints.h, Section "Hint Resolution" for details.
+*/
+
+void LEX::handle_parsed_optimizer_hints_in_last_select()
 {
-  SELECT_LEX *select_lex;
-  if (likely(select_stack_top))
-    select_lex= select_stack[select_stack_top - 1];
-  else
-    select_lex= nullptr;
-  if (select_lex && select_lex->parsed_optimizer_hints)
-  {
-    Parse_context pc(thd, select_lex);
-    select_lex->parsed_optimizer_hints->resolve(&pc);
-  }
+  if (unlikely(select_stack_top == 0))
+    return;
+
+  SELECT_LEX *select_lex= select_stack[select_stack_top - 1];
+
+  if (!select_lex->parsed_optimizer_hints)
+    return;
+
+  selects_for_hint_resolution.push_back(select_lex);
 }
 
 /*
@@ -13463,7 +13574,7 @@ void LEX::resolve_optimizer_hints_in_last_select()
   in some scenarios (for example, ignoring hints at the INSERT part of a
   INSERT..SELECT statement).
 
-  Also see resolve_optimizer_hints_in_last_select().
+  Also see handle_parsed_optimizer_hints_in_last_select().
 
   Return value:
   - false  optimizer hints were not found

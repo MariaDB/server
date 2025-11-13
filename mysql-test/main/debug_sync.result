@@ -320,30 +320,3 @@ SHOW VARIABLES LIKE 'DEBUG_SYNC';
 Variable_name	Value
 debug_sync	ON - current signals: 's2,s7,s1,s5'
 SET DEBUG_SYNC= 'RESET';
-#
-# MDEV-30364 Assertion MDL_EXCLUSIVE on DISCARD TABLESPACE in LOCK TABLE mode
-#
-create table t (c int) engine=innodb;
-connect con1,localhost,root;
-set debug_sync='get_schema_column WAIT_FOR go';
-select column_name from information_schema.columns
-where table_schema='test' and table_name='t';
-connection default;
-lock table t write;
-alter table t discard tablespace;
-connect con2,localhost,root;
-disconnect con2;
-connection default;
-ERROR 70100: Query execution was interrupted
-set debug_sync='now SIGNAL go';
-connection con1;
-column_name
-c
-disconnect con1;
-connection default;
-unlock tables;
-drop table t;
-set debug_sync= 'reset';
-#
-# End of 10.6 tests
-#

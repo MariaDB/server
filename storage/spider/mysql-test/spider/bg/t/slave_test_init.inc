@@ -7,7 +7,6 @@ SET SESSION sql_log_bin= 0;
 --let $TEST_ENGINE_TYPE= $SLAVE1_1_ENGINE_TYPE
 --source have_partition.inc
 --source have_trigger.inc
---source ../include/init_slave1_1.inc
 --source have_engine.inc
 --let $SLAVE1_1_SLAVE_STATUS=`SHOW SLAVE STATUS`
 if (!$SLAVE1_1_SLAVE_STATUS)

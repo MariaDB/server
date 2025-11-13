@@ -29,8 +29,11 @@ void sha256_crypt_r(const unsigned char *key, size_t key_len,
   unsigned char tmp[SHA256_DIGEST_LENGTH];
   unsigned char alt[SHA256_DIGEST_LENGTH];
   size_t cnt;
-  static const char b64t[64] =
-  "./0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
+  static const char b64t[64]
+#if defined __GNUC__ && __GNUC__ > 7
+    __attribute__((nonstring))
+#endif
+    = "./0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
   void *ctx = alloca(my_sha256_context_size());
   unsigned char *p_bytes = alloca(key_len);
   unsigned char *s_bytes = alloca(salt_len);

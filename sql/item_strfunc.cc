@@ -290,7 +290,7 @@ String *Item_func_sha2::val_str_ascii(String *str)
   /* Convert the large number to a string-hex representation. */
   array_to_hex((char *) str->ptr(), digest_buf, (uint)digest_length);
 
-  /* We poked raw bytes in.  We must inform the the String of its length. */
+  /* We poked raw bytes in.  We must inform the String of its length. */
   str->length((uint) digest_length*2); /* Each byte as two nybbles */
 
   null_value= FALSE;
@@ -4080,9 +4080,10 @@ bool Item_func_set_collation::fix_length_and_dec(THD *thd)
 }
 
 
-bool Item_func_set_collation::eq(const Item *item, bool binary_cmp) const
+bool Item_func_set_collation::eq(const Item *item,
+                                 const Eq_config &config) const
 {
-  return Item_func::eq(item, binary_cmp) &&
+  return Item_func::eq(item, config) &&
          collation.collation == item->collation.collation;
 }
 
@@ -4257,9 +4258,21 @@ String *Item_func_hex::val_str_ascii_from_val_str(String *str)
 {
   DBUG_ASSERT(&tmp_value != str);
   String *res= args[0]->val_str(&tmp_value);
-  DBUG_ASSERT(res != str);
+  THD *thd= current_thd;
+
   if ((null_value= (res == NULL)))
     return NULL;
+
+  if (res->length()*2 > thd->variables.max_allowed_packet)
+  {
+    push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+                        ER_WARN_ALLOWED_PACKET_OVERFLOWED,
+                        ER_THD(thd, ER_WARN_ALLOWED_PACKET_OVERFLOWED),
+                        func_name(), thd->variables.max_allowed_packet);
+    null_value= true;
+    return NULL;
+  }
+
   return str->set_hex(res->ptr(), res->length()) ? make_empty_result(str) : str;
 }
 

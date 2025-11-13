@@ -672,6 +672,14 @@ protected:
     m_value= thd->lex->current_select->item_list.head();
     DBUG_ASSERT(m_value != nullptr);
 
+    /*
+      In case there is a default value, update the dangling pointer
+      left after clean up of item before re-parsing of SP instruction
+    */
+    sp_variable *spvar= m_ctx->find_variable(offset());
+    if (spvar->default_value)
+      spvar->default_value= m_value;
+
     // Return error in release version if m_value == nullptr
     return m_value == nullptr;
   }
