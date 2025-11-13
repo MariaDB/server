@@ -443,19 +443,6 @@ struct chunk_data_cache : public chunk_data_base {
   {
     uint32_t size= 0;
 
-    if (UNIV_LIKELY(oob_ctx != nullptr) && oob_ctx->pending_refcount)
-    {
-      ibb_file_hash.oob_ref_dec(oob_ctx->first_node_file_no, oob_ctx->lf_pins);
-      oob_ctx->pending_refcount= false;
-      if (UNIV_UNLIKELY(oob_ctx->secondary_ctx != nullptr) &&
-          oob_ctx->secondary_ctx->pending_refcount)
-      {
-        ibb_file_hash.oob_ref_dec(oob_ctx->secondary_ctx->first_node_file_no,
-                                  oob_ctx->secondary_ctx->lf_pins);
-        oob_ctx->secondary_ctx->pending_refcount= false;
-      }
-    }
-
     /* Write header data, if any still available. */
     if (header_remain > 0)
     {
@@ -504,6 +491,27 @@ struct chunk_data_cache : public chunk_data_base {
     ut_ad(main_remain >= size2);
     main_remain-= size2;
     return {size + size2, main_remain == 0};
+  }
+
+  /*
+    To be called after binlogging is done, to decrement refcounts to any
+    OOB nodes.
+  */
+  void after_copy_data()
+  {
+    if (UNIV_LIKELY(oob_ctx != nullptr) && oob_ctx->pending_refcount)
+    {
+      ibb_file_hash.oob_ref_dec(oob_ctx->first_node_file_no, oob_ctx->lf_pins);
+      oob_ctx->pending_refcount= false;
+      if (UNIV_UNLIKELY(oob_ctx->secondary_ctx != nullptr) &&
+          oob_ctx->secondary_ctx->pending_refcount)
+      {
+        ibb_file_hash.oob_ref_dec(oob_ctx->secondary_ctx->first_node_file_no,
+                                  oob_ctx->secondary_ctx->lf_pins);
+        oob_ctx->secondary_ctx->pending_refcount= false;
+      }
+    }
+
   }
 };
 
@@ -2820,6 +2828,8 @@ innodb_binlog_write_cache(IO_CACHE *cache,
   chunk_data_cache chunk_data(cache, binlog_info);
 
   fsp_binlog_write_rec(&chunk_data, mtr, FSP_BINLOG_TYPE_COMMIT, c->lf_pins);
+  chunk_data.after_copy_data();
+
   uint64_t file_no= active_binlog_file_no.load(std::memory_order_relaxed);
   c->pending_file_no= file_no;
   c->pending_offset=
@@ -3011,14 +3021,36 @@ innodb_binlog_oob_ordered(THD *thd, const unsigned char *data, size_t data_len,
     /* Special case i==0, like case 2 but no prior node to link to. */
     binlog_oob_context::chunk_data_oob oob_data
       (new_idx, 0, 0, 0, 0, static_cast<const byte *>(data), data_len);
+    /*
+      Note that we must increment the refcount _before_ binlogging the
+      record. Because if the record ends up spanning two binlog files, the
+      new binlog file must have oob reference back to the start of the OOB
+      record, not to the end of it!
+
+      We do not need any locking around getting the active file_no here; even
+      if active would move we would just have a slightly conservative oob
+      reference in the file header. (Though at this point the server layer
+      is holding a lock anyway that prevents other binlogging to happen
+      concurrently).
+    */
+    uint64_t active= active_binlog_file_no.load(std::memory_order_relaxed);
+    c->pending_refcount=
+      ibb_file_hash.oob_ref_inc(active, c->lf_pins) != ~(uint64_t)0;
+
     if (c->binlog_node(i, new_idx, ~(uint32_t)0, ~(uint32_t)0, &oob_data,
                        c->lf_pins, &mtr))
       return true;
+
+    /*
+      Here we could check c->node_list[i].file_no and see if it differs from
+      the active before we did the binlogging; and if so increment the right
+      one and decrement the incorrect one. But it does not seem worthwhile, as
+      this is unlikely/impossible, and it just causes a slightly more
+      conservative OOB reference protection from purge anyway.
+    */
     c->first_node_file_no= c->node_list[i].file_no;
     c->first_node_offset= c->node_list[i].offset;
     c->node_list_len= 1;
-    c->pending_refcount= ibb_file_hash.oob_ref_inc(c->first_node_file_no,
-                                                   c->lf_pins) != ~(uint64_t)0;
   }
 
   uint64_t file_no= active_binlog_file_no.load(std::memory_order_relaxed);
@@ -4878,6 +4910,15 @@ innodb_binlog_autopurge(uint64_t first_open_file_no, LF_PINS *pins)
       !(purge_info.purge_by_size || purge_info.purge_by_date))
     return;
 
+  /*
+    Do not purge the active file_no, nor any oob references out of the active
+    (the latter might be needed to recover the GTID state after server
+    restart).
+  */
+  uint64_t active= active_binlog_file_no.load(std::memory_order_relaxed);
+  if (purge_info.limit_file_no > active)
+    purge_info.limit_file_no= active;
+
   if (purge_adjust_limit_file_no(&purge_info, pins))
     return;
 
@@ -4886,9 +4927,6 @@ innodb_binlog_autopurge(uint64_t first_open_file_no, LF_PINS *pins)
   if (purge_info.limit_file_no == ~(uint64_t)0 ||
       purge_info.limit_file_no > first_open_file_no)
     purge_info.limit_file_no= first_open_file_no;
-  uint64_t active= active_binlog_file_no.load(std::memory_order_relaxed);
-  if (purge_info.limit_file_no > active)
-    purge_info.limit_file_no= active;
   purge_info.purge_by_name= false;
 
   uint64_t file_no;
