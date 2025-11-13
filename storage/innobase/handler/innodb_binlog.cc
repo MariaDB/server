@@ -2636,8 +2636,8 @@ ibb_recv_record_complete(HASH *hash, uint64_t file_no,
       UNIV_UNLIKELY(bqual_length > 64))
   {
     sql_print_error("InnoDB: Corrupt %s record found in file_no=%" PRIu64
-                    ", invalid XID lengths %u/%u", file_no,
-                    (is_commit ? "commit" : "rollback"),
+                    ", invalid XID lengths %u/%u",
+                    (is_commit ? "commit" : "rollback"), file_no,
                     (uint)gtrid_length, (uint)bqual_length);
     return true;
   }
