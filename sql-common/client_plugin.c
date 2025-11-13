@@ -44,7 +44,6 @@ PSI_memory_key key_memory_load_env_plugins;
 #ifdef HAVE_PSI_INTERFACE
 PSI_mutex_key key_mutex_LOCK_load_client_plugin;
 
-#ifndef USE_CONC
 static PSI_mutex_info all_client_plugin_mutexes[]=
 {
   {&key_mutex_LOCK_load_client_plugin, "LOCK_load_client_plugin", PSI_FLAG_GLOBAL}
@@ -67,7 +66,6 @@ static void init_client_plugin_psi_keys()
   count= array_elements(all_client_plugin_memory);
   mysql_memory_register(category, all_client_plugin_memory, count);
 }
-#endif
 #endif /* HAVE_PSI_INTERFACE */
 
 struct st_client_plugin_int {
@@ -76,7 +74,6 @@ struct st_client_plugin_int {
   struct st_mysql_client_plugin *plugin;
 };
 
-#ifndef USE_CONC
 static my_bool initialized= 0;
 static MEM_ROOT mem_root;
 
@@ -497,7 +494,6 @@ mysql_client_find_plugin(MYSQL *mysql, const char *name, int type)
   DBUG_PRINT ("leave", ("loaded %p", p));
   DBUG_RETURN (p);
 }
-#endif
 
 
 /* see <mysql/client_plugin.h> for a full description */

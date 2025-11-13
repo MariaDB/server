@@ -91,6 +91,16 @@ IF(SSL_DEFINES)
  ADD_DEFINITIONS(${SSL_DEFINES})
 ENDIF()
 
+ADD_LIBRARY(sql_client STATIC
+  rpl_mi.cc slave.cc
+  sql_prepare.cc
+)
+TARGET_INCLUDE_DIRECTORIES(sql_client PRIVATE
+  ${CMAKE_BINARY_DIR}/libmariadb/include
+  ${CMAKE_SOURCE_DIR}/libmariadb/include
+)
+TARGET_LINK_LIBRARIES(sql_client libmariadb)
+
 SET (SQL_SOURCE
                ${CMAKE_CURRENT_BINARY_DIR}/yy_mariadb.cc
                ${CMAKE_CURRENT_BINARY_DIR}/yy_oracle.cc
@@ -123,7 +133,7 @@ SET (SQL_SOURCE
                protocol.cc records.cc repl_failsafe.cc rpl_filter.cc
                session_tracker.cc
                set_var.cc
-               slave.cc sp.cc sp_cache.cc sp_head.cc sp_pcontext.cc
+               sp.cc sp_cache.cc sp_head.cc sp_pcontext.cc
                sp_rcontext.cc sp_cursor.cc
                spatial.cc sql_acl.cc sql_analyse.cc sql_base.cc
                sql_cache.cc sql_class.cc sql_client.cc sql_crypt.cc
@@ -134,7 +144,7 @@ SET (SQL_SOURCE
                sql_list.cc sql_load.cc sql_manager.cc
                sql_oracle_outer_join.cc
                sql_parse.cc sql_bootstrap.cc
-               sql_partition.cc sql_plugin.cc sql_prepare.cc sql_rename.cc
+               sql_partition.cc sql_plugin.cc sql_rename.cc
                debug_sync.cc debug.cc
                sql_repl.cc sql_select.cc sql_show.cc sql_state.c
                group_by_handler.cc derived_handler.cc select_handler.cc
@@ -147,10 +157,10 @@ SET (SQL_SOURCE
                rpl_tblmap.cc sql_binlog.cc event_scheduler.cc
                event_data_objects.cc
                event_queue.cc event_db_repository.cc
-               events.cc ../sql-common/my_user.c
+               events.cc
                partition_info.cc rpl_utility.cc rpl_utility_server.cc
                rpl_injector.cc sql_locale.cc
-               rpl_rli.cc rpl_mi.cc sql_servers.cc sql_audit.cc
+               rpl_rli.cc sql_servers.cc sql_audit.cc
                sql_connect.cc scheduler.cc sql_partition_admin.cc
                sql_profile.cc event_parse_data.cc sql_alter.cc
                sql_signal.cc mdl.cc sql_admin.cc
@@ -242,7 +252,7 @@ ADD_LIBRARY(sql STATIC ${SQL_SOURCE})
 MAYBE_DISABLE_IPO(sql)
 DTRACE_INSTRUMENT(sql)
 TARGET_LINK_LIBRARIES(sql
-  libmariadb
+  sql_client
   mysys mysys_ssl dbug strings vio pcre2-8
   tpool
   online_alter_log

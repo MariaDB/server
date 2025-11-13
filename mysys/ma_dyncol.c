@@ -113,7 +113,6 @@ enum enum_dyncol_format
 
 #define DYNCOL_NUM_CHAR 6
 
-#ifndef USE_CONC
 my_bool mariadb_dyncol_has_names(DYNAMIC_COLUMN *str)
 {
   if (str->length < 1)
@@ -137,18 +136,15 @@ static enum enum_dyncol_func_result
 dynamic_column_get_internal(DYNAMIC_COLUMN *str,
                                 DYNAMIC_COLUMN_VALUE *store_it_here,
                                 uint num_key, LEX_STRING *str_key);
-#endif
 static enum enum_dyncol_func_result
 dynamic_column_exists_internal(DYNAMIC_COLUMN *str, uint num_key,
                                LEX_STRING *str_key);
-#ifndef USE_CONC
 static enum enum_dyncol_func_result
 dynamic_column_update_many_fmt(DYNAMIC_COLUMN *str,
                                uint add_column_count,
                                void *column_keys,
                                DYNAMIC_COLUMN_VALUE *values,
                                my_bool string_keys);
-#endif
 static int plan_sort_num(const void *a, const void *b);
 static int plan_sort_named(const void *a, const void *b);
 
@@ -224,7 +220,6 @@ static int column_sort_num(const void *a, const void *b)
   return **((uint **)a) - **((uint **)b);
 }
 
-#ifndef USE_CONC
 /**
   Comparator function for references on column numbers for qsort
   (names format)
@@ -243,7 +238,6 @@ int mariadb_dyncol_column_cmp_named(const LEX_STRING *s1, const LEX_STRING *s2)
                (size_t) s1->length);
   return rc;
 }
-#endif
 
 
 /**
@@ -679,7 +673,6 @@ init_read_hdr(DYN_HEADER *hdr, DYNAMIC_COLUMN *str)
 }
 
 
-#ifndef USE_CONC
 /**
   Initialize dynamic column string with (make it empty but correct format)
 
@@ -1157,7 +1150,6 @@ dynamic_column_decimal_store(DYNAMIC_COLUMN *str,
   str->length+= bin_size;
   return ER_DYNCOL_OK;
 }
-#endif
 
 
 /**
@@ -1182,7 +1174,6 @@ void dynamic_column_prepare_decimal(DYNAMIC_COLUMN_VALUE *value)
 
 
 
-#ifndef USE_CONC
 /**
   Read decimal value of given length from the string
 
@@ -1575,7 +1566,6 @@ data_store(DYNAMIC_COLUMN *str, DYNAMIC_COLUMN_VALUE *value,
   DBUG_ASSERT(0);
   return ER_DYNCOL_OK;                          /* Impossible */
 }
-#endif
 
 
 /**
@@ -1598,7 +1588,6 @@ static void set_fixed_header(DYNAMIC_COLUMN *str,
   DBUG_ASSERT((str->str[0] & (~DYNCOL_FLG_KNOWN)) == 0);
 }
 
-#ifndef USE_CONC
 /**
   Adds columns into the empty string
 
@@ -1936,7 +1925,6 @@ static size_t get_length_interval(uchar *entry, uchar *entry_next,
     return DYNCOL_OFFSET_ERROR;
   return (offset_next - offset);
 }
-#endif
 
 
 /**
@@ -2196,7 +2184,6 @@ static inline my_bool read_fixed_header(DYN_HEADER *hdr,
 }
 
 
-#ifndef USE_CONC
 /**
   Get dynamic column value by column number
 
@@ -2326,7 +2313,6 @@ err:
     store_it_here->type= DYN_COL_NULL;
     return rc;
 }
-#endif
 
 
 /**
@@ -2344,7 +2330,6 @@ dynamic_column_exists(DYNAMIC_COLUMN *str, uint column_nr)
   return dynamic_column_exists_internal(str, column_nr, NULL);
 }
 
-#ifndef USE_CONC
 enum enum_dyncol_func_result
 mariadb_dyncol_exists_num(DYNAMIC_COLUMN *str, uint column_nr)
 {
@@ -2366,7 +2351,6 @@ mariadb_dyncol_exists_named(DYNAMIC_COLUMN *str, LEX_STRING *name)
   DBUG_ASSERT(name != NULL);
   return dynamic_column_exists_internal(str, 0, name);
 }
-#endif
 
 
 /**
@@ -2403,7 +2387,6 @@ dynamic_column_exists_internal(DYNAMIC_COLUMN *str, uint num_key,
 }
 
 
-#ifndef USE_CONC
 /**
   List not-null columns in the packed string (only numeric format)
 
@@ -2655,7 +2638,6 @@ find_place(DYN_HEADER *hdr, void *key, my_bool string_keys)
     hdr->entry+= hdr->entry_size; /* Point at next bigger key */
   return flag == 0;
 }
-#endif
 
 
 /*
@@ -2707,7 +2689,6 @@ static int plan_sort_named(const void *a, const void *b)
     (C)= TRUE;                      \
   }
 
-#ifndef USE_CONC
 /**
   Update dynamic column by copying in a new record (string).
 
@@ -4405,7 +4386,6 @@ err:
   }
   return rc;
 }
-#endif
 
 /**
   Free arrays allocated by mariadb_dyncol_unpack()
@@ -4419,7 +4399,6 @@ void mariadb_dyncol_unpack_free(LEX_STRING *names, DYNAMIC_COLUMN_VALUE *vals)
   my_free(vals);
 }
 
-#ifndef USE_CONC
 /**
   Get not NULL column count
 
@@ -4453,4 +4432,3 @@ void mariadb_dyncol_free(DYNAMIC_COLUMN *str)
 {
   dynstr_free(str);
 }
-#endif

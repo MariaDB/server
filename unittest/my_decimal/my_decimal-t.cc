@@ -61,7 +61,6 @@ test_copy_and_compare()
 
 }
 
-#ifndef USE_CONC
 static int
 test_decimal2string()
 {
@@ -91,16 +90,13 @@ test_decimal2string()
   return 0;
 
 }
-#endif
 int main()
 {
   plan(15);
   diag("Testing my_decimal constructor and assignment operators");
 
   test_copy_and_compare();
-#ifndef USE_CONC
   test_decimal2string();
-#endif
 
   return exit_status();
 }

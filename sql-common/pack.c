@@ -18,7 +18,6 @@
 #include <mysql_com.h>
 #include <mysql.h>
 
-#ifndef USE_CONC
 /* Get the length of next field. Change parameter to point at fieldstart */
 ulong net_field_length(uchar **packet)
 {
@@ -46,7 +45,6 @@ ulong net_field_length(uchar **packet)
   (*packet)+=9;					/* Must be 254 when here */
   return (ulong) uint4korr(pos+1);
 }
-#endif
 
 /* The same as above but returns longlong */
 my_ulonglong net_field_length_ll(uchar **packet)

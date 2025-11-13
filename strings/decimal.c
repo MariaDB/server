@@ -1404,7 +1404,6 @@ int decimal2bin(const decimal_t *from, uchar *to, decimal_digits_t precision,
   return error;
 }
 
-#ifndef USE_CONC
 /*
   Restores decimal from its binary fixed-length representation
 
@@ -1566,7 +1565,6 @@ uint decimal_bin_size(decimal_digits_t precision, decimal_digits_t scale)
   return intg0*sizeof(dec1)+dig2bytes[intg0x]+
          frac0*sizeof(dec1)+dig2bytes[frac0x];
 }
-#endif
 
 /*
   Rounds the decimal to "scale" digits

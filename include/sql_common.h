@@ -76,6 +76,9 @@ typedef struct st_mysql_methods
 } MYSQL_METHODS;
 
 #ifdef LIBMARIADB
+/// forward-declared from `libmariadb/include/mariadb_stmt.h`
+int ma_simple_command(MYSQL *mysql, enum enum_server_command command,
+  const char *arg, size_t length, my_bool skip_check, void *opt_arg);
 #define simple_command(mysql, command, arg, length, skip_check) ma_simple_command(mysql, command, (char *)arg, length, skip_check, NULL)
 #else
 #define simple_command(mysql, command, arg, length, skip_check) \

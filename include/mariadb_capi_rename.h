@@ -57,6 +57,6 @@
 #define mysql_ssl_set           MARIADB_ADD_PREFIX(mysql_ssl_set)
 #define mysql_client_register_plugin MARIADB_ADD_PREFIX(mysql_client_register_plugin)
 
-#endif // !EMBEDDED_LIBRARY && !MYSQL_DYNAMIC_PLUGIN
+#endif // !LIBMARIADB && !EMBEDDED_LIBRARY && !MYSQL_DYNAMIC_PLUGIN
 
 #endif // !MARIADB_CAPI_RENAME_INCLUDED
