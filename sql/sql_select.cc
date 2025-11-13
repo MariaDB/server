@@ -8319,46 +8319,62 @@ inline double use_found_constraint(double records)
   WHERE_COST cost is not added to any result.
 */
 
-static ALL_READ_COST cost_for_index_read(const THD *thd, const TABLE *table,
+static ALL_READ_COST cost_for_index_read(THD *thd, const TABLE *table,
                                          uint key, ha_rows records,
                                          bool eq_ref)
 {
+  bool rc;
   ALL_READ_COST cost;
   handler *file= table->file;
-  ha_rows max_seeks;
-  ha_rows extra_reads= eq_ref ? 0 : 1;
   DBUG_ENTER("cost_for_index_read");
 
-  max_seeks= (ha_rows) thd->variables.max_seeks_for_key;
-  set_if_bigger(records, 1);
+  rc= current_thd->opt_ctx_replay
+          ? current_thd->opt_ctx_replay->get_index_read_cost(
+                table, key, records, eq_ref, &cost)
+          : true;
 
-  if (file->is_clustering_key(key))
+  if (rc)
   {
-    cost.index_cost=
-      file->ha_keyread_clustered_time(key, 1, records+extra_reads, 0);
-    cost.copy_cost= rows2double(records) * file->ROW_COPY_COST;
-    /* There is no 'index_only_read' with a clustered index */
-    cost.row_cost= {0,0};
-    /* Caping of index_blocks will happen in handler::cost() */
-    cost.max_index_blocks= MY_MIN(file->row_blocks(), max_seeks);
-    cost.max_row_blocks= 0;
+    ha_rows max_seeks;
+    ha_rows extra_reads= eq_ref ? 0 : 1;
+
+    max_seeks= (ha_rows) thd->variables.max_seeks_for_key;
+    set_if_bigger(records, 1);
+
+    if (file->is_clustering_key(key))
+    {
+      cost.index_cost=
+          file->ha_keyread_clustered_time(key, 1, records + extra_reads, 0);
+      cost.copy_cost= rows2double(records) * file->ROW_COPY_COST;
+      /* There is no 'index_only_read' with a clustered index */
+      cost.row_cost= {0, 0};
+      /* Caping of index_blocks will happen in handler::cost() */
+      cost.max_index_blocks= MY_MIN(file->row_blocks(), max_seeks);
+      cost.max_row_blocks= 0;
+    }
+    else if (table->covering_keys.is_set(key) && !table->no_keyread)
+    {
+      cost.index_cost= file->ha_keyread_time(key, 1, records + extra_reads, 0);
+      cost.row_cost= {0, 0};
+      cost.copy_cost= rows2double(records) * file->KEY_COPY_COST;
+      cost.max_index_blocks= MY_MIN(file->index_blocks(key), max_seeks);
+      cost.max_row_blocks= 0;
+    }
+    else
+    {
+      cost.index_cost= file->ha_keyread_time(key, 1, records + extra_reads, 0);
+      /* ha_rnd_pos_time() includes time for copying the row */
+      cost.row_cost= file->ha_rnd_pos_time(records);
+      cost.max_index_blocks= MY_MIN(file->index_blocks(key), max_seeks);
+      cost.max_row_blocks= MY_MIN(file->row_blocks(), max_seeks);
+      cost.copy_cost= 0;
+    }
   }
-  else if (table->covering_keys.is_set(key) && !table->no_keyread)
+
+  if (Optimizer_context_recorder *recorder= get_opt_context_recorder(thd))
   {
-    cost.index_cost= file->ha_keyread_time(key, 1, records + extra_reads, 0);
-    cost.row_cost= {0,0};
-    cost.copy_cost= rows2double(records) * file->KEY_COPY_COST;
-    cost.max_index_blocks= MY_MIN(file->index_blocks(key), max_seeks);
-    cost.max_row_blocks= 0;
-  }
-  else
-  {
-    cost.index_cost= file->ha_keyread_time(key, 1, records + extra_reads, 0);
-    /* ha_rnd_pos_time() includes time for copying the row */
-    cost.row_cost= file->ha_rnd_pos_time(records);
-    cost.max_index_blocks= MY_MIN(file->index_blocks(key), max_seeks);
-    cost.max_row_blocks=   MY_MIN(file->row_blocks(), max_seeks);
-    cost.copy_cost= 0;
+    recorder->record_cost_index_read(thd->mem_root, table->pos_in_table_list,
+                                     key, records, eq_ref, cost);
   }
   DBUG_PRINT("statistics", ("index_cost: %.3f  row_cost: %.3f",
                             file->cost(cost.index_cost),

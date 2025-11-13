@@ -510,7 +510,7 @@ public:
 */
 class Sys_var_charptr: public sys_var
 {
-  const size_t max_length= 2000;
+  const size_t max_length= 8000;
 public:
   Sys_var_charptr(const char *name_arg,
           const char *comment, int flag_args, ptrdiff_t off, size_t size,

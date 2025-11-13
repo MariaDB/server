@@ -725,7 +725,8 @@ THD::THD(my_thread_id id, bool is_wsrep_applier)
    waiting_on_group_commit(FALSE), has_waiter(FALSE),
    last_sql_command(SQLCOM_END), spcont(NULL),
    m_parser_state(NULL),
-   stats_ctx_recorder(NULL),
+   opt_ctx_recorder(NULL),
+   opt_ctx_replay(NULL),
 #ifndef EMBEDDED_LIBRARY
    audit_plugin_version(-1),
 #endif
@@ -1585,8 +1586,10 @@ void THD::change_user(void)
                Lex_ident_fs::charset_info(), SEQUENCES_HASH_SIZE, 0, 0,
                get_sequence_last_key, free_sequence_last,
                HASH_THREAD_SPECIFIC);
-  delete stats_ctx_recorder;
-  stats_ctx_recorder= NULL;
+  delete opt_ctx_recorder;
+  opt_ctx_recorder= NULL;
+  delete opt_ctx_replay;
+  opt_ctx_replay= NULL;
   /* cannot clear caches if it'll free the currently running routine */
   DBUG_ASSERT(!spcont);
   sp_caches_clear();
@@ -1728,8 +1731,10 @@ void THD::cleanup(void)
 
   my_hash_free(&user_vars);
   my_hash_free(&sequences);
-  delete stats_ctx_recorder;
-  stats_ctx_recorder= NULL;
+  delete opt_ctx_recorder;
+  opt_ctx_recorder= NULL;
+  delete opt_ctx_replay;
+  opt_ctx_replay= NULL;
   sp_caches_clear();
   statement_rcontext_reinit();
   auto_inc_intervals_forced.empty();
@@ -2523,8 +2528,10 @@ void THD::cleanup_after_query()
     wsrep_affected_rows= 0;
 #endif /* WITH_WSREP */
   gap_tracker_data.init();
-  delete stats_ctx_recorder;
-  stats_ctx_recorder= NULL;
+  delete opt_ctx_recorder;
+  opt_ctx_recorder= NULL;
+  delete opt_ctx_replay;
+  opt_ctx_replay= NULL;
   DBUG_VOID_RETURN;
 }
 

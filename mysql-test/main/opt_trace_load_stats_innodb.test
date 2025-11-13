@@ -1,0 +1,407 @@
+--source include/not_embedded.inc
+--source include/have_sequence.inc
+--source include/have_innodb.inc
+--source include/opt_context_schema.inc
+
+--echo #
+--echo # In this test suite, each query is run more than once by
+--echo # using run_query_twice_and_compare_stats.inc file
+--echo #
+set session use_stat_tables='NEVER';
+set optimizer_record_context=ON;
+set optimizer_trace=1;
+set optimizer_replay_context="";
+
+create database db1;
+use db1;
+
+--echo #
+--echo # Range query on a single table having 1 unique index on a single column
+--echo #
+
+let $table_name=t1;
+
+create table t1 (c1 int, c2 int, unique (c1)) engine=innodb;
+
+insert into t1 select seq, seq from seq_1_to_10000;
+
+analyze table t1;
+
+let $explain_query=explain format=json select * from t1 a, t1 b where a.c1 < 3 and b.c1 < 333;
+
+let $table_update_query=delete from t1;
+
+--source include/run_query_twice_and_compare_stats.inc
+
+drop table t1;
+
+--echo #
+--echo # Query on a single table having 2 unique indexes.
+--echo # 2 different ranges are specified on each index.
+--echo #
+
+let $table_name=t1;
+
+create table t1 (
+    c1 int,
+    c2 int,
+    unique(c1),
+    unique(c2)
+) ENGINE=InnoDB;
+
+insert into t1 select seq, seq from seq_1_to_10000;
+
+analyze table t1;
+
+let $explain_query=explain format=json select * from t1 a, t1 b where a.c1 < 3 and b.c1 < 333 and a.c2 < 3 and b.c2 < 333;
+
+let $table_update_query=delete from t1;
+
+--source include/run_query_twice_and_compare_stats.inc
+
+--echo #
+--echo # Add more data to the table and execute the query
+--echo #
+
+insert into t1 select seq, seq from seq_1_to_20000;
+
+analyze table t1;
+
+set optimizer_replay_context=@saved_opt_context;
+
+let $explain_output=`$explain_query`;
+evalp set @explain_output='$explain_output';
+
+select JSON_EQUALS(@saved_explain_output, @explain_output);
+
+drop table t1;
+
+--echo #
+--echo # Equi-Join query on a single table having 1 non-unique index on a single column.
+--echo # Also, index column is used in the condition
+--echo #
+
+set optimizer_replay_context="";
+
+let $table_name=t1;
+
+create table t1 (
+    c1 int,
+    c2 int,
+    index(c1)
+) ENGINE=InnoDB;
+
+insert into t1 select seq%100, seq%500 from seq_1_to_10000;
+
+analyze table t1;
+
+let $explain_query=explain format=json select * from t1 as tt1, t1 as tt2 where tt1.c1 = tt2.c1;
+
+let $table_update_query=delete from t1;
+
+--source include/run_query_twice_and_compare_stats.inc
+
+drop table t1;
+
+--echo #
+--echo # Equi-Join query on a single table having 1 primary key index on a single column.
+--echo # Also, index column is used in the condition
+--echo #
+
+let $table_name=t1;
+
+create table t1 (
+    c1 int,
+    c2 int,
+    primary key (c1)
+) ENGINE=InnoDB;
+
+insert into t1 select seq, seq%500 from seq_1_to_10000;
+
+analyze table t1;
+
+let $explain_query=explain format=json select * from t1 as tt1, t1 as tt2 where tt1.c1 = tt2.c1;
+
+let $table_update_query=delete from t1;
+
+--source include/run_query_twice_and_compare_stats.inc
+
+drop table t1;
+
+--echo #
+--echo # Equi-Join query on a single table having 1 non-unique index on 2 columns.
+--echo # Both the index columns are used in the condition
+--echo #
+
+let $table_name=t1;
+
+create table t1 (
+    c1 int,
+    c2 int,
+    index(c1, c2)
+) ENGINE=InnoDB;
+
+insert into t1 select seq%100, seq%500 from seq_1_to_10000;
+
+analyze table t1;
+
+let $explain_query=explain format=json select * from t1 as tt1, t1 as tt2 where tt1.c1 = tt2.c1 and tt1.c2 = tt2.c2;
+
+let $table_update_query=delete from t1;
+
+--source include/run_query_twice_and_compare_stats.inc
+
+drop table t1;
+
+--echo #
+--echo # Equi-Join query on a single table having 1 primary key index on 2 columns.
+--echo # Both the index columns are used in the condition
+--echo #
+
+let $table_name=t1;
+
+create table t1 (
+    c1 int,
+    c2 int,
+    primary key (c1, c2)
+) ENGINE=InnoDB;
+
+insert into t1 select seq, seq%500 from seq_1_to_10000;
+
+analyze table t1;
+
+let $explain_query=explain format=json select * from t1 as tt1, t1 as tt2 where tt1.c1 = tt2.c1 and tt1.c2 = tt2.c2;
+
+let $table_update_query=delete from t1;
+
+--source include/run_query_twice_and_compare_stats.inc
+
+drop table t1;
+
+--echo #
+--echo # Equi-Join query on a single table having 1 non-unique index on 2 columns.
+--echo # However, only 1 column from the index is used in the condition
+--echo #
+
+let $table_name=t1;
+
+create table t1 (
+    c1 int,
+    c2 int,
+    index(c1, c2)
+) ENGINE=InnoDB;
+
+insert into t1 select seq%100, seq%500 from seq_1_to_10000;
+
+analyze table t1;
+
+let $explain_query=explain format=json select * from t1 as tt1, t1 as tt2 where tt1.c1 = tt2.c1;
+
+let $table_update_query=delete from t1;
+
+--source include/run_query_twice_and_compare_stats.inc
+
+drop table t1;
+
+--echo #
+--echo # Equi-Join query on a single table having 1 primary key index on 2 columns.
+--echo # However, only 1 column from the index that has unique values is used in the condition
+--echo #
+
+let $table_name=t1;
+
+create table t1 (
+    c1 int,
+    c2 int,
+    primary key (c1, c2)
+) ENGINE=InnoDB;
+
+insert into t1 select seq, seq%500 from seq_1_to_10000;
+
+analyze table t1;
+
+let $explain_query=explain format=json select * from t1 as tt1, t1 as tt2 where tt1.c1 = tt2.c1;
+
+let $table_update_query=delete from t1;
+
+--source include/run_query_twice_and_compare_stats.inc
+
+drop table t1;
+
+--echo #
+--echo # Equi-Join query on a single table having 1 primary key index on 2 columns.
+--echo # However, only 1 column from the index that has non-unique values is used in the condition
+--echo #
+
+let $table_name=t1;
+
+create table t1 (
+    c1 int,
+    c2 int,
+    primary key (c1, c2)
+) ENGINE=InnoDB;
+
+insert into t1 select seq, seq%500 from seq_1_to_10000;
+
+analyze table t1;
+
+let $explain_query=explain format=json select * from t1 as tt1, t1 as tt2 where tt1.c2 = tt2.c2;
+
+let $table_update_query=delete from t1;
+
+--source include/run_query_twice_and_compare_stats.inc
+
+drop table t1;
+
+--echo #
+--echo # Query on a single table having 1 non-unique index on 2 columns.
+--echo # However, a constant literal is used in the equality predicate using only 1 column from the index.
+--echo #
+
+let $table_name=t1;
+
+create table t1 (
+    c1 int,
+    c2 int,
+    index(c1)
+) ENGINE=InnoDB;
+
+insert into t1 select seq%100, seq%500 from seq_1_to_10000;
+
+analyze table t1;
+
+let $explain_query=explain format=json select * from t1 as tt1 where tt1.c1 = 5;
+
+let $table_update_query=delete from t1;
+
+--source include/run_query_twice_and_compare_stats.inc
+
+drop table t1;
+
+--echo #
+--echo # Query on a single table having 1 primary key index on 2 columns.
+--echo # However, a constant literal is used in the equality predicate with only 1 column from the index that has unique values.
+--echo #
+
+let $table_name=t1;
+
+create table t1 (
+    c1 int,
+    c2 int,
+    primary key(c1, c2)
+) ENGINE=InnoDB;
+
+insert into t1 select seq, seq%500 from seq_1_to_10000;
+
+analyze table t1;
+
+let $explain_query=explain format=json select * from t1 as tt1 where tt1.c1 = 5;
+
+let $table_update_query=delete from t1;
+
+--source include/run_query_twice_and_compare_stats.inc
+
+drop table t1;
+
+--echo #
+--echo # Query on a single table having 1 non-unique index on a single column.
+--echo # Also, a constant literal is used in the equality predicate on the column that is in the index.
+--echo #
+
+let $table_name=t1;
+
+create table t1 (
+    c1 int,
+    c2 int,
+    index(c1)
+) ENGINE=InnoDB;
+
+insert into t1 select seq%100, seq%500 from seq_1_to_10000;
+
+analyze table t1;
+
+let $explain_query=explain format=json select * from t1 as tt1 where tt1.c1 = 5;
+
+let $table_update_query=delete from t1;
+
+--source include/run_query_twice_and_compare_stats.inc
+
+drop table t1;
+
+--echo #
+--echo # Query on a single table having 1 primary key index on 2 columns.
+--echo # However, a constant literal is used in the equality predicate with only 1 column from the index that has non-unique values.
+--echo #
+
+let $table_name=t1;
+
+create table t1 (
+    c1 int,
+    c2 int,
+    primary key(c1, c2)
+) ENGINE=InnoDB;
+
+insert into t1 select seq, seq%500 from seq_1_to_10000;
+
+analyze table t1;
+
+let $explain_query=explain format=json select * from t1 as tt1 where tt1.c2 = 5;
+
+let $table_update_query=delete from t1;
+
+--source include/run_query_twice_and_compare_stats.inc
+
+drop table t1;
+
+--echo #
+--echo # Query on a single table having 1 primary key index with only 1 column.
+--echo # However, a constant literal is used in the equality predicate on the column that is not in the index.
+--echo #
+
+let $table_name=t1;
+
+create table t1 (
+    c1 int,
+    c2 int,
+    primary key(c1)
+) ENGINE=InnoDB;
+
+insert into t1 select seq, seq%500 from seq_1_to_10000;
+
+analyze table t1;
+
+let $explain_query=explain format=json select * from t1 as tt1 where tt1.c2 = 5;
+
+let $table_update_query=delete from t1;
+
+--source include/run_query_twice_and_compare_stats.inc
+
+drop table t1;
+
+--echo #
+--echo # Index-Merge query on a single table having 2 non-unique index with a single column in each.
+--echo # Also, index column is used in the condition
+--echo #
+
+set optimizer_replay_context="";
+
+create table t1 (
+    c1 int,
+    c2 int,
+    index(c1),
+    index(c2)
+) ENGINE=InnoDB;
+
+insert into t1 select seq%100, seq%500 from seq_1_to_10000;
+
+analyze table t1;
+
+let $explain_query=explain format=json select * from t1 as tt1 where tt1.c1 = 5 OR tt1.c2 = 10;
+
+let $table_update_query=delete from t1;
+
+--source include/run_query_twice_and_compare_stats.inc
+
+drop table t1;
+
+drop database db1;
