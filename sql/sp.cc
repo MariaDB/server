@@ -966,28 +966,6 @@ Bad_db_error_handler::handle_condition(THD *thd,
   return false;
 }
 
-class Sql_path;
-class Sql_path_instant_set
-{
- private:
-  THD *thd;
-  Sql_path old_path;
-public:
-  Sql_path_instant_set(THD *thd, const Sql_path &new_path) : thd(thd)
-  {
-    // TODO XXX fix Sql_path class to avoid hacks below
-    memcpy((void*)&old_path, (void*)&thd->variables.path, sizeof(Sql_path));
-    memcpy((void*)&thd->variables.path, (void*)&new_path, sizeof(Sql_path));
-  }
- public:
-  ~Sql_path_instant_set()
-  {
-    memcpy((void*)&thd->variables.path, (void*)&old_path, sizeof(Sql_path));
-    bzero((void*)&old_path, sizeof(Sql_path));
-  }
-};
-
-
 
 int
 Sp_handler::db_load_routine(THD *thd, const Database_qualified_name *name,

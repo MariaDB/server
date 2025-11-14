@@ -4067,14 +4067,7 @@ open_and_process_table(THD *thd, TABLE_LIST *tables, uint *counter, uint flags,
   bool safe_to_ignore_table= FALSE;
   LEX *lex= thd->lex;
   DBUG_ENTER("open_and_process_table");
-  /*
-    Skip debug sync during PATH resolution to prevent timing issues
-    in deadlock tests. PATH resolution opens mysql.proc system table
-    which would trigger debug sync at unexpected times, breaking 
-    carefully orchestrated deadlock scenarios like MDEV-28567 test.
-  */
-  if (!thd->m_is_resolving)
-    DEBUG_SYNC(thd, "open_and_process_table");
+  DEBUG_SYNC(thd, "open_and_process_table");
 
   /*
     Ignore placeholders for derived tables. After derived tables
