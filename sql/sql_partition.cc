@@ -1980,6 +1980,14 @@ bool fix_partition_func(THD *thd, TABLE *table, bool is_create_table_ind)
       List_iterator<const char> it(part_info->part_field_list);
       if (unlikely(handle_list_of_fields(thd, it, table, part_info, FALSE)))
         goto end;
+      if (part_info->key_algorithm > partition_info::KEY_ALGORITHM_55)
+        for (uint i= 0; i < part_info->num_part_fields; i++)
+          if (part_info->part_field_array[i]->sort_charset()->coll->hash_sort != my_hash_sort_bin)
+          {
+            my_error(ER_NOT_SUPPORTED_YET, MYF(0),
+                     "this key algorithm and collation combination");
+            goto end;
+          }
     }
     else
     {
