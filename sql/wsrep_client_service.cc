@@ -95,9 +95,11 @@ int Wsrep_client_service::prepare_data_for_replication()
     size_t transactional_data_len= 0;
     size_t stmt_data_len= 0;
 
-    // Write transactional cache
+    // Write transactional cache from the last remembered position
     if (transactional_cache &&
-        wsrep_write_cache(m_thd, transactional_cache, &transactional_data_len))
+        wsrep_write_cache(m_thd, transactional_cache,
+                          m_thd->wsrep_sr().log_position(),
+                          &transactional_data_len))
     {
       WSREP_ERROR("rbr write fail, data_len: %zu",
                   data_len);
@@ -105,8 +107,8 @@ int Wsrep_client_service::prepare_data_for_replication()
       DBUG_RETURN(1);
     }
 
-    // Write stmt cache
-    if (stmt_cache && wsrep_write_cache(m_thd, stmt_cache, &stmt_data_len))
+    // Write stmt cache fully as it's only written upon transaction commit
+    if (stmt_cache && wsrep_write_cache(m_thd, stmt_cache, 0u, &stmt_data_len))
     {
       WSREP_ERROR("rbr write fail, data_len: %zu",
                   data_len);
