@@ -544,7 +544,8 @@ size_t Sql_path::text_format_nbytes_needed(THD *thd, bool resolve) const
 size_t Sql_path::print(THD *thd, bool resolve,
                        char *dst, size_t nbytes_available) const
 {
-  size_t nbytes= 0;
+  char *start= dst;
+  bool seen= false;
 
   for (size_t i= 0; i < m_count; i++)
   {
@@ -559,46 +560,48 @@ size_t Sql_path::print(THD *thd, bool resolve,
       schema.length= strlen(schema.str);
     }
 
-    size_t len= schema.length;
-    if (nbytes + len + 3 > nbytes_available)
+    if (dst - start + schema.length + 3 > nbytes_available)
       break;
+
+    if (!resolve && !seen && is_cur_schema(schema))
+    {
+      memcpy(dst, schema.str, schema.length);
+      dst+= schema.length;
+      *dst++= ',';
+      seen= true;
+      continue;
+    }
 
     *dst++= '`';
     for (size_t j= 0; j < schema.length; j++)
     {
       *dst++= schema.str[j];
       if (schema.str[j] == '`')
-      {
         *dst++= '`';
-        len++;
-      }
     }
     *dst++= '`';
     *dst++= ',';
-    nbytes+= len + 3;
   }
 
-  if (nbytes)
-  {
-    nbytes--;
+  if (dst > start)
     dst--;
-  }
 
-  if (nbytes < nbytes_available)
+  if (dst < start + nbytes_available)
     *dst= '\0';
     
-  return nbytes;
+  return dst - start;
 }
 
 
 LEX_CSTRING Sql_path::lex_cstring(THD *thd, MEM_ROOT *mem_root) const
 {
   LEX_CSTRING res;
-  size_t nbytes_needed= text_format_nbytes_needed(thd, true);
+  const bool resolve= false;
+  size_t nbytes_needed= text_format_nbytes_needed(thd, resolve);
   char *ptr= (char *) alloc_root(mem_root, nbytes_needed);
   if (ptr)
   {
-    res.length= print(thd, true, ptr, nbytes_needed);
+    res.length= print(thd, resolve, ptr, nbytes_needed);
     res.str= ptr;
     DBUG_ASSERT(res.length < nbytes_needed);
   }

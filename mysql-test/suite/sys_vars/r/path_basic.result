@@ -1,10 +1,10 @@
 SET NAMES utf8;
 SELECT @@session.path;
 @@session.path
-`CURRENT_SCHEMA`
+CURRENT_SCHEMA
 SELECT @@global.path;
 @@global.path
-`CURRENT_SCHEMA`
+CURRENT_SCHEMA
 SET @@global.path= '.,sys';
 SET @@session.path= DEFAULT;
 SET @start_global_value = @@global.path;
@@ -64,7 +64,7 @@ SET @@global.path = 'aaa';
 SET @@global.path = DEFAULT;
 SELECT @@global.path;
 @@global.path
-`CURRENT_SCHEMA`
+CURRENT_SCHEMA
 SET @@global.path= '.,sys';
 SET @@session.path = 'abc';
 SET @@session.path = DEFAULT;
@@ -537,4 +537,4 @@ CURRENT_PATH
 SET PATH DEFAULT;
 SELECT CURRENT_PATH;
 CURRENT_PATH
-`CURRENT_SCHEMA`
+CURRENT_SCHEMA
