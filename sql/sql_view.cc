@@ -1534,8 +1534,8 @@ bool mysql_make_view(THD *thd, TABLE_SHARE *share, TABLE_LIST *view_table_alias,
     view_query_lex->stmt_lex= parent_query_lex;
 
     Sql_mode_save_for_frm_handling sql_mode_save(thd);
-    Sql_path_push path_push(thd, table->view_creation_ctx->get_client_cs(),
-                            table->m_sql_path);
+    Sql_path_instant_set sql_path_save(thd, view_table_alias->m_sql_path);
+
     /* Parse the query. */
 
     parse_status= parse_sql(thd, & parser_state, view_table_alias->view_creation_ctx);

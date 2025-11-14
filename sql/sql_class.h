@@ -3101,8 +3101,7 @@ class THD: public THD_count, /* this must be first */
            public MDL_context_owner,
            public Open_tables_state,
            public Sp_caches,
-           public Statement_rcontext,
-           public Sql_path_stack
+           public Statement_rcontext
 {
 private:
   inline bool is_stmt_prepare() const

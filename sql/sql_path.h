@@ -30,6 +30,7 @@ public:
   Sql_path(const Sql_path&) = delete;
   Sql_path(Sql_path &&rhs)
   {
+    m_count= 0;
     set(std::move(rhs));
   }
 
@@ -132,62 +133,15 @@ private:
 };
 
 
-class Sql_path_stack
+class Sql_path_instant_set
 {
-  List<Sql_path> m_path_stack;
   THD *m_thd;
+  Sql_path m_path;
 public:
-  bool m_is_resolving;
-public:
-  Sql_path_stack(THD *thd) : m_thd(thd), m_is_resolving(false) {}
-  bool push_path(CHARSET_INFO *cs, const LEX_CSTRING &path_str,
-                 bool *was_pushed);
-  bool pop_path();
+  Sql_path_instant_set(THD *thd, const LEX_CSTRING &str);
+  Sql_path_instant_set(THD *thd, const Sql_path &new_path);
+  ~Sql_path_instant_set();
+  bool error() const { return m_thd; }
 };
-
-
-class Sql_path_push
-{
-  bool m_pushed;
-  bool m_error;
-  Sql_path_stack *m_stack;
-public:
-  Sql_path_push(Sql_path_stack *stack, CHARSET_INFO *cs,
-                const LEX_CSTRING &path_str)
-  : m_pushed(false), m_error(false), m_stack(stack)
-  {
-    push(stack, cs, path_str);
-  }
-  Sql_path_push()
-  : m_pushed(false), m_error(false), m_stack(nullptr)
-  {
-  }
-  ~Sql_path_push()
-  {
-    pop();
-  }
-
-  bool error() const
-  {
-    return m_error;
-  }
-
-  void push(Sql_path_stack *stack, CHARSET_INFO *cs, const LEX_CSTRING &path_str)
-  {
-    m_stack= stack;
-    if (m_stack && path_str.length)
-      m_error= m_stack->push_path(cs, path_str, &m_pushed);
-  }
-
-  void pop()
-  {
-    if (m_pushed && m_stack)
-    {
-      m_stack->pop_path();
-      m_pushed= false;
-    }
-  }
-};
-
 
 #endif /* SQL_PATH_INCLUDED */

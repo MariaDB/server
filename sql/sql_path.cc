@@ -131,21 +131,6 @@ bool Sql_path::resolve(THD *thd, sp_head *caller, sp_name *name,
   DBUG_ASSERT(name);
   DBUG_ASSERT(name->m_name.str[name->m_name.length] == '\0');
 
-  struct resolving {
-    THD *m_thd;
-    ulonglong m_accessed_rows_and_keys;
-    resolving(THD *thd) : m_thd(thd)
-    {
-      m_thd->m_is_resolving= true;
-      m_accessed_rows_and_keys= m_thd->accessed_rows_and_keys;
-    }
-    ~resolving()
-    {
-      m_thd->m_is_resolving= false;
-      m_thd->accessed_rows_and_keys= m_accessed_rows_and_keys;
-    }
-  } resolving(thd);
-
   // Check for fully qualified name schema.pkg.routine and exit early
   if (name->m_explicit_name && strchr(name->m_name.str, '.'))
     return false;
@@ -625,46 +610,23 @@ LEX_CSTRING Sql_path::lex_cstring(THD *thd, MEM_ROOT *mem_root) const
   return res;
 }
 
-
-bool Sql_path_stack::push_path(CHARSET_INFO *cs,
-                               const LEX_CSTRING &path_str,
-                               bool *was_pushed)
+Sql_path_instant_set::Sql_path_instant_set(THD *thd, const LEX_CSTRING &str)
+  : m_thd(thd), m_path(std::move(thd->variables.path))
 {
-  if (!path_str.length)
-    return false;
-  
-  auto cur_path= (Sql_path *) my_malloc(PSI_INSTRUMENT_ME,
-                                  sizeof(Sql_path), MYF(MY_WME | MY_ZEROFILL));
-  if (unlikely(!cur_path))
-    return true;
-  
-  *cur_path= std::move(m_thd->variables.path);
-  m_path_stack.push_front(cur_path);
-
-  if (unlikely(m_thd->variables.path.from_text(m_thd, cs, path_str)))
+  if (thd->variables.path.from_text(thd, system_charset_info, str))
   {
-    pop_path();
-    return true;
+    thd->variables.path.set(std::move(m_path));
+    m_thd= NULL;
   }
-
-  *was_pushed= true;
-
-  return false;
 }
 
-
-bool Sql_path_stack::pop_path()
+Sql_path_instant_set::Sql_path_instant_set(THD *thd, const Sql_path &new_path)
+  : m_thd(thd), m_path(std::move(thd->variables.path))
 {
-  if (unlikely(m_path_stack.is_empty()))
-    return true;
-
-  auto prev_path= m_path_stack.pop();
-  if (unlikely(!prev_path))
-    return true;
-
-  m_thd->variables.path= std::move(*prev_path);
-  my_free(prev_path);
-
-  return false;
+  thd->variables.path.set(thd, new_path);
 }
 
+Sql_path_instant_set::~Sql_path_instant_set()
+{
+  m_thd->variables.path.set(std::move(m_path));
+}

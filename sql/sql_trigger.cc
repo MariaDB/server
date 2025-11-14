@@ -1851,7 +1851,7 @@ bool Table_triggers_list::check_n_load(THD *thd, const LEX_CSTRING *db,
         Deprecated_trigger_syntax_handler error_handler;
         thd->push_internal_handler(&error_handler);
 
-        Sql_path_push path_push(thd, creation_ctx->get_client_cs(), sql_path);
+        Sql_path_instant_set path_save(thd, sql_path);
 
         bool parse_error= parse_sql(thd, & parser_state, creation_ctx);
         thd->pop_internal_handler();
@@ -1861,8 +1861,6 @@ bool Table_triggers_list::check_n_load(THD *thd, const LEX_CSTRING *db,
           sp_head::destroy(lex.sphead);
           lex.sphead= nullptr;
         }
-
-        path_push.pop();
 
         /*
           Not strictly necessary to invoke this method here, since we know

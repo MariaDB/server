@@ -5036,7 +5036,7 @@ Prepared_statement::reprepare()
     return TRUE;
 
   Sql_mode_instant_set sms(thd, m_sql_mode);
-  Sql_path_push path_push(thd, &my_charset_utf8mb3_bin, m_sql_path);
+  Sql_path_instant_set sps(thd, m_sql_path);
 
   error= ((name.str && copy.set_name(&name)) ||
           copy.prepare(query(), query_length()) ||
