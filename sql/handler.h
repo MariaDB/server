@@ -2879,7 +2879,7 @@ struct IO_AND_CPU_COST
 struct ALL_READ_COST
 {
   IO_AND_CPU_COST index_cost, row_cost;
-  longlong max_index_blocks, max_row_blocks;
+  ha_rows max_index_blocks, max_row_blocks;
   /* index_only_read = index_cost + copy_cost */
   double   copy_cost;
 

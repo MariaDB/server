@@ -1048,36 +1048,6 @@ static bool read_ha_rows(json_engine_t *je, const char *read_elem_key,
   return 0;
 }
 
-/*
-  parse the json to read and put a longlong into the argument value
-  fill in the err_buf if any error has occurred during parsing
-  @return
-    FALSE  OK
-    TRUE  Parse Error
-*/
-static bool read_longlong(json_engine_t *je, const char *read_elem_key,
-                          String &err_buf, longlong &value)
-{
-  if (json_read_value(je))
-  {
-    err_buf.append(STRING_WITH_LEN("error reading "));
-    err_buf.append(read_elem_key, strlen(read_elem_key));
-    err_buf.append(STRING_WITH_LEN(" value"));
-    return 1;
-  }
-
-  const char *size= (const char *) je->value_begin;
-  char *size_end= (char *) je->value_end;
-  int conv_err;
-  value= my_strtoll10(size, &size_end, &conv_err);
-  if (conv_err)
-  {
-    err_buf.append(read_elem_key, strlen(read_elem_key));
-    err_buf.append(STRING_WITH_LEN(" member must be a numeric value"));
-    return 1;
-  }
-  return 0;
-}
 
 /*
   parse the trace context that abides to the structure defined in
@@ -2167,7 +2137,7 @@ int Optimizer_context_replay::parse_index_read_cost_context(
     if (json_key_matches(je, max_index_blocks_key.get()))
     {
       String err_buf;
-      if (read_longlong(je, MAX_INDEX_BLOCKS, err_buf,
+      if (read_ha_rows(je, MAX_INDEX_BLOCKS, err_buf,
                         irc_ctx->cost.max_index_blocks))
       {
         *err= err_buf.c_ptr_safe();
@@ -2183,7 +2153,7 @@ int Optimizer_context_replay::parse_index_read_cost_context(
     if (json_key_matches(je, max_row_blocks_key.get()))
     {
       String err_buf;
-      if (read_longlong(je, MAX_ROW_BLOCKS, err_buf,
+      if (read_ha_rows(je, MAX_ROW_BLOCKS, err_buf,
                         irc_ctx->cost.max_row_blocks))
       {
         *err= err_buf.c_ptr_safe();
