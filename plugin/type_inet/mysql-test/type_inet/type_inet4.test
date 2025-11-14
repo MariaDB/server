@@ -1479,3 +1479,15 @@ DROP TABLE t1;
 --echo #
 --echo # End of 10.10 tests
 --echo #
+
+--echo #
+--echo # Begin 10.11 tests
+--echo #
+
+--echo #
+--echo # MDEV-31053 UUID(size) should be disallowed
+--echo #
+--error ER_NO_LENGTH_PRECISION_ALLOWED
+CREATE TABLE t1 (a INET4(24));
+
+--echo # End 10.11 tests
