@@ -10123,7 +10123,8 @@ bool Item_insert_value::fix_fields(THD *thd, Item **items)
 
   Item_field *field_arg= (Item_field *)arg;
 
-  if (field_arg->field->table->insert_values)
+  if (field_arg->field->table->insert_values &&
+      thd->where != THD_WHERE::VALUES_CLAUSE)
   {
     Field *def_field= (Field*) thd->alloc(field_arg->field->size_of());
     if (!def_field)
