@@ -1,0 +1,38 @@
+connection node_2;
+connection node_1;
+CREATE TABLE parent (f1 INTEGER PRIMARY KEY, f2 INTEGER) ENGINE=INNODB;
+CREATE TABLE child (f1 INTEGER PRIMARY KEY, p_id INTEGER,
+f2 INTEGER,
+CONSTRAINT fk_1 FOREIGN KEY (p_id) REFERENCES parent (f1) ON DELETE CASCADE)  ;
+CREATE TABLE grandchild (f1 INTEGER PRIMARY KEY, p_id INTEGER,
+f2 INTEGER,
+CONSTRAINT fk_2 FOREIGN KEY (p_id) REFERENCES child (p_id))  ;
+INSERT INTO parent VALUES (1, 1),(2,2);
+INSERT INTO child VALUES (1, 1, 1);
+connection node_1;
+# Make node 1 tolerate split-brain
+SET GLOBAL wsrep_provider_options = 'pc.ignore_sb=true';
+SET GLOBAL wsrep_provider_options = 'pc.weight=2';
+connection node_2;
+SET SESSION wsrep_on=OFF;
+DELETE FROM child WHERE f1 = 1;
+connection node_1;
+# Fails in node_2 with Foreign key warning in table: `test`.`grandchild` constraint `fk_2` failed err: adding an index entry to a child table failed.
+INSERT INTO grandchild VALUES (1,1,1);
+# Restart node_2, force SST. This is needed as node_2 is on inconsistent state
+connection node_2;
+connection node_1;
+connection node_2;
+Starting server ...
+include/assert_grep.inc [Foreign key warning in table: \`test\`\.\`grandchild\` constraint \`fk_2\` failed err: adding an index entry to a child table failed.]
+connection node_1;
+drop table grandchild;
+drop table child;
+drop table parent;
+SET GLOBAL wsrep_provider_options = 'pc.ignore_sb=false';
+SET GLOBAL wsrep_provider_options = 'pc.weight=1';
+connection node_2;
+call mtr.add_suppression("WSREP: Foreign key warning in table");
+call mtr.add_suppression("WSREP: Event 3 Write_rows_v1 apply failed");
+call mtr.add_suppression("WSREP: Inconsistency detected: Inconsistent by consensus on");
+call mtr.add_suppression("WSREP: Failed to apply write set");
