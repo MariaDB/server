@@ -19434,24 +19434,37 @@ static MYSQL_SYSVAR_BOOL(data_file_write_through, fil_system.write_through,
 static void innodb_log_archive_update(THD *, st_mysql_sys_var*,
                                       void *, const void *save) noexcept
 {
-  const my_bool archive= *static_cast<const my_bool*>(save);
-  log_sys.latch.wr_lock(SRW_LOCK_CALL);
-  const lsn_t resizing{log_sys.resize_in_progress()};
-  if (archive && UNIV_UNLIKELY(resizing != 0))
-    my_printf_error(ER_WRONG_USAGE,
-                    "SET GLOBAL innodb_log_file_size is in progress", MYF(0));
-  else
+  for (const my_bool archive= *static_cast<const my_bool*>(save);;)
   {
-    log_sys.archive= archive;
-    if (!resizing)
+    log_sys.latch.wr_lock(SRW_LOCK_CALL);
+    const lsn_t resizing{log_sys.resize_in_progress()};
+    if (archive && UNIV_UNLIKELY(resizing != 0))
+      my_printf_error(ER_WRONG_USAGE,
+                      "SET GLOBAL innodb_log_file_size is in progress", MYF(0));
+    else
     {
-      if (archive)
-        log_sys.archive_set_size();
-      mtr_t::finisher_update();
+      log_sys.archive= archive;
+      if (!resizing)
+      {
+#ifdef HAVE_PMEM
+        if (log_sys.is_backoff() && log_sys.is_mmap())
+        {
+          /* Prevent a race condition with log_t::append_prepare() */
+          log_sys.latch.wr_unlock();
+          continue;
+        }
+#endif
+        if (archive)
+        {
+          log_sys.archived_lsn= log_sys.next_checkpoint_lsn;
+          log_sys.archive_set_size();
+        }
+        mtr_t::finisher_update();
+      }
     }
+    log_sys.latch.wr_unlock();
+    return;
   }
-  log_sys.archived_lsn= 0; // FIXME: move this to log_t::write_checkpoint()
-  log_sys.latch.wr_unlock();
 }
 
 static MYSQL_SYSVAR_BOOL(log_archive, log_sys.archive,

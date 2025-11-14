@@ -1811,6 +1811,7 @@ dberr_t recv_sys_t::find_checkpoint()
 
   const lsn_t first_lsn{mach_read_from_8(buf + LOG_HEADER_START_LSN)};
   log_sys.set_first_lsn(first_lsn);
+  log_sys.archived_lsn= first_lsn;
   char creator[LOG_HEADER_CREATOR_END - LOG_HEADER_CREATOR + 1];
   memcpy(creator, buf + LOG_HEADER_CREATOR, sizeof creator);
   /* Ensure that the string is NUL-terminated. */

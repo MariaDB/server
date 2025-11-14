@@ -436,6 +436,7 @@ void log_t::create(lsn_t lsn) noexcept
   flushed_to_disk_lsn.store(lsn, std::memory_order_relaxed);
   first_lsn= lsn;
   write_lsn= lsn;
+  archived_lsn= lsn;
 
   last_checkpoint_lsn= 0;
 
@@ -966,42 +967,111 @@ static size_t log_pad(lsn_t lsn, size_t pad, byte *begin, byte *extra)
 #endif
 
 #ifdef HAVE_PMEM
-ATTRIBUTE_COLD void log_t::archive_new_mmap() noexcept
+ATTRIBUTE_COLD void log_t::append_prepare_archived_mmap(bool late, bool ex)
+  noexcept
 {
-  ut_ad(latch_have_any());
+  ut_ad(archive);
+  ut_ad(is_mmap());
   ut_ad(!resize_log.is_opened());
   ut_ad(!resize_buf);
   ut_ad(!resize_in_progress());
   ut_ad(resize_target >= 4U << 20);
   ut_ad(is_latest());
-  std::string path{get_log_file_path(logfile_new)};
-  bool success;
-  pfs_os_file_t file=
-    os_file_create_func(path.c_str(), OS_FILE_CREATE, OS_LOG_FILE,
-                        false, &success);
-  ut_ad(success == (file != OS_FILE_CLOSED));
-  if (file != OS_FILE_CLOSED)
-  {
-    if (os_file_set_size(path.c_str(), file, resize_target))
-    {
-      bool is_pmem{false};
-      void *ptr= ::log_mmap(file, is_pmem, resize_target);
-      os_file_close(file);
-      if (ptr != MAP_FAILED)
-      {
-        buf= static_cast<byte*>(ptr);
-        file_size= resize_target;
-        return;
-      }
-    }
-    else
-      os_file_close(file);
 
-    IF_WIN(DeleteFile(path.c_str()), unlink(path.c_str()));
+  if (UNIV_LIKELY(!ex))
+  {
+    latch.rd_unlock();
+    if (!late)
+    {
+      /* Wait for all threads to back off. */
+      latch.wr_lock(SRW_LOCK_CALL);
+      goto got_ex;
+    }
+
+    const auto delay= my_cpu_relax_multiplier / 4 * srv_spin_wait_delay;
+    const auto rounds= srv_n_spin_wait_rounds;
+
+    for (;;)
+    {
+      HMT_low();
+      for (auto r= rounds + 1; r--; )
+      {
+        if (write_lsn_offset.load(std::memory_order_relaxed) & WRITE_BACKOFF)
+        {
+          for (auto d= delay; d--; )
+            MY_RELAX_CPU();
+        }
+        else
+        {
+          HMT_medium();
+          goto done;
+        }
+      }
+      HMT_medium();
+      std::this_thread::sleep_for(std::chrono::microseconds(100));
+    }
   }
-  sql_print_error("[FATAL] InnoDB: Failed to create and map %s of %" PRIu64
-                  " bytes", path.c_str(), resize_target);
-  abort();
+  else
+  {
+  got_ex:
+    const uint64_t l= write_lsn_offset.load(std::memory_order_relaxed);
+    const lsn_t lsn= base_lsn.load(std::memory_order_relaxed) +
+      (l & (WRITE_BACKOFF - 1));
+    waits++;
+    ut_ad(archive);
+    ut_ad(!resize_log.is_opened());
+    ut_ad(!resize_buf);
+    ut_ad(!resize_in_progress());
+    ut_ad(resize_target >= 4U << 20);
+    ut_ad(is_latest());
+
+    do
+    {
+      std::string path{get_log_file_path(logfile_new)};
+      bool success;
+      pfs_os_file_t file=
+        os_file_create_func(path.c_str(), OS_FILE_CREATE, OS_LOG_FILE,
+                            false, &success);
+      ut_ad(success == (file != OS_FILE_CLOSED));
+      if (file != OS_FILE_CLOSED)
+      {
+        if (os_file_set_size(path.c_str(), file, resize_target))
+        {
+          bool is_pmem{false};
+          resize_buf= static_cast<byte*>(::log_mmap(file, is_pmem,
+                                                    resize_target));
+          os_file_close(file);
+          if (resize_buf != MAP_FAILED)
+            continue;
+          resize_buf= nullptr;
+        }
+      }
+      else
+        os_file_close(file);
+
+      IF_WIN(DeleteFile(path.c_str()), unlink(path.c_str()));
+      sql_print_error("[FATAL] InnoDB: Failed to create and map %s of %" PRIu64
+                      " bytes", path.c_str(), resize_target);
+      abort();
+    }
+    while (false);
+
+    // TODO: adjust this, and clear the WRITE_BACKOFF flag
+    ut_ad(lsn - get_flushed_lsn(std::memory_order_relaxed) < capacity() ||
+        overwrite_warned);
+    persist(lsn); // TODO: pmem_persist()
+    latch.wr_unlock();
+    /* Above we cleared the WRITE_BACKOFF flag,
+    which our caller will recheck. */
+    if (ex)
+    {
+      latch.wr_lock(SRW_LOCK_CALL);
+      return;
+    }
+  }
+
+done:
+  latch.rd_lock(SRW_LOCK_CALL);
 }
 
 void log_t::persist(lsn_t lsn) noexcept

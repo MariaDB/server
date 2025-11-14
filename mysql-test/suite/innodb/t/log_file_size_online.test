@@ -5,11 +5,6 @@
 let SEARCH_FILE = $MYSQLTEST_VARDIR/log/mysqld.1.err;
 
 SET GLOBAL innodb_log_archive=OFF;
-let $wait_condition=
-SELECT variable_value = 0
-FROM information_schema.global_status
-WHERE variable_name = 'innodb_lsn_archived';
---source include/wait_condition.inc
 
 SET GLOBAL innodb_log_file_size=4194304;
 SHOW VARIABLES LIKE 'innodb_log_file_size';
@@ -85,11 +80,6 @@ reap;
 
 SET @save_archive=@@GLOBAL.innodb_log_archive;
 SET GLOBAL innodb_log_archive=OFF;
-let $wait_condition=
-SELECT variable_value = 0
-FROM information_schema.global_status
-WHERE variable_name = 'innodb_lsn_archived';
---source include/wait_condition.inc
 
 SELECT * FROM t WHERE a<10;
 SELECT COUNT(*),LENGTH(b) FROM t GROUP BY b;
