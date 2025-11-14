@@ -8021,7 +8021,7 @@ static TRP_RANGE *get_key_scans_params(PARAM *param, SEL_TREE *tree,
           TABLE::OPT_RANGE *range= param->table->opt_range + keynr;
           Range_list_recorder *recorder= get_range_list_recorder(
               thd, param->old_root, param->table->pos_in_table_list,
-              param->table->key_info[keynr].name.str, found_records, cost,
+              param->table->key_info[keynr].name.str, found_records, &cost,
               range->max_index_blocks, range->max_row_blocks);
           trace_ranges(&trace_range, param, idx, key, key_part, recorder);
         }

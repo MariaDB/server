@@ -68,13 +68,13 @@ public:
                                                TABLE_LIST *tbl,
                                                size_t found_records,
                                                const char *index_name,
-                                               Cost_estimate cost,
+                                               const Cost_estimate *cost,
                                                ha_rows max_index_blocks,
                                                ha_rows max_row_blocks);
 
   void record_cost_index_read(MEM_ROOT *mem_root, const TABLE_LIST *tbl,
                               uint key, ha_rows records, bool eq_ref,
-                              ALL_READ_COST cost);
+                              const ALL_READ_COST *cost);
   static const uchar *get_tbl_trace_ctx_key(const void *entry_, size_t *length,
                                             my_bool flags);
 };
@@ -86,7 +86,7 @@ Optimizer_context_recorder *get_opt_context_recorder(THD *thd);
 inline Range_list_recorder *
 get_range_list_recorder(THD *thd, MEM_ROOT *mem_root, TABLE_LIST *tbl,
                         const char *index_name, ha_rows records,
-                        Cost_estimate cost, ha_rows max_index_blocks,
+                        const Cost_estimate *cost, ha_rows max_index_blocks,
                         ha_rows max_row_blocks)
 {
   Optimizer_context_recorder *ctx= get_opt_context_recorder(thd);

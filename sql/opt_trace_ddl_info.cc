@@ -537,7 +537,7 @@ void Range_list_recorder::add_range(MEM_ROOT *mem_root, const char *range)
 Range_list_recorder*
 Optimizer_context_recorder::start_range_list_record(
   MEM_ROOT *mem_root, TABLE_LIST *tbl, size_t found_records,
-  const char *index_name, Cost_estimate cost,
+  const char *index_name, const Cost_estimate *cost,
   ha_rows max_index_blocks, ha_rows max_row_blocks)
 {
   Multi_range_read_const_call_record *range_ctx=
@@ -546,17 +546,9 @@ Optimizer_context_recorder::start_range_list_record(
 
   range_ctx->idx_name= strdup_root(mem_root, index_name);
   range_ctx->num_records= found_records;
+
   {
-    range_ctx->cost.avg_io_cost= cost.avg_io_cost;
-    range_ctx->cost.cpu_cost= cost.cpu_cost;
-    range_ctx->cost.comp_cost= cost.comp_cost;
-    range_ctx->cost.copy_cost= cost.copy_cost;
-    range_ctx->cost.limit_cost= cost.limit_cost;
-    range_ctx->cost.setup_cost= cost.setup_cost;
-    range_ctx->cost.index_cost.io= cost.index_cost.io;
-    range_ctx->cost.index_cost.cpu= cost.index_cost.cpu;
-    range_ctx->cost.row_cost.io= cost.row_cost.io;
-    range_ctx->cost.row_cost.cpu= cost.row_cost.cpu;
+    range_ctx->cost= *cost;
     range_ctx->max_index_blocks= max_index_blocks;
     range_ctx->max_row_blocks= max_row_blocks;
   }
@@ -574,19 +566,13 @@ void Optimizer_context_recorder::record_cost_index_read(MEM_ROOT *mem_root,
                                                         uint key,
                                                         ha_rows records,
                                                         bool eq_ref,
-                                                        ALL_READ_COST cost)
+                                                        const ALL_READ_COST *cost)
 {
   cost_index_read_call_record *idx_read_rec= new (mem_root) cost_index_read_call_record;
   idx_read_rec->key= key;
   idx_read_rec->records= records;
   idx_read_rec->eq_ref= eq_ref;
-  idx_read_rec->cost.index_cost.io= cost.index_cost.io;
-  idx_read_rec->cost.index_cost.cpu= cost.index_cost.cpu;
-  idx_read_rec->cost.row_cost.io= cost.row_cost.io;
-  idx_read_rec->cost.row_cost.cpu= cost.row_cost.cpu;
-  idx_read_rec->cost.max_index_blocks= cost.max_index_blocks;
-  idx_read_rec->cost.max_row_blocks= cost.max_row_blocks;
-  idx_read_rec->cost.copy_cost= cost.copy_cost;
+  idx_read_rec->cost= *cost;
 
   trace_table_context *table_ctx= get_table_context(mem_root, tbl);
   table_ctx->irc_list.push_back(idx_read_rec, mem_root);
@@ -604,9 +590,9 @@ const uchar *Optimizer_context_recorder::get_tbl_trace_ctx_key(
   return reinterpret_cast<const uchar *>(entry->name);
 }
 
+
 /*
-  store full table name i.e. "db_name.table_name",
-  into the supplied variable buf
+  Given a table tbl, store its "db_name.table_name" into *buf
 */
 static void store_full_table_name(const TABLE_LIST *tbl, String *buf)
 {
@@ -614,6 +600,7 @@ static void store_full_table_name(const TABLE_LIST *tbl, String *buf)
   buf->append(STRING_WITH_LEN("."));
   buf->append(tbl->get_table_name().str, tbl->get_table_name().length);
 }
+
 
 Optimizer_context_recorder *get_opt_context_recorder(THD *thd)
 {
