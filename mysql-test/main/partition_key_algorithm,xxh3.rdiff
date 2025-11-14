@@ -123,14 +123,14 @@
 -p5	1
 -p6	0
 -p7	0
-+p0	140
-+p1	124
-+p2	140
-+p3	128
-+p4	108
-+p5	124
++p0	144
++p1	128
++p2	128
++p3	109
++p4	114
++p5	136
 +p6	122
-+p7	116
++p7	121
  drop table t1;
  ## MDEV-20791 case with INET6
 -create table t1 (a inet6) partition by key  (a) partitions 2;

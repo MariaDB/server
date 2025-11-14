@@ -10329,69 +10329,26 @@ static uint32 mysql5x_hash(Field **field_array, bool use_51_hash)
   return (uint32) hasher.finalize();
 }
 
-/*
-  A simple base-31 hash function. Note that it does not distinguish
-  between 0 and NULL
-*/
-static uint32 simple_hash(Field **field_array)
+static uint32 simple_hash(const uchar *key, size_t len, uint32 nr)
 {
-  Field *field;
-  uint32 result= 0;
-  while ((field= *field_array++))
-  {
-    uint len= field->pack_length();
-    uchar *key= field->ptr;
-    const uchar *end= key + len;
-    /* Not considering overflow */
-    for (; key < end; key++)
-      result= result * 31 + (uint32) (*key);
-  }
-  return result;
+  for (const uchar *u= key; u < key + len; u++)
+    nr= nr * 31 + (uint32) (*u);
+  return nr;
 }
 
-/* CRC32C hash function */
-static uint32 crc32c_hash(Field **field_array)
+static uint32 crc32c_hash(const uchar *key, size_t len, uint32 nr)
 {
-  Field *field;
-  uint32 result= 0;
-  while ((field= *field_array++))
-  {
-    if (field->is_null())
-      result= my_crc32c(result, field->ptr, 0);
-    else
-      result= my_crc32c(result, field->ptr, field->pack_length());
-  }
-  return result;
+  return my_crc32c(nr, key, len);
 }
 
-/* xxhash XXH32 hash function */
-static uint32 xxh32_hash(Field **field_array)
+static uint32 xxh32_hash(const uchar *key, size_t len, uint32 nr)
 {
-  Field *field;
-  uint32 result= 0;
-  while ((field= *field_array++))
-  {
-    if (field->is_null())
-      result= XXH32(field->ptr, 0, result);
-    else
-      result= XXH32(field->ptr, field->pack_length(), result);
-  }
-  return result;
+  return XXH32(key, len, nr);
 }
 
-/* xxhash XXH3 64 bits hash function */
-static uint32 xxh3_hash(Field **field_array)
+static uint32 xxh3_hash(const uchar *key, size_t len, uint32 nr)
 {
-  Field *field;
-  uint64 result= 0;
-  while ((field= *field_array++))
-  {
-    if (field->is_null())
-      result= XXH3_64bits_withSeed(field->ptr, 0, result);
-    else
-      result= XXH3_64bits_withSeed(field->ptr, field->pack_length(), result);
-  }
-  return static_cast<uint32>(result);
+  return (uint32) XXH3_64bits_withSeed(key, len, nr);
 }
 
 /**
@@ -10407,6 +10364,8 @@ static uint32 xxh3_hash(Field **field_array)
 
 uint32 ha_partition::calculate_key_hash_value(Field **field_array)
 {
+  NewHasher hasher;
+  Field *field;
   switch ((*field_array)->table->part_info->key_algorithm)
   {
   case partition_info::KEY_ALGORITHM_NONE:
@@ -10415,18 +10374,25 @@ uint32 ha_partition::calculate_key_hash_value(Field **field_array)
   case partition_info::KEY_ALGORITHM_51:
     return mysql5x_hash(field_array, true);
   case partition_info::KEY_ALGORITHM_SIMPLE:
-    return simple_hash(field_array);
+    hasher.m_hash_fun= simple_hash;
+    break;
   case partition_info::KEY_ALGORITHM_CRC32C:
-    return crc32c_hash(field_array);
+    hasher.m_hash_fun= crc32c_hash;
+    break;
   case partition_info::KEY_ALGORITHM_XXH32:
-    return xxh32_hash(field_array);
+    hasher.m_hash_fun= xxh32_hash;
+    break;
   case partition_info::KEY_ALGORITHM_XXH3:
-    return xxh3_hash(field_array);
+    hasher.m_hash_fun= xxh3_hash;
+    break;
   default:
     DBUG_ASSERT(0);
     /* Fall back to default hash */
     return mysql5x_hash(field_array, false);
   }
+  while ((field= *field_array++))
+    field->hash(&hasher);
+  return hasher.finalize();
 }
 
 

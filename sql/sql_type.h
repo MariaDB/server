@@ -226,24 +226,49 @@ class Hasher
 public:
   Hasher(): m_nr1(1), m_nr2(4)
   { }
-  void add_null()
+  virtual ~Hasher() {}
+  virtual void add_null()
   {
     m_nr1^= (m_nr1 << 1) | 1;
   }
-  void add(CHARSET_INFO *cs, const uchar *str, size_t length)
+  virtual void add(CHARSET_INFO *cs, const uchar *str, size_t length)
   {
     cs->coll->hash_sort(cs, str, length, &m_nr1, &m_nr2);
   }
-  void add(CHARSET_INFO *cs, const char *str, size_t length)
+  virtual void add(CHARSET_INFO *cs, const char *str, size_t length)
   {
     add(cs, (const uchar *) str, length);
   }
-  uint32 finalize() const
+  virtual uint32 finalize() const
   {
     return (uint32) m_nr1;
   }
 };
 
+class NewHasher: public Hasher
+{
+  uint32 m_nr;
+public:
+  uint32 (*m_hash_fun)(const uchar *key, size_t len, uint32 nr);
+  NewHasher(): m_nr(0)
+  { }                           /* TODO: void set_hash_fun() */
+  void add_null() override
+  {
+    m_nr= (*m_hash_fun)(NULL, 0, m_nr);
+  }
+  void add(CHARSET_INFO *, const uchar *str, size_t length) override
+  {
+    m_nr= (*m_hash_fun)(str, length, m_nr);
+  }
+  void add(CHARSET_INFO *, const char *str, size_t length) override
+  {
+    m_nr= (*m_hash_fun)((const uchar *) str, length, m_nr);
+  }
+  uint32 finalize() const override
+  {
+    return m_nr;
+  }
+};
 
 enum partition_value_print_mode_t
 {
