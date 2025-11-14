@@ -559,6 +559,7 @@ bool mysql_create_view(THD *thd, TABLE_LIST *views,
 
   /* prepare select to resolve all fields */
   lex->context_analysis_only|= CONTEXT_ANALYSIS_ONLY_VIEW;
+  lex->resolve_optimizer_hints();
   if (unit->prepare(unit->derived, 0, 0))
   {
     /*
@@ -568,7 +569,6 @@ bool mysql_create_view(THD *thd, TABLE_LIST *views,
     res= TRUE;
     goto err;
   }
-
   /* view list (list of view fields names) */
   if (lex->view_list.elements)
   {
@@ -1534,7 +1534,8 @@ bool mysql_make_view(THD *thd, TABLE_SHARE *share, TABLE_LIST *view_table_alias,
 
     parse_status= parse_sql(thd, & parser_state, view_table_alias->view_creation_ctx);
 
-    thd->lex->resolve_optimizer_hints();
+    // OLEGS: this is invoked during open_tables()
+    thd->lex->resolve_optimizer_hints();  // OLEGS: what if there is more than one view?
 
     view_select= view_query_lex->first_select_lex();
 

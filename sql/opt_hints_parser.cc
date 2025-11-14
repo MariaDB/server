@@ -1157,7 +1157,7 @@ bool Parser::Join_order_hint::resolve(Parse_context *pc)
         Parser::Table_name_and_Qb(table.to_ident_sys(pc->thd), Lex_ident_sys());
       if (!tbl_qb)
         return true;
-      table_names.push_back(tbl_qb, pc->mem_root);
+      table_names.push_back(tbl_qb, pc->mem_root); // OLEGS: not used besides .is_empty()?
     }
   }
   else
@@ -1172,7 +1172,7 @@ bool Parser::Join_order_hint::resolve(Parse_context *pc)
         new (pc->mem_root) Parser::Table_name_and_Qb(
           table.Table_name::to_ident_sys(pc->thd),
           table.Query_block_name::to_ident_sys(pc->thd));
-      table_names.push_back(tbl_qb, pc->mem_root);
+      table_names.push_back(tbl_qb, pc->mem_root); // OLEGS: not used besides .is_empty()?
     }
   }
 

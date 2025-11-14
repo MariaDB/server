@@ -1,29 +1,28 @@
---source include/have_sequence.inc
+--echo # Table-level hint
+explain select /*+ no_bnl(t2@qb__dt)*/ * from
+  (select t1.* from t1, t2 where t1.a > t2.a) as dt;
 
-create table t1 (a int, b int, key idx_a(a));
+--echo # QB-level hint
+explain select /*+ no_bnl(@qb__dt)*/ * from
+  (select t1.* from t1, t2 where t1.a > t2.a) as dt;
 
-insert into t1 select seq, seq from seq_1_to_1000;
-
-create table t2 as select * from t1;
-
-analyze table t1,t2 persistent for all;
-
-
---echo # Sample query with no hints
-explain select * from
-  (select * from t1 where a < 3) T;
-
+--echo # Index-level hints
+--echo # Without the hint 'range' index access would be chosen
 explain select /*+ no_index(t1@`qb__T`)*/ * from
   (select * from t1 where a < 3) T;
 
+--echo # Without the hint 'range' index access would be chosen
+explain select /*+ no_range_optimization(t1@qb__t1)*/ *  from
+  (select * from t1 where a > 100 and a < 120) as t1;
+
 --echo # Regular and derived tables share same name but the hint is applied correctly
-explain select /*+ no_index(t1@qb__t1)*/ * from
+explain select /*+ index(t1@qb__t1 idx_ab)*/ * from
   (select * from t1 where a < 3) as T1;
 
-explain select /*+ no_index(t1@qb__t2) no_index(t1@qb__t1)*/ * from
+explain select /*+ no_index(t1@qb__t2 idx_a) index(t1@qb__t1 idx_ab)*/ * from
   (select * from t1 where a < 3) as T1, (select * from t1 where a < 5) as T2;
 
-explain select /*+ no_index(t1@qb__t1)*/ * from
+explain select /*+ no_index(t1@qb__t1 idx_a, idx_ab)*/ * from
   (select * from t1 where a < 3) as T1, (select * from t1 where a < 5) as T2;
 
 --echo # Nested derived tables
@@ -45,14 +44,9 @@ explain select * from
 explain select /*+ no_index(t1@qb__t1)*/* from
   (select count(*) from t1, (select * from t1 where a < 5) T1) as T1;
 
-explain select * from
-  (select * from t1 where a < 3 union select * from t2 where a < 9) as T1;
-
 --echo # The hint cannot be applied to a derived table with UNION
 explain select /*+ no_index(t2@qb__t1)*/* from
   (select * from t1 where a < 3 union select * from t2 where a < 9) as T1;
 
 explain select /*+ no_index(t1@qb__t1)*/* from
   (select * from t1 where a < 3 union select * from t2 where a < 9) as T1;
-
-drop table t1, t2;

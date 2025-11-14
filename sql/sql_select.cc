@@ -34652,16 +34652,16 @@ bool Sql_cmd_dml::prepare(THD *thd)
   MYSQL_DML_START(thd);
 
   lex->context_analysis_only|= CONTEXT_ANALYSIS_ONLY_DERIVED;
-
   if (open_tables_for_query(thd, lex->query_tables, &table_count, 0,
-                            get_dml_prelocking_strategy()))
-  {
-    if (thd->is_error())
+    get_dml_prelocking_strategy()))
+    {
+      if (thd->is_error())
       goto err;
     (void)unit->cleanup();
     return true;
   }
-
+  
+  lex->resolve_optimizer_hints();
   if (prepare_inner(thd))
     goto err;
 

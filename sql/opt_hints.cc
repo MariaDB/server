@@ -307,21 +307,23 @@ enum class implicit_qb_result
   NOT_FOUND
 };
 
-static std::pair<implicit_qb_result, Opt_hints_qb *> find_hints_by_implicit_qb_name(Parse_context *pc,
-                                                 const Lex_ident_sys &qb_name)
+static std::pair<implicit_qb_result, Opt_hints_qb*>
+  find_hints_by_implicit_qb_name(Parse_context *pc,
+                                 const Lex_ident_sys &qb_name)
 {
   Opt_hints_qb *qb= nullptr;
 
-  // Traverse the global table list to find all derived tables
+  // Traverse the global table list to find all derived tables and views
   for (TABLE_LIST *tbl= pc->thd->lex->query_tables; tbl; tbl= tbl->next_global)
   {
     // Skip non-derived tables
-    if (!tbl->derived)
+    if (!tbl->is_view_or_derived())
       continue;
 
+    // Check if the alias matches the implicit QB name pattern
     LEX_CSTRING implicit_name;
-    const char FORMAT_PREFIX[5]= "qb__";
-    char buff[4 + NAME_CHAR_LEN + 1];  // "qb__" + alias + '\0'
+    const char FORMAT_PREFIX[]= "qb__";
+    char buff[sizeof(FORMAT_PREFIX) + NAME_CHAR_LEN];
     implicit_name.str= buff;
     implicit_name.length= snprintf(buff, sizeof(buff), "%s%s",
                                    FORMAT_PREFIX, tbl->alias.str);
@@ -337,7 +339,16 @@ static std::pair<implicit_qb_result, Opt_hints_qb *> find_hints_by_implicit_qb_n
       return std::make_pair(implicit_qb_result::AMBIGUOUS, nullptr);
     }
 
-    SELECT_LEX *derived_sl= tbl->derived->first_select();
+    SELECT_LEX *derived_sl;
+    if (tbl->is_derived())
+    {
+      derived_sl= tbl->derived->first_select();
+    }
+    else
+    {
+      DBUG_ASSERT(tbl->is_view());
+      derived_sl= tbl->view->unit.first_select();
+    }
     /*
       Check if the derived table does not contain UNION, because
       implicit QB names for UNIONs are ambiguous - which SELECT should
@@ -350,7 +361,8 @@ static std::pair<implicit_qb_result, Opt_hints_qb *> find_hints_by_implicit_qb_n
     qb= get_qb_hints(&derived_ctx);
   }
 
-  return std::make_pair(implicit_qb_result::OK, qb);
+  return std::make_pair(
+    qb ? implicit_qb_result::OK : implicit_qb_result::NOT_FOUND, qb);
 }
 
 

@@ -8451,6 +8451,8 @@ bool setup_tables(THD *thd, Name_resolution_context *context,
           (2)  Table hints are not adjusted yet
           (3)  Table is not in the INSERT part of INSERT..SELECT
         */
+
+        // OLEGS: if we postpone hints resolution, we need to postpone table hints adjustment as well
         if (qb_hints &&                          // (1)
             !table_list->opt_hints_table &&      // (2)
             !(select_insert && is_insert_part))  // (3)
