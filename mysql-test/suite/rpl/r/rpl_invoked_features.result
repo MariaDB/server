@@ -288,8 +288,8 @@ PROCEDURE	p1
 PROCEDURE	p11
 SELECT event_name, status FROM information_schema.events WHERE event_schema='test';
 event_name	status
-e1	SLAVESIDE_DISABLED
-e11	SLAVESIDE_DISABLED
+e1	DISABLED
+e11	DISABLED
 # Check replicated data
 SELECT COUNT(*) FROM t1;
 COUNT(*)
