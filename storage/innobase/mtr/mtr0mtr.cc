@@ -52,12 +52,14 @@ void mtr_t::finisher_update()
   if (log_sys.is_mmap())
   {
     commit_logger= mtr_t::commit_log<true>;
-    finisher= mtr_t::finish_writer<true>;
+    finisher= log_sys.archive
+      ? mtr_t::finish_writer<log_t::ARCHIVED_MMAP>
+      : mtr_t::finish_writer<log_t::CIRCULAR_MMAP>;
     return;
   }
   commit_logger= mtr_t::commit_log<false>;
 #endif
-  finisher= mtr_t::finish_writer<false>;
+  finisher= mtr_t::finish_writer<log_t::WRITE_NORMAL>;
 }
 
 void mtr_memo_slot_t::release() const
@@ -852,6 +854,8 @@ static time_t log_close_warn_time;
 making the server crash-unsafe. */
 ATTRIBUTE_COLD static void log_overwrite_warning(lsn_t lsn)
 {
+  ut_ad(!log_sys.archive);
+
   if (log_sys.overwrite_warned)
     return;
 
@@ -872,8 +876,61 @@ ATTRIBUTE_COLD static void log_overwrite_warning(lsn_t lsn)
                   ? ". Shutdown is in progress" : "");
 }
 
+
+#ifdef HAVE_PMEM
+template<>
+inline std::pair<lsn_t,byte*>
+log_t::append_prepare<log_t::ARCHIVED_MMAP>(size_t size, bool ex) noexcept
+{
+  ut_ad(ex ? latch_have_wr() : latch_have_rd());
+  ut_ad(is_mmap());
+  ut_ad(archive);
+  ut_ad(archived_lsn);
+
+  uint64_t l, lsn;
+  static_assert(WRITE_TO_BUF == WRITE_BACKOFF << 1, "");
+  while (UNIV_UNLIKELY((l= write_lsn_offset.fetch_add(size + WRITE_TO_BUF) &
+                        (WRITE_TO_BUF - 1)) >=
+                       size_t(capacity() -
+                              ((lsn= base_lsn.load(std::memory_order_relaxed)) -
+                               first_lsn)) - size))
+  {
+    /* The following is inlined here instead of being part of
+    append_prepare_wait(), in order to increase the locality of reference
+    and to set the WRITE_BACKOFF flag as soon as possible. */
+    bool late(write_lsn_offset.fetch_or(WRITE_BACKOFF) & WRITE_BACKOFF);
+    /* Subtract our LSN overshoot. */
+    write_lsn_offset.fetch_sub(size);
+    append_prepare_archived_mmap(late, ex);
+  }
+
+  lsn+= l;
+  return {lsn, buf + FIRST_LSN + (lsn - first_lsn)};
+}
+
+inline void log_t::archive_new_mmap() noexcept
+{
+  ut_ad(latch_have_any());
+  ut_ad(!resize_log.is_opened());
+  ut_ad(!resize_in_progress());
+  ut_ad(resize_target >= 4U << 20);
+  ut_ad(is_latest());
+
+  resize_wrap_mutex.wr_lock();
+  if (resize_buf)
+  {
+    my_munmap(buf, size_t(file_size));
+    buf= resize_buf;
+    resize_buf= nullptr;
+    file_size= resize_target;
+  }
+  resize_wrap_mutex.wr_unlock();
+}
+#endif
+
 ATTRIBUTE_COLD void log_t::append_prepare_wait(bool late, bool ex) noexcept
 {
+  ut_ad(!archive);
   if (UNIV_LIKELY(!ex))
   {
     latch.rd_unlock();
@@ -918,6 +975,7 @@ ATTRIBUTE_COLD void log_t::append_prepare_wait(bool late, bool ex) noexcept
     const bool is_pmem{is_mmap()};
     if (is_pmem)
     {
+      ut_ad(!archive);
       ut_ad(lsn - get_flushed_lsn(std::memory_order_relaxed) < capacity() ||
             overwrite_warned);
       persist(lsn);
@@ -942,17 +1000,20 @@ done:
 }
 
 /** Reserve space in the log buffer for appending data.
-@tparam mmap  log_sys.is_mmap()
+@tparam mode  how to write log
 @param size   total length of the data to append(), in bytes
 @param ex     whether log_sys.latch is exclusively locked
 @return the start LSN and the buffer position for append() */
-template<bool mmap>
+template<log_t::write mode>
 inline
 std::pair<lsn_t,byte*> log_t::append_prepare(size_t size, bool ex) noexcept
 {
   ut_ad(ex ? latch_have_wr() : latch_have_rd());
-  ut_ad(mmap == is_mmap());
-  ut_ad(!mmap || buf_size == std::min<uint64_t>(capacity(), buf_size_max));
+  static_assert(!bool(WRITE_NORMAL), "");
+  static_assert(bool(CIRCULAR_MMAP), "");
+  static_assert(mode == WRITE_NORMAL || mode == CIRCULAR_MMAP, "");
+  ut_ad(bool(mode) == is_mmap());
+  ut_ad(!mode || buf_size == std::min<uint64_t>(capacity(), buf_size_max));
   const size_t buf_size{this->buf_size - size};
   uint64_t l;
   static_assert(WRITE_TO_BUF == WRITE_BACKOFF << 1, "");
@@ -975,7 +1036,7 @@ std::pair<lsn_t,byte*> log_t::append_prepare(size_t size, bool ex) noexcept
     set_check_for_checkpoint(true);
 
   return {lsn,
-          buf + size_t(mmap ? FIRST_LSN + (lsn - first_lsn) % capacity() : l)};
+          buf + size_t(mode ? FIRST_LSN + (lsn - first_lsn) % capacity() : l)};
 }
 
 /** Finish appending data to the log.
@@ -1214,83 +1275,96 @@ inline void log_t::append(byte *&d, const void *s, size_t size) noexcept
   d+= size;
 }
 
-template<bool mmap>
-std::pair<lsn_t,lsn_t> mtr_t::finish_writer(mtr_t *mtr, size_t len)
+template<log_t::write mode>
+std::pair<lsn_t,lsn_t>
+mtr_t::finish_writer(mtr_t *mtr, size_t len)
 {
   ut_ad(log_sys.is_latest());
   ut_ad(!recv_no_log_write);
   ut_ad(mtr->is_logged());
   ut_ad(mtr->m_latch_ex ? log_sys.latch_have_wr() : log_sys.latch_have_rd());
   ut_ad(len < recv_sys.MTR_SIZE_MAX);
+  ut_ad(mode == log_t::WRITE_NORMAL ||
+        log_sys.archive == (mode == log_t::ARCHIVED_MMAP));
 
   const size_t size{mtr->m_commit_lsn ? 5U + 8U : 5U};
   std::pair<lsn_t, byte*> start=
-    log_sys.append_prepare<mmap>(len, mtr->m_latch_ex);
+    log_sys.append_prepare<mode>(len, mtr->m_latch_ex);
 
-  if (!mmap)
-  {
+  if (mode == log_t::WRITE_NORMAL)
+  write_normal:
     for (const mtr_buf_t::block_t &b : mtr->m_log)
       log_sys.append(start.second, b.begin(), b.used());
-
-  write_trailer:
-    *start.second++= log_sys.get_sequence_bit(start.first + len - size);
-    if (mtr->m_commit_lsn)
-    {
-      mach_write_to_8(start.second, mtr->m_commit_lsn);
-      mtr->m_crc= my_crc32c(mtr->m_crc, start.second, 8);
-      start.second+= 8;
-    }
-    mach_write_to_4(start.second, mtr->m_crc);
-    start.second+= 4;
-  }
+#ifdef HAVE_PMEM
   else
   {
-    if (UNIV_LIKELY(start.second + len <= &log_sys.buf[log_sys.file_size]))
-    {
-      for (const mtr_buf_t::block_t &b : mtr->m_log)
-        log_sys.append(start.second, b.begin(), b.used());
-      goto write_trailer;
-    }
+    byte *const end= &log_sys.buf[log_sys.file_size];
+    if (UNIV_LIKELY(start.second + len <= end))
+      goto write_normal;
+    if (mode == log_t::CIRCULAR_MMAP)
+      log_sys.archived_lsn= 0;
+    else
+      log_sys.archive_new_mmap();
+    byte *const begin= &log_sys.buf[log_sys.START_OFFSET];
     for (const mtr_buf_t::block_t &b : mtr->m_log)
     {
       size_t size{b.used()};
-      const size_t size_left(&log_sys.buf[log_sys.file_size] - start.second);
+      const size_t size_left(end - start.second);
       const byte *src= b.begin();
       if (size > size_left)
       {
         ::memcpy(start.second, src, size_left);
-        start.second= &log_sys.buf[log_sys.START_OFFSET];
+        start.second= begin;
         src+= size_left;
         size-= size_left;
       }
       ::memcpy(start.second, src, size);
       start.second+= size;
     }
-    const size_t size_left(&log_sys.buf[log_sys.file_size] - start.second);
-    if (size_left > size)
-      goto write_trailer;
-
-    byte tail[5 + 8];
-    tail[0]= log_sys.get_sequence_bit(start.first + len - size);
-
-    if (mtr->m_commit_lsn)
+    const size_t size_left(end - start.second);
+    if (size_left <= size)
     {
-      mach_write_to_8(tail + 1, mtr->m_commit_lsn);
-      mtr->m_crc= my_crc32c(mtr->m_crc, tail + 1, 8);
-      mach_write_to_4(tail + 9, mtr->m_crc);
+      byte tail[5 + 8];
+      tail[0]= log_sys.get_sequence_bit(start.first + len - size);
+
+      if (mtr->m_commit_lsn)
+      {
+        mach_write_to_8(tail + 1, mtr->m_commit_lsn);
+        mtr->m_crc= my_crc32c(mtr->m_crc, tail + 1, 8);
+        mach_write_to_4(tail + 9, mtr->m_crc);
+      }
+      else
+        mach_write_to_4(tail + 1, mtr->m_crc);
+
+      ::memcpy(start.second, tail, size_left);
+      ::memcpy(begin, tail + size_left, size - size_left);
+      start.second= ((size >= size_left) ? begin : end) + (size - size_left);
+      goto wrote_trailer;
     }
-    else
-      mach_write_to_4(tail + 1, mtr->m_crc);
-
-    ::memcpy(start.second, tail, size_left);
-    ::memcpy(log_sys.buf + log_sys.START_OFFSET, tail + size_left,
-             size - size_left);
-    start.second= log_sys.buf +
-      ((size >= size_left) ? log_sys.START_OFFSET : log_sys.file_size) +
-      (size - size_left);
   }
+#endif
 
-  log_sys.resize_write(start.first, start.second, len, size);
+  *start.second++= log_sys.get_sequence_bit(start.first + len - size);
+
+  if (mtr->m_commit_lsn)
+  {
+    mach_write_to_8(start.second, mtr->m_commit_lsn);
+    mtr->m_crc= my_crc32c(mtr->m_crc, start.second, 8);
+    start.second+= 8;
+  }
+  mach_write_to_4(start.second, mtr->m_crc);
+  start.second+= 4;
+
+#ifdef HAVE_PMEM
+wrote_trailer:
+#else
+  static_assert(mode == log_t::WRITE_NORMAL, "");
+#endif
+
+  if (mode == log_t::ARCHIVED_MMAP)
+    ut_ad(!log_sys.resize_in_progress());
+  else
+    log_sys.resize_write(start.first, start.second, len, size);
 
   mtr->m_commit_lsn= start.first + len;
   return {start.first, log_close(mtr->m_commit_lsn)};

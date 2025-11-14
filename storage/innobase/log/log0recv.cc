@@ -57,6 +57,8 @@ Created 9/20/1997 Heikki Tuuri
 
 /** The recovery system */
 recv_sys_t	recv_sys;
+/** 0 or the first LSN that would conflict with innodb_log_recovery_target */
+static lsn_t recv_sys_rpo_exceeded;
 /** TRUE when recv_init_crash_recovery() has been called. */
 bool	recv_needed_recovery;
 #ifdef UNIV_DEBUG
@@ -1688,6 +1690,16 @@ static dberr_t recv_log_recover_10_5(lsn_t lsn_offset)
   return DB_SUCCESS;
 }
 
+/** @return if the specified innodb_log_recovery_target is being violated */
+static bool recv_sys_invalid_rpo(lsn_t lsn) noexcept
+{
+  if (!recv_sys.rpo || recv_sys.rpo >= lsn)
+    return false;
+  sql_print_error("InnoDB: cannot fulfill innodb_log_recovery_target=%"
+                  PRIu64 "<%" PRIu64, recv_sys.rpo, lsn);
+  return true;
+}
+
 dberr_t recv_sys_t::find_checkpoint()
 {
   bool wrong_size= false;
@@ -1779,6 +1791,12 @@ dberr_t recv_sys_t::find_checkpoint()
     log_sys.last_checkpoint_lsn= log_sys.next_checkpoint_lsn;
     log_sys.set_recovered_lsn(log_sys.next_checkpoint_lsn);
     lsn= file_checkpoint= log_sys.next_checkpoint_lsn;
+    if (recv_sys.rpo && recv_sys.rpo != lsn)
+    {
+      sql_print_error("InnoDB: cannot fulfill innodb_log_recovery_target=%"
+                      PRIu64 "!=%" PRIu64, recv_sys.rpo, lsn);
+      return DB_CORRUPTION;
+    }
     if (UNIV_LIKELY(lsn != 0))
       scanned_lsn= lsn;
     log_sys.next_checkpoint_no= 0;
@@ -1793,6 +1811,7 @@ dberr_t recv_sys_t::find_checkpoint()
 
   const lsn_t first_lsn{mach_read_from_8(buf + LOG_HEADER_START_LSN)};
   log_sys.set_first_lsn(first_lsn);
+  log_sys.archived_lsn= first_lsn;
   char creator[LOG_HEADER_CREATOR_END - LOG_HEADER_CREATOR + 1];
   memcpy(creator, buf + LOG_HEADER_CREATOR, sizeof creator);
   /* Ensure that the string is NUL-terminated. */
@@ -1855,6 +1874,8 @@ dberr_t recv_sys_t::find_checkpoint()
     }
     if (!log_sys.next_checkpoint_lsn)
       goto got_no_checkpoint;
+    if (recv_sys_invalid_rpo(lsn))
+      return DB_READ_ONLY;
     if (!memcmp(creator, "Backup ", 7))
       srv_start_after_restore= true;
 
@@ -2422,8 +2443,16 @@ recv_sys_t::parse_mtr_result log_parse_start(source &l, unsigned nonce)
   return recv_sys_t::PREMATURE_EOF;
 
  eom_found:
-  if (*l != log_sys.get_sequence_bit((l - begin) + recv_sys.lsn))
+  const lsn_t end_lsn{(l - begin) + recv_sys.lsn};
+
+  if (*l != log_sys.get_sequence_bit(end_lsn))
     return recv_sys_t::GOT_EOF;
+
+  if (recv_sys.rpo && recv_sys.rpo < end_lsn)
+  {
+    recv_sys_rpo_exceeded= end_lsn;
+    return recv_sys_t::GOT_EOF;
+  }
 
   if (l.is_eof(5 + nonce))
    return recv_sys_t::PREMATURE_EOF;
@@ -4693,30 +4722,6 @@ done:
   return err;
 }
 
-dberr_t recv_recovery_read_checkpoint()
-{
-  ut_ad(srv_operation <= SRV_OPERATION_EXPORT_RESTORED ||
-        srv_operation == SRV_OPERATION_RESTORE ||
-        srv_operation == SRV_OPERATION_RESTORE_EXPORT);
-  ut_ad(!recv_sys.recovery_on);
-  ut_d(mysql_mutex_lock(&buf_pool.mutex));
-  ut_ad(UT_LIST_GET_LEN(buf_pool.LRU) == 0);
-  ut_ad(UT_LIST_GET_LEN(buf_pool.unzip_LRU) == 0);
-  ut_d(mysql_mutex_unlock(&buf_pool.mutex));
-
-  if (srv_force_recovery >= SRV_FORCE_NO_LOG_REDO)
-  {
-    sql_print_information("InnoDB: innodb_force_recovery=6"
-                          " skips redo log apply");
-    return DB_SUCCESS;
-  }
-
-  log_sys.latch.wr_lock(SRW_LOCK_CALL);
-  dberr_t err= recv_sys.find_checkpoint();
-  log_sys.latch.wr_unlock();
-  return err;
-}
-
 inline void log_t::set_recovered() noexcept
 {
   ut_ad(get_flushed_lsn() == get_lsn());
@@ -4789,6 +4794,7 @@ dberr_t recv_recovery_from_checkpoint_start()
 	}
 
 	recv_sys.recovery_on = true;
+	recv_sys_rpo_exceeded = 0;
 
 	log_sys.latch.wr_lock(SRW_LOCK_CALL);
 	log_sys.set_capacity();
@@ -4806,9 +4812,20 @@ func_exit:
 	recv_sys_t::parser parser[2];
 
 	if (log_sys.is_recoverable()) {
+		if (recv_sys.recovery_start > log_sys.next_checkpoint_lsn) {
+			sql_print_error("InnoDB: impossible "
+					"innodb_log_recovery_start=%" PRIu64
+					">%" PRIu64,
+					recv_sys.recovery_start,
+					log_sys.next_checkpoint_lsn);
+			goto err_exit;
+		} else {
+			log_sys.last_checkpoint_lsn = recv_sys.recovery_start
+				? recv_sys.recovery_start
+				: log_sys.next_checkpoint_lsn;
+		}
 		const bool rewind = recv_sys.lsn
-			!= log_sys.next_checkpoint_lsn;
-		log_sys.last_checkpoint_lsn = log_sys.next_checkpoint_lsn;
+			!= log_sys.last_checkpoint_lsn;
 		parser[false] = get_parse_mmap<recv_sys_t::store::NO>();
 		parser[true] = get_parse_mmap<recv_sys_t::store::YES>();
 		recv_scan_log(false, parser);
@@ -4816,6 +4833,7 @@ func_exit:
 read_only_recovery:
 			sql_print_warning("InnoDB: innodb_read_only"
 					  " prevents crash recovery");
+read_only_reported:
 			err = DB_READ_ONLY;
 			goto func_exit;
 		}
@@ -4836,8 +4854,11 @@ read_only_recovery:
 		}
 		rescan = recv_scan_log(false, parser);
 
-		if (srv_read_only_mode && recv_needed_recovery) {
+		if (!recv_needed_recovery) {
+		} else if (srv_read_only_mode) {
 			goto read_only_recovery;
+		} else if (recv_sys_invalid_rpo(recv_sys_rpo_exceeded)) {
+			goto read_only_reported;
 		}
 
 		if ((recv_sys.is_corrupt_log() && !srv_force_recovery)
