@@ -304,8 +304,6 @@ class Master_info : public Slave_reporting_capability
     This GTID position records how far we have fetched into the relay logs.
     This is used to continue fetching when the IO thread reconnects to the
     master.
-
-    (Full slave stop/start does not use it, as it resets the relay logs).
   */
   slave_connection_state gtid_current_pos;
   /*

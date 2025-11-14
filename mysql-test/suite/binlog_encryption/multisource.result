@@ -62,10 +62,12 @@ mysqld-relay-bin-master1.index
 include/show_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 mysqld-relay-bin-master1.000001	#	Format_desc	#	#	SERVER_VERSION, BINLOG_VERSION
+mysqld-relay-bin-master1.000001	#	Gtid_list	#	#	[]
 mysqld-relay-bin-master1.000001	#	Rotate	#	#	mysqld-relay-bin-master1.000002;pos=4
 include/show_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 mysqld-relay-bin-master1.000002	#	Format_desc	#	#	SERVER_VERSION, BINLOG_VERSION
+mysqld-relay-bin-master1.000002	#	Gtid_list	#	#	[]
 mysqld-relay-bin-master1.000002	#	Rotate	#	#	master-bin.000001;pos=POS
 mysqld-relay-bin-master1.000002	#	Format_desc	#	#	SERVER_VERSION, BINLOG_VERSION
 mysqld-relay-bin-master1.000002	#	Gtid_list	#	#	[]
@@ -209,10 +211,12 @@ i	f1
 include/show_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 mysqld-relay-bin.000001	#	Format_desc	#	#	SERVER_VERSION, BINLOG_VERSION
+mysqld-relay-bin.000001	#	Gtid_list	#	#	[#-#-#]
 mysqld-relay-bin.000001	#	Rotate	#	#	mysqld-relay-bin.000002;pos=4
 include/show_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 mysqld-relay-bin.000002	#	Format_desc	#	#	SERVER_VERSION, BINLOG_VERSION
+mysqld-relay-bin.000002	#	Gtid_list	#	#	[#-#-#]
 mysqld-relay-bin.000002	#	Rotate	#	#	master-bin.000001;pos=POS
 mysqld-relay-bin.000002	#	Format_desc	#	#	SERVER_VERSION, BINLOG_VERSION
 mysqld-relay-bin.000002	#	Gtid_list	#	#	[]

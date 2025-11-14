@@ -78,7 +78,7 @@ Slave_Transactional_Groups	0
 Replicate_Rewrite_DB	
 Retried_transactions	0
 Max_relay_log_size	1073741824
-Executed_log_entries	7
+Executed_log_entries	9
 Slave_received_heartbeats	0
 Slave_heartbeat_period	60.000
 Gtid_Slave_Pos	
@@ -140,7 +140,7 @@ Slave_Transactional_Groups	0
 Replicate_Rewrite_DB	
 Retried_transactions	0
 Max_relay_log_size	1073741824
-Executed_log_entries	7
+Executed_log_entries	9
 Slave_received_heartbeats	0
 Slave_heartbeat_period	60.000
 Gtid_Slave_Pos	
