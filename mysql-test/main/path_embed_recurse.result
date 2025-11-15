@@ -36,6 +36,8 @@ END;
 SET PATH 'CURRENT_SCHEMA';
 SELECT ff();
 ERROR HY000: Recursive stored functions and triggers are not allowed
+SELECT ff();
+ERROR HY000: Recursive stored functions and triggers are not allowed
 CALL pp();
 ERROR HY000: Recursive limit 0 (as set by the max_sp_recursion_depth variable) was exceeded for routine proc2
 CALL pp();

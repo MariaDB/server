@@ -995,10 +995,10 @@ sp_head::create_result_field(uint field_max_length,
   */
   DBUG_ASSERT(field_max_length <= def.length ||
               def.type_handler()->cmp_type() == INT_RESULT ||
-              (current_thd->stmt_arena->is_stmt_execute() &&
-               def.length == 8 &&
-               (def.pack_flag &
-                (FIELDFLAG_BLOB|FIELDFLAG_GEOM))));
+              ((current_thd->stmt_arena->is_stmt_execute() ||
+                current_thd->stmt_arena->state == STMT_INITIALIZED_FOR_SP)
+                && def.length == 8 &&
+               (def.pack_flag & (FIELDFLAG_BLOB|FIELDFLAG_GEOM))));
 
   if (field_name && field_name->length)
     name= *field_name;

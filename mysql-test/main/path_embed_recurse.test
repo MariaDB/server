@@ -1,7 +1,3 @@
-# --ps-protocol options together will SIG_ABRT, can be reproduced
-# without PATH implementation
---source include/no_protocol.inc
-
 --echo #
 --echo # MDEV-34391 Path resolution
 --echo # Path embedding with recursive routines
@@ -45,9 +41,8 @@ SET PATH 'CURRENT_SCHEMA';
 --error ER_SP_NO_RECURSION
 SELECT ff();
 
-#TODO this causes SIG_ABRT, can be reproduced with PATH implementation
-#--error ER_SP_NO_RECURSION
-#SELECT ff();
+--error ER_SP_NO_RECURSION
+SELECT ff();
 
 --error ER_SP_RECURSION_LIMIT
 CALL pp();
