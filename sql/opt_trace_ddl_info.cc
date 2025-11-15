@@ -1722,6 +1722,81 @@ int Optimizer_context_replay::parse_range_context(
   return false;
 }
 
+
+class Read_value {
+public:
+  virtual int read_value(json_engine_t *je, const char *value_name, String &err_buf)= 0;
+  virtual ~Read_value(){};
+};
+
+class Read_double: public Read_value 
+{
+  double *ptr;
+public:
+  Read_double(double *ptr_arg): ptr(ptr_arg) {}
+  int read_value(json_engine_t *je, const char *value_name, String &err_buf) override
+  {
+    return read_double(je, value_name, err_buf, *ptr);
+  }
+};
+
+class Read_ulonglong: public Read_value
+{
+  ulonglong *ptr;
+public:
+  Read_ulonglong(ulonglong *ptr_arg): ptr(ptr_arg) {}
+  int read_value(json_engine_t *je, const char *value_name, String &err_buf) override
+  {
+    return 0;
+  }
+};
+
+class Read_named_member 
+{
+public:
+  const char *name;
+  Read_value &&value;
+
+  bool value_assigned= false;
+};
+
+
+int read_all_elements(json_engine_t *je, Read_named_member *arr,
+                      String *err_buf)
+{
+  int rc;
+  while (!(rc= json_scan_next(je)) && je->state != JST_OBJ_END)
+  {
+    Json_saved_parser_state save1(je);
+    for (Read_named_member *memb= arr; memb->name; memb++)
+    {
+      Json_string js_name(memb->name);
+      if (json_key_matches(je, js_name.get()))
+      {
+        if (memb->value.read_value(je, memb->name, *err_buf))
+          return 1;
+        memb->value_assigned= true;
+        break;
+      }
+      save1.restore_to(je);
+    }
+  }
+
+  /* Check if all members got values */
+  for (Read_named_member *memb= arr; memb->name; memb++)
+  {
+    if (!memb->value_assigned)
+    {
+      err_buf->append(STRING_WITH_LEN("\""));
+      err_buf->append(memb->name, strlen(memb->name));
+      err_buf->append(STRING_WITH_LEN(" element not present"));
+      return 1;
+    }
+  }
+  return 0;
+}
+
+
 /*
   Parses the cost information present in the
   range context of the JSON structure.
@@ -1738,6 +1813,7 @@ int Optimizer_context_replay::parse_range_cost_estimate(json_engine_t *je,
                                                         Cost_estimate *cost)
 {
   int rc;
+  String err_buf;
   if (json_scan_next(je))
     return 1;
 
@@ -1747,226 +1823,24 @@ int Optimizer_context_replay::parse_range_cost_estimate(json_engine_t *je,
     return 1;
   }
 
-  bool have_avg_io_cost= false;
-  bool have_cpu_cost= false;
-  bool have_comp_cost= false;
-  bool have_copy_cost= false;
-  bool have_limit_cost= false;
-  bool have_setup_cost= false;
-  bool have_index_cost_io= false;
-  bool have_index_cost_cpu= false;
-  bool have_row_cost_io= false;
-  bool have_row_cost_cpu= false;
-
-  while (!(rc= json_scan_next(je)) && je->state != JST_OBJ_END)
-  {
-    Json_saved_parser_state save1(je);
-
-    const char* AVG_IO_COST= "avg_io_cost";
-    Json_string avg_io_cost_key(AVG_IO_COST);
-    if (json_key_matches(je, avg_io_cost_key.get()))
-    {
-      String err_buf;
-      if (read_double(je, AVG_IO_COST, err_buf, cost->avg_io_cost))
-      {
-        *err= err_buf.c_ptr_safe();
-        return 1;
-      }
-      have_avg_io_cost= true;
-      continue;
-    }
-    save1.restore_to(je);
-
-    const char* CPU_COST= "cpu_cost";
-    Json_string cpu_cost_key(CPU_COST);
-    if (json_key_matches(je, cpu_cost_key.get()))
-    {
-      String err_buf;
-      if (read_double(je, CPU_COST, err_buf, cost->cpu_cost))
-      {
-        *err= err_buf.c_ptr_safe();
-        return 1;
-      }
-      have_cpu_cost= true;
-      continue;
-    }
-    save1.restore_to(je);
-
-    const char* COMP_COST= "comp_cost";
-    Json_string comp_cost_key(COMP_COST);
-    if (json_key_matches(je, comp_cost_key.get()))
-    {
-      String err_buf;
-      if (read_double(je, COMP_COST, err_buf, cost->comp_cost))
-      {
-        *err= err_buf.c_ptr_safe();
-        return 1;
-      }
-      have_comp_cost= true;
-      continue;
-    }
-    save1.restore_to(je);
-
-    const char* COPY_COST= "copy_cost";
-    Json_string copy_cost_key(COPY_COST);
-    if (json_key_matches(je, copy_cost_key.get()))
-    {
-      String err_buf;
-      if (read_double(je, COPY_COST, err_buf, cost->copy_cost))
-      {
-        *err= err_buf.c_ptr_safe();
-        return 1;
-      }
-      have_copy_cost= true;
-      continue;
-    }
-    save1.restore_to(je);
-
-    const char* LIMIT_COST= "limit_cost";
-    Json_string limit_cost_key(LIMIT_COST);
-    if (json_key_matches(je, limit_cost_key.get()))
-    {
-      String err_buf;
-      if (read_double(je, LIMIT_COST, err_buf, cost->limit_cost))
-      {
-        *err= err_buf.c_ptr_safe();
-        return 1;
-      }
-      have_limit_cost= true;
-      continue;
-    }
-    save1.restore_to(je);
-
-    const char* SETUP_COST= "setup_cost";
-    Json_string setup_cost_key(SETUP_COST);
-    if (json_key_matches(je, setup_cost_key.get()))
-    {
-      String err_buf;
-      if (read_double(je, SETUP_COST, err_buf, cost->setup_cost))
-      {
-        *err= err_buf.c_ptr_safe();
-        return 1;
-      }
-      have_setup_cost= true;
-      continue;
-    }
-    save1.restore_to(je);
-
-    const char* INDEX_COST_IO= "index_cost_io";
-    Json_string index_cost_io_key(INDEX_COST_IO);
-    if (json_key_matches(je, index_cost_io_key.get()))
-    {
-      String err_buf;
-      if (read_double(je, INDEX_COST_IO, err_buf, cost->index_cost.io))
-      {
-        *err= err_buf.c_ptr_safe();
-        return 1;
-      }
-      have_index_cost_io= true;
-      continue;
-    }
-    save1.restore_to(je);
-
-    const char* INDEX_COST_CPU= "index_cost_cpu";
-    Json_string index_cost_cpu_key(INDEX_COST_CPU);
-    if (json_key_matches(je, index_cost_cpu_key.get()))
-    {
-      String err_buf;
-      if (read_double(je, INDEX_COST_CPU, err_buf, cost->index_cost.cpu))
-      {
-        *err= err_buf.c_ptr_safe();
-        return 1;
-      }
-      have_index_cost_cpu= true;
-      continue;
-    }
-    save1.restore_to(je);
-
-    const char* ROW_COST_IO= "row_cost_io";
-    Json_string row_cost_io_key(ROW_COST_IO);
-    if (json_key_matches(je, row_cost_io_key.get()))
-    {
-      String err_buf;
-      if (read_double(je, ROW_COST_IO, err_buf, cost->row_cost.io))
-      {
-        *err= err_buf.c_ptr_safe();
-        return 1;
-      }
-      have_row_cost_io= true;
-      continue;
-    }
-    save1.restore_to(je);
-
-    const char* ROW_COST_CPU= "row_cost_cpu";
-    Json_string row_cost_cpu_key(ROW_COST_CPU);
-    if (json_key_matches(je, row_cost_cpu_key.get()))
-    {
-      String err_buf;
-      if (read_double(je, ROW_COST_CPU, err_buf, cost->row_cost.cpu))
-      {
-        *err= err_buf.c_ptr_safe();
-        return 1;
-      }
-      have_row_cost_cpu= true;
-      continue;
-    }
-    save1.restore_to(je);
-  }
-
+  Read_named_member array[]= {
+    {"avg_io_cost",    Read_double(&cost->avg_io_cost)},
+    {"cpu_cost",       Read_double(&cost->cpu_cost)},
+    {"comp_cost",      Read_double(&cost->comp_cost)},
+    {"copy_cost",      Read_double(&cost->copy_cost)},
+    {"limit_cost",     Read_double(&cost->limit_cost)},
+    {"setup_cost",     Read_double(&cost->setup_cost)},
+    {"index_cost_io",  Read_double(&cost->index_cost.io)},
+    {"index_cost_cpu", Read_double(&cost->index_cost.cpu)},
+    {"row_cost_io",    Read_double(&cost->row_cost.io)},
+    {"row_cost_cpu",   Read_double(&cost->row_cost.cpu)},
+    {NULL,             Read_double(NULL)}
+  };
+  
+  rc= read_all_elements(je, array, &err_buf);
   if (rc)
-    return 1;
-
-  if (!have_avg_io_cost)
-  {
-    *err= "\"avg_io_cost\" element not present";
-    return 1;
-  }
-  if (!have_cpu_cost)
-  {
-    *err= "\"cpu_cost\" element not present";
-    return 1;
-  }
-  if (!have_comp_cost)
-  {
-    *err= "\"comp_cost\" element not present";
-    return 1;
-  }
-  if (!have_copy_cost)
-  {
-    *err= "\"copy_cost\" element not present";
-    return 1;
-  }
-  if (!have_limit_cost)
-  {
-    *err= "\"limit_cost\" element not present";
-    return 1;
-  }
-  if (!have_setup_cost)
-  {
-    *err= "\"setup_cost\" element not present";
-    return 1;
-  }
-  if (!have_index_cost_io)
-  {
-    *err= "\"index_cost_io\" element not present";
-    return 1;
-  }
-  if (!have_index_cost_cpu)
-  {
-    *err= "\"index_cost_cpu\" element not present";
-    return 1;
-  }
-  if (!have_row_cost_io)
-  {
-    *err= "\"row_cost_io\" element not present";
-    return 1;
-  }
-  if (!have_row_cost_cpu)
-  {
-    *err= "\"row_cost_cpu\" element not present";
-    return 1;
-  }
-  return false;
+    *err= err_buf.c_ptr_safe(); //TODO this returns pointers to unitialized data!
+  return rc;
 }
 
 /*
