@@ -91,9 +91,6 @@ public:
 bool run_after_startup_triggers();
 void run_before_shutdown_triggers();
 
-Sys_trigger *get_trigger_by_type(trg_action_time_type action_time,
-                                 trg_sys_event_type trg_type);
-
 bool show_create_sys_trigger(THD *thd, const sp_name *trg_name);
 
 #endif /* SQL_SQL_SYS_OR_DDL_TRIGGER_H */
