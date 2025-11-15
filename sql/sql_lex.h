@@ -369,7 +369,7 @@ struct LEX_MASTER_INFO
   ulong server_id;
   uint port, connect_retry;
   ulong retry_count;
-  float heartbeat_period;
+  double heartbeat_period;
   int sql_delay;
   bool is_demotion_opt;
   bool is_until_before_gtids;

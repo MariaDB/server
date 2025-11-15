@@ -33,6 +33,8 @@
 #define MAX_SYS_VAR_LENGTH 32
 #define MAX_KEY MAX_INDEXES                     /* Max used keys */
 #define MAX_REF_PARTS 32			/* Max parts used as ref */
+/// @return std::numeric_limits<uint32_t>::max() / 1000
+#define SLAVE_MAX_HEARTBEAT_PERIOD 4294967
 
 /*
   Maximum length of the data part of an index lookup key.
