@@ -67,6 +67,18 @@ public:
     return this;
   }
 
+
+  /**
+    Compare the name passed by the parameter with a trigger name.
+
+    @return true in case names equal, else false
+  */
+
+  bool compare_name(const Database_qualified_name *other) const
+  {
+    return m_sp->eq_routine_name(other);
+  }
+
 private:
   THD *m_thd;
   sp_head *m_sp;

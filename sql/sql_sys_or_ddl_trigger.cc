@@ -345,6 +345,15 @@ static void register_trigger(Sys_trigger *sys_trg,
 }
 
 
+/**
+  Associate the instance of the class Sys_trigger with combination of
+  trigger time/trigger type in the two dimensional array sys_triggers.
+
+  @param sys_trg
+  @param trg_when
+  @param trg_kind
+*/
+
 static void register_system_triggers(Sys_trigger *sys_trg,
                                      enum trg_action_time_type trg_when,
                                      Event_parse_data::enum_kind trg_kind)
@@ -374,6 +383,42 @@ static void register_system_triggers(Sys_trigger *sys_trg,
   }
 }
 
+
+/**
+   Remove the trigger being dropped from the sys_triggers array.
+   System triggers to be fired for some combination of type/time are searched
+   in this array, before a trigger be considering as deleted it should be
+   removed from this array.
+
+   @param spname  name of trigger to be removed from the sys_triggers array
+ */
+
+void unregister_trigger(sp_name *spname)
+{
+  for (int i= 0; i < TRG_ACTION_MAX; i++)
+  {
+    for (int j= 0; j < TRG_SYS_EVENT_MAX - TRG_EVENT_STARTUP; j++)
+    {
+      Sys_trigger *sys_trg= sys_triggers[i][j];
+      Sys_trigger *prev_sys_trg= nullptr;
+      while (sys_trg)
+      {
+        if (sys_trg->compare_name(spname))
+        {
+          if (prev_sys_trg)
+            /* Exclude the trigger being dropped from the list */
+            prev_sys_trg->next= sys_trg->next;
+          else
+            sys_triggers[i][j]= sys_trg->next;
+
+          return;
+        }
+        prev_sys_trg= sys_trg;
+        sys_trg= sys_trg->next;
+      }
+    }
+  }
+}
 
 bool mysql_create_sys_trigger(THD *thd)
 {
@@ -476,6 +521,13 @@ bool mysql_create_sys_trigger(THD *thd)
     sys_trg, thd->lex->trg_chistics.action_time,
     Event_parse_data::enum_kind(events_mask));
 
+  /*
+    Stop destroy of sp_head for just handled CREATE TRIGGER statement
+    that else would happened on running
+      mysql_parse() -> THD::end_statement() -> lex_end() ->
+       lex_end_nops() -> sp_head::destroy
+  */
+  thd->lex->sphead= nullptr;
   my_ok(thd);
   return false;
 }
@@ -527,7 +579,10 @@ bool mysql_drop_sys_or_ddl_trigger(THD *thd, bool *no_ddl_trigger_found)
   if (ret)
     event_table->file->print_error(ret, MYF(0));
   else
+  {
+    unregister_trigger(thd->lex->spname);
     my_ok(thd);
+  }
 
   return ret;
 }
