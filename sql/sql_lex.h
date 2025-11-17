@@ -4692,8 +4692,9 @@ public:
     create_info.add(options);
     return check_create_options(create_info);
   }
-  sp_instr_fetch_cursor* sp_add_instr_fetch_cursor(THD *thd,
-                                                   const LEX_CSTRING *name);
+  bool sp_add_fetch_cursor(THD *thd,
+                           const Lex_ident_sys_st &name,
+                           const List<sp_fetch_target> &list);
   bool sp_add_agg_cfetch();
 
   bool set_command_with_check(enum_sql_command command,
