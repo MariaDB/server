@@ -497,6 +497,22 @@ public:
   inline List() :base_list() {}
   inline List(const List<T> &tmp, MEM_ROOT *mem_root) :
     base_list(tmp, mem_root) {}
+  /*
+    Construct a list consisting of a single element.
+    @param a        - The element value. It gets copied to mem_root.
+    @param mem_root - The memory root to store the element copy
+                      and to perform push_back on.
+
+    List::elements is set as follows:
+    - 0 if something goes wrong (EOM).
+    - 1 if everything went fine.
+  */
+  inline List(const T &a, MEM_ROOT *mem_root)
+  {
+    T *pa= new (mem_root) T(a); // Copy the element to mem_root
+    if (pa)
+      push_back(pa, mem_root); // Add the copy to the list
+  }
   inline bool push_back(const T *a) { return base_list::push_back((void *)a); }
   inline bool push_back(const T *a, MEM_ROOT *mem_root)
   { return base_list::push_back((void*) a, mem_root); }
