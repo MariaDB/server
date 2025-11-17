@@ -438,11 +438,6 @@ bool THD::open_temporary_table_impl(TABLE_LIST *tl, TABLE **table,
   TMP_TABLE_SHARE *tmp_share;
   if (!*table && (tmp_share= find_tmp_table_share(tl, find_kind)))
   {
-    if (tmp_share->global_tmp_table() && use_real_global_temporary_share())
-    {
-      // We want to use real global temporary table when ALTER/DROP is executed.
-      DBUG_RETURN(false);
-    }
 
     *table= open_temporary_table(tmp_share, tl->get_table_name());
     /*
@@ -1257,11 +1252,6 @@ TABLE *THD::find_temporary_table(const char *key, uint key_length,
          share->global_tmp_table() == (find_kind == Tmp_table_kind::GLOBAL)))
     {
       /* A matching TMP_TABLE_SHARE is found. */
-
-      if (share->global_tmp_table() && use_real_global_temporary_share())
-        break; /* We want to use real global temporary table
-                  when ALTER/DROP is executed.
-                */
 
       All_share_tables_list::Iterator tables_it(share->all_tmp_tables);
 
