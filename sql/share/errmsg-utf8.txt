@@ -12414,3 +12414,5 @@ ER_PARTITION_INTERVAL_MAXVALUE
         eng "MAXVALUE is not allowed in range partitioning with interval"
 ER_RANGE_INTERVAL_PART_FAILED
         eng "Range partition table %`s.%`s: adding INTERVAL partition(s) failed"
+ER_FULL_JOIN_BASE_TABLES_ONLY
+        eng "FULL JOIN supported for base tables only, %s is not a base table"
