@@ -12386,3 +12386,5 @@ ER_PARTIAL_ROWS_LOG_EVENT_BAD_STREAM
         eng "Broken Partial_rows_log_event stream. Found %s, expected Partial_rows_log_event %u / %u"
 ER_SLAVE_INCOMPATIBLE_TABLE_DEF
         eng "Table structure for binlog event is not compatible with the table definition on this slave: %s"
+ER_FULL_JOIN_BASE_TABLES_ONLY
+        eng "FULL JOIN supported for base tables only, %s is not a base table"

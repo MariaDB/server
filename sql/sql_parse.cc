@@ -8730,12 +8730,10 @@ bool st_select_lex::add_cross_joined_table(TABLE_LIST *left_op,
 
 TABLE_LIST *st_select_lex::convert_right_join()
 {
-  TABLE_LIST *tab2= join_list->pop();
-  TABLE_LIST *tab1= join_list->pop();
   DBUG_ENTER("convert_right_join");
-
-  join_list->push_front(tab2, parent_lex->thd->mem_root);
-  join_list->push_front(tab1, parent_lex->thd->mem_root);
+  List_iterator<TABLE_LIST> li(*join_list);
+  li++; // points iterator at first element and returns it
+  TABLE_LIST* tab1= li.swap_next();
   tab1->outer_join|= JOIN_TYPE_RIGHT;
 
   DBUG_RETURN(tab1);
@@ -9000,9 +8998,7 @@ Item *normalize_cond(THD *thd, Item *cond)
 
 
 /**
-  Add an ON condition to the second operand of a JOIN ... ON.
-
-    Add an ON condition to the right operand of a JOIN ... ON clause.
+  Add an ON condition to the second (right) operand of a JOIN ... ON.
 
   @param b     the second operand of a JOIN ... ON
   @param expr  the condition to be added to the ON clause
@@ -9030,6 +9026,7 @@ void add_join_on(THD *thd, TABLE_LIST *b, Item *expr)
       b->on_expr= new (thd->mem_root) Item_cond_and(thd, b->on_expr,expr);
     }
     b->on_expr->top_level_item();
+    b->on_expr->base_flags|= item_base_t::IS_COND;
   }
 }
 

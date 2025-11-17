@@ -3067,7 +3067,7 @@ struct TABLE_LIST
   bool set_insert_values(MEM_ROOT *mem_root);
   void replace_view_error_with_generic(THD *thd);
   TABLE_LIST *find_underlying_table(TABLE *table);
-  TABLE_LIST *first_leaf_for_name_resolution();
+  TABLE_LIST *first_leaf_for_name_resolution() const;
   TABLE_LIST *last_leaf_for_name_resolution();
 
   /* System Versioning */
@@ -3100,7 +3100,7 @@ struct TABLE_LIST
     return tbl;
   }
   TABLE *get_real_join_table();
-  bool is_leaf_for_name_resolution();
+  bool is_leaf_for_name_resolution() const;
   inline TABLE_LIST *top_table()
     { return belong_to_view ? belong_to_view : this; }
   inline bool prepare_check_option(THD *thd)
@@ -3298,6 +3298,13 @@ struct TABLE_LIST
     tabledef_version.str= (const uchar *) version->str;
     tabledef_version.length= version->length;
   }
+
+  /*
+    If not nullptr, then foj_partner points to the other
+    table in a FULL OUTER JOIN.  For example,
+      SELECT ... FROM *this FULL OUTER JOIN foj_partner ...
+  */
+  TABLE_LIST *foj_partner{nullptr};
 private:
   bool prep_check_option(THD *thd, uint8 check_opt_type);
   bool prep_where(THD *thd, Item **conds, bool no_where_clause);

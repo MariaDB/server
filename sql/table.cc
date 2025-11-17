@@ -6807,7 +6807,7 @@ bool TABLE_LIST::set_insert_values(MEM_ROOT *mem_root)
   RETURN
     TRUE if a leaf, FALSE otherwise.
 */
-bool TABLE_LIST::is_leaf_for_name_resolution()
+bool TABLE_LIST::is_leaf_for_name_resolution() const
 {
   return (is_merged_derived() || is_natural_join || is_join_columns_complete ||
           !nested_join);
@@ -6837,13 +6837,13 @@ bool TABLE_LIST::is_leaf_for_name_resolution()
     else return 'this'
 */
 
-TABLE_LIST *TABLE_LIST::first_leaf_for_name_resolution()
+TABLE_LIST *TABLE_LIST::first_leaf_for_name_resolution() const
 {
   TABLE_LIST *UNINIT_VAR(cur_table_ref);
   NESTED_JOIN *cur_nested_join;
 
   if (is_leaf_for_name_resolution())
-    return this;
+    return const_cast<TABLE_LIST*>(this);
   DBUG_ASSERT(nested_join);
 
   for (cur_nested_join= nested_join;
@@ -6858,7 +6858,8 @@ TABLE_LIST *TABLE_LIST::first_leaf_for_name_resolution()
       already at the front of the list. Otherwise the first operand
       is in the end of the list of join operands.
     */
-    if (!(cur_table_ref->outer_join & JOIN_TYPE_RIGHT))
+    if (!(cur_table_ref->outer_join & JOIN_TYPE_RIGHT) ||
+        (cur_table_ref->outer_join & JOIN_TYPE_FULL))
     {
       TABLE_LIST *next;
       while ((next= it++))
@@ -6913,7 +6914,8 @@ TABLE_LIST *TABLE_LIST::last_leaf_for_name_resolution()
       'join_list' are in reverse order, thus the last operand is in the
       end of the list.
     */
-    if ((cur_table_ref->outer_join & JOIN_TYPE_RIGHT))
+    if ((cur_table_ref->outer_join & JOIN_TYPE_RIGHT) &&
+        !(cur_table_ref->outer_join & JOIN_TYPE_FULL))
     {
       List_iterator_fast<TABLE_LIST> it(cur_nested_join->join_list);
       TABLE_LIST *next;

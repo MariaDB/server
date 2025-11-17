@@ -1886,18 +1886,6 @@ JOIN::prepare(TABLE_LIST *tables_init, COND *conds_init, uint og_num,
     goto err;
   prepared= true;
 
-  /*
-    This check gates FULL JOIN functionality while it is under
-    development.  This check will be removed once FULL JOIN
-    has been completed and it allows some aspects of FULL JOIN
-    (see below) while exluding others, driven by whatever has
-    been implemented up to this point.
-  */
-  if ((thd->lex->full_join_count > 0) &&  // FULL JOIN not yet supported...
-      !thd->lex->is_view_context_analysis() &&  // ...but allow VIEW creation...
-      !thd->lex->describe)  // ...and limited EXPLAIN support during development
-    my_error(ER_NOT_SUPPORTED_YET, MYF(0), "full join");
-
   DBUG_RETURN(0); // All OK
 
 err:
@@ -19797,39 +19785,315 @@ propagate_cond_constants(THD *thd, I_List<COND_CMP> *save_list,
   }
 }
 
+
+/**
+  Convenience function to wrap a recursive call to simplify_joins in the case
+  of a nested join, which requires updates to the NESTED_JOIN structure.
+
+  @param join        reference to the query info
+  @param table       currently visited TABLE_LIST entry in the join_list
+  @param conds       conditions to add on expressions for converted joins
+  @param top         true <=> conds is the where condition
+  @param in_sj       TRUE <=> processing semi-join nest's children
+  @parma used_tables_ptr     IN/OUT parameter for the used_tables value
+  @parma not_null_tables_ptr IN/OUT parameter for the used_tables value
+
+  @return the new condition on success, nullptr otherwise
+*/
+
+static COND *simplify_nested_join(JOIN *join, TABLE_LIST *table,
+                                  COND *conds, bool in_sj,
+                                  table_map *used_tables,
+                                  table_map *not_null_tables)
+{
+  DBUG_ASSERT(used_tables);
+  DBUG_ASSERT(not_null_tables);
+
+  NESTED_JOIN *nested_join= table->nested_join;
+  DBUG_ASSERT(nested_join);
+  nested_join->used_tables= (table_map) 0;
+  nested_join->not_null_tables=(table_map) 0;
+  conds= simplify_joins(join, &nested_join->join_list, conds,
+                        in_sj || table->sj_on_expr);
+  if (!conds && join->thd->is_error())
+    return nullptr;
+  *used_tables= nested_join->used_tables;
+  *not_null_tables= nested_join->not_null_tables;
+  /* The following two might become unequal after table elimination: */
+  nested_join->n_tables= nested_join->join_list.elements;
+  return conds;
+}
+
+
+/**
+   Rewrite a FULL JOIN to a LEFT JOIN by mutating the
+   left and right table state to make them appear as though
+   the user wrote the FULL JOIN as a LEFT JOIN originally.
+
+   @param left_table  table t1 in t1 FULL JOIN t2
+   @param right_table table t2 in t1 FULL JOIN t2
+*/
+
+static void rewrite_full_to_left(TABLE_LIST *left_table,
+                                 TABLE_LIST *right_table)
+{
+  // Grammar does not mark the left table at all
+  left_table->outer_join= 0;
+
+  /*
+    Clear FULL JOIN flag and do as the grammar does by marking
+    the right table as JOIN_TYPE_LEFT.
+  */
+  right_table->outer_join= JOIN_TYPE_LEFT;
+
+  /*
+    The right table must have an ON clause.  NATURAL JOINs get
+    this not from the grammar but they're built before simplify_joins
+    is called.
+  */
+  DBUG_ASSERT(right_table->on_expr);
+
+  // Only the right table in a LEFT JOIN has the naming context in the grammar
+  left_table->on_context= nullptr;
+
+  if (!(right_table->outer_join & JOIN_TYPE_NATURAL))
+  {
+    DBUG_ASSERT((right_table->on_expr->base_flags &
+                 item_base_t::IS_COND) == item_base_t::IS_COND);
+  }
+}
+
+
+/**
+   Rewrite a FULL JOIN to a RIGHT JOIN by mutating the
+   left and right table state to make them appear as though
+   the user wrote the FULL JOIN as a RIGHT JOIN originally.
+
+   It's important to keep in mind that this function does its
+   work updating the tables to prepare them to be swapped in
+   the join order.  Had the user written the query as a RIGHT
+   JOIN, it would've then been converted to a LEFT JOIN by
+   convert_right_join.  The caller will swap them in the join
+   list, so we prepare them in place, then once they're swapped
+   they will have the correct respective state.
+
+   Consequently, in this method, we change the right_table with
+   the understanding that it will swap places with the left_table
+   very shortly (similarly with respect to the right_table).
+
+   @param left_table  table t1 in t1 FULL JOIN t2
+   @param right_table table t2 in t1 FULL JOIN t2
+*/
+
+static void rewrite_full_to_right(TABLE_LIST *left_table,
+                                  TABLE_LIST *right_table)
+{
+  // Grammar does not mark the right table at all.
+  right_table->outer_join= 0;
+
+  /*
+    Clear FULL JOIN flag and do as convert_right_join does which
+    has the effect of marking the left table as JOIN_TYPE_RIGHT.
+  */
+  left_table->outer_join= JOIN_TYPE_RIGHT;
+
+  /*
+    The right table must have an ON clause.  NATURAL JOINs get
+    this from setup_natural_join_row_types().
+
+    The ON clause is moved from the right table to the left one
+    because, again, the tables will be swapped in the join list
+    to imitate the convert_right_join operation that would've been
+    done had the user written this query as a RIGHT JOIN instead
+    of a FULL JOIN.
+  */
+  DBUG_ASSERT(right_table->on_expr);
+  DBUG_ASSERT(left_table->on_expr == nullptr);
+  left_table->on_expr= right_table->on_expr;
+  right_table->on_expr= nullptr;
+
+  /*
+    Prepare the right table to become the left table by
+    clearing its context.  The left table retains the context
+    set by the grammar.
+  */
+  right_table->on_context= nullptr;
+}
+
+
+/**
+  Attempt to rewrite [NATURAL] FULL JOIN to LEFT, RIGHT, or INNER JOIN,
+  depending on the WHERE clause and whether it rejects NULLs.  For example,
+  the following queries are equivalent:
+
+    SELECT * FROM t1 FULL JOIN t2 ON t1.v = t2.v WHERE t1.v IS NOT NULL;
+    SELECT * FROM t1 LEFT JOIN t2 ON t1.v = t2.v;
+
+  The rewritten query, be it a LEFT or RIGHT JOIN, may yet again be
+  rewritten to an INNER JOIN if the WHERE clause permits.
+
+  These parameters are the same as in simplify_joins:
+  @param join        reference to the query info
+  @param join_list   list representation of the join to be converted
+  @param conds       WHERE expressions.  Will be AND'ed with ON expressions
+                     if rewrite happens.
+  @param top         true <=> conds is the where condition
+  @param in_sj       TRUE <=> processing semi-join nest's children
+
+  The following parameters are IN/OUT parameters and are mutated by
+  this function:
+  @param table_ptr           the current TABLE_LIST from the join list
+  @param li_ptr              the iterator into the join list
+  @param used_tables_ptr     used_tables from simplify_joins
+  @param not_null_tables_ptr not_null_tables from simplify_joins
+
+  @return
+    - The new condition, if success
+    - nullptr, otherwise
+*/
+
+static COND *rewrite_full_outer_joins(JOIN *join,
+                                      COND *conds,
+                                      bool in_sj,
+                                      TABLE_LIST **right_table,
+                                      List_iterator<TABLE_LIST> *li,
+                                      table_map *used_tables,
+                                      table_map *not_null_tables)
+{
+  DBUG_ENTER("rewrite_full_outer_joins");
+
+  /*
+    The join_list enumerates the tables from t_n, ..., t_0 so we always
+    see the right table first.  If, on this call to rewrite_full_outer_joins,
+    the current table is left member of the JOIN (e.g., left_member FULL JOIN
+    ...) it means we couldn't rewrite the FULL JOIN as a LEFT, RIGHT, or
+    INNER JOIN, so emit an error (unless we're in an EXPLAIN EXTENDED, permit
+    that).
+  */
+  if ((*right_table)->outer_join & JOIN_TYPE_LEFT)
+  {
+    if (join->thd->lex->describe)
+      DBUG_RETURN(conds);
+
+    /*
+      We always see the RIGHT table before the LEFT table, so nothing to
+      do here for JOIN_TYPE_LEFT.
+    */
+    my_error(ER_NOT_SUPPORTED_YET, MYF(ME_FATAL),
+             "FULL JOINs that cannot be converted to LEFT, RIGHT, or "
+             "INNER JOINs");
+    DBUG_RETURN(nullptr);
+  }
+
+  /*
+    Must always see the right table before the left.  Down below, we deal
+    with the left table at the same time as the right, so we'll never get
+    to this point with a single table remaining in the join_list.  If
+    there's a right table remaining then there will be a left one, too.
+  */
+  DBUG_ASSERT((*right_table)->outer_join & JOIN_TYPE_RIGHT);
+
+  /*
+    If the left table is a nested join, then recursively rewrite any
+    FULL JOINs within it.  Otherwise continue to attempt to rewrite
+    in the base case.
+   */
+  TABLE_LIST *left_table= li->peek();
+  table_map left_used_tables= 0;
+  table_map left_not_null_tables= 0;
+  DBUG_ASSERT(test_all_bits(left_table->outer_join,
+                            JOIN_TYPE_FULL | JOIN_TYPE_LEFT));
+  if (left_table->nested_join)
+  {
+    conds= simplify_nested_join(join, left_table, conds, in_sj,
+                                &left_used_tables, &left_not_null_tables);
+    if (!conds && join->thd->is_error())
+      DBUG_RETURN(nullptr);
+  }
+  else
+  {
+    left_used_tables= left_table->get_map();
+    left_not_null_tables= *not_null_tables;
+  }
+
+  /*
+    If the right hand table is not NULL under the WHERE clause then we can
+    rewrite it as a RIGHT JOIN, mutating the data structures to make it
+    appear as though the user wrote the query as a RIGHT JOIN originally.
+  */
+  if (*used_tables & *not_null_tables)
+  {
+    /*
+      RIGHT JOINs don't actually exist in MariaDB!  This will do what
+      the grammar does and convert_right_join together do when given a
+      RIGHT JOIN.
+    */
+    rewrite_full_to_right(left_table, *right_table);
+
+    // This will be reflected to the caller, too.
+    *used_tables= left_used_tables;
+
+    /*
+      Swap myself with the left as though we did convert_right_join().
+      Then we will have effectively done the following transformation:
+        FULL -> RIGHT -> LEFT.
+      Again, RIGHT JOINs don't actually exist in MariaDB!
+    */
+    *right_table= li->swap_next();
+    --join->thd->lex->full_join_count;
+  }
+  else
+  {
+    /*
+      If the left table, be it a nested join or not, rejects nulls for
+      the WHERE condition, then rewrite.
+    */
+    *not_null_tables= left_not_null_tables;
+    if (left_used_tables & *not_null_tables)
+    {
+      rewrite_full_to_left(left_table, *right_table);
+      --join->thd->lex->full_join_count;
+    }
+    // else the FULL JOIN cannot be rewritten, pass it along.
+  }
+
+  DBUG_RETURN(conds);
+}
+
+
 /**
   Simplify joins replacing outer joins by inner joins whenever it's
   possible.
 
-    The function, during a retrieval of join_list,  eliminates those
-    outer joins that can be converted into inner join, possibly nested.
-    It also moves the on expressions for the converted outer joins
-    and from inner joins to conds.
+    The function, during a retrieval of join_list, eliminates those
+    OUTER JOINs that can be converted into INNER JOIN, possibly nested.
+    It also moves the ON expressions for the converted OUTER JOINs
+    and from INNER JOINs to conds.
     The function also calculates some attributes for nested joins:
-    - used_tables    
-    - not_null_tables
-    - dep_tables.
-    - on_expr_dep_tables
-    The first two attributes are used to test whether an outer join can
-    be substituted for an inner join. The third attribute represents the
+      - used_tables
+      - not_null_tables
+      - dep_tables.
+      - on_expr_dep_tables
+    used_tables and not_null_tables are used to test whether an outer join can
+    be substituted for an INNER JOIN. dep_tables represents the
     relation 'to be dependent on' for tables. If table t2 is dependent
     on table t1, then in any evaluated execution plan table access to
     table t2 must precede access to table t2. This relation is used also
-    to check whether the query contains  invalid cross-references.
-    The forth attribute is an auxiliary one and is used to calculate
+    to check whether the query contains invalid cross-references.
+    on_expr_dep_tables is an auxiliary one and is used to calculate
     dep_tables.
     As the attribute dep_tables qualifies possible orders of tables in the
-    execution plan, the dependencies required by the straight join
+    execution plan, the dependencies required by the STRAIGHT JOIN
     modifiers are reflected in this attribute as well.
     The function also removes all braces that can be removed from the join
     expression without changing its meaning.
 
   @note
-    An outer join can be replaced by an inner join if the where condition
-    or the on expression for an embedding nested join contains a conjunctive
-    predicate rejecting null values for some attribute of the inner tables.
+    An OUTER JOIN can be replaced by an INNER JOIN if the WHERE condition
+    or the ON expression for an embedding nested join contains a conjunctive
+    predicate rejecting NULL values for some attribute of the inner tables.
 
-    E.g. in the query:    
+    E.g. in the query:
     @code
       SELECT * FROM t1 LEFT JOIN t2 ON t2.a=t1.a WHERE t2.b < 5
     @endcode
@@ -19847,12 +20111,11 @@ propagate_cond_constants(THD *thd, I_List<COND_CMP> *save_list,
     Similarly the following query:
     @code
       SELECT * from t1 LEFT JOIN (t2, t3) ON t2.a=t1.a t3.b=t1.b
-        WHERE t2.c < 5  
+        WHERE t2.c < 5
     @endcode
     is converted to:
     @code
-      SELECT * FROM t1, (t2, t3) WHERE t2.c < 5 AND t2.a=t1.a t3.b=t1.b 
-
+      SELECT * FROM t1, (t2, t3) WHERE t2.c < 5 AND t2.a=t1.a t3.b=t1.b
     @endcode
 
     One conversion might trigger another:
@@ -19861,10 +20124,10 @@ propagate_cond_constants(THD *thd, I_List<COND_CMP> *save_list,
                        LEFT JOIN t3 ON t3.b=t2.b
         WHERE t3 IS NOT NULL =>
       SELECT * FROM t1 LEFT JOIN t2 ON t2.a=t1.a, t3
-        WHERE t3 IS NOT NULL AND t3.b=t2.b => 
+        WHERE t3 IS NOT NULL AND t3.b=t2.b =>
       SELECT * FROM t1, t2, t3
         WHERE t3 IS NOT NULL AND t3.b=t2.b AND t2.a=t1.a
-  @endcode
+    @endcode
 
     The function removes all unnecessary braces from the expression
     produced by the conversions.
@@ -19872,10 +20135,9 @@ propagate_cond_constants(THD *thd, I_List<COND_CMP> *save_list,
     @code
       SELECT * FROM t1, (t2, t3) WHERE t2.c < 5 AND t2.a=t1.a AND t3.b=t1.b
     @endcode
-    finally is converted to: 
+    finally is converted to:
     @code
       SELECT * FROM t1, t2, t3 WHERE t2.c < 5 AND t2.a=t1.a AND t3.b=t1.b
-
     @endcode
 
 
@@ -19885,27 +20147,39 @@ propagate_cond_constants(THD *thd, I_List<COND_CMP> *save_list,
       SELECT * from (t1, (t2,t3)) WHERE t1.a=t2.a AND t2.b=t3.b.
     @endcode
 
-    The benefit of this simplification procedure is that it might return 
+
+    Here's an example where the converted OUTER JOIN has its ON
+    conditions migrated to the ON condition for the INNER JOIN.
+    @code
+      SELECT * FROM t1 LEFT JOIN (t2 LEFT JOIN t3 ON t3.a=t2.a) ON t3.a=t1.a;
+    @endcode
+    becomes
+    @code
+      SELECT * FROM t1 LEFT JOIN (t2 INNER JOIN t3) ON t3.a=t2.a AND t3.a=t1.a;
+    #endcode
+
+
+    The benefit of this simplification procedure is that it might return
     a query for which the optimizer can evaluate execution plan with more
-    join orders. With a left join operation the optimizer does not
+    join orders. With a LEFT JOIN operation the optimizer does not
     consider any plan where one of the inner tables is before some of outer
     tables.
 
   IMPLEMENTATION
     The function is implemented by a recursive procedure.  On the recursive
-    ascent all attributes are calculated, all outer joins that can be
+    ascent all attributes are calculated, all OUTER JOINs that can be
     converted are replaced and then all unnecessary braces are removed.
     As join list contains join tables in the reverse order sequential
     elimination of outer joins does not require extra recursive calls.
 
   SEMI-JOIN NOTES
-    Remove all semi-joins that have are within another semi-join (i.e. have
+    Remove all semi-joins that are within another semi-join (i.e. have
     an "ancestor" semi-join nest)
 
   EXAMPLES
     Here is an example of a join query with invalid cross references:
     @code
-      SELECT * FROM t1 LEFT JOIN t2 ON t2.a=t3.a LEFT JOIN t3 ON t3.b=t1.b 
+      SELECT * FROM t1 LEFT JOIN t2 ON t2.a=t3.a LEFT JOIN t3 ON t3.b=t1.b
     @endcode
 
   @param join        reference to the query info
@@ -19914,7 +20188,7 @@ propagate_cond_constants(THD *thd, I_List<COND_CMP> *save_list,
   @param in_sj       TRUE <=> processing semi-join nest's children
   @return
     - The new condition, if success
-    - 0, otherwise
+    - nullptr otherwise
 */
 
 static COND *
@@ -19933,6 +20207,15 @@ simplify_joins(JOIN *join, List<TABLE_LIST> *join_list, COND *conds, bool in_sj)
   */
   while ((table= li++))
   {
+    // We only support FULL JOIN on base tables.
+    if (table->outer_join & JOIN_TYPE_FULL &&
+        !table->is_non_derived())
+    {
+      my_error(ER_FULL_JOIN_BASE_TABLES_ONLY, MYF(0),
+               table->alias.str);
+      DBUG_RETURN(nullptr);
+    }
+
     table_map used_tables;
     table_map not_null_tables= (table_map) 0;
 
@@ -19955,6 +20238,8 @@ simplify_joins(JOIN *join, List<TABLE_LIST> *join_list, COND *conds, bool in_sj)
 	*/ 
         expr= simplify_joins(join, &nested_join->join_list,
                              expr, in_sj || table->sj_on_expr);
+        if (!expr && join->thd->is_error())
+          DBUG_RETURN(nullptr);
 
         if (!table->prep_on_expr || expr != table->on_expr)
         {
@@ -19964,14 +20249,10 @@ simplify_joins(JOIN *join, List<TABLE_LIST> *join_list, COND *conds, bool in_sj)
           table->prep_on_expr= expr->copy_andor_structure(join->thd);
         }
       }
-      nested_join->used_tables= (table_map) 0;
-      nested_join->not_null_tables=(table_map) 0;
-      conds= simplify_joins(join, &nested_join->join_list, conds,
-                            in_sj || table->sj_on_expr);
-      used_tables= nested_join->used_tables;
-      not_null_tables= nested_join->not_null_tables;  
-      /* The following two might become unequal after table elimination: */
-      nested_join->n_tables= nested_join->join_list.elements;
+      conds= simplify_nested_join(join, table, conds, in_sj,
+                                  &used_tables, &not_null_tables);
+      if (!conds && join->thd->is_error())
+        DBUG_RETURN(nullptr);
     }
     else
     {
@@ -19981,7 +20262,18 @@ simplify_joins(JOIN *join, List<TABLE_LIST> *join_list, COND *conds, bool in_sj)
       if (conds)
         not_null_tables= conds->not_null_tables();
     }
-      
+
+    /*
+      Attempt to rewrite any FULL JOINs as LEFT or RIGHT JOINs.  Any subsequent
+      JOINs that could be further rewritten to INNER JOINs are done below.
+    */
+    if (table->outer_join & JOIN_TYPE_FULL)
+      conds= rewrite_full_outer_joins(join, conds, in_sj, &table,
+                                      &li, &used_tables,
+                                      &not_null_tables);
+    if (!conds && join->thd->is_error())
+      DBUG_RETURN(nullptr);
+
     if (table->embedding)
     {
       table->embedding->nested_join->used_tables|= used_tables;
@@ -31822,8 +32114,6 @@ static void print_table_array(THD *thd,
 
     if (curr->outer_join & JOIN_TYPE_FULL)
     {
-      if (curr->outer_join & JOIN_TYPE_NATURAL)
-        str->append(STRING_WITH_LEN(" natural"));
       str->append(STRING_WITH_LEN(" full join "));
     }
     else if (curr->outer_join & (JOIN_TYPE_LEFT|JOIN_TYPE_RIGHT))
@@ -31839,13 +32129,8 @@ static void print_table_array(THD *thd,
       str->append(STRING_WITH_LEN(" join "));
 
     curr->print(thd, eliminated_tables, str, query_type);
-    /*
-      NATURAL JOINs don't expose explicit join columns, so don't
-      print them as they're considered invalid syntax (this is
-      important for VIEWs as when VIEWs are loaded, their SQL
-      syntax is parsed again and must be valid).
-    */
-    if (curr->on_expr && !(curr->outer_join & JOIN_TYPE_NATURAL))
+
+    if (curr->on_expr)
     {
       str->append(STRING_WITH_LEN(" on("));
       curr->on_expr->print(str, query_type);
