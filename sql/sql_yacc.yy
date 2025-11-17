@@ -12776,10 +12776,12 @@ join_table:
             Select->add_joined_table($1);
             $1->outer_join|= (JOIN_TYPE_LEFT |
                               JOIN_TYPE_FULL);
+            $1->foj_partner= $5;
 
             Select->add_joined_table($5);
             $5->outer_join|= (JOIN_TYPE_RIGHT |
                               JOIN_TYPE_FULL);
+            $5->foj_partner= $1;
 
             /* Change the current name resolution context to a local context. */
             if (unlikely(push_new_name_resolution_context(thd, $1, $5)))
@@ -12801,10 +12803,12 @@ join_table:
             Select->add_joined_table($1);
             $1->outer_join|= (JOIN_TYPE_LEFT |
                               JOIN_TYPE_FULL);
+            $1->foj_partner= $5;
 
             Select->add_joined_table($5);
             $5->outer_join|= (JOIN_TYPE_RIGHT |
                               JOIN_TYPE_FULL);
+            $5->foj_partner= $1;
           }
           USING '(' using_list ')'
           {
@@ -12819,11 +12823,13 @@ join_table:
             $1->outer_join|= (JOIN_TYPE_LEFT |
                               JOIN_TYPE_FULL |
                               JOIN_TYPE_NATURAL);
+            $1->foj_partner= $6;
 
             Select->add_joined_table($6);
             $6->outer_join|= (JOIN_TYPE_RIGHT |
                               JOIN_TYPE_FULL |
                               JOIN_TYPE_NATURAL);
+            $6->foj_partner= $1;
 
             add_join_natural($6,$1,NULL,Select);
             ++Lex->full_join_count;
@@ -16882,6 +16888,7 @@ keyword_ident:
         | keyword_sysvar_type
         | keyword_verb_clause
         | FUNCTION_SYM
+        | FULL
         | WINDOW_SYM
         | EXCEPTION_ORACLE_SYM
         | IGNORED_SYM
@@ -16901,6 +16908,7 @@ keyword_sysvar_name:
         | keyword_sp_var_not_label
         | keyword_verb_clause
         | FUNCTION_SYM
+        | FULL
         | WINDOW_SYM
         | EXCEPTION_ORACLE_SYM
         | IGNORED_SYM
@@ -16917,6 +16925,7 @@ keyword_set_usual_case:
         | keyword_sysvar_type
         | keyword_verb_clause
         | FUNCTION_SYM
+        | FULL
         | WINDOW_SYM
         | EXCEPTION_ORACLE_SYM
         | IGNORED_SYM
@@ -17544,7 +17553,6 @@ reserved_keyword_udt_not_param_type:
         | FIRST_VALUE_SYM
         | FOREIGN
         | FROM
-        | FULL
         | FULLTEXT_SYM
         | GOTO_ORACLE_SYM
         | GRANT
@@ -18292,7 +18300,6 @@ set_expr_or_default:
 set_expr_misc:
           ON     { $$= new (thd->mem_root) Item_string_sys(thd, "ON",  2); }
         | ALL    { $$= new (thd->mem_root) Item_string_sys(thd, "ALL", 3); }
-        | FULL   { $$= new (thd->mem_root) Item_string_sys(thd, "FULL", 4); }
         | BINARY { $$= new (thd->mem_root) Item_string_sys(thd, "binary", 6); }
         ;
 
@@ -19723,6 +19730,7 @@ keyword_sp_decl:
         | keyword_sysvar_type
         | keyword_verb_clause
         | FUNCTION_SYM
+        | FULL
         | WINDOW_SYM
         | IGNORED_SYM
         ;
@@ -20198,6 +20206,7 @@ keyword_sp_decl:
         | keyword_sp_var_not_label
         | keyword_sysvar_type
         | keyword_verb_clause
+        | FULL
         | WINDOW_SYM
         | IGNORED_SYM
         ;
@@ -20315,6 +20324,7 @@ keyword_directly_assignable:
         | keyword_sp_var_not_label
         | keyword_sysvar_type
         | FUNCTION_SYM
+        | FULL
         | WINDOW_SYM
         ;
 
