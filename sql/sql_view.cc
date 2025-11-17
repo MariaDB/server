@@ -1801,7 +1801,7 @@ bool mysql_make_view(THD *thd, TABLE_SHARE *share, TABLE_LIST *table,
 
       List_iterator_fast<TABLE_LIST> ti(view_select->top_join_list);
 
-      table->derived_type= VIEW_ALGORITHM_MERGE;
+      table->derived_type|= VIEW_ALGORITHM_MERGE;
       DBUG_PRINT("info", ("algorithm: MERGE"));
       table->updatable= (table->updatable_view != 0);
       table->effective_with_check=
@@ -1854,7 +1854,7 @@ bool mysql_make_view(THD *thd, TABLE_SHARE *share, TABLE_LIST *table,
       goto ok;
     }
 
-    table->derived_type= VIEW_ALGORITHM_TMPTABLE;
+    table->derived_type|= VIEW_ALGORITHM_TMPTABLE;
     DBUG_PRINT("info", ("algorithm: TEMPORARY TABLE"));
     view_select->linkage= DERIVED_TABLE_TYPE;
     table->updatable= 0;
