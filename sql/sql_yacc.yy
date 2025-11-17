@@ -2267,30 +2267,33 @@ master_def:
 
         | MASTER_HEARTBEAT_PERIOD_SYM '=' NUM_literal
           {
-            Lex->mi.heartbeat_period= (float) $3->val_real();
-            if (unlikely(Lex->mi.heartbeat_period >
-                         SLAVE_MAX_HEARTBEAT_PERIOD) ||
-                unlikely(Lex->mi.heartbeat_period < 0.0))
-               my_yyabort_error((ER_SLAVE_HEARTBEAT_VALUE_OUT_OF_RANGE, MYF(0),
-                                 SLAVE_MAX_HEARTBEAT_PERIOD));
-
-            if (unlikely(Lex->mi.heartbeat_period > slave_net_timeout))
+            static const struct Decimal_from_double: my_decimal
             {
+              Decimal_from_double(double value): my_decimal()
+              { DBUG_ASSERT(!double2my_decimal(E_DEC_ERROR, value, this)); }
+            } MAX_PERIOD= SLAVE_MAX_HEARTBEAT_PERIOD/1000, THOUSAND= 1000;
+            auto decimal_buffer= my_decimal();
+            my_decimal *decimal= $3->val_decimal(&decimal_buffer);
+            if (!decimal ||
+                decimal->sign() || decimal_cmp(&MAX_PERIOD, decimal) < 0)
+               my_yyabort_error((ER_SLAVE_HEARTBEAT_VALUE_OUT_OF_RANGE, MYF(0),
+                                 SLAVE_MAX_HEARTBEAT_PERIOD/1000));
+            bool overprecise= decimal->frac > 3;
+            // decomposed from my_decimal2int() to reduce a bit of computations
+            auto rounded= my_decimal();
+            DBUG_ASSERT(
+              !decimal_round(decimal, &rounded, 3, HALF_UP) &&
+              !decimal_mul(&rounded, &THOUSAND, &decimal_buffer) &&
+              !decimal2ulonglong(&decimal_buffer, &(Lex->mi.heartbeat_period))
+            );
+            if (unlikely(Lex->mi.heartbeat_period > slave_net_timeout*1000ULL))
               push_warning(thd, Sql_condition::WARN_LEVEL_WARN,
                            ER_SLAVE_HEARTBEAT_VALUE_OUT_OF_RANGE_MAX,
                            ER_THD(thd, ER_SLAVE_HEARTBEAT_VALUE_OUT_OF_RANGE_MAX));
-            }
-            if (unlikely(Lex->mi.heartbeat_period < 0.001))
-            {
-              if (unlikely(Lex->mi.heartbeat_period != 0.0))
-              {
+            else if (unlikely(!Lex->mi.heartbeat_period && overprecise))
                 push_warning(thd, Sql_condition::WARN_LEVEL_WARN,
                              ER_SLAVE_HEARTBEAT_VALUE_OUT_OF_RANGE_MIN,
                              ER_THD(thd, ER_SLAVE_HEARTBEAT_VALUE_OUT_OF_RANGE_MIN));
-                Lex->mi.heartbeat_period= 0.0;
-              }
-              Lex->mi.heartbeat_opt=  LEX_MASTER_INFO::LEX_MI_DISABLE;
-            }
             Lex->mi.heartbeat_opt=  LEX_MASTER_INFO::LEX_MI_ENABLE;
           }
         | IGNORE_SERVER_IDS_SYM '=' '(' ignore_server_id_list ')'

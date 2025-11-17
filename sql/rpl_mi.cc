@@ -229,11 +229,8 @@ void init_master_log_pos(Master_info* mi)
     if CHANGE MASTER did not specify it.  (no data loss in conversion
     as hb period has a max)
   */
-  mi->heartbeat_period= (float) MY_MIN(SLAVE_MAX_HEARTBEAT_PERIOD,
-                                    (slave_net_timeout/2.0));
-  DBUG_ASSERT(mi->heartbeat_period > (float) 0.001
-              || mi->heartbeat_period == 0);
-
+  mi->heartbeat_period= MY_MIN(SLAVE_MAX_HEARTBEAT_PERIOD,
+                               slave_net_timeout*500ULL);
   DBUG_VOID_RETURN;
 }
 
@@ -450,7 +447,7 @@ file '%s')", fname);
     mi->fd = fd;
     int port, connect_retry, master_log_pos, lines;
     int ssl= 0, ssl_verify_server_cert= 0;
-    float master_heartbeat_period= 0.0;
+    double master_heartbeat_period= 0.0;
     char *first_non_digit;
     char buf[HOSTNAME_LENGTH+1];
 
@@ -674,7 +671,8 @@ file '%s')", fname);
     mi->connect_retry= (uint) connect_retry;
     mi->ssl= (my_bool) ssl;
     mi->ssl_verify_server_cert= ssl_verify_server_cert;
-    mi->heartbeat_period= MY_MIN(SLAVE_MAX_HEARTBEAT_PERIOD, master_heartbeat_period);
+    mi->heartbeat_period=
+     MY_MIN(SLAVE_MAX_HEARTBEAT_PERIOD, master_heartbeat_period*1000);
   }
   DBUG_PRINT("master_info",("log_file_name: %s  position: %ld",
                             mi->master_log_name,
@@ -811,7 +809,7 @@ int flush_master_info(Master_info* mi,
      of file we don't care about this garbage.
   */
   char heartbeat_buf[FLOATING_POINT_BUFFER];
-  my_fcvt(mi->heartbeat_period, 3, heartbeat_buf, NULL);
+  my_fcvt(mi->heartbeat_period/1000.0, 3, heartbeat_buf, NULL);
   my_b_seek(file, 0L);
   my_b_printf(file,
               "%u\n%s\n%s\n%s\n%s\n%s\n%d\n%d\n%d\n%s\n%s\n%s\n%s\n%s\n%d\n%s\n%s\n%s\n%s\n%d\n%s\n%s\n"

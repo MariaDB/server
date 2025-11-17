@@ -1593,7 +1593,7 @@ int init_intvar_from_file(int* var, IO_CACHE* f, int default_val)
   DBUG_RETURN(1);
 }
 
-int init_floatvar_from_file(float* var, IO_CACHE* f, float default_val)
+int init_floatvar_from_file(double* var, IO_CACHE* f, float default_val)
 {
   char buf[16];
   DBUG_ENTER("init_floatvar_from_file");
@@ -1601,7 +1601,7 @@ int init_floatvar_from_file(float* var, IO_CACHE* f, float default_val)
 
   if (my_b_gets(f, buf, sizeof(buf)))
   {
-    if (sscanf(buf, "%f", var) != 1)
+    if (sscanf(buf, "%lf", var) != 1)
       DBUG_RETURN(1);
     else
       DBUG_RETURN(0);
@@ -2146,7 +2146,7 @@ when it try to get the value of TIME_ZONE global variable from master.";
     }
   }
 
-  if (mi->heartbeat_period != 0.0)
+  if (mi->heartbeat_period)
   {
     const char query_format[]= "SET @master_heartbeat_period= %llu";
     char query[sizeof(query_format) + 32];
@@ -2154,7 +2154,7 @@ when it try to get the value of TIME_ZONE global variable from master.";
        the period is an ulonglong of nano-secs. 
     */
     my_snprintf(query, sizeof(query), query_format,
-                (ulonglong) (mi->heartbeat_period*1000000000UL));
+                mi->heartbeat_period*1000000ULL);
 
     DBUG_EXECUTE_IF("simulate_slave_heartbeat_network_error",
                     { static ulong dbug_count= 0;
@@ -3413,7 +3413,7 @@ static bool send_show_master_info_data(THD *thd, Master_info *mi, bool full,
       protocol->store((ulonglong) mi->rli.max_relay_log_size);
       protocol->store(mi->rli.executed_entries);
       protocol->store((uint32)    mi->received_heartbeats);
-      protocol->store_double(mi->heartbeat_period, 3);
+      protocol->store_double(mi->heartbeat_period/1000.0, 3);
       protocol->store(gtid_pos->ptr(), gtid_pos->length(), &my_charset_bin);
     }
 

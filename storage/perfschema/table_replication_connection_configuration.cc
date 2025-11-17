@@ -257,7 +257,7 @@ void table_replication_connection_configuration::make_row(Master_info *mi)
 
   m_row.connection_retry_count= master_retry_count; //(ulong) mi->retry_count;
 
-  m_row.heartbeat_interval= (double)mi->heartbeat_period;
+  m_row.heartbeat_interval= mi->heartbeat_period / 1000.0;
 
   m_row.ignore_server_ids= convert_array_to_str(&mi->ignore_server_ids);
   if (m_row.ignore_server_ids == NULL)

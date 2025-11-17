@@ -506,7 +506,7 @@ struct LEX_MASTER_INFO
   ulong relay_log_pos;
   ulong server_id;
   uint port, connect_retry;
-  float heartbeat_period;
+  ulonglong heartbeat_period;
   int sql_delay;
   bool is_demotion_opt;
   /*

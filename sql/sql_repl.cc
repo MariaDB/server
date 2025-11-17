@@ -3784,8 +3784,8 @@ bool change_master(THD* thd, Master_info* mi, bool *master_info_added)
   if (lex_mi->heartbeat_opt != LEX_MASTER_INFO::LEX_MI_UNCHANGED)
     mi->heartbeat_period = lex_mi->heartbeat_period;
   else
-    mi->heartbeat_period= (float) MY_MIN(SLAVE_MAX_HEARTBEAT_PERIOD,
-                                      (slave_net_timeout/2.0));
+    mi->heartbeat_period= MY_MIN(SLAVE_MAX_HEARTBEAT_PERIOD,
+                                 slave_net_timeout*500ULL);
   mi->received_heartbeats= 0; // counter lives until master is CHANGEd
 
   /*
