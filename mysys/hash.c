@@ -23,6 +23,14 @@
 #include <m_ctype.h>
 #include "hash.h"
 
+#ifndef XXH_STATIC_LINKING_ONLY
+#define XXH_STATIC_LINKING_ONLY 1
+#endif // !defined(XXH_STATIC_LINKING_ONLY)
+#ifndef XXH_IMPLEMENTATION
+#define XXH_IMPLEMENTATION 1
+#endif // !defined(XXH_IMPLEMENTATION)
+#include "./xxhash/xxhash.h"
+
 #define NO_RECORD	~((my_hash_value_type) 0)
 #define LOWFIND 1
 #define LOWUSED 2
@@ -47,6 +55,53 @@ my_hash_value_type my_hash_sort(CHARSET_INFO *cs, const uchar *key,
   ulong nr1= 1, nr2= 4;
   my_ci_hash_sort(cs, (uchar*) key, length, &nr1, &nr2);
   return (my_hash_value_type) nr1;
+}
+
+uint32 my_hash_simple(const uchar *key, size_t len, uint32 nr)
+{
+  for (const uchar *u= key; u < key + len; u++)
+    nr= nr * 31 + (uint32) (*u);
+  return nr;
+}
+
+uint32 my_hash_crc32c(const uchar *key, size_t len, uint32 nr)
+{
+  return my_crc32c(nr, key, len);
+}
+
+uint32 my_hash_xxh32(const uchar *key, size_t len, uint32 nr)
+{
+  return XXH32(key, len, nr);
+}
+
+uint32 my_hash_xxh3(const uchar *key, size_t len, uint32 nr)
+{
+  return (uint32) XXH3_64bits_withSeed(key, len, nr);
+}
+
+void my_hash_dispatch(const uchar *key, size_t len, uint32 *nr,
+                      enum hash_algorithm algo)
+{
+  switch (algo)
+  {
+  case HASH_ALGORITHM_SIMPLE:
+    *nr= my_hash_simple(key, len, *nr);
+    break;
+  case HASH_ALGORITHM_CRC32C:
+    *nr= my_hash_crc32c(key, len, *nr);
+    break;
+  case HASH_ALGORITHM_XXH32:
+    *nr= my_hash_xxh32(key, len, *nr);
+    break;
+  case HASH_ALGORITHM_XXH3:
+    *nr= my_hash_xxh3(key, len, *nr);
+    break;
+  case HASH_ALGORITHM_MYSQL:
+    /* fall through as this function only handles non-mysql hash */
+  default:
+    assert(0);
+    break;
+  }
 }
 
 /**

@@ -712,7 +712,7 @@ my_strnxfrm_latin1_de(CHARSET_INFO *cs,
 
 void my_hash_sort_latin1_de(CHARSET_INFO *cs __attribute__((unused)),
 			    const uchar *key, size_t len,
-			    ulong *nr1, ulong *nr2)
+                            ulong *nr1, ulong *nr2, uint32 *nr, enum hash_algorithm algo)
 {
   const uchar *end;
   register ulong m1= *nr1, m2= *nr2;

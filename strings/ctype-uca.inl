@@ -629,7 +629,8 @@ MY_FUNCTION_NAME(strnncollsp_nchars_multilevel)(CHARSET_INFO *cs,
 static void
 MY_FUNCTION_NAME(hash_sort)(CHARSET_INFO *cs,
                             const uchar *s, size_t slen,
-                            ulong *nr1, ulong *nr2)
+                            ulong *nr1, ulong *nr2, uint32 *nr,
+                            enum hash_algorithm algo)
 {
   int   s_res;
   my_uca_scanner scanner;
@@ -686,7 +687,8 @@ end:
 static void
 MY_FUNCTION_NAME(hash_sort_nopad)(CHARSET_INFO *cs,
                                   const uchar *s, size_t slen,
-                                  ulong *nr1, ulong *nr2)
+                                  ulong *nr1, ulong *nr2, uint32 *nr,
+                                  enum hash_algorithm algo)
 {
   int   s_res;
   my_uca_scanner scanner;

@@ -275,26 +275,33 @@ int my_wc_mb_bin(CHARSET_INFO *cs __attribute__((unused)),
 
 
 void my_hash_sort_bin(CHARSET_INFO *cs __attribute__((unused)),
-                      const uchar *key, size_t len,ulong *nr1, ulong *nr2)
+                      const uchar *key, size_t len,ulong *nr1, ulong *nr2,
+                      uint32 *nr, enum hash_algorithm algo)
 {
   const uchar *end = key + len;
   ulong tmp1= *nr1;
   ulong tmp2= *nr2;
   DBUG_ASSERT(key); /* Avoid UBSAN nullptr-with-offset */
 
-  for (; key < end ; key++)
+  if (algo == HASH_ALGORITHM_MYSQL)
   {
-    MY_HASH_ADD(tmp1, tmp2, (uint) *key);
-  }
+    for (; key < end ; key++)
+    {
+      MY_HASH_ADD(tmp1, tmp2, (uint) *key);
+    }
 
-  *nr1= tmp1;
-  *nr2= tmp2;
+    *nr1= tmp1;
+    *nr2= tmp2;
+  }
+  else
+    my_hash_dispatch(key, len, nr, algo);
 }
 
 
 void my_hash_sort_8bit_bin(CHARSET_INFO *cs __attribute__((unused)),
                            const uchar *key, size_t len,
-                           ulong *nr1, ulong *nr2)
+                           ulong *nr1, ulong *nr2, uint32 *nr,
+                           enum hash_algorithm algo)
 {
   /*
      Remove trailing spaces. We have to do this to be able to compare
@@ -302,7 +309,7 @@ void my_hash_sort_8bit_bin(CHARSET_INFO *cs __attribute__((unused)),
   */
   const uchar *end= skip_trailing_space(key, len);
   DBUG_ASSERT(key); /* Avoid UBSAN nullptr-with-offset */
-  my_hash_sort_bin(cs, key, end - key, nr1, nr2);
+  my_hash_sort_bin(cs, key, end - key, nr1, nr2, nr, algo);
 }
 
 

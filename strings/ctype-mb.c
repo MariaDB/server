@@ -555,7 +555,7 @@ my_strnxfrm_mb_nopad(CHARSET_INFO *cs,
 
 void
 my_hash_sort_mb_nopad_bin(CHARSET_INFO *cs __attribute__((unused)),
-                          const uchar *key, size_t len,ulong *nr1, ulong *nr2)
+                          const uchar *key, size_t len,ulong *nr1, ulong *nr2, uint32 *nr, enum hash_algorithm algo)
 {
   register ulong m1= *nr1, m2= *nr2;
   const uchar *end= key + len;
@@ -571,7 +571,7 @@ my_hash_sort_mb_nopad_bin(CHARSET_INFO *cs __attribute__((unused)),
 
 void
 my_hash_sort_mb_bin(CHARSET_INFO *cs __attribute__((unused)),
-                    const uchar *key, size_t len,ulong *nr1, ulong *nr2)
+                    const uchar *key, size_t len,ulong *nr1, ulong *nr2, uint32 *nr, enum hash_algorithm algo)
 {
   /*
      Remove trailing spaces. We have to do this to be able to compare
@@ -579,7 +579,7 @@ my_hash_sort_mb_bin(CHARSET_INFO *cs __attribute__((unused)),
   */
   const uchar *end= skip_trailing_space(key, len);
   DBUG_ASSERT(key);  /* Avoid UBSAN nullptr-with-offset */
-  my_hash_sort_mb_nopad_bin(cs, key, end - key, nr1, nr2);
+  my_hash_sort_mb_nopad_bin(cs, key, end - key, nr1, nr2, nr, algo);
 }
 
 

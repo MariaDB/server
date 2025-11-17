@@ -527,7 +527,8 @@ static size_t my_caseup_utf8mb3(CHARSET_INFO *cs,
 
 
 static void my_hash_sort_utf8mb3_nopad(CHARSET_INFO *cs, const uchar *s, size_t slen,
-                                       ulong *nr1, ulong *nr2)
+                                       ulong *nr1, ulong *nr2, uint32 *nr,
+                                       enum hash_algorithm algo)
 {
   my_wc_t wc;
   int res;
@@ -548,7 +549,8 @@ static void my_hash_sort_utf8mb3_nopad(CHARSET_INFO *cs, const uchar *s, size_t 
 
 
 static void my_hash_sort_utf8mb3(CHARSET_INFO *cs, const uchar *s, size_t slen,
-                                 ulong *nr1, ulong *nr2)
+                                 ulong *nr1, ulong *nr2, uint32 *nr,
+                                 enum hash_algorithm algo)
 {
   /*
     Remove end space. We have to do this to be able to compare
@@ -556,14 +558,15 @@ static void my_hash_sort_utf8mb3(CHARSET_INFO *cs, const uchar *s, size_t slen,
   */
   const uchar *e= skip_trailing_space(s, slen);
   DBUG_ASSERT(s); /* Avoid UBSAN nullptr-with-offset */
-  my_hash_sort_utf8mb3_nopad(cs, s, e - s, nr1, nr2);
+  my_hash_sort_utf8mb3_nopad(cs, s, e - s, nr1, nr2, nr, algo);
 }
 
 
 static void
 my_hash_sort_utf8mb3_general1400_nopad_as_ci(CHARSET_INFO *cs,
                                              const uchar *s, size_t slen,
-                                             ulong *nr1, ulong *nr2)
+                                             ulong *nr1, ulong *nr2, uint32 *nr,
+                                             enum hash_algorithm algo)
 {
   my_wc_t wc;
   int res;
@@ -585,10 +588,11 @@ my_hash_sort_utf8mb3_general1400_nopad_as_ci(CHARSET_INFO *cs,
 static void
 my_hash_sort_utf8mb3_general1400_as_ci(CHARSET_INFO *cs,
                                        const uchar *s, size_t slen,
-                                       ulong *nr1, ulong *nr2)
+                                       ulong *nr1, ulong *nr2, uint32 *nr,
+                                       enum hash_algorithm algo)
 {
   const uchar *e= skip_trailing_space(s, slen);
-  my_hash_sort_utf8mb3_general1400_nopad_as_ci(cs, s, e - s, nr1, nr2);
+  my_hash_sort_utf8mb3_general1400_nopad_as_ci(cs, s, e - s, nr1, nr2, nr, algo);
 }
 
 
@@ -2898,7 +2902,8 @@ my_caseup_utf8mb4(CHARSET_INFO *cs, const char *src, size_t srclen,
 
 static void
 my_hash_sort_utf8mb4_nopad(CHARSET_INFO *cs, const uchar *s, size_t slen,
-                     ulong *nr1, ulong *nr2)
+                           ulong *nr1, ulong *nr2, uint32 *nr,
+                           enum hash_algorithm algo)
 {
   my_wc_t wc;
   int res;
@@ -2931,7 +2936,8 @@ my_hash_sort_utf8mb4_nopad(CHARSET_INFO *cs, const uchar *s, size_t slen,
 
 static void
 my_hash_sort_utf8mb4(CHARSET_INFO *cs, const uchar *s, size_t slen,
-                     ulong *nr1, ulong *nr2)
+                     ulong *nr1, ulong *nr2, uint32 *nr,
+                     enum hash_algorithm algo)
 {
   /*
     Remove end space. We do this to be able to compare
@@ -2939,7 +2945,7 @@ my_hash_sort_utf8mb4(CHARSET_INFO *cs, const uchar *s, size_t slen,
   */
   const uchar *e= skip_trailing_space(s, slen);
   DBUG_ASSERT(s); /* Avoid UBSAN nullptr-with-offset */
-  my_hash_sort_utf8mb4_nopad(cs, s, e - s, nr1, nr2);
+  my_hash_sort_utf8mb4_nopad(cs, s, e - s, nr1, nr2, nr, algo);
 }
 
 
@@ -3236,7 +3242,8 @@ my_strnxfrmlen_utf8mb4_general1400_as_ci(CHARSET_INFO *cs, size_t len)
 static void
 my_hash_sort_utf8mb4_general1400_nopad_as_ci(CHARSET_INFO *cs,
                                              const uchar *s, size_t slen,
-                                             ulong *nr1, ulong *nr2)
+                                             ulong *nr1, ulong *nr2, uint32 *nr,
+                                             enum hash_algorithm algo)
 {
   my_wc_t wc;
   int res;
@@ -3269,14 +3276,15 @@ my_hash_sort_utf8mb4_general1400_nopad_as_ci(CHARSET_INFO *cs,
 static void
 my_hash_sort_utf8mb4_general1400_as_ci(CHARSET_INFO *cs,
                                        const uchar *s, size_t slen,
-                                       ulong *nr1, ulong *nr2)
+                                       ulong *nr1, ulong *nr2, uint32 *nr,
+                                       enum hash_algorithm algo)
 {
   /*
     Remove end space. We do this to be able to compare
     'A ' and 'A' as identical
   */
   const uchar *e= skip_trailing_space(s, slen);
-  my_hash_sort_utf8mb4_general1400_nopad_as_ci(cs, s, e - s, nr1, nr2);
+  my_hash_sort_utf8mb4_general1400_nopad_as_ci(cs, s, e - s, nr1, nr2, nr, algo);
 }
 
 

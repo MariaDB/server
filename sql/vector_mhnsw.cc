@@ -535,7 +535,8 @@ public:
   uint lock_node(FVectorNode *ptr)
   {
     ulong nr1= 1, nr2= 4;
-    my_hash_sort_bin(0, (uchar*)&ptr, sizeof(ptr), &nr1, &nr2);
+    my_hash_sort_bin(0, (uchar*)&ptr, sizeof(ptr), &nr1, &nr2, NULL,
+                     HASH_ALGORITHM_MYSQL);
     uint ticket= nr1 % array_elements(node_lock);
     mysql_mutex_lock(node_lock + ticket);
     return ticket;

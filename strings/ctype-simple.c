@@ -360,7 +360,7 @@ size_t my_snprintf_8bit(CHARSET_INFO *cs  __attribute__((unused)),
 
 void my_hash_sort_simple_nopad(CHARSET_INFO *cs,
 			       const uchar *key, size_t len,
-			       ulong *nr1, ulong *nr2)
+                               ulong *nr1, ulong *nr2, uint32 *nr, enum hash_algorithm algo)
 {
   register const uchar *sort_order=cs->sort_order;
   const uchar *end= key + len;
@@ -377,7 +377,8 @@ void my_hash_sort_simple_nopad(CHARSET_INFO *cs,
 
 void my_hash_sort_simple(CHARSET_INFO *cs,
                          const uchar *key, size_t len,
-                         ulong *nr1, ulong *nr2)
+                         ulong *nr1, ulong *nr2, uint32 *nr,
+                         enum hash_algorithm algo)
 {
   register const uchar *sort_order=cs->sort_order;
   const uchar *end;
@@ -416,7 +417,7 @@ void my_hash_sort_simple(CHARSET_INFO *cs,
       break;
     }
   }
-  my_hash_sort_simple_nopad(cs, key, end - key, nr1, nr2);
+  my_hash_sort_simple_nopad(cs, key, end - key, nr1, nr2, nr, algo);
 }
 
 

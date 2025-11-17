@@ -156,7 +156,7 @@ ha_checksum _ma_unique_hash(MARIA_UNIQUEDEF *def, const uchar *record)
     else
     {
       my_hash_sort_bin((CHARSET_INFO*) 0, pos, (size_t) (end-pos),
-                       &seed1, &seed2);
+                       &seed1, &seed2, NULL, HASH_ALGORITHM_MYSQL);
       crc+= seed1;
     }
   }

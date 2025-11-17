@@ -492,6 +492,21 @@ typedef struct my_charset_loader_st
   int  (*add_collation)(struct charset_info_st *cs);
 } MY_CHARSET_LOADER;
 
+enum hash_algorithm
+{
+  HASH_ALGORITHM_MYSQL,
+  HASH_ALGORITHM_SIMPLE,
+  HASH_ALGORITHM_CRC32C,
+  HASH_ALGORITHM_XXH32,
+  HASH_ALGORITHM_XXH3
+};
+/* Definitions are in hash.c */
+uint32 my_hash_simple(const uchar *key, size_t len, uint32 nr);
+uint32 my_hash_crc32c(const uchar *key, size_t len, uint32 nr);
+uint32 my_hash_xxh32(const uchar *key, size_t len, uint32 nr);
+uint32 my_hash_xxh3(const uchar *key, size_t len, uint32 nr);
+void my_hash_dispatch(const uchar *key, size_t len, uint32 *nr,
+                      enum hash_algorithm algo);
 
 extern int (*my_string_stack_guard)(int);
 
@@ -581,7 +596,8 @@ struct my_collation_handler_st
   
   /* Hash calculation */
   void (*hash_sort)(CHARSET_INFO *cs, const uchar *key, size_t len,
-		    ulong *nr1, ulong *nr2); 
+                    ulong *nr1, ulong *nr2, uint32 *nr,
+                    enum hash_algorithm algo);
   my_bool (*propagate)(CHARSET_INFO *cs, const uchar *str, size_t len);
   /*
     Make minimum and maximum strings for the collation.
@@ -1184,7 +1200,7 @@ struct charset_info_st
 
   void hash_sort(const uchar *key, size_t len, ulong *nr1, ulong *nr2) const
   {
-    (coll->hash_sort)(this, key, len, nr1, nr2);
+    (coll->hash_sort)(this, key, len, nr1, nr2, NULL, HASH_ALGORITHM_MYSQL);
   }
 
   my_bool propagate(const uchar *str, size_t len) const
@@ -1466,7 +1482,7 @@ my_ci_hash_sort(CHARSET_INFO *ci,
                 const uchar *key, size_t len,
                 ulong *nr1, ulong *nr2)
 {
-  (ci->coll->hash_sort)(ci, key, len, nr1, nr2);
+  (ci->coll->hash_sort)(ci, key, len, nr1, nr2, NULL, HASH_ALGORITHM_MYSQL);
 }
 
 
@@ -1587,15 +1603,15 @@ extern int  my_strnncollsp_simple(CHARSET_INFO *, const uchar *, size_t,
 
 extern void my_hash_sort_simple(CHARSET_INFO *cs,
 				const uchar *key, size_t len,
-				ulong *nr1, ulong *nr2); 
+                                ulong *nr1, ulong *nr2, uint32 *nr, enum hash_algorithm algo);
 
 extern void my_hash_sort_simple_nopad(CHARSET_INFO *cs,
 				      const uchar *key, size_t len,
-				      ulong *nr1, ulong *nr2);
+              ulong *nr1, ulong *nr2, uint32 *nr, enum hash_algorithm algo);
 
 extern void my_hash_sort_bin(CHARSET_INFO *cs,
                              const uchar *key, size_t len, ulong *nr1,
-                             ulong *nr2);
+                             ulong *nr2, uint32 *nr, enum hash_algorithm algo);
 
 /**
   Compare a string to an array of spaces, for PAD SPACE comparison.
@@ -1762,11 +1778,11 @@ int my_wildcmp_mb_bin(CHARSET_INFO *cs,
                       int escape, int w_one, int w_many);
 
 void my_hash_sort_mb_bin(CHARSET_INFO *cs __attribute__((unused)),
-                         const uchar *key, size_t len,ulong *nr1, ulong *nr2);
+                         const uchar *key, size_t len,ulong *nr1, ulong *nr2, uint32 *nr, enum hash_algorithm algo);
 
 void my_hash_sort_mb_nopad_bin(CHARSET_INFO *cs __attribute__((unused)),
                                const uchar *key, size_t len,
-                               ulong *nr1, ulong *nr2);
+                               ulong *nr1, ulong *nr2, uint32 *nr, enum hash_algorithm algo);
 
 
 extern my_bool my_parse_charset_xml(MY_CHARSET_LOADER *loader,

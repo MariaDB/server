@@ -64,14 +64,6 @@
 #include "debug_sync.h"
 #include <functional>
 
-#ifndef XXH_STATIC_LINKING_ONLY
-#define XXH_STATIC_LINKING_ONLY 1
-#endif // !defined(XXH_STATIC_LINKING_ONLY)
-#ifndef XXH_IMPLEMENTATION
-#define XXH_IMPLEMENTATION 1
-#endif // !defined(XXH_IMPLEMENTATION)
-#include "../mysys/xxhash/xxhash.h"
-
 /* First 4 bytes in the .par file is the number of 32-bit words in the file */
 #define PAR_WORD_SIZE 4
 /* offset to the .par file checksum */
@@ -10244,111 +10236,86 @@ uint8 ha_partition::table_cache_type()
   DBUG_RETURN(get_open_file_sample()->table_cache_type());
 }
 
-static uint32 mysql5x_hash(Field **field_array, bool use_51_hash)
+static uint32 mysql51_hash(Field **field_array)
 {
   Hasher hasher;
   do
   {
     Field *field= *field_array;
-    if (use_51_hash)
-    {
-      switch (field->real_type()) {
-      case MYSQL_TYPE_TINY:
-      case MYSQL_TYPE_SHORT:
-      case MYSQL_TYPE_LONG:
-      case MYSQL_TYPE_FLOAT:
-      case MYSQL_TYPE_DOUBLE:
-      case MYSQL_TYPE_NEWDECIMAL:
-      case MYSQL_TYPE_TIMESTAMP:
-      case MYSQL_TYPE_LONGLONG:
-      case MYSQL_TYPE_INT24:
-      case MYSQL_TYPE_TIME:
-      case MYSQL_TYPE_DATETIME:
-      case MYSQL_TYPE_YEAR:
-      case MYSQL_TYPE_NEWDATE:
+    switch (field->real_type()) {
+    case MYSQL_TYPE_TINY:
+    case MYSQL_TYPE_SHORT:
+    case MYSQL_TYPE_LONG:
+    case MYSQL_TYPE_FLOAT:
+    case MYSQL_TYPE_DOUBLE:
+    case MYSQL_TYPE_NEWDECIMAL:
+    case MYSQL_TYPE_TIMESTAMP:
+    case MYSQL_TYPE_LONGLONG:
+    case MYSQL_TYPE_INT24:
+    case MYSQL_TYPE_TIME:
+    case MYSQL_TYPE_DATETIME:
+    case MYSQL_TYPE_YEAR:
+    case MYSQL_TYPE_NEWDATE:
+      {
+        if (field->is_null())
         {
-          if (field->is_null())
-          {
-            hasher.add_null();
-            continue;
-          }
-          /* Force this to my_hash_sort_bin, which was used in 5.1! */
-          uint len= field->pack_length();
-          hasher.add(&my_charset_bin, field->ptr, len);
-          /* Done with this field, continue with next one. */
+          hasher.add_null();
           continue;
         }
-      case MYSQL_TYPE_STRING:
-      case MYSQL_TYPE_VARCHAR:
-      case MYSQL_TYPE_BIT:
-        /* Not affected, same in 5.1 and 5.5 */
-        break;
-      /*
-        ENUM/SET uses my_hash_sort_simple in 5.1 (i.e. my_charset_latin1)
-        and my_hash_sort_bin in 5.5!
-      */
-      case MYSQL_TYPE_ENUM:
-      case MYSQL_TYPE_SET:
-        {
-          if (field->is_null())
-          {
-            hasher.add_null();
-            continue;
-          }
-          /* Force this to my_hash_sort_bin, which was used in 5.1! */
-          uint len= field->pack_length();
-          hasher.add(&my_charset_latin1, field->ptr, len);
-          continue;
-        }
-      /* New types in mysql-5.6. */
-      case MYSQL_TYPE_DATETIME2:
-      case MYSQL_TYPE_TIME2:
-      case MYSQL_TYPE_TIMESTAMP2:
-        /* Not affected, 5.6+ only! */
-        break;
-
-      /* These types should not be allowed for partitioning! */
-      case MYSQL_TYPE_NULL:
-      case MYSQL_TYPE_DECIMAL:
-      case MYSQL_TYPE_DATE:
-      case MYSQL_TYPE_TINY_BLOB:
-      case MYSQL_TYPE_MEDIUM_BLOB:
-      case MYSQL_TYPE_LONG_BLOB:
-      case MYSQL_TYPE_BLOB:
-      case MYSQL_TYPE_VAR_STRING:
-      case MYSQL_TYPE_GEOMETRY:
-        /* fall through */
-      default:
-        DBUG_ASSERT(0);                    // New type?
-        /* Fall through for default hashing (5.5). */
+        /* Force this to my_hash_sort_bin, which was used in 5.1! */
+        uint len= field->pack_length();
+        hasher.add(&my_charset_bin, field->ptr, len);
+        /* Done with this field, continue with next one. */
+        continue;
       }
-      /* fall through, use collation based hashing. */
+    case MYSQL_TYPE_STRING:
+    case MYSQL_TYPE_VARCHAR:
+    case MYSQL_TYPE_BIT:
+      /* Not affected, same in 5.1 and 5.5 */
+      break;
+    /*
+      ENUM/SET uses my_hash_sort_simple in 5.1 (i.e. my_charset_latin1)
+      and my_hash_sort_bin in 5.5!
+    */
+    case MYSQL_TYPE_ENUM:
+    case MYSQL_TYPE_SET:
+      {
+        if (field->is_null())
+        {
+          hasher.add_null();
+          continue;
+        }
+        /* Force this to my_hash_sort_bin, which was used in 5.1! */
+        uint len= field->pack_length();
+        hasher.add(&my_charset_latin1, field->ptr, len);
+        continue;
+      }
+    /* New types in mysql-5.6. */
+    case MYSQL_TYPE_DATETIME2:
+    case MYSQL_TYPE_TIME2:
+    case MYSQL_TYPE_TIMESTAMP2:
+      /* Not affected, 5.6+ only! */
+      break;
+
+    /* These types should not be allowed for partitioning! */
+    case MYSQL_TYPE_NULL:
+    case MYSQL_TYPE_DECIMAL:
+    case MYSQL_TYPE_DATE:
+    case MYSQL_TYPE_TINY_BLOB:
+    case MYSQL_TYPE_MEDIUM_BLOB:
+    case MYSQL_TYPE_LONG_BLOB:
+    case MYSQL_TYPE_BLOB:
+    case MYSQL_TYPE_VAR_STRING:
+    case MYSQL_TYPE_GEOMETRY:
+      /* fall through */
+    default:
+      DBUG_ASSERT(0);                    // New type?
+      /* Fall through for default hashing (5.5). */
     }
+    /* fall through, use collation based hashing. */
     field->hash(&hasher);
   } while (*(++field_array));
   return (uint32) hasher.finalize();
-}
-
-static uint32 simple_hash(const uchar *key, size_t len, uint32 nr)
-{
-  for (const uchar *u= key; u < key + len; u++)
-    nr= nr * 31 + (uint32) (*u);
-  return nr;
-}
-
-static uint32 crc32c_hash(const uchar *key, size_t len, uint32 nr)
-{
-  return my_crc32c(nr, key, len);
-}
-
-static uint32 xxh32_hash(const uchar *key, size_t len, uint32 nr)
-{
-  return XXH32(key, len, nr);
-}
-
-static uint32 xxh3_hash(const uchar *key, size_t len, uint32 nr)
-{
-  return (uint32) XXH3_64bits_withSeed(key, len, nr);
 }
 
 /**
@@ -10364,31 +10331,31 @@ static uint32 xxh3_hash(const uchar *key, size_t len, uint32 nr)
 
 uint32 ha_partition::calculate_key_hash_value(Field **field_array)
 {
-  NewHasher hasher;
+  Hasher hasher;
   Field *field;
   switch ((*field_array)->table->part_info->key_algorithm)
   {
   case partition_info::KEY_ALGORITHM_NONE:
   case partition_info::KEY_ALGORITHM_55:
-    return mysql5x_hash(field_array, false);
+    /* Hasher default to mysql55 */
+    break;
   case partition_info::KEY_ALGORITHM_51:
-    return mysql5x_hash(field_array, true);
+    return mysql51_hash(field_array);
   case partition_info::KEY_ALGORITHM_SIMPLE:
-    hasher.m_hash_fun= simple_hash;
+    hasher.set_algorithm(HASH_ALGORITHM_SIMPLE);
     break;
   case partition_info::KEY_ALGORITHM_CRC32C:
-    hasher.m_hash_fun= crc32c_hash;
+    hasher.set_algorithm(HASH_ALGORITHM_CRC32C);
     break;
   case partition_info::KEY_ALGORITHM_XXH32:
-    hasher.m_hash_fun= xxh32_hash;
+    hasher.set_algorithm(HASH_ALGORITHM_XXH32);
     break;
   case partition_info::KEY_ALGORITHM_XXH3:
-    hasher.m_hash_fun= xxh3_hash;
+    hasher.set_algorithm(HASH_ALGORITHM_XXH3);
     break;
   default:
     DBUG_ASSERT(0);
-    /* Fall back to default hash */
-    return mysql5x_hash(field_array, false);
+    /* Fall through to default hash */
   }
   while ((field= *field_array++))
     field->hash(&hasher);
