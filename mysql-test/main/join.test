@@ -2073,34 +2073,34 @@ explain extended select * from t1 natural full outer join t2;
 select * from t1 natural full join t2;
 explain extended select * from t1 natural full join t2;
 
-create view v1 as select * from t1 full join t2 on t1.a = t2.a;
+create view v1 as select t1.a as t1a, t2.a as t2a from t1 full join t2 on t1.a = t2.a;
 --error ER_NOT_SUPPORTED_YET
 select * from v1;
 explain extended select * from v1;
 drop view v1;
 
-create view v1 as select * from t1 full outer join t2 on t1.a = t2.a;
+create view v1 as select t1.a as t1a, t2.a as t2a from t1 full outer join t2 on t1.a = t2.a;
 --error ER_NOT_SUPPORTED_YET
 select * from v1;
 explain extended select * from v1;
 drop view v1;
 
-create view v1 as select * from t1 natural full join t2;
+create view v1 as select t1.a as t1a, t2.a as t2a from t1 natural full join t2;
 --error ER_NOT_SUPPORTED_YET
 select * from v1;
 explain extended select * from v1;
 drop view v1;
 
-create view v1 as select * from t1 natural full outer join t2;
+create view v1 as select t1.a as t1a, t2.a as t2a from t1 natural full outer join t2;
 --error ER_NOT_SUPPORTED_YET
 select * from v1;
 explain extended select * from v1;
 drop view v1;
 
---error ER_BAD_FIELD_ERROR
+--error ER_NOT_SUPPORTED_YET
 select * from (select t1.a from t1 full join t2 on t1.a = t2.a union select * from t1) dt;
 
---error ER_BAD_FIELD_ERROR
+--error ER_NOT_SUPPORTED_YET
 select * from (select t1.a from t1 full outer join t2 on t1.a = t2.a union select * from t1) dt;
 
 --error ER_NOT_SUPPORTED_YET
@@ -2127,7 +2127,104 @@ select * from t1, t2 natural full join t3;
 --error ER_NO_SUCH_TABLE
 select * from t1, t2 natural full outer join t3;
 
+--error ER_FULL_JOIN_BASE_TABLES_ONLY
+select * from (select * from t1) dt natural full join (select * from t2) du;
+
+--error ER_FULL_JOIN_BASE_TABLES_ONLY
+select * from (select * from t1) dt natural full join t2;
+
+--error ER_FULL_JOIN_BASE_TABLES_ONLY
+select * from t1 natural full join (select * from t2) du;
+
 drop table t1, t2;
+
+--echo # Exercise FULL JOIN rewrites to LEFT, RIGHT, and INNER JOIN.
+create table x (pk int auto_increment, x int, y int, primary key (pk));
+create table xsq (pk int auto_increment, x int, y int, primary key (pk));
+insert into x (x, y) values (-5,-5),(-4,-4),(-3,-3),(-2,-2),(-1,-1),(0,0),(1,1),(2,2),(3,3),(4,4),(5,5);
+insert into xsq (x, y) values (-5,25),(-4,16),(-3,9),(-2,4),(-1,1),(0,0),(1,1),(2,4),(3,9),(4,16),(5,25);
+
+--echo # FULL to RIGHT JOIN, these two queries should be equal:
+select * from x  full join xsq on x.y = xsq.y where xsq.pk is not null;
+select * from x right join xsq on x.y = xsq.y;
+
+--echo # FULL to RIGHT JOIN, these two queries should be equal:
+select * from x  full join xsq on x.x >= 0 and x.x <= 1 and xsq.x >= 0 and xsq.x <= 1 where xsq.pk is not null;
+select * from x right join xsq on x.x >= 0 and x.x <= 1 and xsq.x >= 0 and xsq.x <= 1;
+
+--echo # FULL to INNER JOIN, these two queries should be equal:
+select * from x  full join xsq on x.x >= 0 and x.x <= 1 and xsq.x >= 0 and xsq.x <= 1 where x.pk is not null and xsq.pk is not null;
+select * from x inner join xsq on x.x >= 0 and x.x <= 1 and xsq.x >= 0 and xsq.x <= 1;
+
+--echo # FULL to LEFT JOIN, these two queries should be equal:
+select * from x full join xsq on x.x >= 0 and x.x <= 1 and xsq.x >= 0 and xsq.x <= 1 where x.pk is not null;
+select * from x left join xsq on x.x >= 0 and x.x <= 1 and xsq.x >= 0 and xsq.x <= 1;
+
+--echo # FULL NATURAL to INNER JOIN, these two queries should be equal:
+select * from x natural full join xsq where x.pk is not null and xsq.pk is not null;
+select * from x inner join xsq on x.x = xsq.x and x.y = xsq.y;
+
+--echo # FULL NATURAL to LEFT JOIN, these two queries should be equal:
+select * from x natural full join xsq where x.pk is not null;
+select * from x left join xsq on xsq.pk = x.pk and xsq.x = x.x and xsq.y = x.y;
+
+--echo # FULL NATURAL to RIGHT JOIN
+select * from x natural full join xsq where xsq.pk is not null;
+select * from x right join xsq on x.pk = xsq.pk and x.x = xsq.x and x.y = xsq.y;
+
+--echo # These two will fail because it cannot be rewritten to a LEFT, RIGHT, nor INNER JOIN.
+--error ER_NOT_SUPPORTED_YET
+select * from x full join xsq on x.x >= 0 and x.x <= 1 and xsq.x >= 0 and xsq.x <= 1;
+--error ER_NOT_SUPPORTED_YET
+select * from x natural full join xsq;
+
+drop table x, xsq;
+
+--echo # Nested JOINs
+create table one (v int);
+insert into one (v) values (1);
+create table two (v int);
+insert into two (v) values (2);
+create table three (v int);
+insert into three (v) values (3);
+
+--echo # (FULL)FULL to (INNER)INNER JOIN
+select * from one full join two on one.v = two.v full join three on two.v = three.v where one.v is not null and two.v is not null and three.v is not null;
+select * from one inner join two on one.v = two.v inner join three on two.v = three.v;
+
+--echo # (FULL)FULL to (RIGHT)LEFT JOIN
+select * from one full join two on one.v = two.v full join three on one.v = three.v where two.v is not null;
+select * from one right join two on one.v = two.v left join three on one.v = three.v;
+
+--echo # (FULL)FULL to (LEFT)LEFT JOIN
+select * from one full join two on one.v = two.v full join three on one.v = three.v where one.v is not null;
+select * from one left join two on two.v = one.v left join three on three.v = one.v;
+
+--echo # (FULL)LEFT to (LEFT)LEFT JOIN
+select * from one full join two on one.v = two.v left join three on two.v = three.v where one.v is not null;
+select * from one left join two on one.v = two.v left join three on two.v = three.v;
+
+--echo # (FULL)LEFT to (RIGHT)LEFT JOIN
+select * from one full join two on one.v = two.v left join three on two.v = three.v where two.v is not null;
+select * from one right join two on one.v = two.v left join three on three.v = two.v;
+
+--echo # (LEFT)FULL to (LEFT)RIGHT JOIN
+select * from one left join two on one.v = two.v full join three on two.v = three.v where three.v is not null;
+select * from one left join two on one.v = two.v right join three on two.v = three.v;
+
+--echo # (LEFT)FULL to (LEFT)LEFT JOIN
+insert into one (v) values (2),(3);
+insert into two (v) values (1);
+truncate three;
+insert into three (v) values (1);
+select * from one;
+select * from two;
+select * from three;
+select * from one left join two on one.v = two.v full join three on two.v = three.v where three.v = 1;
+select * from three left join one on one.v = 1 left join two on two.v = 1;
+
+drop table one, two, three;
+
 # TODO fix PS protocol before end of FULL OUTER JOIN development
 --enable_ps_protocol
 --echo # End of 12.3 tests

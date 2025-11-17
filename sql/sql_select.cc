@@ -1895,18 +1895,6 @@ JOIN::prepare(TABLE_LIST *tables_init, COND *conds_init, uint og_num,
     goto err;
   prepared= true;
 
-  /*
-    This check gates FULL JOIN functionality while it is under
-    development.  This check will be removed once FULL JOIN
-    has been completed and it allows some aspects of FULL JOIN
-    (see below) while exluding others, driven by whatever has
-    been implemented up to this point.
-  */
-  if (thd->lex->has_full_outer_join &&  // FULL JOIN not yet supported...
-      !thd->lex->is_view_context_analysis() &&  // ...but allow VIEW creation...
-      !thd->lex->describe)  // ...and limited EXPLAIN support during development
-    my_error(ER_NOT_SUPPORTED_YET, MYF(0), "full join");
-
   DBUG_RETURN(0); // All OK
 
 err:
@@ -19800,6 +19788,65 @@ propagate_cond_constants(THD *thd, I_List<COND_CMP> *save_list,
   }
 }
 
+
+/**
+  rewrite_full_outer_joins function prototype.
+
+  Required to support recursive calls from this function to simplify_joins, the
+  entry point for both FULL OUTER and other JOIN rewrites.
+
+  Complete function documentation at top of implementation, below.
+*/
+
+static COND *rewrite_full_outer_joins(JOIN *join,
+                                      COND *conds,
+                                      bool top,
+                                      bool in_sj,
+                                      TABLE_LIST **table_ptr,
+                                      List_iterator<TABLE_LIST> *li_ptr,
+                                      table_map *used_tables_ptr,
+                                      table_map *not_null_tables_ptr);
+
+
+/**
+  Convenience function to wrap a recursive call to simplify_joins in the case
+  of a nested join, which requires updates to the NESTED_JOIN structure.
+
+  @param join        reference to the query info
+  @param table       currently visited TABLE_LIST entry in the join_list
+  @param conds       conditions to add on expressions for converted joins
+  @param top         true <=> conds is the where condition
+  @param in_sj       TRUE <=> processing semi-join nest's children
+  @parma used_tables_ptr     IN/OUT parameter for the used_tables value
+  @parma not_null_tables_ptr IN/OUT parameter for the used_tables value
+
+  @return the new condition on success, nullptr otherwise
+*/
+
+static COND *simplify_nested_join(JOIN *join, TABLE_LIST *table,
+                                  COND *conds, bool top, bool in_sj,
+                                  table_map *used_tables_ptr,
+                                  table_map *not_null_tables_ptr)
+{
+  DBUG_ASSERT(used_tables_ptr);
+  DBUG_ASSERT(not_null_tables_ptr);
+  table_map &used_tables= *used_tables_ptr;
+  table_map &not_null_tables= *not_null_tables_ptr;
+
+  NESTED_JOIN *nested_join= table->nested_join;
+  DBUG_ASSERT(nested_join);
+  nested_join->used_tables= (table_map) 0;
+  nested_join->not_null_tables=(table_map) 0;
+  conds= simplify_joins(join, &nested_join->join_list, conds, top,
+                        in_sj || table->sj_on_expr);
+  used_tables= nested_join->used_tables;
+  not_null_tables= nested_join->not_null_tables;
+  /* The following two might become unequal after table elimination: */
+  nested_join->n_tables= nested_join->join_list.elements;
+  return conds;
+}
+
+
 /**
   Simplify joins replacing outer joins by inner joins whenever it's
   possible.
@@ -19938,6 +19985,15 @@ simplify_joins(JOIN *join, List<TABLE_LIST> *join_list, COND *conds, bool top,
   */
   while ((table= li++))
   {
+    // We only support FULL JOIN on base tables.
+    if (table->outer_join & JOIN_TYPE_FULL &&
+        !table->is_non_derived())
+    {
+      my_error(ER_FULL_JOIN_BASE_TABLES_ONLY, MYF(0),
+               table->alias.str);
+      DBUG_RETURN(nullptr);
+    }
+
     table_map used_tables;
     table_map not_null_tables= (table_map) 0;
 
@@ -19969,14 +20025,8 @@ simplify_joins(JOIN *join, List<TABLE_LIST> *join_list, COND *conds, bool top,
           table->prep_on_expr= expr->copy_andor_structure(join->thd);
         }
       }
-      nested_join->used_tables= (table_map) 0;
-      nested_join->not_null_tables=(table_map) 0;
-      conds= simplify_joins(join, &nested_join->join_list, conds, top, 
-                            in_sj || table->sj_on_expr);
-      used_tables= nested_join->used_tables;
-      not_null_tables= nested_join->not_null_tables;  
-      /* The following two might become unequal after table elimination: */
-      nested_join->n_tables= nested_join->join_list.elements;
+      conds= simplify_nested_join(join, table, conds, top, in_sj,
+                                  &used_tables, &not_null_tables);
     }
     else
     {
@@ -19986,7 +20036,15 @@ simplify_joins(JOIN *join, List<TABLE_LIST> *join_list, COND *conds, bool top,
       if (conds)
         not_null_tables= conds->not_null_tables();
     }
-      
+
+    /*
+      Attempt to rewrite any FULL JOINs as LEFT or RIGHT JOINs.  Any subsequent
+      JOINs that could be further rewritten to INNER JOINs are done below.
+    */
+    conds= rewrite_full_outer_joins(join, conds, top, in_sj, &table,
+                                    &li, &used_tables,
+                                    &not_null_tables);
+
     if (table->embedding)
     {
       table->embedding->nested_join->used_tables|= used_tables;
@@ -20196,6 +20254,272 @@ simplify_joins(JOIN *join, List<TABLE_LIST> *join_list, COND *conds, bool top,
     }
   }
   DBUG_RETURN(conds); 
+}
+
+
+/**
+   Rewrite a FULL JOIN to a LEFT JOIN by mutating the
+   left and right table state to make them appear as though
+   the user wrote the FULL JOIN as a LEFT JOIN originally.
+
+   @param left_table  table t1 in t1 FULL JOIN t2
+   @param right_table table t2 in t1 FULL JOIN t2
+*/
+
+static void rewrite_full_to_left(TABLE_LIST *left_table,
+                                 TABLE_LIST *right_table)
+{
+  // Grammar does not mark the left table at all
+  left_table->outer_join= 0;
+
+  /*
+    Clear FULL JOIN flag and do as the grammar does by marking
+    the right table as JOIN_TYPE_LEFT.
+  */
+  right_table->outer_join= JOIN_TYPE_LEFT;
+
+  /*
+    The right table must have an ON clause.  NATURAL JOINs get
+    this not from the grammar but they're built before simplify_joins
+    is called.
+  */
+  DBUG_ASSERT(right_table->on_expr);
+
+  // Only the right table in a LEFT JOIN has the naming context in the grammar
+  left_table->on_context= nullptr;
+
+  // The grammar 'search_condition: ' rule marks this.
+  if (!(right_table->outer_join & JOIN_TYPE_NATURAL))
+    right_table->on_expr->base_flags|= item_base_t::IS_COND;
+}
+
+
+/**
+   Rewrite a FULL JOIN to a RIGHT JOIN by mutating the
+   left and right table state to make them appear as though
+   the user wrote the FULL JOIN as a RIGHT JOIN originally.
+
+   It's important to keep in mind that this function does its
+   work updating the tables to prepare them to be swapped in
+   the join order.  Had the user written the query as a RIGHT
+   JOIN, it would've then been converted to a LEFT JOIN by
+   convert_right_join.  The caller will swap them in the join
+   list, so we prepare them in place, then once they're swapped
+   they will have the correct respective state.
+
+   Consequently, in this method, we change the right_table with
+   the understanding that it will swap places with the left_table
+   very shortly (similarly with respect to the right_table).
+
+   @param left_table  table t1 in t1 FULL JOIN t2
+   @param right_table table t2 in t1 FULL JOIN t2
+*/
+
+static void rewrite_full_to_right(TABLE_LIST *left_table,
+                                  TABLE_LIST *right_table)
+{
+  // Grammar does not mark the right table at all.
+  right_table->outer_join= 0;
+
+  /*
+    Clear FULL JOIN flag and do as convert_right_join does which
+    has the effect of marking the left table as JOIN_TYPE_RIGHT.
+  */
+  left_table->outer_join= JOIN_TYPE_RIGHT;
+
+  /*
+    The right table must have an ON clause.  NATURAL JOINs get
+    this not from the grammar but they're built before simplify_joins
+    is called.
+
+    The ON clause is moved from the right table to the left one
+    because, again, the tables will be swapped in the join list
+    to imitate the convert_right_join operation that would've been
+    done had the user written this query as a RIGHT JOIN instead
+    of a FULL JOIN.
+  */
+  DBUG_ASSERT(right_table->on_expr);
+  DBUG_ASSERT(left_table->on_expr == nullptr);
+  left_table->on_expr= right_table->on_expr;
+  right_table->on_expr= nullptr;
+
+  /*
+    Prepare the right table to become the left table by
+    clearing its context.  The left table retains the context
+    set by the grammar.
+  */
+  right_table->on_context= nullptr;
+}
+
+
+/**
+  Attempt to rewrite [NATURAL] FULL JOIN to LEFT, RIGHT, or INNER JOIN,
+  depending on the WHERE clause and whether it rejects NULLs.  For example,
+  the following queries are equivalent:
+
+    SELECT * FROM t1 FULL JOIN t2 ON t1.v = t2.v WHERE t1.v IS NOT NULL;
+    SELECT * FROM t1 LEFT JOIN t2 ON t1.v = t2.v;
+
+  The rewritten query, be it a LEFT or RIGHT JOIN, may yet again be
+  rewritten to an INNER JOIN if the WHERE clause permits.
+
+  These parameters are the same as in simplify_joins:
+  @param join        reference to the query info
+  @param join_list   list representation of the join to be converted
+  @param conds       conditions to add on expressions for converted joins
+  @param top         true <=> conds is the where condition
+  @param in_sj       TRUE <=> processing semi-join nest's children
+
+  The following parameters are IN/OUT parameters and are mutated by
+  this function:
+  @param table_ptr           the current TABLE_LIST from the join list
+  @param li_ptr              the iterator into the join list
+  @param used_tables_ptr     used_tables from simplify_joins
+  @param not_null_tables_ptr not_null_tables from simplify_joins
+
+  @return
+    - The new condition, if success
+    - nullptr, otherwise
+*/
+
+static COND *rewrite_full_outer_joins(JOIN *join,
+                                      COND *conds,
+                                      bool top,
+                                      bool in_sj,
+                                      TABLE_LIST **table_ptr,
+                                      List_iterator<TABLE_LIST> *li_ptr,
+                                      table_map *used_tables_ptr,
+                                      table_map *not_null_tables_ptr)
+{
+  DBUG_ASSERT(table_ptr);
+  DBUG_ASSERT(*table_ptr);
+  DBUG_ASSERT(li_ptr);
+  DBUG_ASSERT(used_tables_ptr);
+  DBUG_ASSERT(not_null_tables_ptr);
+  TABLE_LIST *right_table= *table_ptr;
+  List_iterator<TABLE_LIST> &li= *li_ptr;
+  table_map &used_tables= *used_tables_ptr;
+  table_map &not_null_tables= *not_null_tables_ptr;
+
+  // There's no FULL OUTER JOIN to attempt to rewrite, so do nothing.
+  if (!(right_table->outer_join & JOIN_TYPE_FULL))
+    return conds;
+
+  /*
+    The join_list enumerates the tables from t_n, ..., t_0 so we always
+    see the right table first.  If, on this call to rewrite_full_outer_joins,
+    the current table is left member of the JOIN (e.g., left_member FULL JOIN
+    ...) it means we couldn't rewrite the FULL JOIN as a LEFT, RIGHT, or
+    INNER JOIN, so emit an error (unless we're in an EXPLAIN EXTENDED, permit
+    that).
+  */
+  if (right_table->outer_join & JOIN_TYPE_LEFT)
+  {
+    if (join->thd->lex->describe)
+      return conds;
+
+    /*
+      We always see the RIGHT table before the LEFT table, so nothing to
+      do here for JOIN_TYPE_LEFT.
+    */
+    my_error(ER_NOT_SUPPORTED_YET, MYF(0),
+             "FULL JOINs that cannot be converted to LEFT, RIGHT, or "
+             "INNER JOINs");
+    return nullptr;
+  }
+
+  /*
+    Must always see the right table before the left.  Down below, we deal
+    with the left table at the same time as the right, so we'll never get
+    to this point with a single table remaining in the join_list.  If
+    there's a right table remaining then there will be a left one, too.
+  */
+  DBUG_ASSERT(right_table->outer_join & JOIN_TYPE_RIGHT);
+
+
+  /*
+    If the left table is a nested join, then recursively rewrite any
+    FULL JOINs within it.
+   */
+  TABLE_LIST *left_table= li.peek();
+  table_map nested_used_tables= 0;
+  table_map nested_not_null_tables= 0;
+  DBUG_ASSERT(left_table->outer_join & JOIN_TYPE_FULL);
+  DBUG_ASSERT(left_table->outer_join & JOIN_TYPE_LEFT);
+  const bool left_has_nested= left_table->nested_join;
+  if (left_has_nested)
+  {
+    conds= simplify_nested_join(join, left_table, conds, top, in_sj,
+                                &nested_used_tables, &nested_not_null_tables);
+  }
+
+  /*
+    If the right hand table is not null under the WHERE clause then we can
+    rewrite it as a RIGHT JOIN, mutating the data structures to make it
+    appear as though the user wrote the query as a RIGHT JOIN originally.
+  */
+  if (used_tables & not_null_tables)
+  {
+    /*
+      RIGHT JOINs don't actually exist in MariaDB!  This will do what
+      the grammar and convert_right_join together do when given a RIGHT JOIN.
+    */
+    rewrite_full_to_right(left_table, right_table);
+
+    // This will be reflected to the caller, too.
+    used_tables = left_has_nested ? nested_used_tables
+                                  : left_table->get_map();
+
+    /*
+      Swap myself with the left as though we did convert_right_join().
+      Then we will have effectively done the following transformation:
+        FULL -> RIGHT -> LEFT.
+      RIGHT JOINs don't actually exist in MariaDB!
+    */
+    *table_ptr= li.swap_next();
+    join->thd->lex->has_full_outer_join= false;
+  }
+  else
+  {
+    /*
+      Peek at the left table and see if it rejects nulls and if so, rewrite.
+      We peek instead of advancing the iterator outright because the outer
+      loop in simplify_joins will advance the iterator.  We're merely mutating
+      the datastructures at this point to make the FULL JOIN look like it was
+      written as a LEFT JOIN by the user (WHERE condition permitting).
+    */
+    table_map peeked_map= 0;
+    if (left_has_nested)
+    {
+      // The left table was a nested join, so peek at that map.
+      peeked_map= nested_used_tables;
+      not_null_tables= nested_not_null_tables;
+    }
+    else
+    {
+      /*
+        The left table was not a nested join, so peek at its map.
+        We can't just set peeked_map to left_table->get_map() in
+        all cases because, in the case of a nested_join, the underlying
+        TABLE_LIST::table member (from which the map is derived)
+        is nullptr.
+      */
+      peeked_map= left_table->get_map();
+    }
+
+    /*
+      If the left table, be it a nested join or not, rejects nulls for
+      the WHERE condition, then rewrite.
+    */
+    if (peeked_map & not_null_tables)
+    {
+      rewrite_full_to_left(left_table, right_table);
+      join->thd->lex->has_full_outer_join= false;
+    }
+    // else the FULL JOIN cannot be rewritten, pass it along.
+  }
+
+  return conds;
 }
 
 
