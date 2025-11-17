@@ -3916,15 +3916,16 @@ bool sp_head::add_for_loop_open_cursor(THD *thd, sp_pcontext *spcont,
   if (instr_copen == NULL || add_instr(instr_copen))
     return true;
 
+  const sp_rcontext_addr raddr(&sp_rcontext_handler_local, index->offset);
+  const List<sp_fetch_target> target_list(sp_fetch_target(index->name, raddr),
+                                          thd->mem_root);
+  if (!target_list.elements)
+    return true; // EOM
+
   sp_instr_cfetch *instr_cfetch=
     new (thd->mem_root) sp_instr_cfetch(instructions(),
-                                        spcont, coffset, false);
-  if (instr_cfetch == NULL || add_instr(instr_cfetch))
-    return true;
-  const sp_rcontext_addr raddr(&sp_rcontext_handler_local, index->offset);
-  sp_fetch_target *target=
-    new (thd->mem_root) sp_fetch_target(index->name, raddr);
-  return !target || instr_cfetch->add_to_fetch_target_list(target);
+                                        spcont, coffset, target_list, false);
+  return instr_cfetch == NULL || add_instr(instr_cfetch);
 }
 
 

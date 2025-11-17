@@ -1643,22 +1643,13 @@ class sp_instr_fetch_cursor: public sp_instr
   sp_instr_fetch_cursor(const sp_instr_fetch_cursor &) = delete;
   void operator=(sp_instr_fetch_cursor &) = delete;
 public:
-  sp_instr_fetch_cursor(uint ip, sp_pcontext *ctx, bool error_on_no_data)
+  sp_instr_fetch_cursor(uint ip, sp_pcontext *ctx,
+                        const List<sp_fetch_target> &target_list,
+                        bool error_on_no_data)
    :sp_instr(ip, ctx),
+    m_fetch_target_list(target_list),
     m_error_on_no_data(error_on_no_data)
-  {
-    m_fetch_target_list.empty();
-  }
-
-  bool add_to_fetch_target_list(sp_fetch_target *target)
-  {
-    return m_fetch_target_list.push_back(target);
-  }
-
-  void set_fetch_target_list(List<sp_fetch_target> *list)
-  {
-    m_fetch_target_list= *list;
-  }
+  { }
 
 protected:
   List<sp_fetch_target> m_fetch_target_list;
@@ -1672,8 +1663,10 @@ class sp_instr_cfetch : public sp_instr_fetch_cursor
   void operator=(sp_instr_cfetch &);
 
 public:
-  sp_instr_cfetch(uint ip, sp_pcontext *ctx, uint c, bool error_on_no_data)
-   :sp_instr_fetch_cursor(ip, ctx, error_on_no_data),
+  sp_instr_cfetch(uint ip, sp_pcontext *ctx, uint c,
+                  const List<sp_fetch_target> &target_list,
+                  bool error_on_no_data)
+   :sp_instr_fetch_cursor(ip, ctx, target_list, error_on_no_data),
     m_cursor(c)
   { }
 
@@ -1833,8 +1826,9 @@ class sp_instr_cfetch_by_ref : public sp_instr_fetch_cursor,
 public:
   sp_instr_cfetch_by_ref(uint ip, sp_pcontext *ctx,
                          const sp_rcontext_ref &ref,
+                         const List<sp_fetch_target> &target_list,
                          bool error_on_no_data)
-   :sp_instr_fetch_cursor(ip, ctx, error_on_no_data),
+   :sp_instr_fetch_cursor(ip, ctx, target_list, error_on_no_data),
     sp_rcontext_ref(ref)
   { }
 

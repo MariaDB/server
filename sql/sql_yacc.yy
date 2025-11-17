@@ -260,7 +260,6 @@ void _CONCAT_UNDERSCORED(turn_parser_debug_on,yyparse)()
   Item_basic_constant *item_basic_constant;
   Key_part_spec *key_part;
   LEX *lex;
-  sp_instr_fetch_cursor *instr_fetch_cursor;
   sp_expr_lex *expr_lex;
   sp_assignment_lex *assignment_lex;
   class sp_lex_cursor *sp_cursor_stmt;
@@ -1356,6 +1355,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
         ident_table_alias
         ident_sysvar_name
         ident_for_loop_index
+        fetch_statement_source
 
 %type <lex_string_with_metadata>
         TEXT_STRING
@@ -1617,9 +1617,6 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %type <sp_cursor_stmt>
         sp_cursor_stmt_lex
         sp_cursor_stmt
-
-%type <instr_fetch_cursor>
-        sp_proc_stmt_fetch_head
 
 %type <fetch_target_list>
         sp_fetch_list
@@ -4433,28 +4430,17 @@ sp_proc_stmt_open:
           }
         ;
 
-sp_proc_stmt_fetch_head:
-          FETCH_SYM ident INTO
-          {
-            if (unlikely(!($$= Lex->sp_add_instr_fetch_cursor(thd, &$2))))
-              MYSQL_YYABORT;
-          }
-        | FETCH_SYM FROM ident INTO
-          {
-            if (unlikely(!($$= Lex->sp_add_instr_fetch_cursor(thd, &$3))))
-              MYSQL_YYABORT;
-          }
-       | FETCH_SYM NEXT_SYM FROM ident INTO
-          {
-            if (unlikely(!($$= Lex->sp_add_instr_fetch_cursor(thd, &$4))))
-              MYSQL_YYABORT;
-          }
+fetch_statement_source:
+          ident { $$= $1; }
+        | FROM ident { $$= $2; }
+        | NEXT_SYM FROM ident { $$= $3; }
         ;
 
 sp_proc_stmt_fetch:
-         sp_proc_stmt_fetch_head sp_fetch_list
+         FETCH_SYM fetch_statement_source INTO sp_fetch_list
          {
-           $1->set_fetch_target_list($2);
+           if (unlikely(Lex->sp_add_fetch_cursor(thd, $2, *$4)))
+             MYSQL_YYABORT;
          }
        | FETCH_SYM GROUP_SYM NEXT_SYM ROW_SYM
          {

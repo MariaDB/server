@@ -7628,16 +7628,18 @@ bool LEX::sp_for_loop_intrange_iterate(THD *thd, const Lex_for_loop_st &loop)
 
 bool LEX::sp_for_loop_cursor_iterate(THD *thd, const Lex_for_loop_st &loop)
 {
-  sp_instr_cfetch *instr=
-    new (thd->mem_root) sp_instr_cfetch(sphead->instructions(),
-                                        spcont, loop.m_cursor_offset, false);
-  if (unlikely(instr == NULL) || unlikely(sphead->add_instr(instr)))
-    return true;
   const sp_rcontext_addr raddr(&sp_rcontext_handler_local,
                                loop.m_index->offset);
-  sp_fetch_target *trg=
-    new (thd->mem_root) sp_fetch_target(loop.m_index->name, raddr);
-  return !trg || instr->add_to_fetch_target_list(trg);
+  const List<sp_fetch_target> target_list(sp_fetch_target(loop.m_index->name,
+                                                          raddr),
+                                          thd->mem_root);
+  if (!target_list.elements)
+    return true;  // EOM
+  sp_instr_cfetch *instr=
+    new (thd->mem_root) sp_instr_cfetch(sphead->instructions(),
+                                        spcont, loop.m_cursor_offset,
+                                        target_list, false);
+  return unlikely(instr == NULL) || unlikely(sphead->add_instr(instr));
 }
 
 
@@ -10097,39 +10099,41 @@ int set_statement_var_if_exists(THD *thd, const char *var_name,
   Add instructions to handle "FETCH cur INTO targets".
   It covers both static cursors and SYS_REFCUSORs.
 */
-sp_instr_fetch_cursor *
-LEX::sp_add_instr_fetch_cursor(THD *thd, const LEX_CSTRING *name)
+bool
+LEX::sp_add_fetch_cursor(THD *thd, const Lex_ident_sys_st &name,
+                         const List<sp_fetch_target> &target_list)
 {
   uint offset;
 
   // Search for a static cursor with the given name first
-  if (spcont->find_cursor(name, &offset, false))
+  if (spcont->find_cursor(&name, &offset, false))
   {
     sp_instr_cfetch *i= new (thd->mem_root)
       sp_instr_cfetch(sphead->instructions(),
-                      spcont, offset,
+                      spcont, offset, target_list,
                       !(thd->variables.sql_mode & MODE_ORACLE));
-    return i == nullptr || sphead->add_instr(i) ? nullptr : i;
+    return i == nullptr || sphead->add_instr(i);
   }
 
   // Search for a SYS_REFCURSOR variable
   const Sp_rcontext_handler *rh;
-  const sp_variable *spv= find_variable(name, &rh);
+  const sp_variable *spv= find_variable(&name, &rh);
   if (spv)
   {
     if (check_variable_is_refcursor({STRING_WITH_LEN("FETCH")}, spv))
-      return nullptr;
+      return true;
     auto *i= new (thd->mem_root) sp_instr_cfetch_by_ref(
                                    sphead->instructions(), spcont,
                                    sp_rcontext_ref(
                                      sp_rcontext_addr(rh, spv->offset),
                                      &sp_rcontext_handler_statement),
+                                   target_list,
                                    !(thd->variables.sql_mode & MODE_ORACLE));
-    return i == nullptr || sphead->add_instr(i) ? nullptr : i;
+    return i == nullptr || sphead->add_instr(i);
   }
 
-  my_error(ER_SP_CURSOR_MISMATCH, MYF(0), name->str);
-  return nullptr;
+  my_error(ER_SP_CURSOR_MISMATCH, MYF(0), name.str);
+  return true;
 }
 
 
