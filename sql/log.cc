@@ -7927,7 +7927,9 @@ bool THD::binlog_write_table_maps()
       TABLE *table= *table_ptr;
       if (table->current_lock != F_WRLCK || ! table->file->row_logging)
         continue;
-      if (mysql_bin_log.write_table_map(this, table))
+
+      if (!table->s->global_tmp_table() && // Never write table maps for GTT
+          mysql_bin_log.write_table_map(this, table))
         DBUG_RETURN(1);
       if (table->restore_row_logging)
       {
