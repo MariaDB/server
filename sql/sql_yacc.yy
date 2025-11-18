@@ -2270,8 +2270,11 @@ master_def:
             static const struct Decimal_from_double: my_decimal
             {
               Decimal_from_double(double value): my_decimal()
-              { DBUG_ASSERT(!double2my_decimal(E_DEC_ERROR, value, this)); }
-            } MAX_PERIOD= SLAVE_MAX_HEARTBEAT_PERIOD/1000, THOUSAND= 1000;
+              {
+                int unexpected_error= double2my_decimal(E_DEC_ERROR, value, this);
+                DBUG_ASSERT(!unexpected_error);
+              }
+            } MAX_PERIOD= SLAVE_MAX_HEARTBEAT_PERIOD/1000.0, THOUSAND= 1000;
             auto decimal_buffer= my_decimal();
             my_decimal *decimal= $3->val_decimal(&decimal_buffer);
             if (!decimal ||
@@ -2281,11 +2284,11 @@ master_def:
             bool overprecise= decimal->frac > 3;
             // decomposed from my_decimal2int() to reduce a bit of computations
             auto rounded= my_decimal();
-            DBUG_ASSERT(
-              !decimal_round(decimal, &rounded, 3, HALF_UP) &&
-              !decimal_mul(&rounded, &THOUSAND, &decimal_buffer) &&
-              !decimal2ulonglong(&decimal_buffer, &(Lex->mi.heartbeat_period))
-            );
+            int unexpected_error=
+              decimal_round(decimal, &rounded, 3, HALF_UP) |
+              decimal_mul(&rounded, &THOUSAND, &decimal_buffer) |
+              decimal2ulonglong(&decimal_buffer, &(Lex->mi.heartbeat_period))
+            DBUG_ASSERT(!unexpected_error);
             if (unlikely(Lex->mi.heartbeat_period > slave_net_timeout*1000ULL))
               push_warning(thd, Sql_condition::WARN_LEVEL_WARN,
                            ER_SLAVE_HEARTBEAT_VALUE_OUT_OF_RANGE_MAX,

@@ -671,8 +671,8 @@ file '%s')", fname);
     mi->connect_retry= (uint) connect_retry;
     mi->ssl= (my_bool) ssl;
     mi->ssl_verify_server_cert= ssl_verify_server_cert;
-    mi->heartbeat_period=
-     MY_MIN(SLAVE_MAX_HEARTBEAT_PERIOD, master_heartbeat_period*1000);
+    mi->heartbeat_period= MY_MIN(SLAVE_MAX_HEARTBEAT_PERIOD,
+      static_cast<uint32_t>(master_heartbeat_period*1000));
   }
   DBUG_PRINT("master_info",("log_file_name: %s  position: %ld",
                             mi->master_log_name,
