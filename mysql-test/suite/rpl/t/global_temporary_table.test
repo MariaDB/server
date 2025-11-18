@@ -33,5 +33,20 @@ drop table t;
 drop table gtt;
 set global lock_wait_timeout= @old_timeout;
 
+--echo # MDEV-38125 Assertion !thd->rgi_slave failed on INSERT under LOCK TABLES
+create table t(x int);
+create global temporary table src(x int) on commit preserve rows;
+insert src values(1);
+lock tables t write, src write;
+set binlog_format=row;
+insert t values(1);
+unlock tables;
+truncate src;
+set binlog_format=statement;
+drop table t;
+drop table src;
+sync_slave_with_master;
+connection master;
+
 --disconnect con1
 --source include/rpl_end.inc
