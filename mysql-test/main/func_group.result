@@ -2570,6 +2570,23 @@ concat(a,":",group_concat(b))
 1:2,7
 4:5
 drop table t1;
-#
 # End of 10.3 tests
 #
+# MDEV-37888 unexpected type changing after changing AVG to MAX
+#
+SELECT 1, MAX(1), AVG(1);
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					1	3	1	1	N	32897	0	63
+def					MAX(1)	8	1	1	Y	32896	0	63
+def					AVG(1)	246	7	6	Y	32896	4	63
+1	MAX(1)	AVG(1)
+1	1	1.0000
+SELECT 1, MAX(1), AVG(1) UNION ALL SELECT 'one', 'max', 'avg';
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					1	253	3	3	N	1	39	8
+def					MAX(1)	253	3	3	Y	0	39	8
+def					AVG(1)	253	7	7	Y	0	39	8
+1	MAX(1)	AVG(1)
+1	1	1.00000
+one	max	avg
+# End of 10.11 tests
