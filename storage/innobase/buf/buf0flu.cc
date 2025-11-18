@@ -1463,7 +1463,16 @@ static ulint buf_do_flush_list_batch(ulint max_n, lsn_t lsn) noexcept
         buf_pool.delete_from_flush_list(bpage);
       skip:
         bpage= prev;
-        continue;
+        if (scanned & 31)
+          continue;
+        /* Release the buf_pool.flush_list_mutex every now and then
+        in order to reduce the wait time in buf_flush_ahead().
+        We attempt to preserve the pointer position while yielding.
+        Any thread that would remove 'prev' from buf_pool.flush_list
+        must adjust the hazard pointer. */
+        buf_pool.flush_hp.set(prev);
+        mysql_mutex_unlock(&buf_pool.flush_list_mutex);
+        goto next;
       }
 
       ut_ad(oldest_modification > 2);
@@ -1491,51 +1500,54 @@ static ulint buf_do_flush_list_batch(ulint max_n, lsn_t lsn) noexcept
       buf_pool.flush_hp.set(prev);
     }
 
-    const page_id_t page_id(bpage->id());
-    const uint32_t space_id= page_id.space();
-    if (!space || space->id != space_id)
     {
-      if (last_space_id != space_id)
+      const page_id_t page_id(bpage->id());
+      const uint32_t space_id= page_id.space();
+      if (!space || space->id != space_id)
+      {
+        if (last_space_id != space_id)
+        {
+          mysql_mutex_unlock(&buf_pool.flush_list_mutex);
+          mysql_mutex_unlock(&buf_pool.mutex);
+          if (space)
+            space->release();
+          auto p= buf_flush_space(space_id);
+          space= p.first;
+          last_space_id= space_id;
+          mysql_mutex_lock(&buf_pool.mutex);
+          buf_pool.stat.n_pages_written+= p.second;
+          mysql_mutex_lock(&buf_pool.flush_list_mutex);
+        }
+        else
+          ut_ad(!space);
+      }
+      else if (space->is_stopping_writes())
+      {
+        space->release();
+        space= nullptr;
+      }
+
+      if (!space)
+        buf_flush_discard_page(bpage);
+      else
       {
         mysql_mutex_unlock(&buf_pool.flush_list_mutex);
-        mysql_mutex_unlock(&buf_pool.mutex);
-        if (space)
-          space->release();
-        auto p= buf_flush_space(space_id);
-        space= p.first;
-        last_space_id= space_id;
-        mysql_mutex_lock(&buf_pool.mutex);
-        buf_pool.stat.n_pages_written+= p.second;
-        mysql_mutex_lock(&buf_pool.flush_list_mutex);
+        do
+        {
+          if (neighbors && space->is_rotational())
+            count+= buf_flush_try_neighbors(space, page_id, bpage,
+                                            neighbors == 1, count, max_n);
+          else if (bpage->flush(space))
+            ++count;
+          else
+            continue;
+          mysql_mutex_lock(&buf_pool.mutex);
+        }
+        while (0);
       }
-      else
-        ut_ad(!space);
-    }
-    else if (space->is_stopping_writes())
-    {
-      space->release();
-      space= nullptr;
     }
 
-    if (!space)
-      buf_flush_discard_page(bpage);
-    else
-    {
-      mysql_mutex_unlock(&buf_pool.flush_list_mutex);
-      do
-      {
-        if (neighbors && space->is_rotational())
-          count+= buf_flush_try_neighbors(space, page_id, bpage,
-                                          neighbors == 1, count, max_n);
-        else if (bpage->flush(space))
-          ++count;
-        else
-          continue;
-        mysql_mutex_lock(&buf_pool.mutex);
-      }
-      while (0);
-    }
-
+  next:
     mysql_mutex_lock(&buf_pool.flush_list_mutex);
     bpage= buf_pool.flush_hp.get();
   }
