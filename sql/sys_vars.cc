@@ -4174,9 +4174,9 @@ static Sys_var_set Sys_old_behavior(
 */
 static const char *new_mode_all_names[]=
 {
-  "FIX_DISK_TMPTABLE_COSTS",
+  "FIX_DISK_TMPTABLE_COSTS",        // Default from here, See NEW_MODE_MAX
   "FIX_INDEX_STATS_FOR_ALL_NULLS",
-  "TEST_WARNING1",                       // Default from here, See NEW_MODE_MAX
+  "TEST_WARNING1",
   "TEST_WARNING2",
   0
 };
