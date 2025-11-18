@@ -129,8 +129,10 @@ public:
   }
   void cache_clean ()
   {
+    mtx.lock();
     latest_version_cache.clear();
     key_info_cache.clear();
+    mtx.unlock();
   }
   int fill_info_schema(THD *thd, TABLE *table);
 private:
