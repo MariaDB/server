@@ -1115,6 +1115,7 @@ Item_sum_num::fix_fields(THD *thd, Item **ref)
   if (init_sum_func_check(thd))
     return TRUE;
 
+  collation= DTCollation_numeric();
   decimals=0;
   set_maybe_null(sum_func() != COUNT_FUNC);
   for (uint i=0 ; i < arg_count ; i++)
