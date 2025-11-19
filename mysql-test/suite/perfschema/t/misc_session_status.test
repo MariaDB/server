@@ -1,7 +1,7 @@
 --source include/not_embedded.inc
 --source include/have_perfschema.inc
 --source include/not_msan.inc
---source include/not_valgrind.inc
+--source include/not_valgrind_build.inc
 # This does not crash on 32 bit because of less memory used
 --source include/have_64bit.inc
 --echo #
