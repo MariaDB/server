@@ -1387,7 +1387,7 @@ void THD::init()
   bzero((char *) &org_status_var, sizeof(org_status_var));
   status_in_global= 0;
   start_bytes_received= 0;
-  m_last_commit_gtid.seq_no= 0;
+  bzero(&m_last_commit_gtid, sizeof(m_last_commit_gtid));
   last_stmt= NULL;
   /* Reset status of last insert id */
   arg_of_last_insert_id_function= FALSE;
