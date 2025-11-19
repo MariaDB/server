@@ -1,0 +1,29 @@
+connection node_2;
+connection node_1;
+#
+# MDEV-37808 "Local temporary space limit reached" on not so rare
+# occasions
+#
+connection node_1;
+set @@max_tmp_session_space_usage=1024*1024*1024;
+create user foo;
+grant all privileges on *.* to foo;
+use test;
+create table t1(a int, b varchar(1024)) engine=innodb;
+insert into t1 select seq, repeat("a", 500) from seq_1_to_100;
+create table t2(a int, b varchar(1024)) engine=myisam;
+insert into t2 select seq, repeat("a", 500) from seq_1_to_100;
+show status like "%tmp_space%";
+Variable_name	Value
+Max_tmp_space_used	102054
+Tmp_space_used	102054
+use test;
+select count(*) from t1;
+count(*)
+100
+show status like "%tmp_space%";
+Variable_name	Value
+Max_tmp_space_used	102054
+Tmp_space_used	0
+drop table t1,t2;
+drop user foo;

@@ -5232,7 +5232,7 @@ int flush_pagecache_blocks_with_filter(PAGECACHE *pagecache,
 {
   int res;
   DBUG_ENTER("flush_pagecache_blocks_with_filter");
-  DBUG_PRINT("enter", ("pagecache: %p  fd: %di", pagecache, file->file));
+  DBUG_PRINT("enter", ("pagecache: %p  fd: %d", pagecache, file->file));
 
   if (pagecache->disk_blocks <= 0)
     DBUG_RETURN(0);

@@ -1412,6 +1412,7 @@ int binlog_flush_pending_rows_event(THD *thd, bool stmt_end,
                                     bool is_transactional,
                                     Event_log *bin_log,
                                     binlog_cache_data *cache_data);
+void binlog_truncate_tmp_files(binlog_cache_mngr *cache_mngr);
 Rows_log_event* binlog_get_pending_rows_event(binlog_cache_mngr *cache_mngr,
                                               bool use_trans_cache);
 int online_alter_log_row(TABLE* table, const uchar *before_record,

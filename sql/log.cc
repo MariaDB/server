@@ -509,6 +509,12 @@ public:
       last_commit_pos_offset= 0;
     }
   }
+  /* Truncate temporary files if needed. Used with change_user */
+  void truncate_tmp_files()
+  {
+    stmt_cache.truncate_cache_file();
+    trx_cache.truncate_cache_file();
+  }
 
   binlog_cache_data* get_binlog_cache_data(bool is_transactional)
   {
@@ -6923,6 +6929,10 @@ int binlog_flush_pending_rows_event(THD *thd, bool stmt_end,
   return error;
 }
 
+void binlog_truncate_tmp_files(binlog_cache_mngr *cache_mngr)
+{
+  cache_mngr->truncate_tmp_files();
+}
 
 /*
   Check if there are pending row events in the binlog cache

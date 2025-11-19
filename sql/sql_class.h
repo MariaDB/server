@@ -1091,13 +1091,15 @@ typedef struct system_status_var
   double last_query_cost;
   uint32 threads_running;
 
-  /* Following variables are not cleared by FLUSH STATUS */
+  /* Memory used by internal temporary tables and on disk transaction cache */
   ulonglong max_tmp_space_used;
   /* Memory used for thread local storage */
   int64 max_local_memory_used;
-  /* Don't copy variables back to THD after this in show status */
+  /*
+    Following variables are not cleared by FLUSH STATUS
+    Don't copy them back to THD after show status
+  */
   ulonglong tmp_space_used;
-  /* Don't reset variables after this */
   volatile int64 local_memory_used;
   /* Memory allocated for global usage */
   volatile int64 global_memory_used;
@@ -1116,12 +1118,12 @@ typedef struct system_status_var
 
 #define STATUS_OFFSET(A) offsetof(STATUS_VAR,A)
 /* Clear as part of flush */
-#define clear_for_flush_status      STATUS_OFFSET(tmp_space_used)
-/* Clear as part of startup */
-#define clear_for_new_connection         STATUS_OFFSET(local_memory_used)
+#define clear_for_flush_status           STATUS_OFFSET(tmp_space_used)
+/* Clear as part of a new connection and reuse connection */
+#define clear_for_new_connection         STATUS_OFFSET(max_tmp_space_used)
 /* Full initialization. Note that global_memory_used is updated early! */
-#define clear_for_server_start  STATUS_OFFSET(global_memory_used)
-#define last_restored_status_var        clear_for_flush_status
+#define clear_for_server_start           STATUS_OFFSET(global_memory_used)
+#define last_restored_status_var         clear_for_flush_status
 
 
 /** Number of contiguous global status variables */
@@ -3369,7 +3371,7 @@ public:
   {
     if (!log_current_statement())
       return false;
-    auto *cache_mngr= binlog_get_cache_mngr();
+    binlog_cache_mngr *cache_mngr= binlog_get_cache_mngr();
     if (!cache_mngr)
       return true;
     return !binlog_get_pending_rows_event(cache_mngr,
@@ -3378,6 +3380,13 @@ public:
   }
 
   bool binlog_for_noop_dml(bool transactional_table);
+
+  void binlog_truncate_tmp_files()
+  {
+    binlog_cache_mngr *cache_mngr= binlog_get_cache_mngr();
+    if (cache_mngr)
+      ::binlog_truncate_tmp_files(cache_mngr);
+  }
 
   /**
     Determine the binlog format of the current statement.

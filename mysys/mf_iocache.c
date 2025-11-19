@@ -76,6 +76,7 @@ int (*_my_b_encr_write)(IO_CACHE *info,const uchar *Buffer,size_t Count)= 0;
 
 static inline my_bool tmp_file_track(IO_CACHE *info, ulonglong file_size)
 {
+  DBUG_ENTER("tmp_file_track");
   if ((info->myflags & (MY_TRACK | MY_TRACK_WITH_LIMIT)) &&
       update_tmp_file_size)
   {
@@ -90,11 +91,11 @@ static inline my_bool tmp_file_track(IO_CACHE *info, ulonglong file_size)
         if (info->myflags & MY_WME)
           my_error(error, MYF(0));
         info->error= -1;
-        return 1;
+        DBUG_RETURN(1);
       }
     }
   }
-  return 0;
+  DBUG_RETURN(0);
 }
 
 my_bool io_cache_tmp_file_track(IO_CACHE *info, ulonglong file_size)
@@ -122,7 +123,8 @@ static void reset_tracking_io_cache(IO_CACHE *info)
 
 void truncate_io_cache(IO_CACHE *info)
 {
-  if (my_chsize(info->file, 0, 0, MYF(MY_WME)) == 0)
+  if (mysql_file_seek(info->file, 0L, MY_SEEK_END, MYF(0)) != 0 &&
+      my_chsize(info->file, 0, 0, MYF(MY_WME)) == 0)
     reset_tracking_io_cache(info);
 }
 
@@ -1849,7 +1851,7 @@ int end_io_cache(IO_CACHE *info)
 {
   int error=0;
   DBUG_ENTER("end_io_cache");
-  DBUG_PRINT("enter",("cache: %p", info));
+  DBUG_PRINT("enter",("cache: %p  file: %d", info, info->file));
 
   /*
     Every thread must call remove_io_thread(). The last one destroys
@@ -1870,12 +1872,18 @@ int end_io_cache(IO_CACHE *info)
     /* Destroy allocated mutex */
     mysql_mutex_destroy(&info->append_buffer_lock);
   }
+  /*
+    We have to call reset_tracking_io_cache() also in case of file == -1
+    because close_cached_file() sets file to -1 to avoid flushing
+  */
   reset_tracking_io_cache(info);
   info->share= 0;
   info->type= TYPE_NOT_SET; /* Ensure that flush_io_cache() does nothing */
   info->write_end= 0;       /* Ensure that my_b_write() fails */
   info->write_function= 0;  /* my_b_write will crash if used */
 
+  DBUG_ASSERT(info->tracking.file_size == 0 &&
+              info->tracking.previous_file_size == 0);
   DBUG_RETURN(error);
 } /* end_io_cache */
 

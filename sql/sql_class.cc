@@ -799,6 +799,7 @@ THD::THD(my_thread_id id, bool is_wsrep_applier)
   status_var.local_memory_used= sizeof(THD);
   status_var.max_local_memory_used= status_var.local_memory_used;
   status_var.global_memory_used= 0;
+  status_var.tmp_space_used= 0;
   variables.pseudo_thread_id= thread_id;
   variables.max_mem_used= global_system_variables.max_mem_used;
   main_da.init();
@@ -916,6 +917,7 @@ THD::THD(my_thread_id id, bool is_wsrep_applier)
   reset_open_tables_state();
 
   init();
+
   debug_sync_init_thread(this);
 #if defined(ENABLED_PROFILING)
   profiling.set_thd(this);
@@ -1383,6 +1385,7 @@ void THD::init()
   reset_binlog_local_stmt_filter();
   /* local_memory_used was setup in THD::THD() */
   set_status_var_init(clear_for_new_connection);
+  status_var.max_tmp_space_used= status_var.tmp_space_used; // Should be 0
   status_var.max_local_memory_used= status_var.local_memory_used;
   bzero((char *) &org_status_var, sizeof(org_status_var));
   status_in_global= 0;
@@ -1574,6 +1577,7 @@ void THD::change_user(void)
                HASH_THREAD_SPECIFIC);
   sp_caches_clear();
   opt_trace.delete_traces();
+  binlog_truncate_tmp_files();
 }
 
 /**
@@ -1730,6 +1734,7 @@ void THD::cleanup(void)
 
 void THD::free_connection()
 {
+  DBUG_ENTER("free_connection");
   DBUG_ASSERT(free_connection_done == 0);
   my_free(const_cast<char*>(db.str));
   db= null_clex_str;
@@ -1756,6 +1761,9 @@ void THD::free_connection()
   profiling.restart();                          // Reset profiling
 #endif
   debug_sync_reset_thread(this);
+  DBUG_ASSERT(status_var.tmp_space_used == 0 ||
+              !debug_assert_on_not_freed_memory);
+  DBUG_VOID_RETURN;
 }
 
 /*
