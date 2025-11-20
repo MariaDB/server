@@ -2792,7 +2792,15 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
     /* Convert pre-10.2.2 timestamps to use Field::default_value */
     name.str= fieldnames.type_names[i];
     name.length= strlen(name.str);
-    attr.set_typelib(interval_nr ? share->intervals + interval_nr - 1 : NULL);
+    if (interval_nr)
+    {
+      Type_typelib_ptr_attributes typelib_ptr_attr(
+        new (&share->mem_root) Type_typelib_attributes(
+                                 share->intervals[interval_nr - 1]));
+      if (!typelib_ptr_attr.typelib_attr())
+        goto err; // EOM
+      typelib_ptr_attr.save_in_type_extra_attributes(&attr);
+    }
     Record_addr addr(record + recpos, null_pos, null_bit_pos);
     *field_ptr= reg_field=
       attr.make_field(share, &share->mem_root, &addr, handler, &name, flags);

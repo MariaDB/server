@@ -25,7 +25,7 @@
 */
 
 class sp_type_def : public Sql_alloc,
-                    public Type_handler_hybrid_field_type
+                    public Type_generic_attributes
 {
 protected:
   /// Name of the type.
@@ -34,9 +34,10 @@ protected:
 public:
   sp_type_def(const Lex_ident_column &name_arg, const Type_handler *th)
    :Sql_alloc(),
-    Type_handler_hybrid_field_type(th),
     m_name(name_arg)
   { }
+
+  virtual ~sp_type_def() { }
 
   bool eq_name(const LEX_CSTRING &name) const
   {
@@ -69,13 +70,19 @@ public:
    :sp_type_def(name_arg, &type_handler_row),
     field(prmfield)
   { }
+
+  const Type_handler *type_handler() const override
+  {
+    return &type_handler_row;
+  }
 };
 
 
 /*
   This class represents 'DECLARE TYPE .. TABLE OF' statement.
 */
-class sp_type_def_composite2 : public sp_type_def
+class sp_type_def_composite2 : public sp_type_def,
+                               public Type_handler_hybrid_field_type
 {
   Spvar_definition m_def[2];
 
@@ -85,8 +92,15 @@ public:
                          const Spvar_definition *key_def_arg,
                          const Spvar_definition *value_def_arg)
    :sp_type_def(name_arg, th),
+    Type_handler_hybrid_field_type(th),
     m_def{*key_def_arg, *value_def_arg}
   { }
+
+  const Type_handler *type_handler() const override
+  {
+    return Type_handler_hybrid_field_type::type_handler();
+  }
+
   const Spvar_definition & def(uint idx) const
   {
     DBUG_ASSERT(idx < 2);

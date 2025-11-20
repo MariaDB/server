@@ -3544,6 +3544,14 @@ public:
 };
 
 
+class Type_generic_attributes
+{
+public:
+  virtual ~Type_generic_attributes() { }
+  virtual const Type_handler *type_handler() const = 0;
+};
+
+
 /*
   A container for very specific data type attributes.
   For now it provides space for:
@@ -3552,29 +3560,30 @@ public:
 */
 class Type_extra_attributes
 {
-  const void *m_attr_const_void_ptr[1];
+  const Type_generic_attributes *m_attr_const_generic_attributes_ptr[1];
   uint32 m_attr_uint32[1];
 public:
   Type_extra_attributes()
-   :m_attr_const_void_ptr{0},
+   :m_attr_const_generic_attributes_ptr{0},
     m_attr_uint32{0}
   { }
-  Type_extra_attributes(const void *const_void_ptr)
-   :m_attr_const_void_ptr{const_void_ptr},
+  Type_extra_attributes(const Type_generic_attributes *ptr)
+   :m_attr_const_generic_attributes_ptr{ptr},
     m_attr_uint32{0}
   { }
   /*
     Generic const pointer attributes.
     The ENUM and SET data types store TYPELIB information here.
   */
-  Type_extra_attributes & set_attr_const_void_ptr(uint i, const void *value)
+  Type_extra_attributes & set_attr_const_generic_ptr(uint i,
+                                          const Type_generic_attributes *value)
   {
-    m_attr_const_void_ptr[i]= value;
+    m_attr_const_generic_attributes_ptr[i]= value;
     return *this;
   }
-  const void *get_attr_const_void_ptr(uint i) const
+  const Type_generic_attributes *get_attr_const_generic_ptr(uint i) const
   {
-    return m_attr_const_void_ptr[i];
+    return m_attr_const_generic_attributes_ptr[i];
   }
   /*
     Generic uint32 attributes.
@@ -3589,49 +3598,57 @@ public:
   {
     return m_attr_uint32[i];
   }
-  /*
-    Helper methods for TYPELIB attributes.
-    They are mostly needed to simplify the code
-    in Column_definition_attributes and Column_definition methods.
-    Eventually we should move this code into Type_typelib_attributes
-    and remove these methods.
-  */
-  Type_extra_attributes & set_typelib(const TYPELIB *typelib)
+};
+
+
+class Type_typelib_attributes: public Sql_alloc,
+                               public Type_generic_attributes,
+                               public TYPELIB
+{
+public:
+  Type_typelib_attributes()
+   :TYPELIB{0, nullptr, nullptr, nullptr, nullptr}
+  { }
+  Type_typelib_attributes(const TYPELIB &typelib)
+   :TYPELIB(typelib)
+  { }
+  const Type_handler *type_handler() const override;
+  Type_typelib_attributes *deep_copy(MEM_ROOT *root) const
   {
-    return set_attr_const_void_ptr(0, typelib);
-  }
-  const TYPELIB *typelib() const
-  {
-    return (const TYPELIB*) get_attr_const_void_ptr(0);
+    TYPELIB *typelib= copy_typelib(root, this);
+    if (!typelib)
+      return nullptr;
+    return new (root) Type_typelib_attributes(*typelib);
   }
 };
 
 
-class Type_typelib_attributes
+class Type_typelib_ptr_attributes
 {
 protected:
-  const TYPELIB *m_typelib;
+  const Type_typelib_attributes *m_typelib_attr;
 public:
-  Type_typelib_attributes()
-   :m_typelib(nullptr)
+  Type_typelib_ptr_attributes()
+   :m_typelib_attr(nullptr)
   { }
-  Type_typelib_attributes(const TYPELIB *typelib)
-   :m_typelib(typelib)
+  Type_typelib_ptr_attributes(const Type_typelib_attributes *typelib)
+   :m_typelib_attr(typelib)
   { }
-  Type_typelib_attributes(const Type_extra_attributes &eattr)
-   :m_typelib((const TYPELIB *) eattr.get_attr_const_void_ptr(0))
+  Type_typelib_ptr_attributes(const Type_extra_attributes &eattr)
+   :m_typelib_attr(dynamic_cast<const Type_typelib_attributes *>
+                     (eattr.get_attr_const_generic_ptr(0)))
   { }
-  void store(Type_extra_attributes *to) const
+  void save_in_type_extra_attributes(Type_extra_attributes *to) const
   {
-    to->set_attr_const_void_ptr(0, m_typelib);
+    to->set_attr_const_generic_ptr(0, m_typelib_attr);
+  }
+  const Type_typelib_attributes *typelib_attr() const
+  {
+    return m_typelib_attr;
   }
   const TYPELIB *typelib() const
   {
-    return m_typelib;
-  }
-  void set_typelib(const TYPELIB *typelib)
-  {
-    m_typelib= typelib;
+    return m_typelib_attr;
   }
 };
 

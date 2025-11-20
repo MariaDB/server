@@ -2405,8 +2405,8 @@ bool Type_handler_assoc_array::
       CREATE TABLE t1 (a ASSOCIATIVE_ARRAY);
       CREATE FUNCTION .. RETURN ASSOCIATEIVE ARRAY ..;
   */
-  if (!(tdef= reinterpret_cast<const sp_type_def_composite2*>
-                           (def->get_attr_const_void_ptr(0))))
+  if (!(tdef= dynamic_cast<const sp_type_def_composite2*>
+                           (def->get_attr_const_generic_ptr(0))))
   {
     my_error(ER_NOT_ALLOWED_IN_THIS_CONTEXT, MYF(0), name().ptr());
     return true;
@@ -2441,8 +2441,8 @@ bool Type_handler_assoc_array::
                                                             const
 {
   const sp_type_def_composite2 *spaa=
-                                  static_cast<const sp_type_def_composite2*>
-                                    (def.get_attr_const_void_ptr(0));
+                                  dynamic_cast<const sp_type_def_composite2*>
+                                    (def.get_attr_const_generic_ptr(0));
   DBUG_ASSERT(spaa);
   DBUG_ASSERT(spaa->def(0).type_handler() != &type_handler_null);
   DBUG_ASSERT(spaa->def(1).type_handler() != &type_handler_null ||
@@ -2454,7 +2454,8 @@ bool Type_handler_assoc_array::
   if (value_def->type_handler() == &type_handler_row)
   {
     if (const sp_type_def_record *sprec=
-        (sp_type_def_record *)value_def->get_attr_const_void_ptr(0))
+         dynamic_cast<const sp_type_def_record *>
+           (value_def->get_attr_const_generic_ptr(0)))
     {
       /*
         Hack to ensure that we don't call sp_head::row_fill_field_definitions()

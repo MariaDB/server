@@ -13031,7 +13031,7 @@ bool LEX::declare_type_assoc_array(THD *thd,
 
   Column_definition def;
   def.set_handler(th);
-  def.set_attr_const_void_ptr(0, tdef);
+  def.set_attr_const_generic_ptr(0, tdef);
   Lex_field_type_st ltype;
   ltype.set(th);
   return def.type_handler()->
@@ -13091,7 +13091,7 @@ bool LEX::set_field_type_typedef(Lex_field_type_st *type,
     if (const sp_type_def *composite= find_type_def(name))
     {
       type->set(composite->type_handler(), NULL);
-      last_field->set_attr_const_void_ptr(0, composite);
+      last_field->set_attr_const_generic_ptr(0, composite);
       *is_typedef= true;
     }
   }

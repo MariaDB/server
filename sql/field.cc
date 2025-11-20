@@ -9555,7 +9555,7 @@ int Field_enum::store(const char *from,size_t length,CHARSET_INFO *cs)
 
   /* Remove end space */
   length= (uint) field_charset()->lengthsp(from, length);
-  uint tmp=find_type2(m_typelib, from, length, field_charset());
+  uint tmp= find_type2(typelib(), from, length, field_charset());
   if (!tmp)
   {
     if (length < 6) // Can't be more than 99999 enums
@@ -9563,7 +9563,7 @@ int Field_enum::store(const char *from,size_t length,CHARSET_INFO *cs)
       /* This is for reading numbers with LOAD DATA INFILE */
       char *end;
       tmp=(uint) cs->strntoul(from,length,10,&end,&err);
-      if (err || end != from + length || tmp > m_typelib->count)
+      if (err || end != from + length || tmp > typelib()->count)
       {
 	tmp=0;
 	set_warning(WARN_DATA_TRUNCATED, 1);
@@ -9593,7 +9593,7 @@ int Field_enum::store(longlong nr, bool unsigned_val)
 {
   DBUG_ASSERT(marked_for_write_or_computed());
   int error= 0;
-  if ((ulonglong) nr > m_typelib->count || nr == 0)
+  if ((ulonglong) nr > typelib()->count || nr == 0)
   {
     set_warning(WARN_DATA_TRUNCATED, 1);
     if (nr != 0 || get_thd()->count_cuted_fields > CHECK_FIELD_EXPRESSION)
@@ -9639,7 +9639,7 @@ Binlog_type_info Field_enum::binlog_type_info() const
 {
   DBUG_ASSERT(Field_enum::type() == binlog_type());
   return Binlog_type_info(Field_enum::type(), real_type() + (pack_length() << 8),
-                          2, charset(), m_typelib, NULL);
+                          2, charset(), typelib_attr(), NULL);
 }
 
 
@@ -9647,11 +9647,11 @@ String *Field_enum::val_str(String *val_buffer __attribute__((unused)),
 			    String *val_ptr)
 {
   uint tmp=(uint) Field_enum::val_int();
-  if (!tmp || tmp > m_typelib->count)
+  if (!tmp || tmp > typelib()->count)
     val_ptr->set("", 0, field_charset());
   else
-    val_ptr->set((const char*) m_typelib->type_names[tmp - 1],
-                 m_typelib->type_lengths[tmp - 1],
+    val_ptr->set((const char*) typelib()->type_names[tmp - 1],
+                 typelib()->type_lengths[tmp - 1],
                  field_charset());
   return val_ptr;
 }
@@ -9684,8 +9684,8 @@ void Field_enum::sql_type(String &res) const
   res.append(STRING_WITH_LEN("enum("));
 
   bool flag=0;
-  uint *len= m_typelib->type_lengths;
-  for (const char **pos= m_typelib->type_names; *pos; pos++, len++)
+  uint *len= typelib()->type_lengths;
+  for (const char **pos= typelib()->type_names; *pos; pos++, len++)
   {
     uint dummy_errors;
     if (flag)
@@ -9702,10 +9702,12 @@ void Field_enum::sql_type(String &res) const
 Field *Field_enum::make_new_field(MEM_ROOT *root, TABLE *new_table,
                                   bool keep_type)
 {
+  DBUG_ASSERT(m_typelib_attr);
   Field_enum *res= (Field_enum*) Field::make_new_field(root, new_table,
                                                        keep_type);
-  if (res)
-    res->m_typelib= copy_typelib(root, m_typelib);
+  if (!res ||
+      !(res->m_typelib_attr= m_typelib_attr->deep_copy(root)))
+    return nullptr;
   return res;
 }
 
@@ -9738,7 +9740,7 @@ int Field_set::store(const char *from,size_t length,CHARSET_INFO *cs)
     from= tmpstr.ptr();
     length=  tmpstr.length();
   }
-  ulonglong tmp= find_set(m_typelib, from, length, field_charset(),
+  ulonglong tmp= find_set(typelib(), from, length, field_charset(),
                           &not_used, &not_used2, &got_warning);
   if (!tmp && length && length < 22)
   {
@@ -9766,10 +9768,10 @@ int Field_set::store(longlong nr, bool unsigned_val)
   int error= 0;
   ulonglong max_nr;
 
-  if (sizeof(ulonglong) * 8 <= m_typelib->count)
+  if (sizeof(ulonglong) * 8 <= typelib()->count)
     max_nr= ULONGLONG_MAX;
   else
-    max_nr= (1ULL << m_typelib->count) - 1;
+    max_nr= (1ULL << typelib()->count) - 1;
 
   if ((ulonglong) nr > max_nr)
   {
@@ -9790,13 +9792,13 @@ String *Field_set::val_str(String *val_buffer,
 
   val_buffer->copy("", 0, field_charset());
 
-  while (tmp && bitnr < (uint) m_typelib->count)
+  while (tmp && bitnr < (uint) typelib()->count)
   {
     if (tmp & 1)
     {
       if (val_buffer->length())
 	val_buffer->append(&field_separator, 1, &my_charset_latin1);
-      String str(m_typelib->type_names[bitnr], m_typelib->type_lengths[bitnr],
+      String str(typelib()->type_names[bitnr], typelib()->type_lengths[bitnr],
 		 field_charset());
       val_buffer->append(str);
     }
@@ -9816,8 +9818,8 @@ void Field_set::sql_type(String &res) const
   res.append(STRING_WITH_LEN("set("));
 
   bool flag=0;
-  uint *len= m_typelib->type_lengths;
-  for (const char **pos= m_typelib->type_names; *pos; pos++, len++)
+  uint *len= typelib()->type_lengths;
+  for (const char **pos= typelib()->type_names; *pos; pos++, len++)
   {
     uint dummy_errors;
     if (flag)
@@ -9834,7 +9836,7 @@ Binlog_type_info Field_set::binlog_type_info() const
 {
   DBUG_ASSERT(Field_set::type() == binlog_type());
   return Binlog_type_info(Field_set::type(), real_type()
-           + (pack_length() << 8), 2, charset(), NULL, m_typelib);
+           + (pack_length() << 8), 2, charset(), NULL, typelib_attr());
 }
 
 /**
@@ -9881,13 +9883,13 @@ bool Field_enum::eq_def(const Field *field) const
   if (!Field::eq_def(field))
     return FALSE;
 
-  values= ((Field_enum*) field)->m_typelib;
+  values= ((Field_enum*) field)->typelib();
 
   /* Definition must be strictly equal. */
-  if (m_typelib->count != values->count)
+  if (typelib()->count != values->count)
     return FALSE;
 
-  return compare_type_names(field_charset(), m_typelib, values);
+  return compare_type_names(field_charset(), typelib(), values);
 }
 
 
@@ -9916,11 +9918,11 @@ bool Field_enum::is_equal(const Column_definition &new_field) const
     enumeration or set members to the end of the list of valid member
     values only alters table metadata and not table data.
   */
-  if (m_typelib->count > new_field.typelib()->count)
+  if (typelib()->count > new_field.typelib()->count)
     return false;
 
   /* Check whether there are modification before the end. */
-  if (! compare_type_names(field_charset(), m_typelib, new_field.typelib()))
+  if (! compare_type_names(field_charset(), typelib(), new_field.typelib()))
     return false;
 
   return true;
@@ -10614,10 +10616,10 @@ bool Column_definition::create_interval_from_interval_list(MEM_ROOT *mem_root,
 {
   DBUG_ENTER("Column_definition::create_interval_from_interval_list");
   DBUG_ASSERT(!typelib());
-  TYPELIB *tmpint;
-  if (!set_typelib(tmpint= (TYPELIB*) alloc_root(mem_root, sizeof(TYPELIB))).
-         typelib())
+  Type_typelib_attributes *tmpint= new (mem_root) Type_typelib_attributes();
+  if (!tmpint)
     DBUG_RETURN(true); // EOM
+  Type_typelib_ptr_attributes(tmpint).save_in_type_extra_attributes(this);
 
   List_iterator<String> it(interval_list);
   StringBuffer<64> conv;
@@ -10686,7 +10688,7 @@ bool Column_definition::create_interval_from_interval_list(MEM_ROOT *mem_root,
   DBUG_RETURN(false);
 err:
   // Avoid having both non-empty interval_list and the typelib attribute
-  set_typelib(NULL);
+  Type_typelib_ptr_attributes(nullptr).save_in_type_extra_attributes(this);
   DBUG_RETURN(true);
 }
 
@@ -10738,8 +10740,11 @@ bool Column_definition::prepare_interval_field(MEM_ROOT *mem_root,
       cycle of "this".
     */
     DBUG_ASSERT(typelib());
-    if (!set_typelib(copy_typelib(mem_root, typelib())).typelib())
-      DBUG_RETURN(true);
+    const Type_typelib_ptr_attributes typelib_ptr_attr(
+            typelib_attr()->deep_copy(mem_root));
+    if (!typelib_ptr_attr.typelib_attr())
+      DBUG_RETURN(true); // EOM
+    typelib_ptr_attr.save_in_type_extra_attributes(this);
   }
   prepare_interval_field_calc_length();
   DBUG_RETURN(false);
@@ -11095,8 +11100,9 @@ Field *Column_definition_attributes::make_field(TABLE_SHARE *share,
                                                 const
 {
   DBUG_ASSERT(length <= UINT_MAX32);
-  DBUG_PRINT("debug", ("field_type: %s, field_length: %u, interval: %p, pack_flag: %s%s%s%s%s",
-                       handler->name().ptr(), (uint) length, typelib(),
+  DBUG_PRINT("debug", ("field_type: %s, field_length: %u, typelib_attr: %p, "
+                       "pack_flag: %s%s%s%s%s",
+                       handler->name().ptr(), (uint) length, typelib_attr(),
                        FLAGSTR(pack_flag, FIELDFLAG_BINARY),
                        FLAGSTR(pack_flag, FIELDFLAG_INTERVAL),
                        FLAGSTR(pack_flag, FIELDFLAG_NUMBER),
