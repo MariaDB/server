@@ -77,17 +77,21 @@ public:
 */
 class sp_type_def_composite2 : public sp_type_def
 {
-public:
-  Spvar_definition *m_def[2];
+  Spvar_definition m_def[2];
 
 public:
   sp_type_def_composite2(const Lex_ident_column &name_arg,
                          const Type_handler *th,
-                         Spvar_definition *key_def_arg,
-                         Spvar_definition *value_def_arg)
+                         const Spvar_definition *key_def_arg,
+                         const Spvar_definition *value_def_arg)
    :sp_type_def(name_arg, th),
-    m_def{key_def_arg, value_def_arg}
+    m_def{*key_def_arg, *value_def_arg}
   { }
+  const Spvar_definition & def(uint idx) const
+  {
+    DBUG_ASSERT(idx < 2);
+    return m_def[idx];
+  }
 };
 
 
