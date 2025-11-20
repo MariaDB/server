@@ -2412,19 +2412,19 @@ bool Type_handler_assoc_array::
     return true;
   }
 
-  if (unlikely(tdef->m_def[1]->type_handler() == this))
+  if (unlikely(tdef->def(1).type_handler() == this))
   {
     my_error(ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION, MYF(0),
-             tdef->m_def[1]->type_handler()->name().ptr(),
+             tdef->def(1).type_handler()->name().ptr(),
              "<array element data type>");
     return true;
   }
-  if (unlikely(tdef->m_def[0]->type_handler() != &type_handler_varchar &&
+  if (unlikely(tdef->def(0).type_handler() != &type_handler_varchar &&
                !dynamic_cast<const Type_handler_general_purpose_int*>
-                                            (tdef->m_def[0]->type_handler())))
+                                            (tdef->def(0).type_handler())))
   {
     my_error(ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION, MYF(0),
-             tdef->m_def[0]->type_handler()->name().ptr(),
+             tdef->def(0).type_handler()->name().ptr(),
              "<array index data type>");
     return true;
   }
@@ -2444,12 +2444,13 @@ bool Type_handler_assoc_array::
                                   static_cast<const sp_type_def_composite2*>
                                     (def.get_attr_const_void_ptr(0));
   DBUG_ASSERT(spaa);
-  DBUG_ASSERT(spaa->m_def[0]);
-  DBUG_ASSERT(spaa->m_def[1]);
-  Spvar_definition *key_def= spaa->m_def[0];
-  Spvar_definition *value_def= spaa->m_def[1];
+  DBUG_ASSERT(spaa->def(0).type_handler() != &type_handler_null);
+  DBUG_ASSERT(spaa->def(1).type_handler() != &type_handler_null ||
+              spaa->def(1).column_type_ref());
+  const Spvar_definition *key_def= &spaa->def(0);
+  Spvar_definition *value_def;
 
-  value_def= new (thd->mem_root) Spvar_definition(*value_def);
+  value_def= new (thd->mem_root) Spvar_definition(spaa->def(1));
   if (value_def->type_handler() == &type_handler_row)
   {
     if (const sp_type_def_record *sprec=
@@ -2481,7 +2482,7 @@ bool Type_handler_assoc_array::
   if (unlikely(aa_def == nullptr))
     return true;
 
-  aa_def->push_back(key_def, thd->mem_root);
+  aa_def->push_back(new(thd->mem_root) Spvar_definition(*key_def), thd->mem_root);
   aa_def->push_back(value_def, thd->mem_root);
 
   for (uint i= 0 ; i < (uint) nvars ; i++)
