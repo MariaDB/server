@@ -2697,7 +2697,8 @@ Field *Type_handler_enum::make_conversion_table_field(MEM_ROOT *root,
          Field_enum(NULL, target->field_length,
                     (uchar *) "", 1, Field::NONE, &empty_clex_str,
                     metadata & 0x00ff/*pack_length()*/,
-                    ((const Field_enum*) target)->typelib(), target->charset());
+                    ((const Field_enum*) target)->typelib_attr(),
+                    target->charset());
 }
 
 
@@ -2713,7 +2714,8 @@ Field *Type_handler_set::make_conversion_table_field(MEM_ROOT *root,
          Field_set(NULL, target->field_length,
                    (uchar *) "", 1, Field::NONE, &empty_clex_str,
                    metadata & 0x00ff/*pack_length()*/,
-                   ((const Field_enum*) target)->typelib(), target->charset());
+                   ((const Field_enum*) target)->typelib_attr(),
+                   target->charset());
 }
 
 
@@ -2728,12 +2730,15 @@ Field *Type_handler_enum::make_schema_field(MEM_ROOT *root, TABLE *table,
     Assume I_S columns don't have non-ASCII characters in names.
     If we eventually want to, Typelib::max_char_length() must be implemented.
   */
+  Type_typelib_attributes *attr= new (root) Type_typelib_attributes(*typelib);
+  if (!attr)
+    return nullptr; // EOM
   return new (root)
          Field_enum(addr.ptr(), (uint32) typelib->max_octet_length(),
                     addr.null_ptr(), addr.null_bit(),
                     Field::NONE, &name,
                     get_enum_pack_length(typelib->count),
-                    typelib, system_charset_info_for_i_s);
+                    attr, system_charset_info_for_i_s);
 
 }
 
@@ -3030,7 +3035,7 @@ void Type_handler_typelib::
 {
   DBUG_ASSERT(def->flags & (ENUM_FLAG | SET_FLAG));
   const Field_enum *field_enum= static_cast<const Field_enum*>(field);
-  field_enum->Type_typelib_attributes::store(def);
+  field_enum->Type_typelib_ptr_attributes::save_in_type_extra_attributes(def);
 }
 
 
@@ -4017,14 +4022,15 @@ Field *Type_handler_enum::make_table_field(MEM_ROOT *root,
                                            const Type_all_attributes &attr,
                                            TABLE_SHARE *share) const
 {
-  const Type_typelib_attributes typelib_attr(attr.type_extra_attributes());
-  DBUG_ASSERT(typelib_attr.typelib());
+  const Type_typelib_ptr_attributes typelib_ptr_attr(
+                                      attr.type_extra_attributes());
+  DBUG_ASSERT(typelib_ptr_attr.typelib_attr());
   return new (root)
          Field_enum(addr.ptr(), attr.max_length,
                     addr.null_ptr(), addr.null_bit(),
                     Field::NONE, name,
-                    get_enum_pack_length(typelib_attr.typelib()->count),
-                    typelib_attr.typelib(),
+                    get_enum_pack_length(typelib_ptr_attr.typelib_attr()->count),
+                    typelib_ptr_attr.typelib_attr(),
                     attr.collation);
 }
 
@@ -4036,14 +4042,15 @@ Field *Type_handler_set::make_table_field(MEM_ROOT *root,
                                           TABLE_SHARE *share) const
 
 {
-  const Type_typelib_attributes typelib_attr(attr.type_extra_attributes());
-  DBUG_ASSERT(typelib_attr.typelib());
+  const Type_typelib_ptr_attributes typelib_ptr_attr(
+                                                attr.type_extra_attributes());
+  DBUG_ASSERT(typelib_ptr_attr.typelib_attr());
   return new (root)
          Field_set(addr.ptr(), attr.max_length,
                    addr.null_ptr(), addr.null_bit(),
                    Field::NONE, name,
-                   get_enum_pack_length(typelib_attr.typelib()->count),
-                   typelib_attr.typelib(),
+                   get_enum_pack_length(typelib_ptr_attr.typelib_attr()->count),
+                   typelib_ptr_attr.typelib_attr(),
                    attr.collation);
 }
 
@@ -4802,13 +4809,14 @@ bool Type_handler_typelib::
                                        Type_all_attributes *func,
                                        Item **items, uint nitems) const
 {
-  const TYPELIB *typelib= NULL;
+  const Type_typelib_attributes *typelib_attr= NULL;
   for (uint i= 0; i < nitems; i++)
   {
-    const Type_extra_attributes eattr2= items[i]->type_extra_attributes();
-    if (eattr2.typelib())
+    const Type_typelib_ptr_attributes typelib_ptr_attr(
+                                           items[i]->type_extra_attributes());
+    if (typelib_ptr_attr.typelib_attr())
     {
-      if (typelib)
+      if (typelib_attr)
       {
         /*
           Two ENUM/SET columns found. We convert such combinations to VARCHAR.
@@ -4818,13 +4826,14 @@ bool Type_handler_typelib::
         handler->set_handler(&type_handler_varchar);
         return func->aggregate_attributes_string(func_name, items, nitems);
       }
-      typelib= eattr2.typelib();
+      typelib_attr= typelib_ptr_attr.typelib_attr();
     }
   }
-  DBUG_ASSERT(typelib); // There must be at least one typelib
+  DBUG_ASSERT(typelib_attr); // There must be at least one typelib
   Type_extra_attributes *eattr_addr= func->type_extra_attributes_addr();
   if (eattr_addr)
-    eattr_addr->set_typelib(typelib);
+    Type_typelib_ptr_attributes(typelib_attr).
+      save_in_type_extra_attributes(eattr_addr);
   return func->aggregate_attributes_string(func_name, items, nitems);
 }
 
@@ -8599,7 +8608,7 @@ Field *Type_handler_enum::
   return new (mem_root)
     Field_enum(rec.ptr(), (uint32) attr->length, rec.null_ptr(), rec.null_bit(),
                attr->unireg_check, name, attr->pack_flag_to_pack_length(),
-               attr->typelib(), attr->charset);
+               attr->typelib_attr(), attr->charset);
 }
 
 
@@ -8613,7 +8622,7 @@ Field *Type_handler_set::
   return new (mem_root)
     Field_set(rec.ptr(), (uint32) attr->length, rec.null_ptr(), rec.null_bit(),
               attr->unireg_check, name, attr->pack_flag_to_pack_length(),
-              attr->typelib(), attr->charset);
+              attr->typelib_attr(), attr->charset);
 }
 
 
@@ -9683,4 +9692,10 @@ Item *Type_handler::make_typedef_constructor_item(THD *thd,
 {
   my_error(ER_WRONG_ARGUMENTS, MYF(0), def.get_name().str);
   return nullptr;
+}
+
+
+const Type_handler *Type_typelib_attributes::type_handler() const
+{
+  return &type_handler_enum;
 }

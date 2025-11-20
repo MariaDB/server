@@ -11888,7 +11888,7 @@ int ha_mroonga::storage_encode_key_set(Field *field, const uchar *key,
                      field->null_bit, field->unireg_check,
                      &field->field_name,
                      field->pack_length(),
-                     static_cast<Field_set*>(field)->typelib(),
+                     static_cast<Field_set*>(field)->typelib_attr(),
                      static_cast<Field_set*>(field)->charset());
   switch (field->pack_length()) {
   case 1:

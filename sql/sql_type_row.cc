@@ -213,8 +213,8 @@ Type_handler_row::
   sp_variable_declarations_finalize(THD *thd, LEX *lex, int nvars,
                                     const Column_definition &cdef) const
 {
-  const sp_type_def_record *rec= static_cast<const sp_type_def_record*>
-                                     (cdef.get_attr_const_void_ptr(0));
+  const sp_type_def_record *rec= dynamic_cast<const sp_type_def_record*>
+                                     (cdef.get_attr_const_generic_ptr(0));
   DBUG_ASSERT(!rec || rec->field);
   if (!rec || !rec->field)
   {

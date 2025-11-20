@@ -641,10 +641,11 @@ LEX_CUSTRING build_frm_image(THD *thd, const LEX_CSTRING &table,
     Create_field *field;
     while ((field=it++))
     {
-      if (field->save_interval)
+      if (field->save_typelib_attr)
       {
-        field->set_typelib(field->save_interval);
-        field->save_interval= 0;
+        Type_typelib_ptr_attributes(field->save_typelib_attr).
+          save_in_type_extra_attributes(field);
+        field->save_typelib_attr= 0;
       }
     }
   }
@@ -890,14 +891,14 @@ static bool pack_header(THD *thd, uchar *forminfo,
       reclength=(uint) (field->offset+ data_offset + length);
     n_length+= field->field_name.length + 1;
     field->interval_id=0;
-    field->save_interval= 0;
-    if (field->typelib())
+    field->save_typelib_attr= 0;
+    if (field->typelib_attr())
     {
       uint old_int_count=int_count;
 
       if (field->charset->mbminlen > 1)
       {
-        TYPELIB *tmpint;
+        Type_typelib_attributes *tmpint;
         /* 
           Escape UCS2 intervals using HEX notation to avoid
           problems with delimiters between enum elements.
@@ -907,9 +908,12 @@ static bool pack_header(THD *thd, uchar *forminfo,
           The HEX representation is created from this copy.
         */
         uint count= field->typelib()->count;
-        field->save_interval= field->typelib();
-        field->set_typelib(tmpint= thd->alloc<TYPELIB>(1));
-        *tmpint= *field->save_interval;
+        field->save_typelib_attr= field->typelib_attr();
+        if (!(tmpint= new (thd->mem_root) Type_typelib_attributes()))
+          DBUG_RETURN(true);
+        Type_typelib_ptr_attributes(tmpint).
+          save_in_type_extra_attributes(field);
+        *tmpint= *field->save_typelib_attr;
         tmpint->type_names= thd->alloc<const char*>(count + 1);
         tmpint->type_lengths= thd->alloc<uint>(count + 1);
         tmpint->type_names[count]= 0;
@@ -918,9 +922,9 @@ static bool pack_header(THD *thd, uchar *forminfo,
         for (uint pos= 0; pos < field->typelib()->count; pos++)
         {
           char *dst;
-          const char *src= field->save_interval->type_names[pos];
+          const char *src= field->save_typelib_attr->type_names[pos];
           size_t hex_length;
-          length= field->save_interval->type_lengths[pos];
+          length= field->save_typelib_attr->type_lengths[pos];
           hex_length= length * 2;
           tmpint->type_lengths[pos]= (uint) hex_length;
           tmpint->type_names[pos]= dst= thd->alloc(hex_length + 1);
@@ -1217,8 +1221,10 @@ static bool make_empty_rec(THD *thd, uchar *buff, uint table_options,
     Record_addr addr(buff + field->offset + data_offset,
                      null_pos + null_count / 8, null_count & 7);
     Column_definition_attributes tmp(*field);
-    tmp.set_typelib(field->save_interval ?
-                    field->save_interval : field->typelib());
+    Type_typelib_ptr_attributes(field->save_typelib_attr ?
+                                field->save_typelib_attr :
+                                field->typelib_attr()).
+                                  save_in_type_extra_attributes(&tmp);
     /* regfield don't have to be deleted as it's allocated on THD::mem_root */
     Field *regfield= tmp.make_field(&share, thd->mem_root, &addr,
                                     field->type_handler(),
