@@ -3453,7 +3453,6 @@ SET @@path = DEFAULT;
 --echo # Resolution of routines in stored routines should be based on
 --echo # the current path, not the path at the time of creation.
 --echo #
-SET @@path= DEFAULT;
 SET sql_mode= DEFAULT;
 USE test;
 CREATE FUNCTION func() RETURNS TEXT RETURN 'Invoke from Db: test, Rt: func';
@@ -3464,20 +3463,17 @@ CREATE FUNCTION func() RETURNS TEXT RETURN 'Invoke from Db: test3, Rt: func';
 
 CREATE DATABASE test2;
 USE test2;
-SET @@path= 'test';
+SET PATH 'test';
 CREATE FUNCTION func2() RETURNS TEXT RETURN func();
+SELECT func2();
 
-USE test;
-SET @@path= 'test3';
-SELECT test2.func2();
-SET @@path= 'test';
-
---echo #TODO
---echo #SELECT test2.func2();
+SET PATH 'test3';
+SELECT func2();
 
 DROP FUNCTION test.func;
 DROP DATABASE test2;
 DROP DATABASE test3;
+SET @@path = DEFAULT;
 
 --echo #
 --echo # Path resolution where database name contains ','
@@ -3489,7 +3485,7 @@ CREATE FUNCTION func() RETURNS TEXT RETURN 'Invoke from Db: \"a,b\", Rt: func';
 USE test;
 --error ER_SP_DOES_NOT_EXIST
 SELECT func();
-SET @@path= '`a,b`';
+SET PATH '`a,b`';
 SELECT func();
 
 DROP DATABASE `a,b`;
@@ -3505,12 +3501,12 @@ CREATE FUNCTION func() RETURNS TEXT RETURN 'Invoke from Db: \", Rt: func';
 USE test;
 --error ER_SP_DOES_NOT_EXIST
 SELECT func();
-SET @@path= '`"`';
+SET PATH '`"`';
 SELECT func();
 
 DROP DATABASE `"`;
 USE test;
-SET @@path= DEFAULT;
+SET @@path = DEFAULT;
 
 --echo #
 --echo # Modify session path within a stored routine
@@ -3520,7 +3516,7 @@ SET @@path= DEFAULT;
 DELIMITER $$;
 CREATE FUNCTION func() RETURNS TEXT
 BEGIN
-  SET @@path= 'sys';
+  SET PATH 'sys';
   RETURN '';
 END;
 $$
