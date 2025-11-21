@@ -459,6 +459,15 @@ private:
   /** This is one of the m_file-s that it guaranteed to be opened. */
   /**  It is set in open_read_partitions() */
   handler *m_file_sample;
+
+  enum partition_index_scan_method : unsigned int
+  {
+    INDEX_SCAN_NONE= 0,
+    INDEX_SCAN_ORDERED= 1,
+    INDEX_SCAN_UNORDERED= 2,
+    INDEX_SCAN_BOTH= 3,
+  };
+  enum partition_index_scan_method m_pi_scan_method;
 public:
   handler **get_child_handlers()
   {
@@ -1625,6 +1634,10 @@ public:
   }
 
   bool partition_engine() override { return 1;}
+  uint partition_index_scan_method() override
+  {
+    return (uint) m_pi_scan_method;
+  }
 
   /**
      Get the number of records in part_elem and its subpartitions, if any.

@@ -5499,6 +5499,7 @@ public:
   virtual handlerton *partition_ht() const
   { return ht; }
   virtual bool partition_engine() { return 0;}
+  virtual uint partition_index_scan_method() { return 0; }
   /*
     Used with 'wrapper' engines, like SEQUENCE, to access to the
     underlaying engine used for storage.

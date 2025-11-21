@@ -472,6 +472,7 @@ void ha_partition::init_handler_variables()
   my_bitmap_clear(&m_mrr_used_partitions);
   my_bitmap_clear(&m_opened_partitions);
   m_file_sample= NULL;
+  m_pi_scan_method= INDEX_SCAN_NONE;
 
 #ifdef DONT_HAVE_TO_BE_INITALIZED
   m_start_key.flag= 0;
@@ -7857,6 +7858,10 @@ int ha_partition::handle_unordered_scan_next_partition(uchar * buf)
   int saved_error= HA_ERR_END_OF_FILE;
   DBUG_ENTER("ha_partition::handle_unordered_scan_next_partition");
 
+  if (m_pi_scan_method == INDEX_SCAN_ORDERED)
+    m_pi_scan_method= INDEX_SCAN_BOTH;
+  else
+    m_pi_scan_method= INDEX_SCAN_UNORDERED;
   /* Read next partition that includes start_part */
   if (i)
     i= bitmap_get_next_set(&m_part_info->read_partitions, i - 1);
@@ -7959,6 +7964,10 @@ int ha_partition::handle_ordered_index_scan(uchar *buf, bool reverse_order)
   DBUG_ENTER("ha_partition::handle_ordered_index_scan");
   DBUG_PRINT("enter", ("partition this: %p", this));
 
+  if (m_pi_scan_method == INDEX_SCAN_UNORDERED)
+    m_pi_scan_method= INDEX_SCAN_BOTH;
+  else
+    m_pi_scan_method= INDEX_SCAN_ORDERED;
    if (m_pre_calling)
      error= handle_pre_scan(reverse_order, m_pre_call_use_parallel);
    else
