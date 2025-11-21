@@ -364,3 +364,49 @@ SELECT CURRENT_PATH;
 
 SET PATH DEFAULT;
 SELECT CURRENT_PATH;
+
+delimiter //;
+--error ER_VARIABLE_NOT_SETTABLE_IN_SF_OR_TRG
+create function f() returns int
+begin
+  set path 'test';
+  return 1;
+end//
+
+create procedure p() set path 'test'//
+create function f() returns int
+begin
+  call p();
+  return 1;
+end//
+delimiter ;//
+--error ER_VARIABLE_NOT_SETTABLE_IN_SF_OR_TRG
+select f();
+drop function f;
+drop procedure p;
+
+create table t1 (a int);
+--error ER_VARIABLE_NOT_SETTABLE_IN_SF_OR_TRG
+create trigger trg1 after insert on t1 for each row set path 'test';
+drop table t1;
+
+delimiter //;
+create package pkg
+  function f1() returns int;
+end//
+
+--error ER_VARIABLE_NOT_SETTABLE_IN_SF_OR_TRG
+create package body pkg
+  function f1() returns int
+  begin
+    set path 'test';
+    return 1;
+  end;
+end//
+
+create package body pkg
+  function f1() returns int return 1;
+  set path 'test';
+end//
+delimiter ;//
+drop package pkg;
