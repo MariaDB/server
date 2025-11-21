@@ -1,0 +1,405 @@
+--source include/have_partition.inc
+--source include/have_sequence.inc
+--source include/no_view_protocol.inc
+--disable_ps2_protocol
+
+--echo # Index scans with PARTITION BY RANGE
+
+CREATE TABLE t1 (
+  c int,
+  INDEX idx1(c)
+) PARTITION BY RANGE COLUMNS(c) (
+ PARTITION `p1` VALUES LESS THAN (10),
+ PARTITION `p2` VALUES LESS THAN (20),
+ PARTITION `p3` VALUES LESS THAN (30),
+ PARTITION `p4` VALUES LESS THAN (40),
+ PARTITION `p5` VALUES LESS THAN MAXVALUE
+);
+
+insert into t1 select seq from seq_1_to_50;
+
+--echo ## Case 1: unordered scan with ha_partition::index_first/index_last
+flush status;
+select * from t1 ORDER BY c LIMIT 1;
+show status like 'handler_read_%';
+flush status;
+select * from t1 ORDER BY c LIMIT 2;
+show status like 'handler_read_%';
+flush status;
+select * from t1 ORDER BY c LIMIT 16;
+show status like 'handler_read_%';
+
+--echo ### select * from t1 ORDER BY c LIMIT 2
+let $out=`analyze format=json select * from t1 ORDER BY c LIMIT 2`;
+evalp set @js='$out';
+select json_extract(@js,'$**.partitions_index_scan_method');
+
+flush status;
+select * from t1 ORDER BY c DESC LIMIT 1;
+show status like 'handler_read_%';
+flush status;
+select * from t1 ORDER BY c DESC LIMIT 2;
+show status like 'handler_read_%';
+flush status;
+select * from t1 ORDER BY c DESC LIMIT 16;
+show status like 'handler_read_%';
+
+--echo ### select * from t1 ORDER BY c DESC LIMIT 2
+let $out=`analyze format=json select * from t1 ORDER BY c DESC LIMIT 2`;
+evalp set @js='$out';
+select json_extract(@js,'$**.partitions_index_scan_method');
+
+--echo ## Case 1: Unordered scans with MRR
+flush status;
+select * from t1 where c between 25 and 35 order by c limit 7;
+show status like 'handler_read_%';
+
+--echo ### select * from t1 where c between 25 and 35 order by c limit 7
+let $out=`analyze format=json select * from t1 where c between 25 and 35 order by c limit 7`;
+evalp set @js='$out';
+select json_extract(@js,'$**.partitions_index_scan_method');
+
+flush status;
+select * from t1 where c between 25 and 35 order by c desc limit 7;
+show status like 'handler_read_%';
+
+--echo ### select * from t1 where c between 25 and 35 order by c desc limit 7
+let $out=`analyze format=json select * from t1 where c between 25 and 35 order by c limit 7`;
+evalp set @js='$out';
+select json_extract(@js,'$**.partitions_index_scan_method');
+
+drop table t1;
+
+--echo ## Ordered scan with reverse index
+CREATE TABLE t1 (
+  c int,
+  INDEX idx1(c desc)
+) PARTITION BY RANGE COLUMNS(c) (
+ PARTITION `p1` VALUES LESS THAN (10),
+ PARTITION `p2` VALUES LESS THAN (20),
+ PARTITION `p3` VALUES LESS THAN (30),
+ PARTITION `p4` VALUES LESS THAN (40),
+ PARTITION `p5` VALUES LESS THAN MAXVALUE
+);
+insert into t1 select seq from seq_1_to_50;
+flush status;
+select * from t1 ORDER BY c LIMIT 16;
+show status like 'handler_read_%';
+flush status;
+--echo ### select * from t1 ORDER BY c LIMIT 16
+let $out=`analyze format=json select * from t1 ORDER BY c LIMIT 16`;
+evalp set @js='$out';
+select json_extract(@js,'$**.partitions_index_scan_method');
+
+select * from t1 ORDER BY c desc LIMIT 16;
+show status like 'handler_read_%';
+--echo ### select * from t1 ORDER BY c desc LIMIT 16
+let $out=`analyze format=json select * from t1 ORDER BY c desc LIMIT 16`;
+evalp set @js='$out';
+select json_extract(@js,'$**.partitions_index_scan_method');
+drop table t1;
+
+CREATE TABLE t1 (
+  c int,
+  d INT,
+  INDEX idx1(c, d)
+) PARTITION BY RANGE COLUMNS(c) (
+ PARTITION `p1` VALUES LESS THAN (10),
+ PARTITION `p2` VALUES LESS THAN (20),
+ PARTITION `p3` VALUES LESS THAN (30),
+ PARTITION `p4` VALUES LESS THAN (40),
+ PARTITION `p5` VALUES LESS THAN MAXVALUE
+);
+
+insert into t1 select t2.seq, t3.seq from  seq_1_to_50 t2, seq_100_to_200 t3;
+
+--echo ## Case 1: unordered scan with ha_partition::index_first
+flush status;
+select * from t1 where d = 113 ORDER BY d LIMIT 1;
+show status like 'handler_read_%';
+
+let $out=`analyze format=json select * from t1 where d = 113 ORDER BY d LIMIT 1`;
+evalp set @js='$out';
+select json_extract(@js,'$**.partitions_index_scan_method');
+
+drop table t1;
+
+--echo ## Case 1: calls to ha_partition::read_range_first and
+--echo ## ha_partition::index_read_map, via loose index scan.
+--echo ## No read_prev
+CREATE TABLE t1 (
+ a INT,
+ b INT,
+ KEY ( a, b )
+) PARTITION BY RANGE COLUMNS(a) (
+ PARTITION `p1` VALUES LESS THAN (10),
+ PARTITION `p2` VALUES LESS THAN (20),
+ PARTITION `p3` VALUES LESS THAN (30),
+ PARTITION `p4` VALUES LESS THAN (40),
+ PARTITION `p5` VALUES LESS THAN MAXVALUE
+);
+
+insert into t1 select seq, seq from seq_1_to_50;
+
+FLUSH status;
+SELECT a, MIN(b) FROM t1 WHERE a > 18 and a < 21 GROUP BY a;
+show status like 'handler_read_%';
+FLUSH status;
+SELECT a, MIN(b) FROM t1 WHERE a > 16 and a < 25 GROUP BY a;
+show status like 'handler_read_%';
+
+let $out=`analyze format=json SELECT a, MIN(b) FROM t1 WHERE a > 18 and a < 21 GROUP BY a`;
+evalp set @js='$out';
+select json_extract(@js,'$**.partitions_index_scan_method');
+
+FLUSH status;
+SELECT a, MAX(b) FROM t1 WHERE a > 18 and a < 21 GROUP BY a;
+show status like 'handler_read_%';
+FLUSH status;
+SELECT a, MAX(b) FROM t1 WHERE a > 16 and a < 25 GROUP BY a;
+show status like 'handler_read_%';
+
+let $out=`analyze format=json SELECT a, MAX(b) FROM t1 WHERE a > 18 and a < 21 GROUP BY a`;
+evalp set @js='$out';
+select json_extract(@js,'$**.partitions_index_scan_method');
+
+DROP TABLE t1;
+
+--echo ## Case 2: calls to ha_partition::read_range_first and
+--echo ## ha_partition::index_read_map, via loose index scan
+CREATE TABLE t1 (
+ a INT,
+ b INT,
+ KEY ( a, b )
+) PARTITION BY RANGE COLUMNS(b) (
+ PARTITION `p1` VALUES LESS THAN (10),
+ PARTITION `p2` VALUES LESS THAN (20),
+ PARTITION `p3` VALUES LESS THAN (30),
+ PARTITION `p4` VALUES LESS THAN (40),
+ PARTITION `p5` VALUES LESS THAN MAXVALUE
+);
+
+insert into t1 select seq, seq from seq_1_to_50;
+
+FLUSH status;
+SELECT a, MIN(b) FROM t1 WHERE a = 20 GROUP BY a;
+show status like 'handler_read_%';
+
+let $out=`analyze format=json SELECT a, MIN(b) FROM t1 WHERE a = 20 GROUP BY a`;
+evalp set @js='$out';
+select json_extract(@js,'$**.partitions_index_scan_method');
+
+DROP TABLE t1;
+
+CREATE TABLE t1 (
+  c int,
+  d INT,
+  INDEX idx1(c, d)
+) PARTITION BY RANGE COLUMNS(d) (
+ PARTITION `p1` VALUES LESS THAN (10),
+ PARTITION `p2` VALUES LESS THAN (20),
+ PARTITION `p3` VALUES LESS THAN (30),
+ PARTITION `p4` VALUES LESS THAN (40),
+ PARTITION `p5` VALUES LESS THAN MAXVALUE
+);
+
+insert into t1 select t2.seq, t3.seq from seq_100_to_200 t2, seq_1_to_50 t3;
+
+--echo ## Case 2: Unordered scans with MRR
+flush status;
+select * from t1 where c=113 and d between 25 and 35 order by d limit 3;
+show status like 'handler_read_%';
+
+--echo ### select * from t1 where c=113 and d between 25 and 35 order by d limit 3
+let $out=`analyze format=json select * from t1 where c=113 and d between 25 and 35 order by d limit 3`;
+evalp set @js='$out';
+select json_extract(@js,'$**.partitions_index_scan_method');
+
+--echo ## Case 2: Unordered scans in ha_partition::index_read_map
+flush status;
+select * from t1 where c = 120 ORDER BY d DESC LIMIT 1;
+show status like 'handler_read_%';
+flush status;
+select * from t1 where c = 120 ORDER BY d DESC LIMIT 2;
+show status like 'handler_read_%';
+flush status;
+select * from t1 where c = 120 ORDER BY d DESC LIMIT 16;
+show status like 'handler_read_%';
+
+--echo ### select * from t1 where c = 120 ORDER BY d DESC LIMIT 2
+let $out=`analyze format=json select * from t1 where c = 120 ORDER BY d DESC LIMIT 2`;
+evalp set @js='$out';
+select json_extract(@js,'$**.partitions_index_scan_method');
+
+flush status;
+select * from t1 where c = 120 ORDER BY d LIMIT 1;
+show status like 'handler_read_%';
+flush status;
+select * from t1 where c = 120 ORDER BY d LIMIT 2;
+show status like 'handler_read_%';
+flush status;
+select * from t1 where c = 120 ORDER BY d LIMIT 16;
+show status like 'handler_read_%';
+
+select * from t1 where c = 120 LIMIT 2;
+
+--echo ### select * from t1 where c = 120 ORDER BY d LIMIT 2
+let $out=`analyze format=json select * from t1 where c = 120 ORDER BY d LIMIT 2`;
+evalp set @js='$out';
+select json_extract(@js,'$**.partitions_index_scan_method');
+
+--echo ### When one partition has no results
+delete from t1 where c = 120 and (d between 30 and 40 or d between 10 and 20);
+flush status;
+select * from t1 where c = 120 ORDER BY d DESC LIMIT 16;
+show status like 'handler_read_%';
+flush status;
+select * from t1 where c = 120 ORDER BY d LIMIT 16;
+show status like 'handler_read_%';
+
+drop table t1;
+
+--echo ## PARTITION BY RANGE (expr)
+CREATE TABLE t1 (
+  c int,
+  d INT,
+  INDEX idx1(c, d)
+) PARTITION BY RANGE (d % 5) (
+ PARTITION `p1` VALUES LESS THAN (1),
+ PARTITION `p2` VALUES LESS THAN (2),
+ PARTITION `p3` VALUES LESS THAN (3),
+ PARTITION `p4` VALUES LESS THAN (4),
+ PARTITION `p5` VALUES LESS THAN MAXVALUE
+);
+
+insert into t1 select t2.seq, t3.seq from seq_100_to_200 t2, seq_1_to_50 t3;
+
+flush status;
+select * from t1 where c = 120 ORDER BY d DESC LIMIT 1;
+show status like 'handler_read_%';
+flush status;
+select * from t1 where c = 120 ORDER BY d DESC LIMIT 2;
+show status like 'handler_read_%';
+flush status;
+select * from t1 where c = 120 ORDER BY d LIMIT 2;
+show status like 'handler_read_%';
+flush status;
+--echo ### Unordered scan (filesort + mrr)
+select * from t1 where c = 120 ORDER BY d % 5 LIMIT 2;
+show status like 'handler_read_%';
+flush status;
+select * from t1 where c = 120 LIMIT 2;
+show status like 'handler_read_%';
+
+--echo ### select * from t1 where c = 120 ORDER BY d LIMIT 2
+let $out=`analyze format=json select * from t1 where c = 120 ORDER BY d LIMIT 2`;
+evalp set @js='$out';
+select json_extract(@js,'$**.partitions_index_scan_method');
+
+--echo ### select * from t1 where c = 120 ORDER BY d % 5 LIMIT 2
+let $out=`analyze format=json select * from t1 where c = 120 ORDER BY d % 5 LIMIT 2`;
+evalp set @js='$out';
+select json_extract(@js,'$**.partitions_index_scan_method');
+
+drop table t1;
+
+--echo ## Unordered scan (partition table is the second in the join
+--echo ## order after optimization) extracted and minimised from the
+--echo ## test main.partition
+
+CREATE TABLE t1 (
+  id int(8),
+  PRIMARY KEY (id)
+);
+
+INSERT INTO t1 VALUES (11), (22), (33);
+
+CREATE TABLE t2 (
+  taken int,
+  id int,
+  PRIMARY KEY (id,taken),
+  KEY taken (taken)
+)
+PARTITION BY RANGE (taken)
+(
+  PARTITION p1 VALUES LESS THAN (50),
+  PARTITION p2 VALUES LESS THAN (60),
+  PARTITION p3 VALUES LESS THAN MAXVALUE
+);
+
+INSERT INTO t2 VALUES
+  (51,11), /* p2 */
+  (63,11), /* p3 */
+  (51,22), /* p2 */
+  (53,22), /* p2 */
+  (55,22), /* p2 */
+  (57,22), /* p2 */
+  (61,22), /* p3 */
+  (63,22), /* p3 */
+  (51,33), /* p2 */
+  (55,33) /* p2 */
+  ;
+
+set @ff=53;
+set @tt=64;
+
+flush status;
+SELECT t1.id
+FROM t1
+WHERE t1.id IN (
+    SELECT distinct id
+    FROM t2
+    WHERE taken BETWEEN @ff AND @tt)
+ORDER BY t1.id;
+show status like 'handler_read_%';
+
+--echo ### same statement as above
+let $out=`analyze format=json
+SELECT t1.id
+FROM t1
+WHERE t1.id IN (
+    SELECT distinct id
+    FROM t2
+    WHERE taken BETWEEN @ff AND @tt)
+ORDER BY t1.id`;
+evalp set @js='$out';
+select json_extract(@js,'$**.partitions_index_scan_method');
+
+--echo ## ordered scan (partition table is the first in the join
+--echo ## order after optimization and ORDER BY differs from
+--echo ## PARTITION BY RANGE)
+flush status;
+SELECT t1.id
+FROM t1
+WHERE t1.id IN (
+    SELECT distinct id
+    FROM t2
+    WHERE taken BETWEEN 53 AND 64)
+ORDER BY t1.id;
+show status like 'handler_read_%';
+
+--echo ### same statement as above
+let $out=`analyze format=json
+SELECT t1.id
+FROM t1
+WHERE t1.id IN (
+    SELECT distinct id
+    FROM t2
+    WHERE taken BETWEEN 53 AND 64)
+ORDER BY t1.id`;
+evalp set @js='$out';
+select json_extract(@js,'$**.partitions_index_scan_method');
+
+--echo ## ordered scan again (only one table and no ORDER BY)
+flush status;
+select distinct id from t2 where taken between @ff and @tt;
+show status like 'handler_read_%';
+
+--echo ### same statement as above
+let $out=`analyze format=json
+select distinct id from t2 where taken between @ff and @tt`;
+evalp set @js='$out';
+select json_extract(@js,'$**.partitions_index_scan_method');
+
+drop table t1, t2;
+--enable_ps2_protocol

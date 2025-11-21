@@ -1,0 +1,905 @@
+# Index scans with PARTITION BY RANGE
+CREATE TABLE t1 (
+c int,
+INDEX idx1(c)
+) PARTITION BY RANGE COLUMNS(c) (
+PARTITION `p1` VALUES LESS THAN (10),
+PARTITION `p2` VALUES LESS THAN (20),
+PARTITION `p3` VALUES LESS THAN (30),
+PARTITION `p4` VALUES LESS THAN (40),
+PARTITION `p5` VALUES LESS THAN MAXVALUE
+);
+insert into t1 select seq from seq_1_to_50;
+## Case 1: unordered scan with ha_partition::index_first/index_last
+flush status;
+select * from t1 ORDER BY c LIMIT 1;
+c
+1
+show status like 'handler_read_%';
+Variable_name	Value
+Handler_read_first	1
+Handler_read_key	0
+Handler_read_last	0
+Handler_read_next	0
+Handler_read_prev	0
+Handler_read_retry	0
+Handler_read_rnd	0
+Handler_read_rnd_deleted	0
+Handler_read_rnd_next	0
+flush status;
+select * from t1 ORDER BY c LIMIT 2;
+c
+1
+2
+show status like 'handler_read_%';
+Variable_name	Value
+Handler_read_first	1
+Handler_read_key	0
+Handler_read_last	0
+Handler_read_next	1
+Handler_read_prev	0
+Handler_read_retry	0
+Handler_read_rnd	0
+Handler_read_rnd_deleted	0
+Handler_read_rnd_next	0
+flush status;
+select * from t1 ORDER BY c LIMIT 16;
+c
+1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+11
+12
+13
+14
+15
+16
+show status like 'handler_read_%';
+Variable_name	Value
+Handler_read_first	2
+Handler_read_key	0
+Handler_read_last	0
+Handler_read_next	15
+Handler_read_prev	0
+Handler_read_retry	0
+Handler_read_rnd	0
+Handler_read_rnd_deleted	0
+Handler_read_rnd_next	0
+### select * from t1 ORDER BY c LIMIT 2
+set @js='$out';
+select json_extract(@js,'$**.partitions_index_scan_method');
+json_extract(@js,'$**.partitions_index_scan_method')
+["iterate_over_partitions"]
+flush status;
+select * from t1 ORDER BY c DESC LIMIT 1;
+c
+50
+show status like 'handler_read_%';
+Variable_name	Value
+Handler_read_first	0
+Handler_read_key	0
+Handler_read_last	1
+Handler_read_next	0
+Handler_read_prev	0
+Handler_read_retry	0
+Handler_read_rnd	0
+Handler_read_rnd_deleted	0
+Handler_read_rnd_next	0
+flush status;
+select * from t1 ORDER BY c DESC LIMIT 2;
+c
+50
+49
+show status like 'handler_read_%';
+Variable_name	Value
+Handler_read_first	0
+Handler_read_key	0
+Handler_read_last	1
+Handler_read_next	0
+Handler_read_prev	1
+Handler_read_retry	0
+Handler_read_rnd	0
+Handler_read_rnd_deleted	0
+Handler_read_rnd_next	0
+flush status;
+select * from t1 ORDER BY c DESC LIMIT 16;
+c
+50
+49
+48
+47
+46
+45
+44
+43
+42
+41
+40
+39
+38
+37
+36
+35
+show status like 'handler_read_%';
+Variable_name	Value
+Handler_read_first	0
+Handler_read_key	0
+Handler_read_last	2
+Handler_read_next	0
+Handler_read_prev	15
+Handler_read_retry	0
+Handler_read_rnd	0
+Handler_read_rnd_deleted	0
+Handler_read_rnd_next	0
+### select * from t1 ORDER BY c DESC LIMIT 2
+set @js='$out';
+select json_extract(@js,'$**.partitions_index_scan_method');
+json_extract(@js,'$**.partitions_index_scan_method')
+["iterate_over_partitions"]
+## Case 1: Unordered scans with MRR
+flush status;
+select * from t1 where c between 25 and 35 order by c limit 7;
+c
+25
+26
+27
+28
+29
+30
+31
+show status like 'handler_read_%';
+Variable_name	Value
+Handler_read_first	0
+Handler_read_key	2
+Handler_read_last	0
+Handler_read_next	6
+Handler_read_prev	0
+Handler_read_retry	0
+Handler_read_rnd	0
+Handler_read_rnd_deleted	0
+Handler_read_rnd_next	0
+### select * from t1 where c between 25 and 35 order by c limit 7
+set @js='$out';
+select json_extract(@js,'$**.partitions_index_scan_method');
+json_extract(@js,'$**.partitions_index_scan_method')
+["iterate_over_partitions"]
+flush status;
+select * from t1 where c between 25 and 35 order by c desc limit 7;
+c
+35
+34
+33
+32
+31
+30
+29
+show status like 'handler_read_%';
+Variable_name	Value
+Handler_read_first	0
+Handler_read_key	2
+Handler_read_last	0
+Handler_read_next	0
+Handler_read_prev	6
+Handler_read_retry	0
+Handler_read_rnd	0
+Handler_read_rnd_deleted	0
+Handler_read_rnd_next	0
+### select * from t1 where c between 25 and 35 order by c desc limit 7
+set @js='$out';
+select json_extract(@js,'$**.partitions_index_scan_method');
+json_extract(@js,'$**.partitions_index_scan_method')
+["iterate_over_partitions"]
+drop table t1;
+## Ordered scan with reverse index
+CREATE TABLE t1 (
+c int,
+INDEX idx1(c desc)
+) PARTITION BY RANGE COLUMNS(c) (
+PARTITION `p1` VALUES LESS THAN (10),
+PARTITION `p2` VALUES LESS THAN (20),
+PARTITION `p3` VALUES LESS THAN (30),
+PARTITION `p4` VALUES LESS THAN (40),
+PARTITION `p5` VALUES LESS THAN MAXVALUE
+);
+insert into t1 select seq from seq_1_to_50;
+flush status;
+select * from t1 ORDER BY c LIMIT 16;
+c
+1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+11
+12
+13
+14
+15
+16
+show status like 'handler_read_%';
+Variable_name	Value
+Handler_read_first	0
+Handler_read_key	0
+Handler_read_last	5
+Handler_read_next	0
+Handler_read_prev	15
+Handler_read_retry	0
+Handler_read_rnd	0
+Handler_read_rnd_deleted	0
+Handler_read_rnd_next	0
+flush status;
+### select * from t1 ORDER BY c LIMIT 16
+set @js='$out';
+select json_extract(@js,'$**.partitions_index_scan_method');
+json_extract(@js,'$**.partitions_index_scan_method')
+["merge_ordered_scans"]
+select * from t1 ORDER BY c desc LIMIT 16;
+c
+50
+49
+48
+47
+46
+45
+44
+43
+42
+41
+40
+39
+38
+37
+36
+35
+show status like 'handler_read_%';
+Variable_name	Value
+Handler_read_first	5
+Handler_read_key	0
+Handler_read_last	5
+Handler_read_next	15
+Handler_read_prev	15
+Handler_read_retry	0
+Handler_read_rnd	0
+Handler_read_rnd_deleted	0
+Handler_read_rnd_next	0
+### select * from t1 ORDER BY c desc LIMIT 16
+set @js='$out';
+select json_extract(@js,'$**.partitions_index_scan_method');
+json_extract(@js,'$**.partitions_index_scan_method')
+["merge_ordered_scans"]
+drop table t1;
+CREATE TABLE t1 (
+c int,
+d INT,
+INDEX idx1(c, d)
+) PARTITION BY RANGE COLUMNS(c) (
+PARTITION `p1` VALUES LESS THAN (10),
+PARTITION `p2` VALUES LESS THAN (20),
+PARTITION `p3` VALUES LESS THAN (30),
+PARTITION `p4` VALUES LESS THAN (40),
+PARTITION `p5` VALUES LESS THAN MAXVALUE
+);
+insert into t1 select t2.seq, t3.seq from  seq_1_to_50 t2, seq_100_to_200 t3;
+## Case 1: unordered scan with ha_partition::index_first
+flush status;
+select * from t1 where d = 113 ORDER BY d LIMIT 1;
+c	d
+1	113
+show status like 'handler_read_%';
+Variable_name	Value
+Handler_read_first	1
+Handler_read_key	0
+Handler_read_last	0
+Handler_read_next	13
+Handler_read_prev	0
+Handler_read_retry	0
+Handler_read_rnd	0
+Handler_read_rnd_deleted	0
+Handler_read_rnd_next	0
+set @js='$out';
+select json_extract(@js,'$**.partitions_index_scan_method');
+json_extract(@js,'$**.partitions_index_scan_method')
+["iterate_over_partitions"]
+drop table t1;
+## Case 1: calls to ha_partition::read_range_first and
+## ha_partition::index_read_map, via loose index scan.
+## No read_prev
+CREATE TABLE t1 (
+a INT,
+b INT,
+KEY ( a, b )
+) PARTITION BY RANGE COLUMNS(a) (
+PARTITION `p1` VALUES LESS THAN (10),
+PARTITION `p2` VALUES LESS THAN (20),
+PARTITION `p3` VALUES LESS THAN (30),
+PARTITION `p4` VALUES LESS THAN (40),
+PARTITION `p5` VALUES LESS THAN MAXVALUE
+);
+insert into t1 select seq, seq from seq_1_to_50;
+FLUSH status;
+SELECT a, MIN(b) FROM t1 WHERE a > 18 and a < 21 GROUP BY a;
+a	MIN(b)
+19	19
+20	20
+show status like 'handler_read_%';
+Variable_name	Value
+Handler_read_first	0
+Handler_read_key	5
+Handler_read_last	0
+Handler_read_next	0
+Handler_read_prev	0
+Handler_read_retry	0
+Handler_read_rnd	0
+Handler_read_rnd_deleted	0
+Handler_read_rnd_next	0
+FLUSH status;
+SELECT a, MIN(b) FROM t1 WHERE a > 16 and a < 25 GROUP BY a;
+a	MIN(b)
+17	17
+18	18
+19	19
+20	20
+21	21
+22	22
+23	23
+24	24
+show status like 'handler_read_%';
+Variable_name	Value
+Handler_read_first	0
+Handler_read_key	2
+Handler_read_last	0
+Handler_read_next	8
+Handler_read_prev	0
+Handler_read_retry	0
+Handler_read_rnd	0
+Handler_read_rnd_deleted	0
+Handler_read_rnd_next	0
+set @js='$out';
+select json_extract(@js,'$**.partitions_index_scan_method');
+json_extract(@js,'$**.partitions_index_scan_method')
+["iterate_over_partitions"]
+FLUSH status;
+SELECT a, MAX(b) FROM t1 WHERE a > 18 and a < 21 GROUP BY a;
+a	MAX(b)
+19	19
+20	20
+show status like 'handler_read_%';
+Variable_name	Value
+Handler_read_first	0
+Handler_read_key	8
+Handler_read_last	0
+Handler_read_next	0
+Handler_read_prev	0
+Handler_read_retry	0
+Handler_read_rnd	0
+Handler_read_rnd_deleted	0
+Handler_read_rnd_next	0
+FLUSH status;
+SELECT a, MAX(b) FROM t1 WHERE a > 16 and a < 25 GROUP BY a;
+a	MAX(b)
+17	17
+18	18
+19	19
+20	20
+21	21
+22	22
+23	23
+24	24
+show status like 'handler_read_%';
+Variable_name	Value
+Handler_read_first	0
+Handler_read_key	2
+Handler_read_last	0
+Handler_read_next	8
+Handler_read_prev	0
+Handler_read_retry	0
+Handler_read_rnd	0
+Handler_read_rnd_deleted	0
+Handler_read_rnd_next	0
+set @js='$out';
+select json_extract(@js,'$**.partitions_index_scan_method');
+json_extract(@js,'$**.partitions_index_scan_method')
+["iterate_over_partitions"]
+DROP TABLE t1;
+## Case 2: calls to ha_partition::read_range_first and
+## ha_partition::index_read_map, via loose index scan
+CREATE TABLE t1 (
+a INT,
+b INT,
+KEY ( a, b )
+) PARTITION BY RANGE COLUMNS(b) (
+PARTITION `p1` VALUES LESS THAN (10),
+PARTITION `p2` VALUES LESS THAN (20),
+PARTITION `p3` VALUES LESS THAN (30),
+PARTITION `p4` VALUES LESS THAN (40),
+PARTITION `p5` VALUES LESS THAN MAXVALUE
+);
+insert into t1 select seq, seq from seq_1_to_50;
+FLUSH status;
+SELECT a, MIN(b) FROM t1 WHERE a = 20 GROUP BY a;
+a	MIN(b)
+20	20
+show status like 'handler_read_%';
+Variable_name	Value
+Handler_read_first	0
+Handler_read_key	6
+Handler_read_last	0
+Handler_read_next	0
+Handler_read_prev	0
+Handler_read_retry	0
+Handler_read_rnd	0
+Handler_read_rnd_deleted	0
+Handler_read_rnd_next	0
+set @js='$out';
+select json_extract(@js,'$**.partitions_index_scan_method');
+json_extract(@js,'$**.partitions_index_scan_method')
+["iterate_over_partitions"]
+DROP TABLE t1;
+CREATE TABLE t1 (
+c int,
+d INT,
+INDEX idx1(c, d)
+) PARTITION BY RANGE COLUMNS(d) (
+PARTITION `p1` VALUES LESS THAN (10),
+PARTITION `p2` VALUES LESS THAN (20),
+PARTITION `p3` VALUES LESS THAN (30),
+PARTITION `p4` VALUES LESS THAN (40),
+PARTITION `p5` VALUES LESS THAN MAXVALUE
+);
+insert into t1 select t2.seq, t3.seq from seq_100_to_200 t2, seq_1_to_50 t3;
+## Case 2: Unordered scans with MRR
+flush status;
+select * from t1 where c=113 and d between 25 and 35 order by d limit 3;
+c	d
+113	25
+113	26
+113	27
+show status like 'handler_read_%';
+Variable_name	Value
+Handler_read_first	0
+Handler_read_key	1
+Handler_read_last	0
+Handler_read_next	2
+Handler_read_prev	0
+Handler_read_retry	0
+Handler_read_rnd	0
+Handler_read_rnd_deleted	0
+Handler_read_rnd_next	0
+### select * from t1 where c=113 and d between 25 and 35 order by d limit 3
+set @js='$out';
+select json_extract(@js,'$**.partitions_index_scan_method');
+json_extract(@js,'$**.partitions_index_scan_method')
+["iterate_over_partitions"]
+## Case 2: Unordered scans in ha_partition::index_read_map
+flush status;
+select * from t1 where c = 120 ORDER BY d DESC LIMIT 1;
+c	d
+120	50
+show status like 'handler_read_%';
+Variable_name	Value
+Handler_read_first	0
+Handler_read_key	1
+Handler_read_last	0
+Handler_read_next	0
+Handler_read_prev	0
+Handler_read_retry	0
+Handler_read_rnd	0
+Handler_read_rnd_deleted	0
+Handler_read_rnd_next	0
+flush status;
+select * from t1 where c = 120 ORDER BY d DESC LIMIT 2;
+c	d
+120	50
+120	49
+show status like 'handler_read_%';
+Variable_name	Value
+Handler_read_first	0
+Handler_read_key	1
+Handler_read_last	0
+Handler_read_next	0
+Handler_read_prev	1
+Handler_read_retry	0
+Handler_read_rnd	0
+Handler_read_rnd_deleted	0
+Handler_read_rnd_next	0
+flush status;
+select * from t1 where c = 120 ORDER BY d DESC LIMIT 16;
+c	d
+120	50
+120	49
+120	48
+120	47
+120	46
+120	45
+120	44
+120	43
+120	42
+120	41
+120	40
+120	39
+120	38
+120	37
+120	36
+120	35
+show status like 'handler_read_%';
+Variable_name	Value
+Handler_read_first	0
+Handler_read_key	2
+Handler_read_last	0
+Handler_read_next	0
+Handler_read_prev	15
+Handler_read_retry	0
+Handler_read_rnd	0
+Handler_read_rnd_deleted	0
+Handler_read_rnd_next	0
+### select * from t1 where c = 120 ORDER BY d DESC LIMIT 2
+set @js='$out';
+select json_extract(@js,'$**.partitions_index_scan_method');
+json_extract(@js,'$**.partitions_index_scan_method')
+["iterate_over_partitions"]
+flush status;
+select * from t1 where c = 120 ORDER BY d LIMIT 1;
+c	d
+120	1
+show status like 'handler_read_%';
+Variable_name	Value
+Handler_read_first	0
+Handler_read_key	1
+Handler_read_last	0
+Handler_read_next	0
+Handler_read_prev	0
+Handler_read_retry	0
+Handler_read_rnd	0
+Handler_read_rnd_deleted	0
+Handler_read_rnd_next	0
+flush status;
+select * from t1 where c = 120 ORDER BY d LIMIT 2;
+c	d
+120	1
+120	2
+show status like 'handler_read_%';
+Variable_name	Value
+Handler_read_first	0
+Handler_read_key	1
+Handler_read_last	0
+Handler_read_next	1
+Handler_read_prev	0
+Handler_read_retry	0
+Handler_read_rnd	0
+Handler_read_rnd_deleted	0
+Handler_read_rnd_next	0
+flush status;
+select * from t1 where c = 120 ORDER BY d LIMIT 16;
+c	d
+120	1
+120	2
+120	3
+120	4
+120	5
+120	6
+120	7
+120	8
+120	9
+120	10
+120	11
+120	12
+120	13
+120	14
+120	15
+120	16
+show status like 'handler_read_%';
+Variable_name	Value
+Handler_read_first	0
+Handler_read_key	2
+Handler_read_last	0
+Handler_read_next	15
+Handler_read_prev	0
+Handler_read_retry	0
+Handler_read_rnd	0
+Handler_read_rnd_deleted	0
+Handler_read_rnd_next	0
+select * from t1 where c = 120 LIMIT 2;
+c	d
+120	1
+120	2
+### select * from t1 where c = 120 ORDER BY d LIMIT 2
+set @js='$out';
+select json_extract(@js,'$**.partitions_index_scan_method');
+json_extract(@js,'$**.partitions_index_scan_method')
+["iterate_over_partitions"]
+### When one partition has no results
+delete from t1 where c = 120 and (d between 30 and 40 or d between 10 and 20);
+flush status;
+select * from t1 where c = 120 ORDER BY d DESC LIMIT 16;
+c	d
+120	50
+120	49
+120	48
+120	47
+120	46
+120	45
+120	44
+120	43
+120	42
+120	41
+120	29
+120	28
+120	27
+120	26
+120	25
+120	24
+show status like 'handler_read_%';
+Variable_name	Value
+Handler_read_first	0
+Handler_read_key	3
+Handler_read_last	0
+Handler_read_next	0
+Handler_read_prev	15
+Handler_read_retry	0
+Handler_read_rnd	0
+Handler_read_rnd_deleted	0
+Handler_read_rnd_next	0
+flush status;
+select * from t1 where c = 120 ORDER BY d LIMIT 16;
+c	d
+120	1
+120	2
+120	3
+120	4
+120	5
+120	6
+120	7
+120	8
+120	9
+120	21
+120	22
+120	23
+120	24
+120	25
+120	26
+120	27
+show status like 'handler_read_%';
+Variable_name	Value
+Handler_read_first	0
+Handler_read_key	3
+Handler_read_last	0
+Handler_read_next	15
+Handler_read_prev	0
+Handler_read_retry	0
+Handler_read_rnd	0
+Handler_read_rnd_deleted	0
+Handler_read_rnd_next	0
+drop table t1;
+## PARTITION BY RANGE (expr)
+CREATE TABLE t1 (
+c int,
+d INT,
+INDEX idx1(c, d)
+) PARTITION BY RANGE (d % 5) (
+PARTITION `p1` VALUES LESS THAN (1),
+PARTITION `p2` VALUES LESS THAN (2),
+PARTITION `p3` VALUES LESS THAN (3),
+PARTITION `p4` VALUES LESS THAN (4),
+PARTITION `p5` VALUES LESS THAN MAXVALUE
+);
+insert into t1 select t2.seq, t3.seq from seq_100_to_200 t2, seq_1_to_50 t3;
+flush status;
+select * from t1 where c = 120 ORDER BY d DESC LIMIT 1;
+c	d
+120	50
+show status like 'handler_read_%';
+Variable_name	Value
+Handler_read_first	0
+Handler_read_key	5
+Handler_read_last	0
+Handler_read_next	0
+Handler_read_prev	0
+Handler_read_retry	0
+Handler_read_rnd	0
+Handler_read_rnd_deleted	0
+Handler_read_rnd_next	0
+flush status;
+select * from t1 where c = 120 ORDER BY d DESC LIMIT 2;
+c	d
+120	50
+120	49
+show status like 'handler_read_%';
+Variable_name	Value
+Handler_read_first	0
+Handler_read_key	5
+Handler_read_last	0
+Handler_read_next	0
+Handler_read_prev	1
+Handler_read_retry	0
+Handler_read_rnd	0
+Handler_read_rnd_deleted	0
+Handler_read_rnd_next	0
+flush status;
+select * from t1 where c = 120 ORDER BY d LIMIT 2;
+c	d
+120	1
+120	2
+show status like 'handler_read_%';
+Variable_name	Value
+Handler_read_first	0
+Handler_read_key	5
+Handler_read_last	0
+Handler_read_next	1
+Handler_read_prev	0
+Handler_read_retry	0
+Handler_read_rnd	0
+Handler_read_rnd_deleted	0
+Handler_read_rnd_next	0
+flush status;
+### Unordered scan (filesort + mrr)
+select * from t1 where c = 120 ORDER BY d % 5 LIMIT 2;
+c	d
+120	10
+120	15
+show status like 'handler_read_%';
+Variable_name	Value
+Handler_read_first	0
+Handler_read_key	5
+Handler_read_last	0
+Handler_read_next	50
+Handler_read_prev	0
+Handler_read_retry	0
+Handler_read_rnd	2
+Handler_read_rnd_deleted	0
+Handler_read_rnd_next	0
+flush status;
+select * from t1 where c = 120 LIMIT 2;
+c	d
+120	1
+120	2
+show status like 'handler_read_%';
+Variable_name	Value
+Handler_read_first	0
+Handler_read_key	5
+Handler_read_last	0
+Handler_read_next	1
+Handler_read_prev	0
+Handler_read_retry	0
+Handler_read_rnd	0
+Handler_read_rnd_deleted	0
+Handler_read_rnd_next	0
+### select * from t1 where c = 120 ORDER BY d LIMIT 2
+set @js='$out';
+select json_extract(@js,'$**.partitions_index_scan_method');
+json_extract(@js,'$**.partitions_index_scan_method')
+["merge_ordered_scans"]
+### select * from t1 where c = 120 ORDER BY d % 5 LIMIT 2
+set @js='$out';
+select json_extract(@js,'$**.partitions_index_scan_method');
+json_extract(@js,'$**.partitions_index_scan_method')
+["iterate_over_partitions"]
+drop table t1;
+## Unordered scan (partition table is the second in the join
+## order after optimization) extracted and minimised from the
+## test main.partition
+CREATE TABLE t1 (
+id int(8),
+PRIMARY KEY (id)
+);
+INSERT INTO t1 VALUES (11), (22), (33);
+CREATE TABLE t2 (
+taken int,
+id int,
+PRIMARY KEY (id,taken),
+KEY taken (taken)
+)
+PARTITION BY RANGE (taken)
+(
+PARTITION p1 VALUES LESS THAN (50),
+PARTITION p2 VALUES LESS THAN (60),
+PARTITION p3 VALUES LESS THAN MAXVALUE
+);
+INSERT INTO t2 VALUES
+(51,11), /* p2 */
+(63,11), /* p3 */
+(51,22), /* p2 */
+(53,22), /* p2 */
+(55,22), /* p2 */
+(57,22), /* p2 */
+(61,22), /* p3 */
+(63,22), /* p3 */
+(51,33), /* p2 */
+(55,33) /* p2 */
+;
+set @ff=53;
+set @tt=64;
+flush status;
+SELECT t1.id
+FROM t1
+WHERE t1.id IN (
+SELECT distinct id
+FROM t2
+WHERE taken BETWEEN @ff AND @tt)
+ORDER BY t1.id;
+id
+11
+22
+33
+show status like 'handler_read_%';
+Variable_name	Value
+Handler_read_first	1
+Handler_read_key	4
+Handler_read_last	0
+Handler_read_next	6
+Handler_read_prev	0
+Handler_read_retry	0
+Handler_read_rnd	0
+Handler_read_rnd_deleted	0
+Handler_read_rnd_next	0
+### same statement as above
+set @js='$out';
+select json_extract(@js,'$**.partitions_index_scan_method');
+json_extract(@js,'$**.partitions_index_scan_method')
+["iterate_over_partitions"]
+## ordered scan (partition table is the first in the join
+## order after optimization and ORDER BY differs from
+## PARTITION BY RANGE)
+flush status;
+SELECT t1.id
+FROM t1
+WHERE t1.id IN (
+SELECT distinct id
+FROM t2
+WHERE taken BETWEEN 53 AND 64)
+ORDER BY t1.id;
+id
+11
+22
+33
+show status like 'handler_read_%';
+Variable_name	Value
+Handler_read_first	2
+Handler_read_key	3
+Handler_read_last	0
+Handler_read_next	10
+Handler_read_prev	0
+Handler_read_retry	0
+Handler_read_rnd	0
+Handler_read_rnd_deleted	0
+Handler_read_rnd_next	0
+### same statement as above
+set @js='$out';
+select json_extract(@js,'$**.partitions_index_scan_method');
+json_extract(@js,'$**.partitions_index_scan_method')
+["merge_ordered_scans"]
+## ordered scan again (only one table and no ORDER BY)
+flush status;
+select distinct id from t2 where taken between @ff and @tt;
+id
+11
+22
+33
+show status like 'handler_read_%';
+Variable_name	Value
+Handler_read_first	2
+Handler_read_key	0
+Handler_read_last	0
+Handler_read_next	10
+Handler_read_prev	0
+Handler_read_retry	0
+Handler_read_rnd	0
+Handler_read_rnd_deleted	0
+Handler_read_rnd_next	0
+### same statement as above
+set @js='$out';
+select json_extract(@js,'$**.partitions_index_scan_method');
+json_extract(@js,'$**.partitions_index_scan_method')
+["merge_ordered_scans"]
+drop table t1, t2;
