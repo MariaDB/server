@@ -7974,15 +7974,15 @@ bool LEX::sp_block_finalize(THD *thd, const Lex_spblock_st spblock,
 }
 
 
-sp_name *LEX::make_sp_name(THD *thd, const Lex_ident_sys_st &name)
+sp_name *LEX::make_sp_name(THD *thd, const Lex_ident_sys_st &name, bool with_db)
 {
-  sp_name *res;
   Lex_ident_db_normalized db;
-  if (unlikely(Lex_ident_routine::check_name_with_error(name)) ||
-      unlikely(!(db= copy_db_normalized()).str) ||
-      unlikely((!(res= new (thd->mem_root) sp_name(db, name, false)))))
+  if (Lex_ident_routine::check_name_with_error(name))
     return NULL;
-  return res;
+  if (with_db || thd->lex->sphead || thd->db.str)
+    if (!(db= copy_db_normalized()).str)
+      return NULL;
+  return new (thd->mem_root) sp_name(db, name, false);
 }
 
 
@@ -8002,7 +8002,7 @@ sp_name *LEX::make_sp_name(THD *thd, const Lex_ident_sys_st &name)
 sp_name *LEX::make_sp_name_package_routine(THD *thd,
                                            const Lex_ident_sys_st &name)
 {
-  sp_name *res= make_sp_name(thd, name);
+  sp_name *res= make_sp_name(thd, name, true);
   if (likely(res) && unlikely(strchr(res->m_name.str, '.')))
   {
     my_error(ER_SP_WRONG_NAME, MYF(0), res->m_name.str);
@@ -8023,33 +8023,6 @@ sp_name *LEX::make_sp_name(THD *thd, const Lex_ident_sys_st &name1,
       unlikely(Lex_ident_routine::check_name_with_error(name2)) ||
       unlikely(!(res= new (thd->mem_root) sp_name(norm_name1, name2, true))))
     return NULL;
-  return res;
-}
-
-
-sp_name *LEX::make_sp_name_sql_path(THD *thd, const Lex_ident_sys_st &name)
-{
-  if (unlikely(Lex_ident_routine::check_name_with_error(name)))
-    return NULL;
-
-  Lex_ident_db_normalized db;
-  sp_name *res= NULL;
-
-  if (thd->lex->sphead || thd->db.str)
-    db= copy_db_normalized();
-
-  if (!db.str)
-  {
-    res= new (thd->mem_root) sp_name(db, name, false);
-    if (!res)
-    {
-      my_message(ER_NO_DB_ERROR, ER(ER_NO_DB_ERROR), MYF(0));
-      return NULL;
-    }
-  }
-  else
-    res= new (thd->mem_root) sp_name(db, name, false);
-
   return res;
 }
 
@@ -10296,7 +10269,7 @@ bool LEX::call_statement_start(THD *thd, sp_name *name)
 
 bool LEX::call_statement_start(THD *thd, const Lex_ident_sys_st *name)
 {
-  sp_name *spname= make_sp_name_sql_path(thd, *name);
+  sp_name *spname= make_sp_name(thd, *name, false);
   return unlikely(!spname) || call_statement_start(thd, spname);
 }
 

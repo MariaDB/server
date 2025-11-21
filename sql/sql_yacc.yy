@@ -3374,7 +3374,7 @@ sp_name:
           }
         | ident
           {
-            if (unlikely(!($$= Lex->make_sp_name(thd, $1))))
+            if (unlikely(!($$= Lex->make_sp_name(thd, $1, true))))
               MYSQL_YYABORT;
           }
         ;
