@@ -413,9 +413,11 @@ void ha_partition::init_handler_variables()
   m_scan_value= 2;
   m_ref_length= 0;
   m_part_spec.end_part= NO_CURRENT_PART_ID;
+  m_unordered_reverse_index= false;
   m_index_scan_type= partition_no_index_scan;
   m_start_key.key= NULL;
   m_start_key.length= 0;
+  m_unordered_prefix_len= 0;
   m_myisam= FALSE;
   m_innodb= FALSE;
   m_myisammrg= FALSE;
@@ -6079,7 +6081,6 @@ int ha_partition::common_index_read(uchar *buf, bool have_start_key)
        m_start_key.flag == HA_READ_BEFORE_KEY))
   {
     reverse_order= TRUE;
-    m_ordered_scan_ongoing= TRUE;
   }
   DBUG_PRINT("info", ("m_ordered %u m_o_scan_ong %u have_start_key %u",
                       m_ordered, m_ordered_scan_ongoing, have_start_key));
@@ -6093,9 +6094,9 @@ int ha_partition::common_index_read(uchar *buf, bool have_start_key)
       The unordered index scan will use the partition set created.
     */
     DBUG_PRINT("info", ("doing unordered scan"));
-    error= handle_pre_scan(FALSE, FALSE);
+    error= handle_pre_scan(reverse_order, FALSE);
     if (likely(!error))
-      error= handle_unordered_scan_next_partition(buf);
+      error= handle_unordered_scan_next_partition(buf, reverse_order);
   }
   else
   {
@@ -6183,18 +6184,19 @@ int ha_partition::index_last(uchar * buf)
 int ha_partition::common_first_last(uchar *buf)
 {
   int error;
+  bool reverse_order= (m_index_scan_type == partition_index_last);
 
   if (table->all_partitions_pruned_away)
     return HA_ERR_END_OF_FILE; // No rows matching WHERE
 
   if (unlikely((error= partition_scan_set_up(buf, FALSE))))
     return error;
-  if (!m_ordered_scan_ongoing &&
-      m_index_scan_type != partition_index_last)
+  if (!m_ordered_scan_ongoing)
   {
-    if (unlikely((error= handle_pre_scan(FALSE, check_parallel_search()))))
+    if (unlikely((error= handle_pre_scan(reverse_order,
+                                         check_parallel_search()))))
       return error;
-   return handle_unordered_scan_next_partition(buf);
+    return handle_unordered_scan_next_partition(buf, reverse_order);
   }
   return handle_ordered_index_scan(buf, FALSE);
 }
@@ -6364,7 +6366,9 @@ int ha_partition::index_prev(uchar * buf)
   /* TODO: read comment in index_next */
   if (m_index_scan_type == partition_index_first)
     DBUG_RETURN(HA_ERR_WRONG_COMMAND);
-  DBUG_RETURN(handle_ordered_prev(buf));
+  if (m_ordered_scan_ongoing)
+    DBUG_RETURN(handle_ordered_prev(buf));
+  DBUG_RETURN(handle_unordered_prev(buf));
 }
 
 
@@ -6943,8 +6947,13 @@ int ha_partition::multi_range_read_next(range_id_t *range_info)
   DBUG_ENTER("ha_partition::multi_range_read_next");
   DBUG_PRINT("enter", ("partition this: %p  partition m_mrr_mode: %u",
                        this, m_mrr_mode));
-
-  if ((m_mrr_mode & HA_MRR_SORTED))
+  if (m_multi_range_read_first)
+  {
+    m_ordered_scan_ongoing= (m_mrr_mode & HA_MRR_SORTED) ? true : false;
+    m_ordered_scan_ongoing= m_ordered_scan_ongoing &&
+                            !can_skip_merging_scans();
+  }
+  if (m_ordered_scan_ongoing)
   {
     if (m_multi_range_read_first)
     {
@@ -6964,7 +6973,8 @@ int ha_partition::multi_range_read_next(range_id_t *range_info)
     if (unlikely(m_multi_range_read_first))
     {
       if (unlikely((error=
-                    handle_unordered_scan_next_partition(table->record[0]))))
+                    handle_unordered_scan_next_partition(table->record[0],
+                                                         FALSE))))
         DBUG_RETURN(error);
       if (!m_pre_calling)
         m_multi_range_read_first= FALSE;
@@ -7472,6 +7482,149 @@ end_dont_reset_start_part:
   DBUG_RETURN(result);
 }
 
+/*
+  @brief
+    Check if current index scan needs to use a priority queue for merging
+    index scan outputs of involved partitions. If not, it can just scan
+    one partition after another.
+
+  @detail
+    An index read operation expected to produce records in [reverse] index
+    order. This holds for for each partition.
+    Then, we need to do either of the two:
+    1."Merging", ha_partition also calls this "Ordered Scan": ordered
+      streams of records from multiple partitions are merged together (using
+      a Priority Queue) to produce one single ordered stream.
+    2."No merging", ha partition also calls it "Unordered Scan": first return
+      records from partition P_x, then P_{x+1}, and so forth.
+      Records will come in the desired order.
+      2.1 Enumerate partitions in the reverse order: P_y, P_{y-1}, etc.
+
+    Basic case when No-Merging can be done:
+    Case 1:
+
+     CREATE TABLE t (
+       ...
+       INDEX(col1, ...),
+     ) PARTITION BY RANGE(col1) ...;
+
+    In this case any record in partition Px should come before any record
+    in partition P{x+1} so can just scan P1, P2, ...
+
+    Note that subpartitioning (which can only be done by hash(some_column)
+    cannot be handled: we'll need to order records from subpartitions.
+
+    Case 2: The index has a prefix but it's constant for the range we're
+    scanning:
+
+     CREATE TABLE t (
+       ...
+       INDEX(prefix, col1, suffix),
+     ) PARTITION BY RANGE(col1) ...;
+
+     SELECT * FROM t1 WHERE prefix=const ... ORDER BY col1, suffix;
+
+  @return
+    true  - Yes, can use Unordered Scan and records will come in the required
+            order.
+    false - No, use Ordered Scan: merge ordered streams with Priority Queue.
+*/
+
+bool ha_partition::can_skip_merging_scans()
+{
+  Field *part_field= NULL;
+  uint i;
+  m_unordered_prefix_len= 0;
+
+  if (m_index_scan_type != partition_index_first &&
+      m_index_scan_type != partition_index_last &&
+      m_index_scan_type != partition_index_read &&
+      m_index_scan_type != partition_read_range &&
+      m_index_scan_type != partition_read_multi_range)
+  {
+    /*
+      This is partition_ft_read or partition_no_index_scan. We shouldn't
+      get here.
+    */
+    DBUG_ASSERT(0);
+    return false;
+  }
+
+  if (m_part_info->part_type != RANGE_PARTITION || m_is_sub_partitioned)
+    return false;
+  if (m_part_info->part_expr &&
+      m_part_info->part_expr->type() != Item::FIELD_ITEM)
+    return false;
+  for (i= 0;
+       (part_field= m_part_info->full_part_field_array[i]) &&
+       i < m_curr_key_info[0]->user_defined_key_parts;
+       i++)
+  {
+    KEY_PART_INFO *key_part= &m_curr_key_info[0]->key_part[i];
+    if (key_part->field != part_field)
+      break;
+
+    /* Currently, we disallow indexes with mixed ASC and DESC key parts: */
+    bool kp_is_reverse= MY_TEST(key_part->key_part_flag & HA_REVERSE_SORT);
+    if (i == 0)
+      m_unordered_reverse_index= kp_is_reverse;
+    else if (m_unordered_reverse_index != kp_is_reverse)
+      return false;
+  }
+
+  /* Case 1 */
+  /*
+    We read to the empty partition field, so the partition columns are
+    a prefix
+  */
+  if (!part_field)
+    return true;
+  /* A prefix but not all of the columns is a prefix */
+  if (i > 0)
+    return false;
+  /* Case 2 begins. Case 2 only supports single range column */
+  if (m_part_info->full_part_field_array[1])
+    return false;
+  if (m_index_scan_type == partition_index_first ||
+      m_index_scan_type == partition_index_last)
+    return false;
+  m_unordered_prefix_len= m_curr_key_info[0]->key_part[0].store_length;
+  for (i= 1; i < m_curr_key_info[0]->user_defined_key_parts; i++)
+  {
+    KEY_PART_INFO *key_part= &m_curr_key_info[0]->key_part[i];
+    if (key_part->field != part_field)
+      m_unordered_prefix_len+= key_part->store_length;
+    else
+    {
+      key_part_map prefix= (1 << i) - 1;
+      m_unordered_reverse_index=
+        (key_part->key_part_flag & HA_REVERSE_SORT) ? true : false;
+      if (m_index_scan_type == partition_index_read)
+      {
+        return
+          m_start_key.key && (m_start_key.keypart_map & prefix) == prefix;
+      }
+      else if (m_index_scan_type == partition_read_range)
+      {
+        return
+          m_start_key.key && (m_start_key.keypart_map & prefix) == prefix &&
+          end_range && (end_range->keypart_map & prefix) == prefix &&
+          !memcmp(m_start_key.key, end_range->key, m_unordered_prefix_len);
+      }
+      else /* (m_index_scan_type == partition_read_multi_range) */
+      {
+        return
+          (m_mrr_range_current->key_multi_range.start_key.keypart_map &
+           prefix) == prefix &&
+          (m_mrr_range_current->key_multi_range.end_key.keypart_map &
+           prefix) == prefix &&
+          !memcmp(m_mrr_range_current->key[0], m_mrr_range_current->key[1],
+                  m_unordered_prefix_len);
+      }
+    }
+  }
+  return false;
+}
 
 /*
   Common routine to set up index scans
@@ -7547,6 +7700,12 @@ int ha_partition::partition_scan_set_up(uchar * buf, bool idx_read_flag)
       m_part_spec.start_part= start_part;
     DBUG_ASSERT(m_part_spec.start_part < m_tot_parts);
     m_ordered_scan_ongoing= m_ordered;
+    /*
+      Set unordered scan if priority queue is not needed. May be
+      overridden later e.g. if ORDER BY ... DESC
+    */
+    if (can_skip_merging_scans())
+      m_ordered_scan_ongoing= false;
   }
   DBUG_ASSERT(m_part_spec.start_part < m_tot_parts);
   DBUG_ASSERT(m_part_spec.end_part < m_tot_parts);
@@ -7780,15 +7939,21 @@ int ha_partition::handle_unordered_next(uchar *buf, bool is_next_same)
 {
   handler *file;
   int error;
+  /*
+    Start from the highest partition if the relevant index is a
+    reverse index.
+  */
+  uint i= m_unordered_reverse_index ?
+    m_part_spec.end_part : m_part_spec.start_part;
   DBUG_ENTER("ha_partition::handle_unordered_next");
 
-  if (m_part_spec.start_part >= m_tot_parts)
+  if (i >= m_tot_parts)
   {
     /* Should never happen! */
     DBUG_ASSERT(0);
     DBUG_RETURN(HA_ERR_END_OF_FILE);
   }
-  file= m_file[m_part_spec.start_part];
+  file= m_file[i];
 
   /*
     We should consider if this should be split into three functions as
@@ -7797,10 +7962,9 @@ int ha_partition::handle_unordered_next(uchar *buf, bool is_next_same)
 
   if (m_index_scan_type == partition_read_multi_range)
   {
-    if (likely(!(error= file->
-                 multi_range_read_next(&m_range_info[m_part_spec.start_part]))))
+    if (likely(!(error= file->multi_range_read_next(&m_range_info[i]))))
     {
-      m_last_part= m_part_spec.start_part;
+      m_last_part= i;
       DBUG_RETURN(0);
     }
   }
@@ -7808,7 +7972,7 @@ int ha_partition::handle_unordered_next(uchar *buf, bool is_next_same)
   {
     if (likely(!(error= file->read_range_next())))
     {
-      m_last_part= m_part_spec.start_part;
+      m_last_part= i;
       DBUG_RETURN(0);
     }
   }
@@ -7817,7 +7981,7 @@ int ha_partition::handle_unordered_next(uchar *buf, bool is_next_same)
     if (likely(!(error= file->ha_index_next_same(buf, m_start_key.key,
                                                  m_start_key.length))))
     {
-      m_last_part= m_part_spec.start_part;
+      m_last_part= i;
       DBUG_RETURN(0);
     }
   }
@@ -7825,19 +7989,84 @@ int ha_partition::handle_unordered_next(uchar *buf, bool is_next_same)
   {
     if (likely(!(error= file->ha_index_next(buf))))
     {
-      m_last_part= m_part_spec.start_part;
+      m_last_part= i;
       DBUG_RETURN(0);                           // Row was in range
     }
   }
 
     if (unlikely(error == HA_ERR_END_OF_FILE))
   {
-    m_part_spec.start_part++;                    // Start using next part
-    error= handle_unordered_scan_next_partition(buf);
+    // Start using next part
+    if (m_unordered_reverse_index)
+      m_part_spec.end_part--;
+    else
+      m_part_spec.start_part++;
+    if (m_part_spec.start_part <= m_part_spec.end_part &&
+        m_part_spec.end_part < m_tot_parts)
+      error= handle_unordered_scan_next_partition(buf, FALSE);
   }
   DBUG_RETURN(error);
 }
 
+/*
+  Common routine to handle index_prev with unordered scan
+
+  SYNOPSIS
+    handle_unordered_next()
+    out:buf                       Read row in MySQL Row Format
+
+  RETURN VALUE
+    HA_ERR_END_OF_FILE            End of scan
+    0                             Success
+    other                         Error code
+
+  DESCRIPTION
+    These routines are used to scan partitions without a priority
+    queue.
+*/
+int ha_partition::handle_unordered_prev(uchar *buf)
+{
+  int error;
+  handler *file;
+  /*
+    Start from the highest partition if the relevant index is a
+    reverse index.
+  */
+  uint i= m_unordered_reverse_index ?
+    m_part_spec.start_part : m_part_spec.end_part;
+  DBUG_ENTER("ha_partition::handle_unordered_prev");
+  DBUG_PRINT("enter", ("partition: %p", this));
+  if (i >= m_tot_parts)
+  {
+    /* Should never happen! */
+    DBUG_ASSERT(0);
+    DBUG_RETURN(HA_ERR_END_OF_FILE);
+  }
+  file= m_file[i];
+
+  if (likely(!(error= file->ha_index_prev(buf))))
+  {
+    if (m_unordered_prefix_len &&
+        key_cmp_if_same(table, m_start_key.key, 0, m_unordered_prefix_len))
+      error = HA_ERR_END_OF_FILE;
+    else
+    {
+      m_last_part= i;
+      DBUG_RETURN(0);
+    }
+  }
+  if (error == HA_ERR_END_OF_FILE)
+  {
+    if (m_unordered_reverse_index)
+      m_part_spec.start_part++;
+    else
+      m_part_spec.end_part--;
+    if (m_part_spec.start_part <= m_part_spec.end_part &&
+        m_part_spec.end_part < m_tot_parts)
+      error= handle_unordered_scan_next_partition(buf, TRUE);
+  }
+  DBUG_RETURN(error);
+}
 
 /*
   Handle index_next when changing to new partition
@@ -7845,6 +8074,8 @@ int ha_partition::handle_unordered_next(uchar *buf, bool is_next_same)
   SYNOPSIS
     handle_unordered_scan_next_partition()
     buf                       Read row in MariaDB Row Format
+    is_last_or_prev           The upstream handler access method is
+                              LAST/PREV rather than FIRST/NEXT
 
   RETURN VALUE
     HA_ERR_END_OF_FILE            End of scan
@@ -7856,9 +8087,12 @@ int ha_partition::handle_unordered_next(uchar *buf, bool is_next_same)
     Both initial start and after completing scan on one partition.
 */
 
-int ha_partition::handle_unordered_scan_next_partition(uchar * buf)
+int ha_partition::handle_unordered_scan_next_partition(uchar * buf,
+                                                       bool is_last_or_prev)
 {
-  uint i= m_part_spec.start_part;
+  /* Whether to start from the highest partition. */
+  bool reverse_order= (is_last_or_prev != m_unordered_reverse_index);
+  uint i= reverse_order ? m_part_spec.end_part : m_part_spec.start_part;
   int saved_error= HA_ERR_END_OF_FILE;
   DBUG_ENTER("ha_partition::handle_unordered_scan_next_partition");
 
@@ -7866,19 +8100,30 @@ int ha_partition::handle_unordered_scan_next_partition(uchar * buf)
     m_pi_scan_method= INDEX_SCAN_BOTH;
   else
     m_pi_scan_method= INDEX_SCAN_UNORDERED;
-  /* Read next partition that includes start_part */
-  if (i)
-    i= bitmap_get_next_set(&m_part_info->read_partitions, i - 1);
+  /* Find the first partition to scan. */
+  if (reverse_order)
+  {
+    if (i < m_part_info->read_partitions.n_bits - 1)
+      i= bitmap_get_prev_set(&m_part_info->read_partitions, i + 1);
+    else
+      i= bitmap_get_last_set(&m_part_info->read_partitions);
+  }
   else
-    i= bitmap_get_first_set(&m_part_info->read_partitions);
+  {
+    if (i)
+      i= bitmap_get_next_set(&m_part_info->read_partitions, i - 1);
+    else
+      i= bitmap_get_first_set(&m_part_info->read_partitions);
+  }
 
-  for (;
-       i <= m_part_spec.end_part;
-       i= bitmap_get_next_set(&m_part_info->read_partitions, i))
+  while (i >= m_part_spec.start_part && i <= m_part_spec.end_part)
   {
     int error;
     handler *file= m_file[i];
-    m_part_spec.start_part= i;
+    if (reverse_order)
+      m_part_spec.end_part= i;
+    else
+      m_part_spec.start_part= i;
 
     switch (m_index_scan_type) {
     case partition_read_multi_range:
@@ -7902,6 +8147,10 @@ int ha_partition::handle_unordered_scan_next_partition(uchar * buf)
       DBUG_PRINT("info", ("index_first on partition %u", i));
       error= file->ha_index_first(buf);
       break;
+    case partition_index_last:
+      DBUG_PRINT("info", ("index_last on partition %u", i));
+      error= file->ha_index_last(buf);
+      break;
     default:
       DBUG_ASSERT(FALSE);
       DBUG_RETURN(1);
@@ -7922,9 +8171,18 @@ int ha_partition::handle_unordered_scan_next_partition(uchar * buf)
     if (saved_error != HA_ERR_KEY_NOT_FOUND)
       saved_error= error;
     DBUG_PRINT("info", ("END_OF_FILE/KEY_NOT_FOUND on partition %u", i));
+    if (reverse_order)
+      i= bitmap_get_prev_set(&m_part_info->read_partitions, i);
+    else
+      i= bitmap_get_next_set(&m_part_info->read_partitions, i);
   }
   if (saved_error == HA_ERR_END_OF_FILE)
-    m_part_spec.start_part= NO_CURRENT_PART_ID;
+  {
+    if (reverse_order)
+      m_part_spec.end_part= NO_CURRENT_PART_ID;
+    else
+      m_part_spec.start_part= NO_CURRENT_PART_ID;
+  }
   DBUG_RETURN(saved_error);
 }
 
