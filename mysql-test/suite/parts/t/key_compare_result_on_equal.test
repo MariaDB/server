@@ -1,0 +1,27 @@
+--source include/have_partition.inc
+--source include/have_sequence.inc
+--echo # MDEV-38040 unitialized handler::key_compare_result_on_equal in
+--echo # loose index scan of partition tables
+--disable_ps2_protocol
+CREATE TABLE t1 (
+ a INT,
+ b INT,
+ KEY ( a, b )
+) PARTITION BY RANGE COLUMNS(a) (
+ PARTITION `p1` VALUES LESS THAN (10),
+ PARTITION `p2` VALUES LESS THAN (20),
+ PARTITION `p3` VALUES LESS THAN (30),
+ PARTITION `p4` VALUES LESS THAN (40),
+ PARTITION `p5` VALUES LESS THAN MAXVALUE
+);
+
+insert into t1 select seq, seq from seq_1_to_50;
+
+FLUSH status;
+--disable_view_protocol
+SELECT a, MIN(b) FROM t1 WHERE a > 18 and a < 21 GROUP BY a;
+--enable_view_protocol
+show status like 'handler_read_%';
+
+DROP TABLE t1;
+--enable_ps2_protocol
