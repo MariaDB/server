@@ -568,10 +568,10 @@ ALTER TABLE proc MODIFY comment
 ALTER TABLE proc ADD aggregate enum('NONE', 'GROUP') DEFAULT 'NONE' NOT NULL
                      AFTER body_utf8;
 
-ALTER TABLE proc ADD path text COLLATE utf8mb3_bin DEFAULT NULL
+ALTER TABLE proc ADD path text COLLATE utf8mb3_bin DEFAULT 'CURRENT_SCHEMA' NOT NULL
                      AFTER aggregate;
 
-ALTER TABLE proc MODIFY path TEXT COLLATE utf8mb3_bin DEFAULT NULL;
+ALTER TABLE proc MODIFY path TEXT COLLATE utf8mb3_bin DEFAULT 'CURRENT_SCHEMA' NOT NULL;
 
 # Update definer of Add/DropGeometryColumn procedures to 'mariadb.sys'
 # To consider the scenarios in MDEV-23102, only update the definer when it's 'root'
