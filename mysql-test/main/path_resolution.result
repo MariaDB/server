@@ -2747,7 +2747,6 @@ SET @@path = DEFAULT;
 # Resolution of routines in stored routines should be based on
 # the current path, not the path at the time of creation.
 #
-SET @@path= DEFAULT;
 SET sql_mode= DEFAULT;
 USE test;
 CREATE FUNCTION func() RETURNS TEXT RETURN 'Invoke from Db: test, Rt: func';
@@ -2756,19 +2755,19 @@ USE test3;
 CREATE FUNCTION func() RETURNS TEXT RETURN 'Invoke from Db: test3, Rt: func';
 CREATE DATABASE test2;
 USE test2;
-SET @@path= 'test';
+SET PATH 'test';
 CREATE FUNCTION func2() RETURNS TEXT RETURN func();
-USE test;
-SET @@path= 'test3';
-SELECT test2.func2();
-test2.func2()
+SELECT func2();
+func2()
 Invoke from Db: test, Rt: func
-SET @@path= 'test';
-#TODO
-#SELECT test2.func2();
+SET PATH 'test3';
+SELECT func2();
+func2()
+Invoke from Db: test, Rt: func
 DROP FUNCTION test.func;
 DROP DATABASE test2;
 DROP DATABASE test3;
+SET @@path = DEFAULT;
 #
 # Path resolution where database name contains ','
 #
@@ -2778,7 +2777,7 @@ CREATE FUNCTION func() RETURNS TEXT RETURN 'Invoke from Db: \"a,b\", Rt: func';
 USE test;
 SELECT func();
 ERROR 42000: FUNCTION test.func does not exist
-SET @@path= '`a,b`';
+SET PATH '`a,b`';
 SELECT func();
 func()
 Invoke from Db: "a,b", Rt: func
@@ -2793,13 +2792,13 @@ CREATE FUNCTION func() RETURNS TEXT RETURN 'Invoke from Db: \", Rt: func';
 USE test;
 SELECT func();
 ERROR 42000: FUNCTION test.func does not exist
-SET @@path= '`"`';
+SET PATH '`"`';
 SELECT func();
 func()
 Invoke from Db: ", Rt: func
 DROP DATABASE `"`;
 USE test;
-SET @@path= DEFAULT;
+SET @@path = DEFAULT;
 #
 # Modify session path within a stored routine
 # This is not allowed since we invalidate the sp caches when the session
@@ -2807,7 +2806,7 @@ SET @@path= DEFAULT;
 #
 CREATE FUNCTION func() RETURNS TEXT
 BEGIN
-SET @@path= 'sys';
+SET PATH 'sys';
 RETURN '';
 END;
 $$
