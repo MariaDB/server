@@ -910,7 +910,6 @@ sp_head::~sp_head()
   delete_dynamic(&m_instr);
   delete m_pcont;
   free_items();
-  m_sql_path.free();
 
   /*
     If we have non-empty LEX stack then we just came out of parser with

@@ -34,6 +34,8 @@ public:
     set(std::move(rhs));
   }
 
+  ~Sql_path() { free(); }
+
   bool resolve(THD *thd, sp_head *caller, sp_name *name,
                const Sp_handler **sph, Database_qualified_name *pkgname) const;
   /*
