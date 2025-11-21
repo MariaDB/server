@@ -232,7 +232,7 @@ show status like 'handler_read_%';
 Variable_name	Value
 Handler_read_first	0
 Handler_read_key	0
-Handler_read_last	5
+Handler_read_last	2
 Handler_read_next	0
 Handler_read_prev	15
 Handler_read_retry	0
@@ -244,7 +244,7 @@ flush status;
 set @js='$out';
 select json_extract(@js,'$**.partitions_index_scan_method');
 json_extract(@js,'$**.partitions_index_scan_method')
-["merge_ordered_scans"]
+["iterate_over_partitions"]
 select * from t1 ORDER BY c desc LIMIT 16;
 c
 50
@@ -265,9 +265,9 @@ c
 35
 show status like 'handler_read_%';
 Variable_name	Value
-Handler_read_first	5
+Handler_read_first	2
 Handler_read_key	0
-Handler_read_last	5
+Handler_read_last	2
 Handler_read_next	15
 Handler_read_prev	15
 Handler_read_retry	0
@@ -278,7 +278,7 @@ Handler_read_rnd_next	0
 set @js='$out';
 select json_extract(@js,'$**.partitions_index_scan_method');
 json_extract(@js,'$**.partitions_index_scan_method')
-["merge_ordered_scans"]
+["iterate_over_partitions"]
 drop table t1;
 CREATE TABLE t1 (
 c int,

@@ -413,6 +413,7 @@ void ha_partition::init_handler_variables()
   m_scan_value= 2;
   m_ref_length= 0;
   m_part_spec.end_part= NO_CURRENT_PART_ID;
+  m_unordered_reverse_index= false;
   m_index_scan_type= partition_no_index_scan;
   m_start_key.key= NULL;
   m_start_key.length= 0;
@@ -7515,12 +7516,14 @@ bool ha_partition::can_skip_merging_scans()
   if (m_part_info->full_part_field_array[1])
     return false;
   part_field= m_part_info->full_part_field_array[0];
-  /* TODO: do not handle reverse index for now */
-  if (m_curr_key_info[0]->key_part[0].key_part_flag & HA_REVERSE_SORT)
-    return false;
   /* Case 1 */
   if (m_curr_key_info[0]->key_part[0].field == part_field)
+  {
+    m_unordered_reverse_index=
+      (m_curr_key_info[0]->key_part[0].key_part_flag & HA_REVERSE_SORT) ?
+      true : false;
     return true;
+  }
   m_unordered_prefix_len= m_curr_key_info[0]->key_part[0].store_length;
   /* Case 2 */
   if (m_index_scan_type == partition_index_first ||
@@ -7528,12 +7531,12 @@ bool ha_partition::can_skip_merging_scans()
     return false;
   for (uint i= 1; i < m_curr_key_info[0]->user_defined_key_parts; i++)
   {
-    /* TODO: do not handle reverse index for now */
-    if (m_curr_key_info[0]->key_part[i].key_part_flag & HA_REVERSE_SORT)
-      return false;
     if (m_curr_key_info[0]->key_part[i].field == part_field)
     {
       key_part_map prefix= (1 << i) - 1;
+      m_unordered_reverse_index=
+        (m_curr_key_info[0]->key_part[0].key_part_flag & HA_REVERSE_SORT) ?
+        true : false;
       if (m_index_scan_type == partition_index_read)
         return m_start_key.key && m_start_key.keypart_map == prefix;
       else if (m_index_scan_type == partition_read_range)
@@ -7869,15 +7872,17 @@ int ha_partition::handle_unordered_next(uchar *buf, bool is_next_same)
 {
   handler *file;
   int error;
+  int i= m_unordered_reverse_index ?
+    m_part_spec.end_part : m_part_spec.start_part;
   DBUG_ENTER("ha_partition::handle_unordered_next");
 
-  if (m_part_spec.start_part >= m_tot_parts)
+  if ((uint) i >= m_tot_parts)
   {
     /* Should never happen! */
     DBUG_ASSERT(0);
     DBUG_RETURN(HA_ERR_END_OF_FILE);
   }
-  file= m_file[m_part_spec.start_part];
+  file= m_file[i];
 
   /*
     We should consider if this should be split into three functions as
@@ -7886,10 +7891,9 @@ int ha_partition::handle_unordered_next(uchar *buf, bool is_next_same)
 
   if (m_index_scan_type == partition_read_multi_range)
   {
-    if (likely(!(error= file->
-                 multi_range_read_next(&m_range_info[m_part_spec.start_part]))))
+    if (likely(!(error= file->multi_range_read_next(&m_range_info[i]))))
     {
-      m_last_part= m_part_spec.start_part;
+      m_last_part= i;
       DBUG_RETURN(0);
     }
   }
@@ -7897,7 +7901,7 @@ int ha_partition::handle_unordered_next(uchar *buf, bool is_next_same)
   {
     if (likely(!(error= file->read_range_next())))
     {
-      m_last_part= m_part_spec.start_part;
+      m_last_part= i;
       DBUG_RETURN(0);
     }
   }
@@ -7906,7 +7910,7 @@ int ha_partition::handle_unordered_next(uchar *buf, bool is_next_same)
     if (likely(!(error= file->ha_index_next_same(buf, m_start_key.key,
                                                  m_start_key.length))))
     {
-      m_last_part= m_part_spec.start_part;
+      m_last_part= i;
       DBUG_RETURN(0);
     }
   }
@@ -7914,15 +7918,21 @@ int ha_partition::handle_unordered_next(uchar *buf, bool is_next_same)
   {
     if (likely(!(error= file->ha_index_next(buf))))
     {
-      m_last_part= m_part_spec.start_part;
+      m_last_part= i;
       DBUG_RETURN(0);                           // Row was in range
     }
   }
 
     if (unlikely(error == HA_ERR_END_OF_FILE))
   {
-    m_part_spec.start_part++;                    // Start using next part
-    error= handle_unordered_scan_next_partition(buf, FALSE);
+    // Start using next part
+    if (m_unordered_reverse_index)
+      m_part_spec.end_part--;
+    else
+      m_part_spec.start_part++;
+    if (m_part_spec.start_part <= m_part_spec.end_part &&
+        m_part_spec.end_part < m_tot_parts)
+      error= handle_unordered_scan_next_partition(buf, FALSE);
   }
   DBUG_RETURN(error);
 }
@@ -7931,15 +7941,17 @@ int ha_partition::handle_unordered_prev(uchar *buf)
 {
   int error;
   handler *file;
+  int i= m_unordered_reverse_index ?
+    m_part_spec.start_part : m_part_spec.end_part;
   DBUG_ENTER("ha_partition::handle_unordered_prev");
   DBUG_PRINT("enter", ("partition: %p", this));
-  if (m_part_spec.end_part >= m_tot_parts)
+  if ((uint) i >= m_tot_parts)
   {
     /* Should never happen! */
     DBUG_ASSERT(0);
     DBUG_RETURN(HA_ERR_END_OF_FILE);
   }
-  file= m_file[m_part_spec.end_part];
+  file= m_file[i];
 
   if (likely(!(error= file->ha_index_prev(buf))))
   {
@@ -7948,14 +7960,18 @@ int ha_partition::handle_unordered_prev(uchar *buf)
       error = HA_ERR_END_OF_FILE;
     else
     {
-      m_last_part= m_part_spec.end_part;
+      m_last_part= i;
       DBUG_RETURN(0);
     }
   }
   if (error == HA_ERR_END_OF_FILE)
   {
-    m_part_spec.end_part--;
-    if (m_part_spec.end_part != NO_CURRENT_PART_ID)
+    if (m_unordered_reverse_index)
+      m_part_spec.start_part++;
+    else
+      m_part_spec.end_part--;
+    if (m_part_spec.start_part <= m_part_spec.end_part &&
+        m_part_spec.end_part < m_tot_parts)
       error= handle_unordered_scan_next_partition(buf, TRUE);
   }
   DBUG_RETURN(error);
@@ -7981,6 +7997,7 @@ int ha_partition::handle_unordered_prev(uchar *buf)
 int ha_partition::handle_unordered_scan_next_partition(uchar * buf,
                                                        bool reverse_order)
 {
+  reverse_order= (reverse_order != m_unordered_reverse_index);
   int i= reverse_order ? m_part_spec.end_part : m_part_spec.start_part;
   int j= reverse_order ? -1 : 1;
   int saved_error= HA_ERR_END_OF_FILE;
@@ -8029,7 +8046,7 @@ int ha_partition::handle_unordered_scan_next_partition(uchar * buf,
       error= file->ha_index_first(buf);
       break;
     case partition_index_last:
-      DBUG_PRINT("info", ("index_first on partition %u", i));
+      DBUG_PRINT("info", ("index_last on partition %u", i));
       error= file->ha_index_last(buf);
       break;
     default:
