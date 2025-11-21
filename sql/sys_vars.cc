@@ -4056,6 +4056,7 @@ static Sys_var_set Sys_old_behavior(
 static const char *new_mode_all_names[]=
 {
   "FIX_INDEX_STATS_FOR_ALL_NULLS",
+  "FIX_INDEX_LOOKUP_COST",
   "TEST_WARNING1",                       // Default from here, See NEW_MODE_MAX
   "TEST_WARNING2",
   0
@@ -4063,8 +4064,8 @@ static const char *new_mode_all_names[]=
 
 static int new_mode_hidden_names[] =
 {
-  1,  // TEST_WARNING1
-  2,  // TEST_WARNING2
+  2,  // TEST_WARNING1
+  3,  // TEST_WARNING2
   -1  // End of list
 };
 

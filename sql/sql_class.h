@@ -220,7 +220,8 @@ void old_mode_deprecated_warnings(THD *thd, ulonglong v);
 */
 
 #define NEW_MODE_FIX_INDEX_STATS_FOR_ALL_NULLS                      (1ULL << 0)
-#define NEW_MODE_MAX                                                         1
+#define NEW_MODE_FIX_INDEX_LOOKUP_COST                              (1ULL << 1)
+#define NEW_MODE_MAX                                                2
 
 /* Definitions above that have transitioned from new behaviour to default */
 
