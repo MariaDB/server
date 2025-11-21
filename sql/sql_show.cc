@@ -578,6 +578,7 @@ static struct show_privileges_st sys_privileges[]=
   {"Read_only admin", "Server", "To perform write operations even if @@read_only=READ_ONLY or READ_ONLY_NO_LOCK"},
   {"Usage","Server Admin","No privileges - allow connect only"},
   {"Show Create Routine","Databases,Functions,Procedures","To allow SHOW CREATE PROCEDURE/FUNCTION/PACKAGE"},
+  {"Ignore denies", "Server Admin",  "Deny statements have no effect on the user."},
   {NullS, NullS, NullS}
 };
 

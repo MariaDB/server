@@ -1893,7 +1893,7 @@ Host	User	Priv
 localhost	mariadb.sys	{"access":0,"version_id":VERSION,"plugin":"mysql_native_password","authentication_string":"","password_last_changed":NOW,"password_lifetime":-1,"default_role":""}
 	role_1	{"access":16384,"version_id":VERSION,"is_role":true}
 	role_2	{"access":0,"version_id":VERSION,"is_role":true}
-localhost	root	{"access":1099511627775,"version_id":VERSION,"plugin":"mysql_native_password","authentication_string":"","password_last_changed":NOW,"default_role":""}
+localhost	root	{"access":2199023255551,"version_id":VERSION,"plugin":"mysql_native_password","authentication_string":"","password_last_changed":NOW,"default_role":""}
 CHECKSUM TABLE mysql.roles_mapping, mysql.time_zone_transition, mysql.plugin,
 mysql.servers, mysql.func, mysql.innodb_table_stats, mysql.table_stats;
 Table	Checksum
