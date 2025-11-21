@@ -9406,7 +9406,7 @@ ER_TABLE_HAS_NO_FT
         spa "La tabla no tiene índice FULLTEXT que soporte esta consulta (query)"
         sw "Jedwali halina faharasa ya FULLTEXT kuruhusisha utekelezaji wa hoja hii"
 
-ER_VARIABLE_NOT_SETTABLE_IN_SF_OR_TRIGGER
+ER_VARIABLE_NOT_SETTABLE_IN_SF_OR_TRG
         chi "无法在存储的函数或触发器中设置系统变量%.200s"
         eng "The system variable %.200s cannot be set in stored functions or triggers"
         geo "სისტემური ცვლადის %.200s მნიშვნელობას დამახსოვრებული ფუნქციებიდან და ტრიგერებიდან ვერ დააყენებთ"
