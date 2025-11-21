@@ -1485,7 +1485,6 @@ Sp_handler::sp_create_routine(THD *thd, const sp_head *sp) const
       store_failed= store_failed ||
         table->field[MYSQL_PROC_FIELD_PATH]->
           store(sql_path, system_charset_info);
-      table->field[MYSQL_PROC_FIELD_PATH]->set_notnull();
     }
 
     if (type() == SP_TYPE_FUNCTION &&

@@ -133,7 +133,7 @@ def	mysql	proc	language	5	'SQL'	NO	enum	3	9	NULL	NULL	NULL	utf8mb3	utf8mb3_gener
 def	mysql	proc	modified	14	'0000-00-00 00:00:00'	NO	timestamp	NULL	NULL	NULL	NULL	0	NULL	NULL	timestamp			select,insert,update,references		NEVER	NULL	NO	NO
 def	mysql	proc	name	2	''	NO	char	64	192	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	char(64)	PRI		select,insert,update,references		NEVER	NULL	NO	NO
 def	mysql	proc	param_list	9	NULL	NO	blob	65535	65535	NULL	NULL	NULL	NULL	NULL	blob			select,insert,update,references		NEVER	NULL	NO	NO
-def	mysql	proc	path	22	NULL	YES	text	65535	65535	NULL	NULL	NULL	utf8mb3	utf8mb3_bin	text			select,insert,update,references		NEVER	NULL	NO	NO
+def	mysql	proc	path	22	'CURRENT_SCHEMA'	NO	text	65535	65535	NULL	NULL	NULL	utf8mb3	utf8mb3_bin	text			select,insert,update,references		NEVER	NULL	NO	NO
 def	mysql	proc	returns	10	NULL	NO	longblob	4294967295	4294967295	NULL	NULL	NULL	NULL	NULL	longblob			select,insert,update,references		NEVER	NULL	NO	NO
 def	mysql	proc	security_type	8	'DEFINER'	NO	enum	7	21	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	enum('INVOKER','DEFINER')			select,insert,update,references		NEVER	NULL	NO	NO
 def	mysql	proc	specific_name	4	''	NO	char	64	192	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	char(64)			select,insert,update,references		NEVER	NULL	NO	NO
