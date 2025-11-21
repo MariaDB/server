@@ -6433,6 +6433,7 @@ int ha_partition::read_range_next()
 void ha_partition::set_end_range(const key_range *end_key,
                                  enum_range_scan_direction direction)
 {
+  handler::set_end_range(end_key, direction);
   for (uint i= bitmap_get_first_set(&m_part_info->read_partitions);
        i < m_tot_parts;
        i= bitmap_get_next_set(&m_part_info->read_partitions, i))

@@ -1,0 +1,31 @@
+# MDEV-38040 unitialized handler::key_compare_result_on_equal in
+# loose index scan of partition tables
+CREATE TABLE t1 (
+a INT,
+b INT,
+KEY ( a, b )
+) PARTITION BY RANGE COLUMNS(a) (
+PARTITION `p1` VALUES LESS THAN (10),
+PARTITION `p2` VALUES LESS THAN (20),
+PARTITION `p3` VALUES LESS THAN (30),
+PARTITION `p4` VALUES LESS THAN (40),
+PARTITION `p5` VALUES LESS THAN MAXVALUE
+);
+insert into t1 select seq, seq from seq_1_to_50;
+FLUSH status;
+SELECT a, MIN(b) FROM t1 WHERE a > 18 and a < 21 GROUP BY a;
+a	MIN(b)
+19	19
+20	20
+show status like 'handler_read_%';
+Variable_name	Value
+Handler_read_first	0
+Handler_read_key	6
+Handler_read_last	0
+Handler_read_next	0
+Handler_read_prev	0
+Handler_read_retry	0
+Handler_read_rnd	0
+Handler_read_rnd_deleted	0
+Handler_read_rnd_next	0
+DROP TABLE t1;
