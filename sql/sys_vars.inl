@@ -3186,4 +3186,10 @@ private:
   {
     return make_value_ptr(thd, global_system_variables.path);
   }
+
+  void cleanup() override
+  {
+    global_system_variables.path.free();
+    max_system_variables.path.free();
+  }
 };

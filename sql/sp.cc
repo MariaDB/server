@@ -776,8 +776,6 @@ Sp_handler::db_find_routine(THD *thd, const Database_qualified_name *name,
   ret= db_load_routine(thd, name, sphp, sql_mode, sql_path, params, returns,
                        body, chistics, definer, created, modified, NULL,
                        creation_ctx);
-  sql_path.free();
-
  done:
   /* 
     Restore the time zone flag as the timezone usage in proc table
