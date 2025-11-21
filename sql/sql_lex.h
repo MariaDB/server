@@ -3621,8 +3621,8 @@ public:
   vers_select_conds_t vers_conditions;
   vers_select_conds_t period_conditions;
 
-  /* False by default, this will be true if the query has a full join. */
-  bool has_full_outer_join;
+  /* Zero by default, this counts the number of full joins in the query. */
+  uint full_join_count;
 
   inline void free_set_stmt_mem_root()
   {

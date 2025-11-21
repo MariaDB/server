@@ -2799,7 +2799,7 @@ setup_subq_exit:
     mature enough to correctly execute the queries.  But for now
     this allows for some EXPLAIN EXTENDED support.
   */
-  else if (!thd->lex->has_full_outer_join)
+  else if (!thd->lex->full_join_count)
   {
     if (optimize_stage2())
       DBUG_RETURN(1);
@@ -5675,7 +5675,16 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
   TABLE **table_vector;
   JOIN_TAB *stat,*stat_end,*s,**stat_ref, **stat_vector;
   KEYUSE *keyuse,*start_keyuse;
+
+  /*
+    outer_join here does not have the same meaning as TABLE_LIST::outer_join.
+    Here, outer_join is the union of all table numbers representing tables
+    that participate in this join.  TABLE_LIST::outer_join marks how a
+    TABLE_LIST participates in a particular JOIN (as a right table, left table,
+    as part of a FULL JOIN, etc).
+  */
   table_map outer_join=0;
+
   table_map no_rows_const_tables= 0;
   SARGABLE_PARAM *sargables= 0;
   List_iterator<TABLE_LIST> ti(tables_list);
@@ -5889,6 +5898,19 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
   join->const_table_map= no_rows_const_tables;
   join->const_tables= const_count;
   eliminate_tables(join);
+
+  /*
+    Temporary gate.  As the FULL JOIN implementation matures, this keeps moving
+    deeper into the server until it's eventually eliminated.
+  */
+  if (thd->lex->full_join_count && !thd->lex->describe)
+  {
+    my_error(ER_NOT_SUPPORTED_YET, MYF(0),
+             "FULL JOINs that cannot be converted to LEFT, RIGHT, or "
+             "INNER JOINs");
+    goto error;
+  }
+
   join->const_table_map &= ~no_rows_const_tables;
   const_count= join->const_tables;
   found_const_table_map= join->const_table_map;
@@ -20410,23 +20432,10 @@ static COND *rewrite_full_outer_joins(JOIN *join,
     see the right table first.  If, on this call to rewrite_full_outer_joins,
     the current table is left member of the JOIN (e.g., left_member FULL JOIN
     ...) it means we couldn't rewrite the FULL JOIN as a LEFT, RIGHT, or
-    INNER JOIN, so emit an error (unless we're in an EXPLAIN EXTENDED, permit
-    that).
+    INNER JOIN, so pass along the unmodified FULL JOIN.
   */
   if (right_table->outer_join & JOIN_TYPE_LEFT)
-  {
-    if (join->thd->lex->describe)
-      return conds;
-
-    /*
-      We always see the RIGHT table before the LEFT table, so nothing to
-      do here for JOIN_TYPE_LEFT.
-    */
-    my_error(ER_NOT_SUPPORTED_YET, MYF(0),
-             "FULL JOINs that cannot be converted to LEFT, RIGHT, or "
-             "INNER JOINs");
-    return nullptr;
-  }
+    return conds;
 
   /*
     Must always see the right table before the left.  Down below, we deal
@@ -20477,7 +20486,7 @@ static COND *rewrite_full_outer_joins(JOIN *join,
       RIGHT JOINs don't actually exist in MariaDB!
     */
     *table_ptr= li.swap_next();
-    join->thd->lex->has_full_outer_join= false;
+    --join->thd->lex->full_join_count;
   }
   else
   {
@@ -20514,7 +20523,7 @@ static COND *rewrite_full_outer_joins(JOIN *join,
     if (peeked_map & not_null_tables)
     {
       rewrite_full_to_left(left_table, right_table);
-      join->thd->lex->has_full_outer_join= false;
+      --join->thd->lex->full_join_count;
     }
     // else the FULL JOIN cannot be rewritten, pass it along.
   }

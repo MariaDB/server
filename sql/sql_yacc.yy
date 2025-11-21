@@ -12392,7 +12392,7 @@ join_table:
             $5->on_context= $1->on_context;
             Select->parsing_place= NO_MATTER;
             $$= $1;
-            Lex->has_full_outer_join= true;
+            ++Lex->full_join_count;
           }
         | table_ref FULL opt_outer JOIN_SYM table_factor
           {
@@ -12408,7 +12408,7 @@ join_table:
           USING '(' using_list ')'
           {
             add_join_natural($1,$5,$9,Select);
-            Lex->has_full_outer_join= true;
+            ++Lex->full_join_count;
           }
         | table_ref NATURAL FULL opt_outer JOIN_SYM table_factor
           {
@@ -12425,7 +12425,7 @@ join_table:
                               JOIN_TYPE_NATURAL);
 
             add_join_natural($6,$1,NULL,Select);
-            Lex->has_full_outer_join= true;
+            ++Lex->full_join_count;
           }
         ;
 
