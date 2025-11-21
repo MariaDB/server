@@ -5665,7 +5665,16 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
   TABLE **table_vector;
   JOIN_TAB *stat,*stat_end,*s,**stat_ref, **stat_vector;
   KEYUSE *keyuse,*start_keyuse;
+
+  /*
+    outer_join here does not have the same meaning as TABLE_LIST::outer_join.
+    Here, outer_join is the union of all table numbers representing tables
+    that participate in this join.  TABLE_LIST::outer_join marks how a
+    TABLE_LIST participates in a particular JOIN (as a right table, left table,
+    as part of a FULL JOIN, etc).
+  */
   table_map outer_join=0;
+
   table_map no_rows_const_tables= 0;
   SARGABLE_PARAM *sargables= 0;
   List_iterator<TABLE_LIST> ti(tables_list);
@@ -5879,6 +5888,19 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
   join->const_table_map= no_rows_const_tables;
   join->const_tables= const_count;
   eliminate_tables(join);
+
+  /*
+    Temporary gate.  As the FULL JOIN implementation matures, this keeps moving
+    deeper into the server until it's eventually eliminated.
+  */
+  if (thd->lex->full_join_count && !thd->lex->describe)
+  {
+    my_error(ER_NOT_SUPPORTED_YET, MYF(0),
+             "FULL JOINs that cannot be converted to LEFT, RIGHT, or "
+             "INNER JOINs");
+    goto error;
+  }
+
   join->const_table_map &= ~no_rows_const_tables;
   const_count= join->const_tables;
   found_const_table_map= join->const_table_map;
