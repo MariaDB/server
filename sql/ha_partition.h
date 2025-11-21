@@ -366,15 +366,28 @@ private:
   uint m_ref_length;                     // Length of position in this
                                          // handler object
   key_range m_start_key;                 // index read key range
+  uint m_unordered_prefix_len;           // key prefix length for
+                                         // unordered scan
   enum partition_index_scan_type m_index_scan_type;// What type of index
                                                    // scan
   uint m_top_entry;                      // Which partition is to
                                          // deliver next result
   uint m_rec_length;                     // Local copy of record length
 
-  bool m_ordered;                        // Ordered/Unordered index scan
+  /*
+    If true, this is an index scan and the outputs should be produced
+    in index order. See also m_ordered_scan_ongoing.
+  */
+  bool m_ordered;
   bool m_create_handler;                 // Handler used to create table
   bool m_is_sub_partitioned;             // Is subpartitioned
+
+  /*
+    TRUE means current index scan is using priority queue to merge
+    ordered scans from partitions to produce output in index order.
+    (We do this when m_ordered=true. In some cases, we can skip using
+    the priority queue.)
+  */
   bool m_ordered_scan_ongoing;
   bool m_rnd_init_and_first;
   bool m_ft_init_and_first;
@@ -468,6 +481,7 @@ private:
     INDEX_SCAN_BOTH= 3,
   };
   enum partition_index_scan_method m_pi_scan_method;
+  bool can_skip_merging_scans();
 public:
   handler **get_child_handlers()
   {
@@ -957,7 +971,8 @@ private:
   bool check_parallel_search();
   int handle_pre_scan(bool reverse_order, bool use_parallel);
   int handle_unordered_next(uchar * buf, bool next_same);
-  int handle_unordered_scan_next_partition(uchar * buf);
+  int handle_unordered_prev(uchar * buf);
+  int handle_unordered_scan_next_partition(uchar * buf, bool reverse_order);
   int handle_ordered_index_scan(uchar * buf, bool reverse_order);
   int handle_ordered_index_scan_key_not_found();
   int handle_ordered_next(uchar * buf, bool next_same);
