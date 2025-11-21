@@ -538,3 +538,39 @@ SET PATH DEFAULT;
 SELECT CURRENT_PATH;
 CURRENT_PATH
 CURRENT_SCHEMA
+create function f() returns int
+begin
+set path 'test';
+return 1;
+end//
+ERROR HY000: The system variable PATH cannot be set in stored functions or triggers
+create procedure p() set path 'test'//
+create function f() returns int
+begin
+call p();
+return 1;
+end//
+select f();
+ERROR HY000: The system variable PATH cannot be set in stored functions or triggers
+drop function f;
+drop procedure p;
+create table t1 (a int);
+create trigger trg1 after insert on t1 for each row set path 'test';
+ERROR HY000: The system variable PATH cannot be set in stored functions or triggers
+drop table t1;
+create package pkg
+function f1() returns int;
+end//
+create package body pkg
+function f1() returns int
+begin
+set path 'test';
+return 1;
+end;
+end//
+ERROR HY000: The system variable PATH cannot be set in stored functions or triggers
+create package body pkg
+function f1() returns int return 1;
+set path 'test';
+end//
+drop package pkg;
