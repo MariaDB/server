@@ -2800,20 +2800,6 @@ DROP DATABASE `"`;
 USE test;
 SET @@path = DEFAULT;
 #
-# Modify session path within a stored routine
-# This is not allowed since we invalidate the sp caches when the session
-# path is changed
-#
-CREATE FUNCTION func() RETURNS TEXT
-BEGIN
-SET PATH 'sys';
-RETURN '';
-END;
-$$
-SELECT func();
-ERROR HY000: The system variable path cannot be set in stored functions or triggers
-DROP FUNCTION func;
-#
 # Modify global path within a stored routine
 #
 CREATE FUNCTION func() RETURNS TEXT

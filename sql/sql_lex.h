@@ -3836,6 +3836,8 @@ public:
   void resolve_optimizer_hints();
   bool discard_optimizer_hints_in_last_select();
 
+  bool is_in_sf_or_trg();
+
   SELECT_LEX *current_select_or_default()
   {
     return current_select ? current_select : &builtin_select;

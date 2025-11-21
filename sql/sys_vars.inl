@@ -3142,7 +3142,7 @@ private:
         Because we invalidate the sp caches, we can't set the session path
         in a stored function.
       */
-      my_error(ER_VARIABLE_NOT_SETTABLE_IN_SF_OR_TRG, MYF(0), name.str);
+      my_error(ER_VARIABLE_NOT_SETTABLE_IN_SF_OR_TRG, MYF(0), "PATH");
       if (var->save_result.ptr)
         ((Sql_path*) var->save_result.ptr)->free();
       

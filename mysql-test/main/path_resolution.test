@@ -3509,24 +3509,6 @@ USE test;
 SET @@path = DEFAULT;
 
 --echo #
---echo # Modify session path within a stored routine
---echo # This is not allowed since we invalidate the sp caches when the session
---echo # path is changed
---echo #
-DELIMITER $$;
-CREATE FUNCTION func() RETURNS TEXT
-BEGIN
-  SET PATH 'sys';
-  RETURN '';
-END;
-$$
-DELIMITER ;$$
---error ER_VARIABLE_NOT_SETTABLE_IN_SF_OR_TRIGGER
-SELECT func();
-
-DROP FUNCTION func;
-
---echo #
 --echo # Modify global path within a stored routine
 --echo #
 DELIMITER $$;

@@ -17475,6 +17475,11 @@ set_param:
           FOR_SYM directly_executable_statement        
         | PATH_SYM
           {
+            if (Lex->is_in_sf_or_trg())
+            {
+              my_error(ER_VARIABLE_NOT_SETTABLE_IN_SF_OR_TRG, MYF(0), "PATH");
+              MYSQL_YYABORT;
+            }
             if (sp_create_assignment_lex(thd, $1.pos()))
               MYSQL_YYABORT;
           }

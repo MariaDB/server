@@ -13727,3 +13727,11 @@ bool LEX::discard_optimizer_hints_in_last_select()
   }
   return false;
 }
+
+
+bool LEX::is_in_sf_or_trg()
+{
+  return sphead && (sphead->m_handler == &sp_handler_function ||
+                    sphead->m_handler == &sp_handler_trigger ||
+                    sphead->m_handler == &sp_handler_package_function);
+}
