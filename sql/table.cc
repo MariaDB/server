@@ -8643,6 +8643,7 @@ bool TABLE::add_tmp_key(uint key, uint key_parts,
   keyinfo->read_stats= NULL;
   keyinfo->collected_stats= NULL;
   keyinfo->all_nulls_key_parts= 0;
+  keyinfo->stat_storage_length= 0;
 
   for (i= 0; i < key_parts; i++)
   {
@@ -10931,4 +10932,18 @@ void TABLE::mark_table_for_reopen()
   THD *thd= in_use;
   DBUG_ASSERT(thd);
   thd->locked_tables_list.mark_table_for_reopen(this);
+}
+
+/*
+  @brief
+    Estimate how much space is required to store one index tuple
+*/
+size_t TABLE::key_storage_length(uint index)
+{
+  /* Use storage engine's statistics if it is available */
+  if (TEST_NEW_MODE_FLAG(in_use, NEW_MODE_FIX_INDEX_LOOKUP_COST) &&
+      key_info[index].stat_storage_length)
+    return key_info[index].stat_storage_length;
+
+  return key_storage_length_from_ddl(index);
 }

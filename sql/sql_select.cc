@@ -13486,6 +13486,7 @@ static bool create_hj_key_for_table(JOIN *join, JOIN_TAB *join_tab,
   keyinfo->flags= HA_GENERATED_KEY;
   keyinfo->is_statistics_from_stat_tables= FALSE;
   keyinfo->all_nulls_key_parts= 0;
+  keyinfo->stat_storage_length= 0;
   keyinfo->name.str= "$hj";
   keyinfo->name.length= 3;
   keyinfo->rec_per_key= (ulong*) thd->calloc(sizeof(ulong)*key_parts);
@@ -22482,6 +22483,7 @@ bool Create_tmp_table::finalize(THD *thd,
     keyinfo->algorithm= HA_KEY_ALG_UNDEF;
     keyinfo->is_statistics_from_stat_tables= FALSE;
     keyinfo->all_nulls_key_parts= 0;
+    keyinfo->stat_storage_length= 0;
     keyinfo->name= group_key;
     keyinfo->comment.str= 0;
     ORDER *cur_group= m_group;
@@ -22604,6 +22606,7 @@ bool Create_tmp_table::finalize(THD *thd,
     keyinfo->algorithm= HA_KEY_ALG_UNDEF;
     keyinfo->is_statistics_from_stat_tables= FALSE;
     keyinfo->all_nulls_key_parts= 0;
+    keyinfo->stat_storage_length= 0;
     keyinfo->read_stats= NULL;
     keyinfo->collected_stats= NULL;
 

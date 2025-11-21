@@ -744,7 +744,7 @@ The following specify which files/extra groups are read (specified before remain
  connection before aborting the write
  --new-mode=name     Used to introduce new behavior to existing MariaDB
  versions. Any combination of: 
- FIX_INDEX_STATS_FOR_ALL_NULLS
+ FIX_INDEX_STATS_FOR_ALL_NULLS, FIX_INDEX_LOOKUP_COST
  Use 'ALL' to set all combinations.
  --note-verbosity=name 
  Verbosity level for note-warnings given to the user. See

@@ -15003,6 +15003,28 @@ stats_fetch:
 			}
 
 			KEY*	key = &table->key_info[i];
+			/*
+			  Provide statistics about how many bytes an index record takes on disk,
+			  on average.
+			*/
+			if (ib_table->stat_n_rows && !(key->flags & (HA_FULLTEXT | HA_SPATIAL))) {
+				/*
+				  Start with total space used by the index divided by number of rows
+				*/
+				key->stat_storage_length = (size_t) ((index->stat_index_size * srv_page_size) /
+					ib_table->stat_n_rows);
+
+				/*
+					The above can be too large
+					A) in case of tables with very few rows
+					B) in case of indexes with partially full pages.
+					So, clip the above estimate by a conservative estimate we've used
+					before:
+				*/
+				size_t conservative_estimate = table->key_storage_length_from_ddl(i);
+				if (key->stat_storage_length > conservative_estimate)
+					key->stat_storage_length = conservative_estimate;
+			}
 
 			for (j = 0; j < key->ext_key_parts; j++) {
 
