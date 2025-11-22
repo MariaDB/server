@@ -17472,7 +17472,7 @@ set_param:
             if (Lex->check_main_unit_semantics())
               MYSQL_YYABORT;
           }
-          FOR_SYM directly_executable_statement        
+          FOR_SYM directly_executable_statement
         | PATH_SYM
           {
             if (Lex->is_in_sf_or_trg())

@@ -5162,7 +5162,7 @@ Prepared_statement::swap_prepared_statement(Prepared_statement *copy)
   swap_variables(THD::used_t,
                  m_prepare_time_thd_used_flags,
                  copy->m_prepare_time_thd_used_flags);
-  
+
   swap_variables(LEX_CSTRING, m_sql_path, copy->m_sql_path);
 
   DBUG_ASSERT(param_count == copy->param_count);

@@ -71,11 +71,11 @@ CREATE OR REPLACE PACKAGE BODY pkg
   BEGIN
     RETURN priv_f1(CONCAT(a, 'implicit_priv->'));
   END;
-  
+
   CALL test.pkg.p1('explicit_init->');
   CALL pkg.p1('schema_implicit_init->');
   CALL p1('implicit_init->');
-  
+
   SELECT test.pkg.f1('explicit_init->');
   SELECT pkg.f1('schema_implicit_init->');
   SELECT f1('implicit_init->');

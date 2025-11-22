@@ -1810,11 +1810,9 @@ bool Table_triggers_list::check_n_load(THD *thd, const LEX_CSTRING *db,
         */
         sql_mode= ((trg_sql_mode= itm++) ? *trg_sql_mode :
                    (ulonglong) global_system_variables.sql_mode);
-        
-        sql_path= ((trg_sql_path= it_paths++) ?
-                    *trg_sql_path :
-                    global_system_variables.path.lex_cstring(thd,
-                                                             &table->mem_root));
+
+        sql_path= ((trg_sql_path= it_paths++) ? *trg_sql_path :
+              global_system_variables.path.lex_cstring(thd, &table->mem_root));
 
         trg_create_time= it_create_times++;     // May be NULL if old file
         trg_definer= it_definer++;              // May be NULL if old file

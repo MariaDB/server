@@ -10253,7 +10253,7 @@ bool LEX::call_statement_start(THD *thd, sp_name *name)
 
   if (unlikely(!(cmd_call= new (thd->mem_root) Sql_cmd_call(name, sph))))
     return true;
-  
+
   // Only add to used routines if we have a valid database name
   if (name->m_db.str)
   {

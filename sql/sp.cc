@@ -655,7 +655,7 @@ bool st_sp_chistics::read_from_mysql_proc_row(THD *thd, TABLE *table)
   if (table->field[MYSQL_PROC_FIELD_COMMENT]->val_str_nopad(thd->mem_root,
                                                             &comment))
     return true;
-  
+
   return false;
 }
 

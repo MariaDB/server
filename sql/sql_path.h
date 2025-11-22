@@ -16,7 +16,7 @@ class Lex_ident_db_normalized;
 struct Sql_path
 {
 private:
-  LEX_CSTRING m_schemas[16];
+  Lex_ident_db m_schemas[16];
   uint m_count;
 
 public:
@@ -99,8 +99,8 @@ protected:
     Helper function to resolve CURRENT_SCHEMA to actual database name.
     Returns the resolved schema, or {nullptr, 0} if resolution fails.
   */
-  LEX_CSTRING resolve_current_schema(THD *thd, sp_head *caller,
-                                     const LEX_CSTRING &schema) const;
+  Lex_ident_db resolve_current_schema(THD *thd, sp_head *caller,
+                                     const Lex_ident_db &schema) const;
   /*
     Helper function to try resolving a routine in a specific schema.
     Returns true if error occured.
