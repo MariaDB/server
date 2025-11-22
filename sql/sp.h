@@ -676,6 +676,9 @@ public:
   int sp_cache_routine(THD *thd, sp_head **sp) const;
 };
 
+bool is_package_public_routine(THD *thd, const Lex_ident_db &db,
+                               const LEX_CSTRING &package,
+                               const LEX_CSTRING &routine, enum_sp_type type);
 
 bool sp_add_used_routine(Query_tables_list *prelocking_ctx, Query_arena *arena,
                          const MDL_key *key,

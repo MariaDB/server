@@ -1,7 +1,13 @@
+# this test cannot run in view protocol, because every view creation flushes
+# SP cache and next package function invocation instantiates the package
+# anew. Package instantiation includes SELECT's, which cannot be done
+# from inside a function call (package function, that caused instantiation)
+source include/no_view_protocol.inc;
 
 --echo #
 --echo # Package's routine resolution shadowed by schema
 --echo #
+
 SET PATH 'pkg, test';
 CREATE DATABASE pkg;
 DELIMITER /;
@@ -71,11 +77,11 @@ CREATE OR REPLACE PACKAGE BODY pkg
   BEGIN
     RETURN priv_f1(CONCAT(a, 'implicit_priv->'));
   END;
-  
+
   CALL test.pkg.p1('explicit_init->');
   CALL pkg.p1('schema_implicit_init->');
   CALL p1('implicit_init->');
-  
+
   SELECT test.pkg.f1('explicit_init->');
   SELECT pkg.f1('schema_implicit_init->');
   SELECT f1('implicit_init->');
