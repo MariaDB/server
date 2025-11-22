@@ -104,5 +104,6 @@ bool run_after_startup_triggers();
 void run_before_shutdown_triggers();
 
 bool show_create_sys_trigger(THD *thd, const sp_name *trg_name);
+bool fill_schema_triggers_from_mysql_events(THD *thd, TABLE_LIST *tables);
 
 #endif /* SQL_SQL_SYS_OR_DDL_TRIGGER_H */

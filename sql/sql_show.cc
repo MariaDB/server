@@ -7348,6 +7348,25 @@ err:
 }
 
 
+/**
+  Fill in the table information_schema.triggers with data about
+  both DML and system triggers.
+
+  @param thd     thread handler
+  @param tables  an instance of the struct TABLE_LIST for the table
+                 information_schema.triggers
+
+  @return false on success, true on error
+*/
+
+static int fill_schema_triggers(THD *thd, TABLE_LIST *tables, COND *cond)
+{
+  return
+    get_all_tables(thd, tables, cond) ||
+    fill_schema_triggers_from_mysql_events(thd, tables);
+}
+
+
 static int get_schema_stat_record(THD *thd, TABLE_LIST *tables, TABLE *table,
                                   bool res, const LEX_CSTRING *db_name,
 				  const LEX_CSTRING *table_name)
@@ -9602,7 +9621,8 @@ bool optimize_schema_tables_reads(JOIN *join)
         continue;
 
       /* skip I_S optimizations specific to get_all_tables */
-      if (table_list->schema_table->fill_table != get_all_tables)
+      if (table_list->schema_table->fill_table != get_all_tables &&
+          table_list->schema_table->fill_table != fill_schema_triggers)
         continue;
 
       Item *cond= tab->select_cond;
@@ -9697,7 +9717,8 @@ bool get_schema_tables_result(JOIN *join,
 
       /* skip I_S optimizations specific to get_all_tables */
       if (lex->describe &&
-          (table_list->schema_table->fill_table != get_all_tables))
+          (table_list->schema_table->fill_table != get_all_tables &&
+           table_list->schema_table->fill_table != fill_schema_triggers))
         continue;
 
       /*
@@ -10919,7 +10940,7 @@ ST_SCHEMA_TABLE schema_tables[]=
    Show::table_privileges_fields_info, 0,
    fill_schema_table_privileges, 0, 0, -1, -1, 0, 0},
   {"TRIGGERS"_Lex_ident_i_s_table, Show::triggers_fields_info, 0,
-   get_all_tables, make_old_format, get_schema_triggers_record, 5, 6, 0,
+   fill_schema_triggers, make_old_format, get_schema_triggers_record, 5, 6, 0,
    OPEN_TRIGGER_ONLY|OPTIMIZE_I_S_TABLE},
   {"USERS"_Lex_ident_i_s_table, Show::users_fields_info, 0, fill_users_schema_table,
    0, 0, -1, -1, 0, 0},

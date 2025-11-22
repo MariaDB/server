@@ -18,6 +18,7 @@
 #include "sp_head.h"              // sp_head
 #include "sql_base.h"             // close_thread_tables
 #include "sql_db.h"               // get_default_db_collation
+#include "sql_i_s.h"              // schema_table_store_record
 #include "sql_parse.h"            // sp_process_definer
 #include "sql_show.h"             // append_identifier
 #include "sql_sys_or_ddl_trigger.h"
@@ -643,6 +644,26 @@ static LEX_CSTRING events_to_string(const LEX_CSTRING base_event_names[],
 }
 
 
+static const LEX_CSTRING base_event_time[]= {
+  LEX_CSTRING{STRING_WITH_LEN("BEFORE")},
+  LEX_CSTRING{STRING_WITH_LEN("AFTER")}
+};
+
+static const LEX_CSTRING base_event_names[]= {
+  LEX_CSTRING{STRING_WITH_LEN("SCHEDULE")},
+  LEX_CSTRING{STRING_WITH_LEN("STARTUP")},
+  LEX_CSTRING{STRING_WITH_LEN("SHUTDOWN")},
+  LEX_CSTRING{STRING_WITH_LEN("LOGON")},
+  LEX_CSTRING{STRING_WITH_LEN("LOGOFF")}
+};
+
+static const int max_event_names_length =
+  (base_event_names[0].length + 1) +
+  (base_event_names[1].length + 1) +
+  (base_event_names[2].length + 1) +
+  (base_event_names[3].length + 1) +
+  (base_event_names[4].length + 1);
+
 static bool reconstruct_create_trigger_stmt(
   THD *thd, String *create_trg_stmt,
   const LEX_CSTRING &trg_definer,
@@ -654,26 +675,6 @@ static bool reconstruct_create_trigger_stmt(
   static const LEX_CSTRING prefix{STRING_WITH_LEN("CREATE DEFINER=")};
 
   static const LEX_CSTRING trigger_clause{STRING_WITH_LEN(" TRIGGER ")};
-
-  static constexpr LEX_CSTRING base_event_names[]= {
-    LEX_CSTRING{STRING_WITH_LEN("SCHEDULE")},
-    LEX_CSTRING{STRING_WITH_LEN("STARTUP")},
-    LEX_CSTRING{STRING_WITH_LEN("SHUTDOWN")},
-    LEX_CSTRING{STRING_WITH_LEN("LOGON")},
-    LEX_CSTRING{STRING_WITH_LEN("LOGOFF")}
-  };
-
-  static const LEX_CSTRING base_event_time[]= {
-    LEX_CSTRING{STRING_WITH_LEN("BEFORE")},
-    LEX_CSTRING{STRING_WITH_LEN("AFTER")}
-  };
-
-  static constexpr int max_event_names_length =
-    (base_event_names[0].length + 1) +
-    (base_event_names[1].length + 1) +
-    (base_event_names[2].length + 1) +
-    (base_event_names[3].length + 1) +
-    (base_event_names[4].length + 1);
 
   char *buffer;
   size_t buffer_len= prefix.length + trg_definer.length +
@@ -698,7 +699,7 @@ static bool reconstruct_create_trigger_stmt(
   create_trg_stmt->append(' ');
   create_trg_stmt->append(base_event_time[trg_when]);
   create_trg_stmt->append(' ');
-  char event_names_buf[max_event_names_length];
+  char event_names_buf[max_event_names_length + 1];
   create_trg_stmt->append(events_to_string(base_event_names, event_names_buf,
                                            trg_kind));
   create_trg_stmt->append(' ');
@@ -1184,4 +1185,266 @@ bool show_create_sys_trigger(THD *thd, const sp_name *trg_name)
     return true;
 
   return false;
+}
+
+
+/**
+  Fill a record of information_schema.triggers for a system trigger
+
+  @param trg_name  the trigger name
+  @param table     TABLE object for the table information_schema.triggers
+  @param db_name   nullptr for system ON STARTUP/ON SHUTDOWN triggers,
+                   else the name of database where the trigger is defined
+  @param sql_mode  sql_mode used on trigger creation
+  @param definer   definer used on trigger creation
+  @param trg_body  body of the trigger
+  @param trg_time  trigger event time (BEFORE or AFTER)
+  @param created_timestamp  date/time when the trigger created
+  @param client_cs_name  client character set name
+  @param connection_cs_name  connection character set name
+  @param db_cs_name  database character set name
+
+  @return false on success, true on error
+*/
+
+static bool store_sys_trigger(THD *thd, const LEX_CSTRING &trg_name,
+                              TABLE *table, const LEX_CSTRING *db_name,
+                              sql_mode_t sql_mode,
+                              const LEX_CSTRING &definer,
+                              const LEX_CSTRING &trg_body,
+                              const LEX_CSTRING &trg_time,
+                              const LEX_CSTRING &trg_event,
+                              const MYSQL_TIME &created_timestamp,
+                              const LEX_CSTRING &client_cs_name,
+                              const LEX_CSTRING &connection_cs_name,
+                              const LEX_CSTRING &db_cs_name)
+{
+  CHARSET_INFO *cs= system_charset_info;
+
+  restore_record(table, s->default_values);
+  /* TRIGGER_CATALOG */
+  table->field[0]->store(STRING_WITH_LEN("def"), cs);
+  /* TRIGGER_SCHEMA */
+  if (db_name)
+    table->field[1]->store(*db_name, cs);
+  else
+    table->field[1]->set_null();
+  /* TRIGGER_NAME */
+  table->field[2]->store(trg_name, cs);
+  /* EVENT_MANIPULATION for a system trigger (STARTUP, SHUTDOWN, DDL, etc) */
+  table->field[3]->store(trg_event, cs);
+  /* EVENT_OBJECT_CATALOG */
+  table->field[4]->store(STRING_WITH_LEN("def"), cs);
+  /* EVENT_OBJECT_SCHEMA */
+  table->field[5]->set_null();
+  /* EVENT_OBJECT_TABLE */
+  table->field[6]->set_null();
+  /* ACTION_ORDER */
+  table->field[7]->set_null(); // TODO: adjust!
+  /* ACTION_CONDITION */
+  table->field[8]->set_null();
+  /* ACTION_STATEMENT */
+  table->field[9]->store(trg_body, cs);
+
+  /* ACTION_ORIENTATION */
+  table->field[10]->store(STRING_WITH_LEN("STATEMENT"), cs); // TODO: adjust
+  /* ACTION_TIMING (BEFORE, AFTER) */
+  table->field[11]->store(trg_time, cs);
+  /* ACTION_REFERENCE_OLD_TABLE */
+  table->field[12]->set_null();
+  /* ACTION_REFERENCE_NEW_TABLE */
+  table->field[13]->set_null();
+  /* ACTION_REFERENCE_OLD_ROW */
+  table->field[14]->set_null();
+  /* ACTION_REFERENCE_NEW_ROW */
+  table->field[15]->set_null();
+
+  /* CREATED */
+  table->field[16]->set_notnull();
+  table->field[16]->store_time_dec(&created_timestamp, 2);
+
+  LEX_CSTRING sql_mode_rep;
+  sql_mode_string_representation(thd, sql_mode, &sql_mode_rep);
+  /* SQL_MODE */
+  table->field[17]->store(sql_mode_rep.str, sql_mode_rep.length, cs);
+  /* DEFINER */
+  table->field[18]->store(definer, cs);
+  /* CHARACTER_SET_CLIENT */
+  table->field[19]->store(&client_cs_name, cs);
+  /* COLLATION_CONNECTION */
+  table->field[20]->store(&connection_cs_name, cs);
+  /* DATABASE_COLLATION */
+  table->field[21]->store(&db_cs_name, cs);
+
+  return schema_table_store_record(thd, table);
+}
+
+
+/**
+  Fill in the table information_schema.triggers with data about existing
+  system triggers based on the data stored in the table mysql.event.
+
+  @param thd     thread handler
+  @param tables  an instance of the struct TABLE_LIST for the table
+                 information_schema.triggers
+
+  @return false on success, true on error
+*/
+
+bool fill_schema_triggers_from_mysql_events(THD *thd, TABLE_LIST *tables)
+{
+  Open_tables_backup open_tables_state_backup;
+  TABLE *event_table;
+
+  thd->reset_n_backup_open_tables_state(&open_tables_state_backup);
+
+  if (Event_db_repository::open_event_table(thd, TL_WRITE, &event_table))
+  {
+    thd->restore_backup_open_tables_state(&open_tables_state_backup);
+    return true;
+  }
+
+  READ_RECORD read_record_info;
+  if (init_read_record(&read_record_info, thd, event_table,
+                       nullptr, nullptr, 0, 1, false))
+  {
+    close_thread_tables(thd);
+    thd->restore_backup_open_tables_state(&open_tables_state_backup);
+    return true;
+  }
+
+  bool ret= false;
+
+  Event_parse_data::enum_status trg_status;
+  sql_mode_t sql_mode;
+
+  while (!(read_record_info.read_record()))
+  {
+    Event_parse_data::enum_kind trg_kind=
+      (Event_parse_data::enum_kind)event_table->field[ET_FIELD_KIND]->val_int();
+
+    if (trg_kind == Event_parse_data::SCHEDULE_EVENT)
+      continue;
+
+    trg_status= (Event_parse_data::enum_status)
+      event_table->field[ET_FIELD_STATUS]->val_int();
+    if (trg_status != Event_parse_data::ENABLED)
+      continue;
+
+    const Lex_cstring db_name{
+      event_table->field[ET_FIELD_DB]->val_lex_string_strmake(thd->mem_root)};
+    if (db_name.str == nullptr)
+    {
+      ret= true;
+      break;
+    }
+
+    const Lex_cstring trg_name{
+      event_table->field[ET_FIELD_NAME]->val_lex_string_strmake(
+        thd->mem_root)};
+    if (trg_name.str == nullptr)
+    {
+      ret= true;
+      break;
+    }
+
+    const Lex_cstring trg_body{
+      event_table->field[ET_FIELD_BODY]->val_lex_string_strmake(
+        thd->mem_root)};
+    if (trg_body.str == nullptr)
+    {
+      ret= true;
+      break;
+    }
+
+    const Lex_cstring trg_definer(
+      event_table->field[ET_FIELD_DEFINER]->val_lex_string_strmake(
+        thd->mem_root));
+
+    if (trg_definer.str == nullptr)
+    {
+      ret= true;
+      break;
+    }
+
+    sql_mode= (sql_mode_t) event_table->field[ET_FIELD_SQL_MODE]->val_int();
+    /*
+      trigger event time is stored in the mysql.event table in the column
+      `when` declared as enum('BEFORE','AFTER'). So, enumerators has
+      the following values: 1 for `BEFORE`, 2 for `AFTER`.
+      On the other hand, the enum trg_action_time_type has values starting
+      from 0, so adjust values restored from the table mysql.event before using
+      them for calculations.
+    */
+    trg_action_time_type trg_when=
+      (trg_action_time_type)(event_table->field[ET_FIELD_WHEN]->val_int() - 1);
+
+    const Lex_cstring client_cs_name(
+      event_table->field[ET_FIELD_CHARACTER_SET_CLIENT]->val_lex_string_strmake(
+        thd->mem_root));
+
+    if (client_cs_name.str == nullptr)
+    {
+      ret= true;
+      break;
+    }
+
+    const Lex_cstring connection_cs_name(
+      event_table->field[ET_FIELD_COLLATION_CONNECTION]->val_lex_string_strmake(
+        thd->mem_root));
+
+    if (connection_cs_name.str == nullptr)
+    {
+      ret= true;
+      break;
+    }
+
+    const Lex_cstring db_cs_name(
+      event_table->field[ET_FIELD_DB_COLLATION]->val_lex_string_strmake(
+        thd->mem_root));
+
+    if (connection_cs_name.str == nullptr)
+    {
+      ret= true;
+      break;
+    }
+
+    ulonglong created= event_table->field[ET_FIELD_CREATED]->val_int();
+    MYSQL_TIME created_timestamp;
+    int not_used=0;
+    number_to_datetime_or_date(created, 0, &created_timestamp, 0, &not_used);
+
+    char event_names_buf[max_event_names_length + 1];
+
+    ret= store_sys_trigger(thd, trg_name,
+                           tables->table,
+                           /*
+                             Although mysql.event has NOT NULL constraint for
+                             the column mysql.db, use NULL for a database of
+                             system triggers since they don't associate with
+                             any database by its nature.
+                           */
+                           ((trg_kind == Event_parse_data::SYS_TRG_ON_STARTUP ||
+                             trg_kind == Event_parse_data::SYS_TRG_ON_SHUTDOWN)
+                           ? nullptr : &db_name),
+                           sql_mode,
+                           trg_definer,
+                           trg_body,
+                           base_event_time[trg_when],
+                           events_to_string(base_event_names, event_names_buf,
+                                            trg_kind),
+                           created_timestamp,
+                           client_cs_name,
+                           connection_cs_name,
+                           db_cs_name);
+    if (ret)
+      break;
+  }
+
+  end_read_record(&read_record_info);
+  close_mysql_tables(thd);
+
+  thd->restore_backup_open_tables_state(&open_tables_state_backup);
+
+  return ret;
 }
