@@ -7445,10 +7445,9 @@ static int get_schema_stat_record(THD *thd, TABLE_LIST *tables, TABLE *table,
               statistics.
             */
             KEY *keyinfo= show_table->key_info + i;
-            if (keyinfo->rec_per_key[j])
+            if (double arpk= keyinfo->actual_rec_per_key(j))
             {
-              ha_rows records= (ha_rows) ((double) show_table->stat_records() /
-                                          keyinfo->actual_rec_per_key(j));
+              ha_rows records= (ha_rows) ((double) show_table->stat_records() / arpk);
               table->field[9]->store((longlong) records, TRUE);
               table->field[9]->set_notnull();
             }

@@ -232,10 +232,6 @@ void old_mode_deprecated_warnings(ulonglong v);
 /* Definitions above that have transitioned from new behaviour to default */
 
 #define NOW_DEFAULT                                             -1
-#define NEW_MODE_TEST_WARNING1                               NOW_DEFAULT
-#define NEW_MODE_TEST_WARNING2                               NOW_DEFAULT
-#define NEW_MODE_FIX_DISK_TMPTABLE_COSTS                     NOW_DEFAULT
-#define NEW_MODE_FIX_INDEX_STATS_FOR_ALL_NULLS               NOW_DEFAULT
 
 #define TEST_NEW_MODE_FLAG(thd, flag) \
   (flag == NOW_DEFAULT ? TRUE : thd->variables.new_behavior & flag)

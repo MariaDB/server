@@ -15228,7 +15228,7 @@ bool generate_derived_keys_for_table(KEYUSE *keyuse, uint count, uint keys)
     do
     {
       keyuse->key= table->s->keys;
-      keyuse->keypart_map= (key_part_map) (1 << parts);     
+      keyuse->keypart_map= (key_part_map)1 << parts;
       keyuse++;
       i++;
     } 

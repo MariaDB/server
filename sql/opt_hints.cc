@@ -1525,8 +1525,8 @@ bool Opt_hints_qb::compare_table_name(
     considered to be equal to `Opt_hints_qb::get_name()`
   */
   const LEX_CSTRING &hint_tab_qb_name=
-      hint_table_and_qb->qb_name.length > 0 ? hint_table_and_qb->qb_name :
-                                              this->get_name();
+      hint_table_and_qb->qb_name.length > 0 || this->get_name().length == 0
+        ? hint_table_and_qb->qb_name : this->get_name();
 
   CHARSET_INFO *cs= charset_info();
   // Compare QB names
