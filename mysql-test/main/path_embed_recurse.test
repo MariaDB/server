@@ -55,4 +55,19 @@ CALL pp();
 
 DROP FUNCTION ff;
 DROP PROCEDURE pp;
+
+# SQL:2016, Part 2, 10.4 <routine invocation>
+# says that "If RN [routine name] does not contain a <schema name>, then the
+# candidate routines of RI [routine invocation] are the set union of invocable
+# routines of all schemas whose <schema name> is in DP [SQL-path].
+SET PATH 'test';
+CREATE FUNCTION test2.f(t TEXT) RETURNS TEXT
+  RETURN f(CONCAT(t, ' >> test2.f'));
+
+CREATE FUNCTION f(t TEXT) RETURNS TEXT
+  RETURN CONCAT(t, ' >> test.f');
+
+SELECT test2.f('*');
+
 DROP DATABASE test2;
+DROP FUNCTION f;

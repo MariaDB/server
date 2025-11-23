@@ -96,10 +96,6 @@ public:
 
 protected:
   /*
-    Helper function to resolve recursive routine calls
-  */
-  bool resolve_recursive_routine(sp_head *caller, sp_name *name) const;
-  /*
     Helper function to resolve CURRENT_SCHEMA to actual database name.
     Returns the resolved schema, or {nullptr, 0} if resolution fails.
   */
