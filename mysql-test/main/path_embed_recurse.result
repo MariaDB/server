@@ -51,4 +51,13 @@ CONCAT(t, CAST(val AS CHAR(4)))
 43210
 DROP FUNCTION ff;
 DROP PROCEDURE pp;
+SET PATH 'test';
+CREATE FUNCTION test2.f(t TEXT) RETURNS TEXT
+RETURN f(CONCAT(t, ' >> test2.f'));
+CREATE FUNCTION f(t TEXT) RETURNS TEXT
+RETURN CONCAT(t, ' >> test.f');
+SELECT test2.f('*');
+test2.f('*')
+* >> test2.f >> test.f
 DROP DATABASE test2;
+DROP FUNCTION f;

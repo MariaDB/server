@@ -27,22 +27,6 @@ is_package_public_routine(THD *thd,
                           enum_sp_type type);
 
 
-bool Sql_path::resolve_recursive_routine(sp_head *caller, sp_name *name) const
-{
-  if (!caller || !caller->m_name.str)
-    return false;
-
-  if (caller->get_package() || !caller->m_name.bin_eq(name->m_name))
-    return false;
-
-  /*
-    Standalone recursive routine
-  */
-  name->m_db= caller->m_db;
-  return true;
-}
-
-
 LEX_CSTRING Sql_path::resolve_current_schema(THD *thd, sp_head *caller,
                                               const LEX_CSTRING &schema) const
 {
@@ -140,9 +124,6 @@ bool Sql_path::resolve(THD *thd, sp_head *caller, sp_name *name,
     // Implicit name
     if (caller && caller->m_name.str)
     {
-      if (resolve_recursive_routine(caller, name))
-        return false;
-
       sp_name tmp_name(*name);
       tmp_name.m_db= caller->m_db;
       const Sp_handler *pkg_routine_hndlr= nullptr;
