@@ -25,11 +25,12 @@
 #include "sql_trigger.h"
 #include "strfunc.h"              //set_to_string
 
+
 /**
   Raise the error ER_TRG_ALREADY_EXISTS
 */
 
-static void report_error(uint error_num, const sp_name *spname)
+static void report_trg_already_exist_error(const sp_name *spname)
 {
   /*
     Report error in case there is a trigger on DML event with
@@ -40,12 +41,12 @@ static void report_error(uint error_num, const sp_name *spname)
   strxnmov(trigname_buff, sizeof(trigname_buff) - 1,
            spname->m_db.str, ".",
            spname->m_name.str, NullS);
-  my_error(error_num, MYF(0), trigname_buff);
+  my_error(ER_TRG_ALREADY_EXISTS, MYF(0), trigname_buff);
 }
 
 
 /**
-  Check whether there is a trigger specified name on a DML event
+  Check whether there is a trigger with specified name on DML event
 
   @return true and set an error in DA in case there is a trigger
           with supplied name on DML event, else return false
@@ -64,7 +65,7 @@ static bool check_dml_trigger_exist(sp_name *spname)
       Report error in case there is a trigger on DML event with
       the same name as the system trigger we are going to create
     */
-    report_error(ER_TRG_ALREADY_EXISTS, spname);
+    report_trg_already_exist_error(spname);
     return true;
   }
 
@@ -99,6 +100,21 @@ static bool find_sys_trigger_by_name(TABLE *event_table, sp_name *spname)
   */
   return !ret;
 }
+
+
+/**
+  Store information about the trigger being created into the table mysql.event
+
+  @param thd  Thread handler
+  @param lex  Lex used for parsing the original CREATE TRIGGER statement
+  @param event_table  Opened table mysql.event where to store the trigger's
+                      metadata
+  @param sphead  an instance of sp_head created for trigger
+  @param trg_chistics  trigger characteristics (event time, event kind, etc)
+  @pram sql_mode  sql_mode used for creation of the trigger
+
+  @return false on success, true on error
+*/
 
 static bool store_trigger_metadata(THD *thd, LEX *lex, TABLE *event_table,
                                    sp_head *sphead,
@@ -284,7 +300,14 @@ static bool store_trigger_metadata(THD *thd, LEX *lex, TABLE *event_table,
   return false;
 }
 
-// Transaction_Resources_Guard
+/**
+  The class Transaction_Resources_Guard is RAII class to recover
+  the transaction related state as it was before entering constructor.
+  It is typically used for releasing mdl locks to the savepoint and committing
+  a transaction on any return path from a function where this guard class
+  is instantiated.
+*/
+
 class Transaction_Resources_Guard
 {
 public:
@@ -304,7 +327,7 @@ private:
   sql_mode_t m_saved_mode;
 };
 
-static THD *thd_for_before_sys_triggers= nullptr;
+static THD *thd_for_sys_triggers= nullptr;
 
 static Sys_trigger*
 sys_triggers[TRG_ACTION_MAX][TRG_SYS_EVENT_MAX - TRG_EVENT_STARTUP]= {{nullptr}};
@@ -350,9 +373,10 @@ static void register_trigger(Sys_trigger *sys_trg,
   Associate the instance of the class Sys_trigger with combination of
   trigger time/trigger type in the two dimensional array sys_triggers.
 
-  @param sys_trg
-  @param trg_when
-  @param trg_kind
+  @param sys_trg  An instance of the class Sys_trigger to associate with
+                  trigger's event time and event kind
+  @param trg_when  When to fire the trigger - BEFORE or AFTER the event
+  @param trg_kind  Kind of trigger event (ON STARTUP, ON SHUTDOWN, etc)
 */
 
 static void register_system_triggers(Sys_trigger *sys_trg,
@@ -421,6 +445,16 @@ void unregister_trigger(sp_name *spname)
   }
 }
 
+
+/**
+  Handle the statement CREATE TRIGGER for system triggers,
+  such as ON STARTUP, ON SHUTDOWN.
+
+  @param thd  Thread handler
+
+  @return false on success, true on error
+*/
+
 bool mysql_create_sys_trigger(THD *thd)
 {
   if (!thd->lex->spname->m_db.length)
@@ -480,11 +514,12 @@ bool mysql_create_sys_trigger(THD *thd)
 
     return true;
   }
+
   /*
     Activate the guard to release mdl lock to the savepoint and commit
     transaction on any return path from this function.
   */
-  Transaction_Resources_Guard mdl_savepoint_guard{thd, saved_sql_mode};
+  Transaction_Resources_Guard transaction_guard{thd, saved_sql_mode};
 
   if (find_sys_trigger_by_name(event_table, thd->lex->spname))
   {
@@ -494,7 +529,7 @@ bool mysql_create_sys_trigger(THD *thd)
       return false;
     }
 
-    report_error(ER_TRG_ALREADY_EXISTS, thd->lex->spname);
+    report_trg_already_exist_error(thd->lex->spname);
     return true;
   }
 
@@ -502,7 +537,7 @@ bool mysql_create_sys_trigger(THD *thd)
                              thd->lex->trg_chistics, saved_sql_mode))
     return true;
 
-  Sys_trigger *sys_trg= new Sys_trigger(thd_for_before_sys_triggers,
+  Sys_trigger *sys_trg= new Sys_trigger(thd_for_sys_triggers,
                                         thd->lex->sphead);
   char definer_buf[USER_HOST_BUFF_SIZE];
   LEX_CSTRING definer;
@@ -532,6 +567,19 @@ bool mysql_create_sys_trigger(THD *thd)
   my_ok(thd);
   return false;
 }
+
+
+/**
+  Handle the statement DROP TRIGGER for system triggers,
+  such as ON STARTUP, ON SHUTDOWN. Trigger name is specified by
+  thd->lex->spname.
+
+  @param thd  Thread handler
+  @param[out] no_ddl_trigger_found  true in case there is no trigger with
+                                    the specified name, else false
+
+  @return false on success, true on error
+*/
 
 bool mysql_drop_sys_or_ddl_trigger(THD *thd, bool *no_ddl_trigger_found)
 {
@@ -563,7 +611,7 @@ bool mysql_drop_sys_or_ddl_trigger(THD *thd, bool *no_ddl_trigger_found)
   if (Event_db_repository::open_event_table(thd, TL_WRITE, &event_table))
     return true;
 
-  Transaction_Resources_Guard mdl_savepoint_guard{thd, saved_mode};
+  Transaction_Resources_Guard transaction_guard{thd, saved_mode};
 
   if (!find_sys_trigger_by_name(event_table, thd->lex->spname))
   {
@@ -664,6 +712,23 @@ static const int max_event_names_length =
   (base_event_names[3].length + 1) +
   (base_event_names[4].length + 1);
 
+
+/**
+  Based on input parameter values, assemble the CREATE TRIGGER statement
+  used to create the system trigger.
+
+  @param       thd               Thread handler
+  @param[out]  create_trg_stmt   Where to store the resulted
+                                 CREATE TRIGGER statement
+  @param       trg_definer       Definer used for trigger creation
+  @param       trg_name          Trigger name
+  @param       trg_kind          Trigger kind (ON STARTUP, ON SHUTDOWN, etc)
+  @param       trg_when          Trigger event time (BEFORE, AFTER)
+  @param       body              Trigger body
+
+  @return false on success, true on error
+*/
+
 static bool reconstruct_create_trigger_stmt(
   THD *thd, String *create_trg_stmt,
   const LEX_CSTRING &trg_definer,
@@ -686,8 +751,6 @@ static bool reconstruct_create_trigger_stmt(
   if (buffer == nullptr)
     return true;
 
-  // CREATE OR REPLACE TRIGGER IF NOT EXISTS trg BEFORE SHUTDOWN
-
   create_trg_stmt->set(buffer, buffer_len, system_charset_info);
   create_trg_stmt->length(0);
 
@@ -709,6 +772,11 @@ static bool reconstruct_create_trigger_stmt(
 }
 
 
+/**
+  RAII class to restore original lex object on return from the function
+  compile_trigger_stmt().
+*/
+
 class Trigger_Compilation_Resources_Guard
 {
 public:
@@ -724,9 +792,24 @@ private:
   LEX *m_lex;
 };
 
+
+/**
+  Parse the CREATE TRIGGER statement and return sp_head for compiled trigger.
+
+  @param thd  Thread context
+  @param db_name  database name
+  @param create_trigger_stmt  CREATE TRIGGER statement to compile
+  @param ctx  Trigger creation context
+  @param[out] parse_error  output parameter for storing result of
+                           parsing the statement: false on success,
+                           true on error
+
+  @return sp_head object on success, nullptr on error
+*/
+
 static sp_head *compile_trigger_stmt(THD *thd,
                                      const LEX_CSTRING &db_name,
-                                     String *create_trigger_stmt,
+                                     const String *create_trigger_stmt,
                                      Stored_program_creation_ctx *ctx,
                                      bool *parse_error)
 {
@@ -763,6 +846,29 @@ static sp_head *compile_trigger_stmt(THD *thd,
 
   return sphead;
 }
+
+
+/**
+  Based on trigger's meta-data retrieved from the table mysql.event,
+  reconstruct the original CREATE TRIGGER statement, parse it and
+  create an instance of the class Sys_trigger that encapsulate all
+  trigger-specific stuff including sp_head.
+
+  @param thd          Thread handler
+  @param db_name      database name where the trigger is defined
+  @param trg_name     trigger name
+  @param trg_definer  trigger definer
+  @param trg_kind     trigger event type (ON STARTUP, ON SHUTDOWN, etc)
+  @param trg_when     time (BEFORE, AFTER) when the trigger fired
+  @param trg_body     trigger body
+  @param sql_mode     sql_mode used on trigger creation
+  @param ctx          creation context
+  @param[out]         output variable to store parsing result:
+                      false on success, true on error
+
+  @return a pointer to the instance of the class Sys_trigger on success,
+          null_ptr on error
+*/
 
 static Sys_trigger *
 instantiate_sys_trigger(THD *thd,
@@ -805,7 +911,7 @@ instantiate_sys_trigger(THD *thd,
   if (sp)
   {
     // TODO: Check whether it should be allocated on memory root!!!
-    sys_trg= new Sys_trigger(thd_for_before_sys_triggers, sp);
+    sys_trg= new Sys_trigger(thd_for_sys_triggers, sp);
     sp->set_definer(trg_definer.str, trg_definer.length);
   }
   thd->variables.sql_mode= save_sql_mode;
@@ -814,6 +920,15 @@ instantiate_sys_trigger(THD *thd,
 }
 
 static class Stored_program_creation_ctx *creation_ctx= nullptr;
+
+
+/**
+  Load system triggers from the table mysql.event
+
+  @param thd  Thread handler
+
+  @return false on success, true on error
+*/
 
 static bool load_system_triggers(THD *thd)
 {
@@ -935,6 +1050,11 @@ static bool load_system_triggers(THD *thd)
 }
 
 
+/**
+  First, load system triggers from the table mysql.event and then run
+  ON STARTUP triggers if ones present.
+*/
+
 bool run_after_startup_triggers()
 {
   if (opt_bootstrap)
@@ -942,20 +1062,20 @@ bool run_after_startup_triggers()
 
   bool stack_top;
 
-  thd_for_before_sys_triggers= new THD{0};
-  thd_for_before_sys_triggers->thread_stack= (char*) &stack_top;
-  thd_for_before_sys_triggers->store_globals();
-  thd_for_before_sys_triggers->set_query_inner(
+  thd_for_sys_triggers= new THD{0};
+  thd_for_sys_triggers->thread_stack= (char*) &stack_top;
+  thd_for_sys_triggers->store_globals();
+  thd_for_sys_triggers->set_query_inner(
     (char*) STRING_WITH_LEN("load_system_triggers"),
     default_charset_info);
-  thd_for_before_sys_triggers->set_time();
+  thd_for_sys_triggers->set_time();
 
   /*
     First, load all available system triggers from the table mysql.event and
     store them in the two dimensional array based on trigger's action time and
     event type.
   */
-  if (load_system_triggers(thd_for_before_sys_triggers))
+  if (load_system_triggers(thd_for_sys_triggers))
     return true;
 
   /*
@@ -974,7 +1094,7 @@ bool run_after_startup_triggers()
     trg= trg->next;
   }
 
-  thd_for_before_sys_triggers->thread_stack= nullptr;
+  thd_for_sys_triggers->thread_stack= nullptr;
 
   return false;
 }
@@ -999,6 +1119,10 @@ static void destroy_sys_triggers()
 }
 
 
+/**
+  Run ON SHUTDOWN triggers
+*/
+
 void run_before_shutdown_triggers()
 {
   if (opt_bootstrap)
@@ -1006,7 +1130,7 @@ void run_before_shutdown_triggers()
 
   bool stack_top;
 
-  thd_for_before_sys_triggers->thread_stack= (char*) &stack_top;
+  thd_for_sys_triggers->thread_stack= (char*) &stack_top;
 
   Sys_trigger *trg=
     get_trigger_by_type(TRG_ACTION_BEFORE, TRG_EVENT_SHUTDOWN);
@@ -1017,8 +1141,8 @@ void run_before_shutdown_triggers()
   }
 
   destroy_sys_triggers();
-  thd_for_before_sys_triggers->thread_stack= nullptr;
-  delete thd_for_before_sys_triggers;
+  thd_for_sys_triggers->thread_stack= nullptr;
+  delete thd_for_sys_triggers;
 }
 
 
@@ -1066,6 +1190,16 @@ static bool send_show_create_trigger_result(
 
   return ret;
 }
+
+
+/**
+  Implementation of SHOW CREATE TRIGGER statement for system triggers
+
+  @param thd       Thread context
+  @param trg_name  Trigger name specified for SHOW CREATE TRIGGER statement
+
+  @return false on success, true on error
+*/
 
 bool show_create_sys_trigger(THD *thd, const sp_name *trg_name)
 {
