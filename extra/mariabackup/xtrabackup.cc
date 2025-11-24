@@ -1034,15 +1034,14 @@ static void backup_file_op_fail(uint32_t space_id, int type,
 {
         const char *error= "";
 	bool fail = false;
+	const std::string spacename{filename_to_spacename(name, len)};
 	switch(type) {
 	case FILE_CREATE:
 		msg("DDL tracking : create %" PRIu32 " \"%.*s\"",
 			space_id, int(len), name);
-		fail = !check_if_skip_table(
-				filename_to_spacename(name, len).c_str());
+		fail = !check_if_skip_table(spacename.c_str());
 		if (fail && !opt_no_lock &&
-		    check_if_fts_table(
-			filename_to_spacename(name, len).c_str())) {
+		    check_if_fts_table(spacename.c_str())) {
 			/* Ignore the FTS internal table because InnoDB does
 			create intermediate table and their associative FTS
 			internal table when table is being rebuilt during
@@ -1061,18 +1060,25 @@ static void backup_file_op_fail(uint32_t space_id, int type,
 	case FILE_RENAME:
 		msg("DDL tracking : rename %" PRIu32 " \"%.*s\",\"%.*s\"",
 			space_id, int(len), name, int(new_len), new_name);
-		fail = !check_if_skip_table(
-				filename_to_spacename(name, len).c_str())
+		fail = !check_if_skip_table(spacename.c_str())
 		       || !check_if_skip_table(
 				filename_to_spacename(new_name, new_len).c_str());
                 error= "rename";
 		break;
 	case FILE_DELETE:
-		fail = !check_if_skip_table(
-				filename_to_spacename(name, len).c_str());
+		fail = !check_if_skip_table(spacename.c_str());
 		msg("DDL tracking : delete %" PRIu32 " \"%.*s\"",
 			space_id, int(len), name);
                 error= "delete";
+		if (fail && !opt_no_lock &&
+		    check_if_fts_table(spacename.c_str())) {
+			/* Ignore the FTS internal table because InnoDB may
+			drop intermediate table and their associative FTS
+			internal table as a part of inplace rollback operation.
+			backup_set_alter_copy_lock() downgrades the
+			MDL_BACKUP_DDL before inplace phase of alter */
+			fail = false;
+		}
 		break;
 	default:
 		ut_ad(0);
