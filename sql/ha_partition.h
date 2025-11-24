@@ -368,6 +368,9 @@ private:
   key_range m_start_key;                 // index read key range
   uint m_unordered_prefix_len;           // key prefix length for
                                          // unordered scan
+  bool m_unordered_reverse_index;        // whether part_field is
+                                         // a reverse index in an
+                                         // unordered scan
   enum partition_index_scan_type m_index_scan_type;// What type of index
                                                    // scan
   uint m_top_entry;                      // Which partition is to

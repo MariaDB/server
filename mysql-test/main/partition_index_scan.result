@@ -1,7 +1,7 @@
 # Index scans with PARTITION BY RANGE
 CREATE TABLE t1 (
 c int,
-INDEX idx1(c)
+INDEX idx1(c )
 ) PARTITION BY RANGE COLUMNS(c) (
 PARTITION `p1` VALUES LESS THAN (10),
 PARTITION `p2` VALUES LESS THAN (20),
@@ -197,93 +197,10 @@ select json_extract(@js,'$**.partitions_index_scan_method');
 json_extract(@js,'$**.partitions_index_scan_method')
 ["iterate_over_partitions"]
 drop table t1;
-## Ordered scan with reverse index
-CREATE TABLE t1 (
-c int,
-INDEX idx1(c desc)
-) PARTITION BY RANGE COLUMNS(c) (
-PARTITION `p1` VALUES LESS THAN (10),
-PARTITION `p2` VALUES LESS THAN (20),
-PARTITION `p3` VALUES LESS THAN (30),
-PARTITION `p4` VALUES LESS THAN (40),
-PARTITION `p5` VALUES LESS THAN MAXVALUE
-);
-insert into t1 select seq from seq_1_to_50;
-flush status;
-select * from t1 ORDER BY c LIMIT 16;
-c
-1
-2
-3
-4
-5
-6
-7
-8
-9
-10
-11
-12
-13
-14
-15
-16
-show status like 'handler_read_%';
-Variable_name	Value
-Handler_read_first	0
-Handler_read_key	0
-Handler_read_last	5
-Handler_read_next	0
-Handler_read_prev	15
-Handler_read_retry	0
-Handler_read_rnd	0
-Handler_read_rnd_deleted	0
-Handler_read_rnd_next	0
-flush status;
-### select * from t1 ORDER BY c LIMIT 16
-set @js='$out';
-select json_extract(@js,'$**.partitions_index_scan_method');
-json_extract(@js,'$**.partitions_index_scan_method')
-["merge_ordered_scans"]
-select * from t1 ORDER BY c desc LIMIT 16;
-c
-50
-49
-48
-47
-46
-45
-44
-43
-42
-41
-40
-39
-38
-37
-36
-35
-show status like 'handler_read_%';
-Variable_name	Value
-Handler_read_first	5
-Handler_read_key	0
-Handler_read_last	5
-Handler_read_next	15
-Handler_read_prev	15
-Handler_read_retry	0
-Handler_read_rnd	0
-Handler_read_rnd_deleted	0
-Handler_read_rnd_next	0
-### select * from t1 ORDER BY c desc LIMIT 16
-set @js='$out';
-select json_extract(@js,'$**.partitions_index_scan_method');
-json_extract(@js,'$**.partitions_index_scan_method')
-["merge_ordered_scans"]
-drop table t1;
 CREATE TABLE t1 (
 c int,
 d INT,
-INDEX idx1(c, d)
+INDEX idx1(c , d)
 ) PARTITION BY RANGE COLUMNS(c) (
 PARTITION `p1` VALUES LESS THAN (10),
 PARTITION `p2` VALUES LESS THAN (20),
@@ -319,7 +236,7 @@ drop table t1;
 CREATE TABLE t1 (
 a INT,
 b INT,
-KEY ( a, b )
+KEY ( a , b )
 ) PARTITION BY RANGE COLUMNS(a) (
 PARTITION `p1` VALUES LESS THAN (10),
 PARTITION `p2` VALUES LESS THAN (20),
@@ -450,7 +367,7 @@ DROP TABLE t1;
 CREATE TABLE t1 (
 c int,
 d INT,
-INDEX idx1(c, d)
+INDEX idx1(c, d )
 ) PARTITION BY RANGE COLUMNS(d) (
 PARTITION `p1` VALUES LESS THAN (10),
 PARTITION `p2` VALUES LESS THAN (20),
@@ -686,7 +603,7 @@ drop table t1;
 CREATE TABLE t1 (
 c int,
 d INT,
-INDEX idx1(c, d)
+INDEX idx1(c, d )
 ) PARTITION BY RANGE (d % 5) (
 PARTITION `p1` VALUES LESS THAN (1),
 PARTITION `p2` VALUES LESS THAN (2),
@@ -797,7 +714,7 @@ INSERT INTO t1 VALUES (11), (22), (33);
 CREATE TABLE t2 (
 taken int,
 id int,
-PRIMARY KEY (id,taken),
+PRIMARY KEY (id,taken ),
 KEY taken (taken)
 )
 PARTITION BY RANGE (taken)
