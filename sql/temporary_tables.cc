@@ -1910,9 +1910,10 @@ void THD::use_global_tmp_table_tp()
 {
   if (!(sql_command_flags() & CF_STATUS_COMMAND))
   {
-    trans_register_ha(this, false, &global_temporary_tp, 0);
     if (in_multi_stmt_transaction_mode())
       trans_register_ha(this, true, &global_temporary_tp, 0);
+    else
+      trans_register_ha(this, false, &global_temporary_tp, 0);
   }
 }
 
