@@ -660,7 +660,7 @@ void trace_plan_prefix(Json_writer_object *jsobj, JOIN *join, uint idx,
   prefix_str.length(0);
   for (uint i= join->const_tables; i < idx; i++)
   {
-    TABLE_LIST *const tr= join->positions[i].table->tab_list;
+    TABLE_LIST *const tr= join->positions[i].table->get_tab_list();
     if (!(tr->map & join_tables))
     {
       String str;
