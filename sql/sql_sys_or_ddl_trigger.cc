@@ -1428,22 +1428,30 @@ static bool store_sys_trigger(THD *thd, const LEX_CSTRING &trg_name,
 bool fill_schema_triggers_from_mysql_events(THD *thd, TABLE_LIST *tables)
 {
   Open_tables_backup open_tables_state_backup;
-  TABLE *event_table;
+  TABLE_LIST event_table;
+  static LEX_CSTRING schema_name{STRING_WITH_LEN("mysql")};
+  static LEX_CSTRING table_name{STRING_WITH_LEN("event")};
+
+  start_new_trans new_trans(thd);
 
   thd->reset_n_backup_open_tables_state(&open_tables_state_backup);
 
-  if (Event_db_repository::open_event_table(thd, TL_WRITE, &event_table))
+  event_table.init_one_table(&schema_name, &table_name, 0, TL_READ);
+
+  if (open_system_tables_for_read(thd, &event_table))
   {
-    thd->restore_backup_open_tables_state(&open_tables_state_backup);
+    new_trans.restore_old_transaction();
+
     return true;
   }
 
   READ_RECORD read_record_info;
-  if (init_read_record(&read_record_info, thd, event_table,
+  if (init_read_record(&read_record_info, thd, event_table.table,
                        nullptr, nullptr, 0, 1, false))
   {
-    close_thread_tables(thd);
-    thd->restore_backup_open_tables_state(&open_tables_state_backup);
+    thd->commit_whole_transaction_and_close_tables();
+    new_trans.restore_old_transaction();
+
     return true;
   }
 
@@ -1454,19 +1462,21 @@ bool fill_schema_triggers_from_mysql_events(THD *thd, TABLE_LIST *tables)
 
   while (!(read_record_info.read_record()))
   {
+    TABLE *event= event_table.table;
+
     Event_parse_data::enum_kind trg_kind=
-      (Event_parse_data::enum_kind)event_table->field[ET_FIELD_KIND]->val_int();
+      (Event_parse_data::enum_kind)event->field[ET_FIELD_KIND]->val_int();
 
     if (trg_kind == Event_parse_data::SCHEDULE_EVENT)
       continue;
 
     trg_status= (Event_parse_data::enum_status)
-      event_table->field[ET_FIELD_STATUS]->val_int();
+      event->field[ET_FIELD_STATUS]->val_int();
     if (trg_status != Event_parse_data::ENABLED)
       continue;
 
     const Lex_cstring db_name{
-      event_table->field[ET_FIELD_DB]->val_lex_string_strmake(thd->mem_root)};
+      event->field[ET_FIELD_DB]->val_lex_string_strmake(thd->mem_root)};
     if (db_name.str == nullptr)
     {
       ret= true;
@@ -1474,7 +1484,7 @@ bool fill_schema_triggers_from_mysql_events(THD *thd, TABLE_LIST *tables)
     }
 
     const Lex_cstring trg_name{
-      event_table->field[ET_FIELD_NAME]->val_lex_string_strmake(
+      event->field[ET_FIELD_NAME]->val_lex_string_strmake(
         thd->mem_root)};
     if (trg_name.str == nullptr)
     {
@@ -1483,7 +1493,7 @@ bool fill_schema_triggers_from_mysql_events(THD *thd, TABLE_LIST *tables)
     }
 
     const Lex_cstring trg_body{
-      event_table->field[ET_FIELD_BODY]->val_lex_string_strmake(
+      event->field[ET_FIELD_BODY]->val_lex_string_strmake(
         thd->mem_root)};
     if (trg_body.str == nullptr)
     {
@@ -1492,7 +1502,7 @@ bool fill_schema_triggers_from_mysql_events(THD *thd, TABLE_LIST *tables)
     }
 
     const Lex_cstring trg_definer(
-      event_table->field[ET_FIELD_DEFINER]->val_lex_string_strmake(
+      event->field[ET_FIELD_DEFINER]->val_lex_string_strmake(
         thd->mem_root));
 
     if (trg_definer.str == nullptr)
@@ -1501,7 +1511,7 @@ bool fill_schema_triggers_from_mysql_events(THD *thd, TABLE_LIST *tables)
       break;
     }
 
-    sql_mode= (sql_mode_t) event_table->field[ET_FIELD_SQL_MODE]->val_int();
+    sql_mode= (sql_mode_t) event->field[ET_FIELD_SQL_MODE]->val_int();
     /*
       trigger event time is stored in the mysql.event table in the column
       `when` declared as enum('BEFORE','AFTER'). So, enumerators has
@@ -1511,10 +1521,10 @@ bool fill_schema_triggers_from_mysql_events(THD *thd, TABLE_LIST *tables)
       them for calculations.
     */
     trg_action_time_type trg_when=
-      (trg_action_time_type)(event_table->field[ET_FIELD_WHEN]->val_int() - 1);
+      (trg_action_time_type)(event->field[ET_FIELD_WHEN]->val_int() - 1);
 
     const Lex_cstring client_cs_name(
-      event_table->field[ET_FIELD_CHARACTER_SET_CLIENT]->val_lex_string_strmake(
+      event->field[ET_FIELD_CHARACTER_SET_CLIENT]->val_lex_string_strmake(
         thd->mem_root));
 
     if (client_cs_name.str == nullptr)
@@ -1524,7 +1534,7 @@ bool fill_schema_triggers_from_mysql_events(THD *thd, TABLE_LIST *tables)
     }
 
     const Lex_cstring connection_cs_name(
-      event_table->field[ET_FIELD_COLLATION_CONNECTION]->val_lex_string_strmake(
+      event->field[ET_FIELD_COLLATION_CONNECTION]->val_lex_string_strmake(
         thd->mem_root));
 
     if (connection_cs_name.str == nullptr)
@@ -1534,7 +1544,7 @@ bool fill_schema_triggers_from_mysql_events(THD *thd, TABLE_LIST *tables)
     }
 
     const Lex_cstring db_cs_name(
-      event_table->field[ET_FIELD_DB_COLLATION]->val_lex_string_strmake(
+      event->field[ET_FIELD_DB_COLLATION]->val_lex_string_strmake(
         thd->mem_root));
 
     if (connection_cs_name.str == nullptr)
@@ -1543,7 +1553,7 @@ bool fill_schema_triggers_from_mysql_events(THD *thd, TABLE_LIST *tables)
       break;
     }
 
-    ulonglong created= event_table->field[ET_FIELD_CREATED]->val_int();
+    ulonglong created= event->field[ET_FIELD_CREATED]->val_int();
     MYSQL_TIME created_timestamp;
     int not_used=0;
     number_to_datetime_or_date(created, 0, &created_timestamp, 0, &not_used);
@@ -1576,9 +1586,8 @@ bool fill_schema_triggers_from_mysql_events(THD *thd, TABLE_LIST *tables)
   }
 
   end_read_record(&read_record_info);
-  close_mysql_tables(thd);
-
-  thd->restore_backup_open_tables_state(&open_tables_state_backup);
+  thd->commit_whole_transaction_and_close_tables();
+  new_trans.restore_old_transaction();
 
   return ret;
 }
