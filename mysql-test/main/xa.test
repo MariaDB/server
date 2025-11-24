@@ -5,7 +5,7 @@
 --source include/not_embedded.inc
 
 # Save the initial number of concurrent sessions
---source include/count_sessions.inc
+let $count_sessions=1;
 
 call mtr.add_suppression("Deadlock found when trying to get lock; try restarting transaction");
 --disable_query_log
@@ -694,7 +694,6 @@ xa rollback 'test1';
 xa recover;
 drop table asd;
 disconnect con_tmp;
---source include/wait_until_disconnected.inc
 connection default;
 
 --echo # MDEV-30978: a read-only server should still allow the commit of
@@ -718,7 +717,6 @@ xa rollback '2';
 
 --echo # Read-only disconnect case
 
---source include/count_sessions.inc
 connect (con1_ro,localhost,root,,);
 xa start '3';
 select 0;
@@ -732,7 +730,6 @@ xa recover;
 --error ER_XA_RBROLLBACK
 xa commit '3';
 
---source include/count_sessions.inc
 connect (con2_ro,localhost,root,,);
 xa start '4';
 select 0;
@@ -781,6 +778,7 @@ xa end 'r:foo';
 xa prepare 'r:foo';
 disconnect con1;
 connection default;
+--source include/wait_until_count_sessions.inc
 xa recover;
 
 xa start 'r:bar';
