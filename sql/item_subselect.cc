@@ -4722,7 +4722,7 @@ void subselect_union_engine::print(String *str, enum_query_type query_type)
 void subselect_uniquesubquery_engine::print(String *str,
                                             enum_query_type query_type)
 {
-  TABLE *table= tab->tab_list ? tab->tab_list->table : tab->table;
+  TABLE *table= tab->get_tab_list() ? tab->get_tab_list()->table : tab->table;
   str->append(STRING_WITH_LEN("<primary_index_lookup>("));
   tab->ref.items[0]->print(str, query_type);
   str->append(STRING_WITH_LEN(" in "));
@@ -4775,7 +4775,7 @@ void subselect_uniquesubquery_engine::print(String *str)
 void subselect_indexsubquery_engine::print(String *str,
                                            enum_query_type query_type)
 {
-  TABLE *table= tab->tab_list ? tab->tab_list->table : tab->table;
+  TABLE *table= tab->get_tab_list() ? tab->get_tab_list()->table : tab->table;
   str->append(STRING_WITH_LEN("<index_lookup>("));
   tab->ref.items[0]->print(str, query_type);
   str->append(STRING_WITH_LEN(" in "));

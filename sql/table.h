@@ -3462,6 +3462,15 @@ typedef struct st_nested_join
   */
   uint              n_tables;
   nested_join_map   nj_map;          /* Bit used to identify this nested join*/
+  void set_nj_map(uint offset)
+  {
+    nj_map= static_cast<nested_join_map>(1 << offset);
+  }
+  nested_join_map get_nj_map() const
+  {
+    return nj_map;
+  }
+
   /*
     (Valid only for semi-join nests) Bitmap of tables outside the semi-join
     that are used within the semi-join's ON condition.

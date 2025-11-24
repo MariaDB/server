@@ -251,8 +251,23 @@ struct SplM_plan_info;
 class SplM_opt_info;
 
 typedef struct st_join_table {
-  TABLE		*table;
-  TABLE_LIST    *tab_list;
+  TABLE		*table;        /**< pointer to table cursor */
+  TABLE_LIST    *tab_list;     /**< pointer to query table, e.g. `t1` */
+
+  TABLE_LIST *get_tab_list()
+  {
+    DBUG_ASSERT(!tab_list || !table || tab_list == table->pos_in_table_list);
+    DBUG_ASSERT(!tab_list || !table || tab_list->table == table);
+    return tab_list;
+  }
+
+  const TABLE_LIST *get_tab_list() const
+  {
+    DBUG_ASSERT(!tab_list || !table || tab_list == table->pos_in_table_list);
+    DBUG_ASSERT(!tab_list || !table || tab_list->table == table);
+    return tab_list;
+  }
+
   KEYUSE	*keyuse;       /**< pointer to first used key */
   KEY           *hj_key;       /**< descriptor of the used best hash join key
                                     not supported by any index               */
@@ -1946,8 +1961,8 @@ public:
   bool transform_in_predicates_into_in_subq(THD *thd);
 
   bool optimize_upper_rownum_func();
-  void calc_allowed_top_level_tables(SELECT_LEX *lex);
-  table_map get_allowed_nj_tables(uint idx);
+  table_map calc_allowed_top_level_tables(SELECT_LEX *lex) const;
+  table_map get_allowed_nj_tables(uint idx) const;
   bool propagate_dependencies(JOIN_TAB *stat);
   void update_key_dependencies();
   table_map *export_table_dependencies() const;

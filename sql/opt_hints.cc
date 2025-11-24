@@ -1321,7 +1321,7 @@ bool Opt_hints_qb::set_join_hint_deps(JOIN *join,
     bool hint_table_found= false;
     for (uint i= 0; i < join->table_count; i++)
     {
-      TABLE_LIST *table= join->join_tab[i].tab_list;
+      TABLE_LIST *table= join->join_tab[i].get_tab_list();
       if (!compare_table_name(&tbl_name_and_qb, table))
       {
         hint_table_found= true;
@@ -1337,7 +1337,7 @@ bool Opt_hints_qb::set_join_hint_deps(JOIN *join,
         // Hint tables are always dependent on preceding tables
         join_tab->dependent |= hint_tab_map;
         update_nested_join_deps(join, join_tab, hint_tab_map);
-        hint_tab_map |= join_tab->tab_list->get_map();
+        hint_tab_map |= join_tab->get_tab_list()->get_map();
         break;
       }
     }
@@ -1356,7 +1356,7 @@ bool Opt_hints_qb::set_join_hint_deps(JOIN *join,
     JOIN_TAB *join_tab= &join->join_tab[i];
     const table_map dependent_tables=
         get_other_dep(join, hint->hint_type, hint_tab_map,
-                      join_tab->tab_list->get_map());
+                      join_tab->get_tab_list()->get_map());
     update_nested_join_deps(join, join_tab, dependent_tables);
     join_tab->dependent |= dependent_tables;
   }
@@ -1422,14 +1422,14 @@ bool Opt_hints_qb::set_join_hint_deps(JOIN *join,
 void Opt_hints_qb::update_nested_join_deps(JOIN *join, const JOIN_TAB *hint_tab,
                                            table_map hint_tab_map)
 {
-  const TABLE_LIST *table= hint_tab->tab_list;
+  const TABLE_LIST *table= hint_tab->get_tab_list();
   if (table->embedding)
   {
     for (uint i= 0; i < join->table_count; i++)
     {
       JOIN_TAB *tab= &join->join_tab[i];
       /* Walk up the nested joins that tab->table is a part of */
-      for (TABLE_LIST *emb= tab->tab_list->embedding; emb; emb=emb->embedding)
+      for (TABLE_LIST *emb= tab->get_tab_list()->embedding; emb; emb=emb->embedding)
       {
         /*
           Apply the rule only for outer joins. Semi-joins do not impose such
@@ -1439,7 +1439,7 @@ void Opt_hints_qb::update_nested_join_deps(JOIN *join, const JOIN_TAB *hint_tab,
         {
           const NESTED_JOIN *const nested_join= emb->nested_join;
           /* Is hint_tab somewhere inside this nested join, too? */
-          if (hint_tab->embedding_map & nested_join->nj_map)
+          if (hint_tab->embedding_map & nested_join->get_nj_map())
           {
             /*
               Yes, it is. Then, tab->table be also dependent on all outside

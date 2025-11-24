@@ -584,7 +584,7 @@ static void trace_table_dependencies(THD *thd,
 
   for (uint i= 0; i < table_count; i++)
   {
-    TABLE_LIST *table_ref= join_tabs[i].tab_list;
+    TABLE_LIST *table_ref= join_tabs[i].get_tab_list();
     Json_writer_object trace_one_table(thd);
     trace_one_table.
       add_table_name(&join_tabs[i]).
@@ -2399,7 +2399,7 @@ JOIN::optimize_inner()
   }
 
   if (!allowed_top_level_tables)
-    calc_allowed_top_level_tables(select_lex);
+    allowed_top_level_tables= calc_allowed_top_level_tables(select_lex);
 
   if (optimize_constant_subqueries())
     DBUG_RETURN(1);
@@ -5799,7 +5799,7 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
       outer_join|= table->map;
       s->embedding_map= 0;
       for (;embedding; embedding= embedding->embedding)
-        s->embedding_map|= embedding->nested_join->nj_map;
+        s->embedding_map|= embedding->nested_join->get_nj_map();
       continue;
     }
     if (embedding)
@@ -5820,7 +5820,7 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
         }
         inside_an_outer_join= TRUE;
         NESTED_JOIN *nested_join= embedding->nested_join;
-        s->embedding_map|=nested_join->nj_map;
+        s->embedding_map|=nested_join->get_nj_map();
         s->dependent|= embedding->dep_tables;
         embedding= embedding->embedding;
         outer_join|= nested_join->used_tables;
@@ -5898,18 +5898,6 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
   join->const_table_map= no_rows_const_tables;
   join->const_tables= const_count;
   eliminate_tables(join);
-
-  /*
-    Temporary gate.  As the FULL JOIN implementation matures, this keeps moving
-    deeper into the server until it's eventually eliminated.
-  */
-  if (thd->lex->full_join_count && !thd->lex->describe)
-  {
-    my_error(ER_NOT_SUPPORTED_YET, MYF(0),
-             "FULL JOINs that cannot be converted to LEFT, RIGHT, or "
-             "INNER JOINs");
-    goto error;
-  }
 
   join->const_table_map &= ~no_rows_const_tables;
   const_count= join->const_tables;
@@ -10405,6 +10393,18 @@ choose_plan(JOIN *join, table_map join_tables, TABLE_LIST *emb_sjm_nest)
       join->best_read= limit_cost;
       join->join_record_count= limit_record_count;
     }
+  }
+
+  /*
+    Temporary gate.  As the FULL JOIN implementation matures, this keeps moving
+    deeper into the server until it's eventually eliminated.
+  */
+  if (thd->lex->full_join_count && !thd->lex->describe)
+  {
+    my_error(ER_NOT_SUPPORTED_YET, MYF(0),
+             "FULL JOINs that cannot be converted to LEFT, RIGHT, or "
+             "INNER JOINs");
+    DBUG_RETURN(TRUE);
   }
 
   join->emb_sjm_nest= 0;
@@ -15910,13 +15910,13 @@ uint check_join_cache_usage(JOIN_TAB *tab,
          !(join->allowed_join_cache_types & JOIN_CACHE_INCREMENTAL_BIT);
   bool no_hashed_cache=
          !(join->allowed_join_cache_types & JOIN_CACHE_HASHED_BIT);
-  bool hint_disables_bnl= !hint_table_state(join->thd, tab->tab_list->table,
+  bool hint_disables_bnl= !hint_table_state(join->thd, tab->get_tab_list()->table,
                                             BNL_HINT_ENUM, true);
-  bool no_bka_cache= !hint_table_state(join->thd, tab->tab_list->table,
+  bool no_bka_cache= !hint_table_state(join->thd, tab->get_tab_list()->table,
           BKA_HINT_ENUM, join->allowed_join_cache_types & JOIN_CACHE_BKA_BIT);
-  bool hint_forces_bnl= hint_table_state(join->thd, tab->tab_list->table,
+  bool hint_forces_bnl= hint_table_state(join->thd, tab->get_tab_list()->table,
                                          BNL_HINT_ENUM, false);
-  bool hint_forces_bka= hint_table_state(join->thd, tab->tab_list->table,
+  bool hint_forces_bka= hint_table_state(join->thd, tab->get_tab_list()->table,
                                          BKA_HINT_ENUM, false);
   join->return_tab= 0;
 
@@ -20552,7 +20552,7 @@ static COND *rewrite_full_outer_joins(JOIN *join,
     First unused bit in nested_join_map after the call.
 */
 
-static uint build_bitmap_for_nested_joins(List<TABLE_LIST> *join_list, 
+static uint build_bitmap_for_nested_joins(List<TABLE_LIST> *join_list,
                                           uint first_unused)
 {
   List_iterator<TABLE_LIST> li(*join_list);
@@ -20561,26 +20561,26 @@ static uint build_bitmap_for_nested_joins(List<TABLE_LIST> *join_list,
   while ((table= li++))
   {
     NESTED_JOIN *nested_join;
-    if ((nested_join= table->nested_join))
-    {
-      /*
-        It is guaranteed by simplify_joins() function that a nested join
-        that has only one child represents a single table VIEW (and the child
-        is an underlying table). We don't assign bits to such nested join
-        structures because 
-        1. it is redundant (a "sequence" of one table cannot be interleaved 
-            with anything)
-        2. we could run out bits in nested_join_map otherwise.
-      */
-      if (nested_join->n_tables != 1)
-      {
-        /* Don't assign bits to sj-nests */
-        if (table->on_expr)
-          nested_join->nj_map= (nested_join_map) 1 << first_unused++;
-        first_unused= build_bitmap_for_nested_joins(&nested_join->join_list,
-                                                    first_unused);
-      }
-    }
+    if (!(nested_join= table->nested_join))
+      continue;
+
+    /*
+      It is guaranteed by simplify_joins() function that a nested join
+      that has only one child represents a single table VIEW (and the child
+      is an underlying table). We don't assign bits to such nested join
+      structures because
+      1. it is redundant (a "sequence" of one table cannot be interleaved
+          with anything)
+      2. we could run out bits in nested_join_map otherwise.
+    */
+    if (nested_join->n_tables == 1)
+      continue;
+
+    /* Don't assign bits to sj-nests */
+    if (table->on_expr)
+      nested_join->set_nj_map(first_unused++);
+    first_unused= build_bitmap_for_nested_joins(&nested_join->join_list,
+                                                first_unused);
   }
   DBUG_RETURN(first_unused);
 }
@@ -20727,47 +20727,47 @@ static bool check_interleaving_with_nj(JOIN_TAB *next_tab)
 
   if (join->cur_embedding_map & ~next_tab->embedding_map)
   {
-    /* 
+    /*
       next_tab is outside of the "pair of brackets" we're currently in.
       Cannot add it.
     */
-    return TRUE;
+    DBUG_ASSERT(false);
   }
-   
-  TABLE_LIST *next_emb= next_tab->table->pos_in_table_list->embedding;
+
   /*
     Do update counters for "pairs of brackets" that we've left (marked as
     X,Y,Z in the above picture)
   */
-  for (;next_emb && next_emb != join->emb_sjm_nest;
+  for (TABLE_LIST *next_emb= next_tab->table->pos_in_table_list->embedding;
+       next_emb && next_emb != join->emb_sjm_nest;
        next_emb= next_emb->embedding)
   {
-    if (!next_emb->sj_on_expr)
-    {
-      next_emb->nested_join->counter++;
-      DBUG_ASSERT(next_emb->nested_join->counter <= next_emb->nested_join->n_tables);
-      if (next_emb->nested_join->counter == 1)
-      {
-        /*
-          next_emb is the first table inside a nested join we've "entered". In
-          the picture above, we're looking at the 'X' bracket. Don't exit yet
-          as X bracket might have Y pair bracket.
-        */
-        join->cur_embedding_map |= next_emb->nested_join->nj_map;
-      }
-      
-      DBUG_ASSERT(next_emb->nested_join->n_tables >=
-                  next_emb->nested_join->counter);
+    if (next_emb->sj_on_expr)
+      continue;
 
-      if (next_emb->nested_join->n_tables !=
-          next_emb->nested_join->counter)
-        break;
+    next_emb->nested_join->counter++;
+    DBUG_ASSERT(next_emb->nested_join->counter <= next_emb->nested_join->n_tables);
+    if (next_emb->nested_join->counter == 1)
+    {
       /*
-        We're currently at Y or Z-bracket as depicted in the above picture.
-        Mark that we've left it and continue walking up the brackets hierarchy.
+        next_emb is the first table inside a nested join we've "entered". In
+        the picture above, we're looking at the 'X' bracket. Don't exit yet
+        as X bracket might have Y pair bracket.
       */
-      join->cur_embedding_map &= ~next_emb->nested_join->nj_map;
+      join->cur_embedding_map |= next_emb->nested_join->get_nj_map();
     }
+
+    DBUG_ASSERT(next_emb->nested_join->n_tables >=
+                next_emb->nested_join->counter);
+
+    if (next_emb->nested_join->n_tables !=
+        next_emb->nested_join->counter)
+      break;
+    /*
+      We're currently at Y or Z-bracket as depicted in the above picture.
+      Mark that we've left it and continue walking up the brackets hierarchy.
+    */
+    join->cur_embedding_map &= ~next_emb->nested_join->get_nj_map();
   }
   return FALSE;
 }
@@ -20829,24 +20829,24 @@ static void restore_prev_nj_state(JOIN_TAB *last)
 {
   TABLE_LIST *last_emb= last->table->pos_in_table_list->embedding;
   JOIN *join= last->join;
-  for (;last_emb != NULL && last_emb != join->emb_sjm_nest; 
+  for (;last_emb != NULL && last_emb != join->emb_sjm_nest;
        last_emb= last_emb->embedding)
   {
-    if (!last_emb->sj_on_expr)
-    {
-      NESTED_JOIN *nest= last_emb->nested_join;
-      DBUG_ASSERT(nest->counter > 0);
-      
-      bool was_fully_covered= nest->is_fully_covered();
-      
-      join->cur_embedding_map|= nest->nj_map;
+    if (last_emb->sj_on_expr)
+      continue;
 
-      if (--nest->counter == 0)
-        join->cur_embedding_map&= ~nest->nj_map;
-      
-      if (!was_fully_covered)
-        break;
-    }
+    NESTED_JOIN *nest= last_emb->nested_join;
+    DBUG_ASSERT(nest->counter > 0);
+
+    bool was_fully_covered= nest->is_fully_covered();
+
+    join->cur_embedding_map|= nest->get_nj_map();
+
+    if (--nest->counter == 0)
+      join->cur_embedding_map&= ~nest->get_nj_map();
+
+    if (!was_fully_covered)
+      break;
   }
 }
 
@@ -20865,12 +20865,13 @@ static void restore_prev_nj_state(JOIN_TAB *last)
   semi-join nest.
 */
 
-void JOIN::calc_allowed_top_level_tables(SELECT_LEX *lex)
+table_map JOIN::calc_allowed_top_level_tables(SELECT_LEX *lex) const
 {
   TABLE_LIST *tl;
   List_iterator<TABLE_LIST> ti(lex->leaf_tables);
   DBUG_ENTER("JOIN::calc_allowed_top_level_tables");
   DBUG_ASSERT(allowed_top_level_tables == 0);   // Should only be called once
+  table_map allowed_top_level= 0;
 
   while ((tl= ti++))
   {
@@ -20887,7 +20888,7 @@ void JOIN::calc_allowed_top_level_tables(SELECT_LEX *lex)
 
     if (!(embedding= tl->embedding))
     {
-      allowed_top_level_tables |= map;
+      allowed_top_level |= map;
       continue;
     }
 
@@ -20902,7 +20903,7 @@ void JOIN::calc_allowed_top_level_tables(SELECT_LEX *lex)
     // Ok we are in the parent nested outer join nest.
     if (!embedding)
     {
-      allowed_top_level_tables |= map;
+      allowed_top_level |= map;
       continue;
     }
     embedding->nested_join->direct_children_map |= map;
@@ -20924,9 +20925,9 @@ void JOIN::calc_allowed_top_level_tables(SELECT_LEX *lex)
       embedding->nested_join->direct_children_map |= map;
     }
     else
-      allowed_top_level_tables |= map;
+      allowed_top_level |= map;
   }
-  DBUG_VOID_RETURN;
+  DBUG_RETURN(allowed_top_level);
 }
 
 
@@ -20935,7 +20936,7 @@ void JOIN::calc_allowed_top_level_tables(SELECT_LEX *lex)
   current plan
 */
 
-table_map JOIN::get_allowed_nj_tables(uint idx)
+table_map JOIN::get_allowed_nj_tables(uint idx) const
 {
   TABLE_LIST *last_emb;
   if (idx > const_tables &&
@@ -20944,14 +20945,14 @@ table_map JOIN::get_allowed_nj_tables(uint idx)
     for (;last_emb && last_emb != emb_sjm_nest;
          last_emb= last_emb->embedding)
     {
-      if (!last_emb->sj_on_expr)
+      if (last_emb->sj_on_expr)
+        continue;
+
+      NESTED_JOIN *nest= last_emb->nested_join;
+      if (!nest->is_fully_covered())
       {
-        NESTED_JOIN *nest= last_emb->nested_join;
-        if (!nest->is_fully_covered())
-        {
-          // Return tables that are direct members of this join nest
-          return nest->direct_children_map;
-        }
+        // Return tables that are direct members of this join nest
+        return nest->direct_children_map;
       }
     }
   }
