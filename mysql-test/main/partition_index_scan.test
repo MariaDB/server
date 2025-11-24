@@ -5,9 +5,19 @@
 
 --echo # Index scans with PARTITION BY RANGE
 
+if ($MTR_COMBINATION_ASC)
+{
+let $direction=;
+}
+if ($MTR_COMBINATION_DESC)
+{
+let $direction=desc;
+}
+
+eval
 CREATE TABLE t1 (
   c int,
-  INDEX idx1(c)
+  INDEX idx1(c $direction)
 ) PARTITION BY RANGE COLUMNS(c) (
  PARTITION `p1` VALUES LESS THAN (10),
  PARTITION `p2` VALUES LESS THAN (20),
@@ -70,39 +80,11 @@ select json_extract(@js,'$**.partitions_index_scan_method');
 
 drop table t1;
 
---echo ## Ordered scan with reverse index
-CREATE TABLE t1 (
-  c int,
-  INDEX idx1(c desc)
-) PARTITION BY RANGE COLUMNS(c) (
- PARTITION `p1` VALUES LESS THAN (10),
- PARTITION `p2` VALUES LESS THAN (20),
- PARTITION `p3` VALUES LESS THAN (30),
- PARTITION `p4` VALUES LESS THAN (40),
- PARTITION `p5` VALUES LESS THAN MAXVALUE
-);
-insert into t1 select seq from seq_1_to_50;
-flush status;
-select * from t1 ORDER BY c LIMIT 16;
-show status like 'handler_read_%';
-flush status;
---echo ### select * from t1 ORDER BY c LIMIT 16
-let $out=`analyze format=json select * from t1 ORDER BY c LIMIT 16`;
-evalp set @js='$out';
-select json_extract(@js,'$**.partitions_index_scan_method');
-
-select * from t1 ORDER BY c desc LIMIT 16;
-show status like 'handler_read_%';
---echo ### select * from t1 ORDER BY c desc LIMIT 16
-let $out=`analyze format=json select * from t1 ORDER BY c desc LIMIT 16`;
-evalp set @js='$out';
-select json_extract(@js,'$**.partitions_index_scan_method');
-drop table t1;
-
+eval
 CREATE TABLE t1 (
   c int,
   d INT,
-  INDEX idx1(c, d)
+  INDEX idx1(c $direction, d)
 ) PARTITION BY RANGE COLUMNS(c) (
  PARTITION `p1` VALUES LESS THAN (10),
  PARTITION `p2` VALUES LESS THAN (20),
@@ -127,10 +109,11 @@ drop table t1;
 --echo ## Case 1: calls to ha_partition::read_range_first and
 --echo ## ha_partition::index_read_map, via loose index scan.
 --echo ## No read_prev
+eval
 CREATE TABLE t1 (
  a INT,
  b INT,
- KEY ( a, b )
+ KEY ( a $direction, b )
 ) PARTITION BY RANGE COLUMNS(a) (
  PARTITION `p1` VALUES LESS THAN (10),
  PARTITION `p2` VALUES LESS THAN (20),
@@ -167,10 +150,11 @@ DROP TABLE t1;
 
 --echo ## Case 2: calls to ha_partition::read_range_first and
 --echo ## ha_partition::index_read_map, via loose index scan
+eval
 CREATE TABLE t1 (
  a INT,
  b INT,
- KEY ( a, b )
+ KEY ( a, b $direction)
 ) PARTITION BY RANGE COLUMNS(b) (
  PARTITION `p1` VALUES LESS THAN (10),
  PARTITION `p2` VALUES LESS THAN (20),
@@ -191,10 +175,11 @@ select json_extract(@js,'$**.partitions_index_scan_method');
 
 DROP TABLE t1;
 
+eval
 CREATE TABLE t1 (
   c int,
   d INT,
-  INDEX idx1(c, d)
+  INDEX idx1(c, d $direction)
 ) PARTITION BY RANGE COLUMNS(d) (
  PARTITION `p1` VALUES LESS THAN (10),
  PARTITION `p2` VALUES LESS THAN (20),
@@ -260,10 +245,11 @@ show status like 'handler_read_%';
 drop table t1;
 
 --echo ## PARTITION BY RANGE (expr)
+eval
 CREATE TABLE t1 (
   c int,
   d INT,
-  INDEX idx1(c, d)
+  INDEX idx1(c, d $direction)
 ) PARTITION BY RANGE (d % 5) (
  PARTITION `p1` VALUES LESS THAN (1),
  PARTITION `p2` VALUES LESS THAN (2),
@@ -314,10 +300,11 @@ CREATE TABLE t1 (
 
 INSERT INTO t1 VALUES (11), (22), (33);
 
+eval
 CREATE TABLE t2 (
   taken int,
   id int,
-  PRIMARY KEY (id,taken),
+  PRIMARY KEY (id,taken $direction),
   KEY taken (taken)
 )
 PARTITION BY RANGE (taken)

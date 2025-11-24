@@ -1,0 +1,377 @@
+@@ -1,7 +1,7 @@
+ # Index scans with PARTITION BY RANGE
+ CREATE TABLE t1 (
+ c int,
+-INDEX idx1(c )
++INDEX idx1(c desc)
+ ) PARTITION BY RANGE COLUMNS(c) (
+ PARTITION `p1` VALUES LESS THAN (10),
+ PARTITION `p2` VALUES LESS THAN (20),
+@@ -17,9 +17,9 @@
+ 1
+ show status like 'handler_read_%';
+ Variable_name	Value
+-Handler_read_first	1
++Handler_read_first	0
+ Handler_read_key	0
+-Handler_read_last	0
++Handler_read_last	1
+ Handler_read_next	0
+ Handler_read_prev	0
+ Handler_read_retry	0
+@@ -33,11 +33,11 @@
+ 2
+ show status like 'handler_read_%';
+ Variable_name	Value
+-Handler_read_first	1
++Handler_read_first	0
+ Handler_read_key	0
+-Handler_read_last	0
+-Handler_read_next	1
+-Handler_read_prev	0
++Handler_read_last	1
++Handler_read_next	0
++Handler_read_prev	1
+ Handler_read_retry	0
+ Handler_read_rnd	0
+ Handler_read_rnd_deleted	0
+@@ -63,11 +63,11 @@
+ 16
+ show status like 'handler_read_%';
+ Variable_name	Value
+-Handler_read_first	2
++Handler_read_first	0
+ Handler_read_key	0
+-Handler_read_last	0
+-Handler_read_next	15
+-Handler_read_prev	0
++Handler_read_last	2
++Handler_read_next	0
++Handler_read_prev	15
+ Handler_read_retry	0
+ Handler_read_rnd	0
+ Handler_read_rnd_deleted	0
+@@ -83,9 +83,9 @@
+ 50
+ show status like 'handler_read_%';
+ Variable_name	Value
+-Handler_read_first	0
++Handler_read_first	1
+ Handler_read_key	0
+-Handler_read_last	1
++Handler_read_last	0
+ Handler_read_next	0
+ Handler_read_prev	0
+ Handler_read_retry	0
+@@ -99,11 +99,11 @@
+ 49
+ show status like 'handler_read_%';
+ Variable_name	Value
+-Handler_read_first	0
++Handler_read_first	1
+ Handler_read_key	0
+-Handler_read_last	1
+-Handler_read_next	0
+-Handler_read_prev	1
++Handler_read_last	0
++Handler_read_next	1
++Handler_read_prev	0
+ Handler_read_retry	0
+ Handler_read_rnd	0
+ Handler_read_rnd_deleted	0
+@@ -129,11 +129,11 @@
+ 35
+ show status like 'handler_read_%';
+ Variable_name	Value
+-Handler_read_first	0
++Handler_read_first	2
+ Handler_read_key	0
+-Handler_read_last	2
+-Handler_read_next	0
+-Handler_read_prev	15
++Handler_read_last	0
++Handler_read_next	15
++Handler_read_prev	0
+ Handler_read_retry	0
+ Handler_read_rnd	0
+ Handler_read_rnd_deleted	0
+@@ -159,8 +159,8 @@
+ Handler_read_first	0
+ Handler_read_key	2
+ Handler_read_last	0
+-Handler_read_next	6
+-Handler_read_prev	0
++Handler_read_next	0
++Handler_read_prev	6
+ Handler_read_retry	0
+ Handler_read_rnd	0
+ Handler_read_rnd_deleted	0
+@@ -185,8 +185,8 @@
+ Handler_read_first	0
+ Handler_read_key	2
+ Handler_read_last	0
+-Handler_read_next	0
+-Handler_read_prev	6
++Handler_read_next	6
++Handler_read_prev	0
+ Handler_read_retry	0
+ Handler_read_rnd	0
+ Handler_read_rnd_deleted	0
+@@ -200,7 +200,7 @@
+ CREATE TABLE t1 (
+ c int,
+ d INT,
+-INDEX idx1(c , d)
++INDEX idx1(c desc, d)
+ ) PARTITION BY RANGE COLUMNS(c) (
+ PARTITION `p1` VALUES LESS THAN (10),
+ PARTITION `p2` VALUES LESS THAN (20),
+@@ -213,7 +213,7 @@
+ flush status;
+ select * from t1 where d = 113 ORDER BY d LIMIT 1;
+ c	d
+-1	113
++50	113
+ show status like 'handler_read_%';
+ Variable_name	Value
+ Handler_read_first	1
+@@ -236,7 +236,7 @@
+ CREATE TABLE t1 (
+ a INT,
+ b INT,
+-KEY ( a , b )
++KEY ( a desc, b )
+ ) PARTITION BY RANGE COLUMNS(a) (
+ PARTITION `p1` VALUES LESS THAN (10),
+ PARTITION `p2` VALUES LESS THAN (20),
+@@ -258,9 +258,9 @@
+ Handler_read_next	0
+ Handler_read_prev	0
+ Handler_read_retry	0
+-Handler_read_rnd	0
++Handler_read_rnd	2
+ Handler_read_rnd_deleted	0
+-Handler_read_rnd_next	0
++Handler_read_rnd_next	3
+ FLUSH status;
+ SELECT a, MIN(b) FROM t1 WHERE a > 16 and a < 25 GROUP BY a;
+ a	MIN(b)
+@@ -277,8 +277,8 @@
+ Handler_read_first	0
+ Handler_read_key	2
+ Handler_read_last	0
+-Handler_read_next	8
+-Handler_read_prev	0
++Handler_read_next	0
++Handler_read_prev	8
+ Handler_read_retry	0
+ Handler_read_rnd	0
+ Handler_read_rnd_deleted	0
+@@ -300,9 +300,9 @@
+ Handler_read_next	0
+ Handler_read_prev	0
+ Handler_read_retry	0
+-Handler_read_rnd	0
++Handler_read_rnd	2
+ Handler_read_rnd_deleted	0
+-Handler_read_rnd_next	0
++Handler_read_rnd_next	3
+ FLUSH status;
+ SELECT a, MAX(b) FROM t1 WHERE a > 16 and a < 25 GROUP BY a;
+ a	MAX(b)
+@@ -319,8 +319,8 @@
+ Handler_read_first	0
+ Handler_read_key	2
+ Handler_read_last	0
+-Handler_read_next	8
+-Handler_read_prev	0
++Handler_read_next	0
++Handler_read_prev	8
+ Handler_read_retry	0
+ Handler_read_rnd	0
+ Handler_read_rnd_deleted	0
+@@ -335,7 +335,7 @@
+ CREATE TABLE t1 (
+ a INT,
+ b INT,
+-KEY ( a, b )
++KEY ( a, b desc)
+ ) PARTITION BY RANGE COLUMNS(b) (
+ PARTITION `p1` VALUES LESS THAN (10),
+ PARTITION `p2` VALUES LESS THAN (20),
+@@ -351,7 +351,7 @@
+ show status like 'handler_read_%';
+ Variable_name	Value
+ Handler_read_first	0
+-Handler_read_key	6
++Handler_read_key	7
+ Handler_read_last	0
+ Handler_read_next	0
+ Handler_read_prev	0
+@@ -367,7 +367,7 @@
+ CREATE TABLE t1 (
+ c int,
+ d INT,
+-INDEX idx1(c, d )
++INDEX idx1(c, d desc)
+ ) PARTITION BY RANGE COLUMNS(d) (
+ PARTITION `p1` VALUES LESS THAN (10),
+ PARTITION `p2` VALUES LESS THAN (20),
+@@ -388,8 +388,8 @@
+ Handler_read_first	0
+ Handler_read_key	1
+ Handler_read_last	0
+-Handler_read_next	2
+-Handler_read_prev	0
++Handler_read_next	0
++Handler_read_prev	2
+ Handler_read_retry	0
+ Handler_read_rnd	0
+ Handler_read_rnd_deleted	0
+@@ -425,8 +425,8 @@
+ Handler_read_first	0
+ Handler_read_key	1
+ Handler_read_last	0
+-Handler_read_next	0
+-Handler_read_prev	1
++Handler_read_next	1
++Handler_read_prev	0
+ Handler_read_retry	0
+ Handler_read_rnd	0
+ Handler_read_rnd_deleted	0
+@@ -455,8 +455,8 @@
+ Handler_read_first	0
+ Handler_read_key	2
+ Handler_read_last	0
+-Handler_read_next	0
+-Handler_read_prev	15
++Handler_read_next	15
++Handler_read_prev	0
+ Handler_read_retry	0
+ Handler_read_rnd	0
+ Handler_read_rnd_deleted	0
+@@ -491,8 +491,8 @@
+ Handler_read_first	0
+ Handler_read_key	1
+ Handler_read_last	0
+-Handler_read_next	1
+-Handler_read_prev	0
++Handler_read_next	0
++Handler_read_prev	1
+ Handler_read_retry	0
+ Handler_read_rnd	0
+ Handler_read_rnd_deleted	0
+@@ -521,16 +521,16 @@
+ Handler_read_first	0
+ Handler_read_key	2
+ Handler_read_last	0
+-Handler_read_next	15
+-Handler_read_prev	0
++Handler_read_next	0
++Handler_read_prev	15
+ Handler_read_retry	0
+ Handler_read_rnd	0
+ Handler_read_rnd_deleted	0
+ Handler_read_rnd_next	0
+ select * from t1 where c = 120 LIMIT 2;
+ c	d
+-120	1
+-120	2
++120	50
++120	49
+ ### select * from t1 where c = 120 ORDER BY d LIMIT 2
+ set @js='$out';
+ select json_extract(@js,'$**.partitions_index_scan_method');
+@@ -562,8 +562,8 @@
+ Handler_read_first	0
+ Handler_read_key	3
+ Handler_read_last	0
+-Handler_read_next	0
+-Handler_read_prev	15
++Handler_read_next	15
++Handler_read_prev	0
+ Handler_read_retry	0
+ Handler_read_rnd	0
+ Handler_read_rnd_deleted	0
+@@ -592,8 +592,8 @@
+ Handler_read_first	0
+ Handler_read_key	3
+ Handler_read_last	0
+-Handler_read_next	15
+-Handler_read_prev	0
++Handler_read_next	0
++Handler_read_prev	15
+ Handler_read_retry	0
+ Handler_read_rnd	0
+ Handler_read_rnd_deleted	0
+@@ -603,7 +603,7 @@
+ CREATE TABLE t1 (
+ c int,
+ d INT,
+-INDEX idx1(c, d )
++INDEX idx1(c, d desc)
+ ) PARTITION BY RANGE (d % 5) (
+ PARTITION `p1` VALUES LESS THAN (1),
+ PARTITION `p2` VALUES LESS THAN (2),
+@@ -637,8 +637,8 @@
+ Handler_read_first	0
+ Handler_read_key	5
+ Handler_read_last	0
+-Handler_read_next	0
+-Handler_read_prev	1
++Handler_read_next	1
++Handler_read_prev	0
+ Handler_read_retry	0
+ Handler_read_rnd	0
+ Handler_read_rnd_deleted	0
+@@ -653,8 +653,8 @@
+ Handler_read_first	0
+ Handler_read_key	5
+ Handler_read_last	0
+-Handler_read_next	1
+-Handler_read_prev	0
++Handler_read_next	0
++Handler_read_prev	1
+ Handler_read_retry	0
+ Handler_read_rnd	0
+ Handler_read_rnd_deleted	0
+@@ -663,8 +663,8 @@
+ ### Unordered scan (filesort + mrr)
+ select * from t1 where c = 120 ORDER BY d % 5 LIMIT 2;
+ c	d
+-120	10
+-120	15
++120	40
++120	45
+ show status like 'handler_read_%';
+ Variable_name	Value
+ Handler_read_first	0
+@@ -679,8 +679,8 @@
+ flush status;
+ select * from t1 where c = 120 LIMIT 2;
+ c	d
+-120	1
+-120	2
++120	50
++120	49
+ show status like 'handler_read_%';
+ Variable_name	Value
+ Handler_read_first	0
+@@ -714,7 +714,7 @@
+ CREATE TABLE t2 (
+ taken int,
+ id int,
+-PRIMARY KEY (id,taken ),
++PRIMARY KEY (id,taken desc),
+ KEY taken (taken)
+ )
+ PARTITION BY RANGE (taken)
+@@ -754,7 +754,7 @@
+ Handler_read_first	1
+ Handler_read_key	4
+ Handler_read_last	0
+-Handler_read_next	6
++Handler_read_next	3
+ Handler_read_prev	0
+ Handler_read_retry	0
+ Handler_read_rnd	0
