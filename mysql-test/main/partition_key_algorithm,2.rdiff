@@ -1,0 +1,89 @@
+@@ -1,6 +1,6 @@
+ # MDEV-9826 change the hash algorithm for PARTITION BY KEY
+ ## MDEV-9826 case with NULL
+-create table t1(c1 int, c2 date) partition by key  (c2) partitions 8;
++create table t1(c1 int, c2 date) partition by key ALGORITHM=2 (c2) partitions 8;
+ show create table t1;
+ Table	Create Table
+ t1	CREATE TABLE `t1` (
+@@ -31,7 +31,7 @@
+ p7	0
+ drop table t1;
+ ## MDEV-9826 case with more dates
+-create table t1(c1 int, c2 date) partition by key  (c2) partitions 8;
++create table t1(c1 int, c2 date) partition by key ALGORITHM=2 (c2) partitions 8;
+ show create table t1;
+ Table	Create Table
+ t1	CREATE TABLE `t1` (
+@@ -54,7 +54,7 @@
+ p7	0
+ drop table t1;
+ ## MDEV-9826 case with more dates and linear key
+-create table t1(c1 int, c2 date) partition by linear key  (c2) partitions 8;
++create table t1(c1 int, c2 date) partition by linear key ALGORITHM=2 (c2) partitions 8;
+ show create table t1;
+ Table	Create Table
+ t1	CREATE TABLE `t1` (
+@@ -77,7 +77,7 @@
+ p7	0
+ drop table t1;
+ ## MDEV-9826 case with more dates and multiple keys
+-create table t1(c1 int, c2 date) partition by key  (c1, c2) partitions 8;
++create table t1(c1 int, c2 date) partition by key ALGORITHM=2 (c1, c2) partitions 8;
+ show create table t1;
+ Table	Create Table
+ t1	CREATE TABLE `t1` (
+@@ -100,7 +100,7 @@
+ p7	0
+ drop table t1;
+ ## MDEV-20791 case with INET6
+-create table t1 (a inet6) partition by key  (a) partitions 2;
++create table t1 (a inet6) partition by key ALGORITHM=2 (a) partitions 2;
+ insert into t1 values ('0:db8::ff00:42:8329'),('2001:db8::ff00:42:8329'),('::'),('::192.0.2.128'),('::ffff:192.0.2.128');
+ select partition_name, table_rows from information_schema.partitions where table_name='t1';
+ partition_name	table_rows
+@@ -108,7 +108,7 @@
+ p1	5
+ drop table t1;
+ ## MDEV-20791 case with BINARY
+-CREATE TABLE t1 (a BINARY(16)) PARTITION BY KEY  (a) PARTITIONS 2;
++CREATE TABLE t1 (a BINARY(16)) PARTITION BY KEY ALGORITHM=2 (a) PARTITIONS 2;
+ INSERT INTO t1 VALUES (X'00000DB8000000000000FF0000428329');
+ INSERT INTO t1 VALUES (X'20010DB8000000000000FF0000428329');
+ INSERT INTO t1 VALUES (X'00000000000000000000000000000000');
+@@ -120,7 +120,7 @@
+ p1	5
+ drop table t1;
+ ## MDEV-20791 case with more rows
+-create table t1 (a inet6) partition by key  (a) partitions 2;
++create table t1 (a inet6) partition by key ALGORITHM=2 (a) partitions 2;
+ insert into t1 select concat(hex(seq), ':db8::ff00:42:8329') from seq_0_to_65535;
+ select partition_name, table_rows from information_schema.partitions where table_name='t1';
+ partition_name	table_rows
+@@ -143,7 +143,7 @@
+ 60
+ 6060
+ 606060
+-ALTER TABLE t1  PARTITION BY KEY  (a) PARTITIONS 3;
++ALTER TABLE t1  PARTITION BY KEY ALGORITHM=2 (a) PARTITIONS 3;
+ SELECT HEX(a) FROM t1 WHERE a=0x60;
+ HEX(a)
+ 20
+@@ -160,7 +160,7 @@
+ 60
+ 6060
+ 606060
+-ALTER TABLE t1  PARTITION BY KEY  (a) PARTITIONS 3;
++ALTER TABLE t1  PARTITION BY KEY ALGORITHM=2 (a) PARTITIONS 3;
+ SELECT HEX(a) FROM t1 WHERE a=0x60;
+ HEX(a)
+ 20
+@@ -177,7 +177,7 @@
+ A0
+ A0A0
+ A0A0A0
+-ALTER TABLE t1  PARTITION BY KEY  (a) PARTITIONS 3;
++ALTER TABLE t1  PARTITION BY KEY ALGORITHM=2 (a) PARTITIONS 3;
+ SELECT HEX(a) FROM t1 WHERE a=0xA0;
+ HEX(a)
+ 20

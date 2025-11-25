@@ -279,7 +279,12 @@ public:
     {
       KEY_ALGORITHM_NONE= 0,
       KEY_ALGORITHM_51= 1,
-      KEY_ALGORITHM_55= 2
+      KEY_ALGORITHM_55= 2,
+      KEY_ALGORTHM_BASE31,
+      KEY_ALGORITHM_CRC32C,
+      KEY_ALGORITHM_XXH32,
+      KEY_ALGORITHM_XXH3,
+      KEY_ALGORITHM_END
     };
   enum_key_algorithm key_algorithm;
 
@@ -395,6 +400,7 @@ public:
   void report_part_expr_error(bool use_subpart_expr);
   bool has_same_partitioning(partition_info *new_part_info);
   bool error_if_requires_values() const;
+  bool set_key_algorithm(const LEX_CSTRING *str);
 private:
   bool set_up_default_partitions(THD *thd, handler *file, HA_CREATE_INFO *info,
                                  uint start_no);
