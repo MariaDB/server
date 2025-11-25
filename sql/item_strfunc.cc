@@ -2031,7 +2031,7 @@ bool Item_func_left::hash_not_null(Hasher *hasher)
   DBUG_ASSERT((str == NULL) == null_value);
   if (!str)
     return true;
-  hasher->add(collation.collation, str->ptr(), str->length());
+  hasher->add(collation.collation, str->ptr(), str->length(), str->length());
   return false;
 }
 

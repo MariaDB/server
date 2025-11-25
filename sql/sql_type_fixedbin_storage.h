@@ -122,7 +122,8 @@ public:
   */
   static void hash_record(uchar *ptr, Hasher *hasher)
   {
-    hasher->add(&my_charset_bin, ptr, binary_length());
+    uint len= binary_length();
+    hasher->add(&my_charset_bin, ptr, len, len);
   }
 
   static bool only_zero_bytes(const char *ptr, size_t length)

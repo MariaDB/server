@@ -219,28 +219,55 @@ static inline constexpr expr_event_t operator&(const expr_event_t a,
 }
 
 
+typedef void (*hash_func_t)(const uchar *key, size_t len, uint32 *nr);
+
 class Hasher
 {
+  /*
+    The MYSQL5X hash algorithms use m_nr1 and m_nr2. The other hash
+    algorithms use m_nr.
+  */
   ulong m_nr1;
   ulong m_nr2;
+  uint32 m_nr;
+  /* NULL iff either MYSQL5X algorithm is in use. */
+  hash_func_t m_hash_func;
 public:
-  Hasher(): m_nr1(1), m_nr2(4)
+  Hasher(): m_nr1(1), m_nr2(4), m_nr(0), m_hash_func(NULL)
   { }
+  Hasher(hash_func_t hash_func):
+    m_nr1(1), m_nr2(4), m_nr(0), m_hash_func(hash_func) { }
   void add_null()
   {
-    m_nr1^= (m_nr1 << 1) | 1;
+    if (!m_hash_func)
+      m_nr1^= (m_nr1 << 1) | 1;
+    else
+      m_hash_func(NULL, 0, &m_nr);
   }
-  void add(CHARSET_INFO *cs, const uchar *str, size_t length)
+  void add(CHARSET_INFO *cs, const uchar *str, size_t length, size_t maxlen)
   {
-    cs->coll->hash_sort(cs, str, length, &m_nr1, &m_nr2);
+    if (!m_hash_func)
+      cs->coll->hash_sort(cs, str, length, &m_nr1, &m_nr2);
+    else if (cs->coll->hash_sort == my_hash_sort_bin)
+      m_hash_func(str, length, &m_nr);
+    else
+    {
+      size_t newlen= cs->strnxfrmlen(maxlen);
+      uchar *newstr= (uchar *) my_alloca(newlen);
+      newlen= cs->strnxfrm(newstr, newlen, str, length);
+      m_hash_func(newstr, newlen, &m_nr);
+      my_afree(newstr);
+    }
   }
-  void add(CHARSET_INFO *cs, const char *str, size_t length)
+  void add(CHARSET_INFO *cs, const char *str, size_t length, size_t maxlen)
   {
-    add(cs, (const uchar *) str, length);
+    add(cs, (const uchar *) str, length, maxlen);
   }
   uint32 finalize() const
   {
-    return (uint32) m_nr1;
+    if (!m_hash_func)
+      return (uint32) m_nr1;
+    return m_nr;
   }
 };
 

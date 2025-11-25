@@ -163,7 +163,7 @@ public:
     }
     void hash_record(const uchar *ptr, Hasher *hasher) const
     {
-      hasher->add(&my_charset_bin, ptr + m_record_pos, m_length);
+      hasher->add(&my_charset_bin, ptr + m_record_pos, m_length, m_length);
     }
   };
 
