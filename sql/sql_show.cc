@@ -3333,9 +3333,9 @@ static my_bool processlist_callback(THD *tmp, processlist_callback_arg *arg)
       arg->thd->security_ctx->host_or_ip[0])
   {
     char host[LIST_PROCESS_HOST_LEN + 1];
-    my_snprintf(host, LIST_PROCESS_HOST_LEN, "%s:%u",
-                tmp_sctx->host_or_ip, tmp->peer_port);
-    arg->table->field[2]->store(host, strlen(host), cs);
+    size_t host_len= my_snprintf(host, LIST_PROCESS_HOST_LEN, "%s:%u",
+                                 tmp_sctx->host_or_ip, tmp->peer_port);
+    arg->table->field[2]->store(host, host_len, cs);
   }
   else
     arg->table->field[2]->store(tmp_sctx->host_or_ip,
