@@ -38,7 +38,7 @@ Lex_ident_db Sql_path::resolve_current_schema(THD *thd, sp_head *caller,
     dbn= thd->copy_db_normalized();
 
   // If neither condition is met or oom, dbn.str remains null
-  if (unlikely(!dbn.str))
+  if (!dbn.str)
     return {nullptr, 0};
 
   return {dbn.str, dbn.length};
@@ -73,7 +73,7 @@ bool Sql_path::try_resolve_in_schema(THD *thd, const Lex_ident_db_normalized &sc
       /*
         [schema] '.' routine_name
       */
-      name->m_db= Lex_ident_db_normalized(thd->strmake(schema.str, schema.length), 
+      name->m_db= Lex_ident_db_normalized(thd->strmake(schema.str, schema.length),
                                           schema.length);
       *resolved= true;
       return false;
@@ -158,21 +158,21 @@ bool Sql_path::resolve(THD *thd, sp_head *caller, sp_name *name,
   for (size_t i= 0; i < m_count; i++)
   {
     Lex_ident_db schema= m_schemas[i];
-    
+
     // Resolve CURRENT_SCHEMA if needed
     schema= resolve_current_schema(thd, caller, schema);
     if (!schema.str)
       continue; // CURRENT_SCHEMA resolution failed, skip this entry
-    
+
     /*
-      Schemas are already normalized when added to the path, except for 
+      Schemas are already normalized when added to the path, except for
       CURRENT_SCHEMA which was resolved above. We can use them directly.
     */
     const Lex_ident_db_normalized dbn(schema.str, schema.length);
-    
+
     if (try_resolve_in_schema(thd, dbn, name, sph, pkgname, &resolved))
       return true;
-    
+
     if (resolved)
       break;
   }
@@ -183,11 +183,8 @@ bool Sql_path::resolve(THD *thd, sp_head *caller, sp_name *name,
 
 void Sql_path::free()
 {
-  for (size_t i= 0; i < m_count; i++)
-  {
-    my_free((void*)m_schemas[i].str);
-  }
-
+  if (m_count)
+    my_free(const_cast<char*>(m_schemas[0].str));
   m_count= 0;
 }
 
@@ -195,8 +192,9 @@ void Sql_path::free()
 bool Sql_path::init()
 {
   free();
-  add_schema_direct(cur_schema.str, cur_schema.length);
-
+  char *buf= my_strndup(key_memory_Sys_var_charptr_value,
+                        cur_schema.str, cur_schema.length, MYF(MY_WME));
+  m_schemas[m_count++]= {buf, cur_schema.length};
   return false;
 }
 
@@ -207,77 +205,25 @@ bool Sql_path::is_cur_schema(const LEX_CSTRING &schema) const
 }
 
 
-bool Sql_path::add_schema_direct(const char *schema_str, size_t schema_len)
+bool Sql_path::add_schema(char **to)
 {
-  if (unlikely(m_count >= array_elements(m_schemas)))
-  {
-    my_error(ER_VALUE_TOO_LONG , MYF(0), "path");
-    return true;
-  }
+  const Lex_ident_db &dbn= m_schemas[m_count];
+  m_schemas[m_count].length= *to - m_schemas[m_count].str;
+  *(*to)++= 0;
 
-  char *tmp= my_strndup(key_memory_Sys_var_charptr_value,
-                        schema_str, schema_len,
-                        MYF(MY_WME));
-  m_schemas[m_count++]= {tmp, schema_len};
-  return false;
-}
+  // Validate
+  if (Lex_ident_db::check_name_with_error(dbn))
+    goto err;
 
-
-bool Sql_path::add_schema(THD *thd, const char *schema_str, size_t schema_len)
-{
-  DBUG_ASSERT(schema_str);
-
-  if (unlikely(m_count >= array_elements(m_schemas)))
-  {
-    my_error(ER_VALUE_TOO_LONG , MYF(0), "path");
-    return true;
-  }
-
-  if (is_cur_schema({schema_str, schema_len}))
-    return add_schema_direct(schema_str, schema_len);
-
-  // Step 1: Process backticks in-place using a local buffer
-  char local_buf[NAME_LEN * 3];  // Sufficient for any schema name
-  if (schema_len >= sizeof(local_buf))
-  {
-    my_error(ER_VALUE_TOO_LONG, MYF(0), "path");
-    return true;
-  }
-
-  size_t processed_len = 0;
-  for (size_t i = 0; i < schema_len; i++)
-  {
-    if (schema_str[i] == '`' && i + 1 < schema_len)
-      i++; // Skip first backtick of double backtick
-    local_buf[processed_len++] = schema_str[i];
-  }
-  local_buf[processed_len] = '\0';
-
-  // Step 2: Normalize the processed string
-  Lex_ident_db_normalized dbn = thd->to_ident_db_normalized_with_error(
-      Lex_cstring(local_buf, processed_len));
-  if (!dbn.str)
-    return true;
-
-  // Step 3: Check for duplicates
+  // Check for duplicates
   for (size_t i = 0; i < m_count; i++)
-  {
-    if (unlikely(m_schemas[i].length == dbn.length &&
-        !memcmp(m_schemas[i].str, dbn.str, dbn.length)))
-    {
-      my_error(ER_WRONG_VALUE_FOR_VAR, MYF(0), "path", dbn.str);
-      return true;
-    }
-  }
+    if (dbn.streq(m_schemas[i]))
+      goto err;
 
-  // Step 4: Make persistent copy and store
-  char *persistent_copy = my_strndup(key_memory_Sys_var_charptr_value,
-                                     dbn.str, dbn.length, MYF(MY_WME));
-  if (unlikely(!persistent_copy))
-    return true;
-
-  m_schemas[m_count++] = {persistent_copy, dbn.length};
+  m_count++;
   return false;
+err:
+  return true;
 }
 
 
@@ -285,11 +231,14 @@ void Sql_path::set(THD *thd, const Sql_path &rhs)
 {
   free();
 
-  for (size_t i= 0; i < rhs.m_count; i++)
+  if ((m_count= rhs.m_count))
   {
-    if (add_schema(thd, rhs.m_schemas[i].str,
-                   rhs.m_schemas[i].length))
-      break;
+    auto rbuf= rhs.m_schemas[0].str;
+    auto rend= rhs.m_schemas[m_count-1].str + rhs.m_schemas[m_count-1].length;
+    auto buf= (const char*)my_memdup(key_memory_Sys_var_charptr_value, rbuf,
+                                     rend - rbuf + 1, MYF(MY_WME));
+    for (size_t i= 0; i < rhs.m_count; i++)
+      m_schemas[i]= { rhs.m_schemas[i].str - rbuf + buf, rhs.m_schemas[i].length };
   }
 }
 
@@ -304,165 +253,126 @@ void Sql_path::set(Sql_path &&rhs)
 }
 
 
-bool Sql_path::from_text(THD *thd, CHARSET_INFO *cs, const LEX_CSTRING &text)
+bool Sql_path::from_text(THD *thd, const LEX_CSTRING &text)
 {
+  enum tokenize_state
+  {
+    START, QUOTED_TOKEN_DOUBLE='"', QUOTED_TOKEN_BACKTICK='`', UNQUOTED_TOKEN, END
+  } state= START;
+
+  const bool ansi_quotes= thd ? thd->variables.sql_mode & MODE_ANSI_QUOTES
+                              : false;
+
+  CHARSET_INFO *cs= &my_charset_utf8mb3_general_ci; // as in make_ident_casedn()
+  DBUG_ASSERT(cs->cset->casedn_multiply(cs) == 1);
+  char *buf= (char*)my_malloc(key_memory_Sys_var_charptr_value,
+                              text.length + 1, MYF(MY_WME));
+  if (!buf)
+    return true;
+
+  char *curr= buf, *to= buf, *end;
+
+  if (lower_case_table_names > 0)
+    end= buf + cs->cset->casedn(cs, text.str, text.length, buf, text.length);
+  else
+  {
+    memcpy(buf, text.str, text.length);
+    end= buf + text.length;
+  }
+
   free();
-
-  enum class tokenize_state
+  while (curr < end)
   {
-    START,
-    QUOTED_TOKEN_DOUBLE,
-    QUOTED_TOKEN_BACKTICK,
-    UNQUOTED_TOKEN,
-    END
-  } state= tokenize_state::START;
-  
-  auto *curr= text.str;
-  auto *end= curr + text.length;
-  auto token_start= curr;
-  auto token_end= curr;
-  auto last_non_space= curr;
-  const bool ansi_quotes= thd ?
-    thd->variables.sql_mode & MODE_ANSI_QUOTES : false;
-   
-  while (curr != end)
-  {
-    auto len = my_ismbchar(cs, curr, end - 1);
-    if (len)
-    {
-      if (state == tokenize_state::START)
-      {
-        state= tokenize_state::UNQUOTED_TOKEN;
-        token_start= curr;
-      }
-
-      curr += len;
-      last_non_space= curr - 1;
-      if (curr < end)
-        continue;
-    }
-    else if (unlikely(!ansi_quotes && *curr == '"' &&
-             state != tokenize_state::QUOTED_TOKEN_BACKTICK))
-    {
-      /*
-        ANSI_QUOTES is not set, only allow double quotes within backticks.
-      */
-      my_error(ER_WRONG_VALUE_FOR_VAR, MYF(0), "path", text.str);
-      return true;
-    }
+    auto len = cs->charlen(curr, end);
 
     switch (state)
     {
-      case tokenize_state::START:
-        if (*curr == '`' || (ansi_quotes && *curr == '"'))
-        {
-          state= *curr == '`' ? tokenize_state::QUOTED_TOKEN_BACKTICK :
-                                tokenize_state::QUOTED_TOKEN_DOUBLE;
-          token_start= ++curr;
-        }
-        else if (*curr == ',' || my_isspace(cs, (uchar) *curr))
-        {
+      case START:
+        if (*curr == ',' || my_isspace(cs, (uchar) *curr))
           curr++;
-        }
         else
         {
-          state= tokenize_state::UNQUOTED_TOKEN;
-          last_non_space= token_start= curr++;
-        }
-        break;
-      case tokenize_state::QUOTED_TOKEN_BACKTICK:
-        if (*curr == '`')
-        {
-          if (curr + 1 < end && curr[1] == '`')
+          if (m_count >= array_elements(m_schemas))
           {
-            /* Looked-ahead and found double backtick */
-            curr += 2;
-            last_non_space= curr - 1;
+            my_error(ER_VALUE_TOO_LONG, MYF(0), "PATH");
+            goto err;
           }
+          m_schemas[m_count].str= to;
+          if (*curr == '`' || (*curr == '"' && ansi_quotes))
+            state= (tokenize_state) *curr++;
+          else if (*curr == '"')
+            goto err_bad_val;
           else
           {
-            state= tokenize_state::END;
-            token_end= last_non_space + 1;
-            curr++;
+            state= UNQUOTED_TOKEN;
+            while (len--)
+              *to++= *curr++;
           }
         }
-        else
-        {
-          if (!my_isspace(cs, (uchar) *curr))
-            last_non_space= curr;
-          curr++;
-        }
         break;
-      case tokenize_state::QUOTED_TOKEN_DOUBLE:
-        if (*curr == '"')
+      case QUOTED_TOKEN_BACKTICK:
+      case QUOTED_TOKEN_DOUBLE:
+        if (*curr == state)
         {
-          state= tokenize_state::END;
-          token_end= last_non_space + 1;
           curr++;
+          if (curr >= end || *curr != state)
+          {
+            state= END;
+            if (add_schema(&to))
+              goto err_bad_val;
+            break;
+          }
         }
-        else
-        {
-          if (!my_isspace(cs, (uchar) *curr))
-            last_non_space= curr;
-          curr++;
-        }
+        while (len--)
+          *to++= *curr++;
         break;
-      case tokenize_state::UNQUOTED_TOKEN:
+      case UNQUOTED_TOKEN:
+        if (*curr == ',' || my_isspace(cs, (uchar) *curr))
+        {
+          state= *curr++ == ',' ? START : END;
+          if (add_schema(&to))
+            goto err_bad_val;
+          break;
+        }
+        else if (*curr == '`' || *curr == '"')
+          goto err_bad_val;
+        else
+          while (len--)
+            *to++= *curr++;
+        break;
+      case END:
         if (*curr == ',')
-        {
-          state= tokenize_state::END;
-          token_end= last_non_space + 1;
-          curr++;
-        }
-        else if (unlikely(*curr == '`' || *curr == '"'))
-        {
-          my_error(ER_WRONG_VALUE_FOR_VAR, MYF(0), "path", text.str);
-          return true;
-        }
-        else
-        {
-          if (!my_isspace(cs, (uchar) *curr))
-            last_non_space= curr;
-          curr++;
-        }
-        break;
-      case tokenize_state::END:
+          state= START;
+        else if (!my_isspace(cs, (uchar) *curr))
+          goto err_bad_val;
+        curr++;
         break;
     }
-
-    if (state == tokenize_state::END)
-    {
-      if (token_end > token_start)
-      {
-        if (unlikely(add_schema(thd, token_start,
-                                (size_t)(token_end - token_start))))
-          return true;
-      }
-
-      state= tokenize_state::START;
-    }
   }
 
-  if (state == tokenize_state::UNQUOTED_TOKEN)
+  switch (state)
   {
-    token_end= last_non_space + 1;
-    auto len= (size_t)(token_end - token_start);
-
-    if (len && add_schema(thd, token_start, len))
-      return true;
+    case START:
+    case END:
+      break;
+    case QUOTED_TOKEN_BACKTICK:
+    case QUOTED_TOKEN_DOUBLE:
+      goto err_bad_val;
+    case UNQUOTED_TOKEN:
+      if (add_schema(&to))
+        goto err_bad_val;
+      break;
   }
-  else if (unlikely(state == tokenize_state::QUOTED_TOKEN_BACKTICK ||
-                    state == tokenize_state::QUOTED_TOKEN_DOUBLE))
-  {
-    /*
-      Unclosed quoted string.
-    */
-    my_error(ER_WRONG_VALUE_FOR_VAR, MYF(0), "path", text.str);
-    return true;
-  }
-
-
+  if (!m_count)
+    my_free(buf);
   return false;
+
+err_bad_val:
+  my_error(ER_WRONG_VALUE_FOR_VAR, MYF(0), "PATH", text.str);
+err:
+  m_count= 0;
+  my_free(buf);
+  return true;
 }
 
 
@@ -557,7 +467,7 @@ size_t Sql_path::print(THD *thd, bool resolve,
 
   if (dst < start + nbytes_available)
     *dst= '\0';
-    
+
   return dst - start;
 }
 
@@ -586,7 +496,7 @@ LEX_CSTRING Sql_path::lex_cstring(THD *thd, MEM_ROOT *mem_root) const
 Sql_path_instant_set::Sql_path_instant_set(THD *thd, const LEX_CSTRING &str)
   : m_thd(thd), m_path(std::move(thd->variables.path))
 {
-  if (thd->variables.path.from_text(thd, system_charset_info, str))
+  if (thd->variables.path.from_text(thd, str))
   {
     thd->variables.path.set(std::move(m_path));
     m_thd= NULL;
