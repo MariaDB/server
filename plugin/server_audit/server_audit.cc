@@ -380,7 +380,7 @@ static struct st_mysql_show_var audit_status[]=
   {"server_audit_current_log", current_log_buf, SHOW_CHAR},
   {"server_audit_writes_failed", (char *)&log_write_failures, SHOW_LONG},
   {"server_audit_last_error", last_error_buf, SHOW_CHAR},
-  {0,0,0}
+  {0,0,SHOW_UNDEF}
 };
 
 #ifdef HAVE_PSI_INTERFACE
@@ -539,10 +539,9 @@ static int coll_insert(struct user_coll *c, char *n, size_t len)
   if (c->n_users >= c->n_alloced)
   {
     c->n_alloced+= 128;
-    if (c->users == NULL)
-      c->users= malloc(c->n_alloced * sizeof(c->users[0]));
-    else
-      c->users= realloc(c->users, c->n_alloced * sizeof(c->users[0]));
+    const size_t size{c->n_alloced * sizeof *c->users};
+    c->users= static_cast<user_name*>
+      (c->users ? realloc(c->users, size) : malloc(size));
 
     if (c->users == NULL)
       return 1;
@@ -1743,7 +1742,7 @@ static int log_statement_ex(struct connection_info *cn,
   {
     const char *orig_query= query;
 
-    if ((query= skip_set_statement(query)) == SQLCOM_NOTHING)
+    if (!(query= skip_set_statement(query)))
       return 0;
 
     if (events & EVENT_QUERY_DDL)
@@ -1787,7 +1786,7 @@ do_log_query:
   if (query_len > (message_size - csize)/2)
   {
     size_t big_buffer_alloced= (query_len * 2 + csize + 4095) & ~4095L;
-    if(!(big_buffer= malloc(big_buffer_alloced)))
+    if (!(big_buffer= static_cast<char*>(malloc(big_buffer_alloced))))
       return 0;
 
     memcpy(big_buffer, message, csize);
@@ -2333,7 +2332,8 @@ static int init_done= 0;
 
 static int server_audit_init(void *p __attribute__((unused)))
 {
-  thd_priv_host_ptr= dlsym(RTLD_DEFAULT, "thd_priv_host");
+  thd_priv_host_ptr= reinterpret_cast<decltype(thd_priv_host_ptr)>
+    (dlsym(RTLD_DEFAULT, "thd_priv_host"));
 
   if (gethostname(servhost, sizeof(servhost)))
     strcpy(servhost, "unknown");
@@ -2845,14 +2845,14 @@ static void update_syslog_ident(MYSQL_THD thd  __attribute__((unused)),
 
 
 IF_WIN(static,__attribute__ ((constructor)))
-void audit_plugin_so_init(void)
+void audit_plugin_so_init()
 {
   memset(locinfo_ini_value, 'O', sizeof(locinfo_ini_value)-1);
   locinfo_ini_value[sizeof(locinfo_ini_value)-1]= 0;
 }
 
 #ifdef _WIN32
-BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpvReserved)
+BOOL WINAPI DllMain(HINSTANCE, DWORD fdwReason, LPVOID)
 {
   if (fdwReason == DLL_PROCESS_ATTACH)
     audit_plugin_so_init();
