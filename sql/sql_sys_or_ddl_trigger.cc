@@ -26,6 +26,8 @@
 #include "strfunc.h"              //set_to_string
 
 
+static LEX_CSTRING event_table_name{STRING_WITH_LEN("event")};
+
 /**
   Raise the error ER_TRG_ALREADY_EXISTS
 */
@@ -80,7 +82,7 @@ static bool check_dml_trigger_exist(sp_name *spname)
           else return true
 */
 
-static bool find_sys_trigger_by_name(TABLE *event_table, sp_name *spname)
+static bool find_sys_trigger_by_name(TABLE *event_table, const sp_name *spname)
 {
   event_table->field[ET_FIELD_DB]->store(spname->m_db.str,
                                          spname->m_db.length, &my_charset_bin);
@@ -570,6 +572,42 @@ bool mysql_create_sys_trigger(THD *thd)
 
 
 /**
+  Check for presence a trigger with specified name. Do it in a separate
+  transaction to work under LOCK TABLE
+
+  @param thd  Thread handler
+  @param spname  the trigger name to check for existence
+
+  @return false in case there is no trigger with specified name,
+          else return true
+*/
+
+bool find_sys_trigger_by_name(THD *thd, sp_name *spname)
+{
+  start_new_trans new_trans(thd);
+  TABLE_LIST event_table;
+
+  Open_tables_backup open_tables_state_backup;
+  thd->reset_n_backup_open_tables_state(&open_tables_state_backup);
+
+  event_table.init_one_table(&MYSQL_SCHEMA_NAME,
+                             &event_table_name, 0, TL_READ);
+
+  if (open_system_tables_for_read(thd, &event_table))
+  {
+    new_trans.restore_old_transaction();
+    return true;
+  }
+
+  bool ret= find_sys_trigger_by_name(event_table.table, thd->lex->spname);
+
+  thd->commit_whole_transaction_and_close_tables();
+
+  return ret;
+}
+
+
+/**
   Handle the statement DROP TRIGGER for system triggers,
   such as ON STARTUP, ON SHUTDOWN. Trigger name is specified by
   thd->lex->spname.
@@ -579,6 +617,8 @@ bool mysql_create_sys_trigger(THD *thd)
                                     the specified name, else false
 
   @return false on success, true on error
+  @note the case `trigger not found` is considered as a success result
+         with setting the @param no_ddl_trigger_found to the true value
 */
 
 bool mysql_drop_sys_or_ddl_trigger(THD *thd, bool *no_ddl_trigger_found)
@@ -599,9 +639,28 @@ bool mysql_drop_sys_or_ddl_trigger(THD *thd, bool *no_ddl_trigger_found)
   *no_ddl_trigger_found= false;
 
   /* Protect against concurrent create/drop */
-  if (lock_object_name(thd, MDL_key::TRIGGER, thd->lex->spname->m_db,
-                       thd->lex->spname->m_name))
+  MDL_REQUEST_INIT(&mdl_request, MDL_key::TRIGGER,
+                   thd->lex->spname->m_db.str,
+                   thd->lex->spname->m_name.str,
+                   MDL_EXCLUSIVE, MDL_EXPLICIT);
+  if (thd->mdl_context.acquire_lock(&mdl_request,
+                                    thd->variables.lock_wait_timeout))
     return true;
+
+  /*
+    Check whether the trigger does exist. It is performed by a separate
+    function that opens the table mysql.event on reading within
+    a new independent transaction to handle the case when DROP TRIGGER
+    be executed in locked_tables_mode and there is no a trigger with
+    the supplied name.
+  */
+  if (!find_sys_trigger_by_name(thd, thd->lex->spname))
+  {
+    thd->mdl_context.release_lock(mdl_request.ticket);
+
+    *no_ddl_trigger_found= true;
+    return false;
+  }
 
   /* Reset sql_mode during data dictionary operations. */
   sql_mode_t saved_mode= thd->variables.sql_mode;
@@ -609,7 +668,11 @@ bool mysql_drop_sys_or_ddl_trigger(THD *thd, bool *no_ddl_trigger_found)
 
   TABLE *event_table;
   if (Event_db_repository::open_event_table(thd, TL_WRITE, &event_table))
+  {
+    thd->mdl_context.release_lock(mdl_request.ticket);
+
     return true;
+  }
 
   Transaction_Resources_Guard transaction_guard{thd, saved_mode};
 
@@ -621,6 +684,9 @@ bool mysql_drop_sys_or_ddl_trigger(THD *thd, bool *no_ddl_trigger_found)
       with specified name
     */
     *no_ddl_trigger_found= true;
+    if (mdl_request.ticket)
+      thd->mdl_context.release_lock(mdl_request.ticket);
+
     return false;
   }
 
@@ -632,6 +698,8 @@ bool mysql_drop_sys_or_ddl_trigger(THD *thd, bool *no_ddl_trigger_found)
     unregister_trigger(thd->lex->spname);
     my_ok(thd);
   }
+
+  thd->mdl_context.release_lock(mdl_request.ticket);
 
   return ret;
 }
@@ -1216,25 +1284,11 @@ bool show_create_sys_trigger(THD *thd, const sp_name *trg_name)
 
   Transaction_Resources_Guard transaction_guard{thd, saved_mode};
 
-  event_table->field[ET_FIELD_DB]->store(trg_name->m_db.str,
-                                         trg_name->m_db.length,
-                                         &my_charset_bin);
-  event_table->field[ET_FIELD_NAME]->store(trg_name->m_name.str,
-                                           trg_name->m_name.length,
-                                           &my_charset_bin);
-
-  uchar key[MAX_KEY_LENGTH];
-  key_copy(key, event_table->record[0], event_table->key_info,
-           event_table->key_info->key_length);
-
-  int ret= event_table->file->ha_index_read_idx_map(event_table->record[0], 0,
-                                                    key, HA_WHOLE_KEY,
-                                                    HA_READ_KEY_EXACT);
-
   /*
-    ret != 0 in case 'row not found'; ret == 0 if 'row found'
+    Set up the search key and look up the record in mysql.event for
+    the trigger.
   */
-  if (ret)
+  if (!find_sys_trigger_by_name(event_table, trg_name))
   {
     my_error(ER_TRG_DOES_NOT_EXIST, MYF(0));
     return true;
@@ -1429,14 +1483,13 @@ bool fill_schema_triggers_from_mysql_events(THD *thd, TABLE_LIST *tables)
 {
   Open_tables_backup open_tables_state_backup;
   TABLE_LIST event_table;
-  static LEX_CSTRING schema_name{STRING_WITH_LEN("mysql")};
-  static LEX_CSTRING table_name{STRING_WITH_LEN("event")};
 
   start_new_trans new_trans(thd);
 
   thd->reset_n_backup_open_tables_state(&open_tables_state_backup);
 
-  event_table.init_one_table(&schema_name, &table_name, 0, TL_READ);
+  event_table.init_one_table(&MYSQL_SCHEMA_NAME, &event_table_name,
+                             0, TL_READ);
 
   if (open_system_tables_for_read(thd, &event_table))
   {

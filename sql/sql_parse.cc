@@ -5708,8 +5708,8 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
       First try to drop a system/ddl trigger with the specified name by
       calling the function mysql_drop_sys_or_ddl_trigger(). Inside this
       function, a mdl lock on the trigger name is acquired and check whether
-      a system/ddl trigger exists is performed by quering the system table
-      mysql.evetn. If it does, handle dropping of the trigger. If there is no
+      a system/ddl trigger exists is performed by querying the system table
+      mysql.event. If it does, handle dropping of the trigger. If there is no
       a system or ddl trigger with supplied name, assume that specified trigger
       name is for dml trigger and call mysql_create_or_drop_trigger() to handle
       dropping. The function mysql_create_or_drop_trigger() also take the same
@@ -5723,8 +5723,12 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
     if (res)
       break;
 
-    /* Conditionally writes to binlog. */
+    /*
+      Drop a DML trigger, raise the error ER_TRG_DOES_NOT_EXIST
+      in case there is no on DML trigger with the specified name
+    */
     if (no_ddl_trigger_found)
+    /* Conditionally writes to binlog. */
       res= mysql_create_or_drop_trigger(thd, all_tables, 0);
     break;
   }
