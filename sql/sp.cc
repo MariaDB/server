@@ -766,7 +766,7 @@ Sp_handler::db_find_routine(THD *thd, const Database_qualified_name *name,
   if (!table->field[MYSQL_PROC_FIELD_PATH]->val_str(&sql_path_str))
     sql_path_str.set(STRING_WITH_LEN("CURRENT_SCHEMA"), system_charset_info);
 
-  sql_path.from_text(thd, sql_path_str.charset(), sql_path_str.to_lex_cstring());
+  sql_path.from_text(thd, sql_path_str.to_lex_cstring());
   creation_ctx= Stored_routine_creation_ctx::load_from_db(thd, name, table);
 
   trans_commited= 1;
