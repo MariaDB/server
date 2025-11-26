@@ -825,7 +825,8 @@ eliminate_tables_for_list(JOIN *join, List<TABLE_LIST> *join_list,
       if (tbl->nested_join)
       {
         /* This is  "... LEFT JOIN (join_nest) ON cond" */
-        if (eliminate_tables_for_list(join,
+        if (!(tbl->outer_join & JOIN_TYPE_FULL) &&
+            eliminate_tables_for_list(join,
                                       &tbl->nested_join->join_list, 
                                       tbl->nested_join->used_tables, 
                                       tbl->on_expr,
@@ -840,7 +841,8 @@ eliminate_tables_for_list(JOIN *join, List<TABLE_LIST> *join_list,
       else
       {
         /* This is  "... LEFT JOIN tbl ON cond" */
-        if (!(tbl->table->map & outside_used_tables) &&
+        if (!(tbl->outer_join & JOIN_TYPE_FULL) &&
+            !(tbl->table->map & outside_used_tables) &&
             check_func_dependency(join, tbl->table->map, NULL, tbl, 
                                   tbl->on_expr))
         {
@@ -2105,7 +2107,8 @@ void Dep_analysis_context::dbug_print_deps()
     char buf[128];
     String str(buf, sizeof(buf), &my_charset_bin);
     str.length(0);
-    eq_mod->expr->print(&str, QT_ORDINARY);
+    if (eq_mod->expr)
+      eq_mod->expr->print(&str, QT_ORDINARY);
     if (eq_mod->field)
     {
       fprintf(DBUG_FILE, "  equality%ld: %s -> %s.%s\n", 

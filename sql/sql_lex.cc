@@ -1343,7 +1343,7 @@ void LEX::start(THD *thd_arg)
 
   memset(&trg_chistics, 0, sizeof(trg_chistics));
   selects_for_hint_resolution.empty();
-  has_full_outer_join= false;
+  full_join_count= 0;
   DBUG_VOID_RETURN;
 }
 
