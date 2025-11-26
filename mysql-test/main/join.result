@@ -3666,83 +3666,83 @@ insert into t1 (a) values (1),(2),(3);
 create table t2 (a int);
 insert into t2 (a) values (1),(2),(3);
 select * from t1 full join t2 on t1.a = t2.a;
-ERROR 42000: This version of MariaDB doesn't yet support 'full join'
+ERROR 42000: This version of MariaDB doesn't yet support 'FULL JOINs that cannot be converted to LEFT, RIGHT, or INNER JOINs'
 explain extended select * from t1 full join t2 on t1.a = t2.a;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	UNKNOWN	NULL	NULL	NULL	NULL	0	0.00	
 1	SIMPLE	t2	UNKNOWN	NULL	NULL	NULL	NULL	0	0.00	
 Warnings:
-Note	1003	select `test`.`t2`.`a` AS `a` from `test`.`t1` full join `test`.`t2` on(multiple equal(`test`.`t1`.`a`, `test`.`t2`.`a`))
+Note	1003	select `test`.`t1`.`a` AS `a`,`test`.`t2`.`a` AS `a` from `test`.`t1` full join `test`.`t2` on(multiple equal(`test`.`t1`.`a`, `test`.`t2`.`a`))
 select * from t1 full outer join t2 on t1.a = t2.a;
-ERROR 42000: This version of MariaDB doesn't yet support 'full join'
+ERROR 42000: This version of MariaDB doesn't yet support 'FULL JOINs that cannot be converted to LEFT, RIGHT, or INNER JOINs'
 explain extended select * from t1 full outer join t2 on t1.a = t2.a;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	UNKNOWN	NULL	NULL	NULL	NULL	0	0.00	
 1	SIMPLE	t2	UNKNOWN	NULL	NULL	NULL	NULL	0	0.00	
 Warnings:
-Note	1003	select `test`.`t2`.`a` AS `a` from `test`.`t1` full join `test`.`t2` on(multiple equal(`test`.`t1`.`a`, `test`.`t2`.`a`))
+Note	1003	select `test`.`t1`.`a` AS `a`,`test`.`t2`.`a` AS `a` from `test`.`t1` full join `test`.`t2` on(multiple equal(`test`.`t1`.`a`, `test`.`t2`.`a`))
 select * from t1 natural full outer join t2;
-ERROR 42000: This version of MariaDB doesn't yet support 'full join'
+ERROR 42000: This version of MariaDB doesn't yet support 'FULL JOINs that cannot be converted to LEFT, RIGHT, or INNER JOINs'
 explain extended select * from t1 natural full outer join t2;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	UNKNOWN	NULL	NULL	NULL	NULL	0	0.00	
 1	SIMPLE	t2	UNKNOWN	NULL	NULL	NULL	NULL	0	0.00	
 Warnings:
-Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` natural full join `test`.`t2`
+Note	1003	select `test`.`t1`.`a` AS `a`,`test`.`t2`.`a` AS `a` from `test`.`t1` natural full join `test`.`t2`
 select * from t1 natural full join t2;
-ERROR 42000: This version of MariaDB doesn't yet support 'full join'
+ERROR 42000: This version of MariaDB doesn't yet support 'FULL JOINs that cannot be converted to LEFT, RIGHT, or INNER JOINs'
 explain extended select * from t1 natural full join t2;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	UNKNOWN	NULL	NULL	NULL	NULL	0	0.00	
 1	SIMPLE	t2	UNKNOWN	NULL	NULL	NULL	NULL	0	0.00	
 Warnings:
-Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` natural full join `test`.`t2`
-create view v1 as select * from t1 full join t2 on t1.a = t2.a;
+Note	1003	select `test`.`t1`.`a` AS `a`,`test`.`t2`.`a` AS `a` from `test`.`t1` natural full join `test`.`t2`
+create view v1 as select t1.a as t1a, t2.a as t2a from t1 full join t2 on t1.a = t2.a;
 select * from v1;
-ERROR 42000: This version of MariaDB doesn't yet support 'full join'
+ERROR 42000: This version of MariaDB doesn't yet support 'FULL JOINs that cannot be converted to LEFT, RIGHT, or INNER JOINs'
 explain extended select * from v1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	UNKNOWN	NULL	NULL	NULL	NULL	0	0.00	
 1	SIMPLE	t2	UNKNOWN	NULL	NULL	NULL	NULL	0	0.00	
 Warnings:
-Note	1003	select `test`.`t2`.`a` AS `a` from `test`.`t1` full join `test`.`t2` on(multiple equal(`test`.`t1`.`a`, `test`.`t2`.`a`))
+Note	1003	select `test`.`t1`.`a` AS `t1a`,`test`.`t2`.`a` AS `t2a` from `test`.`t1` full join `test`.`t2` on(multiple equal(`test`.`t1`.`a`, `test`.`t2`.`a`))
 drop view v1;
-create view v1 as select * from t1 full outer join t2 on t1.a = t2.a;
+create view v1 as select t1.a as t1a, t2.a as t2a from t1 full outer join t2 on t1.a = t2.a;
 select * from v1;
-ERROR 42000: This version of MariaDB doesn't yet support 'full join'
+ERROR 42000: This version of MariaDB doesn't yet support 'FULL JOINs that cannot be converted to LEFT, RIGHT, or INNER JOINs'
 explain extended select * from v1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	UNKNOWN	NULL	NULL	NULL	NULL	0	0.00	
 1	SIMPLE	t2	UNKNOWN	NULL	NULL	NULL	NULL	0	0.00	
 Warnings:
-Note	1003	select `test`.`t2`.`a` AS `a` from `test`.`t1` full join `test`.`t2` on(multiple equal(`test`.`t1`.`a`, `test`.`t2`.`a`))
+Note	1003	select `test`.`t1`.`a` AS `t1a`,`test`.`t2`.`a` AS `t2a` from `test`.`t1` full join `test`.`t2` on(multiple equal(`test`.`t1`.`a`, `test`.`t2`.`a`))
 drop view v1;
-create view v1 as select * from t1 natural full join t2;
+create view v1 as select t1.a as t1a, t2.a as t2a from t1 natural full join t2;
 select * from v1;
-ERROR 42000: This version of MariaDB doesn't yet support 'full join'
+ERROR 42000: This version of MariaDB doesn't yet support 'FULL JOINs that cannot be converted to LEFT, RIGHT, or INNER JOINs'
 explain extended select * from v1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	UNKNOWN	NULL	NULL	NULL	NULL	0	0.00	
 1	SIMPLE	t2	UNKNOWN	NULL	NULL	NULL	NULL	0	0.00	
 Warnings:
-Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` natural full join `test`.`t2`
+Note	1003	select `test`.`t1`.`a` AS `t1a`,`test`.`t2`.`a` AS `t2a` from `test`.`t1` natural full join `test`.`t2`
 drop view v1;
-create view v1 as select * from t1 natural full outer join t2;
+create view v1 as select t1.a as t1a, t2.a as t2a from t1 natural full outer join t2;
 select * from v1;
-ERROR 42000: This version of MariaDB doesn't yet support 'full join'
+ERROR 42000: This version of MariaDB doesn't yet support 'FULL JOINs that cannot be converted to LEFT, RIGHT, or INNER JOINs'
 explain extended select * from v1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	UNKNOWN	NULL	NULL	NULL	NULL	0	0.00	
 1	SIMPLE	t2	UNKNOWN	NULL	NULL	NULL	NULL	0	0.00	
 Warnings:
-Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` natural full join `test`.`t2`
+Note	1003	select `test`.`t1`.`a` AS `t1a`,`test`.`t2`.`a` AS `t2a` from `test`.`t1` natural full join `test`.`t2`
 drop view v1;
 select * from (select t1.a from t1 full join t2 on t1.a = t2.a union select * from t1) dt;
-ERROR 42S22: Unknown column 't1.a' in 'SELECT'
+ERROR 42000: This version of MariaDB doesn't yet support 'FULL JOINs that cannot be converted to LEFT, RIGHT, or INNER JOINs'
 select * from (select t1.a from t1 full outer join t2 on t1.a = t2.a union select * from t1) dt;
-ERROR 42S22: Unknown column 't1.a' in 'SELECT'
+ERROR 42000: This version of MariaDB doesn't yet support 'FULL JOINs that cannot be converted to LEFT, RIGHT, or INNER JOINs'
 select * from (select t1.a from t1 natural full join t2 union select * from t1) dt;
-ERROR 42000: This version of MariaDB doesn't yet support 'full join'
+ERROR 42000: This version of MariaDB doesn't yet support 'FULL JOINs that cannot be converted to LEFT, RIGHT, or INNER JOINs'
 explain extended select * from (select t1.a from t1 natural full join t2 union select * from t1) dt;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	<derived2>	UNKNOWN	NULL	NULL	NULL	NULL	0	0.00	
@@ -3753,7 +3753,7 @@ NULL	UNION RESULT	<union2,3>	ALL	NULL	NULL	NULL	NULL	NULL	NULL
 Warnings:
 Note	1003	/* select#1 */ select `dt`.`a` AS `a` from (/* select#2 */ select `test`.`t1`.`a` AS `a` from `test`.`t1` natural full join `test`.`t2` union /* select#3 */ select `test`.`t1`.`a` AS `a` from `test`.`t1`) `dt`
 select * from (select t1.a from t1 natural full outer join t2 union select * from t1) dt;
-ERROR 42000: This version of MariaDB doesn't yet support 'full join'
+ERROR 42000: This version of MariaDB doesn't yet support 'FULL JOINs that cannot be converted to LEFT, RIGHT, or INNER JOINs'
 explain extended select * from (select t1.a from t1 natural full outer join t2 union select * from t1) dt;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	<derived2>	UNKNOWN	NULL	NULL	NULL	NULL	0	0.00	
@@ -3764,7 +3764,7 @@ NULL	UNION RESULT	<union2,3>	ALL	NULL	NULL	NULL	NULL	NULL	NULL
 Warnings:
 Note	1003	/* select#1 */ select `dt`.`a` AS `a` from (/* select#2 */ select `test`.`t1`.`a` AS `a` from `test`.`t1` natural full join `test`.`t2` union /* select#3 */ select `test`.`t1`.`a` AS `a` from `test`.`t1`) `dt`
 with cte as (select t1.a from t1 natural full join t2) select * from cte;
-ERROR 42000: This version of MariaDB doesn't yet support 'full join'
+ERROR 42000: This version of MariaDB doesn't yet support 'FULL JOINs that cannot be converted to LEFT, RIGHT, or INNER JOINs'
 explain extended with cte as (select t1.a from t1 natural full join t2) select * from cte;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	UNKNOWN	NULL	NULL	NULL	NULL	0	0.00	
@@ -3779,5 +3779,258 @@ select * from t1, t2 natural full join t3;
 ERROR 42S02: Table 'test.t3' doesn't exist
 select * from t1, t2 natural full outer join t3;
 ERROR 42S02: Table 'test.t3' doesn't exist
+select * from (select * from t1) dt natural full join (select * from t2) du;
+ERROR HY000: FULL JOIN supported for base tables only, du is not a base table
+select * from (select * from t1) dt natural full join t2;
+ERROR HY000: FULL JOIN supported for base tables only, dt is not a base table
+select * from t1 natural full join (select * from t2) du;
+ERROR HY000: FULL JOIN supported for base tables only, du is not a base table
 drop table t1, t2;
+# Exercise FULL JOIN rewrites to LEFT, RIGHT, and INNER JOIN.
+create table x (pk int auto_increment, x int, y int, primary key (pk));
+create table xsq (pk int auto_increment, x int, y int, primary key (pk));
+insert into x (x, y) values (-5,-5),(-4,-4),(-3,-3),(-2,-2),(-1,-1),(0,0),(1,1),(2,2),(3,3),(4,4),(5,5);
+insert into xsq (x, y) values (-5,25),(-4,16),(-3,9),(-2,4),(-1,1),(0,0),(1,1),(2,4),(3,9),(4,16),(5,25);
+# FULL to RIGHT JOIN, these two queries should be equal:
+select * from x  full join xsq on x.y = xsq.y where xsq.pk is not null;
+pk	x	y	pk	x	y
+6	0	0	6	0	0
+7	1	1	5	-1	1
+7	1	1	7	1	1
+10	4	4	4	-2	4
+10	4	4	8	2	4
+NULL	NULL	NULL	1	-5	25
+NULL	NULL	NULL	2	-4	16
+NULL	NULL	NULL	3	-3	9
+NULL	NULL	NULL	9	3	9
+NULL	NULL	NULL	10	4	16
+NULL	NULL	NULL	11	5	25
+select * from x right join xsq on x.y = xsq.y;
+pk	x	y	pk	x	y
+6	0	0	6	0	0
+7	1	1	5	-1	1
+7	1	1	7	1	1
+10	4	4	4	-2	4
+10	4	4	8	2	4
+NULL	NULL	NULL	1	-5	25
+NULL	NULL	NULL	2	-4	16
+NULL	NULL	NULL	3	-3	9
+NULL	NULL	NULL	9	3	9
+NULL	NULL	NULL	10	4	16
+NULL	NULL	NULL	11	5	25
+# FULL to RIGHT JOIN, these two queries should be equal:
+select * from x  full join xsq on x.x >= 0 and x.x <= 1 and xsq.x >= 0 and xsq.x <= 1 where xsq.pk is not null;
+pk	x	y	pk	x	y
+6	0	0	6	0	0
+6	0	0	7	1	1
+7	1	1	6	0	0
+7	1	1	7	1	1
+NULL	NULL	NULL	1	-5	25
+NULL	NULL	NULL	2	-4	16
+NULL	NULL	NULL	3	-3	9
+NULL	NULL	NULL	4	-2	4
+NULL	NULL	NULL	5	-1	1
+NULL	NULL	NULL	8	2	4
+NULL	NULL	NULL	9	3	9
+NULL	NULL	NULL	10	4	16
+NULL	NULL	NULL	11	5	25
+select * from x right join xsq on x.x >= 0 and x.x <= 1 and xsq.x >= 0 and xsq.x <= 1;
+pk	x	y	pk	x	y
+6	0	0	6	0	0
+6	0	0	7	1	1
+7	1	1	6	0	0
+7	1	1	7	1	1
+NULL	NULL	NULL	1	-5	25
+NULL	NULL	NULL	2	-4	16
+NULL	NULL	NULL	3	-3	9
+NULL	NULL	NULL	4	-2	4
+NULL	NULL	NULL	5	-1	1
+NULL	NULL	NULL	8	2	4
+NULL	NULL	NULL	9	3	9
+NULL	NULL	NULL	10	4	16
+NULL	NULL	NULL	11	5	25
+# FULL to INNER JOIN, these two queries should be equal:
+select * from x  full join xsq on x.x >= 0 and x.x <= 1 and xsq.x >= 0 and xsq.x <= 1 where x.pk is not null and xsq.pk is not null;
+pk	x	y	pk	x	y
+6	0	0	6	0	0
+7	1	1	6	0	0
+6	0	0	7	1	1
+7	1	1	7	1	1
+select * from x inner join xsq on x.x >= 0 and x.x <= 1 and xsq.x >= 0 and xsq.x <= 1;
+pk	x	y	pk	x	y
+6	0	0	6	0	0
+7	1	1	6	0	0
+6	0	0	7	1	1
+7	1	1	7	1	1
+# FULL to LEFT JOIN, these two queries should be equal:
+select * from x full join xsq on x.x >= 0 and x.x <= 1 and xsq.x >= 0 and xsq.x <= 1 where x.pk is not null;
+pk	x	y	pk	x	y
+6	0	0	6	0	0
+7	1	1	6	0	0
+6	0	0	7	1	1
+7	1	1	7	1	1
+1	-5	-5	NULL	NULL	NULL
+2	-4	-4	NULL	NULL	NULL
+3	-3	-3	NULL	NULL	NULL
+4	-2	-2	NULL	NULL	NULL
+5	-1	-1	NULL	NULL	NULL
+8	2	2	NULL	NULL	NULL
+9	3	3	NULL	NULL	NULL
+10	4	4	NULL	NULL	NULL
+11	5	5	NULL	NULL	NULL
+select * from x left join xsq on x.x >= 0 and x.x <= 1 and xsq.x >= 0 and xsq.x <= 1;
+pk	x	y	pk	x	y
+6	0	0	6	0	0
+7	1	1	6	0	0
+6	0	0	7	1	1
+7	1	1	7	1	1
+1	-5	-5	NULL	NULL	NULL
+2	-4	-4	NULL	NULL	NULL
+3	-3	-3	NULL	NULL	NULL
+4	-2	-2	NULL	NULL	NULL
+5	-1	-1	NULL	NULL	NULL
+8	2	2	NULL	NULL	NULL
+9	3	3	NULL	NULL	NULL
+10	4	4	NULL	NULL	NULL
+11	5	5	NULL	NULL	NULL
+# FULL NATURAL to INNER JOIN, these two queries should be equal:
+select * from x natural full join xsq where x.pk is not null and xsq.pk is not null;
+pk	x	y	pk	x	y
+6	0	0	6	0	0
+7	1	1	7	1	1
+select * from x inner join xsq on x.x = xsq.x and x.y = xsq.y;
+pk	x	y	pk	x	y
+6	0	0	6	0	0
+7	1	1	7	1	1
+# FULL NATURAL to LEFT JOIN, these two queries should be equal:
+select * from x natural full join xsq where x.pk is not null;
+pk	x	y	pk	x	y
+1	-5	-5	NULL	NULL	NULL
+2	-4	-4	NULL	NULL	NULL
+3	-3	-3	NULL	NULL	NULL
+4	-2	-2	NULL	NULL	NULL
+5	-1	-1	NULL	NULL	NULL
+6	0	0	6	0	0
+7	1	1	7	1	1
+8	2	2	NULL	NULL	NULL
+9	3	3	NULL	NULL	NULL
+10	4	4	NULL	NULL	NULL
+11	5	5	NULL	NULL	NULL
+select * from x left join xsq on xsq.pk = x.pk and xsq.x = x.x and xsq.y = x.y;
+pk	x	y	pk	x	y
+1	-5	-5	NULL	NULL	NULL
+2	-4	-4	NULL	NULL	NULL
+3	-3	-3	NULL	NULL	NULL
+4	-2	-2	NULL	NULL	NULL
+5	-1	-1	NULL	NULL	NULL
+6	0	0	6	0	0
+7	1	1	7	1	1
+8	2	2	NULL	NULL	NULL
+9	3	3	NULL	NULL	NULL
+10	4	4	NULL	NULL	NULL
+11	5	5	NULL	NULL	NULL
+# FULL NATURAL to RIGHT JOIN
+select * from x natural full join xsq where xsq.pk is not null;
+pk	x	y	pk	x	y
+NULL	NULL	NULL	1	-5	25
+NULL	NULL	NULL	2	-4	16
+NULL	NULL	NULL	3	-3	9
+NULL	NULL	NULL	4	-2	4
+NULL	NULL	NULL	5	-1	1
+6	0	0	6	0	0
+7	1	1	7	1	1
+NULL	NULL	NULL	8	2	4
+NULL	NULL	NULL	9	3	9
+NULL	NULL	NULL	10	4	16
+NULL	NULL	NULL	11	5	25
+select * from x right join xsq on x.pk = xsq.pk and x.x = xsq.x and x.y = xsq.y;
+pk	x	y	pk	x	y
+NULL	NULL	NULL	1	-5	25
+NULL	NULL	NULL	2	-4	16
+NULL	NULL	NULL	3	-3	9
+NULL	NULL	NULL	4	-2	4
+NULL	NULL	NULL	5	-1	1
+6	0	0	6	0	0
+7	1	1	7	1	1
+NULL	NULL	NULL	8	2	4
+NULL	NULL	NULL	9	3	9
+NULL	NULL	NULL	10	4	16
+NULL	NULL	NULL	11	5	25
+# These two will fail because it cannot be rewritten to a LEFT, RIGHT, nor INNER JOIN.
+select * from x full join xsq on x.x >= 0 and x.x <= 1 and xsq.x >= 0 and xsq.x <= 1;
+ERROR 42000: This version of MariaDB doesn't yet support 'FULL JOINs that cannot be converted to LEFT, RIGHT, or INNER JOINs'
+select * from x natural full join xsq;
+ERROR 42000: This version of MariaDB doesn't yet support 'FULL JOINs that cannot be converted to LEFT, RIGHT, or INNER JOINs'
+drop table x, xsq;
+# Nested JOINs
+create table one (v int);
+insert into one (v) values (1);
+create table two (v int);
+insert into two (v) values (2);
+create table three (v int);
+insert into three (v) values (3);
+# (FULL)FULL to (INNER)INNER JOIN
+select * from one full join two on one.v = two.v full join three on two.v = three.v where one.v is not null and two.v is not null and three.v is not null;
+v	v	v
+select * from one inner join two on one.v = two.v inner join three on two.v = three.v;
+v	v	v
+# (FULL)FULL to (RIGHT)LEFT JOIN
+select * from one full join two on one.v = two.v full join three on one.v = three.v where two.v is not null;
+v	v	v
+NULL	2	NULL
+select * from one right join two on one.v = two.v left join three on one.v = three.v;
+v	v	v
+NULL	2	NULL
+# (FULL)FULL to (LEFT)LEFT JOIN
+select * from one full join two on one.v = two.v full join three on one.v = three.v where one.v is not null;
+v	v	v
+1	NULL	NULL
+select * from one left join two on two.v = one.v left join three on three.v = one.v;
+v	v	v
+1	NULL	NULL
+# (FULL)LEFT to (LEFT)LEFT JOIN
+select * from one full join two on one.v = two.v left join three on two.v = three.v where one.v is not null;
+v	v	v
+1	NULL	NULL
+select * from one left join two on one.v = two.v left join three on two.v = three.v;
+v	v	v
+1	NULL	NULL
+# (FULL)LEFT to (RIGHT)LEFT JOIN
+select * from one full join two on one.v = two.v left join three on two.v = three.v where two.v is not null;
+v	v	v
+NULL	2	NULL
+select * from one right join two on one.v = two.v left join three on three.v = two.v;
+v	v	v
+NULL	2	NULL
+# (LEFT)FULL to (LEFT)RIGHT JOIN
+select * from one left join two on one.v = two.v full join three on two.v = three.v where three.v is not null;
+v	v	v
+NULL	NULL	3
+select * from one left join two on one.v = two.v right join three on two.v = three.v;
+v	v	v
+NULL	NULL	3
+# (LEFT)FULL to (LEFT)LEFT JOIN
+insert into one (v) values (2),(3);
+insert into two (v) values (1);
+truncate three;
+insert into three (v) values (1);
+select * from one;
+v
+1
+2
+3
+select * from two;
+v
+2
+1
+select * from three;
+v
+1
+select * from one left join two on one.v = two.v full join three on two.v = three.v where three.v = 1;
+v	v	v
+1	1	1
+select * from three left join one on one.v = 1 left join two on two.v = 1;
+v	v	v
+1	1	1
+drop table one, two, three;
 # End of 12.3 tests
