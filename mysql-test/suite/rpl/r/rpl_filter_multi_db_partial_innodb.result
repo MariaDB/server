@@ -1,0 +1,53 @@
+include/master-slave.inc
+[connection master]
+connection master;
+SET @@default_storage_engine='InnoDB';
+# On master: create two tables and insert data
+CREATE TABLE t1 (id INT PRIMARY KEY, data VARCHAR(50));
+CREATE TABLE t3 (id INT PRIMARY KEY, data VARCHAR(50));
+INSERT INTO t1 VALUES (1, 'row in t1');
+INSERT INTO t3 VALUES (1, 'row in t3');
+CREATE DATABASE sample_db;
+CREATE TABLE sample_db.t2 (id INT PRIMARY KEY, data VARCHAR(50));
+CREATE TABLE sample_db.t4 (id INT PRIMARY KEY, data VARCHAR(50));
+INSERT INTO sample_db.t2 VALUES (1, 'row in t2');
+INSERT INTO sample_db.t4 VALUES (1, 'row in t4');
+# This query should affect multiple tables at the same time
+UPDATE test.t1, sample_db.t2
+SET t1.data = 'updated t1', t2.data = 'updated t2';
+UPDATE test.t3, sample_db.t4
+SET t3.data = 'updated t3', t4.data = 'updated t4';
+# Capture current binlog file name
+# Find relay log file on slave
+connection slave;
+# Dump master binlog to file
+# Dump slave relay log to file
+# Validate that 'Table_map t1' is in the master binlog
+include/assert_grep.inc [Table_map t1 must be present in master binlog]
+# Validate that 'Table_map t2' is in the master binlog
+include/assert_grep.inc [Table_map t2 must be present in master binlog]
+# Validate that 'Table_map t3' is in the master binlog
+include/assert_grep.inc [Table_map t3 must be present in master binlog]
+# Validate that 'Table_map t4' is in the master binlog
+include/assert_grep.inc [Table_map t4 must be present in master binlog]
+# Validate that all 'Update_rows' is in the master binlog
+include/assert_grep.inc [Update_rows t1, t2 , t3 and t4 must be present in master binlog]
+# Validate that 'Table_map t1' is in the slave relaylog
+include/assert_grep.inc [Table_map t1 must be present in master binlog]
+# Validate that 'Table_map t2' is in the slave relaylog
+include/assert_grep.inc [Table_map t2 must be present in master binlog]
+# Validate that 'Table_map t3' is in the slave relaylog
+include/assert_grep.inc [Table_map t3 must be present in master binlog]
+# Validate that 'Table_map t4' is in the slave relaylog
+include/assert_grep.inc [Table_map t4 must be present in master binlog]
+# Validate that all 'Update_rows' is in the slave relaylog "partial filter applied over ROW_EVENT"
+include/assert_grep.inc [Update_rows t1, t2 and t4 must be present in master binlog]
+# Cleanup
+connection master;
+DROP TABLE test.t1;
+DROP TABLE test.t3;
+DROP TABLE sample_db.t2;
+DROP TABLE sample_db.t4;
+DROP DATABASE sample_db;
+include/rpl_end.inc
+# End of rpl_filter_multi_db_partial_innodb.test

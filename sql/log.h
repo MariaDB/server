@@ -1025,7 +1025,8 @@ public:
   bool write_incident_already_locked(THD *thd);
   bool write_incident(THD *thd);
   void write_binlog_checkpoint_event_already_locked(const char *name, uint len);
-  bool write_table_map(THD *thd, TABLE *table, bool with_annotate, bool skip_annotate= false);
+  bool write_table_map(THD *thd, TABLE *table, bool with_annotate, 
+                       bool filter_all_tables= false);
 
   void start_union_events(THD *thd, query_id_t query_id_param);
   void stop_union_events(THD *thd);

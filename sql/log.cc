@@ -1900,7 +1900,7 @@ binlog_commit_flush_stmt_cache(THD *thd, bool all,
   */
   if (cache_mngr)
   {
-    binlog_cache_data* cache_data= cache_mngr->get_binlog_cache_data(true);
+    binlog_cache_data* cache_data= cache_mngr->get_binlog_cache_data(false);
     if (cache_data && cache_data->event_group_rpl_filter)
     {
       end_evt.flags|= LOG_EVENT_SKIP_REPLICATION_F;
@@ -6360,12 +6360,17 @@ bool stmt_has_updated_non_trans_table(const THD* thd)
 /**
   Updates the skip status of the binlog cache based on the current event.
 
-  If the event has the LOG_EVENT_SKIP_REPLICATION_F flag set, 
-  the cache is marked as skippable (CACHE_SKIP_ALL). Otherwise, it is
-  marked as non-skippable (CACHE_SKIP_NONE), indicating that at least 
-  one event must be replicated later when the transaction is committed and
-  the GTID_EVENT is to be written inside write_gtid_event()
+  If the event has the LOG_EVENT_SKIP_REPLICATION_F flag set,
+  Then there are two options either this is is part of a
+  query that affects a single table/db or it would be part 
+  of a partial filter.
 
+  If it's the first case then all events in an event group should be
+  filtered , this is done by updating the cache's event group filter
+  flag. Otherwise then it's part of the partial filter which should have 
+  been handled already inside the write_table_map() method
+  
+  NOTE: Partial filtering currently applies only to row format
   @param ev          The binlog event to evaluate.
   @param cache_data  The binlog cache data to update.
 */
@@ -6377,10 +6382,12 @@ void update_event_cache_skip(Log_event* ev, binlog_cache_data* cache_data)
     if ((ev->flags & LOG_EVENT_SKIP_REPLICATION_F))
     {
       /* 
-        First event or still undecided, 
-         assume all events so far are skippable
+        Only apply this if partial filtering hash is empty since
+        partial filtering would not make the whole event group get
+        filtered
       */
-      if (!cache_data->event_group_rpl_filter)
+      if (cache_data && 
+          cache_data->partial_filtered_table_ids.records == 0)
       {
         cache_data->event_group_rpl_filter= true;
         DBUG_PRINT("info", ("Event has LOG_EVENT_SKIP_REPLICATION_F, setting CACHE_SKIP_ALL"));
@@ -6697,19 +6704,18 @@ bool THD::binlog_write_table_maps()
 
 
   bool filter_all_tables= false;
+  bool found_filtered_table= false;
+  bool found_unfiltered_table= false;
 
   /*
 
     In case any of the binlog_dump_* rules are on then we loop over the tables
     twice
 
-    - First pass: just to check if any table is filtered by the 
-      binlog_dump_* rules. If even one table is filtered, 
-      we flag the whole transaction to be skipped (GTID, table 
-      maps, row events, commit, everything). We need to know this 
-      before writing any TABLE_MAP events.
+    - First pass: Determine whether filtering should happen on the
+      whole event group or just use partial filtering
 
-    - Second pass: actually writes all of the TABLE_MAP events for the tables.
+    - Second pass: Writes the actual ANNOTATE and TABLE_MAP events
 
   */
   if (binlog_dump_filter->is_on() || !binlog_dump_filter->is_db_empty()) 
@@ -6725,30 +6731,54 @@ bool THD::binlog_write_table_maps()
 
           const char* db= table->s->db.str;
           bool should_replicate_db= binlog_dump_filter->db_ok(db);
-          bool should_replicate_table= binlog_dump_filter->table_ok(db, table->alias.c_ptr());
+          bool should_replicate_table= 
+            binlog_dump_filter->table_ok(db, table->alias.c_ptr());
 
-          /* 
-            If a single table map event is affected and NOT replicated should 
-            get filtered) then every other table map event (and as a 
-            consequence all other corresponding *_ROWS_EVENTs) should also get
-            filtered as well as the ANNOTATE_EVENT ... this will skip the 
-            whole transaction starting from GTID_EVENT which should check the
-            cache isnide write_gtid_event and realize that everything in the 
-            cache has the skip flag so it would also get filtered 
-            (same thing with the end events such as XID COMMIT or QUERY EVENT 
-            with COMMIT string and ROLLBACK
-            
-            Basically a single table affected by not being replicated should 
-            skip the whole transaction being binlogged with the filtering
+          /*
+            If there is no rule set the default returned would be true
+            so if there are no rules for db it would return true regardless of
+            the table rules so by having false in the one that actually contains
+            the rules then this means that this table should NOT be filtered 
+            so the only possible choice to avoid the default being true is 
+            to make sure both flags are true using an && instead of an ||
+
+            Otherwise then this should be filtered partially by using
+            the cache's filtered table ids .. This step is useful in order
+            to be able to filter the *_ROWS_EVENT corresponding to TABLE_MAP
+            later in case there is a multi-statement qury that affects
+            multiple tables 
+            e.g: TABLE_MAP1, TABLE_MAP2 are written and then two 
+            WRITE_ROWS_EVENT , if the first one is the only one
+             that has to be filtered then there has to be a way
+             to know from the table_id of WRITE_ROWS_EVENT 
           */
-          if(!should_replicate_db || !should_replicate_table)
+          bool should_replicate= should_replicate_db && should_replicate_table;
+          if(should_replicate)
           {
-            filter_all_tables= true;
-            break;
+            found_unfiltered_table= true;
           }
+          else {
+            found_filtered_table= true;
+            /*
+              TODO: should this be done only if filter_all_tables is false ? 
+            */
+            bool is_transactional= table->file->row_logging_has_trans;
+            is_transactional|= this->variables.option_bits & OPTION_GTID_BEGIN;
 
+            binlog_cache_mngr *const cache_mngr= this->binlog_get_cache_mngr();
+            binlog_cache_data *cache_data= (cache_mngr->
+                                  get_binlog_cache_data(is_transactional));
+            ulonglong table_id= table->s->table_map_id;
+            uchar *stored= (uchar*) my_malloc(PSI_INSTRUMENT_ME,
+                                    sizeof(ulonglong), MYF(0));
+            memcpy(stored, &table_id, sizeof(ulonglong));
+
+            my_hash_insert(&cache_data->partial_filtered_table_ids, stored);
+            
+          }
         }
       }
+    filter_all_tables= found_filtered_table && !found_unfiltered_table;
   }
 
   for (MYSQL_LOCK **cur_lock= locks ; cur_lock < locks_end ; cur_lock++)
@@ -6772,7 +6802,8 @@ bool THD::binlog_write_table_maps()
       }
       if (table->file->row_logging)
       {
-        if (mysql_bin_log.write_table_map(this, table, with_annotate, filter_all_tables))
+        if (mysql_bin_log.write_table_map(this, table, with_annotate, 
+                                          filter_all_tables))
           DBUG_RETURN(1);
         with_annotate= 0;
       }
@@ -6805,7 +6836,10 @@ bool THD::binlog_write_table_maps()
     nonzero if an error pops up when writing the table map event.
 */
 
-bool MYSQL_BIN_LOG::write_table_map(THD *thd, TABLE *table, bool with_annotate, bool skip_all_events)
+bool MYSQL_BIN_LOG::write_table_map(THD *thd, 
+                                    TABLE *table,
+                                    bool with_annotate, 
+                                    bool filter_all_tables)
 {
   int error= 1;
   bool is_transactional= table->file->row_logging_has_trans;
@@ -6833,7 +6867,7 @@ bool MYSQL_BIN_LOG::write_table_map(THD *thd, TABLE *table, bool with_annotate, 
                           the_event.select_checksum_alg(cache_data), NULL);
 
   if (with_annotate)
-    if (thd->binlog_write_annotated_row(&writer, skip_all_events))
+    if (thd->binlog_write_annotated_row(&writer, filter_all_tables))
       goto write_err;
 
   DBUG_EXECUTE_IF("table_map_write_error",
@@ -6845,10 +6879,16 @@ bool MYSQL_BIN_LOG::write_table_map(THD *thd, TABLE *table, bool with_annotate, 
     }
   });
 
-  if (skip_all_events)
+  if (filter_all_tables)
   {
     the_event.flags|= LOG_EVENT_SKIP_REPLICATION_F;
     cache_data->event_group_rpl_filter= true;
+  }
+  else if (my_hash_search(&cache_data->partial_filtered_table_ids,
+                          (const uchar*) &(table->s->table_map_id),
+                          sizeof(ulonglong)) != NULL)
+  {
+    the_event.flags|= LOG_EVENT_SKIP_REPLICATION_F;
   }
 
   if (unlikely((error= writer.write(&the_event))))
@@ -7012,6 +7052,20 @@ Event_log::flush_and_set_pending_rows_event(THD *thd, Rows_log_event* event,
                         clear_dbug= true;
                       }
                     });
+    /*
+      This is part of the partial filtering logic where the *_ROWS_EVENT that
+      DOES NOT have STMT_END_F gets written here before writing it in the 
+      binlog and also before setting a new pending event
+    */
+   
+   ulonglong table_id = pending->get_table_id();
+   if (my_hash_search(&cache_data->partial_filtered_table_ids,
+    (const uchar*) &(table_id),
+    sizeof(ulonglong)) != NULL)
+    {
+      pending->flags|= LOG_EVENT_SKIP_REPLICATION_F;
+    }
+
     if (writer.write(pending))
     {
       set_write_error(thd, is_transactional);
@@ -7583,10 +7637,13 @@ bool MYSQL_BIN_LOG::write(Log_event *event_info, my_bool *with_annotate)
           commit_id= entry->val_int(&null_value);
         });
       /*
-        We should gain access to the standalone event's flags to check whether it was skipped or not
-        Since there is only a single statement following it so if that event has the skip flag then 
-        the current GTID_EVENT should also be skipped to avoid sending multiple GTIDs with empty event groups 
-        which was solved by MDEV-27697 as explained in the transactional case later MYSQL_BIN_LOG::inside write_gtid_event()
+        We should gain access to the standalone event's flags to 
+        check whether it was skipped or not since there is only a single 
+        statement following it so if that event has the skip flag then 
+        the current GTID_EVENT should also be skipped to avoid sending 
+        multiple GTIDs with empty event groups which was solved 
+        by MDEV-27697 as explained in the transactional case
+        later MYSQL_BIN_LOG::inside write_gtid_event()
       */
       bool should_skip_gtid= (event_info->flags & LOG_EVENT_SKIP_REPLICATION_F);
       res= write_gtid_event(thd, true, using_trans, commit_id, false, false, false, should_skip_gtid);

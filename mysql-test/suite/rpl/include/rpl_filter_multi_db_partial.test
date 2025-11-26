@@ -1,21 +1,21 @@
 #
 # Purpose:
 #   Verify that partial filtering behaves correctly when a single query
-#   targets multiple tables at once.
+#   targets multiple databases at once.
 #
-#   The test issues multi-table UPDATE statements (e.g. UPDATE t1, t2 …),
-#   where each table has different filter settings applied. This ensures:
-#     - Events for filtered tables are excluded from the relay log.
-#     - Events for allowed tables remain visible on the slave.
+#   The test issues multi-table UPDATE statements (e.g. UPDATE test.t1, sample_db.t2 …),
+#   where each database has different filter settings applied. This ensures:
+#     - Events for filtered databases are excluded from the relay log.
+#     - Events for allowed databases remain visible on the slave.
 #
 #   Mapping:
-#     t1 → allowed
-#     t2 → filtered
-#     t3 → filtered
-#     t4 → allowed
+#     test.t1 → allowed
+#     sample_db.t2 → filtered
+#     test.t3 → filtered
+#     sample_db.t4 → allowed
 #
-#   This validates that binlog_dump_do/ignore_table filters operate at the
-#   per-table level, even within a single query affecting multiple tables.
+#   This validates that binlog_dump_do/ignore_db filters operate at the
+#   per-db level, even within a single query affecting multiple tables.
 #
 #
 #   NOTE: Partial Filtering feature is only intended for row format for now 
@@ -33,18 +33,21 @@ eval SET @@default_storage_engine=$engine_type;
 
 --echo # On master: create two tables and insert data
 CREATE TABLE t1 (id INT PRIMARY KEY, data VARCHAR(50));
-CREATE TABLE t2 (id INT PRIMARY KEY, data VARCHAR(50));
 CREATE TABLE t3 (id INT PRIMARY KEY, data VARCHAR(50));
-CREATE TABLE t4 (id INT PRIMARY KEY, data VARCHAR(50));
 INSERT INTO t1 VALUES (1, 'row in t1');
-INSERT INTO t2 VALUES (1, 'row in t2');
 INSERT INTO t3 VALUES (1, 'row in t3');
-INSERT INTO t4 VALUES (1, 'row in t4');
+
+CREATE DATABASE sample_db;
+
+CREATE TABLE sample_db.t2 (id INT PRIMARY KEY, data VARCHAR(50));
+CREATE TABLE sample_db.t4 (id INT PRIMARY KEY, data VARCHAR(50));
+INSERT INTO sample_db.t2 VALUES (1, 'row in t2');
+INSERT INTO sample_db.t4 VALUES (1, 'row in t4');
 
 --echo # This query should affect multiple tables at the same time
-UPDATE t1, t2
+UPDATE test.t1, sample_db.t2
 SET t1.data = 'updated t1', t2.data = 'updated t2';
-UPDATE t3, t4
+UPDATE test.t3, sample_db.t4
 SET t3.data = 'updated t3', t4.data = 'updated t4';
 
 --echo # Capture current binlog file name
@@ -71,7 +74,7 @@ connection slave;
 --echo # Validate that 'Table_map t2' is in the master binlog
 --let $assert_file= $MYSQLTEST_VARDIR/tmp/master_binlog.txt
 --let $assert_text= Table_map t2 must be present in master binlog
---let $assert_select= Table_map: `test`.`t2`
+--let $assert_select= Table_map: `sample_db`.`t2`
 --let $assert_count= 2
 --source include/assert_grep.inc
 
@@ -85,7 +88,7 @@ connection slave;
 --echo # Validate that 'Table_map t4' is in the master binlog
 --let $assert_file= $MYSQLTEST_VARDIR/tmp/master_binlog.txt
 --let $assert_text= Table_map t4 must be present in master binlog
---let $assert_select= Table_map: `test`.`t4`
+--let $assert_select= Table_map: `sample_db`.`t4`
 --let $assert_count= 2
 --source include/assert_grep.inc
 
@@ -109,7 +112,7 @@ connection slave;
 --echo # Validate that 'Table_map t2' is in the slave relaylog
 --let $assert_file= $MYSQLTEST_VARDIR/tmp/slave_relaylog.txt
 --let $assert_text= Table_map t2 must be present in master binlog
---let $assert_select= Table_map: `test`.`t2`
+--let $assert_select= Table_map: `sample_db`.`t2`
 --let $assert_count= 0
 --source include/assert_grep.inc
 
@@ -123,7 +126,7 @@ connection slave;
 --echo # Validate that 'Table_map t4' is in the slave relaylog
 --let $assert_file= $MYSQLTEST_VARDIR/tmp/slave_relaylog.txt
 --let $assert_text= Table_map t4 must be present in master binlog
---let $assert_select= Table_map: `test`.`t4`
+--let $assert_select= Table_map: `sample_db`.`t4`
 --let $assert_count= 2
 --source include/assert_grep.inc
 
@@ -139,5 +142,6 @@ connection slave;
 connection master;
 DROP TABLE test.t1;
 DROP TABLE test.t3;
-DROP TABLE test.t2;
-DROP TABLE test.t4;
+DROP TABLE sample_db.t2;
+DROP TABLE sample_db.t4;
+DROP DATABASE sample_db;

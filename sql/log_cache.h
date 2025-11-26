@@ -55,6 +55,17 @@ public:
     */
     checksum_opt= !precompute_checksums ? BINLOG_CHECKSUM_ALG_OFF :
       (enum_binlog_checksum_alg)binlog_checksum_options;
+
+    my_hash_init(PSI_INSTRUMENT_ME,
+             &partial_filtered_table_ids,
+             &my_charset_bin,
+             32,
+             0,
+             sizeof(ulonglong),
+             NULL,
+             [](void *ptr) { my_free(ptr); },
+             0);
+
   }
 
   ~binlog_cache_data()
@@ -63,6 +74,9 @@ public:
 
     if (cache_log.file != -1 && !encrypt_tmp_files)
       unlink(my_filename(cache_log.file));
+
+    if (my_hash_inited(&partial_filtered_table_ids))
+      my_hash_free(&partial_filtered_table_ids);
 
     close_cached_file(&cache_log);
   }
@@ -129,7 +143,8 @@ public:
     incident= FALSE;
     before_stmt_pos= MY_OFF_T_UNDEF;
     // Since the cache_data is reused so we should reset it to not conflict 
-    event_group_rpl_filter= false;    
+    event_group_rpl_filter= false;
+    
     DBUG_ASSERT(empty());
   }
 
@@ -314,6 +329,13 @@ public:
              so the transaction must not be skipped.
   */
   bool event_group_rpl_filter= false;
+
+  /*
+    Hash set that tracks table_ids from TABLE_MAP_EVENTs which are subject
+    to partial filtering. It is later used to identify matching *_ROWS_EVENTs 
+    that reference those same table_ids.
+  */
+  HASH partial_filtered_table_ids;
 
 private:
   /*

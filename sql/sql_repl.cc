@@ -139,7 +139,13 @@ struct binlog_send_info {
   bool send_fake_gtid_list;
   bool slave_gtid_ignore_duplicates;
   bool using_gtid_state;
-
+  /*
+    True if any earlier row events in the current row-based statement
+    were sent and not fully filtered. Used to detect partially filtered
+    event groups and ensure that row events with STMT_END_F are sent correctly
+  */
+  bool row_events_sent_before;
+  
   int error;
   const char *errmsg;
   char error_text[MAX_SLAVE_ERRMSG];
@@ -187,6 +193,7 @@ struct binlog_send_info {
     error_text[0] = 0;
     bzero(&error_gtid, sizeof(error_gtid));
     until_binlog_state.init();
+    row_events_sent_before= false;
   }
 };
 
@@ -2233,16 +2240,117 @@ send_event_to_slave(binlog_send_info *info, Log_event_type event_type,
 
   /*
     Skip events that have either
-      1) @@skip_replication flag set (it has a negation value with @@skip_parallel so only one of them should be used)
+      1) @@skip_replication flag
       2) Set during binlogging (set using binlog_dump_* filter) 
 
   */
-  if (info->thd->variables.option_bits & OPTION_SKIP_REPLICATION || !binlog_dump_filter->is_db_empty() || binlog_dump_filter->is_on())
+  if (info->thd->variables.option_bits & OPTION_SKIP_REPLICATION ||
+    !binlog_dump_filter->is_db_empty() || binlog_dump_filter->is_on())
   {
     uint16 event_flags= uint2korr(&((*packet)[FLAGS_OFFSET + ev_offset]));
 
-    if (event_flags & LOG_EVENT_SKIP_REPLICATION_F)
-      return NULL;
+    const uchar *buf = (const uchar*) packet->ptr() + ev_offset;
+
+      Log_event_type etype = (Log_event_type) buf[EVENT_TYPE_OFFSET];
+
+      // Only ROW events have m_flags
+      bool is_rows_event =
+          (etype == WRITE_ROWS_EVENT)        ||
+          (etype == UPDATE_ROWS_EVENT)       ||
+          (etype == DELETE_ROWS_EVENT)       ||
+          (etype == WRITE_ROWS_EVENT_V1)     ||
+          (etype == UPDATE_ROWS_EVENT_V1)    ||
+          (etype == DELETE_ROWS_EVENT_V1);
+      bool is_gtid_event = (etype == GTID_EVENT);
+
+    if (is_gtid_event)
+    {
+      info->row_events_sent_before= false; // reset per event group
+    }
+    
+    if ((event_flags & LOG_EVENT_SKIP_REPLICATION_F))
+    {
+      /*
+        if the current event has the STMT_F flag as well as the
+        LOG_EVENT_SKIP_REPLICATION_F flag then we should clear the buffer
+        data of this event and rewrite this *_ROW_EVENT to avoid sending
+        filtered data to the replica otherwise if it does not have
+        the STMT_F flag then it should just get filterd 
+        (return NULL basically filters and does not send the event
+        over the network)
+      */
+
+      if (!is_rows_event) {
+          return NULL;
+      }
+
+      /*
+        Extract the STMT_END_F of the rows_event flag
+      */
+      uint8 common_header_len = info->fdev->common_header_len;
+
+      uint8 post_header_len = info->fdev->post_header_len[etype - 1];
+
+      const uchar *post_start = buf + common_header_len;
+
+      post_start += RW_MAPID_OFFSET;
+
+      uint64 table_id;
+
+      if (post_header_len == 6)
+      {
+          table_id= uint4korr(post_start);
+          post_start += 4;
+      }
+      else
+      {
+        table_id  = uint4korr(post_start);
+        table_id |= ((uint64) uint2korr(post_start + 4)) << 32;
+        // skip 6 bytes
+        post_start += RW_FLAGS_OFFSET;
+      }
+
+      uint16 m_flags = uint2korr(post_start);
+
+      bool has_stmt_end_f = (m_flags & Rows_log_event::STMT_END_F);
+
+
+      if (!has_stmt_end_f)
+      {
+        return NULL;
+      }
+      else {
+        if (!info->row_events_sent_before) {
+          return NULL;
+        }
+
+        /* 
+          TODO: Clear payload and rewrite the checksum
+        */
+        // const uchar *row_data_start = buf + common_header_len + post_header_len;
+        // size_t checksum_len= (info->current_checksum_alg 
+        //                       != BINLOG_CHECKSUM_ALG_OFF && 
+        //                       info->current_checksum_alg 
+        //                       != BINLOG_CHECKSUM_ALG_UNDEF) 
+        //               ? BINLOG_CHECKSUM_LEN : 0;
+        // size_t row_data_len = len - (row_data_start - buf) - checksum_len;
+
+        // memset((uchar*)row_data_start, 0, row_data_len); // zero out row payload
+        // if (checksum_len > 0) 
+        // {
+        //   uint32 crc = my_checksum(0, buf,  len - BINLOG_CHECKSUM_LEN);
+        //   // 3. Write back to the last 4 bytes
+        //   uchar *footer = (uchar*)buf + (len - BINLOG_CHECKSUM_LEN);
+        //   int4store(footer, crc);
+        // }
+        info->row_events_sent_before= false;// reset per ROW_EVENT with stmt_f
+       
+      }
+    }
+    else if (is_rows_event) 
+    {
+      info->row_events_sent_before= true;
+    }
   }
 
   THD_STAGE_INFO(info->thd, stage_sending_binlog_event_to_slave);

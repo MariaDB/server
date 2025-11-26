@@ -1399,43 +1399,58 @@ Query_log_event::Query_log_event(THD* thd_arg, const char* query_arg,
                     (OPTIONS_WRITTEN_TO_BIN_LOG & ~OPTION_NOT_AUTOCOMMIT));
   #ifdef HAVE_REPLICATION
 
-  MYSQL_LOCK *locks[2], **locks_end= locks;
+  bool is_end_event= false;
 
-  if ((*locks_end= thd_arg->extra_lock))
-    locks_end++;
-  if ((*locks_end= thd_arg->lock))
-    locks_end++;
-
-  bool should_replicate_tables= true; 
+  if (q_len == 6 && strncasecmp(query, "COMMIT", 6) == 0)
+      is_end_event= true;
+  else if (q_len == 8 && strncasecmp(query, "ROLLBACK", 8) == 0)
+      is_end_event= true;
   
-  for (MYSQL_LOCK **cur_lock= locks ; cur_lock < locks_end ; cur_lock++)
+  /*
+    If this is an end event it will be handled later on while flushing the
+    cache of COMMIT or ROLLBACK in binlog_commit_flush_stmt/trx_cache()
+  */
+  if (!is_end_event)
   {
-    TABLE **const end_ptr= (*cur_lock)->table + (*cur_lock)->table_count;
+    MYSQL_LOCK *locks[2], **locks_end= locks;
 
-    for (TABLE **table_ptr= (*cur_lock)->table;
-         table_ptr != end_ptr ;
-         ++table_ptr)
+    if ((*locks_end= thd_arg->extra_lock))
+      locks_end++;
+    if ((*locks_end= thd_arg->lock))
+      locks_end++;
+
+    bool should_replicate_tables= true; 
+    
+    for (MYSQL_LOCK **cur_lock= locks ; cur_lock < locks_end ; cur_lock++)
     {
-      TABLE *table= *table_ptr;
-  
-      /* 
-        If there is a single tables affected by this query then all of the 
-        tables will get filtered as well the whole event group should get filtered
-      */
-     bool should_replicate_table= binlog_dump_filter->table_ok(db, table->alias.c_ptr());
-     if (!should_replicate_table)
-     {
-      should_replicate_tables= false;
-      break;
-     }
+      TABLE **const end_ptr= (*cur_lock)->table + (*cur_lock)->table_count;
+
+      for (TABLE **table_ptr= (*cur_lock)->table;
+          table_ptr != end_ptr ;
+          ++table_ptr)
+      {
+        TABLE *table= *table_ptr;
+    
+        /* 
+          If there is a single tables affected by this query then all of the 
+          tables will get filtered as well the whole event group should
+          get filtered. NOTE: Partial Filtering is only allowed in the
+          ROW format not STATEMENT format
+        */
+        bool should_replicate_table= binlog_dump_filter->table_ok(db, table->alias.c_ptr());
+        if (!should_replicate_table)
+        {
+          should_replicate_tables= false;
+          break;
+        }
+      }
     }
 
-  }
-
-  bool should_replicate_db= binlog_dump_filter->db_ok(db);
-  if (!should_replicate_db || !should_replicate_tables)
-  {
-    flags|= LOG_EVENT_SKIP_REPLICATION_F;
+    bool should_replicate_db= binlog_dump_filter->db_ok(db);
+    if (!should_replicate_db || !should_replicate_tables)
+    {
+      flags|= LOG_EVENT_SKIP_REPLICATION_F;
+    }
   }
   
   #endif

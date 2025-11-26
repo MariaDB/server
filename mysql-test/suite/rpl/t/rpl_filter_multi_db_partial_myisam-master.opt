@@ -1,0 +1,4 @@
+--binlog-dump-do-table=test.t1
+--binlog-dump-do-table=sample_db.t4
+--binlog-dump-ignore-table=sample_db.t2
+--binlog-dump-ignore-table=test.t3
