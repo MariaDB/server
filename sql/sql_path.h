@@ -49,10 +49,9 @@ public:
   /*
     Set the variable to the value of rhs, making a copy of the buffer
 
-    @param thd              The thread handle
     @param rhs              The path variable to copy from
   */
-  void set(THD *thd, const Sql_path &rhs);
+  void set(const Sql_path &rhs);
   /*
     Set the variable to the value of rhs, moving the buffer
 
@@ -63,11 +62,12 @@ public:
   /*
     Parse a string and set the path variable to the parsed value
 
+    The string is in my_charset_utf8mb3_general_ci.
+
     @param thd              The thread handle
-    @param cs               The character set of the string
     @param str              The string to parse
   */
-  bool from_text(THD *thd, CHARSET_INFO *cs, const LEX_CSTRING &str);
+  bool from_text(THD *thd, const LEX_CSTRING &str);
   /*
     Get the number of bytes needed to print the path variable
 
@@ -103,19 +103,7 @@ protected:
                              bool *resolved) const;
 
 private:
-  /*
-    Add a schema to the path variable
-
-    @param thd              The thread handle
-    @param schema_str       The schema name
-    @param schema_len       The length of the schema name
-
-    @return                 true if the schema could not be added
-  */
-  bool add_schema(THD *thd, const char *schema_str, size_t schema_len);
-
-  bool add_schema_direct(const char *schema_str, size_t schema_len);
-
+  bool add_schema(char **to);
   bool is_cur_schema(const LEX_CSTRING &schema) const;
 };
 

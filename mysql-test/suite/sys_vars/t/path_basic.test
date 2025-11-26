@@ -324,9 +324,11 @@ SELECT @@path;
 SET PATH ' ';
 SET PATH '    ';
 SET PATH ',';
-SET PATH '``';
 
+--Error ER_WRONG_DB_NAME
+SET PATH '``';
 SET sql_mode=ANSI_QUOTES;
+--Error ER_WRONG_DB_NAME
 SET PATH '""';
 SET sql_mode=DEFAULT;
 
@@ -338,7 +340,7 @@ SELECT @@path;
 SET PATH '`a```';
 SELECT @@path;
 
---error ER_WRONG_VALUE_FOR_VAR
+--error ER_WRONG_DB_NAME
 SET PATH '``a`';
 --error ER_WRONG_VALUE_FOR_VAR
 SET PATH '`a``';

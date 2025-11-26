@@ -3097,7 +3097,7 @@ private:
     String *value, buffer;
     if (!(value= item->val_str_ascii(&buffer)))
       return true;
-    return path->from_text(thd, value->charset(), value->to_lex_cstring());
+    return path->from_text(thd, value->to_lex_cstring());
   }
 
   static const uchar *make_value_ptr(THD *thd, const Sql_path &path)
@@ -3125,7 +3125,7 @@ private:
 
   void session_save_default(THD *thd, set_var *var) override
   {
-    thd->variables.path.set(thd, global_system_variables.path);
+    thd->variables.path.set(global_system_variables.path);
   }
 
   void global_save_default(THD *thd, set_var *var) override
