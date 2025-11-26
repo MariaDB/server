@@ -122,8 +122,8 @@ static unsigned int query_log_limit= 0;
 
 static char servhost[HOSTNAME_LENGTH+1];
 static uint servhost_len;
-static char *syslog_ident;
-static char syslog_ident_buffer[128]= "mysql-server_auditing";
+static char syslog_ident[128]= "mysql-server_auditing";
+static char *syslog_ident_ptr= syslog_ident;
 
 struct connection_info
 {
@@ -259,9 +259,9 @@ static MYSQL_SYSVAR_BOOL(logging, logging,
        update_logging, 0);
 static MYSQL_SYSVAR_UINT(mode, mode,
        PLUGIN_VAR_OPCMDARG, "Auditing mode", NULL, update_mode, 0, 0, 1, 1);
-static MYSQL_SYSVAR_STR(syslog_ident, syslog_ident, PLUGIN_VAR_RQCMDARG,
+static MYSQL_SYSVAR_STR(syslog_ident, syslog_ident_ptr, PLUGIN_VAR_RQCMDARG,
        "The SYSLOG identifier - the beginning of each SYSLOG record",
-       NULL, update_syslog_ident, syslog_ident_buffer);
+       NULL, update_syslog_ident, syslog_ident);
 static MYSQL_SYSVAR_STR(syslog_info, syslog_info,
        PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_MEMALLOC,
        "The <info> string to be added to the SYSLOG record", NULL, NULL, "");
@@ -359,7 +359,7 @@ static struct st_mysql_sys_var* vars[] = {
 
 /* Status variables for SHOW STATUS */
 static int is_active= 0;
-static long log_write_failures= 0;
+static Atomic_counter<long> log_write_failures;
 static char current_log_buf[FN_REFLEN]= "";
 static char last_error_buf[512]= "";
 
@@ -372,15 +372,9 @@ static struct st_mysql_show_var audit_status[]=
   {0,0,SHOW_UNDEF}
 };
 
-#ifdef HAVE_PSI_INTERFACE
-static PSI_rwlock_key key_LOCK_operations;
-static PSI_rwlock_info rwlock_key_list[]=
-{
-  { &key_LOCK_operations, "SERVER_AUDIT_plugin::lock_operations",
-    PSI_FLAG_GLOBAL}
-};
-#endif /*HAVE_PSI_INTERFACE*/
-static mysql_prlock_t lock_operations;
+#include "../../storage/innobase/include/srw_lock.h"
+
+static srw_lock_low lock_operations;
 
 #define CLIENT_ERROR my_printf_error
 
@@ -1199,18 +1193,16 @@ static void change_connection(struct connection_info *cn,
           event->tls_version, event->tls_version_length);
 }
 
-/*
+/**
   Write to the log
-
-  @param take_lock  If set, take a read lock (or write lock on rotate).
-                    If not set, the caller has a already taken a write lock
 */
 
-static int write_log(const char *message, size_t len, int take_lock)
+static int write_log(const char *message, size_t len)
 {
+#if defined _WIN32 || !defined SUX_LOCK_GENERIC
+  DBUG_ASSERT(lock_operations.is_locked_or_waiting());
+#endif
   int result= 0;
-  if (take_lock)
-    mysql_prlock_rdlock(&lock_operations);
 
   if (output_type == OUTPUT_FILE)
   {
@@ -1229,9 +1221,34 @@ static int write_log(const char *message, size_t len, int take_lock)
            syslog_priority_codes[syslog_priority],
            "%s %.*s", syslog_info, (int) len, message);
   }
-  if (take_lock)
-    mysql_prlock_unlock(&lock_operations);
+
   return result;
+}
+
+/**
+  Write to the log, acquiring the lock.
+*/
+
+static int write_log_and_lock(const char *message, size_t len)
+{
+  lock_operations.rd_lock();
+  int result= write_log(message, len);
+  lock_operations.rd_unlock();
+  return result;
+}
+
+
+/**
+  Write to the log
+
+  @param lock  whether the caller did not acquire lock_operations
+*/
+static int write_log_maybe_lock(const char *message, size_t len, bool lock)
+{
+  if (unlikely(!lock))
+    return write_log(message, len);
+  else
+    return write_log_and_lock(message, len);
 }
 
 
@@ -1320,7 +1337,7 @@ static int log_proxy(const struct connection_info *cn,
                      cn->proxy_host_length, cn->proxy_host,
                      event->status);
   message[csize]= '\n';
-  return write_log(message, csize + 1, 1);
+  return write_log_and_lock(message, csize + 1);
 }
 
 
@@ -1347,7 +1364,7 @@ static int log_connection(const struct connection_info *cn,
     ",%.*s,%.*s,%d", cn->db_length, cn->db, (int) obj_len, tls_obj,
     event->status);
   message[csize]= '\n';
-  return write_log(message, csize + 1, 1);
+  return write_log_and_lock(message, csize + 1);
 }
 
 
@@ -1372,7 +1389,7 @@ static int log_connection_event(const struct mysql_event_connection *event,
     ",%.*s,%.*s,%d", (int) event->database.length,event->database.str,
     (int) obj_len, tls_obj, event->status);
   message[csize]= '\n';
-  return write_log(message, csize + 1, 1);
+  return write_log_and_lock(message, csize + 1);
 }
 
 
@@ -1541,15 +1558,14 @@ no_password:
 
 
 static int do_log_user(const char *name, int len,
-                       const char *proxy, int proxy_len, int take_lock)
+                       const char *proxy, int proxy_len)
 {
   int result;
 
   if (!name)
     return 0;
 
-  if (take_lock)
-    mysql_prlock_rdlock(&lock_operations);
+  lock_operations.rd_lock();
 
   if (incl_user_coll.n_users)
   {
@@ -1564,8 +1580,7 @@ static int do_log_user(const char *name, int len,
   else
     result= 1;
 
-  if (take_lock)
-    mysql_prlock_unlock(&lock_operations);
+  lock_operations.rd_unlock();
   return result;
 }
 
@@ -1816,7 +1831,7 @@ do_log_query:
   csize+= my_snprintf(message+csize, message_size - 1 - csize,
                       "\',%d", error_code);
   message[csize]= '\n';
-  result= write_log(message, csize + 1, take_lock);
+  result= write_log_maybe_lock(message, csize + 1, take_lock);
 
   if (cn->sync_statement && output_type == OUTPUT_FILE && logfile)
   {
@@ -1869,7 +1884,7 @@ static int log_table(const struct connection_info *cn,
                      (int) event->database.length, event->database.str,
                      (int) event->table.length, event->table.str);
   message[csize]= '\n';
-  return write_log(message, csize + 1, 1);
+  return write_log_and_lock(message, csize + 1);
 }
 
 
@@ -1895,7 +1910,7 @@ static int log_rename(const struct connection_info *cn,
                       (int) event->new_database.length, event->new_database.str,
                       (int) event->new_table.length, event->new_table.str);
   message[csize]= '\n';
-  return write_log(message, csize + 1, 1);
+  return write_log_and_lock(message, csize + 1);
 }
 
 
@@ -2123,8 +2138,7 @@ void auditing(MYSQL_THD thd, unsigned int event_class, const void *ev)
 
   if (event_class == MYSQL_AUDIT_GENERAL_CLASS && FILTER(EVENT_QUERY) &&
       cn && (cn->log_always || do_log_user(cn->user, cn->user_length,
-                                           cn->proxy, cn->proxy_length,
-                                           1)))
+                                           cn->proxy, cn->proxy_length)))
   {
     const struct mysql_event_general *event =
       (const struct mysql_event_general *) ev;
@@ -2146,7 +2160,7 @@ void auditing(MYSQL_THD thd, unsigned int event_class, const void *ev)
     const struct mysql_event_table *event =
       (const struct mysql_event_table *) ev;
     if (do_log_user(event->user, (int) SAFE_STRLEN(event->user),
-                    cn->proxy, cn->proxy_length, 1))
+                    cn->proxy, cn->proxy_length))
     {
       switch (event->event_subclass)
       {
@@ -2321,11 +2335,7 @@ static int server_audit_init(void*)
   servhost_len= (uint)strlen(servhost);
 
   logger_init_mutexes();
-#ifdef HAVE_PSI_INTERFACE
-  if (PSI_server)
-    PSI_server->register_rwlock("server_audit", rwlock_key_list, 1);
-#endif
-  mysql_prlock_init(key_LOCK_operations, &lock_operations);
+  lock_operations.init();
 
   coll_init(&incl_user_coll);
   coll_init(&excl_user_coll);
@@ -2395,16 +2405,8 @@ static int server_audit_deinit(void *)
   init_done= 0;
   coll_free(&incl_user_coll);
   coll_free(&excl_user_coll);
-
-  if (output_type == OUTPUT_FILE && logfile)
-    logger_close(logfile);
-  else if (output_type == OUTPUT_SYSLOG)
-    closelog();
-
-  mysql_prlock_destroy(&lock_operations);
-
-  error_header();
-  fprintf(stderr, "STOPPED\n");
+  stop_logging();
+  lock_operations.destroy();
   return 0;
 }
 
@@ -2502,11 +2504,10 @@ static void update_file_path(MYSQL_THD thd, st_mysql_sys_var *, void *,
     return;
   }
 
+  lock_operations.wr_lock();
   internal_stop_logging++;
   error_header();
   fprintf(stderr, "Log file name was changed to '%s'.\n", new_name);
-
-  mysql_prlock_wrlock(&lock_operations);
 
   if (logging)
     log_current_query(thd);
@@ -2537,60 +2538,53 @@ static void update_file_path(MYSQL_THD thd, st_mysql_sys_var *, void *,
   path_buffer[sizeof(path_buffer)-1]= 0;
   file_path= path_buffer;
 exit_func:
-  mysql_prlock_unlock(&lock_operations);
   internal_stop_logging--;
+  lock_operations.wr_unlock();
 }
 
 
 static void update_file_rotations(MYSQL_THD, st_mysql_sys_var *,
                                   void *, const void *save)
 {
+  lock_operations.wr_lock();
   rotations= *static_cast<const unsigned*>(save);
   error_header();
   fprintf(stderr, "Log file rotations was changed to '%d'.\n", rotations);
 
-  if (!logging || output_type != OUTPUT_FILE)
-    return;
+  if (logging && output_type == OUTPUT_FILE)
+    logger_set_rotations(logfile, rotations);
 
-  mysql_prlock_wrlock(&lock_operations);
-  logger_set_rotations(logfile, rotations);
-  mysql_prlock_unlock(&lock_operations);
+  lock_operations.wr_unlock();
 }
 
 
 static void update_file_rotate_size(MYSQL_THD, st_mysql_sys_var *, void*,
                                     const void *save)
 {
+  lock_operations.wr_lock();
   file_rotate_size= *static_cast<const unsigned long long *>(save);
   error_header();
   fprintf(stderr, "Log file rotate size was changed to '%lld'.\n",
           file_rotate_size);
 
-  if (!logging || output_type != OUTPUT_FILE)
-    return;
-
-  mysql_prlock_wrlock(&lock_operations);
-  logger_set_filesize_limit(logfile, file_rotate_size);
-  mysql_prlock_unlock(&lock_operations);
+  if (logging && output_type == OUTPUT_FILE)
+    logger_set_filesize_limit(logfile, file_rotate_size);
+  lock_operations.wr_unlock();
 }
 
 
 static void update_file_buffer_size(MYSQL_THD, st_mysql_sys_var *, void *,
                                     const void *save)
 {
+  lock_operations.wr_lock();
   file_buffer_size= *static_cast<const unsigned*>(save);
 
   error_header();
   fprintf(stderr, "Log file buffer size was changed to '%u'.\n",
           file_buffer_size);
 
-  if (!logging || output_type != OUTPUT_FILE)
-    return;
-
-  internal_stop_logging++;
-  mysql_prlock_wrlock(&lock_operations);
-
-  if (logger_resize_buffer(logfile, file_buffer_size))
+  if (logging && output_type == OUTPUT_FILE &&
+      logger_resize_buffer(logfile, file_buffer_size))
   {
     stop_logging();
     error_header();
@@ -2599,8 +2593,7 @@ static void update_file_buffer_size(MYSQL_THD, st_mysql_sys_var *, void *,
                  MYF(ME_WARNING));
   }
 
-  mysql_prlock_unlock(&lock_operations);
-  internal_stop_logging--;
+  lock_operations.wr_unlock();
 }
 
 
@@ -2643,12 +2636,12 @@ static void update_incl_users(MYSQL_THD thd, st_mysql_sys_var *, void *,
   if (!new_users)
     new_users= empty_str;
   size_t new_len= strlen(new_users) + 1;
-  mysql_prlock_wrlock(&lock_operations);
   mark_always_logged(thd);
 
   if (new_len > sizeof(incl_user_buffer))
     new_len= sizeof(incl_user_buffer);
 
+  lock_operations.wr_lock();
   memcpy(incl_user_buffer, new_users, new_len - 1);
   incl_user_buffer[new_len - 1]= 0;
 
@@ -2656,7 +2649,7 @@ static void update_incl_users(MYSQL_THD thd, st_mysql_sys_var *, void *,
   user_coll_fill(&incl_user_coll, incl_users, &excl_user_coll, 1);
   error_header();
   fprintf(stderr, "server_audit_incl_users set to '%s'.\n", incl_users);
-  mysql_prlock_unlock(&lock_operations);
+  lock_operations.wr_unlock();
 }
 
 
@@ -2667,12 +2660,12 @@ static void update_excl_users(MYSQL_THD thd, st_mysql_sys_var *, void *,
   if (!new_users)
     new_users= empty_str;
   size_t new_len= strlen(new_users) + 1;
-  mysql_prlock_wrlock(&lock_operations);
   mark_always_logged(thd);
 
   if (new_len > sizeof(excl_user_buffer))
     new_len= sizeof(excl_user_buffer);
 
+  lock_operations.wr_lock();
   memcpy(excl_user_buffer, new_users, new_len - 1);
   excl_user_buffer[new_len - 1]= 0;
 
@@ -2680,7 +2673,7 @@ static void update_excl_users(MYSQL_THD thd, st_mysql_sys_var *, void *,
   user_coll_fill(&excl_user_coll, excl_users, &incl_user_coll, 0);
   error_header();
   fprintf(stderr, "server_audit_excl_users set to '%s'.\n", excl_users);
-  mysql_prlock_unlock(&lock_operations);
+  lock_operations.wr_unlock();
 }
 
 
@@ -2691,8 +2684,7 @@ static void update_output_type(MYSQL_THD thd, st_mysql_sys_var *, void *,
   if (output_type == new_output_type)
     return;
 
-  internal_stop_logging++;
-  mysql_prlock_wrlock(&lock_operations);
+  lock_operations.wr_lock();
   if (logging)
   {
     log_current_query(thd);
@@ -2706,8 +2698,7 @@ static void update_output_type(MYSQL_THD thd, st_mysql_sys_var *, void *,
 
   if (logging)
     start_logging();
-  mysql_prlock_unlock(&lock_operations);
-  internal_stop_logging--;
+  lock_operations.wr_unlock();
 }
 
 
@@ -2715,15 +2706,18 @@ static void update_syslog_facility(MYSQL_THD thd, st_mysql_sys_var *, void *,
                                    const void *save)
 {
   ulong new_facility= *static_cast<const ulong*>(save);
-  if (syslog_facility == new_facility)
-    return;
-
-  mark_always_logged(thd);
-  error_header();
-  fprintf(stderr, "SysLog facility was changed from '%s' to '%s'.\n",
-          syslog_facility_names[syslog_facility],
-          syslog_facility_names[new_facility]);
-  syslog_facility= new_facility;
+  lock_operations.wr_lock();
+  ulong old_facility= syslog_facility;
+  if (old_facility != new_facility)
+  {
+    syslog_facility= new_facility;
+    mark_always_logged(thd);
+    error_header();
+    fprintf(stderr, "SysLog facility was changed from '%s' to '%s'.\n",
+            syslog_facility_names[old_facility],
+            syslog_facility_names[new_facility]);
+  }
+  lock_operations.wr_unlock();
 }
 
 
@@ -2731,17 +2725,18 @@ static void update_syslog_priority(MYSQL_THD thd, st_mysql_sys_var *, void *,
                                    const void *save)
 {
   ulong new_priority= *static_cast<const ulong*>(save);
-  if (syslog_priority == new_priority)
-    return;
-
-  mysql_prlock_wrlock(&lock_operations);
-  mark_always_logged(thd);
-  mysql_prlock_unlock(&lock_operations);
-  error_header();
-  fprintf(stderr, "SysLog priority was changed from '%s' to '%s'.\n",
-          syslog_priority_names[syslog_priority],
-          syslog_priority_names[new_priority]);
-  syslog_priority= new_priority;
+  lock_operations.wr_lock();
+  ulong old_priority= syslog_priority;
+  if (old_priority != new_priority)
+  {
+    syslog_priority= new_priority;
+    mark_always_logged(thd);
+    error_header();
+    fprintf(stderr, "SysLog priority was changed from '%s' to '%s'.\n",
+            syslog_priority_names[old_priority],
+            syslog_priority_names[new_priority]);
+  }
+  lock_operations.wr_unlock();
 }
 
 
@@ -2749,28 +2744,25 @@ static void update_logging(MYSQL_THD thd, st_mysql_sys_var *, void *,
                            const void *save)
 {
   char new_logging= *static_cast<const char*>(save);
-  if (new_logging == logging)
-    return;
-
-  internal_stop_logging++;
-  mysql_prlock_wrlock(&lock_operations);
-  if ((logging= new_logging))
+  lock_operations.wr_lock();
+  if (new_logging != logging)
   {
-    start_logging();
-    if (!logging)
+    logging= new_logging;
+    if (new_logging)
     {
-      CLIENT_ERROR(1, "Logging was disabled.", MYF(ME_WARNING));
+      start_logging();
+      if (!logging)
+        CLIENT_ERROR(1, "Logging was disabled.", MYF(ME_WARNING));
+      else
+        mark_always_logged(thd);
     }
-    mark_always_logged(thd);
+    else
+    {
+      log_current_query(thd);
+      stop_logging();
+    }
   }
-  else
-  {
-    log_current_query(thd);
-    stop_logging();
-  }
-
-  mysql_prlock_unlock(&lock_operations);
-  internal_stop_logging--;
+  lock_operations.wr_unlock();
 }
 
 
@@ -2778,17 +2770,17 @@ static void update_mode(MYSQL_THD thd, st_mysql_sys_var *, void *,
                         const void *save)
 {
   unsigned new_mode= *static_cast<const unsigned*>(save);
-  if (new_mode == mode)
-    return;
-
-  internal_stop_logging++;
-  mysql_prlock_wrlock(&lock_operations);
-  mark_always_logged(thd);
-  error_header();
-  fprintf(stderr, "Logging mode was changed from %d to %d.\n", mode, new_mode);
-  mode= new_mode;
-  mysql_prlock_unlock(&lock_operations);
-  internal_stop_logging--;
+  lock_operations.wr_lock();
+  unsigned old_mode= mode;
+  if (new_mode != old_mode)
+  {
+    mode= new_mode;
+    mark_always_logged(thd);
+    error_header();
+    fprintf(stderr, "Logging mode was changed from %u to %u.\n",
+            old_mode, new_mode);
+  }
+  lock_operations.wr_unlock();
 }
 
 
@@ -2796,21 +2788,23 @@ static void update_syslog_ident(MYSQL_THD thd, st_mysql_sys_var *, void *,
                                 const void *save)
 {
   char *new_ident= *static_cast<char*const*>(save);
+  lock_operations.wr_lock();
   if (!new_ident)
-    new_ident= empty_str;
-  strncpy(syslog_ident_buffer, new_ident, sizeof(syslog_ident_buffer)-1);
-  syslog_ident_buffer[sizeof(syslog_ident_buffer)-1]= 0;
-  syslog_ident= syslog_ident_buffer;
+    *syslog_ident= '\0';
+  else
+  {
+    strncpy(syslog_ident, new_ident, sizeof(syslog_ident)-1);
+    syslog_ident[sizeof(syslog_ident)-1]= 0;
+  }
   error_header();
-  fprintf(stderr, "SYSYLOG ident was changed to '%s'\n", syslog_ident);
-  mysql_prlock_wrlock(&lock_operations);
+  fprintf(stderr, "SYSLOG ident was changed to '%s'\n", syslog_ident);
   mark_always_logged(thd);
   if (logging && output_type == OUTPUT_SYSLOG)
   {
     stop_logging();
     start_logging();
   }
-  mysql_prlock_unlock(&lock_operations);
+  lock_operations.wr_unlock();
 }
 
 
@@ -2827,5 +2821,133 @@ BOOL WINAPI DllMain(HINSTANCE, DWORD fdwReason, LPVOID)
   if (fdwReason == DLL_PROCESS_ATTACH)
     audit_plugin_so_init();
   return 1;
+}
+#elif !defined SUX_LOCK_GENERIC
+# ifdef __linux__
+#  include <linux/futex.h>
+#  include <sys/syscall.h>
+#  define SRW_FUTEX(a,op,n) \
+   syscall(SYS_futex, a, FUTEX_ ## op ## _PRIVATE, n, nullptr, nullptr, 0)
+# elif defined __OpenBSD__
+#  include <sys/time.h>
+#  include <sys/futex.h>
+#  define SRW_FUTEX(a,op,n) \
+   futex((volatile uint32_t*) a, FUTEX_ ## op, n, nullptr, nullptr)
+# elif defined __FreeBSD__
+#  include <sys/types.h>
+#  include <sys/umtx.h>
+#  define FUTEX_WAKE UMTX_OP_WAKE_PRIVATE
+#  define FUTEX_WAIT UMTX_OP_WAIT_UINT_PRIVATE
+#  define SRW_FUTEX(a,op,n) _umtx_op(a, FUTEX_ ## op, n, nullptr, nullptr)
+# elif defined __DragonFly__
+#  include <unistd.h>
+#  define FUTEX_WAKE(a,n) umtx_wakeup(a,n)
+#  define FUTEX_WAIT(a,n) umtx_sleep(a,n,0)
+#  define SRW_FUTEX(a,op,n) FUTEX_ ## op((volatile int*) a, int(n))
+# else
+#  error "no futex support nor #define SUX_LOCK_GENERIC"
+# endif
+
+# ifdef __GNUC__
+#  pragma GCC visibility push(hidden) /* Avoid a symbol clash with InnoDB */
+# endif
+
+template<> inline void srw_mutex_impl<false>::wait(uint32_t lk) noexcept
+{ SRW_FUTEX(&lock, WAIT, lk); }
+template<> inline void srw_mutex_impl<false>::wake() noexcept
+{ SRW_FUTEX(&lock, WAKE, 1); }
+template<> inline void srw_mutex_impl<false>::wake_all() noexcept
+{ SRW_FUTEX(&lock, WAKE, INT_MAX); }
+template<> inline void ssux_lock_impl<false>::wait(uint32_t lk) noexcept
+{ SRW_FUTEX(&readers, WAIT, lk); }
+template<> inline void ssux_lock_impl<false>::wake() noexcept
+{ SRW_FUTEX(&readers, WAKE, 1); }
+
+template<>
+void srw_mutex_impl<false>::wait_and_lock() noexcept
+{
+  uint32_t lk= WAITER + lock.fetch_add(WAITER, std::memory_order_relaxed);
+  for (;;)
+  {
+    DBUG_ASSERT(~HOLDER & lk);
+    if (lk & HOLDER)
+    {
+      wait(lk);
+#if defined __i386__||defined __x86_64__
+reload:
+#endif
+      lk= lock.load(std::memory_order_relaxed);
+    }
+    else
+    {
+#if defined __i386__||defined __x86_64__
+      if (lock.fetch_or(HOLDER, std::memory_order_relaxed) & HOLDER)
+        goto reload;
+#else
+      if ((lk= lock.fetch_or(HOLDER, std::memory_order_relaxed)) & HOLDER)
+        continue;
+      DBUG_ASSERT(lk);
+#endif
+      std::atomic_thread_fence(std::memory_order_acquire);
+      return;
+    }
+  }
+}
+
+template<>
+void ssux_lock_impl<false>::wr_wait(uint32_t lk) noexcept
+{
+  DBUG_ASSERT(writer.is_locked());
+  DBUG_ASSERT(lk);
+  DBUG_ASSERT(lk < WRITER);
+
+  lk|= WRITER;
+
+  do
+  {
+    DBUG_ASSERT(lk > WRITER);
+    wait(lk);
+    lk= readers.load(std::memory_order_acquire);
+  }
+  while (lk != WRITER);
+}
+
+template<bool spinloop>
+void ssux_lock_impl<spinloop>::rd_lock_nospin() noexcept
+{
+  /* Subscribe to writer.wake() or write.wake_all() calls of
+  concurrently executing rd_wait() or writer.wr_unlock(). */
+  uint32_t wl= writer.WAITER +
+    writer.lock.fetch_add(writer.WAITER, std::memory_order_acquire);
+
+  for (;;)
+  {
+    if (writer.HOLDER & wl)
+      writer.wait(wl);
+    uint32_t lk= rd_lock_try_low();
+    if (!lk)
+      break;
+    if (UNIV_UNLIKELY(lk == WRITER)) /* A wr_lock() just succeeded. */
+      /* Immediately wake up (also) wr_lock(). We may also unnecessarily
+      wake up other concurrent threads that are executing rd_wait().
+      If we invoked writer.wake() here to wake up just one thread,
+      we could wake up a rd_wait(), which then would invoke writer.wake(),
+      waking up possibly another rd_wait(), and we could end up doing
+      lots of non-productive context switching until the wr_lock()
+      is finally woken up. */
+      writer.wake_all();
+    wl= writer.lock.load(std::memory_order_acquire);
+    ut_ad(wl);
+  }
+
+  /* Unsubscribe writer.wake() and writer.wake_all(). */
+  wl= writer.lock.fetch_sub(writer.WAITER, std::memory_order_release);
+  ut_ad(wl);
+
+  /* Wake any other threads that may be blocked in writer.wait().
+  All other waiters than this rd_wait() would end up acquiring writer.lock
+  and waking up other threads on unlock(). */
+  if (wl > writer.WAITER)
+    writer.wake_all();
 }
 #endif
