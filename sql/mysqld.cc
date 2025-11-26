@@ -5189,6 +5189,12 @@ static int init_server_components()
 
   if (WSREP_ON && !wsrep_recovery && !opt_abort)
   {
+    if (binlog_engine_used)
+    {
+      sql_print_error("Galera cannot be used with the "
+                      "--binlog-storage-engine option");
+      unireg_abort(1);
+    }
     if (opt_bootstrap) // bootsrap option given - disable wsrep functionality
     {
       wsrep_provider_init(WSREP_NONE);
@@ -5582,6 +5588,12 @@ static int init_server_components()
     {
       sql_print_error("Semi-synchronous replication is not yet supported "
                       "with --binlog-storage-engine");
+      unireg_abort(1);
+    }
+    if (rpl_status != RPL_AUTH_MASTER)
+    {
+      sql_print_error("The --init-rpl-role option is not available with "
+                      "--binlog-storage-engine");
       unireg_abort(1);
     }
     if (encrypt_binlog)

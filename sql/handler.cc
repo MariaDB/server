@@ -3157,6 +3157,12 @@ int ha_recover(HASH *commit_list, MEM_ROOT *arg_mem_root)
 
   if (opt_binlog_engine_hton)
   {
+    if (tc_heuristic_recover)
+    {
+      sql_print_error("The --tc-heuristic-recover option is not needed with, "
+                      "and cannot  be used with --binlog-storage-engine");
+      DBUG_RETURN(1);
+    }
     /*
       With engine-implemented binlog, recovery is handled during binlog
       open, calling into ha_recover_engine_binlog().
