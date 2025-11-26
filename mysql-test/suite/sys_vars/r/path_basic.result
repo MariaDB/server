@@ -425,63 +425,63 @@ SELECT @@global.path;
 @@global.path
 `.`,`sys`
 SET PATH '`';
-ERROR 42000: Variable 'path' can't be set to the value of '`'
+ERROR 42000: Variable 'PATH' can't be set to the value of '`'
 SET PATH '"';
-ERROR 42000: Variable 'path' can't be set to the value of '"'
+ERROR 42000: Variable 'PATH' can't be set to the value of '"'
 SET PATH '`a';
-ERROR 42000: Variable 'path' can't be set to the value of '`a'
+ERROR 42000: Variable 'PATH' can't be set to the value of '`a'
 SET PATH '"a';
-ERROR 42000: Variable 'path' can't be set to the value of '"a'
+ERROR 42000: Variable 'PATH' can't be set to the value of '"a'
 SET PATH 'a`';
-ERROR 42000: Variable 'path' can't be set to the value of 'a`'
+ERROR 42000: Variable 'PATH' can't be set to the value of 'a`'
 SET PATH 'a"';
-ERROR 42000: Variable 'path' can't be set to the value of 'a"'
+ERROR 42000: Variable 'PATH' can't be set to the value of 'a"'
 SET PATH '"d"';
-ERROR 42000: Variable 'path' can't be set to the value of '"d"'
+ERROR 42000: Variable 'PATH' can't be set to the value of '"d"'
 SET PATH '`aaa';
-ERROR 42000: Variable 'path' can't be set to the value of '`aaa'
+ERROR 42000: Variable 'PATH' can't be set to the value of '`aaa'
 SET PATH 'aaa`';
-ERROR 42000: Variable 'path' can't be set to the value of 'aaa`'
+ERROR 42000: Variable 'PATH' can't be set to the value of 'aaa`'
 SET PATH '"aaa';
-ERROR 42000: Variable 'path' can't be set to the value of '"aaa'
+ERROR 42000: Variable 'PATH' can't be set to the value of '"aaa'
 SET PATH 'aaa"';
-ERROR 42000: Variable 'path' can't be set to the value of 'aaa"'
+ERROR 42000: Variable 'PATH' can't be set to the value of 'aaa"'
 SET PATH '`aaa"';
-ERROR 42000: Variable 'path' can't be set to the value of '`aaa"'
+ERROR 42000: Variable 'PATH' can't be set to the value of '`aaa"'
 SET PATH '"aaa`';
-ERROR 42000: Variable 'path' can't be set to the value of '"aaa`'
+ERROR 42000: Variable 'PATH' can't be set to the value of '"aaa`'
 SET PATH '"ggg,hhh';
-ERROR 42000: Variable 'path' can't be set to the value of '"ggg,hhh'
+ERROR 42000: Variable 'PATH' can't be set to the value of '"ggg,hhh'
 SET PATH 'ggg",hhh';
-ERROR 42000: Variable 'path' can't be set to the value of 'ggg",hhh'
+ERROR 42000: Variable 'PATH' can't be set to the value of 'ggg",hhh'
 SET PATH '"ggg",hhh';
-ERROR 42000: Variable 'path' can't be set to the value of '"ggg",hhh'
+ERROR 42000: Variable 'PATH' can't be set to the value of '"ggg",hhh'
 SET PATH 'hhh,`iii`,jjj,"kkk",lll';
-ERROR 42000: Variable 'path' can't be set to the value of 'hhh,`iii`,jjj,"kkk",lll'
+ERROR 42000: Variable 'PATH' can't be set to the value of 'hhh,`iii`,jjj,"kkk",lll'
 SET PATH 'hello,world,deadpool,wolverine,aaa,deadpool,ccc';
-ERROR 42000: Variable 'path' can't be set to the value of 'deadpool'
+ERROR 42000: Variable 'PATH' can't be set to the value of 'hello,world,deadpool,wolverine,aaa,deadpool,ccc'
 SET PATH '`,Ɣ';
-ERROR 42000: Variable 'path' can't be set to the value of '`,Ɣ'
+ERROR 42000: Variable 'PATH' can't be set to the value of '`,Ɣ'
 SET PATH '",Ɣ';
-ERROR 42000: Variable 'path' can't be set to the value of '",Ɣ'
+ERROR 42000: Variable 'PATH' can't be set to the value of '",Ɣ'
 SET PATH 'Ɣ,`';
-ERROR 42000: Variable 'path' can't be set to the value of 'Ɣ,`'
+ERROR 42000: Variable 'PATH' can't be set to the value of 'Ɣ,`'
 SET PATH 'Ɣ,"';
-ERROR 42000: Variable 'path' can't be set to the value of 'Ɣ,"'
+ERROR 42000: Variable 'PATH' can't be set to the value of 'Ɣ,"'
 SET PATH '`Œ';
-ERROR 42000: Variable 'path' can't be set to the value of '`Œ'
+ERROR 42000: Variable 'PATH' can't be set to the value of '`Œ'
 SET PATH '"c';
-ERROR 42000: Variable 'path' can't be set to the value of '"c'
+ERROR 42000: Variable 'PATH' can't be set to the value of '"c'
 SET PATH 'Œ`';
-ERROR 42000: Variable 'path' can't be set to the value of 'Œ`'
+ERROR 42000: Variable 'PATH' can't be set to the value of 'Œ`'
 SET PATH 'Œ"';
-ERROR 42000: Variable 'path' can't be set to the value of 'Œ"'
+ERROR 42000: Variable 'PATH' can't be set to the value of 'Œ"'
 SET PATH '`Œ"';
-ERROR 42000: Variable 'path' can't be set to the value of '`Œ"'
+ERROR 42000: Variable 'PATH' can't be set to the value of '`Œ"'
 SET PATH '"Œ`';
-ERROR 42000: Variable 'path' can't be set to the value of '"Œ`'
+ERROR 42000: Variable 'PATH' can't be set to the value of '"Œ`'
 SET PATH '"Ɣ"';
-ERROR 42000: Variable 'path' can't be set to the value of '"Ɣ"'
+ERROR 42000: Variable 'PATH' can't be set to the value of '"Ɣ"'
 SELECT @@path;
 @@path
 `.`,`sys`
@@ -492,8 +492,10 @@ SET PATH ' ';
 SET PATH '    ';
 SET PATH ',';
 SET PATH '``';
+ERROR 42000: Incorrect database name ''
 SET sql_mode=ANSI_QUOTES;
 SET PATH '""';
+ERROR 42000: Incorrect database name ''
 SET sql_mode=DEFAULT;
 #
 # Escaping backticks
@@ -507,9 +509,9 @@ SELECT @@path;
 @@path
 `a```
 SET PATH '``a`';
-ERROR 42000: Variable 'path' can't be set to the value of '``a`'
+ERROR 42000: Incorrect database name ''
 SET PATH '`a``';
-ERROR 42000: Variable 'path' can't be set to the value of '`a``'
+ERROR 42000: Variable 'PATH' can't be set to the value of '`a``'
 SET GLOBAL PATH=DEFAULT;
 SET @@path=DEFAULT;
 #
@@ -520,7 +522,7 @@ SELECT @@path;
 @@path
 `a`,`b`,`c`,`d`,`e`,`f`,`g`,`h`,`i`,`j`,`k`,`l`,`m`,`n`,`o`,`p`
 SET PATH 'a,b,c,d,e,f,g,h,i,j,k,l,m,n,o,p,q';
-ERROR HY000: Too long value for 'path'
+ERROR HY000: Too long value for 'PATH'
 SELECT @@path;
 @@path
 `a`,`b`,`c`,`d`,`e`,`f`,`g`,`h`,`i`,`j`,`k`,`l`,`m`,`n`,`o`,`p`
