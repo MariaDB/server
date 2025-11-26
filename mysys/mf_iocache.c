@@ -1790,7 +1790,8 @@ int my_b_flush_io_cache(IO_CACHE *info, int need_append_buffer_lock)
 
     if ((length=(size_t) (info->write_pos - info->write_buffer)))
     {
-      my_off_t eof= info->end_of_file + info->write_pos - info->append_read_pos;
+      my_off_t eof= info->end_of_file +
+        (ptrdiff_t)(info->write_pos - info->append_read_pos);
       if (append_cache)
       {
         if (tmp_file_track(info, eof) ||
