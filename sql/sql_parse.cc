@@ -5644,7 +5644,12 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
     REFRESH_STATUS                          |
     REFRESH_USER_RESOURCES))
     {
-      WSREP_TO_ISOLATION_BEGIN_WRTCHK(WSREP_MYSQL_DB, NULL, NULL);
+      if (WSREP(thd) && !thd->lex->no_write_to_binlog &&
+          wsrep_to_isolation_begin(thd, WSREP_MYSQL_DB, NULL, NULL))
+      {
+	res= 1;
+	goto error;
+      }
     }
 #endif /* WITH_WSREP*/
 
