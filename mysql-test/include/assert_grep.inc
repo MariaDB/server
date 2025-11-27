@@ -58,7 +58,7 @@ if ($assert_match == '')
 {
   if ($assert_count == '')
   {
-    --die !!!ERROR IN TEST: you must set either $assert_match or $assert_count
+    --die !!!ERROR IN TEST: you must set either \$assert_match or \$assert_count
   }
 }
 if ($assert_match != '')
@@ -66,7 +66,7 @@ if ($assert_match != '')
   if ($assert_count != '')
   {
     --echo assert_text='$assert_text' assert_count='$assert_count'
-    --die !!!ERROR IN TEST: you must set only one of $assert_match or $assert_count
+    --die !!!ERROR IN TEST: you must set only one of \$assert_match or \$assert_count
   }
 }
 

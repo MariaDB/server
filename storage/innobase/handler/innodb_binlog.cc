@@ -435,7 +435,7 @@ struct chunk_data_cache : public chunk_data_base {
 
     /* Start with the GTID event, which is put at the end of the IO_CACHE. */
     my_bool res= reinit_io_cache(cache, READ_CACHE, binlog_info->gtid_offset, 0, 0);
-    ut_a(!res /* ToDo: Error handling. */);
+    ut_a(!res);
   }
   ~chunk_data_cache() { }
 
@@ -464,7 +464,7 @@ struct chunk_data_cache : public chunk_data_base {
     {
       uint32_t size2= gtid_remain > max_len ? max_len : (uint32_t)gtid_remain;
       int res2= my_b_read(cache, p + size, size2);
-      ut_a(!res2 /* ToDo: Error handling */);
+      ut_a(!res2 /* Reading from in-memory cache data cannot fail. */);
       gtid_remain-= size2;
       if (gtid_remain == 0)
         my_b_seek(cache, main_start); /* Move to read the rest of the events. */
@@ -487,7 +487,7 @@ struct chunk_data_cache : public chunk_data_base {
     }
     uint32_t size2= main_remain > max_len ? max_len : (uint32_t)main_remain;
     int res2= my_b_read(cache, p + size, size2);
-    ut_a(!res2 /* ToDo: Error handling */);
+    ut_a(!res2);
     ut_ad(main_remain >= size2);
     main_remain-= size2;
     return {size + size2, main_remain == 0};
@@ -1638,10 +1638,7 @@ innodb_binlog_init(size_t binlog_size, const char *directory,
   /* Find any existing binlog files and continue writing in them. */
   int res= innodb_binlog_discover();
   if (res < 0)
-  {
-    /* ToDo: Need to think more on the error handling if the binlog cannot be opened. We may need to abort starting the server, at least for some errors? And/or in some cases maybe force ignore any existing unusable files and continue with a new binlog (but then maybe innodb_binlog_discover() should return 0 and print warnings in the error log?). */
     return true;
-  }
   if (res > 0)
   {
     /* We are continuing from existing binlogs. Recover the binlog state. */
@@ -1880,8 +1877,13 @@ find_pos_in_binlog(uint64_t file_no, size_t file_size, byte *page_buf,
       break;
     }
     p += 3 + (((uint32_t)p[2] << 8) | ((uint32_t)p[1] & 0xff));
-    // ToDo: How to handle page corruption?
-    ut_a(p <= page_end);
+    if(UNIV_UNLIKELY(p > page_end))
+    {
+      sql_print_error("InnoDB: Invalid record in file_no=%" PRIu64
+                      " page_no=%u (invalid chunk length)",
+                      file_no, last_nonempty);
+      return -1;
+    }
   }
 
   /*
@@ -2128,11 +2130,6 @@ innodb_binlog_prealloc_thread()
       mysql_mutex_unlock(&purge_binlog_mutex);
 
       mysql_mutex_lock(&active_binlog_mutex);
-       /*
-         ToDo: Error handling.
-         For example, disk full, while tricky to handle well, should not crash
-         the server at least.
-       */
       ut_a(res2 == DB_SUCCESS);
       last_created_binlog_file_no= last_created;
 
@@ -2193,7 +2190,8 @@ ibb_write_header_page(mtr_t *mtr, uint64_t file_no, uint64_t file_size_in_pages,
   uint32_t used_bytes;
 
   block= binlog_page_fifo->create_page(file_no, 0);
-  ut_a(block /* ToDo: error handling? */);
+  if (UNIV_UNLIKELY(!block))
+    return true;
   byte *ptr= &block->page_buf()[0];
   uint64_t oob_ref_file_no=
     ibb_file_hash.earliest_oob_ref.load(std::memory_order_relaxed);
@@ -2327,7 +2325,8 @@ binlog_gtid_state(rpl_binlog_state_base *state, mtr_t *mtr,
         binlog_page_fifo->release_page_mtr(block, mtr);
       block_page_no= page_no;
       block= binlog_page_fifo->create_page(file_no, block_page_no);
-      ut_a(block /* ToDo: error handling? */);
+      if (UNIV_UNLIKELY(!block))
+        return true;
       page_offset= BINLOG_PAGE_DATA;
       byte *ptr= page_offset + &block->page_buf()[0];
       uint32_t chunk= (uint32_t)used_bytes;
@@ -2364,7 +2363,8 @@ binlog_gtid_state(rpl_binlog_state_base *state, mtr_t *mtr,
   /* Make sure we return a page for caller to write the main event data into. */
   if (UNIV_UNLIKELY(!block)) {
     block= binlog_page_fifo->create_page(file_no, page_no);
-    ut_a(block /* ToDo: error handling? */);
+    if (UNIV_UNLIKELY(!block))
+      return true;
   }
 
   return false;  // No error
@@ -3094,7 +3094,7 @@ binlog_oob_context::binlog_node(uint32_t node, uint64_t new_idx,
   node_list[node].offset= new_file_no_offset.second;
   node_list[node].node_index= new_idx;
   node_list[node].height= new_height;
-  return false;  // ToDo: Error handling?
+  return false;
 }
 
 

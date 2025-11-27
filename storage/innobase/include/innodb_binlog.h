@@ -107,10 +107,7 @@ struct binlog_header_data {
   uint64_t diff_state_interval;
   /* The earliest file_no that we have oob references into. */
   uint64_t oob_ref_file_no;
-  /*
-    The earliest file_no that we have XA oob references into.
-    ToDo: This in preparation for when XA is implemented.
-  */
+  /* The earliest file_no that we have XA oob references into. */
   uint64_t xa_ref_file_no;
   /* The log_2 of the page size (eg. ibb_page_size_shift). */
   uint32_t page_size_shift;
