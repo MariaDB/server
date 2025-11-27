@@ -8471,7 +8471,6 @@ MYSQL_BIN_LOG::get_most_recent_gtid_list(rpl_gtid **list, uint32 *size)
 }
 
 
-/* ToDo: Should this be a service? */
 bool
 load_global_binlog_state(rpl_binlog_state_base *state)
 {

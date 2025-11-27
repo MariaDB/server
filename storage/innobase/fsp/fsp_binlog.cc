@@ -1493,6 +1493,7 @@ dberr_t fsp_binlog_tablespace_create(uint64_t file_no, uint32_t size_in_pages,
 
 	os_file_create_subdirs_if_needed(name);
 
+try_again:
 	fh = os_file_create(
 		innodb_data_file_key, name,
 		OS_FILE_CREATE, OS_DATA_FILE, srv_read_only_mode, &ret);
@@ -1506,10 +1507,18 @@ dberr_t fsp_binlog_tablespace_create(uint64_t file_no, uint32_t size_in_pages,
 	if (!os_file_set_size(name, fh,
 			      os_offset_t{size_in_pages} << ibb_page_size_shift)
             ) {
-		sql_print_error("InnoDB: Unable to allocate file %s", name);
+		char buf[MYSYS_STRERROR_SIZE];
+		ulong wait_sec= MY_WAIT_FOR_USER_TO_FIX_PANIC;
+		DBUG_EXECUTE_IF("ib_alloc_file_disk_full",
+				wait_sec= 2;);
+		my_strerror(buf, sizeof(buf), errno);
+		sql_print_error("InnoDB: Unable to allocate file %s: \"%s\". "
+				"Waiting %lu seconds before trying again...",
+				name, buf, wait_sec);
 		os_file_close(fh);
 		os_file_delete(innodb_data_file_key, name);
-		return DB_ERROR;
+		my_sleep(wait_sec * 1000000);
+		goto try_again;
 	}
 
         /*
@@ -1534,6 +1543,8 @@ dberr_t fsp_binlog_tablespace_create(uint64_t file_no, uint32_t size_in_pages,
   As a special case, a record write of type FSP_BINLOG_TYPE_FILLER does not
   write any record, but moves to the next tablespace and writes the initial
   GTID state record, used for FLUSH BINARY LOGS.
+
+  Returns a pair of {file_no, offset} marking the start of the record written.
 */
 std::pair<uint64_t, uint64_t>
 fsp_binlog_write_rec(chunk_data_base *chunk_data, mtr_t *mtr, byte chunk_type,
@@ -1602,7 +1613,7 @@ fsp_binlog_write_rec(chunk_data_base *chunk_data, mtr_t *mtr, byte chunk_type,
         bool err= ibb_write_header_page(mtr, file_no, file_size_in_pages,
                                         start_lsn,
                                         current_binlog_state_interval, pins);
-        ut_a(!err /* ToDo error handling */);
+        ut_a(!err);
         page_no= 1;
       }
 
@@ -1618,7 +1629,7 @@ fsp_binlog_write_rec(chunk_data_base *chunk_data, mtr_t *mtr, byte chunk_type,
           bool err;
           full_state.init();
           err= load_global_binlog_state(&full_state);
-          ut_a(!err /* ToDo error handling */);
+          ut_a(!err);
           if (UNIV_UNLIKELY(file_no == 0 && page_no == 1) &&
               (full_state.count_nolock() == 1))
           {
@@ -1657,14 +1668,14 @@ fsp_binlog_write_rec(chunk_data_base *chunk_data, mtr_t *mtr, byte chunk_type,
           }
           err= binlog_gtid_state(&full_state, mtr, block, page_no,
                                  page_offset, file_no);
-          ut_a(!err /* ToDo error handling */);
+          ut_a(!err);
           ut_ad(block);
           full_state.free();
           binlog_diff_state.reset_nolock();
         } else {
           bool err= binlog_gtid_state(&binlog_diff_state, mtr, block, page_no,
                                       page_offset, file_no);
-          ut_a(!err /* ToDo error handling */);
+          ut_a(!err);
         }
       } else
         block= binlog_page_fifo->create_page(file_no, page_no);
@@ -1675,7 +1686,6 @@ fsp_binlog_write_rec(chunk_data_base *chunk_data, mtr_t *mtr, byte chunk_type,
     ut_ad(page_offset < page_end);
     uint32_t page_remain= page_end - page_offset;
     byte *ptr= page_offset + &block->page_buf()[0];
-    /* ToDo: Do this check at the end instead, to save one buf_page_get_gen()? */
     if (page_remain < 4) {
       /* Pad the remaining few bytes, and move to next page. */
       if (UNIV_LIKELY(page_remain > 0))
@@ -2209,13 +2219,6 @@ go_next_page:
         (s.page_no << ibb_page_size_shift) >= cur_file_length)
     {
       /* Move to the next file. */
-      /*
-        ToDo: Should we have similar logic for moving to the next file when
-        we reach the end of the last page using the buffer pool?
-
-        Then we save re-fetching the page later. But then we need to keep
-        track of the file length also when reading from the buffer pool.
-      */
       my_close(cur_file_handle, MYF(0));
       cur_file_handle= (File)-1;
       cur_file_length= ~(uint64_t)0;
