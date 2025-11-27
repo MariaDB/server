@@ -150,14 +150,14 @@
 -p5	1
 -p6	0
 -p7	0
-+p0	117
-+p1	131
-+p2	115
-+p3	124
-+p4	141
-+p5	131
-+p6	129
-+p7	114
++p0	144
++p1	128
++p2	128
++p3	109
++p4	114
++p5	136
++p6	122
++p7	121
  drop table t1;
  ## MDEV-20791 case with INET6
 -create table t1 (a inet6) partition by key  (a) partitions 2;

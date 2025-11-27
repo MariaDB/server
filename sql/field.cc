@@ -1957,7 +1957,8 @@ void Field::hash_not_null(Hasher *hasher)
 {
   DBUG_ASSERT(marked_for_read());
   DBUG_ASSERT(!is_null());
-  hasher->add(sort_charset(), ptr, pack_length());
+  uint32 len= pack_length();
+  hasher->add(sort_charset(), ptr, len, len);
 }
 
 size_t
@@ -8618,7 +8619,8 @@ void Field_varstring::hash_not_null(Hasher *hasher)
   DBUG_ASSERT(marked_for_read());
   DBUG_ASSERT(!is_null());
   uint len=  length_bytes == 1 ? (uint) *ptr : uint2korr(ptr);
-  hasher->add(charset(), ptr + length_bytes, len);
+  hasher->add(charset(), ptr + length_bytes, len,
+              pack_length() - length_bytes);
 }
 
 
@@ -9002,7 +9004,7 @@ void Field_blob::hash_not_null(Hasher *hasher)
   char *blob;
   memcpy(&blob, ptr + packlength, sizeof(char*));
   if (blob)
-    hasher->add(Field_blob::charset(), blob, get_length(ptr));
+    hasher->add(Field_blob::charset(), blob, get_length(ptr), pack_length());
 }
 
 
@@ -10105,7 +10107,7 @@ void Field_bit::hash_not_null(Hasher *hasher)
   longlong value= Field_bit::val_int();
   uchar tmp[8];
   mi_int8store(tmp,value);
-  hasher->add(&my_charset_bin, tmp, 8);
+  hasher->add(&my_charset_bin, tmp, 8, pack_length());
 }
 
 

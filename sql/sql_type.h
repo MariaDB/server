@@ -244,7 +244,7 @@ public:
     else
       m_hash_func(NULL, 0, &m_nr);
   }
-  void add(CHARSET_INFO *cs, const uchar *str, size_t length)
+  void add(CHARSET_INFO *cs, const uchar *str, size_t length, size_t maxlen)
   {
     if (!m_hash_func)
       cs->coll->hash_sort(cs, str, length, &m_nr1, &m_nr2);
@@ -252,14 +252,16 @@ public:
       m_hash_func(str, length, &m_nr);
     else
     {
-      uchar newstr[4096] = {'\0'};
-      const size_t newlen= cs->strnxfrm(newstr, 4096, str, length);
+      size_t newlen= cs->strnxfrmlen(maxlen);
+      uchar *newstr= (uchar *) my_alloca(newlen);
+      newlen= cs->strnxfrm(newstr, newlen, str, length);
       m_hash_func(newstr, newlen, &m_nr);
+      my_afree(newstr);
     }
   }
-  void add(CHARSET_INFO *cs, const char *str, size_t length)
+  void add(CHARSET_INFO *cs, const char *str, size_t length, size_t maxlen)
   {
-    add(cs, (const uchar *) str, length);
+    add(cs, (const uchar *) str, length, maxlen);
   }
   uint32 finalize() const
   {

@@ -10306,7 +10306,7 @@ static uint32 mysql51_hash(Field **field_array)
         }
         /* Force this to my_hash_sort_bin, which was used in 5.1! */
         uint len= field->pack_length();
-        hasher.add(&my_charset_bin, field->ptr, len);
+        hasher.add(&my_charset_bin, field->ptr, len, len);
         /* Done with this field, continue with next one. */
         continue;
       }
@@ -10329,7 +10329,7 @@ static uint32 mysql51_hash(Field **field_array)
         }
         /* Force this to my_hash_sort_bin, which was used in 5.1! */
         uint len= field->pack_length();
-        hasher.add(&my_charset_latin1, field->ptr, len);
+        hasher.add(&my_charset_latin1, field->ptr, len, len);
         continue;
       }
     /* New types in mysql-5.6. */
