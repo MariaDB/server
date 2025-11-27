@@ -171,6 +171,12 @@ Event_creation_ctx::load_from_db(THD *thd,
   return invalid_creation_ctx;
 }
 
+
+/**
+  Wrapper around Event_creation_ctx::load_from_db() to make it visible
+  from sql_sys_or_ddl_triggers()
+*/
+
 bool
 load_creation_context_for_sys_trg(THD *thd,
                                   MEM_ROOT *event_mem_root,

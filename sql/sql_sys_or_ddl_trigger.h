@@ -46,12 +46,11 @@ static inline bool is_ddl_trg_events(trg_all_events_set events)
   return ((events & ddl_events) == events);
 }
 
-class Sys_trigger
+class Sys_trigger : public Sql_alloc
 {
 public:
   Sys_trigger(THD *thd, sp_head *sp)
   : m_thd{thd}, m_sp{sp}, next{nullptr} {}
-
 
   void destroy()
   {

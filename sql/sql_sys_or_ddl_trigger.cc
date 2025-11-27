@@ -330,6 +330,7 @@ private:
 };
 
 static THD *thd_for_sys_triggers= nullptr;
+static THD *original_thd= nullptr;
 
 static Sys_trigger*
 sys_triggers[TRG_ACTION_MAX][TRG_SYS_EVENT_MAX - TRG_EVENT_STARTUP]= {{nullptr}};
@@ -555,8 +556,9 @@ bool mysql_create_sys_trigger(THD *thd)
 
   events_mask = events_mask << 1;
 
-  Sys_trigger *sys_trg= new Sys_trigger(thd_for_sys_triggers,
-                                        thd->lex->sphead);
+  Sys_trigger *sys_trg=
+    new (thd_for_sys_triggers->mem_root) Sys_trigger(thd_for_sys_triggers,
+                                                     thd->lex->sphead);
   register_system_triggers(
     sys_trg, thd->lex->trg_chistics.action_time,
     Event_parse_data::enum_kind(events_mask));
@@ -711,6 +713,10 @@ bool Sys_trigger::execute()
   List<Item> empty_item_list;
   bool ret= m_sp->execute_procedure(m_thd, &empty_item_list);
 
+  m_thd->end_statement();
+  m_thd->cleanup_after_query();
+  m_thd->reset_query();
+
   return ret;
 }
 
@@ -801,11 +807,11 @@ static const int max_event_names_length =
 
 static bool reconstruct_create_trigger_stmt(
   THD *thd, String *create_trg_stmt,
-  const LEX_CSTRING &trg_definer,
-  const LEX_CSTRING &trg_name,
+  const LEX_STRING &trg_definer,
+  const LEX_STRING &trg_name,
   Event_parse_data::enum_kind trg_kind,
   trg_action_time_type trg_when,
-  const LEX_CSTRING &body)
+  const LEX_STRING &body)
 {
   static const LEX_CSTRING prefix{STRING_WITH_LEN("CREATE DEFINER=")};
 
@@ -815,7 +821,7 @@ static bool reconstruct_create_trigger_stmt(
   size_t buffer_len= prefix.length + trg_definer.length +
                      trigger_clause.length + trg_name.length + 1 +
                      base_event_time[trg_when].length + 1 +
-                     max_event_names_length +
+                     max_event_names_length + 1 +
                      body.length + 1;
   buffer= thd->alloc(buffer_len);
   if (buffer == nullptr)
@@ -883,7 +889,6 @@ static sp_head *compile_trigger_stmt(THD *thd,
                                      Stored_program_creation_ctx *ctx,
                                      bool *parse_error)
 {
-  LEX *old_lex= thd->lex;
   LEX lex;
   Parser_state parser_state;
 
@@ -900,7 +905,7 @@ static sp_head *compile_trigger_stmt(THD *thd,
   lex.trg_chistics.events= TRG_EVENT_UNKNOWN;
   lex.trg_chistics.action_time= TRG_ACTION_MAX;
 
-  *parse_error= parse_sql(thd, & parser_state, ctx);
+  *parse_error= parse_sql(thd, &parser_state, ctx);
 
   if (*parse_error)
     return nullptr;
@@ -912,7 +917,6 @@ static sp_head *compile_trigger_stmt(THD *thd,
   thd->lex->sphead= nullptr;
 
   lex_end(&lex);
-  thd->lex= old_lex;
 
   return sphead;
 }
@@ -942,12 +946,12 @@ static sp_head *compile_trigger_stmt(THD *thd,
 
 static Sys_trigger *
 instantiate_sys_trigger(THD *thd,
-                        const LEX_CSTRING &db_name,
-                        const LEX_CSTRING &trg_name,
-                        const LEX_CSTRING &trg_definer,
+                        const LEX_STRING &db_name,
+                        const LEX_STRING &trg_name,
+                        const LEX_STRING &trg_definer,
                         Event_parse_data::enum_kind trg_kind,
                         trg_action_time_type trg_when,
-                        const LEX_CSTRING &trg_body,
+                        const LEX_STRING &trg_body,
                         sql_mode_t sql_mode,
                         Stored_program_creation_ctx *ctx,
                         bool *parse_error)
@@ -980,8 +984,9 @@ instantiate_sys_trigger(THD *thd,
                                     parse_error);
   if (sp)
   {
-    // TODO: Check whether it should be allocated on memory root!!!
-    sys_trg= new Sys_trigger(thd_for_sys_triggers, sp);
+    sys_trg=
+      new (thd_for_sys_triggers->mem_root) Sys_trigger(thd_for_sys_triggers,
+                                                       sp);
     sp->set_definer(trg_definer.str, trg_definer.length);
   }
   thd->variables.sql_mode= save_sql_mode;
@@ -990,6 +995,75 @@ instantiate_sys_trigger(THD *thd,
 }
 
 static class Stored_program_creation_ctx *creation_ctx= nullptr;
+
+
+/**
+  Do loading of a system trigger from the next record fetched from the table
+  mysql.event for event types different from SCHEDULE_EVENT, that is from
+  the record storing system trigger's metadata
+
+  @param thd  Thread handler
+  @param event_table  Opened table mysql.event
+  @param[out] db_name  database name
+  @param[out] trg_name  trigger name
+  @param[out] trg_body  trigger body
+  @param[out] trg_definer  trigger definer
+  @param[out] sql_mode  sql_mode used on trigger creation
+  @param[out] trg_when  when to fire the trigger (BEFORE, AFTER)
+
+  @return false on success, true on error
+*/
+
+static bool load_trigger_metadata(THD *thd, TABLE *event_table,
+                                  LEX_STRING *db_name,
+                                  LEX_STRING *trg_name,
+                                  LEX_STRING *trg_body,
+                                  LEX_STRING *trg_definer,
+                                  sql_mode_t *sql_mode,
+                                  trg_action_time_type *trg_when)
+{
+  *db_name=
+    event_table->field[ET_FIELD_DB]->val_lex_string_strmake(thd->mem_root);
+  if (db_name->str == nullptr)
+    return true;
+
+  *trg_name=
+    event_table->field[ET_FIELD_NAME]->val_lex_string_strmake(thd->mem_root);
+  if (trg_name->str == nullptr)
+    return true;
+
+  *trg_body=
+    event_table->field[ET_FIELD_BODY]->val_lex_string_strmake(thd->mem_root);
+  if (trg_body->str == nullptr)
+    return true;
+
+  *trg_definer=
+    event_table->field[ET_FIELD_DEFINER]->val_lex_string_strmake(thd->mem_root);
+
+  if (trg_definer->str == nullptr)
+    return true;
+
+  *sql_mode= (sql_mode_t) event_table->field[ET_FIELD_SQL_MODE]->val_int();
+
+  if (load_creation_context_for_sys_trg(thd, thd->mem_root,
+                                        db_name->str, trg_name->str,
+                                        event_table,
+                                        &creation_ctx))
+    return true;
+
+  /*
+    trigger event time is stored in the mysql.event table in the column
+    `when` declared as enum('BEFORE','AFTER'). So, enumerators has
+    the following values: 1 for `BEFORE`, 2 for `AFTER`.
+    On the other hand, the enum trg_action_time_type has values starting
+    from 0, so adjust values restored from the table mysql.event before using
+    them for calculations.
+  */
+  *trg_when=
+    (trg_action_time_type)(event_table->field[ET_FIELD_WHEN]->val_int() - 1);
+
+  return false;
+}
 
 
 /**
@@ -1017,11 +1091,11 @@ static bool load_system_triggers(THD *thd)
 
   bool ret= false;
 
-  Event_parse_data::enum_status trg_status;
-  sql_mode_t sql_mode;
-
   while (!(read_record_info.read_record()))
   {
+    Event_parse_data::enum_status trg_status;
+    sql_mode_t sql_mode;
+
     Event_parse_data::enum_kind trg_kind=
       (Event_parse_data::enum_kind)event_table->field[ET_FIELD_KIND]->val_int();
 
@@ -1033,60 +1107,14 @@ static bool load_system_triggers(THD *thd)
     if (trg_status != Event_parse_data::ENABLED)
       continue;
 
-    // Do loading of a system trigger from the record of mysq.event
-
-    const Lex_cstring db_name{
-      event_table->field[ET_FIELD_DB]->val_lex_string_strmake(thd->mem_root)};
-    if (db_name.str == nullptr)
+    LEX_STRING db_name, trg_name, trg_body, trg_definer;
+    trg_action_time_type trg_when;
+    if (load_trigger_metadata(thd, event_table, &db_name, &trg_name,
+                              &trg_body, &trg_definer, &sql_mode, &trg_when))
     {
       ret= true;
       break;
     }
-
-    const Lex_cstring trg_name{
-      event_table->field[ET_FIELD_NAME]->val_lex_string_strmake(
-        thd->mem_root)};
-    if (trg_name.str == nullptr)
-    {
-      ret= true;
-      break;
-    }
-
-    const Lex_cstring trg_body{
-      event_table->field[ET_FIELD_BODY]->val_lex_string_strmake(
-        thd->mem_root)};
-    if (trg_body.str == nullptr)
-    {
-      ret= true;
-      break;
-    }
-
-    const Lex_cstring trg_definer(
-      event_table->field[ET_FIELD_DEFINER]->val_lex_string_strmake(
-        thd->mem_root));
-
-    if (trg_definer.str == nullptr)
-    {
-      ret= true;
-      break;
-    }
-
-    sql_mode= (sql_mode_t) event_table->field[ET_FIELD_SQL_MODE]->val_int();
-
-    load_creation_context_for_sys_trg(thd, thd->mem_root,
-                                      db_name.str, trg_name.str,
-                                      event_table,
-                                      &creation_ctx);
-    /*
-      trigger event time is stored in the mysql.event table in the column
-      `when` declared as enum('BEFORE','AFTER'). So, enumerators has
-      the following values: 1 for `BEFORE`, 2 for `AFTER`.
-      On the other hand, the enum trg_action_time_type has values starting
-      from 0, so adjust values restored from the table mysql.event before using
-      them for calculations.
-    */
-    trg_action_time_type trg_when=
-      (trg_action_time_type)(event_table->field[ET_FIELD_WHEN]->val_int() - 1);
 
     bool parse_error= false;
     Sys_trigger *sys_trg=
@@ -1132,6 +1160,8 @@ bool run_after_startup_triggers()
 
   bool stack_top;
 
+  original_thd= current_thd;
+
   thd_for_sys_triggers= new THD{0};
   thd_for_sys_triggers->thread_stack= (char*) &stack_top;
   thd_for_sys_triggers->store_globals();
@@ -1143,7 +1173,8 @@ bool run_after_startup_triggers()
   /*
     First, load all available system triggers from the table mysql.event and
     store them in the two dimensional array based on trigger's action time and
-    event type.
+    event type. Any memory allocation is performed on the memory root of
+    thd_for_sys_triggers.
   */
   if (load_system_triggers(thd_for_sys_triggers))
   {
@@ -1169,11 +1200,15 @@ bool run_after_startup_triggers()
   }
 
   thd_for_sys_triggers->thread_stack= nullptr;
-
+  set_current_thd(original_thd);
   return false;
 }
 
 
+/**
+  System triggers are whole instance-wide, therefore they should be destroyed
+  just before database server shutdown
+*/
 static void destroy_sys_triggers()
 {
   for (int i=0; i< TRG_ACTION_MAX; i++)
@@ -1203,6 +1238,9 @@ void run_before_shutdown_triggers()
     return;
 
   bool stack_top;
+
+  original_thd= current_thd;
+  set_current_thd(thd_for_sys_triggers);
 
   thd_for_sys_triggers->thread_stack= (char*) &stack_top;
 
@@ -1311,28 +1349,20 @@ bool show_create_sys_trigger(THD *thd, const sp_name *trg_name)
     return true;
   }
 
-  const Lex_cstring trg_definer(
-    event_table->field[ET_FIELD_DEFINER]->val_lex_string_strmake(
-      thd->mem_root));
-
-  if (trg_definer.str == nullptr)
+  LEX_STRING db_name, trg_body, trg_definer;
+  LEX_STRING trigger_name{(char*)trg_name->m_name.str,
+                          trg_name->m_name.length};
+  sql_mode_t sql_mode;
+  trg_action_time_type trg_when;
+  if (load_trigger_metadata(thd, event_table, &db_name, &trigger_name,
+                            &trg_body, &trg_definer, &sql_mode, &trg_when))
     return true;
 
-  const Lex_cstring trg_body{
-    event_table->field[ET_FIELD_BODY]->val_lex_string_strmake(
-        thd->mem_root)};
-  if (trg_body.str == nullptr)
-    return true;
-
-  sql_mode_t sql_mode=
-    (sql_mode_t) event_table->field[ET_FIELD_SQL_MODE]->val_int();
-
-  trg_action_time_type trg_when=
-    (trg_action_time_type) event_table->field[ET_FIELD_WHEN]->val_int();
 
   String create_trg_stmt;
+
   if (reconstruct_create_trigger_stmt(thd, &create_trg_stmt, trg_definer,
-                                      trg_name->m_name, trg_kind, trg_when,
+                                      trigger_name, trg_kind, trg_when,
                                       trg_body))
     return true;
 
