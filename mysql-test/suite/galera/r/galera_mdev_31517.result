@@ -1,5 +1,9 @@
 connection node_2;
 connection node_1;
+# Make sure that the test is operating on the right version of galera library.
+# Correct Galera library found
+connection node_1;
+connection node_2;
 connection node_2;
 CALL mtr.add_suppression("unknown variable 'non_existing_variable=ON'");
 CALL mtr.add_suppression("Aborting");
