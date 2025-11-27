@@ -672,24 +672,9 @@ bool wsrep_is_BF_lock_timeout(const trx_t &trx)
              << " error: " << trx.error_state
              << " query: " << wsrep_thd_query(trx.mysql_thd);
 
-  if (const lock_t*wait_lock = trx.lock.wait_lock)
-  {
-    const my_hrtime_t now= my_hrtime_coarse();
-    const my_hrtime_t suspend_time= trx.lock.suspend_time;
-    fprintf(stderr,
-            "------- TRX HAS BEEN WAITING %llu us"
-            " FOR THIS LOCK TO BE GRANTED:\n",
-            now.val - suspend_time.val);
-
-    if (!wait_lock->is_table()) {
-      mtr_t mtr{nullptr};
-      lock_rec_print(stderr, wait_lock, mtr);
-    } else {
-      lock_table_print(stderr, wait_lock);
-    }
-
-    fprintf(stderr, "------------------\n");
-  }
+  // TODO: Can't use lock_rec_print from here because
+  // record lock page might not be latched and we are
+  // actually only interested lock information.
 
   return true;
 }
