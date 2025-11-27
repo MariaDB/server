@@ -59,8 +59,8 @@ unsigned char *compr_int_write(unsigned char *p, uint64_t v) {
   // Two words are needed if (offset + bytes) cross into the next word.
 #ifdef WORDS_BIGENDIAN
   /*
-    ToDo: On big-endian can use more efficient little-endian conversion, since
-    we know the pointer is 8-byte aligned.
+    Here it might be possible to use a slightly more efficient endian
+    conversion on big-endian, since we know the pointer is 8-byte aligned.
   */
   int8store((unsigned char *)p1,
             (uint8korr((unsigned char *)p1) & ~mask1) | v1);
@@ -90,8 +90,8 @@ compr_int_read(const unsigned char *p)
   const uint64_t *p_align= (const uint64_t *)((uintptr_t)p & ~(uintptr_t)7);
 #ifdef WORDS_BIGENDIAN
   /*
-    ToDo: On big-endian can use more efficient little-endian conversion, since
-    we know the pointer is 8-byte aligned.
+    Here it might be possible to use a slightly more efficient endian
+    conversion on big-endian, since we know the pointer is 8-byte aligned.
   */
   uint64_t v1= uint8korr((unsigned char *)p_align);
 #else

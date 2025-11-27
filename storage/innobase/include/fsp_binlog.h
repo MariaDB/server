@@ -289,10 +289,7 @@ struct ibb_tblspc_entry {
     file (including any user XA).
   */
   std::atomic<uint64_t>oob_refs;
-  /*
-    Active XA transactions whose oob start in this binlog tablespace file.
-    ToDo: Note that user XA is not yet implemented.
-  */
+  /* Active XA transactions whose oob start in this binlog tablespace file. */
   std::atomic<uint64_t>xa_refs;
   /*
     The earliest file number that this binlog tablespace file has oob
@@ -303,10 +300,7 @@ struct ibb_tblspc_entry {
     Includes any XA oob records.
   */
   std::atomic<uint64_t>oob_ref_file_no;
-  /*
-    Earliest file number that we have XA references into.
-    ToDo: Note that user XA is not yet implemented.
-  */
+  /* Earliest file number that we have XA references into. */
   std::atomic<uint64_t>xa_ref_file_no;
 
   ibb_tblspc_entry()= default;
