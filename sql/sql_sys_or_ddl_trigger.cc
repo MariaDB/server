@@ -539,13 +539,12 @@ bool mysql_create_sys_trigger(THD *thd)
                              thd->lex->trg_chistics, saved_sql_mode))
     return true;
 
-  Sys_trigger *sys_trg= new Sys_trigger(thd_for_sys_triggers,
-                                        thd->lex->sphead);
   char definer_buf[USER_HOST_BUFF_SIZE];
   LEX_CSTRING definer;
   thd->lex->definer->set_lex_string(&definer, definer_buf);
 
   thd->lex->sphead->set_definer(definer.str, definer.length);
+  thd->lex->sphead->init_psi_share();
 
   /*
     First move to 3 bits by right to ignore DML trigger events.
@@ -555,6 +554,9 @@ bool mysql_create_sys_trigger(THD *thd)
   trg_all_events_set events_mask= thd->lex->trg_chistics.events >> 3;
 
   events_mask = events_mask << 1;
+
+  Sys_trigger *sys_trg= new Sys_trigger(thd_for_sys_triggers,
+                                        thd->lex->sphead);
   register_system_triggers(
     sys_trg, thd->lex->trg_chistics.action_time,
     Event_parse_data::enum_kind(events_mask));
@@ -1125,7 +1127,7 @@ static bool load_system_triggers(THD *thd)
 
 bool run_after_startup_triggers()
 {
-  if (opt_bootstrap)
+  if (opt_bootstrap || opt_readonly)
     return false;
 
   bool stack_top;
@@ -1144,7 +1146,11 @@ bool run_after_startup_triggers()
     event type.
   */
   if (load_system_triggers(thd_for_sys_triggers))
+  {
+    delete thd_for_sys_triggers;
+
     return true;
+  }
 
   /*
     Then get a list of AFTER STARTUP triggers and execute them one by one
@@ -1193,7 +1199,7 @@ static void destroy_sys_triggers()
 
 void run_before_shutdown_triggers()
 {
-  if (opt_bootstrap)
+  if (opt_bootstrap || opt_readonly)
     return;
 
   bool stack_top;
@@ -1209,7 +1215,6 @@ void run_before_shutdown_triggers()
   }
 
   destroy_sys_triggers();
-  thd_for_sys_triggers->thread_stack= nullptr;
   delete thd_for_sys_triggers;
 }
 
