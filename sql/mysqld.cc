@@ -5361,8 +5361,14 @@ static int init_server_components()
 #endif
 
     if ((ho_error= handle_options(&remaining_argc, &remaining_argv, removed_opts,
-                                  mysqld_get_one_option)))
+                                  mysqld_get_one_option))) {
+#ifdef WITH_WSREP
+      Wsrep_server_state::instance().disable_node_reset();
+#endif
+
       unireg_abort(ho_error);
+    }
+
     /* Add back the program name handle_options removes */
     remaining_argc++;
     remaining_argv--;
