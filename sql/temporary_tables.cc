@@ -392,7 +392,7 @@ bool THD::open_temporary_table(TABLE_LIST *tl)
   DBUG_ASSERT(!tl->derived);
   DBUG_ASSERT(!tl->schema_table);
   DBUG_ASSERT(has_temporary_tables() ||
-              (rgi_slave && rgi_slave->is_parallel_exec));
+              (get_rgi_slave(rgi_slave) && rgi_slave->is_parallel_exec));
 
   if (tl->open_type == OT_BASE_ONLY)
   {
@@ -415,9 +415,13 @@ bool THD::open_temporary_table(TABLE_LIST *tl)
 
     So for now, anything that uses temporary tables will be serialised
     with anything before it, when using parallel replication.
+
+    Because slave applier can also execute an "out-of-band" transaction
+    within start_new_trans context the slave thread must not see
+    the replicated temporary table and for that use a rgi_slave getter.
   */
 
-  if (rgi_slave &&
+  if (get_rgi_slave(rgi_slave, true) &&
       rgi_slave->is_parallel_exec &&
       find_temporary_table(tl) &&
       wait_for_prior_commit())
@@ -447,7 +451,7 @@ bool THD::open_temporary_table(TABLE_LIST *tl)
        So for now, anything that uses temporary tables will be serialised
        with anything before it, when using parallel replication.
     */
-    if (table && rgi_slave &&
+    if (table && get_rgi_slave(rgi_slave, true) &&
         rgi_slave->is_parallel_exec &&
         wait_for_prior_commit())
       DBUG_RETURN(true);
@@ -574,7 +578,7 @@ bool THD::close_temporary_tables()
     DBUG_RETURN(false);
   }
 
-  DBUG_ASSERT(!rgi_slave);
+  DBUG_ASSERT(!get_rgi_slave(rgi_slave));
 
   /*
     Ensure we don't have open HANDLERs for tables we are about to close.
@@ -828,7 +832,7 @@ void THD::mark_tmp_tables_as_free_for_reuse()
     unlock_temporary_tables();
   }
 
-  if (rgi_slave)
+  if (get_rgi_slave(rgi_slave, true))
   {
     /*
       Temporary tables are shared with other by sql execution threads.
@@ -957,7 +961,7 @@ bool THD::has_temporary_tables()
   DBUG_ENTER("THD::has_temporary_tables");
   bool result;
 #ifdef HAVE_REPLICATION
-  if (rgi_slave)
+  if (get_rgi_slave(rgi_slave, true))
   {
     mysql_mutex_lock(&rgi_slave->rli->data_lock);
     result= rgi_slave->rli->save_temporary_tables &&
@@ -1037,7 +1041,7 @@ TMP_TABLE_SHARE *THD::create_temporary_table(LEX_CUSTRING *frm,
   int res;
 
   /* Temporary tables are not safe for parallel replication. */
-  if (rgi_slave &&
+  if (get_rgi_slave(rgi_slave, true) &&
       rgi_slave->is_parallel_exec &&
       wait_for_prior_commit())
     DBUG_RETURN(NULL);
@@ -1240,7 +1244,7 @@ TABLE *THD::open_temporary_table(TMP_TABLE_SHARE *share,
   share->all_tmp_tables.push_front(table);
 
   /* Increment Slave_open_temp_table_definitions status variable count. */
-  if (rgi_slave)
+  if (get_rgi_slave(rgi_slave, true))
     slave_open_temp_tables++;
 
   DBUG_PRINT("tmptable", ("Opened table: '%s'.'%s  table: %p",
@@ -1308,7 +1312,7 @@ bool THD::use_temporary_table(TABLE *table, TABLE **out_table)
     it though, as statement-based replication using temporary tables is
     in any case rather fragile.
   */
-  if (rgi_slave &&
+  if (get_rgi_slave(rgi_slave, true) &&
       rgi_slave->is_parallel_exec &&
       wait_for_prior_commit())
     DBUG_RETURN(true);
@@ -1341,7 +1345,7 @@ void THD::close_temporary_table(TABLE *table)
   closefrm(table);
   my_free(table);
 
-  if (rgi_slave)
+  if (get_rgi_slave(rgi_slave, true))
   {
     /* Natural invariant of temporary_tables */
     DBUG_ASSERT(slave_open_temp_tables || !temporary_tables);
@@ -1365,7 +1369,11 @@ static const char rename_table_stub[]= "RENAME TABLE ";
 bool THD::log_events_and_free_tmp_shares()
 {
   DBUG_ENTER("THD::log_events_and_free_tmp_shares");
-
+  /*
+    Inferentially !get_rgi_slave() holds too but is weaker as
+    the start_new_trans context is not allowed to log anything,
+    on slave incl.
+  */
   DBUG_ASSERT(!rgi_slave);
 
   TMP_TABLE_SHARE *share;
@@ -1671,7 +1679,7 @@ bool THD::lock_temporary_tables()
   }
 
 #ifdef HAVE_REPLICATION
-  if (rgi_slave)
+  if (get_rgi_slave(rgi_slave, true))
   {
     mysql_mutex_lock(&rgi_slave->rli->data_lock);
     temporary_tables= rgi_slave->rli->save_temporary_tables;
@@ -1699,7 +1707,7 @@ void THD::unlock_temporary_tables()
   }
 
 #ifdef HAVE_REPLICATION
-  if (rgi_slave)
+  if (get_rgi_slave(rgi_slave, true))
   {
     rgi_slave->rli->save_temporary_tables= temporary_tables;
     temporary_tables= NULL;                     /* Safety */
