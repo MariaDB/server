@@ -1046,7 +1046,7 @@ bool THD::has_temporary_tables()
   DBUG_ENTER("THD::has_temporary_tables");
   bool result;
 #ifdef HAVE_REPLICATION
-  if (rgi_slave)
+  if (get_rgi_slave(rgi_slave, true))
   {
     mysql_mutex_lock(&rgi_slave->rli->data_lock);
     result= rgi_slave->rli->save_temporary_tables &&
@@ -1851,7 +1851,7 @@ bool THD::lock_temporary_tables()
   }
 
 #ifdef HAVE_REPLICATION
-  if (rgi_slave)
+  if (get_rgi_slave(rgi_slave, true))
   {
     mysql_mutex_lock(&rgi_slave->rli->data_lock);
     temporary_tables= rgi_slave->rli->save_temporary_tables;
@@ -1879,7 +1879,7 @@ void THD::unlock_temporary_tables()
   }
 
 #ifdef HAVE_REPLICATION
-  if (rgi_slave)
+  if (get_rgi_slave(rgi_slave, true))
   {
     rgi_slave->rli->save_temporary_tables= temporary_tables;
     temporary_tables= NULL;                     /* Safety */
