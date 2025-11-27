@@ -8751,8 +8751,6 @@ bool MYSQL_BIN_LOG::write(Log_event *event_info, my_bool *with_annotate)
         file= &cache_data->cache_log;
         /* Set cache_type to ensure we don't get checksums for this event */
         event_info->cache_type= Log_event::EVENT_STMT_CACHE;
-
-        /* ToDo: Can we do some refactoring to this huge MYSQL_LOG_BIN::write() function, to split out common pieces of functionality in sub-functions, and reduce code duplication in this opt_binlog_engine_hton branch? */
       }
       else
       {
@@ -14654,7 +14652,6 @@ void
 mysql_bin_log_commit_pos(THD *thd, ulonglong *out_pos, const char **out_file)
 {
   binlog_cache_mngr *cache_mngr;
-  //DBUG_ASSERT(!opt_binlog_engine_hton);
   if (likely(opt_bin_log) && likely(!opt_binlog_engine_hton) &&
       (cache_mngr= thd->binlog_get_cache_mngr()))
   {
