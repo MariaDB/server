@@ -3239,7 +3239,6 @@ static int send_events(binlog_send_info *info, IO_CACHE* log, LOG_INFO* linfo,
   info->last_pos= my_b_tell(log);
 
   log->end_of_file= end_pos;
-
   while (linfo->pos < end_pos)
   {
     if (should_stop(info))
@@ -3252,8 +3251,8 @@ static int send_events(binlog_send_info *info, IO_CACHE* log, LOG_INFO* linfo,
 
     info->last_pos= linfo->pos;
     error= Log_event::read_log_event(log, packet, info->fdev,
-                                     opt_master_verify_checksum ? info->current_checksum_alg
-                                     : BINLOG_CHECKSUM_ALG_OFF);
+                       opt_master_verify_checksum ? info->current_checksum_alg
+                                                  : BINLOG_CHECKSUM_ALG_OFF);
     linfo->pos= my_b_tell(log);
 
     if (unlikely(error))
@@ -3510,22 +3509,22 @@ static int send_one_binlog_file(binlog_send_info *info,
     }
     else
     {
-    /**
-     * get end pos of current log file, this function
-     * will wait if there is nothing available
-     */
-    my_off_t end_pos= get_binlog_end_pos(info, log, linfo);
-    if (end_pos <= 1)
-    {
-      /** end of file or error */
-      return (int)end_pos;
-    }
-    info->dirlen= dirname_length(info->log_file_name);
-    /**
-     * send events from current position up to end_pos
-     */
-    if (send_events(info, log, linfo, end_pos))
-      return 1;
+      /**
+       * get end pos of current log file, this function
+       * will wait if there is nothing available
+       */
+      my_off_t end_pos= get_binlog_end_pos(info, log, linfo);
+      if (end_pos <= 1)
+      {
+        /** end of file or error */
+        return (int)end_pos;
+      }
+      info->dirlen= dirname_length(info->log_file_name);
+      /**
+       * send events from current position up to end_pos
+       */
+      if (send_events(info, log, linfo, end_pos))
+        return 1;
     }
   }
 
@@ -3599,7 +3598,6 @@ void mysql_binlog_send(THD* thd, char* log_ident, my_off_t pos,
 
   while (!should_stop(info))
   {
-    /* ToDo: do some re-factoring/cleanup so that the code path for binlog-in-engine becomes separate from the legacy code path, sharing common code but avoiding much of the old cruft. */
     if (opt_binlog_engine_hton) {
       /* Build a legacy Format_description event for slave. */
       if (!(info->fdev= new Format_description_log_event
@@ -3617,58 +3615,58 @@ void mysql_binlog_send(THD* thd, char* log_ident, my_off_t pos,
         goto err;
       }
     }
-    else
-    {
-    /*
-      Tell the client about the log name with a fake Rotate event;
-      this is needed even if we also send a Format_description_log_event
-      just after, because that event does not contain the binlog's name.
-      Note that as this Rotate event is sent before
-      Format_description_log_event, the slave cannot have any info to
-      understand this event's format, so the header len of
-      Rotate_log_event is FROZEN (so in 5.0 it will have a header shorter
-      than other events except FORMAT_DESCRIPTION_EVENT).
-      Before 4.0.14 we called fake_rotate_event below only if (pos ==
-      BIN_LOG_HEADER_SIZE), because if this is false then the slave
-      already knows the binlog's name.
-      Since, we always call fake_rotate_event; if the slave already knew
-      the log's name (ex: CHANGE MASTER TO MASTER_LOG_FILE=...) this is
-      useless but does not harm much. It is nice for 3.23 (>=.58) slaves
-      which test Rotate events to see if the master is 4.0 (then they
-      choose to stop because they can't replicate 4.0); by always calling
-      fake_rotate_event we are sure that 3.23.58 and newer will detect the
-      problem as soon as replication starts (BUG#198).
-      Always calling fake_rotate_event makes sending of normal
-      (=from-binlog) Rotate events a priori unneeded, but it is not so
-      simple: the 2 Rotate events are not equivalent, the normal one is
-      before the Stop event, the fake one is after. If we don't send the
-      normal one, then the Stop event will be interpreted (by existing 4.0
-      slaves) as "the master stopped", which is wrong. So for safety,
-      given that we want minimum modification of 4.0, we send the normal
-      and fake Rotates.
-    */
-    if (fake_rotate_event(info, pos, &info->errmsg, info->current_checksum_alg))
+    else /* !opt_binlog_engine_hton */
     {
       /*
-        This error code is not perfect, as fake_rotate_event() does not
-        read anything from the binlog; if it fails it's because of an
-        error in my_net_write(), fortunately it will say so in errmsg.
+        Tell the client about the log name with a fake Rotate event;
+        this is needed even if we also send a Format_description_log_event
+        just after, because that event does not contain the binlog's name.
+        Note that as this Rotate event is sent before
+        Format_description_log_event, the slave cannot have any info to
+        understand this event's format, so the header len of
+        Rotate_log_event is FROZEN (so in 5.0 it will have a header shorter
+        than other events except FORMAT_DESCRIPTION_EVENT).
+        Before 4.0.14 we called fake_rotate_event below only if (pos ==
+        BIN_LOG_HEADER_SIZE), because if this is false then the slave
+        already knows the binlog's name.
+        Since, we always call fake_rotate_event; if the slave already knew
+        the log's name (ex: CHANGE MASTER TO MASTER_LOG_FILE=...) this is
+        useless but does not harm much. It is nice for 3.23 (>=.58) slaves
+        which test Rotate events to see if the master is 4.0 (then they
+        choose to stop because they can't replicate 4.0); by always calling
+        fake_rotate_event we are sure that 3.23.58 and newer will detect the
+        problem as soon as replication starts (BUG#198).
+        Always calling fake_rotate_event makes sending of normal
+        (=from-binlog) Rotate events a priori unneeded, but it is not so
+        simple: the 2 Rotate events are not equivalent, the normal one is
+        before the Stop event, the fake one is after. If we don't send the
+        normal one, then the Stop event will be interpreted (by existing 4.0
+        slaves) as "the master stopped", which is wrong. So for safety,
+        given that we want minimum modification of 4.0, we send the normal
+        and fake Rotates.
       */
-      info->error= ER_MASTER_FATAL_ERROR_READING_BINLOG;
-      goto err;
-    }
+      if (fake_rotate_event(info, pos, &info->errmsg, info->current_checksum_alg))
+      {
+        /*
+          This error code is not perfect, as fake_rotate_event() does not
+          read anything from the binlog; if it fails it's because of an
+          error in my_net_write(), fortunately it will say so in errmsg.
+        */
+        info->error= ER_MASTER_FATAL_ERROR_READING_BINLOG;
+        goto err;
+      }
 
-    if ((file=open_binlog(&log, linfo.log_file_name, &info->errmsg)) < 0)
-    {
-      info->error= ER_MASTER_FATAL_ERROR_READING_BINLOG;
-      goto err;
-    }
+      if ((file=open_binlog(&log, linfo.log_file_name, &info->errmsg)) < 0)
+      {
+        info->error= ER_MASTER_FATAL_ERROR_READING_BINLOG;
+        goto err;
+      }
 
-    if (send_format_descriptor_event(info, &log, &linfo, pos))
-    {
-      info->error= ER_MASTER_FATAL_ERROR_READING_BINLOG;
-      goto err;
-    }
+      if (send_format_descriptor_event(info, &log, &linfo, pos))
+      {
+        info->error= ER_MASTER_FATAL_ERROR_READING_BINLOG;
+        goto err;
+      }
 
     }  /* !opt_binlog_engine_hton */
 
