@@ -668,6 +668,12 @@ ha_rows ha_videx::records_in_range(uint keynr, const key_range *min_key,
     n_rows= std::stoull(n_rows_str);
   }
 
+  // Avoid returning 0 to the optimizer, similar to InnoDB's behavior
+  if (n_rows == 0)
+  {
+    n_rows= 1;
+  }
+
   DBUG_RETURN(n_rows);
 }
 
