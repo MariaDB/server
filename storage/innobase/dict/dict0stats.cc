@@ -1152,6 +1152,7 @@ dummy_empty:
 		goto dummy_empty;
 #endif /* UNIV_DEBUG || UNIV_IBUF_DEBUG */
 	} else if (dict_index_is_online_ddl(index) || !index->is_committed()
+		   || !index->is_btree()
 		   || !index->table->space) {
 		goto dummy_empty;
 	} else {
