@@ -1,0 +1,24 @@
+connection node_2;
+connection node_1;
+connection node_2;
+CALL mtr.add_suppression("unknown variable 'non_existing_variable=ON'");
+CALL mtr.add_suppression("Aborting");
+CALL mtr.add_suppression("sst_received failed: State wait was interrupted");
+CALL mtr.add_suppression("State transfer interrupted, shutting down gracefully");
+connection node_1;
+CREATE TABLE t(i INT NOT NULL PRIMARY KEY) ENGINE INNODB;
+INSERT INTO t VALUES(1);
+connection node_2;
+connection node_1;
+connection node_2;
+connection node_1;
+connection node_2;
+connection node_1;
+connection node_2;
+Starting server ...
+Starting server ...
+SET GLOBAL wsrep_mode = DEFAULT;
+connection node_1;
+DROP TABLE t;
+disconnect node_2;
+disconnect node_1;
