@@ -10,4 +10,43 @@ XA END 'a';
 XA PREPARE 'a';
 # restart
 XA ROLLBACK 'a';
+*** Test server restart when some binlog files are missing.
+include/reset_master.inc
+INSERT INTO t1 VALUES (10, REPEAT('a', 100000));
+INSERT INTO t1 VALUES (11, REPEAT('a', 100000));
+INSERT INTO t1 VALUES (12, REPEAT('a', 100000));
+connect con1,localhost,root,,;
+XA START 'b';
+INSERT INTO t1 VALUES (20, REPEAT('b', 10000));
+XA END 'b';
+XA PREPARE 'b';
+connection default;
+FLUSH BINARY LOGS;
+connect con2,localhost,root,,;
+BEGIN;
+INSERT INTO t1 VALUES (21, REPEAT('d', 100000));
+connect con3,localhost,root,,;
+XA START 'c';
+INSERT INTO t1 VALUES (22, REPEAT('c', 10000));
+XA END 'c';
+XA PREPARE 'c';
+connection default;
+FLUSH BINARY LOGS;
+INSERT INTO t1 VALUES (30, '');
+*** Stop the server, then restart it after deleting some still needed binlog files.
+# restart
+disconnect con1;
+disconnect con2;
+disconnect con3;
+*** Should be empty, binlog files needed for XA were deleted.
+XA RECOVER;
+formatID	gtrid_length	bqual_length	data
+SELECT a, LENGTH(b) FROM t1 ORDER BY a;
+a	LENGTH(b)
+10	100000
+11	100000
+12	100000
+30	0
 DROP TABLE t1;
+CALL mtr.add_suppression('ERROR.*File .* not found');
+CALL mtr.add_suppression('ERROR.*InnoDB: Error reading binlog while recovering XIDs of possibly prepared transactions. Recovery will be incomplete');
