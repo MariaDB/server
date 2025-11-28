@@ -1306,6 +1306,7 @@ void srv_master_callback(void*)
   ut_a(srv_shutdown_state <= SRV_SHUTDOWN_INITIATED);
 
   MONITOR_INC(MONITOR_MASTER_THREAD_SLEEP);
+  buf_pool.refresh_clock();
   purge_sys.wake_if_not_active();
   ulonglong counter_time= microsecond_interval_timer();
   srv_sync_log_buffer_in_background();

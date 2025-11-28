@@ -42,6 +42,8 @@ Created 9/20/1997 Heikki Tuuri
 #include "buf0dblwr.h"
 #include "buf0flu.h"
 #include "buf0checksum.h"
+#include "buf0lru.h"
+#include "buf0rea.h"
 #include "mtr0mtr.h"
 #include "mtr0log.h"
 #include "page0page.h"
@@ -50,7 +52,6 @@ Created 9/20/1997 Heikki Tuuri
 #include "trx0undo.h"
 #include "trx0rec.h"
 #include "fil0fil.h"
-#include "buf0rea.h"
 #include "srv0srv.h"
 #include "srv0start.h"
 #include "fil0pagecompress.h"
@@ -252,7 +253,7 @@ public:
     size_t size;
     const byte *page= block.page.zip.data;
     if (UNIV_LIKELY_NULL(page))
-      size= (UNIV_ZIP_SIZE_MIN >> 1) << block.page.zip.ssize;
+      size= (UNIV_ZIP_SIZE_MIN >> 1) << block.page.zip.ssize();
     else
     {
       page= block.page.frame;
@@ -375,7 +376,7 @@ page_corrupted:
       switch (b & 0x70) {
       case EXTENDED:
         if (UNIV_UNLIKELY(block.page.id().page_no() < 3 ||
-                          block.page.zip.ssize))
+                          block.page.zip.ssize()))
           goto record_corrupted;
         static_assert(INIT_ROW_FORMAT_REDUNDANT == 0, "compatiblity");
         static_assert(INIT_ROW_FORMAT_DYNAMIC == 1, "compatibility");
@@ -4022,30 +4023,6 @@ static void log_sort_flush_list() noexcept
   }
 
   mysql_mutex_unlock(&buf_pool.flush_list_mutex);
-}
-
-/** Invalidate all pages in the buffer pool.
-All pages must be replaceable (not modified, latched, or io-fixed). */
-ATTRIBUTE_COLD static void buf_pool_invalidate() noexcept
-{
-  mysql_mutex_lock(&buf_pool.mutex);
-  ut_ad(!os_aio_pending_reads());
-  /* os_aio_pending_writes() may hold here if some write_io_callback()
-  did not release the slot yet. However, buf_flush_sync_batch() waited
-  for the page write itself to complete, which we will check below. */
-  ut_d(buf_pool.assert_all_freed());
-
-  while (UT_LIST_GET_LEN(buf_pool.LRU))
-    buf_LRU_scan_and_free_block();
-
-  ut_ad(UT_LIST_GET_LEN(buf_pool.unzip_LRU) == 0);
-
-  buf_pool.freed_page_clock= 0;
-  buf_pool.LRU_old= nullptr;
-  buf_pool.LRU_old_len= 0;
-  buf_pool.stat.init();
-  buf_refresh_io_stats();
-  mysql_mutex_unlock(&buf_pool.mutex);
 }
 
 /** Apply buffered log to persistent data pages.

@@ -41,6 +41,7 @@ Created 11/5/1995 Heikki Tuuri
 #include "fil0crypt.h"
 #include "buf0rea.h"
 #include "buf0flu.h"
+#include "buf0lru.h"
 #include "buf0buddy.h"
 #include "buf0dblwr.h"
 #include "lock0lock.h"
@@ -1197,7 +1198,6 @@ void buf_page_print(const byte *read_buf, ulint zip_size) noexcept
 }
 
 #ifdef BTR_CUR_HASH_ADAPT
-
 /** Ensure that some adaptive hash index fields are initialized */
 static void buf_block_init_low(buf_block_t *block) noexcept
 {
@@ -1536,6 +1536,8 @@ bool buf_pool_t::create() noexcept
   last_activity_count= srv_get_activity_count();
 
   buf_LRU_old_ratio_update(100 * 3 / 8, false);
+  set_old_threshold_ms(LRU_old_time_threshold, false);
+  refresh_clock();
 #ifdef BTR_CUR_HASH_ADAPT
   if (btr_search.enabled)
     btr_search.enable();
@@ -1983,7 +1985,7 @@ ATTRIBUTE_COLD buf_pool_t::shrink_status buf_pool_t::shrink(size_t size)
         UT_LIST_ADD_FIRST(unzip_LRU, block);
     }
 
-    buf_block_modify_clock_inc(block);
+    block->invalidate();
 
     buf_block_init_low(block);
     hash_lock.unlock();
@@ -2346,11 +2348,11 @@ static void buf_relocate(buf_page_t *bpage, buf_page_t *dpage) noexcept
 #ifdef UNIV_LRU_DEBUG
     /* buf_pool.LRU_old must be the first item in the LRU list
     whose "old" flag is set. */
-    ut_a(buf_pool.LRU_old->old);
+    ut_a(buf_pool.LRU_old->zip.old());
     ut_a(!UT_LIST_GET_PREV(LRU, buf_pool.LRU_old) ||
-         !UT_LIST_GET_PREV(LRU, buf_pool.LRU_old)->old);
+         !UT_LIST_GET_PREV(LRU, buf_pool.LRU_old)->zip.old());
     ut_a(!UT_LIST_GET_NEXT(LRU, buf_pool.LRU_old) ||
-         UT_LIST_GET_NEXT(LRU, buf_pool.LRU_old)->old);
+         UT_LIST_GET_NEXT(LRU, buf_pool.LRU_old)->zip.old());
   }
   else
   {
@@ -2502,7 +2504,7 @@ buf_page_t *buf_page_get_zip(const page_id_t page_id) noexcept
     bpage= nullptr;
   }
   else
-    buf_page_make_young_if_needed(bpage);
+    bpage->touch();
 
 #ifdef UNIV_DEBUG
   if (!(++buf_dbg_counter % 5771)) buf_pool.validate();
@@ -3132,14 +3134,14 @@ buf_block_t *buf_page_optimistic_get(buf_block_t *block,
       return nullptr;
     }
 
-    if (modify_clock != block->modify_clock || block->page.is_freed())
+    if (modify_clock != block->modify_clock() || block->page.is_freed())
     {
       block->page.lock.s_unlock();
       goto fail;
     }
 
     ut_ad(!block->page.is_read_fixed());
-    buf_page_make_young_if_needed(&block->page);
+    block->page.touch();
     mtr->memo_push(block, MTR_MEMO_PAGE_S_FIX);
   }
   else if (block->page.lock.have_u_not_x())
@@ -3147,7 +3149,7 @@ buf_block_t *buf_page_optimistic_get(buf_block_t *block,
     block->page.lock.u_x_upgrade();
     block->page.unfix();
     block= mtr->page_lock_upgrade(*block);
-    ut_ad(modify_clock == block->modify_clock);
+    ut_ad(modify_clock == block->modify_clock());
   }
   else if (!block->page.lock.x_lock_try())
     goto fail;
@@ -3155,13 +3157,13 @@ buf_block_t *buf_page_optimistic_get(buf_block_t *block,
   {
     ut_ad(!block->page.is_io_fixed());
 
-    if (modify_clock != block->modify_clock || block->page.is_freed())
+    if (modify_clock != block->modify_clock() || block->page.is_freed())
     {
       block->page.lock.x_unlock();
       goto fail;
     }
 
-    buf_page_make_young_if_needed(&block->page);
+    block->page.touch();
     mtr->memo_push(block, MTR_MEMO_PAGE_X_FIX);
   }
 
@@ -3213,17 +3215,59 @@ buf_block_t *buf_page_try_get(const page_id_t page_id, mtr_t *mtr) noexcept
 }
 
 /** Initialize the block.
-@param page_id  page identifier
-@param zip_size ROW_FORMAT=COMPRESSED page size, or 0
-@param fix      initial buf_fix_count() */
-void buf_block_t::initialise(const page_id_t page_id, ulint zip_size,
-                             uint32_t fix) noexcept
+@param page_id   page identifier
+@param zip_ssize ROW_FORMAT=COMPRESSED page size shift, or 0
+@param state     initial state() */
+void buf_block_t::initialise(const page_id_t page_id, uint16_t zip_ssize,
+                             uint32_t state) noexcept
 {
   ut_ad(!page.in_file());
   buf_block_init_low(this);
-  page.init(fix, page_id);
+  page.init(state, page_id, zip_ssize);
   page.set_os_used();
-  page_zip_set_size(&page.zip, zip_size);
+}
+
+bool buf_page_t::touch() noexcept
+{
+  ut_ad(in_file());
+  /* A buffer-fix is enough: it prevents the block from being evicted
+  and reused for another page, and a lost update of access_time by a
+  concurrent first access is harmless. */
+#ifdef SAFE_MUTEX
+  ut_ad(buf_fix_count() || lock.have_any() ||
+        mysql_mutex_is_owner(&buf_pool.mutex));
+#endif /* SAFE_MUTEX */
+  const bool not_first{access_time != 0};
+  if (!not_first)
+    access_time= buf_pool.access_clock;
+  touch_no_stamp();
+  return not_first;
+}
+
+uint16_t buf_pool_t::now() noexcept
+{
+  const uint16_t t= uint16_t(my_interval_timer() / 1000000000ULL);
+  /* buf_page_t::access_time == 0 means that the block has not been
+  accessed, so a value used to stamp access_time must never be 0.
+  This is t ? t : 1 computed without a branch: (uint32_t{t} - 1) >> 31 is 1
+  only when t == 0, so it lifts just that value to 1 and leaves every other
+  reading exact. */
+  return uint16_t(t | ((uint32_t{t} - 1) >> 31));
+}
+
+
+void buf_pool_t::set_old_threshold_ms(uint32_t ms, bool adjust) noexcept
+{
+  /* Round up, so that a non-zero sub-second value (which would floor to 0,
+  the "disabled" sentinel) still enables a 1-second probation window. */
+  const uint16_t threshold=
+    uint16_t(std::min<uint64_t>((uint64_t{ms} + 999) / 1000, UINT16_MAX));
+  if (adjust)
+    mysql_mutex_lock(&mutex);
+  LRU_old_time_threshold= ms;
+  LRU_old_threshold= threshold;
+  if (adjust)
+    mysql_mutex_unlock(&mutex);
 }
 
 void
@@ -3422,10 +3466,12 @@ retry:
   ut_ad(bpage->state() == buf_page_t::MEMORY);
 
   {
+    const uint16_t ssize= page_zip_des_t::calc_ssize(zip_size);
+
     page_hash_latch &hash_lock= buf_pool.page_hash.lock_get(chain);
     hash_lock.lock();
     reinterpret_cast<buf_block_t*>(bpage)->
-      initialise(page_id, zip_size, buf_page_t::REINIT + 1);
+      initialise(page_id, ssize, buf_page_t::REINIT + 1);
     bpage->lock.x_lock();
     buf_pool.page_hash.append(chain, bpage);
     hash_lock.unlock();
@@ -3450,7 +3496,7 @@ retry:
 
   mtr->memo_push(reinterpret_cast<buf_block_t*>(bpage), MTR_MEMO_PAGE_X_FIX);
 
-  bpage->set_accessed();
+  bpage->touch();
 
   static_assert(FIL_PAGE_PREV + 4 == FIL_PAGE_NEXT, "adjacent");
   memset_aligned<8>(bpage->frame + FIL_PAGE_PREV, 0xff, 8);
@@ -3683,7 +3729,7 @@ dberr_t buf_page_t::read_complete(const fil_node_t &node,
   ut_ad(!buf_dblwr.is_inside(id()));
   ut_ad(id().space() == node.space->id);
   ut_ad(zip_size() == node.space->zip_size());
-  ut_ad(!!zip.ssize == !!zip.data);
+  ut_ad(!!zip.ssize() == !!zip.data);
   ut_ad(recovery == recv_sys.recovery_on);
 
   const byte *read_frame= zip.data ? zip.data : frame;

@@ -1,0 +1,51 @@
+#
+# MDEV-33966 Scan resistance of buf_pool.LRU with innodb_old_blocks_time
+#
+# A page in buf_pool.LRU_old is promoted only if it is accessed
+# again at least innodb_old_blocks_time after its first access.
+# Pages that a table scan accesses in one burst must not be promoted,
+# even if an LRU sweep reaches them only after that time; this also
+# holds for pages that are in the "new" sublist only because the
+# buffer pool was not yet full when they were read.
+#
+CREATE TABLE t0(a INT PRIMARY KEY, c CHAR(200) NOT NULL)
+ENGINE=InnoDB STATS_PERSISTENT=0;
+CREATE TABLE t1 LIKE t0;
+CREATE TABLE t2 LIKE t0;
+CREATE TABLE t3 LIKE t0;
+INSERT INTO t0 SELECT seq, 'x' FROM seq_1_to_300000;
+INSERT INTO t1 SELECT seq, 'x' FROM seq_1_to_10000;
+INSERT INTO t2 SELECT seq, 'x' FROM seq_1_to_300000;
+INSERT INTO t3 SELECT seq, 'x' FROM seq_1_to_2000;
+# Warm-up: scan tables that are larger than the buffer pool,
+# starting from an empty buffer pool.
+# restart
+SET @y0=(SELECT variable_value FROM information_schema.global_status
+WHERE variable_name='INNODB_BUFFER_POOL_PAGES_MADE_YOUNG');
+SELECT SUM(LENGTH(c)) FROM t0;
+SELECT SUM(LENGTH(c)) FROM t2;
+# Pages that t0 accessed during the warm-up must not be promoted
+# later (without this protection, about 1000 pages would be).
+SELECT (SELECT variable_value FROM information_schema.global_status
+WHERE variable_name='INNODB_BUFFER_POOL_PAGES_MADE_YOUNG') - @y0 < 200 AS few_made_young;
+few_made_young
+1
+# The buffer pool is full. t1 is accessed in one burst; t3 is
+# accessed, and accessed again after innodb_old_blocks_time.
+SELECT SUM(LENGTH(c)) FROM t1;
+SELECT SUM(LENGTH(c)) FROM t3;
+SELECT SUM(LENGTH(c)) FROM t3;
+SET @t1_pages=(SELECT COUNT(*) FROM information_schema.INNODB_BUFFER_PAGE
+WHERE TABLE_NAME= '`test`.`t1`'), @t3_pages=(SELECT COUNT(*) FROM information_schema.INNODB_BUFFER_PAGE
+WHERE TABLE_NAME= '`test`.`t3`');
+SELECT SUM(LENGTH(c)) FROM t0;
+# t1 was loaded, and the scan of t0 evicted all of it;
+# t3 was promoted, and it remains in the buffer pool.
+SELECT @t1_pages > 0 AS t1_loaded,
+(SELECT COUNT(*) FROM information_schema.INNODB_BUFFER_PAGE
+WHERE TABLE_NAME= '`test`.`t1`') AS t1_pages,
+(SELECT COUNT(*) FROM information_schema.INNODB_BUFFER_PAGE
+WHERE TABLE_NAME= '`test`.`t3`') = @t3_pages AS t3_resident;
+t1_loaded	t1_pages	t3_resident
+1	0	1
+DROP TABLE t0, t1, t2, t3;
