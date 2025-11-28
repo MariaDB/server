@@ -62,6 +62,8 @@ uint32_t binlog_cur_page_offset;
 */
 ulonglong innodb_binlog_state_interval;
 
+/** Binlog state of the engine binlog. */
+rpl_binlog_state_base binlog_full_state;
 /**
   Differential binlog state in the currently active binlog tablespace, relative
   to the state at the start.
@@ -1503,6 +1505,7 @@ innodb_binlog_startup_init()
   if (err != DB_SUCCESS)
     return err;
   mysql_mutex_init(fsp_purge_binlog_mutex_key, &purge_binlog_mutex, nullptr);
+  binlog_full_state.init();
   binlog_diff_state.init();
   ibb_xa_xid_hash= new ibb_xid_hash();
   if (UNIV_UNLIKELY(!ibb_xa_xid_hash))
@@ -1537,6 +1540,8 @@ innodb_binlog_init_state()
     (uint64_t)(innodb_binlog_state_interval >> ibb_page_size_shift);
   ut_a(innodb_binlog_state_interval ==
        (current_binlog_state_interval << ibb_page_size_shift));
+  binlog_full_state.reset_nolock();
+  binlog_diff_state.reset_nolock();
 }
 
 
@@ -2081,6 +2086,7 @@ void innodb_binlog_close(bool shutdown)
   {
     delete ibb_xa_xid_hash;
     binlog_diff_state.free();
+    binlog_full_state.free();
     fsp_binlog_shutdown();
     mysql_mutex_destroy(&purge_binlog_mutex);
   }
@@ -2476,8 +2482,6 @@ read_gtid_state(binlog_chunk_reader *chunk_reader,
 static bool
 binlog_state_recover(uint64_t *out_xa_file_no, uint64_t *out_xa_offset)
 {
-  rpl_binlog_state_base state;
-  state.init();
   uint64_t active= active_binlog_file_no.load(std::memory_order_relaxed);
   uint64_t diff_state_interval= current_binlog_state_interval;
   uint32_t page_no= 1;
@@ -2492,7 +2496,7 @@ binlog_state_recover(uint64_t *out_xa_file_no, uint64_t *out_xa_offset)
   chunk_reader.set_page_buf(page_buf);
   *out_xa_offset= page_no << ibb_page_size_shift;
   chunk_reader.seek(active, *out_xa_offset);
-  int res= read_gtid_state(&chunk_reader, &state, out_xa_file_no);
+  int res= read_gtid_state(&chunk_reader, &binlog_full_state, out_xa_file_no);
   if (res < 0)
   {
     ut_free(page_buf);
@@ -2511,7 +2515,7 @@ binlog_state_recover(uint64_t *out_xa_file_no, uint64_t *out_xa_offset)
     {
       *out_xa_offset= page_no << ibb_page_size_shift;
       chunk_reader.seek(active, *out_xa_offset);
-      res= read_gtid_state(&chunk_reader, &state, out_xa_file_no);
+      res= read_gtid_state(&chunk_reader, &binlog_full_state, out_xa_file_no);
       if (res > 0)
         break;
       page_no-= (uint32_t)diff_state_interval;
@@ -2529,7 +2533,7 @@ binlog_state_recover(uint64_t *out_xa_file_no, uint64_t *out_xa_offset)
 
   ha_innodb_binlog_reader reader(false, active,
                                  page_no << ibb_page_size_shift);
-  return binlog_recover_gtid_state(&state, &reader);
+  return binlog_recover_gtid_state(&binlog_full_state, &reader);
 }
 
 
@@ -4384,6 +4388,7 @@ innodb_binlog_trx(trx_t *trx, mtr_t *mtr)
   binlog_get_cache(trx->mysql_thd, file_no, pos, &cache, &binlog_info, &gtid);
   if (UNIV_LIKELY(binlog_info != nullptr) &&
       UNIV_LIKELY(binlog_info->gtid_offset > 0)) {
+    binlog_full_state.update_nolock(gtid);
     binlog_diff_state.update_nolock(gtid);
     innodb_binlog_write_cache(cache, binlog_info, mtr);
     return static_cast<binlog_oob_context *>(binlog_info->engine_ptr);
@@ -4426,7 +4431,10 @@ innobase_binlog_write_direct_ordered(IO_CACHE *cache,
   mtr_t mtr{nullptr};
   ut_ad(binlog_info->engine_ptr2 == nullptr);
   if (gtid)
+  {
+    binlog_full_state.update_nolock(gtid);
     binlog_diff_state.update_nolock(gtid);
+  }
   innodb_binlog_status(&binlog_info->out_file_no, &binlog_info->out_offset);
   mtr.start();
   innodb_binlog_write_cache(cache, binlog_info, &mtr);
@@ -4728,6 +4736,7 @@ innodb_reset_binlogs()
 
   /* Re-initialize empty binlog state and start the pre-alloc thread. */
   innodb_binlog_init_state();
+  load_global_binlog_state(&binlog_full_state);
   ibb_pending_lsn_fifo.init(0);
   binlog_page_fifo->unlock_with_delayed_free();
   start_binlog_prealloc_thread();

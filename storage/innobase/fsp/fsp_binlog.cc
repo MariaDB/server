@@ -1625,13 +1625,11 @@ fsp_binlog_write_rec(chunk_data_base *chunk_data, mtr_t *mtr, byte chunk_type,
       if (page_no == 1 ||
           0 == (page_no & (current_binlog_state_interval - 1))) {
         if (page_no == 1) {
-          rpl_binlog_state_base full_state;
           bool err;
-          full_state.init();
-          err= load_global_binlog_state(&full_state);
-          ut_a(!err);
+          rpl_binlog_state_base *binlog_state= &binlog_full_state;
+          binlog_diff_state.reset_nolock();
           if (UNIV_UNLIKELY(file_no == 0 && page_no == 1) &&
-              (full_state.count_nolock() == 1))
+              (binlog_full_state.count_nolock() == 1))
           {
             /*
               The gtid state written here includes the GTID for the event group
@@ -1660,18 +1658,14 @@ fsp_binlog_write_rec(chunk_data_base *chunk_data, mtr_t *mtr, byte chunk_type,
               position will still not be possible).
             */
             rpl_gtid singleton_gtid;
-            full_state.get_gtid_list_nolock(&singleton_gtid, 1);
+            binlog_full_state.get_gtid_list_nolock(&singleton_gtid, 1);
             if (singleton_gtid.seq_no == 1)
-            {
-              full_state.reset_nolock();
-            }
+              binlog_state= &binlog_diff_state;  // Conveniently empty
           }
-          err= binlog_gtid_state(&full_state, mtr, block, page_no,
+          err= binlog_gtid_state(binlog_state, mtr, block, page_no,
                                  page_offset, file_no);
           ut_a(!err);
           ut_ad(block);
-          full_state.free();
-          binlog_diff_state.reset_nolock();
         } else {
           bool err= binlog_gtid_state(&binlog_diff_state, mtr, block, page_no,
                                       page_offset, file_no);
@@ -1854,6 +1848,12 @@ fsp_binlog_flush()
 
   /* Flush out all pages in the (now filled-up) tablespace. */
   binlog_page_fifo->flush_up_to(file_no, page_no);
+
+  /*
+    Load the binlog GTID state from the server layer (in case it changed
+    due to FLUSH BINARY LOGS DELETE_DOMAIN_ID).
+  */
+  load_global_binlog_state(&binlog_full_state);
 
   mysql_mutex_unlock(&purge_binlog_mutex);
 
