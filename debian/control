@@ -1206,6 +1206,17 @@ Description: Snappy compression support in the server and storage engines
  Note that these affect InnoDB and Mroonga only;
  RocksDB still uses the compression algorithms from its own library
 
+Package: mariadb-plugin-videx
+Architecture: any
+Depends: mariadb-server (= ${server:Version}),
+         ${misc:Depends},
+         ${shlibs:Depends}
+Description: Virtual index engine for what-if analysis in MariaDB
+ The VIDEX storage engine allows developers and DBAs to perform what-if
+ analysis by evaluating the impact of potential indexes on query plans.
+ It simulates the cost and behavior of engines like InnoDB without requiring
+ the indexes to be physically built, saving significant time and resources.
+
 Package: mariadb-test
 Architecture: any
 Depends: libnet-ssleay-perl,
