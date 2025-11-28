@@ -310,7 +310,7 @@ void page_create_low(const buf_block_t* block, bool comp)
 void page_create(buf_block_t *block, mtr_t *mtr, bool comp)
 {
   mtr->page_create(*block, comp);
-  buf_block_modify_clock_inc(block);
+  block->invalidate();
   page_create_low(block, comp);
 }
 
@@ -345,7 +345,7 @@ page_create_zip(
 	ut_ad(max_trx_id == 0 || level == 0 || index->is_primary()
 	      || index->table->is_temporary());
 
-	buf_block_modify_clock_inc(block);
+	block->invalidate();
 	page_create_low(block, true);
 
 	if (index->is_spatial()) {
@@ -893,7 +893,7 @@ page_delete_rec_list_end(
 #endif
 
   /* The page becomes invalid for optimistic searches */
-  buf_block_modify_clock_inc(block);
+  block->invalidate();
 
   const ulint n_core= page_is_leaf(page) ? index->n_core_fields : 0;
   mem_heap_t *heap= nullptr;
