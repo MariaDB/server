@@ -224,6 +224,7 @@ extern const char *innodb_binlog_directory;
 extern uint32_t binlog_cur_page_no;
 extern uint32_t binlog_cur_page_offset;
 extern ulonglong innodb_binlog_state_interval;
+extern rpl_binlog_state_base binlog_full_state;
 extern rpl_binlog_state_base binlog_diff_state;
 extern mysql_mutex_t purge_binlog_mutex;
 extern size_t total_binlog_used_size;
