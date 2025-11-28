@@ -174,7 +174,7 @@ before_first:
 						 &cursor->old_rec_buf,
 						 &cursor->buf_size);
 	cursor->old_page_id = block->page.id();
-	cursor->modify_clock = block->modify_clock;
+	cursor->modify_clock = block->modify_clock();
 }
 
 /**************************************************************//**
@@ -233,7 +233,7 @@ static bool btr_pcur_optimistic_latch_leaves(btr_pcur_t *pcur,
   const page_t *const page= block->page.frame;
   {
     transactional_shared_lock_guard<block_lock> g{block->page.lock};
-    modify_clock= block->modify_clock;
+    modify_clock= block->modify_clock();
     left_page_no= btr_page_get_prev(page);
   }
 
@@ -267,7 +267,7 @@ static bool btr_pcur_optimistic_latch_leaves(btr_pcur_t *pcur,
   mtr->upgrade_buffer_fix(savepoint, RW_S_LATCH);
   btr_search_drop_page_hash_index(block, pcur->index());
 
-  if (UNIV_UNLIKELY(block->modify_clock != modify_clock) ||
+  if (UNIV_UNLIKELY(block->modify_clock() != modify_clock) ||
       UNIV_UNLIKELY(block->page.is_freed()) ||
       (prev &&
        memcmp_aligned<4>(FIL_PAGE_NEXT + prev->page.frame,
@@ -448,7 +448,7 @@ btr_pcur_t::restore_position(btr_latch_mode restore_latch_mode, mtr_t *mtr)
 			But we can retain the value of old_rec */
 
 			old_page_id = btr_cur.page_cur.block->page.id();
-			modify_clock = btr_cur.page_cur.block->modify_clock;
+			modify_clock = btr_cur.page_cur.block->modify_clock();
 
 			mem_heap_free(heap);
 

@@ -1228,7 +1228,7 @@ btr_search_guess_on_hash(
     buf_inc_get(mtr->trx);
 
   block->page.fix();
-  buf_page_make_young_if_needed(&block->page);
+  block->page.flag_accessed();
   static_assert(ulint{MTR_MEMO_PAGE_S_FIX} == ulint{BTR_SEARCH_LEAF}, "");
   static_assert(ulint{MTR_MEMO_PAGE_X_FIX} == ulint{BTR_MODIFY_LEAF}, "");
 

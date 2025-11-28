@@ -35,6 +35,7 @@ Completed 2011/7/10 Sunny and Jimmy Yang
 #include "fts0types.h"
 #include "fts0plugin.h"
 #include "fts0vlc.h"
+#include "my_sys.h"
 
 #include <iomanip>
 #include <vector>
@@ -3951,7 +3952,7 @@ fts_query(
 	bool		boolean_mode;
 	trx_t*		query_trx; /* FIXME: use provided trx */
 	CHARSET_INFO*	charset;
-	ulint		start_time_ms;
+	my_hrtime_t	start_time{};
 	bool		will_be_ignored = false;
 
 	boolean_mode = flags & FTS_BOOL;
@@ -3961,7 +3962,9 @@ fts_query(
 	query_trx = trx_create();
 	query_trx->op_info = "FTS query";
 
-	start_time_ms = ut_time_ms();
+	if (UNIV_UNLIKELY(fts_enable_diag_print)) {
+		start_time = my_hrtime_coarse();
+	}
 
 	query.trx = query_trx;
 	query.index = index;
@@ -4118,7 +4121,8 @@ fts_query(
 	ut_free(lc_query_str);
 
 	if (UNIV_UNLIKELY(fts_enable_diag_print) && (*result)) {
-		ulint	diff_time = ut_time_ms() - start_time_ms;
+		const ulint diff_time = ulint((my_hrtime_coarse().val
+					       - start_time.val) / 1000);
 
 		ib::info() << "FTS Search Processing time: "
 			<< diff_time / 1000 << " secs: " << diff_time % 1000

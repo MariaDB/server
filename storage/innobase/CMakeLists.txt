@@ -195,7 +195,6 @@ SET(INNOBASE_SOURCES
 	include/btr0types.h
 	include/buf0buddy.h
 	include/buf0buf.h
-	include/buf0buf.inl
 	include/buf0checksum.h
 	include/buf0dblwr.h
 	include/buf0dump.h

@@ -1140,7 +1140,7 @@ skip_secondaries:
 				   buf_page_get(page_id_t(rseg.space->id,
 							  page_no),
 						0, RW_X_LATCH, &mtr)) {
-				buf_page_make_young_if_needed(&block->page);
+				block->page.flag_accessed();
 
 				byte* data_field = block->page.frame
 					+ offset + internal_offset;

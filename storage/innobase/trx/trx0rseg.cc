@@ -306,7 +306,7 @@ buf_block_t *trx_rseg_t::get(mtr_t *mtr, dberr_t *err) const
   buf_block_t *block= buf_page_get_gen(page_id(), 0, RW_X_LATCH, nullptr,
                                        BUF_GET, mtr, err);
   if (UNIV_LIKELY(block != nullptr))
-    buf_page_make_young_if_needed(&block->page);
+    block->page.flag_accessed();
 
   return block;
 }
