@@ -34,6 +34,7 @@ Created 2011/12/19
 #include "fil0crypt.h"
 #include "fil0pagecompress.h"
 #include "log.h"
+#include "buf0lru.h"
 
 using st_::span;
 
