@@ -20,13 +20,10 @@ Sql_path& Sql_path::operator=(const Sql_path &rhs)
 
 
 Lex_ident_db Sql_path::resolve_current_schema(THD *thd, sp_head *caller,
-                                              const Lex_ident_db &schema) const
+                                              size_t i) const
 {
-  /*
-    Check if this is the CURRENT_SCHEMA token
-  */
-  if (!is_cur_schema(schema))
-    return schema;
+  if (!is_cur_schema(i))
+    return m_schemas[i];
 
   /* Resolve CURRENT_SCHEMA to actual database name. */
   if (caller && caller->m_name.str)
@@ -140,16 +137,13 @@ bool Sql_path::resolve(THD *thd, sp_head *caller, sp_name *name,
 
   // If PATH contains only CURRENT_SCHEMA (default), skip PATH resolution
   // to avoid extra table operations that affect performance
-  if (m_count == 1 && is_cur_schema(m_schemas[0]))
+  if (m_count == 1 && is_cur_schema(0))
     return false;
 
   bool resolved= false;
   for (size_t i= 0; i < m_count; i++)
   {
-    Lex_ident_db schema= m_schemas[i];
-
-    // Resolve CURRENT_SCHEMA if needed
-    schema= resolve_current_schema(thd, caller, schema);
+    Lex_ident_db schema= resolve_current_schema(thd, caller, i);
     if (!schema.str)
       continue; // CURRENT_SCHEMA resolution failed, skip this entry
 
@@ -181,20 +175,19 @@ void Sql_path::free()
 bool Sql_path::init()
 {
   free();
-  char *buf= my_strndup(key_memory_Sys_var_charptr_value,
-                        cur_schema.str, cur_schema.length, MYF(MY_WME));
-  m_schemas[m_count++]= {buf, cur_schema.length};
+  char *buf= my_strndup(key_memory_Sys_var_charptr_value, "", 1, MYF(MY_WME));
+  m_schemas[m_count++]= {buf, 0};
   return false;
 }
 
 
-bool Sql_path::is_cur_schema(const LEX_CSTRING &schema) const
+bool Sql_path::is_cur_schema(size_t i) const
 {
-  return cur_schema.streq(schema);
+  return !m_schemas[i].length;
 }
 
 
-bool Sql_path::add_schema(char **to)
+bool Sql_path::add_schema(char **to, bool is_quoted)
 {
   const Lex_ident_db &dbn= m_schemas[m_count];
   m_schemas[m_count].length= *to - m_schemas[m_count].str;
@@ -204,10 +197,19 @@ bool Sql_path::add_schema(char **to)
   if (Lex_ident_db::check_name_with_error(dbn))
     goto err;
 
-  // Check for duplicates
-  for (size_t i = 0; i < m_count; i++)
-    if (dbn.streq(m_schemas[i]))
-      goto err;
+  if (!is_quoted && cur_schema.streq(dbn))
+  {
+    for (size_t i = 0; i < m_count; i++) // Check for duplicates
+      if (is_cur_schema(i))
+        goto err;
+    m_schemas[m_count].length= 0;
+  }
+  else
+  {
+    for (size_t i = 0; i < m_count; i++)
+      if (!is_cur_schema(i) && dbn.streq(m_schemas[i]))
+        goto err;
+  }
 
   m_count++;
   return false;
@@ -308,7 +310,7 @@ bool Sql_path::from_text(THD *thd, const LEX_CSTRING &text)
           if (curr >= end || *curr != state)
           {
             state= END;
-            if (add_schema(&to))
+            if (add_schema(&to, true))
               goto err_bad_val;
             break;
           }
@@ -320,7 +322,7 @@ bool Sql_path::from_text(THD *thd, const LEX_CSTRING &text)
         if (*curr == ',' || my_isspace(cs, (uchar) *curr))
         {
           state= *curr++ == ',' ? START : END;
-          if (add_schema(&to))
+          if (add_schema(&to, false))
             goto err_bad_val;
           break;
         }
@@ -349,7 +351,7 @@ bool Sql_path::from_text(THD *thd, const LEX_CSTRING &text)
     case QUOTED_TOKEN_DOUBLE:
       goto err_bad_val;
     case UNQUOTED_TOKEN:
-      if (add_schema(&to))
+      if (add_schema(&to, false))
         goto err_bad_val;
       break;
   }
@@ -366,16 +368,21 @@ err:
 }
 
 
+LEX_CSTRING Sql_path::get_schema_for_print(size_t num) const
+{
+  if (is_cur_schema(num))
+    return cur_schema;
+  return m_schemas[num];
+}
+
+
 size_t Sql_path::text_format_nbytes_needed() const
 {
   size_t nbytes= 0;
 
   for (size_t i= 0; i < m_count; i++)
   {
-    LEX_CSTRING schema= m_schemas[i];
-    if (!schema.length)
-      continue;
-
+    LEX_CSTRING schema= get_schema_for_print(i);
     size_t len= schema.length;
     for (size_t j= 0; j < schema.length; j++)
     {
@@ -396,20 +403,19 @@ size_t Sql_path::text_format_nbytes_needed() const
 size_t Sql_path::print(char *dst, size_t nbytes_available) const
 {
   char *start= dst;
-  bool seen= false;
 
   for (size_t i= 0; i < m_count; i++)
   {
-    LEX_CSTRING schema= m_schemas[i];
+    LEX_CSTRING schema= get_schema_for_print(i);
+
     if (dst - start + schema.length + 3 > nbytes_available)
       break;
 
-    if (!seen && is_cur_schema(schema))
+    if (schema.str == cur_schema.str)
     {
       memcpy(dst, schema.str, schema.length);
       dst+= schema.length;
       *dst++= ',';
-      seen= true;
       continue;
     }
 
