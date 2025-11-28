@@ -2878,3 +2878,23 @@ Variable_name	Value
 Handler_read_key	1
 drop function f1;
 set path 'current_schema';
+#
+# `current_schema`
+#
+create schema `current_schema`;
+create procedure `current_schema`.p1() select 'current_schema.p1' as what;
+create procedure p1() select 'test.p1' as what;
+set path '`current_schema`';
+call p1();
+what
+current_schema.p1
+set path 'current_schema, `current_schema`';
+select @@path;
+@@path
+CURRENT_SCHEMA,`current_schema`
+set path 'current_schema';
+call p1();
+what
+test.p1
+drop procedure p1;
+drop schema `current_schema`;
