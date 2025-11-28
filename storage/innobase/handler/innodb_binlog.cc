@@ -2697,8 +2697,9 @@ binlog_scan_for_xid(uint64_t start_file_no, uint64_t start_offset,
     if (res < 0)
     {
       sql_print_error("InnoDB: Error reading binlog while recovering XIDs of "
-                      "possibly prepared transactions");
-      return true;
+                      "possibly prepared transactions. Recovery will be "
+                      "incomplete.");
+      break;
     }
     if (res == 0)
     {
