@@ -1,0 +1,35 @@
+connection node_2;
+connection node_1;
+connection node_1;
+connection node_2;
+connection node_1;
+SET GLOBAL wsrep_provider_options ='pc.ignore_sb=true;pc.weight=2';
+connection node_2;
+CREATE TABLE t1 (f1 INT) ENGINE=InnoDB;
+SET GLOBAL wsrep_IGNORE_apply_errors=1;
+SET SESSION wsrep_dirty_reads=1;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `f1` int(11) DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+FLUSH HOSTS;
+CREATE TABLE t1 (f1 INT) ENGINE=InnoDB;
+ERROR 42S01: Table 't1' already exists
+FLUSH HOSTS;
+ERROR HY000: Galera replication not supported
+SHOW WARNINGS;
+Level	Code	Message
+Error	4165	Galera replication not supported
+Warning	4165	Galera cluster is not ready to execute replication
+connection node_1;
+# Wait until inconsistent node_2 leaves from cluster
+connection node_2;
+# Restart node_2
+call mtr.add_suppression("WSREP: Inconsistency detected: Inconsistent by consensus on");
+connection node_1;
+# Wait until node_2 is back in the cluster
+SET GLOBAL wsrep_provider_options ='pc.ignore_sb=false;pc.weight=1';
+DROP TABLE t1;
+disconnect node_2;
+disconnect node_1;

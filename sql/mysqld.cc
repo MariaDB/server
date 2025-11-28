@@ -305,7 +305,8 @@ static TYPELIB tc_heuristic_recover_typelib=
 
 const char *first_keyword= "first";
 const char *my_localhost= "localhost",
-           *delayed_user= "delayed", *slave_user= "<replication_slave>";
+           *delayed_user= "delayed", *slave_user= "<replication_slave>",
+           *wsrep_user= "<wsrep_applier>";
 
 bool opt_large_files= sizeof(my_off_t) > 4;
 static my_bool opt_autocommit; ///< for --autocommit command-line option

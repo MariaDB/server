@@ -22,7 +22,7 @@ SELECT * FROM t1;
 a
 SELECT * FROM s;
 next_not_cached_value	minimum_value	maximum_value	start_value	increment	cache_size	cycle_option	cycle_count
-1	1	9223372036854775806	1	1	1000	0	0
+1	1	9223372036854775806	1	1	0	0	0
 connection node_1;
 SET GLOBAL WSREP_MODE='REPLICATE_ARIA,REPLICATE_MYISAM';
 DROP TABLE t1;

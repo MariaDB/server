@@ -371,7 +371,7 @@ insert into t1 values ('85984',GeomFromText('MULTIPOLYGON(((-115.006363
 
 # Expected results are 115.2970604672862 and 36.23335610879993, but IA64 returns
 # slightly different values due to fused multiply-add instructions.
---replace_result 115.29706047613604 115.2970604672862 36.23335611157958 36.23335610879993
+--replace_regex /115.2970604[67]\d+/115.2970604672862/ /36.233356111579\d+/36.23335610879993/
 select object_id, geometrytype(geo), ISSIMPLE(GEO), ASTEXT(centroid(geo)) from
 t1 where object_id=85998;
 

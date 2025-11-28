@@ -2,10 +2,7 @@ connection node_2;
 connection node_1;
 connection node_1;
 connection node_2;
-connection node_2;
-call mtr.add_suppression("WSREP: TO isolation failed for: ");
 connection node_1;
-call mtr.add_suppression("CREATE TABLE isolation failure");
 connection node_2;
 Killing server ...
 connection node_1;
@@ -14,5 +11,8 @@ CREATE TABLE t1 (f1 INTEGER) ENGINE=InnoDB;
 ERROR HY000: Lock wait timeout exceeded; try restarting transaction
 connection node_2;
 connect node_2a, 127.0.0.1, root, , test, $NODE_MYPORT_2;
+connection node_1;
+call mtr.add_suppression("WSREP: TO isolation error timeout_error for : test.t1");
+call mtr.add_suppression("WSREP: CREATE TABLE isolation failure");
 disconnect node_2;
 disconnect node_1;

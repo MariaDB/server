@@ -815,6 +815,7 @@ static void trx_assign_rseg_low(trx_t *trx)
 	undo tablespaces that are scheduled for truncation. */
 	static Atomic_counter<unsigned>	rseg_slot;
 	unsigned slot = rseg_slot++ % TRX_SYS_N_RSEGS;
+	DBUG_EXECUTE_IF("assign_same_rseg", slot= 0;);
 	ut_d(const auto start_scan_slot = slot);
 	ut_d(bool look_for_rollover = false);
 	trx_rseg_t*	rseg;
@@ -827,6 +828,8 @@ static void trx_assign_rseg_low(trx_t *trx)
 			ut_ad(!look_for_rollover || start_scan_slot != slot);
 			ut_d(look_for_rollover = true);
 			slot = (slot + 1) % TRX_SYS_N_RSEGS;
+			DBUG_EXECUTE_IF("assign_same_rseg",
+				slot= (slot - 1) % TRX_SYS_N_RSEGS;);
 
 			if (!rseg->space) {
 				continue;

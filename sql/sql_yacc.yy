@@ -9250,7 +9250,7 @@ select_item:
           }
         | remember_name expr remember_end select_alias
           {
-            DBUG_ASSERT($1 < $3);
+            DBUG_ASSERT($1 < $3 || thd->killed);
 
             if (unlikely(add_item_to_list(thd, $2)))
               MYSQL_YYABORT;
