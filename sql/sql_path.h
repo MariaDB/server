@@ -86,13 +86,12 @@ public:
 
   LEX_CSTRING lex_cstring(MEM_ROOT *mem_root) const;
 
-protected:
+private:
   /*
     Helper function to resolve CURRENT_SCHEMA to actual database name.
     Returns the resolved schema, or {nullptr, 0} if resolution fails.
   */
-  Lex_ident_db resolve_current_schema(THD *thd, sp_head *caller,
-                                     const Lex_ident_db &schema) const;
+  Lex_ident_db resolve_current_schema(THD *thd, sp_head *caller, size_t i) const;
   /*
     Helper function to try resolving a routine in a specific schema.
     Returns true if error occured.
@@ -102,9 +101,10 @@ protected:
                              Database_qualified_name *pkgname,
                              bool *resolved) const;
 
-private:
-  bool add_schema(char **to);
-  bool is_cur_schema(const LEX_CSTRING &schema) const;
+  LEX_CSTRING get_schema_for_print(size_t num) const;
+
+  bool add_schema(char **to, bool is_quoted);
+  bool is_cur_schema(size_t i) const;
 };
 
 
