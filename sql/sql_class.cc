@@ -3568,6 +3568,7 @@ int select_export::send_data(List<Item> &items)
   tmp.length(0);
 
   row_count++;
+  thd->server_status|= SERVER_STATUS_RETURNED_ROW;
   Item *item;
   uint used_length=0,items_left=items.elements;
   List_iterator_fast<Item> li(items);
@@ -3842,6 +3843,7 @@ int select_dump::send_data(List<Item> &items)
       goto err;
     }
   }
+  thd->server_status|= SERVER_STATUS_RETURNED_ROW;
   DBUG_RETURN(0);
 err:
   DBUG_RETURN(1);
@@ -4498,6 +4500,7 @@ bool select_dumpvar::send_data_to_var_list(List<Item> &items)
     if (mv->set(thd, item))
       DBUG_RETURN(true);
   }
+  thd->server_status|= SERVER_STATUS_RETURNED_ROW;
   DBUG_RETURN(false);
 }
 
@@ -4517,6 +4520,7 @@ int select_dumpvar::send_data(List<Item> &items)
       send_data_to_var_list(items))
     DBUG_RETURN(1);
 
+  thd->server_status|= SERVER_STATUS_RETURNED_ROW;
   DBUG_RETURN(thd->is_error());
 }
 
@@ -4615,6 +4619,7 @@ int select_materialize_with_stats::send_data(List<Item> &items)
     return 0;
 
   ++count_rows;
+  thd->server_status|= SERVER_STATUS_RETURNED_ROW;
 
   while ((cur_item= item_it++))
   {

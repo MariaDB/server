@@ -30,6 +30,7 @@ Docs/INFO_BIN
 Docs/INFO_SRC
 Makefile
 TAGS
+mariadb-plugin-columnstore.install.generated
 Testing/
 tmp/
 VERSION.dep

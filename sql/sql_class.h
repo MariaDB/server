@@ -1866,7 +1866,7 @@ public:
   bool check_access(const privilege_t want_access, bool match_any = false);
   bool is_priv_user(const LEX_CSTRING &user, const LEX_CSTRING &host);
   bool is_user_defined() const
-    { return user && user != delayed_user && user != slave_user; };
+    { return user && user != delayed_user && user != slave_user && user != wsrep_user; };
 };
 
 

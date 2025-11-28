@@ -1862,6 +1862,31 @@ static int binlog_close_connection(THD *thd)
 }
 
 /*
+  Ensures that the input IO Cache is consistent with where its data is stored,
+  i.e that the data is entirely either stored in-memory or backed by a
+  temporary file. In actuality, it is simple: if the IO Cache is actively
+  backed by a temporary file (i.e. the transaction or statement data is
+  sufficiently large to exceed its respective binlog_cache_size), then ensure
+  all data is flushed to the temporary file. Otherwise, the data is in-memory
+  by default, and we don't need to do anything.
+
+  Returns TRUE on success, FALSE on error.
+*/
+inline my_bool flush_write_buffer_if_file_backed(IO_CACHE *info)
+{
+  my_bool ret= 0;
+  DBUG_ENTER("binlog_flush_cache_log_to_disk");
+  DBUG_ASSERT(info);
+  DBUG_ASSERT(!info->error);
+  DBUG_EXECUTE_IF("simulate_binlog_tmp_file_no_space_left_on_flush",
+                  { DBUG_SET("+d,simulate_file_write_error"); });
+  ret= info->pos_in_file && flush_io_cache(info);
+  DBUG_EXECUTE_IF("simulate_binlog_tmp_file_no_space_left_on_flush",
+                  { DBUG_SET("-d,simulate_file_write_error"); });
+  DBUG_RETURN(ret);
+}
+
+/*
   This function flushes a cache upon commit/rollback.
 
   SYNOPSIS
@@ -1900,9 +1925,34 @@ binlog_flush_cache(THD *thd, binlog_cache_mngr *cache_mngr,
       (using_trx && !cache_mngr->trx_cache.empty())   ||
       thd->transaction->xid_state.is_explicit_XA())
   {
-    if (using_stmt && thd->binlog_flush_pending_rows_event(TRUE, FALSE))
+    /*
+      thd->binlog_flush_pending_rows_event() ensures that the pending row event
+      is flushed into the respective IO cache. We also need to make sure that
+      the IO cache is consistent where its data is stored, i.e. it should
+      either be entirely in-memory or backed by a temporary file. So if
+      necessary (i.e if the cache data exceeds its binlog_cache_size), flush
+      the IO cache to its tmp file on disk.
+
+      Technically, this reconciliation would happen automatically when writing
+      the cache data to the actual binlog file. We pre-empt it though because:
+        1) we write the GTID event separately to the binlog directly before
+           moving the cache data, and if the reconciliation fails (e.g. if the
+           directory storing the tmp file is full), the binlog would get
+           corrupted with a standalone GTID event
+        2) that happens during group commit with locks held, and other
+           ready-to-commit (concurrent) transactions could be stalled
+    */
+    if (using_stmt && !thd->binlog_flush_pending_rows_event(TRUE, FALSE) &&
+        flush_write_buffer_if_file_backed(
+            cache_mngr->get_binlog_cache_log(FALSE)))
       DBUG_RETURN(1);
-    if (using_trx && thd->binlog_flush_pending_rows_event(TRUE, TRUE))
+
+    /*
+      See statment cache comment above.
+    */
+    if (using_trx && !thd->binlog_flush_pending_rows_event(TRUE, TRUE) &&
+        flush_write_buffer_if_file_backed(
+            cache_mngr->get_binlog_cache_log(TRUE)))
       DBUG_RETURN(1);
 
 #ifdef WITH_WSREP
@@ -8295,6 +8345,8 @@ int Event_log::write_cache(THD *thd, binlog_cache_data *cache_data)
   */
 
   log_file_pos= (size_t)my_b_tell(get_log_file());
+  DBUG_EXECUTE_IF("simulate_binlog_tmp_file_no_space_left_on_flush",
+                  { DBUG_SET("+d,simulate_file_write_error"); });
   for (;;)
   {
     /*
@@ -8365,6 +8417,8 @@ error_in_read:
   goto end;
 
 end:
+  DBUG_EXECUTE_IF("simulate_binlog_tmp_file_no_space_left_on_flush",
+                  { DBUG_SET("-d,simulate_file_write_error"); });
   status_var_add(thd->status_var.binlog_bytes_written, writer.bytes_written);
   DBUG_RETURN(err);
 }
@@ -9527,12 +9581,27 @@ int MYSQL_BIN_LOG::write_transaction_or_stmt(group_commit_entry *entry,
   }
 #endif /* WITH_WSREP */
 
-  /*
-    An error in the trx_cache will truncate the cache to the last good
-    statement, it won't leave a lingering error. Assert that this holds.
-  */
-  DBUG_ASSERT(!(entry->using_trx_cache && !mngr->trx_cache.empty() &&
-                mngr->get_binlog_cache_log(TRUE)->error));
+
+#ifndef DBUG_OFF
+  if (entry->using_trx_cache)
+  {
+    IO_CACHE *cache= mngr->get_binlog_cache_log(TRUE);
+    /*
+      An error in the trx_cache will truncate the cache to the last good
+      statement, it won't leave a lingering error. Assert that this holds.
+    */
+    DBUG_ASSERT(mngr->trx_cache.empty() ||
+                !cache->error);
+
+    /*
+      If the transaction uses the IO cache temporary file (i.e if it is
+      sufficiently large), it should be fully flushed to disk by now.
+    */
+    DBUG_ASSERT(!cache->pos_in_file ||
+                cache->write_pos == cache->write_buffer);
+  }
+#endif
+
   /*
     An error in the stmt_cache would be caught on the higher level and result
     in an incident event being written over a (possibly corrupt) cache content.
