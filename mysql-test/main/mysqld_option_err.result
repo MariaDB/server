@@ -2,6 +2,7 @@ Test that unknown option is not silently ignored.
 Test bad binlog format.
 Test bad default storage engine.
 Test non-numeric value passed to number option.
+Test with invalid path
 Test that bad value for plugin enum option is rejected correctly.
 Test to see if multiple unknown options will be displayed in the error output
 FOUND 1 /unknown option '--nonexistentoption2'/ in mysqltest.log
@@ -14,6 +15,7 @@ FOUND 1 /option '--bootstrap' cannot take an argument/ in mysqltest.log
 FOUND 1 /Integer value out of range for uint64: '18446744073709551616' for binlog_cache_size/ in mysqltest.log
 FOUND 1 /Unknown suffix 'y' used for variable 'bulk_insert_buffer_size' \(value '123y'\). Legal suffix characters are: K, M, G, T, P, E/ in mysqltest.log
 FOUND 1 /Error while setting value '123y' to 'bulk_insert_buffer_size'/ in mysqltest.log
+FOUND 1 /Variable 'PATH' can't be set to the value of 'a b'/ in mysqltest.log
 Test that --help --verbose works
 Test that --not-known-option --help --verbose gives error
 Done.

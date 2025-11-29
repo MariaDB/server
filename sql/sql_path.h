@@ -65,10 +65,10 @@ public:
 
     The string is in my_charset_utf8mb3_general_ci.
 
-    @param thd              The thread handle
+    @param sv               system_variables, local or global
     @param str              The string to parse
   */
-  bool from_text(THD *thd, const LEX_CSTRING &str);
+  bool from_text(const system_variables &sv, const LEX_CSTRING &str);
   /*
     Get the number of bytes needed to print the path variable
 
