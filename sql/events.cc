@@ -1219,7 +1219,10 @@ Events::load_events_from_db(THD *thd)
     }
 
     if (et->trigger_event)
+    {
+      delete et;
       continue;
+    }
 #ifdef WITH_WSREP
     /**
       If SST is done from a galera node that is also acting as MASTER

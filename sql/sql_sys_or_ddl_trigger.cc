@@ -439,6 +439,7 @@ void unregister_trigger(sp_name *spname)
           else
             sys_triggers[i][j]= sys_trg->next;
 
+          sys_trg->destroy();
           return;
         }
         prev_sys_trg= sys_trg;
@@ -1099,11 +1100,17 @@ static bool load_system_triggers(THD *thd)
     Event_parse_data::enum_kind trg_kind=
       (Event_parse_data::enum_kind)event_table->field[ET_FIELD_KIND]->val_int();
 
+    /*
+      Skip records for real events (not triggers)
+    */
     if (trg_kind == Event_parse_data::SCHEDULE_EVENT)
       continue;
 
     trg_status= (Event_parse_data::enum_status)
       event_table->field[ET_FIELD_STATUS]->val_int();
+    /*
+      Skip records for disabled triggers
+    */
     if (trg_status != Event_parse_data::ENABLED)
       continue;
 
@@ -1142,7 +1149,7 @@ static bool load_system_triggers(THD *thd)
   }
 
   end_read_record(&read_record_info);
-  close_mysql_tables(thd);
+  close_thread_tables(thd);
 
   return ret;
 }
@@ -1252,6 +1259,7 @@ void run_before_shutdown_triggers()
     trg= trg->next;
   }
 
+  close_thread_tables(thd_for_sys_triggers);
   destroy_sys_triggers();
   delete thd_for_sys_triggers;
 }
