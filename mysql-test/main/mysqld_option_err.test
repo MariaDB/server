@@ -43,8 +43,8 @@ mkdir $MYSQLTEST_VARDIR/tmp/mysqld_option_err;
 # variable in mysqld command-line option.
 # See also Bug#32034.
 --echo Test that bad value for plugin enum option is rejected correctly.
---error 7
---exec $MYSQLD_BOOTSTRAP_CMD --skip-networking --datadir=$MYSQLTEST_VARDIR/tmp/mysqld_option_err --skip-grant-tables --plugin-dir=$MYSQLTEST_VARDIR/plugins --plugin-load=example=ha_example.so --plugin-example-enum-var=noexist >>$MYSQLTEST_VARDIR/tmp/mysqld_option_err/mysqltest.log 2>&1
+--error 1
+--exec $MYSQLD_BOOTSTRAP_CMD --skip-networking --datadir=$MYSQLTEST_VARDIR/tmp/mysqld_option_err --skip-grant-tables --plugin-maturity=experimental --plugin-load=example=ha_example --plugin-example=FORCE --plugin-example-enum-var=noexist >>$MYSQLTEST_VARDIR/tmp/mysqld_option_err/mysqltest.log 2>&1
 
 --let SEARCH_FILE = $MYSQLTEST_VARDIR/tmp/mysqld_option_err/mysqltest.log
 
@@ -75,6 +75,9 @@ mkdir $MYSQLTEST_VARDIR/tmp/mysqld_option_err;
 --source include/search_pattern_in_file.inc
 --let SEARCH_PATTERN=Error while setting value '123y' to 'bulk_insert_buffer_size'
 --source include/search_pattern_in_file.inc
+--let SEARCH_PATTERN=Error while setting value 'noexist' to 'plugin-example-enum-var'
+--source include/search_pattern_in_file.inc
+
 
 #
 # Test that an wrong option with --help --verbose gives an error
