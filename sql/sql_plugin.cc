@@ -4178,7 +4178,7 @@ static int test_plugin_options(MEM_ROOT *tmp_root, struct st_plugin_int *tmp,
                                int *argc, char **argv)
 {
   struct sys_var_chain chain= { NULL, NULL };
-  bool disable_plugin;
+  bool disable_plugin= false;
   enum_plugin_load_option plugin_load_option= tmp->load_option;
 
   MEM_ROOT *mem_root= alloc_root_inited(&tmp->mem_root) ?
@@ -4286,22 +4286,24 @@ static int test_plugin_options(MEM_ROOT *tmp_root, struct st_plugin_int *tmp,
     error= handle_options(argc, &argv, opts, mark_changed);
     (*argc)++; /* add back one for the program name */
 
+    /*
+     Set plugin loading policy from option value. First element in the option
+     list is always the <plugin name> option value.
+    */
+    if (!plugin_is_forced(tmp))
+    {
+      plugin_load_option= (enum_plugin_load_option) *(ulong*) opts[0].value;
+      disable_plugin= (plugin_load_option == PLUGIN_OFF);
+      tmp->load_option= plugin_load_option;
+    }
+
     if (unlikely(error))
     {
        sql_print_error("Parsing options for plugin '%s' failed. Disabling plugin",
                        tmp->name.str);
        goto err;
     }
-    /*
-     Set plugin loading policy from option value. First element in the option
-     list is always the <plugin name> option value.
-    */
-    if (!plugin_is_forced(tmp))
-      plugin_load_option= (enum_plugin_load_option) *(ulong*) opts[0].value;
   }
-
-  disable_plugin= (plugin_load_option == PLUGIN_OFF);
-  tmp->load_option= plugin_load_option;
 
   error= 1;
 
