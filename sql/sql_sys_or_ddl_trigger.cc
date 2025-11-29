@@ -1078,6 +1078,7 @@ static bool load_trigger_metadata(THD *thd, TABLE *event_table,
 static bool load_system_triggers(THD *thd)
 {
   TABLE *event_table;
+  start_new_trans new_trans(thd);
 
   if (Event_db_repository::open_event_table(thd, TL_WRITE, &event_table))
     return true;
@@ -1149,7 +1150,7 @@ static bool load_system_triggers(THD *thd)
   }
 
   end_read_record(&read_record_info);
-  close_thread_tables(thd);
+  thd->commit_whole_transaction_and_close_tables();
 
   return ret;
 }
