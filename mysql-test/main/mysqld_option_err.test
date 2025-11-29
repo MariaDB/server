@@ -38,6 +38,9 @@ mkdir $MYSQLTEST_VARDIR/tmp/mysqld_option_err;
 --error 9
 --exec $MYSQLD_BOOTSTRAP_CMD --skip-networking --datadir=$MYSQLTEST_VARDIR/tmp/mysqld_option_err --skip-grant-tables  --min-examined-row-limit=notanumber >>$MYSQLTEST_VARDIR/tmp/mysqld_option_err/mysqltest.log 2>&1
 
+--echo Test with invalid path
+--error 1
+--exec $MYSQLD_BOOTSTRAP_CMD --skip-networking --datadir=$MYSQLTEST_VARDIR/tmp/mysqld_option_err --skip-grant-tables --plugin-dir=$MYSQLTEST_VARDIR/plugins --path="a b" >>$MYSQLTEST_VARDIR/tmp/mysqld_option_err/mysqltest.log 2>&1
 
 # Test for MBug#423035: error in parsing enum value for plugin
 # variable in mysqld command-line option.
@@ -74,6 +77,8 @@ mkdir $MYSQLTEST_VARDIR/tmp/mysqld_option_err;
 --let SEARCH_PATTERN=Unknown suffix 'y' used for variable 'bulk_insert_buffer_size' \(value '123y'\). Legal suffix characters are: K, M, G, T, P, E
 --source include/search_pattern_in_file.inc
 --let SEARCH_PATTERN=Error while setting value '123y' to 'bulk_insert_buffer_size'
+--source include/search_pattern_in_file.inc
+--let SEARCH_PATTERN=Variable 'PATH' can't be set to the value of 'a b'
 --source include/search_pattern_in_file.inc
 
 #

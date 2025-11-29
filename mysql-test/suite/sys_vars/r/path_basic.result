@@ -1,20 +1,13 @@
 SET NAMES utf8;
+SET @start_global_value = @@global.path;
 SELECT @@session.path;
 @@session.path
-CURRENT_SCHEMA
+`mysql`,`sys`
 SELECT @@global.path;
 @@global.path
-CURRENT_SCHEMA
+`mysql`,`sys`
 SET @@global.path= '.,sys';
 SET @@session.path= DEFAULT;
-SET @start_global_value = @@global.path;
-SELECT @start_global_value;
-@start_global_value
-`.`,`sys`
-SET @start_session_value = @@session.path;
-SELECT @start_session_value;
-@start_session_value
-`.`,`sys`
 '#'
 '#--- Test Variable access and assignment with and without @@ ---#'
 '#'
@@ -416,14 +409,7 @@ SELECT @@path;
 '#--- Change the value of path to an invalid value ---#'
 '#'
 SET sql_mode=DEFAULT;
-SET @@session.path = @start_session_value;
-SELECT @@session.path;
-@@session.path
-`.`,`sys`
-SET @@global.path = @start_global_value;
-SELECT @@global.path;
-@@global.path
-`.`,`sys`
+SET PATH 'CURRENT_SCHEMA';
 SET PATH '`';
 ERROR 42000: Variable 'PATH' can't be set to the value of '`'
 SET PATH '"';
@@ -484,7 +470,7 @@ SET PATH '"Ɣ"';
 ERROR 42000: Variable 'PATH' can't be set to the value of '"Ɣ"'
 SELECT @@path;
 @@path
-`.`,`sys`
+CURRENT_SCHEMA
 #
 #--- Set path to empty string ---#
 #
@@ -576,3 +562,4 @@ function f1() returns int return 1;
 set path 'test';
 end//
 drop package pkg;
+SET @@global.path = @start_global_value;

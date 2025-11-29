@@ -255,15 +255,14 @@ void Sql_path::set(Sql_path &&rhs)
 }
 
 
-bool Sql_path::from_text(THD *thd, const LEX_CSTRING &text)
+bool Sql_path::from_text(const system_variables &sv, const LEX_CSTRING &text)
 {
   enum tokenize_state
   {
     START, QUOTED_TOKEN_DOUBLE='"', QUOTED_TOKEN_BACKTICK='`', UNQUOTED_TOKEN, END
   } state= START;
 
-  const bool ansi_quotes= thd ? thd->variables.sql_mode & MODE_ANSI_QUOTES
-                              : false;
+  const bool ansi_quotes= sv.sql_mode & MODE_ANSI_QUOTES;
 
   CHARSET_INFO *cs= &my_charset_utf8mb3_general_ci; // as in make_ident_casedn()
   DBUG_ASSERT(cs->cset->casedn_multiply(cs) == 1);
@@ -497,7 +496,7 @@ LEX_CSTRING Sql_path::lex_cstring(THD *thd, MEM_ROOT *mem_root) const
 Sql_path_instant_set::Sql_path_instant_set(THD *thd, const LEX_CSTRING &str)
   : m_thd(thd), m_path(std::move(thd->variables.path))
 {
-  if (thd->variables.path.from_text(thd, str))
+  if (thd->variables.path.from_text(thd->variables, str))
   {
     thd->variables.path.set(std::move(m_path));
     m_thd= NULL;

@@ -7718,5 +7718,4 @@ static Sys_var_ulonglong Sys_binlog_large_commit_threshold(
 static Sys_var_path Sys_path(
         "path", "Comma-separated list of schema names that defines the search "
         "order for stored routines",
-        SESSION_VAR(path), CMD_LINE(REQUIRED_ARG),
-        NOT_IN_BINLOG);
+        SESSION_VAR(path), NO_CMD_LINE, NOT_IN_BINLOG);

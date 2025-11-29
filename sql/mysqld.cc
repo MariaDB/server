@@ -612,7 +612,7 @@ const double log_10[] = {
 time_t server_start_time;
 
 char mysql_home[FN_REFLEN], pidfile_name[FN_REFLEN], system_time_zone[30];
-char *default_tz_name;
+char *default_tz_name, *opt_path;
 char log_error_file[FN_REFLEN], glob_hostname[FN_REFLEN], *opt_log_basename;
 char mysql_real_data_home[FN_REFLEN],
      lc_messages_dir[FN_REFLEN], reg_ext[FN_EXTLEN],
@@ -4405,7 +4405,9 @@ static int init_common_variables()
   if (!opt_slow_logname || !*opt_slow_logname)
     make_default_log_name(&opt_slow_logname, "-slow.log", false);
 
-  global_system_variables.path.init();
+  if (global_system_variables.path.from_text(global_system_variables,
+                                             Lex_cstring_strlen(opt_path)))
+    return 1;
 
 #if defined(ENABLED_DEBUG_SYNC)
   /* Initialize the debug sync facility. See debug_sync.cc. */
@@ -7083,6 +7085,9 @@ struct my_option my_long_options[]=
    "start", &wsrep_new_cluster, &wsrep_new_cluster, 0, GET_BOOL, NO_ARG,
    0, 0, 0, 0, 0, 0},
 #endif
+  {"path", 0, "Comma-separated list of schema names that defines the search "
+   "order for stored routines", &opt_path, &opt_path, 0,
+   GET_STR, REQUIRED_ARG, (longlong)(intptr)"CURRENT_SCHEMA", 0, 0, 0, 0, 0 },
 };
 
 static int show_queries(THD *thd, SHOW_VAR *var, void *,

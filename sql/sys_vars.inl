@@ -3076,17 +3076,15 @@ private:
 class Sys_var_path: public sys_var
 {
 public:
-  Sys_var_path(const char *name_arg, const char *comment,
-               int flag_args, ptrdiff_t off, size_t size,
-               CMD_LINE getopt,
+  Sys_var_path(const char *name_arg, const char *comment, int flag_args,
+               ptrdiff_t off, size_t size, CMD_LINE getopt,
                enum binlog_status_enum binlog_status_arg)
-   :sys_var(&all_sys_vars, name_arg, comment,
-            flag_args, off, getopt.id, getopt.arg_type,
-            SHOW_CHAR,
-            DEFAULT(0), nullptr, binlog_status_arg,
+   :sys_var(&all_sys_vars, name_arg, comment, flag_args, off, getopt.id,
+            getopt.arg_type, SHOW_CHAR, DEFAULT(0), nullptr, binlog_status_arg,
             nullptr, nullptr, nullptr)
   {
     option.var_type|= GET_STR;
+    SYSVAR_ASSERT(getopt.id < 0); // force NO_CMD_LINE
   }
 
 private:
@@ -3097,7 +3095,7 @@ private:
     String *value, buffer;
     if (!(value= item->val_str_ascii(&buffer)))
       return true;
-    return path->from_text(thd, value->to_lex_cstring());
+    return path->from_text(thd->variables, value->to_lex_cstring());
   }
 
   static const uchar *make_value_ptr(THD *thd,
@@ -3145,7 +3143,7 @@ private:
       my_error(ER_VARIABLE_NOT_SETTABLE_IN_SF_OR_TRG, MYF(0), "PATH");
       if (var->save_result.ptr)
         ((Sql_path*) var->save_result.ptr)->free();
-      
+
       return true;
     }
 
@@ -3155,7 +3153,7 @@ private:
       return false;
     }
     thd->variables.path.set(std::move(*(Sql_path*) var->save_result.ptr));
-    
+
     /*
       Invalidate the sp caches, as the path has changed and the caches
       may contain entries that needs to be resolved again

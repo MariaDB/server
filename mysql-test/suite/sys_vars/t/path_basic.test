@@ -3,6 +3,11 @@
 SET NAMES utf8;
 
 #############################################################
+#                 Save initial value                        #
+#############################################################
+SET @start_global_value = @@global.path;
+
+#############################################################
 #                 Show initial value                        #
 #############################################################
 SELECT @@session.path;
@@ -13,14 +18,6 @@ SELECT @@global.path;
 #############################################################
 SET @@global.path= '.,sys';
 SET @@session.path= DEFAULT;
-
-#############################################################
-#                 Save initial value                        #
-#############################################################
-SET @start_global_value = @@global.path;
-SELECT @start_global_value;
-SET @start_session_value = @@session.path;
-SELECT @start_session_value;
 
 --echo '#'
 --echo '#--- Test Variable access and assignment with and without @@ ---#'
@@ -254,10 +251,7 @@ SELECT @@path;
 #              Change the value of path to an invalid value               #
 ###########################################################################
 SET sql_mode=DEFAULT;
-SET @@session.path = @start_session_value;
-SELECT @@session.path;
-SET @@global.path = @start_global_value;
-SELECT @@global.path;
+SET PATH 'CURRENT_SCHEMA';
 --Error ER_WRONG_VALUE_FOR_VAR
 SET PATH '`';
 --Error ER_WRONG_VALUE_FOR_VAR
@@ -412,3 +406,5 @@ create package body pkg
 end//
 delimiter ;//
 drop package pkg;
+
+SET @@global.path = @start_global_value;
