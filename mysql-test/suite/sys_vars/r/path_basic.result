@@ -540,6 +540,9 @@ return 1;
 end//
 select f();
 ERROR HY000: The system variable PATH cannot be set in stored functions or triggers
+create or replace procedure p() set path default;
+select f();
+ERROR HY000: The system variable PATH cannot be set in stored functions or triggers
 drop function f;
 drop procedure p;
 create table t1 (a int);

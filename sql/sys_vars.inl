@@ -3025,8 +3025,7 @@ private:
 
   void session_save_default(THD *thd, set_var *var) override
   {
-    thd->variables.character_set_collations.set(
-      global_system_variables.character_set_collations, 1);
+    var->save_result.ptr= 0;
   }
 
   void global_save_default(THD *thd, set_var *var) override
@@ -3038,7 +3037,8 @@ private:
   {
     if (!var->value)
     {
-      session_save_default(thd, var);
+      thd->variables.character_set_collations.set(
+        global_system_variables.character_set_collations, 1);
       return false;
     }
     thd->variables.character_set_collations.
@@ -3089,8 +3089,7 @@ public:
 
 private:
 
-  static bool st_from_item(THD *thd, Sql_path *path,
-                           Item *item)
+  static bool from_item(THD *thd, Sql_path *path, Item *item)
   {
     String *value, buffer;
     if (!(value= item->val_str_ascii(&buffer)))
@@ -3112,7 +3111,7 @@ private:
   bool do_check(THD *thd, set_var *var) override
   {
     Sql_path *path= new (thd->alloc<Sql_path>(1)) Sql_path();
-    if (!path || st_from_item(thd, path, var->value))
+    if (!path || from_item(thd, path, var->value))
     {
       path->free();
       return true;
@@ -3124,7 +3123,7 @@ private:
 
   void session_save_default(THD *thd, set_var *var) override
   {
-    thd->variables.path.set(thd, global_system_variables.path);
+    var->save_result.ptr= 0;
   }
 
   void global_save_default(THD *thd, set_var *var) override
@@ -3149,7 +3148,7 @@ private:
 
     if (!var->value)
     {
-      session_save_default(thd, var);
+      thd->variables.path.set(thd, global_system_variables.path);
       return false;
     }
     thd->variables.path.set(std::move(*(Sql_path*) var->save_result.ptr));

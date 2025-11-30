@@ -378,6 +378,11 @@ end//
 delimiter ;//
 --error ER_VARIABLE_NOT_SETTABLE_IN_SF_OR_TRG
 select f();
+
+create or replace procedure p() set path default;
+--error ER_VARIABLE_NOT_SETTABLE_IN_SF_OR_TRG
+select f();
+
 drop function f;
 drop procedure p;
 
