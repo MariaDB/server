@@ -4,12 +4,13 @@
 --echo #
 
 CREATE DATABASE test2;
-CREATE FUNCTION test2.func() RETURNS TEXT RETURN '1';
+CREATE FUNCTION test2.func() RETURNS TEXT RETURN 'test2.func';
 CREATE DATABASE test3;
+CREATE FUNCTION test3.func() RETURNS TEXT RETURN 'test3.func';
 CREATE PROCEDURE test3.proc() SET @a:= 'hit';
 
 
-CREATE TABLE t1(a INT);
+CREATE TABLE t1(a INT, what text);
 CREATE TABLE t2(a INT);
 
 --echo #
@@ -20,18 +21,20 @@ DELIMITER $$;
 SET PATH 'test2'$$
 CREATE TRIGGER trg1 BEFORE INSERT ON t1 FOR EACH ROW
 BEGIN
-  DO func();
+  set new.what=concat(new.what, ' ', func());
 END;
 $$
 DELIMITER ;$$
 
-INSERT INTO t1 VALUES(1);
+INSERT INTO t1 VALUES(1, '>');
+SELECT * FROM t1;
 
 --echo #
 --echo # Session PATH does not impact trigger's routine resolution
 --echo #
 SET PATH 'CURRENT_SCHEMA';
-INSERT INTO t1 VALUES(2);
+INSERT INTO t1 VALUES(2, '>');
+SELECT * FROM t1;
 
 DROP TRIGGER trg1;
 
@@ -42,16 +45,17 @@ DROP TRIGGER trg1;
 DELIMITER $$;
 CREATE TRIGGER trg1 BEFORE INSERT ON t1 FOR EACH ROW
 BEGIN
-  DO func();
+  set new.what=concat(new.what, ' ', func());
 END;
 $$
 DELIMITER ;$$
 
 --error ER_SP_DOES_NOT_EXIST
-INSERT INTO t1 VALUES(3);
+INSERT INTO t1 VALUES(3, '>');
 SET PATH 'test2';
 --error ER_SP_DOES_NOT_EXIST
-INSERT INTO t1 VALUES(4);
+INSERT INTO t1 VALUES(4, '>');
+SELECT * FROM t1;
 
 DROP TRIGGER trg1;
 
@@ -83,18 +87,24 @@ SELECT * FROM t2;
 --echo #
 DELIMITER $$;
 SET PATH 'test2'$$
-CREATE TRIGGER trg1 BEFORE DELETE ON t1 FOR EACH ROW
+CREATE TRIGGER trg1 BEFORE INSERT ON t1 FOR EACH ROW
 BEGIN
-  UPDATE t2 SET a = 4;
+  set new.what=concat(new.what, ' ', func());
+END;
+$$
+SET PATH 'test3'$$
+CREATE TRIGGER trg3 BEFORE INSERT ON t1 FOR EACH ROW
+BEGIN
+  set new.what=concat(new.what, ' ', func());
 END;
 $$
 DELIMITER ;$$
 
-SET @a:= '';
-DELETE FROM t1 WHERE a = 1;
-SELECT @a;
+INSERT INTO t1 VALUES(5, '>');
+SELECT * FROM t1;
 
-DROP TRIGGER trg2;
+DROP TRIGGER trg1;
+DROP TRIGGER trg3;
 
 --echo #
 --echo # When PATH is empty, trigger's routine resolution will fail
@@ -110,15 +120,15 @@ $$
 DELIMITER ;$$
 
 --error ER_SP_DOES_NOT_EXIST
-INSERT INTO t1 VALUES(5);
+INSERT INTO t1 VALUES(5, '>');
 
 SET PATH 'test2';
 --error ER_SP_DOES_NOT_EXIST
-INSERT INTO t1 VALUES(6);
+INSERT INTO t1 VALUES(6, '>');
 
 USE test2;
 --error ER_SP_DOES_NOT_EXIST
-INSERT INTO test.t1 VALUES(7);
+INSERT INTO test.t1 VALUES(7, '>');
 
 USE test;
 
