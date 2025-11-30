@@ -1163,7 +1163,7 @@ static bool load_system_triggers(THD *thd)
 
 bool run_after_startup_triggers()
 {
-  if (opt_bootstrap || opt_readonly)
+  if (opt_bootstrap)
     return false;
 
   bool stack_top;
@@ -1177,6 +1177,12 @@ bool run_after_startup_triggers()
     (char*) STRING_WITH_LEN("load_system_triggers"),
     default_charset_info);
   thd_for_sys_triggers->set_time();
+
+  /*
+    Turn off read only mode for THD dedicated to handling system triggers
+  */
+  thd_for_sys_triggers->security_ctx->master_access|= PRIV_IGNORE_READ_ONLY;
+  thd_for_sys_triggers->tx_read_only= false;
 
   /*
     First, load all available system triggers from the table mysql.event and
