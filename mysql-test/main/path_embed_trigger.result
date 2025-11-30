@@ -3,10 +3,11 @@
 # Trigger tests with embedded PATH
 #
 CREATE DATABASE test2;
-CREATE FUNCTION test2.func() RETURNS TEXT RETURN '1';
+CREATE FUNCTION test2.func() RETURNS TEXT RETURN 'test2.func';
 CREATE DATABASE test3;
+CREATE FUNCTION test3.func() RETURNS TEXT RETURN 'test3.func';
 CREATE PROCEDURE test3.proc() SET @a:= 'hit';
-CREATE TABLE t1(a INT);
+CREATE TABLE t1(a INT, what text);
 CREATE TABLE t2(a INT);
 #
 # PATH during creation will be used for routine resolution (1)
@@ -15,15 +16,22 @@ CREATE TABLE t2(a INT);
 SET PATH 'test2'$$
 CREATE TRIGGER trg1 BEFORE INSERT ON t1 FOR EACH ROW
 BEGIN
-DO func();
+set new.what=concat(new.what, ' ', func());
 END;
 $$
-INSERT INTO t1 VALUES(1);
+INSERT INTO t1 VALUES(1, '>');
+SELECT * FROM t1;
+a	what
+1	> test2.func
 #
 # Session PATH does not impact trigger's routine resolution
 #
 SET PATH 'CURRENT_SCHEMA';
-INSERT INTO t1 VALUES(2);
+INSERT INTO t1 VALUES(2, '>');
+SELECT * FROM t1;
+a	what
+1	> test2.func
+2	> test2.func
 DROP TRIGGER trg1;
 #
 # PATH during creation will be used for routine resolution (2)
@@ -31,14 +39,18 @@ DROP TRIGGER trg1;
 #
 CREATE TRIGGER trg1 BEFORE INSERT ON t1 FOR EACH ROW
 BEGIN
-DO func();
+set new.what=concat(new.what, ' ', func());
 END;
 $$
-INSERT INTO t1 VALUES(3);
+INSERT INTO t1 VALUES(3, '>');
 ERROR 42000: FUNCTION test.func does not exist
 SET PATH 'test2';
-INSERT INTO t1 VALUES(4);
+INSERT INTO t1 VALUES(4, '>');
 ERROR 42000: FUNCTION test.func does not exist
+SELECT * FROM t1;
+a	what
+1	> test2.func
+2	> test2.func
 DROP TRIGGER trg1;
 #
 # PATH during creation will be used for routine resolution (3)
@@ -64,17 +76,25 @@ a
 # Successive triggers with different embedded PATH
 #
 SET PATH 'test2'$$
-CREATE TRIGGER trg1 BEFORE DELETE ON t1 FOR EACH ROW
+CREATE TRIGGER trg1 BEFORE INSERT ON t1 FOR EACH ROW
 BEGIN
-UPDATE t2 SET a = 4;
+set new.what=concat(new.what, ' ', func());
 END;
 $$
-SET @a:= '';
-DELETE FROM t1 WHERE a = 1;
-SELECT @a;
-@a
-hit
-DROP TRIGGER trg2;
+SET PATH 'test3'$$
+CREATE TRIGGER trg3 BEFORE INSERT ON t1 FOR EACH ROW
+BEGIN
+set new.what=concat(new.what, ' ', func());
+END;
+$$
+INSERT INTO t1 VALUES(5, '>');
+SELECT * FROM t1;
+a	what
+1	> test2.func
+2	> test2.func
+5	> test2.func test3.func
+DROP TRIGGER trg1;
+DROP TRIGGER trg3;
 #
 # When PATH is empty, trigger's routine resolution will fail
 # without exception
@@ -85,13 +105,13 @@ BEGIN
 DO func();
 END;
 $$
-INSERT INTO t1 VALUES(5);
+INSERT INTO t1 VALUES(5, '>');
 ERROR 42000: FUNCTION test.func does not exist
 SET PATH 'test2';
-INSERT INTO t1 VALUES(6);
+INSERT INTO t1 VALUES(6, '>');
 ERROR 42000: FUNCTION test.func does not exist
 USE test2;
-INSERT INTO test.t1 VALUES(7);
+INSERT INTO test.t1 VALUES(7, '>');
 ERROR 42000: FUNCTION test.func does not exist
 USE test;
 DROP TRIGGER trg3;
