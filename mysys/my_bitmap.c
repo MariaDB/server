@@ -664,6 +664,27 @@ uint bitmap_get_next_set(const MY_BITMAP *map, uint bitmap_bit)
   return MY_BIT_NONE;
 }
 
+/**
+  Get the previous set bit.
+
+  @param  map         Bitmap
+  @param  bitmap_bit  Bit to start search from
+
+  @return Index to first bit set before bitmap_bit
+
+  TODO: improve the implementation
+*/
+uint bitmap_get_prev_set(const MY_BITMAP *map, uint bitmap_bit)
+{
+  DBUG_ASSERT_BITMAP(map);
+  bitmap_bit--;
+  while (bitmap_bit < map->n_bits && !bitmap_is_set(map, bitmap_bit))
+    bitmap_bit--;
+  if (bitmap_bit >= map->n_bits)
+    return MY_BIT_NONE;
+  return bitmap_bit;
+}
+
 
 /* Get first clear bit */
 
