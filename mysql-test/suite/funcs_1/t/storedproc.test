@@ -4854,16 +4854,13 @@ DROP PROCEDURE IF EXISTS sp1;
 
 delimiter //;
 
---error ER_PARSE_ERROR
 CREATE PROCEDURE sp1()
   path:BEGIN
     SELECT @x;
 END//
 delimiter ;//
 
---disable_warnings
-DROP PROCEDURE IF EXISTS sp1;
---enable_warnings
+DROP PROCEDURE sp1;
 
 delimiter //;
 --error ER_PARSE_ERROR
