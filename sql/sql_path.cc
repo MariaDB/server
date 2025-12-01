@@ -382,35 +382,22 @@ err:
 
 
 LEX_CSTRING Sql_path::get_schema_for_print(size_t num, const LEX_CSTRING &db,
-                                           bool resolve, bool *seen_current) const
+                                           bool *seen_current) const
 {
   if (is_cur_schema(num))
-  {
-    if (!resolve)
-      return cur_schema;
-    if (*seen_current || !db.length)
-      return null_clex_str;
-    *seen_current= true;
-    return db;
-  }
-  if (resolve && db.length && Lex_ident_db(db).streq(m_schemas[num]))
-  {
-    if (*seen_current)
-      return null_clex_str;
-    *seen_current= true;
-  }
+    return cur_schema;
   return m_schemas[num];
 }
 
 
-size_t Sql_path::text_format_nbytes_needed(THD *thd, bool resolve) const
+size_t Sql_path::text_format_nbytes_needed(THD *thd) const
 {
   size_t nbytes= 0;
   bool seen= false;
 
   for (size_t i= 0; i < m_count; i++)
   {
-    LEX_CSTRING schema= get_schema_for_print(i, thd->db, resolve, &seen);
+    LEX_CSTRING schema= get_schema_for_print(i, thd->db, &seen);
     if (!schema.length)
       continue;
 
@@ -431,22 +418,21 @@ size_t Sql_path::text_format_nbytes_needed(THD *thd, bool resolve) const
 }
 
 
-size_t Sql_path::print(THD *thd, bool resolve,
-                       char *dst, size_t nbytes_available) const
+size_t Sql_path::print(THD *thd, char *dst, size_t nbytes_available) const
 {
   char *start= dst;
   bool seen= false;
 
   for (size_t i= 0; i < m_count; i++)
   {
-    LEX_CSTRING schema= get_schema_for_print(i, thd->db, resolve, &seen);
+    LEX_CSTRING schema= get_schema_for_print(i, thd->db, &seen);
     if (!schema.length)
       continue;
 
     if (dst - start + schema.length + 3 > nbytes_available)
       break;
 
-    if (!resolve && !seen && schema.str == cur_schema.str)
+    if (!seen && schema.str == cur_schema.str)
     {
       memcpy(dst, schema.str, schema.length);
       dst+= schema.length;
@@ -479,12 +465,11 @@ size_t Sql_path::print(THD *thd, bool resolve,
 LEX_CSTRING Sql_path::lex_cstring(THD *thd, MEM_ROOT *mem_root) const
 {
   LEX_CSTRING res;
-  const bool resolve= false;
-  size_t nbytes_needed= text_format_nbytes_needed(thd, resolve);
+  size_t nbytes_needed= text_format_nbytes_needed(thd);
   char *ptr= (char *) alloc_root(mem_root, nbytes_needed);
   if (ptr)
   {
-    res.length= print(thd, resolve, ptr, nbytes_needed);
+    res.length= print(thd, ptr, nbytes_needed);
     res.str= ptr;
     DBUG_ASSERT(res.length < nbytes_needed);
   }

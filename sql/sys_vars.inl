@@ -3100,9 +3100,9 @@ private:
   static const uchar *make_value_ptr(THD *thd,
                                      const Sql_path &path)
   {
-    size_t nbytes= path.text_format_nbytes_needed(thd, false);
+    size_t nbytes= path.text_format_nbytes_needed(thd);
     char *buf= thd->alloc(nbytes + 1);
-    size_t length= path.print(thd, false, buf, nbytes);
+    size_t length= path.print(thd, buf, nbytes);
     buf[length]= '\0';
     return (uchar *) buf;
   }
