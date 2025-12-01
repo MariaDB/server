@@ -8802,15 +8802,6 @@ ordinality('1')
 Warnings:
 Note	1585	This function 'ordinality' has the same name as a native function
 DROP FUNCTION ordinality;
-CREATE OR REPLACE FUNCTION path(a VARCHAR(128)) RETURNS int RETURN LENGTH(a)=0;
-Warnings:
-Note	1585	This function 'path' has the same name as a native function
-SELECT path('1');
-path('1')
-0
-Warnings:
-Note	1585	This function 'path' has the same name as a native function
-DROP FUNCTION path;
 CREATE OR REPLACE FUNCTION fast(a VARCHAR(128)) RETURNS int RETURN LENGTH(a)=0;
 Warnings:
 Note	1585	This function 'fast' has the same name as a native function

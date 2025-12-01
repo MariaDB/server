@@ -16423,7 +16423,6 @@ ident_cli_func:
         | IDENT_QUOTED
         | keyword_func_sp_var_and_label  { $$= $1; }
         | keyword_func_sp_var_not_label  { $$= $1; }
-        | PATH_SYM                       { $$= $1; }
         ;
 
 TEXT_STRING_sys:
@@ -16586,7 +16585,6 @@ keyword_ident:
 %ifdef ORACLE
         | TYPE_SYM
 %endif
-        | PATH_SYM
         ;
 
 keyword_sysvar_name:
@@ -16603,7 +16601,6 @@ keyword_sysvar_name:
         | EXCEPTION_ORACLE_SYM
         | IGNORED_SYM
         | OFFSET_SYM
-        | PATH_SYM
         ;
 
 keyword_set_usual_case:
@@ -16631,7 +16628,6 @@ non_reserved_keyword_udt:
         | keyword_sysvar_type
         | keyword_sp_var_and_label
         | OFFSET_SYM
-        | PATH_SYM
         ;
 
 /*
@@ -16769,6 +16765,7 @@ keyword_set_special_case:
         | AUTHORIZATION_SYM
         | ROLE_SYM
         | PASSWORD_SYM
+        | PATH_SYM
         ;
 
 keyword_sysvar_type:
@@ -19381,7 +19378,6 @@ keyword_sp_decl:
         | FUNCTION_SYM
         | WINDOW_SYM
         | IGNORED_SYM
-        | PATH_SYM
         ;
 
 opt_truncate_table_storage_clause:
@@ -19857,7 +19853,6 @@ keyword_sp_decl:
         | keyword_verb_clause
         | WINDOW_SYM
         | IGNORED_SYM
-        | PATH_SYM
         ;
 
 opt_truncate_table_storage_clause:
