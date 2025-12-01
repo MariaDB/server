@@ -2387,31 +2387,8 @@ master_def:
 
         | MASTER_HEARTBEAT_PERIOD_SYM '=' NUM_literal
           {
-            Lex->mi.heartbeat_period= (float) $3->val_real();
-            if (unlikely(Lex->mi.heartbeat_period >
-                         SLAVE_MAX_HEARTBEAT_PERIOD) ||
-                unlikely(Lex->mi.heartbeat_period < 0.0))
-               my_yyabort_error((ER_SLAVE_HEARTBEAT_VALUE_OUT_OF_RANGE, MYF(0),
-                                 SLAVE_MAX_HEARTBEAT_PERIOD));
-
-            if (unlikely(Lex->mi.heartbeat_period > slave_net_timeout))
-            {
-              push_warning(thd, Sql_condition::WARN_LEVEL_WARN,
-                           ER_SLAVE_HEARTBEAT_VALUE_OUT_OF_RANGE_MAX,
-                           ER_THD(thd, ER_SLAVE_HEARTBEAT_VALUE_OUT_OF_RANGE_MAX));
-            }
-            if (unlikely(Lex->mi.heartbeat_period < 0.001))
-            {
-              if (unlikely(Lex->mi.heartbeat_period != 0.0))
-              {
-                push_warning(thd, Sql_condition::WARN_LEVEL_WARN,
-                             ER_SLAVE_HEARTBEAT_VALUE_OUT_OF_RANGE_MIN,
-                             ER_THD(thd, ER_SLAVE_HEARTBEAT_VALUE_OUT_OF_RANGE_MIN));
-                Lex->mi.heartbeat_period= 0.0;
-              }
-              Lex->mi.heartbeat_opt=  LEX_MASTER_INFO::LEX_MI_DISABLE;
-            }
-            Lex->mi.heartbeat_opt=  LEX_MASTER_INFO::LEX_MI_ENABLE;
+            Lex->mi.heartbeat_opt= $3->val_decimal(&(Lex->mi.heartbeat_period));
+            DEBUG_ASSERT(Lex->mi.heartbeat_opt);
           }
         | IGNORE_SERVER_IDS_SYM '=' '(' ignore_server_id_list ')'
           {
