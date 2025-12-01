@@ -3917,7 +3917,7 @@ bool change_master(THD* thd, Master_info* mi, bool *master_info_added)
   char saved_host[HOSTNAME_LENGTH + 1];
   uint saved_port;
   char saved_log_name[FN_REFLEN];
-  Master_info::enum_using_gtid saved_using_gtid;
+  enum_master_use_gtid saved_using_gtid;
   char master_info_file_tmp[FN_REFLEN];
   char relay_log_info_file_tmp[FN_REFLEN];
   my_off_t saved_log_pos;
@@ -4064,11 +4064,28 @@ bool change_master(THD* thd, Master_info* mi, bool *master_info_added)
     mi->retry_count= lex_mi->retry_count;
     mi->connects_tried= 0;
   }
-  if (lex_mi->heartbeat_opt != LEX_MASTER_INFO::LEX_MI_UNCHANGED)
-    mi->heartbeat_period = lex_mi->heartbeat_period;
-  else
-    mi->heartbeat_period= (float) MY_MIN(SLAVE_MAX_HEARTBEAT_PERIOD,
-                                      (slave_net_timeout/2.0));
+  if (lex_mi->heartbeat_opt)
+  {
+    bool overprecise;
+    ret= Master_info_file::Heartbeat_period_field::from_decimal(
+      mi->master_heartbeat_period.optional, *lex_mi->heartbeat_opt, overprecise
+    );
+    if (ret)
+    {
+      my_error(ER_SLAVE_HEARTBEAT_VALUE_OUT_OF_RANGE, MYF(0),
+               Master_info_file::Heartbeat_period_field::MAX);
+      goto err;
+    }
+    uint32_t milliseconds= *(mi->master_heartbeat_period.optional);
+    if (unlikely(milliseconds > slave_net_timeout*1000ULL))
+      push_warning(thd, Sql_condition::WARN_LEVEL_WARN,
+                   ER_SLAVE_HEARTBEAT_VALUE_OUT_OF_RANGE_MAX,
+                   ER_THD(thd, ER_SLAVE_HEARTBEAT_VALUE_OUT_OF_RANGE_MAX));
+    else if (unlikely(!milliseconds && overprecise))
+      push_warning(thd, Sql_condition::WARN_LEVEL_WARN,
+                   ER_SLAVE_HEARTBEAT_VALUE_OUT_OF_RANGE_MIN,
+                   ER_THD(thd, ER_SLAVE_HEARTBEAT_VALUE_OUT_OF_RANGE_MIN));
+  }
   mi->received_heartbeats= 0; // counter lives until master is CHANGEd
 
   /*
@@ -4096,29 +4113,29 @@ bool change_master(THD* thd, Master_info* mi, bool *master_info_added)
   }
 
   if (lex_mi->ssl != LEX_MASTER_INFO::LEX_MI_UNCHANGED)
-    mi->ssl= (lex_mi->ssl == LEX_MASTER_INFO::LEX_MI_ENABLE);
+    mi->master_ssl= (lex_mi->ssl == LEX_MASTER_INFO::LEX_MI_ENABLE);
 
   if (lex_mi->sql_delay != -1)
     mi->rli.set_sql_delay(lex_mi->sql_delay);
 
   if (lex_mi->ssl_verify_server_cert != LEX_MASTER_INFO::LEX_MI_UNCHANGED)
-    mi->ssl_verify_server_cert=
+    mi->master_ssl_verify_server_cert=
       (lex_mi->ssl_verify_server_cert == LEX_MASTER_INFO::LEX_MI_ENABLE);
 
   if (lex_mi->ssl_ca)
-    strmake_buf(mi->ssl_ca, lex_mi->ssl_ca);
+    mi->master_ssl_ca     = lex_mi->ssl_ca;
   if (lex_mi->ssl_capath)
-    strmake_buf(mi->ssl_capath, lex_mi->ssl_capath);
+    mi->master_ssl_capath = lex_mi->ssl_capath;
   if (lex_mi->ssl_cert)
-    strmake_buf(mi->ssl_cert, lex_mi->ssl_cert);
+    mi->master_ssl_cert   = lex_mi->ssl_cert;
   if (lex_mi->ssl_cipher)
-    strmake_buf(mi->ssl_cipher, lex_mi->ssl_cipher);
+    mi->master_ssl_cipher = lex_mi->ssl_cipher;
   if (lex_mi->ssl_key)
-    strmake_buf(mi->ssl_key, lex_mi->ssl_key);
+    mi->master_ssl_key    = lex_mi->ssl_key;
   if (lex_mi->ssl_crl)
-    strmake_buf(mi->ssl_crl, lex_mi->ssl_crl);
+    mi->master_ssl_crl    = lex_mi->ssl_crl;
   if (lex_mi->ssl_crlpath)
-    strmake_buf(mi->ssl_crlpath, lex_mi->ssl_crlpath);
+    mi->master_ssl_crlpath= lex_mi->ssl_crlpath;
 
 #ifndef HAVE_OPENSSL
   if (lex_mi->ssl || lex_mi->ssl_ca || lex_mi->ssl_capath ||

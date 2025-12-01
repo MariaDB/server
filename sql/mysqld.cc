@@ -782,7 +782,6 @@ File_parser_dummy_hook file_parser_dummy_hook;
 
 /* replication parameters */
 uint report_port= 0;
-ulong master_retry_count=100000;
 char *master_info_file;
 char *relay_log_info_file, *report_user, *report_password, *report_host;
 char *opt_relay_logname = 0, *opt_relaylog_index_name=0;
@@ -6822,11 +6821,11 @@ struct my_option my_long_options[]=
    "more than one storage engine, when binary log is disabled)",
    &opt_tc_log_file, &opt_tc_log_file, 0, GET_STR,
    REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
+#ifdef HAVE_REPLICATION
   {"master-retry-count", 0,
    "The number of tries the slave will make to connect to the master before giving up",
-   &master_retry_count, &master_retry_count, 0, GET_ULONG,
+   &master_retry_count, &master_retry_count, 0, GET_ULL,
    REQUIRED_ARG, static_cast<longlong>(master_retry_count), 0, 0, 0, 0, 0},
-#ifdef HAVE_REPLICATION
   {"init-rpl-role", 0, "Set the replication role",
    &rpl_status, &rpl_status, &rpl_role_typelib,
    GET_ENUM, REQUIRED_ARG, RPL_AUTH_MASTER, 0, 0, 0, 0, 0},
@@ -7113,7 +7112,8 @@ static int show_heartbeat_period(THD *thd, SHOW_VAR *var, void *buff,
       get_master_info(&thd->variables.default_master_connection,
                       Sql_condition::WARN_LEVEL_NOTE))
   {
-    sprintf(static_cast<char*>(buff), "%.3f", mi->heartbeat_period);
+    sprintf(static_cast<char*>(buff), "%.3lf",
+            mi->master_heartbeat_period/1000.0);
     mi->release();
     var->type= SHOW_CHAR;
     var->value= buff;

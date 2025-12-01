@@ -17,6 +17,7 @@
 #ifndef RPL_RLI_H
 #define RPL_RLI_H
 
+#include "rpl_relay_log_info_file.h"
 #include "rpl_tblmap.h"
 #include "rpl_reporting.h"
 #include "rpl_utility.h"
@@ -59,7 +60,8 @@ class Rpl_filter;
 struct rpl_group_info;
 struct inuse_relaylog;
 
-class Relay_log_info : public Slave_reporting_capability
+class Relay_log_info:
+  public Relay_log_info_file, public Slave_reporting_capability
 {
 public:
   /**
@@ -138,7 +140,7 @@ public:
   /* The following variables are safe to read any time */
 
   /* IO_CACHE of the info file - set only during init or end */
-  IO_CACHE info_file;
+  IO_CACHE &info_file= Info_file::file;
 
   /*
     List of temporary tables used by this connection.
@@ -209,8 +211,8 @@ public:
     !belongs_to_client(); client thread executing BINLOG statement if
     belongs_to_client()).
   */
-  char group_relay_log_name[FN_REFLEN];
-  ulonglong group_relay_log_pos;
+  char (&group_relay_log_name)[FN_REFLEN]= relay_log_file.buf;
+  my_off_t &group_relay_log_pos= relay_log_pos.value;
   char event_relay_log_name[FN_REFLEN];
   ulonglong event_relay_log_pos;
   ulonglong future_event_relay_log_pos;
@@ -231,8 +233,8 @@ public:
     !belongs_to_client(); client thread executing BINLOG statement if
     belongs_to_client()).
   */
-  char group_master_log_name[FN_REFLEN];
-  volatile my_off_t group_master_log_pos;
+  char (&group_master_log_name)[FN_REFLEN]= read_master_log_file.buf;
+  my_off_t &group_master_log_pos= read_master_log_pos.value;
 
   /*
     Handling of the relay_log_space_limit optional constraint.
@@ -587,7 +589,7 @@ private:
     slave SQL thread is running, since the SQL thread reads it without
     a lock when executing Relay_log_info::flush().
   */
-  int sql_delay;
+  uint32_t &sql_delay= Relay_log_info_file::sql_delay.value;
 
   /**
     During a delay, specifies the point in time when the delay ends.

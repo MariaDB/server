@@ -369,7 +369,8 @@ struct LEX_MASTER_INFO
   ulong server_id;
   uint port, connect_retry;
   ulong retry_count;
-  float heartbeat_period;
+  my_decimal heartbeat_period;
+  my_decimal *heartbeat_opt;
   int sql_delay;
   bool is_demotion_opt;
   bool is_until_before_gtids;
@@ -380,7 +381,7 @@ struct LEX_MASTER_INFO
     changed variable or if it should be left at old value
    */
   enum {LEX_MI_UNCHANGED= 0, LEX_MI_DISABLE, LEX_MI_ENABLE}
-    ssl, ssl_verify_server_cert, heartbeat_opt, repl_ignore_server_ids_opt,
+    ssl, ssl_verify_server_cert, repl_ignore_server_ids_opt,
     repl_do_domain_ids_opt, repl_ignore_domain_ids_opt;
   enum {
     LEX_GTID_UNCHANGED, LEX_GTID_NO, LEX_GTID_CURRENT_POS, LEX_GTID_SLAVE_POS
@@ -388,14 +389,16 @@ struct LEX_MASTER_INFO
 
   void init()
   {
-    bzero(this, sizeof(*this));
+    reset(false);
+    connection_name= null_clex_str;
+    heartbeat_period.init();
+    show_all_slaves= false;
     my_init_dynamic_array(PSI_INSTRUMENT_ME, &repl_ignore_server_ids,
                           sizeof(::server_id), 0, 16, MYF(0));
     my_init_dynamic_array(PSI_INSTRUMENT_ME, &repl_do_domain_ids,
                           sizeof(ulong), 0, 16, MYF(0));
     my_init_dynamic_array(PSI_INSTRUMENT_ME, &repl_ignore_domain_ids,
                           sizeof(ulong), 0, 16, MYF(0));
-    sql_delay= -1;
   }
   void reset(bool is_change_master)
   {
@@ -410,8 +413,8 @@ struct LEX_MASTER_INFO
     host= user= password= log_file_name= ssl_key= ssl_cert= ssl_ca=
       ssl_capath= ssl_cipher= ssl_crl= ssl_crlpath= relay_log_name= NULL;
     pos= relay_log_pos= server_id= retry_count= port= connect_retry= 0;
-    heartbeat_period= 0;
-    ssl= ssl_verify_server_cert= heartbeat_opt=
+    heartbeat_opt= nullptr;
+    ssl= ssl_verify_server_cert=
       repl_ignore_server_ids_opt= repl_do_domain_ids_opt=
       repl_ignore_domain_ids_opt= LEX_MI_UNCHANGED;
     gtid_pos_str= null_clex_str;
