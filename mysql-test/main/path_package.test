@@ -94,8 +94,8 @@ DELIMITER ;/
 CALL test.pkg.p1('explicit_stmt->');
 SELECT test.pkg.f1('explicit_stmt->');
 
---echo # TODO, this should resolve to `pkg` schema's standalone routines?
---echo # now it resolves to `test.pkg.p1` instead..
+--echo # this resolves to a method p1 in a package pkg in schema test,
+--echo # not to procedure p1 in schema pkg. For compatibility with Oracle.
 CALL pkg.p1('schema_implicit_stmt->');
 SELECT pkg.f1('schema_implicit_stmt->');
 
@@ -113,14 +113,21 @@ CALL pkg.pub_p1_priv('schema_implicit_pub_stmt->');
 CALL test.pkg.p1('explicit_stmt->');
 SELECT test.pkg.f1('explicit_stmt->');
 
---echo # TODO, this should resolve to `pkg` schema's standalone routines?
---echo # now it resolves to `test.pkg.p1` instead..
+--echo # this resolves to a method p1 in a package pkg in schema test,
+--echo # not to procedure p1 in schema pkg. For compatibility with Oracle.
 CALL pkg.p1('schema_implicit_stmt->');
 SELECT pkg.f1('schema_implicit_stmt->');
 
 CALL p1('implicit_stmt->');
 SELECT f1('implicit_stmt->');
 
+SET PATH 'pkg';
+CALL p1('implicit_stmt->');
+CALL pkg.p1('schema_implicit_stmt->');
+
 USE test;
+CALL p1('implicit_stmt->');
+CALL pkg.p1('schema_implicit_stmt->');
+
 DROP PACKAGE pkg;
 DROP DATABASE pkg;

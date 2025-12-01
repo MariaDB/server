@@ -22,9 +22,6 @@ Sql_path& Sql_path::operator=(const Sql_path &rhs)
 Lex_ident_db Sql_path::resolve_current_schema(THD *thd, sp_head *caller,
                                               size_t i) const
 {
-  if (!is_cur_schema(i))
-    return m_schemas[i];
-
   /*
     Resolve CURRENT_SCHEMA to actual database name.
   */
@@ -109,10 +106,9 @@ bool Sql_path::resolve(THD *thd, sp_head *caller, sp_name *name,
     return false;
 
   DBUG_ASSERT(!name->m_explicit_name || name->m_db.str);
-  if (!name->m_explicit_name)
+  if (caller) // first, search in the current package
   {
-    // Implicit name
-    if (caller && caller->m_name.str)
+    if (!name->m_explicit_name) // name()
     {
       sp_name tmp_name(*name);
       tmp_name.m_db= caller->m_db;
@@ -129,34 +125,42 @@ bool Sql_path::resolve(THD *thd, sp_head *caller, sp_name *name,
         return false;
       }
     }
-  }
-  else if (thd->db.str)
-  {
-    // Explicit name and current database is set
-    const Sp_handler *pkg_routine_hndlr= nullptr;
-    if ((*sph)->sp_resolve_package_routine_explicit(thd, caller, name,
-                                                    &pkg_routine_hndlr,
-                                                    pkgname))
-      return true;
-
-    if (pkg_routine_hndlr)
+    else // name1.name2()
     {
-      *sph= pkg_routine_hndlr;
-      return false;
+      const Sp_handler *pkg_routine_hndlr= nullptr;
+      if ((*sph)->sp_resolve_package_routine_explicit(thd, caller, name,
+                                                      &pkg_routine_hndlr,
+                                                      pkgname))
+        return true;
+
+      if (pkg_routine_hndlr)
+      {
+        *sph= pkg_routine_hndlr;
+        return false;
+      }
     }
   }
 
   // If PATH contains only CURRENT_SCHEMA (default), skip PATH resolution
   // to avoid extra table operations that affect performance
-  if (m_count == 1 && is_cur_schema(0))
+  if (!name->m_explicit_name && m_count == 1 && is_cur_schema(0))
     return false;
 
   bool resolved= false;
   for (size_t i= 0; i < m_count; i++)
   {
-    Lex_ident_db schema= resolve_current_schema(thd, caller, i);
-    if (!schema.str)
-      continue; // CURRENT_SCHEMA resolution failed, skip this entry
+    Lex_ident_db schema;
+    if (is_cur_schema(i))
+    {
+      schema= resolve_current_schema(thd, caller, i);
+      if (!schema.str)
+        continue; // CURRENT_SCHEMA resolution failed, skip this entry
+      /* recursive calls */
+      if (caller && name->eq_routine_name(caller))
+        return false;
+    }
+    else
+      schema= m_schemas[i];
 
     /*
       Schemas are already normalized when added to the path, except for
@@ -168,7 +172,7 @@ bool Sql_path::resolve(THD *thd, sp_head *caller, sp_name *name,
       return true;
 
     if (resolved)
-      break;
+      return false;
   }
 
   return false;
