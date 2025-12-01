@@ -103,8 +103,8 @@ explicit_stmt->test.pkg.p1()
 SELECT test.pkg.f1('explicit_stmt->');
 test.pkg.f1('explicit_stmt->')
 explicit_stmt->test.pkg.f1()
-# TODO, this should resolve to `pkg` schema's standalone routines?
-# now it resolves to `test.pkg.p1` instead..
+# this resolves to a method p1 in a package pkg in schema test,
+# not to procedure p1 in schema pkg. For compatibility with Oracle.
 CALL pkg.p1('schema_implicit_stmt->');
 CONCAT(a, 'test.pkg.p1()')
 schema_implicit_stmt->test.pkg.p1()
@@ -149,8 +149,8 @@ explicit_stmt->test.pkg.p1()
 SELECT test.pkg.f1('explicit_stmt->');
 test.pkg.f1('explicit_stmt->')
 explicit_stmt->test.pkg.f1()
-# TODO, this should resolve to `pkg` schema's standalone routines?
-# now it resolves to `test.pkg.p1` instead..
+# this resolves to a method p1 in a package pkg in schema test,
+# not to procedure p1 in schema pkg. For compatibility with Oracle.
 CALL pkg.p1('schema_implicit_stmt->');
 CONCAT(a, 'test.pkg.p1()')
 schema_implicit_stmt->test.pkg.p1()
@@ -163,6 +163,19 @@ implicit_stmt->pkg.p1()
 SELECT f1('implicit_stmt->');
 f1('implicit_stmt->')
 implicit_stmt->pkg.f1
+SET PATH 'pkg';
+CALL p1('implicit_stmt->');
+CONCAT(a, 'pkg.p1()')
+implicit_stmt->pkg.p1()
+CALL pkg.p1('schema_implicit_stmt->');
+CONCAT(a, 'pkg.p1()')
+schema_implicit_stmt->pkg.p1()
 USE test;
+CALL p1('implicit_stmt->');
+CONCAT(a, 'pkg.p1()')
+implicit_stmt->pkg.p1()
+CALL pkg.p1('schema_implicit_stmt->');
+CONCAT(a, 'pkg.p1()')
+schema_implicit_stmt->pkg.p1()
 DROP PACKAGE pkg;
 DROP DATABASE pkg;
