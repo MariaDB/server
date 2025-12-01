@@ -7500,7 +7500,8 @@ end_dont_reset_start_part:
 */
 bool ha_partition::can_skip_merging_scans()
 {
-  Field *part_field;
+  Field *part_field= NULL;
+  uint i;
   m_unordered_prefix_len= 0;
   if (m_index_scan_type != partition_index_first &&
       m_index_scan_type != partition_index_last &&
@@ -7513,31 +7514,48 @@ bool ha_partition::can_skip_merging_scans()
   if (m_part_info->part_expr &&
       m_part_info->part_expr->type() != Item::FIELD_ITEM)
     return false;
-  /* More than one column in PARTITION BY RANGE COLUMNS */
+  for (i= 0;
+       (part_field= m_part_info->full_part_field_array[i]) &&
+       i < m_curr_key_info[0]->user_defined_key_parts;
+       i++)
+  {
+    KEY_PART_INFO *key_part= &m_curr_key_info[0]->key_part[i];
+    if (key_part->field != part_field)
+      break;
+    if (i == 0)
+      m_unordered_reverse_index=
+        (key_part->key_part_flag & HA_REVERSE_SORT) ? true : false;
+    else if (m_unordered_reverse_index !=
+             ((key_part->key_part_flag & HA_REVERSE_SORT) ? true : false))
+      return false;             /* TODO: support mixed ASC/DESC keys */
+  }
+  /* Case 1 */
+  /*
+    We read to the empty partition field, so the partition columns are
+    a prefix
+  */
+  if (!part_field)
+    return true;
+  /* A prefix but not all of the columns is a prefix */
+  if (i > 0)
+    return false;
+  /* Case 2 begins. Case 2 only supports single range column */
   if (m_part_info->full_part_field_array[1])
     return false;
-  part_field= m_part_info->full_part_field_array[0];
-  /* Case 1 */
-  if (m_curr_key_info[0]->key_part[0].field == part_field)
-  {
-    m_unordered_reverse_index=
-      (m_curr_key_info[0]->key_part[0].key_part_flag & HA_REVERSE_SORT) ?
-      true : false;
-    return true;
-  }
-  m_unordered_prefix_len= m_curr_key_info[0]->key_part[0].store_length;
-  /* Case 2 */
   if (m_index_scan_type == partition_index_first ||
       m_index_scan_type == partition_index_last)
     return false;
-  for (uint i= 1; i < m_curr_key_info[0]->user_defined_key_parts; i++)
+  m_unordered_prefix_len= m_curr_key_info[0]->key_part[0].store_length;
+  for (i= 1; i < m_curr_key_info[0]->user_defined_key_parts; i++)
   {
-    if (m_curr_key_info[0]->key_part[i].field == part_field)
+    KEY_PART_INFO *key_part= &m_curr_key_info[0]->key_part[i];
+    if (key_part->field != part_field)
+      m_unordered_prefix_len+= key_part->store_length;
+    else
     {
       key_part_map prefix= (1 << i) - 1;
       m_unordered_reverse_index=
-        (m_curr_key_info[0]->key_part[i].key_part_flag & HA_REVERSE_SORT) ?
-        true : false;
+        (key_part->key_part_flag & HA_REVERSE_SORT) ? true : false;
       if (m_index_scan_type == partition_index_read)
         return
           m_start_key.key && (m_start_key.keypart_map & prefix) == prefix;
@@ -7555,8 +7573,6 @@ bool ha_partition::can_skip_merging_scans()
           !memcmp(m_mrr_range_current->key[0], m_mrr_range_current->key[1],
                   m_unordered_prefix_len);
     }
-    else
-      m_unordered_prefix_len+= m_curr_key_info[0]->key_part[i].store_length;
   }
   return false;
 }
@@ -8027,8 +8043,7 @@ int ha_partition::handle_unordered_scan_next_partition(uchar * buf,
 {
   /* Whether to start from the highest partition. */
   bool reverse_order= (is_last_or_prev != m_unordered_reverse_index);
-  int i= reverse_order ? m_part_spec.end_part : m_part_spec.start_part;
-  int j= reverse_order ? -1 : 1;
+  uint i= reverse_order ? m_part_spec.end_part : m_part_spec.start_part;
   int saved_error= HA_ERR_END_OF_FILE;
   DBUG_ENTER("ha_partition::handle_unordered_scan_next_partition");
 
@@ -8037,13 +8052,22 @@ int ha_partition::handle_unordered_scan_next_partition(uchar * buf,
   else
     m_pi_scan_method= INDEX_SCAN_UNORDERED;
   /* Find the first partition to scan. */
-  while (i >= 0 && (uint) i >= m_part_spec.start_part &&
-         (uint) i <= m_part_spec.end_part &&
-         !bitmap_is_set(&m_part_info->read_partitions, i))
-    i+= j;
+  if (reverse_order)
+  {
+    if (i < m_part_info->read_partitions.n_bits - 1)
+      i= bitmap_get_prev_set(&m_part_info->read_partitions, i + 1);
+    else
+      i= bitmap_get_last_set(&m_part_info->read_partitions);
+  }
+  else
+  {
+    if (i)
+      i= bitmap_get_next_set(&m_part_info->read_partitions, i - 1);
+    else
+      i= bitmap_get_first_set(&m_part_info->read_partitions);
+  }
 
-  while (i >= 0 && (uint) i >= m_part_spec.start_part &&
-         (uint) i <= m_part_spec.end_part)
+  while (i >= m_part_spec.start_part && i <= m_part_spec.end_part)
   {
     int error;
     handler *file= m_file[i];
@@ -8098,12 +8122,10 @@ int ha_partition::handle_unordered_scan_next_partition(uchar * buf,
     if (saved_error != HA_ERR_KEY_NOT_FOUND)
       saved_error= error;
     DBUG_PRINT("info", ("END_OF_FILE/KEY_NOT_FOUND on partition %u", i));
-    i+= j;
-    /* Find the next partition to scan. */
-    while (i >= 0 && (uint) i >= m_part_spec.start_part &&
-           (uint) i <= m_part_spec.end_part &&
-           !bitmap_is_set(&m_part_info->read_partitions, i))
-      i+= j;
+    if (reverse_order)
+      i= bitmap_get_prev_set(&m_part_info->read_partitions, i);
+    else
+      i= bitmap_get_next_set(&m_part_info->read_partitions, i);
   }
   if (saved_error == HA_ERR_END_OF_FILE)
   {
