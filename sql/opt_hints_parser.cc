@@ -141,6 +141,8 @@ Optimizer_hint_tokenizer::find_keyword(const LEX_CSTRING &str)
       return TokenID::keyword_GROUP_INDEX;
     if ("INDEX_MERGE"_Lex_ident_column.streq(str))
       return TokenID::keyword_INDEX_MERGE;
+    if ("QB_NAME_LOC"_Lex_ident_column.streq(str))
+      return TokenID::keyword_QB_NAME_LOC;
     break;
 
   case 12:

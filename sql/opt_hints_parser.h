@@ -62,6 +62,7 @@ public:
     tEOF=   2, // returned when the end of input is reached
 
     // One character tokens
+    tDOT= '.',
     tCOMMA= ',',
     tAT= '@',
     tLPAREN= '(',
@@ -80,6 +81,7 @@ public:
     keyword_NO_RANGE_OPTIMIZATION,
     keyword_MRR,
     keyword_QB_NAME,
+    keyword_QB_NAME_LOC,
     keyword_MAX_EXECUTION_TIME,
     keyword_SEMIJOIN,
     keyword_NO_SEMIJOIN,
@@ -267,10 +269,14 @@ private:
   // Rules consisting of a single token
 
   using TokenAT= TokenParser<Parser, TokenID::tAT>;
+  
+  using TokenCOMMA= TokenParser<Parser, TokenID::tCOMMA>;
 
   using TokenEOF= TokenParser<Parser, TokenID::tEOF>;
 
   using Keyword_QB_NAME= TokenParser<Parser, TokenID::keyword_QB_NAME>;
+
+  using Keyword_QB_NAME_LOC= TokenParser<Parser, TokenID::keyword_QB_NAME_LOC>;
 
   using Keyword_MAX_EXECUTION_TIME=
           TokenParser<Parser, TokenID::keyword_MAX_EXECUTION_TIME>;
@@ -637,6 +643,75 @@ public:
     bool resolve(Parse_context *pc) const;
   };
 
+  // OLEGS: comment this
+  class View_name: public Identifier
+  {
+  public:
+    using Identifier::Identifier;
+  };
+
+  class SelectN: public Identifier
+  {
+  public:
+    using Identifier::Identifier;
+  };
+
+  // class View_SelectN: public AND3<Parser, View_name, TokenAT, SelectN>
+  // {
+  // public:
+  //   using AND3::AND3;
+  // };
+
+  class View_SelectN: public Identifier
+  {
+  public:
+    using Identifier::Identifier;
+  };
+
+  /*
+    OLEGS: amend  
+    table_name_list ::= table_name [ {, table_name }... ]
+  */
+  class Query_block_path_container: public List<View_SelectN>
+  {
+  public:
+    Query_block_path_container() = default;
+
+    bool add(Optimizer_hint_parser *p, View_SelectN &&table);
+    size_t count() const { return elements; }
+  };
+
+  class Query_block_path: public LIST<Parser,
+                                      Query_block_path_container,
+                                      View_SelectN,
+                                      TokenID::tDOT, 0>
+  {
+    using LIST::LIST;
+  };
+
+  // query_block_locator_body ::= query_block_name, query_block_path
+  class Qb_locator_body: public AND2<Parser,
+                                     Query_block_name,
+                                     //TokenCOMMA,
+                                     Query_block_path>
+  {
+  public:
+    using AND2::AND2;
+  };
+
+  // OLEGS: combine with QB_NAME ^^^
+  // qb_locator_hint ::= QB_LOC ( query_block_name path)
+  class Qb_locator_hint: public AND4<Parser,
+                                     Keyword_QB_NAME_LOC,
+                                     LParen,
+                                     Qb_locator_body,
+                                     RParen>
+  {
+  public:
+    using AND4::AND4;
+
+    bool resolve(Parse_context *pc) const;
+  };
 
 public:
   // max_execution_time_hint ::= MAX_EXECUTION_TIME ( milliseconds )
