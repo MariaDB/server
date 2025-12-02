@@ -446,6 +446,8 @@ SET PATH 'hhh,`iii`,jjj,"kkk",lll';
 ERROR 42000: Variable 'PATH' can't be set to the value of 'hhh,`iii`,jjj,"kkk",lll'
 SET PATH 'hello,world,deadpool,wolverine,aaa,deadpool,ccc';
 ERROR 42000: Variable 'PATH' can't be set to the value of 'hello,world,deadpool,wolverine,aaa,deadpool,ccc'
+SET PATH 'current_schema,CURRENT_schema';
+ERROR 42000: Variable 'PATH' can't be set to the value of 'current_schema,CURRENT_schema'
 SET PATH '`,Ɣ';
 ERROR 42000: Variable 'PATH' can't be set to the value of '`,Ɣ'
 SET PATH '",Ɣ';
