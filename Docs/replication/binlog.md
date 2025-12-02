@@ -46,6 +46,16 @@ When using the `--start-position` and `--stop-position` options of `mariadb-binl
 
 The `--binlog-checksum` option is no longer used with the new binlog implementation. The binlog files are always checksummed, with a CRC32 at the end of each page. To have checksum of the data sent on the network between the master and the slave (in addition to the normal TCP checksums), use the `MASTER_SSL` option for `CHANGE MASTER` to make the connection use SSL.
 
+## Using the new binlog with mariadb-backup
+
+The `mariadb-backup` program will by default back up the binlog files together with the rest of the server data. This fixes a long-standing limitation of the old binlog that it is missing from backups made with `mariadb-backup`.
+
+The binlog files are backed up in a transactionally consistent way, just like other InnoDB data. This means that a restored backup can be used to setup a new slave simply by using the `MASTER_DEMOTE_TO_SLAVE=1` option of `CHANGE MASTER`.
+
+The server being backed up is not blocked during the copy of the binlog files; only `RESET MASTER`, `PURGE BINARY LOGS` and `FLUSH BINARY LOGS` are blocked by default. This blocking can be disabled with the option `--no-lock` option.
+
+To omit the binlog files from the backup (ie. to save space in the backup when the binlog files are known to be not needed), use the `--skip-binlog` option on both the `mariadb-backup --backup` and `mariadb-backup --prepare` step. Note that when binlog files are omitted from the backup, the restored server will behave as if `RESET MASTER` was run on it just at the point of the backup. Also note that any transactions that were prepared, but not yet committed, at the time of the backup will be rolled back when the restored server starts up for the first time.
+
 ## `FLUSH BINARY LOGS`
 
 Binlog files are pre-allocated for efficiency. When binlog file N is filled up, any remainder event data continues in file N+1, and and empty file N+2 is pre-allocated in the background. This means that binlog files are always exactly `--max-binlog-size` bytes long; and if the server restarts, binlog writing continues at the point reached before shutdown.
