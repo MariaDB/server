@@ -18,10 +18,10 @@
 #ifndef RPL_INFO_FILE_H
 #define RPL_INFO_FILE_H
 
-#include <cstdint>     // uintN_t
-#include <charconv>    // std::from/to_chars and other helpers
-#include <functional>  // superclass of Info_file::Mem_fn
-#include <my_sys.h>    // IO_CACHE, FN_REFLEN, ...
+#include <cstdint>    // uintN_t
+#include <charconv>   // std::from/to_chars and other helpers
+#include <functional> // superclass of Info_file::Mem_fn
+#include <my_sys.h>   // IO_CACHE, FN_REFLEN, ...
 
 
 /** Helpers for reading and writing integers to and from @ref IO_CACHE

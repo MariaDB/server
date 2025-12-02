@@ -623,13 +623,68 @@ The following specify which files/extra groups are read (specified before remain
  If set to 1 table names are stored in lowercase on disk
  and table names will be case-insensitive.  Should be set
  to 2 if you are using a case insensitive file system
+ --master-connect-retry=# 
+ The DEFAULT value for the CHANGE MASTER option
+ MASTER_CONNECT_RETRY, the interval in integer seconds
+ between each try to connect to the master
+ --master-heartbeat-period=name 
+ The DEFAULT value for the CHANGE MASTER option
+ MASTER_HEARTBEAT_PERIOD, the interval in DECIMAL(10, 3)
+ seconds between replication heartbeats; the autoset value
+ is @@slave_net_timeout/2 calculated on use (Automatically
+ configured unless set explicitly)
  --master-info-file=name 
  The location and name of the file that remembers the
  master and where the I/O replication thread is in the
  master's binlogs. Defaults to master.info
  --master-retry-count=# 
- The number of tries the slave will make to connect to the
+ The DEFAULT value for the CHANGE MASTER option
+ MASTER_RETRY_COUNT, the number of tries to connect to the
  master before giving up
+ --master-ssl        The DEFAULT value for the CHANGE MASTER option
+ MASTER_SSL, which is whether to use TLS to connect to the
+ master
+ (Defaults to on; use --skip-master-ssl to disable.)
+ --master-ssl-ca=name 
+ The DEFAULT value for the CHANGE MASTER option
+ MASTER_SSL_CA, an optional path to a Certificate
+ Authorities' certificates file for TLS replication
+ --master-ssl-capath=name 
+ The DEFAULT value for the CHANGE MASTER option
+ MASTER_SSL_CAPATH, an optional path to a directory of
+ Certificate Authority's certificate files for TLS
+ replication, 
+ --master-ssl-cert=name 
+ The DEFAULT value for the CHANGE MASTER option
+ MASTER_SSL_CERT, an optional path to the master's
+ certificate for TLS replication
+ --master-ssl-cipher=name 
+ The DEFAULT value for the CHANGE MASTER option
+ MASTER_SSL_CIPHER, a list of permitted ciphers for TLS
+ replication
+ --master-ssl-crl=name 
+ The DEFAULT value for the CHANGE MASTER option
+ MASTER_SSL_CRL, an optional path to a revoked
+ certificates file for TLS replication
+ --master-ssl-crlpath=name 
+ The DEFAULT value for the CHANGE MASTER option
+ MASTER_SSL_CRLPATH, an optional path to a directory of
+ revoked certificate files for TLS replication
+ --master-ssl-key=name 
+ The DEFAULT value for the CHANGE MASTER option
+ MASTER_SSL_KEY, an optional path to the master's private
+ key for TLS replication
+ --master-ssl-verify-server-cert 
+ The DEFAULT value for the CHANGE MASTER option
+ MASTER_SSL_VERIFY_SERVER_CERT, which is whether to
+ validate the master's certificate in TLS replication
+ (Defaults to on; use --skip-master-ssl-verify-server-cert to disable.)
+ --master-use-gtid=name 
+ The DEFAULT value for the CHANGE MASTER option
+ MASTER_USE_GTID, which specifies which GTID record (or
+ neither) to start replicating from; the autoset value is
+ Slave_Pos, or No if that master does not support GTIDs
+ (Automatically configured unless set explicitly)
  --master-verify-checksum 
  Force checksum verification of logged events in the
  binary log before sending them to slaves or printing them
@@ -1828,8 +1883,20 @@ log-warnings 2
 long-query-time 10
 low-priority-updates FALSE
 lower-case-table-names 1
+master-connect-retry 60
+master-heartbeat-period auto
 master-info-file master.info
 master-retry-count 100000
+master-ssl TRUE
+master-ssl-ca 
+master-ssl-capath 
+master-ssl-cert 
+master-ssl-cipher 
+master-ssl-crl 
+master-ssl-crlpath 
+master-ssl-key 
+master-ssl-verify-server-cert TRUE
+master-use-gtid ?
 master-verify-checksum FALSE
 max-allowed-packet 16777216
 max-binlog-cache-size 18446744073709547520

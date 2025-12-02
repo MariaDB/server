@@ -21,6 +21,7 @@
 #ifndef SQL_LEX_INCLUDED
 #define SQL_LEX_INCLUDED
 
+#include <functional>
 #include "lex_ident_sys.h"
 #include "violite.h"                            /* SSL_type */
 #include "sql_trigger.h"
@@ -40,6 +41,7 @@
 #include "table.h"
 #include "sql_class.h"                // enum enum_column_usage
 #include "select_handler.h"
+#include "rpl_master_info_file.h"     // Master_info_file
 
 /* Used for flags of nesting constructs */
 #define SELECT_NESTING_MAP_SIZE 64
@@ -358,8 +360,6 @@ struct LEX_MASTER_INFO
   DYNAMIC_ARRAY repl_do_domain_ids;
   DYNAMIC_ARRAY repl_ignore_domain_ids;
   const char *host, *user, *password, *log_file_name;
-  const char *ssl_key, *ssl_cert, *ssl_ca, *ssl_capath, *ssl_cipher;
-  const char *ssl_crl, *ssl_crlpath;
   const char *relay_log_name;
   LEX_CSTRING connection_name;
   /* Value in START SLAVE UNTIL master_gtid_pos=xxx */
@@ -367,10 +367,7 @@ struct LEX_MASTER_INFO
   ulonglong pos;
   ulong relay_log_pos;
   ulong server_id;
-  uint port, connect_retry;
-  ulong retry_count;
-  my_decimal heartbeat_period;
-  my_decimal *heartbeat_opt;
+  uint port;
   int sql_delay;
   bool is_demotion_opt;
   bool is_until_before_gtids;
@@ -381,17 +378,28 @@ struct LEX_MASTER_INFO
     changed variable or if it should be left at old value
    */
   enum {LEX_MI_UNCHANGED= 0, LEX_MI_DISABLE, LEX_MI_ENABLE}
-    ssl, ssl_verify_server_cert, repl_ignore_server_ids_opt,
+    repl_ignore_server_ids_opt,
     repl_do_domain_ids_opt, repl_ignore_domain_ids_opt;
-  enum {
-    LEX_GTID_UNCHANGED, LEX_GTID_NO, LEX_GTID_CURRENT_POS, LEX_GTID_SLAVE_POS
-  } use_gtid_opt;
+
+  /**TODO
+    Going through this struct means it must contain a repeated set of CHANGE
+    MASTER and START SLAVE variables that additionally knows which values are
+    not changing, not to mention support for `CHANGE MASTER ...= DEFAULT`.
+    This creates complexity and leads to inconsistency.
+    Instead, it is possible to track and apply CHANGE MASTER configs during
+    parsing (in `sql_yacc.yy`) without stashing them in a @ref LEX_MASTER_INFO.
+    But for now, lambdas in `sql_yacc.yy` demonstrates this concept while
+    keeping them deferred to the "post-processing" in change_master().
+  */
+  using mi_functor= std::function<void(Master_info_file *mi)>;
+  mi_functor connect_retry, heartbeat_period, ssl,
+    ssl_key, ssl_cert, ssl_ca, ssl_capath, ssl_cipher, ssl_crl, ssl_crlpath,
+    ssl_verify_server_cert, retry_count, use_gtid;
 
   void init()
   {
     reset(false);
     connection_name= null_clex_str;
-    heartbeat_period.init();
     show_all_slaves= false;
     my_init_dynamic_array(PSI_INSTRUMENT_ME, &repl_ignore_server_ids,
                           sizeof(::server_id), 0, 16, MYF(0));
@@ -410,15 +418,24 @@ struct LEX_MASTER_INFO
       delete_dynamic(&repl_ignore_domain_ids);
     }
 
-    host= user= password= log_file_name= ssl_key= ssl_cert= ssl_ca=
-      ssl_capath= ssl_cipher= ssl_crl= ssl_crlpath= relay_log_name= NULL;
-    pos= relay_log_pos= server_id= retry_count= port= connect_retry= 0;
-    heartbeat_opt= nullptr;
-    ssl= ssl_verify_server_cert=
-      repl_ignore_server_ids_opt= repl_do_domain_ids_opt=
-      repl_ignore_domain_ids_opt= LEX_MI_UNCHANGED;
+    host= user= password= log_file_name= relay_log_name= NULL;
+    ssl_key= nullptr;
+    ssl_cert= nullptr;
+    ssl_ca= nullptr;
+    ssl_capath= nullptr;
+    ssl_cipher= nullptr;
+    ssl_crl= nullptr;
+    ssl_crlpath= nullptr;
+    pos= relay_log_pos= server_id= port= 0;
+    retry_count= nullptr;
+    connect_retry= nullptr;
+    heartbeat_period= nullptr;
+    ssl= nullptr;
+    ssl_verify_server_cert= nullptr;
+    repl_ignore_server_ids_opt=
+      repl_do_domain_ids_opt= repl_ignore_domain_ids_opt= LEX_MI_UNCHANGED;
     gtid_pos_str= null_clex_str;
-    use_gtid_opt= LEX_GTID_UNCHANGED;
+    use_gtid= nullptr;
     sql_delay= -1;
     is_demotion_opt= 0;
     is_until_before_gtids= false;

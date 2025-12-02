@@ -18,6 +18,16 @@
 #ifndef RPL_MASTER_INFO_FILE_H
 #define RPL_MASTER_INFO_FILE_H
 
+/*FIXME MDEV-38213:
+  `rpl_master_info_file.h` requires C++17, but RocksDB,
+  which transitively includes this file, is still on C++11.
+*/
+#if __cplusplus < 201703L && _MSVC_LANG < 201703L
+struct Master_info_file;
+enum struct enum_master_use_gtid {};
+enum struct trilean {};
+#else
+
 #include "rpl_info_file.h"
 #include <unordered_map> // Type of Master_info_file::VALUE_MAP
 #include <string_view>   // Key type of Master_info_file::VALUE_MAP
@@ -74,7 +84,7 @@ inline const char *master_ssl_cipher = "";
 inline bool master_ssl_verify_server_cert= true;
 /// `ulong` is the data type `my_getopt` expects.
 inline auto master_use_gtid= static_cast<ulong>(enum_master_use_gtid::DEFAULT);
-inline uint64_t master_retry_count= 100'000;
+inline uint64_t master_retry_count= 100000;
 /// }@
 
 
@@ -444,7 +454,8 @@ struct Master_info_file: Info_file
       @param overprecise
         set to `true` if the decimal has more than 3 decimal digits
       @return whether the decimal is out of range
-      @post Output arguments are not changed if the decimal is out of range.
+      @post Output arguments are set on success and
+       not changed if the decimal is out of range.
     */
     static uint from_decimal(
       uint32_t &result, const decimal_t &decimal, bool &overprecise
@@ -486,7 +497,7 @@ struct Master_info_file: Info_file
       @param expected_end This function also checks that the exclusive end
         of the decimal *(which may be `str_end` itself)* is this delimiter.
       @return from_decimal(), or `true` on unexpected contents
-      @post Output arguments are not changed on error.
+      @post Output arguments are set on success and not changed on error.
     */
     static uint from_chars(
       std::optional<uint32_t> &self, const char *str,
@@ -714,4 +725,5 @@ break_for:;
 
 };
 
-#endif
+#endif // C++ standard guard
+#endif // include guard
