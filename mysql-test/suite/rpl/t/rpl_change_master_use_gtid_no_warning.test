@@ -1,0 +1,69 @@
+#
+# MDEV-37842: Fix CHANGE_MASTER_TO warning message
+#
+# Purpose:
+#   Verify that CHANGE MASTER TO master_use_gtid=NO does not produce
+#   a spurious warning when Using_Gtid is already 'No'.
+#
+# The bug was that running:
+#   CHANGE MASTER TO master_use_gtid=NO;
+# when Using_Gtid was already 'No' would produce:
+#   Note 4190 CHANGE MASTER TO is implicitly changing the value of
+#             'Using_Gtid' from 'No' to 'No'
+#
+# This test verifies:
+#   1. No warning when changing from No to No (explicit master_use_gtid=NO)
+#   2. No warning when Using_Gtid is already No and relay_log_pos is set (which implicitly sets Using_Gtid to No)
+#   3. Warning IS shown when actually changing from Slave_Pos to No
+#
+
+--source include/master-slave.inc
+
+--connection slave
+--source include/stop_slave.inc
+
+--echo #
+--echo # Test Case 1: No warning when Using_Gtid is already 'No' and
+--echo # explicitly setting master_use_gtid=NO
+--echo #
+
+# First ensure Using_Gtid is No
+CHANGE MASTER TO master_use_gtid=NO;
+--let $using_gtid= query_get_value(SHOW SLAVE STATUS, Using_Gtid, 1)
+--echo # Using_Gtid should be 'No': $using_gtid
+
+# Now set it to NO again - should NOT produce warning 4190
+CHANGE MASTER TO master_use_gtid=NO;
+--echo # No warning should appear above
+
+--echo #
+--echo # Test Case 2: No warning when Using_Gtid is already 'No' and
+--echo # setting relay_log_pos (which implicitly sets Using_Gtid to No)
+--echo #
+
+# Using_Gtid is still No from previous test
+CHANGE MASTER TO relay_log_pos=0;
+--echo # No warning should appear above
+
+--echo #
+--echo # Test Case 3: Warning IS shown when actually changing from
+--echo # Slave_Pos to No (via relay_log_pos)
+--echo #
+
+# Set Using_Gtid to Slave_Pos first
+CHANGE MASTER TO master_use_gtid=Slave_Pos;
+--let $using_gtid= query_get_value(SHOW SLAVE STATUS, Using_Gtid, 1)
+--echo # Using_Gtid should be 'Slave_Pos': $using_gtid
+
+# Now set relay_log_pos which implicitly changes Using_Gtid to No
+# This SHOULD produce warning 4190
+CHANGE MASTER TO relay_log_pos=0;
+--echo # Warning 4190 should appear above about changing from 'Slave_Pos' to 'No'
+
+--echo #
+--echo # Cleanup
+--echo #
+CHANGE MASTER TO master_use_gtid=NO;
+--source include/start_slave.inc
+
+--source include/rpl_end.inc
