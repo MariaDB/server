@@ -952,7 +952,7 @@ EXPLAIN
                 "loops": 10,
                 "rows": 10,
                 "cost": "COST_REPLACED",
-                "filtered": 10
+                "filtered": 23.5
               },
               "buffer_type": "flat",
               "buffer_size": "206",
@@ -2269,7 +2269,7 @@ EXPLAIN
                 "loops": 4,
                 "rows": 2,
                 "cost": "COST_REPLACED",
-                "filtered": 25
+                "filtered": 36.25
               },
               "buffer_type": "incremental",
               "buffer_size": "109",
