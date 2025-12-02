@@ -913,7 +913,7 @@ struct rpl_group_info
   Query_log_event *start_alter_ev;
   bool direct_commit_alter;
   start_alter_info *sa_info;
-
+  bool is_new_trans;                 // marker of start_new_trans context
   rpl_group_info(Relay_log_info *rli_);
   ~rpl_group_info();
   void reinit(Relay_log_info *rli);
@@ -1054,6 +1054,28 @@ struct rpl_group_info
   }
 
 };
+
+/**
+  The function prohibits access to THD::rgi_slave, screens it
+  in the contexts like one with start_new_trans defined.
+ */
+inline rpl_group_info* get_rgi_slave(rpl_group_info* rgi, bool check_new_trans= false)
+{
+  return (rgi && rgi->is_new_trans && check_new_trans) ? NULL : rgi;
+}
+/**
+  The following functions for start_new_trans' ctor and dtor.
+*/
+inline void hide_rgi_slave(rpl_group_info* rgi)
+{
+  if (rgi)
+    rgi->is_new_trans= true;
+}
+inline void unhide_rgi_slave(rpl_group_info* rgi)
+{
+  if (rgi)
+    rgi->is_new_trans= false;
+}
 
 
 /*
