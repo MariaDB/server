@@ -10,6 +10,8 @@ CURRENT_PATH()
 CURRENT_SCHEMA
 CREATE DATABASE teST2;
 CREATE FUNCTION teST2.func() RETURNS TEXT RETURN 'teST2.func';
+SET PATH 'test2,teST2';
+ERROR 42000: Variable 'PATH' can't be set to the value of 'test2,teST2'
 SET PATH 'test2';
 SELECT CURRENT_PATH(), func();
 CURRENT_PATH()	func()
