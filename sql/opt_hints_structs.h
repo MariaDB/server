@@ -53,7 +53,12 @@ enum opt_hints_enum
 enum class hint_resolution_stage
 {
   EARLY,
-  LATE
+  LATE,
+  NOT_SET /* If specified for a hint at `st_opt_hint_info`, then it means that
+             the resolution stage is not determined by the hint type but
+             depends on the hint body. For example, simple QB_NAME is resolved
+             in EARLY stage while QB_NAME with path - in LATE stage.
+             The particular resolution method is responsible in this case */
 };
 
 #endif /* OPT_HINTS_STRUCTS_H */

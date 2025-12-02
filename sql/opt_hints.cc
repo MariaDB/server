@@ -42,7 +42,7 @@ struct st_opt_hint_info opt_hint_info[]=
   {{STRING_WITH_LEN("ICP")},                   true,      false,        false,        hrs::LATE},
   {{STRING_WITH_LEN("MRR")},                   true,      false,        false,        hrs::LATE},
   {{STRING_WITH_LEN("NO_RANGE_OPTIMIZATION")}, true,      false,        false,        hrs::LATE},
-  {{STRING_WITH_LEN("QB_NAME")},               false,     false,        false,        hrs::EARLY},
+  {{STRING_WITH_LEN("QB_NAME")},               false,     false,        false,        hrs::NOT_SET},
   {{STRING_WITH_LEN("MAX_EXECUTION_TIME")},    false,     true,         false,        hrs::LATE},
   {{STRING_WITH_LEN("SEMIJOIN")},              false,     true,         false,        hrs::LATE},
   {{STRING_WITH_LEN("SUBQUERY")},              false,     true,         false,        hrs::LATE},
@@ -86,6 +86,13 @@ int cmp_lex_string(const LEX_CSTRING &s, const LEX_CSTRING &t,
 {
   return cs->coll->strnncollsp(cs, (const uchar*)s.str, s.length,
                                    (const uchar*)t.str, t.length);
+}
+
+int cmp_lex_string_limit(const LEX_CSTRING &s, const LEX_CSTRING &t,
+                         const CHARSET_INFO *cs, size_t chars_limit)
+{
+  return cs->coll->strnncollsp(cs, (const uchar*)s.str, chars_limit,
+                                   (const uchar*)t.str, chars_limit);
 }
 
 /*
