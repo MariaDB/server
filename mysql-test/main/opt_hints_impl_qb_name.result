@@ -29,7 +29,7 @@ Note	1003	select /*+ NO_BNL(@`select#2`) */ `test`.`t1`.`a` AS `a`,`test`.`t1`.`
 # Index-level hints
 # Without the hint 'range' index access would be chosen
 explain extended select /*+ no_index(t1@`T`)*/ * from
-(select * from t1 where a < 3) T;
+(select * from t1 where a < 3) t;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	100	2.00	Using where
 Warnings:
@@ -357,12 +357,12 @@ Note	1003	/* select#1 */ select /*+ NO_BNL(@`select#2`) */ `dt`.`a` AS `a`,`dt`.
 # Index-level hints
 # Without the hint 'range' index access would be chosen
 explain extended select /*+ no_index(t1@`T`)*/ * from
-(select * from t1 where a < 3) T;
+(select * from t1 where a < 3) t;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	2	100.00	
 2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	100	2.00	Using where
 Warnings:
-Note	1003	/* select#1 */ select /*+ NO_INDEX(`t1`@`select#2`) */ `T`.`a` AS `a`,`T`.`b` AS `b`,`T`.`c` AS `c` from (/* select#2 */ select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b`,`test`.`t1`.`c` AS `c` from `test`.`t1` where `test`.`t1`.`a` < 3) `T`
+Note	1003	/* select#1 */ select /*+ NO_INDEX(`t1`@`select#2`) */ `t`.`a` AS `a`,`t`.`b` AS `b`,`t`.`c` AS `c` from (/* select#2 */ select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b`,`test`.`t1`.`c` AS `c` from `test`.`t1` where `test`.`t1`.`a` < 3) `t`
 # Without the hint 'range' index access would be chosen
 explain extended select /*+ no_range_optimization(t1@t1)*/ *  from
 (select * from t1 where a > 100 and a < 120) as t1;

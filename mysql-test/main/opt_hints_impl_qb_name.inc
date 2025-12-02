@@ -9,7 +9,7 @@ explain extended select /*+ no_bnl(@dt)*/ * from
 --echo # Index-level hints
 --echo # Without the hint 'range' index access would be chosen
 explain extended select /*+ no_index(t1@`T`)*/ * from
-  (select * from t1 where a < 3) T;
+  (select * from t1 where a < 3) t;
 
 --echo # Without the hint 'range' index access would be chosen
 explain extended select /*+ no_range_optimization(t1@t1)*/ *  from
