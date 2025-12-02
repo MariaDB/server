@@ -42,7 +42,7 @@ send CALL gen_load();
 --echo *** Doing backup...
 --exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --backup --target-dir=$basedir $backup_args
 --echo *** Doing prepare...
---exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --prepare --target-dir=$basedir
+--exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --prepare --target-dir=$basedir $prepare_args
 
 --echo *** Stop the background load...
 UPDATE t2 SET val=1;
@@ -68,7 +68,20 @@ disconnect con1;
 --let $restart_parameters= --skip-slave-start
 --source include/start_mysqld.inc
 
---let $gtid_pos= `SELECT @@GLOBAL.gtid_binlog_pos`
+if (!$nobinlog) {
+  --let $gtid_pos= `SELECT @@GLOBAL.gtid_binlog_pos`
+}
+
+if ($nobinlog) {
+  CREATE TABLE t3 (file VARCHAR(255), pos INT, gtid VARCHAR(255)) ENGINE=InnoDB;
+  --replace_result $basedir BASEDIR
+  --disable_warnings
+  eval LOAD DATA LOCAL INFILE "$basedir/mariadb_backup_binlog_info"
+       INTO TABLE t3 FIELDS ESCAPED BY '' (file, pos, gtid);
+  --enable_warnings
+  --let $gtid_pos= `SELECT gtid FROM t3`
+  DROP TABLE t3;
+}
 
 --replace_result $gtid_pos GTID_POS
 eval SET GLOBAL gtid_slave_pos= '$gtid_pos';

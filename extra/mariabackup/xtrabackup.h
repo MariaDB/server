@@ -179,6 +179,7 @@ extern const char	*opt_history;
 enum binlog_info_enum { BINLOG_INFO_OFF, BINLOG_INFO_LOCKLESS, BINLOG_INFO_ON,
 			BINLOG_INFO_AUTO};
 
+extern bool backup_binlog;
 extern ulong opt_binlog_info;
 
 extern ulong xtrabackup_innodb_force_recovery;

@@ -1,0 +1,44 @@
+include/reset_master.inc
+CREATE TABLE t1(a varchar(60) PRIMARY KEY, b VARCHAR(60)) ENGINE INNODB;
+INSERT INTO t1 VALUES(1, NULL);
+CREATE TABLE t2 (val INT) ENGINE=InnoDB;
+INSERT INTO t2 VALUES (0);
+connect  con1,localhost,root,,;
+*** Start a background load...
+CALL gen_load();
+connection default;
+*** Doing backup...
+*** Doing prepare...
+*** Stop the background load...
+UPDATE t2 SET val=1;
+connection con1;
+connection default;
+disconnect con1;
+*** Provision a new slave from the backup
+connect  server2,127.0.0.1,root,,,$SERVER_MYPORT_2;
+*** Stopping provisioned server
+*** Removing old datadir for provisioned server
+*** Provision new server from backup
+# restart: --skip-slave-start
+CREATE TABLE t3 (file VARCHAR(255), pos INT, gtid VARCHAR(255)) ENGINE=InnoDB;
+LOAD DATA LOCAL INFILE "BASEDIR/mariadb_backup_binlog_info"
+       INTO TABLE t3 FIELDS ESCAPED BY '' (file, pos, gtid);
+DROP TABLE t3;
+SET GLOBAL gtid_slave_pos= 'GTID_POS';
+CHANGE MASTER TO
+master_ssl_verify_server_cert=0,
+master_port=SERVER_MYPORT_1, master_host='127.0.0.1', master_user='root',
+master_use_gtid= Slave_pos;
+START SLAVE;
+connection default;
+include/save_master_gtid.inc
+connection server2;
+include/sync_with_master_gtid.inc
+connection server2;
+STOP SLAVE;
+RESET SLAVE ALL;
+DROP PROCEDURE gen_load;
+DROP TABLE t1, t2;
+connection default;
+DROP PROCEDURE gen_load;
+DROP TABLE t1, t2;
