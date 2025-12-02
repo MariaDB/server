@@ -1,14 +1,7 @@
-# Use `--master-retry-count` when not specified
-CHANGE MASTER 'named' TO master_host='example.com';
-CHANGE MASTER TO master_host='127.0.0.1', master_ssl_verify_server_cert=0;
-SELECT Connection_name, Master_Retry_Count
-FROM information_schema.SLAVE_STATUS;
-Connection_name	Master_Retry_Count
-	1
-named	1
-# Replace when specified
-CHANGE MASTER 'named' TO master_retry_count=11;
-CHANGE MASTER TO master_retry_count=10;
+# Replace `--master-retry-count` when specified
+CHANGE MASTER 'named' TO master_retry_count=11, master_host='example.com';
+CHANGE MASTER TO master_retry_count=10,
+master_host='127.0.0.1', master_ssl_verify_server_cert=0;
 SELECT Connection_name, Master_Retry_Count
 FROM information_schema.SLAVE_STATUS;
 Connection_name	Master_Retry_Count
@@ -49,17 +42,17 @@ FROM information_schema.SLAVE_STATUS;
 Connection_name	Master_Retry_Count
 	10
 named	11
-# 0 internally means "not specified"
+# 0 does not mean "not specified"
 CHANGE MASTER TO master_retry_count=0;
 CHANGE MASTER 'named' TO master_retry_count=0;
 SELECT Connection_name, Master_Retry_Count
 FROM information_schema.SLAVE_STATUS;
 Connection_name	Master_Retry_Count
-	10
-named	11
+	0
+named	0
 # Truncates decimals
-CHANGE MASTER TO master_retry_count=0.5;
-CHANGE MASTER 'named' TO master_retry_count=0.5;
+CHANGE MASTER TO master_retry_count=10.75;
+CHANGE MASTER 'named' TO master_retry_count=11.25;
 SELECT Connection_name, Master_Retry_Count
 FROM information_schema.SLAVE_STATUS;
 Connection_name	Master_Retry_Count
@@ -68,12 +61,11 @@ named	11
 # Caps values (such as UINT64_MAX + 1) to `--master-retry-count`'s max
 CHANGE MASTER TO master_retry_count=18446744073709551616;
 CHANGE MASTER 'named' TO master_retry_count=18446744073709551616;
-SELECT Connection_name
-FROM information_schema.SLAVE_STATUS
-WHERE Master_Retry_Count IN (4294967295, 18446744073709551615);
-Connection_name
-
-named
+SELECT Connection_name, Master_Retry_Count
+FROM information_schema.SLAVE_STATUS;
+Connection_name	Master_Retry_Count
+	18446744073709551615
+named	18446744073709551615
 # Negative
 CHANGE MASTER TO master_retry_count=-1;
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '-1' at line 1

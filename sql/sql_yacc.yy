@@ -193,6 +193,13 @@ void _CONCAT_UNDERSCORED(turn_parser_debug_on,yyparse)()
 
 
 %}
+
+%code requires
+{
+// Master_info_file, enum_master_use_gtid, std::optional
+#include "rpl_master_info_file.h"
+}
+
 %union {
   int  num;
   ulong ulong_num;
@@ -206,6 +213,18 @@ void _CONCAT_UNDERSCORED(turn_parser_debug_on,yyparse)()
   Longlong_hybrid longlong_hybrid_number= Longlong_hybrid(0, false);
 
   /* structs */
+  /**
+    This is a stand-in for @ref std::optional,
+    which is not trivially `union`-safe.
+  */
+  struct
+  {
+    bool has_value; uint64_t value;
+#if __cplusplus >= 201703L || _MSVC_LANG >= 201703L
+    template<typename I> operator std::optional<I>()
+    { return has_value ? std::optional(static_cast<I>(value)) : std::nullopt; }
+#endif
+  } optional_uint;
   LEX_CSTRING lex_str;
   Lex_comment_st lex_comment;
   Lex_ident_cli_st kwd;
@@ -308,6 +327,7 @@ void _CONCAT_UNDERSCORED(turn_parser_debug_on,yyparse)()
   st_trg_execution_order trg_execution_order;
 
   /* enums */
+  trilean tril;
   enum enum_sp_suid_behaviour sp_suid;
   enum enum_sp_aggregate_type sp_aggregate_type;
   enum enum_view_suid view_suid;
@@ -340,6 +360,7 @@ void _CONCAT_UNDERSCORED(turn_parser_debug_on,yyparse)()
   enum Column_definition::enum_column_versioning vers_column_versioning;
   enum plsql_cursor_attr_t plsql_cursor_attr;
   enum Alter_info::enum_alter_table_algorithm alter_table_algo_val;
+  enum_master_use_gtid master_use_gtid;
   privilege_t privilege;
   struct
   {
@@ -1425,6 +1446,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %type <const_simple_string>
         field_length_str
         opt_compression_method
+        path_or_default
 
 %type <string>
         text_string hex_or_bin_String opt_gconcat_separator
@@ -1589,6 +1611,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 
 %type <item_num>
         NUM_literal
+        num_or_default
 
 %type <item_basic_constant> text_literal
 
@@ -2012,6 +2035,11 @@ rule:
         sp_package_function_body
         sp_package_procedure_body
 
+%type <optional_uint> uint32_or_default
+%type <optional_uint> uint64_or_default
+%type <tril> bool_or_default
+%type <master_use_gtid> master_use_gtid_enum
+
 
 %ifdef MARIADB
 %type <NONE> sp_tail_standalone
@@ -2316,13 +2344,17 @@ master_def:
           {
             Lex->mi.port = $3;
           }
-        | MASTER_CONNECT_RETRY_SYM '=' ulong_num
+        | MASTER_CONNECT_RETRY_SYM '=' uint32_or_default
           {
-            Lex->mi.connect_retry = $3;
+            Lex->mi.connect_retry= [optional=
+              static_cast<std::optional<uint32_t>>($3)](Master_info_file *mi)
+            { mi->master_connect_retry= std::move(optional); };
           }
-        | MASTER_RETRY_COUNT_SYM '=' ulong_num
+        | MASTER_RETRY_COUNT_SYM '=' uint64_or_default
           {
-            Lex->mi.retry_count = $3;
+            Lex->mi.retry_count= [optional=
+              static_cast<std::optional<uint64_t>>($3)](Master_info_file *mi)
+            { mi->master_retry_count= std::move(optional); };
           }
         | MASTER_DELAY_SYM '=' ulong_num
           {
@@ -2334,49 +2366,80 @@ master_def:
             else
               Lex->mi.sql_delay = $3;
           }
-        | MASTER_SSL_SYM '=' ulong_num
+        | MASTER_SSL_SYM '=' bool_or_default
           {
-            Lex->mi.ssl= $3 ? 
-              LEX_MASTER_INFO::LEX_MI_ENABLE : LEX_MASTER_INFO::LEX_MI_DISABLE;
+            Lex->mi.ssl= [trilean= $3](Master_info_file *mi)
+            { mi->master_ssl= trilean; };
           }
-        | MASTER_SSL_CA_SYM '=' TEXT_STRING_sys
+        | MASTER_SSL_CA_SYM '=' path_or_default
           {
-            Lex->mi.ssl_ca= $3.str;
+            Lex->mi.ssl_ca= [path= $3](Master_info_file *mi)
+            { mi->master_ssl_ca= path; };
           }
-        | MASTER_SSL_CAPATH_SYM '=' TEXT_STRING_sys
+        | MASTER_SSL_CAPATH_SYM '=' path_or_default
           {
-            Lex->mi.ssl_capath= $3.str;
+            Lex->mi.ssl_capath= [path= $3](Master_info_file *mi)
+            { mi->master_ssl_capath= path; };
           }
-        | MASTER_SSL_CERT_SYM '=' TEXT_STRING_sys
+        | MASTER_SSL_CERT_SYM '=' path_or_default
           {
-            Lex->mi.ssl_cert= $3.str;
+            Lex->mi.ssl_cert= [path= $3](Master_info_file *mi)
+            { mi->master_ssl_cert= path; };
           }
-        | MASTER_SSL_CIPHER_SYM '=' TEXT_STRING_sys
+        | MASTER_SSL_CIPHER_SYM '=' path_or_default
           {
-            Lex->mi.ssl_cipher= $3.str;
+            Lex->mi.ssl_cipher= [path= $3](Master_info_file *mi)
+            { mi->master_ssl_cipher= path; };
           }
-        | MASTER_SSL_KEY_SYM '=' TEXT_STRING_sys
+        | MASTER_SSL_KEY_SYM '=' path_or_default
           {
-            Lex->mi.ssl_key= $3.str;
+            Lex->mi.ssl_key= [path= $3](Master_info_file *mi)
+            { mi->master_ssl_key= path; };
           }
-        | MASTER_SSL_VERIFY_SERVER_CERT_SYM '=' ulong_num
+        | MASTER_SSL_VERIFY_SERVER_CERT_SYM '=' bool_or_default
           {
-            Lex->mi.ssl_verify_server_cert= $3 ?
-              LEX_MASTER_INFO::LEX_MI_ENABLE : LEX_MASTER_INFO::LEX_MI_DISABLE;
+            Lex->mi.ssl_verify_server_cert= [trilean= $3](Master_info_file *mi)
+            { mi->master_ssl_verify_server_cert= trilean; };
           }
-        | MASTER_SSL_CRL_SYM '=' TEXT_STRING_sys
+        | MASTER_SSL_CRL_SYM '=' path_or_default
           {
-            Lex->mi.ssl_crl= $3.str;
+            Lex->mi.ssl_crl= [path= $3](Master_info_file *mi)
+            { mi->master_ssl_crl= path; };
           }
-        | MASTER_SSL_CRLPATH_SYM '=' TEXT_STRING_sys
+        | MASTER_SSL_CRLPATH_SYM '=' path_or_default
           {
-            Lex->mi.ssl_crlpath= $3.str;
+            Lex->mi.ssl_crlpath= [path= $3](Master_info_file *mi)
+            { mi->master_ssl_crlpath= path; };
           }
 
-        | MASTER_HEARTBEAT_PERIOD_SYM '=' NUM_literal
+        | MASTER_HEARTBEAT_PERIOD_SYM '=' num_or_default
           {
-            Lex->mi.heartbeat_opt= $3->val_decimal(&(Lex->mi.heartbeat_period));
-            DEBUG_ASSERT(Lex->mi.heartbeat_opt);
+            if ($3)
+            {
+              uint32_t milliseconds;
+              bool overprecise;
+              auto decimal_buf= my_decimal(),
+                  *decimal= $3->val_decimal(&decimal_buf);
+              DBUG_ASSERT(decimal);
+              if (Master_info_file::Heartbeat_period_value::from_decimal(
+                milliseconds, *decimal, overprecise
+              ))
+                my_yyabort_error((ER_SLAVE_HEARTBEAT_VALUE_OUT_OF_RANGE, MYF(0),
+                  Master_info_file::Heartbeat_period_value::MAX));
+              if (unlikely(milliseconds > slave_net_timeout*1000ULL))
+                push_warning(thd, Sql_condition::WARN_LEVEL_WARN,
+                  ER_SLAVE_HEARTBEAT_VALUE_OUT_OF_RANGE_MAX,
+                  ER_THD(thd, ER_SLAVE_HEARTBEAT_VALUE_OUT_OF_RANGE_MAX));
+              else if (unlikely(!milliseconds && overprecise))
+                push_warning(thd, Sql_condition::WARN_LEVEL_WARN,
+                  ER_SLAVE_HEARTBEAT_VALUE_OUT_OF_RANGE_MIN,
+                  ER_THD(thd, ER_SLAVE_HEARTBEAT_VALUE_OUT_OF_RANGE_MIN));
+              Lex->mi.heartbeat_period= [milliseconds](Master_info_file *mi)
+              { mi->master_heartbeat_period= milliseconds; };
+            }
+            else
+              Lex->mi.heartbeat_period= [](Master_info_file *mi)
+              { mi->master_heartbeat_period.set_default(); };
           }
         | IGNORE_SERVER_IDS_SYM '=' '(' ignore_server_id_list ')'
           {
@@ -2392,6 +2455,32 @@ master_def:
           }
         |
         master_file_def
+        ;
+
+uint32_or_default:
+          ulong_num     { $$= {true, $1}; }
+        | DEFAULT       { $$= {false, 0}; }
+        ;
+uint64_or_default:
+          ulonglong_num { $$= {true, $1}; }
+        | DEFAULT       { $$= {false, 0}; }
+        ;
+path_or_default:
+          TEXT_STRING_sys { $$=  $1.str; DBUG_ASSERT($$); }
+        | DEFAULT         { $$= nullptr; }
+        ;
+bool_or_default:
+          bool { $$= $1 ? trilean::YES : trilean::NO; }
+        | DEFAULT { $$= trilean::DEFAULT; };
+master_use_gtid_enum:
+          NO_SYM          { $$= enum_master_use_gtid::NO; }
+        | CURRENT_POS_SYM { $$= enum_master_use_gtid::CURRENT_POS; }
+        | SLAVE_POS_SYM   { $$= enum_master_use_gtid::SLAVE_POS; }
+        | DEFAULT         { $$= enum_master_use_gtid::DEFAULT; }
+        ;
+num_or_default:
+          NUM_literal { DBUG_ASSERT($$); }
+        | DEFAULT { $$= nullptr; }
         ;
 
 ignore_server_id_list:
@@ -2463,23 +2552,12 @@ master_file_def:
             /* Adjust if < BIN_LOG_HEADER_SIZE (same comment as Lex->mi.pos) */
             Lex->mi.relay_log_pos= MY_MAX(BIN_LOG_HEADER_SIZE, Lex->mi.relay_log_pos);
           }
-        | MASTER_USE_GTID_SYM '=' CURRENT_POS_SYM
+        | MASTER_USE_GTID_SYM '=' master_use_gtid_enum
           {
-            if (unlikely(Lex->mi.use_gtid_opt != LEX_MASTER_INFO::LEX_GTID_UNCHANGED))
+            if (Lex->mi.use_gtid)
               my_yyabort_error((ER_DUP_ARGUMENT, MYF(0), "MASTER_use_gtid"));
-            Lex->mi.use_gtid_opt= LEX_MASTER_INFO::LEX_GTID_CURRENT_POS;
-          }
-        | MASTER_USE_GTID_SYM '=' SLAVE_POS_SYM
-          {
-            if (unlikely(Lex->mi.use_gtid_opt != LEX_MASTER_INFO::LEX_GTID_UNCHANGED))
-              my_yyabort_error((ER_DUP_ARGUMENT, MYF(0), "MASTER_use_gtid"));
-            Lex->mi.use_gtid_opt= LEX_MASTER_INFO::LEX_GTID_SLAVE_POS;
-          }
-        | MASTER_USE_GTID_SYM '=' NO_SYM
-          {
-            if (unlikely(Lex->mi.use_gtid_opt != LEX_MASTER_INFO::LEX_GTID_UNCHANGED))
-              my_yyabort_error((ER_DUP_ARGUMENT, MYF(0), "MASTER_use_gtid"));
-            Lex->mi.use_gtid_opt= LEX_MASTER_INFO::LEX_GTID_NO;
+            Lex->mi.use_gtid= [use_gtid= $3](Master_info_file *mi)
+            { mi->master_use_gtid= use_gtid; };
           }
         | MASTER_DEMOTE_TO_SLAVE_SYM '=' bool
           {

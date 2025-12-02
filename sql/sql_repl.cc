@@ -4058,34 +4058,15 @@ bool change_master(THD* thd, Master_info* mi, bool *master_info_added)
   if (lex_mi->port)
     mi->port = lex_mi->port;
   if (lex_mi->connect_retry)
-    mi->connect_retry = lex_mi->connect_retry;
+    lex_mi->connect_retry(mi);
   if (lex_mi->retry_count)
   {
-    mi->retry_count= lex_mi->retry_count;
+    lex_mi->retry_count(mi);
+    // also reset the counter in case `connects_tried > master_retry_count`
     mi->connects_tried= 0;
   }
-  if (lex_mi->heartbeat_opt)
-  {
-    bool overprecise;
-    ret= Master_info_file::Heartbeat_period_field::from_decimal(
-      mi->master_heartbeat_period.optional, *lex_mi->heartbeat_opt, overprecise
-    );
-    if (ret)
-    {
-      my_error(ER_SLAVE_HEARTBEAT_VALUE_OUT_OF_RANGE, MYF(0),
-               Master_info_file::Heartbeat_period_field::MAX);
-      goto err;
-    }
-    uint32_t milliseconds= *(mi->master_heartbeat_period.optional);
-    if (unlikely(milliseconds > slave_net_timeout*1000ULL))
-      push_warning(thd, Sql_condition::WARN_LEVEL_WARN,
-                   ER_SLAVE_HEARTBEAT_VALUE_OUT_OF_RANGE_MAX,
-                   ER_THD(thd, ER_SLAVE_HEARTBEAT_VALUE_OUT_OF_RANGE_MAX));
-    else if (unlikely(!milliseconds && overprecise))
-      push_warning(thd, Sql_condition::WARN_LEVEL_WARN,
-                   ER_SLAVE_HEARTBEAT_VALUE_OUT_OF_RANGE_MIN,
-                   ER_THD(thd, ER_SLAVE_HEARTBEAT_VALUE_OUT_OF_RANGE_MIN));
-  }
+  if (lex_mi->heartbeat_period)
+    lex_mi->heartbeat_period(mi);
   mi->received_heartbeats= 0; // counter lives until master is CHANGEd
 
   /*
@@ -4112,30 +4093,28 @@ bool change_master(THD* thd, Master_info* mi, bool *master_info_added)
                              &mi->ignore_server_ids);
   }
 
-  if (lex_mi->ssl != LEX_MASTER_INFO::LEX_MI_UNCHANGED)
-    mi->master_ssl= (lex_mi->ssl == LEX_MASTER_INFO::LEX_MI_ENABLE);
+  if (lex_mi->ssl)
+    lex_mi->ssl(mi);
 
   if (lex_mi->sql_delay != -1)
     mi->rli.set_sql_delay(lex_mi->sql_delay);
 
-  if (lex_mi->ssl_verify_server_cert != LEX_MASTER_INFO::LEX_MI_UNCHANGED)
-    mi->master_ssl_verify_server_cert=
-      (lex_mi->ssl_verify_server_cert == LEX_MASTER_INFO::LEX_MI_ENABLE);
-
+  if (lex_mi->ssl_verify_server_cert)
+    lex_mi->ssl_verify_server_cert(mi);
   if (lex_mi->ssl_ca)
-    mi->master_ssl_ca     = lex_mi->ssl_ca;
+    lex_mi->ssl_ca(mi);
   if (lex_mi->ssl_capath)
-    mi->master_ssl_capath = lex_mi->ssl_capath;
+    lex_mi->ssl_capath(mi);
   if (lex_mi->ssl_cert)
-    mi->master_ssl_cert   = lex_mi->ssl_cert;
+    lex_mi->ssl_cert(mi);
   if (lex_mi->ssl_cipher)
-    mi->master_ssl_cipher = lex_mi->ssl_cipher;
+    lex_mi->ssl_cipher(mi);
   if (lex_mi->ssl_key)
-    mi->master_ssl_key    = lex_mi->ssl_key;
+    lex_mi->ssl_key(mi);
   if (lex_mi->ssl_crl)
-    mi->master_ssl_crl    = lex_mi->ssl_crl;
+    lex_mi->ssl_crl(mi);
   if (lex_mi->ssl_crlpath)
-    mi->master_ssl_crlpath= lex_mi->ssl_crlpath;
+    lex_mi->ssl_crlpath(mi);
 
 #ifndef HAVE_OPENSSL
   if (lex_mi->ssl || lex_mi->ssl_ca || lex_mi->ssl_capath ||
@@ -4161,22 +4140,17 @@ bool change_master(THD* thd, Master_info* mi, bool *master_info_added)
     mi->rli.group_relay_log_pos= mi->rli.event_relay_log_pos= lex_mi->relay_log_pos;
   }
 
-  if (lex_mi->use_gtid_opt == LEX_MASTER_INFO::LEX_GTID_SLAVE_POS)
-    mi->using_gtid= Master_info::USE_GTID_SLAVE_POS;
-  else if (lex_mi->use_gtid_opt == LEX_MASTER_INFO::LEX_GTID_CURRENT_POS)
-    mi->using_gtid= Master_info::USE_GTID_CURRENT_POS;
-  else if (lex_mi->use_gtid_opt == LEX_MASTER_INFO::LEX_GTID_NO ||
+  if (lex_mi->use_gtid)
+    lex_mi->use_gtid(mi);
+  else if (
            lex_mi->log_file_name || lex_mi->pos ||
            lex_mi->relay_log_name || lex_mi->relay_log_pos)
   {
-    if (lex_mi->use_gtid_opt != LEX_MASTER_INFO::LEX_GTID_NO)
-    {
       push_warning_printf(
           thd, Sql_condition::WARN_LEVEL_NOTE, WARN_OPTION_CHANGING,
           ER_THD(thd, WARN_OPTION_CHANGING), "CHANGE MASTER TO", "Using_Gtid",
           mi->using_gtid_astext(mi->using_gtid),
           mi->using_gtid_astext(Master_info::USE_GTID_NO));
-    }
     mi->using_gtid= Master_info::USE_GTID_NO;
   }
 
