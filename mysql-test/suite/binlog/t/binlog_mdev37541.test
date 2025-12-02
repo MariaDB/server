@@ -2,6 +2,15 @@
 --source include/have_innodb.inc
 --source include/have_binlog_format_mixed.inc
 
+# MDEV-37541 Race of rolling back and committing transaction to binlog
+# The tests reproduce a scenario of two conflicting transactions
+# of which the dependency decides to rollback. In order to reproduce the bug
+# the parent features side effects (produced by DROP TEMPORARY TABLE)
+# and multiple engines.
+# The tests prove that the child transaction can not win race to binlogging
+# with its parent as it gets stuck at engine lock acquiring all time
+# while the parent conducts binlogging on its own.
+
 create table t1 (a int primary key, b text) engine=innodb;
 
 connect(trx1_rollback,localhost,root,,);
