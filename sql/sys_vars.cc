@@ -4299,6 +4299,14 @@ static Sys_var_ulong Sys_table_cache_size(
        BLOCK_SIZE(1), NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0),
        ON_UPDATE(fix_table_open_cache));
 
+static Sys_var_mybool Sys_table_cache_instances_fix(
+       "table_open_cache_instances_fix",
+       "Activate all table_open_cache_instances early. Can be useful for "
+       "cases when table cache warm up period is undesired. Such as "
+       "benchmarking",
+       READ_ONLY GLOBAL_VAR(tc_instances_fix), CMD_LINE(OPT_ARG),
+       DEFAULT(FALSE));
+
 static Sys_var_uint Sys_table_cache_instances(
        "table_open_cache_instances", "Maximum number of table cache instances",
        READ_ONLY GLOBAL_VAR(tc_instances), CMD_LINE(REQUIRED_ARG),

@@ -71,6 +71,7 @@ I_P_List <TDC_element,
           I_P_List_fast_push_back<TDC_element> > unused_shares;
 
 static bool tdc_inited;
+my_bool tc_instances_fix;
 
 
 /**
@@ -612,6 +613,8 @@ bool tdc_init(void)
     DBUG_RETURN(true);
   tc_allocated_size= (tc_instances + 1) * sizeof *tc;
   update_malloc_size(tc_allocated_size, 0);
+  if (tc_instances_fix)
+    tc_active_instances.store(tc_instances, std::memory_order_relaxed);
   tdc_inited= true;
   mysql_mutex_init(key_LOCK_unused_shares, &LOCK_unused_shares,
                    MY_MUTEX_INIT_FAST);

@@ -1,0 +1,9 @@
+SHOW VARIABLES LIKE 'table_open_cache_instances_fix';
+Variable_name	Value
+table_open_cache_instances_fix	ON
+SHOW VARIABLES LIKE 'table_open_cache_instances';
+Variable_name	Value
+table_open_cache_instances	4
+SHOW STATUS LIKE 'table_open_cache_active_instances';
+Variable_name	Value
+Table_open_cache_active_instances	4
