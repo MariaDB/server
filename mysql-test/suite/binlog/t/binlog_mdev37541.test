@@ -1,0 +1,50 @@
+--source include/have_debug_sync.inc
+--source include/have_innodb.inc
+--source include/have_binlog_format_mixed.inc
+
+create table t1 (a int primary key, b text) engine=innodb;
+
+connect(trx1_rollback,localhost,root,,);
+CREATE TABLE t_x (a int) engine=MEMORY;
+
+--let $master_file= query_get_value(SHOW MASTER STATUS, File, 1)
+--let $binlog_start=query_get_value(SHOW MASTER STATUS, Position, 1)
+SET binlog_format=row;
+CREATE TEMPORARY TABLE tt_tmp ( id INT ) ENGINE = Memory;
+BEGIN;
+  insert into t_x values (1);
+  drop temporary table tt_tmp;
+  insert into t1 values (99, "gotta log first");
+
+SET DEBUG_SYNC= 'reset';
+SET DEBUG_SYNC= "before_group_commit_queue SIGNAL trx1_at_log WAIT_FOR trx1_go";
+
+--send ROLLBACK
+
+connect(trx2_commit,localhost,root,,);
+--send insert into t1 values (99, "second best in binlog")
+
+connection default;
+
+# Make sure ROLLBACK is in the binlogging phase ..
+SET DEBUG_SYNC= "now WAIT_FOR trx1_at_log";
+# .. and the contender trx2 in the locking phase ..
+let $wait_condition=
+  select count(*) = 1 from information_schema.innodb_trx
+  where trx_state = "LOCK WAIT" and trx_query like "%insert into t1 values%";
+source include/wait_condition.inc;
+# .. when both provided unfreeze the trx:s ..
+SET DEBUG_SYNC= "now SIGNAL trx1_go";
+
+connection trx2_commit;
+reap;
+select * from t1;
+
+# .. to observe proper binlogging.
+--echo # Prove the logging order is Trx1, Trx2
+--source include/show_binlog_events.inc
+
+drop table t_x, t1;
+disconnect trx1_rollback;
+disconnect trx2_commit;
+--echo # end of the tests
