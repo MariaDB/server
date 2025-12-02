@@ -1,0 +1,149 @@
+--echo # Start of main.change_master_default
+
+# MDEV-28302: Test how `CHANGE MASTER [named]` reads server
+# options for its default values and the lack of those options.
+# The test creates multiple CHANGE MASTER connections,
+# where the defaultable fields of a connection are:
+# * left unset
+# * set to `DEFAULT`
+# * configured with values
+
+# only need CHANGE MASTER and IS.slave_status
+--source include/have_binlog_format_mixed.inc
+
+CREATE PROCEDURE show_defaultable_fields()
+SELECT connection_name,
+  connect_retry,
+  master_ssl_allowed,
+  master_ssl_ca_file,
+  master_ssl_ca_path,
+  master_ssl_cert,
+  master_ssl_cipher,
+  master_ssl_key,
+  `master_ssl_verify_server_cert`, # MDEV-38194
+  master_ssl_crl,
+  master_ssl_crlpath,
+  using_gtid,
+  master_retry_count,
+  slave_heartbeat_period
+FROM information_schema.slave_status ORDER BY connection_name;
+
+CHANGE MASTER 'unset' TO master_host='127.0.1.1';
+
+CHANGE MASTER 'defaulted' TO
+  master_connect_retry= DEFAULT,
+  master_ssl= DEFAULT,
+  master_ssl_ca= DEFAULT,
+  master_ssl_capath= DEFAULT,
+  master_ssl_cert= DEFAULT,
+  master_ssl_cipher= DEFAULT,
+  master_ssl_key= DEFAULT,
+  master_ssl_verify_server_cert= DEFAULT,
+  master_ssl_crl= DEFAULT,
+  master_ssl_crlpath= DEFAULT,
+  master_use_gtid= DEFAULT,
+  master_retry_count= DEFAULT,
+  master_heartbeat_period= DEFAULT,
+  master_host= '127.0.1.2';
+
+CHANGE MASTER TO # Default master does not replace named masters
+  master_connect_retry= 90,
+  master_ssl= FALSE,
+  master_ssl_ca= 'specified_ca',
+  master_ssl_capath= 'specified_capath',
+  master_ssl_cert= 'specified_cert',
+  master_ssl_cipher= 'specified_cipher',
+  master_ssl_key= 'specified_key',
+  master_ssl_verify_server_cert= FALSE,
+  master_ssl_crl= 'specified_crl',
+  master_ssl_crlpath= 'specified_crlpath',
+  master_use_gtid= NO,
+  master_retry_count= 150000,
+  master_heartbeat_period= 45,
+  master_host='127.0.0.1';
+
+# Show freshly created configurations
+--query_vertical CALL show_defaultable_fields()
+
+
+--echo # Those set or left as `DEFAULT` should pick up changes to defaults.
+
+--let $restart_parameters= --skip-slave-start --master-connect-retry=30 --skip-master-ssl --master-ssl-ca=default_ca --master-ssl-capath=default_capath --master-ssl-cert=default_cert --master-ssl-cipher=default_cipher --master-ssl-key=default_key --skip-master-ssl-verify-server-cert --master-ssl-crl=default_crl --master-ssl-crlpath=default_crlpath --master-use-gtid=CURRENT_POS --master-retry-count=50000 --master-heartbeat-period=15
+--source include/restart_mysqld.inc # not_embedded
+--query_vertical CALL show_defaultable_fields()
+
+# The `DEFAULT` of `master_heartbeat_period` changes with `@@slave_net_timeout`.
+SET @@GLOBAL.slave_net_timeout= 100;
+SELECT connection_name, slave_heartbeat_period
+FROM information_schema.slave_status ORDER BY connection_name;
+
+# `DEFAULT` overwrites the existing configs for only the CHANGEd connection.
+CHANGE MASTER TO
+  master_connect_retry= DEFAULT,
+  master_ssl= DEFAULT,
+  master_ssl_ca= DEFAULT,
+  master_ssl_capath= DEFAULT,
+  master_ssl_cert= DEFAULT,
+  master_ssl_cipher= DEFAULT,
+  master_ssl_key= DEFAULT,
+  master_ssl_verify_server_cert= DEFAULT,
+  master_ssl_crl= DEFAULT,
+  master_ssl_crlpath= DEFAULT,
+  master_use_gtid= DEFAULT,
+  master_retry_count= DEFAULT,
+  master_heartbeat_period= DEFAULT;
+--query_vertical CALL show_defaultable_fields()
+
+# Recreate 'unset' to see later that it saves `DEFAULT`, not the options' values
+--disable_warnings
+  RESET REPLICA 'unset' ALL;
+--enable_warnings
+CHANGE MASTER 'unset' TO master_host='127.0.1.3';
+
+
+--echo # Validate command line options
+
+# Invalid `--master-heartbeat-period` values should abort the server
+# (`restart_abort` includes a wait for the server to exit on its own,
+#  e.g., due to a startup error.)
+--source include/shutdown_mysqld.inc
+--let $restart_parameters= restart_abort: --master-heartbeat-period=''
+--echo # $restart_parameters
+--write_line "$restart_parameters" $_expect_file_name
+--let $restart_parameters= restart_abort: --master-heartbeat-period=123abc
+--echo # $restart_parameters
+--write_line "$restart_parameters" $_expect_file_name
+--let $restart_parameters= restart_abort: --master-heartbeat-period=-1
+--echo # $restart_parameters
+--write_line "$restart_parameters" $_expect_file_name
+--let $restart_parameters= restart_abort: --master-heartbeat-period=4294967.296
+--echo # $restart_parameters
+--write_line "$restart_parameters" $_expect_file_name
+
+# Numbers between 0 and 0.5 exclusive should warn about rounding to 0 (disabled)
+--let $restart_parameters= --skip-slave-start --master-heartbeat-period=0.000499
+--source include/start_mysqld.inc
+SELECT connection_name, slave_heartbeat_period
+FROM information_schema.slave_status ORDER BY connection_name;
+--let $regexp= .*master-heartbeat-period.+0.*disabl.+
+--eval CALL mtr.add_suppression('$regexp')
+--let SEARCH_FILE= `SELECT @@log_error`
+--let SEARCH_PATTERN= \[Warning\] $regexp
+--source include/search_pattern_in_file.inc
+
+# Test prefixes: adding `auto-` and omitting `skip-`
+--let $restart_parameters= --skip-slave-start --skip-master-ssl --master-ssl --skip-master-ssl-verify-server-cert --master-ssl-verify-server-cert --master-use-gtid=NO --autoset-master-use-gtid --master-heartbeat-period=45 --autoset-master-heartbeat-period
+--source include/restart_mysqld.inc
+
+--query_vertical CALL show_defaultable_fields()
+
+
+--echo # Clean-up
+
+DROP PROCEDURE show_defaultable_fields;
+
+RESET REPLICA 'unset' ALL;
+RESET REPLICA 'defaulted' ALL;
+RESET REPLICA ALL;
+
+--echo # End of main.change_master_default
