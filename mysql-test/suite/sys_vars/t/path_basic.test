@@ -289,6 +289,8 @@ SET PATH 'hhh,`iii`,jjj,"kkk",lll';
 --Error ER_WRONG_VALUE_FOR_VAR
 SET PATH 'hello,world,deadpool,wolverine,aaa,deadpool,ccc';
 --Error ER_WRONG_VALUE_FOR_VAR
+SET PATH 'current_schema,CURRENT_schema';
+--Error ER_WRONG_VALUE_FOR_VAR
 SET PATH '`,Ɣ';
 --Error ER_WRONG_VALUE_FOR_VAR
 SET PATH '",Ɣ';
