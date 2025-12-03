@@ -1454,3 +1454,23 @@ SELECT * FROM t1 LEFT JOIN (t2 JOIN t3 ON t2.b = t3.e) ON t2.c = 1;
 
 set join_cache_level= default;
 DROP TABLE t1, t2, t3;
+--echo #
+--echo # MDEV-38240: Selectivity sampling not performed when the table has no indexed conditions
+--echo #
+set use_stat_tables=PREFERABLY;
+create table t1 (a varchar(100), b int);
+insert into t1 select seq, seq from seq_1_to_1000;
+analyze table t1;
+
+set optimizer_use_condition_selectivity=5;
+--echo # Must produce filtered=1% or so:
+explain extended
+select * from t1 where a like '%99%';
+
+--echo # Must have same filtered as above
+explain extended
+select * from t1 where a like '%99%' and (b is null or b is not null);
+drop table t1;
+
+set optimizer_use_condition_selectivity= @save_optimizer_use_condition_selectivity;
+set use_stat_tables= @save_use_stat_tables;

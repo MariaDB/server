@@ -6227,15 +6227,21 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
                   s->table->opt_range_condition_rows /
                   s->table->used_stat_records);
       /*
-        Perform range analysis if there are keys it could use (1).
-        Don't do range analysis for materialized subqueries (2).
-        Don't do range analysis for materialized derived tables/views (3)
+        Perform range analysis if we could infer something from it.
+        (1) There are indexes for which we have range conditions,
+        (2) Or there are sargable conditions on the table's columns that we
+            could use for selectivity estimation,
+        (3) Or selectivity estimation via sampling is enabled.
+
+        (4) Don't do range analysis for materialized subqueries.
+        (5) Don't do range analysis for materialized derived tables/views.
       */
-      if ((!s->const_keys.is_clear_all() ||
-           !bitmap_is_clear_all(&s->table->cond_set)) &&              // (1)
-          !s->table->is_filled_at_execution() &&                      // (2)
-          !(s->table->pos_in_table_list->derived &&                   // (3)
-            s->table->pos_in_table_list->is_materialized_derived()))  // (3)
+      if ((!s->const_keys.is_clear_all() ||                            // (1)
+           !bitmap_is_clear_all(&s->table->cond_set) ||                // (2)
+           thd->variables.optimizer_use_condition_selectivity >= 5) && // (3)
+          !s->table->is_filled_at_execution() &&                       // (4)
+          !(s->table->pos_in_table_list->derived &&                    // (5)
+            s->table->pos_in_table_list->is_materialized_derived()))   // (5)
       {
         bool impossible_range= FALSE;
         ha_rows records= HA_ROWS_MAX;
