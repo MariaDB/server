@@ -1,0 +1,60 @@
+include/master-slave.inc
+[connection master]
+#
+# MDEV-38003 Intermittent Replication Failure on a multi-table DELETE
+#
+connection master;
+set sql_log_bin=1;
+connection slave;
+set sql_log_bin=1;
+reset master;
+connection master;
+create database mdev38003;
+use mdev38003;
+create table t1 (pk int, num int);
+create table t2 (pk int, num int);
+create table t3 (pk int, num int);
+insert into t1 (pk, num) values (1,1900),(2,1901);
+insert into t2 (pk, num) values (2,2001),(2,2002);
+insert into t3 (pk, num) values (1,40),(2,42);
+select * from t1 left join t2 on t1.pk = t2.pk left join t3 on t2.pk = t3.pk;
+pk	num	pk	num	pk	num
+2	1901	2	2001	2	42
+2	1901	2	2002	2	42
+1	1900	NULL	NULL	NULL	NULL
+select * from t1 left join t2 on t1.pk = t2.pk left join t3 on t2.pk = t3.pk where t2.num <= 2002;
+pk	num	pk	num	pk	num
+2	1901	2	2001	2	42
+2	1901	2	2002	2	42
+connection slave;
+use mdev38003;
+select * from t1 left join t2 on t1.pk = t2.pk left join t3 on t2.pk = t3.pk;
+pk	num	pk	num	pk	num
+2	1901	2	2001	2	42
+2	1901	2	2002	2	42
+1	1900	NULL	NULL	NULL	NULL
+select * from t1 left join t2 on t1.pk = t2.pk left join t3 on t2.pk = t3.pk where t2.num <= 2002;
+pk	num	pk	num	pk	num
+2	1901	2	2001	2	42
+2	1901	2	2002	2	42
+connection master;
+use mdev38003;
+delete t1, t2, t3 from t1 left join t2 on t1.pk = t2.pk left join t3 on t2.pk = t3.pk where t2.num <= 2002;
+select * from t1 left join t2 on t1.pk = t2.pk left join t3 on t2.pk = t3.pk;
+pk	num	pk	num	pk	num
+1	1900	NULL	NULL	NULL	NULL
+select * from t1 left join t2 on t1.pk = t2.pk left join t3 on t2.pk = t3.pk where t2.num <= 2002;
+pk	num	pk	num	pk	num
+connection slave;
+use mdev38003;
+select * from t1 left join t2 on t1.pk = t2.pk left join t3 on t2.pk = t3.pk;
+pk	num	pk	num	pk	num
+1	1900	NULL	NULL	NULL	NULL
+select * from t1 left join t2 on t1.pk = t2.pk left join t3 on t2.pk = t3.pk where t2.num <= 2002;
+pk	num	pk	num	pk	num
+connection master;
+use mdev38003;
+drop table t1, t2, t3;
+drop database mdev38003;
+# End of 11.8 tests
+include/rpl_end.inc
