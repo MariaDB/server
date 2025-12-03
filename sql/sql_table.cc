@@ -6323,7 +6323,8 @@ my_bool open_global_temporary_table(THD *thd, TABLE_SHARE *source,
   out_table->table= table;
   table->init(thd, out_table);
 
-  thd->use_global_tmp_table_tp();
+  if (table->s->on_commit_delete())
+    thd->use_global_tmp_table_tp();
   thd->lex->no_write_to_binlog= true;
   tdc_release_share(source);
   return FALSE;

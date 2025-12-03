@@ -1425,8 +1425,6 @@ bool THD::use_temporary_table(TABLE *table, TABLE **out_table)
     parallel replication
   */
   table->in_use= this;
-  if (table->s->global_tmp_table())
-    use_global_tmp_table_tp();
 
   DBUG_RETURN(false);
 }
