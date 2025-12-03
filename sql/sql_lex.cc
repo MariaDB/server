@@ -10157,6 +10157,7 @@ LEX::sp_add_fetch_cursor_with_return_clause(THD *thd,
                                        const Spvar_definition &return_type,
                                        const List<sp_fetch_target> &targets)
 {
+  DBUG_ASSERT(targets.elements > 0);
   /*
     (1) Declare a temporary cursor fetch variable in its own
     pseudo DECLARE..BEGIN..END block.
@@ -10207,12 +10208,24 @@ LEX::sp_add_fetch_cursor_with_return_clause(THD *thd,
     - the target ROW variable
     - the target scalar variable list
   */
-  if (targets.elements == 1)
+  const sp_fetch_target &targets_head= *targets.head();
+  if (targets.elements == 1 &&
+      dynamic_cast<const Type_handler_row*>
+        (targets_head.rcontext_handler()->get_pvariable(spcont,
+                                      targets_head.offset())->type_handler()))
   {
-    const sp_fetch_target &target_row= *targets.head();
-    return sp_add_assign_row_from_row(thd, target_row, *fetch_tmp_spvar);
+    return sp_add_assign_row_from_row(thd, targets_head, *fetch_tmp_spvar);
   }
-  DBUG_ASSERT(return_type.is_row());//TODO
+
+  if (return_type.is_cursor_rowtype_ref() ||
+      return_type.is_table_rowtype_ref() ||
+      return_type.is_column_type_ref())
+  {
+    return sp_add_assign_list_from_row_anchored(thd, targets, *fetch_tmp_spvar,
+                                                fetch_tmp_spvar_raddr);
+  }
+
+  DBUG_ASSERT(return_type.is_row());
   return sp_add_assign_list_from_row(thd, targets, *fetch_tmp_spvar,
                                      *return_type.row_field_definitions());
 }
@@ -10388,6 +10401,95 @@ bool LEX::sp_add_assign_list_from_row(THD *thd,
       return true;
   }
   return false;
+}
+
+
+/*
+  Generate a code to set a list of scalar fetch targets (scalar SP variables)
+  from a ROW variable with an anchored data type:
+
+    SET ROW(scalar_var1, scalar_var2, scalar_var3) = row_anchored_variable;
+
+  The size and the data types of its components are not known at this point
+  (they will be known during execution time).
+
+    @param thd          - the current THD.
+    @param thd targets  - the list of fetch targets (scalar SP variables)
+    @param thd src      - the ROW type variable with an anchored data type
+    @param thd src_addr - the run time address of "src"
+
+  Used to handle a script like this:
+    c0 IS REF CURSOR RETURN t1%ROWTYPE;
+    ...
+    FETCH c0 INTO scalar_var1, scalar_var2, scalar_var3;
+
+  The above FETCH statement is rewritten into the following code:
+    DECLARE
+      _cursor_fetch_tmp_var t1%ROWTYPE;
+    BEGIN
+      FETCH c0 INTO _cursor_fetch_tmp_var;
+      SET ROW(scalar_var1, scalar_var2, scalar_var3) = _cursor_fetch_tmp_var;
+    END;
+
+  This method generated the code to handle the SET statement.
+*/
+bool LEX::sp_add_assign_list_from_row_anchored(THD *thd,
+                                         const List<sp_fetch_target> &targets,
+                                         const sp_variable &src,
+                                         const sp_rcontext_addr &src_addr)
+{
+  DBUG_ASSERT(thd->lex == this);
+  sp_assignment_lex *assignment_lex;
+  if (!(assignment_lex= new (thd->mem_root) sp_assignment_lex(thd, this)))
+    return true;
+  sphead->reset_lex(thd, assignment_lex);
+  DBUG_ASSERT(thd->lex != this);
+
+  List<Item> target_row_arg_list;
+  List_iterator_fast<sp_fetch_target>
+                             it(const_cast<List<sp_fetch_target>&>(targets));
+  sp_fetch_target *target;
+  while ((target= it++))
+  {
+    Item_splocal *target_item;
+    if (!(target_item= new (thd->mem_root) Item_splocal(thd,
+                                                target->rcontext_handler(),
+                                                &target->name,
+                                                target->offset(),
+                                                &type_handler_varchar,//TODO
+                                                0,     //TODO pos_in_q
+                                                0)) || //TODO len_in_q
+        target_row_arg_list.push_back(target_item, thd->mem_root))
+      return true;
+#ifdef DBUG_ASSERT_EXISTS
+    target_item->m_sp= sphead;
+#endif
+  }
+  Item *target_row= new (thd->mem_root) Item_row(thd, target_row_arg_list);
+  Item_splocal *fetch_tmp_spvar_item= new (thd->mem_root) Item_splocal(thd,
+                                                src_addr.rcontext_handler(),
+                                                &src.name,
+                                                src_addr.offset(),
+                                                &type_handler_row,
+                                                0,  //TODO pos_in_q
+                                                0); //TODO len_in_q
+  if (!fetch_tmp_spvar_item)
+    return true;
+#ifdef DBUG_ASSERT_EXISTS
+  fetch_tmp_spvar_item->m_sp= sphead;
+#endif
+  if (thd->lex->sphead->restore_lex(thd))
+    return true;
+  DBUG_ASSERT(thd->lex == this);
+
+  sp_instr *set= new (thd->mem_root) sp_instr_set_srp(sphead->instructions(),
+                                                      spcont,
+                                                      target_row,
+                                                      fetch_tmp_spvar_item,
+                                                      assignment_lex,
+                                                      true,
+                                                      null_clex_str);
+  return set == nullptr || sphead->add_instr(set);
 }
 
 

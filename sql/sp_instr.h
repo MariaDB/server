@@ -697,6 +697,88 @@ public:
 
 
 /*
+  Set a Settable_routine_parameter
+*/
+class sp_instr_set_srp : public sp_lex_instr
+{
+  sp_instr_set_srp(const sp_instr_set_srp &); /**< Prevent use of these */
+  void operator=(sp_instr_set_srp &);
+public:
+  sp_instr_set_srp(uint ip, sp_pcontext *ctx,
+                   Item *target, Item *val,
+                   LEX *lex, bool lex_resp,
+                   const LEX_CSTRING &expr_str)
+    :sp_lex_instr(ip, ctx, lex, lex_resp),
+      m_target(target),
+      m_value(val),
+      m_expr_str(expr_str)
+  {
+    DBUG_ASSERT(dynamic_cast<Settable_routine_parameter*>(target));
+  }
+
+  virtual ~sp_instr_set_srp() = default;
+
+  int execute(THD *thd, uint *nextp) override;
+
+  int exec_core(THD *thd, uint *nextp) override;
+
+  void print(String *str) override;
+
+  bool is_invalid() const override
+  {
+    return m_value == nullptr;
+  }
+
+  void invalidate() override
+  {
+    m_value= nullptr;
+  }
+
+protected:
+  LEX_CSTRING get_expr_query() const override
+  {
+    return m_expr_str;
+  }
+
+  void adjust_sql_command(LEX *lex) override
+  {
+    DBUG_ASSERT(lex->sql_command == SQLCOM_SELECT);
+    lex->sql_command= SQLCOM_SET_OPTION;
+  }
+
+  bool on_after_expr_parsing(THD *thd) override
+  {
+//    DBUG_ASSERT(thd->lex->current_select->item_list.elements == 1);
+//
+//    m_value= thd->lex->current_select->item_list.head();
+//    DBUG_ASSERT(m_value != nullptr);
+//
+//    /*
+//      In case there is a default value, update the dangling pointer
+//      left after clean up of item before re-parsing of SP instruction
+//    */
+//    sp_variable *spvar= m_ctx->find_variable(offset());
+//    if (spvar->default_value)
+//      spvar->default_value= m_value;
+//
+//    // Return error in release version if m_value == nullptr
+//    return m_value == nullptr;
+    return false;
+  }
+
+  Item *m_target;
+  Item *m_value;
+
+private:
+  LEX_CSTRING m_expr_str;
+
+public:
+  PSI_statement_info* get_psi_info() override { return & psi_info; }
+  static PSI_statement_info psi_info;
+}; // class sp_instr_set_srp
+
+
+/*
   This instr initializes parameters with default values
   if it's parameter's spvar was not set by caller.
 */

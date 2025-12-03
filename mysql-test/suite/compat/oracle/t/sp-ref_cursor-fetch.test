@@ -1,0 +1,13 @@
+SET sql_mode=ORACLE;
+
+--echo #
+--echo # MDEV-10152 Add support for TYPE .. IS REF CURSOR
+--echo #
+
+--source sp-ref_cursor-fetch-cursor-rowtype-into-list-good.inc
+--source sp-ref_cursor-fetch-cursor-rowtype-into-row-good.inc
+--source sp-ref_cursor-fetch-cursor-rowtype-into-cursor-rowtype-good.inc
+
+--source sp-ref_cursor-fetch-table-rowtype-into-list-good.inc
+--source sp-ref_cursor-fetch-table-rowtype-into-row-good.inc
+--source sp-ref_cursor-fetch-table-rowtype-into-table-rowtype-good.inc

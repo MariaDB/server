@@ -1375,6 +1375,65 @@ sp_instr_set_default_param::print(String *str)
 
 
 /*
+  sp_instr_set_srp class functions
+*/
+
+PSI_statement_info sp_instr_set_srp::psi_info= { 0, "set", 0};
+
+int
+sp_instr_set_srp::execute(THD *thd, uint *nextp)
+{
+  DBUG_ENTER("sp_instr_set_srp::execute");
+  DBUG_RETURN(m_lex_keeper.validate_lex_and_exec_core(thd, nextp, true, this));
+}
+
+
+int
+sp_instr_set_srp::exec_core(THD *thd, uint *nextp)
+{
+  Settable_routine_parameter *srp=
+    dynamic_cast<Settable_routine_parameter*>(m_target);
+  Sp_eval_expr_state state(thd); // TODO add a comment why
+  thd->sp_fix_func_item(&m_target);
+  thd->sp_fix_func_item(&m_value);
+  /*
+    For now We can get to here only with a ROW target and a ROW-type spvar
+    source. This may change in the future.
+  */
+  DBUG_ASSERT(dynamic_cast<Item_row*>(m_target));
+  DBUG_ASSERT(dynamic_cast<Item_splocal*>(m_value));
+  DBUG_ASSERT(m_value->type_handler() == &type_handler_row);
+  if (m_target->cols() != m_value->cols())
+  {
+    char row0[MAX_BIGINT_WIDTH + 5];
+    char row1[MAX_BIGINT_WIDTH + 5];
+    my_snprintf(row0, sizeof(row0), "ROW<%d>", m_value->cols());
+    my_snprintf(row1, sizeof(row0), "ROW<%d>", m_target->cols());
+    my_error(ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION, MYF(0),
+             row0, row1, "FETCH..INTO");
+    return true;
+  }
+
+  // TODO: check assignability
+  int res= srp->set_value(thd, thd->spcont, &m_value);
+  *nextp = m_ip+1;
+  return res;
+}
+
+
+void
+sp_instr_set_srp::print(String *str)
+{
+  // E.g. set (scalar_var1@1, scalar_var2@2) rowvar@3
+  str->append("set ", 4);
+  m_target->print(str, QT_ORDINARY);
+  str->append(' ');
+  m_value->print(str, enum_query_type(QT_ORDINARY |
+                                      QT_ITEM_ORIGINAL_FUNC_NULLIF));
+}
+
+
+/*
   sp_instr_set_field class functions
 */
 

@@ -1,0 +1,20 @@
+# Error detected during CALL type
+# Related to wrong data types in FETCH
+
+SET sql_mode=ORACLE;
+
+--echo #
+--echo # MDEV-10152 Add support for TYPE .. IS REF CURSOR
+--echo #
+
+--echo # Using table%ROWTYPE
+
+--source sp-ref_cursor-fetch-table-rowtype-into-list-bad.inc
+--source sp-ref_cursor-fetch-table-rowtype-into-row-bad.inc
+--source sp-ref_cursor-fetch-table-rowtype-into-table-rowtype-bad.inc
+
+--echo # Using cursor%ROWTYPE
+
+--source sp-ref_cursor-fetch-cursor-rowtype-into-list-bad.inc
+--source sp-ref_cursor-fetch-cursor-rowtype-into-row-bad.inc
+--source sp-ref_cursor-fetch-cursor-rowtype-into-cursor-rowtype-bad.inc

@@ -4710,6 +4710,11 @@ public:
                                    const sp_variable &src,
                                    const Row_definition_list &src_def);
 
+  bool sp_add_assign_list_from_row_anchored(THD *thd,
+                                         const List<sp_fetch_target> &targets,
+                                         const sp_variable &src,
+                                         const sp_rcontext_addr &src_addr);
+
   bool sp_add_agg_cfetch();
 
   bool set_command_with_check(enum_sql_command command,

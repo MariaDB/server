@@ -36,6 +36,7 @@
    Note that this can be recursive: ((x,y),(z,t)) is a ROW of ROWs.
 */
 class Item_row: public Item_composite,
+                public Settable_routine_parameter,
                 private Used_tables_and_const_cache
 {
   table_map not_null_tables_cache;
@@ -56,6 +57,7 @@ public:
   { }
 
   const Type_handler *type_handler() const override { return &type_handler_row; }
+  bool set_value(THD *thd, sp_rcontext *ctx, Item **it) override;
   Field *create_tmp_field_ex(MEM_ROOT *root, TABLE *table, Tmp_field_src *src,
                              const Tmp_field_param *param) override
   {
