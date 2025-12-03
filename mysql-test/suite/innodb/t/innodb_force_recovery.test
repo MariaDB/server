@@ -21,25 +21,17 @@ SET GLOBAL innodb_fast_shutdown = 0;
 --source include/restart_mysqld.inc
 let $status=`SHOW ENGINE INNODB STATUS`;
 
---disable_cursor_protocol
-SELECT CAST(variable_value AS INTEGER) INTO @read1
-FROM INFORMATION_SCHEMA.GLOBAL_STATUS
-WHERE VARIABLE_NAME='innodb_buffer_pool_read_requests';
---enable_cursor_protocol
-
+select variable_name,variable_value from information_schema.global_status
+WHERE variable_name LIKE 'innodb_buffer_pool_%_requests';
 select * from t1;
-
---disable_cursor_protocol
-SELECT CAST(variable_value AS INTEGER) INTO @read2
-FROM INFORMATION_SCHEMA.GLOBAL_STATUS
-WHERE VARIABLE_NAME='innodb_buffer_pool_read_requests';
---enable_cursor_protocol
-
-SELECT @read1>0, @read2>@read1;
+select variable_name from information_schema.global_status
+WHERE variable_name LIKE 'innodb_buffer_pool_%_requests' and variable_value>0;
 
 begin;
 insert into t1 values(2, 3);
 rollback;
+select variable_name from information_schema.global_status
+WHERE variable_name LIKE 'innodb_buffer_pool_%_requests' and variable_value>0;
 
 alter table t1 add f3 int not null, algorithm=copy;
 

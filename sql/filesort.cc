@@ -815,7 +815,7 @@ String dbug_format_row(TABLE *table, const uchar *rec, bool print_names)
 */
 const char *dbug_print_row(TABLE *table, const uchar *rec)
 {
-  String row= dbug_format_row(table, table->record[0]);
+  String row= dbug_format_row(table, rec);
   if (row.length() > sizeof dbug_row_print_buf - 1)
     return "Couldn't fit into buffer";
   memcpy(dbug_row_print_buf, row.c_ptr(), row.length());
@@ -2376,7 +2376,7 @@ get_addon_fields(TABLE *table, uint sortlength,
 
   /*
     If there is a reference to a field in the query add it
-    to the the set of appended fields.
+    to the set of appended fields.
     Note for future refinement:
     This this a too strong condition.
     Actually we need only the fields referred in the

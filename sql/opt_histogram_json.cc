@@ -19,7 +19,7 @@
 #include "my_json_writer.h"
 #include "sql_statistics.h"
 #include "opt_histogram_json.h"
-
+#include "sql_json_lib.h"
 
 /*
   @brief
@@ -31,7 +31,7 @@
     succeeds.
 */
 
-static bool json_unescape_to_string(const char *val, int val_len, String* out)
+bool json_unescape_to_string(const char *val, int val_len, String* out)
 {
   // Make sure 'out' has some memory allocated.
   if (!out->alloced_length() && out->alloc(128))
@@ -416,64 +416,6 @@ void Histogram_json_hb::init_for_collection(MEM_ROOT *mem_root,
   size= (size_t)size_arg;
 }
 
-
-/*
-  A syntax sugar interface to json_string_t
-*/
-class Json_string
-{
-  json_string_t str;
-public:
-  explicit Json_string(const char *name)
-  {
-    json_string_set_str(&str, (const uchar*)name,
-                        (const uchar*)name + strlen(name));
-    json_string_set_cs(&str, system_charset_info);
-  }
-  json_string_t *get() { return &str; }
-};
-
-
-/*
-  This [partially] saves the JSON parser state and then can rollback the parser
-  to it.
-
-  The goal of this is to be able to make multiple json_key_matches() calls:
-
-    Json_saved_parser_state save(je);
-    if (json_key_matches(je, KEY_NAME_1)) {
-      ...
-      return;
-    }
-    save.restore_to(je);
-    if (json_key_matches(je, KEY_NAME_2)) {
-      ...
-    }
-
-  This allows one to parse JSON objects where [optional] members come in any
-  order.
-*/
-
-class Json_saved_parser_state
-{
-  const uchar *c_str;
-  my_wc_t c_next;
-  int state;
-public:
-  explicit Json_saved_parser_state(const json_engine_t *je) :
-    c_str(je->s.c_str),
-    c_next(je->s.c_next),
-    state(je->state)
-  {}
-  void restore_to(json_engine_t *je)
-  {
-    je->s.c_str= c_str;
-    je->s.c_next= c_next;
-    je->state= state;
-  }
-};
-
-
 /*
   @brief
     Read a constant from JSON document and save it in *out.
@@ -761,7 +703,12 @@ bool Histogram_json_hb::parse(MEM_ROOT *mem_root, const char *db_name,
   double total_size;
   int end_element;
   bool end_assigned;
+
   DBUG_ENTER("Histogram_json_hb::parse");
+
+  mem_root_dynamic_array_init(mem_root, PSI_INSTRUMENT_MEM,
+                              &je.stack, sizeof(int), NULL,
+                              JSON_DEPTH_DEFAULT, JSON_DEPTH_INC, MYF(0));
 
   json_scan_start(&je, &my_charset_utf8mb4_bin,
                   (const uchar*)hist_data,
@@ -812,7 +759,9 @@ bool Histogram_json_hb::parse(MEM_ROOT *mem_root, const char *db_name,
     {
       // Some unknown member. Skip it.
       if (json_skip_key(&je))
+      {
         return 1;
+      }
     }
   }
 

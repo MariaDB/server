@@ -545,37 +545,6 @@ the definitions are bracketed with #ifdef INNODB_COMPATIBILITY_HOOKS */
 #error InnoDB needs MySQL to be built with #define INNODB_COMPATIBILITY_HOOKS
 #endif
 
-extern "C" {
-
-/** Check if a user thread is running a non-transactional update
-@param thd user thread
-@retval 0 the user thread is not running a non-transactional update
-@retval 1 the user thread is running a non-transactional update */
-int thd_non_transactional_update(const MYSQL_THD thd);
-
-/** Get the user thread's binary logging format
-@param thd user thread
-@return Value to be used as index into the binlog_format_names array */
-int thd_binlog_format(const MYSQL_THD thd);
-
-/** Check if binary logging is filtered for thread's current db.
-@param thd Thread handle
-@retval 1 the query is not filtered, 0 otherwise. */
-bool thd_binlog_filter_ok(const MYSQL_THD thd);
-
-/** Check if the query may generate row changes which may end up in the binary.
-@param thd Thread handle
-@retval 1 the query may generate row changes, 0 otherwise.
-*/
-bool thd_sqlcom_can_generate_row_events(const MYSQL_THD thd);
-
-/** Is strict sql_mode set.
-@param thd Thread object
-@return True if sql_mode has strict mode (all or trans), false otherwise. */
-bool thd_is_strict_mode(const MYSQL_THD thd);
-
-} /* extern "C" */
-
 /** Get the file name and position of the MySQL binlog corresponding to the
  * current commit.
  */
@@ -654,7 +623,7 @@ public:
 	@param create_fk	whether to add FOREIGN KEY constraints */
 	int create_table(bool create_fk = true, bool strict= true);
 
-  static void create_table_update_dict(dict_table_t* table, THD* thd,
+  static void create_table_update_dict(dict_table_t* table, trx_t* trx,
                                        const HA_CREATE_INFO& info,
                                        const TABLE& t);
 
@@ -946,6 +915,13 @@ ib_push_frm_error(
 @return true if index column length exceeds limit */
 MY_ATTRIBUTE((warn_unused_result))
 bool too_big_key_part_length(size_t max_field_len, const KEY& key);
+
+/** Adjust the persistent statistics after rebuilding ALTER TABLE.
+Remove statistics for dropped indexes, add statistics for created indexes
+and rename statistics for renamed indexes.
+@param table InnoDB table that was rebuilt by ALTER TABLE
+@param trx   user transaction */
+void alter_stats_rebuild(dict_table_t *table, trx_t *trx) noexcept;
 
 /** Find an auto-generated foreign key constraint identifier.
 @param table   InnoDB table

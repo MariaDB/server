@@ -49,6 +49,7 @@ SELECT * FROM t1;
 col1	col2
 1	1
 2	2
+# Wait for information schema cache for locks to get cleared
 connection con1;
 XA BEGIN 'x1';
 # XA Trx-1: Lock 1st record

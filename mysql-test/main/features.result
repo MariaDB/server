@@ -20,6 +20,7 @@ Feature_subquery	0
 Feature_system_versioning	0
 Feature_timezone	0
 Feature_trigger	0
+Feature_vector_index	0
 Feature_window_functions	0
 Feature_xml	0
 #
@@ -209,3 +210,18 @@ show status like "feature_into_%";
 Variable_name	Value
 Feature_into_outfile	4
 Feature_into_variable	2
+#
+# Feature vector index
+#
+create table t1 (id int auto_increment primary key,
+u vector(5) not null, vector index (u));
+select * from t1;
+id	u
+select * from t1;
+id	u
+select * from t1;
+id	u
+show status like "Feature_vector_index";
+Variable_name	Value
+Feature_vector_index	2
+drop table t1;

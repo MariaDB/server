@@ -15,8 +15,8 @@ MACRO(BUNDLE_LIBFMT)
   ExternalProject_Add(
     libfmt
     PREFIX   "${dir}"
-    URL "https://github.com/fmtlib/fmt/releases/download/11.1.4/fmt-11.1.4.zip"
-    URL_MD5 ad6a56b15cddf4aad2a234e7cfc9e8c9
+    URL "https://github.com/fmtlib/fmt/releases/download/12.0.0/fmt-12.0.0.zip"
+    URL_MD5 9bd04e6e8c5b1733e4eefb473604219d
     INSTALL_COMMAND ""
     CONFIGURE_COMMAND ""
     BUILD_COMMAND ""

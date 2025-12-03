@@ -1,5 +1,6 @@
 --source include/have_innodb.inc
 --source include/have_case_sensitive_file_system.inc
+--source include/have_lowercase0.inc
 
 --echo #
 --echo # MDEV-28802 DROP DATABASE in InnoDB still is case-insensitive

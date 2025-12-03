@@ -1106,13 +1106,15 @@ enum enum_schema_tables
   SCH_TABLE_NAMES,
   SCH_TABLE_PRIVILEGES,
   SCH_TRIGGERS,
+  SCH_TRIGGERED_UPDATE_COLUMNS,
   SCH_USERS,
   SCH_USER_PRIVILEGES,
   SCH_VIEWS,
 #ifdef HAVE_REPLICATION
   SCH_SLAVE_STATUS,
 #endif
-  SCH_ENUM_SIZE
+  SCH_N_SERVER_TABLES, /* How many SCHEMA tables in the server. */
+  SCH_PLUGIN_TABLE     /* Schema table defined in plugin. */
 };
 
 struct TABLE_SHARE;
@@ -2671,7 +2673,7 @@ public:
   bool online= false;
 
   /**
-    When ha_commit_inplace_alter_table() is called the the engine can
+    When ha_commit_inplace_alter_table() is called the engine can
     set this to a function to be called after the ddl log
     is committed.
   */
@@ -3711,7 +3713,6 @@ public:
   virtual void print_error(int error, myf errflag);
   virtual bool get_error_message(int error, String *buf);
   uint get_dup_key(int error);
-  bool has_dup_ref() const;
   /**
     Retrieves the names of the table and the key for which there was a
     duplicate entry in the case of HA_ERR_FOREIGN_DUPLICATE_KEY.
@@ -4437,7 +4438,7 @@ public:
   virtual int extra_opt(enum ha_extra_function operation, ulong arg)
   { return extra(operation); }
   /*
-    Table version id for the the table. This should change for each
+    Table version id for the table. This should change for each
     successful ALTER TABLE.
     This is used by the handlerton->check_version() to ask the engine
     if the table definition has been updated.

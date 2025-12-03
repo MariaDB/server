@@ -657,10 +657,7 @@ public:
   bool cleanup_session_expr();
   bool fix_and_check_expr(THD *thd, TABLE *table);
   bool check_access(THD *thd);
-  inline bool is_equal(const Virtual_column_info* vcol) const;
-  /* Same as is_equal() but for comparing with different table */
-  bool is_equivalent(THD *thd, TABLE_SHARE *share, TABLE_SHARE *vcol_share,
-                            const Virtual_column_info* vcol, bool &error) const;
+  inline bool is_equal(const Virtual_column_info* vcol, bool cmp_names) const;
   inline void print(String*);
 };
 
@@ -802,8 +799,9 @@ public:
    */
   virtual void set_max()
   { DBUG_ASSERT(0); }
-  virtual bool is_max()
+  virtual bool is_max(const uchar *ptr_arg) const
   { DBUG_ASSERT(0); return false; }
+  bool is_max() const { return is_max(ptr); }
 
   uchar		*ptr;			// Position to field in record
 
@@ -2956,7 +2954,7 @@ public:
     return unpack_int64(to, from, from_end);
   }
   void set_max() override;
-  bool is_max() override;
+  bool is_max(const uchar *ptr_arg) const override;
   ulonglong get_max_int_value() const override
   {
     return unsigned_flag ? 0xFFFFFFFFFFFFFFFFULL : 0x7FFFFFFFFFFFFFFFULL;
@@ -3536,7 +3534,7 @@ public:
     return memcmp(a_ptr, b_ptr, pack_length());
   }
   void set_max() override;
-  bool is_max() override;
+  bool is_max(const uchar *ptr_arg) const override;
   my_time_t get_timestamp(const uchar *pos, ulong *sec_part) const override;
   bool val_native(Native *to) override;
   uint size_of() const override { return sizeof *this; }
@@ -6108,17 +6106,21 @@ bool check_expression(Virtual_column_info *vcol, const Lex_ident_column &name,
 #define f_visibility(x)         (static_cast<field_visibility_t> ((x) & INVISIBLE_MAX_BITS))
 
 inline
-ulonglong TABLE::vers_end_id() const
+ulonglong TABLE::vers_end_id(const uchar *record_arg) const
 {
   DBUG_ASSERT(versioned(VERS_TRX_ID));
-  return static_cast<ulonglong>(vers_end_field()->val_int());
+  DBUG_ASSERT(dynamic_cast<Field_longlong*>(vers_end_field()));
+  const uchar *ptr= vers_end_field()->ptr_in_record(record_arg);
+  return static_cast<ulonglong>(sint8korr(ptr));
 }
 
 inline
-ulonglong TABLE::vers_start_id() const
+ulonglong TABLE::vers_start_id(const uchar *record_arg) const
 {
   DBUG_ASSERT(versioned(VERS_TRX_ID));
-  return static_cast<ulonglong>(vers_start_field()->val_int());
+  DBUG_ASSERT(dynamic_cast<Field_longlong*>(vers_start_field()));
+  const uchar *ptr= vers_start_field()->ptr_in_record(record_arg);
+  return static_cast<ulonglong>(sint8korr(ptr));
 }
 
 inline

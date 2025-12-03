@@ -1451,7 +1451,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	ALL	PRIMARY	NULL	NULL	NULL	3	33.33	Using where; Using join buffer (flat, BNL join)
 Warnings:
 Warning	4219	Hint JOIN_FIXED_ORDER() is ignored as conflicting/duplicated
-Note	1003	insert into `test`.`tn`(fn_1,fn_2) select /*+ JOIN_ORDER(@`select#2` `t2`,`t1`) */ `test`.`t1`.`f1` AS `f1`,`test`.`t2`.`f2` AS `f2` from `test`.`t2` join `test`.`t1` where `test`.`t1`.`id` = `test`.`t2`.`id` order by `test`.`t1`.`f1`,`test`.`t2`.`f2`
+Note	1003	insert into `test`.`tn`(fn_1,fn_2) select /*+ JOIN_ORDER(@`select#1` `t2`,`t1`) */ `test`.`t1`.`f1` AS `f1`,`test`.`t2`.`f2` AS `f2` from `test`.`t2` join `test`.`t1` where `test`.`t1`.`id` = `test`.`t2`.`id` order by `test`.`t1`.`f1`,`test`.`t2`.`f2`
 EXPLAIN EXTENDED
 INSERT INTO tn (fn_1, fn_2)
 SELECT /*+ JOIN_ORDER(t1,t2) */ f1,f2 FROM t2 LEFT JOIN t1 ON t1.id=t2.id

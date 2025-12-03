@@ -1159,7 +1159,7 @@ bool Field_longstr::val_bool()
   @details
   The function returns a double number between 0.0 and 1.0 as the relative
   position of the value of the this field in the numeric interval of [min,max].
-  If the value is not in the interval the the function returns 0.0 when
+  If the value is not in the interval the function returns 0.0 when
   the value is less than min, and, 1.0 when the value is greater than max.
 
   @param  min  value of the left end of the interval
@@ -1220,7 +1220,7 @@ static inline double safe_substract(ulonglong a, ulonglong b)
   @details
   The function returns a double number between 0.0 and 1.0 as the relative
   position of the value of the this field in the string interval of [min,max].
-  If the value is not in the interval the the function returns 0.0 when
+  If the value is not in the interval the function returns 0.0 when
   the value is less than min, and, 1.0 when the value is greater than max.
 
   @note
@@ -4823,17 +4823,17 @@ void Field_longlong::set_max()
   int8store(ptr, unsigned_flag ? ULONGLONG_MAX : LONGLONG_MAX);
 }
 
-bool Field_longlong::is_max()
+bool Field_longlong::is_max(const uchar *ptr_arg) const
 {
   DBUG_ASSERT(marked_for_read());
   if (unsigned_flag)
   {
     ulonglong j;
-    j= uint8korr(ptr);
+    j= uint8korr(ptr_arg);
     return j == ULONGLONG_MAX;
   }
   longlong j;
-  j= sint8korr(ptr);
+  j= sint8korr(ptr_arg);
   return j == LONGLONG_MAX;
 }
 
@@ -5885,16 +5885,16 @@ void Field_timestampf::set_max()
   DBUG_VOID_RETURN;
 }
 
-bool Field_timestampf::is_max()
+bool Field_timestampf::is_max(const uchar *ptr_arg) const
 {
-  longlong timestamp= mi_uint4korr(ptr);
+  longlong timestamp= mi_uint4korr(ptr_arg);
   DBUG_ENTER("Field_timestampf::is_max");
   DBUG_ASSERT(marked_for_read());
 
   /* Allow old max value and new max value */
   DBUG_RETURN((timestamp == TIMESTAMP_MAX_VALUE ||
                timestamp == INT_MAX32) &&
-              mi_uint3korr(ptr + 4) == TIME_MAX_SECOND_PART);
+              mi_uint3korr(ptr_arg + 4) == TIME_MAX_SECOND_PART);
 }
 
 my_time_t Field_timestampf::get_timestamp(const uchar *pos,

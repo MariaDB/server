@@ -223,7 +223,7 @@ static void set_thread_os_id_noop(PSI_thread *thread NNN)
 }
 
 static PSI_thread*
-get_thread_noop(void NNN)
+get_thread_noop(void)
 {
   return NULL;
 }

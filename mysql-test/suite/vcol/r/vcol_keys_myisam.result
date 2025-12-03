@@ -244,8 +244,8 @@ a	b	c
 MyISAM file:         datadir/test/t1
 Record format:       Fixed length
 Character set:       ? (0)
-Data records:                 1001  Deleted blocks:                 0
-Recordlength:                    9
+Data records:                   1001  Deleted blocks:                      0
+Recordlength:                      9
 
 table description:
 Key Start Len Index   Type

@@ -3904,6 +3904,8 @@ static int flush_cached_blocks(SIMPLE_KEY_CACHE_CB *keycache,
     1  error
 */
 
+PRAGMA_DISABLE_CHECK_STACK_FRAME
+
 static int flush_key_blocks_int(SIMPLE_KEY_CACHE_CB *keycache,
 				File file, enum flush_type type)
 {
@@ -4337,6 +4339,7 @@ err:
   DBUG_RETURN(last_errno != 0);
 }
 
+PRAGMA_REENABLE_CHECK_STACK_FRAME
 
 /*
   Flush all blocks for a file from key buffers of a simple key cache 

@@ -50,10 +50,11 @@ void trx_purge_truncate_history();
 
 /**
 Run a purge batch.
+@param trx           dummy transaction associated with the purge coordinator
 @param n_tasks       number of purge tasks to submit to the queue
 @param history_size  trx_sys.history_size()
 @return number of undo log pages handled in the batch */
-ulint trx_purge(ulint n_tasks, ulint history_size);
+ulint trx_purge(trx_t *trx, ulint n_tasks, ulint history_size) noexcept;
 
 /** The control structure used in the purge operation */
 class purge_sys_t
@@ -185,9 +186,10 @@ public:
 
   /** Look up an undo log page.
   @param id    undo page identifier
+  @param trx   transaction attached to current_thd
   @return undo page
   @retval nullptr in case the page is corrupted */
-  buf_block_t *get_page(page_id_t id);
+  buf_block_t *get_page(page_id_t id, trx_t *trx);
 
 	que_t*		query;		/*!< The query graph which will do the
 					parallelized purge operation */
@@ -342,34 +344,39 @@ public:
 private:
   /**
   Get the next record to purge and update the info in the purge system.
+  @param trx                transaction attached to current_thd
   @param roll_ptr           undo log pointer to the record
   @return buffer-fixed reference to undo log record
   @retval {nullptr,1} if the whole undo log can skipped in purge
   @retval {nullptr,0} if nothing is left, or on corruption */
-  inline trx_purge_rec_t get_next_rec(roll_ptr_t roll_ptr);
+  inline trx_purge_rec_t get_next_rec(trx_t *trx, roll_ptr_t roll_ptr)
+    noexcept;
 
   /** Choose the next undo log to purge.
+  @param trx transaction attached to current_thd
   @return whether anything is to be purged */
-  bool choose_next_log();
+  bool choose_next_log(trx_t *trx) noexcept;
 
   /** Update the last not yet purged history log info in rseg when
   we have purged a whole undo log. Advances also purge_trx_no
   past the purged log.
+  @param trx transaction attached to current_thd
   @return whether anything is to be purged */
-  bool rseg_get_next_history_log();
+  bool rseg_get_next_history_log(trx_t *trx) noexcept;
 
 public:
   /**
   Fetch the next undo log record from the history list to purge.
+  @param trx transaction attached to current_thd
   @return buffer-fixed reference to undo log record
   @retval {nullptr,1} if the whole undo log can skipped in purge
   @retval {nullptr,0} if nothing is left, or on corruption */
-  inline trx_purge_rec_t fetch_next_rec();
+  inline trx_purge_rec_t fetch_next_rec(trx_t *trx) noexcept;
 
   /** Determine if the history of a transaction is purgeable.
   @param trx_id  transaction identifier
   @return whether the history is purgeable */
-  TRANSACTIONAL_TARGET bool is_purgeable(trx_id_t trx_id) const;
+  bool is_purgeable(trx_id_t trx_id) const noexcept;
 
   /** A wrapper around ReadView::low_limit_no(). */
   trx_id_t low_limit_no() const
@@ -445,12 +452,16 @@ public:
     inline ~view_guard();
     /** Fetch an undo log page.
     @param id   page identifier
+    @param trx  transaction attached to current_thd
     @param mtr  mini-transaction
     @return reference to buffer page, possibly buffer-fixed in mtr */
-    inline const buf_block_t *get(const page_id_t id, mtr_t *mtr);
+    inline const buf_block_t *get(const page_id_t id, trx_t *trx, mtr_t *mtr);
 
     /** @return purge_sys.view or purge_sys.end_view */
     inline const ReadViewBase &view() const;
+
+    /** @return whether this is part of CHECK TABLE ... EXTENDED */
+    bool is_extended() const noexcept { return latch < END_VIEW; }
   };
 
   struct end_view_guard

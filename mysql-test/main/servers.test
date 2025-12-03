@@ -34,12 +34,15 @@ create server s1 foreign data wrapper foo options(user 'a');
 alter server s1 options(host 'server.example.org');
 rename table mysql.servers to mysql.servers_save;
 create table mysql.servers (x int);
---error ER_FOREIGN_SERVER_DOESNT_EXIST
+--error ER_CANNOT_LOAD_FROM_TABLE_V2
 alter server s1 options(host 'server.example.org');
---error ER_CANT_FIND_SYSTEM_REC
+--error ER_CANNOT_LOAD_FROM_TABLE_V2
+drop server s1;
+--error ER_CANNOT_LOAD_FROM_TABLE_V2
 create server s2 foreign data wrapper foo options(user 'a');
 drop table mysql.servers;
 rename table mysql.servers_save to mysql.servers;
+flush privileges;
 drop server s1;
 
 CREATE SERVER s1 FOREIGN DATA WRAPPER mysql OPTIONS(SOCKET '/tmp/1234567890_1234567890_1234567890_1234567890_1234567890_1234567890.sock');
@@ -96,3 +99,64 @@ FLUSH PRIVILEGES;
 ALTER TABLE mysql.servers ENGINE=Aria;
 FLUSH PRIVILEGES;
 drop server s1;
+
+--echo #
+--echo # MDEV-35622 SEGV, ASAN use-after-poison when reading system table with less than expected number of columns
+--echo # MDEV-37777 upgrade from MySQL 5.7 regression, mysql.servers invalid structure
+--echo #
+
+--echo # no crash:
+rename table mysql.servers to mysql.servers_save;
+create table mysql.servers like mysql.servers_save;
+alter table mysql.servers drop column owner,drop column options;
+insert into mysql.servers values(0,0,0,0,0,0,0,0);
+--error 0,ER_CANNOT_LOAD_FROM_TABLE_V2
+flush privileges;
+drop table mysql.servers;
+
+--echo # w/o PK
+create table mysql.servers like mysql.servers_save;
+alter table mysql.servers drop primary key;
+insert into mysql.servers values(0,0,0,0,0,0,0,0,0,0);
+--error ER_CANNOT_LOAD_FROM_TABLE_V2
+flush privileges;
+drop table mysql.servers;
+
+--echo # upgrade is ok
+create table mysql.servers like mysql.servers_save;
+alter table mysql.servers drop column Options;
+--error ER_CANNOT_LOAD_FROM_TABLE_V2
+create server s1 foreign data wrapper mysql options (host '127.0.0.1');
+flush privileges;
+insert into mysql.servers values('s1',0,0,0,0,0,0,0,0);
+flush privileges;
+drop server s1;
+drop table mysql.servers;
+
+--echo # MySQL 5.7 (MDEV-37777)
+create table mysql.servers like mysql.servers_save;
+alter table mysql.servers modify Host char(64) not null, modify Owner char(64) not null;
+create server s1 foreign data wrapper mysql options (host '127.0.0.1');
+flush privileges;
+drop server s1;
+drop table mysql.servers;
+rename table mysql.servers_save to mysql.servers;
+
+--echo # plugin
+create table mysql.plugin_save like mysql.plugin;
+alter table mysql.plugin drop column dl;
+--error ER_CANNOT_LOAD_FROM_TABLE_V2
+install soname "ha_example";
+--error ER_CANNOT_LOAD_FROM_TABLE_V2
+uninstall soname "ha_example";
+drop table mysql.plugin;
+create table mysql.plugin like mysql.plugin_save;
+alter table mysql.plugin drop primary key;
+--error ER_CANNOT_LOAD_FROM_TABLE_V2
+install soname "ha_example";
+--error ER_CANNOT_LOAD_FROM_TABLE_V2
+uninstall soname "ha_example";
+drop table mysql.plugin;
+rename table mysql.plugin_save to mysql.plugin;
+
+--echo # End of 10.11 tests

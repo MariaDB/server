@@ -65,7 +65,7 @@ select json_equals('{"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"ob
 select json_equals('{"obj":{"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"key": "value"}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}',
 '{"obj":{"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"key": "value"}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}') as 32_levels;
 32_levels
-NULL
+1
 #
 # test values from different charset
 # (UTF-8 two-bytes vs. latin1 single high-byte)

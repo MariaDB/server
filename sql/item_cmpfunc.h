@@ -266,6 +266,8 @@ public:
   bool fix_length_and_dec(THD *thd) override;
   void print(String *str, enum_query_type query_type) override;
   enum precedence precedence() const override { return CMP_PRECEDENCE; }
+  table_map not_null_tables() const override
+  { return is_top_level_item() ? not_null_tables_cache : 0; }
   bool count_sargable_conds(void *arg) override;
   SEL_TREE *get_mm_tree(RANGE_OPT_PARAM *param, Item **cond_ptr) override;
   SEL_ARG *get_mm_leaf(RANGE_OPT_PARAM *param, Field *field,
@@ -1044,7 +1046,7 @@ public:
     negated= !negated;
     return this;
   }
-  bool eq(const Item *item, bool binary_cmp) const override;
+  bool eq(const Item *item, const Eq_config &config) const override;
   CHARSET_INFO *compare_collation() const override
   {
     return cmp_collation.collation;
@@ -3483,7 +3485,7 @@ class Item_equal: public Item_bool_func
   List<Item> equal_items; 
   /* 
      TRUE <-> one of the items is a const item.
-     Such item is always first in in the equal_items list
+     Such item is always first in the equal_items list
   */
   bool with_const;        
   /* 

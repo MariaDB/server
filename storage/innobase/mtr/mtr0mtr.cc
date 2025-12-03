@@ -34,15 +34,15 @@ Created 11/26/1995 Heikki Tuuri
 #endif
 #include "btr0cur.h"
 #include "srv0start.h"
+#include "trx0trx.h"
 #include "log.h"
-#include "mariadb_stats.h"
 #include "my_cpu.h"
 
 #ifdef HAVE_PMEM
-void (*mtr_t::commit_logger)(mtr_t *, std::pair<lsn_t,page_flush_ahead>);
+void (*mtr_t::commit_logger)(mtr_t *, std::pair<lsn_t,lsn_t>);
 #endif
 
-std::pair<lsn_t,mtr_t::page_flush_ahead> (*mtr_t::finisher)(mtr_t *, size_t);
+std::pair<lsn_t,lsn_t> (*mtr_t::finisher)(mtr_t *, size_t);
 
 void mtr_t::finisher_update()
 {
@@ -174,7 +174,7 @@ inline void buf_pool_t::insert_into_flush_list(buf_page_t *prev,
   block->page.set_oldest_modification(lsn);
 }
 
-mtr_t::mtr_t()= default;
+mtr_t::mtr_t(trx_t *trx) : trx(trx) {}
 mtr_t::~mtr_t()= default;
 
 /** Start a mini-transaction. */
@@ -183,7 +183,9 @@ void mtr_t::start()
   ut_ad(m_memo.empty());
   ut_ad(!m_freed_pages);
   ut_ad(!m_freed_space);
+  MEM_CHECK_DEFINED(&trx, sizeof trx);
   MEM_UNDEFINED(this, sizeof *this);
+  MEM_MAKE_DEFINED(&trx, sizeof trx);
   MEM_MAKE_DEFINED(&m_memo, sizeof m_memo);
   MEM_MAKE_DEFINED(&m_freed_space, sizeof m_freed_space);
   MEM_MAKE_DEFINED(&m_freed_pages, sizeof m_freed_pages);
@@ -272,7 +274,7 @@ static void insert_imported(buf_block_t *block)
 void mtr_t::release_unlogged()
 {
   ut_ad(m_log_mode == MTR_LOG_NO_REDO);
-  ut_ad(m_log.size() == 0);
+  ut_ad(m_log.empty());
 
   process_freed_pages();
 
@@ -333,9 +335,25 @@ void mtr_t::release()
   m_memo.clear();
 }
 
+ATTRIBUTE_NOINLINE void mtr_t::commit_log_release() noexcept
+{
+  if (m_latch_ex)
+  {
+    log_sys.latch.wr_unlock();
+    m_latch_ex= false;
+  }
+  else
+    log_sys.latch.rd_unlock();
+}
+
+static ATTRIBUTE_NOINLINE ATTRIBUTE_COLD
+void mtr_flush_ahead(lsn_t flush_lsn) noexcept
+{
+  buf_flush_ahead(flush_lsn, bool(flush_lsn & 1));
+}
+
 template<bool mmap>
-void mtr_t::commit_log(mtr_t *mtr, std::pair<lsn_t,page_flush_ahead> lsns)
-  noexcept
+void mtr_t::commit_log(mtr_t *mtr, std::pair<lsn_t,lsn_t> lsns) noexcept
 {
   size_t modified= 0;
 
@@ -376,25 +394,12 @@ void mtr_t::commit_log(mtr_t *mtr, std::pair<lsn_t,page_flush_ahead> lsns)
     buf_pool.page_cleaner_wakeup();
     mysql_mutex_unlock(&buf_pool.flush_list_mutex);
 
-    if (mtr->m_latch_ex)
-    {
-      log_sys.latch.wr_unlock();
-      mtr->m_latch_ex= false;
-    }
-    else
-      log_sys.latch.rd_unlock();
-
+    mtr->commit_log_release();
     mtr->release();
   }
   else
   {
-    if (mtr->m_latch_ex)
-    {
-      log_sys.latch.wr_unlock();
-      mtr->m_latch_ex= false;
-    }
-    else
-      log_sys.latch.rd_unlock();
+    mtr->commit_log_release();
 
     for (auto it= mtr->m_memo.rbegin(); it != mtr->m_memo.rend(); )
     {
@@ -452,10 +457,15 @@ void mtr_t::commit_log(mtr_t *mtr, std::pair<lsn_t,page_flush_ahead> lsns)
     mtr->m_memo.clear();
   }
 
-  mariadb_increment_pages_updated(modified);
+  if (modified != 0 && mtr->trx)
+    if (ha_handler_stats *stats= mtr->trx->active_handler_stats)
+      stats->pages_updated+= modified;
 
-  if (UNIV_UNLIKELY(lsns.second != PAGE_FLUSH_NO))
-    buf_flush_ahead(mtr->m_commit_lsn, lsns.second == PAGE_FLUSH_SYNC);
+  if (UNIV_UNLIKELY(lsns.second != 0))
+  {
+    ut_ad(lsns.second < mtr->m_commit_lsn);
+    mtr_flush_ahead(lsns.second);
+  }
 }
 
 /** Commit a mini-transaction. */
@@ -477,7 +487,7 @@ void mtr_t::commit()
     }
 
     ut_ad(!srv_read_only_mode);
-    std::pair<lsn_t,page_flush_ahead> lsns{do_write()};
+    std::pair<lsn_t,lsn_t> lsns{do_write()};
     process_freed_pages();
 #ifdef HAVE_PMEM
     commit_logger(this, lsns);
@@ -515,9 +525,6 @@ void mtr_t::rollback_to_savepoint(ulint begin, ulint end)
   {
     const mtr_memo_slot_t &slot= m_memo[s];
     ut_ad(slot.object);
-    /* This is intended for releasing latches on indexes or unmodified
-    buffer pool pages. */
-    ut_ad(slot.type <= MTR_MEMO_SX_LOCK);
     ut_ad(!(slot.type & MTR_MEMO_MODIFY));
     slot.release();
   }
@@ -661,25 +668,12 @@ bool mtr_t::commit_file(fil_space_t &space, const char *name)
 
   m_latch_ex= true;
 
+  const bool crypt{log_sys.is_encrypted()};
+  m_commit_lsn= crypt ? log_sys.get_flushed_lsn() : 0;
+  const size_t size{crypt ? 8 + encrypt() : crc32c()};
+
   log_write_and_flush_prepare();
-
   log_sys.latch.wr_lock(SRW_LOCK_CALL);
-
-  size_t size= m_log.size() + 5;
-
-  if (log_sys.is_encrypted())
-  {
-    /* We will not encrypt any FILE_ records, but we will reserve
-    a nonce at the end. */
-    size+= 8;
-    m_commit_lsn= log_sys.get_flushed_lsn();
-  }
-  else
-    m_commit_lsn= 0;
-
-  m_crc= 0;
-  m_log.for_each_block([this](const mtr_buf_t::block_t *b)
-  { m_crc= my_crc32c(m_crc, b->begin(), b->used()); return true; });
   finish_write(size);
 
   if (!name && space.max_lsn)
@@ -719,6 +713,18 @@ bool mtr_t::commit_file(fil_space_t &space, const char *name)
   return success;
 }
 
+ATTRIBUTE_NOINLINE size_t mtr_t::crc32c() noexcept
+{
+  m_crc= 0;
+  size_t len= 5;
+  for (const mtr_buf_t::block_t &b : m_log)
+  {
+    len+= b.used();
+    m_crc= my_crc32c(m_crc, b.begin(), b.used());
+  }
+  return len;
+}
+
 /** Commit a mini-transaction that did not modify any pages,
 but generated some redo log on a higher level, such as
 FILE_MODIFY records and an optional FILE_CHECKPOINT marker.
@@ -749,22 +755,9 @@ ATTRIBUTE_COLD lsn_t mtr_t::commit_files(lsn_t checkpoint_lsn)
     mach_write_to_8(ptr + 3, checkpoint_lsn);
   }
 
-  size_t size= m_log.size() + 5;
-
-  if (log_sys.is_encrypted())
-  {
-    /* We will not encrypt any FILE_ records, but we will reserve
-    a nonce at the end. */
-    size+= 8;
-    m_commit_lsn= log_sys.get_flushed_lsn();
-  }
-  else
-    m_commit_lsn= 0;
-
-  m_crc= 0;
-  m_log.for_each_block([this](const mtr_buf_t::block_t *b)
-  { m_crc= my_crc32c(m_crc, b->begin(), b->used()); return true; });
-  finish_write(size);
+  const bool crypt{log_sys.is_encrypted()};
+  m_commit_lsn= crypt ? log_sys.get_flushed_lsn() : 0;
+  finish_write(crypt ? 8 + encrypt() : crc32c());
   release_resources();
 
   if (checkpoint_lsn)
@@ -924,7 +917,8 @@ ATTRIBUTE_COLD void log_t::append_prepare_wait(bool late, bool ex) noexcept
     const bool is_pmem{is_mmap()};
     if (is_pmem)
     {
-      ut_ad(lsn - get_flushed_lsn(std::memory_order_relaxed) < capacity());
+      ut_ad(lsn - get_flushed_lsn(std::memory_order_relaxed) < capacity() ||
+            overwrite_warned);
       persist(lsn);
     }
 #endif
@@ -985,24 +979,44 @@ std::pair<lsn_t,byte*> log_t::append_prepare(size_t size, bool ex) noexcept
 
 /** Finish appending data to the log.
 @param lsn  the end LSN of the log record
-@return whether buf_flush_ahead() will have to be invoked */
-static mtr_t::page_flush_ahead log_close(lsn_t lsn) noexcept
+@return lsn for invoking buf_flush_ahead() on, with "furious" flag in the LSB
+@retval 0 if buf_flush_ahead() will not have to be invoked */
+static lsn_t log_close(lsn_t lsn) noexcept
 {
   ut_ad(log_sys.latch_have_any());
 
   const lsn_t checkpoint_age= lsn - log_sys.last_checkpoint_lsn;
+  const lsn_t max_age= log_sys.max_modified_age_async;
 
   if (UNIV_UNLIKELY(checkpoint_age >= log_sys.log_capacity) &&
       /* silence message on create_log_file() after the log had been deleted */
       checkpoint_age != lsn)
     log_overwrite_warning(lsn);
-  else if (UNIV_LIKELY(checkpoint_age <= log_sys.max_modified_age_async))
-    return mtr_t::PAGE_FLUSH_NO;
-  else if (UNIV_LIKELY(checkpoint_age <= log_sys.max_checkpoint_age))
-    return mtr_t::PAGE_FLUSH_ASYNC;
+  else if (UNIV_LIKELY(checkpoint_age <= max_age))
+    return 0;
 
-  log_sys.set_check_for_checkpoint();
-  return mtr_t::PAGE_FLUSH_SYNC;
+  /* The last checkpoint is too old. Let us set an appropriate
+  checkpoint age target, that is, a checkpoint LSN target that is the
+  current LSN minus the maximum age. Let us see if are exceeding the
+  log_checkpoint_margin() limit that will involve a synchronous wait
+  in each write operation. */
+
+  const bool furious{checkpoint_age >= log_sys.max_checkpoint_age};
+
+  /* If furious==true, we could set a less aggressive target
+  (lsn - log_sys.max_checkpoint_age) instead of what we will be using
+  in both cases (lsn - log_sys.max_checkpoint_age_async).
+
+  The aim of the more aggressive target is that mtr_flush_ahead() will
+  request more progress in buf_flush_page_cleaner() sooner, so that it
+  will be less likely that several threads will end up waiting in
+  log_checkpoint_margin(). That function will use the less aggressive
+  limit (lsn - log_sys.max_checkpoint_age) in order to minimize the
+  synchronous wait time. */
+  if (furious)
+    log_sys.set_check_for_checkpoint();
+
+  return ((lsn - max_age) & ~lsn_t{1}) | lsn_t{furious};
 }
 
 inline void mtr_t::page_checksum(const buf_page_t &bpage)
@@ -1048,14 +1062,15 @@ inline void mtr_t::page_checksum(const buf_page_t &bpage)
   m_log.close(l + 4);
 }
 
-std::pair<lsn_t,mtr_t::page_flush_ahead> mtr_t::do_write()
+std::pair<lsn_t,lsn_t> mtr_t::do_write() noexcept
 {
   ut_ad(!recv_no_log_write);
   ut_ad(is_logged());
-  ut_ad(m_log.size());
+  ut_ad(!m_log.empty());
   ut_ad(!m_latch_ex || log_sys.latch_have_wr());
   ut_ad(!m_user_space ||
         (m_user_space->id > 0 && m_user_space->id < SRV_SPACE_ID_UPPER_BOUND));
+  m_commit_lsn= 0;
 
 #ifndef DBUG_OFF
   do
@@ -1073,22 +1088,7 @@ std::pair<lsn_t,mtr_t::page_flush_ahead> mtr_t::do_write()
   }
   while (0);
 #endif
-
-  size_t len= m_log.size() + 5;
-  ut_ad(len > 5);
-
-  if (log_sys.is_encrypted())
-  {
-    len+= 8;
-    encrypt();
-  }
-  else
-  {
-    m_crc= 0;
-    m_commit_lsn= 0;
-    m_log.for_each_block([this](const mtr_buf_t::block_t *b)
-    { m_crc= my_crc32c(m_crc, b->begin(), b->used()); return true; });
-  }
+  const size_t len{log_sys.is_encrypted() ? 8 + encrypt() : crc32c()};
 
   if (!m_latch_ex)
     log_sys.latch.rd_lock(SRW_LOCK_CALL);
@@ -1214,13 +1214,13 @@ inline void log_t::append(byte *&d, const void *s, size_t size) noexcept
 }
 
 template<bool mmap>
-std::pair<lsn_t,mtr_t::page_flush_ahead>
-mtr_t::finish_writer(mtr_t *mtr, size_t len)
+std::pair<lsn_t,lsn_t> mtr_t::finish_writer(mtr_t *mtr, size_t len)
 {
   ut_ad(log_sys.is_latest());
   ut_ad(!recv_no_log_write);
   ut_ad(mtr->is_logged());
   ut_ad(mtr->m_latch_ex ? log_sys.latch_have_wr() : log_sys.latch_have_rd());
+  ut_ad(len < recv_sys.MTR_SIZE_MAX);
 
   const size_t size{mtr->m_commit_lsn ? 5U + 8U : 5U};
   std::pair<lsn_t, byte*> start=
@@ -1228,8 +1228,8 @@ mtr_t::finish_writer(mtr_t *mtr, size_t len)
 
   if (!mmap)
   {
-    mtr->m_log.for_each_block([&start](const mtr_buf_t::block_t *b)
-    { log_sys.append(start.second, b->begin(), b->used()); return true; });
+    for (const mtr_buf_t::block_t &b : mtr->m_log)
+      log_sys.append(start.second, b.begin(), b.used());
 
   write_trailer:
     *start.second++= log_sys.get_sequence_bit(start.first + len - size);
@@ -1246,15 +1246,15 @@ mtr_t::finish_writer(mtr_t *mtr, size_t len)
   {
     if (UNIV_LIKELY(start.second + len <= &log_sys.buf[log_sys.file_size]))
     {
-      mtr->m_log.for_each_block([&start](const mtr_buf_t::block_t *b)
-      { log_sys.append(start.second, b->begin(), b->used()); return true; });
+      for (const mtr_buf_t::block_t &b : mtr->m_log)
+        log_sys.append(start.second, b.begin(), b.used());
       goto write_trailer;
     }
-    mtr->m_log.for_each_block([&start](const mtr_buf_t::block_t *b)
+    for (const mtr_buf_t::block_t &b : mtr->m_log)
     {
-      size_t size{b->used()};
+      size_t size{b.used()};
       const size_t size_left(&log_sys.buf[log_sys.file_size] - start.second);
-      const byte *src= b->begin();
+      const byte *src= b.begin();
       if (size > size_left)
       {
         ::memcpy(start.second, src, size_left);
@@ -1264,8 +1264,7 @@ mtr_t::finish_writer(mtr_t *mtr, size_t len)
       }
       ::memcpy(start.second, src, size);
       start.second+= size;
-      return true;
-    });
+    }
     const size_t size_left(&log_sys.buf[log_sys.file_size] - start.second);
     if (size_left > size)
       goto write_trailer;

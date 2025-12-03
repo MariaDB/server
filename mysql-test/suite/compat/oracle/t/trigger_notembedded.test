@@ -1,0 +1,85 @@
+
+--echo #
+--echo # MDEV-36996: Implement INFORMATION_SCHEMA.TRIGGERED_UPDATE_COLUMNS
+--echo # Test privileges. Columns should be show only if the user has non-select
+--echo # privileges on the trigger updatable columns
+--echo #
+
+--source include/not_embedded.inc
+
+CREATE TABLE t (a INT, b INT, c INT);
+INSERT INTO t VALUES (1, 2, 3);
+CREATE TABLE t1 (a_old INT, b_old INT, a_new INT, b_new INT);
+
+CREATE TRIGGER t_bu BEFORE UPDATE OF a, b, c ON t FOR EACH ROW INSERT INTO t1 VALUES (OLD.a, OLD.b, NEW.a, NEW.b);
+
+UPDATE t SET a = 10 WHERE a = 1;
+SELECT * FROM t1;
+
+--replace_column 2 # 4 # 5 # 6 # 7 # 8 #
+query_vertical SHOW CREATE TRIGGER t_bu;
+
+SELECT * FROM INFORMATION_SCHEMA.TRIGGERED_UPDATE_COLUMNS WHERE TRIGGER_NAME = 't_bu';
+
+CREATE USER user@localhost;
+GRANT SELECT (a, b, c) ON t TO user@localhost;
+CONNECT conn1, localhost, user, , test;
+
+# should not show columns
+SELECT * FROM INFORMATION_SCHEMA.TRIGGERED_UPDATE_COLUMNS WHERE TRIGGER_NAME = 't_bu';
+
+CONNECTION default;
+DISCONNECT conn1;
+
+GRANT UPDATE (a) ON t TO user@localhost;
+CONNECT conn1, localhost, user, , test;
+
+# should show only one columns
+SELECT * FROM INFORMATION_SCHEMA.TRIGGERED_UPDATE_COLUMNS WHERE TRIGGER_NAME = 't_bu';
+
+CONNECTION default;
+DISCONNECT conn1;
+
+GRANT INSERT (b) ON t TO user@localhost;
+CONNECT conn1, localhost, user, , test;
+
+# should show only columns- a, b
+SELECT * FROM INFORMATION_SCHEMA.TRIGGERED_UPDATE_COLUMNS WHERE TRIGGER_NAME = 't_bu';
+
+CONNECTION default;
+DISCONNECT conn1;
+
+GRANT REFERENCES (c) ON t TO user@localhost;
+CONNECT conn1, localhost, user, , test;
+
+# should show columns- a, b but not c
+SELECT * FROM INFORMATION_SCHEMA.TRIGGERED_UPDATE_COLUMNS WHERE TRIGGER_NAME = 't_bu';
+
+CONNECTION default;
+DISCONNECT conn1;
+
+# revoke all privileges
+REVOKE UPDATE (a), INSERT (b), REFERENCES (c) ON t FROM user@localhost;
+CONNECT conn1, localhost, user, , test;
+
+# should not show updatable colums
+SELECT * FROM INFORMATION_SCHEMA.TRIGGERED_UPDATE_COLUMNS WHERE TRIGGER_NAME = 't_bu';
+
+CONNECTION default;
+DISCONNECT conn1;
+
+# add DELETE privilege
+GRANT DELETE ON t TO user@localhost;
+CONNECT conn1, localhost, user, , test;
+
+# should not show columns- a, b and c
+SELECT * FROM INFORMATION_SCHEMA.TRIGGERED_UPDATE_COLUMNS WHERE TRIGGER_NAME = 't_bu';
+
+CONNECTION default;
+DISCONNECT conn1;
+
+DROP USER user@localhost;
+DROP TABLE t1;
+DROP TABLE t;
+
+--echo # End of 12.2 tests

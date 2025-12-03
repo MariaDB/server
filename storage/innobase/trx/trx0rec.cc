@@ -39,7 +39,6 @@ Created 3/26/1996 Heikki Tuuri
 #include "row0row.h"
 #include "row0mysql.h"
 #include "row0ins.h"
-#include "mariadb_stats.h"
 
 /** The search tuple corresponding to TRX_UNDO_INSERT_METADATA. */
 const dtuple_t trx_undo_metadata = {
@@ -401,7 +400,6 @@ static
 uint16_t
 trx_undo_page_report_insert(
 	buf_block_t*	undo_block,
-	trx_t*		trx,
 	dict_index_t*	index,
 	const dtuple_t*	clust_entry,
 	mtr_t*		mtr,
@@ -431,7 +429,7 @@ trx_undo_page_report_insert(
 
 	/* Store first some general parameters to the undo log */
 	*ptr++ = TRX_UNDO_INSERT_REC;
-	ptr += mach_u64_write_much_compressed(ptr, trx->undo_no);
+	ptr += mach_u64_write_much_compressed(ptr, mtr->trx->undo_no);
 	ptr += mach_u64_write_much_compressed(ptr, index->table->id);
 
 	if (write_empty) {
@@ -785,7 +783,6 @@ uint16_t
 trx_undo_page_report_modify(
 /*========================*/
 	buf_block_t*	undo_block,	/*!< in: undo log page */
-	trx_t*		trx,		/*!< in: transaction */
 	dict_index_t*	index,		/*!< in: clustered index where update or
 					delete marking is done */
 	const rec_t*	rec,		/*!< in: clustered index record which
@@ -833,12 +830,16 @@ trx_undo_page_report_modify(
 	byte*		type_cmpl_ptr;
 	ulint		i;
 	trx_id_t	trx_id;
-	ibool		ignore_prefix = FALSE;
+	bool		ignore_prefix = false;
 	byte		ext_buf[REC_VERSION_56_MAX_INDEX_COL_LEN
 				+ BTR_EXTERN_FIELD_REF_SIZE];
 	bool		first_v_col = true;
 
 	/* Store first some general parameters to the undo log */
+	field = rec_get_nth_field(rec, offsets, index->db_trx_id(), &flen);
+	ut_ad(flen == DATA_TRX_ID_LEN);
+
+	trx_id = trx_read_trx_id(field);
 
 	if (!update) {
 		ut_ad(!rec_is_delete_marked(rec, dict_table_is_comp(table)));
@@ -846,14 +847,15 @@ trx_undo_page_report_modify(
 	} else if (rec_is_delete_marked(rec, dict_table_is_comp(table))) {
 		/* In delete-marked records, DB_TRX_ID must
 		always refer to an existing update_undo log record. */
-		ut_ad(row_get_rec_trx_id(rec, index, offsets));
+		ut_ad(trx_id);
 
 		type_cmpl = TRX_UNDO_UPD_DEL_REC;
+
 		/* We are about to update a delete marked record.
-		We don't typically need the prefix in this case unless
+		We don't typically need a BLOB prefix in this case unless
 		the delete marking is done by the same transaction
 		(which we check below). */
-		ignore_prefix = TRUE;
+		ignore_prefix = trx_id != mtr->trx->id;
 	} else {
 		type_cmpl = TRX_UNDO_UPD_EXIST_REC;
 	}
@@ -862,7 +864,7 @@ trx_undo_page_report_modify(
 	type_cmpl_ptr = ptr;
 
 	*ptr++ = (byte) type_cmpl;
-	ptr += mach_u64_write_much_compressed(ptr, trx->undo_no);
+	ptr += mach_u64_write_much_compressed(ptr, mtr->trx->undo_no);
 
 	ptr += mach_u64_write_much_compressed(ptr, table->id);
 
@@ -872,18 +874,6 @@ trx_undo_page_report_modify(
 	*ptr++ = (byte) rec_get_info_bits(rec, dict_table_is_comp(table));
 
 	/* Store the values of the system columns */
-	field = rec_get_nth_field(rec, offsets, index->db_trx_id(), &flen);
-	ut_ad(flen == DATA_TRX_ID_LEN);
-
-	trx_id = trx_read_trx_id(field);
-
-	/* If it is an update of a delete marked record, then we are
-	allowed to ignore blob prefixes if the delete marking was done
-	by some other trx as it must have committed by now for us to
-	allow an over-write. */
-	if (trx_id == trx->id) {
-		ignore_prefix = false;
-	}
 	ptr += mach_u64_write_compressed(ptr, trx_id);
 
 	field = rec_get_nth_field(rec, offsets, index->db_roll_ptr(), &flen);
@@ -1676,7 +1666,6 @@ trx_undo_update_rec_get_update(
 }
 
 /** Report a RENAME TABLE operation.
-@param[in,out]	trx	transaction
 @param[in]	table	table that is being renamed
 @param[in,out]	block	undo page
 @param[in,out]	mtr	mini-transaction
@@ -1684,7 +1673,7 @@ trx_undo_update_rec_get_update(
 @retval	0	in case of failure */
 static
 uint16_t
-trx_undo_page_report_rename(trx_t* trx, const dict_table_t* table,
+trx_undo_page_report_rename(const dict_table_t* table,
 			    buf_block_t* block, mtr_t* mtr)
 {
 	byte*	ptr_first_free  = my_assume_aligned<2>(TRX_UNDO_PAGE_HDR
@@ -1710,7 +1699,7 @@ trx_undo_page_report_rename(trx_t* trx, const dict_table_t* table,
 
 	byte* ptr = start + 2;
 	*ptr++ = TRX_UNDO_RENAME_TABLE;
-	ptr += mach_u64_write_much_compressed(ptr, trx->undo_no);
+	ptr += mach_u64_write_much_compressed(ptr, mtr->trx->undo_no);
 	ptr += mach_u64_write_much_compressed(ptr, table->id);
 	memcpy(ptr, table->name.m_name, len);
 	ptr += len;
@@ -1731,10 +1720,10 @@ dberr_t trx_undo_report_rename(trx_t* trx, const dict_table_t* table)
 	ut_ad(trx->id);
 	ut_ad(!table->is_temporary());
 
-	mtr_t		mtr;
+	mtr_t		mtr{trx};
 	dberr_t		err;
 	mtr.start();
-	if (buf_block_t* block = trx_undo_assign(trx, &err, &mtr)) {
+	if (buf_block_t* block = trx_undo_assign(&mtr, &err)) {
 		trx_undo_t*	undo = trx->rsegs.m_redo.undo;
 		ut_ad(err == DB_SUCCESS);
 		ut_ad(undo);
@@ -1744,7 +1733,7 @@ dberr_t trx_undo_report_rename(trx_t* trx, const dict_table_t* table)
 			      == block->page.id().page_no());
 
 			if (uint16_t offset = trx_undo_page_report_rename(
-				    trx, table, block, &mtr)) {
+				    table, block, &mtr)) {
 				undo->top_page_no = undo->last_page_no;
 				undo->top_offset  = offset;
 				undo->top_undo_no = trx->undo_no++;
@@ -1876,8 +1865,8 @@ trx_undo_report_row_operation(
 	} else if (!m.second || !trx->bulk_insert) {
 		bulk = false;
 	} else if (index->table->is_temporary()) {
-	} else if (trx_has_lock_x(*trx, *index->table)
-		   && index->table->bulk_trx_id == trx->id) {
+	} else if (index->table->bulk_trx_id == trx->id
+		   && trx_has_lock_x(*trx, *index->table)) {
 		m.first->second.start_bulk_insert(
 			index->table,
 			thd_sql_command(trx->mysql_thd) != SQLCOM_LOAD);
@@ -1890,7 +1879,7 @@ trx_undo_report_row_operation(
 		bulk = false;
 	}
 
-	mtr_t		mtr;
+	mtr_t		mtr{trx};
 	dberr_t		err;
 	mtr.start();
 	trx_undo_t**	pundo;
@@ -1902,15 +1891,15 @@ trx_undo_report_row_operation(
 		mtr.set_log_mode(MTR_LOG_NO_REDO);
 		rseg = trx->get_temp_rseg();
 		pundo = &trx->rsegs.m_noredo.undo;
-		undo_block = trx_undo_assign_low<true>(trx, rseg, pundo,
-						       &mtr, &err);
+		undo_block = trx_undo_assign_low<true>(&mtr, &err,
+						       rseg, pundo);
 	} else {
 		ut_ad(!trx->read_only);
 		ut_ad(trx->id);
 		pundo = &trx->rsegs.m_redo.undo;
 		rseg = trx->rsegs.m_redo.rseg;
-		undo_block = trx_undo_assign_low<false>(trx, rseg, pundo,
-							&mtr, &err);
+		undo_block = trx_undo_assign_low<false>(&mtr, &err,
+							rseg, pundo);
 	}
 
 	trx_undo_t*	undo	= *pundo;
@@ -1926,10 +1915,10 @@ err_exit:
 	do {
 		uint16_t offset = !rec
 			? trx_undo_page_report_insert(
-				undo_block, trx, index, clust_entry, &mtr,
+				undo_block, index, clust_entry, &mtr,
 				bulk)
 			: trx_undo_page_report_modify(
-				undo_block, trx, index, rec, offsets, update,
+				undo_block, index, rec, offsets, update,
 				cmpl_info, clust_entry, &mtr);
 
 		if (UNIV_UNLIKELY(offset == 0)) {
@@ -2069,7 +2058,7 @@ static dberr_t trx_undo_prev_version(const rec_t *rec, dict_index_t *index,
                                      const trx_undo_rec_t *undo_rec);
 
 inline const buf_block_t *
-purge_sys_t::view_guard::get(const page_id_t id, mtr_t *mtr)
+purge_sys_t::view_guard::get(const page_id_t id, trx_t *trx, mtr_t *mtr)
 {
   buf_block_t *block;
   ut_ad(mtr->is_active());
@@ -2083,7 +2072,7 @@ purge_sys_t::view_guard::get(const page_id_t id, mtr_t *mtr)
       return block;
     }
   }
-  block= buf_pool.page_fix(id);
+  block= buf_pool.page_fix(id, trx);
   if (block)
   {
     mtr->memo_push(block, MTR_MEMO_BUF_FIX);
@@ -2116,7 +2105,6 @@ must hold a latch on the index page of the clustered index record.
 @retval DB_SUCCESS if previous version was successfully built,
 or if it was an insert or the undo record refers to the table before rebuild
 @retval DB_MISSING_HISTORY if the history is missing */
-TRANSACTIONAL_TARGET
 dberr_t trx_undo_prev_version_build(const rec_t *rec, dict_index_t *index,
                                     rec_offs *offsets, mem_heap_t *heap,
                                     rec_t **old_vers, mtr_t *mtr,
@@ -2141,7 +2129,9 @@ dberr_t trx_undo_prev_version_build(const rec_t *rec, dict_index_t *index,
 
   ut_ad(!index->table->skip_alter_undo);
 
-  mariadb_increment_undo_records_read();
+  if (!mtr->trx);
+  else if (ha_handler_stats *stats= mtr->trx->active_handler_stats)
+    stats->undo_records_read++;
   const auto savepoint= mtr->get_savepoint();
   dberr_t err= DB_MISSING_HISTORY;
   purge_sys_t::view_guard check{v_status == TRX_UNDO_CHECK_PURGE_PAGES
@@ -2157,7 +2147,7 @@ dberr_t trx_undo_prev_version_build(const rec_t *rec, dict_index_t *index,
     if (const buf_block_t *undo_page=
         check.get(page_id_t{trx_sys.rseg_array[(roll_ptr >> 48) & 0x7f].
                             space->id,
-                            uint32_t(roll_ptr >> 16)}, mtr))
+                            uint32_t(roll_ptr >> 16)}, mtr->trx, mtr))
     {
       static_assert(ROLL_PTR_BYTE_POS == 0, "");
       const uint16_t offset{uint16_t(roll_ptr)};
@@ -2237,6 +2227,21 @@ static dberr_t trx_undo_prev_version(const rec_t *rec, dict_index_t *index,
 	byte* buf;
 
 	if (row_upd_changes_field_size_or_external(index, offsets, update)) {
+		/* When CHECK TABLE ... EXTENDED checks for orphan
+		records in secondary indexes, it normally covers some
+		history that is already being purged. This is safe as
+		long as the undo log records have not been freed yet.
+
+		However, BLOBs are only safe to access as long as the
+		purge_sys.view does not permit them to be freed. The
+		check.latch will freeze the purge_sys.view by blocking
+		purge_sys.clone_oldest_view() at the start of
+		trx_purge() or by blocking purge_sys.batch_cleanup()
+		at the end of trx_purge(). */
+		if (check.is_extended() && purge_sys.is_purgeable(trx_id)) {
+			return DB_SUCCESS;
+		}
+
 		/* We should confirm the existence of disowned external data,
 		if the previous version record is delete marked. If the trx_id
 		of the previous record is seen by purge view, we should treat

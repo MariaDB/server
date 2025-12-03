@@ -188,8 +188,8 @@ maria_declare_plugin(type_inet)
   0x0100,                       // Numeric version 0xAABB means AA.BB version
   NULL,                         // Status variables
   NULL,                         // System variables
-  "1.0",                        // String version representation
-  MariaDB_PLUGIN_MATURITY_GAMMA // Maturity(see include/mysql/plugin.h)*/
+  "1.0.1",                      // String version representation
+  MariaDB_PLUGIN_MATURITY_STABLE// Maturity(see include/mysql/plugin.h)*/
 },
 {
   MariaDB_DATA_TYPE_PLUGIN,     // the plugin type (see include/mysql/plugin.h)

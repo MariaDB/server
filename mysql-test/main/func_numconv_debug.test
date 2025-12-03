@@ -1,0 +1,67 @@
+--source include/have_debug.inc
+
+--echo #
+--echo # MDEV-20022 sql_mode="oracle" does not support TO_NUMBER() function
+--echo #
+
+SET debug_dbug='+d,numconv_format';
+
+#
+# Approximate::print
+#
+
+SELECT to_number('', '9') AS c;
+SELECT to_number('', '0') AS c;
+SELECT to_number('', '9.9') AS c;
+SELECT to_number('', '0.0') AS c;
+SELECT to_number('', '.9') AS c;
+SELECT to_number('', '.0') AS c;
+
+SELECT to_number('', '9$9') AS c;
+SELECT to_number('', '0$0') AS c;
+SELECT to_number('', '9B9') AS c;
+SELECT to_number('', '0B0') AS c;
+
+SELECT to_number('', '9.9$') AS c;
+SELECT to_number('', '9.9B') AS c;
+
+--error ER_NOT_SUPPORTED_YET
+SELECT to_number('', '9C9') AS c;
+SHOW WARNINGS;
+
+--error ER_NOT_SUPPORTED_YET
+SELECT to_number('', '9.9C') AS c;
+SHOW WARNINGS;
+
+
+#
+# Unsigned_currency::print
+#
+
+SELECT to_number('', '$9') AS c;
+SELECT to_number('', '$0') AS c;
+SELECT to_number('', 'B9') AS c;
+SELECT to_number('', 'B0') AS c;
+
+--error ER_NOT_SUPPORTED_YET
+SELECT to_number('', 'C9') AS c;
+SHOW WARNINGS;
+--error ER_NOT_SUPPORTED_YET
+SELECT to_number('', 'L0') AS c;
+SHOW WARNINGS;
+
+
+#
+# Currency_with_postfix_sign::print
+#
+SELECT to_number('', '9PR') AS c;
+
+#
+# Format::print
+#
+SELECT to_number('', 'FMS9') AS c;
+--error ER_NOT_SUPPORTED_YET
+SELECT to_number('', 'FMTM') AS c;
+SHOW WARNINGS;
+
+SET debug_dbug=DEFAULT;

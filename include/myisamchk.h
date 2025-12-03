@@ -117,7 +117,7 @@ typedef struct st_handler_check_param
   void (*init_repair_thread)(void *);
   void *init_repair_thread_arg;
   mysql_mutex_t print_msg_mutex;
-  my_bool need_print_msg_lock;
+  my_bool need_print_msg_lock, status_reporting;
   myf malloc_flags;
 } HA_CHECK;
 

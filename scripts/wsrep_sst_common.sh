@@ -24,9 +24,9 @@ trap 'exit 3'  INT QUIT TERM
 OS="$(uname)"
 
 # Setting the paths for some utilities on CentOS
-export PATH="${PATH:+$PATH:}/usr/local/bin:/usr/local/sbin:/usr/bin:/bin:/usr/sbin:/sbin"
+export PATH="${PATH:+$PATH:}/usr/local/bin:/usr/local/sbin:/bin:/sbin:/usr/bin:/usr/sbin"
 if [ "$OS" != 'Darwin' ]; then
-    export LD_LIBRARY_PATH="${LD_LIBRARY_PATH:+$LD_LIBRARY_PATH:}/usr/local/lib:/usr/lib:/lib:/opt/lib"
+    export LD_LIBRARY_PATH="${LD_LIBRARY_PATH:+$LD_LIBRARY_PATH:}/usr/local/lib:/lib:/usr/lib:/opt/lib"
 fi
 
 commandex()
@@ -1267,6 +1267,13 @@ check_sockets_utils()
     lsof_available=0
     sockstat_available=0
     ss_available=0
+    raw_socket_check=0
+
+    if [ -n "$(commandex selinuxenabled)" ] && selinuxenabled; then
+        raw_socket_check=1
+        wsrep_log_info "/proc/net/tcp{,6} is being used directly to avoid excessive selinux AVC notices"
+        return 0
+    fi
 
     socket_utility="$(commandex ss)"
     if [ -n "$socket_utility" ]; then
@@ -1335,7 +1342,11 @@ check_port()
 
     local rc=2 # ENOENT
 
-    if [ $ss_available -ne 0 ]; then
+    if [ $raw_socket_check -ne 0 ]; then
+        for key in $(awk -v p="$port" 'BEGIN { hex_port = sprintf(":%04X", p) } $2 ~ hex_port && $4 == "0A" { print $10 }' /proc/net/tcp /proc/net/tcp6); do
+            return 0
+        done
+    elif [ $ss_available -ne 0 ]; then
         $socket_utility $ss_opts -t "( sport = :$port )" 2>/dev/null | \
             grep -q -E "[[:space:]]users:[[:space:]]?\\(.*\\(\"($utils)[^[:space:]]*\"[^)]*,pid=$pid(,[^)]*)?\\)" && rc=0
     elif [ $sockstat_available -ne 0 ]; then

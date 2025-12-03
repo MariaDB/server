@@ -297,6 +297,44 @@ error2:
   return TRUE;
 }
 
+
+my_bool test_get_last_bit(MY_BITMAP *map, uint bitsize)
+{
+  uint i, test_bit= 0;
+  uint no_loops= bitsize > 128 ? 128 : bitsize;
+
+  bitmap_set_all(map);
+  test_bit= bitsize;
+  if (bitmap_get_last_set(map) != bitsize-1)
+    goto error1;
+
+  bitmap_clear_all(map);
+  test_bit= 0;
+  if (bitmap_get_last_set(map) != MY_BIT_NONE)
+    goto error1;
+
+  for (i=0; i < no_loops; i++)
+  {
+    uint test_bit1, test_bit2;
+    bitmap_clear_all(map);
+    test_bit1= get_rand_bit(bitsize);
+    bitmap_set_bit(map, test_bit1);
+
+    test_bit2= get_rand_bit(bitsize);
+    bitmap_set_bit(map, test_bit2);
+
+    test_bit= MY_MAX(test_bit1, test_bit2);
+    if (bitmap_get_last_set(map) != test_bit)
+      goto error1;
+  }
+  return FALSE;
+error1:
+  diag("get_last_set error bitsize=%u, test_bit=%u, res: %u",
+       bitsize, test_bit, bitmap_get_last_set(map));
+  return TRUE;
+}
+
+
 my_bool test_get_next_bit(MY_BITMAP *map, uint bitsize)
 {
   uint i, j, test_bit;
@@ -641,6 +679,8 @@ my_bool do_test(uint bitsize)
   bitmap_clear_all(&map);
   if (test_get_first_bit(&map,bitsize))
     goto error;
+  if (test_get_last_bit(&map,bitsize))
+    goto error;
   bitmap_clear_all(&map);
   if (test_get_next_bit(&map,bitsize))
     goto error;
@@ -674,7 +714,7 @@ int main(int argc __attribute__((unused)),char *argv[])
   plan((max_size - min_size)/7+1);
 
   /*
-    It's ok to do steps in 7, as i module 64 will go trough all values 1..63.
+    It's ok to do steps in 7, as i module 64 will go through all values 1..63.
     Any errors in the code should manifest as we are working with integers
     of size 16, 32, or 64 bits...
   */

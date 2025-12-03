@@ -57,6 +57,7 @@
 #include "sql_cte.h"
 #include "sql_window.h"
 #include "item_windowfunc.h"
+#include "item_timefunc.h"
 #include "event_parse_data.h"
 #include "create_options.h"
 #include <myisam.h>
@@ -2039,6 +2040,7 @@ rule:
 %type <spblock> opt_sp_decl_body_list
 %type <spblock> sp_decl_variable_list
 %type <spblock> sp_decl_variable_list_anchored
+%type <spblock> sp_decl_type
 %type <spblock> sp_decl_non_handler
 %type <spblock> sp_decl_non_handler_list
 %type <spblock> sp_decl_handler
@@ -9086,7 +9088,7 @@ query_specification:
           opt_having_clause
           opt_window_clause
           {
-            Lex->resolve_optimizer_hints_in_last_select();
+            Lex->handle_parsed_optimizer_hints_in_last_select();
             $$= Lex->pop_select();
           }
         ;
@@ -9100,7 +9102,7 @@ select_into_query_specification:
           opt_having_clause
           opt_window_clause
           {
-            Lex->resolve_optimizer_hints_in_last_select();
+            Lex->handle_parsed_optimizer_hints_in_last_select();
             $$= Lex->pop_select();
           }
         ;
@@ -11045,6 +11047,7 @@ function_call_generic:
             Item *item= NULL;
             const sp_type_def *tdef= NULL;
             const Lex_ident_sys ident(thd, &$1);
+            const Sp_rcontext_handler *rh;
             sp_variable *spv= NULL;
             bool allow_field_accessor= false;
 
@@ -11083,13 +11086,12 @@ function_call_generic:
             {
               // Found a constructor with a proper argument count
             }
-            else if (Lex->spcont &&
-                     (tdef= Lex->spcont->find_type_def(ident, false)))
+            else if (Lex->spcont && (tdef= Lex->find_type_def(ident)))
             {
               item= tdef->make_constructor_item(thd, $4);
             }
             else if (Lex->spcont &&
-                    (spv= Lex->spcont->find_variable(&ident, false)) &&
+                    (spv= Lex->find_variable(&ident, &rh)) &&
                     spv->type_handler()->has_functors())
             {
               const char *end= $6.str ? $6.end() : $5.end();
@@ -12655,11 +12657,9 @@ opt_where_clause:
           }
           search_condition
           {
-            SELECT_LEX *select= Select;
-            select->where= normalize_cond(thd, $3);
-            select->parsing_place= NO_MATTER;
-            if ($3)
-              $3->top_level_item();
+            $3->top_level_item();
+            Select->where= normalize_cond(thd, $3);
+            Select->parsing_place= NO_MATTER;
           }
         ;
 
@@ -13790,7 +13790,7 @@ insert:
           insert_field_spec opt_insert_update opt_returning
           insert_stmt_end
           {
-            Lex->resolve_optimizer_hints_in_last_select();
+            Lex->handle_parsed_optimizer_hints_in_last_select();
             Lex->mark_first_table_as_inserting();
             thd->get_stmt_da()->reset_current_row_for_warning(0);
           }
@@ -13812,7 +13812,7 @@ replace:
           insert_field_spec opt_returning
           insert_stmt_end
           {
-            Lex->resolve_optimizer_hints_in_last_select();
+            Lex->handle_parsed_optimizer_hints_in_last_select();
             Lex->mark_first_table_as_inserting();
             thd->get_stmt_da()->reset_current_row_for_warning(0);
           }
@@ -13828,7 +13828,7 @@ insert_start: {
               ;
 
 stmt_end: {
-              Lex->resolve_optimizer_hints_in_last_select();
+              Lex->handle_parsed_optimizer_hints_in_last_select();
               Lex->pop_select(); //main select
               if (Lex->check_main_unit_semantics())
                 MYSQL_YYABORT;
@@ -14197,7 +14197,7 @@ delete:
           {
             if (Lex->check_cte_dependencies_and_resolve_references())
               MYSQL_YYABORT;
-            Lex->resolve_optimizer_hints_in_last_select();
+            Lex->handle_parsed_optimizer_hints_in_last_select();
           }
           ;
 
@@ -19574,6 +19574,7 @@ sf_return_type:
 
 package_implementation_item_declaration:
           sp_decl_variable_list ';'
+        | sp_decl_type ';'
         ;
 
 sp_package_function_body:
@@ -20460,7 +20461,11 @@ sp_decl_non_handler:
             $$.vars= $$.conds= $$.hndlrs= 0;
             $$.curs= 1;
           }
-        | typed_ident IS RECORD_SYM rec_type_body
+        | sp_decl_type
+        ;
+
+sp_decl_type:
+          typed_ident IS RECORD_SYM rec_type_body
           {
             if (unlikely(Lex->declare_type_record(thd, $1, $4)))
               MYSQL_YYABORT;

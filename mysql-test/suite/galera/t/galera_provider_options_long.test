@@ -1,0 +1,28 @@
+--source include/galera_cluster.inc
+--source include/have_ssl_communication.inc
+--source include/have_openssl.inc
+
+--let $wsrep_provider_options_orig = `SELECT @@wsrep_provider_options`
+
+--echo #
+--echo # wsrep_provider_options should be already > 2k length
+--echo #
+--disable_query_log
+--eval SELECT LENGTH('$wsrep_provider_options_orig') > 2000 AS_EXPECT_1;
+--enable_query_log
+
+--echo #
+--echo # Setting single value should pass
+--echo #
+
+SET GLOBAL wsrep_provider_options='pc.ignore_sb=false;pc.weight=2';
+
+--echo #
+--echo # This failed before change with ER_WRONG_STRING_LENGTH
+--echo #
+
+--disable_query_log
+--eval SET GLOBAL wsrep_provider_options = "$wsrep_provider_options_orig"
+--enable_query_log
+
+--source include/galera_end.inc

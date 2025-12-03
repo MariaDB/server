@@ -59,6 +59,12 @@ Parse_context::Parse_context(THD *thd, st_select_lex *select)
   select(select)
 {}
 
+Parse_context::Parse_context(Parse_context *pc, st_select_lex *select)
+: thd(pc->thd),
+  mem_root(pc->mem_root),
+  select(select)
+{}
+
 
 Optimizer_hint_tokenizer::TokenID
 Optimizer_hint_tokenizer::find_keyword(const LEX_CSTRING &str)
@@ -128,6 +134,13 @@ Optimizer_hint_tokenizer::find_keyword(const LEX_CSTRING &str)
       return TokenID::keyword_ORDER_INDEX;
     if ("GROUP_INDEX"_Lex_ident_column.streq(str))
       return TokenID::keyword_GROUP_INDEX;
+    if ("INDEX_MERGE"_Lex_ident_column.streq(str))
+      return TokenID::keyword_INDEX_MERGE;
+    break;
+
+  case 12:
+    if ("ROWID_FILTER"_Lex_ident_column.streq(str))
+      return TokenID::keyword_ROWID_FILTER;
     break;
 
   case 13:
@@ -140,11 +153,15 @@ Optimizer_hint_tokenizer::find_keyword(const LEX_CSTRING &str)
       return TokenID::keyword_NO_ORDER_INDEX;
     if ("NO_GROUP_INDEX"_Lex_ident_column.streq(str))
       return TokenID::keyword_NO_GROUP_INDEX;
+    if ("NO_INDEX_MERGE"_Lex_ident_column.streq(str))
+      return TokenID::keyword_NO_INDEX_MERGE;
     break;
 
   case 15:
     if ("MATERIALIZATION"_Lex_ident_column.streq(str))
       return TokenID::keyword_MATERIALIZATION;
+    if ("NO_ROWID_FILTER"_Lex_ident_column.streq(str))
+      return TokenID::keyword_NO_ROWID_FILTER;
     break;
 
   case 16:
@@ -486,13 +503,14 @@ bool Parser::Table_level_hint::resolve(Parse_context *pc) const
     - table level hints: only table name specified but no index names
     - index level hints: both table name and index names specified
   - 2 kinds of hints:
-    - global: [NO_]INDEX
+    - global: [NO_]INDEX, [NO_]ROWID_FILTER
     - non-global: [NO_]JOIN_INDEX, [NO_]GROUP_INDEX, [NO_]ORDER_INDEX
-  - 4 types of hints:
+  - 5 types of hints:
     - [NO_]JOIN_INDEX
     - [NO_]GROUP_INDEX
     - [NO_]ORDER_INDEX
     - [NO_]INDEX
+    - [NO_]ROWID_FILTER
 
   Conflict checking
   - A conflict happens if and only if
@@ -516,6 +534,22 @@ bool Parser::Index_level_hint::resolve(Parse_context *pc) const
   const Index_level_hint_type &index_level_hint_type= *this;
   opt_hints_enum hint_type;
   bool hint_state; // ON or OFF
+
+  /*
+    Intended for the [NO_]INDEX_MERGE hints originally, this is set
+    true when the hint should be set also on the table as well as
+    the index.  However, for such a hint set on the table, the check_parent flag
+    is inverted from this value; that is, if set_also_on_table is
+    true, then check_parent will be false (see below).  This is
+    because the presence of the hint on the table is treated differently
+    than the hint applying to all keys on the table.  For example,
+    INDEX_MERGE(table) means that the hint applies to all keys while
+    INDEX_MERGE(table, k1) means that the hint applies to key k1.  In
+    both cases, however, we set the hint both as an index-level hint and
+    as a table-level hint, but when inspecting it during index_merge_hint,
+    it is given special treatment (see that function for details).
+  */
+  bool set_also_on_table= false;
 
   switch (index_level_hint_type.id())
   {
@@ -567,6 +601,24 @@ bool Parser::Index_level_hint::resolve(Parse_context *pc) const
     hint_type= GROUP_INDEX_HINT_ENUM;
     hint_state= false;
     break;
+  case TokenID::keyword_ROWID_FILTER:
+    hint_type= ROWID_FILTER_HINT_ENUM;
+    hint_state= true;
+    break;
+  case TokenID::keyword_NO_ROWID_FILTER:
+    hint_type= ROWID_FILTER_HINT_ENUM;
+    hint_state= false;
+    break;
+  case TokenID::keyword_INDEX_MERGE:
+    hint_type= INDEX_MERGE_HINT_ENUM;
+    hint_state= true;
+    set_also_on_table= true;
+    break;
+  case TokenID::keyword_NO_INDEX_MERGE:
+    hint_type= INDEX_MERGE_HINT_ENUM;
+    hint_state= false;
+    set_also_on_table= true;
+    break;
   default:
     DBUG_ASSERT(0);
     return true;
@@ -585,16 +637,13 @@ bool Parser::Index_level_hint::resolve(Parse_context *pc) const
   if (!tab)
     return false;
 
-  const Lex_ident_sys key_conflict(
-      STRING_WITH_LEN("another hint was already specified for this index"));
-
   /*
     If no index names are given, this is a table level hint, for example:
     GROUP_INDEX(t1), NO_MRR(t2).
     Otherwise this is a group of index-level hints:
     NO_INDEX(t1 idx1, idx2) NO_ICP(t2 idx_a, idx_b, idx_c)
   */
-  if (is_empty())
+  if (is_empty() || set_also_on_table)  // Table level hint
   {
     uint warn_code= 0;
     if (is_compound_hint(hint_type) &&
@@ -616,7 +665,9 @@ bool Parser::Index_level_hint::resolve(Parse_context *pc) const
     {
       tab->get_key_hint_bitmap(hint_type)->parsed_hint= this;
     }
-    return false;
+
+    if (is_empty())
+      return false;
   }
 
   // Key names for a compound hint are first collected into the array:
@@ -638,7 +689,7 @@ bool Parser::Index_level_hint::resolve(Parse_context *pc) const
 
     if (!is_compound_hint(hint_type))
     {
-      if (key->set_switch(hint_state, hint_type, true))
+      if (key->set_switch(hint_state, hint_type, !set_also_on_table))
       {
         print_warn(pc->thd, ER_WARN_CONFLICTING_INDEX_HINT_FOR_KEY,
                    hint_type, hint_state, &qb_name_sys, &table_name_sys,
@@ -706,7 +757,8 @@ void Parser::Index_level_hint::append_args(THD *thd, String *str) const
   {
     if (!first_index_name)
       str->append(STRING_WITH_LEN(","));
-    append_identifier(thd, str, &index_name);
+    Lex_ident_sys icli= index_name.to_ident_sys(thd);
+    append_identifier(thd, str, &icli);
     first_index_name= false;
   }
 }
@@ -1228,15 +1280,6 @@ ulonglong Parser::Max_execution_time_hint::get_milliseconds() const
 
 bool Parser::Hint_list::resolve(Parse_context *pc) const
 {
-  if (pc->thd->lex->create_view)
-  {
-    // we're creating or modifying a view, hints are not allowed here
-    push_warning(pc->thd, Sql_condition::WARN_LEVEL_WARN,
-                 ER_HINTS_INSIDE_VIEWS_NOT_SUPPORTED,
-                 ER_THD(pc->thd, ER_HINTS_INSIDE_VIEWS_NOT_SUPPORTED));
-    return false;
-  }
-
   if (!get_qb_hints(pc))
     return true;
 

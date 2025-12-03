@@ -343,8 +343,8 @@ static int timeout;
 static int max_retries;
 static char caching_enabled;
 static char check_kv_version;
-static long cache_timeout;
-static long cache_version_timeout;
+static long cache_timeout;              // for KEY_MAP key_info_cache
+static long cache_version_timeout;      // for VER_MAP latest_version_cache
 static char use_cache_on_timeout;
 
 static MYSQL_SYSVAR_STR(vault_ca, vault_ca,
@@ -399,7 +399,7 @@ static void cache_timeout_update (MYSQL_THD thd,
 static MYSQL_SYSVAR_LONG(cache_timeout, cache_timeout,
   PLUGIN_VAR_RQCMDARG,
   "Cache timeout for key data (in milliseconds)",
-  NULL, cache_timeout_update, 60000, 0, LONG_MAX, 1);
+  NULL, cache_timeout_update, 24*60*60*1000, 0, LONG_MAX, 1);
 
 static void
   cache_version_timeout_update (MYSQL_THD thd,
@@ -415,7 +415,7 @@ static void
 static MYSQL_SYSVAR_LONG(cache_version_timeout, cache_version_timeout,
   PLUGIN_VAR_RQCMDARG,
   "Cache timeout for key version (in milliseconds)",
-  NULL, cache_version_timeout_update, 0, 0, LONG_MAX, 1);
+  NULL, cache_version_timeout_update, 60*1000, 0, LONG_MAX, 1);
 
 static MYSQL_SYSVAR_BOOL(use_cache_on_timeout, use_cache_on_timeout,
   PLUGIN_VAR_RQCMDARG,

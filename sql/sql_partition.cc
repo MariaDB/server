@@ -156,9 +156,8 @@ Item* convert_charset_partition_constant(Item *item, CHARSET_INFO *cs)
   @param name        String searched for
   @param list_names  A list of names searched in
 
-  @return True if if the name is in the list.
-    @retval true   String found
-    @retval false  String not found
+  @retval true   String found
+  @retval false  String not found
 */
 
 static bool is_name_in_list(const Lex_ident_partition &name,
@@ -2129,7 +2128,7 @@ static int add_keyword_string(String *str, const char *keyword,
 
 
 /**
-  @brief  Truncate the partition file name from a path it it exists.
+  @brief  Truncate the partition file name from a path it exists.
 
   @note  A partition file name will contain one or more '#' characters.
 One of the occurrences of '#' will be either "#P#" or "#p#" depending
@@ -3404,7 +3403,7 @@ uint32 get_list_array_idx_for_endpoint(partition_info *part_info,
       '2000-00-00' can be compared to '2000-01-01' but TO_DAYS('2000-00-00')
       returns NULL which cannot be compared used <, >, <=, >= etc.
 
-      Otherwise, just return the the first index (lowest value).
+      Otherwise, just return the first index (lowest value).
     */
     enum_monotonicity_info monotonic;
     monotonic= part_info->part_expr->get_monotonicity_info();
@@ -4860,6 +4859,21 @@ static void check_datadir_altered_for_innodb(THD *thd,
 }
 
 
+static bool check_name_in_fields(const Field * const *fields, Lex_ident_column &name)
+{
+  if (!fields)
+    return FALSE;
+
+  for (; *fields; fields++)
+  {
+    if ((*fields)->field_name.streq(name))
+      return TRUE;
+  }
+
+  return FALSE;
+}
+
+
 /*
   Prepare for ALTER TABLE of partition structure
 
@@ -4907,6 +4921,31 @@ uint prep_alter_part_table(THD *thd, TABLE *table, Alter_info *alter_info,
   {
     my_error(ER_PARTITION_MGMT_ON_NONPARTITIONED, MYF(0));
     DBUG_RETURN(TRUE);
+  }
+
+  if (table->part_info && alter_info->partition_flags == 0 &&
+      (alter_info->flags & ALTER_PARSER_DROP_COLUMN))
+  {
+    List_iterator<Alter_drop> drop_it(alter_info->drop_list);
+    Alter_drop *drop;
+
+    while ((drop= drop_it++))
+    {
+      if (drop->type != Alter_drop::COLUMN)
+        continue;
+
+      if (check_name_in_fields(table->part_info->part_field_array,
+                               drop->name) ||
+          check_name_in_fields(table->part_info->subpart_field_array,
+                               drop->name))
+      {
+        /*
+          The ALTER drops column used in partitioning expression.
+          That cannot be done INPLACE.
+        */
+        *partition_changed= TRUE;
+      }
+    }
   }
 
   partition_info *alt_part_info= thd->lex->part_info;

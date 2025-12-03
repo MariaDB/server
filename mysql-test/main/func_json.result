@@ -640,24 +640,20 @@ ex
 set @save_max_allowed_packet=@@max_allowed_packet;
 set @save_net_buffer_length=@@net_buffer_length;
 set @@global.net_buffer_length=1024;
-set @@global.max_allowed_packet=2048;
+set @@global.max_allowed_packet=4096;
 connect  newconn, localhost, root,,;
 show variables like 'net_buffer_length';
 Variable_name	Value
 net_buffer_length	1024
 show variables like 'max_allowed_packet';
 Variable_name	Value
-max_allowed_packet	2048
+max_allowed_packet	4096
 select json_array(repeat('a',1024),repeat('a',1024)) as ex;
 ex
-NULL
-Warnings:
-Warning	1301	Result of json_array() was larger than max_allowed_packet (2048) - truncated
+["aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"]
 select json_object("a", repeat('a',1024),"b", repeat('a',1024)) as ex;
 ex
-NULL
-Warnings:
-Warning	1301	Result of json_object() was larger than max_allowed_packet (2048) - truncated
+{"a": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "b": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}
 connection default;
 set @@global.max_allowed_packet = @save_max_allowed_packet;
 set @@global.net_buffer_length = @save_net_buffer_length;
@@ -2690,6 +2686,101 @@ JSON_VALUE(@json,'$.A[last-1][last-1].key1')
 NULL
 SET @@collation_connection= @save_collation_connection;
 # End of 10.9 Test
+#
+# MDEV-30691 Assertion `strlen(Ptr) == str_length' failed in void Binary_string::chop()
+#
+set @@collation_connection=utf32_czech_ci;
+select json_detailed('[[123],456]');
+json_detailed('[[123],456]')
+[
+    [123],
+    456
+]
+set @@collation_connection=@save_collation_connection;
+select json_detailed('[[123],456]');
+json_detailed('[[123],456]')
+[
+    [123],
+    456
+]
+#
+# MDEV-37428 JSON_VALUE returns NULL for a key with an empty string value rather than an empty string
+#
+SELECT JSON_VALUE(JSON_OBJECT("a", ""), '$.a') = "" AS not_null;
+not_null
+1
+#
+# MDEV-36319: Wrong result json_table
+#
+SET @JSON='
+{
+  "SZ": [
+    {
+      "NAME": "S0",
+      "OFFERS": [
+        {
+          "NAME": "S0A0"
+        }
+      ]
+    },
+    {
+      "NAME": "S1",
+      "OFFERS": [
+        {
+          "NAME": "S1A0"
+        },
+        {
+          "NAME": "S1A1"
+        }
+      ]
+    },
+    {
+      "NAME": "S2",
+      "OFFERS": [
+        {
+          "NAME": "S2A0"
+        }
+      ]
+    },
+    {
+      "NAME": "S3",
+      "OFFERS": [
+        {
+          "NAME": "S3A0"
+        }
+      ]
+    },
+    {
+      "NAME": "S4",
+      "OFFERS": [
+        {
+          "NAME": "S4A0"
+        }
+      ]
+    },
+    {
+      "NAME": "S5",
+      "OFFERS": [
+        {
+          "NAME": "S5A0"
+        }
+      ]
+    }
+  ]
+}
+ 
+'
+;
+# Should return EMPTY result
+SELECT * FROM json_table(@JSON, '$.SZ[0].OFFERS[1]' 
+COLUMNS(NAME VARCHAR(30) PATH '$.NAME')) AS t_sz;
+NAME
+# Should return S1A1
+SELECT * FROM json_table(@JSON, '$.SZ[1].OFFERS[1]' 
+COLUMNS(NAME VARCHAR(30) PATH '$.NAME')) AS t_sz;
+NAME
+S1A1
+# End of 10.11 Test
 #
 # MDEV-32007: JSON_VALUE and JSON_EXTRACT doesn't handle dash (-)
 #             as first character in key
@@ -4842,16 +4933,16 @@ JSON_SCHEMA_VALID(@schema_array, '[')
 0
 Warnings:
 Warning	4037	Unexpected end of JSON text in argument 2 to function 'json_schema_valid'
-SELECT JSON_SCHEMA_VALID(repeat('[', 100000), json_object());
-JSON_SCHEMA_VALID(repeat('[', 100000), json_object())
+SELECT JSON_SCHEMA_VALID(repeat('[', 100), json_object());
+JSON_SCHEMA_VALID(repeat('[', 100), json_object())
 NULL
 Warnings:
-Warning	4040	Limit of 32 on JSON nested structures depth is reached in argument 1 to function 'json_schema_valid' at position 32
-SELECT JSON_SCHEMA_VALID(json_object(), repeat('[', 10000000));
-JSON_SCHEMA_VALID(json_object(), repeat('[', 10000000))
+Warning	4037	Unexpected end of JSON text in argument 1 to function 'json_schema_valid'
+SELECT JSON_SCHEMA_VALID(json_object(), repeat('[', 100));
+JSON_SCHEMA_VALID(json_object(), repeat('[', 100))
 0
 Warnings:
-Warning	4040	Limit of 32 on JSON nested structures depth is reached in argument 2 to function 'json_schema_valid' at position 32
+Warning	4037	Unexpected end of JSON text in argument 2 to function 'json_schema_valid'
 #
 # MDEV-30677: Incorrect result for "SELECT JSON_SCHEMA_VALID('{}', NULL)"
 #
@@ -4895,6 +4986,8 @@ NULL
 SELECT JSON_KEY_VALUE('', '$.a');
 JSON_KEY_VALUE('', '$.a')
 NULL
+Warnings:
+Warning	4037	Unexpected end of JSON text in argument 1 to function 'json_key_value'
 SELECT JSON_KEY_VALUE('[1,2,3]', '');
 JSON_KEY_VALUE('[1,2,3]', '')
 NULL
@@ -5265,4 +5358,39 @@ SET @obj1='{ "a": 1,"b": 2,"c": 3}';
 SELECT JSON_OBJECT_FILTER_KEYS (@obj1,@arr1);
 JSON_OBJECT_FILTER_KEYS (@obj1,@arr1)
 NULL
+SET character_set_database=default;
+SET CHARACTER SET default;
 # End of 11.2 Test
+# Beginning of 11.4 Test
+#
+# MDEV-33149: JSON_ARRAY_INTERSECT function crashes the server when
+# called with empty json arrays, UBSAN runtime error: member access
+# within null pointer of type 'struct String' in
+# Item_func_json_array_intersect::prepare_json_and_create_hash
+#
+SELECT json_array_intersect(@a,@b);
+json_array_intersect(@a,@b)
+NULL
+# MDEV-36809: json_array_intersect crashs when unused table ref provided
+#
+select json_array_intersect('[["1", "7"], ["2", "6"], ["4", "5"], ["3", "8"]]', '[["2","6"],["3","8"],["4","5"],["1","7"]]') as result from mysql.user;
+result
+[["2", "6"], ["3", "8"], ["4", "5"], ["1", "7"]]
+[["2", "6"], ["3", "8"], ["4", "5"], ["1", "7"]]
+[["2", "6"], ["3", "8"], ["4", "5"], ["1", "7"]]
+[["2", "6"], ["3", "8"], ["4", "5"], ["1", "7"]]
+[["2", "6"], ["3", "8"], ["4", "5"], ["1", "7"]]
+SELECT ( WITH x AS ( WITH x ( x ) AS ( SELECT ( 1.000000 ) ) SELECT x FROM x ) SELECT * FROM x WHERE ( SELECT AVG ( x ) OVER ( ORDER BY JSON_ARRAY_INTERSECT ( '[["1", "7"], ["2", "6"], ["3", "8"]]' , '[["2","6"],["3","8"],["4","5"],["1","7"]]' ) ) FROM x ) ) as result;
+result
+1.000000
+#
+# MDEV-37864: mysql-test/mtr --cursor main.func_json fails
+#
+select json_array_intersect('[["1", "7"], ["2", "6"], ["4", "5"], ["3", "8"]]', '[["2","6"],["3","8"],["4","5"],["1","7"]]') as result from mysql.user;
+result
+[["2", "6"], ["3", "8"], ["4", "5"], ["1", "7"]]
+[["2", "6"], ["3", "8"], ["4", "5"], ["1", "7"]]
+[["2", "6"], ["3", "8"], ["4", "5"], ["1", "7"]]
+[["2", "6"], ["3", "8"], ["4", "5"], ["1", "7"]]
+[["2", "6"], ["3", "8"], ["4", "5"], ["1", "7"]]
+# End of 11.4 Test

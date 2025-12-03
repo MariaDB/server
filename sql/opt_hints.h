@@ -26,7 +26,7 @@
   in the query. The result of parsing is saved in
   SELECT_LEX::parsed_optimizer_hints.
 
-  == Hint "resolution" ==
+  == Hint Resolution ==
 
   This is done using "resolve" method of parsed data structures
   This process
@@ -36,8 +36,30 @@
   - Table-level hints are put into their Query Block's Opt_hints_qb object.
   - Index-level hints are put into their table's Opt_hints_table object.
 
-  Currently, this process is done at the parser stage. (This is one of the
-  causes why hints do not work across VIEW bounds, here or in MySQL).
+  Currently, this process is done right after the parsing. It's done before
+  the views are opened. This is why hints cannot control anything inside
+  VIEWs, either in MariaDB or in MySQL.
+
+  Occurrences of hints are resolved in the order their SELECTs are parsed.
+  This is important as query block name declarations like
+
+    / *+ QB_NAME(foo) * /
+
+  must be resolved before we try to resolve any references to foo, like
+
+    / *+ SOME_HINT(table@foo ...) * /
+
+  On the other hand, references that use implicit query block names:
+
+  / *+ SOME_HINT(table@`select#5`) * /
+
+  can only be resolved when select numbers are ready. When one uses CTEs,
+  proper select numbers are assigned in LEX::fix_first_select_number()
+  which is called after parsing has been finished.
+
+  Beause of that, LEX::handle_parsed_optimizer_hints_in_last_select() builds a
+  todo list for resolution and LEX::resolve_optimizer_hints() does the hint
+  resolution.
 
   Query-block level hints can be reached through SELECT_LEX::opt_hints_qb.
 
@@ -120,6 +142,38 @@ struct st_opt_hint_info
 
 typedef Optimizer_hint_parser Parser;
 
+/*
+  Keeps track of which keys are used by hints.
+ */
+class Index_merge_map
+{
+  Bitmap<MAX_KEY> keys;
+
+public:
+  Index_merge_map()
+  {
+    keys.clear_all();
+  }
+
+  // @return the first key in the set
+  uint get_first_keyno() const
+  {
+    return keys.find_first_bit();
+  }
+
+  // @return if any keys are present
+  bool has_key_specified() const
+  {
+    return get_first_keyno() != MAX_KEY;
+  }
+
+  // Set keyno as one mentioned by a hint.
+  void set_key(uint keyno)
+  {
+    keys.set_bit(keyno);
+  }
+};
+
 /**
   Opt_hints_map contains information
   about hint state(specified or not, hint value).
@@ -127,8 +181,8 @@ typedef Optimizer_hint_parser Parser;
 
 class Opt_hints_map : public Sql_alloc
 {
-  Bitmap<64> hints;           // hint state
-  Bitmap<64> hints_specified; // true if hint is specified
+  Bitmap<MAX_KEY> hints;           // hint state
+  Bitmap<MAX_KEY> hints_specified; // true if hint is specified
 
 public:
   Opt_hints_map()
@@ -193,6 +247,7 @@ protected:
     transition from NOT_FIXED to FIXED.
   */
   enum class Fixed_state { NOT_FIXED, FIXED };
+
 private:
   /*
     Parent object. There is no parent for global level,
@@ -218,6 +273,12 @@ private:
   uint n_fully_fixed_children;
 
 public:
+  /*
+    Bitmap describing switch-type (on/off) [NO_]INDEX_MERGE hints
+    set at this scope.
+  */
+  Index_merge_map index_merge_map;
+
   Opt_hints(const Lex_ident_sys &name_arg,
             Opt_hints *parent_arg,
             MEM_ROOT *mem_root_arg)
@@ -458,7 +519,7 @@ class Opt_hints_table;
 class Opt_hints_qb : public Opt_hints
 {
   uint select_number;     // SELECT_LEX number
-  LEX_CSTRING sys_name;   // System QB name
+  LEX_CSTRING sys_name;   // System QB name, 'select#N'
   char buff[32];          // Buffer to hold sys name
 
   // Array of join order hints
@@ -480,6 +541,13 @@ public:
   }
 
 
+  bool is_print_name_default() const
+  {
+    // If no name given, then it's the sys_name (by default).
+    return name.str == nullptr;
+  }
+
+
   void append_qb_hint(THD *thd, String *str)
   {
     if (name.str)
@@ -492,6 +560,17 @@ public:
 
   virtual void append_name(THD *thd, String *str) override
   {
+    /*
+      If an explicit name isn't given, then the implicit
+      query block name (e.g. `select#X`) will be used.  But
+      we don't yet support that for VIEWs, so don't show it.
+    */
+    if ((thd->lex->sql_command == SQLCOM_CREATE_VIEW ||
+         thd->lex->sql_command == SQLCOM_SHOW_CREATE ||
+         (thd->lex->derived_tables & DERIVED_VIEW)) &&
+        is_print_name_default())
+      return;
+
     /* Append query block name. */
     str->append(STRING_WITH_LEN("@"));
     const LEX_CSTRING print_name= get_print_name();
@@ -657,6 +736,7 @@ public:
   Key_map *get_key_map() { return &key_map; }
 };
 
+bool is_compound_hint(opt_hints_enum type_arg);
 
 /**
   Table level hints.
@@ -679,6 +759,7 @@ public:
   Opt_hints_key_bitmap join_index_map;   // JOIN_INDEX(), NO_JOIN_INDEX()
   Opt_hints_key_bitmap group_index_map;  // GROUP_INDEX(), NO_GROUP_INDEX()
   Opt_hints_key_bitmap order_index_map;  // ORDER_INDEX(), NO_ORDER_INDEX()
+  Opt_hints_key_bitmap rowid_filter_map; // ROWID_FILTER(), NO_ROWID_FILTER()
 
   Opt_hints_table(const Lex_ident_sys &table_name_arg,
                   Opt_hints_qb *qb_hints_arg,
@@ -726,6 +807,11 @@ public:
   }
 
   /**
+    Perform index hint-specific state adjustments here.
+   */
+  void set_index_hint(Opt_hints *hint, uint arg);
+
+  /**
     Return bitmap object corresponding to the hint type passed
 
     @param type  hint_type
@@ -739,8 +825,17 @@ public:
   bool update_index_hint_maps(THD *thd, TABLE *tbl);
 
 private:
-  bool is_force_index_hint(opt_hints_enum type_arg)
+  /**
+    Returns `true` for index hints that whitelist certain keys or tables
+    like INDEX(), ORDER_INDEX(), etc.
+    Returns `false` for hints that blacklist keys or tables:
+    NO_INDEX(), NO_ROWID_FILTER(), etc.
+
+    @param type_arg  hint type
+  */
+  bool is_whitelisting_index_hint(opt_hints_enum type_arg)
   {
+    DBUG_ASSERT(is_compound_hint(type_arg));
     return (get_key_hint_bitmap(type_arg)->is_fixed() &&
             get_switch(type_arg));
   }
@@ -749,15 +844,11 @@ private:
                              const Key_map *available_keys_to_use,
                              opt_hints_enum type_arg);
   void set_compound_key_hint_map(Opt_hints *hint, uint keynr);
-
 };
 
 bool is_index_hint_conflicting(Opt_hints_table *table_hint,
                                Opt_hints_key *key_hint,
                                opt_hints_enum hint_type);
-
-bool is_compound_hint(opt_hints_enum type_arg);
-
 
 /**
   Key level hints.
@@ -816,6 +907,72 @@ enum class hint_state
 
 
 /**
+  Used by index_hint_state functions, defines return codes
+  that indicate how to handle the hint (details inline).
+ */
+enum class index_merge_behavior
+{
+  // Hint not provided by query.
+  NO_HINT,
+
+  // Hint indicates that key should be used for index merge.
+  USE_KEY,
+
+  // Hint indicates that key should be skipped for index merge.
+  SKIP_KEY,
+
+  /*
+    Hint is supplied without specifying specific key(s), so
+    index merge is either disabled (NO_INDEX_MERGE) or
+    enabled (INDEX_MERGE) for all keys on the table.
+  */
+  TABLE_DISABLED,
+  TABLE_ENABLED
+};
+
+
+/**
+  Indicates INDEX_MERGE and NO_INDEX_MERGE hint state
+  for the given table and key.
+
+  This function does not inspect any optimizer switches.
+
+  @param tab                      Pointer to TABLE object
+  @param keyno                    Key number
+  @param force_index_merge        [OUT] true if the hint enables
+                                  index merge for either the passed
+                                  keyno or if the hint enables
+                                  index merge for the entire table.
+                                  The caller will use this to force
+                                  index merging at various points
+                                  during optimization.
+  @param use_cheapest_index_merge [OUT] true if the hint enables
+                                  index merge for the entire table
+                                  (the query does not specify one or
+                                  more keys).  In this case, the
+                                  system must find the cheapest
+                                  index merge.
+  @return some value from the index_merge_behavior enumeration
+          indicating to the caller how it should handle the hint.
+          See the index_merge_behavior enum above for details.
+*/
+index_merge_behavior index_merge_hint(const TABLE *table,
+                                      uint keyno,
+                                      bool *force_index_merge,
+                                      bool *use_cheapest_index_merge);
+
+
+/**
+  Convenience wrapper of the index_hint_state function just
+  above, used by the clustered primary key logic in get_best_ror_intersect
+  because that call site does not care about force_index_merge or
+  the cheapest index merge.
+ */
+index_merge_behavior index_merge_hint(const TABLE *table,
+                                      uint keyno);
+
+
+/**
   Returns key hint value if hint is specified, returns
   optimizer switch value if hint is not specified.
 
@@ -823,14 +980,13 @@ enum class hint_state
   @param tab               Pointer to TABLE object
   @param keyno             Key number
   @param type_arg          Hint type
-  @param optimizer_switch  Optimizer switch flag
+  @param fallback_value    Value to be returned if the hint is not fixed
 
   @return key hint value if hint is specified,
           otherwise optimizer switch value.
 */
-bool hint_key_state(const THD *thd, const TABLE *table,
-                    uint keyno, opt_hints_enum type_arg,
-                    uint optimizer_switch);
+bool hint_key_state(const THD *thd, const TABLE *table, uint keyno,
+                    opt_hints_enum type_arg, bool fallback_value);
 
 /**
   Returns table hint value if hint is specified, returns
@@ -848,13 +1004,13 @@ bool hint_table_state(const THD *thd, const TABLE_LIST *table_list,
                       opt_hints_enum type_arg, bool fallback_value);
 
 /**
-  Returns table hint value if hint is specified, returns
-  fallback value if hint is not specified.
+  Returns table hint value if the hint is specified,
+  returns `fallback_value` if the hint is not specified.
 
   @param thd                Pointer to THD object
   @param tab                Pointer to TABLE object
   @param type_arg           Hint type
-  @param fallback_value     Value to be returned if the hint is not set
+  @param fallback_value     Value to be returned if the hint is not specified
 
   @return table hint value if hint is specified,
           otherwise fallback value.
