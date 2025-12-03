@@ -6190,8 +6190,7 @@ bool TABLE_LIST::create_field_translation(THD *thd)
       It's needed because some items in the select list, like IN subselects,
       might be substituted for optimized ones.
     */
-    if (is_merged_derived() &&
-        get_unit()->prepared && !field_translation_updated)
+    if (is_view() && get_unit()->prepared && !field_translation_updated)
     {
       field_translation_updated= TRUE;
       if (static_cast<uint>(field_translation_end - field_translation) <

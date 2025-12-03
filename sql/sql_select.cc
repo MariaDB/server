@@ -23791,8 +23791,7 @@ free_tmp_table(THD *thd, TABLE *entry)
 
   if (entry->pos_in_table_list && entry->pos_in_table_list->table)
   {
-    DBUG_ASSERT(entry->pos_in_table_list->table == entry ||
-                entry->pos_in_table_list->merged_for_insert);
+    DBUG_ASSERT(entry->pos_in_table_list->table == entry);
     entry->pos_in_table_list->table= NULL;
   }
 
