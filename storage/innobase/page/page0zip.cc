@@ -3013,8 +3013,9 @@ page_zip_decompress_low(
 		/* Check that the bytes that we skip are identical. */
 #if defined UNIV_DEBUG || defined UNIV_ZIP_DEBUG
 		ut_a(!memcmp(FIL_PAGE_TYPE + page,
-			     FIL_PAGE_TYPE + page_zip->data,
-			     PAGE_HEADER - FIL_PAGE_TYPE));
+			     FIL_PAGE_TYPE + page_zip->data, 2));
+		ut_a(!memcmp(FIL_PAGE_SPACE_ID + page,
+			     FIL_PAGE_SPACE_ID + page_zip->data, 4));
 		ut_a(!memcmp(PAGE_HEADER + PAGE_LEVEL + page,
 			     PAGE_HEADER + PAGE_LEVEL + page_zip->data,
 			     PAGE_DATA - (PAGE_HEADER + PAGE_LEVEL)));
@@ -3028,7 +3029,8 @@ page_zip_decompress_low(
 
 #if defined UNIV_DEBUG || defined UNIV_ZIP_DEBUG
 		/* Check that the page headers match after copying. */
-		ut_a(!memcmp(page, page_zip->data, PAGE_DATA));
+		ut_a(!memcmp(page_zip->data + FIL_PAGE_DATA,
+			     page + FIL_PAGE_DATA, PAGE_DATA - FIL_PAGE_DATA));
 #endif /* UNIV_DEBUG || UNIV_ZIP_DEBUG */
 	}
 
