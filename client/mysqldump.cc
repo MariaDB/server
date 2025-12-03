@@ -47,6 +47,7 @@
 */
 #define FIRST_SEQUENCE_VERSION 100300
 
+#include <functional> // std::function
 #include <my_global.h>
 #include <my_sys.h>
 #include <my_user.h>
@@ -174,11 +175,75 @@ static uint opt_use_gtid;
 static uint my_end_arg;
 static char * opt_mysql_unix_port=0;
 static int   first_error=0;
+static bool have_is_slave_status;
 static DYNAMIC_STRING extended_row;
 static DYNAMIC_STRING dynamic_where;
 static MYSQL_RES *get_table_name_result= NULL;
 static MEM_ROOT glob_root;
-static MYSQL_RES *routine_res, *routine_list_res, *running_slaves= NULL;
+static MYSQL_RES *routine_res, *routine_list_res= NULL;
+
+static int mysql_query_with_error_report(MYSQL *, MYSQL_RES **, const char *);
+template<typename F> struct Slave_status_list
+{
+  virtual ~Slave_status_list()
+  {
+    if (query_result)
+      mysql_free_result(query_result);
+  }
+protected:
+  using Foreach_callback= std::function<F>;
+  MYSQL_RES *query_result= nullptr;
+  /// @deprecated The default is for compatibility with pre-11.6 servers.
+  virtual bool query(MYSQL *mysql_con)
+  { return mysql_query_with_error_report(mysql_con, &query_result,
+    "SHOW ALL SLAVES STATUS"
+  ); }
+  virtual
+  typename Foreach_callback::result_type foreach(Foreach_callback callback)= 0;
+};
+/**
+  Running_slaves_list::foreach() Call the `callback` with the
+  connection `name` of each (previously) running SQL thread.
+  If a call returns `true`, abort the for-each early and return `true`.
+*/
+struct Running_slaves_list: Slave_status_list<bool(const char *name)>
+{
+  /// @pre stop() not called already
+  bool stop(MYSQL *mysql_con)
+  {
+    DBUG_ASSERT(!query_result); // stop() should only be called once
+    return query(mysql_con) && foreach([mysql_con](const char *name)
+    {
+      char query[25 + NAME_CHAR_LEN]; // sizeof(sprintf)
+      sprintf(query, "STOP SLAVE '%.*s' SQL_THREAD",
+              NAME_CHAR_LEN, name);
+      return mysql_query_with_error_report(mysql_con, 0, query);
+    });
+  }
+  /// @pre stop() called
+  bool restart(MYSQL *mysql_con)
+  {
+    mysql_data_seek(query_result, 0);
+    /*
+      If SLAVE_SQL was not running but is now, we start it anyway to
+      warn the unexpected state change (or duplicated restart() call).
+    */
+    bool warning= 0, error= foreach([mysql_con, &warning](const char *name)
+    {
+      char query[26 + NAME_CHAR_LEN]; // sizeof(sprintf)
+      sprintf(query, "START SLAVE '%.*s' SQL_THREAD", NAME_CHAR_LEN, name);
+      if (mysql_query_with_error_report(mysql_con, nullptr, query))
+      {
+        fprintf(stderr, "%s: Error: Unable to start slave '%s'\n",
+                my_progname_short, name);
+        warning= true;
+      }
+      return false;
+    });
+    DBUG_ASSERT(!error);
+    return warning;
+  }
+} *running_slaves;
 
 
 #include <sslopt-vars.h>
@@ -2016,8 +2081,7 @@ static void free_resources()
     mysql_free_result(routine_res);
   if (routine_list_res)
     mysql_free_result(routine_list_res);
-  if (running_slaves)
-    mysql_free_result(running_slaves);
+  delete running_slaves;
   if (mysql)
   {
     mysql_close(mysql);
@@ -6450,28 +6514,37 @@ static int do_show_master_status(MYSQL *mysql_con, int consistent_binlog_pos,
   return 0;
 }
 
-static int do_stop_slave_sql(MYSQL *mysql_con)
+struct IS_running_slaves_list: Running_slaves_list
 {
-  MYSQL_ROW row;
-  DBUG_ASSERT(
-    !running_slaves // do_stop_slave_sql() should only be called once
-  );
-  if (mysql_query_with_error_report(mysql_con, &running_slaves,
+  bool query(MYSQL *mysql_con) override
+  { return mysql_query_with_error_report(mysql_con, &query_result,
     "SELECT Connection_name FROM information_schema.SLAVE_STATUS"
-    // If the slave's SQL thread is not running, we don't stop it.
+    // If the slave's SQL thread is not running, we don't include it.
     " WHERE Slave_SQL_Running<>'No'"
-  ))
-    return 1;
-  // Loop over all slaves
-  while ((row= mysql_fetch_row(running_slaves)))
+  ); }
+  bool foreach(Foreach_callback callback) override
   {
-    char query[25 + NAME_CHAR_LEN]; // sizeof(sprintf)
-    sprintf(query, "STOP SLAVE '%.*s' SQL_THREAD", NAME_CHAR_LEN, row[0]);
-    if (mysql_query_with_error_report(mysql_con, 0, query))
-      return 1;
+    MYSQL_ROW row;
+    while ((row= mysql_fetch_row(query_result)))
+      if (callback(row[0]))
+        return true;
+    return false;
   }
-  return 0;
-}
+};
+/// @deprecated This variant is for compatibility with pre-11.6 servers.
+struct SSS_running_slaves_list: Running_slaves_list
+{
+  bool foreach(Foreach_callback callback) override
+  {
+    MYSQL_ROW row;
+    // Loop over all slaves
+    while ((row= mysql_fetch_row(query_result)))
+      // If the slave's SQL thread is not running, we don't start or stop it.
+      if (row[13] && strcmp(row[13], "No") && callback(row[0]))
+        return true;
+    return false;
+  }
+};
 
 static int add_stop_slave(void)
 {
@@ -6491,33 +6564,32 @@ static int add_slave_statements(void)
   return(0);
 }
 
-static int do_show_slave_status(MYSQL *mysql_con, int have_mariadb_gtid,
+static bool do_show_slave_status(MYSQL *mysql_con,
                                 int use_gtid, char* set_gtid_pos)
 {
-  MYSQL_RES *slave;
-  MYSQL_ROW row;
+  struct Change_master_list: Slave_status_list<void(
+    const char *, // Connection_name
+    const char *, // Master_Host
+    const char *, // Master_Port
+    const char *, // Relay_Master_Log_File
+    const char *  // Exec_Master_Log_Pos
+  )>
+  {
+    bool write_file(MYSQL *mysql_con, bool use_gtid, char *set_gtid_pos)
+    {
   const char *comment_prefix=
     (opt_slave_data == MYSQL_OPT_SLAVE_DATA_COMMENTED_SQL) ? "-- " : "";
   const char *gtid_comment_prefix= (use_gtid ? comment_prefix : "-- ");
   const char *nogtid_comment_prefix= (!use_gtid ? comment_prefix : "-- ");
   char gtid_pos[MAX_GTID_LENGTH];
-
-  if (mysql_query_with_error_report(mysql_con, &slave,
-    "SELECT Connection_name, Master_Host, Master_Port,"
-    "Master_Log_File, Exec_Master_Log_Pos FROM information_schema.SLAVE_STATUS")
-  )
+  if (query(mysql_con) && !ignore_errors)
   {
-    if (!ignore_errors)
-      // Query fails and --force is not enabled
-      fprintf(stderr, "%s: Error: Slave not set up\n", my_progname_short);
-    mysql_free_result(slave);
-    return 1;
+    // Query fails and --force is not enabled
+    fprintf(stderr, "%s: Error: Slave not set up\n", my_progname_short);
+    return true;
   }
-  if (have_mariadb_gtid && get_gtid_pos(gtid_pos, false))
-  {
-    mysql_free_result(slave);
-    return 1;
-  }
+  if (get_gtid_pos(gtid_pos, false))
+    return true;
   sprintf(set_gtid_pos, fmt_gtid_pos, gtid_comment_prefix, gtid_pos);
 
   print_comment(md_result_file, 0,
@@ -6536,56 +6608,64 @@ static int do_show_slave_status(MYSQL *mysql_con, int have_mariadb_gtid,
                   "MASTER_LOG_FILE/MASTER_LOG_POS in the statements below."
                   "\n\n");
 
-  while ((row= mysql_fetch_row(slave)))
+  foreach([=](const char *name,
+    const char *host, const char *port, const char *file, const char *pos)
   {
     if (use_gtid)
       fprintf(md_result_file,
         "%sCHANGE MASTER '%.*s' TO MASTER_USE_GTID=slave_pos;\n",
-        gtid_comment_prefix, NAME_CHAR_LEN, row[0]
+        gtid_comment_prefix, NAME_CHAR_LEN, name
       );
     fprintf(md_result_file, "%sCHANGE MASTER '%.*s' TO ",
-            nogtid_comment_prefix, NAME_CHAR_LEN, row[0]);
+            nogtid_comment_prefix, NAME_CHAR_LEN, name);
     if (opt_include_master_host_port)
       fprintf(md_result_file,
-              "MASTER_HOST='%s', MASTER_PORT=%s, ", row[1], row[2]);
+              "MASTER_HOST='%s', MASTER_PORT=%s, ", host, port);
     fprintf(md_result_file,
-            "MASTER_LOG_FILE='%s', MASTER_LOG_POS=%s;\n", row[3], row[4]);
+            "MASTER_LOG_FILE='%s', MASTER_LOG_POS=%s;\n", file, pos);
     check_io(md_result_file);
-  }
+  });
+  return false;
+    }
+  };
 
-  mysql_free_result(slave);
+  struct IS_change_master_list: Change_master_list
+  {
+    bool query(MYSQL *mysql_con) override
+    { return mysql_query_with_error_report(mysql_con, &query_result,
+      "SELECT Connection_name, Master_Host, Master_Port, Relay_Master_Log_File,"
+      " Exec_Master_Log_Pos FROM information_schema.SLAVE_STATUS"
+      ); }
+    void foreach(Foreach_callback callback) override
+    {
+      MYSQL_ROW row;
+      while ((row= mysql_fetch_row(query_result)))
+        callback(row[0], row[1], row[2], row[3], row[4]);
+    }
+  };
+  /// @deprecated This variant is for compatibility with pre-11.6 servers.
+  struct SSS_change_master_list: Change_master_list
+  {
+    void foreach(Foreach_callback callback) override
+    {
+      MYSQL_ROW row;
+      while ((row= mysql_fetch_row(query_result)))
+        callback(row[0], row[3], row[5], row[11], row[23]);
+    }
+  };
+
+  auto &&slave= have_is_slave_status ?
+    static_cast<Change_master_list &&>( IS_change_master_list()) :
+    static_cast<Change_master_list &&>(SSS_change_master_list());
+  slave.write_file(mysql_con, use_gtid, set_gtid_pos);
   fprintf(md_result_file, "\n");
   return 0;
 }
 
 static int do_start_slave_sql(MYSQL *mysql_con)
 {
-  MYSQL_ROW row;
-  int error= 0;
   DBUG_ENTER("do_start_slave_sql");
-  /*
-    do_start_slave_sql() should normally be called
-    sometime after do_stop_slave_sql() succeeds
-  */
-  if (!running_slaves)
-    DBUG_RETURN(error);
-  mysql_data_seek(running_slaves, 0);
-  /*
-    If SLAVE_SQL was not running but is now,
-    we start it anyway to warn the unexpected state change.
-  */
-  while ((row= mysql_fetch_row(running_slaves)))
-  {
-    char query[26 + NAME_CHAR_LEN]; // sizeof(sprintf)
-    sprintf(query, "START SLAVE '%.*s' SQL_THREAD", NAME_CHAR_LEN, row[0]);
-    if (mysql_query_with_error_report(mysql_con, nullptr, query))
-    {
-      fprintf(stderr, "%s: Error: Unable to start slave '%s'\n",
-              my_progname_short, row[0]);
-      error= 1;
-    }
-  }
-  DBUG_RETURN(error);
+  DBUG_RETURN(running_slaves && running_slaves->restart(mysql_con));
 }
 
 
@@ -7524,10 +7604,17 @@ int main(int argc, char **argv)
     init_connection_pool(opt_parallel);
 
   /* Check if the server support multi source */
-  if (mysql_get_server_version(mysql) >= 100000)
+  unsigned long server_version= mysql_get_server_version(mysql);
+  if (server_version >= 100000)
+  {
+    have_is_slave_status= server_version >= 110600;
     have_mariadb_gtid= 1;
+  }
 
-  if (opt_slave_data && do_stop_slave_sql(mysql))
+  if (opt_slave_data && (running_slaves= have_is_slave_status ?
+    static_cast<Running_slaves_list *>(new  IS_running_slaves_list) :
+    static_cast<Running_slaves_list *>(new SSS_running_slaves_list)
+  )->stop(mysql))
     goto err;
 
   if (opt_single_transaction && opt_master_data)
@@ -7590,7 +7677,6 @@ int main(int argc, char **argv)
                                                opt_use_gtid, master_set_gtid_pos))
     goto err;
   if (opt_slave_data && do_show_slave_status(mysql,
-                                             have_mariadb_gtid,
                                              opt_use_gtid, slave_set_gtid_pos))
     goto err;
   if (opt_single_transaction && do_unlock_tables(mysql)) /* unlock but no commit! */
