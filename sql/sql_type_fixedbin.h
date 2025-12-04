@@ -1386,7 +1386,7 @@ public:
     NativeBuffer<FbtImpl::binary_length()+1> tmp;
     item->val_native(current_thd, &tmp);
   }
-  bool Item_save_in_value(THD *thd, Item *item, st_value *value) const override
+  void Item_save_in_value(THD *thd, Item *item, st_value *value) const override
   {
     value->m_type= DYN_COL_STRING;
     String *str= item->val_str(&value->m_string);
@@ -1403,12 +1403,12 @@ public:
         thd->push_warning_wrong_value(Sql_condition::WARN_LEVEL_WARN,
                                       name().ptr(), ErrConvString(str).ptr());
         value->m_type= DYN_COL_NULL;
-        return true;
+        return;
       }
       // "item" returned a non-NULL value, and it was a valid FBT
       value->m_string.set(str->ptr(), str->length(), str->charset());
     }
-    return check_null(item, value);
+    set_null_if_needed(item, value);
   }
   void Item_param_setup_conversion(THD *thd, Item_param *param) const override
   {
