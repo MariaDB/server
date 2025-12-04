@@ -114,7 +114,7 @@ void Ack_receiver::stop()
       mysql_cond_wait(&m_cond, &m_mutex);
 
     DBUG_ASSERT(m_status == ST_DOWN);
-
+    pthread_join(m_pid, NULL);
     m_pid= 0;
   }
   mysql_mutex_unlock(&m_mutex);
@@ -246,8 +246,9 @@ void Ack_receiver::run()
   {
     sql_print_error("Got error %M starting ack receiver thread",
                     listener.got_error());
-    return;
+    DBUG_VOID_RETURN;
   }
+  listener.set_global_ack_signal_fd();
 
   sql_print_information("Starting ack receiver thread");
   thd->system_thread= SYSTEM_THREAD_SEMISYNC_MASTER_BACKGROUND;
@@ -384,6 +385,7 @@ end:
   m_status= ST_DOWN;
   mysql_cond_broadcast(&m_cond);
   mysql_cond_broadcast(&m_cond_reply);
+  listener.clear_global_ack_signal_fd();
   mysql_mutex_unlock(&m_mutex);
 
   delete thd;
