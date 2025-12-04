@@ -50,6 +50,10 @@ public:
   st_value(char *buffer, size_t buffer_size) :
   m_string(buffer, buffer_size, &my_charset_bin)
   {}
+  bool is_null() const
+  {
+    return m_type == DYN_COL_NULL;
+  }
   enum enum_dynamic_column_type m_type;
   union
   {
@@ -1209,9 +1213,9 @@ public:
     DBUG_ASSERT(0);
   }
 
-  bool save_in_value(THD *thd, st_value *value)
+  void save_in_value(THD *thd, st_value *value)
   {
-    return type_handler()->Item_save_in_value(thd, this, value);
+    type_handler()->Item_save_in_value(thd, this, value);
   }
 
   /* Function returns 1 on overflow and -1 on fatal errors */

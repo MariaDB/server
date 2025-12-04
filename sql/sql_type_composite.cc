@@ -88,12 +88,11 @@ bool Type_handler_composite::Item_eq_value(THD *thd,
 }
 
 
-bool Type_handler_composite::
+void Type_handler_composite::
        Item_save_in_value(THD *thd, Item *item, st_value *value) const
 {
   DBUG_ASSERT(0);
   value->m_type= DYN_COL_NULL;
-  return true;
 }
 
 

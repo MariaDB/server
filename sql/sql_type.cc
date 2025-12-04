@@ -7412,81 +7412,76 @@ Type_handler_olddecimal::type_handler_for_union(const Item *item) const
 
 /***************************************************************************/
 
-bool Type_handler::check_null(const Item *item, st_value *value) const
+void Type_handler::set_null_if_needed(const Item *item, st_value *value) const
 {
   if (item->null_value)
-  {
     value->m_type= DYN_COL_NULL;
-    return true;
-  }
-  return false;
 }
 
 
-bool Type_handler_null::
+void Type_handler_null::
        Item_save_in_value(THD *thd, Item *item, st_value *value) const
 {
   value->m_type= DYN_COL_NULL;
-  return true;
 }
 
 
-bool Type_handler_int_result::
+void Type_handler_int_result::
        Item_save_in_value(THD *thd, Item *item, st_value *value) const
 {
   value->m_type= item->unsigned_flag ? DYN_COL_UINT : DYN_COL_INT;
   value->value.m_longlong= item->val_int();
-  return check_null(item, value);
+  set_null_if_needed(item, value);
 }
 
 
-bool Type_handler_real_result::
+void Type_handler_real_result::
        Item_save_in_value(THD *thd, Item *item, st_value *value) const
 {
   value->m_type= DYN_COL_DOUBLE;
   value->value.m_double= item->val_real();
-  return check_null(item, value);
+  set_null_if_needed(item, value);
 }
 
 
-bool Type_handler_decimal_result::
+void Type_handler_decimal_result::
        Item_save_in_value(THD *thd, Item *item, st_value *value) const
 {
   value->m_type= DYN_COL_DECIMAL;
   my_decimal *dec= item->val_decimal(&value->m_decimal);
   if (dec != &value->m_decimal && !item->null_value)
     my_decimal2decimal(dec, &value->m_decimal);
-  return check_null(item, value);
+  set_null_if_needed(item, value);
 }
 
 
-bool Type_handler_string_result::
+void Type_handler_string_result::
        Item_save_in_value(THD *thd, Item *item, st_value *value) const
 {
   value->m_type= DYN_COL_STRING;
   String *str= item->val_str(&value->m_string);
   if (str != &value->m_string && !item->null_value)
     value->m_string.set(str->ptr(), str->length(), str->charset());
-  return check_null(item, value);
+  set_null_if_needed(item, value);
 }
 
 
-bool Type_handler_temporal_with_date::
+void Type_handler_temporal_with_date::
        Item_save_in_value(THD *thd, Item *item, st_value *value) const
 {
   value->m_type= DYN_COL_DATETIME;
   item->get_date(thd, &value->value.m_time,
                  Datetime::Options(thd, TIME_FRAC_NONE));
-  return check_null(item, value);
+  set_null_if_needed(item, value);
 }
 
 
-bool Type_handler_time_common::
+void Type_handler_time_common::
        Item_save_in_value(THD *thd, Item *item, st_value *value) const
 {
   value->m_type= DYN_COL_DATETIME;
   item->get_time(thd, &value->value.m_time);
-  return check_null(item, value);
+  set_null_if_needed(item, value);
 }
 
 /***************************************************************************/
