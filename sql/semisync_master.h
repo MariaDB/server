@@ -293,19 +293,6 @@ private:
 };
 
 /**
-  Function pointer type to run on the contents of an Active_tranx node.
-
-  Return 0 for success, 1 for error.
-
-  Note Repl_semi_sync_master::LOCK_binlog is not guaranteed to be held for
-  its invocation. See the context in which it is called to know.
-*/
-
-typedef int (*active_tranx_action)(THD *trx_thd, bool thd_valid,
-                                   const char *log_file_name,
-                                   my_off_t trx_log_file_pos);
-
-/**
    This class manages memory for active transaction list.
 
    We record each active transaction with a Tranx_node, each session
@@ -371,8 +358,7 @@ public:
    * is held while this is invoked.
    */
   void clear_active_tranx_nodes(const char *log_file_name,
-                                my_off_t log_file_pos,
-                                active_tranx_action pre_delete_hook);
+                                my_off_t log_file_pos);
 
   /* Unlinks a thread from a Tranx_node, so it will not be referenced/signalled
    * if it is separately killed. Note that this keeps the Tranx_node itself in
@@ -381,22 +367,17 @@ public:
    */
   void unlink_thd_as_waiter(const char *log_file_name, my_off_t log_file_pos);
 
-  /* Uses DBUG_ASSERT statements to ensure that the argument thd_to_check
-   * matches the thread of the respective Tranx_node::thd of the passed in
-   * log_file_name and log_file_pos.
+  /* Given a position, check to see whether the position is in the hash table,
+   * and return it if so.
    */
-  Tranx_node * is_thd_waiter(THD *thd_to_check, const char *log_file_name,
-                             my_off_t log_file_pos);
+  Tranx_node * is_thd_waiter(const char *log_file_name, my_off_t log_file_pos);
 
-  /* Given a position, check to see whether the position is an active
-   * transaction's ending position by probing the hash table.
-   */
   bool is_tranx_end_pos(const char *log_file_name, my_off_t log_file_pos);
 
-  /* Given two binlog positions, compare which one is bigger based on
-   * (file_name, file_position).
+  /* Given two binlog positions, compare them for equality. Return true for
+   * different false for equal.
    */
-  static int compare(const char *log_file_name1, my_off_t log_file_pos1,
+  static bool compare(const char *log_file_name1, my_off_t log_file_pos1,
                      const char *log_file_name2, my_off_t log_file_pos2);
 
 
@@ -438,20 +419,6 @@ class Repl_semi_sync_master
 
   /* The position in that file up to which we have the reply from any slaves. */
   my_off_t        m_reply_file_pos;
-
-  /* This is set to true when we know the 'smallest' wait position. */
-  bool            m_wait_file_name_inited;
-
-  /* NULL, or the 'smallest' filename that a transaction is waiting for
-   * slave replies.
-   */
-  char            m_wait_file_name[FN_REFLEN];
-
-  /* The smallest position in that file that a trx is waiting for: the trx
-   * can proceed and send an 'ok' to the client when the master has got the
-   * reply from the slave indicating that it already got the binlog events.
-   */
-  my_off_t        m_wait_file_pos;
 
   /* This is set to true when we know the 'largest' transaction commit
    * position in the binlog file.
