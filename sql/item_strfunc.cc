@@ -3097,6 +3097,91 @@ String *Item_func_soundex::val_str(String *str)
 }
 
 
+bool Item_func_initcap::fix_length_and_dec(THD *thd)
+{
+  if (agg_arg_charsets_for_string_result(collation, args, 1))
+    return TRUE;
+  DBUG_ASSERT(collation.collation != NULL);
+  uint multiply= MY_MAX(collation.collation->caseup_multiply(),
+                        collation.collation->casedn_multiply());
+  fix_char_length_ulonglong((ulonglong) args[0]->max_char_length() * multiply);
+  return FALSE;
+}
+
+
+String *Item_func_initcap::val_str(String *str)
+{
+  DBUG_ASSERT(fixed());
+  String *res= args[0]->val_str(&tmp_value);
+  CHARSET_INFO *cs= collation.collation;
+  bool new_word= true;
+
+  if ((null_value= args[0]->null_value))
+    return 0;
+
+  uint factor= MY_MAX(cs->caseup_multiply(), cs->casedn_multiply());
+  if (str->alloc(res->length() * factor))
+    return &tmp_value;
+  str->set_charset(collation.collation);
+  char *to= (char *) str->ptr();
+  char *to_end= to + str->alloced_length();
+  char *from= (char *) res->ptr(), *end= from + res->length();
+
+  while (from < end)
+  {
+    int ctype_info;
+    int char_len= cs->ctype(&ctype_info, (uchar*) from, (uchar*) end);
+
+    if (char_len <= 0)
+    {
+      /* Invalid sequence, copy byte and continue */
+      if (to < to_end)
+        *to++= *from;
+      from++;
+      continue;
+    }
+
+    /* Check if character is alphabetic */
+    if (ctype_info & (_MY_U | _MY_L))
+    {
+      /* Apply case conversion */
+      size_t converted_len;
+      if (new_word)
+        converted_len= my_ci_caseup(cs, from, char_len, to, to_end - to);
+      else
+        converted_len= my_ci_casedn(cs, from, char_len, to, to_end - to);
+
+      if (converted_len > 0)
+        to+= converted_len;
+      else
+      {
+        /* Conversion failed, copy original */
+        size_t copy_len= MY_MIN((size_t)char_len, (size_t)(to_end - to));
+        memcpy(to, from, copy_len);
+        to+= copy_len;
+      }
+      new_word= false;
+    }
+    else
+    {
+      /* Not alphabetic, copy as-is */
+      size_t copy_len= MY_MIN((size_t)char_len, (size_t)(to_end - to));
+      memcpy(to, from, copy_len);
+      to+= copy_len;
+      
+      /* Check if this starts a new word */
+      if (!(ctype_info & (_MY_U | _MY_L | _MY_NMR)))
+        new_word= true;
+    }
+
+    from+= char_len;
+  }
+
+  str->length((uint) (to - str->ptr()));
+  return str;
+}
+
+
 /**
   Change a number to format '3,333,333,333.000'.
 
