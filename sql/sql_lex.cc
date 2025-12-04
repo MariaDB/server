@@ -10188,6 +10188,31 @@ bool LEX::add_create_view(THD *thd, DDL_options_st ddl,
 }
 
 
+bool LEX::is_sp_dbmssql_execute(THD *thd)
+{
+  if (!thd->lex->sphead)
+    return false;
+  Sql_cmd_call* cmd_call= dynamic_cast<Sql_cmd_call*>(m_sql_cmd);
+  if (!cmd_call)
+    return false;
+  const Lex_ident_sys keyword_str({STRING_WITH_LEN("dbmssql_execute")});
+  const char *spname_cstr= cmd_call->m_name->m_name.str;
+  const Lex_ident_sys spname_str(spname_cstr, strlen(spname_cstr));
+  if (thd->cursor_list.elements() && lex_string_eq(&keyword_str, &spname_str))
+  {
+    const Lex_ident_sys caller_str({STRING_WITH_LEN("sys.dbms_sql.execute")});
+    if (!lex_string_eq(&caller_str, &thd->lex->sphead->m_qname))
+      return false;
+    else{
+      thd->in_dbmssql_execute_context= true;
+      return true;
+    }
+  }
+  else
+    return false;
+}
+
+
 bool LEX::call_statement_start(THD *thd, sp_name *name)
 {
   Database_qualified_name pkgname;
@@ -11850,9 +11875,16 @@ bool LEX::new_sp_instr_stmt(THD *thd,
   */
   qbuff.str[prefix.length + suffix.length]= 0;
 
-  if (!(i= new (thd->mem_root) sp_instr_stmt(sphead->instructions(),
-                                             spcont, this, qbuff)))
-    return true;
+  if (is_sp_dbmssql_execute(thd) && thd->cursor_list.elements())
+  {
+    if (!(i= new (thd->mem_root) sp_instr_stmt_dbmssql_execute(
+        sphead->instructions(), spcont, this, qbuff, thd)))
+      return true;
+  }
+  else
+    if (!(i= new (thd->mem_root) sp_instr_stmt(sphead->instructions(),
+                                              spcont, this, qbuff)))
+      return true;
 
   return sphead->add_instr(i);
 }
@@ -12716,6 +12748,18 @@ bool LEX::stmt_execute(const Lex_ident_sys_st &ident, List<Item> *params)
 {
   sql_command= SQLCOM_EXECUTE;
   prepared_stmt.set(ident, NULL, params);
+  return stmt_prepare_validate("EXECUTE..USING");
+}
+
+
+bool LEX::stmt_execute_dbmssql()
+{
+  sql_command= SQLCOM_EXECUTE;
+  prepared_stmt.set(Lex_ident_sys(
+      "",
+      0),
+      NULL, NULL);
+  my_hash_reset(&sroutines);
   return stmt_prepare_validate("EXECUTE..USING");
 }
 

@@ -1,0 +1,347 @@
+#
+# MDEV-34330: System package SYS.DBMS_UTILITY
+#
+SET sql_mode= oracle;
+SET SESSION note_verbosity = "";
+#
+# Test GET_TIME
+#
+BEGIN SET timestamp=1216359724; SELECT sys.DBMS_UTILITY.GET_TIME(); END;//
+sys.DBMS_UTILITY.GET_TIME()
+1216359724
+#
+# Test GET_TIME with an argument
+#
+SELECT sys.DBMS_UTILITY.GET_TIME(1);
+ERROR 42000: Incorrect number of arguments for FUNCTION sys.DBMS_UTILITY.get_time; expected 0, got 1
+CREATE OR REPLACE PROCEDURE proc1
+IS
+BEGIN
+RAISE TOO_MANY_ROWS;
+END;
+//
+CREATE OR REPLACE PROCEDURE proc1_1
+IS
+BEGIN
+proc1;
+EXCEPTION
+WHEN OTHERS
+THEN
+RAISE DUP_VAL_ON_INDEX;
+END;//
+CREATE OR REPLACE PACKAGE pkg1
+IS
+PROCEDURE proc2;
+END pkg1;//
+CREATE OR REPLACE PACKAGE BODY pkg1
+IS
+PROCEDURE proc2
+IS
+BEGIN
+proc1_1;
+EXCEPTION
+WHEN OTHERS
+THEN
+RAISE DUP_VAL_ON_INDEX;
+END;
+END pkg1;//
+CREATE PROCEDURE proc3( )
+AS
+BEGIN
+pkg1.proc2;
+EXCEPTION
+WHEN DUP_VAL_ON_INDEX THEN
+SELECT sys.DBMS_UTILITY.FORMAT_ERROR_BACKTRACE();
+SELECT sys.DBMS_UTILITY.FORMAT_ERROR_STACK();
+END;//
+#
+# Test FORMAT_BACKTRACE & FORMAT_ERROR_STACK in an exception handler
+#
+CALL proc3( );
+sys.DBMS_UTILITY.FORMAT_ERROR_BACKTRACE()
+4094: root.test.proc1 at line 4
+4094: root.test.proc1_1 at line 4
+4094: root.test.pkg1.proc2 at line 5
+4094: root.test.proc3 at line 4
+
+sys.DBMS_UTILITY.FORMAT_ERROR_STACK()
+1062: Duplicate entry '%-.192sT' for key %d
+4094: root.test.pkg1.proc2 at line 9
+1062: Duplicate entry '%-.192sT' for key %d
+4094: root.test.proc1_1 at line 8
+1172: Result consisted of more than one row
+4094: root.test.proc1 at line 4
+4094: root.test.proc1_1 at line 4
+4094: root.test.pkg1.proc2 at line 5
+4094: root.test.proc3 at line 4
+
+CREATE OR REPLACE PROCEDURE proc1_2_2
+IS
+BEGIN
+SELECT 'hello';
+END;
+//
+CREATE OR REPLACE PROCEDURE proc1_2
+IS
+BEGIN
+proc1_2_2;
+proc1;
+EXCEPTION
+WHEN OTHERS
+THEN
+RAISE DUP_VAL_ON_INDEX;
+END;//
+CREATE PROCEDURE proc6( )
+AS
+BEGIN
+proc1_2;
+EXCEPTION
+WHEN DUP_VAL_ON_INDEX THEN
+SELECT sys.DBMS_UTILITY.FORMAT_ERROR_BACKTRACE();
+SELECT sys.DBMS_UTILITY.FORMAT_ERROR_STACK();
+END;//
+#
+# Test FORMAT_BACKTRACE & FORMAT_ERROR_STACK with called "non-error producing" routines, thereby exclusion from trace
+#
+CALL proc6( );
+hello
+hello
+sys.DBMS_UTILITY.FORMAT_ERROR_BACKTRACE()
+4094: root.test.proc1 at line 4
+4094: root.test.proc1_2 at line 5
+4094: root.test.proc6 at line 4
+
+sys.DBMS_UTILITY.FORMAT_ERROR_STACK()
+1062: Duplicate entry '%-.192sT' for key %d
+4094: root.test.proc1_2 at line 9
+1172: Result consisted of more than one row
+4094: root.test.proc1 at line 4
+4094: root.test.proc1_2 at line 5
+4094: root.test.proc6 at line 4
+
+#
+# Test FORMAT_BACKTRACE in nested block
+#
+CREATE PROCEDURE proc3_3( )
+AS
+BEGIN
+BEGIN
+BEGIN
+pkg1.proc2;
+EXCEPTION
+WHEN DUP_VAL_ON_INDEX THEN
+SELECT sys.DBMS_UTILITY.FORMAT_ERROR_BACKTRACE();
+END;
+END;
+END;//
+CALL proc3_3( );
+sys.DBMS_UTILITY.FORMAT_ERROR_BACKTRACE()
+
+CREATE PROCEDURE proc4( )
+AS
+BEGIN
+pkg1.proc2;
+EXCEPTION
+WHEN DUP_VAL_ON_INDEX THEN
+SET @x2 = 2;
+END;//
+#
+# Test FORMAT_BACKTRACE outside SPs
+#
+CALL proc4( );
+SELECT sys.DBMS_UTILITY.FORMAT_ERROR_BACKTRACE();
+sys.DBMS_UTILITY.FORMAT_ERROR_BACKTRACE()
+
+CREATE OR REPLACE PROCEDURE show_errors
+IS
+BEGIN
+SELECT sys.DBMS_UTILITY.FORMAT_ERROR_BACKTRACE();
+END;
+//
+CREATE OR REPLACE PROCEDURE proc2
+IS
+BEGIN
+proc1_1;
+EXCEPTION
+WHEN OTHERS
+THEN
+RAISE DUP_VAL_ON_INDEX;
+END;//
+CREATE OR REPLACE PACKAGE TEST_PKG AS
+PROCEDURE p2public;
+END;
+//
+CREATE OR REPLACE PACKAGE BODY TEST_PKG AS
+PROCEDURE p2public AS
+BEGIN
+SELECT 'in p2public';
+END;
+BEGIN
+proc2;
+EXCEPTION
+WHEN OTHERS
+THEN
+CALL show_errors();
+END;
+//
+#
+# Test FORMAT_BACKTRACE & FORMAT_ERROR_STACK from a package initialization section
+#
+CALL TEST_PKG.p2public;
+sys.DBMS_UTILITY.FORMAT_ERROR_BACKTRACE()
+4094: root.test.proc1 at line 4
+4094: root.test.proc1_1 at line 4
+4094: root.test.proc2 at line 4
+4094: root.test.test_pkg at line 7
+
+in p2public
+in p2public
+SET @session_max_recursion_depth = @@SESSION.max_sp_recursion_depth;
+SET @@session.max_sp_recursion_depth = 10;
+SELECT @@session.max_sp_recursion_depth;
+@@session.max_sp_recursion_depth
+10
+DROP PROCEDURE IF EXISTS sp_add_records;
+CREATE PROCEDURE sp_add_records (var1 INT,var2 INT) AS
+BEGIN
+SELECT var1,var2;
+IF var1 < var2 THEN
+CALL sp_add_records(var1+1,var2);
+SELECT var1,var2;
+ELSE
+proc1;
+END IF;
+EXCEPTION
+WHEN OTHERS
+THEN
+RAISE DUP_VAL_ON_INDEX;
+END;//
+CREATE PROCEDURE proc5( )
+AS
+BEGIN
+CALL sp_add_records(0,8);
+EXCEPTION
+WHEN DUP_VAL_ON_INDEX THEN
+SELECT sys.DBMS_UTILITY.FORMAT_ERROR_STACK();
+END;//
+CALL proc5( );
+var1	var2
+0	8
+var1	var2
+1	8
+var1	var2
+2	8
+var1	var2
+3	8
+var1	var2
+4	8
+var1	var2
+5	8
+var1	var2
+6	8
+var1	var2
+7	8
+var1	var2
+8	8
+sys.DBMS_UTILITY.FORMAT_ERROR_STACK()
+1062: Duplicate entry '%-.192sT' for key %d
+4094: root.test.sp_add_records at line 14
+1062: Duplicate entry '%-.192sT' for key %d
+4094: root.test.sp_add_records at line 14
+1062: Duplicate entry '%-.192sT' for key %d
+4094: root.test.sp_add_records at line 14
+1062: Duplicate entry '%-.192sT' for key %d
+4094: root.test.sp_add_records at line 14
+1062: Duplicate entry '%-.192sT' for key %d
+4094: root.test.sp_add_records at line 14
+1062: Duplicate entry '%-.192sT' for key %d
+4094: root.test.sp_add_records at line 14
+1062: Duplicate entry '%-.192sT' for key %d
+4094: root.test.sp_add_records at line 14
+1062: Duplicate entry '%-.192sT' for key %d
+4094: root.test.sp_add_records at line 14
+1062: Duplicate entry '%-.192sT' for key %d
+4094: root.test.sp_add_records at line 14
+1172: Result consisted of more than one row
+4094: root.test.proc1 at line 4
+4094: root.test.sp_add_records at line 9
+4094: root.test.sp_add_records at line 6
+4094: root.test.sp_add_records at line 6
+4094: root.test.sp_add_records at line 6
+4094: root.test.sp_add_records at line 6
+4094: root.test.sp_add_records at line 6
+4094: root.test.sp_add_records at line 6
+4094: root.test.sp_add_records at line 6
+4094: root.test.sp_add_records at line 6
+4094: root.test.proc5 at line 4
+
+SET @identifier := REPEAT('x', 500);
+#
+# Test FORMAT_ERROR_STACK with very long result string
+#
+CREATE OR REPLACE PROCEDURE cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc IS BEGIN proc1; EXCEPTION WHEN OTHERS THEN SIGNAL SQLSTATE 'HY000' SET MYSQL_ERRNO=3047, MESSAGE_TEXT=@identifier; END;//
+CREATE OR REPLACE PROCEDURE bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb IS BEGIN cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc; EXCEPTION WHEN OTHERS THEN SIGNAL SQLSTATE 'HY000' SET MYSQL_ERRNO=3047, MESSAGE_TEXT=@identifier; END;//
+CREATE OR REPLACE PROCEDURE aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa IS BEGIN bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb; EXCEPTION WHEN OTHERS THEN SIGNAL SQLSTATE 'HY000' SET MYSQL_ERRNO=3047, MESSAGE_TEXT=@identifier; END;//
+CREATE OR REPLACE PROCEDURE proc1_1
+IS
+BEGIN
+aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa;
+EXCEPTION
+WHEN OTHERS
+THEN
+SIGNAL SQLSTATE 'HY000' SET MYSQL_ERRNO=3047, MESSAGE_TEXT=@identifier;
+END;//
+CREATE PROCEDURE proc3_2( )
+AS
+BEGIN
+pkg1.proc2;
+EXCEPTION
+WHEN DUP_VAL_ON_INDEX THEN
+SELECT sys.DBMS_UTILITY.FORMAT_ERROR_STACK();
+END;//
+CALL proc3_2( );
+sys.DBMS_UTILITY.FORMAT_ERROR_STACK()
+1062: Duplicate entry '%-.192sT' for key %d
+4094: root.test.pkg1.proc2 at line 9
+3047: xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+4094: root.test.proc1_1 at line 8
+3047: xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+4094: root.test.aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa at line 2
+3047: xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+4094: root.test.bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb at line 2
+3047: xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+#
+# Test FORMAT_BACKTRACE & FORMAT_ERROR_STACK when no error occurs
+#
+CREATE PROCEDURE p1() AS
+BEGIN
+CALL sys.DBMS_TRANSACTION.COMMIT;
+EXCEPTION
+WHEN OTHERS
+THEN
+SELECT sys.DBMS_UTILITY.FORMAT_ERROR_BACKTRACE();
+END;
+$$
+CALL p1();
+sys.DBMS_UTILITY.FORMAT_ERROR_BACKTRACE()
+
+DROP PROCEDURE proc1_2_2;
+DROP PROCEDURE proc1_2;
+DROP PROCEDURE proc6;
+DROP PROCEDURE p1;
+DROP PROCEDURE cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc;
+DROP PROCEDURE bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb;
+DROP PROCEDURE aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa;
+DROP PROCEDURE proc3_2;
+DROP PROCEDURE show_errors;
+DROP PROCEDURE proc2;
+DROP PACKAGE TEST_PKG;
+DROP PROCEDURE proc1;
+DROP PROCEDURE proc1_1;
+DROP PACKAGE pkg1;
+DROP PROCEDURE proc3_3;
+DROP PROCEDURE proc3;
+DROP PROCEDURE proc4;
+DROP PROCEDURE IF EXISTS sp_add_records;
+DROP PROCEDURE IF EXISTS proc5;
+SET @@SESSION.max_sp_recursion_depth = @session_max_recursion_depth;

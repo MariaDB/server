@@ -326,6 +326,19 @@ protected:
 };
 
 
+class Create_func_dbmssql_close_cursor : public Create_func_arg1
+{
+public:
+  Item *create_1_arg(THD *thd, Item *arg1) override;
+
+  static Create_func_dbmssql_close_cursor s_singleton;
+
+protected:
+  Create_func_dbmssql_close_cursor() = default;
+  virtual ~Create_func_dbmssql_close_cursor() = default;
+};
+
+
 class Create_func_coercibility : public Create_func_arg1
 {
 public:
@@ -1568,6 +1581,19 @@ protected:
 };
 
 
+class Create_func_transliterate : public Create_func_arg2
+{
+public:
+  Item *create_2_arg(THD *thd, Item *arg1, Item *arg2) override;
+
+  static Create_func_transliterate s_singleton;
+
+protected:
+  Create_func_transliterate() = default;
+  ~Create_func_transliterate() override = default;
+};
+
+
 class Create_func_least : public Create_native_func
 {
 public:
@@ -1619,6 +1645,19 @@ protected:
 };
 
 
+class Create_func_dbmssql_open_cursor : public Create_func_arg0
+{
+public:
+  Item *create_builder(THD *thd) override;
+
+  static Create_func_dbmssql_open_cursor s_singleton;
+
+protected:
+  Create_func_dbmssql_open_cursor() = default;
+  ~Create_func_dbmssql_open_cursor() override = default;
+};
+
+
 class Create_func_password : public Create_func_arg1
 {
 public:
@@ -1629,6 +1668,19 @@ public:
 protected:
   Create_func_password() = default;
   virtual ~Create_func_password() = default;
+};
+
+
+class Create_func_dbmssql_parse : public Create_func_arg2
+{
+public:
+  Item *create_2_arg(THD *thd, Item *arg1, Item *arg2) override;
+
+  static Create_func_dbmssql_parse s_singleton;
+
+protected:
+  Create_func_dbmssql_parse() = default;
+  virtual ~Create_func_dbmssql_parse() = default;
 };
 
 
@@ -3457,6 +3509,14 @@ Create_func_char_length::create_1_arg(THD *thd, Item *arg1)
 }
 
 
+Create_func_dbmssql_close_cursor Create_func_dbmssql_close_cursor::s_singleton;
+
+Item*
+Create_func_dbmssql_close_cursor::create_1_arg(THD *thd, Item *arg1)
+{
+  return new (thd->mem_root) Item_func_dbmssql_close_cursor(thd, arg1);
+}
+
 Create_func_coercibility Create_func_coercibility::s_singleton;
 
 Item*
@@ -4941,6 +5001,15 @@ Create_func_lcase::create_1_arg(THD *thd, Item *arg1)
 }
 
 
+Create_func_transliterate Create_func_transliterate::s_singleton;
+
+Item*
+Create_func_transliterate::create_2_arg(THD *thd, Item *arg1, Item *arg2)
+{
+  return new (thd->mem_root) Item_func_transliterate(thd, arg1, arg2);
+}
+
+
 Create_func_least Create_func_least::s_singleton;
 
 Item*
@@ -4979,12 +5048,30 @@ Create_func_old_password::create_1_arg(THD *thd, Item *arg1)
                                                 Item_func_password::OLD);
 }
 
+Create_func_dbmssql_open_cursor Create_func_dbmssql_open_cursor::s_singleton;
+
+Item*
+Create_func_dbmssql_open_cursor::create_builder(THD *thd)
+{
+  thd->lex->safe_to_cache_query= 0;
+  return new (thd->mem_root) Item_func_dbmssql_open_cursor(thd);
+}
+
+
 Create_func_password Create_func_password::s_singleton;
 
 Item*
 Create_func_password::create_1_arg(THD *thd, Item *arg1)
 {
   return new (thd->mem_root) Item_func_password(thd, arg1);
+}
+
+Create_func_dbmssql_parse Create_func_dbmssql_parse::s_singleton;
+
+Item*
+Create_func_dbmssql_parse::create_2_arg(THD *thd, Item *arg1, Item *arg2)
+{
+  return new (thd->mem_root) Item_func_dbmssql_parse(thd, arg1, arg2);
 }
 
 Create_func_octet_length Create_func_octet_length::s_singleton;
@@ -6455,6 +6542,11 @@ const Native_func_registry func_array[] =
   { { STRING_WITH_LEN("DAYOFMONTH") }, BUILDER(Create_func_dayofmonth)},
   { { STRING_WITH_LEN("DAYOFWEEK") }, BUILDER(Create_func_dayofweek)},
   { { STRING_WITH_LEN("DAYOFYEAR") }, BUILDER(Create_func_dayofyear)},
+  { { STRING_WITH_LEN("DBMS_SQL_CLOSE_CURSOR") }, BUILDER(
+      Create_func_dbmssql_close_cursor)},
+  { { STRING_WITH_LEN("DBMS_SQL_OPEN_CURSOR") }, BUILDER(
+      Create_func_dbmssql_open_cursor)},
+  { { STRING_WITH_LEN("DBMS_SQL_PARSE") }, BUILDER(Create_func_dbmssql_parse)},
   { { STRING_WITH_LEN("DECODE") }, BUILDER(Create_func_decode)},
   { { STRING_WITH_LEN("DEGREES") }, BUILDER(Create_func_degrees)},
   { { STRING_WITH_LEN("DECODE_HISTOGRAM") }, BUILDER(Create_func_decode_histogram)},
@@ -6617,6 +6709,7 @@ const Native_func_registry func_array[] =
   { { STRING_WITH_LEN("TO_NUMBER") }, &create_func_to_number},
   { { STRING_WITH_LEN("TO_DAYS") }, BUILDER(Create_func_to_days)},
   { { STRING_WITH_LEN("TO_SECONDS") }, BUILDER(Create_func_to_seconds)},
+  { { STRING_WITH_LEN("TRANSLITERATE") }, BUILDER(Create_func_transliterate)},
   { { STRING_WITH_LEN("TRUNC") }, BUILDER(Create_func_trunc)},
   { { STRING_WITH_LEN("UCASE") }, BUILDER(Create_func_ucase)},
   { { STRING_WITH_LEN("UNCOMPRESS") }, BUILDER(Create_func_uncompress)},

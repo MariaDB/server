@@ -92,6 +92,30 @@ typedef struct casefold_info_char_t
 } MY_CASEFOLD_CHARACTER;
 
 
+typedef struct halfwidth_fullwidth_info_tuple_t
+{
+  uint32 k_sj_orig;
+  uint32 k_sj_voiced_mark_variant;
+  uint32 k_sj_semi_voiced_mark_variant;
+  uint32 h_sj_orig;
+  uint32 h_sj_voiced_mark_variant;
+  uint32 h_sj_semi_voiced_mark_variant;
+  uint32 k_uj_orig;
+  uint32 k_uj_voiced_mark_variant;
+  uint32 k_uj_semi_voiced_mark_variant;
+  uint32 h_uj_orig;
+  uint32 h_uj_voiced_mark_variant;
+  uint32 h_uj_semi_voiced_mark_variant;
+} MY_HALFWIDTH_FULLWIDTH_TUPLE;
+
+
+typedef struct fullwidth_halfwidth_info_tuple_t
+{
+  uint32 orig;
+  uint32 mark;
+} MY_FULLWIDTH_HALFWIDTH_TUPLE;
+
+
 struct casefold_info_st
 {
   my_wc_t maxchar;
@@ -624,6 +648,10 @@ typedef int (*my_charset_conv_wc_mb)(CHARSET_INFO *, my_wc_t,
                                      uchar *, uchar *);
 typedef size_t (*my_charset_conv_case)(CHARSET_INFO *,
                                        const char *, size_t, char *, size_t);
+typedef size_t (*my_charset_conv_to_halfwidth)(CHARSET_INFO *, int from_fullwidth_only,
+                                       const char *, size_t, char *, size_t);
+typedef size_t (*my_charset_conv_to_fullwidth)(CHARSET_INFO *, int to_hiragana,
+                                       const char *, size_t, char *, size_t);
 
 /*
   A structure to return the statistics of a native string copying,
@@ -781,6 +809,8 @@ struct my_charset_handler_st
 
   uint (*caseup_multiply)(CHARSET_INFO *cs);
   uint (*casedn_multiply)(CHARSET_INFO *cs);
+  my_charset_conv_to_fullwidth halfwidth_fullwidth;
+  my_charset_conv_to_halfwidth fullwidth_halfwidth;
 };
 
 extern MY_CHARSET_HANDLER my_charset_8bit_handler;
