@@ -29,98 +29,46 @@ Created 2007/5/9 Sunny Bains
 
 #include "fts0priv.h"
 
-/******************************************************************//**
-Callback function for fetching the config value.
-@return always returns TRUE */
-static
-ibool
-fts_config_fetch_value(
-/*===================*/
-	void*		row,			/*!< in: sel_node_t* */
-	void*		user_arg)		/*!< in: pointer to
-						 ib_vector_t */
-{
-	sel_node_t*	node = static_cast<sel_node_t*>(row);
-	fts_string_t*	value = static_cast<fts_string_t*>(user_arg);
-
-	dfield_t*	dfield = que_node_get_val(node->select_list);
-	dtype_t*	type = dfield_get_type(dfield);
-	ulint		len = dfield_get_len(dfield);
-	void*		data = dfield_get_data(dfield);
-
-	ut_a(dtype_get_mtype(type) == DATA_VARCHAR);
-
-	if (len != UNIV_SQL_NULL) {
-		ulint	max_len = ut_min(value->f_len - 1, len);
-
-		memcpy(value->f_str, data, max_len);
-		value->f_len = max_len;
-		value->f_str[value->f_len] = '\0';
-	}
-
-	return(TRUE);
-}
-
-/******************************************************************//**
-Get value from the config table. The caller must ensure that enough
+/** Get value from the config table. The caller must ensure that enough
 space is allocated for value to hold the column contents.
+@param trx        transaction
+@param fts_table  indexed FTS table
+@param name       get config value for this parameter name
+@param value      Value read from config table
 @return DB_SUCCESS or error code */
-dberr_t
-fts_config_get_value(
-/*=================*/
-	trx_t*		trx,			/*!< transaction */
-	fts_table_t*	fts_table,		/*!< in: the indexed
-						FTS table */
-	const char*	name,			/*!< in: get config value for
-						this parameter name */
-	fts_string_t*	value)			/*!< out: value read from
-						config table */
+dberr_t fts_config_get_value(trx_t *trx, fts_table_t *fts_table,
+                             const char *name, fts_string_t *value)
 {
-	pars_info_t*	info;
-	que_t*		graph;
-	dberr_t		error;
-	ulint		name_len = strlen(name);
-	char		table_name[MAX_FULL_NAME_LEN];
+  FTSQueryRunner sqlRunner(trx);
+  fts_table->suffix = "CONFIG";
+  dberr_t err= DB_SUCCESS;
+  dict_table_t *table= sqlRunner.open_table(fts_table, &err);
+  if (table)
+  {
+    ut_ad(UT_LIST_GET_LEN(table->indexes) == 1);
+    err= sqlRunner.prepare_for_read(table);
+    if (err == DB_SUCCESS)
+    {
+      dict_index_t *clust_index= dict_table_get_first_index(table);
+      sqlRunner.build_tuple(clust_index, 1, 1);
+      sqlRunner.assign_config_fields(name);
 
-	info = pars_info_create();
+      *value->f_str = '\0';
+      ut_a(value->f_len > 0);
 
-	*value->f_str = '\0';
-	ut_a(value->f_len > 0);
-
-	pars_info_bind_function(info, "my_func", fts_config_fetch_value,
-				value);
-
-	/* The len field of value must be set to the max bytes that
-	it can hold. On a successful read, the len field will be set
-	to the actual number of bytes copied to value. */
-	pars_info_bind_varchar_literal(info, "name", (byte*) name, name_len);
-
-	fts_table->suffix = "CONFIG";
-	fts_get_table_name(fts_table, table_name);
-	pars_info_bind_id(info, "table_name", table_name);
-
-	graph = fts_parse_sql(
-		fts_table,
-		info,
-		"DECLARE FUNCTION my_func;\n"
-		"DECLARE CURSOR c IS SELECT value FROM $table_name"
-		" WHERE key = :name;\n"
-		"BEGIN\n"
-		""
-		"OPEN c;\n"
-		"WHILE 1 = 1 LOOP\n"
-		"  FETCH c INTO my_func();\n"
-		"  IF c % NOTFOUND THEN\n"
-		"    EXIT;\n"
-		"  END IF;\n"
-		"END LOOP;\n"
-		"CLOSE c;");
-
-	trx->op_info = "getting FTS config value";
-
-	error = fts_eval_sql(trx, graph);
-	que_graph_free(graph);
-	return(error);
+      /* Following record executor does the following command
+      SELECT value FROM $FTS_PREFIX_CONFIG WHERE key = :name;"
+      and stores the value field in fts_string_t value */
+      err= sqlRunner.record_executor(clust_index, READ, MATCH_UNIQUE,
+                                     PAGE_CUR_GE, &read_fts_config, value);
+      /* In case of empty table, error can be DB_END_OF_INDEX
+      and key doesn't exist, error can be DB_RECORD_NOT_FOUND */
+      if (err == DB_END_OF_INDEX || err == DB_RECORD_NOT_FOUND)
+        err= DB_SUCCESS;
+    }
+    table->release();
+  }
+  return err;
 }
 
 /*********************************************************************//**
@@ -181,81 +129,61 @@ fts_config_get_index_value(
 	return(error);
 }
 
-/******************************************************************//**
-Set the value in the config table for name.
-@return DB_SUCCESS or error code */
-dberr_t
-fts_config_set_value(
-/*=================*/
-	trx_t*		trx,			/*!< transaction */
-	fts_table_t*	fts_table,		/*!< in: the indexed
-						FTS table */
-	const char*	name,			/*!< in: get config value for
-						this parameter name */
-	const fts_string_t*
-			value)			/*!< in: value to update */
+dberr_t fts_config_set_value(trx_t *trx, fts_table_t *fts_table,
+                             const char *name, const fts_string_t *value)
 {
-	pars_info_t*	info;
-	que_t*		graph;
-	dberr_t		error;
-	undo_no_t	undo_no;
-	undo_no_t	n_rows_updated;
-	ulint		name_len = strlen(name);
-	char		table_name[MAX_FULL_NAME_LEN];
+  dberr_t err= DB_SUCCESS;
+  const bool dict_locked = fts_table->table->fts->dict_locked;
+  fts_table->suffix = "CONFIG";
 
-	info = pars_info_create();
+  FTSQueryRunner sqlRunner(trx);
+  dict_table_t *fts_config= sqlRunner.open_table(fts_table, &err, dict_locked);
+  if (fts_config)
+  {
+    err= sqlRunner.prepare_for_write(fts_config);
+    if (err == DB_SUCCESS)
+    {
+      ut_ad(UT_LIST_GET_LEN(fts_config->indexes) == 1);
+      dict_index_t *clust_index= dict_table_get_first_index(fts_config);
+      sqlRunner.build_tuple(clust_index, 1, 1);
+      /* We set the length of value to the max bytes it can hold. This
+      information is used by the callback that reads the value.*/
+      fts_string_t old_value;
+      old_value.f_len= FTS_MAX_CONFIG_VALUE_LEN;
+      old_value.f_str=
+        static_cast<byte*>(ut_malloc_nokey(old_value.f_len + 1));
 
-	pars_info_bind_varchar_literal(info, "name", (byte*) name, name_len);
-	pars_info_bind_varchar_literal(info, "value",
-				       value->f_str, value->f_len);
+      /* REPLACE INTO $FTS_PREFIX_CONFIG VALUES (KEY, VALUE) */
+      sqlRunner.assign_config_fields(name);
+      err= sqlRunner.record_executor(clust_index, SELECT_UPDATE,
+                                     MATCH_UNIQUE, PAGE_CUR_GE,
+                                     &read_fts_config, &old_value);
+      if (err == DB_SUCCESS)
+      {
+        /* Record already exist. So Update the value field with new value */
+        if (old_value.f_len != value->f_len ||
+            memcmp(old_value.f_str, value->f_str, value->f_len) != 0)
+        {
+          /* Build update vector with new value for FTS_CONFIG table */
+          sqlRunner.build_update_config(fts_config, 3, value);
+          err= sqlRunner.update_record(
+            fts_config, static_cast<uint16_t>(old_value.f_len),
+            static_cast<uint16_t>(value->f_len));
+        }
+      }
+      else if (err == DB_END_OF_INDEX || err == DB_RECORD_NOT_FOUND)
+      {
+        /* Record doesn't exist. So do insert the key, value in config table */
+        sqlRunner.build_tuple(clust_index);
+        sqlRunner.assign_config_fields(name, value->f_str, value->f_len);
+        err= sqlRunner.write_record(fts_config);
+      }
+      ut_free(old_value.f_str);
+    }
+    fts_config->release();
+  }
 
-	const bool dict_locked = fts_table->table->fts->dict_locked;
-
-	fts_table->suffix = "CONFIG";
-	fts_get_table_name(fts_table, table_name, dict_locked);
-	pars_info_bind_id(info, "table_name", table_name);
-
-	graph = fts_parse_sql(
-		fts_table, info,
-		"BEGIN UPDATE $table_name SET value = :value"
-		" WHERE key = :name;");
-
-	trx->op_info = "setting FTS config value";
-
-	undo_no = trx->undo_no;
-
-	error = fts_eval_sql(trx, graph);
-
-	que_graph_free(graph);
-
-	n_rows_updated = trx->undo_no - undo_no;
-
-	/* Check if we need to do an insert. */
-	if (error == DB_SUCCESS && n_rows_updated == 0) {
-		info = pars_info_create();
-
-		pars_info_bind_varchar_literal(
-			info, "name", (byte*) name, name_len);
-
-		pars_info_bind_varchar_literal(
-			info, "value", value->f_str, value->f_len);
-
-		fts_get_table_name(fts_table, table_name, dict_locked);
-		pars_info_bind_id(info, "table_name", table_name);
-
-		graph = fts_parse_sql(
-			fts_table, info,
-			"BEGIN\n"
-			"INSERT INTO $table_name VALUES(:name, :value);");
-
-		trx->op_info = "inserting FTS config value";
-
-		error = fts_eval_sql(trx, graph);
-
-		que_graph_free(graph);
-	}
-
-	return(error);
+  return err;
 }
 
 /******************************************************************//**
