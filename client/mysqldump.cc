@@ -6530,7 +6530,7 @@ struct IS_running_slaves_list: Running_slaves_list
         return true;
     return false;
   }
-} isrsl [[maybe_unused]] {};
+};
 /// @deprecated This variant is for compatibility with pre-11.6 servers.
 struct SSS_running_slaves_list: Running_slaves_list
 {
@@ -6544,7 +6544,7 @@ struct SSS_running_slaves_list: Running_slaves_list
         return true;
     return false;
   }
-} sssrsl [[maybe_unused]] {};
+};
 
 static int add_stop_slave(void)
 {
@@ -6584,9 +6584,9 @@ static bool do_show_slave_status(MYSQL *mysql_con,
   char gtid_pos[MAX_GTID_LENGTH];
   if (query(mysql_con) && !ignore_errors)
   {
-    // Query fails and --force is not enabled
-    fprintf(stderr, "%s: Error: Slave not set up\n", my_progname_short);
-    return true;
+      // Query fails and --force is not enabled
+      fprintf(stderr, "%s: Error: Slave not set up\n", my_progname_short);
+      return true;
   }
   if (get_gtid_pos(gtid_pos, false))
     return true;
@@ -6611,19 +6611,19 @@ static bool do_show_slave_status(MYSQL *mysql_con,
   foreach([=](const char *name,
     const char *host, const char *port, const char *file, const char *pos)
   {
-    if (use_gtid)
+      if (use_gtid)
+        fprintf(md_result_file,
+          "%sCHANGE MASTER '%.*s' TO MASTER_USE_GTID=slave_pos;\n",
+          gtid_comment_prefix, NAME_CHAR_LEN, name
+        );
+      fprintf(md_result_file, "%sCHANGE MASTER '%.*s' TO ",
+              nogtid_comment_prefix, NAME_CHAR_LEN, name);
+      if (opt_include_master_host_port)
+        fprintf(md_result_file,
+                "MASTER_HOST='%s', MASTER_PORT=%s, ", host, port);
       fprintf(md_result_file,
-        "%sCHANGE MASTER '%.*s' TO MASTER_USE_GTID=slave_pos;\n",
-        gtid_comment_prefix, NAME_CHAR_LEN, name
-      );
-    fprintf(md_result_file, "%sCHANGE MASTER '%.*s' TO ",
-            nogtid_comment_prefix, NAME_CHAR_LEN, name);
-    if (opt_include_master_host_port)
-      fprintf(md_result_file,
-              "MASTER_HOST='%s', MASTER_PORT=%s, ", host, port);
-    fprintf(md_result_file,
-            "MASTER_LOG_FILE='%s', MASTER_LOG_POS=%s;\n", file, pos);
-    check_io(md_result_file);
+              "MASTER_LOG_FILE='%s', MASTER_LOG_POS=%s;\n", file, pos);
+      check_io(md_result_file);
   });
   return false;
     }
@@ -6636,7 +6636,7 @@ static bool do_show_slave_status(MYSQL *mysql_con,
       "SELECT Connection_name, Master_Host, Master_Port, Relay_Master_Log_File,"
       " Exec_Master_Log_Pos FROM information_schema.SLAVE_STATUS"
       ); }
-    void foreach(Foreach_callback callback) override
+    Foreach_callback::result_type foreach(Foreach_callback callback) override
     {
       MYSQL_ROW row;
       while ((row= mysql_fetch_row(query_result)))
@@ -6646,7 +6646,7 @@ static bool do_show_slave_status(MYSQL *mysql_con,
   /// @deprecated This variant is for compatibility with pre-11.6 servers.
   struct SSS_change_master_list: Change_master_list
   {
-    void foreach(Foreach_callback callback) override
+    Foreach_callback::result_type foreach(Foreach_callback callback) override
     {
       MYSQL_ROW row;
       while ((row= mysql_fetch_row(query_result)))
