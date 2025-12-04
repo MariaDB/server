@@ -412,10 +412,10 @@ ELSE()
   CONFIGURE_FILE(myskel.m4.in myskel.m4)
   BISON_TARGET(gen_mariadb_cc_hh ${CMAKE_CURRENT_BINARY_DIR}/yy_mariadb.yy
                                  ${CMAKE_CURRENT_BINARY_DIR}/yy_mariadb.cc
-               COMPILE_FLAGS "-p MYSQL -S ${CMAKE_CURRENT_BINARY_DIR}/myskel.m4")
+               COMPILE_FLAGS "-p MYSQL -S ${CMAKE_CURRENT_BINARY_DIR}/myskel.m4 --file-prefix-map=${CMAKE_BINARY_DIR}=''")
   BISON_TARGET(gen_oracle_cc_hh ${CMAKE_CURRENT_BINARY_DIR}/yy_oracle.yy
                                 ${CMAKE_CURRENT_BINARY_DIR}/yy_oracle.cc
-               COMPILE_FLAGS "-p ORA -S ${CMAKE_CURRENT_BINARY_DIR}/myskel.m4")
+               COMPILE_FLAGS "-p ORA -S ${CMAKE_CURRENT_BINARY_DIR}/myskel.m4 --file-prefix-map=${CMAKE_BINARY_DIR}=''")
 ENDIF()
 
 IF(NOT CMAKE_CROSSCOMPILING OR DEFINED CMAKE_CROSSCOMPILING_EMULATOR)
