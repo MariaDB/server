@@ -6577,56 +6577,57 @@ static bool do_show_slave_status(MYSQL *mysql_con,
   {
     bool write_file(MYSQL *mysql_con, bool use_gtid, char *set_gtid_pos)
     {
-  const char *comment_prefix=
-    (opt_slave_data == MYSQL_OPT_SLAVE_DATA_COMMENTED_SQL) ? "-- " : "";
-  const char *gtid_comment_prefix= (use_gtid ? comment_prefix : "-- ");
-  const char *nogtid_comment_prefix= (!use_gtid ? comment_prefix : "-- ");
-  char gtid_pos[MAX_GTID_LENGTH];
-  if (query(mysql_con) && !ignore_errors)
-  {
-      // Query fails and --force is not enabled
-      fprintf(stderr, "%s: Error: Slave not set up\n", my_progname_short);
-      return true;
-  }
-  if (get_gtid_pos(gtid_pos, false))
-    return true;
-  sprintf(set_gtid_pos, fmt_gtid_pos, gtid_comment_prefix, gtid_pos);
+      const char *comment_prefix=
+        (opt_slave_data == MYSQL_OPT_SLAVE_DATA_COMMENTED_SQL) ? "-- " : "";
+      const char *gtid_comment_prefix= use_gtid ? comment_prefix : "-- ";
+      const char *nogtid_comment_prefix= use_gtid ? "-- " : comment_prefix;
+      char gtid_pos[MAX_GTID_LENGTH];
+      if (query(mysql_con) && !ignore_errors)
+      {
+        // Query fails and --force is not enabled
+        fprintf(stderr, "%s: Error: Slave not set up\n", my_progname_short);
+        return true;
+      }
+      if (get_gtid_pos(gtid_pos, false))
+        return true;
+      sprintf(set_gtid_pos, fmt_gtid_pos, gtid_comment_prefix, gtid_pos);
 
-  print_comment(md_result_file, 0,
-    "\n-- The following is the SQL position of the replication "
-    "taken from information_schema.SLAVE_STATUS at the time of backup.\n"
-    "-- Use this position when creating a clone or"
-    "replacement server from where the backup was taken.\n"
-    "-- This new server will connects to the same primary server(s).\n--\n"
-    // defer print similarly to do_show_master_status()
-    "-- The slave gtid state corresponding to the below "
-    "CHANGE MASTER settings is printed later in the file.\n"
-  );
-  if (use_gtid)
-    print_comment(md_result_file, 0,
-                  "\n-- Use only the MASTER_USE_GTID=slave_pos or "
-                  "MASTER_LOG_FILE/MASTER_LOG_POS in the statements below."
-                  "\n\n");
-
-  foreach([=](const char *name,
-    const char *host, const char *port, const char *file, const char *pos)
-  {
+      print_comment(md_result_file, 0,
+        "\n-- The following is the SQL position of the replication "
+        "taken from information_schema.SLAVE_STATUS at the time of backup.\n"
+        "-- Use this position when creating a clone or"
+        "replacement server from where the backup was taken.\n"
+        "-- This new server will connects to the same primary server(s).\n--\n"
+        // defer print similarly to do_show_master_status()
+        "-- The slave gtid state corresponding to the below "
+        "CHANGE MASTER settings is printed later in the file.\n"
+      );
       if (use_gtid)
+        print_comment(md_result_file, 0,
+                      "\n-- Use only the MASTER_USE_GTID=slave_pos or "
+                      "MASTER_LOG_FILE/MASTER_LOG_POS in the statements below."
+                      "\n\n");
+
+      foreach([=](const char *name,
+        const char *host, const char *port, const char *file, const char *pos)
+      {
+        if (use_gtid)
+          fprintf(md_result_file,
+            "%sCHANGE MASTER '%.*s' TO MASTER_USE_GTID=slave_pos;\n",
+            gtid_comment_prefix, NAME_CHAR_LEN, name
+          );
+        fprintf(md_result_file, "%sCHANGE MASTER '%.*s' TO ",
+                nogtid_comment_prefix, NAME_CHAR_LEN, name);
+        if (opt_include_master_host_port)
+          fprintf(md_result_file,
+                  "MASTER_HOST='%s', MASTER_PORT=%s, ", host, port);
         fprintf(md_result_file,
-          "%sCHANGE MASTER '%.*s' TO MASTER_USE_GTID=slave_pos;\n",
-          gtid_comment_prefix, NAME_CHAR_LEN, name
-        );
-      fprintf(md_result_file, "%sCHANGE MASTER '%.*s' TO ",
-              nogtid_comment_prefix, NAME_CHAR_LEN, name);
-      if (opt_include_master_host_port)
-        fprintf(md_result_file,
-                "MASTER_HOST='%s', MASTER_PORT=%s, ", host, port);
-      fprintf(md_result_file,
-              "MASTER_LOG_FILE='%s', MASTER_LOG_POS=%s;\n", file, pos);
-      check_io(md_result_file);
-  });
-  return false;
+                "MASTER_LOG_FILE='%s', MASTER_LOG_POS=%s;\n", file, pos);
+        check_io(md_result_file);
+      });
+      return false;
     }
+    virtual void foreach(Foreach_callback callback) override {}
   };
 
   struct IS_change_master_list: Change_master_list
@@ -6636,7 +6637,7 @@ static bool do_show_slave_status(MYSQL *mysql_con,
       "SELECT Connection_name, Master_Host, Master_Port, Relay_Master_Log_File,"
       " Exec_Master_Log_Pos FROM information_schema.SLAVE_STATUS"
       ); }
-    Foreach_callback::result_type foreach(Foreach_callback callback) override
+    void foreach(Foreach_callback callback) override
     {
       MYSQL_ROW row;
       while ((row= mysql_fetch_row(query_result)))
@@ -6646,7 +6647,7 @@ static bool do_show_slave_status(MYSQL *mysql_con,
   /// @deprecated This variant is for compatibility with pre-11.6 servers.
   struct SSS_change_master_list: Change_master_list
   {
-    Foreach_callback::result_type foreach(Foreach_callback callback) override
+    void foreach(Foreach_callback callback) override
     {
       MYSQL_ROW row;
       while ((row= mysql_fetch_row(query_result)))
@@ -6654,10 +6655,10 @@ static bool do_show_slave_status(MYSQL *mysql_con,
     }
   };
 
-  auto &&slave= have_is_slave_status ?
+  (have_is_slave_status ?
     static_cast<Change_master_list &&>( IS_change_master_list()) :
-    static_cast<Change_master_list &&>(SSS_change_master_list());
-  slave.write_file(mysql_con, use_gtid, set_gtid_pos);
+    static_cast<Change_master_list &&>(SSS_change_master_list())
+  ).write_file(mysql_con, use_gtid, set_gtid_pos);
   fprintf(md_result_file, "\n");
   return 0;
 }
