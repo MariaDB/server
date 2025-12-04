@@ -1429,7 +1429,7 @@ static bool mysql_test_insert(Prepared_statement *stmt,
   */
   if (table_list->lock_type != TL_WRITE_DELAYED)
   {
-    if (thd->open_temporary_tables(table_list))
+    if (thd->open_temporary_tables(table_list, Tmp_table_kind::TMP))
       return true;
   }
 
@@ -1978,7 +1978,7 @@ static bool mysql_test_create_view(Prepared_statement *stmt)
     Since we can't pre-open temporary tables for SQLCOM_CREATE_VIEW,
     (see mysql_create_view) we have to do it here instead.
   */
-  if (thd->open_temporary_tables(tables))
+  if (thd->open_temporary_tables(tables, Tmp_table_kind::TMP))
     goto err;
 
   lex->context_analysis_only|= CONTEXT_ANALYSIS_ONLY_VIEW;
@@ -2251,7 +2251,7 @@ static bool check_prepared_statement(Prepared_statement *stmt)
   */
   if (sql_command_flags[sql_command] & CF_PREOPEN_TMP_TABLES)
   {
-    if (thd->open_temporary_tables(tables))
+    if (thd->open_temporary_tables(tables, Tmp_table_kind::TMP))
       goto error;
   }
 
