@@ -1174,8 +1174,7 @@ bool mysql_rm_table(THD *thd,TABLE_LIST *tables, bool if_exists,
     if (check_if_log_table(table, TRUE, "DROP"))
       DBUG_RETURN(true);
 
-    if (!table->table && thd->find_tmp_table_share(table,
-                                                   Tmp_table_kind::GLOBAL))
+    if (is_temporary_table(table) && table->table->s->global_tmp_table())
     {
       if (drop_temporary)
         my_error(ER_BAD_TABLE_ERROR, MYF(0), table->alias.str);
@@ -1183,6 +1182,8 @@ bool mysql_rm_table(THD *thd,TABLE_LIST *tables, bool if_exists,
         my_error(ER_LOCK_WAIT_TIMEOUT, MYF(0));
       DBUG_RETURN(true);
     }
+    DBUG_ASSERT(is_temporary_table(table) ||
+                !thd->find_tmp_table_share(table, Tmp_table_kind::GLOBAL));
   }
 
   if (!drop_temporary)
@@ -7777,7 +7778,7 @@ static bool fill_alter_inplace_info(THD *thd, TABLE *table,
       ha_alter_info->key_count= table->s->keys;
   }
 
-  if (table->s->table_type == TABLE_TYPE_GLOBAL_TEMPORARY)
+  if (table->s->global_tmp_table())
     ha_alter_info->inplace_supported= HA_ALTER_INPLACE_NOT_SUPPORTED;
 
   DBUG_PRINT("exit", ("handler_flags: %llu", ha_alter_info->handler_flags));
@@ -10878,7 +10879,7 @@ const char *online_alter_check_supported(THD *thd,
   if (!*online)
     return "CHANGE COLUMN ... AUTO_INCREMENT";
 
-  *online= table->s->table_type != TABLE_TYPE_GLOBAL_TEMPORARY;
+  *online= !table->s->global_tmp_table();
   if (!*online)
     return "GLOBAL TEMPORARY TABLE";
 
@@ -11156,7 +11157,7 @@ bool mysql_alter_table(THD *thd, const LEX_CSTRING *new_db,
     }
   }
 
-  if (table->s->table_type == TABLE_TYPE_GLOBAL_TEMPORARY)
+  if (table->s->global_tmp_table())
   {
     if (thd->find_tmp_table_share(table_list, Tmp_table_kind::GLOBAL))
     {
@@ -13501,7 +13502,7 @@ bool mysql_checksum_table(THD *thd, TABLE_LIST *tables,
     /* Allow to open real tables only. */
     table->required_type= TABLE_TYPE_NORMAL;
 
-    if (thd->open_temporary_tables(table) ||
+    if (thd->open_temporary_tables(table, Tmp_table_kind::TMP) ||
         open_and_lock_tables(thd, table, FALSE, 0))
     {
       t= NULL;

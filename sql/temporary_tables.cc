@@ -488,7 +488,7 @@ bool THD::open_temporary_table_impl(TABLE_LIST *tl, TABLE **table,
                                       for the given key, tl->table is set.
     @retval true                      On error. my_error() has been called.
 */
-bool THD::open_temporary_table(TABLE_LIST *tl)
+bool THD::open_temporary_table(TABLE_LIST *tl, Tmp_table_kind find_kind)
 {
   DBUG_ENTER("THD::open_temporary_table");
   DBUG_PRINT("enter", ("table: '%s'.'%s'", tl->db.str, tl->table_name.str));
@@ -525,7 +525,7 @@ bool THD::open_temporary_table(TABLE_LIST *tl)
     DBUG_RETURN(false);
   }
 
-  if (unlikely(open_temporary_table_impl(tl, &table, Tmp_table_kind::TMP)))
+  if (unlikely(open_temporary_table_impl(tl, &table, find_kind)))
     DBUG_RETURN(true);
 
   if (!table)
@@ -587,7 +587,8 @@ bool THD::check_and_open_tmp_table(TABLE_LIST *tl)
                                       for the given element, tl->table is set.
           true                        On error. my_error() has been called.
 */
-bool THD::open_temporary_tables(TABLE_LIST *tl)
+bool THD::open_temporary_tables(TABLE_LIST *tl,
+                                Tmp_table_kind find_kind)
 {
   TABLE_LIST *first_not_own;
   DBUG_ENTER("THD::open_temporary_tables");
@@ -607,7 +608,7 @@ bool THD::open_temporary_tables(TABLE_LIST *tl)
       continue;
     }
 
-    if (open_temporary_table(table))
+    if (open_temporary_table(table, find_kind))
     {
       DBUG_RETURN(true);
     }
@@ -1211,7 +1212,10 @@ TMP_TABLE_SHARE *THD::create_temporary_table(LEX_CUSTRING *frm,
   }
 
   /* Add share to the head of the temporary table share list. */
-  temporary_tables->push_front(share);
+  if (share->global_tmp_table())
+    temporary_tables->push_back(share);
+  else
+    temporary_tables->push_front(share);
 
   if (locked)
   {

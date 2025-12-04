@@ -2946,7 +2946,7 @@ retry:
             Let us restart acquiring and opening tables for LOCK TABLES.
           */
           close_tables_for_reopen(thd, &tables, mdl_savepoint, true);
-          if (thd->open_temporary_tables(tables))
+          if (thd->open_temporary_tables(tables, Tmp_table_kind::TMP))
             goto err;
           goto retry;
         }
@@ -4948,7 +4948,7 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
       CF_PREOPEN_TMP_TABLES was set and the tables would be pre-opened
       in a usual way, they would have been closed.
     */
-    if (thd->open_temporary_tables(all_tables))
+    if (thd->open_temporary_tables(all_tables, Tmp_table_kind::TMP))
       goto error;
 
     if (lock_tables_precheck(thd, all_tables))

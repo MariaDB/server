@@ -2088,7 +2088,9 @@ struct All_tmp_table_shares
 };
 
 /* Also used in rpl_rli.h. */
-struct All_tmp_tables_list: I_P_List <TMP_TABLE_SHARE, All_tmp_table_shares>
+struct All_tmp_tables_list: I_P_List <TMP_TABLE_SHARE, All_tmp_table_shares,
+                                      I_P_List_null_counter,
+                                      I_P_List_fast_push_back<TMP_TABLE_SHARE>>
 {
   bool committed;
   ulonglong global_temporary_tables_count= 0;
@@ -5879,9 +5881,11 @@ public:
 
   bool open_temporary_table_impl(TABLE_LIST *tl, TABLE **table,
                                  Tmp_table_kind find_kind);
-  bool open_temporary_table(TABLE_LIST *tl);
+  bool open_temporary_table(TABLE_LIST *tl,
+                            Tmp_table_kind find_kind= Tmp_table_kind::ANY);
   bool check_and_open_tmp_table(TABLE_LIST *tl);
-  bool open_temporary_tables(TABLE_LIST *tl);
+  bool open_temporary_tables(TABLE_LIST *tl,
+                             Tmp_table_kind find_kind= Tmp_table_kind::ANY);
 
   bool close_temporary_tables();
   bool rename_temporary_table(TABLE *table, const LEX_CSTRING *db,
