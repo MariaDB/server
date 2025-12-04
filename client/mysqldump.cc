@@ -6530,7 +6530,7 @@ struct IS_running_slaves_list: Running_slaves_list
         return true;
     return false;
   }
-} *isrsl [[maybe_unused]];
+} isrsl [[maybe_unused]] {};
 /// @deprecated This variant is for compatibility with pre-11.6 servers.
 struct SSS_running_slaves_list: Running_slaves_list
 {
@@ -6544,7 +6544,7 @@ struct SSS_running_slaves_list: Running_slaves_list
         return true;
     return false;
   }
-} *sssrsl [[maybe_unused]];
+} sssrsl [[maybe_unused]] {};
 
 static int add_stop_slave(void)
 {
