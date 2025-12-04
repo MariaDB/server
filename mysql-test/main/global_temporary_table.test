@@ -1000,4 +1000,20 @@ drop database emptydb;
 --disconnect con2
 --connection default
 
+--echo # MDEV-38151 GTT: missing FUNCTION support
+create global temporary table gtt (c int) on commit preserve rows;
+insert into gtt values (1);
+
+--delimiter //
+create function f() returns int deterministic begin
+  return (select count(*) from gtt);
+end//
+--delimiter ;
+
+select f();
+
+truncate gtt;
+drop function f;
+drop table gtt;
+
 --disconnect con1

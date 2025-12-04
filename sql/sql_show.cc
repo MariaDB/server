@@ -1229,7 +1229,7 @@ mysqld_show_create_get_fields(THD *thd, TABLE_LIST *table_list,
       Temporary tables should be opened for SHOW CREATE TABLE, but not
       for SHOW CREATE VIEW.
     */
-    if (thd->open_temporary_tables(table_list))
+    if (thd->open_temporary_tables(table_list, Tmp_table_kind::TMP))
       goto exit;
 
     /*
