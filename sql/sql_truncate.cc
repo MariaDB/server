@@ -457,8 +457,16 @@ bool Sql_cmd_truncate_table::truncate_table(THD *thd, TABLE_LIST *table_ref)
   /* Initialize, or reinitialize in case of reexecution (SP). */
   m_ticket_downgrade= NULL;
 
+  if (table_ref->table && table_ref->table->s->global_tmp_table())
+  {
+    TABLE_SHARE *s= table_ref->table->s;
+    DBUG_ASSERT(s->tmp_table);
+    error= thd->drop_tmp_table_share(NULL, (TMP_TABLE_SHARE *)s, true);
+    thd->reset_sp_cache= true;
+    binlog_stmt= false; // Don't log Global temporary table's truncate
+  }
   /* If it is a temporary table, no need to take locks. */
-  if (is_temporary_table(table_ref))
+  else if (is_temporary_table(table_ref))
   {
     /*
       In RBR, the statement is not binlogged if the table is temporary or
@@ -477,13 +485,6 @@ bool Sql_cmd_truncate_table::truncate_table(THD *thd, TABLE_LIST *table_ref)
       log a failed row-by-row delete even if under RBR as the table
       might not exist on the slave.
     */
-  }
-  else if (TMP_TABLE_SHARE *share= thd->find_tmp_table_share(table_ref,
-                                                        Tmp_table_kind::GLOBAL))
-  {
-    error= thd->drop_tmp_table_share(NULL, share, true);
-    thd->reset_sp_cache= true;
-    binlog_stmt= false; // Don't log Global temporary table's truncate
   }
   else /* It's not a temporary table. */
   {
@@ -579,7 +580,10 @@ bool Sql_cmd_truncate_table::truncate_table(THD *thd, TABLE_LIST *table_ref)
     */
     table_ref->table= NULL;
     query_cache_invalidate3(thd, table_ref, FALSE);
+
+    DBUG_ASSERT(!thd->find_tmp_table_share(table_ref, Tmp_table_kind::GLOBAL));
   }
+
 
   /* DDL is logged in statement format, regardless of binlog format. */
   if (binlog_stmt)

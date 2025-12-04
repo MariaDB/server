@@ -417,7 +417,7 @@ static bool open_only_one_table(THD* thd, TABLE_LIST* table,
 
     da->push_warning_info(&tmp_wi);
 
-    open_error= (thd->open_temporary_tables(table) ||
+    open_error= (thd->open_temporary_tables(table, Tmp_table_kind::TMP) ||
                  open_and_lock_tables(thd, table, TRUE, 0));
 
     da->pop_warning_info();
@@ -432,7 +432,7 @@ static bool open_only_one_table(THD* thd, TABLE_LIST* table,
       mode. It does make sense for the user to see such errors.
     */
 
-    open_error= (thd->open_temporary_tables(table) ||
+    open_error= (thd->open_temporary_tables(table, Tmp_table_kind::TMP) ||
                  open_and_lock_tables(thd, table, TRUE, 0));
   }
 
@@ -1317,7 +1317,7 @@ send_result_message:
         table->mdl_request.ticket= NULL;
         DEBUG_SYNC(thd, "ha_admin_open_ltable");
         table->mdl_request.set_type(MDL_SHARED_WRITE);
-        if (!thd->open_temporary_tables(table) &&
+        if (!thd->open_temporary_tables(table, Tmp_table_kind::TMP) &&
             (table->table= open_ltable(thd, table, lock_type, 0)))
         {
           ulonglong save_flags;

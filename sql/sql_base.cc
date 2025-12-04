@@ -4804,7 +4804,7 @@ restart:
             goto error;
 
           /* Re-open temporary tables after close_tables_for_reopen(). */
-          if (thd->open_temporary_tables(*start))
+          if (thd->open_temporary_tables(*start, Tmp_table_kind::TMP))
             goto error;
 
           error= FALSE;
@@ -4869,7 +4869,7 @@ restart:
               goto error;
 
             /* Re-open temporary tables after close_tables_for_reopen(). */
-            if (thd->open_temporary_tables(*start))
+            if (thd->open_temporary_tables(*start, Tmp_table_kind::TMP))
               goto error;
 
             error= FALSE;
