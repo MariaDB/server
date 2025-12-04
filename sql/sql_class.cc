@@ -2824,7 +2824,7 @@ CHANGED_TABLE_LIST* THD::changed_table_dup(const char *key, size_t key_length)
 int THD::prepare_explain_fields(select_result *result, List<Item> *field_list,
                                  uint8 explain_flags, bool is_analyze)
 {
-  if (lex->explain_json)
+  if (lex->explain_json || lex->explain_sql)
     make_explain_json_field_list(*field_list, is_analyze);
   else
     make_explain_field_list(*field_list, explain_flags, is_analyze);

@@ -14457,6 +14457,10 @@ opt_extended_describe:
 
 opt_format_json:
           /* empty */ {}
+        | FORMAT_SYM '=' SQL_SYM
+          {
+            Lex->explain_sql= true;
+          }
         | FORMAT_SYM '=' ident_or_text
           {
             if (lex_string_eq(&$3, STRING_WITH_LEN("JSON")))

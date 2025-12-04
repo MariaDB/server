@@ -488,6 +488,7 @@ public:
   /* Return tabular EXPLAIN output as a text string */
   bool print_explain_str(THD *thd, String *out_str, bool is_analyze);
 
+  void print_explain_sql(select_result_sink *output, bool is_analyze);
   void print_explain_json(select_result_sink *output, bool is_analyze);
 
   /* If true, at least part of EXPLAIN can be printed */

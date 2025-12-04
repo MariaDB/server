@@ -901,7 +901,10 @@ enum enum_query_type
 
   /// Print for FRM file. Focus on parse-back.
   /// e.g. VIEW expressions and virtual column expressions
-  QT_FOR_FRM= (1 << 13)
+  QT_FOR_FRM= (1 << 13),
+
+  // show plan choice, index hints, straight_join with join order
+  QT_SHOW_EXECUTION_PLAN= (1 << 14)
 };
 
 

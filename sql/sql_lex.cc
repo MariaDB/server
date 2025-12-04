@@ -1289,6 +1289,7 @@ void LEX::start(THD *thd_arg)
   parse_vcol_expr= 0;
   analyze_stmt= 0;
   explain_json= 0;
+  explain_sql= 0;
   local_file= 0;
   check_exists= 0;
   verbose= 0;

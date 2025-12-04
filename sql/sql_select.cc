@@ -29598,6 +29598,14 @@ static void print_table_array(THD *thd,
       curr->on_expr->print(str, query_type);
       str->append(')');
     }
+
+    if (curr->sj_on_expr_printed)
+    {
+      str->append(STRING_WITH_LEN(" on ("));
+      str->append(*curr->sj_on_expr_printed);
+      str->append(')');
+    }
+
   }
 }
 
@@ -29908,6 +29916,21 @@ void TABLE_LIST::print(THD *thd, table_map eliminated_tables, String *str,
         hint->print(thd, str);
       }
     }
+    else
+    {
+      if (query_type & QT_SHOW_EXECUTION_PLAN)
+      {
+        if (table->reginfo.join_tab->keyuse)
+        {
+          KEYUSE *k= table->reginfo.join_tab->keyuse;
+          uint key= k->key;
+
+          str->append( STRING_WITH_LEN(" USE INDEX ("));
+          str->append( table->key_info[key].name );
+          str->append( ')' );
+        }
+      }
+    }
   }
 }
 
@@ -30190,7 +30213,9 @@ void st_select_lex::print(THD *thd, String *str, enum_query_type query_type)
   }
 
   /* First add options */
-  if (options & SELECT_STRAIGHT_JOIN)
+  if (options & SELECT_STRAIGHT_JOIN ||
+      ((query_type & QT_SHOW_EXECUTION_PLAN) &&
+       select_number == 1))
     str->append(STRING_WITH_LEN("straight_join "));
   if (options & SELECT_HIGH_PRIORITY)
     str->append(STRING_WITH_LEN("high_priority "));

@@ -232,6 +232,24 @@ int Explain_query::print_explain(select_result_sink *output,
 }
 
 
+void Explain_query::print_explain_sql(select_result_sink *output,
+                                       bool is_analyze)
+{
+  LEX *lex= thd->lex;
+  char buff[10240];
+  String str(buff,(uint32) sizeof(buff), system_charset_info);
+  str.length(0);
+  lex->unit.print(&str, enum_query_type(QT_EXPLAIN_EXTENDED |
+                                        QT_SHOW_EXECUTION_PLAN));
+  CHARSET_INFO *cs= system_charset_info;
+  List<Item> item_list;
+  item_list.push_back(new (thd->mem_root)
+                      Item_string(thd, str.ptr(), str.length(), cs),
+                      thd->mem_root);
+  output->send_data(item_list);
+}
+
+
 void Explain_query::print_explain_json(select_result_sink *output,
                                        bool is_analyze)
 {

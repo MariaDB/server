@@ -1986,6 +1986,16 @@ static bool convert_subq_to_sj(JOIN *parent_join, Item_in_subselect *subq_pred)
   DBUG_EXECUTE("where",
                print_where(sj_nest->sj_on_expr,"SJ-EXPR", QT_ORDINARY););
 
+  if (thd->lex->explain_sql)
+  {
+    sj_nest->sj_on_expr_printed= new (thd->mem_root) String(1024);
+    sj_nest->sj_on_expr_printed->length(0);
+
+    sj_nest->sj_on_expr->print(sj_nest->sj_on_expr_printed,
+                                 enum_query_type(QT_EXPLAIN_EXTENDED |
+                                                 QT_SHOW_EXECUTION_PLAN));
+  }
+
   /* Inject sj_on_expr into the parent's WHERE or ON */
   if (emb_tbl_nest)
   {

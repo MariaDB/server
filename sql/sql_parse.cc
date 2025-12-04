@@ -6373,6 +6373,11 @@ static bool execute_sqlcom_select(THD *thd, TABLE_LIST *all_tables)
           lex->explain->print_explain_json(result, lex->analyze_stmt);
         }
         else
+        if (lex->explain_sql)
+        {
+          lex->explain->print_explain_sql(result, lex->analyze_stmt);
+        }
+        else
         {
           lex->explain->print_explain(result, thd->lex->describe,
                                       thd->lex->analyze_stmt);

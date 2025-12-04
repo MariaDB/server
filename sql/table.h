@@ -2365,6 +2365,7 @@ struct TABLE_LIST
   Table_function_json_table *table_function; /* If it's the table function. */
 
   Item          *sj_on_expr;
+  String        *sj_on_expr_printed;
   /*
     (Valid only for semi-join nests) Bitmap of tables that are within the
     semi-join (this is different from bitmap of all nest's children because
