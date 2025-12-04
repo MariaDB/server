@@ -176,7 +176,7 @@ public:
     MY_ASSERT_UNREACHABLE();
     return DECIMAL_MAX_PRECISION;
   }
-  bool Item_save_in_value(THD *thd, Item *item, st_value *value) const
+  void Item_save_in_value(THD *thd, Item *item, st_value *value) const
     override;
   bool Item_param_set_from_value(THD *thd,
                                  Item_param *param,

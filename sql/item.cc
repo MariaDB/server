@@ -4656,7 +4656,8 @@ bool Item_param::set_from_item(THD *thd, Item *item)
     }
   }
   st_value tmp;
-  if (!item->save_in_value(thd, &tmp))
+  item->save_in_value(thd, &tmp);
+  if (!tmp.is_null())
   {
     const Type_handler *h= item->type_handler();
     set_handler(h);
@@ -5272,7 +5273,8 @@ Item_param::set_value(THD *thd, sp_rcontext *ctx, Item **it)
     // Destruct the previous value
     expr_event_handler(thd, expr_event_t::DESTRUCT_DYNAMIC_PARAM);
   }
-  if (arg->save_in_value(thd, &tmp) ||
+  arg->save_in_value(thd, &tmp);
+  if (tmp.is_null() ||
       set_value(thd, arg, &tmp, arg->type_handler()))
   {
     set_null_string(arg->collation);
