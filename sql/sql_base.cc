@@ -7909,12 +7909,23 @@ bool setup_fields(THD *thd, Ref_ptr_array ref_pointer_array,
 
 int setup_returning_fields(THD* thd, TABLE_LIST* table_list)
 {
+  GRANT_INFO *saved_grant;
+  int res= 0;
+
   if (!thd->lex->has_returning())
     return 0;
-  return setup_wild(thd, table_list, thd->lex->returning()->item_list, NULL,
-                    thd->lex->returning(), true)
-      || setup_fields(thd, Ref_ptr_array(), thd->lex->returning()->item_list,
-                      MARK_COLUMNS_READ, NULL, NULL, 0, THD_WHERE::RETURNING);
+
+  saved_grant= &table_list->table->grant;
+  table_list->table->grant.want_privilege|= SELECT_ACL;
+
+  res= setup_wild(thd, table_list, thd->lex->returning()->item_list, NULL,
+                     thd->lex->returning(), true)
+       || setup_fields(thd, Ref_ptr_array(), thd->lex->returning()->item_list,
+                       MARK_COLUMNS_READ, NULL, NULL, 0, THD_WHERE::RETURNING);
+
+  table_list->table->grant= *saved_grant;
+
+  return res;
 }
 
 
