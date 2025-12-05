@@ -3009,7 +3009,7 @@ static Sys_var_ulong Sys_optimizer_selectivity_sampling_limit(
 static Sys_var_ulonglong Sys_optimizer_join_limit_pref_ratio(
        "optimizer_join_limit_pref_ratio",
        "For queries with JOIN and ORDER BY LIMIT : make the optimizer "
-       "consider a join order that allows to short-cut execution after "
+       "consider a join order that allows it to short-cut execution after "
        "producing #LIMIT matches if that promises N times speedup. "
        "(A conservative setting here would be is a high value, like 100 so "
        "the short-cutting plan is used if it promises a speedup of 100x or "

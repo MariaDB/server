@@ -6924,7 +6924,7 @@ bool JOIN::choose_subquery_plan(table_map join_tables)
         add("rows", inner_record_count_1).
         add("materialization_cost", materialize_strategy_cost).
         add("in_exist_cost", in_exists_strategy_cost).
-        add("choosen", strategy);
+        add("chosen", strategy);
     }
 
     DBUG_PRINT("info",
@@ -6962,7 +6962,7 @@ bool JOIN::choose_subquery_plan(table_map join_tables)
     {
       Json_writer_object trace_wrapper(thd);
       Json_writer_object trace_subquery(thd, "subquery_plan_revert");
-      trace_subquery.add("choosen", "in_to_exists");
+      trace_subquery.add("chosen", "in_to_exists");
     }
   }
 

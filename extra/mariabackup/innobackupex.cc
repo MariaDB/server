@@ -447,7 +447,7 @@ static struct my_option ibx_long_options[] =
 	{"startup-wait-timeout", OPT_LOCK_WAIT_TIMEOUT,
          "This option specifies time in seconds that mariadb-backup should wait for "
          "BACKUP STAGE START to complete. BACKUP STAGE START has to wait until all "
-         "currently running queries using explicite LOCK TABLES has ended. "
+         "currently running queries using explicit LOCK TABLES has ended. "
          "If there are still such queries when the timeout expires, mariadb-backup "
          "terminates with an error. Default is 0, in which case mariadb-backup waits "
          "indefinitely for BACKUP STAGE START to finish",

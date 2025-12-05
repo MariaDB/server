@@ -194,7 +194,7 @@ su_kill() {
 
 #
 # Read defaults file from 'basedir'.   If there is no defaults file there
-# check if it's in the old (depricated) place (datadir) and read it from there
+# check if it's in the old (deprecated) place (datadir) and read it from there
 #
 
 extra_args=""

@@ -2525,7 +2525,7 @@ COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	OPTIMIZER_JOIN_LIMIT_PREF_RATIO
 VARIABLE_SCOPE	SESSION
 VARIABLE_TYPE	BIGINT UNSIGNED
-VARIABLE_COMMENT	For queries with JOIN and ORDER BY LIMIT : make the optimizer consider a join order that allows to short-cut execution after producing #LIMIT matches if that promises N times speedup. (A conservative setting here would be is a high value, like 100 so the short-cutting plan is used if it promises a speedup of 100x or more). Short-cutting plans are inherently risky so the default is 0 which means do not consider this optimization
+VARIABLE_COMMENT	For queries with JOIN and ORDER BY LIMIT : make the optimizer consider a join order that allows it to short-cut execution after producing #LIMIT matches if that promises N times speedup. (A conservative setting here would be is a high value, like 100 so the short-cutting plan is used if it promises a speedup of 100x or more). Short-cutting plans are inherently risky so the default is 0 which means do not consider this optimization
 NUMERIC_MIN_VALUE	0
 NUMERIC_MAX_VALUE	4294967295
 NUMERIC_BLOCK_SIZE	1
