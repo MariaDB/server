@@ -6537,19 +6537,18 @@ static int do_show_slave_status(MYSQL *mysql_con,
   sprintf(set_gtid_pos, fmt_gtid_pos, gtid_comment_prefix, gtid_pos);
 
   print_comment(md_result_file, 0,
-                "\n--\n-- The following is the SQL position of the replication "
-                "taken from SHOW SLAVE STATUS at the time of backup.\n"
-                "-- Use this position when creating a clone of, or replacement "
-                "server, from where the backup was taken."
-                "\n-- This new server will connects to the same primary "
-                "server(s).\n--\n"
-                  // defer print similarly to do_show_master_status()
-                  "\n-- A corresponding to the below dump-slave "
-                  "CHANGE-MASTER settings to the slave gtid state is printed "
-                  "later in the file.\n");
+    "\n-- The following is the replication SQL position "
+      "taken from SHOW SLAVE STATUS at the time of backup.\n"
+    "-- Use this position when creating a clone or replacement "
+      "server from where the backup was taken."
+    "\n-- This new server will connects to the same primary server(s).\n--\n"
+    // defer print similarly to do_show_master_status()
+      "-- The replica GTID position corresponding to the below "
+        "CHANGE-MASTER settings is printed later in the file.\n"
+  );
   if (use_gtid)
     print_comment(md_result_file, 0,
-                  "\n-- Use only the MASTER_USE_GTID=slave_pos or "
+                  "-- Use only the MASTER_USE_GTID=slave_pos or "
                   "MASTER_LOG_FILE/MASTER_LOG_POS in the statements below."
                   "\n\n");
 
