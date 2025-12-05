@@ -200,12 +200,32 @@ uint my_8bit_collation_flags_from_data(CHARSET_INFO *cs);
 
 /* Macros for hashing characters */
 
-#define MY_HASH_ADD(A, B, value) \
+#define MY_HASH_ADD_MARIADB(A, B, value) \
   do { A^= (((A & 63)+B)*((value)))+ (A << 8); B+=3; } while(0)
 
-#define MY_HASH_ADD_16(A, B, value) \
-  do { MY_HASH_ADD(A, B, ((value) & 0xFF)) ; MY_HASH_ADD(A, B, ((value >>8 ))); } while(0) 
+static inline void MY_HASH_ADD(my_hasher_st *hasher, uchar value)
+{
+  if (hasher->m_hash_byte)
+    hasher->m_hash_byte(hasher, value);
+  else if (hasher->m_hash_str)
+    hasher->m_hash_str(hasher, &value, 1);
+  else
+    MY_HASH_ADD_MARIADB(hasher->m_nr1, hasher->m_nr2, value);
+}
 
+static inline void MY_HASH_ADD_STR(my_hasher_st *hasher, const uchar* key,
+                                   size_t len)
+{
+  const uchar *end= key + len;
+  if (hasher->m_hash_str)
+    hasher->m_hash_str(hasher, key, len);
+  else
+    for (; key < end; key++)
+      MY_HASH_ADD(hasher, (uint)*key);
+}
+
+#define MY_HASH_ADD_16(A, value)                                        \
+  do { MY_HASH_ADD(A, ((uchar)(value & 0xFF))) ; MY_HASH_ADD(A, ((uchar)(value >>8))); } while(0)
 
 #define my_wc_t ulong
 

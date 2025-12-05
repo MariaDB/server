@@ -710,12 +710,11 @@ my_strnxfrm_latin1_de(CHARSET_INFO *cs,
 }
 
 
-void my_hash_sort_latin1_de(CHARSET_INFO *cs __attribute__((unused)),
-			    const uchar *key, size_t len,
-			    ulong *nr1, ulong *nr2)
+void my_hash_sort_latin1_de(my_hasher_st *hasher,
+                            CHARSET_INFO *cs __attribute__((unused)),
+                            const uchar *key, size_t len)
 {
   const uchar *end;
-  register ulong m1= *nr1, m2= *nr2;
   DBUG_ASSERT(key); /* Avoid UBSAN nullptr-with-offset */
 
   /*
@@ -727,14 +726,12 @@ void my_hash_sort_latin1_de(CHARSET_INFO *cs __attribute__((unused)),
   for (; key < end ; key++)
   {
     uint X= (uint) combo1map[(uint) *key];
-    MY_HASH_ADD(m1, m2, X);
+    MY_HASH_ADD(hasher, X);
     if ((X= combo2map[*key]))
     {
-      MY_HASH_ADD(m1, m2, X);
+      MY_HASH_ADD(hasher, X);
     }
   }
-  *nr1= m1;
-  *nr2= m2;
 }
 
 

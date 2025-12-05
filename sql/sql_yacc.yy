@@ -5031,6 +5031,14 @@ opt_linear:
 opt_key_algo:
           /* empty */
           { Lex->part_info->key_algorithm= partition_info::KEY_ALGORITHM_NONE;}
+        | ALGORITHM_SYM '=' ident
+          {
+            if (unlikely(Lex->part_info->set_key_algorithm(&$3)))
+            {
+              thd->parse_error();
+              MYSQL_YYABORT;
+            }
+          }
         | ALGORITHM_SYM '=' real_ulong_num
           {
             switch ($3) {

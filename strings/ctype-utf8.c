@@ -526,29 +526,26 @@ static size_t my_caseup_utf8mb3(CHARSET_INFO *cs,
 }
 
 
-static void my_hash_sort_utf8mb3_nopad(CHARSET_INFO *cs, const uchar *s, size_t slen,
-                                       ulong *nr1, ulong *nr2)
+static void my_hash_sort_utf8mb3_nopad(my_hasher_st *hasher, CHARSET_INFO *cs,
+                                       const uchar *s, size_t slen)
 {
   my_wc_t wc;
   int res;
   const uchar *e= s+slen;
   MY_CASEFOLD_INFO *uni_plane= cs->casefold;
-  register ulong m1= *nr1, m2= *nr2;
   DBUG_ASSERT(s); /* Avoid UBSAN nullptr-with-offset */
 
   while ((s < e) && (res=my_utf8mb3_uni(cs,&wc, (uchar *)s, (uchar*)e))>0 )
   {
     my_tosort_unicode(uni_plane, &wc);
-    MY_HASH_ADD_16(m1, m2, wc);
+    MY_HASH_ADD_16(hasher, wc);
     s+= res;
   }
-  *nr1= m1;
-  *nr2= m2;
 }
 
 
-static void my_hash_sort_utf8mb3(CHARSET_INFO *cs, const uchar *s, size_t slen,
-                                 ulong *nr1, ulong *nr2)
+static void my_hash_sort_utf8mb3(my_hasher_st *hasher, CHARSET_INFO *cs,
+                                 const uchar *s, size_t slen)
 {
   /*
     Remove end space. We have to do this to be able to compare
@@ -556,39 +553,36 @@ static void my_hash_sort_utf8mb3(CHARSET_INFO *cs, const uchar *s, size_t slen,
   */
   const uchar *e= skip_trailing_space(s, slen);
   DBUG_ASSERT(s); /* Avoid UBSAN nullptr-with-offset */
-  my_hash_sort_utf8mb3_nopad(cs, s, e - s, nr1, nr2);
+  my_hash_sort_utf8mb3_nopad(hasher, cs, s, e - s);
 }
 
 
 static void
-my_hash_sort_utf8mb3_general1400_nopad_as_ci(CHARSET_INFO *cs,
-                                             const uchar *s, size_t slen,
-                                             ulong *nr1, ulong *nr2)
+my_hash_sort_utf8mb3_general1400_nopad_as_ci(my_hasher_st *hasher,
+                                             CHARSET_INFO *cs,
+                                             const uchar *s, size_t slen)
 {
   my_wc_t wc;
   int res;
   const uchar *e= s + slen;
   MY_CASEFOLD_INFO *uni_plane= cs->casefold;
-  register ulong m1= *nr1, m2= *nr2;
 
   while ((res= my_utf8mb3_uni(cs, &wc, (uchar*) s, (uchar*) e)) > 0)
   {
     my_toupper_unicode(uni_plane, &wc);
-    MY_HASH_ADD_16(m1, m2, (uint) (wc & 0xFFFF));
+    MY_HASH_ADD_16(hasher, (uint) (wc & 0xFFFF));
     s+= res;
   }
-  *nr1= m1;
-  *nr2= m2;
 }
 
 
 static void
-my_hash_sort_utf8mb3_general1400_as_ci(CHARSET_INFO *cs,
-                                       const uchar *s, size_t slen,
-                                       ulong *nr1, ulong *nr2)
+my_hash_sort_utf8mb3_general1400_as_ci(my_hasher_st *hasher,
+                                       CHARSET_INFO *cs,
+                                       const uchar *s, size_t slen)
 {
   const uchar *e= skip_trailing_space(s, slen);
-  my_hash_sort_utf8mb3_general1400_nopad_as_ci(cs, s, e - s, nr1, nr2);
+  my_hash_sort_utf8mb3_general1400_nopad_as_ci(hasher, cs, s, e - s);
 }
 
 
@@ -2897,20 +2891,19 @@ my_caseup_utf8mb4(CHARSET_INFO *cs, const char *src, size_t srclen,
 
 
 static void
-my_hash_sort_utf8mb4_nopad(CHARSET_INFO *cs, const uchar *s, size_t slen,
-                     ulong *nr1, ulong *nr2)
+my_hash_sort_utf8mb4_nopad(my_hasher_st *hasher, CHARSET_INFO *cs,
+                           const uchar *s, size_t slen)
 {
   my_wc_t wc;
   int res;
   const uchar *e= s + slen;
   MY_CASEFOLD_INFO *uni_plane= cs->casefold;
-  register ulong m1= *nr1, m2= *nr2;
   DBUG_ASSERT(s); /* Avoid UBSAN nullptr-with-offset */
 
   while ((res= my_mb_wc_utf8mb4(cs, &wc, (uchar*) s, (uchar*) e)) > 0)
   {
     my_tosort_unicode(uni_plane, &wc);
-    MY_HASH_ADD_16(m1, m2, (uint) (wc & 0xFFFF));
+    MY_HASH_ADD_16(hasher, (uint) (wc & 0xFFFF));
     if (wc > 0xFFFF)
     {
        /*
@@ -2920,18 +2913,16 @@ my_hash_sort_utf8mb4_nopad(CHARSET_INFO *cs, const uchar *s, size_t slen,
         This is useful to keep order of records in
         test results, e.g. for "SHOW GRANTS".
       */
-      MY_HASH_ADD(m1, m2, (uint) ((wc >> 16) & 0xFF));
+      MY_HASH_ADD(hasher, (uint) ((wc >> 16) & 0xFF));
     }
     s+= res;
   }
-  *nr1= m1;
-  *nr2= m2;
 }
 
 
 static void
-my_hash_sort_utf8mb4(CHARSET_INFO *cs, const uchar *s, size_t slen,
-                     ulong *nr1, ulong *nr2)
+my_hash_sort_utf8mb4(my_hasher_st *hasher, CHARSET_INFO *cs,
+                     const uchar *s, size_t slen)
 {
   /*
     Remove end space. We do this to be able to compare
@@ -2939,7 +2930,7 @@ my_hash_sort_utf8mb4(CHARSET_INFO *cs, const uchar *s, size_t slen,
   */
   const uchar *e= skip_trailing_space(s, slen);
   DBUG_ASSERT(s); /* Avoid UBSAN nullptr-with-offset */
-  my_hash_sort_utf8mb4_nopad(cs, s, e - s, nr1, nr2);
+  my_hash_sort_utf8mb4_nopad(hasher, cs, s, e - s);
 }
 
 
@@ -3234,20 +3225,19 @@ my_strnxfrmlen_utf8mb4_general1400_as_ci(CHARSET_INFO *cs, size_t len)
 
 
 static void
-my_hash_sort_utf8mb4_general1400_nopad_as_ci(CHARSET_INFO *cs,
-                                             const uchar *s, size_t slen,
-                                             ulong *nr1, ulong *nr2)
+my_hash_sort_utf8mb4_general1400_nopad_as_ci(my_hasher_st *hasher,
+                                             CHARSET_INFO *cs,
+                                             const uchar *s, size_t slen)
 {
   my_wc_t wc;
   int res;
   const uchar *e= s + slen;
   MY_CASEFOLD_INFO *uni_plane= cs->casefold;
-  register ulong m1= *nr1, m2= *nr2;
 
   while ((res= my_mb_wc_utf8mb4(cs, &wc, (uchar*) s, (uchar*) e)) > 0)
   {
     my_toupper_unicode(uni_plane, &wc);
-    MY_HASH_ADD_16(m1, m2, (uint) (wc & 0xFFFF));
+    MY_HASH_ADD_16(hasher, (uint) (wc & 0xFFFF));
     if (wc > 0xFFFF)
     {
        /*
@@ -3257,26 +3247,24 @@ my_hash_sort_utf8mb4_general1400_nopad_as_ci(CHARSET_INFO *cs,
         This is useful to keep order of records in
         test results, e.g. for "SHOW GRANTS".
       */
-      MY_HASH_ADD(m1, m2, (uint) ((wc >> 16) & 0xFF));
+      MY_HASH_ADD(hasher, (uint) ((wc >> 16) & 0xFF));
     }
     s+= res;
   }
-  *nr1= m1;
-  *nr2= m2;
 }
 
 
 static void
-my_hash_sort_utf8mb4_general1400_as_ci(CHARSET_INFO *cs,
-                                       const uchar *s, size_t slen,
-                                       ulong *nr1, ulong *nr2)
+my_hash_sort_utf8mb4_general1400_as_ci(my_hasher_st *hasher,
+                                       CHARSET_INFO *cs,
+                                       const uchar *s, size_t slen)
 {
   /*
     Remove end space. We do this to be able to compare
     'A ' and 'A' as identical
   */
   const uchar *e= skip_trailing_space(s, slen);
-  my_hash_sort_utf8mb4_general1400_nopad_as_ci(cs, s, e - s, nr1, nr2);
+  my_hash_sort_utf8mb4_general1400_nopad_as_ci(hasher, cs, s, e - s);
 }
 
 
