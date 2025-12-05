@@ -27,7 +27,7 @@ class Dbms_sql
 public:
   Dbms_sql()
    :cursor_list(PSI_INSTRUMENT_MEM), last_cursor(-1),
-    in_dbmssql_execute_context(false)
+    in_dbmssql_execute_context(false), dbmssql_execute_lex(nullptr)
   { }
 
   int cursor_idx(int cursor_id)
@@ -82,6 +82,7 @@ public:
   int last_cursor;
   String dbms_sql_code_str;
   bool in_dbmssql_execute_context;
+  LEX* dbmssql_execute_lex;
 };
 
 #endif // INTEGER_CURSOR_INCLUDED

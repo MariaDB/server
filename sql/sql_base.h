@@ -447,6 +447,22 @@ public:
 
 
 
+class DBMS_SQL_prelocking_strategy : public DML_prelocking_strategy
+{
+public:
+  bool handle_routine(THD *thd, Query_tables_list *prelocking_ctx,
+                      Sroutine_hash_entry *rt, sp_head *sp,
+                      bool *need_prelocking) override {
+    // Don't add tables to prelocking list for dynamic SQL
+    return FALSE;
+  }
+  bool handle_table(THD *thd, Query_tables_list *prelocking_ctx,
+                    TABLE_LIST *table_list, bool *need_prelocking) override {
+    return FALSE;
+  }
+};
+
+
 class Multiupdate_prelocking_strategy : public DML_prelocking_strategy
 {
   bool done;
@@ -525,7 +541,7 @@ inline bool open_and_lock_tables(THD *thd,
                                  bool derived, uint flags)
 {
   DML_prelocking_strategy prelocking_strategy;
-
+  
   return open_and_lock_tables(thd, options, tables, derived, flags,
                               &prelocking_strategy);
 }
@@ -533,6 +549,11 @@ inline bool open_and_lock_tables(THD *thd, TABLE_LIST *tables,
                                   bool derived, uint flags)
 {
   DML_prelocking_strategy prelocking_strategy;
+  char *dbmssql_query_substr= strcasestr(thd->query(), "dbms_sql");
+  if (dbmssql_query_substr && strcasestr(dbmssql_query_substr, "execute"))
+    DBMS_SQL_prelocking_strategy prelocking_strategy;
+  else
+    DML_prelocking_strategy prelocking_strategy;
 
   return open_and_lock_tables(thd, thd->lex->create_info,
                               tables, derived, flags,
