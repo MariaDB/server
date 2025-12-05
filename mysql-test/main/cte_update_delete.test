@@ -511,6 +511,28 @@ eval $empty_t3;
 eval $fill_t3;
 drop prepare s;
 
+--echo #
+--echo # MDEV-38258 No error thrown when CTE columns updated in updates set clause
+--echo #
+
+--error ER_NON_UPDATABLE_TABLE
+with cte as (select * from t1 where c < 1)
+  update cte set cte.a =(select a from cte);
+
+--error ER_NON_UPDATABLE_TABLE
+with cte as (select a from t1)
+  update cte set cte.a=(select a from cte limit 1);
+
+--error ER_NON_UPDATABLE_TABLE
+with cte as (select a from t1),
+  cte2 as (select a from t3)
+  update t2, cte set cte.a=(select a from cte limit 1);
+
+--error ER_NON_UPDATABLE_TABLE
+with cte as (select a from t1),
+  cte2 as (select a from t3)
+  update cte
+   set cte.a=(select a from cte where cte.a in (select a from cte2) limit 1);
 
 drop table t1, t2, t3, t4, t5;
 
