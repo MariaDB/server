@@ -1325,5 +1325,23 @@ insert into t3 values (1, 1, 'iron'),(2,2,'wood'),(0,NULL, 'gold'),
 (3, 3, 'silver'), (4, 4, 'lead'), (5, 5, 'tin'), (6, 6, 'platinum'),
 (7, 7, 'aluminium');
 drop prepare s;
+#
+# MDEV-38258 No error thrown when CTE columns updated in updates set clause
+#
+with cte as (select * from t1 where c < 1)
+update cte set cte.a =(select a from cte);
+ERROR HY000: The target table cte of the UPDATE is not updatable
+with cte as (select a from t1)
+update cte set cte.a=(select a from cte limit 1);
+ERROR HY000: The target table cte of the UPDATE is not updatable
+with cte as (select a from t1),
+cte2 as (select a from t3)
+update t2, cte set cte.a=(select a from cte limit 1);
+ERROR HY000: The target table cte of the UPDATE is not updatable
+with cte as (select a from t1),
+cte2 as (select a from t3)
+update cte
+set cte.a=(select a from cte where cte.a in (select a from cte2) limit 1);
+ERROR HY000: The target table cte of the UPDATE is not updatable
 drop table t1, t2, t3, t4, t5;
 # End of 12.2 tests
