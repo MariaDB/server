@@ -1,3 +1,4 @@
+SET GLOBAL innodb_log_archive=OFF;
 SET GLOBAL innodb_log_file_size=4194304;
 SHOW VARIABLES LIKE 'innodb_log_file_size';
 Variable_name	Value
@@ -11,7 +12,7 @@ a INT PRIMARY KEY AUTO_INCREMENT,
 b CHAR(255) NOT NULL)
 ENGINE=INNODB;
 INSERT INTO t SELECT NULL, REPEAT('a', 255) FROM seq_1_to_20000;
-# restart: --innodb-log-file-size=4194304
+# restart: --innodb-log-file-size=4194304 --skip-innodb-log-archive
 SELECT COUNT(*) FROM t;
 COUNT(*)
 20000
@@ -28,8 +29,15 @@ Got one of the listed errors
 connect con1,localhost,root;
 SET GLOBAL innodb_log_file_size=7340032;
 connection default;
+SET GLOBAL innodb_log_archive=ON;
+SET GLOBAL innodb_log_archive=OFF;
 KILL QUERY @id;
 connection con1;
+SET GLOBAL innodb_log_archive=ON, innodb_log_file_size=10485760;
+SELECT @@GLOBAL.innodb_log_file_size!=10485760;
+@@GLOBAL.innodb_log_file_size!=10485760
+1
+SET GLOBAL innodb_log_archive=OFF;
 connection default;
 SET GLOBAL innodb_log_file_size=5242880;
 connection con1;
@@ -46,6 +54,8 @@ connection con1;
 disconnect con1;
 connection default;
 # restart
+SET @save_archive=@@GLOBAL.innodb_log_archive;
+SET GLOBAL innodb_log_archive=OFF;
 SELECT * FROM t WHERE a<10;
 a	b
 1	
@@ -73,4 +83,5 @@ SHOW VARIABLES LIKE 'innodb_log_file_size';
 Variable_name	Value
 innodb_log_file_size	5242880
 FOUND 1 /InnoDB: Resized log to 6\.000MiB/ in mysqld.1.err
+SET GLOBAL innodb_log_archive=@save_archive;
 DROP TABLE t;

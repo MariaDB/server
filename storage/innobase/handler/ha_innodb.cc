@@ -950,6 +950,7 @@ static SHOW_VAR innodb_status_variables[]= {
   {"lsn_flushed", &export_vars.innodb_lsn_flushed, SHOW_ULONGLONG},
   {"lsn_last_checkpoint", &export_vars.innodb_lsn_last_checkpoint,
    SHOW_ULONGLONG},
+  {"lsn_archived", &log_sys.archived_lsn, SHOW_ULONGLONG},
   {"master_thread_active_loops", &srv_main_active_loops, SHOW_SIZE_T},
   {"master_thread_idle_loops", &srv_main_idle_loops, SHOW_SIZE_T},
   {"max_trx_id", &export_vars.innodb_max_trx_id, SHOW_ULONGLONG},
@@ -3694,6 +3695,9 @@ compression_algorithm_is_not_loaded(ulong compression_algorithm, myf flags)
   return 1;
 }
 
+/** Initial value of innodb_lsn_archived */
+static uint64_t innodb_log_archive_start;
+
 /** Initialize, validate and normalize the InnoDB startup parameters.
 @return failure code
 @retval 0 on success
@@ -3981,6 +3985,8 @@ static int innodb_init_params()
     log_sys.log_buffered= true;
 skip_buffering_tweak:
 #endif
+
+  log_sys.archived_lsn= innodb_log_archive_start;
 
   if (!tpool::supports_native_aio())
     srv_use_native_aio= FALSE;
@@ -19441,9 +19447,69 @@ static MYSQL_SYSVAR_BOOL(data_file_write_through, fil_system.write_through,
   "Whether each write to data files writes through",
   nullptr, innodb_data_file_write_through_update, FALSE);
 
+inline bool log_t::set_archive(my_bool archive) noexcept
+{
+  bool fail{false};
+  for (;;)
+  {
+    latch.wr_lock(SRW_LOCK_CALL);
+    fail= resize_in_progress();
+    if (fail)
+      break;
+#ifdef HAVE_PMEM
+    if (is_backoff() && is_mmap())
+    {
+      /* Prevent a race condition with append_prepare() */
+      latch.wr_unlock();
+      continue;
+    }
+#endif
+    this->archive= archive;
+    if (archive)
+    {
+      archived_lsn= next_checkpoint_lsn;
+      archive_set_size();
+      /* TODO: rename ib_logfile0 to archived file; update header */
+    }
+    mtr_t::finisher_update();
+    break;
+  }
+
+  latch.wr_unlock();
+  return fail;
+}
+
+static void innodb_log_archive_update(THD *, st_mysql_sys_var*,
+                                      void *, const void *save) noexcept
+{
+  if (log_sys.set_archive(*static_cast<const my_bool*>(save)))
+    my_printf_error(ER_WRONG_USAGE,
+                    "SET GLOBAL innodb_log_file_size is in progress", MYF(0));
+}
+
+static MYSQL_SYSVAR_BOOL(log_archive, log_sys.archive,
+  PLUGIN_VAR_OPCMDARG,
+  "Whether log archiving is desired",
+  nullptr, innodb_log_archive_update, FALSE);
+
+static MYSQL_SYSVAR_UINT64_T(log_archive_start, innodb_log_archive_start,
+  PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
+  "initial value of innodb_lsn_archived; 0=auto-detect",
+  nullptr, nullptr, 0, 0, std::numeric_limits<uint64_t>::max(), 0);
+
+static MYSQL_SYSVAR_UINT64_T(log_recovery_start, recv_sys.recovery_start,
+  PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
+  "checkpoint LSN to start recovery from (0=automatic)",
+  nullptr, nullptr, 0, 0, std::numeric_limits<uint64_t>::max(), 0);
+
+static MYSQL_SYSVAR_UINT64_T(log_recovery_target, recv_sys.rpo,
+  PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
+  "recovery point objective (end LSN; 0=unlimited)",
+  nullptr, nullptr, 0, 0, std::numeric_limits<uint64_t>::max(), 0);
+
 static MYSQL_SYSVAR_ULONGLONG(log_file_size, srv_log_file_size,
   PLUGIN_VAR_RQCMDARG,
-  "Redo log size in bytes.",
+  "Desired size of ib_logfile0 in bytes",
   nullptr, innodb_log_file_size_update,
   96 << 20, 4 << 20, std::numeric_limits<ulonglong>::max(), 4096);
 
@@ -19875,6 +19941,10 @@ static struct st_mysql_sys_var* innobase_system_variables[]= {
   MYSQL_SYSVAR(log_file_write_through),
   MYSQL_SYSVAR(data_file_buffering),
   MYSQL_SYSVAR(data_file_write_through),
+  MYSQL_SYSVAR(log_archive),
+  MYSQL_SYSVAR(log_archive_start),
+  MYSQL_SYSVAR(log_recovery_start),
+  MYSQL_SYSVAR(log_recovery_target),
   MYSQL_SYSVAR(log_file_size),
   MYSQL_SYSVAR(log_write_ahead_size),
   MYSQL_SYSVAR(log_spin_wait_delay),

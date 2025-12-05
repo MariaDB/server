@@ -436,6 +436,8 @@ void log_t::create(lsn_t lsn) noexcept
   flushed_to_disk_lsn.store(lsn, std::memory_order_relaxed);
   first_lsn= lsn;
   write_lsn= lsn;
+  if (!archived_lsn)
+    archived_lsn= lsn;
 
   last_checkpoint_lsn= 0;
 
@@ -617,6 +619,14 @@ log_t::resize_start_status log_t::resize_start(os_offset_t size, void *thd)
     status= RESIZE_NO_CHANGE;
   else if (resize_in_progress())
     status= RESIZE_IN_PROGRESS;
+  else if (archive)
+  {
+    status= RESIZE_NO_CHANGE;
+    /* When the current log becomes full and a new archivable log file
+    is being created, it will be of this size. At that point we will assign
+    file_size= resize_target, resize_target= 0; */
+    resize_target= size;
+  }
   else
   {
     lsn_t start_lsn;
@@ -758,10 +768,13 @@ void log_t::resize_abort(void *thd) noexcept
 }
 
 /** Write an aligned buffer to ib_logfile0.
-@param buf    buffer to be written
-@param length length of data to be written
-@param offset log file offset */
-static void log_write_buf(const byte *buf, size_t length, lsn_t offset)
+@param max_length the maximum length that can be written to the file
+@param buf        buffer to be written
+@param length     length of data to be written
+@param offset     log file offset */
+static void log_write_buf(lsn_t max_length,
+                          const byte *buf, size_t length, lsn_t offset)
+  noexcept
 {
   ut_ad(write_lock.is_owner());
   ut_ad(!recv_no_log_write);
@@ -770,19 +783,90 @@ static void log_write_buf(const byte *buf, size_t length, lsn_t offset)
   ut_ad(!(length & block_size_1));
   ut_ad(!(size_t(buf) & block_size_1));
   ut_ad(length);
+  ut_ad(max_length == log_sys.file_size - offset);
 
-  const lsn_t maximum_write_length{log_sys.file_size - offset};
-  ut_ad(maximum_write_length <= log_sys.file_size - log_sys.START_OFFSET);
-
-  if (UNIV_UNLIKELY(length > maximum_write_length))
+  if (UNIV_UNLIKELY(length > max_length))
   {
-    log_sys.log.write(offset, {buf, size_t(maximum_write_length)});
-    length-= size_t(maximum_write_length);
-    buf+= size_t(maximum_write_length);
+    ut_ad(!log_sys.archive);
+    log_sys.log.write(offset, {buf, size_t(max_length)});
+    length-= size_t(max_length);
+    buf+= size_t(max_length);
     ut_ad(log_sys.START_OFFSET + length < offset);
     offset= log_sys.START_OFFSET;
   }
   log_sys.log.write(offset, {buf, length});
+}
+
+ATTRIBUTE_COLD std::string log_t::get_archive_path(lsn_t lsn) const
+{
+  size_t size= strlen(srv_log_group_home_dir) +
+    sizeof "/ib_0000000000000000.log";
+  bool trim= false;
+  switch (srv_log_group_home_dir[strlen(srv_log_group_home_dir) - 1]) {
+#ifdef _WIN32
+  case '\\':
+#endif
+  case '/':
+    trim= true;
+    size--;
+  }
+
+  char stack[FN_REFLEN], *heap= nullptr;
+  char *buf= size < sizeof stack
+    ? stack : (heap= static_cast<char*>(malloc(size)));
+  const int d=
+    snprintf(buf, size,
+             trim ? "%sib_" UINT64PFx ".log" : "%s/ib_" UINT64PFx ".log",
+             srv_log_group_home_dir, lsn);
+  ut_a(d + 1 == int(size));
+  std::string path{buf, size};
+  free(heap);
+  return path;
+}
+
+ATTRIBUTE_COLD std::string log_t::get_next_archive_path() const
+{ return get_archive_path(first_lsn + capacity()); }
+
+ATTRIBUTE_COLD void log_t::archive_new_write(const byte *buf, size_t length,
+                                             lsn_t offset) noexcept
+{
+  ut_ad(latch_have_wr());
+  ut_ad(write_lock.is_owner());
+  ut_ad(archive);
+  ut_ad(length >= file_size - offset);
+  ut_ad(!resize_log.is_opened());
+  ut_ad(!resize_buf);
+  ut_ad(!resize_in_progress());
+  ut_ad(resize_target >= 4U << 20);
+  ut_ad(is_latest());
+
+  const size_t first{size_t(file_size - offset)};
+  log.write(offset, {buf, first});
+  length-= first;
+  buf+= first;
+
+  std::string path{get_next_archive_path()};
+  bool success;
+  pfs_os_file_t file=
+    os_file_create_func(path.c_str(), OS_FILE_CREATE, OS_LOG_FILE,
+                        false, &success);
+  ut_ad(success == (file != OS_FILE_CLOSED));
+  if (file != OS_FILE_CLOSED)
+  {
+    if (os_file_set_size(path.c_str(), file, resize_target))
+    {
+      log_sys.log.close();
+      log_sys.log.m_file= file;
+      if (length)
+        log_sys.log.write(START_OFFSET, {buf, length});
+      return;
+    }
+    os_file_close(file);
+    IF_WIN(DeleteFile(path.c_str()), unlink(path.c_str()));
+  }
+  sql_print_error("[FATAL] InnoDB: Failed to create %s of %" PRIu64
+                  " bytes", path.c_str(), resize_target);
+  abort();
 }
 
 /** Invoke commit_checkpoint_notify_ha() to notify that outstanding
@@ -911,6 +995,106 @@ static size_t log_pad(lsn_t lsn, size_t pad, byte *begin, byte *extra)
 #endif
 
 #ifdef HAVE_PMEM
+ATTRIBUTE_COLD
+void log_t::archived_mmap_switch_prepare(bool late, bool ex) noexcept
+{
+  ut_ad(archive);
+  ut_ad(is_mmap());
+  ut_ad(!resize_log.is_opened());
+  ut_ad(!resize_buf);
+  ut_ad(!resize_in_progress());
+  ut_ad(resize_target >= 4U << 20);
+  ut_ad(is_latest());
+
+  if (UNIV_LIKELY(!ex))
+  {
+    latch.rd_unlock();
+    if (!late)
+    {
+      /* Wait for all threads to back off. */
+      latch.wr_lock(SRW_LOCK_CALL);
+      goto got_ex;
+    }
+
+    const auto delay= my_cpu_relax_multiplier / 4 * srv_spin_wait_delay;
+    const auto rounds= srv_n_spin_wait_rounds;
+
+    for (;;)
+    {
+      HMT_low();
+      for (auto r= rounds + 1; r--; )
+      {
+        if (write_lsn_offset.load(std::memory_order_relaxed) & WRITE_BACKOFF)
+        {
+          for (auto d= delay; d--; )
+            MY_RELAX_CPU();
+        }
+        else
+        {
+          HMT_medium();
+          goto done;
+        }
+      }
+      HMT_medium();
+      std::this_thread::sleep_for(std::chrono::microseconds(100));
+    }
+  }
+  else
+  {
+  got_ex:
+    const uint64_t l= write_lsn_offset.load(std::memory_order_relaxed);
+    const lsn_t lsn= base_lsn.load(std::memory_order_relaxed) +
+      (l & (WRITE_BACKOFF - 1));
+    waits++;
+    ut_ad(archive);
+    ut_ad(!resize_log.is_opened());
+    ut_ad(!resize_buf);
+    ut_ad(!resize_in_progress());
+    ut_ad(resize_target >= 4U << 20);
+    ut_ad(is_latest());
+
+    do
+    {
+      std::string path{get_next_archive_path()};
+      bool success;
+      pfs_os_file_t file=
+        os_file_create_func(path.c_str(), OS_FILE_CREATE, OS_LOG_FILE,
+                            false, &success);
+      ut_ad(success == (file != OS_FILE_CLOSED));
+      if (file != OS_FILE_CLOSED)
+      {
+        if (os_file_set_size(path.c_str(), file, resize_target))
+        {
+          bool is_pmem{false};
+          resize_buf= static_cast<byte*>(::log_mmap(file, is_pmem,
+                                                    resize_target));
+          os_file_close(file);
+          if (resize_buf != MAP_FAILED)
+            continue;
+          resize_buf= nullptr;
+        }
+      }
+
+      IF_WIN(DeleteFile(path.c_str()), unlink(path.c_str()));
+      sql_print_error("[FATAL] InnoDB: Failed to create and map %s of %" PRIu64
+                      " bytes", path.c_str(), resize_target);
+      abort();
+    }
+    while (false);
+
+    ut_ad(lsn - get_flushed_lsn(std::memory_order_relaxed) < capacity());
+    persist(lsn);
+    /* Above we cleared the WRITE_BACKOFF flag,
+    which our caller will recheck. */
+    if (ex)
+      return;
+    latch.wr_unlock();
+  }
+
+done:
+  latch.rd_lock(SRW_LOCK_CALL);
+}
+
 void log_t::persist(lsn_t lsn) noexcept
 {
   ut_ad(!is_opened());
@@ -1092,18 +1276,31 @@ lsn_t log_t::write_buf() noexcept
 
     ut_ad(base + (write_lsn_offset & (WRITE_TO_BUF - 1)) == lsn);
     write_to_log++;
+    DBUG_PRINT("ib_log", ("write " LSN_PF " to " LSN_PF " at " LSN_PF,
+                          write_lsn, lsn, offset));
+
+    const lsn_t max_length{file_size - offset};
+    ut_ad(max_length <= capacity());
+    if (UNIV_UNLIKELY(length >= max_length))
+    {
+      if (resizing != RESIZING && archive)
+      {
+        archive_new_write(write_buf, length, offset);
+        if (resizing != RETAIN_LATCH)
+          latch.wr_unlock();
+        goto written;
+      }
+    }
 
     if (resizing != RETAIN_LATCH)
       latch.wr_unlock();
 
-    DBUG_PRINT("ib_log", ("write " LSN_PF " to " LSN_PF " at " LSN_PF,
-                          write_lsn, lsn, offset));
-
     /* Do the write to the log file */
-    log_write_buf(write_buf, length, offset);
+    log_write_buf(max_length, write_buf, length, offset);
 
     if (UNIV_LIKELY_NULL(re_write_buf))
       resize_write_buf(re_write_buf, length);
+  written:
     write_lsn= lsn;
 
     if (UNIV_UNLIKELY(srv_shutdown_state > SRV_SHUTDOWN_INITIATED))

@@ -247,15 +247,20 @@ public:
   lsn_t (*writer)() noexcept;
   /** next checkpoint LSN (protected by latch.wr_lock()) */
   lsn_t next_checkpoint_lsn;
+  /** start of archived log, or 0 (proteted by latch.wr_lock()) */
+  lsn_t archived_lsn;
 
   /** Log file */
   log_file_t log;
 private:
   /** Log file being constructed during resizing; protected by latch */
   log_file_t resize_log;
-  /** size of resize_log; protected by latch */
+  /** size of resize_log, or the requested innodb_log_file_size
+  of the next file created if archive==TRUE; protected by latch */
   lsn_t resize_target;
-  /** Buffer for writing to resize_log; @see buf */
+  /** Buffer for writing to resize_log; @see buf
+  Also a spare buffer between archived_mmap_switch_prepare()
+  and archived_mmap_switch_complete() */
   byte *resize_buf;
   /** Buffer for writing to resize_log; @see flush_buf */
   byte *resize_flush_buf;
@@ -263,13 +268,15 @@ private:
   /** log sequence number when log resizing was initiated;
   0 if the log is not being resized, 1 if resize_start() is in progress */
   std::atomic<lsn_t> resize_lsn;
-  /** the log sequence number at the start of the log file */
+  /** the log sequence number at the start of the current log file */
   lsn_t first_lsn;
 public:
   /** current innodb_log_write_ahead_size */
   uint write_size;
   /** format of the redo log: e.g., FORMAT_10_8 */
   uint32_t format;
+  /** the current value of innodb_log_archive; protected by latch.wr_lock() */
+  my_bool archive;
   /** whether the memory-mapped interface is enabled for the log */
   my_bool log_mmap;
   /** the default value of log_mmap */
@@ -362,14 +369,32 @@ public:
   { return thd == resize_initiator; }
 
   /** Replicate a write to the log.
+  @tparam mmap whether the memory-mapped interface is enabled
   @param lsn  start LSN
   @param end  end of the mini-transaction
   @param len  length of the mini-transaction
   @param seq  offset of the sequence bit from the end */
+  template<bool mmap>
   inline void resize_write(lsn_t lsn, const byte *end,
-                           size_t len, size_t seq) noexcept;
+                           size_t len, size_t seq) noexcept
+  {
+    if (UNIV_LIKELY_NULL(resize_buf))
+      resize_write_low<mmap>(lsn, end, len, seq);
+  }
+
+  /** SET GLOBAL innodb_log_archive */
+  inline bool set_archive(my_bool archive) noexcept;
 
 private:
+  /** Replicate a write to the log.
+  @tparam mmap whether the memory-mapped interface is enabled
+  @param lsn  start LSN
+  @param end  end of the mini-transaction
+  @param len  length of the mini-transaction
+  @param seq  offset of the sequence bit from the end */
+  template<bool mmap>
+  ATTRIBUTE_COLD void resize_write_low(lsn_t lsn, const byte *end,
+                                       size_t len, size_t seq) noexcept;
   /** Write resize_buf to resize_log.
   @param b       resize_buf or resize_flush_buf
   @param length  the used length of b */
@@ -379,13 +404,6 @@ public:
   /** Rename a log file after resizing.
   @return whether an error occurred */
   static bool resize_rename() noexcept;
-
-  /** @return pointer for writing to resize_buf
-  @retval nullptr if no is_mmap() based resizing is active */
-  inline byte *resize_buf_begin(lsn_t lsn) const noexcept;
-  /** @return end of resize_buf */
-  inline const byte *resize_buf_end() const noexcept
-  { return resize_buf + resize_target; }
 
   /** Initialise the redo log subsystem. */
   void create() noexcept;
@@ -434,6 +452,13 @@ public:
       (write_lsn_offset & (WRITE_BACKOFF - 1));
   }
 
+  /** @return whether a back-off in a log write is in progress */
+  bool is_backoff() const noexcept
+  {
+    ut_ad(latch_have_wr());
+    return write_lsn_offset & WRITE_BACKOFF;
+  }
+
   lsn_t get_flushed_lsn(std::memory_order order= std::memory_order_acquire)
     const noexcept
   { return flushed_to_disk_lsn.load(order); }
@@ -455,7 +480,34 @@ public:
   /** Persist the log.
   @param lsn            desired new value of flushed_to_disk_lsn */
   void persist(lsn_t lsn) noexcept;
+  /** @return the overflow buffer when ARCHIVED_MMAP is wrapping around */
+  byte *get_archived_mmap_switch() const noexcept
+  {
+    ut_ad(archived_mmap_switch());
+    return resize_buf + START_OFFSET;
+  }
 #endif
+  /** @return whether archived_mmap_switch_complete() needs to be called */
+  bool archived_mmap_switch() const noexcept
+  {
+    ut_ad(latch_have_any());
+    return UNIV_UNLIKELY(archive && resize_buf);
+  }
+  /** Create a new log file when the current one will fill up.
+  @param buf     log records to append
+  @param length  size of the log records, in bytes
+  @param offset  log file offset */
+  ATTRIBUTE_COLD void archive_new_write(const byte *buf, size_t length,
+                                        lsn_t offset) noexcept;
+
+  /** Ensure that innodb_log_archive=ON will default to the current
+  innodb_log_file_size if no size has been specified. */
+  void archive_set_size() noexcept
+  {
+    ut_ad(!resize_in_progress());
+    if (!resize_target)
+      resize_target= file_size;
+  }
 
   bool check_for_checkpoint() const
   {
@@ -489,13 +541,42 @@ private:
   @param late   whether the WRITE_BACKOFF flag had already been set
   @param ex     whether log_sys.latch is exclusively locked */
   ATTRIBUTE_COLD void append_prepare_wait(bool late, bool ex) noexcept;
+#ifdef HAVE_PMEM
+  /** Wait in append_prepare<ARCHIVED_MMAP>() for buffer to become available
+  @param late   whether the WRITE_BACKOFF flag had already been set
+  @param ex     whether log_sys.latch is exclusively locked */
+  ATTRIBUTE_COLD void archived_mmap_switch_prepare(bool late, bool ex)
+    noexcept;
+#endif
 public:
+  /** Attempt to finish archived_mmap_switch_prepare().
+  @return the current LSN in the new file
+  @retval 0 if no switch took place */
+  ATTRIBUTE_COLD lsn_t archived_mmap_switch_complete() noexcept;
+
+  /** How to write log */
+  enum write {
+    /** normal writing !log_sys.is_mmap() */
+    WRITE_NORMAL,
+    /** circular memory-mapped writing when log_sys.is_mmap() */
+    CIRCULAR_MMAP,
+    /** memory-mapped log for log_sys.archive */
+    ARCHIVED_MMAP
+  };
+
+  /** Generate an archive log file name.
+  @param lsn   first LSN stored in the file
+  @return archive log file name */
+  ATTRIBUTE_COLD std::string get_archive_path(lsn_t lsn) const;
+  /** @return the next archive log file name */
+  ATTRIBUTE_COLD std::string get_next_archive_path() const;
+
   /** Reserve space in the log buffer for appending data.
-  @tparam mmap  log_sys.is_mmap()
+  @tparam mode  how to write log
   @param size   total length of the data to append(), in bytes
   @param ex     whether log_sys.latch is exclusively locked
   @return the start LSN and the buffer position for append() */
-  template<bool mmap>
+  template<log_t::write mode>
   std::pair<lsn_t,byte*> append_prepare(size_t size, bool ex) noexcept;
 
   /** Append a string of bytes to the redo log.

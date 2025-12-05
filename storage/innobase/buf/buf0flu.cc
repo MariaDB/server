@@ -1886,6 +1886,8 @@ inline void log_t::write_checkpoint(lsn_t end_lsn) noexcept
   next_checkpoint_no++;
   const lsn_t checkpoint_lsn{next_checkpoint_lsn};
   last_checkpoint_lsn= checkpoint_lsn;
+  if (!archive)
+    archived_lsn= checkpoint_lsn;
 
   DBUG_PRINT("ib_log", ("checkpoint ended at " LSN_PF ", flushed to " LSN_PF,
                         checkpoint_lsn, get_flushed_lsn()));
@@ -2184,7 +2186,8 @@ ATTRIBUTE_COLD void buf_flush_ahead(lsn_t lsn, bool furious) noexcept
   if (recv_recovery_is_on())
     recv_sys.apply(true);
 
-  DBUG_EXECUTE_IF("ib_log_checkpoint_avoid_hard", return;);
+  DBUG_EXECUTE_IF("ib_log_checkpoint_avoid_hard",
+                  if (!log_sys.archive) return;);
 
   Atomic_relaxed<lsn_t> &limit= furious
     ? buf_flush_sync_lsn : buf_flush_async_lsn;

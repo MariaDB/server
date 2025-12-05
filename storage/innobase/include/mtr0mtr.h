@@ -688,13 +688,15 @@ private:
   ATTRIBUTE_NOINLINE size_t crc32c() noexcept;
 
   /** Commit the mini-transaction log.
-  @tparam pmem log_sys.is_mmap()
+  @tparam mmap log_sys.is_mmap()
   @param mtr   mini-transaction
   @param lsns  {start_lsn,flush_ahead_lsn} */
-  template<bool pmem>
+  template<bool mmap>
   static void commit_log(mtr_t *mtr, std::pair<lsn_t,lsn_t> lsns) noexcept;
 
-  /** Release log_sys.latch. */
+  /** Release log_sys.latch.
+  @tparam mmap log_sys.is_mmap() */
+  template<bool mmap>
   void commit_log_release() noexcept;
 
   /** Append the redo log records to the redo log buffer.
@@ -702,11 +704,11 @@ private:
   std::pair<lsn_t,lsn_t> do_write() noexcept;
 
   /** Append the redo log records to the redo log buffer.
-  @tparam mmap log_sys.is_mmap()
+  @tparam how  how to write
   @param mtr   mini-transaction
   @param len   number of bytes to write
   @return {start_lsn,flush_ahead_lsn} */
-  template<bool mmap> static
+  template<log_t::write how> static
   std::pair<lsn_t,lsn_t> finish_writer(mtr_t *mtr, size_t len);
 
   /** The applicable variant of commit_log() */
