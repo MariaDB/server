@@ -183,7 +183,7 @@ t1_idx_b	["(6) <= (b) <= (10)"]	1
 #
 analyze select * from t1 where t1.a between 1 and 5 or t1.a between 6 and 10;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
-1	SIMPLE	t1	range	t1_idx_a,t1_idx_ab	t1_idx_ab	5	NULL	36	35.00	100.00	100.00	Using where; Using index
+1	SIMPLE	t1	index	t1_idx_a,t1_idx_ab	t1_idx_ab	10	NULL	50	50.00	72.00	70.00	Using where; Using index
 set @trace= (select trace from information_schema.optimizer_trace);
 set @list_ranges= (select JSON_DETAILED(JSON_EXTRACT(@trace, '$**.list_ranges')));
 select * from json_table(

@@ -3843,13 +3843,7 @@ public:
      a few rows and the extra cost has no practical effect.
   */
 
-  inline IO_AND_CPU_COST ha_scan_time(ha_rows rows)
-  {
-    IO_AND_CPU_COST cost= scan_time();
-    cost.cpu+= (TABLE_SCAN_SETUP_COST +
-                (double) rows * (ROW_NEXT_FIND_COST + ROW_COPY_COST));
-    return cost;
-  }
+  IO_AND_CPU_COST ha_scan_time(ha_rows rows);
 
   /*
     Time for a full table scan, fetching the rows from the table and comparing

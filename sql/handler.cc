@@ -9454,3 +9454,18 @@ void handler::set_optimizer_costs(THD *thd)
   optimizer_where_cost=      thd->variables.optimizer_where_cost;
   optimizer_scan_setup_cost= thd->variables.optimizer_scan_setup_cost;
 }
+
+IO_AND_CPU_COST handler::ha_scan_time(ha_rows rows)
+{
+  IO_AND_CPU_COST cost;
+  bool rc= table->in_use->opt_ctx_replay
+               ? table->in_use->opt_ctx_replay->infuse_read_cost(table, &cost)
+               : true;
+  if (rc)
+  {
+    IO_AND_CPU_COST cost= scan_time();
+    cost.cpu+= (TABLE_SCAN_SETUP_COST +
+                (double) rows * (ROW_NEXT_FIND_COST + ROW_COPY_COST));
+  }
+  return cost;
+}

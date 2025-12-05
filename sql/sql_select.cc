@@ -8367,7 +8367,7 @@ inline double use_found_constraint(double records)
   WHERE_COST cost is not added to any result.
 */
 
-static ALL_READ_COST cost_for_index_read(const THD *thd, const TABLE *table,
+static ALL_READ_COST cost_for_index_read(THD *thd, const TABLE *table,
                                          uint key, ha_rows records,
                                          bool eq_ref)
 {
@@ -8380,7 +8380,10 @@ static ALL_READ_COST cost_for_index_read(const THD *thd, const TABLE *table,
   max_seeks= (ha_rows) thd->variables.max_seeks_for_key;
   set_if_bigger(records, 1);
 
-  if (file->is_clustering_key(key))
+  if (thd->opt_ctx_replay && !thd->opt_ctx_replay->infuse_index_read_cost(
+                                 table, key, records, eq_ref, &cost))
+    ;
+  else if (file->is_clustering_key(key))
   {
     cost.index_cost=
       file->ha_keyread_clustered_time(key, 1, records+extra_reads, 0);
@@ -8407,6 +8410,12 @@ static ALL_READ_COST cost_for_index_read(const THD *thd, const TABLE *table,
     cost.max_index_blocks= MY_MIN(file->index_blocks(key), max_seeks);
     cost.max_row_blocks=   MY_MIN(file->row_blocks(), max_seeks);
     cost.copy_cost= 0;
+  }
+
+  if (Optimizer_context_recorder *recorder= get_opt_context_recorder(thd))
+  {
+    recorder->record_cost_index_read(thd->mem_root, table->pos_in_table_list,
+                                     key, records, eq_ref, &cost);
   }
   DBUG_PRINT("statistics", ("index_cost: %.3f  row_cost: %.3f",
                             file->cost(cost.index_cost),
