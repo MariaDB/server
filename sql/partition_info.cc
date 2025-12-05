@@ -707,7 +707,7 @@ char *partition_info::find_duplicate_name()
                    Lex_ident_partition::charset_info(),
                    max_names, 0, 0, get_part_name_from_elem, 0, HASH_UNIQUE))
   {
-    DBUG_ASSERT(0);
+    DBUG_ASSERT_NO_ASSUME(0);
     curr_name= (const uchar*) "Internal failure";
     goto error;
   }

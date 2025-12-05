@@ -322,7 +322,7 @@ static uint _ma_keynr(MARIA_PAGE *page, uchar *keypos, uint *ret_max_key)
   {
     if (!(pos= (*keyinfo->skip_key)(&key, page_flag, nod_flag, pos)))
     {
-      DBUG_ASSERT(0);
+      DBUG_ASSERT_NO_ASSUME(0);
       return 0;					/* Error */
     }
     max_key++;

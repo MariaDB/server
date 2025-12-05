@@ -62,7 +62,7 @@ Slave_reporting_capability::report(loglevel level, int err_code,
     break;
   default:
     va_end(args);
-    DBUG_ASSERT(0);                            // should not come here
+    DBUG_ASSERT_NO_ASSUME(0);                            // should not come here
     return;          // don't crash production builds, just do nothing
   }
 

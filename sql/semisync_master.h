@@ -183,7 +183,7 @@ public:
     }
 
     /* Node does not find should never happen */
-    DBUG_ASSERT(0);
+    DBUG_ASSERT_NO_ASSUME(0);
     return 1;
   }
 

@@ -1368,7 +1368,7 @@ enum sys_var::where get_sys_var_value_origin(void *ptr)
     }
   }
 
-  DBUG_ASSERT(0); // variable must have been found
+  DBUG_ASSERT_NO_ASSUME(0); // variable must have been found
   return sys_var::CONFIG;
 }
 

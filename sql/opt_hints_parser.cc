@@ -408,7 +408,7 @@ bool Parser::Table_level_hint::resolve(Parse_context *pc) const
     hint_state= false;
     break;
   default:
-    DBUG_ASSERT(0);
+    DBUG_ASSERT_NO_ASSUME(0);
     return true;
   }
 

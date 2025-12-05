@@ -2500,7 +2500,7 @@ static bool handle_split_alter(rpl_parallel_entry *e,
       j= j % e->rpl_thread_max;
     }
     //We did not find and idx
-    DBUG_ASSERT(0);
+    DBUG_ASSERT_NO_ASSUME(0);
 
     return false;
 

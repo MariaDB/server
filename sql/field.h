@@ -516,7 +516,7 @@ inline bool is_temporal_type_with_date(enum_field_types type)
     return true;
   case MYSQL_TYPE_DATETIME2:
   case MYSQL_TYPE_TIMESTAMP2:
-    DBUG_ASSERT(0); // field->real_type() should not get to here.
+    DBUG_ASSERT_NO_ASSUME(0); // field->real_type() should not get to here.
     return false;
   default:
     return false;
@@ -4478,7 +4478,7 @@ static inline longlong read_bigendian(const uchar *from, uint bytes)
   case 6: return mi_uint6korr(from);
   case 7: return mi_uint7korr(from);
   case 8: return mi_sint8korr(from);
-  default: DBUG_ASSERT(0); return 0;
+  default: DBUG_ASSERT_NO_ASSUME(0); return 0;
   }
 }
 
@@ -4502,7 +4502,7 @@ static inline longlong read_lowendian(const uchar *from, uint bytes)
   case 3: return uint3korr(from);
   case 4: return uint4korr(from);
   case 8: return sint8korr(from);
-  default: DBUG_ASSERT(0); return 0;
+  default: DBUG_ASSERT_NO_ASSUME(0); return 0;
   }
 }
 

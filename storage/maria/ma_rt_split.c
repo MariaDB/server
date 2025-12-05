@@ -503,7 +503,7 @@ int maria_rtree_split_page(const MARIA_KEY *key, MARIA_PAGE *page,
   { /* verify that above loop didn't touch header bytes */
     uint i;
     for (i= 0; i < share->keypage_header; i++)
-      DBUG_ASSERT(new_page_buff[i]==0);
+      DBUG_ASSERT_NO_ASSUME(new_page_buff[i]==0);
   }
 
   if (nod_flag)

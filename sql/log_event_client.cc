@@ -1475,7 +1475,7 @@ void Rows_log_event::count_row_events(PRINT_EVENT_INFO *print_event_info)
     row_events= 2;
     break;
   default:
-    DBUG_ASSERT(0); /* Not possible */
+    DBUG_ASSERT_NO_ASSUME(0); /* Not possible */
     return;
   }
 
@@ -1578,7 +1578,7 @@ bool Rows_log_event::print_verbose(IO_CACHE *file,
   default:
     sql_command= sql_clause1= sql_clause2= NULL;
     sql_command_short= "";
-    DBUG_ASSERT(0); /* Not possible */
+    DBUG_ASSERT_NO_ASSUME(0); /* Not possible */
   }
 
   if (!(map= print_event_info->m_table_map.get_table(m_table_id)) ||

@@ -5025,15 +5025,12 @@ TABLE *select_create::create_table_from_items(THD *thd, List<Item> *items,
         table->create_info.
       */
       table_list->table= create_info->table;
-      if (!table_list->table)
-      {
-        /*
-          This shouldn't happen as creation of temporary table should make
-          it preparable for open. Anyway we can't drop temporary table if
-          we are unable to find it.
-        */
-        DBUG_ASSERT(0);
-      }
+      /*
+        This shouldn't happen as creation of temporary table should make
+        it preparable for open. Anyway we can't drop temporary table if
+        we are unable to find it.
+      */
+      DBUG_ASSERT(table_list->table);
       table_list->table->pos_in_table_list= table_list;
     }
   }

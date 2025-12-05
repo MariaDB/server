@@ -209,7 +209,7 @@ int maria_update(register MARIA_HA *info, const uchar *oldrec,
 err:
   DBUG_PRINT("error",("key: %d  errno: %d",i,my_errno));
   save_errno= my_errno;
-  DBUG_ASSERT(save_errno);
+  DBUG_ASSERT_NO_ASSUME(save_errno);
   if (!save_errno)
     save_errno= HA_ERR_INTERNAL_ERROR;          /* Should never happen */
 

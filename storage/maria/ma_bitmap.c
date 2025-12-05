@@ -2560,7 +2560,7 @@ my_bool _ma_bitmap_set_full_page_bits(MARIA_HA *info,
   if (page == bitmap_page ||
       page + page_count > bitmap_page + bitmap->pages_covered)
   {
-    DBUG_ASSERT(0);                             /* Wrong in data */
+    DBUG_ASSERT_NO_ASSUME(0);                             /* Wrong in data */
     DBUG_RETURN(1);
   }
 
@@ -3067,7 +3067,7 @@ my_bool _ma_check_if_right_bitmap_type(MARIA_HA *info,
   default:
     break;
   }
-  DBUG_ASSERT(0);
+  DBUG_ASSERT_NO_ASSUME(0);
   return 1;
 }
 
@@ -3128,7 +3128,7 @@ flush_log_for_bitmap(PAGECACHE_IO_HOOK_ARGS *args __attribute__ ((unused)))
   const MARIA_SHARE *share= (MARIA_SHARE*)args->data;
 #endif
   DBUG_ENTER("flush_log_for_bitmap");
-  DBUG_ASSERT(share->now_transactional);
+  DBUG_ASSERT_NO_ASSUME(share->now_transactional);
   /*
     WAL imposes that UNDOs reach disk before bitmap is flushed. We don't know
     the LSN of the last UNDO about this bitmap page, so we flush whole log.
