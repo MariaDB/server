@@ -950,7 +950,7 @@ struct rpl_group_info
   Query_log_event *start_alter_ev;
   bool direct_commit_alter;
   start_alter_info *sa_info;
-
+  bool is_new_trans;                 // marker of start_new_trans context
   rpl_group_info(Relay_log_info *rli_);
   ~rpl_group_info();
   void reinit(Relay_log_info *rli);
@@ -1074,6 +1074,30 @@ struct rpl_group_info
   }
 
 };
+
+/**
+  The function
+  @return true    when the slave applier context is normal
+          false   when either no slave applier around or
+                  the applier is executing start_new_trans
+ */
+inline bool not_new_trans(rpl_group_info* rgi)
+{
+  return rgi && !rgi->is_new_trans;
+}
+/**
+  The following functions for start_new_trans' ctor and dtor.
+*/
+inline void mark_in_new_trans(rpl_group_info* rgi)
+{
+  if (rgi)
+    rgi->is_new_trans= true;
+}
+inline void unmark_in_new_trans(rpl_group_info* rgi)
+{
+  if (rgi)
+    rgi->is_new_trans= false;
+}
 
 
 /*
