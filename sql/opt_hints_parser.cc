@@ -18,6 +18,7 @@
 
 #include "opt_hints_parser.h"
 #include "mysqld.h"
+#include "opt_hints_structs.h"
 #include "sql_error.h"
 #include "mysqld_error.h"
 #include "sql_class.h"
@@ -51,6 +52,12 @@ Opt_hints_table *get_table_hints(Parse_context *pc,
 
 void append_table_name(THD *thd, String *str, const LEX_CSTRING &table_name,
                        const LEX_CSTRING &qb_name);
+
+int cmp_lex_string(const LEX_CSTRING &s, const LEX_CSTRING &t,
+                   const CHARSET_INFO *cs);
+
+int cmp_lex_string_limit(const LEX_CSTRING &s, const LEX_CSTRING &t,
+                         const CHARSET_INFO *cs, size_t chars_limit);
 
 static const Lex_ident_sys null_ident_sys;
 
@@ -255,6 +262,8 @@ Optimizer_hint_tokenizer::get_token(CHARSET_INFO *cs)
                  TokenID::tIDENT : find_keyword(ident));
   if (!get_char(','))
     return Token(Lex_cstring(m_ptr - 1, 1), TokenID::tCOMMA);
+  if (!get_char('.'))
+    return Token(Lex_cstring(m_ptr - 1, 1), TokenID::tDOT);
   if (!get_char('@'))
     return Token(Lex_cstring(m_ptr - 1, 1), TokenID::tAT);
   if (!get_char('('))
@@ -802,8 +811,8 @@ Return value:
 bool Parser::Qb_name_hint::resolve(Parse_context *pc) const
 {
   const opt_hints_enum hint_type= QB_NAME_HINT_ENUM;
-  if (!is_appropriate_resolution_stage(hint_type, pc))
-    return false;
+  // if (!is_appropriate_resolution_stage(hint_type, pc))
+  //   return false;
 
   Opt_hints_qb *qb= pc->select->opt_hints_qb;
 
@@ -811,6 +820,7 @@ bool Parser::Qb_name_hint::resolve(Parse_context *pc) const
 
   const Lex_ident_sys qb_name_sys= Query_block_name::to_ident_sys(pc->thd);
 
+  // OLEGS: is this valid for locator QB_NAME's?
   if (qb->get_name().str ||                        // QB name is already set
       qb->get_parent()->find_by_name(qb_name_sys)) // Name is already used
   {
@@ -819,8 +829,100 @@ bool Parser::Qb_name_hint::resolve(Parse_context *pc) const
     return false;
   }
 
+  if (const Opt_query_block_path &path= *this)
+  {
+    // e.g. QB_NAME(qb1 v1@sel_1 .@sel_2)
+    // OLEGS:
+    if (pc->resolution_stage != hint_resolution_stage::LATE)
+      return false;
+    
+    const Query_block_path_list &qb_path_list= path;
+    SELECT_LEX *cur_level= pc->select;
+    for (const QB_path_element &elem : qb_path_list)
+    {
+      Lex_ident_sys select_num_str;
+      Lex_ident_sys view_name;
+      if (const At_QB_path_element_select_num &at_select_num= elem)
+      {
+        const QB_path_element_select_num &qb_path_select_num= at_select_num;
+        select_num_str= qb_path_select_num.to_ident_sys(pc->thd);
+      }
+      else if (const QB_path_element_view_sel &view_sel= elem)
+      {
+        const QB_path_element_view_name &qb_path_view_name= view_sel;
+        view_name= qb_path_view_name.to_ident_sys(pc->thd);
+        const Opt_at_QB_path_element_select_num &opt_at_select_num= view_sel;
+        if (const At_QB_path_element_select_num2 &at_select_num= opt_at_select_num)
+        { 
+          const QB_path_element_select_num &qb_path_select_num= at_select_num;
+          select_num_str= qb_path_select_num.to_ident_sys(pc->thd);
+        }
+      }
+      // OLEGS: find SELECT_LEX by the path to bind this QB name to it
+      if (select_num_str.length > 0)
+      {
+        // OLEGS: TODO check format and extract select number, then wind to the select_lex
+        const LEX_CSTRING format= { "SEL_", 4 };
+        if (cmp_lex_string_limit(select_num_str, format,
+                                 system_charset_info, format.length))
+        {
+          // OLEGS: Wrong format, print warning and exit
+        }
+        int select_num= atoi(select_num_str.str + format.length);
+        // Wind up to the SELECT_LEX by number
+        for (int i= 1; i < select_num && cur_level != nullptr; 
+                       i++, cur_level= cur_level->next_select());
+      }
+
+      if (view_name.length > 0)
+      {
+        // Traverse the global table list to find all derived tables and views
+        for (TABLE_LIST *tbl= cur_level->table_list.first; tbl; tbl= tbl->next_local)
+        {
+          if (tbl->is_view_or_derived() &&
+              !cmp_lex_string(tbl->alias, view_name, system_charset_info))
+          {
+            // OLEGS: bind QB name to this table
+            cur_level= tbl->get_unit()->first_select(); // OLEGS: if this works, amend the prev branch
+            break;
+          } 
+        }
+      }
+    }
+    if (!cur_level)
+    {
+      // OLEGS: print warning and exit (select_num is too big)
+      return false;
+    }
+    // OLEGS: amend and bring the check back
+    //if (cur_level->opt_hints_qb)
+    //{
+      // QB name is already set for this block (look at how TiDB handles this)
+      // OLEGS: print warning and exit (select_num is too big)
+      //return false;
+    //}
+    pc->select->opt_hints_qb= nullptr;
+    cur_level->opt_hints_qb= qb;
+  }
+  else
+  {
+    if (!is_appropriate_resolution_stage(hint_type, pc))
+      return false;
+    // Simple hint, e.g. QB_NAME(qb1)
+  }
   qb->set_name(qb_name_sys);
   return false;
+}
+
+
+bool Parser::Query_block_path_list::add(Optimizer_hint_parser *p,
+                                        QB_path_element &&elem)
+{
+  QB_path_element *pe= (QB_path_element*) p->m_thd->alloc(sizeof(*pe));
+  if (!pe)
+    return true;
+  *pe= std::move(elem);
+  return push_back(pe, p->m_thd->mem_root);
 }
 
 

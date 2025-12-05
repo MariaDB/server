@@ -629,12 +629,111 @@ public:
     void append_args(THD *thd, String *str) const override;
   };
 
+  // qb_path_element_view_name ::= identifier
+  class QB_path_element_view_name: public Identifier
+  {
+  public:
+    using Identifier::Identifier;
+  };
 
-  // qb_name_hint ::= QB_NAME ( query_block_name )
+  // qb_path_element_select_num ::= identifier
+  class QB_path_element_select_num: public Identifier
+  {
+  public:
+    using Identifier::Identifier;
+  };
+
+  // at_qb_path_element_select_num ::= @ qb_path_element_select_num
+  class At_QB_path_element_select_num:
+    public AND2<Parser, TokenAT, QB_path_element_select_num>
+  {
+  public:
+    using AND2::AND2;
+    using AND2::operator=;
+  };
+
+  // just a clone of At_QB_path_element_select_num to avoid inheritance issues
+  class At_QB_path_element_select_num2:
+    public AND2<Parser, TokenAT, QB_path_element_select_num>
+  {
+  public:
+    using AND2::AND2;
+    using AND2::operator=;
+  };
+
+  class Opt_at_QB_path_element_select_num:
+    public OPT<Parser, At_QB_path_element_select_num2>
+  {
+  public:
+    using OPT::OPT;
+  };
+
+  /*
+    qb_path_element_view_sel ::= qb_path_element_view_name
+                                 [ @ qb_path_element_select_num ]
+  */
+  class QB_path_element_view_sel: public AND2<Parser, QB_path_element_view_name,
+                                              Opt_at_QB_path_element_select_num>
+  {
+  public:
+    using AND2::AND2;
+  };
+
+  class QB_path_element: public OR2<Parser, At_QB_path_element_select_num, 
+                                            QB_path_element_view_sel>
+  {
+  public:
+    using OR2::OR2;
+  };
+
+  class Query_block_path_list: public List<QB_path_element>
+  {
+  public:
+    Query_block_path_list() = default;
+
+    bool add(Optimizer_hint_parser *p, QB_path_element &&elem);
+    size_t count() const { return elements; }
+    static Query_block_path_list empty(const Optimizer_hint_parser &)
+    {
+      return Query_block_path_list();
+    }
+  };
+
+  /*
+    query_block_path ::= query_block_path_element 
+                         [ {, query_block_path_element }... ]
+  */
+  class Query_block_path: public LIST<Parser,
+                                      Query_block_path_list,
+                                      QB_path_element,
+                                      TokenID::tDOT, 0>
+  {
+    using LIST::LIST;
+  };
+
+  // opt_query_block_path ::= [, query_block_path]
+  class Opt_query_block_path: public AND2<Parser,
+                                          TokenCOMMA,
+                                          Query_block_path>::Opt
+  {
+  public:
+    using Opt::Opt;
+  };
+
+  // qb_name_with_opt_path ::= query_block_name [, query_block_path]
+  class QB_name_with_opt_path: public AND2<Parser,
+                                           Query_block_name,
+                                           Opt_query_block_path>
+  {
+  public:
+    using AND2::AND2;
+  };
+
+  // qb_name_hint_with_path ::= QB_NAME ( query_block_name [, query_block_path] )
   class Qb_name_hint: public AND4<Parser,
                                   Keyword_QB_NAME,
                                   LParen,
-                                  Query_block_name,
+                                  QB_name_with_opt_path,
                                   RParen>
   {
   public:
@@ -643,75 +742,6 @@ public:
     bool resolve(Parse_context *pc) const;
   };
 
-  // OLEGS: comment this
-  class View_name: public Identifier
-  {
-  public:
-    using Identifier::Identifier;
-  };
-
-  class SelectN: public Identifier
-  {
-  public:
-    using Identifier::Identifier;
-  };
-
-  // class View_SelectN: public AND3<Parser, View_name, TokenAT, SelectN>
-  // {
-  // public:
-  //   using AND3::AND3;
-  // };
-
-  class View_SelectN: public Identifier
-  {
-  public:
-    using Identifier::Identifier;
-  };
-
-  /*
-    OLEGS: amend  
-    table_name_list ::= table_name [ {, table_name }... ]
-  */
-  class Query_block_path_container: public List<View_SelectN>
-  {
-  public:
-    Query_block_path_container() = default;
-
-    bool add(Optimizer_hint_parser *p, View_SelectN &&table);
-    size_t count() const { return elements; }
-  };
-
-  class Query_block_path: public LIST<Parser,
-                                      Query_block_path_container,
-                                      View_SelectN,
-                                      TokenID::tDOT, 0>
-  {
-    using LIST::LIST;
-  };
-
-  // query_block_locator_body ::= query_block_name, query_block_path
-  class Qb_locator_body: public AND2<Parser,
-                                     Query_block_name,
-                                     //TokenCOMMA,
-                                     Query_block_path>
-  {
-  public:
-    using AND2::AND2;
-  };
-
-  // OLEGS: combine with QB_NAME ^^^
-  // qb_locator_hint ::= QB_LOC ( query_block_name path)
-  class Qb_locator_hint: public AND4<Parser,
-                                     Keyword_QB_NAME_LOC,
-                                     LParen,
-                                     Qb_locator_body,
-                                     RParen>
-  {
-  public:
-    using AND4::AND4;
-
-    bool resolve(Parse_context *pc) const;
-  };
 
 public:
   // max_execution_time_hint ::= MAX_EXECUTION_TIME ( milliseconds )
