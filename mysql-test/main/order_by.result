@@ -4734,3 +4734,13 @@ a	b	c
 6	2	26
 6	3	36
 drop table t1;
+#
+# MDEV-38087 Unexpected error `Unknown column '???' in 'GROUP BY'`
+#
+SELECT 1 FROM (select 1) dt GROUP BY -1;
+ERROR 42S22: Unknown column '-1' in 'GROUP BY'
+SELECT 1 FROM (select 1) dt order BY -5;
+ERROR 42S22: Unknown column '-5' in 'ORDER BY'
+SELECT 1 FROM (select 1) dt order BY 50;
+ERROR 42S22: Unknown column '50' in 'ORDER BY'
+# End of 10.11 tests
