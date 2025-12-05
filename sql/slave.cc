@@ -1466,173 +1466,6 @@ bool net_request_file(NET* net, const char* fname)
                                 (uchar*) "", 0));
 }
 
-#endif /* HAVE_REPLICATION */
-
-int init_strvar_from_file(char *var, int max_size, IO_CACHE *f,
-                                 const char *default_val)
-{
-  size_t length;
-  DBUG_ENTER("init_strvar_from_file");
-
-  if ((length=my_b_gets(f,var, max_size)))
-  {
-    char* last_p = var + length -1;
-    if (*last_p == '\n')
-      *last_p = 0; // if we stopped on newline, kill it
-    else
-    {
-      /*
-        If we truncated a line or stopped on last char, remove all chars
-        up to and including newline.
-      */
-      int c;
-      while (((c=my_b_get(f)) != '\n' && c != my_b_EOF)) ;
-    }
-    DBUG_RETURN(0);
-  }
-  else if (default_val)
-  {
-    strmake(var,  default_val, max_size-1);
-    DBUG_RETURN(0);
-  }
-  DBUG_RETURN(1);
-}
-
-/*
-  when moving these functions to mysys, don't forget to
-  remove slave.cc from libmysqld/CMakeLists.txt
-*/
-int init_intvar_from_file(int* var, IO_CACHE* f, int default_val)
-{
-  char buf[32];
-  DBUG_ENTER("init_intvar_from_file");
-
-
-  if (my_b_gets(f, buf, sizeof(buf)))
-  {
-    *var = atoi(buf);
-    DBUG_RETURN(0);
-  }
-  else if (default_val)
-  {
-    *var = default_val;
-    DBUG_RETURN(0);
-  }
-  DBUG_RETURN(1);
-}
-
-int init_floatvar_from_file(float* var, IO_CACHE* f, float default_val)
-{
-  char buf[16];
-  DBUG_ENTER("init_floatvar_from_file");
-
-
-  if (my_b_gets(f, buf, sizeof(buf)))
-  {
-    if (sscanf(buf, "%f", var) != 1)
-      DBUG_RETURN(1);
-    else
-      DBUG_RETURN(0);
-  }
-  else if (default_val != 0.0)
-  {
-    *var = default_val;
-    DBUG_RETURN(0);
-  }
-  DBUG_RETURN(1);
-}
-
-
-/**
-   A master info read method
-
-   This function is called from @c init_master_info() along with
-   relatives to restore some of @c active_mi members.
-   Particularly, this function is responsible for restoring
-   IGNORE_SERVER_IDS list of servers whose events the slave is
-   going to ignore (to not log them in the relay log).
-   Items being read are supposed to be decimal output of values of a
-   type shorter or equal of @c long and separated by the single space.
-   It also used to restore DO_DOMAIN_IDS & IGNORE_DOMAIN_IDS lists.
-
-   @param arr         @c DYNAMIC_ARRAY pointer to storage for servers id
-   @param f           @c IO_CACHE pointer to the source file
-
-   @retval 0         All OK
-   @retval non-zero  An error
-*/
-
-int init_dynarray_intvar_from_file(DYNAMIC_ARRAY* arr, IO_CACHE* f)
-{
-  int ret= 0;
-  char buf[16 * (sizeof(long)*4 + 1)]; // static buffer to use most of times
-  char *buf_act= buf; // actual buffer can be dynamic if static is short
-  char *token, *last;
-  uint num_items;     // number of items of `arr'
-  size_t read_size;
-  DBUG_ENTER("init_dynarray_intvar_from_file");
-
-  if ((read_size= my_b_gets(f, buf_act, sizeof(buf))) == 0)
-  {
-    DBUG_RETURN(0);                             // no line in master.info
-  }
-  if (read_size + 1 == sizeof(buf) && buf[sizeof(buf) - 2] != '\n')
-  {
-    /*
-      short read happend; allocate sufficient memory and make the 2nd read
-    */
-    char buf_work[(sizeof(long)*3 + 1)*16];
-    memcpy(buf_work, buf, sizeof(buf_work));
-    num_items= atoi(strtok_r(buf_work, " ", &last));
-    size_t snd_size;
-    /*
-      max size lower bound approximate estimation bases on the formula:
-      (the items number + items themselves) * 
-          (decimal size + space) - 1 + `\n' + '\0'
-    */
-    size_t max_size= (1 + num_items) * (sizeof(long)*3 + 1) + 1;
-    buf_act= (char*) my_malloc(key_memory_Rpl_info_file_buffer, max_size,
-                               MYF(MY_WME));
-    memcpy(buf_act, buf, read_size);
-    snd_size= my_b_gets(f, buf_act + read_size, max_size - read_size);
-    if (snd_size == 0 ||
-        ((snd_size + 1 == max_size - read_size) &&  buf_act[max_size - 2] != '\n'))
-    {
-      /*
-        failure to make the 2nd read or short read again
-      */
-      ret= 1;
-      goto err;
-    }
-  }
-  token= strtok_r(buf_act, " ", &last);
-  if (token == NULL)
-  {
-    ret= 1;
-    goto err;
-  }
-  num_items= atoi(token);
-  for (uint i=0; i < num_items; i++)
-  {
-    token= strtok_r(NULL, " ", &last);
-    if (token == NULL)
-    {
-      ret= 1;
-      goto err;
-    }
-    else
-    {
-      ulong val= atol(token);
-      insert_dynamic(arr, (uchar *) &val);
-    }
-  }
-err:
-  if (buf_act != buf)
-    my_free(buf_act);
-  DBUG_RETURN(ret);
-}
-
-#ifdef HAVE_REPLICATION
 
 /*
   Check if the error is caused by network.
@@ -1687,6 +1520,7 @@ static int get_master_version_and_clock(MYSQL* mysql, Master_info* mi)
   MYSQL_ROW master_row;
   uint full_version= mysql_get_server_version(mysql);
   uint version= full_version/ 10000;
+  uint32_t heartbeat_period= mi->master_heartbeat_period;
   DBUG_ENTER("get_master_version_and_clock");
 
   /*
@@ -2069,15 +1903,13 @@ when it try to get the value of TIME_ZONE global variable from master.";
     }
   }
 
-  if (mi->heartbeat_period != 0.0)
+  if (heartbeat_period)
   {
-    const char query_format[]= "SET @master_heartbeat_period= %llu";
-    char query[sizeof(query_format) + 32];
-    /* 
-       the period is an ulonglong of nano-secs. 
-    */
-    my_snprintf(query, sizeof(query), query_format,
-                (ulonglong) (mi->heartbeat_period*1000000000UL));
+    // The user variable is in nanoseconds
+    static const char query_format[]=
+      "SET @master_heartbeat_period= %" PRIu32 "000""000";
+    char query[sizeof(query_format) + Int_IO_CACHE::BUF_SIZE<uint32_t>];
+    my_snprintf(query, sizeof(query), query_format, heartbeat_period);
 
     DBUG_EXECUTE_IF("simulate_slave_heartbeat_network_error",
                     { static ulong dbug_count= 0;
@@ -2988,16 +2820,18 @@ void store_master_info(THD *thd, Master_info *mi, TABLE *table,
   store_string_or_null(field++, mi->rli.until_log_name);
   (*field++)->store((ulonglong) mi->rli.until_log_pos, true);
 
+  (*field++)->store(mi->master_ssl ?
 #ifdef HAVE_OPENSSL
-  (*field++)->store(mi->ssl ? &msg_yes : &msg_no, &my_charset_bin);
+    &msg_yes
 #else
-  (*field++)->store(mi->ssl ? &msg_ignored: &msg_no, &my_charset_bin);
+    &msg_ignored
 #endif
-  store_string_or_null(field++, mi->ssl_ca);
-  store_string_or_null(field++, mi->ssl_capath);
-  store_string_or_null(field++, mi->ssl_cert);
-  store_string_or_null(field++, mi->ssl_cipher);
-  store_string_or_null(field++, mi->ssl_key);
+    : &msg_no, &my_charset_bin);
+  store_string_or_null(field++, mi->master_ssl_ca);
+  store_string_or_null(field++, mi->master_ssl_capath);
+  store_string_or_null(field++, mi->master_ssl_cert);
+  store_string_or_null(field++, mi->master_ssl_cipher);
+  store_string_or_null(field++, mi->master_ssl_key);
 
   /*
     Seconds_Behind_Master: if SQL thread is running and I/O thread is
@@ -3049,7 +2883,7 @@ void store_master_info(THD *thd, Master_info *mi, TABLE *table,
   else
     (*field++)->set_null();
 
-  (*field++)->store(mi->ssl_verify_server_cert? &msg_yes : &msg_no,
+  (*field++)->store(mi->master_ssl_verify_server_cert? &msg_yes : &msg_no,
                     &my_charset_bin);
 
   // Last_IO_Errno
@@ -3066,9 +2900,9 @@ void store_master_info(THD *thd, Master_info *mi, TABLE *table,
   (*field++)->store((uint32) mi->master_id, true);
   // SQL_Delay
   // Master_Ssl_Crl
-  store_string_or_null(field++, mi->ssl_crl);
+  store_string_or_null(field++, mi->master_ssl_crl);
   // Master_Ssl_Crlpath
-  store_string_or_null(field++, mi->ssl_crlpath);
+  store_string_or_null(field++, mi->master_ssl_crlpath);
   // Using_Gtid
   store_string_or_null(field++, mi->using_gtid_astext(mi->using_gtid));
   // Gtid_IO_Pos
@@ -3114,7 +2948,7 @@ void store_master_info(THD *thd, Master_info *mi, TABLE *table,
   (*field++)->store((ulonglong) mi->rli.max_relay_log_size, true);
   (*field++)->store(mi->rli.executed_entries, true);
   (*field++)->store((uint)      mi->received_heartbeats, true);
-  (*field++)->store((double)    mi->heartbeat_period);
+  (*field++)->store(mi->master_heartbeat_period / 1000.0);
   (*field++)->store(gtid_pos->ptr(), gtid_pos->length(), &my_charset_bin);
 
   /*
@@ -3330,7 +3164,7 @@ static int request_dump(THD *thd, MYSQL* mysql, Master_info* mi,
     else
       sql_print_error("Error on COM_BINLOG_DUMP: %d  %s, will retry in %d secs",
                       mysql_errno(mysql), mysql_error(mysql),
-                      mi->connect_retry);
+                      static_cast<uint32_t>(mi->master_connect_retry));
     DBUG_RETURN(1);
   }
 
@@ -6982,10 +6816,11 @@ static int connect_to_master(THD* thd, MYSQL* mysql, Master_info* mi,
       suppress_warnings= 0;
       mi->report(ERROR_LEVEL, last_errno, NULL,
                  "error %s to master '%s@%s:%d'"
-                 " - retry-time: %d  maximum-retries: %lu  message: %s",
+                 " - retry-time: %d  maximum-retries: %" PRIu64 "  message: %s",
                  (reconnect ? "reconnecting" : "connecting"),
                  mi->user, mi->host, mi->port,
-                 mi->connect_retry, mi->retry_count,
+                 static_cast<uint32_t>(mi->master_connect_retry),
+                 static_cast<uint64_t>(mi->master_retry_count),
                  mysql_error(mysql));
     }
     if ((++(mi->connects_tried) == mi->retry_count) && mi->retry_count)
