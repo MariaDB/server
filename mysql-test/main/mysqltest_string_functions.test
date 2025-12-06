@@ -1,0 +1,2056 @@
+--echo # ----------------------------------------------------------------------------
+--echo # Test for MDEV-36108: Variable substitutions in mysqltest
+--echo # ----------------------------------------------------------------------------
+
+--source include/not_embedded.inc
+
+--echo # ----------------------------------------------------------------------------
+--echo # Test conversion functions (conv, bin, oct, hex)
+--echo # ----------------------------------------------------------------------------
+
+--echo # Basic conv() function tests
+
+let $result1 = $(conv(10, 10, 2));
+--echo conv(10, 10, 2) -> $result1
+
+let $result2 = $(conv(255, 10, 16));
+--echo conv(255, 10, 16) -> $result2
+
+let $result3 = $(conv(FF, 16, 10));
+--echo conv(FF, 16, 10) -> $result3
+
+let $result4 = $(conv(1010, 2, 10));
+--echo conv(1010, 2, 10) -> $result4
+
+let $result5 = $(conv(64, 10, 8));
+--echo conv(64, 10, 8) -> $result5
+
+let $result6 = $(conv(77, 8, 10));
+--echo conv(77, 8, 10) -> $result6
+
+--echo # ----------------------------------------------------------------------------
+--echo # Test shortcut functions bin(), oct(), hex()
+--echo # ----------------------------------------------------------------------------
+
+--echo # Testing bin() function
+
+let $bin1 = $(bin(10));
+--echo bin(10) -> $bin1
+
+let $bin2 = $(bin(255));
+--echo bin(255) -> $bin2
+
+let $bin3 = $(bin(0));
+--echo bin(0) -> $bin3
+
+--echo # Testing oct() function
+
+let $oct1 = $(oct(64));
+--echo oct(64) -> $oct1
+
+let $oct2 = $(oct(512));
+--echo oct(512) -> $oct2
+
+--echo # Testing hex() function
+
+let $hex1 = $(hex(255));
+--echo hex(255) -> $hex1
+
+let $hex2 = $(hex(4095));
+--echo hex(4095) -> $hex2
+
+--echo # ----------------------------------------------------------------------------
+--echo # Test extended base support (bases 2-62)
+--echo # ----------------------------------------------------------------------------
+
+--echo # Testing extended bases
+
+let $base36 = $(conv(ZZ, 36, 10));
+--echo conv(ZZ, 36, 10) -> $base36
+
+let $base62_1 = $(conv(z, 62, 10));
+--echo conv(z, 62, 10) -> $base62_1
+
+let $base62_2 = $(conv(Hello, 62, 10));
+--echo conv(Hello, 62, 10) -> $base62_2
+
+--echo # ----------------------------------------------------------------------------
+--echo # Test signed vs unsigned interpretation
+--echo # ----------------------------------------------------------------------------
+
+--echo # Testing signed vs unsigned interpretation
+
+let $unsigned1 = $(conv(-1, 10, 16));
+--echo conv(-1, 10, 16) -> $unsigned1
+
+let $signed1 = $(conv(-1, 10, -16));
+--echo conv(-1, 10, -16) -> $signed1
+
+let $unsigned2 = $(conv(-10, 10, 2));
+--echo conv(-10, 10, 2) -> $unsigned2
+
+let $signed2 = $(conv(-10, 10, -2));
+--echo conv(-10, 10, -2) -> $signed2
+
+let $unsigned3 = $(conv(-255, 10, 16));
+--echo conv(-255, 10, 16) -> $unsigned3
+
+let $signed3 = $(conv(-255, 10, -16));
+--echo conv(-255, 10, -16) -> $signed3
+
+let $signed4 = $(conv(-1234, -10, 2));
+--echo conv(-1234, -10, 2) -> $signed4
+
+let $signed5 = $(conv(-1234, -10, -2));
+--echo conv(-1234, -10, -2) -> $signed5
+
+--echo # ----------------------------------------------------------------------------
+--echo # Edge cases and boundary conditions
+--echo # ----------------------------------------------------------------------------
+
+--echo # Testing edge cases and boundaries
+
+let $zero1 = $(conv(0, 10, 2));
+--echo conv(0, 10, 2) -> $zero1
+
+let $zero2 = $(conv(0, 16, 10));
+--echo conv(0, 16, 10) -> $zero2
+
+let $max1 = $(conv(9223372036854775807, 10, 16));
+--echo conv(9223372036854775807, 10, 16) -> $max1
+
+let $max2 = $(conv(~0, 10, 2));
+--echo conv(~0, 10, 2) -> $max2
+
+let $large1 = $(conv(7FFFFFFFFFFFFFFF, 16, 10));
+--echo conv(7FFFFFFFFFFFFFFF, 16, 10) -> $large1
+
+let $large2 = $(conv('777777777777777777777', 8, 10));
+--echo conv(777777777777777777777, 8, 10) -> $large2
+
+let $large3 = $(conv('1111111111111111111111111111111111111111111111111111111111111111', 2, 10));
+--echo conv(1111111111111111111111111111111111111111111111111111111111111111, 2, 10) -> $large3
+
+let $large4 = $(conv('9223372036854775807', 10, 2));
+--echo conv(9223372036854775807, 10, 2) -> $large4
+
+let $large5 = $(conv('18446744073709551615', 10, 16));
+--echo conv(18446744073709551615, 10, 16) -> $large5
+
+let $large6 = $(conv('18446744073709551615', 10, 2));
+--echo conv(18446744073709551615, 10, 2) -> $large6
+
+let $min1 = $(conv(-~0, 10, 2));
+--echo conv(-~0, 10, 2) -> $min1
+
+let $leading1 = $(conv(0000123, 10, 16));
+--echo conv(0000123, 10, 16) -> $leading1
+
+--echo # ----------------------------------------------------------------------------
+--echo # Test case sensitivity in conversion
+--echo # ----------------------------------------------------------------------------
+
+--echo # Testing case sensitivity
+
+let $case1 = $(conv(AbCd, 16, 10));
+--echo conv(AbCd, 16, 10) -> $case1
+
+let $case2 = $(conv(abcd, 16, 10));
+--echo conv(abcd, 16, 10) -> $case2
+
+let $case3 = $(conv(ABCD, 16, 10));
+--echo conv(ABCD, 16, 10) -> $case3
+
+--echo # ----------------------------------------------------------------------------
+--echo # Test with variables and expressions
+--echo # ----------------------------------------------------------------------------
+
+--echo # Testing with variables and expressions
+
+let $base_var = 16;
+let $value_var = FF;
+let $target_base = 10;
+
+let $var_result = $(conv($value_var, $base_var, $target_base));
+--echo conv($value_var, $base_var, $target_base) -> $var_result
+
+--echo # ----------------------------------------------------------------------------
+--echo # Error cases - Invalid bases
+--echo # ----------------------------------------------------------------------------
+
+--echo # Testing error cases - Invalid bases
+
+--echo # Base too small (< 2)
+--error 1
+--exec echo "let \$invalid1= \$(conv(123, 1, 10));" | $MYSQL_TEST 2>&1
+
+--echo # Base too large (> 62 for our parser, > 36 for MariaDB)
+--error 1
+--exec echo "let \$invalid2= \$(conv(123, 63, 10));" | $MYSQL_TEST 2>&1
+
+--echo # Zero base
+--error 1
+--exec echo "let \$invalid3= \$(conv(123, 0, 10));" | $MYSQL_TEST 2>&1
+
+--echo # ----------------------------------------------------------------------------
+--echo # Error cases - Invalid characters for base
+--echo # ----------------------------------------------------------------------------
+
+--echo # Testing error cases - Invalid characters
+
+--echo # Character not valid for base 8
+--error 1
+--exec echo "let \$invalid5= \$(conv(189, 8, 10));" | $MYSQL_TEST 2>&1
+
+--echo # Character not valid for base 16
+--error 1
+--exec echo "let \$invalid6= \$(conv(XYZ, 16, 10));" | $MYSQL_TEST 2>&1
+
+--echo # Special characters
+--error 1
+--exec echo "let \$invalid7= \$(conv(@#\\\$, 36, 10));" | $MYSQL_TEST 2>&1
+
+--echo # ----------------------------------------------------------------------------
+--echo # Error cases - Function argument count
+--echo # ----------------------------------------------------------------------------
+
+--echo # Testing error cases - Wrong argument count
+
+--echo # Too few arguments for conv
+--error 1
+--exec echo "let \$invalid8= \$(conv(123, 10));" | $MYSQL_TEST 2>&1
+
+--echo # Too many arguments for conv
+--error 1
+--exec echo "let \$invalid9= \$(conv(123, 10, 16, 2));" | $MYSQL_TEST 2>&1
+
+--echo # Too many arguments for bin
+--error 1
+--exec echo "let \$invalid10= \$(bin(123, 456));" | $MYSQL_TEST 2>&1
+
+--echo # No arguments for hex
+--error 1
+--exec echo "let \$invalid11= \$(hex());" | $MYSQL_TEST 2>&1
+
+--echo # ----------------------------------------------------------------------------
+--echo # Overflow cases
+--echo # ----------------------------------------------------------------------------
+
+--echo # Testing overflow cases
+
+--echo # Number too large for 64-bit
+--error 1
+--exec echo "let \$overflow1= \$(conv(99999999999999999999999999999999, 10, 16));" | $MYSQL_TEST 2>&1
+
+--echo # Very long hex string that would cause overflow
+--error 1
+--exec echo "let \$overflow2= \$(conv(FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF, 16, 10));" | $MYSQL_TEST 2>&1
+
+--echo # ----------------------------------------------------------------------------
+--echo # Test REPLACE function
+--echo # ----------------------------------------------------------------------------
+
+--echo # Basic REPLACE function tests
+
+let $replace1 = $(replace("hello world", "world", "mariadb"));
+--echo replace("hello world", "world", "mariadb") -> "$replace1"
+
+let $replace2 = $(replace("hello hello hello", "hello", "hi"));
+--echo replace("hello hello hello", "hello", "hi") -> "$replace2"
+
+let $replace3 = $(replace("test string", "test", ""));
+--echo replace("test string", "test", "") -> "$replace3"
+
+let $replace4 = $(replace("no change", "missing", "replacement"));
+--echo replace("no change", "missing", "replacement") -> "$replace4"
+
+--echo # ----------------------------------------------------------------------------
+--echo # REPLACE with empty strings
+--echo # ----------------------------------------------------------------------------
+
+--echo # REPLACE with empty strings
+
+let $empty1 = $(replace("hello world", "", "test"));
+--echo replace("hello world", "", "test") -> "$empty1"
+
+let $empty2 = $(replace("hello world", "hello", ""));
+--echo replace("hello world", "hello", "") -> "$empty2"
+
+let $empty3 = $(replace("", "test", "replacement"));
+--echo replace("", "test", "replacement") -> "$empty3"
+
+--echo # ----------------------------------------------------------------------------
+--echo # REPLACE with special characters
+--echo # ----------------------------------------------------------------------------
+
+--echo # REPLACE with special characters
+
+let $special1 = $(replace("a+b=c", "+", "-"));
+--echo replace("a+b=c", "+", "-") -> "$special1"
+
+let $special2 = $(replace("test\\nstring", "\\n", " "));
+--echo replace("test\\nstring", "\\n", " ") -> "$special2"
+
+let $special3 = $(replace("quoted 'string'", "'", ""));
+--echo replace("quoted 'string'", "'", "") -> "$special3"
+
+let $special4 = $(replace('quoted "string"', '"', ""));
+--echo replace('quoted "string"', '"', "") -> "$special4"
+
+--echo # ----------------------------------------------------------------------------
+--echo # REPLACE with variables
+--echo # ----------------------------------------------------------------------------
+
+--echo # REPLACE with variables
+
+let $text = "hello world";
+let $search = "world";
+let $replacement = "mariadb";
+let $var_result = $(replace($text, $search, $replacement));
+--echo replace($text, $search, $replacement) -> "$var_result"
+
+let $multi_var = $(replace("test test test", "test", $replacement));
+--echo replace("test test test", "test", $replacement) -> "$multi_var"
+
+--echo # ----------------------------------------------------------------------------
+--echo # REPLACE edge cases
+--echo # ----------------------------------------------------------------------------
+
+--echo # REPLACE edge cases
+
+let $edge1 = $(replace("aaa", "aa", "b"));
+--echo replace("aaa", "aa", "b") -> "$edge1"
+
+let $edge2 = $(replace("aaaa", "aa", "b"));
+--echo replace("aaaa", "aa", "b") -> "$edge2"
+
+let $edge3 = $(replace("test", "test", "test"));
+--echo replace("test", "test", "test") -> "$edge3"
+
+let $edge4 = $(replace("", "", "something"));
+--echo replace("", "", "something") -> "$edge4"
+
+--echo # ----------------------------------------------------------------------------
+--echo # Test SUBSTR function
+--echo # ----------------------------------------------------------------------------
+
+--echo # SUBSTR function
+
+let $str = "hello";
+
+let $from = -7;
+while ($from <= 7)
+{
+  let $to = -7;
+  while ($to <= 7)
+  {
+    let $result = $(substr($str, $from, $to));
+    --echo substr("hello", $from, $to) -> "$result"
+    --inc $to
+  }
+  --inc $from
+}
+
+let $substr1 = $(substr("hello world", 1, 5));
+--echo substr("hello world", 1, 5) -> "$substr1"
+
+let $substr2 = $(substr("hello world", 7));
+--echo substr("hello world", 7) -> "$substr2"
+
+let $substr3 = $(substr("hello world", 1, 3));
+--echo substr("hello world", 1, 3) -> "$substr3"
+
+let $substr4 = $(substr("hello world", 7, 5));
+--echo substr("hello world", 7, 5) -> "$substr4"
+
+--echo # ----------------------------------------------------------------------------
+--echo # SUBSTR with negative indices
+--echo # ----------------------------------------------------------------------------
+
+--echo # SUBSTR with negative indices
+
+let $neg1 = $(substr("hello world", -5));
+--echo substr("hello world", -5) -> "$neg1"
+
+let $neg2 = $(substr("hello world", -5, 3));
+--echo substr("hello world", -5, 3) -> "$neg2"
+
+let $neg3 = $(substr("hello world", -10, 5));
+--echo substr("hello world", -10, 5) -> "$neg3"
+
+let $neg4 = $(substr("hello world", -20));
+--echo substr("hello world", -20) -> "$neg4"
+
+--echo # ----------------------------------------------------------------------------
+--echo # SUBSTR boundary conditions
+--echo # ----------------------------------------------------------------------------
+
+--echo # SUBSTR boundary conditions
+
+let $bound1 = $(substr("hello world", 1, 0));
+--echo substr("hello world", 1, 0) -> "$bound1"
+
+let $bound2 = $(substr("hello world", 1, 20));
+--echo substr("hello world", 1, 20) -> "$bound2"
+
+let $bound3 = $(substr("hello world", 12));
+--echo substr("hello world", 12) -> "$bound3"
+
+let $bound4 = $(substr("hello world", 0));
+--echo substr("hello world", 0) -> "$bound4"
+
+let $bound5 = $(substr("hello world", 0, 5));
+--echo substr("hello world", 0, 5) -> "$bound5"
+
+--echo # ----------------------------------------------------------------------------
+--echo # SUBSTR with variables
+--echo # ----------------------------------------------------------------------------
+
+--echo # SUBSTR with variables
+
+let $text_var = "hello world";
+let $start_var = 7;
+let $len_var = 5;
+let $var_substr = $(substr($text_var, $start_var, $len_var));
+--echo substr($text_var, $start_var, $len_var) -> "$var_substr"
+
+let $neg_var = $(substr($text_var, -5));
+--echo substr($text_var, -5) -> "$neg_var"
+
+--echo # ----------------------------------------------------------------------------
+--echo # SUBSTR edge cases
+--echo # ----------------------------------------------------------------------------
+
+--echo # SUBSTR edge cases
+
+let $edge_substr1 = $(substr("", 1));
+--echo substr("", 1) -> "$edge_substr1"
+
+let $edge_substr2 = $(substr("a", 1, 5));
+--echo substr("a", 1, 5) -> "$edge_substr2"
+
+let $edge_substr3 = $(substr("hello", 1, -1));
+--echo substr("hello", 1, -1) -> "$edge_substr3"
+
+let $edge_substr4 = $(substr("hello", 5, 1));
+--echo substr("hello", 5, 1) -> "$edge_substr4"
+
+--echo # ----------------------------------------------------------------------------
+--echo # Combined function tests
+--echo # ----------------------------------------------------------------------------
+
+--echo # Combined function tests
+
+let $combined1 = $(replace(substr("hello world", 1, 5), "hello", "hi"));
+--echo replace(substr("hello world", 1, 5), "hello", "hi") -> "$combined1"
+
+let $combined2 = $(substr(replace("hello world", "world", "mariadb"), 7));
+--echo substr(replace("hello world", "world", "mariadb"), 7) -> "$combined2"
+
+let $combined3 = $(replace(substr("test test test", 1, 9), "test", "check"));
+--echo replace(substr("test test test", 1, 9), "test", "check") -> "$combined3"
+
+let $combined4 = $(upper(replace("hello world", "world", "mariadb")));
+--echo upper(replace("hello world", "world", "mariadb")) -> "$combined4"
+
+let $combined5 = $(length(trim(replace("  hello world  ", "world", "mariadb"))));
+--echo length(trim(replace("  hello world  ", "world", "mariadb"))) -> "$combined5"
+
+let $combined6 = $(instr(lower("HELLO WORLD"), "world"));
+--echo instr(lower("HELLO WORLD"), "world") -> $combined6
+
+let $combined7 = $(locate(upper("o"), upper("hello world")));
+--echo locate(upper("o"), upper("hello world")) -> $combined7
+
+let $combined8 = $(reverse(substr(upper("hello world"), 1, 5)));
+--echo reverse(substr(upper("hello world"), 1, 5)) -> "$combined8"
+
+
+--echo # ----------------------------------------------------------------------------
+--echo # String functions in while loops
+--echo # ----------------------------------------------------------------------------
+
+--echo # String functions in while loops
+let $counter = 1;
+let $text_loop = "hello world";
+while ($(substr($text_loop, $counter, 1)))
+{
+  let $char = $(substr($text_loop, $counter, 1));
+  --echo Character at position $counter: $char (upper: $(upper($char)), lower: $(lower($char)))
+  --inc $counter
+}
+
+--echo # String processing with multiple functions
+let $input_text = "HelloWorld";
+let $pos = 1;
+let $total_length = $(length($input_text));
+let $processed = "";
+while ($pos <= $total_length)
+{
+  let $current_char = $(substr($input_text, $pos, 1));
+  if ($(instr("AEIOU", upper($current_char))))
+  {
+    let $processed = $(concat($processed, lower($current_char)));
+  }
+  if (!$(instr("AEIOU", upper($current_char))))
+  {
+    let $processed = $(concat($processed, upper($current_char)));
+  }
+  --inc $pos
+}
+--echo Original: $input_text -> Processed: $processed
+
+--echo # ----------------------------------------------------------------------------
+--echo # Error cases for REPLACE function
+--echo # ----------------------------------------------------------------------------
+
+--echo # Testing error cases for REPLACE function
+
+--echo # Wrong number of arguments
+--error 1
+--exec echo "let \$error1= \$(replace('hello'));" | $MYSQL_TEST 2>&1
+
+--error 1
+--exec echo "let \$error2= \$(replace('hello', 'world'));" | $MYSQL_TEST 2>&1
+
+--error 1
+--exec echo "let \$error3= \$(replace('hello', 'world', 'test', 'extra'));" | $MYSQL_TEST 2>&1
+
+--echo # Wrong argument types
+--error 1
+--exec echo "let \$error4= \$(replace(123, 'world', 'test'));" | $MYSQL_TEST 2>&1
+
+--error 1
+--exec echo "let \$error5= \$(replace('hello', 456, 'test'));" | $MYSQL_TEST 2>&1
+
+--error 1
+--exec echo "let \$error6= \$(replace('hello', 'world', 789));" | $MYSQL_TEST 2>&1
+
+--echo # ----------------------------------------------------------------------------
+--echo # Error cases for SUBSTR function
+--echo # ----------------------------------------------------------------------------
+
+--echo # Testing error cases for SUBSTR function
+
+--echo # Wrong number of arguments
+--error 1
+--exec echo "let \$error7= \$(substr('hello'));" | $MYSQL_TEST 2>&1
+
+--error 1
+--exec echo "let \$error8= \$(substr('hello', 1, 2, 3));" | $MYSQL_TEST 2>&1
+
+--echo # Wrong argument types
+--error 1
+--exec echo "let \$error9= \$(substr(123, 1, 2));" | $MYSQL_TEST 2>&1
+
+--error 1
+--exec echo "let \$error10= \$(substr('hello', 'world', 2));" | $MYSQL_TEST 2>&1
+
+--error 1
+--exec echo "let \$error11= \$(substr('hello', 1, 'world'));" | $MYSQL_TEST 2>&1
+
+--echo # Expression evaluation tests completed successfully
+
+--echo # ----------------------------------------------------------------------------
+--echo # Basic INSTR function tests
+--echo # ----------------------------------------------------------------------------
+
+--echo # Basic INSTR function tests
+
+let $instr1 = $(instr("hello world", "world"));
+--echo instr("hello world", "world") -> $instr1
+
+let $instr2 = $(instr("hello world", "hello"));
+--echo instr("hello world", "hello") -> $instr2
+
+let $instr3 = $(instr("hello world", "o"));
+--echo instr("hello world", "o") -> $instr3
+
+let $instr4 = $(instr("hello world", "xyz"));
+--echo instr("hello world", "xyz") -> $instr4
+
+let $instr5 = $(instr("hello world", ""));
+--echo instr("hello world", "") -> $instr5
+
+--echo # ----------------------------------------------------------------------------
+--echo # INSTR with single characters
+--echo # ----------------------------------------------------------------------------
+
+--echo # INSTR with single characters
+let $instr_char1 = $(instr("hello", "h"));
+--echo instr("hello", "h") -> $instr_char1
+
+let $instr_char2 = $(instr("hello", "e"));
+--echo instr("hello", "e") -> $instr_char2
+
+let $instr_char3 = $(instr("hello", "l"));
+--echo instr("hello", "l") -> $instr_char3
+
+let $instr_char4 = $(instr("hello", "o"));
+--echo instr("hello", "o") -> $instr_char4
+
+let $instr_char5 = $(instr("hello", "x"));
+--echo instr("hello", "x") -> $instr_char5
+
+--echo # ----------------------------------------------------------------------------
+--echo # INSTR with repeated characters
+--echo # ----------------------------------------------------------------------------
+
+--echo # INSTR with repeated characters
+let $instr_repeat1 = $(instr("hello", "l"));
+--echo instr("hello", "l") -> $instr_repeat1
+
+let $instr_repeat2 = $(instr("hello hello", "hello"));
+--echo instr("hello hello", "hello") -> $instr_repeat2
+
+let $instr_repeat3 = $(instr("aaa", "aa"));
+--echo instr("aaa", "aa") -> $instr_repeat3
+
+--echo # ----------------------------------------------------------------------------
+--echo # INSTR with empty strings
+--echo # ----------------------------------------------------------------------------
+
+--echo # INSTR with empty strings
+let $instr_empty1 = $(instr("", "hello"));
+--echo instr("", "hello") -> $instr_empty1
+
+let $instr_empty2 = $(instr("hello", ""));
+--echo instr("hello", "") -> $instr_empty2
+
+let $instr_empty3 = $(instr("", ""));
+--echo instr("", "") -> $instr_empty3
+
+--echo # ----------------------------------------------------------------------------
+--echo # INSTR with special characters
+--echo # ----------------------------------------------------------------------------
+
+--echo # INSTR with special characters
+let $instr_special1 = $(instr("a+b=c", "+"));
+--echo instr("a+b=c", "+") -> $instr_special1
+
+let $instr_special2 = $(instr("test\\nstring", "\\n"));
+--echo instr("test\\nstring", "\\n") -> $instr_special2
+
+let $instr_special3 = $(instr("quoted 'string'", "'"));
+--echo instr("quoted 'string'", "'") -> $instr_special3
+
+let $instr_special4 = $(instr('quoted "string"', '"'));
+--echo instr('quoted "string"', '"') -> $instr_special4
+
+let $instr_special5 = $(instr("test@example.com", "@"));
+--echo instr("test@example.com", "@") -> $instr_special5
+
+--echo # ----------------------------------------------------------------------------
+--echo # INSTR with variables
+--echo # ----------------------------------------------------------------------------
+
+--echo # INSTR with variables
+let $text = "hello world";
+let $search = "world";
+let $instr_var_result = $(instr($text, $search));
+--echo instr($text, $search) -> $instr_var_result
+
+let $char_var = "o";
+let $instr_char_result = $(instr($text, $char_var));
+--echo instr($text, $char_var) -> $instr_char_result
+
+--echo # ----------------------------------------------------------------------------
+--echo # INSTR edge cases
+--echo # ----------------------------------------------------------------------------
+
+--echo # INSTR edge cases
+let $instr_edge1 = $(instr("hello", "hello"));
+--echo instr("hello", "hello") -> $instr_edge1
+
+let $instr_edge2 = $(instr("hello", "hellox"));
+--echo instr("hello", "hellox") -> $instr_edge2
+
+let $instr_edge3 = $(instr("hello", "h"));
+--echo instr("hello", "h") -> $instr_edge3
+
+let $instr_edge4 = $(instr("hello", "o"));
+--echo instr("hello", "o") -> $instr_edge4
+
+let $instr_edge5 = $(instr("a", "a"));
+--echo instr("a", "a") -> $instr_edge5
+
+--echo # ----------------------------------------------------------------------------
+--echo # INSTR with case sensitivity
+--echo # ----------------------------------------------------------------------------
+
+--echo # INSTR with case sensitivity
+let $case1 = $(instr("Hello World", "hello"));
+--echo instr("Hello World", "hello") -> $case1
+
+let $case2 = $(instr("Hello World", "HELLO"));
+--echo instr("Hello World", "HELLO") -> $case2
+
+--echo # ----------------------------------------------------------------------------
+--echo # INSTR with whitespace
+--echo # ----------------------------------------------------------------------------
+
+--echo # INSTR with whitespace
+let $space1 = $(instr("hello world", " "));
+--echo instr("hello world", " ") -> $space1
+
+let $space2 = $(instr("  hello  ", "hello"));
+--echo instr("  hello  ", "hello") -> $space2
+
+let $space3 = $(instr("hello   world", "   "));
+--echo instr("hello   world", "   ") -> $space3
+
+let $space4 = $(instr("hello\tworld", "\t"));
+--echo instr("hello\tworld", "\t") -> $space4
+
+--echo # ----------------------------------------------------------------------------
+--echo # INSTR with complex expressions
+--echo # ----------------------------------------------------------------------------
+
+--echo # INSTR with complex expressions
+let $complex1 = $(instr("hello world", substr("world test", 1, 5)));
+--echo instr("hello world", substr("world test", 1, 5)) -> $complex1
+
+let $complex2 = $(instr(replace("hello world", "world", "mariadb"), "mariadb"));
+--echo instr(replace("hello world", "world", "mariadb"), "mariadb") -> $complex2
+
+--echo # ----------------------------------------------------------------------------
+--echo # INSTR with arithmetic expressions
+--echo # ----------------------------------------------------------------------------
+
+--echo # INSTR with arithmetic expressions
+let $arith1 = $(instr("hello world", "world") + 5);
+--echo instr("hello world", "world") + 5 -> $arith1
+
+let $arith2 = $(instr("hello world", "hello") * 2);
+--echo instr("hello world", "hello") * 2 -> $arith2
+
+--echo # ----------------------------------------------------------------------------
+--echo # INSTR with logical operators
+--echo # ----------------------------------------------------------------------------
+
+--echo # INSTR with logical operators
+let $logical1 = $(instr("hello world", "hello") > 0 && instr("hello world", "world") > 0);
+--echo instr("hello world", "hello") > 0 && instr("hello world", "world") > 0 -> $logical1
+
+let $logical2 = $(instr("hello world", "hello") > 0 || instr("hello world", "xyz") > 0);
+--echo instr("hello world", "hello") > 0 || instr("hello world", "xyz") > 0 -> $logical2
+
+--echo # ----------------------------------------------------------------------------
+--echo # INSTR integration with other functions
+--echo # ----------------------------------------------------------------------------
+
+--echo # INSTR integration with other functions
+
+let $instr_complex1 = $(instr("hello world", substr("world test", 1, 5)));
+--echo instr("hello world", substr("world test", 1, 5)) -> $instr_complex1
+
+let $instr_complex2 = $(instr(replace("hello world", "world", "mariadb"), "mariadb"));
+--echo instr(replace("hello world", "world", "mariadb"), "mariadb") -> $instr_complex2
+
+--echo # ----------------------------------------------------------------------------
+--echo # INSTR error cases
+--echo # ----------------------------------------------------------------------------
+
+--echo # Testing error cases for INSTR function
+
+--echo # Wrong number of arguments
+--error 1
+--exec echo "let \$error1= \$(instr('hello'));" | $MYSQL_TEST 2>&1
+
+--error 1
+--exec echo "let \$error2= \$(instr('hello', 'world', 'extra'));" | $MYSQL_TEST 2>&1
+
+--echo # Wrong argument types
+--error 1
+--exec echo "let \$error3= \$(instr(123, 'world'));" | $MYSQL_TEST 2>&1
+
+--error 1
+--exec echo "let \$error4= \$(instr('hello', 456));" | $MYSQL_TEST 2>&1
+
+--echo # ----------------------------------------------------------------------------
+--echo # Test LOCATE function
+--echo # ----------------------------------------------------------------------------
+
+--echo # LOCATE function tests
+let $loc1 = $(locate('world', 'hello world'));
+--echo locate('world', 'hello world') -> $loc1
+
+let $loc2 = $(locate('o', 'hello world'));
+--echo locate('o', 'hello world') -> $loc2
+
+let $loc3 = $(locate('o', 'hello world', 6));
+--echo locate('o', 'hello world', 6) -> $loc3
+
+let $loc4 = $(locate('xyz', 'hello world'));
+--echo locate('xyz', 'hello world') -> $loc4
+
+let $loc5 = $(locate('', 'hello world'));
+--echo locate('', 'hello world') -> $loc5
+
+let $loc6 = $(locate('hello', ''));
+--echo locate('hello', '') -> $loc6
+
+let $loc7 = $(locate('', ''));
+--echo locate('', '') -> $loc7
+
+let $loc8 = $(locate('l', 'hello world', 1));
+--echo locate('l', 'hello world', 1) -> $loc8
+
+let $loc9 = $(locate('l', 'hello world', 4));
+--echo locate('l', 'hello world', 4) -> $loc9
+
+let $loc10 = $(locate('l', 'hello world', 10));
+--echo locate('l', 'hello world', 10) -> $loc10
+
+--echo # ----------------------------------------------------------------------------
+--echo # LOCATE with empty strings
+--echo # ----------------------------------------------------------------------------
+
+--echo # LOCATE with empty strings
+let $locate_empty1 = $(locate('', 'hello world'));
+--echo locate('', 'hello world') -> $locate_empty1
+
+let $locate_empty2 = $(locate('hello', ''));
+--echo locate('hello', '') -> $locate_empty2
+
+let $locate_empty3 = $(locate('', ''));
+--echo locate('', '') -> $locate_empty3
+
+--echo # ----------------------------------------------------------------------------
+--echo # LOCATE with special characters
+--echo # ----------------------------------------------------------------------------
+
+--echo # LOCATE with special characters
+let $locate_special1 = $(locate('+', 'a+b=c'));
+--echo locate('+', 'a+b=c') -> $locate_special1
+
+let $locate_special2 = $(locate('@', 'test@example.com'));
+--echo locate('@', 'test@example.com') -> $locate_special2
+
+let $locate_special3 = $(locate('.', 'file.txt'));
+--echo locate('.', 'file.txt') -> $locate_special3
+
+--echo # ----------------------------------------------------------------------------
+--echo # LOCATE with variables
+--echo # ----------------------------------------------------------------------------
+
+--echo # LOCATE with variables
+let $locate_text = "hello world";
+let $locate_search = "world";
+let $locate_var_result = $(locate($locate_search, $locate_text));
+--echo locate($locate_search, $locate_text) -> $locate_var_result
+
+let $locate_pos = 6;
+let $locate_var_pos = $(locate('o', $locate_text, $locate_pos));
+--echo locate('o', $locate_text, $locate_pos) -> $locate_var_pos
+
+--echo # ----------------------------------------------------------------------------
+--echo # LOCATE edge cases
+--echo # ----------------------------------------------------------------------------
+
+--echo # LOCATE edge cases
+let $locate_edge1 = $(locate('hello', 'hello world'));
+--echo locate('hello', 'hello world') -> $locate_edge1
+
+let $locate_edge2 = $(locate('world', 'hello world'));
+--echo locate('world', 'hello world') -> $locate_edge2
+
+let $locate_edge3 = $(locate('xyz', 'hello world'));
+--echo locate('xyz', 'hello world') -> $locate_edge3
+
+let $locate_edge4 = $(locate('o', 'hello world', 1));
+--echo locate('o', 'hello world', 1) -> $locate_edge4
+
+let $locate_edge5 = $(locate('o', 'hello world', 20));
+--echo locate('o', 'hello world', 20) -> $locate_edge5
+
+--echo # ----------------------------------------------------------------------------
+--echo # Error cases for LOCATE function
+--echo # ----------------------------------------------------------------------------
+
+--echo # Testing error cases for LOCATE function
+
+--echo # Wrong number of arguments
+--error 1
+--exec echo "let \$error1= \$(locate('hello'));" | $MYSQL_TEST 2>&1
+
+--error 1
+--exec echo "let \$error2= \$(locate('hello', 'world', 1, 'extra'));" | $MYSQL_TEST 2>&1
+
+--echo # Wrong argument types
+--error 1
+--exec echo "let \$error3= \$(locate(123, 'world'));" | $MYSQL_TEST 2>&1
+
+--error 1
+--exec echo "let \$error4= \$(locate('hello', 456));" | $MYSQL_TEST 2>&1
+
+--error 1
+--exec echo "let \$error5= \$(locate('hello', 'world', 'invalid'));" | $MYSQL_TEST 2>&1
+
+--echo # ----------------------------------------------------------------------------
+--echo # Test LOWER function
+--echo # ----------------------------------------------------------------------------
+
+--echo # LOWER function tests
+let $low1 = $(lower('HELLO WORLD'));
+--echo lower('HELLO WORLD') -> $low1
+
+let $low2 = $(lower('Hello World'));
+--echo lower('Hello World') -> $low2
+
+let $low3 = $(lower('hello world'));
+--echo lower('hello world') -> $low3
+
+let $low4 = $(lower('ABC123'));
+--echo lower('ABC123') -> $low4
+
+let $low5 = $(lower(''));
+--echo lower('') -> $low5
+
+let $low6 = $(lower('MIXED Case 123'));
+--echo lower('MIXED Case 123') -> $low6
+
+let $low7 = $(lower('SPECIAL@#\$%'));
+--echo lower('SPECIAL@#\$%') -> $low7
+
+--echo # ----------------------------------------------------------------------------
+--echo # LOWER with empty strings
+--echo # ----------------------------------------------------------------------------
+
+--echo # LOWER with empty strings
+let $lower_empty1 = $(lower(''));
+--echo lower('') -> $lower_empty1
+
+--echo # ----------------------------------------------------------------------------
+--echo # LOWER with special characters
+--echo # ----------------------------------------------------------------------------
+
+--echo # LOWER with special characters
+let $lower_special1 = $(lower('TEST@EXAMPLE.COM'));
+--echo lower('TEST@EXAMPLE.COM') -> $lower_special1
+
+let $lower_special2 = $(lower('FILE.TXT'));
+--echo lower('FILE.TXT') -> $lower_special2
+
+let $lower_special3 = $(lower('HELLO-WORLD_123'));
+--echo lower('HELLO-WORLD_123') -> $lower_special3
+
+--echo # ----------------------------------------------------------------------------
+--echo # LOWER with variables
+--echo # ----------------------------------------------------------------------------
+
+--echo # LOWER with variables
+let $lower_text = "HELLO WORLD";
+let $lower_var_result = $(lower($lower_text));
+--echo lower($lower_text) -> $lower_var_result
+
+--echo # ----------------------------------------------------------------------------
+--echo # LOWER edge cases
+--echo # ----------------------------------------------------------------------------
+
+--echo # LOWER edge cases
+let $lower_edge1 = $(lower('A'));
+--echo lower('A') -> $lower_edge1
+
+let $lower_edge2 = $(lower('a'));
+--echo lower('a') -> $lower_edge2
+
+let $lower_edge3 = $(lower('123'));
+--echo lower('123') -> $lower_edge3
+
+let $lower_edge4 = $(lower('MiXeD cAsE'));
+--echo lower('MiXeD cAsE') -> $lower_edge4
+
+--echo # ----------------------------------------------------------------------------
+--echo # Test UPPER function
+--echo # ----------------------------------------------------------------------------
+
+--echo # UPPER function tests
+let $up1 = $(upper('hello world'));
+--echo upper('hello world') -> $up1
+
+let $up2 = $(upper('Hello World'));
+--echo upper('Hello World') -> $up2
+
+let $up3 = $(upper('HELLO WORLD'));
+--echo upper('HELLO WORLD') -> $up3
+
+let $up4 = $(upper('abc123'));
+--echo upper('abc123') -> $up4
+
+let $up5 = $(upper(''));
+--echo upper('') -> $up5
+
+let $up6 = $(upper('mixed case 123'));
+--echo upper('mixed case 123') -> $up6
+
+let $up7 = $(upper('special@#\$%'));
+--echo upper('special@#\$%') -> $up7
+
+--echo # ----------------------------------------------------------------------------
+--echo # UPPER with empty strings
+--echo # ----------------------------------------------------------------------------
+
+--echo # UPPER with empty strings
+let $upper_empty1 = $(upper(''));
+--echo upper('') -> $upper_empty1
+
+--echo # ----------------------------------------------------------------------------
+--echo # UPPER with special characters
+--echo # ----------------------------------------------------------------------------
+
+--echo # UPPER with special characters
+let $upper_special1 = $(upper('test@example.com'));
+--echo upper('test@example.com') -> $upper_special1
+
+let $upper_special2 = $(upper('file.txt'));
+--echo upper('file.txt') -> $upper_special2
+
+let $upper_special3 = $(upper('hello-world_123'));
+--echo upper('hello-world_123') -> $upper_special3
+
+--echo # ----------------------------------------------------------------------------
+--echo # UPPER with variables
+--echo # ----------------------------------------------------------------------------
+
+--echo # UPPER with variables
+let $upper_text = "hello world";
+let $upper_var_result = $(upper($upper_text));
+--echo upper($upper_text) -> $upper_var_result
+
+--echo # ----------------------------------------------------------------------------
+--echo # UPPER edge cases
+--echo # ----------------------------------------------------------------------------
+
+--echo # UPPER edge cases
+let $upper_edge1 = $(upper('a'));
+--echo upper('a') -> $upper_edge1
+
+let $upper_edge2 = $(upper('A'));
+--echo upper('A') -> $upper_edge2
+
+let $upper_edge3 = $(upper('123'));
+--echo upper('123') -> $upper_edge3
+
+let $upper_edge4 = $(upper('MiXeD cAsE'));
+--echo upper('MiXeD cAsE') -> $upper_edge4
+
+--echo # ----------------------------------------------------------------------------
+--echo # Test REVERSE function
+--echo # ----------------------------------------------------------------------------
+
+--echo # REVERSE function tests
+let $rev1 = $(reverse('hello'));
+--echo reverse('hello') -> $rev1
+
+let $rev2 = $(reverse('hello world'));
+--echo reverse('hello world') -> $rev2
+
+let $rev3 = $(reverse('12345'));
+--echo reverse('12345') -> $rev3
+
+let $rev4 = $(reverse(''));
+--echo reverse('') -> $rev4
+
+let $rev5 = $(reverse('a'));
+--echo reverse('a') -> $rev5
+
+let $rev6 = $(reverse('ab'));
+--echo reverse('ab') -> $rev6
+
+let $rev7 = $(reverse('ABC123'));
+--echo reverse('ABC123') -> $rev7
+
+--echo # ----------------------------------------------------------------------------
+--echo # Test TRIM function
+--echo # ----------------------------------------------------------------------------
+
+--echo # TRIM function tests
+let $trim1 = $(trim('  hello world  '));
+--echo trim('  hello world  ') -> $trim1
+
+let $trim2 = $(trim('hello world'));
+--echo trim('hello world') -> $trim2
+
+let $trim3 = $(trim('   '));
+--echo trim('   ') -> $trim3
+
+let $trim4 = $(trim(''));
+--echo trim('') -> $trim4
+
+let $trim5 = $(trim('  hello'));
+--echo trim('  hello') -> $trim5
+
+let $trim6 = $(trim('hello  '));
+--echo trim('hello  ') -> $trim6
+
+let $trim7 = $(trim('  hello  world  '));
+--echo trim('  hello  world  ') -> $trim7
+
+--echo # ----------------------------------------------------------------------------
+--echo # Test LTRIM function
+--echo # ----------------------------------------------------------------------------
+
+--echo # LTRIM function tests
+let $ltrim1 = $(ltrim('  hello world'));
+--echo ltrim('  hello world') -> $ltrim1
+
+let $ltrim2 = $(ltrim('hello world'));
+--echo ltrim('hello world') -> $ltrim2
+
+let $ltrim3 = $(ltrim('   '));
+--echo ltrim('   ') -> $ltrim3
+
+let $ltrim4 = $(ltrim(''));
+--echo ltrim('') -> $ltrim4
+
+let $ltrim5 = $(ltrim('  hello  world'));
+--echo ltrim('  hello  world') -> $ltrim5
+
+let $ltrim6 = $(ltrim('hello  world'));
+--echo ltrim('hello  world') -> $ltrim6
+
+let $ltrim7 = $(ltrim('  hello'));
+--echo ltrim('  hello') -> $ltrim7
+
+--echo # ----------------------------------------------------------------------------
+--echo # Test RTRIM function
+--echo # ----------------------------------------------------------------------------
+
+--echo # RTRIM function tests
+let $rtrim1 = $(rtrim('hello world  '));
+--echo rtrim('hello world  ') -> $rtrim1
+
+let $rtrim2 = $(rtrim('hello world'));
+--echo rtrim('hello world') -> $rtrim2
+
+let $rtrim3 = $(rtrim('   '));
+--echo rtrim('   ') -> $rtrim3
+
+let $rtrim4 = $(rtrim(''));
+--echo rtrim('') -> $rtrim4
+
+let $rtrim5 = $(rtrim('  hello  world  '));
+--echo rtrim('  hello  world  ') -> $rtrim5
+
+let $rtrim6 = $(rtrim('hello  world'));
+--echo rtrim('hello  world') -> $rtrim6
+
+let $rtrim7 = $(rtrim('hello  '));
+--echo rtrim('hello  ') -> $rtrim7
+
+--echo # ----------------------------------------------------------------------------
+--echo # Test LPAD function
+--echo # ----------------------------------------------------------------------------
+
+--echo # LPAD function tests
+let $lpad1 = $(lpad('hello', 10, '*'));
+--echo lpad('hello', 10, '*') -> $lpad1
+
+let $lpad2 = $(lpad('hello', 5, '*'));
+--echo lpad('hello', 5, '*') -> $lpad2
+
+let $lpad3 = $(lpad('hello', 3, '*'));
+--echo lpad('hello', 3, '*') -> $lpad3
+
+let $lpad4 = $(lpad('hello', 10, ' '));
+--echo lpad('hello', 10, ' ') -> $lpad4
+
+let $lpad5 = $(lpad('', 5, '*'));
+--echo lpad('', 5, '*') -> $lpad5
+
+let $lpad6 = $(lpad('hello', 10, 'ab'));
+--echo lpad('hello', 10, 'ab') -> $lpad6
+
+let $lpad7 = $(lpad('hello', 0, '*'));
+--echo lpad('hello', 0, '*') -> $lpad7
+
+--echo # ----------------------------------------------------------------------------
+--echo # Test RPAD function
+--echo # ----------------------------------------------------------------------------
+
+--echo # RPAD function tests
+let $rpad1 = $(rpad('hello', 10, '*'));
+--echo rpad('hello', 10, '*') -> $rpad1
+
+let $rpad2 = $(rpad('hello', 5, '*'));
+--echo rpad('hello', 5, '*') -> $rpad2
+
+let $rpad3 = $(rpad('hello', 3, '*'));
+--echo rpad('hello', 3, '*') -> $rpad3
+
+let $rpad4 = $(rpad('hello', 10, ' '));
+--echo rpad('hello', 10, ' ') -> $rpad4
+
+let $rpad5 = $(rpad('', 5, '*'));
+--echo rpad('', 5, '*') -> $rpad5
+
+let $rpad6 = $(rpad('hello', 10, 'ab'));
+--echo rpad('hello', 10, 'ab') -> $rpad6
+
+let $rpad7 = $(rpad('hello', 0, '*'));
+--echo rpad('hello', 0, '*') -> $rpad7
+
+--echo # ----------------------------------------------------------------------------
+--echo # Test LENGTH function
+--echo # ----------------------------------------------------------------------------
+
+--echo # LENGTH function tests
+let $len1 = $(length('hello'));
+--echo length('hello') -> $len1
+
+let $len2 = $(length('hello world'));
+--echo length('hello world') -> $len2
+
+let $len3 = $(length(''));
+--echo length('') -> $len3
+
+let $len4 = $(length('12345'));
+--echo length('12345') -> $len4
+
+let $len5 = $(length('  hello  '));
+--echo length('  hello  ') -> $len5
+
+let $len6 = $(length('a'));
+--echo length('a') -> $len6
+
+let $len7 = $(length('special@#\$%'));
+--echo length('special@#\$%') -> $len7
+
+--echo # ----------------------------------------------------------------------------
+--echo # Test special characters and Latin characters
+--echo # ----------------------------------------------------------------------------
+
+--echo # Special characters and Latin characters tests
+let $latin1 = $(length('Björn'));
+--echo length('Björn') -> $latin1
+let $latin2 = $(upper('björn'));
+--echo upper('björn') -> $latin2
+let $latin3 = $(lower('BJÖRN'));
+--echo lower('BJÖRN') -> $latin3
+let $latin4 = $(reverse('Björn'));
+--echo reverse('Björn') -> $latin4
+let $latin5 = $(locate('ö', 'Björn'));
+--echo locate('ö', 'Björn') -> $latin5
+let $latin6 = $(substr('Björn', 1, 3));
+--echo substr('Björn', 1, 3) -> $latin6
+let $latin7 = $(trim('  Björn  '));
+--echo trim('  Björn  ') -> $latin7
+let $latin8 = $(concat('Björn', ' ', 'Müller'));
+--echo concat('Björn', ' ', 'Müller') -> $latin8
+let $latin9 = $(replace('Björn Müller', 'Müller', 'Schmidt'));
+--echo replace('Björn Müller', 'Müller', 'Schmidt') -> $latin9
+let $latin10 = $(instr('Björn Müller', 'Müller'));
+--echo instr('Björn Müller', 'Müller') -> $latin10
+let $latin11 = $(lpad('Björn', 10, '*'));
+--echo lpad('Björn', 10, '*') -> $latin11
+let $latin12 = $(rpad('Björn', 10, '*'));
+--echo rpad('Björn', 10, '*') -> $latin12
+let $latin13 = $(length('Khåled Rïyad'));
+--echo length('Khåled Rïyad') -> $latin13
+let $latin14 = $(upper('josé maría'));
+--echo upper('josé maría') -> $latin14
+let $latin15 = $(substr('José María', 1, 4));
+--echo substr('José María', 1, 4) -> $latin15
+
+--echo # ----------------------------------------------------------------------------
+--echo # Test special characters and symbols
+--echo # ----------------------------------------------------------------------------
+
+--echo # Special characters and symbols tests
+let $symbols1 = $(concat('path', '/', 'to', '/', 'file.txt'));
+--echo concat('path', '/', 'to', '/', 'file.txt') -> $symbols1
+let $symbols2 = $(instr('user@domain.com', 'domain.com'));
+--echo instr('user@domain.com', 'domain.com') -> $symbols2
+let $symbols3 = $(length('path/to/file.txt'));
+--echo length('path/to/file.txt') -> $symbols3
+let $symbols4 = $(locate('.', 'file.txt'));
+--echo locate('.', 'file.txt') -> $symbols4
+let $symbols5 = $(locate('/', 'path/to/file.txt'));
+--echo locate('/', 'path/to/file.txt') -> $symbols5
+let $symbols6 = $(upper('test@example.com'));
+--echo upper('test@example.com') -> $symbols6
+let $symbols7 = $(lower('TEST@EXAMPLE.COM'));
+--echo lower('TEST@EXAMPLE.COM') -> $symbols7
+let $symbols8 = $(lpad('file', 8, '.'));
+--echo lpad('file', 8, '.') -> $symbols8
+let $symbols9 = $(rpad('path', 10, '/'));
+--echo rpad('path', 10, '/') -> $symbols9
+let $symbols10 = $(replace('file.txt', 'txt', 'doc'));
+--echo replace('file.txt', 'txt', 'doc') -> $symbols10
+let $symbols11 = $(replace('path/to/file.txt', 'file.txt', 'document.doc'));
+--echo replace('path/to/file.txt', 'file.txt', 'document.doc') -> $symbols11
+let $symbols12 = $(reverse('path/to/file.txt'));
+--echo reverse('path/to/file.txt') -> $symbols12
+let $symbols13 = $(substr('path/to/file.txt', 1, 4));
+--echo substr('path/to/file.txt', 1, 4) -> $symbols13
+let $symbols14 = $(trim('  path/to/file.txt  '));
+--echo trim('  path/to/file.txt  ') -> $symbols14
+
+--echo # ----------------------------------------------------------------------------
+--echo # Test complex combinations of string functions
+--echo # ----------------------------------------------------------------------------
+
+--echo # Complex string function combinations
+
+let $complex1 = $(length(trim('  hello world  ')));
+--echo length(trim('  hello world  ')) -> $complex1
+
+let $complex2 = $(upper(lower('MiXeD CaSe')));
+--echo upper(lower('MiXeD CaSe')) -> $complex2
+
+let $complex3 = $(reverse(lpad('hi', 5, '*')));
+--echo reverse(lpad('hi', 5, '*')) -> $complex3
+
+let $complex4 = $(locate('o', upper('hello world')));
+--echo locate('o', upper('hello world')) -> $complex4
+
+let $complex5 = $(substr(trim('  hello world  '), 1, 5));
+--echo substr(trim('  hello world  '), 1, 5) -> $complex5
+
+let $complex6 = $(length(concat('hello', ' ', 'world')));
+--echo length(concat('hello', ' ', 'world')) -> $complex6
+
+let $complex7 = $(reverse(upper('hello')));
+--echo reverse(upper('hello')) -> $complex7
+
+let $complex8 = $(lpad(rtrim('hello  '), 10, '*'));
+--echo lpad(rtrim('hello  '), 10, '*') -> $complex8
+
+let $complex9 = $(least(length('hello'), length('world'), length('test')));
+--echo least(length('hello'), length('world'), length('test')) -> $complex9
+
+let $complex10 = $(greatest(instr('hello world', 'h'), instr('hello world', 'w'), instr('hello world', 'o')));
+--echo greatest(instr('hello world', 'h'), instr('hello world', 'w'), instr('hello world', 'o')) -> $complex10
+
+let $complex11 = $(repeat(upper(substr('hello', 1, 2)), 3));
+--echo repeat(upper(substr('hello', 1, 2)), 3) -> $complex11
+
+let $complex12 = $(insert(lower('HELLO WORLD'), 7, 5, upper('mariadb')));
+--echo insert(lower('HELLO WORLD'), 7, 5, upper('mariadb')) -> $complex12
+
+let $complex13 = $(concat_ws('-', upper('hello'), lower('WORLD'), reverse('test')));
+--echo concat_ws('-', upper('hello'), lower('WORLD'), reverse('test')) -> $complex13
+
+let $complex14 = $(ifnull(nullif(trim('  hello  '), 'hello'), 'default'));
+--echo ifnull(nullif(trim('  hello  '), 'hello'), 'default') -> $complex14
+
+let $complex15 = $(coalesce(nullif('test', 'test'), upper('backup')));
+--echo coalesce(nullif('test', 'test'), upper('backup')) -> $complex15
+
+let $complex16 = $(substring_index(concat('www', '.', 'mariadb', '.', 'org'), '.', 2));
+--echo substring_index(concat('www', '.', 'mariadb', '.', 'org'), '.', 2) -> $complex16
+
+--echo # ----------------------------------------------------------------------------
+--echo # Test CONCAT function
+--echo # ----------------------------------------------------------------------------
+
+--echo # Basic CONCAT function tests
+
+let $concat1 = $(concat('a','b','c'));
+--echo concat('a','b','c') -> $concat1
+
+let $concat2 = $(concat(42, 'a'));
+--echo concat(42, 'a') -> $concat2
+
+let $concat3 = $(concat(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, '1', 'a'));
+--echo concat(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, '1', 'a') -> $concat3
+
+let $concat4 = $(concat(''));
+--echo concat('') -> $concat4
+
+let $concat5 = $(concat('å', 'ñ', 'ç', 'ü', 'é', 'ö', 'ß', 'æ', 'ø', 'î', 'ë', 'ä', 'ï', 'ô', 'à', 'ù', 'ê', 'â', 'ý', 'þ', 'ð', 'ł', 'ś', 'ż', 'ź', 'ć'));
+--echo concat('å', 'ñ', 'ç', 'ü', 'é', 'ö', 'ß', 'æ', 'ø', 'î', 'ë', 'ä', 'ï', 'ô', 'à', 'ù', 'ê', 'â', 'ý', 'þ', 'ð', 'ł', 'ś', 'ż', 'ź', 'ć') -> $concat5
+
+let $concat6 = $(concat('', 1));
+--echo concat('', 1) -> $concat6
+
+--echo # ----------------------------------------------------------------------------
+--echo # Test SUBSTRING_INDEX function
+--echo # ----------------------------------------------------------------------------
+
+--echo # SUBSTRING_INDEX function tests
+
+let $substr_idx1 = $(substring_index('www.mariadb.org', '.', 2));
+--echo substring_index('www.mariadb.org', '.', 2) -> $substr_idx1
+
+let $substr_idx2 = $(substring_index('www.mariadb.org', '.', -2));
+--echo substring_index('www.mariadb.org', '.', -2) -> $substr_idx2
+
+let $substr_idx3 = $(substring_index('www.mariadb.org', '.', 0));
+--echo substring_index('www.mariadb.org', '.', 0) -> $substr_idx3
+
+let $substr_idx4 = $(substring_index('www.mariadb.org', '', 1));
+--echo substring_index('www.mariadb.org', '', 1) -> $substr_idx4
+
+let $substr_idx5 = $(substring_index('www.mariadb.org', '', -1));
+--echo substring_index('www.mariadb.org', '', -1) -> $substr_idx5
+
+let $substr_idx6 = $(substring_index('mariadb', '.', 0));
+--echo substring_index('mariadb', '.', 0) -> $substr_idx6
+
+let $substr_idx7 = $(substring_index('mariadb', '.', -1));
+--echo substring_index('mariadb', '.', -1) -> $substr_idx7
+
+let $substr_idx8 = $(substring_index('mariadb', '.', 1));
+--echo substring_index('mariadb', '.', 1) -> $substr_idx8
+
+let $substr_idx9 = $(substring_index('mariadb', 'A', 1));
+--echo substring_index('mariadb', 'A', 1) -> $substr_idx9
+
+let $substr_idx10 = $(substring_index('mariadb', 'A', -1));
+--echo substring_index('mariadb', 'A', -1) -> $substr_idx10
+
+let $substr_idx11 = $(substring_index('mariadb', 'A', 0));
+--echo substring_index('mariadb', 'A', 0) -> $substr_idx11
+
+let $substr_idx12 = $(substring_index('mariadb', 'z', 2));
+--echo substring_index('mariadb', 'z', 2) -> $substr_idx12
+
+let $substr_idx13 = $(substring_index('', 'z', -2));
+--echo substring_index('', 'z', -2) -> $substr_idx13
+
+let $substr_idx14 = $(substring_index('mariadb', 'ar', 0));
+--echo substring_index('mariadb', 'ar', 0) -> $substr_idx14
+
+--echo # ----------------------------------------------------------------------------
+--echo # Test REGEXP_INSTR function
+--echo # ----------------------------------------------------------------------------
+
+--echo # REGEXP_INSTR function tests
+
+let $regexp_instr1 = $(regexp_instr('abc','b'));
+--echo regexp_instr('abc','b') -> $regexp_instr1
+
+let $regexp_instr2 = $(regexp_instr('abc','x'));
+--echo regexp_instr('abc','x') -> $regexp_instr2
+
+let $regexp_instr3 = $(regexp_instr('abc',''));
+--echo regexp_instr('abc','') -> $regexp_instr3
+
+let $regexp_instr4 = $(regexp_instr('','a'));
+--echo regexp_instr('','a') -> $regexp_instr4
+
+let $regexp_instr5 = $(regexp_instr('',''));
+--echo regexp_instr('','') -> $regexp_instr5
+
+let $regexp_instr6 = $(regexp_instr('BJÖRN','N'));
+--echo regexp_instr('BJÖRN','N') -> $regexp_instr6
+
+let $regexp_instr7 = $(regexp_instr('ABC','(?-i)b'));
+--echo regexp_instr('ABC','(?-i)b') -> $regexp_instr7
+
+let $regexp_instr8 = $(regexp_instr('ABC','(?i)b'));
+--echo regexp_instr('ABC','(?i)b') -> $regexp_instr8
+
+--echo # ----------------------------------------------------------------------------
+--echo # Test REGEXP_SUBSTR function
+--echo # ----------------------------------------------------------------------------
+
+--echo # REGEXP_SUBSTR function tests
+
+let $regexp_substr1 = $(regexp_substr('ab12cd','[0-9]+'));
+--echo regexp_substr('ab12cd','[0-9]+') -> $regexp_substr1
+
+let $regexp_substr2 = $(regexp_substr('ab12cd',''));
+--echo regexp_substr('ab12cd','') -> $regexp_substr2
+
+let $regexp_substr3 = $(regexp_substr('abcd','[0-9]+'));
+--echo regexp_substr('abcd','[0-9]+') -> $regexp_substr3
+
+let $regexp_substr4 = $(regexp_substr('','[0-9]+'));
+--echo regexp_substr('','[0-9]+') -> $regexp_substr4
+
+let $regexp_substr5 = $(regexp_substr('',''));
+--echo regexp_substr('','') -> $regexp_substr5
+
+let $regexp_substr6 = $(regexp_substr('See https://mariadb.org/en/foundation/ for details','https?://[^/]*'));
+--echo regexp_substr('See https://mariadb.org/en/foundation/ for details','https?://[^/]*') -> $regexp_substr6
+
+let $regexp_substr7 = $(regexp_substr('ABC','b'));
+--echo regexp_substr('ABC','b') -> $regexp_substr7
+
+let $regexp_substr8 = $(regexp_substr('ABC','(?i)b'));
+--echo regexp_substr('ABC','(?i)b') -> $regexp_substr8
+
+--echo # ----------------------------------------------------------------------------
+--echo # Test REGEXP_REPLACE function
+--echo # ----------------------------------------------------------------------------
+
+--echo # REGEXP_REPLACE function tests
+
+let $regexp_replace1 = $(regexp_replace('ABC','b','x'));
+--echo regexp_replace('ABC','b','x') -> $regexp_replace1
+
+let $regexp_replace2 = $(regexp_replace('ab12cd','[0-9]',''));
+--echo regexp_replace('ab12cd','[0-9]','') -> $regexp_replace2
+
+let $regexp_replace3 = $(regexp_replace('<html><head><title>title</title><body>body</body></htm>', '<.+?>',' '));
+--echo regexp_replace('<html><head><title>title</title><body>body</body></htm>', '<.+?>',' ') -> $regexp_replace3
+
+let $regexp_replace4 = $(regexp_replace('James Bond','^(.*) (.*)\$','\2, \1'));
+--echo regexp_replace('James Bond','^(.*) (.*)\$','\2, \1') -> $regexp_replace4
+
+let $regexp_replace5 = $(regexp_replace('ABC','b','-'));
+--echo regexp_replace('ABC','b','-') -> $regexp_replace5
+
+let $regexp_replace6 = $(regexp_replace('ABC','(?-i)b','-'));
+--echo regexp_replace('ABC','(?-i)b','-') -> $regexp_replace6
+
+let $regexp_replace7 = $(regexp_replace('ABC','(?i)b','-'));
+--echo regexp_replace('ABC','(?i)b','-') -> $regexp_replace7
+
+let $regexp_replace8 = $(regexp_replace('ABC','b',''));
+--echo regexp_replace('ABC','b','') -> $regexp_replace8
+
+let $regexp_replace9 = $(regexp_replace('ABC','(?-i)b',''));
+--echo regexp_replace('ABC','(?-i)b','') -> $regexp_replace9
+
+let $regexp_replace10 = $(regexp_replace('ABC','',''));
+--echo regexp_replace('ABC','','') -> $regexp_replace10
+
+let $regexp_replace11 = $(regexp_replace('ABC','','A'));
+--echo regexp_replace('ABC','','A') -> $regexp_replace11
+
+let $regexp_replace12 = $(regexp_replace('','.','x'));
+--echo regexp_replace('','.','x') -> $regexp_replace12
+
+let $dollar1 = $(regexp_replace('ABC','b','\$'));
+--echo regexp_replace('ABC','b','\$') -> $dollar1
+
+let $dollar2 = $(regexp_replace('ABC','b','\$A'));
+--echo regexp_replace('ABC','b','\$A') -> $dollar2
+
+let $dollar3 = $(regexp_replace('ABCC','C\$','D'));
+--echo regexp_replace('ABCC','C\$','D') -> $dollar3
+
+let $dollar4 = $(regexp_replace('ABC\$','\\\$','D'));
+--echo regexp_replace('ABC\$','\\\$','D') -> $dollar4
+
+--echo # ----------------------------------------------------------------------------
+--echo # Test LEAST function
+--echo # ----------------------------------------------------------------------------
+
+--echo # LEAST function tests
+
+let $least1 = $(least(1, 2, 3));
+--echo least(1, 2, 3) -> $least1
+
+let $least2 = $(least('a', 'b', 'c'));
+--echo least('a', 'b', 'c') -> $least2
+
+let $least3 = $(least(NULL, 1, 2));
+--echo least(NULL, 1, 2) -> $least3
+
+let $least4 = $(least(NULL, NULL, NULL));
+--echo least(NULL, NULL, NULL) -> $least4
+
+let $least5 = $(least('a', 1, 'b'));
+--echo least('a', 1, 'b') -> $least5
+
+let $least6 = $(least(1, 'a', 'b'));
+--echo least(1, 'a', 'b') -> $least6
+
+let $least7 = $(least('z', '-2', 'a'));
+--echo least('z', '-2', 'a') -> $least7
+
+let $least8 = $(least('z', -2, 'a'));
+--echo least('z', -2, 'a') -> $least8
+
+let $least9 = $(least('    -4a', -1, 'b'));
+--echo least('    -4a', -1, 'b') -> $least9
+
+let $least10 = $(least('  ', 10, 'b'));
+--echo least('  ', 10, 'b') -> $least10
+
+let $least11 = $(least(' -0 ', 10, 'b'));
+--echo least(' -0 ', 10, 'b') -> $least11
+
+let $least12 = $(least('', 10, '-b'));
+--echo least('', 10, '-b') -> $least12
+
+let $least13 = $(least(18446744073709551615, 18446744073709551614, 18446744073709551613));
+--echo least(18446744073709551615, 18446744073709551614, 18446744073709551613) -> $least13
+
+let $least14 = $(least(18446744073709551615, -1, 18446744073709551613));
+--echo least(18446744073709551615, -1, 18446744073709551613) -> $least14
+
+--echo # ----------------------------------------------------------------------------
+--echo # Test GREATEST function
+--echo # ----------------------------------------------------------------------------
+
+--echo # GREATEST function tests
+
+let $greatest1 = $(greatest(1, 2, 3));
+--echo greatest(1, 2, 3) -> $greatest1
+
+let $greatest2 = $(greatest('a', 'b', 'c'));
+--echo greatest('a', 'b', 'c') -> $greatest2
+
+let $greatest3 = $(greatest(NULL, 1, 2));
+--echo greatest(NULL, 1, 2) -> $greatest3
+
+let $greatest4 = $(greatest(NULL, NULL, NULL));
+--echo greatest(NULL, NULL, NULL) -> $greatest4
+
+let $greatest5 = $(greatest('a', 1, 'b'));
+--echo greatest('a', 1, 'b') -> $greatest5
+
+let $greatest6 = $(greatest(1, 'a', 'b'));
+--echo greatest(1, 'a', 'b') -> $greatest6
+
+let $greatest7 = $(greatest('z', '-2', 'a'));
+--echo greatest('z', '-2', 'a') -> $greatest7
+
+let $greatest8 = $(greatest('z', -2, 'a'));
+--echo greatest('z', -2, 'a') -> $greatest8
+
+let $greatest9 = $(greatest('    -4a', -1, 'b'));
+--echo greatest('    -4a', -1, 'b') -> $greatest9
+
+let $greatest10 = $(greatest('  ', 10, 'b'));
+--echo greatest('  ', 10, 'b') -> $greatest10
+
+let $greatest11 = $(greatest(' -0 ', 10, 'b'));
+--echo greatest(' -0 ', 10, 'b') -> $greatest11
+
+let $greatest12 = $(greatest('', 10, '-b'));
+--echo greatest('', 10, '-b') -> $greatest12
+
+let $greatest13 = $(greatest(18446744073709551615, 18446744073709551614, 18446744073709551613));
+--echo greatest(18446744073709551615, 18446744073709551614, 18446744073709551613) -> $greatest13
+
+let $greatest14 = $(greatest(18446744073709551615, -1, 18446744073709551613));
+--echo greatest(18446744073709551615, -1, 18446744073709551613) -> $greatest14
+
+let $greatest15 = $(greatest(3.14, 2.71, 3.15));
+--echo greatest(3.14, 2.71, 3.15) -> $greatest15
+
+let $greatest16 = $(greatest(-10, -5, -20));
+--echo greatest(-10, -5, -20) -> $greatest16
+
+let $greatest17 = $(greatest('apple', 'banana', 'cherry'));
+--echo greatest('apple', 'banana', 'cherry') -> $greatest17
+
+let $greatest18 = $(greatest('100', '20', '3'));
+--echo greatest('100', '20', '3') -> $greatest18
+
+--echo # ----------------------------------------------------------------------------
+--echo # Test REPEAT function
+--echo # ----------------------------------------------------------------------------
+
+--echo # REPEAT function tests
+
+let $repeat1 = $(repeat('MariaDB ',4));
+--echo repeat('MariaDB ',4) -> $repeat1
+
+let $repeat2 = $(repeat('a', 0));
+--echo repeat('a', 0) -> $repeat2
+
+let $repeat3 = $(repeat('a', 1));
+--echo repeat('a', 1) -> $repeat3
+
+let $repeat4 = $(repeat('', 0));
+--echo repeat('', 0) -> $repeat4
+
+let $repeat5 = $(repeat('a', -1));
+--echo repeat('a', -1) -> $repeat5
+
+let $repeat6 = $(repeat('a', 18446744073709551615));
+--echo repeat('a', 18446744073709551615) -> $repeat6
+
+let $repeat7 = $(repeat('', 4));
+--echo repeat('', 4) -> $repeat7
+
+let $repeat8 = $(repeat('', -1));
+--echo repeat('', -1) -> $repeat8
+
+let $repeat9 = $(repeat('a32423413', 100));
+--echo repeat('a32423413', 10) -> $repeat9
+
+--echo # ----------------------------------------------------------------------------
+--echo # Test NULLIF function
+--echo # ----------------------------------------------------------------------------
+
+--echo # NULLIF function tests
+
+let $nullif1 = $(nullif('a', 'a'));
+--echo nullif('a', 'a') -> $nullif1
+
+let $nullif2 = $(nullif('a', 'b'));
+--echo nullif('a', 'b') -> $nullif2
+
+let $nullif3 = $(nullif('a', NULL));
+--echo nullif('a', NULL) -> $nullif3
+
+let $nullif4 = $(nullif(NULL, 'a'));
+--echo nullif(NULL, 'a') -> $nullif4
+
+let $nullif5 = $(nullif(NULL, NULL));
+--echo nullif(NULL, NULL) -> $nullif5
+
+--echo # ----------------------------------------------------------------------------
+--echo # Test COALESCE function
+--echo # ----------------------------------------------------------------------------
+
+--echo # COALESCE function tests
+
+let $coalesce1 = $(coalesce(NULL, 'a'));
+--echo coalesce(NULL, 'a') -> $coalesce1
+
+let $coalesce2 = $(coalesce(NULL, NULL));
+--echo coalesce(NULL, NULL) -> $coalesce2
+
+let $coalesce3 = $(coalesce(NULL, 'a', 'b'));
+--echo coalesce(NULL, 'a', 'b') -> $coalesce3
+
+let $coalesce4 = $(coalesce('a', 'b', 'c'));
+--echo coalesce('a', 'b', 'c') -> $coalesce4
+
+let $coalesce5 = $(coalesce('a', NULL, 'b'));
+--echo coalesce('a', NULL, 'b') -> $coalesce5
+
+let $coalesce6 = $(coalesce(NULL, NULL, 'a'));
+--echo coalesce(NULL, NULL, 'a') -> $coalesce6
+
+let $coalesce7 = $(coalesce(NULL, NULL, NULL));
+--echo coalesce(NULL, NULL, NULL) -> $coalesce7
+
+let $coalesce8 = $(coalesce(NULL, 'a', NULL, 'b'));
+--echo coalesce(NULL, 'a', NULL, 'b') -> $coalesce8
+
+--echo # ----------------------------------------------------------------------------
+--echo # Test IFNULL function
+--echo # ----------------------------------------------------------------------------
+
+--echo # IFNULL function tests
+
+let $ifnull1 = $(ifnull(NULL, 'a'));
+--echo ifnull(NULL, 'a') -> $ifnull1
+
+let $ifnull2 = $(ifnull('a', NULL));
+--echo ifnull('a', NULL) -> $ifnull2
+
+let $ifnull3 = $(ifnull(NULL, NULL));
+--echo ifnull(NULL, NULL) -> $ifnull3
+
+let $ifnull4 = $(ifnull('a', 'b'));
+--echo ifnull('a', 'b') -> $ifnull4
+
+let $ifnull5 = $(ifnull('a', 'a'));
+--echo ifnull('a', 'a') -> $ifnull5
+
+--echo # ----------------------------------------------------------------------------
+--echo # Test INSERT function
+--echo # ----------------------------------------------------------------------------
+
+--echo # INSERT function tests
+
+let $insert1 = $(insert('Hello World', 2, 3, 'Xyz'));
+--echo insert('Hello World', 2, 3, 'Xyz') -> $insert1
+
+let $insert2 = $(insert('Hello World', 2, 3, ''));
+--echo insert('Hello World', 2, 3, '') -> $insert2
+
+let $insert3 = $(insert('Hello World', 2, 3, NULL));
+--echo insert('Hello World', 2, 3, NULL) -> $insert3
+
+let $insert4 = $(insert('Hello World', 0, 0, 'Xyz'));
+--echo insert('Hello World', 0, 0, 'Xyz') -> $insert4
+
+let $insert5 = $(insert('Hello World', 0, 0, ''));
+--echo insert('Hello World', 0, 0, '') -> $insert5
+
+let $insert6 = $(insert('Quadratic', 3, 4, 'What'));
+--echo insert('Quadratic', 3, 4, 'What') -> $insert6
+
+let $insert7 = $(insert('Quadratic', -1, 4, 'What'));
+--echo insert('Quadratic', -1, 4, 'What') -> $insert7
+
+let $insert8 = $(insert('Quadratic', 3, 100, 'What'));
+--echo insert('Quadratic', 3, 100, 'What') -> $insert8
+
+let $insert9 = $(insert('Quadratic', -32, -100, 'wow'));
+--echo insert('Quadratic', -32, -100, 'wow') -> $insert9
+
+let $insert10 = $(insert('Quadratic', 32, 100, 'wow'));
+--echo insert('Quadratic', 32, 100, 'wow') -> $insert10
+
+let $insert11 = $(insert('Quadratic', 1, 8, 'wow'));
+--echo insert('Quadratic', 1, 8, 'wow') -> $insert11
+
+let $insert12 = $(insert('Quadratic', 1, 1000, 'wow'));
+--echo insert('Quadratic', 1, 1000, 'wow') -> $insert12
+
+let $insert13 = $(insert('Quadratic', 4, 2, 'wow'));
+--echo insert('Quadratic', 4, 2, 'wow') -> $insert13
+
+let $insert14 = $(insert('Quadratic', 4, 2, ''));
+--echo insert('Quadratic', 4, 2, '') -> $insert14
+
+let $insert15 = $(insert('', 4, 2, 'wow'));
+--echo insert('', 4, 2, 'wow') -> $insert15
+
+let $insert16 = $(insert('Quadratic', 4, -2, 'wow'));
+--echo insert('Quadratic', 4, -2, 'wow') -> $insert16
+
+let $insert17 = $(insert('Quadratic', 4, 0, 'wow'));
+--echo insert('Quadratic', 4, 0, 'wow') -> $insert17
+
+--echo # ----------------------------------------------------------------------------
+--echo # Test CONCAT_WS function
+--echo # ----------------------------------------------------------------------------
+
+--echo # CONCAT_WS function tests
+
+let $concat_ws1 = $(concat_ws('-', 'a', 'b', 'c'));
+--echo concat_ws('-', 'a', 'b', 'c') -> $concat_ws1
+
+let $concat_ws2 = $(concat_ws('#', 'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z'));
+--echo concat_ws('#', 'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z') -> $concat_ws2
+
+let $concat_ws3 = $(concat_ws(' ,', 'a'));
+--echo concat_ws(' ,', 'a') -> $concat_ws3
+
+let $concat_ws4 = $(concat_ws('', 'abc', 'def', 'ghi'));
+--echo concat_ws('', 'abc', 'def', 'ghi') -> $concat_ws4
+
+let $concat_ws5 = $(concat_ws('', 'abc'));
+--echo concat_ws('', 'abc') -> $concat_ws5
+
+let $concat_ws6 = $(concat_ws('&', 'abc'));
+--echo concat_ws('&', 'abc') -> $concat_ws6
+
+let $concat_ws7 = $(concat_ws(' ,', ''));
+--echo concat_ws(' ,', '') -> $concat_ws7
+
+let $concat_ws8 = $(concat_ws('&', 'abc', NULL));
+--echo concat_ws('&', 'abc', NULL) -> $concat_ws8
+
+let $concat_ws9 = $(concat_ws('...', 'abc', NULL, 'def'));
+--echo concat_ws('...', 'abc', NULL, 'def') -> $concat_ws9
+
+let $concat_ws10 = $(concat_ws(NULL, 'abc', NULL, 'def'));
+--echo concat_ws(NULL, 'abc', NULL, 'def') -> $concat_ws10
+
+--echo # ----------------------------------------------------------------------------
+--echo # Test functions with variables
+--echo # ----------------------------------------------------------------------------
+
+--echo # Functions with variables
+
+let $text = 'test string';
+let $search = 'string';
+let $replacement = 'value';
+
+let $result1 = $(least($text, $search));
+--echo least($text, $search) -> $result1
+
+let $result1a = $(greatest($text, $search));
+--echo greatest($text, $search) -> $result1a
+
+let $result2 = $(repeat($search, 3));
+--echo repeat($search, 3) -> $result2
+
+let $result3 = $(insert($text, 5, 6, $replacement));
+--echo insert($text, 5, 6, $replacement) -> $result3
+
+let $result4 = $(concat_ws(' ', $text, $search, $replacement));
+--echo concat_ws(' ', $text, $search, $replacement) -> $result4
+
+let $result5 = $(ifnull(NULL, $replacement));
+--echo ifnull(NULL, $replacement) -> $result5
+
+let $result6 = $(coalesce(NULL, NULL, $replacement));
+--echo coalesce(NULL, NULL, $replacement) -> $result6
+
+let $result7 = $(nullif($text, $search));
+--echo nullif($text, $search) -> $result7
+
+--echo # ----------------------------------------------------------------------------
+--echo # Test functions with special characters
+--echo # ----------------------------------------------------------------------------
+
+--echo # Functions with special characters
+
+let $result1 = $(least('Björn', 'Müller', 'Schmidt'));
+--echo least('Björn', 'Müller', 'Schmidt') -> $result1
+
+let $result1a = $(greatest('Björn', 'Müller', 'Schmidt'));
+--echo greatest('Björn', 'Müller', 'Schmidt') -> $result1a
+
+let $result2 = $(repeat('ö', 5));
+--echo repeat('ö', 5) -> $result2
+
+let $result3 = $(insert('Björn Müller', 7, 6, 'Schmidt'));
+--echo insert('Björn Müller', 7, 6, 'Schmidt') -> $result3
+
+let $result4 = $(concat_ws(' ', 'José', 'María', 'González'));
+--echo concat_ws(' ', 'José', 'María', 'González') -> $result4
+
+let $result5 = $(ifnull(NULL, 'François'));
+--echo ifnull(NULL, 'François') -> $result5
+
+let $result6 = $(coalesce(NULL, 'Håkon', 'Olsen'));
+--echo coalesce(NULL, 'Håkon', 'Olsen') -> $result6
+
+let $result7 = $(nullif('test@example.com', 'user@domain.com'));
+--echo nullif('test@example.com', 'user@domain.com') -> $result7
+
+--echo # ----------------------------------------------------------------------------
+--echo # Test functions with mixed data types
+--echo # ----------------------------------------------------------------------------
+
+--echo # Functions with mixed data types
+
+let $result1 = $(least(123, 'abc', 456));
+--echo least(123, 'abc', 456) -> $result1
+
+let $result1a = $(greatest(123, 'abc', 456));
+--echo greatest(123, 'abc', 456) -> $result1a
+
+let $result2 = $(repeat('test', 3));
+--echo repeat('test', 3) -> $result2
+
+let $result3 = $(insert('test123', 5, 3, 'ABC'));
+--echo insert('test123', 5, 3, 'ABC') -> $result3
+
+let $result4 = $(concat_ws('-', 'prefix', 123, 'suffix'));
+--echo concat_ws('-', 'prefix', 123, 'suffix') -> $result4
+
+let $result5 = $(ifnull(123, 'fallback'));
+--echo ifnull(123, 'fallback') -> $result5
+
+let $result6 = $(coalesce(NULL, 456, 'backup'));
+--echo coalesce(NULL, 456, 'backup') -> $result6
+
+let $result7 = $(nullif(123, 456));
+--echo nullif(123, 456) -> $result7
+
+--echo # ----------------------------------------------------------------------------
+--echo # Test functions in complex expressions
+--echo # ----------------------------------------------------------------------------
+
+--echo # Functions in complex expressions
+
+let $result1 = $(least(1, 2, 3) + 10);
+--echo least(1, 2, 3) + 10 -> $result1
+
+let $result1a = $(greatest(1, 2, 3) * 5);
+--echo greatest(1, 2, 3) * 5 -> $result1a
+
+let $result2 = $(length(repeat('ab', 4)));
+--echo length(repeat('ab', 4)) -> $result2
+
+let $result3 = $(upper(insert('hello world', 7, 5, 'mariadb')));
+--echo upper(insert('hello world', 7, 5, 'mariadb')) -> $result3
+
+let $result4 = $(length(concat_ws(' ', 'hello', 'world', 'test')));
+--echo length(concat_ws(' ', 'hello', 'world', 'test')) -> $result4
+
+let $result5 = $(ifnull(NULL, 'default') == 'default');
+--echo ifnull(NULL, 'default') == 'default' -> $result5
+
+let $result6 = $(coalesce(NULL, NULL, 'found') != 'missing');
+--echo coalesce(NULL, NULL, 'found') != 'missing' -> $result6
+
+let $result7 = $(nullif('same', 'same'));
+--echo nullif('same', 'same') -> $result7
+
+--echo # ----------------------------------------------------------------------------
+--echo # Test functions in conditional expressions
+--echo # ----------------------------------------------------------------------------
+
+--echo # Functions in conditional expressions
+
+if ($(least(5, 3, 8) == 3))
+{
+  --echo least returns minimum value correctly
+}
+
+if ($(greatest(5, 3, 8) == 8))
+{
+  --echo greatest returns maximum value correctly
+}
+
+if ($(repeat('x', 0) == ''))
+{
+  --echo repeat with count 0 returns empty string
+}
+
+if ($(insert('test', 1, 2, 'best') == 'best'))
+{
+  --echo insert replaces correctly at start
+}
+
+if ($(concat_ws(',', 'a', 'b') == 'a,b'))
+{
+  --echo CONCAT_WS joins with separator correctly
+}
+
+if ($(ifnull('value', 'default') == 'value'))
+{
+  --echo ifnull returns first value when not NULL
+}
+
+if ($(coalesce(NULL, 'second', 'third') == 'second'))
+{
+  --echo coalesce returns first non-NULL value
+}
+
+if ($(nullif('different', 'values') == 'different'))
+{
+  --echo nullif returns first value when values differ
+}
+
+--echo # ----------------------------------------------------------------------------
+--echo # Test functions with arithmetic in arguments
+--echo # ----------------------------------------------------------------------------
+
+--echo # Functions with arithmetic in arguments
+
+let $result1 = $(least(1+2, 2*2, 3+1));
+--echo least(1+2, 2*2, 3+1) -> $result1
+
+let $result1a = $(greatest(1+2, 2*2, 3+1));
+--echo greatest(1+2, 2*2, 3+1) -> $result1a
+
+let $result2 = $(repeat('x', 2+3));
+--echo repeat('x', 2+3) -> $result2
+
+let $result3 = $(insert('hello', 1+1, 2*1, 'hi'));
+--echo insert('hello', 1+1, 2*1, 'hi') -> $result3
+
+let $start_pos = 2;
+let $length_val = 3;
+let $result4 = $(insert('testing', $start_pos, $length_val, 'xyz'));
+--echo insert('testing', $start_pos, $length_val, 'xyz') -> $result4
+
+--echo # ----------------------------------------------------------------------------
+--echo # Test nested function calls
+--echo # ----------------------------------------------------------------------------
+
+--echo # Nested function calls
+
+let $result1 = $(least(length('hello'), length('world'), length('test')));
+--echo least(length('hello'), length('world'), length('test')) -> $result1
+
+let $result1a = $(greatest(length('hello'), length('world'), length('test')));
+--echo greatest(length('hello'), length('world'), length('test')) -> $result1a
+
+let $result2 = $(repeat(upper('ab'), 3));
+--echo repeat(upper('ab'), 3) -> $result2
+
+let $result3 = $(insert(upper('hello world'), 7, 5, lower('MARIADB')));
+--echo insert(upper('hello world'), 7, 5, lower('MARIADB')) -> $result3
+
+let $result4 = $(concat_ws(' ', upper('hello'), lower('WORLD')));
+--echo concat_ws(' ', upper('hello'), lower('WORLD')) -> $result4
+
+let $result5 = $(ifnull(nullif('same', 'same'), 'default'));
+--echo ifnull(nullif('same', 'same'), 'default') -> $result5
+
+let $result6 = $(coalesce(nullif('test', 'test'), 'backup'));
+--echo coalesce(nullif('test', 'test'), 'backup') -> $result6
+
+--echo # Expression evaluation string functions tests completed successfully
