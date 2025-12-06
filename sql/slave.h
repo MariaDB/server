@@ -37,10 +37,8 @@
    compiled in (embedded).
 */
 
-/**
-   The maximum is defined as (ULONG_MAX/1000) with 4 bytes ulong
-*/
-#define SLAVE_MAX_HEARTBEAT_PERIOD 4294967
+/// @return UINT32_MAX / 1000 * 1000
+#define SLAVE_MAX_HEARTBEAT_PERIOD 4294967000
 
 #ifdef HAVE_REPLICATION
 
@@ -67,7 +65,7 @@ struct rpl_parallel_thread;
 int init_intvar_from_file(int* var, IO_CACHE* f, int default_val);
 int init_strvar_from_file(char *var, int max_size, IO_CACHE *f,
                           const char *default_val);
-int init_floatvar_from_file(float* var, IO_CACHE* f, float default_val);
+int init_floatvar_from_file(double* var, IO_CACHE* f, float default_val);
 int init_dynarray_intvar_from_file(DYNAMIC_ARRAY* arr, IO_CACHE* f);
 
 /*****************************************************************************
@@ -266,7 +264,7 @@ int apply_event_and_update_pos_for_parallel(Log_event* ev, THD* thd,
                                             struct rpl_group_info *rgi);
 
 int init_intvar_from_file(int* var, IO_CACHE* f, int default_val);
-int init_floatvar_from_file(float* var, IO_CACHE* f, float default_val);
+int init_floatvar_from_file(double* var, IO_CACHE* f, float default_val);
 int init_strvar_from_file(char *var, int max_size, IO_CACHE *f,
                           const char *default_val);
 int init_dynarray_intvar_from_file(DYNAMIC_ARRAY* arr, IO_CACHE* f);
