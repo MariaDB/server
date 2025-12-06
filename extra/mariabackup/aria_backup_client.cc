@@ -161,7 +161,10 @@ public:
 		File m_data_file = -1;
 		MY_STAT m_data_file_stat;
 	};
-	Table() = default;
+	Table()
+        {
+          bzero(&m_cap, sizeof(m_cap));
+        }
 	Table (Table &&other) = delete;
 	Table &  operator= (Table &&other) = delete;
 	Table(const Table &) = delete;
@@ -222,6 +225,7 @@ private:
 };
 
 Table::~Table() {
+         aria_free_capabilities(&m_cap);
 	(void)close();
 }
 
@@ -298,7 +302,8 @@ bool Table::open(MYSQL *con, bool opt_no_lock, unsigned thread_num) {
 			goto exit;
 		}
 		if (!have_capabilities) {
-			if ((error= aria_get_capabilities(partition.m_index_file, &m_cap))) {
+                  if ((error= aria_get_capabilities(partition.m_index_file,
+                                                    m_full_name.c_str(), &m_cap))) {
 				msg(thread_num, "aria_get_capabilities failed: %d", error);
 				goto exit;
 			}
@@ -343,6 +348,7 @@ exit:
 }
 
 bool Table::close() {
+        aria_free_capabilities(&m_cap);
 	for (Partition &partition : m_partitions) {
 		if (partition.m_index_file >= 0) {
 			my_close(partition.m_index_file, MYF(MY_WME));
@@ -409,14 +415,17 @@ bool Table::copy(ds_ctxt_t *ds, bool is_index, unsigned thread_num) {
                         {
                           if (error == HA_ERR_END_OF_FILE)
                             break;
-                          msg(thread_num, "error: aria_read %s failed:  %d",
-                              is_index ? "index" : "data", error);
+                          msg(thread_num, "error: aria_read %s from %s failed "
+                              "with error %d",
+                              is_index ? "index" : "data", full_name.c_str(),
+                              error);
                           goto err;
 			}
 			xtrabackup_io_throttling();
 			if ((error = ds_write(dst_file, copy_buffer, length))) {
-				msg(thread_num, "error: aria_write failed:  %d", error);
-				goto err;
+                          msg(thread_num, "error: aria_write to %s failed "
+                              "with error: %d", dst_path, error);
+                          goto err;
 			}
 		}
 

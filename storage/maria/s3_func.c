@@ -411,7 +411,7 @@ int aria_copy_to_s3(ms3_st *s3_client, const char *aws_bucket,
                      O_RDONLY | O_SHARE | O_NOFOLLOW | O_CLOEXEC,
                      MYF(MY_WME))) < 0)
     DBUG_RETURN(1);
-  if ((error= aria_get_capabilities(file, &cap)))
+  if ((error= aria_get_capabilities(file, table_name, &cap)))
   {
     fprintf(stderr, "Got error %d when reading Aria header from %s\n",
             error, path);

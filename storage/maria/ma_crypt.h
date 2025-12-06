@@ -26,9 +26,12 @@ uint ma_crypt_get_index_page_header_space(struct st_maria_share *);
 uint ma_crypt_get_file_length();                    /* bytes needed in file   */
 int ma_crypt_create(struct st_maria_share *);       /* create encryption data */
 int ma_crypt_write(struct st_maria_share *, File); /* write encryption data */
-uchar* ma_crypt_read(struct st_maria_share *, uchar *buff,
-                     my_bool silent); /* read crypt data*/
-
+uchar *ma_crypt_read(struct st_maria_share *, uchar *buff,
+                     my_bool silent, my_bool no_alloc); /* read crypt data */
+my_bool ma_crypt_data_post_read_hook(int res,
+                                     PAGECACHE_IO_HOOK_ARGS *args);
+my_bool ma_crypt_index_post_read_hook(int res,
+                                      PAGECACHE_IO_HOOK_ARGS *args);
 void ma_crypt_set_data_pagecache_callbacks(struct st_pagecache_file *file,
                                            struct st_maria_share *share);
 

@@ -5486,6 +5486,7 @@ fail:
 		if (fil_system.is_initialised()) {
 			innodb_shutdown();
 		}
+                backup_datasinks.destroy();
 		return(false);
 	}
 
