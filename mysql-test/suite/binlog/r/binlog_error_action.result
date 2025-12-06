@@ -1,0 +1,79 @@
+
+# MDEV-17856 Port binlog_error_action from MySQL
+
+call mtr.add_suppression("Could not use \\S+ for logging ");
+call mtr.add_suppression("Can't generate a unique log-filename");
+call mtr.add_suppression("Turning logging off");
+call mtr.add_suppression("Waiting for someone to free space");
+call mtr.add_suppression("Retry in \\d+ sec");
+RESET MASTER;
+Test case1
+SET GLOBAL binlog_error_action= ABORT_SERVER;
+flush logs;
+ERROR HY000: File './mysqld-bin.index' not found (Errcode: 13 "Permission denied")
+Test case2
+SET SESSION debug="+d,fault_injection_updating_index";
+SET GLOBAL binlog_error_action= ABORT_SERVER;
+flush logs;
+ERROR HY000: 'binlog_error_action' is set to 'ABORT_SERVER'. Stopping...
+Test case4
+SET SESSION debug="+d,fault_injection_init_name";
+SET GLOBAL binlog_error_action= ABORT_SERVER;
+flush logs;
+ERROR HY000: 'binlog_error_action' is set to 'ABORT_SERVER'. Stopping...
+Test case5
+SET GLOBAL binlog_error_action= IGNORE_ERROR;
+flush logs;
+ERROR HY000: File './mysqld-bin.index' not found (Errcode: 13 "Permission denied")
+CREATE TABLE t1 ( f int );
+SHOW TABLES;
+Tables_in_test
+t1
+DROP TABLE t1;
+# restart
+Test case6
+SET GLOBAL binlog_error_action= IGNORE_ERROR;
+SET SESSION debug="+d,fault_injection_updating_index";
+flush logs;
+ERROR HY000: Can't open file: './master-bin.000006' (errno: 1 "Operation not permitted")
+CREATE TABLE t2 (f int );
+SHOW TABLES;
+Tables_in_test
+t2
+DROP TABLE t2;
+SET SESSION debug="-d,fault_injection_updating_index";
+# restart
+Test case8
+SET GLOBAL binlog_error_action= IGNORE_ERROR;
+SET SESSION debug="+d,fault_injection_init_name";
+flush logs;
+ERROR HY000: Can't open file: './master-bin.000007' (errno: 1 "Operation not permitted")
+CREATE TABLE t2 (f int );
+SHOW TABLES;
+Tables_in_test
+t2
+DROP TABLE t2;
+SET SESSION debug="-d,fault_injection_init_name";
+# restart
+"Test case10"
+CREATE TABLE t1 (a INT);
+SET GLOBAL binlog_error_action=IGNORE_ERROR;
+SET SESSION debug='+d,error_unique_log_filename';
+FLUSH LOGS;
+ERROR HY000: Can't generate a unique log-filename master-bin.(1-999)
+
+DROP TABLE t1;
+SET SESSION debug='-d,error_unique_log_filename';
+SHOW BINARY LOGS;
+ERROR HY000: You are not using binary logging
+# restart
+"Test case11"
+CREATE TABLE t1 (a INT);
+SET GLOBAL binlog_error_action=ABORT_SERVER;
+SET SESSION debug='+d,error_unique_log_filename';
+FLUSH LOGS;
+ERROR HY000: Can't generate a unique log-filename master-bin.(1-999)
+
+DROP TABLE t1;
+SET SESSION debug="";
+SET GLOBAL binlog_error_action= UNSET;

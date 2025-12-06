@@ -80,6 +80,11 @@ The following specify which files/extra groups are read (specified before remain
  from the master
  --binlog-do-db=name Tells the master it should log updates for the specified
  database, and exclude all others not explicitly mentioned
+ --binlog-error-action=name 
+ When statements cannot be written to the binary log due
+ to a fatal error, the server can either ignore the error
+ and let the primary continue, or abort. One of: 
+ IGNORE_ERROR, ABORT_SERVER
  --binlog-expire-logs-seconds=# 
  If non-zero, binary logs will be purged after
  binlog_expire_logs_seconds seconds; It and
@@ -1692,6 +1697,7 @@ binlog-checksum CRC32
 binlog-commit-wait-count 0
 binlog-commit-wait-usec 100000
 binlog-direct-non-transactional-updates FALSE
+binlog-error-action IGNORE_ERROR
 binlog-expire-logs-seconds 0
 binlog-file-cache-size 16384
 binlog-format MIXED

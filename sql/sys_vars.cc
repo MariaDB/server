@@ -1,5 +1,5 @@
 /* Copyright (c) 2002, 2015, Oracle and/or its affiliates.
-   Copyright (c) 2012, 2022, MariaDB Corporation.
+   Copyright (c) 2012, 2024, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -1614,6 +1614,21 @@ Sys_log_bin_compress_min_len(
   "that can be compressed",
   GLOBAL_VAR(opt_bin_log_compress_min_len),
   CMD_LINE(OPT_ARG), VALID_RANGE(10, 1024), DEFAULT(256), BLOCK_SIZE(1));
+
+static const char *binlog_error_action_list[]=
+  {"UNSET", /*"IGNORE", "RETRY",*/ "IGNORE_ERROR", "CLOSE_BINLOG", "ABORT_SERVER", NullS};
+static Sys_var_on_access_global<Sys_var_enum,
+  PRIV_SET_SYSTEM_GLOBAL_VAR_BINLOG_ERROR_ACTION
+> Sys_binlog_error_action("binlog_error_action",
+  "When binary logging encounters a fatal error, "
+  "this option determines whether the server "/*ignores this error, "*/
+  /*"retries in 60 secs, */"closes the binlog, or directly aborts. "
+  "IGNORE_ERROR is a MySQL compatibility option that is the same as "
+  "CLOSE_BINLOG except it retries in 60 secs when disk full, and " // i.e. RETRY
+  "UNSET is a MariaDB compatibility option that is the same as IGNORE_ERROR "
+  "except the binlog doesn't close when rotation cannot generate a unique name", // i.e. IGNORE
+  GLOBAL_VAR(MYSQL_BIN_LOG::binlog_error_action), CMD_LINE(REQUIRED_ARG),
+binlog_error_action_list, DEFAULT(MYSQL_BIN_LOG::binlog_error_action));
 
 static Sys_var_on_access_global<Sys_var_mybool,
                     PRIV_SET_SYSTEM_GLOBAL_VAR_LOG_BIN_TRUST_FUNCTION_CREATORS>

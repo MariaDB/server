@@ -352,6 +352,15 @@ public:
                                   ulong next_log_number,
                                   enum_log_type log_type_arg,
                                   enum cache_type io_cache_type_arg);
+
+  /**
+    Handle an error (after the caller prints an error message)
+    @return
+      Return if the caller may continue;
+      does not return if the response is to abort
+    @sa mysql_ignore_error in ./log.cc
+  */
+  virtual void exec_error_action();
 };
 
 /**
@@ -775,6 +784,19 @@ class MYSQL_BIN_LOG: public TC_LOG, public Event_log
   void update_gtid_index(uint32 offset, rpl_gtid gtid);
 
 public:
+  static ulong binlog_error_action;
+  enum enum_binlog_error_action
+  {
+    /** MariaDB compatibility */
+    MARIADB_UNSET= false,
+    //IGNORE,
+    //RETRY, // https://jira.mariadb.org/browse/MDEV-20796
+    /** MySQL compatibility */
+    MYSQL_IGNORE_ERROR,
+    CLOSE_BINLOG,
+    ABORT_SERVER,
+  };
+
   void purge(bool all);
   int new_file_without_locking(bool commit_by_rotate);
   /*
@@ -1200,6 +1222,9 @@ public:
   */
   my_off_t binlog_end_pos;
   char binlog_end_pos_file[FN_REFLEN];
+
+protected:
+  void exec_error_action() override;
 };
 
 class Log_event_handler

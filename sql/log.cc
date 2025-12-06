@@ -135,11 +135,10 @@ static ulonglong binlog_status_group_commit_trigger_timeout;
 static char binlog_snapshot_file[FN_REFLEN];
 static ulonglong binlog_snapshot_position;
 
+/** @deprecated replace with localized string */
 static const char *fatal_log_error=
   "Could not use %s for logging (error %d). "
-  "Turning logging off for the whole duration of the MariaDB server process. "
-  "To turn it on again: fix the cause, shutdown the MariaDB server and "
-  "restart it.";
+  "Either disk is full or file system is read only while opening the binlog.";
 
 
 static SHOW_VAR binlog_status_vars_detail[]=
@@ -2985,6 +2984,40 @@ bool MYSQL_LOG::init_and_set_log_file_name(const char *log_name,
   return FALSE;
 }
 
+/** Shut down logging and complain part 2 of the original fatal_log_error msg */
+void MYSQL_LOG::exec_error_action()
+{
+  sql_print_error(
+    "Turning logging off for the whole duration of the MariaDB server process. "
+    "To turn it on again: "
+    "fix the cause, shutdown the MariaDB server and restart it."
+  );
+  close(LOG_CLOSE_INDEX);
+}
+
+/** `--binlog_error_action`, one of enum_binlog_error_action (`sql/log.h`) */
+ulong MYSQL_BIN_LOG::binlog_error_action= MARIADB_UNSET;
+/** React according to binlog_error_action; only CLOSE_BINLOG calls super */
+void MYSQL_BIN_LOG::exec_error_action()
+{
+  switch (binlog_error_action) {
+  case ABORT_SERVER:
+  {
+    THD *thd= current_thd;
+    my_printf_error(ER_BINLOG_LOGGING_IMPOSSIBLE,
+      "'binlog_error_action' is set to 'ABORT_SERVER'. Stopping...",
+      MYF(ME_FATAL)
+    );
+    thd->protocol->end_statement();
+    close(LOG_CLOSE_INDEX);
+    return abort(); // no return
+  }
+  case MYSQL_IGNORE_ERROR: // MySQL compatibility
+  case CLOSE_BINLOG:
+    return MYSQL_LOG::exec_error_action();
+  // default: do_nothing();
+  }
+}
 
 /*
   Open a (new) log file.
@@ -3037,9 +3070,10 @@ bool MYSQL_LOG::open(
     This is only used when called from MYSQL_BINARY_LOG::open, which
     has already updated log_file_name.
    */
-  if (log_type_arg != LOG_UNKNOWN &&
-      init_and_set_log_file_name(name, new_name, next_log_number,
-                                 log_type_arg, io_cache_type_arg))
+  if ((log_type_arg != LOG_UNKNOWN &&
+       init_and_set_log_file_name(name, new_name, next_log_number,
+                                  log_type_arg, io_cache_type_arg)) ||
+      (DBUG_IF("fault_injection_init_name") && log_type == LOG_BIN))
     goto err;
 
   is_fifo = my_stat(log_file_name, &f_stat, MYF(0)) &&
@@ -3105,12 +3139,9 @@ bool MYSQL_LOG::open(
 
 err:
   sql_print_error(fatal_log_error, name, errno);
-  if (file >= 0)
-    mysql_file_close(file, MYF(0));
-  end_io_cache(&log_file);
   my_free(name);
   name= NULL;
-  log_state= LOG_CLOSED;
+  exec_error_action();
   DBUG_RETURN(1);
 }
 
@@ -3214,6 +3245,8 @@ int MYSQL_BIN_LOG::generate_new_name(char *new_name, const char *log_name,
       if (unlikely(thd))
         my_error(ER_NO_UNIQUE_LOGFILE, MYF(ME_FATAL), log_name);
       sql_print_error(ER_DEFAULT(ER_NO_UNIQUE_LOGFILE), log_name);
+      if (binlog_error_action) // Do nothing for enum_binlog_error_action::UNSET
+        exec_error_action();
       return 1;
     }
   }
@@ -4252,13 +4285,21 @@ bool MYSQL_BIN_LOG::open(const char *log_name,
         As this is a new log file, we write the file name to the index
         file. As every time we write to the index file, we sync it.
       */
+      //DBUG_EXECUTE_IF("simulate_disk_full_on_open_binlog",
+      //  DBUG_SET("+d,simulate_file_write_error");
+      //);
       if (DBUG_IF("fault_injection_updating_index") ||
           my_b_write(&index_file, (uchar*) log_file_name,
                      strlen(log_file_name)) ||
           my_b_write(&index_file, (uchar*) "\n", 1) ||
           flush_io_cache(&index_file) ||
           mysql_file_sync(index_file.file, MYF(MY_WME)))
+      //{
+      //  DBUG_EXECUTE_IF("simulate_disk_full_on_open_binlog",
+      //    DBUG_SET("-d,simulate_file_write_error");
+      //  );
         goto err;
+      //}
 
 #ifdef HAVE_REPLICATION
       DBUG_EXECUTE_IF("crash_create_after_update_index", DBUG_SUICIDE(););
@@ -4330,7 +4371,7 @@ err:
   sql_print_error(fatal_log_error, (name) ? name : log_name, tmp_errno);
   if (new_xid_list_entry)
     delete new_xid_list_entry;
-  close(LOG_CLOSE_INDEX);
+  exec_error_action();
   DBUG_RETURN(1);
 }
 
@@ -6086,25 +6127,13 @@ end:
     mysql_file_close(old_file, MYF(MY_WME));
   }
 
+  mysql_mutex_unlock(&LOCK_index);
+
   if (unlikely(error && close_on_error)) /* rotate or reopen failed */
   {
-    /* 
-      Close whatever was left opened.
-
-      We are keeping the behavior as it exists today, ie,
-      we disable logging and move on (see: BUG#51014).
-
-      TODO: as part of WL#1790 consider other approaches:
-       - kill mysql (safety);
-       - try multiple locations for opening a log file;
-       - switch server to protected/readonly mode
-       - ...
-    */
-    close(LOG_CLOSE_INDEX);
     sql_print_error(fatal_log_error, new_name_ptr, errno);
+    exec_error_action();
   }
-
-  mysql_mutex_unlock(&LOCK_index);
 
   DBUG_RETURN(error);
 }
