@@ -21,6 +21,8 @@
 #endif
 
 #define MYSQL_SERVER 1
+#include <cstdint>
+#include <cinttypes>
 #include <my_global.h>
 #include <m_ctype.h>
 #include <my_dir.h>
@@ -3235,6 +3237,21 @@ void ha_maria::update_create_info(HA_CREATE_INFO *create_info)
   if (!(create_info->used_fields & HA_CREATE_USED_AUTO))
   {
     create_info->auto_increment_value= stats.auto_increment_value;
+  }
+  else if (thd_sql_command(ha_thd()) == SQLCOM_ALTER_TABLE)
+  {
+    // If this is ALTER TABLE and a new AUTO_INCREMENT value was specified
+    uint64_t current_max= stats.auto_increment_value;
+    if (create_info->auto_increment_value < current_max)
+    {
+      push_warning_printf(
+          ha_thd(),
+          Sql_condition::WARN_LEVEL_WARN,
+          ER_ALTER_INFO,
+          "Can not set AUTO_INCREMENT to %" PRIu64 " which is lower than the current max value of %" PRIu64,
+          static_cast<uint64_t>(create_info->auto_increment_value),
+          static_cast<uint64_t>(current_max));
+    }
   }
   create_info->data_file_name= data_file_name;
   create_info->index_file_name= index_file_name;
