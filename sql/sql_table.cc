@@ -6216,7 +6216,8 @@ static void open_gtt_on_error(TABLE *table)
 
 my_bool open_global_temporary_table(THD *thd, TABLE_SHARE *source,
                                     TABLE_LIST *out_table,
-                                    MDL_ticket *mdl_ticket)
+                                    MDL_ticket *mdl_ticket,
+                                    Open_table_context *ot_ctx)
 {
   DBUG_ASSERT(!thd->rgi_slave); // slave won't use global temporary tables
   if (thd->variables.pseudo_slave_mode)
@@ -6327,7 +6328,9 @@ my_bool open_global_temporary_table(THD *thd, TABLE_SHARE *source,
   if (table->s->on_commit_delete())
     thd->use_global_tmp_table_tp();
   thd->lex->no_write_to_binlog= true;
-  tdc_release_share(source);
+  if (!thd->locked_tables_mode ||
+      ot_ctx->get_flags() & MYSQL_OPEN_GET_NEW_TABLE)
+    tdc_release_share(source);
   return FALSE;
 }
 

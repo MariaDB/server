@@ -1146,6 +1146,18 @@ f()
 truncate gtt;
 drop function f;
 drop table gtt;
+# MDEV-38266 Infinite loop after LOCK+REPAIR
+create table t(x int);
+create global temporary table gtt (x int);
+lock tables gtt write, t write;
+repair table t;
+Table	Op	Msg_type	Msg_text
+test.t	repair	status	OK
+select * from gtt;
+x
+unlock tables;
+drop table t;
+drop table gtt;
 disconnect con1;
 connection slave;
 connection master;
