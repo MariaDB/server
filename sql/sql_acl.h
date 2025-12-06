@@ -64,12 +64,8 @@ extern LEX_CSTRING public_name;
 
 static inline int access_denied_error_code(int passwd_used)
 {
-#ifdef mysqld_error_find_printf_error_used
-  return 0;
-#else
   return passwd_used == 2 ? ER_ACCESS_DENIED_NO_PASSWORD_ERROR
                           : ER_ACCESS_DENIED_ERROR;
-#endif
 }
 
 /* prototypes */
