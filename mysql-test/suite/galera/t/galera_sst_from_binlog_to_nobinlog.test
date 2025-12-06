@@ -1,0 +1,73 @@
+#
+# Verify that SST between donor with binlog enabled and joiner with binlog
+# disabled works. Especially construct a case where one prepared transaction
+# will be contained in the SST and the joiner must be able to recover without
+# binlog. The test configuration is in galera_sst_from_binlog_to_nobinlog.cnf.
+#
+
+--source include/have_innodb.inc
+--source include/have_mariabackup.inc
+--source include/big_test.inc
+--source include/galera_cluster.inc
+--source include/have_debug_sync.inc
+
+--let $orig_debug_dbug = `SELECT @@GLOBAL.debug_dbug`
+--let $node_1 = node_1
+--let $node_2 = node_2
+--source include/auto_increment_offset_save.inc
+
+CREATE TABLE t1 (id INT PRIMARY KEY, val INT);
+
+--echo # Shutdown node 2 and remove grastate.dat to enforce SST when the
+--echo # node is restarted.
+--connection node_2
+--source include/shutdown_mysqld.inc
+--remove_file $MYSQLTEST_VARDIR/mysqld.2/data/grastate.dat
+
+--let $galera_connection_name = node_1_ctrl
+--let $galera_server_number = 1
+--source include/galera_connect.inc
+
+--echo # Block the donor mariadb-backup before it pauses the provider
+--connection node_1_ctrl
+SET GLOBAL debug_dbug = "+d,sync.wsrep_backup_stage_before_desync_and_pause";
+
+--connection node_2
+# We can't use start_mysqld.inc here as it will block waiting for the
+# server to become ready. Write "restart:" to expect file to make the
+# node to restart. Reconnect and wait_until_connected_again.inc will
+# be done after the blocked backup stage has been signaled to continue.
+--write_line "restart:" $_expect_file_name
+
+--connection node_1_ctrl
+SET SESSION debug_sync = "now WAIT_FOR sync.wsrep_backup_stage_before_desync_and_pause";
+
+--echo # Run a transaction that will be prepared but not committed before signalled
+--connection node_1
+SET DEBUG_SYNC = "ha_commit_trans_after_prepare SIGNAL after_prepare_reached WAIT_FOR after_prepare_continue";
+--send INSERT INTO t1 VALUES (1, 1)
+
+--echo # Wait for the trasaction to be prepared and let the mariadb-backup to continue
+--connection node_1_ctrl
+SET DEBUG_SYNC = "now WAIT_FOR after_prepare_reached";
+SET SESSION debug_sync = "now SIGNAL signal.wsrep_backup_stage_before_desync_and_pause";
+
+--connection node_2
+--enable_reconnect
+--source include/wait_until_connected_again.inc
+--source include/galera_wait_ready.inc
+
+--connection node_1_ctrl
+--disable_query_log
+--eval SET GLOBAL debug_dbug = "$orig_debug_dbug"
+--enable_query_log
+SET DEBUG_SYNC = "now SIGNAL after_prepare_continue";
+
+--connection node_1
+--reap
+
+SET DEBUG_SYNC = RESET;
+
+DROP TABLE t1;
+
+--source include/auto_increment_offset_restore.inc

@@ -2823,6 +2823,9 @@ private:
   Logs xid of the transaction-to-be-committed in the 2pc protocol.
   Has no meaning in replication, slaves ignore it.
 
+  Stores wsrep_seqno and wsrep_uuid in the event body if the event
+  was produced by server with wsrep enabled.
+
   @section Xid_log_event_binary_format Binary Format  
 */
 #ifdef MYSQL_CLIENT
@@ -2833,10 +2836,19 @@ class Xid_log_event: public Xid_apply_log_event
 {
 public:
   my_xid xid;
+  /* This matches the definition of WSREP_SEQNO_UNDEFINED and
+     wsrep::seqno::undefined() */
+  constexpr static int64 wsrep_seqno_undefined= -1;
+  /* Wsrep seqno or wsrep_seqno_undefined if not assigned.
+     Values [-1, INT_MAX64] are reserved for wsrep use. */
+  int64 wsrep_seqno;
+  /* Wsrep uuid, assigned along with wsrep seqno. */
+  uchar wsrep_uuid[16];
 
 #ifdef MYSQL_SERVER
   Xid_log_event(THD* thd_arg, my_xid x, bool direct):
    Xid_apply_log_event(thd_arg), xid(x)
+   , wsrep_seqno(wsrep_seqno_undefined), wsrep_uuid()
    {
      if (direct)
        cache_type= Log_event::EVENT_NO_CACHE;
@@ -2853,10 +2865,14 @@ public:
 #endif
 
   Xid_log_event(const uchar *buf,
+                uint event_len,
                 const Format_description_log_event *description_event);
   ~Xid_log_event() = default;
   Log_event_type get_type_code() override { return XID_EVENT;}
-  int get_data_size() override { return sizeof(xid); }
+  int get_data_size() override
+  {
+    return sizeof(xid) + (wsrep_seqno != wsrep_seqno_undefined ? 8 + 16 : 0);
+  }
 #ifdef MYSQL_SERVER
   bool write(Log_event_writer *writer) override;
 #endif
