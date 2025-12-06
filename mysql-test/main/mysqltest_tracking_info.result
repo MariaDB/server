@@ -197,4 +197,47 @@ SET SESSION transaction_isolation='REPEATABLE-READ';
 -- Tracker : SESSION_TRACK_SYSTEM_VARIABLES
 -- tx_isolation: REPEATABLE-READ
 
-# End of 11.1 tests
+#
+# MDEV-31751 SET @@tx_isolation=X behaves like SET TRANSACATION ISOLATION LEVEL X instead of SET SESSSION tx_isolation=X
+#
+SET session_track_system_variables='tx_isolation';
+not tracked @@tx_isolation (for compatibility)
+SET @@tx_isolation='SERIALIZABLE';
+Warnings:
+Warning	1287	'@@tx_isolation' is deprecated and will be removed in a future release. Please use '@@transaction_isolation' instead
+is tracked
+SET @@transaction_isolation='READ-COMMITTED';
+-- Tracker : SESSION_TRACK_SYSTEM_VARIABLES
+-- tx_isolation: READ-COMMITTED
+
+SET SESSION tx_isolation='READ-UNCOMMITTED';
+-- Tracker : SESSION_TRACK_SYSTEM_VARIABLES
+-- tx_isolation: READ-UNCOMMITTED
+
+Warnings:
+Warning	1287	'@@tx_isolation' is deprecated and will be removed in a future release. Please use '@@transaction_isolation' instead
+SET SESSION transaction_isolation='REPEATABLE-READ';
+-- Tracker : SESSION_TRACK_SYSTEM_VARIABLES
+-- tx_isolation: REPEATABLE-READ
+
+SET session_track_system_variables='transaction_isolation';
+not tracked @@tx_isolation (for compatibility)
+SET @@tx_isolation='SERIALIZABLE';
+Warnings:
+Warning	1287	'@@tx_isolation' is deprecated and will be removed in a future release. Please use '@@transaction_isolation' instead
+is tracked
+SET @@transaction_isolation='READ-COMMITTED';
+-- Tracker : SESSION_TRACK_SYSTEM_VARIABLES
+-- transaction_isolation: READ-COMMITTED
+
+SET SESSION tx_isolation='READ-UNCOMMITTED';
+-- Tracker : SESSION_TRACK_SYSTEM_VARIABLES
+-- transaction_isolation: READ-UNCOMMITTED
+
+Warnings:
+Warning	1287	'@@tx_isolation' is deprecated and will be removed in a future release. Please use '@@transaction_isolation' instead
+SET SESSION transaction_isolation='REPEATABLE-READ';
+-- Tracker : SESSION_TRACK_SYSTEM_VARIABLES
+-- transaction_isolation: REPEATABLE-READ
+
+# End of 12.2 tests
