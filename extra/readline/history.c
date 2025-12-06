@@ -248,11 +248,7 @@ hist_inittime ()
   char ts[64], *ret;
 
   t = (time_t) time ((time_t *)0);
-#if defined (HAVE_VSNPRINTF)		/* assume snprintf if vsnprintf exists */
   snprintf (ts, sizeof (ts) - 1, "X%lu", (unsigned long) t);
-#else
-  sprintf (ts, "X%lu", (unsigned long) t);
-#endif
   ret = savestring (ts);
   ret[0] = history_comment_char;
 
