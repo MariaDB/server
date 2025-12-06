@@ -1987,6 +1987,7 @@ bool open_table(THD *thd, TABLE_LIST *table_list, Open_table_context *ot_ctx)
   uint flags= ot_ctx->get_flags();
   MDL_ticket *mdl_ticket;
   TABLE_SHARE *share;
+  uint open_flags;
   uint gts_flags;
   bool from_share= false;
   bool is_write_lock_request= table_list->mdl_request.is_write_lock_request();
@@ -2100,10 +2101,6 @@ bool open_table(THD *thd, TABLE_LIST *table_list, Open_table_context *ot_ctx)
     }
     if (best_table)
     {
-      if (best_table->s->table_type == TABLE_TYPE_GLOBAL_TEMPORARY &&
-          !thd->use_real_global_temporary_share(table_list))
-        goto get_new_table;
-
       table= best_table;
       table->query_id= thd->query_id;
       table->init(thd, table_list);
@@ -2114,6 +2111,13 @@ bool open_table(THD *thd, TABLE_LIST *table_list, Open_table_context *ot_ctx)
           && table->vers_switch_partition(thd, table_list, ot_ctx))
         DBUG_RETURN(true);
 #endif
+      if (best_table->s->table_type == TABLE_TYPE_GLOBAL_TEMPORARY &&
+          !thd->use_real_global_temporary_share(table_list))
+      {
+        share= table->s;
+        mdl_ticket= table->mdl_ticket;
+        goto open_gtt;
+      }
       goto reset;
     }
 
@@ -2141,7 +2145,6 @@ bool open_table(THD *thd, TABLE_LIST *table_list, Open_table_context *ot_ctx)
     DBUG_RETURN(TRUE);
   }
 
-get_new_table:
   /*
     Non pre-locked/LOCK TABLES mode, and the table is not temporary.
     This is the normal use case.
@@ -2331,13 +2334,15 @@ retry_share:
   }
   else
   {
-    uint open_flags= EXTRA_RECORD;
+    open_flags= EXTRA_RECORD;
 
     if (share->table_type == TABLE_TYPE_GLOBAL_TEMPORARY)
     {
       if (!thd->use_real_global_temporary_share(table_list))
       {
-        my_bool err= open_global_temporary_table(thd, share, table_list, mdl_ticket);
+      open_gtt: // Label for Locked tables mode.
+        my_bool err= open_global_temporary_table(thd, share, table_list,
+                                                 mdl_ticket, ot_ctx);
         if (unlikely(err))
           goto err_lock;
         table= table_list->table;
