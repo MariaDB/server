@@ -451,10 +451,58 @@ Item* Item_func_null_predicate::vcol_subst_transformer(THD *thd, uchar *arg)
 }
 
 
+/*
+  Context data structure for finding and replacing a nested expression matching
+  a virtual column with the vcol itself, like a+1 in "(a+1,b) IN ((2,1),(3,2))"
+  where a virtual column is defined as a+1.
+ */
+struct vcol_arg_unpack_context
+{
+  THD *thd;
+  Item_func_in *in_item;    // IN item whose left-hand argument we will unpack
+  Vcol_subst_context *ctx;  // The virtual column substitution context
+  Item **in_arg_0;          // The left-hand argument to IN
+
+  // convenience function to return this as a uchar*
+  uchar *uptr()
+  {
+    return reinterpret_cast<uchar*>(this);
+  }
+
+  // convenience function to unpack uchar* to this
+  static vcol_arg_unpack_context *nptr(uchar *ptr)
+  {
+    return reinterpret_cast<vcol_arg_unpack_context*>(ptr);
+  }
+
+  /*
+    If the vcol isn't one of the arguments directly, then maybe it's nested
+    in the left-hand of IN, such as a+1 in "(a+1,b) IN ((2,1),(3,2))".  Find
+    the expression and replace it with the vcol.
+  */
+  bool vcol_matches_arg()
+  {
+    Item* item= (*in_arg_0)->vcol_subst_transformer(thd, uptr());
+    return item != *in_arg_0;  // if different, then vcol was in args.
+  }
+};
+
+
 Item* Item_func_in::vcol_subst_transformer(THD *thd, uchar *arg)
 {
   Vcol_subst_context *ctx= (Vcol_subst_context*)arg;
   Field *vcol_field= nullptr;
+
+  /*
+    If the vcol is somewhere nested in the arguments, then find it and replace
+    the argument with the vcol.  For example:
+      (a+1,b) IN ((2,1),(3,2))
+    a+1 is in the argument not of IN, but of the ROW that is itself an argument
+    of IN, so replace a+1 in the row with the vcol.
+   */
+  vcol_arg_unpack_context vauc{thd, this, ctx, &args[0]};
+  if (vauc.vcol_matches_arg())  // was replaced in args, all done
+    return this;
 
   /*
     Check that the left hand side of IN() is a virtual column expression and
@@ -464,7 +512,40 @@ Item* Item_func_in::vcol_subst_transformer(THD *thd, uchar *arg)
       !compatible_types_scalar_bisection_possible())
     return this;
 
-  subst_vcol_if_compatible(ctx, this, &args[0], vcol_field);
+  subst_vcol_if_compatible(ctx,
+                           this,
+                           &args[0],
+                           vcol_field);
   return this;
 }
 
+
+Item* Item_row::vcol_subst_transformer(THD *thd, uchar *arg)
+{
+  vcol_arg_unpack_context *vauc= vcol_arg_unpack_context::nptr(arg);
+  Field *vcol_field= nullptr;
+  Item **item= nullptr;
+
+  // Look at this row's arguments and see if one of them matches the vcol
+  // expression.
+  for (uint arg_i= 0; arg_i < arg_count && !item; ++arg_i)
+    if ((vcol_field= is_vcol_expr(vauc->ctx, args[arg_i])))
+      item= &args[arg_i];
+
+  if (!item)  // Didn't find matching expression for the vcol
+    return *vauc->in_arg_0;  // Indicate to caller that we didn't replace
+
+  /*
+    Replace the matching expression with the virtual column.  For example,
+    if the query is
+      "(a+1,b) IN ((2,1),(3,2))"
+    and the virtual column is defined for a+1, then the rewritten query
+    becomes:
+      "(vcol,b) IN ((2,1),(3,2))"
+  */
+  subst_vcol_if_compatible(vauc->ctx,
+                           vauc->in_item,
+                           item,
+                           vcol_field);
+  return this;
+}
