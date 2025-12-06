@@ -1,0 +1,28 @@
+--- stats_method.result
++++ stats_method,NULLS_UNEQUAL.result
+@@ -28,9 +28,9 @@
+ WHERE table_schema = 'test'
+   AND table_name = 't_stats_method';
+ stats_method	index_name	est_rows
+-nulls_equal	PRIMARY	100
+-nulls_equal	idx_col1	11
+-nulls_equal	idx_col2	6
++nulls_unequal	PRIMARY	100
++nulls_unequal	idx_col1	100
++nulls_unequal	idx_col2	100
+ DROP TABLE t_stats_method;
+ SET NAMES utf8mb4;
+ BEGIN NOT ATOMIC
+@@ -68,10 +68,10 @@
+ where table_name="t1" and index_name="PRIMARY"
+ and stat_name="n_diff_pfx01";
+ stat_name	stat_description
+-n_diff_pfx01	c01꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵
++n_diff_pfx01	c01꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵ NULLS_UNEQUAL
+ SELECT stat_name, stat_description FROM mysql.innodb_index_stats
+ where table_name="t1" and index_name="idx_all"
+ and stat_name="n_diff_pfx07";
+ stat_name	stat_description
+-n_diff_pfx07	c33꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵,c34꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵,c35꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵,c36꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵,c37꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵
++n_diff_pfx07	c33꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵,c34꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵,c35꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵,c36꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵,c37꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵ NULLS_UNEQUAL
+ DROP TABLE t1;
