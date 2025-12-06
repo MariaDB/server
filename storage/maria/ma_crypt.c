@@ -37,8 +37,9 @@ struct st_crypt_key
 struct st_maria_crypt_data
 {
   struct st_encryption_scheme scheme;
-  uint space;
   mysql_mutex_t lock;          /* protecting keys */
+  uint space;
+  my_bool no_alloc;
 };
 
 /**
@@ -105,6 +106,7 @@ ma_crypt_create(MARIA_SHARE* share)
     (MARIA_CRYPT_DATA*)my_malloc(PSI_INSTRUMENT_ME, sizeof(MARIA_CRYPT_DATA), MYF(MY_ZEROFILL));
   crypt_data->scheme.type= CRYPT_SCHEME_1;
   crypt_data->scheme.locker= crypt_data_scheme_locker;
+  crypt_data->no_alloc= 0;
   mysql_mutex_init(key_CRYPT_DATA_lock, &crypt_data->lock, MY_MUTEX_INIT_FAST);
   crypt_data->scheme.key_id= get_encryption_key_id(share);
   my_random_bytes(crypt_data->scheme.iv, sizeof(crypt_data->scheme.iv));
@@ -156,7 +158,7 @@ ma_crypt_write(MARIA_SHARE* share, File file)
 }
 
 uchar*
-ma_crypt_read(MARIA_SHARE* share, uchar *buff, my_bool silent)
+ma_crypt_read(MARIA_SHARE* share, uchar *buff, my_bool silent, my_bool no_alloc)
 {
   uchar type= buff[0];
   uchar iv_length= buff[1];
@@ -176,7 +178,8 @@ ma_crypt_read(MARIA_SHARE* share, uchar *buff, my_bool silent)
   {
     /* opening a table */
     MARIA_CRYPT_DATA *crypt_data=
-      (MARIA_CRYPT_DATA*)my_malloc(PSI_INSTRUMENT_ME, sizeof(MARIA_CRYPT_DATA), MYF(MY_ZEROFILL));
+      (MARIA_CRYPT_DATA*) my_malloc(PSI_INSTRUMENT_ME,
+                                    sizeof(MARIA_CRYPT_DATA), MYF(MY_ZEROFILL));
     uint key_version;
 
     crypt_data->scheme.type= type;
@@ -185,6 +188,7 @@ ma_crypt_read(MARIA_SHARE* share, uchar *buff, my_bool silent)
     crypt_data->scheme.locker= crypt_data_scheme_locker;
     crypt_data->scheme.key_id= get_encryption_key_id(share);
     crypt_data->space= uint4korr(buff + 2);
+    crypt_data->no_alloc= no_alloc;
     memcpy(crypt_data->scheme.iv, buff + 6, sizeof(crypt_data->scheme.iv));
     share->crypt_data= crypt_data;
 
@@ -226,8 +230,8 @@ static my_bool ma_crypt_pre_read_hook(PAGECACHE_IO_HOOK_ARGS *args)
   return 0;
 }
 
-static my_bool ma_crypt_data_post_read_hook(int res,
-                                            PAGECACHE_IO_HOOK_ARGS *args)
+my_bool ma_crypt_data_post_read_hook(int res,
+                                     PAGECACHE_IO_HOOK_ARGS *args)
 {
   MARIA_SHARE *share= (MARIA_SHARE*) args->data;
   const uint size= share->block_size;
@@ -263,7 +267,8 @@ static my_bool ma_crypt_data_post_read_hook(int res,
     uchar *tmp= args->page;
     args->page= args->crypt_buf;
     args->crypt_buf= NULL;
-    my_free(tmp);
+    if (!share->crypt_data->no_alloc)
+      my_free(tmp);
   }
 
   return maria_page_crc_check_data(res, args);
@@ -361,8 +366,8 @@ void ma_crypt_set_data_pagecache_callbacks(PAGECACHE_FILE *file,
   }
 }
 
-static my_bool ma_crypt_index_post_read_hook(int res,
-                                            PAGECACHE_IO_HOOK_ARGS *args)
+my_bool ma_crypt_index_post_read_hook(int res,
+                                      PAGECACHE_IO_HOOK_ARGS *args)
 {
   MARIA_SHARE *share= (MARIA_SHARE*) args->data;
   const uint block_size= share->block_size;
@@ -403,7 +408,8 @@ static my_bool ma_crypt_index_post_read_hook(int res,
     uchar *tmp= args->page;
     args->page= args->crypt_buf;
     args->crypt_buf= NULL;
-    my_free(tmp);
+    if (!share->crypt_data->no_alloc)
+      my_free(tmp);
   }
 
   return maria_page_crc_check_index(res, args);

@@ -973,7 +973,7 @@ MARIA_HA *maria_open(const char *name, int mode, uint open_flags,
     if (MY_TEST(share->base.extra_options & MA_EXTRA_OPTIONS_ENCRYPTED))
     {
       if (!(disk_pos= ma_crypt_read(share, disk_pos,
-                                    MY_TEST(open_flags & HA_OPEN_FOR_DROP))))
+                                    MY_TEST(open_flags & HA_OPEN_FOR_DROP), 0)))
         goto err;
     }
 
@@ -1256,6 +1256,52 @@ err:
   my_errno= save_errno;
   DBUG_RETURN (NULL);
 } /* maria_open */
+
+
+/*
+  Read the crypt from a maria key file
+  Crypt_data stored in share->crypt_data
+*/
+
+my_bool maria_read_crypt_data(File kfile, MARIA_SHARE *share)
+{
+  size_t base_pos, info_length, crypt_length;
+  uchar *cache;
+  uint keys, key_segs, uniques, unique_key_parts, columns;
+  my_bool error;
+  DBUG_ENTER("maria_read_crypt_data");
+
+  DBUG_ASSERT(share->base.extra_options & MA_EXTRA_OPTIONS_ENCRYPTED);
+  keys=     (uint) share->state.header.keys;
+  key_segs=        mi_uint2korr(share->state.header.key_parts);
+  uniques=  (uint) share->state.header.uniques;
+  unique_key_parts= mi_uint2korr(share->state.header.unique_key_parts);
+  columns= share->base.fields;
+
+  base_pos= mi_uint2korr(share->state.header.base_pos);
+  /* Same calculation as in maria_create() */
+  info_length= base_pos+(uint) (MARIA_BASE_INFO_SIZE+
+                                keys * MARIA_KEYDEF_SIZE+
+                                uniques * MARIA_UNIQUEDEF_SIZE +
+                                (key_segs + unique_key_parts)*HA_KEYSEG_SIZE+
+                                columns*(MARIA_COLUMNDEF_SIZE + 2));
+  crypt_length= mi_uint2korr(share->state.header.header_length) - info_length;
+  if ((longlong) crypt_length < 0 || crypt_length > 1024)
+  {
+    my_errno=HA_ERR_NOT_A_TABLE;
+    DBUG_RETURN(1);
+  }
+  cache= (uchar*) my_alloca(crypt_length);
+
+  error= 0;
+  if (mysql_file_pread(kfile, cache, crypt_length, info_length,
+                       MYF(MY_FNABP | MY_WME)) ||
+      !ma_crypt_read(share, cache, 0, 1))
+    error= 1;
+  my_afree(cache);
+
+  DBUG_RETURN(error);
+}
 
 
 /*
