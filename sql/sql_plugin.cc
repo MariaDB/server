@@ -4547,6 +4547,8 @@ my_bool post_init_callback(THD *thd, void *)
     thd->variables.tx_read_only= false;
     // Restore option_bits
     thd->variables.option_bits= option_bits_saved;
+    // Restore proper default isolation level for appliers
+    thd->variables.tx_isolation= ISO_READ_COMMITTED;
   }
   set_current_thd(0);
   return 0;
