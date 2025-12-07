@@ -388,13 +388,7 @@ bool THD::use_real_global_temporary_share(const TABLE_LIST *table) const
 {
   return table->open_strategy == TABLE_LIST::OPEN_STUB ||
          table->open_strategy == TABLE_LIST::OPEN_FOR_LOCKED_TABLES_LIST ||
-         (sql_command_flags() & (CF_ALTER_TABLE   |
-                                 CF_SCHEMA_CHANGE |
-                                 CF_STATUS_COMMAND)
-        && lex->sql_command != SQLCOM_CREATE_TABLE) ||
-        lex->sql_command == SQLCOM_CREATE_VIEW      ||
-        lex->sql_command == SQLCOM_TRUNCATE         ||
-        lex->sql_command == SQLCOM_LOCK_TABLES      ||
+         sql_command_flags() & CF_USE_PARENT_GTT_SHARE ||
         stmt_arena->is_stmt_prepare();
 }
 
