@@ -1212,6 +1212,18 @@ create global temporary table t (c int) on commit preserve rows;
 handler t open;
 drop database test1;
 use test;
+# MDEV-37934 Assertion `thd->transaction->stmt.is_empty() || (thd->state_flags & Open_tables_state::BACKUPS_AVAIL)' in GRANT on GTT
+create table t (c int) ;
+create view c (x) as select c from t;
+create or replace global temporary table t (x int);
+grant select (x) on c to root@localhost;
+ERROR HY000: View 'test.c' references invalid table(s) or column(s) or function(s) or definer/invoker of view lack rights to use them
+begin;
+insert t values(1);
+grant select (x) on c to root@localhost;
+ERROR HY000: View 'test.c' references invalid table(s) or column(s) or function(s) or definer/invoker of view lack rights to use them
+drop table t;
+drop view c;
 disconnect con1;
 connection slave;
 connection master;
