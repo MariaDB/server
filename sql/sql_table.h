@@ -137,6 +137,8 @@ bool add_keyword_to_query(THD *thd, String *result, const LEX_CSTRING *keyword,
 #define C_ALTER_TABLE            -2
 #define C_ALTER_TABLE_FRM_ONLY   -3
 
+class Open_table_context;
+
 int mysql_create_table_no_lock(THD *thd,
                                DDL_LOG_STATE *ddl_log_state,
                                DDL_LOG_STATE *ddl_log_state_rm,
