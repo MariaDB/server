@@ -8,3 +8,4 @@ source main/global_temporary_table.test;
 source include/show_binlog_events.inc;
 
 set global binlog_annotate_row_events= @old_binlog_annotate_row_events;
+reset master;

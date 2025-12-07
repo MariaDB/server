@@ -1066,7 +1066,7 @@ set debug_sync= "before_lock_tables_takes_lock signal kill wait_for lock";
 load index into cache t key(primary);
 connection con1;
 set debug_sync= "now wait_for kill";
-kill query 4;
+kill query con_id;
 # set debug_sync= "now signal lock"; -- not needed, as KILL breaks the waiting
 connection default;
 Table	Op	Msg_type	Msg_text
