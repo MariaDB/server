@@ -1158,6 +1158,23 @@ x
 unlock tables;
 drop table t;
 drop table gtt;
+# MDEV-37929 Assertion !thd->rgi_slave' failed on REPAIR TABLE on replica
+create global temporary table t (x int);
+lock tables t read;
+repair table t;
+Table	Op	Msg_type	Msg_text
+test.t	repair	Error	Table 't' was locked with a READ lock and can't be updated
+test.t	repair	status	Operation failed
+unlock tables;
+drop table t;
+# MDEV-37929 (duplicate) Assertion !thd->rgi_slave' failed on REPAIR TABLE on replica
+create global temporary table t (x int,t text);
+create temporary table t (id int);
+analyze table t;
+Table	Op	Msg_type	Msg_text
+test.t	analyze	status	Table is already up to date
+drop temporary table t;
+drop table t;
 disconnect con1;
 connection slave;
 connection master;
