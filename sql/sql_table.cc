@@ -6314,7 +6314,6 @@ my_bool open_global_temporary_table(THD *thd, TABLE_SHARE *source,
       open_gtt_on_error(&global_table);
       return TRUE;
     }
-    table->reginfo.lock_type= TL_IGNORE;
     share->table_creation_was_logged= 0;
     closefrm(&global_table);
   }
