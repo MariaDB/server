@@ -1202,4 +1202,11 @@ handler t read first;
 c
 truncate t;
 drop table t;
+# MDEV-37956 ASAN heap-use-after-free and SIGSEGV in mysql_ha_close_table on DROP DATABASE
+create database test1;
+use test1;
+create global temporary table t (c int) on commit preserve rows;
+handler t open;
+drop database test1;
+use test;
 disconnect con1;
