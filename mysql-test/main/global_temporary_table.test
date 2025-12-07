@@ -1074,4 +1074,17 @@ handler t open;
 drop database test1;
 use test;
 
+--echo # MDEV-37934 Assertion `thd->transaction->stmt.is_empty() || (thd->state_flags & Open_tables_state::BACKUPS_AVAIL)' in GRANT on GTT
+create table t (c int) ;
+create view c (x) as select c from t;
+create or replace global temporary table t (x int);
+--error ER_VIEW_INVALID
+grant select (x) on c to root@localhost;
+begin;
+insert t values(1);
+--error ER_VIEW_INVALID
+grant select (x) on c to root@localhost;
+drop table t;
+drop view c;
+
 --disconnect con1
