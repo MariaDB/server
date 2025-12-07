@@ -1041,4 +1041,11 @@ analyze table t;
 drop temporary table t;
 drop table t;
 
+--echo # MDEV-37957 Assertion `(*tables)->reginfo.lock_type >= TL_READ_SKIP_LOCKED' failed on HANDLER READ
+create global temporary table t (c int) engine=innodb on commit preserve rows;
+handler t open;
+handler t read first;
+truncate t;
+drop table t;
+
 --disconnect con1
