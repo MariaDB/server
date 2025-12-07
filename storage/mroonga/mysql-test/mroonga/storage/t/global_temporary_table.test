@@ -1,0 +1,9 @@
+--source ../../include/mroonga/have_mroonga.inc
+
+create global temporary table t (c int);
+--error ER_TABLE_EXISTS_ERROR
+create table t (d int primary key);
+insert t values (0);
+drop table t;
+
+--source ../../include/mroonga/have_mroonga_deinit.inc

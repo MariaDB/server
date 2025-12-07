@@ -3536,8 +3536,8 @@ int ha_mroonga::storage_create(const char *name, TABLE *table,
     }
 
 #ifdef MRN_SUPPORT_FOREIGN_KEYS
-    if (storage_create_foreign_key(table, mapper.table_name(), field, table_obj,
-                                   error)) {
+    if (storage_create_foreign_key(table, mapper.table_name(), info, field,
+                                   table_obj, error)) {
       continue;
     }
     if (error) {
@@ -3626,12 +3626,12 @@ int ha_mroonga::storage_create_validate_pseudo_column(TABLE *table)
 #ifdef MRN_SUPPORT_FOREIGN_KEYS
 bool ha_mroonga::storage_create_foreign_key(TABLE *table,
                                             const char *grn_table_name,
+                                            HA_CREATE_INFO *info,
                                             Field *field,
                                             grn_obj *table_obj, int &error)
 {
   MRN_DBUG_ENTER_METHOD();
-  LEX *lex = ha_thd()->lex;
-  Alter_info *alter_info = &lex->alter_info;
+  Alter_info *alter_info = info->alter_info;
   List_iterator<Key> key_iterator(alter_info->key_list);
   Key *key;
   IdentBuffer<NAME_LEN> ref_db_buff, ref_table_buff;
