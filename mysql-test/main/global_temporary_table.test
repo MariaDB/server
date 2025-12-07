@@ -1045,4 +1045,18 @@ unlock tables;
 drop table t;
 drop table gtt;
 
+--echo # MDEV-37929 Assertion !thd->rgi_slave' failed on REPAIR TABLE on replica
+create global temporary table t (x int);
+lock tables t read;
+repair table t;
+unlock tables;
+drop table t;
+
+--echo # MDEV-37929 (duplicate) Assertion !thd->rgi_slave' failed on REPAIR TABLE on replica
+create global temporary table t (x int,t text);
+create temporary table t (id int);
+analyze table t;
+drop temporary table t;
+drop table t;
+
 --disconnect con1

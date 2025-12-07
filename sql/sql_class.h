@@ -7930,6 +7930,11 @@ public:
 */
 #define CF_DELETES_DATA (1U << 27)
 
+/**
+  If Global temporary table is used, this statement will open a parent handle.
+ */
+#define CF_USE_PARENT_GTT_SHARE (1U << 28)
+
 
 /* Bits in server_command_flags */
 /**

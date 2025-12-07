@@ -910,6 +910,21 @@ void init_update_queries(void)
   sql_command_flags[SQLCOM_DELETE]|=           CF_WSREP_BASIC_DML;
   sql_command_flags[SQLCOM_DELETE_MULTI]|=     CF_WSREP_BASIC_DML;
 #endif /* WITH_WSREP */
+
+  /*
+    Statements that should open a parent (global) share of a Global temporary
+    table.
+  */
+  sql_command_flags[SQLCOM_CREATE_VIEW] |= CF_USE_PARENT_GTT_SHARE;
+  sql_command_flags[SQLCOM_TRUNCATE]    |= CF_USE_PARENT_GTT_SHARE;
+  sql_command_flags[SQLCOM_LOCK_TABLES] |= CF_USE_PARENT_GTT_SHARE;
+  sql_command_flags[SQLCOM_DROP_TABLE]  |= CF_USE_PARENT_GTT_SHARE;
+  sql_command_flags[SQLCOM_REPAIR]      |= CF_USE_PARENT_GTT_SHARE;
+  sql_command_flags[SQLCOM_ANALYZE]     |= CF_USE_PARENT_GTT_SHARE;
+  sql_command_flags[SQLCOM_OPTIMIZE]    |= CF_USE_PARENT_GTT_SHARE;
+  for (int stmt = 0; stmt < SQLCOM_END; stmt++)
+    if (sql_command_flags[stmt] & (CF_ALTER_TABLE | CF_STATUS_COMMAND))
+      sql_command_flags[stmt] |= CF_USE_PARENT_GTT_SHARE;
 }
 
 bool sqlcom_can_generate_row_events(const THD *thd)
