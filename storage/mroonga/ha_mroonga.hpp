@@ -841,6 +841,7 @@ private:
   int storage_create_validate_pseudo_column(TABLE *table);
 #ifdef MRN_SUPPORT_FOREIGN_KEYS
   bool storage_create_foreign_key(TABLE *table, const char *grn_table_name,
+                                  HA_CREATE_INFO *info,
                                   Field *field, grn_obj *table_obj, int &error);
 #endif
   int storage_create_validate_index(TABLE *table);
