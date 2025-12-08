@@ -550,7 +550,9 @@ inline bool open_and_lock_tables(THD *thd, TABLE_LIST *tables,
 {
   DML_prelocking_strategy prelocking_strategy;
   char *dbmssql_query_substr= strcasestr(thd->query(), "dbms_sql");
-  if (dbmssql_query_substr && strcasestr(dbmssql_query_substr, "execute"))
+  if (thd->query() && (char *dbmssql_query_substr)=
+      strcasestr(thd->query(), "dbms_sql")
+      && strcasestr(dbmssql_query_substr, "execute"))
     DBMS_SQL_prelocking_strategy prelocking_strategy;
   else
     DML_prelocking_strategy prelocking_strategy;
