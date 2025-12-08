@@ -56,7 +56,7 @@ public:
 
   DML_prelocking_strategy *get_dml_prelocking_strategy() override
   {
-    return &dml_prelocking_strategy;
+    return &multidelete_prelocking_strategy;
   }
 
   bool processing_as_multitable_delete_prohibited(THD *thd);
@@ -106,7 +106,7 @@ protected:
   bool multitable;
 
   /* The prelocking strategy used when opening the used tables */
-  DML_prelocking_strategy dml_prelocking_strategy;
+  Multidelete_prelocking_strategy multidelete_prelocking_strategy;
 
   List<Item> empty_list;   /**< auxiliary empty list used by prepare_inner() */
   Protocol *save_protocol; /**< needed for ANALYZE .. DELETE .. RETURNING */
