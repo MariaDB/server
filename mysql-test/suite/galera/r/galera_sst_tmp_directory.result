@@ -1,0 +1,22 @@
+connection node_2;
+connection node_1;
+connection node_1;
+connection node_2;
+create table t1(id int not null primary key, b varchar(32)) engine=InnoDB;
+insert into t1 SELECT seq, md5(rand()) from seq_1_to_50000;
+connection node_2;
+Shutting down server ...
+connection node_1;
+connection node_2;
+Starting server ...
+connection node_1;
+SELECT COUNT(*) AS EXPECT_5000 FROM t1;
+EXPECT_5000
+50000
+connection node_2;
+SELECT COUNT(*) AS EXPECT_5000 FROM t1;
+EXPECT_5000
+50000
+DROP TABLE t1;
+disconnect node_2;
+disconnect node_1;

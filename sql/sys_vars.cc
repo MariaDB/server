@@ -1,5 +1,5 @@
 /* Copyright (c) 2002, 2015, Oracle and/or its affiliates.
-   Copyright (c) 2012, 2022, MariaDB Corporation.
+   Copyright (c) 2012, 2025, MariaDB plc.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -6796,6 +6796,11 @@ static Sys_var_uint Sys_wsrep_applier_retry_count (
        GLOBAL_VAR(wsrep_applier_retry_count), CMD_LINE(OPT_ARG),
        VALID_RANGE(0, UINT_MAX), DEFAULT(0), BLOCK_SIZE(1),
        NO_MUTEX_GUARD, NOT_IN_BINLOG);
+
+static Sys_var_charptr_fscs Sys_wsrep_sst_tmp_dir(
+       "wsrep_sst_tmp_dir", "Path to SST temp root directory",
+       READ_ONLY GLOBAL_VAR(wsrep_sst_tmp_dir), CMD_LINE(REQUIRED_ARG),
+       DEFAULT(0), NO_MUTEX_GUARD, NOT_IN_BINLOG);
 
 #endif /* WITH_WSREP */
 

@@ -1,4 +1,5 @@
-/* Copyright (C) 2013-2018 Codership Oy <info@codership.com>
+/* Copyright (C) 2013-2025 Codership Oy <info@codership.com>
+   Copyright (C) 2025 MariaDB plc
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -47,6 +48,7 @@
 #define WSREP_SST_OPT_GTID     "--gtid"
 #define WSREP_SST_OPT_BYPASS   "--bypass"
 #define WSREP_SST_OPT_GTID_DOMAIN_ID "--gtid-domain-id"
+#define WSREP_SST_OPT_TMP_DIR  "--sst-tmp-dir"
 
 #define WSREP_SST_MYSQLDUMP    "mysqldump"
 #define WSREP_SST_RSYNC        "rsync"
