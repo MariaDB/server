@@ -2202,3 +2202,46 @@ bool Sql_cmd_delete::execute_inner(THD *thd)
   status_var_add(thd->status_var.rows_sent, thd->get_sent_row_count());
   return res;
 }
+
+
+void Multidelete_prelocking_strategy::reset(THD *thd)
+{
+  done= false;
+}
+
+
+/**
+  Call setup_tables() to populate lex->first_select_lex()->leaf_tables.
+  This is needed to properly free memory when calling the THD destructor.
+*/
+
+bool Multidelete_prelocking_strategy::handle_end(THD *thd)
+{
+  DBUG_ENTER("Multidelete_prelocking_strategy::handle_end");
+
+  if (done)
+    DBUG_RETURN(0);
+
+  LEX *lex= thd->lex;
+  SELECT_LEX *select_lex= lex->first_select_lex();
+  TABLE_LIST *table_list= lex->query_tables;
+
+  done= true;
+
+  /*
+    This is done to resolve other base tables within derived tables in the
+    outermost select.
+  */
+  if (mysql_handle_derived(lex, DT_INIT) ||
+      mysql_handle_derived(lex, DT_MERGE_FOR_INSERT) ||
+      mysql_handle_derived(lex, DT_PREPARE))
+    DBUG_RETURN(1);
+
+  if (setup_tables(thd, &select_lex->context, &select_lex->top_join_list,
+        table_list, select_lex->leaf_tables, false, true))
+    DBUG_RETURN(1);
+
+  DBUG_RETURN(0);
+}
+
+

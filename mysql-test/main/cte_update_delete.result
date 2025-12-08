@@ -1344,4 +1344,35 @@ update cte
 set cte.a=(select a from cte where cte.a in (select a from cte2) limit 1);
 ERROR HY000: The target table cte of the UPDATE is not updatable
 drop table t1, t2, t3, t4, t5;
+#
+# MDEV-38272 Sig11 in LEX::resolve_references_to_cte at sql/sql_cte.cc
+#
+create table t1(a int);
+insert into t1 values (1), (5), (10), (15), (20), (25);
+create view v1 as select * from t1 where a < 10;
+with cte as (select * from t1) delete from t1,cte where t1.a=cte.a;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'where t1.a=cte.a' at line 1
+with cte as (select * from t1) delete from t1 using t1,cte where t1.a=cte.a;
+#
+# MDEV-38272 Recursive CTE usage leaks memory when not used in a top level select
+#
+with recursive cte as (select a from t1 union select a from cte)
+update t1, cte set t1.o = 1;
+ERROR 42S22: Unknown column 't1.o' in 'SET'
+with recursive cte as (select a from t1 union select a from cte where a < 2)
+delete from cte where a = (select a from cte);
+ERROR HY000: The target table cte of the DELETE is not updatable
+with recursive cte as (select a from t1 union select a from cte where a < 2)
+delete from cte where a = 10;
+ERROR HY000: The target table cte of the DELETE is not updatable
+insert into t1 values (1), (5), (10), (15), (20), (25);
+with recursive cte as (select a from t1 union select a from cte where a < 2)
+delete from v1 using v1, cte where v1.a = cte.a;
+select * from t1 order by 1;
+a
+10
+15
+20
+25
+drop table t1;
 # End of 12.2 tests

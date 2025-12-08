@@ -34830,6 +34830,7 @@ err:
   DBUG_ASSERT(thd->is_error() || thd->killed);
   MYSQL_DML_DONE(thd, 1, 0, 0);
   THD_STAGE_INFO(thd, stage_end);
+  free_underlaid_joins(thd, select_lex);      // tmp tables allocated in prepare
   (void)unit->cleanup();
   if (is_prepared())
     unprepare(thd);
