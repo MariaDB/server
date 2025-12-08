@@ -536,4 +536,14 @@ with cte as (select a from t1),
 
 drop table t1, t2, t3, t4, t5;
 
+--echo #
+--echo # MDEV-38272 Sig11 in LEX::resolve_references_to_cte at sql/sql_cte.cc
+--echo #
+
+create table t1( a int);
+--error ER_PARSE_ERROR
+with cte as (select * from t1) delete from t1,cte where t1.a=cte.a;
+with cte as (select * from t1) delete from t1 using t1,cte where t1.a=cte.a;
+drop table t1;
+
 --echo # End of 12.2 tests

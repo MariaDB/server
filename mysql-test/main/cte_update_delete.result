@@ -1344,4 +1344,12 @@ update cte
 set cte.a=(select a from cte where cte.a in (select a from cte2) limit 1);
 ERROR HY000: The target table cte of the UPDATE is not updatable
 drop table t1, t2, t3, t4, t5;
+#
+# MDEV-38272 Sig11 in LEX::resolve_references_to_cte at sql/sql_cte.cc
+#
+create table t1( a int);
+with cte as (select * from t1) delete from t1,cte where t1.a=cte.a;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'where t1.a=cte.a' at line 1
+with cte as (select * from t1) delete from t1 using t1,cte where t1.a=cte.a;
+drop table t1;
 # End of 12.2 tests
