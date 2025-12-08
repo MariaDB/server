@@ -22,6 +22,7 @@
 #include "optimizer_defaults.h"
 #include "sql_select.h"
 #include "opt_trace.h"
+#include "opt_hints.h"
 
 /*
   key_next_find_cost below is the cost of finding the next possible key
@@ -375,17 +376,16 @@ void TABLE::init_cost_info_for_usable_range_rowid_filters(THD *thd)
 
   /*
     From all indexes that can be used for range accesses select only such that
-    - range filter pushdown is supported by the engine for them     (1)
-    - they are not clustered primary                                (2)
-    - the range filter containers for them are not too large        (3)
+    - can be used as rowid filters                                  (1)
+    - the range filter containers for them are not too large        (2)
   */
   while ((key_no= it++) != key_map::Iterator::BITMAP_END)
   {
-  if (!can_use_rowid_filter(key_no))                                // 1 & 2
+  if (!key_can_be_used_as_rowid_filter(thd, key_no))                       // !1
       continue;
    if (opt_range[key_no].rows >
        get_max_range_rowid_filter_elems_for_table(thd, this,
-                                                  SORTED_ARRAY_CONTAINER)) // !3
+                                                  SORTED_ARRAY_CONTAINER)) // !2
       continue;
     usable_range_filter_keys.set_bit(key_no);
   }
@@ -421,6 +421,8 @@ void TABLE::init_cost_info_for_usable_range_rowid_filters(THD *thd)
   {
     *curr_ptr= curr_filter_cost_info;
     curr_filter_cost_info->init(SORTED_ARRAY_CONTAINER, this, key_no);
+    curr_filter_cost_info->is_forced_by_hint=
+        hint_key_state(thd, this, key_no, ROWID_FILTER_HINT_ENUM, false);
     curr_ptr++;
     curr_filter_cost_info++;
   }
@@ -429,6 +431,39 @@ void TABLE::init_cost_info_for_usable_range_rowid_filters(THD *thd)
 
   if (unlikely(thd->trace_started()))
     trace_range_rowid_filters(thd);
+}
+
+
+/*
+  Return true if this `index` can be used as a rowid filter:
+  - filter pushdown is supported by the engine for the index. If this is set
+      then file->ha_table_flags() should not contain HA_NON_COMPARABLE_ROWID
+  - The index is not a clustered index
+  - optimizer hints ROWID_FILTER/NO_ROWID_FILTER do not forbid the use
+*/
+
+bool TABLE::key_can_be_used_as_rowid_filter(THD *thd, uint index) const
+{
+  return (key_info[index].index_flags &
+          (HA_DO_RANGE_FILTER_PUSHDOWN | HA_CLUSTERED_INDEX)) ==
+             HA_DO_RANGE_FILTER_PUSHDOWN &&
+         hint_key_state(thd, this, index, ROWID_FILTER_HINT_ENUM,
+                        optimizer_flag(thd, OPTIMIZER_SWITCH_USE_ROWID_FILTER));
+}
+
+
+/*
+  Return true if a rowid filter can be applied to this `index`:
+  - filter pushdown is supported by the engine for the index. If this is set
+    then file->ha_table_flags() should not contain HA_NON_COMPARABLE_ROWID
+  - The index is not a clustered index
+*/
+
+bool TABLE::rowid_filter_can_be_applied_to_key(uint index) const
+{
+  return (key_info[index].index_flags &
+           (HA_DO_RANGE_FILTER_PUSHDOWN | HA_CLUSTERED_INDEX)) ==
+          HA_DO_RANGE_FILTER_PUSHDOWN;
 }
 
 
@@ -476,7 +511,7 @@ void Range_rowid_filter_cost_info::trace_info(THD *thd)
   @details
     The function looks through the array of cost info for range filters
     and chooses the element for the range filter that promise the greatest
-    gain with the the ref or range access of the table by access_key_no.
+    gain with the ref or range access of the table by access_key_no.
 
     The function assumes that caller has checked that the key is not a clustered
     key. See best_access_path().
@@ -512,6 +547,7 @@ TABLE::best_range_rowid_filter(uint access_key_no, double records,
 
   Range_rowid_filter_cost_info *best_filter= 0;
   double best_filter_gain= DBL_MAX;
+  bool is_forced_filter_applied= false;
 
   key_map no_filter_usage= key_info[access_key_no].overlapped;
   no_filter_usage.merge(key_info[access_key_no].constraint_correlated);
@@ -539,10 +575,23 @@ TABLE::best_range_rowid_filter(uint access_key_no, double records,
                       in_use->variables.optimizer_where_cost) *
                      prev_records + filter->get_setup_cost());
 
-    if (best_filter_gain > new_total_cost)
+    if (is_forced_filter_applied)
+    {
+      /*
+        Only other forced filters can overwrite best_filter previously set
+        by a forced filter
+      */
+      if (filter->is_forced_by_hint && new_total_cost < best_filter_gain)
+      {
+        best_filter_gain= new_total_cost;
+        best_filter= filter;
+      }
+    }
+    else if (new_total_cost < best_filter_gain || filter->is_forced_by_hint)
     {
       best_filter_gain= new_total_cost;
       best_filter= filter;
+      is_forced_filter_applied= filter->is_forced_by_hint;
     }
   }
   return best_filter;

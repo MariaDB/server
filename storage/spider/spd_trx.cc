@@ -2885,21 +2885,15 @@ int spider_commit(
     {
       if (trx->trx_xa)
       {
-        if (trx->internal_xa && !trx->trx_xa_prepared)
+        if ((trx->internal_xa || thd->lex->xa_opt == XA_ONE_PHASE) &&
+            !trx->trx_xa_prepared)
         {
           if (
             (error_num = spider_internal_xa_prepare(
               thd, trx, table_xa, table_xa_member, TRUE))
           ) {
-/*
-            if (!thd_test_options(thd, OPTION_NOT_AUTOCOMMIT | OPTION_BEGIN))
-            {
-*/
               /* rollback for semi_trx */
               spider_rollback(thd, all);
-/*
-            }
-*/
             DBUG_RETURN(error_num);
           }
           trx->trx_xa_prepared = TRUE;
@@ -3590,8 +3584,7 @@ void spider_trx_set_link_idx_for_all(
         spider_set_bit(conn_can_fo, link_idx);
       DBUG_PRINT("info",("spider set conn_link_idx[%d]=%d",
         link_idx, all_link_idx));
-    } else
-    {
+    } else {
       conn_link_idx[link_idx] = link_idx;
       DBUG_PRINT("info",("spider set2 conn_link_idx[%d]=%d",
         link_idx, link_idx));

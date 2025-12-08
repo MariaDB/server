@@ -1,5 +1,4 @@
 --source include/have_sequence.inc
---disable_view_protocol
 create table t1 (a int, b int, c int);
 create table t2 (a int, b int, c int, d decimal);
 insert into t1 values
@@ -414,4 +413,3 @@ explain extended select /*+ NO_MERGE(t) NO_ICP(t) */ * from (select * from t7) t
 
 drop view v1, v2, v6;
 drop table t1, t2, t3, t4, t5, t6, t7;
---enable_view_protocol

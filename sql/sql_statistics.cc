@@ -439,7 +439,7 @@ public:
   statistical data is to be read. E.g. if the index idx consists of 3
   components (p1,p2,p3) the table  index_stats usually will contain 3 rows for
   this index: the first - for the prefix (p1), the second - for the prefix
-  (p1,p2), and the third - for the the prefix (p1,p2,p3). After the key fields
+  (p1,p2), and the third - for the prefix (p1,p2,p3). After the key fields
   has been set a call of get_stat_value looks for a row by the set key value.
   If the row is found and the value of the avg_frequency column is not null 
   then this value is assigned to key_info->read_stat.avg_frequency[k].
@@ -3122,7 +3122,10 @@ read_statistics_for_table(THD *thd, TABLE *table,
       found|= index_stat.get_stat_values(index_statistics);
     }
     if (found)
+    {
       new_stats_cb->stats_available|= TABLE_STAT_INDEX;
+      index_statistics->mark_stats_as_read();
+    }
 
     key_part_map ext_key_part_map= key_info->ext_key_part_map;
     if (key_info->user_defined_key_parts != key_info->ext_key_parts &&
@@ -3311,7 +3314,7 @@ read_statistics_for_tables(THD *thd, TABLE_LIST *tables, bool force_reload)
 
   /*
     Do not read statistics for any query that explicitly involves
-    statistical tables, failure to to do so we may end up
+    statistical tables, failure to do so we may end up
     in a deadlock.
   */
   if (found_stat_table || !statistics_for_tables_is_needed)
@@ -3348,7 +3351,7 @@ read_statistics_for_tables(THD *thd, TABLE_LIST *tables, bool force_reload)
       /*
         The following lock is here to ensure that if a lot of threads are
         accessing the table at the same time after a ANALYZE TABLE,
-        only one thread is loading the data from the the stats tables
+        only one thread is loading the data from the stats tables
         and the others threads are reusing the loaded data.
       */
       mysql_mutex_lock(&table_share->LOCK_statistics);
@@ -4156,11 +4159,34 @@ void set_statistics_for_table(THD *thd, TABLE *table)
   for (key_info= table->key_info, key_info_end= key_info+table->s->keys;
        key_info < key_info_end; key_info++)
   {
+    key_info->all_nulls_key_parts= 0;
     key_info->is_statistics_from_stat_tables=
-      (check_eits_preferred(thd) &&
-       table->stats_is_read &&
-       key_info->read_stats->avg_frequency_is_inited() &&
-       key_info->read_stats->get_avg_frequency(0) > 0.5);
+        (check_eits_preferred(thd) &&
+         table->stats_is_read &&
+         key_info->read_stats->avg_frequency_is_inited() &&
+         key_info->read_stats->has_stats());
+
+    // Fill out `all_nulls_key_parts` bitmap
+    if (key_info->is_statistics_from_stat_tables)
+    {
+      for (uint part_idx= 0; part_idx < key_info->usable_key_parts; part_idx++)
+      {
+        Field *field=
+            table->field[key_info->key_part[part_idx].field->field_index];
+        if (!field->read_stats)
+        {
+          // No column statistics available
+          continue;
+        }
+
+        // Check if all values in this column are NULL according to statistics
+        double nulls_ratio= field->read_stats->get_nulls_ratio();
+        if (nulls_ratio == 1.0)
+        {
+          key_info->all_nulls_key_parts |= (1 << part_idx);
+        }
+      }
+    }
   }
 }
 

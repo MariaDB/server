@@ -72,7 +72,8 @@ X
       "rows": 10000,
       "r_rows": 10000,
       "r_total_filtered": 100,
-      "r_total_time_ms": "REPLACED",
+      "r_table_time_ms": "REPLACED",
+      "r_other_time_ms": "REPLACED",
       "r_engine_stats": {
         "pages_accessed": "REPLACED",
         "pages_updated": "REPLACED"
@@ -106,7 +107,8 @@ X
       "rows": 10000,
       "r_rows": 10000,
       "r_total_filtered": 50,
-      "r_total_time_ms": "REPLACED",
+      "r_table_time_ms": "REPLACED",
+      "r_other_time_ms": "REPLACED",
       "r_engine_stats": {
         "pages_accessed": "REPLACED",
         "pages_updated": "REPLACED"

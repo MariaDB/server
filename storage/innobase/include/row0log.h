@@ -83,15 +83,6 @@ inline void row_log_abort_sec(dict_index_t *index)
   index->online_log= nullptr;
 }
 
-/** Logs an operation to a secondary index that is (or was) being created.
-@param	index	index, S or X latched
-@param	tuple	index tuple
-@param	trx_id	transaction ID for insert, or 0 for delete
-@retval false if row_log_apply() failure happens
-or true otherwise */
-bool row_log_online_op(dict_index_t *index, const dtuple_t *tuple,
-                       trx_id_t trx_id) ATTRIBUTE_COLD;
-
 /******************************************************//**
 Gets the error status of the online index rebuild log.
 @return DB_SUCCESS or error code */
@@ -201,7 +192,7 @@ row_log_get_max_trx(
 	MY_ATTRIBUTE((nonnull, warn_unused_result));
 
 /** Apply the row log to the index upon completing index creation.
-@param[in]	trx	transaction (for checking if the operation was
+@param[in,out]	trx	transaction (for checking if the operation was
 interrupted)
 @param[in,out]	index	secondary index
 @param[in,out]	table	MySQL table (for reporting duplicates)
@@ -211,7 +202,7 @@ stage->inc() will be called for each block of log that is applied.
 @return DB_SUCCESS, or error code on failure */
 dberr_t
 row_log_apply(
-	const trx_t*		trx,
+	trx_t*			trx,
 	dict_index_t*		index,
 	struct TABLE*		table,
 	ut_stage_alter_t*	stage)

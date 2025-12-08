@@ -927,7 +927,7 @@ maria_declare_plugin(type_cursor)
   NULL,                         // Status variables
   NULL,                         // System variables
   "1.0",                        // String version representation
-  MariaDB_PLUGIN_MATURITY_EXPERIMENTAL // Maturity(see include/mysql/plugin.h)*/
+  MariaDB_PLUGIN_MATURITY_STABLE // Maturity(see include/mysql/plugin.h)*/
 }
 #ifndef DBUG_OFF
 ,
@@ -944,7 +944,7 @@ maria_declare_plugin(type_cursor)
   NULL,                         // Status variables
   NULL,                         // System variables
   "1.0",                        // String version representation
-  MariaDB_PLUGIN_MATURITY_EXPERIMENTAL // Maturity(see include/mysql/plugin.h)*/
+  MariaDB_PLUGIN_MATURITY_STABLE // Maturity(see include/mysql/plugin.h)*/
 }
 #endif
 maria_declare_plugin_end;

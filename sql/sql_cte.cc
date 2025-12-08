@@ -153,6 +153,18 @@ bool LEX::resolve_references_to_cte(TABLE_LIST *tables,
 {
   With_element *with_elem= 0;
 
+  /*
+    Add back the tables collected during definition of the CTEs, but cleared
+    during mysql_init_delete
+  */
+  if (save_list.elements)
+  {
+    for (TABLE_LIST *saved= save_list.first; saved; saved= saved->next_global)
+      add_to_query_tables(saved);
+    save_list.empty();
+    last_table()->next_global= nullptr;
+  }
+
   for (TABLE_LIST *tbl= tables; tbl != *tables_last; tbl= tbl->next_global)
   {
     if (tbl->derived)
@@ -358,7 +370,7 @@ struct st_unit_ctxt_elem
   @details
     For each table reference ref(T) from the FROM list of every select sl 
     immediately contained in the specification query of this element this
-    method searches for the definition of T in the the with clause which
+    method searches for the definition of T in the with clause which
     this element belongs to. If such definition is found then the dependency
     on it is set in sl->with_dep and in this->base_dep_map.  
 */
@@ -622,7 +634,7 @@ TABLE_LIST *With_element::find_first_sq_rec_ref_in_select(st_select_lex *sel)
   @param  dep_map  IN/OUT The bit where to mark the found dependencies
 
   @details
-    This method searches in the unit 'unit' for the the references in FROM
+    This method searches in the unit 'unit' for the references in FROM
     lists of all selects contained in this unit and in the with clause
     attached to this unit that refer to definitions of tables from the
     same with clause as this element.
@@ -666,7 +678,7 @@ void With_element::check_dependencies_in_unit(st_select_lex_unit *unit,
   @param  dep_map      IN/OUT The bit where to mark the found dependencies
 
   @details
-    This method searches in the with_clause for the the references in FROM
+    This method searches in the with_clause for the references in FROM
     lists of all selects contained in the specifications of the with elements
     from this with_clause that refer to definitions of tables from the
     same with clause as this element.

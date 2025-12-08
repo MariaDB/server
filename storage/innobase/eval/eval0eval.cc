@@ -26,6 +26,7 @@ Created 12/29/1997 Heikki Tuuri
 *******************************************************/
 
 #include "eval0eval.h"
+#include "pars0grm.h"
 #include "data0data.h"
 #include "row0sel.h"
 #include "rem0cmp.h"

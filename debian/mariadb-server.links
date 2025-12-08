@@ -1,0 +1,6 @@
+#!/usr/bin/dh-exec
+usr/lib/${DEB_HOST_MULTIARCH}/libmariadb3/plugin/caching_sha2_password.so usr/lib/mysql/plugin/caching_sha2_password.so
+usr/lib/${DEB_HOST_MULTIARCH}/libmariadb3/plugin/client_ed25519.so usr/lib/mysql/plugin/client_ed25519.so
+usr/lib/${DEB_HOST_MULTIARCH}/libmariadb3/plugin/dialog.so usr/lib/mysql/plugin/dialog.so
+usr/lib/${DEB_HOST_MULTIARCH}/libmariadb3/plugin/mysql_clear_password.so usr/lib/mysql/plugin/mysql_clear_password.so
+usr/lib/${DEB_HOST_MULTIARCH}/libmariadb3/plugin/sha256_password.so usr/lib/mysql/plugin/sha256_password.so

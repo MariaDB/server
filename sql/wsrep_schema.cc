@@ -342,7 +342,7 @@ static int open_table(THD *thd, const LEX_CSTRING *schema_name,
        (thd->get_stmt_da()->sql_errno() == ER_QUERY_INTERRUPTED));
 
   if (interrupted ||
-      !open_n_lock_single_table(thd, table_list, table_list->lock_type, flags))
+      !open_n_lock_single_table(thd, table_list, lock_type, flags))
   {
     close_thread_tables(thd);
     DBUG_RETURN(1);
@@ -718,11 +718,9 @@ static void wsrep_init_thd_for_schema(THD *thd)
 {
   thd->security_ctx->skip_grants();
   thd->system_thread= SYSTEM_THREAD_GENERIC;
-
   thd->real_id=pthread_self(); // Keep purify happy
-
-  thd->prior_thr_create_utime= thd->start_utime= thd->thr_create_utime;
-
+  thd->prior_thr_create_utime= thd->start_utime=
+    thd->thr_create_utime= microsecond_interval_timer();
   /* No Galera replication */
   thd->variables.wsrep_on= 0;
   /* No binlogging */
@@ -804,10 +802,16 @@ int Wsrep_schema::store_view(THD* thd, const Wsrep_view& view)
 #ifdef WSREP_SCHEMA_MEMBERS_HISTORY
   TABLE* members_history_table= 0;
 #endif /* WSREP_SCHEMA_MEMBERS_HISTORY */
+  Query_tables_list query_tables_list_backup;
 
   Wsrep_schema_impl::wsrep_off wsrep_off(thd);
   Wsrep_schema_impl::binlog_off binlog_off(thd);
   Wsrep_schema_impl::sql_safe_updates sql_safe_updates(thd);
+
+  /*
+    Backup and restore the query table list changes.
+  */
+  thd->lex->reset_n_backup_query_tables_list(&query_tables_list_backup);
 
   if (trans_begin(thd, MYSQL_START_TRANS_OPT_READ_WRITE))
   {
@@ -924,6 +928,7 @@ int Wsrep_schema::store_view(THD* thd, const Wsrep_view& view)
   thd->release_transactional_locks();
 
 out_not_started:
+  thd->lex->restore_backup_query_tables_list(&query_tables_list_backup);
   DBUG_RETURN(ret);
 }
 
@@ -948,10 +953,16 @@ Wsrep_view Wsrep_schema::restore_view(THD* thd, const Wsrep_id& own_id) const {
   int proto_ver= 0;
   wsrep_cap_t capabilities= 0;
   std::vector<Wsrep_view::member> members;
+  Query_tables_list query_tables_list_backup;
 
   // we don't want causal waits for reading non-replicated private data
   int const wsrep_sync_wait_saved= thd->variables.wsrep_sync_wait;
   thd->variables.wsrep_sync_wait= 0;
+
+  /*
+    Backup and restore the query table list changes.
+  */
+  thd->lex->reset_n_backup_query_tables_list(&query_tables_list_backup);
 
   if (trans_begin(thd, MYSQL_START_TRANS_OPT_READ_ONLY)) {
     WSREP_ERROR("wsrep_schema::restore_view(): Failed to start transaction");
@@ -1067,12 +1078,14 @@ Wsrep_view Wsrep_schema::restore_view(THD* thd, const Wsrep_id& own_id) const {
       os << "Restored cluster view:\n" << ret_view;
       WSREP_INFO("%s", os.str().c_str());
     }
+    thd->lex->restore_backup_query_tables_list(&query_tables_list_backup);
     DBUG_RETURN(ret_view);
   }
   else
   {
     WSREP_ERROR("wsrep_schema::restore_view() failed.");
     Wsrep_view ret_view;
+    thd->lex->restore_backup_query_tables_list(&query_tables_list_backup);
     DBUG_RETURN(ret_view);
   }
 }
@@ -1461,6 +1474,7 @@ int Wsrep_schema::replay_transaction(THD* orig_thd,
 {
   DBUG_ENTER("Wsrep_schema::replay_transaction");
   DBUG_ASSERT(!fragments.empty());
+  Query_tables_list query_tables_list_backup;
 
   THD *thd= new THD(next_thread_id(), true);
   if (!thd)
@@ -1472,7 +1486,13 @@ int Wsrep_schema::replay_transaction(THD* orig_thd,
   thd->thread_stack= (orig_thd ? orig_thd->thread_stack : (char *) &thd);
   wsrep_assign_from_threadvars(thd);
 
+
+  /*
+    Backup and restore the query table list changes.
+  */
+  orig_thd->lex->reset_n_backup_query_tables_list(&query_tables_list_backup);
   int ret= ::replay_transaction(thd, orig_thd, rli, ws_meta, fragments);
+  orig_thd->lex->restore_backup_query_tables_list(&query_tables_list_backup);
 
   delete thd;
   DBUG_RETURN(ret);
@@ -1775,6 +1795,7 @@ void Wsrep_schema::store_allowlist(std::vector<std::string>& ip_allowlist)
   TABLE* allowlist_table= 0;
   TABLE_LIST allowlist_table_l;
   int error;
+
   Wsrep_schema_impl::init_stmt(thd);
   if (Wsrep_schema_impl::open_for_write(thd, allowlist_table_str.c_str(),
                                         &allowlist_table_l))

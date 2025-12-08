@@ -4,7 +4,6 @@
 
 --source include/have_innodb.inc
 --source include/have_sequence.inc
---source include/no_view_protocol.inc
 
 set @save_optimizer_switch=@@optimizer_switch;
 

@@ -1074,7 +1074,7 @@ uint week_mode(uint mode)
       		   	  If set	Monday is first day of week
    WEEK_YEAR (1)	  If not set	Week is in range 0-53
 
-   	Week 0 is returned for the the last week of the previous year (for
+   	Week 0 is returned for the last week of the previous year (for
 	a date at start of january) In this case one can get 53 for the
 	first week of next year.  This flag ensures that the week is
 	relevant for the given year. Note that this flag is only
@@ -1794,7 +1794,7 @@ bool Item_func_date_format::fix_length_and_dec(THD *thd)
 }
 
 
-bool Item_func_date_format::eq(const Item *item, bool binary_cmp) const
+bool Item_func_date_format::eq(const Item *item, const Eq_config &config) const
 {
   Item_func_date_format *item_func;
 
@@ -1807,7 +1807,7 @@ bool Item_func_date_format::eq(const Item *item, bool binary_cmp) const
   item_func= (Item_func_date_format*) item;
   if (arg_count != item_func->arg_count)
     return 0;
-  if (!args[0]->eq(item_func->args[0], binary_cmp))
+  if (!args[0]->eq(item_func->args[0], config))
     return 0;
   /*
     We must compare format string case sensitive.
@@ -2978,9 +2978,9 @@ bool Func_handler_date_add_interval_datetime_arg0_time::
 }
 
 
-bool Item_date_add_interval::eq(const Item *item, bool binary_cmp) const
+bool Item_date_add_interval::eq(const Item *item, const Eq_config &config) const
 {
-  if (!Item_func::eq(item, binary_cmp))
+  if (!Item_func::eq(item, config))
     return 0;
   Item_date_add_interval *other= (Item_date_add_interval*) item;
   return ((int_type == other->int_type) &&
@@ -3113,7 +3113,7 @@ longlong Item_extract::val_int()
   return 0;                                        // Impossible
 }
 
-bool Item_extract::eq(const Item *item, bool binary_cmp) const
+bool Item_extract::eq(const Item *item, const Eq_config &config) const
 {
   if (this == item)
     return 1;
@@ -3125,13 +3125,13 @@ bool Item_extract::eq(const Item *item, bool binary_cmp) const
   if (ie->int_type != int_type)
     return 0;
 
-  if (!args[0]->eq(ie->args[0], binary_cmp))
+  if (!args[0]->eq(ie->args[0], config))
       return 0;
   return 1;
 }
 
 
-bool Item_char_typecast::eq(const Item *item, bool binary_cmp) const
+bool Item_char_typecast::eq(const Item *item, const Eq_config &config) const
 {
   if (this == item)
     return 1;
@@ -3144,7 +3144,7 @@ bool Item_char_typecast::eq(const Item *item, bool binary_cmp) const
       cast_cs     != cast->cast_cs)
     return 0;
 
-  if (!args[0]->eq(cast->args[0], binary_cmp))
+  if (!args[0]->eq(cast->args[0], config))
       return 0;
   return 1;
 }
@@ -4043,12 +4043,248 @@ bool Item_func_last_day::get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzy
   Datetime *d= new(ltime) Datetime(thd, args[0], opt);
   if ((null_value= (!d->is_valid_datetime() || ltime->month == 0)))
     return true;
-  uint month_idx= ltime->month-1;
-  ltime->day= days_in_month[month_idx];
-  if ( month_idx == 1 && calc_days_in_year(ltime->year) == 366)
-    ltime->day= 29;
+  ltime->day= calc_days_in_month(ltime->year, ltime->month);
   ltime->hour= ltime->minute= ltime->second= 0;
   ltime->second_part= 0;
   ltime->time_type= MYSQL_TIMESTAMP_DATE;
   return (null_value= 0);
+}
+
+
+/* enum for Oracle TRUNC function */
+
+struct TRUNC_FORMAT
+{
+  const LEX_CSTRING name;
+  Item_func_trunc::enum_trunc format;
+};
+
+
+/*
+  Formats in sorted order. Only the Oracle formats that truncates to year,
+  month or day are supported
+*/
+static struct TRUNC_FORMAT trunc_options[]=
+{
+  {{STRING_WITH_LEN("DD")}, Item_func_trunc::TRUNC_DAY },
+  {{STRING_WITH_LEN("DDD")}, Item_func_trunc::TRUNC_DAY },
+  {{STRING_WITH_LEN("J")}, Item_func_trunc::TRUNC_DAY },
+  {{STRING_WITH_LEN("MM")}, Item_func_trunc::TRUNC_MONTH },
+  {{STRING_WITH_LEN("MON")}, Item_func_trunc::TRUNC_MONTH },
+  {{STRING_WITH_LEN("MONTH")}, Item_func_trunc::TRUNC_MONTH },
+  {{STRING_WITH_LEN("RM")}, Item_func_trunc::TRUNC_MONTH },
+  {{STRING_WITH_LEN("SYEAR")}, Item_func_trunc::TRUNC_YEAR },
+  {{STRING_WITH_LEN("SYYYY")}, Item_func_trunc::TRUNC_YEAR },
+  {{STRING_WITH_LEN("Y")}, Item_func_trunc::TRUNC_YEAR },
+  {{STRING_WITH_LEN("YEAR")}, Item_func_trunc::TRUNC_YEAR },
+  {{STRING_WITH_LEN("YY")}, Item_func_trunc::TRUNC_YEAR },
+  {{STRING_WITH_LEN("YYY")}, Item_func_trunc::TRUNC_YEAR },
+  {{STRING_WITH_LEN("YYYY")}, Item_func_trunc::TRUNC_YEAR },
+};
+
+
+Item_func_trunc::enum_trunc
+Item_func_trunc::get_trunc_option(const LEX_CSTRING format)
+{
+  uint low=0, high= array_elements(trunc_options) - 1;
+
+  /* Use binary search to find the format */
+  do
+  {
+    uint mid= (low+high)/2;
+    int cmp= my_charset_latin1.strnncoll(format, trunc_options[mid].name);
+    if (!cmp)
+      return trunc_options[mid].format;
+    if (cmp > 0)
+      low= mid+1;
+    else
+      high= mid-1;
+  } while ((int) low <= (int) high);
+  return TRUNC_IMPOSSIBLE;
+}
+
+
+bool Item_func_trunc::fix_length_and_dec(THD *thd)
+{
+  fix_attributes_datetime(args[0]->datetime_precision(thd));
+  set_maybe_null();
+  if (args[1]->can_eval_in_optimize())
+  {
+    String tmp, *res;
+    if ((res= args[1]->val_str_ascii(&tmp)))
+    {
+      const_format= get_trunc_option(res->to_lex_cstring());
+      if (const_format == TRUNC_IMPOSSIBLE)
+        const_format= TRUNC_UNINIT;             // Error handling in get_date()
+    }
+  }
+  return false;
+}
+
+
+bool Item_func_trunc::get_date(THD *thd, MYSQL_TIME *ltime,
+                               date_mode_t fuzzydate)
+{
+  Datetime::Options opt(TIME_NO_ZEROS, TIME_FRAC_TRUNCATE);
+  enum_trunc format= TRUNC_IMPOSSIBLE;
+  Datetime *dt= new(ltime) Datetime(thd, args[0], opt);
+  if ((null_value= !dt->is_valid_datetime()))
+    return true;
+  if (const_format != TRUNC_UNINIT)
+    format= const_format;
+  else
+  {
+    String tmp, *res;
+    if ((res= args[1]->val_str_ascii(&tmp)))
+      format= get_trunc_option(res->to_lex_cstring());
+    if (format == TRUNC_IMPOSSIBLE)
+    {
+      thd->push_warning_wrong_value(Sql_condition::WARN_LEVEL_WARN, "TRUNC",
+                                    res ? res->c_ptr() : "<NULL>");
+      goto error;
+    }
+  }
+
+  null_value= 0;
+  switch (format)
+  {
+  case TRUNC_UNINIT:
+  case TRUNC_IMPOSSIBLE:
+    DBUG_ASSERT(0);
+    goto error;
+  case TRUNC_YEAR:
+    ltime->month= 1;
+    /* fall through */
+  case TRUNC_MONTH:
+    ltime->day= 1;
+    /* fall through */
+  case TRUNC_DAY:
+    ltime->hour= ltime->minute= ltime->second= 0;
+    ltime->second_part= 0;
+    break;
+  }
+  return false;
+
+  error:
+  null_value= 1;
+  return true;
+}
+
+
+/*
+  Help functions for months_between()
+  Note that by compiling with EXTENDED_MONTHS_BETWEEN MariaDB would
+  take into account alse the time part when comparing dates.
+*/
+
+static ulonglong months_between_rank(const MYSQL_TIME *t)
+{
+  ulonglong days= (((t->year * 366LL) + t->month) * 31 + t->day);
+#ifndef EXTENDED_MONTHS_BETWEEN
+  return days;
+#else
+  ulonglong rank= (((((days*24 + t->hour) * 60) + t->minute) * 60 +
+                    t->second)*1000000LL + t->second_part);
+  return rank;
+#endif /* EXTENDED_MONTHS_BETWEEN */
+}
+
+
+/*
+  Get the fractional day based on hour, minute, second and
+  fractional second. The return value is in milliseconds.
+*/
+
+static double fractional_day(const MYSQL_TIME *t)
+{
+  /* Normalize all components to the fractional part of the day */
+  ulonglong milliseconds= (t->hour * 3600LL + t->minute * 60LL +
+                           t->second)*1000;
+
+#ifdef EXTENDED_MONTHS_BETWEEN
+  milliseconds+= t->second_part / 1000;
+#endif
+
+  /*
+    Normalize by 86400000
+    (which is 24 hours * 60 minutes * 60 seconds * 1000 milliseconds)
+  */
+  return milliseconds / 86400000.0; // fractional day
+}
+
+
+/* Check if it's the last day of the month */
+static inline int is_last_day(const MYSQL_TIME *ltime)
+{
+  uint last_day= calc_days_in_month(ltime->year, ltime->month);
+  return ltime->day == last_day;
+}
+
+/*
+  Calculate months_between() according to how Oracle does it.
+
+  "If date1 is earlier than date2, then the result is negative.  If
+  date1 and date2 are either the same days of the month or both last
+  days of months, then the result is always an integer.  If not, then
+  a fractional portion is added based on a 31-day month.
+
+  One difference between the MariaDB and Oracle implementation is that
+  MariaDB takes hours, minutes, seconds and fractional seconds into
+  account when comparing dates when computing the fractional months.
+*/
+
+double Item_func_months_between::val_real()
+{
+  double frac;
+  int invert = 1, months;
+  ulonglong dt1, dt2;
+  MYSQL_TIME ltime1, ltime2, *d1, *d2;
+  THD *thd= current_thd;
+  Datetime::Options opt(TIME_NO_ZEROS, thd);
+
+  if (Datetime(thd, args[0], opt).copy_to_mysql_time(&ltime1) ||
+      Datetime(thd, args[1], opt).copy_to_mysql_time(&ltime2))
+  {
+    null_value= 1;
+    return 0.0;
+  }
+  null_value= 0;
+
+  /* Get earlier time in d1 */
+  d1= &ltime1;
+  d2= &ltime2;
+
+  dt1= months_between_rank(d1);
+  dt2= months_between_rank(d2);
+
+  if (dt1 < dt2)
+  {
+    invert= -1;
+    swap_variables(MYSQL_TIME *, d1, d2);
+  }
+
+  /* Calculate months */
+  months= (d1->year - d2->year) * 12 + (d1->month - d2->month);
+
+  /*
+    If days are the same or day is last day of the month they are
+    regarded as equal
+  */
+  if (d1->day == d2->day || (is_last_day(d1) && is_last_day(d2)))
+    return months * invert;
+
+  double frac_d1, frac_d2;
+  frac_d1= fractional_day(d1);
+  frac_d2= fractional_day(d2);
+
+  /* Compute fractional month using 31-day assumption */
+  if (d1->day > d2->day)
+    frac= (d1->day + frac_d1 - d2->day - frac_d2) / 31.0;
+  else
+  {
+    months--;
+    frac= (31 - d2->day - frac_d2 + d1->day + frac_d1) / 31.0;
+  }
+
+  return invert * (months + frac);
 }

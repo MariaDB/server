@@ -409,7 +409,7 @@ struct LEX_MASTER_INFO
 
     host= user= password= log_file_name= ssl_key= ssl_cert= ssl_ca=
       ssl_capath= ssl_cipher= ssl_crl= ssl_crlpath= relay_log_name= NULL;
-    pos= relay_log_pos= server_id= port= connect_retry= retry_count= 0;
+    pos= relay_log_pos= server_id= retry_count= port= connect_retry= 0;
     heartbeat_period= 0;
     ssl= ssl_verify_server_cert= heartbeat_opt=
       repl_ignore_server_ids_opt= repl_do_domain_ids_opt=
@@ -727,6 +727,28 @@ bool print_explain_for_slow_log(LEX *lex, THD *thd, String *str);
 
 
 class st_select_lex_unit: public st_select_lex_node {
+private:
+  /*
+    When a CTE is merged to the parent SELECT, its unit is excluded
+    which separates it from the tree of units for this query.  It
+    needs to be cleaned up but not at the time it is excluded, since
+    its queries are merged to the unit above it.  Remember all such
+    units via the stranded_clean_list and clean them at the end of
+    the query.  This list is maintained only at the root unit node
+    of the query tree.
+   */
+  st_select_lex_unit *stranded_clean_list{nullptr};
+
+  // Add myself to the stranded_clean_list.
+  void remember_my_cleanup();
+
+  /*
+    Walk the stranded_clean_list and cleanup units.  This must only
+    be called for the st_select_lex_unit type because it assumes
+    that those are the only nodes in the stranded_clean_list.
+  */
+  void cleanup_stranded_units();
+
 protected:
   TABLE_LIST result_table_list;
   select_unit *union_result;
@@ -1318,7 +1340,10 @@ public:
   {
     return master_unit()->return_after_parsing();
   }
-  inline bool is_subquery_function() { return master_unit()->item != 0; }
+  inline bool is_subquery_function()
+  {
+    return master_unit() && master_unit()->item != 0;
+  }
 
   bool mark_as_dependent(THD *thd, st_select_lex *last,
                          Item_ident *dependency);
@@ -3304,7 +3329,7 @@ public:
     at parse time to set local name resolution contexts for various parts
     of a query. For example, in a JOIN ... ON (some_condition) clause the
     Items in 'some_condition' must be resolved only against the operands
-    of the the join, and not against the whole clause. Similarly, Items in
+    of the join, and not against the whole clause. Similarly, Items in
     subqueries should be resolved against the subqueries (and outer queries).
     The stack is used in the following way: when the parser detects that
     all Items in some clause need a local context, it creates a new context
@@ -3323,7 +3348,13 @@ public:
   uint select_stack_outer_barrier;
 
   SQL_I_List<ORDER> proc_list;
-  SQL_I_List<TABLE_LIST> auxiliary_table_list, save_list;
+  SQL_I_List<TABLE_LIST> auxiliary_table_list;
+  /*
+    save_list is used by
+      - Parsing CREATE TABLE t0 (...) UNION = (t1, t2, t3)
+      - CTEs for DELETE, see mysql_init_delete().
+  */
+  SQL_I_List<TABLE_LIST> save_list;
   Column_definition *last_field;
   Table_function_json_table *json_table;
   Item_sum *in_sum_func;
@@ -3554,14 +3585,29 @@ public:
   static const ulong initial_gtid_domain_buffer_size= 16;
   uint32 gtid_domain_static_buffer[initial_gtid_domain_buffer_size];
 
-  inline void set_limit_rows_examined()
+  /*
+    Activates enforcement of the LIMIT ROWS EXAMINED clause, if present
+    in the query.
+  */
+  void set_limit_rows_examined()
   {
     if (limit_rows_examined)
       limit_rows_examined_cnt= limit_rows_examined->val_uint();
-    else
-      limit_rows_examined_cnt= ULONGLONG_MAX;
   }
 
+  /**
+    Deactivates enforcement of the LIMIT ROWS EXAMINED clause and returns its
+    prior state.
+    Return value:
+    - false: LIMIT ROWS EXAMINED was not activated
+    - true:  LIMIT ROWS EXAMINED was activated
+  */
+  bool deactivate_limit_rows_examined()
+  {
+    bool was_activated= (limit_rows_examined_cnt != ULONGLONG_MAX);
+    limit_rows_examined_cnt= ULONGLONG_MAX; // Unreachable value
+    return was_activated;
+  }
 
   LEX_CSTRING *win_ref;
   Window_frame *win_frame;
@@ -3761,8 +3807,8 @@ public:
     DBUG_RETURN(select_lex);
   }
 
-  void resolve_optimizer_hints_in_last_select();
-
+  void handle_parsed_optimizer_hints_in_last_select();
+  void resolve_optimizer_hints();
   bool discard_optimizer_hints_in_last_select();
 
   SELECT_LEX *current_select_or_default()
@@ -3929,6 +3975,7 @@ public:
   bool direct_call(THD *thd, const Qualified_ident *ident, List<Item> *args);
 
   bool assoc_assign_start(THD *thd, Qualified_ident *ident);
+  const sp_type_def *find_type_def(const LEX_CSTRING &name) const;
   sp_variable *find_variable(const LEX_CSTRING *name,
                              sp_pcontext **ctx,
                              const Sp_rcontext_handler **rh) const;
@@ -5071,6 +5118,8 @@ public:
 
   std::pair<bool, Optimizer_hint_parser_output *>
     parse_optimizer_hints(const Lex_comment_st &hint);
+  /* See resolve_optimizer_hints() */
+  List<SELECT_LEX> selects_for_hint_resolution;
 };
 
 

@@ -412,8 +412,8 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 2	DERIVED	<derived3>	ALL	NULL	NULL	NULL	NULL	10	100.00	Using where
 3	DERIVED	t2	ALL	NULL	NULL	NULL	NULL	10	100.00	Using where
 Warnings:
-Warning	4221	Unresolved table name `wrong_name`@`select#2` for MERGE hint
-Warning	4221	Unresolved table name `wrong_name`@`select#1` for MERGE hint
+Warning	4221	Unresolved table name `wrong_name` for MERGE hint
+Warning	4221	Unresolved table name `wrong_name` for MERGE hint
 Note	1003	/* select#1 */ select `dt_out`.`a` AS `a`,`dt_out`.`b` AS `b` from (/* select#2 */ select `dt_in`.`i` AS `a`,`dt_in`.`j` AS `b` from (/* select#3 */ select `test`.`t2`.`i` * 10 AS `i`,`test`.`t2`.`j` * 5 AS `j` from `test`.`t2` where `test`.`t2`.`i` * 10 < 3 and `test`.`t2`.`j` * 5 > 8) `dt_in` where `dt_in`.`i` < 3 and `dt_in`.`j` > 8) `dt_out` where `dt_out`.`a` < 3 and `dt_out`.`b` > 8
 SELECT /*+ MERGE(dt) MERGE(foo) */ a, b FROM (SELECT i as a, j as b FROM t1) AS dt WHERE a < 3 AND b > 8;
 a	b
@@ -467,3 +467,180 @@ Warning	4221	Unresolved table name `bar`@`select#1` for NO_MERGE hint
 Warning	4221	Unresolved table name `foo`@`select#1` for NO_MERGE hint
 drop table t1, t2;
 drop view v1, v2;
+set session optimizer_switch='derived_merge=on';
+#
+# MDEV-37389 Hint NO_MERGE(@qb_name) is accepted but has no effect
+#
+CREATE TABLE employees (
+emp_id INT PRIMARY KEY,
+emp_name VARCHAR(100),
+department VARCHAR(50)
+);
+CREATE TABLE salaries (
+emp_id INT,
+salary DECIMAL(10, 2),
+FOREIGN KEY (emp_id) REFERENCES employees(emp_id)
+);
+INSERT INTO employees (emp_id, emp_name, department) VALUES
+(101, 'Alice', 'Engineering'),
+(102, 'Bob', 'Engineering');
+INSERT INTO salaries (emp_id, salary) VALUES
+(101, 120000.00),
+(102, 95000.00);
+EXPLAIN EXTENDED SELECT /*+ NO_MERGE() */ e.emp_name, s.salary FROM (
+select * from employees) e JOIN (select * from salaries) s ON e.emp_id = s.emp_id;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	2	100.00	
+1	PRIMARY	<derived3>	ref	key0	key0	5	e.emp_id	1	100.00	
+3	DERIVED	salaries	ALL	NULL	NULL	NULL	NULL	2	100.00	
+2	DERIVED	employees	ALL	NULL	NULL	NULL	NULL	2	100.00	
+Warnings:
+Note	1003	/* select#1 */ select /*+ NO_MERGE(@`select#1`) */ `e`.`emp_name` AS `emp_name`,`s`.`salary` AS `salary` from (/* select#2 */ select `test`.`employees`.`emp_id` AS `emp_id`,`test`.`employees`.`emp_name` AS `emp_name`,`test`.`employees`.`department` AS `department` from `test`.`employees`) `e` join (/* select#3 */ select `test`.`salaries`.`emp_id` AS `emp_id`,`test`.`salaries`.`salary` AS `salary` from `test`.`salaries`) `s` where `s`.`emp_id` = `e`.`emp_id`
+EXPLAIN EXTENDED SELECT /*+ QB_NAME(foo) NO_MERGE(@`foo`) */ e.emp_name, s.salary FROM (
+select * from employees) e JOIN  (select * from salaries) s ON e.emp_id = s.emp_id;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	2	100.00	
+1	PRIMARY	<derived3>	ref	key0	key0	5	e.emp_id	1	100.00	
+3	DERIVED	salaries	ALL	NULL	NULL	NULL	NULL	2	100.00	
+2	DERIVED	employees	ALL	NULL	NULL	NULL	NULL	2	100.00	
+Warnings:
+Note	1003	/* select#1 */ select /*+ QB_NAME(`foo`) NO_MERGE(@`foo`) */ `e`.`emp_name` AS `emp_name`,`s`.`salary` AS `salary` from (/* select#2 */ select `test`.`employees`.`emp_id` AS `emp_id`,`test`.`employees`.`emp_name` AS `emp_name`,`test`.`employees`.`department` AS `department` from `test`.`employees`) `e` join (/* select#3 */ select `test`.`salaries`.`emp_id` AS `emp_id`,`test`.`salaries`.`salary` AS `salary` from `test`.`salaries`) `s` where `s`.`emp_id` = `e`.`emp_id`
+EXPLAIN EXTENDED
+select /*+ NO_MERGE() */ emp_id from (
+select /*+ NO_MERGE() */ emp_id from (
+select /*+ NO_MERGE() */ emp_id from (
+select /*+ NO_MERGE() */ emp_id from (
+select emp_id from employees) dt) du) dv) dw;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	2	100.00	
+2	DERIVED	<derived3>	ALL	NULL	NULL	NULL	NULL	2	100.00	
+3	DERIVED	<derived4>	ALL	NULL	NULL	NULL	NULL	2	100.00	
+4	DERIVED	<derived5>	ALL	NULL	NULL	NULL	NULL	2	100.00	
+5	DERIVED	employees	index	NULL	PRIMARY	4	NULL	2	100.00	Using index
+Warnings:
+Note	1003	/* select#1 */ select /*+ NO_MERGE(@`select#4`) NO_MERGE(@`select#3`) NO_MERGE(@`select#2`) NO_MERGE(@`select#1`) */ `dw`.`emp_id` AS `emp_id` from (/* select#2 */ select `dv`.`emp_id` AS `emp_id` from (/* select#3 */ select `du`.`emp_id` AS `emp_id` from (/* select#4 */ select `dt`.`emp_id` AS `emp_id` from (/* select#5 */ select `test`.`employees`.`emp_id` AS `emp_id` from `test`.`employees`) `dt`) `du`) `dv`) `dw`
+EXPLAIN EXTENDED
+select /*+ NO_MERGE(@qb4) */ emp_id from (
+select /*+ QB_NAME(qb2) */ emp_id from (
+select /*+ QB_NAME(qb3) */ emp_id from (
+select /*+ QB_NAME(qb4) */ emp_id from (
+select emp_id from employees) dt) du) dv) dw;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	<derived5>	ALL	NULL	NULL	NULL	NULL	2	100.00	
+5	DERIVED	employees	index	NULL	PRIMARY	4	NULL	2	100.00	Using index
+Warnings:
+Note	1003	/* select#1 */ select /*+ NO_MERGE(@`qb4`) */ `dt`.`emp_id` AS `emp_id` from (/* select#5 */ select `test`.`employees`.`emp_id` AS `emp_id` from `test`.`employees`) `dt`
+EXPLAIN EXTENDED
+select /*+ NO_MERGE(@qb3) */ emp_id from (
+select /*+ QB_NAME(qb2) */ emp_id from (
+select /*+ QB_NAME(qb3) */ emp_id from (
+select /*+ QB_NAME(qb4) */ emp_id from (
+select emp_id from employees) dt) du) dv) dw;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	<derived4>	ALL	NULL	NULL	NULL	NULL	2	100.00	
+4	DERIVED	employees	index	NULL	PRIMARY	4	NULL	2	100.00	Using index
+Warnings:
+Note	1003	/* select#1 */ select /*+ NO_MERGE(@`qb3`) */ `du`.`emp_id` AS `emp_id` from (/* select#4 */ select /*+ QB_NAME(`qb4`) */ `test`.`employees`.`emp_id` AS `emp_id` from `test`.`employees`) `du`
+EXPLAIN EXTENDED
+select /*+ NO_MERGE(@qb2) */ emp_id from (
+select /*+ QB_NAME(qb2) */ emp_id from (
+select /*+ QB_NAME(qb3) */ emp_id from (
+select /*+ QB_NAME(qb4) */ emp_id from (
+select emp_id from employees) dt) du) dv) dw;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	<derived3>	ALL	NULL	NULL	NULL	NULL	2	100.00	
+3	DERIVED	employees	index	NULL	PRIMARY	4	NULL	2	100.00	Using index
+Warnings:
+Note	1003	/* select#1 */ select /*+ NO_MERGE(@`qb2`) */ `dv`.`emp_id` AS `emp_id` from (/* select#3 */ select /*+ QB_NAME(`qb3`) */ `test`.`employees`.`emp_id` AS `emp_id` from `test`.`employees`) `dv`
+EXPLAIN EXTENDED
+select /*+ NO_MERGE(@qb2) NO_MERGE(@qb4) */ emp_id from (
+select /*+ QB_NAME(qb2) */ emp_id from (
+select /*+ QB_NAME(qb3) */ emp_id from (
+select /*+ QB_NAME(qb4) */ emp_id from (
+select emp_id from employees) dt) du) dv) dw;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	<derived3>	ALL	NULL	NULL	NULL	NULL	2	100.00	
+3	DERIVED	<derived5>	ALL	NULL	NULL	NULL	NULL	2	100.00	
+5	DERIVED	employees	index	NULL	PRIMARY	4	NULL	2	100.00	Using index
+Warnings:
+Note	1003	/* select#1 */ select /*+ NO_MERGE(@`qb4`) NO_MERGE(@`qb2`) */ `dv`.`emp_id` AS `emp_id` from (/* select#3 */ select /*+ QB_NAME(`qb3`) */ `dt`.`emp_id` AS `emp_id` from (/* select#5 */ select `test`.`employees`.`emp_id` AS `emp_id` from `test`.`employees`) `dt`) `dv`
+# Test the MERGE hint variant
+set session optimizer_switch='derived_merge=off';
+EXPLAIN EXTENDED SELECT /*+ MERGE() */ e.emp_name, s.salary FROM (
+select * from employees) e JOIN  (select * from salaries) s ON e.emp_id = s.emp_id;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	salaries	ALL	emp_id	NULL	NULL	NULL	2	100.00	Using where
+1	SIMPLE	employees	eq_ref	PRIMARY	PRIMARY	4	test.salaries.emp_id	1	100.00	
+Warnings:
+Note	1003	select /*+ MERGE(@`select#1`) */ `test`.`employees`.`emp_name` AS `emp_name`,`test`.`salaries`.`salary` AS `salary` from `test`.`employees` join `test`.`salaries` where `test`.`employees`.`emp_id` = `test`.`salaries`.`emp_id`
+EXPLAIN EXTENDED SELECT /*+ QB_NAME(foo) MERGE(@`foo`) */ e.emp_name, s.salary FROM (
+select * from employees) e JOIN  (select * from salaries) s ON e.emp_id = s.emp_id;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	salaries	ALL	emp_id	NULL	NULL	NULL	2	100.00	Using where
+1	SIMPLE	employees	eq_ref	PRIMARY	PRIMARY	4	test.salaries.emp_id	1	100.00	
+Warnings:
+Note	1003	select /*+ QB_NAME(`foo`) MERGE(@`foo`) */ `test`.`employees`.`emp_name` AS `emp_name`,`test`.`salaries`.`salary` AS `salary` from `test`.`employees` join `test`.`salaries` where `test`.`employees`.`emp_id` = `test`.`salaries`.`emp_id`
+EXPLAIN EXTENDED
+select /*+ MERGE() */ emp_id from (
+select /*+ MERGE() */ emp_id from (
+select /*+ MERGE() */ emp_id from (
+select /*+ MERGE() */ emp_id from (
+select emp_id from employees) dt) du) dv) dw;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	employees	index	NULL	PRIMARY	4	NULL	2	100.00	Using index
+Warnings:
+Note	1003	select /*+ MERGE(@`select#4`) MERGE(@`select#3`) MERGE(@`select#2`) MERGE(@`select#1`) */ `test`.`employees`.`emp_id` AS `emp_id` from `test`.`employees`
+EXPLAIN EXTENDED
+select /*+ MERGE(@qb4) */ emp_id from (
+select /*+ QB_NAME(qb2) */ emp_id from (
+select /*+ QB_NAME(qb3) */ emp_id from (
+select /*+ QB_NAME(qb4) */ emp_id from (
+select emp_id from employees) dt) du) dv) dw;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	2	100.00	
+2	DERIVED	<derived3>	ALL	NULL	NULL	NULL	NULL	2	100.00	
+3	DERIVED	<derived4>	ALL	NULL	NULL	NULL	NULL	2	100.00	
+4	DERIVED	employees	index	NULL	PRIMARY	4	NULL	2	100.00	Using index
+Warnings:
+Note	1003	/* select#1 */ select /*+ MERGE(@`qb4`) */ `dw`.`emp_id` AS `emp_id` from (/* select#2 */ select /*+ QB_NAME(`qb2`) */ `dv`.`emp_id` AS `emp_id` from (/* select#3 */ select /*+ QB_NAME(`qb3`) */ `du`.`emp_id` AS `emp_id` from (/* select#4 */ select /*+ QB_NAME(`qb4`) */ `test`.`employees`.`emp_id` AS `emp_id` from `test`.`employees`) `du`) `dv`) `dw`
+EXPLAIN EXTENDED
+select /*+ MERGE(@qb3) */ emp_id from (
+select /*+ QB_NAME(qb2) */ emp_id from (
+select /*+ QB_NAME(qb3) */ emp_id from (
+select /*+ QB_NAME(qb4) */ emp_id from (
+select emp_id from employees) dt) du) dv) dw;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	2	100.00	
+2	DERIVED	<derived3>	ALL	NULL	NULL	NULL	NULL	2	100.00	
+3	DERIVED	<derived5>	ALL	NULL	NULL	NULL	NULL	2	100.00	
+5	DERIVED	employees	index	NULL	PRIMARY	4	NULL	2	100.00	Using index
+Warnings:
+Note	1003	/* select#1 */ select /*+ MERGE(@`qb3`) */ `dw`.`emp_id` AS `emp_id` from (/* select#2 */ select /*+ QB_NAME(`qb2`) */ `dv`.`emp_id` AS `emp_id` from (/* select#3 */ select /*+ QB_NAME(`qb3`) */ `dt`.`emp_id` AS `emp_id` from (/* select#5 */ select `test`.`employees`.`emp_id` AS `emp_id` from `test`.`employees`) `dt`) `dv`) `dw`
+EXPLAIN EXTENDED
+select /*+ MERGE(@qb2) */ emp_id from (
+select /*+ QB_NAME(qb2) */ emp_id from (
+select /*+ QB_NAME(qb3) */ emp_id from (
+select /*+ QB_NAME(qb4) */ emp_id from (
+select emp_id from employees) dt) du) dv) dw;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	2	100.00	
+2	DERIVED	<derived4>	ALL	NULL	NULL	NULL	NULL	2	100.00	
+4	DERIVED	<derived5>	ALL	NULL	NULL	NULL	NULL	2	100.00	
+5	DERIVED	employees	index	NULL	PRIMARY	4	NULL	2	100.00	Using index
+Warnings:
+Note	1003	/* select#1 */ select /*+ MERGE(@`qb2`) */ `dw`.`emp_id` AS `emp_id` from (/* select#2 */ select /*+ QB_NAME(`qb2`) */ `du`.`emp_id` AS `emp_id` from (/* select#4 */ select /*+ QB_NAME(`qb4`) */ `dt`.`emp_id` AS `emp_id` from (/* select#5 */ select `test`.`employees`.`emp_id` AS `emp_id` from `test`.`employees`) `dt`) `du`) `dw`
+EXPLAIN EXTENDED
+select /*+ MERGE(@qb2) MERGE(@qb4) */ emp_id from (
+select /*+ QB_NAME(qb2) */ emp_id from (
+select /*+ QB_NAME(qb3) */ emp_id from (
+select /*+ QB_NAME(qb4) */ emp_id from (
+select emp_id from employees) dt) du) dv) dw;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	2	100.00	
+2	DERIVED	<derived4>	ALL	NULL	NULL	NULL	NULL	2	100.00	
+4	DERIVED	employees	index	NULL	PRIMARY	4	NULL	2	100.00	Using index
+Warnings:
+Note	1003	/* select#1 */ select /*+ MERGE(@`qb4`) MERGE(@`qb2`) */ `dw`.`emp_id` AS `emp_id` from (/* select#2 */ select /*+ QB_NAME(`qb2`) */ `du`.`emp_id` AS `emp_id` from (/* select#4 */ select /*+ QB_NAME(`qb4`) */ `test`.`employees`.`emp_id` AS `emp_id` from `test`.`employees`) `du`) `dw`
+set session optimizer_switch='derived_merge=on';
+DROP TABLE employees, salaries;
+# End of 12.1 tests

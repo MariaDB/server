@@ -3303,7 +3303,7 @@ fts_add_doc_from_tuple(
        doc_id_t        doc_id,
        const dtuple_t* tuple)
 {
-       mtr_t           mtr;
+       mtr_t mtr{ftt->fts_trx->trx};
        fts_cache_t*    cache = ftt->table->fts->cache;
 
        ut_ad(cache->get_docs);
@@ -3372,7 +3372,7 @@ fts_add_doc_by_id(
 	fts_trx_table_t*ftt,		/*!< in: FTS trx table */
 	doc_id_t	doc_id)		/*!< in: doc id */
 {
-	mtr_t		mtr;
+	mtr_t		mtr{ftt->fts_trx->trx};
 	mem_heap_t*	heap;
 	btr_pcur_t	pcur;
 	dict_table_t*	table;
@@ -3620,7 +3620,7 @@ fts_get_max_doc_id(
 	dict_index_t*	index;
 	dict_field_t*	dfield MY_ATTRIBUTE((unused)) = NULL;
 	doc_id_t	doc_id = 0;
-	mtr_t		mtr;
+	mtr_t		mtr{nullptr};
 	btr_pcur_t	pcur;
 
 	index = table->fts_doc_id_index;

@@ -15,8 +15,10 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111 - 1301 USA*/
 
 #include "tpool_structs.h"
 #include "tpool.h"
+#include "my_valgrind.h"
 #include "mysql/service_my_print_error.h"
 #include "mysqld_error.h"
+#include "my_valgrind.h"
 
 #include <liburing.h>
 #include <pthread.h>
@@ -30,11 +32,12 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111 - 1301 USA*/
 
 namespace
 {
+using namespace tpool;
 
-class aio_uring final : public tpool::aio
+class aio_uring final : public aio
 {
 public:
-  aio_uring(tpool::thread_pool *tpool, int max_aio) : tpool_(tpool)
+  aio_uring(thread_pool *tpool, int max_aio) : tpool_(tpool)
   {
     if (const auto e= io_uring_queue_init(max_aio, &uring_, 0))
     {
@@ -75,6 +78,9 @@ public:
       }
       throw std::runtime_error("aio_uring()");
     }
+#if __has_feature(memory_sanitizer)
+    MEM_MAKE_DEFINED(&uring_, sizeof(uring_));
+#endif
     if (io_uring_ring_dontfork(&uring_) != 0)
     {
       my_printf_error(ER_UNKNOWN_ERROR,
@@ -107,7 +113,7 @@ public:
     io_uring_queue_exit(&uring_);
   }
 
-  int submit_io(tpool::aiocb *cb) final
+  int submit_io(aiocb *cb) final
   {
     cb->m_iovec.iov_base= cb->m_buffer;
     cb->m_iovec.iov_len= cb->m_len;
@@ -117,7 +123,7 @@ public:
     std::lock_guard<std::mutex> _(mutex_);
 
     io_uring_sqe *sqe= io_uring_get_sqe(&uring_);
-    if (cb->m_opcode == tpool::aio_opcode::AIO_PREAD)
+    if (cb->m_opcode == aio_opcode::AIO_PREAD)
       io_uring_prep_readv(sqe, cb->m_fh, &cb->m_iovec, 1, cb->m_offset);
     else
       io_uring_prep_writev(sqe, cb->m_fh, &cb->m_iovec, 1, cb->m_offset);
@@ -163,7 +169,7 @@ private:
         abort();
       }
 
-      auto *iocb= static_cast<tpool::aiocb*>(io_uring_cqe_get_data(cqe));
+      auto *iocb= static_cast<aiocb*>(io_uring_cqe_get_data(cqe));
       if (!iocb)
         break; // ~aio_uring() told us to terminate
 
@@ -177,6 +183,10 @@ private:
       {
         iocb->m_err= 0;
         iocb->m_ret_len= res;
+#if __has_feature(memory_sanitizer) || defined HAVE_valgrind
+        if (iocb->m_opcode == aio_opcode::AIO_PREAD)
+          MEM_MAKE_DEFINED(iocb->m_buffer, res);
+#endif
       }
 
       io_uring_cqe_seen(&aio->uring_, cqe);
@@ -196,7 +206,7 @@ private:
 
   io_uring uring_;
   std::mutex mutex_;
-  tpool::thread_pool *tpool_;
+  thread_pool *tpool_;
   std::thread thread_;
 
   std::vector<native_file_handle> files_;

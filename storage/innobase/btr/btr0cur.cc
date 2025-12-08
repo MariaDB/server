@@ -454,28 +454,28 @@ inconsistent:
 
 /** Load the instant ALTER TABLE metadata from the clustered index
 when loading a table definition.
+@param[in,out]	mtr	mini-transaction
 @param[in,out]	table	table definition from the data dictionary
 @return	error code
 @retval	DB_SUCCESS	if no error occurred */
-dberr_t btr_cur_instant_init(dict_table_t *table)
+dberr_t btr_cur_instant_init(mtr_t *mtr, dict_table_t *table)
 {
-  mtr_t mtr;
   dict_index_t *index= dict_table_get_first_index(table);
-  mtr.start();
-  dberr_t err = index ? btr_cur_instant_init_low(index, &mtr) : DB_CORRUPTION;
-  mtr.commit();
+  mtr->start();
+  dberr_t err= index ? btr_cur_instant_init_low(index, mtr) : DB_CORRUPTION;
+  mtr->commit();
   if (err == DB_SUCCESS && index->is_gen_clust())
   {
     btr_cur_t cur;
-    mtr.start();
-    err= cur.open_leaf(false, index, BTR_SEARCH_LEAF, &mtr);
+    mtr->start();
+    err= cur.open_leaf(false, index, BTR_SEARCH_LEAF, mtr);
     if (err != DB_SUCCESS);
     else if (const rec_t *rec= page_rec_get_prev(btr_cur_get_rec(&cur)))
       if (page_rec_is_user_rec(rec))
         table->row_id= mach_read_from_6(rec);
-    mtr.commit();
+    mtr->commit();
   }
-  return(err);
+  return err;
 }
 
 /** Initialize the n_core_null_bytes on first access to a clustered
@@ -966,7 +966,7 @@ MY_ATTRIBUTE((nonnull,warn_unused_result))
 @retval 1  if the page could be latched in the wrong order
 @retval -1 if the latch on block was temporarily released */
 static int btr_latch_prev(rw_lock_type_t rw_latch,
-                          page_id_t page_id, dberr_t *err, mtr_t *mtr)
+                          page_id_t page_id, dberr_t *err, mtr_t *mtr) noexcept
 {
   ut_ad(rw_latch == RW_S_LATCH || rw_latch == RW_X_LATCH);
 
@@ -989,7 +989,8 @@ static int btr_latch_prev(rw_lock_type_t rw_latch,
 
  retry:
   int ret= 1;
-  buf_block_t *prev= buf_pool.page_fix(page_id, err, buf_pool_t::FIX_NOWAIT);
+  buf_block_t *prev=
+    buf_pool.page_fix(page_id, err, mtr->trx, buf_pool_t::FIX_NOWAIT);
   if (UNIV_UNLIKELY(!prev))
     return 0;
   if (prev == reinterpret_cast<buf_block_t*>(-1))
@@ -1006,7 +1007,7 @@ static int btr_latch_prev(rw_lock_type_t rw_latch,
     else
       block->page.lock.x_unlock();
 
-    prev= buf_pool.page_fix(page_id, err, buf_pool_t::FIX_WAIT_READ);
+    prev= buf_pool.page_fix(page_id, err, mtr->trx, buf_pool_t::FIX_WAIT_READ);
 
     if (!prev)
     {
@@ -1745,7 +1746,6 @@ or on a page infimum record.
                   above!
 @param mtr        mini-transaction
 @return DB_SUCCESS on success or error code otherwise */
-TRANSACTIONAL_TARGET
 dberr_t btr_cur_search_to_nth_level(ulint level,
                                     const dtuple_t *tuple,
                                     rw_lock_type_t rw_latch,
@@ -2257,26 +2257,27 @@ btr_cur_ins_lock_and_undo(
 /**
 Prefetch siblings of the leaf for the pessimistic operation.
 @param block	leaf page
-@param index    index of the page */
+@param index    index of the page
+@param trx      transaction */
 static void btr_cur_prefetch_siblings(const buf_block_t *block,
-                                      const dict_index_t *index)
+                                      const dict_index_t *index,
+                                      trx_t *trx) noexcept
 {
   ut_ad(page_is_leaf(block->page.frame));
 
   const page_t *page= block->page.frame;
-  uint32_t prev= mach_read_from_4(my_assume_aligned<4>(page + FIL_PAGE_PREV));
   uint32_t next= mach_read_from_4(my_assume_aligned<4>(page + FIL_PAGE_NEXT));
-
   fil_space_t *space= index->table->space;
+  page_id_t id{space->id,
+               mach_read_from_4(my_assume_aligned<4>(page + FIL_PAGE_PREV))};
 
-  if (prev == FIL_NULL);
-  else if (space->acquire())
-    buf_read_page_background(space, page_id_t(space->id, prev),
-                             block->zip_size());
-  if (next == FIL_NULL);
-  else if (space->acquire())
-    buf_read_page_background(space, page_id_t(space->id, next),
-                             block->zip_size());
+  if (id.page_no() != FIL_NULL && space->acquire())
+    buf_read_page_background(id, space, trx);
+
+  id.set_page_no(next);
+
+  if (next != FIL_NULL && space->acquire())
+    buf_read_page_background(id, space, trx);
 }
 
 /*************************************************************//**
@@ -2394,7 +2395,7 @@ fail:
 		/* prefetch siblings of the leaf for the pessimistic
 		operation, if the page is leaf. */
 		if (leaf) {
-			btr_cur_prefetch_siblings(block, index);
+			btr_cur_prefetch_siblings(block, index, mtr->trx);
 		}
 fail_err:
 
@@ -3295,11 +3296,12 @@ btr_cur_update_in_place(
 /** Trim a metadata record during the rollback of instant ALTER TABLE.
 @param[in]	entry	metadata tuple
 @param[in]	index	primary key
-@param[in]	update	update vector for the rollback */
+@param[in]	update	update vector for the rollback
+@param[in,out]	trx	transaction */
 ATTRIBUTE_COLD
 static void btr_cur_trim_alter_metadata(dtuple_t* entry,
 					const dict_index_t* index,
-					const upd_t* update)
+					const upd_t* update, trx_t *trx)
 {
 	ut_ad(index->is_instant());
 	ut_ad(update->is_alter_metadata());
@@ -3329,7 +3331,7 @@ static void btr_cur_trim_alter_metadata(dtuple_t* entry,
 
 	/* This is based on dict_table_t::deserialise_columns()
 	and btr_cur_instant_init_low(). */
-	mtr_t mtr;
+	mtr_t mtr{trx};
 	mtr.start();
 	buf_block_t* block = buf_page_get(
 		page_id_t(index->table->space->id,
@@ -3392,8 +3394,9 @@ btr_cur_trim(
 		already executed) or rolling back such an operation. */
 		ut_ad(!upd_get_nth_field(update, 0)->orig_len);
 		ut_ad(entry->is_metadata());
+		trx_t* const trx{thr->graph->trx};
 
-		if (thr->graph->trx->in_rollback) {
+		if (trx->in_rollback) {
 			/* This rollback can occur either as part of
 			ha_innobase::commit_inplace_alter_table() rolling
 			back after a failed innobase_add_instant_try(),
@@ -3410,7 +3413,7 @@ btr_cur_trim(
 			ut_ad(update->n_fields > 2);
 			if (update->is_alter_metadata()) {
 				btr_cur_trim_alter_metadata(
-					entry, index, update);
+					entry, index, update, trx);
 				return;
 			}
 			ut_ad(!entry->is_alter_metadata());
@@ -3520,7 +3523,7 @@ any_extern:
 
 		/* prefetch siblings of the leaf for the pessimistic
 		operation. */
-		btr_cur_prefetch_siblings(block, index);
+		btr_cur_prefetch_siblings(block, index, mtr->trx);
 
 		return(DB_OVERFLOW);
 	}
@@ -3692,7 +3695,7 @@ corrupted:
 func_exit:
 		/* prefetch siblings of the leaf for the pessimistic
 		operation. */
-		btr_cur_prefetch_siblings(block, index);
+		btr_cur_prefetch_siblings(block, index, mtr->trx);
 	}
 
 	return(err);
@@ -4368,7 +4371,7 @@ btr_cur_optimistic_delete(
 						    mtr)) {
 		/* prefetch siblings of the leaf for the pessimistic
 		operation. */
-		btr_cur_prefetch_siblings(block, cursor->index());
+		btr_cur_prefetch_siblings(block, cursor->index(), mtr->trx);
 		err = DB_FAIL;
 		goto func_exit;
 	}
@@ -5159,20 +5162,19 @@ inexact:
   return (n_rows);
 }
 
-/** Estimates the number of rows in a given index range. Do search in the left
-page, then if there are pages between left and right ones, read a few pages to
-the right, if the right page is reached, count the exact number of rows without
-fetching the right page, the right page will be fetched in the caller of this
-function and the amount of its rows will be added. If the right page is not
-reached, count the estimated(see btr_estimate_n_rows_in_range_on_level() for
-details) rows number, and fetch the right page. If leaves are reached, unlatch
-non-leaf pages except the right leaf parent. After the right leaf page is
-fetched, commit mtr.
-@param[in]  index index
-@param[in]  range_start range start
-@param[in]  range_end   range end
+/** Estimates the number of rows in a given index range. Do search in the
+left page, then if there are pages between left and right ones, read a few
+pages to the right, if the right page is reached, fetch it and count the exact
+number of rows, otherwise count the estimated(see
+btr_estimate_n_rows_in_range_on_level() for details) number if rows, and
+fetch the right page. If leaves are reached, unlatch non-leaf pages except
+the right leaf parent. After the right leaf page is fetched, commit mtr.
+@param trx transaction
+@param index B-tree
+@param range_start first key
+@param range_end   last key
 @return estimated number of rows; */
-ha_rows btr_estimate_n_rows_in_range(dict_index_t *index,
+ha_rows btr_estimate_n_rows_in_range(trx_t *trx, dict_index_t *index,
                                      btr_pos_t *range_start,
                                      btr_pos_t *range_end)
 {
@@ -5183,9 +5185,9 @@ ha_rows btr_estimate_n_rows_in_range(dict_index_t *index,
 
   ut_ad(index->is_btree());
 
+  mtr_t mtr{trx};
   btr_est_cur_t p1(index, *range_start->tuple, range_start->mode);
   btr_est_cur_t p2(index, *range_end->tuple, range_end->mode);
-  mtr_t mtr;
 
   ulint height;
   ulint root_height= 0; /* remove warning */
@@ -5795,7 +5797,7 @@ btr_store_big_rec_extern_fields(
 	ulint		extern_len;
 	ulint		store_len;
 	ulint		i;
-	mtr_t		mtr;
+	mtr_t		mtr{btr_mtr->trx};
 	mem_heap_t*	heap = NULL;
 	page_zip_des_t*	page_zip;
 	z_stream	c_stream;
@@ -6251,9 +6253,7 @@ btr_free_externally_stored_field(
 	/* !rec holds in a call from purge when field_ref is in an undo page */
 	ut_ad(rec || !block->page.zip.data);
 
-	for (;;) {
-		mtr_t mtr;
-
+	for (mtr_t mtr{local_mtr->trx};;) {
 		mtr.start();
 		mtr.set_spaces(*local_mtr);
 		mtr.set_log_mode_sub(*local_mtr);
@@ -6457,9 +6457,9 @@ btr_copy_blob_prefix(
 	uint32_t	offset)	/*!< in: offset on the first BLOB page */
 {
 	ulint	copied_len	= 0;
+	THD*	thd{current_thd};
 
-	for (;;) {
-		mtr_t		mtr;
+	for (mtr_t mtr{thd ? thd_to_trx(thd) : nullptr};;) {
 		buf_block_t*	block;
 		const page_t*	page;
 		const byte*	blob_header;

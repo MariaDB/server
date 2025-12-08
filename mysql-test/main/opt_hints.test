@@ -1,3 +1,4 @@
+--source include/have_sequence.inc
 --enable_prepare_warnings
 --disable_view_protocol # Since optimizer hints are not supported inside views
 SET NAMES utf8mb4;
@@ -467,14 +468,14 @@ SELECT /*+ QB_NAME(q1) NO_ICP(@q1 t1 PRIMARY) NO_ICP(@q1 t1 PRIMARY) */ * FROM t
 DROP TABLE t1;
 
 --echo #
---echo # Hints inside views are not supported
+--echo # Hints inside views are supported
 --echo #
 CREATE TABLE t1 (a INT, INDEX idx_a(a));
 INSERT INTO t1 VALUES (1),(2);
 
 CREATE VIEW v1 AS SELECT /*+ NO_MRR(t1 idx_a) */ a FROM t1;
 SELECT * FROM v1;
---echo # Make sure hints are not present inside the view definition:
+--echo # Make sure hints are present inside the view definition:
 SHOW CREATE VIEW v1;
 EXPLAIN EXTENDED SELECT * FROM v1;
 
@@ -767,3 +768,289 @@ DROP TABLE t2;
 --echo #
 --echo # End of 12.0 tests
 --echo #
+
+--echo #
+--echo # MDEV-37260 Hints addressed by implicit query block name
+--echo #
+
+--echo # Simple JOIN Query
+CREATE TABLE employees (
+    emp_id INT PRIMARY KEY,
+    emp_name VARCHAR(100),
+    department VARCHAR(50)
+);
+CREATE TABLE salaries (
+    emp_id INT,
+    salary DECIMAL(10, 2),
+    FOREIGN KEY (emp_id) REFERENCES employees(emp_id)
+);
+INSERT INTO employees (emp_id, emp_name, department) VALUES
+ (101, 'Alice', 'Engineering'),
+ (102, 'Bob', 'Engineering'),
+ (103, 'Charlie', 'Sales'),
+ (104, 'Diana', 'Sales'),
+ (105, 'Eve', 'Engineering');
+INSERT INTO salaries (emp_id, salary) VALUES
+ (101, 120000.00),
+ (102, 95000.00),
+ (103, 110000.00),
+ (104, 85000.00),
+ (105, 130000.00);
+
+EXPLAIN
+  SELECT /*+ NO_MERGE(s@`select#1`) */ e.emp_name, s.salary FROM employees e JOIN  (select * from salaries) s ON e.emp_id = s.emp_id WHERE     s.salary > (SELECT AVG(salary) FROM salaries);
+
+EXPLAIN
+  SELECT /*+ MERGE(s@`select#1`) */ e.emp_name, s.salary FROM employees e JOIN  (select * from salaries) s ON e.emp_id = s.emp_id WHERE     s.salary > (SELECT AVG(salary) FROM salaries);
+--echo # End Simple JOIN Query
+
+--echo # JOIN_ORDER Example
+CREATE TABLE ten(a int);
+INSERT INTO ten VALUES (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+CREATE TABLE twenty(a int);
+INSERT INTO twenty SELECT a FROM ten;
+INSERT INTO twenty SELECT a+10 FROM ten;
+EXPLAIN SELECT /*+ JOIN_ORDER(@`select#2` twenty,ten) */  * FROM (SELECT ten.a AS a FROM (ten JOIN twenty) WHERE (ten.a = twenty.a) LIMIT 1000 ) T;
+EXPLAIN SELECT * FROM (SELECT ten.a AS a FROM (ten JOIN twenty) WHERE (ten.a = twenty.a) LIMIT 1000 ) T;
+--echo # End JOIN_ORDER Example
+
+--echo # CTE Example
+create table t1 (a int, b int, c int);
+create table t2 (a int, b int, c int, d decimal);
+insert into t1 values
+  (1,21,345), (1,33,7), (8,33,114), (1,21,500), (1,19,107), (5,14,787),
+  (8,33,123), (9,10,211), (5,16,207), (1,33,988), (5,27,132), (1,21,104),
+  (6,20,309), (6,20,315), (1,21,101), (8,33,404), (9,10,800), (1,21,123),
+  (7,11,708), (6,20,214);
+create index t1_a on t1 (a);
+insert into t2 values
+  (2,3,207,207.0000), (1,21,909,12.0000), (7,13,312,406.0000),
+  (8,64,248,107.0000), (6,20,315,279.3333), (1,19,203,107.0000),
+  (8,80,800,314.0000), (3,12,231,190.0000), (6,23,303,909.0000);
+create view v1 as select a, b, max(c) as max_c, avg(c) as avg_c from t1
+  group by a,b having max_c < 707;
+create table t3 select 2*seq as a, 2*seq+1 as b from seq_0_to_1000;
+CREATE TABLE t4 (a INT, b INT);
+INSERT INTO t4 VALUES (1,2),(2,3),(3,4);
+create table t5 select seq as i, 10*seq as j from seq_1_to_10;
+create view v2 as select * from t5;
+create table t6 (a int primary key);
+insert into t6 select * from seq_1_to_50;
+create view v6 as select a from t6 where a mod 2 = 1;
+
+--source include/explain-no-costs.inc
+explain format=json with cte as (
+  select max_c, avg_c from v1,t2 where
+    ((v1.max_c>300) and (v1.avg_c>t2.d) and (v1.b=t2.b)) or
+    ((v1.max_c<135) and (v1.max_c<t2.c) and (v1.a=t2.a)))
+select /*+ NO_DERIVED_CONDITION_PUSHDOWN(v1@`select#2`) */ * from cte;
+--echo # End CTE Example
+
+--echo # Recursive CTE Example
+explain format=json with recursive cte as (
+  select max_c, avg_c from v1,t2 where
+  ((v1.max_c>300) and (v1.avg_c>t2.d) and (v1.b=t2.b)) or
+  ((v1.max_c<135) and (v1.max_c<t2.c) and (v1.a=t2.a))
+  union
+  select * from cte where max_c < 100
+) select /*+ NO_DERIVED_CONDITION_PUSHDOWN(@`select#2` v1) */ * from cte;
+--echo # End Recursive CTE Example
+
+--echo # Deeply nested query block example
+--source include/explain-no-costs.inc
+explain format=json
+select /*+ NO_DERIVED_CONDITION_PUSHDOWN(@`select#5` dv6) */ * from
+  (select * from
+    (select * from
+      (select * from
+        (select avg_a from
+          (select avg(a) as avg_a from v6) dv6
+        ) dv4) dv3) dv2) dv1 where avg_a <> 0;
+--echo # End deeply nested query block example
+
+--echo # Stored procedure example
+DELIMITER |;
+CREATE PROCEDURE sp_test_implicit_hint()
+BEGIN
+  EXPLAIN SELECT /*+ NO_MERGE(@`select#1` dt) */ *
+  FROM (SELECT * FROM ten) dt;
+END|
+DELIMITER ;|
+CALL sp_test_implicit_hint();
+DROP PROCEDURE sp_test_implicit_hint;
+
+DELIMITER |;
+CREATE PROCEDURE sp_test_implicit_hint()
+BEGIN
+  EXPLAIN SELECT /*+ MERGE(@`select#1` dt) */ *
+  FROM (SELECT * FROM ten) dt;
+END|
+DELIMITER ;|
+CALL sp_test_implicit_hint();
+DROP PROCEDURE sp_test_implicit_hint;
+--echo # End stored procedure example
+
+--echo # Prepared statement example
+PREPARE stmt1 FROM 'EXPLAIN SELECT /*+ NO_MERGE(@`select#1` dt) */ * FROM (SELECT * FROM ten) dt;';
+EXECUTE stmt1;
+DEALLOCATE PREPARE stmt1;
+
+PREPARE stmt1 FROM 'EXPLAIN SELECT /*+ MERGE(@`select#1` dt) */ * FROM (SELECT * FROM ten) dt;';
+EXECUTE stmt1;
+DEALLOCATE PREPARE stmt1;
+--echo # End prepared statement example.
+
+--echo # INDEX/JOIN_INDEX example
+CREATE TABLE t7 (a INT, b INT, c INT, d INT,
+                 KEY i_a(a), KEY i_b(b),
+                 KEY i_ab(a,b), KEY i_c(c), KEY i_d(d));
+INSERT INTO t7 VALUES
+(1,1,1,1),(2,2,2,1),(3,3,3,1),(4,4,4,1),
+(5,5,5,1),(6,6,6,1),(7,7,7,1),(8,8,8,1);
+INSERT INTO t7 SELECT a,b, c + 10, d FROM t7;
+INSERT INTO t7 SELECT a,b, c + 20, d FROM t7;
+INSERT INTO t7 SELECT a,b, c + 40, d FROM t7;
+INSERT INTO t7 SELECT a,b, c + 80, d FROM t7;
+INSERT INTO t7 SELECT a,b, c + 160, d FROM t7;
+ANALYZE TABLE t7;
+EXPLAIN SELECT /*+ NO_MERGE(@`select#1` dt) NO_INDEX(@`select#2` t7) */ * FROM (SELECT a FROM t7 WHERE a > 1 AND a < 3) dt WHERE dt.a = 2;
+--echo # End INDEX/JOIN_INDEX example
+
+DROP TABLE salaries, employees, ten, twenty, t1, t2, t3, t4, t5, t6, t7;
+DROP VIEW v1, v2, v6;
+
+--echo #
+--echo # MDEV-37260 Specifying hints in queries during CREATE VIEW AS
+--echo #
+CREATE TABLE ten(a int);
+INSERT INTO ten VALUES (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+CREATE TABLE twenty(a int);
+INSERT INTO twenty SELECT a FROM ten;
+INSERT INTO twenty SELECT a+10 FROM ten;
+
+--echo # `select#X` in a VIEW example will result in warning
+CREATE VIEW v2 AS SELECT /*+ JOIN_ORDER(@`select#3` twenty, ten) */ * FROM (SELECT ten.a AS a FROM (ten JOIN twenty) WHERE (ten.a = twenty.a) LIMIT 1000 ) t;
+EXPLAIN SELECT * FROM v2;
+SHOW CREATE VIEW v2;
+DROP VIEW v2;
+--echo # Creating a VIEW with hints otherwise will work
+CREATE VIEW v2 AS SELECT /*+ JOIN_ORDER(@qb2 twenty,ten) */ * FROM (SELECT /*+ QB_NAME(qb2) */ ten.a AS a FROM (ten JOIN twenty) WHERE (ten.a = twenty.a) LIMIT 1000 ) t;
+EXPLAIN SELECT * FROM v2;
+SHOW CREATE VIEW v2;
+--echo # This next CREATE VIEW statement should match the output of SHOW CREATE VIEW v2.  The following EXPLAIN output should match EXPLAIN SELECT * FROM v2 as a way to demonstrate that the output of SHOW CREATE VIEW is correct.
+CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v3` AS select /*+ JOIN_ORDER(@`qb2` `twenty`,`ten`) */ `t`.`a` AS `a` from (select /*+ QB_NAME(`qb2`) */ `ten`.`a` AS `a` from (`ten` join `twenty`) where `ten`.`a` = `twenty`.`a` limit 1000) `t`;
+EXPLAIN SELECT * FROM v3;
+
+--echo # Named hint example.
+CREATE TABLE t4 (
+   pk INT PRIMARY KEY,
+   a INT,
+   b INT,
+   c INT,
+   filler varchar(100),
+   key(a,b,c)
+) engine=myisam;
+
+INSERT INTO t4 SELECT seq, seq, seq, seq, 'hello' FROM seq_1_to_10000;
+CREATE VIEW v5 AS SELECT /*+ NO_ICP(t4) */ * FROM t4 WHERE a < 10 AND (b+1>3);
+FLUSH STATUS;
+SELECT * FROM information_schema.session_status WHERE variable_name= 'handler_icp_match';
+SELECT * FROM v5;
+SELECT * FROM information_schema.session_status WHERE variable_name= 'handler_icp_match';
+EXPLAIN SELECT * from v5;
+--echo # End named hint example.
+
+--echo # JOIN of VIEW with table where the local hint in the VIEW specifies NO_ICP and is JOIN'd with the same table allowing ICP.
+EXPLAIN SELECT * FROM t4 x, t4 y WHERE x.a < 10 AND (x.b+1>3) AND y.a < 10 AND (y.b+1>3);
+EXPLAIN SELECT * FROM t4 x, v5 y WHERE x.a < 10 AND (x.b+1>3);
+EXPLAIN SELECT * FROM v5 x, t4 y WHERE y.a < 10 AND (y.b+1>3);
+EXPLAIN SELECT * FROM v5 x, v5 y;
+--echo # End of JOIN of VIEW with table where the local hint in the VIEW specifies NO_ICP and is JOIN'd with the same table allowing ICP.
+
+--echo # INDEX/JOIN_INDEX example
+CREATE TABLE t7 (a INT, b INT, c INT, d INT,
+                 KEY i_a(a), KEY i_b(b),
+                 KEY i_ab(a,b), KEY i_c(c), KEY i_d(d));
+INSERT INTO t7 VALUES
+(1,1,1,1),(2,2,2,1),(3,3,3,1),(4,4,4,1),
+(5,5,5,1),(6,6,6,1),(7,7,7,1),(8,8,8,1);
+INSERT INTO t7 SELECT a,b, c + 10, d FROM t7;
+INSERT INTO t7 SELECT a,b, c + 20, d FROM t7;
+INSERT INTO t7 SELECT a,b, c + 40, d FROM t7;
+INSERT INTO t7 SELECT a,b, c + 80, d FROM t7;
+INSERT INTO t7 SELECT a,b, c + 160, d FROM t7;
+ANALYZE TABLE t7;
+CREATE VIEW v7 AS SELECT /*+ NO_MERGE(dt) NO_INDEX(@qb t7) */ * FROM (SELECT /*+ QB_NAME(qb) */ a FROM t7 WHERE a > 1 AND a < 3) dt WHERE dt.a = 2;
+EXPLAIN SELECT * FROM v7;
+SHOW CREATE VIEW v7;
+--echo # End INDEX/JOIN_INDEX example
+
+--echo # Example of many nested derived tables are not merged.
+EXPLAIN SELECT /*+ NO_MERGE(da) */ * FROM (SELECT /*+ NO_MERGE(db) */ * FROM (SELECT /*+ NO_MERGE(dc) */ * FROM (SELECT /*+ NO_MERGE(dd) */ * FROM (SELECT /*+ NO_MERGE(de) */ * FROM (SELECT /*+ NO_MERGE(df) */ * FROM (SELECT /*+ NO_MERGE(dg) */ * FROM (SELECT /*+ NO_MERGE(dh) */ * FROM (SELECT /*+ NO_MERGE(di) */ * FROM (SELECT /*+ NO_MERGE(dj) */ * FROM (SELECT /*+ NO_MERGE(dk) */ * FROM (SELECT /*+ NO_MERGE(dl) */ * FROM (SELECT * FROM ten) dl) dk) dj) di) dh) dg) df) de) dd) dc) db) da;
+
+EXPLAIN SELECT /*+ NO_MERGE(da@`select#1`) */ * FROM (SELECT /*+ NO_MERGE(db@`select#2`) */ * FROM (SELECT /*+ NO_MERGE(dc@`select#3`) */ * FROM (SELECT /*+ NO_MERGE(dd@`select#4`) */ * FROM (SELECT /*+ NO_MERGE(de@`select#5`) */ * FROM (SELECT /*+ NO_MERGE(df@`select#6`) */ * FROM (SELECT /*+ NO_MERGE(dg@`select#7`) */ * FROM (SELECT /*+ NO_MERGE(dh@`select#8`) */ * FROM (SELECT /*+ NO_MERGE(di@`select#9`) */ * FROM (SELECT /*+ NO_MERGE(dj@`select#10`) */ * FROM (SELECT /*+ NO_MERGE(dk@`select#11`) */ * FROM (SELECT /*+ NO_MERGE(dl@`select#12`) */ * FROM (SELECT * FROM ten) dl) dk) dj) di) dh) dg) df) de) dd) dc) db) da;
+--echo # End example of many nested derived tables are not merged.
+
+--echo # Example of VIEW hints displaying properly in warning note
+CREATE TABLE t1 ( a int, b int);
+INSERT INTO t1 SELECT seq, seq FROM seq_1_to_10;
+CREATE TABLE t2 AS SELECT * from t1;
+ALTER TABLE t2 ADD INDEX(a);
+CREATE VIEW v23 AS SELECT /*+ NO_INDEX(t2 a) */ * FROM t2 WHERE a<2;
+SHOW CREATE VIEW v23;
+EXPLAIN EXTENDED SELECT * FROM v23;
+EXPLAIN EXTENDED SELECT /*+ NO_MERGE(du) */ * FROM (SELECT /*+ NO_MERGE(dt) */ * FROM (SELECT * from v23) dt) du;
+--echo # merged view will retain v23 in note
+EXPLAIN EXTENDED SELECT /*+ NO_MERGE(v23) */ * FROM v23;
+
+CREATE VIEW v24 AS SELECT /*+ INDEX(`t2` `a`) */ `t2`.`a` AS `a`,`t2`.`b` AS `b` from `t2` where `t2`.`a` < 2;
+SHOW CREATE VIEW v24;
+EXPLAIN EXTENDED SELECT * FROM v24;
+EXPLAIN EXTENDED SELECT /*+ NO_MERGE(du) */ * FROM (SELECT /*+ NO_MERGE(dt) */ * FROM (SELECT * from v24) dt) du;
+--echo # merged view will retain v24 in note
+EXPLAIN EXTENDED SELECT /*+ NO_MERGE(dt) */ * FROM (SELECT * FROM v24) dt;
+--echo # End example of VIEW hints displaying properly in warning note
+
+--echo # INSERT example without and with VIEW
+EXPLAIN EXTENDED INSERT INTO ten SELECT /*+ NO_MERGE(dv) NO_BNL(@qb) */ 100*COUNT(dv.a) AS a FROM ( SELECT /*+ QB_NAME(qb) */ dt.a AS a FROM ten dt, ten du WHERE dt.a % 2 = 1 ) dv WHERE dv.a = 3;
+CREATE VIEW v25 AS SELECT /*+ NO_MERGE(dv) NO_BNL(@qb) */ 100*COUNT(dv.a) AS a FROM ( SELECT /*+ QB_NAME(qb) */ dt.a AS a FROM ten dt, ten du WHERE dt.a % 2 = 1 ) dv WHERE dv.a = 3;
+--echo # merged view will retail qb name reference in the note
+EXPLAIN EXTENDED INSERT INTO ten SELECT * FROM v25;
+--echo # End INSERT example without and with VIEW
+
+--echo # CTE JOIN'd with itself
+EXPLAIN EXTENDED WITH cte1 AS (SELECT * FROM t7 WHERE a<10 AND b<10 LIMIT 10) SELECT /*+ NO_INDEX(t7@`select#2`) NO_INDEX(t7@`select#3`) */ * FROM cte1 AS tbl1, cte1 AS tbl2;
+EXPLAIN EXTENDED WITH cte1 AS (SELECT * FROM t7 WHERE a<10 AND b<10 LIMIT 10) SELECT /*+ NO_INDEX(t7@`select#2`) INDEX(t7@`select#3`) */ * FROM cte1 AS tbl1, cte1 AS tbl2;
+EXPLAIN EXTENDED WITH cte1 AS (SELECT * FROM t7 WHERE a<10 AND b<10 LIMIT 10) SELECT /*+ INDEX(t7@`select#2`) NO_INDEX(t7@`select#3`) */ * FROM cte1 AS tbl1, cte1 AS tbl2;
+EXPLAIN EXTENDED WITH cte1 AS (SELECT * FROM t7 WHERE a<10 AND b<10 LIMIT 10) SELECT /*+ INDEX(t7@`select#2`) INDEX(t7@`select#3`) */ * FROM cte1 AS tbl1, cte1 AS tbl2;
+--echo # End CTE JOIN'd with itself
+
+DROP TABLE ten, twenty, t1, t2, t4, t7;
+DROP VIEW v2, v3, v5, v7, v23, v24, v25;
+
+--echo # Examples from QA
+--echo # MAX_EXECUTION_TIME not allowed in VIEWs, allowed only at top level SELECT.
+CREATE TABLE t1 (a INT, b VARCHAR(300));
+INSERT INTO t1 VALUES (1, 'string');
+SELECT /*+ MAX_EXECUTION_TIME(10) */* FROM t1 a, t1 b;
+CREATE VIEW v1 AS SELECT /*+ MAX_EXECUTION_TIME(10) */ a.a, b.b FROM t1 a, t1 b;
+DROP VIEW v1;
+DROP TABLE t1;
+
+--echo # Hint within subquery not honored.
+CREATE TABLE t1 (i int);
+INSERT INTO t1 VALUES (1),(2);
+EXPLAIN EXTENDED
+SELECT *
+  FROM ( SELECT /*+ DERIVED_CONDITION_PUSHDOWN(sq1)*/* FROM ( SELECT MIN(i) as f FROM t1 ) sq1 ) AS sq2
+    WHERE f = 1;
+CREATE VIEW v1 AS SELECT *
+  FROM ( SELECT /*+ DERIVED_CONDITION_PUSHDOWN(sq1)*/* FROM ( SELECT MIN(i) as f FROM t1 ) sq1 ) AS sq2
+    WHERE f = 1;
+EXPLAIN EXTENDED SELECT * FROM v1;
+SHOW CREATE VIEW v1;
+DROP TABLE t1;
+DROP VIEW v1;
+--echo # End Examples from QA
+
+--echo # End of 12.2 tests

@@ -1,0 +1,99 @@
+--source include/have_innodb.inc
+--source include/have_binlog_format_mixed.inc
+--source include/master-slave.inc
+
+--echo #
+--echo # MDEV-37453 Parallel Replication Crash During Backup
+--echo #
+
+# Retrying after parallel conflict transition must be able to do that
+# cleanly despite possible "hard" Backup MDL lock in the way.
+# The retrying transaction will complete successfully.
+# The plot:
+# Two transactions are run by two parallel workers. The 2nd (in binlog order)
+# transaction depends on the 1st.
+# 1. Block the 1st and let the 2nd reach
+#    Waiting-for-Prior-Transaction-to-Commit (WfPTtC).
+# 2. At this point issue BACKUP commands of which BLOCK_COMMIT will
+#    later force the 2nd transaction to wait for the BACKUP MDL lock.
+# 3. Release locks to the 1st transaction which would kick the 2nd out
+#    of waiting-for-prior-commit only to return negative from the
+#    BACKUP MDL acquisition attempt (found itself killed).
+# 4. Finally, prove of safety: the 2nd transaction retries successfully.
+
+--connection master
+CREATE TABLE t1 (a INT PRIMARY KEY, b INT) ENGINE = innodb;
+INSERT INTO  t1 VALUES (1, 0);
+INSERT INTO  t1 VALUES (2, 0);
+--sync_slave_with_master
+--source include/stop_slave.inc
+ALTER TABLE mysql.gtid_slave_pos ENGINE=InnoDB;
+SET @old_parallel_threads  = @@GLOBAL.slave_parallel_threads;
+SET @old_parallel_mode     = @@GLOBAL.slave_parallel_mode;
+SET @@global.slave_parallel_threads= 2;
+SET @@global.slave_parallel_mode   = 'optimistic';
+
+--connection master
+begin /* trx1 */;
+  delete from t1 where a = 1;
+  update t1 set b = 1 where a = 2;
+commit;
+begin /* trx2 */;
+  delete from t1 where a = 2;
+commit;
+
+--save_master_pos
+
+--connect (aux_slave,127.0.0.1,root,,test,$SLAVE_MYPORT,)
+BEGIN;
+# block the 1st worker and wait for the 2nd ready to commit
+  DELETE FROM t1 WHERE a = 1;
+
+--connection slave
+--source include/start_slave.inc
+
+--connection aux_slave
+--let $wait_condition= SELECT COUNT(*) = 1 FROM information_schema.processlist WHERE state = "Waiting for prior transaction to commit"
+--source include/wait_condition.inc
+
+# While the 1st worker is locked out run backup
+--connect (backup_slave,127.0.0.1,root,,test,$SLAVE_MYPORT,)
+BACKUP STAGE START;
+BACKUP STAGE BLOCK_COMMIT;
+
+# release the 1st work
+--connection aux_slave
+let $status_var= Slave_retried_transactions;
+let $status_var_value= query_get_value(SHOW STATUS LIKE '$status_var', Value, 1);
+--sleep 1
+ROLLBACK;
+
+# that will kick the 2nd out of the current WfPTtC into next retry one
+--connection aux_slave
+--let $wait_condition= SELECT COUNT(*) = 1 FROM information_schema.processlist WHERE state = "Waiting for prior transaction to commit"
+--source include/wait_condition.inc
+
+let $status_var_comparsion= >;
+--source include/wait_for_status_var.inc
+
+--connection backup_slave
+BACKUP STAGE END;
+
+--connection slave
+--sync_with_master
+
+--let $diff_tables= master:t1,slave:t1
+--source include/diff_tables.inc
+
+# Clean up.
+--connection slave
+--source include/stop_slave.inc
+SET @@global.slave_parallel_threads= @old_parallel_threads;
+SET @@global.slave_parallel_mode   = @old_parallel_mode;
+--source include/start_slave.inc
+
+--connection server_1
+DROP TABLE t1;
+
+--source include/rpl_end.inc
+--echo # End of the tests

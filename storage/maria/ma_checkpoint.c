@@ -830,7 +830,7 @@ static int collect_tables(LEX_STRING *str, LSN checkpoint_start_log_horizon)
     MARIA_SHARE *share= info->s;
     /* the first three variables below can never change */
     if (share->base.born_transactional && !share->temporary &&
-        share->mode != O_RDONLY &&
+        (share->index_mode != O_RDONLY && share->data_mode != O_RDONLY) &&
         !(share->in_checkpoint & MARIA_CHECKPOINT_SEEN_IN_LOOP))
     {
       /*

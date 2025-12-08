@@ -1308,6 +1308,9 @@ DROP TABLE t1;
 --echo # Bug#57306 SHOW PROCESSLIST does not display string literals well.
 --echo #
 
+let $count_sessions= 1;
+source include/wait_until_count_sessions.inc;
+
 SET NAMES latin1;
 SELECT GET_LOCK('t', 1000);
 --connect (con1,localhost,root,,)

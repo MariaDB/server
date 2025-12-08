@@ -622,3 +622,75 @@ DROP TABLE t1;
 #
 # End of 11.7 tests
 #
+#
+# MDEV-36996: Implement INFORMATION_SCHEMA.TRIGGERED_UPDATE_COLUMNS
+# Test privileges. Columns should be show only if the user has non-select
+# privileges on the trigger updatable columns
+#
+CREATE TABLE t (a INT, b INT, c INT);
+INSERT INTO t VALUES (1, 2, 3);
+CREATE TABLE t1 (a_old INT, b_old INT, a_new INT, b_new INT);
+CREATE TRIGGER t_bu BEFORE UPDATE OF a, b, c ON t FOR EACH ROW INSERT INTO t1 VALUES (OLD.a, OLD.b, NEW.a, NEW.b);
+UPDATE t SET a = 10 WHERE a = 1;
+SELECT * FROM t1;
+a_old	b_old	a_new	b_new
+1	2	10	2
+SHOW CREATE TRIGGER t_bu;
+Trigger	t_bu
+sql_mode	#
+SQL Original Statement	CREATE DEFINER=`root`@`localhost` TRIGGER t_bu BEFORE UPDATE OF a, b, c ON t FOR EACH ROW INSERT INTO t1 VALUES (OLD.a, OLD.b, NEW.a, NEW.b)
+character_set_client	#
+collation_connection	#
+Database Collation	#
+Created	#
+SELECT * FROM INFORMATION_SCHEMA.TRIGGERED_UPDATE_COLUMNS WHERE TRIGGER_NAME = 't_bu';
+TRIGGER_CATALOG	TRIGGER_SCHEMA	TRIGGER_NAME	EVENT_OBJECT_CATALOG	EVENT_OBJECT_SCHEMA	EVENT_OBJECT_TABLE	EVENT_OBJECT_COLUMN
+def	test	t_bu	def	test	t	a
+def	test	t_bu	def	test	t	b
+def	test	t_bu	def	test	t	c
+CREATE USER user@localhost;
+GRANT SELECT (a, b, c) ON t TO user@localhost;
+CONNECT conn1, localhost, user, , test;
+SELECT * FROM INFORMATION_SCHEMA.TRIGGERED_UPDATE_COLUMNS WHERE TRIGGER_NAME = 't_bu';
+TRIGGER_CATALOG	TRIGGER_SCHEMA	TRIGGER_NAME	EVENT_OBJECT_CATALOG	EVENT_OBJECT_SCHEMA	EVENT_OBJECT_TABLE	EVENT_OBJECT_COLUMN
+connection default;
+disconnect conn1;
+GRANT UPDATE (a) ON t TO user@localhost;
+CONNECT conn1, localhost, user, , test;
+SELECT * FROM INFORMATION_SCHEMA.TRIGGERED_UPDATE_COLUMNS WHERE TRIGGER_NAME = 't_bu';
+TRIGGER_CATALOG	TRIGGER_SCHEMA	TRIGGER_NAME	EVENT_OBJECT_CATALOG	EVENT_OBJECT_SCHEMA	EVENT_OBJECT_TABLE	EVENT_OBJECT_COLUMN
+def	test	t_bu	def	test	t	a
+connection default;
+disconnect conn1;
+GRANT INSERT (b) ON t TO user@localhost;
+CONNECT conn1, localhost, user, , test;
+SELECT * FROM INFORMATION_SCHEMA.TRIGGERED_UPDATE_COLUMNS WHERE TRIGGER_NAME = 't_bu';
+TRIGGER_CATALOG	TRIGGER_SCHEMA	TRIGGER_NAME	EVENT_OBJECT_CATALOG	EVENT_OBJECT_SCHEMA	EVENT_OBJECT_TABLE	EVENT_OBJECT_COLUMN
+def	test	t_bu	def	test	t	a
+def	test	t_bu	def	test	t	b
+connection default;
+disconnect conn1;
+GRANT REFERENCES (c) ON t TO user@localhost;
+CONNECT conn1, localhost, user, , test;
+SELECT * FROM INFORMATION_SCHEMA.TRIGGERED_UPDATE_COLUMNS WHERE TRIGGER_NAME = 't_bu';
+TRIGGER_CATALOG	TRIGGER_SCHEMA	TRIGGER_NAME	EVENT_OBJECT_CATALOG	EVENT_OBJECT_SCHEMA	EVENT_OBJECT_TABLE	EVENT_OBJECT_COLUMN
+def	test	t_bu	def	test	t	a
+def	test	t_bu	def	test	t	b
+connection default;
+disconnect conn1;
+REVOKE UPDATE (a), INSERT (b), REFERENCES (c) ON t FROM user@localhost;
+CONNECT conn1, localhost, user, , test;
+SELECT * FROM INFORMATION_SCHEMA.TRIGGERED_UPDATE_COLUMNS WHERE TRIGGER_NAME = 't_bu';
+TRIGGER_CATALOG	TRIGGER_SCHEMA	TRIGGER_NAME	EVENT_OBJECT_CATALOG	EVENT_OBJECT_SCHEMA	EVENT_OBJECT_TABLE	EVENT_OBJECT_COLUMN
+connection default;
+disconnect conn1;
+GRANT DELETE ON t TO user@localhost;
+CONNECT conn1, localhost, user, , test;
+SELECT * FROM INFORMATION_SCHEMA.TRIGGERED_UPDATE_COLUMNS WHERE TRIGGER_NAME = 't_bu';
+TRIGGER_CATALOG	TRIGGER_SCHEMA	TRIGGER_NAME	EVENT_OBJECT_CATALOG	EVENT_OBJECT_SCHEMA	EVENT_OBJECT_TABLE	EVENT_OBJECT_COLUMN
+connection default;
+disconnect conn1;
+DROP USER user@localhost;
+DROP TABLE t1;
+DROP TABLE t;
+# End of 12.2 tests

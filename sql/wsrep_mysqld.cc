@@ -1449,10 +1449,16 @@ bool wsrep_check_mode_after_open_table (THD *thd,
   if (!is_dml_stmt)
     return true;
 
-  const legacy_db_type db_type= hton->db_type;
+  TABLE *tbl= tables->table;
+  /* If this is partitioned table we need to find out
+     implementing storage engine handlerton.
+  */
+  const handlerton *ht= tbl->file->partition_ht();
+  if (!ht) ht= hton;
+
+  const legacy_db_type db_type= ht->db_type;
   bool replicate= ((db_type == DB_TYPE_MYISAM && wsrep_check_mode(WSREP_MODE_REPLICATE_MYISAM)) ||
                    (db_type == DB_TYPE_ARIA && wsrep_check_mode(WSREP_MODE_REPLICATE_ARIA)));
-  TABLE *tbl= tables->table;
 
   DBUG_ASSERT(tbl);
   if (replicate)
@@ -2837,7 +2843,7 @@ static int wsrep_TOI_begin(THD *thd, const char *db, const char *table,
   DBUG_ASSERT(wsrep_OSU_method_get(thd) == WSREP_OSU_TOI);
 
   WSREP_DEBUG("TOI Begin: %s", wsrep_thd_query(thd));
-  DEBUG_SYNC(thd, "wsrep_before_toi_begin");
+  DEBUG_SYNC(thd, "wsrep_toi_begin");
 
   if (!wsrep_ready ||
       wsrep_can_run_in_toi(thd, db, table, table_list, create_info) == false)
@@ -4151,7 +4157,7 @@ bool wsrep_foreign_key_append(THD *thd, FOREIGN_KEY_INFO *fk)
   if (WSREP(thd) && !thd->wsrep_applier &&
       wsrep_is_active(thd) &&
       (sql_command_flags[thd->lex->sql_command] &
-       (CF_UPDATES_DATA | CF_DELETES_DATA)))
+       (CF_UPDATES_DATA | CF_DELETES_DATA | CF_INSERTS_DATA)))
   {
     wsrep::key key(wsrep::key::shared);
     key.append_key_part(fk->foreign_db->str, fk->foreign_db->length);

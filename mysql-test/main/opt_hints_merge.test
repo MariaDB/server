@@ -92,4 +92,117 @@ SELECT /*+ NO_MERGE(bar) NO_MERGE(foo) */ a, b FROM (SELECT i as a, j as b FROM 
 
 drop table t1, t2;
 drop view v1, v2;
+set session optimizer_switch='derived_merge=on';
 --enable_view_protocol
+
+--echo #
+--echo # MDEV-37389 Hint NO_MERGE(@qb_name) is accepted but has no effect
+--echo #
+CREATE TABLE employees (
+    emp_id INT PRIMARY KEY,
+    emp_name VARCHAR(100),
+    department VARCHAR(50)
+);
+
+CREATE TABLE salaries (
+    emp_id INT,
+    salary DECIMAL(10, 2),
+    FOREIGN KEY (emp_id) REFERENCES employees(emp_id)
+);
+
+INSERT INTO employees (emp_id, emp_name, department) VALUES
+ (101, 'Alice', 'Engineering'),
+ (102, 'Bob', 'Engineering');
+INSERT INTO salaries (emp_id, salary) VALUES
+ (101, 120000.00),
+ (102, 95000.00);
+
+EXPLAIN EXTENDED SELECT /*+ NO_MERGE() */ e.emp_name, s.salary FROM (
+  select * from employees) e JOIN (select * from salaries) s ON e.emp_id = s.emp_id;
+
+EXPLAIN EXTENDED SELECT /*+ QB_NAME(foo) NO_MERGE(@`foo`) */ e.emp_name, s.salary FROM (
+  select * from employees) e JOIN  (select * from salaries) s ON e.emp_id = s.emp_id;
+
+EXPLAIN EXTENDED
+  select /*+ NO_MERGE() */ emp_id from (
+    select /*+ NO_MERGE() */ emp_id from (
+      select /*+ NO_MERGE() */ emp_id from (
+        select /*+ NO_MERGE() */ emp_id from (
+	  select emp_id from employees) dt) du) dv) dw;
+
+EXPLAIN EXTENDED
+  select /*+ NO_MERGE(@qb4) */ emp_id from (
+    select /*+ QB_NAME(qb2) */ emp_id from (
+      select /*+ QB_NAME(qb3) */ emp_id from (
+        select /*+ QB_NAME(qb4) */ emp_id from (
+	  select emp_id from employees) dt) du) dv) dw;
+
+EXPLAIN EXTENDED
+  select /*+ NO_MERGE(@qb3) */ emp_id from (
+    select /*+ QB_NAME(qb2) */ emp_id from (
+      select /*+ QB_NAME(qb3) */ emp_id from (
+        select /*+ QB_NAME(qb4) */ emp_id from (
+	  select emp_id from employees) dt) du) dv) dw;
+
+EXPLAIN EXTENDED
+  select /*+ NO_MERGE(@qb2) */ emp_id from (
+    select /*+ QB_NAME(qb2) */ emp_id from (
+      select /*+ QB_NAME(qb3) */ emp_id from (
+        select /*+ QB_NAME(qb4) */ emp_id from (
+	  select emp_id from employees) dt) du) dv) dw;
+
+EXPLAIN EXTENDED
+  select /*+ NO_MERGE(@qb2) NO_MERGE(@qb4) */ emp_id from (
+    select /*+ QB_NAME(qb2) */ emp_id from (
+      select /*+ QB_NAME(qb3) */ emp_id from (
+        select /*+ QB_NAME(qb4) */ emp_id from (
+	  select emp_id from employees) dt) du) dv) dw;
+
+--echo # Test the MERGE hint variant
+set session optimizer_switch='derived_merge=off';
+
+EXPLAIN EXTENDED SELECT /*+ MERGE() */ e.emp_name, s.salary FROM (
+  select * from employees) e JOIN  (select * from salaries) s ON e.emp_id = s.emp_id;
+
+EXPLAIN EXTENDED SELECT /*+ QB_NAME(foo) MERGE(@`foo`) */ e.emp_name, s.salary FROM (
+  select * from employees) e JOIN  (select * from salaries) s ON e.emp_id = s.emp_id;
+
+EXPLAIN EXTENDED
+  select /*+ MERGE() */ emp_id from (
+    select /*+ MERGE() */ emp_id from (
+      select /*+ MERGE() */ emp_id from (
+        select /*+ MERGE() */ emp_id from (
+	  select emp_id from employees) dt) du) dv) dw;
+
+EXPLAIN EXTENDED
+  select /*+ MERGE(@qb4) */ emp_id from (
+    select /*+ QB_NAME(qb2) */ emp_id from (
+      select /*+ QB_NAME(qb3) */ emp_id from (
+        select /*+ QB_NAME(qb4) */ emp_id from (
+	  select emp_id from employees) dt) du) dv) dw;
+
+EXPLAIN EXTENDED
+  select /*+ MERGE(@qb3) */ emp_id from (
+    select /*+ QB_NAME(qb2) */ emp_id from (
+      select /*+ QB_NAME(qb3) */ emp_id from (
+        select /*+ QB_NAME(qb4) */ emp_id from (
+	  select emp_id from employees) dt) du) dv) dw;
+
+EXPLAIN EXTENDED
+  select /*+ MERGE(@qb2) */ emp_id from (
+    select /*+ QB_NAME(qb2) */ emp_id from (
+      select /*+ QB_NAME(qb3) */ emp_id from (
+        select /*+ QB_NAME(qb4) */ emp_id from (
+	  select emp_id from employees) dt) du) dv) dw;
+
+EXPLAIN EXTENDED
+  select /*+ MERGE(@qb2) MERGE(@qb4) */ emp_id from (
+    select /*+ QB_NAME(qb2) */ emp_id from (
+      select /*+ QB_NAME(qb3) */ emp_id from (
+        select /*+ QB_NAME(qb4) */ emp_id from (
+	  select emp_id from employees) dt) du) dv) dw;
+
+set session optimizer_switch='derived_merge=on';
+DROP TABLE employees, salaries;
+
+--echo # End of 12.1 tests

@@ -93,11 +93,12 @@ btr_cur_position(
 
 /** Load the instant ALTER TABLE metadata from the clustered index
 when loading a table definition.
+@param[in,out]	mtr	mini-transaction
 @param[in,out]	table	table definition from the data dictionary
 @return	error code
 @retval	DB_SUCCESS	if no error occurred */
 dberr_t
-btr_cur_instant_init(dict_table_t* table)
+btr_cur_instant_init(mtr_t *mtr, dict_table_t* table)
 	ATTRIBUTE_COLD __attribute__((nonnull, warn_unused_result));
 
 /** Initialize the n_core_null_bytes on first access to a clustered
@@ -447,11 +448,12 @@ number of rows, otherwise count the estimated(see
 btr_estimate_n_rows_in_range_on_level() for details) number if rows, and
 fetch the right page. If leaves are reached, unlatch non-leaf pages except
 the right leaf parent. After the right leaf page is fetched, commit mtr.
-@param[in]  index index
-@param[in]  range_start range start
-@param[in]  range_end   range end
+@param trx transaction
+@param index B-tree
+@param range_start first key
+@param range_end   last key
 @return estimated number of rows; */
-ha_rows btr_estimate_n_rows_in_range(dict_index_t *index,
+ha_rows btr_estimate_n_rows_in_range(trx_t *trx, dict_index_t *index,
                                      btr_pos_t *range_start,
                                      btr_pos_t *range_end);
 

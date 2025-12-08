@@ -418,7 +418,8 @@ void push_index_cond(JOIN_TAB *tab, uint keyno)
   */
   if ((tab->table->key_info[keyno].index_flags & HA_DO_INDEX_COND_PUSHDOWN) &&
       hint_key_state(tab->join->thd, tab->table, keyno, ICP_HINT_ENUM,
-                     OPTIMIZER_SWITCH_INDEX_COND_PUSHDOWN) &&
+        optimizer_flag(tab->join->thd,
+                       OPTIMIZER_SWITCH_INDEX_COND_PUSHDOWN)) &&
       tab->join->thd->lex->sql_command != SQLCOM_UPDATE_MULTI &&
       tab->join->thd->lex->sql_command != SQLCOM_DELETE_MULTI &&
       tab->type != JT_CONST && tab->type != JT_SYSTEM &&

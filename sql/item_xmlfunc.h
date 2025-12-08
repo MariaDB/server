@@ -55,7 +55,7 @@ public:
   }
   uint32 elements() const
   {
-    return length() / sizeof(MY_XPATH_FLT);
+    return length() / (uint32) sizeof(MY_XPATH_FLT);
   }
 };
 
