@@ -548,18 +548,21 @@ inline bool open_and_lock_tables(THD *thd,
 inline bool open_and_lock_tables(THD *thd, TABLE_LIST *tables,
                                   bool derived, uint flags)
 {
-  DML_prelocking_strategy prelocking_strategy;
-  char *dbmssql_query_substr= strcasestr(thd->query(), "dbms_sql");
-  if (thd->query() && (char *dbmssql_query_substr)=
-      strcasestr(thd->query(), "dbms_sql")
-      && strcasestr(dbmssql_query_substr, "execute"))
-    DBMS_SQL_prelocking_strategy prelocking_strategy;
-  else
-    DML_prelocking_strategy prelocking_strategy;
+  char *dbmssql_query_substr;
+  Prelocking_strategy *prelocking_strategy;
+  if (thd->query() && (dbmssql_query_substr =
+      strcasestr(thd->query(), "dbms_sql"))
+      && strcasestr(dbmssql_query_substr, "execute")) {
+    static DBMS_SQL_prelocking_strategy dbms_strategy;
+    prelocking_strategy = &dbms_strategy;
+  } else {
+    static DML_prelocking_strategy dml_strategy;
+    prelocking_strategy = &dml_strategy;
+  }
 
   return open_and_lock_tables(thd, thd->lex->create_info,
                               tables, derived, flags,
-                              &prelocking_strategy);
+                              prelocking_strategy);
 }
 
 
