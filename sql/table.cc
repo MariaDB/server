@@ -10155,7 +10155,14 @@ bool TABLE_LIST::init_derived(THD *thd, bool init_view)
                            !unit->outer_select()->outer_select();
 
     if (with && updating)
+    {
+      /*
+        We are trying to update or delete from a CTE. This is not allowed.
+        Don't merge it, then the check for update of non-updatable table
+        will catch this and report an error.
+      */
       set_materialized_derived();
+    }
 
     /*
        In the case where a table merge operation moves a derived table from

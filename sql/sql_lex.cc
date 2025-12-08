@@ -1281,6 +1281,7 @@ void LEX::start(THD *thd_arg)
   spcont= NULL;
   proc_list.first= 0;
   query_tables= 0;
+  save_list.empty();
   reset_query_tables_list(FALSE);
   clause_that_disallows_subselect= NULL;
 
