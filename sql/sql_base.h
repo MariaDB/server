@@ -548,11 +548,11 @@ inline bool open_and_lock_tables(THD *thd,
 inline bool open_and_lock_tables(THD *thd, TABLE_LIST *tables,
                                   bool derived, uint flags)
 {
-  char *dbmssql_query_substr;
-  char *query= "";
+  char *dbmssql_query_substr= NULL;
+  char *query= NULL;
   Prelocking_strategy *prelocking_strategy;
-  if ((query= thd->query()) && (dbmssql_query_substr =
-      strcasestr(query, "dbms_sql"))
+  if ((query= thd->query()) && !query[malloc_usable_size()] &&
+      (dbmssql_query_substr= strcasestr(query, "dbms_sql"))
       && strcasestr(dbmssql_query_substr, "execute")) {
     static DBMS_SQL_prelocking_strategy dbms_strategy;
     prelocking_strategy = &dbms_strategy;

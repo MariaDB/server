@@ -8585,6 +8585,35 @@ public:
 LEX_CSTRING make_string(THD *thd, const char *start_ptr,
                         const char *end_ptr);
 
+#ifdef _WIN32
+static inline int is_valid_pointer2(void *ptr) {
+  if (!ptr)
+    return 0;
+  MEMORY_BASIC_INFORMATION mbi;
+  if (VirtualQuery(ptr, &mbi, sizeof(mbi)) == 0)
+    return 0;
+  if (mbi.State != MEM_COMMIT)
+    return 0;
+  if (mbi.Protect & (PAGE_GUARD | PAGE_NOACCESS))
+    return 0;
+  // Strip modifier flags (PAGE_GUARD, PAGE_NOCACHE, etc.) to get base protection
+  DWORD base_protect = mbi.Protect & 0xFF;
+  // Reject execute-only pages (all other base protections allow reading)
+  if (base_protect == PAGE_EXECUTE)
+    return 0;
+
+  return 1;
+}
+#else
+static inline int is_valid_pointer2(void *ptr) {
+  int fd = open("/dev/random", O_WRONLY);
+  if (fd < 0) return 0;
+  int valid = (write(fd, ptr, 1) >= 0);
+  close(fd);
+  return valid;
+}
+#endif
+
 #include "deprecation.h"
 #include "backtrace-inl.h"
 

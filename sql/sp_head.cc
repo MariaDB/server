@@ -1700,39 +1700,10 @@ bool sp_head::construct_dbms_utility_errstack_string_line(THD *thd,
   return false;
 }
 
-#ifdef _WIN32
-int is_valid_pointer(void *ptr) {
-  if (!ptr)
-    return 0;
-  MEMORY_BASIC_INFORMATION mbi;
-  if (VirtualQuery(ptr, &mbi, sizeof(mbi)) == 0)
-    return 0;
-  if (mbi.State != MEM_COMMIT)
-    return 0;
-  if (mbi.Protect & (PAGE_GUARD | PAGE_NOACCESS))
-    return 0;
-  // Strip modifier flags (PAGE_GUARD, PAGE_NOCACHE, etc.) to get base protection
-  DWORD base_protect = mbi.Protect & 0xFF;
-  // Reject execute-only pages (all other base protections allow reading)
-  if (base_protect == PAGE_EXECUTE)
-    return 0;
-
-  return 1;
-}
-#else
-int is_valid_pointer(void *ptr) {
-  int fd = open("/dev/random", O_WRONLY);
-  if (fd < 0) return 0;
-  int valid = (write(fd, ptr, 1) >= 0);
-  close(fd);
-  return valid;
-}
-#endif
-
 void sp_head::construct_dbms_utility_backtrace_string_line(THD *thd,
     Dynamic_array<struct Backtrace_info> &frames_list, const int loop_ctr) const
 {
-  if (is_valid_pointer((void *) frames_list[loop_ctr].sphead->m_qname.str))
+  if (is_valid_pointer2((void *) frames_list[loop_ctr].sphead->m_qname.str))
   {
     char err[10]= "";
     char line_no_str[20]= "";
@@ -1758,7 +1729,7 @@ void sp_head::construct_dbms_utility_backtrace_string_line(THD *thd,
 bool sp_head::check_errstack_str_length_and_append(THD *thd, const char *str,
     const size_t str_length, CHARSET_INFO *cs_info) const
 {
-  if (is_valid_pointer((void *) str))
+  if (is_valid_pointer2((void *) str))
   {
     int byte_length= thd->errstack_str.length();
     if (byte_length + str_length < ERRSTACK_MAX_LEN)
