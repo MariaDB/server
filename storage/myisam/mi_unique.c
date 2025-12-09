@@ -80,8 +80,8 @@ ha_checksum mi_unique_hash(MI_UNIQUEDEF *def, const uchar *record)
 {
   const uchar *pos, *end;
   ha_checksum crc= 0;
-  ulong seed1=0, seed2= 4;
-  HA_KEYSEG *keyseg;
+  my_hasher_st hasher= my_hasher_mysql5x_for_unique();
+  HA_KEYSEG * keyseg;
 
   for (keyseg=def->seg ; keyseg < def->end ; keyseg++)
   {
@@ -124,10 +124,9 @@ ha_checksum mi_unique_hash(MI_UNIQUEDEF *def, const uchar *record)
     if (type == HA_KEYTYPE_TEXT || type == HA_KEYTYPE_VARTEXT1 ||
         type == HA_KEYTYPE_VARTEXT2)
     {
-      my_ci_hash_sort(keyseg->charset,
-                      (const uchar*) pos, length,
-                      &seed1, &seed2);
-      crc^= seed1;
+      my_ci_hash_sort(&hasher, keyseg->charset,
+                      (const uchar*) pos, length);
+      crc^= hasher.m_nr1;
     }
     else
       while (pos != end)

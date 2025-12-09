@@ -36,6 +36,18 @@
 #include "sql_table.h"
 #include "transaction.h"
 
+/* Indexed by partition_info::enum_key_algorithm enums */
+my_hasher_st (*part_hashers[])()=
+{
+  my_hasher_mysql5x,            /* KEY_ALGORITHM_NONE */
+  my_hasher_mysql5x,            /* KEY_ALGORITHM_51 */
+  my_hasher_mysql5x,            /* KEY_ALGORITHM_55 */
+  my_hasher_base31,             /* KEY_ALGORITHM_BASE31 */
+  my_hasher_crc32c,             /* KEY_ALGORITHM_CRC32C */
+  my_hasher_xxh32,              /* KEY_ALGORITHM_XXH32 */
+  my_hasher_xxh3,               /* KEY_ALGORITHM_XXH3 */
+  my_hasher_mysql5x             /* KEY_ALGORITHM_END */
+};
 
 partition_info *partition_info::get_clone(THD *thd, bool empty_data_and_index_file)
 {
@@ -2318,7 +2330,7 @@ bool partition_info::fix_parser_data(THD *thd)
     if (part_type == HASH_PARTITION && list_of_part_fields)
     {
       /* KEY partitioning, check ALGORITHM = N. Should not pass the parser! */
-      if (key_algorithm > KEY_ALGORITHM_55)
+      if (key_algorithm >= KEY_ALGORITHM_END)
       {
         my_error(ER_PARTITION_FUNCTION_IS_NOT_ALLOWED, MYF(0));
         DBUG_RETURN(true);
@@ -2334,7 +2346,7 @@ bool partition_info::fix_parser_data(THD *thd)
   if (is_sub_partitioned() && list_of_subpart_fields)
   {
     /* KEY subpartitioning, check ALGORITHM = N. Should not pass the parser! */
-    if (key_algorithm > KEY_ALGORITHM_55)
+    if (key_algorithm >= KEY_ALGORITHM_END)
     {
       my_error(ER_PARTITION_FUNCTION_IS_NOT_ALLOWED, MYF(0));
       DBUG_RETURN(true);
@@ -2905,4 +2917,30 @@ bool partition_info::error_if_requires_values() const
     return true;
   }
   return false;
+}
+
+static partition_info::enum_key_algorithm
+key_algorithm_by_name(const LEX_CSTRING *str)
+{
+  if (lex_string_eq(str, STRING_WITH_LEN("MYSQL51")))
+    return partition_info::KEY_ALGORITHM_51;
+  if (lex_string_eq(str, STRING_WITH_LEN("MYSQL55")))
+    return partition_info::KEY_ALGORITHM_55;
+  DBUG_EXECUTE_IF("emulate_unknown_partition_algorithm",
+                  return partition_info::KEY_ALGORITHM_END;);
+  if (lex_string_eq(str, STRING_WITH_LEN("BASE31")))
+    return partition_info::KEY_ALGORITHM_BASE31;
+  if (lex_string_eq(str, STRING_WITH_LEN("CRC32C")))
+    return partition_info::KEY_ALGORITHM_CRC32C;
+  if (lex_string_eq(str, STRING_WITH_LEN("XXH32")))
+    return partition_info::KEY_ALGORITHM_XXH32;
+  if (lex_string_eq(str, STRING_WITH_LEN("XXH3")))
+    return partition_info::KEY_ALGORITHM_XXH3;
+  return partition_info::KEY_ALGORITHM_END;
+}
+
+bool partition_info::set_key_algorithm(const LEX_CSTRING *str)
+{
+  key_algorithm= key_algorithm_by_name(str);
+  return key_algorithm == KEY_ALGORITHM_END;
 }

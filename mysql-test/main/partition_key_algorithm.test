@@ -1,0 +1,143 @@
+--source include/have_partition.inc
+--echo # MDEV-9826 better hash algorithms for PARTITION BY KEY
+
+if ($MTR_COMBINATION_NONE)
+{
+  let $algo=;
+}
+if ($MTR_COMBINATION_1)
+{
+  let $algo=ALGORITHM=1;
+}
+if ($MTR_COMBINATION_2)
+{
+  let $algo=ALGORITHM=2;
+}
+if ($MTR_COMBINATION_MYSQL51)
+{
+  let $algo=ALGORITHM=MYSQL51;
+}
+if ($MTR_COMBINATION_MYSQL55)
+{
+  let $algo=ALGORITHM=MYSQL55;
+}
+if ($MTR_COMBINATION_BASE31)
+{
+  let $algo=ALGORITHM=BASE31;
+}
+if ($MTR_COMBINATION_CRC32C)
+{
+  let $algo=ALGORITHM=CRC32C;
+}
+if ($MTR_COMBINATION_XXH32)
+{
+  let $algo=ALGORITHM=XXH32;
+}
+if ($MTR_COMBINATION_XXH3)
+{
+  let $algo=ALGORITHM=XXH3;
+}
+
+--echo ## MDEV-9826 case with NULL
+
+eval
+create table t1(c1 int, c2 date) partition by key $algo (c2) partitions 8;
+show create table t1;
+insert into t1 values (1, NULL);
+insert into t1 values (1, '2014-04-22');
+insert into t1 values (1, '2014-04-23');
+insert into t1 values (1, '2014-04-24');
+insert into t1 values (1, '2014-04-25');
+insert into t1 values (1, '2014-04-26');
+insert into t1 values (1, '2014-04-27');
+insert into t1 values (1, '2014-04-28');
+insert into t1 values (1, '2014-04-29');
+insert into t1 values (1, '2014-04-30');
+select partition_name, table_rows from information_schema.partitions where table_name='t1';
+select * from t1;
+drop table t1;
+
+--echo ## MDEV-9826 case with more dates
+--source include/have_sequence.inc
+eval
+create table t1(c1 int, c2 date) partition by key $algo (c2) partitions 8;
+show create table t1;
+insert into t1 values (1, NULL);
+insert into t1 select 1, from_days(seq) from seq_735000_to_736000;
+select partition_name, table_rows from information_schema.partitions where table_name='t1';
+drop table t1;
+
+--echo ## MDEV-9826 case with more dates and linear key
+--source include/have_sequence.inc
+eval
+create table t1(c1 int, c2 date) partition by linear key $algo (c2) partitions 8;
+show create table t1;
+insert into t1 values (1, NULL);
+insert into t1 select 1, from_days(seq) from seq_735000_to_736000;
+select partition_name, table_rows from information_schema.partitions where table_name='t1';
+drop table t1;
+
+--echo ## MDEV-9826 case with more dates and multiple keys
+eval
+create table t1(c1 int, c2 date) partition by key $algo (c1, c2) partitions 8;
+show create table t1;
+insert into t1 values (1, NULL);
+insert into t1 select 1, from_days(seq) from seq_735000_to_736000;
+select partition_name, table_rows from information_schema.partitions where table_name='t1';
+drop table t1;
+
+--echo ## MDEV-20791 case with INET6
+eval
+create table t1 (a inet6) partition by key $algo (a) partitions 2;
+insert into t1 values ('0:db8::ff00:42:8329'),('2001:db8::ff00:42:8329'),('::'),('::192.0.2.128'),('::ffff:192.0.2.128');
+select partition_name, table_rows from information_schema.partitions where table_name='t1';
+drop table t1;
+
+--echo ## MDEV-20791 case with BINARY
+eval
+CREATE TABLE t1 (a BINARY(16)) PARTITION BY KEY $algo (a) PARTITIONS 2;
+INSERT INTO t1 VALUES (X'00000DB8000000000000FF0000428329');
+INSERT INTO t1 VALUES (X'20010DB8000000000000FF0000428329');
+INSERT INTO t1 VALUES (X'00000000000000000000000000000000');
+INSERT INTO t1 VALUES (X'000000000000000000000000C0000280');
+INSERT INTO t1 VALUES (X'00000000000000000000FFFFC0000280');
+select partition_name, table_rows from information_schema.partitions where table_name='t1';
+drop table t1;
+
+--echo ## MDEV-20791 case with more rows
+eval
+create table t1 (a inet6) partition by key $algo (a) partitions 2;
+insert into t1 select concat(hex(seq), ':db8::ff00:42:8329') from seq_0_to_65535;
+select partition_name, table_rows from information_schema.partitions where table_name='t1';
+insert into t1 values ('::');
+insert into t1 select concat('::', hex(seq), ':192.0.2.128') from seq_0_to_65535;
+select partition_name, table_rows from information_schema.partitions where table_name='t1';
+drop table t1;
+
+--echo ## MDEV-6255 case to test charset/collation
+--echo ### cp1251_ukrainian_ci: 0x20 SPACE is equal to 0x60 GRAVE ACCENT
+CREATE TABLE t1 (a VARCHAR(10) CHARACTER SET cp1251 COLLATE cp1251_ukrainian_ci);
+INSERT INTO t1 VALUES (0x20),(0x60),(0x6060),(0x606060);
+SELECT HEX(a) FROM t1 WHERE a=0x60;
+eval
+ALTER TABLE t1  PARTITION BY KEY $algo (a) PARTITIONS 3;
+SELECT HEX(a) FROM t1 WHERE a=0x60;
+DROP TABLE t1;
+
+--echo ### koi8u_general_ci: 0x20 SPACE is equal to 0x60 GRAVE ACCENT
+CREATE TABLE t1 (a VARCHAR(10) CHARACTER SET koi8u COLLATE koi8u_general_ci);
+INSERT INTO t1 VALUES (0x20),(0x60),(0x6060),(0x606060);
+SELECT HEX(a) FROM t1 WHERE a=0x60;
+eval
+ALTER TABLE t1  PARTITION BY KEY $algo (a) PARTITIONS 3;
+SELECT HEX(a) FROM t1 WHERE a=0x60;
+DROP TABLE t1;
+
+--echo ### cp1250_general_ci: 0x20 SPACE is equal to 0xA0 NO-BREAK SPACE
+CREATE TABLE t1 (a VARCHAR(10) CHARACTER SET cp1250 COLLATE cp1250_general_ci);
+INSERT INTO t1 VALUES (0x20),(0xA0),(0xA0A0),(0xA0A0A0);
+SELECT HEX(a) FROM t1 WHERE a=0xA0;
+eval
+ALTER TABLE t1  PARTITION BY KEY $algo (a) PARTITIONS 3;
+SELECT HEX(a) FROM t1 WHERE a=0xA0;
+DROP TABLE t1;

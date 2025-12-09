@@ -1,0 +1,225 @@
+--- ../src/mysql-test/main/partition_key_algorithm.result	2025-12-08 13:49:44.869944988 +1100
++++ ../src/mysql-test/main/partition_key_algorithm,crc32c.reject	2025-12-08 13:51:16.665132798 +1100
+@@ -1,13 +1,13 @@
+ # MDEV-9826 change the hash algorithm for PARTITION BY KEY
+ ## MDEV-9826 case with NULL
+-create table t1(c1 int, c2 date) partition by key  (c2) partitions 8;
++create table t1(c1 int, c2 date) partition by key ALGORITHM=CRC32C (c2) partitions 8;
+ show create table t1;
+ Table	Create Table
+ t1	CREATE TABLE `t1` (
+   `c1` int(11) DEFAULT NULL,
+   `c2` date DEFAULT NULL
+ ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+- PARTITION BY KEY (`c2`)
++ PARTITION BY KEY ALGORITHM = CRC32C (`c2`)
+ PARTITIONS 8
+ insert into t1 values (1, NULL);
+ insert into t1 values (1, '2014-04-22');
+@@ -22,105 +22,105 @@
+ select partition_name, table_rows from information_schema.partitions where table_name='t1';
+ partition_name	table_rows
+ p0	3
+-p1	0
++p1	1
+ p2	1
+-p3	0
+-p4	2
++p3	1
++p4	1
+ p5	0
+-p6	4
+-p7	0
++p6	2
++p7	1
+ select * from t1;
+ c1	c2
+-1	2014-04-22
++1	NULL
++1	2014-04-23
++1	2014-04-29
+ 1	2014-04-26
++1	2014-04-25
+ 1	2014-04-30
+-1	NULL
+ 1	2014-04-24
++1	2014-04-22
+ 1	2014-04-28
+-1	2014-04-23
+-1	2014-04-25
+ 1	2014-04-27
+-1	2014-04-29
+ drop table t1;
+ ## MDEV-9826 case with more dates
+-create table t1(c1 int, c2 date) partition by key  (c2) partitions 8;
++create table t1(c1 int, c2 date) partition by key ALGORITHM=CRC32C (c2) partitions 8;
+ show create table t1;
+ Table	Create Table
+ t1	CREATE TABLE `t1` (
+   `c1` int(11) DEFAULT NULL,
+   `c2` date DEFAULT NULL
+ ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+- PARTITION BY KEY (`c2`)
++ PARTITION BY KEY ALGORITHM = CRC32C (`c2`)
+ PARTITIONS 8
+ insert into t1 values (1, NULL);
+ insert into t1 select 1, from_days(seq) from seq_735000_to_736000;
+ select partition_name, table_rows from information_schema.partitions where table_name='t1';
+ partition_name	table_rows
+-p0	297
+-p1	0
+-p2	1
+-p3	0
+-p4	428
+-p5	0
+-p6	276
+-p7	0
++p0	126
++p1	127
++p2	126
++p3	126
++p4	126
++p5	125
++p6	122
++p7	124
+ drop table t1;
+ ## MDEV-9826 case with more dates and linear key
+-create table t1(c1 int, c2 date) partition by linear key  (c2) partitions 8;
++create table t1(c1 int, c2 date) partition by linear key ALGORITHM=CRC32C (c2) partitions 8;
+ show create table t1;
+ Table	Create Table
+ t1	CREATE TABLE `t1` (
+   `c1` int(11) DEFAULT NULL,
+   `c2` date DEFAULT NULL
+ ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+- PARTITION BY LINEAR KEY (`c2`)
++ PARTITION BY LINEAR KEY ALGORITHM = CRC32C (`c2`)
+ PARTITIONS 8
+ insert into t1 values (1, NULL);
+ insert into t1 select 1, from_days(seq) from seq_735000_to_736000;
+ select partition_name, table_rows from information_schema.partitions where table_name='t1';
+ partition_name	table_rows
+-p0	297
+-p1	0
+-p2	1
+-p3	0
+-p4	428
+-p5	0
+-p6	276
+-p7	0
++p0	126
++p1	127
++p2	126
++p3	126
++p4	126
++p5	125
++p6	122
++p7	124
+ drop table t1;
+ ## MDEV-9826 case with more dates and multiple keys
+-create table t1(c1 int, c2 date) partition by key  (c1, c2) partitions 8;
++create table t1(c1 int, c2 date) partition by key ALGORITHM=CRC32C (c1, c2) partitions 8;
+ show create table t1;
+ Table	Create Table
+ t1	CREATE TABLE `t1` (
+   `c1` int(11) DEFAULT NULL,
+   `c2` date DEFAULT NULL
+ ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+- PARTITION BY KEY (`c1`,`c2`)
++ PARTITION BY KEY ALGORITHM = CRC32C (`c1`,`c2`)
+ PARTITIONS 8
+ insert into t1 values (1, NULL);
+ insert into t1 select 1, from_days(seq) from seq_735000_to_736000;
+ select partition_name, table_rows from information_schema.partitions where table_name='t1';
+ partition_name	table_rows
+-p0	153
+-p1	0
+-p2	542
+-p3	0
+-p4	306
+-p5	1
+-p6	0
+-p7	0
++p0	124
++p1	122
++p2	125
++p3	126
++p4	126
++p5	126
++p6	127
++p7	126
+ drop table t1;
+ ## MDEV-20791 case with INET6
+-create table t1 (a inet6) partition by key  (a) partitions 2;
++create table t1 (a inet6) partition by key ALGORITHM=CRC32C (a) partitions 2;
+ insert into t1 values ('0:db8::ff00:42:8329'),('2001:db8::ff00:42:8329'),('::'),('::192.0.2.128'),('::ffff:192.0.2.128');
+ select partition_name, table_rows from information_schema.partitions where table_name='t1';
+ partition_name	table_rows
+-p0	0
+-p1	5
++p0	3
++p1	2
+ drop table t1;
+ ## MDEV-20791 case with BINARY
+-CREATE TABLE t1 (a BINARY(16)) PARTITION BY KEY  (a) PARTITIONS 2;
++CREATE TABLE t1 (a BINARY(16)) PARTITION BY KEY ALGORITHM=CRC32C (a) PARTITIONS 2;
+ INSERT INTO t1 VALUES (X'00000DB8000000000000FF0000428329');
+ INSERT INTO t1 VALUES (X'20010DB8000000000000FF0000428329');
+ INSERT INTO t1 VALUES (X'00000000000000000000000000000000');
+@@ -128,22 +128,22 @@
+ INSERT INTO t1 VALUES (X'00000000000000000000FFFFC0000280');
+ select partition_name, table_rows from information_schema.partitions where table_name='t1';
+ partition_name	table_rows
+-p0	0
+-p1	5
++p0	3
++p1	2
+ drop table t1;
+ ## MDEV-20791 case with more rows
+-create table t1 (a inet6) partition by key  (a) partitions 2;
++create table t1 (a inet6) partition by key ALGORITHM=CRC32C (a) partitions 2;
+ insert into t1 select concat(hex(seq), ':db8::ff00:42:8329') from seq_0_to_65535;
+ select partition_name, table_rows from information_schema.partitions where table_name='t1';
+ partition_name	table_rows
+-p0	0
+-p1	65536
++p0	32768
++p1	32768
+ insert into t1 values ('::');
+ insert into t1 select concat('::', hex(seq), ':192.0.2.128') from seq_0_to_65535;
+ select partition_name, table_rows from information_schema.partitions where table_name='t1';
+ partition_name	table_rows
+-p0	16384
+-p1	114689
++p0	65537
++p1	65536
+ drop table t1;
+ ## MDEV-6255 case to test charset/collation
+ ### cp1251_ukrainian_ci: 0x20 SPACE is equal to 0x60 GRAVE ACCENT
+@@ -155,7 +155,7 @@
+ 60
+ 6060
+ 606060
+-ALTER TABLE t1  PARTITION BY KEY  (a) PARTITIONS 3;
++ALTER TABLE t1  PARTITION BY KEY ALGORITHM=CRC32C (a) PARTITIONS 3;
+ SELECT HEX(a) FROM t1 WHERE a=0x60;
+ HEX(a)
+ 20
+@@ -172,7 +172,7 @@
+ 60
+ 6060
+ 606060
+-ALTER TABLE t1  PARTITION BY KEY  (a) PARTITIONS 3;
++ALTER TABLE t1  PARTITION BY KEY ALGORITHM=CRC32C (a) PARTITIONS 3;
+ SELECT HEX(a) FROM t1 WHERE a=0x60;
+ HEX(a)
+ 20
+@@ -189,7 +189,7 @@
+ A0
+ A0A0
+ A0A0A0
+-ALTER TABLE t1  PARTITION BY KEY  (a) PARTITIONS 3;
++ALTER TABLE t1  PARTITION BY KEY ALGORITHM=CRC32C (a) PARTITIONS 3;
+ SELECT HEX(a) FROM t1 WHERE a=0xA0;
+ HEX(a)
+ 20
