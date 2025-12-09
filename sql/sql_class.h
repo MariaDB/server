@@ -8612,6 +8612,63 @@ static inline int is_valid_pointer2(void *ptr) {
   close(fd);
   return valid;
 }
+
+/**
+  Find the lowest non-readable address after a given pointer by parsing /proc/self/maps.
+  This is useful for debugging cases where strcasestr might read into unmapped memory.
+
+  @param ptr The starting address to check from
+  @return The lowest address after ptr that is not readable, or nullptr if not found
+*/
+static inline void* find_lowest_nonreadable_after(void *ptr) {
+  if (!ptr)
+    return nullptr;
+
+  FILE *maps = fopen("/proc/self/maps", "r");
+  if (!maps)
+    return nullptr;
+
+  char line[512];
+  unsigned long target_addr = (unsigned long)ptr;
+  void *lowest_nonreadable = (void*)~0UL;  // Max address
+
+  while (fgets(line, sizeof(line), maps)) {
+    unsigned long start, end;
+    char perms[5];
+
+    // Parse format: "address-address perms offset dev inode pathname"
+    if (sscanf(line, "%lx-%lx %4s", &start, &end, perms) != 3)
+      continue;
+
+    // Check if this region starts after our target address
+    if (start > target_addr) {
+      // This is a potential boundary
+      if (start < (unsigned long)lowest_nonreadable) {
+        lowest_nonreadable = (void*)start;
+      }
+    }
+
+    // Check if our target is within a readable region
+    if (target_addr >= start && target_addr < end) {
+      // Target is in this region, the end of this region (or gap after) is the boundary
+      if (perms[0] == 'r') {
+        // Readable region - check what comes after
+        if (end < (unsigned long)lowest_nonreadable) {
+          // The end of this readable region is the boundary
+          // (unless the next region is also readable)
+          lowest_nonreadable = (void*)end;
+        }
+      } else {
+        // Target is in a non-readable region - the start of this region is the answer
+        fclose(maps);
+        return (void*)start;
+      }
+    }
+  }
+
+  fclose(maps);
+  return (lowest_nonreadable == (void*)~0UL) ? nullptr : lowest_nonreadable;
+}
 #endif
 
 #include "deprecation.h"
