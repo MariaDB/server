@@ -1,0 +1,1 @@
+--table-open-cache-instances-fix --table-open-cache=100 --table-open-cache-instances=4

@@ -64,6 +64,7 @@ struct TDC_element
 extern ulong tdc_size;
 extern ulong tc_size;
 extern uint32 tc_instances;
+extern my_bool tc_instances_fix;
 
 extern bool tdc_init(void);
 extern void tdc_start_shutdown(void);

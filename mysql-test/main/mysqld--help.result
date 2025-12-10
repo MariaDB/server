@@ -1549,6 +1549,10 @@ The following specify which files/extra groups are read (specified before remain
  The number of cached open tables
  --table-open-cache-instances=# 
  Maximum number of table cache instances
+ --table-open-cache-instances-fix 
+ Activate all table_open_cache_instances early. Can be
+ useful for cases when table cache warm up period is
+ undesired. Such as benchmarking
  --tc-heuristic-recover=name 
  Decision to use in heuristic recover process. One of: OFF,
  COMMIT, ROLLBACK
@@ -2055,6 +2059,7 @@ sysdate-is-now FALSE
 system-versioning-alter-history ERROR
 system-versioning-insert-history FALSE
 table-definition-cache 400
+table-open-cache-instances-fix FALSE
 tc-heuristic-recover OFF
 tcp-keepalive-interval 0
 tcp-keepalive-probes 0
