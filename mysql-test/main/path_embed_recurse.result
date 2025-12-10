@@ -1,0 +1,52 @@
+#
+# MDEV-34391 Path resolution
+# Path embedding with recursive routines
+#
+CREATE DATABASE test2;
+CREATE FUNCTION test2.func2(val INT, t TEXT) RETURNS TEXT
+BEGIN
+SET val:= val - 1;
+IF val = 0 THEN
+RETURN CONCAT(t, CAST(val AS CHAR(4)));
+END IF;
+RETURN func2(val, CONCAT(t, CAST(val AS CHAR(4))));
+END;
+/
+CREATE PROCEDURE test2.proc2(val INT, t TEXT)
+BEGIN
+SET val:= val - 1;
+IF val = 0 THEN
+SELECT CONCAT(t, CAST(val AS CHAR(4)));
+ELSE
+CALL proc2(val, CONCAT(t, CAST(val AS CHAR(4))));
+END IF;
+END;
+/
+CREATE FUNCTION ff() RETURNS TEXT
+PATH 'test2'
+BEGIN
+RETURN func2(5, '');
+END;
+/
+CREATE PROCEDURE pp()
+PATH 'test2'
+BEGIN
+CALL proc2(5, '');
+END;
+/
+SELECT ff();
+ERROR HY000: Recursive stored functions and triggers are not allowed
+CALL pp();
+ERROR HY000: Recursive limit 0 (as set by the max_sp_recursion_depth variable) was exceeded for routine proc2
+CALL pp();
+ERROR HY000: Recursive limit 0 (as set by the max_sp_recursion_depth variable) was exceeded for routine proc2
+SET max_sp_recursion_depth=10;
+CALL pp();
+CONCAT(t, CAST(val AS CHAR(4)))
+43210
+CALL pp();
+CONCAT(t, CAST(val AS CHAR(4)))
+43210
+DROP FUNCTION ff;
+DROP PROCEDURE pp;
+DROP DATABASE test2;

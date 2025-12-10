@@ -1,0 +1,17 @@
+#
+# MDEV-34391 Path resolution when lower_case_table_names=1
+# and db name and path have different cases
+#
+SELECT @@lower_case_table_names;
+@@lower_case_table_names
+1
+SELECT CURRENT_PATH();
+CURRENT_PATH()
+`CURRENT_SCHEMA`
+CREATE DATABASE teST2;
+CREATE FUNCTION teST2.func() RETURNS TEXT RETURN 'teST2.func';
+SET PATH 'test2';
+SELECT CURRENT_PATH(), func();
+CURRENT_PATH()	func()
+`test2`	teST2.func
+DROP DATABASE teST2;

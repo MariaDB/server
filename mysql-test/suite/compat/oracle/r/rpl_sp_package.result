@@ -39,6 +39,7 @@ definer	root@localhost
 created	#
 modified	#
 sql_mode	PIPES_AS_CONCAT,ANSI_QUOTES,IGNORE_SPACE,ORACLE,NO_KEY_OPTIONS,NO_TABLE_OPTIONS,NO_FIELD_OPTIONS,NO_AUTO_CREATE_USER,SIMULTANEOUS_ASSIGNMENT
+path	NULL
 comment	
 character_set_client	latin1
 collation_connection	latin1_swedish_ci
@@ -72,6 +73,7 @@ definer	root@localhost
 created	#
 modified	#
 sql_mode	PIPES_AS_CONCAT,ANSI_QUOTES,IGNORE_SPACE,ORACLE,NO_KEY_OPTIONS,NO_TABLE_OPTIONS,NO_FIELD_OPTIONS,NO_AUTO_CREATE_USER,SIMULTANEOUS_ASSIGNMENT
+path	NULL
 comment	
 character_set_client	latin1
 collation_connection	latin1_swedish_ci
