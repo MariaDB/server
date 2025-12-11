@@ -421,6 +421,7 @@ ENDIF()
 IF(NOT CMAKE_CROSSCOMPILING OR DEFINED CMAKE_CROSSCOMPILING_EMULATOR)
   ADD_EXECUTABLE(gen_lex_token gen_lex_token.cc
    ${CMAKE_CURRENT_BINARY_DIR}/yy_mariadb.hh)
+  TARGET_LINK_LIBRARIES(gen_lex_token mysys dbug) # required by `yy_mariadb.hh`
   ADD_EXECUTABLE(gen_lex_hash gen_lex_hash.cc)
 ENDIF()
 

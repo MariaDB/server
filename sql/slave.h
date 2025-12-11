@@ -32,16 +32,6 @@
   @file
 */
 
-/** 
-   Some of defines are need in parser even though replication is not 
-   compiled in (embedded).
-*/
-
-/**
-   The maximum is defined as (ULONG_MAX/1000) with 4 bytes ulong
-*/
-#define SLAVE_MAX_HEARTBEAT_PERIOD 4294967
-
 #ifdef HAVE_REPLICATION
 
 #include "log.h"
@@ -63,12 +53,6 @@ class Master_info;
 class Master_info_index;
 struct rpl_group_info;
 struct rpl_parallel_thread;
-
-int init_intvar_from_file(int* var, IO_CACHE* f, int default_val);
-int init_strvar_from_file(char *var, int max_size, IO_CACHE *f,
-                          const char *default_val);
-int init_floatvar_from_file(float* var, IO_CACHE* f, float default_val);
-int init_dynarray_intvar_from_file(DYNAMIC_ARRAY* arr, IO_CACHE* f);
 
 /*****************************************************************************
 
@@ -129,7 +113,7 @@ int init_dynarray_intvar_from_file(DYNAMIC_ARRAY* arr, IO_CACHE* f);
   (so that you have to update the .index file).
 */
 
-extern ulong master_retry_count;
+extern uint64_t master_retry_count;
 extern MY_BITMAP slave_error_mask;
 extern char slave_skip_error_names[];
 extern bool use_slave_mask;
@@ -264,12 +248,6 @@ int apply_event_and_update_pos(Log_event* ev, THD* thd,
                                struct rpl_group_info *rgi);
 int apply_event_and_update_pos_for_parallel(Log_event* ev, THD* thd,
                                             struct rpl_group_info *rgi);
-
-int init_intvar_from_file(int* var, IO_CACHE* f, int default_val);
-int init_floatvar_from_file(float* var, IO_CACHE* f, float default_val);
-int init_strvar_from_file(char *var, int max_size, IO_CACHE *f,
-                          const char *default_val);
-int init_dynarray_intvar_from_file(DYNAMIC_ARRAY* arr, IO_CACHE* f);
 
 pthread_handler_t handle_slave_io(void *arg);
 void slave_output_error_info(rpl_group_info *rgi, THD *thd);

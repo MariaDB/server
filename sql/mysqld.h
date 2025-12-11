@@ -808,6 +808,7 @@ enum options_mysqld
   OPT_TLS_VERSION, OPT_SECURE_AUTH,
   OPT_MYSQL_TO_BE_IMPLEMENTED,
   OPT_SEQURE_FILE_PRIV,
+  OPT_MASTER_HEARTBEAT_PERIOD,
   OPT_which_is_always_the_last
 };
 #endif
