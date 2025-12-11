@@ -4032,5 +4032,14 @@ v	v	v
 select * from three left join one on one.v = 1 left join two on two.v = 1;
 v	v	v
 1	1	1
+# Interleaved JOIN check
+explain extended select * from one full outer join (two, three) on one.v=two.v;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	one	UNKNOWN	NULL	NULL	NULL	NULL	0	0.00	
+1	SIMPLE	two	UNKNOWN	NULL	NULL	NULL	NULL	0	0.00	
+1	SIMPLE	three	UNKNOWN	NULL	NULL	NULL	NULL	0	0.00	
+Warnings:
+Note	1003	select `test`.`one`.`v` AS `v`,`test`.`two`.`v` AS `v`,`test`.`three`.`v` AS `v` from `test`.`one` full join (`test`.`two` join `test`.`three`) on(multiple equal(`test`.`one`.`v`, `test`.`two`.`v`))
+# ^^^ join order must be one, two, three
 drop table one, two, three;
 # End of 12.3 tests

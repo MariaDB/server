@@ -2223,6 +2223,10 @@ select * from three;
 select * from one left join two on one.v = two.v full join three on two.v = three.v where three.v = 1;
 select * from three left join one on one.v = 1 left join two on two.v = 1;
 
+--echo # Interleaved JOIN check
+explain extended select * from one full outer join (two, three) on one.v=two.v;
+--echo # ^^^ join order must be one, two, three
+
 drop table one, two, three;
 
 # TODO fix PS protocol before end of FULL OUTER JOIN development

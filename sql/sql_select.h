@@ -532,8 +532,8 @@ typedef struct st_join_table {
   */
   int  keep_current_rowid;
 
-  /* NestedOuterJoins: Bitmap of nested joins this table is part of */
-  nested_join_map embedding_map;
+  /* NestedOuterJoins: All nested joins in which this join table appears */
+  nested_join_map embedding_map;  // is a bitmap
 
   /* Tmp table info */
   TMP_TABLE_PARAM *tmp_table_param;
@@ -1308,6 +1308,9 @@ public:
   void restore_query_plan(Join_plan_state *restore_from);
 
 public:
+  TABLE_LIST* expected_foj_partner{nullptr};
+  table_map foj_tables{0};
+
   JOIN_TAB *join_tab, **best_ref;
 
   /* List of fields that aren't under an aggregate function */

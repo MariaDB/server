@@ -3266,6 +3266,13 @@ struct TABLE_LIST
     tabledef_version.str= (const uchar *) version->str;
     tabledef_version.length= version->length;
   }
+
+  /*
+    If not nullptr, then foj_partner points to the other
+    table in a FULL OUTER JOIN.  For example,
+      SELECT ... FROM *this FULL OUTER JOIN foj_partner ...
+  */
+  TABLE_LIST *foj_partner{nullptr};
 private:
   bool prep_check_option(THD *thd, uint8 check_opt_type);
   bool prep_where(THD *thd, Item **conds, bool no_where_clause);
@@ -3489,6 +3496,11 @@ typedef struct st_nested_join
      2. All child join nest nodes are fully covered.
    */
   bool is_fully_covered() const { return n_tables == counter; }
+
+  /**
+     True if this join nest represents a FULL OUTER JOIN.
+   */
+  bool is_foj{false};
 } NESTED_JOIN;
 
 
