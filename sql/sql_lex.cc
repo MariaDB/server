@@ -12987,14 +12987,15 @@ bool LEX::set_field_type_udt_or_typedef(Lex_field_type_st *type,
   if (is_typedef)
     return false;
 
-  return set_field_type_udt(type, name, attr, NULL);
+  return set_field_type_udt(type, name, attr,
+                            Lex_column_charset_collation_attrs());
 }
 
 
 bool LEX::set_field_type_udt(Lex_field_type_st *type,
                              const LEX_CSTRING &name,
                              const Lex_length_and_dec_st &attr,
-                             const Lex_column_charset_collation_attrs_st *coll)
+                             const Lex_column_charset_collation_attrs_st &coll)
 {
   const Type_handler *h;
   uint column_attributes;
@@ -13004,7 +13005,7 @@ bool LEX::set_field_type_udt(Lex_field_type_st *type,
 
   column_attributes= attr.has_explicit_length() ? Type_handler::ATTR_LENGTH :0;
   column_attributes|= attr.has_explicit_dec() ? Type_handler::ATTR_DEC :0;
-  column_attributes|= (!coll || coll->is_empty()) ? 0 : Type_handler::ATTR_CHARSET;
+  column_attributes|= coll.is_empty() ? 0 : Type_handler::ATTR_CHARSET;
   column_attributes|= last_field->get_attr_uint32(0) ?
                         Type_handler::ATTR_SRID : 0;
 
@@ -13026,7 +13027,7 @@ bool LEX::set_field_type_udt(Lex_field_type_st *type,
     return true;
   }
 
-  type->set(h, attr, coll ? coll->charset_info() : &my_charset_bin);
+  type->set(h, attr, coll);
   return false;
 }
 

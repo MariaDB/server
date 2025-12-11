@@ -8,6 +8,16 @@ CREATE TABLE t1(id INT, x xmltype  CHARACTER SET utf8mb3) CHARACTER SET utf8mb4;
 SHOW CREATE TABLE t1;
 DROP TABLE t1;
 
+# Checking that contextually typed "binary" attribute works
+CREATE TABLE t1 (a xmltype binary) CHARACTER SET utf8mb4;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+# Checking that contextually typed COLLATE DEFAULT
+CREATE TABLE t1 (a xmltype collate default) CHARACTER SET utf8mb4 collate utf8mb4_bin;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
 --error ER_UNSUPPORTED_UDT_ATTRIBUTE
 CREATE TABLE t1(id INT, x xmltype(10, 2));
 
