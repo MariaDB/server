@@ -64,6 +64,7 @@ public:
   {
     return &type_collection_test;
   }
+  uint get_column_attributes() const { return ATTR_LENGTH; }
   const Type_handler *type_handler_signed() const override
   {
     return this;
@@ -121,6 +122,7 @@ public:
   {
     return &type_collection_test;
   }
+  uint get_column_attributes() const override { return ATTR_LENGTH | ATTR_DEC; }
   const Type_handler *type_handler_signed() const override
   {
     return this;

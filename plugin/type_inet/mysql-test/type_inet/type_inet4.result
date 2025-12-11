@@ -9,6 +9,12 @@
 #
 CREATE TABLE t1 (a INET4 AUTO_INCREMENT);
 ERROR 42000: Incorrect column specifier for column 'a'
+CREATE TABLE t1 (a INET4(6));
+ERROR HY000: Data type 'INET4' doesn't support LENGTH attribute.
+CREATE TABLE t1 (a INET4 CHARACTER SET latin1);
+ERROR HY000: Data type 'INET4' doesn't support CHARACTER SET attribute.
+CREATE TABLE t1 (a INET4 REF_SYSTEM_ID=4);
+ERROR HY000: Data type 'INET4' doesn't support REF_SYSTEM_ID attribute.
 CREATE TABLE t1 (a INET4);
 SHOW CREATE TABLE t1;
 Table	Create Table

@@ -1107,6 +1107,12 @@ public:
   {
     return FbtImpl::default_value();
   }
+
+  uint get_column_attributes() const override
+  {
+    return ATTR_NONE;
+  }
+
   ulong KEY_pack_flags(uint column_nr) const override
   {
     return FbtImpl::KEY_pack_flags(column_nr);

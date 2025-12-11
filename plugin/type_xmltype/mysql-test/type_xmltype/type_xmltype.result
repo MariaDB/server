@@ -6,6 +6,10 @@ t1	CREATE TABLE `t1` (
   `x` xmltype DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t1;
+CREATE TABLE t1 (a XMLTYPE(6));
+ERROR HY000: Data type 'XMLTYPE' doesn't support LENGTH attribute.
+CREATE TABLE t1 (a XMLTYPE REF_SYSTEM_ID=4);
+ERROR HY000: Data type 'XMLTYPE' doesn't support REF_SYSTEM_ID attribute.
 CREATE TABLE t1(id INT, x xmltype  CHARACTER SET utf8mb3) CHARACTER SET utf8mb4;
 SHOW CREATE TABLE t1;
 Table	Create Table
