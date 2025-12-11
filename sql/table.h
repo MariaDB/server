@@ -3502,7 +3502,7 @@ typedef struct st_nested_join
   nested_join_map   nj_map;          /* Bit used to identify this nested join*/
   void set_nj_map(uint offset)
   {
-    nj_map= static_cast<nested_join_map>(1 << offset);
+    nj_map= static_cast<nested_join_map>(1ULL << offset);
   }
   nested_join_map get_nj_map() const
   {
@@ -3531,6 +3531,11 @@ typedef struct st_nested_join
      2. All child join nest nodes are fully covered.
    */
   bool is_fully_covered() const { return n_tables == counter; }
+
+  /**
+     True if this join nest represents a FULL OUTER JOIN.
+   */
+  bool is_foj{false};
 } NESTED_JOIN;
 
 

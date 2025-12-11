@@ -8396,6 +8396,11 @@ TABLE_LIST *st_select_lex::nest_last_join(THD *thd)
       if (prev_join_using)
         ptr->join_using_fields= prev_join_using;
     }
+    if (table->outer_join & JOIN_TYPE_FULL)
+    {
+      nested_join->is_foj= true;
+      ptr->foj_partner= table->foj_partner;
+    }
   }
   nested_join->used_tables= nested_join->not_null_tables= (table_map) 0;
   DBUG_RETURN(ptr);
