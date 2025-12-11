@@ -1,0 +1,204 @@
+set global default_storage_engine= innodb;
+set default_storage_engine= innodb;
+SET NAMES utf8;
+#
+# MDEV-34646 Be more helpful on unknown parameter messages
+#
+set innobdb_lock_wait_timeout=1000;
+ERROR HY000: Unknown system variable 'innobdb_lock_wait_timeout', did you mean 'innodb_lock_wait_timeout'?
+#
+# Verify the change in other languages
+#
+# Czech
+SET lc_messages='cs_CZ';
+SET innobdb_lock_wait_timeout=1000;
+ERROR HY000: Neznámá systémová proměnná 'innobdb_lock_wait_timeout', mysleli jste 'innodb_lock_wait_timeout'?
+# Danish
+SET lc_messages='da_DK';
+SET innobdb_lock_wait_timeout=1000;
+ERROR HY000: Ukendt systemvariabel 'innobdb_lock_wait_timeout', mente du 'innodb_lock_wait_timeout'?
+# Estonian
+SET lc_messages='et_EE';
+SET innobdb_lock_wait_timeout=1000;
+ERROR HY000: Tundmatu süsteemne muutuja 'innobdb_lock_wait_timeout', kas mõtlesite 'innodb_lock_wait_timeout'?
+# French
+SET lc_messages='fr_FR';
+SET innobdb_lock_wait_timeout=1000;
+ERROR HY000: Variable système 'innobdb_lock_wait_timeout' inconnue, vouliez-vous dire 'innodb_lock_wait_timeout' ?
+# German
+SET lc_messages='de_DE';
+SET innobdb_lock_wait_timeout=1000;
+ERROR HY000: Unbekannte Systemvariable 'innobdb_lock_wait_timeout', meinten Sie 'innodb_lock_wait_timeout'?
+# Georgian
+SET lc_messages='ka_GE';
+SET innobdb_lock_wait_timeout=1000;
+ERROR HY000: უცნობი სისტემური ცვლადი 'innobdb_lock_wait_timeout', ხომ არ იგულისხმეთ 'innodb_lock_wait_timeout'?
+# Hindi
+SET lc_messages='hi_IN';
+SET innobdb_lock_wait_timeout=1000;
+ERROR HY000: अज्ञात सिस्टम वेरिएबल 'innobdb_lock_wait_timeout', क्या आपका मतलब 'innodb_lock_wait_timeout' था?
+# Italian
+SET lc_messages='it_IT';
+SET innobdb_lock_wait_timeout=1000;
+ERROR HY000: Variabile di sistema 'innobdb_lock_wait_timeout' sconosciuta, intendevi dire 'innodb_lock_wait_timeout'?
+# Japanese
+SET lc_messages='ja_JP';
+SET innobdb_lock_wait_timeout=1000;
+ERROR HY000: 'innobdb_lock_wait_timeout' は不明なシステム変数です。もしかして 'innodb_lock_wait_timeout' ですか？
+# Dutch
+SET lc_messages='nl_NL';
+SET innobdb_lock_wait_timeout=1000;
+ERROR HY000: Onbekende systeem variabele 'innobdb_lock_wait_timeout', bedoelde u 'innodb_lock_wait_timeout'?
+# Portuguese
+SET lc_messages='pt_PT';
+SET innobdb_lock_wait_timeout=1000;
+ERROR HY000: Variável de sistema 'innobdb_lock_wait_timeout' desconhecida, você quis dizer 'innodb_lock_wait_timeout'?
+# Russian
+SET lc_messages='ru_RU';
+SET innobdb_lock_wait_timeout=1000;
+ERROR HY000: Неизвестная системная переменная 'innobdb_lock_wait_timeout', вы имели в виду 'innodb_lock_wait_timeout'?
+# Serbian
+SET lc_messages='sr_RS';
+SET innobdb_lock_wait_timeout=1000;
+ERROR HY000: Nepoznata sistemska promenljiva 'innobdb_lock_wait_timeout', da li ste mislili na 'innodb_lock_wait_timeout'?
+# Spanish
+SET lc_messages='es_ES';
+SET innobdb_lock_wait_timeout=1000;
+ERROR HY000: Variable de sistema 'innobdb_lock_wait_timeout' desconocida, ¿quiso decir 'innodb_lock_wait_timeout'?
+# Swahili
+SET lc_messages='sw_KE';
+SET innobdb_lock_wait_timeout=1000;
+ERROR HY000: Tofauti ya mfumo isiyojulikana 'innobdb_lock_wait_timeout', je, ulikusudia 'innodb_lock_wait_timeout'?
+# Swedish
+SET lc_messages='sv_SE';
+SET innobdb_lock_wait_timeout=1000;
+ERROR HY000: Okänd systemvariabel: 'innobdb_lock_wait_timeout', menade du 'innodb_lock_wait_timeout'?
+# Ukrainian
+SET lc_messages='uk_UA';
+SET innobdb_lock_wait_timeout=1000;
+ERROR HY000: Невідома системна змінна 'innobdb_lock_wait_timeout', ви мали на увазі 'innodb_lock_wait_timeout'?
+# Chinese
+SET lc_messages='zh_CN';
+SET innobdb_lock_wait_timeout=1000;
+ERROR HY000: 未知系统变量 'innobdb_lock_wait_timeout'，你是想输入 'innodb_lock_wait_timeout' 吗？
+#
+# Verify the change in other variables
+#
+SET lc_messages='en_US';
+SET sll_ca=0;
+ERROR HY000: Unknown system variable 'sll_ca', did you mean 'ssl_ca'?
+SET GLOBAL mx_conncetoins = 500;
+ERROR HY000: Unknown system variable 'mx_conncetoins'
+SET GLOBAL qurey_cach_size = 134217728;
+ERROR HY000: Unknown system variable 'qurey_cach_size', did you mean 'query_cache_size'?
+SET SESSION join_bufer_size = 2097152;
+ERROR HY000: Unknown system variable 'join_bufer_size', did you mean 'join_buffer_size'?
+SET SESSION sort_bufer_size = 2097152;
+ERROR HY000: Unknown system variable 'sort_bufer_size', did you mean 'sort_buffer_size'?
+SET GLOBAL max_conections = 500;
+ERROR HY000: Unknown system variable 'max_conections', did you mean 'max_connections'?
+SET SESSION tmp_table_sze = 67108864;
+ERROR HY000: Unknown system variable 'tmp_table_sze', did you mean 'tmp_table_size'?
+SET GLOBAL innodb_lok_wait_timeout = 120;
+ERROR HY000: Unknown system variable 'innodb_lok_wait_timeout', did you mean 'innodb_lock_wait_timeout'?
+SET SESSION lock_wiat_timeout = 60;
+ERROR HY000: Unknown system variable 'lock_wiat_timeout', did you mean 'lock_wait_timeout'?
+SET GLOBAL wait_tiemout = 600;
+ERROR HY000: Unknown system variable 'wait_tiemout', did you mean 'wait_timeout'?
+SET SESSION sql_mde = 'STRICT_TRANS_TABLES';
+ERROR HY000: Unknown system variable 'sql_mde', did you mean 'sql_mode'?
+SET SESSION character_set_clinet = 'utf8mb4';
+ERROR HY000: Unknown system variable 'character_set_clinet', did you mean 'character_set_client'?
+SET SESSION character_set_resuts = 'utf8mb4';
+ERROR HY000: Unknown system variable 'character_set_resuts', did you mean 'character_set_results'?
+SET GLOBAL innodb_buffer_pol_size = 134217728;
+ERROR HY000: Unknown system variable 'innodb_buffer_pol_size', did you mean 'innodb_buffer_pool_size'?
+SET GLOBAL thred_cache_size = 50;
+ERROR HY000: Unknown system variable 'thred_cache_size', did you mean 'thread_cache_size'?
+SET GLOBAL table_open_cach = 2000;
+ERROR HY000: Unknown system variable 'table_open_cach', did you mean 'table_open_cache'?
+SET GLOBAL query_cache_szie = 134217728;
+ERROR HY000: Unknown system variable 'query_cache_szie', did you mean 'query_cache_size'?
+SET SESSION max_hep_table_size = 67108864;
+ERROR HY000: Unknown system variable 'max_hep_table_size', did you mean 'max_heap_table_size'?
+#
+# Test long variables
+#
+set innobdb_lock_wait_timeout_a_very_very_very_long_variable_a_very_very_very_long_variable_a_very_very_very_long_variable_a_very_very_very_long_variable_a_very_very_very_long_variable=1000;
+ERROR HY000: Unknown system variable 'innobdb_lock_wait_timeout_a_very_very_very_long_variable_a_very_very_very_long_variable_a_very_very_very_long_variable_a_very_very_very_long_variable_a_very_very_very_long_variable', did you mean 'innodb_lock_wait_timeout'?
+#
+# Verify not to print suggestion when the input is far from the closest variable
+#
+# Czech
+SET lc_messages='cs_CZ';
+SET xxxxxxxxxxxxxxxxxxx=1000;
+ERROR HY000: Neznámá systémová proměnná 'xxxxxxxxxxxxxxxxxxx'
+# Danish
+SET lc_messages='da_DK';
+SET xxxxxxxxxxxxxxxxxxx=1000;
+ERROR HY000: Ukendt systemvariabel 'xxxxxxxxxxxxxxxxxxx'
+# Estonian
+SET lc_messages='et_EE';
+SET xxxxxxxxxxxxxxxxxxx=1000;
+ERROR HY000: Tundmatu süsteemne muutuja 'xxxxxxxxxxxxxxxxxxx'
+# French
+SET lc_messages='fr_FR';
+SET xxxxxxxxxxxxxxxxxxx=1000;
+ERROR HY000: Variable système 'xxxxxxxxxxxxxxxxxxx' inconnue
+# German
+SET lc_messages='de_DE';
+SET xxxxxxxxxxxxxxxxxxx=1000;
+ERROR HY000: Unbekannte Systemvariable 'xxxxxxxxxxxxxxxxxxx'
+# Georgian
+SET lc_messages='ka_GE';
+SET xxxxxxxxxxxxxxxxxxx=1000;
+ERROR HY000: უცნობი სისტემური ცვლადი 'xxxxxxxxxxxxxxxxxxx'
+# Hindi
+SET lc_messages='hi_IN';
+SET xxxxxxxxxxxxxxxxxxx=1000;
+ERROR HY000: अज्ञात सिस्टम वेरिएबल 'xxxxxxxxxxxxxxxxxxx'
+# Italian
+SET lc_messages='it_IT';
+SET xxxxxxxxxxxxxxxxxxx=1000;
+ERROR HY000: Variabile di sistema 'xxxxxxxxxxxxxxxxxxx' sconosciuta
+# Japanese
+SET lc_messages='ja_JP';
+SET xxxxxxxxxxxxxxxxxxx=1000;
+ERROR HY000: 'xxxxxxxxxxxxxxxxxxx' は不明なシステム変数です
+# Dutch
+SET lc_messages='nl_NL';
+SET xxxxxxxxxxxxxxxxxxx=1000;
+ERROR HY000: Onbekende systeem variabele 'xxxxxxxxxxxxxxxxxxx'
+# Portuguese
+SET lc_messages='pt_PT';
+SET xxxxxxxxxxxxxxxxxxx=1000;
+ERROR HY000: Variável de sistema 'xxxxxxxxxxxxxxxxxxx' desconhecida
+# Russian
+SET lc_messages='ru_RU';
+SET xxxxxxxxxxxxxxxxxxx=1000;
+ERROR HY000: Неизвестная системная переменная 'xxxxxxxxxxxxxxxxxxx'
+# Serbian
+SET lc_messages='sr_RS';
+SET xxxxxxxxxxxxxxxxxxx=1000;
+ERROR HY000: Nepoznata sistemska promenljiva 'xxxxxxxxxxxxxxxxxxx'
+# Spanish
+SET lc_messages='es_ES';
+SET xxxxxxxxxxxxxxxxxxx=1000;
+ERROR HY000: Variable de sistema 'xxxxxxxxxxxxxxxxxxx' desconocida
+# Swahili
+SET lc_messages='sw_KE';
+SET xxxxxxxxxxxxxxxxxxx=1000;
+ERROR HY000: Tofauti ya mfumo isiyojulikana 'xxxxxxxxxxxxxxxxxxx'
+# Swedish
+SET lc_messages='sv_SE';
+SET xxxxxxxxxxxxxxxxxxx=1000;
+ERROR HY000: Okänd systemvariabel: 'xxxxxxxxxxxxxxxxxxx'
+# Ukrainian
+SET lc_messages='uk_UA';
+SET xxxxxxxxxxxxxxxxxxx=1000;
+ERROR HY000: Невідома системна змінна 'xxxxxxxxxxxxxxxxxxx'
+# Chinese
+SET lc_messages='zh_CN';
+SET xxxxxxxxxxxxxxxxxxx=1000;
+ERROR HY000: 未知系统变量 'xxxxxxxxxxxxxxxxxxx'
+set global default_storage_engine= MyISAM;
