@@ -171,10 +171,10 @@ SET(INNOBASE_SOURCES
 	fts/fts0ast.cc
 	fts/fts0blex.cc
 	fts/fts0config.cc
+	fts/fts0exec.cc
 	fts/fts0opt.cc
 	fts/fts0pars.cc
 	fts/fts0que.cc
-	fts/fts0sql.cc
 	fts/fts0tlex.cc
 	gis/gis0geo.cc
 	gis/gis0rtree.cc
@@ -239,6 +239,7 @@ SET(INNOBASE_SOURCES
 	include/fsp0types.h
 	include/fts0ast.h
 	include/fts0blex.h
+	include/fts0exec.h
 	include/fts0fts.h
 	include/fts0opt.h
 	include/fts0pars.h
@@ -311,6 +312,7 @@ SET(INNOBASE_SOURCES
 	include/row0mysql.h
 	include/row0purge.h
 	include/row0quiesce.h
+	include/row0query.h
 	include/row0row.h
 	include/row0row.inl
 	include/row0sel.h
@@ -399,6 +401,7 @@ SET(INNOBASE_SOURCES
 	row/row0undo.cc
 	row/row0upd.cc
 	row/row0quiesce.cc
+	row/row0query.cc
 	row/row0vers.cc
 	srv/srv0mon.cc
 	srv/srv0srv.cc

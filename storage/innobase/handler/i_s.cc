@@ -2204,7 +2204,6 @@ i_s_fts_deleted_generic_fill(
 	Field**			fields;
 	TABLE*			table = (TABLE*) tables->table;
 	trx_t*			trx;
-	fts_table_t		fts_table;
 	fts_doc_ids_t*		deleted;
 	dict_table_t*		user_table;
 
@@ -2235,11 +2234,9 @@ i_s_fts_deleted_generic_fill(
 	trx = trx_create();
 	trx->op_info = "Select for FTS DELETE TABLE";
 
-	FTS_INIT_FTS_TABLE(&fts_table,
-			   (being_deleted) ? "BEING_DELETED" : "DELETED",
-			   FTS_COMMON_TABLE, user_table);
-
-	fts_table_fetch_doc_ids(trx, &fts_table, deleted);
+	fts_table_fetch_doc_ids(
+		nullptr, user_table,
+                being_deleted ? "BEING_DELETED" : "DELETED", deleted);
 
 	dict_table_close(user_table, thd, mdl_ticket);
 
@@ -2660,100 +2657,62 @@ struct st_maria_plugin	i_s_innodb_ft_index_cache =
 	MariaDB_PLUGIN_MATURITY_STABLE
 };
 
-/*******************************************************************//**
-Go through a FTS index auxiliary table, fetch its rows and fill
+/** Go through a FTS index auxiliary table, fetch its rows and fill
 FTS word cache structure.
+@param index     FTS index
+@param words     vector to hold fetched words
+@param selected  auxiliary index
+@param word      word to select
 @return DB_SUCCESS on success, otherwise error code */
 static
-dberr_t
-i_s_fts_index_table_fill_selected(
-/*==============================*/
-	dict_index_t*		index,		/*!< in: FTS index */
-	ib_vector_t*		words,		/*!< in/out: vector to hold
-						fetched words */
-	ulint			selected,	/*!< in: selected FTS index */
-	fts_string_t*		word)		/*!< in: word to select */
+dberr_t i_s_fts_index_table_fill_selected(
+  dict_index_t *index, ib_vector_t *words, ulint selected,
+  fts_string_t *word)
 {
-	pars_info_t*		info;
-	fts_table_t		fts_table;
-	trx_t*			trx;
-	que_t*			graph;
-	dberr_t			error;
-	fts_fetch_t		fetch;
-	char			table_name[MAX_FULL_NAME_LEN];
+  dberr_t error= DB_SUCCESS;
+  ulint   total_memory= 0;
+  DBUG_EXECUTE_IF("fts_instrument_result_cache_limit",
+                  fts_result_cache_limit = 8192;);
+  trx_t* trx= trx_create();
+  trx->op_info= "fetching FTS index nodes";
+  for (;;)
+  {
+    FTSQueryExecutor executor(trx, index, index->table);
+    AuxRecordReader reader(words, &total_memory);
+    if (word->f_str == nullptr)
+      error= executor.read_aux_all((uint8_t) selected, reader);
+    else
+      error= executor.read_aux(
+        (uint8_t) selected,
+        reinterpret_cast<const char*>(word->f_str),
+        PAGE_CUR_GE, reader);
 
-	info = pars_info_create();
-
-	fetch.read_arg = words;
-	fetch.read_record = fts_optimize_index_fetch_node;
-	fetch.total_memory = 0;
-
-	DBUG_EXECUTE_IF("fts_instrument_result_cache_limit",
-	        fts_result_cache_limit = 8192;
-	);
-
-	trx = trx_create();
-
-	trx->op_info = "fetching FTS index nodes";
-
-	pars_info_bind_function(info, "my_func", fetch.read_record, &fetch);
-	pars_info_bind_varchar_literal(info, "word", word->f_str, word->f_len);
-
-	FTS_INIT_INDEX_TABLE(&fts_table, fts_get_suffix(selected),
-			     FTS_INDEX_TABLE, index);
-	fts_get_table_name(&fts_table, table_name);
-	pars_info_bind_id(info, "table_name", table_name);
-
-	graph = fts_parse_sql(
-		&fts_table, info,
-		"DECLARE FUNCTION my_func;\n"
-		"DECLARE CURSOR c IS"
-		" SELECT word, doc_count, first_doc_id, last_doc_id,"
-		" ilist\n"
-		" FROM $table_name WHERE word >= :word;\n"
-		"BEGIN\n"
-		"\n"
-		"OPEN c;\n"
-		"WHILE 1 = 1 LOOP\n"
-		"  FETCH c INTO my_func();\n"
-		"  IF c % NOTFOUND THEN\n"
-		"    EXIT;\n"
-		"  END IF;\n"
-		"END LOOP;\n"
-		"CLOSE c;");
-
-	for (;;) {
-		error = fts_eval_sql(trx, graph);
-
-		if (UNIV_LIKELY(error == DB_SUCCESS)) {
-			fts_sql_commit(trx);
-
-			break;
-		} else {
-			fts_sql_rollback(trx);
-
-			if (error == DB_LOCK_WAIT_TIMEOUT) {
-				ib::warn() << "Lock wait timeout reading"
-					" FTS index. Retrying!";
-
-				trx->error_state = DB_SUCCESS;
-			} else {
-				ib::error() << "Error occurred while reading"
-					" FTS index: " << error;
-				break;
-			}
-		}
-	}
-
-	que_graph_free(graph);
-
-	trx->free();
-
-	if (fetch.total_memory >= fts_result_cache_limit) {
-		error = DB_FTS_EXCEED_RESULT_CACHE_LIMIT;
-	}
-
-	return(error);
+    if (UNIV_LIKELY(error == DB_SUCCESS ||
+                    error == DB_RECORD_NOT_FOUND))
+    {
+      fts_sql_commit(trx);
+      if (error == DB_RECORD_NOT_FOUND) error = DB_SUCCESS;
+      break;
+    }
+    else
+    {
+      fts_sql_rollback(trx);
+      if (error == DB_LOCK_WAIT_TIMEOUT)
+      {
+        ib::warn() << "Lock wait timeout reading FTS index. Retrying!";
+        trx->error_state = DB_SUCCESS;
+      }
+      else
+      {
+        ib::error() << "Error occurred while reading FTS index: " << error;
+        break;
+      }
+    }
+  }
+  trx->free();
+  if (total_memory >= fts_result_cache_limit)
+    error= DB_FTS_EXCEED_RESULT_CACHE_LIMIT;
+  return error;
 }
 
 /*******************************************************************//**
@@ -3116,7 +3075,6 @@ i_s_fts_config_fill(
 	Field**			fields;
 	TABLE*			table = (TABLE*) tables->table;
 	trx_t*			trx;
-	fts_table_t		fts_table;
 	dict_table_t*		user_table;
 	ulint			i = 0;
 	dict_index_t*		index = NULL;
@@ -3150,8 +3108,6 @@ i_s_fts_config_fill(
 	trx = trx_create();
 	trx->op_info = "Select for FTS CONFIG TABLE";
 
-	FTS_INIT_FTS_TABLE(&fts_table, "CONFIG", FTS_COMMON_TABLE, user_table);
-
 	if (!ib_vector_is_empty(user_table->fts->indexes)) {
 		index = (dict_index_t*) ib_vector_getp_const(
 				user_table->fts->indexes, 0);
@@ -3178,7 +3134,7 @@ i_s_fts_config_fill(
 			key_name = (char*) fts_config_key[i];
 		}
 
-		fts_config_get_value(trx, &fts_table, key_name, &value);
+		fts_config_get_value(trx, user_table, key_name, &value);
 
 		if (allocated) {
 			ut_free(key_name);

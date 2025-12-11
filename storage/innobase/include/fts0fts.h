@@ -615,13 +615,12 @@ fts_create(
 	dict_table_t*	table);			/*!< out: table with FTS
 						indexes */
 
-/*********************************************************************//**
-Run OPTIMIZE on the given table.
-@return DB_SUCCESS if all OK */
+/** Run OPTIMIZE on the given table.
+@param table table to be optimized
+@param thd   thread
+@return DB_SUCCESS if all ok */
 dberr_t
-fts_optimize_table(
-/*===============*/
-	dict_table_t*	table);			/*!< in: table to optimiza */
+fts_optimize_table(dict_table_t *table, THD *thd);
 
 /**********************************************************************//**
 Startup the optimize thread and create the work queue. */
@@ -784,14 +783,6 @@ fts_tokenize_document_internal(
 	const char*			doc,	/*!< in: document to tokenize */
 	int			len);	/*!< in: document length */
 
-/*********************************************************************//**
-Fetch COUNT(*) from specified table.
-@return the number of rows in the table */
-ulint
-fts_get_rows_count(
-/*===============*/
-	fts_table_t*	fts_table);		/*!< in: fts table to read */
-
 /*************************************************************//**
 Get maximum Doc ID in a table if index "FTS_DOC_ID_INDEX" exists
 @return max Doc ID or 0 if index "FTS_DOC_ID_INDEX" does not exist */
@@ -824,16 +815,17 @@ fts_load_stopword(
 	bool		reload);		/*!< in: Whether it is during
 						reload of FTS table */
 
-/****************************************************************//**
-Read the rows from the FTS index
-@return DB_SUCCESS if OK */
-dberr_t
-fts_table_fetch_doc_ids(
-/*====================*/
-	trx_t*		trx,			/*!< in: transaction */
-	fts_table_t*	fts_table,		/*!< in: aux table */
-	fts_doc_ids_t*	doc_ids);		/*!< in: For collecting
-						doc ids */
+
+/** Read the rows from the fulltext index
+@param trx      transaction
+@param table    Fulltext table
+@param tbl_name table name
+@param doc_ids  collecting doc ids
+@return DB_SUCCESS or error code */
+dberr_t fts_table_fetch_doc_ids(trx_t *trx, dict_table_t *table,
+                                const char *tbl_name,
+                                fts_doc_ids_t *doc_ids) noexcept;
+
 /****************************************************************//**
 This function brings FTS index in sync when FTS index is first
 used. There are documents that have not yet sync-ed to auxiliary
@@ -935,3 +927,28 @@ fts_update_sync_doc_id(const dict_table_t *table,
 /** Sync the table during commit phase
 @param[in]	table	table to be synced */
 void fts_sync_during_ddl(dict_table_t* table);
+
+/** Tokenize a document.
+@param[in,out]  doc     document to tokenize
+@param[out]     result  tokenization result
+@param[in]      parser  pluggable parser */
+void fts_tokenize_document(
+        fts_doc_t*              doc,
+        fts_doc_t*              result,
+        st_mysql_ftparser*      parser);
+
+/** Continue to tokenize a document.
+@param[in,out]  doc     document to tokenize
+@param[in]      add_pos add this position to all tokens from this tokenization
+@param[out]     result  tokenization result
+@param[in]      parser  pluggable parser */
+void fts_tokenize_document_next(
+        fts_doc_t*              doc,
+        ulint                   add_pos,
+        fts_doc_t*              result,
+        st_mysql_ftparser*      parser);
+
+/** Get a character set based on precise type.
+@param prtype precise type
+@return the corresponding character set */
+CHARSET_INFO* fts_get_charset(ulint prtype);
