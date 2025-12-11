@@ -5,6 +5,9 @@ Description=MariaDB @VERSION@ database server (socket activation extra port)
 Documentation=man:mariadbd(8)
 Documentation=https://mariadb.com/kb/en/library/systemd/
 
+[Install]
+WantedBy=sockets.target
+
 [Socket]
 
 Service=mariadb.service
@@ -17,4 +20,3 @@ FileDescriptorName=extra
 
 ListenStream=@mariadb-extra
 ListenStream=@MYSQL_UNIX_ADDR@-extra
-
