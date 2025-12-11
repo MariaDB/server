@@ -23,6 +23,10 @@ class Type_handler_vector: public Type_handler_varchar
 public:
   virtual ~Type_handler_vector() {}
   const Type_collection *type_collection() const override;
+  uint get_column_attributes() const override
+  {
+    return ATTR_LENGTH | ATTR_DEC;
+  }
   const Type_handler *type_handler_for_comparison() const override;
   virtual Item *create_typecast_item(THD *thd, Item *item,
                   const Type_cast_attributes &attr) const override;
