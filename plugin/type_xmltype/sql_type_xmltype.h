@@ -37,6 +37,12 @@ public:
                                charset_nr, false);
   }
 
+  bool Column_definition_prepare_stage1(THD *thd,
+                                        MEM_ROOT *mem_root,
+                                        Column_definition *def,
+                                        column_definition_type_t type,
+                                        const Column_derived_attributes
+                                        *derived_attr) const override;
   Field *make_table_field(MEM_ROOT *root, const LEX_CSTRING *name,
            const Record_addr &addr, const Type_all_attributes &attr,
            TABLE_SHARE *share) const override;

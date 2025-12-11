@@ -8,6 +8,9 @@ CREATE TABLE t1(id INT, x xmltype  CHARACTER SET utf8mb3) CHARACTER SET utf8mb4;
 SHOW CREATE TABLE t1;
 DROP TABLE t1;
 
+--error ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION
+CREATE TABLE t1 (a xmltype CHARACTER SET binary);
+
 # Checking that contextually typed "binary" attribute works
 CREATE TABLE t1 (a xmltype binary) CHARACTER SET utf8mb4;
 SHOW CREATE TABLE t1;

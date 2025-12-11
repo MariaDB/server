@@ -14,6 +14,8 @@ t1	CREATE TABLE `t1` (
   `x` xmltype CHARACTER SET utf8mb3 COLLATE utf8mb3_uca1400_ai_ci DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t1;
+CREATE TABLE t1 (a xmltype CHARACTER SET binary);
+ERROR HY000: Illegal parameter data type xmltype for operation 'CHARACTER SET binary'
 CREATE TABLE t1 (a xmltype binary) CHARACTER SET utf8mb4;
 SHOW CREATE TABLE t1;
 Table	Create Table

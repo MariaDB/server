@@ -91,6 +91,26 @@ Item *Type_handler_xmltype::create_typecast_item(THD *thd, Item *item,
 }
 
 
+bool Type_handler_xmltype::Column_definition_prepare_stage1(THD *thd,
+                                                            MEM_ROOT *mem_root,
+                                                            Column_definition *def,
+                                                            column_definition_type_t type,
+                                                            const Column_derived_attributes
+                                                              *derived_attr) const
+{
+  if (Type_handler_long_blob::Column_definition_prepare_stage1(thd, mem_root, def,
+                                                               type, derived_attr))
+    return true;
+  if (def->charset == &my_charset_bin)
+  {
+    my_error(ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION, MYF(0),
+             name().ptr(), "CHARACTER SET binary");
+    return true;
+  }
+  return false;
+}
+
+
 Field *Type_handler_xmltype::make_table_field(MEM_ROOT *root,
          const LEX_CSTRING *name, const Record_addr &addr,
          const Type_all_attributes &attr, TABLE_SHARE *share) const
