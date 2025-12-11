@@ -2187,6 +2187,8 @@ create table two (v int);
 insert into two (v) values (2);
 create table three (v int);
 insert into three (v) values (3);
+create table four (v int);
+insert into three (v) values (4);
 
 --echo # (FULL)FULL to (INNER)INNER JOIN
 select * from one full join two on one.v = two.v full join three on two.v = three.v where one.v is not null and two.v is not null and three.v is not null;
@@ -2223,7 +2225,23 @@ select * from three;
 select * from one left join two on one.v = two.v full join three on two.v = three.v where three.v = 1;
 select * from three left join one on one.v = 1 left join two on two.v = 1;
 
-drop table one, two, three;
+--echo # Interleaved JOIN checks
+explain extended select * from one full outer join (two, three) on one.v=two.v;
+--echo # ^^^ join order must be one, two, three
+explain extended select * from (one, two) full outer join three on one.v=two.v;
+--echo # ^^^ join order must be one, two, three
+explain extended select * from one full outer join (three, two) on one.v=two.v;
+--echo # ^^^ join order must be one, three, two
+explain extended select * from (one, two t) full outer join (two v, three) on true;
+--echo # ^^^ join order must be one, t, v, three
+explain extended select * from (one full outer join two on true) full outer join (three full outer join four on true) on true;
+--echo # ^^^ join order must be one, two, three, four
+explain extended select * from (one full outer join two on true) inner join (three full outer join four on true);
+--echo # ^^^ join order must be one, two, three, four
+explain extended select * from four full outer join (two full outer join three on true) on true;
+--echo # ^^^ join order must be four, two, three
+
+drop table one, two, three, four;
 
 # TODO fix PS protocol before end of FULL OUTER JOIN development
 --enable_ps_protocol

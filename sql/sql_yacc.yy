@@ -12375,10 +12375,12 @@ join_table:
             Select->add_joined_table($1);
             $1->outer_join|= (JOIN_TYPE_LEFT |
                               JOIN_TYPE_FULL);
+            $1->foj_partner= $5;
 
             Select->add_joined_table($5);
             $5->outer_join|= (JOIN_TYPE_RIGHT |
                               JOIN_TYPE_FULL);
+            $5->foj_partner= $1;
 
             /* Change the current name resolution context to a local context. */
             if (unlikely(push_new_name_resolution_context(thd, $1, $5)))
@@ -12400,10 +12402,12 @@ join_table:
             Select->add_joined_table($1);
             $1->outer_join|= (JOIN_TYPE_LEFT |
                               JOIN_TYPE_FULL);
+            $1->foj_partner= $5;
 
             Select->add_joined_table($5);
             $5->outer_join|= (JOIN_TYPE_RIGHT |
                               JOIN_TYPE_FULL);
+            $5->foj_partner= $1;
           }
           USING '(' using_list ')'
           {
@@ -12418,11 +12422,13 @@ join_table:
             $1->outer_join|= (JOIN_TYPE_LEFT |
                               JOIN_TYPE_FULL |
                               JOIN_TYPE_NATURAL);
+            $1->foj_partner= $6;
 
             Select->add_joined_table($6);
             $6->outer_join|= (JOIN_TYPE_RIGHT |
                               JOIN_TYPE_FULL |
                               JOIN_TYPE_NATURAL);
+            $6->foj_partner= $1;
 
             add_join_natural($6,$1,NULL,Select);
             ++Lex->full_join_count;

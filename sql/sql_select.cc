@@ -10279,6 +10279,7 @@ choose_plan(JOIN *join, table_map join_tables, TABLE_LIST *emb_sjm_nest)
   DBUG_ENTER("choose_plan");
 
   join->limit_optimization_mode= false;
+  join->foj_tables= 0;
   join->extra_heuristic_pruning= false;
   join->prune_level= join->thd->variables.optimizer_prune_level;
 
@@ -20725,6 +20726,26 @@ static bool check_interleaving_with_nj(JOIN_TAB *next_tab)
 {
   JOIN *join= next_tab->join;
 
+  /* next_tab must be a single table */
+  DBUG_ASSERT(!next_tab || !next_tab->tab_list ||
+              !next_tab->tab_list->nested_join);
+
+  /*
+    If we've entered a FULL JOIN then we expect whatever table
+    is represented by next_tab to be on the other side of the
+    FULL JOIN.
+   */
+  if (join->foj_tables)  // we're in a FULL JOIN
+  {
+    /*
+      If the candidate next table is not a nested join, then
+      it's a single table and we can inspect its table map
+      directly to be sure that it is expected.
+    */
+    if (!(join->foj_tables & next_tab->tab_list->get_map()))
+      return TRUE; // Error: attempted to interleave in the FULL JOIN.
+  }
+
   if (join->cur_embedding_map & ~next_tab->embedding_map)
   {
     /*
@@ -20742,6 +20763,9 @@ static bool check_interleaving_with_nj(JOIN_TAB *next_tab)
        next_emb && next_emb != join->emb_sjm_nest;
        next_emb= next_emb->embedding)
   {
+    /* Tables with embeddings must have a nested_join instance */
+    DBUG_ASSERT(next_emb->nested_join);
+
     if (next_emb->sj_on_expr)
       continue;
 
@@ -20755,6 +20779,20 @@ static bool check_interleaving_with_nj(JOIN_TAB *next_tab)
         as X bracket might have Y pair bracket.
       */
       join->cur_embedding_map |= next_emb->nested_join->get_nj_map();
+
+      /*
+        Remember which tables participate in the FULL OUTER JOIN.  This allows
+        us to handle the nested FULL OUTER JOIN case too.
+      */
+      if (next_emb->nested_join->is_foj)
+      {
+        const table_map partner_tables=
+          next_emb->foj_partner->nested_join ?
+          next_emb->foj_partner->nested_join->used_tables :
+          next_emb->foj_partner->get_map();
+        join->foj_tables|= (next_emb->nested_join->used_tables |
+                            partner_tables);
+      }
     }
 
     DBUG_ASSERT(next_emb->nested_join->n_tables >=
@@ -20768,6 +20806,16 @@ static bool check_interleaving_with_nj(JOIN_TAB *next_tab)
       Mark that we've left it and continue walking up the brackets hierarchy.
     */
     join->cur_embedding_map &= ~next_emb->nested_join->get_nj_map();
+
+    /* Don't forget to mask-out partner tables, too. */
+    if (next_emb->nested_join->is_foj)
+    {
+      const table_map partner_tables=
+        next_emb->foj_partner->nested_join ?
+        next_emb->foj_partner->nested_join->used_tables :
+        next_emb->foj_partner->get_map();
+      join->foj_tables&= ~(next_emb->nested_join->used_tables | partner_tables);
+    }
   }
   return FALSE;
 }
@@ -20843,7 +20891,19 @@ static void restore_prev_nj_state(JOIN_TAB *last)
     join->cur_embedding_map|= nest->get_nj_map();
 
     if (--nest->counter == 0)
+    {
       join->cur_embedding_map&= ~nest->get_nj_map();
+
+      /* Mask-out the partner tables */
+      if (last_emb->nested_join->is_foj)
+      {
+        const table_map partner_tables=
+          last_emb->foj_partner->nested_join ?
+          last_emb->foj_partner->nested_join->used_tables :
+          last_emb->foj_partner->get_map();
+        join->foj_tables&= ~(nest->used_tables | partner_tables);
+      }
+    }
 
     if (!was_fully_covered)
       break;
