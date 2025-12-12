@@ -7304,6 +7304,85 @@ static void init_connection_pool(uint n_connections)
 }
 
 /*
+  Fix permissions and ownership of given directory to be the same
+  as the root output directory.
+
+  The function is used for newly created database directories,
+  together with --dir option
+
+  This function is not thread-safe, nor does it need to be, because
+  it is called from the main thread only.
+
+  chmod/chown errors are ignored after the first one, with a warning printed,
+  so it is really the best effort attempt. We might see an error later
+  if the server can't write into the directory, and this will be the
+  real error.
+
+  On Windows, this function does nothing, because the permissions are
+  inherited from the parent directory anyway.
+
+  @param dirpath  Directory path
+*/
+static void fix_permissions_and_owner(const char *dirpath)
+{
+#ifndef _WIN32
+  // Permissions and ownership of output directory (--dir)
+  static struct stat  st_out_dir;
+
+  static bool fix_perms= true; // Try fixing permission bits
+  static bool fix_ownership_uid= true; // Try fixing user+group ownership
+  static bool fix_ownership_gid= false; // Try fixing group ownership only
+
+  static bool first_time= true;
+  if (first_time)
+  {
+    /* Find out permissions and ownership of output directory */
+    first_time= false;
+    if (stat(opt_dir, &st_out_dir) != 0)
+    {
+      die(EX_CONSCHECK, "Error: cannot stat output directory %s, errno %d",
+          opt_dir, errno);
+    }
+  }
+
+  /* Change permissions to be the same as for the output directory*/
+  if (fix_perms &&
+      chmod(dirpath, st_out_dir.st_mode & (S_IRWXU|S_IRWXG|S_IRWXO)))
+  {
+    fprintf(stderr,
+        "Warning: cannot set permissions on directory %s, errno %d\n",
+        dirpath, errno);
+    fix_perms= false;
+  }
+
+  /*
+    Change ownership to be the same as backup root dir.
+    If user can't be changed, try changing owner group only.
+  */
+  if (fix_ownership_uid &&
+          chown(dirpath, st_out_dir.st_uid, st_out_dir.st_gid))
+  {
+    // No warning, error is expected, unless current user is root.
+    fix_ownership_uid= false;
+    fix_ownership_gid= true;
+  }
+
+  if (fix_ownership_gid && chown(dirpath, -1, st_out_dir.st_gid))
+  {
+    if (!(st_out_dir.st_mode & S_IWOTH))
+    {
+      /* Only warn if directory is not world-writable (group ownership
+         matters more in this case), to avoid spamming stderr.*/
+      fprintf(stderr,
+              "Warning: cannot set group ownership on directory %s, errno %d\n",
+              dirpath, errno);
+    }
+    fix_ownership_gid= false;
+  }
+#endif
+}
+
+/*
   If --dir option is in use, ensure that output directory for given db
   exists.
 */
@@ -7322,6 +7401,7 @@ static void ensure_out_dir_exists(const char *db)
   }
   if (my_mkdir(outdir, 0777, MYF(MY_WME)))
     die(EX_MYSQLERR, "Error creating directory %s", outdir);
+  fix_permissions_and_owner(outdir);
 }
 
 
