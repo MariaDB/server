@@ -13097,13 +13097,28 @@ bool LEX::set_field_type_udt(Lex_field_type_st *type,
 
 
 bool LEX::set_cast_type_udt(Lex_cast_type_st *type,
-                             const LEX_CSTRING &name)
+                     const LEX_CSTRING &name,
+                     const Lex_exact_charset_extended_collation_attrs_st &coll)
+
 {
   const Type_handler *h;
   if (!(h= Type_handler::handler_by_name_or_error(thd, name)))
     return true;
-  type->set(h);
-  return false;
+
+  if (!coll.is_empty() &&
+      (h->get_column_attributes() & Type_handler::ATTR_CHARSET) == 0)
+  {
+    my_error(ER_UNSUPPORTED_UDT_ATTRIBUTE, MYF(0),
+        ErrConvString(name.str, name.length,system_charset_info).ptr(),
+        "CHARACTER SET");
+    return true;
+  }
+
+  Lex_length_and_dec_st length_and_dec;
+  length_and_dec.reset();
+  return type->set(h, length_and_dec, thd,
+                  thd->variables.character_set_collations, coll,
+                  thd->variables.collation_connection);
 }
 
 

@@ -11878,9 +11878,9 @@ cast_type:
           }
         | cast_type_numeric  { $$= $1; }
         | cast_type_temporal { $$= $1; }
-        | udt_name
+        | udt_name opt_binary
           {
-            if (Lex->set_cast_type_udt(&$$, $1))
+            if (Lex->set_cast_type_udt(&$$, $1, $2))
               MYSQL_YYABORT;
           }
         ;

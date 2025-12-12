@@ -87,6 +87,14 @@ Item *Type_handler_xmltype::create_typecast_item(THD *thd, Item *item,
 {
   CHARSET_INFO *real_cs= attr.charset() ?
                   attr.charset() : thd->variables.collation_connection;
+
+  if (real_cs == &my_charset_bin)
+  {
+    my_error(ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION, MYF(0),
+             name().ptr(), "CHARACTER SET binary");
+    return NULL;
+  }
+
   return new (thd->mem_root) Item_xmltype_typecast(thd, item, real_cs);
 }
 
@@ -209,5 +217,14 @@ bool Item_xmltype_typecast::fix_length_and_dec(THD *thd)
   Item_char_typecast::fix_length_and_dec_str();
   set_func_handler(&item_xmltype_typecast_func_handler);
   return false;
+}
+
+void Item_xmltype_typecast::print(String *str, enum_query_type query_type)
+{
+  str->append(STRING_WITH_LEN("cast("));
+  args[0]->print(str, query_type);
+  str->append(STRING_WITH_LEN(" as xmltype"));
+  print_charset(str);
+  str->append(')');
 }
 

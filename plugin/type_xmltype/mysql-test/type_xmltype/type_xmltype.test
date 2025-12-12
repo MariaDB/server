@@ -121,3 +121,15 @@ INSERT INTO t1 VALUES (1, CONCAT("<a>", REPEAT("<b></b>", 16384), "</a>"));
 SELECT LENGTH(x) FROM t1;
 DROP TABLE t1;
 
+EXPLAIN EXTENDED SELECT CAST('a' as xmltype);
+
+SELECT CAST('<a></a>' AS xmltype CHARACTER SET utf8mb4) as c;
+
+--error ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION
+SELECT CAST('<a></a>' AS xmltype CHARACTER SET binary) as c;
+
+CREATE OR REPLACE TABLE t1 (a text);
+INSERT INTO t1 VALUES ('a'),('b'),('c');
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE CAST(a AS char)='a' and CAST(a AS xmltype)='a';
+DROP TABLE t1;
+

@@ -187,3 +187,21 @@ SELECT LENGTH(x) FROM t1;
 LENGTH(x)
 114695
 DROP TABLE t1;
+EXPLAIN EXTENDED SELECT CAST('a' as xmltype);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Warnings:
+Note	1003	select cast('a' as xmltype charset latin1) AS `CAST('a' as xmltype)`
+SELECT CAST('<a></a>' AS xmltype CHARACTER SET utf8mb4) as c;
+c
+<a></a>
+SELECT CAST('<a></a>' AS xmltype CHARACTER SET binary) as c;
+ERROR HY000: Illegal parameter data type xmltype for operation 'CHARACTER SET binary'
+CREATE OR REPLACE TABLE t1 (a text);
+INSERT INTO t1 VALUES ('a'),('b'),('c');
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE CAST(a AS char)='a' and CAST(a AS xmltype)='a';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where cast(`test`.`t1`.`a` as char charset latin1) = 'a' and cast(`test`.`t1`.`a` as xmltype charset latin1) = 'a'
+DROP TABLE t1;

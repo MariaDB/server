@@ -245,6 +245,8 @@ CAST(REPEAT(0x11,16) AS INET4)
 NULL
 Warnings:
 Warning	1292	Incorrect inet4 value: '\x11\x11\x11\x11\x11\x11\x11\x11\x11\x11\x11\x11\x11\x11\x11\x11'
+SELECT CAST('0.0.0.0' AS INET4 CHARACTER SET latin1);
+ERROR HY000: Data type 'INET4' doesn't support CHARACTER SET attribute.
 CREATE TABLE t1 AS SELECT CAST('0.0.0.0' AS INET4);
 SHOW CREATE TABLE t1;
 Table	Create Table

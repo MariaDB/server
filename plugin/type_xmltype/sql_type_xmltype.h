@@ -122,7 +122,7 @@ public:
   Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_xmltype_typecast>(thd, this); }
 
-  bool need_parentheses_in_default() override { return false; }
+  void print(String *str, enum_query_type query_type) override;
 };
 
 #endif // SQL_TYPE_XMLTYPE_INCLUDED
