@@ -1,0 +1,21 @@
+SET sql_mode= oracle;
+SET NAMES 'utf8mb3';
+
+--echo #
+--echo # Test RAW_TO_CHAR with utf8 charset source
+--echo #
+--disable_warnings
+SELECT sys.UTL_I18N.RAW_TO_CHAR(x'e38182', 'utf8');
+--enable_warnings
+
+SET NAMES 'utf8mb4';
+
+--echo #
+--echo # Test RAW_TO_CHAR with utf8mb3 charset source
+--echo #
+SELECT sys.UTL_I18N.RAW_TO_CHAR(x'e38182', 'utf8mb3');
+
+--echo #
+--echo # Test STRING_TO_RAW
+--echo #
+SELECT HEX(sys.UTL_I18N.STRING_TO_RAW('あ', 'ucs2'));

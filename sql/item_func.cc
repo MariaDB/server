@@ -843,6 +843,45 @@ bool Item_func_connection_id::fix_fields(THD *thd, Item **ref)
 }
 
 
+bool Item_func_dbmssql_open_cursor::fix_length_and_dec(THD *thd)
+{
+  if (Item_long_func::fix_length_and_dec(thd))
+    return TRUE;
+  max_length= 10;
+  return FALSE;
+}
+
+
+bool Item_func_dbmssql_open_cursor::is_cursor_existent(THD *thd, int cursor_id)
+{
+  int cursor_pos;
+  int elements = (int) thd->cursor_list.elements();
+  if ((cursor_pos= thd->cursor_idx(cursor_id)) > -1 && cursor_pos < elements)
+    return TRUE;
+  else
+    return FALSE;
+}
+
+
+bool Item_func_dbmssql_open_cursor::fix_fields(THD *thd, Item **ref)
+{
+  if (Item_int_func::fix_fields(thd, ref))
+    return TRUE;
+
+  if ((value= thd->add_cursor()) == -1)
+  {
+    my_printf_error(ER_STD_OVERFLOW_ERROR,
+        ER(ER_STD_OVERFLOW_ERROR),
+        MYF(0),
+        "All available cursors exhausted.",
+        func_name());
+    return TRUE; // Error adding cursor
+  }
+
+  return FALSE;
+}
+
+
 bool Item_num_op::fix_type_handler(const Type_aggregator *aggregator)
 {
   DBUG_ASSERT(arg_count == 2);
@@ -3301,6 +3340,43 @@ void Item_func_locate::print(String *str, enum_query_type query_type)
     args[2]->print(str, query_type);
   }
   str->append(')');
+}
+
+
+longlong Item_func_dbmssql_parse::val_int()
+{
+  DBUG_ASSERT(fixed());
+  longlong cursor_id= args[0]->val_int();
+  longlong cursor_stmt_cmd= args[1]->val_int();
+
+  for (size_t i= 0; i < thd->cursor_list.elements(); i++)
+  {
+    if (thd->cursor_list[i].cursor_id == cursor_id)
+    {
+      thd->cursor_list[i].cursor_stmt_cmd=
+          static_cast<int>(cursor_stmt_cmd);
+      break;
+    }
+  }
+  return 0;
+}
+
+
+longlong Item_func_dbmssql_close_cursor::val_int()
+{
+  DBUG_ASSERT(fixed());
+  int cursor_id= static_cast<int>(args[0]->val_int());
+  if (thd->del_cursor(cursor_id))
+  {
+    my_printf_error(ER_STD_INVALID_ARGUMENT,
+                  ER(ER_STD_INVALID_ARGUMENT),
+                  MYF(0),
+                  "DBMS_SQL access denied",
+                  func_name());
+    return 1;
+  }
+  else
+    return 0;
 }
 
 
