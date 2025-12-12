@@ -948,6 +948,8 @@ void THD::restore_tmp_table_share(TMP_TABLE_SHARE *share)
   If its a replication slave, report whether slave temporary tables
   exist (Relay_log_info::save_temporary_tables) or report about THD
   temporary table (Open_tables_state::temporary_tables) otherwise.
+  Note start-new-trans context is not about replication transaction
+  in which case the function uses the non-slave normal branch.
 
   @return false                       Temporary tables exist
           true                        No temporary table exist
@@ -957,7 +959,14 @@ bool THD::has_temporary_tables()
   DBUG_ENTER("THD::has_temporary_tables");
   bool result;
 #ifdef HAVE_REPLICATION
-  if (rgi_slave)
+  /*
+    Slave applier thread may execute an out-of-band "new-transaction"
+    and do so in the middle of a replicated transaction processing.
+    All functions that open the access to slave temporary table repository
+    including the current one have to deny it within the start-new-transaction
+    context.
+  */
+  if (not_new_trans(rgi_slave))
   {
     mysql_mutex_lock(&rgi_slave->rli->data_lock);
     result= rgi_slave->rli->save_temporary_tables &&
@@ -1062,7 +1071,8 @@ TMP_TABLE_SHARE *THD::create_temporary_table(LEX_CUSTRING *frm,
     during cleanup() from Relay_log_info::close_temporary_tables()
   */
   init_tmp_table_share(this, share, saved_key_cache, key_length,
-                       strend(saved_key_cache) + 1, tmp_path, !slave_thread);
+                       strend(saved_key_cache) + 1, tmp_path,
+		       !not_new_trans(rgi_slave));
 
   /*
     Prefer using frm image over file. The image might not be available in
@@ -1218,7 +1228,7 @@ TABLE *THD::open_temporary_table(TMP_TABLE_SHARE *share,
     In replication, temporary tables are not confined to a single
     thread/THD.
   */
-  if (slave_thread)
+  if (not_new_trans(rgi_slave))
     flags|= HA_OPEN_GLOBAL_TMP_TABLE;
   if (open_table_from_share(this, share, &alias,
                             (uint) HA_OPEN_KEYFILE,
@@ -1240,7 +1250,7 @@ TABLE *THD::open_temporary_table(TMP_TABLE_SHARE *share,
   share->all_tmp_tables.push_front(table);
 
   /* Increment Slave_open_temp_table_definitions status variable count. */
-  if (rgi_slave)
+  if (not_new_trans(rgi_slave))
     slave_open_temp_tables++;
 
   DBUG_PRINT("tmptable", ("Opened table: '%s'.'%s  table: %p",
@@ -1656,6 +1666,8 @@ void THD::free_temporary_table(TABLE *table)
 /**
   On replication slave, acquire the Relay_log_info's data_lock and use slave
   temporary tables.
+  Note start-new-trans context is not about replication transaction
+  in which case the function returns false.
 
   @return true                        Lock acquired
           false                       Lock wasn't acquired
@@ -1671,7 +1683,7 @@ bool THD::lock_temporary_tables()
   }
 
 #ifdef HAVE_REPLICATION
-  if (rgi_slave)
+  if (not_new_trans(rgi_slave)) /* see has_temporary_tables comments */
   {
     mysql_mutex_lock(&rgi_slave->rli->data_lock);
     temporary_tables= rgi_slave->rli->save_temporary_tables;
@@ -1699,7 +1711,7 @@ void THD::unlock_temporary_tables()
   }
 
 #ifdef HAVE_REPLICATION
-  if (rgi_slave)
+  if (not_new_trans(rgi_slave))                /* ditto lock */
   {
     rgi_slave->rli->save_temporary_tables= temporary_tables;
     temporary_tables= NULL;                     /* Safety */
