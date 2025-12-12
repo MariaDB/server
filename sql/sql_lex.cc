@@ -10201,15 +10201,10 @@ bool LEX::is_sp_dbmssql_execute(THD *thd)
   if (thd->cursor_list.elements() && lex_string_eq(&keyword_str, &spname_str))
   {
     const Lex_ident_sys caller_str({STRING_WITH_LEN("sys.dbms_sql.execute")});
-    if (!lex_string_eq(&caller_str, &thd->lex->sphead->m_qname))
-      return false;
-    else{
-      thd->in_dbmssql_execute_context= true;
+    if (lex_string_eq(&caller_str, &thd->lex->sphead->m_qname))
       return true;
-    }
   }
-  else
-    return false;
+  return false;
 }
 
 

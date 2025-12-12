@@ -670,6 +670,7 @@ public:
   const Sp_handler *m_handler;
 
   int sp_cache_routine(THD *thd, sp_head **sp) const;
+  int sp_cache_routine(THD *thd, sp_head **sp, Prelocking_strategy **strategy);
 };
 
 

@@ -548,29 +548,20 @@ inline bool open_and_lock_tables(THD *thd,
 inline bool open_and_lock_tables(THD *thd, TABLE_LIST *tables,
                                   bool derived, uint flags)
 {
-  char *dbmssql_query_substr= NULL;
-  char *query= NULL;
+  /*char *dbmssql_query_substr= NULL;
+  char *query= NULL;*/
   Prelocking_strategy *prelocking_strategy;
-  if ((query= thd->query()) && is_valid_pointer2(query)) {
-    // Debug: Check if query might extend into non-readable memory
-    void *boundary = find_lowest_nonreadable_after(query);
-    if (boundary) {
-      size_t safe_len = (char*)boundary - query;
-      fprintf(stderr, "DEBUG: query at %p, non-readable boundary at %p, safe length: %zu\n",
-              query, boundary, safe_len);
-    }
-
-    if ((dbmssql_query_substr= strcasestr(query, "dbms_sql"))
-        && strcasestr(dbmssql_query_substr, "execute")) {
-      static DBMS_SQL_prelocking_strategy dbms_strategy;
-      prelocking_strategy = &dbms_strategy;
-    } else {
-      static DML_prelocking_strategy dml_strategy;
-      prelocking_strategy = &dml_strategy;
-    }
-  } else {
+  /*if ((query= thd->query()) && is_valid_pointer2(query) &&
+      (dbmssql_query_substr= strcasestr(query, "dbms_sql"))
+      && strcasestr(dbmssql_query_substr, "execute")) {
+    static DBMS_SQL_prelocking_strategy dbms_strategy;
+    prelocking_strategy = &dbms_strategy;
+  } else {*/
     static DML_prelocking_strategy dml_strategy;
     prelocking_strategy = &dml_strategy;
+  //}
+  if (thd->in_dbmssql_execute_context) {
+    flags|= MYSQL_OPEN_IGNORE_FLUSH;
   }
 
   return open_and_lock_tables(thd, thd->lex->create_info,

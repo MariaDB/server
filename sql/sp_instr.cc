@@ -1313,7 +1313,6 @@ int sp_instr_stmt_dbmssql_execute::execute(THD *thd, uint *nextp)
     res= sp_instr_stmt::execute(thd, nextp);
 
     thd->lex= old_lex;
-    thd->in_dbmssql_execute_context= false;
   }
 
   return res;
