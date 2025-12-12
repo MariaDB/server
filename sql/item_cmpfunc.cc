@@ -403,6 +403,7 @@ void Item_func::convert_const_compared_to_int_field(THD *thd)
     {
       Item_field *field_item= (Item_field*) (args[field]->real_item());
       if (((field_item->field_type() == MYSQL_TYPE_LONGLONG &&
+            args[!field]->cmp_type() == STRING_RESULT &&
             field_item->type_handler() != &type_handler_vers_trx_id) ||
            field_item->field_type() ==  MYSQL_TYPE_YEAR))
         convert_const_to_int(thd, field_item, &args[!field]);
@@ -411,8 +412,7 @@ void Item_func::convert_const_compared_to_int_field(THD *thd)
 }
 
 
-bool Item_func::aggregate_args2_for_comparison_with_conversion(
-                                            THD *thd,
+bool Item_func::aggregate_args2_for_comparison_with_conversion(THD *thd,
                                             Type_handler_hybrid_field_type *th)
 {
   DBUG_ASSERT(arg_count >= 2);
