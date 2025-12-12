@@ -1351,5 +1351,11 @@ create table t1( a int);
 with cte as (select * from t1) delete from t1,cte where t1.a=cte.a;
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'where t1.a=cte.a' at line 1
 with cte as (select * from t1) delete from t1 using t1,cte where t1.a=cte.a;
+#
+# MDEV-38272 Recursive CTE usage leaks memory when not used in a top level select
+#
+with recursive cte as (select a from t1 union select a from cte)
+update t1, cte set t1.o = 1;
+ERROR 42S22: Unknown column 't1.o' in 'SET'
 drop table t1;
 # End of 12.2 tests
