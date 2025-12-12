@@ -2,5 +2,3 @@
 --default-storage-engine=MyISAM
 --innodb-strict-mode=0
 --innodb-file-per-table=0
---loose-innodb-track-changed-pages
---loose-innodb-log-archive

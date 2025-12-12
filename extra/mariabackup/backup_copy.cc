@@ -1772,7 +1772,7 @@ copy_back()
 	if it exists. */
 
 	ds_tmp = ds_create(dst_dir, DS_TYPE_LOCAL);
-	if (!(ret = copy_or_move_file(ds_tmp, LOG_FILE_NAME, LOG_FILE_NAME,
+	if (!(ret = copy_or_move_file(ds_tmp, "ib_logfile0", "ib_logfile0",
 				      dst_dir, 1))) {
 		goto cleanup;
 	}
@@ -1869,7 +1869,7 @@ copy_back()
 		}
 
 		/* skip the redo log (it was already copied) */
-		if (!strcmp(filename, LOG_FILE_NAME)) {
+		if (!strcmp(filename, "ib_logfile0")) {
 			continue;
 		}
 

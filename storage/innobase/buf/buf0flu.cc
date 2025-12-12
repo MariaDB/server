@@ -1842,6 +1842,7 @@ inline void log_t::write_checkpoint(lsn_t end_lsn) noexcept
   {
     ut_ad(!is_opened());
     resizing= resize_lsn.load(std::memory_order_relaxed);
+    ut_ad(!resizing || !archive);
 
     if (resizing > 1 && resizing <= next_checkpoint_lsn)
     {
@@ -1860,6 +1861,7 @@ inline void log_t::write_checkpoint(lsn_t end_lsn) noexcept
     latch.wr_unlock();
     log_write_and_flush_prepare();
     resizing= resize_lsn.load(std::memory_order_relaxed);
+    ut_ad(!resizing || !archive);
     ut_ad(ut_is_2pow(write_size));
     ut_ad(write_size >= 512);
     ut_ad(write_size <= 4096);
@@ -1880,12 +1882,44 @@ inline void log_t::write_checkpoint(lsn_t end_lsn) noexcept
     ut_ad(checkpoint_pending);
     checkpoint_pending= false;
     resizing= resize_lsn.load(std::memory_order_relaxed);
+    ut_ad(!resizing || !archive);
   }
 
   ut_ad(!checkpoint_pending);
   next_checkpoint_no++;
   const lsn_t checkpoint_lsn{next_checkpoint_lsn};
   last_checkpoint_lsn= checkpoint_lsn;
+  if (!archive)
+    archived_lsn= checkpoint_lsn;
+  else if (resize_log.is_opened())
+  {
+    /* Make the previous archived log file read-only */
+#ifdef _WIN32
+    resize_log.close();
+    SetFileAttributesA(get_archive_path().c_str(),
+                       FILE_ATTRIBUTE_READONLY | FILE_ATTRIBUTE_ARCHIVE);
+#else
+    struct stat st;
+    if (!fstat(resize_log.m_file, &st))
+      st.st_mode&= 0444;
+    else
+      st.st_mode= 0444;
+    fchmod(resize_log.m_file, st.st_mode);
+    resize_log.close();
+#endif
+#ifdef HAVE_PMEM
+    if (!is_mmap())
+#endif
+    {
+      /* Mimic archived_mmap_switch_complete() */
+      ut_ad(current_lsn >= first_lsn + capacity());
+      first_lsn+= capacity();
+      file_size= resize_target;
+    }
+
+    ut_ad(current_lsn >= first_lsn);
+    ut_ad(current_lsn < first_lsn + capacity());
+  }
 
   DBUG_PRINT("ib_log", ("checkpoint ended at " LSN_PF ", flushed to " LSN_PF,
                         checkpoint_lsn, get_flushed_lsn()));
@@ -1902,6 +1936,7 @@ inline void log_t::write_checkpoint(lsn_t end_lsn) noexcept
 
   if (resizing > 1 && resizing <= checkpoint_lsn)
   {
+    ut_ad(!archive);
     ut_ad(is_mmap() == !resize_flush_buf);
     ut_ad(is_mmap() == !resize_log.is_opened());
 
@@ -1931,7 +1966,7 @@ inline void log_t::write_checkpoint(lsn_t end_lsn) noexcept
         ut_ad(!log.is_opened());
         bool success;
         log.m_file=
-          os_file_create_func(get_log_file_path().c_str(), OS_FILE_OPEN,
+          os_file_create_func(get_circular_path().c_str(), OS_FILE_OPEN,
                               OS_LOG_FILE, false, &success);
         ut_a(success);
         ut_a(log.is_opened());
@@ -2184,7 +2219,8 @@ ATTRIBUTE_COLD void buf_flush_ahead(lsn_t lsn, bool furious) noexcept
   if (recv_recovery_is_on())
     recv_sys.apply(true);
 
-  DBUG_EXECUTE_IF("ib_log_checkpoint_avoid_hard", return;);
+  DBUG_EXECUTE_IF("ib_log_checkpoint_avoid_hard",
+                  if (!log_sys.archive) return;);
 
   Atomic_relaxed<lsn_t> &limit= furious
     ? buf_flush_sync_lsn : buf_flush_async_lsn;

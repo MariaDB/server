@@ -2705,7 +2705,7 @@ static bool innodb_init()
     srv_log_group_home_dir= xtrabackup_target_dir;
 
   bool ret;
-  const std::string ib_logfile0{get_log_file_path()};
+  const std::string ib_logfile0{log_sys.get_circular_path()};
   os_file_delete_if_exists_func(ib_logfile0.c_str(), nullptr);
   os_file_t file= os_file_create_func(ib_logfile0.c_str(),
                                       OS_FILE_CREATE,
@@ -5569,10 +5569,11 @@ fail:
 
 	/* open the log file */
 	memset(&stat_info, 0, sizeof(MY_STAT));
-	dst_log_file = ds_open(backup_datasinks.m_redo, LOG_FILE_NAME, &stat_info);
+	dst_log_file =
+		ds_open(backup_datasinks.m_redo, "ib_logfile0", &stat_info);
 	if (dst_log_file == NULL) {
-		msg("Error: failed to open the target stream for '%s'.",
-		    LOG_FILE_NAME);
+		msg("Error: failed to open the target stream"
+		    " for 'ib_logfile0'.");
 		goto fail;
 	}
 
