@@ -6303,8 +6303,13 @@ int spider_db_init(
 
   if (my_gethwaddr((uchar *) addr))
   {
-    my_printf_error(ER_SPIDER_CANT_NUM, ER_SPIDER_CANT_STR1, MYF(ME_WARNING),
-      "get hardware address with error ", errno);
+    sql_print_information("Spider: Can't get hardware address with error %d", errno);
+    /*
+      If we can't get the hardware address, we zero it out.
+      The spider_unique_id will then look like: -000000000000-PID-
+      This is still unique enough per-process to detect self-loops within
+      the same server instance, which is the primary purpose.
+    */
     bzero(addr,6);
   }
   spider_unique_id.str = spider_unique_id_buf;
