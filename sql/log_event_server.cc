@@ -5914,7 +5914,7 @@ Rows_log_event_fragmenter::fragment()
 
   if (!fragments)
   {
-    my_error(ER_OUTOFMEMORY, MYF(0));
+    my_error(ER_OUTOFMEMORY, MYF(0), sizeof(Partial_rows_log_event)*num_chunks);
     return NULL;
   }
 
@@ -5975,6 +5975,7 @@ int Rows_log_event_assembler::append(Partial_rows_log_event *partial_ev)
   if (!rows_ev_buf_builder_ptr)
   {
     my_error(ER_OUTOFMEMORY, MYF(0));
+    my_error(ER_OUTOFMEMORY, MYF(0), total_fragments*partial_ev->get_rows_size());
     rgi->rli->report(
         ERROR_LEVEL, rgi->thd->get_stmt_da()->get_sql_errno(),
         rgi->gtid_info(),
