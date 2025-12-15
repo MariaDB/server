@@ -19,7 +19,7 @@ connection master;
 set @old_dbug= @@debug_dbug;
 set debug_dbug= "+d,oom_fragmenting_large_rows_ev";
 insert into t1 values (1, repeat("a",1536));
-ERROR HY001: Out of memory; restart server and try again (needed 0 bytes)
+ERROR HY001: Out of memory; restart server and try again (needed 256 bytes)
 set debug_dbug= @old_dbug;
 #
 #
