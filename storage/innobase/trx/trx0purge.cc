@@ -234,8 +234,8 @@ trx_purge_add_undo_to_history(const trx_t* trx, trx_undo_t*& undo, mtr_t* mtr)
           srv_force_recovery >= SRV_FORCE_NO_BACKGROUND)));
 
 #ifdef WITH_WSREP
-  if (wsrep_is_wsrep_xid(&trx->xid))
-    trx_rseg_update_wsrep_checkpoint(rseg_header, &trx->xid, mtr);
+  if (const XID *xid = wsrep_commit_xid(trx->mysql_thd))
+    trx_rseg_update_wsrep_checkpoint(rseg_header, xid, mtr);
 #endif
 
   if (trx->mysql_log_file_name && *trx->mysql_log_file_name)
