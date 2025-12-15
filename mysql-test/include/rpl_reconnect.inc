@@ -31,44 +31,13 @@ if (!$rpl_server_number)
 {
   --die ERROR IN TEST: you must set $rpl_server_number before you source rpl_connect.inc
 }
+--let $rpl_connection_name= server_$rpl_server_number
 
 
 if ($rpl_debug)
 {
   --echo ---- Enable reconnect ----
 }
-
---let $_rpl_server_number= $rpl_server_number
-
---dec $_rpl_server_number
-if (!$_rpl_server_number)
-{
-  --let $rpl_connection_name= default
-  --source include/rpl_connection.inc
-  --enable_reconnect
-
-  --let $rpl_connection_name= master
-  --source include/rpl_connection.inc
-  --enable_reconnect
-
-  --let $rpl_connection_name= master1
-  --source include/rpl_connection.inc
-  --enable_reconnect
-}
-
---dec $_rpl_server_number
-if (!$_rpl_server_number)
-{
-  --let $rpl_connection_name= slave
-  --source include/rpl_connection.inc
-  --enable_reconnect
-
-  --let $rpl_connection_name= slave1
-  --source include/rpl_connection.inc
-  --enable_reconnect
-}
-
---let $rpl_connection_name= server_$rpl_server_number
 --source include/rpl_connection.inc
 --enable_reconnect
 
@@ -76,44 +45,6 @@ if ($rpl_debug)
 {
   --echo ---- Wait for reconnect and disable reconnect on all connections ----
 }
-
---let $_rpl_server_number= $rpl_server_number
-
---dec $_rpl_server_number
-if (!$_rpl_server_number)
-{
-  --let $rpl_connection_name= default
-  --source include/rpl_connection.inc
-  --source include/wait_until_connected_again.inc
-  --disable_reconnect
-
-  --let $rpl_connection_name= master
-  --source include/rpl_connection.inc
-  --source include/wait_until_connected_again.inc
-  --disable_reconnect
-
-  --let $rpl_connection_name= master1
-  --source include/rpl_connection.inc
-  --source include/wait_until_connected_again.inc
-  --disable_reconnect
-}
-
---dec $_rpl_server_number
-if (!$_rpl_server_number)
-{
-  --let $rpl_connection_name= slave
-  --source include/rpl_connection.inc
-  --source include/wait_until_connected_again.inc
-  --disable_reconnect
-
-  --let $rpl_connection_name= slave1
-  --source include/rpl_connection.inc
-  --source include/wait_until_connected_again.inc
-  --disable_reconnect
-}
-
---let $rpl_connection_name= server_$rpl_server_number
---source include/rpl_connection.inc
 --source include/wait_until_connected_again.inc
 --disable_reconnect
 
