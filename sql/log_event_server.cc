@@ -5760,11 +5760,32 @@ bool Partial_rows_log_event::write_data_body(Log_event_writer *writer)
 
 bool Partial_rows_log_event::write_data_header(Log_event_writer *writer)
 {
-  uchar buf[PARTIAL_ROWS_HEADER_LEN];        // No need to init the buffer
+  uchar buf[max_data_length];        // No need to init the buffer
+
+  /*
+    The length of the amount of data that will be written. This is also used
+    to track where to write optional fields.
+  */
+  size_t header_size= PARTIAL_ROWS_HEADER_LEN;
+
+  /*
+    Mandatory fields occuring in all Partial_rows_log_events
+  */
   int4store(buf + PRW_TOTAL_SEQS_OFFSET, this->total_fragments);
   int4store(buf + PRW_SELF_SEQ_OFFSET, this->seq_no);
   buf[PRW_FLAGS_OFFSET]= this->flags2;
-  return write_data(writer, buf, PARTIAL_ROWS_HEADER_LEN);
+
+  /*
+    Optional fields that may be written depending on flags2
+  */
+  if(flags2 & FL_ORIG_EVENT_SIZE)
+  {
+    DBUG_ASSERT(original_event_size && seq_no == 1);
+    int8store(buf + header_size, original_event_size);
+    header_size+= 8;
+  }
+
+  return write_data(writer, buf, header_size);
 }
 
 #if defined(HAVE_REPLICATION)
@@ -5818,6 +5839,51 @@ bool Rows_log_event_fragmenter::Fragmented_rows_log_event::is_valid() const
   return true;
 }
 
+/*
+  Fragments a Rows_log_event into multiple Partial_rows_log_event fragments.
+  It is assumed that the Rows_log_event_fragmenter already has the source
+  Rows_log_event at this point. To fragment into a group of
+  Partial_rows_log_event, this function first allocates a chunk of memory to
+  hold all fragmented events. To calculate the size of memory required, the
+  total size of the Rows_log_event is divided by the amount of data that each
+  Partial_rows_log_event can hold. The first fragment also holds the original
+  size of the Rows event, and for the calculation, this size is aggregated into
+  the Rows_log_event total size, as it is only applicable to one event in the
+  group.
+
+  The group of Partial_rows_log_events therefore looks like:
+
+  Fragment 1:
+    1. Common header for the Partial_rows_log_event
+    2. Post-header for the Partial_rows_log_event
+      * Total number of fragments
+      * Sequence number of this event
+      * Original size of the Rows_log_event
+    3. Rows log event data
+      * Common header for the Rows_log_event
+      * Post-header for the Rows_log_event
+      * Metadata for the Rows_log_event (i.e. the width and columns bitmap)
+      * Rows data up to the end of the fragment (excluding the checksum)
+    4. Checksum for the Partial_rows_log_event
+
+  Fragment 2 through (n-1):
+    1. Common header for the Partial_rows_log_event
+    2. Post-header for the Partial_rows_log_event
+      * Total number of fragments
+      * Sequence number of this event
+    3. Rows log event data
+      * Rows data up to the end of the fragment (excluding the checksum)
+    4. Checksum for the Partial_rows_log_event
+
+  Fragment n (last fragment):
+    1. Common header for the Partial_rows_log_event
+    2. Post-header for the Partial_rows_log_event
+      * Total number of fragments
+      * Sequence number of this event
+    3. Rows log event data
+      * Remaining rows data
+    4. Checksum for the Partial_rows_log_event
+*/
 Rows_log_event_fragmenter::Fragmented_rows_log_event *
 Rows_log_event_fragmenter::fragment()
 {
@@ -5827,25 +5893,59 @@ Rows_log_event_fragmenter::fragment()
   uint32_t width_size= (width_tmp_buf_end - width_tmp_buf);
 
   /*
-    Update row events write another bitmap
+    Update row events write an extra bitmap
   */
   uint32_t cols_size=
       no_bytes_in_export_map(&rows_event->m_cols) *
       ((rows_event->get_general_type_code() == UPDATE_ROWS_EVENT) ? 2 : 1);
 
-  uint32_t metadata_size=
+
+  /**********************************************************************
+    Attributes about the length of the underlying Rows_log_event
+  **********************************************************************/
+  /*
+    The size of the Rows_log_event header and metadata (table width, column
+    bitmap)
+  */
+  uint32_t rows_ev_metadata_size=
       LOG_EVENT_HEADER_LEN + ROWS_HEADER_LEN_V1 + width_size + cols_size;
 
-  uint32_t data_size=
+  /* The size of the actual row data payload */
+  uint64_t rows_ev_data_size=
       static_cast<uint64_t>(rows_event->m_rows_cur - rows_event->m_rows_buf);
 
-  uint32_t total_size= metadata_size + data_size;
+  /*
+    The total size of the original event that will be re-created on the slave
+  */
+  uint64_t rows_ev_total_size=
+      static_cast<uint64_t>(rows_ev_metadata_size) + rows_ev_data_size;
+  /*********************************************************************/
 
+
+  /**********************************************************************
+    Attributes to describe the encompassing Partial_rows_log_event group
+  **********************************************************************/
+  /*
+    Extra payload in the first fragment: the original Rows_log_event metadata
+    plus the 8-byte original event size field.
+  */
+  uint32_t first_ev_extra_size= rows_ev_metadata_size + 8 /* orig_event_size */;
+
+  /*
+    The total data stream to be fragmented, including the extra data for the
+    first fragment. The extra data is included into this variable because it
+    simplifies the calculation, as it is only added once.
+  */
+  uint64_t group_total_size=
+      static_cast<uint64_t>(first_ev_extra_size) + rows_ev_data_size;
+  /*********************************************************************/
+
+  /* The maximum amount of payload data each fragment can hold. */
   uint32_t data_size_per_chunk= get_payload_size_per_chunk();
 
-  uint32_t last_chunk_size= (total_size % data_size_per_chunk);
+  uint32_t last_chunk_size= (group_total_size % data_size_per_chunk);
   uint8_t last_chunk= last_chunk_size ? 1 : 0;
-  uint32_t num_chunks= (total_size / data_size_per_chunk) + last_chunk;
+  uint32_t num_chunks= (group_total_size / data_size_per_chunk) + last_chunk;
 
   fragments=
       DBUG_IF("oom_fragmenting_large_rows_ev")
@@ -5861,19 +5961,40 @@ Rows_log_event_fragmenter::fragment()
     return NULL;
   }
 
-  for (uint32 i= 0; i < num_chunks; i++)
+
+  /*
+    Offset into the Rows_log_event data to start writing at, inclusive
+  */
+  uint64_t chunk_start;
+
+  /*
+    Offset into the Rows_log_event data to stop writing at, inclusive (?)
+  */
+  uint64_t chunk_end;
+
+  /*
+    First chunk
+  */
   {
-    my_bool is_first_chunk= (i == 0);
-    my_bool is_last_chunk= (i == (num_chunks - 1));
-    uint64_t chunk_start=
-        is_first_chunk ? 0 : ((i * data_size_per_chunk) - metadata_size) + 1;
-    uint64_t chunk_end= (is_last_chunk)
-                            ? chunk_start + last_chunk_size - 1
-                            : ((chunk_start + data_size_per_chunk) -
-                               (is_first_chunk ? metadata_size - 1 : 0));
-    new (&fragments[i]) Partial_rows_log_event(
-        i + 1, num_chunks, is_first_chunk ? metadata_size : 0, chunk_start,
-        chunk_end, rows_event);
+    chunk_start= 0;
+    chunk_end= data_size_per_chunk - first_ev_extra_size;
+    new (&fragments[0]) Partial_rows_log_event(
+        1, num_chunks, rows_ev_total_size, rows_ev_metadata_size, chunk_start,
+        chunk_end, Partial_rows_log_event::FL_ORIG_EVENT_SIZE, rows_event);
+  }
+
+  /*
+    The rest of the chunks
+  */
+  for (uint32 chunk_idx= 1; chunk_idx < num_chunks; chunk_idx++)
+  {
+    my_bool is_last_chunk= (chunk_idx == (num_chunks - 1));
+    chunk_start= ((chunk_idx * data_size_per_chunk) - first_ev_extra_size);
+    chunk_end= chunk_start +
+               (is_last_chunk ? (last_chunk_size) : (data_size_per_chunk));
+    new (&fragments[chunk_idx])
+        Partial_rows_log_event(chunk_idx + 1, num_chunks, 0, 0, chunk_start,
+                               chunk_end, 0, rows_event);
   }
 
   ev= new Fragmented_rows_log_event(fragments, num_chunks);
@@ -5900,17 +6021,15 @@ int Rows_log_event_assembler::append(Partial_rows_log_event *partial_ev)
 
   if (this->last_fragment_seen == 0)
   {
-    /*
-      Alloc the size of the string (overestimating the size, as the last
-      fragment likely won't use the full length)
-    */
+    DBUG_ASSERT(partial_ev->seq_no == 1 &&
+                partial_ev->flags2 &
+                    Partial_rows_log_event::FL_ORIG_EVENT_SIZE &&
+                partial_ev->original_event_size);
     rows_ev_buf_builder_ptr=
         DBUG_IF("oom_reassembling_large_rows_ev_buf")
             ? NULL
             : (char *) my_malloc(PSI_INSTRUMENT_ME,
-                                 ((size_t) total_fragments *
-                                  (size_t) partial_ev->get_rows_size()),
-                                 MYF(MY_WME));
+                                 partial_ev->original_event_size, MYF(MY_WME));
     DBUG_EXECUTE("oom_reassembling_large_rows_ev_buf", my_errno= ENOMEM;);
     ev_len= 0;
   }

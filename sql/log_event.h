@@ -411,6 +411,7 @@ class String;
 #define PRW_TOTAL_SEQS_OFFSET 0
 #define PRW_SELF_SEQ_OFFSET 4
 #define PRW_FLAGS_OFFSET 8
+#define PRW_OPTIONAL_DATA_OFFSET 9
 
 /* 4 bytes which all binlogs should begin with */
 #define BINLOG_MAGIC        (const uchar*) "\xfe\x62\x69\x6e"
@@ -5638,6 +5639,14 @@ bool copy_cache_to_file_wrapped(IO_CACHE *body,
   </tr>
 
   <tr>
+    <td>Original Event Size</td>
+    <td>8 byte unsigned integer</td>
+    <td>
+      The size of the original Rows_log_event.
+    </td>
+  </tr>
+
+  <tr>
     <td>Flags</td>
     <td>1 byte for flags</td>
     <td>
@@ -5685,6 +5694,11 @@ public:
     is written in fragments.
   */
   uint32_t total_fragments;
+
+  /*
+    The size of the original Rows_log_event.
+  */
+  uint64_t original_event_size;
 
   /*
     The size of the header and data_header that is written for the first
@@ -5739,6 +5753,9 @@ public:
   */
   const uchar *ev_buffer_base;
 
+  /* FL_ORIG_EVENT_SIZE is set when the original event size is written */
+  static const uchar FL_ORIG_EVENT_SIZE= 1;
+
 private:
   /*
     During fragmentation, references the original Rows_log_event that is to
@@ -5748,11 +5765,18 @@ private:
   */
   Rows_log_event *rows_event;
 
+
+  static const uint max_data_length=
+      PARTIAL_ROW_DATA_EVENT +
+      sizeof(decltype(Partial_rows_log_event::original_event_size));
+
 public:
   Partial_rows_log_event(uint32 seq_no, uint32 total_fragments,
-                         uint32 metadata_written, uint64_t start_offset,
-                         uint64_t end_offset, Rows_log_event *rows_event)
-      : flags2(0), seq_no(seq_no), total_fragments(total_fragments),
+                         uint64_t original_event_size, uint32 metadata_written,
+                         uint64_t start_offset, uint64_t end_offset, uchar flags2,
+                         Rows_log_event *rows_event)
+      : flags2(flags2), seq_no(seq_no), total_fragments(total_fragments),
+        original_event_size(original_event_size),
         metadata_written(metadata_written), start_offset(start_offset),
         end_offset(end_offset), ev_buffer_base(NULL), rows_event(rows_event){};
 
@@ -5775,8 +5799,8 @@ public:
 
   int get_data_size() override
   {
-    return (int) get_rows_size() + metadata_written +
-           PARTIAL_ROWS_HEADER_LEN;
+    return (int) get_rows_size() + metadata_written + PARTIAL_ROWS_HEADER_LEN +
+           (flags2 & FL_ORIG_EVENT_SIZE ? 8 : 0);
   }
 
   size_t get_rows_size()
@@ -5920,7 +5944,7 @@ public:
 
 public:
   /*
-    The amount of Rows_log_event content that each Partial_rows_log_event may hold
+    Maximum size of a Partial_rows_log_event
   */
   uint32_t fragment_size;
 
@@ -5956,7 +5980,10 @@ public:
 
   /*
     The amount of Rows_log_event content to be held by each
-    Partial_rows_log_event
+    Partial_rows_log_event. Note that this doesn't consider the metadata
+    of the first event group, i.e. the metadata for the rows log event and
+    additional data indicated by flags2. That is manually accounted for when
+    organizing/computing the fragments.
   */
   uint64_t get_payload_size_per_chunk()
   {
