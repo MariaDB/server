@@ -338,8 +338,6 @@ ulong hp_rec_hashnr(register HP_KEYDEF *keydef, register const uchar *rec)
     {
       if (seg->type == HA_KEYTYPE_BIT && seg->bit_length)
       {
-        uchar bits= get_rec_bits(rec + seg->bit_pos,
-                                 seg->bit_start, seg->bit_length);
         MY_HASH_ADD_MARIADB(hasher.m_nr1, hasher.m_nr2, *pos);
         end--;
       }
