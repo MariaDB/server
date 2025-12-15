@@ -473,12 +473,22 @@ select * from
   t2,
   (select max(value), grp_id from t1 group by grp_id) DT
 where
-  t2.a= DT.grp_id;
+  t2.a = DT.grp_id;
 
 select
   json_detailed(json_extract(trace, '$**.infer_derived_key_statistics')) as t
 from information_schema.optimizer_trace;
 
+explain
+with DT as 
+(
+  select max(value), 1/grp_id as fn from t1 group by 2
+)
+select * from t2, DT where t2.a = DT.fn;
+
+select
+  json_detailed(json_extract(trace, '$**.infer_derived_key_statistics')) as t
+from information_schema.optimizer_trace;
 
 --echo # Same as above, but try a UNION:
 select * from
@@ -487,7 +497,7 @@ select * from
    union all
    select max(value), grp_id from t1 group by grp_id) DT
 where
-  t2.a= DT.grp_id;
+  t2.a = DT.grp_id;
 select
   json_detailed(json_extract(trace, '$**.infer_derived_key_statistics')) as t
 from information_schema.optimizer_trace;
@@ -500,7 +510,7 @@ select * from
    union all
    select max(value), grp_id from t1 group by MOD(grp_id,2)) DT
 where
-  t2.a= DT.grp_id;
+  t2.a = DT.grp_id;
 select
   json_detailed(json_extract(trace, '$**.infer_derived_key_statistics')) as t
 from information_schema.optimizer_trace;
@@ -514,7 +524,7 @@ select * from
   t2,
   (select grp_id, max(value) as maxval from v1 group by grp_id) DT
 where
-  t2.a= DT.grp_id;
+  t2.a = DT.grp_id;
 
 drop view v1;
 
@@ -524,7 +534,7 @@ select * from
   t2,
   (select grp_id, max(value) as maxval from cte1 group by grp_id) DT
 where
-  t2.a= DT.grp_id;
+  t2.a = DT.grp_id;
 
 explain
 select * from
@@ -538,7 +548,7 @@ select * from
     group by grp_id
   ) DT
 where
-  t2.a= DT.grp_id;
+  t2.a = DT.grp_id;
 
 --echo # Example with equalities on GROUP BY columns and other columns
 --echo # Must produce {table=<derived2>, ref=test.t2.col2,test.t2.a, rows=1}
@@ -549,7 +559,7 @@ select * from
   (select max(value) as maxval, grp_id from t1 group by grp_id) DT
 where
   t2.col2=maxval and
-  t2.a= DT.grp_id;
+  t2.a = DT.grp_id;
 select
   json_detailed(json_extract(trace, '$**.infer_derived_key_statistics')) as t
 from information_schema.optimizer_trace;
@@ -561,9 +571,21 @@ select * from
   t2,
   (select grp_id, max(value) as maxval from t1 group by grp_id) DT
 where
-  t2.col2=maxval and
-  t2.a= DT.grp_id;
+  t2.col2 = maxval and
+  t2.a = DT.grp_id;
 
+# room for improvement here, 'Total' != 100, will, ignoring the impossible
+# condition in the 2nd select, we should see 2 rows per key in DT
+explain
+select * from
+  t2 join
+  (
+    select max(value) as X, grp_id from t1 group by grp_id
+    union all
+    select distinct 'Total' as X, b as grp_id from t3
+  ) DT
+  on t2.a = DT.grp_id
+  where DT.X = 100;
 
 delete from t1;
 insert into t1 select 1, a.seq from seq_1_to_10 a;
@@ -708,6 +730,47 @@ select
 from information_schema.optimizer_trace;
 
 drop table t1, t2, t3, t4;
+
+## 
+## Tests for item names
+##
+
+create table t1 (
+  grp_id int, 
+  value int,
+  index (grp_id)
+);
+ 
+insert into t1 select 
+  A.seq, B.seq
+from 
+  seq_1_to_100 A, 
+  seq_1_to_100 B;
+
+create table t1a(
+  grp_id_2 int, 
+  value int,
+  index (grp_id_2)
+);
+insert into t1a select * from t1;
+ 
+create table t2 (a int);
+insert into t2 select seq from seq_1_to_5;
+ 
+analyze table t1,t1a, t2;
+
+--echo # <derived2> must have type=ref, rows=2 (not 10):
+explain
+select * from
+t2,
+(
+  select max(value), grp_id from t1 group by grp_id
+  union all
+  select max(value), grp_id_2 from t1a group by grp_id_2
+)  DT
+where t2.a= DT.grp_id;
+
+drop table t1, t1a, t2;
 
 --echo #
 --echo # End of 11.4 tests
