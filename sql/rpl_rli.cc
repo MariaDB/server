@@ -238,6 +238,7 @@ a file name for --relay-log-index option", opt_relaylog_index_name);
       but a destructor will take care of that
     */
     mysql_mutex_lock(log_lock);
+    relay_log.mi= mi;
     if (relay_log.open_index_file(buf_relaylog_index_name, ln, TRUE) ||
         relay_log.open(ln, 0, 0, SEQ_READ_APPEND,
                        (ulong)max_relay_log_size, 1, TRUE))
@@ -602,7 +603,7 @@ read_relay_log_description_event(IO_CACHE *cur_log, ulonglong start_pos,
     else
     {
       DBUG_PRINT("info",("found event of another type=%d", typ));
-      found= (typ != ROTATE_EVENT);
+      found= (typ != GTID_LIST_EVENT && typ != ROTATE_EVENT);
       delete ev;
     }
   }
@@ -1224,6 +1225,13 @@ int purge_relay_logs(Relay_log_info* rli, THD *thd, bool just_reset,
     goto err;
   }
   rli->relay_log_state.load(rpl_global_gtid_slave_state);
+  if (rli->mi->using_gtid && (error= rpl_load_gtid_state(
+      &rli->mi->gtid_current_pos,
+      rli->mi->using_gtid == Master_info::USE_GTID_CURRENT_POS)))
+  {
+    *errmsg= "Failed rewinding `Gtid_IO_pos`";
+    goto err;
+  }
   if (!just_reset)
   {
     /* Save name of used relay log file */
