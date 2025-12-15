@@ -254,14 +254,14 @@ user_2@localhost	db_storedproc_1
 CALL sp5_s_i();
 c1	c2	c3
 inserted	outside of SP	NULL
-inserted	from sp5_ins	2000-10-00
+inserted	from sp5_ins	1000-00-00
 CALL sp5_ins();
 CALL sp5_sel();
 c1	c2	c3
 inserted	outside of SP	NULL
-inserted	from sp5_ins	2000-10-00
-inserted	from sp5_s_i	2000-10-00
-inserted	from sp5_ins	2000-10-00
+inserted	from sp5_ins	1000-00-00
+inserted	from sp5_s_i	1000-00-00
+inserted	from sp5_ins	1000-00-00
 connection default;
 	
 root@localhost	db_storedproc_1
@@ -273,18 +273,18 @@ user_2@localhost	db_storedproc_1
 CALL sp5_s_i();
 c1	c2	c3
 inserted	outside of SP	NULL
-inserted	from sp5_ins	2000-10-00
-inserted	from sp5_s_i	2000-10-00
-inserted	from sp5_ins	2000-10-00
+inserted	from sp5_ins	1000-00-00
+inserted	from sp5_s_i	1000-00-00
+inserted	from sp5_ins	1000-00-00
 ERROR 42000: INSERT command denied to user 'user_1'@'localhost' for table `db_storedproc_1`.`t3165`
 CALL sp5_ins();
 ERROR 42000: INSERT command denied to user 'user_1'@'localhost' for table `db_storedproc_1`.`t3165`
 CALL sp5_sel();
 c1	c2	c3
 inserted	outside of SP	NULL
-inserted	from sp5_ins	2000-10-00
-inserted	from sp5_s_i	2000-10-00
-inserted	from sp5_ins	2000-10-00
+inserted	from sp5_ins	1000-00-00
+inserted	from sp5_s_i	1000-00-00
+inserted	from sp5_ins	1000-00-00
 connection default;
 	
 root@localhost	db_storedproc_1
