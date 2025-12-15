@@ -1,0 +1,53 @@
+# MDEV-19248: Test the `Master_Bind` field of
+# CHANGE MASTER [name] TO and SHOW SLAVE [name] STATUS & co. (no feature testing)
+# Two connections tests that the field is per-connection.
+
+--echo # Is `''` when not specified
+CHANGE MASTER 'named' TO master_host='example.com';
+CHANGE MASTER TO master_host='127.0.0.1', master_ssl_verify_server_cert=0;
+SELECT Connection_name, Master_Bind FROM information_schema.SLAVE_STATUS;
+
+--echo # Replace when specified
+CHANGE MASTER 'named' TO master_bind='localhost';
+# Default master does not replace named master
+CHANGE MASTER TO master_bind='127.0.0.1';
+SELECT Connection_name, Master_Bind FROM information_schema.SLAVE_STATUS;
+
+--echo # SHOW SLAVE STATUS also show the configuations
+--let $all_slaves_status= 1
+--let $status_items= Connection_name, Master_Bind
+--source include/show_slave_status.inc
+--let $all_slaves_status= 0
+--let $status_items= Master_Bind
+--source include/show_slave_status.inc
+--let $slave_name= 'named'
+--source include/show_slave_status.inc
+
+--echo # Restore specified config on restart
+--let $restart_parameters= --skip-slave-start
+--source include/restart_mysqld.inc # not_embedded
+SELECT Connection_name, Master_Bind FROM information_schema.SLAVE_STATUS;
+
+--echo # Keep specified config on RESET REPLICA
+RESET REPLICA 'named';
+RESET REPLICA;
+SELECT Connection_name, Master_Bind FROM information_schema.SLAVE_STATUS;
+
+--echo # Don't replace when not specified
+CHANGE MASTER TO master_user='root';
+CHANGE MASTER 'named' TO master_user='root';
+SELECT Connection_name, Master_Bind FROM information_schema.SLAVE_STATUS;
+
+--echo # Numeric
+--error ER_PARSE_ERROR
+CHANGE MASTER TO master_bind=10;
+--error ER_PARSE_ERROR
+CHANGE MASTER 'named' TO master_bind=11;
+
+--echo # `''` also counts as specified
+CHANGE MASTER TO master_bind='';
+CHANGE MASTER 'named' TO master_bind='';
+SELECT Connection_name, Master_Bind FROM information_schema.SLAVE_STATUS;
+
+--echo # Cleanup
+RESET REPLICA 'named' ALL;
