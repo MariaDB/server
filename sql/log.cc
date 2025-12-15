@@ -7017,13 +7017,8 @@ Event_log::flush_and_set_pending_rows_event(THD *thd, Rows_log_event* event,
     ulong max_rows_ev_len= slave_max_allowed_packet - rows_ev_metadata_len;
     if (pending->rows_data_size_exceeds(max_rows_ev_len))
     {
-      ulong partial_ev_metadata_len=
-          LOG_EVENT_HEADER_LEN + ROWS_HEADER_LEN_V1 + PARTIAL_ROWS_HEADER_LEN +
-          BINLOG_CHECKSUM_LEN;
-      ulong max_partial_ev_len=
-          slave_max_allowed_packet - partial_ev_metadata_len;
       Rows_log_event_fragmenter fragmenter=
-          Rows_log_event_fragmenter(max_partial_ev_len, pending);
+          Rows_log_event_fragmenter(slave_max_allowed_packet, pending);
       Rows_log_event_fragmenter::Fragmented_rows_log_event *frag_ev;
       if (!(frag_ev= fragmenter.fragment()))
       {

@@ -61,6 +61,17 @@ if ($server_3_max_packet)
 
 --echo #
 --echo # Initialize test data
+if ($test_show_binlog_events)
+{
+  --let $n_servers= 3
+  --let $i= 1
+  while (`SELECT $i <= $n_servers`)
+  {
+    --connection server_$i
+    --source include/wait_for_binlog_checkpoint.inc
+    --inc $i
+  }
+}
 --connection server_1
 create table t1 (a int, b longblob) engine=innodb;
 if ($test_multi_table_trx)
@@ -147,10 +158,19 @@ if ($test_update)
 {
   --echo #
   --echo # Test Update_rows_log_event fragmentation
+  if ($test_show_binlog_events)
+  {
+    --let $n_servers= 3
+    --let $i= 1
+    while (`SELECT $i <= $n_servers`)
+    {
+      --connection server_$i
+      --source include/wait_for_binlog_checkpoint.inc
+      --inc $i
+    }
+  }
   --connection server_1
-  --disable_query_log
   update t1 set a=a+1 where a=11;
-  --enable_query_log
   --source include/save_master_gtid.inc
 
   --connection server_2
@@ -204,10 +224,19 @@ if ($test_delete)
 {
   --echo #
   --echo # Test Delete_rows_log_event fragmentation
+  if ($test_show_binlog_events)
+  {
+    --let $n_servers= 3
+    --let $i= 1
+    while (`SELECT $i <= $n_servers`)
+    {
+      --connection server_$i
+      --source include/wait_for_binlog_checkpoint.inc
+      --inc $i
+    }
+  }
   --connection server_1
-  --disable_query_log
   delete from t1;
-  --enable_query_log
   --source include/save_master_gtid.inc
 
   --connection server_2

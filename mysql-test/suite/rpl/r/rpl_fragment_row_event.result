@@ -199,14 +199,13 @@ include/diff_tables.inc [server_1:test.t1, server_2:test.t1, server_3:test.t1]
 connection server_1;
 flush logs;
 # MYSQL_BINLOG binlog_file_param --result-file=binlog_analysis_file --base64-output=never
-FOUND 13 matches in binlog_insert_frags.out
-Partial_rows (1 / 7)
-Partial_rows (2 / 7)
-Partial_rows (3 / 7)
-Partial_rows (4 / 7)
-Partial_rows (5 / 7)
-Partial_rows (6 / 7)
-Partial_rows (7 / 7)
+FOUND 12 matches in binlog_insert_frags.out
+Partial_rows (1 / 6)
+Partial_rows (2 / 6)
+Partial_rows (3 / 6)
+Partial_rows (4 / 6)
+Partial_rows (5 / 6)
+Partial_rows (6 / 6)
 Partial_rows (1 / 6)
 Partial_rows (2 / 6)
 Partial_rows (3 / 6)
@@ -217,14 +216,13 @@ Partial_rows (6 / 6)
 connection server_2;
 flush logs;
 # MYSQL_BINLOG binlog_file_param --result-file=binlog_analysis_file --base64-output=never
-FOUND 13 matches in binlog_insert_frags.out
-Partial_rows (1 / 7)
-Partial_rows (2 / 7)
-Partial_rows (3 / 7)
-Partial_rows (4 / 7)
-Partial_rows (5 / 7)
-Partial_rows (6 / 7)
-Partial_rows (7 / 7)
+FOUND 12 matches in binlog_insert_frags.out
+Partial_rows (1 / 6)
+Partial_rows (2 / 6)
+Partial_rows (3 / 6)
+Partial_rows (4 / 6)
+Partial_rows (5 / 6)
+Partial_rows (6 / 6)
 Partial_rows (1 / 6)
 Partial_rows (2 / 6)
 Partial_rows (3 / 6)
@@ -235,14 +233,13 @@ Partial_rows (6 / 6)
 connection server_3;
 flush logs;
 # MYSQL_BINLOG binlog_file_param --result-file=binlog_analysis_file --base64-output=never
-FOUND 13 matches in binlog_insert_frags.out
-Partial_rows (1 / 7)
-Partial_rows (2 / 7)
-Partial_rows (3 / 7)
-Partial_rows (4 / 7)
-Partial_rows (5 / 7)
-Partial_rows (6 / 7)
-Partial_rows (7 / 7)
+FOUND 12 matches in binlog_insert_frags.out
+Partial_rows (1 / 6)
+Partial_rows (2 / 6)
+Partial_rows (3 / 6)
+Partial_rows (4 / 6)
+Partial_rows (5 / 6)
+Partial_rows (6 / 6)
 Partial_rows (1 / 6)
 Partial_rows (2 / 6)
 Partial_rows (3 / 6)
@@ -252,6 +249,7 @@ Partial_rows (6 / 6)
 #
 # Test Update_rows_log_event fragmentation
 connection server_1;
+update t1 set a=a+1 where a=11;
 include/save_master_gtid.inc
 connection server_2;
 include/start_slave.inc
@@ -318,6 +316,7 @@ Partial_rows (12 / 12)
 #
 # Test Delete_rows_log_event fragmentation
 connection server_1;
+delete from t1;
 include/save_master_gtid.inc
 connection server_2;
 include/start_slave.inc
@@ -334,14 +333,13 @@ include/diff_tables.inc [server_1:test.t1, server_2:test.t1, server_3:test.t1]
 connection server_1;
 flush logs;
 # MYSQL_BINLOG binlog_file_param --result-file=binlog_analysis_file --base64-output=never
-FOUND 13 matches in binlog_delete_frags.out
-Partial_rows (1 / 7)
-Partial_rows (2 / 7)
-Partial_rows (3 / 7)
-Partial_rows (4 / 7)
-Partial_rows (5 / 7)
-Partial_rows (6 / 7)
-Partial_rows (7 / 7)
+FOUND 12 matches in binlog_delete_frags.out
+Partial_rows (1 / 6)
+Partial_rows (2 / 6)
+Partial_rows (3 / 6)
+Partial_rows (4 / 6)
+Partial_rows (5 / 6)
+Partial_rows (6 / 6)
 Partial_rows (1 / 6)
 Partial_rows (2 / 6)
 Partial_rows (3 / 6)
@@ -352,14 +350,13 @@ Partial_rows (6 / 6)
 connection server_2;
 flush logs;
 # MYSQL_BINLOG binlog_file_param --result-file=binlog_analysis_file --base64-output=never
-FOUND 13 matches in binlog_delete_frags.out
-Partial_rows (1 / 7)
-Partial_rows (2 / 7)
-Partial_rows (3 / 7)
-Partial_rows (4 / 7)
-Partial_rows (5 / 7)
-Partial_rows (6 / 7)
-Partial_rows (7 / 7)
+FOUND 12 matches in binlog_delete_frags.out
+Partial_rows (1 / 6)
+Partial_rows (2 / 6)
+Partial_rows (3 / 6)
+Partial_rows (4 / 6)
+Partial_rows (5 / 6)
+Partial_rows (6 / 6)
 Partial_rows (1 / 6)
 Partial_rows (2 / 6)
 Partial_rows (3 / 6)
@@ -370,14 +367,13 @@ Partial_rows (6 / 6)
 connection server_3;
 flush logs;
 # MYSQL_BINLOG binlog_file_param --result-file=binlog_analysis_file --base64-output=never
-FOUND 13 matches in binlog_delete_frags.out
-Partial_rows (1 / 7)
-Partial_rows (2 / 7)
-Partial_rows (3 / 7)
-Partial_rows (4 / 7)
-Partial_rows (5 / 7)
-Partial_rows (6 / 7)
-Partial_rows (7 / 7)
+FOUND 12 matches in binlog_delete_frags.out
+Partial_rows (1 / 6)
+Partial_rows (2 / 6)
+Partial_rows (3 / 6)
+Partial_rows (4 / 6)
+Partial_rows (5 / 6)
+Partial_rows (6 / 6)
 Partial_rows (1 / 6)
 Partial_rows (2 / 6)
 Partial_rows (3 / 6)
@@ -392,7 +388,7 @@ set statement sql_log_bin=0 for drop table t1;
 FOUND 12 matches in binlog_base64_output.sql
 # Show how many Partial_rows_log_events use regular BINLOG base64 output (ev_len <= 1024)
 #  Note: 1 always comes from the Format_description_log_event
-FOUND 2 matches in binlog_base64_output.sql
+FOUND 1 matches in binlog_base64_output.sql
 # MYSQL_SLAVE --init-command="set sql_log_bin=0" < binlog_analysis_file
 # MYSQL_BINLOG mysqld_datadir/binlog_update_filename | MYSQL_SLAVE --init-command="set sql_log_bin=0"
 # MYSQL_BINLOG mysqld_datadir/binlog_delete_filename | MYSQL_SLAVE --init-command="set sql_log_bin=0"
@@ -450,14 +446,13 @@ include/diff_tables.inc [server_1:test.t1, server_2:test.t1, server_3:test.t1]
 connection server_1;
 flush logs;
 # MYSQL_BINLOG binlog_file_param --result-file=binlog_analysis_file --base64-output=never
-FOUND 13 matches in binlog_insert_frags.out
-Partial_rows (1 / 7)
-Partial_rows (2 / 7)
-Partial_rows (3 / 7)
-Partial_rows (4 / 7)
-Partial_rows (5 / 7)
-Partial_rows (6 / 7)
-Partial_rows (7 / 7)
+FOUND 12 matches in binlog_insert_frags.out
+Partial_rows (1 / 6)
+Partial_rows (2 / 6)
+Partial_rows (3 / 6)
+Partial_rows (4 / 6)
+Partial_rows (5 / 6)
+Partial_rows (6 / 6)
 Partial_rows (1 / 6)
 Partial_rows (2 / 6)
 Partial_rows (3 / 6)
@@ -468,14 +463,13 @@ Partial_rows (6 / 6)
 connection server_2;
 flush logs;
 # MYSQL_BINLOG binlog_file_param --result-file=binlog_analysis_file --base64-output=never
-FOUND 13 matches in binlog_insert_frags.out
-Partial_rows (1 / 7)
-Partial_rows (2 / 7)
-Partial_rows (3 / 7)
-Partial_rows (4 / 7)
-Partial_rows (5 / 7)
-Partial_rows (6 / 7)
-Partial_rows (7 / 7)
+FOUND 12 matches in binlog_insert_frags.out
+Partial_rows (1 / 6)
+Partial_rows (2 / 6)
+Partial_rows (3 / 6)
+Partial_rows (4 / 6)
+Partial_rows (5 / 6)
+Partial_rows (6 / 6)
 Partial_rows (1 / 6)
 Partial_rows (2 / 6)
 Partial_rows (3 / 6)
@@ -486,14 +480,13 @@ Partial_rows (6 / 6)
 connection server_3;
 flush logs;
 # MYSQL_BINLOG binlog_file_param --result-file=binlog_analysis_file --base64-output=never
-FOUND 13 matches in binlog_insert_frags.out
-Partial_rows (1 / 7)
-Partial_rows (2 / 7)
-Partial_rows (3 / 7)
-Partial_rows (4 / 7)
-Partial_rows (5 / 7)
-Partial_rows (6 / 7)
-Partial_rows (7 / 7)
+FOUND 12 matches in binlog_insert_frags.out
+Partial_rows (1 / 6)
+Partial_rows (2 / 6)
+Partial_rows (3 / 6)
+Partial_rows (4 / 6)
+Partial_rows (5 / 6)
+Partial_rows (6 / 6)
 Partial_rows (1 / 6)
 Partial_rows (2 / 6)
 Partial_rows (3 / 6)
@@ -503,6 +496,7 @@ Partial_rows (6 / 6)
 #
 # Test Update_rows_log_event fragmentation
 connection server_1;
+update t1 set a=a+1 where a=11;
 include/save_master_gtid.inc
 connection server_2;
 include/start_slave.inc
@@ -569,6 +563,7 @@ Partial_rows (12 / 12)
 #
 # Test Delete_rows_log_event fragmentation
 connection server_1;
+delete from t1;
 include/save_master_gtid.inc
 connection server_2;
 include/start_slave.inc
@@ -585,14 +580,13 @@ include/diff_tables.inc [server_1:test.t1, server_2:test.t1, server_3:test.t1]
 connection server_1;
 flush logs;
 # MYSQL_BINLOG binlog_file_param --result-file=binlog_analysis_file --base64-output=never
-FOUND 13 matches in binlog_delete_frags.out
-Partial_rows (1 / 7)
-Partial_rows (2 / 7)
-Partial_rows (3 / 7)
-Partial_rows (4 / 7)
-Partial_rows (5 / 7)
-Partial_rows (6 / 7)
-Partial_rows (7 / 7)
+FOUND 12 matches in binlog_delete_frags.out
+Partial_rows (1 / 6)
+Partial_rows (2 / 6)
+Partial_rows (3 / 6)
+Partial_rows (4 / 6)
+Partial_rows (5 / 6)
+Partial_rows (6 / 6)
 Partial_rows (1 / 6)
 Partial_rows (2 / 6)
 Partial_rows (3 / 6)
@@ -603,14 +597,13 @@ Partial_rows (6 / 6)
 connection server_2;
 flush logs;
 # MYSQL_BINLOG binlog_file_param --result-file=binlog_analysis_file --base64-output=never
-FOUND 13 matches in binlog_delete_frags.out
-Partial_rows (1 / 7)
-Partial_rows (2 / 7)
-Partial_rows (3 / 7)
-Partial_rows (4 / 7)
-Partial_rows (5 / 7)
-Partial_rows (6 / 7)
-Partial_rows (7 / 7)
+FOUND 12 matches in binlog_delete_frags.out
+Partial_rows (1 / 6)
+Partial_rows (2 / 6)
+Partial_rows (3 / 6)
+Partial_rows (4 / 6)
+Partial_rows (5 / 6)
+Partial_rows (6 / 6)
 Partial_rows (1 / 6)
 Partial_rows (2 / 6)
 Partial_rows (3 / 6)
@@ -621,14 +614,13 @@ Partial_rows (6 / 6)
 connection server_3;
 flush logs;
 # MYSQL_BINLOG binlog_file_param --result-file=binlog_analysis_file --base64-output=never
-FOUND 13 matches in binlog_delete_frags.out
-Partial_rows (1 / 7)
-Partial_rows (2 / 7)
-Partial_rows (3 / 7)
-Partial_rows (4 / 7)
-Partial_rows (5 / 7)
-Partial_rows (6 / 7)
-Partial_rows (7 / 7)
+FOUND 12 matches in binlog_delete_frags.out
+Partial_rows (1 / 6)
+Partial_rows (2 / 6)
+Partial_rows (3 / 6)
+Partial_rows (4 / 6)
+Partial_rows (5 / 6)
+Partial_rows (6 / 6)
 Partial_rows (1 / 6)
 Partial_rows (2 / 6)
 Partial_rows (3 / 6)
@@ -643,7 +635,7 @@ set statement sql_log_bin=0 for drop table t1;
 FOUND 12 matches in binlog_base64_output.sql
 # Show how many Partial_rows_log_events use regular BINLOG base64 output (ev_len <= 1024)
 #  Note: 1 always comes from the Format_description_log_event
-FOUND 2 matches in binlog_base64_output.sql
+FOUND 1 matches in binlog_base64_output.sql
 # MYSQL_SLAVE --init-command="set sql_log_bin=0" < binlog_analysis_file
 # MYSQL_BINLOG mysqld_datadir/binlog_update_filename | MYSQL_SLAVE --init-command="set sql_log_bin=0"
 # MYSQL_BINLOG mysqld_datadir/binlog_delete_filename | MYSQL_SLAVE --init-command="set sql_log_bin=0"
@@ -682,6 +674,9 @@ include/stop_slave.inc
 #
 # Initialize test data
 connection server_1;
+connection server_2;
+connection server_3;
+connection server_1;
 create table t1 (a int, b longblob) engine=innodb;
 #
 # Test Write_rows_log_event fragmentation
@@ -701,14 +696,13 @@ include/diff_tables.inc [server_1:test.t1, server_2:test.t1, server_3:test.t1]
 connection server_1;
 flush logs;
 # MYSQL_BINLOG binlog_file_param --result-file=binlog_analysis_file --base64-output=never
-FOUND 13 matches in binlog_insert_frags.out
-Partial_rows (1 / 7)
-Partial_rows (2 / 7)
-Partial_rows (3 / 7)
-Partial_rows (4 / 7)
-Partial_rows (5 / 7)
-Partial_rows (6 / 7)
-Partial_rows (7 / 7)
+FOUND 12 matches in binlog_insert_frags.out
+Partial_rows (1 / 6)
+Partial_rows (2 / 6)
+Partial_rows (3 / 6)
+Partial_rows (4 / 6)
+Partial_rows (5 / 6)
+Partial_rows (6 / 6)
 Partial_rows (1 / 6)
 Partial_rows (2 / 6)
 Partial_rows (3 / 6)
@@ -724,13 +718,12 @@ master-bin.000013	#	Query	#	#	use `test`; create table t1 (a int, b longblob) en
 master-bin.000013	#	Gtid	#	#	BEGIN GTID #-#-#
 master-bin.000013	#	Annotate_rows	#	#	insert into t1 select seq,repeat(seq,512) from seq_1_to_10
 master-bin.000013	#	Table_map	#	#	table_id: # (test.t1)
-master-bin.000013	#	Partial_rows	#	#	Fragment 1 of 7
-master-bin.000013	#	Partial_rows	#	#	Fragment 2 of 7
-master-bin.000013	#	Partial_rows	#	#	Fragment 3 of 7
-master-bin.000013	#	Partial_rows	#	#	Fragment 4 of 7
-master-bin.000013	#	Partial_rows	#	#	Fragment 5 of 7
-master-bin.000013	#	Partial_rows	#	#	Fragment 6 of 7
-master-bin.000013	#	Partial_rows	#	#	Fragment 7 of 7
+master-bin.000013	#	Partial_rows	#	#	Fragment 1 of 6
+master-bin.000013	#	Partial_rows	#	#	Fragment 2 of 6
+master-bin.000013	#	Partial_rows	#	#	Fragment 3 of 6
+master-bin.000013	#	Partial_rows	#	#	Fragment 4 of 6
+master-bin.000013	#	Partial_rows	#	#	Fragment 5 of 6
+master-bin.000013	#	Partial_rows	#	#	Fragment 6 of 6
 master-bin.000013	#	Xid	#	#	COMMIT /* XID */
 master-bin.000013	#	Gtid	#	#	BEGIN GTID #-#-#
 master-bin.000013	#	Annotate_rows	#	#	insert into t1 select 11 as a, group_concat(b) as b from t1
@@ -747,14 +740,13 @@ master-bin.000013	#	Rotate	#	#	master-bin.000014;pos=POS
 connection server_2;
 flush logs;
 # MYSQL_BINLOG binlog_file_param --result-file=binlog_analysis_file --base64-output=never
-FOUND 13 matches in binlog_insert_frags.out
-Partial_rows (1 / 7)
-Partial_rows (2 / 7)
-Partial_rows (3 / 7)
-Partial_rows (4 / 7)
-Partial_rows (5 / 7)
-Partial_rows (6 / 7)
-Partial_rows (7 / 7)
+FOUND 12 matches in binlog_insert_frags.out
+Partial_rows (1 / 6)
+Partial_rows (2 / 6)
+Partial_rows (3 / 6)
+Partial_rows (4 / 6)
+Partial_rows (5 / 6)
+Partial_rows (6 / 6)
 Partial_rows (1 / 6)
 Partial_rows (2 / 6)
 Partial_rows (3 / 6)
@@ -770,13 +762,12 @@ slave-bin.000013	#	Query	#	#	use `test`; create table t1 (a int, b longblob) eng
 slave-bin.000013	#	Gtid	#	#	BEGIN GTID #-#-#
 slave-bin.000013	#	Annotate_rows	#	#	insert into t1 select seq,repeat(seq,512) from seq_1_to_10
 slave-bin.000013	#	Table_map	#	#	table_id: # (test.t1)
-slave-bin.000013	#	Partial_rows	#	#	Fragment 1 of 7
-slave-bin.000013	#	Partial_rows	#	#	Fragment 2 of 7
-slave-bin.000013	#	Partial_rows	#	#	Fragment 3 of 7
-slave-bin.000013	#	Partial_rows	#	#	Fragment 4 of 7
-slave-bin.000013	#	Partial_rows	#	#	Fragment 5 of 7
-slave-bin.000013	#	Partial_rows	#	#	Fragment 6 of 7
-slave-bin.000013	#	Partial_rows	#	#	Fragment 7 of 7
+slave-bin.000013	#	Partial_rows	#	#	Fragment 1 of 6
+slave-bin.000013	#	Partial_rows	#	#	Fragment 2 of 6
+slave-bin.000013	#	Partial_rows	#	#	Fragment 3 of 6
+slave-bin.000013	#	Partial_rows	#	#	Fragment 4 of 6
+slave-bin.000013	#	Partial_rows	#	#	Fragment 5 of 6
+slave-bin.000013	#	Partial_rows	#	#	Fragment 6 of 6
 slave-bin.000013	#	Xid	#	#	COMMIT /* XID */
 slave-bin.000013	#	Gtid	#	#	BEGIN GTID #-#-#
 slave-bin.000013	#	Annotate_rows	#	#	insert into t1 select 11 as a, group_concat(b) as b from t1
@@ -793,14 +784,13 @@ slave-bin.000013	#	Rotate	#	#	slave-bin.000014;pos=POS
 connection server_3;
 flush logs;
 # MYSQL_BINLOG binlog_file_param --result-file=binlog_analysis_file --base64-output=never
-FOUND 13 matches in binlog_insert_frags.out
-Partial_rows (1 / 7)
-Partial_rows (2 / 7)
-Partial_rows (3 / 7)
-Partial_rows (4 / 7)
-Partial_rows (5 / 7)
-Partial_rows (6 / 7)
-Partial_rows (7 / 7)
+FOUND 12 matches in binlog_insert_frags.out
+Partial_rows (1 / 6)
+Partial_rows (2 / 6)
+Partial_rows (3 / 6)
+Partial_rows (4 / 6)
+Partial_rows (5 / 6)
+Partial_rows (6 / 6)
 Partial_rows (1 / 6)
 Partial_rows (2 / 6)
 Partial_rows (3 / 6)
@@ -816,13 +806,12 @@ master-bin.000013	#	Query	#	#	use `test`; create table t1 (a int, b longblob) en
 master-bin.000013	#	Gtid	#	#	BEGIN GTID #-#-#
 master-bin.000013	#	Annotate_rows	#	#	insert into t1 select seq,repeat(seq,512) from seq_1_to_10
 master-bin.000013	#	Table_map	#	#	table_id: # (test.t1)
-master-bin.000013	#	Partial_rows	#	#	Fragment 1 of 7
-master-bin.000013	#	Partial_rows	#	#	Fragment 2 of 7
-master-bin.000013	#	Partial_rows	#	#	Fragment 3 of 7
-master-bin.000013	#	Partial_rows	#	#	Fragment 4 of 7
-master-bin.000013	#	Partial_rows	#	#	Fragment 5 of 7
-master-bin.000013	#	Partial_rows	#	#	Fragment 6 of 7
-master-bin.000013	#	Partial_rows	#	#	Fragment 7 of 7
+master-bin.000013	#	Partial_rows	#	#	Fragment 1 of 6
+master-bin.000013	#	Partial_rows	#	#	Fragment 2 of 6
+master-bin.000013	#	Partial_rows	#	#	Fragment 3 of 6
+master-bin.000013	#	Partial_rows	#	#	Fragment 4 of 6
+master-bin.000013	#	Partial_rows	#	#	Fragment 5 of 6
+master-bin.000013	#	Partial_rows	#	#	Fragment 6 of 6
 master-bin.000013	#	Xid	#	#	COMMIT /* XID */
 master-bin.000013	#	Gtid	#	#	BEGIN GTID #-#-#
 master-bin.000013	#	Annotate_rows	#	#	insert into t1 select 11 as a, group_concat(b) as b from t1
@@ -838,6 +827,10 @@ master-bin.000013	#	Rotate	#	#	master-bin.000014;pos=POS
 #
 # Test Update_rows_log_event fragmentation
 connection server_1;
+connection server_2;
+connection server_3;
+connection server_1;
+update t1 set a=a+1 where a=11;
 include/save_master_gtid.inc
 connection server_2;
 include/start_slave.inc
@@ -967,6 +960,10 @@ master-bin.000014	#	Rotate	#	#	master-bin.000015;pos=POS
 #
 # Test Delete_rows_log_event fragmentation
 connection server_1;
+connection server_2;
+connection server_3;
+connection server_1;
+delete from t1;
 include/save_master_gtid.inc
 connection server_2;
 include/start_slave.inc
@@ -983,14 +980,13 @@ include/diff_tables.inc [server_1:test.t1, server_2:test.t1, server_3:test.t1]
 connection server_1;
 flush logs;
 # MYSQL_BINLOG binlog_file_param --result-file=binlog_analysis_file --base64-output=never
-FOUND 13 matches in binlog_delete_frags.out
-Partial_rows (1 / 7)
-Partial_rows (2 / 7)
-Partial_rows (3 / 7)
-Partial_rows (4 / 7)
-Partial_rows (5 / 7)
-Partial_rows (6 / 7)
-Partial_rows (7 / 7)
+FOUND 12 matches in binlog_delete_frags.out
+Partial_rows (1 / 6)
+Partial_rows (2 / 6)
+Partial_rows (3 / 6)
+Partial_rows (4 / 6)
+Partial_rows (5 / 6)
+Partial_rows (6 / 6)
 Partial_rows (1 / 6)
 Partial_rows (2 / 6)
 Partial_rows (3 / 6)
@@ -1004,13 +1000,12 @@ master-bin.000015	#	Binlog_checkpoint	#	#	master-bin.000015
 master-bin.000015	#	Gtid	#	#	BEGIN GTID #-#-#
 master-bin.000015	#	Annotate_rows	#	#	delete from t1
 master-bin.000015	#	Table_map	#	#	table_id: # (test.t1)
-master-bin.000015	#	Partial_rows	#	#	Fragment 1 of 7
-master-bin.000015	#	Partial_rows	#	#	Fragment 2 of 7
-master-bin.000015	#	Partial_rows	#	#	Fragment 3 of 7
-master-bin.000015	#	Partial_rows	#	#	Fragment 4 of 7
-master-bin.000015	#	Partial_rows	#	#	Fragment 5 of 7
-master-bin.000015	#	Partial_rows	#	#	Fragment 6 of 7
-master-bin.000015	#	Partial_rows	#	#	Fragment 7 of 7
+master-bin.000015	#	Partial_rows	#	#	Fragment 1 of 6
+master-bin.000015	#	Partial_rows	#	#	Fragment 2 of 6
+master-bin.000015	#	Partial_rows	#	#	Fragment 3 of 6
+master-bin.000015	#	Partial_rows	#	#	Fragment 4 of 6
+master-bin.000015	#	Partial_rows	#	#	Fragment 5 of 6
+master-bin.000015	#	Partial_rows	#	#	Fragment 6 of 6
 master-bin.000015	#	Partial_rows	#	#	Fragment 1 of 6
 master-bin.000015	#	Partial_rows	#	#	Fragment 2 of 6
 master-bin.000015	#	Partial_rows	#	#	Fragment 3 of 6
@@ -1023,14 +1018,13 @@ master-bin.000015	#	Rotate	#	#	master-bin.000016;pos=POS
 connection server_2;
 flush logs;
 # MYSQL_BINLOG binlog_file_param --result-file=binlog_analysis_file --base64-output=never
-FOUND 13 matches in binlog_delete_frags.out
-Partial_rows (1 / 7)
-Partial_rows (2 / 7)
-Partial_rows (3 / 7)
-Partial_rows (4 / 7)
-Partial_rows (5 / 7)
-Partial_rows (6 / 7)
-Partial_rows (7 / 7)
+FOUND 12 matches in binlog_delete_frags.out
+Partial_rows (1 / 6)
+Partial_rows (2 / 6)
+Partial_rows (3 / 6)
+Partial_rows (4 / 6)
+Partial_rows (5 / 6)
+Partial_rows (6 / 6)
 Partial_rows (1 / 6)
 Partial_rows (2 / 6)
 Partial_rows (3 / 6)
@@ -1044,13 +1038,12 @@ slave-bin.000015	#	Binlog_checkpoint	#	#	slave-bin.000015
 slave-bin.000015	#	Gtid	#	#	BEGIN GTID #-#-#
 slave-bin.000015	#	Annotate_rows	#	#	delete from t1
 slave-bin.000015	#	Table_map	#	#	table_id: # (test.t1)
-slave-bin.000015	#	Partial_rows	#	#	Fragment 1 of 7
-slave-bin.000015	#	Partial_rows	#	#	Fragment 2 of 7
-slave-bin.000015	#	Partial_rows	#	#	Fragment 3 of 7
-slave-bin.000015	#	Partial_rows	#	#	Fragment 4 of 7
-slave-bin.000015	#	Partial_rows	#	#	Fragment 5 of 7
-slave-bin.000015	#	Partial_rows	#	#	Fragment 6 of 7
-slave-bin.000015	#	Partial_rows	#	#	Fragment 7 of 7
+slave-bin.000015	#	Partial_rows	#	#	Fragment 1 of 6
+slave-bin.000015	#	Partial_rows	#	#	Fragment 2 of 6
+slave-bin.000015	#	Partial_rows	#	#	Fragment 3 of 6
+slave-bin.000015	#	Partial_rows	#	#	Fragment 4 of 6
+slave-bin.000015	#	Partial_rows	#	#	Fragment 5 of 6
+slave-bin.000015	#	Partial_rows	#	#	Fragment 6 of 6
 slave-bin.000015	#	Partial_rows	#	#	Fragment 1 of 6
 slave-bin.000015	#	Partial_rows	#	#	Fragment 2 of 6
 slave-bin.000015	#	Partial_rows	#	#	Fragment 3 of 6
@@ -1063,14 +1056,13 @@ slave-bin.000015	#	Rotate	#	#	slave-bin.000016;pos=POS
 connection server_3;
 flush logs;
 # MYSQL_BINLOG binlog_file_param --result-file=binlog_analysis_file --base64-output=never
-FOUND 13 matches in binlog_delete_frags.out
-Partial_rows (1 / 7)
-Partial_rows (2 / 7)
-Partial_rows (3 / 7)
-Partial_rows (4 / 7)
-Partial_rows (5 / 7)
-Partial_rows (6 / 7)
-Partial_rows (7 / 7)
+FOUND 12 matches in binlog_delete_frags.out
+Partial_rows (1 / 6)
+Partial_rows (2 / 6)
+Partial_rows (3 / 6)
+Partial_rows (4 / 6)
+Partial_rows (5 / 6)
+Partial_rows (6 / 6)
 Partial_rows (1 / 6)
 Partial_rows (2 / 6)
 Partial_rows (3 / 6)
@@ -1080,16 +1072,16 @@ Partial_rows (6 / 6)
 # Ensure SHOW BINLOG EVENTS shows Partial_rows_log_event data
 include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+master-bin.000015	#	Binlog_checkpoint	#	#	master-bin.000015
 master-bin.000015	#	Gtid	#	#	BEGIN GTID #-#-#
 master-bin.000015	#	Annotate_rows	#	#	delete from t1
 master-bin.000015	#	Table_map	#	#	table_id: # (test.t1)
-master-bin.000015	#	Partial_rows	#	#	Fragment 1 of 7
-master-bin.000015	#	Partial_rows	#	#	Fragment 2 of 7
-master-bin.000015	#	Partial_rows	#	#	Fragment 3 of 7
-master-bin.000015	#	Partial_rows	#	#	Fragment 4 of 7
-master-bin.000015	#	Partial_rows	#	#	Fragment 5 of 7
-master-bin.000015	#	Partial_rows	#	#	Fragment 6 of 7
-master-bin.000015	#	Partial_rows	#	#	Fragment 7 of 7
+master-bin.000015	#	Partial_rows	#	#	Fragment 1 of 6
+master-bin.000015	#	Partial_rows	#	#	Fragment 2 of 6
+master-bin.000015	#	Partial_rows	#	#	Fragment 3 of 6
+master-bin.000015	#	Partial_rows	#	#	Fragment 4 of 6
+master-bin.000015	#	Partial_rows	#	#	Fragment 5 of 6
+master-bin.000015	#	Partial_rows	#	#	Fragment 6 of 6
 master-bin.000015	#	Partial_rows	#	#	Fragment 1 of 6
 master-bin.000015	#	Partial_rows	#	#	Fragment 2 of 6
 master-bin.000015	#	Partial_rows	#	#	Fragment 3 of 6
@@ -1097,7 +1089,6 @@ master-bin.000015	#	Partial_rows	#	#	Fragment 4 of 6
 master-bin.000015	#	Partial_rows	#	#	Fragment 5 of 6
 master-bin.000015	#	Partial_rows	#	#	Fragment 6 of 6
 master-bin.000015	#	Xid	#	#	COMMIT /* XID */
-master-bin.000015	#	Binlog_checkpoint	#	#	master-bin.000015
 master-bin.000015	#	Rotate	#	#	master-bin.000016;pos=POS
 #
 # Cleanup test case
@@ -1153,14 +1144,13 @@ include/diff_tables.inc [server_1:test.t1, server_2:test.t1, server_3:test.t1]
 connection server_1;
 flush logs;
 # MYSQL_BINLOG binlog_file_param --result-file=binlog_analysis_file --base64-output=never
-FOUND 13 matches in binlog_insert_frags.out
-Partial_rows (1 / 7)
-Partial_rows (2 / 7)
-Partial_rows (3 / 7)
-Partial_rows (4 / 7)
-Partial_rows (5 / 7)
-Partial_rows (6 / 7)
-Partial_rows (7 / 7)
+FOUND 12 matches in binlog_insert_frags.out
+Partial_rows (1 / 6)
+Partial_rows (2 / 6)
+Partial_rows (3 / 6)
+Partial_rows (4 / 6)
+Partial_rows (5 / 6)
+Partial_rows (6 / 6)
 Partial_rows (1 / 6)
 Partial_rows (2 / 6)
 Partial_rows (3 / 6)
@@ -1171,14 +1161,13 @@ Partial_rows (6 / 6)
 connection server_2;
 flush logs;
 # MYSQL_BINLOG binlog_file_param --result-file=binlog_analysis_file --base64-output=never
-FOUND 13 matches in binlog_insert_frags.out
-Partial_rows (1 / 7)
-Partial_rows (2 / 7)
-Partial_rows (3 / 7)
-Partial_rows (4 / 7)
-Partial_rows (5 / 7)
-Partial_rows (6 / 7)
-Partial_rows (7 / 7)
+FOUND 12 matches in binlog_insert_frags.out
+Partial_rows (1 / 6)
+Partial_rows (2 / 6)
+Partial_rows (3 / 6)
+Partial_rows (4 / 6)
+Partial_rows (5 / 6)
+Partial_rows (6 / 6)
 Partial_rows (1 / 6)
 Partial_rows (2 / 6)
 Partial_rows (3 / 6)
@@ -1189,14 +1178,13 @@ Partial_rows (6 / 6)
 connection server_3;
 flush logs;
 # MYSQL_BINLOG binlog_file_param --result-file=binlog_analysis_file --base64-output=never
-FOUND 13 matches in binlog_insert_frags.out
-Partial_rows (1 / 7)
-Partial_rows (2 / 7)
-Partial_rows (3 / 7)
-Partial_rows (4 / 7)
-Partial_rows (5 / 7)
-Partial_rows (6 / 7)
-Partial_rows (7 / 7)
+FOUND 12 matches in binlog_insert_frags.out
+Partial_rows (1 / 6)
+Partial_rows (2 / 6)
+Partial_rows (3 / 6)
+Partial_rows (4 / 6)
+Partial_rows (5 / 6)
+Partial_rows (6 / 6)
 Partial_rows (1 / 6)
 Partial_rows (2 / 6)
 Partial_rows (3 / 6)
@@ -1206,6 +1194,7 @@ Partial_rows (6 / 6)
 #
 # Test Update_rows_log_event fragmentation
 connection server_1;
+update t1 set a=a+1 where a=11;
 include/save_master_gtid.inc
 connection server_2;
 include/start_slave.inc
@@ -1272,6 +1261,7 @@ Partial_rows (12 / 12)
 #
 # Test Delete_rows_log_event fragmentation
 connection server_1;
+delete from t1;
 include/save_master_gtid.inc
 connection server_2;
 include/start_slave.inc
@@ -1288,14 +1278,13 @@ include/diff_tables.inc [server_1:test.t1, server_2:test.t1, server_3:test.t1]
 connection server_1;
 flush logs;
 # MYSQL_BINLOG binlog_file_param --result-file=binlog_analysis_file --base64-output=never
-FOUND 13 matches in binlog_delete_frags.out
-Partial_rows (1 / 7)
-Partial_rows (2 / 7)
-Partial_rows (3 / 7)
-Partial_rows (4 / 7)
-Partial_rows (5 / 7)
-Partial_rows (6 / 7)
-Partial_rows (7 / 7)
+FOUND 12 matches in binlog_delete_frags.out
+Partial_rows (1 / 6)
+Partial_rows (2 / 6)
+Partial_rows (3 / 6)
+Partial_rows (4 / 6)
+Partial_rows (5 / 6)
+Partial_rows (6 / 6)
 Partial_rows (1 / 6)
 Partial_rows (2 / 6)
 Partial_rows (3 / 6)
@@ -1306,14 +1295,13 @@ Partial_rows (6 / 6)
 connection server_2;
 flush logs;
 # MYSQL_BINLOG binlog_file_param --result-file=binlog_analysis_file --base64-output=never
-FOUND 13 matches in binlog_delete_frags.out
-Partial_rows (1 / 7)
-Partial_rows (2 / 7)
-Partial_rows (3 / 7)
-Partial_rows (4 / 7)
-Partial_rows (5 / 7)
-Partial_rows (6 / 7)
-Partial_rows (7 / 7)
+FOUND 12 matches in binlog_delete_frags.out
+Partial_rows (1 / 6)
+Partial_rows (2 / 6)
+Partial_rows (3 / 6)
+Partial_rows (4 / 6)
+Partial_rows (5 / 6)
+Partial_rows (6 / 6)
 Partial_rows (1 / 6)
 Partial_rows (2 / 6)
 Partial_rows (3 / 6)
@@ -1324,14 +1312,13 @@ Partial_rows (6 / 6)
 connection server_3;
 flush logs;
 # MYSQL_BINLOG binlog_file_param --result-file=binlog_analysis_file --base64-output=never
-FOUND 13 matches in binlog_delete_frags.out
-Partial_rows (1 / 7)
-Partial_rows (2 / 7)
-Partial_rows (3 / 7)
-Partial_rows (4 / 7)
-Partial_rows (5 / 7)
-Partial_rows (6 / 7)
-Partial_rows (7 / 7)
+FOUND 12 matches in binlog_delete_frags.out
+Partial_rows (1 / 6)
+Partial_rows (2 / 6)
+Partial_rows (3 / 6)
+Partial_rows (4 / 6)
+Partial_rows (5 / 6)
+Partial_rows (6 / 6)
 Partial_rows (1 / 6)
 Partial_rows (2 / 6)
 Partial_rows (3 / 6)
@@ -1346,7 +1333,7 @@ set statement sql_log_bin=0 for drop table t1;
 FOUND 12 matches in binlog_base64_output.sql
 # Show how many Partial_rows_log_events use regular BINLOG base64 output (ev_len <= 1024)
 #  Note: 1 always comes from the Format_description_log_event
-FOUND 2 matches in binlog_base64_output.sql
+FOUND 1 matches in binlog_base64_output.sql
 # MYSQL_SLAVE --init-command="set sql_log_bin=0" < binlog_analysis_file
 # MYSQL_BINLOG mysqld_datadir/binlog_update_filename | MYSQL_SLAVE --init-command="set sql_log_bin=0"
 # MYSQL_BINLOG mysqld_datadir/binlog_delete_filename | MYSQL_SLAVE --init-command="set sql_log_bin=0"
@@ -1387,6 +1374,9 @@ include/stop_slave.inc
 #
 # Initialize test data
 connection server_1;
+connection server_2;
+connection server_3;
+connection server_1;
 create table t1 (a int, b longblob) engine=innodb;
 create table t2 (a int, b longblob) engine=innodb;
 #
@@ -1408,14 +1398,13 @@ include/diff_tables.inc [server_1:test.t2, server_2:test.t2, server_3:test.t2]
 connection server_1;
 flush logs;
 # MYSQL_BINLOG binlog_file_param --result-file=binlog_analysis_file --base64-output=never
-FOUND 19 matches in binlog_insert_frags.out
-Partial_rows (1 / 7)
-Partial_rows (2 / 7)
-Partial_rows (3 / 7)
-Partial_rows (4 / 7)
-Partial_rows (5 / 7)
-Partial_rows (6 / 7)
-Partial_rows (7 / 7)
+FOUND 18 matches in binlog_insert_frags.out
+Partial_rows (1 / 6)
+Partial_rows (2 / 6)
+Partial_rows (3 / 6)
+Partial_rows (4 / 6)
+Partial_rows (5 / 6)
+Partial_rows (6 / 6)
 Partial_rows (1 / 6)
 Partial_rows (2 / 6)
 Partial_rows (3 / 6)
@@ -1439,13 +1428,12 @@ master-bin.000021	#	Query	#	#	use `test`; create table t2 (a int, b longblob) en
 master-bin.000021	#	Gtid	#	#	BEGIN GTID #-#-#
 master-bin.000021	#	Annotate_rows	#	#	insert into t1 select seq,repeat(seq,512) from seq_1_to_10
 master-bin.000021	#	Table_map	#	#	table_id: # (test.t1)
-master-bin.000021	#	Partial_rows	#	#	Fragment 1 of 7
-master-bin.000021	#	Partial_rows	#	#	Fragment 2 of 7
-master-bin.000021	#	Partial_rows	#	#	Fragment 3 of 7
-master-bin.000021	#	Partial_rows	#	#	Fragment 4 of 7
-master-bin.000021	#	Partial_rows	#	#	Fragment 5 of 7
-master-bin.000021	#	Partial_rows	#	#	Fragment 6 of 7
-master-bin.000021	#	Partial_rows	#	#	Fragment 7 of 7
+master-bin.000021	#	Partial_rows	#	#	Fragment 1 of 6
+master-bin.000021	#	Partial_rows	#	#	Fragment 2 of 6
+master-bin.000021	#	Partial_rows	#	#	Fragment 3 of 6
+master-bin.000021	#	Partial_rows	#	#	Fragment 4 of 6
+master-bin.000021	#	Partial_rows	#	#	Fragment 5 of 6
+master-bin.000021	#	Partial_rows	#	#	Fragment 6 of 6
 master-bin.000021	#	Xid	#	#	COMMIT /* XID */
 master-bin.000021	#	Gtid	#	#	BEGIN GTID #-#-#
 master-bin.000021	#	Annotate_rows	#	#	insert into t2 select 1 as a, group_concat(b) as b from t1
@@ -1470,14 +1458,13 @@ master-bin.000021	#	Rotate	#	#	master-bin.000022;pos=POS
 connection server_2;
 flush logs;
 # MYSQL_BINLOG binlog_file_param --result-file=binlog_analysis_file --base64-output=never
-FOUND 19 matches in binlog_insert_frags.out
-Partial_rows (1 / 7)
-Partial_rows (2 / 7)
-Partial_rows (3 / 7)
-Partial_rows (4 / 7)
-Partial_rows (5 / 7)
-Partial_rows (6 / 7)
-Partial_rows (7 / 7)
+FOUND 18 matches in binlog_insert_frags.out
+Partial_rows (1 / 6)
+Partial_rows (2 / 6)
+Partial_rows (3 / 6)
+Partial_rows (4 / 6)
+Partial_rows (5 / 6)
+Partial_rows (6 / 6)
 Partial_rows (1 / 6)
 Partial_rows (2 / 6)
 Partial_rows (3 / 6)
@@ -1501,13 +1488,12 @@ slave-bin.000021	#	Query	#	#	use `test`; create table t2 (a int, b longblob) eng
 slave-bin.000021	#	Gtid	#	#	BEGIN GTID #-#-#
 slave-bin.000021	#	Annotate_rows	#	#	insert into t1 select seq,repeat(seq,512) from seq_1_to_10
 slave-bin.000021	#	Table_map	#	#	table_id: # (test.t1)
-slave-bin.000021	#	Partial_rows	#	#	Fragment 1 of 7
-slave-bin.000021	#	Partial_rows	#	#	Fragment 2 of 7
-slave-bin.000021	#	Partial_rows	#	#	Fragment 3 of 7
-slave-bin.000021	#	Partial_rows	#	#	Fragment 4 of 7
-slave-bin.000021	#	Partial_rows	#	#	Fragment 5 of 7
-slave-bin.000021	#	Partial_rows	#	#	Fragment 6 of 7
-slave-bin.000021	#	Partial_rows	#	#	Fragment 7 of 7
+slave-bin.000021	#	Partial_rows	#	#	Fragment 1 of 6
+slave-bin.000021	#	Partial_rows	#	#	Fragment 2 of 6
+slave-bin.000021	#	Partial_rows	#	#	Fragment 3 of 6
+slave-bin.000021	#	Partial_rows	#	#	Fragment 4 of 6
+slave-bin.000021	#	Partial_rows	#	#	Fragment 5 of 6
+slave-bin.000021	#	Partial_rows	#	#	Fragment 6 of 6
 slave-bin.000021	#	Xid	#	#	COMMIT /* XID */
 slave-bin.000021	#	Gtid	#	#	BEGIN GTID #-#-#
 slave-bin.000021	#	Annotate_rows	#	#	insert into t2 select 1 as a, group_concat(b) as b from t1
@@ -1532,14 +1518,13 @@ slave-bin.000021	#	Rotate	#	#	slave-bin.000022;pos=POS
 connection server_3;
 flush logs;
 # MYSQL_BINLOG binlog_file_param --result-file=binlog_analysis_file --base64-output=never
-FOUND 19 matches in binlog_insert_frags.out
-Partial_rows (1 / 7)
-Partial_rows (2 / 7)
-Partial_rows (3 / 7)
-Partial_rows (4 / 7)
-Partial_rows (5 / 7)
-Partial_rows (6 / 7)
-Partial_rows (7 / 7)
+FOUND 18 matches in binlog_insert_frags.out
+Partial_rows (1 / 6)
+Partial_rows (2 / 6)
+Partial_rows (3 / 6)
+Partial_rows (4 / 6)
+Partial_rows (5 / 6)
+Partial_rows (6 / 6)
 Partial_rows (1 / 6)
 Partial_rows (2 / 6)
 Partial_rows (3 / 6)
@@ -1563,13 +1548,12 @@ master-bin.000021	#	Query	#	#	use `test`; create table t2 (a int, b longblob) en
 master-bin.000021	#	Gtid	#	#	BEGIN GTID #-#-#
 master-bin.000021	#	Annotate_rows	#	#	insert into t1 select seq,repeat(seq,512) from seq_1_to_10
 master-bin.000021	#	Table_map	#	#	table_id: # (test.t1)
-master-bin.000021	#	Partial_rows	#	#	Fragment 1 of 7
-master-bin.000021	#	Partial_rows	#	#	Fragment 2 of 7
-master-bin.000021	#	Partial_rows	#	#	Fragment 3 of 7
-master-bin.000021	#	Partial_rows	#	#	Fragment 4 of 7
-master-bin.000021	#	Partial_rows	#	#	Fragment 5 of 7
-master-bin.000021	#	Partial_rows	#	#	Fragment 6 of 7
-master-bin.000021	#	Partial_rows	#	#	Fragment 7 of 7
+master-bin.000021	#	Partial_rows	#	#	Fragment 1 of 6
+master-bin.000021	#	Partial_rows	#	#	Fragment 2 of 6
+master-bin.000021	#	Partial_rows	#	#	Fragment 3 of 6
+master-bin.000021	#	Partial_rows	#	#	Fragment 4 of 6
+master-bin.000021	#	Partial_rows	#	#	Fragment 5 of 6
+master-bin.000021	#	Partial_rows	#	#	Fragment 6 of 6
 master-bin.000021	#	Xid	#	#	COMMIT /* XID */
 master-bin.000021	#	Gtid	#	#	BEGIN GTID #-#-#
 master-bin.000021	#	Annotate_rows	#	#	insert into t2 select 1 as a, group_concat(b) as b from t1
@@ -1599,7 +1583,7 @@ set statement sql_log_bin=0 for drop table t2;
 FOUND 18 matches in binlog_base64_output.sql
 # Show how many Partial_rows_log_events use regular BINLOG base64 output (ev_len <= 1024)
 #  Note: 1 always comes from the Format_description_log_event
-FOUND 2 matches in binlog_base64_output.sql
+FOUND 1 matches in binlog_base64_output.sql
 # MYSQL_SLAVE --init-command="set sql_log_bin=0" < binlog_analysis_file
 # Ensuring mysqlbinlog event replay is consistent..
 include/diff_tables.inc [server_1:test.t1, server_2:test.t1]
@@ -1658,14 +1642,13 @@ include/diff_tables.inc [server_1:test.t1, server_2:test.t1, server_3:test.t1]
 connection server_1;
 flush logs;
 # MYSQL_BINLOG binlog_file_param --result-file=binlog_analysis_file --base64-output=never
-FOUND 13 matches in binlog_insert_frags.out
-Partial_rows (1 / 7)
-Partial_rows (2 / 7)
-Partial_rows (3 / 7)
-Partial_rows (4 / 7)
-Partial_rows (5 / 7)
-Partial_rows (6 / 7)
-Partial_rows (7 / 7)
+FOUND 12 matches in binlog_insert_frags.out
+Partial_rows (1 / 6)
+Partial_rows (2 / 6)
+Partial_rows (3 / 6)
+Partial_rows (4 / 6)
+Partial_rows (5 / 6)
+Partial_rows (6 / 6)
 Partial_rows (1 / 6)
 Partial_rows (2 / 6)
 Partial_rows (3 / 6)
@@ -1685,6 +1668,7 @@ NOT FOUND matches in binlog_insert_frags.out
 #
 # Test Update_rows_log_event fragmentation
 connection server_1;
+update t1 set a=a+1 where a=11;
 include/save_master_gtid.inc
 connection server_2;
 include/start_slave.inc
@@ -1727,6 +1711,7 @@ NOT FOUND matches in binlog_update_frags.out
 #
 # Test Delete_rows_log_event fragmentation
 connection server_1;
+delete from t1;
 include/save_master_gtid.inc
 connection server_2;
 include/start_slave.inc
@@ -1743,14 +1728,13 @@ include/diff_tables.inc [server_1:test.t1, server_2:test.t1, server_3:test.t1]
 connection server_1;
 flush logs;
 # MYSQL_BINLOG binlog_file_param --result-file=binlog_analysis_file --base64-output=never
-FOUND 13 matches in binlog_delete_frags.out
-Partial_rows (1 / 7)
-Partial_rows (2 / 7)
-Partial_rows (3 / 7)
-Partial_rows (4 / 7)
-Partial_rows (5 / 7)
-Partial_rows (6 / 7)
-Partial_rows (7 / 7)
+FOUND 12 matches in binlog_delete_frags.out
+Partial_rows (1 / 6)
+Partial_rows (2 / 6)
+Partial_rows (3 / 6)
+Partial_rows (4 / 6)
+Partial_rows (5 / 6)
+Partial_rows (6 / 6)
 Partial_rows (1 / 6)
 Partial_rows (2 / 6)
 Partial_rows (3 / 6)

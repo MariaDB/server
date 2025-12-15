@@ -4004,6 +4004,10 @@ Partial_rows_log_event::Partial_rows_log_event(
 	if (event_len < (uint)(common_header_len + post_header_len))
 		DBUG_VOID_RETURN;
 
+  start_offset= common_header_len + PARTIAL_ROWS_HEADER_LEN;
+  ev_buffer_base= buf;
+  end_offset= event_len;
+
   /* Read the post-header */
   const uchar *post_start= buf + common_header_len;
   VALIDATE_BYTES_READ(post_start, buf, event_len);
@@ -4020,24 +4024,39 @@ Partial_rows_log_event::Partial_rows_log_event(
   flags2= *(post_start++);
   VALIDATE_BYTES_READ(post_start, buf, event_len);
 
-  ev_buffer_base= buf;
-  start_offset= common_header_len + PARTIAL_ROWS_HEADER_LEN;
-  end_offset= event_len;
+  if (flags2 & FL_ORIG_EVENT_SIZE)
+  {
+    DBUG_ASSERT(seq_no == 1);
+    original_event_size= uint8korr((post_start));
+    post_start+= 8;
+    start_offset+= 8;
+    VALIDATE_BYTES_READ(post_start, buf, event_len);
+    DBUG_ASSERT(original_event_size);
+  }
+
+  /*
+    post_start so far only has read header data, no data from the rows event
+    itself. Ensure there is still data for the rows event.
+  */
+  DBUG_ASSERT(static_cast<uint>(post_start - ev_buffer_base) < event_len);
 
   DBUG_VOID_RETURN;
 }
 #endif
 
 bool Partial_rows_log_event::is_valid() const {
+  bool is_first= seq_no == 1;
   /*
     There should be at least 2 fragments for the group, and the sequence
     number of this instance should fall between 1 and the total number of
-    fragments. Flags2 is also unused right now, so ensure it is always 0.
+    fragments.
   */
-  bool general_validity= seq_no >= 1 && total_fragments >= 2 &&
-                         seq_no <= total_fragments && !flags2;
+  bool has_valid_sequencing=
+      seq_no >= 1 && total_fragments >= 2 && seq_no <= total_fragments;
 
-  bool is_first= seq_no == 1;
+  bool has_valid_orig_event_size=
+      ((flags2 & FL_ORIG_EVENT_SIZE) && is_first && original_event_size) ||
+      !(flags2 & FL_ORIG_EVENT_SIZE);
 
   /*
     To be valid from a fragmentation context, the following should hold true:
@@ -4045,8 +4064,8 @@ bool Partial_rows_log_event::is_valid() const {
       2) Start_offset and end_offset should be representative of the
          fragment. If it is the first fragment, then start_offset should be
          0. The end_offset should be after the start_offset.
-      3) If it is the first event, we should have metadata to write;
-         otherwise we should not.
+      3) If it is the first event, we should write metadata and the original
+         event size; otherwise, neither should be written.
       4) ev_buffer_base should not be used
   */
   bool is_valid_for_fragmentation=
@@ -4068,7 +4087,7 @@ bool Partial_rows_log_event::is_valid() const {
       ev_buffer_base && start_offset > PARTIAL_ROWS_HEADER_LEN &&
       end_offset && (!rows_event && !metadata_written);
 
-  bool is_valid= general_validity &&
+  bool is_valid= has_valid_sequencing && has_valid_orig_event_size &&
                  (is_valid_for_fragmentation ^ is_valid_for_assembly);
 
   return is_valid;
