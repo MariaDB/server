@@ -1194,7 +1194,7 @@ Exit_status process_event(PRINT_EVENT_INFO *print_event_info, Log_event *ev,
               persistent
       */
       Table_map_log_event *map= ((Table_map_log_event *)ev);
-      if (print_event_info->table_map_event)
+      if (print_event_info->table_map_event != map)
         delete print_event_info->table_map_event;
       print_event_info->table_map_event= map;
       destroy_evt= FALSE;

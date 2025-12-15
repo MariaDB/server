@@ -169,9 +169,6 @@ void table_mapping::clear_tables()
   for (uint i= 0; i < m_table_ids.records; i++)
   {
     entry *e= (entry *)my_hash_element(&m_table_ids, i);
-#ifdef MYSQL_CLIENT
-    free_table_map_log_event(e->table);
-#endif
     e->next= m_free;
     m_free= e;
   }
