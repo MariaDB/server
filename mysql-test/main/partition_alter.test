@@ -323,3 +323,29 @@ partition by list(x) (
 drop table t1;
 
 --echo # End of 10.7 tests
+
+--echo #
+--echo # MDEV-35562 On partitionen tables algorithm is not supported
+--echo # throw "no such file or directory" error
+--echo #
+
+set @old_alter_algorithm=@@alter_algorithm;
+set alter_algorithm='NOCOPY';
+CREATE TABLE t1par (
+f1 datetime ,
+f2 VARCHAR(2) ,
+f3 VARCHAR(200) NOT NULL ,
+f4 VARCHAR(100) charset utf8
+)
+PARTITION BY RANGE COLUMNS(f2)
+(
+  PARTITION p_01 VALUES LESS THAN ('02') ENGINE = InnoDB,
+  PARTITION p_31 VALUES LESS THAN (MAXVALUE) ENGINE = InnoDB
+);
+--error ER_ALTER_OPERATION_NOT_SUPPORTED
+ALTER online TABLE t1par   MODIFY COLUMN f3 VARCHAR(201) NULL , LOCK=NONE;
+show warnings;
+drop table t1par;
+set alter_algorithm=@old_alter_algorithm;
+
+--echo # End of 10.11 tests
