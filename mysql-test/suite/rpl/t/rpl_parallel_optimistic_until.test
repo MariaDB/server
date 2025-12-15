@@ -292,7 +292,7 @@ while ($continue)
   }
 }
 
---let $pos_xid=508
+--let $pos_xid=510
 --let $info= query_get_value(SHOW RELAYLOG EVENTS IN '$file_rl' FROM $pos_xid LIMIT 1, Info, 1)
 
 if (`SELECT "$info" NOT LIKE "COMMIT /* xid=% */" OR $pos_xid < $pos_until`)
@@ -431,7 +431,7 @@ START SLAVE IO_THREAD;
 --let $pos_until= 3130
 --let $file_rl= slave-relay-bin.000018
 
---let $pos_gtid = 2987
+--let $pos_gtid = 2989
 --let $info= query_get_value(SHOW RELAYLOG EVENTS IN '$file_rl' FROM $pos_gtid LIMIT 1, Info, 1)
 
 if (`SELECT "$info" != "BEGIN GTID 0-1-23"`)
@@ -439,7 +439,7 @@ if (`SELECT "$info" != "BEGIN GTID 0-1-23"`)
   --echo *** Unexpected offset. Refine it to point to the correct GTID!
   --die
 }
---let $pos_event = 3120
+--let $pos_event = 3122
 --let $type= query_get_value(SHOW RELAYLOG EVENTS IN '$file_rl' FROM $pos_event LIMIT 1, Event_type, 1)
 if (`SELECT "$type" != "Delete_rows_v1"`)
 {
