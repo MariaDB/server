@@ -358,26 +358,21 @@ size_t my_snprintf_8bit(CHARSET_INFO *cs  __attribute__((unused)),
 }
 
 
-void my_hash_sort_simple_nopad(CHARSET_INFO *cs,
-			       const uchar *key, size_t len,
-			       ulong *nr1, ulong *nr2)
+void my_hash_sort_simple_nopad(my_hasher_st *hasher, CHARSET_INFO *cs,
+			       const uchar *key, size_t len)
 {
   register const uchar *sort_order=cs->sort_order;
   const uchar *end= key + len;
-  register ulong m1= *nr1, m2= *nr2;
   DBUG_ASSERT(key); /* Avoid UBSAN nullptr-with-offset */
   for (; key < (uchar*) end ; key++)
   {
-    MY_HASH_ADD(m1, m2, (uint) sort_order[(uint) *key]);
+    MY_HASH_ADD(hasher, (uint) sort_order[(uint) *key]);
   }
-  *nr1= m1;
-  *nr2= m2;
 }
 
 
-void my_hash_sort_simple(CHARSET_INFO *cs,
-                         const uchar *key, size_t len,
-                         ulong *nr1, ulong *nr2)
+void my_hash_sort_simple(my_hasher_st *hasher, CHARSET_INFO *cs,
+                         const uchar *key, size_t len)
 {
   register const uchar *sort_order=cs->sort_order;
   const uchar *end;
@@ -416,7 +411,7 @@ void my_hash_sort_simple(CHARSET_INFO *cs,
       break;
     }
   }
-  my_hash_sort_simple_nopad(cs, key, end - key, nr1, nr2);
+  my_hash_sort_simple_nopad(hasher, cs, key, end - key);
 }
 
 

@@ -224,9 +224,9 @@ void hp_movelink(HASH_INFO *pos, HASH_INFO *next_link, HASH_INFO *newlink)
 
 static ulong hp_hashnr(HP_KEYDEF *keydef, const uchar *key)
 {
-  /*register*/ 
-  ulong nr=1, nr2=4;
-  HA_KEYSEG *seg,*endseg;
+  /*register*/
+  my_hasher_st hasher= my_hasher_mysql5x();
+  HA_KEYSEG * seg, *endseg;
 
   for (seg=keydef->seg,endseg=seg+keydef->keysegs ; seg < endseg ; seg++)
   {
@@ -237,7 +237,7 @@ static ulong hp_hashnr(HP_KEYDEF *keydef, const uchar *key)
       key++;					/* Skip null byte */
       if (*pos)					/* Found null */
       {
-	nr^= (nr << 1) | 1;
+	hasher.m_nr1^= (hasher.m_nr1 << 1) | 1;
 	/* Add key pack length (2) to key for VARCHAR segments */
         if (seg->type == HA_KEYTYPE_VARTEXT1)
           key+= 2;
@@ -255,7 +255,7 @@ static ulong hp_hashnr(HP_KEYDEF *keydef, const uchar *key)
          char_length= hp_charpos(cs, pos, pos + length, length/cs->mbmaxlen);
          set_if_smaller(length, char_length);
        }
-       my_ci_hash_sort(cs, pos, length, &nr, &nr2);
+       my_ci_hash_sort(&hasher, cs, pos, length);
     }
     else if (seg->type == HA_KEYTYPE_VARTEXT1)  /* Any VARCHAR segments */
     {
@@ -270,29 +270,28 @@ static ulong hp_hashnr(HP_KEYDEF *keydef, const uchar *key)
                                  seg->length/cs->mbmaxlen);
          set_if_smaller(length, char_length);
        }
-       my_ci_hash_sort(cs, pos+pack_length, length, &nr, &nr2);
+       my_ci_hash_sort(&hasher, cs, pos+pack_length, length);
        key+= pack_length;
     }
     else
     {
       for (; pos < (uchar*) key ; pos++)
       {
-	nr^=(ulong) ((((uint) nr & 63)+nr2)*((uint) *pos)) + (nr << 8);
-	nr2+=3;
+        MY_HASH_ADD_MARIADB(hasher.m_nr1, hasher.m_nr2, *pos);
       }
     }
   }
 #ifdef ONLY_FOR_HASH_DEBUGGING
   DBUG_PRINT("exit", ("hash: 0x%lx", nr));
 #endif
-  return((ulong) nr);
+  return((ulong) hasher.m_nr1);
 }
 
 	/* Calc hashvalue for a key in a record */
 
 ulong hp_rec_hashnr(register HP_KEYDEF *keydef, register const uchar *rec)
 {
-  ulong nr=1, nr2=4;
+  my_hasher_st hasher= my_hasher_mysql5x();
   HA_KEYSEG *seg,*endseg;
 
   for (seg=keydef->seg,endseg=seg+keydef->keysegs ; seg < endseg ; seg++)
@@ -302,7 +301,7 @@ ulong hp_rec_hashnr(register HP_KEYDEF *keydef, register const uchar *rec)
     {
       if (rec[seg->null_pos] & seg->null_bit)
       {
-	nr^= (nr << 1) | 1;
+	hasher.m_nr1^= (hasher.m_nr1 << 1) | 1;
 	continue;
       }
     }
@@ -316,7 +315,7 @@ ulong hp_rec_hashnr(register HP_KEYDEF *keydef, register const uchar *rec)
                                 char_length / cs->mbmaxlen);
         set_if_smaller(char_length, seg->length); /* QQ: ok to remove? */
       }
-      my_ci_hash_sort(cs, pos, char_length, &nr, &nr2);
+      my_ci_hash_sort(&hasher, cs, pos, char_length);
     }
     else if (seg->type == HA_KEYTYPE_VARTEXT1)  /* Any VARCHAR segments */
     {
@@ -333,30 +332,26 @@ ulong hp_rec_hashnr(register HP_KEYDEF *keydef, register const uchar *rec)
       }
       else
         set_if_smaller(length, seg->length);
-      my_ci_hash_sort(cs, pos+pack_length, length, &nr, &nr2);
+      my_ci_hash_sort(&hasher, cs, pos+pack_length, length);
     }
     else
     {
       if (seg->type == HA_KEYTYPE_BIT && seg->bit_length)
       {
-        uchar bits= get_rec_bits(rec + seg->bit_pos,
-                                 seg->bit_start, seg->bit_length);
-	nr^=(ulong) ((((uint) nr & 63)+nr2)*((uint) bits))+ (nr << 8);
-	nr2+=3;
+        MY_HASH_ADD_MARIADB(hasher.m_nr1, hasher.m_nr2, *pos);
         end--;
       }
 
       for (; pos < end ; pos++)
       {
-	nr^=(ulong) ((((uint) nr & 63)+nr2)*((uint) *pos))+ (nr << 8);
-	nr2+=3;
+        MY_HASH_ADD_MARIADB(hasher.m_nr1, hasher.m_nr2, *pos);
       }
     }
   }
 #ifdef ONLY_FOR_HASH_DEBUGGING
-  DBUG_PRINT("exit", ("hash: 0x%lx", nr));
+  DBUG_PRINT("exit", ("hash: 0x%lx", hasher.m_nr1));
 #endif
-  return(nr);
+  return(hasher.m_nr1);
 }
 
 

@@ -219,27 +219,30 @@ static inline constexpr expr_event_t operator&(const expr_event_t a,
 }
 
 
-class Hasher
+class Hasher: public my_hasher_st
 {
-  ulong m_nr1;
-  ulong m_nr2;
 public:
-  Hasher(): m_nr1(1), m_nr2(4)
-  { }
+  Hasher() : my_hasher_st(my_hasher_mysql5x()) {}
+  Hasher(my_hasher_st hasher): my_hasher_st(hasher) {}
   void add_null()
   {
-    m_nr1^= (m_nr1 << 1) | 1;
+    if (m_hash_str)
+      m_hash_str(this, NULL, 0);
+    else
+      m_nr1^= (m_nr1 << 1) | 1;
   }
   void add(CHARSET_INFO *cs, const uchar *str, size_t length)
   {
-    cs->coll->hash_sort(cs, str, length, &m_nr1, &m_nr2);
+    cs->coll->hash_sort(this, cs, str, length);
   }
   void add(CHARSET_INFO *cs, const char *str, size_t length)
   {
     add(cs, (const uchar *) str, length);
   }
-  uint32 finalize() const
+  uint32 finalize()
   {
+    if (m_finalize)
+      return m_finalize(this);
     return (uint32) m_nr1;
   }
 };

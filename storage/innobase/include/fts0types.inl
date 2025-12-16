@@ -142,8 +142,7 @@ fts_select_index_by_hash(
 	const byte*		str,
 	ulint			len)
 {
-	ulong	nr1 = 1;
-	ulong	nr2 = 4;
+  my_hasher_st hasher= my_hasher_mysql5x();
 
 	ut_ad(!(str == NULL && len > 0));
 
@@ -161,9 +160,9 @@ fts_select_index_by_hash(
 	ut_ad(char_len <= len);
 
 	/* Get collation hash code */
-	my_ci_hash_sort(cs, str, char_len, &nr1, &nr2);
+	my_ci_hash_sort(&hasher, cs, str, char_len);
 
-	return(nr1 % FTS_NUM_AUX_INDEX);
+	return(hasher.m_nr1 % FTS_NUM_AUX_INDEX);
 }
 
 /** Select the FTS auxiliary index for the given character.

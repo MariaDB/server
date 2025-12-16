@@ -274,27 +274,18 @@ int my_wc_mb_bin(CHARSET_INFO *cs __attribute__((unused)),
 }
 
 
-void my_hash_sort_bin(CHARSET_INFO *cs __attribute__((unused)),
-                      const uchar *key, size_t len,ulong *nr1, ulong *nr2)
+void my_hash_sort_bin(my_hasher_st *hasher,
+                      CHARSET_INFO *cs __attribute__((unused)),
+                      const uchar *key, size_t len)
 {
-  const uchar *end = key + len;
-  ulong tmp1= *nr1;
-  ulong tmp2= *nr2;
   DBUG_ASSERT(key); /* Avoid UBSAN nullptr-with-offset */
-
-  for (; key < end ; key++)
-  {
-    MY_HASH_ADD(tmp1, tmp2, (uint) *key);
-  }
-
-  *nr1= tmp1;
-  *nr2= tmp2;
+  MY_HASH_ADD_STR(hasher, key, len);
 }
 
 
-void my_hash_sort_8bit_bin(CHARSET_INFO *cs __attribute__((unused)),
-                           const uchar *key, size_t len,
-                           ulong *nr1, ulong *nr2)
+void my_hash_sort_8bit_bin(my_hasher_st *hasher,
+                           CHARSET_INFO *cs __attribute__((unused)),
+                           const uchar *key, size_t len)
 {
   /*
      Remove trailing spaces. We have to do this to be able to compare
@@ -302,7 +293,7 @@ void my_hash_sort_8bit_bin(CHARSET_INFO *cs __attribute__((unused)),
   */
   const uchar *end= skip_trailing_space(key, len);
   DBUG_ASSERT(key); /* Avoid UBSAN nullptr-with-offset */
-  my_hash_sort_bin(cs, key, end - key, nr1, nr2);
+  my_hash_sort_bin(hasher, cs, key, end - key);
 }
 
 

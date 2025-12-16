@@ -1359,36 +1359,32 @@ my_caseup_utf16(CHARSET_INFO *cs, const char *src, size_t srclen,
 
 
 static void
-my_hash_sort_utf16_nopad(CHARSET_INFO *cs,
-                         const uchar *s, size_t slen,
-                         ulong *nr1, ulong *nr2)
+my_hash_sort_utf16_nopad(my_hasher_st *hasher, CHARSET_INFO *cs,
+                         const uchar *s, size_t slen)
 {
   my_wc_t wc;
   my_charset_conv_mb_wc mb_wc= cs->cset->mb_wc;
   int res;
   const uchar *e= s + slen;
   MY_CASEFOLD_INFO *uni_plane= cs->casefold;
-  register ulong m1= *nr1, m2= *nr2;
   DBUG_ASSERT(s); /* Avoid UBSAN nullptr-with-offset */
 
   while ((s < e) && (res= mb_wc(cs, &wc, (uchar *) s, (uchar *) e)) > 0)
   {
     my_tosort_unicode(uni_plane, &wc);
-    MY_HASH_ADD_16(m1, m2, wc);
+    MY_HASH_ADD_16(hasher, wc);
     s+= res;
   }
-  *nr1= m1;
-  *nr2= m2;
 }
 
 
 static void
-my_hash_sort_utf16(CHARSET_INFO *cs, const uchar *s, size_t slen,
-                   ulong *nr1, ulong *nr2)
+my_hash_sort_utf16(my_hasher_st *hasher,
+                   CHARSET_INFO *cs, const uchar *s, size_t slen)
 {
   size_t lengthsp= my_ci_lengthsp(cs, (const char *) s, slen);
   DBUG_ASSERT(s); /* Avoid UBSAN nullptr-with-offset */
-  my_hash_sort_utf16_nopad(cs, s, lengthsp, nr1, nr2);
+  my_hash_sort_utf16_nopad(hasher, cs, s, lengthsp);
 }
 
 
@@ -1470,30 +1466,22 @@ my_charpos_utf16(CHARSET_INFO *cs,
 
 
 static void
-my_hash_sort_utf16_nopad_bin(CHARSET_INFO *cs  __attribute__((unused)),
-                             const uchar *pos, size_t len,
-                             ulong *nr1, ulong *nr2)
+my_hash_sort_utf16_nopad_bin(my_hasher_st *hasher,
+                             CHARSET_INFO *cs  __attribute__((unused)),
+                             const uchar *pos, size_t len)
 {
-  const uchar *end= pos + len;
-  register ulong m1= *nr1, m2= *nr2;
   DBUG_ASSERT(pos); /* Avoid UBSAN nullptr-with-offset */
-
-  for ( ; pos < end ; pos++)
-  {
-    MY_HASH_ADD(m1, m2, (uint)*pos);
-  }
-  *nr1= m1;
-  *nr2= m2;
+  MY_HASH_ADD_STR(hasher, pos, len);
 }
 
 
 static void
-my_hash_sort_utf16_bin(CHARSET_INFO *cs,
-                       const uchar *pos, size_t len, ulong *nr1, ulong *nr2)
+my_hash_sort_utf16_bin(my_hasher_st *hasher, CHARSET_INFO *cs,
+                       const uchar *pos, size_t len)
 {
   size_t lengthsp= my_ci_lengthsp(cs, (const char *) pos, len);
   DBUG_ASSERT(pos); /* Avoid UBSAN nullptr-with-offset */
-  my_hash_sort_utf16_nopad_bin(cs, pos, lengthsp, nr1, nr2);
+  my_hash_sort_utf16_nopad_bin(hasher, cs, pos, lengthsp);
 }
 
 
@@ -2208,37 +2196,34 @@ my_caseup_utf32(CHARSET_INFO *cs, const char *src, size_t srclen,
 
 
 static void
-my_hash_sort_utf32_nopad(CHARSET_INFO *cs, const uchar *s, size_t slen,
-                         ulong *nr1, ulong *nr2)
+my_hash_sort_utf32_nopad(my_hasher_st *hasher, CHARSET_INFO *cs,
+                         const uchar *s, size_t slen)
 {
   my_wc_t wc;
   int res;
   const uchar *e= s + slen;
   MY_CASEFOLD_INFO *uni_plane= cs->casefold;
-  register ulong m1= *nr1, m2= *nr2;
   DBUG_ASSERT(s); /* Avoid UBSAN nullptr-with-offset */
 
   while ((res= my_utf32_uni(cs, &wc, (uchar*) s, (uchar*) e)) > 0)
   {
     my_tosort_unicode(uni_plane, &wc);
-    MY_HASH_ADD(m1, m2, (uint) (wc >> 24));
-    MY_HASH_ADD(m1, m2, (uint) (wc >> 16) & 0xFF);
-    MY_HASH_ADD(m1, m2, (uint) (wc >> 8)  & 0xFF);
-    MY_HASH_ADD(m1, m2, (uint) (wc & 0xFF));
+    MY_HASH_ADD(hasher, (uint) (wc >> 24));
+    MY_HASH_ADD(hasher, (uint) (wc >> 16) & 0xFF);
+    MY_HASH_ADD(hasher, (uint) (wc >> 8)  & 0xFF);
+    MY_HASH_ADD(hasher, (uint) (wc & 0xFF));
     s+= res;
   }
-  *nr1= m1;
-  *nr2= m2;
 }
 
 
 static void
-my_hash_sort_utf32(CHARSET_INFO *cs, const uchar *s, size_t slen,
-                   ulong *nr1, ulong *nr2)
+my_hash_sort_utf32(my_hasher_st *hasher, CHARSET_INFO *cs, const uchar *s,
+                   size_t slen)
 {
   size_t lengthsp= my_lengthsp_utf32(cs, (const char *) s, slen);
   DBUG_ASSERT(s); /* Avoid UBSAN nullptr-with-offset */
-  my_hash_sort_utf32_nopad(cs, s, lengthsp, nr1, nr2);
+  my_hash_sort_utf32_nopad(hasher, cs, s, lengthsp);
 }
 
 
@@ -3055,33 +3040,30 @@ static size_t my_caseup_ucs2(CHARSET_INFO *cs, const char *src, size_t srclen,
 
 
 static void
-my_hash_sort_ucs2_nopad(CHARSET_INFO *cs, const uchar *s, size_t slen,
-                        ulong *nr1, ulong *nr2)
+my_hash_sort_ucs2_nopad(my_hasher_st *hasher, CHARSET_INFO *cs,
+                        const uchar *s, size_t slen)
 {
   my_wc_t wc;
   int res;
   const uchar *e=s+slen;
   MY_CASEFOLD_INFO *uni_plane= cs->casefold;
-  register ulong m1= *nr1, m2= *nr2;
   DBUG_ASSERT(s); /* Avoid UBSAN nullptr-with-offset */
 
   while ((s < e) && (res=my_ucs2_uni(cs,&wc, (uchar *)s, (uchar*)e)) >0)
   {
     my_tosort_unicode_bmp(uni_plane, &wc);
-    MY_HASH_ADD_16(m1, m2, wc);
+    MY_HASH_ADD_16(hasher, wc);
     s+=res;
   }
-  *nr1= m1;
-  *nr2= m2;
 }
 
 
-static void my_hash_sort_ucs2(CHARSET_INFO *cs, const uchar *s, size_t slen,
-			      ulong *nr1, ulong *nr2)
+static void my_hash_sort_ucs2(my_hasher_st *hasher,
+                              CHARSET_INFO *cs, const uchar *s, size_t slen)
 {
   size_t lengthsp= my_lengthsp_mb2(cs, (const char *) s, slen);
   DBUG_ASSERT(s); /* Avoid UBSAN nullptr-with-offset */
-  my_hash_sort_ucs2_nopad(cs, s, lengthsp, nr1, nr2);
+  my_hash_sort_ucs2_nopad(hasher, cs, s, lengthsp);
 }
 
 static size_t my_casedn_ucs2(CHARSET_INFO *cs, const char *src, size_t srclen,
@@ -3177,29 +3159,22 @@ my_well_formed_char_length_ucs2(CHARSET_INFO *cs __attribute__((unused)),
 
 
 static void
-my_hash_sort_ucs2_nopad_bin(CHARSET_INFO *cs __attribute__((unused)),
-                            const uchar *key, size_t len,
-                            ulong *nr1, ulong *nr2)
+my_hash_sort_ucs2_nopad_bin(my_hasher_st *hasher,
+                            CHARSET_INFO *cs __attribute__((unused)),
+                            const uchar *key, size_t len)
 {
-  const uchar *end= key + len;
-  register ulong m1= *nr1, m2= *nr2;
   DBUG_ASSERT(key); /* Avoid UBSAN nullptr-with-offset */
-  for ( ; key < end ; key++)
-  {
-    MY_HASH_ADD(m1, m2, (uint)*key);
-  }
-  *nr1= m1;
-  *nr2= m2;
+  MY_HASH_ADD_STR(hasher, key, len);
 }
 
 
 static void
-my_hash_sort_ucs2_bin(CHARSET_INFO *cs,
-                      const uchar *key, size_t len, ulong *nr1, ulong *nr2)
+my_hash_sort_ucs2_bin(my_hasher_st *hasher, CHARSET_INFO *cs,
+                      const uchar *key, size_t len)
 {
   size_t lengthsp= my_lengthsp_mb2(cs, (const char *) key, len);
   DBUG_ASSERT(key); /* Avoid UBSAN nullptr-with-offset */
-  my_hash_sort_ucs2_nopad_bin(cs, key, lengthsp, nr1, nr2);
+  my_hash_sort_ucs2_nopad_bin(hasher, cs, key, lengthsp);
 }
 
 

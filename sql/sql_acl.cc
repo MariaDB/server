@@ -14092,9 +14092,9 @@ static bool find_mpvio_user(MPVIO_EXT *mpvio)
       Note, that we cannot pick any user at random, it must always be
       the same user account for the incoming sctx->user name.
     */
-    ulong nr1=1, nr2=4;
+    my_hasher_st hasher= my_hasher_mysql5x();
     CHARSET_INFO *cs= &my_charset_latin1;
-    cs->hash_sort((uchar*) sctx->user, strlen(sctx->user), &nr1, &nr2);
+    cs->hash_sort(&hasher, (uchar*) sctx->user, strlen(sctx->user));
 
     mysql_mutex_lock(&acl_cache->lock);
     if (!acl_users.elements)
@@ -14103,7 +14103,7 @@ static bool find_mpvio_user(MPVIO_EXT *mpvio)
       login_failed_error(mpvio->auth_info.thd);
       DBUG_RETURN(1);
     }
-    uint i= nr1 % acl_users.elements;
+    uint i= hasher.m_nr1 % acl_users.elements;
     ACL_USER *acl_user_tmp= dynamic_element(&acl_users, i, ACL_USER*);
     mpvio->acl_user= acl_user_tmp->copy(mpvio->auth_info.thd->mem_root);
     mysql_mutex_unlock(&acl_cache->lock);

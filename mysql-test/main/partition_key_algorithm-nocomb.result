@@ -1,0 +1,3 @@
+# MDEV-9826 better hash algorithms for PARTITION BY KEY
+create table t1 (c int) partition by key algorithm=INVALID (c) partitions 2;
+ERROR HY000: Incorrect PARTITION BY [LINEAR] KEY ALGORI value: 'INVALID'
