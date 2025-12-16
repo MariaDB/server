@@ -5377,4 +5377,10 @@ result
 #
 SELECT JSON_SCHEMA_VALID('{"properties": "a_string": {"pattern": "^[5-9]$"}}}', '{"a_string": "8"}');
 ERROR HY000: Invalid value for keyword properties
+#
+# MDEV-38356 JSON_SCHEMA_VALID() crashes with a long enum
+#
+select json_schema_valid('{"enum":[0]}', sformat('"{:#>200}"','0'));
+json_schema_valid('{"enum":[0]}', sformat('"{:#>200}"','0'))
+0
 # End of 11.4 Test

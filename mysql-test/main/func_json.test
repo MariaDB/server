@@ -3612,8 +3612,6 @@ SET @schema_reference= '{"$defs": "http://example.com/custom-email-validator.jso
 --error ER_JSON_SCHEMA_KEYWORD_UNSUPPORTED
 SELECT JSON_SCHEMA_VALID(@schema_reference, '{}');
 
-
-
 --echo #
 --echo # MDEV-30795: JSON_SCHEMA_VALID bugs mentioned in comment
 --echo #
@@ -4216,12 +4214,16 @@ SELECT ( WITH x AS ( WITH x ( x ) AS ( SELECT ( 1.000000 ) ) SELECT x FROM x ) S
 
 select json_array_intersect('[["1", "7"], ["2", "6"], ["4", "5"], ["3", "8"]]', '[["2","6"],["3","8"],["4","5"],["1","7"]]') as result from (values (1),(2),(3),(4),(5)) x;
 
-
 --echo #
 --echo # MDEV-33640: Server crashes at my_hash_free
 --echo #
 
 --error ER_JSON_INVALID_VALUE_FOR_KEYWORD
 SELECT JSON_SCHEMA_VALID('{"properties": "a_string": {"pattern": "^[5-9]$"}}}', '{"a_string": "8"}');
+
+--echo #
+--echo # MDEV-38356 JSON_SCHEMA_VALID() crashes with a long enum
+--echo #
+select json_schema_valid('{"enum":[0]}', sformat('"{:#>200}"','0'));
 
 --echo # End of 11.4 Test
