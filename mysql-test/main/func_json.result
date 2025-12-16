@@ -5372,4 +5372,10 @@ result
 [["2", "6"], ["3", "8"], ["4", "5"], ["1", "7"]]
 [["2", "6"], ["3", "8"], ["4", "5"], ["1", "7"]]
 [["2", "6"], ["3", "8"], ["4", "5"], ["1", "7"]]
+#
+# MDEV-38356 JSON_SCHEMA_VALID() crashes with a long enum
+#
+select json_schema_valid('{"enum":[0]}', sformat('"{:#>200}"','0'));
+json_schema_valid('{"enum":[0]}', sformat('"{:#>200}"','0'))
+0
 # End of 11.4 Test
