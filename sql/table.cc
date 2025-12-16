@@ -10163,6 +10163,9 @@ bool TABLE_LIST::init_derived(THD *thd, bool init_view)
            belong_to_view ? belong_to_view->updating :
                            !unit->outer_select()->outer_select();
 
+    if (with && updating)
+      set_materialized_derived();
+
     /*
        In the case where a table merge operation moves a derived table from
        one select to another, table hints may be adjusted already.
