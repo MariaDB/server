@@ -969,6 +969,14 @@ Exit_status process_event(PRINT_EVENT_INFO *print_event_info, Log_event *ev,
     }
 
     /*
+      Start a new GTID event with a fresh table map state. This is because
+      table maps are cached for each transaction, e.g. for
+      Partial_rows_log_event printing.
+    */
+    print_event_info->m_table_map.clear_tables();
+    print_event_info->m_table_map_ignored.clear_tables();
+
+    /*
       Where we always ensure the initial binlog state is valid, we only
       continually monitor the GTID stream for validity if we are in GTID
       strict mode (for errors) or if three levels of verbosity is provided
@@ -1185,18 +1193,7 @@ Exit_status process_event(PRINT_EVENT_INFO *print_event_info, Log_event *ev,
       break;
     case TABLE_MAP_EVENT:
     {
-      /*
-        Always keep the Table_map_log_event around in case a group of
-        Partial_rows_log_events is seen, where we will write the content of
-        the Table_map_log_event for the last fragment so it can be re-applied.
-
-        TODO: Refactor the existing logic now that the Tmle is always
-              persistent
-      */
       Table_map_log_event *map= ((Table_map_log_event *)ev);
-      if (print_event_info->table_map_event != map)
-        delete print_event_info->table_map_event;
-      print_event_info->table_map_event= map;
       destroy_evt= FALSE;
 
       if (shall_skip_database(map->get_db_name()) ||
@@ -1205,6 +1202,14 @@ Exit_status process_event(PRINT_EVENT_INFO *print_event_info, Log_event *ev,
         print_event_info->m_table_map_ignored.set_table(map->get_table_id(), map);
         goto end;
       }
+
+      /*
+        Always keep the Table_map_log_event around in case a group of
+        Partial_rows_log_events is seen, where we will write the content of
+        the Table_map_log_event for the last fragment so it can be re-applied.
+      */
+      print_event_info->m_table_map.set_table(map->get_table_id(), map);
+
 #ifdef WHEN_FLASHBACK_REVIEW_READY
       /* Create review table for Flashback */
       if (opt_flashback_review)
@@ -2465,13 +2470,11 @@ static Exit_status dump_log_entries(const char* logname)
   print_event_info.short_form= short_form;
   print_event_info.print_row_count= print_row_count;
   print_event_info.file= result_file;
-  print_event_info.table_map_event= NULL;
   fflush(result_file);
   rc= (remote_opt ? dump_remote_log_entries(&print_event_info, logname) :
        dump_local_log_entries(&print_event_info, logname));
 
-  if (print_event_info.table_map_event)
-    delete print_event_info.table_map_event;
+  print_event_info.m_table_map.clear_tables();
 
   if (rc == ERROR_STOP)
     return rc;
