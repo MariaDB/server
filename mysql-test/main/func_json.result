@@ -1041,9 +1041,6 @@ SELECT JSON_EXTRACT('{"a":null, "b":10, "c":"null"}', '$.a');
 JSON_EXTRACT('{"a":null, "b":10, "c":"null"}', '$.a')
 null
 #
-# Start of 10.4 tests
-#
-#
 # MDEV-16351 JSON_OBJECT() treats hybrid functions with boolean arguments as numbers
 #
 SELECT
@@ -2751,7 +2748,7 @@ SET @JSON='
     }
   ]
 }
- 
+
 '
 ;
 # Should return EMPTY result
@@ -4953,7 +4950,6 @@ SELECT JSON_SCHEMA_VALID(@a,'{}');
 JSON_SCHEMA_VALID(@a,'{}')
 NULL
 # End of 11.1 test
-# Beginning of 11.2
 #
 # MDEV-30145: JSON_TABLE: allow to retrieve the key when iterating on JSON objects
 #
@@ -5145,8 +5141,6 @@ JSON_KEY_VALUE('{"key1":{"a":1, "b": [1,2,3, {"some_key":"some_val", "c":3}]}, "
     COLUMNS (k VARCHAR(20) PATH '$.key', v VARCHAR(20) PATH '$.value', id FOR ORDINALITY)) AS jt;
 k	v	id
 # End of 11.2 test
-#
-# Beginning of 11.2 tests
 #
 # MDEV-26182: Implement json_array_intersect()
 #
@@ -5346,7 +5340,6 @@ NULL
 SET character_set_database=default;
 SET CHARACTER SET default;
 # End of 11.2 Test
-# Beginning of 11.4 Test
 #
 # MDEV-33149: JSON_ARRAY_INTERSECT function crashes the server when
 # called with empty json arrays, UBSAN runtime error: member access
