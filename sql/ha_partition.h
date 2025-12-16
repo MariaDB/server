@@ -1074,7 +1074,7 @@ public:
   ha_rows records() override;
 
   /* Calculate hash value for PARTITION BY KEY tables. */
-  static uint32 calculate_key_hash_value(Field **field_array);
+  static uint64 calculate_key_hash_value(Field **field_array);
 
   /*
     -------------------------------------------------------------------------

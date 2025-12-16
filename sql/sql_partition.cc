@@ -2470,10 +2470,30 @@ static int add_key_with_algorithm(String *str, const partition_info *part_info)
   int err= 0;
   err+= str->append(STRING_WITH_LEN("KEY "));
 
-  if (part_info->key_algorithm == partition_info::KEY_ALGORITHM_51)
+  if (part_info->key_algorithm != partition_info::KEY_ALGORITHM_NONE &&
+      part_info->key_algorithm != partition_info::KEY_ALGORITHM_55)
   {
     err+= str->append(STRING_WITH_LEN("ALGORITHM = "));
-    err+= str->append_longlong(part_info->key_algorithm);
+    switch (part_info->key_algorithm)
+    {
+      case partition_info::KEY_ALGORITHM_51:
+        err+= str->append(STRING_WITH_LEN("MYSQL51"));
+        break;
+      case partition_info::KEY_ALGORITHM_BASE31:
+        err+= str->append(STRING_WITH_LEN("BASE31"));
+        break;
+      case partition_info::KEY_ALGORITHM_CRC32C:
+        err+= str->append(STRING_WITH_LEN("CRC32C"));
+        break;
+      case partition_info::KEY_ALGORITHM_XXH32:
+        err+= str->append(STRING_WITH_LEN("XXH32"));
+        break;
+      case partition_info::KEY_ALGORITHM_XXH3:
+        err+= str->append(STRING_WITH_LEN("XXH3"));
+        break;
+      default:
+        DBUG_ASSERT(0 && "wrong part_info->key_algorithm");
+    }
     err+= str->append(' ');
   }
   return err;
@@ -2956,8 +2976,9 @@ static uint32 get_part_id_key(handler *file,
                               longlong *func_value)
 {
   DBUG_ENTER("get_part_id_key");
-  *func_value= ha_partition::calculate_key_hash_value(field_array);
-  DBUG_RETURN((uint32) (*func_value % num_parts));
+  uint64 hash= ha_partition::calculate_key_hash_value(field_array);
+  *func_value= (longlong) hash;
+  DBUG_RETURN((uint32) (hash % num_parts));
 }
 
 
@@ -2983,7 +3004,7 @@ static uint32 get_part_id_linear_key(partition_info *part_info,
 {
   DBUG_ENTER("get_part_id_linear_key");
 
-  *func_value= ha_partition::calculate_key_hash_value(field_array);
+  *func_value= (longlong) ha_partition::calculate_key_hash_value(field_array);
   DBUG_RETURN(get_part_id_from_linear_hash(*func_value,
                                            part_info->linear_hash_mask,
                                            num_parts));

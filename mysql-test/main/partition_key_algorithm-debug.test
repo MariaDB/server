@@ -1,0 +1,47 @@
+--source include/have_partition.inc
+--source include/not_embedded.inc
+--source include/have_debug.inc
+
+--echo # MDEV-9826 better hash algorithms for PARTITION BY KEY
+
+CREATE TABLE t1 (
+  c1 int(11) DEFAULT NULL,
+  c2 date DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+PARTITION BY KEY ALGORITHM=CRC32C (c1,c2)
+PARTITIONS 8;
+insert into t1 values
+(1, NULL),
+(1, '2014-04-22'),
+(1, '2014-04-23'),
+(1, '2014-04-24'),
+(1, '2014-04-25'),
+(2, '2014-04-24'),
+(2, '2014-04-25'),
+(2, '2014-04-26'),
+(2, '2014-04-27');
+
+
+SET SESSION debug_dbug="+d,emulate_unknown_partition_algorithm";
+
+FLUSH TABLES;
+--error ER_WRONG_VALUE
+SELECT * FROM t1;
+
+FLUSH TABLES;
+--error ER_WRONG_VALUE
+ALTER TABLE t1 REMOVE PARTITIONING;
+
+FLUSH TABLES;
+--error ER_WRONG_VALUE
+TRUNCATE TABLE t1;
+
+# It would be nice to make REMOVE PARTITIONING work eventually
+FLUSH TABLES;
+--error ER_WRONG_VALUE
+ALTER TABLE t1 REMOVE PARTITIONING;
+
+FLUSH TABLES;
+DROP TABLE t1;
+
+SET SESSION debug_dbug=DEFAULT;
