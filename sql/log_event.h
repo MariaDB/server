@@ -903,6 +903,11 @@ typedef struct st_print_event_info
   enum_base64_output_mode base64_output_mode;
   my_off_t hexdump_from;
 
+  /*
+    The Table_map_log_event(s) for the current event group.  We always need it
+    around in case we are printing a group of Partial_rows_log_events, where we
+    will write a Table_map_log_event for the last fragment.
+  */
   table_mapping m_table_map;
   table_mapping m_table_map_ignored;
   bool flags2_inited;
@@ -931,13 +936,6 @@ typedef struct st_print_event_info
   */
   bool skip_replication;
   bool print_table_metadata;
-
-  /*
-    The Table_map_log_event for the current event group.  We always need it
-    around in case we are printing a group of Partial_rows_log_events, where we
-    will write a Table_map_log_event for the last fragment.
-  */
-  Table_map_log_event *table_map_event;
 
   /*
      These two caches are used by the row-based replication events to

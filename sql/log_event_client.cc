@@ -1770,17 +1770,14 @@ bool Log_event::print_base64(IO_CACHE* file,
     {
     case TABLE_MAP_EVENT:
     {
-      Table_map_log_event *map; 
-      map= new Table_map_log_event(ptr, size, 
-                                   glob_description_event);
 #ifdef WHEN_FLASHBACK_REVIEW_READY
+      Table_map_log_event *map= static_cast<Table_map_log_event*>(this);
       if (need_flashback_review)
       {
         map->set_review_dbname(m_review_dbname.ptr());
         map->set_review_tablename(m_review_tablename.ptr());
       }
 #endif
-      print_event_info->m_table_map.set_table(map->get_table_id(), map);
       break;
     }
     case WRITE_ROWS_EVENT:
@@ -3619,15 +3616,35 @@ bool Partial_rows_log_event::print(FILE *file,
 
   if (!print_event_info->short_form || print_event_info->print_row_count)
   {
-    DBUG_ASSERT(print_event_info->table_map_event);
+    DBUG_ASSERT(print_event_info->m_table_map.count() ||
+                print_event_info->m_table_map_ignored.count());
     /*
-      For the last fragment, re-write the Table_map_log_event into the start of
-      the BINLOG base64 statement. See the comment in the header file for
+      For the last fragment, re-write the Table_map_log_event(s) into the start
+      of the BINLOG base64 statement. See the comment in the header file for
       Partial_rows_log_event for more details why.
     */
     if (seq_no == total_fragments)
-      if (print_event_info->table_map_event->print_body(print_event_info))
-        goto err;
+    {
+      ulong n_tables= print_event_info->m_table_map.count();
+      {
+        auto table_ids=(ulonglong*)alloca(sizeof(ulonglong)*n_tables);
+        print_event_info->m_table_map.get_table_ids(&table_ids[0], n_tables);
+        for (ulong i = 0; i < n_tables; i++)
+        {
+          DBUG_PRINT("info", ("Table ID: %llu", table_ids[i]));
+          Table_map_log_event *tbl_map_to_print;
+
+          if (print_event_info->m_table_map_ignored.get_table(table_ids[i]))
+            continue;
+
+          tbl_map_to_print=
+              print_event_info->m_table_map.get_table(table_ids[i]);
+          if (tbl_map_to_print &&
+              tbl_map_to_print->print_body(print_event_info))
+            goto err;
+        }
+      }
+    }
 
     if (print_base64(body, print_event_info, do_print_encoded))
       goto err;
