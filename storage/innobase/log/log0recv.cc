@@ -1726,23 +1726,47 @@ dberr_t recv_sys_t::find_checkpoint()
     else
     {
       archive= -1;
+#ifdef _WIN32
+      WIN32_FIND_DATAA entry;
+      HANDLE d= FindFirstFileA(srv_log_group_home_dir, &entry);
+      if (d == INVALID_HANDLE_VALUE)
+        goto retry;
+#else
       DIR *d= opendir(srv_log_group_home_dir);
       if (!d)
         goto retry;
+#endif
       std::map<lsn_t,lsn_t> logs;
+#ifdef _WIN32
+      do
+      {
+        if (entry.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)
+          continue;
+        lsn_t lsn;
+        int n{0};
+        const char *fn{entry.cFileName};
+        if (1 != sscanf(fn, "ib_%016" PRIx64 ".log%n", &lsn, &n) || fn[n])
+          continue;
+        LARGE_INTEGER filesize;
+        filesize.LowPart= entry.nFileSizeLow;
+        filesize.HighPart= entry.nFileSizeHigh;
+        logs.emplace(lsn, lsn + filesize.QuadPart);
+      }
+      while (FindNextFile(d, &entry));
+      FindClose(d);
+#else
       path.reserve(strlen(srv_log_group_home_dir) +
                    sizeof "/ib_0000000000000000.log");
-
       while (dirent *e= readdir(d))
       {
         lsn_t lsn;
-        int n= 0;
-        if (1 != sscanf(e->d_name, "ib_%016" PRIx64 ".log%n", &lsn, &n) ||
-            e->d_name[n])
+        int n{0};
+        const char *fn{e->d_name};
+        if (1 != sscanf(fn, "ib_%016" PRIx64 ".log%n", &lsn, &n) || fn[n])
           continue;
         path.assign(srv_log_group_home_dir);
         path.push_back('/');
-        path.append(e->d_name);
+        path.append(fn);
         struct stat st;
         if (stat(path.c_str(), &st) ||
             st.st_size < static_cast<decltype(st.st_size)>
@@ -1754,6 +1778,7 @@ dberr_t recv_sys_t::find_checkpoint()
         logs.emplace(lsn, lsn + st.st_size);
       }
       closedir(d);
+#endif
 
       auto min= logs.cbegin();
       const auto end= logs.cend();
@@ -1779,12 +1804,10 @@ dberr_t recv_sys_t::find_checkpoint()
       default:
         path.push_back('/');
       }
-      path.append("ib_");
-      uint64_t lsn{min->first};
-      for (int i= 16; i--; lsn<<= 4)
-        path.push_back("0123456789abcdef"[lsn >> 60]);
-      path.append(".log");
-      file= os_file_create_func(path.c_str(), OS_FILE_OPEN, OS_LOG_FILE,
+      // TODO: validate innodb_log_archive_start, innodb_log_recovery_start,
+      // innodb_log_recovery_target
+      file= os_file_create_func(log_sys.append_archive_name(path, min->first).
+                                c_str(), OS_FILE_OPEN, OS_LOG_FILE,
                                 srv_read_only_mode, &success);
       if (file == OS_FILE_CLOSED)
         goto retry;

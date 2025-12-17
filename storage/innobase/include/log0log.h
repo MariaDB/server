@@ -562,6 +562,13 @@ public:
   /** @return the name of the current log file */
   ATTRIBUTE_COLD std::string get_path() const;
 
+  /** Append the archive log file base name to a string.
+  @param path  directory name and separator
+  @param lsn   first LSN stored in the file
+  @return path with the base file name appended */
+  static ATTRIBUTE_COLD std::string &append_archive_name(std::string &path,
+                                                         lsn_t lsn);
+
   /** Generate an archive log file name.
   @param lsn   first LSN stored in the file
   @return archive log file name */

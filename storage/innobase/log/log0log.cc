@@ -946,31 +946,38 @@ static void log_write_buf(lsn_t max_length,
   log_sys.log.write(offset, {buf, length});
 }
 
+ATTRIBUTE_COLD
+std::string &log_t::append_archive_name(std::string &path, lsn_t lsn)
+{
+  path.append("ib_");
+  for (int i= 16; i--; lsn<<= 4)
+    path.push_back("0123456789abcdef"[lsn >> 60]);
+  path.append(".log");
+  return path;
+}
+
 ATTRIBUTE_COLD std::string log_t::get_archive_path(lsn_t lsn) const
 {
-  size_t size= strlen(srv_log_group_home_dir) +
-    sizeof "/ib_0000000000000000.log";
-  bool trim= false;
-  switch (srv_log_group_home_dir[strlen(srv_log_group_home_dir) - 1]) {
+  size_t size= strlen(srv_log_group_home_dir);
+ retry:
+  switch (srv_log_group_home_dir[size - 1]) {
 #ifdef _WIN32
   case '\\':
 #endif
   case '/':
-    trim= true;
+    if (size <= 1)
+      break;
     size--;
+    goto retry;
   }
-
-  char stack[FN_REFLEN], *heap= nullptr;
-  char *buf= size < sizeof stack
-    ? stack : (heap= static_cast<char*>(malloc(size)));
-  const int d=
-    snprintf(buf, size,
-             trim ? "%sib_" UINT64PFx ".log" : "%s/ib_" UINT64PFx ".log",
-             srv_log_group_home_dir, lsn);
-  ut_a(d + 1 == int(size));
-  std::string path{buf, size};
-  free(heap);
-  return path;
+  if (size == 1 && *srv_log_group_home_dir == '.')
+    size= 0;
+  std::string path;
+  path.reserve(size + sizeof "/ib_0000000000000000.log");
+  path.assign(srv_log_group_home_dir, size);
+  if (size)
+    path.push_back('/');
+  return append_archive_name(path, lsn);
 }
 
 ATTRIBUTE_COLD std::string log_t::get_next_archive_path() const
