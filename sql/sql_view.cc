@@ -1909,7 +1909,7 @@ ok2:
   DBUG_ASSERT(view_query_lex == thd->lex);
   thd->lex= parent_query_lex;                            // Needed for prepare_security
   result= !view_table_alias->prelocking_placeholder && view_table_alias->prepare_security(thd);
-  parent_query_lex->has_full_outer_join|= view_query_lex->has_full_outer_join;
+  parent_query_lex->full_join_count+= view_query_lex->full_join_count;
 
   lex_end(view_query_lex);
 end:
