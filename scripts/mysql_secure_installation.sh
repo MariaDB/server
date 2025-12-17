@@ -229,6 +229,16 @@ do_query() {
     return $?
 }
 
+# run with double verbose to get "Query OK, N rows affected" output
+do_verbose_query() {
+    echo "$1" >$command
+    #sed 's,^,> ,' < $command  # Debugging
+    $mysql_command --defaults-file=$config $defaults_extra_file $no_defaults $args --verbose --verbose <$command >$output
+    rslt=$?
+    grep "^Query OK, [0-9]* rows affected" "$output"
+    return $rslt
+}
+
 # Simple escape mechanism (\-escape any ' and \), suitable for two contexts:
 # - single-quoted SQL strings
 # - single-quoted option values on the right hand side of = in my.cnf
@@ -336,7 +346,7 @@ set_root_password() {
 }
 
 remove_anonymous_users() {
-    do_query "DELETE FROM mysql.global_priv WHERE User='';"
+    do_verbose_query "DELETE FROM mysql.global_priv WHERE User='';"
     if [ $? -eq 0 ]; then
 	echo "SQL executed without errors!"
     else
@@ -348,7 +358,7 @@ remove_anonymous_users() {
 }
 
 remove_remote_root() {
-    do_query "DELETE FROM mysql.global_priv WHERE User='root' AND Host NOT IN ('localhost', '127.0.0.1', '::1');"
+    do_verbose_query "DELETE FROM mysql.global_priv WHERE User='root' AND Host NOT IN ('localhost', '127.0.0.1', '::1');"
     if [ $? -eq 0 ]; then
 	echo "SQL executed without errors!"
     else
@@ -358,7 +368,7 @@ remove_remote_root() {
 
 remove_test_database() {
     echo " - Dropping test database..."
-    do_query "DROP DATABASE IF EXISTS test;"
+    do_verbose_query "DROP DATABASE IF EXISTS test;"
     if [ $? -eq 0 ]; then
 	echo "SQL executed without errors!"
     else
@@ -366,7 +376,7 @@ remove_test_database() {
     fi
 
     echo " - Removing privileges on test database..."
-    do_query "DELETE FROM mysql.db WHERE Db='test' OR Db='test\\_%'"
+    do_verbose_query "DELETE FROM mysql.db WHERE Db='test' OR Db='test\\_%'"
     if [ $? -eq 0 ]; then
 	echo "SQL executed without errors!"
     else
