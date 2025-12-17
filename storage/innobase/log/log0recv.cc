@@ -1711,14 +1711,86 @@ dberr_t recv_sys_t::find_checkpoint()
   if (files.empty())
   {
     file_checkpoint= 0;
-    std::string path{log_sys.get_circular_path()}; // FIXME: try archive files as well
+    int archive= 0;
+  retry:
+    std::string path{log_sys.get_circular_path()};
     bool success;
-    os_file_t file{os_file_create_func(path.c_str(),
-                                       OS_FILE_OPEN,
+    os_file_t file{os_file_create_func(path.c_str(), archive
+                                       ? OS_FILE_OPEN
+                                       : OS_FILE_OPEN_SILENT,
                                        OS_LOG_FILE,
                                        srv_read_only_mode, &success)};
-    if (file == OS_FILE_CLOSED)
+    if (file != OS_FILE_CLOSED);
+    else if (archive)
       return DB_ERROR;
+    else
+    {
+      archive= -1;
+      DIR *d= opendir(srv_log_group_home_dir);
+      if (!d)
+        goto retry;
+      std::map<lsn_t,lsn_t> logs;
+      path.reserve(strlen(srv_log_group_home_dir) +
+                   sizeof "/ib_0000000000000000.log");
+
+      while (dirent *e= readdir(d))
+      {
+        lsn_t lsn;
+        int n= 0;
+        if (1 != sscanf(e->d_name, "ib_%016" PRIx64 ".log%n", &lsn, &n) ||
+            e->d_name[n])
+          continue;
+        path.assign(srv_log_group_home_dir);
+        path.push_back('/');
+        path.append(e->d_name);
+        struct stat st;
+        if (stat(path.c_str(), &st) ||
+            st.st_size < static_cast<decltype(st.st_size)>
+            (log_t::START_OFFSET + SIZE_OF_FILE_CHECKPOINT))
+        {
+          sql_print_warning("InnoDB: ignoring %s", path.c_str());
+          continue;
+        }
+        logs.emplace(lsn, lsn + st.st_size);
+      }
+      closedir(d);
+
+      auto min= logs.cbegin();
+      const auto end= logs.cend();
+      if (min == end)
+        goto retry;
+
+      for (auto i= min;;)
+      {
+        auto prev= i++;
+        if (i == end)
+          break;
+        if (prev->second != i->first)
+          min= i;
+      }
+
+      path.assign(srv_log_group_home_dir);
+      switch (path.back()) {
+#ifdef _WIN32
+      case '\\':
+#endif
+      case '/':
+        break;
+      default:
+        path.push_back('/');
+      }
+      path.append("ib_");
+      uint64_t lsn{min->first};
+      for (int i= 16; i--; lsn<<= 4)
+        path.push_back("0123456789abcdef"[lsn >> 60]);
+      path.append(".log");
+      file= os_file_create_func(path.c_str(), OS_FILE_OPEN, OS_LOG_FILE,
+                                srv_read_only_mode, &success);
+      if (file == OS_FILE_CLOSED)
+        goto retry;
+      archive= 1;
+    }
+
     const os_offset_t size{os_file_get_size(file)};
     if (!size)
     {
