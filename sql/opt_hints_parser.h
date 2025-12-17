@@ -19,6 +19,7 @@
 */
 
 #include "lex_ident_sys.h"
+#include "opt_hints_structs.h"
 #include "simple_tokenizer.h"
 #include "sql_list.h"
 #include "sql_string.h"
@@ -29,47 +30,15 @@ class st_select_lex;
 class Opt_hints_qb;
 
 /**
-  Hint types, MAX_HINT_ENUM should be always last.
-  This enum should be synchronized with opt_hint_info
-  array(see opt_hints.cc).
-*/
-enum opt_hints_enum
-{
-  BKA_HINT_ENUM= 0,
-  BNL_HINT_ENUM,
-  ICP_HINT_ENUM,
-  MRR_HINT_ENUM,
-  NO_RANGE_HINT_ENUM,
-  QB_NAME_HINT_ENUM,
-  MAX_EXEC_TIME_HINT_ENUM,
-  SEMIJOIN_HINT_ENUM,
-  SUBQUERY_HINT_ENUM,
-  JOIN_PREFIX_HINT_ENUM,
-  JOIN_SUFFIX_HINT_ENUM,
-  JOIN_ORDER_HINT_ENUM,
-  JOIN_FIXED_ORDER_HINT_ENUM,
-  DERIVED_CONDITION_PUSHDOWN_HINT_ENUM,
-  MERGE_HINT_ENUM,
-  SPLIT_MATERIALIZED_HINT_ENUM,
-  INDEX_HINT_ENUM,
-  JOIN_INDEX_HINT_ENUM,
-  GROUP_INDEX_HINT_ENUM,
-  ORDER_INDEX_HINT_ENUM,
-  ROWID_FILTER_HINT_ENUM,
-  INDEX_MERGE_HINT_ENUM,
-  MAX_HINT_ENUM // This one must be the last in the list
-};
-
-
-/**
   Environment data for the name resolution phase
 */
 struct Parse_context {
-  THD * const thd;              ///< Current thread handler
-  MEM_ROOT *mem_root;           ///< Current MEM_ROOT
-  st_select_lex * select;       ///< Current SELECT_LEX object
+  THD * const thd;
+  MEM_ROOT *mem_root;
+  st_select_lex * select;
+  hint_resolution_stage resolution_stage;
 
-  Parse_context(THD *thd, st_select_lex *select);
+  Parse_context(THD *thd, st_select_lex *select, hint_resolution_stage stage);
   Parse_context(Parse_context *pc, st_select_lex *select);
 };
 
@@ -93,6 +62,7 @@ public:
     tEOF=   2, // returned when the end of input is reached
 
     // One character tokens
+    tDOT= '.',
     tCOMMA= ',',
     tAT= '@',
     tLPAREN= '(',
@@ -111,6 +81,7 @@ public:
     keyword_NO_RANGE_OPTIMIZATION,
     keyword_MRR,
     keyword_QB_NAME,
+    keyword_QB_NAME_LOC,
     keyword_MAX_EXECUTION_TIME,
     keyword_SEMIJOIN,
     keyword_NO_SEMIJOIN,
@@ -299,9 +270,13 @@ private:
 
   using TokenAT= TokenParser<Parser, TokenID::tAT>;
 
+  using TokenCOMMA= TokenParser<Parser, TokenID::tCOMMA>;
+
   using TokenEOF= TokenParser<Parser, TokenID::tEOF>;
 
   using Keyword_QB_NAME= TokenParser<Parser, TokenID::keyword_QB_NAME>;
+
+  using Keyword_QB_NAME_LOC= TokenParser<Parser, TokenID::keyword_QB_NAME_LOC>;
 
   using Keyword_MAX_EXECUTION_TIME=
           TokenParser<Parser, TokenID::keyword_MAX_EXECUTION_TIME>;
@@ -654,18 +629,121 @@ public:
     void append_args(THD *thd, String *str) const override;
   };
 
+  // qb_path_element_view_name ::= identifier
+  class QB_path_element_view_name: public Identifier
+  {
+  public:
+    using Identifier::Identifier;
+  };
 
-  // qb_name_hint ::= QB_NAME ( query_block_name )
+  // qb_path_element_select_num ::= identifier
+  class QB_path_element_select_num: public Identifier
+  {
+  public:
+    using Identifier::Identifier;
+  };
+
+  // at_qb_path_element_select_num ::= @ qb_path_element_select_num
+  class At_QB_path_element_select_num:
+    public AND2<Parser, TokenAT, QB_path_element_select_num>
+  {
+  public:
+    using AND2::AND2;
+    using AND2::operator=;
+  };
+
+  // just a clone of At_QB_path_element_select_num to avoid inheritance issues
+  class At_QB_path_element_select_num2:
+    public AND2<Parser, TokenAT, QB_path_element_select_num>
+  {
+  public:
+    using AND2::AND2;
+    using AND2::operator=;
+  };
+
+  class Opt_at_QB_path_element_select_num:
+    public OPT<Parser, At_QB_path_element_select_num2>
+  {
+  public:
+    using OPT::OPT;
+  };
+
+  /*
+    qb_path_element_view_sel ::= qb_path_element_view_name
+                                 [ @ qb_path_element_select_num ]
+  */
+  class QB_path_element_view_sel: public AND2<Parser, QB_path_element_view_name,
+                                              Opt_at_QB_path_element_select_num>
+  {
+  public:
+    using AND2::AND2;
+  };
+
+  // qb_path_element ::= @ qb_path_element_select_num | qb_path_element_view_sel
+  class QB_path_element: public OR2<Parser, At_QB_path_element_select_num,
+                                            QB_path_element_view_sel>
+  {
+  public:
+    using OR2::OR2;
+  };
+
+  // Container for query block path elements
+  class Query_block_path_list: public List<QB_path_element>
+  {
+  public:
+    Query_block_path_list() = default;
+
+    bool add(Optimizer_hint_parser *p, QB_path_element &&elem);
+    size_t count() const { return elements; }
+    static Query_block_path_list empty(const Optimizer_hint_parser &)
+    {
+      return Query_block_path_list();
+    }
+  };
+
+  /*
+    query_block_path ::= query_block_path_element
+                         [ {, query_block_path_element }... ]
+  */
+  class Query_block_path: public LIST<Parser,
+                                      Query_block_path_list,
+                                      QB_path_element,
+                                      TokenID::tDOT, 0>
+  {
+    using LIST::LIST;
+  };
+
+  // opt_query_block_path ::= [, query_block_path]
+  class Opt_query_block_path: public AND2<Parser,
+                                          TokenCOMMA,
+                                          Query_block_path>::Opt
+  {
+  public:
+    using Opt::Opt;
+  };
+
+  // qb_name_with_opt_path ::= query_block_name [, query_block_path]
+  class QB_name_with_opt_path: public AND2<Parser,
+                                           Query_block_name,
+                                           Opt_query_block_path>
+  {
+  public:
+    using AND2::AND2;
+  };
+
+  // qb_name_hint ::= QB_NAME ( qb_name_with_opt_path )
   class Qb_name_hint: public AND4<Parser,
                                   Keyword_QB_NAME,
                                   LParen,
-                                  Query_block_name,
-                                  RParen>
+                                  QB_name_with_opt_path,
+                                  RParen>,
+                                public Printable_parser_rule
   {
   public:
     using AND4::AND4;
 
     bool resolve(Parse_context *pc) const;
+    void append_args(THD *thd, String *str) const override;
   };
 
 
@@ -994,6 +1072,8 @@ private:
     bool resolve(Parse_context *pc) const;
   };
 
+  static bool is_appropriate_resolution_stage(opt_hints_enum hint_type,
+                                              Parse_context *pc);
 public:
   /*
     The main rule:
