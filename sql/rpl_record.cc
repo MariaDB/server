@@ -352,6 +352,14 @@ int unpack_row(const rpl_group_info *rgi, TABLE *table, uint const master_cols,
                             tabledef, conv_table));
 
   /*
+    For each field that is unpacked, we mark it as having an explicit value
+    (via Field::set_has_explicit_value()). So we need to reset the table's
+    internal tracking of fields with explicit values provided to ensure the
+    end state is consistent with the fields that are actually unpacked.
+  */
+  table->reset_default_fields();
+
+  /*
     When unpacking a row for replication (rather than online alter), it needs
     its own additional checks. The slave must account for its tables having
     either columns in different positions, or with different types, than on the
@@ -415,6 +423,7 @@ int unpack_row(const rpl_group_info *rgi, TABLE *table, uint const master_cols,
       DBUG_ASSERT(bitmap_is_set(table->write_set, slave_idx) ||
                   bitmap_is_set(table->read_set, slave_idx));
       result_field= field= table->field[slave_idx];
+      result_field->set_has_explicit_value();
 
       /*
         Check 3: Skip unpacking if NULL is explicitly provided for the field.
@@ -427,17 +436,12 @@ int unpack_row(const rpl_group_info *rgi, TABLE *table, uint const master_cols,
         conv_table_idx++;
         continue;
       }
+      result_field->set_notnull();
 
       /*
         Phase 2: Unpack the actual value into the slave table with any
         necessary conversions.
-      */
 
-      /* Set attributes for the slave-side field */
-      result_field->set_has_explicit_value();
-      result_field->set_notnull();
-
-      /*
         If there is a conversion table, we pick up the field pointer to
         the conversion table.  If the conversion table or the field
         pointer is NULL, no conversions are necessary.
