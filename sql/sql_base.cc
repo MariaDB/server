@@ -8006,6 +8006,23 @@ err:
 
 
 /*
+  If the tables involved participate in a FULL OUTER JOIN then don't
+  update their name resolution contexts at this point, or it will
+  break simplify_joins.
+ */
+static bool is_full_outer_join(Name_resolution_context *context,
+                               TABLE_LIST *right_neighbor)
+{
+  const uint ctx_outer_join= context->first_name_resolution_table->outer_join;
+  const uint rtn_outer_join=
+    right_neighbor->first_leaf_for_name_resolution()->outer_join;
+
+  return (ctx_outer_join & JOIN_TYPE_FULL) ||
+         (rtn_outer_join & JOIN_TYPE_FULL);
+}
+
+
+/*
   Compute and store the row types of the top-most NATURAL/USING joins
   in a FROM clause.
 
@@ -8092,8 +8109,9 @@ static bool setup_natural_join_row_types(THD *thd,
     FROM clause.
   */
   DBUG_ASSERT(right_neighbor);
-  context->first_name_resolution_table=
-    right_neighbor->first_leaf_for_name_resolution();
+  if (!is_full_outer_join(context, right_neighbor))
+    context->first_name_resolution_table=
+      right_neighbor->first_leaf_for_name_resolution();
   /*
     This is only to ensure that first_name_resolution_table doesn't
     change on re-execution

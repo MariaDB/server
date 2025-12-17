@@ -597,6 +597,34 @@ public:
   inline void remove()      { base_list_iterator::remove(); }
   inline void after(T *a)   { base_list_iterator::after(a); }
   inline T** ref(void)	    { return (T**) base_list_iterator::ref(); }
+
+  /*
+    Swap the current element with the next one in the list.
+
+    If this iterator points to no element or to the last element, then this
+    method does nothing and returns nullptr.
+
+    If this iter points to B in the following list
+      A, B, C, D, ...
+    then after this method returns, the list will be
+      A, C, B, D, ...
+    and this method returns C.  This iter will point to the same location
+    in the list after this method returns as it did before, but the element at
+    that location will be C instead of B.
+
+    Other iterators pointing to the same list remain valid and will see the
+    updated list order.
+  */
+  T* swap_next()
+  {
+    if (!ref() || !*ref() || !peek())
+      return nullptr;
+    T* cur= *ref();
+    List_iterator<T> itr= *this;
+    T* nxt= itr++;
+    replace(nxt);
+    return itr.replace(cur);
+  }
 };
 
 
