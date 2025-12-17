@@ -1,0 +1,12 @@
+!include ../my.cnf
+
+[mysqld.1]
+gtid_domain_id=0
+server_id=1
+binlog_row_metadata=FULL
+
+[mysqld.2]
+gtid_domain_id=1
+server_id=2
+log_slave_updates
+binlog_row_metadata=FULL
