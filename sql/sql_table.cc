@@ -8706,6 +8706,9 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
         }
         else
         {
+          if (def->default_value != alter->default_value &&
+              def->has_default_now_unireg_check())
+            def->unireg_check= Field::NONE;
           if ((def->default_value= alter->default_value) ||
               !(def->flags & NOT_NULL_FLAG))
             def->flags&= ~NO_DEFAULT_VALUE_FLAG;
