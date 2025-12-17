@@ -17,6 +17,10 @@
 #include <my_alloca.h>
 #include "mysql_sha2.h"
 
+#define MAX_ALLOCA_SZ 4096
+#define my_safe_alloca(size) (((size) > MAX_ALLOCA_SZ) ? malloc(size) : alloca(size))
+#define my_safe_afree(ptr, size) do { if ((size) > MAX_ALLOCA_SZ) free(ptr); } while(0)
+
 /* based on https://www.akkadia.org/drepper/SHA-crypt.txt */
 
 /* SHA256-based Unix crypt implementation.
@@ -38,7 +42,7 @@ void sha256_crypt_r(const unsigned char *key, size_t key_len,
 #endif
     = "./0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
   void *ctx = alloca(my_sha256_context_size());
-  unsigned char *p_bytes = alloca(key_len);
+  unsigned char *p_bytes = my_safe_alloca(key_len);
   unsigned char *s_bytes = alloca(salt_len);
 
   my_sha256_multi(alt, key, key_len, salt, salt_len, key, key_len, NULL);
@@ -123,4 +127,6 @@ void sha256_crypt_r(const unsigned char *key, size_t key_len,
   b64_from_24bit (tmp[18], tmp[28], tmp[8], 4);
   b64_from_24bit (tmp[9], tmp[19], tmp[29], 4);
   b64_from_24bit (0, tmp[31], tmp[30], 3);      /* == 43 bytes in total */
+
+  my_safe_afree(p_bytes, key_len);
 }
