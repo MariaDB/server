@@ -46,7 +46,7 @@ include/start_slave.inc
 # MDEV-33924: If pseudo_thread_id is set to 0, thread_id should still be
 # written and propagated to slaves
 connection master;
-set @@pseudo_thread_id=0;
+set @@pseudo_thread_id=1;
 insert into t1 values(33924);
 # MYSQL_BINLOG primary_local_binlog > primary_outfile
 include/assert_grep.inc [GTID event's thread_id should write pseudo_thread_id value of 0]

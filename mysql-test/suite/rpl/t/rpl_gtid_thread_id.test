@@ -120,14 +120,14 @@ insert into t1 values(4);
 --echo # written and propagated to slaves
 --connection master
 --let $old_pseudo_id= `SELECT @@SESSION.pseudo_thread_id`
-set @@pseudo_thread_id=0;
+set @@pseudo_thread_id=1;
 insert into t1 values(33924);
 --echo # MYSQL_BINLOG primary_local_binlog > primary_outfile
 --exec $MYSQL_BINLOG $primary_local_binlog > $primary_outfile
 
 --let $assert_count= 1
 --let $assert_text= GTID event's thread_id should write pseudo_thread_id value of 0
---let $assert_select=GTID [0-9]-[0-9]-[0-9].*thread_id=0\$
+--let $assert_select=GTID [0-9]-[0-9]-[0-9].*thread_id=1\$
 --let $assert_file= $primary_outfile
 --source include/assert_grep.inc
 
@@ -137,7 +137,7 @@ insert into t1 values(33924);
 --exec $MYSQL_BINLOG $replica_local_binlog > $replica_outfile
 
 --let $assert_text= A 0 value for GTID event's thread_id should be propagated on replicas
---let $assert_select=GTID [0-9]-[0-9]-[0-9].*thread_id=0\$
+--let $assert_select=GTID [0-9]-[0-9]-[0-9].*thread_id=1\$
 --let $assert_file= $replica_outfile
 --source include/assert_grep.inc
 
