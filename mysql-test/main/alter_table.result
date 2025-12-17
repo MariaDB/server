@@ -3184,3 +3184,31 @@ DROP TABLE t;
 #
 # End of 10.7 tests
 #
+#
+# MDEV-37275 Cannot remove default value of NOT NULL column
+#
+create table t1 (d time default '00:00:00');
+alter table t1 alter column d drop default;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `d` time DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+create table t2 (d datetime not null default current_timestamp());
+alter table t2 alter column d drop default;
+show create table t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `d` datetime NOT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+create table t3 (d datetime not null);
+alter table t3 alter column d set default current_timestamp();
+show create table t3;
+Table	Create Table
+t3	CREATE TABLE `t3` (
+  `d` datetime NOT NULL DEFAULT current_timestamp()
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+drop tables t1, t2, t3;
+#
+# End of 10.11 tests
+#
