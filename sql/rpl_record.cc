@@ -411,6 +411,7 @@ int unpack_row(const rpl_group_info *rgi, TABLE *table, uint const master_cols,
       DBUG_ASSERT(bitmap_is_set(table->write_set, slave_idx) ||
                   bitmap_is_set(table->read_set, slave_idx));
       result_field= field= table->field[slave_idx];
+      result_field->set_has_explicit_value();
 
       /*
         Check 3: Skip unpacking if NULL is explicitly provided for the field.
@@ -423,17 +424,12 @@ int unpack_row(const rpl_group_info *rgi, TABLE *table, uint const master_cols,
         conv_table_idx++;
         continue;
       }
+      result_field->set_notnull();
 
       /*
         Phase 2: Unpack the actual value into the slave table with any
         necessary conversions.
-      */
 
-      /* Set attributes for the slave-side field */
-      result_field->set_has_explicit_value();
-      result_field->set_notnull();
-
-      /*
         If there is a conversion table, we pick up the field pointer to
         the conversion table.  If the conversion table or the field
         pointer is NULL, no conversions are necessary.

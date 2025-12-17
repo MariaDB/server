@@ -1,0 +1,89 @@
+include/master-slave.inc
+[connection master]
+#
+# Initialize test data
+connection master;
+create table t1 (a int primary key) engine=innodb;
+create table t2 (a int primary key, b int default (a+10), c int default (a + 100), d int default (a + 1000)) engine=innodb;
+include/rpl_sync.inc
+connection master;
+use test;
+create function f_insert_defaults_first() returns integer
+begin
+insert into test.t2 (a) values(1);
+insert into test.t2 (a, b) values(2, 10000);
+insert into test.t2 (a, c) values(3, 10000);
+insert into test.t2 (a, d) values(4, 10000);
+insert into test.t2 values(5, 10000, NULL, NULL);
+insert into test.t2 values(6, NULL, 10000, NULL);
+insert into test.t2 values(7, NULL, NULL, 10000);
+insert into test.t2 values(8, NULL, NULL, NULL);
+return 1;
+end//
+create function f_insert_nulls_first() returns integer
+begin
+insert into test.t2 values(9, 20000, NULL, NULL);
+insert into test.t2 values(10, NULL, 20000, NULL);
+insert into test.t2 values(11, NULL, NULL, 20000);
+insert into test.t2 values(12, NULL, NULL, NULL);
+insert into test.t2 (a) values(13);
+insert into test.t2 (a, b) values(14, 20000);
+insert into test.t2 (a, c) values(15, 20000);
+insert into test.t2 (a, d) values(16, 20000);
+return 2;
+end//
+create function f_update() returns integer
+begin
+update test.t2 set b=b+1;
+update test.t2 set c=c+1;
+update test.t2 set d=d+1;
+return 3;
+end//
+create function f_delete() returns integer
+begin
+delete from test.t2;
+return 4;
+end//
+# Ensuring INSERT replicates with default functions (defaults first)
+connection master;
+insert into t1 values(f_insert_defaults_first());
+include/rpl_sync.inc
+include/diff_tables.inc [master:t1, slave:t1]
+include/diff_tables.inc [master:t2, slave:t2]
+# ..PASS
+# Ensuring INSERT replicates with default functions (nulls first)
+connection master;
+insert into t1 values(f_insert_nulls_first());
+include/rpl_sync.inc
+include/diff_tables.inc [master:t1, slave:t1]
+include/diff_tables.inc [master:t2, slave:t2]
+# ..PASS
+# Ensuring UPDATE replicates with default functions..
+connection master;
+insert into t1 values(f_update());
+include/rpl_sync.inc
+include/diff_tables.inc [master:t1, slave:t1]
+include/diff_tables.inc [master:t2, slave:t2]
+# ..PASS
+connection master;
+# Ensuring DELETE replicates with default functions..
+connection master;
+insert into t1 values(f_delete());
+include/rpl_sync.inc
+include/diff_tables.inc [master:t1, slave:t1]
+include/diff_tables.inc [master:t2, slave:t2]
+# ..PASS
+#
+# Cleanup
+connection master;
+drop table t1;
+drop table t2;
+drop function f_insert_defaults_first;
+drop function f_insert_nulls_first;
+drop function f_update;
+drop function f_delete;
+include/save_master_gtid.inc
+connection slave;
+include/sync_with_master_gtid.inc
+include/rpl_end.inc
+# End of rpl_default_functions_explicit_null.test
