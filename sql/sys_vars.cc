@@ -1999,14 +1999,25 @@ static Sys_var_uint Sys_metadata_locks_instances(
        READ_ONLY GLOBAL_VAR(mdl_instances), CMD_LINE(REQUIRED_ARG),
        VALID_RANGE(1, 256), DEFAULT(8), BLOCK_SIZE(1));
 
+static bool check_pseudo_thread_id(sys_var *self, THD *thd, set_var *var)
+{
+  my_thread_id previous_val= thd->variables.pseudo_thread_id;
+  my_thread_id val= (my_thread_id) var->save_result.ulonglong_value;
+
+  bool success= previous_val == val || !thd->temporary_tables ||
+                thd->temporary_tables->global_temporary_tables_count == 0;
+  return !success;
+}
+
 static Sys_var_on_access_session<Sys_var_ulonglong,
                                  PRIV_SET_SYSTEM_SESSION_VAR_PSEUDO_THREAD_ID>
 Sys_pseudo_thread_id(
        "pseudo_thread_id",
        "This variable is for internal server use",
        SESSION_ONLY(pseudo_thread_id),
-       NO_CMD_LINE, VALID_RANGE(0, MY_THREAD_ID_MAX), DEFAULT(0),
-       BLOCK_SIZE(1), NO_MUTEX_GUARD, IN_BINLOG);
+       NO_CMD_LINE, VALID_RANGE(0, MY_THREAD_ID_MAX), DEFAULT(MY_THREAD_ID_MAX),
+       BLOCK_SIZE(1), NO_MUTEX_GUARD, IN_BINLOG,
+       ON_CHECK(check_pseudo_thread_id));
 
 static bool
 check_gtid_domain_id(sys_var *self, THD *thd, set_var *var)

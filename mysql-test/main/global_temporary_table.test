@@ -1069,4 +1069,12 @@ grant select (x) on c to root@localhost;
 drop table t;
 drop view c;
 
+--echo # MDEV-37872 SIGSEGV on some GTT operations under pseudo_thread_id changed
+create global temporary table t (x int) on commit preserve rows;
+insert t values(1);
+--error ER_WRONG_VALUE_FOR_VAR
+set pseudo_thread_id=1;
+truncate t;
+drop table t;
+
 --disconnect con1

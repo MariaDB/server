@@ -1201,6 +1201,13 @@ grant select (x) on c to root@localhost;
 ERROR HY000: View 'test.c' references invalid table(s) or column(s) or function(s) or definer/invoker of view lack rights to use them
 drop table t;
 drop view c;
+# MDEV-37872 SIGSEGV on some GTT operations under pseudo_thread_id changed
+create global temporary table t (x int) on commit preserve rows;
+insert t values(1);
+set pseudo_thread_id=1;
+ERROR 42000: Variable 'pseudo_thread_id' can't be set to the value of '1'
+truncate t;
+drop table t;
 disconnect con1;
 connection slave;
 connection master;
