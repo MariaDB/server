@@ -5723,6 +5723,14 @@ corrupt:
       goto corrupt;
     if (!dict_sys.is_sys_table(mach_read_from_8(field)))
     {
+      const byte *name_field = rec_get_nth_field_old(
+        rec, DICT_FLD__SYS_TABLES__NAME, &len);
+      if (len != UNIV_SQL_NULL && len > 0)
+      {
+        sql_print_information(
+          "InnoDB: Found unexpected table in system tablespace: %.*s",
+          (int)len, (const char *)name_field);
+      }
       err= DB_SUCCESS_LOCKED_REC;
       btr_pcur_close(&pcur);
       goto func_exit;
@@ -5740,7 +5748,7 @@ dberr_t fil_space_t::defragment() noexcept
   if (err == DB_SUCCESS_LOCKED_REC)
   {
     sql_print_information(
-      "InnoDB: User table exists in the system tablespace."
+      "InnoDB: Unexpected table exists in the system tablespace."
       "Please try to move the data from system tablespace "
       "to separate tablespace before defragment the "
       "system tablespace.");
