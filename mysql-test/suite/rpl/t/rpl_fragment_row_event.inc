@@ -1,3 +1,4 @@
+source include/have_debug.inc;
 #
 #   Helper file to run a test case for rpl_fragment_row_event.test with various
 # parameters to define what to verify for the test.
