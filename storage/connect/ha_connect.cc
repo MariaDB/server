@@ -5806,7 +5806,7 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
 			case TAB_JDBC:
 				if (fnc & FNC_DRIVER) {
 					ok= true;
-				} else if (!(url= strz(g, create_info->connect_string))) {
+				} else if (!(url= (char*)create_info->option_struct->connect)) {
 					snprintf(g->Message, sizeof(g->Message), "Missing URL");
 				} else {
 					// Store JDBC additional parameters
@@ -6097,7 +6097,7 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
 #endif   // BSON_SUPPORT
 #if defined(JAVA_SUPPORT)
 				case TAB_MONGO:
-					url= strz(g, create_info->connect_string);
+					url= (char*)create_info->option_struct->connect;
 					qrp= MGOColumns(g, db, url, topt, fnc == FNC_COL);
 					break;
 #endif   // JAVA_SUPPORT
