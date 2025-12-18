@@ -5664,6 +5664,7 @@ bool Rows_log_event::write_data_body(Log_event_writer *writer)
 	Partial_rows_log_event member functions
 **************************************************************************/
 
+#ifdef HAVE_REPLICATION
 int Partial_rows_log_event::do_apply_event(rpl_group_info *rgi)
 {
   int res= 0;
@@ -5737,6 +5738,7 @@ end:
   THD_STAGE_INFO(rgi->thd, org_stage);
   return res;
 }
+#endif
 
 bool Partial_rows_log_event::write_data_body(Log_event_writer *writer)
 {
@@ -6003,6 +6005,7 @@ Rows_log_event_fragmenter::fragment()
   return ev;
 }
 
+#ifdef HAVE_REPLICATION
 // Len of "%u / %u"
 #define PARTIAL_ROWS_EVENT_BAD_STREAM_ERRSTR_LEN (10 + 3 + 10 + 1)
 int Rows_log_event_assembler::append(Partial_rows_log_event *partial_ev)
@@ -6057,6 +6060,7 @@ int Rows_log_event_assembler::append(Partial_rows_log_event *partial_ev)
 
   return 0;
 }
+#endif
 
 Log_event *Rows_log_event_assembler::create_rows_event(
     const Format_description_log_event *fdle)
