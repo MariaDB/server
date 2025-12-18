@@ -1,6 +1,7 @@
 # memory usage is sensitive to valgrind/ps-protocol/embedded
 source include/not_msan.inc;
-source include/not_valgrind.inc;
+# We cannot use valgrind build as it uses more memory than normal build
+source include/not_valgrind_build.inc;
 source include/no_protocol.inc;
 source include/not_embedded.inc;
 source include/have_64bit.inc;
