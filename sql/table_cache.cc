@@ -1259,7 +1259,6 @@ int show_tc_active_instances(THD *thd, SHOW_VAR *var, void *buff,
 
 void TDC_element::wait_for_refs(uint my_refs)
 {
-  DBUG_ASSERT(ref_count <= my_refs);
   while (ref_count > my_refs)
     mysql_cond_wait(&COND_release, &LOCK_table_share);
 }
