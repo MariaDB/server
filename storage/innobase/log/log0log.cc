@@ -448,9 +448,12 @@ void log_t::create(lsn_t lsn) noexcept
   {
     ut_ad(!is_opened());
     mprotect(buf, size_t(file_size), PROT_READ | PROT_WRITE);
-    memset_aligned<4096>(buf, 0, 4096);
-    log_sys.header_write(buf, lsn, is_encrypted());
-    pmem_persist(buf, 512);
+    if (!archive)
+    {
+      memset_aligned<4096>(buf, 0, 4096);
+      header_write(buf, lsn, is_encrypted());
+      pmem_persist(buf, 512);
+    }
     buf_size= unsigned(std::min<uint64_t>(capacity(), buf_size_max));
   }
   else
@@ -459,9 +462,12 @@ void log_t::create(lsn_t lsn) noexcept
     ut_ad(!is_mmap());
     memset_aligned<4096>(flush_buf, 0, buf_size);
     memset_aligned<4096>(buf, 0, buf_size);
-    log_sys.header_write(buf, lsn, is_encrypted());
-    log.write(0, {buf, 4096});
-    memset_aligned<512>(buf, 0, 512);
+    if (!archive)
+    {
+      header_write(buf, lsn, is_encrypted());
+      log.write(0, {buf, 4096});
+      memset_aligned<512>(buf, 0, 512);
+    }
   }
 }
 
@@ -690,15 +696,28 @@ void log_t::set_archive(my_bool archive) noexcept
     }
     if (archive == this->archive)
       break;
-#ifdef HAVE_PMEM
-    if (is_backoff() && is_mmap())
+    if (is_mmap())
     {
-      /* Prevent a race condition with append_prepare() */
+#ifdef HAVE_PMEM
+      if (!archive && resize_buf)
+        /* Wait for a call to archived_mmap_switch_complete() */
+        goto retry;
+      if (is_backoff())
+        /* Prevent a race condition with append_prepare() */
+        goto retry;
+#endif
+    }
+    else if (checkpoint_pending)
+    {
+      /* Prevent a race condition with write_checkpoint() */
+#ifdef HAVE_PMEM
+    retry:
+#endif
       IF_WIN(log_resize_release(), latch.wr_unlock());
       continue;
     }
-#endif
-    ut_ad(!resize_buf); /* FIXME: wait for write_checkpoint() */
+
+    ut_ad(!resize_buf);
 
     std::string normal_name{get_circular_path()};
     std::string arch_name{get_archive_path()};

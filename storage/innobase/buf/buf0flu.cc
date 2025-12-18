@@ -1815,6 +1815,7 @@ static ulint buf_flush_LRU(ulint max_n) noexcept
 inline void log_t::write_checkpoint(lsn_t end_lsn) noexcept
 {
   ut_ad(!srv_read_only_mode);
+  ut_ad(next_checkpoint_lsn >= first_lsn);
   ut_ad(end_lsn >= next_checkpoint_lsn);
   ut_d(const lsn_t current_lsn{get_lsn()});
   ut_ad(end_lsn <= current_lsn);
@@ -1825,66 +1826,98 @@ inline void log_t::write_checkpoint(lsn_t end_lsn) noexcept
              ("checkpoint at " LSN_PF " written", next_checkpoint_lsn));
 
   auto n= next_checkpoint_no;
-  const size_t offset{(n & 1) ? CHECKPOINT_2 : CHECKPOINT_1};
+  size_t offset;
   static_assert(CPU_LEVEL1_DCACHE_LINESIZE >= 64, "efficiency");
   static_assert(CPU_LEVEL1_DCACHE_LINESIZE <= 4096, "compatibility");
-  byte* c= my_assume_aligned<CPU_LEVEL1_DCACHE_LINESIZE>
-    (is_mmap() ? buf + offset : checkpoint_buf);
-  memset_aligned<CPU_LEVEL1_DCACHE_LINESIZE>(c, 0, CPU_LEVEL1_DCACHE_LINESIZE);
-  mach_write_to_8(my_assume_aligned<8>(c), next_checkpoint_lsn);
-  mach_write_to_8(my_assume_aligned<8>(c + 8), end_lsn);
-  mach_write_to_4(my_assume_aligned<4>(c + 60), my_crc32c(0, c, 60));
+  lsn_t resizing{resize_lsn.load(std::memory_order_relaxed)};
+  byte *c;
 
-  lsn_t resizing;
+  if (archive)
+  {
+    ut_ad(!resizing);
+    offset= n * 4;
+    ut_a(offset < START_OFFSET); // FIXME: better guard for this
+    // FIXME: on bootstrap, the first value should be 0, not 0x3000
+    const lsn_t d{end_lsn - last_checkpoint_lsn};
+    ut_a(d <= lsn_t{~uint32_t{0}});
 
 #ifdef HAVE_PMEM
-  if (is_mmap())
-  {
-    ut_ad(!is_opened());
-    resizing= resize_lsn.load(std::memory_order_relaxed);
-    ut_ad(!resizing || !archive);
-
-    if (resizing > 1 && resizing <= next_checkpoint_lsn)
+    if (is_mmap())
     {
-      memcpy_aligned<64>(resize_buf + CHECKPOINT_1, c, 64);
-      header_write(resize_buf, resizing, is_encrypted());
-      pmem_persist(resize_buf, resize_target);
+      c= buf + offset / 64;
+      mach_write_to_4(my_assume_aligned<4>(c + offset % 64), d);
+      goto persist_checkpoint;
     }
-    pmem_persist(c, 64);
+    else
+#endif
+    {
+      const size_t o{offset % write_size};
+      offset/= write_size;
+
+      c= checkpoint_buf + offset;
+      if (c == checkpoint_buf)
+        memset_aligned<512>(c, 0, write_size);
+      mach_write_to_4(my_assume_aligned<4>(c + o), d);
+      goto write_checkpoint;
+    }
   }
   else
-#endif
   {
-    ut_ad(!is_mmap());
-    ut_ad(!checkpoint_pending);
-    checkpoint_pending= true;
-    latch.wr_unlock();
-    log_write_and_flush_prepare();
-    resizing= resize_lsn.load(std::memory_order_relaxed);
-    ut_ad(!resizing || !archive);
-    ut_ad(ut_is_2pow(write_size));
-    ut_ad(write_size >= 512);
-    ut_ad(write_size <= 4096);
-    log.write(offset, {c, write_size});
-    if (resizing > 1 && resizing <= next_checkpoint_lsn)
-    {
-      resize_log.write(CHECKPOINT_1, {c, write_size});
-      byte *buf= static_cast<byte*>(aligned_malloc(4096, 4096));
-      memset_aligned<4096>(buf, 0, 4096);
-      header_write(buf, resizing, is_encrypted());
-      resize_log.write(0, {buf, 4096});
-      aligned_free(buf);
-    }
+    offset= (n & 1) ? CHECKPOINT_2 : CHECKPOINT_1;
+    c= is_mmap() ? buf + offset : checkpoint_buf;
+    memset_aligned<CPU_LEVEL1_DCACHE_LINESIZE>(c, 0, CPU_LEVEL1_DCACHE_LINESIZE);
+    mach_write_to_8(my_assume_aligned<8>(c), next_checkpoint_lsn);
+    mach_write_to_8(my_assume_aligned<8>(c + 8), end_lsn);
+    mach_write_to_4(my_assume_aligned<4>(c + 60), my_crc32c(0, c, 60));
 
-    if (!log_write_through)
-      ut_a(log.flush());
-    latch.wr_lock(SRW_LOCK_CALL);
-    ut_ad(checkpoint_pending);
-    checkpoint_pending= false;
-    resizing= resize_lsn.load(std::memory_order_relaxed);
-    ut_ad(!resizing || !archive);
+#ifdef HAVE_PMEM
+    if (is_mmap())
+    {
+      ut_ad(!is_opened());
+      if (resizing > 1 && resizing <= next_checkpoint_lsn)
+      {
+        memcpy_aligned<64>(resize_buf + CHECKPOINT_1, c, 64);
+        header_write(resize_buf, resizing, is_encrypted());
+        pmem_persist(resize_buf, resize_target);
+      }
+    persist_checkpoint:
+      pmem_persist(c, 64);
+    }
+    else
+#endif
+    {
+    write_checkpoint:
+      ut_ad(!is_mmap());
+      ut_ad(!checkpoint_pending);
+      checkpoint_pending= true;
+      latch.wr_unlock();
+      log_write_and_flush_prepare();
+      resizing= resize_lsn.load(std::memory_order_relaxed);
+      ut_ad(!resizing || !archive);
+      ut_ad(ut_is_2pow(write_size));
+      ut_ad(write_size >= 512);
+      ut_ad(write_size <= 4096);
+      log.write(offset, {c, write_size});
+      if (resizing > 1 && resizing <= next_checkpoint_lsn)
+      {
+        resize_log.write(CHECKPOINT_1, {c, write_size});
+        byte *buf= static_cast<byte*>(aligned_malloc(4096, 4096));
+        memset_aligned<4096>(buf, 0, 4096);
+        header_write(buf, resizing, is_encrypted());
+        resize_log.write(0, {buf, 4096});
+        aligned_free(buf);
+      }
+
+      if (!log_write_through)
+        ut_a(log.flush());
+      latch.wr_lock(SRW_LOCK_CALL);
+      ut_ad(checkpoint_pending);
+      checkpoint_pending= false;
+      resizing= resize_lsn.load(std::memory_order_relaxed);
+    }
   }
 
+  ut_ad(!resizing || !archive);
   ut_ad(!checkpoint_pending);
   next_checkpoint_no++;
   const lsn_t checkpoint_lsn{next_checkpoint_lsn};
