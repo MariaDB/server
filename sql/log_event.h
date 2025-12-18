@@ -5827,8 +5827,8 @@ public:
 #ifdef MYSQL_SERVER
   bool write_data_header(Log_event_writer *writer) override;
   bool write_data_body(Log_event_writer *writer) override;
-  int do_apply_event(rpl_group_info *rgi) override;
 #ifdef HAVE_REPLICATION
+  int do_apply_event(rpl_group_info *rgi) override;
   void pack_info(Protocol* protocol) override;
 #endif /* HAVE_REPLICATION */
 #else

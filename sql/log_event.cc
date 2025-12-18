@@ -4053,7 +4053,6 @@ Incident_log_event::Incident_log_event(const uchar *buf, uint event_len,
 }
 
 
-#ifdef HAVE_REPLICATION
 Partial_rows_log_event::Partial_rows_log_event(
     const uchar *buf, uint event_len,
     const Format_description_log_event *description_event)
@@ -4092,7 +4091,6 @@ Partial_rows_log_event::Partial_rows_log_event(
 
   DBUG_VOID_RETURN;
 }
-#endif
 
 bool Partial_rows_log_event::is_valid() const {
   /*
