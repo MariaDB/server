@@ -730,6 +730,7 @@ static void wsrep_init_thd_variables(THD *thd)
   /* No general log */
   thd->variables.option_bits|= OPTION_LOG_OFF;
   /* Read committed isolation to avoid gap locking */
+  thd->tx_isolation= ISO_READ_COMMITTED;
   thd->variables.tx_isolation= ISO_READ_COMMITTED;
 }
 
