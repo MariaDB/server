@@ -4617,7 +4617,7 @@ PARSE_TYPE_FLAGS Item_func_to_date::get_format()
   StringBuffer<64> format_str;
   String *format= args[1]->val_str(&format_str, &format_converter,
                                    internal_charset);
-  PARSE_TYPE_FLAGS result_type;
+  PARSE_TYPE_FLAGS result_type= PARSE_TYPE_NONE;
 
   if (!args[1]->null_value)
   {
@@ -4633,8 +4633,8 @@ PARSE_TYPE_FLAGS Item_func_to_date::get_format()
                       func_name());
       return PARSE_TYPE_NONE;
     }
+    DBUG_ASSERT(result_type != 0);
   }
-  DBUG_ASSERT(result_type != 0);
   return result_type;
 }
 
