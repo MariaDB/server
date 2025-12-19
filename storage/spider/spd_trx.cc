@@ -2343,8 +2343,6 @@ int spider_internal_xa_commit_by_xid(
       table_xa->file->print_error(error_num, MYF(0));
       goto error;
     }
-    my_message(ER_SPIDER_XA_NOT_EXISTS_NUM, ER_SPIDER_XA_NOT_EXISTS_STR,
-      MYF(0));
     error_num = ER_SPIDER_XA_NOT_EXISTS_NUM;
     goto error;
   }
