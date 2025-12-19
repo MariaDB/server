@@ -2065,12 +2065,12 @@ static bool log_checkpoint_low(lsn_t oldest_lsn, lsn_t end_lsn) noexcept
   ut_ad(oldest_lsn <= end_lsn);
   ut_ad(end_lsn == log_sys.get_lsn());
 
-  if (oldest_lsn == log_sys.last_checkpoint_lsn ||
-      (oldest_lsn == end_lsn &&
-       !log_sys.resize_in_progress() &&
-       oldest_lsn == log_sys.last_checkpoint_lsn +
-       (log_sys.is_encrypted()
-        ? SIZE_OF_FILE_CHECKPOINT + 8 : SIZE_OF_FILE_CHECKPOINT)))
+  if (oldest_lsn == end_lsn && oldest_lsn != log_sys.get_first_lsn() &&
+      (oldest_lsn == log_sys.last_checkpoint_lsn ||
+       (!log_sys.resize_in_progress() &&
+        oldest_lsn == log_sys.last_checkpoint_lsn +
+        (log_sys.is_encrypted()
+         ? SIZE_OF_FILE_CHECKPOINT + 8 : SIZE_OF_FILE_CHECKPOINT))))
   {
     /* Do nothing, because nothing was logged (other than a
     FILE_CHECKPOINT record) since the previous checkpoint. */
@@ -2080,7 +2080,7 @@ static bool log_checkpoint_low(lsn_t oldest_lsn, lsn_t end_lsn) noexcept
   }
 
   ut_ad(!recv_no_log_write);
-  ut_ad(oldest_lsn > log_sys.last_checkpoint_lsn);
+  ut_ad(oldest_lsn >= log_sys.last_checkpoint_lsn);
   /* Repeat the FILE_MODIFY records after the checkpoint, in case some
   log records between the checkpoint and log_sys.lsn need them.
   Finally, write a FILE_CHECKPOINT record. Redo log apply expects to
@@ -2097,7 +2097,8 @@ static bool log_checkpoint_low(lsn_t oldest_lsn, lsn_t end_lsn) noexcept
   log_sys.latch.wr_unlock();
   log_write_up_to(flush_lsn, true);
   log_sys.latch.wr_lock(SRW_LOCK_CALL);
-  if (log_sys.last_checkpoint_lsn >= oldest_lsn)
+  if (log_sys.last_checkpoint_lsn >= oldest_lsn &&
+      log_sys.last_checkpoint_lsn != log_sys.get_first_lsn())
     goto do_nothing;
 
   ut_ad(log_sys.get_flushed_lsn() >= flush_lsn);

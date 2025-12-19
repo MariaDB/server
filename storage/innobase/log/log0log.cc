@@ -439,7 +439,7 @@ void log_t::create(lsn_t lsn) noexcept
   if (!archived_lsn)
     archived_lsn= lsn;
 
-  last_checkpoint_lsn= 0;
+  last_checkpoint_lsn= lsn;
 
   DBUG_PRINT("ib_log", ("write header " LSN_PF, lsn));
 
