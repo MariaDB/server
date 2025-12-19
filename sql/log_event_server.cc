@@ -5880,7 +5880,8 @@ Rows_log_event_fragmenter::fragment()
   Fragmented_rows_log_event *ev;
   uchar width_tmp_buf[MAX_INT_WIDTH];
   uchar *const width_tmp_buf_end= net_store_length(width_tmp_buf, (size_t) rows_event->m_width);
-  uint32_t width_size= (width_tmp_buf_end - width_tmp_buf);
+  uint32_t width_size=
+      static_cast<uint32_t>(width_tmp_buf_end - width_tmp_buf);
 
   /*
     Update row events write another bitmap
@@ -5893,11 +5894,11 @@ Rows_log_event_fragmenter::fragment()
       LOG_EVENT_HEADER_LEN + ROWS_HEADER_LEN_V1 + width_size + cols_size;
 
   uint32_t data_size=
-      static_cast<uint64_t>(rows_event->m_rows_cur - rows_event->m_rows_buf);
+      static_cast<uint32_t>(rows_event->m_rows_cur - rows_event->m_rows_buf);
 
   uint32_t total_size= metadata_size + data_size;
 
-  uint32_t data_size_per_chunk= get_payload_size_per_chunk();
+  uint32_t data_size_per_chunk= (uint32_t) get_payload_size_per_chunk();
 
   uint32_t last_chunk_size= (total_size % data_size_per_chunk);
   uint8_t last_chunk= last_chunk_size ? 1 : 0;
