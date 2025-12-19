@@ -244,7 +244,7 @@ struct Master_info_file: Info_file
 
     bool load_from(IO_CACHE *file) override
     {
-      uint32_t count;
+      long count;
       size_t i;
       /// +1 for the terminating delimiter
       char buf[Int_IO_CACHE::BUF_SIZE<uint32_t> + 1];
@@ -261,18 +261,18 @@ struct Master_info_file: Info_file
         * std::from_chars() fails if `count` will overflow in any way.
         * exclusive end index of the string = size
       */
-      std::from_chars_result result= std::from_chars(buf, &buf[i], count);
+      char *end= str2int(buf, 10, 1, INT32_MAX, &count);
       // Reserve enough elements ahead of time.
-      if (result.ec != Int_IO_CACHE::ERRC_OK || allocate_dynamic(&array, count))
+      if (!end || allocate_dynamic(&array, count))
         return true;
       while (count--)
       {
-        uint32_t value;
+        long value;
         /*
           Check that the previous number ended with a ` `,
           not `\n` or anything else.
         */
-        if (*(result.ptr) != ' ')
+        if (*end != ' ')
           return true;
         for (i= 0; i < sizeof(buf); ++i)
         {
@@ -287,8 +287,8 @@ struct Master_info_file: Info_file
           if (c == /* End of Count */ ' ' || c == /* End of Line */ '\n')
             break;
         }
-        result= std::from_chars(buf, &buf[i], value);
-        if (result.ec != Int_IO_CACHE::ERRC_OK)
+        end= str2int(buf, 10, 1, INT32_MAX, &value);
+        if (!end)
           return true;
         ulong id= value;
         bool oom= insert_dynamic(&array, (uchar *)&id);
@@ -301,7 +301,7 @@ struct Master_info_file: Info_file
           return true;
       }
       // Check that the last number ended with a `\n`, not ` ` or anything else.
-      if (*(result.ptr) != '\n')
+      if (*end != '\n')
         return true;
       sort_dynamic(&array, change_master_id_cmp); // to be safe
       return false;
@@ -532,18 +532,8 @@ struct Master_info_file: Info_file
       full advantage of the non-negative `DECIMAL(10,3)` format.
     */
     void save_to(IO_CACHE *file) override {
-      char buf[Int_IO_CACHE::BUF_SIZE<uint32_t> - /* decimal part */ 3];
       auto[integer_part, decimal_part]= div(operator uint32_t(), 1000);
-      std::to_chars_result result=
-        std::to_chars(buf, &buf[sizeof(buf)], integer_part);
-      DBUG_ASSERT(result.ec == Int_IO_CACHE::ERRC_OK);
-      my_b_write(file, reinterpret_cast<const uchar *>(buf), result.ptr - buf);
-      my_b_write_byte(file, '.');
-      result= std::to_chars(buf, &buf[sizeof(buf)], decimal_part);
-      DBUG_ASSERT(result.ec == Int_IO_CACHE::ERRC_OK);
-      for (ptrdiff_t digits= result.ptr - buf; digits < 3; ++digits)
-        my_b_write_byte(file, '0');
-      my_b_write(file, reinterpret_cast<const uchar *>(buf), result.ptr - buf);
+      my_b_printf(file, "%u.%03u", integer_part, decimal_part);
     }
   }
   /// `Slave_heartbeat_period` of SHOW ALL SLAVES STATUS

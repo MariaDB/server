@@ -19,7 +19,6 @@
 #define RPL_INFO_FILE_H
 
 #include <cstdint>    // uintN_t
-#include <charconv>   // std::from/to_chars and other helpers
 #include <functional> // superclass of Info_file::Mem_fn
 #include <my_sys.h>   // IO_CACHE, FN_REFLEN, ...
 
@@ -36,7 +35,6 @@ namespace Int_IO_CACHE
   */
   template<typename I> static constexpr size_t BUF_SIZE=
     std::numeric_limits<I>::digits10 + 1 + std::numeric_limits<I>::is_signed;
-  static constexpr auto ERRC_OK= std::errc();
 
   /**
     @ref IO_CACHE (reading one line with the `\n`) version of std::from_chars()
@@ -54,10 +52,14 @@ namespace Int_IO_CACHE
     size_t length= my_b_gets(file, buf, sizeof(buf));
     if (!length) // EOF
       return true;
-    // SFINAE if `I` is not a numeric type
-    std::from_chars_result result= std::from_chars(buf, &(buf[length]), value);
+
+    char *end= buf + length;
+    int error;
+    longlong val= my_strtoll10(buf, &end, &error);
+    value= static_cast<I>(val);
+
     // Return `true` if the conversion failed or if the number ended early
-    return result.ec != ERRC_OK || *(result.ptr) != '\n';
+    return error || *end != '\n' || value > std::numeric_limits<I>::max();
   }
   /**
     Convenience overload of from_chars(IO_CACHE *, I &) for `operator=` types
@@ -79,14 +81,7 @@ namespace Int_IO_CACHE
   */
   template<typename I> static void to_chars(IO_CACHE *file, I value)
   {
-    /**
-      my_b_printf() uses a buffer too,
-      so we might as well save on format parsing and buffer resizing
-    */
-    char buf[BUF_SIZE<I>];
-    std::to_chars_result result= std::to_chars(buf, &buf[sizeof(buf)], value);
-    DBUG_ASSERT(result.ec == ERRC_OK);
-    my_b_write(file, reinterpret_cast<const uchar *>(buf), result.ptr - buf);
+    my_b_printf(file, "%lld", (longlong)value);
   }
 };
 
@@ -251,15 +246,15 @@ protected:
     auto &line1= dynamic_cast<String_value<> &>((*(value_list.begin()))(this));
     if (line1.load_from(&file))
       return true;
-    size_t line_count;
-    std::from_chars_result result= std::from_chars(
-      line1.buf, &line1.buf[sizeof(line1.buf)], line_count);
+    char *end= line1.buf + sizeof(line1.buf) - 1;
+    int error;
+    size_t line_count= static_cast<size_t>(my_strtoll10(line1.buf, &end, &error));
     /**
       If this first line was not a number - the line count,
       then it was the first value for real,
       so the for loop should then skip over it, the index 0 of the list.
     */
-    size_t i= result.ec != Int_IO_CACHE::ERRC_OK || *(result.ptr) != '\0';
+    size_t i= error || *end;
     /*
       Set the default after parsing: While std::from_chars() does not replace
       the output if it failed, it does replace if the line is not fully spent.

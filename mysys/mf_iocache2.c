@@ -514,6 +514,24 @@ process_flags:
       if (my_b_write(info, (uchar*) buff, length2))
 	goto err;
     }
+    else if ((*fmt == 'l' && fmt[1] == 'l' && (fmt[2] == 'd' || fmt[2] == 'u')))
+      /* long long parameter */
+    {
+      long long iarg;
+      size_t length2;
+      char buff[64];
+
+      fmt+=2;
+      iarg = va_arg(args, long long);
+      if (*fmt == 'd')
+	llstr(iarg,buff);
+      else
+	ullstr(iarg,buff);
+      length2= strlen(buff);
+      out_length+= length2;
+      if (my_b_write(info, (uchar*) buff, length2))
+	goto err;
+    }
     else
     {
       /* %% or unknown code */
