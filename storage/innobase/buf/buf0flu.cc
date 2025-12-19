@@ -1821,6 +1821,7 @@ inline void log_t::write_checkpoint(lsn_t end_lsn) noexcept
   ut_ad(end_lsn <= current_lsn);
   ut_ad(end_lsn + SIZE_OF_FILE_CHECKPOINT <= current_lsn ||
         srv_shutdown_state > SRV_SHUTDOWN_INITIATED);
+  ut_ad(this->end_lsn <= end_lsn);
 
   DBUG_PRINT("ib_log",
              ("checkpoint at " LSN_PF " written", next_checkpoint_lsn));
@@ -1837,8 +1838,7 @@ inline void log_t::write_checkpoint(lsn_t end_lsn) noexcept
     ut_ad(!resizing);
     offset= n * 4;
     ut_a(offset < START_OFFSET); // FIXME: better guard for this
-    // FIXME: on bootstrap, the first value should be 0, not 0x3000
-    const lsn_t d{end_lsn - last_checkpoint_lsn};
+    const lsn_t d{end_lsn - this->end_lsn};
     ut_a(d <= lsn_t{~uint32_t{0}});
 
 #ifdef HAVE_PMEM
@@ -1920,6 +1920,7 @@ inline void log_t::write_checkpoint(lsn_t end_lsn) noexcept
   ut_ad(!resizing || !archive);
   ut_ad(!checkpoint_pending);
   next_checkpoint_no++;
+  this->end_lsn= end_lsn;
   const lsn_t checkpoint_lsn{next_checkpoint_lsn};
   last_checkpoint_lsn= checkpoint_lsn;
   if (!archive)

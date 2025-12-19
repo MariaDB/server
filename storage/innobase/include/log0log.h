@@ -255,6 +255,8 @@ private:
   std::atomic<lsn_t> resize_lsn;
   /** the log sequence number at the start of the current log file */
   lsn_t first_lsn;
+  /** the log sequence number when the latest checkpoint was initiated */
+  lsn_t end_lsn;
 public:
   /** current innodb_log_write_ahead_size */
   uint write_size;

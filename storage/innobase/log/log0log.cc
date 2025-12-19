@@ -109,6 +109,8 @@ void log_t::create() noexcept
 #endif
 
   last_checkpoint_lsn= FIRST_LSN;
+  first_lsn= FIRST_LSN;
+  end_lsn= FIRST_LSN;
   log_capacity= 0;
   max_modified_age_async= 0;
   max_checkpoint_age= 0;
@@ -435,6 +437,7 @@ void log_t::create(lsn_t lsn) noexcept
   base_lsn.store(lsn, std::memory_order_relaxed);
   flushed_to_disk_lsn.store(lsn, std::memory_order_relaxed);
   first_lsn= lsn;
+  end_lsn= lsn;
   write_lsn= lsn;
   if (!archived_lsn)
     archived_lsn= lsn;
@@ -616,8 +619,7 @@ void log_t::header_rewrite(my_bool archive) noexcept
   format for the last file. */
 
   byte* c= checkpoint_buf;
-  lsn_t end_lsn= first_lsn + 1; // FIXME: store this in log_sys?
-  ut_ad(end_lsn > first_lsn);
+  ut_ad(end_lsn >= first_lsn);
   ut_ad(!archive || end_lsn <= first_lsn + ~0U);
 #ifdef HAVE_PMEM
   if (!c)
