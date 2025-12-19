@@ -324,27 +324,34 @@ static inline void log_file_message() noexcept {}
 
 bool log_t::attach(log_file_t file, os_offset_t size) noexcept
 {
-  log= file;
+  ut_ad(!log.is_opened());
+  ut_ad(!resize_log.is_opened());
   ut_ad(!size || size >= START_OFFSET + SIZE_OF_FILE_CHECKPOINT);
-  file_size= size;
-
   ut_ad(!buf);
   ut_ad(!flush_buf);
   ut_ad(!writer);
+
+  file_size= size;
+
   if (size)
   {
 # ifdef HAVE_PMEM
     bool is_pmem;
-    void *ptr= ::log_mmap(log.m_file, is_pmem, size);
+    void *ptr= ::log_mmap(file.m_file, is_pmem, size);
 # else
-    void *ptr= ::log_mmap(log.m_file, size);
+    void *ptr= ::log_mmap(file.m_file, size);
 # endif
     if (ptr != MAP_FAILED)
     {
 # ifdef HAVE_PMEM
       if (is_pmem)
       {
-        log.close();
+#  if 0 // FIXME: enable, and adjust log_t::write_checkpoint() for this
+        if (archive)
+          resize_log= file;
+        else
+#  endif
+          file.close();
         log_buffered= false;
         log_maybe_unbuffered= true;
         IF_WIN(,mprotect(ptr, size_t(size), PROT_READ));
@@ -359,6 +366,10 @@ bool log_t::attach(log_file_t file, os_offset_t size) noexcept
       goto func_exit;
     }
   }
+  else
+    ut_ad(!archive);
+
+  log= file;
   log_mmap= false;
   buf= static_cast<byte*>(ut_malloc_dontdump(buf_size, PSI_INSTRUMENT_ME));
   if (!buf)
@@ -698,17 +709,17 @@ void log_t::set_archive(my_bool archive) noexcept
     }
     if (archive == this->archive)
       break;
+#ifdef HAVE_PMEM
     if (is_mmap())
     {
-#ifdef HAVE_PMEM
       if (!archive && resize_buf)
         /* Wait for a call to archived_mmap_switch_complete() */
         goto retry;
       if (is_backoff())
         /* Prevent a race condition with append_prepare() */
         goto retry;
-#endif
     }
+#endif
     else if (checkpoint_pending)
     {
       /* Prevent a race condition with write_checkpoint() */
@@ -720,6 +731,7 @@ void log_t::set_archive(my_bool archive) noexcept
     }
 
     ut_ad(!resize_buf);
+    ut_ad(!resize_log.is_opened()); // FIXME: wait for checkpoint?
 
     std::string normal_name{get_circular_path()};
     std::string arch_name{get_archive_path()};
@@ -731,6 +743,12 @@ void log_t::set_archive(my_bool archive) noexcept
       std::swap(old_name, new_name);
       header_rewrite(archive);
     }
+#ifdef HAVE_PMEM
+    else
+      // FIXME: open the file, so that write_checkpoint()
+      // will be able to flag it read-only
+      /* resize_log= ... */{};
+#endif
 
 #ifdef _WIN32
     /* On Microsoft Windows, there must be no open file handles to a

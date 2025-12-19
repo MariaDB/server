@@ -1702,8 +1702,8 @@ static bool recv_sys_invalid_rpo(lsn_t lsn) noexcept
 
 dberr_t recv_sys_t::find_checkpoint()
 {
-  bool wrong_size= false;
   byte *buf;
+  lsn_t first_lsn= 0;
 
   ut_ad(pages.empty());
   pages_it= pages.end();
@@ -1711,31 +1711,48 @@ dberr_t recv_sys_t::find_checkpoint()
   if (files.empty())
   {
     file_checkpoint= 0;
-    int archive= 0;
+    int archive= log_sys.archive;
   retry:
     std::string path{log_sys.get_circular_path()};
     bool success;
     os_file_t file{os_file_create_func(path.c_str(), archive
-                                       ? OS_FILE_OPEN
-                                       : OS_FILE_OPEN_SILENT,
+                                       ? OS_FILE_OPEN : OS_FILE_OPEN_SILENT,
                                        OS_LOG_FILE,
                                        srv_read_only_mode, &success)};
-    if (file != OS_FILE_CLOSED);
-    else if (archive)
+    if (file != OS_FILE_CLOSED)
+    {
+      if (archive > 0)
+      {
+        sql_print_error("InnoDB: innodb_log_archive=ON but %s exists",
+                        path.c_str());
+        return DB_ERROR;
+      }
+    }
+    else if (archive < 0)
       return DB_ERROR;
     else
     {
-      archive= -1;
 #ifdef _WIN32
       WIN32_FIND_DATAA entry;
       HANDLE d= FindFirstFileA(srv_log_group_home_dir, &entry);
-      if (d == INVALID_HANDLE_VALUE)
-        goto retry;
+      if (d != INVALID_HANDLE_VALUE)
+        goto readdir;
 #else
       DIR *d= opendir(srv_log_group_home_dir);
-      if (!d)
-        goto retry;
+      if (d)
+        goto readdir;
 #endif
+    no_archive_found:
+      if (archive)
+        sql_print_error("InnoDB: innodb_log_archive files not found in '%s'",
+                        srv_log_group_home_dir);
+    no_archive_found_reported:
+      if (archive)
+        return DB_ERROR;
+      archive= -1;
+      goto retry;
+
+    readdir:
       std::map<lsn_t,lsn_t> logs;
 #ifdef _WIN32
       do
@@ -1762,13 +1779,13 @@ dberr_t recv_sys_t::find_checkpoint()
         lsn_t lsn;
         int n{0};
         const char *fn{e->d_name};
-        if (1 != sscanf(fn, "ib_%016" PRIx64 ".log%n", &lsn, &n) || fn[n])
+        if (1 != sscanf(fn, "ib_%016" PRIx64 ".log%n", &lsn, &n) || fn[n] ||
+            lsn < log_t::FIRST_LSN)
           continue;
         path.assign(srv_log_group_home_dir);
         path.push_back('/');
-        path.append(fn);
         struct stat st;
-        if (stat(path.c_str(), &st) ||
+        if (stat(log_sys.append_archive_name(path, lsn).c_str(), &st) ||
             st.st_size < static_cast<decltype(st.st_size)>
             (log_t::START_OFFSET + SIZE_OF_FILE_CHECKPOINT))
         {
@@ -1783,7 +1800,7 @@ dberr_t recv_sys_t::find_checkpoint()
       auto min= logs.cbegin();
       const auto end= logs.cend();
       if (min == end)
-        goto retry;
+        goto no_archive_found;
 
       for (auto i= min;;)
       {
@@ -1806,16 +1823,19 @@ dberr_t recv_sys_t::find_checkpoint()
       }
       // TODO: validate innodb_log_archive_start, innodb_log_recovery_start,
       // innodb_log_recovery_target
-      file= os_file_create_func(log_sys.append_archive_name(path, min->first).
+
+      // FIXME: open the file that is determined by recovery_start
+      first_lsn= min->first;
+      file= os_file_create_func(log_sys.append_archive_name(path, first_lsn).
                                 c_str(), OS_FILE_OPEN, OS_LOG_FILE,
                                 srv_read_only_mode, &success);
       if (file == OS_FILE_CLOSED)
-        goto retry;
-      archive= 1;
+        goto no_archive_found_reported;
+      log_sys.archive= true;
     }
 
     const os_offset_t size{os_file_get_size(file)};
-    if (!size)
+    if (!size && !log_sys.archive)
     {
       if (srv_operation != SRV_OPERATION_NORMAL)
         goto too_small;
@@ -1823,8 +1843,7 @@ dberr_t recv_sys_t::find_checkpoint()
     else if (size < log_t::START_OFFSET + SIZE_OF_FILE_CHECKPOINT)
     {
     too_small:
-      sql_print_error("InnoDB: File %.*s is too small",
-                      int(path.size()), path.data());
+      sql_print_error("InnoDB: File %s is too small", path.c_str());
     err_exit:
       os_file_close(file);
       return DB_ERROR;
@@ -1835,6 +1854,9 @@ dberr_t recv_sys_t::find_checkpoint()
       file= OS_FILE_CLOSED;
 
     recv_sys.files.emplace_back(file);
+    if (log_sys.archive)
+      goto find_checkpoint;
+
     for (int i= 1; i < 101; i++)
     {
       path= log_sys.get_circular_path(i);
@@ -1849,14 +1871,14 @@ dberr_t recv_sys_t::find_checkpoint()
         sql_print_error("InnoDB: Log file %.*s is of different size " UINT64PF
                         " bytes than other log files " UINT64PF " bytes!",
                         int(path.size()), path.data(), sz, size);
-        wrong_size= true;
+        first_lsn= LSN_MAX;
       }
       recv_sys.files.emplace_back(file);
     }
 
     if (!size)
     {
-      if (wrong_size)
+      if (first_lsn == LSN_MAX)
         return DB_CORRUPTION;
       lsn= log_sys.next_checkpoint_lsn;
       log_sys.format= log_t::FORMAT_3_23;
@@ -1864,19 +1886,35 @@ dberr_t recv_sys_t::find_checkpoint()
     }
   }
   else
+  {
     ut_ad(srv_operation == SRV_OPERATION_BACKUP);
+    ut_ad(!log_sys.archive);
+  }
+ find_checkpoint:
   log_sys.next_checkpoint_lsn= 0;
   lsn= 0;
   buf= my_assume_aligned<4096>(log_sys.buf);
   if (!log_sys.is_mmap())
     if (dberr_t err= log_sys.log.read(0, {buf, log_sys.START_OFFSET}))
       return err;
+  if (log_sys.archive)
+  {
+    // FIXME: retrieve encrypted format from file name?
+    log_sys.format= log_t::FORMAT_10_8;
+    log_sys.set_first_lsn(first_lsn);
+    if (!log_sys.archived_lsn)
+      log_sys.archived_lsn= first_lsn;
+    // TODO: validate and find the checkpoint
+    lsn= first_lsn;
+    return DB_SUCCESS;
+  }
+
   /* Check the header page checksum. There was no
   checksum in the first redo log format (version 0). */
   log_sys.format= mach_read_from_4(buf + LOG_HEADER_FORMAT);
   if (log_sys.format == log_t::FORMAT_3_23)
   {
-    if (wrong_size)
+    if (first_lsn == LSN_MAX)
       return DB_CORRUPTION;
     if (dberr_t err= recv_log_recover_pre_10_2())
       return err;
@@ -1904,7 +1942,7 @@ dberr_t recv_sys_t::find_checkpoint()
     return DB_CORRUPTION;
   }
 
-  const lsn_t first_lsn{mach_read_from_8(buf + LOG_HEADER_START_LSN)};
+  first_lsn= mach_read_from_8(buf + LOG_HEADER_START_LSN);
   log_sys.set_first_lsn(first_lsn);
   if (!log_sys.archived_lsn)
     log_sys.archived_lsn= first_lsn;
@@ -2038,7 +2076,7 @@ dberr_t recv_sys_t::find_checkpoint()
     return DB_ERROR;
   }
 
-  if (wrong_size)
+  if (first_lsn == LSN_MAX)
     return DB_CORRUPTION;
 
   if (dberr_t err= recv_log_recover_10_5(lsn_offset))
@@ -2594,7 +2632,7 @@ recv_sys_t::parse_mtr_result recv_sys_t::parse(source l, bool if_exists)
         (srv_operation == SRV_OPERATION_BACKUP ||
          srv_operation == SRV_OPERATION_BACKUP_NO_DEFER));
   mysql_mutex_assert_owner(&mutex);
-  ut_ad(log_sys.next_checkpoint_lsn);
+  ut_ad(log_sys.next_checkpoint_lsn || log_sys.archive);
   ut_ad(log_sys.is_recoverable());
   ut_ad(log_sys.format == format);
 
@@ -2857,14 +2895,21 @@ log_parse_file(const page_id_t id, bool if_exists,
                   ? "ignored" : recv_sys.file_checkpoint ? "reread" : "read",
                   recv_sys.lsn));
 
-      if (c == log_sys.next_checkpoint_lsn)
+      if (c == log_sys.next_checkpoint_lsn || !log_sys.next_checkpoint_lsn)
       {
         /* There can be multiple FILE_CHECKPOINT for the same LSN. */
         if (!recv_sys.file_checkpoint)
         {
+          ut_ad(log_sys.next_checkpoint_lsn || log_sys.archive);
+          ut_ad(log_sys.last_checkpoint_lsn || log_sys.archive);
+          log_sys.next_checkpoint_lsn= c;
+          if (!log_sys.last_checkpoint_lsn)
+            log_sys.last_checkpoint_lsn= c;
           recv_sys.file_checkpoint= recv_sys.lsn;
           return recv_sys_t::GOT_EOF;
         }
+        else
+          ut_ad(log_sys.next_checkpoint_lsn);
       }
     }
     break;
