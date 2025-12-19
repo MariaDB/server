@@ -705,7 +705,7 @@ extract_oracle_date_time(THD *thd, uint16 *format,
     {
       uint year;
       tmp= (char*) val + MY_MIN(2, val_len);
-      year= my_strtoll10(val, &tmp, &error);
+      year= (uint)my_strtoll10(val, &tmp, &error);
       l_time->year= oracle_year_2000_handling(year);
       val= tmp;
       break;
@@ -714,8 +714,8 @@ extract_oracle_date_time(THD *thd, uint16 *format,
     {
       uint year;
       tmp= (char*) val + MY_MIN(4, val_len);
-      year= my_strtoll10(val, &tmp, &error);
-      l_time->year= year < 100 ? year : oracle_year_2000_handling(year);
+      year= (uint)my_strtoll10(val, &tmp, &error);
+      l_time->year= year > 100 ? year : oracle_year_2000_handling(year);
       val= tmp;
       break;
     }
@@ -3209,7 +3209,7 @@ bool Date_time_format_oracle::format(const uint16 *fmt_array,
       uint length= 6;
       if (ptr[1] >= '1' && ptr[1] <= '6')
         length= *++ptr - (uint) '0';
-      if (append_val(l_time->second_part / log_10_int[6-length], length, str))
+      if (append_val((int)(l_time->second_part / log_10_int[6-length]), length, str))
         goto err_exit;
       break;
     }
