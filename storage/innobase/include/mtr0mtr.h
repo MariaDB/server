@@ -63,8 +63,11 @@ struct mtr_memo_slot_t
   void release() const;
 };
 
+class buf_dblwr_t;
+
 /** Mini-transaction handle and buffer */
 struct mtr_t {
+  friend buf_dblwr_t;
   mtr_t(trx_t *trx/*= nullptr*/);
   ~mtr_t();
 
