@@ -1845,7 +1845,7 @@ inline void log_t::write_checkpoint(lsn_t end_lsn) noexcept
     if (is_mmap())
     {
       c= buf + offset / 64;
-      mach_write_to_4(my_assume_aligned<4>(c + offset % 64), d);
+      mach_write_to_4(my_assume_aligned<4>(c + offset % 64), uint32_t(d));
       goto persist_checkpoint;
     }
     else
@@ -1857,7 +1857,7 @@ inline void log_t::write_checkpoint(lsn_t end_lsn) noexcept
       c= checkpoint_buf + offset;
       if (c == checkpoint_buf)
         memset_aligned<512>(c, 0, write_size);
-      mach_write_to_4(my_assume_aligned<4>(c + o), d);
+      mach_write_to_4(my_assume_aligned<4>(c + o), uint32_t(d));
       goto write_checkpoint;
     }
   }
