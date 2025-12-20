@@ -195,7 +195,7 @@ static bool set_one_value(ha_create_table_option *opt, THD *thd,
         const LEX_CSTRING &str_val= vals[bool_val];
         const char *str= opt->values;
         size_t len= 0;
-        for (int num= 0; str[len]; num++)
+        for (int num= 0; *str; num++)
         {
           for (len= 0; str[len] && str[len] != ','; len++) /* no-op */;
           if (str_val.length == len && !strncasecmp(str_val.str, str, len))
