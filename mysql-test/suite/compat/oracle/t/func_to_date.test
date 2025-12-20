@@ -1,6 +1,8 @@
 # Test script for an Oracle TO_DATE() function
 # Testing of all format elements and various edge cases.
 
+--enable_prepare_warnings
+
 SET time_zone=_latin1'+03:00';
 # Ensure all date parts are consistent and different
 SET timestamp=1100000000;
