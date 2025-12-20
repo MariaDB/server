@@ -1,7 +1,13 @@
+# this test cannot run in view protocol, because every view creation flushes
+# SP cache and next package function invocation instantiates the package
+# anew. Package instantiation includes SELECT's, which cannot be done
+# from inside a function call (package function, that caused instantiation)
+source include/no_view_protocol.inc;
 
 --echo #
 --echo # Package's routine resolution shadowed by schema
 --echo #
+
 SET PATH 'pkg, test';
 CREATE DATABASE pkg;
 DELIMITER /;

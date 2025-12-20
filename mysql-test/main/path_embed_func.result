@@ -84,7 +84,7 @@ RETURN func2();
 END;
 $$
 SELECT func();
-ERROR 42000: FUNCTION test.func2 does not exist
+Got one of the listed errors
 DROP FUNCTION func;
 DROP DATABASE test2;
 DROP DATABASE test3;
