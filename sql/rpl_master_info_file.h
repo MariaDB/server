@@ -249,7 +249,7 @@ struct Master_info_file: Info_file
 
     bool load_from(IO_CACHE *file) override
     {
-      long count;
+      int count;
       size_t i;
       /// +1 for the terminating delimiter
       char buf[Int_IO_CACHE::BUF_SIZE<uint32_t> + 1];
@@ -262,13 +262,13 @@ struct Master_info_file: Info_file
         if (c == /* End of Line */ '\n' || c == /* End of Count */ ' ')
           break;
       }
-      char *end= str2int(buf, 10, 1, INT32_MAX, &count);
+      char *end= str2int(buf, i, 10, &count);
       // Reserve enough elements ahead of time.
-      if (!end || allocate_dynamic(&array, count))
+      if (!end || count<0 || allocate_dynamic(&array, count))
         return true;
       while (count--)
       {
-        long value;
+        int value;
         /*
           Check that the previous number ended with a ` `,
           not `\n` or anything else.
@@ -288,8 +288,8 @@ struct Master_info_file: Info_file
           if (c == /* End of Count */ ' ' || c == /* End of Line */ '\n')
             break;
         }
-        end= str2int(buf, 10, 1, INT32_MAX, &value);
-        if (!end)
+        end= str2int(buf, i, 10, &value);
+        if (!end || value <= 0)
           return true;
         ulong id= value;
         bool oom= insert_dynamic(&array, (uchar *)&id);

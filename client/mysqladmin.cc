@@ -791,7 +791,7 @@ static int execute_commands(MYSQL *mysql,int argc, char **argv)
 	pos= (char*) strchr(status,' ');
 	*pos++=0;
 	printf("%s\t\t\t",status);			/* print label */
-	if ((status=str2int(pos,10,0,LONG_MAX,(long*) &sec)))
+	if ((status=str2int(pos,1000,10,&sec)))
 	{
 	  nice_time(sec,buff);
 	  puts(buff);				/* print nice time */

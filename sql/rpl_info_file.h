@@ -295,7 +295,7 @@ private:
   bool
   load_from_file(const Mem_fn *values, size_t size, size_t default_line_count)
   {
-    long val;
+    int val;
     /**
       The first row is temporarily stored in the first value. If it is a line
       count and not a log name (new format), the second row will overwrite it.
@@ -303,7 +303,7 @@ private:
     auto &line1= dynamic_cast<String_value<> &>(values[0](this));
     if (line1.load_from(&file))
       return true;
-    char *end= str2int(line1.buf, 10, 0, INT32_MAX, &val);
+    char *end= str2int(line1.buf, sizeof(line1.buf), 10, &val);
     /**
       If this first line was not a number - the line count,
       then it was the first value for real,

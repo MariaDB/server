@@ -3226,7 +3226,7 @@ set_result_format_version(ulong new_version)
 static void
 do_result_format_version(struct st_command *command)
 {
-  long version;
+  uint version;
   static DYNAMIC_STRING ds_version;
   const struct command_arg result_format_args[] = {
     {"version", ARG_STRING, TRUE, &ds_version, "Version to use"}
@@ -3240,7 +3240,7 @@ do_result_format_version(struct st_command *command)
                      ',');
 
   /* Convert version  number to int */
-  if (!str2int(ds_version.str, 10, (long) 0, (long) INT_MAX, &version))
+  if (!str2int(ds_version.str, ds_version.length, 10, &version))
     die("Invalid version number: '%s'", ds_version.str);
 
   set_result_format_version(version);
@@ -3277,7 +3277,7 @@ do_result_format_version(struct st_command *command)
 
 void var_set_query_get_value(struct st_command *command, VAR *var)
 {
-  long row_no;
+  uint row_no;
   int col_no= -1;
   MYSQL_RES* UNINIT_VAR(res);
   MYSQL* mysql= cur_con->mysql;
@@ -3309,9 +3309,9 @@ void var_set_query_get_value(struct st_command *command, VAR *var)
   DBUG_PRINT("info", ("col: %s", ds_col.str));
 
   /* Convert row number to int */
-  if (!str2int(ds_row.str, 10, (long) 0, (long) INT_MAX, &row_no))
+  if (!str2int(ds_row.str, ds_row.length, 10, &row_no))
     die("Invalid row number: '%s'", ds_row.str);
-  DBUG_PRINT("info", ("row: %s, row_no: %ld", ds_row.str, row_no));
+  DBUG_PRINT("info", ("row: %s, row_no: %u", ds_row.str, row_no));
   dynstr_free(&ds_row);
 
   /* Remove any surrounding "'s from the query - if there is any */
@@ -3371,7 +3371,7 @@ void var_set_query_get_value(struct st_command *command, VAR *var)
   {
     /* Get the value */
     MYSQL_ROW row;
-    long rows= 0;
+    uint rows= 0;
     const char* value= "No such row";
 
     while ((row= mysql_fetch_row(res)))
@@ -3379,7 +3379,7 @@ void var_set_query_get_value(struct st_command *command, VAR *var)
       if (++rows == row_no)
       {
 
-        DBUG_PRINT("info", ("At row %ld, column %d is '%s'",
+        DBUG_PRINT("info", ("At row %u, column %d is '%s'",
                             row_no, col_no, row[col_no]));
         /* Found the row to get */
         if (row[col_no])
@@ -4357,7 +4357,7 @@ void do_move_file(struct st_command *command)
 
 void do_chmod_file(struct st_command *command)
 {
-  long mode= 0;
+  uint mode= 0;
   int err_code;
   static DYNAMIC_STRING ds_mode;
   static DYNAMIC_STRING ds_file;
@@ -4377,10 +4377,10 @@ void do_chmod_file(struct st_command *command)
 
   /* Parse what mode to set */
   if (ds_mode.length != 4 ||
-      str2int(ds_mode.str, 8, 0, INT_MAX, &mode) == NullS)
+      str2int(ds_mode.str, ds_mode.length, 8, &mode) == NullS)
     die("You must write a 4 digit octal number for mode");
 
-  DBUG_PRINT("info", ("chmod %o %s", (uint)mode, ds_file.str));
+  DBUG_PRINT("info", ("chmod %o %s", mode, ds_file.str));
   err_code= chmod(ds_file.str, mode);
   if (err_code < 0)
     err_code= 1;
@@ -8428,7 +8428,7 @@ void do_get_errcodes(struct st_command *command)
     }
     else
     {
-      long val;
+      uint val;
       char *start= p;
       /* Check that the string passed to str2int only contain digits */
       while (*p && p != end)
@@ -8441,10 +8441,10 @@ void do_get_errcodes(struct st_command *command)
       }
 
       /* Convert the string to int */
-      if (!str2int(start, 10, (long) INT_MIN, (long) INT_MAX, &val))
+      if (!str2int(start, p - start, 10, &val))
 	die("Invalid argument to error: '%s'", command->first_argument);
 
-      to->code.errnum= (uint) val;
+      to->code.errnum= val;
       to->type= ERR_ERRNO;
       DBUG_PRINT("info", ("ERR_ERRNO: %d", to->code.errnum));
     }
