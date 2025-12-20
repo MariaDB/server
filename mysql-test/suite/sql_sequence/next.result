@@ -548,3 +548,10 @@ SELECT SETVAL (v,0);
 ERROR 42S02: 'test.v' is not a SEQUENCE
 UNLOCK TABLES;
 DROP VIEW v;
+#
+# MDEV-33985 Server crashes at Item_func_nextval::val_int
+#
+select * from (select 1 as a) x where (nextval(x));
+ERROR 42S02: Table 'test.x' doesn't exist
+select (with x(x) as (select 1) select * from x where (nextval(x)));
+ERROR 42S02: 'x' is not a SEQUENCE

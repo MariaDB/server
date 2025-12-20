@@ -299,3 +299,12 @@ SELECT SETVAL (v,0);
 UNLOCK TABLES;
 DROP VIEW v;
 --disable_ps2_protocol
+
+--echo #
+--echo # MDEV-33985 Server crashes at Item_func_nextval::val_int
+--echo #
+--error ER_NO_SUCH_TABLE
+select * from (select 1 as a) x where (nextval(x));
+--error ER_NOT_SEQUENCE2
+select (with x(x) as (select 1) select * from x where (nextval(x)));
+
