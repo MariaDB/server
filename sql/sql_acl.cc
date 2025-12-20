@@ -5386,19 +5386,20 @@ static ACL_USER_BASE *find_acl_user_base(const LEX_CSTRING &user,
 
 static const char *calc_ip(const char *ip, long *val, char end)
 {
-  long ip_val,tmp;
-  if (!(ip=str2int(ip,10,0,255,&ip_val)) || *ip != '.')
+  long ip_val;
+  uchar tmp;
+  if (!(ip=str2int(ip,INT16_MAX,10,&tmp)) || *ip != '.')
     return 0;
-  ip_val<<=24;
-  if (!(ip=str2int(ip+1,10,0,255,&tmp)) || *ip != '.')
+  ip_val=tmp;
+  if (!(ip=str2int(ip+1,INT16_MAX,10,&tmp)) || *ip != '.')
     return 0;
-  ip_val+=tmp<<16;
-  if (!(ip=str2int(ip+1,10,0,255,&tmp)) || *ip != '.')
+  ip_val=ip_val*256 + tmp;
+  if (!(ip=str2int(ip+1,INT16_MAX,10,&tmp)) || *ip != '.')
     return 0;
-  ip_val+=tmp<<8;
-  if (!(ip=str2int(ip+1,10,0,255,&tmp)) || *ip != end)
+  ip_val=ip_val*256 + tmp;
+  if (!(ip=str2int(ip+1,INT16_MAX,10,&tmp)) || *ip != end)
     return 0;
-  *val=ip_val+tmp;
+  *val= ip_val*256 + tmp;
   return ip;
 }
 

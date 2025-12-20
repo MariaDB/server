@@ -2076,8 +2076,29 @@ public:
 
 #endif /* __cplusplus */
 
-
 #ifdef	__cplusplus
+}
+#endif
+
+#ifdef  __cplusplus
+extern "C++" {
+template<typename T> inline char *str2int(const char *s, size_t l, int base, T *val)
+{
+  char *end= const_cast<char*>(s) + l;
+  int err;
+  longlong v= my_strntoll_8bit(&my_charset_latin1, s, l, base, &end, &err);
+  if (!err && static_cast<longlong>(*val= static_cast<T>(v)) != v)
+    err= EDOM;
+  return (errno= err) ? NULL : end;
+}
+
+template<> inline char *str2int<ulonglong>(const char *s, size_t l, int base, ulonglong *val)
+{
+  char *end= const_cast<char*>(s) + l;
+  int err;
+  *val= my_strntoull_8bit(&my_charset_latin1, s, l, base, &end, &err);
+  return (errno= err) ? NULL : end;
+}
 }
 #endif
 
