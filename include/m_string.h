@@ -169,17 +169,10 @@ longlong my_strtoll10(const char *nptr, char **endptr, int *error);
 #if SIZEOF_LONG == SIZEOF_LONG_LONG
 #define ll2str(A,B,C,D) int2str((A),(B),(C),(D))
 #define longlong10_to_str(A,B,C) int10_to_str((A),(B),(C))
-#undef strtoll
-#define strtoll(A,B,C) strtol((A),(B),(C))
-#define strtoull(A,B,C) strtoul((A),(B),(C))
 #else
 #ifdef HAVE_LONG_LONG
 extern char *ll2str(longlong val,char *dst,int radix, int upcase);
 extern char *longlong10_to_str(longlong val,char *dst,int radix);
-#if defined(NO_STRTOLL_PROTO)
-extern longlong strtoll(const char *str, char **ptr, int base);
-extern ulonglong strtoull(const char *str, char **ptr, int base);
-#endif
 #endif
 #endif
 #define longlong2str(A,B,C) ll2str((A),(B),(C),1)
