@@ -4760,7 +4760,8 @@ public:
   */
   my_bool rows_data_size_exceeds(uint size_limit)
   {
-    my_ptrdiff_t const data_size= m_rows_cur - m_rows_buf;
+    DBUG_ASSERT(m_rows_cur >= m_rows_buf);
+    size_t const data_size= static_cast<size_t>(m_rows_cur - m_rows_buf);
     return data_size > size_limit;
   }
 
