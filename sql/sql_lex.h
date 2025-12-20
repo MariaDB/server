@@ -5317,5 +5317,12 @@ bool sp_create_assignment_instr(THD *thd, bool no_lookahead,
 
 void mark_or_conds_to_avoid_pushdown(Item *cond);
 
+
+inline
+bool TABLE_LIST::is_pure_alias() const
+{
+  return !db.length || (table_options & TL_OPTION_ALIAS);
+}
+
 #endif /* MYSQL_SERVER */
 #endif /* SQL_LEX_INCLUDED */

@@ -600,4 +600,15 @@ drop prepare ps;
 drop view v1;
 drop table t1;
 drop sequence s;
+#
+# MDEV-33985 Server crashes at Item_func_nextval::val_int
+#
+select * from (select 1 as a) x where (nextval(x));
+ERROR 42S02: Table 'test.x' doesn't exist
+select (with x(x) as (select 1) select * from x where (nextval(x)));
+ERROR 42S02: 'x' is not a SEQUENCE
+create sequence s;
+select next value for s1 from s as s1;
+ERROR 42S02: Table 'test.s1' doesn't exist
+drop sequence s;
 # End of 10.11 tests

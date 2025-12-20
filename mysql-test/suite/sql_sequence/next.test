@@ -328,4 +328,16 @@ drop view v1;
 drop table t1;
 drop sequence s;
 
+--echo #
+--echo # MDEV-33985 Server crashes at Item_func_nextval::val_int
+--echo #
+--error ER_NO_SUCH_TABLE
+select * from (select 1 as a) x where (nextval(x));
+--error ER_NOT_SEQUENCE2
+select (with x(x) as (select 1) select * from x where (nextval(x)));
+create sequence s;
+--error ER_NO_SUCH_TABLE
+select next value for s1 from s as s1;
+drop sequence s;
+
 --echo # End of 10.11 tests
