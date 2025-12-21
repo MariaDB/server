@@ -1515,6 +1515,9 @@ bool mysql_make_view(THD *thd, TABLE_SHARE *share, TABLE_LIST *view_table_alias,
   {
     char old_db_buf[SAFE_NAME_LEN+1];
     LEX_CSTRING old_db= { old_db_buf, sizeof(old_db_buf) };
+    LEX_CSTRING view_sql_path= view_table_alias->m_sql_path.str
+            ? view_table_alias->m_sql_path
+            : global_system_variables.path.lex_cstring(thd, thd->mem_root);
     bool dbchanged;
     Parser_state parser_state;
     if (parser_state.init(thd, view_table_alias->select_stmt.str,
@@ -1534,7 +1537,7 @@ bool mysql_make_view(THD *thd, TABLE_SHARE *share, TABLE_LIST *view_table_alias,
     view_query_lex->stmt_lex= parent_query_lex;
 
     Sql_mode_save_for_frm_handling sql_mode_save(thd);
-    Sql_path_instant_set sql_path_save(thd, view_table_alias->m_sql_path);
+    Sql_path_instant_set sql_path_save(thd, view_sql_path);
 
     /* Parse the query. */
 

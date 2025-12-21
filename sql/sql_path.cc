@@ -270,6 +270,7 @@ bool Sql_path::from_text(const system_variables &sv, const LEX_CSTRING &text)
 
   CHARSET_INFO *cs= &my_charset_utf8mb3_general_ci; // as in make_ident_casedn()
   DBUG_ASSERT(cs->cset->casedn_multiply(cs) == 1);
+  DBUG_ASSERT(text.str);
   char *buf= (char*)my_malloc(key_memory_Sys_var_charptr_value,
                               text.length + 1, MYF(MY_WME));
   if (!buf)
