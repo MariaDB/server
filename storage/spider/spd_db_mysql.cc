@@ -2596,7 +2596,9 @@ int spider_db_mbase::xa_end(
   XID *xid,
   int *need_mon
 ) {
-  char sql_buf[SPIDER_SQL_XA_END_LEN + XIDDATASIZE + sizeof(long) + 9];
+  char sql_buf[SPIDER_SQL_XA_END_LEN + XIDDATASIZE*2 +
+               SPIDER_SQL_HEX_LEN*2 + SPIDER_SQL_COMMA_LEN*2 +
+               sizeof(long)*3 + 7];
   spider_string sql_str(sql_buf, sizeof(sql_buf), &my_charset_bin);
   DBUG_ENTER("spider_db_mbase::xa_end");
   DBUG_PRINT("info",("spider this=%p", this));
@@ -2613,7 +2615,9 @@ int spider_db_mbase::xa_prepare(
   XID *xid,
   int *need_mon
 ) {
-  char sql_buf[SPIDER_SQL_XA_PREPARE_LEN + XIDDATASIZE + sizeof(long) + 9];
+  char sql_buf[SPIDER_SQL_XA_PREPARE_LEN + XIDDATASIZE*2 +
+               SPIDER_SQL_HEX_LEN*2 + SPIDER_SQL_COMMA_LEN*2 +
+               sizeof(long)*3 + 7];
   spider_string sql_str(sql_buf, sizeof(sql_buf), &my_charset_bin);
   DBUG_ENTER("spider_db_mbase::xa_prepare");
   DBUG_PRINT("info",("spider this=%p", this));
@@ -2630,7 +2634,9 @@ int spider_db_mbase::xa_commit(
   XID *xid,
   int *need_mon
 ) {
-  char sql_buf[SPIDER_SQL_XA_COMMIT_LEN + XIDDATASIZE + sizeof(long) + 9];
+  char sql_buf[SPIDER_SQL_XA_COMMIT_LEN + XIDDATASIZE*2 +
+               SPIDER_SQL_HEX_LEN*2 + SPIDER_SQL_COMMA_LEN*2 +
+               sizeof(long)*3 + 7];
   spider_string sql_str(sql_buf, sizeof(sql_buf), &my_charset_bin);
   DBUG_ENTER("spider_db_mbase::xa_commit");
   DBUG_PRINT("info",("spider this=%p", this));
@@ -2647,7 +2653,9 @@ int spider_db_mbase::xa_rollback(
   XID *xid,
   int *need_mon
 ) {
-  char sql_buf[SPIDER_SQL_XA_ROLLBACK_LEN + XIDDATASIZE + sizeof(long) + 9];
+  char sql_buf[SPIDER_SQL_XA_ROLLBACK_LEN + XIDDATASIZE*2 +
+               SPIDER_SQL_HEX_LEN*2 + SPIDER_SQL_COMMA_LEN*2 +
+               sizeof(long)*3 + 7];
   spider_string sql_str(sql_buf, sizeof(sql_buf), &my_charset_bin);
   DBUG_ENTER("spider_db_mbase::xa_rollback");
   DBUG_PRINT("info",("spider this=%p", this));
@@ -4754,7 +4762,8 @@ int spider_db_mbase_util::append_xa_start(
   DBUG_ENTER("spider_db_mbase_util::append_xa_start");
   DBUG_PRINT("info",("spider this=%p", this));
   if (str->reserve(SPIDER_SQL_SEMICOLON_LEN +
-    SPIDER_SQL_XA_START_LEN + XIDDATASIZE + sizeof(long) + 9))
+    SPIDER_SQL_XA_START_LEN + XIDDATASIZE*2 + SPIDER_SQL_HEX_LEN*2 +
+    SPIDER_SQL_COMMA_LEN*2 + sizeof(long)*3 + 7))
     DBUG_RETURN(HA_ERR_OUT_OF_MEM);
   if (str->length())
   {
