@@ -878,6 +878,7 @@ drop table t1;
 drop table t0;
 
 --echo # MDEV-37667 SIGSEGV on ALTER on locked GTT in low memory env
+--disable_ps_protocol
 set @save_max_session_mem_used= @@max_session_mem_used;
 set max_session_mem_used= 8192;
 create global temporary table t (t text);
@@ -889,6 +890,7 @@ alter table t add z int;
 drop table t;
 unlock tables;
 set max_session_mem_used= @save_max_session_mem_used;
+--enable_ps_protocol
 
 --echo # MDEV-37668 SIGSEGV on DROP TABLE GTT under LOCK TABLES and different server_id
 create global temporary table t (x int) on commit preserve rows as select 1 'a';
@@ -960,7 +962,9 @@ create global temporary table gtt (x int);
 begin;
 insert into gtt values (1);
 handler gtt open;
+--disable_ps_protocol
 alter table gtt force;
+--enable_ps_protocol
 begin;
 insert into gtt values (1);
 drop table gtt;
