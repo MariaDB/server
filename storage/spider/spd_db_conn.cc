@@ -48,8 +48,6 @@ extern SPIDER_DBTON spider_dbton[SPIDER_DBTON_SIZE];
 
 #define SPIDER_SQL_COALESCE_STR "coalesce("
 #define SPIDER_SQL_COALESCE_LEN (sizeof(SPIDER_SQL_COALESCE_STR) - 1)
-#define SPIDER_SQL_HEX_STR "0x"
-#define SPIDER_SQL_HEX_LEN (sizeof(SPIDER_SQL_HEX_STR) - 1)
 
 #define SPIDER_SQL_SET_NAMES_STR "set names "
 #define SPIDER_SQL_SET_NAMES_LEN sizeof(SPIDER_SQL_SET_NAMES_STR) - 1
