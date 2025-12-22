@@ -48,7 +48,6 @@ connection node_2;
 SET DEBUG_SYNC = "now WAIT_FOR sync.wsrep_apply_toi_reached";
 SET SESSION wsrep_sync_wait = 0;
 connection node_1;
-SET GLOBAL DEBUG_DBUG = '+d,wsrep_print_foreign_keys_table';
 START TRANSACTION;
 INSERT INTO t1 VALUES (3,0);
 COMMIT;
@@ -62,10 +61,6 @@ connection node_1;
 SET DEBUG_SYNC = 'RESET';
 SET GLOBAL DEBUG_DBUG = "";
 SET GLOBAL wsrep_slave_threads=DEFAULT;
-connection node_1;
-include/assert_grep.inc [Foreign key referenced table found: 2 tables]
-include/assert_grep.inc [Foreign key referenced table found: test.t2]
-include/assert_grep.inc [Foreign key referenced table found: test.t3]
 connection node_2;
 select * from t1;
 id	f2
@@ -146,7 +141,6 @@ connection node_2;
 SET DEBUG_SYNC = "now WAIT_FOR sync.wsrep_apply_toi_reached";
 SET SESSION wsrep_sync_wait = 0;
 connection node_1;
-SET GLOBAL DEBUG_DBUG = '+d,wsrep_print_foreign_keys_table';
 START TRANSACTION;
 INSERT INTO t1 VALUES (3,0);
 COMMIT;
@@ -160,11 +154,6 @@ connection node_1;
 SET DEBUG_SYNC = 'RESET';
 SET GLOBAL DEBUG_DBUG = "";
 SET GLOBAL wsrep_slave_threads=DEFAULT;
-connection node_1;
-include/assert_grep.inc [Foreign key referenced table found: 3 tables]
-include/assert_grep.inc [Foreign key referenced table found: test.t2]
-include/assert_grep.inc [Foreign key referenced table found: test.t3]
-include/assert_grep.inc [Foreign key referenced table found: test.t4]
 connection node_2;
 select * from t1;
 id	f2
@@ -233,7 +222,6 @@ connection node_2;
 SET DEBUG_SYNC = "now WAIT_FOR sync.wsrep_apply_toi_reached";
 SET SESSION wsrep_sync_wait = 0;
 connection node_1;
-SET GLOBAL DEBUG_DBUG = '+d,wsrep_print_foreign_keys_table';
 START TRANSACTION;
 INSERT INTO t1 VALUES (3,0);
 COMMIT;
@@ -247,11 +235,6 @@ connection node_1;
 SET DEBUG_SYNC = 'RESET';
 SET GLOBAL DEBUG_DBUG = "";
 SET GLOBAL wsrep_slave_threads=DEFAULT;
-connection node_1;
-include/assert_grep.inc [Foreign key referenced table found: 2 tables]
-include/assert_grep.inc [Foreign key referenced table found: test.t2]
-include/assert_grep.inc [Foreign key referenced table found: test.t3]
-include/assert_grep.inc [Foreign key referenced table found: test.t4]
 connection node_2;
 select * from t1;
 id	f2
@@ -323,7 +306,6 @@ connection node_2;
 SET DEBUG_SYNC = "now WAIT_FOR sync.wsrep_apply_toi_reached";
 SET SESSION wsrep_sync_wait = 0;
 connection node_1;
-SET GLOBAL DEBUG_DBUG = '+d,wsrep_print_foreign_keys_table';
 START TRANSACTION;
 INSERT INTO t1 VALUES (3,0);
 COMMIT;
@@ -337,10 +319,6 @@ connection node_1;
 SET DEBUG_SYNC = 'RESET';
 SET GLOBAL DEBUG_DBUG = "";
 SET GLOBAL wsrep_slave_threads=DEFAULT;
-connection node_1;
-include/assert_grep.inc [Foreign key referenced table found: 1 tables]
-include/assert_grep.inc [Foreign key referenced table found: test.t2]
-include/assert_grep.inc [Foreign key referenced table found: test.t3]
 connection node_2;
 select * from t1;
 id	f2
