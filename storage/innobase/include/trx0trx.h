@@ -60,6 +60,16 @@ trx_set_detailed_error_from_file(
 /*=============================*/
 	trx_t*	trx,	/*!< in: transaction struct */
 	FILE*	file);	/*!< in: file to read message from */
+
+/** Set the deadlock information for a transaction from a file.
+@param trx   transaction that was chosen as deadlock victim
+@param file  file containing the deadlock information */
+void trx_set_deadlock_info_from_file(trx_t *trx, FILE *file);
+
+/** Clear the deadlock information for a transaction.
+@param trx   transaction */
+void trx_clear_deadlock_info(trx_t *trx);
+
 /****************************************************************//**
 Retrieves the error_info field from a trx.
 @return the error info */
@@ -387,6 +397,11 @@ struct trx_lock_t
   /** number of lock_rec_set_nth_bit() calls since the start of transaction;
   protected by lock_sys.is_writer() or trx->mutex_is_owner(). */
   ulint set_nth_bit_calls;
+
+  /** Deadlock information for SHOW WARNINGS; protected by lock_sys.wait_mutex */
+  char *deadlock_info;
+  size_t deadlock_info_len;
+  size_t deadlock_info_size;
 };
 
 /** Logical first modification time of a table in a transaction */

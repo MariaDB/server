@@ -97,6 +97,46 @@ trx_set_detailed_error_from_file(
 	os_file_read_string(file, trx->detailed_error, MAX_DETAILED_ERROR_LEN);
 }
 
+/** Set the deadlock information for a transaction from a file.
+@param trx   transaction that was chosen as deadlock victim
+@param file  file containing the deadlock information */
+void trx_set_deadlock_info_from_file(trx_t *trx, FILE *file)
+{
+	mysql_mutex_assert_owner(&lock_sys.wait_mutex);
+
+	rewind(file);
+	fseek(file, 0, SEEK_END);
+	long file_size = ftell(file);
+	if (file_size <= 0) {
+		return;
+	}
+
+	size_t needed_size = static_cast<size_t>(file_size) + 1;
+
+	if (needed_size > trx->lock.deadlock_info_size) {
+		ut_free(trx->lock.deadlock_info);
+		trx->lock.deadlock_info = static_cast<char*>(
+			ut_malloc_nokey(needed_size));
+		trx->lock.deadlock_info_size = needed_size;
+	}
+
+	rewind(file);
+	size_t read_len = fread(trx->lock.deadlock_info, 1,
+				static_cast<size_t>(file_size), file);
+	trx->lock.deadlock_info[read_len] = '\0';
+	trx->lock.deadlock_info_len = read_len;
+}
+
+/** Clear the deadlock information for a transaction.
+@param trx   transaction */
+void trx_clear_deadlock_info(trx_t *trx)
+{
+	if (trx->lock.deadlock_info) {
+		trx->lock.deadlock_info[0] = '\0';
+		trx->lock.deadlock_info_len = 0;
+	}
+}
+
 /********************************************************************//**
 Initialize transaction object.
 @param trx trx to initialize */
@@ -192,6 +232,10 @@ struct TrxFactory {
 		trx->detailed_error = reinterpret_cast<char*>(
 			ut_zalloc_nokey(MAX_DETAILED_ERROR_LEN));
 
+		trx->lock.deadlock_info = nullptr;
+		trx->lock.deadlock_info_len = 0;
+		trx->lock.deadlock_info_size = 0;
+
 		trx->lock.lock_heap = mem_heap_create_typed(
 			1024, MEM_HEAP_FOR_LOCK_HEAP);
 		pthread_cond_init(&trx->lock.cond, nullptr);
@@ -237,6 +281,11 @@ struct TrxFactory {
 		ut_ad(UT_LIST_GET_LEN(trx->lock.evicted_tables) == 0);
 
 		ut_free(trx->detailed_error);
+
+		ut_free(trx->lock.deadlock_info);
+		trx->lock.deadlock_info = nullptr;
+		trx->lock.deadlock_info_len = 0;
+		trx->lock.deadlock_info_size = 0;
 
 		trx->mutex_destroy();
 
@@ -396,6 +445,7 @@ void trx_t::free()
   trx_sys.deregister_trx(this);
   check_unique_secondary= true;
   check_foreigns= true;
+  trx_clear_deadlock_info(this);
   assert_freed();
   trx_sys.rw_trx_hash.put_pins(this);
   mysql_thd= nullptr;
@@ -910,6 +960,7 @@ trx_start_low(
 	ut_ad(trx->rsegs.m_noredo.rseg == NULL);
 	ut_ad(trx_state_eq(trx, TRX_STATE_NOT_STARTED));
 	ut_ad(UT_LIST_GET_LEN(trx->lock.trx_locks) == 0);
+	trx_clear_deadlock_info(trx);
 
 	/* Check whether it is an AUTOCOMMIT SELECT */
         if (const THD* thd = trx->mysql_thd) {

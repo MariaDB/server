@@ -7304,6 +7304,7 @@ and less modified rows. Bit 0 is used to prefer orig_trx in case of a tie.
         }
         snprintf(buf, sizeof buf, rollback_msg, victim_pos);
         print(buf);
+        trx_set_deadlock_info_from_file(victim, lock_latest_err_file);
       }
 
       DBUG_EXECUTE_IF("innodb_deadlock_victim_self", victim= trx;);
