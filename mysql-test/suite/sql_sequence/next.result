@@ -548,3 +548,56 @@ SELECT SETVAL (v,0);
 ERROR 42S02: 'test.v' is not a SEQUENCE
 UNLOCK TABLES;
 DROP VIEW v;
+#
+# MDEV-28650 Server crashes in Item_func_nextval::val_int after select from view
+#
+create sequence s;
+create table t1 (a int not null default nextval(s));
+insert into t1 values(),();
+flush tables;
+select default(a) from t1;
+default(a)
+1001
+1002
+create algorithm=merge view v1 as select default(a) from t1;
+select * from v1;
+default(a)
+1003
+1004
+Select * from v1;
+default(a)
+1005
+1006
+prepare ps from 'SELECT * from v1';
+execute ps;
+default(a)
+1007
+1008
+Execute ps;
+default(a)
+1009
+1010
+drop prepare ps;
+create or replace algorithm=temptable view v1 as select default(a) from t1;
+select * from v1;
+default(a)
+1011
+1012
+Select * from v1;
+default(a)
+1013
+1014
+prepare ps from 'SELECT * from v1';
+execute ps;
+default(a)
+1015
+1016
+Execute ps;
+default(a)
+1017
+1018
+drop prepare ps;
+drop view v1;
+drop table t1;
+drop sequence s;
+# End of 10.11 tests
