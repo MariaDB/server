@@ -206,6 +206,11 @@ TABLE_FIELD_TYPE proc_table_fields[MYSQL_PROC_FIELD_COUNT] =
     { NULL, 0 }
   },
   {
+    { STRING_WITH_LEN("path") },
+    { STRING_WITH_LEN("text") },
+    { STRING_WITH_LEN("utf8mb") }
+  },
+  {
     { STRING_WITH_LEN("comment") },
     { STRING_WITH_LEN("text") },
     { STRING_WITH_LEN("utf8mb") }
@@ -650,6 +655,18 @@ bool st_sp_chistics::read_from_mysql_proc_row(THD *thd, TABLE *table)
   if (table->field[MYSQL_PROC_FIELD_COMMENT]->val_str_nopad(thd->mem_root,
                                                             &comment))
     return true;
+  
+  if (table->field[MYSQL_PROC_FIELD_PATH]->is_null())
+  {
+    sql_path.str= NULL;
+    sql_path.length= 0;
+  }
+  else
+  {
+    if (table->field[MYSQL_PROC_FIELD_PATH]->val_str_nopad(thd->mem_root,
+                                                           &sql_path))
+      return true;
+  }
 
   return false;
 }
@@ -983,6 +1000,11 @@ Sp_handler::db_load_routine(THD *thd, const Database_qualified_name *name,
   defstr.set_charset(creation_ctx->get_client_cs());
   defstr.set_thread_specific();
 
+  Sql_path_push path_push, pkg_path_push;
+  if (parent)
+    pkg_path_push.push(thd, &my_charset_utf8mb3_bin, parent->path());
+  path_push.push(thd, &my_charset_utf8mb3_bin, chistics.sql_path);
+
   /*
     We have to add DEFINER clause and provide proper routine characteristics in
     routine definition statement that we build here to be able to use this
@@ -1057,6 +1079,8 @@ Sp_handler::db_load_routine(THD *thd, const Database_qualified_name *name,
         DBUG_ASSERT(lex->sphead);
         lex->sphead->set_definer(&definer.user, &definer.host);
         lex->sphead->set_suid(package->suid());
+        if (package->path().str)
+          lex->sphead->set_path(package->path());
         lex->sphead->m_sql_mode= sql_mode;
         lex->sphead->set_creation_ctx(creation_ctx);
         lex->sphead->optimize();
@@ -1466,6 +1490,14 @@ Sp_handler::sp_create_routine(THD *thd, const sp_head *sp) const
           store(sp->comment(), system_charset_info);
     }
 
+    if (sp->path().str)
+    {
+      store_failed= store_failed ||
+        table->field[MYSQL_PROC_FIELD_PATH]->
+          store(sp->path(), system_charset_info);
+      table->field[MYSQL_PROC_FIELD_PATH]->set_notnull();
+    }
+
     if (type() == SP_TYPE_FUNCTION &&
         !trust_function_creators && mysql_bin_log.is_open())
     {
@@ -1592,9 +1624,22 @@ append_comment(String *buf, const LEX_CSTRING &comment)
 
 
 static bool
+append_path(String *buf, const LEX_CSTRING &path)
+{
+  if (!path.length)
+    return false;
+  if (buf->append(STRING_WITH_LEN("    PATH ")))
+    return true;
+  append_unescaped(buf, path.str, path.length);
+  return buf->append('\n');
+}
+
+
+static bool
 append_package_chistics(String *buf, const st_sp_chistics &chistics)
 {
   return append_suid(buf, chistics.suid) ||
+         append_path(buf, chistics.sql_path) ||
          append_comment(buf, chistics.comment);
 }
 
@@ -1749,6 +1794,9 @@ Sp_handler::sp_update_routine(THD *thd, const Database_qualified_name *name,
     if (chistics->comment.str)
       table->field[MYSQL_PROC_FIELD_COMMENT]->store(chistics->comment,
 						    system_charset_info);
+    if (chistics->sql_path.str)
+      table->field[MYSQL_PROC_FIELD_PATH]->store(chistics->sql_path,
+                system_charset_info);
     if (chistics->agg_type != DEFAULT_AGGREGATE)
       table->field[MYSQL_PROC_FIELD_AGGREGATE]->
          store((longlong)chistics->agg_type, TRUE);
@@ -2240,6 +2288,62 @@ Sp_handler::sp_find_routine(THD *thd, const Database_qualified_name *name,
 
 
 /**
+  Determine the existence of a routine.
+
+  @param thd          thread context
+  @param name         name of routine
+
+  @retval
+    Non-0  routine does not exist
+  @retval
+    0      routine exists
+*/
+
+int
+Sp_handler::sp_routine_exists(THD *thd,
+                              const Database_qualified_name *name) const
+{
+  DBUG_ENTER("Sp_handler::sp_routine_exists");
+  DBUG_PRINT("enter", ("name:  %.*s.%.*s  type: %s",
+                       (int) name->m_db.length, name->m_db.str,
+                       (int) name->m_name.length, name->m_name.str,
+                       type_str()));
+
+  Parser_state *oldps= thd->m_parser_state;
+  thd->m_parser_state= NULL;
+
+  sp_cache **cp= get_cache(thd);
+  sp_head *sp;
+  if ((sp= sp_cache_lookup(cp, name)))
+  {
+    thd->m_parser_state= oldps;
+    DBUG_RETURN(SP_OK);
+  }
+
+  TABLE *table;
+  int ret;
+
+  start_new_trans new_trans(thd);
+
+  if (!(table= open_proc_table_for_read(thd)))
+  {
+    ret= SP_OPEN_TABLE_FAILED;
+    goto done;
+  }
+
+  ret= db_find_routine_aux(thd, name, table);
+done:
+  if (table)
+    thd->commit_whole_transaction_and_close_tables();
+  new_trans.restore_old_transaction();
+
+  thd->m_parser_state= oldps;
+
+  DBUG_RETURN(ret);
+}
+
+
+/**
   Find a package routine.
   See sp_cache_routine() for more information on parameters and return value.
 
@@ -2478,7 +2582,7 @@ Sp_handler::sp_cache_routine_reentrant(THD *thd,
   unless a fatal error happens.
 */
 
-static bool
+bool
 is_package_public_routine(THD *thd,
                           const Lex_ident_db &db,
                           const LEX_CSTRING &package,
@@ -3103,6 +3207,7 @@ Sp_handler::show_create_sp(THD *thd, String *buf,
     buf->append(STRING_WITH_LEN("    DETERMINISTIC\n"));
   append_suid(buf, chistics.suid);
   append_comment(buf, chistics.comment);
+  append_path(buf, chistics.sql_path);
   buf->append(body.str, body.length);           // Not \0 terminated
   return false;
 }
