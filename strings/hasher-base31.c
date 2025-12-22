@@ -19,7 +19,7 @@ static uint32 my_hasher_base31_finalize(my_hasher_st *hasher)
 }
 
 /* A baseline base-31 modular hash function */
-my_hasher_st my_hasher_base31()
+my_hasher_st my_hasher_base31(void)
 {
   my_hasher_st tmp=
     { 1, 4, 0, FALSE, my_hasher_base31_hash_str, my_hasher_base31_hash_byte,

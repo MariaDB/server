@@ -37,7 +37,7 @@ static uint32 my_hasher_xxh32_finalize(my_hasher_st *hasher)
   return hasher->m_nr;
 }
 
-my_hasher_st my_hasher_xxh32()
+my_hasher_st my_hasher_xxh32(void)
 {
   /*
      TODOs:
@@ -81,7 +81,7 @@ static uint32 my_hasher_xxh3_finalize(my_hasher_st *hasher)
   return hasher->m_nr;
 }
 
-my_hasher_st my_hasher_xxh3()
+my_hasher_st my_hasher_xxh3(void)
 {
   /*
      TODOs:

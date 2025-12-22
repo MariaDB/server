@@ -18,7 +18,7 @@ static uint32 my_hasher_crc32c_finalize(my_hasher_st *hasher)
   return hasher->m_nr;
 }
 
-my_hasher_st my_hasher_crc32c()
+my_hasher_st my_hasher_crc32c(void)
 {
   my_hasher_st tmp=
     { 1, 4, 0, FALSE, my_hasher_crc32c_hash_str, my_hasher_crc32c_hash_byte,

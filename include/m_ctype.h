@@ -517,12 +517,12 @@ typedef struct my_hasher_st
 } my_hasher_st;
 
 /* Defined in hasher-xxx.c files */
-extern my_hasher_st my_hasher_mysql5x();
+extern my_hasher_st my_hasher_mysql5x(void);
 extern my_hasher_st my_hasher_mysql5x_for_unique();
-extern my_hasher_st my_hasher_base31();
-extern my_hasher_st my_hasher_crc32c();
-extern my_hasher_st my_hasher_xxh32();
-extern my_hasher_st my_hasher_xxh3();
+extern my_hasher_st my_hasher_base31(void);
+extern my_hasher_st my_hasher_crc32c(void);
+extern my_hasher_st my_hasher_xxh32(void);
+extern my_hasher_st my_hasher_xxh3(void);
 
 #define MY_HASH_ADD_MARIADB(A, B, value) \
   do { A^= (((A & 63)+B)*((value)))+ (A << 8); B+=3; } while(0)

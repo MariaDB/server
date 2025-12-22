@@ -10236,7 +10236,7 @@ uint8 ha_partition::table_cache_type()
   DBUG_RETURN(get_open_file_sample()->table_cache_type());
 }
 
-extern my_hasher_st (*part_hashers[partition_info::KEY_ALGORITHM_END + 1])();
+extern my_hasher_st (*part_hashers[partition_info::KEY_ALGORITHM_END + 1])(void);
 
 /* Returns hash using the MYSQL51 algorithm. */
 static uint32 mysql51_hash(Hasher *hasher, Field **field_array)
