@@ -210,7 +210,7 @@ int init_io_cache_ext(IO_CACHE *info, File file, size_t cachesize,
 {
   size_t min_cache;
   my_off_t pos;
-  my_off_t end_of_file= ~(my_off_t) 0;
+  my_off_t end_of_file= MY_FILEPOS_ERROR;
   DBUG_ENTER("init_io_cache_ext");
   DBUG_PRINT("enter",("cache:%p  type: %d  pos: %llu",
 		      info, (int) type, (ulonglong) seek_offset));
@@ -513,7 +513,7 @@ my_bool reinit_io_cache(IO_CACHE *info, enum cache_type type,
 	info->write_end=info->write_buffer+info->buffer_length;
 	info->seek_not_done=1;
       }
-      info->end_of_file = ~(my_off_t) 0;
+      info->end_of_file= MY_FILE_ERROR;
     }
     pos=info->request_pos+(seek_offset-info->pos_in_file);
     if (type == WRITE_CACHE)
@@ -584,7 +584,7 @@ my_bool reinit_io_cache(IO_CACHE *info, enum cache_type type,
         info->write_end=(info->buffer + info->buffer_length -
                          (seek_offset & (IO_SIZE-1)));
       }
-      info->end_of_file= ~(my_off_t) 0;
+      info->end_of_file= MY_FILEPOS_ERROR;
     }
   }
   info->type=type;
@@ -1790,7 +1790,6 @@ int my_b_flush_io_cache(IO_CACHE *info, int need_append_buffer_lock)
 
     if ((length=(size_t) (info->write_pos - info->write_buffer)))
     {
-      my_off_t eof= info->end_of_file + info->write_pos - info->append_read_pos;
       /*
         The write_function() updates info->pos_in_file. So compute the new end
         position here before calling it, but update the value only after we
@@ -1798,6 +1797,10 @@ int my_b_flush_io_cache(IO_CACHE *info, int need_append_buffer_lock)
       */
       uchar *new_write_end= (info->write_buffer + info->buffer_length -
                              ((info->pos_in_file + length) & (IO_SIZE - 1)));
+      my_off_t eof= info->end_of_file;
+      if (eof != MY_FILE_ERROR)
+        eof+= info->write_pos - info->append_read_pos;
+
       if (append_cache)
       {
         if (tmp_file_track(info, eof) ||
