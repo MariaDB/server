@@ -45,6 +45,7 @@ s/\(int yylex_destroy\)/MY_ATTRIBUTE((unused)) static \1/;
 s/^\(\(FILE\|char\) *\* *yyget\)/MY_ATTRIBUTE((unused)) static \1/;
 s/^extern \(\(FILE\|char\) *\* *yy\).*//;
 s/^\(FILE\|char\) *\* *yy/static &/;
+/^# line/d;
 ' < $TMPFILE >> $OUTFILE
 
 rm $TMPFILE
