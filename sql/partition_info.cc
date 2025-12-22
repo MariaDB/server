@@ -37,7 +37,7 @@
 #include "transaction.h"
 
 /* Indexed by partition_info::enum_key_algorithm enums */
-my_hasher_st (*part_hashers[])()=
+my_hasher_st (*part_hashers[])(void)=
 {
   my_hasher_mysql5x,            /* KEY_ALGORITHM_NONE */
   my_hasher_mysql5x,            /* KEY_ALGORITHM_51 */
