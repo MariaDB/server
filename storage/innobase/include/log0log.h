@@ -618,6 +618,17 @@ public:
   /** @return the first LSN of the log file */
   lsn_t get_first_lsn() const noexcept { return first_lsn; }
 
+  /** Set the recovered checkpoint.
+  @param lsn      log sequence number of the checkpoint
+  @param end_lsn  LSN passed to write_checkpoint()
+  @param number   checkpoint number */
+  void set_recovered_checkpoint(lsn_t lsn, lsn_t end_lsn, byte number) noexcept
+  {
+    next_checkpoint_lsn= lsn;
+    this->end_lsn= end_lsn;
+    next_checkpoint_no= number;
+  }
+
   /** Determine the sequence bit at a log sequence number */
   byte get_sequence_bit(lsn_t lsn) const noexcept
   {

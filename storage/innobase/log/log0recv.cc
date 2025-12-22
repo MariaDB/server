@@ -2000,11 +2000,8 @@ dberr_t recv_sys_t::find_checkpoint()
       }
 
       if (checkpoint_lsn >= log_sys.next_checkpoint_lsn)
-      {
-        log_sys.next_checkpoint_lsn= checkpoint_lsn;
-        log_sys.next_checkpoint_no= field == log_t::CHECKPOINT_1;
-        lsn= end_lsn;
-      }
+        log_sys.set_recovered_checkpoint(checkpoint_lsn, lsn= end_lsn,
+                                         field == log_t::CHECKPOINT_1);
     }
     if (!log_sys.next_checkpoint_lsn)
       goto got_no_checkpoint;
