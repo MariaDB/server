@@ -2021,7 +2021,7 @@ static void fil_crypt_thread()
 #endif /* UNIV_PFS_THREAD */
 	mysql_mutex_lock(&fil_crypt_threads_mutex);
 	rotate_thread_t thr(srv_n_fil_crypt_threads_started++);
-	pthread_cond_signal(&fil_crypt_cond); /* signal that we started */
+	pthread_cond_broadcast(&fil_crypt_cond);
 
 	if (!thr.should_shutdown()) {
 		/* if we find a tablespace that is starting, skip over it
@@ -2093,7 +2093,7 @@ wait_for_work:
 
 	fil_crypt_return_iops(&thr);
 	srv_n_fil_crypt_threads_started--;
-	pthread_cond_signal(&fil_crypt_cond); /* signal that we stopped */
+	pthread_cond_broadcast(&fil_crypt_cond);
 	mysql_mutex_unlock(&fil_crypt_threads_mutex);
 
 	my_thread_end();
