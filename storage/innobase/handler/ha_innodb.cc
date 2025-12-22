@@ -2104,17 +2104,8 @@ convert_error_code_to_mysql(
 		/* Since we rolled back the whole transaction, the
 		cached binlog must be emptied. */
 		innodb_transaction_abort(thd, true, error);
-		if (error == DB_DEADLOCK) {
-			trx_t* trx = thd_to_trx(thd);
-			if (trx && trx->lock.deadlock_info
-			    && trx->lock.deadlock_info_len > 0) {
-				push_warning_printf(thd,
-					Sql_condition::WARN_LEVEL_NOTE,
-					ER_LOCK_DEADLOCK,
-					"%s", trx->lock.deadlock_info);
-			}
+		if (error == DB_DEADLOCK)
 			return HA_ERR_LOCK_DEADLOCK;
-		}
 		return HA_ERR_RECORD_CHANGED;
 
 	case DB_LOCK_WAIT_TIMEOUT:

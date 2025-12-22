@@ -7182,6 +7182,8 @@ and less modified rows. Bit 0 is used to prefer orig_trx in case of a tie.
     static const char rollback_msg[]= "*** WE ROLL BACK TRANSACTION (%u)\n";
     char buf[9 + sizeof rollback_msg];
     trx_t *victim= nullptr;
+    char *deadlock_info= nullptr;
+    size_t deadlock_info_len= 0;
 
     /* Here, lock elision does not make sense, because
     for the output we are going to invoke system calls,
@@ -7304,7 +7306,26 @@ and less modified rows. Bit 0 is used to prefer orig_trx in case of a tie.
         }
         snprintf(buf, sizeof buf, rollback_msg, victim_pos);
         print(buf);
-        trx_set_deadlock_info_from_file(victim, lock_latest_err_file);
+
+        if (srv_print_all_deadlocks)
+        {
+          rewind(lock_latest_err_file);
+          fseek(lock_latest_err_file, 0, SEEK_END);
+          long file_size= ftell(lock_latest_err_file);
+          if (file_size > 0)
+          {
+            deadlock_info= static_cast<char*>(ut_malloc_nokey(
+              static_cast<size_t>(file_size) + 1));
+            if (deadlock_info)
+            {
+              rewind(lock_latest_err_file);
+              deadlock_info_len= fread(deadlock_info, 1,
+                                       static_cast<size_t>(file_size),
+                                       lock_latest_err_file);
+              deadlock_info[deadlock_info_len]= '\0';
+            }
+          }
+        }
       }
 
       DBUG_EXECUTE_IF("innodb_deadlock_victim_self", victim= trx;);
@@ -7320,6 +7341,14 @@ and less modified rows. Bit 0 is used to prefer orig_trx in case of a tie.
 func_exit:
     if (current_trx)
       lock_sys.wr_unlock();
+
+    if (deadlock_info && victim == trx && trx->mysql_thd)
+    {
+      push_warning_printf(trx->mysql_thd, Sql_condition::WARN_LEVEL_NOTE,
+                          ER_LOCK_DEADLOCK, "%s", deadlock_info);
+    }
+    ut_free(deadlock_info);
+
     return victim;
   }
 }
