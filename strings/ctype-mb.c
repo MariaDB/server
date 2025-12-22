@@ -21,6 +21,381 @@
 #ifdef USE_MB
 
 
+const MY_HALFWIDTH_FULLWIDTH_TUPLE my_fullwidth[]=
+{
+  /* 00 - 06*/
+  {0,0,0,0,0,0,0,0,0,0,0,0},
+  {0x8142,0,0,0x8142,0,0,0xa1a3,0,0,0xa1a3,0,0},
+  {0x8175,0,0,0x8175,0,0,0xa1d6,0,0,0xa1d6,0,0},
+  {0x8176,0,0,0x8176,0,0,0xa1d7,0,0,0xa1d7,0,0},
+  {0x8141,0,0,0x8141,0,0,0xa1a2,0,0,0xa1a2,0,0},
+  {0x8144,0,0,0x8144,0,0,0xa1a5,0,0,0xa1a5,0,0},
+  {0x8392,0,0,0x82f0,0,0,0xa5f2,0,0,0xa4f2,0,0},
+  //ｧ
+  {0x8340,0,0,0x829f,0,0,0xa5a1,0,0,0xa4a1,0,0},
+  {0x8342,0,0,0x82a1,0,0,0xa5a3,0,0,0xa4a3,0,0},
+  {0x8344,0,0,0x82a3,0,0,0xa5a5,0,0,0xa4a5,0,0},
+  {0x8346,0,0,0x82a5,0,0,0xa5a7,0,0,0xa4a7,0,0},
+  {0x8348,0,0,0x82a7,0,0,0xa5a9,0,0,0xa4a9,0,0},
+  //ｬ
+  {0x8383,0,0,0x82e1,0,0,0xa5e3,0,0,0xa4e3,0,0},
+  {0x8385,0,0,0x82e3,0,0,0xa5e5,0,0,0xa4e5,0,0},
+  {0x8387,0,0,0x82e5,0,0,0xa5e7,0,0,0xa4e7,0,0},
+  //ッ
+  {0x8362,0,0,0x82c2,0,0,0xa5c3,0,0,0xa4c3,0,0},
+  //ｰ
+  {0x8158,0,0,0x8158,0,0,0xa1bc,0,0,0xa1bc,0,0},
+  //ｱ
+  {0x8341,0,0,0x82a0,0,0,0xa5a2,0,0,0xa4a2,0,0},
+  {0x8343,0,0,0x82a2,0,0,0xa5a4,0,0,0xa4a4,0,0},
+  {0x8345,0x833f,0,0x82a4,0,0,0xa5a6,0,0,0xa4a6,0,0},
+  {0x8347,0,0,0x82a6,0,0,0xa5a8,0,0,0xa4a8,0,0},
+  {0x8349,0,0,0x82a8,0,0,0xa5aa,0,0,0xa4aa,0,0},
+  //カ
+  {0x834a,0x834B,0,0x82a9,0x82aa,0,0xa5ab,0xa5ac,0,0xa4ab,0xa4ac,0},
+  {0x834c,0x834d,0,0x82ab,0x82ac,0,0xa5ad,0xa5ae,0,0xa4ad,0xa4ae,0}, 
+  {0x834e,0x834f,0,0x82ad,0x82ae,0,0xa5af,0xa5b0,0,0xa4af,0xa4b0,0}, 
+  {0x8350,0x8351,0,0x82af,0x82b0,0,0xa5b1,0xa5b2,0,0xa4b1,0xa4b2,0}, 
+  {0x8352,0x8353,0,0x82b1,0x82b2,0,0xa5b3,0xa5b4,0,0xa4b3,0xa4b4,0},
+  //サ
+  {0x8354,0x8355,0,0x82b3,0x82b4,0,0xa5b5,0xa5b6,0,0xa4b5,0xa4b6,0}, 
+  {0x8356,0x8357,0,0x82b5,0x82b6,0,0xa5b7,0xa5b8,0,0xa4b7,0xa4b8,0}, 
+  {0x8358,0x8359,0,0x82b7,0x82b8,0,0xa5b9,0xa5ba,0,0xa4b9,0xa4ba,0}, 
+  {0x835a,0x835b,0,0x82b9,0x82ba,0,0xa5bb,0xa5bc,0,0xa4bb,0xa4bc,0}, 
+  {0x835c,0x835d,0,0x82bb,0x82bc,0,0xa5bd,0xa5be,0,0xa4bd,0xa4be,0},
+  //タ
+  {0x835e,0x835f,0,0x82bd,0x82be,0,0xa5bf,0xa5c0,0,0xa4bf,0xa4c0,0}, 
+  {0x8360,0x8361,0,0x82bf,0x82c0,0,0xa5c1,0xa5c2,0,0xa4c1,0xa4c2,0}, 
+  {0x8363,0x8364,0,0x82c2,0x82c3,0,0xa5c4,0xa5c5,0,0xa4c4,0xa4c5,0}, 
+  {0x8365,0x8366,0,0x82c4,0x82c5,0,0xa5c6,0xa5c7,0,0xa4c6,0xa4c7,0}, 
+  {0x8367,0x8368,0,0x82c6,0x82c7,0,0xa5c8,0xa5c9,0,0xa4c8,0xa4c9,0},
+  //ﾅ
+  {0x8369,0,0,0x82c8,0,0,0xa5ca,0,0,0xa4ca,0,0},
+  {0x836a,0,0,0x82c9,0,0,0xa5cb,0,0,0xa4cb,0,0},
+  {0x836b,0,0,0x82ca,0,0,0xa5cc,0,0,0xa4cc,0,0},
+  {0x836c,0,0,0x82cb,0,0,0xa5cd,0,0,0xa4cd,0,0},
+  {0x836d,0,0,0x82cc,0,0,0xa5ce,0,0,0xa4ce,0,0},
+  //ハ
+  {0x836e,0x836f,0x8370,0x82cd,0x82ce,0x82cf,0xa5cf,0xa5d0,0xa5d1,0xa4cf,0xa4d0,0xa4d1},
+  {0x8371,0x8372,0x8373,0x82d0,0x82d1,0x82d2,0xa5d2,0xa5d3,0xa5d4,0xa4d2,0xa4d3,0xa4d4},
+  {0x8374,0x8375,0x8376,0x82d3,0x82d4,0x82d5,0xa5d5,0xa5d6,0xa5d7,0xa4d5,0xa4d6,0xa4d7},
+  {0x8377,0x8378,0x8379,0x82d6,0x82d7,0x82d8,0xa5d8,0xa5d9,0xa5da,0xa4d8,0xa4d9,0xa4da},
+  {0x837a,0x837b,0x837c,0x82d9,0x82da,0x82db,0xa5db,0xa5dc,0xa5dd,0xa4db,0xa4dc,0xa4dd},
+  //ﾏ
+  {0x837d,0,0,0x82dc,0,0,0xa5de,0,0,0xa4de,0,0},
+  {0x837e,0,0,0x82dd,0,0,0xa5df,0,0,0xa4df,0,0},
+  {0x8380,0,0,0x82de,0,0,0xa5e0,0,0,0xa4e0,0,0},
+  {0x8381,0,0,0x82df,0,0,0xa5e1,0,0,0xa4e1,0,0},
+  {0x8382,0,0,0x82e0,0,0,0xa5e2,0,0,0xa4e2,0,0},
+  //ﾔ
+  {0x8384,0,0,0x82e2,0,0,0xa5e4,0,0,0xa4e4,0,0},
+  {0x8386,0,0,0x82e4,0,0,0xa5e6,0,0,0xa4e6,0,0},
+  {0x8388,0,0,0x82e6,0,0,0xa5e8,0,0,0xa4e8,0,0},
+  //ラ
+  {0x8389,0,0,0x82e7,0,0,0xa5e9,0,0,0xa4e9,0,0},
+  {0x838a,0,0,0x82e8,0,0,0xa5ea,0,0,0xa4ea,0,0},
+  {0x838b,0,0,0x82e9,0,0,0xa5eb,0,0,0xa4eb,0,0},
+  {0x838c,0,0,0x82ea,0,0,0xa5ec,0,0,0xa4ec,0,0},
+  {0x838d,0,0,0x82eb,0,0,0xa5ed,0,0,0xa4ed,0,0},
+  //ワ, ン
+  {0x838f,0,0,0x82ed,0,0,0xa5ef,0,0,0xa4ef,0,0},
+  {0x8393,0,0,0x82f1,0,0,0xa5f3,0,0,0xa4f3,0,0}
+};
+
+
+const MY_FULLWIDTH_HALFWIDTH_TUPLE my_halfwidth[]=
+{
+  //ｧ,ｱ,..
+  {0xa7,0},
+  {0xb1,0},
+  {0xa8,0},
+  {0xb2,0},
+  {0xa9,0},
+  {0xb3,0},
+  {0xaa,0},
+  {0xb4,0},
+  {0xab,0},
+  {0xb5,0},
+  //カ
+  {0xb6,0},
+  {0xb6,0xde},
+  {0xb7,0},
+  {0xb7,0xde},
+  {0xb8,0},
+  {0xb8,0xde},
+  {0xb9,0},
+  {0xb9,0xde},
+  {0xba,0},
+  {0xba,0xde},
+  //サ
+  {0xbb,0},
+  {0xbb,0xde},
+  {0xbc,0},
+  {0xbc,0xde},
+  {0xbd,0},
+  {0xbd,0xde},
+  {0xbe,0},
+  {0xbe,0xde},
+  {0xbf,0},
+  {0xbf,0xde},
+  //タ
+  {0xc0,0},
+  {0xc0,0xde},
+  {0xc1,0},
+  {0xc1,0xde},
+  {0xaf,0},
+  {0xc2,0},
+  {0xc2,0xde},
+  {0xc3,0},
+  {0xc3,0xde},
+  {0xc4,0},
+  {0xc4,0xde},
+  //ナ
+  {0xc5,0},
+  {0xc6,0},
+  {0xc7,0},
+  {0xc8,0},
+  {0xc9,0},
+  //ハ
+  {0xca,0},
+  {0xca,0xde},
+  {0xca,0xdf},
+  {0xcb,0},
+  {0xcb,0xde},
+  {0xcb,0xdf},
+  {0xcc,0},
+  {0xcc,0xde},
+  {0xcc,0xdf},
+  {0xcd,0},
+  {0xcd,0xde},
+  {0xcd,0xdf},
+  {0xce,0},
+  {0xce,0xde},
+  {0xce,0xdf},
+  //マ
+  {0xcf,0},
+  {0xd0,0},
+  {0xd1,0},
+  {0xd2,0},
+  {0xd3,0},
+  //ャ, ヤ
+  {0xac,0},
+  {0xd4,0},
+  {0xad,0},
+  {0xd5,0},
+  {0xae,0},
+  {0xd6,0},
+  //ラ
+  {0xd7,0},
+  {0xd8,0},
+  {0xd9,0},
+  {0xda,0},
+  {0xdb,0},
+  //ヮ,  ワ
+  {0xdc,0},
+  {0xdc,0},
+  //ヰ,  ヱ,  ヲ,  ン,  ヴ,  ヵ,  ヶ
+  {0xb2,0},
+  {0xb4,0},
+  {0xa6,0},
+  {0xdd,0},
+  {0xb3,0xde},
+  {0xb6,0},
+  {0xb9,0},
+};
+
+
+/*
+  sjis & ujis halfwidth to fullwidth katakana and hiragana conversion
+*/
+size_t
+my_halfwidth_fullwidth(CHARSET_INFO *cs, int to_hiragana, const char *src,
+    size_t srclen, char *dst, size_t dstlen)
+{
+  const char *srcend= src + srclen;
+  char *dst0= dst;
+
+  while (src < srcend)
+  {
+    int hi;
+
+    int page;
+
+    //ujis & sjis charset for source only
+    if (((cs == &my_charset_ujis_japanese_ci && (page= (uchar) *src) == 0x8e) &&
+        (hi= (uchar) src[1]) >= 0xA1 && hi <= 0xDF) ||
+        (cs == &my_charset_sjis_japanese_ci &&
+        (hi= (uchar) *src) >= 0xA1 && hi <= 0xDF))
+    {
+      /* ujis half width Katakana: [..] */
+      if (cs == &my_charset_ujis_japanese_ci && (page= (uchar) *src) == 0x8e)
+        src++;
+      /* JIS-X-0201 Half width Katakana: [A1..DF] -> [U+FF61..U+FF9F] */
+      if ((hi= (uchar) *src) >= 0xA1 && hi <= 0xDF)
+      {
+        if (((hi >= 0xB6 && hi <= 0xc4) ||
+            (hi >= 0xca && hi <= 0xce)) &&
+            ((uchar) src[cs == &my_charset_ujis_japanese_ci ? 3 : 1] == 0xDE ||
+            (uchar) src[cs == &my_charset_ujis_japanese_ci ? 3 : 1] == 0xDF))
+        {
+          if ((uchar) src[cs == &my_charset_ujis_japanese_ci ? 3 : 1] == 0xDE)
+          {
+            *dst++= (to_hiragana ?
+                (cs == &my_charset_ujis_japanese_ci ?
+                my_fullwidth[hi - 0xa0].h_uj_voiced_mark_variant :
+                my_fullwidth[hi - 0xa0].h_sj_voiced_mark_variant) :
+                (cs == &my_charset_ujis_japanese_ci ?
+                my_fullwidth[hi - 0xa0].k_uj_voiced_mark_variant :
+                my_fullwidth[hi - 0xa0].k_sj_voiced_mark_variant)) >> 8;
+            *dst++= to_hiragana ?
+                (cs == &my_charset_ujis_japanese_ci ?
+                my_fullwidth[hi - 0xa0].h_uj_voiced_mark_variant :
+                my_fullwidth[hi - 0xa0].h_sj_voiced_mark_variant) :
+                (cs == &my_charset_ujis_japanese_ci ?
+                my_fullwidth[hi - 0xa0].k_uj_voiced_mark_variant :
+                my_fullwidth[hi - 0xa0].k_sj_voiced_mark_variant) & 0xff;
+          }
+          else //src[cs == &my_charset_ujis_japanese_ci ? 3 : 1] == 0xDF
+          {
+            *dst++= (to_hiragana ?
+                (cs == &my_charset_ujis_japanese_ci ?
+                my_fullwidth[hi - 0xa0].h_uj_semi_voiced_mark_variant :
+                my_fullwidth[hi - 0xa0].h_sj_semi_voiced_mark_variant) :
+                (cs == &my_charset_ujis_japanese_ci ?
+                my_fullwidth[hi - 0xa0].k_uj_semi_voiced_mark_variant :
+                my_fullwidth[hi - 0xa0].k_sj_semi_voiced_mark_variant)) >> 8;
+            *dst++= to_hiragana ?
+                (cs == &my_charset_ujis_japanese_ci ?
+                my_fullwidth[hi - 0xa0].h_uj_semi_voiced_mark_variant :
+                my_fullwidth[hi - 0xa0].h_sj_semi_voiced_mark_variant) :
+                (cs == &my_charset_ujis_japanese_ci ?
+                my_fullwidth[hi - 0xa0].k_uj_semi_voiced_mark_variant :
+                my_fullwidth[hi - 0xa0].k_sj_semi_voiced_mark_variant) & 0xff;
+          }
+          src+= cs == &my_charset_ujis_japanese_ci ? 3 : 2;
+        }
+        else if (hi == 0xB3 &&
+            (uchar) src[cs == &my_charset_ujis_japanese_ci ? 3 : 1] == 0xDE)
+        {
+            *dst++= (to_hiragana ?
+                (cs == &my_charset_ujis_japanese_ci ?
+                my_fullwidth[hi - 0xa0].h_uj_voiced_mark_variant :
+                my_fullwidth[hi - 0xa0].h_sj_voiced_mark_variant) :
+                (cs == &my_charset_ujis_japanese_ci ?
+                my_fullwidth[hi - 0xa0].k_uj_voiced_mark_variant :
+                my_fullwidth[hi - 0xa0].k_sj_voiced_mark_variant)) >> 8;
+            *dst++= to_hiragana ?
+                (cs == &my_charset_ujis_japanese_ci ?
+                my_fullwidth[hi - 0xa0].h_uj_voiced_mark_variant :
+                my_fullwidth[hi - 0xa0].h_sj_voiced_mark_variant) :
+                (cs == &my_charset_ujis_japanese_ci ?
+                my_fullwidth[hi - 0xa0].k_uj_voiced_mark_variant :
+                my_fullwidth[hi - 0xa0].k_sj_voiced_mark_variant) & 0xff;
+          src+= cs == &my_charset_ujis_japanese_ci ? 3 : 2;
+        }
+        else
+        {
+            *dst++= (to_hiragana ?
+                (cs == &my_charset_ujis_japanese_ci ?
+                my_fullwidth[hi - 0xa0].h_uj_orig:
+                my_fullwidth[hi - 0xa0].h_sj_orig) :
+                (cs == &my_charset_ujis_japanese_ci ?
+                my_fullwidth[hi - 0xa0].k_uj_orig :
+                my_fullwidth[hi - 0xa0].k_sj_orig)) >> 8;
+            *dst++= to_hiragana ?
+                (cs == &my_charset_ujis_japanese_ci ?
+                my_fullwidth[hi - 0xa0].h_uj_orig :
+                my_fullwidth[hi - 0xa0].h_sj_orig) :
+                (cs == &my_charset_ujis_japanese_ci ?
+                my_fullwidth[hi - 0xa0].k_uj_orig :
+                my_fullwidth[hi - 0xa0].k_sj_orig) & 0xff;
+          src++;
+        }
+      }
+    }
+    else
+      *dst++= *src++;
+  }
+  return (size_t) (dst - dst0);
+}
+
+
+void from_fullwidth(const char *src, char **dst)
+{
+  int offset;
+
+  //sjis 0x7f offsest is skipped
+  if ((offset= (uchar) src[1]) >= 0x80 && offset <= 0x96)
+  {
+    **dst= my_halfwidth[offset - 0x41].orig;
+    (*dst)++;
+  }
+  else if (offset >= 0x40 && offset <= 0x7e)
+  {
+    **dst= my_halfwidth[offset - 0x40].orig;
+    (*dst)++;
+    if (my_halfwidth[offset - 0x40].mark)
+    {
+      **dst= my_halfwidth[offset - 0x40].mark;
+      (*dst)++;
+    }
+  }
+}
+
+
+/*
+  fullwidth katakana and hiragana to halfwidth katakana converter
+*/
+size_t
+my_fullwidth_halfwidth(CHARSET_INFO *cs, int from_fullwidth_only,
+    const char *src, size_t srclen, char *dst, size_t dstlen)
+{
+  const char *srcend= src + srclen;
+  char *dst0= dst;
+
+  DBUG_ASSERT(cs->mbmaxlen == 2);
+
+  while (src < srcend)
+  {
+    int page;
+    int offset;
+
+    //process fullwidth only for fwkatakana_hwkatakana mode
+    if (from_fullwidth_only && (page= (uchar) *src) == 0x83 &&
+        src + 1 < srcend &&
+        (((offset= (uchar) src[1]) >= 0x80 && offset <= 0x96) ||
+        (offset >= 0x40 && offset <= 0x7e)))
+    {
+      from_fullwidth(src, &dst);
+      src+= 2;
+    }
+    //process fullwidth katakana and hiragana for kana_hwkatakana mode
+    else if (!from_fullwidth_only &&
+        (((page= (uchar) *src) == 0x83 && src + 1 < srcend &&
+        (((offset= (uchar) src[1]) >= 0x80 && offset <= 0x96) ||
+        (offset >= 0x40 && offset <= 0x7e))) ||
+        ((page= (uchar) *src) == 0x82 && src + 1 < srcend &&
+        ((offset= (uchar) src[1]) >= 0x9f && offset <= 0xf1))))
+    {
+      if (page == 0x83)
+        from_fullwidth(src, &dst);
+      //hiragana
+      else
+      {
+        *dst++= my_halfwidth[offset - 0x9f].orig;
+        if (my_halfwidth[offset - 0x9f].mark)
+          *dst++= my_halfwidth[offset - 0x9f].mark;
+      }
+      src+= 2;
+    }
+    //let everything else pass through
+    else
+      *dst++= *src++;
+  }
+  return (size_t) (dst - dst0);
+}
+
+
 static inline const MY_CASEFOLD_CHARACTER*
 get_case_info_for_ch(CHARSET_INFO *cs, uint page, uint offs)
 {

@@ -2874,6 +2874,36 @@ int Sroutine_hash_entry::sp_cache_routine(THD *thd,
 
 
 /**
+  A helper wrapper around sp_cache_routine() with the ability to change
+  the type of prelocking strategy, to use from prelocking until 'sp_name' is
+  eradicated as a class.
+*/
+
+int Sroutine_hash_entry::sp_cache_routine(THD *thd,
+                                          sp_head **sp,
+                                          Prelocking_strategy **strategy)
+{
+  char qname_buff[NAME_LEN*2+1+1];
+  sp_name name(&mdl_request.key, qname_buff);
+  /*
+    Check that we have an MDL lock on this routine, unless it's a top-level
+    CALL. The assert below should be unambiguous: the first element
+    in sroutines_list has an MDL lock unless it's a top-level call, or a
+    trigger, but triggers can't occur here (see the preceding assert).
+  */
+  DBUG_ASSERT(mdl_request.ticket || this == thd->lex->sroutines_list.first);
+
+  const Lex_ident_sys routine_name({STRING_WITH_LEN("dbms_sql.execute")});
+  if (lex_string_eq(&name.m_name, &routine_name))
+  {
+    thd->in_dbmssql_execute_context= true;
+  }
+
+  return m_handler->sp_cache_routine(thd, &name, sp);
+}
+
+
+/**
   Ensure that routine is present in cache by loading it from the mysql.proc
   table if needed. If the routine is present but old, reload it.
   Emit an appropriate error if there was a problem during
