@@ -4309,6 +4309,9 @@ class table_def;
   </tr>
   </table>
 */
+/* Forward declare the global Column_definition used across the server. */
+class Column_definition;
+
 class Table_map_log_event : public Log_event
 {
 public:
@@ -4383,6 +4386,7 @@ public:
     Metadata_fields organizes m_optional_metadata into a structured format which
     is easy to access.
   */
+  /* Use the global Column_definition for per-column metadata. */
   // Values for binlog_row_metadata sysvar
   enum enum_binlog_row_metadata
   {
@@ -4412,21 +4416,40 @@ public:
     // Contents of ENUM_AND_SET_DEFAULT_CHARSET are converted into
     // Default_charset.
     Default_charset m_enum_and_set_default_charset;
-    std::vector<bool> m_signedness;
-    // Character set number of every string column
-    std::vector<unsigned int> m_column_charset;
-    // Character set number of every ENUM or SET column.
-    std::vector<unsigned int> m_enum_and_set_column_charset;
-    std::vector<std::string> m_column_name;
+
+    /* Per-column arrays (allocated when constructed). NULL if absent. */
+    unsigned char *m_signedness; /* one byte per column, 0/1 */
+
+    /* Character set number of every string column (array) */
+    unsigned int *m_column_charset;
+    unsigned int m_column_charset_count;
+
+    /* Character set number of every ENUM or SET column (array) */
+    unsigned int *m_enum_and_set_column_charset;
+    unsigned int m_enum_and_set_column_charset_count;
+
+    /* Column names stored as array of char* and lengths */
+    char **m_column_name;
+    unsigned int *m_column_name_len;
+    unsigned int m_column_name_count;
     // each str_vector stores values of one enum/set column
     std::vector<str_vector> m_enum_str_value;
     std::vector<str_vector> m_set_str_value;
-    std::vector<unsigned int> m_geometry_type;
+
+    /* Geometry types for geometry columns (array), and count */
+    unsigned int *m_geometry_type;
+    unsigned int m_geometry_type_count;
+
     /*
       The uint_pair means <column index, prefix length>.  Prefix length is 0 if
       whole column value is used.
     */
-    std::vector<uint_pair> m_primary_key;
+    uint_pair *m_primary_key;
+    unsigned int m_primary_key_count;
+
+    /* Per-column Column_definition pointers (NULL if not constructed). */
+    Column_definition **m_column_definition;
+    unsigned int m_column_definition_count;
 
     /*
       It parses m_optional_metadata and populates into above variables.
@@ -4434,9 +4457,13 @@ public:
       @param[in] optional_metadata points to the begin of optional metadata
                                    fields in table_map_event.
       @param[in] optional_metadata_len length of optional_metadata field.
+      @param[in] column_count number of columns in the table map event
      */
     Optional_metadata_fields(unsigned char* optional_metadata,
-                             unsigned int optional_metadata_len);
+                 unsigned int optional_metadata_len,
+                 unsigned int column_count);
+
+    ~Optional_metadata_fields();
   };
 
   /**
