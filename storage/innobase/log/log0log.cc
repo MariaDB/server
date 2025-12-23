@@ -1305,7 +1305,7 @@ void log_t::persist(lsn_t lsn) noexcept
 
   lsn_t old= flushed_to_disk_lsn.load(std::memory_order_relaxed);
 
-  if (old >= lsn)
+  if (old > lsn)
     return;
 
   const size_t start(calc_lsn_offset(old));
