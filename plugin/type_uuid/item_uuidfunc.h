@@ -18,6 +18,7 @@
 
 
 #include "item.h"
+#include "item_timefunc.h"
 #include "sql_type_uuid_v1.h"
 #include "sql_type_uuid_v4.h"
 #include "sql_type_uuid_v7.h"
@@ -115,4 +116,29 @@ public:
   Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_func_uuid_v7>(thd, this); }
 };
+
+
+class Item_func_uuid_timestamp: public Item_timestampfunc
+{
+  bool check_arguments() const override
+  {
+    return args[0]->check_type_can_return_str(func_name_cstring());
+  }
+public:
+  Item_func_uuid_timestamp(THD *thd, Item *arg1)
+    : Item_timestampfunc(thd, arg1) {}
+
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING name= {STRING_WITH_LEN("uuid_timestamp") };
+    return name;
+  }
+
+  bool fix_length_and_dec(THD *thd) override;
+  bool val_native(THD *thd, Native *to) override;
+
+  Item *do_get_copy(THD *thd) const override
+  { return get_item_copy<Item_func_uuid_timestamp>(thd, this); }
+};
+
 #endif // ITEM_UUIDFUNC_INCLUDED
