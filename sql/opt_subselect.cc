@@ -3149,7 +3149,7 @@ void optimize_semi_joins(JOIN *join, table_map remaining_tables, uint idx,
           sname= "LooseScan";
           break;
         default:
-          DBUG_ASSERT(0);
+          DBUG_ASSERT_NO_ASSUME(0);
           sname="Invalid";
       }
       tr.add("chosen_strategy", sname);

@@ -720,7 +720,7 @@ Wsrep_replayer_service::~Wsrep_replayer_service()
   }
   else
   {
-    DBUG_ASSERT(0);
+    DBUG_ASSERT_NO_ASSUME(0);
     WSREP_ERROR("trx_replay failed for: %d, schema: %s, query: %s",
                 m_replay_status,
                 m_orig_thd->db.str, wsrep_thd_query(m_orig_thd));

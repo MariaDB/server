@@ -6326,7 +6326,7 @@ static int queue_event(Master_info* mi, const uchar *buf, ulong event_len)
               mi->gtid_current_pos.find(mi->last_queued_gtid.domain_id),);
 
       // Slave gtid state must not have updated yet to the last received gtid.
-      DBUG_ASSERT((mi->using_gtid == Master_info::USE_GTID_NO ||
+      DBUG_ASSERT_NO_ASSUME((mi->using_gtid == Master_info::USE_GTID_NO ||
                    !opt_gtid_strict_mode) ||
                   (!gtid_in_slave_state ||
                    !(*gtid_in_slave_state == mi->last_queued_gtid)));

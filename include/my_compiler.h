@@ -29,6 +29,8 @@
   Compiler-dependent internal convenience macros.
 */
 
+#include <stddef.h>
+
 /* C vs C++ */
 #ifdef __cplusplus
 #define CONSTEXPR constexpr
@@ -79,6 +81,25 @@
 # define MY_ALIGNOF(type)   __alignof__(type)
 /** Determine the alignment requirement of a type. */
 # define MY_ALIGNED(n)      __attribute__((__aligned__((n))))
+#endif
+
+/*
+   An analogue of c++23 [[assume(cond)]]
+   for GCC >= 13.0, Clang and MSVC.
+*/
+#if defined __GNUC__ && __GNUC__ >= 13
+#ifdef __cplusplus
+# define MY_ASSUME(A) [[gnu::assume(!!(A))]]
+#else
+// In gnu-c, statement attributes are ambiguous.
+# define MY_ASSUME(A) do { [[gnu::assume(!!(A))]]; } while (0)
+#endif
+#elif defined __clang__
+# define MY_ASSUME(A) __builtin_assume(!!(A))
+#elif defined _MSC_VER
+# define MY_ASSUME(A) __assume(!!(A))
+#else
+# define MY_ASSUME(A) do { } while(0)
 #endif
 
 /**

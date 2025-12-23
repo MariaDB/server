@@ -348,7 +348,8 @@ sp_lex_keeper::reset_lex_and_exec_core(THD *thd, uint *nextp,
        (assoc_array(spvar_latin1 || CONVERT(' ' USING ucs2)));
     wraps CONVERT into Item_func_conv_charset.
   */
-  DBUG_ASSERT(dbug_rqp_are_fixed(instr) || thd->Item_change_list::is_empty());
+  DBUG_ASSERT_NO_ASSUME(dbug_rqp_are_fixed(instr) ||
+                        thd->Item_change_list::is_empty());
   /*
     Use our own lex.
     We should not save old value since it is saved/restored in

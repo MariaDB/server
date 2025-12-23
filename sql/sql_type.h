@@ -163,7 +163,7 @@ scalar_comparison_op_to_lex_cstring(scalar_comparison_op op)
   case SCALAR_CMP_GE:    return LEX_CSTRING{STRING_WITH_LEN(">=")};
   case SCALAR_CMP_GT:    return LEX_CSTRING{STRING_WITH_LEN(">")};
   }
-  DBUG_ASSERT(0);
+  DBUG_ASSERT_NO_ASSUME(0);
   return LEX_CSTRING{STRING_WITH_LEN("<?>")};
 }
 

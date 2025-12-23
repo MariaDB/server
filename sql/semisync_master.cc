@@ -964,8 +964,8 @@ int Repl_semi_sync_master::commit_trx(const char *trx_wait_binlog_name,
          * semi-sync was turned off then on, so on debug builds, we track
          * the number of times semi-sync turned off at binlogging, and compare
          * to the current value. */
-        DBUG_ASSERT(rpl_semi_sync_master_off_times >
-                    thd->expected_semi_sync_offs);
+        DBUG_ASSERT_NO_ASSUME(rpl_semi_sync_master_off_times >
+                              thd->expected_semi_sync_offs);
 
         break;
       }

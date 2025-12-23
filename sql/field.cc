@@ -2784,7 +2784,7 @@ bool Field_row::row_create_fields(THD *thd, const Spvar_definition &def)
   if (def.is_row()) // e.g. ROW(a INT, b VARCHAR(32))
     return row_create_fields(thd, def.row_field_definitions());
 
-  DBUG_ASSERT(0); // Unknown ROW declaration style
+  DBUG_ASSERT_NO_ASSUME(0); // Unknown ROW declaration style
   return true;
 }
 
@@ -3941,7 +3941,7 @@ Item *Field_new_decimal::get_equal_const_item(THD *thd, const Context &ctx,
       VDec val(const_item);
       if (val.is_null())
       {
-        DBUG_ASSERT(0);
+        DBUG_ASSERT_NO_ASSUME(0);
         return const_item;
       }
       /*
@@ -5766,7 +5766,7 @@ static longlong read_native(const uchar *from, uint bytes)
   case 3: return uint3korr(from);
   case 4: { uint32 tmp; longget(tmp, from); return tmp; }
   case 8: { longlong tmp; longlongget(tmp, from); return tmp; }
-  default: DBUG_ASSERT(0); return 0;
+  default: DBUG_ASSERT_NO_ASSUME(0); return 0;
   }
 }
 #endif
@@ -9193,7 +9193,7 @@ static struct blob_storage_check
 #endif
 Field *Field_blob::make_new_field(MEM_ROOT *root, TABLE *newt, bool keep_type)
 {
-  DBUG_ASSERT((intptr(newt->blob_storage) & blob_storage_check.val.p) == 0);
+  DBUG_ASSERT_NO_ASSUME((intptr(newt->blob_storage) & blob_storage_check.val.p) == 0);
   if (newt->group_concat)
     return new (root) Field_blob(field_length, maybe_null(), &field_name,
                                  charset());
@@ -11292,7 +11292,7 @@ uint32 Field_blob::character_octet_length() const
   case 4:
     return (uint32) UINT_MAX32;
   default:
-    DBUG_ASSERT(0); // we should never go here
+    DBUG_ASSERT_NO_ASSUME(0); // we should never go here
     return 0;
   }
 }
@@ -11379,7 +11379,7 @@ uint32 Field_blob::max_display_length() const
   case 4:
     return (uint32) UINT_MAX32;
   default:
-    DBUG_ASSERT(0); // we should never go here
+    DBUG_ASSERT_NO_ASSUME(0); // we should never go here
     return 0;
   }
 }

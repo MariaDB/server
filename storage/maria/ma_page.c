@@ -208,7 +208,7 @@ my_bool _ma_write_keypage(MARIA_PAGE *page, enum pagecache_page_lock lock,
                           (long) share->state.state.key_file_length,
                           (long) page->pos));
       my_errno=EINVAL;
-      DBUG_ASSERT(0);
+      DBUG_ASSERT_NO_ASSUME(0);
       DBUG_RETURN(1);
     }
     DBUG_PRINT("page",("write page at: %lu",(ulong) (page->pos / block_size)));
