@@ -2358,8 +2358,10 @@ static void store_freed_or_init_rec(page_id_t page_id, bool freed)
       space= fil_system.sys_space;
     else
       space= fil_space_get(space_id);
-
-    space->free_page(page_no, freed);
+    if (freed)
+      space->free_page<true>(page_no);
+    else
+      space->free_page<false>(page_no);
     return;
   }
 
