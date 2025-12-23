@@ -3175,7 +3175,8 @@ bool Table_map_log_event::print(FILE *file, PRINT_EVENT_INFO *print_event_info)
     if (print_event_info->print_table_metadata)
     {
       Optional_metadata_fields fields(m_optional_metadata,
-                                      m_optional_metadata_len);
+                  m_optional_metadata_len,
+                  m_colcnt);
 
       print_columns(&print_event_info->head_cache, fields);
       print_primary_key(&print_event_info->head_cache, fields);
@@ -3210,9 +3211,9 @@ class Table_map_log_event::Charset_iterator
   /**
     Factory method to create an instance of the appropriate subclass.
   */
-  static std::unique_ptr<Charset_iterator> create_charset_iterator(
+    static std::unique_ptr<Charset_iterator> create_charset_iterator(
       const Default_charset &default_charset,
-      const std::vector<uint> &column_charset);
+      const unsigned int *column_charset, unsigned int column_charset_count);
 };
 
 /**
@@ -3253,8 +3254,9 @@ class Table_map_log_event::Default_charset_iterator : public Charset_iterator
 class Table_map_log_event::Column_charset_iterator : public Charset_iterator
 {
  public:
-  Column_charset_iterator(const std::vector<uint> &column_charset)
-      : m_iterator(column_charset.begin()), m_end(column_charset.end()) {}
+  Column_charset_iterator(const unsigned int *column_charset,
+                         unsigned int column_charset_count)
+      : m_iterator(column_charset), m_end(column_charset + column_charset_count) {}
 
   const CHARSET_INFO *next() override {
     const CHARSET_INFO *ret = nullptr;
@@ -3267,22 +3269,22 @@ class Table_map_log_event::Column_charset_iterator : public Charset_iterator
 
  ~Column_charset_iterator(){};
  private:
-  std::vector<uint>::const_iterator m_iterator;
-  std::vector<uint>::const_iterator m_end;
+  const unsigned int *m_iterator;
+  const unsigned int *m_end;
 };
 //Table_map_log_event::Column_charset_iterator::~Column_charset_iterator(){int a=8;a++; a--;};
 
 std::unique_ptr<Table_map_log_event::Charset_iterator>
 Table_map_log_event::Charset_iterator::create_charset_iterator(
     const Default_charset &default_charset,
-    const std::vector<uint> &column_charset)
+    const unsigned int *column_charset, unsigned int column_charset_count)
 {
   if (!default_charset.empty())
     return std::unique_ptr<Charset_iterator>(
         new Default_charset_iterator(default_charset));
   else
     return std::unique_ptr<Charset_iterator>(
-        new Column_charset_iterator(column_charset));
+        new Column_charset_iterator(column_charset, column_charset_count));
 }
 /**
    return the string name of a type.
@@ -3441,24 +3443,22 @@ void Table_map_log_event::print_columns(IO_CACHE *file,
                                         const Optional_metadata_fields &fields)
 {
   unsigned char* field_metadata_ptr= m_field_metadata;
-  std::vector<bool>::const_iterator signedness_it= fields.m_signedness.begin();
-
   std::unique_ptr<Charset_iterator> charset_it =
       Charset_iterator::create_charset_iterator(fields.m_default_charset,
-                                                fields.m_column_charset);
+                                                fields.m_column_charset,
+                                                fields.m_column_charset_count);
   std::unique_ptr<Charset_iterator> enum_and_set_charset_it =
       Charset_iterator::create_charset_iterator(
           fields.m_enum_and_set_default_charset,
-          fields.m_enum_and_set_column_charset);
-  std::vector<std::string>::const_iterator col_names_it=
-    fields.m_column_name.begin();
+          fields.m_enum_and_set_column_charset,
+          fields.m_enum_and_set_column_charset_count);
+  (void)0; /* no-op to keep similar structure */
   std::vector<Optional_metadata_fields::str_vector>::const_iterator
     set_str_values_it= fields.m_set_str_value.begin();
   std::vector<Optional_metadata_fields::str_vector>::const_iterator
     enum_str_values_it= fields.m_enum_str_value.begin();
-  std::vector<unsigned int>::const_iterator geometry_type_it=
-    fields.m_geometry_type.begin();
-
+  const unsigned int *geometry_type_it= fields.m_geometry_type;
+  unsigned int geometry_type_idx= 0;
   uint geometry_type= 0;
 
   my_b_printf(file, "# Columns(");
@@ -3480,11 +3480,10 @@ void Table_map_log_event::print_columns(IO_CACHE *file,
       cs = enum_and_set_charset_it->next();
 
     // Print column name
-    if (col_names_it != fields.m_column_name.end())
+    if (i < fields.m_column_name_count && fields.m_column_name[i])
     {
-      pretty_print_identifier(file, col_names_it->c_str(), col_names_it->size());
+      pretty_print_identifier(file, fields.m_column_name[i], fields.m_column_name_len[i]);
       my_b_printf(file, " ");
-      col_names_it++;
     }
 
 
@@ -3509,12 +3508,10 @@ void Table_map_log_event::print_columns(IO_CACHE *file,
     my_b_printf(file, "%s", type_name);
 
     // Print UNSIGNED for numeric column
-    if (is_numeric_type(real_type) &&
-        signedness_it != fields.m_signedness.end())
+    if (is_numeric_type(real_type) && fields.m_signedness != NULL)
     {
-      if (*signedness_it == true)
+      if (fields.m_signedness[i])
         my_b_printf(file, " UNSIGNED");
-      signedness_it++;
     }
 
     // if the column is not marked as 'null', print 'not null'
@@ -3562,29 +3559,23 @@ void Table_map_log_event::print_columns(IO_CACHE *file,
 void Table_map_log_event::print_primary_key
   (IO_CACHE *file,const Optional_metadata_fields &fields)
 {
-  if (!fields.m_primary_key.empty())
+  if (fields.m_primary_key_count > 0)
   {
     my_b_printf(file, "# Primary Key(");
-
-    std::vector<Optional_metadata_fields::uint_pair>::const_iterator it=
-      fields.m_primary_key.begin();
-
-    for (; it != fields.m_primary_key.end(); it++)
+    for (unsigned int idx= 0; idx < fields.m_primary_key_count; idx++)
     {
-      if (it != fields.m_primary_key.begin())
+      if (idx != 0)
         my_b_printf(file, ", ");
 
-      // Print column name or column index
-      if (it->first >= fields.m_column_name.size())
-        my_b_printf(file, "%u", it->first);
+      auto &p= fields.m_primary_key[idx];
+      if (p.first >= fields.m_column_name_count)
+        my_b_printf(file, "%u", p.first);
       else
-        my_b_printf(file, "%s", fields.m_column_name[it->first].c_str());
+        my_b_printf(file, "%s", fields.m_column_name[p.first]);
 
-      // Print prefix length
-      if (it->second != 0)
-        my_b_printf(file, "(%u)", it->second);
+      if (p.second != 0)
+        my_b_printf(file, "(%u)", p.second);
     }
-
     my_b_printf(file, ")\n");
   }
 }
