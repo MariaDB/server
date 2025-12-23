@@ -1,0 +1,727 @@
+#
+# MDEV-24943: Add FILTER clause
+#
+# Test for aggregate functions with FILTER clause.
+# The FILTER clause extends aggregate functions with a WHERE condition.
+#
+# Test coverage includes:
+# - Basic aggregate functions (AVG, SUM, COUNT, MIN, MAX)
+# - Extended aggregates (GROUP_CONCAT, BIT_*, JSON_*, STD, VARIANCE)
+# - DISTINCT and column/star variations
+# - GROUP BY, HAVING, ORDER BY, LIMIT
+# - Window functions with FILTER
+# - Subqueries, JOINs, and edge cases
+# - Error cases for invalid FILTER usage
+#
+
+--disable_query_log
+--echo #
+--echo # Setup test table
+--echo #
+CREATE TABLE test_aggregates (
+  id INT PRIMARY KEY,
+  category VARCHAR(50),
+  status VARCHAR(20),
+  value INT,
+  price DECIMAL(10,2),
+  amount DECIMAL(10,2) unique NOT NULL,
+  name VARCHAR(50),
+  key_name VARCHAR(50),
+  value_col VARCHAR(50),
+  bit_value INT,
+  geom GEOMETRY
+);
+
+INSERT INTO test_aggregates VALUES
+(1, 'Electronics', 'active', 100, 299.99, 100.00, 'Phone', 'item1', 'Phone', 6, ST_GeomFromText('POINT(1 1)')),
+(2, 'Electronics', 'active', 150, 399.99, 399.99, 'Tablet', 'item2', 'Tablet', 14, ST_GeomFromText('POINT(2 2)')),
+(3, 'Books', 'inactive', NULL, 19.99, 19.99, 'Novel', 'item3', 'Novel', NULL, ST_GeomFromText('POINT(3 3)')),
+(4, 'Books', 'active', 200, 29.99, 29.99, 'Textbook', 'item4', 'Textbook', 7, ST_GeomFromText('POINT(4 4)')),
+(5, 'Electronics', 'active', 100, 499.99, 499.99, 'Laptop', 'item5', 'Laptop', 9, ST_GeomFromText('POINT(5 5)')),
+(6, 'Clothing', NULL, 50, NULL, 50.00, 'Shirt', 'item6', 'Shirt', 3, ST_GeomFromText('POINT(6 6)')),
+(7, 'Clothing', 'active', 75, 89.99, 89.99, 'Pants', 'item7', 'Pants', 12, ST_GeomFromText('POINT(7 7)')),
+(8, 'Books', 'active', 200, 24.99, 24.99, 'Guide', 'item8', 'Guide', 15, ST_GeomFromText('POINT(8 8)'));
+
+
+--echo #
+--echo # Basic aggregates with WHERE
+--echo #
+
+SELECT 
+    AVG(value) FILTER (WHERE status = 'active') as avg_result,
+    SUM(value) FILTER (WHERE value > 100) as sum_result,
+    COUNT(*) FILTER (WHERE category = 'Electronics') as count_result,
+    MIN(value) FILTER (WHERE amount > 50) as min_result,
+    MAX(value) FILTER (WHERE value IS NOT NULL) as max_result,
+    GROUP_CONCAT(name ORDER BY name SEPARATOR ',') FILTER (WHERE status = 'inactive') as group_concat_result,
+    BIT_AND(bit_value) FILTER (WHERE value BETWEEN 100 AND 200) as bit_and_result,
+    BIT_OR(bit_value) FILTER (WHERE category IN ('Books', 'Electronics')) as bit_or_result,
+    BIT_XOR(bit_value) FILTER (WHERE bit_value IS NOT NULL) as bit_xor_result,
+    JSON_ARRAYAGG(name) FILTER (WHERE price > 100) as json_arrayagg_result,
+    JSON_OBJECTAGG(key_name, value_col) FILTER (WHERE amount > 200) as json_objectagg_result,
+    STD(value) FILTER (WHERE value >= 100) as std_result,
+    STDDEV(value) FILTER (WHERE id <= 5) as stddev_result,
+    STDDEV_POP(value) FILTER (WHERE category = 'Books') as stddev_pop_result,
+    STDDEV_SAMP(value) FILTER (WHERE status IS NOT NULL) as stddev_samp_result,
+    VARIANCE(value) FILTER (WHERE value < 200) as variance_result,
+    VAR_POP(value) FILTER (WHERE amount BETWEEN 20 AND 100) as var_pop_result,
+    VAR_SAMP(value) FILTER (WHERE category = 'Clothing') as var_samp_result
+FROM test_aggregates;
+
+--echo #
+--echo # Aggregates with DISTINCT and WHERE
+--echo #
+
+SELECT 
+    AVG(DISTINCT value) FILTER (WHERE value > 100) as avg_result,
+    SUM(DISTINCT value) FILTER (WHERE status = 'active') as sum_result,
+    COUNT(DISTINCT category) FILTER (WHERE category = 'Electronics') as count_result,
+    MIN(DISTINCT value) FILTER (WHERE amount > 50) as min_result,
+    MAX(DISTINCT value) FILTER (WHERE id > 3) as max_result,
+    GROUP_CONCAT(DISTINCT name ORDER BY name SEPARATOR ',') FILTER (WHERE price > 100) as group_concat_result
+FROM test_aggregates;
+
+--echo #
+--echo # Aggregates with complex WHERE conditions (AND)
+--echo #
+
+SELECT 
+    AVG(value) FILTER (WHERE status = 'active' AND value > 100) as avg_result,
+    SUM(value) FILTER (WHERE category = 'Electronics' AND amount > 200) as sum_result,
+    COUNT(*) FILTER (WHERE value IS NOT NULL AND id > 3) as count_result,
+    MIN(value) FILTER (WHERE status = 'active' AND amount > 50) as min_result,
+    MAX(value) FILTER (WHERE category IN ('Books', 'Electronics') AND value > 0) as max_result,
+    GROUP_CONCAT(name ORDER BY name SEPARATOR ',') FILTER (WHERE price > 100 AND status = 'active') as group_concat_result,
+    BIT_AND(bit_value) FILTER (WHERE bit_value IS NOT NULL AND value > 50) as bit_and_result,
+    BIT_OR(bit_value) FILTER (WHERE category = 'Books' AND amount > 20) as bit_or_result,
+    BIT_XOR(bit_value) FILTER (WHERE value BETWEEN 100 AND 200 AND status IS NOT NULL) as bit_xor_result,
+    JSON_ARRAYAGG(name) FILTER (WHERE amount > 100 AND category = 'Electronics') as json_arrayagg_result,
+    STD(value) FILTER (WHERE value >= 100 AND id <= 5) as std_result,
+    VARIANCE(value) FILTER (WHERE status = 'active' AND value < 200) as variance_result
+FROM test_aggregates;
+
+--echo #
+--echo # Aggregates with WHERE IN and OR
+--echo #
+
+SELECT 
+    AVG(value) FILTER (WHERE category IN ('Books', 'Electronics') OR amount > 50) as avg_result,
+    SUM(value) FILTER (WHERE status = 'active' OR value > 100) as sum_result,
+    COUNT(*) FILTER (WHERE category = 'Electronics' OR id > 5) as count_result,
+    MIN(value) FILTER (WHERE value IS NOT NULL OR amount > 200) as min_result,
+    MAX(value) FILTER (WHERE price > 100 OR status IS NOT NULL) as max_result,
+    GROUP_CONCAT(name ORDER BY name SEPARATOR ',') FILTER (WHERE category = 'Books' OR amount BETWEEN 20 AND 100) as group_concat_result,
+    BIT_AND(bit_value) FILTER (WHERE bit_value IS NOT NULL OR value >= 100) as bit_and_result,
+    BIT_OR(bit_value) FILTER (WHERE category IN ('Clothing', 'Electronics') OR amount < 100) as bit_or_result,
+    BIT_XOR(bit_value) FILTER (WHERE status = 'inactive' OR value < 200) as bit_xor_result,
+    JSON_ARRAYAGG(name) FILTER (WHERE amount > 50 OR category = 'Clothing') as json_arrayagg_result,
+    STD(value) FILTER (WHERE value BETWEEN 50 AND 200 OR id <= 4) as std_result,
+    VARIANCE(value) FILTER (WHERE category = 'Electronics' OR price IS NOT NULL) as variance_result
+FROM test_aggregates;
+
+--echo #
+--echo # Aggregates with WHERE BETWEEN
+--echo #
+
+SELECT 
+    AVG(value) FILTER (WHERE value BETWEEN 100 AND 200) as avg_result,
+    SUM(value) FILTER (WHERE amount BETWEEN 20 AND 100) as sum_result,
+    COUNT(*) FILTER (WHERE id BETWEEN 2 AND 6) as count_result,
+    MIN(value) FILTER (WHERE price BETWEEN 25 AND 400) as min_result,
+    MAX(value) FILTER (WHERE value BETWEEN 50 AND 150) as max_result,
+    GROUP_CONCAT(name ORDER BY name SEPARATOR ',') FILTER (WHERE amount BETWEEN 50 AND 500) as group_concat_result,
+    BIT_AND(bit_value) FILTER (WHERE bit_value BETWEEN 5 AND 15) as bit_and_result,
+    BIT_OR(bit_value) FILTER (WHERE value BETWEEN 75 AND 175) as bit_or_result,
+    BIT_XOR(bit_value) FILTER (WHERE id BETWEEN 3 AND 7) as bit_xor_result,
+    JSON_ARRAYAGG(name) FILTER (WHERE value BETWEEN 100 AND 250) as json_arrayagg_result,
+    STD(value) FILTER (WHERE amount BETWEEN 30 AND 200) as std_result,
+    VARIANCE(value) FILTER (WHERE value BETWEEN 80 AND 180) as variance_result
+FROM test_aggregates;
+
+--echo #
+--echo # Aggregates with WHERE LIKE
+--echo #
+
+SELECT 
+    AVG(DISTINCT value) FILTER (WHERE status LIKE '%active%') as avg_result,
+    SUM(DISTINCT value) FILTER (WHERE category LIKE 'Elect%') as sum_result,
+    COUNT(DISTINCT category) FILTER (WHERE name LIKE '%t%') as count_result,
+    MIN(DISTINCT value) FILTER (WHERE category LIKE '%s') as min_result,
+    MAX(DISTINCT value) FILTER (WHERE name LIKE 'P%') as max_result,
+    GROUP_CONCAT(DISTINCT name ORDER BY name SEPARATOR ',') FILTER (WHERE category LIKE 'B%') as group_concat_result,
+    BIT_AND(bit_value) FILTER (WHERE name LIKE '%one') as bit_and_result,
+    BIT_OR(bit_value) FILTER (WHERE category LIKE '%ics') as bit_or_result,
+    BIT_XOR(bit_value) FILTER (WHERE status LIKE 'a%') as bit_xor_result,
+    JSON_ARRAYAGG(name) FILTER (WHERE name LIKE '%t') as json_arrayagg_result,
+    STD(value) FILTER (WHERE category LIKE 'C%') as std_result,
+    VARIANCE(value) FILTER (WHERE status LIKE '%e') as variance_result
+FROM test_aggregates;
+
+--echo #
+--echo # Basic aggregates with GROUP BY
+--echo #
+
+SELECT category,
+    AVG(value) FILTER (WHERE status = 'active') as avg_result,
+    SUM(value) FILTER (WHERE value > 100) as sum_result,
+    COUNT(*) FILTER (WHERE value IS NOT NULL) as count_result,
+    MIN(value) FILTER (WHERE amount > 50) as min_result,
+    MAX(value) FILTER (WHERE id > 3) as max_result,
+    GROUP_CONCAT(name ORDER BY name SEPARATOR ',') FILTER (WHERE price > 100) as group_concat_result,
+    BIT_AND(bit_value) FILTER (WHERE bit_value IS NOT NULL) as bit_and_result,
+    BIT_OR(bit_value) FILTER (WHERE value BETWEEN 100 AND 200) as bit_or_result,
+    BIT_XOR(bit_value) FILTER (WHERE category IN ('Books', 'Electronics')) as bit_xor_result,
+    JSON_ARRAYAGG(name) FILTER (WHERE amount > 200) as json_arrayagg_result,
+    STD(value) FILTER (WHERE value >= 100) as std_result,
+    VARIANCE(value) FILTER (WHERE id <= 5) as variance_result
+FROM test_aggregates GROUP BY category;
+
+--echo #
+--echo # Aggregates with GROUP BY and WHERE IS NOT NULL
+--echo #
+
+SELECT category,
+    AVG(value) FILTER (WHERE value IS NOT NULL) as avg_result,
+    SUM(value) FILTER (WHERE status IS NOT NULL) as sum_result,
+    COUNT(value) FILTER (WHERE bit_value IS NOT NULL) as count_result,
+    MIN(value) FILTER (WHERE price IS NOT NULL) as min_result,
+    MAX(value) FILTER (WHERE amount IS NOT NULL) as max_result,
+    GROUP_CONCAT(name ORDER BY name SEPARATOR ',') FILTER (WHERE name IS NOT NULL) as group_concat_result,
+    BIT_AND(bit_value) FILTER (WHERE bit_value IS NOT NULL) as bit_and_result,
+    BIT_OR(bit_value) FILTER (WHERE category IS NOT NULL) as bit_or_result,
+    BIT_XOR(bit_value) FILTER (WHERE key_name IS NOT NULL) as bit_xor_result,
+    JSON_ARRAYAGG(name) FILTER (WHERE value_col IS NOT NULL) as json_arrayagg_result,
+    STD(value) FILTER (WHERE value IS NOT NULL AND value > 0) as std_result,
+    VARIANCE(value) FILTER (WHERE value IS NOT NULL AND id > 0) as variance_result
+FROM test_aggregates GROUP BY category;
+
+--echo #
+--echo # Aggregates with multiple GROUP BY columns
+--echo #
+
+SELECT category, status,
+    AVG(value) FILTER (WHERE value > 0) as avg_result,
+    SUM(value) FILTER (WHERE amount > 0) as sum_result,
+    COUNT(*) FILTER (WHERE id > 0) as count_result,
+    MIN(value) FILTER (WHERE price > 0) as min_result,
+    MAX(value) FILTER (WHERE value IS NOT NULL) as max_result,
+    GROUP_CONCAT(name ORDER BY name SEPARATOR ',') FILTER (WHERE category IS NOT NULL) as group_concat_result,
+    BIT_AND(bit_value) FILTER (WHERE bit_value > 0) as bit_and_result,
+    BIT_OR(bit_value) FILTER (WHERE value > 50) as bit_or_result,
+    BIT_XOR(bit_value) FILTER (WHERE id > 2) as bit_xor_result,
+    JSON_ARRAYAGG(name) FILTER (WHERE name IS NOT NULL) as json_arrayagg_result,
+    STD(value) FILTER (WHERE value >= 0) as std_result,
+    VARIANCE(value) FILTER (WHERE amount >= 0) as variance_result
+FROM test_aggregates GROUP BY category, status;
+
+--echo #
+--echo # GROUP BY with HAVING on aggregates
+--echo #
+
+SELECT category,
+    AVG(value) FILTER (WHERE status = 'active') as avg_result,
+    SUM(value) FILTER (WHERE value > 100) as sum_result,
+    COUNT(*) FILTER (WHERE value IS NOT NULL) as count_result,
+    MIN(value) FILTER (WHERE amount > 50) as min_result,
+    MAX(value) FILTER (WHERE id > 3) as max_result
+FROM test_aggregates GROUP BY category 
+HAVING AVG(value) FILTER (WHERE status = 'active') > 120 AND SUM(value) FILTER (WHERE value > 100) > 200;
+
+--echo #
+--echo # HAVING with alias
+--echo #
+
+SELECT category,
+    AVG(value) FILTER (WHERE status = 'active') as avg_value,
+    SUM(value) FILTER (WHERE value > 100) as sum_value,
+    COUNT(*) FILTER (WHERE value IS NOT NULL) as count_value,
+    MIN(value) FILTER (WHERE amount > 50) as min_value,
+    MAX(value) FILTER (WHERE id > 3) as max_value
+FROM test_aggregates GROUP BY category HAVING avg_value > 100 AND sum_value > 200;
+
+--echo #
+--echo # WHERE + GROUP BY + HAVING
+--echo #
+
+SELECT category,
+    AVG(value) FILTER (WHERE status = 'active') as avg_result,
+    SUM(value) FILTER (WHERE value > 100) as sum_result,
+    COUNT(*) FILTER (WHERE value IS NOT NULL) as count_result,
+    MIN(value) FILTER (WHERE amount > 50) as min_result,
+    MAX(value) FILTER (WHERE id > 3) as max_result
+FROM test_aggregates 
+GROUP BY category 
+HAVING AVG(value) FILTER (WHERE status = 'active') > 0 AND SUM(value) FILTER (WHERE value > 100) > 0;
+
+--echo #
+--echo # WHERE + multiple aggregates with FILTER
+--echo #
+
+SELECT category,
+    AVG(value) FILTER (WHERE amount > 0) as total_avg,
+    AVG(value) FILTER (WHERE status = 'active') as active_avg,
+    SUM(value) FILTER (WHERE value > 100) as total_sum,
+    SUM(value) FILTER (WHERE category = 'Electronics') as active_sum,
+    COUNT(*) FILTER (WHERE value IS NOT NULL) as total_count,
+    COUNT(*) FILTER (WHERE id > 3) as active_count,
+    MIN(value) FILTER (WHERE price > 100) as total_min,
+    MIN(value) FILTER (WHERE amount > 200) as active_min,
+    MAX(value) FILTER (WHERE value BETWEEN 50 AND 200) as total_max,
+    MAX(value) FILTER (WHERE bit_value IS NOT NULL) as active_max
+FROM test_aggregates 
+GROUP BY category;
+
+--echo #
+--echo # WHERE + FILTER + HAVING
+--echo #
+
+SELECT category,
+    AVG(value) FILTER (WHERE status = 'active') as active_avg,
+    SUM(value) FILTER (WHERE value > 100) as active_sum,
+    COUNT(*) FILTER (WHERE category = 'Electronics') as active_count
+FROM test_aggregates 
+WHERE value IS NOT NULL 
+GROUP BY category
+HAVING AVG(value) FILTER (WHERE value IS NOT NULL) > 1 AND SUM(value) FILTER (WHERE amount > 0) > 1;
+
+--echo #
+--echo # WHERE + window function (OVER)
+--echo #
+
+SELECT category,
+    AVG(value) FILTER (WHERE status = 'active') OVER (PARTITION BY category) as cat_avg,
+    SUM(value) FILTER (WHERE value > 100) OVER (PARTITION BY category) as cat_sum,
+    COUNT(*) FILTER (WHERE value IS NOT NULL) OVER (PARTITION BY category) as cat_count,
+    MIN(value) FILTER (WHERE amount > 50) OVER (PARTITION BY category) as cat_min,
+    MAX(value) FILTER (WHERE id > 3) OVER (PARTITION BY category) as cat_max
+FROM test_aggregates;
+
+--echo #
+--echo # WHERE + window function with ORDER BY
+--echo #
+
+SELECT id,
+    AVG(value) FILTER (WHERE value IS NOT NULL) OVER (ORDER BY id) as running_avg,
+    SUM(value) FILTER (WHERE status = 'active') OVER (ORDER BY id) as running_sum,
+    COUNT(*) FILTER (WHERE amount > 0) OVER (ORDER BY id) as running_count,
+    MIN(value) FILTER (WHERE value > 50) OVER (ORDER BY id) as running_min,
+    MAX(value) FILTER (WHERE id > 0) OVER (ORDER BY id) as running_max
+FROM test_aggregates;
+
+--echo #
+--echo # WHERE + window function with frame specification
+--echo #
+
+SELECT id,
+    AVG(value) FILTER (WHERE status = 'active') OVER (ORDER BY id ROWS BETWEEN 1 PRECEDING AND 1 FOLLOWING) as windowed_avg,
+    SUM(value) FILTER (WHERE value > 100) OVER (ORDER BY id ROWS BETWEEN 1 PRECEDING AND 1 FOLLOWING) as windowed_sum,
+    COUNT(*) FILTER (WHERE value IS NOT NULL) OVER (ORDER BY id ROWS BETWEEN 1 PRECEDING AND 1 FOLLOWING) as windowed_count,
+    MIN(value) FILTER (WHERE amount > 50) OVER (ORDER BY id ROWS BETWEEN 1 PRECEDING AND 1 FOLLOWING) as windowed_min,
+    MAX(value) FILTER (WHERE id > 3) OVER (ORDER BY id ROWS BETWEEN 1 PRECEDING AND 1 FOLLOWING) as windowed_max
+FROM test_aggregates;
+
+--echo #
+--echo # Subquery with aggregates in WHERE
+--echo #
+
+SELECT id, category, status, value, price, amount, name, key_name, value_col, bit_value, ST_AsText(geom) as geom FROM test_aggregates 
+WHERE category IN (
+    SELECT category FROM test_aggregates GROUP BY category 
+    HAVING AVG(value) FILTER (WHERE status = 'active') > 120 AND SUM(value) FILTER (WHERE value > 100) > 200
+);
+
+--echo #
+--echo # Aggregates with GROUP BY and ORDER BY
+--echo #
+
+SELECT category,
+    AVG(value) FILTER (WHERE status = 'active') as avg_val,
+    SUM(value) FILTER (WHERE value > 100) as sum_val,
+    COUNT(*) FILTER (WHERE value IS NOT NULL) as count_val,
+    MIN(value) FILTER (WHERE amount > 50) as min_val,
+    MAX(value) FILTER (WHERE id > 3) as max_val
+FROM test_aggregates 
+GROUP BY category 
+ORDER BY avg_val DESC, sum_val DESC;
+
+--echo #
+--echo # Complete query with WHERE, GROUP BY, HAVING, ORDER BY
+--echo #
+
+SELECT category,
+    AVG(value) FILTER (WHERE status = 'active') as avg_val,
+    SUM(value) FILTER (WHERE value > 100) as sum_val,
+    COUNT(*) FILTER (WHERE value IS NOT NULL) as count_val,
+    MIN(value) FILTER (WHERE amount > 50) as min_val,
+    MAX(value) FILTER (WHERE id > 3) as max_val
+FROM test_aggregates 
+WHERE status = 'active'
+GROUP BY category 
+HAVING AVG(value) FILTER (WHERE status = 'active') > 0 AND SUM(value) FILTER (WHERE value > 100) > 0 
+ORDER BY avg_val DESC, sum_val DESC;
+
+--echo #
+--echo # Aggregates with GROUP BY, ORDER BY, and LIMIT
+--echo #
+
+SELECT category,
+    AVG(value) FILTER (WHERE status = 'active') as avg_val,
+    SUM(value) FILTER (WHERE value > 100) as sum_val,
+    COUNT(*) FILTER (WHERE value IS NOT NULL) as count_val
+FROM test_aggregates 
+GROUP BY category 
+ORDER BY AVG(value) FILTER (WHERE status = 'active') DESC 
+LIMIT 2;
+
+--echo #
+--echo # Aggregates with ROLLUP
+--echo #
+
+SELECT category, status,
+    AVG(value) FILTER (WHERE status = 'active') as avg_val,
+    SUM(value) FILTER (WHERE value > 100) as sum_val,
+    COUNT(*) FILTER (WHERE value IS NOT NULL) as count_val,
+    MIN(value) FILTER (WHERE amount > 50) as min_val,
+    MAX(value) FILTER (WHERE id > 3) as max_val
+FROM test_aggregates 
+GROUP BY category, status WITH ROLLUP;
+
+--echo #
+--echo # Most complete query with all clauses and aggregates
+--echo #
+
+SELECT 
+    category,
+    status,
+    AVG(value) FILTER (WHERE id > 3) as avg_value,
+    SUM(value) FILTER (WHERE status = 'active') as sum_value,
+    COUNT(*) FILTER (WHERE value > 100) as count_value,
+    MIN(value) FILTER (WHERE amount > 50) as min_value,
+    MAX(value) FILTER (WHERE value IS NOT NULL) as max_value,
+    AVG(amount) FILTER (WHERE price > 100 AND value IS NOT NULL) as avg_amount,
+    SUM(amount) FILTER (WHERE value BETWEEN 100 AND 200 AND value IS NOT NULL) as sum_amount,
+    AVG(DISTINCT value) FILTER (WHERE id > 2 AND value IS NOT NULL) as distinct_value_avg,
+    SUM(DISTINCT value) FILTER (WHERE category = 'Books' AND value IS NOT NULL) as distinct_value_sum,
+    COUNT(DISTINCT value) FILTER (WHERE bit_value IS NOT NULL AND value IS NOT NULL) as distinct_value_count,
+    GROUP_CONCAT(name ORDER BY name SEPARATOR ',') FILTER (WHERE id > 4) as group_concat_result,
+    BIT_AND(bit_value) FILTER (WHERE value >= 100) as bit_and_result,
+    BIT_OR(bit_value) FILTER (WHERE category IN ('Books', 'Electronics')) as bit_or_result,
+    BIT_XOR(bit_value) FILTER (WHERE amount > 200) as bit_xor_result,
+    JSON_ARRAYAGG(name) FILTER (WHERE status = 'inactive') as json_arrayagg_result,
+    STD(value) FILTER (WHERE value < 200) as std_result,
+    VARIANCE(value) FILTER (WHERE id <= 5) as variance_result
+FROM test_aggregates 
+GROUP BY category, status
+HAVING AVG(value) FILTER (WHERE id > 3) > 0 AND SUM(value) FILTER (WHERE status = 'active') > 0
+ORDER BY avg_value DESC, category
+LIMIT 10 OFFSET 0;
+
+--echo #
+--echo # COUNT with column names (not just *)
+--echo #
+
+SELECT 
+    COUNT(value) FILTER (WHERE status = 'active') as count_value,
+    COUNT(category) FILTER (WHERE value > 100) as count_category,
+    COUNT(name) FILTER (WHERE category = 'Electronics') as count_name
+FROM test_aggregates;
+
+--echo #
+--echo # COUNT DISTINCT with multiple columns
+--echo #
+
+SELECT 
+    COUNT(DISTINCT category, status) FILTER (WHERE status = 'active' OR value > 100) as count_distinct
+FROM test_aggregates;
+
+--echo #
+--echo # FILTER on indexed column
+--echo #
+
+--echo # Create index on status column
+CREATE INDEX idx_status ON test_aggregates(status);
+CREATE INDEX idx_category ON test_aggregates(category);
+
+SELECT 
+    AVG(value) FILTER (WHERE status = 'active') as avg_result,
+    SUM(value) FILTER (WHERE category = 'Electronics') as sum_result,
+    COUNT(*) FILTER (WHERE value > 100) as count_result
+FROM test_aggregates;
+
+--echo #
+--echo # Empty result set (all rows filtered out)
+--echo #
+
+SELECT 
+    AVG(value) FILTER (WHERE 1=0) as avg_result,
+    SUM(value) FILTER (WHERE 2=1) as sum_result,
+    COUNT(*) FILTER (WHERE 3=2) as count_result,
+    MIN(value) FILTER (WHERE 4=3) as min_result,
+    MAX(value) FILTER (WHERE 5=4) as max_result
+FROM test_aggregates;
+
+--echo #
+--echo # FILTER with NULL conditions
+--echo #
+
+SELECT 
+    AVG(value) FILTER (WHERE NULL) as avg_result,
+    COUNT(*) FILTER (WHERE 1 = NULL) as count_result,
+    SUM(value) FILTER (WHERE status = NULL) as sum_result
+FROM test_aggregates;
+
+--echo #
+--echo # FILTER with JOINs
+--echo #
+
+--echo # Create second table for JOIN test
+CREATE TABLE test_aggregates2 (
+  id INT PRIMARY KEY,
+  ref_id INT,
+  extra_value INT
+);
+
+INSERT INTO test_aggregates2 VALUES
+(1, 1, 10),
+(2, 2, 20),
+(3, 3, 30),
+(4, 4, 40);
+
+SELECT 
+    t1.category,
+    AVG(t1.value) FILTER (WHERE t2.extra_value > 15) as avg_result,
+    SUM(t1.value) FILTER (WHERE t2.extra_value > 20) as sum_result,
+    COUNT(*) FILTER (WHERE t2.extra_value > 25) as count_result
+FROM test_aggregates t1
+JOIN test_aggregates2 t2 ON t1.id = t2.ref_id
+GROUP BY t1.category;
+
+DROP TABLE test_aggregates2;
+
+--echo #
+--echo # FILTER with window functions - different partitions
+--echo #
+
+SELECT category, status,
+    AVG(value) FILTER (WHERE status = 'active') OVER (PARTITION BY category) as cat_avg,
+    AVG(value) FILTER (WHERE value > 100) OVER (PARTITION BY status) as status_avg,
+    COUNT(*) FILTER (WHERE value IS NOT NULL) OVER (PARTITION BY category) as cat_count,
+    COUNT(*) FILTER (WHERE amount > 50) OVER (PARTITION BY status) as status_count
+FROM test_aggregates
+ORDER BY category, status;
+
+--echo #
+--echo # FILTER with empty table
+--echo #
+
+--echo # Create empty table
+CREATE TABLE empty_test (
+  id INT,
+  value INT,
+  status VARCHAR(20)
+);
+
+SELECT 
+    AVG(value) FILTER (WHERE status = 'active') as avg_result,
+    SUM(value) FILTER (WHERE value > 100) as sum_result,
+    COUNT(*) FILTER (WHERE value IS NOT NULL) as count_result,
+    MIN(value) FILTER (WHERE id > 2) as min_result,
+    MAX(value) FILTER (WHERE id > 3) as max_result
+FROM empty_test;
+
+DROP TABLE empty_test;
+
+--echo #
+--echo # FILTER with CASE in WHERE clause
+--echo #
+
+SELECT 
+    AVG(value) FILTER (WHERE CASE WHEN status = 'active' THEN 1 ELSE 0 END = 1) as avg_result,
+    SUM(value) FILTER (WHERE CASE WHEN value > 100 THEN 1 ELSE 0 END = 1) as sum_result,
+    COUNT(*) FILTER (WHERE CASE WHEN category = 'Electronics' THEN 1 ELSE 0 END = 1) as count_result
+FROM test_aggregates;
+
+--echo #
+--echo # ORDER BY with FILTER aggregates
+--echo #
+
+SELECT category,
+    AVG(value) FILTER (WHERE status = 'active') as avg_val,
+    SUM(value) FILTER (WHERE value > 100) as sum_val
+FROM test_aggregates 
+GROUP BY category 
+ORDER BY AVG(value) FILTER (WHERE status = 'active') DESC, SUM(value) FILTER (WHERE value > 100) DESC;
+
+--echo #
+--echo # Aggregates on id column itself with FILTER
+--echo #
+
+SELECT 
+    AVG(id) FILTER (WHERE status = 'active') as avg_id,
+    SUM(id) FILTER (WHERE value > 100) as sum_id,
+    COUNT(id) FILTER (WHERE category = 'Electronics') as count_id,
+    MIN(id) FILTER (WHERE amount > 50) as min_id,
+    MAX(id) FILTER (WHERE value IS NOT NULL) as max_id,
+    COUNT(DISTINCT id) FILTER (WHERE id > 3) as distinct_count_id
+FROM test_aggregates;
+
+--echo #
+--echo # Aggregates on id with GROUP BY and FILTER
+--echo #
+
+SELECT category,
+    AVG(id) FILTER (WHERE id > 3) as avg_id,
+    SUM(id) FILTER (WHERE status = 'active') as sum_id,
+    COUNT(id) FILTER (WHERE value > 100) as count_id,
+    MIN(id) FILTER (WHERE amount > 50) as min_id,
+    MAX(id) FILTER (WHERE value IS NOT NULL) as max_id
+FROM test_aggregates 
+GROUP BY category;
+
+--echo #
+--echo # ========================================
+--echo # ERROR CASES SECTION
+--echo # ========================================
+--echo #
+
+--echo #
+--echo # FILTER with Non-Aggregate Window Functions (Ranking)
+--echo #
+
+--echo # FILTER with RANK (should error - FILTER only works with aggregates)
+--error ER_PARSE_ERROR
+SELECT RANK() FILTER (WHERE status = 'active') OVER (ORDER BY value) FROM test_aggregates;
+
+--echo #
+--echo # FILTER with Non-Aggregate Window Functions (Navigation)
+--echo #
+
+--echo # FILTER with LAG (should error - FILTER only works with aggregates)
+--error ER_PARSE_ERROR
+SELECT LAG(value) FILTER (WHERE status = 'active') OVER (ORDER BY id) FROM test_aggregates;
+
+--echo #
+--echo # Wrong Order - OVER before FILTER
+--echo #
+
+--echo # OVER clause before FILTER clause (should error - correct order is FILTER then OVER)
+--error ER_PARSE_ERROR
+SELECT AVG(value) OVER (PARTITION BY category) FILTER (WHERE status = 'active') FROM test_aggregates;
+
+--echo #
+--echo # Non-Aggregate Scalar Functions
+--echo #
+
+--echo # Regular scalar function (should error - FILTER only for aggregates)
+--error ER_PARSE_ERROR
+SELECT UPPER(name) FILTER (WHERE status = 'active') FROM test_aggregates;
+
+--echo #
+--echo # Plain Column or Expression
+--echo #
+
+--echo # FILTER on plain column (should error - not a function)
+--error ER_PARSE_ERROR
+SELECT value FILTER (WHERE status = 'active') FROM test_aggregates;
+
+--echo #
+--echo # Empty or Invalid Clause
+--echo #
+
+--echo # Empty FILTER clause (should error - WHERE condition required)
+--error ER_PARSE_ERROR
+SELECT AVG(value) FILTER () FROM test_aggregates;
+
+--echo #
+--echo # Nested FILTER Clauses
+--echo #
+
+--echo # Nested FILTER clauses (should error - cannot nest FILTER)
+--error ER_INVALID_GROUP_FUNC_USE
+SELECT AVG(value) FILTER (WHERE COUNT(*) FILTER (WHERE status = 'active') > 5) FROM test_aggregates;
+
+--echo #
+--echo # Invalid WHERE Syntax
+--echo #
+
+--echo # Multiple WHERE keywords (should error)
+--error ER_PARSE_ERROR
+SELECT AVG(value) FILTER (WHERE status = 'active' WHERE value > 100) FROM test_aggregates;
+
+--echo #
+--echo # Column Aliases
+--echo #
+
+--echo # Using column alias in FILTER WHERE (should error - alias not available)
+--error ER_BAD_FIELD_ERROR
+SELECT value as val, AVG(value) FILTER (WHERE val > 100) FROM test_aggregates GROUP BY value;
+
+--echo #
+--echo # Subqueries in WHERE Condition
+--echo #
+
+--echo # Scalar subquery in FILTER WHERE (should error - subqueries not allowed)
+--error ER_WRONG_USAGE
+SELECT AVG(value) FILTER (WHERE value > (SELECT AVG(value) FROM test_aggregates)) FROM test_aggregates;
+
+--echo # IN subquery in FILTER WHERE (should error - subqueries not allowed)
+--error ER_WRONG_USAGE
+SELECT COUNT(*) FILTER (WHERE category IN (SELECT DISTINCT category FROM test_aggregates WHERE status = 'active')) FROM test_aggregates;
+
+--echo #
+--echo # FILTER with Window Functions in WHERE Condition
+--echo #
+
+--echo # Window function in FILTER WHERE condition (should error - not allowed)
+--error ER_WRONG_USAGE
+SELECT AVG(value) FILTER (WHERE ROW_NUMBER() OVER (ORDER BY id) > 2) FROM test_aggregates;
+
+--echo #
+--echo # FILTER with aggregate functions in WHERE clause (should expect error)
+--echo #
+
+--echo # This should error - aggregate in WHERE clause
+--error ER_INVALID_GROUP_FUNC_USE
+SELECT category, AVG(value) FILTER (WHERE value > AVG(value)) FROM test_aggregates GROUP BY category;
+
+--echo #
+--echo # FILTER with error cases - syntax errors
+--echo #
+
+--echo # Missing WHERE keyword (should error)
+--error ER_PARSE_ERROR
+SELECT AVG(value) FILTER (status = 'active') FROM test_aggregates;
+
+--echo # Missing parentheses (should error)
+--error ER_PARSE_ERROR
+SELECT AVG(value) FILTER WHERE status = 'active' FROM test_aggregates;
+
+--echo #
+--echo # Illegal use of FILTER with non-aggregate UDFs
+--echo #
+
+--echo # Create a non-aggregate UDF for testing
+delimiter |;
+CREATE FUNCTION simple_double(x INT) RETURNS INT
+DETERMINISTIC
+BEGIN
+  RETURN x * 2;
+END|
+delimiter ;|
+
+--echo # FILTER clause with non-aggregate UDF should fail
+--error ER_PARSE_ERROR
+SELECT simple_double(value) FILTER (WHERE status = 'active') FROM test_aggregates;
+
+--echo #
+--echo # CLEANUP
+--echo #
+
+DROP FUNCTION simple_double;
+DROP TABLE test_aggregates;
+--enable_query_log
+
+--echo #
+--echo # End of aggregates FILTER test
+--echo #
+

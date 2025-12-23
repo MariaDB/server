@@ -1,0 +1,329 @@
+#
+# Setup test table
+#
+#
+# Basic aggregates with WHERE
+#
+avg_result	sum_result	count_result	min_result	max_result	group_concat_result	bit_and_result	bit_or_result	bit_xor_result	json_arrayagg_result	json_objectagg_result	std_result	stddev_result	stddev_pop_result	stddev_samp_result	variance_result	var_pop_result	var_samp_result
+137.5000	550	3	75	200	Novel	0	15	6	["Phone","Tablet",null,null,"Laptop",null,null,null]	{"item2":"Tablet", "item5":"Laptop"}	44.7214	41.4578	0.0000	54.1987	1100.0000	4000.0000	312.5000
+#
+# Aggregates with DISTINCT and WHERE
+#
+avg_result	sum_result	count_result	min_result	max_result	group_concat_result
+175.0000	525	1	75	200	Laptop,Phone,Tablet
+#
+# Aggregates with complex WHERE conditions (AND)
+#
+avg_result	sum_result	count_result	min_result	max_result	group_concat_result	bit_and_result	bit_or_result	bit_xor_result	json_arrayagg_result	std_result	variance_result
+183.3333	250	5	75	200	Laptop,Phone,Tablet	0	15	9	[null,"Tablet",null,null,"Laptop",null,null,null]	41.4578	742.1875
+#
+# Aggregates with WHERE IN and OR
+#
+avg_result	sum_result	count_result	min_result	max_result	group_concat_result	bit_and_result	bit_or_result	bit_xor_result	json_arrayagg_result	std_result	variance_result
+137.5000	825	6	50	200	Guide,Novel,Pants,Phone,Shirt,Textbook	0	15	14	["Phone","Tablet",null,null,"Laptop","Shirt","Pants",null]	55.0973	2447.9167
+#
+# Aggregates with WHERE BETWEEN
+#
+avg_result	sum_result	count_result	min_result	max_result	group_concat_result	bit_and_result	bit_or_result	bit_xor_result	json_arrayagg_result	std_result	variance_result
+150.0000	625	5	75	150	Laptop,Pants,Phone,Shirt,Tablet	0	15	1	["Phone","Tablet",null,"Textbook","Laptop",null,null,"Guide"]	20.4124	555.5556
+#
+# Aggregates with WHERE LIKE
+#
+avg_result	sum_result	count_result	min_result	max_result	group_concat_result	bit_and_result	bit_or_result	bit_xor_result	json_arrayagg_result	std_result	variance_result
+131.2500	250	3	100	100	Guide,Novel,Textbook	6	15	5	[null,"Tablet",null,null,null,"Shirt",null,null]	12.5000	2447.9167
+#
+# Basic aggregates with GROUP BY
+#
+category	avg_result	sum_result	count_result	min_result	max_result	group_concat_result	bit_and_result	bit_or_result	bit_xor_result	json_arrayagg_result	std_result	variance_result
+Books	200.0000	400	2	NULL	200	NULL	7	15	8	[null,null,null]	0.0000	0.0000
+Clothing	75.0000	NULL	2	75	75	NULL	0	0	0	[null,null]	NULL	NULL
+Electronics	116.6667	150	3	100	100	Laptop,Phone,Tablet	0	15	1	[null,"Tablet","Laptop"]	23.5702	555.5556
+#
+# Aggregates with GROUP BY and WHERE IS NOT NULL
+#
+category	avg_result	sum_result	count_result	min_result	max_result	group_concat_result	bit_and_result	bit_or_result	bit_xor_result	json_arrayagg_result	std_result	variance_result
+Books	200.0000	400	2	200	200	Guide,Novel,Textbook	7	15	8	["Novel","Textbook","Guide"]	0.0000	0.0000
+Clothing	62.5000	75	2	75	75	Pants,Shirt	0	15	15	["Shirt","Pants"]	12.5000	156.2500
+Electronics	116.6667	350	3	100	150	Laptop,Phone,Tablet	0	15	1	["Phone","Tablet","Laptop"]	23.5702	555.5556
+#
+# Aggregates with multiple GROUP BY columns
+#
+category	status	avg_result	sum_result	count_result	min_result	max_result	group_concat_result	bit_and_result	bit_or_result	bit_xor_result	json_arrayagg_result	std_result	variance_result
+Books	active	200.0000	400	2	200	200	Guide,Textbook	7	15	8	["Textbook","Guide"]	0.0000	0.0000
+Books	inactive	NULL	NULL	1	NULL	NULL	Novel	18446744073709551615	0	0	["Novel"]	NULL	NULL
+Clothing	NULL	50.0000	50	1	NULL	50	Shirt	3	0	3	["Shirt"]	0.0000	0.0000
+Clothing	active	75.0000	75	1	75	75	Pants	12	12	12	["Pants"]	0.0000	0.0000
+Electronics	active	116.6667	350	3	100	150	Laptop,Phone,Tablet	0	15	9	["Phone","Tablet","Laptop"]	23.5702	555.5556
+#
+# GROUP BY with HAVING on aggregates
+#
+category	avg_result	sum_result	count_result	min_result	max_result
+Books	200.0000	400	2	NULL	200
+#
+# HAVING with alias
+#
+category	avg_value	sum_value	count_value	min_value	max_value
+Books	200.0000	400	2	NULL	200
+#
+# WHERE + GROUP BY + HAVING
+#
+category	avg_result	sum_result	count_result	min_result	max_result
+Books	200.0000	400	2	NULL	200
+Electronics	116.6667	150	3	100	100
+#
+# WHERE + multiple aggregates with FILTER
+#
+category	total_avg	active_avg	total_sum	active_sum	total_count	active_count	total_min	active_min	total_max	active_max
+Books	200.0000	200.0000	400	NULL	2	2	NULL	NULL	200	200
+Clothing	62.5000	75.0000	NULL	NULL	2	2	NULL	NULL	75	75
+Electronics	116.6667	116.6667	150	350	3	1	100	100	150	150
+#
+# WHERE + FILTER + HAVING
+#
+category	active_avg	active_sum	active_count
+Books	200.0000	400	0
+Clothing	75.0000	NULL	0
+Electronics	116.6667	150	3
+#
+# WHERE + window function (OVER)
+#
+category	cat_avg	cat_sum	cat_count	cat_min	cat_max
+Books	200.0000	400	2	NULL	200
+Books	200.0000	400	2	NULL	200
+Books	200.0000	400	2	NULL	200
+Clothing	75.0000	NULL	2	75	75
+Clothing	75.0000	NULL	2	75	75
+Electronics	116.6667	150	3	100	100
+Electronics	116.6667	150	3	100	100
+Electronics	116.6667	150	3	100	100
+#
+# WHERE + window function with ORDER BY
+#
+id	running_avg	running_sum	running_count	running_min	running_max
+1	100.0000	100	1	100	100
+2	125.0000	250	2	100	150
+3	125.0000	250	3	100	150
+4	150.0000	450	4	100	200
+5	137.5000	550	5	100	200
+6	120.0000	550	6	100	200
+7	112.5000	625	7	75	200
+8	125.0000	825	8	75	200
+#
+# WHERE + window function with frame specification
+#
+id	windowed_avg	windowed_sum	windowed_count	windowed_min	windowed_max
+1	125.0000	150	2	100	NULL
+2	125.0000	150	2	100	NULL
+3	175.0000	350	2	150	200
+4	150.0000	200	2	100	200
+5	150.0000	200	3	100	200
+6	87.5000	NULL	3	75	100
+7	137.5000	200	3	75	200
+8	137.5000	200	2	75	200
+#
+# Subquery with aggregates in WHERE
+#
+id	category	status	value	price	amount	name	key_name	value_col	bit_value	geom
+3	Books	inactive	NULL	19.99	19.99	Novel	item3	Novel	NULL	POINT(3 3)
+4	Books	active	200	29.99	29.99	Textbook	item4	Textbook	7	POINT(4 4)
+8	Books	active	200	24.99	24.99	Guide	item8	Guide	15	POINT(8 8)
+#
+# Aggregates with GROUP BY and ORDER BY
+#
+category	avg_val	sum_val	count_val	min_val	max_val
+Books	200.0000	400	2	NULL	200
+Electronics	116.6667	150	3	100	100
+Clothing	75.0000	NULL	2	75	75
+#
+# Complete query with WHERE, GROUP BY, HAVING, ORDER BY
+#
+category	avg_val	sum_val	count_val	min_val	max_val
+Books	200.0000	400	2	NULL	200
+Electronics	116.6667	150	3	100	100
+#
+# Aggregates with GROUP BY, ORDER BY, and LIMIT
+#
+category	avg_val	sum_val	count_val
+Books	200.0000	400	2
+Electronics	116.6667	150	3
+#
+# Aggregates with ROLLUP
+#
+category	status	avg_val	sum_val	count_val	min_val	max_val
+Books	active	200.0000	400	2	NULL	200
+Books	inactive	NULL	NULL	0	NULL	NULL
+Books	NULL	200.0000	400	2	NULL	200
+Clothing	NULL	NULL	NULL	1	NULL	50
+Clothing	active	75.0000	NULL	1	75	75
+Clothing	NULL	75.0000	NULL	2	75	75
+Electronics	active	116.6667	150	3	100	100
+Electronics	NULL	116.6667	150	3	100	100
+NULL	NULL	137.5000	550	7	75	200
+#
+# Most complete query with all clauses and aggregates
+#
+category	status	avg_value	sum_value	count_value	min_value	max_value	avg_amount	sum_amount	distinct_value_avg	distinct_value_sum	distinct_value_count	group_concat_result	bit_and_result	bit_or_result	bit_xor_result	json_arrayagg_result	std_result	variance_result
+Books	active	200.0000	400	2	NULL	200	NULL	54.98	200.0000	200	1	Guide	7	15	0	[null,null]	NULL	0.0000
+Electronics	active	100.0000	350	1	100	150	333.326667	999.98	100.0000	NULL	2	Laptop	0	15	7	[null,null,null]	23.5702	555.5556
+Clothing	active	75.0000	75	0	75	75	NULL	NULL	75.0000	NULL	1	Pants	18446744073709551615	0	0	[null]	0.0000	NULL
+#
+# COUNT with column names (not just *)
+#
+count_value	count_category	count_name
+6	3	3
+#
+# COUNT DISTINCT with multiple columns
+#
+count_distinct
+3
+#
+# FILTER on indexed column
+#
+# Create index on status column
+avg_result	sum_result	count_result
+137.5000	350	3
+#
+# Empty result set (all rows filtered out)
+#
+avg_result	sum_result	count_result	min_result	max_result
+NULL	NULL	0	NULL	NULL
+#
+# FILTER with NULL conditions
+#
+avg_result	count_result	sum_result
+NULL	0	NULL
+#
+# FILTER with JOINs
+#
+# Create second table for JOIN test
+category	avg_result	sum_result	count_result
+Books	200.0000	200	2
+Electronics	150.0000	NULL	0
+#
+# FILTER with window functions - different partitions
+#
+category	status	cat_avg	status_avg	cat_count	status_count
+Books	active	200.0000	183.3333	2	4
+Books	active	200.0000	183.3333	2	4
+Books	inactive	200.0000	NULL	2	0
+Clothing	NULL	75.0000	NULL	2	0
+Clothing	active	75.0000	183.3333	2	4
+Electronics	active	116.6667	183.3333	3	4
+Electronics	active	116.6667	183.3333	3	4
+Electronics	active	116.6667	183.3333	3	4
+#
+# FILTER with empty table
+#
+# Create empty table
+avg_result	sum_result	count_result	min_result	max_result
+NULL	NULL	0	NULL	NULL
+#
+# FILTER with CASE in WHERE clause
+#
+avg_result	sum_result	count_result
+137.5000	550	3
+#
+# ORDER BY with FILTER aggregates
+#
+category	avg_val	sum_val
+Books	200.0000	400
+Electronics	116.6667	150
+Clothing	75.0000	NULL
+#
+# Aggregates on id column itself with FILTER
+#
+avg_id	sum_id	count_id	min_id	max_id	distinct_count_id
+4.5000	14	3	1	8	5
+#
+# Aggregates on id with GROUP BY and FILTER
+#
+category	avg_id	sum_id	count_id	min_id	max_id
+Books	6.0000	12	2	NULL	8
+Clothing	6.5000	7	0	7	7
+Electronics	5.0000	8	1	1	5
+#
+# ========================================
+# ERROR CASES SECTION
+# ========================================
+#
+#
+# FILTER with Non-Aggregate Window Functions (Ranking)
+#
+# FILTER with RANK (should error - FILTER only works with aggregates)
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'FILTER (WHERE status = 'active') OVER (ORDER BY value) FROM test_aggregates' at line 1
+#
+# FILTER with Non-Aggregate Window Functions (Navigation)
+#
+# FILTER with LAG (should error - FILTER only works with aggregates)
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'FILTER (WHERE status = 'active') OVER (ORDER BY id) FROM test_aggregates' at line 1
+#
+# Wrong Order - OVER before FILTER
+#
+# OVER clause before FILTER clause (should error - correct order is FILTER then OVER)
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '(WHERE status = 'active') FROM test_aggregates' at line 1
+#
+# Non-Aggregate Scalar Functions
+#
+# Regular scalar function (should error - FILTER only for aggregates)
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '(WHERE status = 'active') FROM test_aggregates' at line 1
+#
+# Plain Column or Expression
+#
+# FILTER on plain column (should error - not a function)
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '(WHERE status = 'active') FROM test_aggregates' at line 1
+#
+# Empty or Invalid Clause
+#
+# Empty FILTER clause (should error - WHERE condition required)
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near ') FROM test_aggregates' at line 1
+#
+# Nested FILTER Clauses
+#
+# Nested FILTER clauses (should error - cannot nest FILTER)
+ERROR HY000: Invalid use of group function
+#
+# Invalid WHERE Syntax
+#
+# Multiple WHERE keywords (should error)
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'WHERE value > 100) FROM test_aggregates' at line 1
+#
+# Column Aliases
+#
+# Using column alias in FILTER WHERE (should error - alias not available)
+ERROR 42S22: Unknown column 'val' in 'SELECT'
+#
+# Subqueries in WHERE Condition
+#
+# Scalar subquery in FILTER WHERE (should error - subqueries not allowed)
+ERROR HY000: Incorrect usage of subquery and FILTER
+# IN subquery in FILTER WHERE (should error - subqueries not allowed)
+ERROR HY000: Incorrect usage of subquery and FILTER
+#
+# FILTER with Window Functions in WHERE Condition
+#
+# Window function in FILTER WHERE condition (should error - not allowed)
+ERROR HY000: Incorrect usage of window function and FILTER
+#
+# FILTER with aggregate functions in WHERE clause (should expect error)
+#
+# This should error - aggregate in WHERE clause
+ERROR HY000: Invalid use of group function
+#
+# FILTER with error cases - syntax errors
+#
+# Missing WHERE keyword (should error)
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'status = 'active') FROM test_aggregates' at line 1
+# Missing parentheses (should error)
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'WHERE status = 'active' FROM test_aggregates' at line 1
+#
+# Illegal use of FILTER with non-aggregate UDFs
+#
+# Create a non-aggregate UDF for testing
+# FILTER clause with non-aggregate UDF should fail
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '(WHERE status = 'active') FROM test_aggregates' at line 1
+#
+# CLEANUP
+#
+#
+# End of aggregates FILTER test
+#
