@@ -1,3 +1,4 @@
+--source include/not_embedded.inc
 --echo #
 --echo # MDEV-37220 Allow UPDATE/DELETE to read from a CTE
 --echo #
@@ -511,7 +512,87 @@ eval $empty_t3;
 eval $fill_t3;
 drop prepare s;
 
+--echo #
+--echo # MDEV-38258 No error thrown when CTE columns updated in updates set clause
+--echo #
+
+--error ER_NON_UPDATABLE_TABLE
+with cte as (select * from t1 where c < 1)
+  update cte set cte.a =(select a from cte);
+
+--error ER_NON_UPDATABLE_TABLE
+with cte as (select a from t1)
+  update cte set cte.a=(select a from cte limit 1);
+
+--error ER_NON_UPDATABLE_TABLE
+with cte as (select a from t1),
+  cte2 as (select a from t3)
+  update t2, cte set cte.a=(select a from cte limit 1);
+
+--error ER_NON_UPDATABLE_TABLE
+with cte as (select a from t1),
+  cte2 as (select a from t3)
+  update cte
+   set cte.a=(select a from cte where cte.a in (select a from cte2) limit 1);
 
 drop table t1, t2, t3, t4, t5;
+
+--echo #
+--echo # MDEV-38272 Sig11 in LEX::resolve_references_to_cte at sql/sql_cte.cc
+--echo #
+
+create table t1(a int);
+insert into t1 values (1), (5), (10), (15), (20), (25);
+create view v1 as select * from t1 where a < 10;
+--error ER_PARSE_ERROR
+with cte as (select * from t1) delete from t1,cte where t1.a=cte.a;
+with cte as (select * from t1) delete from t1 using t1,cte where t1.a=cte.a;
+
+--echo #
+--echo # MDEV-38272 Recursive CTE usage leaks memory when not used in a top level select
+--echo #
+
+--error ER_BAD_FIELD_ERROR
+with recursive cte as (select a from t1 union select a from cte)
+        update t1, cte set t1.o = 1;
+
+let $restart_file= $MYSQLTEST_VARDIR/tmp/mysqld.1.expect;
+--write_line wait $restart_file
+--shutdown_server
+--source include/wait_until_disconnected.inc
+--write_line "restart: " $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
+-- enable_reconnect
+-- source include/wait_until_connected_again.inc
+
+--error ER_NON_UPDATABLE_TABLE
+with recursive cte as (select a from t1 union select a from cte where a < 2)
+        delete from cte where a = (select a from cte);
+
+let $restart_file= $MYSQLTEST_VARDIR/tmp/mysqld.1.expect;
+--write_line wait $restart_file
+--shutdown_server
+--source include/wait_until_disconnected.inc
+--write_line "restart: " $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
+-- enable_reconnect
+-- source include/wait_until_connected_again.inc
+
+--error ER_NON_UPDATABLE_TABLE
+with recursive cte as (select a from t1 union select a from cte where a < 2)
+        delete from cte where a = 10;
+
+let $restart_file= $MYSQLTEST_VARDIR/tmp/mysqld.1.expect;
+--write_line wait $restart_file
+--shutdown_server
+--source include/wait_until_disconnected.inc
+--write_line "restart: " $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
+-- enable_reconnect
+-- source include/wait_until_connected_again.inc
+
+insert into t1 values (1), (5), (10), (15), (20), (25);
+with recursive cte as (select a from t1 union select a from cte where a < 2)
+        delete from v1 using v1, cte where v1.a = cte.a;
+select * from t1 order by 1;
+
+drop table t1;
 
 --echo # End of 12.2 tests
