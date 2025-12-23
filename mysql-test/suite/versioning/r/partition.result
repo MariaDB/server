@@ -959,14 +959,16 @@ alter table t1
 partition by system_time interval column_get(column_create(7,7), 7 as int) second (
 partition ver_p1 history,
 partition ver_pn current);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '(column_create(7,7), 7 as int) second (
+partition ver_p1 history,
+partition v...' at line 2
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `pk` int(11) DEFAULT NULL
 ) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci WITH SYSTEM VERSIONING
  PARTITION BY SYSTEM_TIME INTERVAL 7 SECOND STARTS TIMESTAMP'2018-04-11 17:00:04'
-(PARTITION `ver_p1` HISTORY ENGINE = DEFAULT_ENGINE,
- PARTITION `ver_pn` CURRENT ENGINE = DEFAULT_ENGINE)
+PARTITIONS 2
 set timestamp= default;
 #
 # MDEV-18794 Assertion `!m_innodb' failed in ha_partition::cmp_ref upon SELECT from partitioned table
@@ -1596,12 +1598,12 @@ create table t1 (i int);
 create table t2 (i int);
 alter table t1 partition by system_time 
 interval (select i from t2) day (partition p1 history, partition pn current);
-ERROR 42000: INTERVAL does not support subqueries or stored functions
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '(select i from t2) day (partition p1 history, partition pn current)' at line 2
 drop table t1;
 create table t1 (id int) with system versioning
 partition by system_time 
 interval (select i from t2) day (partition p1 history, partition pn current);
-ERROR 42000: INTERVAL does not support subqueries or stored functions
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '(select i from t2) day (partition p1 history, partition pn current)' at line 3
 create table t1 (id int) with system versioning
 partition by system_time
 interval "hello" day (partition p1 history, partition pn current);
@@ -3585,6 +3587,13 @@ Select * from t1 for system_time as of '2000-01-01 00:59:59';
 x
 1
 drop table t1;
+#
+# MDEV-36362 MariaDB crashes when parsing fuzzer generated PARTITION
+#
+create table t
+partition by system_time
+interval setval (a, 1) second_microsecond;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '(a, 1) second_microsecond' at line 3
 #
 # MDEV-33289 INTERVAL partitioning by system time does not work close to
 #            the end of timestamp range

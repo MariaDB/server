@@ -5247,7 +5247,7 @@ server_part_option:
 opt_versioning_rotation:
          /* empty */ {}
        | { Lex->clause_that_disallows_subselect= "INTERVAL"; }
-         INTERVAL_SYM expr interval opt_versioning_interval_start opt_vers_auto_part
+         INTERVAL_SYM signal_allowed_expr interval opt_versioning_interval_start opt_vers_auto_part
          {
            partition_info *part_info= Lex->part_info;
            const char *table_name= Lex->create_last_non_select_table->table_name.str;

@@ -797,6 +797,7 @@ delete from t1 where pk in (11, 12);
 --echo #
 create or replace table t1 (pk int) with system versioning
 partition by system_time interval 7 second;
+--error ER_PARSE_ERROR
 alter table t1
 partition by system_time interval column_get(column_create(7,7), 7 as int) second (
   partition ver_p1 history,
@@ -1420,13 +1421,13 @@ set timestamp=unix_timestamp('2000-01-01 00:00:00');
 create table t1 (i int); 
 create table t2 (i int); 
  
---error ER_SUBQUERIES_NOT_SUPPORTED
+--error ER_PARSE_ERROR
 alter table t1 partition by system_time 
   interval (select i from t2) day (partition p1 history, partition pn current);
 
 drop table t1;
 
---error ER_SUBQUERIES_NOT_SUPPORTED
+--error ER_PARSE_ERROR
 create table t1 (id int) with system versioning
   partition by system_time 
   interval (select i from t2) day (partition p1 history, partition pn current);
@@ -2812,6 +2813,14 @@ Explain partitions select * from t1 for system_time as of '2000-01-01 00:59:59';
 Select * from t1 for system_time as of '2000-01-01 00:59:59';
 
 drop table t1;
+
+--echo #
+--echo # MDEV-36362 MariaDB crashes when parsing fuzzer generated PARTITION
+--echo #
+--error ER_PARSE_ERROR
+create table t
+partition by system_time
+interval setval (a, 1) second_microsecond;
 
 --echo #
 --echo # MDEV-33289 INTERVAL partitioning by system time does not work close to
