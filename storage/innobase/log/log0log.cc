@@ -733,6 +733,9 @@ void log_t::set_archive(my_bool archive) noexcept
     ut_ad(!resize_buf);
     ut_ad(!resize_log.is_opened()); // FIXME: wait for checkpoint?
 
+    const lsn_t old_first_lsn{first_lsn};
+    if (archive)
+      first_lsn+= (end_lsn - old_first_lsn) / capacity() * capacity();
     std::string normal_name{get_circular_path()};
     std::string arch_name{get_archive_path()};
 
@@ -769,6 +772,7 @@ void log_t::set_archive(my_bool archive) noexcept
     if (fail)
     {
       my_error(ER_ERROR_ON_RENAME, MYF(0), old_name, new_name, my_errno);
+      first_lsn= old_first_lsn;
       break;
     }
 
