@@ -7,4 +7,4 @@ let engine_type = 'MyISAM';
 --source include/rpl_filter_binlog_dump_table.test
 
 --source include/rpl_end.inc
---echo # End of rpl_filter_binlog_dump_table_innodb.test
+--echo # End of rpl_filter_binlog_dump_table_myisam.test

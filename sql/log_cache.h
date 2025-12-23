@@ -36,6 +36,9 @@ extern char binlog_cache_dir[FN_REFLEN];
 /*
   Helper classes to store non-transactional and transactional data
   before copying it to the binary log.
+
+  NOTE: Partial Filtering is currently only allowed in the ROW format 
+        not STATEMENT format
 */
 
 class binlog_cache_data
@@ -63,7 +66,7 @@ public:
              0,
              sizeof(ulonglong),
              NULL,
-             [](void *ptr) { my_free(ptr); },
+             NULL,
              0);
 
   }
@@ -144,6 +147,7 @@ public:
     before_stmt_pos= MY_OFF_T_UNDEF;
     // Since the cache_data is reused so we should reset it to not conflict 
     event_group_rpl_filter= false;
+    my_hash_reset(&partial_filtered_table_ids);
     
     DBUG_ASSERT(empty());
   }

@@ -1025,8 +1025,7 @@ public:
   bool write_incident_already_locked(THD *thd);
   bool write_incident(THD *thd);
   void write_binlog_checkpoint_event_already_locked(const char *name, uint len);
-  bool write_table_map(THD *thd, TABLE *table, bool with_annotate, 
-                       bool filter_all_tables= false);
+  bool write_table_map(THD *thd, TABLE *table, bool with_annotate);
 
   void start_union_events(THD *thd, query_id_t query_id_param);
   void stop_union_events(THD *thd);
@@ -1132,7 +1131,8 @@ public:
   bool write_gtid_event(THD *thd, bool standalone, bool is_transactional,
                         uint64 commit_id,
                         bool commit_by_rotate,
-                        bool has_xid= false, bool ro_1pc= false, bool skip_all_events= false);
+                        bool has_xid= false, bool ro_1pc= false, 
+                        bool write_skip_rpl= false);
   int read_state_from_file();
   int write_state_to_file();
   int get_most_recent_gtid_list(rpl_gtid **list, uint32 *size);

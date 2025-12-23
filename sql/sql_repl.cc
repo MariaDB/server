@@ -140,11 +140,22 @@ struct binlog_send_info {
   bool slave_gtid_ignore_duplicates;
   bool using_gtid_state;
   /*
-    True if any earlier row events in the current row-based statement
-    were sent and not fully filtered. Used to detect partially filtered
-    event groups and ensure that row events with STMT_END_F are sent correctly
+    This flag is used only for partial filtering: when the final row event
+    of the group (the one carrying STMT_END_F) is marked to be skipped, we
+    must decide whether to:
+      - drop it entirely (entire group was filtered), or
+      - send it with its payload cleared (group was partially filtered).
+
+    If at least one earlier row event in the same group was sent, the group
+    is considered partially filtered and the last row event containing
+    STMT_END_F event , in case it should get filtered , must be sent
+    with its payload cleared to be able to notify to the slave that the event
+    group is terminated.
+
+    The flag is reset at the start of each event group.
+
   */
-  bool row_events_sent_before;
+  bool sent_unfiltered_row_event;
   
   int error;
   const char *errmsg;
@@ -193,7 +204,7 @@ struct binlog_send_info {
     error_text[0] = 0;
     bzero(&error_gtid, sizeof(error_gtid));
     until_binlog_state.init();
-    row_events_sent_before= false;
+    sent_unfiltered_row_event= false;
   }
 };
 
@@ -2239,19 +2250,19 @@ send_event_to_slave(binlog_send_info *info, Log_event_type event_type,
   }
 
   /*
-    Skip events that have either
-      1) @@skip_replication flag
-      2) Set during binlogging (set using binlog_dump_* filter) 
-
+    Skip events with the @@skip_replication flag set, i.e. either if slave 
+    requested skipping of such events, or if filtered via the binlog_dump_* 
+    filter options
   */
   if (info->thd->variables.option_bits & OPTION_SKIP_REPLICATION ||
     !binlog_dump_filter->is_db_empty() || binlog_dump_filter->is_on())
   {
+
     uint16 event_flags= uint2korr(&((*packet)[FLAGS_OFFSET + ev_offset]));
 
-    const uchar *buf = (const uchar*) packet->ptr() + ev_offset;
+    const uchar *buf= (const uchar*) packet->ptr() + ev_offset;
 
-      Log_event_type etype = (Log_event_type) buf[EVENT_TYPE_OFFSET];
+      Log_event_type etype= (Log_event_type) buf[EVENT_TYPE_OFFSET];
 
       // Only ROW events have m_flags
       bool is_rows_event =
@@ -2261,11 +2272,11 @@ send_event_to_slave(binlog_send_info *info, Log_event_type event_type,
           (etype == WRITE_ROWS_EVENT_V1)     ||
           (etype == UPDATE_ROWS_EVENT_V1)    ||
           (etype == DELETE_ROWS_EVENT_V1);
-      bool is_gtid_event = (etype == GTID_EVENT);
+      bool is_gtid_event= (etype == GTID_EVENT);
 
     if (is_gtid_event)
     {
-      info->row_events_sent_before= false; // reset per event group
+      info->sent_unfiltered_row_event= false; // reset per event group
     }
     
     if ((event_flags & LOG_EVENT_SKIP_REPLICATION_F))
@@ -2287,32 +2298,32 @@ send_event_to_slave(binlog_send_info *info, Log_event_type event_type,
       /*
         Extract the STMT_END_F of the rows_event flag
       */
-      uint8 common_header_len = info->fdev->common_header_len;
+      uint8 common_header_len= info->fdev->common_header_len;
 
-      uint8 post_header_len = info->fdev->post_header_len[etype - 1];
+      uint8 post_header_len= info->fdev->post_header_len[etype-1];
 
-      const uchar *post_start = buf + common_header_len;
+      const uchar *post_start= buf + common_header_len;
 
-      post_start += RW_MAPID_OFFSET;
+      post_start+= RW_MAPID_OFFSET;
 
       uint64 table_id;
 
       if (post_header_len == 6)
       {
           table_id= uint4korr(post_start);
-          post_start += 4;
+          post_start+= 4;
       }
       else
       {
-        table_id  = uint4korr(post_start);
-        table_id |= ((uint64) uint2korr(post_start + 4)) << 32;
+        table_id= uint4korr(post_start);
+        table_id|= ((uint64) uint2korr(post_start + 4)) << 32;
         // skip 6 bytes
-        post_start += RW_FLAGS_OFFSET;
+        post_start+= RW_FLAGS_OFFSET;
       }
 
-      uint16 m_flags = uint2korr(post_start);
+      uint16 m_flags= uint2korr(post_start);
 
-      bool has_stmt_end_f = (m_flags & Rows_log_event::STMT_END_F);
+      bool has_stmt_end_f= (m_flags & Rows_log_event::STMT_END_F);
 
 
       if (!has_stmt_end_f)
@@ -2320,36 +2331,48 @@ send_event_to_slave(binlog_send_info *info, Log_event_type event_type,
         return NULL;
       }
       else {
-        if (!info->row_events_sent_before) {
+        if (!info->sent_unfiltered_row_event) {
           return NULL;
         }
 
-        /* 
-          TODO: Clear payload and rewrite the checksum
-        */
-        // const uchar *row_data_start = buf + common_header_len + post_header_len;
-        // size_t checksum_len= (info->current_checksum_alg 
-        //                       != BINLOG_CHECKSUM_ALG_OFF && 
-        //                       info->current_checksum_alg 
-        //                       != BINLOG_CHECKSUM_ALG_UNDEF) 
-        //               ? BINLOG_CHECKSUM_LEN : 0;
-        // size_t row_data_len = len - (row_data_start - buf) - checksum_len;
+        size_t checksum_len= (info->current_checksum_alg 
+                              != BINLOG_CHECKSUM_ALG_OFF && 
+                              info->current_checksum_alg 
+                              != BINLOG_CHECKSUM_ALG_UNDEF) 
+                      ? BINLOG_CHECKSUM_LEN : 0;
+        size_t event_len= uint4korr(buf + EVENT_LEN_OFFSET);
+        uchar *data_start= (uchar*)buf + common_header_len;
+        size_t data_len= event_len - common_header_len - checksum_len;
 
-        // memset((uchar*)row_data_start, 0, row_data_len); // zero out row payload
-        // if (checksum_len > 0) 
-        // {
-        //   uint32 crc = my_checksum(0, buf,  len - BINLOG_CHECKSUM_LEN);
-        //   // 3. Write back to the last 4 bytes
-        //   uchar *footer = (uchar*)buf + (len - BINLOG_CHECKSUM_LEN);
-        //   int4store(footer, crc);
-        // }
-        info->row_events_sent_before= false;// reset per ROW_EVENT with stmt_f
+        /*
+          clear event's payload (including post headers , table_id and m_flags)
+          except for the STMT_END_F flag it should not be cleared since the
+          slave will be checking for it to make sure the event group ends with
+          this flag 
+          
+          After modifying the payload the checksum is recomputed
+        */
+        memset(data_start, 0, data_len);
+        uint16 new_m_flags= Rows_log_event::STMT_END_F;
+        int2store(post_start, new_m_flags);
+
+
+        if (checksum_len > 0) 
+        {
+          uint32 crc= my_checksum(0, buf,  event_len - BINLOG_CHECKSUM_LEN);
+          uchar *footer= (uchar*)buf + (event_len - BINLOG_CHECKSUM_LEN);
+          
+          int4store(footer, crc);
+        }
+
+        // reset per ROW_EVENT with stmt_f
+        info->sent_unfiltered_row_event= false;
        
       }
     }
     else if (is_rows_event) 
     {
-      info->row_events_sent_before= true;
+      info->sent_unfiltered_row_event= true;
     }
   }
 

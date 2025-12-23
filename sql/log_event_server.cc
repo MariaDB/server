@@ -1397,13 +1397,10 @@ Query_log_event::Query_log_event(THD* thd_arg, const char* query_arg,
   */
   flags2= (uint32) (thd_arg->variables.option_bits &
                     (OPTIONS_WRITTEN_TO_BIN_LOG & ~OPTION_NOT_AUTOCOMMIT));
-  #ifdef HAVE_REPLICATION
 
   bool is_end_event= false;
 
-  if (q_len == 6 && strncasecmp(query, "COMMIT", 6) == 0)
-      is_end_event= true;
-  else if (q_len == 8 && strncasecmp(query, "ROLLBACK", 8) == 0)
+  if (is_commit() || is_rollback())
       is_end_event= true;
   
   /*
@@ -1437,7 +1434,8 @@ Query_log_event::Query_log_event(THD* thd_arg, const char* query_arg,
           get filtered. NOTE: Partial Filtering is only allowed in the
           ROW format not STATEMENT format
         */
-        bool should_replicate_table= binlog_dump_filter->table_ok(db, table->alias.c_ptr());
+        bool should_replicate_table= 
+                  binlog_dump_filter->table_ok(db, table->alias.c_ptr());
         if (!should_replicate_table)
         {
           should_replicate_tables= false;
@@ -1452,8 +1450,7 @@ Query_log_event::Query_log_event(THD* thd_arg, const char* query_arg,
       flags|= LOG_EVENT_SKIP_REPLICATION_F;
     }
   }
-  
-  #endif
+
   DBUG_ASSERT(thd_arg->variables.character_set_client->number < 256*256);
   DBUG_ASSERT(thd_arg->variables.collation_connection->number < 256*256);
   DBUG_ASSERT(thd_arg->variables.collation_server->number < 256*256);
@@ -4745,7 +4742,6 @@ Rows_log_event::Rows_log_event(THD *thd_arg, TABLE *tbl_arg,
   DBUG_ASSERT((tbl_arg && tbl_arg->s &&
                (table_id & MAX_TABLE_MAP_ID) != UINT32_MAX) ||
               (!tbl_arg && !cols && (table_id & MAX_TABLE_MAP_ID) == UINT32_MAX));
-  
   if (thd_arg->variables.option_bits & OPTION_NO_FOREIGN_KEY_CHECKS)
     set_flags(NO_FOREIGN_KEY_CHECKS_F);
   if (thd_arg->variables.option_bits & OPTION_RELAXED_UNIQUE_CHECKS)

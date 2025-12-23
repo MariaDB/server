@@ -668,8 +668,9 @@ Rpl_filter* global_rpl_filter;
 Rpl_filter* binlog_filter;
 
 /**
-  Filter used by the binlog dump thread to determine which events to transmit to replicas or clients.
-  This is separate from binlog_filter, which controls which events are written to the binary log.
+  Filter used by the binlog dump thread to determine which events to transmit
+  to replicas or clients. This is separate from binlog_filter,
+  which controls which events are written to the binary log.
 */
 Rpl_filter* binlog_dump_filter;
 
@@ -6641,27 +6642,27 @@ struct my_option my_long_options[]=
    "Tells the primary's binlog dump threads to only transmit binary log events "
    "that update tables whose names appear in this comma-separated list. "
    "Applies for all replicas that connect to this server. "
-   "Note: Unlike binlog_do_table, this does not prevent transactions from being written "
+   "Note: this does not prevent transactions from being written "
    "to the local binary log file",
    0, 0, 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"binlog-dump-ignore-table", OPT_BINLOG_DUMP_IGNORE_TABLE,
    "Tells the primary's binlog dump threads to not transmit any binary log events "
    "that update tables whose names appear in this comma-separated list, even if other "
    "tables might be updated by the same statement. Applies for all replicas that connect "
-   "to this server. Note: Unlike binlog_ignore_table, this does not prevent transactions "
+   "to this server. Note: this does not prevent transactions "
    "from being written to the local binary log file",
    0, 0, 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"binlog-dump-wild-do-table", OPT_BINLOG_DUMP_WILD_DO_TABLE,
    "Tells the primary's binlog dump threads to only transmit binary log events "
    "for statements where any of the updated tables match the specified database and "
    "table name patterns (wildcards allowed). Applies for all replicas that connect "
-   "to this server. Note: Unlike binlog_wild_do_table, this does not prevent transactions "
+   "to this server. Note: this does not prevent transactions "
    "from being written to the local binary log file",
    0, 0, 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"binlog-dump-wild-ignore-table", OPT_BINLOG_DUMP_WILD_IGNORE_TABLE,
    "Tells the primary's binlog dump threads to not transmit binary log events "
    "for tables that match the given wildcard pattern. Applies for all replicas that "
-   "connect to this server. Note: Unlike binlog_wild_ignore_table, this does not prevent "
+   "connect to this server. Note: this does not prevent "
    "transactions from being written to the local binary log file",
    0, 0, 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
 #ifndef DISABLE_GRANT_OPTIONS

@@ -6365,12 +6365,12 @@ bool stmt_has_updated_non_trans_table(const THD* thd)
   query that affects a single table/db or it would be part 
   of a partial filter.
 
-  If it's the first case then all events in an event group should be
-  filtered , this is done by updating the cache's event group filter
-  flag. Otherwise then it's part of the partial filter which should have 
-  been handled already inside the write_table_map() method
+  If there is nothing inserted in the partial filter hash then all events in 
+  an event group should be filtered. Otherwise then it's part of the
+  partial filter which should have been handled already 
+  inside the write_table_map() method
   
-  NOTE: Partial filtering currently applies only to row format
+  NOTE: Partial filtering currently applies only to ROW format not STATEMENT 
   @param ev          The binlog event to evaluate.
   @param cache_data  The binlog cache data to update.
 */
@@ -6656,7 +6656,7 @@ void THD::binlog_prepare_for_row_logging()
    Write annnotated row event (the query) if needed
 */
 
-bool THD::binlog_write_annotated_row(Log_event_writer *writer, bool skip_annotate)
+bool THD::binlog_write_annotated_row(Log_event_writer *writer)
 {
   DBUG_ENTER("THD::binlog_write_annotated_row");
 
@@ -6667,7 +6667,16 @@ bool THD::binlog_write_annotated_row(Log_event_writer *writer, bool skip_annotat
 
   Annotate_rows_log_event anno(this, 0, false);
 
-  if (skip_annotate)
+  bool is_transactional= this->variables.option_bits & OPTION_GTID_BEGIN;
+  binlog_cache_mngr *const cache_mngr= this->binlog_get_cache_mngr();
+  binlog_cache_data *cache_data= (cache_mngr->
+                        get_binlog_cache_data(is_transactional));
+
+  /*
+    If the whole event group filter is true then annotate event should
+    also get filtered
+  */
+  if (cache_data->event_group_rpl_filter)
     anno.flags|= LOG_EVENT_SKIP_REPLICATION_F;
 
   DBUG_RETURN(writer->write(&anno));
@@ -6703,7 +6712,6 @@ bool THD::binlog_write_table_maps()
     locks_end++;
 
 
-  bool filter_all_tables= false;
   bool found_filtered_table= false;
   bool found_unfiltered_table= false;
 
@@ -6728,7 +6736,6 @@ bool THD::binlog_write_table_maps()
             ++table_ptr)
         {
           TABLE *table= *table_ptr;
-
           const char* db= table->s->db.str;
           bool should_replicate_db= binlog_dump_filter->db_ok(db);
           bool should_replicate_table= 
@@ -6759,9 +6766,6 @@ bool THD::binlog_write_table_maps()
           }
           else {
             found_filtered_table= true;
-            /*
-              TODO: should this be done only if filter_all_tables is false ? 
-            */
             bool is_transactional= table->file->row_logging_has_trans;
             is_transactional|= this->variables.option_bits & OPTION_GTID_BEGIN;
 
@@ -6769,16 +6773,28 @@ bool THD::binlog_write_table_maps()
             binlog_cache_data *cache_data= (cache_mngr->
                                   get_binlog_cache_data(is_transactional));
             ulonglong table_id= table->s->table_map_id;
-            uchar *stored= (uchar*) my_malloc(PSI_INSTRUMENT_ME,
-                                    sizeof(ulonglong), MYF(0));
-            memcpy(stored, &table_id, sizeof(ulonglong));
-
-            my_hash_insert(&cache_data->partial_filtered_table_ids, stored);
+            ulonglong *stored = (ulonglong*) alloc_root(this->mem_root,
+                                                       sizeof(ulonglong));
+            *stored = table_id;
+            my_hash_insert(&cache_data->partial_filtered_table_ids, 
+                          (uchar*) stored);
             
           }
         }
       }
-    filter_all_tables= found_filtered_table && !found_unfiltered_table;
+
+    /*
+      In case all tables are filtered then the whole event group
+      should get filtered
+    */
+    if(found_filtered_table && !found_unfiltered_table)
+    {
+      bool is_transactional= this->variables.option_bits & OPTION_GTID_BEGIN;
+      binlog_cache_mngr *const cache_mngr= this->binlog_get_cache_mngr();
+      binlog_cache_data *cache_data= (cache_mngr->
+                            get_binlog_cache_data(is_transactional));
+      cache_data->event_group_rpl_filter= true;
+    }
   }
 
   for (MYSQL_LOCK **cur_lock= locks ; cur_lock < locks_end ; cur_lock++)
@@ -6802,8 +6818,7 @@ bool THD::binlog_write_table_maps()
       }
       if (table->file->row_logging)
       {
-        if (mysql_bin_log.write_table_map(this, table, with_annotate, 
-                                          filter_all_tables))
+        if (mysql_bin_log.write_table_map(this, table, with_annotate))
           DBUG_RETURN(1);
         with_annotate= 0;
       }
@@ -6838,8 +6853,7 @@ bool THD::binlog_write_table_maps()
 
 bool MYSQL_BIN_LOG::write_table_map(THD *thd, 
                                     TABLE *table,
-                                    bool with_annotate, 
-                                    bool filter_all_tables)
+                                    bool with_annotate)
 {
   int error= 1;
   bool is_transactional= table->file->row_logging_has_trans;
@@ -6867,7 +6881,7 @@ bool MYSQL_BIN_LOG::write_table_map(THD *thd,
                           the_event.select_checksum_alg(cache_data), NULL);
 
   if (with_annotate)
-    if (thd->binlog_write_annotated_row(&writer, filter_all_tables))
+    if (thd->binlog_write_annotated_row(&writer))
       goto write_err;
 
   DBUG_EXECUTE_IF("table_map_write_error",
@@ -6879,12 +6893,7 @@ bool MYSQL_BIN_LOG::write_table_map(THD *thd,
     }
   });
 
-  if (filter_all_tables)
-  {
-    the_event.flags|= LOG_EVENT_SKIP_REPLICATION_F;
-    cache_data->event_group_rpl_filter= true;
-  }
-  else if (my_hash_search(&cache_data->partial_filtered_table_ids,
+  if (my_hash_search(&cache_data->partial_filtered_table_ids,
                           (const uchar*) &(table->s->table_map_id),
                           sizeof(ulonglong)) != NULL)
   {
@@ -7168,8 +7177,9 @@ Event_log::prepare_pending_rows_event(THD *thd, TABLE* table,
     {
       binlog_cache_data *cache_data= (cache_mngr->get_binlog_cache_data(is_transactional));
       /*
-        If the ANNOTATE and TABLE_MAPS have been filtered earlier using binlog_dump_* then 
-        all events including the *_ROWS_EVENTs should get filtered as well
+        If the ANNOTATE and all TABLE_MAPS have been filtered earlier using 
+        binlog_dump_* then all events including the *_ROWS_EVENTs should get 
+        filtered as well
       */
       if (cache_data && cache_data->event_group_rpl_filter)
         ev->flags|= LOG_EVENT_SKIP_REPLICATION_F;
@@ -7194,7 +7204,8 @@ bool
 MYSQL_BIN_LOG::write_gtid_event(THD *thd, bool standalone,
                                 bool is_transactional, uint64 commit_id,
                                 bool commit_by_rotate,
-                                bool has_xid, bool is_ro_1pc, bool skip_gtid)
+                                bool has_xid, bool is_ro_1pc,
+                                bool write_skip_rpl)
 {
   rpl_gtid gtid;
   uint32 domain_id;
@@ -7289,7 +7300,7 @@ MYSQL_BIN_LOG::write_gtid_event(THD *thd, bool standalone,
                    "not setting LOG_EVENT_SKIP_REPLICATION_F"));
       }
   }
-  else if (skip_gtid)
+  else if (write_skip_rpl)
   {
     gtid_event.flags|= LOG_EVENT_SKIP_REPLICATION_F;
   }
@@ -7645,8 +7656,10 @@ bool MYSQL_BIN_LOG::write(Log_event *event_info, my_bool *with_annotate)
         by MDEV-27697 as explained in the transactional case
         later MYSQL_BIN_LOG::inside write_gtid_event()
       */
-      bool should_skip_gtid= (event_info->flags & LOG_EVENT_SKIP_REPLICATION_F);
-      res= write_gtid_event(thd, true, using_trans, commit_id, false, false, false, should_skip_gtid);
+      bool should_skip_gtid=
+              (event_info->flags & LOG_EVENT_SKIP_REPLICATION_F);
+      res= write_gtid_event(thd, true, using_trans, commit_id, 
+                            false, false, false, should_skip_gtid);
       if (mdl_request.ticket)
         thd->mdl_context.release_lock(mdl_request.ticket);
       thd->backup_commit_lock= 0;

@@ -8,4 +8,4 @@ let $engine_type = 'MyISAM';
 --source include/rpl_filter_binlog_dump_db.test
 
 --source include/rpl_end.inc
---echo # End of rpl_filter_binlog_dump_db_innodb.test
+--echo # End of rpl_filter_binlog_dump_db_myisam.test

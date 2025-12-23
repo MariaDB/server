@@ -3421,8 +3421,15 @@ public:
                         enum_binlog_row_image row_image,
                         const uchar *old_data, const uchar *new_data);
   bool prepare_handlers_for_update(uint flag);
-  bool binlog_write_annotated_row(Log_event_writer *writer, 
-                                  bool filter_all_event_group= false);
+  /**
+    Write annotated row event with an optional LOG_EVENT_SKIP_REPLICATION_F
+    flag in case it is part of an event group filter.
+
+    @param writer
+      Log event writer used to write the annotated row event to the binary log
+      stream when annotation is required.
+    */
+  bool binlog_write_annotated_row(Log_event_writer *writer);
   void binlog_prepare_for_row_logging();
   bool binlog_write_table_maps();
 
