@@ -1113,9 +1113,20 @@ Field_pair *find_matching_field_pair(Item *item, List<Field_pair> pair_list);
 class st_select_lex: public st_select_lex_node
 {
 public:
+  Name_resolution_context context;
+  LEX_CSTRING db;
+
+  /*
+    Point to the LEX in which it was created, used in view subquery detection.
+
+    TODO: make also st_select_lex::parent_stmt_lex (see LEX::stmt_lex)
+    and use st_select_lex::parent_lex & st_select_lex::parent_stmt_lex
+    instead of global (from THD) references where it is possible.
+  */
+  LEX *parent_lex;
   /*
     Currently the field first_nested is used only by parser.
-    It containa either a reference to the first select
+    It contains either a reference to the first select
     of the nest of selects to which 'this' belongs to, or
     in the case of priority jump it contains a reference to
     the select to which the priority nest has to be attached to.
@@ -1128,18 +1139,6 @@ public:
     while select3->first_nested points to select2 and
     select1->first_nested points to select1.
   */
-
-  Name_resolution_context context;
-  LEX_CSTRING db;
-
-  /*
-    Point to the LEX in which it was created, used in view subquery detection.
-
-    TODO: make also st_select_lex::parent_stmt_lex (see LEX::stmt_lex)
-    and use st_select_lex::parent_lex & st_select_lex::parent_stmt_lex
-    instead of global (from THD) references where it is possible.
-  */
-  LEX *parent_lex;
   st_select_lex *first_nested;
   Item *where, *having;                         /* WHERE & HAVING clauses */
   Item *prep_where; /* saved WHERE clause for prepared statement processing */
