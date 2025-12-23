@@ -1,6 +1,9 @@
 call mtr.add_suppression("InnoDB: Unable to import tablespace .* because it already exists.  Please DISCARD the tablespace before IMPORT\\.");
 call mtr.add_suppression("Index for table 't2' is corrupt; try to repair it");
 call mtr.add_suppression("InnoDB: Cannot save statistics for table `test`\\.`t1` because the \\.ibd file is missing");
+call mtr.add_suppression("InnoDB: cannot fulfill innodb_log_recovery_target=123456<");
+call mtr.add_suppression("InnoDB: Plugin initialization aborted");
+call mtr.add_suppression("Plugin 'InnoDB' registration as a STORAGE ENGINE failed\\.");
 FLUSH TABLES;
 CREATE TABLE t1
 (a INT AUTO_INCREMENT PRIMARY KEY,
@@ -34,6 +37,10 @@ t1.frm
 t1.ibd
 t2.frm
 t2.ibd
+# restart: --innodb-log-recovery-target=123456
+FOUND 1 /InnoDB: cannot fulfill innodb_log_recovery_target=123456</ in mysqld.1.err
+FLUSH TABLE t1, t2 FOR EXPORT;
+ERROR 42000: Unknown storage engine 'InnoDB'
 # restart
 FLUSH TABLE t1, t2 FOR EXPORT;
 # List before copying files

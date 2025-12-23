@@ -160,13 +160,12 @@ static PSI_stage_info*	srv_stages[] =
 static void delete_log_files()
 {
   for (size_t i= 1; i < 102; i++)
-    delete_log_file(std::to_string(i).c_str());
+    os_file_delete_if_exists_func(log_sys.get_circular_path(i).c_str(), nullptr);
 }
 
 /** Creates log file.
 @param create_new_db   whether the database is being initialized
 @param lsn             log sequence number
-@param logfile0        name of the log file
 @return DB_SUCCESS or error code */
 static dberr_t create_log_file(bool create_new_db, lsn_t lsn)
 {
@@ -192,7 +191,7 @@ static dberr_t create_log_file(bool create_new_db, lsn_t lsn)
 	log_sys.latch.wr_lock(SRW_LOCK_CALL);
 	log_sys.set_capacity();
 
-	std::string logfile0{get_log_file_path("ib_logfile101")};
+	const std::string logfile0{log_sys.get_circular_path(101)};
 	bool ret;
 	os_file_t file{
           os_file_create_func(logfile0.c_str(),
@@ -265,8 +264,8 @@ close_and_exit:
 @return whether an error occurred */
 bool log_t::resize_rename() noexcept
 {
-  std::string old_name{get_log_file_path("ib_logfile101")};
-  std::string new_name{get_log_file_path()};
+  const std::string old_name{get_circular_path(101)};
+  const std::string new_name{log_sys.get_path()};
 
   if (IF_WIN(MoveFileEx(old_name.c_str(), new_name.c_str(),
                         MOVEFILE_REPLACE_EXISTING),
@@ -803,7 +802,8 @@ srv_check_undo_redo_logs_exists()
 	}
 
 	/* Check if redo log file exists */
-	auto logfilename = get_log_file_path();
+	const std::string logfilename{log_sys.get_circular_path()};
+	// FIXME: check for archived log as well
 
 	fh = os_file_create_func(logfilename.c_str(),
 				 OS_FILE_OPEN_RETRY_SILENT,
@@ -1458,9 +1458,21 @@ dberr_t srv_start(bool create_new_db)
 		}
 		recv_sys.debug_free();
 	} else {
-		err = recv_recovery_read_checkpoint();
-		if (err != DB_SUCCESS) {
-			return srv_init_abort(err);
+		ut_ad(srv_operation <= SRV_OPERATION_EXPORT_RESTORED
+		      || srv_operation == SRV_OPERATION_RESTORE
+		      || srv_operation == SRV_OPERATION_RESTORE_EXPORT);
+		ut_ad(!recv_sys.recovery_on);
+
+		if (srv_force_recovery >= SRV_FORCE_NO_LOG_REDO) {
+			sql_print_information("InnoDB: innodb_force_recovery=6"
+					      " skips redo log apply");
+		} else {
+			log_sys.latch.wr_lock(SRW_LOCK_CALL);
+			err = recv_sys.find_checkpoint();
+			log_sys.latch.wr_unlock();
+			if (err != DB_SUCCESS) {
+				return srv_init_abort(err);
+			}
 		}
 	}
 
@@ -1599,6 +1611,8 @@ dberr_t srv_start(bool create_new_db)
 		if (log_sys.resize_rename()) {
 			return(srv_init_abort(DB_ERROR));
 		}
+
+		if (log_sys.archive) log_sys.archive_set_size();
 	} else {
 		/* Suppress warnings in fil_space_t::create() for files
 		that are being read before dict_boot() has recovered
@@ -1719,6 +1733,8 @@ dberr_t srv_start(bool create_new_db)
 		}
 
 		recv_sys.debug_free();
+
+		if (log_sys.archive) log_sys.archive_set_size();
 
 		if (!srv_read_only_mode) {
 			const uint32_t flags = FSP_FLAGS_PAGE_SSIZE();

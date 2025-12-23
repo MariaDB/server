@@ -950,6 +950,7 @@ static SHOW_VAR innodb_status_variables[]= {
   {"lsn_flushed", &export_vars.innodb_lsn_flushed, SHOW_ULONGLONG},
   {"lsn_last_checkpoint", &export_vars.innodb_lsn_last_checkpoint,
    SHOW_ULONGLONG},
+  {"lsn_archived", &log_sys.archived_lsn, SHOW_ULONGLONG},
   {"master_thread_active_loops", &srv_main_active_loops, SHOW_SIZE_T},
   {"master_thread_idle_loops", &srv_main_idle_loops, SHOW_SIZE_T},
   {"max_trx_id", &export_vars.innodb_max_trx_id, SHOW_ULONGLONG},
@@ -3694,6 +3695,9 @@ compression_algorithm_is_not_loaded(ulong compression_algorithm, myf flags)
   return 1;
 }
 
+/** Initial value of innodb_lsn_archived */
+static uint64_t innodb_log_archive_start;
+
 /** Initialize, validate and normalize the InnoDB startup parameters.
 @return failure code
 @retval 0 on success
@@ -3981,6 +3985,8 @@ static int innodb_init_params()
     log_sys.log_buffered= true;
 skip_buffering_tweak:
 #endif
+
+  log_sys.archived_lsn= innodb_log_archive_start;
 
   if (!tpool::supports_native_aio())
     srv_use_native_aio= FALSE;
@@ -19047,7 +19053,7 @@ static MYSQL_SYSVAR_ENUM(flush_method, innodb_flush_method,
 
 static MYSQL_SYSVAR_STR(log_group_home_dir, srv_log_group_home_dir,
   PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
-  "Path to ib_logfile0", NULL, NULL, NULL);
+  "Path to ib_logfile0 or ib_*.log", NULL, NULL, NULL);
 
 static MYSQL_SYSVAR_DOUBLE(max_dirty_pages_pct, srv_max_buf_pool_modified_pct,
   PLUGIN_VAR_RQCMDARG,
@@ -19411,7 +19417,7 @@ static MYSQL_SYSVAR_UINT(log_buffer_size, log_sys.buf_size,
   NULL, NULL, 16U << 20, 2U << 20, log_sys.buf_size_max, 4096);
 
   static constexpr const char *innodb_log_file_mmap_description=
-    "Whether ib_logfile0"
+    "Whether the log"
     " resides in persistent memory (when supported) or"
     " should initially be memory-mapped";
 static MYSQL_SYSVAR_BOOL(log_file_mmap, log_sys.log_mmap,
@@ -19428,7 +19434,7 @@ static MYSQL_SYSVAR_BOOL(log_file_buffering, log_sys.log_buffered,
 
 static MYSQL_SYSVAR_BOOL(log_file_write_through, log_sys.log_write_through,
   PLUGIN_VAR_OPCMDARG,
-  "Whether each write to ib_logfile0 is write through",
+  "Whether each write to the log is write through",
   nullptr, innodb_log_file_write_through_update, FALSE);
 
 static MYSQL_SYSVAR_BOOL(data_file_buffering, fil_system.buffered,
@@ -19441,9 +19447,35 @@ static MYSQL_SYSVAR_BOOL(data_file_write_through, fil_system.write_through,
   "Whether each write to data files writes through",
   nullptr, innodb_data_file_write_through_update, FALSE);
 
+static void innodb_log_archive_update(THD *, st_mysql_sys_var*,
+                                      void *, const void *save) noexcept
+{
+  log_sys.set_archive(*static_cast<const my_bool*>(save));
+}
+
+static MYSQL_SYSVAR_BOOL(log_archive, log_sys.archive,
+  PLUGIN_VAR_OPCMDARG,
+  "Whether log archiving is desired",
+  nullptr, innodb_log_archive_update, FALSE);
+
+static MYSQL_SYSVAR_UINT64_T(log_archive_start, innodb_log_archive_start,
+  PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
+  "initial value of innodb_lsn_archived; 0=auto-detect",
+  nullptr, nullptr, 0, 0, std::numeric_limits<uint64_t>::max(), 0);
+
+static MYSQL_SYSVAR_UINT64_T(log_recovery_start, recv_sys.recovery_start,
+  PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
+  "checkpoint LSN to start recovery from (0=automatic)",
+  nullptr, nullptr, 0, 0, std::numeric_limits<uint64_t>::max(), 0);
+
+static MYSQL_SYSVAR_UINT64_T(log_recovery_target, recv_sys.rpo,
+  PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
+  "recovery point objective (end LSN; 0=unlimited)",
+  nullptr, nullptr, 0, 0, std::numeric_limits<uint64_t>::max(), 0);
+
 static MYSQL_SYSVAR_ULONGLONG(log_file_size, srv_log_file_size,
   PLUGIN_VAR_RQCMDARG,
-  "Redo log size in bytes.",
+  "Desired log file size in bytes",
   nullptr, innodb_log_file_size_update,
   96 << 20, 4 << 20, std::numeric_limits<ulonglong>::max(), 4096);
 
@@ -19875,6 +19907,10 @@ static struct st_mysql_sys_var* innobase_system_variables[]= {
   MYSQL_SYSVAR(log_file_write_through),
   MYSQL_SYSVAR(data_file_buffering),
   MYSQL_SYSVAR(data_file_write_through),
+  MYSQL_SYSVAR(log_archive),
+  MYSQL_SYSVAR(log_archive_start),
+  MYSQL_SYSVAR(log_recovery_start),
+  MYSQL_SYSVAR(log_recovery_target),
   MYSQL_SYSVAR(log_file_size),
   MYSQL_SYSVAR(log_write_ahead_size),
   MYSQL_SYSVAR(log_spin_wait_delay),

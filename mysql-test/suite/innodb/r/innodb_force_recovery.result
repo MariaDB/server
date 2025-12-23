@@ -3,6 +3,13 @@ create table t2(f1 int primary key, f2 int, index idx(f2))engine=innodb;
 insert into t1 values(1, 2);
 insert into t2 values(1, 2);
 SET GLOBAL innodb_fast_shutdown = 0;
+# restart: --innodb-log-recovery-target=20480
+SELECT COUNT(*) FROM INFORMATION_SCHEMA.ENGINES
+WHERE engine = 'innodb'
+AND support IN ('YES', 'DEFAULT', 'ENABLED');
+COUNT(*)
+0
+FOUND 1 /InnoDB: cannot fulfill innodb_log_recovery_target=20480</ in mysqld.1.err
 # restart: --innodb-force-recovery=4
 select variable_name,variable_value from information_schema.global_status
 WHERE variable_name LIKE 'innodb_buffer_pool_%_requests';

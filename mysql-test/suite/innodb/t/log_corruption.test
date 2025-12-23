@@ -19,6 +19,7 @@ call mtr.add_suppression("InnoDB: Obtaining redo log encryption key version 1 fa
 call mtr.add_suppression("InnoDB: Decrypting checkpoint failed");
 call mtr.add_suppression("InnoDB: Log file .*ib_logfile1 is of different size 2097152 bytes than other log files (1048576|4194304) bytes!");
 call mtr.add_suppression("InnoDB: The change buffer is corrupted");
+call mtr.add_suppression("InnoDB: cannot fulfill innodb_log_recovery_target=12345!=");
 --enable_query_log
 
 let bugdir= $MYSQLTEST_VARDIR/tmp/log_corruption;
@@ -171,8 +172,16 @@ die unless seek(OUT, 0x800, 0);
 print OUT pack("NnnNx[496]N", 0x80000944, 12, 12, 0, 0xb2a);
 close OUT or die;
 EOF
---let $restart_parameters= $dirs --innodb-force-recovery=5 --innodb-log-file-size=4m
+--let $restart_parameters= $dirs --innodb-log-recovery-target=12345
 --source include/start_mysqld.inc
+SELECT COUNT(*) FROM INFORMATION_SCHEMA.ENGINES
+WHERE engine = 'innodb'
+AND support IN ('YES', 'DEFAULT', 'ENABLED');
+--let SEARCH_PATTERN= InnoDB: cannot fulfill innodb_log_recovery_target=12345!=
+--source include/search_pattern_in_file.inc
+
+--let $restart_parameters= $dirs --innodb-force-recovery=5 --innodb-log-file-size=4m
+--source include/restart_mysqld.inc
 SELECT COUNT(*) FROM INFORMATION_SCHEMA.ENGINES
 WHERE engine = 'innodb'
 AND support IN ('YES', 'DEFAULT', 'ENABLED');
