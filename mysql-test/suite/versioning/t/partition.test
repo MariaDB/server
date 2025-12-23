@@ -2769,6 +2769,52 @@ alter table `t1` partition by system_time interval 7 year ;
 drop table t1;
 
 --echo #
+--echo # MDEV-29114 ALTER puts row into different partition for system_time
+--echo #            interval partitioning
+--echo #
+--echo # CREATE case
+set timestamp= unix_timestamp('2000-01-01 00:00:00');
+create or replace table t1 (x int) with system versioning
+partition by system_time interval 1 hour (
+  partition p0 history, partition p1 history, partition pn current);
+set timestamp= unix_timestamp('2000-01-01 00:00:00');
+insert t1 values (0);
+set timestamp= unix_timestamp('2000-01-01 00:10:00');
+update t1 set x= 1;
+set timestamp= unix_timestamp('2000-01-01 01:00:00');
+update t1 set x= 2;
+set timestamp= unix_timestamp('2000-01-01 01:30:00');
+update t1 set x= 3;
+
+--echo # CREATE result: row 1 got into p1
+select *, row_start, row_end from t1 partition (p0);
+select *, row_start, row_end from t1 partition (p1);
+flush tables;
+--echo # For CREATE pruning is affected by current timestamp, but SELECT works
+--echo # in any case since row 1 got into p1
+set timestamp= unix_timestamp('2000-01-01 00:00:00');
+explain partitions select * from t1 for system_time as of '2000-01-01 00:59:59';
+select * from t1 for system_time as of '2000-01-01 00:59:59';
+set timestamp= unix_timestamp('2020-01-01 00:00:00');
+explain partitions select * from t1 for system_time as of '2000-01-01 00:59:59';
+select * from t1 for system_time as of '2000-01-01 00:59:59';
+
+--echo # ALTER case
+set timestamp= unix_timestamp('2000-01-01 00:00:00');
+alter table t1
+partition by system_time interval 1 hour (
+  partition p0 history, partition p1 history, partition pn current);
+
+--echo # ALTER result: row 1 got into p1
+Select *, row_start, row_end from t1 partition (p0);
+Select *, row_start, row_end from t1 partition (p1);
+flush tables;
+Explain partitions select * from t1 for system_time as of '2000-01-01 00:59:59';
+Select * from t1 for system_time as of '2000-01-01 00:59:59';
+
+drop table t1;
+
+--echo #
 --echo # End of 10.11 tests
 --echo #
 
