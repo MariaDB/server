@@ -852,6 +852,7 @@ constexpr const char* const auto_event_names[] =
   "fts0ast",
   "fts0blex",
   "fts0config",
+  "fts0exec",
   "fts0file",
   "fts0fts",
   "fts0opt",

@@ -102,13 +102,13 @@ inline bool fts_is_charset_cjk(const CHARSET_INFO* cs)
 @param[in]	len	string length
 @retval	the index to use for the string */
 UNIV_INLINE
-ulint
+uint8_t
 fts_select_index_by_range(
 	const CHARSET_INFO*	cs,
 	const byte*		str,
 	ulint			len)
 {
-	ulint			selected = 0;
+	uint8_t			selected = 0;
 	ulint			value = innobase_strnxfrm(cs, str, len);
 
 	while (fts_index_selector[selected].value != 0) {
@@ -136,7 +136,7 @@ fts_select_index_by_range(
 @param[in]	len	string length
 @retval the index to use for the string */
 UNIV_INLINE
-ulint
+uint8_t
 fts_select_index_by_hash(
 	const CHARSET_INFO*	cs,
 	const byte*		str,
@@ -163,7 +163,7 @@ fts_select_index_by_hash(
 	/* Get collation hash code */
 	my_ci_hash_sort(cs, str, char_len, &nr1, &nr2);
 
-	return(nr1 % FTS_NUM_AUX_INDEX);
+	return static_cast<uint8_t>(nr1 % FTS_NUM_AUX_INDEX);
 }
 
 /** Select the FTS auxiliary index for the given character.
@@ -172,21 +172,17 @@ fts_select_index_by_hash(
 @param[in]	len	string length in bytes
 @retval	the index to use for the string */
 UNIV_INLINE
-ulint
+uint8_t
 fts_select_index(
 	const CHARSET_INFO*	cs,
 	const byte*		str,
 	ulint			len)
 {
-	ulint	selected;
-
 	if (fts_is_charset_cjk(cs)) {
-		selected = fts_select_index_by_hash(cs, str, len);
-	} else {
-		selected = fts_select_index_by_range(cs, str, len);
+		return fts_select_index_by_hash(cs, str, len);
 	}
 
-	return(selected);
+	return fts_select_index_by_range(cs, str, len);
 }
 
 /******************************************************************//**

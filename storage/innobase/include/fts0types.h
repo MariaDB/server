@@ -315,7 +315,7 @@ fts_get_suffix(
 @param[in]	len	string length in bytes
 @return the index to use for the string */
 UNIV_INLINE
-ulint
+uint8_t
 fts_select_index(
 	const CHARSET_INFO*	cs,
 	const byte*		str,
