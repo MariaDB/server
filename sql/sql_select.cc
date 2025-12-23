@@ -1645,10 +1645,6 @@ JOIN::prepare(TABLE_LIST *tables_init, COND *conds_init, uint og_num,
     }
   }
 
-  With_clause *with_clause=select_lex->get_with_clause();
-  if (with_clause && with_clause->prepare_unreferenced_elements(thd))
-    DBUG_RETURN(1);
-
   With_element *with_elem= select_lex->get_with_element();
   if (with_elem &&
       select_lex->check_unrestricted_recursive(
@@ -5265,6 +5261,10 @@ mysql_select(THD *thd, TABLE_LIST *tables, List<Item> &fields, COND *conds,
   }
 
   thd->get_stmt_da()->reset_current_row_for_warning(1);
+
+  if (thd->lex->prepare_unreferenced_in_with_clauses())
+    goto err;
+
   /* Look for a table owned by an engine with the select_handler interface */
   select_lex->pushdown_select= find_select_handler(thd, select_lex);
 
