@@ -60,7 +60,6 @@ trx_set_detailed_error_from_file(
 /*=============================*/
 	trx_t*	trx,	/*!< in: transaction struct */
 	FILE*	file);	/*!< in: file to read message from */
-
 /****************************************************************//**
 Retrieves the error_info field from a trx.
 @return the error info */
