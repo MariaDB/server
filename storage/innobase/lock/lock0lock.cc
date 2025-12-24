@@ -7320,6 +7320,8 @@ and less modified rows. Bit 0 is used to prefer orig_trx in case of a tie.
               deadlock_info_len= fread(deadlock_info, 1,
                                        static_cast<size_t>(len),
                                        lock_latest_err_file);
+              if (deadlock_info_len && deadlock_info[deadlock_info_len - 1] == '\n')
+                --deadlock_info_len;
               deadlock_info[deadlock_info_len]= '\0';
             }
           }
@@ -7340,14 +7342,9 @@ func_exit:
     if (current_trx)
       lock_sys.wr_unlock();
 
-    if (deadlock_info && victim == trx && trx->mysql_thd)
-    {
-      while (deadlock_info_len > 0 && deadlock_info[deadlock_info_len - 1] == '\n')
-        deadlock_info[--deadlock_info_len]= '\0';
-      if (deadlock_info_len > 0)
-        push_warning(trx->mysql_thd, Sql_condition::WARN_LEVEL_NOTE,
-                     ER_LOCK_DEADLOCK, deadlock_info);
-    }
+    if (deadlock_info && current_trx && victim == trx && trx->mysql_thd)
+      push_warning(trx->mysql_thd, Sql_condition::WARN_LEVEL_NOTE,
+                   ER_LOCK_DEADLOCK, deadlock_info);
     ut_free(deadlock_info);
 
     return victim;
