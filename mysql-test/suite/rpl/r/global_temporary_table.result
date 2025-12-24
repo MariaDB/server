@@ -1259,5 +1259,20 @@ drop table t;
 drop table src;
 connection slave;
 connection master;
+# MDEV-37941 Assertion `!thd->rgi_slave' failed on INSERT w/ parallel slave
+call mtr.add_suppression("Slave: Failed to open tricky_table.test Error_code: 1944");
+create global temporary table tricky_table (c int);
+set sql_log_bin = 0;
+drop table tricky_table;
+create table tricky_table (c int);
+set sql_log_bin = 1;
+insert into tricky_table values (1);
+connection slave;
+# ER_GTID_OPEN_TABLE_FAILED is 1944
+include/wait_for_slave_sql_error_and_skip.inc [errno=1944]
+connection master;
+drop table tricky_table;
+connection slave;
+connection master;
 disconnect con1;
 include/rpl_end.inc

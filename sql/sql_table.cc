@@ -6223,7 +6223,15 @@ my_bool open_global_temporary_table(THD *thd, TABLE_SHARE *source,
                                     MDL_ticket *mdl_ticket,
                                     Open_table_context *ot_ctx)
 {
-  DBUG_ASSERT(!thd->rgi_slave); // slave won't use global temporary tables
+  // Replica shouldn't use global temporary tables.
+  if (thd->rgi_slave)
+  {
+    // If we're here, replica was fed with an incorrect log.
+    my_error(ER_GTID_OPEN_TABLE_FAILED, MYF(0),
+             source->table_name.str, source->db.str);
+    return TRUE;
+  }
+
   if (thd->variables.pseudo_slave_mode)
   {
     push_warning(thd, Sql_condition::WARN_LEVEL_WARN,
