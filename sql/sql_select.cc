@@ -20538,7 +20538,7 @@ bool Create_tmp_table::finalize(THD *thd,
       /* Get the value from default_values */
       if (orig_field->is_null_in_record(orig_field->table->s->default_values))
         field->set_null();
-      else
+      else if (orig_field->default_value == NULL)
       {
         /*
           Copy default value. We have to use field_conv() for copy, instead of
