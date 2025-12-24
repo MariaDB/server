@@ -508,6 +508,8 @@ thd::thd (my_bool ini, bool system_thread)
     wsrep_assign_from_threadvars(ptr);
     wsrep_store_threadvars(ptr);
 
+    ptr->tx_read_only= false;
+    ptr->variables.tx_read_only= false;
     ptr->variables.tx_isolation= ISO_READ_COMMITTED;
     ptr->variables.sql_log_bin = 0;
     ptr->variables.option_bits &= ~OPTION_BIN_LOG; // disable binlog
