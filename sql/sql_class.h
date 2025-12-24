@@ -6314,11 +6314,6 @@ class start_new_trans
   uint in_sub_stmt;
   uint server_status;
   my_bool wsrep_on;
-  /*
-    THD:rgi_slave may hold a part of the replicated "old" transaction's
-    execution context. Therefore it has to be reset/restored too.
-  */
-  rpl_group_info* org_rgi_slave;
 
 public:
   start_new_trans(THD *thd);
