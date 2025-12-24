@@ -4441,7 +4441,8 @@ public:
       @param[in] optional_metadata_len length of optional_metadata field.
      */
     Optional_metadata_fields(unsigned char* optional_metadata,
-                             unsigned int optional_metadata_len);
+                             unsigned int optional_metadata_len,
+                            size_t column_count);
   };
 
   /**
