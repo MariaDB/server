@@ -7183,7 +7183,6 @@ and less modified rows. Bit 0 is used to prefer orig_trx in case of a tie.
     char buf[9 + sizeof rollback_msg];
     trx_t *victim= nullptr;
     char *deadlock_info= nullptr;
-    size_t deadlock_info_len= 0;
 
     /* Here, lock elision does not make sense, because
     for the output we are going to invoke system calls,
@@ -7310,22 +7309,22 @@ and less modified rows. Bit 0 is used to prefer orig_trx in case of a tie.
         if (srv_print_all_deadlocks)
         {
           long len= ftell(lock_latest_err_file);
-          if (len > 0)
-          {
-            deadlock_info= static_cast<char*>(ut_malloc_nokey(
-              static_cast<size_t>(len) + 1));
-            if (deadlock_info)
-            {
-              rewind(lock_latest_err_file);
-              deadlock_info_len= fread(deadlock_info, 1,
-                                       static_cast<size_t>(len),
-                                       lock_latest_err_file);
-              if (deadlock_info_len && deadlock_info[deadlock_info_len - 1] == '\n')
-                --deadlock_info_len;
-              deadlock_info[deadlock_info_len]= '\0';
-            }
-          }
+          if (len <= 0)
+            goto captured;
+          deadlock_info= static_cast<char*>(ut_malloc_nokey(
+            static_cast<size_t>(len) + 1));
+          if (!deadlock_info)
+            goto captured;
+          rewind(lock_latest_err_file);
+          size_t deadlock_info_len= fread(deadlock_info, 1,
+                                          static_cast<size_t>(len),
+                                          lock_latest_err_file);
+          ut_ad(deadlock_info_len <= static_cast<size_t>(len));
+          if (deadlock_info[deadlock_info_len - 1] == '\n')
+            --deadlock_info_len;
+          deadlock_info[deadlock_info_len]= '\0';
         }
+        captured:;
       }
 
       DBUG_EXECUTE_IF("innodb_deadlock_victim_self", victim= trx;);
