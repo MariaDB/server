@@ -43,6 +43,8 @@ ANALYZE TABLE records_in_range_test;
 # 16k or bigger page size: 1 leaf page
 # 8k page size: 2 leaf pages
 # 4k page size: 4 leaf pages
+--echo # n_leaf_pages changed because number of scanned leaf pages
+--echo #   are assigned as leaf pages in case of multi level index
 SELECT index_name, stat_name, stat_value
 FROM mysql.innodb_index_stats
 WHERE
