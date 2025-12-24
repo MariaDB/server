@@ -14,6 +14,7 @@ the InnoDB write-ahead log. This provides two main benefits:
 To use the new binlog, configure the server with the following two options:
 1. `log_bin`
 2. `binlog_storage_engine=innodb`
+
 Note that the `log_bin` option must be specified like that, without any argument; the option is not an on-off-switch.
 
 Optionally, the directory in which to store binlog files can be specified with `binlog_directory=<DIR>`. By default, the data directory is used.
@@ -64,6 +65,20 @@ The exception is when the `FLUSH BINARY LOGS` command is run. This pads the curr
 
 The `FLUSH BINARY LOGS DELETE_DOMAIN_ID=N` can be used to remove an old domain id from the `@@gtid_binlog_pos`. This requires that the domain is not in use in any existing binlog files; a combination of running `FLUSH BINARY LOGS` and `PURGE BINARY LOGS TO` can help ensure this. If the domain id N is already deleted, a warning is issues but the `FLUSH BINARY LOGS` operation is still run (this is for consistency, but is different from the old binlog implementation, where the `FLUSH` is skipped if the domain id was already deleted.
 
+## Upgrading
+
+When switching an existing server to use the new binlog format, the old binlog files will not be available after the switch, as the two formats are mutually exclusive.
+
+If the old binlog files are not needed after the transition, no special actions are needed. Just stop the server and restart with the configuration `--log-bin --binlog-storage-engine=innodb`. The new binlog will start empty. The old binlog files can be removed manually afterwards.
+
+Optionally, note down the value of `@@binlog_gtid_state` and execute `SET GLOBAL binlog_gtid_state=<old value>` as the first thing after starting up, to preserve the GTID state. This can be used to migrate a replication setup. First stop all writes to the master, and let all slaves catch up. Then note down the value of `@@binlog_gtid_state`, restart the master with `--binlog-storage-engine=innodb`, and restore `@@binlog_gtid_state`. Then the slaves will be able to connect and continue from where they left off.
+
+Alternatively, live migration can be done by switching a slave first. Restart a slave with the new `binlog-storage-engine=innodb` option and let the slave replicate for a while until it has sufficient binlog data in the new binlog format. Then promote the slave as the new master. The other slaves can then be stopped, switched to the new binlog, and restarted, as convenient.
+
+When using the new binlog format for a new installation, nothing special is needed. Just configure `--binlog-storage-engine=innodb` on the new server installation.
+
+When the new binlog format is enabled on a master, the slaves should be upgraded to at least MariaDB version 12.3 first. The slave can be switched to the new binlog format without upgrading the master first. The master and slave can use the old or the new binlog format independently of one another.
+
 ## Using the new binlog with 3rd-party programs
 
 The new binlog uses a different on-disk format than the traditional binlog. The format of individual replication events is the same; however the files stored on disk are page-based, and each page has some encapsulation of event data to support splitting events in multiple pieces etc.
@@ -81,47 +96,52 @@ A binlog file consists of a sequence of pages. The page size is currently fixed 
 Numbers are stored in little-endian format. Some numbers are stored as compressed integers. A compressed integer consists of 1-9 bytes. The lower 3 bits determine the number of bytes used. The number of bytes is one more than the value in the lower 3 bits, except that a value of 7 means that 9 bytes are used. The value of the number stored is the little-endian value of the used bytes, right-shifted by 3.
 
 The first page in each binlog file is a file header page, with the following format:
-#. Offset 0: 4-byte MAGIC value 0x010dfefe to identify the file as a binlog file.
-#. Offset 4: The log-2 of the page size, currently fixed at 14 for a 16kByte page size.
-#. Offset 8: Major file version, currently 1. A new major version is not readable by older server versions.
-#. Offset 12: Minor file version, currently 0. New minor versions are backwards-compatible with older server versions.
-#. Offset 16: The file number (same as the number in the `binlog-NNNNNN.ibb` file name), for consistency check.
-#. Offset 24: The size of the file, in pages.
-#. Offset 32: The InnoDB LSN corresponding to the start of the file, used for crash recovery.
-#. Offset 40: The value of `--innodb-binlog-state-interval` used in the file.
-#. Offset 48: The file number of the earliest file into which this file may contain references into (such references occur when a large event group is split into multiple pieces, called out-of-band or oob records, and are used to locate all the pieces of event data from the final commit record). Used to prevent purging binlog files that contain data that may still be needed.
-#. Offset 56: The file number of the earliest file containing pending XA transactions that may still be active.
-#. Offset 64: Unused.
-#. Offset 512: Extra CRC32. This is used for future expansion to support configurable binlog page size. The header page can be read and checksummed as a 512-byte page, after which the real page size can be determined from the value at offset 4.
+
+| Offset | Size | Description |
+| -----: | ---: | :---------- |
+|      0 |    4 | 4-byte MAGIC value 0x010dfefe to identify the file as a binlog file. |
+|      4 |    4 | The log-2 of the page size, currently fixed at 14 for a 16kByte page size. |
+|      8 |    4 | Major file version, currently 1. A new major version is not readable by older server versions. |
+|     12 |    4 | Minor file version, currently 0. New minor versions are backwards-compatible with older server versions. |
+|     16 |    8 | The file number (same as the number in the `binlog-NNNNNN.ibb` file name), for consistency check. |
+|     24 |    8 |  The size of the file, in pages. |
+|     32 |    8 |  The InnoDB LSN corresponding to the start of the file, used for crash recovery. |
+|     40 |    8 | The value of `--innodb-binlog-state-interval` used in the file. |
+|     48 |    8 |  The file number of the earliest file into which this file may contain references into (such references occur when a large event group is split into multiple pieces, called out-of-band or oob records, and are used to locate all the pieces of event data from the final commit record). Used to prevent purging binlog files that contain data that may still be needed. |
+|     56 |    8 | The file number of the earliest file containing pending XA transactions that may still be active. |
+|     64 |  448 | Unused. |
+|    512 |    4 | Extra CRC32. This is used for future expansion to support configurable binlog page size. The header page can be read and checksummed as a 512-byte page, after which the real page size can be determined from the value at offset 4. |
 
 Remaining pages in the file are data pages. Data is structured as a sequence of *records*; each record consists of one or more chunks. A page contains one or more chunks; a record can span multiple pages, but a chunk always fits within one page. Chunks are a minumum of 4 bytes long; any remaining 1-3 bytes of data in a page are filled with the byte 0xff. Unused bytes in a page are set to 0x00.
 
 A chunk consists of a *type byte*, two *length bytes* (little endian), and the *data bytes*. The length bytes count only the data bytes, so if the length bytes are 0x0001, then the total size of the chunk is 4 bytes.
 
 The high two bits of the type byte are used to collect chunks into records:
-#. Bit 7 is clear for the first chunk in a record, and set for all following chunks in the record.
-#. Bit 6 is set for the last chunk in a record, and clear for any prior chunks.
+- Bit 7 is clear for the first chunk in a record, and set for all following chunks in the record.
+- Bit 6 is set for the last chunk in a record, and clear for any prior chunks.
 
 These are the chunk types used:
 
-#. Type=0 (not a real type, 0 is an unused byte and denotes end-of-file in the current binlog file).
-#. Type=1: A commit record, containing binlog event data. First a compressed integer of the number of oob records referenced by the commit record, if any; then if non-zero, four more compressed integers of the file number and offset of the first and last such reference. This is followed by another similar 1 or 5 compressed integers, only used in the special case where transactional and non-transactional updates are mixed in a single event group. The remainder bytes are the payload data.
-#. Type=2: This is a GTID state record, written every `--innodb-binlog-state-interval` bytes. It consists of a sequence of compressed integers. The first is the number of GTIDs in the GTID state stored in the record. The second is one more than the earliest file number containing possibly still active XA transactions (used for crash recovery), or 0 for none. After this comes N*3 compressed integers, each representing a GTID in the GTID state.
-#. Type=3: This is an out-of-band (oob) data record. It is used to split large event groups into smaller pieces, organized as a forest of perfect binary trees. The record starts with 5 compressed integers: A node index (starts at 0 and increments for each oob record in an event group); the file number and offset of the left child oob node; and the file number and offset of the right child oob node. Remainder bytes are the payload event data.
-#. Type=4: This is a filler record, it is used to pad out the last page of a binlog file which is truncated due to `FLUSH BINARY LOGS`.
-#. Type=5: This is an XA PREPARE record, used for consistent crash recovery of user XA transactions. It starts with 1 byte counting the number of storage engines participating in the transaction. Then follows the XID (4 byte formatID; 1 byte gtrid length; 1 byte bqual length; and the characters of the XID name). Finally 5 compressed integers: the number of referenced oob nodes; the file number and offset of the first one; and the file number and offset of the last one.
-#. Type=6: This is an XA complete record, used for recovery purposes for internal 2-phase commit transactions and user XA. The first byte is a type byte, which is 0 for commit and 1 for XA rollback. Then follows 6-134 bytes of the XID, in the same format as for the XA PREPARE record.
+| Type | Description |
+| ---: | :---------- |
+|    0 | (not a real type, 0 is an unused byte and denotes end-of-file in the current binlog file). |
+|    1 | A commit record, containing binlog event data. First a compressed integer of the number of oob records referenced by the commit record, if any; then if non-zero, four more compressed integers of the file number and offset of the first and last such reference. This is followed by another similar 1 or 5 compressed integers, only used in the special case where transactional and non-transactional updates are mixed in a single event group. The remainder bytes are the payload data. |
+|    2 | This is a GTID state record, written every `--innodb-binlog-state-interval` bytes. It consists of a sequence of compressed integers. The first is the number of GTIDs in the GTID state stored in the record. The second is one more than the earliest file number containing possibly still active XA transactions (used for crash recovery), or 0 for none. After this comes N*3 compressed integers, each representing a GTID in the GTID state. |
+|    3 | This is an out-of-band (oob) data record. It is used to split large event groups into smaller pieces, organized as a forest of perfect binary trees. The record starts with 5 compressed integers: A node index (starts at 0 and increments for each oob record in an event group); the file number and offset of the left child oob node; and the file number and offset of the right child oob node. Remainder bytes are the payload event data. |
+|    4 | This is a filler record, it is used to pad out the last page of a binlog file which is truncated due to `FLUSH BINARY LOGS`. |
+|    5 | This is an XA PREPARE record, used for consistent crash recovery of user XA transactions. It starts with 1 byte counting the number of storage engines participating in the transaction. Then follows the XID (4 byte formatID; 1 byte gtrid length; 1 byte bqual length; and the characters of the XID name). Finally 5 compressed integers: the number of referenced oob nodes; the file number and offset of the first one; and the file number and offset of the last one. |
+|    6 | This is an XA complete record, used for recovery purposes for internal 2-phase commit transactions and user XA. The first byte is a type byte, which is 0 for commit and 1 for XA rollback. Then follows 6-134 bytes of the XID, in the same format as for the XA PREPARE record. |
 
 ## Not supported
 
 A few things are not supported with the new binlog implementation. Some of these should be supported in a later version of MariaDB.
 
-#. Old-style filename/offset replication positions are not available with the new binlog. Slaves must be configured to use GTID (this is the default). Event offsets are generally reported as zero. `MASTER_POS_WAIT()` is not available, `MASTER_GTID_WAIT()` should be used instead. Similarly, `BINLOG_GTID_POS()` is not available.
-#. Semi-synchronous replication is not supported in the first version. It will be supported as normal eventually using the `AFTER_COMMIT` option. The `AFTER_SYNC` option cannot be supported, as the expensive two-phase commit between binlog and engine is no longer needed (`AFTER_SYNC` waits for slave acknowledgement in the middle of the two-phase commit). Likewise, `--init-rpl-role` is not supported.
-#. The new binlog implementation cannot be used with Galera.
-#. In the initial version, only InnoDB is available as an engine for the binlog (`--binlog-storage-engine=innodb`). It the future, other transactional storage engines could implement storing the binlog themselves (performance is best when the binlog is implemented in the same engine as the tables that are updated).
-#. The `sync_binlog` option is no longer needed and is effectively ignored. Since the binlog files are now crash-safe without needing any syncing. The durability of commits is now controlled solely by the `--innodb-flush-log-at-trx-commit` option, which now applies to both binlog files and InnoDB table data.
-#. The command `RESET MASTER TO` is not available with the new binlog.
-#. The `--tc-heuristic-recover` option is not needed with the new binlog and cannot be used. Any pending prepared transactions will always be rolled back or committed to be consistent with the binlog. If the binlog is empty (ie. has been deleted manually), pending transactions will be rolled back.
-#. Binlog encryption is not available. It is suggested to use filesystem-level encryption facilities of the operating system instead, and/or use SSL for the slave's connection to the master.
-#. SHOW BINLOG EVENTS FROM will not give an error for a position that starts in the middle of an event group. Instead, it will start from the first GTID event following the position (or return empty, if the position is past the end).
+- Old-style filename/offset replication positions are not available with the new binlog. Slaves must be configured to use GTID (this is the default). Event offsets are generally reported as zero. `MASTER_POS_WAIT()` is not available, `MASTER_GTID_WAIT()` should be used instead. Similarly, `BINLOG_GTID_POS()` is not available.
+- Semi-synchronous replication is not supported in the first version. It will be supported as normal eventually using the `AFTER_COMMIT` option. The `AFTER_SYNC` option cannot be supported, as the expensive two-phase commit between binlog and engine is no longer needed (`AFTER_SYNC` waits for slave acknowledgement in the middle of the two-phase commit). Likewise, `--init-rpl-role` is not supported.
+- The new binlog implementation cannot be used with Galera.
+- In the initial version, only InnoDB is available as an engine for the binlog (`--binlog-storage-engine=innodb`). It the future, other transactional storage engines could implement storing the binlog themselves (performance is best when the binlog is implemented in the same engine as the tables that are updated).
+- The `sync_binlog` option is no longer needed and is effectively ignored. Since the binlog files are now crash-safe without needing any syncing. The durability of commits is now controlled solely by the `--innodb-flush-log-at-trx-commit` option, which now applies to both binlog files and InnoDB table data.
+- The command `RESET MASTER TO` is not available with the new binlog.
+- The `--tc-heuristic-recover` option is not needed with the new binlog and cannot be used. Any pending prepared transactions will always be rolled back or committed to be consistent with the binlog. If the binlog is empty (ie. has been deleted manually), pending transactions will be rolled back.
+- Binlog encryption is not available. It is suggested to use filesystem-level encryption facilities of the operating system instead, and/or use SSL for the slave's connection to the master.
+- SHOW BINLOG EVENTS FROM will not give an error for a position that starts in the middle of an event group. Instead, it will start from the first GTID event following the position (or return empty, if the position is past the end).
