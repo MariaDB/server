@@ -3580,13 +3580,22 @@ Table_map_log_event::~Table_map_log_event()
    @param[in]  field   SIGNEDNESS field in table_map_event.
    @param[in]  length  length of the field
  */
-static void parse_signedness(std::vector<bool> &vec,
-                             unsigned char *field, unsigned int length)
+static void parse_signedness(
+  Dynamic_array<Table_map_log_event::Optional_metadata_fields::Column_metadata> &columns,
+  size_t column_count,
+  unsigned char *field,
+  unsigned int length)
 {
-  for (unsigned int i= 0; i < length; i++)
+  size_t col= 0;
+
+  for (unsigned int i= 0; i < length && col < column_count; ++i)
   {
-    for (unsigned char c= 0x80; c != 0; c>>= 1)
-      vec.push_back(field[i] & c);
+    for (unsigned char mask= 0x80;
+         mask != 0 && col < column_count;
+         mask >>= 1, ++col)
+    {
+      columns[col].is_signed= (field[i] & mask) != 0;
+    }
   }
 }
 
@@ -3609,7 +3618,7 @@ static void parse_default_charset(Table_map_log_event::Optional_metadata_fields:
     unsigned int col_index= net_field_length(&p);
     unsigned int col_charset= net_field_length(&p);
 
-    default_charset.charset_pairs.push_back(std::make_pair(col_index,
+    default_charset.charset_pairs.append_val(std::make_pair(col_index,
                                                            col_charset));
   }
 }
@@ -3621,13 +3630,37 @@ static void parse_default_charset(Table_map_log_event::Optional_metadata_fields:
    @param[in]  field   COLUMN_CHARSET field in table_map_event.
    @param[in]  length  length of the field
  */
-static void parse_column_charset(std::vector<unsigned int> &vec,
-                                 unsigned char *field, unsigned int length)
+static void parse_column_charset(
+  Dynamic_array<Table_map_log_event::Optional_metadata_fields::Column_metadata> &columns,
+  size_t column_count,
+  unsigned char *field,
+  unsigned int length)
 {
   unsigned char* p= field;
+  unsigned char* end= field + length;
+  size_t col= 0;
 
-  while (p < field + length)
-    vec.push_back(net_field_length(&p));
+  while (p < end && col < column_count)
+  {
+    columns[col].charset= net_field_length(&p);
+    ++col;
+  }
+}
+static void parse_enum_set_column_charset(
+  Dynamic_array<Table_map_log_event::Optional_metadata_fields::Column_metadata> &columns,
+  size_t column_count,
+  unsigned char *field,
+  unsigned int length)
+{
+  unsigned char* p= field;
+  unsigned char* end= field + length;
+  size_t col= 0;
+
+  while (p < end && col < column_count)
+  {
+    columns[col].enum_set_charset= net_field_length(&p);
+    ++col;
+  }
 }
 
 /**
@@ -3637,18 +3670,33 @@ static void parse_column_charset(std::vector<unsigned int> &vec,
    @param[in]  field   COLUMN_NAME field in table_map_event.
    @param[in]  length  length of the field
  */
-static void parse_column_name(std::vector<std::string> &vec,
-                              unsigned char *field, unsigned int length)
+static void parse_column_name(
+  Dynamic_array<Table_map_log_event::Optional_metadata_fields::Column_metadata> &columns,
+  size_t column_count,
+  unsigned char *field,
+  unsigned int length)
 {
   unsigned char* p= field;
+  unsigned char* end= field + length;
+  size_t col= 0;
 
-  while (p < field + length)
+  while (p < end && col < column_count)
   {
-    unsigned len= net_field_length(&p);
-    vec.push_back(std::string(reinterpret_cast<char *>(p), len));
-    p+= len;
+    unsigned name_len= net_field_length(&p);
+
+    char *buf= (char*) my_malloc(PSI_INSTRUMENT_MEM,
+                                 name_len,
+                                 MYF(MY_WME));
+    memcpy(buf, p, name_len);
+
+    columns[col].name.str= buf;
+    columns[col].name.length= name_len;
+
+    p+= name_len;
+    ++col;
   }
 }
+
 
 /**
    Parses SET_STR_VALUE/ENUM_STR_VALUE field.
@@ -3660,25 +3708,43 @@ static void parse_column_name(std::vector<std::string> &vec,
    @param[in]  field   COLUMN_NAME field in table_map_event.
    @param[in]  length  length of the field
  */
-static void parse_set_str_value(std::vector<Table_map_log_event::
-                                Optional_metadata_fields::str_vector> &vec,
-                                unsigned char *field, unsigned int length)
+static void parse_set_str_value(
+  Dynamic_array<Table_map_log_event::Optional_metadata_fields::Column_metadata> &columns,
+  size_t column_count,
+  unsigned char *field,
+  unsigned int length,
+  bool is_enum)
 {
   unsigned char* p= field;
+  unsigned char* end= field + length;
+  size_t col= 0;
 
-  while (p < field + length)
+  while (p < end && col < column_count)
   {
     unsigned int count= net_field_length(&p);
 
-    vec.push_back(std::vector<std::string>());
-    for (unsigned int i= 0; i < count; i++)
+    Table_map_log_event::Optional_metadata_fields::str_vector &values=
+      is_enum ? columns[col].enum_values
+              : columns[col].set_values;
+
+    values.clear();
+
+    for (unsigned int i= 0; i < count && p < end; ++i)
     {
       unsigned len1= net_field_length(&p);
-      vec.back().push_back(std::string(reinterpret_cast<char *>(p), len1));
+
+      LEX_CSTRING s;
+      s.str= reinterpret_cast<const char*>(p);
+      s.length= len1;
+
+      values.append_val(s);
       p+= len1;
     }
+
+    ++col;
   }
 }
+
 
 /**
    Parses GEOMETRY_TYPE field.
@@ -3687,14 +3753,23 @@ static void parse_set_str_value(std::vector<Table_map_log_event::
    @param[in]  field   GEOMETRY_TYPE field in table_map_event.
    @param[in]  length  length of the field
  */
-static void parse_geometry_type(std::vector<unsigned int> &vec,
-                                unsigned char *field, unsigned int length)
+static void parse_geometry_type(
+  Dynamic_array<Table_map_log_event::Optional_metadata_fields::Column_metadata> &columns,
+  size_t column_count,
+  unsigned char *field,
+  unsigned int length)
 {
   unsigned char* p= field;
+  unsigned char* end= field + length;
+  size_t col= 0;
 
-  while (p < field + length)
-    vec.push_back(net_field_length(&p));
+  while (p < end && col < column_count)
+  {
+    columns[col].geometry_type= net_field_length(&p);
+    ++col;
+  }
 }
+
 
 /**
    Parses SIMPLE_PRIMARY_KEY field.
@@ -3706,15 +3781,24 @@ static void parse_geometry_type(std::vector<unsigned int> &vec,
    @param[in]  field   SIMPLE_PRIMARY_KEY field in table_map_event.
    @param[in]  length  length of the field
  */
-static void parse_simple_pk(std::vector<Table_map_log_event::
-                            Optional_metadata_fields::uint_pair> &vec,
-                            unsigned char *field, unsigned int length)
+static void parse_simple_pk(
+  Dynamic_array<Table_map_log_event::Optional_metadata_fields::Column_metadata> &columns,
+  size_t column_count,
+  unsigned char *field,
+  unsigned int length)
 {
   unsigned char* p= field;
+  unsigned char* end= field + length;
 
-  while (p < field + length)
-    vec.push_back(std::make_pair(net_field_length(&p), 0));
+  while (p < end)
+  {
+    uint col_idx= net_field_length(&p);
+
+    if (col_idx < column_count)
+      columns[col_idx].primary_key= std::make_pair(col_idx, 0);
+  }
 }
+
 
 /**
    Parses PRIMARY_KEY_WITH_PREFIX field.
@@ -3726,81 +3810,101 @@ static void parse_simple_pk(std::vector<Table_map_log_event::
    @param[in]  length  length of the field
  */
 
-static void parse_pk_with_prefix(std::vector<Table_map_log_event::
-                                 Optional_metadata_fields::uint_pair> &vec,
-                                 unsigned char *field, unsigned int length)
+static void parse_pk_with_prefix(
+  Dynamic_array<Table_map_log_event::Optional_metadata_fields::Column_metadata> &columns,
+  size_t column_count,
+  unsigned char *field,
+  unsigned int length)
 {
   unsigned char* p= field;
+  unsigned char* end= field + length;
 
-  while (p < field + length)
+  while (p < end)
   {
-    unsigned int col_index= net_field_length(&p);
-    unsigned int col_prefix= net_field_length(&p);
-    vec.push_back(std::make_pair(col_index, col_prefix));
+    uint col_idx= net_field_length(&p);
+    uint prefix= net_field_length(&p);
+
+    if (col_idx < column_count)
+      columns[col_idx].primary_key= std::make_pair(col_idx, prefix);
   }
 }
-
 Table_map_log_event::Optional_metadata_fields::
 Optional_metadata_fields(unsigned char* optional_metadata,
-                         unsigned int optional_metadata_len)
+                         unsigned int optional_metadata_len, 
+                        size_t column_count)
 {
-  unsigned char* field= optional_metadata;
-
-  if (optional_metadata == NULL)
+    if (!optional_metadata || column_count == 0)
     return;
 
-  while (field < optional_metadata + optional_metadata_len)
+  m_columns= Dynamic_array<Column_metadata>(PSI_INSTRUMENT_MEM, 0, 0);
+  for (size_t i = 0; i < column_count; ++i)
+    m_columns.append_val(Column_metadata(PSI_INSTRUMENT_MEM));
+
+  unsigned char* field= optional_metadata;
+  unsigned char* end= optional_metadata + optional_metadata_len;
+
+  while (field < end)
   {
-    unsigned int len;
-    Optional_metadata_field_type type=
+    Optional_metadata_field_type type =
       static_cast<Optional_metadata_field_type>(field[0]);
-
-    // Get length and move field to the value.
     field++;
-    len= net_field_length(&field);
 
-    switch(type)
+    unsigned int len = net_field_length(&field);
+
+    switch (type)
     {
-    case SIGNEDNESS:
-      parse_signedness(m_signedness, field, len);
-      break;
-    case DEFAULT_CHARSET:
-      parse_default_charset(m_default_charset, field, len);
-      break;
-    case COLUMN_CHARSET:
-      parse_column_charset(m_column_charset, field, len);
-      break;
-    case COLUMN_NAME:
-      parse_column_name(m_column_name, field, len);
-      break;
-    case SET_STR_VALUE:
-      parse_set_str_value(m_set_str_value, field, len);
-      break;
-    case ENUM_STR_VALUE:
-      parse_set_str_value(m_enum_str_value, field, len);
-      break;
-    case GEOMETRY_TYPE:
-      parse_geometry_type(m_geometry_type, field, len);
-      break;
-    case SIMPLE_PRIMARY_KEY:
-      parse_simple_pk(m_primary_key, field, len);
-      break;
-    case PRIMARY_KEY_WITH_PREFIX:
-      parse_pk_with_prefix(m_primary_key, field, len);
-      break;
-    case ENUM_AND_SET_DEFAULT_CHARSET:
-      parse_default_charset(m_enum_and_set_default_charset, field, len);
-      break;
-    case ENUM_AND_SET_COLUMN_CHARSET:
-      parse_column_charset(m_enum_and_set_column_charset, field, len);
-      break;
-    default:
-      DBUG_ASSERT(0);
+      case SIGNEDNESS:
+        parse_signedness(m_columns, column_count, field, len);
+        break;
+
+      case COLUMN_NAME:
+        parse_column_name(m_columns, column_count, field, len);
+        break;
+
+      case COLUMN_CHARSET:
+        parse_column_charset(m_columns, column_count, field, len);
+        break;
+
+      case SET_STR_VALUE:
+        parse_set_str_value(m_columns, column_count, field, len, false);
+        break;
+
+      case ENUM_STR_VALUE:
+        parse_set_str_value(m_columns, column_count, field, len, true);
+        break;
+
+      case GEOMETRY_TYPE:
+        parse_geometry_type(m_columns, column_count, field, len);
+        break;
+
+      case SIMPLE_PRIMARY_KEY:
+        parse_simple_pk(m_columns, column_count, field, len);
+        break;
+
+      case PRIMARY_KEY_WITH_PREFIX:
+        parse_pk_with_prefix(m_columns, column_count, field, len);
+        break;
+
+      case DEFAULT_CHARSET:
+        parse_default_charset(m_default_charset, field, len);
+        break;
+
+      case ENUM_AND_SET_DEFAULT_CHARSET:
+        parse_default_charset(m_enum_and_set_default_charset, field, len);
+        break;
+
+      case ENUM_AND_SET_COLUMN_CHARSET:
+        parse_enum_set_column_charset(m_columns, column_count, field, len);
+        break;
+
+      default:
+        DBUG_ASSERT(0);
     }
-    // next field
-    field+= len;
+
+    field += len;
   }
 }
+
 
 
 /**************************************************************************

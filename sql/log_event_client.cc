@@ -3175,7 +3175,8 @@ bool Table_map_log_event::print(FILE *file, PRINT_EVENT_INFO *print_event_info)
     if (print_event_info->print_table_metadata)
     {
       Optional_metadata_fields fields(m_optional_metadata,
-                                      m_optional_metadata_len);
+                                      m_optional_metadata_len,
+                                    m_colcnt);
 
       print_columns(&print_event_info->head_cache, fields);
       print_primary_key(&print_event_info->head_cache, fields);
