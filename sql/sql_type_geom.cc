@@ -841,57 +841,50 @@ int Field_geom::store_decimal(const my_decimal *)
 
 int Field_geom::store(const char *from, size_t length, CHARSET_INFO *cs)
 {
-  if (!length)
-    bzero(ptr, Field_blob::pack_length());
-  else
+  const char *dummy;
+  Geometry_buffer buffer;
+  Geometry *geom;
+
+  // Check given WKB
+  if (length < SRID_SIZE + WKB_HEADER_SIZE + 4)
+    goto err;
+
+  geom= Geometry::construct(&buffer, from, uint32(length));
+  if (!geom || !geom->is_binary_valid())
+    goto err;
+
+  if (m_type_handler->geometry_type() != Type_handler_geometry::GEOM_GEOMETRY &&
+      m_type_handler->geometry_type() != Type_handler_geometry::GEOM_GEOMETRYCOLLECTION &&
+      m_type_handler->geometry_type() != geom->get_class_info()->m_type_id)
   {
-    // Check given WKB
-    uint32 wkb_type;
-    if (length < SRID_SIZE + WKB_HEADER_SIZE + 4)
-      goto err;
-    wkb_type= uint4korr(from + SRID_SIZE + 1);
-    if (wkb_type < (uint32) Geometry::wkb_point ||
-	wkb_type > (uint32) Geometry::wkb_last)
-      goto err;
+    const char *db= table->s->db.str;
+    const char *tab_name= table->s->table_name.str;
 
-    const char *dummy;
-    Geometry_buffer buffer;
-    Geometry *geom= Geometry::construct(&buffer, from, uint32(length));
-    if (!geom || !geom->is_binary_valid())
+    if (!db)
+      db= "";
+    if (!tab_name)
+      tab_name= "";
+
+    StringBuffer<STRING_BUFFER_USUAL_SIZE> wkt(&my_charset_latin1);
+    if (geom->as_wkt(&wkt, &dummy))
       goto err;
 
-    if (m_type_handler->geometry_type() != Type_handler_geometry::GEOM_GEOMETRY &&
-        m_type_handler->geometry_type() != Type_handler_geometry::GEOM_GEOMETRYCOLLECTION &&
-        (uint32) m_type_handler->geometry_type() != wkb_type)
-    {
-      const char *db= table->s->db.str;
-      const char *tab_name= table->s->table_name.str;
-
-      if (!db)
-        db= "";
-      if (!tab_name)
-        tab_name= "";
-
-      StringBuffer<STRING_BUFFER_USUAL_SIZE> wkt(&my_charset_latin1);
-      if (geom->as_wkt(&wkt, &dummy))
-        goto err;
-
-      my_error(ER_TRUNCATED_WRONG_VALUE_FOR_FIELD, MYF(0),
-               Geometry::ci_collection[m_type_handler->geometry_type()]->m_name.str,
-               wkt.c_ptr_safe(), db, tab_name, field_name.str,
-               (ulong) table->in_use->get_stmt_da()->current_row_for_warning());
-      goto err_exit;
-    }
-
-    Field_blob::store_length(length);
-    if ((table->copy_blobs || length <= MAX_FIELD_WIDTH) &&
-        from != value.ptr())
-    {						// Must make a copy
-      value.copy(from, length, cs);
-      from= value.ptr();
-    }
-    bmove(ptr + packlength, &from, sizeof(char*));
+    my_error(ER_TRUNCATED_WRONG_VALUE_FOR_FIELD, MYF(0),
+             Geometry::ci_collection[m_type_handler->geometry_type()]->m_name.str,
+             wkt.c_ptr_safe(), db, tab_name, field_name.str,
+             (ulong) table->in_use->get_stmt_da()->current_row_for_warning());
+    goto err_exit;
   }
+
+  Field_blob::store_length(length);
+  if ((table->copy_blobs || length <= MAX_FIELD_WIDTH) &&
+      from != value.ptr())
+  {						// Must make a copy
+    value.copy(from, length, cs);
+    from= value.ptr();
+  }
+  bmove(ptr + packlength, &from, sizeof(char*));
+
   return 0;
 
 err:

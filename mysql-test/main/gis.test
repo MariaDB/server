@@ -303,7 +303,7 @@ show create table t1;
 drop table t1;
 
 CREATE TABLE `t1` (`object_id` bigint(20) unsigned NOT NULL default '0', `geo`
-geometry NOT NULL default '') ENGINE=MyISAM ;
+geometry NOT NULL) ENGINE=MyISAM ;
 
 insert into t1 values ('85984',GeomFromText('MULTIPOLYGON(((-115.006363
 36.305435,-114.992394 36.305202,-114.991219 36.305975,-114.991163
@@ -3515,3 +3515,22 @@ FROM (
 SELECT ST_DISTANCE_SPHERE(st_geomfromtext('linestring( 2 2, 2 8) '), ST_GeomFromText('POINT(18.413076 43.856258)')) ;
 
 --echo # End of 10.5 tests
+
+--echo #
+--echo # MDEV-15479 Empty string is erroneously allowed as a GEOMETRY column value.
+--echo #
+
+set @orig_sql_mode = @@sql_mode;
+set sql_mode="";
+CREATE TABLE t1 (id INT, a GEOMETRY);
+--error ER_CANT_CREATE_GEOMETRY_OBJECT
+INSERT INTO t1 VALUES (10,'');
+
+set sql_mode="STRICT_ALL_TABLES";
+--error ER_CANT_CREATE_GEOMETRY_OBJECT
+INSERT INTO t1 VALUES (10,'');
+
+DROP TABLE t1;
+set sql_mode= @orig_sql_mode;
+
+--echo # End of 10.6 tests
