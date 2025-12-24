@@ -31,7 +31,7 @@ SET debug_dbug = '+d,innodb_deadlock_victim_self';
 --error ER_LOCK_DEADLOCK
 SELECT * FROM t WHERE a = 2 FOR UPDATE;
 
---replace_regex /[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2}/TIMESTAMP/ /0x[0-9a-f]+/0xTHD/ /OS thread handle [0-9]+/OS thread handle TID/ /thread id [0-9]+/thread id TID/ /query id [0-9]+/query id QID/ /trx id [0-9]+/trx id TRX_ID/ /TRANSACTION [0-9]+/TRANSACTION TRX_ID/
+--replace_regex /[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2}/TIMESTAMP/ /0x[0-9a-f]+/0xTHD/ /OS thread handle [0-9]+/OS thread handle TID/ /thread id [0-9]+/thread id TID/ /query id [0-9]+/query id QID/ /trx id [0-9]+/trx id TRX_ID/ /TRANSACTION [0-9]+/TRANSACTION TRX_ID/ /space id [0-9]+/space id ID/ /Rec.*//
 SHOW WARNINGS;
 
 ROLLBACK;

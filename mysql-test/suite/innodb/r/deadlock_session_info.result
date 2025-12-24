@@ -31,8 +31,8 @@ LOCK WAIT 3 lock struct(s), heap size 1144, 2 row lock(s)
 MariaDB thread id TID, OS thread handle TID, query id QID localhost root Statistics
 SELECT * FROM t WHERE a = 2 FOR UPDATE
 *** WAITING FOR THIS LOCK TO BE GRANTED:
-RECORD LOCKS space id 8 page no 3 n bits 320 index PRIMARY of table `test`.`t` trx id TRX_ID lock_mode X locks rec but not gap waiting
-Record lock,
+RECORD LOCKS space id ID page no 3 n bits 320 index PRIMARY of table `test`.`t` trx id TRX_ID lock_mode X locks rec but not gap waiting
+
 Error	1213	Deadlock found when trying to get lock; try restarting transaction
 ROLLBACK;
 connection con2;

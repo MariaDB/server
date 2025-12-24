@@ -2104,9 +2104,8 @@ convert_error_code_to_mysql(
 		/* Since we rolled back the whole transaction, the
 		cached binlog must be emptied. */
 		innodb_transaction_abort(thd, true, error);
-		if (error == DB_DEADLOCK)
-			return HA_ERR_LOCK_DEADLOCK;
-		return HA_ERR_RECORD_CHANGED;
+		return error == DB_DEADLOCK
+			? HA_ERR_LOCK_DEADLOCK : HA_ERR_RECORD_CHANGED;
 
 	case DB_LOCK_WAIT_TIMEOUT:
 		/* Starting from 5.0.13, we let MySQL just roll back the

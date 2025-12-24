@@ -7309,18 +7309,16 @@ and less modified rows. Bit 0 is used to prefer orig_trx in case of a tie.
 
         if (srv_print_all_deadlocks)
         {
-          rewind(lock_latest_err_file);
-          fseek(lock_latest_err_file, 0, SEEK_END);
-          long file_size= ftell(lock_latest_err_file);
-          if (file_size > 0)
+          long len= ftell(lock_latest_err_file);
+          if (len > 0)
           {
             deadlock_info= static_cast<char*>(ut_malloc_nokey(
-              static_cast<size_t>(file_size) + 1));
+              static_cast<size_t>(len) + 1));
             if (deadlock_info)
             {
               rewind(lock_latest_err_file);
               deadlock_info_len= fread(deadlock_info, 1,
-                                       static_cast<size_t>(file_size),
+                                       static_cast<size_t>(len),
                                        lock_latest_err_file);
               deadlock_info[deadlock_info_len]= '\0';
             }
@@ -7344,8 +7342,11 @@ func_exit:
 
     if (deadlock_info && victim == trx && trx->mysql_thd)
     {
-      push_warning_printf(trx->mysql_thd, Sql_condition::WARN_LEVEL_NOTE,
-                          ER_LOCK_DEADLOCK, "%s", deadlock_info);
+      while (deadlock_info_len > 0 && deadlock_info[deadlock_info_len - 1] == '\n')
+        deadlock_info[--deadlock_info_len]= '\0';
+      if (deadlock_info_len > 0)
+        push_warning(trx->mysql_thd, Sql_condition::WARN_LEVEL_NOTE,
+                     ER_LOCK_DEADLOCK, deadlock_info);
     }
     ut_free(deadlock_info);
 
