@@ -202,7 +202,7 @@ aio *create_libaio(thread_pool *pool, int max_io)
   if (int ret= io_setup(max_io, &ctx))
   {
     fprintf(stderr, "Warning: io_setup(%d) returned %s. See man 2 io_setup.\n",
-            max_io, strerror(ret));
+            max_io, strerror(-ret));
     return nullptr;
   }
   return new aio_libaio(ctx, pool);
