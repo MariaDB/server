@@ -2047,6 +2047,76 @@ public:
 };
 
 
+extern "C" void my_message_sql(uint error, const char *str, myf MyFlags);
+
+/**
+  Error handler that captures and postpones errors.
+  Warnings and notes are passed through to the next handler.
+  Stored errors can be re-emitted later via emit_errors().
+*/
+
+class Postponed_error_handler : public Internal_error_handler
+{
+  struct Error_entry
+  {
+    uint sql_errno;
+    char message[MYSQL_ERRMSG_SIZE];
+    Error_entry *next;
+  };
+
+  Error_entry *m_first;
+  Error_entry *m_last;
+  MEM_ROOT *m_mem_root;
+
+public:
+  Postponed_error_handler(MEM_ROOT *mem_root)
+    : m_first(nullptr), m_last(nullptr), m_mem_root(mem_root)
+  {}
+
+  bool handle_condition(THD *thd,
+                        uint sql_errno,
+                        const char *sqlstate,
+                        Sql_condition::enum_warning_level *level,
+                        const char *msg,
+                        Sql_condition **cond_hdl) override
+  {
+    /* Only capture errors, let warnings and notes pass through */
+    if (*level != Sql_condition::WARN_LEVEL_ERROR)
+      return false;
+
+    Error_entry *entry= (Error_entry*) alloc_root(m_mem_root,
+                                                  sizeof(Error_entry));
+    if (!entry)
+      return false;  // Can't store, let error propagate
+
+    entry->sql_errno= sql_errno;
+    strmake(entry->message, msg, sizeof(entry->message) - 1);
+    entry->next= nullptr;
+
+    if (m_last)
+      m_last->next= entry;
+    else
+      m_first= entry;
+    m_last= entry;
+
+    return true;
+  }
+
+  bool has_errors() const { return m_first != nullptr; }
+
+  void emit_errors()
+  {
+    for (Error_entry *e= m_first; e; e= e->next)
+      my_message_sql(e->sql_errno, e->message, MYF(0));
+  }
+
+  void clear()
+  {
+    m_first= m_last= nullptr;
+  }
+};
+
+
 /**
   This class is an internal error handler implementation for
   DROP TABLE statements. The thing is that there may be warnings during
