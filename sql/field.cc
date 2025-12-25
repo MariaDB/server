@@ -2767,6 +2767,8 @@ bool Field_row::row_create_fields(THD *thd, const Spvar_definition &def)
 {
   if (def.is_table_rowtype_ref()) // e.g. ROW TYPE OF test.t1
   {
+    // TODO: still come here on the result field, get rid of it
+    //DBUG_ASSERT(0);
     Row_definition_list defs;
     return def.table_rowtype_ref()->resolve_table_rowtype_ref(thd, defs) ||
            row_create_fields(thd, &defs);
@@ -11354,6 +11356,37 @@ bool Column_definition::check_vcol_for_key(THD *thd) const
     DBUG_ASSERT(thd->is_error());
     return true;
   }
+  return false;
+}
+
+
+bool Spvar_definition::resolve_type_refs(THD *thd)
+{
+  if (is_table_rowtype_ref())
+  {
+    Row_definition_list *list;
+    if (!(list= new (thd->mem_root) Row_definition_list()) ||
+        table_rowtype_ref()->resolve_table_rowtype_ref(thd, *list))
+      return true;
+    set_row_field_definitions(&type_handler_row, list);
+    m_table_rowtype_ref= nullptr;
+    return false;
+  }
+
+  if (is_column_type_ref())
+  {
+    if (column_type_ref()->resolve_type_ref(thd, this))
+      return true;
+    m_column_type_ref= nullptr;
+    return false;
+  }
+
+  if (is_row())
+    return row_field_definitions()->resolve_type_refs(thd);
+
+  if (is_cursor_rowtype_ref())
+    return false;
+
   return false;
 }
 

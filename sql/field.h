@@ -5902,6 +5902,7 @@ public:
     m_row_field_definitions= list;
   }
 
+  bool resolve_type_refs(THD *thd);
 };
 
 

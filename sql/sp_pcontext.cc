@@ -744,7 +744,9 @@ void sp_pcontext::retrieve_field_definitions(
       DBUG_ASSERT(child->get_last_context_variable()->offset < var_def->offset);
       child->retrieve_field_definitions(thd, field_def_lst, parent_child_lst);
     }
-    field_def_lst->push_back(&var_def->field_def, thd->mem_root);
+    Spvar_definition *def_copy=
+      new (thd->mem_root) Spvar_definition(var_def->field_def);
+    field_def_lst->push_back(def_copy, thd->mem_root);
     if (var_def->child_offset)
     {
       Parent_child_uint *elem= new (thd->mem_root) Parent_child_uint(
