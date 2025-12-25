@@ -7,15 +7,14 @@ etc/apparmor.d/usr.sbin.mariadbd
 etc/logrotate.d/mariadb
 etc/security/user_map.conf
 lib/*/security/pam_user_map.so
-lib/systemd/system/mariadb@bootstrap.service.d/use_galera_new_cluster.conf
 lib/systemd/system/mariadb-extra@.socket
 lib/systemd/system/mariadb.service
 lib/systemd/system/mariadb@.service
 lib/systemd/system/mariadb@.socket
+lib/systemd/system/mariadb@bootstrap.service.d/use_galera_new_cluster.conf
 lib/systemd/system/mysql.service
 lib/systemd/system/mysqld.service
 support-files/rpm/enable_encryption.preset etc/mysql/mariadb.conf.d/99-enable-encryption.cnf.preset
-usr/lib/tmpfiles.d/mariadb.conf
 usr/bin/aria_chk
 usr/bin/aria_dump_log
 usr/bin/aria_ftdump
@@ -60,6 +59,7 @@ usr/lib/mysql/plugin/simple_password_check.so
 usr/lib/mysql/plugin/sql_errlog.so
 usr/lib/mysql/plugin/type_mysql_json.so
 usr/lib/mysql/plugin/wsrep_info.so
+usr/lib/tmpfiles.d/mariadb.conf
 usr/share/doc/mariadb-server/mariadbd.sym.gz
 usr/share/man/man1/aria_chk.1
 usr/share/man/man1/aria_dump_log.1
