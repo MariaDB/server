@@ -1107,7 +1107,7 @@ int my_msync(int, void *, size_t, int);
 void my_uuid_init(ulong seed1, ulong seed2);
 void my_uuid(uchar *guid);
 void my_uuid_end(void);
-my_bool my_uuid_extract_ts(const uchar *uuid, my_time_t *seconds, ulong *usec);
+int my_uuid_extract_ts(const char *uuid, my_time_t *seconds, ulong *usec);
 static inline void my_uuid2str(const uchar *guid, char *s, int with_separators)
 {
   int i;

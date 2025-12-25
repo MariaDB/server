@@ -38,23 +38,23 @@ bool Item_func_uuid_timestamp::fix_length_and_dec(THD *thd)
                                            TIME_SECOND_PART_DIGITS, false),
     DTCollation_numeric());
   set_maybe_null();
-  return FALSE;
+  return false;
+}
+
+
+bool Item_func_uuid_timestamp::get_timestamp(my_time_t *sec, ulong *usec)
+{
+  Type_handler_uuid_new::Fbt_null uuid(args[0]);
+  if (uuid.is_null())
+    return true;
+  return !my_uuid_extract_ts(uuid.to_lex_cstring().str, sec, usec);
 }
 
 
 bool Item_func_uuid_timestamp::val_native(THD *thd, Native *to)
 {
-  Type_handler_uuid_new::Fbt_null uuid(args[0]);
-  if (uuid.is_null())
-    return (null_value= true);
-
   my_time_t seconds;
   ulong usec;
-  const uchar *buf= (const uchar *) uuid.to_lex_cstring().str;
-
-  if (my_uuid_extract_ts(buf, &seconds, &usec))
-    return (null_value= true);
-
-  return null_value= Timestamp(Timeval(seconds, usec)).
-                       to_native(to, TIME_SECOND_PART_DIGITS);
+  return (null_value= get_timestamp(&seconds, &usec)) ||
+         (null_value= Timestamp(seconds, usec).to_native(to, TIME_SECOND_PART_DIGITS));
 }

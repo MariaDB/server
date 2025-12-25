@@ -227,30 +227,29 @@ void my_uuid_end()
 
 
 /**
-  Extract Unix timestamp from a UUID (version 1 or 7)
+  Extract Unix timestamp from a UUIDv1 or UUIDv7
 
   @param[in]  uuid     UUID bytes (16 bytes, big-endian)
   @param[out] seconds  Unix timestamp seconds
   @param[out] usec     Microseconds part
 
   @return
-    @retval 0  Success
-    @retval 1  UUID version doesn't contain timestamp or timestamp invalid
+    @retval 1  Success
+    @retval 0  UUID version doesn't contain timestamp or timestamp invalid
 
-  UUIDv1 format (RFC 4122):
-    Bytes 0-3:  time_low (32 bits)
-    Bytes 4-5:  time_mid (16 bits)
-    Bytes 6-7:  version (4 bits) + time_hi (12 bits)
+  UUIDv1 format (RFC 4122, big-endian):
+    Bytes 0-3:  time_low (32 bits, low part of timestamp)
+    Bytes 4-5:  time_mid (16 bits, middle part of timestamp)
+    Bytes 6-7:  version (4 bits) + time_hi (12 bits, high part of timestamp)
     Timestamp is 100-nanosecond intervals since 1582-10-15
 
-  UUIDv7 format (RFC 9562):
-    Bytes 0-5:  Unix timestamp in milliseconds (48 bits, big-endian)
+  UUIDv7 format (RFC 9562, big-endian):
+    Bytes 0-5:  Unix timestamp in milliseconds (48 bits)
     Bytes 6-7:  version (4 bits) + sub-millisecond precision (12 bits)
 */
-
-my_bool my_uuid_extract_ts(const uchar *uuid, my_time_t *seconds, ulong *usec)
+int my_uuid_extract_ts(const char *uuid, my_time_t *seconds, ulong *usec)
 {
-  uint version= uuid[6] >> 4;
+  uint version= (uchar) uuid[6] >> 4;
   ulonglong ts;
 
   if (version == 7)
@@ -259,26 +258,32 @@ my_bool my_uuid_extract_ts(const uchar *uuid, my_time_t *seconds, ulong *usec)
     ts= mi_uint6korr(uuid);
     *seconds= ts / 1000;
     *usec= (ts % 1000) * 1000;
-    return 0;
+    return 1;
   }
 
   if (version == 1)
   {
-    /* UUIDv1: reconstruct 60-bit timestamp from time_low, time_mid, time_hi */
+    /*
+      UUIDv1: reconstruct 60-bit timestamp from three fields:
+        - time_low  (bytes 0-3): bits 0-31 of timestamp
+        - time_mid  (bytes 4-5): bits 32-47 of timestamp
+        - time_hi   (bytes 6-7): bits 48-59 of timestamp (masked, 4 bits are version)
+      Formula: (time_hi << 48) | (time_mid << 32) | time_low
+    */
     ts= ((ulonglong)(mi_uint2korr(uuid + 6) & 0x0FFF) << 48) |
         ((ulonglong) mi_uint2korr(uuid + 4) << 32) |
          (ulonglong) mi_uint4korr(uuid);
 
     /* Timestamp before Unix epoch (1970-01-01) */
     if (ts < UUID_TIME_OFFSET)
-      return 1;
+      return 0;
 
     ts= (ts - UUID_TIME_OFFSET) / 10;  /* Convert to microseconds */
     *seconds= ts / 1000000;
     *usec= ts % 1000000;
-    return 0;
+    return 1;
   }
 
   /* Other versions (e.g., v4) don't contain timestamps */
-  return 1;
+  return 0;
 }
