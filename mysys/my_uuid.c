@@ -224,3 +224,61 @@ void my_uuid_end()
     mysql_mutex_destroy(&LOCK_uuid_generator);
   }
 }
+
+
+/**
+  Extract Unix timestamp from a UUID (version 1 or 7)
+
+  @param[in]  uuid     UUID bytes (16 bytes, big-endian)
+  @param[out] seconds  Unix timestamp seconds
+  @param[out] usec     Microseconds part
+
+  @return
+    @retval 0  Success
+    @retval 1  UUID version doesn't contain timestamp or timestamp invalid
+
+  UUIDv1 format (RFC 4122):
+    Bytes 0-3:  time_low (32 bits)
+    Bytes 4-5:  time_mid (16 bits)
+    Bytes 6-7:  version (4 bits) + time_hi (12 bits)
+    Timestamp is 100-nanosecond intervals since 1582-10-15
+
+  UUIDv7 format (RFC 9562):
+    Bytes 0-5:  Unix timestamp in milliseconds (48 bits, big-endian)
+    Bytes 6-7:  version (4 bits) + sub-millisecond precision (12 bits)
+*/
+
+my_bool my_uuid_extract_ts(const uchar *uuid, my_time_t *seconds, ulong *usec)
+{
+  uint version= uuid[6] >> 4;
+  ulonglong ts;
+
+  if (version == 7)
+  {
+    /* UUIDv7: bytes 0-5 are Unix timestamp in milliseconds (big-endian) */
+    ts= mi_uint6korr(uuid);
+    *seconds= ts / 1000;
+    *usec= (ts % 1000) * 1000;
+    return 0;
+  }
+
+  if (version == 1)
+  {
+    /* UUIDv1: reconstruct 60-bit timestamp from time_low, time_mid, time_hi */
+    ts= ((ulonglong)(mi_uint2korr(uuid + 6) & 0x0FFF) << 48) |
+        ((ulonglong) mi_uint2korr(uuid + 4) << 32) |
+         (ulonglong) mi_uint4korr(uuid);
+
+    /* Timestamp before Unix epoch (1970-01-01) */
+    if (ts < UUID_TIME_OFFSET)
+      return 1;
+
+    ts= (ts - UUID_TIME_OFFSET) / 10;  /* Convert to microseconds */
+    *seconds= ts / 1000000;
+    *usec= ts % 1000000;
+    return 0;
+  }
+
+  /* Other versions (e.g., v4) don't contain timestamps */
+  return 1;
+}

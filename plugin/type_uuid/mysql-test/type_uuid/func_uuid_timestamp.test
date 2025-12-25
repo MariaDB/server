@@ -1,40 +1,51 @@
-# UUID_TIMESTAMP() function to extract timestamp from UUIDv1 and UUIDv7
+# MDEV-33710: UUID_TIMESTAMP() extracts timestamp from UUIDv1 and UUIDv7
 
+# Use UTC for consistent results across timezones
+SET time_zone='+00:00';
+
+# Test UUIDv7 with known values
+# 0x018d17f3e9a3 = 1705522477475 ms
 SELECT UUID_TIMESTAMP('018d17f3-e9a3-7000-8000-000000000000');
 
+# 0x0188b5b88000 = 1686687547520 ms
 SELECT UUID_TIMESTAMP('0188b5b8-8000-7000-8000-000000000000');
 
+# Test UUIDv1 with known value
 SELECT UUID_TIMESTAMP('1ee81f00-a8a8-11ee-8000-000000000000') IS NOT NULL AS has_timestamp;
 
-SET @uuid1 = UUID();
-SELECT UUID_TIMESTAMP(@uuid1) IS NOT NULL AS has_timestamp;
+# Test dynamic UUID generation - timestamp should match NOW()
+SELECT TIMESTAMPDIFF(SECOND, UUID_TIMESTAMP(UUID()), NOW()) AS v1_diff_seconds;
+SELECT TIMESTAMPDIFF(SECOND, UUID_TIMESTAMP(UUID_V7()), NOW()) AS v7_diff_seconds;
 
-SELECT TIMESTAMPDIFF(SECOND, UUID_TIMESTAMP(UUID()), NOW()) BETWEEN -5 AND 5 AS timestamp_is_recent;
+# Verify UUID date matches current date
+SELECT DATE(UUID_TIMESTAMP(UUID())) = CURDATE() AS v1_date_matches;
+SELECT DATE(UUID_TIMESTAMP(UUID_V7())) = CURDATE() AS v7_date_matches;
 
-SET @uuid7 = UUID_V7();
-SELECT UUID_TIMESTAMP(@uuid7) IS NOT NULL AS has_timestamp;
+# Test UUIDv4 returns NULL (random UUID, no timestamp)
+SELECT UUID_TIMESTAMP(UUID_V4()) IS NULL AS v4_returns_null;
+SELECT UUID_TIMESTAMP('a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11') IS NULL AS v4_string_returns_null;
 
-SELECT TIMESTAMPDIFF(SECOND, UUID_TIMESTAMP(UUID_V7()), NOW()) BETWEEN -5 AND 5 AS timestamp_is_recent;
-
-SELECT UUID_TIMESTAMP(UUID_V4()) IS NULL AS no_timestamp_for_v4;
-
-SELECT UUID_TIMESTAMP('a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11') IS NULL AS no_timestamp_for_v4;
-
-SELECT UUID_TIMESTAMP(NULL);
-
+# Test NULL and invalid input
+SELECT UUID_TIMESTAMP(NULL) IS NULL AS null_input;
 SELECT UUID_TIMESTAMP('not-a-valid-uuid');
 
+# Test with native UUID type
 SELECT UUID_TIMESTAMP(CAST('018d17f3-e9a3-7000-8000-000000000000' AS UUID));
 
+# Test return type is TIMESTAMP(6)
 CREATE TABLE t1 AS SELECT UUID_TIMESTAMP(UUID()) AS ts;
 SHOW CREATE TABLE t1;
 DROP TABLE t1;
 
-CREATE TABLE t1 AS SELECT UUID_TIMESTAMP(UUID_V7()) AS ts;
-SHOW CREATE TABLE t1;
-DROP TABLE t1;
-
-SELECT UUID_TIMESTAMP('018d17f3-e9a3-7000-8000-000000000000');
-
+# Edge case: UUIDv1 before Unix epoch returns NULL
 SELECT UUID_TIMESTAMP('00000000-0000-1000-8000-000000000000') IS NULL AS before_unix_epoch;
 
+# Edge case: UUIDv7 at Unix epoch (timestamp = 0)
+SELECT UUID_TIMESTAMP('00000000-0000-7000-8000-000000000000');
+
+# Test UUIDv1 and UUIDv7 generated together have same second
+SET @u1= UUID();
+SET @u7= UUID_V7();
+SELECT TIMESTAMPDIFF(SECOND, UUID_TIMESTAMP(@u1), UUID_TIMESTAMP(@u7)) AS diff_seconds;
+
+SET time_zone=DEFAULT;

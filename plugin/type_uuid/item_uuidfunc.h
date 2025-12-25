@@ -129,10 +129,7 @@ public:
     : Item_timestampfunc(thd, arg1) {}
 
   LEX_CSTRING func_name_cstring() const override
-  {
-    static LEX_CSTRING name= {STRING_WITH_LEN("uuid_timestamp") };
-    return name;
-  }
+  { return {STRING_WITH_LEN("uuid_timestamp")}; }
 
   bool fix_length_and_dec(THD *thd) override;
   bool val_native(THD *thd, Native *to) override;
