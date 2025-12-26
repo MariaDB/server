@@ -89,11 +89,12 @@ insert into t1 values (5, repeat("a",1536));
 include/save_master_gtid.inc
 connection slave;
 include/wait_for_slave_sql_error.inc [errno=1037]
-Last_SQL_Error = 'Could not append Partial_rows_log_event 1 / 2 to internal Rows_log_event buffer: Out of memory; restart server and try again (needed 0 bytes)'
+Last_SQL_Error = 'Could not append Partial_rows_log_event 1 / 2 to internal Rows_log_event buffer: Out of memory; restart server and try again (needed 1968 bytes)'
 STOP SLAVE;
 include/wait_for_slave_to_stop.inc
 set @@global.debug_dbug= @old_dbug;
 include/start_slave.inc
+include/sync_with_master_gtid.inc
 #
 #
 # Error Case 4) Fail to parse re-assembled Rows_log_event content

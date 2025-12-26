@@ -150,6 +150,7 @@ STOP SLAVE;
 --source include/wait_for_slave_to_stop.inc
 set @@global.debug_dbug= @old_dbug;
 --source include/start_slave.inc
+--source include/sync_with_master_gtid.inc
 
 --echo #
 --echo #
