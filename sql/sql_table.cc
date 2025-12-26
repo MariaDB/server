@@ -12413,6 +12413,15 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
   MYSQL_TIME query_start;
   DBUG_ENTER("copy_data_between_tables");
 
+  /*
+    Various operations as part of the copy may cause call to trans_commit()
+    or otherwise cause wakeup_subsequent_commits() before completion. So
+    suspend those wakeups temporarily.
+  */
+  std::unique_ptr<wait_for_commit, std::function<void(wait_for_commit *)> >
+    suspended_wfc(thd->suspend_subsequent_commits(),
+        [thd](wait_for_commit *wfc) { thd->resume_subsequent_commits(wfc); });
+
   // Relay_log_info is too big to put on a stack
   if (!(rli_buff= thd->alloc(sizeof(Relay_log_info))) ||
       !(copy= new (thd->mem_root) Copy_field[to->s->fields]))
