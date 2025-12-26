@@ -108,6 +108,8 @@ SET DEBUG_SYNC='RESET';
 #
 # MDEV-33593: Auto increment deadlock error causes ASSERT in subsequent save point
 #
+SET @saved_print_all_deadlocks = @@GLOBAL.innodb_print_all_deadlocks;
+SET GLOBAL innodb_print_all_deadlocks = ON;
 CREATE TABLE t1(col1 INT PRIMARY KEY AUTO_INCREMENT, col2 INT) ENGINE=InnoDB;
 CREATE TABLE t2(col1 INT PRIMARY KEY) ENGINE=InnoDB;
 INSERT INTO t1(col2) values(100);
@@ -133,6 +135,37 @@ SET DEBUG_SYNC='now WAIT_FOR t3_waiting';
 SET debug_dbug = '+d,innodb_deadlock_victim_self';
 INSERT INTO t1(col2) VALUES(200);
 ERROR HY000: Failed to read auto-increment value from storage engine
+# Verify deadlock info is available in session warnings (MDEV-34686)
+SHOW WARNINGS;
+Level	Code	Message
+Note	1213	TIMESTAMP 0xTHD
+*** (1) TRANSACTION:
+TRANSACTION TRX_ID, ACTIVE N sec inserting
+mysql tables in use 2, locked 2
+LOCK WAIT N lock struct(s), heap size N, N row lock(s)
+MariaDB thread id TID, OS thread handle TID, query id QID localhost root Sending data
+INSERT INTO t1(col2) SELECT col2 from t1
+*** WAITING FOR THIS LOCK TO BE GRANTED:
+RECORD LOCKS space id ID page no N n bits N index PRIMARY of table `test`.`t1` trx id TRX_ID lock_mode X insert intention waiting
+Record lock, heap no 1 PHYSICAL RECORD: n_fields N; compact format; info bits N
+ 0: len 8; hex HEX; asc DATA;;
+
+
+*** (3) TRANSACTION:
+TRANSACTION TRX_ID, ACTIVE N sec setting auto-inc lock
+mysql tables in use 1, locked 1
+LOCK WAIT N lock struct(s), heap size N, N row lock(s), undo log entries N
+MariaDB thread id TID, OS thread handle TID, query id QID localhost root Update
+INSERT INTO t1(col2) VALUES(200)
+*** WAITING FOR THIS LOCK TO BE GRANTED:
+TABLE LOCK table `test`.`t1` trx id TRX_ID lock mode AUTO-INC waiting
+*** CONFLICTING WITH:
+TABLE LOCK table `test`.`t1` trx id TRX_ID lock mode IX
+TABLE LOCK table `test`.`t1` trx id TRX_ID lock mode IS
+TABLE LOCK table `test`.`t1` trx id TRX_ID lock mode AUTO-INC
+TABLE LOCK table `test`.`t1` trx id TRX_ID lock mode IX
+*** WE ROLL BACK TRANSACTION (1)
+Error	1467	Failed to read auto-increment value from storage engine
 # The transaction should have been rolled back
 SELECT * FROM t1;
 col1	col2
@@ -159,6 +192,7 @@ col1
 100
 DROP TABLE t2;
 SET DEBUG_SYNC='RESET';
+SET GLOBAL innodb_print_all_deadlocks = @saved_print_all_deadlocks;
 #
 # End of 10.5 tests
 #
