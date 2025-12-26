@@ -1511,6 +1511,7 @@ my_bool plugins_are_initialized= FALSE;
 
 #ifndef DBUG_OFF
 static const char* default_dbug_option;
+bool is_in_ddl_recovery= false;
 #endif
 #ifdef HAVE_LIBWRAP
 const char *libwrapName= NULL;
@@ -5798,8 +5799,14 @@ static int init_server_components()
   }
 #endif
 
+#ifndef DBUG_OFF
+  is_in_ddl_recovery= true;
+#endif
   if (ddl_log_execute_recovery() > 0)
     unireg_abort(1);
+#ifndef DBUG_OFF
+  is_in_ddl_recovery= false;
+#endif
   ha_signal_ddl_recovery_done();
 
   if (opt_myisam_log)
