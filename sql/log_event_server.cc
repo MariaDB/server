@@ -5889,8 +5889,10 @@ Rows_log_event_fragmenter::fragment()
 {
   Fragmented_rows_log_event *ev;
   uchar width_tmp_buf[MAX_INT_WIDTH];
-  uchar *const width_tmp_buf_end= net_store_length(width_tmp_buf, (size_t) rows_event->m_width);
-  uint32_t width_size= (width_tmp_buf_end - width_tmp_buf);
+  uchar *const width_tmp_buf_end=
+      net_store_length(width_tmp_buf, (size_t) rows_event->m_width);
+  uint32_t width_size=
+      static_cast<uint32_t>(width_tmp_buf_end - width_tmp_buf);
 
   /*
     Update row events write an extra bitmap

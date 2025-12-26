@@ -4719,9 +4719,9 @@ public:
     decide whether or not to fragment the event into multiple partial row log
     events when binlogging.
   */
-  my_bool rows_data_size_exceeds(uint size_limit)
+  my_bool rows_data_size_exceeds(ulong size_limit)
   {
-    my_ptrdiff_t const data_size= m_rows_cur - m_rows_buf;
+    ulong const data_size= static_cast<ulong>(m_rows_cur - m_rows_buf);
     return data_size > size_limit;
   }
 
@@ -5985,7 +5985,7 @@ public:
     additional data indicated by flags2. That is manually accounted for when
     organizing/computing the fragments.
   */
-  uint64_t get_payload_size_per_chunk()
+  uint32_t get_payload_size_per_chunk()
   {
     DBUG_ASSERT(fragment_size > LOG_EVENT_HEADER_LEN +
                                     PARTIAL_ROWS_HEADER_LEN +
@@ -6089,7 +6089,7 @@ bool slave_execute_deferred_events(THD *thd);
 bool event_that_should_be_ignored(const uchar *buf);
 bool event_checksum_test(uchar *buf, ulong event_len,
                          enum_binlog_checksum_alg alg);
-enum_binlog_checksum_alg get_checksum_alg(const uchar *buf, ulong len);
+enum_binlog_checksum_alg get_checksum_alg(const uchar *buf, size_t len);
 extern TYPELIB binlog_checksum_typelib;
 #ifdef WITH_WSREP
 enum Log_event_type wsrep_peak_event(rpl_group_info *rgi, ulonglong* event_size);

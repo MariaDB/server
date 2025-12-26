@@ -2396,7 +2396,7 @@ Format_description_log_event::is_version_before_checksum(const master_version_sp
             checksum-unaware (effectively no checksum) and the actual
             [1-254] range alg descriptor.
 */
-enum_binlog_checksum_alg get_checksum_alg(const uchar *buf, ulong len)
+enum_binlog_checksum_alg get_checksum_alg(const uchar *buf, size_t len)
 {
   enum_binlog_checksum_alg ret;
   char version[ST_SERVER_VER_LEN];

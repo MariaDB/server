@@ -3626,24 +3626,26 @@ bool Partial_rows_log_event::print(FILE *file,
     if (seq_no == total_fragments)
     {
       ulong n_tables= print_event_info->m_table_map.count();
+      ulonglong *table_ids= static_cast<ulonglong *>(my_malloc(
+          PSI_NOT_INSTRUMENTED, n_tables * sizeof(ulonglong), MYF(0)));
+      print_event_info->m_table_map.get_table_ids(&table_ids[0], n_tables);
+      for (ulong i= 0; i < n_tables; i++)
       {
-        ulonglong table_ids[n_tables];
-        print_event_info->m_table_map.get_table_ids(&table_ids[0], n_tables);
-        for (ulong i = 0; i < n_tables; i++)
+        DBUG_PRINT("info", ("Table ID: %llu", table_ids[i]));
+        Table_map_log_event *tbl_map_to_print;
+
+        if (print_event_info->m_table_map_ignored.get_table(table_ids[i]))
+          continue;
+
+        tbl_map_to_print=
+            print_event_info->m_table_map.get_table(table_ids[i]);
+        if (tbl_map_to_print && tbl_map_to_print->print_body(print_event_info))
         {
-          DBUG_PRINT("info", ("Table ID: %llu", table_ids[i]));
-          Table_map_log_event *tbl_map_to_print;
-
-          if (print_event_info->m_table_map_ignored.get_table(table_ids[i]))
-            continue;
-
-          tbl_map_to_print=
-              print_event_info->m_table_map.get_table(table_ids[i]);
-          if (tbl_map_to_print &&
-              tbl_map_to_print->print_body(print_event_info))
-            goto err;
+          my_free(table_ids);
+          goto err;
         }
       }
+      my_free(table_ids);
     }
 
     if (print_base64(body, print_event_info, do_print_encoded))
