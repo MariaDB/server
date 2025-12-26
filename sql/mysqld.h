@@ -304,6 +304,9 @@ extern const char *encryption_algorithm_names[];
 extern long opt_secure_timestamp;
 extern uint default_password_lifetime;
 extern my_bool disconnect_on_expired_password;
+#ifndef DBUG_OFF
+extern bool is_in_ddl_recovery;
+#endif
 
 enum secure_timestamp { SECTIME_NO, SECTIME_SUPER, SECTIME_REPL, SECTIME_YES };
 bool is_set_timestamp_forbidden(THD *thd);
