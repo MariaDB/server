@@ -10746,6 +10746,7 @@ bool mysql_alter_table(THD *thd, const LEX_CSTRING *new_db,
   DDL_LOG_STATE ddl_log_state;
   Turn_errors_to_warnings_handler errors_to_warnings;
   HA_CHECK_OPT check_opt;
+
 #ifdef WITH_PARTITION_STORAGE_ENGINE
   bool partition_changed= false;
 #endif
@@ -12630,6 +12631,15 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
   Field *to_row_start= NULL, *to_row_end= NULL, *from_row_end= NULL;
   MYSQL_TIME query_start;
   DBUG_ENTER("copy_data_between_tables");
+
+  /*
+    Various operations as part of the copy may cause call to trans_commit()
+    or otherwise cause wakeup_subsequent_commits() before completion. So
+    suspend those wakeups temporarily.
+  */
+  std::unique_ptr<wait_for_commit, std::function<void(wait_for_commit *)> >
+    suspended_wfc(thd->suspend_subsequent_commits(),
+        [thd](wait_for_commit *wfc) { thd->resume_subsequent_commits(wfc); });
 
   // Relay_log_info is too big to put on a stack
   if (!(rli_buff= thd->alloc(sizeof(Relay_log_info))) ||
