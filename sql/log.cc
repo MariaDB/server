@@ -8634,6 +8634,12 @@ bool MYSQL_BIN_LOG::write(Log_event *event_info, my_bool *with_annotate)
   const rpl_gtid *commit_gtid;
   DBUG_ENTER("MYSQL_BIN_LOG::write(Log_event *)");
 
+  DBUG_EXECUTE_IF("rpl_parallel_delay_gtid_0_x_100_write", {
+      if (thd->rgi_slave &&
+          thd->rgi_slave->current_gtid.domain_id==0 &&
+          thd->rgi_slave->current_gtid.seq_no == 100)
+        my_sleep(10000);
+    });
   /*
     When binary logging is not enabled (--log-bin=0), wsrep-patch partially
     enables it without opening the binlog file (MYSQL_BIN_LOG::open().
