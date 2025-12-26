@@ -5819,6 +5819,9 @@ static int rocksdb_init_func(void *const p) {
 static int rocksdb_done_func(void *const p) {
   DBUG_ENTER_FUNC();
 
+  if (rocksdb_pause_background_work)
+      rdb->ContinueBackgroundWork();
+
   // signal the drop index thread to stop
   rdb_drop_idx_thread.signal(true);
 
