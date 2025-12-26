@@ -1451,8 +1451,7 @@ send_result_message:
   }
   thd->resume_subsequent_commits(suspended_wfc);
   DBUG_EXECUTE_IF("inject_analyze_table_sleep", my_sleep(500000););
-  if (is_table_modified && is_cmd_replicated &&
-      (!opt_readonly || thd->slave_thread) && !thd->lex->no_write_to_binlog)
+  if (is_table_modified && is_cmd_replicated && !thd->lex->no_write_to_binlog)
   {
     thd->get_stmt_da()->set_overwrite_status(true);
     auto res= write_bin_log(thd, true, thd->query(), thd->query_length());
