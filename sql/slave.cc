@@ -5847,8 +5847,9 @@ static int queue_event(Master_info* mi, const uchar *buf, ulong event_len)
       DBUG_SET("-d,corrupt_queue_event");
     }
   );
-                                              
-  if (event_checksum_test((uchar*) buf, event_len, checksum_alg))
+
+  if (event_checksum_test((uchar *) buf, static_cast<size_t>(event_len),
+                          checksum_alg))
   {
     error= ER_NETWORK_READ_EVENT_CHECKSUM_FAILURE;
     unlock_data_lock= FALSE;

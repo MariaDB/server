@@ -295,7 +295,7 @@ table_def::~table_def()
     event_buf argument is not a pointer to const.
 
 */
-bool event_checksum_test(uchar *event_buf, ulong event_len,
+bool event_checksum_test(uchar *event_buf, size_t event_len,
                          enum_binlog_checksum_alg alg)
 {
   bool res= FALSE;

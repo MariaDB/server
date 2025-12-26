@@ -5949,7 +5949,9 @@ Rows_log_event_fragmenter::fragment()
 
   uint32_t last_chunk_size= (group_total_size % data_size_per_chunk);
   uint8_t last_chunk= last_chunk_size ? 1 : 0;
-  uint32_t num_chunks= (group_total_size / data_size_per_chunk) + last_chunk;
+  uint32_t num_chunks=
+      static_cast<uint32_t>((group_total_size / data_size_per_chunk)) +
+      last_chunk;
 
   fragments=
       DBUG_IF("oom_fragmenting_large_rows_ev")

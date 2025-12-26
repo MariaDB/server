@@ -6087,7 +6087,7 @@ bool slave_execute_deferred_events(THD *thd);
 #endif
 
 bool event_that_should_be_ignored(const uchar *buf);
-bool event_checksum_test(uchar *buf, ulong event_len,
+bool event_checksum_test(uchar *buf, size_t event_len,
                          enum_binlog_checksum_alg alg);
 enum_binlog_checksum_alg get_checksum_alg(const uchar *buf, size_t len);
 extern TYPELIB binlog_checksum_typelib;
