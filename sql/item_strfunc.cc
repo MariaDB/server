@@ -44,6 +44,7 @@
                                 // my_make_scrambled_password_323
 #include <m_ctype.h>
 #include <my_md5.h>
+#include "../mysys/xxhash.h"
 C_MODE_START
 #include "../mysys/my_static.h"			// For soundex_map
 C_MODE_END
@@ -4768,6 +4769,44 @@ longlong Item_func_crc32::val_int()
 
   return static_cast<longlong>
     (ulonglong{crc_func(uint32_t(crc), res->ptr(), res->length())});
+}
+
+longlong Item_func_xxh32::val_int()
+{
+  DBUG_ASSERT(fixed());
+  DBUG_ASSERT(arg_count == 1);
+  String *res;
+
+  null_value= 0;
+  res= args[0]->val_str(&value);
+
+  if (!res || res->length() == 0)
+  {
+    null_value=1;
+    return 0;
+  }
+
+  uint32_t h= XXH32((const void*) res->ptr(), res->length(), 0);
+  return static_cast<longlong>((ulonglong) h);
+}
+
+longlong Item_func_xxh3_64::val_int()
+{
+  DBUG_ASSERT(fixed());
+  DBUG_ASSERT(arg_count == 1);
+  String *res;
+
+  null_value= 0;
+  res= args[0]->val_str(&value);
+
+  if (!res || res->length() == 0)
+  {
+    null_value=1;
+    return 0;
+  }
+
+  uint64_t h= XXH3_64bits((const void*) res->ptr(), res->length());
+  return static_cast<longlong>((ulonglong) h);
 }
 
 #ifdef HAVE_COMPRESS
