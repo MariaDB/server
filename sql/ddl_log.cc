@@ -997,6 +997,7 @@ static void ddl_log_to_binary_log(THD *thd, String *query)
   query->length(query->length()-1);             // Removed end ','
   query->append(&end_comment);
   mysql_mutex_unlock(&LOCK_gdl);
+  thd->transaction->stmt.mark_trans_did_ddl();
   (void) thd->binlog_query(THD::STMT_QUERY_TYPE,
                            query->ptr(), query->length(),
                            TRUE, FALSE, FALSE, 0);
@@ -1737,6 +1738,7 @@ static int ddl_log_execute_action(THD *thd, MEM_ROOT *mem_root,
       {
         mysql_mutex_unlock(&LOCK_gdl);
         thd->db= ddl_log_entry->db;
+        thd->transaction->stmt.mark_trans_did_ddl();
         (void) thd->binlog_query(THD::STMT_QUERY_TYPE,
                                  recovery_state.drop_table.ptr(),
                                  recovery_state.drop_table.length(), TRUE, FALSE,
@@ -1777,6 +1779,7 @@ static int ddl_log_execute_action(THD *thd, MEM_ROOT *mem_root,
       if (mysql_bin_log.is_open())
       {
         mysql_mutex_unlock(&LOCK_gdl);
+        thd->transaction->stmt.mark_trans_did_ddl();
         (void) thd->binlog_query(THD::STMT_QUERY_TYPE,
                                  query->ptr(), query->length(),
                                  TRUE, FALSE, FALSE, 0);
@@ -1824,6 +1827,7 @@ static int ddl_log_execute_action(THD *thd, MEM_ROOT *mem_root,
       if (mysql_bin_log.is_open())
       {
         mysql_mutex_unlock(&LOCK_gdl);
+        thd->transaction->stmt.mark_trans_did_ddl();
         (void) thd->binlog_query(THD::STMT_QUERY_TYPE,
                                  query->ptr(), query->length(),
                                  TRUE, FALSE, FALSE, 0);
@@ -2250,6 +2254,7 @@ static int ddl_log_execute_action(THD *thd, MEM_ROOT *mem_root,
         mysql_mutex_unlock(&LOCK_gdl);
         save_db= thd->db;
         thd->db= recovery_state.db.to_lex_cstring();
+        thd->transaction->stmt.mark_trans_did_ddl();
         (void) thd->binlog_query(THD::STMT_QUERY_TYPE,
                                  recovery_state.query.ptr(),
                                  recovery_state.query.length(),
