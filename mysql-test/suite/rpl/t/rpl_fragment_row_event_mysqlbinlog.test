@@ -1,0 +1,166 @@
+#
+#   This file tests that row events which are larger than a server's configured
+# slave_max_allowed_packet will be fragmented into Partial_rows_log_event, that
+# the slave re-assembles to execute the event, and that mysqlbinlog replay is
+# consistent.
+#
+#   The following use cases are tested when replaying transactions via
+# traditional replication and mysqlbinlog.
+#
+#   Test cases done:
+#   1: Any Rows event type that surpasses slave_max_allowed_packet should be
+#     fragmented:
+#     a) Write_rows
+#     b) Update_rows
+#     c) Delete_rows
+#     d) Write_rows_compressed
+#     e) Update_rows_compressed
+#     f) Delete_rows_compressed
+#   2: A transaction with multiple Rows_log_events can be replicated
+#
+#
+#   Note this test users MTR variables to save old variables rather than user
+# variables because slave_max_allowed_packet is reset dynamically, and
+# connections are disconnected and reconnected to reset the value, as
+# FLUSH STATUS doesn't reset this value.
+#
+#   Also note this test duplicates some testing done in
+# rpl_fragment_row_event_main.test. This is because this file aims to test
+# mysqlbinlog replay correctness, and requires a debug build due to setting
+# debug_binlog_row_event_max_encoded_size, whereas the _main test does not need
+# a debug build, and does not test mysqlbinlog.
+#
+#
+# References:
+#   MDEV-28768: mysqlbinlog can produce events larger than max_allowed_packet
+#   MDEV-32570: Fragment ROW replication events larger than max_packet_size
+#
+
+# Debug is required for debug_binlog_row_event_max_encoded_size in .cnf file
+--source include/have_debug.inc
+
+--source include/have_sequence.inc
+--source include/have_innodb.inc
+--source include/have_binlog_format_row.inc
+--let $rpl_topology=1->2, 2->3
+--source include/rpl_init.inc
+
+
+--echo #
+--echo #
+--echo # Test setup
+
+# Option is enabled for all tests in this file
+--let $test_mysqlbinlog_replay= 1
+
+--connection server_1
+--let $server_1_old_slave_max_packet= `SELECT @@global.slave_max_allowed_packet`
+--let $server_1_old_net_buf= `SELECT @@global.net_buffer_length`
+set @@global.slave_max_allowed_packet= 1024;
+set @@global.net_buffer_length= 1024;
+--disconnect server_1
+--source include/wait_until_disconnected.inc
+--connect (server_1,127.0.0.1,root,,test,$SERVER_MYPORT_1,)
+
+--connection server_2
+--source include/stop_slave.inc
+--let $server_2_old_slave_max_packet= `SELECT @@global.slave_max_allowed_packet`
+--let $server_2_old_net_buf= `SELECT @@global.net_buffer_length`
+set @@global.slave_max_allowed_packet= 1024;
+set @@global.net_buffer_length= 1024;
+--disconnect server_2
+--source include/wait_until_disconnected.inc
+--connect (server_2,127.0.0.1,root,,test,$SERVER_MYPORT_2,)
+--source include/start_slave.inc
+
+--connection server_3
+--source include/stop_slave.inc
+--let $server_3_old_slave_max_packet= `SELECT @@global.slave_max_allowed_packet`
+--let $server_3_old_net_buf= `SELECT @@global.net_buffer_length`
+set @@global.slave_max_allowed_packet= 1024;
+set @@global.net_buffer_length= 1024;
+--disconnect server_3
+--source include/wait_until_disconnected.inc
+--connect (server_3,127.0.0.1,root,,test,$SERVER_MYPORT_3,)
+--source include/start_slave.inc
+
+
+
+--echo #
+--echo #
+--echo # Test cases 1a-1c) Regular row events that surpass
+--echo # slave_max_allowed_packet should be fragmented
+--source rpl_fragment_row_event.inc
+
+
+--echo #
+--echo #
+--echo # Test cases 1d-1f) Compressed row events that surpass
+--echo # slave_max_allowed_packet should be fragmented
+--connection server_1
+--let $old_s1_compress= `SELECT @@global.log_bin_compress`
+set @@global.log_bin_compress= 1;
+--connection server_2
+--let $old_s2_compress= `SELECT @@global.log_bin_compress`
+set @@global.log_bin_compress= 1;
+--connection server_3
+--let $old_s3_compress= `SELECT @@global.log_bin_compress`
+set @@global.log_bin_compress= 1;
+
+--source rpl_fragment_row_event.inc
+
+--connection server_1
+--eval set @@global.log_bin_compress= $old_s1_compress
+--connection server_2
+--eval set @@global.log_bin_compress= $old_s2_compress
+--connection server_3
+--eval set @@global.log_bin_compress= $old_s3_compress
+
+
+
+--echo #
+--echo #
+--echo # Test Case 2) A transaction with multiple Rows_log_events can be
+--echo # replicated
+
+--let $test_multi_table_trx= 1
+--let $test_show_binlog_events= 1
+--let $test_update= 0
+--let $test_delete= 0
+--source rpl_fragment_row_event.inc
+--let $test_multi_table_trx=
+--let $test_show_binlog_events=
+--let $test_update= 1
+--let $test_delete= 1
+
+
+--echo #
+--echo #
+--echo # Cleanup
+--connection server_1
+--eval set @@global.slave_max_allowed_packet= $server_1_old_slave_max_packet
+--eval set @@global.net_buffer_length= $server_1_old_net_buf
+--disconnect server_1
+--source include/wait_until_disconnected.inc
+--connect (server_1,127.0.0.1,root,,test,$SERVER_MYPORT_1,)
+
+--connection server_2
+--source include/stop_slave.inc
+--eval set @@global.slave_max_allowed_packet= $server_2_old_slave_max_packet
+--eval set @@global.net_buffer_length= $server_2_old_net_buf
+--source include/start_slave.inc
+--disconnect server_2
+--source include/wait_until_disconnected.inc
+--connect (server_2,127.0.0.1,root,,test,$SERVER_MYPORT_2,)
+
+--connection server_3
+--source include/stop_slave.inc
+--eval set @@global.slave_max_allowed_packet= $server_3_old_slave_max_packet
+--eval set @@global.net_buffer_length= $server_3_old_net_buf
+--source include/start_slave.inc
+--disconnect server_3
+--source include/wait_until_disconnected.inc
+--connect (server_3,127.0.0.1,root,,test,$SERVER_MYPORT_3,)
+
+--source include/rpl_end.inc
+--echo # End of rpl_fragment_row_event.test

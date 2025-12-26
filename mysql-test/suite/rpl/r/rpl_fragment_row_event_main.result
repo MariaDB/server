@@ -66,18 +66,6 @@ connection server_3;
 flush logs;
 # MYSQL_BINLOG binlog_file_param --result-file=binlog_analysis_file --base64-output=never
 NOT FOUND matches in binlog_insert_frags.out
-# Reset data state on server_2 for mysqlbinlog replay
-connection server_2;
-set statement sql_log_bin=0 for drop table t1;
-# MYSQL_BINLOG mysqld_datadir/binlog_insert_filename --result-file=binlog_analysis_file
-# Show how many Partial_rows_log_events use mysqlbinlog @0, @1 fragmentation (ev_len > 1024)
-FOUND 1 matches in binlog_base64_output.sql
-# Show how many Partial_rows_log_events use regular BINLOG base64 output (ev_len <= 1024)
-#  Note: 1 always comes from the Format_description_log_event
-FOUND 1 matches in binlog_base64_output.sql
-# MYSQL_SLAVE --init-command="set sql_log_bin=0" < binlog_analysis_file
-# Ensuring mysqlbinlog event replay is consistent..
-include/diff_tables.inc [server_1:test.t1, server_2:test.t1]
 #
 # Cleanup test case
 connection server_2;
@@ -141,18 +129,6 @@ flush logs;
 FOUND 2 matches in binlog_insert_frags.out
 Partial_rows (1 / 2)
 Partial_rows (2 / 2)
-# Reset data state on server_2 for mysqlbinlog replay
-connection server_2;
-set statement sql_log_bin=0 for drop table t1;
-# MYSQL_BINLOG mysqld_datadir/binlog_insert_filename --result-file=binlog_analysis_file
-# Show how many Partial_rows_log_events use mysqlbinlog @0, @1 fragmentation (ev_len > 1024)
-FOUND 1 matches in binlog_base64_output.sql
-# Show how many Partial_rows_log_events use regular BINLOG base64 output (ev_len <= 1024)
-#  Note: 1 always comes from the Format_description_log_event
-FOUND 2 matches in binlog_base64_output.sql
-# MYSQL_SLAVE --init-command="set sql_log_bin=0" < binlog_analysis_file
-# Ensuring mysqlbinlog event replay is consistent..
-include/diff_tables.inc [server_1:test.t1, server_2:test.t1]
 #
 # Cleanup test case
 connection server_2;
@@ -380,20 +356,6 @@ Partial_rows (3 / 6)
 Partial_rows (4 / 6)
 Partial_rows (5 / 6)
 Partial_rows (6 / 6)
-# Reset data state on server_2 for mysqlbinlog replay
-connection server_2;
-set statement sql_log_bin=0 for drop table t1;
-# MYSQL_BINLOG mysqld_datadir/binlog_insert_filename --result-file=binlog_analysis_file
-# Show how many Partial_rows_log_events use mysqlbinlog @0, @1 fragmentation (ev_len > 1024)
-FOUND 12 matches in binlog_base64_output.sql
-# Show how many Partial_rows_log_events use regular BINLOG base64 output (ev_len <= 1024)
-#  Note: 1 always comes from the Format_description_log_event
-FOUND 1 matches in binlog_base64_output.sql
-# MYSQL_SLAVE --init-command="set sql_log_bin=0" < binlog_analysis_file
-# MYSQL_BINLOG mysqld_datadir/binlog_update_filename | MYSQL_SLAVE --init-command="set sql_log_bin=0"
-# MYSQL_BINLOG mysqld_datadir/binlog_delete_filename | MYSQL_SLAVE --init-command="set sql_log_bin=0"
-# Ensuring mysqlbinlog event replay is consistent..
-include/diff_tables.inc [server_1:test.t1, server_2:test.t1]
 #
 # Cleanup test case
 connection server_2;
@@ -627,20 +589,6 @@ Partial_rows (3 / 6)
 Partial_rows (4 / 6)
 Partial_rows (5 / 6)
 Partial_rows (6 / 6)
-# Reset data state on server_2 for mysqlbinlog replay
-connection server_2;
-set statement sql_log_bin=0 for drop table t1;
-# MYSQL_BINLOG mysqld_datadir/binlog_insert_filename --result-file=binlog_analysis_file
-# Show how many Partial_rows_log_events use mysqlbinlog @0, @1 fragmentation (ev_len > 1024)
-FOUND 12 matches in binlog_base64_output.sql
-# Show how many Partial_rows_log_events use regular BINLOG base64 output (ev_len <= 1024)
-#  Note: 1 always comes from the Format_description_log_event
-FOUND 1 matches in binlog_base64_output.sql
-# MYSQL_SLAVE --init-command="set sql_log_bin=0" < binlog_analysis_file
-# MYSQL_BINLOG mysqld_datadir/binlog_update_filename | MYSQL_SLAVE --init-command="set sql_log_bin=0"
-# MYSQL_BINLOG mysqld_datadir/binlog_delete_filename | MYSQL_SLAVE --init-command="set sql_log_bin=0"
-# Ensuring mysqlbinlog event replay is consistent..
-include/diff_tables.inc [server_1:test.t1, server_2:test.t1]
 #
 # Cleanup test case
 connection server_2;
@@ -1325,20 +1273,6 @@ Partial_rows (3 / 6)
 Partial_rows (4 / 6)
 Partial_rows (5 / 6)
 Partial_rows (6 / 6)
-# Reset data state on server_2 for mysqlbinlog replay
-connection server_2;
-set statement sql_log_bin=0 for drop table t1;
-# MYSQL_BINLOG mysqld_datadir/binlog_insert_filename --result-file=binlog_analysis_file
-# Show how many Partial_rows_log_events use mysqlbinlog @0, @1 fragmentation (ev_len > 1024)
-FOUND 12 matches in binlog_base64_output.sql
-# Show how many Partial_rows_log_events use regular BINLOG base64 output (ev_len <= 1024)
-#  Note: 1 always comes from the Format_description_log_event
-FOUND 1 matches in binlog_base64_output.sql
-# MYSQL_SLAVE --init-command="set sql_log_bin=0" < binlog_analysis_file
-# MYSQL_BINLOG mysqld_datadir/binlog_update_filename | MYSQL_SLAVE --init-command="set sql_log_bin=0"
-# MYSQL_BINLOG mysqld_datadir/binlog_delete_filename | MYSQL_SLAVE --init-command="set sql_log_bin=0"
-# Ensuring mysqlbinlog event replay is consistent..
-include/diff_tables.inc [server_1:test.t1, server_2:test.t1]
 #
 # Cleanup test case
 connection server_2;
@@ -1574,19 +1508,6 @@ master-bin.000021	#	Partial_rows	#	#	Fragment 5 of 6
 master-bin.000021	#	Partial_rows	#	#	Fragment 6 of 6
 master-bin.000021	#	Xid	#	#	COMMIT /* XID */
 master-bin.000021	#	Rotate	#	#	master-bin.000022;pos=POS
-# Reset data state on server_2 for mysqlbinlog replay
-connection server_2;
-set statement sql_log_bin=0 for drop table t1;
-set statement sql_log_bin=0 for drop table t2;
-# MYSQL_BINLOG mysqld_datadir/binlog_insert_filename --result-file=binlog_analysis_file
-# Show how many Partial_rows_log_events use mysqlbinlog @0, @1 fragmentation (ev_len > 1024)
-FOUND 18 matches in binlog_base64_output.sql
-# Show how many Partial_rows_log_events use regular BINLOG base64 output (ev_len <= 1024)
-#  Note: 1 always comes from the Format_description_log_event
-FOUND 1 matches in binlog_base64_output.sql
-# MYSQL_SLAVE --init-command="set sql_log_bin=0" < binlog_analysis_file
-# Ensuring mysqlbinlog event replay is consistent..
-include/diff_tables.inc [server_1:test.t1, server_2:test.t1]
 #
 # Cleanup test case
 connection server_2;

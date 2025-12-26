@@ -4,7 +4,7 @@
 # the slave re-assembles to execute the event.
 #
 #   The following use cases are tested when replaying transactions via
-# traditional replication, as well as mysqlbinlog when applicable.
+# traditional replication.
 #
 #   Test cases done:
 #   1: Boundary testing of event size vs slave_max_allowed_packet
@@ -43,7 +43,6 @@
 #   MDEV-28768: mysqlbinlog can produce events larger than max_allowed_packet
 #   MDEV-32570: Fragment ROW replication events larger than max_packet_size
 #
-
 --source include/have_sequence.inc
 --source include/have_innodb.inc
 --source include/have_binlog_format_row.inc
@@ -54,6 +53,10 @@
 --echo #
 --echo #
 --echo # Test setup
+
+# Option is disabled for all tests in this file
+--let $test_mysqlbinlog_replay=
+
 --connection server_1
 --let $server_1_old_slave_max_packet= `SELECT @@global.slave_max_allowed_packet`
 --let $server_1_old_net_buf= `SELECT @@global.net_buffer_length`
@@ -100,7 +103,6 @@ set @@global.net_buffer_length= 1024;
 --echo # slave_max_allowed_packet minus the Rows_log event metadata (e.g.
 --echo # headers)) should not fragment, and replication replay should work both
 --echo # via traditional replication as well as mysqlbinlog.
---let $test_mysqlbinlog_replay= 1
 --let $test_update=0
 --let $test_delete=0
 --let $insert_size=$max_unfragged_ev
@@ -124,8 +126,6 @@ set @@global.net_buffer_length= 1024;
 --echo #
 --echo # Test cases 2a-2c) Regular row events that surpass
 --echo # slave_max_allowed_packet should be fragmented
-
---let $test_mysqlbinlog_replay= 1
 --source rpl_fragment_row_event.inc
 
 
@@ -144,7 +144,6 @@ set @@global.log_bin_compress= 1;
 set @@global.log_bin_compress= 1;
 
 --source rpl_fragment_row_event.inc
---let $test_mysqlbinlog_replay=
 
 --connection server_1
 --eval set @@global.log_bin_compress= $old_s1_compress
@@ -179,7 +178,6 @@ set @@global.slave_parallel_threads= 4;
 set @@global.slave_parallel_threads= 4;
 --source include/start_slave.inc
 
---let $test_mysqlbinlog_replay= 1
 --source rpl_fragment_row_event.inc
 
 --connection server_2
@@ -197,13 +195,11 @@ set @@global.slave_parallel_threads= 4;
 --echo # Test Case 5) A transaction with multiple Rows_log_events can be
 --echo # replicated
 
---let $test_mysqlbinlog_replay= 1
 --let $test_multi_table_trx= 1
 --let $test_show_binlog_events= 1
 --let $test_update= 0
 --let $test_delete= 0
 --source rpl_fragment_row_event.inc
---let $test_mysqlbinlog_replay=
 --let $test_multi_table_trx=
 --let $test_show_binlog_events=
 --let $test_update= 1
@@ -217,7 +213,6 @@ set @@global.slave_parallel_threads= 4;
 
 --let $server_2_max_packet=16384
 --let $server_3_max_packet=16384
---let $test_mysqlbinlog_replay= 0
 --source rpl_fragment_row_event.inc
 --let $server_2_max_packet=
 --let $server_3_max_packet=
