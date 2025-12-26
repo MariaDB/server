@@ -2200,6 +2200,46 @@ public:
   { return get_item_copy<Item_func_crc32>(thd, this); }
 };
 
+class Item_func_xxh32 : public Item_long_func
+{
+  bool check_arguments() const override
+  {
+    return args[0]->check_type_can_return_str(func_name_cstring());
+  }
+  String value;
+public:
+  Item_func_xxh32(THD *thd, Item *a) : Item_long_func(thd, a) { unsigned_flag=1; }
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING name= {STRING_WITH_LEN("XXH32") };
+    return name;
+  }
+  bool fix_length_and_dec(THD *thd) override { max_length=10; set_maybe_null(); return FALSE; }
+  longlong val_int() override;
+  Item *do_get_copy(THD *thd) const override
+  { return get_item_copy<Item_func_xxh32>(thd, this); }
+};
+
+class Item_func_xxh3_64 : public Item_longlong_func
+{
+  bool check_arguments() const override
+  {
+    return args[0]->check_type_can_return_str(func_name_cstring());
+  }
+  String value;
+public:
+  Item_func_xxh3_64(THD *thd, Item *a) : Item_longlong_func(thd, a) { unsigned_flag=1; }
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING name= {STRING_WITH_LEN("XXH3") };
+    return name;
+  }
+  bool fix_length_and_dec(THD *thd) override { max_length=20; set_maybe_null(); return FALSE; }
+  longlong val_int() override;
+  Item *do_get_copy(THD *thd) const override
+  { return get_item_copy<Item_func_xxh3_64>(thd, this); }
+};
+
 class Item_func_uncompressed_length : public Item_long_func_length
 {
   String value;
