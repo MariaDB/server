@@ -1269,8 +1269,9 @@ Log_event *Log_event::read_log_event_no_checksum(
       break;
 #endif
   case PARTIAL_ROW_DATA_EVENT:
-    ev= new Partial_rows_log_event(buf, event_len, fdle);
-    break;
+      DBUG_ASSERT(event_len <= UINT32_MAX);
+      ev= new Partial_rows_log_event(buf, static_cast<uint>(event_len), fdle);
+      break;
     case BEGIN_LOAD_QUERY_EVENT:
       DBUG_ASSERT(event_len <= UINT32_MAX);
       ev= new Begin_load_query_log_event(buf, static_cast<uint>(event_len),
