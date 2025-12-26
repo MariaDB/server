@@ -140,66 +140,30 @@ SHOW WARNINGS;
 Level	Code	Message
 Note	1213	TIMESTAMP 0xTHD
 *** (1) TRANSACTION:
-TRANSACTION 59, ACTIVE 0 sec inserting
+TRANSACTION TRX_ID, ACTIVE N sec inserting
 mysql tables in use 2, locked 2
-LOCK WAIT 5 lock struct(s), heap size 1144, 3 row lock(s)
-MariaDB thread id 3, OS thread handle TID, query id 57 localhost root Sending data
+LOCK WAIT N lock struct(s), heap size N, N row lock(s)
+MariaDB thread id TID, OS thread handle TID, query id QID localhost root Sending data
 INSERT INTO t1(col2) SELECT col2 from t1
 *** WAITING FOR THIS LOCK TO BE GRANTED:
-RECORD LOCKS space id 10 page no 3 n bits 320 index PRIMARY of table `test`.`t1` trx id 59 lock_mode X insert intention waiting
-Record lock, heap no 1 PHYSICAL RECORD: n_fields 1; compact format; info bits 0
- 0: len 8; hex 73757072656d756d; asc supremum;;
-
-*** CONFLICTING WITH:
-RECORD LOCKS space id 10 page no 3 n bits 320 index PRIMARY of table `test`.`t1` trx id 58 lock_mode X
-Record lock, heap no 1 PHYSICAL RECORD: n_fields 1; compact format; info bits 0
- 0: len 8; hex 73757072656d756d; asc supremum;;
-
-RECORD LOCKS space id 10 page no 3 n bits 320 index PRIMARY of table `test`.`t1` trx id 59 lock mode S
-Record lock, heap no 1 PHYSICAL RECORD: n_fields 1; compact format; info bits 0
- 0: len 8; hex 73757072656d756d; asc supremum;;
-
-Record lock, heap no 2 PHYSICAL RECORD: n_fields 4; compact format; info bits 0
- 0: len 4; hex 80000001; asc     ;;
- 1: len 6; hex 000000000037; asc      7;;
- 2: len 7; hex 91000000320110; asc     2  ;;
- 3: len 4; hex 80000064; asc    d;;
-
-
-*** (2) TRANSACTION:
-TRANSACTION 58, ACTIVE 0 sec inserting
-mysql tables in use 1, locked 1
-LOCK WAIT 4 lock struct(s), heap size 1144, 2 row lock(s)
-MariaDB thread id 7, OS thread handle TID, query id 54 localhost root Update
-INSERT INTO t2 values(100)
-*** WAITING FOR THIS LOCK TO BE GRANTED:
-RECORD LOCKS space id 11 page no 3 n bits 320 index PRIMARY of table `test`.`t2` trx id 58 lock mode S locks rec but not gap waiting
-Record lock, heap no 2 PHYSICAL RECORD: n_fields 3; compact format; info bits 0
- 0: len 4; hex 80000064; asc    d;;
- 1: len 6; hex 000000000039; asc      9;;
- 2: len 7; hex 92000000320110; asc     2  ;;
-
-*** CONFLICTING WITH:
-RECORD LOCKS space id 11 page no 3 n bits 320 index PRIMARY of table `test`.`t2` trx id 57 lock_mode X locks rec but not gap
-Record lock, heap no 2 PHYSICAL RECORD: n_fields 3; compact format; info bits 0
- 0: len 4; hex 80000064; asc    d;;
- 1: len 6; hex 000000000039; asc      9;;
- 2: len 7; hex 92000000320110; asc     2  ;;
+RECORD LOCKS space id ID page no N n bits N index PRIMARY of table `test`.`t1` trx id TRX_ID lock_mode X insert intention waiting
+Record lock, heap no 1 PHYSICAL RECORD: n_fields N; compact format; info bits N
+ 0: len 8; hex HEX; asc DATA;;
 
 
 *** (3) TRANSACTION:
-TRANSACTION 57, ACTIVE 0 sec setting auto-inc lock
+TRANSACTION TRX_ID, ACTIVE N sec setting auto-inc lock
 mysql tables in use 1, locked 1
-LOCK WAIT 3 lock struct(s), heap size 1144, 1 row lock(s), undo log entries 1
-MariaDB thread id 6, OS thread handle TID, query id 61 localhost root Update
+LOCK WAIT N lock struct(s), heap size N, N row lock(s), undo log entries N
+MariaDB thread id TID, OS thread handle TID, query id QID localhost root Update
 INSERT INTO t1(col2) VALUES(200)
 *** WAITING FOR THIS LOCK TO BE GRANTED:
-TABLE LOCK table `test`.`t1` trx id 57 lock mode AUTO-INC waiting
+TABLE LOCK table `test`.`t1` trx id TRX_ID lock mode AUTO-INC waiting
 *** CONFLICTING WITH:
-TABLE LOCK table `test`.`t1` trx id 58 lock mode IX
-TABLE LOCK table `test`.`t1` trx id 59 lock mode IS
-TABLE LOCK table `test`.`t1` trx id 59 lock mode AUTO-INC
-TABLE LOCK table `test`.`t1` trx id 59 lock mode IX
+TABLE LOCK table `test`.`t1` trx id TRX_ID lock mode IX
+TABLE LOCK table `test`.`t1` trx id TRX_ID lock mode IS
+TABLE LOCK table `test`.`t1` trx id TRX_ID lock mode AUTO-INC
+TABLE LOCK table `test`.`t1` trx id TRX_ID lock mode IX
 *** WE ROLL BACK TRANSACTION (1)
 Error	1467	Failed to read auto-increment value from storage engine
 # The transaction should have been rolled back

@@ -7305,36 +7305,32 @@ and less modified rows. Bit 0 is used to prefer orig_trx in case of a tie.
         }
         snprintf(buf, sizeof buf, rollback_msg, victim_pos);
         print(buf);
-
-        if (srv_print_all_deadlocks)
-        {
-          long len= ftell(lock_latest_err_file);
-          if (len <= 0)
-            goto captured;
-          deadlock_info= static_cast<char*>(ut_malloc_nokey(
-            static_cast<size_t>(len) + 1));
-          if (!deadlock_info)
-            goto captured;
-          rewind(lock_latest_err_file);
-          size_t deadlock_info_len= fread(deadlock_info, 1,
-                                          static_cast<size_t>(len),
-                                          lock_latest_err_file);
-          ut_ad(deadlock_info_len <= static_cast<size_t>(len));
-          if (deadlock_info[deadlock_info_len - 1] == '\n')
-            --deadlock_info_len;
-          deadlock_info[deadlock_info_len]= '\0';
-        }
-        captured:;
       }
 
       DBUG_EXECUTE_IF("innodb_deadlock_victim_self", victim= trx;);
       ut_ad(victim->state == TRX_STATE_ACTIVE);
 
-      /* victim->lock.was_chosen_as_deadlock_victim must always be set before
-      releasing waiting locks and resetting trx->lock.wait_lock */
       victim->lock.was_chosen_as_deadlock_victim= true;
       DEBUG_SYNC_C("deadlock_report_before_lock_releasing");
       lock_cancel_waiting_and_release<true>(victim->lock.wait_lock);
+
+      if (!srv_print_all_deadlocks)
+        goto func_exit;
+      long len= ftell(lock_latest_err_file);
+      if (len <= 0)
+        goto func_exit;
+      deadlock_info= static_cast<char*>(ut_malloc_nokey(
+        static_cast<size_t>(len) + 1));
+      if (!deadlock_info)
+        goto func_exit;
+      rewind(lock_latest_err_file);
+      size_t deadlock_info_len= fread(deadlock_info, 1,
+                                      static_cast<size_t>(len),
+                                      lock_latest_err_file);
+      ut_ad(deadlock_info_len <= static_cast<size_t>(len));
+      if (deadlock_info[deadlock_info_len - 1] == '\n')
+        --deadlock_info_len;
+      deadlock_info[deadlock_info_len]= '\0';
     }
 
 func_exit:
