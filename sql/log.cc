@@ -7242,6 +7242,12 @@ MYSQL_BIN_LOG::write_gtid_event(THD *thd, bool standalone,
   Gtid_log_event gtid_event(thd, seq_no, domain_id, standalone,
                             LOG_EVENT_SUPPRESS_USE_F, is_transactional,
                             commit_id, has_xid, is_ro_1pc);
+  /*
+    Check that any binlogging during DDL recovery preserves the FL_DLL flag
+    on the GTID event.
+  */
+  DBUG_ASSERT((gtid_event.flags2 & Gtid_log_event::FL_DDL) ||
+              !is_in_ddl_recovery);
 
   /* Write the event to the binary log. */
   DBUG_ASSERT(this == &mysql_bin_log);
