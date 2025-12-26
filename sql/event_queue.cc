@@ -517,7 +517,7 @@ Event_queue::empty_queue()
   DBUG_ENTER("Event_queue::empty_queue");
   DBUG_PRINT("enter", ("Purging the queue. %u element(s)", queue.elements));
 
-  if (queue.elements)
+  if (queue.elements && global_system_variables.log_warnings > 2)
     sql_print_information("Event Scheduler: Purging the queue. %u events",
                           queue.elements);
   /* empty the queue */
@@ -668,9 +668,10 @@ Event_queue::get_top_for_execution_if_time(THD *thd,
     if (top->status == Event_parse_data::DISABLED)
     {
       DBUG_PRINT("info", ("removing from the queue"));
-      sql_print_information("Event Scheduler: Last execution of %s.%s. %s",
-                            top->dbname.str, top->name.str,
-                            top->dropped? "Dropping.":"");
+      if (global_system_variables.log_warnings > 2)
+        sql_print_information("Event Scheduler: Last execution of %s.%s. %s",
+                              top->dbname.str, top->name.str,
+                              top->dropped? "Dropping.":"");
       delete top;
       queue_remove_top(&queue);
     }
