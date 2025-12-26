@@ -10745,6 +10745,16 @@ bool mysql_alter_table(THD *thd, const LEX_CSTRING *new_db,
   DDL_LOG_STATE ddl_log_state;
   Turn_errors_to_warnings_handler errors_to_warnings;
   HA_CHECK_OPT check_opt;
+
+  /*
+    Various operations as part of the ALTER may cause call to trans_commit()
+    or otherwise cause wakeup_subsequent_commits() before completion. So
+    suspend those wakeups temporarily.
+  */
+  std::unique_ptr<wait_for_commit, std::function<void(wait_for_commit *)> >
+    suspended_wfc(thd->suspend_subsequent_commits(),
+        [thd](wait_for_commit *wfc) { thd->resume_subsequent_commits(wfc); });
+
 #ifdef WITH_PARTITION_STORAGE_ENGINE
   bool partition_changed= false;
 #endif
