@@ -315,17 +315,6 @@ OPEN_TABLE_LIST *list_open_tables(THD *thd,
   DBUG_RETURN(argument.open_list);
 }
 
-/**
-  Check if flush should ignore this table
-  Now it only checks for global temporary tables in non-replica connections.
-*/
-static int flush_ignore_table(THD *thd, TABLE_LIST *tl)
-{
-  // Ignore if tl refers to an open global temporary table.
-  return thd->has_open_global_temporary_tables() &&
-         thd->find_tmp_table_share(tl, Tmp_table_kind::GLOBAL);
-}
-
 
 /**
    Close all tables that are not in use in table definition cache
@@ -463,8 +452,7 @@ bool close_cached_tables(THD *thd, TABLE_LIST *tables,
       DBUG_RETURN(true);
 
     for (TABLE_LIST *table= tables; table; table= table->next_local)
-      if (!flush_ignore_table(thd, table))
-        tdc_remove_table(thd, table->db.str, table->table_name.str);
+      tdc_remove_table(thd, table->db.str, table->table_name.str);
   }
   DBUG_RETURN(false);
 }
