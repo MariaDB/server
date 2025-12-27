@@ -5,8 +5,8 @@ drop table t1;
 call mtr.add_suppression ("Slave I/O: Got fatal error 1236 from master when reading data from binary");
 call mtr.add_suppression ("Error in Log_event::read_log_event");
 show master status;
-File	Position	Binlog_Do_DB	Binlog_Ignore_DB
-master-bin.000001	#	<Binlog_Do_DB>	<Binlog_Ignore_DB>
+File	Position	Binlog_Do_DB	Binlog_Ignore_DB	Gtid_Binlog_Pos
+master-bin.000001	#	<Binlog_Do_DB>	<Binlog_Ignore_DB>	0-1-4
 connection slave;
 include/stop_slave.inc
 change master to master_log_pos=MASTER_LOG_POS, master_use_gtid=no;
@@ -16,8 +16,8 @@ Last_IO_Error = 'Got fatal error 1236 from master when reading data from binary 
 include/stop_slave_sql.inc
 connection master;
 show master status;
-File	Position	Binlog_Do_DB	Binlog_Ignore_DB
-master-bin.000001	#	<Binlog_Do_DB>	<Binlog_Ignore_DB>
+File	Position	Binlog_Do_DB	Binlog_Ignore_DB	Gtid_Binlog_Pos
+master-bin.000001	#	<Binlog_Do_DB>	<Binlog_Ignore_DB>	0-1-4
 create table if not exists t1 (n int);
 drop table if exists t1;
 create table t1 (n int);

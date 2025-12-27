@@ -5,8 +5,8 @@ include/kill_binlog_dump_threads.inc
 connection master;
 reset master;
 show master status;
-File	Position	Binlog_Do_DB	Binlog_Ignore_DB
-master-bin.000001	#	<Binlog_Do_DB>	<Binlog_Ignore_DB>
+File	Position	Binlog_Do_DB	Binlog_Ignore_DB	Gtid_Binlog_Pos
+master-bin.000001	#	<Binlog_Do_DB>	<Binlog_Ignore_DB>	
 connection slave;
 reset slave;
 change master to master_host='::1';
@@ -21,8 +21,8 @@ include/kill_binlog_dump_threads.inc
 connection master;
 reset master;
 show master status;
-File	Position	Binlog_Do_DB	Binlog_Ignore_DB
-master-bin.000001	#	<Binlog_Do_DB>	<Binlog_Ignore_DB>
+File	Position	Binlog_Do_DB	Binlog_Ignore_DB	Gtid_Binlog_Pos
+master-bin.000001	#	<Binlog_Do_DB>	<Binlog_Ignore_DB>	
 connection slave;
 reset slave;
 change master to master_host='0000:0000:0000:0000:0000:0000:0000:0001';
@@ -37,8 +37,8 @@ include/kill_binlog_dump_threads.inc
 connection master;
 reset master;
 show master status;
-File	Position	Binlog_Do_DB	Binlog_Ignore_DB
-master-bin.000001	#	<Binlog_Do_DB>	<Binlog_Ignore_DB>
+File	Position	Binlog_Do_DB	Binlog_Ignore_DB	Gtid_Binlog_Pos
+master-bin.000001	#	<Binlog_Do_DB>	<Binlog_Ignore_DB>	
 connection slave;
 reset slave;
 change master to master_host='0:0:0:0:0:0:0:1';
@@ -52,8 +52,8 @@ connect  slave,127.0.0.1,root,,test,$SLAVE_MYPORT;
 connection master;
 reset master;
 show master status;
-File	Position	Binlog_Do_DB	Binlog_Ignore_DB
-master-bin.000001	#	<Binlog_Do_DB>	<Binlog_Ignore_DB>
+File	Position	Binlog_Do_DB	Binlog_Ignore_DB	Gtid_Binlog_Pos
+master-bin.000001	#	<Binlog_Do_DB>	<Binlog_Ignore_DB>	
 connection slave;
 reset slave;
 Master-Host: 0:0:0:0:0:0:0:1

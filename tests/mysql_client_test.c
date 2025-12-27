@@ -476,7 +476,7 @@ static void test_prepare_simple()
   strmov(query, "SHOW MASTER STATUS");
   stmt= mysql_simple_prepare(mysql, query);
   check_stmt(stmt);
-  DIE_UNLESS(mysql_stmt_field_count(stmt) == 4);
+  DIE_UNLESS(mysql_stmt_field_count(stmt) == 5);
   mysql_stmt_close(stmt);
 
   /* show create procedure */
