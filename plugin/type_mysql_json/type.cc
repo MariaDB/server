@@ -37,7 +37,11 @@ public:
   Field *make_table_field(MEM_ROOT *, const LEX_CSTRING *,
                           const Record_addr &, const Type_all_attributes &,
                           TABLE_SHARE *) const override;
-  bool Column_definition_fix_attributes(Column_definition *c) const override
+  bool Column_definition_set_attributes(THD *thd,
+                                        Column_definition *def,
+                                        const Lex_field_type_st &attr,
+                                        column_definition_type_t type)
+                                                        const override
   {
     my_error(ER_NOT_ALLOWED_IN_THIS_CONTEXT, MYF(0), "MYSQL_JSON");
     return true;

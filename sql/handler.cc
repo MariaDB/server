@@ -8785,7 +8785,9 @@ static Create_field *vers_init_sys_field(THD *thd,
   else
   {
     f->set_handler(&type_handler_timestamp2);
-    f->length= MAX_DATETIME_PRECISION;
+    f->length= MAX_DATETIME_FULL_WIDTH;
+    f->decimals= MAX_DATETIME_PRECISION;
+    f->flags|= UNSIGNED_FLAG;
   }
   f->invisible= DBUG_IF("sysvers_show") ? VISIBLE : INVISIBLE_SYSTEM;
 

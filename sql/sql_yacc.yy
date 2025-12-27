@@ -6307,25 +6307,24 @@ field_spec:
         ;
 
 field_type_or_serial:
-          qualified_field_type
+          qualified_field_type field_def
           {
+            auto tmp= $1.charset_collation_attrs();
+            if (tmp.merge_column_charset_clause_and_collate_clause(
+                     thd, thd->variables.character_set_collations, $2))
+              MYSQL_YYABORT;
+            $1.set_charset_collation_attrs(tmp);
             if (Lex->last_field->set_attributes(thd, $1,
                                                 COLUMN_DEFINITION_TABLE_FIELD))
               MYSQL_YYABORT;
           }
-          field_def
-          {
-            auto tmp= $1.charset_collation_attrs();
-            if (tmp.merge_column_charset_clause_and_collate_clause(
-                     thd, thd->variables.character_set_collations, $3))
-              MYSQL_YYABORT;
-            Lex->last_field->set_charset_collation_attrs(
-                               thd, thd->variables.character_set_collations,
-                               tmp);
-          }
         | SERIAL_SYM
           {
-            Lex->last_field->set_handler(&type_handler_ulonglong);
+            Lex_field_type_st field_type;
+            field_type.set(&type_handler_ulonglong,
+                           Lex_length_and_dec_st::empty());
+            Lex->last_field->set_attributes(thd, field_type,
+                                            COLUMN_DEFINITION_TABLE_FIELD);
             Lex->last_field->flags|= AUTO_INCREMENT_FLAG | NOT_NULL_FLAG
                                      | UNSIGNED_FLAG | UNIQUE_KEY_FLAG;
             Lex->alter_info.flags|= ALTER_ADD_INDEX;

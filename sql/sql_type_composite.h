@@ -101,10 +101,6 @@ public:
     MY_ASSERT_UNREACHABLE();
     return nullptr;
   }
-  bool Column_definition_fix_attributes(Column_definition *) const override
-  {
-    return false;
-  }
   void Column_definition_reuse_fix_attributes(THD *, Column_definition *,
                                               const Field *) const override
   {
