@@ -3661,7 +3661,7 @@ static void innodb_extended_buffer_pool_size_update(THD *thd,
 {
   buf_pool.extended_pages=
       (*static_cast<const size_t *>(save) >> srv_page_size_shift);
-  buf_pool.extended_size= buf_pool.extended_pages << srv_page_size_shift;
+  fil_system.ext_bp_size= buf_pool.extended_pages << srv_page_size_shift;
 }
 
 #ifdef UNIV_DEBUG
@@ -3724,14 +3724,14 @@ static MYSQL_SYSVAR_UINT(log_write_ahead_size, log_sys.write_size,
   "Redo log write size to avoid read-on-write; must be a power of two",
   nullptr, nullptr, 512, 512, 4096, 1);
 
-static MYSQL_SYSVAR_SIZE_T(extended_buffer_pool_size, buf_pool.extended_size,
+static MYSQL_SYSVAR_SIZE_T(extended_buffer_pool_size, fil_system.ext_bp_size,
   PLUGIN_VAR_RQCMDARG,
   "The extended buffer pool file size",
   nullptr, innodb_extended_buffer_pool_size_update,
   // TODO: set correct min and max values here.
   0, 0, SIZE_T_MAX, 0);
 
-static MYSQL_SYSVAR_STR(extended_buffer_pool_path, buf_pool.extended_path,
+static MYSQL_SYSVAR_STR(extended_buffer_pool_path, fil_system.ext_bp_path,
   PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
   "Path to extended buffer pool file",
   nullptr, nullptr, nullptr);
@@ -3874,7 +3874,7 @@ static int innodb_init_params()
     buf_pool.size_in_bytes_max;
 #endif
 
-  buf_pool.extended_pages = buf_pool.extended_size >> srv_page_size_shift;
+  buf_pool.extended_pages = fil_system.ext_bp_size >> srv_page_size_shift;
 
   if (innodb_buffer_pool_size < min)
   {

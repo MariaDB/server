@@ -1445,8 +1445,24 @@ public:
   mysql_mutex_t mutex;
 	fil_space_t*	sys_space;	/*!< The innodb_system tablespace */
 	fil_space_t*	temp_space;	/*!< The innodb_temporary tablespace */
-  /** External buffer pool space */
-  fil_space_t* ext_bp_space;
+private:
+  pfs_os_file_t ext_bp_file;
+
+public:
+
+  /** Extended buffer pool file path */
+  char  *ext_bp_path;
+
+  /** Extended buffer pool file size, equals to 0 if extended buffer pool is
+  not used. */
+  size_t ext_bp_size;
+
+  /** Create external buffer pool file.
+  @return whether the creation failed */
+  bool create_ext_file();
+  dberr_t ext_bp_io(buf_page_t &bpage, ext_buf_page_t &ext_buf_page,
+                    IORequest::Type io_request_type, buf_tmp_buffer_t *slot,
+                    size_t len, void *buf) noexcept;
 
   /** Map of fil_space_t::id to fil_space_t* */
   hash_table_t spaces;

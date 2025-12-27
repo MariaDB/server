@@ -1186,15 +1186,9 @@ public:
 #endif
   /** The maximum allowed innodb_buffer_pool_size */
   size_t size_in_bytes_max;
-
   /** Amount of pages in extended buffr pool file and the size of
   ext_buf_pages_array */
   size_t extended_pages;
-  /** Extended buffer pool file size, equals to 0 if extended buffer pool is
-  not used. */
-  size_t extended_size;
-  /** Extended buffer pool file path */
-  char  *extended_path;
 #ifdef UNIV_DEBUG
   my_bool force_LRU_eviction_to_ebp;
 #endif
@@ -1307,10 +1301,6 @@ public:
   /** Create the buffer pool.
   @return whether the creation failed */
   bool create() noexcept;
-
-  /** Create external buffer pool file.
-  @return whether the creation failed */
-  bool create_ext_file();
 
   /** Clean up after successful create() */
   void close() noexcept;

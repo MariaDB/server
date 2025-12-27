@@ -31,8 +31,6 @@ Created May 26, 2009 Vasil Dimov
 constexpr uint32_t SRV_SPACE_ID_UPPER_BOUND= 0xFFFFFFF0U;
 /** The fil_space_t::id of the innodb_temporary tablespace. */
 constexpr uint32_t SRV_TMP_SPACE_ID= 0xFFFFFFFEU;
-/** The fil_space_t::id of the external buffer pool tablespace. */
-constexpr uint32_t SRV_EXT_BP_SPACE_ID= 0xFFFFFFFDU;
 
 /* Possible values of innodb_compression_algorithm */
 #define PAGE_UNCOMPRESSED		0

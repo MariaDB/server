@@ -1435,7 +1435,7 @@ dberr_t srv_start(bool create_new_db)
 	}
 
 	if (srv_operation == SRV_OPERATION_NORMAL
-	    && buf_pool.extended_size && !buf_pool.create_ext_file())
+	    && fil_system.ext_bp_size && !fil_system.create_ext_file())
 		return(srv_init_abort(DB_ERROR));
 
 	log_sys.create();

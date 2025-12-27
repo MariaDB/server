@@ -684,7 +684,7 @@ bool buf_dblwr_t::flush_buffered_writes(const ulint size) noexcept
 #ifdef UNIV_DEBUG
   for (ulint len2= 0, i= 0; i < old_first_free; len2 += srv_page_size, i++)
   {
-    buf_page_t *bpage= flush_slot->buf_block_arr[i].request.bpage;
+    buf_page_t *bpage= flush_slot->buf_block_arr[i].request.bpage();
 
     if (bpage->zip.data)
       /* No simple validate for ROW_FORMAT=COMPRESSED pages exists. */
@@ -720,7 +720,7 @@ static void *get_frame(const IORequest &request) noexcept
 {
   if (request.slot)
     return request.slot->out_buf;
-  const buf_page_t *bpage= request.bpage;
+  const buf_page_t *bpage= request.bpage();
   return bpage->zip.data ? bpage->zip.data : bpage->frame;
 }
 
@@ -730,8 +730,8 @@ void buf_dblwr_t::flush_buffered_writes_completed(const IORequest &request)
   ut_ad(this == &buf_dblwr);
   ut_ad(is_created());
   ut_ad(!srv_read_only_mode);
-  ut_ad(!request.bpage);
-  ut_ad(request.node == fil_system.sys_space->chain.start);
+  ut_ad(!request.bpage());
+  ut_ad(request.node() == fil_system.sys_space->chain.start);
   ut_ad(request.type == IORequest::DBLWR_BATCH);
   mysql_mutex_lock(&mutex);
   ut_ad(batch_running);
@@ -757,14 +757,14 @@ void buf_dblwr_t::flush_buffered_writes_completed(const IORequest &request)
   log_checkpoint(). Writes to the system tablespace should be rare,
   except when executing DDL or using the non-default settings
   innodb_file_per_table=OFF or innodb_undo_tablespaces=0. */
-  os_file_flush(request.node->handle);
+  os_file_flush(request.node()->handle);
 
   /* The writes have been flushed to disk now and in recovery we will
   find them in the doublewrite buffer blocks. Next, write the data pages. */
   for (ulint i= 0, first_free= flush_slot->first_free; i < first_free; i++)
   {
     auto e= flush_slot->buf_block_arr[i];
-    buf_page_t* bpage= e.request.bpage;
+    buf_page_t* bpage= e.request.bpage();
     ut_ad(bpage->in_file());
 
     void *frame= get_frame(e.request);
@@ -789,10 +789,10 @@ void buf_dblwr_t::flush_buffered_writes_completed(const IORequest &request)
     ut_ad(lsn);
     ut_ad(lsn >= bpage->oldest_modification());
     log_write_up_to(lsn, true);
-    ut_ad(!e.request.node->space->full_crc32() ||
+    ut_ad(!e.request.node()->space->full_crc32() ||
           !buf_page_is_corrupted(true, static_cast<const byte*>(frame),
-                                 e.request.node->space->flags));
-    e.request.node->space->io(e.request, bpage->physical_offset(), e_size,
+                                 e.request.node()->space->flags));
+    e.request.node()->space->io(e.request, bpage->physical_offset(), e_size,
                               frame, bpage);
   }
 }
@@ -824,13 +824,13 @@ flush_buffered_writes() will be invoked to make space.
 @param size       payload size in bytes */
 void buf_dblwr_t::add_to_batch(const IORequest &request, size_t size) noexcept
 {
-  ut_ad(request.bpage);
-  ut_ad(request.bpage->in_file());
-  ut_ad(request.node);
-  ut_ad(!request.node->space->is_temporary());
-  ut_ad(!request.node->space->is_being_imported());
-  ut_ad(request.node->space->id == request.bpage->id().space());
-  ut_ad(request.node->space->referenced());
+  ut_ad(request.bpage());
+  ut_ad(request.bpage()->in_file());
+  ut_ad(request.node());
+  ut_ad(!request.node()->space->is_temporary());
+  ut_ad(!request.node()->space->is_being_imported());
+  ut_ad(request.node()->space->id == request.bpage()->id().space());
+  ut_ad(request.node()->space->referenced());
   ut_ad(!srv_read_only_mode);
 
   const ulint buf_size= 2 * block_size;
@@ -858,7 +858,7 @@ void buf_dblwr_t::add_to_batch(const IORequest &request, size_t size) noexcept
   are integer multiples of 256, so the above can translate into simple
   SIMD instructions. Currently, we make no such assumptions about the
   non-pointer parameters that are passed to the _aligned templates. */
-  ut_ad(!request.bpage->zip_size() || request.bpage->zip_size() == size);
+  ut_ad(!request.bpage()->zip_size() || request.bpage()->zip_size() == size);
   ut_ad(active_slot->reserved == active_slot->first_free);
   ut_ad(active_slot->reserved < buf_size);
   new (active_slot->buf_block_arr + active_slot->first_free++)

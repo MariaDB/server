@@ -59,6 +59,9 @@ Created 10/25/1995 Heikki Tuuri
 #include "bzlib.h"
 #include "snappy-c.h"
 
+/* External buffer pool file name */
+const char *ext_bp_file_name= "ext_buffer_pool";
+
 ATTRIBUTE_COLD bool fil_space_t::set_corrupted() const noexcept
 {
   if (!is_stopping() && !is_corrupted.test_and_set())
@@ -81,7 +84,7 @@ bool fil_space_t::try_to_close(fil_space_t *ignore_space, bool print_info)
   {
     if (&space == ignore_space || space.is_being_imported() ||
         space.id == TRX_SYS_SPACE || space.id == SRV_TMP_SPACE_ID ||
-        space.id == SRV_EXT_BP_SPACE_ID || srv_is_undo_tablespace(space.id))
+        srv_is_undo_tablespace(space.id))
       continue;
     ut_ad(!space.is_temporary());
 
@@ -497,14 +500,13 @@ pfs_os_file_t fil_node_t::detach() noexcept
 void fil_node_t::prepare_to_close_or_detach() noexcept
 {
   mysql_mutex_assert_owner(&fil_system.mutex);
-  ut_ad(space == fil_system.ext_bp_space || space->is_ready_to_close() ||
+  ut_ad(space->is_ready_to_close() ||
         srv_operation == SRV_OPERATION_BACKUP ||
         srv_operation == SRV_OPERATION_RESTORE_DELTA);
   ut_a(is_open());
   ut_a(!being_extended);
   ut_a(space->is_ready_to_close() || space->is_temporary() ||
-       srv_fast_shutdown == 2 || !srv_was_started ||
-       space == fil_system.ext_bp_space);
+       srv_fast_shutdown == 2 || !srv_was_started);
 
   ut_a(fil_system.n_open > 0);
   fil_system.n_open--;
@@ -662,10 +664,6 @@ fil_space_extend_must_retry(
 		space->flush_low();
 		space->release();
 		mysql_mutex_lock(&fil_system.mutex);
-		break;
-	case SRV_EXT_BP_SPACE_ID:
-		ut_ad(!fil_system.temp_space);
-		fil_system.ext_bp_space = space;
 		break;
 	default:
 		ut_ad(!space->is_temporary());
@@ -1011,10 +1009,6 @@ fil_space_t *fil_space_t::create(uint32_t id, uint32_t flags,
     ut_ad(!fil_system.temp_space);
     fil_system.temp_space= space;
     return space;
-  case SRV_EXT_BP_SPACE_ID:
-    ut_ad(!fil_system.ext_bp_space);
-    fil_system.ext_bp_space= space;
-    return space;
   default:
     if (UNIV_LIKELY(id <= fil_system.max_assigned_id))
       break;
@@ -1199,7 +1193,6 @@ void fil_space_t::close()
 
 	mysql_mutex_lock(&fil_system.mutex);
 	ut_ad(this == fil_system.temp_space
-	      || this == fil_system.ext_bp_space
 	      || srv_operation == SRV_OPERATION_BACKUP
 	      || srv_operation == SRV_OPERATION_RESTORE
 	      || srv_operation == SRV_OPERATION_RESTORE_DELTA);
@@ -1306,10 +1299,17 @@ void fil_system_t::close() noexcept
 
   if (is_initialised())
   {
-    if (ext_bp_space)
+    if (ext_bp_file != OS_FILE_CLOSED)
     {
-      fil_system.ext_bp_space->close();
-      fil_system.ext_bp_space->remove_file_low();
+      /* printf("Closing file %s\n", name); */
+      int ret= os_file_close(ext_bp_file);
+      ut_a(ret);
+      ext_bp_file= OS_FILE_CLOSED;
+      char path[FN_REFLEN];
+      snprintf(path, sizeof(path), "%s" FN_ROOTDIR "%s",
+               ext_bp_path ? ext_bp_path : fil_path_to_mysql_datadir,
+               ext_bp_file_name);
+      os_file_delete(innodb_data_file_key, path);
     }
     spaces.free();
     mysql_mutex_destroy(&mutex);
@@ -1636,7 +1636,7 @@ inline size_t mtr_t::log_file_op(mfile_type_t type, uint32_t space_id,
 
 fil_space_t *fil_space_t::drop(uint32_t id, pfs_os_file_t *detached_handle)
 {
-  ut_a(!is_system_tablespace(id) || id == SRV_EXT_BP_SPACE_ID);
+  ut_a(!is_system_tablespace(id));
   ut_ad(id != SRV_TMP_SPACE_ID);
   mysql_mutex_lock(&fil_system.mutex);
   fil_space_t *space= fil_space_get_by_id(id);
@@ -1797,7 +1797,7 @@ void fil_close_tablespace(uint32_t id) noexcept
 @return	OS_FILE_CLOSED if no file existed */
 pfs_os_file_t fil_delete_tablespace(uint32_t id) noexcept
 {
-  ut_ad(!is_system_tablespace(id) || id == SRV_EXT_BP_SPACE_ID);
+  ut_ad(!is_system_tablespace(id));
   pfs_os_file_t handle= OS_FILE_CLOSED;
   if (fil_space_t *space= fil_space_t::drop(id, &handle))
     fil_space_free_low(space);
@@ -2920,8 +2920,8 @@ io_error:
 		goto release_sync_write;
 	} else {
 		/* Queue the aio request */
-		err = os_aio(IORequest{bpage, type.slot, node, type.type,
-			     type.ext_buf_page}, buf, offset, len);
+		err = os_aio(IORequest{bpage, type.slot, node, type.type}, buf,
+		    offset, len);
 	}
 
 	if (!type.is_async()) {
@@ -2941,18 +2941,81 @@ func_exit:
 	return {err, node};
 }
 
+bool fil_system_t::create_ext_file() {
+  char path[FN_REFLEN];
+  snprintf(path, sizeof(path), "%s" FN_ROOTDIR "%s",
+           ext_bp_path ? ext_bp_path : fil_path_to_mysql_datadir,
+           ext_bp_file_name);
+  bool ret;
+  ext_bp_file=
+      os_file_create(innodb_data_file_key, path, OS_FILE_OPEN_OR_CREATE,
+                     OS_DATA_FILE, false, &ret);
+  if (!ret)
+  {
+    sql_print_error("Cannot open/create extended buffer pool file '%s'",
+                    path);
+    /* Report OS error in error log */
+    (void)os_file_get_last_error(true, false);
+    return false;
+  }
+
+  ut_ad(ext_bp_file != OS_FILE_CLOSED);
+
+  ret= os_file_set_size(path, ext_bp_file.m_file, ext_bp_size);
+  if (!ret)
+  {
+    os_file_close_func(ext_bp_file.m_file);
+    sql_print_error("Cannot set extended buffer pool file '%s' size to %zum",
+                    path, ext_bp_size);
+    return false;
+  }
+
+  return true;
+}
+
+dberr_t fil_system_t::ext_bp_io(buf_page_t &bpage, ext_buf_page_t &ext_page,
+                                IORequest::Type io_request_type,
+                                buf_tmp_buffer_t *slot, size_t len,
+                                void *buf) noexcept
+{
+  ut_ad(len % 512 == 0); /* page_compressed */
+  ut_ad(io_request_type == IORequest::WRITE_ASYNC ||
+        io_request_type == IORequest::READ_SYNC ||
+        io_request_type == IORequest::READ_ASYNC) ;
+  /* Queue the aio request */
+  return os_aio(IORequest{&bpage, slot, &ext_page, io_request_type}, buf,
+                buf_pool.ext_page_offset(ext_page), len, ext_bp_file,
+                ext_bp_file_name);
+}
+
 #include <tpool.h>
 
 void IORequest::write_complete(int io_error) const noexcept
 {
   ut_ad(fil_validate_skip());
-  ut_ad(node);
-  fil_space_t *space= node->space;
+  ut_ad(node_ptr);
+  buf_page_t *buf_page= bpage();
   ut_ad(is_write());
 
-  if (!bpage)
+  fil_space_t *space;
+  if (ext_buf())
+  {
+    space= fil_space_t::get(buf_page->id().space());
+    if (!space)
+    {
+      buf_page->lock.x_unlock(true);
+      // TODO: should we update the statistics here?
+      //++buf_pool.stat.n_pages_written_to_ebp;
+      return;
+    }
+  }
+  else
+    space= node_ptr->space;
+
+  if (!buf_page)
   {
     ut_ad(!srv_read_only_mode);
+    ut_ad(!ext_buf());
     if (type == IORequest::DBLWR_BATCH)
     {
       buf_dblwr.flush_buffered_writes_completed(*this);
@@ -2966,7 +3029,7 @@ void IORequest::write_complete(int io_error) const noexcept
   else
     buf_page_write_complete(*this, io_error);
 
-  if (space != fil_system.ext_bp_space)
+  if (!ext_buf())
     space->complete_write();
  func_exit:
   space->release();
@@ -2974,55 +3037,53 @@ void IORequest::write_complete(int io_error) const noexcept
 
 void IORequest::read_complete(int io_error) const noexcept
 {
+  buf_page_t *buf_page= bpage();
   ut_ad(fil_validate_skip());
-  ut_ad(node);
+  ut_ad(node_ptr);
   ut_ad(is_read());
-  ut_ad(bpage);
-  ut_d(auto s= bpage->state());
+  ut_ad(bpage());
+  ut_d(auto s= bpage()->state());
   ut_ad(s > buf_page_t::READ_FIX);
   ut_ad(s <= buf_page_t::WRITE_FIX);
 
-  fil_node_t *node_local;
-  if (ext_buf_page) {
-    ut_ad(ext_buf_page->id_ == bpage->id());
+  fil_space_t *space;
+  if (ext_buf()) {
+    ut_ad(ext_buf_page()->id_ == buf_page->id());
     mysql_mutex_lock(&buf_pool.mutex);
-    buf_pool.free_ext_page(*ext_buf_page);
+    buf_pool.free_ext_page(*ext_buf_page());
     mysql_mutex_unlock(&buf_pool.mutex);
-    ut_ad(node->space == fil_system.ext_bp_space);
-    node->space->release();
     /* The space will be released at the end of this function */
-    fil_space_t *space= fil_space_t::get(bpage->id().space());
+    space= fil_space_t::get(buf_page->id().space());
     if (!space) {
-      bpage->lock.x_unlock(true);
+      buf_page->lock.x_unlock(true);
+      ++buf_pool.stat.n_pages_read_from_ebp;
       return;
     }
     ut_d(if (DBUG_IF("ib_ext_bp_count_io_only_for_t")) {
       auto space_name= space->name();
-      if (fil_page_get_type(bpage->frame) == FIL_PAGE_INDEX &&
+      if (fil_page_get_type(buf_page->frame) == FIL_PAGE_INDEX &&
           space_name.data() &&
           !strncmp(space_name.data(), "test/t.ibd", space_name.size()))
       {
         ++buf_pool.stat.n_pages_read_from_ebp;
       }
     } else)
-      ++ buf_pool.stat.n_pages_read_from_ebp;
-    /* We don't need to get the correct node here, because further it will be
-    used only to decrypt and decompress data */
-    node_local= UT_LIST_GET_FIRST(space->chain);
-    ut_ad(node_local);
+      ++buf_pool.stat.n_pages_read_from_ebp;
   }
   else
-    node_local= node;
+    space= node_ptr->space;
 
-  const page_id_t id(bpage->id());
+  const page_id_t id(buf_page->id());
   const bool in_recovery{recv_sys.recovery_on};
 
   if (UNIV_UNLIKELY(io_error != 0))
   {
     sql_print_error("InnoDB: Read error %d of page " UINT32PF " in file %s",
-                    io_error, id.page_no(), node_local->name);
-    recv_sys.free_corrupted_page(id, *node_local);
-    buf_pool.corrupted_evict(bpage, buf_page_t::READ_FIX + 1);
+                    io_error, id.page_no(),
+                    ext_buf() ? "of external buffer pool" : node_ptr->name);
+    if (!ext_buf())
+      recv_sys.free_corrupted_page(id, *node_ptr);
+    buf_pool.corrupted_evict(buf_page, buf_page_t::READ_FIX + 1);
   corrupted:
     if (in_recovery && !srv_force_recovery)
     {
@@ -3031,12 +3092,14 @@ void IORequest::read_complete(int io_error) const noexcept
       mysql_mutex_unlock(&recv_sys.mutex);
     }
   }
-  else if (bpage->read_complete(*node_local, in_recovery))
+  else if (bpage()->read_complete(ext_buf() ? *UT_LIST_GET_FIRST(space->chain)
+                                          : *node_ptr,
+                                in_recovery))
     goto corrupted;
   else
-    bpage->unfix();
+    bpage()->unfix();
 
-  node_local->space->release();
+  space->release();
 }
 
 /** Flush to disk the writes in file spaces of the given type
@@ -3326,9 +3389,6 @@ ulint fil_space_get_block_size(const fil_space_t *space, unsigned offset)
 	return block_size;
 }
 
-// TODO: place it to the correct location
-extern const char *ext_buffer_pool_file_name;
-
 /** @return the tablespace name (databasename/tablename) */
 fil_space_t::name_type fil_space_t::name() const noexcept
 {
@@ -3337,9 +3397,6 @@ fil_space_t::name_type fil_space_t::name() const noexcept
     return name_type{"innodb_system", 13};
   case SRV_TMP_SPACE_ID:
     return name_type{"innodb_temporary", 16};
-  case SRV_EXT_BP_SPACE_ID:
-    return name_type{ext_buffer_pool_file_name,
-                     strlen(ext_buffer_pool_file_name)};
   }
 
   if (!UT_LIST_GET_FIRST(chain) || srv_is_undo_tablespace(id))

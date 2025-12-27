@@ -392,12 +392,6 @@ buf_read_page_low(
 
   void* dst= zip_size > 1 ? bpage->zip.data : bpage->frame;
   const size_t len= zip_size & ~1 ? zip_size & ~1 : srv_page_size;
-  if (init_page_result.in_ext_buffer_pool())
-  {
-    ut_d(auto acquired=) fil_system.ext_bp_space->acquire();
-    // TODO: process error correctly
-    ut_ad(acquired);
-  }
   /* Synchronous read */
   if (err != nullptr)
   {
@@ -406,11 +400,10 @@ buf_read_page_low(
     const ulonglong start= stats ? mariadb_measure() : 0;
     auto fio=
         init_page_result.in_ext_buffer_pool()
-            ? fil_system.ext_bp_space->io(
-                  IORequest(IORequest::READ_SYNC, nullptr, nullptr,
-                            init_page_result.ext_buf_page),
-                  buf_pool.ext_page_offset(*init_page_result.ext_buf_page),
-                  len, dst, bpage)
+            ? fil_io_t{fil_system.ext_bp_io(
+                           *bpage, *init_page_result.ext_buf_page,
+                           IORequest::READ_SYNC, nullptr, len, dst),
+                       nullptr}
             : space->io(IORequest(IORequest::READ_SYNC),
                         os_offset_t{page_id.page_no()} * len, len, dst, bpage);
     *err= fio.err;
@@ -445,7 +438,6 @@ buf_read_page_low(
               !strncmp(space_name.data(), "test/t.ibd", space_name.size()))
             ++buf_pool.stat.n_pages_read_from_ebp;
         } else)++ buf_pool.stat.n_pages_read_from_ebp;
-        fil_system.ext_bp_space->release();
       }
       /* FIXME: Remove this, and accumulate stats->pages_read_count to
       global statistics somewhere! */
@@ -453,19 +445,13 @@ buf_read_page_low(
       return bpage;
     }
   }
-  else if (init_page_result.in_ext_buffer_pool() &&
-           UNIV_LIKELY(
-               DB_SUCCESS ==
-               fil_system.ext_bp_space
-                   ->io(IORequest(IORequest::READ_ASYNC, nullptr, nullptr,
-                                  init_page_result.ext_buf_page),
-                        buf_pool.ext_page_offset(
-                            *init_page_result.ext_buf_page),
-                        len, dst, bpage)
-                   .err))
+  else if (init_page_result.in_ext_buffer_pool())
   {
+    auto err= fil_system.ext_bp_io(*bpage, *init_page_result.ext_buf_page,
+                                   IORequest::READ_ASYNC, nullptr, len, dst);
     space->release();
-    return reinterpret_cast<buf_page_t *>(-1);
+    if (UNIV_LIKELY(DB_SUCCESS == err))
+      return reinterpret_cast<buf_page_t *>(-1);
   }
   else if (UNIV_LIKELY(DB_SUCCESS ==
                        space

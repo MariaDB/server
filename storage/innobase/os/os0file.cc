@@ -2579,8 +2579,8 @@ os_file_io(
 					  " Retrying.",
 					  n, type.is_read()
 					  ? "read" : "written", offset,
-					  type.node
-					  ? type.node->name
+					  type.node()
+					  ? type.node()->name
 					  : "(unknown file)", bytes_returned);
 		}
 
@@ -2732,7 +2732,7 @@ os_file_read_func(
 	ulint			n,
 	ulint*			o) noexcept
 {
-  ut_ad(!type.node || type.node->handle == file);
+  ut_ad(type.ext_buf() || !type.node() || type.node()->handle == file);
   ut_ad(n);
 
   os_bytes_read_since_printout+= n;
@@ -2746,11 +2746,11 @@ os_file_read_func(
   if (ulint(n_bytes) == n || err != DB_SUCCESS)
     return err;
 
-  os_file_handle_error_no_exit(type.node ? type.node->name : nullptr, "read",
-                               false);
+  os_file_handle_error_no_exit(type.node() ? type.node()->name : nullptr,
+                               "read", false);
   sql_print_error("InnoDB: Tried to read %zu bytes at offset %" PRIu64
                   " of file %s, but was only able to read %zd",
-                  n, offset, type.node ? type.node->name : "(unknown)",
+                  n, offset, type.node() ? type.node()->name : "(unknown)",
                   n_bytes);
 
   return err ? err : DB_IO_ERROR;
@@ -2943,7 +2943,8 @@ os_file_punch_hole(
 @return DB_SUCCESS or error code */
 dberr_t IORequest::punch_hole(os_offset_t off, ulint len) const noexcept
 {
-	ulint trim_len = bpage ? bpage->physical_size() - len : 0;
+	ut_ad(!ext_buf());
+	ulint trim_len = bpage_ptr ? bpage_ptr->physical_size() - len : 0;
 
 	if (trim_len == 0) {
 		return(DB_SUCCESS);
@@ -2953,18 +2954,18 @@ dberr_t IORequest::punch_hole(os_offset_t off, ulint len) const noexcept
 
 	/* Check does file system support punching holes for this
 	tablespace. */
-	if (!node->punch_hole) {
+	if (!node()->punch_hole) {
 		return DB_IO_NO_PUNCH_HOLE;
 	}
 
-	dberr_t err = os_file_punch_hole(node->handle, off, trim_len);
+	dberr_t err = os_file_punch_hole(node()->handle, off, trim_len);
 
 	switch (err) {
 	case DB_SUCCESS:
 		srv_stats.page_compressed_trim_op.inc();
 		return err;
 	case DB_IO_NO_PUNCH_HOLE:
-		node->punch_hole = false;
+		node()->punch_hole = false;
 		err = DB_SUCCESS;
 		/* fall through */
 	default:
@@ -3073,7 +3074,7 @@ static void write_io_callback(void *c)
     ib::info () << "IO Error: " << cb->m_err
                 << " during write of "
                 << cb->m_len << " bytes, for file "
-                << request.node->name << "(" << cb->m_fh << "), returned "
+                << request.node()->name << "(" << cb->m_fh << "), returned "
                 << cb->m_ret_len;
 
   request.write_complete(cb->m_err);
@@ -3260,7 +3261,7 @@ void os_fake_read(const IORequest &type, os_offset_t offset) noexcept
   tpool::aiocb *cb= read_slots->acquire();
 
   cb->m_group= read_slots->get_task_group();
-  cb->m_fh= type.node->handle.m_file;
+  cb->m_fh= type.node()->handle.m_file;
   cb->m_buffer= nullptr;
   cb->m_len= 0;
   cb->m_offset= offset;
@@ -3281,16 +3282,15 @@ void os_fake_read(const IORequest &type, os_offset_t offset) noexcept
 @param n		number of bytes
 @retval DB_SUCCESS if request was queued successfully
 @retval DB_IO_ERROR on I/O error */
-dberr_t os_aio(const IORequest &type, void *buf, os_offset_t offset, size_t n)
-  noexcept
+dberr_t os_aio(const IORequest &type, void *buf, os_offset_t offset,
+                       size_t n, pfs_os_file_t handle,
+                       const char *file_name) noexcept
 {
 	ut_ad(n > 0);
 	ut_ad(!(n & 511)); /* payload of page_compressed tables */
 	ut_ad((offset % UNIV_ZIP_SIZE_MIN) == 0);
 	ut_ad((reinterpret_cast<size_t>(buf) % UNIV_ZIP_SIZE_MIN) == 0);
 	ut_ad(type.is_read() || type.is_write());
-	ut_ad(type.node);
-	ut_ad(type.node->is_open());
 
 #ifdef WIN_ASYNC_IO
 	ut_ad((n & 0xFFFFFFFFUL) == n);
@@ -3299,7 +3299,7 @@ dberr_t os_aio(const IORequest &type, void *buf, os_offset_t offset, size_t n)
 #ifdef UNIV_PFS_IO
 	PSI_file_locker_state state;
 	PSI_file_locker* locker= nullptr;
-	register_pfs_file_io_begin(&state, locker, type.node->handle, n,
+	register_pfs_file_io_begin(&state, locker, handle, n,
 				   type.is_write()
 				   ? PSI_FILE_WRITE : PSI_FILE_READ,
 				   __FILE__, __LINE__);
@@ -3308,10 +3308,10 @@ dberr_t os_aio(const IORequest &type, void *buf, os_offset_t offset, size_t n)
 
 	if (!type.is_async()) {
 		err = type.is_read()
-			? os_file_read_func(type, type.node->handle,
+			? os_file_read_func(type, handle,
 					    buf, offset, n, nullptr)
-			: os_file_write_func(type, type.node->name,
-					     type.node->handle,
+			: os_file_write_func(type, file_name,
+					     handle,
 					     buf, offset, n);
 func_exit:
 #ifdef UNIV_PFS_IO
@@ -3342,7 +3342,7 @@ func_exit:
 	cb->m_buffer = buf;
 	cb->m_callback = callback;
 	cb->m_group = slots->get_task_group();
-	cb->m_fh = type.node->handle.m_file;
+	cb->m_fh = handle.m_file;
 	cb->m_len = (int)n;
 	cb->m_offset = offset;
 	cb->m_opcode = opcode;
@@ -3350,14 +3350,31 @@ func_exit:
 
 	if (srv_thread_pool->submit_io(cb)) {
 		slots->release(cb);
-		os_file_handle_error_no_exit(type.node->name, type.is_read()
+		os_file_handle_error_no_exit(file_name, type.is_read()
 					     ? "aio read" : "aio write",
 					     false);
 		err = DB_IO_ERROR;
-		type.node->space->release();
 	}
 
 	goto func_exit;
+}
+
+/** Request a read or write.
+@param type		I/O request
+@param buf		buffer
+@param offset		file offset
+@param n		number of bytes
+@retval DB_SUCCESS if request was queued successfully
+@retval DB_IO_ERROR on I/O error */
+dberr_t os_aio(const IORequest &type, void *buf, os_offset_t offset, size_t n)
+  noexcept {
+	ut_ad(type.node());
+	ut_ad(type.node()->is_open());
+	dberr_t err = os_aio(type, buf, offset, n, type.node()->handle,
+	    type.node()->name);
+	if (err == DB_IO_ERROR)
+	  type.node()->space->release();
+	return err;
 }
 
 void os_aio_print(FILE *file) noexcept

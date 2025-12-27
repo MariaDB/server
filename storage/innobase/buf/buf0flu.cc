@@ -330,17 +330,14 @@ void buf_page_write_complete(const IORequest &request, bool error) noexcept
 {
   ut_ad(request.is_write());
   ut_ad(!srv_read_only_mode);
-  buf_page_t *bpage= request.bpage;
+  buf_page_t *bpage= request.bpage();
   ut_ad(bpage);
-  ext_buf_page_t *ext_buf_page= request.ext_buf_page;
-  ut_ad(!ext_buf_page || request.node->space->id == SRV_EXT_BP_SPACE_ID);
   const auto state= bpage->state();
   /* io-fix can only be cleared by buf_page_t::write_complete()
   and buf_page_t::read_complete() */
   ut_ad(state >= buf_page_t::WRITE_FIX);
   ut_ad(!buf_dblwr.is_inside(bpage->id()));
-  ut_ad(request.node->space->id == SRV_EXT_BP_SPACE_ID ||
-        request.node->space->id == bpage->id().space());
+  ut_ad(request.ext_buf() || request.node()->space->id == bpage->id().space());
 
   if (request.slot)
     request.slot->release();
@@ -353,10 +350,10 @@ void buf_page_write_complete(const IORequest &request, bool error) noexcept
   mysql_mutex_assert_not_owner(&buf_pool.mutex);
   mysql_mutex_assert_not_owner(&buf_pool.flush_list_mutex);
 
-  buf_page_t::space_type type=
-      ext_buf_page ? buf_page_t::EXT_BUF
-                   : static_cast<buf_page_t::space_type>(
-                         bpage->oldest_modification() == 2);
+  buf_page_t::space_type type= request.ext_buf()
+                                   ? buf_page_t::EXT_BUF
+                                   : static_cast<buf_page_t::space_type>(
+                                         bpage->oldest_modification() == 2);
 
   if (UNIV_UNLIKELY(type != buf_page_t::PERSISTENT) && UNIV_LIKELY(!error))
   {
@@ -381,7 +378,8 @@ void buf_page_write_complete(const IORequest &request, bool error) noexcept
     no other thread can access it before we have freed it. */
     mysql_mutex_lock(&buf_pool.mutex);
     bpage->write_complete(type, error, state);
-    buf_LRU_free_page(bpage, true, ext_buf_page);
+    buf_LRU_free_page(bpage, true,
+                      request.ext_buf() ? request.ext_buf_page() : nullptr);
     mysql_mutex_unlock(&buf_pool.mutex);
   }
   else
@@ -892,9 +890,8 @@ bool buf_page_t::flush(fil_space_t *space, bool to_ext_buf) noexcept
 
   if (to_ext_buf) {
     ut_ad(ext_page);
-    fil_system.ext_bp_space->io(
-        IORequest{IORequest::WRITE_ASYNC, this, slot, ext_page},
-        buf_pool.ext_page_offset(*ext_page), size, write_frame, this);
+    fil_system.ext_bp_io(*this, *ext_page, IORequest::WRITE_ASYNC, slot, size,
+                         write_frame);
   }
   else if ((s & LRU_MASK) == REINIT || !space->use_doublewrite())
   {
@@ -1344,7 +1341,7 @@ static void buf_flush_LRU_list_batch(ulint max, flush_counters_t *n,
           });
       // FIXME: currently every second page is flushed, consider more
       // suitable algorithm there
-      if (buf_pool.extended_size && !buf_pool.done_flush_list_waiters_count &&
+      if (fil_system.ext_bp_size && !buf_pool.done_flush_list_waiters_count &&
           (ut_d(buf_pool.force_LRU_eviction_to_ebp ||)((++free_or_flush) & 1)))
       {
         flush_to_ebp= true;
@@ -1446,14 +1443,9 @@ flush_to_ebp:
 
       if (flush_to_ebp)
       {
-        ut_ad(fil_system.ext_bp_space);
-        ut_d(auto acquired=) fil_system.ext_bp_space->acquire_for_write();
-        // TODO: process error correctly
-        ut_ad(acquired);
         /* The page latch will be released in io callback */
         if (!bpage->flush(space, true))
         {
-          fil_system.ext_bp_space->release();
           buf_LRU_free_page(bpage, true);
           bpage->lock.u_unlock(true);
           ++n->evicted;

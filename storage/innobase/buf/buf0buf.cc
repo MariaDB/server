@@ -62,9 +62,6 @@ Created 11/5/1995 Heikki Tuuri
 #include "log.h"
 #include "my_virtual_mem.h"
 
-/* External buffer pool file name */
-const char *ext_buffer_pool_file_name= "ext_buffer_pool";
-
 using st_::span;
 
 #ifdef HAVE_LIBNUMA
@@ -1566,56 +1563,6 @@ bool buf_pool_t::create() noexcept
   sql_print_information("InnoDB: Completed initialization of buffer pool");
   return false;
 }
-
-bool buf_pool_t::create_ext_file() {
-  ut_ad(!fil_system.ext_bp_space);
-
-  char path[FN_REFLEN];
-  snprintf(path, sizeof(path), "%s" FN_ROOTDIR "%s",
-           extended_path ? extended_path : fil_path_to_mysql_datadir,
-           ext_buffer_pool_file_name);
-  bool ret;
-  os_file_t file{os_file_create(innodb_data_file_key, path,
-                                OS_FILE_OPEN_OR_CREATE, OS_DATA_FILE, false,
-                                &ret)};
-  if (!ret)
-  {
-    sql_print_error("Cannot open/create extended buffer pool file '%s'",
-                    path);
-    /* Report OS error in error log */
-    (void)os_file_get_last_error(true, false);
-    return false;
-  }
-
-  ut_ad(file != OS_FILE_CLOSED);
-
-  ret= os_file_set_size(path, file, extended_size);
-  if (!ret)
-  {
-    os_file_close_func(file);
-    sql_print_error("Cannot set extended buffer pool file '%s' size to %zum",
-                    path, extended_size);
-    return false;
-  }
-
-  uint32_t fsp_flags;
-
- fsp_flags= FSP_FLAGS_PAGE_SSIZE();
-
-  mysql_mutex_lock(&fil_system.mutex);
-  ut_d(fil_space_t *ext_bp_space=)
-      fil_space_t::create(SRV_EXT_BP_SPACE_ID, fsp_flags, false,
-                         // TODO: add encryption
-                          nullptr, FIL_ENCRYPTION_OFF, true);
-  ut_ad(fil_system.ext_bp_space == ext_bp_space);
-
-  (void) fil_system.ext_bp_space->add(
-      path, file, static_cast<uint32_t>(extended_pages), false, true);
-  mysql_mutex_unlock(&fil_system.mutex);
-
-  return true;
-}
-
 
 /** Clean up after successful create() */
 void buf_pool_t::close() noexcept
@@ -3685,7 +3632,6 @@ dberr_t buf_page_t::read_complete(const fil_node_t &node,
     ut_ad(s < WRITE_FIX);
   }
   ut_ad(!buf_dblwr.is_inside(id()));
-  ut_ad(node.space->id != SRV_EXT_BP_SPACE_ID);
   ut_ad(id().space() == node.space->id);
   ut_ad(zip_size() == node.space->zip_size());
   ut_ad(!!zip.ssize == !!zip.data);
@@ -3802,7 +3748,6 @@ dberr_t buf_page_t::read_complete(const fil_node_t &node,
   }
   else
   {
-    ut_ad(id().space() != SRV_EXT_BP_SPACE_ID);
     if (!recv_recover_page(node.space, this))
       return DB_PAGE_CORRUPTED;
   }
