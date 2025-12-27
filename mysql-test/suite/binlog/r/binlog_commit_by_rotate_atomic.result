@@ -38,11 +38,11 @@ count(*)
 0
 # Binlog is closed
 show master status;
-File	Position	Binlog_Do_DB	Binlog_Ignore_DB
+File	Position	Binlog_Do_DB	Binlog_Ignore_DB	Gtid_Binlog_Pos
 # restart
 show master status;
-File	Position	Binlog_Do_DB	Binlog_Ignore_DB
-master-bin.000004	#	<Binlog_Do_DB>	<Binlog_Ignore_DB>
+File	Position	Binlog_Do_DB	Binlog_Ignore_DB	Gtid_Binlog_Pos
+master-bin.000004	#	<Binlog_Do_DB>	<Binlog_Ignore_DB>	<Binlog_GTID>
 #
 # Crash happens before rename the file
 #

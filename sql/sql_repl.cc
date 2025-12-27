@@ -4724,6 +4724,9 @@ void show_binlog_info_get_fields(THD *thd, List<Item> *field_list)
   field_list->push_back(new (mem_root)
                         Item_empty_string(thd, "Binlog_Ignore_DB", 255),
                         mem_root);
+  field_list->push_back(new (mem_root)
+                        Item_empty_string(thd, "Gtid_Binlog_Pos", 255),
+                        mem_root);
 }
 
 
@@ -4755,11 +4758,17 @@ bool show_binlog_info(THD* thd)
     mysql_bin_log.get_current_log(&li);
     size_t dir_len = dirname_length(li.log_file_name);
     const char *base= li.log_file_name + dir_len;
+    char buf[128];
+    String str(buf, sizeof(buf), system_charset_info);
+    str.length(0);
+    (void) mysql_bin_log.append_state_pos(&str);
 
     protocol->store(base, strlen(base), &my_charset_bin);
     protocol->store((ulonglong) li.pos);
     protocol->store(binlog_filter->get_do_db());
     protocol->store(binlog_filter->get_ignore_db());
+    protocol->store(&str);
+
     if (protocol->write())
       DBUG_RETURN(TRUE);
   }

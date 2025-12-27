@@ -40,7 +40,7 @@ perl;
               wsrep file-key-management cracklib-password-check user-variables
               provider-bzip2 provider-lzma provider-lzo caching-sha2-password
               thread-pool-groups thread-pool-queues thread-pool-stats
-              thread-pool-waits hashicorp provider gssapi parsec/;
+              thread-pool-waits hashicorp provider gssapi parsec videx/;
 
   # And substitute the content some environment variables with their
   # names:
