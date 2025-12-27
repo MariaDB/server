@@ -9,8 +9,8 @@ master-bin.000001	#
 CREATE TABLE t1_myisam (c1 INT) ENGINE=myisam;
 insert into t1_myisam values(0),(1);
 show master status;
-File	Position	Binlog_Do_DB	Binlog_Ignore_DB
-master-bin.000001	#	<Binlog_Do_DB>	<Binlog_Ignore_DB>
+File	Position	Binlog_Do_DB	Binlog_Ignore_DB	Gtid_Binlog_Pos
+master-bin.000001	#	<Binlog_Do_DB>	<Binlog_Ignore_DB>	<Binlog_GTID>
 flush logs;
 flush logs;
 flush logs;
@@ -398,8 +398,8 @@ flush logs;
 flush logs;
 flush logs;
 show master status;
-File	Position	Binlog_Do_DB	Binlog_Ignore_DB
-master-bin.000291	#	<Binlog_Do_DB>	<Binlog_Ignore_DB>
+File	Position	Binlog_Do_DB	Binlog_Ignore_DB	Gtid_Binlog_Pos
+master-bin.000291	#	<Binlog_Do_DB>	<Binlog_Ignore_DB>	<Binlog_GTID>
 show binary logs;
 Log_name	File_size
 master-bin.000001	#
@@ -698,22 +698,22 @@ reset master;
 flush logs;
 flush logs;
 show master status;
-File	Position	Binlog_Do_DB	Binlog_Ignore_DB
-master-bin.000003	#	<Binlog_Do_DB>	<Binlog_Ignore_DB>
+File	Position	Binlog_Do_DB	Binlog_Ignore_DB	Gtid_Binlog_Pos
+master-bin.000003	#	<Binlog_Do_DB>	<Binlog_Ignore_DB>	<Binlog_GTID>
 reset master;
 # left times= 2
 flush logs;
 flush logs;
 show master status;
-File	Position	Binlog_Do_DB	Binlog_Ignore_DB
-master-bin.000003	#	<Binlog_Do_DB>	<Binlog_Ignore_DB>
+File	Position	Binlog_Do_DB	Binlog_Ignore_DB	Gtid_Binlog_Pos
+master-bin.000003	#	<Binlog_Do_DB>	<Binlog_Ignore_DB>	<Binlog_GTID>
 reset master;
 # left times= 1
 flush logs;
 flush logs;
 show master status;
-File	Position	Binlog_Do_DB	Binlog_Ignore_DB
-master-bin.000003	#	<Binlog_Do_DB>	<Binlog_Ignore_DB>
+File	Position	Binlog_Do_DB	Binlog_Ignore_DB	Gtid_Binlog_Pos
+master-bin.000003	#	<Binlog_Do_DB>	<Binlog_Ignore_DB>	<Binlog_GTID>
 reset master;
 # left times= 0
 # [engine=myisam] after first loop_times=0, show master logs results
@@ -721,8 +721,8 @@ show binary logs;
 Log_name	File_size
 master-bin.000001	#
 show master status;
-File	Position	Binlog_Do_DB	Binlog_Ignore_DB
-master-bin.000001	#	<Binlog_Do_DB>	<Binlog_Ignore_DB>
+File	Position	Binlog_Do_DB	Binlog_Ignore_DB	Gtid_Binlog_Pos
+master-bin.000001	#	<Binlog_Do_DB>	<Binlog_Ignore_DB>	<Binlog_GTID>
 flush logs;
 flush logs;
 #begin to restart mysqld current loop_times=10
