@@ -31089,16 +31089,21 @@ bool JOIN_TAB::save_explain_data(Explain_table_access *eta,
       else
         eta->push_extra(ET_SCANNED_ALL_DATABASES);
     }
-    if (key_read)
+
+    if (quick_type == QUICK_SELECT_I::QS_TYPE_GROUP_MIN_MAX)
     {
-      if (quick_type == QUICK_SELECT_I::QS_TYPE_GROUP_MIN_MAX)
-      {
-        QUICK_GROUP_MIN_MAX_SELECT *qgs= 
-          (QUICK_GROUP_MIN_MAX_SELECT *) tab_select->quick;
-        eta->push_extra(ET_USING_INDEX_FOR_GROUP_BY);
-        eta->loose_scan_is_scanning= qgs->loose_scan_is_scanning();
-      }
-      else
+      QUICK_GROUP_MIN_MAX_SELECT *qgs=
+        (QUICK_GROUP_MIN_MAX_SELECT *) tab_select->quick;
+      eta->push_extra(ET_USING_INDEX_FOR_GROUP_BY);
+      eta->loose_scan_is_scanning= qgs->loose_scan_is_scanning();
+    }
+    else
+    {
+      /*
+        Print "Using index" if we haven't already printed "Using index for
+        group by".
+      */
+      if (key_read)
         eta->push_extra(ET_USING_INDEX);
     }
     if (table->reginfo.not_exists_optimize)
