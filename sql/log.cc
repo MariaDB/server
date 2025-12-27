@@ -8929,6 +8929,17 @@ err:
           thd->backup_commit_lock= 0;
           goto engine_fail;
         }
+#ifdef ENABLED_DEBUG_SYNC
+        DBUG_EXECUTE_IF("pause_before_write_gtid_0_x_100", {
+            if (thd->rgi_slave &&
+                thd->rgi_slave->current_gtid.domain_id == 0 &&
+                thd->rgi_slave->current_gtid.seq_no == 100) {
+                  debug_sync_set_action(thd,
+                STRING_WITH_LEN("now SIGNAL before_write_gtid_event "
+                                "WAIT_FOR cont"));
+            }
+          });
+#endif
         mysql_mutex_lock(&LOCK_log);
         res= write_gtid_event(thd, cache_data, true, using_trans, commit_id,
                               false, false, false);
@@ -8936,7 +8947,10 @@ err:
           thd->mdl_context.release_lock(mdl_request.ticket);
         thd->backup_commit_lock= 0;
         if (res)
+        {
+          mysql_mutex_unlock(&LOCK_log);
           goto engine_fail;
+        }
 
         binlog_total_bytes= my_b_bytes_in_cache(file);
         /*
