@@ -180,7 +180,7 @@ F	17
 EXPLAIN SELECT c1, max(i2) FROM t1 WHERE (c1 = 'C' OR c1 = 'F' ) AND ( i2 = 17 )
 GROUP BY c1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	k1	k1	5	NULL	2	Using where
+1	SIMPLE	t1	range	k1	k1	5	NULL	2	Using where; Using index for group-by
 SELECT c1, max(i2) FROM t1 WHERE (c1 = 'C' OR c1 = 'F' ) AND ( i2 = 17 )
 GROUP BY c1;
 c1	max(i2)
@@ -438,6 +438,43 @@ disconnect con1;
 connection default;
 DROP TABLE t1;
 SET GLOBAL innodb_lru_scan_depth= @lru_depth.save;
+#
+# MDEV-38426: Clustered PK not used for Loose Index Scan optimization
+#
+create table t1 (
+col1 int not null,
+col2 int not null,
+col3 int,
+primary key(col1, col2)
+) engine=innodb;
+insert into t1 select
+A.seq,
+B.seq,
+A.seq
+from
+seq_1_to_10 A,
+seq_1_to_1000 B;
+analyze table t1;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+# This must use Loose Scan:
+explain select distinct col1 from t1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	NULL	PRIMARY	4	NULL	11	Using index for group-by
+# This must use Loose Scan:
+explain select col1 from t1 group by col1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	NULL	PRIMARY	4	NULL	11	Using index for group-by
+# This must use Loose Scan:
+explain select col1, min(col2) from t1 group by col1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	NULL	PRIMARY	4	NULL	11	Using index for group-by
+# This will not use Loose Index Scan as col3 is not in PK:
+explain select col1, min(col2), col3 from t1 group by col1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	index	NULL	PRIMARY	8	NULL	10000	
+drop table t1;
 set global innodb_stats_persistent= @innodb_stats_persistent_save;
 set global innodb_stats_persistent_sample_pages=
 @innodb_stats_persistent_sample_pages_save;
