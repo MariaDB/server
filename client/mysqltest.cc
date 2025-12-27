@@ -308,6 +308,7 @@ struct Parser
 struct MasterPos
 {
   char file[FN_REFLEN];
+  char gtid[256];
   ulong pos;
 } master_pos;
 
@@ -4937,8 +4938,19 @@ void do_sync_with_master2(struct st_command *command, long offset,
 
   if (!result_str || result < 0)
   {
+    char *gtid_slave_pos;
     /* master_pos_wait returned NULL or < 0 */
     fprintf(stderr, "analyze: sync_with_master\n");
+
+    if (!mysql_query(mysql, "select @@global.gtid_slave_pos"))
+    {
+      if ((res= mysql_store_result(mysql)))
+      {
+        if ((row= mysql_fetch_row(res)))
+          gtid_slave_pos= my_strdup(PSI_NOT_INSTRUMENTED, row[0], MYF(0));
+      }
+      mysql_free_result(res);
+    }
 
     sprintf(query_buf2, "show slave \"%s\" status", connection_name);
 
@@ -4948,15 +4960,19 @@ void do_sync_with_master2(struct st_command *command, long offset,
       {
         if ((row= mysql_fetch_row(res)))
         {
-          fprintf(stderr, "Slave position:  file: %s  position: %s\n",
+          fprintf(stderr, "Slave position:  file: %s  position: %s  GTID_IO: %s  GTID_slave_pos: %s\n",
                   get_col_value(res, row, "Relay_Master_Log_File"),
-                  get_col_value(res, row, "Read_Master_Log_Pos"));
-          fprintf(stderr, "Master position: file: %s  position: %lld\n",
-                  master_pos.file, (longlong) (master_pos.pos + offset));
+                  get_col_value(res, row, "Read_Master_Log_Pos"),
+                  get_col_value(res, row, "Gtid_IO_Pos"),
+                  gtid_slave_pos ? gtid_slave_pos : "");
+          fprintf(stderr, "Master position: file: %s  position: %lld  GTID: %s\n",
+                  master_pos.file, (longlong) (master_pos.pos + offset), master_pos.gtid);
         }
         mysql_free_result(res);
       }
     }
+    my_free(gtid_slave_pos);
+
     if (!result_str)
     {
       /*
@@ -5034,8 +5050,9 @@ int do_save_master_pos()
     die("mysql_store_result() returned NULL for '%s'", query);
   if (!(row = mysql_fetch_row(res)))
     die("empty result in show master status");
-  strnmov(master_pos.file, row[0], sizeof(master_pos.file)-1);
-  master_pos.pos = strtoul(row[1], (char**) 0, 10);
+  strmake(master_pos.file, row[0], sizeof(master_pos.file)-1);
+  master_pos.pos= strtoul(row[1], (char**) 0, 10);
+  strmake(master_pos.gtid, row[4], sizeof(master_pos.gtid)-1);
   mysql_free_result(res);
   DBUG_RETURN(0);
 }
