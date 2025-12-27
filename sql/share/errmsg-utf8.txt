@@ -8482,11 +8482,11 @@ ER_SLAVE_HEARTBEAT_FAILURE
         spa "Datos inesperados de latido (heartbeat) de maestro (master): %s"
         sw "Data isiyotarajiwa ya mapigo ya moyo ya bwana: %s"
 ER_SLAVE_HEARTBEAT_VALUE_OUT_OF_RANGE
-        chi "心跳周期的请求值是负的或超过允许的最大值（%u秒）"
-        eng "The requested value for the heartbeat period is either negative or exceeds the maximum allowed (%u seconds)"
-        geo "გულისცემის პერიოდის მოთოხვნილი მნიშვნელობა ან უარყოფითა, ან მაქსიმალურ დაშვებულ მნიშვნელობას (%u წამი) აჭარბებს"
-        spa "El valor requerido para el período de latido o es negativo o excede al máximo permitido (%u segundos)"
-        sw "Thamani iliyoombwa kwa kipindi cha mpigo wa moyo ni hasi au inazidi kiwango cha juu kinachoruhusiwa (sekunde %u)"
+        chi "心跳周期的请求值是负的或超过允许的最大值（%s秒）"
+        eng "The requested value for the heartbeat period is either negative or exceeds the maximum allowed (%s seconds)"
+        geo "გულისცემის პერიოდის მოთოხვნილი მნიშვნელობა ან უარყოფითა, ან მაქსიმალურ დაშვებულ მნიშვნელობას (%s წამი) აჭარბებს"
+        spa "El valor requerido para el período de latido o es negativo o excede al máximo permitido (%s segundos)"
+        sw "Thamani iliyoombwa kwa kipindi cha mpigo wa moyo ni hasi au inazidi kiwango cha juu kinachoruhusiwa (sekunde %s)"
 ER_UNUSED_14
         eng "You should never see it"
         geo "ამას ვერ უნდა ხედავდეთ"

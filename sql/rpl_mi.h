@@ -18,6 +18,7 @@
 
 #ifdef HAVE_REPLICATION
 
+#include "rpl_master_info_file.h"
 #include "rpl_rli.h"
 #include "rpl_reporting.h"
 #include <my_sys.h>
@@ -96,44 +97,8 @@ public:
   bool update_ids(DYNAMIC_ARRAY *do_ids, DYNAMIC_ARRAY *ignore_ids,
                   bool using_gtid);
 
-  /*
-    Serialize and store the ids from domain id lists into the thd's protocol
-    buffer.
-
-    @param thd [IN]                   thread handler
-
-    @retval void
-  */
-  void store_ids(THD *thd);
-  /* Same as above, but store the id's into a group of fields */
+  /// Serialize and store the ids from domain id lists into a group of fields.
   void store_ids(Field ***field);
-  /*
-    Initialize the given domain id list (DYNAMIC_ARRAY) with the
-    space-separated list of numbers from the specified IO_CACHE where
-    the first number is the total number of entries to follows.
-
-    @param f    [IN]                  IO_CACHE file
-    @param type [IN]                  domain id list type
-
-    @retval false                     Success
-            true                      Error
-  */
-  bool init_ids(IO_CACHE *f, enum_list_type type);
-
-  /*
-    Return the elements of the give domain id list type as string.
-
-    @param type [IN]                  domain id list type
-
-    @retval                           a string buffer storing the total number
-                                      of elements followed by the individual
-                                      elements (space-separated) in the
-                                      specified list.
-
-    Note: Its caller's responsibility to free the returned string buffer.
-  */
-  char *as_string(enum_list_type type);
-
 };
 
 
@@ -184,12 +149,14 @@ typedef struct st_rows_event_tracker
 
 *****************************************************************************/
 
-class Master_info : public Slave_reporting_capability
+class Master_info: public Master_info_file, public Slave_reporting_capability
 {
  public:
-  enum enum_using_gtid {
-    USE_GTID_NO= 0, USE_GTID_CURRENT_POS= 1, USE_GTID_SLAVE_POS= 2
-  };
+  /// @deprecated use the new namespace instead
+  inline static constexpr enum_master_use_gtid
+    USE_GTID_NO         = enum_master_use_gtid::NO,
+    USE_GTID_CURRENT_POS= enum_master_use_gtid::CURRENT_POS,
+    USE_GTID_SLAVE_POS  = enum_master_use_gtid::SLAVE_POS;
 
   Master_info(LEX_CSTRING *connection_name, bool is_slave_recovery);
   ~Master_info();
@@ -200,7 +167,11 @@ class Master_info : public Slave_reporting_capability
     /* If malloc() in initialization failed */
     return connection_name.str == 0;
   }
-  static const char *using_gtid_astext(enum enum_using_gtid arg);
+  inline const char *using_gtid_astext(enum_master_use_gtid arg)
+  {
+    DBUG_ASSERT(arg <= enum_master_use_gtid::DEFAULT);
+    return master_use_gtid_names[static_cast<size_t>(arg)];
+  }
   bool using_parallel()
   {
     return opt_slave_parallel_threads > 0 &&
@@ -222,21 +193,16 @@ class Master_info : public Slave_reporting_capability
   }
 
   /* the variables below are needed because we can change masters on the fly */
-  char master_log_name[FN_REFLEN+6]; /* Room for multi-*/
-  char host[HOSTNAME_LENGTH*SYSTEM_CHARSET_MBMAXLEN+1];
-  char user[USERNAME_LENGTH+1];
-  char password[MAX_PASSWORD_LENGTH*SYSTEM_CHARSET_MBMAXLEN+1];
+  char (&master_log_name)[FN_REFLEN]= master_log_file.buf;
+  char (&host)[HOSTNAME_LENGTH*SYSTEM_CHARSET_MBMAXLEN+1]= master_host.buf;
+  char (&user)[USERNAME_LENGTH+1]= master_user.buf;
+  char (&password)[MAX_PASSWORD_LENGTH*SYSTEM_CHARSET_MBMAXLEN+1]=
+    master_password.buf;
   LEX_CSTRING connection_name; 		/* User supplied connection name */
   LEX_CSTRING cmp_connection_name;	/* Connection name in lower case */
-  bool ssl; // enables use of SSL connection if true
-  char ssl_ca[FN_REFLEN], ssl_capath[FN_REFLEN], ssl_cert[FN_REFLEN];
-  char ssl_cipher[FN_REFLEN], ssl_key[FN_REFLEN];
-  char ssl_crl[FN_REFLEN], ssl_crlpath[FN_REFLEN];
-  my_bool ssl_verify_server_cert; /* MUST be my_bool, see mysql_option() */
 
-  my_off_t master_log_pos;
+  my_off_t &master_log_pos= Master_info_file::master_log_pos.value;
   File fd; // we keep the file open, so we need to remember the file pointer
-  IO_CACHE file;
 
   mysql_mutex_t data_lock, run_lock, sleep_lock, start_stop_lock, start_alter_lock, start_alter_list_lock;
   mysql_cond_t data_cond, start_cond, stop_cond, sleep_cond;
@@ -245,7 +211,7 @@ class Master_info : public Slave_reporting_capability
   uint32 file_id;				/* for 3.23 load data infile */
   uint mysql_version;
   Relay_log_info rli;
-  uint port;
+  uint32_t &port= master_port.value;
   Rpl_filter* rpl_filter;      /* Each replication can set its filter rule*/
   /*
     to hold checksum alg in use until IO thread has received FD.
@@ -254,9 +220,9 @@ class Master_info : public Slave_reporting_capability
   */
   enum_binlog_checksum_alg checksum_alg_before_fd;
   /** pause duration between each connection retry */
-  uint connect_retry;
+  decltype(master_connect_retry) &connect_retry= master_connect_retry;
   /** per-slave @ref master_retry_count */
-  ulong retry_count;
+  decltype(master_retry_count) &retry_count= master_retry_count;
   /** count of connects the most-recent (or the current) connection has tried */
   ulong connects_tried;
 #ifndef DBUG_OFF
@@ -289,7 +255,6 @@ class Master_info : public Slave_reporting_capability
     events should happen before fsyncing.
   */
   uint sync_counter;
-  float heartbeat_period;         // interface with CHANGE MASTER or master.info
   ulonglong received_heartbeats;  // counter of received heartbeat events
   DYNAMIC_ARRAY ignore_server_ids;
   ulong master_id;
@@ -305,7 +270,7 @@ class Master_info : public Slave_reporting_capability
     Note that you can not change the numeric values of these, they are used
     in master.info.
   */
-  enum enum_using_gtid using_gtid;
+  decltype(master_use_gtid) &using_gtid= master_use_gtid;
 
   /*
     This GTID position records how far we have fetched into the relay logs.
@@ -404,7 +369,7 @@ class Master_info : public Slave_reporting_capability
     first need to test if the master supports GTIDs. If not, fall back to 'No'.
     Cache the value so future RESET SLAVE commands don't revert to Slave_Pos.
   */
-  bool master_supports_gtid= true;
+  bool &master_supports_gtid= master_use_gtid.gtid_supported;
 
   /*
     When TRUE, transition this server from being an active master to a slave.
@@ -435,7 +400,6 @@ int flush_master_info(Master_info* mi,
                       bool need_lock_relay_log);
 void copy_filter_setting(Rpl_filter* dst_filter, Rpl_filter* src_filter);
 void update_change_master_ids(DYNAMIC_ARRAY *new_ids, DYNAMIC_ARRAY *old_ids);
-void prot_store_ids(THD *thd, DYNAMIC_ARRAY *ids);
 void field_store_ids(Field *field, DYNAMIC_ARRAY *ids);
 /*
   Multi master are handled trough this struct.

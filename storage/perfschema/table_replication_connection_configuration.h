@@ -94,7 +94,7 @@ struct st_row_connect_config {
   char ssl_crl_path[FN_REFLEN];
   uint ssl_crl_path_length;
   uint connection_retry_interval;
-  ulong connection_retry_count;
+  ulonglong connection_retry_count;
   double heartbeat_interval;
   char *ignore_server_ids;
   uint ignore_server_ids_length;
