@@ -329,11 +329,6 @@ public:
     return storage_type_handler()->Item_send(item, protocol, buf);
   }
 
-  bool Column_definition_fix_attributes(Column_definition *def) const override
-  {
-    return storage_type_handler()->Column_definition_fix_attributes(def);
-  }
-
   bool Column_definition_prepare_stage2(Column_definition *c,
                                         handler *file,
                                         ulonglong table_flags) const override

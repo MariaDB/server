@@ -784,7 +784,6 @@ public:
     function return values.
 
     @param[in]  thd          Thread handle
-    @param[in]  lex          Yacc parsing context
     @param[out] field_def    An instance of create_field to be filled
 
     @retval false on success
@@ -792,9 +791,7 @@ public:
   */
   bool fill_field_definition(THD *thd, Column_definition *field_def)
   {
-    const Type_handler *h= field_def->type_handler();
-    return h->Column_definition_fix_attributes(field_def) ||
-           field_def->sp_prepare_create_field(thd, mem_root);
+    return field_def->sp_prepare_create_field(thd, mem_root);
   }
   bool row_fill_field_definitions(THD *thd, Row_definition_list *row)
   {
