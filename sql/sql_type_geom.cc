@@ -276,12 +276,19 @@ Field *Type_handler_geometry::make_conversion_table_field(MEM_ROOT *root,
 }
 
 
-bool Type_handler_geometry::
-       Column_definition_fix_attributes(Column_definition *def) const
+bool Type_handler_geometry::Column_definition_set_attributes(THD *thd,
+                                                Column_definition *def,
+                                                const Lex_field_type_st &attr,
+                                                column_definition_type_t type)
+                                                const
 {
+  if (Type_handler_string_result::Column_definition_set_attributes(thd, def,
+                                                                   attr, type))
+    return true;
   def->flags|= BLOB_FLAG;
   return false;
 }
+
 
 void Type_handler_geometry::
        Column_definition_reuse_fix_attributes(THD *thd,

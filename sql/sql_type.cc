@@ -2791,6 +2791,104 @@ Type_handler::Column_definition_set_attributes(THD *thd,
 }
 
 
+bool
+Type_handler_general_purpose_int::Column_definition_set_attributes(THD *thd,
+                                                Column_definition *def,
+                                                const Lex_field_type_st &attr,
+                                                column_definition_type_t type)
+                                                                         const
+{
+  return
+    Type_handler_int_result::Column_definition_set_attributes(thd, def,
+                                                              attr, type)||
+    def->fix_attributes_int(type_limits_int()->char_length());
+}
+
+
+bool
+Type_handler_int24::Column_definition_set_attributes(THD *thd,
+                                                Column_definition *def,
+                                                const Lex_field_type_st &attr,
+                                                column_definition_type_t type)
+                                                                         const
+{
+  return
+    Type_handler_int_result::Column_definition_set_attributes(thd, def,
+                                                              attr, type) ||
+    def->fix_attributes_int(MAX_MEDIUMINT_WIDTH + def->sign_length());
+}
+
+
+bool
+Type_handler_year::Column_definition_set_attributes(THD *thd,
+                                                Column_definition *def,
+                                                const Lex_field_type_st &attr,
+                                                column_definition_type_t type)
+                                                                         const
+{
+  if (Type_handler_int_result::Column_definition_set_attributes(thd, def,
+                                                                attr, type))
+    return true;
+  if (!def->length || def->length != 2)
+    def->length= 4; // Default length
+  def->flags|= ZEROFILL_FLAG | UNSIGNED_FLAG;
+  return false;
+}
+
+
+bool
+Type_handler_bit::Column_definition_set_attributes(THD *thd,
+                                                Column_definition *def,
+                                                const Lex_field_type_st &attr,
+                                                column_definition_type_t type)
+                                                                         const
+{
+  return
+    Type_handler_int_result::Column_definition_set_attributes(thd, def,
+                                                              attr, type) ||
+    def->fix_attributes_bit();
+}
+
+
+bool Type_handler_float::Column_definition_set_attributes(THD *thd,
+                                                Column_definition *def,
+                                                const Lex_field_type_st &attr,
+                                                column_definition_type_t type)
+                                                                         const
+{
+  return
+    Type_handler_real_result::Column_definition_set_attributes(thd, def,
+                                                               attr, type) ||
+    def->fix_attributes_real(MAX_FLOAT_STR_LENGTH);
+}
+
+
+bool Type_handler_double::Column_definition_set_attributes(THD *thd,
+                                                Column_definition *def,
+                                                const Lex_field_type_st &attr,
+                                                column_definition_type_t type)
+                                                                         const
+{
+  return
+    Type_handler_real_result::Column_definition_set_attributes(thd, def,
+                                                               attr, type) ||
+    def->fix_attributes_real(DBL_DIG + 7);
+}
+
+
+bool Type_handler_decimal_result::Column_definition_set_attributes(THD *thd,
+                                                Column_definition *def,
+                                                const Lex_field_type_st &attr,
+                                                column_definition_type_t type)
+                                                                         const
+{
+  // Old decimal is obsolete
+  DBUG_ASSERT(!dynamic_cast<const Type_handler_olddecimal*>(this));
+  return Type_handler::Column_definition_set_attributes(thd, def, attr, type) ||
+          def->fix_attributes_decimal();
+}
+
+
 /*
   In sql_mode=ORACLE, real size of VARCHAR and CHAR with no length
   in SP parameters is fixed at runtime with the length of real args.
@@ -2817,9 +2915,11 @@ Type_handler_string::Column_definition_set_attributes(
                                                  column_definition_type_t type)
                                                  const
 {
-  Type_handler::Column_definition_set_attributes(thd, def, attr, type);
+  if (Type_handler_longstr::Column_definition_set_attributes(thd, def,
+                                                             attr, type))
+    return true;
   if (attr.has_explicit_length())
-    return false;
+    return def->check_length(ER_TOO_BIG_FIELDLENGTH, MAX_FIELD_CHARLENGTH);
   switch (type) {
   case COLUMN_DEFINITION_ROUTINE_PARAM:
   case COLUMN_DEFINITION_FUNCTION_RETURN:
@@ -2848,9 +2948,17 @@ Type_handler_varchar::Column_definition_set_attributes(
                                                  column_definition_type_t type)
                                                  const
 {
-  Type_handler::Column_definition_set_attributes(thd, def, attr, type);
+  if (Type_handler_longstr::Column_definition_set_attributes(thd, def,
+                                                             attr, type))
+    return true;
   if (attr.has_explicit_length())
-    return false;
+  {
+    /*
+      Long VARCHAR's are automaticly converted to blobs in mysql_prepare_table
+      if they don't have a default value
+    */
+    return def->check_length(ER_TOO_BIG_DISPLAYWIDTH, MAX_FIELD_BLOBLENGTH);
+  }
   switch (type) {
   case COLUMN_DEFINITION_ROUTINE_PARAM:
   case COLUMN_DEFINITION_FUNCTION_RETURN:
@@ -2875,156 +2983,110 @@ Type_handler_varchar::Column_definition_set_attributes(
 }
 
 
-/*************************************************************************/
-bool Type_handler_null::
-       Column_definition_fix_attributes(Column_definition *def) const
+bool
+Type_handler_blob_common::Column_definition_set_attributes(
+                                                 THD *thd,
+                                                 Column_definition *def,
+                                                 const Lex_field_type_st &attr,
+                                                 column_definition_type_t type)
+                                                 const
 {
-  return false;
-}
-
-bool Type_handler_tiny::
-       Column_definition_fix_attributes(Column_definition *def) const
-{
-  return def->fix_attributes_int(MAX_TINYINT_WIDTH + def->sign_length());
-}
-
-bool Type_handler_short::
-       Column_definition_fix_attributes(Column_definition *def) const
-{
-  return def->fix_attributes_int(MAX_SMALLINT_WIDTH + def->sign_length());
-}
-
-bool Type_handler_int24::
-       Column_definition_fix_attributes(Column_definition *def) const
-{
-  return def->fix_attributes_int(MAX_MEDIUMINT_WIDTH + def->sign_length());
-}
-
-bool Type_handler_long::
-       Column_definition_fix_attributes(Column_definition *def) const
-{
-  return def->fix_attributes_int(MAX_INT_WIDTH + def->sign_length());
-}
-
-bool Type_handler_longlong::
-       Column_definition_fix_attributes(Column_definition *def) const
-{
-  return def->fix_attributes_int(MAX_BIGINT_WIDTH/*no sign_length() added*/);
-}
-
-bool Type_handler_newdecimal::
-       Column_definition_fix_attributes(Column_definition *def) const
-{
-  return def->fix_attributes_decimal();
-}
-
-bool Type_handler_olddecimal::
-       Column_definition_fix_attributes(Column_definition *def) const
-{
-  DBUG_ASSERT(0); // Obsolete
-  return true;
-}
-
-bool Type_handler_var_string::
-       Column_definition_fix_attributes(Column_definition *def) const
-{
-  DBUG_ASSERT(0); // Obsolete
-  return true;
-}
-
-bool Type_handler_varchar::
-       Column_definition_fix_attributes(Column_definition *def) const
-{
-  /*
-    Long VARCHAR's are automaticly converted to blobs in mysql_prepare_table
-    if they don't have a default value
-  */
-  return def->check_length(ER_TOO_BIG_DISPLAYWIDTH, MAX_FIELD_BLOBLENGTH);
-}
-
-bool Type_handler_string::
-       Column_definition_fix_attributes(Column_definition *def) const
-{
-  return def->check_length(ER_TOO_BIG_FIELDLENGTH, MAX_FIELD_CHARLENGTH);
-}
-
-bool Type_handler_blob_common::
-       Column_definition_fix_attributes(Column_definition *def) const
-{
+  if (Type_handler_longstr::Column_definition_set_attributes(thd, def,
+                                                             attr, type))
+    return true;
   def->flags|= BLOB_FLAG;
   return def->check_length(ER_TOO_BIG_DISPLAYWIDTH, MAX_FIELD_BLOBLENGTH);
 }
 
 
-bool Type_handler_year::
-       Column_definition_fix_attributes(Column_definition *def) const
+bool Type_handler_enum::Column_definition_set_attributes(THD *thd,
+                                                 Column_definition *def,
+                                                 const Lex_field_type_st &attr,
+                                                 column_definition_type_t type)
+                                                                          const
 {
-  if (!def->length || def->length != 2)
-    def->length= 4; // Default length
-  def->flags|= ZEROFILL_FLAG | UNSIGNED_FLAG;
+  if (Type_handler_typelib::Column_definition_set_attributes(thd, def,
+                                                             attr, type))
+    return true;
+  def->pack_length= get_enum_pack_length(def->interval_list.elements);
   return false;
 }
 
-bool Type_handler_float::
-       Column_definition_fix_attributes(Column_definition *def) const
+
+bool Type_handler_set::Column_definition_set_attributes(THD *thd,
+                                                 Column_definition *def,
+                                                 const Lex_field_type_st &attr,
+                                                 column_definition_type_t type)
+                                                                          const
 {
-  return def->fix_attributes_real(MAX_FLOAT_STR_LENGTH);
+  if (Type_handler_typelib::Column_definition_set_attributes(thd, def,
+                                                             attr, type))
+    return true;
+  def->pack_length= get_set_pack_length(def->interval_list.elements);
+  return false;
 }
 
 
-bool Type_handler_double::
-       Column_definition_fix_attributes(Column_definition *def) const
+bool Type_handler_time_common::Column_definition_set_attributes(THD *thd,
+                                                Column_definition *def,
+                                                const Lex_field_type_st &attr,
+                                                column_definition_type_t type)
+                                                                         const
 {
-  return def->fix_attributes_real(DBL_DIG + 7);
+  return
+    Type_handler_temporal_result::Column_definition_set_attributes(thd, def,
+                                                                   attr,
+                                                                   type) ||
+    def->fix_attributes_temporal_with_time(MIN_TIME_WIDTH);
 }
 
-bool Type_handler_timestamp_common::
-       Column_definition_fix_attributes(Column_definition *def) const
-{
-  def->flags|= UNSIGNED_FLAG;
-  return def->fix_attributes_temporal_with_time(MAX_DATETIME_WIDTH);
-}
 
-bool Type_handler_date_common::
-       Column_definition_fix_attributes(Column_definition *def) const
+bool Type_handler_date_common::Column_definition_set_attributes(THD *thd,
+                                                Column_definition *def,
+                                                const Lex_field_type_st &attr,
+                                                column_definition_type_t type)
+                                                                         const
 {
+  if (Type_handler_temporal_with_date::Column_definition_set_attributes(thd,
+                                                                        def,
+                                                                        attr,
+                                                                        type))
+    return true;
   // We don't support creation of MYSQL_TYPE_DATE anymore
   def->set_handler(&type_handler_newdate);
   def->length= MAX_DATE_WIDTH;
   return false;
 }
 
-bool Type_handler_time_common::
-       Column_definition_fix_attributes(Column_definition *def) const
+
+bool Type_handler_datetime_common::Column_definition_set_attributes(THD *thd,
+                                                Column_definition *def,
+                                                const Lex_field_type_st &attr,
+                                                column_definition_type_t type)
+                                                                         const
 {
-  return def->fix_attributes_temporal_with_time(MIN_TIME_WIDTH);
+  return
+    Type_handler_temporal_with_date::Column_definition_set_attributes(thd, def,
+                                                                      attr,
+                                                                      type) ||
+    def->fix_attributes_temporal_with_time(MAX_DATETIME_WIDTH);
 }
 
-bool Type_handler_datetime_common::
-       Column_definition_fix_attributes(Column_definition *def) const
+
+bool Type_handler_timestamp_common::Column_definition_set_attributes(THD *thd,
+                                                Column_definition *def,
+                                                const Lex_field_type_st &attr,
+                                                column_definition_type_t type)
+                                                                         const
 {
-  return def->fix_attributes_temporal_with_time(MAX_DATETIME_WIDTH);
+  def->flags|= UNSIGNED_FLAG;
+  return
+    Type_handler_temporal_with_date::Column_definition_set_attributes(thd, def,
+                                                                      attr,
+                                                                      type) ||
+    def->fix_attributes_temporal_with_time(MAX_DATETIME_WIDTH);
 }
 
-bool Type_handler_set::
-       Column_definition_fix_attributes(Column_definition *def) const
-{
-  def->pack_length= get_set_pack_length(def->interval_list.elements);
-  return false;
-}
-
-bool Type_handler_enum::
-       Column_definition_fix_attributes(Column_definition *def) const
-{
-  def->pack_length= get_enum_pack_length(def->interval_list.elements);
-  return false;
-}
-
-bool Type_handler_bit::
-       Column_definition_fix_attributes(Column_definition *def) const
-{
-  return def->fix_attributes_bit();
-}
 
 /*************************************************************************/
 
