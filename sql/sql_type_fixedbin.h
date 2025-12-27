@@ -1229,9 +1229,14 @@ public:
     const Record_addr tmp(NULL, Bit_addr(true));
     return new (table->in_use->mem_root) Field_fbt(&empty_clex_str, tmp);
   }
-  // Fix attributes after the parser
-  bool Column_definition_fix_attributes(Column_definition *c) const override
+  bool Column_definition_set_attributes(THD *thd,
+                                        Column_definition *c,
+                                        const Lex_field_type_st &attr,
+                                        column_definition_type_t type)
+                                                        const override
   {
+    if (Type_handler::Column_definition_set_attributes(thd, c, attr, type))
+      return true;
     c->length= FbtImpl::max_char_length();
     return false;
   }

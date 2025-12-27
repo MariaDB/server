@@ -135,7 +135,11 @@ public:
                                           const uchar *buffer,
                                           LEX_CUSTRING *gis_options) const
     override;
-  bool Column_definition_fix_attributes(Column_definition *c) const override;
+  bool Column_definition_set_attributes(THD *thd,
+                                        Column_definition *def,
+                                        const Lex_field_type_st &attr,
+                                        column_definition_type_t type)
+                                        const override;
   void Column_definition_reuse_fix_attributes(THD *thd,
                                               Column_definition *c,
                                               const Field *field) const

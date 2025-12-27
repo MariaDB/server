@@ -70,10 +70,18 @@ Field *Type_handler_vector::make_conversion_table_field(
                                  &empty_clex_str, table->s, metadata);
 }
 
-bool Type_handler_vector::Column_definition_fix_attributes(
-       Column_definition *def) const
+
+bool Type_handler_vector::Column_definition_set_attributes(THD *thd,
+                                                 Column_definition *def,
+                                                 const Lex_field_type_st &attr,
+                                                 column_definition_type_t type)
+                                                                          const
 {
-  if (def->length == 0 || def->charset != &my_charset_bin)
+  if (Type_handler_varchar::Column_definition_set_attributes(thd, def,
+                                                             attr, type))
+    return true;
+  if (def->length == 0 || def->charset != &my_charset_bin ||
+      attr.has_explicit_dec())
   {
     my_error(ER_WRONG_FIELD_SPEC, MYF(0), def->field_name.str);
     return true;

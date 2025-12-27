@@ -42,7 +42,11 @@ public:
                                charset_nr, false);
   }
 
-  bool Column_definition_fix_attributes(Column_definition *c) const override;
+  bool Column_definition_set_attributes(THD *thd,
+                                        Column_definition *def,
+                                        const Lex_field_type_st &attr,
+                                        column_definition_type_t type)
+                                                       const override;
   bool Key_part_spec_init_vector(Key_part_spec *part,
                                  const Column_definition &def) const override;
   Field *make_table_field(MEM_ROOT *root, const LEX_CSTRING *name,
