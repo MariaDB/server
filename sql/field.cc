@@ -10986,7 +10986,7 @@ bool Column_definition::check(THD *thd)
     */
     Item_func *fn= static_cast<Item_func*>(default_value->expr);
     if (fn->functype() == Item_func::NOW_FUNC &&
-        (fn->decimals == 0 || fn->decimals >= length))
+        (fn->decimals == 0 || fn->decimals >= decimals))
     {
       default_value= 0;
       unireg_check= Field::TIMESTAMP_DN_FIELD;
@@ -10996,7 +10996,7 @@ bool Column_definition::check(THD *thd)
   if (on_update)
   {
     if (mysql_timestamp_type() != MYSQL_TIMESTAMP_DATETIME ||
-        on_update->decimals < length)
+        on_update->decimals < decimals)
     {
       my_error(ER_INVALID_ON_UPDATE, MYF(0), field_name.str);
       DBUG_RETURN(TRUE);
@@ -11006,9 +11006,6 @@ bool Column_definition::check(THD *thd)
   }
   else if (flags & AUTO_INCREMENT_FLAG)
     unireg_check= Field::NEXT_NUMBER;
-
-  if (type_handler()->Column_definition_fix_attributes(this))
-    DBUG_RETURN(true);
 
   /* Remember the value of length */
   char_length= (uint)length;
