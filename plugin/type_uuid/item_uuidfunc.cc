@@ -47,7 +47,7 @@ bool Item_func_uuid_timestamp::get_timestamp(my_time_t *sec, ulong *usec)
   Type_handler_uuid_new::Fbt_null uuid(args[0]);
   if (uuid.is_null())
     return true;
-  return !my_uuid_extract_ts(uuid.to_lex_cstring().str, sec, usec);
+  return my_uuid_extract_ts(uuid.to_lex_cstring().str, sec, usec);
 }
 
 

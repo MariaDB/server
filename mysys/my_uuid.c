@@ -39,6 +39,7 @@
                                                      identifier.
 */
 
+#include <stdbool.h>
 #include "mysys_priv.h"
 #include <my_rnd.h>
 #include <m_string.h>
@@ -234,8 +235,8 @@ void my_uuid_end()
   @param[out] usec     Microseconds part
 
   @return
-    @retval 1  Success
-    @retval 0  UUID version doesn't contain timestamp or timestamp invalid
+    @retval false  Success
+    @retval true   UUID version doesn't contain timestamp or timestamp invalid
 
   UUIDv1 format (RFC 4122, big-endian):
     Bytes 0-3:  time_low (32 bits, low part of timestamp)
@@ -247,7 +248,7 @@ void my_uuid_end()
     Bytes 0-5:  Unix timestamp in milliseconds (48 bits)
     Bytes 6-7:  version (4 bits) + sub-millisecond precision (12 bits)
 */
-int my_uuid_extract_ts(const char *uuid, my_time_t *seconds, ulong *usec)
+bool my_uuid_extract_ts(const char *uuid, my_time_t *seconds, ulong *usec)
 {
   uint version= (uchar) uuid[6] >> 4;
   ulonglong ts;
@@ -259,7 +260,7 @@ int my_uuid_extract_ts(const char *uuid, my_time_t *seconds, ulong *usec)
     ts= mi_uint6korr(uuid);
     *seconds= ts / 1000;
     *usec= (ts % 1000) * 1000;
-    return 1;
+    return false;
 
   case 1:
     /*
@@ -275,15 +276,15 @@ int my_uuid_extract_ts(const char *uuid, my_time_t *seconds, ulong *usec)
 
     /* Timestamp before Unix epoch (1970-01-01) */
     if (ts < UUID_TIME_OFFSET)
-      return 0;
+      return true;
 
     ts= (ts - UUID_TIME_OFFSET) / 10;  /* Convert to microseconds */
     *seconds= ts / 1000000;
     *usec= ts % 1000000;
-    return 1;
+    return false;
 
   default:
     /* Other versions (e.g., v4) don't contain timestamps */
-    return 0;
+    return true;
   }
 }
