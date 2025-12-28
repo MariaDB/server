@@ -252,17 +252,16 @@ int my_uuid_extract_ts(const char *uuid, my_time_t *seconds, ulong *usec)
   uint version= (uchar) uuid[6] >> 4;
   ulonglong ts;
 
-  if (version == 7)
+  switch (version)
   {
+  case 7:
     /* UUIDv7: bytes 0-5 are Unix timestamp in milliseconds (big-endian) */
     ts= mi_uint6korr(uuid);
     *seconds= ts / 1000;
     *usec= (ts % 1000) * 1000;
     return 1;
-  }
 
-  if (version == 1)
-  {
+  case 1:
     /*
       UUIDv1: reconstruct 60-bit timestamp from three fields:
         - time_low  (bytes 0-3): bits 0-31 of timestamp
@@ -282,8 +281,9 @@ int my_uuid_extract_ts(const char *uuid, my_time_t *seconds, ulong *usec)
     *seconds= ts / 1000000;
     *usec= ts % 1000000;
     return 1;
-  }
 
-  /* Other versions (e.g., v4) don't contain timestamps */
-  return 0;
+  default:
+    /* Other versions (e.g., v4) don't contain timestamps */
+    return 0;
+  }
 }
