@@ -6766,9 +6766,8 @@ bool THD::binlog_write_table_maps()
           }
           else {
             found_filtered_table= true;
-            bool is_transactional= table->file->row_logging_has_trans;
-            is_transactional|= this->variables.option_bits & OPTION_GTID_BEGIN;
-
+            bool is_transactional= table->file->row_logging_has_trans
+                      || (this->variables.option_bits & OPTION_GTID_BEGIN);
             binlog_cache_mngr *const cache_mngr= this->binlog_get_cache_mngr();
             binlog_cache_data *cache_data= (cache_mngr->
                                   get_binlog_cache_data(is_transactional));
