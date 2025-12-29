@@ -1220,6 +1220,35 @@ DROP PROCEDURE p1;
 --echo # End of 10.5 tests
 --echo #
 
+
+--echo #
+--echo # MDEV-38451 `SHOW FUNCTION CODE package_func` crashes on the second execution
+--echo #
+
+DELIMITER $$;
+CREATE PACKAGE pkg1
+  PROCEDURE p1();
+END;
+$$
+CREATE PACKAGE BODY pkg1
+  FUNCTION f1() RETURNS INT
+  BEGIN
+    RETURN 10;
+  END;
+  PROCEDURE p1()
+  BEGIN
+    SHOW FUNCTION CODE f1;
+  END;
+END;
+$$
+DELIMITER ;$$
+CALL pkg1.p1;
+CALL pkg1.p1;
+CALL pkg1.p1;
+DROP PACKAGE pkg1;
+
+--echo # End of 10.11 tests
+
 --echo # Start of 11.8 tests
 
 --echo #

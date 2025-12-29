@@ -3221,6 +3221,24 @@ static bool prepare_db_action(THD *thd, privilege_t want_access,
 }
 
 
+#ifndef DBUG_OFF
+bool Sql_cmd_show_routine_code::execute(THD *thd)
+{
+  sp_head *sp;
+  if (m_handler->sp_cache_routine(thd, m_name, &sp))
+    return true;
+  if (!sp || sp->show_routine_code(thd))
+  {
+    /* We don't distinguish between errors for now */
+    my_error(ER_SP_DOES_NOT_EXIST, MYF(0),
+             m_handler->type_str(), m_name->m_name.str);
+    return true;
+  }
+  return false;
+}
+#endif // DBUG_OFF
+
+
 bool Sql_cmd_call::execute(THD *thd)
 {
   TABLE_LIST *all_tables= thd->lex->query_tables;
@@ -5621,34 +5639,6 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
         goto error;
       break;
     }
-  case SQLCOM_SHOW_PROC_CODE:
-  case SQLCOM_SHOW_FUNC_CODE:
-  case SQLCOM_SHOW_PACKAGE_BODY_CODE:
-    {
-#ifndef DBUG_OFF
-      Database_qualified_name pkgname;
-      sp_head *sp;
-      const Sp_handler *sph= Sp_handler::handler(lex->sql_command);
-      WSREP_SYNC_WAIT(thd, WSREP_SYNC_WAIT_BEFORE_SHOW);
-      if (sph->sp_resolve_package_routine(thd, thd->lex->sphead,
-                                          lex->spname, &sph, &pkgname))
-        return true;
-      if (sph->sp_cache_routine(thd, lex->spname, &sp))
-        goto error;
-      if (!sp || sp->show_routine_code(thd))
-      {
-        /* We don't distinguish between errors for now */
-        my_error(ER_SP_DOES_NOT_EXIST, MYF(0),
-                 sph->type_str(), lex->spname->m_name.str);
-        goto error;
-      }
-      break;
-#else
-      my_error(ER_FEATURE_DISABLED, MYF(0),
-               "SHOW PROCEDURE|FUNCTION CODE", "--with-debug");
-      goto error;
-#endif // ifndef DBUG_OFF
-    }
   case SQLCOM_SHOW_CREATE_TRIGGER:
     {
       if (check_ident_length(&lex->spname->m_name))
@@ -5852,6 +5842,9 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
   case SQLCOM_SIGNAL:
   case SQLCOM_RESIGNAL:
   case SQLCOM_GET_DIAGNOSTICS:
+  case SQLCOM_SHOW_PROC_CODE:
+  case SQLCOM_SHOW_FUNC_CODE:
+  case SQLCOM_SHOW_PACKAGE_BODY_CODE:
   case SQLCOM_CALL:
   case SQLCOM_REVOKE:
   case SQLCOM_GRANT:

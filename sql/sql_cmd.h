@@ -458,4 +458,38 @@ public:
   }
 };
 
+
+#ifndef DBUG_OFF
+/**
+  Sql_cmd_call represents the SHOW CODE statement:
+  - SHOW PROCEDURE CODE
+  - SHOW FUNCTION CODE
+  - SHOW PACKAGE BODY CODE
+*/
+class Sql_cmd_show_routine_code : public Sql_cmd
+{
+public:
+  class sp_name *m_name;
+  const class Sp_handler *m_handler;
+  enum_sql_command m_sql_command;
+  Sql_cmd_show_routine_code(class sp_name *name,
+                            const class Sp_handler *handler,
+                            enum_sql_command sql_command)
+   :m_name(name),
+    m_handler(handler),
+    m_sql_command(sql_command)
+  {}
+
+  virtual ~Sql_cmd_show_routine_code() = default;
+
+  bool execute(THD *thd) override;
+
+  enum_sql_command sql_command_code() const override
+  {
+    return m_sql_command;
+  }
+};
+#endif // DBUG_OFF
+
+
 #endif // SQL_CMD_INCLUDED
