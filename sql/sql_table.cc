@@ -13617,11 +13617,12 @@ bool check_engine(THD *thd, const char *db_name,
                         ha_resolve_storage_engine_name(*new_engine),
                         table_name);
   }
-  if (create_info->tmp_table() &&
+  if ((create_info->tmp_table() || create_info->global_tmp_table()) &&
       ha_check_storage_engine_flag(*new_engine, HTON_TEMPORARY_NOT_SUPPORTED))
   {
     my_error(ER_ILLEGAL_HA_CREATE_OPTION, MYF(0),
-             hton_name(*new_engine)->str, "TEMPORARY");
+             hton_name(*new_engine)->str,
+             create_info->tmp_table() ? "TEMPORARY" : "GLOBAL TEMPORARY");
     *new_engine= 0;
     DBUG_RETURN(true);
   }

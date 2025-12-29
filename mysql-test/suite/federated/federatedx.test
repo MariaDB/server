@@ -2128,4 +2128,10 @@ drop server s;
 
 --echo # End of 11.8 tests
 
+--echo # MDEV-38449 Assertion `sp && savepoint_next && *sp && *sp <= savepoint_level' failed and memory corruption on RELEASE SAVEPOINT
+--error ER_ILLEGAL_HA_CREATE_OPTION
+create global temporary table t3 (c int) engine=federated connection='s/t1';
+
+--echo # End of 12.3 tests
+
 source include/federated_cleanup.inc;
