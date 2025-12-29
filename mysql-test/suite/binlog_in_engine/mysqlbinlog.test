@@ -9,11 +9,12 @@ set TIMESTAMP= UNIX_TIMESTAMP("1970-01-21 15:32:22");
 CREATE TABLE t1 (a INT PRIMARY KEY, b INT) ENGINE=InnoDB;
 
 --echo *** Test dumping all binlog files, including the last empty one.
---let $binlog_name= binlog-000001.ibb
+FLUSH BINARY LOGS;  # To make sure the CREATE TABLE is on disk
+--let $binlog_name= binlog-000002.ibb
 --let $binlog_size= 262144
 --source include/wait_for_engine_binlog.inc
 --replace_regex /collation_server=[0-9]+/collation_server=X/ /character_set_client=[a-zA-Z0-9]+/character_set_client=X/ /collation_connection=[0-9]+/collation_connection=X/
---exec $MYSQL_BINLOG --short-form --base64-output=never $datadir/binlog-000000.ibb $datadir/binlog-000001.ibb 2>&1
+--exec $MYSQL_BINLOG --short-form --base64-output=never $datadir/binlog-000000.ibb $datadir/binlog-000001.ibb $datadir/binlog-000002.ibb 2>&1
 
 --let $gtid_start= `SELECT @@gtid_binlog_pos`
 INSERT INTO t1 VALUES (1, 0), (2, 0), (3, 0);
@@ -22,31 +23,30 @@ DELETE FROM t1 WHERE a=2;
 REPLACE INTO t1 VALUES (3, 3);
 --let $gtid_stop= `SELECT @@gtid_binlog_pos`
 
-# Force rotate the binlog a couple of times to make sure the one we want
-# to dump is written to disk.
+# Force rotate the binlog to make sure the one we want to dump is written
+# to disk.
 FLUSH BINARY LOGS;
-FLUSH BINARY LOGS;
---replace_regex /collation_server=[0-9]+/collation_server=X/ /character_set_client=[a-zA-Z0-9]+/character_set_client=X/ /collation_connection=[0-9]+/collation_connection=X/
---exec $MYSQL_BINLOG --short-form --base64-output=never $datadir/binlog-000000.ibb
-
---echo *** Test dumping the last, pre-allocated, empty file.
 --let $binlog_name= binlog-000003.ibb
 --let $binlog_size= 262144
 --source include/wait_for_engine_binlog.inc
+--replace_regex /collation_server=[0-9]+/collation_server=X/ /character_set_client=[a-zA-Z0-9]+/character_set_client=X/ /collation_connection=[0-9]+/collation_connection=X/
+--exec $MYSQL_BINLOG --short-form --base64-output=never $datadir/binlog-000001.ibb
+
+--echo *** Test dumping the last, pre-allocated, empty file.
 --replace_regex /collation_server=[0-9]+/collation_server=X/ /character_set_client=[a-zA-Z0-9]+/character_set_client=X/ /collation_connection=[0-9]+/collation_connection=X/
 --exec $MYSQL_BINLOG --short-form --base64-output=never $datadir/binlog-000003.ibb 2>&1
 
 SELECT * FROM t1 ORDER BY a;
 
 # Test flashback from files specified with directory path.
---exec $MYSQL_BINLOG --flashback --start-position=$gtid_start --stop-position=$gtid_stop $datadir/binlog-000000.ibb > $MYSQLTEST_VARDIR/tmp/mysqlbinlog_1.txt
+--exec $MYSQL_BINLOG --flashback --start-position=$gtid_start --stop-position=$gtid_stop $datadir/binlog-000000.ibb $datadir/binlog-000001.ibb > $MYSQLTEST_VARDIR/tmp/mysqlbinlog_1.txt
 --exec $MYSQL --abort-source-on-error -e "source $MYSQLTEST_VARDIR/tmp/mysqlbinlog_1.txt;" test
 --remove_file $MYSQLTEST_VARDIR/tmp/mysqlbinlog_1.txt
 
 SELECT * FROM t1 ORDER BY a;
 
 # Test normal apply from binlog files in current directory
---exec cd $datadir && $MYSQL_BINLOG --start-position=$gtid_start --stop-position=$gtid_stop binlog-000000.ibb > $MYSQLTEST_VARDIR/tmp/mysqlbinlog_2.txt
+--exec cd $datadir && $MYSQL_BINLOG --start-position=$gtid_start --stop-position=$gtid_stop binlog-000000.ibb binlog-000001.ibb > $MYSQLTEST_VARDIR/tmp/mysqlbinlog_2.txt
 --exec $MYSQL -e "source $MYSQLTEST_VARDIR/tmp/mysqlbinlog_2.txt;"
 --remove_file $MYSQLTEST_VARDIR/tmp/mysqlbinlog_2.txt
 
