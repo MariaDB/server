@@ -747,7 +747,7 @@ static int sphinx_init_func ( void * p )
 		hton->show_status = sphinx_show_status;
 		hton->panic = sphinx_panic;
 		hton->drop_table= [](handlerton *, const char*) { return -1; };
-		hton->flags = HTON_CAN_RECREATE;
+		hton->flags = HTON_CAN_RECREATE | HTON_TEMPORARY_NOT_SUPPORTED;
 		#endif
 	}
 	SPH_RET(0);

@@ -42,12 +42,12 @@ id	w	q	gid	_sph_count
 1	1	;groupby=attr:gid	1	3
 explain select * from ts where q=';groupby=attr:gid';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	ts	ref	q	q	257	const	3	Using where with pushed condition
+1	SIMPLE	ts	ref	q	q	1022	const	3	Using where with pushed condition
 SET @save_optimizer_switch=@@optimizer_switch;
 SET optimizer_switch='index_condition_pushdown=off';
 explain select * from ts where q=';groupby=attr:gid';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	ts	ref	q	q	257	const	3	Using where with pushed condition
+1	SIMPLE	ts	ref	q	q	1022	const	3	Using where with pushed condition
 SET optimizer_switch=@save_optimizer_switch;
 drop table ts;
 show status like "sphinx_total%";
@@ -95,3 +95,10 @@ id	w	q
 1	2	test;range=meta.foo_count,100,500
 5	1	test;range=meta.foo_count,100,500
 drop table ts;
+#
+# MDEV-37898 No GTT MTR coverage on release builds due to debug_sync requirement
+#
+create temporary table ts ( id bigint unsigned not null, w int not null, q varchar(255) not null, index(q) ) engine=sphinx connection="sphinx://localhost:19001/*";
+ERROR HY000: Table storage engine 'SPHINX' does not support the create option 'TEMPORARY'
+create global temporary table ts ( id bigint unsigned not null, w int not null, q varchar(255) not null, index(q) ) engine=sphinx connection="sphinx://localhost:19001/*";
+ERROR HY000: Table storage engine 'SPHINX' does not support the create option 'GLOBAL TEMPORARY'
