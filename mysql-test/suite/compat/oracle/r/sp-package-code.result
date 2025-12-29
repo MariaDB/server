@@ -243,6 +243,36 @@ Pos	Instruction
 7	jump 11
 DROP PACKAGE pkg1;
 DROP TABLE t1;
+# Start of 10.11 tests
+#
+# MDEV-38451 `SHOW FUNCTION CODE package_func` crashes on the second execution
+#
+CREATE PACKAGE pkg1 AS
+PROCEDURE p1();
+END;
+$$
+CREATE PACKAGE BODY pkg1 AS
+FUNCTION f1() RETURN INT AS
+BEGIN
+RETURN 10;
+END;
+PROCEDURE p1() AS
+BEGIN
+SHOW FUNCTION CODE f1;
+END;
+END;
+$$
+CALL pkg1.p1;
+Pos	Instruction
+0	freturn int 10
+CALL pkg1.p1;
+Pos	Instruction
+0	freturn int 10
+CALL pkg1.p1;
+Pos	Instruction
+0	freturn int 10
+DROP PACKAGE pkg1;
+# End of 10.11 tests
 # Start of 11.4 tests
 #
 # MDEV-36047 Package body variables are not allowed as FETCH targets

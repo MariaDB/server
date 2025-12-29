@@ -14839,23 +14839,25 @@ show_param:
           }
         | PROCEDURE_SYM CODE_SYM sp_name
           {
-            Lex->sql_command= SQLCOM_SHOW_PROC_CODE;
-            Lex->spname= $3;
+            if (Lex->show_routine_code_start(thd, SQLCOM_SHOW_PROC_CODE, $3))
+              MYSQL_YYABORT;
           }
         | FUNCTION_SYM CODE_SYM sp_name
           {
-            Lex->sql_command= SQLCOM_SHOW_FUNC_CODE;
-            Lex->spname= $3;
+            if (Lex->show_routine_code_start(thd, SQLCOM_SHOW_FUNC_CODE, $3))
+              MYSQL_YYABORT;
           }
         | PACKAGE_MARIADB_SYM BODY_MARIADB_SYM CODE_SYM sp_name
           {
-            Lex->sql_command= SQLCOM_SHOW_PACKAGE_BODY_CODE;
-            Lex->spname= $4;
+            if (Lex->show_routine_code_start(thd, SQLCOM_SHOW_PACKAGE_BODY_CODE,
+                                             $4))
+              MYSQL_YYABORT;
           }
         | PACKAGE_ORACLE_SYM BODY_ORACLE_SYM CODE_SYM sp_name
           {
-            Lex->sql_command= SQLCOM_SHOW_PACKAGE_BODY_CODE;
-            Lex->spname= $4;
+            if (Lex->show_routine_code_start(thd, SQLCOM_SHOW_PACKAGE_BODY_CODE,
+                                             $4))
+              MYSQL_YYABORT;
           }
         | CREATE EVENT_SYM sp_name
           {
