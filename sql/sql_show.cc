@@ -7334,10 +7334,12 @@ static int get_schema_constraints_record(THD *thd, TABLE_LIST *tables,
       /* we know that the table or at least some of the columns have
          necessary privileges, but the caller didn't pass down the GRANT_INFO
          object, so we have to rediscover everything again :( */
-      check_grant(thd, SELECT_ACL, tables, 0, 1, 1);
-
-      if (!(tables->grant.all_privilege() & need))
-        DBUG_RETURN(0);
+      if (!(acl_get_all3(thd->security_ctx, db_name->str, 0) & need))
+      {
+        check_grant(thd, need, tables, 1, 1, true);
+        if (!(tables->grant.all_privilege() & need))
+          DBUG_RETURN(0);
+      }
     }
 #endif
 
@@ -8452,10 +8454,12 @@ get_referential_constraints_record(THD *thd, TABLE_LIST *tables,
       /* we know that the table or at least some of the columns have
          necessary privileges, but the caller didn't pass down the GRANT_INFO
          object, so we have to rediscover everything again :( */
-      check_grant(thd, SELECT_ACL, tables, 0, 1, 1);
-
-      if (!(tables->grant.all_privilege() & need))
-        DBUG_RETURN(0);
+      if (!(acl_get_all3(thd->security_ctx, db_name->str, 0) & need))
+      {
+        check_grant(thd, need, tables, 1, 1, true);
+        if (!(tables->grant.all_privilege() & need))
+          DBUG_RETURN(0);
+      }
     }
 #endif
 
