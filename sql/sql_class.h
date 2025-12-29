@@ -8120,6 +8120,8 @@ class Database_qualified_name
 public:
   LEX_CSTRING m_db;
   LEX_CSTRING m_name;
+  Database_qualified_name()
+  { }
   Database_qualified_name(const LEX_CSTRING *db, const LEX_CSTRING *name)
    :m_db(*db), m_name(*name)
   { }
