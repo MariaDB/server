@@ -2,22 +2,6 @@ include/reset_master.inc
 set TIMESTAMP= UNIX_TIMESTAMP("1970-01-21 15:32:22");
 CREATE TABLE t1 (a INT PRIMARY KEY, b INT) ENGINE=InnoDB;
 *** Test dumping all binlog files, including the last empty one.
-/*!50530 SET @@SESSION.PSEUDO_SLAVE_MODE=1*/;
-/*!40019 SET @@session.max_delayed_threads=0*/;
-/*!50003 SET @OLD_COMPLETION_TYPE=@@COMPLETION_TYPE,COMPLETION_TYPE=0*/;
-DELIMITER /*!*/;
-DELIMITER ;
-DELIMITER /*!*/;
-DELIMITER ;
-# End of log file
-ROLLBACK /* added by mysqlbinlog */;
-/*!50003 SET COMPLETION_TYPE=@OLD_COMPLETION_TYPE*/;
-/*!50530 SET @@SESSION.PSEUDO_SLAVE_MODE=0*/;
-INSERT INTO t1 VALUES (1, 0), (2, 0), (3, 0);
-UPDATE t1 SET b=1 WHERE a=1;
-DELETE FROM t1 WHERE a=2;
-REPLACE INTO t1 VALUES (3, 3);
-FLUSH BINARY LOGS;
 FLUSH BINARY LOGS;
 /*!50530 SET @@SESSION.PSEUDO_SLAVE_MODE=1*/;
 /*!40019 SET @@session.max_delayed_threads=0*/;
@@ -35,6 +19,24 @@ SET @@session.lc_time_names=0/*!*/;
 SET @@session.collation_database=DEFAULT/*!*/;
 CREATE TABLE t1 (a INT PRIMARY KEY, b INT) ENGINE=InnoDB
 /*!*/;
+DELIMITER ;
+DELIMITER /*!*/;
+DELIMITER ;
+DELIMITER /*!*/;
+DELIMITER ;
+# End of log file
+ROLLBACK /* added by mysqlbinlog */;
+/*!50003 SET COMPLETION_TYPE=@OLD_COMPLETION_TYPE*/;
+/*!50530 SET @@SESSION.PSEUDO_SLAVE_MODE=0*/;
+INSERT INTO t1 VALUES (1, 0), (2, 0), (3, 0);
+UPDATE t1 SET b=1 WHERE a=1;
+DELETE FROM t1 WHERE a=2;
+REPLACE INTO t1 VALUES (3, 3);
+FLUSH BINARY LOGS;
+/*!50530 SET @@SESSION.PSEUDO_SLAVE_MODE=1*/;
+/*!40019 SET @@session.max_delayed_threads=0*/;
+/*!50003 SET @OLD_COMPLETION_TYPE=@@COMPLETION_TYPE,COMPLETION_TYPE=0*/;
+DELIMITER /*!*/;
 START TRANSACTION
 /*!*/;
 # Annotate_rows:
