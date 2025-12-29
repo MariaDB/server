@@ -2323,7 +2323,11 @@ retry_share:
         my_bool err= open_global_temporary_table(thd, share, table_list,
                                                  mdl_ticket, ot_ctx);
         if (unlikely(err))
+        {
+          if (thd->locked_tables_mode && !(flags & MYSQL_OPEN_GET_NEW_TABLE))
+            DBUG_RETURN(true);
           goto err_lock;
+        }
         table= table_list->table;
         goto finalize;
       }

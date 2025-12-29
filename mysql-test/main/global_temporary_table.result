@@ -1205,4 +1205,51 @@ set pseudo_thread_id=1;
 ERROR 42000: Variable 'pseudo_thread_id' can't be set to the value of '1'
 truncate t;
 drop table t;
+# MDEV-38448 assertion ...tdc->ref_count > 0 failed on LOCK gtt+open error
+set pseudo_slave_mode=1;
+create global temporary table t1 (c int) on commit delete rows;
+lock tables t1 write;
+insert into t1 values (1);
+ERROR HY000: Failed to open t1.test
+create global temporary table t1 (c int);
+ERROR 42S01: Table 't1' already exists
+set pseudo_slave_mode=0;
+Warnings:
+Warning	1231	Slave applier execution mode not active, statement ineffective.
+drop table t1;
+# MDEV-38445 (doplicate) malloc(): unaligned [tcache|fastbin] chunk detected, ASAN heap-use-after-free on CoR GTT
+create global temporary table t (c int) on commit delete rows;
+set pseudo_slave_mode=1;
+lock tables t write;
+insert into t values (1);
+ERROR HY000: Failed to open t.test
+truncate t;
+create or replace global temporary table t (t text);
+set pseudo_slave_mode=0;
+Warnings:
+Warning	1231	Slave applier execution mode not active, statement ineffective.
+drop table t;
+# MDEV-38444 (duplicate) ASAN heap-use-after-free memory corruption on FLUSH TABLES
+set pseudo_slave_mode=1;
+create global temporary table t (c int);
+lock table t write;
+insert into t values (1);
+ERROR HY000: Failed to open t.test
+flush tables;
+set pseudo_slave_mode=0;
+Warnings:
+Warning	1231	Slave applier execution mode not active, statement ineffective.
+drop table t;
+# MDEV-38442 (duplicate) Assertion `share->tdc->ref_count' failed in tdc_release_share on BEGIN
+set pseudo_slave_mode=1;
+create global temporary table t (c int);
+lock tables t read;
+create temporary table t1 like t;
+ERROR HY000: Failed to open t.test
+begin;
+commit;
+drop table t;
+set pseudo_slave_mode=0;
+Warnings:
+Warning	1231	Slave applier execution mode not active, statement ineffective.
 disconnect con1;
