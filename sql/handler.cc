@@ -2839,8 +2839,6 @@ ha_recover_engine_binlog(HASH *xid_hash)
   info.error= false;
   info.list= nullptr;
 
-  sql_print_information("Starting recovery of prepared transactions...");
-
   for (info.len= MAX_XID_LIST_SIZE; info.len >= MIN_XID_LIST_SIZE; info.len/=2)
   {
     info.list=(XID *)my_malloc(key_memory_XID, info.len*sizeof(XID), MYF(0));
@@ -2901,7 +2899,6 @@ ha_recover_engine_binlog(HASH *xid_hash)
     }
   }
 
-  sql_print_information("Recovery of prepared transaction finished.");
   DBUG_RETURN(0);
 }
 
