@@ -3169,8 +3169,19 @@ static Exit_status dump_local_log_entries(PRINT_EVENT_INFO *print_event_info,
       my_close(fd, MYF(MY_WME));
       return ERROR_STOP;
     }
-    if ((retval= check_header(file, print_event_info, logname)) != OK_CONTINUE)
+    retval= check_header(file, print_event_info, logname);
+    if (retval != OK_CONTINUE)
+    {
+      if (retval == OK_EOF)
+      {
+        /*
+          Empty InnoDB-implemented binlog file. Just skip it (but still
+          continue with any following files user specified).
+        */
+        retval= OK_CONTINUE;
+      }
       goto end;
+    }
   }
   else
   {
@@ -3196,8 +3207,13 @@ static Exit_status dump_local_log_entries(PRINT_EVENT_INFO *print_event_info,
       error("Failed to init IO cache.");
       return ERROR_STOP;
     }
-    if ((retval= check_header(file, print_event_info, logname)) != OK_CONTINUE)
+    retval= check_header(file, print_event_info, logname);
+    if (retval != OK_CONTINUE)
+    {
+      if (retval == OK_EOF)
+        retval= OK_CONTINUE;
       goto end;
+    }
     if (start_position)
     {
       /* skip 'start_position' characters from stdin */
