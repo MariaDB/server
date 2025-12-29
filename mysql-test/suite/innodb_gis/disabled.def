@@ -13,3 +13,4 @@
 rtree_concurrent_srch : MDEV-15284 COUNT(*) mismatch
 rtree_recovery : MDEV-15284 COUNT(*) mismatch
 rtree_compress2 : MDEV-16269 CHECK TABLE reports wrong count
+rtree_split : MDEV-38373 innodb_gis.rtree_split fails with ER_TOO_LONG_KEY
