@@ -337,6 +337,12 @@ void my_sha512_input(void *context, const unsigned char *buf, size_t len);
 void my_sha512_result(void *context, unsigned char *digest);
 }
 extern "C" {
+extern struct thd_service_st {
+  THD* (*get_current_thd)(void);
+} *thd_service;
+THD* get_current_thd();
+}
+extern "C" {
 struct st_mysql_const_lex_string
 {
   const char *str;

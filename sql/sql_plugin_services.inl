@@ -19,6 +19,7 @@
 #include <mysql/service_wsrep.h>
 #include <mysql/service_thd_mdl.h>
 #include <mysql/service_print_check_msg.h>
+#include <mysql/service_thd.h>
 
 struct st_service_ref {
   const char *name;
@@ -271,6 +272,11 @@ static struct thd_mdl_service_st thd_mdl_handler=
   thd_mdl_context
 };
 
+static struct thd_service_st thd_handler=
+{
+  get_current_thd
+};
+
 #define DEFINE_warning_function(name, ret) {                                \
   static query_id_t last_query_id= -1;                                      \
   THD *thd= current_thd;                                                    \
@@ -372,5 +378,6 @@ static struct st_service_ref list_of_services[]=
   { "provider_service_lz4",        VERSION_provider_lz4,        &provider_handler_lz4 },
   { "provider_service_lzma",       VERSION_provider_lzma,       &provider_handler_lzma },
   { "provider_service_lzo",        VERSION_provider_lzo,        &provider_handler_lzo },
-  { "provider_service_snappy",     VERSION_provider_snappy,     &provider_handler_snappy }
+  { "provider_service_snappy",     VERSION_provider_snappy,     &provider_handler_snappy },
+  { "thd_service",                 VERSION_thd,                 &thd_handler },
 };

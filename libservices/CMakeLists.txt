@@ -35,6 +35,7 @@ SET(MYSQLSERVICES_SOURCES
   thd_error_context_service.c
   thd_rnd_service.c
   thd_specifics_service.c
+  thd_service.c
   thd_timezone_service.c
   thd_wait_service.c
   wsrep_service.c

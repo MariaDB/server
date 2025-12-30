@@ -556,6 +556,14 @@ extern "C"
 }
 
 
+extern "C"
+{
+  MYSQL_THD get_current_thd() {
+    return current_thd;
+  }
+}
+
+
 #if MARIA_PLUGIN_INTERFACE_VERSION < 0x0200
 /**
   TODO: This function is for API compatibility, remove it eventually.
