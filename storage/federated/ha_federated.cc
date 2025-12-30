@@ -499,7 +499,8 @@ int federated_db_init(void *p)
   federated_hton->create= federated_create_handler;
   federated_hton->drop_table= [](handlerton *, const char*) { return -1; };
   federated_hton->update_optimizer_costs= federated_update_optimizer_costs;
-  federated_hton->flags= HTON_ALTER_NOT_SUPPORTED | HTON_NO_PARTITION;
+  federated_hton->flags= HTON_ALTER_NOT_SUPPORTED | HTON_NO_PARTITION |
+                         HTON_TEMPORARY_NOT_SUPPORTED;
 
   /*
     Support for transactions disabled until WL#2952 fixes it.

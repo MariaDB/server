@@ -453,7 +453,7 @@ int federatedx_db_init(void *p)
   federatedx_hton->discover_table_structure= ha_federatedx::discover_assisted;
   federatedx_hton->create= federatedx_create_handler;
   federatedx_hton->drop_table= [](handlerton *, const char*) { return -1; };
-  federatedx_hton->flags= HTON_ALTER_NOT_SUPPORTED;
+  federatedx_hton->flags= HTON_ALTER_NOT_SUPPORTED | HTON_TEMPORARY_NOT_SUPPORTED;
   federatedx_hton->create_derived= create_federatedx_derived_handler;
   federatedx_hton->create_select= create_federatedx_select_handler;
   federatedx_hton->update_optimizer_costs= federatedx_update_optimizer_costs;
