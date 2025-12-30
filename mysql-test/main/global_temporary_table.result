@@ -53,11 +53,8 @@ alter table t1 add y int;
 ERROR HY000: Lock wait timeout exceeded; try restarting transaction
 drop table t1;
 ERROR HY000: Lock wait timeout exceeded; try restarting transaction
-connection con1;
-set debug_sync= 'thread_end signal closed';
 disconnect con1;
 connection default;
-set debug_sync= 'now wait_for closed';
 drop temporary table t1;
 ERROR 42S02: Unknown table 't1'
 select * from t1;
@@ -124,10 +121,8 @@ x
 commit;
 select * from t;
 x
-set debug_sync= 'thread_end signal closed';
 disconnect con1;
 connection default;
-set debug_sync= 'now wait_for closed';
 drop table t;
 create global temporary table t (x int) on commit PRESERVE rows;
 insert into t values (1);
@@ -163,10 +158,8 @@ select * from t;
 x
 1
 1
-set debug_sync= 'thread_end signal closed';
 disconnect con1;
 connection default;
-set debug_sync= 'now wait_for closed';
 drop table t;
 ERROR HY000: Lock wait timeout exceeded; try restarting transaction
 truncate t;
@@ -179,11 +172,8 @@ alter table t add j int;
 ERROR HY000: Lock wait timeout exceeded; try restarting transaction
 set statement lock_wait_timeout=0 for drop table t;
 ERROR HY000: Lock wait timeout exceeded; try restarting transaction
-connection con1;
-set debug_sync= 'thread_end signal closed';
 disconnect con1;
 connection default;
-set debug_sync= 'now wait_for closed';
 drop table t;
 create global temporary table t (x int) partition by hash(x);
 ERROR HY000: Partitioned tables do not support CREATE GLOBAL TEMPORARY TABLE
