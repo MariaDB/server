@@ -1,3 +1,4 @@
+--source include/have_debug.inc
 --source include/have_debug_sync.inc
 --source include/have_binlog_format_row.inc
 --source include/master-slave.inc
@@ -63,6 +64,54 @@ SELECT a, b, LENGTH(c) FROM t1 ORDER BY a, b;
 # the slave would replicate from too early and get a duplicate key error.
 --source include/stop_slave.inc
 --source include/start_slave.inc
+
+
+--echo *** Test FLUSH BINARY LOGS in parallel with GTID allocation.
+
+--connection master
+INSERT INTO t1 VALUES (10, 1, 'before race');
+
+# Send a FLUSH BINARY LOGS.
+# Make the FLUSH sleep a little after releasing the LOCK_log but before reading
+# the current binlog GTID state, to make the race likely to hit. Using
+# debug_sync here will not be effective after fixing the bug, as the fix
+# will prevent the race and make the debug_sync time out.
+--connect (con1,127.0.0.1,root,,test,$SERVER_MYPORT_1,)
+SET SESSION debug_dbug= '+d,flush_binlog_sleep_after_release_lock_log';
+send FLUSH BINARY LOGS;
+
+--connection master
+# The FLUSH will sleep 0.2, sleep 0.1 here to have a high chance to hit the race.
+SET @old_dbug= @@SESSION.debug_dbug;
+SET SESSION debug_dbug= '+d,binlog_sleep_after_alloc_gtid';
+--sleep 0.1
+send INSERT INTO t1 VALUES (10, 2, 'race?');
+
+--connection con1
+reap;
+--disconnect con1
+
+--connection master
+reap;
+SET SESSION debug_dbug= @old_dbug;
+--source include/save_master_gtid.inc
+
+--connection slave
+--source include/sync_with_master_gtid.inc
+
+--echo *** Stop and restart the slave, 2.
+# The bug was that the FLUSH could run after the new GTID was allocated, but
+# before it was written into the binlog. This would cause the wrong binlog
+# state at the start of the new binlog file, and a slave that reconnects at
+# that exact GTID will get a duplicate GTID.
+--source include/stop_slave.inc
+--source include/start_slave.inc
+
+--connection master
+INSERT INTO t1 VALUES (10, 3, 'check?');
+--source include/save_master_gtid.inc
+--connection slave
+--source include/sync_with_master_gtid.inc
 
 
 # Cleanup.

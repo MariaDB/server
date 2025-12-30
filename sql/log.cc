@@ -9623,9 +9623,11 @@ MYSQL_BIN_LOG::flush_binlogs_engine(DYNAMIC_ARRAY *domain_drop_lex)
 
   mysql_mutex_lock(&LOCK_log);
   mysql_mutex_lock(&LOCK_after_binlog_sync);
-  mysql_mutex_unlock(&LOCK_log);
   mysql_mutex_lock(&LOCK_commit_ordered);
   mysql_mutex_unlock(&LOCK_after_binlog_sync);
+  DBUG_EXECUTE_IF("flush_binlog_sleep_after_release_lock_log",
+                  my_sleep(200000);
+                  );
 
   if ((error= binlog_engine_delete_gtid_domain(domain_drop_lex)))
   {
@@ -9650,6 +9652,13 @@ MYSQL_BIN_LOG::flush_binlogs_engine(DYNAMIC_ARRAY *domain_drop_lex)
   if (!error && (*opt_binlog_engine_hton->binlog_flush)())
     error= 1;
 
+  /*
+    Hold on to both LOCK_log and LOCK_commit_ordered across the FLUSH.
+    The former protects allocation of new GTIDs, and the latter protects
+    writing to the engine binlog; this way we ensure a consistent GTID state
+    at the point just after the FLUSH.
+  */
+  mysql_mutex_unlock(&LOCK_log);
   mysql_mutex_unlock(&LOCK_commit_ordered);
 
   DBUG_RETURN(error);
@@ -11276,6 +11285,9 @@ int MYSQL_BIN_LOG::write_transaction_or_stmt(group_commit_entry *entry,
                          mngr->using_trx_cache, commit_id, false,
                          has_xid, entry->ro_1pc))
       DBUG_RETURN(ER_ERROR_ON_WRITE);
+    DBUG_EXECUTE_IF("binlog_sleep_after_alloc_gtid",
+                    my_sleep(200000);
+                    );
   }
 
   if (entry->incident_event)
