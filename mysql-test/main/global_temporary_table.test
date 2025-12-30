@@ -1,9 +1,9 @@
 --source include/have_partition.inc
 --source include/have_innodb.inc
---source include/have_debug_sync.inc
 --source include/not_embedded.inc
 --disable_service_connection
 
+--source include/count_sessions.inc
 --echo # Safety
 set lock_wait_timeout= 5;
 
@@ -52,11 +52,9 @@ alter table t1 add y int;
 --error ER_LOCK_WAIT_TIMEOUT
 drop table t1;
 
---connection con1
-set debug_sync= 'thread_end signal closed';
 --disconnect con1
 --connection default
-set debug_sync= 'now wait_for closed';
+--source include/wait_until_count_sessions.inc
 
 --error ER_BAD_TABLE_ERROR
 drop temporary table t1;
@@ -106,10 +104,9 @@ select * from t;
 commit;
 select * from t;
 
-set debug_sync= 'thread_end signal closed';
 --disconnect con1
 --connection default
-set debug_sync= 'now wait_for closed';
+--source include/wait_until_count_sessions.inc
 
 drop table t;
 
@@ -132,10 +129,9 @@ select * from t;
 commit;
 select * from t;
 
-set debug_sync= 'thread_end signal closed';
 --disconnect con1
 --connection default
-set debug_sync= 'now wait_for closed';
+--source include/wait_until_count_sessions.inc
 
 --error ER_LOCK_WAIT_TIMEOUT
 drop table t;
@@ -151,11 +147,9 @@ alter table t add j int;
 --error ER_LOCK_WAIT_TIMEOUT
 set statement lock_wait_timeout=0 for drop table t;
 
---connection con1
-set debug_sync= 'thread_end signal closed';
 --disconnect con1
 --connection default
-set debug_sync= 'now wait_for closed';
+--source include/wait_until_count_sessions.inc
 drop table t;
 
 --error ER_FEATURE_NOT_SUPPORTED_WITH_PARTITIONING
