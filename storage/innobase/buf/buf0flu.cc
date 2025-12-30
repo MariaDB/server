@@ -1339,9 +1339,19 @@ static void buf_flush_LRU_list_batch(ulint max, flush_counters_t *n,
                 !strncmp(space_name.data(), "test/t.ibd", space_name.size()))
               continue;
           });
+      DBUG_EXECUTE_IF(
+          "ib_ext_bp_count_io_only_for_t",
+          if (fil_space_t *space= fil_space_t::get(bpage->id_.space())) {
+            SCOPE_EXIT([space]() { space->release(); });
+            auto space_name= space->name();
+            if (!space_name.data() ||
+                strncmp(space_name.data(), "test/t.ibd", space_name.size()))
+              goto free_page;;
+          });
       // FIXME: currently every second page is flushed, consider more
       // suitable algorithm there
-      if (fil_system.ext_bp_size && !buf_pool.done_flush_list_waiters_count &&
+      if (state != buf_page_t::FREED && fil_system.ext_bp_size &&
+          !buf_pool.done_flush_list_waiters_count &&
           (ut_d(buf_pool.force_LRU_eviction_to_ebp ||)((++free_or_flush) & 1)))
       {
         flush_to_ebp= true;
@@ -1349,6 +1359,7 @@ static void buf_flush_LRU_list_batch(ulint max, flush_counters_t *n,
       }
       else
       {
+      free_page:
         buf_LRU_free_page(bpage, true);
         ++n->evicted;
       }
@@ -1432,7 +1443,7 @@ flush_to_ebp:
       continue;
     }
 
-      if (state < buf_page_t::UNFIXED)
+      if (!flush_to_ebp && state < buf_page_t::UNFIXED)
         goto flush;
 
       if (n->flushed >= max && !recv_recovery_is_on())
