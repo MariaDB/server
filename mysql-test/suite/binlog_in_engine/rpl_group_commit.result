@@ -153,6 +153,31 @@ a	b	LENGTH(c)
 *** Stop and restart the slave.
 include/stop_slave.inc
 include/start_slave.inc
+*** Test FLUSH BINARY LOGS in parallel with GTID allocation.
+connection master;
+INSERT INTO t1 VALUES (10, 1, 'before race');
+connect  con1,127.0.0.1,root,,test,$SERVER_MYPORT_1,;
+SET SESSION debug_dbug= '+d,flush_binlog_sleep_after_release_lock_log';
+FLUSH BINARY LOGS;
+connection master;
+SET @old_dbug= @@SESSION.debug_dbug;
+SET SESSION debug_dbug= '+d,binlog_sleep_after_alloc_gtid';
+INSERT INTO t1 VALUES (10, 2, 'race?');
+connection con1;
+disconnect con1;
+connection master;
+SET SESSION debug_dbug= @old_dbug;
+include/save_master_gtid.inc
+connection slave;
+include/sync_with_master_gtid.inc
+*** Stop and restart the slave, 2.
+include/stop_slave.inc
+include/start_slave.inc
+connection master;
+INSERT INTO t1 VALUES (10, 3, 'check?');
+include/save_master_gtid.inc
+connection slave;
+include/sync_with_master_gtid.inc
 connection master;
 DROP TABLE t1;
 include/rpl_end.inc
