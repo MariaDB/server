@@ -11528,11 +11528,19 @@ bool sel_arg_and_weight_heuristic(RANGE_OPT_PARAM *param, SEL_ARG *key1,
     {
       Json_writer_object wrapper(param->thd);
       Json_writer_object obj(param->thd, "sel_arg_weight_heuristic");
-      obj.
-        add("key1_field", key1->field->field_name).
-        add("key2_field", key2->field->field_name).
-        add("key1_weight", (longlong)key1->weight).
-        add("key2_weight", (longlong)key2->weight);
+
+      if (key1->type == SEL_ARG::KEY_RANGE)
+        obj.add("key1_field", key1->field->field_name);
+      else
+        obj.add("key1_type", (uint) key1->type);
+
+      if (key2->type == SEL_ARG::KEY_RANGE)
+        obj.add("key2_field", key2->field->field_name);
+      else
+        obj.add("key2_type", (uint) key2->type);
+
+      obj.add("key1_weight", (longlong) key1->weight);
+      obj.add("key2_weight", (longlong) key2->weight);
     }
     return true; // Discard key2
   }
