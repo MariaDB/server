@@ -413,8 +413,8 @@ struct Master_info_file: Info_file
     }
     void save_to(IO_CACHE *file) override
     {
-      my_b_write_byte(file,
-        '0' + static_cast<unsigned char>(operator enum_master_use_gtid()));
+      my_b_write_byte(file, static_cast<uchar>(
+        '0' + static_cast<unsigned char>(operator enum_master_use_gtid())));
     }
   }
   /// Using_Gtid
