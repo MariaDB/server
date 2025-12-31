@@ -235,22 +235,22 @@ void my_uuid_end()
   @param[out] usec     Microseconds part
 
   @return
-    @retval false  Success
-    @retval true   UUID version doesn't contain timestamp or timestamp invalid
+    @retval 0  Success
+    @retval 1  UUID version doesn't contain timestamp or timestamp invalid
 
-  UUIDv1 format (RFC 4122, big-endian):
+  UUIDv1 format (RFC 9562 Section 5.1, big-endian):
     Bytes 0-3:  time_low (32 bits, low part of timestamp)
     Bytes 4-5:  time_mid (16 bits, middle part of timestamp)
     Bytes 6-7:  version (4 bits) + time_hi (12 bits, high part of timestamp)
     Timestamp is 100-nanosecond intervals since 1582-10-15
 
-  UUIDv7 format (RFC 9562, big-endian):
+  UUIDv7 format (RFC 9562 Section 5.7, big-endian):
     Bytes 0-5:  Unix timestamp in milliseconds (48 bits)
     Bytes 6-7:  version (4 bits) + sub-millisecond precision (12 bits)
 */
-bool my_uuid_extract_ts(const char *uuid, my_time_t *seconds, ulong *usec)
+int my_uuid_extract_ts(const char *uuid, my_time_t *seconds, ulong *usec)
 {
-  uint version= (uchar) uuid[6] >> 4;
+  char version= uuid[6] >> 4;
   ulonglong ts;
 
   switch (version)
