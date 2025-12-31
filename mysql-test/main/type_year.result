@@ -229,16 +229,12 @@ yyyy	c4
 1999	1999
 SELECT * FROM t2 WHERE yy = 1999.1;
 yy	c2
-99	1999
 SELECT * FROM t4 WHERE yyyy = 1999.1;
 yyyy	c4
-1999	1999
 SELECT * FROM t2 WHERE yy = 1998.9;
 yy	c2
-99	1999
 SELECT * FROM t4 WHERE yyyy = 1998.9;
 yyyy	c4
-1999	1999
 # Coverage tests for YEAR with zero/2000 constants:
 SELECT * FROM t2 WHERE yy = 0;
 yy	c2

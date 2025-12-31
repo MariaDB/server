@@ -930,7 +930,17 @@ DROP TABLE t1;
 
 DROP PROCEDURE show_table;
 
+--echo # End of 10.11 tests
 
 --echo #
---echo # End of 10.11 tests
+--echo # MDEV-38199 Optimizer Error with = SOME on UNIQUE Column Using Decimal/Integer Types
 --echo #
+create table t1 (i int, key (i));
+insert into t1 values(1),(1),(1);
+select i from t1 where i=0.6;
+select i from t1 ignore index(i) where i=0.6;
+select i from t1 where i=0.6e0;
+select i from t1 ignore index(i) where i=0.6e0;
+drop table t1;
+
+--echo # End of 12.3 tests

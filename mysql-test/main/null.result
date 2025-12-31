@@ -1647,18 +1647,18 @@ DROP TABLE t1;
 #
 CREATE TABLE t1 (a YEAR);
 INSERT INTO t1 VALUES (2010),(2020);
-SELECT * FROM t1 WHERE a=2010 AND NULLIF(10.1,a) IS NULL;
+SELECT * FROM t1 WHERE a=2010 AND NULLIF(10,a) IS NULL;
 a
 2010
-EXPLAIN EXTENDED SELECT * FROM t1 WHERE a=2010 AND NULLIF(10.1,a) IS NULL;
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE a=2010 AND NULLIF(10,a) IS NULL;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = 2010
-SELECT * FROM t1 WHERE a=2010 AND CASE WHEN 10.1=a THEN NULL ELSE 10.1 END IS NULL;
+SELECT * FROM t1 WHERE a=2010 AND CASE WHEN 10=a THEN NULL ELSE 10 END IS NULL;
 a
 2010
-EXPLAIN EXTENDED SELECT * FROM t1 WHERE a=2010 AND CASE WHEN 10.1=a THEN NULL ELSE 10.1 END IS NULL;
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE a=2010 AND CASE WHEN 10=a THEN NULL ELSE 10 END IS NULL;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
@@ -1708,6 +1708,7 @@ a
 2010
 SELECT * FROM t1 WHERE NULLIF(a,2011.1)='2011';
 a
+2011
 SELECT * FROM t1 WHERE a=10 AND NULLIF(a,2011.1)='2011';
 a
 EXPLAIN EXTENDED
@@ -1715,13 +1716,13 @@ SELECT * FROM t1 WHERE a=10 AND NULLIF(a,2011.1)='2011';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
-Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = 2010 and (case when 2010 = 2011 then NULL else `test`.`t1`.`a` end) = '2011'
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = 2010 and nullif(`test`.`t1`.`a`,2011.1) = '2011'
 EXPLAIN EXTENDED
 SELECT * FROM t1 WHERE a=10 AND NULLIF(a,2011.1)=CONCAT('2011',RAND());
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
-Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = 2010 and (case when 2010 = 2011 then NULL else `test`.`t1`.`a` end) = concat('2011',rand())
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = 2010 and nullif(`test`.`t1`.`a`,2011.1) = concat('2011',rand())
 DROP TABLE t1;
 #
 # MDEV-8754 Wrong result for SELECT..WHERE year_field=2020 AND NULLIF(year_field,2010)='2020'
