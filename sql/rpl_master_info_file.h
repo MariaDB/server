@@ -481,11 +481,10 @@ struct Master_info_file: Info_file
         return true; // ER_SLAVE_HEARTBEAT_VALUE_OUT_OF_RANGE
       overprecise= decimal.frac > 3;
       // decomposed from my_decimal2int() to reduce a bit of computations
-      auto rounded= my_decimal(), product= my_decimal();
+      auto product= my_decimal();
       bool unexpected_error=
-        decimal_round(&decimal, &rounded, 3, HALF_UP) ||
-        decimal_mul(&rounded, &THOUSAND, &product) ||
-        decimal2ulonglong(&product, &decimal_out);
+        decimal_mul(&decimal, &THOUSAND, &product) ||
+        (decimal2ulonglong(&product, &decimal_out, HALF_UP) > E_DEC_TRUNCATED);
       DBUG_ASSERT(!unexpected_error);
       if (unexpected_error)
         return true;

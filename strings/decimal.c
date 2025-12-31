@@ -1122,11 +1122,11 @@ int longlong2decimal(longlong from, decimal_t *to)
   return ull2dec(from, to);
 }
 
-int decimal2ulonglong(const decimal_t *from, ulonglong *to)
+int decimal2ulonglong(const decimal_t *from, ulonglong *to, decimal_round_mode mode)
 {
   dec1 *buf=from->buf;
   ulonglong x=0;
-  int intg, frac;
+  int intg, frac= from->frac;
 
   if (from->sign)
   {
@@ -1152,18 +1152,38 @@ int decimal2ulonglong(const decimal_t *from, ulonglong *to)
 
     x=x*DIG_BASE + *buf++;
   }
-  *to=x;
-  for (frac=from->frac; unlikely(frac > 0); frac-=DIG_PER_DEC1)
-    if (*buf++)
-      return E_DEC_TRUNCATED;
-  return E_DEC_OK;
+
+  *to= x;
+  if (frac > 0)
+  {
+    int carry= 0;
+
+    for (dec1 *b= buf; frac > 0 && !*b++; frac-=DIG_PER_DEC1) /* no-op */;
+
+    switch (mode) {
+    case HALF_UP:   carry= *buf >= 5*DIG_MASK; break;
+    case HALF_EVEN: carry= *buf >= (6-(int)(x%2))*DIG_MASK; break;
+    case CEILING:   carry= frac > 0; break;
+    case FLOOR:     carry= 0; break;
+    case TRUNCATE:  carry= 0; break;
+    default: DBUG_ASSERT(0);
+    }
+    if (carry)
+    {
+      if (x == ULONGLONG_MAX)
+        return E_DEC_OVERFLOW;
+      (*to)++;
+    }
+  }
+
+  return frac > 0 ? E_DEC_TRUNCATED : E_DEC_OK;
 }
 
-int decimal2longlong(const decimal_t *from, longlong *to)
+int decimal2longlong(const decimal_t *from, longlong *to, decimal_round_mode mode)
 {
   dec1 *buf=from->buf;
   longlong x=0;
-  int intg, frac;
+  int intg, frac= from->frac;
 
   for (intg=from->intg; intg > 0; intg-=DIG_PER_DEC1)
   {
@@ -1191,6 +1211,31 @@ int decimal2longlong(const decimal_t *from, longlong *to)
 
     x=x*DIG_BASE - *buf++;
   }
+  if (frac > 0)
+  {
+    int carry= 0;
+
+    for (dec1 *b= buf; frac > 0 && !*b++; frac-=DIG_PER_DEC1) /* no-op */;
+
+    switch (mode) {
+    case HALF_UP:   carry= *buf >= 5*DIG_MASK; break;
+    case HALF_EVEN: carry= *buf >= (6-x%2)*DIG_MASK; break;
+    case CEILING:   carry= frac > 0 && !from->sign; break;
+    case FLOOR:     carry= frac > 0 && from->sign; break;
+    case TRUNCATE:  carry= 0; break;
+    default: DBUG_ASSERT(0);
+    }
+    if (carry)
+    {
+      if (x == LONGLONG_MIN)
+      {
+        *to= from->sign ? LONGLONG_MIN : LONGLONG_MAX;
+        return E_DEC_OVERFLOW;
+      }
+      x--;
+    }
+  }
+
   /* boundary case: 9223372036854775808 */
   if (unlikely(from->sign==0 && x == LONGLONG_MIN))
   {
@@ -1199,10 +1244,7 @@ int decimal2longlong(const decimal_t *from, longlong *to)
   }
 
   *to=from->sign ? x : -x;
-  for (frac=from->frac; unlikely(frac > 0); frac-=DIG_PER_DEC1)
-    if (*buf++)
-      return E_DEC_TRUNCATED;
-  return E_DEC_OK;
+  return frac > 0 ? E_DEC_TRUNCATED : E_DEC_OK;
 }
 
 /*

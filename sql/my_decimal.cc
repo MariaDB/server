@@ -349,11 +349,8 @@ int my_decimal2int(uint mask, const decimal_t *d, bool is_unsigned,
 		   longlong *l, decimal_round_mode round_type)
 {
   int res;
-  my_decimal rounded;
-  /* decimal_round can return only E_DEC_TRUNCATED */
-  decimal_round(d, &rounded, 0, round_type);
-  res= is_unsigned ? decimal2ulonglong(&rounded, (ulonglong *) l)
-                   : decimal2longlong(&rounded, l);
+  res= is_unsigned ? decimal2ulonglong(d, (ulonglong *) l, round_type)
+                   : decimal2longlong(d, l, round_type);
   if (res & mask)
   {
     char buff[DECIMAL_MAX_STR_LENGTH];

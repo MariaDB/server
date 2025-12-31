@@ -43,9 +43,9 @@ test_copy_and_compare()
   ok(my_decimal_cmp(&d3, &d1) == 0,"Pass");
 
   ulonglong val1, val2, val3;
-  ok(decimal2ulonglong(&d1, &val1) == 0, "Pass");
-  ok(decimal2ulonglong(&d2, &val2) == 0,"Pass");
-  ok(decimal2ulonglong(&d3, &val3) == 0,"Pass");
+  ok(decimal2ulonglong(&d1, &val1, TRUNCATE) == 0, "Pass");
+  ok(decimal2ulonglong(&d2, &val2, TRUNCATE) == 0,"Pass");
+  ok(decimal2ulonglong(&d3, &val3, TRUNCATE) == 0,"Pass");
 
   ok(val == val1,"Pass");
   ok(val == val2,"Pass");
