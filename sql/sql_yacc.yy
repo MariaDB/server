@@ -1997,7 +1997,7 @@ rule:
         '-' '+' '*' '/' '%' '(' ')'
         ',' '!' '{' '}' '&' '|'
 
-%type <with_clause> with_clause
+%type <with_clause> with_clause opt_with_clause
 
 %type <with_element_head> with_element_head
 
@@ -14147,15 +14147,19 @@ update_table_list:
 /* Update rows in a table */
 
 update:
+          opt_with_clause
           UPDATE_SYM opt_optimizer_hint
           {
             LEX *lex= Lex;
             if (Lex->main_select_push())
               MYSQL_YYABORT;
             lex->init_select();
-            Lex->first_select_lex()->set_optimizer_hints($2);
+            Lex->first_select_lex()->set_optimizer_hints($3);
             lex->sql_command= SQLCOM_UPDATE;
             lex->duplicates= DUP_ERROR; 
+            Lex->first_select_lex()->master_unit()->set_with_clause($1);
+            if ($1)
+              $1->attach_to(Lex->first_select_lex());
           }
           opt_low_priority opt_ignore update_table_list
           SET update_list
@@ -14183,12 +14187,12 @@ update:
               be too pessimistic. We will decrease lock level if possible
               later while processing the statement.
             */
-            slex->set_lock_for_tables($4, slex->table_list.elements == 1, false);
+            slex->set_lock_for_tables($5, slex->table_list.elements == 1, false);
           }
           opt_where_clause opt_order_clause delete_limit_clause
           {
-            if ($11)
-              Select->order_list= *($11);
+            if ($12)
+              Select->order_list= *($12);
           } stmt_end {}
         ;
 
@@ -14236,6 +14240,7 @@ opt_low_priority:
 /* Delete rows from a table */
 
 delete:
+          opt_with_clause
           DELETE_SYM opt_optimizer_hint
           {
             LEX *lex= Lex;
@@ -14246,7 +14251,10 @@ delete:
             mysql_init_delete(lex);
             lex->ignore= 0;
             lex->first_select_lex()->order_list.empty();
-            lex->first_select_lex()->set_optimizer_hints($2);
+            lex->first_select_lex()->set_optimizer_hints($3);
+            lex->first_select_lex()->master_unit()->set_with_clause($1);
+            if ($1)
+              $1->attach_to(lex->first_select_lex());
           }
           delete_part2
           {
@@ -15948,6 +15956,11 @@ temporal_literal:
                                                             YYCSCL, true))))
               MYSQL_YYABORT;
           }
+        ;
+
+opt_with_clause:
+          /* empty */ { $$= NULL; }
+        | with_clause { $$= $1; }
         ;
 
 with_clause:

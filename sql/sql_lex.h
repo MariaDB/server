@@ -3368,7 +3368,13 @@ public:
   uint select_stack_outer_barrier;
 
   SQL_I_List<ORDER> proc_list;
-  SQL_I_List<TABLE_LIST> auxiliary_table_list, save_list;
+  SQL_I_List<TABLE_LIST> auxiliary_table_list;
+  /*
+    save_list is used by
+      - Parsing CREATE TABLE t0 (...) UNION = (t1, t2, t3)
+      - CTEs for DELETE, see mysql_init_delete().
+  */
+  SQL_I_List<TABLE_LIST> save_list;
   Column_definition *last_field;
   Table_function_json_table *json_table;
   Item_sum *in_sum_func;

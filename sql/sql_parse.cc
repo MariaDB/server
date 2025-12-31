@@ -6070,6 +6070,7 @@ finish:
       thd->variables.default_master_connection.str)
     thd->lex->mi.connection_name= null_clex_str;
 
+  lex->save_list.empty();
   if (lex->sql_command != SQLCOM_SET_OPTION)
     DEBUG_SYNC(thd, "end_of_statement");
   DBUG_RETURN(res || thd->is_error());
@@ -7619,6 +7620,12 @@ void create_select_for_variable(THD *thd, LEX_CSTRING *var_name)
 
 void mysql_init_delete(LEX *lex)
 {
+  if (lex->with_cte_resolution)
+  {
+    // Save and clear lex->query_tables.
+    lex->save_list.insert(lex->query_tables, &lex->query_tables);
+    lex->query_tables_last= &lex->query_tables;
+  }
   lex->init_select();
   lex->first_select_lex()->limit_params.clear();
   lex->unit.lim.clear();

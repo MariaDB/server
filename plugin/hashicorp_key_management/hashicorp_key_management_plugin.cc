@@ -13,6 +13,7 @@
  along with this program; if not, write to the Free Software
  Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
+#include <my_global.h>
 #include <mysql/plugin_encryption.h>
 #include <mysqld_error.h>
 #include <my_alloca.h>
@@ -27,10 +28,15 @@
 #include <algorithm>
 #include <unordered_map>
 #include <mutex>
+#include <sql_i_s.h>
+#include "sql_acl.h"
 
 #define HASHICORP_DEBUG_LOGGING 0
 
 #define PLUGIN_ERROR_HEADER "hashicorp: "
+// Plugin version (increment this everytime when plugin is updated)
+#define PLUGIN_VERSION 0x0210
+#define PLUGIN_VERSION_STR "2.1"
 
 /* Key version information structure: */
 typedef struct VER_INFO
@@ -123,9 +129,12 @@ public:
   }
   void cache_clean ()
   {
+    mtx.lock();
     latest_version_cache.clear();
     key_info_cache.clear();
+    mtx.unlock();
   }
+  int fill_info_schema(THD *thd, TABLE *table);
 private:
   std::mutex mtx;
   VER_MAP latest_version_cache;
@@ -153,6 +162,7 @@ private:
 };
 
 static HCData data;
+static bool loaded= true;
 
 static clock_t cache_max_time;
 static clock_t cache_max_ver_time;
@@ -1268,12 +1278,39 @@ storage_error:
   return 0;
 }
 
+/**
+  @brief Fill info schema table with latest key version for a key
+
+  @returns
+  1 - error
+  0 - success
+*/
+int HCData::fill_info_schema(THD *thd, TABLE *table)
+{
+  mtx.lock();
+  for (const auto& value : latest_version_cache)
+  {
+    table->field[0]->store(value.first);
+    table->field[1]->store(value.second.key_version);
+
+    if (schema_table_store_record(thd, table))
+    {
+      mtx.unlock();
+      return 1; // fail
+    }
+  }
+  mtx.unlock();
+
+  return 0; // success
+}
+
 static int hashicorp_key_management_plugin_init(void *p)
 {
   int rc = data.init();
   if (rc)
   {
     data.deinit();
+    loaded= false;
   }
   return rc;
 }
@@ -1282,6 +1319,49 @@ static int hashicorp_key_management_plugin_deinit(void *p)
 {
   data.cache_clean();
   data.deinit();
+  return 0;
+}
+
+static struct st_mysql_information_schema hashicorp_keys_info_plugin=
+                              { MYSQL_INFORMATION_SCHEMA_INTERFACE_VERSION };
+
+static ST_FIELD_INFO hashicorp_key_management_keys[]=
+{
+  Show::Column("KEY_ID",      Show::ULonglong(32), NOT_NULL, "KEY_ID"),
+  Show::Column("KEY_VERSION", Show::ULonglong(32), NOT_NULL, "KEY_VERSION"),
+  Show::CEnd()
+};
+
+static int fill_hashicorp_keys_table(THD *thd, TABLE_LIST *tables, COND *cond)
+{
+  TABLE *table= tables->table;
+  bool is_show= thd_sql_command(thd) == SQLCOM_SHOW_GENERIC;
+
+  if (check_global_access(thd, PROCESS_ACL, !is_show))
+    return is_show;
+
+  return data.fill_info_schema(thd, table);
+}
+
+static int flush_hashicorp_keys()
+{
+  if (caching_enabled)
+    data.cache_clean();
+  return 0;
+}
+
+static int hashicorp_info_schema_init(void *p)
+{
+  // don't load the I_S plugin if the main plugin is not installed
+  if (!loaded)
+    return 1;
+
+  ST_SCHEMA_TABLE *key_schema_table= (ST_SCHEMA_TABLE*)p;
+  key_schema_table->fields_info= hashicorp_key_management_keys;
+  key_schema_table->fill_table= fill_hashicorp_keys_table; //fill IS table
+  key_schema_table->hidden= false;
+  key_schema_table->reset_table= flush_hashicorp_keys; // flush
+
   return 0;
 }
 
@@ -1298,10 +1378,25 @@ maria_declare_plugin(hashicorp_key_management)
   PLUGIN_LICENSE_GPL,
   hashicorp_key_management_plugin_init,
   hashicorp_key_management_plugin_deinit,
-  0x0200 /* 2.0 */,
+  PLUGIN_VERSION /* 2.1 */,
   NULL, /* status variables */
   settings,
-  "2.0",
-  MariaDB_PLUGIN_MATURITY_STABLE
+  PLUGIN_VERSION_STR,
+  MariaDB_PLUGIN_MATURITY_GAMMA
+},
+{
+  MYSQL_INFORMATION_SCHEMA_PLUGIN,
+  &hashicorp_keys_info_plugin,
+  "hashicorp_key_management_cache",
+  "Raghunandan Bhat, MariaDB Corporation",
+  "Cache flush for HashiCorp Vault key management plugin",
+  PLUGIN_LICENSE_GPL,
+  hashicorp_info_schema_init,
+  NULL,
+  PLUGIN_VERSION,
+  NULL,
+  NULL,
+  PLUGIN_VERSION_STR,
+  MariaDB_PLUGIN_MATURITY_GAMMA
 }
 maria_declare_plugin_end;
