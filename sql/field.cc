@@ -1897,11 +1897,6 @@ int Field::warn_if_overflow(int op_result)
     set_warning(ER_WARN_DATA_OUT_OF_RANGE, 1);
     return 1;
   }
-  if (op_result == E_DEC_TRUNCATED)
-  {
-    set_note(WARN_DATA_TRUNCATED, 1);
-    /* We return 0 here as this is not a critical issue */
-  }
   return 0;
 }
 
@@ -2254,31 +2249,28 @@ longlong Field::convert_decimal2longlong(const my_decimal *val,
                                          bool unsigned_flag, int *err)
 {
   longlong i;
+  int res= E_DEC_OVERFLOW;
   if (unsigned_flag)
   {
     if (val->sign())
     {
       set_warning(ER_WARN_DATA_OUT_OF_RANGE, 1);
       i= 0;
-      *err= 1;
     }
-    else if (warn_if_overflow(my_decimal2int((E_DEC_ERROR &
-                                              ~E_DEC_OVERFLOW &
-                                              ~E_DEC_TRUNCATED),
-                                             val, TRUE, &i)))
+    else if (warn_if_overflow(res= my_decimal2int(E_DEC_FATAL_ERROR &
+                                                  ~E_DEC_OVERFLOW,
+                                                  val, TRUE, &i)))
     {
       i= ~(longlong) 0;
-      *err= 1;
     }
   }
-  else if (warn_if_overflow(my_decimal2int((E_DEC_ERROR &
-                                            ~E_DEC_OVERFLOW &
-                                            ~E_DEC_TRUNCATED),
-                                           val, FALSE, &i)))
+  else if (warn_if_overflow(res= my_decimal2int(E_DEC_FATAL_ERROR &
+                                                ~E_DEC_OVERFLOW,
+                                                val, FALSE, &i)))
   {
     i= (val->sign() ? LONGLONG_MIN : LONGLONG_MAX);
-    *err= 1;
   }
+  *err= res == E_DEC_TRUNCATED ? 2 : res != 0;
   return i;
 }
 
@@ -4519,12 +4511,12 @@ int Field_long::store(const char *from,size_t len,CHARSET_INFO *cs)
 }
 
 
-int Field_long::store(double nr)
+int Field_long::store(double val)
 {
   DBUG_ASSERT(marked_for_write_or_computed());
   int error= 0;
   int32 res;
-  nr=rint(nr);
+  double nr= rint(val);
   if (unsigned_flag)
   {
     if (nr < 0)
@@ -4558,6 +4550,8 @@ int Field_long::store(double nr)
   }
   if (unlikely(error))
     set_warning(ER_WARN_DATA_OUT_OF_RANGE, 1);
+  else if (nr != val)
+    error= 2;
 
   int4store(ptr,res);
   return error;
