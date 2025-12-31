@@ -2809,7 +2809,7 @@ static inline int part_val_int(Item *item_expr, longlong *result)
     my_decimal buf;
     my_decimal *val= item_expr->val_decimal(&buf);
     if (val && my_decimal2int(E_DEC_FATAL_ERROR, val, item_expr->unsigned_flag,
-                              result, FLOOR) != E_DEC_OK)
+                              result, FLOOR) & E_DEC_FATAL_ERROR)
       return true;
     break;
   }

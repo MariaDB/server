@@ -4041,7 +4041,7 @@ mariadb_dyncol_val_long(longlong *ll, DYNAMIC_COLUMN_VALUE *val)
         break;
       }
     case DYN_COL_DECIMAL:
-      if (decimal2longlong(&val->x.decimal.value, ll) != E_DEC_OK)
+      if (decimal2longlong(&val->x.decimal.value, ll,TRUNCATE) != E_DEC_OK)
         rc= ER_DYNCOL_TRUNCATED;
       break;
     case DYN_COL_DATETIME:
