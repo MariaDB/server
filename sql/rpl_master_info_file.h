@@ -552,7 +552,7 @@ struct Master_info_file: Info_file
   /// }@
 
 
-  inline static Mem_fn::List VALUE_LIST= {
+  inline static const Mem_fn VALUE_LIST[] {
     &Master_info_file::master_log_file,
     &Master_info_file::master_log_pos,
     &Master_info_file::master_host,
@@ -587,7 +587,8 @@ struct Master_info_file: Info_file
     keys should match the corresponding old property name in @ref Master_info.
   */
   // C++ default allocator to match that `mysql_execute_command()` uses `new`
-  inline static const std::unordered_map<std::string_view, Mem_fn> VALUE_MAP= {
+  inline static
+  const std::unordered_map<std::string_view, const Mem_fn> VALUE_MAP= {
     /*
       These are here to annotate whether they are `DEFAULT`.
       They are repeated from @ref VALUE_LIST to enable bidirectional

@@ -209,7 +209,6 @@ protected:
   */
   struct Mem_fn: std::function<Persistent &(Info_file *self)>
   {
-    using List= const std::initializer_list<Mem_fn>;
     /// Null Constructor
     Mem_fn(std::nullptr_t null= nullptr):
       std::function<Persistent &(Info_file *)>(null) {}
@@ -242,13 +241,34 @@ protected:
       (either contains a `.` or is entirely empty) rather than an integer.
     @return `false` if the file has parsed successfully or `true` if error
   */
-  bool load_from_file(Mem_fn::List value_list, size_t default_line_count)
+  template<size_t size> bool load_from_file(
+    const Mem_fn (&value_list)[size],
+    size_t default_line_count= 0
+  ) { return load_from_file(value_list, size, default_line_count); }
+  /**
+    Flush the MySQL line-based section to the @ref file
+    @param value_list List of wrapped member pointers to values.
+    @param total_line_count
+      The number of lines to describe the file as on the first line of the file.
+      If this is larger than `value_list.size()`, suffix the file with empty
+      lines until the line count (including the line count line) is this many.
+      This reservation provides compatibility with MySQL,
+      who has added more old-style lines while MariaDB innovated.
+  */
+  template<size_t size> void save_to_file(
+    const Mem_fn (&value_list)[size],
+    size_t total_line_count= size + /* line count line */ 1
+  ) { return save_to_file(value_list, size, total_line_count); }
+
+private:
+  bool
+  load_from_file(const Mem_fn *values, size_t size, size_t default_line_count)
   {
     /**
       The first row is temporarily stored in the first value. If it is a line
       count and not a log name (new format), the second row will overwrite it.
     */
-    auto &line1= dynamic_cast<String_value<> &>((*(value_list.begin()))(this));
+    auto &line1= dynamic_cast<String_value<> &>(values[0](this));
     if (line1.load_from(&file))
       return true;
     size_t line_count;
@@ -269,9 +289,9 @@ protected:
     for (; i < line_count; ++i)
     {
       int c;
-      if (i < value_list.size()) // line known in the `value_list`
+      if (i < size) // line known in the `value_list`
       {
-        const Mem_fn &pm= value_list.begin()[i];
+        const Mem_fn &pm= values[i];
         if (pm)
         {
           if (pm(this).load_from(&file))
@@ -294,19 +314,9 @@ protected:
     return false;
   }
 
-  /**
-    Flush the MySQL line-based section to the @ref file
-    @param value_list List of wrapped member pointers to values.
-    @param total_line_count
-      The number of lines to describe the file as on the first line of the file.
-      If this is larger than `value_list.size()`, suffix the file with empty
-      lines until the line count (including the line count line) is this many.
-      This reservation provides compatibility with MySQL,
-      who has added more old-style lines while MariaDB innovated.
-  */
-  void save_to_file(Mem_fn::List value_list, size_t total_line_count)
+  void save_to_file(const Mem_fn *values, size_t size, size_t total_line_count)
   {
-    DBUG_ASSERT(total_line_count > value_list.size());
+    DBUG_ASSERT(total_line_count > size);
     my_b_seek(&file, 0);
     /*
       If the new contents take less space than the previous file contents,
@@ -316,8 +326,9 @@ protected:
     */
     Int_IO_CACHE::to_chars(&file, total_line_count);
     my_b_write_byte(&file, '\n');
-    for (const Mem_fn &pm: value_list)
+    for (size_t i= 0; i < size; ++i)
     {
+      const Mem_fn &pm= values[i];
       if (pm)
         pm(this).save_to(&file);
       my_b_write_byte(&file, '\n');
@@ -327,7 +338,7 @@ protected:
       (1 for the line count line + line count) inclusive -> max line inclusive
        = line count exclusive <- max line inclusive
     */
-    for (; total_line_count > value_list.size(); --total_line_count)
+    for (; total_line_count > size; --total_line_count)
       my_b_write_byte(&file, '\n');
   }
 
