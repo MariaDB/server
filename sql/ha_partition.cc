@@ -669,8 +669,10 @@ int ha_partition::rename_table(const char *from, const char *to)
   SYNOPSIS
     create_partitioning_metadata()
     path                              Path to the new frm file (without ext)
-    old_p                             Path to the old frm file (without ext)
-    create_info                       Create info generated for CREATE TABLE
+    old_path                          Path to the old frm file (without ext)
+    action_flag                       Action to take
+    ignore_delete_error               Whether to ignore error in call to
+                                      mysql_file_delete
 
   RETURN VALUE
     >0                        Error
@@ -686,7 +688,8 @@ int ha_partition::rename_table(const char *from, const char *to)
 
 int ha_partition::create_partitioning_metadata(const char *path,
                                                const char *old_path,
-                                               chf_create_flags action_flag)
+                                               chf_create_flags action_flag,
+                                               bool ignore_delete_error)
 {
   partition_element *part;
   DBUG_ENTER("ha_partition::create_partitioning_metadata");
@@ -705,7 +708,8 @@ int ha_partition::create_partitioning_metadata(const char *path,
     strxmov(name, path, ha_par_ext, NullS);
     strxmov(old_name, old_path, ha_par_ext, NullS);
     if ((action_flag == CHF_DELETE_FLAG &&
-         mysql_file_delete(key_file_ha_partition_par, name, MYF(MY_WME))) ||
+         mysql_file_delete(key_file_ha_partition_par, name,
+                           ignore_delete_error ? MYF(0) : MYF(MY_WME))) ||
         (action_flag == CHF_RENAME_FLAG &&
          mysql_file_rename(key_file_ha_partition_par, old_name, name,
                            MYF(MY_WME))))

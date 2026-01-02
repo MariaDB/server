@@ -1211,6 +1211,81 @@ inline int get_command_index(char cmd_char)
   return -1;
 }
 
+static LINE_BUFFER *batch_readline_init(ulong max_size, const char *path)
+{
+  LINE_BUFFER *line_buff;
+  File file;
+  MY_STAT input_file_stat;
+  char buff[FN_REFLEN + 512];
+
+  if (path)
+  {
+    if ((file= my_open(path, O_RDONLY | O_BINARY, MYF(0))) < 0)
+    {
+#ifdef _WIN32
+      if (my_errno == EACCES && my_stat(path, &input_file_stat, MYF(0)) &&
+          MY_S_ISDIR(input_file_stat.st_mode))
+        my_snprintf(buff, sizeof(buff), "Can't read from a directory '%.*s'",
+                    FN_REFLEN, path);
+      else
+#endif
+      my_snprintf(buff, sizeof(buff), "Failed to open file '%.*s', error: %d",
+                  FN_REFLEN, path, my_errno);
+      put_info(buff, INFO_ERROR, 0);
+      return 0;
+    }
+  }
+  else
+  {
+    file= my_fileno(stdin);
+  }
+
+  if (my_fstat(file, &input_file_stat, MYF(0)))
+  {
+    my_snprintf(buff, sizeof(buff), "Failed to stat file '%.*s', error: %d",
+                FN_REFLEN, path ? path : "stdin", my_errno);
+    goto err1;
+  }
+
+  if (MY_S_ISDIR(input_file_stat.st_mode))
+  {
+    my_snprintf(buff, sizeof(buff), "Can't read from a directory '%.*s'",
+                FN_REFLEN, path ? path : "stdin");
+    goto err1;
+  }
+
+#ifndef _WIN32
+  if (MY_S_ISBLK(input_file_stat.st_mode))
+  {
+    my_snprintf(buff, sizeof(buff), "Can't read from a block device '%.*s'",
+                FN_REFLEN, path ? path : "stdin");
+    goto err1;
+  }
+#endif
+
+  if (!(line_buff= (LINE_BUFFER*) my_malloc(PSI_NOT_INSTRUMENTED,
+                                            sizeof(*line_buff),
+                                            MYF(MY_WME | MY_ZEROFILL))))
+  {
+    goto err;
+  }
+
+  if (init_line_buffer(line_buff, file, IO_SIZE, max_size))
+  {
+    my_free(line_buff);
+    goto err;
+  }
+
+  return line_buff;
+
+err1:
+  put_info(buff, INFO_ERROR, 0);
+err:
+  if (path)
+    my_close(file, MYF(0));
+  return 0;
+}
+
 static int delimiter_index= -1;
 static int charset_index= -1;
 static int sandbox_index= -1;
@@ -1285,10 +1360,8 @@ int main(int argc,char *argv[])
   }
 
   if (status.batch && !status.line_buff &&
-      !(status.line_buff= batch_readline_init(MAX_BATCH_BUFFER_SIZE, stdin)))
+      !(status.line_buff= batch_readline_init(MAX_BATCH_BUFFER_SIZE, NULL)))
   {
-    put_info("Can't initialize batch_readline - may be the input source is "
-             "a directory or a block device.", INFO_ERROR, 0);
     free_defaults(defaults_argv);
     my_end(0);
     exit(1);
@@ -4719,7 +4792,6 @@ static int com_source(String *, char *line)
   LINE_BUFFER *line_buff;
   int error;
   STATUS old_status;
-  FILE *sql_file;
   my_bool save_ignore_errors;
 
   if (status.sandbox)
@@ -4739,18 +4811,10 @@ static int com_source(String *, char *line)
     end--;
   end[0]=0;
   unpack_filename(source_name,source_name);
-  /* open file name */
-  if (!(sql_file = my_fopen(source_name, O_RDONLY | O_BINARY,MYF(0))))
-  {
-    char buff[FN_REFLEN+60];
-    sprintf(buff,"Failed to open file '%s', error: %d", source_name,errno);
-    return put_info(buff, INFO_ERROR, 0);
-  }
 
-  if (!(line_buff= batch_readline_init(MAX_BATCH_BUFFER_SIZE, sql_file)))
+  if (!(line_buff= batch_readline_init(MAX_BATCH_BUFFER_SIZE, source_name)))
   {
-    my_fclose(sql_file,MYF(0));
-    return put_info("Can't initialize batch_readline", INFO_ERROR, 0);
+    return ignore_errors ? -1 : 1;
   }
 
   /* Save old status */
@@ -4769,7 +4833,7 @@ static int com_source(String *, char *line)
   ignore_errors= save_ignore_errors;
   status=old_status;				// Continue as before
   in_com_source= aborted= 0;
-  my_fclose(sql_file,MYF(0));
+  my_close(line_buff->file, MYF(0));
   batch_readline_end(line_buff);
   /*
     If we got an error during source operation, don't abort the client

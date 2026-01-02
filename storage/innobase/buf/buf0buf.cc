@@ -3362,7 +3362,7 @@ buf_block_t*
 buf_page_create(fil_space_t *space, uint32_t offset,
                 ulint zip_size, mtr_t *mtr, buf_block_t *free_block) noexcept
 {
-  space->free_page(offset, false);
+  space->free_page<false>(offset);
   return buf_page_create_low({space->id, offset}, zip_size, mtr, free_block);
 }
 

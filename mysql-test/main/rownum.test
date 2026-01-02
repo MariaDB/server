@@ -618,5 +618,33 @@ DROP VIEW v;
 DROP TABLE t;
 
 --echo #
+--echo # rownum in having without group by
+--echo #
+
+create table t1 (a int primary key, b int);
+insert into t1 values (1, 1), (2, 1), (3, 1), (4, 2), (5, 2), (6, 2);
+select * from (select * from t1 order by a, b) dt having rownum() = 4;
+
+drop table t1;
+
+--echo #
+--echo # rownum in subquery
+--echo #
+
+create table t1 (a int primary key, b int);
+insert into t1 values (1, 1), (2, 1), (3, 1), (4, 2), (5, 2), (6, 2);
+
+# When rownum used in subquery, the subquery shouldn't be transformed to semijoin
+explain select * from t1 where a in (select rownum() from t1);
+select * from t1 where a in (select rownum() from t1);
+
+set optimizer_switch='materialization=off';
+# When rownum used in IN-subquery and the subquery is transformed to EXISTS, the new condition should be added to HAVING clause.
+explain select * from t1 where a + 1 in (select rownum() from t1);
+select * from t1 where a + 1 in (select rownum() from t1);
+
+drop table t1;
+
+--echo #
 --echo # End of 10.6 tests
 --echo #

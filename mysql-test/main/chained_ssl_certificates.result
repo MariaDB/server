@@ -1,0 +1,12 @@
+call mtr.add_suppression("Server SSL certificate doesn't verify");
+CREATE USER 'user1'@'%' REQUIRE SSL;
+Variable_name	Value
+Ssl_version	TLS
+
+Restart server and provide ssl-ca comprising intermediate_ca1 in addition to the root ca.
+Variable_name	Value
+Ssl_version	TLS
+
+Restart server and provide unrelated ssl-ca at server startup
+ERROR 2026 (HY000): TLS/SSL error:
+DROP USER 'user1';

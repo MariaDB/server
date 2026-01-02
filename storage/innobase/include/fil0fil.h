@@ -923,19 +923,16 @@ public:
   @retval nullptr if the tablespace is missing or inaccessible */
   static fil_space_t *get_for_write(uint32_t id) noexcept;
 
-  /** Add/remove the free page in the freed ranges list.
-  @param[in] offset     page number to be added
-  @param[in] free       true if page to be freed */
-  void free_page(uint32_t offset, bool add=true) noexcept
+  /** Add/remove a page in freed_ranges.
+  @tparam add   true=add, false=remove
+  @param offset page number */
+  template<bool add=true> void free_page(uint32_t offset) noexcept
   {
     std::lock_guard<std::mutex> freed_lock(freed_range_mutex);
     if (add)
-      return freed_ranges.add_value(offset);
-
-    if (freed_ranges.empty())
-      return;
-
-    return freed_ranges.remove_value(offset);
+      freed_ranges.add_value(offset);
+    else
+      freed_ranges.remove_value(offset);
   }
 
   /** Add the range of freed pages */

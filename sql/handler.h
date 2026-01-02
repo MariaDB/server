@@ -3640,7 +3640,8 @@ public:
   int ha_create(const char *name, TABLE *form, HA_CREATE_INFO *info);
 
   int ha_create_partitioning_metadata(const char *name, const char *old_name,
-                                      chf_create_flags action_flag);
+                                      chf_create_flags action_flag,
+                                      bool ignore_delete_error= false);
 
   int ha_change_partitions(HA_CREATE_INFO *create_info,
                            const char *path,
@@ -5406,7 +5407,8 @@ public:
 
   virtual int create_partitioning_metadata(const char *name,
                                            const char *old_name,
-                                           chf_create_flags action_flag)
+                                           chf_create_flags action_flag,
+                                           bool ignore_delete_error)
   { return FALSE; }
 
   virtual int change_partitions(HA_CREATE_INFO *create_info,

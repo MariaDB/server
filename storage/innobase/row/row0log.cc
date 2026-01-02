@@ -2772,10 +2772,10 @@ process_next_block:
 			ut_ad(0);
 			goto unexpected_eof;
 		} else {
-			memcpy(index->online_log->head.buf, mrec,
-			       ulint(mrec_end - mrec));
-			mrec_end -= ulint(mrec - index->online_log->head.buf);
+			const size_t s = size_t(mrec_end - mrec);
+			memcpy(index->online_log->head.buf, mrec, s);
 			mrec = index->online_log->head.buf;
+			mrec_end = mrec + s;
 			goto process_next_block;
 		}
 	}
@@ -3664,10 +3664,10 @@ process_next_block:
 			ut_ad(0);
 			goto unexpected_eof;
 		} else {
-			memcpy(index->online_log->head.buf, mrec,
-			       ulint(mrec_end - mrec));
-			mrec_end -= ulint(mrec - index->online_log->head.buf);
+			const size_t s = size_t(mrec_end - mrec);
+			memcpy(index->online_log->head.buf, mrec, s);
 			mrec = index->online_log->head.buf;
+			mrec_end = mrec + s;
 			goto process_next_block;
 		}
 	}

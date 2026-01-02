@@ -477,8 +477,8 @@ int select_unit::update_counter(Field* counter, longlong value)
 */
 
 bool select_unit_ext::disable_index_if_needed(SELECT_LEX *curr_sl)
-{ 
-  const bool oracle_mode= thd->variables.sql_mode & MODE_ORACLE;
+{
+  const bool oracle_mode= (thd->variables.sql_mode & IS_OR_WAS_ORACLE);
   if (is_index_enabled && 
       ((!oracle_mode &&
         curr_sl == curr_sl->master_unit()->union_distinct) ||
@@ -495,7 +495,7 @@ bool select_unit_ext::disable_index_if_needed(SELECT_LEX *curr_sl)
     table->no_keyread=1;
     /* In case of Oracle mode we unfold at the last operator */
     DBUG_ASSERT(!oracle_mode || !curr_sl->next_select());
-    return oracle_mode || !curr_sl->distinct;
+    return !curr_sl->distinct;
   }
   return false;
 }
@@ -2044,7 +2044,7 @@ void st_select_lex_unit::optimize_bag_operation(bool is_outer_distinct)
       PREPARE ... FROM
       recursive
   */
-  if ((thd->variables.sql_mode & MODE_ORACLE) ||
+  if ((thd->variables.sql_mode & IS_OR_WAS_ORACLE) ||
     (thd->lex->context_analysis_only & CONTEXT_ANALYSIS_ONLY_VIEW) ||
     (fake_select_lex != NULL && thd->stmt_arena->is_stmt_prepare()) ||
     (with_element && with_element->is_recursive ))

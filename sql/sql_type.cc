@@ -8262,6 +8262,12 @@ void Type_handler_string_result::Item_param_set_param_func(Item_param *param,
 }
 
 
+void Type_handler_null::Item_param_set_param_func(Item_param *param,
+                                                  uchar **pos, ulong len) const
+{
+}
+
+
 void Type_handler_time_common::Item_param_set_param_func(Item_param *param,
                                                          uchar **pos,
                                                          ulong len) const
