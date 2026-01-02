@@ -3074,6 +3074,12 @@ innodb_binlog_oob(THD *thd, const unsigned char *data, size_t data_len,
   binlog_oob_context *c= static_cast<binlog_oob_context *>(*engine_data);
   if (UNIV_LIKELY(c != nullptr))
     ibb_pending_lsn_fifo.record_commit(c);
+  /*
+    Throttle the binlog writing of this transaction, if we are getting close
+    to the capacity of the cyclic InnoDB write-ahead log, so that we do not
+    end up overwriting the head of the log.
+  */
+  log_free_check();
   return false;
 }
 
