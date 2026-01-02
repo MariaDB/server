@@ -352,14 +352,6 @@ int unpack_row(const rpl_group_info *rgi, TABLE *table, uint const master_cols,
                             tabledef, conv_table));
 
   /*
-    For each field that is unpacked, we mark it as having an explicit value
-    (via Field::set_has_explicit_value()). So we need to reset the table's
-    internal tracking of fields with explicit values provided to ensure the
-    end state is consistent with the fields that are actually unpacked.
-  */
-  table->reset_default_fields();
-
-  /*
     When unpacking a row for replication (rather than online alter), it needs
     its own additional checks. The slave must account for its tables having
     either columns in different positions, or with different types, than on the
