@@ -5330,6 +5330,11 @@ bool Prepared_statement::execute(String *expanded_query, bool open_cursor)
     */
     cleanup_stmt(false);
 
+  mysql_audit_general(thd, MYSQL_AUDIT_GENERAL_STATUS,
+                      thd->get_stmt_da()->is_error() ?
+                      thd->get_stmt_da()->sql_errno() : 0,
+                      command_name[thd->get_command()].str);
+
   /*
     Log the statement to slow query log if it passes filtering.
     We do it here for prepared statements despite of the fact that the function
