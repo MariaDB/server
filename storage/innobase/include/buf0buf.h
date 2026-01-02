@@ -498,8 +498,9 @@ struct buf_page_base_t
 #endif /* UNIV_DEBUG */
   buf_page_base_t() : id_{0} {}
   buf_page_base_t(const buf_page_base_t &b)
-      : id_(b.id_), hash(b.hash), frame(b.frame),
+      : id_(b.id_), hash(b.hash), frame(b.frame)
 #ifdef UNIV_DEBUG
+        ,
         in_LRU_list(b.in_LRU_list), in_page_hash(b.in_page_hash),
         in_free_list(b.in_free_list)
 #endif /* UNIV_DEBUG */

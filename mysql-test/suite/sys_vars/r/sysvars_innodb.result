@@ -6,7 +6,8 @@ variable_name not in (
 'innodb_use_native_aio',            # default value depends on OS
 'innodb_log_file_buffering',        # only available on Linux and Windows
 'innodb_linux_aio',                 # existence depends on OS
-'innodb_buffer_pool_load_pages_abort')            # debug build only, and is only for testing
+'innodb_buffer_pool_load_pages_abort', # debug build only, and is only for testing
+'innodb_force_lru_eviction')           # debug build only, and is only for testing
 order by variable_name;
 VARIABLE_NAME	INNODB_ADAPTIVE_FLUSHING
 SESSION_VALUE	NULL
