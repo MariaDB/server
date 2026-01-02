@@ -52,10 +52,6 @@ ulint buf_lru_flush_page_count;
 /** Number of pages freed without flushing. Protected by buf_pool.mutex. */
 ulint buf_lru_freed_page_count;
 
-/** Number of pages flushed to external buffer pool. Protected by
-buf_pool.mutex. */
-ulint buf_lru_flushed_to_ebp_page_count;
-
 /** Flag indicating if the page_cleaner is in active state. */
 Atomic_relaxed<bool> buf_page_cleaner_is_active;
 

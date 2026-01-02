@@ -1857,4 +1857,7 @@ ulint fil_space_get_block_size(const fil_space_t* space, unsigned offset)
 bool fil_crypt_check(fil_space_crypt_t *crypt_data, const char *f_name)
   noexcept;
 
+pfs_os_file_t pfs_create_temp_file(const char *path, const char *label,
+                                   const char *prefix, int mode);
+
 #endif /* UNIV_INNOCHECKSUM */

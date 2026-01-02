@@ -24,8 +24,6 @@ START TRANSACTION WITH CONSISTENT SNAPSHOT;
 --connection default
 
 --let $DATADIR = `select @@datadir`
-# Set ext buffer pool file size and check it was created, check it's size
---list_files $DATADIR ext_buffer_pool
 
 #--let $restart_parameters=--innodb-extended-buffer-pool-size=10M
 #--source include/restart_mysqld.inc

@@ -1536,8 +1536,6 @@ bool buf_pool_t::create() noexcept
   pthread_cond_init(&do_flush_list, nullptr);
   pthread_cond_init(&done_free, nullptr);
 
-  done_flush_list_waiters_count= 0;
-
   try_LRU_scan= true;
 
   ut_d(flush_hp.m_mutex= &flush_list_mutex;);
