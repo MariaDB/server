@@ -256,6 +256,11 @@ static page_init_result buf_page_init_for_read(const page_id_t page_id,
   if (!ext_buf_page)
     buf_pool.stat.n_pages_read++;
   ut_ad(!bpage || bpage->in_file());
+  if (ext_buf_page && !fil_system.ext_buf_pool_enabled())
+  {
+    buf_pool.free_ext_page(*ext_buf_page);
+    ext_buf_page= nullptr;
+  }
   mysql_mutex_unlock(&buf_pool.mutex);
   return page_init_result{bpage, ext_buf_page};
 }

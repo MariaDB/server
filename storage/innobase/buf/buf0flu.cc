@@ -380,6 +380,14 @@ void buf_page_write_complete(const IORequest &request, bool error) noexcept
   }
   else
   {
+    if (error && type == buf_page_t::EXT_BUF &&
+        fil_system.ext_buf_pool_enabled())
+    {
+      sql_print_warning("InnoDB: There was IO error during writing to "
+                        "external buffer pool file, external buffer pool is "
+                          "disabled.");
+        fil_system.ext_buf_pool_disable();
+    }
     bpage->write_complete(type, error, state);
     if (request.is_doublewritten())
     {

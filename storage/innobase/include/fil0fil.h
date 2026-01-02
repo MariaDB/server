@@ -1463,7 +1463,8 @@ public:
   dberr_t ext_bp_io(buf_page_t &bpage, ext_buf_page_t &ext_buf_page,
                     IORequest::Type io_request_type, buf_tmp_buffer_t *slot,
                     size_t len, void *buf) noexcept;
-
+  bool ext_buf_pool_enabled() const { return ext_bp_size; }
+  void ext_buf_pool_disable() { ext_bp_size= 0; }
   /** Map of fil_space_t::id to fil_space_t* */
   hash_table_t spaces;
 
