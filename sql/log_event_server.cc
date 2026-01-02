@@ -5221,6 +5221,15 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
       DBUG_ASSERT(rpl_table);
       DBUG_ASSERT(rpl_table == rgi->get_table_data(table));
 
+      /*
+        For each field that is unpacked, it will be marked as having an
+        explicit value (via Field::set_has_explicit_value() in unpack_row()).
+        So we need to reset the table's internal tracking of fields with
+        explicit values provided to ensure the end state is consistent with
+        the fields that are actually unpacked.
+      */
+      table->reset_default_fields();
+
       bitmap_set_all(table->read_set);
       bitmap_set_all(table->write_set);
       table->rpl_write_set= table->write_set;
