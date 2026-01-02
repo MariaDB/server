@@ -50,3 +50,4 @@ CREATE SERVER s1 FOREIGN DATA WRAPPER mysql OPTIONS (HOST '127.0.0.1');
 ALTER TABLE mysql.servers ENGINE=innodb;
 FLUSH PRIVILEGES;
 drop server s1;
+ALTER TABLE mysql.servers ENGINE=Aria;
