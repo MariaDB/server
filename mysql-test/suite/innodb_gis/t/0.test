@@ -40,5 +40,18 @@ disconnect a;
 connection default;
 drop table t1;
 
+--echo #
+--echo # MDEV-38372 ASAN error in InnoDB on malformed WKB
+--echo #
+create table t1 (
+    id int auto_increment primary key,
+    geom geometry not null,
+    spatial index (geom)
+) engine=innodb;
 
+--error ER_CANT_CREATE_GEOMETRY_OBJECT
+insert t1 (geom) values (X'000000000107000000FF000000');
+drop table t1;
+
+--echo # End of 10.6 tests
 
