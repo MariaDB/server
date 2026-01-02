@@ -1,1 +1,2 @@
 --plugin-load=$HA_ROCKSDB_SO
+--plugin-load-add=$HA_CONNECT_SO --plugin-connect=ON
