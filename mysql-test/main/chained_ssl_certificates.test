@@ -1,0 +1,74 @@
+# These tests are inspired from the following commit from MySQL Server
+# https://github.com/mysql/mysql-server/commit/969afef933f1872c5f38ea93047ef05c4509c335
+
+# Credits to salman.s.khan@oracle.com
+
+#####################################################################################
+# This test verifies MariaDB can handle chained ssl certificate
+# This test uses chained ssl certificates which is depicted as
+# below:-
+#
+#                      +---------+
+#                      | Root CA |
+#                      +---------+
+#                           |
+#              /------------+-----------\
+#              |                        |
+#     +------------------+     +------------------+
+#     | Intermediate CA1 |     | Intermediate CA2 |
+#     +------------------+     +------------------+
+#              |                        |
+#       +-------------+          +-------------+
+#       |   Server    |          |   Client    |
+#       | certificate |          | certificate |
+#       +-------------+          +-------------+
+#
+# certificates that may be helpful for chain construction.
+# In order to validate server cert correctly, we need to
+# provide the trusted root certificate and the untrusted
+# intermediate certificates as part of ssl-ca. Hence
+# root_intermediate_ca1.crt (trusted root certificate +
+# untrusted intermediate ca1 certificate) is passed as with
+# --ssl-ca option
+
+--source include/not_embedded.inc
+--source include/have_ssl_communication.inc
+
+#Suppress warning by the server certificate verification check: unrelated CA
+call mtr.add_suppression("Server SSL certificate doesn't verify");
+
+CREATE USER 'user1'@'%' REQUIRE SSL;
+
+--replace_result TLSv1.3 TLS TLSv1.2 TLS
+--exec $MYSQL --host=localhost -P $MASTER_MYPORT --user=user1 --ssl-verify-server-cert --ssl-ca=$MYSQL_TEST_DIR/std_data/cachain/root.crt --ssl-cert=$MYSQL_TEST_DIR/std_data/cachain/client.cachain --ssl-key=$MYSQL_TEST_DIR/std_data/cachain/client.key -e "SHOW STATUS LIKE 'ssl_version'"
+
+--echo
+--echo Restart server and provide ssl-ca comprising intermediate_ca1 in addition to the root ca.
+--write_line wait $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
+--shutdown_server
+--source include/wait_until_disconnected.inc
+
+--write_line "restart:--ssl-ca=$MYSQL_TEST_DIR/std_data/cachain/root_intermediate_ca1.crt --ssl-key=$MYSQL_TEST_DIR/std_data/cachain/server.key --ssl-cert=$MYSQL_TEST_DIR/std_data/cachain/server.cachain" $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
+--enable_reconnect
+--source include/wait_until_connected_again.inc
+
+--replace_result TLSv1.3 TLS TLSv1.2 TLS
+--exec $MYSQL --host=localhost -P $MASTER_MYPORT --user=user1 --ssl-verify-server-cert --ssl-ca=$MYSQL_TEST_DIR/std_data/cachain/root.crt --ssl-cert=$MYSQL_TEST_DIR/std_data/cachain/client.cachain --ssl-key=$MYSQL_TEST_DIR/std_data/cachain/client.key -e "SHOW STATUS LIKE 'ssl_version'"
+
+--echo
+--echo Restart server and provide unrelated ssl-ca at server startup
+--write_line wait $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
+--shutdown_server
+--source include/wait_until_disconnected.inc
+
+--write_line "restart:--ssl-ca=$MYSQL_TEST_DIR/std_data/cachain/unrelated_root.crt --ssl-key=$MYSQL_TEST_DIR/std_data/cachain/server.key --ssl-cert=$MYSQL_TEST_DIR/std_data/cachain/server.cachain" $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
+--enable_reconnect
+--source include/wait_until_connected_again.inc
+
+--replace_regex /(ERROR 2026 \(HY000\): TLS\/SSL error:).*/\1/
+--error 1
+--exec $MYSQL --host=localhost -P $MASTER_MYPORT --user=user1 --ssl-verify-server-cert --ssl-ca=$MYSQL_TEST_DIR/std_data/cachain/unrelated_root.crt --ssl-cert=$MYSQL_TEST_DIR/std_data/cachain/client.cachain --ssl-key=$MYSQL_TEST_DIR/std_data/cachain/client.key -e "SHOW STATUS LIKE 'ssl_version'" 2>&1
+--echo
+
+# Cleanup
+DROP USER 'user1';

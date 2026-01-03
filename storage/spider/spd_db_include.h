@@ -501,6 +501,7 @@ typedef struct spider_table_holder SPIDER_TABLE_HOLDER;
 typedef struct spider_link_idx_holder
 {
   spider_table_link_idx_holder *table_link_idx_holder;
+  /* The index of active link */
   int link_idx;
   int link_status;
   spider_link_idx_holder *next_table;
@@ -607,7 +608,7 @@ public:
   );
   SPIDER_CONN_HOLDER *create_conn_holder();
   bool has_conn_holder();
-  void clear_conn_holder_from_conn();
+  void clear_conn_holder_checked();
   bool check_conn_same_conn(
     SPIDER_CONN *conn_arg
   );
@@ -883,7 +884,6 @@ public:
     SPIDER_SHARE *spider_share,
     CHARSET_INFO *access_charset
   ) = 0;
-  virtual uint limit_mode();
 };
 
 class spider_db_conn

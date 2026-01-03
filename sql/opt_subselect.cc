@@ -707,6 +707,7 @@ int check_and_do_in_subquery_rewrites(JOIN *join)
         12. All tables supports comparable rowids.
             This is needed for DuplicateWeedout strategy to work (which
             is the catch-all semi-join strategy so it must be applicable).
+        13. Subquery does not have ROWNUM
     */
     if (optimizer_flag(thd, OPTIMIZER_SWITCH_SEMIJOIN) &&
         in_subs &&                                                    // 1
@@ -722,7 +723,8 @@ int check_and_do_in_subquery_rewrites(JOIN *join)
            select_lex->outer_select()->join->select_options)          // 10
           & SELECT_STRAIGHT_JOIN) &&                                  // 10
         select_lex->first_cond_optimization &&                        // 11
-        join->not_usable_rowid_map == 0)                              // 12
+        join->not_usable_rowid_map == 0 &&                            // 12
+        !select_lex->with_rownum)                                     // 13
     {
       DBUG_PRINT("info", ("Subquery is semi-join conversion candidate"));
 
@@ -6138,7 +6140,7 @@ Item *and_new_conditions_to_optimized_cond(THD *thd, Item *cond,
     }
   }
 
-  if (!cond)
+  if (!cond || cond->fix_fields_if_needed(thd, &cond))
     return NULL;
 
   if (*cond_eq)
@@ -6170,9 +6172,6 @@ Item *and_new_conditions_to_optimized_cond(THD *thd, Item *cond,
   */
   if (cond && is_simplified_cond)
     cond= cond->remove_eq_conds(thd, cond_value, true);
-
-  if (cond && cond->fix_fields_if_needed(thd, NULL))
-    return NULL;
 
   return cond;
 }

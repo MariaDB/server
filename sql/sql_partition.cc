@@ -3511,13 +3511,14 @@ int vers_get_partition_id(partition_info *part_info, uint32 *part_id,
       goto done; // fastpath
 
     ts= row_end->get_timestamp(&unused);
-    if ((loc_hist_id == 0 || range_value[loc_hist_id - 1] < ts) &&
-        (loc_hist_id == max_hist_id || range_value[loc_hist_id] >= ts))
+    if ((loc_hist_id == 0 || range_value[loc_hist_id - 1] <= ts) &&
+        (loc_hist_id == max_hist_id || ts < range_value[loc_hist_id]))
       goto done; // fastpath
 
     while (max_hist_id > min_hist_id)
     {
       loc_hist_id= (max_hist_id + min_hist_id) / 2;
+      /* Left boundary is closed */
       if (range_value[loc_hist_id] <= ts)
         min_hist_id= loc_hist_id + 1;
       else
@@ -4859,6 +4860,22 @@ static void check_datadir_altered_for_innodb(THD *thd,
 }
 
 
+static bool check_name_in_fields(const Field * const *fields, const char *name)
+{
+  if (!fields)
+    return FALSE;
+
+  for (; *fields; fields++)
+  {
+    if (my_strcasecmp(system_charset_info,
+                      (*fields)->field_name.str, name) == 0)
+      return TRUE;
+  }
+
+  return FALSE;
+}
+
+
 /*
   Prepare for ALTER TABLE of partition structure
 
@@ -4906,6 +4923,31 @@ uint prep_alter_part_table(THD *thd, TABLE *table, Alter_info *alter_info,
   {
     my_error(ER_PARTITION_MGMT_ON_NONPARTITIONED, MYF(0));
     DBUG_RETURN(TRUE);
+  }
+
+  if (table->part_info && alter_info->partition_flags == 0 &&
+      (alter_info->flags & ALTER_PARSER_DROP_COLUMN))
+  {
+    List_iterator<Alter_drop> drop_it(alter_info->drop_list);
+    Alter_drop *drop;
+
+    while ((drop= drop_it++))
+    {
+      if (drop->type != Alter_drop::COLUMN)
+        continue;
+
+      if (check_name_in_fields(table->part_info->part_field_array,
+                               drop->name) ||
+          check_name_in_fields(table->part_info->subpart_field_array,
+                               drop->name))
+      {
+        /*
+          The ALTER drops column used in partitioning expression.
+          That cannot be done INPLACE.
+        */
+        *partition_changed= TRUE;
+      }
+    }
   }
 
   partition_info *alt_part_info= thd->lex->part_info;

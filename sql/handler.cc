@@ -2073,15 +2073,17 @@ err:
                 thd->rgi_slave->is_parallel_exec);
   }
 end:
-  if (mdl_backup.ticket)
+  // reset the pointer to the ticket when it's stack instantiated
+  if (thd->backup_commit_lock == &mdl_backup)
   {
     /*
       We do not always immediately release transactional locks
       after ha_commit_trans() (see uses of ha_enable_transaction()),
       thus we release the commit blocker lock as soon as it's
       not needed.
-    */
-    thd->mdl_context.release_lock(mdl_backup.ticket);
+     */
+    if (mdl_backup.ticket)
+      thd->mdl_context.release_lock(mdl_backup.ticket);
     thd->backup_commit_lock= 0;
   }
 #ifdef WITH_WSREP
@@ -2150,11 +2152,34 @@ static bool is_ro_1pc_trans(THD *thd, Ha_trx_info *ha_info, bool all,
   return !rw_trans;
 }
 
-static bool has_binlog_hton(Ha_trx_info *ha_info)
+inline Ha_trx_info* get_binlog_hton(Ha_trx_info *ha_info)
 {
-  bool rc;
-  for (rc= false; ha_info && !rc; ha_info= ha_info->next())
-    rc= ha_info->ht() == binlog_hton;
+  for (; ha_info; ha_info= ha_info->next())
+    if (ha_info->ht() == binlog_hton)
+      return ha_info;
+
+  return ha_info;
+}
+
+static int run_binlog_first(THD *thd, bool all, THD_TRANS *trans,
+                            bool is_real_trans, bool is_commit)
+{
+  int rc= 0;
+  Ha_trx_info *ha_info= trans->ha_list;
+
+  if ((ha_info= get_binlog_hton(ha_info)))
+  {
+    int err;
+    if ((err= is_commit ? binlog_commit(thd, all,
+                                        is_ro_1pc_trans(thd, ha_info, all,
+                                                        is_real_trans))
+                        : binlog_rollback(ha_info->ht(), thd, all)))
+    {
+      my_error(is_commit ? ER_ERROR_DURING_COMMIT : ER_ERROR_DURING_ROLLBACK,
+               MYF(0), err);
+      rc= 1;
+    }
+  }
 
   return rc;
 }
@@ -2172,18 +2197,19 @@ commit_one_phase_2(THD *thd, bool all, THD_TRANS *trans, bool is_real_trans)
   if (ha_info)
   {
     int err= 0;
-
-    if (has_binlog_hton(ha_info) &&
-        (err= binlog_commit(thd, all,
-                            is_ro_1pc_trans(thd, ha_info, all, is_real_trans))))
+    /*
+      Binlog hton must be called first regardless of its position
+      in trans->ha_list at least to prevent from commiting any engine
+      branches when afterward a duplicate GTID error out of binlog_commit()
+      is generated.
+    */
+    for (int binlog_err= error=
+           run_binlog_first(thd, all, trans, is_real_trans, true);
+         ha_info; ha_info= ha_info_next)
     {
-      my_error(ER_ERROR_DURING_COMMIT, MYF(0), err);
-      error= 1;
+      if (binlog_err)
+        goto err;
 
-      goto err;
-    }
-    for (; ha_info; ha_info= ha_info_next)
-    {
       handlerton *ht= ha_info->ht();
       if ((err= ht->commit(ht, thd, all)))
       {
@@ -2309,11 +2335,18 @@ int ha_rollback_trans(THD *thd, bool all)
     if (is_real_trans)                          /* not a statement commit */
       thd->stmt_map.close_transient_cursors();
 
-    for (; ha_info; ha_info= ha_info_next)
+    /*
+      Binlog hton must be called first regardless of its position
+      in trans->ha_list in order to avoid race to binlog between the current
+      rollbacker and any transaction that depends on it. This guarantees
+      the execution time dependency identifies binlog ordering.
+    */
+    for (error= run_binlog_first(thd, all, trans, is_real_trans, false);
+         ha_info; ha_info= ha_info_next)
     {
       int err;
       handlerton *ht= ha_info->ht();
-      if ((err= ht->rollback(ht, thd, all)))
+      if (ht != binlog_hton && (err= ht->rollback(ht, thd, all)))
       {
         // cannot happen
         my_error(ER_ERROR_DURING_ROLLBACK, MYF(0), err);
@@ -5643,7 +5676,12 @@ handler::ha_create(const char *name, TABLE *form, HA_CREATE_INFO *info_arg)
     info_arg->options|= HA_LEX_CREATE_GLOBAL_TMP_TABLE;
   int error= create(name, form, info_arg);
   if (!error &&
-      !(info_arg->options & (HA_LEX_CREATE_TMP_TABLE | HA_CREATE_TMP_ALTER)))
+      !(info_arg->options & (HA_LEX_CREATE_TMP_TABLE | HA_CREATE_TMP_ALTER)) &&
+      /*
+        DO not notify if not main handler.
+        So skip notifications for partitions.
+      */
+      form->file == this)
     mysql_audit_create_table(form);
   return error;
 }
@@ -5658,7 +5696,8 @@ handler::ha_create(const char *name, TABLE *form, HA_CREATE_INFO *info_arg)
 int
 handler::ha_create_partitioning_metadata(const char *name,
                                          const char *old_name,
-                                         chf_create_flags action_flag)
+                                         chf_create_flags action_flag,
+                                         bool ignore_delete_error)
 {
   /*
     Normally this is done when unlocked, but in fast_alter_partition_table,
@@ -5668,7 +5707,8 @@ handler::ha_create_partitioning_metadata(const char *name,
   DBUG_ASSERT(m_lock_type == F_UNLCK ||
               (!old_name && strcmp(name, table_share->path.str)));
 
-  return create_partitioning_metadata(name, old_name, action_flag);
+  return create_partitioning_metadata(name, old_name, action_flag,
+                                      ignore_delete_error);
 }
 
 

@@ -434,11 +434,6 @@ static ulint trx_rsegf_undo_find_free(const buf_block_t *rseg_header)
 {
   ulint max_slots= TRX_RSEG_N_SLOTS;
 
-#ifdef UNIV_DEBUG
-  if (trx_rseg_n_slots_debug)
-    max_slots= std::min<ulint>(trx_rseg_n_slots_debug, TRX_RSEG_N_SLOTS);
-#endif
-
   for (ulint i= 0; i < max_slots; i++)
     if (trx_rsegf_get_nth_undo(rseg_header, i) == FIL_NULL)
       return i;
@@ -1020,6 +1015,33 @@ corrupted_type:
 	case TRX_UNDO_ACTIVE:
 	case TRX_UNDO_PREPARED:
 		if (UNIV_LIKELY(type != 1)) {
+			/* The undo log of a previously committed
+			transaction that was logged in this page may
+			have trx_no greater than the trx_id of the
+			current undo log, because the trx_id of the
+			current transaction can be assigned before the
+			previous transaction is committed.
+
+			An undo page can contain several small
+			transactions when a TRX_UNDO_CACHED page is
+			being reused. Only the last (uncommitted)
+			transaction may lack a trx_no. By design, any
+			preceding transactions must be committed and
+			have a trx_no, and the last committed
+			transaction in the page must have the largest
+			trx_no. */
+			const uint16 prev_offset = mach_read_from_2(
+				undo_header + TRX_UNDO_PREV_LOG);
+			if (!prev_offset) {
+				break;
+			}
+			const trx_ulogf_t* const prev_undo_header=
+				block->page.frame + prev_offset;
+			const trx_id_t trx_no_prev = mach_read_from_8(
+				prev_undo_header + TRX_UNDO_TRX_NO);
+			if (trx_no_prev > trx_id) {
+				trx_no = trx_no_prev + 1;
+			}
 			break;
 		}
 		sql_print_error("InnoDB: upgrade from older version than"
@@ -1406,6 +1428,7 @@ trx_undo_assign_low(trx_t *trx, trx_rseg_t *rseg, trx_undo_t **undo,
 	);
 
 	*err = DB_SUCCESS;
+	DEBUG_SYNC_C("before_undo_log_trx_id_write");
 	rseg->latch.wr_lock(SRW_LOCK_CALL);
 	if (is_temp) {
 		ut_ad(!UT_LIST_GET_LEN(rseg->undo_cached));
@@ -1426,6 +1449,7 @@ got_block:
 
 func_exit:
 	rseg->latch.wr_unlock();
+	DEBUG_SYNC_C("after_undo_log_trx_id_write");
 	return block;
 }
 

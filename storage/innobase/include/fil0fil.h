@@ -607,6 +607,24 @@ public:
     n_pending.fetch_and(~NEEDS_FSYNC, std::memory_order_release);
   }
 
+  /** Set the STOPPING flags when creating a file,
+  to block premature fil_crypt_find_space_to_rotate() */
+  inline void set_stopped() noexcept
+  {
+    ut_d(uint32_t n=)
+      n_pending.fetch_add(STOPPING + 1, std::memory_order_relaxed);
+    ut_ad(n == CLOSING);
+  }
+
+  /** Clear the STOPPING flags after creating a file */
+  inline void clear_stopped() noexcept
+  {
+    ut_d(uint32_t n=)
+      n_pending.fetch_sub(STOPPING + CLOSING + 1, std::memory_order_relaxed);
+    ut_ad(n & PENDING);
+    ut_ad((n & ~PENDING) == (STOPPING | CLOSING));
+  }
+
 private:
   /** Clear the CLOSING flag */
   void clear_closing() noexcept
@@ -914,8 +932,7 @@ public:
   @param crypt_data      encryption information
   @param mode            encryption mode
   @param opened          whether the tablespace files are open
-  @return pointer to created tablespace, to be filled in with add()
-  @retval nullptr on failure (such as when the same tablespace exists) */
+  @return pointer to created tablespace, to be filled in with add() */
   static fil_space_t *create(uint32_t id, uint32_t flags, bool being_imported,
                              fil_space_crypt_t *crypt_data,
                              fil_encryption_t mode= FIL_ENCRYPTION_DEFAULT,
@@ -933,19 +950,16 @@ public:
   @retval nullptr if the tablespace is missing or inaccessible */
   static fil_space_t *get_for_write(uint32_t id) noexcept;
 
-  /** Add/remove the free page in the freed ranges list.
-  @param[in] offset     page number to be added
-  @param[in] free       true if page to be freed */
-  void free_page(uint32_t offset, bool add=true) noexcept
+  /** Add/remove a page in freed_ranges.
+  @tparam add   true=add, false=remove
+  @param offset page number */
+  template<bool add=true> void free_page(uint32_t offset) noexcept
   {
     std::lock_guard<std::mutex> freed_lock(freed_range_mutex);
     if (add)
-      return freed_ranges.add_value(offset);
-
-    if (freed_ranges.empty())
-      return;
-
-    return freed_ranges.remove_value(offset);
+      freed_ranges.add_value(offset);
+    else
+      freed_ranges.remove_value(offset);
   }
 
   /** Add the range of freed pages */
@@ -1081,7 +1095,7 @@ struct fil_node_t final
   /** whether the file actually is a raw device or disk partition */
   unsigned is_raw_disk:1;
   /** whether the tablespace discovery is being deferred during crash
-  recovery due to incompletely written page 0 */
+  recovery due to missing file or incompletely written page 0 */
   unsigned deferred:1;
 
   /** size of the file in database pages (0 if not known yet);

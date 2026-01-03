@@ -206,24 +206,23 @@ int json_path_parts_compare(
     {
       if (b->type & JSON_PATH_ARRAY)
       {
-        int res= 0, corrected_n_item_a= 0;
-        if (array_sizes)
-          corrected_n_item_a= a->n_item < 0 ?
-                                array_sizes[b-temp_b] + a->n_item : a->n_item;
-        if (a->type & JSON_PATH_ARRAY_RANGE)
+        int res = 0;
+        if (a->type & JSON_PATH_WILD)
+          res = 1;
+        else if (a->type & JSON_PATH_ARRAY_RANGE && array_sizes)
         {
-          int corrected_n_item_end_a= 0;
-          if (array_sizes)
-            corrected_n_item_end_a= a->n_item_end < 0 ?
-                                    array_sizes[b-temp_b] + a->n_item_end :
-                                    a->n_item_end;
-          res= b->n_item >= corrected_n_item_a &&
-                b->n_item <= corrected_n_item_end_a;
+            int start = (a->n_item >= 0) ? a->n_item
+                         : array_sizes[b - temp_b] + a->n_item;
+            int end   = (a->n_item_end >= 0) ? a->n_item_end
+                                   : array_sizes[b - temp_b] + a->n_item_end;
+            res = (b->n_item >= start && b->n_item <= end);
         }
-        else
-         res= corrected_n_item_a == b->n_item;
+        else if (a->n_item >= 0)
+          res = (a->n_item == b->n_item);
+        else if (a->n_item < 0 && array_sizes)
+          res = (a->n_item == b->n_item - array_sizes[b - temp_b]);
 
-        if ((a->type & JSON_PATH_WILD) || res)
+        if (res)
           goto step_fits;
         goto step_failed;
       }

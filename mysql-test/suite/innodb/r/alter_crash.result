@@ -220,4 +220,26 @@ SELECT * FROM t1;
 a	b
 1	1
 2	1
+connect ddl, localhost, root;
+SET DEBUG_SYNC = 'fil_ibd_create_logged SIGNAL stuck WAIT_FOR ever';
+ALTER TABLE t1 FORCE;
+connection default;
+SET DEBUG_SYNC = 'now WAIT_FOR stuck';
+# Kill the server
+disconnect ddl;
+# restart
+CHECK TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) NOT NULL,
+  `b` int(11) DEFAULT NULL,
+  PRIMARY KEY (`a`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+SELECT * FROM t1;
+a	b
+1	1
+2	1
 DROP TABLE t1;

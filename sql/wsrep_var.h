@@ -1,4 +1,4 @@
-/* Copyright (C) 2013-2023 Codership Oy <info@codership.com>
+/* Copyright (C) 2013-2025 Codership Oy <info@codership.com>
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -96,6 +96,7 @@ extern bool wsrep_desync_update              UPDATE_ARGS;
 extern bool wsrep_trx_fragment_size_check    CHECK_ARGS;
 extern bool wsrep_trx_fragment_size_update   UPDATE_ARGS;
 
+extern bool wsrep_trx_fragment_unit_check    CHECK_ARGS;
 extern bool wsrep_trx_fragment_unit_update   UPDATE_ARGS;
 
 extern bool wsrep_max_ws_size_check          CHECK_ARGS;

@@ -620,5 +620,76 @@ evalp set statement optimizer_switch='split_materialized=off' for $query;
 
 DROP TABLE t1,t2;
 
+--echo #
+--echo # MDEV-37407 Wrong result with ORDER BY LIMIT
+--echo # Both, with and without split_materialized should
+--echo # produce the same results
+--echo #
+
+SET @save_optimizer_switch= @@optimizer_switch;
+
+CREATE TABLE t1
+  (a varchar(35), b varchar(4), KEY (a))
+ENGINE=InnoDB;
+
+INSERT INTO t1 VALUES
+('Albania','AXA'), ('Australia','AUS'), ('Myanmar','MMR'),
+('Bahamas','BS'), ('Brazil','BRA'), ('Barbados','BRB');
+ 
+CREATE TABLE t2
+  (a varchar(4), b varchar(50), PRIMARY KEY (b,a), KEY (a))
+ENGINE=InnoDB;
+
+INSERT INTO t2 VALUES
+('AUS','Anglican'), ('MMR','Baptist'), ('BS','Anglican'),
+('BS','Baptist'), ('BS','Methodist'), ('BRB','Methodist'),
+('BRA','Baptist'), ('USA','Baptist');
+
+ANALYZE TABLE t1 PERSISTENT FOR ALL;
+ANALYZE TABLE t2 PERSISTENT FOR ALL;
+
+let $q=
+SELECT t1.a
+FROM (SELECT a FROM t2 GROUP BY a ORDER BY a, COUNT(DISTINCT b) LIMIT 1) dt
+     JOIN t1 ON
+     dt.a=t1.b
+WHERE t1.a LIKE 'B%';
+
+set optimizer_switch='split_materialized=off';
+eval $q;
+
+set optimizer_switch='split_materialized=on';
+eval $q;
+
+DROP TABLE t1,t2;
+
+SET optimizer_switch= @save_optimizer_switch;
+
+--echo #
+--echo # MDEV-29638 Crash when considering Split-Materialized plan
+--echo #
+
+set @save_optimizer_switch= @@optimizer_switch;
+set optimizer_switch='condition_pushdown_for_derived=off,split_materialized=on';
+
+CREATE TABLE t1 (id int PRIMARY KEY)engine=innodb;
+CREATE TABLE t2 (id int PRIMARY KEY, c int) engine=innodb;
+CREATE TABLE t3 (id int PRIMARY KEY, a int , b int, KEY (a))engine=innodb;
+
+SELECT * FROM
+(
+  SELECT DISTINCT t1.id
+    FROM t1 JOIN
+  (
+     SELECT t2.id FROM t2 JOIN t3
+       ON t3.id = t2.c
+       WHERE (t3.a > 2 AND t3.b = 2)
+       GROUP BY t2.id
+  ) m2 ON m2.id = t1.id
+) dt;
+
+drop table t1, t2, t3;
+SET optimizer_switch= @save_optimizer_switch;
+
 --echo # End of 10.11 tests
 SET GLOBAL innodb_stats_persistent=@save_innodb_stats_persistent;

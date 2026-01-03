@@ -2814,7 +2814,9 @@ static my_bool list_callback(THD *tmp, list_callback_arg *arg)
 
     thd_info->thread_id=tmp->thread_id;
     thd_info->os_thread_id=tmp->os_thread_id;
-    thd_info->user= arg->thd->strdup(tmp_sctx->user && tmp_sctx->user != slave_user ?
+    thd_info->user= arg->thd->strdup(tmp_sctx->user &&
+                                     (tmp_sctx->user != slave_user &&
+                                      tmp_sctx->user != wsrep_user) ?
                                        tmp_sctx->user :
                                        (tmp->system_thread ?
                                          "system user" : "unauthenticated user"));
@@ -3322,8 +3324,9 @@ static my_bool processlist_callback(THD *tmp, processlist_callback_arg *arg)
   /* ID */
   arg->table->field[0]->store((longlong) tmp->thread_id, TRUE);
   /* USER */
-  val= tmp_sctx->user && tmp_sctx->user != slave_user ? tmp_sctx->user :
-        (tmp->system_thread ? "system user" : "unauthenticated user");
+  val= tmp_sctx->user && (tmp_sctx->user != slave_user &&
+       tmp_sctx->user != wsrep_user) ? tmp_sctx->user :
+       (tmp->system_thread ? "system user" : "unauthenticated user");
   arg->table->field[1]->store(val, strlen(val), cs);
   /* HOST */
   if (tmp->peer_port && (tmp_sctx->host || tmp_sctx->ip) &&
@@ -5285,30 +5288,6 @@ int get_all_tables(THD *thd, TABLE_LIST *tables, COND *cond)
   uint table_open_method= tables->table_open_method;
   bool can_deadlock;
   MEM_ROOT tmp_mem_root;
-  /*
-    We're going to open FRM files for tables.
-    In case of VIEWs that contain stored function calls,
-    these stored functions will be parsed and put to the SP cache.
-
-    Suppose we have a view containing a stored function call:
-      CREATE VIEW v1 AS SELECT f1() AS c1;
-    and now we're running:
-      SELECT * FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME=f1();
-    If a parallel thread invalidates the cache,
-    e.g. by creating or dropping some stored routine,
-    the SELECT query will re-parse f1() when processing "v1"
-    and replace the outdated cached version of f1() to a new one.
-    But the old version of f1() is referenced from the m_sp member
-    of the Item_func_sp instances used in the WHERE condition.
-    We cannot destroy it. To avoid such clashes, let's remember
-    all old routines into a temporary SP cache collection
-    and process tables with a new empty temporary SP cache collection.
-    Then restore to the old SP cache collection at the end.
-  */
-  Sp_caches old_sp_caches;
-
-  old_sp_caches.sp_caches_swap(*thd);
-
   bzero(&tmp_mem_root, sizeof(tmp_mem_root));
 
   /*
@@ -5481,14 +5460,6 @@ int get_all_tables(THD *thd, TABLE_LIST *tables, COND *cond)
 err:
   thd->restore_backup_open_tables_state(&open_tables_state_backup);
   free_root(&tmp_mem_root, 0);
-
-  /*
-    Now restore to the saved SP cache collection
-    and clear the temporary SP cache collection.
-  */
-  old_sp_caches.sp_caches_swap(*thd);
-  old_sp_caches.sp_caches_clear();
-
   DBUG_RETURN(error);
 }
 

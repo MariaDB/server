@@ -1,0 +1,123 @@
+#
+# Test sequences crash recovery.
+#
+
+--source include/galera_cluster.inc
+--source include/have_sequence.inc
+--source include/big_test.inc
+
+--disable_ps2_protocol
+
+#
+# Case 1: Crash a node during a transaction, bring the
+# sequence in sync by receiving higher current value
+#
+--connection node_1
+CREATE SEQUENCE s INCREMENT=0 CACHE=5 ENGINE=InnoDB;
+CREATE TABLE t1 (f1 INT PRIMARY KEY DEFAULT NEXTVAL(s), f2 INT) ENGINE=InnoDB;
+
+--connection node_1
+BEGIN;
+INSERT INTO t1(f2) values (1);
+INSERT INTO t1(f2) values (1);
+INSERT INTO t1(f2) values (1);
+INSERT INTO t1(f2) values (1);
+INSERT INTO t1(f2) values (1);
+
+--connection node_2
+BEGIN;
+INSERT INTO t1(f2) values (2);
+INSERT INTO t1(f2) values (2);
+INSERT INTO t1(f2) values (2);
+
+# Crash and restart the node, losing the transaciton
+--source include/kill_galera.inc
+--let $start_mysqld_params =
+--let $_expect_file_name= $MYSQLTEST_VARDIR/tmp/mysqld.2.expect
+--source include/start_mysqld.inc
+
+# Check and update the last written sequence value
+SELECT NEXTVAL(s);
+
+--connection node_1
+# Update the sequence value further
+INSERT INTO t1(f2) values (1);
+INSERT INTO t1(f2) values (1);
+INSERT INTO t1(f2) values (1);
+INSERT INTO t1(f2) values (1);
+INSERT INTO t1(f2) values (1);
+
+COMMIT;
+SELECT LASTVAL(s);
+SELECT * FROM t1;
+
+--connection node_2
+# The next value should be in sync now, but the last
+# value is still the same
+SELECT LASTVAL(s);
+SELECT NEXTVAL(s);
+SELECT * FROM t1;
+
+--connection node_1
+DROP TABLE t1;
+DROP SEQUENCE s;
+
+#
+# Case 2: Crash a node during a transaction, bring the
+# sequence in sync by sending higher current value
+#
+--connection node_1
+CREATE SEQUENCE s INCREMENT=0 CACHE=5 ENGINE=InnoDB;
+CREATE TABLE t1 (f1 INT PRIMARY KEY DEFAULT NEXTVAL(s), f2 INT) ENGINE=InnoDB;
+
+--connection node_1
+BEGIN;
+INSERT INTO t1(f2) values (1);
+INSERT INTO t1(f2) values (1);
+INSERT INTO t1(f2) values (1);
+INSERT INTO t1(f2) values (1);
+INSERT INTO t1(f2) values (1);
+
+--connection node_2
+# Exhaust the cached values once, but no replication happens even
+# though the sequnce table is updated
+BEGIN;
+INSERT INTO t1(f2) values (2);
+INSERT INTO t1(f2) values (2);
+INSERT INTO t1(f2) values (2);
+INSERT INTO t1(f2) values (2);
+INSERT INTO t1(f2) values (2);
+INSERT INTO t1(f2) values (2);
+
+# Crash and restart the node, losing the transaciton
+--source include/kill_galera.inc
+--let $start_mysqld_params =
+--let $_expect_file_name= $MYSQLTEST_VARDIR/tmp/mysqld.2.expect
+--source include/start_mysqld.inc
+
+--connection node_1
+INSERT INTO t1(f2) values (1);
+INSERT INTO t1(f2) values (1);
+INSERT INTO t1(f2) values (1);
+INSERT INTO t1(f2) values (1);
+INSERT INTO t1(f2) values (1);
+
+COMMIT;
+SELECT LASTVAL(s);
+SELECT * FROM t1;
+
+--connection node_2
+# Check and update the last written sequence value, it's still
+# higher than the one from the other node
+SELECT NEXTVAL(s);
+SELECT * FROM t1;
+
+--connection node_1
+# The next value should be in sync now, but the last
+# value is still the same
+SELECT LASTVAL(s);
+SELECT NEXTVAL(s);
+
+--connection node_1
+DROP TABLE t1;
+DROP SEQUENCE s;

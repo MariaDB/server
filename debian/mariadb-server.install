@@ -16,6 +16,7 @@ lib/systemd/system/mariadb@.socket
 lib/systemd/system/mysql.service
 lib/systemd/system/mysqld.service
 support-files/rpm/enable_encryption.preset etc/mysql/mariadb.conf.d/99-enable-encryption.cnf.preset
+usr/lib/tmpfiles.d/mariadb.conf
 usr/bin/aria_chk
 usr/bin/aria_dump_log
 usr/bin/aria_ftdump

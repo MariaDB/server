@@ -354,12 +354,16 @@ static bool fil_node_open_file_low(fil_node_t *node, const byte *page,
     bool success;
     node->handle= os_file_create(innodb_data_file_key, node->name,
                                  node->is_raw_disk
-                                 ? OS_FILE_OPEN_RAW : OS_FILE_OPEN,
+                                 ? OS_FILE_OPEN_RAW
+                                 : node->deferred
+                                 ? OS_FILE_OPEN_SILENT : OS_FILE_OPEN,
                                  type,
                                  srv_read_only_mode, &success);
+    ut_ad(success == node->is_open());
 
     if (success && node->is_open())
     {
+    created:
 #ifndef _WIN32
       if (!node->space->id && !srv_read_only_mode && my_disable_locking &&
           os_file_lock(node->handle, node->name))
@@ -370,6 +374,15 @@ static bool fil_node_open_file_low(fil_node_t *node, const byte *page,
       }
 #endif
       break;
+    }
+    else if (node->deferred)
+    {
+      node->handle= os_file_create(innodb_data_file_key, node->name,
+                                   OS_FILE_CREATE, type,
+                                   srv_read_only_mode, &success);
+      ut_ad(success == node->is_open());
+      if (node->is_open())
+        goto created;
     }
 
     /* The following call prints an error message */
@@ -860,13 +873,7 @@ static void fil_space_free_low(fil_space_t *space) noexcept
 	/* The tablespace must not be in fil_system.named_spaces. */
 	ut_ad(srv_fast_shutdown == 2 || !srv_was_started
 	      || space->max_lsn == 0);
-
-	/* Wait for fil_space_t::release() after
-	fil_system_t::detach(), the tablespace cannot be found, so
-	fil_space_t::get() would return NULL */
-	while (space->referenced()) {
-		std::this_thread::sleep_for(std::chrono::microseconds(100));
-	}
+	ut_ad(!space->referenced());
 
 	for (fil_node_t* node = UT_LIST_GET_FIRST(space->chain);
 	     node != NULL; ) {
@@ -921,7 +928,7 @@ bool fil_space_free(uint32_t id, bool x_latched) noexcept
 		} else {
 			ut_ad(log_sys.latch_have_wr());
 			if (space->max_lsn) {
-				ut_d(space->max_lsn = 0);
+				space->max_lsn = 0;
 				fil_system.named_spaces.remove(*space);
 			}
 		}
@@ -951,8 +958,6 @@ fil_space_t *fil_space_t::create(uint32_t id, uint32_t flags,
   ut_ad(fil_system.is_initialised());
   ut_ad(fil_space_t::is_valid_flags(flags & ~FSP_FLAGS_MEM_MASK, id));
   ut_ad(srv_page_size == UNIV_PAGE_SIZE_ORIG || flags != 0);
-
-  DBUG_EXECUTE_IF("fil_space_create_failure", return nullptr;);
 
   fil_space_t** after= fil_system.spaces.cell_get(id)->search
     (&fil_space_t::hash, [id](const fil_space_t *space)
@@ -1587,10 +1592,24 @@ fil_space_t *fil_space_t::drop(uint32_t id, pfs_os_file_t *detached_handle)
 
   pfs_os_file_t handle= fil_system.detach(space, true);
   mysql_mutex_unlock(&fil_system.mutex);
+  /* The above mtr.commit_file(*space, nullptr) should remove the space from
+  fil_system.named_spaces. Before we set the STOPPING_WRITES flag, another
+  concurrent operation could have marked the tablespace dirty again.
+  This clean-up corresponds to fil_space_free(). */
+  log_sys.latch.wr_lock(SRW_LOCK_CALL);
+  ut_ad((space->pending() & ~NEEDS_FSYNC) == (STOPPING | CLOSING));
+  if (space->max_lsn != 0)
+  {
+    space->max_lsn= 0;
+    fil_system.named_spaces.remove(*space);
+  }
+  log_sys.latch.wr_unlock();
+
   if (detached_handle)
     *detached_handle = handle;
   else
     os_file_close(handle);
+
   return space;
 }
 
@@ -1616,12 +1635,6 @@ void fil_close_tablespace(uint32_t id) noexcept
 	while (buf_flush_list_space(space));
 
 	space->x_unlock();
-	log_sys.latch.wr_lock(SRW_LOCK_CALL);
-	if (space->max_lsn != 0) {
-		ut_d(space->max_lsn = 0);
-		fil_system.named_spaces.remove(*space);
-	}
-	log_sys.latch.wr_unlock();
 	fil_space_free_low(space);
 }
 
@@ -1843,16 +1856,12 @@ fil_ibd_create(
 	uint32_t	key_id,
 	dberr_t*	err) noexcept
 {
-	pfs_os_file_t	file;
-	bool		success;
-	mtr_t		mtr;
-	bool		has_data_dir = FSP_FLAGS_HAS_DATA_DIR(flags) != 0;
-
 	ut_ad(!is_system_tablespace(space_id));
 	ut_ad(!srv_read_only_mode);
 	ut_a(space_id < SRV_SPACE_ID_UPPER_BOUND);
 	ut_a(size >= FIL_IBD_FILE_INITIAL_SIZE);
-	ut_a(fil_space_t::is_valid_flags(flags & ~FSP_FLAGS_MEM_MASK, space_id));
+	ut_a(fil_space_t::is_valid_flags(flags & ~FSP_FLAGS_MEM_MASK,
+					 space_id));
 
 	/* Create the subdirectories in the path, if they are
 	not there already. */
@@ -1860,14 +1869,6 @@ fil_ibd_create(
 	if (*err != DB_SUCCESS) {
 		return NULL;
 	}
-
-	mtr.start();
-	mtr.log_file_op(FILE_CREATE, space_id, path);
-	log_sys.latch.wr_lock(SRW_LOCK_CALL);
-	auto lsn= mtr.commit_files();
-	log_sys.latch.wr_unlock();
-	mtr.flag_wr_unlock();
-	log_write_up_to(lsn, true);
 
 	static_assert(((UNIV_ZIP_SIZE_MIN >> 1) << 3) == 4096,
 		      "compatibility");
@@ -1884,45 +1885,7 @@ fil_ibd_create(
 #else
 	constexpr auto type = OS_DATA_FILE;
 #endif
-
-	file = os_file_create(
-		innodb_data_file_key, path,
-		OS_FILE_CREATE,
-		type, srv_read_only_mode, &success);
-
-	if (!success) {
-		/* The following call will print an error message */
-		switch (os_file_get_last_error(true)) {
-		case OS_FILE_ALREADY_EXISTS:
-			ib::info() << "The file '" << path << "'"
-				" already exists though the"
-				" corresponding table did not exist"
-				" in the InnoDB data dictionary."
-				" You can resolve the problem by removing"
-				" the file.";
-			*err = DB_TABLESPACE_EXISTS;
-			break;
-		case OS_FILE_DISK_FULL:
-			*err = DB_OUT_OF_FILE_SPACE;
-			break;
-		default:
-			*err = DB_ERROR;
-		}
-		ib::error() << "Cannot create file '" << path << "'";
-		return NULL;
-	}
-
 	const bool is_compressed = fil_space_t::is_compressed(flags);
-#ifdef _WIN32
-	const bool is_sparse = is_compressed;
-	if (is_compressed) {
-		os_file_set_sparse_win32(file);
-	}
-#else
-	const bool is_sparse = is_compressed
-		&& DB_SUCCESS == os_file_punch_hole(file, 0, 4096)
-		&& !my_test_if_thinly_provisioned(file);
-#endif
 
 	if (fil_space_t::full_crc32(flags)) {
 		flags |= FSP_FLAGS_FCRC32_PAGE_SSIZE();
@@ -1937,54 +1900,122 @@ fil_ibd_create(
 		? fil_space_create_crypt_data(mode, key_id)
 		: nullptr;
 
+	mysql_mutex_lock(&fil_system.mutex);
+	fil_space_t* space = fil_space_t::create(space_id, flags, false,
+						 crypt_data, mode, true);
+	fil_node_t* node = space->add(path, OS_FILE_CLOSED, size, false, true);
+	space->set_stopped();
+	mysql_mutex_unlock(&fil_system.mutex);
+
+	buf_block_t *header[2];
+	{
+		mtr_t mtr;
+		mtr.start();
+		mtr.log_file_op(FILE_CREATE, space_id, path);
+		mtr.set_named_space(space);
+		log_free_check();
+		ut_a(fsp_header_init(space, size, &mtr) == DB_SUCCESS);
+		ut_ad(mtr.get_savepoint() == 3);
+		header[0] = mtr.at_savepoint(1);
+		header[1] = mtr.at_savepoint(2);
+		ut_ad(header[0]->page.id() == page_id_t(space_id, 0));
+		ut_ad(header[1]->page.id() == page_id_t(space_id, 1));
+		/* Block any page writes before the file has been created. */
+		header[0]->page.lock.x_lock();
+		header[1]->page.lock.x_lock();
+		mtr.commit();
+		/* Durably write the FILE_CREATE record (as well as records for
+		the fsp_header_init() above before creating the file. */
+		log_write_up_to(mtr.commit_lsn(), true);
+	}
+
+	DEBUG_SYNC_C("fil_ibd_create_logged");
+
+	bool success;
+	pfs_os_file_t file = os_file_create(
+		innodb_data_file_key, path, OS_FILE_CREATE,
+		type, srv_read_only_mode, &success);
+	ut_ad(!success == (file == OS_FILE_CLOSED));
+
+	if (!success) {
+		*err = DB_ERROR;
+		/* The following call will print an error message */
+		switch (os_file_get_last_error(true)) {
+		case OS_FILE_ALREADY_EXISTS:
+			sql_print_error("InnoDB: The file '%s'"
+					" already exists though the"
+					" corresponding table did not exist"
+					" in the InnoDB data dictionary."
+					" You can resolve the problem"
+					" by removing"
+					" the file.", path);
+			*err = DB_TABLESPACE_EXISTS;
+			break;
+		case OS_FILE_DISK_FULL:
+			*err = DB_OUT_OF_FILE_SPACE;
+			/* fall through */
+		default:
+			sql_print_error("InnoDB: Cannot create file '%s'",
+					path);
+		}
+		goto err_exit_after_cleanup;
+err_exit:
+		os_file_delete(innodb_data_file_key, path);
+		os_file_close(file);
+err_exit_after_cleanup:
+		space->release();
+		fil_space_free(space_id, false);
+		space = nullptr;
+func_exit:
+		header[0]->page.lock.x_unlock();
+		header[1]->page.lock.x_unlock();
+		DBUG_EXECUTE_IF("checkpoint_after_file_create",
+				log_make_checkpoint(););
+		return space;
+	}
+
+#ifdef _WIN32
+	const bool is_sparse = is_compressed;
+	if (is_compressed) {
+		os_file_set_sparse_win32(file);
+	}
+#else
+	const bool is_sparse = is_compressed
+		&& DB_SUCCESS == os_file_punch_hole(file, 0, 4096)
+		&& !my_test_if_thinly_provisioned(file);
+#endif
 	if (!os_file_set_size(path, file,
 			      os_offset_t(size) << srv_page_size_shift,
 			      is_sparse)) {
 		*err = DB_OUT_OF_FILE_SPACE;
-err_exit:
-		os_file_close(file);
-		os_file_delete(innodb_data_file_key, path);
-		free(crypt_data);
-		return nullptr;
+		goto err_exit;
 	}
 
-	fil_space_t::name_type space_name;
+	DBUG_EXECUTE_IF("fil_space_create_failure",
+			*err = DB_OUT_OF_FILE_SPACE; goto err_exit;);
 
-	if (has_data_dir) {
+	if (FSP_FLAGS_HAS_DATA_DIR(flags)) {
 		/* Make the ISL file if the IBD file is not
 		in the default location. */
-		space_name = {name.m_name, strlen(name.m_name)};
+		fil_space_t::name_type space_name{name.m_name,
+						  strlen(name.m_name)};
 		*err = RemoteDatafile::create_link_file(space_name, path);
 		if (*err != DB_SUCCESS) {
 			goto err_exit;
 		}
 	}
 
-	DBUG_EXECUTE_IF("checkpoint_after_file_create",
-			log_make_checkpoint(););
-
 	mysql_mutex_lock(&fil_system.mutex);
-	if (fil_space_t* space = fil_space_t::create(space_id,
-						     flags, false,
-						     crypt_data, mode, true)) {
-		fil_node_t* node = space->add(path, file, size, false, true);
-		node->find_metadata(IF_WIN(,true));
-		mysql_mutex_unlock(&fil_system.mutex);
-		mtr.start();
-		mtr.set_named_space(space);
-		ut_a(fsp_header_init(space, size, &mtr) == DB_SUCCESS);
-		mtr.commit();
-		return space;
-	} else {
-		mysql_mutex_unlock(&fil_system.mutex);
+	space->clear_stopped();
+	node->handle = file;
+	node->find_metadata(IF_WIN(,true));
+	if (++fil_system.n_open >= srv_max_n_open_files) {
+		space->reacquire();
+		fil_space_t::try_to_close(space, true);
+		space->release();
 	}
-
-	if (space_name.data()) {
-		RemoteDatafile::delete_link_file(space_name);
-	}
-
-	*err = DB_ERROR;
-	goto err_exit;
+	mysql_mutex_unlock(&fil_system.mutex);
+	goto func_exit;
 }
 
 fil_space_t *fil_ibd_open(uint32_t id, uint32_t flags,
@@ -2168,7 +2199,9 @@ func_exit:
 			    || df_remote.is_open() != df_remote.is_valid()) {
 				goto corrupted;
 			}
+#ifndef DBUG_OFF
 error:
+#endif
 			local_err = DB_ERROR;
 			goto func_exit;
 		}
@@ -2192,6 +2225,8 @@ error:
 	ut_a(valid_tablespaces_found == 1);
 
 skip_validate:
+	DBUG_EXECUTE_IF("fil_space_create_failure", goto error;);
+
 	const byte* first_page =
 		df_default.is_open() ? df_default.get_first_page() :
 		df_remote.get_first_page();
@@ -2205,11 +2240,6 @@ skip_validate:
 	space = fil_space_t::create(id, flags,
 				    validate == fil_space_t::VALIDATE_IMPORT,
 				    crypt_data);
-	if (!space) {
-		mysql_mutex_unlock(&fil_system.mutex);
-		goto error;
-	}
-
 	/* We do not measure the size of the file, that is why
 	we pass the 0 below */
 
@@ -2510,11 +2540,6 @@ tablespace_check:
 
 	space = fil_space_t::create(uint32_t(space_id), flags, false,
 				    crypt_data);
-
-	if (space == NULL) {
-		mysql_mutex_unlock(&fil_system.mutex);
-		return(FIL_LOAD_INVALID);
-	}
 
 	ut_ad(space->id == file.space_id());
 	ut_ad(space->id == space_id);

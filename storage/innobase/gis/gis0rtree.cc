@@ -97,6 +97,7 @@ rtr_page_split_initialize_nodes(
 	for (cur = task; cur < stop - 1; ++cur) {
 		cur->coords = reserve_coords(buf_pos, SPDIMS);
 		cur->key = rec;
+		cur->key_len = static_cast<uint16_t>(len);
 
 		memcpy(cur->coords, source_cur, DATA_MBR_LEN);
 
@@ -110,11 +111,11 @@ rtr_page_split_initialize_nodes(
 	source_cur = static_cast<const byte*>(dfield_get_data(
 		dtuple_get_nth_field(tuple, 0)));
 	cur->coords = reserve_coords(buf_pos, SPDIMS);
-	rec = (byte*) mem_heap_alloc(
-		heap, rec_get_converted_size(cursor->index(), tuple, 0));
-
+	len = rec_get_converted_size(cursor->index(), tuple, 0);
+	rec = (byte*) mem_heap_alloc(heap, len);
 	rec = rec_convert_dtuple_to_rec(rec, cursor->index(), tuple, 0);
 	cur->key = rec;
+	cur->key_len = static_cast<uint16_t>(len);
 
 	memcpy(cur->coords, source_cur, DATA_MBR_LEN);
 
@@ -1106,8 +1107,10 @@ corrupted:
 
 	/* Reposition the cursor for insert and try insertion */
 	page_cursor = btr_cur_get_page_cur(cursor);
-	page_cursor->block = cur_split_node->n_node != first_rec_group
-		? new_block : block;
+	buf_block_t *insert_block = (cur_split_node->n_node != first_rec_group)
+				    ? new_block
+				    : block;
+	page_cursor->block = insert_block;
 
 	ulint up_match = 0, low_match = 0;
 
@@ -1134,7 +1137,7 @@ corrupted:
 	attempted this already. */
 	if (rec == NULL) {
 		if (!is_page_cur_get_page_zip(page_cursor)
-		    && btr_page_reorganize(page_cursor, mtr)) {
+		    && !btr_page_reorganize(page_cursor, mtr)) {
 			rec = page_cur_tuple_insert(page_cursor, tuple,
 						    offsets,
 						    heap, n_ext, mtr);
@@ -1194,11 +1197,11 @@ after_insert:
 		IF_DBUG(iterated=true,);
 
 		rec_t* i_rec = page_rec_get_next(page_get_infimum_rec(
-			buf_block_get_frame(block)));
+			buf_block_get_frame(insert_block)));
 		if (UNIV_UNLIKELY(!i_rec)) {
 			goto corrupted;
 		}
-		btr_cur_position(cursor->index(), i_rec, block, cursor);
+		btr_cur_position(cursor->index(), i_rec, insert_block, cursor);
 
 		goto func_start;
 	}

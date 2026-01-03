@@ -92,7 +92,7 @@ char empty_c_string[1]= {0};    /* used for not defined db */
 extern "C" const uchar *get_var_key(const void *entry_, size_t *length,
                                     my_bool)
 {
-  auto entry= static_cast<const user_var_entry *>(entry_);
+  const user_var_entry *entry= static_cast<const user_var_entry *>(entry_);
   *length= entry->name.length;
   return reinterpret_cast<const uchar *>(entry->name.str);
 }
@@ -111,7 +111,7 @@ extern "C" void free_user_var(void *entry_)
 extern "C" const uchar *get_sequence_last_key(const void *entry_,
                                               size_t *length, my_bool)
 {
-  auto *entry= static_cast<const SEQUENCE_LAST_VALUE *>(entry_);
+  const SEQUENCE_LAST_VALUE *entry= static_cast<const SEQUENCE_LAST_VALUE *>(entry_);
   *length= entry->length;
   return entry->key;
 }
@@ -3475,6 +3475,7 @@ int select_export::send_data(List<Item> &items)
   tmp.length(0);
 
   row_count++;
+  thd->server_status|= SERVER_STATUS_RETURNED_ROW;
   Item *item;
   uint used_length=0,items_left=items.elements;
   List_iterator_fast<Item> li(items);
@@ -3746,6 +3747,7 @@ int select_dump::send_data(List<Item> &items)
       goto err;
     }
   }
+  thd->server_status|= SERVER_STATUS_RETURNED_ROW;
   DBUG_RETURN(0);
 err:
   DBUG_RETURN(1);
@@ -3879,7 +3881,7 @@ bool select_max_min_finder_subselect::cmp_time()
 {
   Item *maxmin= ((Item_singlerow_subselect *)item)->element_index(0);
   THD *thd= current_thd;
-  auto val1= cache->val_time_packed(thd), val2= maxmin->val_time_packed(thd);
+  longlong val1= cache->val_time_packed(thd), val2= maxmin->val_time_packed(thd);
 
   /* Ignore NULLs for ANY and keep them for ALL subqueries */
   if (cache->null_value)
@@ -4153,7 +4155,7 @@ C_MODE_START
 static const uchar *get_statement_id_as_hash_key(const void *record,
                                                  size_t *key_length, my_bool)
 {
-  auto statement= static_cast<const Statement *>(record);
+  const Statement *statement= static_cast<const Statement *>(record);
   *key_length= sizeof(statement->id);
   return reinterpret_cast<const uchar *>(&(statement)->id);
 }
@@ -4166,7 +4168,7 @@ static void delete_statement_as_hash_key(void *key)
 static const uchar *get_stmt_name_hash_key(const void *entry_, size_t *length,
                                            my_bool)
 {
-  auto entry= static_cast<const Statement *>(entry_);
+  const Statement *entry= static_cast<const Statement *>(entry_);
   *length= entry->name.length;
   return reinterpret_cast<const uchar *>(entry->name.str);
 }
@@ -4346,6 +4348,7 @@ bool select_dumpvar::send_data_to_var_list(List<Item> &items)
     if (mv->set(thd, item))
       DBUG_RETURN(true);
   }
+  thd->server_status|= SERVER_STATUS_RETURNED_ROW;
   DBUG_RETURN(false);
 }
 
@@ -4365,6 +4368,7 @@ int select_dumpvar::send_data(List<Item> &items)
       send_data_to_var_list(items))
     DBUG_RETURN(1);
 
+  thd->server_status|= SERVER_STATUS_RETURNED_ROW;
   DBUG_RETURN(thd->is_error());
 }
 
@@ -4464,6 +4468,7 @@ int select_materialize_with_stats::send_data(List<Item> &items)
     return 0;
 
   ++count_rows;
+  thd->server_status|= SERVER_STATUS_RETURNED_ROW;
 
   while ((cur_item= item_it++))
   {
@@ -5101,10 +5106,10 @@ void destroy_thd(MYSQL_THD thd)
 extern "C" pthread_key(struct st_my_thread_var *, THR_KEY_mysys);
 MYSQL_THD create_background_thd()
 {
-  auto save_thd = current_thd;
+  THD *save_thd= current_thd;
   set_current_thd(nullptr);
 
-  auto save_mysysvar= pthread_getspecific(THR_KEY_mysys);
+  void *save_mysysvar= pthread_getspecific(THR_KEY_mysys);
 
   /*
     Allocate new mysys_var specifically new THD,
@@ -5112,8 +5117,8 @@ MYSQL_THD create_background_thd()
   */
   pthread_setspecific(THR_KEY_mysys, 0);
   my_thread_init();
-  auto thd_mysysvar= pthread_getspecific(THR_KEY_mysys);
-  auto thd= new THD(0);
+  void *thd_mysysvar= pthread_getspecific(THR_KEY_mysys);
+  THD *thd= new THD(0);
   pthread_setspecific(THR_KEY_mysys, save_mysysvar);
   thd->set_psi(nullptr);
   set_current_thd(save_thd);
@@ -5150,7 +5155,7 @@ void *thd_attach_thd(MYSQL_THD thd)
   DBUG_ASSERT(!current_thd);
   DBUG_ASSERT(thd && thd->mysys_var);
 
-  auto save_mysysvar= pthread_getspecific(THR_KEY_mysys);
+  void *save_mysysvar= pthread_getspecific(THR_KEY_mysys);
   pthread_setspecific(THR_KEY_mysys, thd->mysys_var);
   thd->store_globals();
   return save_mysysvar;
@@ -5175,8 +5180,8 @@ void thd_detach_thd(void *mysysvar)
 void destroy_background_thd(MYSQL_THD thd)
 {
   DBUG_ASSERT(!current_thd);
-  auto thd_mysys_var= thd->mysys_var;
-  auto save_mysys_var= thd_attach_thd(thd);
+  struct st_my_thread_var *thd_mysys_var= thd->mysys_var;
+  void *save_mysys_var= thd_attach_thd(thd);
   DBUG_ASSERT(thd_mysys_var != save_mysys_var);
   /*
     Workaround the adverse effect decrementing thread_count on THD()
@@ -5195,7 +5200,7 @@ void destroy_background_thd(MYSQL_THD thd)
      would kill it, if we're not careful.
   */
 #ifdef HAVE_PSI_THREAD_INTERFACE
-  auto save_psi_thread= PSI_CALL_get_thread();
+  PSI_thread *save_psi_thread= PSI_CALL_get_thread();
 #endif
   PSI_CALL_set_thread(0);
   pthread_setspecific(THR_KEY_mysys, thd_mysys_var);
@@ -6344,7 +6349,7 @@ start_new_trans::start_new_trans(THD *thd)
   mdl_savepoint= thd->mdl_context.mdl_savepoint();
   memcpy(old_ha_data, thd->ha_data, sizeof(old_ha_data));
   thd->reset_n_backup_open_tables_state(&open_tables_state_backup);
-  for (auto &data : thd->ha_data)
+  for (Ha_data &data : thd->ha_data)
     data.reset();
   old_transaction= thd->transaction;
   thd->transaction= &new_transaction;
@@ -6359,8 +6364,6 @@ start_new_trans::start_new_trans(THD *thd)
   thd->server_status&= ~(SERVER_STATUS_IN_TRANS |
                          SERVER_STATUS_IN_TRANS_READONLY);
   thd->server_status|= SERVER_STATUS_AUTOCOMMIT;
-  org_rgi_slave= thd->rgi_slave;
-  thd->rgi_slave= NULL;
 }
 
 
@@ -6377,7 +6380,6 @@ void start_new_trans::restore_old_transaction()
     MYSQL_COMMIT_TRANSACTION(org_thd->m_transaction_psi);
   org_thd->m_transaction_psi= m_transaction_psi;
   org_thd->variables.wsrep_on= wsrep_on;
-  org_thd->rgi_slave= org_rgi_slave;
   org_thd= 0;
 }
 

@@ -715,15 +715,13 @@ Wsrep_schema::Wsrep_schema() = default;
 
 Wsrep_schema::~Wsrep_schema() = default;
 
-static void wsrep_init_thd_for_schema(THD *thd)
+static void wsrep_init_thd_variables(THD *thd)
 {
-  thd->security_ctx->skip_grants();
-  thd->system_thread= SYSTEM_THREAD_GENERIC;
-  thd->real_id=pthread_self(); // Keep purify happy
-  thd->prior_thr_create_utime= thd->start_utime=
-    thd->thr_create_utime= microsecond_interval_timer();
   /* No Galera replication */
   thd->variables.wsrep_on= 0;
+  /* Allow modifications in a transaction read-only context */
+  thd->tx_read_only= false;
+  thd->variables.tx_read_only= false;
   /* No binlogging */
   thd->variables.sql_log_bin= 0;
   thd->variables.option_bits&= ~OPTION_BIN_LOG;
@@ -732,7 +730,19 @@ static void wsrep_init_thd_for_schema(THD *thd)
   /* No general log */
   thd->variables.option_bits|= OPTION_LOG_OFF;
   /* Read committed isolation to avoid gap locking */
+  thd->tx_isolation= ISO_READ_COMMITTED;
   thd->variables.tx_isolation= ISO_READ_COMMITTED;
+}
+
+static void wsrep_init_thd_for_schema(THD *thd)
+{
+  thd->security_ctx->skip_grants();
+  thd->system_thread= SYSTEM_THREAD_GENERIC;
+  thd->real_id=pthread_self(); // Keep purify happy
+  thd->prior_thr_create_utime= thd->start_utime=
+    thd->thr_create_utime= microsecond_interval_timer();
+
+  wsrep_init_thd_variables(thd);
   wsrep_assign_from_threadvars(thd);
   wsrep_store_threadvars(thd);
 }
@@ -1356,9 +1366,6 @@ static int replay_transaction(THD* thd,
                               const wsrep::ws_meta& ws_meta,
                               const std::vector<wsrep::seqno>& fragments)
 {
-  Wsrep_schema_impl::wsrep_off  wsrep_off(thd);
-  Wsrep_schema_impl::binlog_off binlog_off(thd);
-  Wsrep_schema_impl::sql_safe_updates sql_safe_updates(thd);
   Wsrep_schema_impl::thd_context_switch thd_context_switch(orig_thd, thd);
 
   int ret= 1;
@@ -1483,6 +1490,7 @@ int Wsrep_schema::replay_transaction(THD* orig_thd,
   }
 
   thd->thread_stack= (orig_thd ? orig_thd->thread_stack : (char *) &thd);
+  wsrep_init_thd_variables(thd);
   wsrep_assign_from_threadvars(thd);
 
 
@@ -1504,9 +1512,6 @@ static int recover_sr_transactions(THD* storage_thd, THD* orig_thd)
   TABLE* cluster_table= 0;
   TABLE_LIST cluster_table_l;
   Wsrep_storage_service storage_service(storage_thd);
-  Wsrep_schema_impl::binlog_off binlog_off(storage_thd);
-  Wsrep_schema_impl::wsrep_off wsrep_off(storage_thd);
-  Wsrep_schema_impl::sql_safe_updates sql_safe_updates(storage_thd);
   Wsrep_schema_impl::thd_context_switch thd_context_switch(orig_thd,
                                                            storage_thd);
   Wsrep_server_state& server_state(Wsrep_server_state::instance());
@@ -1666,6 +1671,7 @@ int Wsrep_schema::recover_sr_transactions(THD *orig_thd)
   }
   storage_thd->thread_stack=
       (orig_thd ? orig_thd->thread_stack : (char *) &storage_thd);
+  wsrep_init_thd_variables(storage_thd);
   wsrep_assign_from_threadvars(storage_thd);
 
   int ret= ::recover_sr_transactions(storage_thd, orig_thd);

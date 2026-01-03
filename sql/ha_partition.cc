@@ -670,8 +670,10 @@ int ha_partition::rename_table(const char *from, const char *to)
   SYNOPSIS
     create_partitioning_metadata()
     path                              Path to the new frm file (without ext)
-    old_p                             Path to the old frm file (without ext)
-    create_info                       Create info generated for CREATE TABLE
+    old_path                          Path to the old frm file (without ext)
+    action_flag                       Action to take
+    ignore_delete_error               Whether to ignore error in call to
+                                      mysql_file_delete
 
   RETURN VALUE
     >0                        Error
@@ -687,7 +689,8 @@ int ha_partition::rename_table(const char *from, const char *to)
 
 int ha_partition::create_partitioning_metadata(const char *path,
                                                const char *old_path,
-                                               chf_create_flags action_flag)
+                                               chf_create_flags action_flag,
+                                               bool ignore_delete_error)
 {
   partition_element *part;
   DBUG_ENTER("ha_partition::create_partitioning_metadata");
@@ -706,7 +709,8 @@ int ha_partition::create_partitioning_metadata(const char *path,
     strxmov(name, path, ha_par_ext, NullS);
     strxmov(old_name, old_path, ha_par_ext, NullS);
     if ((action_flag == CHF_DELETE_FLAG &&
-         mysql_file_delete(key_file_ha_partition_par, name, MYF(MY_WME))) ||
+         mysql_file_delete(key_file_ha_partition_par, name,
+                           ignore_delete_error ? MYF(0) : MYF(MY_WME))) ||
         (action_flag == CHF_RENAME_FLAG &&
          mysql_file_rename(key_file_ha_partition_par, old_name, name,
                            MYF(MY_WME))))
@@ -2237,6 +2241,13 @@ int ha_partition::copy_partitions(ulonglong * const copied,
       }
       else
       {
+        if (m_new_file[new_part]->m_lock_type != F_WRLCK)
+        {
+          m_last_part= reorg_part;
+          m_err_rec= table->record[0];
+          result= HA_ERR_ROW_IN_WRONG_PARTITION;
+          goto error;
+        }
         /* Copy record to new handler */
         (*copied)++;
         DBUG_ASSERT(!m_new_file[new_part]->row_logging);
@@ -10339,11 +10350,12 @@ void ha_partition::print_error(int error, myf errflag)
   }
   else if (error == HA_ERR_ROW_IN_WRONG_PARTITION)
   {
-    /* Should only happen on DELETE or UPDATE! */
+    /* Should only happen on DELETE, UPDATE or REBUILD PARTITION! */
     DBUG_ASSERT(thd_sql_command(thd) == SQLCOM_DELETE ||
                 thd_sql_command(thd) == SQLCOM_DELETE_MULTI ||
                 thd_sql_command(thd) == SQLCOM_UPDATE ||
-                thd_sql_command(thd) == SQLCOM_UPDATE_MULTI);
+                thd_sql_command(thd) == SQLCOM_UPDATE_MULTI ||
+                thd_sql_command(thd) == SQLCOM_ALTER_TABLE);
     DBUG_ASSERT(m_err_rec);
     if (m_err_rec)
     {
@@ -12176,10 +12188,13 @@ int ha_partition::direct_delete_rows(ha_rows *delete_rows_result)
                    file->pre_direct_delete_rows() :
                    file->ha_direct_delete_rows(&delete_rows))))
       {
-        if (m_pre_calling)
-          file->ha_pre_rnd_end();
-        else
-          file->ha_rnd_end();
+        if (rnd_seq)
+        {
+          if (m_pre_calling)
+            file->ha_pre_rnd_end();
+          else
+            file->ha_rnd_end();
+        }
         DBUG_RETURN(error);
       }
       delete_rows_result+= delete_rows;

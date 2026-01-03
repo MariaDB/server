@@ -4,10 +4,9 @@
 create user foo@'127.0.0.1';
 connect  con1,127.0.0.1,foo,,;
 connection default;
-select user from information_schema.processlist;
+select user from information_schema.processlist where id=$con1_id;
 user
 foo
-root
 kill user foo@'127.0.0.1';
 drop user foo@'127.0.0.1';
 #
@@ -28,11 +27,11 @@ Id	User	Host	db	Command	Time	State	Info	Progress
 kill user a;
 kill user x;
 connection a;
-show processlist;
-Id	User	Host	db	Command	Time	State	Info	Progress
-#	root	#	test	#	#	#	#	#
-#	a	#	NULL	#	#	#	#	#
-#	b	#	test	#	#	#	#	#
+select user from information_schema.processlist where id in (connection_id(), $b_id, $default_id) order by user;
+user
+a
+b
+root
 kill user b;
 ERROR HY000: Operation KILL USER failed for b@%
 connection default;

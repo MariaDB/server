@@ -301,41 +301,40 @@ buf_read_page_low(
 	}
 
 	ut_ad(bpage->in_file());
-	ulonglong mariadb_timer = 0;
-
-	if (sync) {
-		thd_wait_begin(nullptr, THD_WAIT_DISKIO);
-		if (const ha_handler_stats *stats = mariadb_stats) {
-			if (stats->active) {
-				mariadb_timer = mariadb_measure();
-			}
-		}
-	}
-
-	DBUG_LOG("ib_buf",
-		 "read page " << page_id << " zip_size=" << zip_size
-		 << " unzip=" << unzip << ',' << (sync ? "sync" : "async"));
-
 	void* dst = zip_size ? bpage->zip.data : bpage->frame;
 	const ulint len = zip_size ? zip_size : srv_page_size;
+	fil_io_t fio;
 
-	auto fio = space->io(IORequest(sync
-				       ? IORequest::READ_SYNC
-				       : IORequest::READ_ASYNC),
-			     os_offset_t{page_id.page_no()} * len, len,
-			     dst, bpage);
+	if (sync) {
+		ulonglong start_time = 0;
+		THD* const thd = current_thd;
+		thd_wait_begin(thd, THD_WAIT_DISKIO);
+		ha_handler_stats *stats = mariadb_stats;
+		if (stats && stats->active) {
+			start_time = mariadb_measure();
+		}
+		fio = space->io(IORequest(IORequest::READ_SYNC),
+				os_offset_t{page_id.page_no()} * len, len,
+				dst, bpage);
+		thd_wait_end(thd);
+		if (start_time) {
+			stats->pages_read_time
+				+= (mariadb_measure() - start_time);
+		}
+		if (UNIV_LIKELY(fio.err == DB_SUCCESS)) {
+			dberr_t err{bpage->read_complete(*fio.node)};
+			space->release();
+			return err;
+		}
+	} else {
+		fio = space->io(IORequest(IORequest::READ_ASYNC),
+				os_offset_t{page_id.page_no()} * len, len,
+				dst, bpage);
+	}
 
 	if (UNIV_UNLIKELY(fio.err != DB_SUCCESS)) {
 		recv_sys.free_corrupted_page(page_id, *space->chain.start);
 		buf_pool.corrupted_evict(bpage, buf_page_t::READ_FIX);
-	} else if (sync) {
-		thd_wait_end(nullptr);
-		/* The i/o was already completed in space->io() */
-		fio.err = bpage->read_complete(*fio.node);
-		space->release();
-		if (mariadb_timer) {
-			mariadb_increment_pages_read_time(mariadb_timer);
-		}
 	}
 
 	return fio.err;

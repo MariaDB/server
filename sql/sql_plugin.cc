@@ -1680,6 +1680,8 @@ int plugin_init(int *argc, char **argv, int flags)
       tmp.name.length= strlen(plugin->name);
       tmp.state= 0;
       tmp.load_option= mandatory ? PLUGIN_FORCE : PLUGIN_ON;
+      DBUG_ASSERT(!mandatory ||
+        plugin_maturity_map[plugin->maturity] >= SERVER_MATURITY_LEVEL);
 
       for (i=0; i < array_elements(override_plugin_load_policy); i++)
       {
@@ -4541,8 +4543,12 @@ my_bool post_init_callback(THD *thd, void *)
     set_current_thd(thd);
     plugin_thdvar_init(thd);
 
+    // Restore proper transaction read-only context
+    thd->variables.tx_read_only= false;
     // Restore option_bits
     thd->variables.option_bits= option_bits_saved;
+    // Restore proper default isolation level for appliers
+    thd->variables.tx_isolation= ISO_READ_COMMITTED;
   }
   set_current_thd(0);
   return 0;

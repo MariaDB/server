@@ -6220,24 +6220,21 @@ ha_innobase::close()
 /* The following accessor functions should really be inside MySQL code! */
 
 #ifdef WITH_WSREP
-ulint
-wsrep_innobase_mysql_sort(
-					/* out: str contains sort string */
+size_t
+wsrep_normalize_string(
 	int		mysql_type,	/* in: MySQL type */
 	uint		charset_number,	/* in: number of the charset */
-	unsigned char*	str,		/* in: data field */
-	ulint		str_length,	/* in: data field length,
+	const unsigned char* str,	/* in: input data field */
+	unsigned char*  out_str,        /* out: normalized string */
+	size_t		str_length,	/* in: data field length,
 					not UNIV_SQL_NULL */
-	ulint		buf_length)	/* in: total str buffer length */
+	size_t		buf_length)	/* in: total str buffer length */
 
 {
-	CHARSET_INFO*		charset;
-	enum_field_types	mysql_tp;
-	ulint			ret_length =	str_length;
+	size_t ret_length= str_length;
+	const enum_field_types mysql_tp= (enum_field_types)mysql_type;
 
 	DBUG_ASSERT(str_length != UNIV_SQL_NULL);
-
-	mysql_tp = (enum_field_types) mysql_type;
 
 	switch (mysql_tp) {
 
@@ -6250,8 +6247,7 @@ wsrep_innobase_mysql_sort(
 	case MYSQL_TYPE_LONG_BLOB:
 	case MYSQL_TYPE_VARCHAR:
 	{
-		uchar tmp_str[REC_VERSION_56_MAX_INDEX_COL_LEN] = {'\0'};
-		ulint tmp_length = REC_VERSION_56_MAX_INDEX_COL_LEN;
+		CHARSET_INFO* charset;
 
 		/* Use the charset number to pick the right charset struct for
 		the comparison. Since the MySQL function get_charset may be
@@ -6266,36 +6262,26 @@ wsrep_innobase_mysql_sort(
 			charset = get_charset(charset_number, MYF(MY_WME));
 
 			if (charset == NULL) {
-			  sql_print_error("InnoDB needs charset %lu for doing "
-					  "a comparison, but MariaDB cannot "
-					  "find that charset.",
-					  (ulong) charset_number);
+				sql_print_error("InnoDB needs charset %lu for doing "
+						"a comparison, but MariaDB cannot "
+						"find that charset.",
+						(ulong) charset_number);
 				ut_a(0);
 			}
 		}
 
-		ut_a(str_length <= tmp_length);
-		memcpy(tmp_str, str, str_length);
-
-		tmp_length = charset->strnxfrm(str, str_length,
-					       uint(str_length), tmp_str,
-					       tmp_length, 0);
-		DBUG_ASSERT(tmp_length <= str_length);
 		if (wsrep_protocol_version < 3) {
-			tmp_length = charset->strnxfrm(
-				str, str_length,
-				uint(str_length), tmp_str, tmp_length, 0);
-			DBUG_ASSERT(tmp_length <= str_length);
+			ret_length = charset->strnxfrm(
+				out_str, str_length,
+				uint(str_length), str, buf_length, 0);
 		} else {
 			/* strnxfrm will expand the destination string,
-			   protocols < 3 truncated the sorted sring
-			   protocols >= 3 gets full sorted sring
+			   protocols < 3 truncated the normalized string
+			   protocols >= 3 gets full normalized string
 			*/
-			tmp_length = charset->strnxfrm(
-				str, buf_length,
-				uint(str_length), tmp_str, str_length, 0);
-			DBUG_ASSERT(tmp_length <= buf_length);
-			ret_length = tmp_length;
+			ret_length = charset->strnxfrm(
+				out_str, buf_length,
+				uint(str_length), str, str_length, 0);
 		}
 
 		break;
@@ -6665,8 +6651,6 @@ wsrep_store_key_val_for_row(
 	KEY_PART_INFO*	key_part	= key_info->key_part;
 	KEY_PART_INFO*	end		= key_part + key_info->user_defined_key_parts;
 	char*		buff_start	= buff;
-	enum_field_types mysql_type;
-	Field*		field;
 	ulint buff_space = buff_len;
 
 	DBUG_ENTER("wsrep_store_key_val_for_row");
@@ -6675,8 +6659,8 @@ wsrep_store_key_val_for_row(
 	*key_is_null = true;
 
 	for (; key_part != end; key_part++) {
-		uchar sorted[REC_VERSION_56_MAX_INDEX_COL_LEN] = {'\0'};
-		bool part_is_null = false;
+		uchar normalized[REC_VERSION_56_MAX_INDEX_COL_LEN+1];
+		bool part_is_null= false;
 
 		if (key_part->null_bit) {
 			if (buff_space > 0) {
@@ -6696,23 +6680,15 @@ wsrep_store_key_val_for_row(
 		}
 		if (!part_is_null)  *key_is_null = false;
 
-		field = key_part->field;
-		mysql_type = field->type();
+		const Field* field= key_part->field;
+		const enum_field_types mysql_type= field->type();
 
 		if (mysql_type == MYSQL_TYPE_VARCHAR) {
 						/* >= 5.0.3 true VARCHAR */
-			ulint		lenlen;
-			ulint		len;
-			const byte*	data;
-			ulint		key_len;
-			ulint		true_len;
-			const CHARSET_INFO* cs;
-			int		error=0;
-
-			key_len = key_part->length;
+			const size_t key_len= key_part->length;
 
 			if (part_is_null) {
-				true_len = key_len + 2;
+				size_t true_len= key_len + 2;
 				if (true_len > buff_space) {
 					fprintf (stderr,
 						 "WSREP: key truncated: %s\n",
@@ -6723,27 +6699,28 @@ wsrep_store_key_val_for_row(
 				buff_space -= true_len;
 				continue;
 			}
-			cs = field->charset();
+			const CHARSET_INFO* cs = field->charset();
 
-			lenlen = (ulint)
+			ulint lenlen = (ulint)
 				(((Field_varstring*)field)->length_bytes);
 
-			data = row_mysql_read_true_varchar(&len,
+			size_t len;
+			const byte* data = row_mysql_read_true_varchar(&len,
 				(byte*) (record
 				+ (ulint)get_field_offset(table, field)),
 				lenlen);
 
-			true_len = len;
+			size_t true_len= len;
 
 			/* For multi byte character sets we need to calculate
 			the true length of the key */
 
 			if (len > 0 && cs->mbmaxlen > 1) {
-				true_len = (ulint) my_well_formed_length(cs,
+				int error;
+				true_len= my_well_formed_length(cs,
 						(const char *) data,
 						(const char *) data + len,
-						(uint) (key_len /
-						cs->mbmaxlen),
+						(key_len / cs->mbmaxlen),
 						&error);
 			}
 
@@ -6752,16 +6729,21 @@ wsrep_store_key_val_for_row(
 			if (true_len > key_len) {
 				true_len = key_len;
 			}
-			/* cannot exceed max column lenght either, we may need to truncate
+			/* cannot exceed max column length either, we may need to truncate
 			the stored value: */
-			if (true_len > sizeof(sorted)) {
-			  true_len = sizeof(sorted);
+			if (true_len >= sizeof(normalized)) {
+				true_len = sizeof(normalized) - 1;
 			}
 
-			memcpy(sorted, data, true_len);
-			true_len = wsrep_innobase_mysql_sort(
-				mysql_type, cs->number, sorted, true_len,
-				REC_VERSION_56_MAX_INDEX_COL_LEN);
+			/* Normalize string if is not empty string */
+			if (true_len) {
+				ut_ad(data);
+				true_len= wsrep_normalize_string(
+					mysql_type, cs->number, data,
+					normalized, true_len,
+					REC_VERSION_56_MAX_INDEX_COL_LEN);
+			}
+
 			if (wsrep_protocol_version > 1) {
 				/* Note that we always reserve the maximum possible
 				length of the true VARCHAR in the key value, though
@@ -6774,7 +6756,7 @@ wsrep_store_key_val_for_row(
 						 wsrep_thd_query(thd));
 					true_len = buff_space;
 				}
- 				memcpy(buff, sorted, true_len);
+				memcpy(buff, normalized, true_len);
 				buff += true_len;
 				buff_space -= true_len;
 			} else {
@@ -6788,19 +6770,11 @@ wsrep_store_key_val_for_row(
 			as BLOB data in innodb. */
 			|| mysql_type == MYSQL_TYPE_GEOMETRY) {
 
-			const CHARSET_INFO* cs;
-			ulint		key_len;
-			ulint		true_len;
-			int		error=0;
-			ulint		blob_len;
-			const byte*	blob_data;
-
+			const size_t key_len= key_part->length;
 			ut_a(key_part->key_part_flag & HA_PART_KEY_SEG);
 
-			key_len = key_part->length;
-
 			if (part_is_null) {
-				true_len = key_len + 2;
+				size_t true_len= key_len + 2;
 				if (true_len > buff_space) {
 					fprintf (stderr,
 						 "WSREP: key truncated: %s\n",
@@ -6813,14 +6787,15 @@ wsrep_store_key_val_for_row(
 				continue;
 			}
 
-			cs = field->charset();
+			const CHARSET_INFO* cs= field->charset();
 
-			blob_data = row_mysql_read_blob_ref(&blob_len,
+			size_t blob_len;
+			const byte* blob_data = row_mysql_read_blob_ref(&blob_len,
 				(byte*) (record
 				+ (ulint)get_field_offset(table, field)),
 					(ulint) field->pack_length());
 
-			true_len = blob_len;
+			size_t true_len= blob_len;
 
 			ut_a(get_field_offset(table, field)
 				== key_part->offset);
@@ -6829,12 +6804,13 @@ wsrep_store_key_val_for_row(
 			the true length of the key */
 
 			if (blob_len > 0 && cs->mbmaxlen > 1) {
-				true_len = (ulint) my_well_formed_length(cs,
+				int error;
+
+				true_len= my_well_formed_length(cs,
 						(const char *) blob_data,
 						(const char *) blob_data
 							+ blob_len,
-						(uint) (key_len /
-							cs->mbmaxlen),
+						(key_len / cs->mbmaxlen),
 						&error);
 			}
 
@@ -6846,11 +6822,16 @@ wsrep_store_key_val_for_row(
 				true_len = key_len;
 			}
 
-			memcpy(sorted, blob_data, true_len);
-			true_len = wsrep_innobase_mysql_sort(
-				mysql_type, cs->number, sorted, true_len,
-				REC_VERSION_56_MAX_INDEX_COL_LEN);
-
+			/* Normalize string if it is not empty string.
+			When true_len == 0 blob_data is not always
+			nullptr it may be empty string i.e. "" */
+			if (true_len) {
+				ut_ad(blob_data);
+				true_len= wsrep_normalize_string(
+					mysql_type, cs->number, blob_data,
+					normalized, true_len,
+					REC_VERSION_56_MAX_INDEX_COL_LEN);
+			}
 
 			/* Note that we always reserve the maximum possible
 			length of the BLOB prefix in the key value. */
@@ -6861,29 +6842,20 @@ wsrep_store_key_val_for_row(
 						 wsrep_thd_query(thd));
 					true_len = buff_space;
 				}
+				memcpy(buff, normalized, true_len);
 				buff       += true_len;
 				buff_space -= true_len;
 			} else {
 				buff += key_len;
 			}
-			memcpy(buff, sorted, true_len);
 		} else {
 			/* Here we handle all other data types except the
 			true VARCHAR, BLOB and TEXT. Note that the column
 			value we store may be also in a column prefix
 			index. */
 
-			const CHARSET_INFO*	cs = NULL;
-			ulint			true_len;
-			ulint			key_len;
-			const uchar*		src_start;
-			int			error=0;
-			enum_field_types	real_type;
-
-			key_len = key_part->length;
-
 			if (part_is_null) {
-				true_len = key_len;
+				size_t true_len= key_part->length;
 				if (true_len > buff_space) {
 					fprintf (stderr,
 						 "WSREP: key truncated: %s\n",
@@ -6896,9 +6868,9 @@ wsrep_store_key_val_for_row(
 				continue;
 			}
 
-			src_start = record + key_part->offset;
-			real_type = field->real_type();
-			true_len = key_len;
+			const uchar* src_start= record + key_part->offset;
+			const enum_field_types real_type= field->real_type();
+			size_t true_len= key_part->length;
 
 			/* Character set for the field is defined only
 			to fields whose type is string and real field
@@ -6910,26 +6882,32 @@ wsrep_store_key_val_for_row(
 				&& ( mysql_type == MYSQL_TYPE_VAR_STRING
 					|| mysql_type == MYSQL_TYPE_STRING)) {
 
-				cs = field->charset();
+				const CHARSET_INFO* cs= field->charset();
 
 				/* For multi byte character sets we need to
 				calculate the true length of the key */
 
-				if (key_len > 0 && cs->mbmaxlen > 1) {
+				if (true_len > 0 && cs->mbmaxlen > 1) {
+					int error;
 
-					true_len = (ulint)
-						my_well_formed_length(cs,
+					true_len= my_well_formed_length(cs,
 							(const char *)src_start,
 							(const char *)src_start
-								+ key_len,
-							(uint) (key_len /
-								cs->mbmaxlen),
+								+ true_len,
+							(true_len / cs->mbmaxlen),
 							&error);
 				}
-				memcpy(sorted, src_start, true_len);
-				true_len = wsrep_innobase_mysql_sort(
-					mysql_type, cs->number, sorted, true_len,
-					REC_VERSION_56_MAX_INDEX_COL_LEN);
+
+				/* Normalize string if it is not empty string */
+				if (true_len) {
+					ut_ad(src_start);
+					true_len= wsrep_normalize_string(
+						mysql_type, cs->number,
+						src_start, normalized, true_len,
+						REC_VERSION_56_MAX_INDEX_COL_LEN);
+				} else {
+					ut_ad(src_start == nullptr);
+				}
 
 				if (true_len > buff_space) {
 					fprintf (stderr,
@@ -6937,9 +6915,15 @@ wsrep_store_key_val_for_row(
 						 wsrep_thd_query(thd));
 					true_len   = buff_space;
 				}
-				memcpy(buff, sorted, true_len);
+				memcpy(buff, normalized, true_len);
 			} else {
-				memcpy(buff, src_start, true_len);
+				/* Copy only if there is data */
+				if (true_len) {
+					ut_ad(src_start);
+					memcpy(buff, src_start, true_len);
+				} else {
+					ut_ad(src_start == nullptr);
+				}
 			}
 			buff       += true_len;
 			buff_space -= true_len;
@@ -8473,12 +8457,15 @@ wsrep_calc_row_hash(
 	return(0);
 }
 
-/** Append table-level exclusive key.
+/** Append table-level exclusive/shared key.
 @param thd   MySQL thread handle
 @param table table
+@param exclusive Exclusive not shared certification key.
 @retval false on success
 @retval true on failure */
-ATTRIBUTE_COLD bool wsrep_append_table_key(MYSQL_THD thd, const dict_table_t &table)
+ATTRIBUTE_COLD bool wsrep_append_table_key(MYSQL_THD thd,
+                                           const dict_table_t &table,
+                                           bool exclusive)
 {
   char db_buf[NAME_LEN + 1];
   char tbl_buf[NAME_LEN + 1];
@@ -8491,9 +8478,11 @@ ATTRIBUTE_COLD bool wsrep_append_table_key(MYSQL_THD thd, const dict_table_t &ta
     return true;
   }
 
-  /* Append table-level exclusive key */
-  const int rcode = wsrep_thd_append_table_key(thd, db_buf,
-                                               tbl_buf, WSREP_SERVICE_KEY_EXCLUSIVE);
+  /* Append table-level key */
+  const enum Wsrep_service_key_type key_type = exclusive
+                                               ? WSREP_SERVICE_KEY_EXCLUSIVE
+                                               : WSREP_SERVICE_KEY_SHARED;
+  const int rcode = wsrep_thd_append_table_key(thd, db_buf, tbl_buf, key_type);
   if (rcode)
   {
     WSREP_ERROR("Appending table key failed: %s, %d",
@@ -8656,10 +8645,10 @@ func_exit:
 	    && (thd_sql_command(m_user_thd) != SQLCOM_LOAD ||
 	        thd_binlog_format(m_user_thd) == BINLOG_FORMAT_ROW)) {
 
-		/* We use table-level exclusive key for SEQUENCES
+		/* We use table-level shared key for SEQUENCES
 		   and normal key append for others. */
 		if (table->s->table_type == TABLE_TYPE_SEQUENCE) {
-			if (wsrep_append_table_key(m_user_thd, *m_prebuilt->table))
+			if (wsrep_append_table_key(m_user_thd, *m_prebuilt->table, false))
 				DBUG_RETURN(HA_ERR_INTERNAL_ERROR);
 		} else if (wsrep_append_keys(m_user_thd,
 					     wsrep_protocol_version >= 4
@@ -19411,7 +19400,7 @@ static MYSQL_SYSVAR_SIZE_T(ft_result_cache_limit, fts_result_cache_limit,
 static MYSQL_SYSVAR_ULONG(ft_min_token_size, fts_min_token_size,
   PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
   "InnoDB Fulltext search minimum token size in characters",
-  NULL, NULL, 3, 0, 16, 0);
+  NULL, NULL, 3, 1, 16, 0);
 
 static MYSQL_SYSVAR_ULONG(ft_max_token_size, fts_max_token_size,
   PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
@@ -19790,11 +19779,6 @@ static MYSQL_SYSVAR_ENUM(default_row_format, innodb_default_row_format,
   &innodb_default_row_format_typelib);
 
 #ifdef UNIV_DEBUG
-static MYSQL_SYSVAR_UINT(trx_rseg_n_slots_debug, trx_rseg_n_slots_debug,
-  PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_NOCMDOPT,
-  "Debug flags for InnoDB to limit TRX_RSEG_N_SLOTS for trx_rsegf_undo_find_free()",
-  NULL, NULL, 0, 0, 1024, 0);
-
 static MYSQL_SYSVAR_UINT(limit_optimistic_insert_debug,
   btr_cur_limit_optimistic_insert_debug, PLUGIN_VAR_RQCMDARG,
   "Artificially limit the number of records per B-tree page (0=unlimited).",
@@ -20082,7 +20066,6 @@ static struct st_mysql_sys_var* innobase_system_variables[]= {
   MYSQL_SYSVAR(compression_pad_pct_max),
   MYSQL_SYSVAR(default_row_format),
 #ifdef UNIV_DEBUG
-  MYSQL_SYSVAR(trx_rseg_n_slots_debug),
   MYSQL_SYSVAR(limit_optimistic_insert_debug),
   MYSQL_SYSVAR(trx_purge_view_update_only_debug),
   MYSQL_SYSVAR(evict_tables_on_commit_debug),

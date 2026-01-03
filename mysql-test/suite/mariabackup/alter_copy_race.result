@@ -22,3 +22,21 @@ SELECT * FROM t1;
 i
 1
 DROP TABLE t1;
+#
+#  MDEV-38041 MariaBackup fails during rollback of
+#		inplace FTS alter table
+#
+CREATE TABLE t1(f1 int, f2 char(100), fulltext(f2)) ENGINE=InnoDB;
+INSERT into t1 values(1, "MariaDB"), (1, "MySQL");
+connect  con2, localhost, root,,;
+set lock_wait_timeout=1;
+SET debug_sync='copy_data_between_tables_before_reset_backup_lock  SIGNAL go WAIT_FOR after_backup_stage_block_ddl';
+SET debug_sync='alter_table_after_temp_table_drop SIGNAL temp_table_dropped';
+SET debug_sync='now WAIT_FOR after_backup_stage_start';ALTER TABLE test.t1 ADD PRIMARY KEY(f1), algorithm=COPY;|
+connection default;
+connection con2;
+ERROR 23000: Duplicate entry '1' for key 'PRIMARY'
+SET debug_sync='RESET';
+disconnect con2;
+connection default;
+DROP TABLE t1;

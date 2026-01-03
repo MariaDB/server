@@ -2022,7 +2022,16 @@ int Query_log_event::do_apply_event(rpl_group_info *rgi,
       if (charset_inited)
       {
         rpl_sql_thread_info *sql_info= thd->system_thread_info.rpl_sql_info;
-        if (thd->slave_thread && sql_info->cached_charset_compare(charset))
+        const bool applier=
+#ifdef WITH_WSREP
+          WSREP(thd) ? thd->wsrep_applier :
+#endif
+          false;
+
+        // Event charset should be compared for slave thread
+        // and applier threads
+        if ((thd->slave_thread || applier) &&
+	    sql_info->cached_charset_compare(charset))
         {
           /* Verify that we support the charsets found in the event. */
           if (!(thd->variables.character_set_client=
@@ -7920,15 +7929,21 @@ int Rows_log_event::update_sequence()
   bool old_master= false;
   int err= 0;
 
-  if (!bitmap_is_set(table->rpl_write_set, MIN_VALUE_FIELD_NO) ||
-      (
-#if defined(WITH_WSREP)
-       ! WSREP(thd) &&
+  rpl_group_info *table_rgi=
+#ifdef WITH_WSREP
+  WSREP(thd) ? thd->wsrep_rgi :
 #endif
-       table->in_use->rgi_slave &&
-       !(table->in_use->rgi_slave->gtid_ev_flags2 & Gtid_log_event::FL_DDL) &&
+  table->in_use->rgi_slave;
+  rpl_group_info *thd_rgi=
+#ifdef WITH_WSREP
+  WSREP(thd) ? thd->wsrep_rgi :
+#endif
+  thd->rgi_slave;
+  if (!bitmap_is_set(table->rpl_write_set, MIN_VALUE_FIELD_NO) ||
+      (table_rgi &&
+       !(table_rgi->gtid_ev_flags2 & Gtid_log_event::FL_DDL) &&
        !(old_master=
-         rpl_master_has_bug(thd->rgi_slave->rli,
+         rpl_master_has_bug(thd_rgi->rli,
                             29621, FALSE, FALSE, FALSE, TRUE))))
   {
     /* This event come from a setval function executed on the master.

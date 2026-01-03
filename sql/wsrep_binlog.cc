@@ -118,12 +118,13 @@ cleanup:
  */
 static int wsrep_write_cache_inc(THD*      const thd,
                                  IO_CACHE* const cache,
+                                 size_t    const log_position,
                                  size_t*   const len)
 {
   DBUG_ENTER("wsrep_write_cache_inc");
   my_off_t const saved_pos(my_b_tell(cache));
 
-  if (reinit_io_cache(cache, READ_CACHE, thd->wsrep_sr().log_position(), 0, 0))
+  if (reinit_io_cache(cache, READ_CACHE, log_position, 0, 0))
   {
     WSREP_ERROR("failed to initialize io-cache");
     DBUG_RETURN(1);;
@@ -157,7 +158,7 @@ static int wsrep_write_cache_inc(THD*      const thd,
     } while ((cache->file >= 0) && (length= my_b_fill(cache)));
     if (ret == 0)
     {
-      assert(total_length + thd->wsrep_sr().log_position() == saved_pos);
+      assert(total_length + log_position == saved_pos);
     }
   }
 
@@ -178,9 +179,10 @@ cleanup:
  */
 int wsrep_write_cache(THD*      const thd,
                       IO_CACHE* const cache,
+                      size_t    const log_position,
                       size_t*   const len)
 {
-  return wsrep_write_cache_inc(thd, cache, len);
+  return wsrep_write_cache_inc(thd, cache, log_position, len);
 }
 
 void wsrep_dump_rbr_buf(THD *thd, const void* rbr_buf, size_t buf_len)
