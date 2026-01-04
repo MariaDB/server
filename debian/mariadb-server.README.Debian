@@ -34,7 +34,7 @@ name has been kept as a symbolic link to the new name for backwards compatibilit
 From MariaDB 10.1 onward the upstream mariadb.service and mariadb@.service are
 used to provide the full systemd experience. Some features available in
 traditional /etc/init.d/mysql have been changed. For details see
-https://mariadb.com/kb/en/mariadb/systemd/
+https://mariadb.com/docs/server/server-management/starting-and-stopping-mariadb/systemd
 
 
 * MIXING PACKAGES FROM MARIADB.ORG AND OFFICIAL DEBIAN REPOSITORIES
@@ -99,7 +99,7 @@ that script will try to do things that are already prevented, and might fail.
 ===========================
 
 The privilege tables are automatically updated so all there is left is read
-the release notes on https://mariadb.com/kb/en/release-notes/ to see if any
+the release notes on https://mariadb.com/docs/release-notes to see if any
 changes affect custom apps.
 
 There should not be any need to run 'mariadb-upgrade' manually, as the upgrade

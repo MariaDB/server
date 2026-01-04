@@ -24,13 +24,13 @@ A description of the MariaDB project and a manual can be found at:
 
 https://mariadb.org
 
-https://mariadb.com/kb/en/
+https://mariadb.com/docs/
 
-https://mariadb.com/kb/en/mariadb-vs-mysql-features/
+https://mariadb.com/docs/release-notes/community-server/about/compatibility-and-differences/mariadb-vs-mysql-features
 
-https://mariadb.com/kb/en/mariadb-versus-mysql-compatibility/
+https://mariadb.com/docs/mariadb-versus-mysql-compatibility/
 
-https://mariadb.com/kb/en/new-and-old-releases/
+https://mariadb.com/docs/new-and-old-releases/
 
 # Getting the code, building it and testing it
 

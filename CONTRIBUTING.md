@@ -8,12 +8,12 @@ MariaDB Server has a vibrant community contributing in a wide range of areas. Th
 -   [maria-developers mailing list](http://launchpad.net/~maria-developers)
 -   [maria-discuss mailing list](http://launchpad.net/~maria-discuss)
 -   [maria-docs mailing list](http://launchpad.net/~maria-docs)
--   The MariaDB Foundation and MariaDB Corporation have a presence on Reddit, Twitter and Facebook. See the  [social media page](https://mariadb.com/kb/en/mariadb/social-media/).
+-   The MariaDB Foundation and MariaDB Corporation have a presence on Reddit, Twitter and Facebook. See the  [social media page](https://mariadb.com/docs/general-resources/community/joining-the-community).
 
 ### Help document MariaDB
 ----
--   Contribute towards [documenting MariaDB Server](https://mariadb.com/kb/en/meta/writing-editing-library-articles/)  and its ecosystem by adding new content or improving existing content.
--   [Translate](https://mariadb.com/kb/en/meta/translating-library-articles/)  existing documentation.
+-   Contribute towards [documenting MariaDB Server](https://mariadb.com/docs/general-resources/about/readme/contributing-documentation)  and its ecosystem by adding new content or improving existing content.
+-   [Translate](https://mariadb.com/docs/general-resources/about/readme/contributing-documentation)  existing documentation.
 
 ### Help debug and develop MariaDB
 -----
@@ -44,4 +44,4 @@ New contributors can ask questions any time, but we will provide immediate feedb
 ### Additional resources
 ----
  - [MariaDB Foundation ](https://mariadb.org/)
- - [Knowledge Base](https://mariadb.com/kb/en/)
+ - [Knowledge Base](https://mariadb.com/docs/)
