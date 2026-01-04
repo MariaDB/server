@@ -1,5 +1,8 @@
 --source include/not_embedded.inc
 --source include/have_perfschema.inc
+--source include/not_msan.inc
+# We cannot use valgrind build as it uses more memory than normal build
+--source include/not_valgrind_build.inc
 # This does not crash on 32 bit because of less memory used
 --source include/have_64bit.inc
 --echo #
@@ -16,7 +19,9 @@ set max_session_mem_used=32768;
 select * from performance_schema.session_status;
 --enable_result_log
 # this used to cause mutex lock order violation when OOM happened under LOCK_global_system_variables
+--disable_ps_protocol # different memory requirements
 set global innodb_io_capacity_max=100;
 set max_session_mem_used=default;
+--enable_ps_protocol
 set global innodb_io_capacity=@old_innodb_io_capacity;
 set global innodb_io_capacity_max=@old_innodb_io_capacity_max;

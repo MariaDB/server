@@ -727,6 +727,28 @@ bool print_explain_for_slow_log(LEX *lex, THD *thd, String *str);
 
 
 class st_select_lex_unit: public st_select_lex_node {
+private:
+  /*
+    When a CTE is merged to the parent SELECT, its unit is excluded
+    which separates it from the tree of units for this query.  It
+    needs to be cleaned up but not at the time it is excluded, since
+    its queries are merged to the unit above it.  Remember all such
+    units via the stranded_clean_list and clean them at the end of
+    the query.  This list is maintained only at the root unit node
+    of the query tree.
+   */
+  st_select_lex_unit *stranded_clean_list{nullptr};
+
+  // Add myself to the stranded_clean_list.
+  void remember_my_cleanup();
+
+  /*
+    Walk the stranded_clean_list and cleanup units.  This must only
+    be called for the st_select_lex_unit type because it assumes
+    that those are the only nodes in the stranded_clean_list.
+  */
+  void cleanup_stranded_units();
+
 protected:
   TABLE_LIST result_table_list;
   select_unit *union_result;
@@ -3326,7 +3348,13 @@ public:
   uint select_stack_outer_barrier;
 
   SQL_I_List<ORDER> proc_list;
-  SQL_I_List<TABLE_LIST> auxiliary_table_list, save_list;
+  SQL_I_List<TABLE_LIST> auxiliary_table_list;
+  /*
+    save_list is used by
+      - Parsing CREATE TABLE t0 (...) UNION = (t1, t2, t3)
+      - CTEs for DELETE, see mysql_init_delete().
+  */
+  SQL_I_List<TABLE_LIST> save_list;
   Column_definition *last_field;
   Table_function_json_table *json_table;
   Item_sum *in_sum_func;

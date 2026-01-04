@@ -6190,7 +6190,8 @@ bool TABLE_LIST::create_field_translation(THD *thd)
       It's needed because some items in the select list, like IN subselects,
       might be substituted for optimized ones.
     */
-    if (is_view() && get_unit()->prepared && !field_translation_updated)
+    if (is_merged_derived() &&
+        get_unit()->prepared && !field_translation_updated)
     {
       field_translation_updated= TRUE;
       if (static_cast<uint>(field_translation_end - field_translation) <
@@ -8731,6 +8732,7 @@ bool TABLE::add_tmp_key(uint key, uint key_parts,
   keyinfo->read_stats= NULL;
   keyinfo->collected_stats= NULL;
   keyinfo->table= this;
+  keyinfo->all_nulls_key_parts= 0;
 
   for (i= 0; i < key_parts; i++)
   {
@@ -10480,12 +10482,68 @@ uint TABLE_SHARE::actual_n_key_parts(THD *thd)
 }  
 
 
-double KEY::actual_rec_per_key(uint i) const
+/**
+  Get records-per-key estimate for an index prefix.
+
+  Returns average number of records per key value for the given index prefix.
+  Prefers engine-independent statistics (EITS) if available and falls back
+  to engine-dependent statistics otherwise.
+
+  @param last_key_part_in_prefix  Index of the last key part
+                                  in the prefix (0-based)
+
+  @return  Estimated records per key value:
+           - 0.0 if no statistics available
+           - avg_frequency from EITS if available
+           - rec_per_key from engine statistics if EITS is not available
+*/
+double KEY::actual_rec_per_key(uint last_key_part_in_prefix) const
 { 
-  if (rec_per_key == 0)
-    return 0;
-  return (is_statistics_from_stat_tables ?
-          read_stats->get_avg_frequency(i) : (double) rec_per_key[i]);
+  if (is_statistics_from_stat_tables)
+  {
+    // Use engine-independent statistics (EITS)
+    return read_stats->get_avg_frequency(last_key_part_in_prefix);
+  }
+  // Fall back to engine-dependent statistics if EITS is not available
+  return rec_per_key ? (double) rec_per_key[last_key_part_in_prefix] : 0.0;
+}
+
+
+/**
+  Get records-per-key estimate for an index prefix with NULL-aware optimization.
+
+  Returns average number of records per key value for the given index prefix.
+  When EITS statistics show avg_frequency == 0 (typically all NULL values) and
+  the query uses NULL-rejecting conditions (e.g., =), returns 1.0 to indicate
+  high selectivity since NULL = NULL never matches.
+
+  @param last_key_part_in_prefix  Index of the last key part
+                                  in the prefix (0-based)
+  @param notnull_part  Bitmap indicating which key parts have NULL-rejecting
+                       conditions (bit N set means key part N uses =, not <=>)
+
+  @return  Estimated records per key value:
+           - 0.0 if no statistics available
+           - avg_frequency from EITS if available
+           - 1.0 if all values are NULL with NULL-rejecting condition
+           - rec_per_key from engine statistics if EITS is not available
+*/
+double KEY::rec_per_key_null_aware(uint last_key_part_in_prefix,
+                                   key_part_map notnull_part) const
+{
+  if (notnull_part & all_nulls_key_parts)
+  {
+    /*
+      For NULL-rejecting conditions like `t1.key_col = t2.col`, we know
+      there will be no matches (since NULL = NULL is never true).
+      If at least one NULL-rejecting condition is present, and all
+      corresponding key part values are NULL, return number of records 1.0
+      (highly selective), indicating no expected matches.
+    */
+    return 1.0;
+  }
+
+  return actual_rec_per_key(last_key_part_in_prefix);
 }
 
 /*

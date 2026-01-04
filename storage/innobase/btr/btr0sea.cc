@@ -374,18 +374,16 @@ ATTRIBUTE_COLD void btr_search_lazy_free(dict_index_t *index) noexcept
   UT_LIST_REMOVE(table->freed_indexes, index);
   index->lock.free();
   dict_mem_index_free(index);
+  const bool destroy= !table->id && !UT_LIST_GET_LEN(table->freed_indexes) &&
+    !UT_LIST_GET_LEN(table->indexes);
+  table->autoinc_mutex.wr_unlock();
 
-  if (!UT_LIST_GET_LEN(table->freed_indexes) &&
-      !UT_LIST_GET_LEN(table->indexes))
+  if (destroy)
   {
-    ut_ad(!table->id);
-    table->autoinc_mutex.wr_unlock();
     table->autoinc_mutex.destroy();
     dict_mem_table_free(table);
     return;
   }
-
-  table->autoinc_mutex.wr_unlock();
 }
 
 ATTRIBUTE_COLD bool btr_sea::disable_and_lock() noexcept

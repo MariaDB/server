@@ -1946,7 +1946,16 @@ int Query_log_event::do_apply_event(rpl_group_info *rgi,
       if (charset_inited)
       {
         rpl_sql_thread_info *sql_info= thd->system_thread_info.rpl_sql_info;
-        if (thd->slave_thread && sql_info->cached_charset_compare(charset))
+        const bool applier=
+#ifdef WITH_WSREP
+          WSREP(thd) ? thd->wsrep_applier :
+#endif
+          false;
+
+        // Event charset should be compared for slave thread
+        // and applier threads
+        if ((thd->slave_thread || applier) &&
+	    sql_info->cached_charset_compare(charset))
         {
           /* Verify that we support the charsets found in the event. */
           if (!(thd->variables.character_set_client=
@@ -5412,7 +5421,11 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
       slave_rows_error_report(ERROR_LEVEL, thd->is_error() ? 0 : error,
                               rgi, thd, table, get_type_str(),
                               RPL_LOG_NAME, log_pos);
-    if (thd->slave_thread)
+    if (thd->slave_thread
+#ifdef WITH_WSREP
+        || (WSREP(thd) && wsrep_thd_is_applying(thd))
+#endif /* WITH_WSREP */
+    )
       free_root(thd->mem_root, MYF(MY_KEEP_PREALLOC));
   }
 

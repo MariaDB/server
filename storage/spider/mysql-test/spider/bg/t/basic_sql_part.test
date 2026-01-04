@@ -5,16 +5,6 @@
 --source test_init.inc
 --enable_result_log
 --enable_query_log
-if (!$HAVE_PARTITION)
-{
-  --disable_query_log
-  --disable_result_log
-  --source test_deinit.inc
-  --enable_result_log
-  --enable_query_log
-  --enable_warnings
-  skip Test requires partitioning;
-}
 
 --echo
 --echo drop and create databases
@@ -22,8 +12,6 @@ if (!$HAVE_PARTITION)
 DROP DATABASE IF EXISTS auto_test_local;
 CREATE DATABASE auto_test_local;
 USE auto_test_local;
-if ($USE_CHILD_GROUP2)
-{
   --connection child2_1
   DROP DATABASE IF EXISTS auto_test_remote;
   CREATE DATABASE auto_test_remote;
@@ -32,30 +20,20 @@ if ($USE_CHILD_GROUP2)
   DROP DATABASE IF EXISTS auto_test_remote2;
   CREATE DATABASE auto_test_remote2;
   USE auto_test_remote2;
-}
 --enable_warnings
 
 --echo
 --echo test select 1
 --connection master_1
 SELECT 1;
-if ($USE_CHILD_GROUP2)
-{
-  if (!$OUTPUT_CHILD_GROUP2)
-  {
     --disable_query_log
     --disable_result_log
-  }
   --connection child2_1
   SELECT 1;
   --connection child2_2
   SELECT 1;
-  if (!$OUTPUT_CHILD_GROUP2)
-  {
     --enable_query_log
     --enable_result_log
-  }
-}
 
 --connection master_1
 --disable_warnings
@@ -68,12 +46,12 @@ echo CREATE TABLE tb_l (
   c DATETIME,
   PRIMARY KEY(a)
 ) MASTER_1_ENGINE2 MASTER_1_CHARSET2;
-eval CREATE TABLE tb_l (
+CREATE TABLE tb_l (
   a INT,
   b CHAR(1),
   c DATETIME,
   PRIMARY KEY(a)
-) $MASTER_1_ENGINE2 $MASTER_1_CHARSET2;
+) ENGINE=MyISAM DEFAULT CHARSET=utf8;
 --enable_query_log
 INSERT INTO tb_l (a, b, c) VALUES
   (1, 'f', '2008-07-01 10:21:39'),
@@ -84,483 +62,226 @@ INSERT INTO tb_l (a, b, c) VALUES
 
 --echo
 --echo create table with partition and select test
-if ($HAVE_PARTITION)
-{
-  if ($USE_CHILD_GROUP2)
-  {
-    if (!$OUTPUT_CHILD_GROUP2)
-    {
       --disable_query_log
       --disable_result_log
-    }
     --connection child2_2
-    if ($OUTPUT_CHILD_GROUP2)
-    {
-      --disable_query_log
-      echo CHILD2_2_DROP_TABLES;
-      echo CHILD2_2_CREATE_TABLES;
-    }
     --disable_warnings
-    eval $CHILD2_2_DROP_TABLES;
+DROP TABLE IF EXISTS ta_r3;
     --enable_warnings
-    eval $CHILD2_2_CREATE_TABLES;
-    if ($OUTPUT_CHILD_GROUP2)
-    {
-      --enable_query_log
-    }
-    if ($USE_GENERAL_LOG)
-    {
+CREATE TABLE ta_r3 (
+a INT DEFAULT 10,
+b CHAR(1) DEFAULT 'c',
+c DATETIME DEFAULT '1999-10-10 10:10:10',
+PRIMARY KEY(a)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
       TRUNCATE TABLE mysql.general_log;
-    }
     --connection child2_1
-    if ($OUTPUT_CHILD_GROUP2)
-    {
-      --disable_query_log
-      echo CHILD2_1_DROP_TABLES2;
-      echo CHILD2_1_CREATE_TABLES2;
-    }
     --disable_warnings
-    eval $CHILD2_1_DROP_TABLES2;
+DROP TABLE IF EXISTS ta_r2;
     --enable_warnings
-    eval $CHILD2_1_CREATE_TABLES2;
-    if ($OUTPUT_CHILD_GROUP2)
-    {
-      --enable_query_log
-    }
-    if ($USE_GENERAL_LOG)
-    {
+CREATE TABLE ta_r2 (
+a INT DEFAULT 10,
+b CHAR(1) DEFAULT 'c',
+c DATETIME DEFAULT '1999-10-10 10:10:10',
+PRIMARY KEY(a)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
       TRUNCATE TABLE mysql.general_log;
-    }
-    if (!$OUTPUT_CHILD_GROUP2)
-    {
       --enable_query_log
       --enable_result_log
-    }
-  }
   --connection master_1
   --disable_query_log
   echo CREATE TABLE ta_l2 (
     PRIMARY KEY(a)
   ) MASTER_1_ENGINE MASTER_1_COMMENT_P_2_1
   SELECT a, b, c FROM tb_l;
-  if ($MASTER_1_MERGE)
-  {
-    --error ER_WRONG_OBJECT
-    eval CREATE TABLE ta_l2 (
+CREATE TABLE ta_l2 (
       PRIMARY KEY(a)
-    ) $MASTER_1_ENGINE $MASTER_1_COMMENT_P_2_1
+) ENGINE=Spider COMMENT='table "ta_r3"'
+  PARTITION BY KEY(a) (
+PARTITION pt1 COMMENT='srv "s_2_1", table "ta_r2",
+    priority "1000"',
+PARTITION pt2 COMMENT='srv "s_2_2", priority "1000001"'
+  )
     SELECT a, b, c FROM tb_l;
-    eval CREATE TABLE ta_l2 (
-      a INT,
-      b CHAR(1),
-      c DATETIME,
-      PRIMARY KEY(a)
-    ) $MASTER_1_ENGINE $MASTER_1_COMMENT_P_2_1;
-    INSERT INTO ta_l2 SELECT a, b, c FROM tb_l;
-  }
-  if (!$MASTER_1_MERGE)
-  {
-    eval CREATE TABLE ta_l2 (
-      PRIMARY KEY(a)
-    ) $MASTER_1_ENGINE $MASTER_1_COMMENT_P_2_1
-    SELECT a, b, c FROM tb_l;
-  }
   --enable_query_log
-  if ($USE_CHILD_GROUP2)
-  {
-    if (!$OUTPUT_CHILD_GROUP2)
-    {
       --disable_query_log
       --disable_result_log
-    }
     --connection child2_2
-    if ($USE_GENERAL_LOG)
-    {
       SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%insert %';
-    }
-    eval $CHILD2_2_SELECT_TABLES;
+SELECT a, b, date_format(c, '%Y-%m-%d %H:%i:%s') FROM ta_r3 ORDER BY a;
     --connection child2_1
-    if ($USE_GENERAL_LOG)
-    {
       SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%insert %';
-    }
-    eval $CHILD2_1_SELECT_TABLES2;
-    if (!$OUTPUT_CHILD_GROUP2)
-    {
+SELECT a, b, date_format(c, '%Y-%m-%d %H:%i:%s') FROM ta_r2 ORDER BY a;
       --enable_query_log
       --enable_result_log
-    }
-  }
   --connection master_1
   SELECT a, b, date_format(c, '%Y-%m-%d %H:%i:%s') FROM ta_l2 ORDER BY a;
-}
 
 --echo
 --echo select partition using pushdown
-if ($HAVE_PARTITION)
-{
-  if ($USE_CHILD_GROUP2)
-  {
-    if (!$OUTPUT_CHILD_GROUP2)
-    {
       --disable_query_log
       --disable_result_log
-    }
     --connection child2_2
-    if ($USE_GENERAL_LOG)
-    {
       TRUNCATE TABLE mysql.general_log;
-    }
     --connection child2_1
-    if ($USE_GENERAL_LOG)
-    {
       TRUNCATE TABLE mysql.general_log;
-    }
-    if (!$OUTPUT_CHILD_GROUP2)
-    {
       --enable_query_log
       --enable_result_log
-    }
-  }
   --connection master_1
   SELECT a.a, a.b, date_format(a.c, '%Y-%m-%d %H:%i:%s') FROM ta_l2 a WHERE
   a.b = 'g' ORDER BY a.a;
-  if ($USE_CHILD_GROUP2)
-  {
-    if (!$OUTPUT_CHILD_GROUP2)
-    {
       --disable_query_log
       --disable_result_log
-    }
     --connection child2_2
-    if ($USE_GENERAL_LOG)
-    {
       SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %';
-    }
     --connection child2_1
-    if ($USE_GENERAL_LOG)
-    {
       SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %';
-    }
-    if (!$OUTPUT_CHILD_GROUP2)
-    {
       --enable_query_log
       --enable_result_log
-    }
-  }
-}
 
 --echo
 --echo select partition using index pushdown
-if ($HAVE_PARTITION)
-{
-  if ($USE_CHILD_GROUP2)
-  {
-    if (!$OUTPUT_CHILD_GROUP2)
-    {
       --disable_query_log
       --disable_result_log
-    }
     --connection child2_2
-    if ($USE_GENERAL_LOG)
-    {
       TRUNCATE TABLE mysql.general_log;
-    }
     --connection child2_1
-    if ($USE_GENERAL_LOG)
-    {
       TRUNCATE TABLE mysql.general_log;
-    }
-    if (!$OUTPUT_CHILD_GROUP2)
-    {
       --enable_query_log
       --enable_result_log
-    }
-  }
   --connection master_1
   SELECT a.a, a.b, date_format(a.c, '%Y-%m-%d %H:%i:%s') FROM ta_l2 a WHERE
   a.a > 0 AND a.b = 'g' ORDER BY a.a;
-  if ($USE_CHILD_GROUP2)
-  {
-    if (!$OUTPUT_CHILD_GROUP2)
-    {
       --disable_query_log
       --disable_result_log
-    }
     --connection child2_2
-    if ($USE_GENERAL_LOG)
-    {
       SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %';
-    }
     --connection child2_1
-    if ($USE_GENERAL_LOG)
-    {
       SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %';
-    }
-    if (!$OUTPUT_CHILD_GROUP2)
-    {
       --enable_query_log
       --enable_result_log
-    }
-  }
-}
 
 --echo
 --echo update partition pushdown
-if ($HAVE_PARTITION)
-{
-  if ($USE_CHILD_GROUP2)
-  {
-    if (!$OUTPUT_CHILD_GROUP2)
-    {
       --disable_query_log
       --disable_result_log
-    }
     --connection child2_2
-    if ($USE_GENERAL_LOG)
-    {
       TRUNCATE TABLE mysql.general_log;
-    }
     --connection child2_1
-    if ($USE_GENERAL_LOG)
-    {
       TRUNCATE TABLE mysql.general_log;
-    }
-    if (!$OUTPUT_CHILD_GROUP2)
-    {
       --enable_query_log
       --enable_result_log
-    }
-  }
   --connection master_1
   UPDATE ta_l2 SET b = 'e', c = '2009-03-03 03:03:03' WHERE b = 'j';
-  if ($USE_CHILD_GROUP2)
-  {
-    if (!$OUTPUT_CHILD_GROUP2)
-    {
       --disable_query_log
       --disable_result_log
-    }
     --connection child2_2
-    if ($USE_GENERAL_LOG)
-    {
       SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %';
       SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE 'update %';
-    }
-    eval $CHILD2_2_SELECT_TABLES;
+SELECT a, b, date_format(c, '%Y-%m-%d %H:%i:%s') FROM ta_r3 ORDER BY a;
     --connection child2_1
-    if ($USE_GENERAL_LOG)
-    {
       SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %';
       SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE 'update %';
-    }
-    eval $CHILD2_1_SELECT_TABLES2;
-    if (!$OUTPUT_CHILD_GROUP2)
-    {
+SELECT a, b, date_format(c, '%Y-%m-%d %H:%i:%s') FROM ta_r2 ORDER BY a;
       --enable_query_log
       --enable_result_log
-    }
-  }
   --connection master_1
   SELECT a, b, date_format(c, '%Y-%m-%d %H:%i:%s') FROM ta_l2 ORDER BY a;
-}
 
 --echo
 --echo update partition index pushdown
-if ($HAVE_PARTITION)
-{
-  if ($USE_CHILD_GROUP2)
-  {
-    if (!$OUTPUT_CHILD_GROUP2)
-    {
       --disable_query_log
       --disable_result_log
-    }
     --connection child2_2
-    if ($USE_GENERAL_LOG)
-    {
       TRUNCATE TABLE mysql.general_log;
-    }
     --connection child2_1
-    if ($USE_GENERAL_LOG)
-    {
       TRUNCATE TABLE mysql.general_log;
-    }
-    if (!$OUTPUT_CHILD_GROUP2)
-    {
       --enable_query_log
       --enable_result_log
-    }
-  }
   --connection master_1
   UPDATE ta_l2 SET b = 'j', c = '2009-03-03 03:03:03' WHERE a > 0 AND b = 'e';
-  if ($USE_CHILD_GROUP2)
-  {
-    if (!$OUTPUT_CHILD_GROUP2)
-    {
       --disable_query_log
       --disable_result_log
-    }
     --connection child2_2
-    if ($USE_GENERAL_LOG)
-    {
       SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %';
       SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE 'update %';
-    }
-    eval $CHILD2_2_SELECT_TABLES;
+SELECT a, b, date_format(c, '%Y-%m-%d %H:%i:%s') FROM ta_r3 ORDER BY a;
     --connection child2_1
-    if ($USE_GENERAL_LOG)
-    {
       SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %';
       SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE 'update %';
-    }
-    eval $CHILD2_1_SELECT_TABLES2;
-    if (!$OUTPUT_CHILD_GROUP2)
-    {
+SELECT a, b, date_format(c, '%Y-%m-%d %H:%i:%s') FROM ta_r2 ORDER BY a;
       --enable_query_log
       --enable_result_log
-    }
-  }
   --connection master_1
   SELECT a, b, date_format(c, '%Y-%m-%d %H:%i:%s') FROM ta_l2 ORDER BY a;
-}
 
 --echo
 --echo delete partition pushdown
-if ($HAVE_PARTITION)
-{
   TRUNCATE TABLE ta_l2;
   INSERT INTO ta_l2 SELECT a, b, c FROM tb_l;
-  if ($USE_CHILD_GROUP2)
-  {
-    if (!$OUTPUT_CHILD_GROUP2)
-    {
       --disable_query_log
       --disable_result_log
-    }
     --connection child2_2
-    if ($USE_GENERAL_LOG)
-    {
       TRUNCATE TABLE mysql.general_log;
-    }
     --connection child2_1
-    if ($USE_GENERAL_LOG)
-    {
       TRUNCATE TABLE mysql.general_log;
-    }
-    if (!$OUTPUT_CHILD_GROUP2)
-    {
       --enable_query_log
       --enable_result_log
-    }
-  }
   --connection master_1
   DELETE FROM ta_l2 WHERE b = 'g';
-  if ($USE_CHILD_GROUP2)
-  {
-    if (!$OUTPUT_CHILD_GROUP2)
-    {
       --disable_query_log
       --disable_result_log
-    }
     --connection child2_2
-    if ($USE_GENERAL_LOG)
-    {
       SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %';
       SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE 'delete %';
-    }
-    eval $CHILD2_2_SELECT_TABLES;
+SELECT a, b, date_format(c, '%Y-%m-%d %H:%i:%s') FROM ta_r3 ORDER BY a;
     --connection child2_1
-    if ($USE_GENERAL_LOG)
-    {
       SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %';
       SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE 'delete %';
-    }
-    eval $CHILD2_1_SELECT_TABLES2;
-    if (!$OUTPUT_CHILD_GROUP2)
-    {
+SELECT a, b, date_format(c, '%Y-%m-%d %H:%i:%s') FROM ta_r2 ORDER BY a;
       --enable_query_log
       --enable_result_log
-    }
-  }
   --connection master_1
   SELECT a, b, date_format(c, '%Y-%m-%d %H:%i:%s') FROM ta_l2 ORDER BY a;
-}
 
 --echo
 --echo delete partition index pushdown
-if ($HAVE_PARTITION)
-{
   TRUNCATE TABLE ta_l2;
   INSERT INTO ta_l2 SELECT a, b, c FROM tb_l;
-  if ($USE_CHILD_GROUP2)
-  {
-    if (!$OUTPUT_CHILD_GROUP2)
-    {
       --disable_query_log
       --disable_result_log
-    }
     --connection child2_2
-    if ($USE_GENERAL_LOG)
-    {
       TRUNCATE TABLE mysql.general_log;
-    }
     --connection child2_1
-    if ($USE_GENERAL_LOG)
-    {
       TRUNCATE TABLE mysql.general_log;
-    }
-    if (!$OUTPUT_CHILD_GROUP2)
-    {
       --enable_query_log
       --enable_result_log
-    }
-  }
   --connection master_1
   DELETE FROM ta_l2 WHERE a > 0 AND b = 'g';
-  if ($USE_CHILD_GROUP2)
-  {
-    if (!$OUTPUT_CHILD_GROUP2)
-    {
       --disable_query_log
       --disable_result_log
-    }
     --connection child2_2
-    if ($USE_GENERAL_LOG)
-    {
       SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %';
       SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE 'delete %';
-    }
-    eval $CHILD2_2_SELECT_TABLES;
+SELECT a, b, date_format(c, '%Y-%m-%d %H:%i:%s') FROM ta_r3 ORDER BY a;
     --connection child2_1
-    if ($USE_GENERAL_LOG)
-    {
       SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %';
       SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE 'delete %';
-    }
-    eval $CHILD2_1_SELECT_TABLES2;
-    if (!$OUTPUT_CHILD_GROUP2)
-    {
+SELECT a, b, date_format(c, '%Y-%m-%d %H:%i:%s') FROM ta_r2 ORDER BY a;
       --enable_query_log
       --enable_result_log
-    }
-  }
   --connection master_1
   SELECT a, b, date_format(c, '%Y-%m-%d %H:%i:%s') FROM ta_l2 ORDER BY a;
-}
 
 --echo
 --echo deinit
 --disable_warnings
 --connection master_1
 DROP DATABASE IF EXISTS auto_test_local;
-if ($USE_CHILD_GROUP2)
-{
   --connection child2_1
   DROP DATABASE IF EXISTS auto_test_remote;
   --connection child2_2
   DROP DATABASE IF EXISTS auto_test_remote2;
-}
 --disable_query_log
 --disable_result_log
 --source test_deinit.inc

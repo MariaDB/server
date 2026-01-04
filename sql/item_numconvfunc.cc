@@ -2444,7 +2444,7 @@ public:
      :A(Unsigned_currency::Container(
           Approximate::Container(
             Decimal(
-              std::move(Zeros_or_nines(static_cast<Zeros&&>(rhs))),
+              Zeros_or_nines(static_cast<Zeros&&>(rhs)),
               std::move(static_cast<Decimal_tail&&>(rhs))),
             std::move(static_cast<EEEE&&>(rhs))))),
       B(std::move(static_cast<Postfix_sign&&>(rhs)))

@@ -90,7 +90,6 @@ SELECT JSON_SCHEMA_VALID(@json_schema, @json_doc_obj_lev45_valid) AS found_path;
 SELECT JSON_SCHEMA_VALID(@json_schema, @json_doc_obj_lev45_valid2);
 
 
-
 SELECT JSON_SEARCH(@json_doc_obj_lev45_valid,'one', 'This is level 45');
 
 SET @json_updated = JSON_SET(@json_doc_obj_lev45_valid, 
@@ -111,3 +110,18 @@ SELECT JSON_VALUE(@json_doc_obj_lev45_valid, '$.level1.level2.level3.level4.leve
 SELECT JSON_VALUE(@json_doc_arr_lev45_valid, '$[1][1][1][1][1][1][1][1][1][1][1][1][1][1][1][1][1][1][1][1][1][1][1][1][1][1][1][1][1][1][1][1][1][1][1][1][1][1][1][1][1][1][1][1][1]');
 
 DROP TABLE t1 ,t2;
+
+--echo #
+--echo # MDEV-37082: Sig 11 in json_normalize_sort
+--echo #
+
+--source include/have_innodb.inc
+
+CREATE TABLE t (a JSON)Engine=InnoDB;
+
+INSERT INTO t VALUES (CONCAT (REPEAT('{"v":',5000),'1',REPEAT('}',5000)));
+INSERT INTO t VALUES (CONCAT (REPEAT('[',5000),'1',REPEAT(']',5000)));
+
+SELECT JSON_EQUALS (a,a) FROM t;
+
+DROP TABLE t;

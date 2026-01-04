@@ -452,3 +452,14 @@ SELECT JSON_VALUE(@json_doc_arr_lev45_valid, '$[1][1][1][1][1][1][1][1][1][1][1]
 JSON_VALUE(@json_doc_arr_lev45_valid, '$[1][1][1][1][1][1][1][1][1][1][1][1][1][1][1][1][1][1][1][1][1][1][1][1][1][1][1][1][1][1][1][1][1][1][1][1][1][1][1][1][1][1][1][1][1]')
 45
 DROP TABLE t1 ,t2;
+#
+# MDEV-37082: Sig 11 in json_normalize_sort
+#
+CREATE TABLE t (a JSON)Engine=InnoDB;
+INSERT INTO t VALUES (CONCAT (REPEAT('{"v":',5000),'1',REPEAT('}',5000)));
+INSERT INTO t VALUES (CONCAT (REPEAT('[',5000),'1',REPEAT(']',5000)));
+SELECT JSON_EQUALS (a,a) FROM t;
+JSON_EQUALS (a,a)
+1
+1
+DROP TABLE t;

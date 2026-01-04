@@ -2709,6 +2709,77 @@ json_detailed('[[123],456]')
 SELECT JSON_VALUE(JSON_OBJECT("a", ""), '$.a') = "" AS not_null;
 not_null
 1
+#
+# MDEV-36319: Wrong result json_table
+#
+SET @JSON='
+{
+  "SZ": [
+    {
+      "NAME": "S0",
+      "OFFERS": [
+        {
+          "NAME": "S0A0"
+        }
+      ]
+    },
+    {
+      "NAME": "S1",
+      "OFFERS": [
+        {
+          "NAME": "S1A0"
+        },
+        {
+          "NAME": "S1A1"
+        }
+      ]
+    },
+    {
+      "NAME": "S2",
+      "OFFERS": [
+        {
+          "NAME": "S2A0"
+        }
+      ]
+    },
+    {
+      "NAME": "S3",
+      "OFFERS": [
+        {
+          "NAME": "S3A0"
+        }
+      ]
+    },
+    {
+      "NAME": "S4",
+      "OFFERS": [
+        {
+          "NAME": "S4A0"
+        }
+      ]
+    },
+    {
+      "NAME": "S5",
+      "OFFERS": [
+        {
+          "NAME": "S5A0"
+        }
+      ]
+    }
+  ]
+}
+ 
+'
+;
+# Should return EMPTY result
+SELECT * FROM json_table(@JSON, '$.SZ[0].OFFERS[1]' 
+COLUMNS(NAME VARCHAR(30) PATH '$.NAME')) AS t_sz;
+NAME
+# Should return S1A1
+SELECT * FROM json_table(@JSON, '$.SZ[1].OFFERS[1]' 
+COLUMNS(NAME VARCHAR(30) PATH '$.NAME')) AS t_sz;
+NAME
+S1A1
 # End of 10.11 Test
 #
 # MDEV-32007: JSON_VALUE and JSON_EXTRACT doesn't handle dash (-)
@@ -5287,6 +5358,8 @@ SET @obj1='{ "a": 1,"b": 2,"c": 3}';
 SELECT JSON_OBJECT_FILTER_KEYS (@obj1,@arr1);
 JSON_OBJECT_FILTER_KEYS (@obj1,@arr1)
 NULL
+SET character_set_database=default;
+SET CHARACTER SET default;
 # End of 11.2 Test
 # Beginning of 11.4 Test
 #
@@ -5298,4 +5371,26 @@ NULL
 SELECT json_array_intersect(@a,@b);
 json_array_intersect(@a,@b)
 NULL
+# MDEV-36809: json_array_intersect crashs when unused table ref provided
+#
+select json_array_intersect('[["1", "7"], ["2", "6"], ["4", "5"], ["3", "8"]]', '[["2","6"],["3","8"],["4","5"],["1","7"]]') as result from mysql.user;
+result
+[["2", "6"], ["3", "8"], ["4", "5"], ["1", "7"]]
+[["2", "6"], ["3", "8"], ["4", "5"], ["1", "7"]]
+[["2", "6"], ["3", "8"], ["4", "5"], ["1", "7"]]
+[["2", "6"], ["3", "8"], ["4", "5"], ["1", "7"]]
+[["2", "6"], ["3", "8"], ["4", "5"], ["1", "7"]]
+SELECT ( WITH x AS ( WITH x ( x ) AS ( SELECT ( 1.000000 ) ) SELECT x FROM x ) SELECT * FROM x WHERE ( SELECT AVG ( x ) OVER ( ORDER BY JSON_ARRAY_INTERSECT ( '[["1", "7"], ["2", "6"], ["3", "8"]]' , '[["2","6"],["3","8"],["4","5"],["1","7"]]' ) ) FROM x ) ) as result;
+result
+1.000000
+#
+# MDEV-37864: mysql-test/mtr --cursor main.func_json fails
+#
+select json_array_intersect('[["1", "7"], ["2", "6"], ["4", "5"], ["3", "8"]]', '[["2","6"],["3","8"],["4","5"],["1","7"]]') as result from mysql.user;
+result
+[["2", "6"], ["3", "8"], ["4", "5"], ["1", "7"]]
+[["2", "6"], ["3", "8"], ["4", "5"], ["1", "7"]]
+[["2", "6"], ["3", "8"], ["4", "5"], ["1", "7"]]
+[["2", "6"], ["3", "8"], ["4", "5"], ["1", "7"]]
+[["2", "6"], ["3", "8"], ["4", "5"], ["1", "7"]]
 # End of 11.4 Test

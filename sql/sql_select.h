@@ -1016,15 +1016,6 @@ public:
   double records_init;
 
   /*
-    Number of rows left after filtering, calculated in best_access_path()
-    In case of use_cond_selectivity > 1 it contains rows after the used
-    rowid filter (if such one exists).
-    If use_cond_selectivity <= 1 it contains the minimum rows of any
-    rowid filtering or records_init if no filter exists.
-   */
-  double records_after_filter;
-
-  /*
     Number of expected rows before applying the full WHERE clause. This
     includes rowid filter and table->cond_selectivity if
     use_cond_selectivity > 1. See matching_candidates_in_table().
@@ -1054,7 +1045,7 @@ public:
   double records_out;
 
   /* Values from prev_record_reads call for EQ_REF table*/
-  double        prev_record_reads, identical_keys;
+  double identical_keys;
 
   /* The selectivity of the pushed down conditions */
   double cond_selectivity;
@@ -1793,6 +1784,7 @@ public:
   int optimize();
   int optimize_inner();
   int optimize_stage2();
+  int optimize_stage2_and_finish();
   bool build_explain();
   int reinit();
   int init_execution();

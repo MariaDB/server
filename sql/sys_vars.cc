@@ -3009,7 +3009,7 @@ static Sys_var_ulong Sys_optimizer_selectivity_sampling_limit(
 static Sys_var_ulonglong Sys_optimizer_join_limit_pref_ratio(
        "optimizer_join_limit_pref_ratio",
        "For queries with JOIN and ORDER BY LIMIT : make the optimizer "
-       "consider a join order that allows to short-cut execution after "
+       "consider a join order that allows it to short-cut execution after "
        "producing #LIMIT matches if that promises N times speedup. "
        "(A conservative setting here would be is a high value, like 100 so "
        "the short-cutting plan is used if it promises a speedup of 100x or "
@@ -4174,8 +4174,9 @@ static Sys_var_set Sys_old_behavior(
 */
 static const char *new_mode_all_names[]=
 {
-  "FIX_DISK_TMPTABLE_COSTS",
-  "TEST_WARNING1",                       // Default from here, See NEW_MODE_MAX
+  "FIX_DISK_TMPTABLE_COSTS",        // Default from here, See NEW_MODE_MAX
+  "FIX_INDEX_STATS_FOR_ALL_NULLS",
+  "TEST_WARNING1",
   "TEST_WARNING2",
   0
 };
@@ -4183,9 +4184,10 @@ static const char *new_mode_all_names[]=
 static int new_mode_hidden_names[] =
 {
   0,  // FIX_DISK_TMPTABLE_COSTS
-  1,  // TEST_WARNING1
-  2,  // TEST_WARNING2
-  -1  // End of list
+  1,  // FIX_INDEX_STATS_FOR_ALL_NULLS
+  2,  // TEST_WARNING1
+  3,  // TEST_WARNING2
+  -1
 };
 
 /*

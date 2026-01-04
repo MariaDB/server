@@ -2045,7 +2045,14 @@ bool open_table(THD *thd, TABLE_LIST *table_list, Open_table_context *ot_ctx)
              table->query_id == 0))
         {
           int distance= ((int) table->reginfo.lock_type -
-                         (int) table_list->lock_type);
+                         (int) table_list->lock_type) * 2;
+          /*
+            if we need a table for inserting, make sure it has
+            its internal tables (a.k.a. sequences) ready
+          */
+          if (table->internal_tables &&
+              table_list->for_insert_data == !table->internal_tables->table)
+            distance|= 1;
 
           /*
             Find a table that either has the exact lock type requested,
@@ -3215,7 +3222,7 @@ static bool
 check_and_update_routine_version(THD *thd, Sroutine_hash_entry *rt,
                                  sp_head *sp)
 {
-  ulong spc_version= sp_cache_version();
+  ulong spc_version= thd->sp_cache_version();
   /* sp is NULL if there is no such routine. */
   ulong version= sp ? sp->sp_cache_version() : spc_version;
   /*
@@ -3225,7 +3232,7 @@ check_and_update_routine_version(THD *thd, Sroutine_hash_entry *rt,
     Sic: version != spc_version <--> sp is not NULL.
   */
   if (rt->m_sp_cache_version != version ||
-      (version != spc_version && !sp->is_invoked()))
+      (version < spc_version && !sp->is_invoked()))
   {
     if (thd->m_reprepare_observer &&
         thd->m_reprepare_observer->report_error(thd))
