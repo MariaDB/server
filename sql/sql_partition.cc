@@ -1572,7 +1572,21 @@ static bool check_vers_constants(THD *thd, partition_info *part_info)
     part_info->range_int_array[el->id]= el->range_value=
       my_tz_OFFSET0->TIME_to_gmt_sec(&ltime, &error);
     if (error)
-      goto err;
+    {
+      if (error == ER_WARN_DATA_OUT_OF_RANGE)
+      {
+        /* Partial interval partition must be last history partition */
+        if (el->id < hist_parts - 1)
+          goto err;
+        /* range_value is open endpoint (less than TIMESTAMP_MAX_VALUE) */
+        part_info->range_int_array[el->id]= el->range_value= TIMESTAMP_MAX_VALUE;
+        vers_info->hist_part= el;
+        el= it++;
+        break;
+      }
+      else
+        goto err;
+    }
     if (vers_info->hist_part->range_value <= thd->query_start())
       vers_info->hist_part= el;
   }
@@ -5426,6 +5440,7 @@ that are reorganised.
           partition_element *part_elem= alt_it++;
           if (*fast_alter_table)
             part_elem->part_state= PART_TO_BE_ADDED;
+          part_elem->id= tab_part_info->partitions.elements;
           if (unlikely(tab_part_info->partitions.push_back(part_elem,
                                                            thd->mem_root)))
             goto err;
