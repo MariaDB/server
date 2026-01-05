@@ -6839,5 +6839,14 @@ DROP VIEW v1;
 DROP TABLE t1, t2;
 
 --echo #
---echo # End of 10.6 tests
+--echo # MDEV-36888: Assertion `typeid(*copy) == typeid(*this)' in
+--echo # Item_func_or_sum::do_build_clone
 --echo #
+CREATE TABLE t (a INT default 1);
+INSERT INTO t VALUES (0),(2);
+CREATE ALGORITHM=TEMPTABLE VIEW v AS SELECT * FROM t;
+EXECUTE IMMEDIATE "SELECT * FROM v WHERE COERCIBILITY(VALUE(a)) > a";
+drop view v;
+drop table t;
+
+--echo # End of 10.6 tests

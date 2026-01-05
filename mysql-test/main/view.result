@@ -7076,5 +7076,15 @@ ERROR 22007: Truncated incorrect DECIMAL value: ''
 DROP VIEW v1;
 DROP TABLE t1, t2;
 #
-# End of 10.6 tests
+# MDEV-36888: Assertion `typeid(*copy) == typeid(*this)' in
+# Item_func_or_sum::do_build_clone
 #
+CREATE TABLE t (a INT default 1);
+INSERT INTO t VALUES (0),(2);
+CREATE ALGORITHM=TEMPTABLE VIEW v AS SELECT * FROM t;
+EXECUTE IMMEDIATE "SELECT * FROM v WHERE COERCIBILITY(VALUE(a)) > a";
+a
+0
+drop view v;
+drop table t;
+# End of 10.6 tests

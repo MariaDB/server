@@ -7201,6 +7201,8 @@ public:
   {
     return mark_unsupported_function("value()", arg, VCOL_IMPOSSIBLE);
   }
+  Item *do_get_copy(THD *thd) const override
+  { return get_item_copy<Item_insert_value>(thd, this); }
 };
 
 
