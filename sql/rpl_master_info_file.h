@@ -481,9 +481,9 @@ struct Master_info_file: Info_file
       overprecise= decimal.frac > 3;
       // decomposed from my_decimal2int() to reduce a bit of computations
       auto rounded= my_decimal(), product= my_decimal();
-      int unexpected_error=
-        decimal_round(&decimal, &rounded, 3, HALF_UP) |
-        decimal_mul(&rounded, &THOUSAND, &product) |
+      bool unexpected_error=
+        decimal_round(&decimal, &rounded, 3, HALF_UP) ||
+        decimal_mul(&rounded, &THOUSAND, &product) ||
         decimal2ulonglong(&product, &decimal_out);
       DBUG_ASSERT(!unexpected_error);
       result= static_cast<uint32_t>(decimal_out);
