@@ -518,3 +518,41 @@ DROP TABLE IF EXISTS tm, t;
 --echo #
 
 SET GLOBAL innodb_stats_persistent=@save_persistent;
+
+--echo #
+--echo # MDEV-23298 Assertion `table_list->prelocking_placeholder ==
+--echo # TABLE_LIST::PRELOCK_NONE' failed in check_lock_and_start_stmt on
+--echo # CREATE OR REPLACE TABLE
+--echo #
+
+#set @@session.drop_before_create_or_replace='ON';
+
+create table t2 (a int);
+insert into t2 values(1),(2);
+CREATE TABLE t1 (a INT);
+CREATE OR REPLACE TABLE t1 AS SELECT sys.format_statement('SELECT 1') AS q;
+drop table t1;
+CREATE TABLE t1 (a INT);
+CREATE OR REPLACE TABLE t1 AS SELECT sys.format_statement('SELECT 1') AS q, t2.a from t2;
+SELECT * from t1;
+drop table t1;
+CREATE TABLE t1 (a INT);
+lock table t1 write,t2 read, sys.sys_config read;
+CREATE OR REPLACE TABLE t1 AS SELECT sys.format_statement('SELECT 1') AS q, t2.a from t2;
+unlock tables;
+select * from t1;
+drop table t1,t2;
+
+CREATE FUNCTION f(z INT) RETURNS INT READS SQL DATA RETURN (SELECT * FROM t1);
+CREATE TABLE t1 (a INT) ENGINE=InnoDB;
+CREATE TEMPORARY TABLE t1 (c INT);
+CREATE OR REPLACE TABLE t1 AS SELECT f(1);
+drop temporary table t1;
+drop table t1;
+drop function f;
+
+#set @@session.drop_before_create_or_replace=default;
+
+--echo #
+--echo # End of 10.6 tests
+--echo #
