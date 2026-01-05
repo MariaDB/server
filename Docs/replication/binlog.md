@@ -134,9 +134,13 @@ These are the chunk types used:
 
 ## Not supported
 
-A few things are not supported with the new binlog implementation. Some of these should be supported in a later version of MariaDB.
+A few things are not supported with the new binlog implementation. Some of
+these should be supported in a later version of MariaDB. Some of these are
+legacy stuff that fundamentally works poorly or is otherwise undesirable,
+and are intentionally removed in the new binlog implementation.
 
 - Old-style filename/offset replication positions are not available with the new binlog. Slaves must be configured to use GTID (this is the default). Event offsets are generally reported as zero. `MASTER_POS_WAIT()` is not available, `MASTER_GTID_WAIT()` should be used instead. Similarly, `BINLOG_GTID_POS()` is not available.
+- Using savepoints inside triggers is not supported. This is because of bugs and inconsistencies like in MDEV38465. Now executing a `SAVEPOINT` or `ROLLBACK TO SAVEPOINT` statement in a trigger will consistently error and roll back the entire statement.
 - Semi-synchronous replication is not supported in the first version. It will be supported as normal eventually using the `AFTER_COMMIT` option. The `AFTER_SYNC` option cannot be supported, as the expensive two-phase commit between binlog and engine is no longer needed (`AFTER_SYNC` waits for slave acknowledgement in the middle of the two-phase commit). Likewise, `--init-rpl-role` is not supported.
 - The new binlog implementation cannot be used with Galera.
 - In the initial version, only InnoDB is available as an engine for the binlog (`--binlog-storage-engine=innodb`). It the future, other transactional storage engines could implement storing the binlog themselves (performance is best when the binlog is implemented in the same engine as the tables that are updated).
