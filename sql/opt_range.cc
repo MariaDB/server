@@ -3569,6 +3569,7 @@ bool calculate_cond_selectivity_for_table(THD *thd, TABLE *table, Item **cond)
 	  {
             uint fieldnr= key_info->key_part[0].fieldnr;
             table->field[fieldnr-1]->cond_selectivity= quick_cond_selectivity;
+            mark_field_keyparts_as_selective(thd, table->field[fieldnr-1]);
             if (i != used_key_parts)
 	      table->field[fieldnr-1]->cond_selectivity*= selectivity_mult;
             bitmap_clear_bit(used_fields, fieldnr-1);
@@ -3686,6 +3687,8 @@ bool calculate_cond_selectivity_for_table(THD *thd, TABLE *table, Item **cond)
               selectivity_for_column.add("selectivity_from_histogram",
                                          key->field->cond_selectivity);
             }
+
+            mark_field_keyparts_as_selective(thd, key->field);
           }
         }
       }
@@ -7687,6 +7690,16 @@ static TRP_RANGE *get_key_scans_params(PARAM *param, SEL_TREE *tree,
       }
     }
   }
+
+  /*
+    TODO: when for_range_access==true, we could recompute access costs here
+    to take into account ICP condition selectivity. This could be done as
+    follows:
+    - Compute histogram-based selectivities (like it's done in
+      calculate_cond_selectivity_for_table(), move that call to be here?)
+    - Use table->opt_range[keynr] members cost and index_only_cost to compute
+      the cost with ICP selectivity (like it's done in adjust_quick_cost())
+  */
 
   DBUG_EXECUTE("info", print_sel_tree(param, tree, &tree->ror_scans_map,
                                       "ROR scans"););

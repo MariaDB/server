@@ -7873,9 +7873,13 @@ inline double use_found_constraint(double records)
   multi_range_read_info_const() adds a very small cost per range
   (IDX_LOOKUP_COST) and also MULTI_RANGE_READ_SETUP_COST, to ensure that
   'ref' is preferred slightly over ranges.
+
+  Also, we account for ICP selectivity (in the same way as
+  adjust_quick_cost() does)
 */
 
-double cost_for_index_read(const THD *thd, const TABLE *table, uint key,
+double cost_for_index_read(THD *thd, const TABLE *table, uint key,
+                           uint key_parts,
                            ha_rows records, ha_rows worst_seeks)
 {
   DBUG_ENTER("cost_for_index_read");
@@ -7890,8 +7894,20 @@ double cost_for_index_read(const THD *thd, const TABLE *table, uint key,
     cost= file->keyread_time(key, 1, records);
   else
   {
+    /*
+      Get the ICP selectivity. It affects the time spent to read full table
+      rows.
+    */
+    double icp_sel= get_icp_selectivity(table, key, key_parts);
+    if (icp_sel < 1.0)
+    {
+      /* Assume optimizer trace is writing a JSON object and add member: */
+      Json_writer_object trace(thd, "icp_selectivity");
+      trace.add("sel", icp_sel);
+    }
+
     cost= ((file->keyread_time(key, 0, records) +
-            file->read_time(key, 1, MY_MIN(records, worst_seeks))));
+            icp_sel * file->read_time(key, 1, MY_MIN(records, worst_seeks))));
     if ((thd->variables.optimizer_adjust_secondary_key_costs &
          OPTIMIZER_ADJ_SEC_KEY_COST) &&
         file->is_clustering_key(0))
@@ -7926,14 +7942,42 @@ double cost_for_index_read(const THD *thd, const TABLE *table, uint key,
   Preferably we should fix so that all costs are comparably.
   (All compared costs should include TIME_FOR_COMPARE for all found
   rows).
+
+  Also, account for selectivity of pushed index condition.
 */
 
-double adjust_quick_cost(double quick_cost, ha_rows records)
+void adjust_quick_cost(TABLE *table, uint key,
+                       double *full_cost, double *keyread_cost)
 {
-  double cost= (quick_cost - MULTI_RANGE_READ_SETUP_COST -
-                rows2double(records)/TIME_FOR_COMPARE);
+  TABLE::OPT_RANGE *opt_range= &table->opt_range[key];
+  double index_only_cost= opt_range->index_only_cost;
+  double cost;
+
+  cost= (opt_range->cost - MULTI_RANGE_READ_SETUP_COST -
+                rows2double(opt_range->rows)/TIME_FOR_COMPARE);
   DBUG_ASSERT(cost > 0.0);
-  return cost;
+
+  /* This should hold, checking for extra safety: */
+  if (cost > index_only_cost)
+  {
+    double icp_sel= get_icp_selectivity(table, key, opt_range->key_parts);
+    if (icp_sel < 1.0)
+    {
+      /*
+        Selective ICP condition reduces the cost spent reading full rows:
+      */
+      cost= index_only_cost + (cost - index_only_cost) * icp_sel;
+
+      /*
+        Assume we're currently writing an object to optimizer trace and add a
+        named member:
+      */
+      Json_writer_object trace(table->in_use, "icp_selectivity");
+      trace.add("sel", icp_sel);
+    }
+  }
+  *full_cost= cost;
+  *keyread_cost= index_only_cost;
 }
 
 
@@ -8318,7 +8362,10 @@ best_access_path(JOIN      *join,
                             .add("index", keyinfo->name);
 
             if (!found_ref && table->opt_range_keys.is_set(key))
-              tmp= adjust_quick_cost(table->opt_range[key].cost, 1);
+            {
+              DBUG_ASSERT(table->opt_range[key].rows == 1);
+              adjust_quick_cost(table, key, &tmp, &keyread_tmp);
+            }
             else
               tmp= table->file->avg_io_cost();
             tmp*= prev_record_reads(join_positions, idx,
@@ -8353,11 +8400,7 @@ best_access_path(JOIN      *join,
               {
                 records= (double) table->opt_range[key].rows;
                 trace_access_idx.add("used_range_estimates", true);
-                tmp= adjust_quick_cost(table->opt_range[key].cost,
-                                       table->opt_range[key].rows);
-                keyread_tmp= table->file->keyread_time(key, 1,
-                                                       table->opt_range[key].
-                                                       rows);
+                adjust_quick_cost(table, key, &tmp, &keyread_tmp);
                 goto got_cost;
               }
               else
@@ -8415,7 +8458,7 @@ best_access_path(JOIN      *join,
               }
             }
             /* Limit the number of matched rows */
-            tmp= cost_for_index_read(thd, table, key, (ha_rows) records,
+            tmp= cost_for_index_read(thd, table, key, found_part, (ha_rows) records,
                                      (ha_rows) s->worst_seeks);
             records_for_key= (ha_rows) records;
             set_if_smaller(records_for_key, thd->variables.max_seeks_for_key);
@@ -8497,8 +8540,7 @@ best_access_path(JOIN      *join,
                 table->opt_range[key].ranges == 1 + MY_TEST(ref_or_null_part)) //(C3)
             {
               records= (double) table->opt_range[key].rows;
-              tmp= adjust_quick_cost(table->opt_range[key].cost,
-                                     table->opt_range[key].rows);
+              adjust_quick_cost(table, key, &tmp, &keyread_tmp);
               trace_access_idx.add("used_range_estimates", true);
               goto got_cost2;
             }
@@ -8620,7 +8662,7 @@ best_access_path(JOIN      *join,
             }
 
             /* Limit the number of matched rows */
-            tmp= cost_for_index_read(thd, table, key, (ha_rows) records,
+            tmp= cost_for_index_read(thd, table, key, found_part, (ha_rows) records,
                                      (ha_rows) s->worst_seeks);
             records_for_key= (ha_rows) records;
             set_if_smaller(records_for_key, thd->variables.max_seeks_for_key);
@@ -8954,9 +8996,13 @@ best_access_path(JOIN      *join,
         access (see first else-branch below), but we don't take it into 
         account here for range/index_merge access. Find out why this is so.
       */
+
       double cmp_time= (s->found_records - rnd_records) / TIME_FOR_COMPARE;
+
+      double quick_read_time= get_quick_cost_with_icp(thd, s->quick);
+
       tmp= COST_MULT(record_count,
-                     COST_ADD(s->quick->read_time, cmp_time));
+                     COST_ADD(quick_read_time, cmp_time));
 
       if ( s->quick->get_type() == QUICK_SELECT_I::QS_TYPE_RANGE)
       {
@@ -12090,6 +12136,7 @@ static bool create_hj_key_for_table(JOIN *join, JOIN_TAB *join_tab,
   keyinfo->name.str= "$hj";
   keyinfo->name.length= 3;
   keyinfo->rec_per_key= (ulong*) thd->calloc(sizeof(ulong)*key_parts);
+  keyinfo->selective_key_parts= 0;
   if (!keyinfo->rec_per_key)
     DBUG_RETURN(TRUE);
   keyinfo->key_part= key_part_info;
@@ -20619,6 +20666,7 @@ bool Create_tmp_table::finalize(THD *thd,
     keyinfo->algorithm= HA_KEY_ALG_UNDEF;
     keyinfo->is_statistics_from_stat_tables= FALSE;
     keyinfo->name= group_key;
+    keyinfo->selective_key_parts= 0;
     ORDER *cur_group= m_group;
     for (; cur_group ; cur_group= cur_group->next, m_key_part_info++)
     {
@@ -20736,6 +20784,7 @@ bool Create_tmp_table::finalize(THD *thd,
     keyinfo->is_statistics_from_stat_tables= FALSE;
     keyinfo->read_stats= NULL;
     keyinfo->collected_stats= NULL;
+    keyinfo->selective_key_parts= 0;
 
     /*
       Needed by non-merged semi-joins: SJ-Materialized table must have a valid 
@@ -30725,6 +30774,7 @@ static bool get_range_limit_read_cost(const JOIN_TAB *tab,
         if (ref_rows > 0)
         {
           double tmp= cost_for_index_read(tab->join->thd, table, keynr,
+                                          PREV_BITS(key_part_map, kp),
                                           ref_rows,
                                           (ha_rows) tab->worst_seeks);
           if (tmp < best_cost)
@@ -31129,7 +31179,7 @@ test_if_cheaper_ordering(bool in_join_optimizer,
             thd->variables.optimizer_adjust_secondary_key_costs|=
                 OPTIMIZER_ADJ_SEC_KEY_COST | OPTIMIZER_ADJ_DISABLE_MAX_SEEKS;
 
-            index_scan_time= cost_for_index_read(thd, table, nr,
+            index_scan_time= cost_for_index_read(thd, table, nr, 0,
                                                  table_records, HA_ROWS_MAX);
             index_scan_time+= rows2double(table_records) / TIME_FOR_COMPARE;
             thd->variables.optimizer_adjust_secondary_key_costs= save;

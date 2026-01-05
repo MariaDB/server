@@ -1328,6 +1328,55 @@ DROP TABLE t1;
 
 --echo # End of 10.2 tests
 
+--echo #
+--echo # MENT-2045: Optimizer not choosing optimal index due to unknown ICP selectivity
+--echo #
+create table t0 (a int);
+insert into t0 select seq from seq_1_to_100;
+
+create table t1 (
+  col1 int,
+  col2 int,
+  col3 int,
+  col4 int,
+  col5 int,
+  filler1 char(100),
+  INDEX idx1(col1, col3, col4, col5),
+  INDEX idx2(col1, col2)
+);
+
+
+insert into t1 select
+  seq/100,
+  seq,
+  seq,seq,seq,
+  uuid()
+from seq_1_to_10000;
+analyze table t0, t1;
+
+delete from mysql.column_stats where db_name=database() and table_name='t1';
+flush tables;
+
+--echo # This will use idx2, as idx2 is shorter:
+explain extended
+select * from
+  t0,
+  t1
+where
+  t1.col1 = t0.a and t1.col3< 2000;
+
+analyze table t1 persistent for columns (col3) indexes ();
+--echo # This will use idx1 and "Using index condition", NOT idx2:
+explain extended
+select * from
+  t0,
+  t1
+where
+  t1.col1 = t0.a and t1.col3< 2000;
+
+
+drop table t0, t1;
+
 
 #
 # Clean up

@@ -4794,6 +4794,7 @@ SJ_TMP_TABLE::create_sj_weedout_tmp_table(THD *thd)
     keyinfo->usable_key_parts= keyinfo->user_defined_key_parts= 1;
     keyinfo->key_length=0;
     keyinfo->rec_per_key=0;
+    keyinfo->selective_key_parts= 0;
     keyinfo->algorithm= HA_KEY_ALG_UNDEF;
     keyinfo->name= weedout_key;
     {

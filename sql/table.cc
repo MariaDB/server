@@ -8526,6 +8526,7 @@ bool TABLE::add_tmp_key(uint key, uint key_parts,
   bzero(keyinfo->rec_per_key, sizeof(ulong)*key_parts);
   keyinfo->read_stats= NULL;
   keyinfo->collected_stats= NULL;
+  keyinfo->selective_key_parts= 0;
 
   for (i= 0; i < key_parts; i++)
   {

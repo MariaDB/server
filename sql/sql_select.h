@@ -2587,5 +2587,11 @@ void propagate_new_equalities(THD *thd, Item *cond,
 
 #define PREV_BITS(type, N_BITS) ((type)my_set_bits(N_BITS))
 
+void mark_field_keyparts_as_selective(THD *thd, Field *field);
+
+double get_icp_selectivity(const TABLE *table, uint key,
+                           key_part_map used_key_parts);
+
+double get_quick_cost_with_icp(THD *thd, QUICK_SELECT_I *quick);
 
 #endif /* SQL_SELECT_INCLUDED */

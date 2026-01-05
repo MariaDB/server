@@ -159,6 +159,12 @@ typedef struct st_key {
     is collected by the function collect_statistics_for_table
   */
   Index_statistics *collected_stats;
+
+  /*
+    Bitmap of key parts for which selectivity data is available, that is,
+    key_part->field->cond_selectivity < 1.0
+  */
+  key_part_map selective_key_parts;
  
   TABLE *table;
   LEX_CSTRING comment;

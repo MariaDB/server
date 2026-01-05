@@ -17,6 +17,7 @@
 #include "mariadb.h"
 #include "sql_select.h"
 #include "sql_test.h"
+#include "my_json_writer.h"
 
 /****************************************************************************
  * Index Condition Pushdown code starts
@@ -439,4 +440,107 @@ void push_index_cond(JOIN_TAB *tab, uint keyno)
   DBUG_VOID_RETURN;
 }
 
+
+/*
+  @brief
+    Given a field, set its bit in key_info[...]->selective_key_parts for
+    every index it is part of that could use Index Condition Pushdown.
+
+  @detail
+    This is preparation to account for selectivity of Pushed Index Condition
+*/
+
+void mark_field_keyparts_as_selective(THD *thd, Field *field)
+{
+  if (!optimizer_flag(thd, OPTIMIZER_SWITCH_INDEX_COND_PUSHDOWN))
+    return;
+
+  key_map::Iterator it(field->part_of_key_not_clustered);
+  uint keynr;
+  while ((keynr= it++) != it.BITMAP_END)
+  {
+    KEY *key= &field->table->key_info[keynr];
+
+    if (!(field->table->file->index_flags(keynr, 0, 1) &
+          HA_DO_INDEX_COND_PUSHDOWN))
+      continue;
+
+    // Find the key part
+    for (uint kp=0; kp < key->user_defined_key_parts; kp++)
+    {
+      if (key->key_part[kp].field == field)
+      {
+        key->selective_key_parts |= key_part_map(1) << kp;
+        break;
+      }
+    }
+  }
+}
+
+
+/*
+  Get selectivity of ICP condition if one does a ref access on a given
+  index using given number of key_parts.
+
+  @param key             Index to be used
+  @param used_key_parts  Key parts to be used for ref access,
+                         0 means full index scan will be used (and so,no ICP)
+*/
+
+double get_icp_selectivity(const TABLE *table, uint key,
+                           key_part_map used_key_parts)
+{
+  if (!used_key_parts)
+    return 1.0; // Full index scan and no ICP.
+
+  key_part_map sel_parts= (table->key_info[key].selective_key_parts &
+                           ~used_key_parts);
+  if (!sel_parts)
+    return 1.0; // No selectivity on ICP fields
+
+  Table_map_iterator it(sel_parts);
+  uint part;
+  double min_sel= 1.0;
+  KEY *key_info= &table->key_info[key];
+
+  /* Be conservative and pick the most selective estimate */
+  while ((part= it.next_bit()) != it.BITMAP_END)
+  {
+    Field *field= table->field[key_info->key_part[part].field->field_index];
+    if (field->cond_selectivity < min_sel)
+      min_sel= field->cond_selectivity;
+  }
+  return min_sel;
+}
+
+
+/*
+  @brief
+    Get the quick select cost accounting for ICP condition selectivity
+*/
+
+double get_quick_cost_with_icp(THD *thd, QUICK_SELECT_I *quick)
+{
+  double quick_cost= quick->read_time;
+
+  /* QUICK_RANGE_SELECT can used ICP, other quick selects cannot */
+  if (quick->get_type() == QUICK_SELECT_I::QS_TYPE_RANGE)
+  {
+    /* This call will return 1.0 if ICP is not applicable for some reason */
+    double icp_sel= get_icp_selectivity(quick->head, quick->index,
+                                        quick->used_key_parts);
+    if (icp_sel < 1.0)
+    {
+      // Ok ICP is applicable and it is expected to be selective
+      double quick_index_cost=
+          quick->head->opt_range[quick->index].index_only_cost;
+      double quick_row_cost= quick_cost - quick_index_cost;
+      quick_cost= quick_index_cost + quick_row_cost * icp_sel;
+
+      Json_writer_object trace(thd, "icp_selectivity");
+      trace.add("sel", icp_sel);
+    }
+  }
+  return quick_cost;
+}
 

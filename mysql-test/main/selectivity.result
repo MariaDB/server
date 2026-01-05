@@ -1962,6 +1962,64 @@ Warnings:
 Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = 2
 DROP TABLE t1;
 # End of 10.2 tests
+#
+# MENT-2045: Optimizer not choosing optimal index due to unknown ICP selectivity
+#
+create table t0 (a int);
+insert into t0 select seq from seq_1_to_100;
+create table t1 (
+col1 int,
+col2 int,
+col3 int,
+col4 int,
+col5 int,
+filler1 char(100),
+INDEX idx1(col1, col3, col4, col5),
+INDEX idx2(col1, col2)
+);
+insert into t1 select
+seq/100,
+seq,
+seq,seq,seq,
+uuid()
+from seq_1_to_10000;
+analyze table t0, t1;
+Table	Op	Msg_type	Msg_text
+test.t0	analyze	status	Engine-independent statistics collected
+test.t0	analyze	status	OK
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	Table is already up to date
+delete from mysql.column_stats where db_name=database() and table_name='t1';
+flush tables;
+# This will use idx2, as idx2 is shorter:
+explain extended
+select * from
+t0,
+t1
+where
+t1.col1 = t0.a and t1.col3< 2000;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t0	ALL	NULL	NULL	NULL	NULL	100	100.00	Using where
+1	SIMPLE	t1	ref	idx1,idx2	idx2	5	test.t0.a	99	100.00	Using where
+Warnings:
+Note	1003	select `test`.`t0`.`a` AS `a`,`test`.`t1`.`col1` AS `col1`,`test`.`t1`.`col2` AS `col2`,`test`.`t1`.`col3` AS `col3`,`test`.`t1`.`col4` AS `col4`,`test`.`t1`.`col5` AS `col5`,`test`.`t1`.`filler1` AS `filler1` from `test`.`t0` join `test`.`t1` where `test`.`t1`.`col1` = `test`.`t0`.`a` and `test`.`t1`.`col3` < 2000
+analyze table t1 persistent for columns (col3) indexes ();
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	Table is already up to date
+# This will use idx1 and "Using index condition", NOT idx2:
+explain extended
+select * from
+t0,
+t1
+where
+t1.col1 = t0.a and t1.col3< 2000;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t0	ALL	NULL	NULL	NULL	NULL	100	100.00	Using where
+1	SIMPLE	t1	ref	idx1,idx2	idx1	5	test.t0.a	99	19.99	Using index condition
+Warnings:
+Note	1003	select `test`.`t0`.`a` AS `a`,`test`.`t1`.`col1` AS `col1`,`test`.`t1`.`col2` AS `col2`,`test`.`t1`.`col3` AS `col3`,`test`.`t1`.`col4` AS `col4`,`test`.`t1`.`col5` AS `col5`,`test`.`t1`.`filler1` AS `filler1` from `test`.`t0` join `test`.`t1` where `test`.`t1`.`col1` = `test`.`t0`.`a` and `test`.`t1`.`col3` < 2000
+drop table t0, t1;
 set optimizer_use_condition_selectivity= @save_optimizer_use_condition_selectivity;
 set histogram_size=@save_histogram_size;
 set use_stat_tables= @save_use_stat_tables;
