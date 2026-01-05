@@ -14289,6 +14289,38 @@ cost_group_min_max(TABLE* table, KEY *index_info, uint used_key_parts,
                    double *read_cost, ha_rows *records);
 
 
+/*
+  @brief
+    Check if index keynr is clustered and the query only uses its explicitly
+    defined parts.
+
+  @detail
+    Clustered PK indexes are not present in table->covering_keys (one can say
+    a clustered index is always covering as it has all table's fields in it).
+    This function checks if the set of columns in the index definition
+    PRIMARY KEY(col1, ... colN) is covering for the quey.
+*/
+
+static bool index_is_clustered_covering(const TABLE *table, uint keynr)
+{
+  if (!table->file->is_clustering_key(keynr))
+    return false;
+
+  /*
+    Check that all fields used by the query are explicitly present
+    in the index.
+  */
+  for (uint i= bitmap_get_first_set(table->read_set);
+       i != MY_BIT_NONE;
+       i= bitmap_get_next_set(table->read_set, i))
+  {
+    if (!table->field[i]->part_of_key.is_set(keynr))
+      return false;
+  }
+  return true;
+}
+
+
 /**
   Test if this access method is applicable to a GROUP query with MIN/MAX
   functions, and if so, construct a new TRP object.
@@ -14644,7 +14676,8 @@ get_best_group_min_max(PARAM *param, SEL_TREE *tree, double read_time)
       (was also: "Exclude UNIQUE indexes ..." but this was removed because 
       there are cases Loose Scan over a multi-part index is useful).
     */
-    if (!table->covering_keys.is_set(cur_index) ||
+    if ((!table->covering_keys.is_set(cur_index) &&
+         !index_is_clustered_covering(table, cur_index)) ||
         !table->keys_in_use_for_group_by.is_set(cur_index))
     {
       cause= "not covering";

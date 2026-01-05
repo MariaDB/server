@@ -157,6 +157,12 @@ typedef struct st_key {
   ulong *rec_per_key;
 
   /*
+    Average space index tuple takes on disk, according to the engine's
+    statistics. 0 if statistics is not available.
+  */
+  size_t stat_storage_length;
+
+  /*
     This structure is used for statistical data on the index
     that has been read from the statistical table index_stat
   */ 

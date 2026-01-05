@@ -391,3 +391,26 @@ partitio values in (2, 3, 4),
 pn values in (52, 53, 54));
 drop table t1;
 # End of 10.7 tests
+#
+# MDEV-35562 On partitionen tables algorithm is not supported
+# throw "no such file or directory" error
+#
+CREATE TABLE t1par (
+f1 datetime ,
+f2 VARCHAR(2) ,
+f3 VARCHAR(200) NOT NULL ,
+f4 VARCHAR(100) charset utf8
+)
+PARTITION BY RANGE COLUMNS(f2)
+(
+PARTITION p_01 VALUES LESS THAN ('02') ENGINE = InnoDB,
+PARTITION p_31 VALUES LESS THAN (MAXVALUE) ENGINE = InnoDB
+);
+ALTER online TABLE t1par   MODIFY COLUMN f3 VARCHAR(201) NULL , LOCK=NONE,
+ALGORITHM=NOCOPY;
+ERROR 0A000: ALGORITHM=NOCOPY is not supported for this operation. Try ALGORITHM=INPLACE
+show warnings;
+Level	Code	Message
+Error	1845	ALGORITHM=NOCOPY is not supported for this operation. Try ALGORITHM=INPLACE
+drop table t1par;
+# End of 10.11 tests

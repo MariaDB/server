@@ -1,0 +1,18 @@
+include/master-slave.inc
+[connection master]
+connection slave;
+INSTALL SONAME 'ha_spider';
+connection master;
+CREATE TABLE t (a INT) ENGINE=InnoDB;
+XA START 'x';
+INSERT INTO t VALUES (1),(2);
+XA END 'x';
+XA PREPARE 'x';
+XA COMMIT 'x';
+connection slave;
+connection master;
+DROP TABLE t;
+connection slave;
+Warnings:
+Warning	1620	Plugin is busy and will be uninstalled on shutdown
+include/rpl_end.inc

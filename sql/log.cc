@@ -96,7 +96,6 @@ static int binlog_close_connection(THD *thd);
 static int binlog_savepoint_set(THD *thd, void *sv);
 static int binlog_savepoint_rollback(THD *thd, void *sv);
 static bool binlog_savepoint_rollback_can_release_mdl(THD *thd);
-static int binlog_rollback(THD *thd, bool all);
 static int binlog_prepare(THD *thd, bool all);
 static int binlog_start_consistent_snapshot(THD *thd);
 static int binlog_flush_cache(THD *thd, binlog_cache_mngr *cache_mngr,
@@ -2470,14 +2469,13 @@ int binlog_commit(THD *thd, bool all, bool ro_1pc)
 /**
   This function is called when a transaction or a statement is rolled back.
 
-  @param hton  The binlog handlerton.
   @param thd   The client thread that executes the transaction.
   @param all   This is @c true if this is a real transaction rollback, and
                @false otherwise.
 
   @see handlerton::rollback
 */
-static int binlog_rollback(THD *thd, bool all)
+int binlog_rollback(THD *thd, bool all)
 {
   DBUG_ENTER("binlog_rollback");
 
@@ -9035,6 +9033,7 @@ end:
 inline bool
 MYSQL_BIN_LOG::write_transaction_to_binlog_events(group_commit_entry *entry)
 {
+  DEBUG_SYNC(entry->thd, "before_group_commit_queue");
   if (unlikely(binlog_commit_by_rotate.should_commit_by_rotate(entry)))
   {
     if (binlog_commit_by_rotate.commit(entry))

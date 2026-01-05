@@ -6810,12 +6810,12 @@ wsrep_store_key_val_for_row(
 						 wsrep_thd_query(thd));
 					true_len = buff_space;
 				}
+				memcpy(buff, normalized, true_len);
 				buff       += true_len;
 				buff_space -= true_len;
 			} else {
 				buff += key_len;
 			}
-			memcpy(buff, normalized, true_len);
 		} else {
 			/* Here we handle all other data types except the
 			true VARCHAR, BLOB and TEXT. Note that the column
@@ -15011,6 +15011,30 @@ stats_fetch:
 			}
 
 			KEY*	key = &table->key_info[i];
+			/*
+			  Provide statistics about how many bytes an index record takes on disk,
+			  on average.
+			*/
+			if (ib_table->stat_n_rows
+			    && key->algorithm != HA_KEY_ALG_FULLTEXT
+			    && key->algorithm != HA_KEY_ALG_RTREE) {
+				/*
+				  Start with total space used by the index divided by number of rows
+				*/
+				key->stat_storage_length = (size_t) ((index->stat_index_size * srv_page_size) /
+					ib_table->stat_n_rows);
+
+				/*
+					The above can be too large
+					A) in case of tables with very few rows
+					B) in case of indexes with partially full pages.
+					So, clip the above estimate by a conservative estimate we've used
+					before:
+				*/
+				size_t conservative_estimate = table->key_storage_length_from_ddl(i);
+				if (key->stat_storage_length > conservative_estimate)
+					key->stat_storage_length = conservative_estimate;
+			}
 
 			for (j = 0; j < key->ext_key_parts; j++) {
 

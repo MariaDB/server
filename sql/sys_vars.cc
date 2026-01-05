@@ -4114,6 +4114,7 @@ static const char *new_mode_all_names[]=
 {
   "FIX_DISK_TMPTABLE_COSTS",
   "FIX_INDEX_STATS_FOR_ALL_NULLS",
+  "FIX_INDEX_LOOKUP_COST",
   "TEST_WARNING1",                       // Default from here, See NEW_MODE_MAX
   "TEST_WARNING2",
   0

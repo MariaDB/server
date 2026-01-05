@@ -1507,6 +1507,7 @@ const char *
 get_gtid_list_event(IO_CACHE *cache, Gtid_list_log_event **out_gtid_list);
 
 int binlog_commit(THD *thd, bool all, bool is_ro_1pc= false);
+int binlog_rollback(THD *thd, bool all);
 int binlog_commit_by_xid(XID *xid);
 int binlog_rollback_by_xid(XID *xid);
 bool write_bin_log_start_alter(THD *thd, bool& partial_alter,
