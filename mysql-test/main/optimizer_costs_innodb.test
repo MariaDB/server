@@ -1,0 +1,44 @@
+--source include/have_innodb.inc
+--source include/have_sequence.inc
+
+--echo #
+--echo # MDEV-38164: Poor cost calculations for index access cause bad query plans for big VARCHARs in 11.x
+--echo #
+create table t1 (
+  pk1 int not null,
+  pk2 int not null,
+  filler1 varchar(500),
+  filler2 varchar(500),
+  filler3 varchar(500),
+  filler4 varchar(500),
+  filler5 varchar(500),
+  filler6 varchar(500),
+  filler7 varchar(500),
+  filler8 varchar(500),
+  filler9 varchar(500),
+  fillerA varchar(500),
+  fillerB varchar(500),
+  fillerC varchar(500),
+  fillerD varchar(500),
+  fillerE varchar(500),
+  fillerF varchar(500),
+  primary key(pk1, pk2)
+) collate utf8mb4_general_ci engine=innodb;
+
+insert into t1 (pk1, pk2) select
+  mod(seq, 8), seq
+from
+  seq_1_to_10000;
+analyze table t1;
+
+--echo # Before the fix: this will use full table scan:
+--replace_column 8 #
+explain select * from t1 where pk1=1;
+
+set @save_new_mode=@@new_mode;
+set new_mode=concat(@@new_mode,'FIX_INDEX_LOOKUP_COST');
+--replace_column 8 #
+explain select * from t1 where pk1=1;
+
+set new_mode=@save_new_mode;
+drop table t1;

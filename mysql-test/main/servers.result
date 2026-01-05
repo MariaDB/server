@@ -95,6 +95,7 @@ FLUSH PRIVILEGES;
 ALTER TABLE mysql.servers ENGINE=Aria;
 FLUSH PRIVILEGES;
 drop server s1;
+ALTER TABLE mysql.servers ENGINE=Aria;
 #
 # MDEV-35622 SEGV, ASAN use-after-poison when reading system table with less than expected number of columns
 # MDEV-37777 upgrade from MySQL 5.7 regression, mysql.servers invalid structure

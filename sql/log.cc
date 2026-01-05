@@ -96,7 +96,6 @@ static int binlog_close_connection(THD *thd);
 static int binlog_savepoint_set(THD *thd, void *sv);
 static int binlog_savepoint_rollback(THD *thd, void *sv);
 static bool binlog_savepoint_rollback_can_release_mdl(THD *thd);
-static int binlog_rollback(THD *thd, bool all);
 static int binlog_prepare(THD *thd, bool all);
 static int binlog_start_consistent_snapshot(THD *thd);
 static int binlog_flush_cache(THD *thd, binlog_cache_mngr *cache_mngr,
@@ -2477,7 +2476,7 @@ int binlog_commit(THD *thd, bool all, bool ro_1pc)
 
   @see handlerton::rollback
 */
-static int binlog_rollback(THD *thd, bool all)
+int binlog_rollback(THD *thd, bool all)
 {
   DBUG_ENTER("binlog_rollback");
 
@@ -9053,6 +9052,7 @@ MYSQL_BIN_LOG::write_transaction_to_binlog_events(group_commit_entry *entry)
 bool
 MYSQL_BIN_LOG::write_transaction_with_group_commit(group_commit_entry *entry)
 {
+  DEBUG_SYNC(entry->thd, "before_group_commit_queue");
   int is_leader= queue_for_group_commit(entry);
 
 #ifdef WITH_WSREP

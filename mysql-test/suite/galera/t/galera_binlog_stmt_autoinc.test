@@ -48,8 +48,17 @@ insert into t1(i) values(null), (null), (null);
 
 select * from t1 order by i;
 
+# Ensure both appliers have some work to perform in parallel.
+# This way we can see they both have proper isolation level set.
+insert into t1(i) values(null);
+insert into t1(i) values(null);
+insert into t1(i) values(null);
+insert into t1(i) values(null);
+
+select * from t1 order by i;
+
 --connection node_2
---let $wait_condition = SELECT COUNT(*) = 4 FROM t1;
+--let $wait_condition = SELECT COUNT(*) = 8 FROM t1;
 --source include/wait_condition.inc
 show variables like 'auto_increment%';
 select * from t1 order by i;

@@ -32,7 +32,7 @@ ERROR 42000: Variable 'new_mode' can't be set to the value of 'TEST_WARNING3'
 SET @@session.new_mode = "ALL";
 select @@session.new_mode;
 @@session.new_mode
-FIX_DISK_TMPTABLE_COSTS,FIX_INDEX_STATS_FOR_ALL_NULLS
+FIX_DISK_TMPTABLE_COSTS,FIX_INDEX_STATS_FOR_ALL_NULLS,FIX_INDEX_LOOKUP_COST
 SET @@global.new_mode = NULL;
 ERROR 42000: Variable 'new_mode' can't be set to the value of 'NULL'
 SET @@global.new_mode = '';

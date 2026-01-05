@@ -22956,7 +22956,42 @@ static void test_cache_metadata()
   mysql_stmt_close(stmt);
 }
 
-void test_mdev_10075()
+static void test_mdev_38242()
+{
+  MYSQL_STMT *stmt;
+  int        rc;
+  MYSQL_BIND param[2];
+  int val1=117440769, val2;
+  my_bool null1=0, null2=1;
+
+  myheader("test_mdev_38242");
+
+  stmt= mysql_stmt_init(mysql);
+  check_stmt(stmt);
+
+  rc= mysql_stmt_prepare(stmt, STRING_WITH_LEN("SELECT 1 WHERE ?=0 AND ?=0"));
+  check_execute(stmt, rc);
+
+  bzero(param, sizeof(param));
+
+  param[0].buffer= &val1;
+  param[0].buffer_type= MYSQL_TYPE_LONG;
+  param[0].is_null= &null1;
+  param[1].buffer= &val2;
+  param[1].buffer_type= MYSQL_TYPE_LONG;
+  param[1].is_null= &null2;
+
+  rc= mysql_stmt_bind_param(stmt, param);
+  check_execute(stmt, rc);
+
+  stmt->send_types_to_server= 0;
+  rc= mysql_stmt_execute(stmt);
+  check_execute_r(stmt, rc);
+  mysql_stmt_close(stmt);
+}
+
+
+static void test_mdev_10075()
 {
   MYSQL_STMT *stmt;
   int        rc;
@@ -23482,6 +23517,7 @@ static struct my_tests_st my_tests[]= {
   { "test_connect_autocommit", test_connect_autocommit},
   { "test_execute_direct", test_execute_direct },
   { "test_cache_metadata", test_cache_metadata},
+  { "test_mdev_38242", test_mdev_38242 },
 #ifndef EMBEDDED_LIBRARY
   { "test_mdev_24411", test_mdev_24411},
   { "test_mdev_34718_bu", test_mdev_34718_bu },

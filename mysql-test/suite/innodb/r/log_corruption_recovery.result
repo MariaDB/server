@@ -5,7 +5,7 @@ call mtr.add_suppression("InnoDB: OPT_PAGE_CHECKSUM mismatch on \\[page id: spac
 call mtr.add_suppression("InnoDB: Set innodb_force_recovery=1");
 call mtr.add_suppression("InnoDB: Cannot apply log to \\[page id: space=127, page number=0\\] of corrupted file '.*test/t\\.ibd");
 call mtr.add_suppression("(InnoDB: Plugin|Plugin 'InnoDB')");
-call mtr.add_suppression("InnoDB: Page .* Current system log sequence number 123(38|54)\\.");
+call mtr.add_suppression("InnoDB: Page .* Current system log sequence number 12(3(38|54|70|86)|4(02|18|34|50|66|82|98))");
 SET GLOBAL innodb_fast_shutdown=0;
 # restart
 SELECT * FROM INFORMATION_SCHEMA.ENGINES
