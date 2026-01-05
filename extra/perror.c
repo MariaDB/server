@@ -358,7 +358,7 @@ int main(int argc,char *argv[])
           printf("MariaDB error code %3d (%s): %s\n"
                  "Learn more: https://mariadb.com/docs/server/reference/"
                  "error-codes/mariadb-error-codes-%d00-to-%d99/e%3d\n",
-                  code, name, msg, hundred, hundred, code);
+                 code, name, msg, hundred, hundred, code);
         }
         else
           puts(msg);
