@@ -6,6 +6,8 @@ INSERT INTO t1 VALUES (1,'1',1),(2,'2',1);
 
 SET @save_locks= @@GLOBAL.innodb_status_output_locks;
 SET GLOBAL INNODB_STATUS_OUTPUT_LOCKS = 'ON';
+let $default_id= `select connection_id()`;
+let $reg= /.*---TRANSACTION \d+, ACTIVE.*?(\d+ lock struct...), heap size \d+(, \d+ row lock...).*?\nMariaDB thread id $default_id,.*/\1\2/;
 
 let $isolation= 4;
 while ($isolation) {
@@ -34,7 +36,7 @@ DELETE FROM t1 WHERE b='2' AND c=2;
 # not of any inactive ones. Note the use of non-greedy match ".*?", so that
 # we get the values for the ACTIVE transaction, not the last values in the
 # list.
---replace_regex /.*---TRANSACTION \d+, ACTIVE.*?(\d+ lock struct...), heap size \d+(, \d+ row lock...).*/\1\2/
+--replace_regex $reg
 SHOW ENGINE INNODB STATUS;
 ROLLBACK;
 
