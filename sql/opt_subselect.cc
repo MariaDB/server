@@ -734,6 +734,7 @@ int check_and_do_in_subquery_rewrites(JOIN *join)
         11. It is first optimisation (the subquery could be moved from ON
             clause during first optimisation and then be considered for SJ
             on the second when it is too late)
+        13. Subquery does not have ROWNUM
 
       There are also other requirements which cannot be checked at this phase,
       yet. They are checked later in convert_join_subqueries_to_semijoins(),
@@ -752,7 +753,8 @@ int check_and_do_in_subquery_rewrites(JOIN *join)
         !((join->select_options |                                     // 10
            select_lex->outer_select()->join->select_options)          // 10
           & SELECT_STRAIGHT_JOIN) &&                                  // 10
-        select_lex->first_cond_optimization)                          // 11
+        select_lex->first_cond_optimization &&                        // 11
+        !select_lex->with_rownum)                                     // 13
     {
       DBUG_PRINT("info", ("Subquery is semi-join conversion candidate"));
 

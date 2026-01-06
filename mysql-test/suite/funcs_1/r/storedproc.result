@@ -17247,8 +17247,7 @@ set f1 = f1;
 return f1;
 END//
 SELECT fn104('\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0?\0\0\0\0\0\0?\0\0\0\0\0\0\0@\0\0\0\0\0\0\0@\0\0\0\0\0\0@\0\0\0\0\0\0@');
-fn104('\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0?\0\0\0\0\0\0?\0\0\0\0\0\0\0@\0\0\0\0\0\0\0@\0\0\0\0\0\0@\0\0\0\0\0\0@')
-                ?      ?       @       @      @      @
+ERROR 22003: Cannot get geometry object from data you send to the GEOMETRY field
 DROP FUNCTION IF EXISTS fn105;
 CREATE FUNCTION fn105( f1 point) returns point
 BEGIN
@@ -18382,8 +18381,7 @@ set f1 = f1;
 SELECT f1;
 END//
 CALL sp104('\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0?\0\0\0\0\0\0?\0\0\0\0\0\0\0@\0\0\0\0\0\0\0@\0\0\0\0\0\0@\0\0\0\0\0\0@');
-f1
-                ?      ?       @       @      @      @
+ERROR 22003: Cannot get geometry object from data you send to the GEOMETRY field
 DROP PROCEDURE IF EXISTS sp105;
 CREATE PROCEDURE sp105( f1 point)
 BEGIN

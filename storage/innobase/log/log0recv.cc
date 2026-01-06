@@ -2188,8 +2188,13 @@ void store_freed_or_init_rec(page_id_t page_id, bool freed) noexcept
   uint32_t page_no= page_id.page_no();
   if (space_id == TRX_SYS_SPACE || srv_is_undo_tablespace(space_id))
   {
-    if (srv_immediate_scrub_data_uncompressed)
-      fil_space_get(space_id)->free_page(page_no, freed);
+    if (!srv_immediate_scrub_data_uncompressed)
+      return;
+    fil_space_t *space= fil_space_get(space_id);
+    if (freed)
+      space->free_page<true>(page_no);
+    else
+      space->free_page<false>(page_no);
     return;
   }
 

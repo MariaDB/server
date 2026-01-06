@@ -198,6 +198,8 @@ enum enum_binlog_row_image {
 #define MODE_TIME_ROUND_FRACTIONAL      (1ULL << 34)
 /* The following modes are specific to MySQL */
 #define MODE_MYSQL80_TIME_TRUNCATE_FRACTIONAL (1ULL << 32)
+#define WAS_ORACLE                      (1ULL << 35)
+#define IS_OR_WAS_ORACLE                (MODE_ORACLE | WAS_ORACLE)
 
 
 /* Bits for different old style modes */
@@ -224,13 +226,12 @@ void old_mode_deprecated_warnings(ulonglong v);
 
 #define NEW_MODE_FIX_DISK_TMPTABLE_COSTS                            (1ULL << 0)
 #define NEW_MODE_FIX_INDEX_STATS_FOR_ALL_NULLS                      (1ULL << 1)
-#define NEW_MODE_MAX                                                         2
+#define NEW_MODE_FIX_INDEX_LOOKUP_COST                              (1ULL << 2)
+#define NEW_MODE_MAX                                                3
 
 /* Definitions above that have transitioned from new behaviour to default */
 
 #define NOW_DEFAULT                                             -1
-#define NEW_MODE_TEST_WARNING1                               NOW_DEFAULT
-#define NEW_MODE_TEST_WARNING2                               NOW_DEFAULT
 
 #define TEST_NEW_MODE_FLAG(thd, flag) \
   (flag == NOW_DEFAULT ? TRUE : thd->variables.new_behavior & flag)
@@ -6189,11 +6190,6 @@ class start_new_trans
   uint in_sub_stmt;
   uint server_status;
   my_bool wsrep_on;
-  /*
-    THD:rgi_slave may hold a part of the replicated "old" transaction's
-    execution context. Therefore it has to be reset/restored too.
-  */
-  rpl_group_info* org_rgi_slave;
 
 public:
   start_new_trans(THD *thd);
@@ -8209,7 +8205,7 @@ class Sql_mode_save
   Sql_mode_save(THD *thd) : thd(thd), old_mode(thd->variables.sql_mode) {}
   ~Sql_mode_save() { thd->variables.sql_mode = old_mode; }
 
- private:
+ protected:
   THD *thd;
   sql_mode_t old_mode; // SQL mode saved at construction time.
 };
@@ -8226,6 +8222,9 @@ public:
   Sql_mode_save_for_frm_handling(THD *thd)
    :Sql_mode_save(thd)
   {
+    if (thd->variables.sql_mode & MODE_ORACLE)
+      thd->variables.sql_mode|= IS_OR_WAS_ORACLE;
+
     /*
       - MODE_REAL_AS_FLOAT            affect only CREATE TABLE parsing
       + MODE_PIPES_AS_CONCAT          affect expression parsing
@@ -8255,6 +8254,12 @@ public:
                                 MODE_IGNORE_SPACE | MODE_NO_BACKSLASH_ESCAPES |
                                 MODE_ORACLE | MODE_EMPTY_STRING_IS_NULL);
   };
+
+  ~Sql_mode_save_for_frm_handling()
+  {
+    if (thd->variables.sql_mode & IS_OR_WAS_ORACLE)
+      thd->variables.sql_mode&= ~IS_OR_WAS_ORACLE;
+  }
 };
 
 

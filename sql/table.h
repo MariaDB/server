@@ -1799,7 +1799,20 @@ public:
   uint actual_n_key_parts(KEY *keyinfo);
   ulong actual_key_flags(KEY *keyinfo);
   int update_virtual_field(Field *vf, bool ignore_warnings);
-  inline size_t key_storage_length(uint index)
+
+  size_t key_storage_length(uint index);
+  /*
+    @brief
+      Estimate how index tuple takes in storage, based solely on table's DDL
+
+    @detail
+      This is a conservative number that assumes the value is stored in
+      KeyTupleFormat (or table->record format for clustered PK), without
+      endspace compression, etc.
+      On the other hand, it doesn't account that the storage engine may need
+      to store transactionIds, etc.
+  */
+  inline size_t key_storage_length_from_ddl(uint index)
   {
     if (is_clustering_key(index))
       return s->stored_rec_length;

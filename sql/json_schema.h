@@ -475,6 +475,7 @@ class Json_schema_properties : public Json_schema_keyword
     Json_schema_properties()
     {
       priority= 1;
+      is_hash_inited= false;
     }
     bool validate(const json_engine_t *je, const uchar *k_start= NULL,
                   const uchar *k_end= NULL) override;
@@ -502,6 +503,10 @@ class Json_schema_dependent_schemas : public Json_schema_keyword
     {
       if (is_hash_inited)
        my_hash_free(&properties);
+    }
+    Json_schema_dependent_schemas()
+    {
+      is_hash_inited= false;
     }
     bool validate(const json_engine_t *je, const uchar *k_start= NULL,
                   const uchar *k_end= NULL) override;

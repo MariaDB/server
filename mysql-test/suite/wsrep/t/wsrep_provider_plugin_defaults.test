@@ -1,7 +1,7 @@
 --source include/have_wsrep.inc
 --source include/have_innodb.inc
 
---let $galera_version=26.4.24
+--let $galera_version=26.4.25
 source include/check_galera_version.inc;
 
 SELECT COUNT(*) FROM INFORMATION_SCHEMA.GLOBAL_VARIABLES WHERE VARIABLE_NAME LIKE 'wsrep_provider%' AND VARIABLE_NAME NOT IN (
