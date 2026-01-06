@@ -1123,7 +1123,7 @@ SELECT col_varchar_key FROM JSON_TABLE(
 (col_varchar_key VARCHAR(10) PATH "$.col_key")) AS innr1);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	2	Using where
-2	DEPENDENT SUBQUERY	innr1	ALL	NULL	NULL	NULL	NULL	40	Table function: json_table; Using where
+2	MATERIALIZED	innr1	ALL	NULL	NULL	NULL	NULL	40	Table function: json_table
 SELECT * FROM t1 WHERE col_varchar_key IN (
 SELECT col_varchar_key FROM JSON_TABLE(
 '[{"col_key": 1},{"col_key": 2}]', "$[*]" COLUMNS
@@ -1136,7 +1136,8 @@ SELECT col_varchar_key FROM JSON_TABLE(
 (col_varchar_key VARCHAR(10) PATH "$.col_key")) AS innr1);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	2	
-1	PRIMARY	innr1	ALL	NULL	NULL	NULL	NULL	40	Table function: json_table; Using where; FirstMatch(t1); Using join buffer (flat, BNL join)
+1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	13	func	1	Using where
+2	MATERIALIZED	innr1	ALL	NULL	NULL	NULL	NULL	40	Table function: json_table
 DROP TABLE t1;
 #
 # Bug#26711551: WL8867:CONDITIONAL JUMP IN JSON_TABLE_COLUMN::CLEANUP
@@ -1467,7 +1468,7 @@ FROM JSON_TABLE('"test"', '$' COLUMNS(col VARCHAR(10) PATH '$')) AS a;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `col` varchar(10) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci DEFAULT NULL
+  `col` varchar(10) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 SET @@SESSION.collation_connection = latin1_bin;
 CREATE TABLE t2 SELECT a.col
@@ -1475,7 +1476,7 @@ FROM JSON_TABLE('"test"', '$' COLUMNS(col VARCHAR(10) PATH '$')) AS a;
 SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
-  `col` varchar(10) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci DEFAULT NULL
+  `col` varchar(10) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t1, t2;
 SET @@SESSION.character_set_connection = DEFAULT;

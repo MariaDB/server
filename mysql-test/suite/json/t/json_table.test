@@ -1103,4 +1103,22 @@ SELECT * FROM JSON_TABLE('
 
 DROP VIEW test_view;
 
+
+--echo #
+--echo # MDEV-36764: Unexpected collation when using json_table
+--echo #
+
+CREATE DATABASE collation_testing CHARACTER SET='utf8mb4' COLLATE='utf8mb4_uca1400_ai_ci';
+USE collation_testing;
+
+CREATE TABLE table_with_longtext_column (column_with_json LONGTEXT);
+INSERT INTO table_with_longtext_column VALUES ('[{"property": "value"}]');
+
+SELECT COLLATION(column_with_json) FROM table_with_longtext_column;
+SELECT COLLATION(JSON_VALUE(column_with_json, "$.value")) FROM table_with_longtext_column;
+SELECT COLLATION(virtual_table_from_json.property) FROM JSON_TABLE((SELECT column_with_json FROM table_with_longtext_column),'$[*]' COLUMNS (property varchar(100) path '$.property')) AS virtual_table_from_json;
+
+DROP TABLE table_with_longtext_column;
+DROP DATABASE collation_testing;
+
 --echo # End of 10.11 test
