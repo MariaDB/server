@@ -478,13 +478,13 @@ ERROR HY000: Illegal mix of collations (cp1250_general_ci,IMPLICIT) and (koi8r_g
 drop table t1;
 drop table t2;
 CREATE TABLE t1 (a CHAR(10) CHARACTER SET cp850);
-INSERT INTO t1 VALUES ('À');
+INSERT INTO t1 VALUES ('ï¿½');
 SELECT a FROM t1;
 a
-À
+ï¿½
 SELECT GROUP_CONCAT(a) FROM t1;
 GROUP_CONCAT(a)
-À
+ï¿½
 DROP TABLE t1;
 CREATE TABLE t1 (id int);
 SELECT GROUP_CONCAT(id) AS gc FROM t1 HAVING gc IS NULL;
@@ -825,12 +825,12 @@ SET group_concat_max_len= DEFAULT;
 DROP TABLE t1, t2, t3;
 set names latin1;
 create table t1 (id int, name varchar(20)) DEFAULT CHARSET=utf8;
-insert into t1 (id, name) values (1, "óra");
-insert into t1 (id, name) values (2, "óra");
+insert into t1 (id, name) values (1, "ï¿½ra");
+insert into t1 (id, name) values (2, "ï¿½ra");
 select b.id, group_concat(b.name) from t1 a, t1 b group by b.id;
 id	group_concat(b.name)
-1	óra,óra
-2	óra,óra
+1	ï¿½ra,ï¿½ra
+2	ï¿½ra,ï¿½ra
 drop table t1;
 create table t1(a bit not null);
 insert ignore into t1 values (), (), ();
@@ -1556,3 +1556,14 @@ Warning	1260	Row 1 was cut by GROUP_CONCAT()
 disconnect u;
 connection default;
 # End of 10.6 tests
+#
+# Beginning of 10.11 tests
+#
+CREATE TABLE t1 (id INT PRIMARY KEY, a VARCHAR(1024) NOT NULL);
+INSERT INTO t1 VALUES (1,'foo'),(2,'bar');
+SET SQL_MODE= '';
+SELECT GROUP_CONCAT( IF( id, '', a ), MID( a, 10, 0 ) ) AS f FROM t1;
+f
+,
+DROP TABLE t1;
+# End of 10.11 test

@@ -3880,7 +3880,17 @@ int dump_leaf_key(void* key_arg, element_count count __attribute__((unused)),
       {
         uint offset= (field->offset(field->table->record[0]) -
                       table->s->null_bytes);
-        DBUG_ASSERT(offset < table->s->reclength);
+        /*
+          When there are no extra null bytes (example when the field
+          can never be null) the offset matches the record length.
+          Otherwise offset < record length.
+        */
+        if (field->pack_length())
+          DBUG_ASSERT(offset < table->s->reclength);
+
+        DBUG_ASSERT(offset + field->pack_length() <=
+                    table->s->reclength - table->s->null_bytes);
+
         res= item->get_str_from_field(*arg, field, &tmp, key,
                                       offset + item->get_null_bytes());
       }
