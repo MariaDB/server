@@ -542,6 +542,9 @@ To make maintaining easier please:
   </collation>
 </charset>
 
+<charset name="utf8mb4">
+</charset>
+
 <charset name="ucs2">
   <family>Unicode</family>
   <description>UCS-2 Unicode</description>
