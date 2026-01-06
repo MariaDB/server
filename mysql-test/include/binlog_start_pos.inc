@@ -6,8 +6,7 @@
 # of adding new events). Evaluated as:
 #  
 #   binlog_start_pos = 4  /* binlog header */ +
-#                      (Format_description_log_event length) +
-#                      (Gtid_list_log_event length est. MDEV-4698)
+#                      (Format_description_log_event length)
 #
 #   Format_description_log_event length = 
 #                      19 /* event common header */ +

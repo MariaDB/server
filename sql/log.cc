@@ -3955,7 +3955,7 @@ bool MYSQL_BIN_LOG::open(const char *log_name,
       binlog_state_recover_done= true;
       if (is_relay_log)
       {
-        #ifdef HAVE_REPLICATION
+#ifdef HAVE_REPLICATION
         /*
           Restore `Gtid_IO_Pos` from the relay log, or `@@gtid_slave`/
           `current_pos` if it somehow points after the log's end position.
@@ -3967,10 +3967,14 @@ bool MYSQL_BIN_LOG::open(const char *log_name,
         */
         if (mi->using_gtid && !mi->rli.is_relay_log_recovery)
         {
-          DBUG_ASSERT(rpl_global_gtid_slave_state->loaded);
           if (rpl_load_gtid_state(&mi->gtid_current_pos,
                 mi->using_gtid == Master_info::USE_GTID_CURRENT_POS))
-            DBUG_RETURN(1);
+          {
+            my_error(ER_CANNOT_LOAD_SLAVE_GTID_STATE, MYF(0), "mysql",
+              rpl_gtid_slave_state_table_name.str);
+            my_errno= 0;
+            DBUG_RETURN(true);
+          }
           if (do_binlog_recovery(/* unused */ mi->connection_name.str, false))
           {
             sql_print_warning("`Gtid_IO_Pos` loading failed. "
@@ -3978,7 +3982,7 @@ bool MYSQL_BIN_LOG::open(const char *log_name,
             mi->rli.is_relay_log_recovery= true;
           }
         }
-        #endif
+#endif
       }
       else
       if (do_binlog_recovery(opt_bin_logname, false))
@@ -4166,18 +4170,18 @@ bool MYSQL_BIN_LOG::open(const char *log_name,
           GTID should be search for in this or later binlog file, same as if
           there had been an entry (key -> 0).
         */
-      #ifdef HAVE_REPLICATION
-        if (is_relay_log)
-        {
-          Gtid_list_log_event gl_ev(&mi->gtid_current_pos, 0);
-          gl_ev.set_artificial_event(); // not in the master's binary log
-          gl_ev.set_relay_log_event();  // generated rather than replicated
-          gl_ev.checksum_alg= relay_log_checksum_alg;
-          if (write_event(&gl_ev))
-            goto err;
-        }
-        else
-      #endif
+      if (is_relay_log)
+      {
+#ifdef HAVE_REPLICATION
+        Gtid_list_log_event gl_ev(&mi->gtid_current_pos, 0);
+        gl_ev.set_artificial_event(); // not in the master's binary log
+        gl_ev.set_relay_log_event();  // generated rather than replicated
+        gl_ev.checksum_alg= relay_log_checksum_alg;
+        if (write_event(&gl_ev))
+          goto err;
+#endif
+      }
+      else
       {
         Gtid_list_log_event gl_ev(&rpl_global_gtid_binlog_state, 0);
         if (write_event(&gl_ev))

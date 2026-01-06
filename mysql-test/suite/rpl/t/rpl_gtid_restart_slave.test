@@ -1,0 +1,39 @@
+# MDEV-4698: If all slave threads are stopped,
+# restarting them at once deletes the existing relay logs.
+# This limitation was to work a crash incompatibility around,
+# which are covered by other existing crash tests, such as `rpl.rpl_gtid_crash`.
+
+--source include/have_binlog_format_mixed.inc # format-agnostic
+--source include/master-slave.inc
+
+CREATE TABLE t (a TINYTEXT);
+INSERT INTO t VALUES ("initial state");
+
+--sync_slave_with_master
+--source include/stop_slave_sql.inc
+
+# Let the IO thread queue some unexecuted relay log content.
+--connection master
+INSERT INTO t VALUES ("before restart");
+--save_master_pos
+--source include/sync_slave_io_with_master.inc
+
+--source include/stop_slave_io.inc # stop the other thread as well to ...
+--source include/start_slave.inc   # ... restart all threads
+--sync_with_master
+
+# This should reload correctly.
+--let $status_items= Gtid_IO_Pos
+--source include/show_slave_status.inc
+
+# This should not be recreated, which purges the CREATE TABLE event.
+--let $binlog_file= slave-relay-bin.000002
+--source include/show_relaylog_events.inc
+
+# "before restart" should not be duplicated.
+SELECT * FROM t;
+
+# Cleanup
+--connection master
+DROP TABLE t;
+--source include/rpl_end.inc

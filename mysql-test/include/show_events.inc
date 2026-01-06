@@ -57,15 +57,14 @@ if ($binlog_start)
 if (!$binlog_start)
 {
   # If $binlog_start is not set, we will set it as the fourth event's
-  # position (second in relay log which has not Binlog Checkpoint nor
-  # Gtid_list events).
+  # position (third in relay log which has not Binlog Checkpoint events).
   # The first three events (Description Event, Gtid list, and Binlog Checkpoint
   # event) are always ignored. For description event's length might be changed
   # because of adding new events, 'SHOW BINLOG EVENTS LIMIT 3' is used to get
   # the right value.
   if ($is_relay_log)
   {
-    --let $_binlog_start= query_get_value($statement LIMIT 1, End_log_pos, 1)
+    --let $_binlog_start= query_get_value($statement LIMIT 2, End_log_pos, 2)
   }
   if (!$is_relay_log)
   {
