@@ -1514,6 +1514,8 @@ Item_sum_sp::add()
 void
 Item_sum_sp::clear()
 {
+  if (!func_ctx)
+    return;
   delete func_ctx;
   func_ctx= NULL;
   sp_query_arena->free_items();
