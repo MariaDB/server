@@ -7,14 +7,18 @@
 --source include/master-slave.inc
 
 CREATE TABLE t (a TINYTEXT);
-INSERT INTO t VALUES ("initial state");
+INSERT INTO t VALUES ('initial state');
+
 
 --sync_slave_with_master
 --source include/stop_slave_sql.inc
 
 # Let the IO thread queue some unexecuted relay log content.
 --connection master
-INSERT INTO t VALUES ("before restart");
+INSERT INTO t VALUES ('before restart');
+--let SEARCH_PATTERN= `SELECT @@gtid_binlog_pos`
+--let SEARCH_PATTERN= SET @slave_connect_state='$SEARCH_PATTERN'
+
 --save_master_pos
 --source include/sync_slave_io_with_master.inc
 
@@ -22,9 +26,6 @@ INSERT INTO t VALUES ("before restart");
 --source include/start_slave.inc   # ... restart all threads
 --sync_with_master
 
-# This should reload correctly.
---let $status_items= Gtid_IO_Pos
---source include/show_slave_status.inc
 
 # This should not be recreated, which purges the CREATE TABLE event.
 --let $binlog_file= slave-relay-bin.000002
@@ -33,7 +34,13 @@ INSERT INTO t VALUES ("before restart");
 # "before restart" should not be duplicated.
 SELECT * FROM t;
 
-# Cleanup
 --connection master
+# MDEV-33645:
+# The IO thread should reconnect with `Gtid_IO_Pos`, not `Gtid_Slave_Pos`.
+--let SEARCH_FILE= `SELECT @@general_log_file`
+--source include/search_pattern_in_file.inc
+
+
+# Cleanup
 DROP TABLE t;
 --source include/rpl_end.inc

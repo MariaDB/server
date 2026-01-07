@@ -4174,8 +4174,7 @@ bool MYSQL_BIN_LOG::open(const char *log_name,
       {
 #ifdef HAVE_REPLICATION
         Gtid_list_log_event gl_ev(&mi->gtid_current_pos, 0);
-        gl_ev.set_artificial_event(); // not in the master's binary log
-        gl_ev.set_relay_log_event();  // generated rather than replicated
+        gl_ev.set_relay_log_event();
         gl_ev.checksum_alg= relay_log_checksum_alg;
         if (write_event(&gl_ev))
           goto err;

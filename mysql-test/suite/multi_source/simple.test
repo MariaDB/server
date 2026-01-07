@@ -38,14 +38,14 @@ set default_master_connection = '';
 # MDEV-7074 (Sporadic test failure due to a race condition)
 let $show_statement = SHOW ALL SLAVES STATUS;
 let $field = Executed_log_entries;
-let $condition = = 7;
+let $condition = = 9;
 let $wait_for_all = 1;
 --source include/wait_show_condition.inc
 
 let read_master_log_pos=`select $binlog_start_pos + 73`;
-let relay_log_pos=`select 2*$binlog_start_pos + 117`;
-let relay_log_space1=`select 3*$binlog_start_pos + 178`;
-let relay_log_space2=`select 3*$binlog_start_pos + 178`;
+let relay_log_pos=`select 2*$binlog_start_pos + 146`;
+let relay_log_space1=`select 3*$binlog_start_pos + 207`;
+let relay_log_space2= $relay_log_space1;
 --replace_result $SERVER_MYPORT_1 MYPORT_1 $SERVER_MYPORT_2 MYPORT_2 $read_master_log_pos <read_master_log_pos> $relay_log_pos <relay_log_pos> $relay_log_space1 <relay_log_space1> $relay_log_space2 <relay_log_space2>
 query_vertical show all slaves status;
 
