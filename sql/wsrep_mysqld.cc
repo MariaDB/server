@@ -850,6 +850,7 @@ void wsrep_init_globals()
     /* apparently this thread has already called my_thread_init(),
      * so we skip it, hence 'false' for initialization. */
     wsp::thd thd(false, true);
+    thd.ptr->variables.tx_read_only= thd.ptr->tx_read_only= false;
     wsrep_sst_cleanup_user(thd.ptr);
   }
   if (WSREP_ON)
