@@ -9300,7 +9300,10 @@ best_access_path(JOIN      *join,
         Records can be 0 in case of empty tables.
       */
       if ((found_part & 1) && records &&
-          table->can_use_rowid_filter(start_key->key))
+          table->can_use_rowid_filter(start_key->key) &&
+          (!s->quick ||
+           (s->quick->get_type() != QUICK_SELECT_I::QS_TYPE_INDEX_INTERSECT &&
+           s->quick->get_type() != QUICK_SELECT_I::QS_TYPE_ROR_INTERSECT)))
       {
         /*
           If we use filter F with selectivity s the cost of fetching data
