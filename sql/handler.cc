@@ -5696,7 +5696,8 @@ handler::ha_create(const char *name, TABLE *form, HA_CREATE_INFO *info_arg)
 int
 handler::ha_create_partitioning_metadata(const char *name,
                                          const char *old_name,
-                                         chf_create_flags action_flag)
+                                         chf_create_flags action_flag,
+                                         bool ignore_delete_error)
 {
   /*
     Normally this is done when unlocked, but in fast_alter_partition_table,
@@ -5706,7 +5707,8 @@ handler::ha_create_partitioning_metadata(const char *name,
   DBUG_ASSERT(m_lock_type == F_UNLCK ||
               (!old_name && strcmp(name, table_share->path.str)));
 
-  return create_partitioning_metadata(name, old_name, action_flag);
+  return create_partitioning_metadata(name, old_name, action_flag,
+                                      ignore_delete_error);
 }
 
 

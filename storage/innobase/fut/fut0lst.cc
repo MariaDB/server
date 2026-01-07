@@ -281,12 +281,15 @@ dberr_t flst_add_last(buf_block_t *base, uint16_t boffset,
       return DB_CORRUPTION;
 
     buf_block_t *cur= add;
-    dberr_t err;
-    if (addr.page != add->page.id().page_no() &&
-        !(cur= buf_page_get_gen(page_id_t{add->page.id().space(), addr.page},
-                                add->zip_size(), RW_SX_LATCH, nullptr,
-                                BUF_GET_POSSIBLY_FREED, mtr, &err)))
-      return err;
+    if (addr.page != add->page.id().page_no())
+    {
+      dberr_t err;
+      cur= buf_page_get_gen(page_id_t{add->page.id().space(), addr.page},
+                            add->zip_size(), RW_SX_LATCH, nullptr,
+                            BUF_GET_POSSIBLY_FREED, mtr, &err);
+      if (!cur)
+        return err;
+    }
     return flst_insert_after(base, boffset, cur, addr.boffset,
                              add, aoffset, limit, mtr);
   }
@@ -382,16 +385,21 @@ dberr_t flst_remove(buf_block_t *base, uint16_t boffset,
                     prev_addr.page, prev_addr.boffset, mtr);
   else
   {
-    dberr_t err2;
-    if (next_addr.page == cur->page.id().page_no() ||
-        (cur= buf_page_get_gen(page_id_t(cur->page.id().space(),
-                                         next_addr.page),
-                               cur->zip_size(), RW_SX_LATCH, nullptr,
-                               BUF_GET_POSSIBLY_FREED, mtr, &err2)))
+    if (next_addr.page == cur->page.id().page_no())
+    write_addr:
       flst_write_addr(*cur, cur->page.frame + next_addr.boffset + FLST_PREV,
                       prev_addr.page, prev_addr.boffset, mtr);
-    else if (err == DB_SUCCESS)
-      err= err2;
+    else
+    {
+      dberr_t err2;
+      cur= buf_page_get_gen(page_id_t(cur->page.id().space(), next_addr.page),
+                            cur->zip_size(), RW_SX_LATCH, nullptr,
+                            BUF_GET_POSSIBLY_FREED, mtr, &err2);
+      if (cur)
+        goto write_addr;
+      if (err == DB_SUCCESS)
+        err= err2;
+    }
   }
 
   byte *len= &base->page.frame[boffset + FLST_LEN];

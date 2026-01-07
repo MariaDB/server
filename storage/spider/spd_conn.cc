@@ -1236,7 +1236,7 @@ int spider_conn_queue_loop_check(
   */
   lex_str.length = top_share->path.length + SPIDER_SQL_LOP_CHK_PRM_PRF_LEN;
   buf_sz = lex_str.length + 2;
-  loop_check_buf = (char *) my_alloca(buf_sz);
+  loop_check_buf = (char *) my_safe_alloca(buf_sz);
   if (unlikely(!loop_check_buf))
   {
     DBUG_RETURN(HA_ERR_OUT_OF_MEM);
@@ -1303,7 +1303,7 @@ int spider_conn_queue_loop_check(
       from_str.length = tmp_name - lex_str.str + 1;
     }
   }
-  my_afree(loop_check_buf);
+  my_safe_afree(loop_check_buf, buf_sz);
   /*
     construct loop_check_buf as <from_str>-<cur>-<to_str> e.g.
     "-<mac>-<pid>-./test/t0--./test/t1-./test/t2", later used as
@@ -1319,7 +1319,7 @@ int spider_conn_queue_loop_check(
   to_str.str = path;
   DBUG_PRINT("info", ("spider to=%s", to_str.str));
   buf_sz = from_str.length + top_share->path.length + to_str.length + 3;
-  loop_check_buf = (char *) my_alloca(buf_sz);
+  loop_check_buf = (char *) my_safe_alloca(buf_sz);
   if (unlikely(!loop_check_buf))
   {
     DBUG_RETURN(HA_ERR_OUT_OF_MEM);
@@ -1370,7 +1370,7 @@ int spider_conn_queue_loop_check(
         lex_str.length + 2),
       NullS)
     )) {
-      my_afree(loop_check_buf);
+      my_safe_afree(loop_check_buf, buf_sz);
       goto error_alloc_loop_check;
     }
     lcptr->flag = 0;
@@ -1399,7 +1399,7 @@ int spider_conn_queue_loop_check(
     */
     if (unlikely(my_hash_insert(&conn->loop_checked, (uchar *) lcptr)))
     {
-      my_afree(loop_check_buf);
+      my_safe_afree(loop_check_buf, buf_sz);
       goto error_hash_insert;
     }
   } else {
@@ -1410,11 +1410,11 @@ int spider_conn_queue_loop_check(
       lcptr->flag |= SPIDER_LOP_CHK_IGNORED;
     }
     pthread_mutex_unlock(&conn->loop_check_mutex);
-    my_afree(loop_check_buf);
+    my_safe_afree(loop_check_buf, buf_sz);
     DBUG_PRINT("info", ("spider be sent or queued already"));
     DBUG_RETURN(0);
   }
-  my_afree(loop_check_buf);
+  my_safe_afree(loop_check_buf, buf_sz);
 
   if ((error_num = spider_conn_queue_and_merge_loop_check(conn, lcptr)))
   {

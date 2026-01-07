@@ -24,6 +24,11 @@
 --let $galera_version=26.4.25
 source ../wsrep/include/check_galera_version.inc;
 
+# Save original auto_increment_offset values.
+--let $node_1=node_1
+--let $node_2=node_2
+--source include/auto_increment_offset_save.inc
+
 # Suppress expected errors and warnings:
 --connection node_2
 CALL mtr.add_suppression("unknown variable 'non_existing_variable=ON'");
@@ -129,4 +134,5 @@ DROP TABLE t;
 EOF
 --remove_file $TEST_LOG.copy
 
+--source include/auto_increment_offset_restore.inc
 --source include/galera_end.inc

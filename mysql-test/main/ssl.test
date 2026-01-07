@@ -12,9 +12,12 @@
 --source include/default_charset.inc
 --source include/have_perfschema.inc
 
+let $default_id=`select thread_id from performance_schema.threads where processlist_id=connection_id()`;
+
 connect (ssl_con,localhost,root,,,,,SSL);
 
-select variable_name from performance_schema.status_by_thread where VARIABLE_NAME LIKE 'Ssl%';
+let $ssl_con_id=`select thread_id from performance_schema.threads where processlist_id=connection_id()`;
+evalp select variable_name from performance_schema.status_by_thread where VARIABLE_NAME LIKE 'Ssl%' and thread_id in($default_id, $ssl_con_id);
 
 # Check ssl turned on
 SELECT (VARIABLE_VALUE <> '') AS have_ssl FROM INFORMATION_SCHEMA.SESSION_STATUS WHERE VARIABLE_NAME='Ssl_cipher';

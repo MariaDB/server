@@ -80,11 +80,22 @@ void Wsrep_server_service::release_storage_service(
 {
   Wsrep_storage_service* ss=
     static_cast<Wsrep_storage_service*>(storage_service);
-  THD* thd= ss->m_thd;
-  wsrep_reset_threadvars(thd);
-  server_threads.erase(thd);
-  delete ss;
-  delete thd;
+  DBUG_ASSERT(ss && ss->m_thd);
+
+  // Do not crash server on production
+  if (ss)
+  {
+    THD* thd= ss->m_thd;
+    if (thd)
+    {
+      wsrep_reset_threadvars(thd);
+      server_threads.erase(thd);
+      delete ss;
+      delete thd;
+    }
+    else
+      delete ss;
+  }
 }
 
 Wsrep_applier_service*
@@ -141,12 +152,23 @@ void Wsrep_server_service::release_high_priority_service(wsrep::high_priority_se
 {
   Wsrep_high_priority_service* hps=
     static_cast<Wsrep_high_priority_service*>(high_priority_service);
-  THD* thd= hps->m_thd;
-  delete hps;
-  wsrep_store_threadvars(thd);
-  server_threads.erase(thd);
-  delete thd;
-  wsrep_delete_threadvars();
+  DBUG_ASSERT(hps && hps->m_thd);
+
+  // Do not crash server on production
+  if (hps)
+  {
+    THD* thd= hps->m_thd;
+    if (thd)
+    {
+      delete hps;
+      wsrep_store_threadvars(thd);
+      server_threads.erase(thd);
+      delete thd;
+      wsrep_delete_threadvars();
+    }
+    else
+      delete hps;
+  }
 }
 
 void Wsrep_server_service::background_rollback(
