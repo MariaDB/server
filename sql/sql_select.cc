@@ -5632,9 +5632,11 @@ void mark_join_nest_as_const(JOIN *join,
 
   @detail
     Figure out which condition we can use:
-    - For INNER JOIN, we use the WHERE,
-    - "t1 LEFT JOIN t2 ON ..." uses t2's ON expression
+    - For INNER JOIN, we use the WHERE.
+    - "t1 LEFT JOIN t2 ON ..." uses t2's ON expression.
     - "t1 LEFT JOIN (...) ON ..." uses the join nest's ON expression.
+    - "t1 FULL OUTER JOIN t2 ON ..." uses the ON expression.
+    - "t1 FULL OUTER (...) ON ..." uses the join nest's ON expression.
 */
 
 static Item **get_sargable_cond(JOIN *join, TABLE *table)
@@ -5642,7 +5644,31 @@ static Item **get_sargable_cond(JOIN *join, TABLE *table)
   Item **retval= nullptr;
   TABLE_LIST *sql_table= table->pos_in_table_list;
 
-  if (sql_table->on_expr)
+  if (sql_table->outer_join & JOIN_TYPE_FULL)
+  {
+    /*
+      1. FULL OUTER JOIN requires an ON condition, so someone must have it
+      2. Disregard the WHERE clause at this point, using only the ON
+         condition because we don't want to range analysis to
+         accidentally turn the FULL JOIN into an INNER JOIN.
+      3. The ON condition holds for both tables so if we don't find it
+         associated with one table, then look it on the partner table.
+    */
+    if (sql_table->on_expr)
+      return &sql_table->on_expr;
+
+    TABLE_LIST *foj_partner= sql_table->foj_partner;
+    DBUG_ASSERT(foj_partner->outer_join & JOIN_TYPE_FULL);
+    if (foj_partner->on_expr)
+      return &foj_partner->on_expr;
+
+    /*
+      We cannot end up here, otherwise the ON condition for the FULL
+      OUTER JOIN was lost.
+    */
+    DBUG_ASSERT(false);
+  }
+  else if (sql_table->on_expr)
   {
     /*
       This is an inner table from a single-table LEFT JOIN, "t1 LEFT JOIN
