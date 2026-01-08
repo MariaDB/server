@@ -281,9 +281,9 @@ bool trans_commit(THD *thd)
   */
 #ifdef HAVE_REPLICATION
   if (res)
-    repl_semisync_master.wait_after_rollback(thd, FALSE);
+    repl_semisync_master->wait_after_rollback(thd, FALSE);
   else
-    repl_semisync_master.wait_after_commit(thd, FALSE);
+    repl_semisync_master->wait_after_commit(thd, FALSE);
 #endif
   thd->variables.option_bits&= ~(OPTION_BEGIN | OPTION_BINLOG_THIS_TRX);
   thd->transaction->all.reset();
@@ -387,7 +387,7 @@ bool trans_rollback(THD *thd)
   DBUG_PRINT("info", ("clearing SERVER_STATUS_IN_TRANS"));
   res= ha_rollback_trans(thd, TRUE);
 #ifdef HAVE_REPLICATION
-  repl_semisync_master.wait_after_rollback(thd, FALSE);
+  repl_semisync_master->wait_after_rollback(thd, FALSE);
 #endif
   /* Reset the binlog transaction marker */
   thd->variables.option_bits&= ~(OPTION_BEGIN | OPTION_BINLOG_THIS_TRX |
@@ -517,13 +517,13 @@ bool trans_commit_stmt(THD *thd)
   if (res)
   {
 #ifdef HAVE_REPLICATION
-    repl_semisync_master.wait_after_rollback(thd, FALSE);
+    repl_semisync_master->wait_after_rollback(thd, FALSE);
 #endif
   }
   else
   {
 #ifdef HAVE_REPLICATION
-    repl_semisync_master.wait_after_commit(thd, FALSE);
+    repl_semisync_master->wait_after_commit(thd, FALSE);
 #endif
   }
 
@@ -573,7 +573,7 @@ bool trans_rollback_stmt(THD *thd)
   }
 
 #ifdef HAVE_REPLICATION
-  repl_semisync_master.wait_after_rollback(thd, FALSE);
+  repl_semisync_master->wait_after_rollback(thd, FALSE);
 #endif
 
   /* In autocommit=1 mode the transaction should be marked as complete in P_S */
