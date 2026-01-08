@@ -39,15 +39,17 @@ ib_restore_tablespaces("test", "t1");
 EOF
 
 --disable_warnings
+SET @save_debug=@@debug_dbug;
 SET DEBUG_DBUG="+d,ib_import_set_index_root_failure";
 --error ER_TOO_MANY_CONCURRENT_TRXS
 ALTER TABLE t1 IMPORT TABLESPACE;
-SET DEBUG_DBUG="-d,ib_import_set_index_root_failure";
+set DEBUG_DBUG=@save_dbug;
 
+SET @save_debug=@@debug_dbug;
 SET DEBUG_DBUG="+d,ib_import_vcol_update_fail";
 --error ER_DUP_KEY
 ALTER TABLE t1 IMPORT TABLESPACE;
-SET DEBUG_DBUG="-d,ib_import_vcol_update_fail";
+set DEBUG_DBUG=@save_dbug;
 
 perl;
 do "$ENV{MTR_SUITE_DIR}/include/innodb-util.pl";
@@ -55,10 +57,11 @@ ib_discard_tablespaces("test", "t1");
 ib_restore_tablespaces("test", "t1");
 EOF
 
+SET @save_dbug=@@debug_dbug;
 SET DEBUG_DBUG="+d,ib_import_fts_error";
 --error ER_DUP_KEY
 ALTER TABLE t1 IMPORT TABLESPACE;
-SET DEBUG_DBUG="-d,ib_import_fts_error";
+SET DEBUG_DBUG=@save_dbug;
 --enable_warnings
 
 perl;

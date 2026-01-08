@@ -4558,11 +4558,11 @@ static void row_import_autoinc(dict_table_t *table, row_prebuilt_t *prebuilt,
 @return DB_SUCCESS or error code */
 dberr_t update_vcol_pos(table_id_t table_id, ulint new_pos, trx_t *trx)
 {
+  DBUG_EXECUTE_IF("ib_import_vcol_update_fail",
+                  return DB_DUPLICATE_KEY;);
   pars_info_t *info= pars_info_create();
   pars_info_add_ull_literal(info, "id", table_id);
   pars_info_add_int4_literal(info, "old_pos", new_pos - 1);
-  DBUG_EXECUTE_IF("ib_import_vcol_update_fail",
-                  return DB_DUPLICATE_KEY;);
   return que_eval_sql(info,
                       "PROCEDURE UPDATE_VCOL () IS\n"
                       "BEGIN\n"

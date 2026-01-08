@@ -26,19 +26,22 @@ f2 CHAR(2) NOT NULL,
 f3 INT as (f1) VIRTUAL, INDEX(f3))ENGINE=InnoDB;
 ALTER TABLE t1 DISCARD TABLESPACE;
 restore: t1 .ibd and .cfg files
+SET @save_debug=@@debug_dbug;
 SET DEBUG_DBUG="+d,ib_import_set_index_root_failure";
 ALTER TABLE t1 IMPORT TABLESPACE;
 ERROR HY000: Too many active concurrent transactions
-SET DEBUG_DBUG="-d,ib_import_set_index_root_failure";
+set DEBUG_DBUG=@save_dbug;
+SET @save_debug=@@debug_dbug;
 SET DEBUG_DBUG="+d,ib_import_vcol_update_fail";
 ALTER TABLE t1 IMPORT TABLESPACE;
 ERROR 23000: Can't write; duplicate key in table 't1'
-SET DEBUG_DBUG="-d,ib_import_vcol_update_fail";
+set DEBUG_DBUG=@save_dbug;
 restore: t1 .ibd and .cfg files
+SET @save_dbug=@@debug_dbug;
 SET DEBUG_DBUG="+d,ib_import_fts_error";
 ALTER TABLE t1 IMPORT TABLESPACE;
 ERROR 23000: Can't write; duplicate key in table 't1'
-SET DEBUG_DBUG="-d,ib_import_fts_error";
+SET DEBUG_DBUG=@save_dbug;
 unlink: t1.ibd
 unlink: t1.cfg
 SELECT NAME FROM INFORMATION_SCHEMA.INNODB_SYS_COLUMNS
