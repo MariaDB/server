@@ -363,11 +363,14 @@ void my_hash_sort_simple_nopad(my_hasher_st *hasher, CHARSET_INFO *cs,
 {
   register const uchar *sort_order=cs->sort_order;
   const uchar *end= key + len;
+  register ulong m1= hasher->m_nr1, m2= hasher->m_nr2;
   DBUG_ASSERT(key); /* Avoid UBSAN nullptr-with-offset */
   for (; key < (uchar*) end ; key++)
   {
-    MY_HASH_ADD(hasher, (uint) sort_order[(uint) *key]);
+    MY_HASH_ADD_MARIADB(m1, m2, (uint) sort_order[(uint) *key]);
   }
+  hasher->m_nr1= m1;
+  hasher->m_nr2= m2;
 }
 
 
