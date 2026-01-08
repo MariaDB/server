@@ -133,6 +133,31 @@ select 2;
 (select 2);
 /*! select 2*/;
 /*comment*/ select 2;
+with foo as (select 1) select 6;
+values (7, 'a'), (8, 'b');
+
+--echo #
+--echo # Certain usage of comments and control characters in query strings bypass audit
+--echo # logging when filtering in QUERY_{DCL/DML/DDL} mode
+--echo #
+
+query -- A comment
+select 1;
+
+query --A comment
+select 2;
+
+query # A comment
+select 3;
+
+query /*! SELECT 4 */;
+query /*M! SELECT 5 */;
+
+query /*!100100 SELECT 6 */;
+query /*!999999 SELECT 'should not log' */;
+query /*M!100100 SELECT 7 */;
+query /*M!999999 SELECT 'should not log' */;
+
 drop table t1;
 set global server_audit_events='query_dcl';
 create table t1(id int);
