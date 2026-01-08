@@ -89,13 +89,12 @@ void set_tls_version_of_event(THD *thd, mysql_event_connection *event)
     event->tls_version = "";
     event->tls_version_length = 0;
 #ifdef HAVE_OPENSSL
-    Vio *vio= thd->net.vio;
-    SSL *ssl= (SSL *) vio->ssl_arg;
-    if (ssl)
-    {
-        event->tls_version = SSL_get_version(ssl);
-        event->tls_version_length = safe_strlen_uint(event->tls_version);
-    }
+    if (Vio *vio= thd->net.vio)
+      if (SSL *ssl= (SSL *) vio->ssl_arg)
+      {
+          event->tls_version = SSL_get_version(ssl);
+          event->tls_version_length = safe_strlen_uint(event->tls_version);
+      }
 #endif
 }
 
