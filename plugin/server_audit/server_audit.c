@@ -1686,20 +1686,10 @@ static int log_statement_ex(const struct connection_info *cn,
   if (query && !(events & EVENT_QUERY_ALL) &&
       (events & EVENT_QUERY && !cn->log_always))
   {
-    const char *orig_query= query;
-
-    if (events & EVENT_QUERY_DDL && cmdtype & EVENT_QUERY_DDL)
-      goto do_log_query;
-    if (events & EVENT_QUERY_DML && cmdtype & EVENT_QUERY_DML)
-      goto do_log_query;
-    if (events & EVENT_QUERY_DML_NO_SELECT && cmdtype & EVENT_QUERY_DML_NO_SELECT)
-      goto do_log_query;
-    if (events & EVENT_QUERY_DCL && cmdtype & EVENT_QUERY_DCL)
-      goto do_log_query;
-
-    return 0;
-do_log_query:
-    query= orig_query;
+    if (!(events & cmdtype &
+          (EVENT_QUERY_DDL | EVENT_QUERY_DML | EVENT_QUERY_DML_NO_SELECT |
+           EVENT_QUERY_DCL)))
+      return 0;
   }
 
   csize= log_header(message, message_size-1, &ev_time,
