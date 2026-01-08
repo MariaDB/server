@@ -2695,4 +2695,22 @@ CREATE TABLE t(c INT);
 SELECT (SELECT 0 GROUP BY c HAVING (SELECT c)) FROM t GROUP BY c;
 DROP TABLE t;
 
+--echo #
+--echo # MDEV-38476 Wrong Result (Empty Set) with derived_merge=on using AVG() on text column in HAVING clause
+--echo #
+
+CREATE TABLE t1(c1 TEXT);
+INSERT INTO t1(c1) VALUES ('a'),('ab'),('cc');
+SELECT MAX(ca1) FROM (SELECT c1 AS ca1 FROM t1) AS ta1
+  GROUP BY ca1
+  HAVING AVG(ca1) RLIKE (TRUE & CHARACTER_LENGTH(ca1));
+
+TRUNCATE t1;
+INSERT INTO t1 (c1) VALUES (NULL), ('abc');
+SELECT ca1 FROM (SELECT c1 AS ca1, c1 AS ca2 FROM t1) AS ta1
+  GROUP BY ca2
+  HAVING (ca2 = ANY (SELECT c1 FROM t1)) IS NOT TRUE;
+
+DROP TABLE t1;
+
 --echo # End of 10.11 tests
