@@ -2948,3 +2948,19 @@ drop view v1,v2;
 drop table t1,t2;
 
 --echo # End of 10.6 tests
+
+--echo #
+--echo # MDEV-37266: Assertion in create_ref_for_key() with
+--echo #             derived_merge OFF
+--echo #
+
+SET @save_optimizer_switch=@@optimizer_switch;
+SET optimizer_switch='derived_with_keys=on';
+
+CREATE TABLE t1 AS SELECT 1 AS a FROM seq_1_to_2;
+SELECT md5(a) IN (SELECT * FROM (SELECT '' FROM t1) as x) FROM t1;
+
+DROP table t1;
+SET optimizer_switch=@save_optimizer_switch;
+
+--echo # End of 11.4 tests

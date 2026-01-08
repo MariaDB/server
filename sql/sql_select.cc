@@ -22703,7 +22703,23 @@ bool Create_tmp_table::finalize(THD *thd,
     }
   }
   if (share->keys)
+  {
     keyinfo->index_flags= table->file->index_flags(0, 0, 1);
+
+    /*
+      We can end up with a zero-length index for
+      "SELECT * FROM (SELECT '' as col FROM t1) as DT".
+      Such indexes are not allowed for regular tables.
+      Query optimizer has at least one assertion that will fail for it.
+      Make sure the optimizer doesn't use zero-length index
+      by marking it as ignored.
+    */
+    if (!keyinfo->key_length)
+    {
+      table->keys_in_use_for_query.clear_bit(0);
+      share->ignored_indexes.set_bit(0);
+    }
+  }
 
   if (unlikely(thd->is_fatal_error))             // If end of memory
     goto err;					 /* purecov: inspected */
