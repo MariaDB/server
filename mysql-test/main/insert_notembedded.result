@@ -121,3 +121,48 @@ connection default;
 DROP DATABASE meow;
 set local sql_mode=default;
 set global sql_mode=default;
+#
+# MDEV-37950: INSERT ... RETURNING exposes columns for which
+# the user lacks SELECT privilege
+#
+CREATE USER regular;
+GRANT INSERT ON *.* TO regular;
+GRANT DELETE ON *.* TO regular;
+CREATE DATABASE test1;
+DROP TABLE IF EXISTS test1.t_trigger_test1;
+Warnings:
+Note	1051	Unknown table 'test1.t_trigger_test1'
+CREATE TABLE test1.t_trigger_test1 (
+id INT AUTO_INCREMENT PRIMARY KEY,
+name VARCHAR(50),
+note VARCHAR(100)
+);
+CREATE TRIGGER test1.trg_before_insert
+BEFORE INSERT ON test1.t_trigger_test1
+FOR EACH ROW
+BEGIN
+SET NEW.name = CONCAT('BEFORE_', NEW.name);
+END |
+change_user regular,,;
+INSERT INTO test1.t_trigger_test1 (name) VALUES ('Alice') RETURNING *;
+ERROR 42000: SELECT command denied to user 'regular'@'localhost' for column 'id' in table 't_trigger_test1'
+INSERT INTO test1.t_trigger_test1 (name) VALUES ('Alice') RETURNING id, name, note;
+ERROR 42000: SELECT command denied to user 'regular'@'localhost' for column 'id' in table 't_trigger_test1'
+# same for DELETE because delete with "WHERE" still requires to
+# read from the table, which basically means having select privileges
+DELETE FROM test1.t_trigger_test1 WHERE id=1;
+ERROR 42000: SELECT command denied to user 'regular'@'localhost' for column 'id' in table 't_trigger_test1'
+DELETE FROM test1.t_trigger_test1 WHERE id=1 RETURNING id;
+ERROR 42000: SELECT command denied to user 'regular'@'localhost' for column 'id' in table 't_trigger_test1'
+DELETE FROM test1.t_trigger_test1 WHERE id=1 RETURNING *;
+ERROR 42000: SELECT command denied to user 'regular'@'localhost' for column 'id' in table 't_trigger_test1'
+DELETE FROM test1.t_trigger_test1 RETURNING *;
+ERROR 42000: SELECT command denied to user 'regular'@'localhost' for column 'id' in table 't_trigger_test1'
+DELETE FROM test1.t_trigger_test1 RETURNING id;
+ERROR 42000: SELECT command denied to user 'regular'@'localhost' for column 'id' in table 't_trigger_test1'
+DELETE FROM test1.t_trigger_test1;
+change_user root,,;
+DROP TRIGGER test1.trg_before_insert;
+DROP TABLE test1.t_trigger_test1;
+DROP USER regular;
+DROP DATABASE test1;

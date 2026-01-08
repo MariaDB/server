@@ -106,6 +106,7 @@
 #ifdef WITH_WSREP
 #include "wsrep_thd.h"
 #include "wsrep_trans_observer.h" /* wsrep transaction hooks */
+#include "wsrep_schema.h"
 
 static bool wsrep_mysql_parse(THD *thd, char *rawbuf, uint length,
                               Parser_state *parser_state);
@@ -1139,7 +1140,7 @@ void cleanup_items(Item *item)
 }
 
 #ifdef WITH_WSREP
-static bool wsrep_tables_accessible_when_detached(const TABLE_LIST *tables)
+static inline bool wsrep_tables_accessible_when_detached(const TABLE_LIST *tables)
 {
   for (const TABLE_LIST *t= tables; t; t= t->next_global)
   {
@@ -1149,13 +1150,27 @@ static bool wsrep_tables_accessible_when_detached(const TABLE_LIST *tables)
   return tables != NULL;
 }
 
-static bool wsrep_command_no_result(char command)
+static inline bool wsrep_is_streaming_log(const TABLE_LIST *tables)
+{
+  for (const TABLE_LIST *table= tables; table; table= table->next_global)
+  {
+    const Lex_ident_db db(table->db);
+    const Lex_ident_table name(table->table_name);
+    if (db.streq(WSREP_LEX_SCHEMA) &&
+        name.streq(WSREP_LEX_STREAMING))
+      return true;
+  }
+  return false;
+}
+
+static inline bool wsrep_command_no_result(char command)
 {
   return (command == COM_STMT_FETCH            ||
           command == COM_STMT_SEND_LONG_DATA   ||
           command == COM_STMT_CLOSE);
 }
 #endif /* WITH_WSREP */
+
 #ifndef EMBEDDED_LIBRARY
 static enum enum_server_command fetch_command(THD *thd, char *packet)
 {
@@ -1592,6 +1607,7 @@ dispatch_command_return dispatch_command(enum enum_server_command command, THD *
   NET *net= &thd->net;
   bool error= 0;
   bool do_end_of_statement= true;
+  bool log_slow_done= false;
   DBUG_ENTER("dispatch_command");
   DBUG_PRINT("info", ("command: %d %s", command,
                       (command_name[command].str != 0 ?
@@ -1790,6 +1806,7 @@ dispatch_command_return dispatch_command(enum enum_server_command command, THD *
   case COM_STMT_BULK_EXECUTE:
   {
     mysqld_stmt_bulk_execute(thd, packet, packet_length);
+    log_slow_done= true;
 #ifdef WITH_WSREP
     if (WSREP(thd))
     {
@@ -1801,6 +1818,7 @@ dispatch_command_return dispatch_command(enum enum_server_command command, THD *
   case COM_STMT_EXECUTE:
   {
     mysqld_stmt_execute(thd, packet, packet_length);
+    log_slow_done= true;
 #ifdef WITH_WSREP
     if (WSREP(thd))
     {
@@ -1977,6 +1995,7 @@ dispatch_command_return dispatch_command(enum enum_server_command command, THD *
       mysql_parse(thd, beginning_of_next_stmt, length, &parser_state);
 
     }
+    log_slow_done= thd->lex->sql_command == SQLCOM_EXECUTE;
 
     DBUG_PRINT("info",("query ready"));
     break;
@@ -2433,22 +2452,19 @@ resume:
   if (likely(!thd->is_error() && !thd->killed_errno()))
     mysql_audit_general(thd, MYSQL_AUDIT_GENERAL_RESULT, 0, 0);
 
-  mysql_audit_general(thd, MYSQL_AUDIT_GENERAL_STATUS,
-                      thd->get_stmt_da()->is_error() ?
-                      thd->get_stmt_da()->sql_errno() : 0,
-                      command_name[command].str);
+  if (!log_slow_done)
+    mysql_audit_general(thd, MYSQL_AUDIT_GENERAL_STATUS,
+                        thd->get_stmt_da()->is_error() ?
+                        thd->get_stmt_da()->sql_errno() : 0,
+                        command_name[command].str);
 
   thd->update_all_stats();
 
   /*
-    Write to slow query log only those statements that received via the text
-    protocol except the EXECUTE statement. The reason we do that way is
-    that for statements received via binary protocol and for the EXECUTE
-    statement, the slow statements have been already written to slow query log
-    inside the method Prepared_statement::execute().
+    for backward compatibility we only log COM_QUERY here,
+    as if COM_STMT_PREPARE or COM_FIELD_LIST couldn't be slow.
   */
-  if(command == COM_QUERY &&
-     thd->lex->sql_command != SQLCOM_EXECUTE)
+  if (command == COM_QUERY && !log_slow_done)
     log_slow_statement(thd);
   else
     delete_explain_query(thd->lex);
@@ -4553,10 +4569,21 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
 #ifdef WITH_WSREP
       if (wsrep && !first_table->view)
       {
-        const legacy_db_type db_type= first_table->table->file->partition_ht()->db_type;
+        const handlerton *hton= first_table->table->file->partition_ht() ?
+          first_table->table->file->partition_ht() :
+          first_table->table->file->ht;
+
+        const legacy_db_type db_type= hton->db_type;
         // For InnoDB we don't need to worry about anything here:
         if (db_type != DB_TYPE_INNODB)
         {
+          /* Only TOI allowed to !InnoDB tables */
+          if (thd->variables.wsrep_OSU_method != WSREP_OSU_TOI)
+          {
+            my_error(ER_NOT_SUPPORTED_YET, MYF(0), "RSU on this table engine");
+            break;
+          }
+
           // For consistency check inserted table needs to be InnoDB
           if (thd->wsrep_consistency_check != NO_CONSISTENCY_CHECK)
           {
@@ -4566,16 +4593,10 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
                                 " for InnoDB tables.");
             thd->wsrep_consistency_check= NO_CONSISTENCY_CHECK;
           }
-          /* Only TOI allowed to !InnoDB tables */
-          if (wsrep_OSU_method_get(thd) != WSREP_OSU_TOI)
-          {
-            my_error(ER_NOT_SUPPORTED_YET, MYF(0), "RSU on this table engine");
-            break;
-          }
           // For !InnoDB we start TOI if it is not yet started and hope for the best
           if (!wsrep_toi)
           {
-            /* Currently we support TOI for MyISAM only. */
+            /* Currently we support TOI for MyISAM && Aria only. */
             if ((db_type == DB_TYPE_MYISAM && wsrep_check_mode(WSREP_MODE_REPLICATE_MYISAM)) ||
                 (db_type == DB_TYPE_ARIA   && wsrep_check_mode(WSREP_MODE_REPLICATE_ARIA)))
             {
@@ -4728,6 +4749,19 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
     {
       if (check_table_access(thd, DROP_ACL, all_tables, FALSE, UINT_MAX, FALSE))
 	goto error;				/* purecov: inspected */
+#ifdef WITH_WSREP
+      /* In Galera do not allow dropping mysql.wsrep_streaming_log
+         because it would make streaming replication to fail.
+      */
+      if (WSREP(thd) && wsrep_is_streaming_log(all_tables))
+      {
+        my_error(ER_TABLEACCESS_DENIED_ERROR, MYF(0), "DROP",
+                 thd->security_ctx->priv_user,
+                 thd->security_ctx->host_or_ip,
+                 "mysql", "wsrep_streaming_log");
+        goto error;
+      }
+#endif /* WITH_WSREP */
     }
     else
     {
@@ -5304,7 +5338,12 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
     REFRESH_GLOBAL_STATUS                   |
     REFRESH_USER_RESOURCES))
     {
-      WSREP_TO_ISOLATION_BEGIN_WRTCHK(WSREP_MYSQL_DB, NULL, NULL);
+      if (WSREP(thd) && !thd->lex->no_write_to_binlog &&
+          wsrep_to_isolation_begin(thd, WSREP_MYSQL_DB, NULL, NULL))
+      {
+	res= 1;
+	goto error;
+      }
     }
 #endif /* WITH_WSREP*/
 
@@ -6188,8 +6227,13 @@ static bool execute_sqlcom_select(THD *thd, TABLE_LIST *all_tables)
       }
     }
   }
-  /* Count number of empty select queries */
-  if (!thd->is_cursor_execution() && !thd->get_sent_row_count() && !res)
+  /*
+    Count number of empty select queries.
+    is_cursor_execution is used to handle opening of cursor.
+    For cursors, Empty_queries will be set when using the cursor.
+   */
+  if (unlikely(!thd->get_sent_row_count() && !thd->is_cursor_execution() &&
+               !(thd->server_status & SERVER_STATUS_RETURNED_ROW) && !res))
     status_var_increment(thd->status_var.empty_queries);
   else
     status_var_add(thd->status_var.rows_sent, thd->get_sent_row_count());

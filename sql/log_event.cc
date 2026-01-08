@@ -209,7 +209,7 @@ private:
   Log_event *m_ev; // Used for Flashback
 };
 
-#ifndef DBUG_OFF
+#if !defined DBUG_OFF && defined DBUG_TRACE
 #define DBUG_DUMP_EVENT_BUF(B,L)                                         \
   do {                                                                   \
     const uchar *_buf=(uchar*)(B);                                       \

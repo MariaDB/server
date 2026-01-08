@@ -251,7 +251,7 @@ set global server_audit_logging= off;
 set global server_audit_incl_users='root';
 set global server_audit_logging= on;
 disconnect cn1;
-Line count in file: 140
+Line count in file: 138
 drop user user1@localhost;
 set global server_audit_events='';
 set global server_audit_incl_users='root, plug_dest, ssl_user1';
@@ -267,7 +267,7 @@ USER()	CURRENT_USER()
 plug@localhost	plug_dest@%
 connection default;
 disconnect plug_con;
-Line count in file: 174
+Line count in file: 172
 DROP USER plug;
 DROP USER plug_dest;
 CREATE USER ssl_user1@localhost require SSL;
@@ -277,7 +277,7 @@ select variable_value > '' as 'have_ssl' from information_schema.session_status 
 have_ssl
 1
 disconnect conssl1;
-Line count in file: 205
+Line count in file: 203
 connection default;
 DROP USER ssl_user1@localhost;
 set global server_audit_query_log_limit= 15;
@@ -471,8 +471,6 @@ TIME,HOSTNAME,root,localhost:PORT,ID,ID,QUERY,sa_db,'/*! select 2*/',0
 TIME,HOSTNAME,root,localhost:PORT,ID,ID,QUERY,sa_db,'/*comment*/ select 2',0
 TIME,HOSTNAME,root,localhost:PORT,ID,ID,QUERY,sa_db,'CREATE USER u1 IDENTIFIED BY *****',0
 TIME,HOSTNAME,root,localhost:PORT,ID,ID,QUERY,sa_db,'GRANT ALL ON sa_db TO u2 IDENTIFIED BY *****',0
-TIME,HOSTNAME,root,localhost:PORT,ID,ID,QUERY,sa_db,'SET PASSWORD \n# comment\nFOR u1 = PASSWORD(*****)',0
-TIME,HOSTNAME,root,localhost:PORT,ID,ID,QUERY,sa_db,'SET PASSWORD FOR u1=<secret>',ID
 TIME,HOSTNAME,root,localhost:PORT,ID,ID,QUERY,sa_db,'CREATE USER u3 IDENTIFIED BY *****',0
 TIME,HOSTNAME,root,localhost:PORT,ID,ID,QUERY,sa_db,'drop user u1, u2, u3',0
 TIME,HOSTNAME,root,localhost:PORT,ID,ID,QUERY,sa_db,'insert into t1 values (1), (2)',0

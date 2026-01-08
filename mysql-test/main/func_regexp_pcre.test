@@ -382,6 +382,8 @@ SELECT 'AB' RLIKE 'A B';
 SELECT 'AB' RLIKE 'A# this is a comment\nB';
 SET default_regex_flags=DEFAULT;
 
+# pcre2 versions differ in the reported error offset for invalid escapes
+--replace_regex /offset 2/offset 3/
 --error ER_REGEXP_ERROR
 SELECT 'Aq' RLIKE 'A\\q';
 

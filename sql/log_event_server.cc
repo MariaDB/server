@@ -7051,15 +7051,21 @@ int Rows_log_event::update_sequence()
   bool old_master= false;
   int err= 0;
 
-  if (!bitmap_is_set(table->rpl_write_set, MIN_VALUE_FIELD_NO) ||
-      (
-#if defined(WITH_WSREP)
-       ! WSREP(thd) &&
+  rpl_group_info *table_rgi=
+#ifdef WITH_WSREP
+  WSREP(thd) ? thd->wsrep_rgi :
 #endif
-       table->in_use->rgi_slave &&
-       !(table->in_use->rgi_slave->gtid_ev_flags2 & Gtid_log_event::FL_DDL) &&
+  table->in_use->rgi_slave;
+  rpl_group_info *thd_rgi=
+#ifdef WITH_WSREP
+  WSREP(thd) ? thd->wsrep_rgi :
+#endif
+  thd->rgi_slave;
+  if (!bitmap_is_set(table->rpl_write_set, MIN_VALUE_FIELD_NO) ||
+      (table_rgi &&
+       !(table_rgi->gtid_ev_flags2 & Gtid_log_event::FL_DDL) &&
        !(old_master=
-         rpl_master_has_bug(thd->rgi_slave->rli,
+         rpl_master_has_bug(thd_rgi->rli,
                             29621, FALSE, FALSE, FALSE, TRUE))))
   {
     /* This event come from a setval function executed on the master.

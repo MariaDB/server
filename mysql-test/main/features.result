@@ -225,3 +225,4 @@ show status like "Feature_vector_index";
 Variable_name	Value
 Feature_vector_index	2
 drop table t1;
+# End of 11.8 tests

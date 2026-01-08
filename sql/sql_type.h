@@ -7106,6 +7106,8 @@ public:
                                    const Bit_addr &bit,
                                    const Column_definition_attributes *attr,
                                    uint32 flags) const override;
+  void Item_param_set_param_func(Item_param *param,
+                                 uchar **pos, ulong len) const override;
 };
 
 

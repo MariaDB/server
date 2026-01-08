@@ -1,0 +1,33 @@
+--source include/galera_cluster.inc
+--source include/have_sequence.inc
+--source include/have_log_bin.inc
+--source include/have_binlog_format_row.inc
+
+--echo #
+--echo # MDEV-37808 "Local temporary space limit reached" on not so rare
+--echo # occasions
+--echo #
+
+--connection node_1
+
+set @@max_tmp_session_space_usage=1024*1024*1024;
+
+create user foo;
+grant all privileges on *.* to foo;
+
+use test;
+create table t1(a int, b varchar(1024)) engine=innodb;
+insert into t1 select seq, repeat("a", 500) from seq_1_to_100;
+create table t2(a int, b varchar(1024)) engine=myisam;
+insert into t2 select seq, repeat("a", 500) from seq_1_to_100;
+
+show status like "%tmp_space%";
+
+change_user foo;
+use test;
+select count(*) from t1;
+show status like "%tmp_space%";
+
+drop table t1,t2;
+change_user root;
+drop user foo;

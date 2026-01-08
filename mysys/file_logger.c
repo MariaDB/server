@@ -311,7 +311,7 @@ int logger_set_rotations(LOGGER_HANDLE *log, unsigned int new_rotations)
   return 0;
 }
 
-void logger_init_mutexes()
+void logger_init_mutexes(void)
 {
 #ifdef HAVE_PSI_INTERFACE
   if (unlikely(PSI_server))

@@ -5239,7 +5239,7 @@ int flush_pagecache_blocks_with_filter(PAGECACHE *pagecache,
 {
   int res;
   DBUG_ENTER("flush_pagecache_blocks_with_filter");
-  DBUG_PRINT("enter", ("pagecache: %p  fd: %di", pagecache, file->file));
+  DBUG_PRINT("enter", ("pagecache: %p  fd: %d", pagecache, file->file));
 
   pagecache_pthread_mutex_lock(&pagecache->cache_lock);
   inc_counter_for_resize_op(pagecache);

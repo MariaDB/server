@@ -991,6 +991,17 @@ Field_pair *find_matching_field_pair(Item *item, List<Field_pair> pair_list);
 class st_select_lex: public st_select_lex_node
 {
 public:
+  Name_resolution_context context;
+  LEX_CSTRING db;
+
+  /*
+    Point to the LEX in which it was created, used in view subquery detection.
+
+    TODO: make also st_select_lex::parent_stmt_lex (see LEX::stmt_lex)
+    and use st_select_lex::parent_lex & st_select_lex::parent_stmt_lex
+    instead of global (from THD) references where it is possible.
+  */
+  LEX *parent_lex;
   /*
     Currently the field first_nested is used only by parser.
     It contains either a reference to the first select
@@ -1006,18 +1017,6 @@ public:
     while select3->first_nested points to select2 and
     select1->first_nested points to select1.
   */
-
-  Name_resolution_context context;
-  LEX_CSTRING db;
-
-  /*
-    Point to the LEX in which it was created, used in view subquery detection.
-
-    TODO: make also st_select_lex::parent_stmt_lex (see LEX::stmt_lex)
-    and use st_select_lex::parent_lex & st_select_lex::parent_stmt_lex
-    instead of global (from THD) references where it is possible.
-  */
-  LEX *parent_lex;
   st_select_lex *first_nested;
   Item *where, *having;                         /* WHERE & HAVING clauses */
   Item *prep_where; /* saved WHERE clause for prepared statement processing */
@@ -1576,7 +1575,8 @@ public:
     DBUG_ENTER("SELECT_LEX::set_linkage_and_distinct");
     DBUG_PRINT("info", ("select: %p  distinct %d", this, d));
     set_linkage(l);
-    DBUG_ASSERT(l == UNION_TYPE ||
+    DBUG_ASSERT(l == UNSPECIFIED_TYPE ||
+                l == UNION_TYPE ||
                 l == INTERSECT_TYPE ||
                 l == EXCEPT_TYPE);
     if (d && master_unit() && master_unit()->union_distinct != this)
@@ -3762,6 +3762,7 @@ public:
                          select_stack_head()->select_number :
                          0),
                         select_lex, select_lex->select_number));
+    DBUG_ASSERT(select_lex);
     if (unlikely(select_stack_top > MAX_SELECT_NESTING))
     {
       my_error(ER_TOO_HIGH_LEVEL_OF_NESTING_FOR_SELECT, MYF(0));
@@ -4902,7 +4903,7 @@ public:
   }
   bool main_select_push(bool service= false);
   bool insert_select_hack(SELECT_LEX *sel);
-  SELECT_LEX *create_priority_nest(SELECT_LEX *first_in_nest);
+  SELECT_LEX *create_priority_nest(SELECT_LEX *first_in_nest, SELECT_LEX *attach_to);
 
   bool set_main_unit(st_select_lex_unit *u)
   {
@@ -5083,6 +5084,7 @@ public:
                               DDL_options ddl_options);
 
   bool check_dependencies_in_with_clauses();
+  bool prepare_unreferenced_in_with_clauses();
   bool check_cte_dependencies_and_resolve_references();
   bool resolve_references_to_cte(TABLE_LIST *tables,
                                  TABLE_LIST **tables_last,

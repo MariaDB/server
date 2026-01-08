@@ -544,7 +544,8 @@ public:
              HA_CREATE_INFO *create_info) override;
   int create_partitioning_metadata(const char *name,
                                    const char *old_name,
-                                   chf_create_flags action_flag)
+                                   chf_create_flags action_flag,
+                                   bool ignore_delete_error)
     override;
   bool check_if_updates_are_ignored(const char *op) const override;
   void update_create_info(HA_CREATE_INFO *create_info) override;

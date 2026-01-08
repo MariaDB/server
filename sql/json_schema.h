@@ -527,6 +527,7 @@ class Json_schema_properties : public Json_schema_keyword
     Json_schema_properties()
     {
       priority= 1;
+      is_hash_inited= false;
     }
     bool validate(const json_engine_t *je, MEM_ROOT *current_mem_root,
                   const uchar *k_start= NULL,
@@ -554,6 +555,10 @@ class Json_schema_dependent_schemas : public Json_schema_keyword
     bool is_hash_inited;
 
   public:
+    Json_schema_dependent_schemas()
+    {
+      is_hash_inited= false;
+    }
     ~Json_schema_dependent_schemas()
     {
       if (is_hash_inited)

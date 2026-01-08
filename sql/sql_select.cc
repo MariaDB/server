@@ -1692,10 +1692,6 @@ JOIN::prepare(TABLE_LIST *tables_init, COND *conds_init, uint og_num,
     }
   }
 
-  With_clause *with_clause=select_lex->get_with_clause();
-  if (with_clause && with_clause->prepare_unreferenced_elements(thd))
-    DBUG_RETURN(1);
-
   With_element *with_elem= select_lex->get_with_element();
   if (with_elem &&
       select_lex->check_unrestricted_recursive(
@@ -5246,15 +5242,9 @@ select_handler *find_select_handler_inner(THD *thd,
                                     SELECT_LEX *select_lex,
                                     SELECT_LEX_UNIT *select_lex_unit)
 {
-  if (select_lex->master_unit()->outer_select() ||
-      (select_lex_unit && select_lex->master_unit()->with_clause))
-  {
-    /*
-      Pushdown is not supported neither for non-top-level SELECTs nor for parts
-      of SELECT_LEX_UNITs that have CTEs (SELECT_LEX_UNIT::with_clause)
-    */
+  // Pushdown is not supported for non-top-level SELECTs
+  if (select_lex->master_unit()->outer_select())
     return 0;
-  }
 
   TABLE_LIST *tbl= nullptr;
   // For SQLCOM_INSERT_SELECT the server takes TABLE_LIST
@@ -5430,6 +5420,10 @@ mysql_select(THD *thd, TABLE_LIST *tables, List<Item> &fields, COND *conds,
   }
 
   thd->get_stmt_da()->reset_current_row_for_warning(1);
+
+  if (thd->lex->prepare_unreferenced_in_with_clauses())
+    goto err;
+
   /* Look for a table owned by an engine with the select_handler interface */
   select_lex->pushdown_select= find_single_select_handler(thd, select_lex);
 
@@ -6220,15 +6214,21 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
                   s->table->opt_range_condition_rows /
                   s->table->used_stat_records);
       /*
-        Perform range analysis if there are keys it could use (1).
-        Don't do range analysis for materialized subqueries (2).
-        Don't do range analysis for materialized derived tables/views (3)
+        Perform range analysis if we could infer something from it.
+        (1) There are indexes for which we have range conditions,
+        (2) Or there are sargable conditions on the table's columns that we
+            could use for selectivity estimation,
+        (3) Or selectivity estimation via sampling is enabled.
+
+        (4) Don't do range analysis for materialized subqueries.
+        (5) Don't do range analysis for materialized derived tables/views.
       */
-      if ((!s->const_keys.is_clear_all() ||
-           !bitmap_is_clear_all(&s->table->cond_set)) &&              // (1)
-          !s->table->is_filled_at_execution() &&                      // (2)
-          !(s->table->pos_in_table_list->derived &&                   // (3)
-            s->table->pos_in_table_list->is_materialized_derived()))  // (3)
+      if ((!s->const_keys.is_clear_all() ||                            // (1)
+           !bitmap_is_clear_all(&s->table->cond_set) ||                // (2)
+           thd->variables.optimizer_use_condition_selectivity >= 5) && // (3)
+          !s->table->is_filled_at_execution() &&                       // (4)
+          !(s->table->pos_in_table_list->derived &&                    // (5)
+            s->table->pos_in_table_list->is_materialized_derived()))   // (5)
       {
         bool impossible_range= FALSE;
         ha_rows records= HA_ROWS_MAX;
@@ -13609,6 +13609,7 @@ static bool create_hj_key_for_table(JOIN *join, JOIN_TAB *join_tab,
   keyinfo->flags= HA_GENERATED_KEY;
   keyinfo->is_statistics_from_stat_tables= FALSE;
   keyinfo->all_nulls_key_parts= 0;
+  keyinfo->stat_storage_length= 0;
   keyinfo->name.str= "$hj";
   keyinfo->name.length= 3;
   keyinfo->rec_per_key= thd->calloc<ulong>(key_parts);
@@ -22678,6 +22679,7 @@ bool Create_tmp_table::finalize(THD *thd,
     keyinfo->algorithm= HA_KEY_ALG_UNDEF;
     keyinfo->is_statistics_from_stat_tables= FALSE;
     keyinfo->all_nulls_key_parts= 0;
+    keyinfo->stat_storage_length= 0;
     keyinfo->name= group_key;
     keyinfo->comment.str= 0;
     ORDER *cur_group= m_group;
@@ -22800,6 +22802,7 @@ bool Create_tmp_table::finalize(THD *thd,
     keyinfo->algorithm= HA_KEY_ALG_UNDEF;
     keyinfo->is_statistics_from_stat_tables= FALSE;
     keyinfo->all_nulls_key_parts= 0;
+    keyinfo->stat_storage_length= 0;
     keyinfo->read_stats= NULL;
     keyinfo->collected_stats= NULL;
 
@@ -25863,7 +25866,14 @@ end_send(JOIN *join, JOIN_TAB *join_tab, bool end_of_records)
     copy_fields(&join->tmp_table_param);
   }
   if (join->having && join->having->val_bool() == 0)
+  {
+    /*
+      If we have HAVING clause and it is not satisfied, we don't send
+      the row to the client, but rownum should be incremented.
+    */
+    join->accepted_rows++;
     DBUG_RETURN(NESTED_LOOP_OK);               // Didn't match having
+  }
   if (join->procedure)
   {
     if (join->procedure->send_row(join->procedure_fields_list))
@@ -31266,16 +31276,21 @@ bool JOIN_TAB::save_explain_data(Explain_table_access *eta,
       else
         eta->push_extra(ET_SCANNED_ALL_DATABASES);
     }
-    if (key_read)
+
+    if (quick_type == QUICK_SELECT_I::QS_TYPE_GROUP_MIN_MAX)
     {
-      if (quick_type == QUICK_SELECT_I::QS_TYPE_GROUP_MIN_MAX)
-      {
-        QUICK_GROUP_MIN_MAX_SELECT *qgs= 
-          (QUICK_GROUP_MIN_MAX_SELECT *) tab_select->quick;
-        eta->push_extra(ET_USING_INDEX_FOR_GROUP_BY);
-        eta->loose_scan_is_scanning= qgs->loose_scan_is_scanning();
-      }
-      else
+      QUICK_GROUP_MIN_MAX_SELECT *qgs=
+        (QUICK_GROUP_MIN_MAX_SELECT *) tab_select->quick;
+      eta->push_extra(ET_USING_INDEX_FOR_GROUP_BY);
+      eta->loose_scan_is_scanning= qgs->loose_scan_is_scanning();
+    }
+    else
+    {
+      /*
+        Print "Using index" if we haven't already printed "Using index for
+        group by".
+      */
+      if (key_read)
         eta->push_extra(ET_USING_INDEX);
     }
     if (table->reginfo.not_exists_optimize)
@@ -34860,6 +34875,9 @@ bool Sql_cmd_dml::execute_inner(THD *thd)
   SELECT_LEX_UNIT *unit = &lex->unit;
   SELECT_LEX *select_lex= unit->first_select();
   JOIN *join= select_lex->join;
+
+  // look for select_handler provided by engines
+  select_lex->pushdown_select= find_single_select_handler(thd, select_lex);
 
   if (join->optimize())
     goto err;

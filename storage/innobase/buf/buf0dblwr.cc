@@ -382,7 +382,7 @@ void buf_dblwr_t::recover() noexcept
     const page_t *const page= *i;
     const uint32_t page_no= page_get_page_no(page);
     const lsn_t lsn= mach_read_from_8(page + FIL_PAGE_LSN);
-    if (log_sys.last_checkpoint_lsn > lsn || lsn > recv_sys.lsn)
+    if (log_sys.last_checkpoint_lsn > lsn || lsn > max_lsn)
       /* Pages written before or after the recovery range are not usable. */
       continue;
     const uint32_t space_id= page_get_space_id(page);

@@ -1,6 +1,6 @@
 connection node_2;
 connection node_1;
-call mtr.add_suppression("WSREP: wsrep_mode = STRICT_REPLICATION enabled\\. Storage engine ");
+call mtr.add_suppression("WSREP: wsrep_mode = STRICT_REPLICATION enabled");
 CREATE TABLE t1(a int NOT NULL PRIMARY KEY, b varchar(50)) ENGINE=INNODB;
 CREATE TABLE t2(a int NOT NULL PRIMARY KEY, b varchar(50)) ENGINE=MYISAM;
 CREATE TABLE t3(a int NOT NULL PRIMARY KEY, b varchar(50)) ENGINE=ARIA;
@@ -9,7 +9,11 @@ SET GLOBAL log_warnings=2;
 SET GLOBAL wsrep_mode = "STRICT_REPLICATION,REPLICATE_MYISAM,REPLICATE_ARIA";
 INSERT INTO t1 values (1,'innodb1');
 INSERT INTO t2 values (1,'myisam1');
+Warnings:
+Warning	1290	WSREP: wsrep_mode = STRICT_REPLICATION enabled. Storage engine MyISAM for table 'test'.'t2' is not supported in Galera
 INSERT INTO t3 values (1,'aria1');
+Warnings:
+Warning	1290	WSREP: wsrep_mode = STRICT_REPLICATION enabled. Storage engine Aria for table 'test'.'t3' is not supported in Galera
 INSERT INTO t4 values (1,'memory1');
 Warnings:
 Warning	1290	WSREP: wsrep_mode = STRICT_REPLICATION enabled. Storage engine MEMORY for table 'test'.'t4' is not supported in Galera
@@ -24,6 +28,8 @@ Warning	1290	WSREP: wsrep_mode = STRICT_REPLICATION enabled. Storage engine Aria
 SET GLOBAL log_warnings=1;
 INSERT INTO t1 values (3,'innodb3');
 INSERT INTO t2 values (3,'myisam3');
+Warnings:
+Warning	1290	WSREP: wsrep_mode = STRICT_REPLICATION enabled. Storage engine MyISAM for table 'test'.'t2' is not supported in Galera
 INSERT INTO t3 values (3,'aria3');
 Warnings:
 Warning	1290	WSREP: wsrep_mode = STRICT_REPLICATION enabled. Storage engine Aria for table 'test'.'t3' is not supported in Galera
@@ -33,6 +39,8 @@ Warning	1290	WSREP: wsrep_mode = STRICT_REPLICATION enabled. Storage engine MEMO
 include/assert_grep.inc [WSREP: wsrep_mode = STRICT_REPLICATION enabled.]
 SET GLOBAL log_warnings=2;
 INSERT INTO t2 values (4,'myisam3');
+Warnings:
+Warning	1290	WSREP: wsrep_mode = STRICT_REPLICATION enabled. Storage engine MyISAM for table 'test'.'t2' is not supported in Galera
 INSERT INTO t3 values (4,'aria2');
 Warnings:
 Warning	1290	WSREP: wsrep_mode = STRICT_REPLICATION enabled. Storage engine Aria for table 'test'.'t3' is not supported in Galera
@@ -40,6 +48,8 @@ INSERT INTO t4 values (4,'memory2');
 Warnings:
 Warning	1290	WSREP: wsrep_mode = STRICT_REPLICATION enabled. Storage engine MEMORY for table 'test'.'t4' is not supported in Galera
 INSERT INTO t2 values (5,'myisam3');
+Warnings:
+Warning	1290	WSREP: wsrep_mode = STRICT_REPLICATION enabled. Storage engine MyISAM for table 'test'.'t2' is not supported in Galera
 INSERT INTO t3 values (5,'aria2');
 Warnings:
 Warning	1290	WSREP: wsrep_mode = STRICT_REPLICATION enabled. Storage engine Aria for table 'test'.'t3' is not supported in Galera
@@ -47,6 +57,8 @@ INSERT INTO t4 values (5,'memory2');
 Warnings:
 Warning	1290	WSREP: wsrep_mode = STRICT_REPLICATION enabled. Storage engine MEMORY for table 'test'.'t4' is not supported in Galera
 INSERT INTO t2 values (6,'myisam3');
+Warnings:
+Warning	1290	WSREP: wsrep_mode = STRICT_REPLICATION enabled. Storage engine MyISAM for table 'test'.'t2' is not supported in Galera
 INSERT INTO t3 values (6,'aria2');
 Warnings:
 Warning	1290	WSREP: wsrep_mode = STRICT_REPLICATION enabled. Storage engine Aria for table 'test'.'t3' is not supported in Galera
@@ -54,6 +66,8 @@ INSERT INTO t4 values (6,'memory2');
 Warnings:
 Warning	1290	WSREP: wsrep_mode = STRICT_REPLICATION enabled. Storage engine MEMORY for table 'test'.'t4' is not supported in Galera
 INSERT INTO t2 values (7,'myisam3');
+Warnings:
+Warning	1290	WSREP: wsrep_mode = STRICT_REPLICATION enabled. Storage engine MyISAM for table 'test'.'t2' is not supported in Galera
 INSERT INTO t3 values (7,'aria2');
 Warnings:
 Warning	1290	WSREP: wsrep_mode = STRICT_REPLICATION enabled. Storage engine Aria for table 'test'.'t3' is not supported in Galera
@@ -61,6 +75,8 @@ INSERT INTO t4 values (7,'memory2');
 Warnings:
 Warning	1290	WSREP: wsrep_mode = STRICT_REPLICATION enabled. Storage engine MEMORY for table 'test'.'t4' is not supported in Galera
 INSERT INTO t2 values (8,'myisam3');
+Warnings:
+Warning	1290	WSREP: wsrep_mode = STRICT_REPLICATION enabled. Storage engine MyISAM for table 'test'.'t2' is not supported in Galera
 INSERT INTO t3 values (8,'aria2');
 Warnings:
 Warning	1290	WSREP: wsrep_mode = STRICT_REPLICATION enabled. Storage engine Aria for table 'test'.'t3' is not supported in Galera
@@ -68,6 +84,8 @@ INSERT INTO t4 values (8,'memory2');
 Warnings:
 Warning	1290	WSREP: wsrep_mode = STRICT_REPLICATION enabled. Storage engine MEMORY for table 'test'.'t4' is not supported in Galera
 INSERT INTO t2 values (9,'myisam3');
+Warnings:
+Warning	1290	WSREP: wsrep_mode = STRICT_REPLICATION enabled. Storage engine MyISAM for table 'test'.'t2' is not supported in Galera
 INSERT INTO t3 values (9,'aria2');
 Warnings:
 Warning	1290	WSREP: wsrep_mode = STRICT_REPLICATION enabled. Storage engine Aria for table 'test'.'t3' is not supported in Galera
@@ -75,6 +93,8 @@ INSERT INTO t4 values (9,'memory2');
 Warnings:
 Warning	1290	WSREP: wsrep_mode = STRICT_REPLICATION enabled. Storage engine MEMORY for table 'test'.'t4' is not supported in Galera
 INSERT INTO t2 values (10,'myisam3');
+Warnings:
+Warning	1290	WSREP: wsrep_mode = STRICT_REPLICATION enabled. Storage engine MyISAM for table 'test'.'t2' is not supported in Galera
 INSERT INTO t3 values (10,'aria2');
 Warnings:
 Warning	1290	WSREP: wsrep_mode = STRICT_REPLICATION enabled. Storage engine Aria for table 'test'.'t3' is not supported in Galera
@@ -82,6 +102,8 @@ INSERT INTO t4 values (10,'memory2');
 Warnings:
 Warning	1290	WSREP: wsrep_mode = STRICT_REPLICATION enabled. Storage engine MEMORY for table 'test'.'t4' is not supported in Galera
 INSERT INTO t2 values (11,'myisam3');
+Warnings:
+Warning	1290	WSREP: wsrep_mode = STRICT_REPLICATION enabled. Storage engine MyISAM for table 'test'.'t2' is not supported in Galera
 INSERT INTO t3 values (11,'aria2');
 Warnings:
 Warning	1290	WSREP: wsrep_mode = STRICT_REPLICATION enabled. Storage engine Aria for table 'test'.'t3' is not supported in Galera

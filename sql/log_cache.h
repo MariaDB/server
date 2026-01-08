@@ -131,6 +131,13 @@ public:
     DBUG_ASSERT(empty());
   }
 
+  void truncate_cache_file()
+  {
+    DBUG_ASSERT(empty());
+    if (cache_log.file != -1)
+      truncate_io_cache(&cache_log);
+  }
+
   my_off_t get_byte_position() const
   {
     DBUG_ASSERT(cache_log.type == WRITE_CACHE);
@@ -358,7 +365,7 @@ private:
 
   /*
     It truncates the cache to a certain position. This includes deleting the
-    pending event.
+    pending event. Note that file size does not change.
    */
   void truncate(my_off_t pos, bool reset_cache=0)
   {

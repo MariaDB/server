@@ -15,13 +15,13 @@
    Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
 
-#define PLUGIN_VERSION 0x106
-#define PLUGIN_STR_VERSION "1.6.0"
-
-#define _my_thread_var loc_thread_var
+#define PLUGIN_VERSION 0x108
+#define PLUGIN_STR_VERSION "1.8.0"
 
 #include <my_config.h>
+#include "my_counter.h"
 #include <assert.h>
+#include "sql_command.h"
 
 #ifndef _WIN32
 #define DO_SYSLOG
@@ -72,17 +72,6 @@ static void closelog() {}
 
 #endif /*!_WIN32*/
 
-/*
-   Defines that can be used to reshape the pluging:
-   #define MARIADB_ONLY
-   #define USE_MARIA_PLUGIN_INTERFACE
-*/
-
-#if !defined(MYSQL_DYNAMIC_PLUGIN) && !defined(MARIADB_ONLY)
-#include <typelib.h>
-#define MARIADB_ONLY
-#endif /*MYSQL_PLUGIN_DYNAMIC*/
-
 #include <my_global.h>
 #include <my_base.h>
 #include <typelib.h>
@@ -95,10 +84,6 @@ static void closelog() {}
 #define RTLD_DEFAULT NULL
 #endif
 
-static char **int_mysql_data_home;
-static char *default_home= (char *)".";
-#define mysql_data_home (*int_mysql_data_home)
-
 #ifndef HOSTNAME_LENGTH
 #define HOSTNAME_LENGTH 255
 #endif
@@ -106,42 +91,21 @@ static char *default_home= (char *)".";
 #define USERNAME_CHAR_LENGTH 128
 #endif
 
-#define flogger_mutex_init(A,B,C) mysql_mutex_init(A, B, C) 
-#define flogger_mutex_destroy(A) mysql_mutex_destroy(A)
-#define flogger_mutex_lock(A) mysql_mutex_lock(A)
-#define flogger_mutex_unlock(A) mysql_mutex_unlock(A)
-
 #ifndef DBUG_OFF
 #define PLUGIN_DEBUG_VERSION "-debug"
 #else
 #define PLUGIN_DEBUG_VERSION ""
 #endif /*DBUG_OFF*/
-/*
- Disable __attribute__() on non-gcc compilers.
-*/
-#if !defined(__attribute__) && !defined(__GNUC__)
-#define __attribute__(A)
-#endif
-
 #ifdef _WIN32
 #define localtime_r(a, b) localtime_s(b, a)
 #endif /*WIN32*/
 
 
-extern MYSQL_PLUGIN_IMPORT char server_version[];
-static const char *serv_ver= NULL;
 const char *(*thd_priv_host_ptr)(MYSQL_THD thd, size_t *length);
-static int started_mysql= 0;
-static int mysql_57_started= 0;
-static int debug_server_started= 0;
-static int use_event_data_for_disconnect= 0;
-static int started_mariadb= 0;
-static int maria_55_started= 0;
-static int maria_above_5= 0;
 static char *incl_users, *excl_users,
             *file_path, *syslog_info;
 static char path_buffer[FN_REFLEN];
-static unsigned int mode, mode_readonly= 0;
+static unsigned int mode;
 static ulong output_type;
 static ulong syslog_facility, syslog_priority;
 
@@ -152,15 +116,15 @@ static my_bool rotate= TRUE;
 static my_bool sync_file= TRUE;
 static unsigned int file_buffer_size;
 static char logging;
-static volatile int internal_stop_logging= 0;
+static Atomic_counter<int> internal_stop_logging;
 static char incl_user_buffer[1024];
 static char excl_user_buffer[1024];
 static unsigned int query_log_limit= 0;
 
 static char servhost[HOSTNAME_LENGTH+1];
 static uint servhost_len;
-static char *syslog_ident;
-static char syslog_ident_buffer[128]= "mysql-server_auditing";
+static char syslog_ident[128]= "mysql-server_auditing";
+static char *syslog_ident_ptr= syslog_ident;
 
 struct connection_info
 {
@@ -296,9 +260,9 @@ static MYSQL_SYSVAR_BOOL(logging, logging,
        update_logging, 0);
 static MYSQL_SYSVAR_UINT(mode, mode,
        PLUGIN_VAR_OPCMDARG, "Auditing mode", NULL, update_mode, 0, 0, 1, 1);
-static MYSQL_SYSVAR_STR(syslog_ident, syslog_ident, PLUGIN_VAR_RQCMDARG,
+static MYSQL_SYSVAR_STR(syslog_ident, syslog_ident_ptr, PLUGIN_VAR_RQCMDARG,
        "The SYSLOG identifier - the beginning of each SYSLOG record",
-       NULL, update_syslog_ident, syslog_ident_buffer);
+       NULL, update_syslog_ident, syslog_ident);
 static MYSQL_SYSVAR_STR(syslog_info, syslog_info,
        PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_MEMALLOC,
        "The <info> string to be added to the SYSLOG record", NULL, NULL, "");
@@ -396,11 +360,9 @@ static struct st_mysql_sys_var* vars[] = {
 
 /* Status variables for SHOW STATUS */
 static int is_active= 0;
-static long log_write_failures= 0;
+static Atomic_counter<long> log_write_failures;
 static char current_log_buf[FN_REFLEN]= "";
 static char last_error_buf[512]= "";
-
-extern void *mysql_v4_descriptor;
 
 static struct st_mysql_show_var audit_status[]=
 {
@@ -408,38 +370,17 @@ static struct st_mysql_show_var audit_status[]=
   {"server_audit_current_log", current_log_buf, SHOW_CHAR},
   {"server_audit_writes_failed", (char *)&log_write_failures, SHOW_LONG},
   {"server_audit_last_error", last_error_buf, SHOW_CHAR},
-  {0,0,0}
+  {0,0,SHOW_UNDEF}
 };
 
-#ifdef HAVE_PSI_INTERFACE
-static PSI_rwlock_key key_LOCK_operations;
-static PSI_rwlock_info rwlock_key_list[]=
-{
-  { &key_LOCK_operations, "SERVER_AUDIT_plugin::lock_operations",
-    PSI_FLAG_GLOBAL}
-};
-#endif /*HAVE_PSI_INTERFACE*/
-static mysql_prlock_t lock_operations;
-static mysql_mutex_t lock_atomic;
+#include "../../storage/innobase/include/srw_lock.h"
 
-/* The Percona server and partly MySQL don't support         */
-/* launching client errors in the 'update_variable' methods. */
-/* So the client errors just disabled for them.              */
-/* The possible solution is to implement the 'check_variable'*/
-/* methods there properly, but at the moment i'm not sure it */
-/* worths doing.                                             */
-#define CLIENT_ERROR if (!started_mysql) my_printf_error
+static srw_lock_low lock_operations;
 
-#define ADD_ATOMIC(x, a)              \
-  do {                                \
-  flogger_mutex_lock(&lock_atomic);   \
-  x+= a;                              \
-  flogger_mutex_unlock(&lock_atomic); \
-  } while (0)
+#define CLIENT_ERROR my_printf_error
 
 
-static uchar *getkey_user(const char *entry, size_t *length,
-                          my_bool nu __attribute__((unused)) )
+static uchar *getkey_user(const char *entry, size_t *length, my_bool)
 {
   const char *e= entry;
   while (*e && *e != ' ' && *e != ',')
@@ -573,10 +514,9 @@ static int coll_insert(struct user_coll *c, char *n, size_t len)
   if (c->n_users >= c->n_alloced)
   {
     c->n_alloced+= 128;
-    if (c->users == NULL)
-      c->users= malloc(c->n_alloced * sizeof(c->users[0]));
-    else
-      c->users= realloc(c->users, c->n_alloced * sizeof(c->users[0]));
+    const size_t size{c->n_alloced * sizeof *c->users};
+    c->users= static_cast<user_name*>
+      (c->users ? realloc(c->users, size) : malloc(size));
 
     if (c->users == NULL)
       return 1;
@@ -619,20 +559,20 @@ static int user_coll_fill(struct user_coll *c, char *users,
 
       if (cmp_user && take_over_cmp)
       {
-        ADD_ATOMIC(internal_stop_logging, 1);
+        internal_stop_logging++;
         CLIENT_ERROR(1, "User '%.*sB' was removed from the"
             " server_audit_excl_users.",
             MYF(ME_WARNING), (int) cmp_length, users);
-        ADD_ATOMIC(internal_stop_logging, -1);
+        internal_stop_logging--;
         blank_user(cmp_user);
         refill_cmp_coll= 1;
       }
       else if (cmp_user)
       {
-        ADD_ATOMIC(internal_stop_logging, 1);
+        internal_stop_logging++;
         CLIENT_ERROR(1, "User '%.*sB' is in the server_audit_incl_users, "
             "so wasn't added.", MYF(ME_WARNING), (int) cmp_length, users);
-        ADD_ATOMIC(internal_stop_logging, -1);
+        internal_stop_logging--;
         remove_user(users);
         continue;
       }
@@ -659,189 +599,6 @@ static int user_coll_fill(struct user_coll *c, char *users,
 
   return 0;
 }
-
-
-enum sa_keywords
-{
-  SQLCOM_NOTHING=0,
-  SQLCOM_DDL,
-  SQLCOM_DML,
-  SQLCOM_GRANT,
-  SQLCOM_CREATE_USER,
-  SQLCOM_ALTER_USER,
-  SQLCOM_CHANGE_MASTER,
-  SQLCOM_CREATE_SERVER,
-  SQLCOM_SET_OPTION,
-  SQLCOM_ALTER_SERVER,
-  SQLCOM_TRUNCATE,
-  SQLCOM_QUERY_ADMIN,
-  SQLCOM_DCL,
-  SQLCOM_FOUND=-1,
-};
-
-struct sa_keyword
-{
-  int length;
-  const char *wd;
-  struct sa_keyword *next;
-  enum sa_keywords type;
-};
-
-
-struct sa_keyword xml_word[]=
-{
-  {3, "XML", 0, SQLCOM_FOUND},
-  {0, NULL, 0, SQLCOM_NOTHING}
-};
-struct sa_keyword user_word[]=
-{
-  {4, "USER", 0, SQLCOM_FOUND},
-  {0, NULL, 0, SQLCOM_NOTHING}
-};
-struct sa_keyword data_word[]=
-{
-  {4, "DATA", 0, SQLCOM_FOUND},
-  {0, NULL, 0, SQLCOM_NOTHING}
-};
-struct sa_keyword server_word[]=
-{
-  {6, "SERVER", 0, SQLCOM_FOUND},
-  {0, NULL, 0, SQLCOM_NOTHING}
-};
-struct sa_keyword master_word[]=
-{
-  {6, "MASTER", 0, SQLCOM_FOUND},
-  {0, NULL, 0, SQLCOM_NOTHING}
-};
-struct sa_keyword password_word[]=
-{
-  {8, "PASSWORD", 0, SQLCOM_FOUND},
-  {0, NULL, 0, SQLCOM_NOTHING}
-};
-struct sa_keyword function_word[]=
-{
-  {8, "FUNCTION", 0, SQLCOM_FOUND},
-  {0, NULL, 0, SQLCOM_NOTHING}
-};
-struct sa_keyword statement_word[]=
-{
-  {9, "STATEMENT", 0, SQLCOM_FOUND},
-  {0, NULL, 0, SQLCOM_NOTHING}
-};
-struct sa_keyword procedure_word[]=
-{
-  {9, "PROCEDURE", 0, SQLCOM_FOUND},
-  {0, NULL, 0, SQLCOM_NOTHING}
-};
-struct sa_keyword replace_user_word[]=
-{
-  {7, "REPLACE", user_word, SQLCOM_FOUND},
-  {0, NULL, 0, SQLCOM_NOTHING}
-};
-struct sa_keyword or_replace_user_word[]=
-{
-  {2, "OR", replace_user_word, SQLCOM_FOUND},
-  {0, NULL, 0, SQLCOM_NOTHING}
-};
-struct sa_keyword replace_server_word[]=
-{
-  {7, "REPLACE", server_word, SQLCOM_FOUND},
-  {0, NULL, 0, SQLCOM_NOTHING}
-};
-struct sa_keyword or_replace_server_word[]=
-{
-  {2, "OR", replace_server_word, SQLCOM_FOUND},
-  {0, NULL, 0, SQLCOM_NOTHING}
-};
-
-
-struct sa_keyword keywords_to_skip[]=
-{
-  {3, "SET", statement_word, SQLCOM_QUERY_ADMIN},
-  {0, NULL, 0, SQLCOM_NOTHING}
-};
-
-
-struct sa_keyword not_ddl_keywords[]=
-{
-  {4, "DROP", user_word, SQLCOM_DCL},
-  {6, "CREATE", user_word, SQLCOM_DCL},
-  {6, "CREATE", or_replace_user_word, SQLCOM_DCL},
-  {6, "RENAME", user_word, SQLCOM_DCL},
-  {0, NULL, 0, SQLCOM_NOTHING}
-};
-
-
-struct sa_keyword ddl_keywords[]=
-{
-  {4, "DROP", 0, SQLCOM_DDL},
-  {5, "ALTER", 0, SQLCOM_DDL},
-  {6, "CREATE", 0, SQLCOM_DDL},
-  {6, "RENAME", 0, SQLCOM_DDL},
-  {8, "TRUNCATE", 0, SQLCOM_DDL},
-  {0, NULL, 0, SQLCOM_NOTHING}
-};
-
-
-struct sa_keyword dml_keywords[]=
-{
-  {2, "DO", 0, SQLCOM_DML},
-  {4, "CALL", 0, SQLCOM_DML},
-  {4, "LOAD", data_word, SQLCOM_DML},
-  {4, "LOAD", xml_word, SQLCOM_DML},
-  {6, "DELETE", 0, SQLCOM_DML},
-  {6, "INSERT", 0, SQLCOM_DML},
-  {6, "SELECT", 0, SQLCOM_DML},
-  {6, "UPDATE", 0, SQLCOM_DML},
-  {7, "HANDLER", 0, SQLCOM_DML},
-  {7, "REPLACE", 0, SQLCOM_DML},
-  {0, NULL, 0, SQLCOM_NOTHING}
-};
-
-
-struct sa_keyword dml_no_select_keywords[]=
-{
-  {2, "DO", 0, SQLCOM_DML},
-  {4, "CALL", 0, SQLCOM_DML},
-  {4, "LOAD", data_word, SQLCOM_DML},
-  {4, "LOAD", xml_word, SQLCOM_DML},
-  {6, "DELETE", 0, SQLCOM_DML},
-  {6, "INSERT", 0, SQLCOM_DML},
-  {6, "UPDATE", 0, SQLCOM_DML},
-  {7, "HANDLER", 0, SQLCOM_DML},
-  {7, "REPLACE", 0, SQLCOM_DML},
-  {0, NULL, 0, SQLCOM_NOTHING}
-};
-
-
-struct sa_keyword dcl_keywords[]=
-{
-  {6, "CREATE", user_word, SQLCOM_DCL},
-  {6, "CREATE", or_replace_user_word, SQLCOM_DCL},
-  {4, "DROP", user_word, SQLCOM_DCL},
-  {6, "RENAME", user_word, SQLCOM_DCL},
-  {5, "GRANT", 0, SQLCOM_DCL},
-  {6, "REVOKE", 0, SQLCOM_DCL},
-  {3, "SET", password_word, SQLCOM_DCL},
-  {0, NULL, 0, SQLCOM_NOTHING}
-};
-
-
-struct sa_keyword passwd_keywords[]=
-{
-  {3, "SET", password_word, SQLCOM_SET_OPTION},
-  {5, "ALTER", server_word, SQLCOM_ALTER_SERVER},
-  {5, "ALTER", user_word, SQLCOM_ALTER_USER},
-  {5, "GRANT", 0, SQLCOM_GRANT},
-  {6, "CREATE", user_word, SQLCOM_CREATE_USER},
-  {6, "CREATE", or_replace_user_word, SQLCOM_CREATE_USER},
-  {6, "CREATE", server_word, SQLCOM_CREATE_SERVER},
-  {6, "CREATE", or_replace_server_word, SQLCOM_CREATE_SERVER},
-  {6, "CHANGE", master_word, SQLCOM_CHANGE_MASTER},
-  {0, NULL, 0, SQLCOM_NOTHING}
-};
-
-#define MAX_KEYWORD 9
 
 
 static void error_header()
@@ -957,6 +714,78 @@ static int get_user_host(const char *uh_line, unsigned int uh_len,
   *ip_len= buffer - buf_start;
   return 0;
 }
+
+
+static int sql_command_to_cmdtype(int sql_command)
+{
+  switch (sql_command)
+  {
+    case SQLCOM_ALTER_DB:
+    case SQLCOM_ALTER_DB_UPGRADE:
+    case SQLCOM_ALTER_FUNCTION:
+    case SQLCOM_ALTER_PROCEDURE:
+    case SQLCOM_ALTER_SEQUENCE:
+    case SQLCOM_ALTER_TABLE:
+    case SQLCOM_CREATE_DB:
+    case SQLCOM_CREATE_INDEX:
+    case SQLCOM_CREATE_PACKAGE:
+    case SQLCOM_CREATE_PACKAGE_BODY:
+    case SQLCOM_CREATE_PROCEDURE:
+    case SQLCOM_CREATE_SEQUENCE:
+    case SQLCOM_CREATE_SPFUNCTION:
+    case SQLCOM_CREATE_TABLE:
+    case SQLCOM_CREATE_TRIGGER:
+    case SQLCOM_CREATE_VIEW:
+    case SQLCOM_DROP_DB:
+    case SQLCOM_DROP_FUNCTION:
+    case SQLCOM_DROP_INDEX:
+    case SQLCOM_DROP_PACKAGE:
+    case SQLCOM_DROP_PACKAGE_BODY:
+    case SQLCOM_DROP_PROCEDURE:
+    case SQLCOM_DROP_SEQUENCE:
+    case SQLCOM_DROP_TABLE:
+    case SQLCOM_DROP_TRIGGER:
+    case SQLCOM_DROP_VIEW:
+    case SQLCOM_RENAME_TABLE:
+    case SQLCOM_TRUNCATE:
+      return EVENT_QUERY_DDL;
+
+    case SQLCOM_DO:
+    case SQLCOM_CALL:
+    case SQLCOM_LOAD:
+    case SQLCOM_DELETE:
+    case SQLCOM_DELETE_MULTI:
+    case SQLCOM_INSERT:
+    case SQLCOM_INSERT_SELECT:
+    case SQLCOM_UPDATE:
+    case SQLCOM_UPDATE_MULTI:
+    case SQLCOM_HA_OPEN:
+    case SQLCOM_HA_READ:
+    case SQLCOM_HA_CLOSE:
+    case SQLCOM_REPLACE:
+    case SQLCOM_REPLACE_SELECT:
+      return EVENT_QUERY_DML | EVENT_QUERY_DML_NO_SELECT;
+
+    case SQLCOM_SELECT:
+      return EVENT_QUERY_DML;
+
+    case SQLCOM_CREATE_USER:
+    case SQLCOM_CREATE_ROLE:
+    case SQLCOM_DROP_ROLE:
+    case SQLCOM_DROP_USER:
+    case SQLCOM_RENAME_USER:
+    case SQLCOM_GRANT:
+    case SQLCOM_GRANT_ROLE:
+    case SQLCOM_REVOKE:
+    case SQLCOM_REVOKE_ROLE:
+    case SQLCOM_REVOKE_ALL:
+      return EVENT_QUERY_DCL;
+
+    default:
+      return EVENT_QUERY_ALL;
+  };
+}
+
 
 #if defined(_WIN32) && !defined(S_ISDIR)
 #define S_ISDIR(x) ((x) & _S_IFDIR)
@@ -1102,13 +931,7 @@ static void setup_connection_connect(MYSQL_THD thd,struct connection_info *cn,
       // 5 is "'" around host and user and "@"
       priv_host= event->proxy_user +
             sizeof(char[MAX_HOSTNAME + USERNAME_LENGTH + 5]);
-      if (mysql_57_started)
-      {
-        priv_host+= sizeof(size_t);
-        priv_host_length= *(size_t *) (priv_host + MAX_HOSTNAME);
-      }
-      else
-        priv_host_length= strlen(priv_host);
+      priv_host_length= strlen(priv_host);
     }
 
 
@@ -1260,18 +1083,16 @@ static void change_connection(struct connection_info *cn,
           event->tls_version, event->tls_version_length);
 }
 
-/*
+/**
   Write to the log
-
-  @param take_lock  If set, take a read lock (or write lock on rotate).
-                    If not set, the caller has a already taken a write lock
 */
 
-static int write_log(const char *message, size_t len, int take_lock)
+static int write_log(const char *message, size_t len)
 {
+#if defined _WIN32 || !defined SUX_LOCK_GENERIC
+  DBUG_ASSERT(lock_operations.is_locked_or_waiting());
+#endif
   int result= 0;
-  if (take_lock)
-    mysql_prlock_rdlock(&lock_operations);
 
   if (output_type == OUTPUT_FILE)
   {
@@ -1290,9 +1111,34 @@ static int write_log(const char *message, size_t len, int take_lock)
            syslog_priority_codes[syslog_priority],
            "%s %.*s", syslog_info, (int) len, message);
   }
-  if (take_lock)
-    mysql_prlock_unlock(&lock_operations);
+
   return result;
+}
+
+/**
+  Write to the log, acquiring the lock.
+*/
+
+static int write_log_and_lock(const char *message, size_t len)
+{
+  lock_operations.rd_lock();
+  int result= write_log(message, len);
+  lock_operations.rd_unlock();
+  return result;
+}
+
+
+/**
+  Write to the log
+
+  @param lock  whether the caller did not acquire lock_operations
+*/
+static int write_log_maybe_lock(const char *message, size_t len, bool lock)
+{
+  if (unlikely(!lock))
+    return write_log(message, len);
+  else
+    return write_log_and_lock(message, len);
 }
 
 
@@ -1381,7 +1227,7 @@ static int log_proxy(const struct connection_info *cn,
                      cn->proxy_host_length, cn->proxy_host,
                      event->status);
   message[csize]= '\n';
-  return write_log(message, csize + 1, 1);
+  return write_log_and_lock(message, csize + 1);
 }
 
 
@@ -1408,7 +1254,7 @@ static int log_connection(const struct connection_info *cn,
     ",%.*s,%.*s,%d", cn->db_length, cn->db, (int) obj_len, tls_obj,
     event->status);
   message[csize]= '\n';
-  return write_log(message, csize + 1, 1);
+  return write_log_and_lock(message, csize + 1);
 }
 
 
@@ -1433,7 +1279,7 @@ static int log_connection_event(const struct mysql_event_connection *event,
     ",%.*s,%.*s,%d", (int) event->database.length,event->database.str,
     (int) obj_len, tls_obj, event->status);
   message[csize]= '\n';
-  return write_log(message, csize + 1, 1);
+  return write_log_and_lock(message, csize + 1);
 }
 
 
@@ -1602,15 +1448,14 @@ no_password:
 
 
 static int do_log_user(const char *name, int len,
-                       const char *proxy, int proxy_len, int take_lock)
+                       const char *proxy, int proxy_len)
 {
   int result;
 
   if (!name)
     return 0;
 
-  if (take_lock)
-    mysql_prlock_rdlock(&lock_operations);
+  lock_operations.rd_lock();
 
   if (incl_user_coll.n_users)
   {
@@ -1625,124 +1470,13 @@ static int do_log_user(const char *name, int len,
   else
     result= 1;
 
-  if (take_lock)
-    mysql_prlock_unlock(&lock_operations);
+  lock_operations.rd_unlock();
   return result;
 }
 
 
-static int get_next_word(const char *query, char *word)
-{
-  int len= 0;
-  char c;
-  while ((c= query[len]))
-  {
-    if (c >= 'a' && c <= 'z')
-      word[len]= 'A' + (c-'a');
-    else if (c >= 'A' && c <= 'Z')
-      word[len]= c;
-    else
-      break;
-
-    if (len++ == MAX_KEYWORD)
-      return 0;
-  }
-  word[len]= 0;
-  return len;
-}
-
-
-static int filter_query_type(const char *query, struct sa_keyword *kwd)
-{
-  int qwe_in_list;
-  char fword[MAX_KEYWORD + 1], nword[MAX_KEYWORD + 1];
-  int len, nlen= 0;
-  const struct sa_keyword *l_keywords;
-  if (!query)
-    return SQLCOM_NOTHING;
-
-  while (*query && (is_space(*query) || *query == '(' || *query == '/'))
-  {
-    /* comment handling */
-    if (*query == '/' && query[1] == '*')
-    {
-      if (query[2] == '!')
-      {
-        query+= 3;
-        while (*query >= '0' && *query <= '9')
-          query++;
-        continue;
-      }
-      query+= 2;
-      while (*query)
-      {
-        if (*query=='*' && query[1] == '/')
-        {
-          query+= 2;
-          break;
-        }
-        query++;
-      }
-      continue;
-    }
-    query++;
-  }
-
-  qwe_in_list= SQLCOM_NOTHING;
-  if (!(len= get_next_word(query, fword)))
-    goto not_in_list;
-  query+= len+1;
-
-  l_keywords= kwd;
-  while (l_keywords->length)
-  {
-    if (l_keywords->length == len && strncmp(l_keywords->wd, fword, len) == 0)
-    {
-      if (l_keywords->next)
-      {
-        if (nlen == 0)
-        {
-          while (*query && is_space(*query))
-            query++;
-          nlen= get_next_word(query, nword);
-        }
-        if (filter_query_type(query, l_keywords->next) == SQLCOM_NOTHING)
-          goto do_loop;
-      }
-
-      qwe_in_list= l_keywords->type;
-      break;
-    };
-do_loop:
-    l_keywords++;
-  }
-
-not_in_list:
-  return qwe_in_list;
-}
-
-static const char *skip_set_statement(const char *query)
-{
-    if (filter_query_type(query, keywords_to_skip))
-    {
-      char fword[MAX_KEYWORD + 1];
-      int len;
-      do
-      {
-        len= get_next_word(query, fword);
-        query+= len ? len : 1;
-        if (len == 3 && strncmp(fword, "FOR", 3) == 0)
-          break;
-      } while (*query);
-
-      if (*query == 0)
-        return 0;
-    }
-    return query;
-}
-
 static int log_statement_ex(struct connection_info *cn,
-                            time_t ev_time, unsigned long thd_id,
+                            time_t ev_time, unsigned long thd_id, int sql_cmd,
                             const char *query, unsigned int query_len,
                             int error_code, const char *type, int take_lock)
 {
@@ -1757,6 +1491,7 @@ static int log_statement_ex(struct connection_info *cn,
   long long query_id;
   int result;
   char *big_buffer= NULL;
+  int cmdtype= sql_command_to_cmdtype(sql_cmd);
 
   if ((db= cn->db))
     db_length= cn->db_length;
@@ -1783,30 +1518,14 @@ static int log_statement_ex(struct connection_info *cn,
   {
     const char *orig_query= query;
 
-    if ((query= skip_set_statement(query)) == SQLCOM_NOTHING)
-      return 0;
-
-    if (events & EVENT_QUERY_DDL)
-    {
-      if (!filter_query_type(query, not_ddl_keywords) &&
-          filter_query_type(query, ddl_keywords))
-        goto do_log_query;
-    }
-    if (events & EVENT_QUERY_DML)
-    {
-      if (filter_query_type(query, dml_keywords))
-        goto do_log_query;
-    }
-    if (events & EVENT_QUERY_DML_NO_SELECT)
-    {
-      if (filter_query_type(query, dml_no_select_keywords))
-        goto do_log_query;
-    }
-    if (events & EVENT_QUERY_DCL)
-    {
-      if (filter_query_type(query, dcl_keywords))
-        goto do_log_query;
-    }
+    if (events & EVENT_QUERY_DDL && cmdtype & EVENT_QUERY_DDL)
+      goto do_log_query;
+    if (events & EVENT_QUERY_DML && cmdtype & EVENT_QUERY_DML)
+      goto do_log_query;
+    if (events & EVENT_QUERY_DML_NO_SELECT && cmdtype & EVENT_QUERY_DML_NO_SELECT)
+      goto do_log_query;
+    if (events & EVENT_QUERY_DCL && cmdtype & EVENT_QUERY_DCL)
+      goto do_log_query;
 
     return 0;
 do_log_query:
@@ -1827,7 +1546,7 @@ do_log_query:
   if (query_len > (message_size - csize)/2)
   {
     size_t big_buffer_alloced= (query_len * 2 + csize + 4095) & ~4095L;
-    if(!(big_buffer= malloc(big_buffer_alloced)))
+    if (!(big_buffer= static_cast<char*>(malloc(big_buffer_alloced))))
       return 0;
 
     memcpy(big_buffer, message, csize);
@@ -1840,7 +1559,7 @@ do_log_query:
   if (query_log_limit > 0 && uh_buffer_size > query_log_limit+2)
     uh_buffer_size= query_log_limit+2;
 
-  switch (filter_query_type(skip_set_statement(query), passwd_keywords))
+  switch (sql_cmd)
   {
     case SQLCOM_GRANT:
     case SQLCOM_CREATE_USER:
@@ -1866,8 +1585,8 @@ do_log_query:
     case SQLCOM_SET_OPTION:
       csize+= escape_string_hide_passwords(query, query_len,
                                            uh_buffer, uh_buffer_size,
-                                           NULL, 0, NULL, 0,
-                                           "=", 1, 0);
+                                           "PASSWORD", 8, "=", 1,
+                                           "PASSWORD", 8, '(');
       break;
     default:
       csize+= escape_string(query, query_len,
@@ -1877,7 +1596,7 @@ do_log_query:
   csize+= my_snprintf(message+csize, message_size - 1 - csize,
                       "\',%d", error_code);
   message[csize]= '\n';
-  result= write_log(message, csize + 1, take_lock);
+  result= write_log_maybe_lock(message, csize + 1, take_lock);
 
   if (cn->sync_statement && output_type == OUTPUT_FILE && logfile)
   {
@@ -1894,7 +1613,7 @@ do_log_query:
 
 static int log_statement(struct connection_info *cn,
                          const struct mysql_event_general *event,
-                         const char *type)
+                         const char *type, int sql_command)
 {
   DBUG_PRINT("info", ("log_statement: event_subclass=%d, general_command=%.*s, "
                       "cn->query_id=%lld, cn->query=%.*s, event->query_id=%lld, "
@@ -1907,7 +1626,8 @@ static int log_statement(struct connection_info *cn,
                         event->query_id, event->general_query_length,
                         event->general_query, type));
   return log_statement_ex(cn, event->general_time, event->general_thread_id,
-                          event->general_query, event->general_query_length,
+                          sql_command, event->general_query,
+                          event->general_query_length,
                           event->general_error_code, type, 1);
 }
 
@@ -1930,7 +1650,7 @@ static int log_table(const struct connection_info *cn,
                      (int) event->database.length, event->database.str,
                      (int) event->table.length, event->table.str);
   message[csize]= '\n';
-  return write_log(message, csize + 1, 1);
+  return write_log_and_lock(message, csize + 1);
 }
 
 
@@ -1956,7 +1676,7 @@ static int log_rename(const struct connection_info *cn,
                       (int) event->new_database.length, event->new_database.str,
                       (int) event->new_table.length, event->new_table.str);
   message[csize]= '\n';
-  return write_log(message, csize + 1, 1);
+  return write_log_and_lock(message, csize + 1);
 }
 
 
@@ -2028,12 +1748,8 @@ static void update_connection_info(MYSQL_THD thd, struct connection_info *cn,
           if (init_db_command)
           {
             /* Change DB */
-            if (mysql_57_started)
-              get_str_n(cn->db, &cn->db_length, sizeof(cn->db),
-                  event->database.str, event->database.length);
-            else
-              get_str_n(cn->db, &cn->db_length, sizeof(cn->db),
-                  event->general_query, event->general_query_length);
+            get_str_n(cn->db, &cn->db_length, sizeof(cn->db),
+                      event->general_query, event->general_query_length);
           }
           cn->query_id= mode ? query_counter++ : event->query_id;
           cn->query= event->general_query;
@@ -2176,34 +1892,7 @@ void auditing(MYSQL_THD thd, unsigned int event_class, const void *ev)
   if (!thd || internal_stop_logging)
     return;
 
-  if (maria_55_started && debug_server_started &&
-      event_class == MYSQL_AUDIT_GENERAL_CLASS)
-  {
-    /*
-      There's a bug in MariaDB 5.5 that prevents using thread local
-      variables in some cases.
-      The 'select * from notexisting_table;' query produces such case.
-      So just use the static buffer in this case.
-    */
-    const struct mysql_event_general *event =
-      (const struct mysql_event_general *) ev;
-
-    if (event->event_subclass == MYSQL_AUDIT_GENERAL_ERROR ||
-        (event->event_subclass == MYSQL_AUDIT_GENERAL_STATUS && 
-         event->general_query_length == 0 &&
-         cn_error_buffer.query_id == event->query_id))
-    {
-      cn= &cn_error_buffer;
-      cn->header= 1;
-    }
-    else
-      cn= get_loc_info(thd);
-  }
-  else
-  {
-    cn= get_loc_info(thd);
-  }
-
+  cn= get_loc_info(thd);
   update_connection_info(thd, cn, event_class, ev, &after_action);
 
   if (!logging)
@@ -2215,8 +1904,7 @@ void auditing(MYSQL_THD thd, unsigned int event_class, const void *ev)
 
   if (event_class == MYSQL_AUDIT_GENERAL_CLASS && FILTER(EVENT_QUERY) &&
       cn && (cn->log_always || do_log_user(cn->user, cn->user_length,
-                                           cn->proxy, cn->proxy_length,
-                                           1)))
+                                           cn->proxy, cn->proxy_length)))
   {
     const struct mysql_event_general *event =
       (const struct mysql_event_general *) ev;
@@ -2227,7 +1915,7 @@ void auditing(MYSQL_THD thd, unsigned int event_class, const void *ev)
     if (event->event_subclass == MYSQL_AUDIT_GENERAL_STATUS &&
         event_query_command(event))
     {
-      log_statement(cn, event, "QUERY");
+      log_statement(cn, event, "QUERY", thd_sql_command(thd));
       cn->query_length= 0; /* So the log_current_query() won't log this again. */
       cn->query_id= 0;
       cn->log_always= 0;
@@ -2238,7 +1926,7 @@ void auditing(MYSQL_THD thd, unsigned int event_class, const void *ev)
     const struct mysql_event_table *event =
       (const struct mysql_event_table *) ev;
     if (do_log_user(event->user, (int) SAFE_STRLEN(event->user),
-                    cn->proxy, cn->proxy_length, 1))
+                    cn->proxy, cn->proxy_length))
     {
       switch (event->event_subclass)
       {
@@ -2275,10 +1963,7 @@ void auditing(MYSQL_THD thd, unsigned int event_class, const void *ev)
           log_proxy(cn, event);
         break;
       case MYSQL_AUDIT_CONNECTION_DISCONNECT:
-        if (use_event_data_for_disconnect)
-          log_connection_event(event, "DISCONNECT");
-        else
-          log_connection(&ci_disconnect_buffer, event, "DISCONNECT");
+        log_connection_event(event, "DISCONNECT");
         break;
       case MYSQL_AUDIT_CONNECTION_CHANGE_USER:
         log_connection(cn, event, "CHANGEUSER");
@@ -2328,131 +2013,6 @@ struct mysql_event_general_v8
 };
 
 
-static void auditing_v8(MYSQL_THD thd, struct mysql_event_general_v8 *ev_v8)
-{
-#ifdef __linux__
-#ifdef DBUG_OFF
-  #ifdef __x86_64__
-  static const int cmd_off= 4200;
-  static const int db_off= 120;
-  static const int db_len_off= 128;
-  #else
-  static const int cmd_off= 2668;
-  static const int db_off= 60;
-  static const int db_len_off= 64;
-  #endif /*x86_64*/
-#else
-  #ifdef __x86_64__
-  static const int cmd_off= 4432;
-  static const int db_off= 120;
-  static const int db_len_off= 128;
-  #else
-  static const int cmd_off= 2808;
-  static const int db_off= 64;
-  static const int db_len_off= 68;
-  #endif /*x86_64*/
-#endif /*DBUG_OFF*/
-#endif /* __linux__ */
-
-  struct mysql_event_general event;
-
-  if (ev_v8->event_class != MYSQL_AUDIT_GENERAL_CLASS)
-    return;
-
-  event.event_subclass= ev_v8->event_subclass;
-  event.general_error_code= ev_v8->general_error_code;
-  event.general_thread_id= ev_v8->general_thread_id;
-  event.general_user= ev_v8->general_user;
-  event.general_user_length= ev_v8->general_user_length;
-  event.general_command= ev_v8->general_command;
-  event.general_command_length= ev_v8->general_command_length;
-  event.general_query= ev_v8->general_query;
-  event.general_query_length= ev_v8->general_query_length;
-  event.general_charset= ev_v8->general_charset;
-  event.general_time= ev_v8->general_time;
-  event.general_rows= ev_v8->general_rows;
-  event.database.str= 0;
-  event.database.length= 0;
-
-  if (event.general_query_length > 0)
-  {
-    event.event_subclass= MYSQL_AUDIT_GENERAL_STATUS;
-    event.general_command= "Query";
-    event.general_command_length= 5;
-#ifdef __linux__
-    event.database.str= *(char **) (((char *) thd) + db_off);
-    event.database.length= *(size_t *) (((char *) thd) + db_len_off);
-#endif /*__linux*/
-  }
-#ifdef __linux__
-  else if (*((int *) (((char *)thd) + cmd_off)) == 2)
-  {
-    event.event_subclass= MYSQL_AUDIT_GENERAL_LOG;
-    event.general_command= "Init DB";
-    event.general_command_length= 7;
-    event.general_query= *(char **) (((char *) thd) + db_off);
-    event.general_query_length= *(size_t *) (((char *) thd) + db_len_off);
-  }
-#endif /*__linux*/
-  auditing(thd, ev_v8->event_class, &event);
-}
-
-
-static void auditing_v13(MYSQL_THD thd, unsigned int *ev_v0)
-{
-  struct mysql_event_general event= *(const struct mysql_event_general *) (ev_v0+1);
-
-  if (event.general_query_length > 0)
-  {
-    event.event_subclass= MYSQL_AUDIT_GENERAL_STATUS;
-    event.general_command= "Query";
-    event.general_command_length= 5;
-  }
-  auditing(thd, ev_v0[0], &event);
-}
-
-
-int get_db_mysql57(MYSQL_THD thd, char **name, size_t *len)
-{
-#ifdef __linux__
-  int db_off;
-  int db_len_off;
-  if (debug_server_started)
-  {
-#ifdef __x86_64__
-    db_off= 608;
-    db_len_off= 616;
-#elif __aarch64__
-    db_off= 632;
-    db_len_off= 640;
-#else
-    db_off= 0;
-    db_len_off= 0;
-#endif /*x86_64*/
-  }
-  else
-  {
-#ifdef __x86_64__
-    db_off= 536;
-    db_len_off= 544;
-#elif __aarch64__
-    db_off= 552;
-    db_len_off= 560;
-#else
-    db_off= 0;
-    db_len_off= 0;
-#endif /*x86_64*/
-  }
-
-  *name= *(char **) (((char *) thd) + db_off);
-  *len= *((size_t *) (((char*) thd) + db_len_off));
-  if (*name && (*name)[*len] != 0)
-    return 1;
-  return 0;
-#else
-  return 1;
-#endif
-}
 /*
    As it's just too difficult to #include "sql_class.h",
    let's just copy the necessary part of the system_variables
@@ -2530,53 +2090,10 @@ typedef struct loc_system_variables
 
 static int init_done= 0;
 
-static void* find_sym(const char *sym)
+static int server_audit_init(void*)
 {
-#ifdef _WIN32
-  return GetProcAddress(GetModuleHandle("server.dll"),sym);
-#else
-  return dlsym(RTLD_DEFAULT, sym);
-#endif
-}
-
-static int server_audit_init(void *p __attribute__((unused)))
-{
-  if (!serv_ver)
-  {
-    serv_ver= find_sym("server_version");
-  }
-
-  if (!mysql_57_started)
-  {
-    const void *my_hash_init_ptr= find_sym("_my_hash_init");
-    if (!my_hash_init_ptr)
-    {
-      maria_above_5= 1;
-      my_hash_init_ptr= find_sym("my_hash_init2");
-    }
-    if (!my_hash_init_ptr)
-      return 1;
-
-    thd_priv_host_ptr= dlsym(RTLD_DEFAULT, "thd_priv_host");
-  }
-
-  if(!(int_mysql_data_home= find_sym("mysql_data_home")))
-  {
-    if(!(int_mysql_data_home= find_sym("?mysql_data_home@@3PADA")))
-      int_mysql_data_home= &default_home;
-  }
-
-  if (!serv_ver)
-    return 1;
-
-  if (!started_mysql)
-  {
-    if (!maria_above_5 && serv_ver[4]=='3' && serv_ver[5]<'3')
-    {
-      mode= 1;
-      mode_readonly= 1;
-    }
-  }
+  thd_priv_host_ptr= reinterpret_cast<decltype(thd_priv_host_ptr)>
+    (dlsym(RTLD_DEFAULT, "thd_priv_host"));
 
   if (gethostname(servhost, sizeof(servhost)))
     strcpy(servhost, "unknown");
@@ -2584,12 +2101,7 @@ static int server_audit_init(void *p __attribute__((unused)))
   servhost_len= (uint)strlen(servhost);
 
   logger_init_mutexes();
-#ifdef HAVE_PSI_INTERFACE
-  if (PSI_server)
-    PSI_server->register_rwlock("server_audit", rwlock_key_list, 1);
-#endif
-  mysql_prlock_init(key_LOCK_operations, &lock_operations);
-  flogger_mutex_init(key_LOCK_operations, &lock_atomic, MY_MUTEX_INIT_FAST);
+  lock_operations.init();
 
   coll_init(&incl_user_coll);
   coll_init(&excl_user_coll);
@@ -2616,7 +2128,7 @@ static int server_audit_init(void *p __attribute__((unused)))
 
   /* The Query Cache shadows TABLE events if the result is taken from it */
   /* so we warn users if both Query Caсhe and TABLE events enabled.      */
-  if (!started_mysql && FILTER(EVENT_TABLE))
+  if (FILTER(EVENT_TABLE))
   {
     ulonglong *qc_size= (ulonglong *) dlsym(RTLD_DEFAULT, "query_cache_size");
     if (qc_size == NULL || *qc_size != 0)
@@ -2651,16 +2163,7 @@ static int server_audit_init(void *p __attribute__((unused)))
 }
 
 
-static int server_audit_init_mysql(void *p)
-{
-  started_mysql= 1;
-  mode= 1;
-  mode_readonly= 1;
-  return server_audit_init(p);
-}
-
-
-static int server_audit_deinit(void *p __attribute__((unused)))
+static int server_audit_deinit(void *)
 {
   if (!init_done)
     return 0;
@@ -2668,37 +2171,26 @@ static int server_audit_deinit(void *p __attribute__((unused)))
   init_done= 0;
   coll_free(&incl_user_coll);
   coll_free(&excl_user_coll);
-
-  if (output_type == OUTPUT_FILE && logfile)
-    logger_close(logfile);
-  else if (output_type == OUTPUT_SYSLOG)
-    closelog();
-
-  mysql_prlock_destroy(&lock_operations);
-  flogger_mutex_destroy(&lock_atomic);
-
-  error_header();
-  fprintf(stderr, "STOPPED\n");
+  stop_logging();
+  lock_operations.destroy();
   return 0;
 }
 
 
-static void rotate_log(MYSQL_THD thd  __attribute__((unused)),
-                       struct st_mysql_sys_var *var  __attribute__((unused)),
-                       void *var_ptr  __attribute__((unused)),
-                       const void *save  __attribute__((unused)))
+static void rotate_log(MYSQL_THD, st_mysql_sys_var *, void *,
+                       const void *save)
 {
-  if (output_type == OUTPUT_FILE && logfile && *(my_bool*) save)
+  if (output_type == OUTPUT_FILE && logfile &&
+      *static_cast<const my_bool*>(save))
     (void) logger_rotate(logfile);
 }
 
 
-static void sync_log(MYSQL_THD thd  __attribute__((unused)),
-                     struct st_mysql_sys_var *var  __attribute__((unused)),
-                     void *var_ptr  __attribute__((unused)),
-                     const void *save  __attribute__((unused)))
+static void sync_log(MYSQL_THD thd, st_mysql_sys_var *, void *,
+                     const void *save)
 {
-  if (output_type == OUTPUT_FILE && logfile && *(my_bool*) save)
+  if (output_type == OUTPUT_FILE && logfile &&
+      static_cast<const my_bool*>(save))
   {
     struct connection_info *cn= get_loc_info(thd);
     (void) logger_sync(logfile);
@@ -2706,34 +2198,6 @@ static void sync_log(MYSQL_THD thd  __attribute__((unused)),
       cn->sync_statement= TRUE;
   }
 }
-
-
-static struct st_mysql_audit mysql_descriptor =
-{
-  MYSQL_AUDIT_INTERFACE_VERSION,
-  NULL,
-  auditing,
-  { MYSQL_AUDIT_GENERAL_CLASSMASK | MYSQL_AUDIT_CONNECTION_CLASSMASK }
-};
-
-
-mysql_declare_plugin(server_audit)
-{
-  MYSQL_AUDIT_PLUGIN,
-  &mysql_descriptor,
-  "SERVER_AUDIT",
-  " Alexey Botchkov (MariaDB Corporation)",
-  "Audit the server activity",
-  PLUGIN_LICENSE_GPL,
-  server_audit_init_mysql,
-  server_audit_deinit,
-  PLUGIN_VERSION,
-  audit_status,
-  vars,
-  NULL,
-  0
-}
-mysql_declare_plugin_end;
 
 
 static struct st_mysql_audit maria_descriptor =
@@ -2782,19 +2246,20 @@ static void log_current_query(MYSQL_THD thd)
   {
     cn->log_always= 1;
     log_statement_ex(cn, cn->query_time, thd_get_thread_id(thd),
-		cn->query, cn->query_length, 0, "QUERY", 0);
+                     thd_sql_command(thd), cn->query, cn->query_length, 0,
+                     "QUERY", 0);
     cn->log_always= 0;
   }
 }
 
 
-static void update_file_path(MYSQL_THD thd,
-              struct st_mysql_sys_var *var  __attribute__((unused)),
-              void *var_ptr  __attribute__((unused)), const void *save)
+static void update_file_path(MYSQL_THD thd, st_mysql_sys_var *, void *,
+                             const void *save)
 {
-  char *new_name= (*(char **) save) ? *(char **) save : empty_str;
-
-  if (strlen(new_name) + 4  > FN_REFLEN)
+  char *new_name= *static_cast<char*const*>(save);
+  if (!new_name)
+    new_name= empty_str;
+  else if (strlen(new_name) + 4  > FN_REFLEN)
   {
     error_header();
     fprintf(stderr,
@@ -2806,12 +2271,10 @@ static void update_file_path(MYSQL_THD thd,
     return;
   }
 
-  ADD_ATOMIC(internal_stop_logging, 1);
+  lock_operations.wr_lock();
+  internal_stop_logging++;
   error_header();
   fprintf(stderr, "Log file name was changed to '%s'.\n", new_name);
-
-  if (!maria_55_started || !debug_server_started)
-    mysql_prlock_wrlock(&lock_operations);
 
   if (logging)
     log_current_query(thd);
@@ -2842,64 +2305,53 @@ static void update_file_path(MYSQL_THD thd,
   path_buffer[sizeof(path_buffer)-1]= 0;
   file_path= path_buffer;
 exit_func:
-  if (!maria_55_started || !debug_server_started)
-    mysql_prlock_unlock(&lock_operations);
-  ADD_ATOMIC(internal_stop_logging, -1);
+  internal_stop_logging--;
+  lock_operations.wr_unlock();
 }
 
 
-static void update_file_rotations(MYSQL_THD thd  __attribute__((unused)),
-              struct st_mysql_sys_var *var  __attribute__((unused)),
-              void *var_ptr  __attribute__((unused)), const void *save)
+static void update_file_rotations(MYSQL_THD, st_mysql_sys_var *,
+                                  void *, const void *save)
 {
-  rotations= *(unsigned int *) save;
+  lock_operations.wr_lock();
+  rotations= *static_cast<const unsigned*>(save);
   error_header();
   fprintf(stderr, "Log file rotations was changed to '%d'.\n", rotations);
 
-  if (!logging || output_type != OUTPUT_FILE)
-    return;
+  if (logging && output_type == OUTPUT_FILE)
+    logger_set_rotations(logfile, rotations);
 
-  mysql_prlock_wrlock(&lock_operations);
-  logger_set_rotations(logfile, rotations);
-  mysql_prlock_unlock(&lock_operations);
+  lock_operations.wr_unlock();
 }
 
 
-static void update_file_rotate_size(MYSQL_THD thd  __attribute__((unused)),
-              struct st_mysql_sys_var *var  __attribute__((unused)),
-              void *var_ptr  __attribute__((unused)), const void *save)
+static void update_file_rotate_size(MYSQL_THD, st_mysql_sys_var *, void*,
+                                    const void *save)
 {
-  file_rotate_size= *(unsigned long long *) save;
+  lock_operations.wr_lock();
+  file_rotate_size= *static_cast<const unsigned long long *>(save);
   error_header();
   fprintf(stderr, "Log file rotate size was changed to '%lld'.\n",
           file_rotate_size);
 
-  if (!logging || output_type != OUTPUT_FILE)
-    return;
-
-  mysql_prlock_wrlock(&lock_operations);
-  logger_set_filesize_limit(logfile, file_rotate_size);
-  mysql_prlock_unlock(&lock_operations);
+  if (logging && output_type == OUTPUT_FILE)
+    logger_set_filesize_limit(logfile, file_rotate_size);
+  lock_operations.wr_unlock();
 }
 
 
-static void update_file_buffer_size(MYSQL_THD thd  __attribute__((unused)),
-              struct st_mysql_sys_var *var  __attribute__((unused)),
-              void *var_ptr  __attribute__((unused)), const void *save)
+static void update_file_buffer_size(MYSQL_THD, st_mysql_sys_var *, void *,
+                                    const void *save)
 {
-  file_buffer_size= *(unsigned int *) save;
+  lock_operations.wr_lock();
+  file_buffer_size= *static_cast<const unsigned*>(save);
 
   error_header();
-  fprintf(stderr, "Log file buffer size was changed to '%d'.\n", file_buffer_size);
+  fprintf(stderr, "Log file buffer size was changed to '%u'.\n",
+          file_buffer_size);
 
-  if (!logging || output_type != OUTPUT_FILE)
-    return;
-
-  ADD_ATOMIC(internal_stop_logging, 1);
-  if (!maria_55_started || !debug_server_started)
-    mysql_prlock_wrlock(&lock_operations);
-
-  if (logger_resize_buffer(logfile, file_buffer_size))
+  if (logging && output_type == OUTPUT_FILE &&
+      logger_resize_buffer(logfile, file_buffer_size))
   {
     stop_logging();
     error_header();
@@ -2908,9 +2360,7 @@ static void update_file_buffer_size(MYSQL_THD thd  __attribute__((unused)),
                  MYF(ME_WARNING));
   }
 
-  if (!maria_55_started || !debug_server_started)
-    mysql_prlock_unlock(&lock_operations);
-  ADD_ATOMIC(internal_stop_logging, -1);
+  lock_operations.wr_unlock();
 }
 
 
@@ -2933,34 +2383,32 @@ static int check_users(void *save, struct st_mysql_value *value,
   return 0;
 }
 
-static int check_incl_users(MYSQL_THD thd  __attribute__((unused)),
-                            struct st_mysql_sys_var *var  __attribute__((unused)),
+static int check_incl_users(MYSQL_THD, st_mysql_sys_var *,
                             void *save, struct st_mysql_value *value)
 {
   return check_users(save, value, sizeof(incl_user_buffer), "incl");
 }
 
-static int check_excl_users(MYSQL_THD thd  __attribute__((unused)),
-                            struct st_mysql_sys_var *var  __attribute__((unused)),
+static int check_excl_users(MYSQL_THD, st_mysql_sys_var *,
                             void *save, struct st_mysql_value *value)
 {
   return check_users(save, value, sizeof(excl_user_buffer), "excl");
 }
 
 
-static void update_incl_users(MYSQL_THD thd,
-              struct st_mysql_sys_var *var  __attribute__((unused)),
-              void *var_ptr  __attribute__((unused)), const void *save)
+static void update_incl_users(MYSQL_THD thd, st_mysql_sys_var *, void *,
+                              const void *save)
 {
-  char *new_users= (*(char **) save) ? *(char **) save : empty_str;
+  char *new_users= *static_cast<char*const*>(save);
+  if (!new_users)
+    new_users= empty_str;
   size_t new_len= strlen(new_users) + 1;
-  if (!maria_55_started || !debug_server_started)
-    mysql_prlock_wrlock(&lock_operations);
   mark_always_logged(thd);
 
   if (new_len > sizeof(incl_user_buffer))
     new_len= sizeof(incl_user_buffer);
 
+  lock_operations.wr_lock();
   memcpy(incl_user_buffer, new_users, new_len - 1);
   incl_user_buffer[new_len - 1]= 0;
 
@@ -2968,24 +2416,23 @@ static void update_incl_users(MYSQL_THD thd,
   user_coll_fill(&incl_user_coll, incl_users, &excl_user_coll, 1);
   error_header();
   fprintf(stderr, "server_audit_incl_users set to '%s'.\n", incl_users);
-  if (!maria_55_started || !debug_server_started)
-    mysql_prlock_unlock(&lock_operations);
+  lock_operations.wr_unlock();
 }
 
 
-static void update_excl_users(MYSQL_THD thd  __attribute__((unused)),
-              struct st_mysql_sys_var *var  __attribute__((unused)),
-              void *var_ptr  __attribute__((unused)), const void *save)
+static void update_excl_users(MYSQL_THD thd, st_mysql_sys_var *, void *,
+                              const void *save)
 {
-  char *new_users= (*(char **) save) ? *(char **) save : empty_str;
+  char *new_users= *static_cast<char*const*>(save);
+  if (!new_users)
+    new_users= empty_str;
   size_t new_len= strlen(new_users) + 1;
-  if (!maria_55_started || !debug_server_started)
-    mysql_prlock_wrlock(&lock_operations);
   mark_always_logged(thd);
 
   if (new_len > sizeof(excl_user_buffer))
     new_len= sizeof(excl_user_buffer);
 
+  lock_operations.wr_lock();
   memcpy(excl_user_buffer, new_users, new_len - 1);
   excl_user_buffer[new_len - 1]= 0;
 
@@ -2993,21 +2440,18 @@ static void update_excl_users(MYSQL_THD thd  __attribute__((unused)),
   user_coll_fill(&excl_user_coll, excl_users, &incl_user_coll, 0);
   error_header();
   fprintf(stderr, "server_audit_excl_users set to '%s'.\n", excl_users);
-  if (!maria_55_started || !debug_server_started)
-    mysql_prlock_unlock(&lock_operations);
+  lock_operations.wr_unlock();
 }
 
 
-static void update_output_type(MYSQL_THD thd,
-              struct st_mysql_sys_var *var  __attribute__((unused)),
-              void *var_ptr  __attribute__((unused)), const void *save)
+static void update_output_type(MYSQL_THD thd, st_mysql_sys_var *, void *,
+                               const void *save)
 {
-  ulong new_output_type= *((ulong *) save);
+  ulong new_output_type= *static_cast<const ulong*>(save);
   if (output_type == new_output_type)
     return;
 
-  ADD_ATOMIC(internal_stop_logging, 1);
-  mysql_prlock_wrlock(&lock_operations);
+  lock_operations.wr_lock();
   if (logging)
   {
     log_current_query(thd);
@@ -3021,199 +2465,256 @@ static void update_output_type(MYSQL_THD thd,
 
   if (logging)
     start_logging();
-  mysql_prlock_unlock(&lock_operations);
-  ADD_ATOMIC(internal_stop_logging, -1);
+  lock_operations.wr_unlock();
 }
 
 
-static void update_syslog_facility(MYSQL_THD thd  __attribute__((unused)),
-              struct st_mysql_sys_var *var  __attribute__((unused)),
-              void *var_ptr  __attribute__((unused)), const void *save)
+static void update_syslog_facility(MYSQL_THD thd, st_mysql_sys_var *, void *,
+                                   const void *save)
 {
-  ulong new_facility= *((ulong *) save);
-  if (syslog_facility == new_facility)
-    return;
-
-  mark_always_logged(thd);
-  error_header();
-  fprintf(stderr, "SysLog facility was changed from '%s' to '%s'.\n",
-          syslog_facility_names[syslog_facility],
-          syslog_facility_names[new_facility]);
-  syslog_facility= new_facility;
-}
-
-
-static void update_syslog_priority(MYSQL_THD thd  __attribute__((unused)),
-              struct st_mysql_sys_var *var  __attribute__((unused)),
-              void *var_ptr  __attribute__((unused)), const void *save)
-{
-  ulong new_priority= *((ulong *) save);
-  if (syslog_priority == new_priority)
-    return;
-
-  mysql_prlock_wrlock(&lock_operations);
-  mark_always_logged(thd);
-  mysql_prlock_unlock(&lock_operations);
-  error_header();
-  fprintf(stderr, "SysLog priority was changed from '%s' to '%s'.\n",
-          syslog_priority_names[syslog_priority],
-          syslog_priority_names[new_priority]);
-  syslog_priority= new_priority;
-}
-
-
-static void update_logging(MYSQL_THD thd,
-              struct st_mysql_sys_var *var  __attribute__((unused)),
-              void *var_ptr  __attribute__((unused)), const void *save)
-{
-  char new_logging= *(char *) save;
-  if (new_logging == logging)
-    return;
-
-  ADD_ATOMIC(internal_stop_logging, 1);
-  if (!maria_55_started || !debug_server_started)
-    mysql_prlock_wrlock(&lock_operations);
-  if ((logging= new_logging))
+  ulong new_facility= *static_cast<const ulong*>(save);
+  lock_operations.wr_lock();
+  ulong old_facility= syslog_facility;
+  if (old_facility != new_facility)
   {
-    start_logging();
-    if (!logging)
-    {
-      CLIENT_ERROR(1, "Logging was disabled.", MYF(ME_WARNING));
-    }
+    syslog_facility= new_facility;
     mark_always_logged(thd);
+    error_header();
+    fprintf(stderr, "SysLog facility was changed from '%s' to '%s'.\n",
+            syslog_facility_names[old_facility],
+            syslog_facility_names[new_facility]);
   }
+  lock_operations.wr_unlock();
+}
+
+
+static void update_syslog_priority(MYSQL_THD thd, st_mysql_sys_var *, void *,
+                                   const void *save)
+{
+  ulong new_priority= *static_cast<const ulong*>(save);
+  lock_operations.wr_lock();
+  ulong old_priority= syslog_priority;
+  if (old_priority != new_priority)
+  {
+    syslog_priority= new_priority;
+    mark_always_logged(thd);
+    error_header();
+    fprintf(stderr, "SysLog priority was changed from '%s' to '%s'.\n",
+            syslog_priority_names[old_priority],
+            syslog_priority_names[new_priority]);
+  }
+  lock_operations.wr_unlock();
+}
+
+
+static void update_logging(MYSQL_THD thd, st_mysql_sys_var *, void *,
+                           const void *save)
+{
+  char new_logging= *static_cast<const char*>(save);
+  lock_operations.wr_lock();
+  if (new_logging != logging)
+  {
+    logging= new_logging;
+    if (new_logging)
+    {
+      start_logging();
+      if (!logging)
+        CLIENT_ERROR(1, "Logging was disabled.", MYF(ME_WARNING));
+      else
+        mark_always_logged(thd);
+    }
+    else
+    {
+      log_current_query(thd);
+      stop_logging();
+    }
+  }
+  lock_operations.wr_unlock();
+}
+
+
+static void update_mode(MYSQL_THD thd, st_mysql_sys_var *, void *,
+                        const void *save)
+{
+  unsigned new_mode= *static_cast<const unsigned*>(save);
+  lock_operations.wr_lock();
+  unsigned old_mode= mode;
+  if (new_mode != old_mode)
+  {
+    mode= new_mode;
+    mark_always_logged(thd);
+    error_header();
+    fprintf(stderr, "Logging mode was changed from %u to %u.\n",
+            old_mode, new_mode);
+  }
+  lock_operations.wr_unlock();
+}
+
+
+static void update_syslog_ident(MYSQL_THD thd, st_mysql_sys_var *, void *,
+                                const void *save)
+{
+  char *new_ident= *static_cast<char*const*>(save);
+  lock_operations.wr_lock();
+  if (!new_ident)
+    *syslog_ident= '\0';
   else
   {
-    log_current_query(thd);
-    stop_logging();
+    strncpy(syslog_ident, new_ident, sizeof(syslog_ident)-1);
+    syslog_ident[sizeof(syslog_ident)-1]= 0;
   }
-
-  if (!maria_55_started || !debug_server_started)
-    mysql_prlock_unlock(&lock_operations);
-  ADD_ATOMIC(internal_stop_logging, -1);
-}
-
-
-static void update_mode(MYSQL_THD thd  __attribute__((unused)),
-              struct st_mysql_sys_var *var  __attribute__((unused)),
-              void *var_ptr  __attribute__((unused)), const void *save)
-{
-  unsigned int new_mode= *(unsigned int *) save;
-  if (mode_readonly || new_mode == mode)
-    return;
-
-  ADD_ATOMIC(internal_stop_logging, 1);
-  if (!maria_55_started || !debug_server_started)
-    mysql_prlock_wrlock(&lock_operations);
-  mark_always_logged(thd);
   error_header();
-  fprintf(stderr, "Logging mode was changed from %d to %d.\n", mode, new_mode);
-  mode= new_mode;
-  if (!maria_55_started || !debug_server_started)
-    mysql_prlock_unlock(&lock_operations);
-  ADD_ATOMIC(internal_stop_logging, -1);
-}
-
-
-static void update_syslog_ident(MYSQL_THD thd  __attribute__((unused)),
-              struct st_mysql_sys_var *var  __attribute__((unused)),
-              void *var_ptr  __attribute__((unused)), const void *save)
-{
-  char *new_ident= (*(char **) save) ? *(char **) save : empty_str;
-  strncpy(syslog_ident_buffer, new_ident, sizeof(syslog_ident_buffer)-1);
-  syslog_ident_buffer[sizeof(syslog_ident_buffer)-1]= 0;
-  syslog_ident= syslog_ident_buffer;
-  error_header();
-  fprintf(stderr, "SYSYLOG ident was changed to '%s'\n", syslog_ident);
-  mysql_prlock_wrlock(&lock_operations);
+  fprintf(stderr, "SYSLOG ident was changed to '%s'\n", syslog_ident);
   mark_always_logged(thd);
   if (logging && output_type == OUTPUT_SYSLOG)
   {
     stop_logging();
     start_logging();
   }
-  mysql_prlock_unlock(&lock_operations);
+  lock_operations.wr_unlock();
 }
 
 
-struct st_my_thread_var *loc_thread_var(void)
+IF_WIN(static,__attribute__ ((constructor)))
+void audit_plugin_so_init()
 {
-  return 0;
-}
-
-
-
-#ifdef _WIN32
-BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpvReserved)
-{
-  if (fdwReason != DLL_PROCESS_ATTACH)
-    return 1;
-
-  serv_ver= server_version;
-#else
-void __attribute__ ((constructor)) audit_plugin_so_init(void)
-{
-  serv_ver= server_version;
-#endif /*_WIN32*/
-
-  if (!serv_ver)
-    goto exit;
-
-  started_mariadb= strstr(serv_ver, "MariaDB") != 0;
-  debug_server_started= strstr(serv_ver, "debug") != 0;
-
-  if (started_mariadb)
-  {
-    if (serv_ver[0] == '1')
-      use_event_data_for_disconnect= 1;
-    else
-      maria_55_started= 1;
-  }
-  else
-  {
-    /* Started MySQL. */
-    if (serv_ver[0] == '5' && serv_ver[2] == '5')
-    {
-      int sc= serv_ver[4] - '0';
-      if (serv_ver[5] >= '0' && serv_ver[5] <= '9')
-        sc= sc * 10 + serv_ver[5] - '0';
-      if (sc <= 10)
-      {
-        mysql_descriptor.interface_version= 0x0200;
-        mysql_descriptor.event_notify= (void *) auditing_v8;
-      }
-      else if (sc < 14)
-      {
-        mysql_descriptor.interface_version= 0x0200;
-        mysql_descriptor.event_notify= (void *) auditing_v13;
-      }
-    }
-    else if (serv_ver[0] == '5' && serv_ver[2] == '6')
-    {
-      int sc= serv_ver[4] - '0';
-      if (serv_ver[5] >= '0' && serv_ver[5] <= '9')
-        sc= sc * 10 + serv_ver[5] - '0';
-      if (sc >= 24)
-        use_event_data_for_disconnect= 1;
-    }
-    else if ((serv_ver[0] == '5' && serv_ver[2] == '7') ||
-             (serv_ver[0] == '8' && serv_ver[2] == '0'))
-    {
-      mysql_57_started= 1;
-      _mysql_plugin_declarations_[0].info= mysql_v4_descriptor;
-      use_event_data_for_disconnect= 1;
-    }
-    MYSQL_SYSVAR_NAME(loc_info).flags= PLUGIN_VAR_STR | PLUGIN_VAR_THDLOCAL |
-      PLUGIN_VAR_READONLY | PLUGIN_VAR_MEMALLOC;
-  }
-
   memset(locinfo_ini_value, 'O', sizeof(locinfo_ini_value)-1);
   locinfo_ini_value[sizeof(locinfo_ini_value)-1]= 0;
-
-exit:
-#ifdef _WIN32
-  return 1;
-#else
-  return;
-#endif
 }
+
+#ifdef _WIN32
+BOOL WINAPI DllMain(HINSTANCE, DWORD fdwReason, LPVOID)
+{
+  if (fdwReason == DLL_PROCESS_ATTACH)
+    audit_plugin_so_init();
+  return 1;
+}
+#elif !defined SUX_LOCK_GENERIC
+# ifdef __linux__
+#  include <linux/futex.h>
+#  include <sys/syscall.h>
+#  define SRW_FUTEX(a,op,n) \
+   syscall(SYS_futex, a, FUTEX_ ## op ## _PRIVATE, n, nullptr, nullptr, 0)
+# elif defined __OpenBSD__
+#  include <sys/time.h>
+#  include <sys/futex.h>
+#  define SRW_FUTEX(a,op,n) \
+   futex((volatile uint32_t*) a, FUTEX_ ## op, n, nullptr, nullptr)
+# elif defined __FreeBSD__
+#  include <sys/types.h>
+#  include <sys/umtx.h>
+#  define FUTEX_WAKE UMTX_OP_WAKE_PRIVATE
+#  define FUTEX_WAIT UMTX_OP_WAIT_UINT_PRIVATE
+#  define SRW_FUTEX(a,op,n) _umtx_op(a, FUTEX_ ## op, n, nullptr, nullptr)
+# elif defined __DragonFly__
+#  include <unistd.h>
+#  define FUTEX_WAKE(a,n) umtx_wakeup(a,n)
+#  define FUTEX_WAIT(a,n) umtx_sleep(a,n,0)
+#  define SRW_FUTEX(a,op,n) FUTEX_ ## op((volatile int*) a, int(n))
+# else
+#  error "no futex support nor #define SUX_LOCK_GENERIC"
+# endif
+
+# ifdef __GNUC__
+#  pragma GCC visibility push(hidden) /* Avoid a symbol clash with InnoDB */
+# endif
+
+template<> inline void srw_mutex_impl<false>::wait(uint32_t lk) noexcept
+{ SRW_FUTEX(&lock, WAIT, lk); }
+template<> inline void srw_mutex_impl<false>::wake() noexcept
+{ SRW_FUTEX(&lock, WAKE, 1); }
+template<> inline void srw_mutex_impl<false>::wake_all() noexcept
+{ SRW_FUTEX(&lock, WAKE, INT_MAX); }
+template<> inline void ssux_lock_impl<false>::wait(uint32_t lk) noexcept
+{ SRW_FUTEX(&readers, WAIT, lk); }
+template<> inline void ssux_lock_impl<false>::wake() noexcept
+{ SRW_FUTEX(&readers, WAKE, 1); }
+
+template<>
+void srw_mutex_impl<false>::wait_and_lock() noexcept
+{
+  uint32_t lk= WAITER + lock.fetch_add(WAITER, std::memory_order_relaxed);
+  for (;;)
+  {
+    DBUG_ASSERT(~HOLDER & lk);
+    if (lk & HOLDER)
+    {
+      wait(lk);
+#if defined __i386__||defined __x86_64__
+reload:
+#endif
+      lk= lock.load(std::memory_order_relaxed);
+    }
+    else
+    {
+#if defined __i386__||defined __x86_64__
+      if (lock.fetch_or(HOLDER, std::memory_order_relaxed) & HOLDER)
+        goto reload;
+#else
+      if ((lk= lock.fetch_or(HOLDER, std::memory_order_relaxed)) & HOLDER)
+        continue;
+      DBUG_ASSERT(lk);
+#endif
+      std::atomic_thread_fence(std::memory_order_acquire);
+      return;
+    }
+  }
+}
+
+template<>
+void ssux_lock_impl<false>::wr_wait(uint32_t lk) noexcept
+{
+  DBUG_ASSERT(writer.is_locked());
+  DBUG_ASSERT(lk);
+  DBUG_ASSERT(lk < WRITER);
+
+  lk|= WRITER;
+
+  do
+  {
+    DBUG_ASSERT(lk > WRITER);
+    wait(lk);
+    lk= readers.load(std::memory_order_acquire);
+  }
+  while (lk != WRITER);
+}
+
+template<bool spinloop>
+void ssux_lock_impl<spinloop>::rd_lock_nospin() noexcept
+{
+  /* Subscribe to writer.wake() or write.wake_all() calls of
+  concurrently executing rd_wait() or writer.wr_unlock(). */
+  uint32_t wl= writer.WAITER +
+    writer.lock.fetch_add(writer.WAITER, std::memory_order_acquire);
+
+  for (;;)
+  {
+    if (writer.HOLDER & wl)
+      writer.wait(wl);
+    uint32_t lk= rd_lock_try_low();
+    if (!lk)
+      break;
+    if (UNIV_UNLIKELY(lk == WRITER)) /* A wr_lock() just succeeded. */
+      /* Immediately wake up (also) wr_lock(). We may also unnecessarily
+      wake up other concurrent threads that are executing rd_wait().
+      If we invoked writer.wake() here to wake up just one thread,
+      we could wake up a rd_wait(), which then would invoke writer.wake(),
+      waking up possibly another rd_wait(), and we could end up doing
+      lots of non-productive context switching until the wr_lock()
+      is finally woken up. */
+      writer.wake_all();
+    wl= writer.lock.load(std::memory_order_acquire);
+    ut_ad(wl);
+  }
+
+  /* Unsubscribe writer.wake() and writer.wake_all(). */
+  wl= writer.lock.fetch_sub(writer.WAITER, std::memory_order_release);
+  ut_ad(wl);
+
+  /* Wake any other threads that may be blocked in writer.wait().
+  All other waiters than this rd_wait() would end up acquiring writer.lock
+  and waking up other threads on unlock(). */
+  if (wl > writer.WAITER)
+    writer.wake_all();
+}
+#endif

@@ -108,9 +108,8 @@ explain select * from t1 where pk1 != 0  and key1 = 1	{
                         "using_mrr": false,
                         "index_only": false,
                         "rows": 1000,
-                        "cost": 0.19598856,
-                        "chosen": false,
-                        "cause": "cost"
+                        "cost": 0.16706826,
+                        "chosen": true
                       },
                       {
                         "index": "key1",

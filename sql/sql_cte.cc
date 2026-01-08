@@ -100,6 +100,19 @@ bool LEX::check_dependencies_in_with_clauses()
 }
 
 
+bool LEX::prepare_unreferenced_in_with_clauses()
+{
+  for (With_clause *with_clause= with_clauses_list;
+       with_clause;
+       with_clause= with_clause->next_with_clause)
+  {
+    if (with_clause->prepare_unreferenced_elements(thd))
+      return true;
+  }
+  return false;
+}
+
+
 /**
   @brief
     Resolve table references to CTE from a sub-chain of table references

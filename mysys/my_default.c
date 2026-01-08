@@ -39,6 +39,8 @@
 #include <m_string.h>
 #include <m_ctype.h>
 #include <my_dir.h>
+#include <errno.h>
+#include <mysys_err.h>
 #ifdef _WIN32
 #include <winbase.h>
 #endif
@@ -676,8 +678,9 @@ static int search_default_file_with_ext(struct handle_option_ctx *ctx,
       continue;
 
     /* Configuration File Directives */
-    if (*ptr == '!')
+    if (*ptr == '!' || *ptr == '?')
     {
+      my_bool ignore_permissions= *ptr == '?';
       if (recursion_level >= max_recursion_level)
       {
         for (end= ptr + strlen(ptr) - 1; 
@@ -705,9 +708,17 @@ static int search_default_file_with_ext(struct handle_option_ctx *ctx,
                                 ptr, name, line)))
 	  goto err;
 
-        if (!(search_dir= my_dir(ptr, MYF(MY_WME | MY_WANT_SORT))))
+        if (!(search_dir= my_dir(ptr, MYF(ignore_permissions ? MY_WANT_SORT :
+                                          MY_WME | MY_WANT_SORT))))
+        {
+          if (ignore_permissions)
+          {
+            if (my_errno == EACCES)
+            continue;                           /* Ignore error */
+            my_error(EE_DIR, MYF(ME_BELL), ptr);
+          }
           goto err;
-
+        }
         for (i= 0; i < search_dir->number_of_files; i++)
         {
           search_file= search_dir->dir_entry + i;

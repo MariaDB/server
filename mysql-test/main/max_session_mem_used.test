@@ -83,6 +83,14 @@ REPAIR LOCAL TABLE t1;
 DROP TABLE t1;
 SET max_session_mem_used=default;
 
+--echo #
+--echo # MDEV-38005 Assertion `(yyvsp[-3].simple_string) < (yyvsp[-1].simple_string)' failed
+--echo #
+SET max_session_mem_used=1;
+--error ER_OPTION_PREVENTS_STATEMENT
+CREATE TABLE t SELECT 1000000000000000000000000000000000000000000000000000000000000000000000000000000001 AS c;
+SET max_session_mem_used=default;
+
 --echo # End of 10.6 tests
 
 --echo #

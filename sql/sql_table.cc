@@ -2181,7 +2181,8 @@ bool quick_rm_table(THD *thd, handlerton *base, const LEX_CSTRING *db,
     handler *file= get_new_handler((TABLE_SHARE*) 0, thd->mem_root, base);
     if (!file)
       DBUG_RETURN(true);
-    (void) file->ha_create_partitioning_metadata(path, NULL, CHF_DELETE_FLAG);
+    (void) file->ha_create_partitioning_metadata(path, NULL, CHF_DELETE_FLAG,
+                                                 true);
     delete file;
   }
   if (flags & QRMT_HANDLER)
