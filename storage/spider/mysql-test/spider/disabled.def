@@ -1,1 +1,6 @@
 alter_server : MDEV-37787
+quick_mode_0 : debug
+quick_mode_1 : debug
+quick_mode_2 : debug
+quick_mode_3 : debug
+partition_mrr : debug
