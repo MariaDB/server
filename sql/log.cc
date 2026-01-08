@@ -8716,7 +8716,7 @@ err:
         mysql_mutex_unlock(&LOCK_commit_ordered);
         cache_mngr->last_commit_pos_file.engine_file_no=
           engine_context->out_file_no;
-        cache_mngr->last_commit_pos_offset= engine_context->out_file_no;
+        cache_mngr->last_commit_pos_offset= engine_context->out_offset;
 
         if (unlikely((*opt_binlog_engine_hton->binlog_write_direct)
                      (file, engine_context, commit_gtid)))
@@ -8733,12 +8733,13 @@ err:
       {
         my_off_t offset= my_b_tell(file);
         bool check_purge= false;
+        const rpl_gtid *commit_gtid= thd->get_last_commit_gtid();
 
         if (likely(!error))
         {
           bool synced;
 
-          update_gtid_index((uint32)offset, thd->get_last_commit_gtid());
+          update_gtid_index((uint32)offset, commit_gtid);
 
           if ((error= flush_and_sync(&synced)))
           {
@@ -8750,8 +8751,9 @@ err:
             mysql_mutex_assert_not_owner(&LOCK_after_binlog_sync);
             mysql_mutex_assert_not_owner(&LOCK_commit_ordered);
 #ifdef HAVE_REPLICATION
-            if (repl_semisync_master.report_binlog_update(thd, thd,
-                                                         log_file_name, offset))
+            if (repl_semisync_master->report_binlog_update(thd, thd,
+                                                           log_file_name, offset,
+                                                           commit_gtid))
             {
               sql_print_error("Failed to run 'after_flush' hooks");
               error= 1;
@@ -8785,7 +8787,8 @@ err:
         mysql_mutex_assert_owner(&LOCK_after_binlog_sync);
         mysql_mutex_assert_not_owner(&LOCK_commit_ordered);
 #ifdef HAVE_REPLICATION
-        if (repl_semisync_master.wait_after_sync(log_file_name, offset))
+        if (repl_semisync_master->wait_after_sync(log_file_name, offset,
+                                                  commit_gtid))
         {
           error=1;
           /* error is already printed inside hook */
@@ -10280,7 +10283,7 @@ MYSQL_BIN_LOG::write_transaction_to_binlog_events(group_commit_entry *entry)
         {
           cache_mngr->last_commit_pos_file.engine_file_no=
             engine_context->out_file_no;
-          cache_mngr->last_commit_pos_offset= engine_context->out_file_no;
+          cache_mngr->last_commit_pos_offset= engine_context->out_offset;
 
           /* Mark to call binlog_write_direct() later. */
           cache_mngr->need_write_direct= TRUE;
@@ -10542,7 +10545,7 @@ MYSQL_BIN_LOG::trx_group_commit_leader(group_commit_entry *leader)
     else
     {
 #ifdef HAVE_REPLICATION
-      if (unlikely(repl_semisync_master.get_master_enabled()))
+      if (unlikely(repl_semisync_master->get_master_enabled()))
       {
         DEBUG_SYNC(leader->thd, "commit_before_update_binlog_end_pos");
         bool any_error= false;
@@ -10560,7 +10563,7 @@ MYSQL_BIN_LOG::trx_group_commit_leader(group_commit_entry *leader)
             will perform the wait. If AFTER_SYNC, the binlog group commit leader
             will perform the wait on behalf of the user thread.
           */
-          THD *waiter_thd= (repl_semisync_master.wait_point() ==
+          THD *waiter_thd= (repl_semisync_master->wait_point() ==
                             SEMI_SYNC_MASTER_WAIT_POINT_AFTER_STORAGE_COMMIT)
                                ? current->thd
                                : leader->thd;
@@ -10572,10 +10575,12 @@ MYSQL_BIN_LOG::trx_group_commit_leader(group_commit_entry *leader)
           else
             filename= current->cache_mngr->last_commit_pos_file.legacy_name;
           if (likely(!current->error) &&
-              unlikely(repl_semisync_master.
+              unlikely(repl_semisync_master->
                        report_binlog_update(current->thd, waiter_thd, filename,
                                             (my_off_t)current->cache_mngr->
-                                            last_commit_pos_offset)))
+                                            last_commit_pos_offset,
+                                            current->thd->
+                                            get_last_commit_gtid())))
           {
             current->error= ER_ERROR_ON_WRITE;
             current->commit_errno= -1;
@@ -10658,7 +10663,7 @@ MYSQL_BIN_LOG::trx_group_commit_leader(group_commit_entry *leader)
     costly two-phase commit between binlog and engine.
   */
   if (!opt_binlog_engine_hton &&
-      unlikely(repl_semisync_master.get_master_enabled()))
+      unlikely(repl_semisync_master->get_master_enabled()))
   {
     mysql_mutex_assert_not_owner(&LOCK_prepare_ordered);
     mysql_mutex_assert_not_owner(&LOCK_log);
@@ -10671,11 +10676,10 @@ MYSQL_BIN_LOG::trx_group_commit_leader(group_commit_entry *leader)
     {
       last= current->next == NULL;
       if (likely(!current->error))
-        current->error=
-          repl_semisync_master.wait_after_sync(current->cache_mngr->
-                                               last_commit_pos_file.legacy_name,
-                                               (my_off_t)current->cache_mngr->
-                                               last_commit_pos_offset);
+        current->error= repl_semisync_master->wait_after_sync(
+            current->cache_mngr->last_commit_pos_file.legacy_name,
+            (my_off_t)current->cache_mngr->last_commit_pos_offset,
+            current->thd->get_last_commit_gtid());
       first= false;
     }
   }
@@ -10773,7 +10777,7 @@ MYSQL_BIN_LOG::trx_group_commit_leader(group_commit_entry *leader)
         {
           cache_mngr->last_commit_pos_file.engine_file_no=
             engine_context->out_file_no;
-          cache_mngr->last_commit_pos_offset= engine_context->out_file_no;
+          cache_mngr->last_commit_pos_offset= engine_context->out_offset;
 
           /* Mark to call binlog_write_direct later. */
           cache_mngr->need_write_direct= TRUE;

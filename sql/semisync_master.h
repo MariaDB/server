@@ -32,10 +32,43 @@ struct Tranx_node {
   char              log_name[FN_REFLEN];
   bool              thd_valid;             /* thd is valid for signalling */
   my_off_t          log_pos;
+  rpl_gtid          gtid;
   THD               *thd;                   /* The thread awaiting an ACK */
   struct Tranx_node *next;            /* the next node in the sorted list */
   struct Tranx_node *hash_next;    /* the next node during hash collision */
 };
+
+
+/*
+  Encapsulate a reference to a binlog position.
+*/
+struct Repl_semi_sync_trx_info {
+  rpl_gtid gtid;
+  const char *log_file;
+  my_off_t log_pos;
+
+  Repl_semi_sync_trx_info();
+  Repl_semi_sync_trx_info(const char *file_name, my_off_t log_pos);
+  Repl_semi_sync_trx_info(const char *file_name, my_off_t log_pos,
+                          const rpl_gtid *gtid);
+};
+
+
+/*
+  Structure to save transaction log filename and position
+*/
+struct Trans_binlog_info : public Repl_semi_sync_trx_info {
+  char file_name_buf[FN_REFLEN];
+
+  Trans_binlog_info();
+  Trans_binlog_info(const char *file_name, my_off_t log_pos);
+  Trans_binlog_info(const char *file_name, my_off_t log_pos, const rpl_gtid *gtid);
+  void set(const Repl_semi_sync_trx_info *inf);
+  void set(const char *log_file, my_off_t log_pos, const rpl_gtid *gtid);
+  void clear();
+  bool is_clear() { return log_pos == 0; }
+};
+
 
 /**
   @class Tranx_node_allocator
@@ -302,7 +335,7 @@ private:
 */
 class Active_tranx
   :public Trace {
-private:
+protected:
 
   Tranx_node_allocator m_allocator;
   /* These two record the active transaction list in sort order. */
@@ -317,35 +350,38 @@ private:
   inline void assert_lock_owner();
 
   inline unsigned int calc_hash(const unsigned char *key, size_t length);
-  unsigned int get_hash_value(const char *log_file_name, my_off_t log_file_pos);
-
-  int compare(const char *log_file_name1, my_off_t log_file_pos1,
-              const Tranx_node *node2) {
-    return compare(log_file_name1, log_file_pos1,
-                   node2->log_name, node2->log_pos);
+  virtual unsigned int get_hash_value(const Repl_semi_sync_trx_info *inf) = 0;
+  unsigned int get_hash_value(const Tranx_node *node)
+  {
+    Repl_semi_sync_trx_info inf(node->log_name, node->log_pos, &node->gtid);
+    return get_hash_value(&inf);
   }
-  int compare(const Tranx_node *node1,
-              const char *log_file_name2, my_off_t log_file_pos2) {
-    return compare(node1->log_name, node1->log_pos,
-                   log_file_name2, log_file_pos2);
+
+  int compare(const Repl_semi_sync_trx_info *inf1, const Tranx_node *node2) {
+    Repl_semi_sync_trx_info inf2(node2->log_name, node2->log_pos, &node2->gtid);
+    return compare(inf1, &inf2);
+  }
+  int compare(const Tranx_node *node1, const Repl_semi_sync_trx_info *inf2) {
+    Repl_semi_sync_trx_info inf1(node1->log_name, node1->log_pos, &node1->gtid);
+    return compare(&inf1, inf2);
   }
   int compare(const Tranx_node *node1, const Tranx_node *node2) {
-    return compare(node1->log_name, node1->log_pos,
-                   node2->log_name, node2->log_pos);
+    Repl_semi_sync_trx_info inf1(node1->log_name, node1->log_pos, &node1->gtid);
+    Repl_semi_sync_trx_info inf2(node2->log_name, node2->log_pos, &node2->gtid);
+    return compare(&inf1, &inf2);
   }
 
 public:
   Active_tranx(mysql_mutex_t *lock, mysql_cond_t *cond,
                unsigned long trace_level);
-  ~Active_tranx();
+  virtual ~Active_tranx();
 
   /* Insert an active transaction node with the specified position.
    *
    * Return:
    *  0: success;  non-zero: error
    */
-  int insert_tranx_node(THD *thd_to_wait, const char *log_file_name,
-                        my_off_t log_file_pos);
+  int insert_tranx_node(THD *thd_to_wait, const Repl_semi_sync_trx_info *inf);
 
   /* Clear the active transaction nodes until(inclusive) the specified
    * position.
@@ -357,29 +393,25 @@ public:
    * e.g. to signal their wakeup condition. Repl_semi_sync_binlog::LOCK_binlog
    * is held while this is invoked.
    */
-  void clear_active_tranx_nodes(const char *log_file_name,
-                                my_off_t log_file_pos);
+  void clear_active_tranx_nodes(const Repl_semi_sync_trx_info *inf);
 
   /* Unlinks a thread from a Tranx_node, so it will not be referenced/signalled
    * if it is separately killed. Note that this keeps the Tranx_node itself in
    * the cache so it can still be awaited by await_all_slave_replies(), e.g.
    * as is done by SHUTDOWN WAIT FOR ALL SLAVES.
    */
-  void unlink_thd_as_waiter(const char *log_file_name, my_off_t log_file_pos);
+  void unlink_thd_as_waiter(const Repl_semi_sync_trx_info *inf);
 
   /* Given a position, check to see whether the position is in the hash table,
    * and return it if so.
    */
-  Tranx_node * is_thd_waiter(const char *log_file_name, my_off_t log_file_pos);
-
-  bool is_tranx_end_pos(const char *log_file_name, my_off_t log_file_pos);
+  Tranx_node * is_thd_waiter(Repl_semi_sync_trx_info *inf);
 
   /* Given two binlog positions, compare them for equality. Return true for
    * different false for equal.
    */
-  static bool compare(const char *log_file_name1, my_off_t log_file_pos1,
-                     const char *log_file_name2, my_off_t log_file_pos2);
-
+  virtual bool compare(const Repl_semi_sync_trx_info *inf1,
+                       const Repl_semi_sync_trx_info *inf2) = 0;
 
   /* Check if there are no transactions actively awaiting ACKs. Returns true
    * if the internal linked list has no entries, false otherwise.
@@ -387,6 +419,37 @@ public:
   bool is_empty() { return m_trx_front == NULL; }
 
 };
+
+
+/*
+  Subclasses of Active_tranx, used for doing the acknowledgement with
+  old-style filename/offset respectively GTID.
+*/
+class Active_tranx_file_pos : public Active_tranx {
+public:
+  Active_tranx_file_pos(mysql_mutex_t *lock, mysql_cond_t *cond,
+                        ulong trace_level);
+  virtual ~Active_tranx_file_pos() override { }
+protected:
+  unsigned int get_hash_value(const Repl_semi_sync_trx_info *inf) override;
+  bool compare(const Repl_semi_sync_trx_info *inf1,
+               const Repl_semi_sync_trx_info *inf2) override;
+
+};
+
+
+class Active_tranx_gtid : public Active_tranx {
+public:
+  Active_tranx_gtid(mysql_mutex_t *lock, mysql_cond_t *cond, ulong trace_level);
+  virtual ~Active_tranx_gtid() override { }
+
+protected:
+  unsigned int get_hash_value(const Repl_semi_sync_trx_info *inf) override;
+  bool compare(const Repl_semi_sync_trx_info *inf1,
+               const Repl_semi_sync_trx_info *inf2) override;
+
+};
+
 
 /**
    The extension class for the master of semi-synchronous replication
@@ -411,29 +474,23 @@ class Repl_semi_sync_master
    */
   mysql_mutex_t LOCK_binlog;
 
-  /* This is set to true when m_reply_file_name contains meaningful data. */
-  bool            m_reply_file_name_inited;
+  /* This is set to true when m_reply_inf contains meaningful data. */
+  bool            m_reply_inf_inited;
 
-  /* The binlog name up to which we have received replies from any slaves. */
-  char            m_reply_file_name[FN_REFLEN];
-
-  /* The position in that file up to which we have the reply from any slaves. */
-  my_off_t        m_reply_file_pos;
+  /* The binlog pos up to which we have received replies from any slaves. */
+  Trans_binlog_info m_reply_inf;
 
   /* This is set to true when we know the 'largest' transaction commit
    * position in the binlog file.
    * We always maintain the position no matter whether semi-sync is switched
    * on switched off.  When a transaction wait timeout occurs, semi-sync will
-   * switch off.  Binlog-dump thread can use the three fields to detect when
+   * switch off.  Binlog-dump thread can use the two fields to detect when
    * slaves catch up on replication so that semi-sync can switch on again.
    */
-  bool            m_commit_file_name_inited;
+  bool            m_commit_inf_inited;
 
   /* The 'largest' binlog filename that a commit transaction is seeing.       */
-  char            m_commit_file_name[FN_REFLEN];
-
-  /* The 'largest' position in that file that a commit transaction is seeing. */
-  my_off_t        m_commit_file_pos;
+  Trans_binlog_info m_commit_inf;
 
   /* All global variables which can be set by parameters. */
   volatile bool            m_master_enabled;      /* semi-sync is enabled on the master */
@@ -460,12 +517,11 @@ class Repl_semi_sync_master
   void switch_off();
 
   /* Switch semi-sync on when slaves catch up. */
-  int try_switch_on(int server_id,
-                    const char *log_file_name, my_off_t log_file_pos);
+  int try_switch_on(int server_id, const Repl_semi_sync_trx_info *inf);
 
  public:
   Repl_semi_sync_master();
-  ~Repl_semi_sync_master() = default;
+  virtual ~Repl_semi_sync_master() = default;
 
   void cleanup();
 
@@ -518,7 +574,13 @@ class Repl_semi_sync_master
   int init_object();
 
   /* Enable the object to enable semi-sync replication inside the master. */
-  int enable_master();
+  virtual int enable_master() = 0;
+protected:
+  template <typename F> int
+  enable_master(F tranx_alloc);
+  virtual int report_reply_packet_sub(uint32 server_id, const uchar *packet,
+                                      ulong packet_len) = 0;
+public:
 
   /* Disable the object to disable semi-sync replication inside the master. */
   void disable_master();
@@ -545,9 +607,7 @@ class Repl_semi_sync_master
    * Return:
    *  0: success;  non-zero: error
    */
-  int report_reply_binlog(uint32 server_id,
-                          const char* log_file_name,
-                          my_off_t end_offset);
+  int report_reply_binlog(uint32 server_id, Repl_semi_sync_trx_info *inf);
 
   /* Commit a transaction in the final step.  This function is called from
    * InnoDB before returning from the low commit.  If semi-sync is switch on,
@@ -564,11 +624,11 @@ class Repl_semi_sync_master
    * Return:
    *  0: success;  non-zero: error
    */
-  int commit_trx(const char* trx_wait_binlog_name,
-                 my_off_t trx_wait_binlog_pos);
+  int commit_trx(Repl_semi_sync_trx_info *inf);
 
   /*Wait for ACK after writing/sync binlog to file*/
-  int wait_after_sync(const char* log_file, my_off_t log_pos);
+  int wait_after_sync(const char* log_file, my_off_t log_pos,
+                      const rpl_gtid *gtid);
 
   /*Wait for ACK after commting the transaction*/
   int wait_after_commit(THD* thd, bool all);
@@ -591,7 +651,8 @@ class Repl_semi_sync_master
    *              at
    */
   int report_binlog_update(THD *trans_thd, THD *waiter_thd,
-                           const char *log_file, my_off_t log_pos);
+                           const char *log_file, my_off_t log_pos,
+                           const rpl_gtid *gtid);
 
   int dump_start(THD* thd,
                   const char *log_file,
@@ -629,6 +690,7 @@ class Repl_semi_sync_master
   int update_sync_header(THD* thd, unsigned char *packet,
                          const char *log_file_name,
                          my_off_t log_file_pos,
+                         const rpl_gtid *gtid,
                          bool* need_sync);
 
   /* Called when a transaction finished writing binlog events.
@@ -648,8 +710,7 @@ class Repl_semi_sync_master
    * Return:
    *  0: success;  non-zero: error
    */
-  int write_tranx_in_binlog(THD *thd, const char *log_file_name,
-                            my_off_t log_file_pos);
+  int write_tranx_in_binlog(THD *thd, const Repl_semi_sync_trx_info *inf);
 
   /* Read the slave's reply so that we know how much progress the slave makes
    * on receive replication events.
@@ -670,12 +731,35 @@ class Repl_semi_sync_master
   mysql_mutex_t LOCK_rpl_semi_sync_master_enabled;
 };
 
+
+class Repl_semi_sync_master_file_pos : public Repl_semi_sync_master {
+public:
+  Repl_semi_sync_master_file_pos() { }
+  virtual ~Repl_semi_sync_master_file_pos() { };
+  int enable_master() override;
+protected:
+  int report_reply_packet_sub(uint32 server_id, const uchar *packet,
+                              ulong packet_len) override;
+};
+
+
+class Repl_semi_sync_master_gtid : public Repl_semi_sync_master {
+public:
+  Repl_semi_sync_master_gtid() { }
+  virtual ~Repl_semi_sync_master_gtid() { };
+  int enable_master() override;
+protected:
+  int report_reply_packet_sub(uint32 server_id, const uchar *packet,
+                              ulong packet_len) override;
+};
+
+
 enum rpl_semi_sync_master_wait_point_t {
   SEMI_SYNC_MASTER_WAIT_POINT_AFTER_BINLOG_SYNC,
   SEMI_SYNC_MASTER_WAIT_POINT_AFTER_STORAGE_COMMIT,
 };
 
-extern Repl_semi_sync_master repl_semisync_master;
+extern Repl_semi_sync_master *repl_semisync_master;
 extern Ack_receiver ack_receiver;
 
 /* System and status variables for the master component */
@@ -709,7 +793,7 @@ extern unsigned long long rpl_semi_sync_master_get_ack;
      1 (default) : keep waiting until timeout even no available semi-sync slave.
 */
 extern char rpl_semi_sync_master_wait_no_slave;
-extern Repl_semi_sync_master repl_semisync_master;
+extern Repl_semi_sync_master *repl_semisync_master;
 
 extern PSI_stage_info stage_waiting_for_semi_sync_ack_from_slave;
 extern PSI_stage_info stage_reading_semi_sync_ack;

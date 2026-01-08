@@ -137,7 +137,6 @@ struct binlog_send_info {
   */
   uint64_t prev_reported_file_no;
   int mariadb_slave_capability;
-  enum_gtid_skip_type gtid_skip_group;
   enum_gtid_until_state gtid_until_group;
   ushort flags;
   enum_binlog_checksum_alg current_checksum_alg;
@@ -145,10 +144,14 @@ struct binlog_send_info {
   bool send_fake_gtid_list;
   bool slave_gtid_ignore_duplicates;
   bool using_gtid_state;
+  bool in_event_group;
+  bool standalone;
+  bool gtid_skip_group;
 
   int error;
   const char *errmsg;
   char error_text[MAX_SLAVE_ERRMSG];
+  rpl_gtid cur_gtid;
   rpl_gtid error_gtid;
 
   ulonglong heartbeat_period;
@@ -176,12 +179,13 @@ struct binlog_send_info {
     : thd(thd_arg), net(&thd_arg->net), packet(packet_arg),
       log_file_name(lfn), until_gtid_state(NULL), fdev(NULL),
       engine_binlog_reader(NULL), prev_reported_file_no(~(uint64_t)0),
-      gtid_skip_group(GTID_SKIP_NOT), gtid_until_group(GTID_UNTIL_NOT_DONE),
+      gtid_until_group(GTID_UNTIL_NOT_DONE),
       flags(flags_arg), current_checksum_alg(BINLOG_CHECKSUM_ALG_UNDEF),
       slave_gtid_strict_mode(false), send_fake_gtid_list(false),
-      slave_gtid_ignore_duplicates(false),
-      error(0),
+      slave_gtid_ignore_duplicates(false), in_event_group(false),
+      standalone(false), gtid_skip_group(false), error(0),
       errmsg("Unknown error"),
+      cur_gtid{0, 0, 0},
       heartbeat_period(0),
 #ifndef DBUG_OFF
       left_events(max_binlog_dump_events),
@@ -373,7 +377,7 @@ static int reset_transmit_packet(binlog_send_info *info, ushort flags,
 
   if (info->thd->semi_sync_slave)
   {
-    if (repl_semisync_master.reserve_sync_header(packet))
+    if (repl_semisync_master->reserve_sync_header(packet))
     {
       info->error= ER_UNKNOWN_ERROR;
       *errmsg= "Failed to run hook 'reserve_header'";
@@ -2182,6 +2186,7 @@ send_event_to_slave(binlog_send_info *info, Log_event_type event_type,
   slave_connection_state *gtid_state= &info->gtid_state;
   slave_connection_state *until_gtid_state= info->until_gtid_state;
   bool need_sync= false;
+  bool end_of_group_event= false;
 
   if (event_type == GTID_LIST_EVENT &&
       info->using_gtid_state && until_gtid_state)
@@ -2207,26 +2212,33 @@ send_event_to_slave(binlog_send_info *info, Log_event_type event_type,
     }
   }
 
+  /* Keep track of event group GTID and type (transaction / standalone). */
+  if (event_type == GTID_EVENT)
+  {
+    uchar flags2= 0;
+    if (ev_offset > len ||
+        Gtid_log_event::peek((uchar*) packet->ptr()+ev_offset, len - ev_offset,
+                             current_checksum_alg,
+                             &info->cur_gtid.domain_id, &info->cur_gtid.server_id,
+                             &info->cur_gtid.seq_no, &flags2, info->fdev))
+    {
+      info->error= ER_MASTER_FATAL_ERROR_READING_BINLOG;
+      return "Failed to read Gtid_log_event: corrupt binlog";
+    }
+    info->in_event_group= true;
+    info->standalone= (flags2 & Gtid_log_event::FL_STANDALONE) != 0;
+  }
+
   /* Skip GTID event groups until we reach slave position within a domain_id. */
   if (event_type == GTID_EVENT && info->using_gtid_state)
   {
-    uchar flags2;
     slave_connection_state::entry *gtid_entry;
     rpl_gtid *gtid;
+    DBUG_ASSERT(info->in_event_group);
 
     if (gtid_state->count() > 0 || until_gtid_state)
     {
-      rpl_gtid event_gtid;
-
-      if (ev_offset > len ||
-          Gtid_log_event::peek((uchar*) packet->ptr()+ev_offset, len - ev_offset,
-                               current_checksum_alg,
-                               &event_gtid.domain_id, &event_gtid.server_id,
-                               &event_gtid.seq_no, &flags2, info->fdev))
-      {
-        info->error= ER_MASTER_FATAL_ERROR_READING_BINLOG;
-        return "Failed to read Gtid_log_event: corrupt binlog";
-      }
+      const rpl_gtid *event_gtid= &info->cur_gtid;
 
       DBUG_EXECUTE_IF("gtid_force_reconnect_at_10_1_100",
         {
@@ -2241,7 +2253,7 @@ send_event_to_slave(binlog_send_info *info, Log_event_type event_type,
           }
         });
 
-      if (info->until_binlog_state.update_nolock(&event_gtid))
+      if (info->until_binlog_state.update_nolock(event_gtid))
       {
         info->error= ER_MASTER_FATAL_ERROR_READING_BINLOG;
         return "Failed in internal GTID book-keeping: Out of memory";
@@ -2249,7 +2261,7 @@ send_event_to_slave(binlog_send_info *info, Log_event_type event_type,
 
       if (gtid_state->count() > 0)
       {
-        gtid_entry= gtid_state->find_entry(event_gtid.domain_id);
+        gtid_entry= gtid_state->find_entry(event_gtid->domain_id);
         if (gtid_entry != NULL)
         {
           gtid= &gtid_entry->gtid;
@@ -2272,15 +2284,14 @@ send_event_to_slave(binlog_send_info *info, Log_event_type event_type,
           }
 
           /* Skip this event group if we have not yet reached slave start pos. */
-          if (event_gtid.server_id != gtid->server_id ||
-              event_gtid.seq_no <= gtid->seq_no)
-            info->gtid_skip_group= (flags2 & Gtid_log_event::FL_STANDALONE ?
-                                GTID_SKIP_STANDALONE : GTID_SKIP_TRANSACTION);
-          if (event_gtid.server_id == gtid->server_id &&
-              event_gtid.seq_no >= gtid->seq_no)
+          if (event_gtid->server_id != gtid->server_id ||
+              event_gtid->seq_no <= gtid->seq_no)
+            info->gtid_skip_group= true;
+          if (event_gtid->server_id == gtid->server_id &&
+              event_gtid->seq_no >= gtid->seq_no)
           {
             if (info->slave_gtid_strict_mode &&
-                event_gtid.seq_no > gtid->seq_no &&
+                event_gtid->seq_no > gtid->seq_no &&
                 !(gtid_entry->flags & slave_connection_state::START_OWN_SLAVE_POS))
             {
               /*
@@ -2316,19 +2327,17 @@ send_event_to_slave(binlog_send_info *info, Log_event_type event_type,
 
       if (until_gtid_state)
       {
-        gtid= until_gtid_state->find(event_gtid.domain_id);
+        gtid= until_gtid_state->find(event_gtid->domain_id);
         if (gtid == NULL)
         {
           /*
             This domain already reached the START SLAVE UNTIL stop condition,
             so skip this event group.
           */
-          info->gtid_skip_group= (flags2 & Gtid_log_event::FL_STANDALONE
-                                      ? GTID_SKIP_STANDALONE
-                                      : GTID_SKIP_TRANSACTION);
+          info->gtid_skip_group= true;
         }
-        else if (event_gtid.server_id == gtid->server_id &&
-                 event_gtid.seq_no >= gtid->seq_no)
+        else if (event_gtid->server_id == gtid->server_id &&
+                 event_gtid->seq_no >= gtid->seq_no)
         {
           /*
             We have reached the stop condition.
@@ -2339,10 +2348,10 @@ send_event_to_slave(binlog_send_info *info, Log_event_type event_type,
           uint64 until_seq_no= gtid->seq_no;
           until_gtid_state->remove(gtid);
           if (until_gtid_state->count() == 0)
-            info->gtid_until_group= (flags2 & Gtid_log_event::FL_STANDALONE ?
+            info->gtid_until_group= (info->standalone ?
                                      GTID_UNTIL_STOP_AFTER_STANDALONE :
                                      GTID_UNTIL_STOP_AFTER_TRANSACTION);
-          if (event_gtid.seq_no > until_seq_no ||
+          if (event_gtid->seq_no > until_seq_no ||
               info->is_until_before_gtids)
           {
             /*
@@ -2356,37 +2365,48 @@ send_event_to_slave(binlog_send_info *info, Log_event_type event_type,
 
               Or the until condition is specified as SQL_BEFORE_GTIDS
             */
-            info->gtid_skip_group = (flags2 & Gtid_log_event::FL_STANDALONE ?
-                                GTID_SKIP_STANDALONE : GTID_SKIP_TRANSACTION);
+            info->gtid_skip_group = true;
           }
         }
       }
     }
   }
 
-  /*
-    Skip event group if we have not yet reached the correct slave GTID position.
-
-    Note that slave that understands GTID can also tolerate holes, so there is
-    no need to supply dummy event.
-  */
-  switch (info->gtid_skip_group)
+  if (info->in_event_group)
   {
-  case GTID_SKIP_STANDALONE:
-    if (!Log_event::is_part_of_group(event_type))
-      info->gtid_skip_group= GTID_SKIP_NOT;
-    return NULL;
-  case GTID_SKIP_TRANSACTION:
-    if (event_type == XID_EVENT || event_type == XA_PREPARE_LOG_EVENT ||
-        (event_type == QUERY_EVENT && /* QUERY_COMPRESSED_EVENT would never be commmit or rollback */
-         Query_log_event::peek_is_commit_rollback((uchar*) packet->ptr() +
-                                                  ev_offset,
-                                                  len - ev_offset,
-                                                  current_checksum_alg)))
-      info->gtid_skip_group= GTID_SKIP_NOT;
-    return NULL;
-  case GTID_SKIP_NOT:
-    break;
+    if (info->standalone)
+    {
+      if (!Log_event::is_part_of_group(event_type))
+      {
+        info->in_event_group= false;
+        end_of_group_event= true;
+      }
+    }
+    else
+    {
+      if (event_type == XID_EVENT || event_type == XA_PREPARE_LOG_EVENT ||
+          (event_type == QUERY_EVENT && /* QUERY_COMPRESSED_EVENT would never be commmit or rollback */
+           Query_log_event::peek_is_commit_rollback((uchar*) packet->ptr() +
+                                                    ev_offset,
+                                                    len - ev_offset,
+                                                    current_checksum_alg)))
+      {
+        info->in_event_group= false;
+        end_of_group_event= true;
+      }
+    }
+
+    /*
+      Skip event group if we have not yet reached the correct slave GTID position.
+
+      Note that slave that understands GTID can also tolerate holes, so there is
+      no need to supply dummy event.
+    */
+    if (info->gtid_skip_group)
+    {
+      info->gtid_skip_group= info->in_event_group;
+      return NULL;
+    }
   }
 
   /* Do not send annotate_rows events unless slave requested it. */
@@ -2499,10 +2519,11 @@ send_event_to_slave(binlog_send_info *info, Log_event_type event_type,
     pos= 4;  // ToDo: Support for semi-sync in binlog-in-engine
   else
     pos= my_b_tell(log);
-  if (repl_semisync_master.update_sync_header(info->thd,
-                                              (uchar*) packet->c_ptr_safe(),
-                                              info->log_file_name + info->dirlen,
-                                              pos, &need_sync))
+  if (end_of_group_event &&
+      repl_semisync_master->update_sync_header(info->thd,
+                                               (uchar*) packet->c_ptr_safe(),
+                                               info->log_file_name + info->dirlen,
+                                               pos, &info->cur_gtid, &need_sync))
   {
     info->error= ER_UNKNOWN_ERROR;
     return "run 'before_send_event' hook failed";
@@ -2524,8 +2545,8 @@ send_event_to_slave(binlog_send_info *info, Log_event_type event_type,
     }
   }
 
-  if (need_sync && repl_semisync_master.flush_net(info->thd,
-                                                  packet->c_ptr()))
+  if (need_sync && repl_semisync_master->flush_net(info->thd,
+                                                   packet->c_ptr()))
   {
     info->error= ER_UNKNOWN_ERROR;
     return "Failed to run hook 'after_send_event'";
@@ -3190,8 +3211,7 @@ static bool
 send_event_gtid_list_and_until(binlog_send_info *info, ulong *ev_offset,
                                Log_event_type event_type, my_off_t log_pos)
 {
-  if (unlikely(info->send_fake_gtid_list) &&
-      info->gtid_skip_group == GTID_SKIP_NOT)
+  if (unlikely(info->send_fake_gtid_list) && !info->gtid_skip_group)
   {
     Gtid_list_log_event glev(&info->until_binlog_state, 0);
 
@@ -3572,7 +3592,7 @@ void mysql_binlog_send(THD* thd, char* log_ident, my_off_t pos,
 
   DBUG_ASSERT(pos == linfo.pos);
 
-  if (repl_semisync_master.dump_start(thd, linfo.log_file_name, linfo.pos))
+  if (repl_semisync_master->dump_start(thd, linfo.log_file_name, linfo.pos))
   {
     info->errmsg= "Failed to run hook 'transmit_start'";
     info->error= ER_UNKNOWN_ERROR;
@@ -3757,7 +3777,7 @@ err:
   THD_STAGE_INFO(thd, stage_waiting_to_finalize_termination);
   if (has_transmit_started)
   {
-    repl_semisync_master.dump_end(thd);
+    repl_semisync_master->dump_end(thd);
   }
 
   if (info->thd->killed == KILL_SLAVE_SAME_ID)
@@ -4903,10 +4923,10 @@ int reset_master(THD* thd, rpl_gtid *init_state, uint32 init_state_len,
   thd->backup_commit_lock= &mdl_request;
 
   /* Temporarily disable master semisync before resetting master. */
-  repl_semisync_master.before_reset_master();
+  repl_semisync_master->before_reset_master();
   ret= mysql_bin_log.reset_logs(thd, 1, init_state, init_state_len,
                                 next_log_number);
-  repl_semisync_master.after_reset_master();
+  repl_semisync_master->after_reset_master();
 
   if (mdl_request.ticket)
     thd->mdl_context.release_lock(mdl_request.ticket);
