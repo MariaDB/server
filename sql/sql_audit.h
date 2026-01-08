@@ -208,7 +208,7 @@ void mysql_audit_general(THD *thd, uint event_subtype,
       event.general_rows= 0;
       event.database= null_clex_str;
       event.query_id= 0;
-      event.port= thd->peer_port;
+      event.port= 0;
     }
 
     mysql_audit_notify(thd, MYSQL_AUDIT_GENERAL_CLASS, &event);

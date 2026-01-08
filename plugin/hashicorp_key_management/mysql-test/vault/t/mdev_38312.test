@@ -1,0 +1,28 @@
+--source include/have_innodb.inc
+--source hashicorp_plugin.inc
+
+--exec vault secrets disable flush_test > /dev/null
+--exec vault secrets enable -path /flush_test -version=2 kv > /dev/null
+--exec vault kv put /flush_test/1 data="59af70fb2f9f9e0acbff9af9c81dec91" > /dev/null
+
+--echo # restart the server with encryption
+--let $vault_defaults=--plugin-load-add=hashicorp_key_management --hashicorp-key-management-vault-url=$VAULT_ADDR/v1/flush_test/ --hashicorp-key-management-token=$VAULT_TOKEN
+--let $restart_parameters=$vault_defaults
+--let $restart_noprint=2
+--source include/restart_mysqld.inc
+
+INSTALL PLUGIN test_sql_service SONAME 'test_sql_service';
+SET GLOBAL innodb_default_encryption_key_id=4;
+
+--exec vault secrets disable flush_test > /dev/null
+
+# Cleanup
+
+--let $tables_count= `select count(*) + @@global.innodb_undo_tablespaces + 1 from information_schema.tables where engine = 'InnoDB'`
+
+--echo # Wait max 10 min for key encryption threads to encrypt all spaces
+--let $wait_timeout= 600
+--let $wait_condition=SELECT COUNT(*) >= $tables_count FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION <> 0;
+--source include/wait_condition.inc
+
+--exec vault secrets disable flush_race_test > /dev/null
