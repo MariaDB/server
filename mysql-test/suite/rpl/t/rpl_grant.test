@@ -34,4 +34,47 @@ sync_slave_with_master;
 SELECT user,host FROM mysql.user WHERE user like 'dummy%';
 SELECT COUNT(*) FROM mysql.user WHERE user like 'dummy%';
 
+--echo #
+--echo # MDEV-38506: Failed GRANT on a procedure breaks replication
+--echo #
+
+--echo # Disable NO_AUTO_CREATE_USER so grant will auto-create users
+connection master;
+SET @old_sql_mode= @@GLOBAL.sql_mode;
+SET GLOBAL sql_mode='';
+
+--echo # Create new stored procedure for GRANT EXECUTE ON PROCEDURE
+CREATE PROCEDURE test.sp() SELECT 1;
+
+--echo # Create a new user with limited privileges to grant sp execution
+CREATE USER 'test_user'@'%' IDENTIFIED BY 'somepass';
+GRANT EXECUTE ON test.* TO 'test_user'@'%' WITH GRANT OPTION;
+connect (con_test_user,localhost,test_user,somepass);
+let $old_binlog_gtid= `SELECT @@global.gtid_binlog_pos`; # Tag the GTID before the failed GRANT
+error ER_CANT_CREATE_USER_WITH_GRANT;
+GRANT EXECUTE ON PROCEDURE test.sp TO 'nonexistentuser'@'';
+
+--echo # Ensuring the failed GRANT is not replicated..
+source include/rpl_sync.inc;
+connection master;
+let $new_binlog_gtid= `SELECT @@global.gtid_binlog_pos`;
+if (`SELECT strcmp('$old_binlog_gtid', '$new_binlog_gtid') != 0`)
+{
+  --echo # binlog_gtid_pos before GRANT: $old_binlog_gtid
+  --echo # binlog_gtid_pos after GRANT:  $new_binlog_gtid
+  --die Failed GRANT was binlogged
+}
+connection slave;
+error ER_NONEXISTING_GRANT;
+SHOW GRANTS for 'nonexistentuser'@'';
+--echo # ..PASS
+
+connection master;
+disconnect con_test_user;
+SET GLOBAL sql_mode= @old_sql_mode;
+DROP USER test_user@'%';
+DROP PROCEDURE test.sp;
+--echo # End of MDEV-38506 test case
+
 --source include/rpl_end.inc
+--echo # End of rpl_grant.test
