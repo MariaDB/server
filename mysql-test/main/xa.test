@@ -4,6 +4,10 @@
 --source include/have_innodb.inc
 --source include/not_embedded.inc
 
+# Save the initial number of concurrent sessions
+let $count_sessions=1;
+--disable_service_connection
+
 call mtr.add_suppression("Deadlock found when trying to get lock; try restarting transaction");
 call mtr.add_suppression("InnoDB: Transaction was aborted due to ");
 
@@ -767,6 +771,7 @@ xa end 'r:foo';
 xa prepare 'r:foo';
 disconnect con1;
 connection default;
+--source include/wait_until_count_sessions.inc
 xa recover;
 
 xa start 'r:bar';

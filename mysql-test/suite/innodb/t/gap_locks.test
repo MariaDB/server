@@ -18,7 +18,23 @@ ELSE 'SERIALIZABLE' END`;
 eval SET TRANSACTION ISOLATION LEVEL $tx_isolation;
 BEGIN;
 DELETE FROM t1 WHERE b='2' AND c=2;
---replace_regex /.*(\d+ lock struct...), heap size \d+(, \d+ row lock...).*/\1\2/
+# The SHOW ENGINE INNODB STATUS looks like this:
+#
+# ...
+# +LIST OF TRANSACTIONS FOR EACH SESSION:
+# +---TRANSACTION (0x7f1e08168300), not started
+# +0 lock struct(s), heap size 1144, 0 row lock(s)
+# +---TRANSACTION (0x7f1e08167780), not started
+# +0 lock struct(s), heap size 1144, 0 row lock(s)
+# +---TRANSACTION 25, ACTIVE 0 sec
+# +2 lock struct(s), heap size 1144, 1 row lock(s)
+# ...
+#
+# We want the lock struct(s) and row lock(s) of the ACTIVE transaction, but
+# not of any inactive ones. Note the use of non-greedy match ".*?", so that
+# we get the values for the ACTIVE transaction, not the last values in the
+# list.
+--replace_regex /.*---TRANSACTION \d+, ACTIVE.*?(\d+ lock struct...), heap size \d+(, \d+ row lock...).*/\1\2/
 SHOW ENGINE INNODB STATUS;
 ROLLBACK;
 

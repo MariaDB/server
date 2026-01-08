@@ -2149,6 +2149,7 @@ Note	1003	select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b` from `test`.`t1` 
 drop table t1;
 set optimizer_use_condition_selectivity= @save_optimizer_use_condition_selectivity;
 set use_stat_tables= @save_use_stat_tables;
+# End of 11.4 tests
 ALTER DATABASE test CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci;
 set optimizer_switch=@save_optimizer_switch_for_selectivity_test;
 set @tmp_ust= @@use_stat_tables;

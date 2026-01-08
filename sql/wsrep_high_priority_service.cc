@@ -154,6 +154,10 @@ Wsrep_high_priority_service::Wsrep_high_priority_service(THD* thd)
    */
   thd->variables.option_bits|= OPTION_BIN_LOG;
 
+  /* Allow applying in a transaction read-only context */
+  thd->tx_read_only= false;
+  thd->variables.tx_read_only= false;
+
   thd->net.vio= 0;
   thd->reset_db(&db_str);
   thd->clear_error();

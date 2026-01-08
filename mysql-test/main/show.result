@@ -98,4 +98,48 @@ SHOW STATUS LIKE "Empty_queries";
 Variable_name	Value
 Empty_queries	2
 DROP TABLE t1, t2;
+#
+# MDEV-32266 All queries in stored procedures increment empty_queries counter
+#
+show status like "Empty_queries";
+Variable_name	Value
+Empty_queries	2
+CREATE TABLE t1 (id INT);
+insert into t1 values (1),(2);
+CREATE PROCEDURE proc1 (OUT cnt INT, id_var int)
+BEGIN
+SELECT COUNT(*) INTO cnt FROM t1 where id=id_var;
+END$$
+CREATE PROCEDURE proc2 (id_var int)
+BEGIN
+declare cnt int;
+SELECT id INTO cnt FROM t1 where id=id_var;
+END$$
+create function f1(x int) returns int return (x in ((select id from t1 where id <= 4)));
+flush status;
+show status like "Empty_queries";
+Variable_name	Value
+Empty_queries	0
+CALL proc1(@cnt,1);
+CALL proc1(@cnt,3);
+CALL proc2(1);
+select f1(1);
+f1(1)
+1
+select f1(8);
+f1(8)
+0
+show status like "Empty_queries";
+Variable_name	Value
+Empty_queries	0
+CALL proc2(4);
+Warnings:
+Warning	1329	No data - zero rows fetched, selected, or processed
+show status like "Empty_queries";
+Variable_name	Value
+Empty_queries	1
+drop procedure proc1;
+drop procedure proc2;
+drop function f1;
+drop table t1;
 # End of 10.11 tests

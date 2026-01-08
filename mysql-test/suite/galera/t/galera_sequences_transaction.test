@@ -230,10 +230,8 @@ COMMIT;
 --connection node_1a
 ROLLBACK;
 --connection node_2
---error ER_LOCK_DEADLOCK
 COMMIT;
 --connection node_2a
---error ER_LOCK_DEADLOCK
 ROLLBACK;
 
 --connection node_2

@@ -99,6 +99,8 @@ FLUSH PRIVILEGES;
 ALTER TABLE mysql.servers ENGINE=Aria;
 FLUSH PRIVILEGES;
 drop server s1;
+# Restore the table back to original engine, to not disrupt following tests.
+ALTER TABLE mysql.servers ENGINE=Aria;
 
 --echo #
 --echo # MDEV-35622 SEGV, ASAN use-after-poison when reading system table with less than expected number of columns

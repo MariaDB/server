@@ -1237,7 +1237,7 @@ static void backup_file_op_fail(uint32_t space_id, int type,
 		msg("DDL tracking : create %" PRIu32 " \"%.*s\"",
 			space_id, int(len), name);
 		fail = !check_if_skip_table(spacename.c_str());
-		if (!opt_no_lock && fail &&
+		if (fail && !opt_no_lock &&
 		    check_if_fts_table(spacename.c_str())) {
 			/* Ignore the FTS internal table because InnoDB does
 			create intermediate table and their associative FTS
@@ -1264,6 +1264,11 @@ static void backup_file_op_fail(uint32_t space_id, int type,
 		break;
 	case FILE_DELETE:
 		fail = !check_if_skip_table(spacename.c_str())
+			/* Ignore the FTS internal table because InnoDB may
+			drop intermediate table and their associative FTS
+			internal table as a part of inplace rollback operation.
+			backup_set_alter_copy_lock() downgrades the
+			MDL_BACKUP_DDL before inplace phase of alter */
 			&& !check_if_fts_table(spacename.c_str());
 		msg("DDL tracking : delete %" PRIu32 " \"%.*s\"",
 			space_id, int(len), name);
@@ -5877,6 +5882,8 @@ void CorruptedPages::backup_fix_ddl(ds_ctxt *ds_data, ds_ctxt *ds_meta)
 					 node, 0, dest_name.c_str(),
 					 wf_write_through, *this);
 	}
+
+	DBUG_MARIABACKUP_EVENT("after_backup_fix_ddl", {});
 }
 
 
@@ -6120,16 +6127,12 @@ exit:
 	ut_ad(fil_space_t::physical_size(flags) == info.page_size);
 
 	mysql_mutex_lock(&fil_system.mutex);
-	fil_space_t* space = fil_space_t::create(uint32_t(info.space_id),
-						 flags, false, 0,
-						 FIL_ENCRYPTION_DEFAULT, true);
+	std::ignore = fil_space_t::create(uint32_t(info.space_id),
+					  flags, false, 0,
+					  FIL_ENCRYPTION_DEFAULT, true);
 	mysql_mutex_unlock(&fil_system.mutex);
-	if (space) {
-		*success = xb_space_create_file(real_name, info.space_id,
-						flags, &file);
-	} else {
-		msg("Can't create tablespace %s\n", dest_space_name);
-	}
+	*success = xb_space_create_file(real_name, info.space_id,
+					flags, &file);
 
 	goto exit;
 }

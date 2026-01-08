@@ -171,6 +171,7 @@ show status like "feature_into_%";
 --echo # Feature vector index
 --echo #
 
+--disable_service_connection
 create table t1 (id int auto_increment primary key,
   u vector(5) not null, vector index (u));
 select * from t1;
@@ -178,3 +179,6 @@ select * from t1;
 select * from t1;
 show status like "Feature_vector_index";
 drop table t1;
+--enable_service_connection
+
+--echo # End of 11.8 tests

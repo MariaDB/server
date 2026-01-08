@@ -1485,8 +1485,7 @@ int multi_delete::send_data(List<Item> &values)
               }
               found++;
           }
-          else
-            error= 0; /* Clear HA_ERR_FOUND_DUPP_{KEY,UNIQUE} error */
+          error= 0;
       }
     }
   }
@@ -1872,6 +1871,13 @@ bool Sql_cmd_delete::precheck(THD *thd)
   else
   {
     if (multi_delete_precheck(thd, lex->query_tables))
+      return true;
+
+    SELECT_LEX *select_lex= lex->first_select_lex();
+    /* condition will be TRUE on SP re-excuting */
+    if (select_lex->item_list.elements != 0)
+      select_lex->item_list.empty();
+    if (add_item_to_list(thd, new (thd->mem_root) Item_null(thd)))
       return true;
   }
 

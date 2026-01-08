@@ -163,7 +163,8 @@ SHOW CREATE TABLE t;
 
 --connection node_1
 DROP SEQUENCE t;
-CREATE SEQUENCE t INCREMENT BY 1 NOCACHE ENGINE=INNODB;
+# Don't use NOCACHE as it may produce duplicate entries from multiple nodes
+CREATE SEQUENCE t INCREMENT BY 0 CACHE 1 ENGINE=INNODB;
 CREATE TABLE t1(a int not null primary key default nextval(t), b int) engine=innodb;
 
 --connection node_2
@@ -193,15 +194,11 @@ SET SESSION wsrep_sync_wait=0;
 while ($count)
 {
 --connection node_1
---error 0,ER_LOCK_WAIT_TIMEOUT,ER_LOCK_DEADLOCK
 INSERT INTO t1(b) values (1);
 --connection node_2
---error 0,ER_LOCK_WAIT_TIMEOUT,ER_LOCK_DEADLOCK
 INSERT INTO t1(b) values (2);
---error 0,ER_LOCK_WAIT_TIMEOUT,ER_LOCK_DEADLOCK
 INSERT INTO t1(b) values (2);
 --connection node_1
---error 0,ER_LOCK_WAIT_TIMEOUT,ER_LOCK_DEADLOCK
 INSERT INTO t1(b) values (1);
 --dec $count
 }
@@ -251,15 +248,11 @@ SET SESSION wsrep_sync_wait=0;
 while ($count)
 {
 --connection node_1
---error 0,ER_LOCK_WAIT_TIMEOUT,ER_LOCK_DEADLOCK
 INSERT INTO t1(b) values (1),(2),(3),(4),(5),(6),(7),(8),(9);
 --connection node_2
---error 0,ER_LOCK_WAIT_TIMEOUT,ER_LOCK_DEADLOCK
 INSERT INTO t1(b) values (21),(22),(23),(24),(25),(26),(27),(28),(29);
---error 0,ER_LOCK_WAIT_TIMEOUT,ER_LOCK_DEADLOCK
 INSERT INTO t1(b) values (21),(22),(23),(24),(25),(26),(27),(28),(29);
 --connection node_1
---error 0,ER_LOCK_WAIT_TIMEOUT,ER_LOCK_DEADLOCK
 INSERT INTO t1(b) values (1),(2),(3),(4),(5),(6),(7),(8),(9);
 --dec $count
 }

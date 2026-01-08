@@ -1477,4 +1477,6 @@ drop table t1;
 set optimizer_use_condition_selectivity= @save_optimizer_use_condition_selectivity;
 set use_stat_tables= @save_use_stat_tables;
 
+--echo # End of 11.4 tests
+
 --source include/test_db_charset_restore.inc

@@ -1692,10 +1692,6 @@ JOIN::prepare(TABLE_LIST *tables_init, COND *conds_init, uint og_num,
     }
   }
 
-  With_clause *with_clause=select_lex->get_with_clause();
-  if (with_clause && with_clause->prepare_unreferenced_elements(thd))
-    DBUG_RETURN(1);
-
   With_element *with_elem= select_lex->get_with_element();
   if (with_elem &&
       select_lex->check_unrestricted_recursive(
@@ -5246,15 +5242,9 @@ select_handler *find_select_handler_inner(THD *thd,
                                     SELECT_LEX *select_lex,
                                     SELECT_LEX_UNIT *select_lex_unit)
 {
-  if (select_lex->master_unit()->outer_select() ||
-      (select_lex_unit && select_lex->master_unit()->with_clause))
-  {
-    /*
-      Pushdown is not supported neither for non-top-level SELECTs nor for parts
-      of SELECT_LEX_UNITs that have CTEs (SELECT_LEX_UNIT::with_clause)
-    */
+  // Pushdown is not supported for non-top-level SELECTs
+  if (select_lex->master_unit()->outer_select())
     return 0;
-  }
 
   TABLE_LIST *tbl= nullptr;
   // For SQLCOM_INSERT_SELECT the server takes TABLE_LIST
@@ -5430,6 +5420,10 @@ mysql_select(THD *thd, TABLE_LIST *tables, List<Item> &fields, COND *conds,
   }
 
   thd->get_stmt_da()->reset_current_row_for_warning(1);
+
+  if (thd->lex->prepare_unreferenced_in_with_clauses())
+    goto err;
+
   /* Look for a table owned by an engine with the select_handler interface */
   select_lex->pushdown_select= find_single_select_handler(thd, select_lex);
 
@@ -25892,7 +25886,14 @@ end_send(JOIN *join, JOIN_TAB *join_tab, bool end_of_records)
     copy_fields(&join->tmp_table_param);
   }
   if (join->having && join->having->val_bool() == 0)
+  {
+    /*
+      If we have HAVING clause and it is not satisfied, we don't send
+      the row to the client, but rownum should be incremented.
+    */
+    join->accepted_rows++;
     DBUG_RETURN(NESTED_LOOP_OK);               // Didn't match having
+  }
   if (join->procedure)
   {
     if (join->procedure->send_row(join->procedure_fields_list))
@@ -31295,16 +31296,21 @@ bool JOIN_TAB::save_explain_data(Explain_table_access *eta,
       else
         eta->push_extra(ET_SCANNED_ALL_DATABASES);
     }
-    if (key_read)
+
+    if (quick_type == QUICK_SELECT_I::QS_TYPE_GROUP_MIN_MAX)
     {
-      if (quick_type == QUICK_SELECT_I::QS_TYPE_GROUP_MIN_MAX)
-      {
-        QUICK_GROUP_MIN_MAX_SELECT *qgs= 
-          (QUICK_GROUP_MIN_MAX_SELECT *) tab_select->quick;
-        eta->push_extra(ET_USING_INDEX_FOR_GROUP_BY);
-        eta->loose_scan_is_scanning= qgs->loose_scan_is_scanning();
-      }
-      else
+      QUICK_GROUP_MIN_MAX_SELECT *qgs=
+        (QUICK_GROUP_MIN_MAX_SELECT *) tab_select->quick;
+      eta->push_extra(ET_USING_INDEX_FOR_GROUP_BY);
+      eta->loose_scan_is_scanning= qgs->loose_scan_is_scanning();
+    }
+    else
+    {
+      /*
+        Print "Using index" if we haven't already printed "Using index for
+        group by".
+      */
+      if (key_read)
         eta->push_extra(ET_USING_INDEX);
     }
     if (table->reginfo.not_exists_optimize)
@@ -34889,6 +34895,9 @@ bool Sql_cmd_dml::execute_inner(THD *thd)
   SELECT_LEX_UNIT *unit = &lex->unit;
   SELECT_LEX *select_lex= unit->first_select();
   JOIN *join= select_lex->join;
+
+  // look for select_handler provided by engines
+  select_lex->pushdown_select= find_single_select_handler(thd, select_lex);
 
   if (join->optimize())
     goto err;

@@ -2793,7 +2793,7 @@ avoid_bulk:
 			}
 #ifdef WITH_WSREP
 			if (trx->is_wsrep() &&
-			    wsrep_append_table_key(trx->mysql_thd, *index->table))
+			    wsrep_append_table_key(trx->mysql_thd, *index->table, true))
 			{
 				trx->error_state = DB_ROLLBACK;
 				goto err_exit;

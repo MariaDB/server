@@ -678,7 +678,7 @@ bool mtr_t::commit_file(fil_space_t &space, const char *name)
 
   if (!name && space.max_lsn)
   {
-    ut_d(space.max_lsn= 0);
+    space.max_lsn= 0;
     fil_system.named_spaces.remove(space);
   }
 

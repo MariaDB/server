@@ -851,6 +851,7 @@ void wsrep_init_globals()
     /* apparently this thread has already called my_thread_init(),
      * so we skip it, hence 'false' for initialization. */
     wsp::thd thd(false, true);
+    thd.ptr->variables.tx_read_only= thd.ptr->tx_read_only= false;
     wsrep_sst_cleanup_user(thd.ptr);
   }
   if (WSREP_ON)
@@ -1482,24 +1483,30 @@ bool wsrep_check_mode_after_open_table (THD *thd,
         wsrep_push_warning(thd, WSREP_REQUIRE_PRIMARY_KEY, hton, tables);
       }
 
+      if (wsrep_check_mode(WSREP_MODE_STRICT_REPLICATION))
+      {
+        /* Table is not an InnoDB table and strict replication is requested*/
+        wsrep_push_warning(thd, WSREP_REQUIRE_INNODB, hton, tables);
+      }
+
       // Check are we inside a transaction
-      bool not_used;
-      uint rw_ha_count= ha_check_and_coalesce_trx_read_only(thd, thd->transaction->all.ha_list, true, &not_used);
-      bool changes= wsrep_has_changes(thd);
+      const bool changes= wsrep_has_changes(thd);
+      const bool active= wsrep_is_active(thd);
+
+      // We should not start TOI if transaction has made already
+      // changes and is active
+      if (changes && active)
+      {
+        my_message(ER_ERROR_DURING_COMMIT, "Transactional commit not supported "
+                   "by involved engine(s)", MYF(0));
+        wsrep_push_warning(thd, WSREP_EXPERIMENTAL, hton, tables);
+        return false;
+      }
 
       // Roll back current stmt if exists
       wsrep_before_rollback(thd, true);
       wsrep_after_rollback(thd, true);
       wsrep_after_statement(thd);
-
-      // If there is updates, they would be lost above rollback
-      if (rw_ha_count > 0 && changes)
-      {
-	my_message(ER_ERROR_DURING_COMMIT, "Transactional commit not supported "
-                     "by involved engine(s)", MYF(0));
-        wsrep_push_warning(thd, WSREP_EXPERIMENTAL, hton, tables);
-	return false;
-      }
 
       WSREP_TO_ISOLATION_BEGIN(NULL, NULL, (tables));
     }
@@ -2852,9 +2859,10 @@ static int wsrep_TOI_begin(THD *thd, const char *db, const char *table,
     if (!wsrep_ready)
     {
       my_error(ER_GALERA_REPLICATION_NOT_SUPPORTED, MYF(0));
-      push_warning_printf(thd, Sql_state_errno_level::WARN_LEVEL_WARN,
+      push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
                           ER_GALERA_REPLICATION_NOT_SUPPORTED,
                           "Galera cluster is not ready to execute replication");
+      return -1;
     }
     return 1;
   }
@@ -2904,51 +2912,33 @@ static int wsrep_TOI_begin(THD *thd, const char *db, const char *table,
   if (ret)
   {
     DBUG_ASSERT(cs.current_error());
-    WSREP_DEBUG("to_execute_start() failed for %llu: %s, seqno: %lld",
-                thd->thread_id, wsrep_thd_query(thd),
-                (long long)wsrep_thd_trx_seqno(thd));
+    WSREP_WARN("TO isolation error %s for : %s.%s, sql: %s. ",
+               wsrep::to_c_string(cs.current_error()),
+               (db ? db : "(null)"),
+               (table ? table : " "),
+               wsrep_thd_query(thd));
 
     /* jump to error handler in mysql_execute_command() */
     switch (cs.current_error())
     {
     case wsrep::e_size_exceeded_error:
-      WSREP_WARN("TO isolation failed for: %d, schema: %s, sql: %s. "
-                 "Maximum size exceeded.",
-                 ret,
-                 (thd->db.str ? thd->db.str : "(null)"),
-                 wsrep_thd_query(thd));
       my_error(ER_UNKNOWN_ERROR, MYF(0), "Maximum writeset size exceeded");
       break;
     case wsrep::e_deadlock_error:
-      WSREP_WARN("TO isolation failed for: %d, schema: %s, sql: %s. "
-                 "Deadlock error.",
-                 ret,
-                 (thd->db.str ? thd->db.str : "(null)"),
-                 wsrep_thd_query(thd));
       my_error(ER_LOCK_DEADLOCK, MYF(0));
       break;
     case wsrep::e_timeout_error:
-      WSREP_WARN("TO isolation failed for: %d, schema: %s, sql: %s. "
-                 "Operation timed out.",
-                 ret,
-                 (thd->db.str ? thd->db.str : "(null)"),
-                 wsrep_thd_query(thd));
       my_error(ER_LOCK_WAIT_TIMEOUT, MYF(0));
       break;
     default:
-      WSREP_WARN("TO isolation failed for: %d, schema: %s, sql: %s. "
-                 "Check your wsrep connection state and retry the query.",
-                 ret,
-                 (thd->db.str ? thd->db.str : "(null)"),
-                 wsrep_thd_query(thd));
-
       if (!thd->is_error())
       {
-        push_warning_printf(thd, Sql_state_errno_level::WARN_LEVEL_ERROR,
-                            ER_LOCK_DEADLOCK,
-                            "WSREP replication failed. Check "
-                            "your wsrep connection state and retry the query.");
         my_error(ER_LOCK_DEADLOCK, MYF(0));
+        push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+                            ER_LOCK_DEADLOCK,
+                            "WSREP replication failed with error %s. "
+                            "Check your wsrep connection state and retry the query.",
+                            wsrep::to_c_string(cs.current_error()));
       }
     }
     rc= -1;
@@ -3881,6 +3871,7 @@ void* start_wsrep_THD(void *arg)
 
   thd->system_thread= SYSTEM_THREAD_SLAVE_SQL;
   thd->security_ctx->skip_grants();
+  thd->security_ctx->user = (char *)wsrep_user;
 
   /* handle_one_connection() again... */
   thd->mark_connection_idle();

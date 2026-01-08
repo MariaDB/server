@@ -1492,6 +1492,10 @@ static int mysql_test_select(Prepared_statement *stmt,
   */
   if (unit->prepare(unit->derived, 0, 0))
     goto error;
+
+  if (thd->lex->prepare_unreferenced_in_with_clauses())
+    goto error;
+
   if (!lex->describe && !thd->lex->analyze_stmt && !stmt->is_sql_prepare())
   {
     /* Make copy of item list, as change_columns may change it */
@@ -5137,6 +5141,11 @@ bool Prepared_statement::execute(String *expanded_query, bool open_cursor)
       See the next comment block for more details.
     */
     cleanup_stmt(false);
+
+  mysql_audit_general(thd, MYSQL_AUDIT_GENERAL_STATUS,
+                      thd->get_stmt_da()->is_error() ?
+                      thd->get_stmt_da()->sql_errno() : 0,
+                      command_name[thd->get_command()].str);
 
   /*
     Log the statement to slow query log if it passes filtering.

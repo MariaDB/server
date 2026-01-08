@@ -3500,13 +3500,14 @@ int vers_get_partition_id(partition_info *part_info, uint32 *part_id,
       goto done; // fastpath
 
     ts= row_end->get_timestamp(&unused);
-    if ((loc_hist_id == 0 || range_value[loc_hist_id - 1] < (longlong) ts) &&
-        (loc_hist_id == max_hist_id || range_value[loc_hist_id] >= (longlong) ts))
+    if ((loc_hist_id == 0 || range_value[loc_hist_id - 1] <= (longlong) ts) &&
+        (loc_hist_id == max_hist_id || (longlong) ts < range_value[loc_hist_id]))
       goto done; // fastpath
 
     while (max_hist_id > min_hist_id)
     {
       loc_hist_id= (max_hist_id + min_hist_id) / 2;
+      /* Left boundary is closed */
       if (range_value[loc_hist_id] <= (longlong) ts)
         min_hist_id= loc_hist_id + 1;
       else

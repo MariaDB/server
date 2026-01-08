@@ -57,6 +57,7 @@ size_t my_write(File Filedes, const uchar *Buffer, size_t Count, myf MyFlags)
                      if (!errors) {
                        errno= ENOSPC;
                        writtenbytes= (size_t) -1;
+                       MyFlags&= ~MY_WAIT_IF_FULL;
                      });
 
     if (writtenbytes == Count)

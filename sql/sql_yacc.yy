@@ -9588,7 +9588,7 @@ select_item:
           }
         | remember_name expr remember_end select_alias
           {
-            DBUG_ASSERT($1 < $3);
+            DBUG_ASSERT($1 < $3 || thd->killed);
 
             if (unlikely(add_item_to_list(thd, $2)))
               MYSQL_YYABORT;
@@ -16745,6 +16745,7 @@ keyword_func_sp_var_and_label:
         | MASTER_SSL_CRL_SYM
         | MASTER_SSL_CRLPATH_SYM
         | MASTER_SSL_KEY_SYM
+        | MASTER_SSL_VERIFY_SERVER_CERT_SYM
         | MAX_CONNECTIONS_PER_HOUR
         | MAX_QUERIES_PER_HOUR
         | MAX_STATEMENT_TIME_SYM
@@ -17060,7 +17061,6 @@ reserved_keyword_udt_not_param_type:
         | LOCK_SYM
         | LOOP_SYM
         | LOW_PRIORITY
-        | MASTER_SSL_VERIFY_SERVER_CERT_SYM
         | MATCH
         | MAX_SYM
         | MAXVALUE_SYM

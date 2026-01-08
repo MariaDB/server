@@ -1412,6 +1412,7 @@ int binlog_flush_pending_rows_event(THD *thd, bool stmt_end,
                                     bool is_transactional,
                                     Event_log *bin_log,
                                     binlog_cache_data *cache_data);
+void binlog_truncate_tmp_files(binlog_cache_mngr *cache_mngr);
 Rows_log_event* binlog_get_pending_rows_event(binlog_cache_mngr *cache_mngr,
                                               bool use_trans_cache);
 int online_alter_log_row(TABLE* table, const uchar *before_record,
@@ -1506,6 +1507,7 @@ const char *
 get_gtid_list_event(IO_CACHE *cache, Gtid_list_log_event **out_gtid_list);
 
 int binlog_commit(THD *thd, bool all, bool is_ro_1pc= false);
+int binlog_rollback(THD *thd, bool all);
 int binlog_commit_by_xid(XID *xid);
 int binlog_rollback_by_xid(XID *xid);
 bool write_bin_log_start_alter(THD *thd, bool& partial_alter,
