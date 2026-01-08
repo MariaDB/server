@@ -2227,17 +2227,17 @@ select * from three left join one on one.v = 1 left join two on two.v = 1;
 
 --echo # Interleaved JOIN checks
 explain extended select * from one full outer join (two, three) on one.v=two.v;
---echo # ^^^ join order must be one, two, three
+--echo # ^^^ join order must be one FOJ (two, three) or one FOJ (three, two)
 explain extended select * from (one, two) full outer join three on one.v=two.v;
---echo # ^^^ join order must be one, two, three
+--echo # ^^^ join order must be (one, two) FOJ three or (two, one) FOJ three
 explain extended select * from one full outer join (three, two) on one.v=two.v;
---echo # ^^^ join order must be one, three, two
+--echo # ^^^ join order must be one FOJ (two, three) or one FOJ (three, two)
 explain extended select * from (one, two t) full outer join (two v, three) on true;
---echo # ^^^ join order must be one, t, v, three
+--echo # ^^^ join order must be (one, t) FOJ (v, three) or (t, one) FOJ (three, v), or something similar but the INNER JOIN'd tables must remain together on their respective sides of the FULL JOIN
 explain extended select * from (one full outer join two on true) full outer join (three full outer join four on true) on true;
 --echo # ^^^ join order must be one, two, three, four
 explain extended select * from (one full outer join two on true) inner join (three full outer join four on true);
---echo # ^^^ join order must be one, two, three, four
+--echo # ^^^ join order must be either (one FOJ two), (three FOJ four) or (three FOJ four), (one FOJ two)
 explain extended select * from four full outer join (two full outer join three on true) on true;
 --echo # ^^^ join order must be four, two, three
 

@@ -1216,6 +1216,11 @@ SQL_SELECT *make_select(TABLE *head, table_map const_tables,
 
   *error=0;
 
+  /*
+    If there's no condition at all then NULLs could end up in
+    the result set.  However, we can disallow that with
+    allow_null_cond == false.
+   */
   if (!conds && !allow_null_cond)
     DBUG_RETURN(0);
   if (!(select= new (head->in_use->mem_root) SQL_SELECT))

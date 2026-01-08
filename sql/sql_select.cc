@@ -2799,7 +2799,7 @@ setup_subq_exit:
     mature enough to correctly execute the queries.  But for now
     this allows for some EXPLAIN EXTENDED support.
   */
-  else if (!thd->lex->full_join_count)
+  else
   {
     if (optimize_stage2())
       DBUG_RETURN(1);
@@ -3080,6 +3080,19 @@ int JOIN::optimize_stage2()
 
   if (setup_semijoin_loosescan(this))
     DBUG_RETURN(1);
+
+  /*
+    Temporary gate.  As the FULL JOIN implementation matures, this keeps moving
+    deeper into the server until it's eventually eliminated.
+  */
+  if (thd->lex->full_join_count)
+  {
+    if (!thd->lex->describe)
+      my_error(ER_NOT_SUPPORTED_YET, MYF(0),
+               "FULL JOINs that cannot be converted to LEFT, RIGHT, or "
+               "INNER JOINs");
+    DBUG_RETURN(0);
+  }
 
   if (make_join_select(this, select, conds))
   {
@@ -5626,23 +5639,25 @@ void mark_join_nest_as_const(JOIN *join,
 
 static Item **get_sargable_cond(JOIN *join, TABLE *table)
 {
-  Item **retval;
-  if (table->pos_in_table_list->on_expr)
+  Item **retval= nullptr;
+  TABLE_LIST *sql_table= table->pos_in_table_list;
+
+  if (sql_table->on_expr)
   {
     /*
       This is an inner table from a single-table LEFT JOIN, "t1 LEFT JOIN
       t2 ON cond". Use the condition cond.
     */
-    retval= &table->pos_in_table_list->on_expr;
+    retval= &sql_table->on_expr;
   }
-  else if (table->pos_in_table_list->embedding &&
-           !table->pos_in_table_list->embedding->sj_on_expr)
+  else if (sql_table->embedding &&
+           !sql_table->embedding->sj_on_expr)
   {
     /*
       This is the inner side of a multi-table outer join. Use the
-      appropriate ON expression.
+      ON expression from the nested join containing the table.
     */
-    retval= &(table->pos_in_table_list->embedding->on_expr);
+    retval= &(sql_table->embedding->on_expr);
   }
   else
   {
@@ -10394,18 +10409,6 @@ choose_plan(JOIN *join, table_map join_tables, TABLE_LIST *emb_sjm_nest)
       join->best_read= limit_cost;
       join->join_record_count= limit_record_count;
     }
-  }
-
-  /*
-    Temporary gate.  As the FULL JOIN implementation matures, this keeps moving
-    deeper into the server until it's eventually eliminated.
-  */
-  if (thd->lex->full_join_count && !thd->lex->describe)
-  {
-    my_error(ER_NOT_SUPPORTED_YET, MYF(0),
-             "FULL JOINs that cannot be converted to LEFT, RIGHT, or "
-             "INNER JOINs");
-    DBUG_RETURN(TRUE);
   }
 
   join->emb_sjm_nest= 0;
