@@ -177,6 +177,43 @@ select 2;
 /*comment*/ select 2;
 2
 2
+with foo as (select 1) select 6;
+6
+6
+values (7, 'a'), (8, 'b');
+7	a
+7	a
+8	b
+#
+# Certain usage of comments and control characters in query strings bypass audit
+# logging when filtering in QUERY_{DCL/DML/DDL} mode
+#
+-- A comment
+select 1;
+1
+1
+--A comment
+select 2;
+2
+2
+# A comment
+select 3;
+3
+3
+/*! SELECT 4 */;
+4
+4
+/*M! SELECT 5 */;
+5
+5
+/*!100100 SELECT 6 */;
+6
+6
+/*!999999 SELECT 'should not log' */;
+/*M!100100 SELECT 7 */;
+7
+7
+/*M!999999 SELECT 'should not log' */;
 drop table t1;
 set global server_audit_events='query_dcl';
 create table t1(id int);
@@ -441,6 +478,15 @@ TIME,HOSTNAME,root,localhost,ID,ID,QUERY,sa_db,'select 2',0
 TIME,HOSTNAME,root,localhost,ID,ID,QUERY,sa_db,'(select 2)',0
 TIME,HOSTNAME,root,localhost,ID,ID,QUERY,sa_db,'/*! select 2*/',0
 TIME,HOSTNAME,root,localhost,ID,ID,QUERY,sa_db,'/*comment*/ select 2',0
+TIME,HOSTNAME,root,localhost,ID,ID,QUERY,sa_db,'with foo as (select 1) select 6',0
+TIME,HOSTNAME,root,localhost,ID,ID,QUERY,sa_db,'values (7, \'a\'), (8, \'b\')',0
+TIME,HOSTNAME,root,localhost,ID,ID,QUERY,sa_db,'-- A comment\nselect 1',0
+TIME,HOSTNAME,root,localhost,ID,ID,QUERY,sa_db,'--A comment\nselect 2',0
+TIME,HOSTNAME,root,localhost,ID,ID,QUERY,sa_db,'# A comment\nselect 3',0
+TIME,HOSTNAME,root,localhost,ID,ID,QUERY,sa_db,'/*! SELECT 4 */',0
+TIME,HOSTNAME,root,localhost,ID,ID,QUERY,sa_db,'/*M! SELECT 5 */',0
+TIME,HOSTNAME,root,localhost,ID,ID,QUERY,sa_db,'/*!100100 SELECT 6 */',0
+TIME,HOSTNAME,root,localhost,ID,ID,QUERY,sa_db,'/*M!100100 SELECT 7 */',0
 TIME,HOSTNAME,root,localhost,ID,ID,QUERY,sa_db,'CREATE USER u1 IDENTIFIED BY *****',0
 TIME,HOSTNAME,root,localhost,ID,ID,QUERY,sa_db,'GRANT ALL ON sa_db TO u2 IDENTIFIED BY *****',0
 TIME,HOSTNAME,root,localhost,ID,ID,QUERY,sa_db,'CREATE USER u3 IDENTIFIED BY *****',0
