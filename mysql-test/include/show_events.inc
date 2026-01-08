@@ -64,7 +64,7 @@ if (!$binlog_start)
   # the right value.
   if ($is_relay_log)
   {
-    --let $_binlog_start= query_get_value($statement LIMIT 2, End_log_pos, 2)
+    --let $_binlog_start= query_get_value($statement LIMIT 3, Pos, 3)
   }
   if (!$is_relay_log)
   {

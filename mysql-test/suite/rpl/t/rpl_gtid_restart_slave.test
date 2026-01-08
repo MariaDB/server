@@ -38,6 +38,7 @@ SELECT * FROM t;
 # MDEV-33645:
 # The IO thread should reconnect with `Gtid_IO_Pos`, not `Gtid_Slave_Pos`.
 --let SEARCH_FILE= `SELECT @@general_log_file`
+--let SEARCH_OUTPUT= count
 --source include/search_pattern_in_file.inc
 
 

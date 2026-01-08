@@ -24,6 +24,6 @@ a
 initial state
 before restart
 connection master;
-NOT FOUND /SET @slave_connect_state='0-1-3'/ in mysqld.log
+NOT FOUND matches in mysqld.log
 DROP TABLE t;
 include/rpl_end.inc

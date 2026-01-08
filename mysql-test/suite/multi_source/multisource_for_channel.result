@@ -215,12 +215,12 @@ i	f1
 include/show_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 mysqld-relay-bin.000001	#	Format_desc	#	#	SERVER_VERSION, BINLOG_VERSION
-mysqld-relay-bin.000001	#	Gtid_list	#	#	[]
+mysqld-relay-bin.000001	#	Gtid_list	#	#	[#-#-#]
 mysqld-relay-bin.000001	#	Rotate	#	#	mysqld-relay-bin.000002;pos=4
 include/show_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 mysqld-relay-bin.000002	#	Format_desc	#	#	SERVER_VERSION, BINLOG_VERSION
-mysqld-relay-bin.000002	#	Gtid_list	#	#	[]
+mysqld-relay-bin.000002	#	Gtid_list	#	#	[#-#-#]
 mysqld-relay-bin.000002	#	Rotate	#	#	master-bin.000001;pos=POS
 mysqld-relay-bin.000002	#	Format_desc	#	#	SERVER_VERSION, BINLOG_VERSION
 mysqld-relay-bin.000002	#	Gtid_list	#	#	[]
@@ -256,7 +256,7 @@ Slave_running	ON
 SHOW RELAYLOG EVENTS for channel 'master1';
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 mysqld-relay-bin-master1.000003	4	Format_desc	3	256	Server ver: Version
-mysqld-relay-bin-master1.000003	256	Gtid_list	3	285	[]
+mysqld-relay-bin-master1.000003	256	Gtid_list	3	0	[]
 mysqld-relay-bin-master1.000003	285	Rotate	1	1358	master-bin.000002;pos=4
 mysqld-relay-bin-master1.000003	333	Rotate	3	395	mysqld-relay-bin-master1.000004;pos=4
 
