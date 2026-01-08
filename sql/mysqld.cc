@@ -1794,9 +1794,9 @@ static void close_connections(void)
     If we are waiting on any ACKs, delay killing the thread until either an ACK
     is received or the timeout is hit.
   */
-  if (shutdown_wait_for_slaves && repl_semisync_master.get_master_enabled())
+  if (shutdown_wait_for_slaves && repl_semisync_master->get_master_enabled())
   {
-    repl_semisync_master.await_all_slave_replies(
+    repl_semisync_master->await_all_slave_replies(
         "Delaying shutdown to await semi-sync ACK");
   }
 
@@ -5160,6 +5160,16 @@ static int init_server_components()
   }
 
   /*
+    The repl_semisync_master object needs to be constructed early, as it can be
+    called into from eg. ha_commit_trans(). However the initialization of
+    semi-sync happens only later.
+  */
+  if (binlog_engine_used)
+    repl_semisync_master= new Repl_semi_sync_master_gtid();
+  else
+    repl_semisync_master= new Repl_semi_sync_master_file_pos();
+
+  /*
     Since some wsrep threads (THDs) are create before plugins are
     initialized, LOCK_plugin mutex needs to be initialized here.
   */
@@ -5321,7 +5331,7 @@ static int init_server_components()
     Semisync is not required by other components, which justifies its
     initialization at this point when thread specific memory is also available.
   */
-  if (repl_semisync_master.init_object() ||
+  if (repl_semisync_master->init_object() ||
       repl_semisync_slave.init_object())
   {
     sql_print_error("Could not initialize semisync.");
@@ -7349,7 +7359,7 @@ static int show_ssl_get_cipher_list(THD *thd, SHOW_VAR *var, void *buf,
                                  system_status_var *status_var,              \
                                  enum_var_type var_type)                     \
     {                                                                        \
-      repl_semisync_master.set_export_stats();                                 \
+      repl_semisync_master->set_export_stats();                              \
       var->type= show_type;                                                  \
       var->value= (char *)&rpl_semi_sync_master_##name;                      \
       return 0;                                                              \

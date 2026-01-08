@@ -353,8 +353,8 @@ void Ack_receiver::run()
         if (likely(len != packet_error))
         {
           int res;
-          res= repl_semisync_master.report_reply_packet(slave->server_id(),
-                                                        net.read_pos, len);
+          res= repl_semisync_master->report_reply_packet(slave->server_id(),
+                                                         net.read_pos, len);
           if (unlikely(res < 0))
           {
             /*

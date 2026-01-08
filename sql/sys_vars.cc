@@ -3743,23 +3743,23 @@ static bool fix_rpl_semi_sync_master_enabled(sys_var *self, THD *thd,
                                              enum_var_type type)
 {
   mysql_mutex_unlock(&LOCK_global_system_variables);
-  mysql_mutex_lock(&repl_semisync_master.LOCK_rpl_semi_sync_master_enabled);
+  mysql_mutex_lock(&repl_semisync_master->LOCK_rpl_semi_sync_master_enabled);
   if (rpl_semi_sync_master_enabled)
   {
-    if (repl_semisync_master.enable_master() != 0)
+    if (repl_semisync_master->enable_master() != 0)
       rpl_semi_sync_master_enabled= false;
     else if (ack_receiver.start())
     {
-      repl_semisync_master.disable_master();
+      repl_semisync_master->disable_master();
       rpl_semi_sync_master_enabled= false;
     }
   }
   else
   {
-    repl_semisync_master.disable_master();
+    repl_semisync_master->disable_master();
     ack_receiver.stop();
   }
-  mysql_mutex_unlock(&repl_semisync_master.LOCK_rpl_semi_sync_master_enabled);
+  mysql_mutex_unlock(&repl_semisync_master->LOCK_rpl_semi_sync_master_enabled);
   mysql_mutex_lock(&LOCK_global_system_variables);
   return false;
 }
@@ -3767,14 +3767,14 @@ static bool fix_rpl_semi_sync_master_enabled(sys_var *self, THD *thd,
 static bool fix_rpl_semi_sync_master_timeout(sys_var *self, THD *thd,
                                              enum_var_type type)
 {
-  repl_semisync_master.set_wait_timeout(rpl_semi_sync_master_timeout);
+  repl_semisync_master->set_wait_timeout(rpl_semi_sync_master_timeout);
   return false;
 }
 
 static bool fix_rpl_semi_sync_master_trace_level(sys_var *self, THD *thd,
                                                  enum_var_type type)
 {
-  repl_semisync_master.set_trace_level(rpl_semi_sync_master_trace_level);
+  repl_semisync_master->set_trace_level(rpl_semi_sync_master_trace_level);
   ack_receiver.set_trace_level(rpl_semi_sync_master_trace_level);
   return false;
 }
@@ -3782,7 +3782,7 @@ static bool fix_rpl_semi_sync_master_trace_level(sys_var *self, THD *thd,
 static bool fix_rpl_semi_sync_master_wait_point(sys_var *self, THD *thd,
                                                 enum_var_type type)
 {
-  repl_semisync_master.set_wait_point(rpl_semi_sync_master_wait_point);
+  repl_semisync_master->set_wait_point(rpl_semi_sync_master_wait_point);
   return false;
 }
 
