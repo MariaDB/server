@@ -102,6 +102,13 @@ GRANT ALL ON sa_db TO u2 IDENTIFIED BY "pwd-321";
 SET PASSWORD FOR u1 = PASSWORD('pwd 098');
 CREATE USER u3 IDENTIFIED BY '';
 ALTER USER u3 IDENTIFIED BY 'pwd-456';
+GRANT SELECT ON sa_db.* TO pwd_test1 IDENTIFIED BY 'grantpwd789';
+CHANGE MASTER TO MASTER_HOST='127.0.0.1', MASTER_USER='repl', MASTER_PASSWORD='replsecret';
+CREATE SERVER pwd_server FOREIGN DATA WRAPPER mysql OPTIONS (HOST 'localhost', USER 'remote', PASSWORD 'serverpwd');
+ALTER SERVER pwd_server OPTIONS (PASSWORD 'newserverpwd');
+DROP USER pwd_test1;
+DROP SERVER pwd_server;
+RESET SLAVE ALL;
 drop user u1, u2, u3;
 
 set global server_audit_events='query_ddl';
