@@ -4888,7 +4888,7 @@ Stopping slave I/O thread due to out-of-memory error from master");
               !debug_sync_set_action(current_thd, STRING_WITH_LEN(act)));
         };);
 #endif
-        if (repl_semisync_slave.slave_reply(mi))
+        if (repl_semisync_slave.slave_reply(mi, mi->semi_ack))
         {
           /*
             Master is not responding (gone away?) or it has turned semi sync
@@ -6442,6 +6442,7 @@ static int queue_event(Master_info* mi, const uchar *buf, ulong event_len)
       goto err;
     }
     got_gtid_event= true;
+    mi->current_gtid= event_gtid;
     if (!mi->is_gtid_supported())
       goto default_action;
     if (unlikely(mi->gtid_reconnect_event_skip_count))
