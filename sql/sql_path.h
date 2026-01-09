@@ -67,7 +67,7 @@ public:
     @param sv               system_variables, local or global
     @param str              The string to parse
   */
-  bool from_text(const system_variables &sv, const LEX_CSTRING &str);
+  bool from_text(const system_variables &sv, String *str);
   /*
     Get the number of bytes needed to print the path variable
 

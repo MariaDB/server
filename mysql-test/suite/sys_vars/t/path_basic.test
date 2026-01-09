@@ -321,6 +321,12 @@ SET PATH ' ';
 SET PATH '    ';
 SET PATH ',';
 
+SET NAMES swe7;
+--error ER_WRONG_VALUE_FOR_VAR
+SET @@PATH='"';
+SET NAMES DEFAULT;
+
+
 --Error ER_WRONG_DB_NAME
 SET PATH '``';
 SET sql_mode=ANSI_QUOTES;

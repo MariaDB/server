@@ -1946,8 +1946,7 @@ bool Table_triggers_list::check_n_load(THD *thd, const LEX_CSTRING *db,
           continue;
         }
 
-        if (sp->m_sql_path.from_text(thd->variables, sql_path))
-          goto err_with_lex_cleanup;
+        sp->m_sql_path= thd->variables.path;
         sp->m_sql_mode= sql_mode;
         sp->set_creation_ctx(creation_ctx);
 

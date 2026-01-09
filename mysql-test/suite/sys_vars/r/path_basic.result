@@ -479,6 +479,10 @@ CURRENT_SCHEMA
 SET PATH ' ';
 SET PATH '    ';
 SET PATH ',';
+SET NAMES swe7;
+SET @@PATH='"';
+ERROR 42000: Variable 'PATH' can't be set to the value of '"'
+SET NAMES DEFAULT;
 SET PATH '``';
 ERROR 42000: Incorrect database name ''
 SET sql_mode=ANSI_QUOTES;
