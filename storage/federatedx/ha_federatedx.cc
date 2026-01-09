@@ -695,7 +695,7 @@ static int parse_url(MEM_ROOT *mem_root, FEDERATEDX_SHARE *share,
   share->port= 0;
   share->socket= 0;
   DBUG_PRINT("info", ("share at %p", share));
-  share->connection_string= strdup_root(mem_root, opt->connection);
+  share->connection_string= strdup_root(mem_root, safe_str(opt->connection));
 
   DBUG_PRINT("info",("parse_url alloced share->connection_string %p",
                      share->connection_string));
@@ -849,7 +849,7 @@ static int parse_url(MEM_ROOT *mem_root, FEDERATEDX_SHARE *share,
   DBUG_RETURN(0);
 
 error:
-  DBUG_RETURN(parse_url_error(opt->connection, error_num));
+  DBUG_RETURN(parse_url_error(share->connection_string, error_num));
 }
 
 /*****************************************************************************
