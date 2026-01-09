@@ -54,9 +54,10 @@ public:
   /* Constants in network packet header. */
   static const unsigned char k_packet_magic_num;
   static const unsigned char k_packet_flag_sync;
+  static const unsigned char k_packet_flag_gtid;
 };
 
-/* The layout of a semisync slave reply packet:
+/* The layout of a semisync slave reply packet, old-style filename/offset:
    1 byte for the magic num
    8 bytes for the binlog positon
    n bytes for the binlog filename, terminated with a '\0'
@@ -69,5 +70,15 @@ public:
 #define REPLY_BINLOG_NAME_OFFSET (REPLY_BINLOG_POS_OFFSET + REPLY_BINLOG_POS_LEN)
 #define REPLY_MESSAGE_MAX_LENGTH \
     (REPLY_MAGIC_NUM_LEN + REPLY_BINLOG_POS_LEN + REPLY_BINLOG_NAME_LEN)
+
+/* The layout of a semisync slave reply packet, new-style GTID:
+   1 byte for the magic num
+   4 bytes for the GTID domain_id, little-endian
+   4 bytes for the server_id
+   8 bytes for the domain_id
+*/
+#define REPLY_GTID_LEN (4 + 4 + 8)
+#define REPLY_GTID_OFFSET (REPLY_MAGIC_NUM_OFFSET + REPLY_MAGIC_NUM_LEN)
+#define REPLY_MESSAGE_GTID_LENGTH (REPLY_MAGIC_NUM_LEN + REPLY_GTID_LEN)
 
 #endif /* SEMISYNC_H */

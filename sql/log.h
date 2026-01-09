@@ -543,6 +543,8 @@ private:
 #define SEMI_SYNC_SLAVE_DELAY_SYNC 1
 /* Tell the io thread if the current event needs a ack. */
 #define SEMI_SYNC_NEED_ACK  2
+/* Tell the io thread if the ack should use new-style GTID format. */
+#define SEMI_SYNC_ACK_GTID 4
 
 class MYSQL_QUERY_LOG: public MYSQL_LOG
 {
