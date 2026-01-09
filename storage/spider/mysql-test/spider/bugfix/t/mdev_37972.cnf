@@ -1,1 +1,1 @@
-!include ../../../../../../mysql-test/suite/rpl/rpl_1slave_base.cnf
+!include suite/rpl/rpl_1slave_base.cnf
