@@ -1488,6 +1488,7 @@ void THD::init_for_queries()
   reset_root_defaults(&transaction->mem_root,
                       variables.trans_alloc_block_size,
                       variables.trans_prealloc_size);
+  update_used_tables_id= 0;
   DBUG_ASSERT(!transaction->xid_state.is_explicit_XA());
   DBUG_ASSERT(transaction->implicit_xid.is_null());
 }

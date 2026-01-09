@@ -1355,3 +1355,138 @@ drop table t1,t2,t3;
 #
 # End of 10.3 tests
 #
+#
+# MDEV-31130: INSERT-SELECT with many when/case/if conditions running forever
+#
+# (should not time out but executed in about 20ms)
+create table foo (
+f1 integer,
+f2 integer,
+f3 integer,
+f4 integer,
+f5 integer);
+set @save_derived_optimizer_switch_bug=@@optimizer_switch;
+SET optimizer_switch = 'derived_merge=on';
+select
+case
+when s14 > s14 then s14
+when s14 > s14 then s14
+when s14 > s14 then s14
+end s15
+from (
+select
+case
+when s13 > s13 then s13
+when s13 > s13 then s13
+when s13 > s13 then s13
+end s14
+from (
+select
+case
+when s12 > s12 then s12
+when s12 > s12 then s12
+when s12 > s12 then s12
+end s13
+from (
+select
+case
+when s11 > s11 then s11
+when s11 > s11 then s11
+when s11 > s11 then s11
+end s12
+from (
+select
+case
+when s10 > s10 then s10
+when s10 > s10 then s10
+when s10 > s10 then s10
+end s11
+from (
+select
+case
+when s9 > s9 then s9
+when s9 > s9 then s9
+when s9 > s9 then s9
+end s10
+from (
+select
+case
+when s8 > s8 then s8
+when s8 > s8 then s8
+when s8 > s8 then s8
+end s9
+from (
+select
+case
+when s7 > s7 then s7
+when s7 > s7 then s7
+when s7 > s7 then s7
+end s8
+from (
+select
+case
+when s6 > s6 then s6
+when s6 > s6 then s6
+when s6 > s6 then s6
+end s7
+from (
+select
+case
+when s5 > s5 then s5
+when s5 > s5 then s5
+when s5 > s5 then s5
+end s6
+from (
+select
+case
+when s4 > s4 then s4
+when s4 > s4 then s4
+when s4 > s4 then s4
+end s5
+from (
+select
+case
+when s3 > s3 then s3
+when s3 > s3 then s3
+when s3 > s3 then s3
+end s4
+from (
+select
+case
+when s2 > s2 then s2
+when s2 > s2 then s2
+when s2 > s2 then s2
+end s3
+from (
+select
+case
+when s1 > s1 then s1
+when s1 > s1 then s1
+when s1 > s1 then s1
+end s2
+from (
+select
+case
+when f3 > f4 then f4
+when f3 > f5 then f5
+when f4 > f5 then f3
+end s1
+from foo )
+m8)
+m7)
+m6)
+m5)
+m4)
+m3)
+m2)
+m1)
+m0)
+m_1)
+m_2)
+m_3)
+m_4)
+m_6;
+s15
+set optimizer_switch=@save_derived_optimizer_switch_bug;
+drop table foo;
+# End of 10.6 tests

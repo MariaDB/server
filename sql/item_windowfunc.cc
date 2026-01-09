@@ -61,21 +61,21 @@ Item_window_func::resolve_window_name(THD *thd)
 
 
 void
-Item_window_func::update_used_tables()
+Item_window_func::update_used_tables(uint id)
 {
   used_tables_cache= 0;
-  window_func()->update_used_tables();
+  window_func()->update_used_tables(id);
   used_tables_cache|= window_func()->used_tables();
   for (ORDER *ord= window_spec->partition_list->first; ord; ord=ord->next)
   {
     Item *item= *ord->item;
-    item->update_used_tables();
+    item->update_used_tables(id);
     used_tables_cache|= item->used_tables();
   }
   for (ORDER *ord= window_spec->order_list->first; ord; ord=ord->next)
   {
     Item *item= *ord->item;
-    item->update_used_tables();
+    item->update_used_tables(id);
     used_tables_cache|= item->used_tables();
   }  
 }

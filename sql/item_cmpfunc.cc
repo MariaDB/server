@@ -1833,8 +1833,9 @@ Item *Item_in_optimizer::transform(THD *thd, Item_transformer transformer,
 bool Item_in_optimizer::is_expensive_processor(void *arg)
 {
   DBUG_ASSERT(fixed());
-  return args[0]->is_expensive_processor(arg) ||
-         args[1]->is_expensive_processor(arg);
+  /*return args[0]->is_expensive_processor(arg) ||
+         args[1]->is_expensive_processor(arg);*/
+  return false;
 }
 
 
@@ -2622,13 +2623,13 @@ bool Item_func_nullif::walk(Item_processor processor,
 }
 
 
-void Item_func_nullif::update_used_tables()
+void Item_func_nullif::update_used_tables(uint id)
 {
   if (m_cache)
   {
     used_tables_and_const_cache_init();
-    used_tables_and_const_cache_update_and_join(m_cache->get_example());
-    used_tables_and_const_cache_update_and_join(arg_count, args);
+    used_tables_and_const_cache_update_and_join(m_cache->get_example(), id);
+    used_tables_and_const_cache_update_and_join(arg_count, args, id);
   }
   else
   {
@@ -2639,7 +2640,7 @@ void Item_func_nullif::update_used_tables()
     DBUG_ASSERT(arg_count == 3);
     used_tables_and_const_cache_init();
     used_tables_and_const_cache_update_and_join(args[0] == args[2] ? 2 : 3,
-                                                args);
+                                                args, id);
   }
 }
 
@@ -5779,12 +5780,12 @@ bool Item_is_not_null_test::val_bool()
 /**
   Optimize case of not_null_column IS NULL.
 */
-void Item_is_not_null_test::update_used_tables()
+void Item_is_not_null_test::update_used_tables(uint id)
 {
   if (!args[0]->maybe_null())
     used_tables_cache= 0;			/* is always true */
   else
-    args[0]->update_used_tables();
+    args[0]->update_used_tables(id);
 }
 
 
@@ -7323,7 +7324,7 @@ bool Item_equal::fix_fields(THD *thd, Item **ref)
   Update the value of the used table attribute and other attributes
  */
 
-void Item_equal::update_used_tables()
+void Item_equal::update_used_tables(uint id)
 {
   not_null_tables_cache= used_tables_cache= 0;
   if ((const_item_cache= cond_false || cond_true))
@@ -7333,7 +7334,7 @@ void Item_equal::update_used_tables()
   const_item_cache= 1;
   while ((item= it++))
   {
-    item->update_used_tables();
+    item->update_used_tables(id);
     used_tables_cache|= item->used_tables();
     /* see commentary at Item_equal::update_const() */
     const_item_cache&= item->const_item() && !item->is_outer_field();

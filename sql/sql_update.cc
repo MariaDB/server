@@ -2227,13 +2227,13 @@ int multi_update::prepare(List<Item> &not_used_values,
   DBUG_RETURN(thd->is_fatal_error != 0);
 }
 
-void multi_update::update_used_tables()
+void multi_update::update_used_tables(uint id)
 {
   Item *item;
   List_iterator_fast<Item> it(*values);
   while ((item= it++))
   {
-    item->update_used_tables();
+    item->update_used_tables(id);
   }
 }
 

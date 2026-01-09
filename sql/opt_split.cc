@@ -609,7 +609,7 @@ void TABLE::add_splitting_info_for_key_field(KEY_FIELD *key_field)
   {
     right_item->walk(&Item::set_fields_as_dependent_processor,
                      false, join->select_lex);
-    right_item->update_used_tables();
+    right_item->update_used_tables(thd->get_update_used_tables_id());
     eq_item= new (thd->mem_root) Item_func_eq(thd, left_item, right_item);
   }
   if (!eq_item)

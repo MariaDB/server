@@ -215,7 +215,7 @@ public:
   bool const_item() const override;
   inline table_map get_used_tables_cache() { return used_tables_cache; }
   Item *get_tmp_table_item(THD *thd) override;
-  void update_used_tables() override;
+  void update_used_tables(uint id) override;
   void print(String *str, enum_query_type query_type) override;
   virtual bool have_guarded_conds() { return FALSE; }
   bool change_engine(subselect_engine *eng)
@@ -664,7 +664,7 @@ public:
   {
     return Item_subselect::const_item() && left_expr->const_item();
   }
-  void update_used_tables() override;
+  void update_used_tables(uint id) override;
   bool setup_mat_engine();
   bool init_left_expr_cache();
   /* Inform 'this' that it was computed, and contains a valid result. */

@@ -5228,7 +5228,8 @@ static Field *make_default_field(THD *thd, Field *field_arg)
       return nullptr;
 
     if (should_mark_column(thd->column_usage))
-      def_field->default_value->expr->update_used_tables();
+      def_field->default_value->expr->
+        update_used_tables(thd->get_update_used_tables_id());
     def_field->move_field(newptr + 1, def_field->maybe_null() ? newptr : 0, 1);
   }
   else if (field_arg->table && field_arg->table->s->field)
@@ -9462,6 +9463,29 @@ bool Item_direct_view_ref::fix_fields(THD *thd, Item **reference)
   return FALSE;
 }
 
+
+bool Item_direct_view_ref::walk(Item_processor processor,
+                                bool walk_subquery,
+                                void *arg)
+{
+  if ((this->*processor)(arg))
+    return true;
+  /*
+    Special processing to avoid visiting one view node several times which
+    can trigger exponential grown of visiting for nested views/derived tables.
+  */
+  DBUG_ASSERT(field_translator != NULL);
+  if (processor == &Item::register_field_in_read_map)
+  {
+    if (field_translator->walk.last_table == ((TABLE *) arg))
+      return false; // we already visited this branch
+
+    field_translator->walk.last_table= ((TABLE *) arg);
+  }
+
+  return ((*ref)->walk(processor, walk_subquery, arg));
+}
+
 /*
   Prepare referenced outer field then call usual Item_direct_ref::fix_fields
 
@@ -11071,16 +11095,26 @@ table_map Item_ref::used_tables() const
 }
 
 
-void Item_ref::update_used_tables()
+void Item_ref::update_used_tables(uint id)
 {
   if (!get_depended_from())
-    (*ref)->update_used_tables();
+    (*ref)->update_used_tables(id);
 }
 
-void Item_direct_view_ref::update_used_tables()
+void Item_direct_view_ref::update_used_tables(uint id)
 {
   set_null_ref_table();
-  Item_direct_ref::update_used_tables();
+  /*
+    Special processing to avoid visiting one view node several times which
+    can trigger exponential grown of visiting for nested views/derived tables.
+  */
+  DBUG_ASSERT(field_translator != NULL);
+  if (field_translator->walk.update_used_tables_id  == id)
+    return; // the branch was processed already
+
+  field_translator->walk.update_used_tables_id= id;
+
+  Item_direct_ref::update_used_tables(id);
 }
 
 
@@ -11281,4 +11315,14 @@ bool ignored_list_includes_table(ignored_tables_list_t list, TABLE_LIST *tbl)
       return true;
   }
   return false;
+}
+
+
+COND *Item::build_equal_items(THD *thd, COND_EQUAL *inheited,
+                              bool link_item_fields,
+                              COND_EQUAL **cond_equal_ref)
+{
+  update_used_tables(thd->get_update_used_tables_id());
+  DBUG_ASSERT(!cond_equal_ref || !cond_equal_ref[0]);
+  return this;
 }

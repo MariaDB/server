@@ -2054,15 +2054,10 @@ public:
   void print_item_w_name(String *str, enum_query_type query_type);
   void print_value(String *str);
 
-  virtual void update_used_tables() {}
+  virtual void update_used_tables(uint id) {}
   virtual COND *build_equal_items(THD *thd, COND_EQUAL *inheited,
                                   bool link_item_fields,
-                                  COND_EQUAL **cond_equal_ref)
-  {
-    update_used_tables();
-    DBUG_ASSERT(!cond_equal_ref || !cond_equal_ref[0]);
-    return this;
-  }
+                                  COND_EQUAL **cond_equal_ref);
   virtual COND *remove_eq_conds(THD *thd, Item::cond_result *cond_value,
                                 bool top_level);
   virtual void add_key_fields(JOIN *join, KEY_FIELD **key_fields,
@@ -3798,7 +3793,7 @@ public:
         tab->mark_column_with_deps(field);
     }
   }
-  void update_used_tables() override
+  void update_used_tables(uint id) override
   {
     update_table_bitmaps();
   }
@@ -5554,9 +5549,10 @@ public:
     used_tables_cache|= item->used_tables();
     const_item_cache&= item->const_item();
   }
-  inline void used_tables_and_const_cache_update_and_join(Item *item)
+  inline void used_tables_and_const_cache_update_and_join(Item *item,
+                                                          uint used_tables_id)
   {
-    item->update_used_tables();
+    item->update_used_tables(used_tables_id);
     used_tables_and_const_cache_join(item);
   }
   /*
@@ -5565,10 +5561,11 @@ public:
     "this" must be initialized with a constructor or
     re-initialized with used_tables_and_const_cache_init().
   */
-  void used_tables_and_const_cache_update_and_join(uint argc, Item **argv)
+  void used_tables_and_const_cache_update_and_join(uint argc, Item **argv,
+                                                   uint used_tables_id)
   {
     for (uint i=0 ; i < argc ; i++)
-      used_tables_and_const_cache_update_and_join(argv[i]);
+      used_tables_and_const_cache_update_and_join(argv[i], used_tables_id);
   }
   /*
     Call update_used_tables() for all items in the list
@@ -5576,12 +5573,13 @@ public:
     "this" must be initialized with a constructor or
     re-initialized with used_tables_and_const_cache_init().
   */
-  void used_tables_and_const_cache_update_and_join(List<Item> &list)
+  void used_tables_and_const_cache_update_and_join(List<Item> &list,
+                                                   uint used_tables_id)
   {
     List_iterator_fast<Item> li(list);
     Item *item;
     while ((item=li++))
-      used_tables_and_const_cache_update_and_join(item);
+      used_tables_and_const_cache_update_and_join(item, used_tables_id);
   }
 };
 
@@ -5881,7 +5879,7 @@ public:
                              const Tmp_field_param *param) override;
   Item* propagate_equal_fields(THD *, const Context &, COND_EQUAL *) override;
   table_map used_tables() const override;
-  void update_used_tables() override;
+  void update_used_tables(uint id) override;
   COND *build_equal_items(THD *thd, COND_EQUAL *inherited,
                           bool link_item_fields,
                           COND_EQUAL **cond_equal_ref) override
@@ -6201,9 +6199,9 @@ public:
   { return orig_item->type_handler(); }
   table_map used_tables() const override
   { return orig_item->used_tables(); }
-  void update_used_tables() override
+  void update_used_tables(uint id) override
   {
-    orig_item->update_used_tables();
+    orig_item->update_used_tables(id);
   }
   bool const_item() const override { return orig_item->const_item(); }
   table_map not_null_tables() const override
@@ -6260,6 +6258,7 @@ class Item_direct_view_ref :public Item_direct_ref
   Item_equal *item_equal;
   TABLE_LIST *view;
   TABLE *null_ref_table;
+  Field_translator *field_translator;
 
 #define NO_NULL_TABLE (reinterpret_cast<TABLE *>(0x1))
 
@@ -6288,10 +6287,11 @@ public:
                        Item **item,
                        LEX_CSTRING &table_name_arg,
                        LEX_CSTRING &field_name_arg,
-                       TABLE_LIST *view_arg):
+                       TABLE_LIST *view_arg,
+                       Field_translator *trans):
     Item_direct_ref(thd, context_arg, item, table_name_arg, field_name_arg),
     item_equal(0), view(view_arg),
-    null_ref_table(NULL)
+    null_ref_table(NULL), field_translator(trans)
   {
     if (fixed())
       set_null_ref_table();
@@ -6314,18 +6314,14 @@ public:
   Item* propagate_equal_fields(THD *, const Context &, COND_EQUAL *) override;
   Item *replace_equal_field(THD *thd, uchar *arg) override;
   table_map used_tables() const override;
-  void update_used_tables() override;
+  void update_used_tables(uint id) override;
   table_map not_null_tables() const override;
   bool const_item() const override
   {
     return (*ref)->const_item() && (null_ref_table == NO_NULL_TABLE);
   }
   TABLE *get_null_ref_table() const { return null_ref_table; }
-  bool walk(Item_processor processor, bool walk_subquery, void *arg) override
-  {
-    return (*ref)->walk(processor, walk_subquery, arg) ||
-           (this->*processor)(arg);
-  }
+  bool walk(Item_processor processor, bool walk_subquery, void *arg) override;
   bool view_used_tables_processor(void *arg) override
   {
     TABLE_LIST *view_arg= (TABLE_LIST *) arg;
@@ -6988,10 +6984,10 @@ public:
     return false;
   }
   table_map used_tables() const override;
-  void update_used_tables() override
+  void update_used_tables(uint id) override
   {
     if (field && field->default_value)
-      field->default_value->expr->update_used_tables();
+      field->default_value->expr->update_used_tables(id);
   }
   bool vcol_assignment_allowed_value() const override
   { return vcol_assignment_ok; }
@@ -8176,8 +8172,8 @@ public:
   { return m_item->save_in_field(to, no_conversions); }
   const Type_handler *type_handler() const override { return m_item->type_handler(); }
   table_map used_tables() const override { return m_item->used_tables(); }
-  void update_used_tables() override
-  { m_item->update_used_tables(); }
+  void update_used_tables(uint id) override
+  { m_item->update_used_tables(id); }
   bool const_item() const override { return m_item->const_item(); }
   table_map not_null_tables() const override { return m_item->not_null_tables(); }
   bool walk(Item_processor processor, bool walk_subquery, void *arg) override

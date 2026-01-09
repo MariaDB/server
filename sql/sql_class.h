@@ -3822,6 +3822,9 @@ public:
   ulonglong start_cpu_time;
   ulonglong start_bytes_received;
 
+  uint update_used_tables_id;
+  uint get_update_used_tables_id() { return ++update_used_tables_id; }
+
   /* Used by the sys_var class to store temporary values */
   union
   {
@@ -6057,7 +6060,7 @@ public:
 #else
   void begin_dataset() {}
 #endif
-  virtual void update_used_tables() {}
+  virtual void update_used_tables(uint id) {}
 
   /* this method is called just before the first row of the table can be read */
   virtual void prepare_to_read_rows() {}
@@ -7362,7 +7365,7 @@ public:
   inline ha_rows num_found() const { return found; }
   inline ha_rows num_updated() const { return updated; }
   void abort_result_set() override;
-  void update_used_tables() override;
+  void update_used_tables(uint id) override;
   void prepare_to_read_rows() override;
 };
 

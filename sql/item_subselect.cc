@@ -1035,7 +1035,7 @@ Item *Item_subselect::get_tmp_table_item(THD *thd_arg)
   return copy_or_same(thd_arg);
 }
 
-void Item_subselect::update_used_tables()
+void Item_subselect::update_used_tables(uint id)
 {
   if (!forced_const)
   {
@@ -2835,10 +2835,11 @@ bool Item_in_subselect::inject_in_to_exists_cond(JOIN *join_arg)
       item->clear();
       item->reset_forced_const();
     }
+    uint update_used_tables_id= join_arg->thd->get_update_used_tables_id();
     if (where_item)
-      where_item->update_used_tables();
+      where_item->update_used_tables(update_used_tables_id);
     if (having_item)
-      having_item->update_used_tables();
+      having_item->update_used_tables(update_used_tables_id);
   }
 
   if (where_item)
@@ -3084,6 +3085,8 @@ bool Item_exists_subselect::exists2in_processor(void *opt_arg)
   List<Item> outer;
   Dynamic_array<EQ_FIELD_OUTER> eqs(PSI_INSTRUMENT_MEM, 5, 5);
   bool will_be_correlated;
+  uint update_used_tables_id= join->thd->get_update_used_tables_id();
+
   DBUG_ENTER("Item_exists_subselect::exists2in_processor");
 
   if (!optimizer ||
@@ -3201,12 +3204,12 @@ bool Item_exists_subselect::exists2in_processor(void *opt_arg)
         }
       }
       outer_exp->fix_after_pullout(unit->outer_select(), &outer_exp, FALSE);
-      outer_exp->update_used_tables();
+      outer_exp->update_used_tables(update_used_tables_id);
       outer.push_back(outer_exp, thd->mem_root);
     }
   }
 
-  join->conds->update_used_tables();
+  join->conds->update_used_tables(update_used_tables_id);
 
   /* make IN SUBQUERY and put outer_exp as left part */
   if (eqs.elements() == 1)
@@ -3290,7 +3293,7 @@ bool Item_exists_subselect::exists2in_processor(void *opt_arg)
           goto out;
       }
     }
-    in_subs->update_used_tables();
+    in_subs->update_used_tables(update_used_tables_id);
     /*
       The engine of the subquery is fixed so above fix_fields() is not
       complete and should be fixed
@@ -3579,10 +3582,10 @@ void Item_in_subselect::fix_after_pullout(st_select_lex *new_parent,
   used_tables_cache |= left_expr->used_tables();
 }
 
-void Item_in_subselect::update_used_tables()
+void Item_in_subselect::update_used_tables(uint id)
 {
-  Item_subselect::update_used_tables();
-  left_expr->update_used_tables();
+  Item_subselect::update_used_tables(id);
+  left_expr->update_used_tables(id);
   //used_tables_cache |= left_expr->used_tables();
   used_tables_cache= Item_subselect::used_tables() | left_expr->used_tables();
 }
@@ -4061,7 +4064,7 @@ int subselect_single_select_engine::exec()
     if (!select_lex->uncacheable && thd->lex->describe && 
         !(join->select_options & SELECT_DESCRIBE))
     {
-      item->update_used_tables();
+      item->update_used_tables(thd->get_update_used_tables_id());
       if (item->const_item())
       {
         /*

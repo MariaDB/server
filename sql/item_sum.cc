@@ -341,7 +341,7 @@ bool Item_sum::check_sum_func(THD *thd, Item **ref)
   aggr_sel->set_agg_func_used(true);
   if (sum_func() == SP_AGGREGATE_FUNC)
     aggr_sel->set_custom_agg_func_used(true);
-  update_used_tables();
+  update_used_tables(thd->get_update_used_tables_id());
   thd->lex->in_sum_func= in_sum_func;
   return FALSE;
 }
@@ -547,14 +547,14 @@ void Item_sum::fix_num_length_and_dec()
 }
 
 
-void Item_sum::update_used_tables ()
+void Item_sum::update_used_tables (uint id)
 {
   if (!Item_sum::const_item())
   {
     used_tables_cache= 0;
     for (uint i=0 ; i < arg_count ; i++)
     {
-      args[i]->update_used_tables();
+      args[i]->update_used_tables(id);
       used_tables_cache|= args[i]->used_tables();
     }
     /*

@@ -5027,7 +5027,7 @@ bool st_select_lex::optimize_unflattened_subqueries(bool const_only)
         if ((res= inner_join->optimize()))
           return TRUE;
         if (!inner_join->cleaned)
-          sl->update_used_tables();
+          sl->update_used_tables(un->thd->get_update_used_tables_id());
         sl->update_correlated_cache();
         is_correlated_unit|= sl->is_correlated;
         inner_join->select_options= save_options;
@@ -5369,7 +5369,7 @@ void SELECT_LEX::mark_as_belong_to_derived(TABLE_LIST *derived)
   in the leaf_tables list and of the conds expression (if any).
 */
 
-void SELECT_LEX::update_used_tables()
+void SELECT_LEX::update_used_tables(uint id)
 {
   TABLE_LIST *tl;
   List_iterator<TABLE_LIST> ti(leaf_tables);
@@ -5423,7 +5423,7 @@ void SELECT_LEX::update_used_tables()
 
     if (tl->on_expr && !is_eliminated_table(join->eliminated_tables, tl))
     {
-      tl->on_expr->update_used_tables();
+      tl->on_expr->update_used_tables(id);
       tl->on_expr->walk(&Item::eval_not_null_tables, 0, NULL);
     }
     /*
@@ -5440,7 +5440,7 @@ void SELECT_LEX::update_used_tables()
     }
 
     if (tl->table_function)
-      tl->table_function->update_used_tables();
+      tl->table_function->update_used_tables(id);
 
     embedding= tl->embedding;
     while (embedding)
@@ -5450,7 +5450,7 @@ void SELECT_LEX::update_used_tables()
       {
         if (!is_eliminated_table(join->eliminated_tables, embedding))
         {
-          embedding->on_expr->update_used_tables();
+          embedding->on_expr->update_used_tables(id);
           embedding->on_expr->walk(&Item::eval_not_null_tables, 0, NULL);
         }
       }
@@ -5461,12 +5461,12 @@ void SELECT_LEX::update_used_tables()
 
   if (join->conds)
   {
-    join->conds->update_used_tables();
+    join->conds->update_used_tables(id);
     join->conds->walk(&Item::eval_not_null_tables, 0, NULL);
   }
   if (join->having)
   {
-    join->having->update_used_tables();
+    join->having->update_used_tables(id);
   }
 
   Item *item;
@@ -5474,7 +5474,7 @@ void SELECT_LEX::update_used_tables()
   select_list_tables= 0;
   while ((item= it++))
   {
-    item->update_used_tables();
+    item->update_used_tables(id);
     select_list_tables|= item->used_tables();
   }
   Item_outer_ref *ref;
@@ -5482,17 +5482,17 @@ void SELECT_LEX::update_used_tables()
   while ((ref= ref_it++))
   {
     item= ref->outer_ref;
-    item->update_used_tables();
+    item->update_used_tables(id);
   }
   for (ORDER *order= group_list.first; order; order= order->next)
-    (*order->item)->update_used_tables();
+    (*order->item)->update_used_tables(id);
   if (!master_unit()->is_unit_op() ||
       master_unit()->global_parameters() != this)
   {
     for (ORDER *order= order_list.first; order; order= order->next)
-      (*order->item)->update_used_tables();
+      (*order->item)->update_used_tables(id);
   }
-  join->result->update_used_tables();
+  join->result->update_used_tables(id);
 }
 
 

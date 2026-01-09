@@ -1435,7 +1435,7 @@ public:
   void print(String *str, enum_query_type query_type) override;
   void split_sum_func(THD *thd, Ref_ptr_array ref_pointer_array, 
                       List<Item> &fields, uint flags) override;
-  void update_used_tables() override;
+  void update_used_tables(uint id) override;
   table_map not_null_tables() const override { return 0; }
   bool is_null() override;
   Item* propagate_equal_fields(THD *thd, const Context &ctx, COND_EQUAL *cond)
@@ -2795,7 +2795,7 @@ public:
   }
 
   /* Optimize case of not_null_column IS NULL */
-  void update_used_tables() override
+  void update_used_tables(uint id) override
   {
     if (!args[0]->maybe_null() && !arg_is_datetime_notnull_field())
     {
@@ -2804,7 +2804,7 @@ public:
     }
     else
     {
-      args[0]->update_used_tables();
+      args[0]->update_used_tables(id);
       used_tables_cache= args[0]->used_tables();
       const_item_cache= args[0]->const_item();
     }
@@ -2840,7 +2840,7 @@ public:
     static LEX_CSTRING name= {STRING_WITH_LEN("<is_not_null_test>") };
     return name;
   }
-  void update_used_tables() override;
+  void update_used_tables(uint id) override;
   /*
     we add RAND_TABLE_BIT to prevent moving this item from HAVING to WHERE
   */
@@ -3222,10 +3222,10 @@ public:
   enum Type type() const override { return COND_ITEM; }
   List<Item>* argument_list() { return &list; }
   table_map used_tables() const override;
-  void update_used_tables() override
+  void update_used_tables(uint id) override
   {
     used_tables_and_const_cache_init();
-    used_tables_and_const_cache_update_and_join(list);
+    used_tables_and_const_cache_update_and_join(list, id);
   }
   COND *build_equal_items(THD *thd, COND_EQUAL *inherited,
                           bool link_item_fields,
@@ -3444,7 +3444,7 @@ public:
     delete eval_item;
     eval_item= NULL;
   }
-  void update_used_tables() override;
+  void update_used_tables(uint id) override;
   bool find_not_null_fields(table_map allowed) override;
   COND *build_equal_items(THD *thd, COND_EQUAL *inherited,
                           bool link_item_fields,

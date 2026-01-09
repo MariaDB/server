@@ -222,7 +222,7 @@ public:
   /*** Functions for interaction with the Query Optimizer ***/
   void fix_after_pullout(TABLE_LIST *sql_table,
                          st_select_lex *new_parent, bool merge);
-  void update_used_tables() { m_json->update_used_tables(); }
+  void update_used_tables(uint id) { m_json->update_used_tables(id); }
 
   table_map used_tables() const { return m_json->used_tables(); }
   bool join_cache_allowed() const

@@ -211,10 +211,10 @@ public:
     override;
   void quick_fix_field() override;
   table_map not_null_tables() const override;
-  void update_used_tables() override
+  void update_used_tables(uint id) override
   {
     used_tables_and_const_cache_init();
-    used_tables_and_const_cache_update_and_join(arg_count, args);
+    used_tables_and_const_cache_update_and_join(arg_count, args, id);
   }
   COND *build_equal_items(THD *thd, COND_EQUAL *inherited,
                           bool link_item_fields,
@@ -2224,7 +2224,7 @@ public:
     return name;
   }
   bool const_item() const override { return 0; }
-  void update_used_tables() override;
+  void update_used_tables(uint id) override;
   bool fix_fields(THD *thd, Item **ref) override;
   void cleanup() override { first_eval= TRUE; Item_real_func::cleanup(); }
   bool check_vcol_func_processor(void *arg) override
@@ -2253,7 +2253,7 @@ public:
     return name;
   }
   enum Functype functype() const override { return ROWNUM_FUNC; }
-  void update_used_tables() override {}
+  void update_used_tables(uint id) override {}
   bool const_item() const override { return 0; }
   void fix_after_optimize(THD *thd) override;
   bool fix_length_and_dec() override
@@ -2980,7 +2980,7 @@ public:
     return res;
   }
   void fix_num_length_and_dec();
-  void update_used_tables() override
+  void update_used_tables(uint id) override
   {
     /*
       TODO: Make a member in UDF_INIT and return if a UDF is deterministic or
@@ -3025,7 +3025,7 @@ public:
     if ((used_tables_cache & ~PSEUDO_TABLE_BITS) && 
         !(used_tables_cache & RAND_TABLE_BIT))
     {
-      Item_func::update_used_tables();
+      Item_func::update_used_tables(id);
       set_non_deterministic_if_needed();
     }
   }
@@ -3962,7 +3962,7 @@ public:
 
   virtual ~Item_func_sp() = default;
 
-  void update_used_tables() override;
+  void update_used_tables(uint id) override;
 
   void cleanup() override;
 
@@ -4213,9 +4213,9 @@ public:
   }
   bool const_item() const override { return 0; }
   void evaluate_sideeffects();
-  void update_used_tables() override
+  void update_used_tables(uint id) override
   {
-    Item_func::update_used_tables();
+    Item_func::update_used_tables(id);
     copy_flags(last_value, item_base_t::MAYBE_NULL);
   }
   Item *do_get_copy(THD *thd) const override

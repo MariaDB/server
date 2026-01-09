@@ -100,10 +100,10 @@ public:
                       List<Item> &fields, uint flags) override;
   table_map used_tables() const override { return used_tables_cache; };
   bool const_item() const override { return const_item_cache; };
-  void update_used_tables() override
+  void update_used_tables(uint id) override
   {
     used_tables_and_const_cache_init();
-    used_tables_and_const_cache_update_and_join(arg_count, args);
+    used_tables_and_const_cache_update_and_join(arg_count, args, id);
   }
   table_map not_null_tables() const override { return not_null_tables_cache; }
   void print(String *str, enum_query_type query_type) override;

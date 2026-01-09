@@ -681,14 +681,6 @@ bool Item_func::eq(const Item *item, bool binary_cmp) const
 }
 
 
-/*
-bool Item_func::is_expensive_processor(uchar *arg)
-{
-  return is_expensive();
-}
-*/
-
-
 bool Item_hybrid_func::fix_attributes(Item **items, uint nitems)
 {
   bool rc= Item_hybrid_func::type_handler()->
@@ -2858,9 +2850,9 @@ bool Item_func_rand::fix_fields(THD *thd,Item **ref)
   return FALSE;
 }
 
-void Item_func_rand::update_used_tables()
+void Item_func_rand::update_used_tables(uint id)
 {
-  Item_real_func::update_used_tables();
+  Item_real_func::update_used_tables(id);
   used_tables_cache|= RAND_TABLE_BIT;
 }
 
@@ -6901,9 +6893,9 @@ Item_func_sp::fix_fields(THD *thd, Item **ref)
 }
 
 
-void Item_func_sp::update_used_tables()
+void Item_func_sp::update_used_tables(uint id)
 {
-  Item_func::update_used_tables();
+  Item_func::update_used_tables(id);
 
   if (!m_sp->detistic())
   {

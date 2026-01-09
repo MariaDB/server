@@ -1156,7 +1156,7 @@ bool convert_join_subqueries_to_semijoins(JOIN *join)
       DBUG_RETURN(TRUE);
     if (subq_sel->join->transform_in_predicates_into_in_subq(thd))
       DBUG_RETURN(TRUE);
-    subq_sel->update_used_tables();
+    subq_sel->update_used_tables(thd->get_update_used_tables_id());
   }
 
   /* 
@@ -6155,7 +6155,7 @@ Item *and_new_conditions_to_optimized_cond(THD *thd, Item *cond,
     cond= cond->propagate_equal_fields(thd,
                                        Item::Context_boolean(),
                                        *cond_eq);
-    cond->update_used_tables();
+    cond->update_used_tables(thd->get_update_used_tables_id());
   }
   /* Check if conds has knowingly true or false parts. */
   if (cond &&
@@ -6438,9 +6438,10 @@ bool setup_jtbm_semi_joins(JOIN *join, List<TABLE_LIST> *join_list,
 
         List_iterator<Item> li(*hash_sj_engine->semi_join_conds->argument_list());
         Item *item;
+        uint id= thd->get_update_used_tables_id();
         while ((item=li++))
         {
-          item->update_used_tables();
+          item->update_used_tables(id);
           if (eq_list.push_back(item, thd->mem_root))
             DBUG_RETURN(TRUE);
         }

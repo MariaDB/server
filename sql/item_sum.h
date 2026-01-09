@@ -476,7 +476,7 @@ public:
   }
   virtual Item *result_item(THD *thd, Field *field);
 
-  void update_used_tables() override;
+  void update_used_tables(uint id) override;
   COND *build_equal_items(THD *thd, COND_EQUAL *inherited,
                           bool link_item_fields,
                           COND_EQUAL **cond_equal_ref) override

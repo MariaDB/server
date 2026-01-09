@@ -482,7 +482,7 @@ int opt_sum_query(THD *thd,
     else if (const_result)
     {
       if (recalc_const_item)
-        item->update_used_tables();
+        item->update_used_tables(thd->get_update_used_tables_id());
       if (!item->const_item() && item->type() != Item::WINDOW_FUNC_ITEM)
         const_result= 0;
     }

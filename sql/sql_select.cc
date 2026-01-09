@@ -1597,7 +1597,7 @@ JOIN::prepare(TABLE_LIST *tables_init, COND *conds_init, uint og_num,
     while ((item= it++))
     {
       if (item->with_window_func())
-        item->update_used_tables();
+        item->update_used_tables(thd->get_update_used_tables_id());
     }
   }
 
@@ -2144,7 +2144,7 @@ JOIN::optimize_inner()
     bits of all items in the select list (but not bits from WHERE clause or
     other items).
   */
-  select_lex->update_used_tables();
+  select_lex->update_used_tables(thd->get_update_used_tables_id());
 
   /*
     In fact we transform underlying subqueries after their 'prepare' phase and
@@ -2174,7 +2174,7 @@ JOIN::optimize_inner()
     if (convert_join_subqueries_to_semijoins(this))
       DBUG_RETURN(1); /* purecov: inspected */
     /* dump_TABLE_LIST_graph(select_lex, select_lex->leaf_tables); */
-    select_lex->update_used_tables();
+    select_lex->update_used_tables(thd->get_update_used_tables_id());
   }
   
   eval_select_list_used_tables();
@@ -2253,7 +2253,7 @@ JOIN::optimize_inner()
 
     sel->where= conds;
 
-    select_lex->update_used_tables();
+    select_lex->update_used_tables(thd->get_update_used_tables_id());
 
     if (arena)
       thd->restore_active_arena(arena, &backup);
@@ -2764,7 +2764,7 @@ int JOIN::optimize_stage2()
       DBUG_PRINT("error",("Error from substitute_for_best_equal"));
       DBUG_RETURN(1);
     }
-    conds->update_used_tables();
+    conds->update_used_tables(thd->get_update_used_tables_id());
 
     if (unlikely(thd->trace_started()))
       trace_condition(thd, "WHERE", "substitute_best_equal", conds);
@@ -2786,7 +2786,7 @@ int JOIN::optimize_stage2()
     }
     if (having)
     {
-      having->update_used_tables();
+      having->update_used_tables(thd->get_update_used_tables_id());
       if (unlikely(thd->trace_started()))
         trace_condition(thd, "HAVING", "substitute_best_equal", having);
     }
@@ -2816,7 +2816,7 @@ int JOIN::optimize_stage2()
         DBUG_PRINT("error",("Error from substitute_for_best_equal"));
         DBUG_RETURN(1);
       }
-      (*tab->on_expr_ref)->update_used_tables();
+      (*tab->on_expr_ref)->update_used_tables(thd->get_update_used_tables_id());
       if (unlikely(thd->trace_started()))
       {
         trace_condition(thd, "ON expr", "substitute_best_equal",
@@ -2856,7 +2856,7 @@ int JOIN::optimize_stage2()
         else
           equals= 0;
       }  
-      ref_item->update_used_tables();
+      ref_item->update_used_tables(thd->get_update_used_tables_id());
       if (*ref_item_ptr != ref_item)
       {
         *ref_item_ptr= ref_item;
@@ -3212,7 +3212,7 @@ int JOIN::optimize_stage2()
   */
   if (having && const_table_map && !having->with_sum_func())
   {
-    having->update_used_tables();
+    having->update_used_tables(thd->get_update_used_tables_id());
     if (having->const_item() && !having->is_expensive())
     {
       if (!having->val_bool())
@@ -3477,7 +3477,7 @@ derived_exit:
 
 bool JOIN::add_having_as_table_cond(JOIN_TAB *tab)
 {
-  tmp_having->update_used_tables();
+  tmp_having->update_used_tables(thd->get_update_used_tables_id());
   table_map used_tables= tab->table->map | OUTER_REF_TABLE_BIT;
 
   /* If tmp table is not used then consider conditions of const table also */
@@ -3976,7 +3976,7 @@ bool JOIN::make_aggr_tables_info()
       if (having)
       {
         curr_tab->having= having;
-        having->update_used_tables();
+        having->update_used_tables(thd->get_update_used_tables_id());
       }
       /*
         We only need DISTINCT operation if the join is not degenerate.
@@ -5857,7 +5857,7 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
     Item* &conds= join->conds;
     COND_EQUAL *orig_cond_equal = join->cond_equal;
 
-    conds->update_used_tables();
+    conds->update_used_tables(thd->get_update_used_tables_id());
     conds= conds->remove_eq_conds(join->thd, &join->cond_value, true);
     if (conds && conds->type() == Item::COND_ITEM &&
         ((Item_cond*) conds)->functype() == Item_func::COND_AND_FUNC)
@@ -12451,7 +12451,7 @@ inline void add_cond_and_fix(THD *thd, Item **e1, Item *e2)
     if ((res= new (thd->mem_root) Item_cond_and(thd, *e1, e2)))
     {
       res->fix_fields(thd, 0);
-      res->update_used_tables();
+      res->update_used_tables(thd->get_update_used_tables_id());
       *e1= res;
     }
   }
@@ -12618,7 +12618,7 @@ add_found_match_trig_cond(THD *thd, JOIN_TAB *tab, COND *cond,
   if (tmp)
   {
     tmp->quick_fix_field();
-    tmp->update_used_tables();
+    tmp->update_used_tables(thd->get_update_used_tables_id());
   }
   return tmp;
 }
@@ -12849,7 +12849,8 @@ make_join_select(JOIN *join,SQL_SELECT *select,COND *cond)
     if (cond)                /* Because of QUICK_GROUP_MIN_MAX_SELECT */
     {                        /* there may be a select without a cond. */    
       if (join->table_count > 1)
-        cond->update_used_tables();		// Tablenr may have changed
+        // Tablenr may have changed
+        cond->update_used_tables(thd->get_update_used_tables_id());
 
       /*
         Extract expressions that depend on constant tables
@@ -13413,7 +13414,8 @@ make_join_select(JOIN *join,SQL_SELECT *select,COND *cond)
           if (!cond_tab->select_cond)
 	    DBUG_RETURN(1);
           cond_tab->select_cond->quick_fix_field();
-          cond_tab->select_cond->update_used_tables();
+          cond_tab->select_cond->
+            update_used_tables(thd->get_update_used_tables_id());
           if (cond_tab->select)
             cond_tab->select->cond= cond_tab->select_cond; 
         }       
@@ -13546,7 +13548,8 @@ make_join_select(JOIN *join,SQL_SELECT *select,COND *cond)
             if (!(*sel_cond_ref))
               DBUG_RETURN(1);
             (*sel_cond_ref)->quick_fix_field();
-            (*sel_cond_ref)->update_used_tables();
+            (*sel_cond_ref)->
+              update_used_tables(thd->get_update_used_tables_id());
             if (cond_tab->select)
               cond_tab->select->cond= cond_tab->select_cond;
           }
@@ -15712,10 +15715,11 @@ static void update_depend_map(JOIN *join)
 
 static void update_depend_map_for_order(JOIN *join, ORDER *order)
 {
+  uint id= join->thd->get_update_used_tables_id();
   for (; order ; order=order->next)
   {
     table_map depend_map;
-    order->item[0]->update_used_tables();
+    order->item[0]->update_used_tables(id);
     order->depend_map=depend_map=order->item[0]->used_tables();
     order->used= 0;
     // Not item_sum(), RAND() and no reference to table outside of sub select
@@ -16789,7 +16793,7 @@ COND *Item_cond_and::build_equal_items(THD *thd,
   {
     item_equal->set_link_equal_fields(link_item_fields);
     item_equal->fix_fields(thd, NULL);
-    item_equal->update_used_tables();
+    item_equal->update_used_tables(thd->get_update_used_tables_id());
     set_if_bigger(thd->lex->current_select->max_equal_elems,
                   item_equal->n_field_items());  
   }
@@ -16820,7 +16824,7 @@ COND *Item_cond_and::build_equal_items(THD *thd,
   }
   cond_args->append(&eq_list);
   cond_args->append((List<Item> *)&cond_equal.current_level);
-  update_used_tables();
+  update_used_tables(thd->get_update_used_tables_id());
   if (cond_equal_ref)
     *cond_equal_ref= &m_cond_equal;
   return this;
@@ -16895,7 +16899,7 @@ COND *Item_func_eq::build_equal_items(THD *thd,
       if ((item_equal= cond_equal.current_level.pop()))
       {
         item_equal->fix_fields(thd, NULL);
-        item_equal->update_used_tables();
+        item_equal->update_used_tables(thd->get_update_used_tables_id());
         set_if_bigger(thd->lex->current_select->max_equal_elems,
                       item_equal->n_field_items());  
         item_equal->upper_levels= inherited;
@@ -16905,7 +16909,7 @@ COND *Item_func_eq::build_equal_items(THD *thd,
         return item_equal;
       }
       Item *res= eq_list.pop();
-      res->update_used_tables();
+      res->update_used_tables(thd->get_update_used_tables_id());
       DBUG_ASSERT(res->type() == FUNC_ITEM);
       return res;
     }
@@ -16923,14 +16927,14 @@ COND *Item_func_eq::build_equal_items(THD *thd,
       {
         if (item_equal->fix_length_and_dec())
           return NULL;
-        item_equal->update_used_tables();
+        item_equal->update_used_tables(thd->get_update_used_tables_id());
         set_if_bigger(thd->lex->current_select->max_equal_elems,
                       item_equal->n_field_items());  
       }
       and_cond->m_cond_equal.copy(cond_equal);
       cond_equal.current_level= and_cond->m_cond_equal.current_level;
       cond_args->append((List<Item> *)&cond_equal.current_level);
-      and_cond->update_used_tables();
+      and_cond->update_used_tables(thd->get_update_used_tables_id());
       if (cond_equal_ref)
         *cond_equal_ref= &and_cond->m_cond_equal;
       return and_cond;
@@ -16952,7 +16956,7 @@ COND *Item_func::build_equal_items(THD *thd, COND_EQUAL *inherited,
     an argument of a comparison predicate. 
   */ 
   COND *cond= propagate_equal_fields(thd, Context_boolean(), inherited);
-  cond->update_used_tables();
+  cond->update_used_tables(thd->get_update_used_tables_id());
   DBUG_ASSERT(cond == this);
   DBUG_ASSERT(!cond_equal_ref || !cond_equal_ref[0]);
   return cond;
@@ -17465,7 +17469,7 @@ Item *eliminate_item_equal(THD *thd, COND *cond, COND_EQUAL *upper_levels,
   if (res)
   {
     res->quick_fix_field();
-    res->update_used_tables();
+    res->update_used_tables(thd->get_update_used_tables_id());
     res->eval_not_null_tables(0);
   }
 
@@ -17807,7 +17811,7 @@ change_cond_ref_to_const(THD *thd, I_List<COND_CMP> *save_list,
     {
       tmp->collation.set(right_item->collation);
       thd->change_item_tree(args + 1, tmp);
-      func->update_used_tables();
+      func->update_used_tables(thd->get_update_used_tables_id());
       if ((functype == Item_func::EQ_FUNC || functype == Item_func::EQUAL_FUNC)
 	  && and_father != cond && !left_item->const_item())
       {
@@ -17838,7 +17842,7 @@ change_cond_ref_to_const(THD *thd, I_List<COND_CMP> *save_list,
       tmp->collation.set(left_item->collation);
       thd->change_item_tree(args, tmp);
       value= tmp;
-      func->update_used_tables();
+      func->update_used_tables(thd->get_update_used_tables_id());
       if ((functype == Item_func::EQ_FUNC || functype == Item_func::EQUAL_FUNC)
 	  && and_father != cond && !right_item->const_item())
       {
@@ -17902,14 +17906,14 @@ propagate_cond_constants(THD *thd, I_List<COND_CMP> *save_list,
 	if (right_const)
 	{
           resolve_const_item(thd, &args[1], args[0]);
-	  func->update_used_tables();
+	  func->update_used_tables(thd->get_update_used_tables_id());
           change_cond_ref_to_const(thd, save_list, and_father, and_father,
                                    func, args[0], args[1]);
 	}
 	else if (left_const)
 	{
           resolve_const_item(thd, &args[0], args[1]);
-	  func->update_used_tables();
+	  func->update_used_tables(thd->get_update_used_tables_id());
           change_cond_ref_to_const(thd, save_list, and_father, and_father,
                                    func, args[1], args[0]);
 	}
@@ -18854,7 +18858,7 @@ void propagate_new_equalities(THD *thd, Item *cond,
   {
     cond= cond->propagate_equal_fields(thd,
                                        Item::Context_boolean(), inherited);
-    cond->update_used_tables();
+    cond->update_used_tables(thd->get_update_used_tables_id());
   }          
 } 
 
@@ -19188,7 +19192,7 @@ Item_cond::remove_eq_conds(THD *thd, Item::cond_result *cond_value,
     should_fix_fields= 1;
   }
   if (should_fix_fields)
-    cond->update_used_tables();
+    cond->update_used_tables(thd->get_update_used_tables_id());
 
   if (!((Item_cond*) cond)->argument_list()->elements ||
       *cond_value != Item::COND_OK)
@@ -20189,7 +20193,7 @@ bool Create_tmp_table::add_fields(THD *thd,
       if (item->with_sum_func() && type != Item::SUM_FUNC_ITEM)
       {
         if (item->used_tables() & OUTER_REF_TABLE_BIT)
-          item->update_used_tables();
+          item->update_used_tables(thd->get_update_used_tables_id());
         if ((item->real_type() == Item::SUBSELECT_ITEM) ||
             (item->used_tables() & ~OUTER_REF_TABLE_BIT))
         {
@@ -22887,7 +22891,7 @@ join_read_const_table(THD *thd, JOIN_TAB *tab, POSITION *pos)
       have items like Item_equal, that doesn't report they are const but
       they can still be called even if they contain not const items.
     */
-    (*tab->on_expr_ref)->update_used_tables();
+    (*tab->on_expr_ref)->update_used_tables(thd->get_update_used_tables_id());
     DBUG_ASSERT((*tab->on_expr_ref)->const_item());
 #endif
     if ((table->null_row= MY_TEST((*tab->on_expr_ref)->val_bool() == 0)))

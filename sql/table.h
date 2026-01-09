@@ -2038,15 +2038,21 @@ static inline size_t extra2_str_size(size_t len)
 class select_unit;
 class TMP_TABLE_PARAM;
 
-Item *create_view_field(THD *thd, TABLE_LIST *view, Item **field_ref,
-                        LEX_CSTRING *name);
+struct Walk_data
+{
+  TABLE *last_table;
+  uint update_used_tables_id;
+};
 
 struct Field_translator
 {
   Item *item;
   LEX_CSTRING name;
+  Walk_data walk;
 };
 
+Item *create_view_field(THD *thd, TABLE_LIST *view, Item **field_ref,
+                        LEX_CSTRING *name, Field_translator *trans);
 
 /*
   Column reference of a NATURAL/USING join. Since column references in
@@ -3051,6 +3057,7 @@ public:
   virtual LEX_CSTRING *name()= 0;
   virtual Item *create_item(THD *)= 0;
   virtual Field *field()= 0;
+  virtual Field_translator *field_translator() { return NULL; }
 };
 
 
@@ -3090,7 +3097,7 @@ public:
   Item **item_ptr() {return &ptr->item; }
   Field *field() override { return 0; }
   inline Item *item() { return ptr->item; }
-  Field_translator *field_translator() { return ptr; }
+  Field_translator *field_translator() override { return ptr; }
 };
 
 

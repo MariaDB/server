@@ -1078,7 +1078,7 @@ public:
 
   Item_sum *window_func() const { return (Item_sum *) args[0]; }
 
-  void update_used_tables() override;
+  void update_used_tables(uint id) override;
 
   /*
     This is used by filesort to mark the columns it needs to read (because they

@@ -6042,7 +6042,10 @@ bool TABLE_LIST::create_field_translation(THD *thd)
         goto allocate;
       while ((item= it++))
       {
-        field_translation[field_count++].item= item;
+        field_translation[field_count].item= item;
+        // Assign something impossible
+        field_translation[field_count].walk.last_table= (TABLE *) 0x2;
+        field_translation[field_count++].walk.update_used_tables_id= 0;
       }
     }
 
@@ -6068,7 +6071,10 @@ allocate:
     DBUG_ASSERT(item->name.str && item->name.str[0]);
     transl[field_count].name.str=    thd->strmake(item->name.str, item->name.length);
     transl[field_count].name.length= item->name.length;
-    transl[field_count++].item= item;
+    transl[field_count].item= item;
+    // Assign something impossible
+    transl[field_count].walk.last_table= (TABLE *) 0x2;
+    transl[field_count++].walk.update_used_tables_id= 0;
   }
   field_translation= transl;
   field_translation_end= transl + field_count;
@@ -6158,7 +6164,7 @@ bool TABLE_LIST::prep_where(THD *thd, Item **conds,
   if (where)
   {
     if (where->fixed())
-      where->update_used_tables();
+      where->update_used_tables(thd->get_update_used_tables_id());
     else if (where->fix_fields(thd, &where))
       DBUG_RETURN(TRUE);
 
@@ -7099,7 +7105,7 @@ Item *Natural_join_column::create_item(THD *thd)
   {
     DBUG_ASSERT(table_field == NULL);
     return create_view_field(thd, table_ref, &view_field->item,
-                             &view_field->name);
+                             &view_field->name, view_field);
   }
   return table_field;
 }
@@ -7199,11 +7205,11 @@ LEX_CSTRING *Field_iterator_view::name()
 
 Item *Field_iterator_view::create_item(THD *thd)
 {
-  return create_view_field(thd, view, &ptr->item, &ptr->name);
+  return create_view_field(thd, view, &ptr->item, &ptr->name, ptr);
 }
 
 Item *create_view_field(THD *thd, TABLE_LIST *view, Item **field_ref,
-                        LEX_CSTRING *name)
+                        LEX_CSTRING *name, Field_translator *trans)
 {
   bool save_wrapper= thd->lex->current_select->no_wrap_view_item;
   Item *field= *field_ref;
@@ -7241,7 +7247,7 @@ Item *create_view_field(THD *thd, TABLE_LIST *view, Item **field_ref,
                                      &thd->lex->first_select_lex()->context);
   Item *item= (new (thd->mem_root)
                Item_direct_view_ref(thd, context, field_ref, view->alias,
-                                    *name, view));
+                                    *name, view, trans));
   if (!item)
     return NULL;
   /*
