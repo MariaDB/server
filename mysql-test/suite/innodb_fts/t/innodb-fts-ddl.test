@@ -441,3 +441,15 @@ ALTER TABLE t ADD FULLTEXT INDEX ft1(f1);
 ALTER TABLE t ADD FULLTEXT INDEX ft2(f2);
 INSERT INTO t (f1,f2,f3) VALUES ('bar','baz','qux');
 DROP TABLE t;
+
+--echo #
+--echo #  MDEV-31892 Server crash upon moving InnoDB table
+--echo #	with fulltext index between databases
+--echo #
+CREATE DATABASE db;
+CREATE TABLE db.t (pk INT PRIMARY KEY, c CHAR(120), FULLTEXT KEY(c)) ENGINE=InnoDB;
+INSERT INTO db.t VALUES (1,'foo'),(2,'bar');
+ALTER TABLE db.t FORCE, RENAME to test.t;
+# Cleanup
+DROP DATABASE db;
+DROP TABLE IF EXISTS test.t;

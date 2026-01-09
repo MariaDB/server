@@ -70,8 +70,8 @@ row_merge_create_fts_sort_index(
 				is created */
 	dict_table_t*	table,	/*!< in,out: table that FTS index
 				is being created on */
-	ibool*		opt_doc_id_size)
-				/*!< out: whether to use 4 bytes
+	bool		opt_doc_id_size)
+				/*!< in: whether to use 4 bytes
 				instead of 8 bytes integer to
 				store Doc ID during sort */
 {
@@ -115,29 +115,8 @@ row_merge_create_fts_sort_index(
 	field->col = static_cast<dict_col_t*>(
 		mem_heap_zalloc(new_index->heap, sizeof(dict_col_t)));
 	field->col->mtype = DATA_INT;
-	*opt_doc_id_size = FALSE;
 
-	/* Check whether we can use 4 bytes instead of 8 bytes integer
-	field to hold the Doc ID, thus reduce the overall sort size */
-	if (DICT_TF2_FLAG_IS_SET(table, DICT_TF2_FTS_ADD_DOC_ID)) {
-		/* If Doc ID column is being added by this create
-		index, then just check the number of rows in the table */
-		if (dict_table_get_n_rows(table) < MAX_DOC_ID_OPT_VAL) {
-			*opt_doc_id_size = TRUE;
-		}
-	} else {
-		doc_id_t	max_doc_id;
-
-		/* If the Doc ID column is supplied by user, then
-		check the maximum Doc ID in the table */
-		max_doc_id = fts_get_max_doc_id((dict_table_t*) table);
-
-		if (max_doc_id && max_doc_id < MAX_DOC_ID_OPT_VAL) {
-			*opt_doc_id_size = TRUE;
-		}
-	}
-
-	if (*opt_doc_id_size) {
+	if (opt_doc_id_size) {
 		field->col->len = sizeof(ib_uint32_t);
 		field->fixed_len = sizeof(ib_uint32_t);
 	} else {
