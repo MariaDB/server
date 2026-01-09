@@ -248,7 +248,7 @@ void Sql_path::set(Sql_path &&rhs)
 }
 
 
-bool Sql_path::from_text(const system_variables &sv, const LEX_CSTRING &text)
+bool Sql_path::from_text(const system_variables &sv, String *str)
 {
   enum tokenize_state
   {
@@ -259,20 +259,20 @@ bool Sql_path::from_text(const system_variables &sv, const LEX_CSTRING &text)
 
   CHARSET_INFO *cs= &my_charset_utf8mb3_general_ci; // as in make_ident_casedn()
   DBUG_ASSERT(cs->cset->casedn_multiply(cs) == 1);
-  DBUG_ASSERT(text.str);
+  DBUG_ASSERT(str->ptr());
   char *buf= (char*)my_malloc(key_memory_Sys_var_charptr_value,
-                              text.length + 1, MYF(MY_WME));
+                              str->length() + 1, MYF(MY_WME));
   if (!buf)
     return true;
 
   char *curr= buf, *to= buf, *end;
 
   if (lower_case_table_names > 0)
-    end= buf + cs->cset->casedn(cs, text.str, text.length, buf, text.length);
+    end= buf + cs->cset->casedn(cs, str->ptr(), str->length(), buf, str->length());
   else
   {
-    memcpy(buf, text.str, text.length);
-    end= buf + text.length;
+    memcpy(buf, str->ptr(), str->length());
+    end= buf + str->length();
   }
 
   free();
@@ -363,7 +363,7 @@ bool Sql_path::from_text(const system_variables &sv, const LEX_CSTRING &text)
   return false;
 
 err_bad_val:
-  my_error(ER_WRONG_VALUE_FOR_VAR, MYF(0), "PATH", text.str);
+  my_error(ER_WRONG_VALUE_FOR_VAR, MYF(0), "PATH", str->c_ptr());
 err:
   m_count= 0;
   my_free(buf);
@@ -466,7 +466,8 @@ LEX_CSTRING Sql_path::lex_cstring(MEM_ROOT *mem_root) const
 Sql_path_instant_set::Sql_path_instant_set(THD *thd, const LEX_CSTRING &str)
   : m_thd(thd), m_path(std::move(thd->variables.path))
 {
-  if (thd->variables.path.from_text(thd->variables, str))
+  String path(str.str, str.length, system_charset_info);
+  if (thd->variables.path.from_text(thd->variables, &path))
   {
     thd->variables.path.set(std::move(m_path));
     m_thd= NULL;

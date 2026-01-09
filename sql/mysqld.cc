@@ -4419,8 +4419,9 @@ static int init_common_variables()
   if (!opt_slow_logname || !*opt_slow_logname)
     make_default_log_name(&opt_slow_logname, "-slow.log", false);
 
-  if (global_system_variables.path.from_text(global_system_variables,
-                                             Lex_cstring_strlen(opt_path)))
+  String sqlpath(const_cast<const char*>(opt_path), strlen(opt_path),
+                 character_set_filesystem);
+  if (global_system_variables.path.from_text(global_system_variables, &sqlpath))
     return 1;
 
 #if defined(ENABLED_DEBUG_SYNC)
