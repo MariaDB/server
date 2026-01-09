@@ -42,7 +42,8 @@ Master_info::Master_info(LEX_CSTRING *connection_name_arg,
    clock_diff_with_master(0),
    sync_counter(0), heartbeat_period(0), received_heartbeats(0),
    master_id(0), prev_master_id(0),
-   using_gtid(USE_GTID_SLAVE_POS), events_queued_since_last_gtid(0),
+   using_gtid(USE_GTID_SLAVE_POS), current_gtid{0, 0, 0},
+   events_queued_since_last_gtid(0),
    gtid_reconnect_event_skip_count(0), gtid_event_seen(false),
    in_start_all_slaves(0), in_stop_all_slaves(0), in_flush_all_relay_logs(0),
    users(0), killed(0),
@@ -219,6 +220,9 @@ void init_master_log_pos(Master_info* mi)
     mi->using_gtid= Master_info::USE_GTID_SLAVE_POS;
   }
   mi->gtid_current_pos.reset();
+  mi->current_gtid.domain_id= 0;
+  mi->current_gtid.server_id= 0;
+  mi->current_gtid.seq_no= 0;
   mi->events_queued_since_last_gtid= 0;
   mi->gtid_reconnect_event_skip_count= 0;
   mi->gtid_event_seen= false;

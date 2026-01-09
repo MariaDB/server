@@ -21,6 +21,7 @@
 
 const unsigned char Repl_semi_sync_base::k_packet_magic_num= 0xef;
 const unsigned char Repl_semi_sync_base::k_packet_flag_sync= 0x01;
+const unsigned char Repl_semi_sync_base::k_packet_flag_gtid= 0x02;
 
 
 const unsigned long Trace::k_trace_general=  0x0001;

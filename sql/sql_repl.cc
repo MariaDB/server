@@ -3592,7 +3592,8 @@ void mysql_binlog_send(THD* thd, char* log_ident, my_off_t pos,
 
   DBUG_ASSERT(pos == linfo.pos);
 
-  if (repl_semisync_master->dump_start(thd, linfo.log_file_name, linfo.pos))
+  if (repl_semisync_master->dump_start(thd, linfo.log_file_name, linfo.pos,
+                                       &info->gtid_state))
   {
     info->errmsg= "Failed to run hook 'transmit_start'";
     info->error= ER_UNKNOWN_ERROR;

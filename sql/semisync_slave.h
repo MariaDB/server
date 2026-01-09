@@ -71,8 +71,8 @@ public:
    * Input:
    *  header      - (IN)  packet header pointer
    *  total_len   - (IN)  total packet length: metadata + payload
-   *  semi_flags  - (IN)  store flags: SEMI_SYNC_SLAVE_DELAY_SYNC and
-                          SEMI_SYNC_NEED_ACK
+   *  semi_flags  - (IN)  store flags: SEMI_SYNC_SLAVE_DELAY_SYNC,
+                          SEMI_SYNC_NEED_ACK and SEMI_SYNC_ACK_GTID
    *  payload     - (IN)  payload: the replication event
    *  payload_len - (IN)  payload length
    *
@@ -87,7 +87,7 @@ public:
    * indicates that the slave has received all events before the specified
    * binlog position.
    */
-  int slave_reply(Master_info* mi);
+  int slave_reply(Master_info* mi, int semi_flags);
   void slave_start(Master_info *mi);
   void slave_stop(Master_info *mi);
   void slave_reconnect(Master_info *mi);

@@ -418,6 +418,8 @@ public:
    */
   bool is_empty() { return m_trx_front == NULL; }
 
+  /* Find the latest pending trx in a slave connecting state, if any. */
+  Tranx_node *find_latest(slave_connection_state *state);
 };
 
 
@@ -456,6 +458,7 @@ protected:
 */
 class Repl_semi_sync_master
   :public Repl_semi_sync_base {
+protected:
   Active_tranx    *m_active_tranxs;  /* active transaction list: the list will
                                       be cleared when semi-sync switches off. */
 
@@ -607,7 +610,8 @@ public:
    * Return:
    *  0: success;  non-zero: error
    */
-  int report_reply_binlog(uint32 server_id, Repl_semi_sync_trx_info *inf);
+  int report_reply_binlog(uint32 server_id, Repl_semi_sync_trx_info *inf,
+                          Tranx_node *tranx_entry);
 
   /* Commit a transaction in the final step.  This function is called from
    * InnoDB before returning from the low commit.  If semi-sync is switch on,
@@ -655,8 +659,13 @@ public:
                            const rpl_gtid *gtid);
 
   int dump_start(THD* thd,
-                  const char *log_file,
-                  my_off_t log_pos);
+                 const char *log_file,
+                 my_off_t log_pos,
+                 slave_connection_state *gtid_state);
+  virtual void dump_start_inner(THD* thd,
+                                const char *log_file,
+                                my_off_t log_pos,
+                                slave_connection_state *gtid_state) = 0;
 
   void dump_end(THD* thd);
 
@@ -687,11 +696,11 @@ public:
    * Return:
    *  0: success;  non-zero: error
    */
-  int update_sync_header(THD* thd, unsigned char *packet,
-                         const char *log_file_name,
-                         my_off_t log_file_pos,
-                         const rpl_gtid *gtid,
-                         bool* need_sync);
+  virtual int update_sync_header(THD* thd, unsigned char *packet,
+                                 const char *log_file_name,
+                                 my_off_t log_file_pos,
+                                 const rpl_gtid *gtid,
+                                 bool* need_sync);
 
   /* Called when a transaction finished writing binlog events.
    *  . update the 'largest' transactions' binlog event position
@@ -738,6 +747,12 @@ public:
   virtual ~Repl_semi_sync_master_file_pos() { };
   int enable_master() override;
 protected:
+  int report_reply_binlog_file_pos(uint32 server_id, const char *log_file_name,
+                                   my_off_t log_file_pos);
+  virtual void dump_start_inner(THD* thd,
+                                const char *log_file,
+                                my_off_t log_pos,
+                                slave_connection_state *gtid_state) override;
   int report_reply_packet_sub(uint32 server_id, const uchar *packet,
                               ulong packet_len) override;
 };
@@ -748,9 +763,21 @@ public:
   Repl_semi_sync_master_gtid() { }
   virtual ~Repl_semi_sync_master_gtid() { };
   int enable_master() override;
+  virtual int update_sync_header(THD* thd, unsigned char *packet,
+                                 const char *log_file_name,
+                                 my_off_t log_file_pos,
+                                 const rpl_gtid *gtid,
+                                 bool* need_sync) override;
 protected:
+  int report_reply_binlog_gtid(uint32 server_id, const rpl_gtid *gtid,
+                               bool have_gtid= true);
+  virtual void dump_start_inner(THD* thd,
+                                const char *log_file,
+                                my_off_t log_pos,
+                                slave_connection_state *gtid_state) override;
   int report_reply_packet_sub(uint32 server_id, const uchar *packet,
                               ulong packet_len) override;
+  bool latest_gtid(slave_connection_state *gtid_state, rpl_gtid *out_gtid);
 };
 
 

@@ -68,15 +68,18 @@ int Repl_semi_sync_slave::slave_read_sync_header(const uchar *header,
         && header[0] == k_packet_magic_num)
     {
       bool semi_sync_need_reply  = (header[1] & k_packet_flag_sync);
+      bool semi_sync_ack_gtid    = (header[1] & k_packet_flag_gtid);
       *payload_len = total_len - 2;
       *payload     = header + 2;
 
-      DBUG_PRINT("semisync", ("%s: reply - %d",
+      DBUG_PRINT("semisync", ("%s: reply - %d %d",
                               "Repl_semi_sync_slave::slave_read_sync_header",
-                              semi_sync_need_reply));
+                              semi_sync_need_reply, semi_sync_ack_gtid));
 
       if (semi_sync_need_reply)
         *semi_flags |= SEMI_SYNC_NEED_ACK;
+      if (semi_sync_ack_gtid)
+        *semi_flags |= SEMI_SYNC_ACK_GTID;
       if (is_delay_master())
         *semi_flags |= SEMI_SYNC_SLAVE_DELAY_SYNC;
     }
@@ -264,30 +267,54 @@ int Repl_semi_sync_slave::request_transmit(Master_info *mi)
   return 0;
 }
 
-int Repl_semi_sync_slave::slave_reply(Master_info *mi)
+int Repl_semi_sync_slave::slave_reply(Master_info *mi, int semi_flags)
 {
   MYSQL* mysql= mi->mysql;
-  const char *binlog_filename= const_cast<char *>(mi->master_log_name);
-  my_off_t binlog_filepos= mi->master_log_pos;
   NET *net= &mysql->net;
   uchar reply_buffer[REPLY_MAGIC_NUM_LEN
                      + REPLY_BINLOG_POS_LEN
                      + REPLY_BINLOG_NAME_LEN];
   int reply_res = 0;
-  size_t name_len = strlen(binlog_filename);
+  size_t reply_len;
+
   DBUG_ENTER("Repl_semi_sync_slave::slave_reply");
   DBUG_ASSERT(get_slave_enabled() && mi->semi_sync_reply_enabled);
+  static_assert(REPLY_BINLOG_POS_LEN + REPLY_BINLOG_NAME_LEN >=
+                REPLY_MESSAGE_GTID_LENGTH,
+                "Buffer large enough for both file/pos and GTID case");
 
   /* Prepare the buffer of the reply. */
   reply_buffer[REPLY_MAGIC_NUM_OFFSET] = k_packet_magic_num;
-  int8store(reply_buffer + REPLY_BINLOG_POS_OFFSET, binlog_filepos);
-  memcpy(reply_buffer + REPLY_BINLOG_NAME_OFFSET,
-         binlog_filename,
-         name_len + 1 /* including trailing '\0' */);
 
-  DBUG_PRINT("semisync", ("%s: reply (%s, %lu)",
-                          "Repl_semi_sync_slave::slave_reply",
-                          binlog_filename, (ulong)binlog_filepos));
+  if (semi_flags & SEMI_SYNC_ACK_GTID)
+  {
+    const rpl_gtid *gtid= &mi->current_gtid;
+    int4store(reply_buffer + REPLY_GTID_OFFSET, gtid->domain_id);
+    int4store(reply_buffer + REPLY_GTID_OFFSET + 4, gtid->server_id);
+    int8store(reply_buffer + REPLY_GTID_OFFSET + 4 + 4, gtid->seq_no);
+    reply_len= REPLY_MESSAGE_GTID_LENGTH;
+
+    DBUG_PRINT("semisync", ("%s: reply %u-%u-%llu",
+                            "Repl_semi_sync_slave::slave_reply",
+                            gtid->domain_id, gtid->server_id,
+                            (ulonglong)gtid->seq_no));
+  }
+  else
+  {
+    const char *binlog_filename= const_cast<char *>(mi->master_log_name);
+    my_off_t binlog_filepos= mi->master_log_pos;
+    size_t name_len = strlen(binlog_filename);
+
+    int8store(reply_buffer + REPLY_BINLOG_POS_OFFSET, binlog_filepos);
+    memcpy(reply_buffer + REPLY_BINLOG_NAME_OFFSET,
+           binlog_filename,
+           name_len + 1 /* including trailing '\0' */);
+    reply_len= name_len + REPLY_BINLOG_NAME_OFFSET;
+
+    DBUG_PRINT("semisync", ("%s: reply (%s, %lu)",
+                            "Repl_semi_sync_slave::slave_reply",
+                            binlog_filename, (ulong)binlog_filepos));
+  }
 
   /*
     We have to do a net_clear() as with semi-sync the slave_reply's are
@@ -296,8 +323,7 @@ int Repl_semi_sync_slave::slave_reply(Master_info *mi)
   */
   net_clear(net, 0);
   /* Send the reply. */
-  reply_res = my_net_write(net, reply_buffer,
-                           name_len + REPLY_BINLOG_NAME_OFFSET);
+  reply_res = my_net_write(net, reply_buffer, reply_len);
   if (!reply_res)
   {
     reply_res= DBUG_IF("semislave_failed_net_flush") || net_flush(net);
