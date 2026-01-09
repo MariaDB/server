@@ -541,7 +541,17 @@ int mysql_update(THD *thd,
   if (!(thd->variables.sql_mode & MODE_SIMULTANEOUS_ASSIGNMENT))
     switch_to_nullable_trigger_fields(values, table);
 
-  /* Apply the IN=>EXISTS transformation to all subqueries and optimize them */
+  /*
+    Apply the IN=>EXISTS and other transformations to all subqueries and
+    optimize them.
+
+    Constant subqueries are treated in a special way here: they can be
+    evaluated even in EXPLAIN statement, so their query plan must be
+    fully initialized for computation.
+  */
+  if (select_lex->optimize_constant_subqueries())
+    DBUG_RETURN(TRUE);
+
   if (select_lex->optimize_unflattened_subqueries(false))
     DBUG_RETURN(TRUE);
 

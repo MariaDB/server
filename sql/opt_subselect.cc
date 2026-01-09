@@ -5704,10 +5704,10 @@ bool JOIN::optimize_unflattened_subqueries()
   @retval FALSE     success.
   @retval TRUE      error occurred.
 */
- 
-bool JOIN::optimize_constant_subqueries()
+
+bool SELECT_LEX::optimize_constant_subqueries()
 {
-  ulonglong save_options= select_lex->options;
+  ulonglong save_options= options;
   bool res;
   /*
     Constant subqueries may be executed during the optimization phase.
@@ -5716,9 +5716,9 @@ bool JOIN::optimize_constant_subqueries()
     during optimization, constant subqueries must be optimized for execution,
     not for EXPLAIN.
   */
-  select_lex->options&= ~SELECT_DESCRIBE;
-  res= select_lex->optimize_unflattened_subqueries(true);
-  select_lex->options= save_options;
+  options&= ~SELECT_DESCRIBE;
+  res= optimize_unflattened_subqueries(true);
+  options= save_options;
   return res;
 }
 

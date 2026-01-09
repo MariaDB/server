@@ -491,7 +491,17 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
     }
   }
 
-  /* Apply the IN=>EXISTS transformation to all subqueries and optimize them. */
+  /*
+    Apply the IN=>EXISTS and other transformations to all subqueries and
+    optimize them.
+
+    Constant subqueries are treated in a special way here: they can be
+    evaluated even in EXPLAIN statement, so their query plan must be
+    fully initialized for computation.
+  */
+  if (select_lex->optimize_constant_subqueries())
+    DBUG_RETURN(TRUE);
+
   if (select_lex->optimize_unflattened_subqueries(false))
     DBUG_RETURN(TRUE);
 

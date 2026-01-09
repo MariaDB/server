@@ -2325,7 +2325,7 @@ JOIN::optimize_inner()
   if (!allowed_top_level_tables)
     calc_allowed_top_level_tables(select_lex);
 
-  if (optimize_constant_subqueries())
+  if (select_lex->optimize_constant_subqueries())
     DBUG_RETURN(1);
 
   if (conds && conds->with_subquery())

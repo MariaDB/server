@@ -1714,6 +1714,7 @@ public:
   TABLE_LIST *find_table(THD *thd,
                          const LEX_CSTRING *db_name,
                          const LEX_CSTRING *table_name);
+  bool optimize_constant_subqueries();
 };
 typedef class st_select_lex SELECT_LEX;
 
