@@ -4184,3 +4184,60 @@ with recursive r as (
 
 
 --echo # End of 10.6 tests
+
+--echo #
+--echo # MDEV-32724 Segmentation fault due to Deep Recursion in table.cc and sql_lex.cc
+--echo #
+--error ER_RECURSIVE_WITHOUT_ANCHORS
+with recursive r (y) as (
+  with r (z) as (select 1 from r) select 1 from r
+  union all
+  select y from r)
+select y from r;
+
+--echo # r2 CTE is the anchor for r (original behavior):
+with recursive r (y) as (
+  with recursive r2 (z) as (
+    select z + 1 from r2 where z < 2
+    union all
+    select 1)
+  select z from r2
+  union all
+  select y * 2 from r where y < 10)
+select y from r;
+
+--echo # It is different with the name clash,
+--echo # select y * 2 from r is attached to inner r:
+--error ER_BAD_FIELD_ERROR
+with recursive r (y) as (
+  with recursive r (z) as (
+    select z + 1 from r where z < 2
+    union all
+    select 1)
+  select z from r
+  union all
+  select y * 2 from r where y < 10)
+select y from r;
+
+--echo # The whole set of SELECTs is attached to CTE:
+with recursive r (z) as (
+  select z + 1 from r where z < 2
+  union all
+  select 1)
+select z from r
+union all
+select z * 2 from r where z < 10;
+
+--echo # In this case no outer recursion can occur as every r
+--echo # is taken by the inner recursive CTE:
+with recursive r (y) as (
+  with recursive r (z) as (
+    select z + 1 from r where z < 2
+    union all
+    select 1)
+  select z from r
+  union all
+  select z * 2 from r where z < 10)
+select y from r;
+
+--echo # End of 10.11 tests

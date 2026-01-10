@@ -6083,3 +6083,74 @@ select 1 as f1
 (select f1 from r);
 ERROR 42S22: Unknown column 'f2' in 'SELECT'
 # End of 10.6 tests
+#
+# MDEV-32724 Segmentation fault due to Deep Recursion in table.cc and sql_lex.cc
+#
+with recursive r (y) as (
+with r (z) as (select 1 from r) select 1 from r
+union all
+select y from r)
+select y from r;
+ERROR HY000: No anchors for recursive WITH element 'r'
+# r2 CTE is the anchor for r (original behavior):
+with recursive r (y) as (
+with recursive r2 (z) as (
+select z + 1 from r2 where z < 2
+union all
+select 1)
+select z from r2
+union all
+select y * 2 from r where y < 10)
+select y from r;
+y
+1
+2
+2
+4
+4
+8
+8
+16
+16
+# It is different with the name clash,
+# select y * 2 from r is attached to inner r:
+with recursive r (y) as (
+with recursive r (z) as (
+select z + 1 from r where z < 2
+union all
+select 1)
+select z from r
+union all
+select y * 2 from r where y < 10)
+select y from r;
+ERROR 42S22: Unknown column 'y' in 'SELECT'
+# The whole set of SELECTs is attached to CTE:
+with recursive r (z) as (
+select z + 1 from r where z < 2
+union all
+select 1)
+select z from r
+union all
+select z * 2 from r where z < 10;
+z
+1
+2
+2
+4
+# In this case no outer recursion can occur as every r
+# is taken by the inner recursive CTE:
+with recursive r (y) as (
+with recursive r (z) as (
+select z + 1 from r where z < 2
+union all
+select 1)
+select z from r
+union all
+select z * 2 from r where z < 10)
+select y from r;
+y
+1
+2
+2
+4
+# End of 10.11 tests
