@@ -387,3 +387,39 @@ use test;
 mariadb-import: Path 'MYSQLTEST_VARDIR/tmp/non_existing' specified by option '--dir' does not exist
 # Test too many threads, builtin limit 256
 Too many connections, max value for --parallel is 256
+# MDEV-37483 mariadb-dump --dir doesn't convert db names
+create database `con_schöne_grüße`;
+create table `con_schöne_grüße`.t(a int) select 1 as a;
+create database `com1`;
+create table `com1`.t(b int) select 2 as b;
+create database `con/bar`;
+create table `con/bar`.t select 3 as c;
+create database `con@fame`;
+create table `con@fame`.t (d int) select 4 as d;
+drop database `con_schöne_grüße`;
+drop database `com1`;
+drop database `con/bar`;
+drop database `con@fame`;
+com1@@@
+con@002fbar
+con@fame
+con_sch@0j@00b6ne_gr@0j@00bc@0j@1re
+#
+# Check if expected tables were correctly restored
+#
+select * from `con_schöne_grüße`.t;
+a
+1
+select * from `com1`.t;
+b
+2
+select * from `con/bar`.t;
+c
+3
+select * from `con@fame`.t;
+d
+4
+drop database `con_schöne_grüße`;
+drop database `com1`;
+drop database `con/bar`;
+drop database `con@fame`;
