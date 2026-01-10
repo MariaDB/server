@@ -47,9 +47,9 @@ LOCK TABLE t READ;
 connection con1;
 SET max_statement_time=0.001;
 ALTER TABLE t FORCE;
-ERROR 70100: Query execution was interrupted (max_statement_time exceeded)
+ERROR 70100: Query was interrupted: execution time limit 0.001 sec exceeded
 ALTER TABLE IF EXISTS t FORCE;
-ERROR 70100: Query execution was interrupted (max_statement_time exceeded)
+ERROR 70100: Query was interrupted: execution time limit 0.001 sec exceeded
 disconnect con1;
 connection default;
 UNLOCK TABLES;

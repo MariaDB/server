@@ -10516,10 +10516,10 @@ ER_PLUGIN_INSTALLED
         spa "Ya instalado el enchufe (plugin) '%-.192s'"
         sw "Programu-jalizi '%-.192s' tayari imesakinishwa"
 ER_STATEMENT_TIMEOUT 70100
-        chi "查询执行中断（超出MAX_STATEMENT_TIME）"
-        eng "Query execution was interrupted (max_statement_time exceeded)"
-        sw "Utekelezaji wa hoja ulikatizwa (muda_wa_max_statement umepitwa)"
-        spa "Se ha interrumpido la ejecución de una consulta (query) (excedido max_statement_time)
+        chi "查询被中断：执行时间限制 %s 已超出"
+        eng "Query was interrupted: execution time limit %s exceeded"
+        sw "Hoja ilikatizwa: kikomo cha muda wa utekelezaji %s kimepitwa"
+        spa "Consulta interrumpida: límite de tiempo de ejecución %s excedido"
 ER_SUBQUERIES_NOT_SUPPORTED 42000
         chi "%s不支持子查询或存储的函数"
         eng "%s does not support subqueries or stored functions"

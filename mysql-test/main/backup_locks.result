@@ -51,13 +51,13 @@ connection con1;
 CREATE OR REPLACE SEQUENCE seq1 START -28;
 ERROR HY000: Sequence 'test.seq1' has out of range value for options
 SET STATEMENT max_statement_time=10 FOR CREATE OR REPLACE SEQUENCE seq1 START 50;
-ERROR 70100: Query execution was interrupted (max_statement_time exceeded)
+ERROR 70100: Query was interrupted: execution time limit 10.0 sec exceeded
 SET STATEMENT max_statement_time=10 FOR ALTER SEQUENCE IF EXISTS seq1 NOMAXVALUE;
-ERROR 70100: Query execution was interrupted (max_statement_time exceeded)
+ERROR 70100: Query was interrupted: execution time limit 10.0 sec exceeded
 SET STATEMENT max_statement_time=10 FOR ALTER SEQUENCE IF EXISTS seq1 MAXVALUE 1000;
-ERROR 70100: Query execution was interrupted (max_statement_time exceeded)
+ERROR 70100: Query was interrupted: execution time limit 10.0 sec exceeded
 SET STATEMENT max_statement_time=10 for rename table seq2 to seq3, seq3 to seq1;
-ERROR 70100: Query execution was interrupted (max_statement_time exceeded)
+ERROR 70100: Query was interrupted: execution time limit 10.0 sec exceeded
 connection default;
 backup unlock;
 drop table seq1,seq2;

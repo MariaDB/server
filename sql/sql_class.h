@@ -4399,12 +4399,16 @@ public:
   }
   void close_active_vio();
 #endif
-  void awake_no_mutex(killed_state state_to_set);
-  void awake(killed_state state_to_set)
+  void awake_no_mutex(killed_state state_to_set,
+                       int killed_errno_arg= 0,
+                       const char *killed_err_msg_arg= 0);
+  void awake(killed_state state_to_set,
+             int killed_errno_arg= 0,
+             const char *killed_err_msg_arg= 0)
   {
     mysql_mutex_lock(&LOCK_thd_kill);
     mysql_mutex_lock(&LOCK_thd_data);
-    awake_no_mutex(state_to_set);
+    awake_no_mutex(state_to_set, killed_errno_arg, killed_err_msg_arg);
     mysql_mutex_unlock(&LOCK_thd_data);
     mysql_mutex_unlock(&LOCK_thd_kill);
   }
