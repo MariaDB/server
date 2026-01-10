@@ -401,7 +401,7 @@ bool Sql_cmd_truncate_table::lock_table(THD *thd, TABLE_LIST *table_ref,
     }
   }
 
-  *hton_can_recreate= (!sequence &&
+  *hton_can_recreate= (!sequence && !*global_tmp_table &&
                        ha_check_storage_engine_flag(hton, HTON_CAN_RECREATE));
 
   if (versioned)

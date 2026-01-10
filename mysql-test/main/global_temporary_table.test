@@ -1114,4 +1114,19 @@ commit;
 drop table t;
 set pseudo_slave_mode=0;
 
+--echo # MDEV-38480 GTT: Aria gets error HA_ERR_CRASHED_ON_USAGE after TRUNCATE
+set autocommit=0;
+create global temporary table t (c int) engine=aria;
+lock tables t write;
+select * from t;
+set max_session_mem_used=8192;
+--error ER_OPTION_PREVENTS_STATEMENT
+truncate t;
+set max_session_mem_used= @save_max_session_mem_used;
+unlock tables;
+select * from t;
+truncate t;
+drop table t;
+set autocommit=1;
+
 --disconnect con1
