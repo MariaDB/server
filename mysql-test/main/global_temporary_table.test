@@ -1129,4 +1129,19 @@ truncate t;
 drop table t;
 set autocommit=1;
 
+--echo # MDEV-38468 GTT: use-after-free after failed BINLOG event in XA mode
+create global temporary table t (c int);
+xa start 'a';
+--error ER_BASE64_DECODE_ERROR
+binlog 'a';
+insert t values (1);
+--error ER_WRONG_VALUE_FOR_VAR
+set pseudo_slave_mode=1;
+
+--echo # Cleanup
+xa end 'a';
+xa prepare 'a';
+xa commit 'a';
+drop table t;
+
 --disconnect con1

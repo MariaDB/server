@@ -1258,4 +1258,17 @@ c
 truncate t;
 drop table t;
 set autocommit=1;
+# MDEV-38468 GTT: use-after-free after failed BINLOG event in XA mode
+create global temporary table t (c int);
+xa start 'a';
+binlog 'a';
+ERROR HY000: Decoding of base64 string failed
+insert t values (1);
+set pseudo_slave_mode=1;
+ERROR 42000: Variable 'pseudo_slave_mode' can't be set to the value of '1'
+# Cleanup
+xa end 'a';
+xa prepare 'a';
+xa commit 'a';
+drop table t;
 disconnect con1;
