@@ -527,7 +527,7 @@ void With_element::check_dependencies_in_select(st_select_lex *sl,
     if (is_spec_select)
     {
       With_clause *with_clause= sl->master_unit()->with_clause;
-      if (with_clause)
+      if (with_clause && with_clause->with_recursive)
         tbl->with= with_clause->find_table_def(tbl, NULL, NULL);
       if (!tbl->with)
         tbl->with= owner->find_table_def(tbl,
