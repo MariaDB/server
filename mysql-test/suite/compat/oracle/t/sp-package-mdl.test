@@ -85,10 +85,13 @@ WHERE ID=$conn2_id
 #                to DROP the package pkg1
 #
 --vertical_results
-SELECT ID-CONNECTION_ID() AS CONN,INFO,STATE,LOCK_MODE,LOCK_TYPE,TABLE_NAME
+let $default_id= `SELECT CONNECTION_ID()`;
+--replace_result $conn1_id conn1_id $conn2_id conn2_id $default_id default_id
+evalp SELECT ID AS CONN,INFO,STATE,LOCK_MODE,LOCK_TYPE,TABLE_NAME
   FROM INFORMATION_SCHEMA.PROCESSLIST
   LEFT JOIN INFORMATION_SCHEMA.METADATA_LOCK_INFO
    ON (ID=THREAD_ID)
+  WHERE ID IN (CONNECTION_ID(), $conn1_id, $conn2_id)
   ORDER BY ID,TABLE_NAME,LOCK_MODE,LOCK_TYPE;
 --horizontal_results
 
