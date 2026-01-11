@@ -21679,3 +21679,14 @@ a	b
 drop view v1,v2;
 drop table t1,t2;
 # End of 10.7 tests
+#
+# MDEV-36686: Crash with DEFAULT() in WHERE clause with nested views
+#
+create table t1 (a varchar(128));
+create view v1 as select a, count(*) from t1 group by a;
+create view v2 as select * from v1;
+select * from v2 where greatest(a, default(a));
+a	count(*)
+drop view v2, v1;
+drop table t1;
+# End of 10.11 tests
