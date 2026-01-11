@@ -6,10 +6,14 @@ enable_query_log;
 --echo #
 --echo # MDEV-33031 Assertion failure upon reading from performance schema with binlog enabled
 --echo #
+let $default_id= `select connection_id()`;
 connect foo,localhost,root;
 --disable_view_protocol
+evalp
 select variable_name, variable_value from performance_schema.status_by_thread
-where variable_name like '%spider_direct_aggregate%';
+inner join performance_schema.threads on status_by_thread.thread_id=threads.thread_id
+where variable_name like '%spider_direct_aggregate%'
+and processlist_id in ($default_id, connection_id());
 --enable_view_protocol
 disconnect foo;
 connection default;
