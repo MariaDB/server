@@ -1734,9 +1734,14 @@ static int ddl_log_execute_action(THD *thd, MEM_ROOT *mem_root,
             break;
         }
       }
+      if (ddl_log_entry->extra_name.str)
+        delete_statistics_for_table(thd, &db, &ddl_log_entry->extra_name);
       break;
     case DDL_DROP_PHASE_RESET:
-      /* We have already logged all previous drop's. Clear the query */
+      /*
+        We only come here if DDL_DROP_PHASE_BINLOG fails.
+        We have already logged all previous drop's. Clear the query
+      */
       recovery_state.drop_table.length(recovery_state.drop_table_init_length);
       recovery_state.drop_view.length(recovery_state.drop_view_init_length);
       break;
@@ -3343,6 +3348,7 @@ bool ddl_log_drop_view_init(DDL_LOG_STATE *ddl_state,
    @param path          Table filepath without extension
    @param db            DB name
    @param table         Table name
+   @param orig_table    Original table name (in case of create or replace)
    @param flags         DDL_LOG_FLAG_FROM_IS_TMP or DDL_LOG_FLAG_TO_IS_TMP
 */
 
@@ -3353,6 +3359,7 @@ static bool ddl_log_drop(DDL_LOG_STATE *ddl_state,
                          const LEX_CSTRING *path,
                          const LEX_CSTRING *db,
                          const LEX_CSTRING *table,
+                         const LEX_CSTRING *orig_table,
                          uint16 flags)
 {
   DDL_LOG_ENTRY ddl_log_entry;
@@ -3371,6 +3378,8 @@ static bool ddl_log_drop(DDL_LOG_STATE *ddl_state,
   ddl_log_entry.db=           *const_cast<LEX_CSTRING*>(db);
   ddl_log_entry.name=         *const_cast<LEX_CSTRING*>(table);
   ddl_log_entry.tmp_name=     *const_cast<LEX_CSTRING*>(path);
+  if (orig_table)
+    ddl_log_entry.extra_name=  *const_cast<LEX_CSTRING*>(orig_table);
   ddl_log_entry.phase=        (uchar) phase;
   ddl_log_entry.flags=        flags;
 
@@ -3402,6 +3411,7 @@ error:
    @param path          Table filepath without extension
    @param db            DB name
    @param table         Table name
+   @param orig_table    Original table name (in case of create or replace)
    @param flags         DDL_LOG_FLAG_FROM_IS_TMP or DDL_LOG_FLAG_TO_IS_TMP
 */
 
@@ -3410,12 +3420,13 @@ bool ddl_log_drop_table(DDL_LOG_STATE *ddl_state,
                         const LEX_CSTRING *path,
                         const LEX_CSTRING *db,
                         const LEX_CSTRING *table,
+                        const LEX_CSTRING *orig_table,
                         uint16 flags)
 {
   DBUG_ENTER("ddl_log_drop_table");
   DBUG_RETURN(ddl_log_drop(ddl_state,
                            DDL_LOG_DROP_TABLE_ACTION, DDL_DROP_PHASE_TABLE,
-                           hton, path, db, table, flags));
+                           hton, path, db, table, orig_table, flags));
 }
 
 
@@ -3434,7 +3445,8 @@ bool ddl_log_drop_view(DDL_LOG_STATE *ddl_state,
   DBUG_ENTER("ddl_log_drop_view");
   DBUG_RETURN(ddl_log_drop(ddl_state,
                            DDL_LOG_DROP_VIEW_ACTION, 0,
-                           (handlerton*) 0, path, db, table, 0));
+                           (handlerton*) 0, path, db, table, (LEX_CSTRING*) 0,
+                           0));
 }
 
 

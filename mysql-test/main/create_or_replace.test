@@ -909,5 +909,38 @@ SELECT 1;
 DROP TABLE t1;
 
 --echo #
+--echo # MDEV-36501 EITS data is lost after failed attempt to
+--echo # CREATE OR REPLACE table
+--echo #
+create table t1 (a int primary key);
+insert into t1 values (1),(2);
+analyze table t1 persistent for all;
+select count(*) from mysql.table_stats where table_name = 't1';
+select count(*) from mysql.index_stats where table_name = 't1';
+select count(*) from mysql.column_stats where table_name = 't1';
+
+--error ER_DUP_ENTRY
+create or replace table t1 (b int primary key) as select 1 as b union all select 1;
+select count(*) from mysql.table_stats where table_name = 't1';
+select count(*) from mysql.index_stats where table_name = 't1';
+select count(*) from mysql.column_stats where table_name = 't1';
+
+create or replace table t1 (b int primary key);
+select count(*) from mysql.table_stats where table_name = 't1';
+select count(*) from mysql.index_stats where table_name = 't1';
+select count(*) from mysql.column_stats where table_name = 't1';
+analyze table t1 persistent for all;
+
+set @@session.drop_before_create_or_replace='ON';
+
+--error ER_DUP_ENTRY
+create or replace table t1 (c int primary key) as select 1 as c union all select 1;
+select count(*) from mysql.table_stats where table_name = 't1';
+select count(*) from mysql.index_stats where table_name = 't1';
+select count(*) from mysql.column_stats where table_name = 't1';
+drop table if exists t1;
+set @@session.drop_before_create_or_replace=default;
+
+--echo #
 --echo # End of 12.3 tests
 --echo #

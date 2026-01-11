@@ -325,6 +325,7 @@ bool ddl_log_drop_table(DDL_LOG_STATE *ddl_state,
                         const LEX_CSTRING *path,
                         const LEX_CSTRING *db,
                         const LEX_CSTRING *table,
+                        const LEX_CSTRING *orig_table,
                         uint16 flags);
 bool ddl_log_drop_view(DDL_LOG_STATE *ddl_state,
                         const LEX_CSTRING *path,

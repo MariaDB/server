@@ -1173,5 +1173,65 @@ SELECT 1;
 1
 DROP TABLE t1;
 #
+# MDEV-36501 EITS data is lost after failed attempt to
+# CREATE OR REPLACE table
+#
+create table t1 (a int primary key);
+insert into t1 values (1),(2);
+analyze table t1 persistent for all;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+select count(*) from mysql.table_stats where table_name = 't1';
+count(*)
+1
+select count(*) from mysql.index_stats where table_name = 't1';
+count(*)
+1
+select count(*) from mysql.column_stats where table_name = 't1';
+count(*)
+1
+create or replace table t1 (b int primary key) as select 1 as b union all select 1;
+ERROR 23000: Duplicate entry '1' for key 'PRIMARY'
+select count(*) from mysql.table_stats where table_name = 't1';
+count(*)
+1
+select count(*) from mysql.index_stats where table_name = 't1';
+count(*)
+1
+select count(*) from mysql.column_stats where table_name = 't1';
+count(*)
+1
+create or replace table t1 (b int primary key);
+select count(*) from mysql.table_stats where table_name = 't1';
+count(*)
+0
+select count(*) from mysql.index_stats where table_name = 't1';
+count(*)
+0
+select count(*) from mysql.column_stats where table_name = 't1';
+count(*)
+0
+analyze table t1 persistent for all;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	Table is already up to date
+set @@session.drop_before_create_or_replace='ON';
+create or replace table t1 (c int primary key) as select 1 as c union all select 1;
+ERROR 23000: Duplicate entry '1' for key 'PRIMARY'
+select count(*) from mysql.table_stats where table_name = 't1';
+count(*)
+0
+select count(*) from mysql.index_stats where table_name = 't1';
+count(*)
+0
+select count(*) from mysql.column_stats where table_name = 't1';
+count(*)
+0
+drop table if exists t1;
+Warnings:
+Note	1051	Unknown table 'test.t1'
+set @@session.drop_before_create_or_replace=default;
+#
 # End of 12.3 tests
 #

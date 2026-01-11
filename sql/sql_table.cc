@@ -1351,9 +1351,9 @@ static uint32 get_comment(THD *thd, uint32 comment_pos,
   Used by create_or_replace().
 */
 
-int ddl_log_drop_tmp_table(THD *thd, DDL_LOG_STATE *ddl_log_state,
-                           TABLE_LIST *table,
-                           Table_specification_st *create_info)
+static int ddl_log_drop_tmp_table(THD *thd, DDL_LOG_STATE *ddl_log_state,
+                                  TABLE_LIST *table,
+                                  Table_specification_st *create_info)
 {
   bool res= 0;
   LEX_CSTRING comment= {"",0};
@@ -1377,6 +1377,9 @@ int ddl_log_drop_tmp_table(THD *thd, DDL_LOG_STATE *ddl_log_state,
   else
     res= ddl_log_drop_table(ddl_log_state, create_info->org_hton,
                             &cpath, db, &create_info->tmp_name,
+                            (!create_info->tmp_table() ?
+                             &create_info->alias /* original name */ :
+                             (LEX_CSTRING*) 0),
                             DDL_LOG_FLAG_FROM_IS_TMP);
   return res;
 }
@@ -1777,7 +1780,7 @@ int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables,
         res= ddl_log_drop_view(ddl_log_state, &cpath, &db, &table_name);
       else
         res= ddl_log_drop_table(ddl_log_state, hton, &cpath, &db, &table_name,
-                                0);
+                                (LEX_CSTRING*) 0, 0);
       if (res)
         goto err;
 
@@ -1865,7 +1868,8 @@ int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables,
       int ferror= 0;
       DBUG_ASSERT(!was_view);
 
-      if (ddl_log_drop_table(ddl_log_state, 0, &cpath, &db, &table_name, 0))
+      if (ddl_log_drop_table(ddl_log_state, 0, &cpath, &db, &table_name,
+                             (LEX_CSTRING *) 0, 0))
       {
         error= -1;
         goto err;
@@ -4724,6 +4728,7 @@ finalize_create_table(THD *thd, TABLE_LIST *orig_table, const char *query,
   }
   else if (table_was_deleted)
     ddl_log_update_xid(ddl_log_state_rm, thd->binlog_xid);
+
   ddl_log_update_xid(ddl_log_state_create, thd->binlog_xid);
 
   debug_crash_here("ddl_log_create_before_binlog");
@@ -5132,8 +5137,6 @@ int create_table_impl(THD *thd,
           goto err;
         }
 
-        (void) delete_statistics_for_table(thd, &db, &table_name);
-
         if (use_drop_table)
         {
           /*
@@ -5147,6 +5150,8 @@ int create_table_impl(THD *thd,
             thd->transaction->stmt.m_unsafe_rollback_flags=
               save_unsafe_rollback_flags;
           }
+
+          (void) delete_statistics_for_table(thd, &db, &table_name);
 
           /* Remove normal table without logging. Keep tables locked */
           if (mysql_rm_table_no_locks(thd, &table_list, &thd->db,
@@ -5178,6 +5183,7 @@ int create_table_impl(THD *thd,
           /* Rename the conflicting table to a temporary table name */
           bool force_if_exists= 0;
           rename_param param;
+          MDL_request mdl_request;
 
           create_info->org_hton= db_type;
           if (!(create_info->tmp_name.str= thd->alloc(64)))
@@ -5213,6 +5219,14 @@ int create_table_impl(THD *thd,
           DBUG_ASSERT(thd->mdl_context.is_lock_owner(MDL_key::TABLE, db.str,
                                                      table_name.str,
                                                      MDL_EXCLUSIVE));
+          /*
+            Create an exclusive lock on the temporary table name.
+            Needed by InnoDB to not block purge.
+           */
+          MDL_REQUEST_INIT(&mdl_request, MDL_key::TABLE,
+                           db.str, create_info->tmp_name.str,
+                           MDL_EXCLUSIVE, MDL_TRANSACTION);
+          thd->mdl_context.acquire_lock(&mdl_request, 0);
 
           /*
             We have to reset partition_info from the CREATE TABLE as
