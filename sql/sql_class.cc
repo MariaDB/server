@@ -640,7 +640,7 @@ extern "C" void thd_kill_timeout(void *thd_)
   else
   {
     char msg[256], timeout_str[32];
-    double timeout_sec= thd->query_timer.period / 1000000.0;
+    double timeout_sec= thd->query_timer.timeout / 1000000.0;
     size_t len= my_snprintf(timeout_str, sizeof(timeout_str), "%g", timeout_sec);
     /*
       Ensure at least one decimal digit (e.g., "1" -> "1.0"),

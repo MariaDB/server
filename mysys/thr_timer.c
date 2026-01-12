@@ -186,7 +186,7 @@ my_bool thr_timer_settime(thr_timer_t *timer_data, ulonglong micro_seconds)
 
   DBUG_ASSERT(timer_data->expired == 1);
 
-  timer_data->period= micro_seconds;
+  timer_data->timeout= micro_seconds;
   set_timespec_nsec(timer_data->expire_time, micro_seconds*1000);
   timer_data->expired= 0;
 
