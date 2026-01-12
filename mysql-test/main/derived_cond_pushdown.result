@@ -19135,3 +19135,82 @@ where cte1.a >= 1;
 a
 drop table t;
 # End of 10.5 tests
+#
+# MDEV-38487: Prevent aggregate functions cloning when pushing HAVING into WHERE
+#
+CREATE TABLE t (a INT, b INT);
+INSERT INTO t VALUES (1, 10), (1, 20), (2, 50), (3, 100);
+explain format=JSON SELECT * FROM (SELECT a, MAX(b) as max_b FROM t GROUP BY a) as dt WHERE dt.max_b > 25;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "table_name": "<derived2>",
+      "access_type": "ALL",
+      "rows": 4,
+      "filtered": 100,
+      "attached_condition": "dt.max_b > 25",
+      "materialized": {
+        "query_block": {
+          "select_id": 2,
+          "having_condition": "max_b > 25",
+          "filesort": {
+            "sort_key": "t.a",
+            "temporary_table": {
+              "table": {
+                "table_name": "t",
+                "access_type": "ALL",
+                "rows": 4,
+                "filtered": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+SELECT * FROM (SELECT a, MAX(b) as max_b FROM t GROUP BY a) as dt WHERE dt.max_b > 25;
+a	max_b
+2	50
+3	100
+CREATE VIEW v AS SELECT a, MAX(b) as max_b FROM t GROUP BY a;
+explain format=JSON SELECT * FROM v where max_b > 25;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "table_name": "<derived2>",
+      "access_type": "ALL",
+      "rows": 4,
+      "filtered": 100,
+      "attached_condition": "v.max_b > 25",
+      "materialized": {
+        "query_block": {
+          "select_id": 2,
+          "having_condition": "max_b > 25",
+          "filesort": {
+            "sort_key": "t.a",
+            "temporary_table": {
+              "table": {
+                "table_name": "t",
+                "access_type": "ALL",
+                "rows": 4,
+                "filtered": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+SELECT * FROM v where max_b > 25;
+a	max_b
+2	50
+3	100
+DROP VIEW v;
+DROP TABLE t;
+# End of 10.6 tests

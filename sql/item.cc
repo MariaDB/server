@@ -2305,6 +2305,8 @@ public:
       Item_ident::print(str, query_type);
   }
   Ref_Type ref_type() override final { return AGGREGATE_REF; }
+  Item *do_get_copy(THD *thd) const override
+  { return get_item_copy<Item_aggregate_ref>(thd, this); }
 };
 
 
@@ -7840,6 +7842,8 @@ void Item::check_pushable_cond(Pushdown_checker checker, uchar *arg)
     In the case when this item is a multiple equality a checker method is
     called to find the equal fields to build a new equality that can be
     pushed down.
+    In case when this item is an aggregate function, we skip cloning because
+    they can not be pushed anyway.
   @note
     The built condition C is always implied by the condition cond
     (cond => C). The method tries to build the most restrictive such
@@ -7948,7 +7952,11 @@ Item *Item::build_pushable_cond(THD *thd,
     return new_cond;
   }
   else if (get_extraction_flag() != MARKER_NO_EXTRACTION)
+  {
+    if (with_sum_func())
+      return 0;
     return build_clone(thd);
+  }
   return 0;
 }
 

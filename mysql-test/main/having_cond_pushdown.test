@@ -1601,3 +1601,32 @@ SELECT LOAD_FILE('') AS f, a FROM t1 GROUP BY f, a HAVING f = a;
 DROP TABLE t1;
 
 --echo End of 10.5 tests
+
+--echo #
+--echo # MDEV-38487: Prevent aggregate functions cloning when pushing HAVING into WHERE
+--echo #
+
+CREATE TABLE t (c INT);
+insert into t values (1), (2), (3);
+--disable_warnings
+let $q= SELECT * FROM t GROUP BY c HAVING c=c OR TIMESTAMPADD(SECOND, c, AVG(c) IS NULL IS NULL) AND c LIKE (SELECT 1);
+eval explain format=JSON $q;
+eval $q;
+--enable_warnings
+
+# Tests to verify all possible conditions are pushed except aggregate function
+let $q= SELECT c FROM t GROUP BY c HAVING c > 1 AND AVG(c) > 0;
+eval explain format=JSON $q;
+eval $q;
+
+let $q= SELECT c FROM t GROUP BY c HAVING c > 0 AND (c < 10 AND AVG(c) IS NOT NULL);
+eval explain format=JSON $q;
+eval $q;
+
+let $q= SELECT c FROM t GROUP BY c HAVING c = 1 OR AVG(c) > 2;
+eval explain format=JSON $q;
+eval $q;
+
+DROP TABLE t;
+
+--echo # End of 10.6 tests
