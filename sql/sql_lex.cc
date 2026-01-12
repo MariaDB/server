@@ -11130,6 +11130,8 @@ void st_select_lex::register_unit(SELECT_LEX_UNIT *unit,
   slave= unit;
   unit->master= this;
   uncacheable|= unit->uncacheable;
+  if (master && (unit->uncacheable & UNCACHEABLE_RAND))
+    master->uncacheable|= UNCACHEABLE_RAND;
 
   for(SELECT_LEX *sel= unit->first_select();sel; sel= sel->next_select())
   {

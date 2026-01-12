@@ -2026,3 +2026,16 @@ drop table t,s;
 eval $q1;
 
 --echo # End of 10.4 tests
+
+--echo #
+--echo # Start of 12.2 tests
+--echo #
+
+--echo #
+--echo # MDEV-38099:  Assertion failed in st_select_lex::optimize_unflattened_subqueries
+--echo #
+--disable_result_log
+SELECT (WITH cte AS (SELECT RAND()) SELECT * FROM cte);
+--enable_result_log
+
+--echo # End of 12.2 tests
