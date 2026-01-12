@@ -75,3 +75,24 @@ DROP TABLE t1;
 #
 # End of 10.3 tests
 #
+#
+# MDEV-28619 Server crash and UBSAN null-pointer-use in Window_funcs_sort::setup
+#
+create table t (c int);
+select * from t order by c=row_number() over t;
+ERROR HY000: Window specification with name 't' is not defined
+select * union select * from t;
+ERROR HY000: No tables used
+explain update t set c=1 where exists (
+select * from t order by c=row_number() over t);
+ERROR HY000: Window specification with name 't' is not defined
+select * union select * from t order by c=row_number() over t;
+ERROR HY000: No tables used
+explain update t set c=1 where exists (
+select * union select * from t order by c=row_number() over t);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t	system	NULL	NULL	NULL	NULL	0	Const row not found
+2	SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+3	UNION	NULL	NULL	NULL	NULL	NULL	NULL	NULL	no matching row in const table
+NULL	UNION RESULT	<union2,3>	ALL	NULL	NULL	NULL	NULL	NULL	
+drop table t;

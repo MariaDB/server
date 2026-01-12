@@ -1692,6 +1692,7 @@ public:
   TABLE_LIST *find_table(THD *thd,
                          const LEX_CSTRING *db_name,
                          const LEX_CSTRING *table_name);
+  void optimize_out_order_list();
 };
 typedef class st_select_lex SELECT_LEX;
 

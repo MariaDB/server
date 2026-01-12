@@ -40,6 +40,7 @@
 #ifdef WITH_WSREP
 #include "mysql/service_wsrep.h"
 #endif
+#include "item_windowfunc.h"
 
 void LEX::parse_error(uint err_number)
 {
@@ -12330,6 +12331,39 @@ TABLE_LIST *SELECT_LEX::find_table(THD *thd,
 bool st_select_lex::is_query_topmost(THD *thd)
 {
   return get_master() == &thd->lex->unit;
+}
+
+
+void st_select_lex::optimize_out_order_list()
+{
+  /* Cleanup first related window funcs */
+  for (ORDER *ord= order_list.first; ord; ord= ord->next)
+  {
+    Item *ord_item= *(ord->item);
+    if (ord_item->with_window_func())
+    {
+      Item_window_func *window_func= NULL;
+      /*
+        There can be only one window function per ORDER, walk item tree
+        until the first one.
+      */
+      DBUG_ASSERT(ord_item->count_window_funcs() == 1);
+      ord_item->walk(&Item::get_first_window_func, 0, &window_func);
+      DBUG_ASSERT(window_func->type() == Item::WINDOW_FUNC_ITEM);
+      DBUG_ASSERT(window_funcs.elements);
+      List_iterator<Item_window_func> it(window_funcs);
+      Item_window_func *wf;
+      while ((wf= it++))
+      {
+        if (wf == window_func)
+        {
+          it.remove();
+          break;
+        }
+      }
+    }
+  }
+  order_list.empty();
 }
 
 

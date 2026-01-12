@@ -85,3 +85,20 @@ DROP TABLE t1;
 --echo #
 --echo # End of 10.3 tests
 --echo #
+
+--echo #
+--echo # MDEV-28619 Server crash and UBSAN null-pointer-use in Window_funcs_sort::setup
+--echo #
+create table t (c int);
+--error ER_WRONG_WINDOW_SPEC_NAME
+select * from t order by c=row_number() over t;
+--error ER_NO_TABLES_USED
+select * union select * from t;
+--error ER_WRONG_WINDOW_SPEC_NAME
+explain update t set c=1 where exists (
+  select * from t order by c=row_number() over t);
+--error ER_NO_TABLES_USED
+select * union select * from t order by c=row_number() over t;
+explain update t set c=1 where exists (
+  select * union select * from t order by c=row_number() over t);
+drop table t;
