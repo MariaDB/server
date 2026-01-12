@@ -23,6 +23,7 @@ usr/include/mariadb/mysql/plugin_auth.h
 usr/include/mariadb/mysql_com.h
 usr/include/mariadb/mysql_version.h
 usr/include/mariadb/mysqld_error.h
+usr/include/mariadb/server/*
 usr/lib/*/libmariadb.a
 usr/lib/*/libmariadb.so
 usr/lib/*/libmariadbclient.a
