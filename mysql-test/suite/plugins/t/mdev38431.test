@@ -1,0 +1,59 @@
+#
+# MDEV-38431: Auth Switch with Long Password Corrupts Database Name
+#
+# When password >= 251 bytes with CLIENT_PLUGIN_AUTH_LENENC_CLIENT_DATA,
+# the length is encoded in 3 bytes (0xFC + 2 bytes). The server incorrectly
+# calculated the database pointer, causing connection to wrong database.
+#
+# Fix: Use 'passwd + passwd_len' instead of 'db + passwd_len + 1'
+#
+
+--source include/not_embedded.inc
+--source include/have_plugin_auth.inc
+
+--echo #
+--echo # Setup
+--echo #
+eval INSTALL PLUGIN IF NOT EXISTS cleartext_plugin_server SONAME '$PLUGIN_AUTH';
+CREATE DATABASE mdev38431_db;
+
+--echo #
+--echo # Test 1: Short password - baseline test
+--echo #
+CREATE USER shortuser IDENTIFIED VIA cleartext_plugin_server USING 'secret';
+GRANT ALL ON *.* TO shortuser;
+
+# Connect with short password and verify database
+--exec $MYSQL -h 127.0.0.1 -P $MASTER_MYPORT --default-auth=mysql_clear_password -u shortuser -p"secret" --database=mdev38431_db -e "SELECT DATABASE() AS db"
+
+--echo #
+--echo # Test 2: Long password 260 bytes (triggers 3-byte LENENC)
+--echo # Before fix: ERROR 1044 Access denied to database 'X' (garbage char)
+--echo # After fix: Connects to mdev38431_db correctly
+--echo #
+
+# Create password with 260 'a' characters
+--let $long_pwd=`SELECT REPEAT('a', 260)`
+eval CREATE USER longuser IDENTIFIED VIA cleartext_plugin_server USING '$long_pwd';
+GRANT ALL ON *.* TO longuser;
+
+# This connection uses --default-auth=mysql_clear_password to trigger auth switch
+# With a password >= 251 bytes, the client sends password length in 3-byte format
+# The bug caused the server to read database name from wrong offset
+--exec $MYSQL -h 127.0.0.1 -P $MASTER_MYPORT --default-auth=mysql_clear_password -u longuser -p"$long_pwd" --database=mdev38431_db -e "SELECT DATABASE() AS db"
+
+--echo #
+--echo # Test 3: Even longer password 500 bytes
+--echo #
+--let $very_long_pwd=`SELECT REPEAT('b', 500)`
+eval CREATE USER verylonguser IDENTIFIED VIA cleartext_plugin_server USING '$very_long_pwd';
+GRANT ALL ON *.* TO verylonguser;
+
+--exec $MYSQL -h 127.0.0.1 -P $MASTER_MYPORT --default-auth=mysql_clear_password -u verylonguser -p"$very_long_pwd" --database=mdev38431_db -e "SELECT DATABASE() AS db"
+
+--echo #
+--echo # Cleanup
+--echo #
+DROP USER shortuser, longuser, verylonguser;
+DROP DATABASE mdev38431_db;
+# Note: Do not uninstall cleartext_plugin_server as it was pre-loaded by MTR
