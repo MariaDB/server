@@ -1823,7 +1823,7 @@ bool mysql_make_view(THD *thd, TABLE_SHARE *share, TABLE_LIST *table,
       {
         table->select_lex->order_list.
           push_back(&lex->first_select_lex()->order_list);
-        lex->first_select_lex()->order_list.empty();
+        lex->first_select_lex()->optimize_out_order_list();
       }
       else
       {

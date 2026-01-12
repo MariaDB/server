@@ -150,5 +150,22 @@ select nullif(avg(1) over (partition by -1,1,0,2,3,4,5,6,7,8 order by 1, 1, 1, 1
 select nullif(avg(1) over (partition by -1,1,0,2,3,4,5,6,7,8 order by 1, 1, 1, 1, 1, 1, 1), avg(2) over (partition by -1,1,0,2,3,4,5,6,7,8 order by 1, 1, 1, 1, 1, 1, 1)) x order by 1, 1, 1, 1, 1, 1, x between 1 and (( x = x ) / x) or x = x = 1  ;
 
 --echo #
+--echo # MDEV-28619 Server crash and UBSAN null-pointer-use in Window_funcs_sort::setup
+--echo #
+create table t (c int);
+--error ER_WRONG_WINDOW_SPEC_NAME
+select * from t order by c=row_number() over t;
+--error ER_NO_TABLES_USED
+select * union select * from t;
+--error ER_WRONG_WINDOW_SPEC_NAME
+explain update t set c=1 where exists (
+  select * from t order by c=row_number() over t);
+--error ER_NO_TABLES_USED
+select * union select * from t order by c=row_number() over t;
+explain update t set c=1 where exists (
+  select * union select * from t order by c=row_number() over t);
+drop table t;
+
+--echo #
 --echo # End of 10.11 tests
 --echo #

@@ -1399,6 +1399,19 @@ public:
 
  Item *do_get_copy(THD *thd) const override { return 0; }
 
+  bool get_first_window_func(void *arg) override
+  {
+    *(Item **) arg= this;
+    return true;
+  }
+
+#ifndef DBUG_OFF
+  bool count_window_func_processor(void *arg) override
+  {
+    (*(uint *)arg)++;
+    return true;
+  }
+#endif /* DBUG_OFF */
 };
 
 #endif /* ITEM_WINDOWFUNC_INCLUDED */

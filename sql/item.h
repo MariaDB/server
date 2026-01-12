@@ -2229,6 +2229,7 @@ public:
     return type_handler()->charset_for_protocol(this);
   };
 
+  /* FIXME: please document walk() return type */
   virtual bool walk(Item_processor processor, bool walk_subquery, void *arg)
   {
     return (this->*processor)(arg);
@@ -2324,6 +2325,16 @@ public:
     return 0;
   }
   virtual bool subselect_table_finder_processor(void *arg) { return 0; };
+  virtual bool get_first_window_func(void *arg) { return 0; }
+#ifndef DBUG_OFF
+  virtual bool count_window_func_processor(void *arg) { return 0; }
+  uint count_window_funcs()
+  {
+    uint count= 0;
+    walk(&Item::count_window_func_processor, 0, &count);
+    return count;
+  }
+#endif /* DBUG_OFF */
 
   /* 
     TRUE if the expression depends only on the table indicated by tab_map
