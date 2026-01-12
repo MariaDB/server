@@ -124,7 +124,8 @@ Item_window_func::fix_fields(THD *thd, Item **ref)
 
   const_item_cache= false;
 
-  with_flags= (with_flags & ~item_with_t::SUM_FUNC) | item_with_t::WINDOW_FUNC;
+  DBUG_ASSERT((bool) (with_flags & item_with_t::WINDOW_FUNC));
+  with_flags&= ~item_with_t::SUM_FUNC;
 
   if (fix_length_and_dec(thd))
     return TRUE;

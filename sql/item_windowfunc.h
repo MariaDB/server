@@ -1068,13 +1068,19 @@ public:
     : Item_func_or_sum(thd, (Item *) win_func),
       window_name(win_name), window_spec(NULL), 
       force_return_blank(true),
-      read_value_from_result_field(false) {}
+      read_value_from_result_field(false)
+  {
+    with_flags|= item_with_t::WINDOW_FUNC;
+  }
 
   Item_window_func(THD *thd, Item_sum *win_func, Window_spec *win_spec)
     : Item_func_or_sum(thd, (Item *) win_func), 
       window_name(NULL), window_spec(win_spec), 
       force_return_blank(true),
-      read_value_from_result_field(false) {}
+      read_value_from_result_field(false)
+  {
+    with_flags|= item_with_t::WINDOW_FUNC;
+  }
 
   Item_sum *window_func() const { return (Item_sum *) args[0]; }
 
