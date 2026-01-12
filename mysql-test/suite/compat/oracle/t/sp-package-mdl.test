@@ -84,16 +84,18 @@ WHERE ID=$conn2_id
 #                to acquire an exclusive MDL on 'package body pkg1',
 #                to DROP the package pkg1
 #
+CREATE TEMPORARY TABLE mythreads(t_id INT UNSIGNED NOT NULL, t_name VARCHAR(16));
+evalp INSERT INTO mythreads VALUES(CONNECTION_ID(), 'default_id'),($conn1_id, 'conn1_id'),($conn2_id, 'conn2_id');
 --vertical_results
-let $default_id= `SELECT CONNECTION_ID()`;
---replace_result $conn1_id conn1_id $conn2_id conn2_id $default_id default_id
-evalp SELECT ID AS CONN,INFO,STATE,LOCK_MODE,LOCK_TYPE,TABLE_NAME
+SELECT t_name AS CONN,INFO,STATE,LOCK_MODE,LOCK_TYPE,TABLE_NAME
   FROM INFORMATION_SCHEMA.PROCESSLIST
+  INNER JOIN mythreads
+    ON (ID=t_id)
   LEFT JOIN INFORMATION_SCHEMA.METADATA_LOCK_INFO
    ON (ID=THREAD_ID)
-  WHERE ID IN (CONNECTION_ID(), $conn1_id, $conn2_id)
   ORDER BY ID,TABLE_NAME,LOCK_MODE,LOCK_TYPE;
 --horizontal_results
+DROP TABLE mythreads;
 
 #
 # Now let conn1 finish the package routine execution
