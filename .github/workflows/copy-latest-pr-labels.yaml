@@ -1,0 +1,67 @@
+name: Copy selected labels from previous PR by same author
+
+on:
+  pull_request:
+    types: [opened, reopened]
+
+permissions:
+  pull-requests: write
+  contents: read
+
+jobs:
+  copy-labels:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Copy selected labels from last PR by same author
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { owner, repo } = context.repo;
+            const currentPr = context.payload.pull_request;
+            const author = currentPr.user.login;
+            const currentPrNumber = currentPr.number;
+
+            const allowedLabels = new Set([
+              'External Contribution',
+              'MariaDB Corporation',
+              'MariaDB Foundation',
+              'Codership']);
+
+            // List recent PRs
+            const prs = await github.rest.pulls.list({
+              owner,
+              repo,
+              state: 'all',
+              sort: 'created',
+              direction: 'desc',
+              per_page: 20,
+            });
+
+            // Find the most recent previous PR by the same author
+            const previousPr = prs.data.find(
+              pr => pr.user.login === author && pr.number !== currentPrNumber
+            );
+
+            if (!previousPr) {
+              console.log('No previous PR found for this author.');
+              return;
+            }
+
+            const labelsToCopy = (previousPr.labels || [])
+              .map(label => label.name)
+              .filter(name => allowedLabels.has(name));
+
+            if (labelsToCopy.length === 0) {
+              console.log('No matching labels to copy.');
+              return;
+            }
+
+            console.log(`Applying labels from PR #${previousPr.number}:`, labelsToCopy);
+
+            await github.rest.issues.addLabels({
+              owner,
+              repo,
+              issue_number: currentPrNumber,
+              labels: labelsToCopy,
+            });
