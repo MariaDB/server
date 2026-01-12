@@ -1,0 +1,35 @@
+#
+# Setup
+#
+INSTALL PLUGIN IF NOT EXISTS cleartext_plugin_server SONAME '';
+Warnings:
+Note	1968	Plugin 'cleartext_plugin_server' already installed
+CREATE DATABASE mdev38431_db;
+#
+# Test 1: Short password - baseline test
+#
+CREATE USER shortuser IDENTIFIED VIA cleartext_plugin_server USING 'secret';
+GRANT ALL ON *.* TO shortuser;
+db
+mdev38431_db
+#
+# Test 2: Long password 260 bytes (triggers 3-byte LENENC)
+# Before fix: ERROR 1044 Access denied to database 'X' (garbage char)
+# After fix: Connects to mdev38431_db correctly
+#
+CREATE USER longuser IDENTIFIED VIA cleartext_plugin_server USING 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
+GRANT ALL ON *.* TO longuser;
+db
+mdev38431_db
+#
+# Test 3: Even longer password 500 bytes
+#
+CREATE USER verylonguser IDENTIFIED VIA cleartext_plugin_server USING 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb';
+GRANT ALL ON *.* TO verylonguser;
+db
+mdev38431_db
+#
+# Cleanup
+#
+DROP USER shortuser, longuser, verylonguser;
+DROP DATABASE mdev38431_db;
