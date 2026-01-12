@@ -5194,3 +5194,106 @@ SELECT LOAD_FILE('') AS f, a FROM t1 GROUP BY f, a HAVING f = a;
 f	a
 DROP TABLE t1;
 End of 10.5 tests
+#
+# MDEV-38487: Prevent aggregate functions cloning when pushing HAVING into WHERE
+#
+CREATE TABLE t (c INT);
+insert into t values (1), (2), (3);
+explain format=JSON SELECT * FROM t GROUP BY c HAVING c=c OR TIMESTAMPADD(SECOND, c, AVG(c) IS NULL IS NULL) AND c LIKE (SELECT 1);
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "having_condition": "t.c = t.c or <cache>(/*always not null*/ 1 is null) + interval t.c second and t.c like 1",
+    "filesort": {
+      "sort_key": "t.c",
+      "temporary_table": {
+        "table": {
+          "table_name": "t",
+          "access_type": "ALL",
+          "rows": 3,
+          "filtered": 100
+        }
+      }
+    }
+  }
+}
+SELECT * FROM t GROUP BY c HAVING c=c OR TIMESTAMPADD(SECOND, c, AVG(c) IS NULL IS NULL) AND c LIKE (SELECT 1);
+c
+1
+2
+3
+explain format=JSON SELECT c FROM t GROUP BY c HAVING c > 1 AND AVG(c) > 0;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "having_condition": "avg(t.c) > 0",
+    "filesort": {
+      "sort_key": "t.c",
+      "temporary_table": {
+        "table": {
+          "table_name": "t",
+          "access_type": "ALL",
+          "rows": 3,
+          "filtered": 100,
+          "attached_condition": "t.c > 1"
+        }
+      }
+    }
+  }
+}
+SELECT c FROM t GROUP BY c HAVING c > 1 AND AVG(c) > 0;
+c
+2
+3
+explain format=JSON SELECT c FROM t GROUP BY c HAVING c > 0 AND (c < 10 AND AVG(c) IS NOT NULL);
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "having_condition": "avg(t.c) is not null",
+    "filesort": {
+      "sort_key": "t.c",
+      "temporary_table": {
+        "table": {
+          "table_name": "t",
+          "access_type": "ALL",
+          "rows": 3,
+          "filtered": 100,
+          "attached_condition": "t.c > 0 and t.c < 10"
+        }
+      }
+    }
+  }
+}
+SELECT c FROM t GROUP BY c HAVING c > 0 AND (c < 10 AND AVG(c) IS NOT NULL);
+c
+1
+2
+3
+explain format=JSON SELECT c FROM t GROUP BY c HAVING c = 1 OR AVG(c) > 2;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "having_condition": "t.c = 1 or avg(t.c) > 2",
+    "filesort": {
+      "sort_key": "t.c",
+      "temporary_table": {
+        "table": {
+          "table_name": "t",
+          "access_type": "ALL",
+          "rows": 3,
+          "filtered": 100
+        }
+      }
+    }
+  }
+}
+SELECT c FROM t GROUP BY c HAVING c = 1 OR AVG(c) > 2;
+c
+1
+3
+DROP TABLE t;
+# End of 10.6 tests
