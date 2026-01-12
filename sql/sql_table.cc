@@ -2318,7 +2318,7 @@ bool check_duplicates_in_interval(const char *set_or_name,
     tmp.type_names++;
     tmp.type_lengths++;
     tmp.count--;
-    if (find_type2(&tmp, (const char*)*cur_value, *cur_length, cs))
+    if (find_type2(&tmp, (const char*)*cur_value, *cur_length, 0, cs))
     {
       THD *thd= current_thd;
       ErrConvString err(*cur_value, *cur_length, cs);
@@ -2692,7 +2692,7 @@ bool Column_definition::prepare_stage1_check_typelib_default()
     else /* MYSQL_TYPE_ENUM */
     {
       def->length(charset->lengthsp(def->ptr(), def->length()));
-      not_found= !find_type2(typelib(), def->ptr(), def->length(), charset);
+      not_found= !find_type2(typelib(), def->ptr(), def->length(), 0, charset);
     }
   }
   if (not_found)

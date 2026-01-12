@@ -544,7 +544,7 @@ static const char *ad_bc_names[]=
 
 static TYPELIB ad_bc_typelib=
 {
-  array_elements(ad_bc_names)-1,"", ad_bc_names, NULL, NULL
+  array_elements(ad_bc_names)-1,"", ad_bc_names, (uint[4]){2,4,2,4}, NULL
 };
 
 #define INVALID_CHARACTER(x) (((x) >= 'A' && (x) <= 'Z') || ((x) >= '0' && (x) <= '9') || (x) >= 127 || ((x) < 32))
@@ -562,19 +562,68 @@ uint oracle_year_2000_handling(uint year)
   return year;
 }
 
-uint check_word_sp(TYPELIB *lib, const char *val, const char *end,
-                   const char **end_of_word)
+uint check_word(CHARSET_INFO *cs, TYPELIB *lib, const char *val,
+                const char *end, const char **end_of_word)
+{
+  int res, rc;
+  const char *ptr;
+
+  if (cs->mbmaxlen == 1)
+    return check_word(lib, val, end, end_of_word);
+
+  /*
+    Find end of word. Words ends with single letter non alpha character or
+    end of string.
+  */
+  for (ptr=val;; ptr+= rc)
+  {
+    my_wc_t wc;
+    if ((rc= cs->mb_wc(&wc, (const uchar*) ptr, (const uchar*) end)) <= 0 ||
+        (rc == 1 && !my_isalpha(cs, wc)))
+      break;
+  }
+  if ((res= find_type2(lib, val, (size_t) (ptr - val), 1, cs)) > 0)
+    *end_of_word= ptr;
+  return res;
+}
+
+
+uint check_word_sp(CHARSET_INFO *cs, TYPELIB *lib, const char *val,
+                   const char *end, const char **end_of_word)
 {
   int res;
   const char *ptr;
 
-  /* Fiend end of word */
-  for (ptr= val ; ptr < end && !my_isspace(&my_charset_latin1, *ptr) ; ptr++)
-    ;
-  if ((res=find_type(lib, val, (uint) (ptr - val), 1)) > 0)
+  /* Find end of word */
+  ptr= val+ cs->scan(val, end, MY_SEQ_NONSPACES);
+  if ((res= find_type2(lib, val, (size_t) (ptr - val), 0, cs)) > 0)
     *end_of_word= ptr;
   return res;
 }
+
+
+/*
+ return first character of string as an upper case character.
+ multi-byte characters are returned as such
+*/
+
+my_wc_t uni_toupper(CHARSET_INFO *cs, int *rc, const char *val,
+                    const char *val_end)
+{
+  my_wc_t wc;
+  DBUG_ASSERT(cs->m_ctype);
+
+  if ((*rc= cs->mb_wc(&wc, (const uchar*) val, (const uchar*) val_end)) <= 0)
+    return 0;
+  if (*rc == 1)
+  {
+    if (my_isalpha(cs, (char) wc))
+      return (my_wc_t) (uchar) my_toupper(cs, (char) wc);
+    return wc;
+  }
+  return wc;
+}
+
 
 /**
   Extract datetime value to MYSQL_TIME struct from string value
@@ -600,7 +649,8 @@ uint check_word_sp(TYPELIB *lib, const char *val, const char *end,
 
 static bool
 extract_oracle_date_time(THD *thd, uint16 *format,
-                         const char *val, uint length, MYSQL_TIME *l_time,
+                         const char *val, uint length, CHARSET_INFO *val_cs,
+                         MYSQL_TIME *l_time,
                          const MY_LOCALE *locale,
                          const char *date_time_type,
                          date_conv_mode_t fuzzydate,
@@ -608,12 +658,14 @@ extract_oracle_date_time(THD *thd, uint16 *format,
 {
   int weekday= 0, yearday= 0, daypart= 0;
   int frac_part;
+  int rc;
   bool usa_time= 0;
   bool before_christ= 0;
   const char *val_begin= val;
   const char *val_end= val + length;
   char *tmp;
   CHARSET_INFO *cs= &my_charset_bin;
+  my_wc_t wc;
   DBUG_ENTER("extract_oracle_date_time");
 
   for ( ; *format ; format++)
@@ -621,97 +673,110 @@ extract_oracle_date_time(THD *thd, uint16 *format,
     uint val_len;
     int error;
 
-    while (my_isspace(cs, *val))
-      val++;
+    val+= val_cs->cset->scan(val_cs, val, val_end, MY_SEQ_SPACES);
+
     if (*format < 128)
     {
       /* A control character or text string found in the format */
 
-      char format_char= (char) (*format & 255);
-      char upper_val;
-      bool control_character;
-      if (my_isspace(cs, format_char))
+      my_wc_t format_char= (*format & 255);
+      if (my_isspace(cs, (char) format_char))
         continue;
 
       if (format_char == '"')
       {
+        /* Handle quoted strings. Should match */
         while (*++format != '"')
         {
-          if (!*format)
+          if (!*format || val == val_end)
             goto error;
-          if (my_toupper(system_charset_info, (char) (*format & 255)) !=
-              my_toupper(system_charset_info, *val))
+          if ((my_wc_t) my_toupper(&my_charset_latin1,
+                                   (char) (*format & 255)) !=
+              uni_toupper(val_cs, &rc, val, val_end))
             goto error;
-          val++;
+          val+= rc;
         }
         continue;
       }
-      upper_val= my_toupper(system_charset_info, *val);
-      control_character= !INVALID_CHARACTER(format_char);
 
-      if (control_character)
+      if ((rc= val_cs->mb_wc(&wc,
+                             (const uchar*) val,
+                             (const uchar*) val_end)) <= 0)
+        goto error;
+
+      if (!INVALID_CHARACTER(format_char))
       {
-        if (my_isdigit(cs, *val))
+        if (rc == 1)
         {
-          /*
-            Oracle tochar allows values without punctuation characters for
-            numercial values
-          */
-          continue;
-        }
-        if (format_char == *val)
-        {
-          val++;
-          if (format[0] != format[1])
+          if (my_isdigit(val_cs, (char) wc))
           {
             /*
-              Oracle allow skipping of multiple format_characters
-              Needed for things like TO_DATE('2001 -- 10','YYYY - MM')
+              Oracle tochar allows values without punctuation characters for
+              numercial values
             */
-            while (*val == format_char)
-              val++;
+            continue;
           }
-          continue;
-        }
-        if (!INVALID_CHARACTER(upper_val))
-        {
-          val++;
-          continue;
+          /* format is using upper case. Change char to upper case */
+          if (my_isalpha(val_cs, (char) wc))
+            wc= my_toupper(val_cs, (char) wc);
+
+          if (format_char == wc)
+          {
+            val++;
+            if (format[0] != format[1])
+            {
+              /*
+                Oracle allow skipping of multiple format_characters
+                Needed for things like TO_DATE('2001 -- 10','YYYY - MM')
+              */
+              while (val != val_end &&
+                     (rc= val_cs->mb_wc(&wc,
+                                        (const uchar*) val,
+                                        (const uchar*) val_end)) == 1 &&
+                     wc == format_char)
+                val++;
+            }
+            continue;
+          }
+          if (!INVALID_CHARACTER(wc))
+          {
+            val+= rc;
+            continue;
+          }
         }
       }
-      else if (format_char == *val)
-      {
-        val++;
-      }
+      else if (format_char == wc)
+        val+=rc;
       continue;
     }
 
     error= 0;
-    val_len= (uint) (val_end - val);
+    if (!(val_len= (uint) (val_end - val)))
+      goto error;
 
     switch (*format) {
       /* Year */
     case FMT_YYYY:
     case FMT_SYYYY:
       tmp= (char*) val + MY_MIN(4, val_len);
-      l_time->year= (int) my_strtoll10(val, &tmp, &error);
+      l_time->year= (int) val_cs->cset->strtoll10(val_cs, val, &tmp, &error);
       val= tmp;
       break;
     case FMT_YYY:
       tmp= (char*) val + MY_MIN(3, val_len);
-      l_time->year= ((int) my_strtoll10(val, &tmp, &error) +
+      l_time->year= ((int) val_cs->cset->strtoll10(val_cs, val, &tmp, &error) +
                      l_time->year/1000*1000);
       val= tmp;
       break;
     case FMT_YY:
       tmp= (char*) val + MY_MIN(2, val_len);
-      l_time->year= ((int) my_strtoll10(val, &tmp, &error) +
+      l_time->year= ((int) val_cs->cset->strtoll10(val_cs, val, &tmp, &error) +
                      l_time->year/100*100);
       val= tmp;
       break;
     case FMT_Y:
       tmp= (char*) val + MY_MIN(1, val_len);
-      l_time->year= ((int) my_strtoll10(val, &tmp, &error) +
+      l_time->year= ((int) val_cs->cset->strtoll10(val_cs, val, &tmp, &error) +
                      l_time->year/10*10);
       val= tmp;
       break;
@@ -719,7 +784,7 @@ extract_oracle_date_time(THD *thd, uint16 *format,
     {
       uint year;
       tmp= (char*) val + MY_MIN(2, val_len);
-      year= (uint)my_strtoll10(val, &tmp, &error);
+      year= (uint)val_cs->cset->strtoll10(val_cs, val, &tmp, &error);
       l_time->year= oracle_year_2000_handling(year);
       val= tmp;
       break;
@@ -729,7 +794,7 @@ extract_oracle_date_time(THD *thd, uint16 *format,
       /* Accept 2 or 4 digits years. If 2 digits, works like RR */
       uint year;
       tmp= (char*) val + MY_MIN(4, val_len);
-      year= (uint)my_strtoll10(val, &tmp, &error);
+      year= (uint)val_cs->cset->strtoll10(val_cs, val, &tmp, &error);
       l_time->year= year > 100 ? year : oracle_year_2000_handling(year);
       val= tmp;
       break;
@@ -741,7 +806,8 @@ extract_oracle_date_time(THD *thd, uint16 *format,
     case FMT_BC_DOT:
     {
       int period;
-      if ((period= check_word_sp(&ad_bc_typelib, val, val_end, &val)) <= 0)
+      if ((period= check_word_sp(val_cs, &ad_bc_typelib, val, val_end,
+                                 &val)) <= 0)
         goto error;
       before_christ= period > 2;
       break;
@@ -750,16 +816,16 @@ extract_oracle_date_time(THD *thd, uint16 *format,
     /* Month */
     case FMT_MM:
       tmp= (char*) val + MY_MIN(2, val_len);
-      l_time->month= (int) my_strtoll10(val, &tmp, &error);
+      l_time->month= (int) val_cs->cset->strtoll10(val_cs, val, &tmp, &error);
       val= tmp;
       break;
     case FMT_MONTH:
-      if ((l_time->month= check_word(locale->month_names,
+      if ((l_time->month= check_word(val_cs, locale->month_names,
                                      val, val_end, &val)) <= 0)
         goto error;
       break;
     case FMT_MON:
-      if ((l_time->month= check_word(locale->ab_month_names,
+      if ((l_time->month= check_word(val_cs, locale->ab_month_names,
                                      val, val_end, &val)) <= 0)
         goto error;
       break;
@@ -767,7 +833,7 @@ extract_oracle_date_time(THD *thd, uint16 *format,
       /* Day */
     case FMT_DD:
       tmp= (char*) val + MY_MIN(2, val_len);
-      l_time->day= (int) my_strtoll10(val, &tmp, &error);
+      l_time->day= (int) val_cs->cset->strtoll10(val_cs, val, &tmp, &error);
       val= tmp;
       break;
 
@@ -778,21 +844,21 @@ extract_oracle_date_time(THD *thd, uint16 *format,
       /* fall through */
     case FMT_HH24:
       tmp= (char*) val + MY_MIN(2, val_len);
-      l_time->hour= (int) my_strtoll10(val, &tmp, &error);
+      l_time->hour= (int) val_cs->cset->strtoll10(val_cs, val, &tmp, &error);
       val= tmp;
       break;
 
       /* Minute */
     case FMT_MI:
       tmp= (char*) val + MY_MIN(2, val_len);
-      l_time->minute= (int) my_strtoll10(val, &tmp, &error);
+      l_time->minute= (int) val_cs->cset->strtoll10(val_cs, val, &tmp, &error);
       val= tmp;
       break;
 
       /* Second */
     case FMT_SS:
       tmp= (char*) val + MY_MIN(2, val_len);
-      l_time->second= (int) my_strtoll10(val, &tmp, &error);
+      l_time->second= (int) val_cs->cset->strtoll10(val_cs, val, &tmp, &error);
       val= tmp;
       break;
 
@@ -803,7 +869,8 @@ extract_oracle_date_time(THD *thd, uint16 *format,
       if (format[1] >= '1' && format[1] <= '6')
         length= *++format - (uint) '0';
       tmp= (char*) val + MY_MIN(length, val_len);
-      l_time->second_part= (int) my_strtoll10(val, &tmp, &error);
+      l_time->second_part= (int) val_cs->cset->strtoll10(val_cs, val, &tmp,
+                                                         &error);
       frac_part= 6 - (int) (tmp - val);
       if (frac_part > 0)
         l_time->second_part*= (ulong) log_10_int[frac_part];
@@ -817,19 +884,19 @@ extract_oracle_date_time(THD *thd, uint16 *format,
     case FMT_PM_DOT:
       if (val_len < 2 || ! usa_time)
         goto error;
-      if (!my_charset_latin1.strnncoll(val, 2, "PM", 2))
+      if (!val_cs->strnncoll(val, 2, "PM", 2))
       {
         daypart= 12;
         val+= 2;
       }
-      else if (!my_charset_latin1.strnncoll(val, 2, "AM", 2))
+      else if (!val_cs->strnncoll(val, 2, "AM", 2))
         val+= 2;
-      else if (!my_charset_latin1.strnncoll(val, 4, "P.M.", 4))
+      else if (!val_cs->strnncoll(val, 4, "P.M.", 4))
       {
         daypart= 12;
         val+= 4;
       }
-      else if (!my_charset_latin1.strnncoll(val, 4, "A.M.", 4))
+      else if (!val_cs->strnncoll(val, 4, "A.M.", 4))
         val+= 4;
       else
         goto error;
@@ -837,17 +904,19 @@ extract_oracle_date_time(THD *thd, uint16 *format,
 
       /* Exotic things. Weekdays are only use validation of date */
     case FMT_DAY:
-      if ((weekday= check_word(locale->day_names, val, val_end, &val)) <= 0)
+      if ((weekday= check_word(val_cs, locale->day_names, val, val_end,
+                               &val)) <= 0)
         goto error;
       break;
     case FMT_DY:
-      if ((weekday= check_word(locale->ab_day_names, val, val_end, &val)) <= 0)
+      if ((weekday= check_word(val_cs, locale->ab_day_names, val, val_end,
+                               &val)) <= 0)
         goto error;
       break;
 
     case FMT_DDD:	 // Day of year
       tmp= (char*) val + MY_MIN(val_len, 3);
-      yearday= (int) my_strtoll10(val, &tmp, &error);
+      yearday= (int) val_cs->cset->strtoll10(val_cs, val, &tmp, &error);
       val= tmp;
       break;
 
@@ -4624,9 +4693,8 @@ bool Item_func_str_to_date::get_date_common(THD *thd, MYSQL_TIME *ltime,
 
 PARSE_TYPE_FLAGS Item_func_to_date::get_format()
 {
-  StringBuffer<64> format_str;
-  String *format= args[1]->val_str(&format_str, &format_converter,
-                                   internal_charset);
+  StringBuffer<128> format_str;
+  String *format= args[1]->val_str_ascii(&format_str);
   PARSE_TYPE_FLAGS result_type= PARSE_TYPE_NONE;
 
   if (!args[1]->null_value)
@@ -4859,10 +4927,8 @@ bool Item_func_to_date::fix_length_and_dec(THD *thd)
              args[id]->type_handler()->name().ptr(), func_name());
     return TRUE;
   }
-  if (agg_arg_charsets(collation, args, arg_count, MY_COLL_ALLOW_CONV, 1))
-    return TRUE;
-  if (collation.collation->mbminlen > 1)
-    internal_charset= &my_charset_utf8mb4_general_ci;
+  /* Used for args[0] & args[1] (the date strings) */
+  internal_charset= &my_charset_utf8mb4_general_ci;
 
   set_maybe_null();
   set_func_handler(&func_handler_str_to_date_datetime_usec);
@@ -4896,7 +4962,7 @@ bool Item_func_to_date::get_date_common(THD *thd, MYSQL_TIME *ltime,
   StringBuffer<64> val_string;
   String *val;
 
-  val=    args[0]->val_str(&val_string, &subject_converter, internal_charset);
+  val= args[0]->val_str(&val_string, &subject_converter, internal_charset);
   if (args[1]->null_value)
     goto error;
   if (args[0]->null_value)
@@ -4917,6 +4983,7 @@ bool Item_func_to_date::get_date_common(THD *thd, MYSQL_TIME *ltime,
 
   if (!extract_oracle_date_time(thd, fmt_array,
                                 val->ptr(), val->length(),
+                                internal_charset,
                                 ltime, locale, "datetime",
                                 (date_conv_mode_t(fuzzydate) |
                                  sql_mode_for_dates(thd)),
@@ -4931,6 +4998,7 @@ bool Item_func_to_date::get_date_common(THD *thd, MYSQL_TIME *ltime,
       goto error;
     if (!extract_oracle_date_time(thd, fmt_array,
                                   val->ptr(), val->length(),
+                                  internal_charset,
                                   ltime, locale, "datetime",
                                   (date_conv_mode_t(fuzzydate) |
                                    sql_mode_for_dates(thd)), 1))

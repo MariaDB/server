@@ -259,6 +259,11 @@ Simple scanner routines
 -----------------------
 scan()    - to skip leading spaces in the given string.
             Used when a string value is inserted into a numeric field.
+the last parameter is one of:
+
+MY_SEQ_INTTAIL    ; Ignore '.' and a set of '0'
+MY_SEQ_SPACES     ; Skip over pre-space
+MY_SEQ_NOSPACES;  ; Skip over non space characters
 
 
 

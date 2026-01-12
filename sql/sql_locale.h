@@ -97,5 +97,6 @@ MY_LOCALE *my_locale_by_name(const LEX_CSTRING &name);
 MY_LOCALE *my_locale_by_number(uint number);
 MY_LOCALE  *my_locale_by_oracle_name(const LEX_CSTRING &name);
 void cleanup_errmsgs(void);
+void init_oracle_data_locale();
 
 #endif /* SQL_LOCALE_INCLUDED */

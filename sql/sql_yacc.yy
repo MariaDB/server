@@ -10509,7 +10509,7 @@ function_call_keyword_timestamp:
         ;
 
 opt_nls_param:
-          /* empty */ 
+          /* empty */
           {
             $$= (LEX_CSTRING) empty_clex_str;
 	  }

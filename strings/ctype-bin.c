@@ -92,7 +92,7 @@ static int my_strnncoll_binary(CHARSET_INFO * cs __attribute__((unused)),
   {
     if (cmp)
       return cmp;
-    return slen - tlen;
+    return (int) (slen - tlen);
   }
   if (cmp)
   {
@@ -165,7 +165,7 @@ static int my_strnncoll_8bit_bin(CHARSET_INFO * cs __attribute__((unused)),
   {
     if (cmp)
       return cmp;
-    return slen - tlen;
+    return (int) (slen - tlen);
   }
   if (cmp)
   {

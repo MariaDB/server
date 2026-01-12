@@ -3631,6 +3631,28 @@ MY_LOCALE *my_locale_by_name(const LEX_CSTRING &name)
   return locale;
 }
 
+static void update_lengths_in_typelib(TYPELIB *typelib)
+{
+  const char **names=  typelib->type_names;
+  uint *lengths=       typelib->type_lengths;
+  for (uint i= 0; i < typelib->count ; i++)
+    (*lengths++)= strlen(*names++);
+}
+
+
+void init_oracle_data_locale()
+{
+  ORACLE_DATE_LOCALE *locale;
+  for (locale= Oracle_date_locale; locale->locale ; locale++)
+  {
+    update_lengths_in_typelib(locale->locale->month_names);
+    update_lengths_in_typelib(locale->locale->ab_month_names);
+    update_lengths_in_typelib(locale->locale->day_names);
+    update_lengths_in_typelib(locale->locale->ab_day_names);
+  }
+
+}
+
 
 MY_LOCALE *my_locale_by_oracle_name(const LEX_CSTRING &name)
 {

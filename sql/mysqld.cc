@@ -3986,6 +3986,7 @@ static int init_common_variables()
 
   my_tzset();
   my_tzname(system_time_zone, sizeof(system_time_zone));
+  init_oracle_data_locale();                    // For TO_DATE()
 
   /*
     We set SYSTEM time zone as reasonable default and
