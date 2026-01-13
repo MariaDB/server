@@ -404,7 +404,7 @@ done:
 
 	/* success */
 
-	ut_sprintf_timestamp(now);
+	ut_sprintf_timestamp(now, sizeof(now));
 
 	buf_dump_status(STATUS_INFO,
 			"Buffer pool(s) dump completed at %s", now);
@@ -487,7 +487,7 @@ buf_load()
 				dump_n * sizeof(*dump)));
 	} else {
 		fclose(f);
-		ut_sprintf_timestamp(now);
+		ut_sprintf_timestamp(now, sizeof(now));
 		buf_load_status(STATUS_INFO,
 				"Buffer pool(s) load completed at %s"
 				" (%s was empty)", now, full_filename);
@@ -553,7 +553,7 @@ buf_load()
 
 	if (dump_n == 0) {
 		ut_free(dump);
-		ut_sprintf_timestamp(now);
+		ut_sprintf_timestamp(now, sizeof(now));
 		buf_load_status(STATUS_INFO,
 				"Buffer pool(s) load completed at %s"
 				" (%s was empty or had errors)", now, full_filename);
@@ -661,7 +661,7 @@ buf_load()
 
   os_aio_wait_until_no_pending_reads(true);
 
-	ut_sprintf_timestamp(now);
+	ut_sprintf_timestamp(now, sizeof(now));
 
 	if (i == dump_n) {
 		buf_load_status(STATUS_INFO,

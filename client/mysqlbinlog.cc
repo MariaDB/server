@@ -308,17 +308,18 @@ class Load_log_processor
     filename.  The numerical suffix will be written to this position.
     Note that there must be a least five bytes of allocated memory
     after file_name_end.
+    @param[in] file_name_end_size Size of the memory area pointed to file_name_end.
 
     @retval -1 Error (can't find new filename).
     @retval >=0 Found file.
   */
-  File create_unique_file(char *filename, char *file_name_end)
+  File create_unique_file(char *filename, char *file_name_end, size_t file_name_end_size)
     {
       File res;
       /* If we have to try more than 1000 times, something is seriously wrong */
       for (uint version= 0; version<1000; version++)
       {
-	sprintf(file_name_end,"-%x",version);
+	snprintf(file_name_end, file_name_end_size,"-%x",version);
 	if ((res= my_create(filename,0,
 			    O_CREAT|O_EXCL|O_BINARY|O_WRONLY,MYF(0)))!=-1)
 	  return res;
@@ -440,9 +441,9 @@ Exit_status Load_log_processor::process_first_event(const char *bname,
   ptr= fname + target_dir_name_len;
   memcpy(ptr,bname,blen);
   ptr+= blen;
-  ptr+= sprintf(ptr, "-%x", file_id);
+  ptr+= snprintf(ptr, full_len - (ptr - fname), "-%x", file_id);
 
-  if ((file= create_unique_file(fname,ptr)) < 0)
+  if ((file= create_unique_file(fname,ptr,full_len - (ptr - fname))) < 0)
   {
     error("Could not construct local filename %s%s.",
           target_dir_name,bname);
@@ -2546,7 +2547,7 @@ static Exit_status check_master_version()
       char buf[256];
       rpl_gtid *start_gtid= &start_gtids[gtid_idx];
 
-      sprintf(buf, "%u-%u-%llu",
+      snprintf(buf, sizeof(buf), "%u-%u-%llu",
               start_gtid->domain_id, start_gtid->server_id,
               start_gtid->seq_no);
       query_str.append(buf, strlen(buf));
