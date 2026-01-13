@@ -140,7 +140,7 @@ static inline int ha_compare_char_varying(CHARSET_INFO *charset_info,
                                                          b, b_length);
   return charset_info->coll->strnncoll(charset_info,
                                        a, a_length,
-                                       b, b_length, TRUE/*prefix*/);
+                                       b, b_length, &b_is_prefix);
 }
 
 
@@ -190,7 +190,7 @@ static inline int ha_compare_char_fixed(CHARSET_INFO *charset_info,
          MY_STRNNCOLLSP_NCHARS_EMULATE_TRIMMED_TRAILING_SPACES);
   return charset_info->coll->strnncoll(charset_info,
                                        a, a_length,
-                                       b, b_length, TRUE/*prefix*/);
+                                       b, b_length, &b_is_prefix);
 }
 
 
@@ -218,10 +218,11 @@ static inline int ha_compare_word_prefix(CHARSET_INFO *charset_info,
                                         const uchar *a, size_t a_length,
                                         const uchar *b, size_t b_length)
 {
+  my_bool b_is_prefix;
   return charset_info->coll->strnncoll(charset_info,
                                        a, a_length,
                                        b, b_length,
-                                       TRUE/*b_is_prefix*/);
+                                       &b_is_prefix);
 }
 
 

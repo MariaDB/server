@@ -589,11 +589,13 @@ static const uchar combo2map[]={
 static int my_strnncoll_latin1_de(CHARSET_INFO *cs __attribute__((unused)),
 				  const uchar *a, size_t a_length,
 				  const uchar *b, size_t b_length,
-                                  my_bool b_is_prefix)
+                                  my_bool *b_is_prefix)
 {
   const uchar *a_end= a + a_length;
   const uchar *b_end= b + b_length;
   uchar a_char, a_extend= 0, b_char, b_extend= 0;
+  if (b_is_prefix)
+    *b_is_prefix= 0;
 
   while ((a < a_end || a_extend) && (b < b_end || b_extend))
   {
@@ -622,7 +624,7 @@ static int my_strnncoll_latin1_de(CHARSET_INFO *cs __attribute__((unused)),
     A simple test of string lengths won't work -- we test to see
     which string ran out first
   */
-  return ((a < a_end || a_extend) ? (b_is_prefix ? 0 : 1) :
+  return ((a < a_end || a_extend) ? (b_is_prefix ? (*b_is_prefix= 1, 0) : 1) :
 	  (b < b_end || b_extend) ? -1 : 0);
 }
 

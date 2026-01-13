@@ -83,11 +83,23 @@ my_coll_init_8bit_bin(struct charset_info_st *cs,
 static int my_strnncoll_binary(CHARSET_INFO * cs __attribute__((unused)),
                                const uchar *s, size_t slen,
                                const uchar *t, size_t tlen,
-                               my_bool t_is_prefix)
+                               my_bool *t_is_prefix)
 {
-  size_t len=MY_MIN(slen,tlen);
+  size_t len= MY_MIN(slen,tlen);
   int cmp= len ? memcmp(s, t, len) : 0;
-  return cmp ? cmp : (int)((t_is_prefix ? len : slen) - tlen);
+
+  if (!t_is_prefix)
+  {
+    if (cmp)
+      return cmp;
+    return slen - tlen;
+  }
+  if (cmp)
+  {
+    *t_is_prefix= 0;
+    return cmp;
+  }
+  return !(*t_is_prefix= tlen <= slen);
 }
 
 
@@ -144,11 +156,23 @@ static int my_strnncollsp_nchars_binary(CHARSET_INFO * cs __attribute__((unused)
 static int my_strnncoll_8bit_bin(CHARSET_INFO * cs __attribute__((unused)),
                                  const uchar *s, size_t slen,
                                  const uchar *t, size_t tlen,
-                                 my_bool t_is_prefix)
+                                 my_bool *t_is_prefix)
 {
-  size_t len=MY_MIN(slen,tlen);
+  size_t len= MY_MIN(slen,tlen);
   int cmp= len ? memcmp(s, t, len) : 0;
-  return cmp ? cmp : (int)((t_is_prefix ? len : slen) - tlen);
+
+  if (!t_is_prefix)
+  {
+    if (cmp)
+      return cmp;
+    return slen - tlen;
+  }
+  if (cmp)
+  {
+    *t_is_prefix= 0;
+    return cmp;
+  }
+  return !(*t_is_prefix= tlen <= slen);
 }
 
 
@@ -232,7 +256,7 @@ static int my_strnncollsp_8bit_nopad_bin(CHARSET_INFO * cs
                                          const uchar *a, size_t a_length,
                                          const uchar *b, size_t b_length)
 {
-  return my_strnncoll_8bit_bin(cs, a, a_length, b, b_length, FALSE);
+  return my_strnncoll_8bit_bin(cs, a, a_length, b, b_length, 0);
 }
 
 

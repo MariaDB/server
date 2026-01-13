@@ -9135,10 +9135,11 @@ bool is_secure_file_path(char *path)
   }
   else
   {
+    my_bool use_prefix;
     if (files_charset_info->strnncoll(buff2, strlen(buff2),
                                       opt_secure_file_priv,
                                       opt_secure_file_priv_len,
-                                      TRUE))
+                                      &use_prefix))
       return FALSE;
   }
   return TRUE;

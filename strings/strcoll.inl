@@ -218,16 +218,19 @@ bad:
   @param b           - the right string
   @param b_length    - the length of the right string
   @param b_is_prefix - if the caller wants to check if "b" is a prefix of "a"
+                       *b_is_prefix is set to 1 if it was a prefix match
   @return            - the comparison result
 */
 static int
 MY_FUNCTION_NAME(strnncoll)(CHARSET_INFO *cs __attribute__((unused)),
                             const uchar *a, size_t a_length, 
                             const uchar *b, size_t b_length,
-                            my_bool b_is_prefix)
+                            my_bool *b_is_prefix)
 {
   const uchar *a_end= a + a_length;
   const uchar *b_end= b + b_length;
+  if (b_is_prefix)
+    *b_is_prefix= 0;
   for ( ; ; )
   {
     int a_weight, b_weight, res;
@@ -271,7 +274,14 @@ MY_FUNCTION_NAME(strnncoll)(CHARSET_INFO *cs __attribute__((unused)),
       return b_wlen ? -1 : 0;
 
     if (!b_wlen)
-      return b_is_prefix ? 0 : +1;
+    {
+      if (b_is_prefix)
+      {
+         *b_is_prefix= 1;	/* Prefix match */
+         return 0;
+      }
+      return +1;
+    }
 
     if ((res= (a_weight - b_weight)))
       return res;

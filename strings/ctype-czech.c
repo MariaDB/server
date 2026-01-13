@@ -218,14 +218,20 @@ while (1)						\
 static int my_strnncoll_czech(CHARSET_INFO *cs __attribute__((unused)),
 			      const uchar *s1, size_t len1, 
 			      const uchar *s2, size_t len2,
-                              my_bool s2_is_prefix)
+                              my_bool *s2_is_prefix)
 {
   int v1, v2;
   const uchar *p1, * p2, * store1, * store2;
   int pass1 = 0, pass2 = 0;
-
-  if (s2_is_prefix && len1 > len2)
-    len1=len2;
+  if (s2_is_prefix)
+  {
+    *s2_is_prefix= 0;
+    if (len1 > len2)
+    {
+      *s2_is_prefix= 1;
+      len1= len2;
+    }
+  }
 
   p1 = s1;	p2 = s2;
   store1 = s1;	store2 = s2;
@@ -236,7 +242,11 @@ static int my_strnncoll_czech(CHARSET_INFO *cs __attribute__((unused)),
     NEXT_CMP_VALUE(s1, p1, store1, pass1, v1, (int)len1);
     NEXT_CMP_VALUE(s2, p2, store2, pass2, v2, (int)len2);
     if ((diff = v1 - v2))
+    {
+      if (s2_is_prefix)
+        *s2_is_prefix= 0;
       return diff;
+    }
   }
   while (v1);
   return 0;

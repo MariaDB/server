@@ -89,7 +89,7 @@ MY_FUNCTION_NAME(strnncoll_onelevel)(CHARSET_INFO *cs,
                                      const MY_UCA_WEIGHT_LEVEL *level,
                                      const uchar *s, size_t slen,
                                      const uchar *t, size_t tlen,
-                                     my_bool t_is_prefix)
+                                     my_bool *t_is_prefix)
 {
   my_uca_scanner sscanner;
   my_uca_scanner tscanner;
@@ -116,7 +116,12 @@ MY_FUNCTION_NAME(strnncoll_onelevel)(CHARSET_INFO *cs,
     t_res= MY_FUNCTION_NAME(scanner_next)(&tscanner, &param);
   } while ( s_res == t_res && s_res >0);
   
-  return  (t_is_prefix && t_res < 0) ? 0 : (s_res - t_res);
+  if (t_is_prefix)
+  {
+    if ((*t_is_prefix= t_res < 0))
+      return 0;
+  }
+  return (s_res - t_res);
 }
 
 
@@ -127,7 +132,7 @@ static int
 MY_FUNCTION_NAME(strnncoll)(CHARSET_INFO *cs,
                             const uchar *s, size_t slen,
                             const uchar *t, size_t tlen,
-                            my_bool t_is_prefix)
+                            my_bool *t_is_prefix)
 {
   return MY_FUNCTION_NAME(strnncoll_onelevel)(cs, &cs->uca->level[0],
                                               s, slen, t, tlen, t_is_prefix);
@@ -136,14 +141,19 @@ MY_FUNCTION_NAME(strnncoll)(CHARSET_INFO *cs,
 
 /*
   Multi-level, PAD SPACE.
+
+  Note that t_is_prefix is set from the last call to strnncoll_onelevel
 */
 static int
 MY_FUNCTION_NAME(strnncoll_multilevel)(CHARSET_INFO *cs,
                                        const uchar *s, size_t slen,
                                        const uchar *t, size_t tlen,
-                                       my_bool t_is_prefix)
+                                       my_bool *t_is_prefix)
 {
   uint i, level_flags= cs->levels_for_order;
+  if (*t_is_prefix)
+    *t_is_prefix= 0;
+
   for (i= 0; level_flags; i++, level_flags>>= 1)
   {
     int ret;
