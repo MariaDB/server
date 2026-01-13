@@ -1,0 +1,213 @@
+# Test --hex-blob with --tab (--dir)
+# Verify that BLOB and BINARY columns are hex-encoded in tab-separated output
+
+--source include/not_embedded.inc
+
+--echo #
+--echo # Test --hex-blob with --tab (--dir)
+--echo # Verify that BLOB and BINARY columns are hex-encoded in tab-separated output
+--echo #
+
+USE test;
+
+--echo # Test 1: Basic BLOB types with hex-blob
+CREATE TABLE t_hex_blob (
+  id INT PRIMARY KEY,
+  tiny_blob TINYBLOB,
+  normal_blob BLOB,
+  medium_blob MEDIUMBLOB,
+  long_blob LONGBLOB
+);
+
+INSERT INTO t_hex_blob VALUES
+  (1, 'tiny\0data', 'normal\0blob', 'medium\0blob', 'long\0blob'),
+  (2, NULL, NULL, NULL, NULL),
+  (3, '', '', '', ''),
+  (4, X'DEADBEEF', X'CAFEBABE', X'FEEDFACE', X'BAADF00D');
+
+--exec $MYSQL_DUMP --default-character-set=utf8mb4 --skip-comments --hex-blob --tab=$MYSQLTEST_VARDIR/tmp/ test t_hex_blob
+--echo # Check SQL file
+--cat_file $MYSQLTEST_VARDIR/tmp/t_hex_blob.sql
+--echo # Check data file - blob data should be hex-encoded
+--cat_file $MYSQLTEST_VARDIR/tmp/t_hex_blob.txt
+--remove_file $MYSQLTEST_VARDIR/tmp/t_hex_blob.sql
+--remove_file $MYSQLTEST_VARDIR/tmp/t_hex_blob.txt
+
+DROP TABLE t_hex_blob;
+
+--echo # Test 2: BINARY and VARBINARY types with hex-blob
+CREATE TABLE t_hex_binary (
+  id INT PRIMARY KEY,
+  bin_col BINARY(10),
+  varbin_col VARBINARY(100)
+);
+
+INSERT INTO t_hex_binary VALUES
+  (1, X'0102030405', 'varbinary\0test'),
+  (2, NULL, NULL),
+  (3, X'00', ''),
+  (4, X'FFFFFFFFFFFFFF', X'DEADBEEFCAFEBABE');
+
+--exec $MYSQL_DUMP --default-character-set=utf8mb4 --skip-comments --hex-blob --tab=$MYSQLTEST_VARDIR/tmp/ test t_hex_binary
+--echo # Check SQL file
+--cat_file $MYSQLTEST_VARDIR/tmp/t_hex_binary.sql
+--echo # Check data file - binary data should be hex-encoded
+--cat_file $MYSQLTEST_VARDIR/tmp/t_hex_binary.txt
+--remove_file $MYSQLTEST_VARDIR/tmp/t_hex_binary.sql
+--remove_file $MYSQLTEST_VARDIR/tmp/t_hex_binary.txt
+
+DROP TABLE t_hex_binary;
+
+--echo # Test 3: Mixed table with BLOB and non-BLOB columns
+CREATE TABLE t_hex_mixed (
+  id INT PRIMARY KEY,
+  name VARCHAR(50),
+  data BLOB,
+  description TEXT,
+  binary_data VARBINARY(100)
+);
+
+INSERT INTO t_hex_mixed VALUES
+  (1, 'First', X'ABCD', 'Description 1', X'1234'),
+  (2, 'Second', NULL, 'Description 2', NULL),
+  (3, 'Third', '', 'Description 3', ''),
+  (4, 'Special\tChars', X'00FF00FF', 'Desc\nWith\nNewlines', X'CAFEBABE');
+
+--exec $MYSQL_DUMP --default-character-set=utf8mb4 --skip-comments --hex-blob --tab=$MYSQLTEST_VARDIR/tmp/ test t_hex_mixed
+--echo # Check SQL file - should have HEX() wrapper for BLOB/BINARY columns
+--cat_file $MYSQLTEST_VARDIR/tmp/t_hex_mixed.sql
+--echo # Check data file - only BLOB/BINARY columns should be hex-encoded
+--cat_file $MYSQLTEST_VARDIR/tmp/t_hex_mixed.txt
+--remove_file $MYSQLTEST_VARDIR/tmp/t_hex_mixed.sql
+--remove_file $MYSQLTEST_VARDIR/tmp/t_hex_mixed.txt
+
+DROP TABLE t_hex_mixed;
+
+--echo # Test 4: Verify --tab without --hex-blob (default behavior)
+CREATE TABLE t_no_hex (
+  id INT,
+  blob_col BLOB
+);
+
+INSERT INTO t_no_hex VALUES (1, 'test\0data'), (2, NULL);
+
+--exec $MYSQL_DUMP --default-character-set=utf8mb4 --skip-comments --tab=$MYSQLTEST_VARDIR/tmp/ test t_no_hex
+--echo # Check SQL file - should NOT have HEX() wrapper
+--cat_file $MYSQLTEST_VARDIR/tmp/t_no_hex.sql
+--echo # Check data file - blob data NOT hex-encoded (binary content)
+--cat_file $MYSQLTEST_VARDIR/tmp/t_no_hex.txt
+--remove_file $MYSQLTEST_VARDIR/tmp/t_no_hex.sql
+--remove_file $MYSQLTEST_VARDIR/tmp/t_no_hex.txt
+
+DROP TABLE t_no_hex;
+
+--echo # Test 5: Table with only BLOB columns
+CREATE TABLE t_all_blobs (
+  blob1 BLOB,
+  blob2 TINYBLOB,
+  blob3 MEDIUMBLOB
+);
+
+INSERT INTO t_all_blobs VALUES
+  (X'ABCDEF', X'123456', X'FEDCBA'),
+  (NULL, NULL, NULL);
+
+--exec $MYSQL_DUMP --default-character-set=utf8mb4 --skip-comments --hex-blob --tab=$MYSQLTEST_VARDIR/tmp/ test t_all_blobs
+--echo # Check SQL file
+--cat_file $MYSQLTEST_VARDIR/tmp/t_all_blobs.sql
+--echo # Check data file
+--cat_file $MYSQLTEST_VARDIR/tmp/t_all_blobs.txt
+--remove_file $MYSQLTEST_VARDIR/tmp/t_all_blobs.sql
+--remove_file $MYSQLTEST_VARDIR/tmp/t_all_blobs.txt
+
+DROP TABLE t_all_blobs;
+
+--echo # Test 6: Empty table with BLOB columns
+CREATE TABLE t_empty_blobs (
+  id INT,
+  data BLOB
+);
+
+--exec $MYSQL_DUMP --default-character-set=utf8mb4 --skip-comments --hex-blob --tab=$MYSQLTEST_VARDIR/tmp/ test t_empty_blobs
+--echo # Check SQL file
+--cat_file $MYSQLTEST_VARDIR/tmp/t_empty_blobs.sql
+--echo # Check data file - should be empty
+--cat_file $MYSQLTEST_VARDIR/tmp/t_empty_blobs.txt
+--remove_file $MYSQLTEST_VARDIR/tmp/t_empty_blobs.sql
+--remove_file $MYSQLTEST_VARDIR/tmp/t_empty_blobs.txt
+
+DROP TABLE t_empty_blobs;
+
+--echo #
+--echo # Test --hex-blob with --dir option
+--echo # --dir creates subdirectories for each database
+--echo #
+
+--echo # Test 7: Basic BLOB types with --hex-blob and --dir
+CREATE TABLE t_dir_hex_blob (
+  id INT PRIMARY KEY,
+  tiny_blob TINYBLOB,
+  normal_blob BLOB,
+  medium_blob MEDIUMBLOB,
+  long_blob LONGBLOB
+);
+
+INSERT INTO t_dir_hex_blob VALUES
+  (1, 'tiny\0data', 'normal\0blob', 'medium\0blob', 'long\0blob'),
+  (2, NULL, NULL, NULL, NULL),
+  (3, '', '', '', ''),
+  (4, X'DEADBEEF', X'CAFEBABE', X'FEEDFACE', X'BAADF00D');
+
+--mkdir $MYSQLTEST_VARDIR/tmp/backup_dir
+--exec $MYSQL_DUMP --default-character-set=utf8mb4 --skip-comments --hex-blob --dir=$MYSQLTEST_VARDIR/tmp/backup_dir test
+--echo # Check SQL file in test subdirectory
+--cat_file $MYSQLTEST_VARDIR/tmp/backup_dir/test/t_dir_hex_blob.sql
+--echo # Check data file - blob data should be hex-encoded
+--cat_file $MYSQLTEST_VARDIR/tmp/backup_dir/test/t_dir_hex_blob.txt
+--remove_file $MYSQLTEST_VARDIR/tmp/backup_dir/test/t_dir_hex_blob.sql
+--remove_file $MYSQLTEST_VARDIR/tmp/backup_dir/test/t_dir_hex_blob.txt
+
+DROP TABLE t_dir_hex_blob;
+
+--echo # Test 8: Mixed table with --dir and --hex-blob
+CREATE TABLE t_dir_mixed (
+  id INT PRIMARY KEY,
+  name VARCHAR(50),
+  data BLOB,
+  binary_data VARBINARY(50)
+);
+
+INSERT INTO t_dir_mixed VALUES
+  (1, 'First', X'ABCD', X'1234'),
+  (2, 'Second', NULL, NULL),
+  (3, 'Third', '', '');
+
+--exec $MYSQL_DUMP --default-character-set=utf8mb4 --skip-comments --hex-blob --dir=$MYSQLTEST_VARDIR/tmp/backup_dir test
+--echo # Check SQL file
+--cat_file $MYSQLTEST_VARDIR/tmp/backup_dir/test/t_dir_mixed.sql
+--echo # Check data file - only BLOB/BINARY columns should be hex-encoded
+--cat_file $MYSQLTEST_VARDIR/tmp/backup_dir/test/t_dir_mixed.txt
+--remove_file $MYSQLTEST_VARDIR/tmp/backup_dir/test/t_dir_mixed.sql
+--remove_file $MYSQLTEST_VARDIR/tmp/backup_dir/test/t_dir_mixed.txt
+
+DROP TABLE t_dir_mixed;
+
+--echo # Test 9: Verify --dir without --hex-blob (default behavior)
+CREATE TABLE t_dir_no_hex (
+  id INT,
+  blob_col BLOB
+);
+
+INSERT INTO t_dir_no_hex VALUES (1, 'test\0data'), (2, NULL);
+
+--exec $MYSQL_DUMP --default-character-set=utf8mb4 --skip-comments --dir=$MYSQLTEST_VARDIR/tmp/backup_dir test
+--echo # Check SQL file - should NOT have HEX() wrapper
+--cat_file $MYSQLTEST_VARDIR/tmp/backup_dir/test/t_dir_no_hex.sql
+--echo # Check data file - blob data NOT hex-encoded
+--cat_file $MYSQLTEST_VARDIR/tmp/backup_dir/test/t_dir_no_hex.txt
+--remove_file $MYSQLTEST_VARDIR/tmp/backup_dir/test/t_dir_no_hex.sql
+--remove_file $MYSQLTEST_VARDIR/tmp/backup_dir/test/t_dir_no_hex.txt
+--rmdir $MYSQLTEST_VARDIR/tmp/backup_dir/test
+--rmdir $MYSQLTEST_VARDIR/tmp/backup_dir
+
+DROP TABLE t_dir_no_hex;

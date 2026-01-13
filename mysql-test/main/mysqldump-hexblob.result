@@ -1,0 +1,411 @@
+#
+# Test --hex-blob with --tab (--dir)
+# Verify that BLOB and BINARY columns are hex-encoded in tab-separated output
+#
+USE test;
+# Test 1: Basic BLOB types with hex-blob
+CREATE TABLE t_hex_blob (
+id INT PRIMARY KEY,
+tiny_blob TINYBLOB,
+normal_blob BLOB,
+medium_blob MEDIUMBLOB,
+long_blob LONGBLOB
+);
+INSERT INTO t_hex_blob VALUES
+(1, 'tiny\0data', 'normal\0blob', 'medium\0blob', 'long\0blob'),
+(2, NULL, NULL, NULL, NULL),
+(3, '', '', '', ''),
+(4, X'DEADBEEF', X'CAFEBABE', X'FEEDFACE', X'BAADF00D');
+# Check SQL file
+/*M!999999\- enable the sandbox mode */ 
+
+/*!40101 SET @OLD_CHARACTER_SET_CLIENT=@@CHARACTER_SET_CLIENT */;
+/*!40101 SET @OLD_CHARACTER_SET_RESULTS=@@CHARACTER_SET_RESULTS */;
+/*!40101 SET @OLD_COLLATION_CONNECTION=@@COLLATION_CONNECTION */;
+/*!40101 SET NAMES utf8mb4 */;
+/*!40103 SET @OLD_TIME_ZONE=@@TIME_ZONE */;
+/*!40103 SET TIME_ZONE='+00:00' */;
+/*!40101 SET @OLD_SQL_MODE=@@SQL_MODE, SQL_MODE='' */;
+/*M!100616 SET @OLD_NOTE_VERBOSITY=@@NOTE_VERBOSITY, NOTE_VERBOSITY=0 */;
+DROP TABLE IF EXISTS `t_hex_blob`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8mb4 */;
+CREATE TABLE `t_hex_blob` (
+  `id` int(11) NOT NULL,
+  `tiny_blob` tinyblob DEFAULT NULL,
+  `normal_blob` blob DEFAULT NULL,
+  `medium_blob` mediumblob DEFAULT NULL,
+  `long_blob` longblob DEFAULT NULL,
+  PRIMARY KEY (`id`)
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+/*!40103 SET TIME_ZONE=@OLD_TIME_ZONE */;
+
+/*!40101 SET SQL_MODE=@OLD_SQL_MODE */;
+/*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;
+/*!40101 SET CHARACTER_SET_RESULTS=@OLD_CHARACTER_SET_RESULTS */;
+/*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
+/*M!100616 SET NOTE_VERBOSITY=@OLD_NOTE_VERBOSITY */;
+
+# Check data file - blob data should be hex-encoded
+1	74696E790064617461	6E6F726D616C00626C6F62	6D656469756D00626C6F62	6C6F6E6700626C6F62
+2	\N	\N	\N	\N
+3				
+4	DEADBEEF	CAFEBABE	FEEDFACE	BAADF00D
+DROP TABLE t_hex_blob;
+# Test 2: BINARY and VARBINARY types with hex-blob
+CREATE TABLE t_hex_binary (
+id INT PRIMARY KEY,
+bin_col BINARY(10),
+varbin_col VARBINARY(100)
+);
+INSERT INTO t_hex_binary VALUES
+(1, X'0102030405', 'varbinary\0test'),
+(2, NULL, NULL),
+(3, X'00', ''),
+(4, X'FFFFFFFFFFFFFF', X'DEADBEEFCAFEBABE');
+# Check SQL file
+/*M!999999\- enable the sandbox mode */ 
+
+/*!40101 SET @OLD_CHARACTER_SET_CLIENT=@@CHARACTER_SET_CLIENT */;
+/*!40101 SET @OLD_CHARACTER_SET_RESULTS=@@CHARACTER_SET_RESULTS */;
+/*!40101 SET @OLD_COLLATION_CONNECTION=@@COLLATION_CONNECTION */;
+/*!40101 SET NAMES utf8mb4 */;
+/*!40103 SET @OLD_TIME_ZONE=@@TIME_ZONE */;
+/*!40103 SET TIME_ZONE='+00:00' */;
+/*!40101 SET @OLD_SQL_MODE=@@SQL_MODE, SQL_MODE='' */;
+/*M!100616 SET @OLD_NOTE_VERBOSITY=@@NOTE_VERBOSITY, NOTE_VERBOSITY=0 */;
+DROP TABLE IF EXISTS `t_hex_binary`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8mb4 */;
+CREATE TABLE `t_hex_binary` (
+  `id` int(11) NOT NULL,
+  `bin_col` binary(10) DEFAULT NULL,
+  `varbin_col` varbinary(100) DEFAULT NULL,
+  PRIMARY KEY (`id`)
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+/*!40103 SET TIME_ZONE=@OLD_TIME_ZONE */;
+
+/*!40101 SET SQL_MODE=@OLD_SQL_MODE */;
+/*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;
+/*!40101 SET CHARACTER_SET_RESULTS=@OLD_CHARACTER_SET_RESULTS */;
+/*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
+/*M!100616 SET NOTE_VERBOSITY=@OLD_NOTE_VERBOSITY */;
+
+# Check data file - binary data should be hex-encoded
+1	01020304050000000000	76617262696E6172790074657374
+2	\N	\N
+3	00000000000000000000	
+4	FFFFFFFFFFFFFF000000	DEADBEEFCAFEBABE
+DROP TABLE t_hex_binary;
+# Test 3: Mixed table with BLOB and non-BLOB columns
+CREATE TABLE t_hex_mixed (
+id INT PRIMARY KEY,
+name VARCHAR(50),
+data BLOB,
+description TEXT,
+binary_data VARBINARY(100)
+);
+INSERT INTO t_hex_mixed VALUES
+(1, 'First', X'ABCD', 'Description 1', X'1234'),
+(2, 'Second', NULL, 'Description 2', NULL),
+(3, 'Third', '', 'Description 3', ''),
+(4, 'Special\tChars', X'00FF00FF', 'Desc\nWith\nNewlines', X'CAFEBABE');
+# Check SQL file - should have HEX() wrapper for BLOB/BINARY columns
+/*M!999999\- enable the sandbox mode */ 
+
+/*!40101 SET @OLD_CHARACTER_SET_CLIENT=@@CHARACTER_SET_CLIENT */;
+/*!40101 SET @OLD_CHARACTER_SET_RESULTS=@@CHARACTER_SET_RESULTS */;
+/*!40101 SET @OLD_COLLATION_CONNECTION=@@COLLATION_CONNECTION */;
+/*!40101 SET NAMES utf8mb4 */;
+/*!40103 SET @OLD_TIME_ZONE=@@TIME_ZONE */;
+/*!40103 SET TIME_ZONE='+00:00' */;
+/*!40101 SET @OLD_SQL_MODE=@@SQL_MODE, SQL_MODE='' */;
+/*M!100616 SET @OLD_NOTE_VERBOSITY=@@NOTE_VERBOSITY, NOTE_VERBOSITY=0 */;
+DROP TABLE IF EXISTS `t_hex_mixed`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8mb4 */;
+CREATE TABLE `t_hex_mixed` (
+  `id` int(11) NOT NULL,
+  `name` varchar(50) DEFAULT NULL,
+  `data` blob DEFAULT NULL,
+  `description` text DEFAULT NULL,
+  `binary_data` varbinary(100) DEFAULT NULL,
+  PRIMARY KEY (`id`)
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+/*!40103 SET TIME_ZONE=@OLD_TIME_ZONE */;
+
+/*!40101 SET SQL_MODE=@OLD_SQL_MODE */;
+/*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;
+/*!40101 SET CHARACTER_SET_RESULTS=@OLD_CHARACTER_SET_RESULTS */;
+/*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
+/*M!100616 SET NOTE_VERBOSITY=@OLD_NOTE_VERBOSITY */;
+
+# Check data file - only BLOB/BINARY columns should be hex-encoded
+1	First	ABCD	Description 1	1234
+2	Second	\N	Description 2	\N
+3	Third		Description 3	
+4	Special\	Chars	00FF00FF	Desc\
+With\
+Newlines	CAFEBABE
+DROP TABLE t_hex_mixed;
+# Test 4: Verify --tab without --hex-blob (default behavior)
+CREATE TABLE t_no_hex (
+id INT,
+blob_col BLOB
+);
+INSERT INTO t_no_hex VALUES (1, 'test\0data'), (2, NULL);
+# Check SQL file - should NOT have HEX() wrapper
+/*M!999999\- enable the sandbox mode */ 
+
+/*!40101 SET @OLD_CHARACTER_SET_CLIENT=@@CHARACTER_SET_CLIENT */;
+/*!40101 SET @OLD_CHARACTER_SET_RESULTS=@@CHARACTER_SET_RESULTS */;
+/*!40101 SET @OLD_COLLATION_CONNECTION=@@COLLATION_CONNECTION */;
+/*!40101 SET NAMES utf8mb4 */;
+/*!40103 SET @OLD_TIME_ZONE=@@TIME_ZONE */;
+/*!40103 SET TIME_ZONE='+00:00' */;
+/*!40101 SET @OLD_SQL_MODE=@@SQL_MODE, SQL_MODE='' */;
+/*M!100616 SET @OLD_NOTE_VERBOSITY=@@NOTE_VERBOSITY, NOTE_VERBOSITY=0 */;
+DROP TABLE IF EXISTS `t_no_hex`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8mb4 */;
+CREATE TABLE `t_no_hex` (
+  `id` int(11) DEFAULT NULL,
+  `blob_col` blob DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+/*!40103 SET TIME_ZONE=@OLD_TIME_ZONE */;
+
+/*!40101 SET SQL_MODE=@OLD_SQL_MODE */;
+/*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;
+/*!40101 SET CHARACTER_SET_RESULTS=@OLD_CHARACTER_SET_RESULTS */;
+/*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
+/*M!100616 SET NOTE_VERBOSITY=@OLD_NOTE_VERBOSITY */;
+
+# Check data file - blob data NOT hex-encoded (binary content)
+1	test\0data
+2	\N
+DROP TABLE t_no_hex;
+# Test 5: Table with only BLOB columns
+CREATE TABLE t_all_blobs (
+blob1 BLOB,
+blob2 TINYBLOB,
+blob3 MEDIUMBLOB
+);
+INSERT INTO t_all_blobs VALUES
+(X'ABCDEF', X'123456', X'FEDCBA'),
+(NULL, NULL, NULL);
+# Check SQL file
+/*M!999999\- enable the sandbox mode */ 
+
+/*!40101 SET @OLD_CHARACTER_SET_CLIENT=@@CHARACTER_SET_CLIENT */;
+/*!40101 SET @OLD_CHARACTER_SET_RESULTS=@@CHARACTER_SET_RESULTS */;
+/*!40101 SET @OLD_COLLATION_CONNECTION=@@COLLATION_CONNECTION */;
+/*!40101 SET NAMES utf8mb4 */;
+/*!40103 SET @OLD_TIME_ZONE=@@TIME_ZONE */;
+/*!40103 SET TIME_ZONE='+00:00' */;
+/*!40101 SET @OLD_SQL_MODE=@@SQL_MODE, SQL_MODE='' */;
+/*M!100616 SET @OLD_NOTE_VERBOSITY=@@NOTE_VERBOSITY, NOTE_VERBOSITY=0 */;
+DROP TABLE IF EXISTS `t_all_blobs`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8mb4 */;
+CREATE TABLE `t_all_blobs` (
+  `blob1` blob DEFAULT NULL,
+  `blob2` tinyblob DEFAULT NULL,
+  `blob3` mediumblob DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+/*!40103 SET TIME_ZONE=@OLD_TIME_ZONE */;
+
+/*!40101 SET SQL_MODE=@OLD_SQL_MODE */;
+/*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;
+/*!40101 SET CHARACTER_SET_RESULTS=@OLD_CHARACTER_SET_RESULTS */;
+/*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
+/*M!100616 SET NOTE_VERBOSITY=@OLD_NOTE_VERBOSITY */;
+
+# Check data file
+ABCDEF	123456	FEDCBA
+\N	\N	\N
+DROP TABLE t_all_blobs;
+# Test 6: Empty table with BLOB columns
+CREATE TABLE t_empty_blobs (
+id INT,
+data BLOB
+);
+# Check SQL file
+/*M!999999\- enable the sandbox mode */ 
+
+/*!40101 SET @OLD_CHARACTER_SET_CLIENT=@@CHARACTER_SET_CLIENT */;
+/*!40101 SET @OLD_CHARACTER_SET_RESULTS=@@CHARACTER_SET_RESULTS */;
+/*!40101 SET @OLD_COLLATION_CONNECTION=@@COLLATION_CONNECTION */;
+/*!40101 SET NAMES utf8mb4 */;
+/*!40103 SET @OLD_TIME_ZONE=@@TIME_ZONE */;
+/*!40103 SET TIME_ZONE='+00:00' */;
+/*!40101 SET @OLD_SQL_MODE=@@SQL_MODE, SQL_MODE='' */;
+/*M!100616 SET @OLD_NOTE_VERBOSITY=@@NOTE_VERBOSITY, NOTE_VERBOSITY=0 */;
+DROP TABLE IF EXISTS `t_empty_blobs`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8mb4 */;
+CREATE TABLE `t_empty_blobs` (
+  `id` int(11) DEFAULT NULL,
+  `data` blob DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+/*!40103 SET TIME_ZONE=@OLD_TIME_ZONE */;
+
+/*!40101 SET SQL_MODE=@OLD_SQL_MODE */;
+/*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;
+/*!40101 SET CHARACTER_SET_RESULTS=@OLD_CHARACTER_SET_RESULTS */;
+/*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
+/*M!100616 SET NOTE_VERBOSITY=@OLD_NOTE_VERBOSITY */;
+
+# Check data file - should be empty
+DROP TABLE t_empty_blobs;
+#
+# Test --hex-blob with --dir option
+# --dir creates subdirectories for each database
+#
+# Test 7: Basic BLOB types with --hex-blob and --dir
+CREATE TABLE t_dir_hex_blob (
+id INT PRIMARY KEY,
+tiny_blob TINYBLOB,
+normal_blob BLOB,
+medium_blob MEDIUMBLOB,
+long_blob LONGBLOB
+);
+INSERT INTO t_dir_hex_blob VALUES
+(1, 'tiny\0data', 'normal\0blob', 'medium\0blob', 'long\0blob'),
+(2, NULL, NULL, NULL, NULL),
+(3, '', '', '', ''),
+(4, X'DEADBEEF', X'CAFEBABE', X'FEEDFACE', X'BAADF00D');
+# Check SQL file in test subdirectory
+/*M!999999\- enable the sandbox mode */ 
+
+/*!40101 SET @OLD_CHARACTER_SET_CLIENT=@@CHARACTER_SET_CLIENT */;
+/*!40101 SET @OLD_CHARACTER_SET_RESULTS=@@CHARACTER_SET_RESULTS */;
+/*!40101 SET @OLD_COLLATION_CONNECTION=@@COLLATION_CONNECTION */;
+/*!40101 SET NAMES utf8mb4 */;
+/*!40103 SET @OLD_TIME_ZONE=@@TIME_ZONE */;
+/*!40103 SET TIME_ZONE='+00:00' */;
+/*!40101 SET @OLD_SQL_MODE=@@SQL_MODE, SQL_MODE='' */;
+/*M!100616 SET @OLD_NOTE_VERBOSITY=@@NOTE_VERBOSITY, NOTE_VERBOSITY=0 */;
+DROP TABLE IF EXISTS `t_dir_hex_blob`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8mb4 */;
+CREATE TABLE `t_dir_hex_blob` (
+  `id` int(11) NOT NULL,
+  `tiny_blob` tinyblob DEFAULT NULL,
+  `normal_blob` blob DEFAULT NULL,
+  `medium_blob` mediumblob DEFAULT NULL,
+  `long_blob` longblob DEFAULT NULL,
+  PRIMARY KEY (`id`)
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+/*!40103 SET TIME_ZONE=@OLD_TIME_ZONE */;
+
+/*!40101 SET SQL_MODE=@OLD_SQL_MODE */;
+/*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;
+/*!40101 SET CHARACTER_SET_RESULTS=@OLD_CHARACTER_SET_RESULTS */;
+/*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
+/*M!100616 SET NOTE_VERBOSITY=@OLD_NOTE_VERBOSITY */;
+
+# Check data file - blob data should be hex-encoded
+1	74696E790064617461	6E6F726D616C00626C6F62	6D656469756D00626C6F62	6C6F6E6700626C6F62
+2	\N	\N	\N	\N
+3				
+4	DEADBEEF	CAFEBABE	FEEDFACE	BAADF00D
+DROP TABLE t_dir_hex_blob;
+# Test 8: Mixed table with --dir and --hex-blob
+CREATE TABLE t_dir_mixed (
+id INT PRIMARY KEY,
+name VARCHAR(50),
+data BLOB,
+binary_data VARBINARY(50)
+);
+INSERT INTO t_dir_mixed VALUES
+(1, 'First', X'ABCD', X'1234'),
+(2, 'Second', NULL, NULL),
+(3, 'Third', '', '');
+# Check SQL file
+/*M!999999\- enable the sandbox mode */ 
+
+/*!40101 SET @OLD_CHARACTER_SET_CLIENT=@@CHARACTER_SET_CLIENT */;
+/*!40101 SET @OLD_CHARACTER_SET_RESULTS=@@CHARACTER_SET_RESULTS */;
+/*!40101 SET @OLD_COLLATION_CONNECTION=@@COLLATION_CONNECTION */;
+/*!40101 SET NAMES utf8mb4 */;
+/*!40103 SET @OLD_TIME_ZONE=@@TIME_ZONE */;
+/*!40103 SET TIME_ZONE='+00:00' */;
+/*!40101 SET @OLD_SQL_MODE=@@SQL_MODE, SQL_MODE='' */;
+/*M!100616 SET @OLD_NOTE_VERBOSITY=@@NOTE_VERBOSITY, NOTE_VERBOSITY=0 */;
+DROP TABLE IF EXISTS `t_dir_mixed`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8mb4 */;
+CREATE TABLE `t_dir_mixed` (
+  `id` int(11) NOT NULL,
+  `name` varchar(50) DEFAULT NULL,
+  `data` blob DEFAULT NULL,
+  `binary_data` varbinary(50) DEFAULT NULL,
+  PRIMARY KEY (`id`)
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+/*!40103 SET TIME_ZONE=@OLD_TIME_ZONE */;
+
+/*!40101 SET SQL_MODE=@OLD_SQL_MODE */;
+/*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;
+/*!40101 SET CHARACTER_SET_RESULTS=@OLD_CHARACTER_SET_RESULTS */;
+/*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
+/*M!100616 SET NOTE_VERBOSITY=@OLD_NOTE_VERBOSITY */;
+
+# Check data file - only BLOB/BINARY columns should be hex-encoded
+1	First	ABCD	1234
+2	Second	\N	\N
+3	Third		
+DROP TABLE t_dir_mixed;
+# Test 9: Verify --dir without --hex-blob (default behavior)
+CREATE TABLE t_dir_no_hex (
+id INT,
+blob_col BLOB
+);
+INSERT INTO t_dir_no_hex VALUES (1, 'test\0data'), (2, NULL);
+# Check SQL file - should NOT have HEX() wrapper
+/*M!999999\- enable the sandbox mode */ 
+
+/*!40101 SET @OLD_CHARACTER_SET_CLIENT=@@CHARACTER_SET_CLIENT */;
+/*!40101 SET @OLD_CHARACTER_SET_RESULTS=@@CHARACTER_SET_RESULTS */;
+/*!40101 SET @OLD_COLLATION_CONNECTION=@@COLLATION_CONNECTION */;
+/*!40101 SET NAMES utf8mb4 */;
+/*!40103 SET @OLD_TIME_ZONE=@@TIME_ZONE */;
+/*!40103 SET TIME_ZONE='+00:00' */;
+/*!40101 SET @OLD_SQL_MODE=@@SQL_MODE, SQL_MODE='' */;
+/*M!100616 SET @OLD_NOTE_VERBOSITY=@@NOTE_VERBOSITY, NOTE_VERBOSITY=0 */;
+DROP TABLE IF EXISTS `t_dir_no_hex`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8mb4 */;
+CREATE TABLE `t_dir_no_hex` (
+  `id` int(11) DEFAULT NULL,
+  `blob_col` blob DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+/*!40103 SET TIME_ZONE=@OLD_TIME_ZONE */;
+
+/*!40101 SET SQL_MODE=@OLD_SQL_MODE */;
+/*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;
+/*!40101 SET CHARACTER_SET_RESULTS=@OLD_CHARACTER_SET_RESULTS */;
+/*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
+/*M!100616 SET NOTE_VERBOSITY=@OLD_NOTE_VERBOSITY */;
+
+# Check data file - blob data NOT hex-encoded
+1	test\0data
+2	\N
+DROP TABLE t_dir_no_hex;
