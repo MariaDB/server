@@ -520,4 +520,35 @@ evalp set @js='$out';
 select json_extract(@js,'$**.partitions_index_scan_method');
 
 drop table t1, t2;
+
+--echo # partition index scan method is reset
+CREATE TABLE t1 (
+  c int,
+  d INT,
+  filler varchar(100),
+  INDEX idx1(c , d )
+) PARTITION BY RANGE COLUMNS(c, d) (
+  PARTITION `p1` VALUES LESS THAN (1, 1),
+  PARTITION `p2` VALUES LESS THAN (2, 2),
+  PARTITION `p3` VALUES LESS THAN (3, 3),
+  PARTITION `p4` VALUES LESS THAN (4, 4),
+  PARTITION `p5` VALUES LESS THAN (MAXVALUE, MAXVALUE)
+);
+
+insert into t1
+select t2.seq, t3.seq, 'filler' from  seq_1_to_5 t2, seq_1_to_5 t3;
+flush status;
+
+let $out=`analyze format=json select c,d from t1 order by d limit 16`;
+evalp set @js='$out';
+select json_extract(@js,'$**.partitions_index_scan_method');
+let $out=`analyze format=json select c,d from t1 order by c,d limit 16`;
+evalp set @js='$out';
+select json_extract(@js,'$**.partitions_index_scan_method');
+let $out=`analyze format=json select c,d from t1 order by d limit 16`;
+evalp set @js='$out';
+select json_extract(@js,'$**.partitions_index_scan_method');
+
+drop table t1;
+
 --enable_ps2_protocol

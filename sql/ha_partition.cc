@@ -9828,6 +9828,7 @@ int ha_partition::reset(void)
   }
   bitmap_clear_all(&m_partitions_to_reset);
   m_extra_prepare_for_update= FALSE;
+  m_pi_scan_method= INDEX_SCAN_NONE;
   DBUG_RETURN(result);
 }
 

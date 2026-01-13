@@ -311,7 +311,7 @@ Handler_read_rnd_next	30
 set @js='$out';
 select json_extract(@js,'$**.partitions_index_scan_method');
 json_extract(@js,'$**.partitions_index_scan_method')
-["iterate_over_partitions"]
+NULL
 flush status;
 select * from t1 order by c, d desc limit 16;
 c	d
@@ -345,7 +345,7 @@ Handler_read_rnd_next	30
 set @js='$out';
 select json_extract(@js,'$**.partitions_index_scan_method');
 json_extract(@js,'$**.partitions_index_scan_method')
-["iterate_over_partitions"]
+NULL
 drop table t1;
 ## Case 1: multiple range columns, keys having opposite directions
 CREATE TABLE t1 (
@@ -1170,3 +1170,32 @@ select json_extract(@js,'$**.partitions_index_scan_method');
 json_extract(@js,'$**.partitions_index_scan_method')
 ["merge_ordered_scans"]
 drop table t1, t2;
+# partition index scan method is reset
+CREATE TABLE t1 (
+c int,
+d INT,
+filler varchar(100),
+INDEX idx1(c , d )
+) PARTITION BY RANGE COLUMNS(c, d) (
+PARTITION `p1` VALUES LESS THAN (1, 1),
+PARTITION `p2` VALUES LESS THAN (2, 2),
+PARTITION `p3` VALUES LESS THAN (3, 3),
+PARTITION `p4` VALUES LESS THAN (4, 4),
+PARTITION `p5` VALUES LESS THAN (MAXVALUE, MAXVALUE)
+);
+insert into t1
+select t2.seq, t3.seq, 'filler' from  seq_1_to_5 t2, seq_1_to_5 t3;
+flush status;
+set @js='$out';
+select json_extract(@js,'$**.partitions_index_scan_method');
+json_extract(@js,'$**.partitions_index_scan_method')
+NULL
+set @js='$out';
+select json_extract(@js,'$**.partitions_index_scan_method');
+json_extract(@js,'$**.partitions_index_scan_method')
+["iterate_over_partitions"]
+set @js='$out';
+select json_extract(@js,'$**.partitions_index_scan_method');
+json_extract(@js,'$**.partitions_index_scan_method')
+NULL
+drop table t1;
