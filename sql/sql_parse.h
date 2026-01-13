@@ -191,4 +191,18 @@ check_table_access(THD *thd, privilege_t requirements,TABLE_LIST *tables,
 { return false; }
 #endif /*NO_EMBEDDED_ACCESS_CHECKS*/
 
+/**
+  Due to an issue with the bison parser, we need to use a different name.
+
+  This is a workaround!
+
+  If we use the global charset variable name we get a warning in the bison
+  parser stderr : suspicious sequence in the output: b4_bin [-Wother]
+  So we work around by having this define that doesn't have 'b4_bin' in it.
+
+  This has been reported, but not fixed yet:
+   https://lists.gnu.org/archive/html/bug-bison/2021-10/msg00027.html
+*/
+#define MY_CHARSET_UTF8MB4_BIN my_charset_utf8mb4_bin
+
 #endif /* SQL_PARSE_INCLUDED */
