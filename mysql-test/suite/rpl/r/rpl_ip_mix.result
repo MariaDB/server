@@ -6,7 +6,7 @@ include/kill_binlog_dump_threads.inc
 reset master;
 show master status;
 File	Position	Binlog_Do_DB	Binlog_Ignore_DB	Gtid_Binlog_Pos
-master-bin.000001	#	<Binlog_Do_DB>	<Binlog_Ignore_DB>	
+master-bin.000001	#	<Binlog_Do_DB>	<Binlog_Ignore_DB>	<Binlog_GTID>
 connection slave;
 reset slave;
 Master-Host: No such row
@@ -23,7 +23,7 @@ include/kill_binlog_dump_threads.inc
 reset master;
 show master status;
 File	Position	Binlog_Do_DB	Binlog_Ignore_DB	Gtid_Binlog_Pos
-master-bin.000001	#	<Binlog_Do_DB>	<Binlog_Ignore_DB>	
+master-bin.000001	#	<Binlog_Do_DB>	<Binlog_Ignore_DB>	<Binlog_GTID>
 connection slave;
 reset slave;
 Master-Host: ::1
@@ -40,7 +40,7 @@ include/kill_binlog_dump_threads.inc
 reset master;
 show master status;
 File	Position	Binlog_Do_DB	Binlog_Ignore_DB	Gtid_Binlog_Pos
-master-bin.000001	#	<Binlog_Do_DB>	<Binlog_Ignore_DB>	
+master-bin.000001	#	<Binlog_Do_DB>	<Binlog_Ignore_DB>	<Binlog_GTID>
 connection slave;
 reset slave;
 Master-Host: 0000:0000:0000:0000:0000:0000:0000:0001
@@ -56,7 +56,7 @@ connection master;
 reset master;
 show master status;
 File	Position	Binlog_Do_DB	Binlog_Ignore_DB	Gtid_Binlog_Pos
-master-bin.000001	#	<Binlog_Do_DB>	<Binlog_Ignore_DB>	
+master-bin.000001	#	<Binlog_Do_DB>	<Binlog_Ignore_DB>	<Binlog_GTID>
 connection slave;
 reset slave;
 Master-Host: 0:0:0:0:0:0:0:1
