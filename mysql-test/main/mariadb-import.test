@@ -235,3 +235,449 @@ use test;
 --exec $MYSQL_IMPORT --dir $MYSQLTEST_VARDIR/tmp/dump --parallel=300 2>&1
 
 --rmdir $MYSQLTEST_VARDIR/tmp/dump
+
+--echo #
+--echo # Test --hex-blob option for mariadb-import
+--echo # Round-trip tests: export with mysqldump --hex-blob, import with mariadb-import --hex-blob
+--echo #
+
+USE test;
+
+--echo # Test 1: Round-trip basic BLOB types with --hex-blob
+CREATE TABLE t_blob_roundtrip (
+  id INT PRIMARY KEY,
+  tiny_blob TINYBLOB,
+  normal_blob BLOB,
+  medium_blob MEDIUMBLOB,
+  long_blob LONGBLOB
+);
+
+INSERT INTO t_blob_roundtrip VALUES
+  (1, 'tiny\0data', 'normal\0blob', 'medium\0blob', 'long\0blob'),
+  (2, NULL, NULL, NULL, NULL),
+  (3, '', '', '', ''),
+  (4, X'DEADBEEF', X'CAFEBABE', X'FEEDFACE', X'BAADF00D'),
+  (5, X'00FF00FF', X'A5A5A5A5', X'12345678', X'FFFFFFFF');
+
+--echo # Export with mysqldump --hex-blob --tab
+--exec $MYSQL_DUMP --default-character-set=utf8mb4 --skip-comments --hex-blob --tab=$MYSQLTEST_VARDIR/tmp/ test t_blob_roundtrip
+
+--echo # Save original data for comparison
+CREATE TABLE t_blob_original LIKE t_blob_roundtrip;
+INSERT INTO t_blob_original SELECT * FROM t_blob_roundtrip;
+
+--echo # Drop table and recreate from .sql file
+DROP TABLE t_blob_roundtrip;
+--exec $MYSQL test < $MYSQLTEST_VARDIR/tmp/t_blob_roundtrip.sql
+
+--echo # Import with mariadb-import --hex-blob
+--exec $MYSQL_IMPORT --default-character-set=utf8mb4 --hex-blob test $MYSQLTEST_VARDIR/tmp/t_blob_roundtrip.txt
+
+--echo # Verify data integrity - should return 0 rows (all data matches)
+SELECT * FROM t_blob_roundtrip WHERE id NOT IN (SELECT id FROM t_blob_original);
+SELECT * FROM t_blob_original WHERE id NOT IN (SELECT id FROM t_blob_roundtrip);
+SELECT o.id FROM t_blob_original o, t_blob_roundtrip r
+WHERE o.id = r.id
+AND (o.tiny_blob IS NOT NULL AND r.tiny_blob IS NOT NULL AND o.tiny_blob != r.tiny_blob);
+
+--echo # Show successful import
+SELECT id, HEX(tiny_blob), HEX(normal_blob) FROM t_blob_roundtrip ORDER BY id;
+
+--remove_file $MYSQLTEST_VARDIR/tmp/t_blob_roundtrip.sql
+--remove_file $MYSQLTEST_VARDIR/tmp/t_blob_roundtrip.txt
+DROP TABLE t_blob_roundtrip;
+DROP TABLE t_blob_original;
+
+--echo # Test 2: Round-trip BINARY and VARBINARY types
+CREATE TABLE t_binary_roundtrip (
+  id INT PRIMARY KEY,
+  bin_col BINARY(10),
+  varbin_col VARBINARY(100)
+);
+
+INSERT INTO t_binary_roundtrip VALUES
+  (1, X'0102030405', 'varbinary\0test'),
+  (2, NULL, NULL),
+  (3, X'00', ''),
+  (4, X'FFFFFFFFFFFFFF', X'DEADBEEFCAFEBABE');
+
+--echo # Export with mysqldump --hex-blob --tab
+--exec $MYSQL_DUMP --default-character-set=utf8mb4 --skip-comments --hex-blob --tab=$MYSQLTEST_VARDIR/tmp/ test t_binary_roundtrip
+
+CREATE TABLE t_binary_original LIKE t_binary_roundtrip;
+INSERT INTO t_binary_original SELECT * FROM t_binary_roundtrip;
+
+DROP TABLE t_binary_roundtrip;
+--exec $MYSQL test < $MYSQLTEST_VARDIR/tmp/t_binary_roundtrip.sql
+
+--echo # Import with mariadb-import --hex-blob
+--exec $MYSQL_IMPORT --default-character-set=utf8mb4 --hex-blob test $MYSQLTEST_VARDIR/tmp/t_binary_roundtrip.txt
+
+--echo # Verify data integrity
+SELECT o.id FROM t_binary_original o, t_binary_roundtrip r
+WHERE o.id = r.id
+AND ((o.bin_col IS NOT NULL AND r.bin_col IS NOT NULL AND o.bin_col != r.bin_col)
+     OR (o.varbin_col IS NOT NULL AND r.varbin_col IS NOT NULL AND o.varbin_col != r.varbin_col));
+
+--echo # Show successful import
+SELECT id, HEX(bin_col), HEX(varbin_col) FROM t_binary_roundtrip ORDER BY id;
+
+--remove_file $MYSQLTEST_VARDIR/tmp/t_binary_roundtrip.sql
+--remove_file $MYSQLTEST_VARDIR/tmp/t_binary_roundtrip.txt
+DROP TABLE t_binary_roundtrip;
+DROP TABLE t_binary_original;
+
+--echo # Test 3: Round-trip mixed table (BLOB and non-BLOB columns)
+CREATE TABLE t_mixed_roundtrip (
+  id INT PRIMARY KEY,
+  name VARCHAR(50),
+  data BLOB,
+  description TEXT,
+  binary_data VARBINARY(100)
+);
+
+INSERT INTO t_mixed_roundtrip VALUES
+  (1, 'First', X'ABCD', 'Description 1', X'1234'),
+  (2, 'Second', NULL, 'Description 2', NULL),
+  (3, 'Third', '', 'Description 3', ''),
+  (4, 'Special\tChars', X'00FF00FF', 'Desc\nWith\nNewlines', X'CAFEBABE');
+
+--echo # Export with mysqldump --hex-blob --tab
+--exec $MYSQL_DUMP --default-character-set=utf8mb4 --skip-comments --hex-blob --tab=$MYSQLTEST_VARDIR/tmp/ test t_mixed_roundtrip
+
+CREATE TABLE t_mixed_original LIKE t_mixed_roundtrip;
+INSERT INTO t_mixed_original SELECT * FROM t_mixed_roundtrip;
+
+DROP TABLE t_mixed_roundtrip;
+--exec $MYSQL test < $MYSQLTEST_VARDIR/tmp/t_mixed_roundtrip.sql
+
+--echo # Import with mariadb-import --hex-blob
+--exec $MYSQL_IMPORT --default-character-set=utf8mb4 --hex-blob test $MYSQLTEST_VARDIR/tmp/t_mixed_roundtrip.txt
+
+--echo # Verify all columns match
+SELECT o.id FROM t_mixed_original o, t_mixed_roundtrip r
+WHERE o.id = r.id
+AND (o.name != r.name OR o.description != r.description
+     OR (o.data IS NOT NULL AND r.data IS NOT NULL AND o.data != r.data)
+     OR (o.binary_data IS NOT NULL AND r.binary_data IS NOT NULL AND o.binary_data != r.binary_data));
+
+--echo # Show successful import
+SELECT id, name, HEX(data), description, HEX(binary_data) FROM t_mixed_roundtrip ORDER BY id;
+
+--remove_file $MYSQLTEST_VARDIR/tmp/t_mixed_roundtrip.sql
+--remove_file $MYSQLTEST_VARDIR/tmp/t_mixed_roundtrip.txt
+DROP TABLE t_mixed_roundtrip;
+DROP TABLE t_mixed_original;
+
+--echo # Test 4: Round-trip with --columns parameter (subset of columns)
+CREATE TABLE t_columns_test (
+  id INT PRIMARY KEY,
+  name VARCHAR(50),
+  blob1 BLOB,
+  blob2 BLOB,
+  text_col TEXT
+);
+
+INSERT INTO t_columns_test VALUES
+  (1, 'Row1', X'ABCD', X'1234', 'Text1'),
+  (2, 'Row2', NULL, NULL, 'Text2'),
+  (3, 'Row3', X'BEEF', X'CAFE', 'Text3');
+
+--echo # Export with mysqldump --hex-blob --tab
+--exec $MYSQL_DUMP --default-character-set=utf8mb4 --skip-comments --hex-blob --tab=$MYSQLTEST_VARDIR/tmp/ test t_columns_test
+
+CREATE TABLE t_columns_original LIKE t_columns_test;
+INSERT INTO t_columns_original SELECT * FROM t_columns_test;
+
+DROP TABLE t_columns_test;
+--exec $MYSQL test < $MYSQLTEST_VARDIR/tmp/t_columns_test.sql
+
+--echo # Import with --hex-blob and --columns (id, blob1, blob2)
+--exec $MYSQL_IMPORT --default-character-set=utf8mb4 --hex-blob --columns=id,name,blob1,blob2,text_col test $MYSQLTEST_VARDIR/tmp/t_columns_test.txt
+
+--echo # Verify blob columns match
+SELECT o.id FROM t_columns_original o, t_columns_test r
+WHERE o.id = r.id
+AND ((o.blob1 IS NOT NULL AND r.blob1 IS NOT NULL AND o.blob1 != r.blob1)
+     OR (o.blob2 IS NOT NULL AND r.blob2 IS NOT NULL AND o.blob2 != r.blob2));
+
+--echo # Show successful import
+SELECT id, name, HEX(blob1), HEX(blob2), text_col FROM t_columns_test ORDER BY id;
+
+--remove_file $MYSQLTEST_VARDIR/tmp/t_columns_test.sql
+--remove_file $MYSQLTEST_VARDIR/tmp/t_columns_test.txt
+DROP TABLE t_columns_test;
+DROP TABLE t_columns_original;
+
+--echo # Test 5: Import WITHOUT --hex-blob (default behavior - should fail or produce wrong data)
+CREATE TABLE t_no_hex_import (
+  id INT,
+  data BLOB
+);
+
+INSERT INTO t_no_hex_import VALUES (1, X'DEADBEEF'), (2, NULL);
+
+--exec $MYSQL_DUMP --default-character-set=utf8mb4 --skip-comments --hex-blob --tab=$MYSQLTEST_VARDIR/tmp/ test t_no_hex_import
+
+CREATE TABLE t_no_hex_original LIKE t_no_hex_import;
+INSERT INTO t_no_hex_original SELECT * FROM t_no_hex_import;
+
+DROP TABLE t_no_hex_import;
+--exec $MYSQL test < $MYSQLTEST_VARDIR/tmp/t_no_hex_import.sql
+
+--echo # Import WITHOUT --hex-blob - data will be interpreted as ASCII string, not binary
+--exec $MYSQL_IMPORT --default-character-set=utf8mb4 test $MYSQLTEST_VARDIR/tmp/t_no_hex_import.txt
+
+--echo # Show data mismatch - imported data is ASCII "DEADBEEF" not binary 0xDEADBEEF
+SELECT id, HEX(data) as hex_data, LENGTH(data) as data_length FROM t_no_hex_import ORDER BY id;
+--echo # Original was binary (4 bytes), imported is ASCII string (8 bytes)
+SELECT id, HEX(data) as hex_data, LENGTH(data) as data_length FROM t_no_hex_original ORDER BY id;
+
+--remove_file $MYSQLTEST_VARDIR/tmp/t_no_hex_import.sql
+--remove_file $MYSQLTEST_VARDIR/tmp/t_no_hex_import.txt
+DROP TABLE t_no_hex_import;
+DROP TABLE t_no_hex_original;
+
+--echo # Test 6: NULL and empty blob handling
+CREATE TABLE t_null_empty (
+  id INT PRIMARY KEY,
+  blob_null BLOB,
+  blob_empty BLOB,
+  blob_data BLOB
+);
+
+INSERT INTO t_null_empty VALUES
+  (1, NULL, '', X'ABCD'),
+  (2, NULL, '', X'1234');
+
+--exec $MYSQL_DUMP --default-character-set=utf8mb4 --skip-comments --hex-blob --tab=$MYSQLTEST_VARDIR/tmp/ test t_null_empty
+
+CREATE TABLE t_null_empty_original LIKE t_null_empty;
+INSERT INTO t_null_empty_original SELECT * FROM t_null_empty;
+
+DROP TABLE t_null_empty;
+--exec $MYSQL test < $MYSQLTEST_VARDIR/tmp/t_null_empty.sql
+
+--exec $MYSQL_IMPORT --default-character-set=utf8mb4 --hex-blob test $MYSQLTEST_VARDIR/tmp/t_null_empty.txt
+
+--echo # Verify NULL remains NULL and empty remains empty
+SELECT id, blob_null IS NULL as is_null, LENGTH(blob_empty) as empty_length, HEX(blob_data) FROM t_null_empty ORDER BY id;
+SELECT o.id FROM t_null_empty_original o, t_null_empty r
+WHERE o.id = r.id
+AND ((o.blob_null IS NULL) != (r.blob_null IS NULL)
+     OR o.blob_empty != r.blob_empty
+     OR o.blob_data != r.blob_data);
+
+--remove_file $MYSQLTEST_VARDIR/tmp/t_null_empty.sql
+--remove_file $MYSQLTEST_VARDIR/tmp/t_null_empty.txt
+DROP TABLE t_null_empty;
+DROP TABLE t_null_empty_original;
+
+--echo # Test 7: Table with only BLOB columns
+CREATE TABLE t_all_blobs (
+  blob1 BLOB,
+  blob2 TINYBLOB,
+  blob3 MEDIUMBLOB
+);
+
+INSERT INTO t_all_blobs VALUES
+  (X'ABCDEF', X'123456', X'FEDCBA'),
+  (NULL, NULL, NULL),
+  (X'FF', X'00', X'AA');
+
+--exec $MYSQL_DUMP --default-character-set=utf8mb4 --skip-comments --hex-blob --tab=$MYSQLTEST_VARDIR/tmp/ test t_all_blobs
+
+CREATE TABLE t_all_blobs_original LIKE t_all_blobs;
+INSERT INTO t_all_blobs_original SELECT * FROM t_all_blobs;
+
+DROP TABLE t_all_blobs;
+--exec $MYSQL test < $MYSQLTEST_VARDIR/tmp/t_all_blobs.sql
+
+--exec $MYSQL_IMPORT --default-character-set=utf8mb4 --hex-blob test $MYSQLTEST_VARDIR/tmp/t_all_blobs.txt
+
+--echo # Verify all blob columns match
+SELECT HEX(blob1), HEX(blob2), HEX(blob3) FROM t_all_blobs ORDER BY blob1;
+SELECT o.blob1 FROM t_all_blobs_original o
+WHERE NOT EXISTS (
+  SELECT * FROM t_all_blobs r
+  WHERE (o.blob1 IS NULL AND r.blob1 IS NULL) OR o.blob1 = r.blob1
+);
+
+--remove_file $MYSQLTEST_VARDIR/tmp/t_all_blobs.sql
+--remove_file $MYSQLTEST_VARDIR/tmp/t_all_blobs.txt
+DROP TABLE t_all_blobs;
+DROP TABLE t_all_blobs_original;
+
+--echo # Test 8: Round-trip with --dir option
+CREATE TABLE t_dir_import (
+  id INT PRIMARY KEY,
+  data BLOB
+);
+
+INSERT INTO t_dir_import VALUES
+  (1, X'DEADBEEF'),
+  (2, 'test\0data'),
+  (3, NULL);
+
+--mkdir $MYSQLTEST_VARDIR/tmp/dump_hex
+--exec $MYSQL_DUMP --default-character-set=utf8mb4 --skip-comments --hex-blob --dir=$MYSQLTEST_VARDIR/tmp/dump_hex test
+
+CREATE TABLE t_dir_import_original LIKE t_dir_import;
+INSERT INTO t_dir_import_original SELECT * FROM t_dir_import;
+
+DROP TABLE t_dir_import;
+--exec $MYSQL test < $MYSQLTEST_VARDIR/tmp/dump_hex/test/t_dir_import.sql
+
+--echo # Import with mariadb-import --hex-blob from --dir export
+--exec $MYSQL_IMPORT --default-character-set=utf8mb4 --hex-blob test $MYSQLTEST_VARDIR/tmp/dump_hex/test/t_dir_import.txt
+
+--echo # Verify data integrity
+SELECT o.id FROM t_dir_import_original o, t_dir_import r
+WHERE o.id = r.id
+AND ((o.data IS NOT NULL AND r.data IS NOT NULL AND o.data != r.data));
+
+SELECT id, HEX(data) FROM t_dir_import ORDER BY id;
+
+--remove_file $MYSQLTEST_VARDIR/tmp/dump_hex/test/t_dir_import.sql
+--remove_file $MYSQLTEST_VARDIR/tmp/dump_hex/test/t_dir_import.txt
+--rmdir $MYSQLTEST_VARDIR/tmp/dump_hex/test
+--rmdir $MYSQLTEST_VARDIR/tmp/dump_hex
+DROP TABLE t_dir_import;
+DROP TABLE t_dir_import_original;
+
+--echo # Test 9: Column names containing commas are parsed correctly with --hex-blob --columns
+CREATE TABLE t_comma_col (id INT PRIMARY KEY, `a,b` BLOB);
+INSERT INTO t_comma_col VALUES (1, X'DEADBEEF'), (2, NULL), (3, X'CAFEBABE');
+
+--exec $MYSQL_DUMP --default-character-set=utf8mb4 --skip-comments --hex-blob --tab=$MYSQLTEST_VARDIR/tmp/ test t_comma_col
+
+CREATE TABLE t_comma_col_orig LIKE t_comma_col;
+INSERT INTO t_comma_col_orig SELECT * FROM t_comma_col;
+
+DROP TABLE t_comma_col;
+--exec $MYSQL test < $MYSQLTEST_VARDIR/tmp/t_comma_col.sql
+
+--echo # Import with --hex-blob and --columns containing a backtick-quoted name with a comma
+--exec $MYSQL_IMPORT --default-character-set=utf8mb4 --hex-blob "--columns=id,\`a,b\`" test $MYSQLTEST_VARDIR/tmp/t_comma_col.txt
+
+--echo # Verify data integrity - should return 0 rows (all data matches)
+SELECT o.id FROM t_comma_col_orig o, t_comma_col r
+WHERE o.id = r.id
+AND ((o.`a,b` IS NOT NULL AND r.`a,b` IS NOT NULL AND o.`a,b` != r.`a,b`)
+     OR (o.`a,b` IS NULL) != (r.`a,b` IS NULL));
+
+--echo # Show imported data
+SELECT id, HEX(`a,b`) FROM t_comma_col ORDER BY id;
+
+--remove_file $MYSQLTEST_VARDIR/tmp/t_comma_col.sql
+--remove_file $MYSQLTEST_VARDIR/tmp/t_comma_col.txt
+DROP TABLE t_comma_col;
+DROP TABLE t_comma_col_orig;
+
+--echo # Test 10: Column names containing backticks are parsed correctly with --hex-blob --columns
+CREATE TABLE t_backtick_col (id INT PRIMARY KEY, `a``b` BLOB);
+INSERT INTO t_backtick_col VALUES (1, X'DEADBEEF'), (2, NULL), (3, X'CAFEBABE');
+
+--exec $MYSQL_DUMP --default-character-set=utf8mb4 --skip-comments --hex-blob --tab=$MYSQLTEST_VARDIR/tmp/ test t_backtick_col
+
+CREATE TABLE t_backtick_col_orig LIKE t_backtick_col;
+INSERT INTO t_backtick_col_orig SELECT * FROM t_backtick_col;
+
+DROP TABLE t_backtick_col;
+--exec $MYSQL test < $MYSQLTEST_VARDIR/tmp/t_backtick_col.sql
+
+--echo # Import with --hex-blob and --columns containing a backtick-quoted name with a backtick
+--exec $MYSQL_IMPORT --default-character-set=utf8mb4 --hex-blob "--columns=id,\`a\`\`b\`" test $MYSQLTEST_VARDIR/tmp/t_backtick_col.txt
+
+--echo # Verify data integrity - should return 0 rows (all data matches)
+SELECT o.id FROM t_backtick_col_orig o, t_backtick_col r
+WHERE o.id = r.id
+AND ((o.`a``b` IS NOT NULL AND r.`a``b` IS NOT NULL AND o.`a``b` != r.`a``b`)
+     OR (o.`a``b` IS NULL) != (r.`a``b` IS NULL));
+
+--echo # Show imported data
+SELECT id, HEX(`a``b`) FROM t_backtick_col ORDER BY id;
+
+--remove_file $MYSQLTEST_VARDIR/tmp/t_backtick_col.sql
+--remove_file $MYSQLTEST_VARDIR/tmp/t_backtick_col.txt
+DROP TABLE t_backtick_col;
+DROP TABLE t_backtick_col_orig;
+
+--echo # Test 11: Round-trip with --hex-blob and --dir on both dump and import sides
+CREATE TABLE t_hex_dir (
+  id INT PRIMARY KEY,
+  name VARCHAR(50),
+  data BLOB,
+  bin_data VARBINARY(100)
+);
+
+INSERT INTO t_hex_dir VALUES
+  (1, 'First',  X'DEADBEEF', X'CAFEBABE'),
+  (2, 'Second', NULL,        NULL),
+  (3, 'Third',  X'00FF00FF', 'plain\0text');
+
+--mkdir $MYSQLTEST_VARDIR/tmp/dump_hex_dir
+--exec $MYSQL_DUMP --default-character-set=utf8mb4 --skip-comments --hex-blob --dir=$MYSQLTEST_VARDIR/tmp/dump_hex_dir test
+
+CREATE TABLE t_hex_dir_orig LIKE t_hex_dir;
+INSERT INTO t_hex_dir_orig SELECT * FROM t_hex_dir;
+
+DROP TABLE t_hex_dir;
+
+--echo # Import with mariadb-import --hex-blob --dir
+--exec $MYSQL_IMPORT --default-character-set=utf8mb4 --hex-blob --dir=$MYSQLTEST_VARDIR/tmp/dump_hex_dir
+
+--echo # Verify data integrity - should return 0 rows (all data matches)
+SELECT o.id FROM t_hex_dir_orig o, t_hex_dir r
+WHERE o.id = r.id
+AND (o.name != r.name
+     OR (o.data IS NOT NULL AND r.data IS NOT NULL AND o.data != r.data)
+     OR (o.data IS NULL) != (r.data IS NULL)
+     OR (o.bin_data IS NOT NULL AND r.bin_data IS NOT NULL AND o.bin_data != r.bin_data)
+     OR (o.bin_data IS NULL) != (r.bin_data IS NULL));
+
+--echo # Show imported data
+SELECT id, name, HEX(data), HEX(bin_data) FROM t_hex_dir ORDER BY id;
+
+--rmdir $MYSQLTEST_VARDIR/tmp/dump_hex_dir/test
+--rmdir $MYSQLTEST_VARDIR/tmp/dump_hex_dir
+DROP TABLE t_hex_dir;
+DROP TABLE t_hex_dir_orig;
+
+--echo # Test 12: Round-trip with --hex-blob and --dir where a BLOB column name contains a backtick
+CREATE TABLE t_hex_dir_backtick (
+  id INT PRIMARY KEY,
+  name VARCHAR(50),
+  `da``ta` BLOB
+);
+
+INSERT INTO t_hex_dir_backtick VALUES
+  (1, 'First',  X'DEADBEEF'),
+  (2, 'Second', NULL),
+  (3, 'Third',  X'CAFEBABE');
+
+--mkdir $MYSQLTEST_VARDIR/tmp/dump_hex_dir_bt
+--exec $MYSQL_DUMP --default-character-set=utf8mb4 --skip-comments --hex-blob --dir=$MYSQLTEST_VARDIR/tmp/dump_hex_dir_bt test
+
+CREATE TABLE t_hex_dir_backtick_orig LIKE t_hex_dir_backtick;
+INSERT INTO t_hex_dir_backtick_orig SELECT * FROM t_hex_dir_backtick;
+
+DROP TABLE t_hex_dir_backtick;
+
+--echo # Import with mariadb-import --hex-blob --dir
+--exec $MYSQL_IMPORT --default-character-set=utf8mb4 --hex-blob --dir=$MYSQLTEST_VARDIR/tmp/dump_hex_dir_bt
+
+--echo # Verify data integrity - should return 0 rows (all data matches)
+SELECT o.id FROM t_hex_dir_backtick_orig o, t_hex_dir_backtick r
+WHERE o.id = r.id
+AND (o.name != r.name
+     OR (o.`da``ta` IS NOT NULL AND r.`da``ta` IS NOT NULL AND o.`da``ta` != r.`da``ta`)
+     OR (o.`da``ta` IS NULL) != (r.`da``ta` IS NULL));
+
+--echo # Show imported data
+SELECT id, name, HEX(`da``ta`) FROM t_hex_dir_backtick ORDER BY id;
+
+--rmdir $MYSQLTEST_VARDIR/tmp/dump_hex_dir_bt/test
+--rmdir $MYSQLTEST_VARDIR/tmp/dump_hex_dir_bt
+DROP TABLE t_hex_dir_backtick;
+DROP TABLE t_hex_dir_backtick_orig;

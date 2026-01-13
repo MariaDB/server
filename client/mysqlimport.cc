@@ -61,7 +61,7 @@ static std::string parse_sql_script(const char *filepath, bool *tz_utc,
 
 static my_bool  verbose=0,lock_tables=0,ignore_errors=0,opt_delete=0,
                 replace, silent, ignore, ignore_foreign_keys,
-                opt_compress, opt_low_priority, tty_password;
+                opt_compress, opt_low_priority, tty_password, opt_hex_blob;
 static my_bool debug_info_flag= 0, debug_check_flag= 0;
 static uint opt_use_threads=0, opt_local_file=0, my_end_arg= 0;
 static char	*opt_password=0, *current_user=0,
@@ -259,7 +259,12 @@ static struct my_option my_long_options[] =
    &verbose, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
   {"version", 'V', "Output version information and exit.", 0, 0, 0, GET_NO_ARG,
    NO_ARG, 0, 0, 0, 0, 0, 0},
-  { 0, 0, 0, 0, 0, 0, GET_NO_ARG, NO_ARG, 0, 0, 0, 0, 0, 0}
+  {"hex-blob", 0,
+   "Treat BLOB and BINARY column data as hex-encoded strings. "
+   "During import, hex strings are converted to binary using UNHEX(). "
+   "This is useful when importing data exported with HEX() encoding.",
+   &opt_hex_blob, &opt_hex_blob, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
+  { 0, 0, 0, 0, 0, 0, GET_NO_ARG, NO_ARG, 0, 0, 0, 0, 0, 0},
 };
 
 
@@ -644,6 +649,99 @@ int table_load_params::create_table_or_view(MYSQL* mysql)
   return 0;
 }
 
+
+/**
+  Parse comma-separated column list into vector
+
+  @param columns_str - comma-separated column names (e.g., "col1,col2,col3")
+  @param result - vector to store parsed column names
+*/
+static void parse_column_list(const char* columns_str,
+                              std::vector<std::string>& result)
+{
+  if (!columns_str || !*columns_str)
+    return;
+
+  const char *p= columns_str;
+  std::string current;
+  bool in_backtick= false;
+
+  auto flush_token= [&]() {
+    size_t start= current.find_first_not_of(" \t\n\r");
+    if (start != std::string::npos)
+    {
+      size_t end= current.find_last_not_of(" \t\n\r");
+      result.push_back(current.substr(start, end - start + 1));
+    }
+    current.clear();
+  };
+
+  while (*p)
+  {
+    if (*p == '`')
+    {
+      if (in_backtick && *(p + 1) == '`')
+      {
+        /* Escaped backtick inside a quoted identifier */
+        current += '`';
+        current += '`';
+        p += 2;
+        continue;
+      }
+      in_backtick= !in_backtick;
+      current += *p;
+    }
+    else if (*p == ',' && !in_backtick)
+    {
+      flush_token();
+    }
+    else
+    {
+      current += *p;
+    }
+    p++;
+  }
+
+  /* Handle the last token */
+  flush_token();
+}
+
+
+/**
+  Strip backtick quoting from an identifier and unescape doubled backticks.
+  E.g. "`a,b`" -> "a,b", "`a``b`" -> "a`b", "name" -> "name"
+*/
+static std::string unquote_identifier(const std::string& s)
+{
+  if (s.size() < 2 || s.front() != '`' || s.back() != '`')
+    return s;
+  std::string result;
+  for (size_t i= 1; i < s.size() - 1; i++)
+  {
+    if (s[i] == '`' && i + 1 < s.size() - 1 && s[i + 1] == '`')
+    {
+      result += '`';
+      i++;
+    }
+    else
+      result += s[i];
+  }
+  return result;
+}
+
+/**
+  Check if a column type is a BLOB or BINARY type
+
+  @param type - column type string (e.g., "BLOB", "VARBINARY(100)")
+  @return true if the type is BLOB or BINARY variant
+*/
+static bool is_blob_or_binary_type(const std::string& type)
+{
+  return type.find("blob") != std::string::npos ||
+         type.find("binary") != std::string::npos;
+}
+
+
 int table_load_params::load_data(MYSQL *mysql)
 {
   char tablename[FN_REFLEN], hard_path[FN_REFLEN],
@@ -705,7 +803,6 @@ int table_load_params::load_data(MYSQL *mysql)
       DBUG_RETURN(1);
   }
 
-
   bool recreate_secondary_keys= false;
   if (opt_innodb_optimize_keys && ddl_info.storage_engine == "InnoDB")
   {
@@ -746,14 +843,152 @@ int table_load_params::load_data(MYSQL *mysql)
   end= add_load_option(end, fields_terminated, " TERMINATED BY");
   end= add_load_option(end, enclosed, " ENCLOSED BY");
   end= add_load_option(end, opt_enclosed,
-		       " OPTIONALLY ENCLOSED BY");
+               " OPTIONALLY ENCLOSED BY");
   end= add_load_option(end, escaped, " ESCAPED BY");
   end= add_load_option(end, lines_terminated, " LINES TERMINATED BY");
+
   if (opt_ignore_lines >= 0)
-    end= strmov(longlong10_to_str(opt_ignore_lines, 
+    end= strmov(longlong10_to_str(opt_ignore_lines,
 				  strmov(end, " IGNORE "),10), " LINES");
-  if (opt_columns)
+
+  // If --hex-blob is enabled but ddl_info.columns is empty (table already exists),
+  // query the server for table structure
+  if (opt_hex_blob && ddl_info.columns.empty())
+  {
+    char query_buff[512];
+    MYSQL_RES *result;
+    MYSQL_ROW row;
+
+    // Query INFORMATION_SCHEMA.COLUMNS for table structure
+    // This is similar to what mysqldump does in get_table_structure()
+    my_snprintf(query_buff, sizeof(query_buff),
+                "SELECT column_name, data_type, character_set_name "
+                "FROM information_schema.columns "
+                "WHERE table_schema=DATABASE() AND table_name='%s' "
+                "ORDER BY ordinal_position", tablename);
+
+    if (mysql_query(mysql, query_buff))
+    {
+      db_error_with_table(mysql, tablename);
+      DBUG_RETURN(1);
+    }
+
+    result = mysql_store_result(mysql);
+    if (result)
+    {
+      while ((row= mysql_fetch_row(result)))
+      {
+        if (row[0] && row[1]) // column_name and data_type
+        {
+          std::string col_name = row[0];
+          std::string col_type = row[1];
+          std::string charset = row[2] ? row[2] : "";
+
+          // Convert data_type to lowercase for comparison
+          for (char &c : col_type) c = tolower(c);
+
+          // Store column info
+          ddl_info.columns.push_back({col_name, col_type});
+        }
+      }
+      mysql_free_result(result);
+
+      if (verbose && !ddl_info.columns.empty())
+      {
+        fprintf(stdout, "Queried table structure from server: %zu columns found\n",
+                ddl_info.columns.size());
+      }
+    }
+  }
+
+  if (opt_hex_blob && !ddl_info.columns.empty())
+  {
+    // Build list of columns to load
+    std::vector<std::string> load_columns;
+    std::vector<std::string> blob_column_names;  // Original column names
+
+    if (opt_columns)
+    {
+      // User specified columns - parse them
+      parse_column_list(opt_columns, load_columns);
+    }
+    else
+    {
+      // No columns specified - use all columns from table definition
+      for (const auto& col : ddl_info.columns) {
+        load_columns.push_back(col.name);
+      }
+    }
+
+    // Identify BLOB/BINARY columns and modify their names in load list
+    for (size_t i = 0; i < load_columns.size(); i++)
+    {
+      bool modified = false;
+      // Check if this column is a BLOB/BINARY type.
+      // load_columns[i] may be backtick-quoted (e.g. "`a,b`"), so unquote
+      // before comparing with col.name which is always unquoted.
+      std::string col_name= unquote_identifier(load_columns[i]);
+      for (const auto& col : ddl_info.columns)
+      {
+        if (col.name == col_name && is_blob_or_binary_type(col.type))
+        {
+          // Replace column name with an index-based user variable to avoid
+          // any issues with special characters in the column name.
+          std::string var_name= "__blob_" + std::to_string(blob_column_names.size());
+          blob_column_names.push_back(col.name);
+          load_columns[i] = "@" + var_name;
+	  modified = true;
+          break;
+        }
+      }
+      if (!modified)
+      {
+        // Wrap in backticks if not already quoted; use quote_identifier so
+        // any backtick characters in the name are properly escaped.
+        if (load_columns[i].empty() || load_columns[i].front() != '`')
+          load_columns[i] = quote_identifier(load_columns[i].c_str());
+      }
+    }
+
+    // Build the column specification: (col1, col2, @blob_col_hex, ...)
+    end= strmov(end, " (");
+    for (size_t i = 0; i < load_columns.size(); i++)
+    {
+      if (i > 0)
+        end= strmov(end, ",");
+      end= strmov(end, load_columns[i].c_str());
+    }
+    end= strmov(end, ")");
+
+    // Add SET clause to convert hex to binary: SET blob_col=UNHEX(@blob_col_hex)
+    if (!blob_column_names.empty())
+    {
+      if (verbose)
+      {
+        fprintf(stdout, "Converting %zu hex-encoded BLOB/BINARY column(s) to binary\n",
+                blob_column_names.size());
+      }
+
+      end= strmov(end, " SET ");
+      for (size_t i = 0; i < blob_column_names.size(); i++)
+      {
+        if (i > 0)
+          end= strmov(end, ",");
+
+        std::string quoted_col = quote_identifier(blob_column_names[i].c_str());
+        end= strmov(end, quoted_col.c_str());
+        end= strmov(end, "=UNHEX(@__blob_");
+        end= strmov(end, std::to_string(i).c_str());
+        end= strmov(end, ")");
+      }
+    }
+  }
+  else if (opt_columns)
+  {
+    // Original behavior: just use the columns as-is
     end= strmov(strmov(strmov(end, " ("), opt_columns), ")");
+  }
+
   *end= '\0';
 
   if (mysql_query(mysql, sql_statement))
@@ -767,7 +1002,6 @@ int table_load_params::load_data(MYSQL *mysql)
     if (info) /* If NULL-pointer, print nothing */
       fprintf(stdout, "%s.%s: %s\n", db, tablename, info);
   }
-
 
   if (exec_sql(mysql, std::string("ALTER TABLE ") + full_tablename + " ENABLE KEYS;"))
     DBUG_RETURN(1);
@@ -814,7 +1048,6 @@ int table_load_params::load_data(MYSQL *mysql)
   }
   DBUG_RETURN(0);
 }
-
 
 
 static void lock_table(MYSQL *mysql, int tablecount, char **raw_tablename)
@@ -1032,19 +1265,19 @@ static char *add_load_option(char *ptr, const char *object,
 ** "'", "\", "\\" (escaped backslash), "\t" (tab), "\n" (newline)
 ** This is done by doubling ' and add a end -\ if needed to avoid
 ** syntax errors from the SQL parser.
-*/ 
+*/
 
 static char *field_escape(char *to,const char *from,uint length)
 {
   const char *end;
-  uint end_backslashes=0; 
+  uint end_backslashes=0;
 
   for (end= from+length; from != end; from++)
   {
     *to++= *from;
     if (*from == '\\')
       end_backslashes^=1;    /* find odd number of backslashes */
-    else 
+    else
     {
       if (*from == '\'' && !end_backslashes)
 	*to++= *from;      /* We want a duplicate of "'" for MySQL */
@@ -1053,7 +1286,7 @@ static char *field_escape(char *to,const char *from,uint length)
   }
   /* Add missing backslashes if user has specified odd number of backs.*/
   if (end_backslashes)
-    *to++= '\\';          
+    *to++= '\\';
   return to;
 }
 

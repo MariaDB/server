@@ -40,6 +40,12 @@ struct KeyDefinition
   std::string name;
 };
 
+struct ColumnInfo
+{
+  std::string name;
+  std::string type;
+};
+
 /**
    Information about keys and constraints, extracted from
    CREATE TABLE statement
@@ -50,6 +56,7 @@ struct TableDDLInfo
   KeyDefinition primary_key;
   std::vector<KeyDefinition> constraints;
   std::vector<KeyDefinition> secondary_indexes;
+  std::vector<ColumnInfo> columns;
   std::string storage_engine;
   std::string table_name;
   /* Innodb is using first UNIQUE key for clustering, if no PK is set*/
