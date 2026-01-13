@@ -20,6 +20,62 @@ SELECT routine_name, routine_type, routine_definition
 FROM information_schema.routines
 WHERE routine_type LIKE 'PACKAGE%'
 ORDER BY routine_type;
+routine_name	dbms_random
+routine_type	PACKAGE
+routine_definition	AS
+    PROCEDURE initialize (input INT)
+      SQL SECURITY INVOKER
+      COMMENT '\n              Description\n              Initializes the seed\n              Raises\n              '
+    ;
+    PROCEDURE terminate
+      SQL SECURITY INVOKER
+      COMMENT '\n              Description\n              Terminates package\n              Raises\n              '
+    ;
+    FUNCTION value RETURN DECIMAL(65,38)
+      SQL SECURITY INVOKER
+      COMMENT '\n              Description\n              Gets a random number greater than or equal to 0 and less than 1,\n              with 38 digits to the right of the decimal point (38-digit\n              precision)\n              Raises\n              '
+    ;
+    FUNCTION random RETURN INT
+      SQL SECURITY INVOKER
+      COMMENT '\n              Description\n              Generates a random number\n              Raises\n              '
+    ;
+END
+routine_name	dbms_sql
+routine_type	PACKAGE
+routine_definition	AS
+    FUNCTION open_cursor RETURN INT
+      SQL SECURITY INVOKER
+      COMMENT '\n              Description\n              This function opens a new cursor.\n              Raises\n              '
+    ;
+    PROCEDURE parse (cursor_id INT, input VARCHAR2(65511), language_flag INT)
+      SQL SECURITY INVOKER
+      COMMENT '\n              Description\n              This procedure parses the given statement in the given cursor. All statements are parsed immediately. In addition, DDL statements are run immediately when parsed.\n              Raises\n              '
+    ;
+    FUNCTION execute (cursor_id INT) RETURN INT
+      SQL SECURITY INVOKER
+      COMMENT '\n              Description\n              This function executes a given cursor. This function accepts the ID number of the cursor and returns the number of rows processed.\n              Raises\n              '
+    ;
+    PROCEDURE close_cursor (cursor_id INT)
+      SQL SECURITY INVOKER
+      COMMENT '\n              Description\n              When you no longer need a cursor for a session, close the cursor by calling the CLOSE_CURSOR Procedure.\n              Raises\n              '
+    ;
+END
+routine_name	dbms_utility
+routine_type	PACKAGE
+routine_definition	AS
+    FUNCTION format_error_backtrace RETURN VARCHAR(65532)
+      SQL SECURITY INVOKER
+      COMMENT '\n              Description\n              This procedure displays the call stack at the point where an exception was raised, even if the procedure is called from an exception handler in an outer scope.\n              Raises\n              '
+    ;
+    FUNCTION format_error_stack RETURN VARCHAR(65532)
+      SQL SECURITY INVOKER
+      COMMENT '\n              Description\n              This function formats the current error stack. It can be used in exception handlers to look at the full error stack\n              Raises\n              '
+    ;
+    FUNCTION get_time RETURN INT
+      SQL SECURITY INVOKER
+      COMMENT '\n              Description\n              This function returns a measure of current time in hundredths of a second\n              Raises\n              '
+    ;
+END
 routine_name	pkg1
 routine_type	PACKAGE
 routine_definition	AS
@@ -233,6 +289,77 @@ FUNCTION f1() RETURN INT AS
 BEGIN
 RETURN 1;
 END;
+END
+routine_name	UTL_I18N
+routine_type	PACKAGE BODY
+routine_definition	AS
+    FUNCTION transliterate(val VARCHAR2(255) CHARACTER SET ANY_CS, name VARCHAR2(255)) RETURN VARCHAR2(255) CHARACTER SET ANY_CS
+      SQL SECURITY INVOKER
+      COMMENT '\n              Description\n              This function performs script transliteration.\n              Parameters\n              val (VARCHAR2):\n                Specifies the data to be converted.\n              name (VARCHAR2):\n                Specifies the transliteration name string.\n              Returns\n                The converted string.\n              '
+    AS
+    BEGIN
+      RETURN transliterate(val, name);
+    END;
+    FUNCTION raw_to_char(jc RAW, charset_or_collation VARCHAR(255)) RETURN VARCHAR2
+      SQL SECURITY INVOKER
+      COMMENT '\n              Description\n              This function converts RAW data from a valid character set to a\n              VARCHAR2 string in the database character set.\n              Parameters\n              jc (RAW):\n                Specifies the RAW data to be converted to a VARCHAR2 string\n              charset_or_collation (VARCHAR):\n                Specifies the character set that the RAW data was derived from.\n              Returns\n                the VARCHAR2 string equivalent in the database character set of\n                the RAW data.\n        '
+    IS
+    BEGIN
+      DECLARE
+        dst_charset VARCHAR(65532);
+        sourced_jc VARCHAR(65532);
+        targeted_sourced_jc VARCHAR(65532);
+        unhexed_hexed_data BLOB;
+      BEGIN
+        SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.SESSION_VARIABLES WHERE VARIABLE_NAME = 'character_set_results' into dst_charset;
+        CASE charset_or_collation
+          WHEN 'utf8' THEN
+            CASE dst_charset
+              WHEN 'utf8mb3' THEN
+                BEGIN
+                  SET sourced_jc = CONVERT(jc USING utf8);
+                  SET targeted_sourced_jc = CONVERT(sourced_jc USING utf8mb3);
+                END;
+              ELSE
+                RETURN NULL;
+            END CASE;
+          WHEN 'utf8mb3' THEN
+            CASE dst_charset
+              WHEN 'utf8mb4' THEN
+                BEGIN
+                  SET sourced_jc = CONVERT(jc USING utf8mb3);
+                  SET targeted_sourced_jc = CONVERT(sourced_jc USING utf8mb4);
+                END;
+              ELSE
+                RETURN NULL;
+            END CASE;
+          ELSE
+            RETURN NULL;
+        END CASE;
+        SET unhexed_hexed_data = UNHEX(HEX(targeted_sourced_jc));
+        CASE dst_charset
+          WHEN 'utf8mb3' THEN
+            RETURN CONVERT(unhexed_hexed_data USING utf8mb3);
+          WHEN 'utf8mb4' THEN
+            RETURN CONVERT(unhexed_hexed_data USING utf8mb4);
+        END CASE;
+        RETURN NULL;
+      END;
+    END;
+    FUNCTION string_to_raw(jc VARCHAR2, charset_or_collation VARCHAR(255)) RETURN RAW
+      SQL SECURITY INVOKER
+      COMMENT '\n              Description\n              This function converts a VARCHAR2 string to another valid\n              character set and returns the result as RAW data.\n              Parameters\n              jc (VARCHAR2):\n                Specifies the VARCHAR2 or NVARCHAR2 string to convert.\n              charset_or_collation (VARCHAR):\n                Specifies the destination character set.\n              Returns\n                RAW data representation of the input string in the new character set\n              '
+    AS
+    BEGIN
+      CASE charset_or_collation
+        WHEN 'utf8' THEN
+          RETURN CAST(CONVERT(jc USING utf8mb4) AS BINARY);
+        WHEN 'ucs2' THEN
+          RETURN CAST(CONVERT(jc USING ucs2) AS BINARY);
+        ELSE
+          RETURN NULL;
+      END CASE;
+    END;
 END
 DROP PACKAGE pkg1;
 SET sql_mode=ORACLE;
@@ -254,6 +381,62 @@ SELECT routine_name, routine_type, routine_definition
 FROM information_schema.routines
 WHERE routine_type LIKE 'PACKAGE%'
 ORDER BY routine_type;
+routine_name	dbms_random
+routine_type	PACKAGE
+routine_definition	AS
+    PROCEDURE initialize (input INT)
+      SQL SECURITY INVOKER
+      COMMENT '\n              Description\n              Initializes the seed\n              Raises\n              '
+    ;
+    PROCEDURE terminate
+      SQL SECURITY INVOKER
+      COMMENT '\n              Description\n              Terminates package\n              Raises\n              '
+    ;
+    FUNCTION value RETURN DECIMAL(65,38)
+      SQL SECURITY INVOKER
+      COMMENT '\n              Description\n              Gets a random number greater than or equal to 0 and less than 1,\n              with 38 digits to the right of the decimal point (38-digit\n              precision)\n              Raises\n              '
+    ;
+    FUNCTION random RETURN INT
+      SQL SECURITY INVOKER
+      COMMENT '\n              Description\n              Generates a random number\n              Raises\n              '
+    ;
+END
+routine_name	dbms_sql
+routine_type	PACKAGE
+routine_definition	AS
+    FUNCTION open_cursor RETURN INT
+      SQL SECURITY INVOKER
+      COMMENT '\n              Description\n              This function opens a new cursor.\n              Raises\n              '
+    ;
+    PROCEDURE parse (cursor_id INT, input VARCHAR2(65511), language_flag INT)
+      SQL SECURITY INVOKER
+      COMMENT '\n              Description\n              This procedure parses the given statement in the given cursor. All statements are parsed immediately. In addition, DDL statements are run immediately when parsed.\n              Raises\n              '
+    ;
+    FUNCTION execute (cursor_id INT) RETURN INT
+      SQL SECURITY INVOKER
+      COMMENT '\n              Description\n              This function executes a given cursor. This function accepts the ID number of the cursor and returns the number of rows processed.\n              Raises\n              '
+    ;
+    PROCEDURE close_cursor (cursor_id INT)
+      SQL SECURITY INVOKER
+      COMMENT '\n              Description\n              When you no longer need a cursor for a session, close the cursor by calling the CLOSE_CURSOR Procedure.\n              Raises\n              '
+    ;
+END
+routine_name	dbms_utility
+routine_type	PACKAGE
+routine_definition	AS
+    FUNCTION format_error_backtrace RETURN VARCHAR(65532)
+      SQL SECURITY INVOKER
+      COMMENT '\n              Description\n              This procedure displays the call stack at the point where an exception was raised, even if the procedure is called from an exception handler in an outer scope.\n              Raises\n              '
+    ;
+    FUNCTION format_error_stack RETURN VARCHAR(65532)
+      SQL SECURITY INVOKER
+      COMMENT '\n              Description\n              This function formats the current error stack. It can be used in exception handlers to look at the full error stack\n              Raises\n              '
+    ;
+    FUNCTION get_time RETURN INT
+      SQL SECURITY INVOKER
+      COMMENT '\n              Description\n              This function returns a measure of current time in hundredths of a second\n              Raises\n              '
+    ;
+END
 routine_name	pkg1
 routine_type	PACKAGE
 routine_definition	AS
@@ -470,6 +653,77 @@ END;
 BEGIN
 SET @a=10;
 SET @a=f1();
+END
+routine_name	UTL_I18N
+routine_type	PACKAGE BODY
+routine_definition	AS
+    FUNCTION transliterate(val VARCHAR2(255) CHARACTER SET ANY_CS, name VARCHAR2(255)) RETURN VARCHAR2(255) CHARACTER SET ANY_CS
+      SQL SECURITY INVOKER
+      COMMENT '\n              Description\n              This function performs script transliteration.\n              Parameters\n              val (VARCHAR2):\n                Specifies the data to be converted.\n              name (VARCHAR2):\n                Specifies the transliteration name string.\n              Returns\n                The converted string.\n              '
+    AS
+    BEGIN
+      RETURN transliterate(val, name);
+    END;
+    FUNCTION raw_to_char(jc RAW, charset_or_collation VARCHAR(255)) RETURN VARCHAR2
+      SQL SECURITY INVOKER
+      COMMENT '\n              Description\n              This function converts RAW data from a valid character set to a\n              VARCHAR2 string in the database character set.\n              Parameters\n              jc (RAW):\n                Specifies the RAW data to be converted to a VARCHAR2 string\n              charset_or_collation (VARCHAR):\n                Specifies the character set that the RAW data was derived from.\n              Returns\n                the VARCHAR2 string equivalent in the database character set of\n                the RAW data.\n        '
+    IS
+    BEGIN
+      DECLARE
+        dst_charset VARCHAR(65532);
+        sourced_jc VARCHAR(65532);
+        targeted_sourced_jc VARCHAR(65532);
+        unhexed_hexed_data BLOB;
+      BEGIN
+        SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.SESSION_VARIABLES WHERE VARIABLE_NAME = 'character_set_results' into dst_charset;
+        CASE charset_or_collation
+          WHEN 'utf8' THEN
+            CASE dst_charset
+              WHEN 'utf8mb3' THEN
+                BEGIN
+                  SET sourced_jc = CONVERT(jc USING utf8);
+                  SET targeted_sourced_jc = CONVERT(sourced_jc USING utf8mb3);
+                END;
+              ELSE
+                RETURN NULL;
+            END CASE;
+          WHEN 'utf8mb3' THEN
+            CASE dst_charset
+              WHEN 'utf8mb4' THEN
+                BEGIN
+                  SET sourced_jc = CONVERT(jc USING utf8mb3);
+                  SET targeted_sourced_jc = CONVERT(sourced_jc USING utf8mb4);
+                END;
+              ELSE
+                RETURN NULL;
+            END CASE;
+          ELSE
+            RETURN NULL;
+        END CASE;
+        SET unhexed_hexed_data = UNHEX(HEX(targeted_sourced_jc));
+        CASE dst_charset
+          WHEN 'utf8mb3' THEN
+            RETURN CONVERT(unhexed_hexed_data USING utf8mb3);
+          WHEN 'utf8mb4' THEN
+            RETURN CONVERT(unhexed_hexed_data USING utf8mb4);
+        END CASE;
+        RETURN NULL;
+      END;
+    END;
+    FUNCTION string_to_raw(jc VARCHAR2, charset_or_collation VARCHAR(255)) RETURN RAW
+      SQL SECURITY INVOKER
+      COMMENT '\n              Description\n              This function converts a VARCHAR2 string to another valid\n              character set and returns the result as RAW data.\n              Parameters\n              jc (VARCHAR2):\n                Specifies the VARCHAR2 or NVARCHAR2 string to convert.\n              charset_or_collation (VARCHAR):\n                Specifies the destination character set.\n              Returns\n                RAW data representation of the input string in the new character set\n              '
+    AS
+    BEGIN
+      CASE charset_or_collation
+        WHEN 'utf8' THEN
+          RETURN CAST(CONVERT(jc USING utf8mb4) AS BINARY);
+        WHEN 'ucs2' THEN
+          RETURN CAST(CONVERT(jc USING ucs2) AS BINARY);
+        ELSE
+          RETURN NULL;
+      END CASE;
+    END;
 END
 DROP PACKAGE pkg1;
 #

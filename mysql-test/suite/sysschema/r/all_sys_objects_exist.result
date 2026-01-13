@@ -127,6 +127,14 @@ sys_get_config	FUNCTION
 version_major	FUNCTION
 version_minor	FUNCTION
 version_patch	FUNCTION
+dbms_random	PACKAGE
+dbms_sql	PACKAGE
+dbms_utility	PACKAGE
+UTL_I18N	PACKAGE
+dbms_random	PACKAGE BODY
+dbms_sql	PACKAGE BODY
+dbms_utility	PACKAGE BODY
+UTL_I18N	PACKAGE BODY
 create_synonym_db	PROCEDURE
 diagnostics	PROCEDURE
 execute_prepared_stmt	PROCEDURE

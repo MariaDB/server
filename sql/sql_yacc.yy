@@ -3367,6 +3367,9 @@ call:
           }
           opt_sp_cparam_list
           {
+            if (Lex->is_dbmssql_cursor_execute_call(thd) && thd->cursor_list.elements())
+              Lex->stmt_execute_dbmssql();
+
             if (Lex->check_cte_dependencies_and_resolve_references())
               MYSQL_YYABORT;
           }

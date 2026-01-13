@@ -617,6 +617,21 @@ public:
 }; // class sp_instr_stmt : public sp_lex_instr
 
 
+class sp_instr_stmt_dbmssql_execute : public sp_instr_stmt
+{
+public:
+  sp_instr_stmt_dbmssql_execute(uint ip, sp_pcontext *ctx, LEX *lex,
+      const LEX_STRING& query, THD *thd)
+   :sp_instr_stmt(ip, ctx, lex, query), m_lex(lex)
+  {
+  }
+
+  int execute(THD *thd, uint *nextp) override;
+private:
+  LEX *m_lex;
+};
+
+
 class sp_instr_set : public sp_lex_instr,
                      public sp_rcontext_addr
 {

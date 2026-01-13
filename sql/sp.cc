@@ -2869,6 +2869,10 @@ int Sroutine_hash_entry::sp_cache_routine(THD *thd,
   */
   DBUG_ASSERT(mdl_request.ticket || this == thd->lex->sroutines_list.first);
 
+  const Lex_ident_sys routine_name({STRING_WITH_LEN("dbms_sql.execute")});
+  if (lex_string_eq(&name.m_name, &routine_name))
+    thd->in_dbmssql_execute_dynamic_mode= true;
+
   return m_handler->sp_cache_routine(thd, &name, sp);
 }
 

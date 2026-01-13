@@ -525,18 +525,20 @@ inline bool open_and_lock_tables(THD *thd,
                                  bool derived, uint flags)
 {
   DML_prelocking_strategy prelocking_strategy;
-
+  
   return open_and_lock_tables(thd, options, tables, derived, flags,
                               &prelocking_strategy);
 }
 inline bool open_and_lock_tables(THD *thd, TABLE_LIST *tables,
                                   bool derived, uint flags)
 {
-  DML_prelocking_strategy prelocking_strategy;
+  Prelocking_strategy *prelocking_strategy;
+  static DML_prelocking_strategy dml_strategy;
+  prelocking_strategy = &dml_strategy;
 
   return open_and_lock_tables(thd, thd->lex->create_info,
                               tables, derived, flags,
-                              &prelocking_strategy);
+                              prelocking_strategy);
 }
 
 

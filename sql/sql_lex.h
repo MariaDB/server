@@ -3947,6 +3947,7 @@ public:
                                const sp_name *name,
                                const sp_name *name2,
                                const char *cpp_body_end);
+  bool is_dbmssql_cursor_execute_call(THD *);
   bool call_statement_start(THD *thd, sp_name *name);
   bool call_statement_start(THD *thd, const Lex_ident_sys_st *name);
   bool call_statement_start(THD *thd, const Lex_ident_sys_st *name1,
@@ -4974,6 +4975,7 @@ public:
   bool stmt_prepare(const Lex_ident_sys_st &ident, Item *code);
   bool stmt_execute(const Lex_ident_sys_st &ident, List<Item> *params);
   bool stmt_execute_immediate(Item *code, List<Item> *params);
+  bool stmt_execute_dbmssql();
   void stmt_deallocate_prepare(const Lex_ident_sys_st &ident);
 
   bool stmt_alter_table_exchange_partition(Table_ident *table);
