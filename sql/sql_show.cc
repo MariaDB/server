@@ -7393,9 +7393,9 @@ static int get_schema_constraints_record(THD *thd, TABLE_LIST *tables,
 }
 
 
-static bool store_trigger(THD *thd, Trigger *trigger,
-                          TABLE *table, const LEX_CSTRING *db_name,
-                          const LEX_CSTRING *table_name)
+static bool store_trigger(THD *thd, Trigger *trigger, TABLE *table,
+                          const LEX_CSTRING *db_name,
+                          const LEX_CSTRING *table_name, bool trigger_priv)
 {
   CHARSET_INFO *cs= system_charset_info;
   LEX_CSTRING sql_mode_rep;
@@ -7417,7 +7417,20 @@ static bool store_trigger(THD *thd, Trigger *trigger,
   table->field[5]->store(db_name->str, db_name->length, cs);
   table->field[6]->store(table_name->str, table_name->length, cs);
   table->field[7]->store(trigger->action_order);
-  table->field[9]->store(trigger_body.str, trigger_body.length, cs);
+
+  if (trigger_priv)
+  {
+    table->field[9]->set_notnull();
+    table->field[18]->set_notnull();
+    table->field[9]->store(trigger_body.str, trigger_body.length, cs);
+    table->field[18]->store(definer_buffer.str, definer_buffer.length, cs);
+  }
+  else
+  {
+    table->field[9]->set_null();
+    table->field[18]->set_null();
+  }
+
   table->field[10]->store(STRING_WITH_LEN("ROW"), cs);
   table->field[11]->store(trg_action_time_type_names[trigger->action_time].str,
                           trg_action_time_type_names[trigger->action_time].length, cs);
@@ -7437,7 +7450,6 @@ static bool store_trigger(THD *thd, Trigger *trigger,
 
   sql_mode_string_representation(thd, trigger->sql_mode, &sql_mode_rep);
   table->field[17]->store(sql_mode_rep.str, sql_mode_rep.length, cs);
-  table->field[18]->store(definer_buffer.str, definer_buffer.length, cs);
   table->field[19]->store(&trigger->client_cs_name, cs);
   table->field[20]->store(&trigger->connection_cl_name, cs);
   table->field[21]->store(&trigger->db_cl_name, cs);
@@ -7470,8 +7482,20 @@ static int get_schema_triggers_record(THD *thd, TABLE_LIST *tables,
     Table_triggers_list *triggers= tables->table->triggers;
     int event, timing;
 
-    if (check_table_access(thd, TRIGGER_ACL, tables, FALSE, 1, TRUE))
-      goto ret;
+#ifndef NO_EMBEDDED_ACCESS_CHECKS
+    bool trigger_priv=
+                !check_table_access(thd, TRIGGER_ACL, tables, FALSE, 1, TRUE);
+
+    const privilege_t need= (INSERT_ACL | UPDATE_ACL | DELETE_ACL);
+    if (!(trigger_priv || (thd->col_access & need)))
+    {
+      check_grant(thd, need, tables, 0, 1, 1);
+      if (!(tables->grant.all_privilege() & need))
+        DBUG_RETURN(0);
+    }
+#else
+    bool trigger_priv= true;
+#endif
 
     for (event= 0; event < (int)TRG_EVENT_MAX; event++)
     {
@@ -7484,13 +7508,12 @@ static int get_schema_triggers_record(THD *thd, TABLE_LIST *tables,
              trigger;
              trigger= trigger->next)
         {
-          if (store_trigger(thd, trigger, table, db_name, table_name))
+          if (store_trigger(thd, trigger, table, db_name, table_name, trigger_priv))
             DBUG_RETURN(1);
         }
       }
     }
   }
-ret:
   DBUG_RETURN(0);
 }
 
@@ -9776,7 +9799,7 @@ ST_FIELD_INFO triggers_fields_info[]=
   Column("EVENT_OBJECT_TABLE",        Name(), NOT_NULL, "Table",    OPEN_FRM_ONLY),
   Column("ACTION_ORDER",        SLonglong(4), NOT_NULL,             OPEN_FRM_ONLY),
   Column("ACTION_CONDITION", Longtext(65535), NULLABLE,             OPEN_FRM_ONLY),
-  Column("ACTION_STATEMENT", Longtext(65535), NOT_NULL, "Statement",OPEN_FRM_ONLY),
+  Column("ACTION_STATEMENT", Longtext(65535), NULLABLE, "Statement",OPEN_FRM_ONLY),
   Column("ACTION_ORIENTATION",    Varchar(9), NOT_NULL,             OPEN_FRM_ONLY),
   Column("ACTION_TIMING",         Varchar(6), NOT_NULL, "Timing",   OPEN_FRM_ONLY),
   Column("ACTION_REFERENCE_OLD_TABLE",Name(), NULLABLE,             OPEN_FRM_ONLY),
@@ -9786,7 +9809,7 @@ ST_FIELD_INFO triggers_fields_info[]=
   /* 2 here indicates 2 decimals */
   Column("CREATED",              Datetime(2), NULLABLE, "Created",  OPEN_FRM_ONLY),
   Column("SQL_MODE",               SQLMode(), NOT_NULL, "sql_mode", OPEN_FRM_ONLY),
-  Column("DEFINER",                Definer(), NOT_NULL, "Definer",  OPEN_FRM_ONLY),
+  Column("DEFINER",                Definer(), NULLABLE, "Definer",  OPEN_FRM_ONLY),
   Column("CHARACTER_SET_CLIENT",    CSName(), NOT_NULL, "character_set_client",
                                                                  OPEN_FRM_ONLY),
   Column("COLLATION_CONNECTION",    CLName(), NOT_NULL, "collation_connection",
