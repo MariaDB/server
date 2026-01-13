@@ -568,7 +568,7 @@ SELECT @a;
 @a
 1
 DROP TABLE t1;
-End of 5.5 tests
+# End of 5.5 tests
 #
 # Check that used memory extends if we set a variable
 #
