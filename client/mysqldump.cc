@@ -3506,7 +3506,7 @@ static uint get_table_structure(const char *table, const char *db, char *table_t
           dynstr_append_checked(&select_field_names_for_header, ", ");
       }
       init=1;
-       my_bool is_blob_field= 0;
+      my_bool is_blob_field= 0;
       /*
         Check if this is a binary/blob field that should be hex-encoded.
         For multi_file_output (--tab/--dir), we need to wrap with HEX() in SELECT.
