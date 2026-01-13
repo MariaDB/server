@@ -4758,9 +4758,7 @@ bool show_binlog_info(THD* thd)
     mysql_bin_log.get_current_log(&li);
     size_t dir_len = dirname_length(li.log_file_name);
     const char *base= li.log_file_name + dir_len;
-    char buf[128];
-    String str(buf, sizeof(buf), system_charset_info);
-    str.length(0);
+    StringBuffer<128> str(system_charset_info);
     (void) mysql_bin_log.append_state_pos(&str);
 
     protocol->store(base, strlen(base), &my_charset_bin);
