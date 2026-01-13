@@ -1368,7 +1368,7 @@ code_name(int code)
   case Q_GTID_FLAGS3: return "Q_GTID_FLAGS3";
   case Q_CHARACTER_SET_COLLATIONS: return "Q_CHARACTER_SET_COLLATIONS";
   }
-  sprintf(buf, "CODE#%d", code);
+  snprintf(buf, sizeof(buf), "CODE#%d", code);
   return buf;
 }
 #endif
