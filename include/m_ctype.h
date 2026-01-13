@@ -501,7 +501,7 @@ struct my_collation_handler_st
   my_bool (*init)(struct charset_info_st *, MY_CHARSET_LOADER *);
   /* Collation routines */
   int     (*strnncoll)(CHARSET_INFO *,
-		       const uchar *, size_t, const uchar *, size_t, my_bool);
+		       const uchar *, size_t, const uchar *, size_t, my_bool*);
   int     (*strnncollsp)(CHARSET_INFO *,
                          const uchar *, size_t, const uchar *, size_t);
   /*
@@ -660,6 +660,7 @@ struct my_charset_handler_st
   size_t  (*numchars)(CHARSET_INFO *, const char *b, const char *e);
   size_t  (*charpos)(CHARSET_INFO *, const char *b, const char *e,
                      size_t pos);
+  /* Length without trailing space */
   size_t  (*lengthsp)(CHARSET_INFO *, const char *ptr, size_t length);
   size_t  (*numcells)(CHARSET_INFO *, const char *b, const char *e);
   
@@ -1090,22 +1091,23 @@ struct charset_info_st
   }
 
   int strnncoll(const LEX_CSTRING a, const LEX_CSTRING b,
-                my_bool b_is_prefix= FALSE) const
+                my_bool *b_is_prefix= 0) const
   {
     DBUG_ASSERT(is_valid_string(a));
     DBUG_ASSERT(is_valid_string(b));
     return (coll->strnncoll)(this,
                              (const uchar *) a.str, a.length,
-                             (const uchar *) b.str, b.length, b_is_prefix);
+                             (const uchar *) b.str, b.length,
+                             b_is_prefix);
   }
 
   int strnncoll(const uchar *a, size_t alen,
-                const uchar *b, size_t blen, my_bool b_is_prefix= FALSE) const
+                const uchar *b, size_t blen, my_bool *b_is_prefix= 0) const
   {
     return (coll->strnncoll)(this, a, alen, b, blen, b_is_prefix);
   }
   int strnncoll(const char *a, size_t alen,
-                const char *b, size_t blen, my_bool b_is_prefix= FALSE) const
+                const char *b, size_t blen, my_bool *b_is_prefix= 0) const
   {
     return (coll->strnncoll)(this,
                              (const uchar *) a, alen,
@@ -1422,7 +1424,7 @@ static inline int
 my_ci_strnncoll(CHARSET_INFO *ci,
                 const uchar *a, size_t alen,
                 const uchar *b, size_t blen,
-                my_bool b_is_prefix)
+                my_bool *b_is_prefix)
 {
   return (ci->coll->strnncoll)(ci, a, alen, b, blen, b_is_prefix);
 }
@@ -1580,7 +1582,7 @@ const uint16 *my_cs_contraction2_weight(CHARSET_INFO *cs, my_wc_t wc1,
 
 /* declarations for simple charsets */
 extern int  my_strnncoll_simple(CHARSET_INFO *, const uchar *, size_t,
-				const uchar *, size_t, my_bool);
+				const uchar *, size_t, my_bool*);
 
 extern int  my_strnncollsp_simple(CHARSET_INFO *, const uchar *, size_t,
                                   const uchar *, size_t);

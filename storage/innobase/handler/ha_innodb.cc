@@ -2392,6 +2392,7 @@ static bool is_mysql_datadir_path(const char *path)
   convert_dirname(mysql_data_dir, mysql_unpacked_real_data_home, NullS);
   size_t mysql_data_home_len= dirname_length(mysql_data_dir);
   size_t path_len = dirname_length(path_dir);
+  my_bool part_matched;
 
   if (path_len < mysql_data_home_len)
     return true;
@@ -2402,7 +2403,7 @@ static bool is_mysql_datadir_path(const char *path)
   return(files_charset_info->strnncoll((uchar *) path_dir, path_len,
                                        (uchar *) mysql_data_dir,
                                        mysql_data_home_len,
-                                       TRUE));
+                                       &part_matched));
 }
 
 /*********************************************************************//**

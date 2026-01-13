@@ -258,9 +258,10 @@ inline bool cmp_dfield_dfield_eq_prefix(const dfield_t *dfield1,
 
   uint cs_num= dtype_get_charset_coll(type->prtype);
   CHARSET_INFO *cs= get_charset(cs_num, MYF(MY_WME));
+  my_bool use_prefix;
   ut_a(cs);
   return !cs->strnncoll(static_cast<const uchar*>(dfield_get_data(dfield1)),
                         dfield_get_len(dfield1),
                         static_cast<const uchar*>(dfield_get_data(dfield2)),
-                        dfield_get_len(dfield2), 1);
+                        dfield_get_len(dfield2), &use_prefix);
 }

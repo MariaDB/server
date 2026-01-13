@@ -142,22 +142,40 @@ my_strnxfrm_simple_nopad(CHARSET_INFO * cs,
 
 int my_strnncoll_simple(CHARSET_INFO * cs, const uchar *s, size_t slen, 
                         const uchar *t, size_t tlen,
-                        my_bool t_is_prefix)
+                        my_bool *t_is_prefix)
 {
   size_t len = ( slen > tlen ) ? tlen : slen;
   const uchar *map= cs->sort_order;
-  if (t_is_prefix && slen > tlen)
-    slen=tlen;
+  my_bool dummy;
+
+  if (t_is_prefix)
+  {
+    *t_is_prefix= 0;
+    if (slen > tlen)
+    {
+      *t_is_prefix= 1;
+      slen= tlen;
+    }
+  }
+  else
+    t_is_prefix= &dummy;
+
   while (len--)
   {
     if (map[*s++] != map[*t++])
+    {
+      *t_is_prefix= 0;
       return ((int) map[s[-1]] - (int) map[t[-1]]);
+    }
   }
   /*
     We can't use (slen - tlen) here as the result may be outside of the
     precision of a signed int
   */
-  return slen > tlen ? 1 : slen < tlen ? -1 : 0 ;
+  if (tlen == slen)
+    return 0;
+  *t_is_prefix= 0;
+  return slen > tlen ? 1 : -1;
 }
 
 
