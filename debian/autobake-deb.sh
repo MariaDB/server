@@ -109,7 +109,7 @@ in
       remove_uring
     fi
     ;&
-  "trixie"|"forky"|"sid")
+  "trixie"|"forky"|"duke"|"sid")
     # The default packaging should always target Debian Sid, so in this case
     # there is intentionally no customizations whatsoever.
     ;;
@@ -128,7 +128,7 @@ in
       replace_uring_with_aio
     fi
     ;&
-  "noble"|"oracular"|"plucky"|"questing")
+  "noble"|"oracular"|"plucky"|"questing"|"resolute")
     # mariadb-plugin-rocksdb s390x not supported by us (yet)
     # ubuntu doesn't support mips64el yet, so keep this just
     # in case something changes.
