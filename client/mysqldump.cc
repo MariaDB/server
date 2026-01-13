@@ -3473,7 +3473,7 @@ static uint get_table_structure(const char *table, const char *db, char *table_t
       mysql_free_result(result);
     }
     my_snprintf(query_buff, sizeof(query_buff),
-                "select column_name, extra, generation_expression, data_type "
+                "select column_name, extra, generation_expression, data_type, character_set_name "
                 "from information_schema.columns where table_schema=database() "
                 "and table_name=%s order by ordinal_position",
                 quote_for_equal(table, temp_buff));
@@ -3506,6 +3506,25 @@ static uint get_table_structure(const char *table, const char *db, char *table_t
           dynstr_append_checked(&select_field_names_for_header, ", ");
       }
       init=1;
+      my_bool is_print_as_hex= 0;
+      /*
+        Check if this is a binary/blob field that should be hex-encoded.
+        For multi_file_output (--tab/--dir), we need to wrap with HEX() in SELECT.
+        Binary fields have character_set_name = NULL or 'binary'.
+      */
+      if (opt_hex_blob && multi_file_output && row[3])
+      {
+        /* Check for blob/binary types with binary charset */
+        if (strcmp(row[3], "binary") == 0 ||
+             strcmp(row[3], "varbinary") == 0 ||
+             strcmp(row[3], "tinyblob") == 0 ||
+             strcmp(row[3], "blob") == 0 ||
+             strcmp(row[3], "mediumblob") == 0 ||
+             strcmp(row[3], "longblob") == 0)
+        {
+          is_print_as_hex= 1;
+        }
+      }
 
       last_name= quote_name(row[0], name_buff, 0);
       if (opt_dump_history && *versioned && opt_update_history &&
@@ -3520,9 +3539,16 @@ static uint get_table_structure(const char *table, const char *db, char *table_t
         dynstr_append_checked(&select_field_names, ") as ");
         dynstr_append_checked(&select_field_names, last_name);
       }
+      else if (is_print_as_hex)
+      {
+	dynstr_append_checked(&select_field_names, "HEX(");
+        dynstr_append_checked(&select_field_names, last_name);
+        dynstr_append_checked(&select_field_names, ") AS ");
+        dynstr_append_checked(&select_field_names, last_name);
+      }
       else
         dynstr_append_checked(&select_field_names, last_name);
-      dynstr_append_checked(&insert_field_names, last_name);
+        dynstr_append_checked(&insert_field_names, last_name);
       if (opt_header)
         dynstr_append_checked(&select_field_names_for_header,
                               quote_for_equal(row[0], name_buff));
