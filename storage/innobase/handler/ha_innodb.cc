@@ -20004,8 +20004,8 @@ static MYSQL_SYSVAR_ULONGLONG(binlog_state_interval,
   innodb_binlog_state_interval,
   PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
   "Interval (in bytes) at which to write the GTID binlog state to binlog "
-  "files to speed up GTID lookups. Must be a multiple of the binlog page "
-  "size (16384 bytes)",
+  "files to speed up GTID lookups. Must be a power-of-two multiple of the "
+  "binlog page size (16384 bytes)",
   NULL, NULL, 2*1024*1024,
   32768, ULONGLONG_MAX, 0);
 
