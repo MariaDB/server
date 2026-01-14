@@ -336,8 +336,13 @@ void Active_tranx::clear_active_tranx_nodes(const Repl_semi_sync_trx_info *inf)
 }
 
 
+/*
+  Given a slave connection position (containing potentially multiple
+  GTIDs), return the last node in the list of pending semi-sync transactions
+  that is contained in the slave position, if any.
+*/
 Tranx_node *
-Active_tranx::find_latest(slave_connection_state *state)
+Active_tranx::find_latest_semi_sync_trx(slave_connection_state *state)
 {
   Tranx_node *cur_node, *found_node= nullptr;
 
@@ -442,7 +447,7 @@ Trans_binlog_info::Trans_binlog_info()
 
 
 Trans_binlog_info::Trans_binlog_info(const char *file_name,
-                                                  my_off_t log_pos)
+                                     my_off_t log_pos)
   : Repl_semi_sync_trx_info(file_name_buf, log_pos)
 {
   strmake_buf(file_name_buf, file_name);
@@ -450,8 +455,8 @@ Trans_binlog_info::Trans_binlog_info(const char *file_name,
 
 
 Trans_binlog_info::Trans_binlog_info(const char *file_name,
-                                                  my_off_t log_pos,
-                                                  const rpl_gtid *gtid)
+                                     my_off_t log_pos,
+                                     const rpl_gtid *gtid)
   : Repl_semi_sync_trx_info(file_name_buf, log_pos, gtid)
 {
   strmake_buf(file_name_buf, file_name);
@@ -558,8 +563,11 @@ int Repl_semi_sync_master::init_object()
 }
 
 
-template <typename F> int
-Repl_semi_sync_master::enable_master(F tranx_alloc)
+int
+Repl_semi_sync_master::enable_master(Active_tranx *
+                                     (*tranx_alloc)(mysql_mutex_t *,
+                                                    mysql_cond_t *,
+                                                    unsigned long))
 {
   int result = 0;
 
@@ -740,7 +748,7 @@ int Repl_semi_sync_master::report_reply_packet(uint32 server_id,
     goto l_end;
   }
 
-  result= report_reply_packet_sub(server_id, packet, packet_len);
+  result= report_reply_packet_inner(server_id, packet, packet_len);
   if (unlikely(result))
     goto l_end;
 
@@ -759,9 +767,9 @@ l_end:
 }
 
 int
-Repl_semi_sync_master_file_pos::report_reply_packet_sub(uint32 server_id,
-                                                        const uchar *packet,
-                                                        ulong packet_len)
+Repl_semi_sync_master_file_pos::report_reply_packet_inner(uint32 server_id,
+                                                          const uchar *packet,
+                                                          ulong packet_len)
 {
   char log_file_name[FN_REFLEN+1];
   my_off_t log_file_pos;
@@ -799,9 +807,9 @@ Repl_semi_sync_master_file_pos::report_reply_packet_sub(uint32 server_id,
 
 
 int
-Repl_semi_sync_master_gtid::report_reply_packet_sub(uint32 server_id,
-                                                    const uchar *packet,
-                                                    ulong packet_len)
+Repl_semi_sync_master_gtid::report_reply_packet_inner(uint32 server_id,
+                                                      const uchar *packet,
+                                                      ulong packet_len)
 {
   rpl_gtid gtid;
 
@@ -1104,7 +1112,7 @@ Repl_semi_sync_master_gtid::latest_gtid(slave_connection_state *gtid_state,
   if (get_master_enabled())
   {
     /* Check if slave is connecting at any of our pending acks. */
-    tranx_node= m_active_tranxs->find_latest(gtid_state);
+    tranx_node= m_active_tranxs->find_latest_semi_sync_trx(gtid_state);
     if (tranx_node)
     {
       *out_gtid= tranx_node->gtid;
