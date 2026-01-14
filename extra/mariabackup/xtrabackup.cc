@@ -2137,8 +2137,10 @@ struct my_option xb_server_options[] =
    0, GET_BOOL, OPT_ARG, 1, 0, 0, 0, 0, 0},
 
     {"binlog-directory", OPT_BINLOG_DIRECTORY,
-   "Directory containing binlog files, if different from datadir."
-   "Has effect only if server is using --binlog-storage-engine=innodb",
+   "The directory into which to copy any binlog files in the backup. This can "
+   "be used to put binlog files in the correct location if the restored "
+   "server is to be configured with a non-default --binlog-directory. Only "
+   "used with --copy-back",
    &opt_binlog_directory, &opt_binlog_directory,
    0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0 },
 
