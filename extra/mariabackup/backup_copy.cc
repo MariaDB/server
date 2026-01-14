@@ -1631,7 +1631,10 @@ public:
       return mysql_data_home;
     if (is_absolute_path(path))
       return path;
-    return buf.assign(mysql_data_home).append(path).c_str();
+    buf.assign(mysql_data_home);
+    if (!buf.empty() && buf.back() != '/' IF_WIN(&& buf.back() != '\\', ))
+      buf.append("/");
+    return buf.append(path).c_str();
   }
 };
 
