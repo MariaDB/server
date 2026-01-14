@@ -312,7 +312,8 @@ class Master_info : public Slave_reporting_capability
   slave_connection_state gtid_current_pos;
   /*
     The GTID of the event group currently being received from the master
-    (ie. the last GTID event seen).
+    (ie. the last GTID event seen). This is updated in queue_event() for
+    each GTID event seen.
   */
   rpl_gtid current_gtid;
   /*
