@@ -4946,6 +4946,9 @@ TABLE *select_create::create_table_from_items(THD *thd, List<Item> *items,
       if (open_table(thd, table_list, &ot_ctx))
       {
         recover_rm_table();
+        if (create_info->pos_in_locked_tables &&
+            create_info->global_tmp_table())
+          recover_rm_table(); // rm once more for the parent GTT table;
       }
       /* Restore */
       table_list->open_strategy= save_open_strategy;
