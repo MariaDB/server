@@ -184,8 +184,8 @@ ENDIF()
 # This causes cmake to append dbug twice when you append mysys as a library.
 # And you get a warning from the MacOSX linker.
 # TODO: to remove the circular dependency and this workaround.
-include(CheckLinkerFlag)
 IF(APPLE AND (CMAKE_VERSION VERSION_GREATER_EQUAL "3.18"))
+  include(CheckLinkerFlag)
   CHECK_LINKER_FLAG(C "LINKER:-no_warn_duplicate_libraries" HAVE_NO_WARN_DUPLICATE_LIBRARIES)
   IF(HAVE_NO_WARN_DUPLICATE_LIBRARIES)
     TARGET_LINK_OPTIONS(mysys INTERFACE LINKER:-no_warn_duplicate_libraries)
