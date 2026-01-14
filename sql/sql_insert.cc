@@ -4768,6 +4768,12 @@ Field *Item::create_field_for_create_select(MEM_ROOT *root, TABLE *table)
   return create_tmp_field_ex(root, table, &src, &param);
 }
 
+void select_create::recover_rm_table() const
+{
+  quick_rm_table(thd, create_info->db_type, &table_list->db,
+                 table_case_name(create_info, &table_list->table_name),
+                 QRMT_DEFAULT);
+}
 
 /**
   Create table from lists of fields and items (or just return TABLE
@@ -4939,9 +4945,7 @@ TABLE *select_create::create_table_from_items(THD *thd, List<Item> *items,
       */
       if (open_table(thd, table_list, &ot_ctx))
       {
-        quick_rm_table(thd, create_info->db_type, &table_list->db,
-                       table_case_name(create_info, &table_list->table_name),
-                       QRMT_DEFAULT);
+        recover_rm_table();
       }
       /* Restore */
       table_list->open_strategy= save_open_strategy;

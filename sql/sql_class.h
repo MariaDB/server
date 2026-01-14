@@ -6610,6 +6610,7 @@ private:
                                   List<Item> *items,
                                   MYSQL_LOCK **lock);
   int postlock(THD *thd, TABLE **tables);
+  void recover_rm_table() const;
 };
 
 #include <myisam.h>
