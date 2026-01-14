@@ -419,7 +419,7 @@ public:
   bool is_empty() { return m_trx_front == NULL; }
 
   /* Find the latest pending trx in a slave connecting state, if any. */
-  Tranx_node *find_latest(slave_connection_state *state);
+  Tranx_node *find_latest_semi_sync_trx(slave_connection_state *state);
 };
 
 
@@ -579,10 +579,10 @@ protected:
   /* Enable the object to enable semi-sync replication inside the master. */
   virtual int enable_master() = 0;
 protected:
-  template <typename F> int
-  enable_master(F tranx_alloc);
-  virtual int report_reply_packet_sub(uint32 server_id, const uchar *packet,
-                                      ulong packet_len) = 0;
+  int enable_master(Active_tranx * (*tranx_alloc)
+                    (mysql_mutex_t *, mysql_cond_t *, unsigned long));
+  virtual int report_reply_packet_inner(uint32 server_id, const uchar *packet,
+                                        ulong packet_len) = 0;
 public:
 
   /* Disable the object to disable semi-sync replication inside the master. */
@@ -753,8 +753,8 @@ protected:
                                 const char *log_file,
                                 my_off_t log_pos,
                                 slave_connection_state *gtid_state) override;
-  int report_reply_packet_sub(uint32 server_id, const uchar *packet,
-                              ulong packet_len) override;
+  int report_reply_packet_inner(uint32 server_id, const uchar *packet,
+                                ulong packet_len) override;
 };
 
 
@@ -775,8 +775,8 @@ protected:
                                 const char *log_file,
                                 my_off_t log_pos,
                                 slave_connection_state *gtid_state) override;
-  int report_reply_packet_sub(uint32 server_id, const uchar *packet,
-                              ulong packet_len) override;
+  int report_reply_packet_inner(uint32 server_id, const uchar *packet,
+                                ulong packet_len) override;
   bool latest_gtid(slave_connection_state *gtid_state, rpl_gtid *out_gtid);
 };
 
