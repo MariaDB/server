@@ -1175,12 +1175,16 @@ public:
   select_handler *pushdown_select;
   List<TABLE_LIST> *join_list;    /* list for the currently parsed join  */
   st_select_lex *merged_into; /* select which this select is merged into */
-                              /* (not 0 only for views/derived tables)   */
   const char *type;           /* type of select for EXPLAIN          */
 
 
   /* List of references to fields referenced from inner selects */
   List<Item_outer_ref> inner_refs_list;
+
+  /* List of Items that are in inner selects but resolved here */
+  List<Item_ident> outer_references_resolved_here;
+  bool add_outer_reference_resolved_here(THD *thd, Item_ident *dependency);
+
   List<Item> attach_to_conds;
   /* Saved values of the WHERE and HAVING clauses*/
   Item::cond_result cond_value, having_value;

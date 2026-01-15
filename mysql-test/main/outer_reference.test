@@ -1,0 +1,1490 @@
+/* index to characterization test
+
+[1st digit, Class, see below].
+[# of outer references to a parent].
+[# of outer references to a subquery].
+[# of outer references to parent from subquery].
+[# of item subselects].
+[# references to expressions].
+[# degenerated selects].
+[Execution method, see below].
+
+Class 0, not mergeable
+Class 1, view mergeable
+Class 1a, derived table mergeable
+Class 1b, cte mergeable
+Class 2, subquery mergeable
+Class 3, multiple outer_select paths
+Class 4, unions
+Class 5, subqueries in group by & order by with references to parent select_lex
+Class 6, subquery merge into derived merge
+Class 7, odds and ends
+
+Execution method,
+  0 normal
+  1 prepared statement
+  2 wrapped in a derived table
+  3 wrapped in a view
+  4 wrapped in a CTE
+  5 as a procedure
+*/
+
+create table t1 (t1a int, t1b int, t1c int) engine=myisam;
+insert into t1 values (1,1,1),(2,2,2);
+
+create table t2 (t2a int, t2b int, t2c int) engine=myisam;
+insert into t2 values (1,1,1),(2,2,2),(3,3,3);
+
+create table t3 (t3a int, t3b int, t3c int) engine=myisam;
+insert into t3 values (1,1,1),(2,2,2),(3,3,3),(4,4,4);
+
+create table t4 (t4a int, t4b int, t4c int) engine=myisam;
+insert into t4 values (1,1,1),(2,2,2),(3,3,3),(4,4,4),(5,5,5);
+
+create table t5 (t5a int, t5b int, t5c int) engine=myisam;
+insert into t5 values (1,1,1),(2,2,2),(3,3,3),(4,4,4),(5,5,5),(6,6,6);
+
+create table t6 (t6a int, t6b int, t6c int) engine=myisam;
+insert into t6 values (1,1,1),(2,2,2),(3,3,3),(4,4,4),(5,5,5),(6,6,6),(7,7,7);
+
+create table t7 (t7a int, t7b int, t7c int) engine=myisam;
+insert into t7 values (1,1,1),(2,2,2),(3,3,3),(4,4,4),(5,5,5),(6,6,6),(7,7,7),
+(8,8,8);
+
+create table ambiguous like t1;
+#  different data to t1
+insert into ambiguous values (1, 1, 1);
+
+create view v1 (v1a, v1b) as select t7a, t7b from t7 where t7c > 4;
+create view v2 (v2a, v2b) as
+  select t7a*t5c, t7b*t5c from t7, t5 where t7a = t5a and t7c > 4;
+create view v3 (v3a) as select t1a from t1 where exists
+(
+  select t2a from t2 where t2a = t1a
+);
+create view v4 (v4a) as select t1a from t1 where exists
+(
+  select t2a from t2 where t2a = t1a and t2b = t1b
+);
+create view v5 (v5a, v5b, v5c) as select * from t5 limit 100;
+
+# test case X.0.1.0.0.1.0
+# non mergeable with outer reference
+
+let $ver=  0.1.0.0.1.0.0.0;
+let $qry=
+select * from t1, t6 where t6a=t1a or                           -- select 1
+(
+  select max(t4a) from t4 where t4c < t1b                       -- select 2
+) <> 0;
+
+--source execute_various_ways.inc
+
+# reference to a view in where clause, non-mergeable
+
+let $ver=  0a.1.0.0.1.0.0.0;
+let $qry= select * from v1 where v1a >= any
+(
+  select t4a from t4 where t4b >= v1b
+);
+
+--source execute_various_ways.inc
+
+# Class 1, view  mergeable
+
+# mergeable view with outer reference to merged select inside a view
+# note, reference is indirectly to table number 2
+
+let $ver=  1a.1.0.0.1.0.0.0;
+let $qry= select * from t6, v1 where t6a=v1a and                  -- select 1
+(
+  select max(t4a) from t4 where t4c < v1b                       -- select 2
+) <> 0;
+
+--source execute_various_ways.inc
+
+# include trivial degenerated select
+let $ver=  1a.1.0.0.1.0.1.0;
+let $qry= select * from t6, v1 where t6a=v1a and                  -- select 1
+(
+  select max(t4a) from t4 where                                 -- select 2
+  (
+    select t4c < v1b                                            -- select 3
+  )
+) <> 0;
+
+--source execute_various_ways.inc
+
+# reference to a view in where clause, mergeable
+let $ver=  1b.1.0.0.1.0.0.0;
+let $qry= select * from v1 where v1a in
+(
+  select t7a from t7 where t7b >= v1b
+);
+
+--source execute_various_ways.inc
+
+# reference to a view in where clause, mergeable
+let $ver=  1b.1.0.0.1.0.1.0;
+let $qry= select * from v1 where v1a in
+(
+  select t7a from t7 where
+  (
+    select t7b >= v1b
+  )
+);
+
+--source execute_various_ways.inc
+
+# outer reference within aggregate function to table
+let $ver=  1c.1.0.0.1.0.0.0;
+let $qry= select * from t7 where t7a in
+(
+  select avg(t7b) from t1 where t1b = t7b-5
+);
+
+--source execute_various_ways.inc
+
+let $ver=  1c.1.0.0.1.0.1.0;
+let $qry= select * from t7 where t7a in
+(
+  select avg(t7b) from t1 where
+  (
+    select t1b = t7b-5
+  )
+);
+
+--source execute_various_ways.inc
+
+# outer reference within aggregate function to mergable view
+let $ver=  1d.1.0.0.1.0.0.0;
+let $qry= select * from v1 where v1a in
+(
+  select avg(v1b) from t1 where t1b = v1b-5
+);
+
+--source execute_various_ways.inc
+
+# outer reference within aggregate function to nonmergable view
+let $ver=  1e.1.0.0.1.0.0.0;
+let $qry= select * from v5 where v5a in
+(
+  select avg(v5b) from t1 where t1b = v5b-5
+);
+
+--source execute_various_ways.inc
+
+
+# mergeable view with outer reference to merged select inside a view
+# note, reference is to an expression with 2 tables not a simple field
+
+let $ver=  1.1.0.0.1.1.0.0;
+let $qry=select * from t6, v2 where t6a*t6b=v2a and               -- select 1
+(
+  select max(t4a) from t4 where t4c < v2b                       -- select 2
+) <> 0;
+
+--source execute_various_ways.inc
+
+let $ver=  1.1.0.0.1.1.1.0;
+let $qry=select * from t6, v2 where t6a*t6b=v2a and               -- select 1
+(
+  select max(t4a) from t4 where                                 -- select 2
+  (
+    select t4c < v2b                                            -- select 3
+  )
+) <> 0;
+
+--source execute_various_ways.inc
+
+let $ver=  1.1.0.0.1.1.2.0;
+let $qry=select * from t6, v2 where                               -- select 1
+(
+  select t6a*t6b=v2a                                            -- select 2
+)
+and
+(
+  select max(t4a) from t4 where                                 -- select 3
+  (
+    select t4c < v2b                                            -- select 4
+  )
+) <> 0;
+
+--source execute_various_ways.inc
+
+
+# mergeable view with two outer references to merged select inside a view
+# not, reference is indirectly to table number 2
+
+let $ver= 1.2.0.0.1.1.0;
+let $qry=
+select * from t6, v1, v2 where t6a=v1a and t6b * t6a  = v2b and   -- select 1
+(
+  select max(t4a) from t4, t5                                     -- select 2
+  where t5a = t4a and t4c < v1b and t5b < v2b
+) <> 0;
+
+--source execute_various_ways.inc
+
+
+# mergeable view with two outer references to merged select inside a view
+# references to different select levels
+
+let $ver=  1.1.1.0.2.1.0.0;
+let $qry= select * from t6, v1 where t6a=v1a and t6b in             -- select 1
+(
+  select sqrt(v2b) from v2 where                                  -- select 2
+  (
+    select max(t4a) from t4, t5                                   -- select 3
+    where t5a = t4a and t4c < v1b and t5b < v2b
+  ) <> 0
+);
+
+--source execute_various_ways.inc
+
+
+#  test remove_references_to()
+# we need an outer reference that is resolved in the query that where it is
+#  defined is merged into.
+# here t4c in select 2 is outer reference before merge of select 2 into select 1
+#  not after
+
+let $ver= 1.1.1.1.2.0.0;
+let $qry=select t1a from t1 join t4 on t1c = t4c       -- select 1 parent
+where t1a in
+(
+  select t2a from t2                                 -- select 2 child
+  where t2b >= any
+  (
+    select t3b from t3 where t3c >= t1b              -- select 3
+  )
+  and t2b >= t4c
+);
+
+--source execute_various_ways.inc
+
+let $ver= 1.1.1.1.2.1.0;
+let $qry=select t1a from t1 join t4 on t1c = t4c       -- select 1 parent
+where t1a in
+(
+  select t2a from t2                                 -- select 2 child
+  where t2b >= any
+  (
+    select t3b from t3 where                         -- select 3
+    (
+      select t3c >= t1b                              -- select 4
+    )
+  )
+  and t2b >= t4c
+);
+
+--source execute_various_ways.inc
+
+
+#  test remove_references_to()
+# we need an outer reference that is resolved in the query that where it is
+#  defined is merged into.
+# here t4c in select 2 is outer reference before merge of select 2 into select 1
+#  not after
+
+let $ver=  1.3.2.2.2.0.0.0;
+let $qry= select t1a from t1 join t4 on t1c = t4c       -- select 1
+where t1a in
+(
+  select t2a from t2                                  -- select 2
+  where t2b >= any
+  (
+    select t3b from t3 where t3c >= t1b               -- select 3
+     and t3a >= t1c and t3b >= t1a
+  )
+  and t2b >= t4c and t2a >= t4a
+);
+
+--source execute_various_ways.inc
+
+
+let $ver=  1.3.2.2.2.0.1.0;
+let $qry= select t1a from t1 join t4 on t1c = t4c       -- select 1
+where t1a in
+(
+  select t2a from t2                                  -- select 2
+  where t2b >= any
+  (
+    select t3b from t3 where t3c >= t1b               -- select 3
+    and
+    (
+      select t3a >= t1c and t3b >= t1a                -- select 4
+    )
+  )
+  and t2b >= t4c and t2a >= t4a
+);
+
+--source execute_various_ways.inc
+
+
+let $ver=  1.3.2.2.2.0.2.0;
+let $qry= select t1a from t1 join t4 on t1c = t4c       -- select 1
+where t1a in
+(
+  select t2a from t2                                  -- select 2
+  where t2b >= any
+  (
+    select t3b from t3 where                          -- select 3
+    (
+      select t3c >= t1b                               -- select 4
+    )
+    and
+    (
+      select t3a >= t1c and t3b >= t1a                -- select 5
+    )
+  )
+  and t2b >= t4c and t2a >= t4a
+);
+
+--source execute_various_ways.inc
+
+
+#  test remove_references_to()
+
+let $ver=  1.3.1.1.2.1.0.0;
+let $qry= select t7a from t7 join v2 on t7b*t7c = v2b       -- select 1
+where t7a in
+(
+  select t6a from t6                                      -- select 2
+  where t6b >= any
+  (
+    select t3b*t3c from t3 where t3c <= t7b               -- select 3
+     and t3a <= t7c and t3b <= t7a
+  )
+  and t6b <= v2b
+);
+
+--source execute_various_ways.inc
+
+
+# test remove_references_to()
+
+let $ver=  1.3.2.2.2.2.0.0;
+let $qry= select t7a from t7 join v2 on t7b*t7c = v2b       -- select 1
+where t7a in
+(
+  select t6a from t6                          -- select 2
+  where t6b >= any
+  (
+    select t3b*t3c from t3 where t3c <= t7b       -- select 3
+     and t3a <= t7c and t3b <= t7a
+  )
+  and t6b <= v2b and t6a <= v2a
+);
+
+--source execute_various_ways.inc
+
+
+
+# Class 1a, derived mergeable
+# mergeable derived table with outer reference to merged select
+
+let $ver=  1a.2.0.0.1.0.0.0;
+let $qry=
+select * from t6,                                                -- select 1
+(
+  select t7a as dt1a, t7b as dt1b from t7 where t7c > 4          -- select 2
+) dt1
+where t6a=dt1a and
+(
+  select max(t4a) from t4 where t4c <= dt1b                      -- select 3
+) <> 0;
+
+--source execute_various_ways.inc
+
+
+let $ver=  1a.2.0.0.1.0.1.0;
+let $qry=
+select * from t6,                                                -- select 1
+(
+  select t7a as dt1a, t7b as dt1b from t7 where                  -- select 2
+  (
+    select t7c > 4                                               -- select 3
+  )
+) dt1
+where t6a=dt1a and
+(
+  select max(t4a) from t4 where t4c <= dt1b                      -- select 4
+) <> 0;
+
+--source execute_various_ways.inc
+
+
+let $ver=  1a.2.0.0.1.0.2.0;
+let $qry=
+select * from t6,                                                -- select 1
+(
+  select t7a as dt1a, t7b as dt1b from t7 where                  -- select 2
+  (
+    select t7c > 4                                               -- select 3
+  )
+) dt1
+where t6a=dt1a and
+(
+  select max(t4a) from t4 where                                  -- select 4
+  (
+    select t4c <= dt1b                                           -- select 5
+  )
+) <> 0;
+
+--source execute_various_ways.inc
+
+
+let $ver=  1a.3.1.1.2.1.0.0;
+let $qry= select t6a from t6                            -- select 1
+join
+(
+  select t7a as dt1a, t7b*t7c as dt1b from t7 where t7c > 4
+) dt1 on t6c = dt1a
+where t6a in
+(
+  select t2a+3 from t2                                -- select 2
+  where t2b >= any
+  (
+    select t3b from t3 where t3c <= t6b               -- select 3
+     and t3a <= t6c and t3b <= t6a
+  )
+  and t2b <= dt1b
+);
+
+--source execute_various_ways.inc
+
+
+let $ver=  1a.3.1.1.2.2.0.0;
+let $qry= select t6a from t6                            -- select 1
+join (select t7a as dt1a, t7b*t7c as dt1b, t7b*2 as dt1c from t7
+      where t7c > 4) dt1
+  on t6c = dt1a
+where t6a in
+(
+  select t2a+3 from t2                          -- select 2
+  where t2b >= any
+  (
+    select t3b from t3 where t3c <= t6b       -- select 3
+     and t3a <= t6c and t3b <= dt1c
+  )
+  and t2b <= dt1b
+);
+
+--source execute_various_ways.inc
+
+
+# Class 1b, cte mergeable
+# mergeable derived table with outer reference to merged select
+
+let $ver=  1b.2.0.0.1.0.0;
+let $qry= with cte1 (c1, c2) as (select t7a, t7b from t7 where t7c > 4)
+select * from t6, cte1
+where t6a=c1 and                                                -- select 1
+(
+  select max(t4a) from t4 where t4c <= c2                       -- select 2
+) <> 0;
+
+--source execute_various_ways.inc
+
+
+let $ver=  1b.2.0.0.1.0.1;
+let $qry= with cte1 (c1, c2) as (select t7a, t7b from t7 where t7c > 4)
+select * from t6, cte1
+where t6a=c1 and                                                -- select 1
+(
+  select max(t4a) from t4 where                                 -- select 2
+  (
+    select t4c <= c2                                            -- select 3
+  )
+) <> 0;
+
+--source execute_various_ways.inc
+
+
+let $ver= 1b.3.1.1.2.1.0;
+let $qry= with cte1 (c1, c2) as (select t7a, t7b*t7c from t7 where t7c > 4)
+select t6a from t6                                              -- select 1
+join cte1
+  on t6c = c1
+where t6a in
+(
+  select t2a+3 from t2                                          -- select 2
+  where t2b >= any
+  (
+    select t3b from t3 where t3c <= t6b                         -- select 3
+     and t3a <= t6c and t3b <= t6a
+  )
+  and t2b <= c2
+);
+
+--source execute_various_ways.inc
+
+
+let $ver= 1b.3.1.1.2.1.1;
+let $qry= with cte1 (c1, c2) as (select t7a, t7b*t7c from t7
+  where (select t7c > 4))
+select t6a from t6                                              -- select 1
+join cte1
+  on t6c = c1
+where t6a in
+(
+  select t2a+3 from t2                                          -- select 2
+  where t2b >= any
+  (
+    select t3b from t3 where t3c <= t6b                         -- select 3
+     and t3a <= t6c and t3b <= t6a
+  )
+  and t2b <= c2
+);
+
+--source execute_various_ways.inc
+
+
+let $ver= 1b.3.1.1.2.1.2;
+let $qry= with cte1 (c1, c2) as (select t7a, t7b*t7c from t7
+  where (select t7c > 4))
+select t6a from t6                                              -- select 1
+join cte1
+  on t6c = c1
+where t6a in
+(
+  select t2a+3 from t2                                          -- select 2
+  where t2b >= any
+  (
+    select t3b from t3 where                                    -- select 3
+    (
+      select t3c <= t6b                                         -- select 3
+        and t3a <= t6c and t3b <= t6a
+    )
+  )
+  and t2b <= c2
+);
+
+--source execute_various_ways.inc
+
+
+# Class 2, mergeable subquery   typically
+# select ...  col in (subquery)
+
+# mergeable subquery with two outer references to merged select
+# references to different select levels
+let $ver=2.1.0.0.1.0:
+let $qry= select * from t1, t2 where t1a=t2a and t1b in             -- select 1
+(
+  select t3b from t3                                              -- select 2
+    where t3b <= t2b
+);
+
+--source execute_various_ways.inc
+
+
+# mergeable subquery with two outer references to merged select
+# references to different select levels
+
+let $ver=  2.1.0.0.1.1.0.0;
+let $qry= select * from t1, v2 where t1a<=v2a and t1b in            -- select 1
+(
+  select t3b from t3                                              -- select 2
+    where t3b <= v2b
+);
+
+--source execute_various_ways.inc
+
+let $ver=  2.1.0.0.1.1.0.1;
+let $qry= select * from t1, v2 where t1a<=v2a and t1b in            -- select 1
+(
+  select t3b from t3                                              -- select 2
+    where
+    (
+     select t3b <= v2b
+    )
+);
+
+--source execute_various_ways.inc
+
+
+let $ver=  2.1.0.0.1.1.0.2;
+let $qry= select * from t1, v2 where                                -- select 1
+(
+  select t1a<=v2a                                                 -- select 2
+)
+and t1b in
+(
+  select t3b from t3                                              -- select 3
+    where
+    (
+     select t3b <= v2b
+    )
+);
+
+--source execute_various_ways.inc
+
+
+# mergeable view with outer reference to merged select inside a view
+
+let $ver=  2.0.1.1.1.0.0.0;
+let $qry= select * from t1                                        -- select 2
+where t1c in
+(
+   select t2a from t2                                           -- select 3
+     where t2b in (select t3b from t3 where t3a >= t2c)         -- select 4
+);
+
+--source execute_various_ways.inc
+
+
+let $ver=  2.0.1.1.1.0.0.1;
+let $qry= select * from t1
+where t1c in
+(
+   select t2a from t2
+   where t2b in
+   (
+     select t3b from t3 where
+     (
+       select t3a >= t2c
+     )
+   )
+);
+
+--source execute_various_ways.inc
+
+
+# mergeable subquery with two outer references to merged select
+# references to different select levels
+
+let $ver=  2.1.0.0.1.2.0.0;
+let $qry= select * from t1, v2 where t1a<=v2a and t1b in            -- select 1
+(
+  select t3b from t3                                              -- select 2
+    where t3b <= v2b and t3a <= v2a
+);
+
+--source execute_various_ways.inc
+
+
+let $ver=  2.1.0.0.1.2.0.1;
+let $qry= select * from t1, v2 where t1a<=v2a and t1b in            -- select 1
+(
+  select t3b from t3                                              -- select 2
+  where
+  (
+    select t3b <= v2b and t3a <= v2a
+  )
+);
+
+--source execute_various_ways.inc
+
+
+# mergeable subquery with two outer references to merged select
+# references to different select levels
+
+let $ver=  2.2.0.0.1.0.0.0;
+let $qry= select * from t1, t2 where t1a=t2a and t1b in       -- select 1
+(
+  select t3b from t3                                        -- select 2
+    where t3b <= t1a*t2a
+);
+
+--source execute_various_ways.inc
+
+
+# mergeable subquery with two outer references to merged select
+# references to different select levels
+let $ver=  2.1.1.0.2.0.0.0;
+let $qry= select * from t6, t7 where t6a=t7a and t6b in             -- select 1
+(
+  select t2b from t2 where                                        -- select 2
+  (
+    select max(t4a) from t4, t5                                   -- select 3
+    where t5a = t4a and t4c < t7b and t5b < t2b
+  ) <> 0
+);
+
+--source execute_various_ways.inc
+
+
+# mergeable subquery with two outer references to merged select
+# references to different select levels
+
+let $ver=  2.2.1.0.2.0.0.0;
+let $qry= select * from t6, t7 where t6a=t7a and t6b in             -- select 1
+(
+  select t2b from t2 where                                        -- select 2
+  (
+    select max(t4a) from t4, t5                                   -- select 3
+    where t5a = t4a and t4c < t7b and t5b < t2b*t6a
+  ) <> 0
+);
+
+--source execute_various_ways.inc
+
+
+#  Class 3, multiple outer_select paths
+
+# next we need to test Item_belongs_to by introducing an element that fails
+#  the test
+# outer_reference t2a which is resolved in select 1 does not belong to
+#  Item_subselect t1a in (select #2).
+# similarly, t1a, resolved in the same place, does not belong in
+#  Item_subselect t2a in (select #4).
+
+let $ver=  3.2.0.0.2.0.0.0;
+let $qry= select * from t1, t2                            -- select #1, parent
+where
+t1a in
+(
+  select t3b from t3                                    -- select #2, merged
+  where 10 >
+  (
+    select count(*) from t4 where t4b < t1a             -- select #3
+  )
+)
+and
+t2a in
+(
+  select t5c from t5                                    -- select #4, merged
+  where 10 >
+  (
+    select count(*) from t6 where t6b < t2a             -- select #5
+  )
+);
+
+--source execute_various_ways.inc
+
+
+let $ver=  3.2.0.0.2.0.0.2;
+let $qry= select * from t1, t2                            -- select #1, parent
+where
+t1a in
+(
+  select t3b from t3                                    -- select #2, merged
+  where 10 >
+  (
+    select count(*) from t4 where                       -- select #3
+    (
+      select t4b < t1a                                  -- select #4
+    )
+  )
+)
+and
+t2a in
+(
+  select t5c from t5                                    -- select #5, merged
+  where 10 >
+  (
+    select count(*) from t6 where                       -- select #5
+    (
+      select t6b < t2a                                  -- select #6
+    )
+  )
+);
+
+--source execute_various_ways.inc
+
+
+
+# as above but with outer references in count aggregation function
+
+let $ver=  3a.2.0.0.2.0.0.0;
+let $qry= select * from t1, t2                            -- select #1, parent
+where
+t1a in
+(
+  select t3b from t3                                    -- select #2, merged
+  where 10 >
+  (
+    select count(t3c) from t4 where t4b < t1a           -- select #3
+  )
+)
+and
+t2a in
+(
+  select t5c from t5                                    -- select #4, merged
+  where 10 >
+  (
+    select count(t5a) from t6 where t6b < t2a             -- select #5
+  )
+);
+
+--source execute_various_ways.inc
+
+
+
+# next we need to test Item_belongs_to by introducing an element
+#  that fails the test.
+# outer_reference t2a which is resolved in select 1 does not belong to
+#  Item_subselect t1a in (select #2).
+# similarly, t1a, resolved in the same place, does not belong in
+#  Item_subselect t2a in (select #4).
+
+let $ver=  3.2.0.0.2.2.0.0;
+let $qry= select * from v1, v2                            -- select #1
+where
+v1a in
+(
+  select t5b from t5                                    -- select #2
+  where 100 >
+  (
+    select count(*) from t4 where t4b < v1a             -- select #3
+  )
+)
+and
+v2a in
+(
+  select t7c*t7a from t7                                -- select #4
+  where 100 >
+  (
+    select count(*) from t6 where t6b < v2a             -- select #5
+  )
+);
+
+--source execute_various_ways.inc
+
+
+#  as above but unable to do top level merge due to disjunction in where clause
+let $ver=  3a.2.0.0.2.0.0.0;
+let $qry= select * from t1, t2                            -- select #1
+where
+t1a in
+(
+  select t5b from t5                                    -- select #2
+  where 100 >
+  (
+    select count(*) from t4 where t4b < t1a             -- select #3
+  )
+)
+or
+t2a in
+(
+  select t7c*t7a from t7                                -- select #4
+  where 100 >
+  (
+    select count(*) from t6 where t6b < t2a             -- select #5
+  )
+);
+
+--source execute_various_ways.inc
+
+
+let $ver=  3a.2.0.0.2.0.0.2;
+let $qry= select * from t1, t2                            -- select #1
+where
+t1a in
+(
+  select t5b from t5                                    -- select #2
+  where 100 >
+  (
+    select count(*) from t4 where                       -- select #3
+    (
+      select t4b < t1a                                  -- select #4
+    )
+  )
+)
+or
+t2a in
+(
+  select t7c*t7a from t7                                -- select #5
+  where 100 >
+  (
+    select count(*) from t6 where                       -- select #6
+    (
+      select t6b < t2a                                  -- select #7
+    )
+  )
+);
+
+--source execute_various_ways.inc
+
+
+#  as above but unable to do top level merge due to disjunction in where clause
+#  and reference to outer column in aggregation function
+let $ver=  3b.2.0.0.2.0.0.0;
+let $qry= select * from t1, t2                            -- select #1
+where
+t1a in
+(
+  select t5b from t5                                    -- select #2
+  where 100 >
+  (
+    select count(t5a) from t4 where t4b < t1a             -- select #3
+  )
+)
+or
+t2a in
+(
+  select t7c*t7a from t7                                -- select #4
+  where 100 >
+  (
+    select count(t7b) from t6 where t6b < t2a             -- select #5
+  )
+);
+
+--source execute_various_ways.inc
+
+
+let $ver=  3a.2.0.0.2.2.0.0;
+let $qry= select * from v1, v2                            -- select #1
+where
+v1a in
+(
+  select t5b from t5                                    -- select #2
+  where 100 >
+  (
+    select count(*) from t4 where t4b < v1a             -- select #3
+  )
+)
+or
+v2a in
+(
+  select t7c*t7a from t7                                -- select #4
+  where 100 >
+  (
+    select count(*) from t6 where t6b < v2a             -- select #5
+  )
+);
+
+--source execute_various_ways.inc
+
+
+
+
+# Class 4, unions
+#   unions will prevent merges, but for the sake of numbering, we will continue
+#   as if they don't
+
+let $ver=  4.1.1.0.4.0.0.0;
+let $qry= select t1a from t1                           -- select 1, parent
+where t1a in
+(
+  select t2c from t2 where t2a >= some               -- select 2, child
+  (
+    select t3a from t3 where t3b in                  -- select 3, parent
+    (
+      select t4a from t4 where t4b > t2c             -- select 4, child
+    )
+    union
+    select t5a from t5 where t5b in                  -- select 5, parent
+    (
+      select t6a from t6 where t6b in                -- select 6, child, parent
+      (
+        select t7a from t7 where t7b >= t1c          -- select 7, child
+      )
+    )
+  )
+);
+
+--source execute_various_ways.inc
+
+
+let $ver=  4.2.1.0.4.0.0.1;
+let $qry= select t1a from t1                            -- select 1, parent
+where t1a in
+(
+  select t2a from t2 where t2b >= some                -- select 2, child
+  (
+    select t3a from t3 where t3b in                   -- select 3, non-mergable
+    (
+      select t4a from t4 where                        -- select 4
+      (
+        select t4b >= t1a                             -- select 5
+      )
+      and t4c in
+      (
+        select t6a from t6  where t6b >= t2b          -- select 6, child
+      )
+      union
+      select t4a from t4 where t4a > t1a              -- select 7
+    )
+  )
+);
+
+--source execute_various_ways.inc
+
+
+let $ver=  4.2.1.0.4.0.0.2;
+let $qry= select t1a from t1                            -- select 1, parent
+where t1a in
+(
+  select t2a from t2 where t2b >= some                -- select 2, child
+  (
+    select t3a from t3 where t3b in                   -- select 3, non-mergable
+    (
+      select t4a from t4 where                        -- select 4
+      (
+        select t4b >= t1a                             -- select 5
+      )
+      and t4c in
+      (
+        select t6a from t6  where                     -- select 6, child
+        (
+          select t6b >= t2b                           -- select 7
+        )
+      )
+      union
+      select t4a from t4 where t4a > t1a              -- select 8
+    )
+  )
+);
+
+--source execute_various_ways.inc
+
+
+let $ver= 4a.2.1.0.4.0.0;
+let $qry= select t1a from t1                            -- select 1, parent
+where t1a in
+(
+  select t2a from t2 where t2b >= some                -- select 2,
+  (
+    select t3a from t3 where t3b in                   -- select 3,
+    (
+      select t4a from t4 where t4b >= t1a and t4c in  -- select 4, parent
+      (
+        select t6a from t6  where t6b >= t2b          -- select 5, child O.R.
+      )
+    )
+  )
+)
+union
+select t7a from t7                                    -- select 6
+where t7a in
+(
+      select t4a from t4 where t4a > t7a              -- select 7, O.R.
+);
+
+--source execute_various_ways.inc
+
+
+let $ver=  4b.2.1.0.4.0.0.0;
+let $qry= select t1a from t1                            -- select 1, parent
+where t1a in
+(
+  select t2a from t2 where t2b >= some                -- select 2,
+  (
+    select t3a from t3 where t3b in                   -- select 3,
+    (
+      select t4a from t4 where t4b >= t1a and t4c in  -- select 4, parent
+      (
+        select t6a from t6  where t6b >= t2b          -- select 5, child O.R.
+      )
+    )
+  )
+  union
+  select t7a from t7                                  -- select 6
+  where t7a in
+  (
+        select t4a from t4 where t4a > t7a            -- select 7, O.R.
+  )
+);
+
+--source execute_various_ways.inc
+
+
+# swap to derived table instead of subquery
+# Note: scope of search resolution cannot escape derived table.
+#   unable to parse test case 4.0.1.0.0.3.0
+let $ver=  4.0.1.0.3.0.0.0;
+let $qry= select t1a from t1,                    -- select 1, parent
+(
+  select t2a from t2 where t2b >= some         -- select 2, child
+  (
+    select t3a from t3 where t3b in            -- select 3, non-mergable
+    (
+      select t4a from t4 where t4c in          -- select 4, parent
+      (
+        select t6a from t6  where t6b >= t2b   -- select 5, child
+      )
+      union
+      select t4a from t4                       -- select 6
+    )
+  )
+) dt
+where t1a = t2a;
+
+--source execute_various_ways.inc
+
+
+let $ver=  4.0.1.0.3.0.0.1;
+let $qry= select t1a from t1,                    -- select 1, parent
+(
+  select t2a from t2 where t2b >= some         -- select 2, child
+  (
+    select t3a from t3 where t3b in            -- select 3, non-mergable
+    (
+      select t4a from t4 where t4c in          -- select 4, parent
+      (
+        select t6a from t6  where t6b >= t2b   -- select 5, child
+      )
+      union
+      select t2b                               -- select 6
+    )
+  )
+) dt
+where t1a = t2a;
+
+--source execute_various_ways.inc
+
+
+let $ver=  4a.0.1.0.3.0.0.0;
+let $qry= select t1a from t1,                     -- select 1, parent
+(
+  select t2a from t2 where t2b >= some          -- select 2, child
+  (
+    select t3a from t3 where t3b in             -- select 3, non-mergable
+    (
+      select t4a from t4 where t4c in           -- select 4, parent
+      (
+        select t6a from t6  where t6b >= t2b    -- select 5, child
+      )
+    )
+  )
+) dt
+where t1a = t2a
+union
+select t5a from t5 where t5b in
+(
+  select t7b from t7 where t7c < t5c
+);
+
+--source execute_various_ways.inc
+
+
+let $ver=  4a.0.1.0.3.0.0.1;
+let $qry= select t1a from t1,                     -- select 1, parent
+(
+  select t2a from t2 where t2b >= some          -- select 2, child
+  (
+    select t3a from t3 where t3b in             -- select 3, non-mergable
+    (
+      select t4a from t4 where t4c in           -- select 4, parent
+      (
+        select t6a from t6  where t6b >= t2b    -- select 5, child
+      )
+    )
+  )
+) dt
+where t1a = t2a
+union
+select t5a from t5 where t5b in
+(
+  select t7b from t7 where
+  (
+    select t7c < t5c
+  )
+);
+
+--source execute_various_ways.inc
+
+
+#  swap to derived table instead of subquery
+let $ver=  4.0.1.0.3.0.0.0;
+let $qry= select t1a from t1,                     -- select 1, parent
+(
+  select t2a from t2 where t2b >= some          -- select 2, child
+  (
+    select t3a from t3 where t3b in             -- select 3, non-mergable
+    (
+      select t4a from t4 where t4c in           -- select 4, parent
+      (
+        select t6a from t6  where t6b >= t2b    -- select 5, child
+      )
+      union
+      select t4a from t4                        -- select 6
+    )
+  )
+) dt
+where t1a = t2a;
+
+--source execute_various_ways.inc
+
+
+# Class 5
+# subqueries in group by and order by with references to parent select_lex
+
+let $ver=  5.1.0.0.1.0.0.0;
+let $qry= select t1a as col1, t1b as col2 from t1
+group by (select col1) order by col1;
+
+--source execute_various_ways.inc
+
+
+let $ver=  5.2.0.0.1.0.0.0;
+let $qry= select t1a as col1, t1b as col2 from t1
+group by (select col1 + col2) order by col1;
+
+--source execute_various_ways.inc
+
+
+let $ver=  5.1.0.0.1.1.0.0;
+let $qry= select t1a as col1, t1b+t1c as col2 from t1
+group by (select col1) order by col1;
+
+--source execute_various_ways.inc
+
+
+let $ver= 5.2.0.0.2.2.0;
+let $qry=select t1a+t2a as col1, t1b+t2b as col2 from t1 join t2 on t1c=t2c
+group by (select col1 + col2) order by (select col1 + col2);
+
+--source execute_various_ways.inc
+
+
+#  wrong results for the next few queries when NOT run as prepared statement
+#  or procedure, See MDEV-35859
+let $ver=  5.1.1.0.1.0.0.0;
+let $qry= select * from t2 where t2a in
+(
+  select t1a from t1
+    group by (select t1a > t2b) order by t1a
+);
+
+--source execute_various_ways.inc
+
+
+let $ver=  5a.1.1.0.1.0.0.0;
+let $qry= select * from t2 where t2a in
+(
+  select t1a as col1 from t1
+    group by (select col1 > t2b) order by col1
+);
+
+--source execute_various_ways.inc
+
+
+let $ver=  5.1.1.0.1.1.0.0;
+let $qry= select * from t2 where t2a*2 in
+(
+  select t1a+t2a from t1
+    group by (select t1a+t2a > t2b) order by t1a+t2a
+);
+
+--source execute_various_ways.inc
+
+
+let $ver=  5a.1.1.0.1.1.0.0;
+let $qry= select * from t2 where t2a*2 in
+(
+  select t1a+t2a as col1 from t1
+    group by (select col1 > t2b) order by col1
+);
+
+--source execute_various_ways.inc
+
+
+let $ver=  5.2.1.0.1.2.0.0;
+let $qry= select * from v5 where v5a in
+(
+  select t1a from t1
+   group by
+  (
+    select t1a*25 < v5a + v5b
+  )
+   order by t1a
+);
+
+--source execute_various_ways.inc
+
+
+let $ver=  5a.2.1.0.1.2.0.0;
+let $qry= select * from v2 where v2a in
+(
+  select t1a*25 as col1 from t1
+    group by (select col1 < v2a + v2b) order by t1a
+);
+
+--source execute_various_ways.inc
+
+
+let $ver=  5a.2.2.0.1.2.0.0;
+let $qry= select * from v2 where v2a in
+(
+  select t1a*25 as col1 from t1
+    group by (select col1 < v2a + v2b) order by col1
+);
+
+--source execute_various_ways.inc
+
+
+let $ver=  5b.2.2.0.1.2.0.0;
+let $qry= select * from v2 where v2a in
+(
+  select t1a*25 as col1 from t1
+    group by (select col1 < v2a + v2b) order by (select col1 < v2b)
+);
+
+--source execute_various_ways.inc
+
+
+# Class 6 subquery merge into derived merge
+# we have subqueries at the lowest level
+# derived tables at the upper level, all mergeable.
+
+# swap to derived table instead of subquery
+let $ver=  6.1.0.0.2.0.0.0;
+let $qry= select t1a from t1,                           -- select 1, parent
+(
+  select t2a from t2,                                 -- select 2, child
+  (
+    select t3a from t3 where t3b in                   -- select 3, non-mergable
+    (
+      select t4a from t4 where t4c in                 -- select 4, parent
+      (
+        select t6a from t6  where t6b >= t3b          -- select 5, child
+      )
+    )
+  ) dt2
+  where t2b = t3a
+) dt
+where t1a = t2a;
+
+--source execute_various_ways.inc
+
+
+# swap to derived table instead of subquery
+let $ver=  6.2.0.0.2.0.0.0;
+let $qry= select t1a from t1,                           -- select 1, parent
+(
+  select t2a from t2,                                 -- select 2, child
+  (
+    select t3a from t3 where t3b in                   -- select 3, non-mergable
+    (
+      select t4a from t4 where t4c in                 -- select 4, parent
+      (
+        select t6a from t6  where t6b >= t3b          -- select 5, child
+          and t6c >= t4c
+      )
+    )
+  ) dt2
+  where t2b = t3a
+) dt
+where t1a = t2a;
+
+--source execute_various_ways.inc
+
+
+# reference to an implicitly named column in a derived table in where clause,
+# mergeable subselect
+
+let $ver= 7a.0;
+let $qry=select * from
+(
+  select t1a as dt1a, t1b from t1
+) dt
+where
+dt1a in
+(
+  select t2a from t2 where t2b >= t1b
+);
+
+--source execute_various_ways.inc
+
+
+# reference to outer table in select list
+let $ver=  7b.1.0.0;
+let $qry=select
+(
+  select sum(t2a) from t2 where t2b > t1a group by t1b limit 1
+) as col1,
+t1b from t1;
+
+--source execute_various_ways.inc
+
+
+# multiple references to outer table in select list
+
+let $ver= 7b.2.0.0;
+let $qry=select
+(
+  select sum(t2a) from t2 where t2b > t1a group by t1b limit 1
+) as col1,
+(
+  select sum(t3a) from t3 where t3b > t1a group by t3b limit 1
+) as col2,
+t1b from t1;
+
+--source execute_various_ways.inc
+
+
+# multiple aggregation of outer reference
+
+let $ver= 7c.2.0.0;
+let $qry=select
+(
+  select sum(t1a) from t2 where t2b > t1a group by t1b limit 1
+) as col1,
+(
+  select sum(t1c) from t3 where t3b > t1a group by t3b limit 1
+) as col2,
+t1b from t1;
+
+--source execute_various_ways.inc
+
+
+
+# we need to test that t1a, which refers to the table ambiguous, remains
+# referring to this after a merge
+
+let $ver= 7c.0;
+let $qry=select t1a from t1                               -- select 1
+where t1a in
+(
+  select t1a from ambiguous where t1a >= some           -- select 2
+  (
+    select t3a from t3 where t1a=t3b                    -- select 3
+  )
+);
+
+--source execute_various_ways.inc
+
+
+# test cascading merges
+
+let $ver= 7d.1.0;
+let $qry=
+  select * from t1
+    where t1c in
+    (
+      select * from
+      (
+        select t2a from t2
+          where t2a in
+          (
+            select t3a from (select * from t3) table3
+              where t3a in
+              (
+                 select t4a from t4
+                   where t4a < any(select t5c from t5 where t5a > t3a)
+              )
+          )
+      ) dt
+    );
+
+--source execute_various_ways.inc
+
+
+let $ver= 7d.2.0;
+let $qry=
+  select * from t1
+    where t1c in
+    (
+      select * from
+      (
+        select t2a from t2
+          where t2a in
+          (
+            select t3a from (select * from t3) table3
+              where t3a in
+              (
+                 select t4a from t4
+                   where t4a < any(select t5c from t5 where t5a < t3a + t3b)
+              )
+          )
+      ) dt
+    );
+
+--source execute_various_ways.inc
+
+
+drop view v1, v2, v3, v4, v5;
+drop table t1, t2, t3, t4, t5, t6, t7, ambiguous;
