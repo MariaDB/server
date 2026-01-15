@@ -23,6 +23,6 @@ my_hasher_st my_hasher_base31(void)
 {
   my_hasher_st tmp=
     { 1, 4, 0, FALSE, my_hasher_base31_hash_str, my_hasher_base31_hash_byte,
-      my_hasher_base31_finalize, NULL };
+      my_hasher_hash_num, my_hasher_base31_finalize, NULL };
   return tmp;
 }

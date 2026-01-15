@@ -1,5 +1,5 @@
---- ../src/mysql-test/main/partition_key_algorithm.result	2026-01-16 13:19:15.740840600 +1100
-+++ ../src/mysql-test/main/partition_key_algorithm,2.reject	2026-01-16 13:19:30.744711175 +1100
+--- ../src/mysql-test/main/partition_key_algorithm.result	2026-01-19 13:31:25.942631583 +1100
++++ ../src/mysql-test/main/partition_key_algorithm,2.reject	2026-01-19 13:31:39.982499241 +1100
 @@ -1,6 +1,6 @@
  # MDEV-9826 better hash algorithms for PARTITION BY KEY
  ## MDEV-9826 case with NULL
@@ -97,3 +97,19 @@
  SELECT HEX(a) FROM t1 WHERE a=0xA0;
  HEX(a)
  20
+@@ -210,13 +210,13 @@
+ DROP TABLE t1;
+ ## MDEV-38549 MDEV-9826 derived a bug for numeric columns from
+ ## the old hash design
+-CREATE OR REPLACE TABLE t1 (c1 INT NOT NULL) PARTITION BY KEY  (c1) PARTITIONS 16;
++CREATE OR REPLACE TABLE t1 (c1 INT NOT NULL) PARTITION BY KEY ALGORITHM=2 (c1) PARTITIONS 16;
+ INSERT INTO t1 VALUES (0x41),(0x61);
+ SELECT table_name, partition_name, table_rows FROM information_schema.partitions
+ WHERE table_name='t1' AND table_rows>0;
+ table_name	partition_name	table_rows
+ t1	p4	2
+-ALTER TABLE t1 PARTITION BY KEY  (c1) PARTITIONS 7;
++ALTER TABLE t1 PARTITION BY KEY ALGORITHM=2 (c1) PARTITIONS 7;
+ SELECT table_name, partition_name, table_rows FROM information_schema.partitions
+ WHERE table_name='t1' AND table_rows>0;
+ table_name	partition_name	table_rows

@@ -282,6 +282,13 @@ void my_hash_sort_bin(my_hasher_st *hasher,
   MY_HASH_ADD_STR(hasher, key, len);
 }
 
+/* Default my_hasher_st::m_hash_num implementation */
+void my_hasher_hash_num(struct my_hasher_st *hasher,
+                        const uchar* num, size_t binary_size)
+{
+  my_hash_sort_bin(hasher, NULL, num, binary_size);
+}
+
 
 void my_hash_sort_8bit_bin(my_hasher_st *hasher,
                            CHARSET_INFO *cs __attribute__((unused)),

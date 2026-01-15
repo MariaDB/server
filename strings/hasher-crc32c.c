@@ -22,6 +22,6 @@ my_hasher_st my_hasher_crc32c(void)
 {
   my_hasher_st tmp=
     { 1, 4, 0, FALSE, my_hasher_crc32c_hash_str, my_hasher_crc32c_hash_byte,
-      my_hasher_crc32c_finalize, NULL };
+      my_hasher_hash_num, my_hasher_crc32c_finalize, NULL };
   return tmp;
 }

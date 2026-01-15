@@ -510,6 +510,15 @@ typedef struct my_hasher_st
      if NULL
   */
   void (*m_hash_byte)(struct my_hasher_st *hasher, uchar value);
+  /*
+    One-shot number hash function. This is for backward compatibility:
+    mysql5x algorithms hashes numerical fields as if they are strings
+    (by using my_charset_latin1's hash_sort function), but new
+    algorithms should use the default my_hasher_hash_num which uses
+    my_charset_bin's hash_sort function
+  */
+  void (*m_hash_num)(struct my_hasher_st *hasher, const uchar* num,
+                     size_t binary_size);
   /* Function to clean up and return the hash value */
   uint32 (*m_finalize)(struct my_hasher_st *hasher);
   /* Custom pointer e.g. to a state */
@@ -1626,6 +1635,9 @@ extern void my_hash_sort_simple_nopad(my_hasher_st *hasher,
 
 extern void my_hash_sort_bin(my_hasher_st *hasher, CHARSET_INFO *cs,
                              const uchar *key, size_t len);
+
+extern void my_hasher_hash_num(struct my_hasher_st *hasher,
+                               const uchar* num, size_t binary_size);
 
 /**
   Compare a string to an array of spaces, for PAD SPACE comparison.

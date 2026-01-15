@@ -6,11 +6,19 @@ static uint32 my_hasher_mysql5x_finalize(my_hasher_st *hasher)
   return (uint32) hasher->m_nr1;
 }
 
+static void my_hasher_mysql5x_hash_num(struct my_hasher_st *hasher,
+                                       const uchar* num,
+                                       size_t binary_size)
+{
+  my_hash_sort_simple(hasher, &my_charset_latin1, num, binary_size);
+}
+
 /* The default MYSQL51/MYSQL55 hash algorithms. */
 my_hasher_st my_hasher_mysql5x(void)
 {
   my_hasher_st tmp=
-    { 1, 4, 0, FALSE, NULL, NULL, my_hasher_mysql5x_finalize, NULL };
+    { 1, 4, 0, FALSE, NULL, NULL, my_hasher_mysql5x_hash_num,
+      my_hasher_mysql5x_finalize, NULL };
   return tmp;
 }
 
@@ -21,6 +29,7 @@ my_hasher_st my_hasher_mysql5x(void)
 my_hasher_st my_hasher_mysql5x_for_unique()
 {
   my_hasher_st tmp=
-    { 0, 4, 0, FALSE, NULL, NULL, my_hasher_mysql5x_finalize, NULL };
+    { 0, 4, 0, FALSE, NULL, NULL, my_hasher_mysql5x_hash_num,
+      my_hasher_mysql5x_finalize, NULL };
   return tmp;
 }

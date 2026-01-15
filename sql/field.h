@@ -2247,6 +2247,13 @@ public:
     DBUG_ASSERT(Field_num::type() == binlog_type());
     return Binlog_type_info(Field_num::type(), 0, 0, binlog_signedness());
   }
+  void hash_not_null(Hasher *hasher) override
+  {
+    DBUG_ASSERT(marked_for_read());
+    DBUG_ASSERT(!is_null());
+    DBUG_ASSERT(hasher->m_hash_num);
+    hasher->m_hash_num(hasher, ptr, pack_length());
+  }
 };
 
 
