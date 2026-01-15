@@ -29,8 +29,8 @@ BEGIN
 RETURN func2();
 END;
 $$
-SELECT func();
-func()
+SELECT test.func();
+test.func()
 test2.func2
 SET PATH 'test3';
 SELECT test.func();
@@ -47,8 +47,8 @@ BEGIN
 RETURN CONCAT(func2(), '+', func2());
 END;
 $$
-SELECT func();
-func()
+SELECT test.func();
+test.func()
 test2.func2+test2.func2
 SET PATH 'test3';
 SELECT test.func();
@@ -65,8 +65,8 @@ BEGIN
 RETURN CONCAT(func2(), '+', func2(), '+', func4());
 END;
 $$
-SELECT func();
-func()
+SELECT test.func();
+test.func()
 test2.func2+test2.func2+test4.func4
 SET PATH 'test3';
 SELECT test.func();

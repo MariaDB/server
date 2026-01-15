@@ -41,6 +41,10 @@ USE test2;
 SELECT func();
 func()
 Invoke from Db: test, Rt: func
+SET PATH 'sys';
+USE test;
+SELECT func();
+ERROR 42000: FUNCTION func does not exist
 SET @@path = DEFAULT;
 #
 # type 1.5
@@ -92,7 +96,7 @@ func()
 Invoke from Db: test, Rt: func
 DROP FUNCTION test.func;
 SELECT func();
-ERROR 42000: FUNCTION test2.func does not exist
+ERROR 42000: FUNCTION func does not exist
 SET @@path = DEFAULT;
 #
 # type 1.7
@@ -657,6 +661,10 @@ USE test2;
 CALL proc;
 trace:
 Invoke from Db: test, Rt: proc
+SET PATH 'sys';
+USE test;
+CALL proc;
+ERROR 42000: PROCEDURE proc does not exist
 SET @@path = DEFAULT;
 #
 # type 3.5
@@ -708,7 +716,7 @@ trace:
 Invoke from Db: test, Rt: proc
 DROP PROCEDURE test.proc;
 CALL proc;
-ERROR 42000: PROCEDURE test2.proc does not exist
+ERROR 42000: PROCEDURE proc does not exist
 SET @@path = DEFAULT;
 #
 # type 3.7
@@ -1346,7 +1354,7 @@ func()
 Invoke from Db: test, Rt: func
 DROP FUNCTION test.func;
 SELECT func();
-ERROR 42000: FUNCTION test2.func does not exist
+ERROR 42000: FUNCTION func does not exist
 SET @@path = DEFAULT;
 #
 # type 5.7
@@ -2105,7 +2113,7 @@ Invoke from Db: test, Rt: proc
 Invoke from Db: test, Rt: proc
 DROP PROCEDURE test.proc;
 CALL proc;
-ERROR 42000: PROCEDURE test2.proc does not exist
+ERROR 42000: PROCEDURE proc does not exist
 SET @@path = DEFAULT;
 #
 # type 7.7
@@ -2757,12 +2765,12 @@ CREATE DATABASE test2;
 USE test2;
 SET PATH 'test';
 CREATE FUNCTION func2() RETURNS TEXT RETURN func();
-SELECT func2();
-func2()
+SELECT test2.func2();
+test2.func2()
 Invoke from Db: test, Rt: func
 SET PATH 'test3';
-SELECT func2();
-func2()
+SELECT test2.func2();
+test2.func2()
 Invoke from Db: test, Rt: func
 DROP FUNCTION test.func;
 DROP DATABASE test2;
@@ -2791,7 +2799,7 @@ USE `"`;
 CREATE FUNCTION func() RETURNS TEXT RETURN 'Invoke from Db: \", Rt: func';
 USE test;
 SELECT func();
-ERROR 42000: FUNCTION test.func does not exist
+ERROR 42000: FUNCTION func does not exist
 SET PATH '`"`';
 SELECT func();
 func()

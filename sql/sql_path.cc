@@ -130,17 +130,21 @@ bool Sql_path::resolve(THD *thd, sp_head *caller, sp_name *name,
     }
   }
 
-  // If PATH contains only CURRENT_SCHEMA (default), skip PATH resolution
-  // to avoid extra table operations that affect performance
-  if (!name->m_explicit_name && m_count == 1 && is_cur_schema(0))
-    return false;
-
   bool resolved= false;
   for (size_t i= 0; i < m_count; i++)
   {
     Lex_ident_db schema;
     if (is_cur_schema(i))
     {
+      // If PATH contains only CURRENT_SCHEMA (default), skip PATH resolution
+      // to avoid extra table operations that affect performance
+      if (m_count== 1 && !name->m_explicit_name)
+      {
+        if (!name->m_db.str && thd->db.str)
+          name->m_db= thd->copy_db_normalized();
+        return false;
+      }
+
       schema= resolve_current_schema(thd, caller, i);
       if (!schema.str)
         continue; // CURRENT_SCHEMA resolution failed, skip this entry

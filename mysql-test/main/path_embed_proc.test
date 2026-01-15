@@ -43,6 +43,7 @@ $$
 
 DELIMITER ;$$
 
+SET PATH 'CURRENT_SCHEMA';
 CALL proc;
 SET PATH 'test3';
 CALL test.proc;

@@ -42,7 +42,7 @@ END;
 $$
 DELIMITER ;$$
 
-SELECT func();
+SELECT test.func();
 SET PATH 'test3';
 SELECT test.func();
 
@@ -61,7 +61,7 @@ END;
 $$
 DELIMITER ;$$
 
-SELECT func();
+SELECT test.func();
 SET PATH 'test3';
 SELECT test.func();
 
@@ -80,7 +80,7 @@ END;
 $$
 DELIMITER ;$$
 
-SELECT func();
+SELECT test.func();
 SET PATH 'test3';
 SELECT test.func();
 
