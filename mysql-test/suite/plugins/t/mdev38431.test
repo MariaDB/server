@@ -56,4 +56,3 @@ GRANT ALL ON *.* TO verylonguser;
 --echo #
 DROP USER shortuser, longuser, verylonguser;
 DROP DATABASE mdev38431_db;
-# Note: Do not uninstall cleartext_plugin_server as it was pre-loaded by MTR
