@@ -90,6 +90,11 @@ SET PATH 'sys,test';
 USE test2;
 SELECT func();
 
+SET PATH 'sys';
+USE test;
+--error ER_SP_DOES_NOT_EXIST
+SELECT func();
+
 # subtest finish, deinit
 SET @@path = DEFAULT;
 
@@ -855,6 +860,11 @@ SET PATH 'sys,test';
 
 # subtest start
 USE test2;
+CALL proc;
+
+SET PATH 'sys';
+USE test;
+--error ER_SP_DOES_NOT_EXIST
 CALL proc;
 
 # subtest finish, deinit
@@ -3465,10 +3475,10 @@ CREATE DATABASE test2;
 USE test2;
 SET PATH 'test';
 CREATE FUNCTION func2() RETURNS TEXT RETURN func();
-SELECT func2();
+SELECT test2.func2();
 
 SET PATH 'test3';
-SELECT func2();
+SELECT test2.func2();
 
 DROP FUNCTION test.func;
 DROP DATABASE test2;

@@ -29,6 +29,7 @@ BEGIN
 SELECT func2();
 END;
 $$
+SET PATH 'CURRENT_SCHEMA';
 CALL proc;
 func2()
 test2.func2

@@ -2887,7 +2887,7 @@ Create_qfunc::create_func(THD *thd, const LEX_CSTRING *name,
                           List<Item> *item_list)
 {
   Lex_ident_db_normalized db;
-  if (thd->lex->sphead || thd->db.str)
+  if (thd->lex->sphead)
   {
     db= thd->lex->copy_db_normalized();
     if (!db.str)

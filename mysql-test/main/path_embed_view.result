@@ -147,7 +147,7 @@ DROP VIEW v2;
 #
 SET PATH 'test4';
 CREATE VIEW v2 AS SELECT a, func(a) FROM t1;
-ERROR 42000: FUNCTION test.func does not exist
+ERROR 42000: FUNCTION func does not exist
 #
 # CREATE VIEW using a function that calls another function in the same schema
 #

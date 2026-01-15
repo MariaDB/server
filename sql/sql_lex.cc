@@ -7936,7 +7936,7 @@ sp_name *LEX::make_sp_name(THD *thd, const Lex_ident_sys_st &name, bool with_db)
   Lex_ident_db_normalized db;
   if (Lex_ident_routine::check_name_with_error(name))
     return NULL;
-  if (with_db || thd->lex->sphead || thd->db.str)
+  if (with_db || thd->lex->sphead)
     if (!(db= copy_db_normalized()).str)
       return NULL;
   return new (thd->mem_root) sp_name(db, name, false);
