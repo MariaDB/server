@@ -1,0 +1,85 @@
+name: Label recent pull requests
+
+on:
+  schedule:
+    - cron: "0 2 * * *" # 02:00 UTC daily
+  workflow_dispatch:    # allow manual runs
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+
+jobs:
+  label-prs:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Auto-label PRs
+        env:
+          REPO: ${{ github.repository }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          REPO=MariaDB/server
+          set -euo pipefail
+          nfailed=0
+
+          # List first 200 PRs lacking classification labels as JSON
+          gh pr list \
+            --repo "$REPO" \
+            --search 'is:pr -label:"External Contribution" -label:"MariaDB Foundation" -label:"MariaDB Corporation" -label="Codership"' \
+            --limit 200 \
+            --json number,createdAt,labels,author |
+          jq -c '.[]' |
+          while read -r pr; do
+            pr_number=$(echo "$pr" | jq -r '.number')
+            created_at=$(echo "$pr" | jq -r '.createdAt')
+            label_count=$(echo "$pr" | jq '.labels | length')
+            author=$(echo "$pr" | jq -r '.author.login')
+
+            echo "Evaluating PR #$pr_number by $author"
+
+            # Check if author is in the developers team
+            if gh api \
+              -H "Accept: application/vnd.github+json" \
+              "/orgs/MariaDB/teams/developers/members/$author" \
+              >/dev/null 2>&1; then
+              echo "Author is in developers team"
+              is_developer=1
+            else
+              is_developer=0
+              echo "Author is not in developers team"
+            fi
+            # Check if author is in the staff team
+            if gh api \
+              -H "Accept: application/vnd.github+json" \
+              "/orgs/MariaDB/teams/staff/members/$author" \
+              >/dev/null 2>&1; then
+              echo "Author is in staff team"
+              is_foundation=1
+            else
+              is_foundation=0
+              echo "Author is not in staff team"
+            fi
+
+            if [[ "$is_foundation" -ne 0 ]]; then
+              label="MariaDB Foundation"
+            else
+              if [[ "$is_developer" -ne 0 ]]; then
+                label="MariaDB Corporation"
+              else
+                label="External Contribution"
+              fi
+            fi
+
+          # start soft: read-only first.
+          echo "Should apply label [$label] to PR#[$pr_number] by [$author]"
+
+          #  echo "Applying label $label"
+          #  if gh issue edit "$pr_number" \
+          #    --repo "$REPO" \
+          #    --add-label "$label"; then
+          #    echo "**FAILED applying label [$label] to PR#[$pr_number] by [$author]"
+          #    nfailed=$((nfailed + 1))
+          #  fi
+          done

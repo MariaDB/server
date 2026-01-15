@@ -884,6 +884,7 @@ THD::THD(my_thread_id id, bool is_wsrep_applier)
   net.reading_or_writing= 0;
   client_capabilities= 0;                       // minimalistic client
   system_thread= NON_SYSTEM_THREAD;
+  killed_for_exceeding_limit_rows_warning_given= 0;
   shared_thd= 0;
   cleanup_done= free_connection_done= abort_on_warning= got_warning= 0;
   peer_port= 0;					// For SHOW PROCESSLIST
@@ -2358,6 +2359,32 @@ void THD::reset_killed()
   DBUG_VOID_RETURN;
 }
 
+
+/*
+  Mark query killed for exceeding limit rows
+
+  The current select will be aborted, but the incomplete result set will
+  be sent to the user
+ */
+
+void THD::killed_for_exceeding_limit_rows()
+{
+  set_killed(ABORT_QUERY);
+  if (!no_errors && !killed_for_exceeding_limit_rows_warning_given)
+  {
+    killed_for_exceeding_limit_rows_warning_given= 1;
+    bool saved_abort_on_warning= abort_on_warning;
+    abort_on_warning= false;
+    push_warning_printf(this, Sql_condition::WARN_LEVEL_WARN,
+                        ER_QUERY_RESULT_INCOMPLETE,
+                        ER_THD(this, ER_QUERY_RESULT_INCOMPLETE),
+                        "LIMIT ROWS EXAMINED",
+                        lex->limit_rows_examined->val_uint());
+    abort_on_warning= saved_abort_on_warning;
+  }
+}
+
+
 /*
   Remember the location of thread info, the structure needed for
   the structure for the net buffer
@@ -3371,13 +3398,34 @@ int select_send::send_data(List<Item> &items)
 
 bool select_send::send_eof()
 {
-  /* 
+  /*
     Don't send EOF if we're in error condition (which implies we've already
     sent or are sending an error)
   */
   if (unlikely(thd->is_error()))
+  {
+    reset_for_next_ps_execution();
     return TRUE;
+  }
+
   ::my_eof(thd);
+
+  if (unlikely(thd->lex->sql_command != SQLCOM_SELECT))
+    goto end;                                   // For DELETE RETURNING
+
+  if (likely(!thd->transaction->stmt.is_trx_read_write()))
+  {
+    /*
+      We are executing a readonly statement. Send the result to the
+      client so that it can process the data while the server is doing
+      cleanups.
+    */
+    thd->push_final_warnings();
+    thd->update_server_status();       // Needed for slow query status
+    thd->protocol->end_statement();
+  }
+
+end:
   reset_for_next_ps_execution();
   return FALSE;
 }
@@ -4677,7 +4725,6 @@ bool select_dumpvar::send_eof()
 
   return 0;
 }
-
 
 
 bool

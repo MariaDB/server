@@ -580,10 +580,9 @@ void Protocol::end_statement()
 #endif /* WITH_WSREP */
 
   DBUG_ENTER("Protocol::end_statement");
-  DBUG_ASSERT(! thd->get_stmt_da()->is_sent());
   bool error= FALSE;
 
-  /* Can not be true, but do not take chances in production. */
+  /* This can set in the case of early result sent by select_send::send_eof() */
   if (thd->get_stmt_da()->is_sent())
     DBUG_VOID_RETURN;
 

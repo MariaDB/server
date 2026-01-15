@@ -3013,11 +3013,9 @@ int ha_maria::external_lock(THD *thd, int lock_type)
             !trnman_decrement_locked_tables(trn))
         {
           /*
-            OK should not have been sent to client yet (ACID).
-            This is a bit excessive, ACID requires this only if there are some
-            changes to commit (rollback shouldn't be tested).
+            OK should not have been sent to client in case of write (ACID).
           */
-          DBUG_ASSERT(!thd->get_stmt_da()->is_sent() ||
+          DBUG_ASSERT(!trn->undo_lsn || !thd->get_stmt_da()->is_sent() ||
                       thd->killed);
           /*
             If autocommit, commit transaction. This can happen when open and
