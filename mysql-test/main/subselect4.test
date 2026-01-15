@@ -1,6 +1,7 @@
 # General purpose bug fix tests go here : subselect.test too large
 
 
+--source include/have_innodb.inc
 --source include/default_optimizer_switch.inc
 
 --disable_warnings
@@ -2733,5 +2734,39 @@ CREATE TABLE t1 AS
 SHOW CREATE TABLE t1;
 DROP TABLE t0, t1;
 
+--echo # MDEV-26944 Server crash fixing outer references after the first execution of prepared statements
+--echo #
+
+CREATE PROCEDURE sp()
+SELECT x
+FROM
+ (SELECT a.column_name AS y,
+        (SELECT y FROM information_schema.innodb_sys_foreign LIMIT 1) AS x
+  FROM information_schema.columns a) dt limit 1;
+
+CALL sp();
+CALL sp();
+
+drop procedure sp;
+
+create table t1 (i int);
+
+prepare stmt from " SELECT x FROM
+ ( SELECT i AS y, (SELECT y FROM t1 LIMIT 1 ) AS x FROM  t1 a) dt;";
+
+execute stmt;
+execute stmt;
+
+drop table t1;
+
+create table t1 (i int);
+
+prepare stmt from " SELECT x FROM
+ ( SELECT i AS y, (SELECT y FROM t1 LIMIT 1 ) AS x FROM  t1 a) dt;";
+
+execute stmt;
+execute stmt;
+
+drop table t1;
 
 --echo # End of 10.11 tests

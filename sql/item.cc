@@ -3583,8 +3583,10 @@ bool Item_field::eq(const Item *item, const Eq_config &config) const
 
 table_map Item_field::used_tables() const
 {
-  if (field->table->const_table)
-    return 0;					// const item
+  if (!field ||
+      !field->table ||
+      field->table->const_table)
+    return 0;					// not ready OR const item
   return (get_depended_from() ? OUTER_REF_TABLE_BIT : field->table->map);
 }
 
@@ -5792,7 +5794,25 @@ resolve_ref_in_select_and_group(THD *thd, Item_ident *ref, SELECT_LEX *select)
 }
 
 
-/*
+void Field_fixer::visit_field(Item_field *item)
+{
+  if (item->fixed())                            // item may not yet be (re)fixed
+  {
+    st_select_lex *cmp= select;
+    while (cmp->merged_into)
+      cmp= cmp->merged_into;
+    if (item->field->table->pos_in_table_list &&
+        (item->field->table->pos_in_table_list->select_lex == cmp))
+      used_tables|= item->field->table->map;
+    else
+      used_tables|= OUTER_REF_TABLE_BIT;
+  }
+  else
+    not_ready= TRUE;
+}
+
+
+/**
   @brief
   Whether a table belongs to an outer select.
 
@@ -6475,14 +6495,19 @@ bool Item_field::fix_fields(THD *thd, Item **reference)
     else if (!from_field)
       goto error;
 
+    st_select_lex *context_sl= context->select_lex;
+    if (context_sl)
+      while (context_sl->merged_into)
+        context_sl= context_sl->merged_into;
+
     table_list= (cached_table ? cached_table :
                  from_field != view_ref_found ?
                  from_field->table->pos_in_table_list : 0);
+
     if (!outer_fixed && table_list && table_list->select_lex &&
-        context->select_lex &&
-        table_list->select_lex != context->select_lex &&
-        !context->select_lex->is_merged_child_of(table_list->select_lex) &&
-        is_outer_table(table_list, context->select_lex))
+        context_sl &&
+        context_sl != table_list->select_lex &&
+        is_outer_table(table_list, context_sl))
     {
       int ret;
       if ((ret= fix_outer_field(thd, &from_field, reference)) < 0)
@@ -11256,7 +11281,8 @@ void Item_direct_view_ref::update_used_tables()
 
 table_map Item_direct_view_ref::used_tables() const
 {
-  DBUG_ASSERT(fixed());
+  if(!fixed())
+    return (table_map) 0;
 
   if (get_depended_from())
     return OUTER_REF_TABLE_BIT;

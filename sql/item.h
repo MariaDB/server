@@ -3041,6 +3041,17 @@ public:
   Field_enumerator() = default;                       /* Remove gcc warning */
 };
 
+
+class Field_fixer: public Field_enumerator
+{
+public:
+  table_map used_tables;             /* Collect used_tables here */
+  st_select_lex *select;             /* the select_lex we're confined to */
+  bool not_ready;                    /* if we hit an unfixed field, set this */
+  void visit_field(Item_field *item) override;
+};
+
+
 class Item_string;
 
 
