@@ -52,8 +52,48 @@ GRANT ALL ON *.* TO verylonguser;
 --exec $MYSQL -h 127.0.0.1 -P $MASTER_MYPORT --default-auth=mysql_clear_password -u verylonguser -p"$very_long_pwd" --database=mdev38431_db -e "SELECT DATABASE() AS db"
 
 --echo #
+--echo # Test 4: COM_CHANGE_USER with short password
+--echo # Verify mysql_change_user() works correctly with database parameter
+--echo #
+CREATE USER changeusertest IDENTIFIED VIA cleartext_plugin_server USING 'changepwd';
+GRANT ALL ON *.* TO changeusertest;
+
+# Use change_user command to switch user with password and database
+change_user changeusertest,changepwd,mdev38431_db;
+SELECT DATABASE() AS db;
+change_user root;
+
+--echo #
+--echo # Test 5: COM_CHANGE_USER with long password (260 bytes)
+--echo # This works because auth plugin switching sends password in a SECOND packet
+--echo # (via ma_net_write), bypassing the 255-byte limit in send_change_user_packet()
+--echo #
+--echo # Note: If connection used cleartext directly (no auth switch), it would fail
+--echo # due to libmariadb's 255-byte limit in send_change_user_packet()
+--echo #
+--let $change_pwd=`SELECT REPEAT('c', 260)`
+eval CREATE USER changeuserlongpwd IDENTIFIED VIA cleartext_plugin_server USING '$change_pwd';
+GRANT ALL ON *.* TO changeuserlongpwd;
+
+change_user changeuserlongpwd,$change_pwd,mdev38431_db;
+SELECT DATABASE() AS db;
+change_user root;
+
+--echo #
+--echo # Test 6: COM_CHANGE_USER with long password - no auth switch
+--echo # Connection uses cleartext directly, password goes in first packet
+--echo # Requires LENENC support in both client and server for COM_CHANGE_USER
+--echo #
+--connect (cleartext_con, 127.0.0.1, changeuserlongpwd, $change_pwd, mdev38431_db, $MASTER_MYPORT, , , mysql_clear_password)
+SELECT DATABASE() AS db;
+SELECT CURRENT_USER() AS user;
+change_user changeuserlongpwd,$change_pwd,mdev38431_db;
+SELECT DATABASE() AS db;
+--connection default
+--disconnect cleartext_con
+
+--echo #
 --echo # Cleanup
 --echo #
-DROP USER shortuser, longuser, verylonguser;
+DROP USER shortuser, longuser, verylonguser, changeusertest, changeuserlongpwd;
 DROP DATABASE mdev38431_db;
-# Note: Do not uninstall cleartext_plugin_server as it was pre-loaded by MTR
