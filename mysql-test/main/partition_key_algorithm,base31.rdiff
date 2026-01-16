@@ -1,7 +1,7 @@
 --- ../src/mysql-test/main/partition_key_algorithm.result	2025-12-08 13:49:44.869944988 +1100
 +++ ../src/mysql-test/main/partition_key_algorithm,base31.reject	2025-12-08 13:51:15.905139448 +1100
 @@ -1,13 +1,13 @@
- # MDEV-9826 change the hash algorithm for PARTITION BY KEY
+ # MDEV-9826 better hash algorithms for PARTITION BY KEY
  ## MDEV-9826 case with NULL
 -create table t1(c1 int, c2 date) partition by key  (c2) partitions 8;
 +create table t1(c1 int, c2 date) partition by key ALGORITHM=BASE31 (c2) partitions 8;
@@ -23,7 +23,7 @@
 -p0	3
 -p1	0
 +p0	2
-+p1	1
++p1	2
  p2	1
 -p3	0
 -p4	2
@@ -34,26 +34,24 @@
 +p4	1
 +p5	1
 +p6	1
-+p7	2
++p7	1
  select * from t1;
  c1	c2
--1	2014-04-22
--1	2014-04-26
--1	2014-04-30
- 1	NULL
--1	2014-04-24
++1	NULL
 +1	2014-04-29
- 1	2014-04-28
--1	2014-04-23
--1	2014-04-25
+ 1	2014-04-22
+-1	2014-04-26
+ 1	2014-04-30
+-1	NULL
+-1	2014-04-24
+-1	2014-04-28
+ 1	2014-04-23
++1	2014-04-24
+ 1	2014-04-25
++1	2014-04-26
  1	2014-04-27
 -1	2014-04-29
-+1	2014-04-26
-+1	2014-04-25
-+1	2014-04-24
-+1	2014-04-23
-+1	2014-04-22
-+1	2014-04-30
++1	2014-04-28
  drop table t1;
  ## MDEV-9826 case with more dates
 -create table t1(c1 int, c2 date) partition by key  (c2) partitions 8;
@@ -79,14 +77,14 @@
 -p5	0
 -p6	276
 -p7	0
-+p0	123
++p0	130
 +p1	126
-+p2	130
-+p3	130
-+p4	126
++p2	122
++p3	122
++p4	124
 +p5	123
-+p6	123
-+p7	121
++p6	126
++p7	129
  drop table t1;
  ## MDEV-9826 case with more dates and linear key
 -create table t1(c1 int, c2 date) partition by linear key  (c2) partitions 8;
@@ -112,14 +110,14 @@
 -p5	0
 -p6	276
 -p7	0
-+p0	123
++p0	130
 +p1	126
-+p2	130
-+p3	130
-+p4	126
++p2	122
++p3	122
++p4	124
 +p5	123
-+p6	123
-+p7	121
++p6	126
++p7	129
  drop table t1;
  ## MDEV-9826 case with more dates and multiple keys
 -create table t1(c1 int, c2 date) partition by key  (c1, c2) partitions 8;
@@ -145,14 +143,14 @@
 -p5	1
 -p6	0
 -p7	0
-+p0	126
-+p1	130
-+p2	130
-+p3	126
-+p4	123
-+p5	123
-+p6	121
-+p7	123
++p0	129
++p1	129
++p2	126
++p3	122
++p4	122
++p5	124
++p6	123
++p7	127
  drop table t1;
  ## MDEV-20791 case with INET6
 -create table t1 (a inet6) partition by key  (a) partitions 2;
