@@ -2543,26 +2543,6 @@ public:
 
 
 /**
-   Flip 'quotation_flag' if we found a quote (") character.
-
-   @param cftm             Character or FMT... format descriptor
-   @param quotation_flag   Points to 'true' if we are inside a quoted string
-
-   @return true  If we are inside a quoted string or if we found a '"' character
-   @return false Otherwise
-*/
-
-static inline bool check_quotation(uint16 cfmt, bool *quotation_flag)
-{
-  if (cfmt == '"')
-  {
-    *quotation_flag= !*quotation_flag;
-    return true;
-  }
-  return *quotation_flag;
-}
-
-/**
   Special characters are directly output in the result
 
   @return 0  If found not acceptable character
@@ -2621,7 +2601,7 @@ static inline bool formats_used(uint64 *used, int src)
 
   @param format          Format string
   @param fmt_array       Packed format
-  @param fmt_len         Max length of formated date string is stored here
+  @param fmt_len         Max length of formatted date string is stored here
   @param locale          Locale
   @param for_to_date     If the format is for the to_date() oracle function
   @param warning_message Error message is stored here.
@@ -2656,12 +2636,32 @@ static bool parse_format_string(const String *format, uint16 *fmt_array,
                                             "long"));
     return 1;
   }
+  if (format->length() == 0)
+  {
+    *flags= PARSE_TYPE_NULL;         // Empty string in oracle is same as null
+    *fmt_len= 0;
+    *tmp_fmt= 0;
+    return 0;
+  }
 
   for (; ptr < end; ptr++, tmp_fmt++)
   {
     uint ulen;
     char cfmt, next_char;
 
+    if (*ptr == '"')
+    {
+      quotation_flag= !quotation_flag;
+      *tmp_fmt= *ptr;
+      tmp_len++;                                // Count '"' (why)
+      continue;
+    }
+    if (quotation_flag)
+    {
+      *tmp_fmt= *ptr;
+      tmp_len++;
+      continue;
+    }
     cfmt= my_toupper(system_charset_info, *ptr);
 
     /*
@@ -2673,12 +2673,6 @@ static bool parse_format_string(const String *format, uint16 *fmt_array,
       NOTE: the quotation mark is not print in return value. for example:
       select TO_CHAR(sysdate, 'YYYY"abc"MM"xyzDD"') will return 2021abc01xyz11
      */
-    if (check_quotation(cfmt, &quotation_flag))
-    {
-      *tmp_fmt= *ptr;
-      tmp_len+= 1;
-      continue;
-    }
 
     switch (cfmt) {
     case 'A':                                   // AD/A.D./AM/A.M.
@@ -3087,6 +3081,12 @@ static bool parse_format_string(const String *format, uint16 *fmt_array,
       break;
     }
   }
+  if (quotation_flag)
+  {
+    warning_message->append(STRING_WITH_LEN("date_format is missing end '\"'"));
+    return 1;
+  }
+
   *fmt_len= tmp_len;
   *tmp_fmt= 0;
   *flags= (PARSE_TYPE_FLAGS) type_flags;
@@ -3128,15 +3128,16 @@ bool Date_time_format_oracle::format(const uint16 *fmt_array,
 
   while (*ptr)
   {
-    if (check_quotation(*ptr, &quotation_flag))
+    if (*ptr == '"')
     {
-      /* don't display '"' in the result, so if it is '"', skip it */
-      if (*ptr != '"')
-      {
-        DBUG_ASSERT(*ptr <= 255);
-        str->append((char) *ptr);
-      }
       ptr++;
+      quotation_flag= !quotation_flag;
+      continue;
+    }
+    if (quotation_flag)
+    {
+      DBUG_ASSERT(*ptr <= 255);
+      str->append((char) *ptr++);
       continue;
     }
 
@@ -3337,6 +3338,7 @@ bool Date_time_format_oracle::format(const uint16 *fmt_array,
 
     ptr++;
   };
+  DBUG_ASSERT(!quotation_flag);
   return false;
 
 err_exit:
@@ -4711,17 +4713,11 @@ PARSE_TYPE_FLAGS Item_func_to_date::get_format()
                       func_name());
       return PARSE_TYPE_NONE;
     }
-    DBUG_ASSERT(result_type != 0);
+    if (result_type == PARSE_TYPE_NONE)      // If no format modifiers
+      result_type= PARSE_TYPE_NO_FORMAT;
   }
-  else /* NULL argument */
-  {
-    my_printf_error(ER_STD_INVALID_ARGUMENT,
-                    ER(ER_STD_INVALID_ARGUMENT),
-                    MYF(0),
-                    "NULL",
-                    func_name());
-    return PARSE_TYPE_NONE;
-  }
+  else
+    result_type= PARSE_TYPE_NULL;
   return result_type;
 }
 
@@ -4974,12 +4970,15 @@ bool Item_func_to_date::get_date_common(THD *thd, MYSQL_TIME *ltime,
       goto error;
   }
 
-  if (!const_item && !get_format())
+  if (!const_item && (format_flags= get_format()) == PARSE_TYPE_NONE)
     goto error;
 
   /* Set default year, month and day */
   memcpy(ltime, &now_time, sizeof(*ltime));
   ltime->time_type= tstype;
+
+  if (format_flags == PARSE_TYPE_NULL)
+    goto error;
 
   if (!extract_oracle_date_time(thd, fmt_array,
                                 val->ptr(), val->length(),

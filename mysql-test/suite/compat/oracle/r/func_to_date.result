@@ -159,6 +159,15 @@ TO_DATE('02#07','MM/YY')
 SELECT TO_DATE('2001 -- 10','YYYY - MM');
 TO_DATE('2001 -- 10','YYYY - MM')
 2001-10-09 00:00:00
+SELECT TO_DATE('1920-12','YYYY--MM');
+TO_DATE('1920-12','YYYY--MM')
+1920-12-09 00:00:00
+SELECT TO_DATE('1920--12','YYYY"--"MM');
+TO_DATE('1920--12','YYYY"--"MM')
+1920-12-09 00:00:00
+SELECT TO_DATE('-','-');
+TO_DATE('-','-')
+2004-11-09 00:00:00
 # Tab and space
 SELECT TO_DATE('25	05 3','YY MM DD');
 TO_DATE('25	05 3','YY MM DD')
@@ -170,6 +179,22 @@ TO_DATE('2023-01-02 hello 03:04:05', 'YYYY-MM-DD "hello" HH24:MI:SS')
 select TO_DATE('2023-01-02 "03:04:05"', 'YYYY-MM-DD #HH24:MI:SS#');
 TO_DATE('2023-01-02 "03:04:05"', 'YYYY-MM-DD #HH24:MI:SS#')
 2023-01-02 03:04:05
+select TO_DATE('2023X', 'YYYY"x"');
+TO_DATE('2023X', 'YYYY"x"')
+2023-11-09 00:00:00
+# NULL handling
+SELECT TO_DATE('2026-01-01', NULL);
+TO_DATE('2026-01-01', NULL)
+NULL
+SELECT TO_DATE(NULL, "YYYY") as x;
+x
+NULL
+SELECT TO_DATE('1921', '') as x;
+x
+NULL
+SELECT TO_DATE('','');
+TO_DATE('','')
+NULL
 #
 # Not allowed fuzzy string
 #
@@ -185,11 +210,6 @@ Warnings:
 Warning	1411	Incorrect datetime value: '02#/07' for function to_date
 SELECT TO_DATE('2023-01-02 helloa 03:04:05', 'YYYY-MM-DD "hello" HH24:MI:SS');
 TO_DATE('2023-01-02 helloa 03:04:05', 'YYYY-MM-DD "hello" HH24:MI:SS')
-NULL
-Warnings:
-Warning	1411	Incorrect datetime value: '2023-01-02 helloa 03:04:05' for function to_date
-SELECT TO_DATE('2023-01-02 helloa 03:04:05', 'YYYY-MM-DD "hello HH24:MI:SS');
-TO_DATE('2023-01-02 helloa 03:04:05', 'YYYY-MM-DD "hello HH24:MI:SS')
 NULL
 Warnings:
 Warning	1411	Incorrect datetime value: '2023-01-02 helloa 03:04:05' for function to_date
@@ -246,14 +266,21 @@ TO_DATE('2023-01-02 "03:04:05"', 'YYYY-MM-DD ""HH24:MI:SS""')
 NULL
 Warnings:
 Warning	1411	Incorrect datetime value: '2023-01-02 "03:04:05"' for function to_date
+SELECT TO_DATE('1920-12','YYYY"--"MM');
+TO_DATE('1920-12','YYYY"--"MM')
+NULL
+Warnings:
+Warning	1411	Incorrect datetime value: '1920-12' for function to_date
+SELECT TO_DATE('1920-12','YYYY"-MM');
+ERROR HY000: Invalid argument error: date_format is missing end '"' in function to_date.
+SELECT TO_DATE('2023-01-02 helloa 03:04:05', 'YYYY-MM-DD "hello HH24:MI:SS');
+ERROR HY000: Invalid argument error: date_format is missing end '"' in function to_date.
 select TO_DATE('2023-01-02 hello 03:04:05', 'YYYY-MM-DD hello HH24:MI:SS');
 ERROR HY000: Invalid argument error: date format not recognized at hello HH in function to_date.
 SELECT TO_DATE('2025-10-26 10:30:25.123456', 'YYYY-MM-DD HH:MI:SS.FF0') AS result;
 ERROR HY000: Invalid argument error: date format not recognized at 0 in function to_date.
 SELECT TO_DATE('2025-10-26 26', 'YYYY-MM-DD DD') AS result;
 ERROR HY000: Invalid argument error: date format not recognized at DD in function to_date.
-SELECT TO_DATE('2026-01-01', NULL);
-ERROR HY000: Invalid argument error: NULL in function to_date.
 SELECT TO_DATE() AS x;
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near ') AS x' at line 1
 SELECT TO_DATE(NULL) AS x;
@@ -262,6 +289,18 @@ SELECT TO_DATE('2026-01-01') AS x;
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near ') AS x' at line 1
 SELECT TO_DATE('2','IW') AS x;
 ERROR HY000: Invalid argument error: date format not recognized at IW in function to_date.
+SELECT TO_DATE('','hello') as x;
+ERROR HY000: Invalid argument error: date format not recognized at hello in function to_date.
+SELECT TO_DATE('','"hello"') as x;
+x
+NULL
+Warnings:
+Warning	1411	Incorrect datetime value: '' for function to_date
+SELECT TO_DATE('abc','"hello"') as x;
+x
+NULL
+Warnings:
+Warning	1411	Incorrect datetime value: 'abc' for function to_date
 CREATE TABLE t (c GEOMETRYCOLLECTION);
 SELECT TO_DATE(c,'YYYY-MM-DD') FROM t;
 ERROR HY000: Illegal parameter data type geometrycollection for operation 'to_date'
