@@ -900,10 +900,7 @@ void THD::mark_tmp_tables_as_free_for_reuse()
   }
 
   if (temporary_tables->committed)
-  {
-    temporary_tables->committed= false;
     drop_on_commit_delete_tables();
-  }
 
   if (locked)
   {
@@ -1495,6 +1492,8 @@ int THD::drop_on_commit_delete_tables_with_lock()
 
 int THD::drop_on_commit_delete_tables()
 {
+  temporary_tables->committed= false;
+
   int error= 0;
   All_tmp_tables_list::Iterator it(*temporary_tables);
   while (TMP_TABLE_SHARE *share= it++)
