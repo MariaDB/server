@@ -1292,6 +1292,19 @@ unlock tables;
 truncate t2;
 drop table t2;
 drop table t3;
+
+create table t1 (c int);
+lock tables t1 write;
+create or replace global temporary table t1 (c int) select 1/0 as c;
+ERROR 22012: Division by 0
+unlock tables;
+create table t1 (c int);
+lock tables t1 write;
+set statement pseudo_slave_mode=1 for
+create or replace global temporary table t1 (c int) select 0 as c;
+ERROR HY000: Failed to open t1.test
+unlock tables;
+# Table t1 is dropped by non-atomic CREATE OR REPLACE
 disconnect con1;
 connection slave;
 connection master;
