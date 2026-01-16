@@ -118,6 +118,17 @@ select partition_name, table_rows from information_schema.partitions where table
 partition_name	table_rows
 p0	0
 p1	5
+### here we test hash values using an odd prime number of partitions
+alter table t1 partition by key  (a) partitions 7;
+select partition_name, table_rows from information_schema.partitions where table_name='t1';
+partition_name	table_rows
+p0	1
+p1	1
+p2	1
+p3	1
+p4	1
+p5	0
+p6	0
 drop table t1;
 ## MDEV-20791 case with BINARY
 CREATE TABLE t1 (a BINARY(16)) PARTITION BY KEY  (a) PARTITIONS 2;

@@ -91,6 +91,10 @@ eval
 create table t1 (a inet6) partition by key $algo (a) partitions 2;
 insert into t1 values ('0:db8::ff00:42:8329'),('2001:db8::ff00:42:8329'),('::'),('::192.0.2.128'),('::ffff:192.0.2.128');
 select partition_name, table_rows from information_schema.partitions where table_name='t1';
+--echo ### here we test hash values using an odd prime number of partitions
+eval
+alter table t1 partition by key $algo (a) partitions 7;
+select partition_name, table_rows from information_schema.partitions where table_name='t1';
 drop table t1;
 
 --echo ## MDEV-20791 case with BINARY

@@ -1,15 +1,15 @@
---- ../src/mysql-test/main/partition_key_algorithm.result	2025-12-03 16:21:04.304384899 +1100
-+++ ../src/mysql-test/main/partition_key_algorithm.reject	2025-12-03 16:37:29.221660385 +1100
+--- ../src/mysql-test/main/partition_key_algorithm.result	2026-01-16 13:19:15.740840600 +1100
++++ ../src/mysql-test/main/partition_key_algorithm,mysql55.reject	2026-01-16 13:19:31.796702111 +1100
 @@ -1,6 +1,6 @@
- # MDEV-9826 change the hash algorithm for PARTITION BY KEY
+ # MDEV-9826 better hash algorithms for PARTITION BY KEY
  ## MDEV-9826 case with NULL
 -create table t1(c1 int, c2 date) partition by key  (c2) partitions 8;
 +create table t1(c1 int, c2 date) partition by key ALGORITHM=MYSQL55 (c2) partitions 8;
  show create table t1;
  Table	Create Table
  t1	CREATE TABLE `t1` (
-@@ -52,7 +52,7 @@
- PARTITIONS 8
+@@ -43,7 +43,7 @@
+ 1	2014-04-29
  drop table t1;
  ## MDEV-9826 case with more dates
 -create table t1(c1 int, c2 date) partition by key  (c2) partitions 8;
@@ -17,7 +17,7 @@
  show create table t1;
  Table	Create Table
  t1	CREATE TABLE `t1` (
-@@ -75,7 +75,7 @@
+@@ -66,7 +66,7 @@
  p7	0
  drop table t1;
  ## MDEV-9826 case with more dates and linear key
@@ -26,7 +26,7 @@
  show create table t1;
  Table	Create Table
  t1	CREATE TABLE `t1` (
-@@ -98,7 +98,7 @@
+@@ -89,7 +89,7 @@
  p7	0
  drop table t1;
  ## MDEV-9826 case with more dates and multiple keys
@@ -35,7 +35,7 @@
  show create table t1;
  Table	Create Table
  t1	CREATE TABLE `t1` (
-@@ -121,7 +121,7 @@
+@@ -112,14 +112,14 @@
  p7	0
  drop table t1;
  ## MDEV-20791 case with INET6
@@ -44,8 +44,16 @@
  insert into t1 values ('0:db8::ff00:42:8329'),('2001:db8::ff00:42:8329'),('::'),('::192.0.2.128'),('::ffff:192.0.2.128');
  select partition_name, table_rows from information_schema.partitions where table_name='t1';
  partition_name	table_rows
-@@ -129,7 +129,7 @@
+ p0	0
  p1	5
+ ### here we test hash values using an odd prime number of partitions
+-alter table t1 partition by key  (a) partitions 7;
++alter table t1 partition by key ALGORITHM=MYSQL55 (a) partitions 7;
+ select partition_name, table_rows from information_schema.partitions where table_name='t1';
+ partition_name	table_rows
+ p0	1
+@@ -131,7 +131,7 @@
+ p6	0
  drop table t1;
  ## MDEV-20791 case with BINARY
 -CREATE TABLE t1 (a BINARY(16)) PARTITION BY KEY  (a) PARTITIONS 2;
@@ -53,7 +61,7 @@
  INSERT INTO t1 VALUES (X'00000DB8000000000000FF0000428329');
  INSERT INTO t1 VALUES (X'20010DB8000000000000FF0000428329');
  INSERT INTO t1 VALUES (X'00000000000000000000000000000000');
-@@ -141,7 +141,7 @@
+@@ -143,7 +143,7 @@
  p1	5
  drop table t1;
  ## MDEV-20791 case with more rows
@@ -62,7 +70,7 @@
  insert into t1 select concat(hex(seq), ':db8::ff00:42:8329') from seq_0_to_65535;
  select partition_name, table_rows from information_schema.partitions where table_name='t1';
  partition_name	table_rows
-@@ -164,7 +164,7 @@
+@@ -166,7 +166,7 @@
  60
  6060
  606060
@@ -71,7 +79,7 @@
  SELECT HEX(a) FROM t1 WHERE a=0x60;
  HEX(a)
  20
-@@ -181,7 +181,7 @@
+@@ -183,7 +183,7 @@
  60
  6060
  606060
@@ -80,7 +88,7 @@
  SELECT HEX(a) FROM t1 WHERE a=0x60;
  HEX(a)
  20
-@@ -198,7 +198,7 @@
+@@ -200,7 +200,7 @@
  A0
  A0A0
  A0A0A0
