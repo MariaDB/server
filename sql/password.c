@@ -122,7 +122,13 @@ void my_make_scrambled_password_323(char *to, const char *password,
 {
   ulong hash_res[2];
   hash_password(hash_res, password, (uint) pass_len);
-  sprintf(to, "%08lx%08lx", hash_res[0], hash_res[1]);
+  /*
+    we assume that to has at least 17 bytes allocated:
+    2 hexadecimals numbers, 8 bytes each + NUL.
+    TODO: add a new API with to_size parameter to avoid buffer
+    overflows.
+  */
+  snprintf(to, 17, "%08lx%08lx", hash_res[0], hash_res[1]);
 }
 
 
@@ -270,7 +276,13 @@ void get_salt_from_password_323(ulong *res, const char *password)
 
 void make_password_from_salt_323(char *to, const ulong *salt)
 {
-  sprintf(to,"%08lx%08lx", salt[0], salt[1]);
+  /*
+    Here we assume that to has at least 17 bytes allocated:
+    2 ulongs in hex + NUL.
+    TODO: make a new API with to_size parameter to avoid buffer
+    overflows.
+  */
+  snprintf(to,17,"%08lx%08lx", salt[0], salt[1]);
 }
 
 
