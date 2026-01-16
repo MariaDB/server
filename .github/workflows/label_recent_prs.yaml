@@ -27,7 +27,7 @@ jobs:
           # List first 200 PRs lacking classification labels as JSON
           gh pr list \
             --repo "$REPO" \
-            --search 'is:pr -label:"External Contribution" -label:"MariaDB Foundation" -label:"MariaDB Corporation" -label="Codership"' \
+            --search 'is:pr -label:"External Contribution" -label:"MariaDB Foundation" -label:"MariaDB Corporation" -label:"Codership"' \
             --limit 200 \
             --json number,createdAt,labels,author |
           jq -c '.[]' |
