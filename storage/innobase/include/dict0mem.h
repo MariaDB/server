@@ -2014,6 +2014,11 @@ struct dict_table_t {
 		return strstr(name, "/#sql-create-");
 	}
 
+	static bool is_inplace_temp_name(const char* name) noexcept
+	{
+		return strstr(name, "#sql-ib");
+	}
+
 	/** @return whether instant ALTER TABLE is in effect */
 	bool is_instant() const noexcept
 	{
@@ -2117,17 +2122,24 @@ struct dict_table_t {
 	/** For overflow fields returns potential max length stored inline */
 	inline size_t get_overflow_field_local_len() const;
 
+   static void parse_tbl_name(
+     const table_name_t &table_name,
+     char (&db_name)[NAME_LEN + 1],
+     char (&tbl_name)[NAME_LEN + 1],
+     size_t *db_name_len, size_t *tbl_name_len) noexcept;
+
   /** Parse the table file name into table name and database name.
   @tparam        dict_frozen  whether the caller holds dict_sys.latch
   @param[in,out] db_name      database name buffer
   @param[in,out] tbl_name     table name buffer
   @param[out] db_name_len     database name length
   @param[out] tbl_name_len    table name length
-  @return whether the table name is visible to SQL */
+  @return DB_SUCCESS_LOCKED_REC if table name contains #sql-ib,
+          DB_CORRUPTION if db_len == 0, DB_SUCCESS otherwise */
   template<bool dict_frozen= false>
-  bool parse_name(char (&db_name)[NAME_LEN + 1],
-                  char (&tbl_name)[NAME_LEN + 1],
-                  size_t *db_name_len, size_t *tbl_name_len) const;
+  dberr_t parse_name(char (&db_name)[NAME_LEN + 1],
+                     char (&tbl_name)[NAME_LEN + 1],
+                     size_t *db_name_len, size_t *tbl_name_len) const;
 
   /** Clear the table when rolling back TRX_UNDO_EMPTY
   @return error code */

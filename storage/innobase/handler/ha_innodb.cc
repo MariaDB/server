@@ -117,6 +117,7 @@ this program; if not, write to the Free Software Foundation, Inc.,
 #include <limits>
 #include <myisamchk.h>                          // TT_FOR_UPGRADE
 #include "sql_type_vector.h"
+#include <mysql/service_thd_mdl.h>
 
 #define thd_get_query_id(thd) uint64_t((thd)->query_id)
 #define thd_in_lock_tables(thd) (thd)->in_lock_tables
@@ -224,6 +225,79 @@ static my_bool innodb_read_only_compressed;
 
 /** A dummy variable */
 static uint innodb_max_purge_lag_wait;
+
+/** Print MDL acquisition status for a table name.
+@param	thd		MySQL thread handle
+@param	table_name	table name object
+@param	op		operation description for logging */
+void innodb_print_mdl_status(
+  THD *thd, const table_name_t& table_name, const char* op)
+{
+  char db_name[NAME_LEN + 1];
+  char tbl_name[NAME_LEN + 1];
+  char sql_db_name[NAME_LEN + 1];
+  char sql_tbl_name[NAME_LEN + 1];
+  /* Extract database and table names using table_name_t methods */
+  size_t db_len = table_name.dblen();
+  const char* tbl_start = table_name.basename();
+
+  if (db_len > 0 && tbl_start)
+  {
+    /* Copy database name */
+    memcpy(db_name, table_name.m_name, db_len);
+    db_name[db_len] = '\0';
+
+    /* Copy table name */
+    strncpy(tbl_name, tbl_start, NAME_LEN);
+    tbl_name[NAME_LEN] = '\0';
+
+    /* Convert internal names to SQL names using filename_to_tablename */
+    filename_to_tablename(db_name, sql_db_name, sizeof(sql_db_name));
+    filename_to_tablename(tbl_name, sql_tbl_name, sizeof(sql_tbl_name));
+
+    MDL_context *mdl_context=
+      static_cast<MDL_context*>(thd_mdl_context(thd));
+
+    bool is_locked= false;
+	if (mdl_context->is_lock_owner(MDL_key::TABLE, sql_db_name,
+                                   sql_tbl_name, MDL_EXCLUSIVE))
+		is_locked= true;
+
+    ib::info() << "MDL Status [" << op << "]: "
+               << "Database: '" << sql_db_name << "' "
+               << "Table: '" << sql_tbl_name << "' "
+               << "MDL lock: " << (is_locked ? "YES" : "NO");
+  }
+  else
+    ib::info() << "MDL Status [" << op << "]: "
+	       << "Invalid table name format: '" << table_name.m_name << "'";
+}
+
+/** Assert that current thread holds MDL on a table name.
+This function is intended for debugging rename_table() and drop_table()
+operations to ensure proper MDL acquisition.
+@param	thd		MySQL thread handle
+@param	table_name	table name to check MDL ownership on */
+static bool innodb_has_mdl_check(THD *thd, const char *table_name)
+{
+  char db_buf[NAME_LEN + 1];
+  char tbl_buf[NAME_LEN + 1];
+  size_t tbl_len, db_len;
+
+  dict_table_t::parse_tbl_name(
+    table_name_t(const_cast<char*>(table_name)),
+    db_buf, tbl_buf, &db_len, &tbl_len);
+
+  if (strstr(tbl_buf, "sql-ib"))
+    return true;
+
+  MDL_key key;
+  key.mdl_key_init(MDL_key::TABLE, db_buf, tbl_buf);
+  if (thd->mdl_context.is_lock_owner(MDL_key::TABLE, db_buf, tbl_buf,
+			             MDL_EXCLUSIVE))
+    return true;
+  return false;
+}
 
 /** Wait for trx_sys.history_size() to be below a limit. */
 static void innodb_max_purge_lag_wait_update(THD *thd, st_mysql_sys_var *,
@@ -13727,6 +13801,7 @@ err_exit:
   if (err != DB_SUCCESS)
     goto err_exit;
 
+  ut_ad(innodb_has_mdl_check(trx->mysql_thd, table->name.m_name));
   err= trx->drop_table(*table);
   if (err != DB_SUCCESS)
     goto err_exit;
@@ -13775,6 +13850,8 @@ static dberr_t innobase_rename_table(trx_t *trx, const char *from,
 
 	ut_ad(trx->will_lock);
 
+	ut_ad(innodb_has_mdl_check(trx->mysql_thd, norm_from));
+	ut_ad(innodb_has_mdl_check(trx->mysql_thd, norm_to));
 	error = row_rename_table_for_mysql(norm_from, norm_to, trx, fk);
 
 	if (error != DB_SUCCESS) {
@@ -20384,9 +20461,12 @@ static TABLE* innodb_find_table_for_vc(THD* thd, dict_table_t* table)
 	char	tbl_buf[NAME_LEN + 1];
 	ulint	db_buf_len, tbl_buf_len;
 
-	if (!table->parse_name(db_buf, tbl_buf, &db_buf_len, &tbl_buf_len)) {
+	dberr_t err= table->parse_name(
+		db_buf, tbl_buf, &db_buf_len, &tbl_buf_len);
+	if (err == DB_SUCCESS_LOCKED_REC) {
 		return NULL;
 	}
+	ut_a(err == DB_SUCCESS);
 
 	if (bg_thread) {
 		return open_purge_table(thd, db_buf, db_buf_len,

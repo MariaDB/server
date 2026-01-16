@@ -402,6 +402,13 @@ allocated from heap */
 char *dict_table_lookup(LEX_CSTRING db, LEX_CSTRING name,
                         dict_table_t **table, mem_heap_t *heap) noexcept;
 
+/** Print MDL acquisition status for a table name.
+@param	thd		MySQL thread handle
+@param	table_name	table name object
+@param	op		operation description for logging */
+void innodb_print_mdl_status(
+  THD *thd, const table_name_t& table_name, const char* op);
+
 #ifdef WITH_WSREP
 /** Append table-level exclusive key.
 @param thd   MySQL thread handle

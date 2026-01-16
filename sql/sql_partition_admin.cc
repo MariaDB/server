@@ -661,6 +661,14 @@ bool Sql_cmd_alter_table_exchange_partition::
                        table_list->next_local->db.str,
                        temp_name, "", FN_IS_TMP);
 
+  {
+    MDL_request mdl_request;
+    MDL_REQUEST_INIT(&mdl_request, MDL_key::TABLE,
+		     table_list->next_local->db.str,
+		     temp_name, MDL_EXCLUSIVE, MDL_TRANSACTION);
+    thd->mdl_context.acquire_lock(&mdl_request, 0);
+  }
+
   if (unlikely(!(part_elem=
                  part_table->part_info->get_part_elem(partition_name,
                                                       part_file_name +

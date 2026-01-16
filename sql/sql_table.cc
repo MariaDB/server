@@ -11929,6 +11929,19 @@ do_continue:;
   */
   alter_info->original_table= table;
 
+   {
+   /*
+     Create an exclusive lock on the temporary table name.
+     Needed by InnoDB storage engine to avoid MDL on source
+     table during purge.
+   */
+    MDL_request mdl_request;
+    MDL_REQUEST_INIT(&mdl_request, MDL_key::TABLE,
+                     alter_ctx.new_db.str, alter_ctx.tmp_name.str,
+                     MDL_EXCLUSIVE, MDL_TRANSACTION);
+    thd->mdl_context.acquire_lock(&mdl_request, 0);
+  }
+
   /*
     Create the .frm file for the new table. Storage engine table will not be
     created at this stage.
@@ -12501,6 +12514,16 @@ alter_copy:
       If we are changing to use another table handler, we don't
       have to do the rename as the table names will not interfer.
     */
+     /*
+       Create an exclusive lock on the backup table name.
+       Needed by InnoDB storage engine to avoid MDL conflicts
+       during backup table operations.
+     */
+    MDL_request mdl_request;
+    MDL_REQUEST_INIT(&mdl_request, MDL_key::TABLE,
+                     alter_ctx.db.str, backup_name.str,
+                     MDL_EXCLUSIVE, MDL_TRANSACTION);
+    thd->mdl_context.acquire_lock(&mdl_request, 0);
     if (mysql_rename_table(old_db_type, &alter_ctx.db, &alter_ctx.table_name,
                            &alter_ctx.db, &backup_name, &alter_ctx.id,
                            FN_TO_IS_TMP |

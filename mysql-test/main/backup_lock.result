@@ -4,27 +4,27 @@
 InnoDB		0 transactions not purged
 BACKUP STAGE START;
 SELECT LOCK_MODE, LOCK_TYPE, TABLE_SCHEMA, TABLE_NAME FROM information_schema.metadata_lock_info
-WHERE TABLE_NAME NOT LIKE 'innodb_%_stats';
+WHERE TABLE_NAME NOT LIKE 'innodb_%_stats' ORDER BY TABLE_NAME;
 LOCK_MODE	LOCK_TYPE	TABLE_SCHEMA	TABLE_NAME
 MDL_BACKUP_START	Backup lock		
 BACKUP STAGE FLUSH;
 SELECT LOCK_MODE, LOCK_TYPE, TABLE_SCHEMA, TABLE_NAME FROM information_schema.metadata_lock_info
-WHERE TABLE_NAME NOT LIKE 'innodb_%_stats';
+WHERE TABLE_NAME NOT LIKE 'innodb_%_stats' ORDER BY TABLE_NAME;
 LOCK_MODE	LOCK_TYPE	TABLE_SCHEMA	TABLE_NAME
 MDL_BACKUP_FLUSH	Backup lock		
 BACKUP STAGE BLOCK_DDL;
 SELECT LOCK_MODE, LOCK_TYPE, TABLE_SCHEMA, TABLE_NAME FROM information_schema.metadata_lock_info
-WHERE TABLE_NAME NOT LIKE 'innodb_%_stats';
+WHERE TABLE_NAME NOT LIKE 'innodb_%_stats' ORDER BY TABLE_NAME;
 LOCK_MODE	LOCK_TYPE	TABLE_SCHEMA	TABLE_NAME
 MDL_BACKUP_WAIT_DDL	Backup lock		
 BACKUP STAGE BLOCK_COMMIT;
 SELECT LOCK_MODE, LOCK_TYPE, TABLE_SCHEMA, TABLE_NAME FROM information_schema.metadata_lock_info
-WHERE TABLE_NAME NOT LIKE 'innodb_%_stats';
+WHERE TABLE_NAME NOT LIKE 'innodb_%_stats' ORDER BY TABLE_NAME;
 LOCK_MODE	LOCK_TYPE	TABLE_SCHEMA	TABLE_NAME
 MDL_BACKUP_WAIT_COMMIT	Backup lock		
 BACKUP STAGE END;
 SELECT LOCK_MODE, LOCK_TYPE, TABLE_SCHEMA, TABLE_NAME FROM information_schema.metadata_lock_info
-WHERE TABLE_NAME NOT LIKE 'innodb_%_stats';
+WHERE TABLE_NAME NOT LIKE 'innodb_%_stats' ORDER BY TABLE_NAME;
 LOCK_MODE	LOCK_TYPE	TABLE_SCHEMA	TABLE_NAME
 #
 # testing BACKUP STAGE LOCK's
@@ -47,13 +47,14 @@ alter table t1 add column (j int), algorithm copy, lock shared;
 connection con2;
 backup stage flush;
 SELECT LOCK_MODE, LOCK_TYPE, TABLE_SCHEMA, TABLE_NAME FROM information_schema.metadata_lock_info
-WHERE TABLE_NAME NOT LIKE 'innodb_%_stats';
+WHERE TABLE_NAME NOT LIKE 'innodb_%_stats' ORDER BY TABLE_NAME;
 LOCK_MODE	LOCK_TYPE	TABLE_SCHEMA	TABLE_NAME
+MDL_INTENTION_EXCLUSIVE	Schema metadata lock	test	
 MDL_BACKUP_DDL	Backup lock		
 MDL_BACKUP_FLUSH	Backup lock		
-MDL_SHARED_WRITE	Table metadata lock	test	t1
+MDL_EXCLUSIVE	Table metadata lock	test	#sql-alter
 MDL_SHARED_UPGRADABLE	Table metadata lock	test	t1
-MDL_INTENTION_EXCLUSIVE	Schema metadata lock	test	
+MDL_SHARED_WRITE	Table metadata lock	test	t1
 SET STATEMENT max_statement_time=1 FOR backup stage block_ddl;
 ERROR 70100: Query execution was interrupted (max_statement_time exceeded)
 backup stage block_ddl;
@@ -84,13 +85,14 @@ connection con2;
 backup stage start;
 backup stage flush;
 SELECT LOCK_MODE, LOCK_TYPE, TABLE_SCHEMA, TABLE_NAME FROM information_schema.metadata_lock_info
-WHERE TABLE_NAME NOT LIKE 'innodb_%_stats';
+WHERE TABLE_NAME NOT LIKE 'innodb_%_stats' ORDER BY TABLE_NAME;
 LOCK_MODE	LOCK_TYPE	TABLE_SCHEMA	TABLE_NAME
 MDL_BACKUP_ALTER_COPY	Backup lock		
-MDL_BACKUP_FLUSH	Backup lock		
-MDL_SHARED_WRITE	Table metadata lock	test	t1
-MDL_SHARED_UPGRADABLE	Table metadata lock	test	t1
 MDL_INTENTION_EXCLUSIVE	Schema metadata lock	test	
+MDL_BACKUP_FLUSH	Backup lock		
+MDL_EXCLUSIVE	Table metadata lock	test	#sql-alter
+MDL_SHARED_UPGRADABLE	Table metadata lock	test	t1
+MDL_SHARED_WRITE	Table metadata lock	test	t1
 backup stage block_ddl;
 backup stage block_commit;
 connection default;
@@ -121,11 +123,11 @@ SET STATEMENT lock_wait_timeout=0 FOR SELECT * FROM t1;
 ERROR HY000: Lock wait timeout exceeded; try restarting transaction
 backup stage block_ddl;
 SELECT LOCK_MODE, LOCK_TYPE, TABLE_SCHEMA, TABLE_NAME FROM information_schema.metadata_lock_info
-WHERE TABLE_NAME NOT LIKE 'innodb_%_stats';
+WHERE TABLE_NAME NOT LIKE 'innodb_%_stats' ORDER BY TABLE_NAME;
 LOCK_MODE	LOCK_TYPE	TABLE_SCHEMA	TABLE_NAME
 MDL_BACKUP_WAIT_DDL	Backup lock		
-MDL_SHARED_WRITE	Table metadata lock	test	t1
 MDL_INTENTION_EXCLUSIVE	Schema metadata lock	test	
+MDL_SHARED_WRITE	Table metadata lock	test	t1
 backup stage end;
 connection default;
 commit;
@@ -143,7 +145,7 @@ DROP TABLE t1;
 connection con2;
 connection con2;
 SELECT LOCK_MODE, LOCK_TYPE, TABLE_SCHEMA, TABLE_NAME FROM information_schema.metadata_lock_info
-WHERE TABLE_NAME NOT LIKE 'innodb_%_stats';
+WHERE TABLE_NAME NOT LIKE 'innodb_%_stats' ORDER BY TABLE_NAME;
 LOCK_MODE	LOCK_TYPE	TABLE_SCHEMA	TABLE_NAME
 MDL_BACKUP_WAIT_DDL	Backup lock		
 SELECT * FROM t1;

@@ -85,7 +85,6 @@ uchar ddl_log_file_magic[]=
 { (uchar) 254, (uchar) 254, (uchar) 11, (uchar) 2 };
 
 /* Action names for ddl_log_action_code */
-
 const char *ddl_log_action_name[DDL_LOG_LAST_ACTION]=
 {
   "Unknown", "partitioning delete", "partitioning rename",
@@ -95,6 +94,136 @@ const char *ddl_log_action_name[DDL_LOG_LAST_ACTION]=
   "drop view", "drop trigger", "drop db", "create table", "create view",
   "delete tmp file", "create trigger", "alter table", "store query"
 };
+
+/**
+  Acquire MDL exclusive lock on a single table name.
+  @param  thd         MySQL thread handle
+  @param  db_name     Database name
+  @param  tbl_name    Table name
+*/
+static void ddl_log_acquire_table_mdl(
+    THD *thd, const char *db_name, const char *tbl_name)
+{
+  if (!db_name || !tbl_name || !*db_name || !*tbl_name)
+    return;
+  MDL_request request;
+  MDL_REQUEST_INIT(&request, MDL_key::TABLE, db_name, tbl_name,
+                   MDL_EXCLUSIVE, MDL_TRANSACTION);
+
+  thd->mdl_context.acquire_lock(&request, 0);
+}
+
+/**
+  Conditionally acquire MDL based on database name availability.
+  If db_name is empty, treat table_name as full path and parse it.
+  Otherwise, use db_name and table_name directly.
+  @param  thd         MySQL thread handle
+  @param  db_name     Database name (may be empty)
+  @param  table_name  Table name or full path
+*/
+static void ddl_log_acquire_table_mdl(
+    THD *thd, const LEX_CSTRING &db_name, const LEX_CSTRING &table_name)
+{
+  if (db_name.length == 0)
+  {
+    /* If db is empty, treat table_name as full path and parse it */
+    const char *full_name= table_name.str;
+    if (!full_name || !*full_name)
+      return;
+
+    /* Skip leading ./ if present */
+    if (full_name[0] == '.' && full_name[1] == '/')
+      full_name+= 2;
+
+    /* Find database/table separator (either '/' or '.') */
+    const char *separator= strchr(full_name, '/');
+    if (!separator)
+      separator= strchr(full_name, '.');
+
+    if (!separator)
+      return;
+
+    const char *db_start= full_name;
+    const char *tbl_start= separator + 1;
+    size_t db_len= separator - db_start;
+    size_t tbl_len= strlen(tbl_start);
+
+    if (db_len == 0 || tbl_len == 0 || db_len > NAME_LEN || tbl_len > NAME_LEN)
+      return;
+
+    /* Handle partition table names - look for partition markers like #P# */
+    const char *part_marker= strstr(tbl_start, "#P#");
+    if (part_marker)
+      tbl_len= part_marker - tbl_start;
+
+    /* Copy and null-terminate names */
+    char parsed_db_name[NAME_LEN + 1];
+    char parsed_tbl_name[NAME_LEN + 1];
+    memcpy(parsed_db_name, db_start, db_len);
+    parsed_db_name[db_len]= '\0';
+    memcpy(parsed_tbl_name, tbl_start, tbl_len);
+    parsed_tbl_name[tbl_len]= '\0';
+
+    ddl_log_acquire_table_mdl(thd, parsed_db_name, parsed_tbl_name);
+  }
+  else
+  {
+    /* Use db and table names directly */
+    ddl_log_acquire_table_mdl(thd, db_name.str, table_name.str);
+  }
+}
+
+/**
+  Acquire MDL exclusive locks for DDL log operations based on action type.
+  @param  thd             MySQL thread handle
+  @param  ddl_log_entry   DDL log entry containing action type and table names
+*/
+static void ddl_log_acquire_mdl(THD *thd, DDL_LOG_ENTRY *ddl_log_entry)
+{
+  if (memcmp(ddl_log_entry->handler_name.str, "InnoDB",
+             ddl_log_entry->handler_name.length))
+    return;
+
+  switch (ddl_log_entry->action_type) {
+  case DDL_LOG_DELETE_ACTION:
+  case DDL_LOG_REPLACE_ACTION:
+    /* Acquire MDL on table being deleted/replaced */
+    ddl_log_acquire_table_mdl(thd, ddl_log_entry->db, ddl_log_entry->name);
+    break;
+
+  case DDL_LOG_RENAME_ACTION:
+  case DDL_LOG_RENAME_TABLE_ACTION:
+    /* Acquire MDL on both source and destination tables for rename */
+    ddl_log_acquire_table_mdl(thd, ddl_log_entry->from_db,
+                              ddl_log_entry->from_name);
+    ddl_log_acquire_table_mdl(thd, ddl_log_entry->db, ddl_log_entry->name);
+    break;
+
+  case DDL_LOG_ALTER_TABLE_ACTION:
+    /* Acquire MDL on all tables involved in alter table operations */
+    ddl_log_acquire_table_mdl(thd, ddl_log_entry->db, ddl_log_entry->name);
+    ddl_log_acquire_table_mdl(thd, ddl_log_entry->from_db,
+                              ddl_log_entry->from_name);
+    ddl_log_acquire_table_mdl(thd, ddl_log_entry->db, ddl_log_entry->extra_name);
+    break;
+
+  case DDL_LOG_EXCHANGE_ACTION:
+    {
+      /* Acquire MDL on primary table */
+      ddl_log_acquire_table_mdl(thd, ddl_log_entry->db, ddl_log_entry->name);
+
+      /* Acquire MDL on source table for exchange */
+      ddl_log_acquire_table_mdl(thd, ddl_log_entry->from_db,
+                                ddl_log_entry->from_name);
+
+      ddl_log_acquire_table_mdl(thd, ddl_log_entry->db, ddl_log_entry->tmp_name);
+      break;
+    }
+  default:
+    /* No MDL acquisition needed for other action types */
+    break;
+  }
+}
 
 /* Number of phases per entry */
 const uchar ddl_log_entry_phases[DDL_LOG_LAST_ACTION]=
@@ -1446,6 +1575,10 @@ static int ddl_log_execute_action(THD *thd, MEM_ROOT *mem_root,
     invers_fn_flags|= FN_FROM_IS_TMP;
   }
 
+  if (!frm_action)
+    ddl_log_acquire_mdl(thd, ddl_log_entry);
+
+  /* Acquire MDL for table operations */
   switch (ddl_log_entry->action_type) {
   case DDL_LOG_REPLACE_ACTION:
   case DDL_LOG_DELETE_ACTION:

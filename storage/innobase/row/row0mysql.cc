@@ -2620,6 +2620,11 @@ row_rename_table_for_mysql(
 			goto funct_exit;
 		}
 	}
+	//innodb_print_mdl_status(trx->mysql_thd, table->name,
+	//		           "RENAME TABLE - FROM");
+	//innodb_print_mdl_status(
+	//	trx->mysql_thd, table_name_t(const_cast<char*>(new_name)),
+	//	"RENAME TABLE - TO");
 
 	err = trx_undo_report_rename(trx, table);
 

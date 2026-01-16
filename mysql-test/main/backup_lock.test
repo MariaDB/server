@@ -13,7 +13,7 @@
 --echo #
 
 let $mdl= LOCK_MODE, LOCK_TYPE, TABLE_SCHEMA, TABLE_NAME FROM information_schema.metadata_lock_info
-WHERE TABLE_NAME NOT LIKE 'innodb_%_stats';
+WHERE TABLE_NAME NOT LIKE 'innodb_%_stats' ORDER BY TABLE_NAME;
 
 --source ../suite/innodb/include/wait_all_purged.inc
 
@@ -62,6 +62,7 @@ let $wait_condition=
     where state = "Waiting for table metadata lock";
 --source include/wait_condition.inc
 backup stage flush;
+--replace_regex /#sql-alter-[0-9a-f_\-]*/#sql-alter/
 eval SELECT $mdl;
 #
 # Do first test with max_statement_time, other tests later are done with
@@ -111,6 +112,7 @@ let $wait_condition=
 --source include/wait_condition.inc
 backup stage start;
 backup stage flush;
+--replace_regex /#sql-alter-[0-9a-f_\-]*/#sql-alter/
 eval SELECT $mdl;
 backup stage block_ddl;
 backup stage block_commit;
