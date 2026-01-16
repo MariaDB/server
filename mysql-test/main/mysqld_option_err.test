@@ -9,6 +9,7 @@
 #
 
 --source include/not_embedded.inc
+--source include/have_example_plugin.inc
 
 # mysqld refuses to run as root normally.
 -- source include/not_as_root.inc
