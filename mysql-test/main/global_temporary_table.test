@@ -1144,4 +1144,21 @@ xa prepare 'a';
 xa commit 'a';
 drop table t;
 
+--echo # MDEV-38481 GTT: Assertion failed in ha_maria::start_stmt on ANALYZE
+create table t2 (c int) engine=aria;
+create table t3 (c int) engine=aria;
+lock tables t2 write, t3 write;
+create or replace global temporary table t2(x int) engine=aria select 0 as x;
+analyze table t2;
+unlock tables;
+
+lock tables t2 write;
+create or replace global temporary table t2(x int) engine=aria select 0 as x;
+analyze table t2;
+unlock tables;
+
+truncate t2;
+drop table t2;
+drop table t3;
+
 --disconnect con1

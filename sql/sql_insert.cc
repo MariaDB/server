@@ -5027,7 +5027,19 @@ TABLE *select_create::create_table_from_items(THD *thd, List<Item> *items,
     since it won't wait for the table lock (we have exclusive metadata lock on
     the table) and thus can't get aborted.
   */
-  if (unlikely(!((*lock)= mysql_lock_tables(thd, &table, 1, 0)) ||
+  TABLE *tables_to_lock[2]
+  {
+    table,
+    /*
+      For GTT, also lock the parent table to issue
+      lock->start_trans -- important for Aria state consistency.
+    */
+    table_list->next_global ? table_list->next_global->table : NULL,
+  };
+  uint lock_count = 1 + MY_TEST(tables_to_lock[1]);
+
+  if (unlikely(!((*lock)= mysql_lock_tables(thd, tables_to_lock,
+                                            lock_count, 0)) ||
                postlock(thd, &table)))
   {
     /* purecov: begin tested */
