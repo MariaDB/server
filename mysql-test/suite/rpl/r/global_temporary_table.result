@@ -1305,6 +1305,23 @@ create or replace global temporary table t1 (c int) select 0 as c;
 ERROR HY000: Failed to open t1.test
 unlock tables;
 # Table t1 is dropped by non-atomic CREATE OR REPLACE
+# MDEV-38567 GTT Context corruption on repeated SQL when autocommit=0
+set autocommit=0;
+create global temporary table t (c int) on commit delete rows;
+insert into t values (1);
+select count(*) from t;
+count(*)
+1
+# DROP TABLE makes implicit commit
+drop table t;
+create global temporary table t (c int) on commit delete rows;
+insert into t values (1);
+select * from t;
+c
+1
+# Cleanup
+drop table t;
+set autocommit=1;
 disconnect con1;
 connection slave;
 connection master;
