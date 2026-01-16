@@ -174,6 +174,8 @@ Optimizer_hint_tokenizer::find_keyword(const LEX_CSTRING &str)
       return TokenID::keyword_MAX_EXECUTION_TIME;
     if ("SPLIT_MATERIALIZED"_Lex_ident_column.streq(str))
       return TokenID::keyword_SPLIT_MATERIALIZED;
+    if ("REWRITE_FULL_JOINS"_Lex_ident_column.streq(str))
+      return TokenID::keyword_REWRITE_FULL_JOINS;
     break;
 
   case 21:
@@ -181,6 +183,8 @@ Optimizer_hint_tokenizer::find_keyword(const LEX_CSTRING &str)
       return TokenID::keyword_NO_RANGE_OPTIMIZATION;
     if ("NO_SPLIT_MATERIALIZED"_Lex_ident_column.streq(str))
       return TokenID::keyword_NO_SPLIT_MATERIALIZED;
+    if ("NO_REWRITE_FULL_JOINS"_Lex_ident_column.streq(str))
+      return TokenID::keyword_NO_REWRITE_FULL_JOINS;
     break;
 
   case 26:
@@ -405,6 +409,14 @@ bool Parser::Table_level_hint::resolve(Parse_context *pc) const
     break;
   case TokenID::keyword_NO_SPLIT_MATERIALIZED:
     hint_type= SPLIT_MATERIALIZED_HINT_ENUM;
+    hint_state= false;
+    break;
+  case TokenID::keyword_REWRITE_FULL_JOINS:
+    hint_type= REWRITE_FULL_JOINS_HINT_ENUM;
+    hint_state= true;
+    break;
+  case TokenID::keyword_NO_REWRITE_FULL_JOINS:
+    hint_type= REWRITE_FULL_JOINS_HINT_ENUM;
     hint_state= false;
     break;
   default:

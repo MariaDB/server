@@ -1054,3 +1054,19 @@ DROP VIEW v1;
 --echo # End Examples from QA
 
 --echo # End of 12.2 tests
+
+--echo # Beginning of 13.0 tests
+
+--echo # Simple tests for [NO_]REWRITE_FULL_JOINS hint.
+CREATE TABLE t1 (a int(11) NOT NULL, b int(11) DEFAULT NULL, PRIMARY KEY (a));
+INSERT INTO t1 (a,b) VALUES (1,2),(2,4);
+
+SET optimizer_switch = DEFAULT;
+EXPLAIN EXTENDED SELECT * FROM t1 FULL OUTER JOIN t1 t2 on t1.a=t2.a where t1.a=1;
+EXPLAIN EXTENDED SELECT /*+ NO_REWRITE_FULL_JOINS() */ * FROM t1 FULL OUTER JOIN t1 t2 on t1.a=t2.a where t1.a=1;
+SET optimizer_switch = 'rewrite_full_joins=off';
+EXPLAIN EXTENDED SELECT * FROM t1 FULL OUTER JOIN t1 t2 on t1.a=t2.a where t1.a=1;
+EXPLAIN EXTENDED SELECT /*+ REWRITE_FULL_JOINS() */ * FROM t1 FULL OUTER JOIN t1 t2 on t1.a=t2.a where t1.a=1;
+DROP TABLE t1;
+
+--echo # End of 13.0 tests

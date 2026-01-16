@@ -5710,7 +5710,13 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
   int error= 0;
   uint i,table_count,const_count,key;
   uint sort_space;
-  table_map found_const_table_map, all_table_map;
+
+  // constant tables; that is, those from which only one row will be read
+  table_map found_const_table_map;
+
+  // all tables visited by the outer loop of this function
+  table_map all_table_map;
+
   key_map const_ref, eq_part;
   bool has_expensive_keyparts;
   TABLE **table_vector;
@@ -5826,7 +5832,12 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
     s->on_expr_ref= &tables->on_expr;
     if (*s->on_expr_ref)
     {
-      /* s is the only inner table of an outer join */
+      /*
+        Either of the following are true:
+          1. s is the only inner table of an outer join
+          2. table is part of a FULL OUTER JOIN and both it and its
+          join partner have an ON expression
+      */
       if (!table->is_filled_at_execution() &&
           ((!table->file->stats.records &&
             (table->file->ha_table_flags() & HA_STATS_RECORDS_IS_EXACT)) ||
@@ -5837,7 +5848,14 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
 	set_position(join,const_count++,s,(KEYUSE*) 0);
 	continue;
       }
+      /*
+        In the case of FULL OUTER JOIN, both tables are considered
+        outer join tables to each other (and both have the ON
+        expression) so they both will be counted in the outer_join
+        table set.
+      */
       outer_join|= table->map;
+
       s->embedding_map= 0;
       for (;embedding; embedding= embedding->embedding)
         s->embedding_map|= embedding->nested_join->get_nj_map();
@@ -6004,7 +6022,7 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
           would require a more thorough analysis.
           TODO. Apply single row substitution to null complemented inner tables
           for nested outer join operations. 
-	*/              
+	*/
         while (keyuse->table == table)
         {
           if (!keyuse->is_for_hash_join() && 
@@ -6094,11 +6112,19 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
           KEY *keyinfo= table->key_info + key;
           uint  key_parts= table->actual_n_key_parts(keyinfo);
           if (eq_part.is_prefix(key_parts) &&
-              !table->fulltext_searched && 
+              !table->fulltext_searched &&
               (!embedding || (embedding->sj_on_expr && !embedding->embedding)))
 	  {
+            /*
+              Create two sets of key maps: formed by taking the set
+              of user-defined keys and intersecting them with the constant ref
+              access and equal ref access keys found just above.  Thus the
+              base_const_ref set of keys are those which allow access to the
+              table via constant ref access.  base_eq_part allow access to
+              the table via equality ref access (and may not be constant).
+            */
             key_map base_part, base_const_ref, base_eq_part;
-            base_part.set_prefix(keyinfo->user_defined_key_parts); 
+            base_part.set_prefix(keyinfo->user_defined_key_parts);
             base_const_ref= const_ref;
             base_const_ref.intersect(base_part);
             base_eq_part= eq_part;
@@ -6106,13 +6132,23 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
 
             /*
               We can read the const record if we are using a full unique key and
-              if the table is not an unopened to be materialized table/view.
+              if the table is not an unopened, yet-to-be-materialized table/view.
+
+              A full unique key means that we will read a single row (which is
+              the definition of a constant table).  Unopened/unmaterialized
+              derived tables have nothing yet available to read.
             */
             if ((table->actual_key_flags(keyinfo) & HA_NOSAME) &&
                 (!s->table->pos_in_table_list->is_materialized_derived() ||
                  s->table->pos_in_table_list->fill_me))
             {
-              
+              /*
+                This condition tests that all the following are true:
+                  - All equal ref keys are constant ref keys.
+                  - We can read the table cheaply through the key refs we found.
+                  - This table isn't the outer table of a JOIN or if it is, its
+                    ON expression is cheap to evaluate
+               */
 	      if (base_const_ref == base_eq_part &&
                   !has_expensive_keyparts &&
                   !((outer_join & table->map) &&
@@ -6537,6 +6573,12 @@ bool JOIN::propagate_dependencies(JOIN_TAB *stat)
   for (JOIN_TAB *s= stat; s < stat + table_count; s++)
   {
     TABLE *table= s->table;
+
+    /*
+      For FULL OUTER JOIN it is correct to set maybe_null for
+      all tables involved as NULLs could appear on either side
+      of the result set.
+     */
     if (outer_join & s->table->map)
       s->table->maybe_null= 1;
 
@@ -20093,9 +20135,14 @@ simplify_joins(JOIN *join, List<TABLE_LIST> *join_list, COND *conds, bool top,
       Attempt to rewrite any FULL JOINs as LEFT or RIGHT JOINs.  Any subsequent
       JOINs that could be further rewritten to INNER JOINs are done below.
     */
-    conds= rewrite_full_outer_joins(join, conds, top, in_sj, &table,
-                                    &li, &used_tables,
-                                    &not_null_tables);
+    const bool enable_rewrites=
+      hint_table_state(
+        join->thd, table, REWRITE_FULL_JOINS_HINT_ENUM,
+        optimizer_flag(join->thd, OPTIMIZER_SWITCH_REWRITE_FULL_JOINS));
+    if (enable_rewrites)
+      conds= rewrite_full_outer_joins(join, conds, top, in_sj, &table,
+                                      &li, &used_tables,
+                                      &not_null_tables);
 
     if (table->embedding)
     {
@@ -20103,10 +20150,11 @@ simplify_joins(JOIN *join, List<TABLE_LIST> *join_list, COND *conds, bool top,
       table->embedding->nested_join->not_null_tables|= not_null_tables;
     }
 
-    if (!(table->outer_join & (JOIN_TYPE_LEFT | JOIN_TYPE_RIGHT)) ||
-        (used_tables & not_null_tables))
+    if (!(table->outer_join & JOIN_TYPE_FULL) &&
+        (!(table->outer_join & (JOIN_TYPE_LEFT | JOIN_TYPE_RIGHT)) ||
+         (used_tables & not_null_tables)))
     {
-      /* 
+      /*
         For some of the inner tables there are conjunctive predicates
         that reject nulls => the outer join can be replaced by an inner join.
       */
@@ -20140,25 +20188,28 @@ simplify_joins(JOIN *join, List<TABLE_LIST> *join_list, COND *conds, bool top,
           conds->fix_fields(join->thd, &conds);
         }
         else
-          conds= table->on_expr; 
+          conds= table->on_expr;
         table->prep_on_expr= table->on_expr= 0;
       }
     }
 
-    /* 
-      Only inner tables of non-convertible outer joins
-      remain with on_expr.
-    */ 
+    /*
+      At this point, we have either one of the following:
+        1. An inner table of a non-convertible outer joins with its
+        associated on_expr.
+        2. A FULL OUTER JOIN wherein we must mark both tables as
+        dependent on each other.
+    */
     if (table->on_expr)
     {
       table_map table_on_expr_used_tables= table->on_expr->used_tables();
       table->dep_tables|= table_on_expr_used_tables;
       if (table->embedding)
       {
-        table->dep_tables&= ~table->embedding->nested_join->used_tables;   
+        table->dep_tables&= ~table->embedding->nested_join->used_tables;
         /*
            Embedding table depends on tables used
-           in embedded on expressions. 
+           in embedded on expressions.
         */
         table->embedding->on_expr_dep_tables|= table_on_expr_used_tables;
       }
@@ -20179,8 +20230,8 @@ simplify_joins(JOIN *join, List<TABLE_LIST> *join_list, COND *conds, bool top,
         table_map prev_used_tables= prev_table->nested_join ?
 	                            prev_table->nested_join->used_tables :
 	                            prev_table->get_map();
-        /* 
-          If on expression contains only references to inner tables
+        /*
+          If ON expression contains only references to inner tables
           we still make the inner tables dependent on the outer tables.
           It would be enough to set dependency only on one outer table
           for them. Yet this is really a rare case.
@@ -20340,6 +20391,12 @@ static void rewrite_full_to_left(TABLE_LIST *left_table,
   // Only the right table in a LEFT JOIN has the naming context in the grammar
   left_table->on_context= nullptr;
 
+  /*
+    Clear the ON expression from the left table as, for LEFT JOINs,
+    only the right table has the ON expression.
+  */
+  left_table->on_expr= nullptr;
+
   // The grammar 'search_condition: ' rule marks this.
   if (!(right_table->outer_join & JOIN_TYPE_NATURAL))
     right_table->on_expr->base_flags|= item_base_t::IS_COND;
@@ -20370,9 +20427,6 @@ static void rewrite_full_to_left(TABLE_LIST *left_table,
 static void rewrite_full_to_right(TABLE_LIST *left_table,
                                   TABLE_LIST *right_table)
 {
-  // Grammar does not mark the right table at all.
-  right_table->outer_join= 0;
-
   /*
     Clear FULL JOIN flag and do as convert_right_join does which
     has the effect of marking the left table as JOIN_TYPE_RIGHT.
@@ -20380,20 +20434,26 @@ static void rewrite_full_to_right(TABLE_LIST *left_table,
   left_table->outer_join= JOIN_TYPE_RIGHT;
 
   /*
-    The right table must have an ON clause.  NATURAL JOINs get
-    this not from the grammar but they're built before simplify_joins
-    is called.
+    The right table must have an ON clause before converting from
+    FULL to RIGHT JOIN.  NATURAL JOINs get this not from the
+    grammar but they're built before simplify_joins is called.
 
-    The ON clause is moved from the right table to the left one
-    because, again, the tables will be swapped in the join list
-    to imitate the convert_right_join operation that would've been
-    done had the user written this query as a RIGHT JOIN instead
-    of a FULL JOIN.
+    In the case of a NATURAL JOIN, the ON clause is moved from the
+    right table to the left one because, again, the tables will be
+    swapped in the join list to imitate the convert_right_join
+    operation that would've been done had the user written this
+    query as a RIGHT JOIN instead of a FULL JOIN.
+
+    For FULL JOINS that aren't NATURAL, both tables have the ON
+    expression so there's nothing to move.
   */
   DBUG_ASSERT(right_table->on_expr);
-  DBUG_ASSERT(left_table->on_expr == nullptr);
-  left_table->on_expr= right_table->on_expr;
+  if (right_table->outer_join & JOIN_TYPE_NATURAL)
+    left_table->on_expr= right_table->on_expr;
   right_table->on_expr= nullptr;
+
+  // Grammar does not mark the right table with a JOIN_TYPE_ at all.
+  right_table->outer_join= 0;
 
   /*
     Prepare the right table to become the left table by

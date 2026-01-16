@@ -176,6 +176,7 @@
 #define OPTIMIZER_SWITCH_HASH_JOIN_CARDINALITY     (1ULL << 36)
 #define OPTIMIZER_SWITCH_CSET_NARROWING            (1ULL << 37)
 #define OPTIMIZER_SWITCH_SARGABLE_CASEFOLD         (1ULL << 38)
+#define OPTIMIZER_SWITCH_REWRITE_FULL_JOINS        (1ULL << 39)
 
 
 /*
@@ -220,7 +221,8 @@
                                   OPTIMIZER_SWITCH_OPTIMIZE_JOIN_BUFFER_SIZE |\
                                   OPTIMIZER_SWITCH_HASH_JOIN_CARDINALITY |\
                                   OPTIMIZER_SWITCH_CSET_NARROWING  |\
-                                  OPTIMIZER_SWITCH_SARGABLE_CASEFOLD)
+                                  OPTIMIZER_SWITCH_SARGABLE_CASEFOLD |\
+                                  OPTIMIZER_SWITCH_REWRITE_FULL_JOINS)
 
 #define OPTIMIZER_ADJ_DEFAULT (OPTIMIZER_ADJ_FIX_REUSE_RANGE_FOR_REF | \
                                OPTIMIZER_ADJ_FIX_CARD_MULT)

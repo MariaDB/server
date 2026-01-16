@@ -3093,6 +3093,7 @@ export const char *optimizer_switch_names[]=
   "hash_join_cardinality",
   "cset_narrowing",
   "sargable_casefold",
+  "rewrite_full_joins",
   "default",
   NullS
 };

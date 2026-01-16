@@ -57,6 +57,7 @@ enum opt_hints_enum
   ORDER_INDEX_HINT_ENUM,
   ROWID_FILTER_HINT_ENUM,
   INDEX_MERGE_HINT_ENUM,
+  REWRITE_FULL_JOINS_HINT_ENUM,
   MAX_HINT_ENUM // This one must be the last in the list
 };
 
@@ -141,7 +142,9 @@ public:
     keyword_ROWID_FILTER,
     keyword_NO_ROWID_FILTER,
     keyword_INDEX_MERGE,
-    keyword_NO_INDEX_MERGE
+    keyword_NO_INDEX_MERGE,
+    keyword_REWRITE_FULL_JOINS,
+    keyword_NO_REWRITE_FULL_JOINS,
   };
 
   class Token: public Lex_cstring
@@ -373,7 +376,9 @@ private:
              id == TokenID::keyword_MERGE ||
              id == TokenID::keyword_NO_MERGE ||
              id == TokenID::keyword_SPLIT_MATERIALIZED ||
-             id == TokenID::keyword_NO_SPLIT_MATERIALIZED;
+             id == TokenID::keyword_NO_SPLIT_MATERIALIZED ||
+             id == TokenID::keyword_REWRITE_FULL_JOINS ||
+             id == TokenID::keyword_NO_REWRITE_FULL_JOINS;
     }
   };
   class Table_level_hint_type: public TokenChoice<Parser,

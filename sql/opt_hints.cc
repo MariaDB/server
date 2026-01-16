@@ -55,6 +55,7 @@ struct st_opt_hint_info opt_hint_info[]=
   {{STRING_WITH_LEN("ORDER_INDEX")},           false,     true,         false},
   {{STRING_WITH_LEN("ROWID_FILTER")},          false,     true,         false},
   {{STRING_WITH_LEN("INDEX_MERGE")}, false, false, false},
+  {{STRING_WITH_LEN("REWRITE_FULL_JOINS")}, true, false, false},
   {null_clex_str, 0, 0, 0}
 };
 

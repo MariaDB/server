@@ -12390,6 +12390,7 @@ join_table:
           expr
           {
             add_join_on(thd, $5, $8);
+            add_join_on(thd, $1, $8);
             $1->on_context= Lex->pop_context();
             $5->on_context= $1->on_context;
             Select->parsing_place= NO_MATTER;

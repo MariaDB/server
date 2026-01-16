@@ -4051,7 +4051,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	one	ALL	NULL	NULL	NULL	NULL	3	100.00	
 1	SIMPLE	three	ALL	NULL	NULL	NULL	NULL	1	100.00	
 Warnings:
-Note	1003	select `test`.`one`.`v` AS `v`,`test`.`two`.`v` AS `v`,`test`.`three`.`v` AS `v` from `test`.`one` join `test`.`two` full join `test`.`three` on(`test`.`one`.`v` = `test`.`two`.`v`) where 1
+Note	1003	select `test`.`one`.`v` AS `v`,`test`.`two`.`v` AS `v`,`test`.`three`.`v` AS `v` from (`test`.`one` join `test`.`two`) full join `test`.`three` on(`test`.`one`.`v` = `test`.`two`.`v`) where 1
 # ^^^ join order must be (one, two) FOJ three or (two, one) FOJ three
 explain extended select * from one full outer join (three, two) on one.v=two.v;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
@@ -4068,26 +4068,26 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	three	ALL	NULL	NULL	NULL	NULL	1	100.00	
 1	SIMPLE	v	ALL	NULL	NULL	NULL	NULL	2	100.00	
 Warnings:
-Note	1003	select `test`.`one`.`v` AS `v`,`test`.`t`.`v` AS `v`,`test`.`v`.`v` AS `v`,`test`.`three`.`v` AS `v` from `test`.`one` join `test`.`two` `t` full join (`test`.`two` `v` join `test`.`three`) on(1) where 1
+Note	1003	select `test`.`one`.`v` AS `v`,`test`.`t`.`v` AS `v`,`test`.`v`.`v` AS `v`,`test`.`three`.`v` AS `v` from (`test`.`one` join `test`.`two` `t`) full join (`test`.`two` `v` join `test`.`three`) on(1) where 1
 # ^^^ join order must be (one, t) FOJ (v, three) or (t, one) FOJ (three, v), or something similar but the INNER JOIN'd tables must remain together on their respective sides of the FULL JOIN
 explain extended select * from (one full outer join two on true) full outer join (three full outer join four on true) on true;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	one	ALL	NULL	NULL	NULL	NULL	3	100.00	
-1	SIMPLE	two	ALL	NULL	NULL	NULL	NULL	2	100.00	
 1	SIMPLE	three	ALL	NULL	NULL	NULL	NULL	1	100.00	
 1	SIMPLE	four	ALL	NULL	NULL	NULL	NULL	0	0.00	
-Warnings:
-Note	1003	select `test`.`one`.`v` AS `v`,`test`.`two`.`v` AS `v`,`test`.`three`.`v` AS `v`,`test`.`four`.`v` AS `v` from `test`.`one` full join `test`.`two` on(1) full join (`test`.`three` full join `test`.`four` on(1)) on(1) where 1
-# ^^^ join order must be one, two, three, four
-explain extended select * from (one full outer join two on true) inner join (three full outer join four on true);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	three	system	NULL	NULL	NULL	NULL	1	100.00	
-1	SIMPLE	four	system	NULL	NULL	NULL	NULL	0	0.00	Const row not found
 1	SIMPLE	one	ALL	NULL	NULL	NULL	NULL	3	100.00	
 1	SIMPLE	two	ALL	NULL	NULL	NULL	NULL	2	100.00	
 Warnings:
-Note	1003	select `test`.`one`.`v` AS `v`,`test`.`two`.`v` AS `v`,1 AS `v`,NULL AS `v` from `test`.`one` full join `test`.`two` on(1) where 1
-# ^^^ join order must be either (one FOJ two), (three FOJ four) or (three FOJ four), (one FOJ two)
+Note	1003	select `test`.`one`.`v` AS `v`,`test`.`two`.`v` AS `v`,`test`.`three`.`v` AS `v`,`test`.`four`.`v` AS `v` from (`test`.`one` full join `test`.`two` on(1)) full join (`test`.`three` full join `test`.`four` on(1)) on(1) where 1
+# ^^^ join order must be three, four, one, two
+explain extended select * from (one full outer join two on true) inner join (three full outer join four on true);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	four	system	NULL	NULL	NULL	NULL	0	0.00	Const row not found
+1	SIMPLE	three	ALL	NULL	NULL	NULL	NULL	1	100.00	
+1	SIMPLE	one	ALL	NULL	NULL	NULL	NULL	3	100.00	
+1	SIMPLE	two	ALL	NULL	NULL	NULL	NULL	2	100.00	
+Warnings:
+Note	1003	select `test`.`one`.`v` AS `v`,`test`.`two`.`v` AS `v`,`test`.`three`.`v` AS `v`,NULL AS `v` from `test`.`one` full join `test`.`two` on(1) full join `test`.`three` on(1) where 1
+# ^^^ join order must not match table one with three or table four with two.
 explain extended select * from four full outer join (two full outer join three on true) on true;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	four	system	NULL	NULL	NULL	NULL	0	0.00	Const row not found
@@ -4097,4 +4097,61 @@ Warnings:
 Note	1003	select NULL AS `v`,`test`.`two`.`v` AS `v`,`test`.`three`.`v` AS `v` from (`test`.`two` full join `test`.`three` on(1)) where 1
 # ^^^ join order must be four, two, three
 drop table one, two, three, four;
+# FULL OUTER JOIN Constant Table Behaviors
+create table t1 (a int primary key, b int);
+create table t2_const (a int primary key, b int);
+create table t3_const (a int primary key, b int);
+insert into t1 (a,b) values (-3,9),(-2,4),(-1,1),(0,0),(1,1),(2,4),(3,9);
+insert into t2_const (a,b) values (1,1);
+insert into t3_const (a,b) values (1,1);
+# Self-JOIN, WHERE condition yields constant tables.
+explain extended select /*+ NO_REWRITE_FULL_JOINS() */ * from
+t1 full join t1 t2 on t1.a=t2.a where t1.a=2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	const	PRIMARY	PRIMARY	4	const	1	100.00	
+1	SIMPLE	t2	const	PRIMARY	PRIMARY	4	const	1	100.00	
+Warnings:
+Note	1003	select /*+ NO_REWRITE_FULL_JOINS(@`select#1`) */ 2 AS `a`,4 AS `b`,2 AS `a`,4 AS `b` from `test`.`t1` full join `test`.`t1` `t2` on(multiple equal(2, 2, 2)) where 2 = 2
+# Self-JOIN, no WHERE clause, JOIN condition results in constant table
+# access to t1.  There's no null-rejecting WHERE clause so this will
+# (eventually, once the FULL JOIN algorithm is implemented) result in
+# NULL complements for all other rows in t2.
+explain extended select /*+ NO_REWRITE_FULL_JOINS() */ * from
+t1 full join t1 t2 on t1.a=1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	const	PRIMARY	PRIMARY	4	const	1	100.00	
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	7	100.00	
+Warnings:
+Note	1003	select /*+ NO_REWRITE_FULL_JOINS(@`select#1`) */ 1 AS `a`,1 AS `b`,`test`.`t2`.`a` AS `a`,`test`.`t2`.`b` AS `b` from `test`.`t1` full join `test`.`t1` `t2` on(1 = 1) where 1
+# Join two tables each having only one row.
+explain extended select /*+ NO_REWRITE_FULL_JOINS() */ * from
+t2_const full join t3_const on t2_const.a=t3_const.a where t2_const.a=1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t2_const	const	PRIMARY	PRIMARY	4	const	1	100.00	
+1	SIMPLE	t3_const	system	PRIMARY	NULL	NULL	NULL	1	100.00	
+Warnings:
+Note	1003	select /*+ NO_REWRITE_FULL_JOINS(@`select#1`) */ 1 AS `a`,1 AS `b`,1 AS `a`,1 AS `b` from `test`.`t2_const` full join `test`.`t3_const` on(multiple equal(1, 1, 1)) where 1 = 1
+# Semijoin, but this doesn't result in constant table optimizations
+explain extended select t1.a from t1 where 1 in
+(select /*+ NO_REWRITE_FULL_JOINS() */ t1.a from
+t1 full join t1 t2 on t1.a=t2.a);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	7	100.00	
+1	PRIMARY	<subquery2>	UNKNOWN	distinct_key	NULL	NULL	NULL	1	100.00	
+2	MATERIALIZED	t1	ALL	PRIMARY	NULL	NULL	NULL	7	100.00	
+2	MATERIALIZED	t2	eq_ref	PRIMARY	PRIMARY	4	test.t1.a	1	100.00	
+Warnings:
+Note	1003	select /*+ NO_REWRITE_FULL_JOINS(@`select#2`) */ `test`.`t1`.`a` AS `a` from `test`.`t1` semi join (`test`.`t1` full join `test`.`t1` `t2` on(`test`.`t1`.`a` = `test`.`t2`.`a`)) where `test`.`t1`.`a` = 1
+# Semijoin with constant table optimization as FULL JOIN is rewritten
+# to LEFT JOIN
+explain extended select t1.a from t1 where 1 in
+(select /*+ REWRITE_FULL_JOINS() */ t1.a from
+t1 full join t1 t2 on t1.a=t2.a);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	const	PRIMARY	PRIMARY	4	const	1	100.00	Using index
+1	PRIMARY	t2	const	PRIMARY	PRIMARY	4	const	1	100.00	Using index
+1	PRIMARY	t1	index	NULL	PRIMARY	4	NULL	7	100.00	Using index
+Warnings:
+Note	1003	select /*+ REWRITE_FULL_JOINS(@`select#2`) */ `test`.`t1`.`a` AS `a` from `test`.`t1` semi join (`test`.`t1` left join `test`.`t1` `t2` on(1 = 1)) where 1
+drop table t1, t2_const, t3_const;
 # End of 12.3 tests

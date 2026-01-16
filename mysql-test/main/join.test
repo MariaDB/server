@@ -2235,13 +2235,49 @@ explain extended select * from one full outer join (three, two) on one.v=two.v;
 explain extended select * from (one, two t) full outer join (two v, three) on true;
 --echo # ^^^ join order must be (one, t) FOJ (v, three) or (t, one) FOJ (three, v), or something similar but the INNER JOIN'd tables must remain together on their respective sides of the FULL JOIN
 explain extended select * from (one full outer join two on true) full outer join (three full outer join four on true) on true;
---echo # ^^^ join order must be one, two, three, four
+--echo # ^^^ join order must be three, four, one, two
 explain extended select * from (one full outer join two on true) inner join (three full outer join four on true);
---echo # ^^^ join order must be either (one FOJ two), (three FOJ four) or (three FOJ four), (one FOJ two)
+--echo # ^^^ join order must not match table one with three or table four with two.
 explain extended select * from four full outer join (two full outer join three on true) on true;
 --echo # ^^^ join order must be four, two, three
 
 drop table one, two, three, four;
+
+--echo # FULL OUTER JOIN Constant Table Behaviors
+create table t1 (a int primary key, b int);
+create table t2_const (a int primary key, b int);
+create table t3_const (a int primary key, b int);
+insert into t1 (a,b) values (-3,9),(-2,4),(-1,1),(0,0),(1,1),(2,4),(3,9);
+insert into t2_const (a,b) values (1,1);
+insert into t3_const (a,b) values (1,1);
+
+--echo # Self-JOIN, WHERE condition yields constant tables.
+explain extended select /*+ NO_REWRITE_FULL_JOINS() */ * from
+  t1 full join t1 t2 on t1.a=t2.a where t1.a=2;
+
+--echo # Self-JOIN, no WHERE clause, JOIN condition results in constant table
+--echo # access to t1.  There's no null-rejecting WHERE clause so this will
+--echo # (eventually, once the FULL JOIN algorithm is implemented) result in
+--echo # NULL complements for all other rows in t2.
+explain extended select /*+ NO_REWRITE_FULL_JOINS() */ * from
+  t1 full join t1 t2 on t1.a=1;
+
+--echo # Join two tables each having only one row.
+explain extended select /*+ NO_REWRITE_FULL_JOINS() */ * from
+  t2_const full join t3_const on t2_const.a=t3_const.a where t2_const.a=1;
+
+--echo # Semijoin, but this doesn't result in constant table optimizations
+explain extended select t1.a from t1 where 1 in
+  (select /*+ NO_REWRITE_FULL_JOINS() */ t1.a from
+    t1 full join t1 t2 on t1.a=t2.a);
+
+--echo # Semijoin with constant table optimization as FULL JOIN is rewritten
+--echo # to LEFT JOIN
+explain extended select t1.a from t1 where 1 in
+  (select /*+ REWRITE_FULL_JOINS() */ t1.a from
+    t1 full join t1 t2 on t1.a=t2.a);
+
+drop table t1, t2_const, t3_const;
 
 # TODO fix PS protocol before end of FULL OUTER JOIN development
 --enable_ps_protocol
