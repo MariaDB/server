@@ -151,7 +151,7 @@ MY_FUNCTION_NAME(strnncoll_multilevel)(CHARSET_INFO *cs,
                                        my_bool *t_is_prefix)
 {
   uint i, level_flags= cs->levels_for_order;
-  if (*t_is_prefix)
+  if (t_is_prefix && *t_is_prefix)
     *t_is_prefix= 0;
 
   for (i= 0; level_flags; i++, level_flags>>= 1)

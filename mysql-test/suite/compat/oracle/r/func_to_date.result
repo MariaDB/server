@@ -182,6 +182,37 @@ TO_DATE('2023-01-02 "03:04:05"', 'YYYY-MM-DD #HH24:MI:SS#')
 select TO_DATE('2023X', 'YYYY"x"');
 TO_DATE('2023X', 'YYYY"x"')
 2023-11-09 00:00:00
+# Quotes with non-ASCII characters
+SELECT TO_DATE('2023-01-02 ПРИвет 03:04:05', 'YYYY-MM-DD "приВЕТ" HH24:MI:SS');
+TO_DATE('2023-01-02 ПРИвет 03:04:05', 'YYYY-MM-DD "приВЕТ" HH24:MI:SS')
+2023-01-02 03:04:05
+SELECT TO_DATE('2023-01-02 가 03:04:05', 'YYYY-MM-DD "가" HH24:MI:SS') AS c;
+c
+2023-01-02 03:04:05
+SELECT TO_DATE('2023-01-02 豈 03:04:05', 'YYYY-MM-DD "豈" HH24:MI:SS') AS c;
+c
+2023-01-02 03:04:05
+SELECT TO_DATE('2023-01-02 Ａ03:04:05', 'YYYY-MM-DD "ａ" HH24:MI:SS') AS c;
+c
+2023-01-02 03:04:05
+SELECT TO_DATE('2023-01-02 à 03:04:05' COLLATE utf8mb3_general_ci,
+'YYYY-MM-DD "a" HH24:MI:SS') AS c;
+c
+2023-01-02 03:04:05
+SELECT TO_DATE('2023-01-02 à 03:04:05' COLLATE utf8mb3_general_ci,
+'YYYY-MM-DD "A" HH24:MI:SS') AS c;
+c
+2023-01-02 03:04:05
+SELECT TO_DATE('2023-01-02 à 03:04:05' COLLATE utf8mb3_bin,
+'YYYY-MM-DD "a" HH24:MI:SS') AS c;
+c
+NULL
+Warnings:
+Warning	1411	Incorrect datetime value: '2023-01-02 à 03:04:05' for function to_date
+SELECT TO_DATE('2023-01-02 à 03:04:05' COLLATE utf8mb3_bin,
+'YYYY-MM-DD "à" HH24:MI:SS') AS c;
+c
+2023-01-02 03:04:05
 # NULL handling
 SELECT TO_DATE('2026-01-01', NULL);
 TO_DATE('2026-01-01', NULL)
@@ -372,6 +403,22 @@ x
 SELECT TO_DATE('15 HEINÄ 2024','DD MONTH YYYY','NLS_DATE_LANGUAGE=FINNISH') AS x;
 x
 2024-07-15 00:00:00
+CREATE TABLE t1 (a VARCHAR(32) CHARACTER SET latin1);
+INSERT INTO t1 VALUES ('2026-März-01');
+SELECT a, to_date(a, 'YYYY-MONTH-DD') AS d FROM t1;
+a	d
+2026-März-01	NULL
+Warnings:
+Warning	1411	Incorrect datetime value: '2026-März-01' for function to_date
+SELECT a, to_date(a, 'YYYY-MONTH-DD','NLS_DATE_LANGUAGE=GERMAN') AS d FROM t1;
+a	d
+2026-März-01	2026-03-01 00:00:00
+SET @@lc_time_names='de_DE';
+SELECT a, to_date(a, 'YYYY-MONTH-DD') AS d FROM t1;
+a	d
+2026-März-01	2026-03-01 00:00:00
+SET @@lc_time_names=DEFAULT;
+DROP TABLE t1;
 #
 # NLS_DATA errors
 #
@@ -427,9 +474,7 @@ Warnings:
 Warning	1411	Incorrect datetime value: '15 H 2024' for function to_date
 SELECT TO_DATE('15 Heinäkuu 2024','DD "Heinäkuu" YYYY','NLS_DATE_LANGUAGE=FINNISH') AS x;
 x
-NULL
-Warnings:
-Warning	1411	Incorrect datetime value: '15 Heinäkuu 2024' for function to_date
+2024-01-15 00:00:00
 set @a='NLS_DATE_LANGUAGE = American';
 SELECT TO_DATE('January 15, 1989, 11:00 A.M.', 'Month dd, YYYY, HH:MI A.M.', @a);
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '@a)' at line 1

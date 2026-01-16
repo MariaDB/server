@@ -470,14 +470,23 @@ err:
   are implemented, because some models depend on oracle functions
   which mariadb is not supported.
 
-  Models for datetime, used by TO_CHAR/TO_DATE. Normal format characters are
-  stored as short integer < 128, while format characters are stored as a
-  integer > 128
+  Models for datetime, used by TO_CHAR/TO_DATE.
+
+  Let's reserve this rarely used Unicode block to encode format charactes:
+    U+E000 - U+F8FF Private Use Area
+
+  Other characters in the format array mean them literally.
+  Supplementary characters (>= U+10000) are not supported yet.
+  This would need to change the data type for format elements from uint16
+  to uint32.
 */
+
+#define TO_DATE_FORMAT_RANGE_FIRST 0xE000
+#define TO_DATE_FORMAT_RANGE_LAST  0xF8FF
 
 enum enum_tochar_formats
 {
-  FMT_BASE= 128,
+  FMT_BASE= TO_DATE_FORMAT_RANGE_FIRST,
   FMT_AD,       /* Handled: Anno Domini ("in the year of the Lord") */
   FMT_AD_DOT,   /* Handled: Anno Domini ("in the year of the Lord") */
   FMT_AM,       /* Handled: Meridian indicator (Before midday) */
@@ -602,29 +611,6 @@ uint check_word_sp(CHARSET_INFO *cs, TYPELIB *lib, const char *val,
 }
 
 
-/*
- return first character of string as an upper case character.
- multi-byte characters are returned as such
-*/
-
-my_wc_t uni_toupper(CHARSET_INFO *cs, int *rc, const char *val,
-                    const char *val_end)
-{
-  my_wc_t wc;
-  DBUG_ASSERT(cs->m_ctype);
-
-  if ((*rc= cs->mb_wc(&wc, (const uchar*) val, (const uchar*) val_end)) <= 0)
-    return 0;
-  if (*rc == 1)
-  {
-    if (my_isalpha(cs, (char) wc))
-      return (my_wc_t) (uchar) my_toupper(cs, (char) wc);
-    return wc;
-  }
-  return wc;
-}
-
-
 /**
   Extract datetime value to MYSQL_TIME struct from string value
   according to Oracle format string.
@@ -632,6 +618,8 @@ my_wc_t uni_toupper(CHARSET_INFO *cs, int *rc, const char *val,
   @param format		date/time format specification
   @param val		String to decode
   @param length		Length of string
+  @param val_cs         The character set of "val"
+  @param orig_val_cs    The original character set of "val"
   @param l_time		Store result here.
                         This value should be prefilled with the
                         current date in case format does not
@@ -650,6 +638,7 @@ my_wc_t uni_toupper(CHARSET_INFO *cs, int *rc, const char *val,
 static bool
 extract_oracle_date_time(THD *thd, uint16 *format,
                          const char *val, uint length, CHARSET_INFO *val_cs,
+                         CHARSET_INFO *orig_val_cs,
                          MYSQL_TIME *l_time,
                          const MY_LOCALE *locale,
                          const char *date_time_type,
@@ -675,25 +664,37 @@ extract_oracle_date_time(THD *thd, uint16 *format,
 
     val+= val_cs->cset->scan(val_cs, val, val_end, MY_SEQ_SPACES);
 
-    if (*format < 128)
+    if (*format < TO_DATE_FORMAT_RANGE_FIRST ||
+        *format > TO_DATE_FORMAT_RANGE_LAST)
     {
       /* A control character or text string found in the format */
 
-      my_wc_t format_char= (*format & 255);
-      if (my_isspace(cs, (char) format_char))
+      if (*format < 256 && my_isspace(cs, (uchar) *format))
         continue;
 
-      if (format_char == '"')
+      if (*format == '"')
       {
         /* Handle quoted strings. Should match */
         while (*++format != '"')
         {
+          int rc1, rc2;
+          uchar buf1[MY_CS_MBMAXLEN], buf2[MY_CS_MBMAXLEN];
           if (!*format || val == val_end)
             goto error;
-          if ((my_wc_t) my_toupper(&my_charset_latin1,
-                                   (char) (*format & 255)) !=
-              uni_toupper(val_cs, &rc, val, val_end))
+
+          if ((rc= val_cs->mb_wc(&wc, (const uchar*) val,
+                                 (const uchar*) val_end)) <= 0)
             goto error;
+
+          if ((rc1= orig_val_cs->wc_mb(wc, buf1, buf1+sizeof(buf1))) <= 0)
+            goto error;
+
+          if ((rc2= orig_val_cs->wc_mb(*format, buf2, buf2+sizeof(buf2))) <= 0)
+            goto error;
+
+          if (orig_val_cs->strnncoll(buf1, (size_t) rc1, buf2, (size_t) rc2))
+            goto error;
+
           val+= rc;
         }
         continue;
@@ -704,7 +705,7 @@ extract_oracle_date_time(THD *thd, uint16 *format,
                              (const uchar*) val_end)) <= 0)
         goto error;
 
-      if (!INVALID_CHARACTER(format_char))
+      if (!INVALID_CHARACTER(*format))
       {
         if (rc == 1)
         {
@@ -720,7 +721,7 @@ extract_oracle_date_time(THD *thd, uint16 *format,
           if (my_isalpha(val_cs, (char) wc))
             wc= my_toupper(val_cs, (char) wc);
 
-          if (format_char == wc)
+          if (*format == wc)
           {
             val++;
             if (format[0] != format[1])
@@ -733,7 +734,7 @@ extract_oracle_date_time(THD *thd, uint16 *format,
                      (rc= val_cs->mb_wc(&wc,
                                         (const uchar*) val,
                                         (const uchar*) val_end)) == 1 &&
-                     wc == format_char)
+                     wc == *format)
                 val++;
             }
             continue;
@@ -745,7 +746,7 @@ extract_oracle_date_time(THD *thd, uint16 *format,
           }
         }
       }
-      else if (format_char == wc)
+      else if (*format == wc)
         val+=rc;
       continue;
     }
@@ -2549,8 +2550,8 @@ public:
   @return #  Number of copied characters
 */
 
-static uint parse_special(char cfmt, const char *ptr, const char *end,
-                         uint16 *array)
+static uint parse_special(uchar cfmt, const char *ptr, const char *end,
+                          uint16 *array)
 {
   int offset= 0;
   char tmp1;
@@ -2618,6 +2619,7 @@ static bool parse_format_string(const String *format, uint16 *fmt_array,
                                 String *warning_message,
                                 PARSE_TYPE_FLAGS *flags)
 {
+  int mblen;
   const char *ptr, *end;
   uint16 *tmp_fmt= fmt_array;
   uint tmp_len= 0;
@@ -2644,25 +2646,34 @@ static bool parse_format_string(const String *format, uint16 *fmt_array,
     return 0;
   }
 
-  for (; ptr < end; ptr++, tmp_fmt++)
+  for (; ptr < end; ptr+= mblen, tmp_fmt++)
   {
+    my_wc_t cfmt;
     uint ulen;
-    char cfmt, next_char;
+    char next_char;
 
-    if (*ptr == '"')
+    mblen= format->charset()->mb_wc(&cfmt, (uchar*) ptr, (uchar*) end);
+    if (mblen < 1 || cfmt > 0xFFFF)
+      goto error;
+
+    if (cfmt == '"')
     {
       quotation_flag= !quotation_flag;
-      *tmp_fmt= *ptr;
+      *tmp_fmt= (uint16) cfmt;
       tmp_len++;                                // Count '"' (why)
       continue;
     }
     if (quotation_flag)
     {
-      *tmp_fmt= *ptr;
+      *tmp_fmt= (uint16) cfmt;
       tmp_len++;
       continue;
     }
-    cfmt= my_toupper(system_charset_info, *ptr);
+
+    if (cfmt >= 128)
+      goto error; // Only ASCII characters are allowed outside of quotes
+
+    cfmt= my_toupper(system_charset_info, (uchar) cfmt);
 
     /*
       Oracle datetime format support text in double quotation marks like
@@ -3071,7 +3082,8 @@ static bool parse_format_string(const String *format, uint16 *fmt_array,
       break;
 
     default:
-      offset= parse_special(cfmt, ptr, end, tmp_fmt);
+      DBUG_ASSERT(cfmt < 256);
+      offset= parse_special((uchar) cfmt, ptr, end, tmp_fmt);
       if (!offset)
         goto error;
       /* ptr++ is in the for loop, so we must move ptr to offset-1 */
@@ -4672,7 +4684,10 @@ bool Item_func_str_to_date::get_date_common(THD *thd, MYSQL_TIME *ltime,
   String *val, *format;
 
   val=    args[0]->val_str(&val_string, &subject_converter, internal_charset);
-  format= args[1]->val_str(&format_str, &format_converter, internal_charset);
+  format= args[1]->val_str(&format_str, &format_converter,
+                           (args[1]->collation.collation->state &
+                            MY_CS_NONASCII) ?
+                            &my_charset_utf8mb3_general_ci : nullptr);
   if (args[0]->null_value || args[1]->null_value)
     return (null_value=1);
 
@@ -4696,7 +4711,10 @@ bool Item_func_str_to_date::get_date_common(THD *thd, MYSQL_TIME *ltime,
 PARSE_TYPE_FLAGS Item_func_to_date::get_format()
 {
   StringBuffer<128> format_str;
-  String *format= args[1]->val_str_ascii(&format_str);
+  String *format= args[1]->val_str(&format_str, &format_converter,
+                                   (args[1]->collation.collation->state &
+                                    MY_CS_NONASCII) ?
+                                   &my_charset_utf8mb3_general_ci : nullptr);
   PARSE_TYPE_FLAGS result_type= PARSE_TYPE_NONE;
 
   if (!args[1]->null_value)
@@ -4923,7 +4941,7 @@ bool Item_func_to_date::fix_length_and_dec(THD *thd)
              args[id]->type_handler()->name().ptr(), func_name());
     return TRUE;
   }
-  /* Used for args[0] & args[1] (the date strings) */
+  /* Used for args[0] & args[2] (the date strings) */
   internal_charset= &my_charset_utf8mb4_general_ci;
 
   set_maybe_null();
@@ -4981,8 +4999,8 @@ bool Item_func_to_date::get_date_common(THD *thd, MYSQL_TIME *ltime,
     goto error;
 
   if (!extract_oracle_date_time(thd, fmt_array,
-                                val->ptr(), val->length(),
-                                internal_charset,
+                                val->ptr(), val->length(), val->charset(),
+                                args[0]->collation.collation,
                                 ltime, locale, "datetime",
                                 (date_conv_mode_t(fuzzydate) |
                                  sql_mode_for_dates(thd)),
@@ -4996,8 +5014,8 @@ bool Item_func_to_date::get_date_common(THD *thd, MYSQL_TIME *ltime,
     if (args[2]->null_value)
       goto error;
     if (!extract_oracle_date_time(thd, fmt_array,
-                                  val->ptr(), val->length(),
-                                  internal_charset,
+                                  val->ptr(), val->length(), val->charset(),
+                                  args[0]->collation.collation,
                                   ltime, locale, "datetime",
                                   (date_conv_mode_t(fuzzydate) |
                                    sql_mode_for_dates(thd)), 1))
