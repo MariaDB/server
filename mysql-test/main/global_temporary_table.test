@@ -1161,4 +1161,21 @@ truncate t2;
 drop table t2;
 drop table t3;
 
+--echo
+
+create table t1 (c int);
+lock tables t1 write;
+--error ER_DIVISION_BY_ZERO
+create or replace global temporary table t1 (c int) select 1/0 as c;
+unlock tables;
+
+create table t1 (c int);
+lock tables t1 write;
+--error ER_GTID_OPEN_TABLE_FAILED
+set statement pseudo_slave_mode=1 for
+  create or replace global temporary table t1 (c int) select 0 as c;
+unlock tables;
+
+--echo # Table t1 is dropped by non-atomic CREATE OR REPLACE
+
 --disconnect con1

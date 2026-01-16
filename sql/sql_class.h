@@ -6614,6 +6614,7 @@ class select_create: public select_insert {
   bool       exit_done;
   TMP_TABLE_SHARE *saved_tmp_table_share;
   DDL_LOG_STATE ddl_log_state_create, ddl_log_state_rm;
+  TABLE *parent_global_tmp_table;
 
 public:
   select_create(THD *thd_arg, TABLE_LIST *table_arg,
@@ -6627,7 +6628,8 @@ public:
     select_tables(select_tables_arg),
     alter_info(alter_info_arg),
     m_plock(NULL), exit_done(0),
-    saved_tmp_table_share(0)
+    saved_tmp_table_share(0),
+    parent_global_tmp_table(NULL)
     {
       DBUG_ASSERT(create_info->default_table_charset);
       bzero(&ddl_log_state_create, sizeof(ddl_log_state_create));

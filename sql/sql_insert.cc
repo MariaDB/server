@@ -4964,6 +4964,8 @@ TABLE *select_create::create_table_from_items(THD *thd, List<Item> *items,
         table_list->next_global= parent_gtt;
         if (open_table(thd, parent_gtt, &ot_ctx))
           recover_rm_table();
+        else // Success
+          parent_global_tmp_table= parent_gtt->table;
       }
 
       /*
@@ -4973,9 +4975,10 @@ TABLE *select_create::create_table_from_items(THD *thd, List<Item> *items,
       if (open_table(thd, table_list, &ot_ctx))
       {
         recover_rm_table();
-        if (create_info->pos_in_locked_tables &&
-            create_info->global_tmp_table())
-          recover_rm_table(); // rm once more for the parent GTT table;
+        if (parent_global_tmp_table)
+          drop_open_table(thd, parent_global_tmp_table,
+                          &table_list->db,
+                          &table_list->table_name);
       }
       /* Restore */
       table_list->open_strategy= save_open_strategy;
@@ -5567,8 +5570,7 @@ bool select_create::send_eof()
         in select_create::create_table_from_items.
       */
       TABLE *table_to_store= create_info->global_tmp_table() ?
-                             table_list->next_global->table :
-                             table;
+                             parent_global_tmp_table : table;
       /*
         If we are under lock tables, we have created a table that was
         originally locked. We should add back the lock to ensure that
@@ -5660,6 +5662,16 @@ void select_create::abort_result_set()
       m_plock= NULL;
     }
 
+    if (table->s->global_tmp_table() && table->s->tmp_table &&
+        parent_global_tmp_table)
+    {
+      // Parent GTT is opened only in LTM.
+      DBUG_ASSERT(thd->locked_tables_mode);
+      // For GTT we may need the two drops. First, drop the child table.
+      drop_open_table(thd, table, &table_list->db, &table_list->table_name);
+      // Then, drop the parent
+      table= parent_global_tmp_table;
+    }
     drop_open_table(thd, table, &table_list->db, &table_list->table_name);
     table=0;                                    // Safety
     if (thd->log_current_statement())
