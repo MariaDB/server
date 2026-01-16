@@ -3076,6 +3076,7 @@ row_sel_store_mysql_field(
 			DBUG_RETURN(TRUE);
 		}
 
+#if 0
 		if (DATA_LARGE_MTYPE(templ->type)
 		    || DATA_GEOMETRY_MTYPE(templ->type)) {
 
@@ -3099,6 +3100,7 @@ row_sel_store_mysql_field(
 			data = static_cast<byte*>(
 				mem_heap_dup(prebuilt->blob_heap, data, len));
 		}
+#endif
 
 		row_sel_field_store_in_mysql_format(
 			mysql_rec + templ->mysql_col_offset,
