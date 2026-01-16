@@ -13307,7 +13307,7 @@ make_join_select(JOIN *join,SQL_SELECT *select,COND *cond)
         {
           Json_writer_object trace_const_cond(thd);
           trace_const_cond.add("condition_on_constant_tables", const_cond);
-          if (const_cond->is_expensive())
+          if (!const_cond->can_eval_in_optimize())
           {
             trace_const_cond.add("evaluated", "false")
                             .add("cause", "expensive cond");
