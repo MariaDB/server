@@ -27,14 +27,13 @@ jobs:
           # List first 200 PRs lacking classification labels as JSON
           gh pr list \
             --repo "$REPO" \
-            --search 'is:pr -label:"External Contribution" -label:"MariaDB Foundation" -label:"MariaDB Corporation" -label:"Codership"' \
+            --search 'is:pr AND -label:"External Contribution" AND -label:"MariaDB Foundation" AND -label:"MariaDB Corporation" AND -label:"Codership" AND created:>2025-11' \
             --limit 200 \
-            --json number,createdAt,labels,author |
-          jq -c '.[]' |
+            -s all \
+            --json number,author \
+            --jq '.[]' |
           while read -r pr; do
             pr_number=$(echo "$pr" | jq -r '.number')
-            created_at=$(echo "$pr" | jq -r '.createdAt')
-            label_count=$(echo "$pr" | jq '.labels | length')
             author=$(echo "$pr" | jq -r '.author.login')
 
             echo "Evaluating PR #$pr_number by $author"
@@ -72,14 +71,12 @@ jobs:
               fi
             fi
 
-          # start soft: read-only first.
-          echo "Should apply label [$label] to PR#[$pr_number] by [$author]"
+            echo "Applying label [$label] to PR#[$pr_number] by [$author]"
 
-          #  echo "Applying label $label"
-          #  if gh issue edit "$pr_number" \
-          #    --repo "$REPO" \
-          #    --add-label "$label"; then
-          #    echo "**FAILED applying label [$label] to PR#[$pr_number] by [$author]"
-          #    nfailed=$((nfailed + 1))
-          #  fi
+            if gh issue edit "$pr_number" \
+              --repo "$REPO" \
+              --add-label "$label"; then
+              echo "**FAILED applying label [$label] to PR#[$pr_number] by [$author]"
+              nfailed=$((nfailed + 1))
+            fi
           done
