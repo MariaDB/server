@@ -519,58 +519,104 @@ void mdl_release(THD *thd, MDL_ticket *mdl) noexcept
     thd->mdl_context.release_lock(mdl);
 }
 
+void dict_table_t::parse_tbl_name(
+  const table_name_t &table_name,
+  char (&db_name)[NAME_LEN + 1],
+  char (&tbl_name)[NAME_LEN + 1],
+  size_t *db_name_len, size_t *tbl_name_len) noexcept
+{
+  char db_buf[MAX_DATABASE_NAME_LEN + 1];
+  char tbl_buf[MAX_TABLE_NAME_LEN + 1];
+
+  const size_t db_len= table_name.dblen();
+  const char* tbl_start= table_name.basename();
+
+  if (db_len == 0 || !tbl_start)
+    return;
+
+  memcpy(db_buf, table_name.m_name, db_len);
+  db_buf[db_len]= '\0';
+
+  size_t tbl_len= strlen(tbl_start);
+  const bool is_temp= table_name.is_temporary() || table_name.is_create_or_replace();
+
+  /* For partition tables, find the base table name by removing partition suffix */
+  if (const char *is_part = static_cast<const char*>
+      (memchr(tbl_start, '#', tbl_len)))
+  {
+    /* For temporary tables, we need to find the partition marker after the temp name */
+    if (is_temp)
+    {
+      /* Look for partition markers like #P# after the temporary table name */
+      const char *part_marker= strstr(tbl_start, "#P#");
+      if (part_marker)
+        tbl_len= static_cast<size_t>(part_marker - tbl_start);
+      else if (const char *vec_marker= strstr(tbl_start, "#i#"))
+        tbl_len= static_cast<size_t>(vec_marker - tbl_start);
+    }
+    else
+    {
+      /* For regular tables, use first # as partition boundary */
+      tbl_len= static_cast<size_t>(is_part - tbl_start);
+    }
+  }
+
+  memcpy(tbl_buf, tbl_start, tbl_len);
+  tbl_buf[tbl_len]= '\0';
+
+  /* Convert internal names to SQL names */
+  *db_name_len= filename_to_tablename(db_buf, db_name,
+                                      MAX_DATABASE_NAME_LEN + 1, true);
+  if (is_temp)
+  {
+    memcpy(tbl_name, tbl_buf, tbl_len);
+    tbl_name[tbl_len]= '\0';
+    *tbl_name_len= tbl_len;
+    return;
+  }
+  *tbl_name_len= filename_to_tablename(tbl_buf, tbl_name,
+                                       MAX_TABLE_NAME_LEN + 1, true);
+  return;
+}
+
 /** Parse the table file name into table name and database name.
 @tparam        dict_frozen  whether the caller holds dict_sys.latch
 @param[in,out] db_name      database name buffer
 @param[in,out] tbl_name     table name buffer
 @param[out] db_name_len     database name length
 @param[out] tbl_name_len    table name length
-@return whether the table name is visible to SQL */
+@return DB_CORRUPTION if table name contains #sql-ib,
+        DB_SUCCESS_LOCKED_REC if db_len == 0, DB_SUCCESS otherwise */
 template<bool dict_frozen>
-bool dict_table_t::parse_name(char (&db_name)[NAME_LEN + 1],
-                              char (&tbl_name)[NAME_LEN + 1],
-                              size_t *db_name_len, size_t *tbl_name_len) const
+dberr_t dict_table_t::parse_name(char (&db_name)[NAME_LEN + 1],
+                                 char (&tbl_name)[NAME_LEN + 1],
+                                 size_t *db_name_len, size_t *tbl_name_len) const
 {
-  char db_buf[MAX_DATABASE_NAME_LEN + 1];
-  char tbl_buf[MAX_TABLE_NAME_LEN + 1];
-
   if (!dict_frozen)
     dict_sys.freeze(SRW_LOCK_CALL); /* protect against renaming */
   ut_ad(dict_sys.frozen());
-  const size_t db_len= name.dblen();
-  ut_ad(db_len <= MAX_DATABASE_NAME_LEN);
-
-  memcpy(db_buf, mdl_name.m_name, db_len);
-  db_buf[db_len]= 0;
-
-  size_t tbl_len= strlen(mdl_name.m_name + db_len + 1);
-  const bool is_temp= mdl_name.is_temporary();
-
-  if (is_temp);
-  else if (const char *is_part= static_cast<const char*>
-           (memchr(mdl_name.m_name + db_len + 1, '#', tbl_len)))
-    tbl_len= static_cast<size_t>(is_part - &mdl_name.m_name[db_len + 1]);
-
-  memcpy(tbl_buf, mdl_name.m_name + db_len + 1, tbl_len);
-  tbl_buf[tbl_len]= 0;
-
+  parse_tbl_name(name, db_name, tbl_name, db_name_len, tbl_name_len);
   if (!dict_frozen)
     dict_sys.unfreeze();
 
-  *db_name_len= filename_to_tablename(db_buf, db_name,
-                                      MAX_DATABASE_NAME_LEN + 1, true);
+  /* Check for specific error conditions */
+  if (*db_name_len == 0)
+    return DB_SUCCESS_LOCKED_REC;
 
-  if (is_temp)
-    return false;
+  /* Check if table name contains #sql-ib */
+  if (strstr(tbl_name, "#sql-ib"))
+    return DB_CORRUPTION;
 
-  *tbl_name_len= filename_to_tablename(tbl_buf, tbl_name,
-                                       MAX_TABLE_NAME_LEN + 1, true);
-  return true;
+  return DB_SUCCESS;
 }
 
-template bool
+template dberr_t
 dict_table_t::parse_name<>(char(&)[NAME_LEN + 1], char(&)[NAME_LEN + 1],
                            size_t*, size_t*) const;
+
+template dberr_t
+dict_table_t::parse_name<true>(char(&)[NAME_LEN + 1], char(&)[NAME_LEN + 1],
+                               size_t*, size_t*) const;
 
 dict_table_t *dict_sys_t::acquire_temporary_table(table_id_t id) const noexcept
 {
@@ -631,10 +677,12 @@ dict_acquire_mdl_shared(dict_table_t *table,
   char tbl_buf[NAME_LEN + 1], tbl_buf1[NAME_LEN + 1];
   size_t db_len, tbl_len;
 
-  if (!table->parse_name<!trylock>(db_buf, tbl_buf, &db_len, &tbl_len))
-    /* The name of an intermediate table starts with #sql */
+  dberr_t err= table->parse_name<!trylock>(
+                 db_buf, tbl_buf, &db_len, &tbl_len);
+  if (err == DB_SUCCESS_LOCKED_REC)
     return table;
 
+  ut_a(err == DB_SUCCESS);
 retry:
   ut_ad(!trylock == dict_sys.frozen());
 
@@ -701,12 +749,16 @@ lookup:
     if (trylock)
       table->acquire();
 
-    if (!table->parse_name<true>(db_buf1, tbl_buf1, &db1_len, &tbl1_len))
+    dberr_t err=
+      table->parse_name<true>(db_buf1, tbl_buf1, &db1_len, &tbl1_len);
+    if (err == DB_SUCCESS_LOCKED_REC)
     {
       /* The table was renamed to #sql prefix.
       Release MDL (if any) for the old name and return. */
       goto unlock_and_return_without_mdl;
     }
+
+    ut_a(err == DB_SUCCESS);
   }
   else if (table_op != DICT_TABLE_OP_OPEN_ONLY_IF_CACHED)
   {
