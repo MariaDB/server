@@ -1,0 +1,148 @@
+#
+# SQL Standard T081: VARCHAR without explicit length specification
+#
+#
+# Basic test: CREATE TABLE with VARCHAR without length or charset (scenario 1a)
+#
+CREATE TABLE t1 (a VARCHAR);
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` text DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+DROP TABLE t1;
+
+#
+# Basic test: CREATE TABLE with charset (scenario 1b)
+#
+CREATE TABLE t1 (a VARCHAR CHARSET latin1);
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` text CHARACTER SET latin1 COLLATE latin1_swedish_ci DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+DROP TABLE t1;
+
+#
+# Test VARCHAR without length with specific column charsets or collations (scenario 2a)
+#
+CREATE TABLE t1 (a VARCHAR CHARSET utf8mb4);
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` text DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+DROP TABLE t1;
+
+CREATE TABLE t1 (a VARCHAR COLLATE utf8mb4_general_ci);
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` text CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+DROP TABLE t1;
+
+CREATE TABLE t1 (a VARCHAR CHARSET latin1);
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` text CHARACTER SET latin1 COLLATE latin1_swedish_ci DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+DROP TABLE t1;
+
+CREATE TABLE t1 (a VARCHAR COLLATE latin1_general_ci);
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` text CHARACTER SET latin1 COLLATE latin1_general_ci DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+DROP TABLE t1;
+
+#
+# Test VARCHAR without length with specific column charsets and collations (scenario 2b)
+#
+CREATE TABLE t1 (a VARCHAR CHARSET utf8mb4 COLLATE utf8mb4_general_ci);
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` text CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+DROP TABLE t1;
+
+CREATE TABLE t1 (a VARCHAR CHARSET latin1 COLLATE latin1_general_ci);
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` text CHARACTER SET latin1 COLLATE latin1_general_ci DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+DROP TABLE t1;
+
+#
+# Basic test: CREATE TABLE with charset (Scenario 3)
+#
+CREATE TABLE t1 (a VARCHAR) CHARSET latin1;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` text DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+DROP TABLE t1;
+
+#
+# Test ALTER TABLE MODIFY COLUMN with VARCHAR without length
+#
+CREATE TABLE t1 (id INTEGER, a VARCHAR(255));
+ALTER TABLE t1 MODIFY a VARCHAR;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `id` int(11) DEFAULT NULL,
+  `a` text DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+DROP TABLE t1;
+
+#
+# Test ALTER TABLE ADD COLUMN with VARCHAR without length
+#
+CREATE TABLE t1 (id INTEGER);
+ALTER TABLE t1 ADD a VARCHAR;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `id` int(11) DEFAULT NULL,
+  `a` text DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+DROP TABLE t1;
+
+#
+# Corner Case: VARBINARY without length should become BLOB
+#
+CREATE TABLE t1 (a VARBINARY);
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` blob DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+DROP TABLE t1;
+
+#
+# Test NATIONAL VARCHAR (NVARCHAR) without length
+#
+CREATE TABLE t1 (a NVARCHAR);
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` text CHARACTER SET utf8mb3 COLLATE utf8mb3_uca1400_ai_ci DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+DROP TABLE t1;
+
+#
+# Test VARCHAR COMPRESSED without length
+#
+CREATE TABLE t1 (a VARCHAR COMPRESSED);
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` text /*M!100301 COMPRESSED*/ DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+DROP TABLE t1;
