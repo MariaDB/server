@@ -2882,9 +2882,7 @@ static int innobase_rollback_by_xid(XID *xid) noexcept
     return XAER_RMFAIL;
   if (trx_t *trx= trx_get_trx_by_xid(xid))
   {
-    /* Lookup by xid clears the transaction xid.
-       For wsrep we clear it below. */
-    ut_ad(trx->xid.is_null() || wsrep_is_wsrep_xid(&trx->xid));
+    ut_ad(trx->xid.is_null());
     trx->xid.null();
     trx_deregister_from_2pc(trx);
     THD* thd= trx->mysql_thd;
@@ -4649,14 +4647,6 @@ innobase_rollback(
     release it now before a possibly lengthy rollback */
     lock_unlock_table_autoinc(trx);
 
-#ifdef WITH_WSREP
-    /* If trx was assigned wsrep XID in prepare phase and the
-    trx is being rolled back due to BF abort, clear XID in order
-    to avoid writing it to rollback segment out of order. The XID
-    will be reassigned when the transaction is replayed. */
-    if (rollback_trx || wsrep_is_wsrep_xid(&trx->xid))
-      trx->xid.null();
-#endif /* WITH_WSREP */
     dberr_t error;
     if (rollback_trx)
     {
@@ -18899,8 +18889,6 @@ void lock_wait_wsrep_kill(trx_t *bf_trx, my_thread_id thd_id, trx_id_t trx_id)
         default:
           break;
         case TRX_STATE_PREPARED:
-          if (!wsrep_is_wsrep_xid(&vtrx->xid))
-            break;
           /* fall through */
         case TRX_STATE_ACTIVE:
           WSREP_LOG_CONFLICT(bf_thd, vthd, TRUE);

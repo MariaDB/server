@@ -2117,12 +2117,6 @@ static my_bool trx_get_trx_by_xid_callback(void *el, void *a)
 	 trx_state_eq(trx, TRX_STATE_PREPARED_RECOVERED)) &&
         arg->xid->eq(&trx->xid))
     {
-#ifdef WITH_WSREP
-      /* The commit of a prepared recovered Galera
-      transaction needs a valid trx->xid for
-      invoking trx_sys_update_wsrep_checkpoint(). */
-      if (!wsrep_is_wsrep_xid(&trx->xid))
-#endif /* WITH_WSREP */
       /* Invalidate the XID, so that subsequent calls will not find it. */
       trx->xid.null();
       arg->trx= trx;

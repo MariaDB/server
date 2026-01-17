@@ -300,7 +300,15 @@ static bool backup_block_ddl(THD *thd)
   if (WSREP_NNULL(thd))
   {
     Wsrep_server_state &server_state= Wsrep_server_state::instance();
-
+#ifdef ENABLED_DEBUG_SYNC
+    DBUG_EXECUTE_IF("sync.wsrep_backup_stage_before_desync_and_pause", {
+      const char act[]=
+          "now "
+          "SIGNAL sync.wsrep_backup_stage_before_desync_and_pause "
+          "WAIT_FOR signal.wsrep_backup_stage_before_desync_and_pause";
+      DBUG_ASSERT(!debug_sync_set_action(thd, STRING_WITH_LEN(act)));
+    };);
+#endif
     /*
       If user is specifically choosing to allow BF aborting for
       BACKUP STAGE BLOCK_DDL lock holder, then do not desync and

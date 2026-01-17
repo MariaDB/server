@@ -27,6 +27,15 @@ extern "C" my_bool wsrep_on(const THD *thd)
   return my_bool(WSREP(thd));
 }
 
+extern "C" const struct xid_t* wsrep_commit_xid(const MYSQL_THD thd)
+{
+  if (wsrep_recovery_commit_xid)
+  {
+    return wsrep_recovery_commit_xid;
+  }
+  return thd && wsrep_is_wsrep_xid(&thd->wsrep_xid) ? &thd->wsrep_xid : nullptr;
+}
+
 extern "C" void wsrep_thd_LOCK(const THD *thd)
 {
   mysql_mutex_lock(&thd->LOCK_thd_data);

@@ -1,0 +1,28 @@
+connection node_2;
+connection node_1;
+connection node_1;
+connection node_2;
+CREATE TABLE t1 (id INT PRIMARY KEY, val INT);
+# Shutdown node 2 and remove grastate.dat to enforce SST when the
+# node is restarted.
+connection node_2;
+# Block the donor mariadb-backup before it pauses the provider
+connection node_1_ctrl;
+SET GLOBAL debug_dbug = "+d,sync.wsrep_backup_stage_before_desync_and_pause";
+connection node_2;
+connection node_1_ctrl;
+SET SESSION debug_sync = "now WAIT_FOR sync.wsrep_backup_stage_before_desync_and_pause";
+# Run a transaction that will be prepared but not committed before signalled
+connection node_1;
+SET DEBUG_SYNC = "ha_commit_trans_after_prepare SIGNAL after_prepare_reached WAIT_FOR after_prepare_continue";
+INSERT INTO t1 VALUES (1, 1);
+# Wait for the trasaction to be prepared and let the mariadb-backup to continue
+connection node_1_ctrl;
+SET DEBUG_SYNC = "now WAIT_FOR after_prepare_reached";
+SET SESSION debug_sync = "now SIGNAL signal.wsrep_backup_stage_before_desync_and_pause";
+connection node_2;
+connection node_1_ctrl;
+SET DEBUG_SYNC = "now SIGNAL after_prepare_continue";
+connection node_1;
+SET DEBUG_SYNC = RESET;
+DROP TABLE t1;

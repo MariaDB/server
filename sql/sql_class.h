@@ -5814,10 +5814,6 @@ public:
 
   const XID *get_xid() const
   {
-#ifdef WITH_WSREP
-    if (!wsrep_xid.is_null())
-      return &wsrep_xid;
-#endif /* WITH_WSREP */
     return (transaction->xid_state.is_explicit_XA() ?
             transaction->xid_state.get_xid() :
             &transaction->implicit_xid);
