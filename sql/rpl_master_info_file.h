@@ -475,7 +475,7 @@ struct Master_info_file: Info_file
       */
       static const auto MAX_PERIOD= Decimal_from_str(STRING_WITH_LEN(MAX)),
                         THOUSAND  = Decimal_from_str(STRING_WITH_LEN("1000"));
-      ulonglong decimal_out;
+      [[maybe_unused]] ulonglong decimal_out;
       if (decimal.sign || decimal_cmp(&MAX_PERIOD, &decimal) < 0)
         return true; // ER_SLAVE_HEARTBEAT_VALUE_OUT_OF_RANGE
       overprecise= decimal.frac > 3;
@@ -486,8 +486,10 @@ struct Master_info_file: Info_file
         decimal_mul(&rounded, &THOUSAND, &product) ||
         decimal2ulonglong(&product, &decimal_out);
       DBUG_ASSERT(!unexpected_error);
+      if (unexpected_error)
+        return true;
       result= static_cast<uint32_t>(decimal_out);
-      return unexpected_error;
+      return false;
     }
     /** Load from a '\0'-terminated string
       @param expected_end This function also checks that the exclusive end
