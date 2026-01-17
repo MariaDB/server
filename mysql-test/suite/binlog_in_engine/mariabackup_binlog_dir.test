@@ -18,10 +18,8 @@ flush binary logs;
  
 --exec $XTRABACKUP --backup --target-dir=$MYSQL_TMP_DIR/mbackup --socket=$MASTER_MYSOCK --user=root --binlog-directory=backup_binlogs > $MYSQL_TMP_DIR/mbackup.log 2>&1
 --exec $XTRABACKUP --prepare --target-dir=$MYSQL_TMP_DIR/mbackup > $MYSQL_TMP_DIR/mprepare.log 2>&1
---exec $XTRABACKUP --copy-back --target-dir=$MYSQL_TMP_DIR/mbackup --binlog-directory=binlogs --innodb-undo-directory=undos --datadir=$MYSQL_TMP_DIR/mcopyback > $MYSQL_TMP_DIR/mcopyback.log 2>&1
-# The bug was a missing slash, so the undos/binlogs would be in
-# mcopybackundos/ and mcopybackbinlogs/
---list_files $MYSQL_TMP_DIR/mcopyback/undos/ *
+--exec $XTRABACKUP --copy-back --target-dir=$MYSQL_TMP_DIR/mbackup --binlog-directory=binlogs --datadir=$MYSQL_TMP_DIR/mcopyback > $MYSQL_TMP_DIR/mcopyback.log 2>&1
+# The bug was a missing slash, so the binlogs would be in mcopybackbinlogs/
 --list_files $MYSQL_TMP_DIR/mcopyback/binlogs/ *
 
 drop table t;
