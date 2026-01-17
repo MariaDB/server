@@ -1,0 +1,51 @@
+#
+# Setup
+#
+INSTALL PLUGIN IF NOT EXISTS cleartext_plugin_server SONAME '';
+Warnings:
+Note	1968	Plugin 'cleartext_plugin_server' already installed
+CREATE DATABASE mdev38550_db;
+#
+# Test 1: COM_CHANGE_USER with short password
+# Verify mysql_change_user() works correctly with database parameter
+#
+CREATE USER changeusertest IDENTIFIED VIA cleartext_plugin_server USING 'changepwd';
+GRANT ALL ON *.* TO changeusertest;
+SELECT DATABASE() AS db;
+db
+mdev38550_db
+#
+# Test 2: COM_CHANGE_USER with long password (260 bytes)
+# This works because auth plugin switching sends password in a SECOND packet
+# (via ma_net_write), bypassing the 255-byte limit in send_change_user_packet()
+#
+# Note: If connection used cleartext directly (no auth switch), it would fail
+# due to libmariadb's 255-byte limit in send_change_user_packet()
+#
+CREATE USER changeuserlongpwd IDENTIFIED VIA cleartext_plugin_server USING 'cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc';
+GRANT ALL ON *.* TO changeuserlongpwd;
+SELECT DATABASE() AS db;
+db
+mdev38550_db
+#
+# Test 3: COM_CHANGE_USER with long password - no auth switch
+# Connection uses cleartext directly, password goes in first packet
+# Requires LENENC support in both client and server for COM_CHANGE_USER
+#
+connect  cleartext_con, 127.0.0.1, changeuserlongpwd, $change_pwd, mdev38550_db, $MASTER_MYPORT, , , mysql_clear_password;
+SELECT DATABASE() AS db;
+db
+mdev38550_db
+SELECT CURRENT_USER() AS user;
+user
+changeuserlongpwd@%
+SELECT DATABASE() AS db;
+db
+mdev38550_db
+connection default;
+disconnect cleartext_con;
+#
+# Cleanup
+#
+DROP USER changeusertest, changeuserlongpwd;
+DROP DATABASE mdev38550_db;
