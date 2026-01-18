@@ -661,7 +661,7 @@ JSON_SEARCH('{"foo":"bar"}', 'all' , @str, '%', @path)
 "$.foo"
 SELECT JSON_VALUE('[{"foo": 1},"bar"]', '$[*][0]');
 JSON_VALUE('[{"foo": 1},"bar"]', '$[*][0]')
-bar
+NULL
 CREATE TABLE t1 (f INT NOT NULL);
 INSERT INTO t1 VALUES (0);
 SELECT JSON_KEYS(f) FROM t1 ORDER BY 1;
@@ -1455,7 +1455,7 @@ SET @old_collation_connection= @@COLLATION_CONNECTION;
 SET COLLATION_CONNECTION= ucs2_unicode_ci;
 SELECT JSON_VALUE('["foo"]', '$**[0]') AS f;
 f
-foo
+NULL
 SET @@COLLATION_CONNECTION= @old_collation_connection;
 #
 # MDEV-32587 JSON_VALID fail to validate integer zero in scientific notation
@@ -2383,7 +2383,7 @@ SET @json= '[
             ]';
 SELECT JSON_VALUE(@json, '$[0][1 to 2].key1');
 JSON_VALUE(@json, '$[0][1 to 2].key1')
-value1
+NULL
 SET @json='{
             "A": [0,
                   [1, 2, 3],
@@ -2400,7 +2400,7 @@ SET @json='{
            }';
 SELECT JSON_QUERY(@json, '$.A[-2][-3 to -1]');
 JSON_QUERY(@json, '$.A[-2][-3 to -1]')
-[13, 14]
+NULL
 SET @json= '[
              [1, {"key1": "value1"}, 3],
              [false, 5, 6],
@@ -2548,7 +2548,7 @@ SET @json1= '[
             ]';
 SELECT JSON_VALUE(@json1, '$[2][1 to 2].key1');
 JSON_VALUE(@json1, '$[2][1 to 2].key1')
-value7
+NULL
 SET @json= '[
              [1.1, {"key1": "value1"}, 3],
              [false, 5, 6],
@@ -2558,10 +2558,10 @@ SET @json= '[
             ]';
 SELECT JSON_VALUE(@json, '$[*][0]');
 JSON_VALUE(@json, '$[*][0]')
-1.1
+NULL
 SELECT JSON_VALUE(@json, '$[2 to 3][0]');
 JSON_VALUE(@json, '$[2 to 3][0]')
-7
+NULL
 #
 # MDEV-28072: JSON_EXTRACT has inconsistent behavior with '0' value in
 # json path (when range is used)
@@ -2763,4 +2763,11 @@ SELECT * FROM json_table(@JSON, '$.SZ[1].OFFERS[1]'
 COLUMNS(NAME VARCHAR(30) PATH '$.NAME')) AS t_sz;
 NAME
 S1A1
+#
+# MDEV-25148: Unexpected success and result set upon erroneous
+# JSON_VALUE call
+#
+SELECT JSON_VALUE('{"a":[1,2]}', '$.a[*]');
+JSON_VALUE('{"a":[1,2]}', '$.a[*]')
+NULL
 # End of 10.11 Test
