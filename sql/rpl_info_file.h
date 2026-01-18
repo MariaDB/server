@@ -305,7 +305,7 @@ private:
       Set the default after parsing: While std::from_chars() does not replace
       the output if it failed, it does replace if the line is not fully spent.
     */
-    size_t line_count= i ? static_cast<size_t>(val) : default_line_count;
+    size_t line_count= i ? default_line_count: static_cast<size_t>(val);
     for (; i < line_count; ++i)
     {
       int c;
