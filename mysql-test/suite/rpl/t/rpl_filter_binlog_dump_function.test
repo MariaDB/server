@@ -1,0 +1,75 @@
+#
+# Purpose:
+#
+# This test verifies correct replication behavior when a stored function
+# performs writes to multiple tables while the outer statement targets a
+# database filtered out by binlog_dump_do/ignore_db rules.
+#
+# Key points:
+#
+# - A stored function (f1) inserts rows into test.t1 and test.t2.
+# - The function is invoked inside an INSERT into ignored.ti, a table in a
+#   database that should be filtered by binlog_dump_do/ignore_db.
+# - Even though ignored.ti is filtered, the writes done inside the function
+#   must still be replicated, because they affect non-filtered tables.
+# - The test confirms that the slave receives and applies those internal
+#   writes (t1 and t2), and also the subsequent insert into test.t3.
+#
+# This ensures that replication filtering affects only the outer filtered
+# statement, not the writes performed inside stored functions, and that the
+# master and slave remain consistent.
+
+
+--source include/have_innodb.inc
+--source include/have_binlog_format_row.inc
+--source include/master-slave.inc
+
+--echo #
+--echo # Initialize test data
+--connection master
+use test;
+create table test.t1 (a int) engine=innodb;
+create table test.t2 (a int) engine=innodb;
+create table test.t3 (a int) engine=innodb;
+insert into t1 values (1);
+
+create database ignored;
+create table ignored.ti (a int) engine=innodb;
+
+use test;
+delimiter //;
+CREATE FUNCTION f1() RETURNS INTEGER
+BEGIN
+   INSERT INTO test.t1(a) values(10);
+   INSERT INTO test.t2(a) values(20);
+   RETURN 100;
+END//
+delimiter ;//
+
+BEGIN;
+insert into ignored.ti values (f1());
+insert into t3 values (30);
+COMMIT;
+
+--source include/save_master_gtid.inc
+
+--connection slave
+--source include/sync_with_master_gtid.inc
+
+--echo #
+--echo # Cleanup
+--connection master
+drop table test.t1;
+drop table test.t2;
+drop table test.t3;
+drop table ignored.ti;
+drop database ignored;
+drop function f1;
+
+--source include/save_master_gtid.inc
+
+--connection slave
+--source include/sync_with_master_gtid.inc
+
+--source include/rpl_end.inc
+--echo # End of rpl_filter_binlog_dump_function.test

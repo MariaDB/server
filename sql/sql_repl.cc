@@ -2262,17 +2262,15 @@ send_event_to_slave(binlog_send_info *info, Log_event_type event_type,
 
     const uchar *buf= (const uchar*) packet->ptr() + ev_offset;
 
-      Log_event_type etype= (Log_event_type) buf[EVENT_TYPE_OFFSET];
-
-      // Only ROW events have m_flags
-      bool is_rows_event =
-          (etype == WRITE_ROWS_EVENT)        ||
-          (etype == UPDATE_ROWS_EVENT)       ||
-          (etype == DELETE_ROWS_EVENT)       ||
-          (etype == WRITE_ROWS_EVENT_V1)     ||
-          (etype == UPDATE_ROWS_EVENT_V1)    ||
-          (etype == DELETE_ROWS_EVENT_V1);
-      bool is_gtid_event= (etype == GTID_EVENT);
+    // Only ROW events have m_flags
+    bool is_rows_event =
+        (event_type == WRITE_ROWS_EVENT)        ||
+        (event_type == UPDATE_ROWS_EVENT)       ||
+        (event_type == DELETE_ROWS_EVENT)       ||
+        (event_type == WRITE_ROWS_EVENT_V1)     ||
+        (event_type == UPDATE_ROWS_EVENT_V1)    ||
+        (event_type == DELETE_ROWS_EVENT_V1);
+    bool is_gtid_event= (event_type == GTID_EVENT);
 
     if (is_gtid_event)
     {
@@ -2291,8 +2289,9 @@ send_event_to_slave(binlog_send_info *info, Log_event_type event_type,
         over the network)
       */
 
-      if (!is_rows_event) {
-          return NULL;
+      if (!is_rows_event)
+      {
+        return NULL;
       }
 
       /*
@@ -2300,38 +2299,32 @@ send_event_to_slave(binlog_send_info *info, Log_event_type event_type,
       */
       uint8 common_header_len= info->fdev->common_header_len;
 
-      uint8 post_header_len= info->fdev->post_header_len[etype-1];
+      uint8 post_header_len= info->fdev->post_header_len[event_type-1];
 
       const uchar *post_start= buf + common_header_len;
 
       post_start+= RW_MAPID_OFFSET;
 
-      uint64 table_id;
-
       if (post_header_len == 6)
       {
-          table_id= uint4korr(post_start);
           post_start+= 4;
       }
       else
       {
-        table_id= uint4korr(post_start);
-        table_id|= ((uint64) uint2korr(post_start + 4)) << 32;
         // skip 6 bytes
         post_start+= RW_FLAGS_OFFSET;
       }
 
       uint16 m_flags= uint2korr(post_start);
 
-      bool has_stmt_end_f= (m_flags & Rows_log_event::STMT_END_F);
-
-
-      if (!has_stmt_end_f)
+      if (!(m_flags & Rows_log_event::STMT_END_F))
       {
         return NULL;
       }
-      else {
-        if (!info->sent_unfiltered_row_event) {
+      else
+      {
+        if (!info->sent_unfiltered_row_event)
+        {
           return NULL;
         }
 

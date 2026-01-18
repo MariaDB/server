@@ -3428,8 +3428,11 @@ public:
     @param writer
       Log event writer used to write the annotated row event to the binary log
       stream when annotation is required.
+    @param use_trans
+      Flag to check which cache to use either trx cache (use_trans=1) or stmt
+      cache (use_trans=0)
     */
-  bool binlog_write_annotated_row(Log_event_writer *writer);
+  bool binlog_write_annotated_row(Log_event_writer *writer, bool use_trans);
   void binlog_prepare_for_row_logging();
   bool binlog_write_table_maps();
 

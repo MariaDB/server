@@ -1,0 +1,82 @@
+include/master-slave.inc
+[connection master]
+SET @@default_storage_engine='InnoDB';
+connection master;
+# On master: create table in replicated database
+CREATE TABLE t1 (id INT PRIMARY KEY, data VARCHAR(50));
+INSERT INTO t1 VALUES (1, 'first row in t1');
+# Create and use a filtered DB
+CREATE DATABASE ignored_db;
+USE ignored_db;
+CREATE TABLE t2 (id INT PRIMARY KEY, data VARCHAR(50));
+INSERT INTO t2 VALUES (1, 'row in t2');
+# Perform ALTER TABLE on replicated database
+USE test;
+ALTER TABLE t1 ADD COLUMN new_col INT DEFAULT 100;
+INSERT INTO t1 VALUES (2, 'second row in t1', 200);
+# Perform ALTER TABLE on filtered database (should not replicate)
+USE ignored_db;
+ALTER TABLE t2 ADD COLUMN filtered_col VARCHAR(100) DEFAULT 'filtered';
+INSERT INTO t2 VALUES (2, 'second row in t2', 'filtered value');
+# Perform multiple ALTER operations on filtered database
+ALTER TABLE t2 ADD COLUMN another_col INT DEFAULT 42;
+ALTER TABLE t2 MODIFY COLUMN data VARCHAR(100);
+ALTER TABLE t2 DROP COLUMN filtered_col;
+# Back to replicated database for another ALTER
+USE test;
+ALTER TABLE t1 ADD INDEX idx_data (data);
+ALTER TABLE t1 MODIFY COLUMN data VARCHAR(100);
+# Capture current binlog file name
+# Sync slave to ensure all replicated events are processed
+connection slave;
+# Find relay log file on slave
+connection slave;
+# Get slave's current relay log file
+# Dump master binlog to file
+# Dump slave relay log to file
+# Validate that ALTER TABLE t1 ADD COLUMN is in the master binlog
+include/assert_grep.inc [ALTER TABLE t1 ADD COLUMN must be present in master binlog]
+# Validate that ALTER TABLE t1 ADD COLUMN is in the slave relaylog
+include/assert_grep.inc [ALTER TABLE t1 ADD COLUMN must be present in slave relaylog]
+# Validate that ALTER TABLE t2 (filtered) ADD COLUMN is in the master binlog
+include/assert_grep.inc [ALTER TABLE t2 ADD COLUMN must be present in master binlog]
+# Validate that ALTER TABLE t2 (filtered) ADD COLUMN is NOT in the slave relaylog
+include/assert_grep.inc [ALTER TABLE t2 ADD COLUMN must not be present in slave relaylog]
+# Validate that ALTER TABLE t2 MODIFY is in master binlog
+include/assert_grep.inc [ALTER TABLE t2 MODIFY must be present in master binlog]
+# Validate that ALTER TABLE t2 MODIFY is NOT in the slave relaylog
+include/assert_grep.inc [ALTER TABLE t2 MODIFY must not be present in slave relaylog]
+# Validate that ALTER TABLE t2 DROP COLUMN is NOT in the slave relaylog
+include/assert_grep.inc [ALTER TABLE t2 DROP COLUMN must not be present in slave relaylog]
+# Validate that ALTER TABLE t1 ADD INDEX is in the slave relaylog
+include/assert_grep.inc [ALTER TABLE t1 ADD INDEX must be present in slave relaylog]
+# Validate that ALTER TABLE t1 MODIFY is in the slave relaylog
+include/assert_grep.inc [ALTER TABLE t1 MODIFY must be present in slave relaylog]
+# Verify slave has correct table structure for t1
+connection slave;
+USE test;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `id` int(11) NOT NULL,
+  `data` varchar(100) DEFAULT NULL,
+  `new_col` int(11) DEFAULT 100,
+  PRIMARY KEY (`id`),
+  KEY `idx_data` (`data`)
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+SELECT * FROM t1 ORDER BY id;
+id	data	new_col
+1	first row in t1	100
+2	second row in t1	200
+# Verify slave does not have filtered database changes
+SHOW CREATE TABLE ignored_db.t2;
+ERROR 42S02: Table 'ignored_db.t2' doesn't exist
+# Cleanup
+connection master;
+USE ignored_db;
+DROP TABLE t2;
+USE test;
+DROP TABLE t1;
+DROP DATABASE ignored_db;
+include/rpl_end.inc
+# End of rpl_filter_binlog_dump_alter_innodb.test

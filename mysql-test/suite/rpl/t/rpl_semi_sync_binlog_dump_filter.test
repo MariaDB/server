@@ -1,0 +1,106 @@
+#
+# Test ensures that binlog_dump filters work with semi-sync enabled. I.e., that
+# filtered transactions are not waited on for ACKs, as they are not sent to the
+# slave.
+#
+# The opt file for the test sets binlog_dump_do_db=test, so that only the
+# test database is sent to the slave. The test also creates another database,
+# db_ignore, which is filtered out.
+#
+# References:
+#   MDEV-9345: Replication to enable filtering on master
+#   MDEV-38486: Semi-sync Breaks with @@skip_replication=1
+#
+--source include/have_innodb.inc
+--source include/have_binlog_format_row.inc
+--source include/master-slave.inc
+
+--connection master
+set @old_timeout= @@global.rpl_semi_sync_master_timeout;
+set @old_enabled= @@global.rpl_semi_sync_master_enabled;
+set @@global.rpl_semi_sync_master_timeout= 2000; # 2s
+set @@global.rpl_semi_sync_master_enabled=1;
+
+--connection slave
+--source include/stop_slave.inc
+set @old_enabled= @@global.rpl_semi_sync_slave_enabled;
+set @@global.rpl_semi_sync_slave_enabled=1;
+--source include/start_slave.inc
+
+--connection master
+--let $master_ss_status= query_get_value(SHOW STATUS LIKE 'rpl_semi_sync_master_status', Value, 1)
+if (`SELECT strcmp("$master_ss_status", "ON") != 0`)
+{
+  SHOW STATUS LIKE 'rpl_semi_sync_master_status';
+  --die rpl_semi_sync_master_status should be ON to start
+}
+
+--echo #
+--echo # Initialize test data
+--connection master
+create table t1 (a int) engine=innodb;
+insert into t1 values (1);
+--let $initial_master_yes_tx= query_get_value(SHOW STATUS LIKE 'rpl_semi_sync_master_yes_tx', Value, 1)
+--source include/save_master_gtid.inc
+
+--connection slave
+--source include/sync_with_master_gtid.inc
+
+
+--echo # Creating filtered database and statements
+--connection master
+set @old_skip_replication= @@session.skip_replication;
+set session skip_replication=1;
+create database db_ignore;
+set session skip_replication= @old_skip_replication;
+use db_ignore;
+create table t_ignore (a int) engine=innodb;
+insert into t_ignore values (1);
+
+--echo # Creating a non-filtered transaction which should be ACKed
+--connection master
+use test;
+insert into t1 values (2);
+
+--echo # Ensure semi-sync did not timeout..
+--let $log_err= `SELECT @@GLOBAL.log_error`
+--let $assert_file= $log_err
+--let $assert_text= Semi-sync timeout should not occur
+--let $assert_select= Timeout waiting for reply of binlog
+--let $assert_count= 0
+--source include/assert_grep.inc
+--echo # ..PASS
+
+--echo # Ensuring semi-sync is still on..
+--connection master
+--let $master_ss_status= query_get_value(SHOW STATUS LIKE 'rpl_semi_sync_master_status', Value, 1)
+if (`SELECT strcmp("$master_ss_status", "ON") != 0`)
+{
+  SHOW STATUS LIKE 'rpl_semi_sync_master_status';
+  --die rpl_semi_sync_master_status should not have switched off when binlog_dump filter is applied
+}
+--echo # ..PASS
+
+--echo # Ensuring the later non-filtered transaction is ACKed
+--let $test_master_yes_tx= query_get_value(SHOW STATUS LIKE 'rpl_semi_sync_master_yes_tx', Value, 1)
+if (`SELECT $test_master_yes_tx != ($initial_master_yes_tx + 1)`)
+{
+  --echo # Initial yes_tx: $initial_master_yes_tx
+  --echo # Current yes_tx: $test_master_yes_tx
+  --die rpl_semi_sync_master_yes_tx should have been incremented by 1
+}
+--echo # ..PASS
+
+--echo #
+--echo # Cleanup
+--connection master
+drop database db_ignore;
+drop table t1;
+set @@global.rpl_semi_sync_master_timeout= @old_timeout;
+set @@global.rpl_semi_sync_master_enabled= @old_enabled;
+
+--connection slave
+set @@global.rpl_semi_sync_slave_enabled= @old_enabled;
+
+--source include/rpl_end.inc
+--echo # End of rpl_semi_sync_binlog_dump_filter.test

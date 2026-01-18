@@ -1,0 +1,13 @@
+# 
+# NOTE: This test has a -master.opt file "rpl_filter_binlog_dump_alter_innodb-master.opt"
+# for configuring the replication filter rules 
+#
+
+--source include/have_innodb.inc
+
+let $engine_type = 'InnoDB';
+
+--source include/rpl_filter_binlog_dump_alter.test
+
+--source include/rpl_end.inc
+--echo # End of rpl_filter_binlog_dump_alter_innodb.test
