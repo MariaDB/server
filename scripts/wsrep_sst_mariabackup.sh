@@ -1006,14 +1006,14 @@ else
         if [ -n "$sstlogarchivedir" ]; then
             if [ ! -d "$sstlogarchivedir" ]; then
                 if ! mkdir -p "$sstlogarchivedir"; then
-                    sstlogarchivedir=""
                     wsrep_log_warning \
                         "Unable to create '$sstlogarchivedir' directory"
+                    sstlogarchivedir=""
                 fi
             elif [ ! -w "$sstlogarchivedir" ]; then
-                sstlogarchivedir=""
                 wsrep_log_warning \
-                    "The '$sstlogarchivedir' directory is not writtable"
+                    "The '$sstlogarchivedir' directory is not writable"
+                sstlogarchivedir=""
             fi
         fi
 
