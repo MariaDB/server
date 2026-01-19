@@ -768,6 +768,7 @@ public:
    :sp_lex_instr(ip, ctx, lex, true),
     sp_rcontext_ref(cursor_ref),
     m_expr(lex->get_item()),
+    m_expr_str(lex->get_expr_str()),
     m_using_clause_offset(using_clause_offset),
     m_decimal_precision(0)
   {
@@ -827,10 +828,7 @@ public:
 protected:
   LEX_CSTRING get_expr_query() const override
   {
-    DBUG_ASSERT(dynamic_cast<const sp_assignment_lex*>(m_lex_keeper.lex()));
-    const sp_assignment_lex *tmplex=
-      static_cast<const sp_assignment_lex*>(m_lex_keeper.lex());
-    return tmplex->get_expr_str();
+    return m_expr_str;
   }
 
   void adjust_sql_command(LEX *lex) override
@@ -852,6 +850,7 @@ protected:
 private:
   Value m_value;
   Item *m_expr;
+  LEX_CSTRING m_expr_str;
   uint m_using_clause_offset;
   decimal_digits_t m_decimal_precision;
 

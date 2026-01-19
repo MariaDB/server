@@ -1045,3 +1045,33 @@ DROP PROCEDURE p1;
 DROP PROCEDURE p2;
 DROP PROCEDURE p3;
 DROP PROCEDURE p4;
+
+
+--echo #
+--echo # MDEV-38370 SIGSEGV in sp_instr_set_ps_placeholder::get_expr_query | sp_lex_instr::get_query, UBSAN member access within null pointer of type 'const sp_assignment_lex'
+--echo #
+
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1);
+CREATE FUNCTION f1() RETURNS INT RETURN (SELECT a FROM t1);
+DELIMITER $$;
+CREATE OR REPLACE PROCEDURE p1()
+BEGIN
+  DECLARE c sys_refcursor;
+  OPEN c FOR 'SELECT ?' USING f1();
+  CLOSE c;
+END;
+$$
+DELIMITER ;$$
+CALL p1;
+ALTER TABLE t1 MODIFY a SMALLINT;
+CALL p1;
+ALTER TABLE t1 MODIFY a INT;
+CALL p1;
+ALTER TABLE t1 MODIFY a SMALLINT;
+CALL p1;
+ALTER TABLE t1 MODIFY a INT;
+CALL p1;
+DROP PROCEDURE p1;
+DROP FUNCTION f1;
+DROP TABLE t1;
