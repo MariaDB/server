@@ -161,7 +161,7 @@ static clock_t cache_max_ver_time;
   Convert milliseconds to timer ticks with rounding
   to nearest integer:
 */
-static clock_t ms_to_ticks (long ms)
+static clock_t ms_to_ticks (long long ms)
 {
   long long ticks_1000 = ms * (long long) CLOCKS_PER_SEC;
   clock_t ticks = (clock_t) (ticks_1000 / 1000);
