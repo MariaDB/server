@@ -1307,6 +1307,13 @@ public:
   virtual void add_used_key_part_to_set()=0;
 };
 
+inline bool is_index_merge(int qtype)
+{
+  return qtype == QUICK_SELECT_I::QS_TYPE_INDEX_INTERSECT ||
+    qtype == QUICK_SELECT_I::QS_TYPE_INDEX_MERGE ||
+    qtype == QUICK_SELECT_I::QS_TYPE_ROR_INTERSECT ||
+    qtype == QUICK_SELECT_I::QS_TYPE_ROR_UNION;
+}
 
 struct st_qsel_param;
 class PARAM;
@@ -1576,6 +1583,7 @@ public:
 
 
 
+/* Index merge sort union */
 class QUICK_INDEX_MERGE_SELECT : public QUICK_INDEX_SORT_SELECT
 {
 private:
@@ -1593,6 +1601,7 @@ public:
   void add_keys_and_lengths(String *key_names, String *used_lengths) override;
 };
 
+/* Index merge sort intersection */
 class QUICK_INDEX_INTERSECT_SELECT : public QUICK_INDEX_SORT_SELECT
 {
 protected:
@@ -1611,6 +1620,8 @@ public:
 
 
 /*
+  Index merge intersection
+
   Rowid-Ordered Retrieval (ROR) index intersection quick select.
   This quick select produces intersection of row sequences returned
   by several QUICK_RANGE_SELECTs it "merges".
@@ -1698,6 +1709,8 @@ public:
 
 
 /*
+  Index merge union
+
   Rowid-Ordered Retrieval index union select.
   This quick select produces union of row sequences returned by several
   quick select it "merges".

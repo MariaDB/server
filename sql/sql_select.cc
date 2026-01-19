@@ -27404,17 +27404,13 @@ test_if_skip_sort_order(JOIN_TAB *tab,ORDER *order,ha_rows select_limit,
   }
   else if (select && select->quick)		// Range found by opt_range
   {
-    int quick_type= select->quick->get_type();
-    /* 
-      assume results are not ordered when index merge is used 
-      TODO: sergeyp: Results of all index merge selects actually are ordered 
+    /*
+      assume results are not ordered when index merge is used
+      TODO: sergeyp: Results of all index merge selects actually are ordered
       by clustered PK values.
     */
-  
-    if (quick_type == QUICK_SELECT_I::QS_TYPE_INDEX_MERGE ||
-        quick_type == QUICK_SELECT_I::QS_TYPE_INDEX_INTERSECT ||
-        quick_type == QUICK_SELECT_I::QS_TYPE_ROR_UNION || 
-        quick_type == QUICK_SELECT_I::QS_TYPE_ROR_INTERSECT)
+
+    if (is_index_merge(select->quick->get_type()))
     {
       /*
         we set ref_key=MAX_KEY instead of -1, because test_if_cheaper_ordering()
@@ -27654,10 +27650,7 @@ check_reverse_order:
         goto skipped_filesort;
 
       quick_type= select->quick->get_type();
-      if (quick_type == QUICK_SELECT_I::QS_TYPE_INDEX_MERGE ||
-          quick_type == QUICK_SELECT_I::QS_TYPE_INDEX_INTERSECT ||
-          quick_type == QUICK_SELECT_I::QS_TYPE_ROR_INTERSECT ||
-          quick_type == QUICK_SELECT_I::QS_TYPE_ROR_UNION ||
+      if (is_index_merge(quick_type) ||
           quick_type == QUICK_SELECT_I::QS_TYPE_GROUP_MIN_MAX)
       {
         tab->limit= 0;
@@ -30850,10 +30843,7 @@ bool JOIN_TAB::save_explain_data(Explain_table_access *eta,
   {
     cur_quick= tab_select->quick;
     quick_type= cur_quick->get_type();
-    if ((quick_type == QUICK_SELECT_I::QS_TYPE_INDEX_MERGE) ||
-        (quick_type == QUICK_SELECT_I::QS_TYPE_INDEX_INTERSECT) ||
-        (quick_type == QUICK_SELECT_I::QS_TYPE_ROR_INTERSECT) ||
-        (quick_type == QUICK_SELECT_I::QS_TYPE_ROR_UNION))
+    if (is_index_merge(quick_type))
       tab_type= type == JT_HASH ? JT_HASH_INDEX_MERGE : JT_INDEX_MERGE;
     else
       tab_type= type == JT_HASH ? JT_HASH_RANGE : JT_RANGE;
@@ -31055,10 +31045,7 @@ bool JOIN_TAB::save_explain_data(Explain_table_access *eta,
       eta->pushed_index_cond= cache_idx_cond;
     }
 
-    if (quick_type == QUICK_SELECT_I::QS_TYPE_ROR_UNION || 
-        quick_type == QUICK_SELECT_I::QS_TYPE_ROR_INTERSECT ||
-        quick_type == QUICK_SELECT_I::QS_TYPE_INDEX_INTERSECT ||
-        quick_type == QUICK_SELECT_I::QS_TYPE_INDEX_MERGE)
+    if (is_index_merge(quick_type))
     {
       eta->push_extra(ET_USING);
     }
