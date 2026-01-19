@@ -39,7 +39,6 @@
                                                      identifier.
 */
 
-#include <stdbool.h>
 #include "mysys_priv.h"
 #include <my_rnd.h>
 #include <m_string.h>
@@ -241,7 +240,7 @@ void my_uuid_end()
   UUIDv1 format (RFC 9562 Section 5.1, big-endian):
     Bytes 0-3:  time_low (32 bits, low part of timestamp)
     Bytes 4-5:  time_mid (16 bits, middle part of timestamp)
-    Bytes 6-7:  version (4 bits) + time_hi (12 bits, high part of timestamp)
+    Bytes 6-7:  version (4 bits) + time_high (12 bits, high part of timestamp)
     Timestamp is 100-nanosecond intervals since 1582-10-15
 
   UUIDv7 format (RFC 9562 Section 5.7, big-endian):
@@ -260,15 +259,15 @@ int my_uuid_extract_ts(const char *uuid, my_time_t *seconds, ulong *usec)
     ts= mi_uint6korr(uuid);
     *seconds= ts / 1000;
     *usec= (ts % 1000) * 1000;
-    return false;
+    return 0;
 
   case 1:
     /*
       UUIDv1: reconstruct 60-bit timestamp from three fields:
         - time_low  (bytes 0-3): bits 0-31 of timestamp
         - time_mid  (bytes 4-5): bits 32-47 of timestamp
-        - time_hi   (bytes 6-7): bits 48-59 of timestamp (masked, 4 bits are version)
-      Formula: (time_hi << 48) | (time_mid << 32) | time_low
+        - time_high (bytes 6-7): bits 48-59 of timestamp (masked, 4 bits are version)
+      Formula: (time_high << 48) | (time_mid << 32) | time_low
     */
     ts= ((ulonglong)(mi_uint2korr(uuid + 6) & 0x0FFF) << 48) |
         ((ulonglong) mi_uint2korr(uuid + 4) << 32) |
@@ -276,15 +275,15 @@ int my_uuid_extract_ts(const char *uuid, my_time_t *seconds, ulong *usec)
 
     /* Timestamp before Unix epoch (1970-01-01) */
     if (ts < UUID_TIME_OFFSET)
-      return true;
+      return 1;
 
     ts= (ts - UUID_TIME_OFFSET) / 10;  /* Convert to microseconds */
     *seconds= ts / 1000000;
     *usec= ts % 1000000;
-    return false;
+    return 0;
 
   default:
     /* Other versions (e.g., v4) don't contain timestamps */
-    return true;
+    return 1;
   }
 }
