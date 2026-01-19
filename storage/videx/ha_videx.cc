@@ -33,6 +33,16 @@
 #include <replication.h>
 #include <curl/curl.h>
 
+
+#if defined(__GNUC__)
+#define PRETTY_FUNCTION __PRETTY_FUNCTION__
+#elif defined(_MSC_VER)
+#define PRETTY_FUNCTION __FUNCSIG__
+#else
+#define PRETTY_FUNCTION __func__
+#endif
+
+
 /** Shared state used by all open VIDEX handlers. */
 class videx_share : public Handler_share
 {
@@ -652,7 +662,7 @@ ha_rows ha_videx::records_in_range(uint keynr, const key_range *min_key,
   key= table->key_info + active_index;
 
   VidexJsonItem request_item= construct_request(
-      table->s->db.str, table->s->table_name.str, __PRETTY_FUNCTION__);
+      table->s->db.str, table->s->table_name.str, PRETTY_FUNCTION);
   serializeKeyRangeToJson(min_key, max_key, key, &request_item);
 
   std::string n_rows_str;
@@ -795,7 +805,7 @@ int ha_videx::info_low(uint flag, bool is_analyze)
   // construct request
   VidexStringMap res_json;
   VidexJsonItem request_item= construct_request(
-      table->s->db.str, table->s->table_name.str, __PRETTY_FUNCTION__);
+      table->s->db.str, table->s->table_name.str, PRETTY_FUNCTION);
   for (uint i= 0; i < table->s->keys; i++)
   {
     KEY *key= &table->key_info[i];
@@ -899,7 +909,7 @@ int ha_videx::info_low(uint flag, bool is_analyze)
         }
         else
         {
-          rec_per_key_int= stats.records;
+          rec_per_key_int= (ulong)stats.records;
         }
         if (rec_per_key_int == 0)
         {
