@@ -22,7 +22,6 @@ jobs:
         run: |
           REPO=MariaDB/server
           set -euo pipefail
-          nfailed=0
 
           # List first 200 PRs lacking classification labels as JSON
           gh pr list \
@@ -73,10 +72,7 @@ jobs:
 
             echo "Applying label [$label] to PR#[$pr_number] by [$author]"
 
-            if gh issue edit "$pr_number" \
+            gh issue edit "$pr_number" \
               --repo "$REPO" \
-              --add-label "$label"; then
-              echo "**FAILED applying label [$label] to PR#[$pr_number] by [$author]"
-              nfailed=$((nfailed + 1))
-            fi
+              --add-label "$label"
           done
