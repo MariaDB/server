@@ -1,0 +1,35 @@
+--source include/have_sequence.inc
+
+create table t1 (a int, b int, c char(20), key idx_a(a), key idx_ab(a, b));
+
+insert into t1 select seq, seq, 'filler' from seq_1_to_100;
+
+create table t2 as select * from t1;
+
+analyze table t1,t2 persistent for all;
+
+create view v1 as select * from t1 where a < 10;
+
+create view v2 as
+  select * from t1 join /* Name of this query block is @SEL_1 */
+  (
+    select count(*) from t1 join v1 /* Name of this query block is @SEL_2 */
+  ) tt;
+
+create view v3 as
+  select * from t1 where a < 10 union select * from t1 where a > 90;
+
+--echo
+--echo ================================================================
+set optimizer_switch= 'derived_merge=on';
+--source opt_hints_qb_name_path.inc
+
+--echo
+--echo ================================================================
+set optimizer_switch= 'derived_merge=off';
+--source opt_hints_qb_name_path.inc
+
+set optimizer_switch= default;
+
+drop table t1, t2;
+drop view v1, v2, v3;

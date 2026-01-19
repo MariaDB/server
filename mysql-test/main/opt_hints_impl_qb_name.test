@@ -1,0 +1,22 @@
+--source include/have_sequence.inc
+
+create table t1 (a int, b int, c char(20), key idx_a(a), key idx_ab(a, b));
+
+insert into t1 select seq, seq, 'filler' from seq_1_to_100;
+
+create table t2 as select * from t1;
+
+analyze table t1,t2 persistent for all;
+
+--echo
+--echo ================================================================
+set optimizer_switch= 'derived_merge=on';
+--source opt_hints_impl_qb_name.inc
+
+--echo
+--echo ================================================================
+set optimizer_switch= 'derived_merge=off';
+--source opt_hints_impl_qb_name.inc
+
+set optimizer_switch= default;
+drop table t1, t2;
