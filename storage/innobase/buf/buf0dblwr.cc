@@ -748,6 +748,15 @@ void buf_dblwr_t::flush_buffered_writes_completed(const IORequest &request)
                                        static_cast<const byte*>(frame)));
     ut_ad(lsn);
     ut_ad(lsn >= bpage->oldest_modification());
+    if (lsn < e.request.node->space->get_create_lsn())
+    {
+      /* mtr_t::commit_shrink() must have been invoked between
+      buf_dblwr_t::flush_buffered_writes() and
+      buf_dblwr_t::flush_buffered_writes_completed().*/
+      ut_ad(srv_is_undo_tablespace(e.request.node->space->id));
+      continue;
+    }
+
     log_write_up_to(lsn, true);
     e.request.node->space->io(e.request, bpage->physical_offset(), e_size,
                               frame, bpage);
