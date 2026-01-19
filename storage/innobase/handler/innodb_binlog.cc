@@ -4462,8 +4462,15 @@ innobase_binlog_write_direct(IO_CACHE *cache,
     static_cast<binlog_oob_context *>(binlog_info->engine_ptr);
   if (UNIV_LIKELY(c != nullptr))
   {
-    if (srv_flush_log_at_trx_commit & 1)
-      log_write_up_to(c->pending_lsn, true);
+    /*
+      This is a binlog write of updates that happen outside of InnoDB, eg.
+      MyISAM. Let's at least write the redo log to the operating system,
+      so a crash of the server process can still recover the binlog data.
+      But only fsync() to disk if requested by srv_flush_log_at_trx_commit=1.
+      This matches the traditional behavior of the binlog and the
+      sync_binlog=0|1 configuration.
+     */
+    log_write_up_to(c->pending_lsn, (srv_flush_log_at_trx_commit & 1) != 0);
   DEBUG_SYNC(current_thd, "ibb_after_commit_redo_log");
     ibb_pending_lsn_fifo.record_commit(c);
   }
@@ -4478,15 +4485,16 @@ ibb_group_commit(THD *thd, handler_binlog_event_group_info *binlog_info)
     static_cast<binlog_oob_context *>(binlog_info->engine_ptr);
   if (UNIV_LIKELY(c != nullptr))
   {
-    if (srv_flush_log_at_trx_commit & 1 && c->pending_lsn)
+    if (srv_flush_log_at_trx_commit > 0 && c->pending_lsn)
     {
       /*
-        Sync the InnoDB redo log durably to disk here for the entire group
-        commit, so that it will be available for all binlog readers.
+        Flush the InnoDB redo log to disk here for the entire group commit, so
+        that it will be available for all binlog readers. Durably or
+        non-durably as configured in --innodb-flush-log-at-trx-commit.
       */
-      log_write_up_to(c->pending_lsn, true);
+      log_write_up_to(c->pending_lsn, (srv_flush_log_at_trx_commit & 1) != 0);
     }
-  DEBUG_SYNC(current_thd, "ibb_after_group_commit_redo_log");
+    DEBUG_SYNC(current_thd, "ibb_after_group_commit_redo_log");
     ibb_pending_lsn_fifo.record_commit(c);
   }
 }
