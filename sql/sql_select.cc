@@ -17802,7 +17802,7 @@ change_cond_ref_to_const(THD *thd, I_List<COND_CMP> *save_list,
   if (can_change_cond_ref_to_const(func, right_item, left_item,
                                    field_value_owner, field, value))
   {
-    Item *tmp=value->clone_item(thd);
+    Item *tmp=value->clone_constant(thd);
     if (tmp)
     {
       tmp->collation.set(right_item->collation);
@@ -17832,7 +17832,7 @@ change_cond_ref_to_const(THD *thd, I_List<COND_CMP> *save_list,
   else if (can_change_cond_ref_to_const(func, left_item, right_item,
                                         field_value_owner, field, value))
   {
-    Item *tmp= value->clone_item(thd);
+    Item *tmp= value->clone_constant(thd);
     if (tmp)
     {
       tmp->collation.set(left_item->collation);
