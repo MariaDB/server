@@ -10239,7 +10239,7 @@ uint8 ha_partition::table_cache_type()
 extern my_hasher_st (*part_hashers[partition_info::KEY_ALGORITHM_END + 1])(void);
 
 /* Returns hash using the MYSQL51 algorithm. */
-static uint32 mysql51_hash(Hasher *hasher, Field **field_array)
+static uint64 mysql51_hash(Hasher *hasher, Field **field_array)
 {
   do
   {
@@ -10317,7 +10317,7 @@ static uint32 mysql51_hash(Hasher *hasher, Field **field_array)
     /* fall through, use collation based hashing. */
     field->hash(hasher);
   } while (*(++field_array));
-  return (uint32) hasher->finalize();
+  return hasher->finalize();
 }
 
 /**
@@ -10331,7 +10331,7 @@ static uint32 mysql51_hash(Hasher *hasher, Field **field_array)
   Integer and floating point fields use the binary character set by default.
 */
 
-uint32 ha_partition::calculate_key_hash_value(Field **field_array)
+uint64 ha_partition::calculate_key_hash_value(Field **field_array)
 {
   Field *field;
   partition_info::enum_key_algorithm algo=

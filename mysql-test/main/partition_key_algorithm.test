@@ -95,6 +95,10 @@ select partition_name, table_rows from information_schema.partitions where table
 eval
 alter table t1 partition by key $algo (a) partitions 7;
 select partition_name, table_rows from information_schema.partitions where table_name='t1';
+--echo ### partition by linear key where mask (7) > num_parts (6)
+eval
+alter table t1 partition by linear key $algo (a) partitions 6;
+select partition_name, table_rows from information_schema.partitions where table_name='t1';
 drop table t1;
 
 --echo ## MDEV-20791 case with BINARY

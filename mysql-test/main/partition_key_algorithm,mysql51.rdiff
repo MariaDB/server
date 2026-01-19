@@ -1,5 +1,5 @@
---- ../src/mysql-test/main/partition_key_algorithm.result	2026-01-19 13:31:25.942631583 +1100
-+++ ../src/mysql-test/main/partition_key_algorithm,mysql51.reject	2026-01-19 13:31:40.462494730 +1100
+--- ../src/mysql-test/main/partition_key_algorithm.result	2026-01-19 14:12:35.390091511 +1100
++++ ../src/mysql-test/main/partition_key_algorithm,mysql51.reject	2026-01-19 14:12:46.958016451 +1100
 @@ -1,13 +1,13 @@
  # MDEV-9826 better hash algorithms for PARTITION BY KEY
  ## MDEV-9826 case with NULL
@@ -84,8 +84,17 @@
  select partition_name, table_rows from information_schema.partitions where table_name='t1';
  partition_name	table_rows
  p0	1
-@@ -131,7 +131,7 @@
+@@ -130,7 +130,7 @@
+ p5	0
  p6	0
+ ### partition by linear key where mask (7) > num_parts (6)
+-alter table t1 partition by linear key  (a) partitions 6;
++alter table t1 partition by linear key ALGORITHM=MYSQL51 (a) partitions 6;
+ select partition_name, table_rows from information_schema.partitions where table_name='t1';
+ partition_name	table_rows
+ p0	0
+@@ -141,7 +141,7 @@
+ p5	0
  drop table t1;
  ## MDEV-20791 case with BINARY
 -CREATE TABLE t1 (a BINARY(16)) PARTITION BY KEY  (a) PARTITIONS 2;
@@ -93,7 +102,7 @@
  INSERT INTO t1 VALUES (X'00000DB8000000000000FF0000428329');
  INSERT INTO t1 VALUES (X'20010DB8000000000000FF0000428329');
  INSERT INTO t1 VALUES (X'00000000000000000000000000000000');
-@@ -143,7 +143,7 @@
+@@ -153,7 +153,7 @@
  p1	5
  drop table t1;
  ## MDEV-20791 case with more rows
@@ -102,7 +111,7 @@
  insert into t1 select concat(hex(seq), ':db8::ff00:42:8329') from seq_0_to_65535;
  select partition_name, table_rows from information_schema.partitions where table_name='t1';
  partition_name	table_rows
-@@ -166,7 +166,7 @@
+@@ -176,7 +176,7 @@
  60
  6060
  606060
@@ -111,7 +120,7 @@
  SELECT HEX(a) FROM t1 WHERE a=0x60;
  HEX(a)
  20
-@@ -183,7 +183,7 @@
+@@ -193,7 +193,7 @@
  60
  6060
  606060
@@ -120,7 +129,7 @@
  SELECT HEX(a) FROM t1 WHERE a=0x60;
  HEX(a)
  20
-@@ -200,7 +200,7 @@
+@@ -210,7 +210,7 @@
  A0
  A0A0
  A0A0A0
@@ -129,7 +138,7 @@
  SELECT HEX(a) FROM t1 WHERE a=0xA0;
  HEX(a)
  20
-@@ -210,15 +210,16 @@
+@@ -220,15 +220,16 @@
  DROP TABLE t1;
  ## MDEV-38549 MDEV-9826 derived a bug for numeric columns from
  ## the old hash design

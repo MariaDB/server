@@ -1,5 +1,5 @@
---- ../src/mysql-test/main/partition_key_algorithm.result	2026-01-19 13:31:25.942631583 +1100
-+++ ../src/mysql-test/main/partition_key_algorithm,xxh3.reject	2026-01-19 13:31:42.930471552 +1100
+--- ../src/mysql-test/main/partition_key_algorithm.result	2026-01-19 14:12:35.390091511 +1100
++++ ../src/mysql-test/main/partition_key_algorithm,xxh3.reject	2026-01-19 14:12:49.398000611 +1100
 @@ -1,13 +1,13 @@
  # MDEV-9826 better hash algorithms for PARTITION BY KEY
  ## MDEV-9826 case with NULL
@@ -16,7 +16,7 @@
  PARTITIONS 8
  insert into t1 values (1, NULL);
  insert into t1 values (1, '2014-04-22');
-@@ -21,117 +21,117 @@
+@@ -21,127 +21,127 @@
  insert into t1 values (1, '2014-04-30');
  select partition_name, table_rows from information_schema.partitions where table_name='t1';
  partition_name	table_rows
@@ -142,14 +142,14 @@
 -p5	1
 -p6	0
 -p7	0
-+p0	144
-+p1	128
-+p2	128
-+p3	109
-+p4	114
-+p5	136
++p0	140
++p1	124
++p2	140
++p3	128
++p4	108
++p5	124
 +p6	122
-+p7	121
++p7	116
  drop table t1;
  ## MDEV-20791 case with INET6
 -create table t1 (a inet6) partition by key  (a) partitions 2;
@@ -166,15 +166,33 @@
 +alter table t1 partition by key ALGORITHM=XXH3 (a) partitions 7;
  select partition_name, table_rows from information_schema.partitions where table_name='t1';
  partition_name	table_rows
- p0	1
- p1	1
+-p0	1
+-p1	1
 -p2	1
-+p2	0
- p3	1
+-p3	1
++p0	0
++p1	0
++p2	2
++p3	0
  p4	1
 -p5	0
+-p6	0
 +p5	1
- p6	0
++p6	1
+ ### partition by linear key where mask (7) > num_parts (6)
+-alter table t1 partition by linear key  (a) partitions 6;
++alter table t1 partition by linear key ALGORITHM=XXH3 (a) partitions 6;
+ select partition_name, table_rows from information_schema.partitions where table_name='t1';
+ partition_name	table_rows
+-p0	0
+-p1	4
++p0	1
++p1	1
+ p2	0
+-p3	1
++p3	3
+ p4	0
+ p5	0
  drop table t1;
  ## MDEV-20791 case with BINARY
 -CREATE TABLE t1 (a BINARY(16)) PARTITION BY KEY  (a) PARTITIONS 2;
@@ -182,7 +200,7 @@
  INSERT INTO t1 VALUES (X'00000DB8000000000000FF0000428329');
  INSERT INTO t1 VALUES (X'20010DB8000000000000FF0000428329');
  INSERT INTO t1 VALUES (X'00000000000000000000000000000000');
-@@ -139,22 +139,22 @@
+@@ -149,22 +149,22 @@
  INSERT INTO t1 VALUES (X'00000000000000000000FFFFC0000280');
  select partition_name, table_rows from information_schema.partitions where table_name='t1';
  partition_name	table_rows
@@ -212,7 +230,7 @@
  drop table t1;
  ## MDEV-6255 case to test charset/collation
  ### cp1251_ukrainian_ci: 0x20 SPACE is equal to 0x60 GRAVE ACCENT
-@@ -166,7 +166,7 @@
+@@ -176,7 +176,7 @@
  60
  6060
  606060
@@ -221,7 +239,7 @@
  SELECT HEX(a) FROM t1 WHERE a=0x60;
  HEX(a)
  20
-@@ -183,7 +183,7 @@
+@@ -193,7 +193,7 @@
  60
  6060
  606060
@@ -230,7 +248,7 @@
  SELECT HEX(a) FROM t1 WHERE a=0x60;
  HEX(a)
  20
-@@ -200,7 +200,7 @@
+@@ -210,7 +210,7 @@
  A0
  A0A0
  A0A0A0
@@ -239,7 +257,7 @@
  SELECT HEX(a) FROM t1 WHERE a=0xA0;
  HEX(a)
  20
-@@ -210,15 +210,17 @@
+@@ -220,15 +220,17 @@
  DROP TABLE t1;
  ## MDEV-38549 MDEV-9826 derived a bug for numeric columns from
  ## the old hash design
@@ -258,6 +276,6 @@
  WHERE table_name='t1' AND table_rows>0;
  table_name	partition_name	table_rows
 -t1	p5	2
-+t1	p4	1
-+t1	p5	1
++t1	p0	1
++t1	p6	1
  DROP TABLE t1;

@@ -1,8 +1,9 @@
 #include "strings_def.h"
 #include <m_ctype.h>
 
-static uint32 my_hasher_mysql5x_finalize(my_hasher_st *hasher)
+static uint64 my_hasher_mysql5x_finalize(my_hasher_st *hasher)
 {
+  /* Cast to uint32 for backward compatibility */
   return (uint32) hasher->m_nr1;
 }
 
@@ -17,8 +18,8 @@ static void my_hasher_mysql5x_hash_num(struct my_hasher_st *hasher,
 my_hasher_st my_hasher_mysql5x(void)
 {
   my_hasher_st tmp=
-    { 1, 4, 0, FALSE, NULL, NULL, my_hasher_mysql5x_hash_num,
-      my_hasher_mysql5x_finalize, NULL };
+    { {{.m_nr1 = 1, .m_nr2 = 4}}, FALSE, NULL, NULL,
+      my_hasher_mysql5x_hash_num, my_hasher_mysql5x_finalize, NULL };
   return tmp;
 }
 
@@ -26,10 +27,10 @@ my_hasher_st my_hasher_mysql5x(void)
   Used in myisam/aria hash of row with unique constraints. Likely
   introduced by mistake - don't use in new code
 */
-my_hasher_st my_hasher_mysql5x_for_unique()
+my_hasher_st my_hasher_mysql5x_for_unique(void)
 {
   my_hasher_st tmp=
-    { 0, 4, 0, FALSE, NULL, NULL, my_hasher_mysql5x_hash_num,
-      my_hasher_mysql5x_finalize, NULL };
+    { {{.m_nr1 = 0, .m_nr2 = 4}}, FALSE, NULL, NULL,
+      my_hasher_mysql5x_hash_num, my_hasher_mysql5x_finalize, NULL };
   return tmp;
 }

@@ -16,20 +16,20 @@ static void my_hasher_xxh32_hash_str(my_hasher_st *hasher, const uchar *key, siz
     hasher->m_nr= XXH32_digest((XXH32_state_t *) hasher->m_specific);
     hasher->m_streaming= FALSE;
   }
-  hasher->m_nr= XXH32(key, len, hasher->m_nr);
+  hasher->m_nr= XXH32(key, len, (uint32) hasher->m_nr);
 }
 
 static void my_hasher_xxh32_hash_byte(my_hasher_st *hasher, uchar value)
 {
   if (!hasher->m_streaming)
   {
-    XXH32_reset((XXH32_state_t *) hasher->m_specific, hasher->m_nr);
+    XXH32_reset((XXH32_state_t *) hasher->m_specific, (uint32) hasher->m_nr);
     hasher->m_streaming= TRUE;
   }
   XXH32_update((XXH32_state_t *) hasher->m_specific, &value, 1);
 }
 
-static uint32 my_hasher_xxh32_finalize(my_hasher_st *hasher)
+static uint64 my_hasher_xxh32_finalize(my_hasher_st *hasher)
 {
   if (hasher->m_streaming)
     hasher->m_nr= XXH32_digest((XXH32_state_t *) hasher->m_specific);
@@ -45,7 +45,7 @@ my_hasher_st my_hasher_xxh32(void)
      2. memory management in error handling
   */
   my_hasher_st tmp=
-    { 1, 4, 0, FALSE, my_hasher_xxh32_hash_str, my_hasher_xxh32_hash_byte,
+    { {.m_nr = 0}, FALSE, my_hasher_xxh32_hash_str, my_hasher_xxh32_hash_byte,
       my_hasher_hash_num, my_hasher_xxh32_finalize,
       (void *) XXH32_createState() };
   return tmp;
@@ -55,11 +55,10 @@ static void my_hasher_xxh3_hash_str(my_hasher_st *hasher, const uchar *key, size
 {
   if (hasher->m_streaming)
   {
-    hasher->m_nr=
-      (uint32) XXH3_64bits_digest((XXH3_state_t *) hasher->m_specific);
+    hasher->m_nr= XXH3_64bits_digest((XXH3_state_t *) hasher->m_specific);
     hasher->m_streaming= FALSE;
   }
-  hasher->m_nr= (uint32) XXH3_64bits_withSeed(key, len, hasher->m_nr);
+  hasher->m_nr= XXH3_64bits_withSeed(key, len, hasher->m_nr);
 }
 
 static void my_hasher_xxh3_hash_byte(my_hasher_st *hasher, uchar value)
@@ -73,11 +72,10 @@ static void my_hasher_xxh3_hash_byte(my_hasher_st *hasher, uchar value)
   XXH3_64bits_update((XXH3_state_t *) hasher->m_specific, &value, 1);
 }
 
-static uint32 my_hasher_xxh3_finalize(my_hasher_st *hasher)
+static uint64 my_hasher_xxh3_finalize(my_hasher_st *hasher)
 {
   if (hasher->m_streaming)
-    hasher->m_nr=
-      (uint32) XXH3_64bits_digest((XXH3_state_t *) hasher->m_specific);
+    hasher->m_nr= XXH3_64bits_digest((XXH3_state_t *) hasher->m_specific);
   XXH3_freeState((XXH3_state_t *) hasher->m_specific);
   return hasher->m_nr;
 }
@@ -90,7 +88,7 @@ my_hasher_st my_hasher_xxh3(void)
      2. memory management in error handling
   */
   my_hasher_st tmp=
-    { 1, 4, 0, FALSE, my_hasher_xxh3_hash_str, my_hasher_xxh3_hash_byte,
+    { {.m_nr = 0}, FALSE, my_hasher_xxh3_hash_str, my_hasher_xxh3_hash_byte,
       my_hasher_hash_num, my_hasher_xxh3_finalize,
       (void *) XXH3_createState() };
   return tmp;

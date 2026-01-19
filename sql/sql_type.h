@@ -228,7 +228,7 @@ public:
   {
     if (m_hash_str)
       m_hash_str(this, NULL, 0);
-    else
+    else                        /* mysql5x */
       m_nr1^= (m_nr1 << 1) | 1;
   }
   void add(CHARSET_INFO *cs, const uchar *str, size_t length)
@@ -239,11 +239,10 @@ public:
   {
     add(cs, (const uchar *) str, length);
   }
-  uint32 finalize()
+  uint64 finalize()
   {
-    if (m_finalize)
-      return m_finalize(this);
-    return (uint32) m_nr1;
+    DBUG_ASSERT(m_finalize);
+    return m_finalize(this);
   }
 };
 

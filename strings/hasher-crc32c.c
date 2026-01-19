@@ -5,15 +5,15 @@
 static void my_hasher_crc32c_hash_str(my_hasher_st *hasher, const uchar *key,
                                       size_t len)
 {
-  hasher->m_nr= my_crc32c(hasher->m_nr, key, len);
+  hasher->m_nr= my_crc32c((uint32) hasher->m_nr, key, len);
 }
 
 static void my_hasher_crc32c_hash_byte(my_hasher_st *hasher, const uchar byte)
 {
-  hasher->m_nr= my_crc32c(hasher->m_nr, &byte, 1);
+  hasher->m_nr= my_crc32c((uint32) hasher->m_nr, &byte, 1);
 }
 
-static uint32 my_hasher_crc32c_finalize(my_hasher_st *hasher)
+static uint64 my_hasher_crc32c_finalize(my_hasher_st *hasher)
 {
   return hasher->m_nr;
 }
@@ -21,7 +21,7 @@ static uint32 my_hasher_crc32c_finalize(my_hasher_st *hasher)
 my_hasher_st my_hasher_crc32c(void)
 {
   my_hasher_st tmp=
-    { 1, 4, 0, FALSE, my_hasher_crc32c_hash_str, my_hasher_crc32c_hash_byte,
+    { {.m_nr = 0}, FALSE, my_hasher_crc32c_hash_str, my_hasher_crc32c_hash_byte,
       my_hasher_hash_num, my_hasher_crc32c_finalize, NULL };
   return tmp;
 }

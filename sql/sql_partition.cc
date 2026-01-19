@@ -2976,8 +2976,9 @@ static uint32 get_part_id_key(handler *file,
                               longlong *func_value)
 {
   DBUG_ENTER("get_part_id_key");
-  *func_value= ha_partition::calculate_key_hash_value(field_array);
-  DBUG_RETURN((uint32) (*func_value % num_parts));
+  uint64 hash= ha_partition::calculate_key_hash_value(field_array);
+  *func_value= (longlong) hash;
+  DBUG_RETURN((uint32) (hash % num_parts));
 }
 
 
@@ -3003,7 +3004,7 @@ static uint32 get_part_id_linear_key(partition_info *part_info,
 {
   DBUG_ENTER("get_part_id_linear_key");
 
-  *func_value= ha_partition::calculate_key_hash_value(field_array);
+  *func_value= (longlong) ha_partition::calculate_key_hash_value(field_array);
   DBUG_RETURN(get_part_id_from_linear_hash(*func_value,
                                            part_info->linear_hash_mask,
                                            num_parts));

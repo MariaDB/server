@@ -497,9 +497,13 @@ extern int (*my_string_stack_guard)(int);
 
 typedef struct my_hasher_st
 {
-  ulong m_nr1;                  /* mysql5x hash value */
-  ulong m_nr2;                  /* mysql5x aux value */
-  uint32 m_nr;                  /* The hash value */
+  union {
+    struct {
+      ulong m_nr1;                  /* mysql5x hash value */
+      ulong m_nr2;                  /* mysql5x aux value */
+    };
+    uint64 m_nr;                  /* The hash value */
+  };
   /* Whether a streaming algorithm has been in use */
   my_bool m_streaming;
   /* One-shot string hash function */
@@ -520,14 +524,14 @@ typedef struct my_hasher_st
   void (*m_hash_num)(struct my_hasher_st *hasher, const uchar* num,
                      size_t binary_size);
   /* Function to clean up and return the hash value */
-  uint32 (*m_finalize)(struct my_hasher_st *hasher);
+  uint64 (*m_finalize)(struct my_hasher_st *hasher);
   /* Custom pointer e.g. to a state */
   void *m_specific;
 } my_hasher_st;
 
 /* Defined in hasher-xxx.c files */
 extern my_hasher_st my_hasher_mysql5x(void);
-extern my_hasher_st my_hasher_mysql5x_for_unique();
+extern my_hasher_st my_hasher_mysql5x_for_unique(void);
 extern my_hasher_st my_hasher_base31(void);
 extern my_hasher_st my_hasher_crc32c(void);
 extern my_hasher_st my_hasher_xxh32(void);
