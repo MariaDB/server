@@ -8,7 +8,6 @@ MACRO(BUNDLE_PCRE2)
    "Which pcre to use (possible values are 'bundled', 'system', or 'auto')")
 
   SET(dir "${CMAKE_BINARY_DIR}/extra/pcre2")
-  SET(PCRE_INCLUDE_DIRS ${dir}/src/pcre2-build ${dir}/src/pcre2/src)
   MESSAGE(STATUS "Will download and bundle pcre2")
   SET(byproducts)
   FOREACH(lib pcre2-posix pcre2-8)
@@ -43,6 +42,8 @@ MACRO(BUNDLE_PCRE2)
     ENDIF()
     SET(byproducts ${byproducts} BUILD_BYPRODUCTS ${file} ${file_d})
     SET_TARGET_PROPERTIES(${lib} PROPERTIES IMPORTED_LOCATION ${file})
+    MAKE_DIRECTORY(${dir}/src/pcre2-build/interface)
+    TARGET_INCLUDE_DIRECTORIES(${lib} INTERFACE ${dir}/src/pcre2-build/interface)
   ENDFOREACH()
 
   FOREACH(v "" "_DEBUG" "_RELWITHDEBINFO" "_RELEASE" "_MINSIZEREL")
@@ -64,8 +65,8 @@ MACRO(BUNDLE_PCRE2)
   ExternalProject_Add(
     pcre2
     PREFIX   "${dir}"
-    URL "https://github.com/PCRE2Project/pcre2/releases/download/pcre2-10.45/pcre2-10.45.zip"
-    URL_MD5 873da56c6469ec207ca5c5ae9688b83a
+    URL "https://github.com/PCRE2Project/pcre2/releases/download/pcre2-10.47/pcre2-10.47.zip"
+    URL_MD5 7906aec38f872b74f1b925122dde9069
     INSTALL_COMMAND ""
     CMAKE_ARGS
       "-DCMAKE_WARN_DEPRECATED=FALSE"
