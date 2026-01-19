@@ -1935,7 +1935,7 @@ public:
     For real clones look at deep_copy_with_checks()/shallow_copy_with_checks()
     methods
   */
-  virtual Item *clone_item(THD *thd) const { return nullptr; }
+  virtual Item *clone_constant(THD *thd) const { return nullptr; }
 
   virtual cond_result eq_cmp_result() const { return COND_OK; }
   inline uint float_length(uint decimals_par) const
@@ -4011,7 +4011,7 @@ public:
   const Type_handler *type_handler() const override
   { return &type_handler_null; }
   bool basic_const_item() const override { return true; }
-  Item *clone_item(THD *thd) const override;
+  Item *clone_constant(THD *thd) const override;
   bool const_is_null() const override { return true; }
   bool is_null() override { return true; }
 
@@ -4465,7 +4465,7 @@ public:
     basic_const_item returned TRUE.
   */
   Item *safe_charset_converter(THD *thd, CHARSET_INFO *tocs) override;
-  Item *clone_item(THD *thd) const override;
+  Item *clone_constant(THD *thd) const override;
   void set_param_type_and_swap_value(Item_param *from);
 
   Rewritable_query_parameter *get_rewritable_query_parameter() override
@@ -4575,7 +4575,7 @@ public:
   String *val_str(String*) override;
   int save_in_field(Field *field, bool no_conversions) override;
   bool is_order_clause_position() const override { return true; }
-  Item *clone_item(THD *thd) const override;
+  Item *clone_constant(THD *thd) const override;
   void print(String *str, enum_query_type query_type) override;
   Item *neg(THD *thd) override;
   decimal_digits_t decimal_precision() const override
@@ -4647,7 +4647,7 @@ public:
   Item_uint(THD *thd, ulonglong i): Item_int(thd, i, 10) {}
   Item_uint(THD *thd, const char *str_arg, longlong i, uint length);
   double val_real() override { return ulonglong2double((ulonglong)value); }
-  Item *clone_item(THD *thd) const override;
+  Item *clone_constant(THD *thd) const override;
   Item *neg(THD *thd) override;
   decimal_digits_t decimal_precision() const override
   { return decimal_digits_t(max_length); }
@@ -4709,7 +4709,7 @@ public:
   const my_decimal *const_ptr_my_decimal() const override
   { return &decimal_value; }
   int save_in_field(Field *field, bool no_conversions) override;
-  Item *clone_item(THD *thd) const override;
+  Item *clone_constant(THD *thd) const override;
   void print(String *str, enum_query_type query_type) override
   {
     decimal_value.to_string(&str_value);
@@ -4768,7 +4768,7 @@ public:
   }
   String *val_str(String*) override;
   my_decimal *val_decimal(my_decimal *) override;
-  Item *clone_item(THD *thd) const override;
+  Item *clone_constant(THD *thd) const override;
   Item *neg(THD *thd) override;
   void print(String *str, enum_query_type query_type) override;
 
@@ -4897,7 +4897,7 @@ public:
   int save_in_field(Field *field, bool no_conversions) override;
   const Type_handler *type_handler() const override
   { return &type_handler_varchar; }
-  Item *clone_item(THD *thd) const override;
+  Item *clone_constant(THD *thd) const override;
   Item *safe_charset_converter(THD *thd, CHARSET_INFO *tocs) override
   {
     return const_charset_converter(thd, tocs, true);
@@ -5367,7 +5367,7 @@ public:
   {
     return cached_time.get_mysql_time();
   }
-  Item *clone_item(THD *thd) const override;
+  Item *clone_constant(THD *thd) const override;
   bool val_bool() override
   {
     return update_null() ? false : cached_time.to_bool();
@@ -5425,7 +5425,7 @@ public:
   {
     return cached_time.get_mysql_time();
   }
-  Item *clone_item(THD *thd) const override;
+  Item *clone_constant(THD *thd) const override;
   bool val_bool() override
   {
     return cached_time.to_bool();
@@ -5490,7 +5490,7 @@ public:
   {
     return cached_time.get_mysql_time();
   }
-  Item *clone_item(THD *thd) const override;
+  Item *clone_constant(THD *thd) const override;
   bool val_bool() override
   {
     return update_null() ? false : cached_time.to_bool();
@@ -6671,7 +6671,7 @@ public:
   {
     return ref->save_in_field(field, no_conversions);
   }
-  Item *clone_item(THD *thd) const override;
+  Item *clone_constant(THD *thd) const override;
   Item *real_item() override { return ref; }
 protected:
   Item *shallow_copy(THD *thd) const override
@@ -7668,11 +7668,11 @@ public:
   }
   void store_packed(longlong val_arg, Item *example);
   /*
-    Having a clone_item method tells optimizer that this object
+    Having a clone_constant method tells optimizer that this object
     is a constant and need not be optimized further.
     Important when storing packed datetime values.
   */
-  Item *clone_item(THD *thd) const override;
+  Item *clone_constant(THD *thd) const override;
   Item *convert_to_basic_const_item(THD *thd) override;
   virtual Item *make_literal(THD *) =0;
 };
