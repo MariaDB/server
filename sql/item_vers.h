@@ -48,7 +48,9 @@ public:
     return name;
   }
   void print(String *str, enum_query_type query_type) override;
-  Item *do_get_copy(THD *thd) const override
+
+protected:
+  Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_func_history>(thd, this); }
 };
 
@@ -64,10 +66,12 @@ public:
     return (trt_field == TR_table::FLD_BEGIN_TS) ? begin_name : commit_name;
   }
   bool get_date(THD *thd, MYSQL_TIME *res, date_mode_t fuzzydate) override;
-  Item *do_get_copy(THD *thd) const override
-  { return get_item_copy<Item_func_trt_ts>(thd, this); }
   bool fix_length_and_dec() override
   { fix_attributes_datetime(decimals); return FALSE; }
+
+protected:
+  Item *shallow_copy(THD *thd) const override
+  { return get_item_copy<Item_func_trt_ts>(thd, this); }
 };
 
 class Item_func_trt_id : public Item_longlong_func
@@ -109,7 +113,9 @@ public:
   }
 
   longlong val_int() override;
-  Item *do_get_copy(THD *thd) const override
+
+protected:
+  Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_func_trt_id>(thd, this); }
 };
 
@@ -126,7 +132,9 @@ public:
     return name;
   }
   bool val_bool() override;
-  Item *do_get_copy(THD *thd) const override
+
+protected:
+  Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_func_trt_trx_sees>(thd, this); }
 };
 

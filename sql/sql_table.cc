@@ -8940,7 +8940,7 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
 
         if (keep)
         {
-          Item *expr_copy= check->expr->get_copy(thd);
+          Item *expr_copy= check->expr->shallow_copy_with_checks(thd);
           check= new Virtual_column_info();
           check->name= share->period.constr_name;
           check->automatic_name= true;

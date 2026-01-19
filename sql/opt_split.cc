@@ -602,8 +602,8 @@ void TABLE::add_splitting_info_for_key_field(KEY_FIELD *key_field)
     condition of the select that specifies this table.
   */
   THD *thd= in_use;
-  Item *left_item= spl_field->producing_item->build_clone(thd);
-  Item *right_item= key_field->val->build_clone(thd);
+  Item *left_item= spl_field->producing_item->deep_copy_with_checks(thd);
+  Item *right_item= key_field->val->deep_copy_with_checks(thd);
   Item_func_eq *eq_item= 0;
   if (left_item && right_item)
   {
