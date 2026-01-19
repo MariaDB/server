@@ -2305,7 +2305,8 @@ public:
       Item_ident::print(str, query_type);
   }
   Ref_Type ref_type() override final { return AGGREGATE_REF; }
-  Item *do_get_copy(THD *thd) const override
+protected:
+  Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_aggregate_ref>(thd, this); }
 };
 
@@ -2803,7 +2804,7 @@ bool Type_std_attributes::agg_item_set_converter(const DTCollation &coll,
    @retval 0 on a failure
 */
 
-Item* Item_func_or_sum::do_build_clone(THD *thd) const
+Item* Item_func_or_sum::deep_copy(THD *thd) const
 {
   Item *copy_tmp_args[2]= {0,0};
   Item **copy_args= copy_tmp_args;
@@ -2816,12 +2817,12 @@ Item* Item_func_or_sum::do_build_clone(THD *thd) const
   }
   for (uint i= 0; i < arg_count; i++)
   {
-    Item *arg_clone= args[i]->build_clone(thd);
+    Item *arg_clone= args[i]->deep_copy_with_checks(thd);
     if (unlikely(!arg_clone))
       return 0;
     copy_args[i]= arg_clone;
   }
-  Item_func_or_sum *copy= static_cast<Item_func_or_sum *>(get_copy(thd));
+  Item_func_or_sum *copy= static_cast<Item_func_or_sum *>(shallow_copy_with_checks(thd));
   if (unlikely(!copy))
     return 0;
   if (arg_count > 2)
@@ -3123,13 +3124,13 @@ Item_sp::init_result_field(THD *thd, uint max_length, uint maybe_null,
      0 if an error occurred
 */ 
 
-Item* Item_ref::do_build_clone(THD *thd) const
+Item* Item_ref::deep_copy(THD *thd) const
 {
-  Item_ref *copy= (Item_ref *) get_copy(thd);
+  Item_ref *copy= (Item_ref *) shallow_copy_with_checks(thd);
   if (unlikely(!copy) ||
       unlikely(!(copy->ref= (Item**) alloc_root(thd->mem_root,
                                                 sizeof(Item*)))) ||
-      unlikely(!(*copy->ref= (* ref)->build_clone(thd))))
+      unlikely(!(*copy->ref= (* ref)->deep_copy_with_checks(thd))))
     return 0;
   return copy;
 }
@@ -7955,7 +7956,7 @@ Item *Item::build_pushable_cond(THD *thd,
   {
     if (with_sum_func())
       return 0;
-    return build_clone(thd);
+    return deep_copy_with_checks(thd);
   }
   return 0;
 }
@@ -8073,7 +8074,7 @@ Item *Item_field::derived_field_transformer_for_where(THD *thd, uchar *arg)
   Item *producing_item= find_producing_item(this, sel);
   if (producing_item)
   {
-    Item *producing_clone= producing_item->build_clone(thd);
+    Item *producing_clone= producing_item->deep_copy_with_checks(thd);
     if (producing_clone)
       producing_clone->marker|= MARKER_SUBSTITUTION;
     return producing_clone;
@@ -8091,7 +8092,7 @@ Item *Item_direct_view_ref::derived_field_transformer_for_where(THD *thd,
     st_select_lex *sel= (st_select_lex *)arg;
     Item *producing_item= find_producing_item(this, sel);
     DBUG_ASSERT (producing_item != NULL);
-    return producing_item->build_clone(thd);
+    return producing_item->deep_copy_with_checks(thd);
   }
   return (*ref);
 }
@@ -8104,7 +8105,7 @@ Item *Item_field::grouping_field_transformer_for_where(THD *thd, uchar *arg)
   if (gr_field)
   {
     Item *producing_clone=
-      gr_field->corresponding_item->build_clone(thd);
+      gr_field->corresponding_item->deep_copy_with_checks(thd);
     if (producing_clone)
       producing_clone->marker|= MARKER_SUBSTITUTION;
     return producing_clone;
@@ -8127,7 +8128,7 @@ Item_direct_view_ref::grouping_field_transformer_for_where(THD *thd,
   st_select_lex *sel= (st_select_lex *)arg;
   Field_pair *gr_field= find_matching_field_pair(this,
                                                  sel->grouping_tmp_fields);
-  return gr_field->corresponding_item->build_clone(thd);
+  return gr_field->corresponding_item->deep_copy_with_checks(thd);
 }
 
 void Item_field::print(String *str, enum_query_type query_type)

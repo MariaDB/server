@@ -3673,7 +3673,7 @@ Virtual_column_info::is_equivalent(THD *thd, TABLE_SHARE *share, TABLE_SHARE *vc
                                   const Virtual_column_info* vcol, bool &error) const
 {
   error= true;
-  Item *cmp_expr= vcol->expr->build_clone(thd);
+  Item *cmp_expr= vcol->expr->deep_copy_with_checks(thd);
   if (!cmp_expr)
     return false;
   Item::func_processor_rename_table param;
