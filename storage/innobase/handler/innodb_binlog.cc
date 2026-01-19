@@ -316,6 +316,8 @@ public:
 
 struct chunk_data_cache : public chunk_data_base {
   IO_CACHE *cache;
+  /* The GTID to update the binlog state with upon writing the data, or NULL. */
+  const rpl_gtid *gtid_to_update;
   binlog_oob_context *oob_ctx;
   my_off_t main_start;
   size_t main_remain;
@@ -324,9 +326,9 @@ struct chunk_data_cache : public chunk_data_base {
   uint32_t header_sofar;
   byte header_buf[10*COMPR_INT_MAX64];
 
-  chunk_data_cache(IO_CACHE *cache_arg,
+  chunk_data_cache(IO_CACHE *cache_arg, const rpl_gtid *gtid,
                    handler_binlog_event_group_info *binlog_info)
-  : cache(cache_arg),
+  : cache(cache_arg), gtid_to_update(gtid),
     main_start(binlog_info->out_of_band_offset),
     main_remain((size_t)(binlog_info->gtid_offset -
                          binlog_info->out_of_band_offset)),
@@ -444,6 +446,28 @@ struct chunk_data_cache : public chunk_data_base {
   virtual std::pair<uint32_t, bool> copy_data(byte *p, uint32_t max_len) final
   {
     uint32_t size= 0;
+
+    /*
+      Update the current GTID state of the binlog. This update must be done
+      exactly here, upon writing the first byte of data into a binlog page.
+
+      Because if updated before calling fsp_binlog_write_rec(), then a GTID
+      state record binlogged right there, at the start of the commit record,
+      would incorrecly mark that the GTID is contained before that point,
+      when in fact it's after.
+
+      And on the other hand, if updated after, then a GTID state record
+      binlogged in the middle of a commit record could incorrectly mark that
+      the GTID is fully contained before that point, where in fact only part
+      of the GTID is available before; this way starting reading at that GTID
+      record would wrongly skip the GTID.
+    */
+    if (gtid_to_update)
+    {
+      binlog_full_state.update_nolock(gtid_to_update);
+      binlog_diff_state.update_nolock(gtid_to_update);
+      gtid_to_update= nullptr;
+    }
 
     /* Write header data, if any still available. */
     if (header_remain > 0)
@@ -2515,6 +2539,7 @@ binlog_state_recover(uint64_t *out_xa_file_no, uint64_t *out_xa_offset)
     {
       *out_xa_offset= page_no << ibb_page_size_shift;
       chunk_reader.seek(active, *out_xa_offset);
+      chunk_reader.skip_partial(true);
       res= read_gtid_state(&chunk_reader, &binlog_full_state, out_xa_file_no);
       if (res > 0)
         break;
@@ -2807,7 +2832,7 @@ alloc_oob_context(uint32 list_length= 10)
 
 
 static void
-innodb_binlog_write_cache(IO_CACHE *cache,
+innodb_binlog_write_cache(IO_CACHE *cache, const rpl_gtid *gtid,
                        handler_binlog_event_group_info *binlog_info, mtr_t *mtr)
 {
   binlog_oob_context *c=
@@ -2830,7 +2855,7 @@ innodb_binlog_write_cache(IO_CACHE *cache,
                          c->lf_pins);
   }
 
-  chunk_data_cache chunk_data(cache, binlog_info);
+  chunk_data_cache chunk_data(cache, gtid, binlog_info);
 
   fsp_binlog_write_rec(&chunk_data, mtr, FSP_BINLOG_TYPE_COMMIT, c->lf_pins);
   chunk_data.after_copy_data();
@@ -3922,6 +3947,7 @@ gtid_search::find_gtid_pos(slave_connection_state *pos,
     tmp_diff_state.reset_nolock();
     tmp_diff_state.load_nolock(&base_state);
     chunk_reader.seek(file_no, page1 << ibb_page_size_shift);
+    chunk_reader.skip_partial(true);
     int res= read_gtid_state(&chunk_reader, &tmp_diff_state, &dummy_xa_ref);
     if (UNIV_UNLIKELY(res < 0))
       return -1;
@@ -4395,9 +4421,7 @@ innodb_binlog_trx(trx_t *trx, mtr_t *mtr)
   binlog_get_cache(trx->mysql_thd, file_no, pos, &cache, &binlog_info, &gtid);
   if (UNIV_LIKELY(binlog_info != nullptr) &&
       UNIV_LIKELY(binlog_info->gtid_offset > 0)) {
-    binlog_full_state.update_nolock(gtid);
-    binlog_diff_state.update_nolock(gtid);
-    innodb_binlog_write_cache(cache, binlog_info, mtr);
+    innodb_binlog_write_cache(cache, gtid, binlog_info, mtr);
     return static_cast<binlog_oob_context *>(binlog_info->engine_ptr);
   }
   return nullptr;
@@ -4437,14 +4461,9 @@ innobase_binlog_write_direct_ordered(IO_CACHE *cache,
 {
   mtr_t mtr{nullptr};
   ut_ad(binlog_info->engine_ptr2 == nullptr);
-  if (gtid)
-  {
-    binlog_full_state.update_nolock(gtid);
-    binlog_diff_state.update_nolock(gtid);
-  }
   innodb_binlog_status(&binlog_info->out_file_no, &binlog_info->out_offset);
   mtr.start();
-  innodb_binlog_write_cache(cache, binlog_info, &mtr);
+  innodb_binlog_write_cache(cache, gtid, binlog_info, &mtr);
   mtr.commit();
   innodb_binlog_post_commit(&mtr, static_cast<binlog_oob_context *>
                             (binlog_info->engine_ptr));
