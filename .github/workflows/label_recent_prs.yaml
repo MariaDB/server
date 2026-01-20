@@ -37,22 +37,22 @@ jobs:
 
             echo "Evaluating PR #$pr_number by $author"
 
-            # Check if author is in the developers team
+            echo "Check if author is in the developers team"
             if gh api \
               -H "Accept: application/vnd.github+json" \
               "/orgs/MariaDB/teams/developers/members/$author" \
-              >/dev/null 2>&1; then
+              2>&1; then
               echo "Author is in developers team"
               is_developer=1
             else
               is_developer=0
               echo "Author is not in developers team"
             fi
-            # Check if author is in the staff team
+            echo "Check if author is in the staff team"
             if gh api \
               -H "Accept: application/vnd.github+json" \
               "/orgs/MariaDB/teams/staff/members/$author" \
-              >/dev/null 2>&1; then
+              2>&1; then
               echo "Author is in staff team"
               is_foundation=1
             else
@@ -72,7 +72,7 @@ jobs:
 
             echo "Applying label [$label] to PR#[$pr_number] by [$author]"
 
-            gh issue edit "$pr_number" \
-              --repo "$REPO" \
-              --add-label "$label"
+            #gh issue edit "$pr_number" \
+            #  --repo "$REPO" \
+            #  --add-label "$label"
           done
