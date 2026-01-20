@@ -1102,7 +1102,7 @@ void fil_space_set_recv_size_and_flags(uint32_t id, uint32_t size,
       if (size)
         space->recv_size= size;
       if (flags != FSP_FLAGS_FCRC32_MASK_MARKER)
-        space->flags= flags;
+        recv_sys.update_space_flags(space, flags, recv_sys.start_lsn);
     }
   mysql_mutex_unlock(&fil_system.mutex);
 }

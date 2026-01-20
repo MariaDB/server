@@ -275,6 +275,9 @@ private:
   /** iterator to pages, used by parse() */
   map::iterator pages_it;
 
+  /** Last applied LSN for space->flags updates (used to prevent stale updates) */
+  std::map<uint32_t, lsn_t> space_flags_lsn;
+
   /** The allocated size of tmp_buf. The 1+8 extra bytes are
   needed for FORMAT_ENC_11 in parse(). */
   static constexpr size_t tmp_buf_size{MTR_SIZE_MAX + 9};
@@ -323,6 +326,9 @@ public:
     if (pages_it != pages.end() && pages_it->first.space() == space_id)
       pages_it= pages.end();
   }
+
+  /** Update space->flags only if lsn >= last recorded space-flags LSN */
+  void update_space_flags(fil_space_t *space, uint32_t flags, lsn_t lsn);
 
 private:
   /** In parse_tail<storing=NO>(), handle INIT_PAGE or FREE_PAGE

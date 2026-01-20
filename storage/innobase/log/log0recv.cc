@@ -134,6 +134,17 @@ const byte *mtr_t::parse_length(const byte *l, uint32_t *size) noexcept
   return l;
 }
 
+/** Update space->flags only if lsn >= last recorded space-flags LSN */
+void recv_sys_t::update_space_flags(fil_space_t *space, uint32_t flags, lsn_t lsn)
+{
+  auto it = space_flags_lsn.find(space->id);
+  if (it == space_flags_lsn.end() || lsn >= it->second)
+  {
+    space->flags = flags;
+    space_flags_lsn[space->id] = lsn;
+  }
+}
+
 /** If the following is TRUE, the buffer pool file pages must be invalidated
 after recovery and no ibuf operations are allowed; this becomes TRUE if
 the log record hash table becomes too full, and log records must be merged
@@ -3485,10 +3496,12 @@ static buf_block_t *recv_recover_page(buf_block_t *block, mtr_t &mtr,
 		    ? space
 		    : fil_space_t::get(block->page.id().space())) {
 			switch (a) {
-			case log_phys_t::APPLIED_TO_FSP_HEADER:
-				s->flags = mach_read_from_4(
+			case log_phys_t::APPLIED_TO_FSP_HEADER: {
+				uint32_t flags = mach_read_from_4(
 					FSP_HEADER_OFFSET
 					+ FSP_SPACE_FLAGS + frame);
+				recv_sys.update_space_flags(s, flags,
+                                        l->start_lsn);
 				s->size_in_header = mach_read_from_4(
 					FSP_HEADER_OFFSET + FSP_SIZE
 					+ frame);
@@ -3499,6 +3512,7 @@ static buf_block_t *recv_recover_page(buf_block_t *block, mtr_t &mtr,
 					FSP_HEADER_OFFSET + FSP_FREE
 					+ FLST_LEN + frame);
 				break;
+			}
 			default:
 				byte* b= frame
 					+ fsp_header_get_encryption_offset(
