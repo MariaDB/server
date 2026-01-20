@@ -93,15 +93,17 @@ start_again:
   mtr.start();
 
   dberr_t err;
-  buf_block_t *trx_sys_block= buf_dblwr_trx_sys_get(&mtr);
+  buf_block_t *const trx_sys_block= buf_dblwr_trx_sys_get(&mtr);
   if (!trx_sys_block)
   {
     mtr.commit();
     return false;
   }
 
-  if (mach_read_from_4(TRX_SYS_DOUBLEWRITE + TRX_SYS_DOUBLEWRITE_MAGIC +
-                       trx_sys_block->page.frame) ==
+  byte *const fseg_header= TRX_SYS_DOUBLEWRITE + TRX_SYS_DOUBLEWRITE_FSEG +
+    trx_sys_block->page.frame;
+
+  if (mach_read_from_4(fseg_header + FSEG_HEADER_SIZE) ==
       TRX_SYS_DOUBLEWRITE_MAGIC_N)
   {
     /* The doublewrite buffer has already been created: just read in
@@ -135,21 +137,21 @@ fail:
     sql_print_information("InnoDB: Doublewrite buffer not found:"
                           " creating new");
 
-    /* FIXME: After this point, the doublewrite buffer creation
-    is not atomic. The doublewrite buffer should not exist in
+    /* FIXME: The doublewrite buffer should not exist in
     the InnoDB system tablespace file in the first place.
     It could be located in separate optional file(s) in a
     user-specified location. */
   }
 
-  byte *fseg_header= TRX_SYS_DOUBLEWRITE + TRX_SYS_DOUBLEWRITE_FSEG +
-    trx_sys_block->page.frame;
+  mtr_t init_mtr;
+  init_mtr.start();
+
   for (uint32_t prev_page_no= 0, i= 0, extent_size= FSP_EXTENT_SIZE;
        i < 2 * size + extent_size / 2; i++)
   {
     buf_block_t *new_block=
       fseg_alloc_free_page_general(fseg_header, prev_page_no + 1, FSP_UP,
-                                   false, &mtr, &mtr, &err);
+                                   false, &mtr, &init_mtr, &err);
     if (!new_block)
     {
       sql_print_error("InnoDB: Cannot create doublewrite buffer: "
@@ -164,75 +166,39 @@ fail:
       return false;
     }
 
-    /* We read the allocated pages to the buffer pool; when they are
-    written to disk in a flush, the space id and page number fields
-    are also written to the pages. When we at database startup read
-    pages from the doublewrite buffer, we know that if the space id
-    and page number in them are the same as the page position in the
-    tablespace, then the page has not been written to in
-    doublewrite. */
-
-    ut_ad(new_block->page.lock.not_recursive());
     const page_id_t id= new_block->page.id();
-    /* We only do this in the debug build, to ensure that the check in
-    buf_flush_init_for_writing() will see a valid page type. The
-    flushes of new_block are actually unnecessary here.  */
-    ut_d(mtr.write<2>(*new_block, FIL_PAGE_TYPE + new_block->page.frame,
-                      FIL_PAGE_TYPE_SYS));
+    /* Normally, allocated pages will be modified further. However,
+    the pages of the doublewrite buffer are just dummy storage, not
+    covered by the write-ahead log. */
+    ut_ad(init_mtr.get_savepoint() == 1);
+    ut_ad(init_mtr.m_memo[0].object == new_block);
+    ut_ad(init_mtr.m_memo[0].type == MTR_MEMO_PAGE_X_MODIFY);
+    init_mtr.m_memo[0].type= MTR_MEMO_PAGE_X_FIX;
+    init_mtr.rollback_to_savepoint(0, 1);
+    init_mtr.m_log.erase();
 
     if (i == size / 2)
-    {
       ut_a(id.page_no() == size);
-      mtr.write<4>(*trx_sys_block,
-                   TRX_SYS_DOUBLEWRITE + TRX_SYS_DOUBLEWRITE_BLOCK1 +
-                   trx_sys_block->page.frame, id.page_no());
-      mtr.write<4>(*trx_sys_block,
-                   TRX_SYS_DOUBLEWRITE + TRX_SYS_DOUBLEWRITE_REPEAT +
-                   TRX_SYS_DOUBLEWRITE_BLOCK1 + trx_sys_block->page.frame,
-                   id.page_no());
-    }
     else if (i == size / 2 + size)
-    {
       ut_a(id.page_no() == 2 * size);
-      mtr.write<4>(*trx_sys_block,
-                   TRX_SYS_DOUBLEWRITE + TRX_SYS_DOUBLEWRITE_BLOCK2 +
-                   trx_sys_block->page.frame, id.page_no());
-      mtr.write<4>(*trx_sys_block,
-                   TRX_SYS_DOUBLEWRITE + TRX_SYS_DOUBLEWRITE_REPEAT +
-                   TRX_SYS_DOUBLEWRITE_BLOCK2 + trx_sys_block->page.frame,
-                   id.page_no());
-    }
     else if (i > size / 2)
       ut_a(id.page_no() == prev_page_no + 1);
-
-    if (((i + 1) & 15) == 0) {
-      /* rw_locks can only be recursively x-locked 2048 times. (on 32
-      bit platforms, (lint) 0 - (X_LOCK_DECR * 2049) is no longer a
-      negative number, and thus lock_word becomes like a shared lock).
-      For 4k page size this loop will lock the fseg header too many
-      times. Since this code is not done while any other threads are
-      active, restart the MTR occasionally. */
-      mtr.commit();
-      mtr.start();
-      trx_sys_block= buf_dblwr_trx_sys_get(&mtr);
-      fseg_header= TRX_SYS_DOUBLEWRITE + TRX_SYS_DOUBLEWRITE_FSEG +
-        trx_sys_block->page.frame;
-    }
-
     prev_page_no= id.page_no();
   }
 
-  mtr.write<4>(*trx_sys_block,
-               TRX_SYS_DOUBLEWRITE + TRX_SYS_DOUBLEWRITE_MAGIC +
-               trx_sys_block->page.frame, TRX_SYS_DOUBLEWRITE_MAGIC_N);
-  mtr.write<4>(*trx_sys_block,
-               TRX_SYS_DOUBLEWRITE + TRX_SYS_DOUBLEWRITE_MAGIC +
-               TRX_SYS_DOUBLEWRITE_REPEAT + trx_sys_block->page.frame,
-               TRX_SYS_DOUBLEWRITE_MAGIC_N);
-
-  mtr.write<4>(*trx_sys_block,
-               TRX_SYS_DOUBLEWRITE + TRX_SYS_DOUBLEWRITE_SPACE_ID_STORED +
-               trx_sys_block->page.frame,
+  ut_ad(init_mtr.is_empty());
+  byte *const doublewrite= fseg_header +
+    (TRX_SYS_DOUBLEWRITE_MAGIC - TRX_SYS_DOUBLEWRITE_FSEG);
+  mtr.write<4>(*trx_sys_block, doublewrite, TRX_SYS_DOUBLEWRITE_MAGIC_N);
+  static_assert(TRX_SYS_DOUBLEWRITE_BLOCK1==TRX_SYS_DOUBLEWRITE_MAGIC + 4, "");
+  mtr.write<4>(*trx_sys_block, doublewrite + 4, size);
+  static_assert(TRX_SYS_DOUBLEWRITE_BLOCK2==TRX_SYS_DOUBLEWRITE_MAGIC + 8, "");
+  mtr.write<4>(*trx_sys_block, doublewrite + 8, size * 2);
+  static_assert(TRX_SYS_DOUBLEWRITE_REPEAT == 12, "");
+  mtr.memcpy(*trx_sys_block, doublewrite + 12, doublewrite, 12);
+  static_assert(TRX_SYS_DOUBLEWRITE_SPACE_ID_STORED ==
+                24 + TRX_SYS_DOUBLEWRITE_MAGIC, "");
+  mtr.write<4>(*trx_sys_block, doublewrite + 24,
                TRX_SYS_DOUBLEWRITE_SPACE_ID_STORED_N);
   mtr.commit();
 
