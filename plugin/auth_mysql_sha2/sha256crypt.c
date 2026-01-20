@@ -33,6 +33,9 @@ void sha256_crypt_r(const unsigned char *key, size_t key_len,
 #if defined __GNUC__ && __GNUC__ > 7
     __attribute__((nonstring))
 #endif
+#if defined __clang_major__ && __clang_major__ > 20
+    __attribute__((nonstring))
+#endif
     = "./0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
   void *ctx = alloca(my_sha256_context_size());
   unsigned char *p_bytes = alloca(key_len);
