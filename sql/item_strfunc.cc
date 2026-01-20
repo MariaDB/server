@@ -1622,7 +1622,18 @@ String *Item_func_sformat::val_str(String *res)
   /* Create the string output  */
   try
   {
+#ifdef _MSC_VER
+/*
+  C4834 : "discarding return value of function with [[nodiscard]] attribute"
+  in fmt 12.1 template code, for isalpha()
+*/
+#pragma warning(push)
+#pragma warning(disable : 4834)
+#endif
     auto text = fmt::vformat(fmt_locale, fmt_arg->c_ptr_safe(), arg_store);
+#ifdef _MSC_VER
+#pragma warning(pop)
+#endif
     res->length(0);
     res->set_charset(collation.collation);
     res->append(text.c_str(), text.size(), fmt_arg->charset());
