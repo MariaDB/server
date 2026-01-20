@@ -399,3 +399,27 @@ DROP FUNCTION f;
 #
 # End of 10.5 tests
 #
+#
+# MDEV-36876 Crash during the Item_subselect::init - outer_select is NULL
+#
+# Vectors are not allowed for SOME/ANY
+select row(1, 2) = some(select row(1, 2));
+ERROR 21000: Operand should contain 1 column(s)
+# Fine
+select 1 = some(select 1) = all(select 1);
+1 = some(select 1) = all(select 1)
+1
+# Comparison between vector and scalar
+select row(1, 2) = some(select 1) = all(select 1);
+ERROR 21000: Operand should contain 2 column(s)
+# Same
+create table t1 (dt datetime(6) default row(1, 2) = some(select 1) = all(select 1));
+ERROR 21000: Operand should contain 1 column(s)
+create procedure test_proc (id varchar(255))
+begin
+declare dt datetime(6) default row(1, 2) = some(select 1) = all(select 1);
+end$$
+drop procedure test_proc;
+#
+# End of 11.8 tests
+#

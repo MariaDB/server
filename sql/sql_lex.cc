@@ -10991,8 +10991,7 @@ void LEX::relink_hack(st_select_lex *select_lex)
 {
   if (!select_stack_top) // Statements of the second type
   {
-    if (!select_lex->outer_select() &&
-        !builtin_select.first_inner_unit())
+    if (!select_lex->outer_select())
     {
       builtin_select.register_unit(select_lex->master_unit(),
                                    &builtin_select.context);
