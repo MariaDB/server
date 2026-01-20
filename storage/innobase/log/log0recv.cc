@@ -3486,9 +3486,6 @@ static buf_block_t *recv_recover_page(buf_block_t *block, mtr_t &mtr,
 		    : fil_space_t::get(block->page.id().space())) {
 			switch (a) {
 			case log_phys_t::APPLIED_TO_FSP_HEADER:
-				s->flags = mach_read_from_4(
-					FSP_HEADER_OFFSET
-					+ FSP_SPACE_FLAGS + frame);
 				s->size_in_header = mach_read_from_4(
 					FSP_HEADER_OFFSET + FSP_SIZE
 					+ frame);
