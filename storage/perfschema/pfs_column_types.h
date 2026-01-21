@@ -61,7 +61,7 @@
 #define COL_SOURCE_SIZE 64
 
 /** Size of the DIGEST columns. */
-#define COL_DIGEST_SIZE 64
+#define COL_DIGEST_SIZE 32
 
 /**
   Enum values for the TIMER_NAME columns.
