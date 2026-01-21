@@ -1,0 +1,135 @@
+#
+# MDEV-37939: Include function name in division by zero warnings
+#
+#
+# Test with ERROR_FOR_DIVISION_BY_ZERO enabled
+#
+SET SESSION sql_mode='ERROR_FOR_DIVISION_BY_ZERO';
+# LOG family should show function context
+SELECT LOG(-1);
+LOG(-1)
+NULL
+Warnings:
+Warning	1365	Division by 0 in function log
+SHOW WARNINGS;
+Level	Code	Message
+Warning	1365	Division by 0 in function log
+SELECT LOG(0);
+LOG(0)
+NULL
+Warnings:
+Warning	1365	Division by 0 in function log
+SHOW WARNINGS;
+Level	Code	Message
+Warning	1365	Division by 0 in function log
+SELECT LN(0);
+LN(0)
+NULL
+Warnings:
+Warning	1365	Division by 0 in function ln
+SHOW WARNINGS;
+Level	Code	Message
+Warning	1365	Division by 0 in function ln
+SELECT LN(-5);
+LN(-5)
+NULL
+Warnings:
+Warning	1365	Division by 0 in function ln
+SHOW WARNINGS;
+Level	Code	Message
+Warning	1365	Division by 0 in function ln
+SELECT LOG2(-1);
+LOG2(-1)
+NULL
+Warnings:
+Warning	1365	Division by 0 in function log2
+SHOW WARNINGS;
+Level	Code	Message
+Warning	1365	Division by 0 in function log2
+SELECT LOG10(-1);
+LOG10(-1)
+NULL
+Warnings:
+Warning	1365	Division by 0 in function log10
+SHOW WARNINGS;
+Level	Code	Message
+Warning	1365	Division by 0 in function log10
+# Two-argument LOG: invalid second argument
+SELECT LOG(2, -1);
+LOG(2, -1)
+NULL
+Warnings:
+Warning	1365	Division by 0 in function log
+SHOW WARNINGS;
+Level	Code	Message
+Warning	1365	Division by 0 in function log
+# Two-argument LOG: invalid base (negative)
+SELECT LOG(-2, 10);
+LOG(-2, 10)
+NULL
+Warnings:
+Warning	1365	Division by 0 in function log
+SHOW WARNINGS;
+Level	Code	Message
+Warning	1365	Division by 0 in function log
+# Two-argument LOG: base = 1 (log(1) = 0, causes division)
+SELECT LOG(1, 10);
+LOG(1, 10)
+NULL
+Warnings:
+Warning	1365	Division by 0 in function log
+SHOW WARNINGS;
+Level	Code	Message
+Warning	1365	Division by 0 in function log
+# Non-LOG operations should stay generic
+SELECT 1/0;
+1/0
+NULL
+Warnings:
+Warning	1365	Division by 0
+SHOW WARNINGS;
+Level	Code	Message
+Warning	1365	Division by 0
+SELECT 5 DIV 0;
+5 DIV 0
+NULL
+Warnings:
+Warning	1365	Division by 0
+SHOW WARNINGS;
+Level	Code	Message
+Warning	1365	Division by 0
+SELECT 5 MOD 0;
+5 MOD 0
+NULL
+Warnings:
+Warning	1365	Division by 0
+SHOW WARNINGS;
+Level	Code	Message
+Warning	1365	Division by 0
+# Valid inputs should produce no warnings
+SELECT LOG(10);
+LOG(10)
+2.302585092994046
+SELECT LN(2.718);
+LN(2.718)
+0.999896315728952
+SELECT LOG2(8);
+LOG2(8)
+3
+SELECT LOG10(100);
+LOG10(100)
+2
+SHOW WARNINGS;
+Level	Code	Message
+Warning	1365	Division by 0
+#
+# Test with ERROR_FOR_DIVISION_BY_ZERO disabled
+#
+SET SESSION sql_mode='';
+SELECT LOG(-1);
+LOG(-1)
+NULL
+SHOW WARNINGS;
+Level	Code	Message
+Warning	1365	Division by 0
+# Should be empty - no warning when sql_mode doesn't include the flag

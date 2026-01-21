@@ -793,6 +793,20 @@ void Item_func::signal_divide_by_null()
 }
 
 
+void Item_func::signal_divide_by_null(const char *context)
+{
+  THD *thd= current_thd;
+  if (thd->variables.sql_mode & MODE_ERROR_FOR_DIVISION_BY_ZERO)
+  {
+    char buf[MYSQL_ERRMSG_SIZE];
+    my_snprintf(buf, sizeof(buf), ER_THD(thd, ER_DIVISION_BY_ZERO_IN_FUNC),
+                context);
+    push_warning(thd, Sql_condition::WARN_LEVEL_WARN, ER_DIVISION_BY_ZERO, buf);
+  }
+  null_value= 1;
+}
+
+
 Item *Item_func::get_tmp_table_item(THD *thd)
 {
   if (!with_sum_func() && !const_item())
@@ -2021,7 +2035,7 @@ double Item_func_ln::val_real()
     return 0.0;
   if (value <= 0.0)
   {
-    signal_divide_by_null();
+    signal_divide_by_null(func_name());
     return 0.0;
   }
   return log(value);
@@ -2041,7 +2055,7 @@ double Item_func_log::val_real()
     return 0.0;
   if (value <= 0.0)
   {
-    signal_divide_by_null();
+    signal_divide_by_null(func_name());
     return 0.0;
   }
   if (arg_count == 2)
@@ -2051,7 +2065,7 @@ double Item_func_log::val_real()
       return 0.0;
     if (value2 <= 0.0 || value == 1.0)
     {
-      signal_divide_by_null();
+      signal_divide_by_null(func_name());
       return 0.0;
     }
     return log(value2) / log(value);
@@ -2068,7 +2082,7 @@ double Item_func_log2::val_real()
     return 0.0;
   if (value <= 0.0)
   {
-    signal_divide_by_null();
+    signal_divide_by_null(func_name());
     return 0.0;
   }
   return log(value) / M_LN2;
@@ -2082,7 +2096,7 @@ double Item_func_log10::val_real()
     return 0.0;
   if (value <= 0.0)
   {
-    signal_divide_by_null();
+    signal_divide_by_null(func_name());
     return 0.0;
   }
   return log10(value);
