@@ -6069,6 +6069,20 @@ static Sys_var_ulong Sys_opt_binlog_rows_event_max_size(
       VALID_RANGE(256, UINT_MAX32 - (UINT_MAX32 % 256)), DEFAULT(8192),
       BLOCK_SIZE(256));
 
+static Sys_var_ulong Sys_opt_binlog_partial_rows_event_max_size(
+      "binlog_row_event_fragment_threshold",
+      "When a Rows_log_event exceeds this threshold, it will be fragmented "
+      "into multiple Partial_rows_log_event events in the binary log, each of "
+      "this configured maximum size. That is, all Partial_rows_log_events up "
+      "to the last in the group will be this configured maximum size, and the "
+      "last event will take the remaining size. This is relevant for events "
+      "that would surpass slave_max_allowed_packet when sending to the slave, "
+      "and thereby a sensible value would reflect the slave's configured "
+      "slave_max_allowed_packet",
+      GLOBAL_VAR(opt_binlog_row_event_fragment_threshold),
+      CMD_LINE(REQUIRED_ARG), VALID_RANGE(1024, MAX_MAX_ALLOWED_PACKET),
+      DEFAULT(MAX_MAX_ALLOWED_PACKET), BLOCK_SIZE(1024));
+
 static Sys_var_on_access_global<Sys_var_uint,
                                 PRIV_SET_SYSTEM_GLOBAL_VAR_SLAVE_NET_TIMEOUT>
 Sys_slave_net_timeout(

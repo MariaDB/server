@@ -448,6 +448,7 @@ my_bool opt_noacl;
 my_bool sp_automatic_privileges= 1;
 
 ulong opt_binlog_rows_event_max_size;
+ulong opt_binlog_row_event_fragment_threshold;
 ulong binlog_row_metadata;
 my_bool opt_binlog_gtid_index= TRUE;
 uint opt_binlog_gtid_index_page_size= 4096;

@@ -244,6 +244,7 @@ extern ulonglong slave_max_statement_time;
 extern double slave_max_statement_time_double;
 extern double slave_abort_blocking_timeout;
 extern ulong opt_binlog_rows_event_max_size;
+extern ulong opt_binlog_row_event_fragment_threshold;
 extern ulong binlog_row_metadata;
 extern my_bool opt_binlog_gtid_index;
 extern uint opt_binlog_gtid_index_page_size;

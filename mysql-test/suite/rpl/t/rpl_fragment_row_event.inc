@@ -16,18 +16,21 @@
 #                                     can be fragmented
 #   $test_multi_table_trx    (bool) : Whether or not to update multiple tables
 #                                     in a single transaction
-#   $server_1_max_packet     (uint) : slave_max_allowed_packet on server_1
-#   $server_2_max_packet     (uint) : slave_max_allowed_packet on server_2
-#   $server_3_max_packet     (uint) : slave_max_allowed_packet on server_3
+#   $server_1_frag_threshold (uint) : binlog_row_event_fragment_threshold on
+#                                     server_1
+#   $server_2_frag_threshold (uint) : binlog_row_event_fragment_threshold on
+#                                     server_2
+#   $server_3_frag_threshold (uint) : binlog_row_event_fragment_threshold on
+#                                     server_3
 #
 
-if ($server_1_max_packet)
+if ($server_1_frag_threshold)
 {
   --connection server_1
-  --let $inc_server_1_old_slave_max_packet= `SELECT @@global.slave_max_allowed_packet`
+  --let $inc_server_1_old_binlog_frag_threshold= `SELECT @@global.binlog_row_event_fragment_threshold`
   --let $inc_server_1_old_net_buf= `SELECT @@global.net_buffer_length`
-  --eval set @@global.slave_max_allowed_packet= $server_1_max_packet
-  --eval set @@global.net_buffer_length= $server_1_max_packet
+  --eval set @@global.binlog_row_event_fragment_threshold= $server_1_frag_threshold
+  --eval set @@global.net_buffer_length= $server_1_frag_threshold
   --disconnect server_1
   --source include/wait_until_disconnected.inc
   --connect (server_1,127.0.0.1,root,,test,$SERVER_MYPORT_1,)
@@ -35,12 +38,12 @@ if ($server_1_max_packet)
 
 --connection server_2
 --source include/stop_slave.inc
-if ($server_2_max_packet)
+if ($server_2_frag_threshold)
 {
-  --let $inc_server_2_old_slave_max_packet= `SELECT @@global.slave_max_allowed_packet`
+  --let $inc_server_2_old_binlog_frag_threshold= `SELECT @@global.binlog_row_event_fragment_threshold`
   --let $inc_server_2_old_net_buf= `SELECT @@global.net_buffer_length`
-  --eval set @@global.slave_max_allowed_packet= $server_2_max_packet
-  --eval set @@global.net_buffer_length= $server_2_max_packet
+  --eval set @@global.binlog_row_event_fragment_threshold= $server_2_frag_threshold
+  --eval set @@global.net_buffer_length= $server_2_frag_threshold
   --disconnect server_2
   --source include/wait_until_disconnected.inc
   --connect (server_2,127.0.0.1,root,,test,$SERVER_MYPORT_2,)
@@ -48,12 +51,12 @@ if ($server_2_max_packet)
 
 --connection server_3
 --source include/stop_slave.inc
-if ($server_3_max_packet)
+if ($server_3_frag_threshold)
 {
-  --let $inc_server_3_old_slave_max_packet= `SELECT @@global.slave_max_allowed_packet`
+  --let $inc_server_3_old_binlog_frag_threshold= `SELECT @@global.binlog_row_event_fragment_threshold`
   --let $inc_server_3_old_net_buf= `SELECT @@global.net_buffer_length`
-  --eval set @@global.slave_max_allowed_packet= $server_3_max_packet
-  --eval set @@global.net_buffer_length= $server_3_max_packet
+  --eval set @@global.binlog_row_event_fragment_threshold= $server_3_frag_threshold
+  --eval set @@global.net_buffer_length= $server_3_frag_threshold
   --disconnect server_3
   --source include/wait_until_disconnected.inc
   --connect (server_3,127.0.0.1,root,,test,$SERVER_MYPORT_3,)
@@ -335,25 +338,25 @@ if ($test_mysqlbinlog_replay)
 
 --echo #
 --echo # Cleanup test case
-if ($server_1_max_packet)
+if ($server_1_frag_threshold)
 {
   --connection server_1
-  --eval set @@global.slave_max_allowed_packet= $inc_server_1_old_slave_max_packet
+  --eval set @@global.binlog_row_event_fragment_threshold= $inc_server_1_old_binlog_frag_threshold
   --eval set @@global.net_buffer_length= $inc_server_1_old_net_buf
 }
 
 --connection server_2
-if ($server_1_max_packet)
+if ($server_2_frag_threshold)
 {
-  --eval set @@global.slave_max_allowed_packet= $inc_server_2_old_slave_max_packet
+  --eval set @@global.binlog_row_event_fragment_threshold= $inc_server_2_old_binlog_frag_threshold
   --eval set @@global.net_buffer_length= $inc_server_2_old_net_buf
 }
 --source include/start_slave.inc
 
 --connection server_3
-if ($server_1_max_packet)
+if ($server_3_frag_threshold)
 {
-  --eval set @@global.slave_max_allowed_packet= $inc_server_3_old_slave_max_packet
+  --eval set @@global.binlog_row_event_fragment_threshold= $inc_server_3_old_binlog_frag_threshold
   --eval set @@global.net_buffer_length= $inc_server_3_old_net_buf
 }
 --source include/start_slave.inc

@@ -5548,13 +5548,13 @@ bool copy_cache_to_file_wrapped(IO_CACHE *body,
   @class Partial_rows_log_event
 
   When any given instantiation of a Rows_log_event (e.g. Write_rows_log_event,
-  etc) is too large to be sent to a replica (i.e. larger than
-  the value slave_max_allowed_packet, as configured on a replica), then the
-  rows event must be fragmented into sub-events (i.e. Partial_rows_log_events),
-  each of size slave_max_allowed_packet, so the event can be transmitted to the
-  replica. The replica will then take the content of each of these
-  Partial_rows_log_events, and join them together into a large
-  Rows_log_event to be executed as normal.
+  etc) is too large to be sent to a replica (i.e. larger than the value
+  slave_max_allowed_packet, as configured on a replica), then the rows event
+  must be fragmented into sub-events (i.e. Partial_rows_log_events) so the
+  event can be transmitted to the replica. The size of each event is configured
+  via binlog_row_event_fragment_threshold.  The replica will then take the
+  content of each of these Partial_rows_log_events, and join them together into
+  a large Rows_log_event to be executed as normal.
 
   Partial_rows_log_events are written to the binary log sequentially, and
   the replica assembles the events in the order they are binlogged. Each
@@ -5587,7 +5587,7 @@ bool copy_cache_to_file_wrapped(IO_CACHE *body,
   context of the full Partial_rows_log_event data.
 
   @note Where slave_max_allowed_packet has a maximum of 1GB at the time of
-  creating this class (MariaDB 12.1), even if that one day grows larger, the
+  creating this class (MariaDB 12.3), even if that one day grows larger, the
   current binlog format only supports row events of maximum size 4GB anyway.
   If/when this max_allowed_packet restriction is ever lifted, the size of any
   given Partial_rows_log_event should then be 4GB.

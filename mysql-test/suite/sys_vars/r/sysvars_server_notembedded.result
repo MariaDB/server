@@ -532,6 +532,16 @@ NUMERIC_BLOCK_SIZE	NULL
 ENUM_VALUE_LIST	OFF,ON
 READ_ONLY	YES
 COMMAND_LINE_ARGUMENT	REQUIRED
+VARIABLE_NAME	BINLOG_ROW_EVENT_FRAGMENT_THRESHOLD
+VARIABLE_SCOPE	GLOBAL
+VARIABLE_TYPE	BIGINT UNSIGNED
+VARIABLE_COMMENT	When a Rows_log_event exceeds this threshold, it will be fragmented into multiple Partial_rows_log_event events in the binary log, each of this configured maximum size. That is, all Partial_rows_log_events up to the last in the group will be this configured maximum size, and the last event will take the remaining size. This is relevant for events that would surpass slave_max_allowed_packet when sending to the slave, and thereby a sensible value would reflect the slave's configured slave_max_allowed_packet
+NUMERIC_MIN_VALUE	1024
+NUMERIC_MAX_VALUE	1073741824
+NUMERIC_BLOCK_SIZE	1024
+ENUM_VALUE_LIST	NULL
+READ_ONLY	NO
+COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	BINLOG_ROW_EVENT_MAX_SIZE
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	BIGINT UNSIGNED

@@ -7014,11 +7014,13 @@ Event_log::flush_and_set_pending_rows_event(THD *thd, Rows_log_event* event,
 
     ulong rows_ev_metadata_len=
         LOG_EVENT_HEADER_LEN + ROWS_HEADER_LEN_V1 + BINLOG_CHECKSUM_LEN;
-    ulong max_rows_ev_len= slave_max_allowed_packet - rows_ev_metadata_len;
+    ulong max_rows_ev_len=
+        opt_binlog_row_event_fragment_threshold - rows_ev_metadata_len;
     if (pending->rows_data_size_exceeds(max_rows_ev_len))
     {
       Rows_log_event_fragmenter fragmenter= Rows_log_event_fragmenter(
-          thd, is_transactional, slave_max_allowed_packet, pending);
+          thd, is_transactional, opt_binlog_row_event_fragment_threshold,
+          pending);
       Rows_log_event_fragmenter::Fragmented_rows_log_event *frag_ev;
       if (!(frag_ev= fragmenter.fragment()))
       {

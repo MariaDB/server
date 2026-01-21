@@ -3,20 +3,20 @@ include/rpl_init.inc [topology=1->2, 2->3]
 #
 # Test setup
 connection server_1;
-set @@global.slave_max_allowed_packet= 1024;
+set @@global.binlog_row_event_fragment_threshold= 1024;
 set @@global.net_buffer_length= 1024;
 disconnect server_1;
 connect  server_1,127.0.0.1,root,,test,$SERVER_MYPORT_1,;
 connection server_2;
 include/stop_slave.inc
-set @@global.slave_max_allowed_packet= 1024;
+set @@global.binlog_row_event_fragment_threshold= 1024;
 set @@global.net_buffer_length= 1024;
 disconnect server_2;
 connect  server_2,127.0.0.1,root,,test,$SERVER_MYPORT_2,;
 include/start_slave.inc
 connection server_3;
 include/stop_slave.inc
-set @@global.slave_max_allowed_packet= 1024;
+set @@global.binlog_row_event_fragment_threshold= 1024;
 set @@global.net_buffer_length= 1024;
 disconnect server_3;
 connect  server_3,127.0.0.1,root,,test,$SERVER_MYPORT_3,;
@@ -24,7 +24,7 @@ include/start_slave.inc
 #
 #
 # Test cases 1a-1c) Regular row events that surpass
-# slave_max_allowed_packet should be fragmented
+# binlog_row_event_fragment_threshold should be fragmented
 connection server_2;
 include/stop_slave.inc
 connection server_3;
@@ -129,7 +129,7 @@ flush logs;
 #
 #
 # Test cases 1d-1f) Compressed row events that surpass
-# slave_max_allowed_packet should be fragmented
+# binlog_row_event_fragment_threshold should be fragmented
 connection server_1;
 set @@global.log_bin_compress= 1;
 connection server_2;
@@ -488,20 +488,20 @@ flush logs;
 #
 # Cleanup
 connection server_1;
-set @@global.slave_max_allowed_packet= 1073741824;
+set @@global.binlog_row_event_fragment_threshold= 1073741824;
 set @@global.net_buffer_length= 16384;
 disconnect server_1;
 connect  server_1,127.0.0.1,root,,test,$SERVER_MYPORT_1,;
 connection server_2;
 include/stop_slave.inc
-set @@global.slave_max_allowed_packet= 1073741824;
+set @@global.binlog_row_event_fragment_threshold= 1073741824;
 set @@global.net_buffer_length= 16384;
 include/start_slave.inc
 disconnect server_2;
 connect  server_2,127.0.0.1,root,,test,$SERVER_MYPORT_2,;
 connection server_3;
 include/stop_slave.inc
-set @@global.slave_max_allowed_packet= 1073741824;
+set @@global.binlog_row_event_fragment_threshold= 1073741824;
 set @@global.net_buffer_length= 16384;
 include/start_slave.inc
 disconnect server_3;

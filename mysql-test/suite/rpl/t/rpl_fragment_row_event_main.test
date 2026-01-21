@@ -1,20 +1,22 @@
 #
 #   This file tests that row events which are larger than a server's configured
-# slave_max_allowed_packet will be fragmented into Partial_rows_log_event, that
-# the slave re-assembles to execute the event.
+# binlog_row_event_fragment_threshold will be fragmented into
+# Partial_rows_log_event, that the slave re-assembles to execute the event.
 #
 #   The following use cases are tested when replaying transactions via
 # traditional replication.
 #
 #   Test cases done:
-#   1: Boundary testing of event size vs slave_max_allowed_packet
-#     a) If full rows_log_event (ev metadta incl) <= slave_max_allowed_packet,
-#        no fragmentation
-#     b) If rows_data size is less than slave_max_allowed_packet, but adding
-#        the metadata of the Rows_event would result in surpassing
-#        slave_max_allowed_packet (by one byte), fragmentation should occur
-#   2: Any Rows event type that surpasses slave_max_allowed_packet should be
-#     fragmented:
+#   1: Boundary testing of event size vs binlog_row_event_fragment_threshold
+#     a) If full rows_log_event
+#        (ev metadta incl) <= binlog_row_event_fragment_threshold, no
+#        fragmentation
+#     b) If rows_data size is less than binlog_row_event_fragment_threshold,
+#        but adding the metadata of the Rows_event would result in surpassing
+#        binlog_row_event_fragment_threshold (by one byte), fragmentation
+#        should occur
+#   2: Any Rows event type that surpasses binlog_row_event_fragment_threshold
+#      should be fragmented:
 #     a) Write_rows
 #     b) Update_rows
 #     c) Delete_rows
@@ -27,21 +29,21 @@
 #      apply them
 #   5: A transaction with multiple Rows_log_events can be replicated
 #   6: Using chain-replication, servers configured with different
-#      slave_max_allowed_packet should binlog according to the configured
-#      policy of that specific server
+#      binlog_row_event_fragment_threshold should binlog according to the
+#      configured policy of that specific server
 #   7: Replication filters will filter the re-constructed Rows_log_event,
 #      when filtering either the target database or table.
 #
 #
 #   Note this test users MTR variables to save old variables rather than user
-# variables because slave_max_allowed_packet is reset dynamically, and
-# connections are disconnected and reconnected to reset the value, as
+# variables because binlog_row_event_fragment_threshold is reset dynamically,
+# and connections are disconnected and reconnected to reset the value, as
 # FLUSH STATUS doesn't reset this value.
 #
 #
 # References:
 #   MDEV-28768: mysqlbinlog can produce events larger than max_allowed_packet
-#   MDEV-32570: Fragment ROW replication events larger than max_packet_size
+#   MDEV-32570: Fragment ROW replication events larger than frag_threshold_size
 #
 --source include/have_sequence.inc
 --source include/have_innodb.inc
@@ -58,9 +60,9 @@
 --let $test_mysqlbinlog_replay=
 
 --connection server_1
---let $server_1_old_slave_max_packet= `SELECT @@global.slave_max_allowed_packet`
+--let $server_1_old_binlog_frag_threshold= `SELECT @@global.binlog_row_event_fragment_threshold`
 --let $server_1_old_net_buf= `SELECT @@global.net_buffer_length`
-set @@global.slave_max_allowed_packet= 1024;
+set @@global.binlog_row_event_fragment_threshold= 1024;
 set @@global.net_buffer_length= 1024;
 --disconnect server_1
 --source include/wait_until_disconnected.inc
@@ -68,9 +70,9 @@ set @@global.net_buffer_length= 1024;
 
 --connection server_2
 --source include/stop_slave.inc
---let $server_2_old_slave_max_packet= `SELECT @@global.slave_max_allowed_packet`
+--let $server_2_old_binlog_frag_threshold= `SELECT @@global.binlog_row_event_fragment_threshold`
 --let $server_2_old_net_buf= `SELECT @@global.net_buffer_length`
-set @@global.slave_max_allowed_packet= 1024;
+set @@global.binlog_row_event_fragment_threshold= 1024;
 set @@global.net_buffer_length= 1024;
 --disconnect server_2
 --source include/wait_until_disconnected.inc
@@ -79,9 +81,9 @@ set @@global.net_buffer_length= 1024;
 
 --connection server_3
 --source include/stop_slave.inc
---let $server_3_old_slave_max_packet= `SELECT @@global.slave_max_allowed_packet`
+--let $server_3_old_binlog_frag_threshold= `SELECT @@global.binlog_row_event_fragment_threshold`
 --let $server_3_old_net_buf= `SELECT @@global.net_buffer_length`
-set @@global.slave_max_allowed_packet= 1024;
+set @@global.binlog_row_event_fragment_threshold= 1024;
 set @@global.net_buffer_length= 1024;
 --disconnect server_3
 --source include/wait_until_disconnected.inc
@@ -100,7 +102,7 @@ set @@global.net_buffer_length= 1024;
 
 --echo #
 --echo # A rows event at its maximum unfragmented length (i.e. the length of
---echo # slave_max_allowed_packet minus the Rows_log event metadata (e.g.
+--echo # binlog_row_event_fragment_threshold minus the Rows_log event metadata (e.g.
 --echo # headers)) should not fragment, and replication replay should work both
 --echo # via traditional replication as well as mysqlbinlog.
 --let $test_update=0
@@ -125,14 +127,14 @@ set @@global.net_buffer_length= 1024;
 --echo #
 --echo #
 --echo # Test cases 2a-2c) Regular row events that surpass
---echo # slave_max_allowed_packet should be fragmented
+--echo # binlog_row_event_fragment_threshold should be fragmented
 --source rpl_fragment_row_event.inc
 
 
 --echo #
 --echo #
 --echo # Test cases 2d-2f) Compressed row events that surpass
---echo # slave_max_allowed_packet should be fragmented
+--echo # binlog_row_event_fragment_threshold should be fragmented
 --connection server_1
 --let $old_s1_compress= `SELECT @@global.log_bin_compress`
 set @@global.log_bin_compress= 1;
@@ -208,14 +210,14 @@ set @@global.slave_parallel_threads= 4;
 
 --echo #
 --echo #
---echo # Test case 6) Chain replication with different slave_max_allowed_packet
+--echo # Test case 6) Chain replication with different binlog_row_event_fragment_threshold
 --echo # configurations
 
---let $server_2_max_packet=16384
---let $server_3_max_packet=16384
+--let $server_2_frag_threshold=16384
+--let $server_3_frag_threshold=16384
 --source rpl_fragment_row_event.inc
---let $server_2_max_packet=
---let $server_3_max_packet=
+--let $server_2_frag_threshold=
+--let $server_3_frag_threshold=
 
 --echo #
 --echo #
@@ -299,7 +301,7 @@ FLUSH LOGS;
 --echo #
 --echo # Cleanup
 --connection server_1
---eval set @@global.slave_max_allowed_packet= $server_1_old_slave_max_packet
+--eval set @@global.binlog_row_event_fragment_threshold= $server_1_old_binlog_frag_threshold
 --eval set @@global.net_buffer_length= $server_1_old_net_buf
 --disconnect server_1
 --source include/wait_until_disconnected.inc
@@ -307,7 +309,7 @@ FLUSH LOGS;
 
 --connection server_2
 --source include/stop_slave.inc
---eval set @@global.slave_max_allowed_packet= $server_2_old_slave_max_packet
+--eval set @@global.binlog_row_event_fragment_threshold= $server_2_old_binlog_frag_threshold
 --eval set @@global.net_buffer_length= $server_2_old_net_buf
 --source include/start_slave.inc
 --disconnect server_2
@@ -316,7 +318,7 @@ FLUSH LOGS;
 
 --connection server_3
 --source include/stop_slave.inc
---eval set @@global.slave_max_allowed_packet= $server_3_old_slave_max_packet
+--eval set @@global.binlog_row_event_fragment_threshold= $server_3_old_binlog_frag_threshold
 --eval set @@global.net_buffer_length= $server_3_old_net_buf
 --source include/start_slave.inc
 --disconnect server_3
