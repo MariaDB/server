@@ -360,13 +360,9 @@ int main(int argc,char *argv[])
       {
         found= 1;
         if (verbose)
-        {
-          int hundred= code / 100;
           printf("MariaDB error code %3d (%s): %s\n"
-                 "Learn more: https://mariadb.com/docs/server/reference/"
-                 "error-codes/mariadb-error-codes-%d00-to-%d99/e%3d\n",
-                 code, name, msg, hundred, hundred, code);
-        }
+                 "Learn more: https://err.mariadb.com/%3d\n",
+                 code, name, msg, code);
         else
           puts(msg);
       }

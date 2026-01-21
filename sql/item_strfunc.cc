@@ -3187,32 +3187,32 @@ String *Item_func_make_set::val_str(String *str)
     if (bits & 1)
     {
       String *res= (*ptr)->val_str(str);
-      if (res)					// Skip nulls
+      if (res)                                  // Skip nulls
       {
-	if (!first_found)
-	{					// First argument
-	  first_found=1;
-	  if (res != str)
-	    result=res;				// Use original string
-	  else
-	  {
-	    if (tmp_str.copy(*res))		// Don't use 'str'
+        if (!first_found)
+        {                                       // First argument
+          first_found=1;
+          if (res->ptr() != str->ptr())
+            result=res;                         // Use original string
+          else
+          {
+            if (tmp_str.copy(*res))             // Don't use 'str'
               return make_empty_result(str);
-	    result= &tmp_str;
-	  }
-	}
-	else
-	{
-	  if (result != &tmp_str)
-	  {					// Copy data to tmp_str
-	    if (tmp_str.alloc(result->length()+res->length()+1) ||
-		tmp_str.copy(*result))
+            result= &tmp_str;
+          }
+        }
+        else
+        {
+          if (result != &tmp_str)
+          {                                     // Copy data to tmp_str
+            if (tmp_str.alloc(result->length()+res->length()+1) ||
+                tmp_str.copy(*result))
               return make_empty_result(str);
-	    result= &tmp_str;
-	  }
-	  if (tmp_str.append(STRING_WITH_LEN(","), &my_charset_bin) || tmp_str.append(*res))
+            result= &tmp_str;
+          }
+          if (tmp_str.append(STRING_WITH_LEN(","), &my_charset_bin) || tmp_str.append(*res))
             return make_empty_result(str);
-	}
+        }
       }
     }
   }

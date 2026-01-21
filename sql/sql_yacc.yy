@@ -11339,8 +11339,12 @@ table_ref:
           table_factor     { $$= $1; }
         | join_table
           {
-            LEX *lex= Lex;
-            if (unlikely(!($$= lex->current_select->nest_last_join(thd))))
+            if (Lex->current_select->table_list.elements > MAX_TABLES)
+            {
+              my_error(ER_TOO_MANY_TABLES, MYF(0), static_cast<int>(MAX_TABLES));
+              MYSQL_YYABORT;
+            }
+            if (!($$= Lex->current_select->nest_last_join(thd)))
             {
               thd->parse_error();
               MYSQL_YYABORT;
@@ -14024,23 +14028,25 @@ show_param:
           }
         | PROCEDURE_SYM CODE_SYM sp_name
           {
-            Lex->sql_command= SQLCOM_SHOW_PROC_CODE;
-            Lex->spname= $3;
+            if (Lex->show_routine_code_start(thd, SQLCOM_SHOW_PROC_CODE, $3))
+              MYSQL_YYABORT;
           }
         | FUNCTION_SYM CODE_SYM sp_name
           {
-            Lex->sql_command= SQLCOM_SHOW_FUNC_CODE;
-            Lex->spname= $3;
+            if (Lex->show_routine_code_start(thd, SQLCOM_SHOW_FUNC_CODE, $3))
+              MYSQL_YYABORT;
           }
         | PACKAGE_MARIADB_SYM BODY_MARIADB_SYM CODE_SYM sp_name
           {
-            Lex->sql_command= SQLCOM_SHOW_PACKAGE_BODY_CODE;
-            Lex->spname= $4;
+            if (Lex->show_routine_code_start(thd, SQLCOM_SHOW_PACKAGE_BODY_CODE,
+                                             $4))
+              MYSQL_YYABORT;
           }
         | PACKAGE_ORACLE_SYM BODY_ORACLE_SYM CODE_SYM sp_name
           {
-            Lex->sql_command= SQLCOM_SHOW_PACKAGE_BODY_CODE;
-            Lex->spname= $4;
+            if (Lex->show_routine_code_start(thd, SQLCOM_SHOW_PACKAGE_BODY_CODE,
+                                             $4))
+              MYSQL_YYABORT;
           }
         | CREATE EVENT_SYM sp_name
           {

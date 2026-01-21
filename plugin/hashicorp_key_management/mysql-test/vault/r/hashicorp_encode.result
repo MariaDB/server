@@ -1,12 +1,12 @@
 SHOW GLOBAL variables LIKE "hashicorp%";
 Variable_name	Value
-hashicorp_key_management_cache_timeout	86400000
+hashicorp_key_management_cache_timeout	9223372036854775807
 hashicorp_key_management_cache_version_timeout	60000
 hashicorp_key_management_caching_enabled	ON
 hashicorp_key_management_check_kv_version	OFF
 hashicorp_key_management_max_retries	3
 hashicorp_key_management_timeout	60
-hashicorp_key_management_use_cache_on_timeout	OFF
+hashicorp_key_management_use_cache_on_timeout	ON
 hashicorp_key_management_vault_ca	
 hashicorp_key_management_vault_url	VAULT_ADDR/v1/mariadbtest/
 create table t1(c1 bigint not null, b char(200)) engine=innodb encrypted=yes encryption_key_id=1;

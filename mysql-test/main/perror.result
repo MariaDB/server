@@ -1,10 +1,10 @@
 Illegal error code: 10000
 MariaDB error code 1062 (ER_DUP_ENTRY): Duplicate entry '%-.192T' for key %d
-Learn more: https://mariadb.com/docs/server/reference/error-codes/mariadb-error-codes-1000-to-1099/e1062
+Learn more: https://err.mariadb.com/1062
 MariaDB error code 1408 (ER_STARTUP): %s: ready for connections.
 Version: '%s'  socket: '%s'  port: %d  %s
-Learn more: https://mariadb.com/docs/server/reference/error-codes/mariadb-error-codes-1400-to-1499/e1408
+Learn more: https://err.mariadb.com/1408
 MariaDB error code 1459 (ER_TABLE_NEEDS_UPGRADE): Upgrade required. Please do "REPAIR %s %`s" or dump/reload to fix it!
-Learn more: https://mariadb.com/docs/server/reference/error-codes/mariadb-error-codes-1400-to-1499/e1459
+Learn more: https://err.mariadb.com/1459
 MariaDB error code 1461 (ER_MAX_PREPARED_STMT_COUNT_REACHED): Can't create more than max_prepared_stmt_count statements (current value: %u)
-Learn more: https://mariadb.com/docs/server/reference/error-codes/mariadb-error-codes-1400-to-1499/e1461
+Learn more: https://err.mariadb.com/1461

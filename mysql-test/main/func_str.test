@@ -2588,4 +2588,12 @@ let $b=`select repeat('b', 65540)`;
 replace_regex /a{65535}/a.../ /b{65535}/b.../;
 evalp select group_concat(v) from ( select '$a' as v union all select '$b' as v) t;
 
+--echo #
+--echo # MDEV-38233 Inconsistent results for make_set of cast
+--echo #
+create table t1 (c1 int);
+insert into t1 values (9067);
+select cast(make_set(3, cast(c1 as binary), 0) as char) from t1;
+drop table t1;
+
 --echo # End of 10.11 tests

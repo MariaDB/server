@@ -27208,15 +27208,15 @@ find_order_in_list(THD *thd, Ref_ptr_array ref_pointer_array,
 
   if (order_item->is_order_clause_position() && !from_window_spec)
   {						/* Order by position */
-    uint count;
+    int count;
     if (order->counter_used)
       count= order->counter; // counter was once resolved
     else
       count= (uint) order_item->val_int();
-    if (!count || count > fields.elements)
+    if (count <= 0 || count > (int)fields.elements)
     {
-      my_error(ER_BAD_FIELD_ERROR, MYF(0),
-               order_item->full_name(), thd_where(thd));
+      char buf[64];
+      my_error(ER_BAD_FIELD_ERROR, MYF(0), llstr(count, buf), thd_where(thd));
       return TRUE;
     }
     thd->change_item_tree((Item **)&order->item, (Item *)&ref_pointer_array[count - 1]);

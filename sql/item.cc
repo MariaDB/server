@@ -5782,8 +5782,6 @@ resolve_ref_in_select_and_group(THD *thd, Item_ident *ref, SELECT_LEX *select)
       DBUG_ASSERT((*select_ref)->fixed());
       return &select->ref_pointer_array[counter];
     }
-    if (group_by_ref && (*group_by_ref)->type() == Item::REF_ITEM)
-      return ((Item_ref*)(*group_by_ref))->ref;
     if (group_by_ref)
       return group_by_ref;
     DBUG_ASSERT(FALSE);
@@ -6063,8 +6061,24 @@ Item_field::fix_outer_field(THD *thd, Field **from_field, Item **reference)
         return -1; /* Some error occurred (e.g. ambiguous names). */
       if (ref != not_found_item)
       {
-        DBUG_ASSERT(*ref && (*ref)->fixed());
-        prev_subselect_item->used_tables_and_const_cache_join(*ref);
+        DBUG_ASSERT(*ref);
+
+        /*
+          If this item isn't yet fixed, it is an Item_outer_ref, wrapping an
+          item. If that item is fixed, we can fix this wrapper now.  Otherwise
+          it will need to wait until the fix_inner_refs() in JOIN::prepare()
+        */
+        if (!(*ref)->fixed() &&
+             (*ref)->type() == Item::REF_ITEM)
+        {
+          Item_ref *item_ref= static_cast<Item_ref *>(*ref);
+          Item *refref= *(item_ref->ref);
+          if (refref->fixed())
+            (*ref)->fix_fields_if_needed( thd, reference);
+        }
+        if ((*ref)->fixed())
+          prev_subselect_item->used_tables_and_const_cache_join(*ref);
+
         break;
       }
     }
@@ -6105,8 +6119,7 @@ Item_field::fix_outer_field(THD *thd, Field **from_field, Item **reference)
     Item *save;
     Item_ref *rf;
 
-    /* Should have been checked in resolve_ref_in_select_and_group(). */
-    DBUG_ASSERT(*ref && (*ref)->fixed());
+    DBUG_ASSERT(*ref);
     /*
       Here, a subset of actions performed by Item_ref::set_properties
       is not enough. So we pass ptr to NULL into Item_[direct]_ref
@@ -10123,7 +10136,8 @@ bool Item_insert_value::fix_fields(THD *thd, Item **items)
 
   Item_field *field_arg= (Item_field *)arg;
 
-  if (field_arg->field->table->insert_values)
+  if (field_arg->field->table->insert_values &&
+      thd->where != THD_WHERE::VALUES_CLAUSE)
   {
     Field *def_field= (Field*) thd->alloc(field_arg->field->size_of());
     if (!def_field)

@@ -1444,7 +1444,7 @@ void THD::update_all_stats()
   end_cpu_time= my_getcputime();
   end_utime=    microsecond_interval_timer();
   busy_time= end_utime - start_utime;
-  cpu_time=  end_cpu_time - start_cpu_time;
+  cpu_time=  (end_cpu_time - start_cpu_time+5)/10;
   /* In case there are bad values, 2629743 is the #seconds in a month. */
   if (cpu_time > 2629743000000ULL)
     cpu_time= 0;
@@ -2182,6 +2182,10 @@ int THD::killed_errno()
     DBUG_RETURN(ER_CONNECTION_KILLED);
   case KILL_QUERY:
   case KILL_QUERY_HARD:
+#ifdef WITH_WSREP
+  if (WSREP(this))
+    wsrep_report_query_interrupted(this, __FILE__, __LINE__);
+#endif /* WITH_WSREP */
     DBUG_RETURN(ER_QUERY_INTERRUPTED);
   case KILL_TIMEOUT:
   case KILL_TIMEOUT_HARD:
@@ -8352,6 +8356,10 @@ wait_for_commit::wait_for_prior_commit2(THD *thd, bool allow_kill)
     wakeup_error= ER_QUERY_INTERRUPTED;
   my_message(wakeup_error, ER_THD(thd, wakeup_error), MYF(0));
   thd->EXIT_COND(&old_stage);
+#ifdef WITH_WSREP
+  if (WSREP(thd))
+    wsrep_report_query_interrupted(thd, __FILE__, __LINE__);
+#endif /* WITH_WSREP */
   /*
     Must do the DEBUG_SYNC() _after_ exit_cond(), as DEBUG_SYNC is not safe to
     use within enter_cond/exit_cond.

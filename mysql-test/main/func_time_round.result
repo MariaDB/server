@@ -98,14 +98,14 @@ GREATEST(TIME'00:00:00', a)
 838:59:59.999999
 838:59:59.999999
 Warnings:
-Note	1292	Truncated incorrect time value: '00:00:00.9999999'
-Note	1292	Truncated incorrect time value: '837:59:59.9999999'
-Warning	1292	Truncated incorrect time value: '838:59:59.9999999'
-Warning	1292	Truncated incorrect time value: '839:59:59.9999999'
-Warning	1292	Truncated incorrect time value: '87649414:59:59.999999'
-Warning	1292	Truncated incorrect time value: '87649414:59:59.9999999'
-Warning	1292	Truncated incorrect time value: '87649415:59:59.999999'
-Warning	1292	Truncated incorrect time value: '87649415:59:59.9999999'
+Note	1292	Incorrect time value: '00:00:00.9999999' for column `test`.`t1_time_in_varchar`.`a` at row 8
+Note	1292	Incorrect time value: '837:59:59.9999999' for column `test`.`t1_time_in_varchar`.`a` at row 9
+Warning	1292	Incorrect time value: '838:59:59.9999999' for column `test`.`t1_time_in_varchar`.`a` at row 17
+Warning	1292	Incorrect time value: '839:59:59.9999999' for column `test`.`t1_time_in_varchar`.`a` at row 18
+Warning	1292	Incorrect time value: '87649414:59:59.999999' for column `test`.`t1_time_in_varchar`.`a` at row 19
+Warning	1292	Incorrect time value: '87649414:59:59.9999999' for column `test`.`t1_time_in_varchar`.`a` at row 20
+Warning	1292	Incorrect time value: '87649415:59:59.999999' for column `test`.`t1_time_in_varchar`.`a` at row 21
+Warning	1292	Incorrect time value: '87649415:59:59.9999999' for column `test`.`t1_time_in_varchar`.`a` at row 22
 SELECT GREATEST(TIME'00:00:00', a) FROM t1_time_in_decimal;
 GREATEST(TIME'00:00:00', a)
 00:00:00.000000
@@ -114,23 +114,27 @@ GREATEST(TIME'00:00:00', a)
 00:00:00.999000
 00:00:00.999900
 00:00:00.999990
-00:00:00.999999
-00:00:01.000000
-838:00:00.000000
+NULL
+NULL
+NULL
 838:59:59.000000
 838:59:59.900000
 838:59:59.990000
 838:59:59.999000
 838:59:59.999900
 838:59:59.999990
-838:59:59.999999
-838:59:59.999999
-838:59:59.999999
+NULL
+NULL
+NULL
 NULL
 NULL
 NULL
 NULL
 Warnings:
+Warning	1292	Incorrect time value: '0.9999990000' for column `test`.`t1_time_in_decimal`.`a` at row 7
+Warning	1292	Incorrect time value: '0.9999999000' for column `test`.`t1_time_in_decimal`.`a` at row 8
+Warning	1292	Incorrect time value: '8375959.9999999000' for column `test`.`t1_time_in_decimal`.`a` at row 9
+Warning	1292	Incorrect time value: '8385959.9999990000' for column `test`.`t1_time_in_decimal`.`a` at row 16
 Warning	1292	Incorrect time value: '8385959.9999999000' for column `test`.`t1_time_in_decimal`.`a` at row 17
 Warning	1292	Incorrect time value: '8395959.9999999000' for column `test`.`t1_time_in_decimal`.`a` at row 18
 Warning	1292	Incorrect time value: '876494145959.9999990000' for column `test`.`t1_time_in_decimal`.`a` at row 19
@@ -167,8 +171,8 @@ SECOND(a)	CAST(a AS TIME(6))	a
 59	23:59:59.999999	2000-12-31 23:59:59.999999
 0	00:00:00.000000	2000-12-31 23:59:59.9999999
 Warnings:
-Note	1292	Truncated incorrect datetime value: '2000-12-31 23:59:59.9999999'
-Note	1292	Truncated incorrect datetime value: '2000-12-31 23:59:59.9999999'
+Note	1292	Incorrect datetime value: '2000-12-31 23:59:59.9999999' for column `test`.`t1_datetime_in_varchar`.`a` at row 8
+Note	1292	Incorrect datetime value: '2000-12-31 23:59:59.9999999' for column `test`.`t1_datetime_in_varchar`.`a` at row 8
 SELECT MINUTE(a), CAST(a AS TIME(6)), a FROM t1_datetime_in_varchar ORDER BY id;
 MINUTE(a)	CAST(a AS TIME(6))	a
 59	23:59:59.000000	2000-12-31 23:59:59
@@ -180,8 +184,8 @@ MINUTE(a)	CAST(a AS TIME(6))	a
 59	23:59:59.999999	2000-12-31 23:59:59.999999
 0	00:00:00.000000	2000-12-31 23:59:59.9999999
 Warnings:
-Note	1292	Truncated incorrect datetime value: '2000-12-31 23:59:59.9999999'
-Note	1292	Truncated incorrect datetime value: '2000-12-31 23:59:59.9999999'
+Note	1292	Incorrect datetime value: '2000-12-31 23:59:59.9999999' for column `test`.`t1_datetime_in_varchar`.`a` at row 8
+Note	1292	Incorrect datetime value: '2000-12-31 23:59:59.9999999' for column `test`.`t1_datetime_in_varchar`.`a` at row 8
 SELECT HOUR(a), CAST(a AS TIME(6)), a FROM t1_datetime_in_varchar ORDER BY id;
 HOUR(a)	CAST(a AS TIME(6))	a
 23	23:59:59.000000	2000-12-31 23:59:59
@@ -193,8 +197,8 @@ HOUR(a)	CAST(a AS TIME(6))	a
 23	23:59:59.999999	2000-12-31 23:59:59.999999
 0	00:00:00.000000	2000-12-31 23:59:59.9999999
 Warnings:
-Note	1292	Truncated incorrect datetime value: '2000-12-31 23:59:59.9999999'
-Note	1292	Truncated incorrect datetime value: '2000-12-31 23:59:59.9999999'
+Note	1292	Incorrect datetime value: '2000-12-31 23:59:59.9999999' for column `test`.`t1_datetime_in_varchar`.`a` at row 8
+Note	1292	Incorrect datetime value: '2000-12-31 23:59:59.9999999' for column `test`.`t1_datetime_in_varchar`.`a` at row 8
 SELECT EXTRACT(SECOND FROM a), CAST(a AS TIME(6)), a FROM t1_datetime_in_varchar ORDER BY id;
 EXTRACT(SECOND FROM a)	CAST(a AS TIME(6))	a
 59	23:59:59.000000	2000-12-31 23:59:59
@@ -206,8 +210,8 @@ EXTRACT(SECOND FROM a)	CAST(a AS TIME(6))	a
 59	23:59:59.999999	2000-12-31 23:59:59.999999
 0	00:00:00.000000	2000-12-31 23:59:59.9999999
 Warnings:
-Note	1292	Truncated incorrect datetime value: '2000-12-31 23:59:59.9999999'
-Note	1292	Truncated incorrect datetime value: '2000-12-31 23:59:59.9999999'
+Note	1292	Incorrect datetime value: '2000-12-31 23:59:59.9999999' for column `test`.`t1_datetime_in_varchar`.`a` at row 8
+Note	1292	Incorrect datetime value: '2000-12-31 23:59:59.9999999' for column `test`.`t1_datetime_in_varchar`.`a` at row 8
 SELECT EXTRACT(MINUTE FROM a), CAST(a AS TIME(6)), a FROM t1_datetime_in_varchar ORDER BY id;
 EXTRACT(MINUTE FROM a)	CAST(a AS TIME(6))	a
 59	23:59:59.000000	2000-12-31 23:59:59
@@ -219,8 +223,8 @@ EXTRACT(MINUTE FROM a)	CAST(a AS TIME(6))	a
 59	23:59:59.999999	2000-12-31 23:59:59.999999
 0	00:00:00.000000	2000-12-31 23:59:59.9999999
 Warnings:
-Note	1292	Truncated incorrect datetime value: '2000-12-31 23:59:59.9999999'
-Note	1292	Truncated incorrect datetime value: '2000-12-31 23:59:59.9999999'
+Note	1292	Incorrect datetime value: '2000-12-31 23:59:59.9999999' for column `test`.`t1_datetime_in_varchar`.`a` at row 8
+Note	1292	Incorrect datetime value: '2000-12-31 23:59:59.9999999' for column `test`.`t1_datetime_in_varchar`.`a` at row 8
 SELECT EXTRACT(HOUR FROM a), CAST(a AS TIME(6)), a FROM t1_datetime_in_varchar ORDER BY id;
 EXTRACT(HOUR FROM a)	CAST(a AS TIME(6))	a
 23	23:59:59.000000	2000-12-31 23:59:59
@@ -232,8 +236,8 @@ EXTRACT(HOUR FROM a)	CAST(a AS TIME(6))	a
 23	23:59:59.999999	2000-12-31 23:59:59.999999
 0	00:00:00.000000	2000-12-31 23:59:59.9999999
 Warnings:
-Note	1292	Truncated incorrect datetime value: '2000-12-31 23:59:59.9999999'
-Note	1292	Truncated incorrect datetime value: '2000-12-31 23:59:59.9999999'
+Note	1292	Incorrect datetime value: '2000-12-31 23:59:59.9999999' for column `test`.`t1_datetime_in_varchar`.`a` at row 8
+Note	1292	Incorrect datetime value: '2000-12-31 23:59:59.9999999' for column `test`.`t1_datetime_in_varchar`.`a` at row 8
 SELECT TIME_TO_SEC(a), CAST(a AS TIME(6)), a FROM t1_datetime_in_varchar ORDER BY id;
 TIME_TO_SEC(a)	CAST(a AS TIME(6))	a
 86399.000000	23:59:59.000000	2000-12-31 23:59:59
@@ -245,8 +249,8 @@ TIME_TO_SEC(a)	CAST(a AS TIME(6))	a
 86399.999999	23:59:59.999999	2000-12-31 23:59:59.999999
 0.000000	00:00:00.000000	2000-12-31 23:59:59.9999999
 Warnings:
-Note	1292	Truncated incorrect datetime value: '2000-12-31 23:59:59.9999999'
-Note	1292	Truncated incorrect datetime value: '2000-12-31 23:59:59.9999999'
+Note	1292	Incorrect datetime value: '2000-12-31 23:59:59.9999999' for column `test`.`t1_datetime_in_varchar`.`a` at row 8
+Note	1292	Incorrect datetime value: '2000-12-31 23:59:59.9999999' for column `test`.`t1_datetime_in_varchar`.`a` at row 8
 #
 # Functions with a single TIME input, conversion from DATETIME-in-DECIMAL
 #
@@ -356,41 +360,41 @@ EXTRACT(DAY FROM a)	EXTRACT(HOUR FROM a)	EXTRACT(MINUTE FROM a)	EXTRACT(SECOND F
 3652058	23	59	59	999999	3652058 23:59:59.999999	87649415:59:59.999999
 3652058	23	59	59	999999	3652058 23:59:59.999999	87649415:59:59.9999999
 Warnings:
-Note	1292	Truncated incorrect time value: '00:00:00.9999999'
-Note	1292	Truncated incorrect time value: '00:00:00.9999999'
-Note	1292	Truncated incorrect time value: '00:00:00.9999999'
-Note	1292	Truncated incorrect time value: '00:00:00.9999999'
-Note	1292	Truncated incorrect time value: '00:00:00.9999999'
+Note	1292	Incorrect time value: '00:00:00.9999999' for column `test`.`t1_time_in_varchar`.`a` at row 8
+Note	1292	Incorrect time value: '00:00:00.9999999' for column `test`.`t1_time_in_varchar`.`a` at row 8
+Note	1292	Incorrect time value: '00:00:00.9999999' for column `test`.`t1_time_in_varchar`.`a` at row 8
+Note	1292	Incorrect time value: '00:00:00.9999999' for column `test`.`t1_time_in_varchar`.`a` at row 8
+Note	1292	Incorrect time value: '00:00:00.9999999' for column `test`.`t1_time_in_varchar`.`a` at row 8
 Note	1292	Truncated incorrect INTERVAL DAY TO SECOND value: '00:00:00.9999999'
-Note	1292	Truncated incorrect time value: '837:59:59.9999999'
-Note	1292	Truncated incorrect time value: '837:59:59.9999999'
-Note	1292	Truncated incorrect time value: '837:59:59.9999999'
-Note	1292	Truncated incorrect time value: '837:59:59.9999999'
-Note	1292	Truncated incorrect time value: '837:59:59.9999999'
+Note	1292	Incorrect time value: '837:59:59.9999999' for column `test`.`t1_time_in_varchar`.`a` at row 9
+Note	1292	Incorrect time value: '837:59:59.9999999' for column `test`.`t1_time_in_varchar`.`a` at row 9
+Note	1292	Incorrect time value: '837:59:59.9999999' for column `test`.`t1_time_in_varchar`.`a` at row 9
+Note	1292	Incorrect time value: '837:59:59.9999999' for column `test`.`t1_time_in_varchar`.`a` at row 9
+Note	1292	Incorrect time value: '837:59:59.9999999' for column `test`.`t1_time_in_varchar`.`a` at row 9
 Note	1292	Truncated incorrect INTERVAL DAY TO SECOND value: '837:59:59.9999999'
-Note	1292	Truncated incorrect time value: '838:59:59.9999999'
-Note	1292	Truncated incorrect time value: '838:59:59.9999999'
-Note	1292	Truncated incorrect time value: '838:59:59.9999999'
-Note	1292	Truncated incorrect time value: '838:59:59.9999999'
-Note	1292	Truncated incorrect time value: '838:59:59.9999999'
+Note	1292	Incorrect time value: '838:59:59.9999999' for column `test`.`t1_time_in_varchar`.`a` at row 17
+Note	1292	Incorrect time value: '838:59:59.9999999' for column `test`.`t1_time_in_varchar`.`a` at row 17
+Note	1292	Incorrect time value: '838:59:59.9999999' for column `test`.`t1_time_in_varchar`.`a` at row 17
+Note	1292	Incorrect time value: '838:59:59.9999999' for column `test`.`t1_time_in_varchar`.`a` at row 17
+Note	1292	Incorrect time value: '838:59:59.9999999' for column `test`.`t1_time_in_varchar`.`a` at row 17
 Note	1292	Truncated incorrect INTERVAL DAY TO SECOND value: '838:59:59.9999999'
-Note	1292	Truncated incorrect time value: '839:59:59.9999999'
-Note	1292	Truncated incorrect time value: '839:59:59.9999999'
-Note	1292	Truncated incorrect time value: '839:59:59.9999999'
-Note	1292	Truncated incorrect time value: '839:59:59.9999999'
-Note	1292	Truncated incorrect time value: '839:59:59.9999999'
+Note	1292	Incorrect time value: '839:59:59.9999999' for column `test`.`t1_time_in_varchar`.`a` at row 18
+Note	1292	Incorrect time value: '839:59:59.9999999' for column `test`.`t1_time_in_varchar`.`a` at row 18
+Note	1292	Incorrect time value: '839:59:59.9999999' for column `test`.`t1_time_in_varchar`.`a` at row 18
+Note	1292	Incorrect time value: '839:59:59.9999999' for column `test`.`t1_time_in_varchar`.`a` at row 18
+Note	1292	Incorrect time value: '839:59:59.9999999' for column `test`.`t1_time_in_varchar`.`a` at row 18
 Note	1292	Truncated incorrect INTERVAL DAY TO SECOND value: '839:59:59.9999999'
-Note	1292	Truncated incorrect time value: '87649414:59:59.9999999'
-Note	1292	Truncated incorrect time value: '87649414:59:59.9999999'
-Note	1292	Truncated incorrect time value: '87649414:59:59.9999999'
-Note	1292	Truncated incorrect time value: '87649414:59:59.9999999'
-Note	1292	Truncated incorrect time value: '87649414:59:59.9999999'
+Note	1292	Incorrect time value: '87649414:59:59.9999999' for column `test`.`t1_time_in_varchar`.`a` at row 20
+Note	1292	Incorrect time value: '87649414:59:59.9999999' for column `test`.`t1_time_in_varchar`.`a` at row 20
+Note	1292	Incorrect time value: '87649414:59:59.9999999' for column `test`.`t1_time_in_varchar`.`a` at row 20
+Note	1292	Incorrect time value: '87649414:59:59.9999999' for column `test`.`t1_time_in_varchar`.`a` at row 20
+Note	1292	Incorrect time value: '87649414:59:59.9999999' for column `test`.`t1_time_in_varchar`.`a` at row 20
 Note	1292	Truncated incorrect INTERVAL DAY TO SECOND value: '87649414:59:59.9999999'
-Warning	1292	Truncated incorrect time value: '87649415:59:59.9999999'
-Warning	1292	Truncated incorrect time value: '87649415:59:59.9999999'
-Warning	1292	Truncated incorrect time value: '87649415:59:59.9999999'
-Warning	1292	Truncated incorrect time value: '87649415:59:59.9999999'
-Warning	1292	Truncated incorrect time value: '87649415:59:59.9999999'
+Warning	1292	Incorrect time value: '87649415:59:59.9999999' for column `test`.`t1_time_in_varchar`.`a` at row 22
+Warning	1292	Incorrect time value: '87649415:59:59.9999999' for column `test`.`t1_time_in_varchar`.`a` at row 22
+Warning	1292	Incorrect time value: '87649415:59:59.9999999' for column `test`.`t1_time_in_varchar`.`a` at row 22
+Warning	1292	Incorrect time value: '87649415:59:59.9999999' for column `test`.`t1_time_in_varchar`.`a` at row 22
+Warning	1292	Incorrect time value: '87649415:59:59.9999999' for column `test`.`t1_time_in_varchar`.`a` at row 22
 Warning	1292	Incorrect INTERVAL DAY TO SECOND value: '87649415:59:59.9999999'
 SELECT
 TIME_TO_SEC(a),
@@ -421,22 +425,22 @@ TIME_TO_SEC(a)	CAST(a AS TIME(6))	a
 3020399.999999	838:59:59.999999	87649415:59:59.999999
 3020399.999999	838:59:59.999999	87649415:59:59.9999999
 Warnings:
-Note	1292	Truncated incorrect time value: '00:00:00.9999999'
-Note	1292	Truncated incorrect time value: '00:00:00.9999999'
-Note	1292	Truncated incorrect time value: '837:59:59.9999999'
-Note	1292	Truncated incorrect time value: '837:59:59.9999999'
-Warning	1292	Truncated incorrect time value: '838:59:59.9999999'
-Warning	1292	Truncated incorrect time value: '838:59:59.9999999'
-Warning	1292	Truncated incorrect time value: '839:59:59.9999999'
-Warning	1292	Truncated incorrect time value: '839:59:59.9999999'
-Warning	1292	Truncated incorrect time value: '87649414:59:59.999999'
-Warning	1292	Truncated incorrect time value: '87649414:59:59.999999'
-Warning	1292	Truncated incorrect time value: '87649414:59:59.9999999'
-Warning	1292	Truncated incorrect time value: '87649414:59:59.9999999'
-Warning	1292	Truncated incorrect time value: '87649415:59:59.999999'
-Warning	1292	Truncated incorrect time value: '87649415:59:59.999999'
-Warning	1292	Truncated incorrect time value: '87649415:59:59.9999999'
-Warning	1292	Truncated incorrect time value: '87649415:59:59.9999999'
+Note	1292	Incorrect time value: '00:00:00.9999999' for column `test`.`t1_time_in_varchar`.`a` at row 8
+Note	1292	Incorrect time value: '00:00:00.9999999' for column `test`.`t1_time_in_varchar`.`a` at row 8
+Note	1292	Incorrect time value: '837:59:59.9999999' for column `test`.`t1_time_in_varchar`.`a` at row 9
+Note	1292	Incorrect time value: '837:59:59.9999999' for column `test`.`t1_time_in_varchar`.`a` at row 9
+Warning	1292	Incorrect time value: '838:59:59.9999999' for column `test`.`t1_time_in_varchar`.`a` at row 17
+Warning	1292	Incorrect time value: '838:59:59.9999999' for column `test`.`t1_time_in_varchar`.`a` at row 17
+Warning	1292	Incorrect time value: '839:59:59.9999999' for column `test`.`t1_time_in_varchar`.`a` at row 18
+Warning	1292	Incorrect time value: '839:59:59.9999999' for column `test`.`t1_time_in_varchar`.`a` at row 18
+Warning	1292	Incorrect time value: '87649414:59:59.999999' for column `test`.`t1_time_in_varchar`.`a` at row 19
+Warning	1292	Incorrect time value: '87649414:59:59.999999' for column `test`.`t1_time_in_varchar`.`a` at row 19
+Warning	1292	Incorrect time value: '87649414:59:59.9999999' for column `test`.`t1_time_in_varchar`.`a` at row 20
+Warning	1292	Incorrect time value: '87649414:59:59.9999999' for column `test`.`t1_time_in_varchar`.`a` at row 20
+Warning	1292	Incorrect time value: '87649415:59:59.999999' for column `test`.`t1_time_in_varchar`.`a` at row 21
+Warning	1292	Incorrect time value: '87649415:59:59.999999' for column `test`.`t1_time_in_varchar`.`a` at row 21
+Warning	1292	Incorrect time value: '87649415:59:59.9999999' for column `test`.`t1_time_in_varchar`.`a` at row 22
+Warning	1292	Incorrect time value: '87649415:59:59.9999999' for column `test`.`t1_time_in_varchar`.`a` at row 22
 #
 # Functions with a single TIME interval input, conversion from TIME-interval-in-DECIMAL
 #
@@ -456,22 +460,22 @@ EXTRACT(DAY FROM a)	EXTRACT(HOUR FROM a)	EXTRACT(MINUTE FROM a)	EXTRACT(SECOND F
 0	0	0	0	999000	00:00:00.999000	0.9990000000
 0	0	0	0	999900	00:00:00.999900	0.9999000000
 0	0	0	0	999990	00:00:00.999990	0.9999900000
-0	0	0	0	999999	00:00:00.999999	0.9999990000
-0	0	0	1	0	00:00:01.000000	0.9999999000
-34	22	0	0	0	34 22:00:00.000000	8375959.9999999000
+NULL	NULL	NULL	NULL	NULL	00:00:00.999999	0.9999990000
+NULL	NULL	NULL	NULL	NULL	00:00:01.000000	0.9999999000
+NULL	NULL	NULL	NULL	NULL	34 22:00:00.000000	8375959.9999999000
 34	22	59	59	0	34 22:59:59.000000	8385959.0000000000
 34	22	59	59	900000	34 22:59:59.900000	8385959.9000000000
 34	22	59	59	990000	34 22:59:59.990000	8385959.9900000000
 34	22	59	59	999000	34 22:59:59.999000	8385959.9990000000
 34	22	59	59	999900	34 22:59:59.999900	8385959.9999000000
 34	22	59	59	999990	34 22:59:59.999990	8385959.9999900000
-34	22	59	59	999999	34 22:59:59.999999	8385959.9999990000
-34	23	0	0	0	34 23:00:00.000000	8385959.9999999000
-35	0	0	0	0	35 00:00:00.000000	8395959.9999999000
-3652058	22	59	59	999999	3652058 22:59:59.999999	876494145959.9999990000
-3652058	23	0	0	0	3652058 23:00:00.000000	876494145959.9999999000
-3652058	23	59	59	999999	3652058 23:59:59.999999	876494155959.9999990000
-3652058	23	59	59	999999	3652058 23:59:59.999999	876494155959.9999999000
+NULL	NULL	NULL	NULL	NULL	34 22:59:59.999999	8385959.9999990000
+NULL	NULL	NULL	NULL	NULL	34 23:00:00.000000	8385959.9999999000
+NULL	NULL	NULL	NULL	NULL	35 00:00:00.000000	8395959.9999999000
+NULL	NULL	NULL	NULL	NULL	3652058 22:59:59.999999	876494145959.9999990000
+NULL	NULL	NULL	NULL	NULL	3652058 23:00:00.000000	876494145959.9999999000
+NULL	NULL	NULL	NULL	NULL	3652058 23:59:59.999999	876494155959.9999990000
+NULL	NULL	NULL	NULL	NULL	3652058 23:59:59.999999	876494155959.9999999000
 Warnings:
 Note	1292	Truncated incorrect INTERVAL DAY TO SECOND value: '0.0000000000'
 Note	1292	Truncated incorrect INTERVAL DAY TO SECOND value: '0.9000000000'
@@ -479,8 +483,23 @@ Note	1292	Truncated incorrect INTERVAL DAY TO SECOND value: '0.9900000000'
 Note	1292	Truncated incorrect INTERVAL DAY TO SECOND value: '0.9990000000'
 Note	1292	Truncated incorrect INTERVAL DAY TO SECOND value: '0.9999000000'
 Note	1292	Truncated incorrect INTERVAL DAY TO SECOND value: '0.9999900000'
+Warning	1292	Incorrect interval value: '0.9999990000' for column `test`.`t1_time_in_decimal`.`a` at row 7
+Warning	1292	Incorrect interval value: '0.9999990000' for column `test`.`t1_time_in_decimal`.`a` at row 7
+Warning	1292	Incorrect interval value: '0.9999990000' for column `test`.`t1_time_in_decimal`.`a` at row 7
+Warning	1292	Incorrect interval value: '0.9999990000' for column `test`.`t1_time_in_decimal`.`a` at row 7
+Warning	1292	Incorrect interval value: '0.9999990000' for column `test`.`t1_time_in_decimal`.`a` at row 7
 Note	1292	Truncated incorrect INTERVAL DAY TO SECOND value: '0.9999990000'
+Warning	1292	Incorrect interval value: '0.9999999000' for column `test`.`t1_time_in_decimal`.`a` at row 8
+Warning	1292	Incorrect interval value: '0.9999999000' for column `test`.`t1_time_in_decimal`.`a` at row 8
+Warning	1292	Incorrect interval value: '0.9999999000' for column `test`.`t1_time_in_decimal`.`a` at row 8
+Warning	1292	Incorrect interval value: '0.9999999000' for column `test`.`t1_time_in_decimal`.`a` at row 8
+Warning	1292	Incorrect interval value: '0.9999999000' for column `test`.`t1_time_in_decimal`.`a` at row 8
 Note	1292	Truncated incorrect INTERVAL DAY TO SECOND value: '0.9999999000'
+Warning	1292	Incorrect interval value: '8375959.9999999000' for column `test`.`t1_time_in_decimal`.`a` at row 9
+Warning	1292	Incorrect interval value: '8375959.9999999000' for column `test`.`t1_time_in_decimal`.`a` at row 9
+Warning	1292	Incorrect interval value: '8375959.9999999000' for column `test`.`t1_time_in_decimal`.`a` at row 9
+Warning	1292	Incorrect interval value: '8375959.9999999000' for column `test`.`t1_time_in_decimal`.`a` at row 9
+Warning	1292	Incorrect interval value: '8375959.9999999000' for column `test`.`t1_time_in_decimal`.`a` at row 9
 Note	1292	Truncated incorrect INTERVAL DAY TO SECOND value: '8375959.9999999000'
 Note	1292	Truncated incorrect INTERVAL DAY TO SECOND value: '8385959.0000000000'
 Note	1292	Truncated incorrect INTERVAL DAY TO SECOND value: '8385959.9000000000'
@@ -488,18 +507,40 @@ Note	1292	Truncated incorrect INTERVAL DAY TO SECOND value: '8385959.9900000000'
 Note	1292	Truncated incorrect INTERVAL DAY TO SECOND value: '8385959.9990000000'
 Note	1292	Truncated incorrect INTERVAL DAY TO SECOND value: '8385959.9999000000'
 Note	1292	Truncated incorrect INTERVAL DAY TO SECOND value: '8385959.9999900000'
+Warning	1292	Incorrect interval value: '8385959.9999990000' for column `test`.`t1_time_in_decimal`.`a` at row 16
+Warning	1292	Incorrect interval value: '8385959.9999990000' for column `test`.`t1_time_in_decimal`.`a` at row 16
+Warning	1292	Incorrect interval value: '8385959.9999990000' for column `test`.`t1_time_in_decimal`.`a` at row 16
+Warning	1292	Incorrect interval value: '8385959.9999990000' for column `test`.`t1_time_in_decimal`.`a` at row 16
+Warning	1292	Incorrect interval value: '8385959.9999990000' for column `test`.`t1_time_in_decimal`.`a` at row 16
 Note	1292	Truncated incorrect INTERVAL DAY TO SECOND value: '8385959.9999990000'
+Warning	1292	Incorrect interval value: '8385959.9999999000' for column `test`.`t1_time_in_decimal`.`a` at row 17
+Warning	1292	Incorrect interval value: '8385959.9999999000' for column `test`.`t1_time_in_decimal`.`a` at row 17
+Warning	1292	Incorrect interval value: '8385959.9999999000' for column `test`.`t1_time_in_decimal`.`a` at row 17
+Warning	1292	Incorrect interval value: '8385959.9999999000' for column `test`.`t1_time_in_decimal`.`a` at row 17
+Warning	1292	Incorrect interval value: '8385959.9999999000' for column `test`.`t1_time_in_decimal`.`a` at row 17
 Note	1292	Truncated incorrect INTERVAL DAY TO SECOND value: '8385959.9999999000'
+Warning	1292	Incorrect interval value: '8395959.9999999000' for column `test`.`t1_time_in_decimal`.`a` at row 18
+Warning	1292	Incorrect interval value: '8395959.9999999000' for column `test`.`t1_time_in_decimal`.`a` at row 18
+Warning	1292	Incorrect interval value: '8395959.9999999000' for column `test`.`t1_time_in_decimal`.`a` at row 18
+Warning	1292	Incorrect interval value: '8395959.9999999000' for column `test`.`t1_time_in_decimal`.`a` at row 18
+Warning	1292	Incorrect interval value: '8395959.9999999000' for column `test`.`t1_time_in_decimal`.`a` at row 18
 Note	1292	Truncated incorrect INTERVAL DAY TO SECOND value: '8395959.9999999000'
+Warning	1292	Incorrect interval value: '876494145959.9999990000' for column `test`.`t1_time_in_decimal`.`a` at row 19
+Warning	1292	Incorrect interval value: '876494145959.9999990000' for column `test`.`t1_time_in_decimal`.`a` at row 19
+Warning	1292	Incorrect interval value: '876494145959.9999990000' for column `test`.`t1_time_in_decimal`.`a` at row 19
+Warning	1292	Incorrect interval value: '876494145959.9999990000' for column `test`.`t1_time_in_decimal`.`a` at row 19
+Warning	1292	Incorrect interval value: '876494145959.9999990000' for column `test`.`t1_time_in_decimal`.`a` at row 19
 Note	1292	Truncated incorrect INTERVAL DAY TO SECOND value: '876494145959.9999990000'
+Warning	1292	Incorrect interval value: '876494145959.9999999000' for column `test`.`t1_time_in_decimal`.`a` at row 20
+Warning	1292	Incorrect interval value: '876494145959.9999999000' for column `test`.`t1_time_in_decimal`.`a` at row 20
+Warning	1292	Incorrect interval value: '876494145959.9999999000' for column `test`.`t1_time_in_decimal`.`a` at row 20
+Warning	1292	Incorrect interval value: '876494145959.9999999000' for column `test`.`t1_time_in_decimal`.`a` at row 20
+Warning	1292	Incorrect interval value: '876494145959.9999999000' for column `test`.`t1_time_in_decimal`.`a` at row 20
 Note	1292	Truncated incorrect INTERVAL DAY TO SECOND value: '876494145959.9999999000'
-Note	1292	Truncated incorrect INTERVAL DAY TO SECOND value: '876494155959.9999990000'
-Warning	1292	Incorrect time value: '876494155959.9999999000' for column `test`.`t1_time_in_decimal`.`a` at row 22
-Warning	1292	Incorrect time value: '876494155959.9999999000' for column `test`.`t1_time_in_decimal`.`a` at row 22
-Warning	1292	Incorrect time value: '876494155959.9999999000' for column `test`.`t1_time_in_decimal`.`a` at row 22
-Warning	1292	Incorrect time value: '876494155959.9999999000' for column `test`.`t1_time_in_decimal`.`a` at row 22
-Warning	1292	Incorrect time value: '876494155959.9999999000' for column `test`.`t1_time_in_decimal`.`a` at row 22
-Warning	1292	Incorrect INTERVAL DAY TO SECOND value: '876494155959.9999999000'
+Warning	1292	Incorrect interval value: '876494155959.9999990000' for column `test`.`t1_time_in_decimal`.`a` at row 21
+Warning	1292	Incorrect interval value: '876494155959.9999990000' for column `test`.`t1_time_in_decimal`.`a` at row 21
+Warning	1292	Incorrect interval value: '876494155959.9999990000' for column `test`.`t1_time_in_decimal`.`a` at row 21
+Warning	1292	Incorrect interval value: '876494155959.9999990000' for column `test`.`t1_time_in_decimal`.`a` at row 21
 SELECT
 TIME_TO_SEC(a),
 CAST(a AS TIME(6)),
@@ -512,23 +553,31 @@ TIME_TO_SEC(a)	CAST(a AS TIME(6))	a
 0.999000	00:00:00.999000	0.9990000000
 0.999900	00:00:00.999900	0.9999000000
 0.999990	00:00:00.999990	0.9999900000
-0.999999	00:00:00.999999	0.9999990000
-1.000000	00:00:01.000000	0.9999999000
-3016800.000000	838:00:00.000000	8375959.9999999000
+NULL	NULL	0.9999990000
+NULL	NULL	0.9999999000
+NULL	NULL	8375959.9999999000
 3020399.000000	838:59:59.000000	8385959.0000000000
 3020399.900000	838:59:59.900000	8385959.9000000000
 3020399.990000	838:59:59.990000	8385959.9900000000
 3020399.999000	838:59:59.999000	8385959.9990000000
 3020399.999900	838:59:59.999900	8385959.9999000000
 3020399.999990	838:59:59.999990	8385959.9999900000
-3020399.999999	838:59:59.999999	8385959.9999990000
-3020399.999999	838:59:59.999999	8385959.9999999000
-3020399.999999	838:59:59.999999	8395959.9999999000
+NULL	NULL	8385959.9999990000
+NULL	NULL	8385959.9999999000
+NULL	NULL	8395959.9999999000
 NULL	NULL	876494145959.9999990000
 NULL	NULL	876494145959.9999999000
 NULL	NULL	876494155959.9999990000
 NULL	NULL	876494155959.9999999000
 Warnings:
+Warning	1292	Incorrect time value: '0.9999990000' for column `test`.`t1_time_in_decimal`.`a` at row 7
+Warning	1292	Incorrect time value: '0.9999990000' for column `test`.`t1_time_in_decimal`.`a` at row 7
+Warning	1292	Incorrect time value: '0.9999999000' for column `test`.`t1_time_in_decimal`.`a` at row 8
+Warning	1292	Incorrect time value: '0.9999999000' for column `test`.`t1_time_in_decimal`.`a` at row 8
+Warning	1292	Incorrect time value: '8375959.9999999000' for column `test`.`t1_time_in_decimal`.`a` at row 9
+Warning	1292	Incorrect time value: '8375959.9999999000' for column `test`.`t1_time_in_decimal`.`a` at row 9
+Warning	1292	Incorrect time value: '8385959.9999990000' for column `test`.`t1_time_in_decimal`.`a` at row 16
+Warning	1292	Incorrect time value: '8385959.9999990000' for column `test`.`t1_time_in_decimal`.`a` at row 16
 Warning	1292	Incorrect time value: '8385959.9999999000' for column `test`.`t1_time_in_decimal`.`a` at row 17
 Warning	1292	Incorrect time value: '8385959.9999999000' for column `test`.`t1_time_in_decimal`.`a` at row 17
 Warning	1292	Incorrect time value: '8395959.9999999000' for column `test`.`t1_time_in_decimal`.`a` at row 18
@@ -555,8 +604,8 @@ QUARTER(a)	CAST(a AS DATE)	a
 4	2000-12-31	2000-12-31 23:59:59.999999
 1	2000-12-31	2000-12-31 23:59:59.9999999
 Warnings:
-Note	1292	Truncated incorrect datetime value: '2000-12-31 23:59:59.9999999'
-Note	1292	Truncated incorrect datetime value: '2000-12-31 23:59:59.9999999'
+Note	1292	Incorrect datetime value: '2000-12-31 23:59:59.9999999' for column `test`.`t1_datetime_in_varchar`.`a` at row 8
+Note	1292	Incorrect datetime value: '2000-12-31 23:59:59.9999999' for column `test`.`t1_datetime_in_varchar`.`a` at row 8
 SELECT DAY(a), CAST(a AS DATE), a FROM t1_datetime_in_varchar ORDER BY id;
 DAY(a)	CAST(a AS DATE)	a
 31	2000-12-31	2000-12-31 23:59:59
@@ -568,8 +617,8 @@ DAY(a)	CAST(a AS DATE)	a
 31	2000-12-31	2000-12-31 23:59:59.999999
 1	2000-12-31	2000-12-31 23:59:59.9999999
 Warnings:
-Note	1292	Truncated incorrect datetime value: '2000-12-31 23:59:59.9999999'
-Note	1292	Truncated incorrect datetime value: '2000-12-31 23:59:59.9999999'
+Note	1292	Incorrect datetime value: '2000-12-31 23:59:59.9999999' for column `test`.`t1_datetime_in_varchar`.`a` at row 8
+Note	1292	Incorrect datetime value: '2000-12-31 23:59:59.9999999' for column `test`.`t1_datetime_in_varchar`.`a` at row 8
 SELECT MONTH(a), CAST(a AS DATE), a FROM t1_datetime_in_varchar ORDER BY id;
 MONTH(a)	CAST(a AS DATE)	a
 12	2000-12-31	2000-12-31 23:59:59
@@ -581,8 +630,8 @@ MONTH(a)	CAST(a AS DATE)	a
 12	2000-12-31	2000-12-31 23:59:59.999999
 1	2000-12-31	2000-12-31 23:59:59.9999999
 Warnings:
-Note	1292	Truncated incorrect datetime value: '2000-12-31 23:59:59.9999999'
-Note	1292	Truncated incorrect datetime value: '2000-12-31 23:59:59.9999999'
+Note	1292	Incorrect datetime value: '2000-12-31 23:59:59.9999999' for column `test`.`t1_datetime_in_varchar`.`a` at row 8
+Note	1292	Incorrect datetime value: '2000-12-31 23:59:59.9999999' for column `test`.`t1_datetime_in_varchar`.`a` at row 8
 SELECT YEAR(a), CAST(a AS DATE), a FROM t1_datetime_in_varchar ORDER BY id;
 YEAR(a)	CAST(a AS DATE)	a
 2000	2000-12-31	2000-12-31 23:59:59
@@ -594,8 +643,8 @@ YEAR(a)	CAST(a AS DATE)	a
 2000	2000-12-31	2000-12-31 23:59:59.999999
 2001	2000-12-31	2000-12-31 23:59:59.9999999
 Warnings:
-Note	1292	Truncated incorrect datetime value: '2000-12-31 23:59:59.9999999'
-Note	1292	Truncated incorrect datetime value: '2000-12-31 23:59:59.9999999'
+Note	1292	Incorrect datetime value: '2000-12-31 23:59:59.9999999' for column `test`.`t1_datetime_in_varchar`.`a` at row 8
+Note	1292	Incorrect datetime value: '2000-12-31 23:59:59.9999999' for column `test`.`t1_datetime_in_varchar`.`a` at row 8
 SELECT DAYNAME(a), CAST(a AS DATE), a FROM t1_datetime_in_varchar ORDER BY id;
 DAYNAME(a)	CAST(a AS DATE)	a
 Sunday	2000-12-31	2000-12-31 23:59:59
@@ -607,8 +656,8 @@ Sunday	2000-12-31	2000-12-31 23:59:59.99999
 Sunday	2000-12-31	2000-12-31 23:59:59.999999
 Monday	2000-12-31	2000-12-31 23:59:59.9999999
 Warnings:
-Note	1292	Truncated incorrect datetime value: '2000-12-31 23:59:59.9999999'
-Note	1292	Truncated incorrect datetime value: '2000-12-31 23:59:59.9999999'
+Note	1292	Incorrect datetime value: '2000-12-31 23:59:59.9999999' for column `test`.`t1_datetime_in_varchar`.`a` at row 8
+Note	1292	Incorrect datetime value: '2000-12-31 23:59:59.9999999' for column `test`.`t1_datetime_in_varchar`.`a` at row 8
 SELECT MONTHNAME(a), CAST(a AS DATE), a FROM t1_datetime_in_varchar ORDER BY id;
 MONTHNAME(a)	CAST(a AS DATE)	a
 December	2000-12-31	2000-12-31 23:59:59
@@ -620,8 +669,8 @@ December	2000-12-31	2000-12-31 23:59:59.99999
 December	2000-12-31	2000-12-31 23:59:59.999999
 January	2000-12-31	2000-12-31 23:59:59.9999999
 Warnings:
-Note	1292	Truncated incorrect datetime value: '2000-12-31 23:59:59.9999999'
-Note	1292	Truncated incorrect datetime value: '2000-12-31 23:59:59.9999999'
+Note	1292	Incorrect datetime value: '2000-12-31 23:59:59.9999999' for column `test`.`t1_datetime_in_varchar`.`a` at row 8
+Note	1292	Incorrect datetime value: '2000-12-31 23:59:59.9999999' for column `test`.`t1_datetime_in_varchar`.`a` at row 8
 SELECT LAST_DAY(a), CAST(a AS DATE), a FROM t1_datetime_in_varchar ORDER BY id;
 LAST_DAY(a)	CAST(a AS DATE)	a
 2000-12-31	2000-12-31	2000-12-31 23:59:59
@@ -633,8 +682,8 @@ LAST_DAY(a)	CAST(a AS DATE)	a
 2000-12-31	2000-12-31	2000-12-31 23:59:59.999999
 2000-12-31	2000-12-31	2000-12-31 23:59:59.9999999
 Warnings:
-Note	1292	Truncated incorrect datetime value: '2000-12-31 23:59:59.9999999'
-Note	1292	Truncated incorrect datetime value: '2000-12-31 23:59:59.9999999'
+Note	1292	Incorrect datetime value: '2000-12-31 23:59:59.9999999' for column `test`.`t1_datetime_in_varchar`.`a` at row 8
+Note	1292	Incorrect datetime value: '2000-12-31 23:59:59.9999999' for column `test`.`t1_datetime_in_varchar`.`a` at row 8
 SELECT TO_DAYS(a), CAST(a AS DATE), a FROM t1_datetime_in_varchar ORDER BY id;
 TO_DAYS(a)	CAST(a AS DATE)	a
 730850	2000-12-31	2000-12-31 23:59:59
@@ -646,8 +695,8 @@ TO_DAYS(a)	CAST(a AS DATE)	a
 730850	2000-12-31	2000-12-31 23:59:59.999999
 730851	2000-12-31	2000-12-31 23:59:59.9999999
 Warnings:
-Note	1292	Truncated incorrect datetime value: '2000-12-31 23:59:59.9999999'
-Note	1292	Truncated incorrect datetime value: '2000-12-31 23:59:59.9999999'
+Note	1292	Incorrect datetime value: '2000-12-31 23:59:59.9999999' for column `test`.`t1_datetime_in_varchar`.`a` at row 8
+Note	1292	Incorrect datetime value: '2000-12-31 23:59:59.9999999' for column `test`.`t1_datetime_in_varchar`.`a` at row 8
 SELECT DAYOFYEAR(a), CAST(a AS DATE), a FROM t1_datetime_in_varchar ORDER BY id;
 DAYOFYEAR(a)	CAST(a AS DATE)	a
 366	2000-12-31	2000-12-31 23:59:59
@@ -659,8 +708,8 @@ DAYOFYEAR(a)	CAST(a AS DATE)	a
 366	2000-12-31	2000-12-31 23:59:59.999999
 1	2000-12-31	2000-12-31 23:59:59.9999999
 Warnings:
-Note	1292	Truncated incorrect datetime value: '2000-12-31 23:59:59.9999999'
-Note	1292	Truncated incorrect datetime value: '2000-12-31 23:59:59.9999999'
+Note	1292	Incorrect datetime value: '2000-12-31 23:59:59.9999999' for column `test`.`t1_datetime_in_varchar`.`a` at row 8
+Note	1292	Incorrect datetime value: '2000-12-31 23:59:59.9999999' for column `test`.`t1_datetime_in_varchar`.`a` at row 8
 CREATE TABLE t1 (a VARCHAR(32));
 INSERT INTO t1 VALUES
 ('2002-01-05 23:59:59'),
@@ -672,21 +721,21 @@ YEARWEEK(a)	a
 200152	2002-01-05 23:59:59.999999
 200201	2002-01-05 23:59:59.9999999
 Warnings:
-Note	1292	Truncated incorrect datetime value: '2002-01-05 23:59:59.9999999'
+Note	1292	Incorrect datetime value: '2002-01-05 23:59:59.9999999' for column `test`.`t1`.`a` at row 3
 SELECT WEEK(a), a FROM t1;
 WEEK(a)	a
 0	2002-01-05 23:59:59
 0	2002-01-05 23:59:59.999999
 1	2002-01-05 23:59:59.9999999
 Warnings:
-Note	1292	Truncated incorrect datetime value: '2002-01-05 23:59:59.9999999'
+Note	1292	Incorrect datetime value: '2002-01-05 23:59:59.9999999' for column `test`.`t1`.`a` at row 3
 SELECT WEEKDAY(a), a FROM t1;
 WEEKDAY(a)	a
 5	2002-01-05 23:59:59
 5	2002-01-05 23:59:59.999999
 6	2002-01-05 23:59:59.9999999
 Warnings:
-Note	1292	Truncated incorrect datetime value: '2002-01-05 23:59:59.9999999'
+Note	1292	Incorrect datetime value: '2002-01-05 23:59:59.9999999' for column `test`.`t1`.`a` at row 3
 DROP TABLE t1;
 CREATE TABLE t1 (a DECIMAL(32,9));
 INSERT INTO t1 VALUES
@@ -836,8 +885,8 @@ TO_SECONDS(a)	CAST(a AS DATETIME(6))	a
 63145526399	2000-12-31 23:59:59.999999	2000-12-31 23:59:59.999999
 63145526400	2001-01-01 00:00:00.000000	2000-12-31 23:59:59.9999999
 Warnings:
-Note	1292	Truncated incorrect datetime value: '2000-12-31 23:59:59.9999999'
-Note	1292	Truncated incorrect datetime value: '2000-12-31 23:59:59.9999999'
+Note	1292	Incorrect datetime value: '2000-12-31 23:59:59.9999999' for column `test`.`t1_datetime_in_varchar`.`a` at row 8
+Note	1292	Incorrect datetime value: '2000-12-31 23:59:59.9999999' for column `test`.`t1_datetime_in_varchar`.`a` at row 8
 SET time_zone='+00:00';
 SELECT UNIX_TIMESTAMP(a), CAST(a AS DATETIME(6)), a FROM t1_datetime_in_varchar ORDER BY id;
 UNIX_TIMESTAMP(a)	CAST(a AS DATETIME(6))	a
@@ -850,8 +899,8 @@ UNIX_TIMESTAMP(a)	CAST(a AS DATETIME(6))	a
 978307199.999999	2000-12-31 23:59:59.999999	2000-12-31 23:59:59.999999
 978307200.000000	2001-01-01 00:00:00.000000	2000-12-31 23:59:59.9999999
 Warnings:
-Note	1292	Truncated incorrect datetime value: '2000-12-31 23:59:59.9999999'
-Note	1292	Truncated incorrect datetime value: '2000-12-31 23:59:59.9999999'
+Note	1292	Incorrect datetime value: '2000-12-31 23:59:59.9999999' for column `test`.`t1_datetime_in_varchar`.`a` at row 8
+Note	1292	Incorrect datetime value: '2000-12-31 23:59:59.9999999' for column `test`.`t1_datetime_in_varchar`.`a` at row 8
 SET time_zone=DEFAULT;
 SELECT CONVERT_TZ(a, '+00:00','+00:00'), CAST(a AS DATETIME(6)), a FROM t1_datetime_in_varchar ORDER BY id;
 CONVERT_TZ(a, '+00:00','+00:00')	CAST(a AS DATETIME(6))	a
@@ -864,8 +913,8 @@ CONVERT_TZ(a, '+00:00','+00:00')	CAST(a AS DATETIME(6))	a
 2000-12-31 23:59:59.999999	2000-12-31 23:59:59.999999	2000-12-31 23:59:59.999999
 2001-01-01 00:00:00.000000	2001-01-01 00:00:00.000000	2000-12-31 23:59:59.9999999
 Warnings:
-Note	1292	Truncated incorrect datetime value: '2000-12-31 23:59:59.9999999'
-Note	1292	Truncated incorrect datetime value: '2000-12-31 23:59:59.9999999'
+Note	1292	Incorrect datetime value: '2000-12-31 23:59:59.9999999' for column `test`.`t1_datetime_in_varchar`.`a` at row 8
+Note	1292	Incorrect datetime value: '2000-12-31 23:59:59.9999999' for column `test`.`t1_datetime_in_varchar`.`a` at row 8
 #
 # Functions with a single DATETIME input, conversion from DATETIME-in-DECIMAL
 #
@@ -1049,22 +1098,22 @@ dt6	2018-01-01 00:00:00.000000
 Warnings:
 Level	Note
 Code	1292
-Message	Truncated incorrect datetime value: '2017-12-31 23:59:59.9999999'
+Message	Incorrect datetime value: '2017-12-31 23:59:59.9999999' for column `test`.`t1`.`a` at row 4
 Level	Note
 Code	1292
-Message	Truncated incorrect datetime value: '2017-12-31 23:59:59.9999999'
+Message	Incorrect datetime value: '2017-12-31 23:59:59.9999999' for column `test`.`t1`.`a` at row 4
 Level	Note
 Code	1292
-Message	Truncated incorrect datetime value: '2017-12-31 23:59:59.9999999'
+Message	Incorrect datetime value: '2017-12-31 23:59:59.9999999' for column `test`.`t1`.`a` at row 4
 Level	Note
 Code	1292
-Message	Truncated incorrect datetime value: '2017-12-31 23:59:59.9999999'
+Message	Incorrect datetime value: '2017-12-31 23:59:59.9999999' for column `test`.`t1`.`a` at row 4
 Level	Note
 Code	1292
-Message	Truncated incorrect datetime value: '2017-12-31 23:59:59.9999999'
+Message	Incorrect datetime value: '2017-12-31 23:59:59.9999999' for column `test`.`t1`.`a` at row 4
 Level	Note
 Code	1292
-Message	Truncated incorrect datetime value: '2017-12-31 23:59:59.9999999'
+Message	Incorrect datetime value: '2017-12-31 23:59:59.9999999' for column `test`.`t1`.`a` at row 4
 DROP TABLE t1;
 CREATE TABLE t1 (a DECIMAL(32,9));
 INSERT INTO t1 VALUES
@@ -1149,13 +1198,13 @@ TIMESTAMP(t1.a, t2.a)	a	a
 2018-01-01 00:00:00.999999	2017-12-31 23:59:59.9999999	00:00:00.999999
 2018-01-01 00:00:01.000000	2017-12-31 23:59:59.9999999	00:00:00.9999999
 Warnings:
-Note	1292	Truncated incorrect datetime value: '2017-12-31 23:59:59.9999999'
-Note	1292	Truncated incorrect datetime value: '2017-12-31 23:59:59.9999999'
-Note	1292	Truncated incorrect datetime value: '2017-12-31 23:59:59.9999999'
+Note	1292	Incorrect datetime value: '2017-12-31 23:59:59.9999999' for column `test`.`t1`.`a` at row 5
+Note	1292	Incorrect datetime value: '2017-12-31 23:59:59.9999999' for column `test`.`t1`.`a` at row 5
+Note	1292	Incorrect datetime value: '2017-12-31 23:59:59.9999999' for column `test`.`t1`.`a` at row 5
 Note	1292	Truncated incorrect INTERVAL DAY TO SECOND value: '00:00:00.9999999'
 Note	1292	Truncated incorrect INTERVAL DAY TO SECOND value: '00:00:00.9999999'
 Note	1292	Truncated incorrect INTERVAL DAY TO SECOND value: '00:00:00.9999999'
-Note	1292	Truncated incorrect datetime value: '2017-12-31 23:59:59.9999999'
+Note	1292	Incorrect datetime value: '2017-12-31 23:59:59.9999999' for column `test`.`t1`.`a` at row 5
 Note	1292	Truncated incorrect INTERVAL DAY TO SECOND value: '00:00:00.9999999'
 SELECT ADDTIME(t1.a, t2.a), t1.a, t2.a FROM t1,t2 ORDER BY t1.a, t2.a;
 ADDTIME(t1.a, t2.a)	a	a
@@ -1176,13 +1225,13 @@ ADDTIME(t1.a, t2.a)	a	a
 2018-01-01 00:00:00.999999	2017-12-31 23:59:59.9999999	00:00:00.999999
 2018-01-01 00:00:01	2017-12-31 23:59:59.9999999	00:00:00.9999999
 Warnings:
-Note	1292	Truncated incorrect datetime value: '2017-12-31 23:59:59.9999999'
-Note	1292	Truncated incorrect datetime value: '2017-12-31 23:59:59.9999999'
-Note	1292	Truncated incorrect datetime value: '2017-12-31 23:59:59.9999999'
+Note	1292	Incorrect datetime value: '2017-12-31 23:59:59.9999999' for column `test`.`t1`.`a` at row 5
+Note	1292	Incorrect datetime value: '2017-12-31 23:59:59.9999999' for column `test`.`t1`.`a` at row 5
+Note	1292	Incorrect datetime value: '2017-12-31 23:59:59.9999999' for column `test`.`t1`.`a` at row 5
 Note	1292	Truncated incorrect INTERVAL DAY TO SECOND value: '00:00:00.9999999'
 Note	1292	Truncated incorrect INTERVAL DAY TO SECOND value: '00:00:00.9999999'
 Note	1292	Truncated incorrect INTERVAL DAY TO SECOND value: '00:00:00.9999999'
-Note	1292	Truncated incorrect datetime value: '2017-12-31 23:59:59.9999999'
+Note	1292	Incorrect datetime value: '2017-12-31 23:59:59.9999999' for column `test`.`t1`.`a` at row 5
 Note	1292	Truncated incorrect INTERVAL DAY TO SECOND value: '00:00:00.9999999'
 DROP TABLE t1, t2;
 CREATE TABLE t1 (a VARCHAR(64));
@@ -1216,14 +1265,14 @@ TIMEDIFF(t1.a, t2.a)	a	a
 23:59:59.000001	23:59:59.9999999	00:00:00.999999
 23:59:59.000000	23:59:59.9999999	00:00:00.9999999
 Warnings:
-Note	1292	Truncated incorrect time value: '23:59:59.9999999'
-Note	1292	Truncated incorrect time value: '23:59:59.9999999'
-Note	1292	Truncated incorrect time value: '23:59:59.9999999'
-Note	1292	Truncated incorrect time value: '00:00:00.9999999'
-Note	1292	Truncated incorrect time value: '00:00:00.9999999'
-Note	1292	Truncated incorrect time value: '00:00:00.9999999'
-Note	1292	Truncated incorrect time value: '23:59:59.9999999'
-Note	1292	Truncated incorrect time value: '00:00:00.9999999'
+Note	1292	Incorrect time value: '23:59:59.9999999' for column `test`.`t1`.`a` at row 5
+Note	1292	Incorrect time value: '23:59:59.9999999' for column `test`.`t1`.`a` at row 5
+Note	1292	Incorrect time value: '23:59:59.9999999' for column `test`.`t1`.`a` at row 5
+Note	1292	Incorrect time value: '00:00:00.9999999' for column `test`.`t2`.`a` at row 5
+Note	1292	Incorrect time value: '00:00:00.9999999' for column `test`.`t2`.`a` at row 5
+Note	1292	Incorrect time value: '00:00:00.9999999' for column `test`.`t2`.`a` at row 5
+Note	1292	Incorrect time value: '23:59:59.9999999' for column `test`.`t1`.`a` at row 5
+Note	1292	Incorrect time value: '00:00:00.9999999' for column `test`.`t2`.`a` at row 5
 DROP TABLE t1, t2;
 CREATE TABLE t1 (a VARCHAR(64));
 CREATE TABLE t2 (a VARCHAR(64));
@@ -1256,14 +1305,14 @@ TIMESTAMPDIFF(MICROSECOND,t1.a, t2.a)	a	a
 -1	2001-12-31 23:59:59.9999999	2001-12-31 23:59:59.999999
 0	2001-12-31 23:59:59.9999999	2001-12-31 23:59:59.9999999
 Warnings:
-Note	1292	Truncated incorrect datetime value: '2001-12-31 23:59:59.9999999'
-Note	1292	Truncated incorrect datetime value: '2001-12-31 23:59:59.9999999'
-Note	1292	Truncated incorrect datetime value: '2001-12-31 23:59:59.9999999'
-Note	1292	Truncated incorrect datetime value: '2001-12-31 23:59:59.9999999'
-Note	1292	Truncated incorrect datetime value: '2001-12-31 23:59:59.9999999'
-Note	1292	Truncated incorrect datetime value: '2001-12-31 23:59:59.9999999'
-Note	1292	Truncated incorrect datetime value: '2001-12-31 23:59:59.9999999'
-Note	1292	Truncated incorrect datetime value: '2001-12-31 23:59:59.9999999'
+Note	1292	Incorrect datetime value: '2001-12-31 23:59:59.9999999' for column `test`.`t1`.`a` at row 5
+Note	1292	Incorrect datetime value: '2001-12-31 23:59:59.9999999' for column `test`.`t1`.`a` at row 5
+Note	1292	Incorrect datetime value: '2001-12-31 23:59:59.9999999' for column `test`.`t1`.`a` at row 5
+Note	1292	Incorrect datetime value: '2001-12-31 23:59:59.9999999' for column `test`.`t2`.`a` at row 5
+Note	1292	Incorrect datetime value: '2001-12-31 23:59:59.9999999' for column `test`.`t2`.`a` at row 5
+Note	1292	Incorrect datetime value: '2001-12-31 23:59:59.9999999' for column `test`.`t2`.`a` at row 5
+Note	1292	Incorrect datetime value: '2001-12-31 23:59:59.9999999' for column `test`.`t1`.`a` at row 5
+Note	1292	Incorrect datetime value: '2001-12-31 23:59:59.9999999' for column `test`.`t2`.`a` at row 5
 DROP TABLE t1, t2;
 CREATE TABLE t1 (a VARCHAR(64));
 CREATE TABLE t2 (a VARCHAR(64));
@@ -1296,14 +1345,14 @@ TIMEDIFF(t1.a, t2.a)	a	a
 23:59:59.000001	23:59:59.9999999	00:00:00.999999
 23:59:59.000000	23:59:59.9999999	00:00:00.9999999
 Warnings:
-Note	1292	Truncated incorrect time value: '23:59:59.9999999'
-Note	1292	Truncated incorrect time value: '23:59:59.9999999'
-Note	1292	Truncated incorrect time value: '23:59:59.9999999'
-Note	1292	Truncated incorrect time value: '00:00:00.9999999'
-Note	1292	Truncated incorrect time value: '00:00:00.9999999'
-Note	1292	Truncated incorrect time value: '00:00:00.9999999'
-Note	1292	Truncated incorrect time value: '23:59:59.9999999'
-Note	1292	Truncated incorrect time value: '00:00:00.9999999'
+Note	1292	Incorrect time value: '23:59:59.9999999' for column `test`.`t1`.`a` at row 5
+Note	1292	Incorrect time value: '23:59:59.9999999' for column `test`.`t1`.`a` at row 5
+Note	1292	Incorrect time value: '23:59:59.9999999' for column `test`.`t1`.`a` at row 5
+Note	1292	Incorrect time value: '00:00:00.9999999' for column `test`.`t2`.`a` at row 5
+Note	1292	Incorrect time value: '00:00:00.9999999' for column `test`.`t2`.`a` at row 5
+Note	1292	Incorrect time value: '00:00:00.9999999' for column `test`.`t2`.`a` at row 5
+Note	1292	Incorrect time value: '23:59:59.9999999' for column `test`.`t1`.`a` at row 5
+Note	1292	Incorrect time value: '00:00:00.9999999' for column `test`.`t2`.`a` at row 5
 DROP TABLE t1, t2;
 #
 # STR_TO_DATE behaviour is questionable in MySQL 5.6 (MySQL Bug #92474)
@@ -1367,8 +1416,8 @@ a	b	DATE_ADD(a, INTERVAL b SECOND)
 2017-12-31 23:59:59.9999999	0.999999000	2018-01-01 00:00:00.999999
 2017-12-31 23:59:59.9999999	0.999999900	2018-01-01 00:00:00.999999
 Warnings:
-Note	1292	Truncated incorrect datetime value: '2017-12-31 23:59:59.9999999'
-Note	1292	Truncated incorrect datetime value: '2017-12-31 23:59:59.9999999'
-Note	1292	Truncated incorrect datetime value: '2017-12-31 23:59:59.9999999'
-Note	1292	Truncated incorrect datetime value: '2017-12-31 23:59:59.9999999'
+Note	1292	Incorrect datetime value: '2017-12-31 23:59:59.9999999' for column `test`.`t1`.`a` at row 5
+Note	1292	Incorrect datetime value: '2017-12-31 23:59:59.9999999' for column `test`.`t1`.`a` at row 5
+Note	1292	Incorrect datetime value: '2017-12-31 23:59:59.9999999' for column `test`.`t1`.`a` at row 5
+Note	1292	Incorrect datetime value: '2017-12-31 23:59:59.9999999' for column `test`.`t1`.`a` at row 5
 DROP TABLE t1, t2;

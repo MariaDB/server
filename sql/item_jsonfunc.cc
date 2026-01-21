@@ -738,8 +738,8 @@ bool Json_path_extractor::extract(String *str, Item *item_js, Item *item_jp,
   {
     String *s_p= item_jp->val_str(&tmp_path);
     if (s_p &&
-        json_path_setup(&p, s_p->charset(), (const uchar *) s_p->ptr(),
-                        (const uchar *) s_p->ptr() + s_p->length()))
+        path_setup_nwc(&p, s_p->charset(), (const uchar *) s_p->ptr(),
+                       (const uchar *) s_p->ptr() + s_p->length()))
       return true;
     parsed= constant;
   }
