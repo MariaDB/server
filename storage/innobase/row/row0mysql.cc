@@ -1560,8 +1560,6 @@ init_fts_doc_id_for_ref(
 	dict_table_t*	table,		/*!< in: table */
 	ulint*		depth)		/*!< in: recusive call depth */
 {
-	table->fk_max_recusive_level = 0;
-
 	/* Limit on tables involved in cascading delete/update */
 	if (++*depth > FK_MAX_CASCADE_DEL) {
 		return;
