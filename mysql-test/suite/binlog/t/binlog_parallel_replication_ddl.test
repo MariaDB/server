@@ -4,7 +4,14 @@
 --source include/have_log_bin.inc
 --source include/have_binlog_format_mixed.inc
 
+CREATE TABLE t1 (i1 int, i2 int, pk int);
+CREATE TABLE t2 (i1 int, i2 int, pk int);
+CREATE TABLE t3 LIKE t1;
+
 RESET MASTER;
+# MDEV-38623 ALTER TABLE ... ENGINE = MERGE is binlogged w/o ddl tag.
+# Prove the DDL tag is in place.
+ALTER TABLE t3 ENGINE = MERGE UNION (t1,t2);
 
 # MDEV-27365 CREATE-or-REPLACE SEQUENCE bilogged without DDL flag
 # Prove it is logged with the DDL flag.
@@ -13,6 +20,9 @@ CREATE OR REPLACE SEQUENCE s1;
 # This one has been always correct.
 DROP SEQUENCE s1;
 FLUSH LOGS;
+
+# cleanup
+DROP TABLE t3,t2,t1;
 
 --let $MYSQLD_DATADIR= `select @@datadir`
 --exec $MYSQL_BINLOG --base64-output=decode-rows $MYSQLD_DATADIR/master-bin.000001 > $MYSQLTEST_VARDIR/tmp/mysqlbinlog.sql

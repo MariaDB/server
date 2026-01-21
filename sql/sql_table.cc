@@ -92,6 +92,7 @@ class Enable_wsrep_ctas_guard
 #ifdef _WIN32
 #include <io.h>
 #endif
+#include "misc_utils.h"
 
 const LEX_CSTRING primary_key_name= { STRING_WITH_LEN("PRIMARY") };
 static const LEX_CSTRING generated_by_server=
@@ -11022,6 +11023,7 @@ do_continue:;
     THD_STAGE_INFO(thd, stage_manage_keys);
     alter_table_manage_keys(table, table->file->indexes_are_disabled(),
                             alter_info->keys_onoff);
+    StateGuard<unsigned int> g(thd->transaction->stmt.m_unsafe_rollback_flags);
     if (trans_commit_stmt(thd) || trans_commit_implicit(thd))
       goto err_new_table_cleanup;
   }
