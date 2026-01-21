@@ -1,5 +1,5 @@
 /* Copyright (c) 2008, 2025, Codership Oy <http://www.codership.com>
-   Copyright (c) 2020, 2025, MariaDB
+   Copyright (c) 2020, 2026, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -121,6 +121,10 @@ my_bool wsrep_restart_slave_activated= 0;       // Node has dropped, and slave
 bool wsrep_new_cluster= false;                  // Bootstrap the cluster?
 int wsrep_slave_count_change= 0;                // No. of appliers to stop/start
 int wsrep_to_isolation= 0;                      // No. of active TO isolation threads
+//
+// NOTE : MySQL Cluster has max_protocol version 7
+// thus protocol versions 5-7 are reserved for compatibility.
+// 
 long wsrep_max_protocol_version= 4;             // Maximum protocol version to use
 long int  wsrep_protocol_version= wsrep_max_protocol_version;
 ulong wsrep_trx_fragment_unit= WSREP_FRAG_BYTES;
@@ -1973,6 +1977,10 @@ static bool wsrep_prepare_key_for_isolation(const char* db,
   case 2:
   case 3:
   case 4:
+  // For MySQL Galera Cluster migration
+  case 5:
+  case 6:
+  case 7:
   {
     *key_len= 0;
     if (db)
@@ -1990,7 +1998,6 @@ static bool wsrep_prepare_key_for_isolation(const char* db,
     break;
   }
   default:
-    assert(0);
     WSREP_ERROR("Unsupported protocol version: %ld", wsrep_protocol_version);
     unireg_abort(1);
     return false;
@@ -2153,6 +2160,10 @@ bool wsrep_prepare_key(const uchar* cache_key, size_t cache_key_len,
     case 2:
     case 3:
     case 4:
+    // For MySQL Galera Cluster migration
+    case 5:
+    case 6:
+    case 7:
     {
         key[0].ptr= cache_key;
         key[0].len= strlen( (char*)cache_key );
@@ -2164,6 +2175,7 @@ bool wsrep_prepare_key(const uchar* cache_key, size_t cache_key_len,
         break;
     }
     default:
+        WSREP_ERROR("Unsupported protocol version : %ld", wsrep_protocol_version);
         return false;
     }
 
