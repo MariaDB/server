@@ -5771,14 +5771,18 @@ private:
       sizeof(decltype(Partial_rows_log_event::original_event_size));
 
 public:
-  Partial_rows_log_event(uint32 seq_no, uint32 total_fragments,
-                         uint64_t original_event_size, uint32 metadata_written,
-                         uint64_t start_offset, uint64_t end_offset, uchar flags2,
+#ifdef MYSQL_SERVER
+  Partial_rows_log_event(THD *thd, bool is_transactional, uint32 seq_no,
+                         uint32 total_fragments, uint64_t original_event_size,
+                         uint32 metadata_written, uint64_t start_offset,
+                         uint64_t end_offset, uchar flags2,
                          Rows_log_event *rows_event)
-      : flags2(flags2), seq_no(seq_no), total_fragments(total_fragments),
+      : Log_event(thd, 0, is_transactional), flags2(flags2), seq_no(seq_no),
+        total_fragments(total_fragments),
         original_event_size(original_event_size),
         metadata_written(metadata_written), start_offset(start_offset),
         end_offset(end_offset), ev_buffer_base(NULL), rows_event(rows_event){};
+#endif /* MYSQL_SERVER */
 
   Partial_rows_log_event(
       const uchar *buf, uint event_len,
@@ -5864,6 +5868,7 @@ inline int Log_event_writer::write(Log_event *ev)
   return res;
 }
 
+#ifdef MYSQL_SERVER
 /*
   Helper class which fragments the content of a large Rows_log_event into
   multiple Partial_rows_log_events, which can be written to the binary log.
@@ -5943,6 +5948,10 @@ public:
   };
 
 public:
+
+  THD *thd;
+  bool is_transactional;
+
   /*
     Maximum size of a Partial_rows_log_event
   */
@@ -5960,9 +5969,10 @@ public:
   Partial_rows_log_event *fragments;
 
 public:
-
-  Rows_log_event_fragmenter(uint32_t fragment_size, Rows_log_event *rows_event)
-      : fragment_size(fragment_size), rows_event(rows_event)
+  Rows_log_event_fragmenter(THD *thd, bool is_transactional,
+                            uint32_t fragment_size, Rows_log_event *rows_event)
+      : thd(thd), is_transactional(is_transactional),
+        fragment_size(fragment_size), rows_event(rows_event)
   {
   }
 
@@ -5999,6 +6009,7 @@ public:
     return &fragments[i];
   }
 };
+#endif /* MYSQL_SERVER */
 
 /*
   Class which assembles a Rows_log_event from a group of

@@ -5985,8 +5985,9 @@ Rows_log_event_fragmenter::fragment()
     chunk_start= 0;
     chunk_end= data_size_per_chunk - first_ev_extra_size;
     new (&fragments[0]) Partial_rows_log_event(
-        1, num_chunks, rows_ev_total_size, rows_ev_metadata_size, chunk_start,
-        chunk_end, Partial_rows_log_event::FL_ORIG_EVENT_SIZE, rows_event);
+        thd, is_transactional, 1, num_chunks, rows_ev_total_size,
+        rows_ev_metadata_size, chunk_start, chunk_end,
+        Partial_rows_log_event::FL_ORIG_EVENT_SIZE, rows_event);
   }
 
   /*
@@ -5998,9 +5999,9 @@ Rows_log_event_fragmenter::fragment()
     chunk_start= ((chunk_idx * data_size_per_chunk) - first_ev_extra_size);
     chunk_end= chunk_start +
                (is_last_chunk ? (last_chunk_size) : (data_size_per_chunk));
-    new (&fragments[chunk_idx])
-        Partial_rows_log_event(chunk_idx + 1, num_chunks, 0, 0, chunk_start,
-                               chunk_end, 0, rows_event);
+    new (&fragments[chunk_idx]) Partial_rows_log_event(
+        thd, is_transactional, chunk_idx + 1, num_chunks, 0, 0, chunk_start,
+        chunk_end, 0, rows_event);
   }
 
   ev= new Fragmented_rows_log_event(fragments, num_chunks);
