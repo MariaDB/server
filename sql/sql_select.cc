@@ -14456,6 +14456,8 @@ make_join_select(JOIN *join,SQL_SELECT *select,COND *cond)
         }
         tab->type= JT_RANGE;
         tab->use_quick=1;
+        if (is_index_merge(tab->quick->get_type()))
+          tab->clear_range_rowid_filter();
         tab->ref.key= -1;
 	tab->ref.key_parts=0;		// Don't use ref key.
 	join->best_positions[i].records_read= rows2double(tab->quick->records);

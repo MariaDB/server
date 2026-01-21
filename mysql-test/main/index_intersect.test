@@ -476,3 +476,52 @@ DROP TABLE t1;
 
 SET SESSION optimizer_switch='index_merge_sort_intersection=on';
 SET SESSION optimizer_switch='rowid_filter=default';
+
+--echo #
+--echo # MDEV-38327 wrong result with  index_merge_sort_intersection and rowid_filter=on
+--echo #
+--source include/have_sequence.inc
+CREATE TABLE t1 (c int, b int, a int , d int, PRIMARY KEY (c), KEY ib (b), KEY iad (a,d));
+INSERT INTO t1
+	SELECT seq + 1000000, FLOOR(seq / 5) % 1350 + 1000000, FLOOR(seq / 5) % 1350 , seq % 10 FROM seq_1_to_7000 ;
+
+let $query=
+select a, b, c from t1 where a=1000 and b=1001000;
+
+eval explain $query;
+eval $query;
+
+set optimizer_switch='index_merge_sort_intersection=on';
+
+eval explain $query;
+eval $query;
+
+analyze table t1;
+
+eval explain $query;
+eval $query;
+
+drop table t1;
+
+--echo ## MDEV-28878 case
+
+CREATE TABLE t1 (f int);
+INSERT INTO t1 VALUES (0),(4);
+
+CREATE TABLE t2 (pk int, a int, b varchar(10), PRIMARY KEY (pk), KEY a (a), KEY b (b));
+INSERT INTO t2 VALUES
+  (1,2,'v'),(2,3,'p'),(3,4,'p'),(4,2,'y'),(5,7,'q'),
+  (6,4,'a'),(7,1,'d'),(8,5,'a'),(9,5,'z'),(10,1,'t'),
+  (11,1,'y'),(12,5,'o'),(13,4,'a'),(14,5,'s'),(15,5,'m');
+
+ANALYZE TABLE t1, t2 PERSISTENT FOR ALL;
+
+SET optimizer_switch='rowid_filter=on'; # Default
+
+SET optimizer_switch='index_merge_sort_intersection=off'; # Default
+SELECT * FROM t1 JOIN t2 ON t1.f = t2.a WHERE t2.b >= 'j' AND t2.a != 5;
+
+SET optimizer_switch='index_merge_sort_intersection=on';
+SELECT * FROM t1 JOIN t2 ON t1.f = t2.a WHERE t2.b >= 'j' AND t2.a != 5;
+
+DROP TABLE t1, t2;
