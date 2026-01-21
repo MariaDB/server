@@ -1,15 +1,14 @@
 # MDEV-4698: If all slave threads are stopped,
-# restarting them at once deletes the existing relay logs.
+# START SLAVE (either or both threads) deletes the existing relay logs.
 # This limitation was to work a crash incompatibility around,
 # which are covered by other existing crash tests, such as `rpl.rpl_gtid_crash`.
 
---source include/have_binlog_format_mixed.inc # format-agnostic
+# MDEV-4698 is format-agnostic (but `show_relaylog_events.inc` is not).
+--source include/have_binlog_format_mixed.inc
 --source include/master-slave.inc
 
 CREATE TABLE t (a TINYTEXT);
 INSERT INTO t VALUES ('initial state');
-
-
 --sync_slave_with_master
 --source include/stop_slave_sql.inc
 
@@ -17,15 +16,25 @@ INSERT INTO t VALUES ('initial state');
 --connection master
 INSERT INTO t VALUES ('before restart');
 --let SEARCH_PATTERN= `SELECT @@gtid_binlog_pos`
---let SEARCH_PATTERN= SET @slave_connect_state='$SEARCH_PATTERN'
-
 --save_master_pos
 --source include/sync_slave_io_with_master.inc
 
---source include/stop_slave_io.inc # stop the other thread as well to ...
---source include/start_slave.inc   # ... restart all threads
---sync_with_master
 
+# reboot the entire server to test restoring the threads' positions
+--let $rpl_server_number= 2
+--source include/rpl_restart_server.inc
+SET @@GLOBAL.relay_log_purge= OFF;
+
+# The IO thread should restore `Gtid_IO_Pos`.
+--let status_items= Gtid_IO_Pos
+--replace_result $SEARCH_PATTERN @@gtid_binlog_pos
+--source include/show_slave_status.inc
+
+
+--source include/start_slave.inc # restart all threads at once
+# MDEV-37584: The slave should not restart from the
+# beginning and trigger `ER_GTID_STRICT_OUT_OF_ORDER`
+--sync_with_master
 
 # This should not be recreated, which purges the CREATE TABLE event.
 --let $binlog_file= slave-relay-bin.000002
@@ -38,10 +47,14 @@ SELECT * FROM t;
 # MDEV-33645:
 # The IO thread should reconnect with `Gtid_IO_Pos`, not `Gtid_Slave_Pos`.
 --let SEARCH_FILE= `SELECT @@general_log_file`
+--let SEARCH_PATTERN= SET @slave_connect_state='$SEARCH_PATTERN'
 --let SEARCH_OUTPUT= count
 --source include/search_pattern_in_file.inc
 
 
 # Cleanup
 DROP TABLE t;
+--connection slave
+SET @@GLOBAL.relay_log_purge= ON;
+
 --source include/rpl_end.inc

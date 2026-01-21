@@ -1225,12 +1225,15 @@ int purge_relay_logs(Relay_log_info* rli, THD *thd, bool just_reset,
     goto err;
   }
   rli->relay_log_state.load(rpl_global_gtid_slave_state);
-  if (rli->mi->using_gtid && (error= rpl_load_gtid_state(
-      &rli->mi->gtid_current_pos,
-      rli->mi->using_gtid == Master_info::USE_GTID_CURRENT_POS)))
+  if (rli->mi->using_gtid)
   {
-    *errmsg= "Failed rewinding `Gtid_IO_pos`";
-    goto err;
+    error= rpl_load_gtid_state(&rli->mi->gtid_current_pos,
+      rli->mi->using_gtid == Master_info::USE_GTID_CURRENT_POS);
+    if (error)
+    {
+      *errmsg= "Failed rewinding `Gtid_IO_Pos`";
+      goto err;
+    }
   }
   if (!just_reset)
   {

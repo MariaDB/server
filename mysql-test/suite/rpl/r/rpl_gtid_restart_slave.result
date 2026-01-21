@@ -7,7 +7,9 @@ include/stop_slave_sql.inc
 connection master;
 INSERT INTO t VALUES ('before restart');
 include/sync_slave_io_with_master.inc
-include/stop_slave_io.inc
+include/rpl_restart_server.inc [server_number=2]
+SET @@GLOBAL.relay_log_purge= OFF;
+Gtid_IO_Pos = '0-1-3'
 include/start_slave.inc
 include/show_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
@@ -15,15 +17,22 @@ slave-relay-bin.000002	#	Rotate	#	#	master-bin.000001;pos=POS
 slave-relay-bin.000002	#	Format_desc	#	#	SERVER_VERSION, BINLOG_VERSION
 slave-relay-bin.000002	#	Gtid_list	#	#	[]
 slave-relay-bin.000002	#	Binlog_checkpoint	#	#	master-bin.000001
-slave-relay-bin.000002	#	Gtid_list	#	#	[#-#-#]
+slave-relay-bin.000002	#	Gtid	#	#	GTID #-#-#
+slave-relay-bin.000002	#	Query	#	#	use `test`; CREATE TABLE t (a TINYTEXT)
+slave-relay-bin.000002	#	Gtid	#	#	BEGIN GTID #-#-#
+slave-relay-bin.000002	#	Query	#	#	use `test`; INSERT INTO t VALUES ('initial state')
+slave-relay-bin.000002	#	Query	#	#	COMMIT
 slave-relay-bin.000002	#	Gtid	#	#	BEGIN GTID #-#-#
 slave-relay-bin.000002	#	Query	#	#	use `test`; INSERT INTO t VALUES ('before restart')
 slave-relay-bin.000002	#	Query	#	#	COMMIT
+slave-relay-bin.000002	#	Stop	#	#	
 SELECT * FROM t;
 a
 initial state
 before restart
 connection master;
-NOT FOUND matches in mysqld.log
+FOUND 1 matches in mysqld.log
 DROP TABLE t;
+connection slave;
+SET @@GLOBAL.relay_log_purge= ON;
 include/rpl_end.inc

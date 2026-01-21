@@ -11904,9 +11904,15 @@ int TC_LOG_BINLOG::recover(LOG_INFO *linfo, const char *last_log_name,
           */
           gtid_pos_loaded= true;
           /* Initialise the binlog state from the Gtid_list event. */
-          if (is_relay_log ?
-              mi->gtid_current_pos.load(glev->list, glev->count) :
-              rpl_global_gtid_binlog_state.load(glev->list, glev->count))
+          
+          if (is_relay_log)
+          {
+            for (uint32 i= 0; i < glev->count; ++i)
+              if (mi->gtid_current_pos.update(&(glev->list[i]))) // OOM
+                goto err2;
+          }
+          else
+          if (rpl_global_gtid_binlog_state.load(glev->list, glev->count))
             goto err2;
         }
         break;
@@ -11964,7 +11970,7 @@ int TC_LOG_BINLOG::recover(LOG_INFO *linfo, const char *last_log_name,
         ctx.last_gtid_valid= false;
       }
 
-      if (is_relay_log && !ev->is_relay_log_event())
+      if (is_relay_log && ctx.last_gtid_valid && !ev->is_relay_log_event())
         ++(mi->events_queued_since_last_gtid);
       ctx.prev_event_pos= ev->log_pos;
 #endif

@@ -216,6 +216,11 @@ void init_master_log_pos(Master_info* mi)
   {
     mi->using_gtid= Master_info::USE_GTID_SLAVE_POS;
   }
+  /*
+    Only reset `Gtid_IO_Pos` in non-GTID mode. In GTID mode,
+    purge_relay_logs() rewinds it to `@@gtid_slave_pos`/`@@gtid_current_pos`.
+  */
+  if (!mi->using_gtid)
   mi->gtid_current_pos.reset();
   mi->events_queued_since_last_gtid= 0;
   mi->gtid_reconnect_event_skip_count= 0;
