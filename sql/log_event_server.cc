@@ -5725,10 +5725,22 @@ int Partial_rows_log_event::do_apply_event(rpl_group_info *rgi)
       goto end;
     }
 
-    int skip_res= apply_event_and_update_pos_setup(ev, thd, rgi);
+    /*
+      We can safely ignore the return value of
+      apply_event_and_update_pos_setup(), which indicates if this event should
+      be skipped or not. Consider the two cases in which this is called:
 
-    /* Skip would have happened on the Partial_rows_log_event, not here */
-    DBUG_ASSERT(skip_res == EVENT_SKIP_NOT);
+       1) This event is being applied by the SQL thread directly. In which
+          case, in apply_event_and_update_pos(), the ev->shall_skip() check is
+          performed on the encompassing Partial_rows_log_event(), which will
+          duplicate the value/behavior of this assembled Rows_log_event but at
+          an earlier time. In other words, if the Partial_rows_log_event is
+          skipped, execution could not be here.
+
+       2) This event is applied by a SQL BINLOG base-64 event, in which case,
+          the skip-logic is not performed and we don't care about the result.
+    */
+    apply_event_and_update_pos_setup(ev, thd, rgi);
 
     res= ev->apply_event(rgi);
     delete ev;
