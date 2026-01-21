@@ -33,7 +33,7 @@ CREATE DEFINER='mariadb.sys'@'localhost' PROCEDURE ps_trace_statement_digest (
 
              When finding a statement of interest within the 
              performance_schema.events_statements_summary_by_digest table, feed
-             the DIGEST MD5 value in to this procedure, set how long to poll for, 
+             the DIGEST hash value in to this procedure, set how long to poll for, 
              and at what interval to poll, and it will generate a report of all 
              statistics tracked within Performance Schema for that digest for the
              interval.
