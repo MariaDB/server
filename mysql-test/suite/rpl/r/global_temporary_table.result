@@ -1007,16 +1007,16 @@ drop table t1;
 drop table t0;
 # MDEV-37667 SIGSEGV on ALTER on locked GTT in low memory env
 set @save_max_session_mem_used= @@max_session_mem_used;
-set max_session_mem_used= 8192;
 create global temporary table t (t text);
+set max_session_mem_used= 8192;
 insert t values (0);
 ERROR HY000: The MariaDB server is running with the --max-session-mem-used=8192 option so it cannot execute this statement
 lock table t write;
 alter table t add z int;
 ERROR HY000: The MariaDB server is running with the --max-session-mem-used=8192 option so it cannot execute this statement
+set max_session_mem_used= @save_max_session_mem_used;
 drop table t;
 unlock tables;
-set max_session_mem_used= @save_max_session_mem_used;
 # MDEV-37668 SIGSEGV on DROP TABLE GTT under LOCK TABLES and different server_id
 create global temporary table t (x int) on commit preserve rows as select 1 'a';
 create global temporary table t2 (x int key) on commit preserve rows;
@@ -1322,6 +1322,16 @@ c
 # Cleanup
 drop table t;
 set autocommit=1;
+# MDEV-38603 GTT: Failing assertion: prebuilt->template_type == ROW_MYSQL_WHOLE_ROW on UPDATE
+create global temporary table t (c int) engine=innodb on commit preserve rows;
+set session transaction isolation level serializable;
+flush tables t with read lock;
+insert t values (1);
+update t set c=c+1;
+# Cleanup
+unlock tables;
+truncate t;
+drop table t;
 disconnect con1;
 connection slave;
 connection master;

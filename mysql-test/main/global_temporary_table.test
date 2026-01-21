@@ -1194,4 +1194,18 @@ select * from t;
 drop table t;
 set autocommit=1;
 
+--echo # MDEV-38603 GTT: Failing assertion: prebuilt->template_type == ROW_MYSQL_WHOLE_ROW on UPDATE
+create global temporary table t (c int) engine=innodb on commit preserve rows;
+
+set session transaction isolation level serializable;
+
+flush tables t with read lock;
+insert t values (1);
+update t set c=c+1;
+
+--echo # Cleanup
+unlock tables;
+truncate t;
+drop table t;
+
 --disconnect con1
