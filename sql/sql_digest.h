@@ -18,9 +18,10 @@
 
 #include <string.h>
 class String;
-#include "my_md5.h"
 
 #define MAX_DIGEST_STORAGE_SIZE (1024*1024)
+
+#define DIGEST_HASH_SIZE 16
 
 /**
   Structure to store token count/array for a statement
@@ -30,7 +31,7 @@ struct sql_digest_storage
 {
   bool m_full;
   uint m_byte_count;
-  unsigned char m_md5[MD5_HASH_SIZE];
+  unsigned char m_hash[DIGEST_HASH_SIZE];
   /** Character set number. */
   uint m_charset_number;
   /**
@@ -66,7 +67,7 @@ struct sql_digest_storage
     m_full= false;
     m_byte_count= 0;
     m_charset_number= 0;
-    memset(m_md5, 0, MD5_HASH_SIZE);
+    memset(m_hash, 0, DIGEST_HASH_SIZE);
   }
 
   inline bool is_empty()
@@ -90,7 +91,7 @@ struct sql_digest_storage
       m_byte_count= byte_count_copy;
       m_charset_number= from->m_charset_number;
       memcpy(m_token_array, from->m_token_array, m_byte_count);
-      memcpy(m_md5, from->m_md5, MD5_HASH_SIZE);
+      memcpy(m_hash, from->m_hash, DIGEST_HASH_SIZE);
     }
     else
     {
@@ -105,9 +106,9 @@ typedef struct sql_digest_storage sql_digest_storage;
 /**
   Compute a digest hash.
   @param digest_storage The digest
-  @param [out] md5 The computed digest hash. This parameter is a buffer of size @c MD5_HASH_SIZE.
+  @param [out] hash The computed digest hash. This parameter is a buffer of size @c DIGEST_HASH_SIZE.
 */
-void compute_digest_md5(const sql_digest_storage *digest_storage, unsigned char *md5);
+void compute_digest_hash(const sql_digest_storage *digest_storage, unsigned char *hash);
 
 /**
   Compute a digest text.

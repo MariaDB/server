@@ -19,7 +19,7 @@
 */
 
 #include "mariadb.h"
-#include "my_md5.h"
+#include "../mysys/xxhash.h"
 #include "unireg.h"
 
 #include "sql_string.h"
@@ -157,11 +157,11 @@ inline void store_token_identifier(sql_digest_storage* digest_storage,
   }
 }
 
-void compute_digest_md5(const sql_digest_storage *digest_storage, unsigned char *md5)
+void compute_digest_hash(const sql_digest_storage *digest_storage, unsigned char *hash)
 {
-  compute_md5_hash(md5,
-                   (const char *) digest_storage->m_token_array,
-                   digest_storage->m_byte_count);
+  XXH128_hash_t res = XXH3_128bits(digest_storage->m_token_array, 
+                                digest_storage->m_byte_count);
+  memcpy(hash, &res, sizeof(res));
 }
 
 /*
