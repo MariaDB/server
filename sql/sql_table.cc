@@ -1179,7 +1179,7 @@ bool mysql_rm_table(THD *thd,TABLE_LIST *tables, bool if_exists,
       if (drop_temporary)
         my_error(ER_BAD_TABLE_ERROR, MYF(0), table->alias.str);
       else
-        my_error(ER_LOCK_WAIT_TIMEOUT, MYF(0));
+        my_error(ER_TABLE_IN_USE, MYF(0), table->db.str, table->alias.str);
       DBUG_RETURN(true);
     }
     DBUG_ASSERT(is_temporary_table(table) ||
@@ -4652,7 +4652,7 @@ check_global_temporary_tables_for_create(THD *thd,
       thd->find_temporary_table(db, table_name, THD::TMP_TABLE_ANY,
                                 Tmp_table_kind::GLOBAL))
   {
-    my_error(ER_LOCK_WAIT_TIMEOUT, MYF(0));
+    my_error(ER_TABLE_IN_USE, MYF(0), db.str, table_name.str);
     return TRUE;
   }
 
@@ -11180,7 +11180,8 @@ bool mysql_alter_table(THD *thd, const LEX_CSTRING *new_db,
     if (thd->find_tmp_table_share(table_list, Tmp_table_kind::GLOBAL))
     {
       // The table is opened in the same connection.
-      my_error(ER_LOCK_WAIT_TIMEOUT, MYF(0));
+      my_error(ER_TABLE_IN_USE, MYF(0), table_list->db.str,
+                                        table_list->alias.str);
       DBUG_RETURN(true);
     }
 

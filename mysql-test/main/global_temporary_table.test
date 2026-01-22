@@ -47,9 +47,9 @@ select * from t1 join t1 as t2;
 select * from t1;
 select * from t1 join t1 as t2;
 
---error ER_LOCK_WAIT_TIMEOUT
+--error ER_TABLE_IN_USE
 alter table t1 add y int;
---error ER_LOCK_WAIT_TIMEOUT
+--error ER_TABLE_IN_USE
 drop table t1;
 
 --disconnect con1
@@ -60,9 +60,9 @@ drop table t1;
 drop temporary table t1;
 select * from t1;
 
---error ER_LOCK_WAIT_TIMEOUT
+--error ER_TABLE_IN_USE
 alter table t1 add j int;
---error ER_LOCK_WAIT_TIMEOUT
+--error ER_TABLE_IN_USE
 drop table t1;
 
 truncate table t1;
@@ -133,7 +133,7 @@ select * from t;
 --connection default
 --source include/wait_until_count_sessions.inc
 
---error ER_LOCK_WAIT_TIMEOUT
+--error ER_TABLE_IN_USE
 drop table t;
 truncate t;
 drop table t;
@@ -275,7 +275,7 @@ rename table t2 NOWAIT to tx;
 truncate t2;
 --connection default
 select * from t2;
---error ER_LOCK_WAIT_TIMEOUT
+--error ER_TABLE_IN_USE
 rename table t2 to tx;
 
 truncate t2;
@@ -660,7 +660,7 @@ drop table t;
 
 create global temporary table t(x int) on commit preserve rows;
 insert t values(1);
---error ER_LOCK_WAIT_TIMEOUT
+--error ER_TABLE_IN_USE
 create or replace table t(y int);
 truncate t;
 create or replace table t(y int);
@@ -676,7 +676,7 @@ drop table t;
 create or replace global temporary table t (c int) on commit preserve rows;
 show create table t;
 insert t values(1);
---error ER_LOCK_WAIT_TIMEOUT
+--error ER_TABLE_IN_USE
 create or replace global temporary table t (d int);
 truncate t;
 create or replace global temporary table t (d int);
@@ -687,7 +687,7 @@ unlock tables;
 create global temporary table t(x int) on commit preserve rows;
 create table liker(y int);
 insert t values(1);
---error ER_LOCK_WAIT_TIMEOUT
+--error ER_TABLE_IN_USE
 create or replace table t like liker;
 truncate t;
 create or replace table t like liker;
@@ -699,7 +699,7 @@ create global temporary table t(x int) on commit preserve rows ;
 create table liker(y int);
 lock tables t write, liker write;
 insert t values(1);
---error ER_LOCK_WAIT_TIMEOUT
+--error ER_TABLE_IN_USE
 create or replace table t like liker;
 truncate t;
 create or replace table t like liker;
@@ -755,10 +755,10 @@ insert src values (1), (2);
 lock tables t write, src write;
 create or replace global temporary table t on commit preserve rows select * from src;
 select * from t;
---error ER_LOCK_WAIT_TIMEOUT
+--error ER_TABLE_IN_USE
 drop table t;
 unlock tables;
---error ER_LOCK_WAIT_TIMEOUT
+--error ER_TABLE_IN_USE
 drop table t;
 select * from t;
 truncate t;
@@ -779,7 +779,7 @@ drop table src;
 --echo # MDEV-37385 (duplicate) Thread hang on CoR where the original table is a GTT
 create global temporary table t (c int) on commit preserve rows;
 insert t values (1);
---error ER_LOCK_WAIT_TIMEOUT
+--error ER_TABLE_IN_USE
 create or replace table t (c int);
 truncate t;
 drop table t;
@@ -891,7 +891,7 @@ create global temporary table t (x int) on commit preserve rows as select 1 'a';
 create global temporary table t2 (x int key) on commit preserve rows;
 set session server_id=10;
 lock tables t2 as a1 write,t as a5 write;
---error ER_LOCK_WAIT_TIMEOUT
+--error ER_TABLE_IN_USE
 drop table t;
 truncate t;
 drop table t;
@@ -903,7 +903,7 @@ create global temporary table t (c int) on commit preserve rows;
 lock table t write;
 select * from t;
 connection default;
---error ER_LOCK_WAIT_TIMEOUT
+--error ER_TABLE_IN_USE
 alter table t add x int;
 truncate t;
 drop table t;

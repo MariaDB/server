@@ -6351,7 +6351,7 @@ check_rename_table(THD *thd, TABLE_LIST *first_table,
     if (table->table &&
         table->table->s->global_tmp_table())
     {
-      my_error(ER_LOCK_WAIT_TIMEOUT, MYF(0));
+      my_error(ER_TABLE_IN_USE, MYF(0), table->db.str, table->alias.str);
       return 1;
     }
   }
