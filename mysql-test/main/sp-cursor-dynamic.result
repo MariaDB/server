@@ -934,3 +934,15 @@ CALL p1;
 DROP PROCEDURE p1;
 DROP FUNCTION f1;
 DROP TABLE t1;
+#
+# MDEV-38597 Server crashes with a subselect in parameter
+#
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE c sys_refcursor;
+OPEN c FOR 'SELECT ?' USING (SELECT 1);
+CLOSE c;
+END;
+$$
+CALL p1;
+DROP PROCEDURE p1;
