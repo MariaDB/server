@@ -1,0 +1,16 @@
+--echo #
+--echo # MDEV-38604 Assertion `thd->utime_after_query >= thd->utime_after_lock' failed in query_response_time_audit_notify on 2nd execution of SP with query cache
+--echo #
+set global query_response_time_stats=on;
+set global query_cache_type=on;
+set query_cache_type=on;
+
+create table t (a int);
+create procedure sp() execute immediate 'select * from t';
+call sp;
+call sp;
+drop table t;
+drop procedure sp;
+
+set global query_cache_type= default;
+set global query_response_time_stats=default;

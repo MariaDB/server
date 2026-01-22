@@ -122,7 +122,10 @@ static void query_response_time_audit_notify(MYSQL_THD thd,
                                   THDVAR(thd, exec_time_debug) : 0);
     else
 #endif
-    query_response_time_collect(thd->utime_after_query - thd->utime_after_lock);
+    {
+      DBUG_ASSERT(thd->utime_after_query >= thd->utime_after_lock);
+      query_response_time_collect(thd->utime_after_query - thd->utime_after_lock);
+    }
   }
 }
 
