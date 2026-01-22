@@ -274,7 +274,7 @@ static my_bool list_open_tables_callback(void *el, void *a)
   /* Check if user has SELECT privilege for any column in the table */
   arg->table_list.db= db;
   arg->table_list.table_name= Lex_cstring_strlen(table_name);
-  arg->table_list.grant.privilege= NO_ACL;
+  arg->table_list.grant.privilege= access_t(NO_ACL);
 
   if (check_table_access(arg->thd, SELECT_ACL, &arg->table_list, TRUE, 1, TRUE))
     return FALSE;

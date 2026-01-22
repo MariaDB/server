@@ -4919,10 +4919,10 @@ void Security_context::init()
   host= user= ip= external_user= 0;
   host_or_ip= "connecting host";
   priv_user[0]= priv_host[0]= proxy_user[0]= priv_role[0]= '\0';
-  master_access= NO_ACL;
+  master_access= access_t(NO_ACL);
   password_expired= false;
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
-  db_access= NO_ACL;
+  db_access= access_t(NO_ACL);
 #endif
 }
 
@@ -4957,7 +4957,7 @@ void Security_context::skip_grants()
 {
   /* privileges for the user are unknown everything is allowed */
   host_or_ip= (char *)"";
-  master_access= ALL_KNOWN_ACL;
+  master_access= access_t(ALL_KNOWN_ACL);
   *priv_user= *priv_host= '\0';
   password_expired= false;
 }

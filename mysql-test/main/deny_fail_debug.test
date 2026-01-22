@@ -1,0 +1,15 @@
+--source include/not_embedded.inc
+--source include/have_debug.inc
+
+--echo #
+--echo # DBUG: fail apply_deny_closure_to_caches
+--echo #
+
+CREATE USER u@localhost;
+
+SET @old_debug= @@debug_dbug;
+SET debug_dbug="+d,deny_closure_cache_fail";
+DENY SELECT ON test.* TO u@localhost;
+SET debug_dbug= @old_debug;
+
+DROP USER u@localhost;

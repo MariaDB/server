@@ -947,8 +947,8 @@ exit:
     {
       DBUG_ASSERT(derived->is_derived());
       DBUG_ASSERT(derived->is_anonymous_derived_table());
-      table->grant.privilege= SELECT_ACL;
-      derived->grant.privilege= SELECT_ACL;
+      table->grant.privilege= access_t(SELECT_ACL);
+      derived->grant.privilege= access_t(SELECT_ACL);
     }
 #endif
     /* Add new temporary table to list of open derived tables */

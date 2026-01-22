@@ -34,3 +34,8 @@ MY_ADD_TEST(mf_iocache)
 ADD_EXECUTABLE(my_json_writer-t my_json_writer-t.cc dummy_builtins.cc)
 TARGET_LINK_LIBRARIES(my_json_writer-t sql mytap)
 MY_ADD_TEST(my_json_writer)
+
+ADD_EXECUTABLE(deny_closure-t deny_closure-t.cc ../../sql/deny_closure.cc)
+TARGET_LINK_LIBRARIES(deny_closure-t strings mytap)
+ADD_DEPENDENCIES(deny_closure-t GenError)
+MY_ADD_TEST(deny_closure)

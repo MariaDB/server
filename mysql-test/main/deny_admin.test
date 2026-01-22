@@ -1,0 +1,108 @@
+--source include/not_embedded.inc
+
+--echo #
+--echo # Test DENY for global administrative privileges
+--echo #
+
+CREATE USER user1@localhost;
+CREATE USER user2@localhost;
+
+--echo # Test RELOAD privilege
+GRANT ALL PRIVILEGES ON *.* TO user1@localhost;
+DENY RELOAD ON *.* TO user1@localhost;
+
+connect (con1, localhost, user1,,);
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+FLUSH TABLES;
+
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+FLUSH LOGS;
+
+connection default;
+disconnect con1;
+
+--echo # Test SHUTDOWN privilege
+GRANT ALL PRIVILEGES ON *.* TO user1@localhost;
+DENY SHUTDOWN ON *.* TO user1@localhost;
+
+connect (con1, localhost, user1,,);
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+SHUTDOWN;
+
+connection default;
+disconnect con1;
+
+--echo # Test PROCESS privilege
+GRANT ALL PRIVILEGES ON *.* TO user1@localhost;
+DENY PROCESS ON *.* TO user1@localhost;
+
+let $count_sessions= 1;
+--source include/wait_until_count_sessions.inc
+
+connect (con1, localhost, user1,,);
+SELECT COUNT(*) FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER <> 'user1';
+
+connection default;
+disconnect con1;
+
+
+--echo # Test FILE privilege
+GRANT ALL PRIVILEGES ON *.* TO user1@localhost;
+DENY FILE ON *.* TO user1@localhost;
+
+connect (con1, localhost, user1,,);
+
+--error ER_ACCESS_DENIED_ERROR
+SELECT 'test' INTO OUTFILE '/tmp/test.txt';
+
+connection default;
+disconnect con1;
+
+--echo # Test combination of DENY on multiple global privileges
+GRANT ALL PRIVILEGES ON *.* TO user2@localhost;
+DENY RELOAD, SHUTDOWN ON *.* TO user2@localhost;
+
+connect (con2, localhost, user2,,);
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+FLUSH TABLES;
+
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+SHUTDOWN;
+
+connection default;
+disconnect con2;
+
+#--echo # Verify SHOW GRANTS displays DENY correctly
+#SHOW GRANTS FOR user1@localhost;
+#SHOW GRANTS FOR user2@localhost;
+
+--echo # Cleanup
+DROP USER user1@localhost;
+DROP USER user2@localhost;
+
+--echo #
+--echo # Test CONNECTION ADMIN privilege behaviors with DENY
+--echo #
+CREATE USER user_super@localhost;
+GRANT ALL PRIVILEGES ON *.* TO user_super@localhost;
+DENY CONNECTION ADMIN ON *.* TO user_super@localhost;
+
+connect (con_super, localhost, user_super,,);
+
+--echo # Should not be able to kill other connections
+connection default;
+let $default_id = `SELECT CONNECTION_ID()`;
+
+connection con_super;
+--replace_result $default_id ID
+--error ER_KILL_DENIED_ERROR
+eval KILL $default_id;
+
+--echo # Should not be able to set global variables
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+SET GLOBAL max_connections = 200;
+
+
+connection default;
+disconnect con_super;
+DROP USER user_super@localhost;

@@ -1941,9 +1941,10 @@ static int mysql_test_show_grants(Prepared_statement *stmt)
   THD *thd= stmt->thd;
   List<Item> fields;
   char buff[1024];
+  bool show_denies;
   const char *username= NULL, *hostname= NULL, *rolename= NULL, *end;
 
-  if (get_show_user(thd, thd->lex->grant_user, &username, &hostname, &rolename))
+  if (get_show_user(thd, thd->lex->grant_user, &username, &hostname, &rolename,&show_denies))
     DBUG_RETURN(1);
 
   if (username)
