@@ -1,87 +1,133 @@
 #
-# MDEV-37939: Include function name in division by zero warnings
+# MDEV-37939: Use correct error for invalid logarithm arguments
+#
+# LOG/LN/LOG2/LOG10 now emit ER_INVALID_ARGUMENT_FOR_LOGARITHM (3020)
+# instead of ER_DIVISION_BY_ZERO (1365), since these functions do not
+# perform division.
 #
 #
-# Test with ERROR_FOR_DIVISION_BY_ZERO enabled
+# Test valid inputs first (before any warning-producing statements)
+# This ensures SHOW WARNINGS is truly empty
 #
 SET SESSION sql_mode='ERROR_FOR_DIVISION_BY_ZERO';
-# LOG family should show function context
+SELECT LOG(10);
+LOG(10)
+2.302585092994046
+SELECT LN(2.718);
+LN(2.718)
+0.999896315728952
+SELECT LOG2(8);
+LOG2(8)
+3
+SELECT LOG10(100);
+LOG10(100)
+2
+SELECT LOG(2, 8);
+LOG(2, 8)
+3
+SHOW WARNINGS;
+Level	Code	Message
+# Should be empty - valid inputs produce no warnings
+#
+# Test sql_mode='' behavior (before any warnings are produced)
+#
+SET SESSION sql_mode='';
+SELECT LOG(-1);
+LOG(-1)
+NULL
+SHOW WARNINGS;
+Level	Code	Message
+# Should be empty - no warning when sql_mode doesn't include ERROR_FOR_DIVISION_BY_ZERO
+SELECT LN(-1);
+LN(-1)
+NULL
+SHOW WARNINGS;
+Level	Code	Message
+#
+# Now test warning-producing cases
+#
+SET SESSION sql_mode='ERROR_FOR_DIVISION_BY_ZERO';
+#
+# LOG family should report ER_INVALID_ARGUMENT_FOR_LOGARITHM (3020)
+#
 SELECT LOG(-1);
 LOG(-1)
 NULL
 Warnings:
-Warning	1365	Division by 0 in function log
+Warning	3020	Invalid argument for logarithm
 SHOW WARNINGS;
 Level	Code	Message
-Warning	1365	Division by 0 in function log
+Warning	3020	Invalid argument for logarithm
 SELECT LOG(0);
 LOG(0)
 NULL
 Warnings:
-Warning	1365	Division by 0 in function log
+Warning	3020	Invalid argument for logarithm
 SHOW WARNINGS;
 Level	Code	Message
-Warning	1365	Division by 0 in function log
+Warning	3020	Invalid argument for logarithm
 SELECT LN(0);
 LN(0)
 NULL
 Warnings:
-Warning	1365	Division by 0 in function ln
+Warning	3020	Invalid argument for logarithm
 SHOW WARNINGS;
 Level	Code	Message
-Warning	1365	Division by 0 in function ln
+Warning	3020	Invalid argument for logarithm
 SELECT LN(-5);
 LN(-5)
 NULL
 Warnings:
-Warning	1365	Division by 0 in function ln
+Warning	3020	Invalid argument for logarithm
 SHOW WARNINGS;
 Level	Code	Message
-Warning	1365	Division by 0 in function ln
+Warning	3020	Invalid argument for logarithm
 SELECT LOG2(-1);
 LOG2(-1)
 NULL
 Warnings:
-Warning	1365	Division by 0 in function log2
+Warning	3020	Invalid argument for logarithm
 SHOW WARNINGS;
 Level	Code	Message
-Warning	1365	Division by 0 in function log2
+Warning	3020	Invalid argument for logarithm
 SELECT LOG10(-1);
 LOG10(-1)
 NULL
 Warnings:
-Warning	1365	Division by 0 in function log10
+Warning	3020	Invalid argument for logarithm
 SHOW WARNINGS;
 Level	Code	Message
-Warning	1365	Division by 0 in function log10
+Warning	3020	Invalid argument for logarithm
 # Two-argument LOG: invalid second argument
 SELECT LOG(2, -1);
 LOG(2, -1)
 NULL
 Warnings:
-Warning	1365	Division by 0 in function log
+Warning	3020	Invalid argument for logarithm
 SHOW WARNINGS;
 Level	Code	Message
-Warning	1365	Division by 0 in function log
+Warning	3020	Invalid argument for logarithm
 # Two-argument LOG: invalid base (negative)
 SELECT LOG(-2, 10);
 LOG(-2, 10)
 NULL
 Warnings:
-Warning	1365	Division by 0 in function log
+Warning	3020	Invalid argument for logarithm
 SHOW WARNINGS;
 Level	Code	Message
-Warning	1365	Division by 0 in function log
-# Two-argument LOG: base = 1 (log(1) = 0, causes division)
+Warning	3020	Invalid argument for logarithm
+# Two-argument LOG: base = 1 (invalid - would cause log(1)=0 in denominator)
 SELECT LOG(1, 10);
 LOG(1, 10)
 NULL
 Warnings:
-Warning	1365	Division by 0 in function log
+Warning	3020	Invalid argument for logarithm
 SHOW WARNINGS;
 Level	Code	Message
-Warning	1365	Division by 0 in function log
-# Non-LOG operations should stay generic (all show "Division by 0")
+Warning	3020	Invalid argument for logarithm
+#
+# Division operations should report ER_DIVISION_BY_ZERO (1365)
+#
 # Division - integer
 SELECT 1/0;
 1/0
@@ -190,30 +236,3 @@ Warning	1365	Division by 0
 SHOW WARNINGS;
 Level	Code	Message
 Warning	1365	Division by 0
-# Valid inputs should produce no warnings
-SELECT LOG(10);
-LOG(10)
-2.302585092994046
-SELECT LN(2.718);
-LN(2.718)
-0.999896315728952
-SELECT LOG2(8);
-LOG2(8)
-3
-SELECT LOG10(100);
-LOG10(100)
-2
-SHOW WARNINGS;
-Level	Code	Message
-Warning	1365	Division by 0
-#
-# Test with ERROR_FOR_DIVISION_BY_ZERO disabled
-#
-SET SESSION sql_mode='';
-SELECT LOG(-1);
-LOG(-1)
-NULL
-SHOW WARNINGS;
-Level	Code	Message
-Warning	1365	Division by 0
-# Should be empty - no warning when sql_mode doesn't include the flag

@@ -785,27 +785,34 @@ void Item_udf_func::fix_num_length_and_dec()
 
 namespace {
 
-void push_divide_by_zero_warning(THD *thd, const char *context)
+void push_divide_by_zero_warning(THD *thd)
 {
-  if (context && context[0] != '\0')
-  {
-    char buf[MYSQL_ERRMSG_SIZE];
-    my_snprintf(buf, sizeof(buf), ER_THD(thd, ER_DIVISION_BY_ZERO_IN_FUNC),
-                context);
-    push_warning(thd, Sql_condition::WARN_LEVEL_WARN, ER_DIVISION_BY_ZERO, buf);
-  }
-  else
-    push_warning(thd, Sql_condition::WARN_LEVEL_WARN, ER_DIVISION_BY_ZERO,
-                 ER_THD(thd, ER_DIVISION_BY_ZERO));
+  push_warning(thd, Sql_condition::WARN_LEVEL_WARN, ER_DIVISION_BY_ZERO,
+               ER_THD(thd, ER_DIVISION_BY_ZERO));
+}
+
+void push_invalid_log_argument_warning(THD *thd)
+{
+  push_warning(thd, Sql_condition::WARN_LEVEL_WARN,
+               ER_INVALID_ARGUMENT_FOR_LOGARITHM,
+               ER_THD(thd, ER_INVALID_ARGUMENT_FOR_LOGARITHM));
 }
 
 } // namespace
 
-void Item_func::signal_divide_by_null(const char *context)
+void Item_func::signal_divide_by_null()
 {
   THD *thd= current_thd;
   if (thd->variables.sql_mode & MODE_ERROR_FOR_DIVISION_BY_ZERO)
-    push_divide_by_zero_warning(thd, context);
+    push_divide_by_zero_warning(thd);
+  null_value= 1;
+}
+
+void Item_func::signal_invalid_log_argument()
+{
+  THD *thd= current_thd;
+  if (thd->variables.sql_mode & MODE_ERROR_FOR_DIVISION_BY_ZERO)
+    push_invalid_log_argument_warning(thd);
   null_value= 1;
 }
 
@@ -1536,7 +1543,7 @@ double Item_func_div::real_op()
     return 0.0;
   if (val2 == 0.0)
   {
-    signal_divide_by_null(nullptr);
+    signal_divide_by_null();
     return 0.0;
   }
   return check_float_overflow(value/val2);
@@ -1557,7 +1564,7 @@ my_decimal *Item_func_div::decimal_op(my_decimal *decimal_value)
                                                   prec_increment))) > 3)
   {
     if (err == E_DEC_DIV_ZERO)
-      signal_divide_by_null(nullptr);
+      signal_divide_by_null();
     null_value= 1;
     return 0;
   }
@@ -1653,7 +1660,7 @@ longlong Item_func_int_div::val_int()
                              val.m_a.ptr(), val.m_b.ptr(), 0)) > 3)
     {
       if (err == E_DEC_DIV_ZERO)
-        signal_divide_by_null(nullptr);
+        signal_divide_by_null();
       return 0;
     }
 
@@ -1674,7 +1681,7 @@ longlong Item_func_int_div::val_int()
     return 0;
   if (val1 == 0)
   {
-    signal_divide_by_null(nullptr);
+    signal_divide_by_null();
     return 0;
   }
 
@@ -1704,7 +1711,7 @@ longlong Item_func_mod::int_op()
     return 0; /* purecov: inspected */
   if (val1 == 0)
   {
-    signal_divide_by_null(nullptr);
+    signal_divide_by_null();
     return 0;
   }
 
@@ -1726,7 +1733,7 @@ double Item_func_mod::real_op()
     return 0.0; /* purecov: inspected */
   if (val2 == 0.0)
   {
-    signal_divide_by_null(nullptr);
+    signal_divide_by_null();
     return 0.0;
   }
   return fmod(value,val2);
@@ -1744,7 +1751,7 @@ my_decimal *Item_func_mod::decimal_op(my_decimal *decimal_value)
   case E_DEC_OK:
     return decimal_value;
   case E_DEC_DIV_ZERO:
-    signal_divide_by_null(nullptr);
+    signal_divide_by_null();
     /* fall through */
   default:
     null_value= 1;
@@ -2038,7 +2045,7 @@ double Item_func_ln::val_real()
     return 0.0;
   if (value <= 0.0)
   {
-    signal_divide_by_null(func_name());
+    signal_invalid_log_argument();
     return 0.0;
   }
   return log(value);
@@ -2058,7 +2065,7 @@ double Item_func_log::val_real()
     return 0.0;
   if (value <= 0.0)
   {
-    signal_divide_by_null(func_name());
+    signal_invalid_log_argument();
     return 0.0;
   }
   if (arg_count == 2)
@@ -2068,7 +2075,7 @@ double Item_func_log::val_real()
       return 0.0;
     if (value2 <= 0.0 || value == 1.0)
     {
-      signal_divide_by_null(func_name());
+      signal_invalid_log_argument();
       return 0.0;
     }
     return log(value2) / log(value);
@@ -2085,7 +2092,7 @@ double Item_func_log2::val_real()
     return 0.0;
   if (value <= 0.0)
   {
-    signal_divide_by_null(func_name());
+    signal_invalid_log_argument();
     return 0.0;
   }
   return log(value) / M_LN2;
@@ -2099,7 +2106,7 @@ double Item_func_log10::val_real()
     return 0.0;
   if (value <= 0.0)
   {
-    signal_divide_by_null(func_name());
+    signal_invalid_log_argument();
     return 0.0;
   }
   return log10(value);

@@ -1,13 +1,45 @@
 --echo #
---echo # MDEV-37939: Include function name in division by zero warnings
+--echo # MDEV-37939: Use correct error for invalid logarithm arguments
+--echo #
+--echo # LOG/LN/LOG2/LOG10 now emit ER_INVALID_ARGUMENT_FOR_LOGARITHM (3020)
+--echo # instead of ER_DIVISION_BY_ZERO (1365), since these functions do not
+--echo # perform division.
 --echo #
 
 --echo #
---echo # Test with ERROR_FOR_DIVISION_BY_ZERO enabled
+--echo # Test valid inputs first (before any warning-producing statements)
+--echo # This ensures SHOW WARNINGS is truly empty
 --echo #
 SET SESSION sql_mode='ERROR_FOR_DIVISION_BY_ZERO';
 
---echo # LOG family should show function context
+SELECT LOG(10);
+SELECT LN(2.718);
+SELECT LOG2(8);
+SELECT LOG10(100);
+SELECT LOG(2, 8);
+SHOW WARNINGS;
+--echo # Should be empty - valid inputs produce no warnings
+
+--echo #
+--echo # Test sql_mode='' behavior (before any warnings are produced)
+--echo #
+SET SESSION sql_mode='';
+
+SELECT LOG(-1);
+SHOW WARNINGS;
+--echo # Should be empty - no warning when sql_mode doesn't include ERROR_FOR_DIVISION_BY_ZERO
+
+SELECT LN(-1);
+SHOW WARNINGS;
+
+--echo #
+--echo # Now test warning-producing cases
+--echo #
+SET SESSION sql_mode='ERROR_FOR_DIVISION_BY_ZERO';
+
+--echo #
+--echo # LOG family should report ER_INVALID_ARGUMENT_FOR_LOGARITHM (3020)
+--echo #
 SELECT LOG(-1);
 SHOW WARNINGS;
 
@@ -34,11 +66,13 @@ SHOW WARNINGS;
 SELECT LOG(-2, 10);
 SHOW WARNINGS;
 
---echo # Two-argument LOG: base = 1 (log(1) = 0, causes division)
+--echo # Two-argument LOG: base = 1 (invalid - would cause log(1)=0 in denominator)
 SELECT LOG(1, 10);
 SHOW WARNINGS;
 
---echo # Non-LOG operations should stay generic (all show "Division by 0")
+--echo #
+--echo # Division operations should report ER_DIVISION_BY_ZERO (1365)
+--echo #
 
 --echo # Division - integer
 SELECT 1/0;
@@ -87,19 +121,3 @@ SHOW WARNINGS;
 --echo # MOD function - decimal
 SELECT MOD(5.5, 0.0);
 SHOW WARNINGS;
-
---echo # Valid inputs should produce no warnings
-SELECT LOG(10);
-SELECT LN(2.718);
-SELECT LOG2(8);
-SELECT LOG10(100);
-SHOW WARNINGS;
-
---echo #
---echo # Test with ERROR_FOR_DIVISION_BY_ZERO disabled
---echo #
-SET SESSION sql_mode='';
-
-SELECT LOG(-1);
-SHOW WARNINGS;
---echo # Should be empty - no warning when sql_mode doesn't include the flag
