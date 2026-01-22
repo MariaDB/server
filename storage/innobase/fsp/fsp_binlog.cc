@@ -1665,12 +1665,26 @@ fsp_binlog_write_rec(chunk_data_base *chunk_data, mtr_t *mtr, byte chunk_type,
           err= binlog_gtid_state(binlog_state, mtr, block, page_no,
                                  page_offset, file_no);
           ut_a(!err);
-          ut_ad(block);
         } else {
           bool err= binlog_gtid_state(&binlog_diff_state, mtr, block, page_no,
                                       page_offset, file_no);
           ut_a(!err);
         }
+        if (UNIV_UNLIKELY(!block))
+        {
+          /*
+            This happens in the special case where binlog_gtid_state() exactly
+            ends on the page boundary.
+            We must create the next page then to write our chunk into, _except_
+            for the special chunk_type FSP_BINLOG_TYPE_FILLER, which writes
+            noting except the gtid state record! In this case we must exit the
+            loop so we don't leave an empty page created.
+          */
+          if (UNIV_UNLIKELY(chunk_type == FSP_BINLOG_TYPE_FILLER))
+            break;
+          block= binlog_page_fifo->create_page(file_no, page_no);
+        }
+        ut_ad(block);
       } else
         block= binlog_page_fifo->create_page(file_no, page_no);
     } else {

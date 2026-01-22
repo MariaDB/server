@@ -116,6 +116,20 @@ UPDATE t3 SET b = 'qux';
 SET GLOBAL binlog_cache_size= @old_cache_size;
 
 
+--echo *** Test that single large OOB spill gets split into smaller pieces.
+# Use a large binlog cache to get a large single OOB spill.
+SET GLOBAL binlog_cache_size= 4*1024*1024;
+--connect(my_con1,localhost,root,,)
+BEGIN;
+UPDATE t3 SET b = 'tmp' WHERE id = 1;
+UPDATE t3 SET a = REPEAT('y', 65535);
+UPDATE t3 SET b = 'wic';
+COMMIT;
+--disconnect my_con1
+--connection master
+SET GLOBAL binlog_cache_size= @old_cache_size;
+
+
 --echo *** Test oob spilling of DDL
 --connection master
 --let $long_list= `SELECT GROUP_CONCAT(seq SEPARATOR ',') FROM seq_0_to_9999`
@@ -132,5 +146,4 @@ CREATE TABLE t5 AS SELECT * FROM t4;
 # Cleanup.
 --connection master
 DROP TABLE t1, t2, t3, t4, t5;
---exec $MYSQL_BINLOG --read-from-remote-server --user=root --host=127.0.0.1 --port=$MASTER_MYPORT master-bin.000001 --start-position=0-1-1 > $MYSQLTEST_VARDIR/tmp/mysqlbinlog.txt
 --source include/rpl_end.inc
