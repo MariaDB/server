@@ -179,8 +179,8 @@ pre_init_event_thread(THD* thd)
 
   set_current_thd(thd);
   thd->client_capabilities= 0;
-  thd->security_ctx->master_access= NO_ACL;
-  thd->security_ctx->db_access= NO_ACL;
+  thd->security_ctx->master_access= access_t(NO_ACL);
+  thd->security_ctx->db_access= access_t(NO_ACL);
   thd->security_ctx->host_or_ip= (char*)my_localhost;
   my_net_init(&thd->net, NULL, thd, MYF(MY_THREAD_SPECIFIC));
   thd->security_ctx->set_user((char*)"event_scheduler");
@@ -415,7 +415,7 @@ Event_scheduler::start(int *err_no)
 
     Same goes for transaction access mode. Set it to read-write for this thd.
   */
-  new_thd->security_ctx->master_access |= PRIV_IGNORE_READ_ONLY;
+  new_thd->security_ctx->master_access.force_allow(PRIV_IGNORE_READ_ONLY);
   new_thd->variables.tx_read_only= false;
   new_thd->tx_read_only= false;
 

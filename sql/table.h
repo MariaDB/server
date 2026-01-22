@@ -355,7 +355,7 @@ typedef struct st_grant_info
 
      The set is implemented as a bitmap, with the bits defined in sql_acl.h.
    */
-  privilege_t privilege;
+  access_t privilege;
   /**
      @brief the set of privileges that the current user needs to fulfil in
      order to carry out the requested operation.
@@ -380,11 +380,11 @@ typedef struct st_grant_info
 
   inline void refresh(const Security_context *sctx, const char *db,
                      const char *table);
-  inline privilege_t aggregate_privs();
+  inline access_t aggregate_privs();
   inline privilege_t aggregate_cols();
 
   /* OR table and all column privileges */
-  privilege_t all_privilege();
+  access_t all_privilege();
 } GRANT_INFO;
 
 enum tmp_table_type

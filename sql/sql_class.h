@@ -1934,8 +1934,8 @@ public:
   char   *external_user;
   /* points to host if host is available, otherwise points to ip */
   const char *host_or_ip;
-  privilege_t master_access;            /* Global privileges from mysql.user */
-  privilege_t db_access;                /* Privileges for current db */
+  access_t master_access;            /* Global privileges from mysql.user */
+  access_t db_access;                /* Privileges for current db */
 
   bool password_expired;
 
@@ -4149,7 +4149,7 @@ public:
     update auto-updatable fields (like auto_increment and timestamp).
   */
   query_id_t query_id;
-  privilege_t col_access;
+  access_t col_access;
 
   /* Statement id is thread-wide. This counter is used to generate ids */
   ulong      statement_id_counter;

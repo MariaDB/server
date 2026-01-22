@@ -1,0 +1,169 @@
+#
+# DENY routine privileges
+#
+CREATE PROCEDURE proc1() BEGIN SET @p=1; END;
+$$
+CREATE FUNCTION func1() RETURNS INT RETURN 1;
+$$
+CREATE PACKAGE pkg1
+PROCEDURE p1();
+FUNCTION f1() RETURNS INT;
+END;
+$$
+CREATE PACKAGE BODY pkg1
+PROCEDURE p1() BEGIN SET @pkg=2; END;
+FUNCTION f1() RETURNS INT BEGIN RETURN 2; END;
+END;
+$$
+#
+# Routine-level DENY for different privileges
+#
+CREATE USER u@localhost;
+#
+# Illegal routine DENY statements
+#
+# Missing routine type (treated as table-level grant target)
+DENY EXECUTE ON test.proc1 TO u@localhost;
+ERROR 42000: Illegal GRANT/REVOKE command; please consult the manual to see which privileges can be used
+# SELECT is not a routine privilege (procedure target)
+DENY SELECT ON PROCEDURE test.proc1 TO u@localhost;
+ERROR 42000: Illegal GRANT/REVOKE command; please consult the manual to see which privileges can be used
+# SELECT is not a routine privilege (function target)
+DENY SELECT ON FUNCTION test.func1 TO u@localhost;
+ERROR 42000: Illegal GRANT/REVOKE command; please consult the manual to see which privileges can be used
+GRANT EXECUTE, ALTER ROUTINE ON PROCEDURE test.proc1 TO u@localhost;
+GRANT EXECUTE, ALTER ROUTINE ON FUNCTION test.func1 TO u@localhost;
+DENY ALTER ROUTINE ON PROCEDURE test.proc1 TO u@localhost;
+DENY EXECUTE ON FUNCTION test.func1 TO u@localhost;
+connect  con1, localhost, u,,test;
+CALL proc1();
+SELECT @p;
+@p
+1
+ALTER PROCEDURE proc1 COMMENT 'x';
+ERROR 42000: alter routine command denied to user 'u'@'localhost' for routine 'test.proc1'
+SELECT func1();
+ERROR 42000: execute command denied to user 'u'@'localhost' for routine 'test.func1'
+ALTER FUNCTION func1 COMMENT 'x';
+connection default;
+disconnect con1;
+DROP USER u@localhost;
+#
+# Routine-level DENY ALL
+#
+CREATE USER u_all@localhost;
+GRANT ALL ON PROCEDURE test.proc1 TO u_all@localhost;
+GRANT ALL ON FUNCTION test.func1 TO u_all@localhost;
+DENY ALL PRIVILEGES ON PROCEDURE test.proc1 TO u_all@localhost;
+DENY ALL PRIVILEGES ON FUNCTION test.func1 TO u_all@localhost;
+connect  con1, localhost, u_all,,;
+CALL test.proc1();
+ERROR 42000: execute command denied to user 'u_all'@'localhost' for routine 'test.proc1'
+SELECT test.func1();
+ERROR 42000: execute command denied to user 'u_all'@'localhost' for routine 'test.func1'
+ALTER PROCEDURE test.proc1 COMMENT 'x';
+ERROR 42000: alter routine command denied to user 'u_all'@'localhost' for routine 'test.proc1'
+ALTER FUNCTION test.func1 COMMENT 'x';
+ERROR 42000: alter routine command denied to user 'u_all'@'localhost' for routine 'test.func1'
+connection default;
+disconnect con1;
+DROP USER u_all@localhost;
+#
+# DB-level DENY overrides routine grants
+#
+CREATE USER u@localhost;
+GRANT EXECUTE ON PROCEDURE test.proc1 TO u@localhost;
+GRANT EXECUTE ON PACKAGE BODY test.pkg1 TO u@localhost;
+DENY EXECUTE ON test.* TO u@localhost;
+connect  con1, localhost, u,,test;
+CALL proc1();
+ERROR 42000: execute command denied to user 'u'@'localhost' for routine 'test.proc1'
+CALL pkg1.p1();
+ERROR 42000: execute command denied to user 'u'@'localhost' for routine 'test.pkg1'
+SELECT pkg1.f1();
+ERROR 42000: execute command denied to user 'u'@'localhost' for routine 'test.pkg1'
+connection default;
+disconnect con1;
+DROP USER u@localhost;
+#
+# Global DENY overrides routine grants
+#
+CREATE USER u@localhost;
+GRANT EXECUTE ON FUNCTION test.func1 TO u@localhost;
+DENY EXECUTE ON *.* TO u@localhost;
+connect  con1, localhost, u,,test;
+SELECT func1();
+ERROR 42000: execute command denied to user 'u'@'localhost' for routine 'test.func1'
+connection default;
+disconnect con1;
+DROP USER u@localhost;
+#
+# Routine DENY is case-insensitive
+#
+CREATE USER u_case@localhost;
+GRANT EXECUTE ON PROCEDURE test.proc1 TO u_case@localhost;
+GRANT EXECUTE ON FUNCTION test.func1 TO u_case@localhost;
+DENY EXECUTE ON PROCEDURE test.ProC1 TO u_case@localhost;
+DENY EXECUTE ON FUNCTION test.FUNC1 TO u_case@localhost;
+connect  con_case, localhost, u_case,,;
+CALL test.proc1();
+ERROR 42000: execute command denied to user 'u_case'@'localhost' for routine 'test.proc1'
+SELECT test.func1();
+ERROR 42000: execute command denied to user 'u_case'@'localhost' for routine 'test.func1'
+connection default;
+disconnect con_case;
+DROP USER u_case@localhost;
+#
+# Package / package body DENY
+#
+CREATE USER u@localhost;
+GRANT EXECUTE,GRANT OPTION ON PACKAGE BODY test.pkg1 TO u@localhost;
+DENY EXECUTE ON PACKAGE BODY test.pkg1 TO u@localhost;
+connect  con1, localhost, u,,test;
+CALL pkg1.p1();
+ERROR 42000: execute command denied to user 'u'@'localhost' for routine 'test.pkg1'
+SELECT pkg1.f1();
+ERROR 42000: execute command denied to user 'u'@'localhost' for routine 'test.pkg1'
+connection default;
+disconnect con1;
+DROP USER u@localhost;
+#
+# DROP SP clears denies for user
+#
+CREATE USER u@localhost;
+CREATE PROCEDURE proc2() BEGIN SET @p=1; END;
+$$
+DENY EXECUTE ON PROCEDURE proc2 TO u@localhost;
+SHOW GRANTS for u@localhost;
+Grants for u@localhost
+GRANT USAGE ON *.* TO `u`@`localhost`
+DENY EXECUTE ON PROCEDURE `test`.`proc2` TO `u`@`localhost`
+# show that deny entry exists in json
+SELECT User, Host,
+JSON_PRETTY(JSON_EXTRACT(Priv, '$.denies')) AS denies_pretty
+FROM mysql.global_priv
+WHERE User='u';
+User	Host	denies_pretty
+u	localhost	[
+    {
+        "type": "procedure",
+        "db": "test",
+        "procedure": "proc2",
+        "bits": 262144
+    }
+]
+DROP PROCEDURE proc2;
+SELECT User, Host,
+JSON_PRETTY(JSON_EXTRACT(Priv, '$.denies')) AS denies_pretty
+FROM mysql.global_priv
+WHERE User='u';
+User	Host	denies_pretty
+u	localhost	[]
+SHOW GRANTS for u@localhost;
+Grants for u@localhost
+GRANT USAGE ON *.* TO `u`@`localhost`
+DROP USER u@localhost;
+DROP PACKAGE BODY pkg1;
+DROP PACKAGE pkg1;
+DROP PROCEDURE proc1;
+DROP FUNCTION func1;

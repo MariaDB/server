@@ -1,0 +1,160 @@
+#
+# Test DENY representation as JSON in mysql.global_priv table
+#
+SET @q_show_denies =
+'SELECT User, Host,
+          JSON_PRETTY(JSON_EXTRACT(Priv, ''$.denies'')) AS denies_pretty
+   FROM mysql.global_priv
+   WHERE JSON_LENGTH(JSON_EXTRACT(Priv, ''$.denies'')) > 0
+   ORDER BY User, Host';
+PREPARE show_denies FROM @q_show_denies;
+CREATE USER u;
+CREATE DATABASE d;
+DENY SELECT,INSERT ON mysql.* TO u;
+DENY UPDATE ON d.* TO u;
+EXECUTE show_denies;
+User	Host	denies_pretty
+u	%	[
+    {
+        "type": "db",
+        "db": "mysql",
+        "bits": 3
+    },
+    {
+        "type": "db",
+        "db": "d",
+        "bits": 4
+    }
+]
+REVOKE DENY SELECT  ON mysql.* FROM u;
+EXECUTE show_denies;
+User	Host	denies_pretty
+u	%	[
+    {
+        "type": "db",
+        "db": "mysql",
+        "bits": 2
+    },
+    {
+        "type": "db",
+        "db": "d",
+        "bits": 4
+    }
+]
+REVOKE DENY INSERT  ON mysql.* FROM u;
+EXECUTE show_denies;
+User	Host	denies_pretty
+u	%	[
+    {
+        "type": "db",
+        "db": "d",
+        "bits": 4
+    }
+]
+REVOKE DENY UPDATE ON d.* FROM u;
+EXECUTE show_denies;
+User	Host	denies_pretty
+# Table level
+DENY SELECT,INSERT ON mysql.global_priv TO u;
+EXECUTE show_denies;
+User	Host	denies_pretty
+u	%	[
+    {
+        "type": "table",
+        "db": "mysql",
+        "table": "global_priv",
+        "bits": 3
+    }
+]
+REVOKE DENY INSERT,SELECT ON mysql.global_priv FROM u;
+EXECUTE show_denies;
+User	Host	denies_pretty
+DENY SELECT(USER) ON mysql.global_priv TO u;
+EXECUTE show_denies;
+User	Host	denies_pretty
+u	%	[
+    {
+        "type": "column",
+        "db": "mysql",
+        "table": "global_priv",
+        "column": "USER",
+        "bits": 1
+    }
+]
+DENY UPDATE(USER) ON mysql.global_priv TO u;
+EXECUTE show_denies;
+User	Host	denies_pretty
+u	%	[
+    {
+        "type": "column",
+        "db": "mysql",
+        "table": "global_priv",
+        "column": "USER",
+        "bits": 5
+    }
+]
+DENY SELECT ON *.* TO u;
+EXECUTE show_denies;
+User	Host	denies_pretty
+u	%	[
+    {
+        "type": "column",
+        "db": "mysql",
+        "table": "global_priv",
+        "column": "USER",
+        "bits": 5
+    },
+    {
+        "type": "global",
+        "bits": 1
+    }
+]
+CREATE TABLE sensitive_data (
+id INT,
+public_info VARCHAR(50),
+salary DECIMAL(10,2),
+ssn VARCHAR(11),
+address VARCHAR(100)
+);
+DENY SELECT(salary,ssn) ON sensitive_data TO u;
+EXECUTE show_denies;
+User	Host	denies_pretty
+u	%	[
+    {
+        "type": "column",
+        "db": "mysql",
+        "table": "global_priv",
+        "column": "USER",
+        "bits": 5
+    },
+    {
+        "type": "global",
+        "bits": 1
+    },
+    {
+        "type": "column",
+        "db": "test",
+        "table": "sensitive_data",
+        "column": "salary",
+        "bits": 1
+    },
+    {
+        "type": "column",
+        "db": "test",
+        "table": "sensitive_data",
+        "column": "ssn",
+        "bits": 1
+    }
+]
+GRANT ALL PRIVILEGES on *.* TO u WITH GRANT OPTION;
+REVOKE ALL PRIVILEGES, GRANT OPTION FROM u;
+# REVOKE ALL PRIVILEGES clears DENY entries
+SHOW GRANTS FOR u;
+Grants for u@%
+GRANT USAGE ON *.* TO `u`@`%`
+EXECUTE show_denies;
+User	Host	denies_pretty
+DEALLOCATE PREPARE show_denies;
+DROP USER u;
+DROP DATABASE d;
+DROP TABLE sensitive_data;

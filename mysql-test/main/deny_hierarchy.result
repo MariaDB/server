@@ -1,0 +1,122 @@
+#
+# Test DENY privilege hierarchy: GLOBAL > DB > TABLE > COLUMN
+#
+CREATE DATABASE testdb;
+USE testdb;
+CREATE TABLE t1 (id INT, name VARCHAR(50), salary INT);
+CREATE USER 'u1'@'localhost';
+#
+# Test 1: DB-level DENY blocks TABLE-level GRANT
+#
+DENY SELECT ON testdb.* TO 'u1'@'localhost';
+GRANT SELECT ON testdb.t1 TO 'u1'@'localhost';
+connect  con1, localhost, u1,,;
+SELECT * FROM testdb.t1;
+ERROR 42000: SELECT command denied to user 'u1'@'localhost' for table `testdb`.`t1`
+connection default;
+disconnect con1;
+REVOKE DENY SELECT ON testdb.* FROM 'u1'@'localhost';
+REVOKE SELECT ON testdb.t1 FROM 'u1'@'localhost';
+#
+# Test 2: GLOBAL DENY blocks DB and TABLE grants
+#
+DENY UPDATE ON *.* TO 'u1'@'localhost';
+GRANT UPDATE ON testdb.* TO 'u1'@'localhost';
+GRANT UPDATE ON testdb.t1 TO 'u1'@'localhost';
+connect  con1, localhost, u1,,;
+UPDATE testdb.t1 SET name='test' WHERE id=1;
+ERROR 42000: UPDATE command denied to user 'u1'@'localhost' for table `testdb`.`t1`
+connection default;
+disconnect con1;
+REVOKE DENY UPDATE ON *.* FROM 'u1'@'localhost';
+REVOKE UPDATE ON testdb.* FROM 'u1'@'localhost';
+REVOKE UPDATE ON testdb.t1 FROM 'u1'@'localhost';
+#
+# Test 3: TABLE DENY blocks COLUMN grants
+#
+DENY SELECT ON testdb.t1 TO 'u1'@'localhost';
+GRANT SELECT (name) ON testdb.t1 TO 'u1'@'localhost';
+connect  con1, localhost, u1,,;
+SELECT name FROM testdb.t1;
+ERROR 42000: SELECT command denied to user 'u1'@'localhost' for table `testdb`.`t1`
+connection default;
+disconnect con1;
+REVOKE DENY SELECT ON testdb.t1 FROM 'u1'@'localhost';
+REVOKE SELECT (name) ON testdb.t1 FROM 'u1'@'localhost';
+#
+# Test 4: Multiple DENY levels cumulative
+#
+DENY SELECT ON *.* TO 'u1'@'localhost';
+DENY INSERT ON testdb.* TO 'u1'@'localhost';
+DENY UPDATE ON testdb.t1 TO 'u1'@'localhost';
+GRANT ALL PRIVILEGES ON testdb.t1 TO 'u1'@'localhost';
+connect  con1, localhost, u1,,;
+SELECT * FROM testdb.t1;
+ERROR 42000: SELECT command denied to user 'u1'@'localhost' for table `testdb`.`t1`
+INSERT INTO testdb.t1 VALUES (1, 'test', 1000);
+ERROR 42000: INSERT command denied to user 'u1'@'localhost' for table `testdb`.`t1`
+UPDATE testdb.t1 SET name='test';
+ERROR 42000: UPDATE command denied to user 'u1'@'localhost' for table `testdb`.`t1`
+DELETE FROM testdb.t1 WHERE id=999;
+ERROR 42000: SELECT command denied to user 'u1'@'localhost' for column 'id' in table 't1'
+DELETE FROM testdb.t1;
+connection default;
+disconnect con1;
+REVOKE DENY SELECT ON *.* FROM 'u1'@'localhost';
+REVOKE DENY INSERT ON testdb.* FROM 'u1'@'localhost';
+REVOKE DENY UPDATE ON testdb.t1 FROM 'u1'@'localhost';
+REVOKE ALL PRIVILEGES ON testdb.t1 FROM 'u1'@'localhost';
+#
+# Test 5: REVOKE DENY restores access
+#
+DENY SELECT ON testdb.* TO 'u1'@'localhost';
+GRANT SELECT ON testdb.t1 TO 'u1'@'localhost';
+connect  con1, localhost, u1,,;
+SELECT * FROM testdb.t1;
+ERROR 42000: SELECT command denied to user 'u1'@'localhost' for table `testdb`.`t1`
+connection default;
+disconnect con1;
+REVOKE DENY SELECT ON testdb.* FROM 'u1'@'localhost';
+connect  con1, localhost, u1,,;
+SELECT * FROM testdb.t1;
+id	name	salary
+connection default;
+disconnect con1;
+REVOKE SELECT ON testdb.t1 FROM 'u1'@'localhost';
+#
+# Test 6: Cache invalidation on DENY change
+#
+GRANT SELECT ON testdb.* TO 'u1'@'localhost';
+connect  con1, localhost, u1,,;
+SELECT * FROM testdb.t1;
+id	name	salary
+connection default;
+DENY SELECT ON testdb.t1 TO 'u1'@'localhost';
+connection con1;
+SELECT * FROM testdb.t1;
+ERROR 42000: SELECT command denied to user 'u1'@'localhost' for table `testdb`.`t1`
+connection default;
+disconnect con1;
+REVOKE SELECT ON testdb.* FROM 'u1'@'localhost';
+REVOKE DENY SELECT ON testdb.t1 FROM 'u1'@'localhost';
+#
+# Test 7: DENY on one table, GRANT on another
+#
+CREATE TABLE t2 (dept_id INT);
+DENY SELECT ON testdb.t1 TO 'u1'@'localhost';
+GRANT SELECT ON testdb.t2 TO 'u1'@'localhost';
+connect  con1, localhost, u1,,;
+SELECT * FROM testdb.t1;
+ERROR 42000: SELECT command denied to user 'u1'@'localhost' for table `testdb`.`t1`
+SELECT * FROM testdb.t2;
+dept_id
+connection default;
+disconnect con1;
+REVOKE DENY SELECT ON testdb.t1 FROM 'u1'@'localhost';
+REVOKE SELECT ON testdb.t2 FROM 'u1'@'localhost';
+#
+# Cleanup
+#
+DROP USER 'u1'@'localhost';
+DROP TABLE t1, t2;
+DROP DATABASE testdb;

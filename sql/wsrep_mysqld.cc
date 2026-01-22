@@ -3857,7 +3857,7 @@ void* start_wsrep_THD(void *arg)
   /* from bootstrap()... */
   thd->bootstrap=1;
   thd->max_client_packet_length= thd->net.max_packet;
-  thd->security_ctx->master_access= ALL_KNOWN_ACL;
+  thd->security_ctx->master_access= access_t(ALL_KNOWN_ACL);
 
   /* from handle_one_connection... */
   pthread_detach_this_thread();

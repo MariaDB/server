@@ -1,0 +1,278 @@
+--source include/not_embedded.inc
+
+--echo #
+--echo # SHOW commands with DENY
+--echo #
+
+--echo # SHOW DATABASES visibility
+CREATE USER u_show@localhost;
+CREATE DATABASE db1;
+CREATE TABLE db1.t1 (a int);
+
+GRANT SELECT ON *.* TO u_show@localhost;
+
+--connect (con1,localhost,u_show,,)
+--echo # db1 should be visible (global SELECT granted)
+SHOW DATABASES LIKE 'db1';
+disconnect con1;
+connection default;
+
+DENY SELECT ON *.* TO u_show@localhost;
+
+--connect (con1,localhost,u_show,,)
+--echo # db1 should be hidden (global SELECT denied)
+SHOW DATABASES LIKE 'db1';
+disconnect con1;
+connection default;
+
+GRANT INSERT ON db1.t1 TO u_show@localhost;
+
+--connect (con1,localhost,u_show,,)
+--echo # db1 should be visible (table INSERT grant not denied)
+SHOW DATABASES LIKE 'db1';
+disconnect con1;
+connection default;
+
+DENY INSERT ON *.* TO u_show@localhost;
+
+--connect (con1,localhost,u_show,,)
+--echo # db1 should be hidden (table INSERT masked by global DENY)
+SHOW DATABASES LIKE 'db1';
+disconnect con1;
+connection default;
+
+DROP USER u_show@localhost;
+DROP DATABASE db1;
+
+--echo # SHOW CREATE VIEW visibility
+CREATE USER u_view@localhost;
+CREATE DATABASE db2;
+CREATE TABLE db2.t1 (a int);
+CREATE VIEW db2.v1 AS SELECT * FROM db2.t1;
+
+GRANT SELECT, SHOW VIEW ON db2.* TO u_view@localhost;
+
+--connect (con2,localhost,u_view,,)
+--echo # SHOW CREATE VIEW should be allowed (SELECT + SHOW VIEW granted)
+--replace_column 3 <charset> 4 <collation>
+SHOW CREATE VIEW db2.v1;
+--echo # information_schema.views always shows the name; definition is visible here
+SELECT table_name, view_definition
+  FROM information_schema.views
+  WHERE table_schema='db2' ORDER BY table_name;
+disconnect con2;
+connection default;
+
+DENY SELECT ON db2.* TO u_view@localhost;
+
+--connect (con2,localhost,u_view,,)
+--echo # SHOW CREATE VIEW should be denied (SELECT denied)
+--replace_column 3 <charset> 4 <collation>
+--error ER_TABLEACCESS_DENIED_ERROR
+SHOW CREATE VIEW db2.v1;
+--echo # information_schema.views always shows the name; definition is hidden here
+SELECT table_name, view_definition
+  FROM information_schema.views
+  WHERE table_schema='db2' ORDER BY table_name;
+disconnect con2;
+connection default;
+
+REVOKE DENY SELECT ON db2.* FROM u_view@localhost;
+DENY SHOW VIEW ON db2.* TO u_view@localhost;
+
+--connect (con2,localhost,u_view,,)
+--echo # SHOW CREATE VIEW should be denied (SHOW VIEW denied)
+--replace_column 3 <charset> 4 <collation>
+--error ER_TABLEACCESS_DENIED_ERROR
+SHOW CREATE VIEW db2.v1;
+--echo # information_schema.views always shows the name; definition is hidden here
+SELECT table_name, view_definition
+  FROM information_schema.views
+  WHERE table_schema='db2' ORDER BY table_name;
+disconnect con2;
+connection default;
+
+DROP USER u_view@localhost;
+DROP DATABASE db2;
+
+--echo # SHOW FIELDS / SHOW INDEX visibility
+CREATE USER u_idx@localhost;
+CREATE DATABASE db3;
+CREATE TABLE db3.t1 (a int, b int, KEY k1(a));
+CREATE TABLE db3.t2 (a int, b int, KEY k2(b));
+
+GRANT SELECT ON db3.* TO u_idx@localhost;
+
+--connect (con3,localhost,u_idx,,)
+--echo # SHOW FIELDS on db3.t1 should be allowed (SELECT granted)
+SHOW FIELDS FROM db3.t1;
+--echo # SHOW INDEX on db3.t1 should be allowed (SELECT granted)
+--replace_column 7 <cardinality>
+SHOW INDEX FROM db3.t1;
+--echo # SHOW FIELDS on db3.t2 should be allowed (SELECT granted)
+SHOW FIELDS FROM db3.t2;
+--echo # SHOW INDEX on db3.t2 should be allowed (SELECT granted)
+--replace_column 7 <cardinality>
+SHOW INDEX FROM db3.t2;
+disconnect con3;
+connection default;
+
+DENY SELECT ON db3.t1 TO u_idx@localhost;
+
+--connect (con3,localhost,u_idx,,)
+--echo # SHOW FIELDS/INDEX on t1 should be denied (table DENY)
+--error ER_TABLEACCESS_DENIED_ERROR
+SHOW FIELDS FROM db3.t1;
+--echo # SHOW INDEX on db3.t1 should be denied (table DENY)
+--replace_column 7 <cardinality>
+--error ER_TABLEACCESS_DENIED_ERROR
+SHOW INDEX FROM db3.t1;
+--echo # SHOW FIELDS on db3.t2 should be allowed
+SHOW FIELDS FROM db3.t2;
+--echo # SHOW INDEX on db3.t2 should be allowed
+--replace_column 7 <cardinality>
+SHOW INDEX FROM db3.t2;
+disconnect con3;
+connection default;
+
+DROP USER u_idx@localhost;
+DROP DATABASE db3;
+
+--echo # SHOW CREATE DATABASE visibility
+CREATE USER u_scdb@localhost;
+CREATE DATABASE db4;
+
+GRANT REFERENCES ON db4.* TO u_scdb@localhost;
+
+--connect (con4,localhost,u_scdb,,)
+--echo # SHOW CREATE DATABASE should be allowed (REFERENCES granted)
+--replace_column 2 <create_database>
+SHOW CREATE DATABASE db4;
+disconnect con4;
+connection default;
+
+DENY REFERENCES ON db4.* TO u_scdb@localhost;
+
+--connect (con4,localhost,u_scdb,,)
+--echo # SHOW CREATE DATABASE should be denied (REFERENCES denied)
+--replace_column 2 <create_database>
+--error ER_DBACCESS_DENIED_ERROR
+SHOW CREATE DATABASE db4;
+disconnect con4;
+connection default;
+
+DROP USER u_scdb@localhost;
+DROP DATABASE db4;
+
+--echo # SHOW TABLES / SHOW TABLE STATUS / I_S visibility
+CREATE USER u_tbl@localhost;
+CREATE DATABASE db5;
+CREATE TABLE db5.t1 (a int);
+CREATE TABLE db5.t2 (a int, b int);
+
+GRANT SELECT ON db5.* TO u_tbl@localhost;
+
+--connect (con5,localhost,u_tbl,,)
+--echo # SHOW TABLES should list t1 and t2 (SELECT granted)
+SHOW TABLES FROM db5;
+--echo # SHOW TABLE STATUS should list t1 and t2 (SELECT granted)
+--replace_column 2 <engine> 4 <row_format> 5 <rows> 6 <avg_row_length> 7 <data_length> 8 <max_data_length> 9 <index_length> 10 <data_free> 12 <auto_increment> 13 <created> 14 <updated> 15 <checked> 16 <collation> 20 <max_index_length>
+SHOW TABLE STATUS FROM db5;
+--echo # I_S.TABLES should list t1 and t2 (SELECT granted)
+SELECT table_name FROM information_schema.tables
+  WHERE table_schema='db5' ORDER BY table_name;
+--echo # I_S.COLUMNS should list columns for t1 and t2 (SELECT granted)
+SELECT table_name, column_name FROM information_schema.columns
+  WHERE table_schema='db5' ORDER BY table_name, column_name;
+--echo # SHOW CREATE TABLE should be allowed for t1 (SELECT granted)
+--replace_column 2 <create_table>
+SHOW CREATE TABLE db5.t1;
+--echo # SHOW CREATE TABLE should be allowed for t2 (SELECT granted)
+--replace_column 2 <create_table>
+SHOW CREATE TABLE db5.t2;
+disconnect con5;
+connection default;
+
+DENY SELECT ON db5.t1 TO u_tbl@localhost;
+
+--connect (con5,localhost,u_tbl,,)
+--echo # SHOW TABLES should hide t1 (table DENY)
+SHOW TABLES FROM db5;
+--echo # SHOW TABLE STATUS should hide t1 (table DENY)
+--replace_column 2 <engine> 4 <row_format> 5 <rows> 6 <avg_row_length> 7 <data_length> 8 <max_data_length> 9 <index_length> 10 <data_free> 12 <auto_increment> 13 <created> 14 <updated> 15 <checked> 16 <collation> 20 <max_index_length>
+SHOW TABLE STATUS FROM db5;
+--echo # I_S.TABLES should hide t1 (table DENY)
+SELECT table_name FROM information_schema.tables
+  WHERE table_schema='db5' ORDER BY table_name;
+--echo # I_S.COLUMNS should hide t1 columns (table DENY)
+SELECT table_name, column_name FROM information_schema.columns
+  WHERE table_schema='db5' ORDER BY table_name, column_name;
+--echo # SHOW CREATE TABLE on t1 should be denied (table DENY)
+--replace_column 2 <create_table>
+--error ER_TABLEACCESS_DENIED_ERROR
+SHOW CREATE TABLE db5.t1;
+--echo # SHOW CREATE TABLE on t2 should be allowed (SELECT allowed on table level)
+--replace_column 2 <create_table>
+SHOW CREATE TABLE db5.t2;
+disconnect con5;
+connection default;
+
+GRANT SHOW VIEW ON db5.* TO u_tbl@localhost;
+
+--connect (con5,localhost,u_tbl,,)
+--echo # SHOW CREATE TABLE on t2 should be allowed after SHOW VIEW grant
+--replace_column 2 <create_table>
+SHOW CREATE TABLE db5.t2;
+disconnect con5;
+connection default;
+
+DROP USER u_tbl@localhost;
+DROP DATABASE db5;
+
+--echo # SHOW PROCEDURE/FUNCTION visibility
+CREATE USER u_rtn@localhost;
+CREATE DATABASE db6;
+
+DELIMITER //;
+CREATE PROCEDURE db6.p1() BEGIN SELECT 1; END//
+CREATE FUNCTION db6.f1() RETURNS INT RETURN 1//
+DELIMITER ;//
+
+GRANT EXECUTE, SHOW CREATE ROUTINE ON db6.* TO u_rtn@localhost;
+
+--connect (con6,localhost,u_rtn,,)
+--echo # SHOW PROCEDURE STATUS should show p1 (EXECUTE + SHOW CREATE ROUTINE granted)
+--replace_column 5 <modified> 6 <created> 9 <charset> 10 <collation> 11 <db_collation>
+SHOW PROCEDURE STATUS WHERE Db='db6';
+--echo # SHOW FUNCTION STATUS should show f1 (EXECUTE + SHOW CREATE ROUTINE granted)
+--replace_column 5 <modified> 6 <created> 9 <charset> 10 <collation> 11 <db_collation>
+SHOW FUNCTION STATUS WHERE Db='db6';
+--echo # SHOW CREATE PROCEDURE should be allowed
+--replace_column 2 <sql_mode> 4 <charset> 5 <collation> 6 <db_collation>
+SHOW CREATE PROCEDURE db6.p1;
+--echo # SHOW CREATE FUNCTION should be allowed
+--replace_column 2 <sql_mode> 4 <charset> 5 <collation> 6 <db_collation>
+SHOW CREATE FUNCTION db6.f1;
+disconnect con6;
+connection default;
+
+DENY SHOW CREATE ROUTINE ON db6.* TO u_rtn@localhost;
+
+--connect (con6,localhost,u_rtn,,)
+--echo # SHOW PROCEDURE STATUS should still show p1 (SHOW CREATE ROUTINE denied)
+--replace_column 5 <modified> 6 <created> 9 <charset> 10 <collation> 11 <db_collation>
+SHOW PROCEDURE STATUS WHERE Db='db6';
+--echo # SHOW FUNCTION STATUS should still show f1 (SHOW CREATE ROUTINE denied)
+--replace_column 5 <modified> 6 <created> 9 <charset> 10 <collation> 11 <db_collation>
+SHOW FUNCTION STATUS WHERE Db='db6';
+--echo # SHOW CREATE PROCEDURE should be allowed but definition hidden
+--replace_column 2 <sql_mode> 4 <charset> 5 <collation> 6 <db_collation>
+SHOW CREATE PROCEDURE db6.p1;
+--echo # SHOW CREATE FUNCTION should be allowed but definition hidden
+--replace_column 2 <sql_mode> 4 <charset> 5 <collation> 6 <db_collation>
+SHOW CREATE FUNCTION db6.f1;
+disconnect con6;
+connection default;
+
+DROP USER u_rtn@localhost;
+DROP DATABASE db6;

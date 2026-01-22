@@ -1,0 +1,45 @@
+--source include/not_embedded.inc
+
+--echo #
+--echo # mariadb-dump --system=user restores DENY
+--echo #
+
+CREATE TABLE backup_global_priv LIKE mysql.global_priv;
+INSERT INTO backup_global_priv SELECT * FROM mysql.global_priv;
+
+CREATE ROLE r_dump;
+CREATE USER dump_deny@localhost;
+CREATE USER dump_role@localhost;
+DENY SELECT ON test.* TO dump_deny@localhost;
+DENY SELECT ON test.* TO r_dump;
+GRANT r_dump TO dump_role@localhost;
+
+--echo # Before dump
+SHOW GRANTS FOR dump_deny@localhost;
+SHOW GRANTS FOR r_dump;
+SHOW GRANTS FOR dump_role@localhost;
+
+let $dumpfile = $MYSQLTEST_VARDIR/tmp/dump_deny.sql;
+--exec $MYSQL_DUMP --system=user --insert-ignore > $dumpfile
+
+DROP USER dump_deny@localhost;
+DROP USER dump_role@localhost;
+DROP ROLE r_dump;
+FLUSH PRIVILEGES;
+
+--echo # Restore from mariadb-dump
+--exec $MYSQL < $dumpfile
+--remove_file $dumpfile
+FLUSH PRIVILEGES;
+
+--echo # After restore
+SHOW GRANTS FOR dump_deny@localhost;
+SHOW GRANTS FOR r_dump;
+SHOW GRANTS FOR dump_role@localhost;
+
+DROP USER dump_deny@localhost;
+DROP USER dump_role@localhost;
+DROP ROLE r_dump;
+REPLACE INTO mysql.global_priv SELECT * FROM backup_global_priv;
+DROP TABLE backup_global_priv;
+FLUSH PRIVILEGES;

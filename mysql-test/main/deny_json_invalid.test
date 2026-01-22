@@ -1,0 +1,25 @@
+--source include/not_embedded.inc
+
+--echo #
+--echo # Malformed DENY JSON entry should warn
+--echo #
+
+CREATE USER u@localhost;
+
+--eval CALL mtr.add_suppression('.*Malformed DENY entry in mysql\\.global_priv at array position 0 for ''u''@''localhost'' ignored')
+
+UPDATE mysql.global_priv
+  SET Priv= json_set(Priv, '$.denies',
+                     json_array(json_object('type','column',
+                                            'db','test',
+                                            'table','t',
+                                            'bits',1)))
+  WHERE User='u' AND Host='localhost';
+
+FLUSH PRIVILEGES;
+
+DROP USER u@localhost;
+
+--let SEARCH_FILE= `SELECT @@log_error`
+--let SEARCH_PATTERN= Malformed DENY entry in mysql.global_priv at array position 0 for 'u'@'localhost' ignored
+--source include/search_pattern_in_file.inc

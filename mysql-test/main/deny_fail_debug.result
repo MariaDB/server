@@ -1,0 +1,11 @@
+#
+# DBUG: fail apply_deny_closure_to_caches
+#
+CREATE USER u@localhost;
+SET @old_debug= @@debug_dbug;
+SET debug_dbug="+d,deny_closure_cache_fail";
+DENY SELECT ON test.* TO u@localhost;
+Warnings:
+Warning	1815	DENY privilege cache update failed; execute FLUSH PRIVILEGES
+SET debug_dbug= @old_debug;
+DROP USER u@localhost;

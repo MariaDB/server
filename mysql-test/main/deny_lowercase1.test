@@ -1,0 +1,57 @@
+--source include/not_embedded.inc
+--source include/have_lowercase1.inc
+
+--echo #
+--echo # DENY case-insensitive matching (lower_case_table_names=1)
+--echo #
+
+CREATE USER u_deny@localhost;
+CREATE DATABASE DbCase;
+CREATE TABLE DbCase.T (a int);
+
+DENY SELECT ON DbCase.T TO u_deny@localhost;
+DENY INSERT, UPDATE ON dbcase.t TO u_deny@localhost;
+GRANT SELECT, INSERT, UPDATE ON DbCase.T TO u_deny@localhost;
+
+--echo # DENY entry in mysql.global_priv should be lowercased
+SELECT JSON_UNQUOTE(JSON_EXTRACT(Priv, '$.denies[0].db')) AS db,
+       JSON_UNQUOTE(JSON_EXTRACT(Priv, '$.denies[0].table')) AS tbl,
+       JSON_EXTRACT(Priv, '$.denies[0].bits') AS bits
+  FROM mysql.global_priv
+ WHERE User='u_deny' AND Host='localhost';
+
+--echo # Force mixed-case JSON to simulate migration from case-sensitive to lowercase=1
+UPDATE mysql.global_priv
+   SET Priv=JSON_SET(Priv, '$.denies[0].db','DbCase', '$.denies[0].table','T')
+ WHERE User='u_deny' AND Host='localhost';
+
+SELECT JSON_UNQUOTE(JSON_EXTRACT(Priv, '$.denies[0].db')) AS db,
+       JSON_UNQUOTE(JSON_EXTRACT(Priv, '$.denies[0].table')) AS tbl,
+       JSON_EXTRACT(Priv, '$.denies[0].bits') AS bits
+  FROM mysql.global_priv
+ WHERE User='u_deny' AND Host='localhost';
+
+FLUSH PRIVILEGES;
+
+--connect (con1,localhost,u_deny,,DbCase)
+--error ER_TABLEACCESS_DENIED_ERROR
+SELECT * FROM T;
+--error ER_TABLEACCESS_DENIED_ERROR
+INSERT INTO T VALUES (1);
+--error ER_TABLEACCESS_DENIED_ERROR
+UPDATE T SET a=2 WHERE a=1;
+disconnect con1;
+connection default;
+
+--echo # SHOW GRANTS should collapse to a single deny entry
+--sorted_result
+SHOW GRANTS FOR u_deny@localhost;
+
+REVOKE DENY SELECT, INSERT, UPDATE ON DBCASE.T FROM u_deny@localhost;
+
+--echo # SHOW GRANTS should no longer list a DENY entry
+--sorted_result
+SHOW GRANTS FOR u_deny@localhost;
+
+DROP USER u_deny@localhost;
+DROP DATABASE DbCase;

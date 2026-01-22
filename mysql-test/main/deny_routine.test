@@ -1,0 +1,201 @@
+--source include/no_protocol.inc
+--source include/not_embedded.inc
+
+--echo #
+--echo # DENY routine privileges
+--echo #
+
+DELIMITER $$;
+CREATE PROCEDURE proc1() BEGIN SET @p=1; END;
+$$
+CREATE FUNCTION func1() RETURNS INT RETURN 1;
+$$
+CREATE PACKAGE pkg1
+  PROCEDURE p1();
+  FUNCTION f1() RETURNS INT;
+END;
+$$
+CREATE PACKAGE BODY pkg1
+  PROCEDURE p1() BEGIN SET @pkg=2; END;
+  FUNCTION f1() RETURNS INT BEGIN RETURN 2; END;
+END;
+$$
+DELIMITER ;$$
+
+--echo #
+--echo # Routine-level DENY for different privileges
+--echo #
+
+CREATE USER u@localhost;
+--echo #
+--echo # Illegal routine DENY statements
+--echo #
+--echo # Missing routine type (treated as table-level grant target)
+--error ER_ILLEGAL_GRANT_FOR_TABLE
+DENY EXECUTE ON test.proc1 TO u@localhost;
+--echo # SELECT is not a routine privilege (procedure target)
+--error ER_ILLEGAL_GRANT_FOR_TABLE
+DENY SELECT ON PROCEDURE test.proc1 TO u@localhost;
+--echo # SELECT is not a routine privilege (function target)
+--error ER_ILLEGAL_GRANT_FOR_TABLE
+DENY SELECT ON FUNCTION test.func1 TO u@localhost;
+
+GRANT EXECUTE, ALTER ROUTINE ON PROCEDURE test.proc1 TO u@localhost;
+GRANT EXECUTE, ALTER ROUTINE ON FUNCTION test.func1 TO u@localhost;
+DENY ALTER ROUTINE ON PROCEDURE test.proc1 TO u@localhost;
+DENY EXECUTE ON FUNCTION test.func1 TO u@localhost;
+
+connect (con1, localhost, u,,test);
+
+CALL proc1();
+SELECT @p;
+
+--error ER_PROCACCESS_DENIED_ERROR
+ALTER PROCEDURE proc1 COMMENT 'x';
+
+--error ER_PROCACCESS_DENIED_ERROR
+SELECT func1();
+
+ALTER FUNCTION func1 COMMENT 'x';
+
+connection default;
+disconnect con1;
+DROP USER u@localhost;
+
+--echo #
+--echo # Routine-level DENY ALL
+--echo #
+CREATE USER u_all@localhost;
+GRANT ALL ON PROCEDURE test.proc1 TO u_all@localhost;
+GRANT ALL ON FUNCTION test.func1 TO u_all@localhost;
+DENY ALL PRIVILEGES ON PROCEDURE test.proc1 TO u_all@localhost;
+DENY ALL PRIVILEGES ON FUNCTION test.func1 TO u_all@localhost;
+
+connect (con1, localhost, u_all,,);
+
+--error ER_PROCACCESS_DENIED_ERROR
+CALL test.proc1();
+--error ER_PROCACCESS_DENIED_ERROR
+SELECT test.func1();
+--error ER_PROCACCESS_DENIED_ERROR
+ALTER PROCEDURE test.proc1 COMMENT 'x';
+--error ER_PROCACCESS_DENIED_ERROR
+ALTER FUNCTION test.func1 COMMENT 'x';
+
+connection default;
+disconnect con1;
+DROP USER u_all@localhost;
+
+--echo #
+--echo # DB-level DENY overrides routine grants
+--echo #
+
+CREATE USER u@localhost;
+GRANT EXECUTE ON PROCEDURE test.proc1 TO u@localhost;
+GRANT EXECUTE ON PACKAGE BODY test.pkg1 TO u@localhost;
+DENY EXECUTE ON test.* TO u@localhost;
+
+connect (con1, localhost, u,,test);
+
+--error ER_PROCACCESS_DENIED_ERROR
+CALL proc1();
+
+--error ER_PROCACCESS_DENIED_ERROR
+CALL pkg1.p1();
+
+--error ER_PROCACCESS_DENIED_ERROR
+SELECT pkg1.f1();
+
+connection default;
+disconnect con1;
+DROP USER u@localhost;
+
+--echo #
+--echo # Global DENY overrides routine grants
+--echo #
+
+CREATE USER u@localhost;
+GRANT EXECUTE ON FUNCTION test.func1 TO u@localhost;
+DENY EXECUTE ON *.* TO u@localhost;
+
+connect (con1, localhost, u,,test);
+
+--error ER_PROCACCESS_DENIED_ERROR
+SELECT func1();
+
+connection default;
+disconnect con1;
+DROP USER u@localhost;
+
+--echo #
+--echo # Routine DENY is case-insensitive
+--echo #
+
+CREATE USER u_case@localhost;
+GRANT EXECUTE ON PROCEDURE test.proc1 TO u_case@localhost;
+GRANT EXECUTE ON FUNCTION test.func1 TO u_case@localhost;
+DENY EXECUTE ON PROCEDURE test.ProC1 TO u_case@localhost;
+DENY EXECUTE ON FUNCTION test.FUNC1 TO u_case@localhost;
+
+connect (con_case, localhost, u_case,,);
+
+--error ER_PROCACCESS_DENIED_ERROR
+CALL test.proc1();
+
+--error ER_PROCACCESS_DENIED_ERROR
+SELECT test.func1();
+
+connection default;
+disconnect con_case;
+DROP USER u_case@localhost;
+
+--echo #
+--echo # Package / package body DENY
+--echo #
+
+CREATE USER u@localhost;
+GRANT EXECUTE,GRANT OPTION ON PACKAGE BODY test.pkg1 TO u@localhost;
+DENY EXECUTE ON PACKAGE BODY test.pkg1 TO u@localhost;
+
+connect (con1, localhost, u,,test);
+
+--error ER_PROCACCESS_DENIED_ERROR
+CALL pkg1.p1();
+
+--error ER_PROCACCESS_DENIED_ERROR
+SELECT pkg1.f1();
+
+connection default;
+disconnect con1;
+DROP USER u@localhost;
+
+--echo #
+--echo # DROP SP clears denies for user
+--echo #
+CREATE USER u@localhost;
+DELIMITER $$;
+CREATE PROCEDURE proc2() BEGIN SET @p=1; END;
+$$
+DELIMITER ;$$
+
+DENY EXECUTE ON PROCEDURE proc2 TO u@localhost;
+SHOW GRANTS for u@localhost;
+
+--echo # show that deny entry exists in json
+SELECT User, Host,
+   JSON_PRETTY(JSON_EXTRACT(Priv, '$.denies')) AS denies_pretty
+   FROM mysql.global_priv
+   WHERE User='u';
+DROP PROCEDURE proc2;
+SELECT User, Host,
+   JSON_PRETTY(JSON_EXTRACT(Priv, '$.denies')) AS denies_pretty
+   FROM mysql.global_priv
+   WHERE User='u';
+SHOW GRANTS for u@localhost;
+DROP USER u@localhost;
+
+
+DROP PACKAGE BODY pkg1;
+DROP PACKAGE pkg1;
+DROP PROCEDURE proc1;
+DROP FUNCTION func1;

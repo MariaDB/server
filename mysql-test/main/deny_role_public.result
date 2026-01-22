@@ -1,0 +1,102 @@
+#
+# DENY with roles of roles and PUBLIC
+#
+CREATE TABLE test.t1 (id INT);
+INSERT INTO test.t1 VALUES (1);
+#
+# DENY on base role should block through role inheritance
+#
+CREATE USER u1@localhost;
+CREATE ROLE r_base, r_mid, r_top;
+GRANT SELECT ON test.t1 TO r_base;
+DENY SELECT ON test.t1 TO r_base;
+GRANT r_base TO r_mid;
+GRANT r_mid TO r_top;
+GRANT r_top TO u1@localhost;
+#
+# SHOW GRANTS for roles and JSON storage
+#
+SHOW GRANTS FOR r_base;
+Grants for r_base
+GRANT USAGE ON *.* TO `r_base`
+GRANT SELECT ON `test`.`t1` TO `r_base`
+DENY SELECT ON `test`.`t1` TO `r_base`
+SHOW GRANTS FOR r_mid;
+Grants for r_mid
+GRANT `r_base` TO `r_mid`
+GRANT USAGE ON *.* TO `r_mid`
+GRANT USAGE ON *.* TO `r_base`
+GRANT SELECT ON `test`.`t1` TO `r_base`
+DENY SELECT ON `test`.`t1` TO `r_base`
+SHOW GRANTS FOR r_top;
+Grants for r_top
+GRANT `r_mid` TO `r_top`
+GRANT USAGE ON *.* TO `r_top`
+GRANT `r_base` TO `r_mid`
+GRANT USAGE ON *.* TO `r_mid`
+GRANT USAGE ON *.* TO `r_base`
+GRANT SELECT ON `test`.`t1` TO `r_base`
+DENY SELECT ON `test`.`t1` TO `r_base`
+SELECT User, Host,
+JSON_PRETTY(JSON_EXTRACT(Priv, '$.denies')) AS denies_pretty
+FROM mysql.global_priv
+WHERE User='r_base';
+User	Host	denies_pretty
+r_base		[
+    {
+        "type": "table",
+        "db": "test",
+        "table": "t1",
+        "bits": 1
+    }
+]
+connect  con1, localhost, u1,,;
+SET ROLE r_top;
+SELECT * FROM test.t1;
+ERROR 42000: SELECT command denied to user 'u1'@'localhost' for table `test`.`t1`
+disconnect con1;
+connection default;
+REVOKE DENY SELECT ON test.t1 FROM r_base;
+connect  con1, localhost, u1,,;
+SET ROLE r_top;
+SELECT * FROM test.t1;
+id
+1
+disconnect con1;
+connection default;
+DROP ROLE r_top;
+DROP ROLE r_mid;
+DROP ROLE r_base;
+DROP USER u1@localhost;
+#
+# PUBLIC DENY should affect users
+#
+CREATE USER u2@localhost;
+GRANT SELECT ON test.t1 TO u2@localhost;
+DENY SELECT ON test.t1 TO PUBLIC;
+SHOW GRANTS FOR PUBLIC;
+Grants for PUBLIC
+DENY SELECT ON `test`.`t1` TO PUBLIC
+SELECT User, Host,
+JSON_PRETTY(JSON_EXTRACT(Priv, '$.denies')) AS denies_pretty
+FROM mysql.global_priv
+WHERE User='PUBLIC';
+User	Host	denies_pretty
+PUBLIC		[
+    {
+        "type": "table",
+        "db": "test",
+        "table": "t1",
+        "bits": 1
+    }
+]
+connect  con2, localhost, u2,,;
+SELECT * FROM test.t1;
+ERROR 42000: SELECT command denied to user 'u2'@'localhost' for table `test`.`t1`
+disconnect con2;
+connection default;
+REVOKE DENY SELECT ON test.t1 FROM PUBLIC;
+DROP USER u2@localhost;
+DROP TABLE test.t1;
+DELETE FROM mysql.global_priv WHERE User='PUBLIC';
+FLUSH PRIVILEGES;

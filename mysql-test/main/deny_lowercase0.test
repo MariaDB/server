@@ -1,0 +1,25 @@
+--source include/not_embedded.inc
+--source include/have_lowercase0.inc
+
+--echo #
+--echo # DENY case-sensitive matching (lower_case_table_names=0)
+--echo #
+
+CREATE USER u_deny@localhost;
+CREATE DATABASE DbCase;
+CREATE DATABASE dbcase;
+CREATE TABLE DbCase.T (a int);
+CREATE TABLE DbCase.t (a int);
+CREATE TABLE dbcase.t (a int);
+
+DENY SELECT ON DbCase.T TO u_deny@localhost;
+DENY SELECT ON DbCase.t TO u_deny@localhost;
+DENY INSERT, UPDATE ON dbcase.t TO u_deny@localhost;
+
+--echo # SHOW GRANTS should list distinct denies for case-different objects
+--sorted_result
+SHOW GRANTS FOR u_deny@localhost;
+
+DROP USER u_deny@localhost;
+DROP DATABASE DbCase;
+DROP DATABASE dbcase;

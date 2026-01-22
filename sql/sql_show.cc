@@ -1238,7 +1238,7 @@ mysqld_show_create_get_fields(THD *thd, TABLE_LIST *table_list,
       contains any table-specific privilege.
     */
     DBUG_PRINT("debug", ("table_list->grant.privilege: %llx",
-                         (longlong) (table_list->grant.privilege)));
+                         (longlong) (table_list->grant.privilege.allow_bits())));
     if (check_some_access(thd, SHOW_CREATE_TABLE_ACLS, table_list) ||
         (table_list->grant.privilege & SHOW_CREATE_TABLE_ACLS) == NO_ACL)
     {
@@ -1442,7 +1442,7 @@ bool mysqld_show_create_db(THD *thd, LEX_CSTRING *dbname,
   String buffer(buff, sizeof(buff), system_charset_info);
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
   Security_context *sctx= thd->security_ctx;
-  privilege_t db_access(NO_ACL);
+  access_t db_access(NO_ACL);
 #endif
   Schema_specification_st create;
   Protocol *protocol=thd->protocol;
@@ -1451,12 +1451,11 @@ bool mysqld_show_create_db(THD *thd, LEX_CSTRING *dbname,
 
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
   if (test_all_bits(sctx->master_access, DB_ACLS))
-    db_access=DB_ACLS;
+    db_access= access_t(DB_ACLS);
   else
-    db_access= acl_get_all3(sctx, dbname->str, FALSE) |
-               sctx->master_access;
+    db_access= acl_get_all3(sctx, dbname->str, FALSE);
 
-  if (!(db_access & DB_ACLS) && check_grant_db(thd,dbname->str))
+  if (!(db_access & DB_ACLS) && check_grant_db(thd, db_access, dbname->str))
   {
     status_var_increment(thd->status_var.access_denied_errors);
     my_error(ER_DBACCESS_DENIED_ERROR, MYF(0),
@@ -5397,7 +5396,7 @@ static privilege_t get_schema_privileges_for_show(THD *thd, TABLE_LIST *tables,
   if (thd->col_access & need)
     return thd->col_access & need;
 
-  privilege_t all3= acl_get_all3(thd->security_ctx, tables->db.str, 0);
+  access_t all3= acl_get_all3(thd->security_ctx, tables->db.str, 0);
   if (all3 & need)
     return all3 & need;
 
@@ -5601,7 +5600,7 @@ int get_all_tables(THD *thd, TABLE_LIST *tables, COND *cond)
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
     if (!check_access(thd, SELECT_ACL, db_name->str, &thd->col_access, 0,0,1) ||
         sctx->master_access & (DB_ACLS | SHOW_DB_ACL) ||
-        acl_get_all3(sctx, db_name->str, 0))
+        acl_get_all3(sctx, db_name->str, 0).certainly_allowed(ALL_KNOWN_ACL))
 #endif
     {
       Dynamic_array<LEX_CSTRING*> table_names(PSI_INSTRUMENT_MEM);
@@ -5799,9 +5798,9 @@ int fill_schema_schemata(THD *thd, TABLE_LIST *tables, COND *cond)
       continue;
     }
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
-    if (sctx->master_access & (DB_ACLS | SHOW_DB_ACL) ||
-        acl_get_all3(sctx, db_name->str, false) ||
-        !check_grant_db(thd, db_name->str))
+    access_t db_access=acl_get_all3(sctx, db_name->str, false);
+    if ((db_access & (DB_ACLS | SHOW_DB_ACL)) ||
+        !check_grant_db(thd, db_access ,db_name->str))
 #endif
     {
       load_db_opt_by_name(thd, db_name->str, &create);
@@ -6525,7 +6524,7 @@ int get_schema_column_record(THD *thd, TABLE_LIST *tables,
                &tables->grant.privilege, 0, 0, MY_TEST(tables->schema_table));
   if (is_temporary_table(tables))
   {
-    tables->grant.privilege|= TMP_TABLE_ACLS;
+    tables->grant.privilege.force_allow(TMP_TABLE_ACLS);
   }
 #endif
 
@@ -7527,7 +7526,7 @@ static int get_schema_views_record(THD *thd, TABLE_LIST *tables,
           table_list.db= tables->db;
           table_list.table_name= tables->table_name;
           table_list.grant.privilege= thd->col_access;
-          privilege_t view_access(get_table_grant(thd, &table_list));
+          access_t view_access(get_table_grant(thd, &table_list));
 	  if ((view_access & (SHOW_VIEW_ACL|SELECT_ACL)) ==
 	      (SHOW_VIEW_ACL|SELECT_ACL))
 	    tables->allowed_show= TRUE;
@@ -9440,7 +9439,7 @@ int mysql_schema_table(THD *thd, LEX *lex, TABLE_LIST *table_list)
   if (!(table= create_schema_table(thd, table_list)))
     DBUG_RETURN(1);
   table->s->tmp_table= SYSTEM_TMP_TABLE;
-  table->grant.privilege= SELECT_ACL;
+  table->grant.privilege= access_t(SELECT_ACL);
   /*
     This test is necessary to make
     case insensitive file systems +

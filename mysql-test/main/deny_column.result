@@ -1,0 +1,203 @@
+#
+# MDEV-XXXXX: Column-level DENY privilege implementation
+#
+CREATE DATABASE deny_col_db;
+CREATE TABLE deny_col_db.sensitive_data (
+id INT,
+public_info VARCHAR(50),
+salary DECIMAL(10,2),
+ssn VARCHAR(11),
+address VARCHAR(100)
+);
+INSERT INTO deny_col_db.sensitive_data VALUES
+(1, 'John Doe', 75000.00, '123-45-6789', '123 Main St'),
+(2, 'Jane Smith', 85000.00, '987-65-4321', '456 Oak Ave');
+CREATE USER col_user1@localhost;
+CREATE USER col_user2@localhost;
+#
+# Test 1: Basic column-level DENY
+#
+GRANT SELECT ON deny_col_db.sensitive_data TO col_user1@localhost;
+DENY SELECT (salary, ssn) ON deny_col_db.sensitive_data TO col_user1@localhost;
+connect  con1, localhost, col_user1,,deny_col_db;
+SELECT id, public_info FROM sensitive_data;
+id	public_info
+1	John Doe
+2	Jane Smith
+SELECT salary FROM sensitive_data;
+ERROR 42000: SELECT command denied to user 'col_user1'@'localhost' for column 'salary' in table 'sensitive_data'
+SELECT ssn FROM sensitive_data;
+ERROR 42000: SELECT command denied to user 'col_user1'@'localhost' for column 'ssn' in table 'sensitive_data'
+SELECT * FROM sensitive_data;
+ERROR 42000: SELECT command denied to user 'col_user1'@'localhost' for column 'id' in table 'sensitive_data'
+SELECT id, salary FROM sensitive_data;
+ERROR 42000: SELECT command denied to user 'col_user1'@'localhost' for column 'salary' in table 'sensitive_data'
+disconnect con1;
+connection default;
+REVOKE SELECT ON deny_col_db.sensitive_data FROM col_user1@localhost;
+REVOKE DENY SELECT (salary, ssn) ON deny_col_db.sensitive_data FROM col_user1@localhost;
+#
+# Test 2: DENY on one column, access to others allowed
+#
+GRANT SELECT ON deny_col_db.sensitive_data TO col_user2@localhost;
+DENY SELECT (ssn) ON deny_col_db.sensitive_data TO col_user2@localhost;
+connect  con2, localhost, col_user2,,deny_col_db;
+SELECT id, public_info, salary, address FROM sensitive_data;
+id	public_info	salary	address
+1	John Doe	75000.00	123 Main St
+2	Jane Smith	85000.00	456 Oak Ave
+SELECT ssn FROM sensitive_data;
+ERROR 42000: SELECT command denied to user 'col_user2'@'localhost' for column 'ssn' in table 'sensitive_data'
+SELECT id, ssn FROM sensitive_data;
+ERROR 42000: SELECT command denied to user 'col_user2'@'localhost' for column 'ssn' in table 'sensitive_data'
+SELECT * FROM sensitive_data;
+ERROR 42000: SELECT command denied to user 'col_user2'@'localhost' for column 'id' in table 'sensitive_data'
+disconnect con2;
+connection default;
+REVOKE SELECT ON deny_col_db.sensitive_data FROM col_user2@localhost;
+REVOKE DENY SELECT (ssn) ON deny_col_db.sensitive_data FROM col_user2@localhost;
+#
+# Test 3: Column DENY takes precedence over explicit column GRANT
+#
+GRANT SELECT (salary,id,public_info) ON deny_col_db.sensitive_data TO col_user1@localhost;
+DENY SELECT (salary) ON deny_col_db.sensitive_data TO col_user1@localhost;
+connect  con3, localhost, col_user1,,deny_col_db;
+SELECT id, public_info FROM sensitive_data;
+id	public_info
+1	John Doe
+2	Jane Smith
+SELECT salary FROM sensitive_data;
+ERROR 42000: SELECT command denied to user 'col_user1'@'localhost' for column 'salary' in table 'sensitive_data'
+disconnect con3;
+connection default;
+REVOKE SELECT (salary,id,public_info) ON deny_col_db.sensitive_data FROM col_user1@localhost;
+REVOKE DENY SELECT (salary) ON deny_col_db.sensitive_data FROM col_user1@localhost;
+#
+# Test 4: REVOKE DENY on a column
+#
+GRANT SELECT (salary) ON deny_col_db.sensitive_data TO col_user1@localhost;
+DENY SELECT (salary,ssn) ON deny_col_db.sensitive_data TO col_user1@localhost;
+REVOKE DENY SELECT (salary) ON deny_col_db.sensitive_data FROM col_user1@localhost;
+connect  con4, localhost, col_user1,,deny_col_db;
+SELECT salary FROM sensitive_data;
+salary
+75000.00
+85000.00
+SELECT ssn FROM sensitive_data;
+ERROR 42000: SELECT command denied to user 'col_user1'@'localhost' for column 'ssn' in table 'sensitive_data'
+disconnect con4;
+connection default;
+REVOKE DENY SELECT (ssn) ON deny_col_db.sensitive_data FROM  col_user1@localhost;
+#
+# Test 5: Multiple column DENYs
+#
+GRANT SELECT ON deny_col_db.sensitive_data TO col_user2@localhost;
+DENY SELECT (salary, ssn, address) ON deny_col_db.sensitive_data TO col_user2@localhost;
+connect  con5, localhost, col_user2,,deny_col_db;
+SELECT id, public_info FROM sensitive_data;
+id	public_info
+1	John Doe
+2	Jane Smith
+SELECT salary FROM sensitive_data;
+ERROR 42000: SELECT command denied to user 'col_user2'@'localhost' for column 'salary' in table 'sensitive_data'
+SELECT address FROM sensitive_data;
+ERROR 42000: SELECT command denied to user 'col_user2'@'localhost' for column 'address' in table 'sensitive_data'
+SELECT * FROM sensitive_data;
+ERROR 42000: SELECT command denied to user 'col_user2'@'localhost' for column 'id' in table 'sensitive_data'
+disconnect con5;
+connection default;
+#
+# Test 6: DENY one column, then DENY another
+#
+REVOKE DENY SELECT (salary, ssn, address) ON deny_col_db.sensitive_data FROM col_user2@localhost;
+DENY SELECT (salary) ON deny_col_db.sensitive_data TO col_user2@localhost;
+DENY SELECT (ssn) ON deny_col_db.sensitive_data TO col_user2@localhost;
+connect  con6, localhost, col_user2,,deny_col_db;
+SELECT id, public_info, address FROM sensitive_data;
+id	public_info	address
+1	John Doe	123 Main St
+2	Jane Smith	456 Oak Ave
+SELECT salary FROM sensitive_data;
+ERROR 42000: SELECT command denied to user 'col_user2'@'localhost' for column 'salary' in table 'sensitive_data'
+SELECT ssn FROM sensitive_data;
+ERROR 42000: SELECT command denied to user 'col_user2'@'localhost' for column 'ssn' in table 'sensitive_data'
+disconnect con6;
+connection default;
+#
+# Test 7: SHOW GRANTS displays column-level DENY
+#
+SHOW GRANTS FOR col_user1@localhost;
+Grants for col_user1@localhost
+GRANT USAGE ON *.* TO `col_user1`@`localhost`
+GRANT SELECT (`salary`) ON `deny_col_db`.`sensitive_data` TO `col_user1`@`localhost`
+SHOW GRANTS FOR col_user2@localhost;
+Grants for col_user2@localhost
+GRANT USAGE ON *.* TO `col_user2`@`localhost`
+GRANT SELECT ON `deny_col_db`.`sensitive_data` TO `col_user2`@`localhost`
+DENY SELECT (`ssn`, `salary`) ON `deny_col_db`.`sensitive_data` TO `col_user2`@`localhost`
+#
+# Test 8: Column DENY with INSERT/UPDATE operations
+#
+CREATE TABLE deny_col_db.audit_log (
+id INT AUTO_INCREMENT PRIMARY KEY,
+action VARCHAR(50),
+modified_by VARCHAR(50),
+timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+GRANT SELECT, INSERT ON deny_col_db.audit_log TO col_user1@localhost;
+DENY INSERT (modified_by) ON deny_col_db.audit_log TO col_user1@localhost;
+connect  con8, localhost, col_user1,,deny_col_db;
+INSERT INTO audit_log (action) VALUES ('test_action');
+INSERT INTO audit_log (action, modified_by) VALUES ('test', 'hacker');
+ERROR 42000: INSERT command denied to user 'col_user1'@'localhost' for column 'modified_by' in table 'audit_log'
+SELECT * FROM audit_log;
+id	action	modified_by	timestamp
+1	test_action	NULL	TIMESTAMP
+disconnect con8;
+connection default;
+#
+# Test 9: Column DENY with UPDATE
+#
+GRANT UPDATE ON deny_col_db.sensitive_data TO col_user1@localhost;
+DENY UPDATE (salary) ON deny_col_db.sensitive_data TO col_user1@localhost;
+GRANT SELECT(id,public_info) on deny_col_db.sensitive_data TO col_user1@localhost;
+connect  con9, localhost, col_user1,,deny_col_db;
+UPDATE sensitive_data SET public_info = 'Updated' WHERE id = 1;
+UPDATE sensitive_data SET salary = 100000 WHERE id = 1;
+ERROR 42000: UPDATE command denied to user 'col_user1'@'localhost' for column 'salary' in table 'sensitive_data'
+UPDATE sensitive_data SET public_info = 'X', salary = 90000 WHERE id = 2;
+ERROR 42000: UPDATE command denied to user 'col_user1'@'localhost' for column 'salary' in table 'sensitive_data'
+disconnect con9;
+connection default;
+#
+# Test 10: Column DENY is case-insensitive
+#
+GRANT SELECT ON deny_col_db.sensitive_data TO col_user1@localhost;
+DENY SELECT (SaLaRy) ON deny_col_db.sensitive_data TO col_user1@localhost;
+connect  con10, localhost, col_user1,,deny_col_db;
+SELECT salary FROM sensitive_data;
+ERROR 42000: SELECT command denied to user 'col_user1'@'localhost' for column 'salary' in table 'sensitive_data'
+disconnect con10;
+connection default;
+REVOKE DENY SELECT (SaLaRy) ON deny_col_db.sensitive_data FROM col_user1@localhost;
+REVOKE SELECT ON deny_col_db.sensitive_data FROM col_user1@localhost;
+#
+# Test 11: REVOKE all column DENYs
+#
+GRANT SELECT(ssn) on deny_col_db.sensitive_data to col_user1@localhost;
+connect  con11, localhost, col_user1,,deny_col_db;
+SELECT ssn FROM sensitive_data;
+ssn
+123-45-6789
+987-65-4321
+disconnect con11;
+connection default;
+#
+# Cleanup
+#
+DROP USER col_user1@localhost;
+DROP USER col_user2@localhost;
+DROP DATABASE deny_col_db;
+#
+# End of column-level DENY tests
+#

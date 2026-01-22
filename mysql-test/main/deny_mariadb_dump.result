@@ -1,0 +1,49 @@
+#
+# mariadb-dump --system=user restores DENY
+#
+CREATE TABLE backup_global_priv LIKE mysql.global_priv;
+INSERT INTO backup_global_priv SELECT * FROM mysql.global_priv;
+CREATE ROLE r_dump;
+CREATE USER dump_deny@localhost;
+CREATE USER dump_role@localhost;
+DENY SELECT ON test.* TO dump_deny@localhost;
+DENY SELECT ON test.* TO r_dump;
+GRANT r_dump TO dump_role@localhost;
+# Before dump
+SHOW GRANTS FOR dump_deny@localhost;
+Grants for dump_deny@localhost
+GRANT USAGE ON *.* TO `dump_deny`@`localhost`
+DENY SELECT ON `test`.* TO `dump_deny`@`localhost`
+SHOW GRANTS FOR r_dump;
+Grants for r_dump
+GRANT USAGE ON *.* TO `r_dump`
+DENY SELECT ON `test`.* TO `r_dump`
+SHOW GRANTS FOR dump_role@localhost;
+Grants for dump_role@localhost
+GRANT `r_dump` TO `dump_role`@`localhost`
+GRANT USAGE ON *.* TO `dump_role`@`localhost`
+DROP USER dump_deny@localhost;
+DROP USER dump_role@localhost;
+DROP ROLE r_dump;
+FLUSH PRIVILEGES;
+# Restore from mariadb-dump
+FLUSH PRIVILEGES;
+# After restore
+SHOW GRANTS FOR dump_deny@localhost;
+Grants for dump_deny@localhost
+GRANT USAGE ON *.* TO `dump_deny`@`localhost`
+DENY SELECT ON `test`.* TO `dump_deny`@`localhost`
+SHOW GRANTS FOR r_dump;
+Grants for r_dump
+GRANT USAGE ON *.* TO `r_dump`
+DENY SELECT ON `test`.* TO `r_dump`
+SHOW GRANTS FOR dump_role@localhost;
+Grants for dump_role@localhost
+GRANT `r_dump` TO `dump_role`@`localhost`
+GRANT USAGE ON *.* TO `dump_role`@`localhost`
+DROP USER dump_deny@localhost;
+DROP USER dump_role@localhost;
+DROP ROLE r_dump;
+REPLACE INTO mysql.global_priv SELECT * FROM backup_global_priv;
+DROP TABLE backup_global_priv;
+FLUSH PRIVILEGES;

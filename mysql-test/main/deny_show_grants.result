@@ -1,0 +1,94 @@
+#
+# SHOW GRANTS with DENY output
+#
+CREATE DATABASE sg_db;
+USE sg_db;
+CREATE TABLE t1 (c1 INT, c2 INT);
+CREATE PROCEDURE p1() BEGIN SET @x=1; END;
+$$
+CREATE FUNCTION f1() RETURNS INT RETURN 1;
+$$
+CREATE PACKAGE pkg1
+PROCEDURE p1();
+FUNCTION f1() RETURNS INT;
+END;
+$$
+CREATE PACKAGE BODY pkg1
+PROCEDURE p1() BEGIN SET @pkg=2; END;
+FUNCTION f1() RETURNS INT BEGIN RETURN 2; END;
+END;
+$$
+CREATE USER u1@localhost;
+#
+# Miscelaneous GRANT/DENY mix, different levels
+#
+GRANT SELECT ON sg_db.t1 TO u1@localhost;
+GRANT UPDATE (c1) ON sg_db.t1 TO u1@localhost;
+GRANT EXECUTE ON PROCEDURE sg_db.p1 TO u1@localhost;
+GRANT EXECUTE ON PACKAGE sg_db.pkg1 TO u1@localhost;
+DENY SELECT ON *.* TO u1@localhost;
+DENY INSERT ON sg_db.* TO u1@localhost;
+DENY UPDATE (c2) ON sg_db.t1 TO u1@localhost;
+DENY EXECUTE ON FUNCTION sg_db.f1 TO u1@localhost;
+DENY EXECUTE ON PACKAGE BODY sg_db.pkg1 TO u1@localhost;
+SHOW GRANTS FOR u1@localhost;
+Grants for u1@localhost
+GRANT USAGE ON *.* TO `u1`@`localhost`
+DENY SELECT ON *.* TO `u1`@`localhost`
+DENY INSERT ON `sg_db`.* TO `u1`@`localhost`
+GRANT SELECT, UPDATE (`c1`) ON `sg_db`.`t1` TO `u1`@`localhost`
+DENY UPDATE (`c2`) ON `sg_db`.`t1` TO `u1`@`localhost`
+GRANT EXECUTE ON PROCEDURE `sg_db`.`p1` TO `u1`@`localhost`
+DENY EXECUTE ON FUNCTION `sg_db`.`f1` TO `u1`@`localhost`
+GRANT EXECUTE ON PACKAGE `sg_db`.`pkg1` TO `u1`@`localhost`
+DENY EXECUTE ON PACKAGE BODY `sg_db`.`pkg1` TO `u1`@`localhost`
+DROP USER u1@localhost;
+#
+# ALL PRIVILEGES, GRANT OPTION
+#
+CREATE USER u1@localhost;
+DENY ALL PRIVILEGES ON sg_db.* TO u1@localhost;
+SHOW GRANTS FOR u1@localhost;
+Grants for u1@localhost
+GRANT USAGE ON *.* TO `u1`@`localhost`
+DENY ALL PRIVILEGES ON `sg_db`.* TO `u1`@`localhost`
+DENY ALL PRIVILEGES ON sg_db.* TO u1@localhost WITH GRANT OPTION;
+SHOW GRANTS FOR u1@localhost;
+Grants for u1@localhost
+GRANT USAGE ON *.* TO `u1`@`localhost`
+DENY ALL PRIVILEGES ON `sg_db`.* TO `u1`@`localhost`
+REVOKE DENY ALL ON sg_db.* FROM u1@localhost;
+SHOW GRANTS FOR u1@localhost;
+Grants for u1@localhost
+GRANT USAGE ON *.* TO `u1`@`localhost`
+DENY USAGE ON `sg_db`.* TO `u1`@`localhost`
+DENY GRANT OPTION ON sg_db.* to u1@localhost;
+SHOW GRANTS FOR u1@localhost;
+Grants for u1@localhost
+GRANT USAGE ON *.* TO `u1`@`localhost`
+DENY USAGE ON `sg_db`.* TO `u1`@`localhost`
+#
+# Do not show (own) DENY for non-privileged users
+#
+connect con1, localhost, u1,,;
+SHOW GRANTS;
+Grants for u1@localhost
+GRANT USAGE ON *.* TO `u1`@`localhost`
+disconnect con1;
+connection default;
+GRANT SELECT ON mysql.* TO u1@localhost;
+connect con1, localhost, u1,,;
+SHOW GRANTS;
+Grants for u1@localhost
+GRANT USAGE ON *.* TO `u1`@`localhost`
+GRANT SELECT ON `mysql`.* TO `u1`@`localhost`
+DENY USAGE ON `sg_db`.* TO `u1`@`localhost`
+disconnect con1;
+connection default;
+DROP USER u1@localhost;
+DROP PACKAGE BODY pkg1;
+DROP PACKAGE pkg1;
+DROP FUNCTION f1;
+DROP PROCEDURE p1;
+DROP TABLE t1;
+DROP DATABASE sg_db;

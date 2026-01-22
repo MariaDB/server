@@ -51,6 +51,19 @@ enum mysql_db_table_field
   MYSQL_DB_FIELD_COUNT
 };
 
+enum ACL_PRIV_TYPE
+{
+  PRIV_TYPE_GLOBAL,
+  PRIV_TYPE_DB,
+  PRIV_TYPE_TABLE,
+  PRIV_TYPE_COLUMN,
+  PRIV_TYPE_FUNCTION,
+  PRIV_TYPE_PROCEDURE,
+  PRIV_TYPE_PACKAGE,
+  PRIV_TYPE_PACKAGE_BODY,
+  PRIV_TYPE_MAX
+};
+
 extern const TABLE_FIELD_DEF mysql_db_table_def;
 
 extern LEX_CSTRING host_not_specified;
@@ -77,7 +90,7 @@ bool hostname_requires_resolving(const char *hostname);
 bool  acl_init(bool dont_read_acl_tables);
 bool acl_reload(THD *thd);
 void acl_free(bool end=0);
-privilege_t acl_get_all3(Security_context *sctx, const char *db,
+access_t acl_get_all3(Security_context *sctx, const char *db,
                          bool db_is_patern);
 bool acl_authenticate(THD *thd, uint com_change_user_pkt_len);
 bool acl_getroot(Security_context *sctx,
@@ -90,10 +103,10 @@ bool change_password(THD *thd, LEX_USER *user);
 bool mysql_grant_role(THD *thd, List<LEX_USER> &user_list, bool revoke);
 int mysql_table_grant(THD *thd, TABLE_LIST *table, List <LEX_USER> &user_list,
                        List <LEX_COLUMN> &column_list, privilege_t rights,
-                       bool revoke);
+                       bool revoke, bool is_deny);
 bool mysql_routine_grant(THD *thd, TABLE_LIST *table, const Sp_handler *sph,
                          List <LEX_USER> &user_list, privilege_t rights,
-                         bool revoke, bool write_to_binlog);
+                         bool revoke,  bool write_to_binlog, bool deny);
 bool grant_init();
 void grant_free(void);
 bool grant_reload(THD *thd);
@@ -110,18 +123,18 @@ bool check_grant_all_columns(THD *thd, privilege_t want_access,
 bool check_grant_routine(THD *thd, privilege_t want_access,
                          TABLE_LIST *procs, const Sp_handler *sph,
                          bool no_error);
-bool check_grant_db(THD *thd,const char *db);
+bool check_grant_db(THD *thd,const access_t& priv, const char *db);
 bool check_global_access(THD *thd, const privilege_t want_access, bool no_errors= false);
 bool check_access(THD *thd, privilege_t want_access,
-                  const char *db, privilege_t *save_priv,
+                  const char *db, access_t *save_priv,
                   GRANT_INTERNAL_INFO *grant_internal_info,
                   bool dont_check_global_grants, bool no_errors);
-privilege_t get_table_grant(THD *thd, TABLE_LIST *table);
-privilege_t get_column_grant(THD *thd, GRANT_INFO *grant,
+access_t get_table_grant(THD *thd, TABLE_LIST *table);
+access_t get_column_grant(THD *thd, GRANT_INFO *grant,
                              const char *db_name, const char *table_name,
                              const Lex_ident_column &field_name);
 bool get_show_user(THD *thd, LEX_USER *lex_user, const char **username,
-                   const char **hostname, const char **rolename);
+                   const char **hostname, const char **rolename, bool *show_denies);
 void mysql_show_grants_get_fields(THD *thd, List<Item> *fields,
                                   const char *name, size_t length);
 bool mysql_show_grants(THD *thd, LEX_USER *user);
@@ -284,10 +297,10 @@ bool acl_check_proxy_grant_access (THD *thd,
                                    const LEX_CSTRING &user,
                                    bool with_grant);
 int acl_setauthorization(THD *thd, const LEX_USER *user);
-int acl_setrole(THD *thd, const LEX_CSTRING &rolename, privilege_t access);
+int acl_setrole(THD *thd, const LEX_CSTRING &rolename, const access_t& access);
 int acl_check_setrole(THD *thd,
                       const LEX_CSTRING &rolename,
-                      privilege_t *access);
+                      access_t *access);
 int acl_check_set_default_role(THD *thd,
                                const LEX_CSTRING &host,
                                const LEX_CSTRING &user,
@@ -317,6 +330,7 @@ class Sql_cmd_grant: public Sql_cmd
 {
 protected:
   enum_sql_command m_command;
+  bool m_deny;
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
   void warn_hostname_requires_resolving(THD *thd, List<LEX_USER> &list);
   bool user_list_reset_mqh(THD *thd, List<LEX_USER> &list);
@@ -328,6 +342,7 @@ public:
   { }
   bool is_revoke() const { return m_command == SQLCOM_REVOKE; }
   enum_sql_command sql_command_code() const override { return m_command; }
+  void set_deny(bool value) { m_deny= value; }
 };
 
 

@@ -1,0 +1,157 @@
+#
+# Test for Global DENY
+#
+USE test;
+CREATE TABLE t1 (id INT, data VARCHAR(50));
+CREATE TABLE t2 (id INT, info VARCHAR(50));
+INSERT INTO t1 VALUES (1, 'data1'), (2, 'data2');
+INSERT INTO t2 VALUES (1, 'info1'), (2, 'info2');
+#
+# Global DENY SELECT - Direct access
+#
+CREATE USER user1;
+GRANT ALL PRIVILEGES ON *.* TO user1;
+DENY SELECT ON *.* TO user1;
+connect  con1, localhost, user1,,test;
+# Should FAIL - global DENY SELECT
+SELECT * FROM t1;
+ERROR 42000: SELECT command denied to user 'user1'@'localhost' for table `test`.`t1`
+# Should FAIL - in any database
+SELECT * FROM mysql.user;
+ERROR 42000: SELECT command denied to user 'user1'@'localhost' for table `mysql`.`user`
+# Should SUCCEED - INSERT not denied
+INSERT INTO t1 VALUES (3, 'data3');
+# Should SUCCEED - UPDATE not denied
+UPDATE t1 SET data='data';
+# Should SUCCEED - DELETE not denied
+DELETE FROM t1;
+INSERT INTO t1 VALUES (1, 'data1'), (2, 'data2');
+# Should SUCCEED, no db objects used
+SELECT 1;
+1
+1
+# Should SUCCEED, I_S tables are not GRANT/DENYable
+SELECT VARIABLE_NAME FROM INFORMATION_SCHEMA.SESSION_VARIABLES WHERE 0;
+VARIABLE_NAME
+connection default;
+disconnect con1;
+DROP USER user1;
+#
+# Global DENY with VIEW - DEFINER is denied
+#
+CREATE USER denied_definer;
+CREATE USER normal_user;
+GRANT ALL PRIVILEGES ON test.* TO denied_definer;
+DENY SELECT ON *.* TO denied_definer;
+GRANT SELECT ON test.* TO normal_user;
+connect  con1, localhost, denied_definer,,test;
+# Can create view (doesn't require SELECT at CREATE time)
+CREATE SQL SECURITY DEFINER VIEW v2 AS SELECT * FROM t2;
+disconnect con1;
+connection default;
+GRANT SELECT ON test.v2 TO normal_user;
+connect  con1, localhost, normal_user,,test;
+# Should FAIL - view uses denied_definer's context (which is denied)
+SELECT * FROM v2;
+ERROR HY000: View 'test.v2' references invalid table(s) or column(s) or function(s) or definer/invoker of view lack rights to use them
+# Should SUCCEED - direct table access works for normal_user
+SELECT * FROM t2;
+id	info
+1	info1
+2	info2
+connection default;
+disconnect con1;
+DROP VIEW v2;
+DROP USER denied_definer;
+DROP USER normal_user;
+#
+# SHOW COLUMNS with global DENY (any_combination_will_do)
+#
+CREATE USER show_user;
+GRANT ALL PRIVILEGES ON test.* TO show_user;
+DENY ALL PRIVILEGES ON *.* TO show_user;
+REVOKE DENY EXECUTE ON *.* FROM show_user;
+connect  con1, localhost, show_user,,test;
+# Should FAIL - SHOW COLUMNS requires column privileges
+SHOW COLUMNS FROM t1;
+ERROR 42000: SELECT command denied to user 'show_user'@'localhost' for table `test`.`t1`
+# Should FAIL - DESCRIBE is same as SHOW COLUMNS
+DESCRIBE t1;
+ERROR 42000: SELECT command denied to user 'show_user'@'localhost' for table `test`.`t1`
+# Should FAIL - SHOW INDEX
+SHOW INDEX FROM t1;
+ERROR 42000: SELECT command denied to user 'show_user'@'localhost' for table `test`.`t1`
+connection default;
+disconnect con1;
+DROP USER show_user;
+#
+# DENY precedence - DENY overrides GRANT
+#
+CREATE USER prec_user;
+# First GRANT, then DENY
+GRANT SELECT,INSERT ON *.* TO prec_user;
+DENY SELECT ON *.* TO prec_user;
+connect  con1, localhost, prec_user,,test;
+SELECT * FROM t1;
+ERROR 42000: SELECT command denied to user 'prec_user'@'localhost' for table `test`.`t1`
+connection default;
+disconnect con1;
+# Reverse order: DENY first, then GRANT
+REVOKE SELECT ON *.* FROM prec_user;
+DENY SELECT ON *.* TO prec_user;
+GRANT SELECT ON *.* TO prec_user;
+connect  con1, localhost, prec_user,,test;
+# Should STILL FAIL - DENY takes precedence
+SELECT * FROM t1;
+ERROR 42000: SELECT command denied to user 'prec_user'@'localhost' for table `test`.`t1`
+connection default;
+disconnect con1;
+DROP USER prec_user;
+#
+# Mixed operations - some denied, some allowed
+#
+CREATE USER mixed_user;
+GRANT ALL PRIVILEGES ON test.* TO mixed_user;
+DENY SELECT, DELETE ON *.* TO mixed_user;
+connect  con1, localhost, mixed_user,,test;
+SELECT * FROM t1;
+ERROR 42000: SELECT command denied to user 'mixed_user'@'localhost' for table `test`.`t1`
+DELETE FROM t1 WHERE id=1;
+ERROR 42000: DELETE command denied to user 'mixed_user'@'localhost' for table `test`.`t1`
+# Should SUCCEED
+INSERT INTO t1 VALUES (4, 'data4');
+# Denied because of WHERE clause in UPDATE
+UPDATE t1 SET data='modified' WHERE id=4;
+ERROR 42000: SELECT command denied to user 'mixed_user'@'localhost' for column 'id' in table 't1'
+# Should SUCCEED, no WHERE clause
+UPDATE t1 SET data='modified';
+connection default;
+disconnect con1;
+DROP USER mixed_user;
+#
+# DENY with subquery
+#
+CREATE USER sub_user;
+GRANT ALL PRIVILEGES ON test.* TO sub_user;
+DENY SELECT ON *.* TO sub_user;
+connect  con1, localhost, sub_user,,test;
+SELECT * FROM t1 WHERE id IN (SELECT id FROM t2);
+ERROR 42000: SELECT command denied to user 'sub_user'@'localhost' for table `test`.`t1`
+SELECT * FROM (SELECT * FROM t1) AS dt;
+ERROR 42000: SELECT command denied to user 'sub_user'@'localhost' for table `test`.`t1`
+disconnect con1;
+connection default;
+#
+# Check that FLUSH PRIVILEGES retains DENYs
+#
+FLUSH PRIVILEGES;
+connect  con1, localhost, sub_user,,test;
+SELECT * FROM (SELECT * FROM t1) AS dt;
+ERROR 42000: SELECT command denied to user 'sub_user'@'localhost' for table `test`.`t1`
+disconnect con1;
+connection default;
+DROP USER sub_user;
+#
+# Cleanup
+#
+DROP TABLE t1, t2;

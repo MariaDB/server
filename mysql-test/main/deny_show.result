@@ -1,0 +1,283 @@
+#
+# SHOW commands with DENY
+#
+# SHOW DATABASES visibility
+CREATE USER u_show@localhost;
+CREATE DATABASE db1;
+CREATE TABLE db1.t1 (a int);
+GRANT SELECT ON *.* TO u_show@localhost;
+connect  con1,localhost,u_show,,;
+# db1 should be visible (global SELECT granted)
+SHOW DATABASES LIKE 'db1';
+Database (db1)
+db1
+disconnect con1;
+connection default;
+DENY SELECT ON *.* TO u_show@localhost;
+connect  con1,localhost,u_show,,;
+# db1 should be hidden (global SELECT denied)
+SHOW DATABASES LIKE 'db1';
+Database (db1)
+disconnect con1;
+connection default;
+GRANT INSERT ON db1.t1 TO u_show@localhost;
+connect  con1,localhost,u_show,,;
+# db1 should be visible (table INSERT grant not denied)
+SHOW DATABASES LIKE 'db1';
+Database (db1)
+db1
+disconnect con1;
+connection default;
+DENY INSERT ON *.* TO u_show@localhost;
+connect  con1,localhost,u_show,,;
+# db1 should be hidden (table INSERT masked by global DENY)
+SHOW DATABASES LIKE 'db1';
+Database (db1)
+disconnect con1;
+connection default;
+DROP USER u_show@localhost;
+DROP DATABASE db1;
+# SHOW CREATE VIEW visibility
+CREATE USER u_view@localhost;
+CREATE DATABASE db2;
+CREATE TABLE db2.t1 (a int);
+CREATE VIEW db2.v1 AS SELECT * FROM db2.t1;
+GRANT SELECT, SHOW VIEW ON db2.* TO u_view@localhost;
+connect  con2,localhost,u_view,,;
+# SHOW CREATE VIEW should be allowed (SELECT + SHOW VIEW granted)
+SHOW CREATE VIEW db2.v1;
+View	Create View	character_set_client	collation_connection
+v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `db2`.`v1` AS select `db2`.`t1`.`a` AS `a` from `db2`.`t1`	<charset>	<collation>
+# information_schema.views always shows the name; definition is visible here
+SELECT table_name, view_definition
+FROM information_schema.views
+WHERE table_schema='db2' ORDER BY table_name;
+table_name	view_definition
+v1	select `db2`.`t1`.`a` AS `a` from `db2`.`t1`
+disconnect con2;
+connection default;
+DENY SELECT ON db2.* TO u_view@localhost;
+connect  con2,localhost,u_view,,;
+# SHOW CREATE VIEW should be denied (SELECT denied)
+SHOW CREATE VIEW db2.v1;
+ERROR 42000: SELECT command denied to user 'u_view'@'localhost' for table `db2`.`v1`
+# information_schema.views always shows the name; definition is hidden here
+SELECT table_name, view_definition
+FROM information_schema.views
+WHERE table_schema='db2' ORDER BY table_name;
+table_name	view_definition
+v1	
+disconnect con2;
+connection default;
+REVOKE DENY SELECT ON db2.* FROM u_view@localhost;
+DENY SHOW VIEW ON db2.* TO u_view@localhost;
+connect  con2,localhost,u_view,,;
+# SHOW CREATE VIEW should be denied (SHOW VIEW denied)
+SHOW CREATE VIEW db2.v1;
+ERROR 42000: SHOW VIEW command denied to user 'u_view'@'localhost' for table `db2`.`v1`
+# information_schema.views always shows the name; definition is hidden here
+SELECT table_name, view_definition
+FROM information_schema.views
+WHERE table_schema='db2' ORDER BY table_name;
+table_name	view_definition
+v1	
+disconnect con2;
+connection default;
+DROP USER u_view@localhost;
+DROP DATABASE db2;
+# SHOW FIELDS / SHOW INDEX visibility
+CREATE USER u_idx@localhost;
+CREATE DATABASE db3;
+CREATE TABLE db3.t1 (a int, b int, KEY k1(a));
+CREATE TABLE db3.t2 (a int, b int, KEY k2(b));
+GRANT SELECT ON db3.* TO u_idx@localhost;
+connect  con3,localhost,u_idx,,;
+# SHOW FIELDS on db3.t1 should be allowed (SELECT granted)
+SHOW FIELDS FROM db3.t1;
+Field	Type	Null	Key	Default	Extra
+a	int(11)	YES	MUL	NULL	
+b	int(11)	YES		NULL	
+# SHOW INDEX on db3.t1 should be allowed (SELECT granted)
+SHOW INDEX FROM db3.t1;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
+t1	1	k1	1	a	A	<cardinality>	NULL	NULL	YES	BTREE			NO
+# SHOW FIELDS on db3.t2 should be allowed (SELECT granted)
+SHOW FIELDS FROM db3.t2;
+Field	Type	Null	Key	Default	Extra
+a	int(11)	YES		NULL	
+b	int(11)	YES	MUL	NULL	
+# SHOW INDEX on db3.t2 should be allowed (SELECT granted)
+SHOW INDEX FROM db3.t2;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
+t2	1	k2	1	b	A	<cardinality>	NULL	NULL	YES	BTREE			NO
+disconnect con3;
+connection default;
+DENY SELECT ON db3.t1 TO u_idx@localhost;
+connect  con3,localhost,u_idx,,;
+# SHOW FIELDS/INDEX on t1 should be denied (table DENY)
+SHOW FIELDS FROM db3.t1;
+ERROR 42000: SELECT command denied to user 'u_idx'@'localhost' for table `db3`.`t1`
+# SHOW INDEX on db3.t1 should be denied (table DENY)
+SHOW INDEX FROM db3.t1;
+ERROR 42000: SELECT command denied to user 'u_idx'@'localhost' for table `db3`.`t1`
+# SHOW FIELDS on db3.t2 should be allowed
+SHOW FIELDS FROM db3.t2;
+Field	Type	Null	Key	Default	Extra
+a	int(11)	YES		NULL	
+b	int(11)	YES	MUL	NULL	
+# SHOW INDEX on db3.t2 should be allowed
+SHOW INDEX FROM db3.t2;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
+disconnect con3;
+connection default;
+DROP USER u_idx@localhost;
+DROP DATABASE db3;
+# SHOW CREATE DATABASE visibility
+CREATE USER u_scdb@localhost;
+CREATE DATABASE db4;
+GRANT REFERENCES ON db4.* TO u_scdb@localhost;
+connect  con4,localhost,u_scdb,,;
+# SHOW CREATE DATABASE should be allowed (REFERENCES granted)
+SHOW CREATE DATABASE db4;
+Database	Create Database
+db4	<create_database>
+disconnect con4;
+connection default;
+DENY REFERENCES ON db4.* TO u_scdb@localhost;
+connect  con4,localhost,u_scdb,,;
+# SHOW CREATE DATABASE should be denied (REFERENCES denied)
+SHOW CREATE DATABASE db4;
+ERROR 42000: Access denied for user 'u_scdb'@'localhost' to database 'db4'
+disconnect con4;
+connection default;
+DROP USER u_scdb@localhost;
+DROP DATABASE db4;
+# SHOW TABLES / SHOW TABLE STATUS / I_S visibility
+CREATE USER u_tbl@localhost;
+CREATE DATABASE db5;
+CREATE TABLE db5.t1 (a int);
+CREATE TABLE db5.t2 (a int, b int);
+GRANT SELECT ON db5.* TO u_tbl@localhost;
+connect  con5,localhost,u_tbl,,;
+# SHOW TABLES should list t1 and t2 (SELECT granted)
+SHOW TABLES FROM db5;
+Tables_in_db5
+t1
+t2
+# SHOW TABLE STATUS should list t1 and t2 (SELECT granted)
+SHOW TABLE STATUS FROM db5;
+Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
+t1	<engine>	10	<row_format>	<rows>	<avg_row_length>	<data_length>	<max_data_length>	<index_length>	<data_free>	NULL	<auto_increment>	<created>	<updated>	<checked>	<collation>			17179868160	<max_index_length>
+t2	<engine>	10	<row_format>	<rows>	<avg_row_length>	<data_length>	<max_data_length>	<index_length>	<data_free>	NULL	<auto_increment>	<created>	<updated>	<checked>	<collation>			17179868160	<max_index_length>
+# I_S.TABLES should list t1 and t2 (SELECT granted)
+SELECT table_name FROM information_schema.tables
+WHERE table_schema='db5' ORDER BY table_name;
+table_name
+t1
+t2
+# I_S.COLUMNS should list columns for t1 and t2 (SELECT granted)
+SELECT table_name, column_name FROM information_schema.columns
+WHERE table_schema='db5' ORDER BY table_name, column_name;
+table_name	column_name
+t1	a
+t2	a
+t2	b
+# SHOW CREATE TABLE should be allowed for t1 (SELECT granted)
+SHOW CREATE TABLE db5.t1;
+Table	Create Table
+t1	<create_table>
+# SHOW CREATE TABLE should be allowed for t2 (SELECT granted)
+SHOW CREATE TABLE db5.t2;
+Table	Create Table
+t2	<create_table>
+disconnect con5;
+connection default;
+DENY SELECT ON db5.t1 TO u_tbl@localhost;
+connect  con5,localhost,u_tbl,,;
+# SHOW TABLES should hide t1 (table DENY)
+SHOW TABLES FROM db5;
+Tables_in_db5
+t2
+# SHOW TABLE STATUS should hide t1 (table DENY)
+SHOW TABLE STATUS FROM db5;
+Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
+t2	<engine>	10	<row_format>	<rows>	<avg_row_length>	<data_length>	<max_data_length>	<index_length>	<data_free>	NULL	<auto_increment>	<created>	<updated>	<checked>	<collation>			17179868160	<max_index_length>
+# I_S.TABLES should hide t1 (table DENY)
+SELECT table_name FROM information_schema.tables
+WHERE table_schema='db5' ORDER BY table_name;
+table_name
+t2
+# I_S.COLUMNS should hide t1 columns (table DENY)
+SELECT table_name, column_name FROM information_schema.columns
+WHERE table_schema='db5' ORDER BY table_name, column_name;
+table_name	column_name
+t2	a
+t2	b
+# SHOW CREATE TABLE on t1 should be denied (table DENY)
+SHOW CREATE TABLE db5.t1;
+ERROR 42000: SHOW command denied to user 'u_tbl'@'localhost' for table `db5`.`t1`
+# SHOW CREATE TABLE on t2 should be allowed (SELECT allowed on table level)
+SHOW CREATE TABLE db5.t2;
+Table	Create Table
+t2	<create_table>
+disconnect con5;
+connection default;
+GRANT SHOW VIEW ON db5.* TO u_tbl@localhost;
+connect  con5,localhost,u_tbl,,;
+# SHOW CREATE TABLE on t2 should be allowed after SHOW VIEW grant
+SHOW CREATE TABLE db5.t2;
+Table	Create Table
+t2	<create_table>
+disconnect con5;
+connection default;
+DROP USER u_tbl@localhost;
+DROP DATABASE db5;
+# SHOW PROCEDURE/FUNCTION visibility
+CREATE USER u_rtn@localhost;
+CREATE DATABASE db6;
+CREATE PROCEDURE db6.p1() BEGIN SELECT 1; END//
+CREATE FUNCTION db6.f1() RETURNS INT RETURN 1//
+GRANT EXECUTE, SHOW CREATE ROUTINE ON db6.* TO u_rtn@localhost;
+connect  con6,localhost,u_rtn,,;
+# SHOW PROCEDURE STATUS should show p1 (EXECUTE + SHOW CREATE ROUTINE granted)
+SHOW PROCEDURE STATUS WHERE Db='db6';
+Db	Name	Type	Definer	Modified	Created	Security_type	Comment	character_set_client	collation_connection	Database Collation
+db6	p1	PROCEDURE	root@localhost	<modified>	<created>	DEFINER		<charset>	<collation>	<db_collation>
+# SHOW FUNCTION STATUS should show f1 (EXECUTE + SHOW CREATE ROUTINE granted)
+SHOW FUNCTION STATUS WHERE Db='db6';
+Db	Name	Type	Definer	Modified	Created	Security_type	Comment	character_set_client	collation_connection	Database Collation
+db6	f1	FUNCTION	root@localhost	<modified>	<created>	DEFINER		<charset>	<collation>	<db_collation>
+# SHOW CREATE PROCEDURE should be allowed
+SHOW CREATE PROCEDURE db6.p1;
+Procedure	sql_mode	Create Procedure	character_set_client	collation_connection	Database Collation
+p1	<sql_mode>	CREATE DEFINER=`root`@`localhost` PROCEDURE `p1`()
+BEGIN SELECT 1; END	<charset>	<collation>	<db_collation>
+# SHOW CREATE FUNCTION should be allowed
+SHOW CREATE FUNCTION db6.f1;
+Function	sql_mode	Create Function	character_set_client	collation_connection	Database Collation
+f1	<sql_mode>	CREATE DEFINER=`root`@`localhost` FUNCTION `f1`() RETURNS int(11)
+RETURN 1	<charset>	<collation>	<db_collation>
+disconnect con6;
+connection default;
+DENY SHOW CREATE ROUTINE ON db6.* TO u_rtn@localhost;
+connect  con6,localhost,u_rtn,,;
+# SHOW PROCEDURE STATUS should still show p1 (SHOW CREATE ROUTINE denied)
+SHOW PROCEDURE STATUS WHERE Db='db6';
+Db	Name	Type	Definer	Modified	Created	Security_type	Comment	character_set_client	collation_connection	Database Collation
+db6	p1	PROCEDURE	root@localhost	<modified>	<created>	DEFINER		<charset>	<collation>	<db_collation>
+# SHOW FUNCTION STATUS should still show f1 (SHOW CREATE ROUTINE denied)
+SHOW FUNCTION STATUS WHERE Db='db6';
+Db	Name	Type	Definer	Modified	Created	Security_type	Comment	character_set_client	collation_connection	Database Collation
+db6	f1	FUNCTION	root@localhost	<modified>	<created>	DEFINER		<charset>	<collation>	<db_collation>
+# SHOW CREATE PROCEDURE should be allowed but definition hidden
+SHOW CREATE PROCEDURE db6.p1;
+Procedure	sql_mode	Create Procedure	character_set_client	collation_connection	Database Collation
+p1	<sql_mode>	NULL	<charset>	<collation>	<db_collation>
+# SHOW CREATE FUNCTION should be allowed but definition hidden
+SHOW CREATE FUNCTION db6.f1;
+Function	sql_mode	Create Function	character_set_client	collation_connection	Database Collation
+f1	<sql_mode>	NULL	<charset>	<collation>	<db_collation>
+disconnect con6;
+connection default;
+DROP USER u_rtn@localhost;
+DROP DATABASE db6;

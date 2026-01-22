@@ -17,7 +17,7 @@
    Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 #include "my_global.h" // ulonglong
-
+#include "my_bit.h"    //my_bit_log2_uint64
 
 /*
   A strict enum to store privilege bits.
@@ -667,6 +667,178 @@ constexpr privilege_t PRIV_STMT_SHOW_EXPLAIN= PROCESS_ACL;
 constexpr privilege_t PRIV_STMT_SHOW_ENGINE_STATUS= PROCESS_ACL;
 constexpr privilege_t PRIV_STMT_SHOW_ENGINE_MUTEX= PROCESS_ACL;
 constexpr privilege_t PRIV_STMT_SHOW_PROCESSLIST= PROCESS_ACL;
+
+
+/*
+  access_t represents effective privileges at a given scope.
+
+  It bundles:
+    - allow bits (positive grants at this scope)
+    - deny bits (explicit DENY at this scope)
+    - deny_subtree (summary of DENY from lower scopes, used for fast checks)
+
+  access_t is what privilege checks cache and combine (roles, parents, etc.)
+  to decide whether a requested privilege is allowed, denied, or unknown.
+*/
+class access_t
+{
+private:
+  privilege_t m_allow_bits;
+  privilege_t m_deny_bits;
+  privilege_t m_deny_subtree;
+
+public:
+  access_t() {};
+  explicit access_t(privilege_t allow, privilege_t deny= NO_ACL,
+           privilege_t deny_subtree= NO_ACL)
+      : m_allow_bits(allow), m_deny_bits(deny), m_deny_subtree(deny_subtree)
+  {
+  }
+  /* True if no allow/deny information is present. */
+  bool is_empty() const
+  {
+    return m_allow_bits == NO_ACL && m_deny_bits == NO_ACL &&
+           m_deny_subtree == NO_ACL;
+  }
+  /* Convenience for "no privilege information". */
+  bool operator!() const { return is_empty(); }
+  void set_deny_bits(privilege_t deny) { m_deny_bits= deny; }
+  /* Set explicit denies and subtree denies in one shot. */
+  void set_deny(privilege_t deny, privilege_t deny_subtree)
+  {
+    m_deny_bits= deny;
+    m_deny_subtree= deny_subtree;
+  }
+  /* Set subtree deny summary (denies from lower scopes). */
+  void set_deny_subtree(privilege_t deny_subtree)
+  {
+    m_deny_subtree= deny_subtree;
+  }
+  /* Replace allow bits at this scope. */
+  void set_allow_bits(privilege_t allow)
+  {
+    m_allow_bits= allow;
+  }
+
+  /* Force allow bits; optionally clear matching denies at this scope. */
+  void force_allow(privilege_t bits, bool overwrite_deny=false)
+  {
+    m_allow_bits|= bits;
+    if (overwrite_deny)
+      m_deny_bits&= ~bits ;
+  }
+
+  /*
+    Disallow implicit conversions from privilege
+    (potential source of bugs)
+  */
+  access_t &operator=(const privilege_t &)= delete;
+
+  /*
+    Merge another access_t into this one (bitwise OR of all components).
+    Used for: accumulating privileges from multiple roles, or from PUBLIC +
+    user, etc.
+  */
+  access_t &operator|=(const access_t &other)
+  {
+    m_allow_bits= privilege_t(m_allow_bits | other.m_allow_bits);
+    m_deny_bits= privilege_t(m_deny_bits | other.m_deny_bits);
+    m_deny_subtree= privilege_t(m_deny_subtree | other.m_deny_subtree);
+    return *this;
+  }
+
+  /*
+    Intersect allow bits; keep union of denies and subtree denies.
+    Used for: intersecting access from db and host.
+  */
+  access_t intersect(const access_t &other) const
+  {
+    return access_t((privilege_t) (m_allow_bits & other.m_allow_bits),
+                    (privilege_t) (m_deny_bits | other.m_deny_bits),
+                    (privilege_t) (m_deny_subtree | other.m_deny_subtree));
+  }
+
+  /*
+    Combine child-level access with parent-level access (vertical hierarchy).
+    Used for: global -> database -> table -> column traversal
+
+    Rules:
+    - Allows accumulate (but, if both allow and deny, deny wins)
+    - Denies accumulate (once denied, always denied)
+    - Use child's deny_subtree (we're going down that branch)
+
+    The difference between this and operator | is in the handling of deny_subtree
+    The operator | merges on the same level, i.e for user+role+PUBLIC, while this
+    one is hierarchical, use from going from global to db etc until column level.
+    If merged correctly, on the "leaf level" of hierarchy, the deny_subtree
+    should always be zero.
+  */
+  access_t combine_with_parent(const access_t &parent) const
+  {
+    return access_t((privilege_t) (m_allow_bits | parent.m_allow_bits),
+                    (privilege_t) (m_deny_bits | parent.m_deny_bits),
+                    m_deny_subtree);
+  }
+
+  friend bool operator==(const access_t &x, const access_t &y)
+  {
+    return x.m_allow_bits == y.m_allow_bits &&
+           x.m_deny_bits == y.m_deny_bits &&
+           x.m_deny_subtree == y.m_deny_subtree;
+  }
+  friend bool operator!=(const access_t &x, const access_t &y)
+  {
+    return !(x == y);
+  }
+  /* Bitwise OR merge into a new access_t. */
+  friend access_t operator|(const access_t &x, const access_t &y)
+  {
+    access_t ret= x;
+    ret|= y;
+    return ret;
+  }
+
+  /* Return bits that are granted and not denied here or below. */
+  privilege_t certainly_allowed(privilege_t priv) const
+  {
+    return (privilege_t) (priv & m_allow_bits & ~m_deny_bits &
+                          ~m_deny_subtree);
+  }
+
+  /* Used for quick checks in USE db*/
+  privilege_t maybe_allowed(privilege_t priv) const
+  {
+    return (privilege_t) (priv & m_allow_bits & ~m_deny_bits);
+  }
+
+  /*
+     Intersect with a privilege mask.
+     deny bits are "sticky", i.e won't ne cleared  by
+     frequently used "priv &=~ access" patterns
+  */
+  friend privilege_t operator&(const access_t &x, const privilege_t &y)
+  {
+    return x.certainly_allowed(y);
+  }
+
+  /*
+    Complement of certainly_allowed across all known privilege bits.
+    Used in popular "want_privilege &=~ access" pattern to clear known
+    allowed bits.
+  */
+  ulonglong operator~() { return ~certainly_allowed(ALL_KNOWN_ACL); };
+
+  /* Return bits that are requested and denied. */
+  privilege_t is_denied(privilege_t priv) const
+  {
+    return (privilege_t) (m_deny_bits & priv);
+  }
+
+  /* Raw accessors. */
+  privilege_t allow_bits() const { return m_allow_bits; }
+  privilege_t deny_bits() const { return m_deny_bits; }
+  privilege_t deny_subtree() const { return m_deny_subtree; }
+};
 
 
 /*

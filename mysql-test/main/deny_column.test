@@ -1,0 +1,215 @@
+--source include/not_embedded.inc
+
+--echo #
+--echo # MDEV-XXXXX: Column-level DENY privilege implementation
+--echo #
+
+CREATE DATABASE deny_col_db;
+CREATE TABLE deny_col_db.sensitive_data (
+  id INT,
+  public_info VARCHAR(50),
+  salary DECIMAL(10,2),
+  ssn VARCHAR(11),
+  address VARCHAR(100)
+);
+
+INSERT INTO deny_col_db.sensitive_data VALUES
+  (1, 'John Doe', 75000.00, '123-45-6789', '123 Main St'),
+  (2, 'Jane Smith', 85000.00, '987-65-4321', '456 Oak Ave');
+
+CREATE USER col_user1@localhost;
+CREATE USER col_user2@localhost;
+
+--echo #
+--echo # Test 1: Basic column-level DENY
+--echo #
+
+GRANT SELECT ON deny_col_db.sensitive_data TO col_user1@localhost;
+DENY SELECT (salary, ssn) ON deny_col_db.sensitive_data TO col_user1@localhost;
+
+connect (con1, localhost, col_user1,,deny_col_db);
+SELECT id, public_info FROM sensitive_data;
+--error ER_COLUMNACCESS_DENIED_ERROR
+SELECT salary FROM sensitive_data;
+--error ER_COLUMNACCESS_DENIED_ERROR
+SELECT ssn FROM sensitive_data;
+--error ER_COLUMNACCESS_DENIED_ERROR
+SELECT * FROM sensitive_data;
+--error ER_COLUMNACCESS_DENIED_ERROR
+SELECT id, salary FROM sensitive_data;
+disconnect con1;
+connection default;
+
+REVOKE SELECT ON deny_col_db.sensitive_data FROM col_user1@localhost;
+REVOKE DENY SELECT (salary, ssn) ON deny_col_db.sensitive_data FROM col_user1@localhost;
+
+--echo #
+--echo # Test 2: DENY on one column, access to others allowed
+--echo #
+
+GRANT SELECT ON deny_col_db.sensitive_data TO col_user2@localhost;
+DENY SELECT (ssn) ON deny_col_db.sensitive_data TO col_user2@localhost;
+
+connect (con2, localhost, col_user2,,deny_col_db);
+SELECT id, public_info, salary, address FROM sensitive_data;
+--error ER_COLUMNACCESS_DENIED_ERROR
+SELECT ssn FROM sensitive_data;
+--error ER_COLUMNACCESS_DENIED_ERROR
+SELECT id, ssn FROM sensitive_data;
+--error ER_COLUMNACCESS_DENIED_ERROR
+SELECT * FROM sensitive_data;
+disconnect con2;
+connection default;
+REVOKE SELECT ON deny_col_db.sensitive_data FROM col_user2@localhost;
+REVOKE DENY SELECT (ssn) ON deny_col_db.sensitive_data FROM col_user2@localhost;
+
+--echo #
+--echo # Test 3: Column DENY takes precedence over explicit column GRANT
+--echo #
+
+GRANT SELECT (salary,id,public_info) ON deny_col_db.sensitive_data TO col_user1@localhost;
+DENY SELECT (salary) ON deny_col_db.sensitive_data TO col_user1@localhost;
+connect (con3, localhost, col_user1,,deny_col_db);
+SELECT id, public_info FROM sensitive_data;
+--error ER_COLUMNACCESS_DENIED_ERROR
+SELECT salary FROM sensitive_data;
+disconnect con3;
+connection default;
+REVOKE SELECT (salary,id,public_info) ON deny_col_db.sensitive_data FROM col_user1@localhost;
+REVOKE DENY SELECT (salary) ON deny_col_db.sensitive_data FROM col_user1@localhost;
+
+--echo #
+--echo # Test 4: REVOKE DENY on a column
+--echo #
+GRANT SELECT (salary) ON deny_col_db.sensitive_data TO col_user1@localhost;
+DENY SELECT (salary,ssn) ON deny_col_db.sensitive_data TO col_user1@localhost;
+REVOKE DENY SELECT (salary) ON deny_col_db.sensitive_data FROM col_user1@localhost;
+
+connect (con4, localhost, col_user1,,deny_col_db);
+SELECT salary FROM sensitive_data;
+--error ER_COLUMNACCESS_DENIED_ERROR
+SELECT ssn FROM sensitive_data;
+disconnect con4;
+connection default;
+REVOKE DENY SELECT (ssn) ON deny_col_db.sensitive_data FROM  col_user1@localhost;
+
+--echo #
+--echo # Test 5: Multiple column DENYs
+--echo #
+GRANT SELECT ON deny_col_db.sensitive_data TO col_user2@localhost;
+DENY SELECT (salary, ssn, address) ON deny_col_db.sensitive_data TO col_user2@localhost;
+
+connect (con5, localhost, col_user2,,deny_col_db);
+SELECT id, public_info FROM sensitive_data;
+--error ER_COLUMNACCESS_DENIED_ERROR
+SELECT salary FROM sensitive_data;
+--error ER_COLUMNACCESS_DENIED_ERROR
+SELECT address FROM sensitive_data;
+--error ER_COLUMNACCESS_DENIED_ERROR
+SELECT * FROM sensitive_data;
+disconnect con5;
+connection default;
+
+--echo #
+--echo # Test 6: DENY one column, then DENY another
+--echo #
+
+REVOKE DENY SELECT (salary, ssn, address) ON deny_col_db.sensitive_data FROM col_user2@localhost;
+DENY SELECT (salary) ON deny_col_db.sensitive_data TO col_user2@localhost;
+DENY SELECT (ssn) ON deny_col_db.sensitive_data TO col_user2@localhost;
+
+connect (con6, localhost, col_user2,,deny_col_db);
+SELECT id, public_info, address FROM sensitive_data;
+--error ER_COLUMNACCESS_DENIED_ERROR
+SELECT salary FROM sensitive_data;
+--error ER_COLUMNACCESS_DENIED_ERROR
+SELECT ssn FROM sensitive_data;
+disconnect con6;
+connection default;
+
+--echo #
+--echo # Test 7: SHOW GRANTS displays column-level DENY
+--echo #
+
+SHOW GRANTS FOR col_user1@localhost;
+SHOW GRANTS FOR col_user2@localhost;
+
+--echo #
+--echo # Test 8: Column DENY with INSERT/UPDATE operations
+--echo #
+
+CREATE TABLE deny_col_db.audit_log (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  action VARCHAR(50),
+  modified_by VARCHAR(50),
+  timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+GRANT SELECT, INSERT ON deny_col_db.audit_log TO col_user1@localhost;
+DENY INSERT (modified_by) ON deny_col_db.audit_log TO col_user1@localhost;
+
+connect (con8, localhost, col_user1,,deny_col_db);
+INSERT INTO audit_log (action) VALUES ('test_action');
+--error ER_COLUMNACCESS_DENIED_ERROR
+INSERT INTO audit_log (action, modified_by) VALUES ('test', 'hacker');
+--replace_column 4 TIMESTAMP
+SELECT * FROM audit_log;
+disconnect con8;
+connection default;
+
+--echo #
+--echo # Test 9: Column DENY with UPDATE
+--echo #
+
+GRANT UPDATE ON deny_col_db.sensitive_data TO col_user1@localhost;
+DENY UPDATE (salary) ON deny_col_db.sensitive_data TO col_user1@localhost;
+GRANT SELECT(id,public_info) on deny_col_db.sensitive_data TO col_user1@localhost;
+
+connect (con9, localhost, col_user1,,deny_col_db);
+UPDATE sensitive_data SET public_info = 'Updated' WHERE id = 1;
+--error ER_COLUMNACCESS_DENIED_ERROR
+UPDATE sensitive_data SET salary = 100000 WHERE id = 1;
+--error ER_COLUMNACCESS_DENIED_ERROR
+UPDATE sensitive_data SET public_info = 'X', salary = 90000 WHERE id = 2;
+disconnect con9;
+connection default;
+
+--echo #
+--echo # Test 10: Column DENY is case-insensitive
+--echo #
+
+GRANT SELECT ON deny_col_db.sensitive_data TO col_user1@localhost;
+DENY SELECT (SaLaRy) ON deny_col_db.sensitive_data TO col_user1@localhost;
+
+connect (con10, localhost, col_user1,,deny_col_db);
+--error ER_COLUMNACCESS_DENIED_ERROR
+SELECT salary FROM sensitive_data;
+disconnect con10;
+connection default;
+
+REVOKE DENY SELECT (SaLaRy) ON deny_col_db.sensitive_data FROM col_user1@localhost;
+REVOKE SELECT ON deny_col_db.sensitive_data FROM col_user1@localhost;
+
+--echo #
+--echo # Test 11: REVOKE all column DENYs
+--echo #
+
+GRANT SELECT(ssn) on deny_col_db.sensitive_data to col_user1@localhost;
+
+
+connect (con11, localhost, col_user1,,deny_col_db);
+SELECT ssn FROM sensitive_data;
+disconnect con11;
+connection default;
+
+--echo #
+--echo # Cleanup
+--echo #
+
+DROP USER col_user1@localhost;
+DROP USER col_user2@localhost;
+DROP DATABASE deny_col_db;
+
+--echo #
+--echo # End of column-level DENY tests
+--echo #

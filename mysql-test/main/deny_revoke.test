@@ -1,0 +1,119 @@
+--source include/not_embedded.inc
+
+--echo #
+--echo # REVOKE DENY tests
+--echo #
+
+CREATE TABLE t1 (a INT, b INT);
+DELIMITER $$;
+CREATE PROCEDURE p1() BEGIN SET @x=1; END;
+$$
+CREATE FUNCTION f1() RETURNS INT RETURN 1;
+$$
+CREATE PACKAGE pkg1
+  PROCEDURE p1();
+  FUNCTION f1() RETURNS INT;
+END;
+$$
+CREATE PACKAGE BODY pkg1
+  PROCEDURE p1() BEGIN SET @pkg=2; END;
+  FUNCTION f1() RETURNS INT BEGIN RETURN 2; END;
+END;
+$$
+DELIMITER ;$$
+
+CREATE USER u@localhost;
+GRANT ALL PRIVILEGES ON *.* to u@localhost;
+
+PREPARE show_denies FROM "SELECT IF(JSON_EXTRACT(Priv, '$.denies') IS NULL OR JSON_LENGTH(JSON_EXTRACT(Priv, '$.denies')) = 0, 'no entries', JSON_PRETTY(JSON_EXTRACT(Priv, '$.denies'))) AS denies FROM mysql.global_priv WHERE User='u' AND Host='localhost'";
+
+--echo #
+--echo # Global
+--echo #
+DENY SELECT ON *.* TO u@localhost;
+REVOKE DENY SELECT ON *.* FROM u@localhost;
+EXECUTE show_denies;
+
+--echo #
+--echo # Database
+--echo #
+DENY INSERT ON test.* TO u@localhost;
+REVOKE DENY INSERT ON test.* FROM u@localhost;
+EXECUTE show_denies;
+--echo # Second revoke should error
+--error ER_NONEXISTING_GRANT
+REVOKE DENY INSERT ON test.* FROM u@localhost;
+
+--echo #
+--echo # Table
+--echo #
+DENY UPDATE ON test.t1 TO u@localhost;
+SHOW GRANTS FOR u@localhost;
+REVOKE DENY UPDATE ON test.t1 FROM u@localhost;
+EXECUTE show_denies;
+--echo # Second revoke should error
+--error ER_NONEXISTING_TABLE_GRANT
+REVOKE DENY UPDATE ON test.t1 FROM u@localhost;
+
+--echo #
+--echo # Column
+--echo #
+DENY SELECT (a) ON test.t1 TO u@localhost;
+SHOW GRANTS FOR u@localhost;
+REVOKE DENY SELECT (a) ON test.t1 FROM u@localhost;
+EXECUTE show_denies;
+--echo # Second revoke should error
+--error ER_NONEXISTING_TABLE_GRANT
+REVOKE DENY SELECT (a) ON test.t1 FROM u@localhost;
+
+--echo #
+--echo # Procedure
+--echo #
+DENY EXECUTE ON PROCEDURE test.p1 TO u@localhost;
+SHOW GRANTS FOR u@localhost;
+REVOKE DENY EXECUTE ON PROCEDURE test.p1 FROM u@localhost;
+EXECUTE show_denies;
+--echo # Second revoke should error
+--error ER_NONEXISTING_PROC_GRANT
+REVOKE DENY EXECUTE ON PROCEDURE test.p1 FROM u@localhost;
+
+--echo #
+--echo # Function
+--echo #
+DENY EXECUTE ON FUNCTION test.f1 TO u@localhost;
+SHOW GRANTS FOR u@localhost;
+REVOKE DENY EXECUTE ON FUNCTION test.f1 FROM u@localhost;
+EXECUTE show_denies;
+--echo # Second revoke should error
+--error ER_NONEXISTING_PROC_GRANT
+REVOKE DENY EXECUTE ON FUNCTION test.f1 FROM u@localhost;
+
+--echo #
+--echo # Package
+--echo #
+DENY EXECUTE ON PACKAGE test.pkg1 TO u@localhost;
+SHOW GRANTS FOR u@localhost;
+REVOKE DENY EXECUTE ON PACKAGE test.pkg1 FROM u@localhost;
+EXECUTE show_denies;
+--echo # Second revoke should error
+--error ER_NONEXISTING_PROC_GRANT
+REVOKE DENY EXECUTE ON PACKAGE test.pkg1 FROM u@localhost;
+
+--echo #
+--echo # Package body
+--echo #
+DENY EXECUTE ON PACKAGE BODY test.pkg1 TO u@localhost;
+SHOW GRANTS FOR u@localhost;
+REVOKE DENY EXECUTE ON PACKAGE BODY test.pkg1 FROM u@localhost;
+EXECUTE show_denies;
+--echo # Second revoke should error
+--error ER_NONEXISTING_PROC_GRANT
+REVOKE DENY EXECUTE ON PACKAGE BODY test.pkg1 FROM u@localhost;
+
+DEALLOCATE PREPARE show_denies;
+DROP USER u@localhost;
+DROP PACKAGE BODY pkg1;
+DROP PACKAGE pkg1;
+DROP FUNCTION f1;
+DROP PROCEDURE p1;
+DROP TABLE t1;
