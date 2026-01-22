@@ -7110,7 +7110,7 @@ bool TABLE_LIST::prepare_security(THD *thd)
       /* REPAIR needs SELECT_ACL */
       while ((tbl= tb++))
       {
-        tbl->grant.privilege= SELECT_ACL;
+        tbl->grant.privilege= access_t(SELECT_ACL);
         tbl->security_ctx= save_security_ctx;
       }
       DBUG_RETURN(FALSE);
@@ -7141,7 +7141,7 @@ bool TABLE_LIST::prepare_security(THD *thd)
   thd->security_ctx= save_security_ctx;
 #else
   while ((tbl= tb++))
-    tbl->grant.privilege= ALL_KNOWN_ACL;
+    tbl->grant.privilege= access_t(ALL_KNOWN_ACL);
 #endif /* NO_EMBEDDED_ACCESS_CHECKS */
   DBUG_RETURN(FALSE);
 }

@@ -1,0 +1,171 @@
+#
+# SHOW GRANTS with DENY output
+#
+CREATE DATABASE sg_db;
+USE sg_db;
+CREATE TABLE t1 (c1 INT, c2 INT);
+CREATE PROCEDURE p1() BEGIN SET @x=1; END;
+$$
+CREATE FUNCTION f1() RETURNS INT RETURN 1;
+$$
+CREATE PACKAGE pkg1
+PROCEDURE p1();
+FUNCTION f1() RETURNS INT;
+END;
+$$
+CREATE PACKAGE BODY pkg1
+PROCEDURE p1() BEGIN SET @pkg=2; END;
+FUNCTION f1() RETURNS INT BEGIN RETURN 2; END;
+END;
+$$
+CREATE USER u1@localhost;
+#
+# Miscelaneous GRANT/DENY mix, different levels
+#
+GRANT SELECT ON sg_db.t1 TO u1@localhost;
+GRANT UPDATE (c1) ON sg_db.t1 TO u1@localhost;
+GRANT EXECUTE ON PROCEDURE sg_db.p1 TO u1@localhost;
+GRANT EXECUTE ON PACKAGE sg_db.pkg1 TO u1@localhost;
+DENY SELECT ON *.* TO u1@localhost;
+DENY INSERT ON sg_db.* TO u1@localhost;
+DENY UPDATE (c2) ON sg_db.t1 TO u1@localhost;
+DENY EXECUTE ON FUNCTION sg_db.f1 TO u1@localhost;
+DENY EXECUTE ON PACKAGE BODY sg_db.pkg1 TO u1@localhost;
+SHOW GRANTS FOR u1@localhost;
+Grants for u1@localhost
+GRANT USAGE ON *.* TO `u1`@`localhost`
+DENY SELECT ON *.* TO `u1`@`localhost`
+DENY INSERT ON `sg_db`.* TO `u1`@`localhost`
+GRANT SELECT, UPDATE (`c1`) ON `sg_db`.`t1` TO `u1`@`localhost`
+DENY UPDATE (`c2`) ON `sg_db`.`t1` TO `u1`@`localhost`
+GRANT EXECUTE ON PROCEDURE `sg_db`.`p1` TO `u1`@`localhost`
+DENY EXECUTE ON FUNCTION `sg_db`.`f1` TO `u1`@`localhost`
+GRANT EXECUTE ON PACKAGE `sg_db`.`pkg1` TO `u1`@`localhost`
+DENY EXECUTE ON PACKAGE BODY `sg_db`.`pkg1` TO `u1`@`localhost`
+# END SHOW GRANTS
+DROP USER u1@localhost;
+#
+# ALL PRIVILEGES, GRANT OPTION
+#
+CREATE USER u1@localhost;
+DENY ALL PRIVILEGES ON sg_db.* TO u1@localhost;
+SHOW GRANTS FOR u1@localhost;
+Grants for u1@localhost
+GRANT USAGE ON *.* TO `u1`@`localhost`
+DENY ALL PRIVILEGES ON `sg_db`.* TO `u1`@`localhost`
+# END SHOW GRANTS
+DENY ALL PRIVILEGES ON sg_db.* TO u1@localhost WITH GRANT OPTION;
+SHOW GRANTS FOR u1@localhost;
+Grants for u1@localhost
+GRANT USAGE ON *.* TO `u1`@`localhost`
+DENY ALL PRIVILEGES ON `sg_db`.* TO `u1`@`localhost`
+# END SHOW GRANTS
+REVOKE DENY ALL ON sg_db.* FROM u1@localhost;
+SHOW GRANTS FOR u1@localhost;
+Grants for u1@localhost
+GRANT USAGE ON *.* TO `u1`@`localhost`
+DENY USAGE ON `sg_db`.* TO `u1`@`localhost`
+# END SHOW GRANTS
+DENY GRANT OPTION ON sg_db.* to u1@localhost;
+SHOW GRANTS FOR u1@localhost;
+Grants for u1@localhost
+GRANT USAGE ON *.* TO `u1`@`localhost`
+DENY USAGE ON `sg_db`.* TO `u1`@`localhost`
+# END SHOW GRANTS
+#
+# Do not show (own) DENY for non-privileged users
+#
+connect con1, localhost, u1,,;
+SHOW GRANTS;
+Grants for u1@localhost
+GRANT USAGE ON *.* TO `u1`@`localhost`
+# END SHOW GRANTS
+disconnect con1;
+connection default;
+GRANT SELECT ON mysql.* TO u1@localhost;
+connect con1, localhost, u1,,;
+SHOW GRANTS;
+Grants for u1@localhost
+GRANT USAGE ON *.* TO `u1`@`localhost`
+GRANT SELECT ON `mysql`.* TO `u1`@`localhost`
+DENY USAGE ON `sg_db`.* TO `u1`@`localhost`
+# END SHOW GRANTS
+disconnect con1;
+connection default;
+DROP USER u1@localhost;
+DROP PACKAGE BODY pkg1;
+DROP PACKAGE pkg1;
+DROP FUNCTION f1;
+DROP PROCEDURE p1;
+DROP TABLE t1;
+DROP DATABASE sg_db;
+#
+# SHOW GRANTS FOR role: non-privileged vs privileged user
+# Without SELECT on mysql.*, a user must NOT see their own active role's DENY.
+# With SELECT on mysql.* (privileged), the DENY must be visible.
+# SHOW GRANTS FOR CURRENT_ROLE and SHOW GRANTS FOR <role_name> must be consistent.
+#
+CREATE ROLE r1;
+DENY SELECT ON test.* TO r1;
+CREATE USER u1@localhost;
+GRANT r1 TO u1@localhost;
+connect con1, localhost, u1,,;
+SET ROLE r1;
+# non-privileged: SHOW GRANTS FOR CURRENT_ROLE
+SHOW GRANTS FOR CURRENT_ROLE;
+Grants for r1
+GRANT USAGE ON *.* TO `r1`
+# END SHOW GRANTS
+# non-privileged: SHOW GRANTS FOR r1 (same role, by name)
+SHOW GRANTS FOR r1;
+Grants for r1
+GRANT USAGE ON *.* TO `r1`
+# END SHOW GRANTS
+disconnect con1;
+connection default;
+GRANT SELECT ON mysql.* TO u1@localhost;
+connect con1, localhost, u1,,;
+SET ROLE r1;
+# privileged: SHOW GRANTS FOR CURRENT_ROLE
+SHOW GRANTS FOR CURRENT_ROLE;
+Grants for r1
+GRANT USAGE ON *.* TO `r1`
+DENY SELECT ON `test`.* TO `r1`
+# END SHOW GRANTS
+# privileged: SHOW GRANTS FOR r1 (same role, by name)
+SHOW GRANTS FOR r1;
+Grants for r1
+GRANT USAGE ON *.* TO `r1`
+DENY SELECT ON `test`.* TO `r1`
+# END SHOW GRANTS
+disconnect con1;
+connection default;
+DROP USER u1@localhost;
+DROP ROLE r1;
+#
+# SHOW GRANTS FOR PUBLIC: non-privileged vs privileged user
+# Without SELECT on mysql.*, a user must NOT see DENYs on PUBLIC.
+# With SELECT on mysql.* (privileged), the DENY must be visible.
+#
+CREATE USER u1@localhost;
+DENY SELECT ON test.* TO PUBLIC;
+connect con1, localhost, u1,,;
+# non-privileged: SHOW GRANTS FOR PUBLIC
+SHOW GRANTS FOR PUBLIC;
+Grants for PUBLIC
+# END SHOW GRANTS
+disconnect con1;
+connection default;
+GRANT SELECT ON mysql.* TO u1@localhost;
+connect con1, localhost, u1,,;
+# privileged: SHOW GRANTS FOR PUBLIC
+SHOW GRANTS FOR PUBLIC;
+Grants for PUBLIC
+DENY SELECT ON `test`.* TO PUBLIC
+# END SHOW GRANTS
+disconnect con1;
+connection default;
+DROP USER u1@localhost;
+REVOKE DENY SELECT ON test.* FROM PUBLIC;
+DELETE FROM mysql.global_priv WHERE User='PUBLIC';
+FLUSH PRIVILEGES;

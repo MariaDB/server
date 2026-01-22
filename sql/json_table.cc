@@ -923,7 +923,7 @@ TABLE *create_table_for_function(THD *thd, TABLE_LIST *sql_table)
   table->next= thd->derived_tables;
   thd->derived_tables= table;
   table->s->tmp_table= INTERNAL_TMP_TABLE;
-  table->grant.privilege= SELECT_ACL;
+  table->grant.privilege= access_t(SELECT_ACL);
 
   sql_table->table= table;
 
