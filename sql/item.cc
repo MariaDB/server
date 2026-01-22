@@ -5920,10 +5920,19 @@ Item_field::fix_outer_field(THD *thd, Field **from_field, Item **reference)
     select= outer_context->select_lex;
     Item_subselect *prev_subselect_item=
       last_checked_context->select_lex->master_unit()->item;
+    /*
+      We have merged to the top select and this field is no longer outer,
+      or we have reached the outermost select without resolution
+    */
+    bool at_top= !prev_subselect_item;
     last_checked_context= outer_context;
     upward_lookup= TRUE;
 
-    place= prev_subselect_item->parsing_place;
+    if (!at_top)
+      place= prev_subselect_item->parsing_place;
+    else
+      place= NO_MATTER;
+
     /*
       If outer_field is set, field was already found by first call
       to find_field_in_tables(). Only need to find appropriate context.
@@ -5978,8 +5987,11 @@ Item_field::fix_outer_field(THD *thd, Field **from_field, Item **reference)
         }
         if (*from_field != view_ref_found)
         {
-          prev_subselect_item->used_tables_cache|= (*from_field)->table->map;
-          prev_subselect_item->const_item_cache= 0;
+          if (!at_top)
+          {
+            prev_subselect_item->used_tables_cache|= (*from_field)->table->map;
+            prev_subselect_item->const_item_cache= 0;
+          }
           set_field(*from_field);
           if (!last_checked_context->select_lex->having_fix_field &&
               select->group_list.elements &&
@@ -6028,7 +6040,8 @@ Item_field::fix_outer_field(THD *thd, Field **from_field, Item **reference)
         else
         {
           Item::Type ref_type= (*reference)->type();
-          prev_subselect_item->used_tables_and_const_cache_join(*reference);
+          if (!at_top)
+            prev_subselect_item->used_tables_and_const_cache_join(*reference);
           mark_as_dependent(thd, last_checked_context->select_lex,
                             context->select_lex, this,
                             ((ref_type == REF_ITEM || ref_type == FIELD_ITEM) ?
@@ -6076,7 +6089,7 @@ Item_field::fix_outer_field(THD *thd, Field **from_field, Item **reference)
           if (refref->fixed())
             (*ref)->fix_fields_if_needed( thd, reference);
         }
-        if ((*ref)->fixed())
+        if (!at_top && (*ref)->fixed())
           prev_subselect_item->used_tables_and_const_cache_join(*ref);
 
         break;
@@ -6088,8 +6101,11 @@ Item_field::fix_outer_field(THD *thd, Field **from_field, Item **reference)
       outer select (or we just trying to find wrong identifier, in this
       case it does not matter which used tables bits we set)
     */
-    prev_subselect_item->used_tables_cache|= OUTER_REF_TABLE_BIT;
-    prev_subselect_item->const_item_cache= 0;
+    if (!at_top)
+    {
+      prev_subselect_item->used_tables_cache|= OUTER_REF_TABLE_BIT;
+      prev_subselect_item->const_item_cache= 0;
+    }
   }
 
   DBUG_ASSERT(ref != 0);

@@ -3372,6 +3372,12 @@ drop table t1,t2,t3;
 CREATE TABLE t(c INT);
 SELECT (SELECT 0 GROUP BY c HAVING (SELECT c)) FROM t GROUP BY c;
 (SELECT 0 GROUP BY c HAVING (SELECT c))
+#
+# MDEV-31632 Unresolvable outer reference causes null pointer exception
+#
+SELECT 1 union select 2 UNION SELECT 1 from t JOIN t b ON
+(SELECT 1 FROM dual WHERE AAA);
+ERROR 42S22: Unknown column 'AAA' in 'WHERE'
 DROP TABLE t;
 #
 # MDEV-38476 Wrong Result (Empty Set) with derived_merge=on using AVG() on text column in HAVING clause
