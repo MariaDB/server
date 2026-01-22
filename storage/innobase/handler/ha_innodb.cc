@@ -1631,25 +1631,6 @@ innodb_enable_monitor_at_startup(
 /*=============================*/
 	char*	str);	/*!< in: monitor counter enable list */
 
-#ifdef MYSQL_STORE_FTS_DOC_ID
-/** Store doc_id value into FTS_DOC_ID field
-@param[in,out]	tbl	table containing FULLTEXT index
-@param[in]	doc_id	FTS_DOC_ID value */
-static
-void
-innobase_fts_store_docid(
-	TABLE*		tbl,
-	ulonglong	doc_id)
-{
-	my_bitmap_map*	old_map
-		= dbug_tmp_use_all_columns(tbl, tbl->write_set);
-
-	tbl->fts_doc_id_field->store(static_cast<longlong>(doc_id), true);
-
-	dbug_tmp_restore_column_map(tbl->write_set, old_map);
-}
-#endif
-
 /*******************************************************************//**
 Function for constructing an InnoDB table handler instance. */
 static
@@ -9741,15 +9722,6 @@ next_record:
 		/* If we only need information from result we can return
 		   without fetching the table row */
 		if (ft_prebuilt->read_just_key) {
-#ifdef MYSQL_STORE_FTS_DOC_ID
-			if (m_prebuilt->fts_doc_id_in_read_set) {
-				fts_ranking_t* ranking;
-				ranking = rbt_value(fts_ranking_t,
-						    result->current);
-				innobase_fts_store_docid(
-					table, ranking->doc_id);
-			}
-#endif
 			table->status= 0;
 			return(0);
 		}
