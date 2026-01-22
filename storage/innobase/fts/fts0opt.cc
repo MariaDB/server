@@ -226,9 +226,6 @@ struct fts_msg_t {
 /** The number of words to read and optimize in a single pass. */
 ulong	fts_num_word_optimize;
 
-/** Whether to enable additional FTS diagnostic printout. */
-char	fts_enable_diag_print;
-
 /** ZLib compressed block size.*/
 static ulint FTS_ZIP_BLOCK_SIZE	= 1024;
 
@@ -2442,10 +2439,6 @@ fts_optimize_table(
 	fts_optimize_t*	optim = NULL;
 	fts_t*		fts = table->fts;
 
-	if (UNIV_UNLIKELY(fts_enable_diag_print)) {
-		ib::info() << "FTS start optimize " << table->name;
-	}
-
 	optim = fts_optimize_create(table);
 
 	// FIXME: Call this only at the start of optimize, currently we
@@ -2494,11 +2487,6 @@ fts_optimize_table(
 		if (error == DB_SUCCESS
 		    && optim->n_completed == ib_vector_size(fts->indexes)) {
 
-			if (UNIV_UNLIKELY(fts_enable_diag_print)) {
-				ib::info() << "FTS_OPTIMIZE: Completed"
-					" Optimize, cleanup DELETED table";
-			}
-
 			if (ib_vector_size(optim->to_delete->doc_ids) > 0) {
 
 				/* Purge the doc ids that were in the
@@ -2516,10 +2504,6 @@ fts_optimize_table(
 	}
 
 	fts_optimize_free(optim);
-
-	if (UNIV_UNLIKELY(fts_enable_diag_print)) {
-		ib::info() << "FTS end optimize " << table->name;
-	}
 
 	return(error);
 }
@@ -2698,11 +2682,6 @@ static bool fts_optimize_del_table(fts_msg_del_t *remove)
 		slot = static_cast<fts_slot_t*>(ib_vector_get(fts_slots, i));
 
 		if (slot->table == table) {
-			if (UNIV_UNLIKELY(fts_enable_diag_print)) {
-				ib::info() << "FTS Optimize Removing table "
-					<< table->name;
-			}
-
 			mysql_mutex_lock(&fts_optimize_wq->mutex);
 			table->fts->in_queue = false;
 			pthread_cond_signal(remove->cond);
