@@ -9523,18 +9523,6 @@ ha_innobase::ft_init_ext(
 	const CHARSET_INFO*	char_set = key->charset();
 	const char*		query = key->ptr();
 
-	if (UNIV_UNLIKELY(fts_enable_diag_print)) {
-		{
-			ib::info	out;
-			out << "keynr=" << keynr << ", '";
-			out.write(key->ptr(), key->length());
-		}
-
-		sql_print_information((flags & FT_BOOL)
-				      ? "InnoDB: BOOL search"
-				      : "InnoDB: NL search");
-	}
-
         /* Multi byte character sets like utf32 and utf16 are not
            compatible with some string function used. So to convert them
            to uft8 before we proceed. */
@@ -19439,9 +19427,11 @@ static MYSQL_SYSVAR_UINT(fill_factor, innobase_fill_factor,
   "Percentage of B-tree page filled during bulk insert",
   NULL, NULL, 100, 10, 100, 0);
 
+static char fts_enable_diag_print;
+
 static MYSQL_SYSVAR_BOOL(ft_enable_diag_print, fts_enable_diag_print,
-  PLUGIN_VAR_OPCMDARG,
-  "Whether to enable additional FTS diagnostic printout",
+  PLUGIN_VAR_OPCMDARG | PLUGIN_VAR_DEPRECATED,
+  "Deprecated parameter with no effect",
   NULL, NULL, FALSE);
 
 static MYSQL_SYSVAR_BOOL(disable_sort_file_cache, srv_disable_sort_file_cache,
