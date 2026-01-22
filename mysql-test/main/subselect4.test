@@ -2713,4 +2713,16 @@ SELECT ca1 FROM (SELECT c1 AS ca1, c1 AS ca2 FROM t1) AS ta1
 
 DROP TABLE t1;
 
+--echo #
+--echo # MDEV-38626 Unexpected `Data too long` error on subselect as a multiplication argument
+--echo #
+
+CREATE TABLE t0 AS SELECT 1;
+CREATE TABLE t1 AS
+  SELECT CONCAT((SELECT 9 FROM t0) * (SELECT 9 FROM t0)) AS c1,
+  CONCAT(9 * 9) AS c2;
+SHOW CREATE TABLE t1;
+DROP TABLE t0, t1;
+
+
 --echo # End of 10.11 tests

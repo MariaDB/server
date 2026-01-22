@@ -3396,4 +3396,18 @@ HAVING (ca2 = ANY (SELECT c1 FROM t1)) IS NOT TRUE;
 ca1
 NULL
 DROP TABLE t1;
+#
+# MDEV-38626 Unexpected `Data too long` error on subselect as a multiplication argument
+#
+CREATE TABLE t0 AS SELECT 1;
+CREATE TABLE t1 AS
+SELECT CONCAT((SELECT 9 FROM t0) * (SELECT 9 FROM t0)) AS c1,
+CONCAT(9 * 9) AS c2;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `c1` varchar(3) DEFAULT NULL,
+  `c2` varchar(3) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+DROP TABLE t0, t1;
 # End of 10.11 tests

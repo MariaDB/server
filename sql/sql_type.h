@@ -3940,6 +3940,8 @@ public:
   virtual bool can_return_extract_source(interval_type type) const;
   virtual bool is_bool_type() const { return false; }
   virtual bool is_general_purpose_string_type() const { return false; }
+  virtual Type_std_attributes Item_type_std_attributes_generic(
+                                                       const Item *item) const;
   virtual decimal_digits_t Item_time_precision(THD *thd, Item *item) const;
   virtual decimal_digits_t Item_datetime_precision(THD *thd, Item *item) const;
   virtual decimal_digits_t Item_decimal_scale(const Item *item) const;
@@ -5287,6 +5289,8 @@ public:
                      bool binary_cmp) const override;
   bool Item_eq_value(THD *thd, const Type_cmp_attributes *attr,
                      Item *a, Item *b) const override;
+  Type_std_attributes Item_type_std_attributes_generic(
+                                              const Item *item) const override;
   decimal_digits_t Item_decimal_precision(const Item *item) const override;
   bool Item_save_in_value(THD *thd, Item *item, st_value *value) const override;
   bool Item_param_set_from_value(THD *thd,
