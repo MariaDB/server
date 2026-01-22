@@ -249,9 +249,9 @@ public:
     return null_value;
   }
   String *val_str_from_val_str_ascii(String *str, String *str2);
-
-  void signal_divide_by_null();
+protected:
   void signal_divide_by_null(const char *context);
+public:
   friend class udf_handler;
   Field *create_field_for_create_select(MEM_ROOT *root, TABLE *table) override
   { return tmp_table_field_from_field_type(root, table); }

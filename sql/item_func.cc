@@ -783,26 +783,29 @@ void Item_udf_func::fix_num_length_and_dec()
 #endif
 
 
-void Item_func::signal_divide_by_null()
-{
-  THD *thd= current_thd;
-  if (thd->variables.sql_mode & MODE_ERROR_FOR_DIVISION_BY_ZERO)
-    push_warning(thd, Sql_condition::WARN_LEVEL_WARN, ER_DIVISION_BY_ZERO,
-                 ER_THD(thd, ER_DIVISION_BY_ZERO));
-  null_value= 1;
-}
+namespace {
 
-
-void Item_func::signal_divide_by_null(const char *context)
+void push_divide_by_zero_warning(THD *thd, const char *context)
 {
-  THD *thd= current_thd;
-  if (thd->variables.sql_mode & MODE_ERROR_FOR_DIVISION_BY_ZERO)
+  if (context && context[0] != '\0')
   {
     char buf[MYSQL_ERRMSG_SIZE];
     my_snprintf(buf, sizeof(buf), ER_THD(thd, ER_DIVISION_BY_ZERO_IN_FUNC),
                 context);
     push_warning(thd, Sql_condition::WARN_LEVEL_WARN, ER_DIVISION_BY_ZERO, buf);
   }
+  else
+    push_warning(thd, Sql_condition::WARN_LEVEL_WARN, ER_DIVISION_BY_ZERO,
+                 ER_THD(thd, ER_DIVISION_BY_ZERO));
+}
+
+} // namespace
+
+void Item_func::signal_divide_by_null(const char *context)
+{
+  THD *thd= current_thd;
+  if (thd->variables.sql_mode & MODE_ERROR_FOR_DIVISION_BY_ZERO)
+    push_divide_by_zero_warning(thd, context);
   null_value= 1;
 }
 
@@ -1533,7 +1536,7 @@ double Item_func_div::real_op()
     return 0.0;
   if (val2 == 0.0)
   {
-    signal_divide_by_null();
+    signal_divide_by_null(nullptr);
     return 0.0;
   }
   return check_float_overflow(value/val2);
@@ -1554,7 +1557,7 @@ my_decimal *Item_func_div::decimal_op(my_decimal *decimal_value)
                                                   prec_increment))) > 3)
   {
     if (err == E_DEC_DIV_ZERO)
-      signal_divide_by_null();
+      signal_divide_by_null(nullptr);
     null_value= 1;
     return 0;
   }
@@ -1650,7 +1653,7 @@ longlong Item_func_int_div::val_int()
                              val.m_a.ptr(), val.m_b.ptr(), 0)) > 3)
     {
       if (err == E_DEC_DIV_ZERO)
-        signal_divide_by_null();
+        signal_divide_by_null(nullptr);
       return 0;
     }
 
@@ -1671,7 +1674,7 @@ longlong Item_func_int_div::val_int()
     return 0;
   if (val1 == 0)
   {
-    signal_divide_by_null();
+    signal_divide_by_null(nullptr);
     return 0;
   }
 
@@ -1701,7 +1704,7 @@ longlong Item_func_mod::int_op()
     return 0; /* purecov: inspected */
   if (val1 == 0)
   {
-    signal_divide_by_null();
+    signal_divide_by_null(nullptr);
     return 0;
   }
 
@@ -1723,7 +1726,7 @@ double Item_func_mod::real_op()
     return 0.0; /* purecov: inspected */
   if (val2 == 0.0)
   {
-    signal_divide_by_null();
+    signal_divide_by_null(nullptr);
     return 0.0;
   }
   return fmod(value,val2);
@@ -1741,7 +1744,7 @@ my_decimal *Item_func_mod::decimal_op(my_decimal *decimal_value)
   case E_DEC_OK:
     return decimal_value;
   case E_DEC_DIV_ZERO:
-    signal_divide_by_null();
+    signal_divide_by_null(nullptr);
     /* fall through */
   default:
     null_value= 1;

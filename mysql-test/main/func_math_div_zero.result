@@ -81,7 +81,8 @@ Warning	1365	Division by 0 in function log
 SHOW WARNINGS;
 Level	Code	Message
 Warning	1365	Division by 0 in function log
-# Non-LOG operations should stay generic
+# Non-LOG operations should stay generic (all show "Division by 0")
+# Division - integer
 SELECT 1/0;
 1/0
 NULL
@@ -90,6 +91,34 @@ Warning	1365	Division by 0
 SHOW WARNINGS;
 Level	Code	Message
 Warning	1365	Division by 0
+# Division - real/float
+SELECT 1.0/0.0;
+1.0/0.0
+NULL
+Warnings:
+Warning	1365	Division by 0
+SHOW WARNINGS;
+Level	Code	Message
+Warning	1365	Division by 0
+# Division - decimal
+SELECT CAST(1 AS DECIMAL(10,2)) / CAST(0 AS DECIMAL(10,2));
+CAST(1 AS DECIMAL(10,2)) / CAST(0 AS DECIMAL(10,2))
+NULL
+Warnings:
+Warning	1365	Division by 0
+SHOW WARNINGS;
+Level	Code	Message
+Warning	1365	Division by 0
+# Division - with string arguments
+SELECT '1'/'0';
+'1'/'0'
+NULL
+Warnings:
+Warning	1365	Division by 0
+SHOW WARNINGS;
+Level	Code	Message
+Warning	1365	Division by 0
+# Integer DIV
 SELECT 5 DIV 0;
 5 DIV 0
 NULL
@@ -98,8 +127,63 @@ Warning	1365	Division by 0
 SHOW WARNINGS;
 Level	Code	Message
 Warning	1365	Division by 0
+# Integer DIV - with string arguments
+SELECT '5' DIV '0';
+'5' DIV '0'
+NULL
+Warnings:
+Warning	1365	Division by 0
+SHOW WARNINGS;
+Level	Code	Message
+Warning	1365	Division by 0
+# MOD - integer
 SELECT 5 MOD 0;
 5 MOD 0
+NULL
+Warnings:
+Warning	1365	Division by 0
+SHOW WARNINGS;
+Level	Code	Message
+Warning	1365	Division by 0
+# MOD - real/float
+SELECT 5.5e0 MOD 0.0e0;
+5.5e0 MOD 0.0e0
+NULL
+Warnings:
+Warning	1365	Division by 0
+SHOW WARNINGS;
+Level	Code	Message
+Warning	1365	Division by 0
+# MOD - decimal
+SELECT CAST(5 AS DECIMAL(10,2)) MOD CAST(0 AS DECIMAL(10,2));
+CAST(5 AS DECIMAL(10,2)) MOD CAST(0 AS DECIMAL(10,2))
+NULL
+Warnings:
+Warning	1365	Division by 0
+SHOW WARNINGS;
+Level	Code	Message
+Warning	1365	Division by 0
+# MOD - with string arguments
+SELECT '5' MOD '0';
+'5' MOD '0'
+NULL
+Warnings:
+Warning	1365	Division by 0
+SHOW WARNINGS;
+Level	Code	Message
+Warning	1365	Division by 0
+# MOD function syntax
+SELECT MOD(5, 0);
+MOD(5, 0)
+NULL
+Warnings:
+Warning	1365	Division by 0
+SHOW WARNINGS;
+Level	Code	Message
+Warning	1365	Division by 0
+# MOD function - decimal
+SELECT MOD(5.5, 0.0);
+MOD(5.5, 0.0)
 NULL
 Warnings:
 Warning	1365	Division by 0
