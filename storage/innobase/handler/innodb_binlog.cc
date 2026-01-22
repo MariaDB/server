@@ -2060,8 +2060,6 @@ innodb_binlog_discover()
 
     /* Just one empty binlog file found. */
     file_no= binlog_files.last_file_no;
-    if (ibb_record_in_file_hash(file_no, ~(uint64_t)0, ~(uint64_t)0))
-      return -1;
     binlog_discover_init(file_no, innodb_binlog_state_interval);
     binlog_cur_page_no= page_no;
     binlog_cur_page_offset= pos_in_page;
@@ -2389,13 +2387,6 @@ binlog_gtid_state(rpl_binlog_state_base *state, mtr_t *mtr,
     }
   }
   ut_free(alloced_buf);
-
-  /* Make sure we return a page for caller to write the main event data into. */
-  if (UNIV_UNLIKELY(!block)) {
-    block= binlog_page_fifo->create_page(file_no, page_no);
-    if (UNIV_UNLIKELY(!block))
-      return true;
-  }
 
   return false;  // No error
 }

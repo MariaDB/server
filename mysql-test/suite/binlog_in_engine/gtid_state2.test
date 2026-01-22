@@ -1,0 +1,54 @@
+--source include/have_binlog_format_row.inc
+--source include/master-slave.inc
+--source include/have_innodb_binlog.inc
+
+--echo *** Test GTID state record that exactly fills the page.
+
+--connection master
+CREATE TABLE t1 (a INT, b INT, PRIMARY KEY(a, b)) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (0, 0);
+SET SESSION gtid_domain_id=1;
+INSERT INTO t1 VALUES (1, 1);
+
+--connection master
+# Try to generate a GTID state that will end exactly at the page boundary.
+# The page size is 16384 bytes; minus 4 for the CRC, 3 for the chunk header,
+# 2 for the GTID count, and 1 for the XA reference.
+# The GTIDs 0-1-2 and 1-1-1 encode as 6 bytes.
+# That leaves 16368 bytes, which will fit 4092 GTIDs if we arrange that
+# all those GTIDs are encoded in 4 bytes.
+
+--disable_query_log
+# 100 is a convenient number that encodes as two bytes.
+--let $i= 100
+while ($i < 4192) {
+  eval SET SESSION gtid_domain_id= $i;
+  eval INSERT INTO t1 VALUES ($i, 1);
+  inc $i;
+}
+SET SESSION gtid_domain_id= 0;
+--enable_query_log
+
+FLUSH BINARY LOGS;
+
+--source include/save_master_gtid.inc
+
+--connection slave
+--source include/sync_with_master_gtid.inc
+--source include/stop_slave.inc
+
+--echo *** Test that the slave can connect at GTID position correctly.
+--connection master
+INSERT INTO t1 VALUES (-2, 3);
+SELECT COUNT(*) AS full_count FROM t1;
+--source include/save_master_gtid.inc
+
+--connection slave
+--source include/start_slave.inc
+--source include/sync_with_master_gtid.inc
+SELECT COUNT(*) AS full_count FROM t1;
+
+# Cleanup.
+--connection master
+DROP TABLE t1;
+--source include/rpl_end.inc

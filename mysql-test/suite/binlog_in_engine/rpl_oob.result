@@ -49,6 +49,17 @@ INSERT INTO t3 SELECT seq, 'foo', 'bar' FROM seq_1_to_100;
 UPDATE t3 SET a = REPEAT('x', 65535);
 UPDATE t3 SET b = 'qux';
 SET GLOBAL binlog_cache_size= @old_cache_size;
+*** Test that single large OOB spill gets split into smaller pieces.
+SET GLOBAL binlog_cache_size= 4*1024*1024;
+connect my_con1,localhost,root,,;
+BEGIN;
+UPDATE t3 SET b = 'tmp' WHERE id = 1;
+UPDATE t3 SET a = REPEAT('y', 65535);
+UPDATE t3 SET b = 'wic';
+COMMIT;
+disconnect my_con1;
+connection master;
+SET GLOBAL binlog_cache_size= @old_cache_size;
 *** Test oob spilling of DDL
 connection master;
 ALTER TABLE t3
