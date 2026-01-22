@@ -98,7 +98,7 @@ static ulonglong view_algo_to_frm(ulonglong val)
     case VIEW_ALGORITHM_TMPTABLE:
       return VIEW_ALGORITHM_TMPTABLE_FRM;
   }
-  DBUG_ASSERT(0); /* Should never happen */
+  DBUG_ASSERT_NO_ASSUME(0); /* Should never happen */
   return VIEW_ALGORITHM_UNDEFINED;
 }
 

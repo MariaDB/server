@@ -940,7 +940,7 @@ static bool insert_bulk_params(Prepared_statement *stmt,
         param->set_ignore(false);
         break;
       default:
-        DBUG_ASSERT(0);
+        DBUG_ASSERT_NO_ASSUME(0);
         DBUG_RETURN(1);
       }
     }
@@ -3006,7 +3006,7 @@ void reinit_stmt_before_use(THD *thd, LEX *lex)
       bool res=
 #endif
         sl->handle_derived(lex, DT_REINIT);
-      DBUG_ASSERT(res == 0);
+      DBUG_ASSERT_NO_ASSUME(res == 0);
     }
 
     {
@@ -4670,7 +4670,7 @@ reexecute:
       allocated items when cleaning up after validation of the prepared
       statement.
     */
-    DBUG_ASSERT(thd->free_list == free_list_state);
+    DBUG_ASSERT_NO_ASSUME(thd->free_list == free_list_state);
 
     /*
       Install the metadata observer. If some metadata version is

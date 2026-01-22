@@ -15055,7 +15055,7 @@ opt_format_json:
             if (lex_string_eq(&$3, STRING_WITH_LEN("JSON")))
               Lex->explain_json= true;
             else if (lex_string_eq(&$3, STRING_WITH_LEN("TRADITIONAL")))
-              DBUG_ASSERT(Lex->explain_json==false);
+              DBUG_ASSERT_NO_ASSUME(Lex->explain_json==false);
             else
               my_yyabort_error((ER_UNKNOWN_EXPLAIN_FORMAT, MYF(0),
                                 "EXPLAIN/ANALYZE", $3.str));

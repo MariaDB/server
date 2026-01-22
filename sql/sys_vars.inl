@@ -99,7 +99,7 @@ extern const char *UNUSED_HELP;
     while(!(X))                                                         \
     {                                                                   \
       fprintf(stderr, "Sysvar '%s' failed '%s'\n", name_arg, #X);       \
-      DBUG_ASSERT(0);                                                   \
+      DBUG_ASSERT_NO_ASSUME(0);                                                   \
       exit(255);                                                        \
     }
 
@@ -695,7 +695,7 @@ public:
          sysvartrack_validate_value(thd,
                                     var->save_result.string_value.str,
                                     var->save_result.string_value.length);
-       DBUG_ASSERT(res == 0);
+       DBUG_ASSERT_NO_ASSUME(res == 0);
      }
   }
 };
@@ -2464,7 +2464,7 @@ public:
           l= TX_ISOL_SERIALIZABLE;
           break;
         default:
-          DBUG_ASSERT(0);
+          DBUG_ASSERT_NO_ASSUME(0);
           return TRUE;
         }
         if (thd->variables.session_track_transaction_info > TX_TRACK_NONE)

@@ -396,7 +396,7 @@ static bool set_up_field_array(THD *thd, TABLE *table, bool is_sub_part)
               add_column_list_values, handle_list_of_fields,
               check_partition_info etc.
             */
-            DBUG_ASSERT(0);
+            DBUG_ASSERT_NO_ASSUME(0);
             my_error(ER_FIELD_NOT_FOUND_PART_ERROR, MYF(0));
             result= TRUE;
             continue;
@@ -2530,7 +2530,7 @@ int partition_info::gen_part_type(THD *thd, String *str) const
       err+= str->append(STRING_WITH_LEN("SYSTEM_TIME "));
       break;
     default:
-      DBUG_ASSERT(0);
+      DBUG_ASSERT_NO_ASSUME(0);
       /* We really shouldn't get here, no use in continuing from here */
       my_error(ER_OUT_OF_RESOURCES, MYF(ME_FATAL));
       return -1;

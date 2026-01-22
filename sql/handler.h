@@ -5487,8 +5487,8 @@ public:
   { return HA_ERR_WRONG_COMMAND; }
   virtual bool set_ha_share_ref(Handler_share **arg_ha_share)
   {
-    DBUG_ASSERT(!ha_share);
-    DBUG_ASSERT(arg_ha_share);
+    DBUG_ASSERT_NO_ASSUME(!ha_share);
+    DBUG_ASSERT_NO_ASSUME(arg_ha_share);
     if (ha_share || !arg_ha_share)
       return true;
     ha_share= arg_ha_share;

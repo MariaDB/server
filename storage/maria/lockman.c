@@ -309,7 +309,7 @@ retry:
         {
           prev_active= cur_active;
           if (cur_flags & ACTIVE)
-            DBUG_ASSERT(prev_active == TRUE);
+            DBUG_ASSERT_NO_ASSUME(prev_active == TRUE);
           else
             cur_active&= lock_compatibility_matrix[prev_lock][cur_lock];
           if (upgrading && !cur_active /*&& !(cur_flags & UPGRADED)*/)

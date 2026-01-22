@@ -8667,7 +8667,7 @@ Item *LEX::make_item_plsql_cursor_attr(THD *thd, const LEX_CSTRING *name,
   case PLSQL_CURSOR_ATTR_ROWCOUNT:
     return new (thd->mem_root) Item_func_cursor_rowcount(thd, ref);
   }
-  DBUG_ASSERT(0);
+  DBUG_ASSERT_NO_ASSUME(0);
   return NULL;
 }
 
@@ -10661,7 +10661,7 @@ Item *Lex_trim_st::make_item_func_trim_std(THD *thd) const
   case TRIM_TRAILING:
    return new (thd->mem_root) Item_func_rtrim(thd, m_source);
   }
-  DBUG_ASSERT(0);
+  DBUG_ASSERT_NO_ASSUME(0);
   return NULL;
 }
 
@@ -10688,7 +10688,7 @@ Item *Lex_trim_st::make_item_func_trim_oracle(THD *thd) const
   case TRIM_TRAILING:
    return new (thd->mem_root) Item_func_rtrim_oracle(thd, m_source);
   }
-  DBUG_ASSERT(0);
+  DBUG_ASSERT_NO_ASSUME(0);
   return NULL;
 }
 

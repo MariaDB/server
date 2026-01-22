@@ -2261,7 +2261,7 @@ bool st_select_lex_unit::optimize()
       if ((union_result->force_enable_index_if_needed() || union_distinct))
       {
         if(table->file->ha_enable_indexes(key_map(table->s->keys), false))
-          DBUG_ASSERT(0);
+          DBUG_ASSERT_NO_ASSUME(0);
         else
           table->no_keyread= 0;
       }

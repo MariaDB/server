@@ -1090,7 +1090,7 @@ my_scan_mb2(CHARSET_INFO *cs __attribute__((unused)),
     }
     return (size_t) (str - str0);
   case MY_SEQ_NONSPACES:
-    DBUG_ASSERT(0); /* Not implemented */
+    DBUG_ASSERT_NO_ASSUME(0); /* Not implemented */
     /* pass through */
   default:
     return 0;
@@ -2592,7 +2592,7 @@ void my_fill_utf32(CHARSET_INFO *cs,
   buflen=
 #endif
     my_ci_wc_mb(cs, (my_wc_t) fill, (uchar*) buf, (uchar*) buf + sizeof(buf));
-  DBUG_ASSERT(buflen == 4);
+  DBUG_ASSERT_NO_ASSUME(buflen == 4);
   while (s < e)
   {
     memcpy(s, buf, 4);
@@ -2620,7 +2620,7 @@ my_scan_utf32(CHARSET_INFO *cs,
     }
     return (size_t) (str - str0);
   case MY_SEQ_NONSPACES:
-    DBUG_ASSERT(0); /* Not implemented */
+    DBUG_ASSERT_NO_ASSUME(0); /* Not implemented */
     /* pass through */
   default:
     return 0;

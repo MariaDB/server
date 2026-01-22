@@ -59,7 +59,7 @@ public:
   unsigned int size_of() { return sizeof(*this);}
   bool check_vcol_func_processor(void *arg) override
   {
-    DBUG_ASSERT(0); // impossible
+    DBUG_ASSERT_NO_ASSUME(0); // impossible
     return mark_unsupported_function("proc", arg, VCOL_IMPOSSIBLE);
   }
   bool get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate) override

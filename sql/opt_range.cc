@@ -9868,7 +9868,7 @@ SEL_ARG *Field::stored_field_make_mm_leaf(RANGE_OPT_PARAM *param,
     DBUG_RETURN(new (mem_root) SEL_ARG(this, str, str));
     break;
   }
-  DBUG_ASSERT(0);
+  DBUG_ASSERT_NO_ASSUME(0);
   DBUG_RETURN(NULL);
 }
 
@@ -9897,7 +9897,7 @@ SEL_ARG *Field::stored_field_make_mm_leaf_exact(RANGE_OPT_PARAM *param,
     DBUG_RETURN(new (param->mem_root) SEL_ARG(this, str, str));
     break;
   }
-  DBUG_ASSERT(0);
+  DBUG_ASSERT_NO_ASSUME(0);
   DBUG_RETURN(NULL);
 }
 

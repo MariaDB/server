@@ -4424,7 +4424,7 @@ static void stmt_update_metadata(MYSQL_STMT *stmt, MYSQL_ROWS *data)
   {
     if (!(*null_ptr & bit))
       (*my_bind->skip_result)(my_bind, field, &row);
-    DBUG_ASSERT(row <= row_end);
+    DBUG_ASSERT_NO_ASSUME(row <= row_end);
     if (!(bit= (uchar) (bit << 1)))
     {
       bit= 1;					/* To next uchar */

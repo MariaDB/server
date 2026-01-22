@@ -8334,7 +8334,7 @@ calc_row_difference(
 	if (prebuilt->versioned_write) {
 		/* Guaranteed by CREATE TABLE, but anyway we make sure we
 		generate history only when there are versioned fields. */
-		DBUG_ASSERT(vers_fields);
+		DBUG_ASSERT_NO_ASSUME(vers_fields);
 		prebuilt->upd_node->vers_make_update(trx);
 	}
 

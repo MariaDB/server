@@ -1792,7 +1792,7 @@ int ha_commit_trans(THD *thd, bool all)
   DBUG_ASSERT(thd->transaction->stmt.ha_list == NULL ||
               trans == &thd->transaction->stmt);
 
-  DBUG_ASSERT(!thd->in_sub_stmt);
+  DBUG_ASSERT_NO_ASSUME(!thd->in_sub_stmt);
 
   if (thd->in_sub_stmt)
   {
@@ -2360,7 +2360,7 @@ int ha_rollback_trans(THD *thd, bool all)
 
   if (thd->in_sub_stmt)
   {
-    DBUG_ASSERT(0);
+    DBUG_ASSERT_NO_ASSUME(0);
     /*
       If we are inside stored function or trigger we should not commit or
       rollback current statement transaction. See comment in ha_commit_trans()
@@ -2969,7 +2969,7 @@ int ha_recover(HASH *commit_list, MEM_ROOT *arg_mem_root)
   /* commit_list and tc_heuristic_recover cannot be set both */
   DBUG_ASSERT(info.commit_list==0 || tc_heuristic_recover==0);
   /* if either is set, total_ha_2pc must be set too */
-  DBUG_ASSERT(info.dry_run ||
+  DBUG_ASSERT_NO_ASSUME(info.dry_run ||
               (failed_ha_2pc + total_ha_2pc) > (ulong)opt_bin_log);
 
   if (total_ha_2pc <= (ulong)opt_bin_log)
@@ -4604,7 +4604,7 @@ void handler::get_auto_increment(ulonglong offset, ulonglong increment,
   if (ha_index_init(table->s->next_number_index, 1))
   {
     /* This should never happen, assert in debug, and fail in release build */
-    DBUG_ASSERT(0);
+    DBUG_ASSERT_NO_ASSUME(0);
     (void) extra(HA_EXTRA_NO_KEYREAD);
     *first_value= ULONGLONG_MAX;
     if (rnd_inited && ha_rnd_init_with_error(0))

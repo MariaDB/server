@@ -999,7 +999,7 @@ int Gtid_index_reader::do_index_search_leaf(bool current_state_updated,
   int res= get_offset_count(&offset, &gtid_count);
   if (res == 1)
   {
-    DBUG_ASSERT(0);
+    DBUG_ASSERT_NO_ASSUME(0);
     give_error("Corrupt index; empty leaf node");
     return -1;
   }

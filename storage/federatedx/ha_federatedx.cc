@@ -2873,7 +2873,7 @@ int ha_federatedx::free_result()
     federatedx_io *tmp_io= 0, **iop;
     if (!*(iop= &io) && (error= txn->acquire(share, ha_thd(), TRUE, (iop= &tmp_io))))
     {
-      DBUG_ASSERT(0);                             // Fail when testing
+      DBUG_ASSERT_NO_ASSUME(0);                             // Fail when testing
       insert_dynamic(&results, (uchar*) &stored_result);
       goto end;
     }
@@ -3222,7 +3222,7 @@ int ha_federatedx::reset(void)
 
     if (!*(iop= &io) && (error= tmp_txn->acquire(share, thd, TRUE, (iop= &tmp_io))))
     {
-      DBUG_ASSERT(0);                             // Fail when testing
+      DBUG_ASSERT_NO_ASSUME(0);                             // Fail when testing
       return error;
     }
 

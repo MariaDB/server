@@ -716,7 +716,7 @@ class Time_zone;
 #define THD_SENTRY_MAGIC 0xfeedd1ff
 #define THD_SENTRY_GONE  0xdeadbeef
 
-#define THD_CHECK_SENTRY(thd) DBUG_ASSERT(thd->dbug_sentry == THD_SENTRY_MAGIC)
+#define THD_CHECK_SENTRY(thd) DBUG_ASSERT_NO_ASSUME(thd->dbug_sentry == THD_SENTRY_MAGIC)
 
 typedef struct system_variables
 {

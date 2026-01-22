@@ -4008,7 +4008,7 @@ void select_max_min_finder_subselect::set_op(const Type_handler *th)
     break;
   case ROW_RESULT:
     // This case should never be chosen
-    DBUG_ASSERT(0);
+    DBUG_ASSERT_NO_ASSUME(0);
     op= 0;
   }
 }
@@ -4447,7 +4447,7 @@ void THD::end_statement()
 void THD::set_n_backup_active_arena(Query_arena *set, Query_arena *backup)
 {
   DBUG_ENTER("THD::set_n_backup_active_arena");
-  DBUG_ASSERT(backup->is_backup_arena == FALSE);
+  DBUG_ASSERT_NO_ASSUME(backup->is_backup_arena == FALSE);
 
   backup->set_query_arena(this);
   set_query_arena(set);
@@ -4467,7 +4467,7 @@ void THD::set_n_backup_active_arena(Query_arena *set, Query_arena *backup)
 void THD::restore_active_arena(Query_arena *set, Query_arena *backup)
 {
   DBUG_ENTER("THD::restore_active_arena");
-  DBUG_ASSERT(backup->is_backup_arena);
+  DBUG_ASSERT_NO_ASSUME(backup->is_backup_arena);
   set->set_query_arena(this);
   set_query_arena(backup);
 #ifdef DBUG_ASSERT_EXISTS

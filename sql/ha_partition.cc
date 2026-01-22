@@ -3322,7 +3322,7 @@ bool ha_partition::setup_engine_array(MEM_ROOT *mem_root,
       DBUG_PRINT("error", ("partition %u engine %d is not same as "
                            "first partition %d", i, db_type,
                            (int) first_db_type));
-      DBUG_ASSERT(0);
+      DBUG_ASSERT_NO_ASSUME(0);
       clear_handler_file();
       goto err;
     }
@@ -6247,7 +6247,7 @@ int ha_partition::index_read_idx_map(uchar *buf, uint index,
       If not only used with READ_EXACT, we should investigate if possible
       to optimize for other find_flag's as well.
     */
-    DBUG_ASSERT(0);
+    DBUG_ASSERT_NO_ASSUME(0);
     /* fall back on the default implementation */
     error= handler::index_read_idx_map(buf, index, key, keypart_map, find_flag);
   }
@@ -7784,7 +7784,7 @@ int ha_partition::handle_unordered_next(uchar *buf, bool is_next_same)
   if (m_part_spec.start_part >= m_tot_parts)
   {
     /* Should never happen! */
-    DBUG_ASSERT(0);
+    DBUG_ASSERT_NO_ASSUME(0);
     DBUG_RETURN(HA_ERR_END_OF_FILE);
   }
   file= m_file[m_part_spec.start_part];
@@ -8333,7 +8333,7 @@ int ha_partition::handle_ordered_next(uchar *buf, bool is_next_same)
   if (part_id >= m_tot_parts)
   {
     /* This should never happen! */
-    DBUG_ASSERT(0);
+    DBUG_ASSERT_NO_ASSUME(0);
     DBUG_RETURN(HA_ERR_END_OF_FILE);
   }
 
@@ -10356,7 +10356,7 @@ const char *ha_partition::index_type(uint inx)
 
   if (first_used_partition == MY_BIT_NONE)
   {
-    DBUG_ASSERT(0);                             // How can this happen?
+    DBUG_ASSERT_NO_ASSUME(0);                             // How can this happen?
     DBUG_RETURN(handler::index_type(inx));
   }
 
@@ -10513,7 +10513,7 @@ void ha_partition::print_error(int error, myf errflag)
   {
     if (m_last_part >= m_tot_parts)
     {
-      DBUG_ASSERT(0);
+      DBUG_ASSERT_NO_ASSUME(0);
       m_last_part= 0;
     }
     m_file[m_last_part]->print_error(error, errflag);
@@ -10711,7 +10711,7 @@ ha_partition::check_if_supported_inplace_alter(TABLE *altered_table,
       else if (first_is_set != (ha_alter_info->handler_ctx != NULL))
       {
         /* Either none or all partitions must set handler_ctx! */
-        DBUG_ASSERT(0);
+        DBUG_ASSERT_NO_ASSUME(0);
         DBUG_RETURN(HA_ALTER_ERROR);
       }
       if (p_result < result)

@@ -1169,7 +1169,7 @@ LEX_CSTRING Item_func_spatial_mbr_rel::func_name_cstring() const
     case SP_OVERLAPS_FUNC:
       return { STRING_WITH_LEN("mbroverlaps") };
     default:
-      DBUG_ASSERT(0);  // Should never happened
+      DBUG_ASSERT_NO_ASSUME(0);  // Should never happened
       return { STRING_WITH_LEN("mbrsp_unknown") };
   }
 }
@@ -1249,7 +1249,7 @@ LEX_CSTRING Item_func_spatial_precise_rel::func_name_cstring() const
     case SP_OVERLAPS_FUNC:
       return { STRING_WITH_LEN("st_overlaps") } ;
     default:
-      DBUG_ASSERT(0);  // Should never happened
+      DBUG_ASSERT_NO_ASSUME(0);  // Should never happened
       return { STRING_WITH_LEN("sp_unknown") };
   }
 }
@@ -1632,7 +1632,7 @@ LEX_CSTRING Item_func_spatial_operation::func_name_cstring() const
     case Gcalc_function::op_symdifference:
       return { STRING_WITH_LEN("st_symdifference") };
     default:
-      DBUG_ASSERT(0);  // Should never happen
+      DBUG_ASSERT_NO_ASSUME(0);  // Should never happen
       return { STRING_WITH_LEN("sp_unknown") };
   }
 }

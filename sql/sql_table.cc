@@ -7158,7 +7158,7 @@ static bool fill_alter_inplace_info(THD *thd, TABLE *table,
               it should have ealier called Column_definition_implicit_upgrade(),
               which replaces old data types to up-to-date data types.
           */
-          DBUG_ASSERT(0);
+          DBUG_ASSERT_NO_ASSUME(0);
           is_equal= false;
         }
       }
@@ -8527,7 +8527,7 @@ blob_length_by_type(enum_field_types type)
   case MYSQL_TYPE_LONG_BLOB:
     return (uint) UINT_MAX32;
   default:
-    DBUG_ASSERT(0); // we should never go here
+    DBUG_ASSERT_NO_ASSUME(0); // we should never go here
     return 0;
   }
 }
@@ -13386,8 +13386,6 @@ bool check_engine(THD *thd, const char *db_name,
   bool no_substitution= thd->variables.sql_mode & MODE_NO_ENGINE_SUBSTITUTION;
   *new_engine= ha_checktype(thd, req_engine, no_substitution);
   DBUG_ASSERT(*new_engine);
-  if (!*new_engine)
-    DBUG_RETURN(true);
 
   /*
     Enforced storage engine should not be used in ALTER TABLE that does not

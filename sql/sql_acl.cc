@@ -4113,14 +4113,15 @@ static bool add_role_user_mapping(const LEX_CSTRING &uname,
 */
 static void remove_ptr_from_dynarray(DYNAMIC_ARRAY *array, void *ptr)
 {
-  bool found __attribute__((unused))= false;
+  bool found= false;
   for (size_t i= 0; i < array->elements; i++)
   {
     if (ptr == *dynamic_element(array, i, void**))
     {
       DBUG_ASSERT(!found);
       delete_dynamic_element(array, i);
-      IF_DBUG_ASSERT(found= true, break);
+      found= true;
+      IF_DBUG_ASSERT(, break);
     }
   }
   DBUG_ASSERT(found);
@@ -6473,7 +6474,7 @@ static enum PRIVS_TO_MERGE::what sp_privs_to_merge(enum_sp_type type)
   case SP_TYPE_TRIGGER:
     break;
   }
-  DBUG_ASSERT(0);
+  DBUG_ASSERT_NO_ASSUME(0);
   return PRIVS_TO_MERGE::PROC;
 }
 
@@ -10772,7 +10773,7 @@ static int handle_grant_struct(enum enum_acl_lists struct_no, bool drop,
     elements= roles_mappings_hash->records;
     break;
   default:
-    DBUG_ASSERT(0);
+    DBUG_ASSERT_NO_ASSUME(0);
     DBUG_RETURN(-1);
   }
 

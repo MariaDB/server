@@ -527,7 +527,7 @@ static my_bool type_and_offset_read_num(DYNAMIC_COLUMN_TYPE *type,
     lim= 0x1fffffff;
     break;
   default:
-    DBUG_ASSERT(0);                             /* impossible */
+    DBUG_ASSERT_NO_ASSUME(0);                             /* impossible */
     return 1;
   }
   *type= (val & 0x7) + 1;
@@ -562,7 +562,7 @@ static my_bool type_and_offset_read_named(DYNAMIC_COLUMN_TYPE *type,
     break;
   case 1:
   default:
-    DBUG_ASSERT(0);                             /* impossible */
+    DBUG_ASSERT_NO_ASSUME(0);                             /* impossible */
     return 1;
   }
   *type= (val & 0xf) + 1;
@@ -960,7 +960,7 @@ dynamic_column_value_len(DYNAMIC_COLUMN_VALUE *value,
     */
     if (scale < 0 || precision <= 0)
     {
-      DBUG_ASSERT(0);                           /* Impossible */
+      DBUG_ASSERT_NO_ASSUME(0);                           /* Impossible */
       return (size_t) ~0;
     }
     return (dynamic_column_var_uint_bytes(value->x.decimal.value.intg) +
@@ -985,7 +985,7 @@ dynamic_column_value_len(DYNAMIC_COLUMN_VALUE *value,
   case DYN_COL_DYNCOL:
     return value->x.string.value.length;
   }
-  DBUG_ASSERT(0);
+  DBUG_ASSERT_NO_ASSUME(0);
   return 0;
 }
 
@@ -1563,7 +1563,7 @@ data_store(DYNAMIC_COLUMN *str, DYNAMIC_COLUMN_VALUE *value,
   case DYN_COL_NULL:
     break;                                      /* Impossible */
   }
-  DBUG_ASSERT(0);
+  DBUG_ASSERT_NO_ASSUME(0);
   return ER_DYNCOL_OK;                          /* Impossible */
 }
 

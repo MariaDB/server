@@ -8267,7 +8267,7 @@ int Event_log::write_cache_raw(THD *thd, IO_CACHE *cache)
       DBUG_RETURN(res);
     IF_DBUG(total-= read_len,);
   } while (my_b_fill(cache));
-  DBUG_ASSERT(total == 0);
+  DBUG_ASSERT_NO_ASSUME(total == 0);
   DBUG_RETURN(0);
 }
 

@@ -448,7 +448,7 @@ void wsrep_init_sidno(const wsrep::id& uuid)
 
 void wsrep_init_schema()
 {
-  DBUG_ASSERT(!wsrep_schema);
+  DBUG_ASSERT_NO_ASSUME(!wsrep_schema);
 
   WSREP_INFO("wsrep_init_schema_and_SR %p", wsrep_schema);
   if (!wsrep_schema)
@@ -3985,7 +3985,7 @@ enum wsrep::streaming_context::fragment_unit wsrep_fragment_unit(ulong unit)
   case WSREP_FRAG_ROWS: return wsrep::streaming_context::row;
   case WSREP_FRAG_STATEMENTS: return wsrep::streaming_context::statement;
   default:
-    DBUG_ASSERT(0);
+    DBUG_ASSERT_NO_ASSUME(0);
     return wsrep::streaming_context::bytes;
   }
 }

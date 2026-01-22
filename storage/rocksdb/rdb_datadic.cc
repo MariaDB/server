@@ -1752,7 +1752,7 @@ bool Rdb_key_def::index_format_min_check(const int pk_min,
     case INDEX_TYPE_SECONDARY:
       return (m_kv_format_version >= sk_min);
     default:
-      DBUG_ASSERT(0);
+      DBUG_ASSERT_NO_ASSUME(0);
       return false;
   }
 }

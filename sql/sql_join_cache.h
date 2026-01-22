@@ -474,7 +474,7 @@ protected:
   /* Shall set an auxiliary buffer up (currently used only by BKA joins) */
   virtual int setup_aux_buffer(HANDLER_BUFFER &aux_buff) 
   {
-    DBUG_ASSERT(0);
+    DBUG_ASSERT_NO_ASSUME(0);
     return 0;
   }
 

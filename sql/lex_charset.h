@@ -286,7 +286,7 @@ public:
     case TYPE_EXACT:
       return m_ci->coll_name;
     }
-    DBUG_ASSERT(0);
+    DBUG_ASSERT_NO_ASSUME(0);
     return m_ci->coll_name;
   }
   static Lex_extended_collation_st collate_default()
@@ -378,7 +378,7 @@ public:
       return merge_context_collation(used, map,
                                      Lex_context_collation(cl.charset_info()));
     }
-    DBUG_ASSERT(0);
+    DBUG_ASSERT_NO_ASSUME(0);
     return false;
   }
   bool merge_collation_override(Sql_used *used,
@@ -393,7 +393,7 @@ public:
       return merge_context_collation_override(
         used, map, Lex_context_collation(cl.charset_info()));
     }
-    DBUG_ASSERT(0);
+    DBUG_ASSERT_NO_ASSUME(0);
     return false;
   }
   /*
@@ -487,7 +487,7 @@ protected:
     case Lex_extended_collation_st::TYPE_CONTEXTUALLY_TYPED:
       return TYPE_COLLATE_CONTEXTUALLY_TYPED;
     }
-    DBUG_ASSERT(0);
+    DBUG_ASSERT_NO_ASSUME(0);
     return TYPE_COLLATE_EXACT;
   }
 public:
@@ -616,7 +616,7 @@ public:
     case TYPE_CHARACTER_SET_COLLATE_EXACT:
       break;
     }
-    DBUG_ASSERT(0);
+    DBUG_ASSERT_NO_ASSUME(0);
     return false;
   }
   /*
@@ -642,7 +642,7 @@ public:
     case TYPE_CHARACTER_SET_COLLATE_EXACT:
       break;
     }
-    DBUG_ASSERT(0);
+    DBUG_ASSERT_NO_ASSUME(0);
     return false;
   }
   bool merge_exact_charset(Sql_used *used,

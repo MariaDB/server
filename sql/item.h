@@ -4420,7 +4420,7 @@ public:
     case DEFAULT_VALUE:    return PARAM_ITEM;
     case IGNORE_VALUE:     return PARAM_ITEM;
     }
-    DBUG_ASSERT(0);
+    DBUG_ASSERT_NO_ASSUME(0);
     return PARAM_ITEM;
   }
 
@@ -7010,7 +7010,7 @@ public:
   longlong val_int() override;
   bool get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate) override
   {
-    DBUG_ASSERT(copied_in);
+    DBUG_ASSERT_NO_ASSUME(copied_in);
     return get_date_from_string(thd, ltime, fuzzydate);
   }
   void copy() override;
@@ -7048,7 +7048,7 @@ public:
   }
   int save_in_field(Field *field, bool) override
   {
-    DBUG_ASSERT(copied_in);
+    DBUG_ASSERT_NO_ASSUME(copied_in);
     DBUG_ASSERT(sane());
     if (null_value)
       return set_field_to_null(field);
@@ -7058,35 +7058,35 @@ public:
   }
   longlong val_int() override
   {
-    DBUG_ASSERT(copied_in);
+    DBUG_ASSERT_NO_ASSUME(copied_in);
     DBUG_ASSERT(sane());
     return null_value ? 0 :
            m_value.to_datetime(current_thd).to_longlong();
   }
   double val_real() override
   {
-    DBUG_ASSERT(copied_in);
+    DBUG_ASSERT_NO_ASSUME(copied_in);
     DBUG_ASSERT(sane());
     return null_value ? 0e0 :
            m_value.to_datetime(current_thd).to_double();
   }
   String *val_str(String *to) override
   {
-    DBUG_ASSERT(copied_in);
+    DBUG_ASSERT_NO_ASSUME(copied_in);
     DBUG_ASSERT(sane());
     return null_value ? NULL :
            m_value.to_datetime(current_thd).to_string(to, decimals);
   }
   my_decimal *val_decimal(my_decimal *to) override
   {
-    DBUG_ASSERT(copied_in);
+    DBUG_ASSERT_NO_ASSUME(copied_in);
     DBUG_ASSERT(sane());
     return null_value ? NULL :
            m_value.to_datetime(current_thd).to_decimal(to);
   }
   bool get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate) override
   {
-    DBUG_ASSERT(copied_in);
+    DBUG_ASSERT_NO_ASSUME(copied_in);
     DBUG_ASSERT(sane());
     bool res= m_value.to_TIME(thd, ltime, fuzzydate);
     DBUG_ASSERT(!res);
@@ -7094,7 +7094,7 @@ public:
   }
   bool val_native(THD *thd, Native *to) override
   {
-    DBUG_ASSERT(copied_in);
+    DBUG_ASSERT_NO_ASSUME(copied_in);
     DBUG_ASSERT(sane());
     decimal_digits_t dec= MY_MIN(decimals, TIME_SECOND_PART_DIGITS);
     return null_value || m_value.to_native(to, dec);
@@ -7264,7 +7264,7 @@ public:
   bool save_in_param(THD *, Item_param *param) override
   {
     // It should not be possible to have "EXECUTE .. USING DEFAULT(a)"
-    DBUG_ASSERT(0);
+    DBUG_ASSERT_NO_ASSUME(0);
     param->set_default(true);
     return false;
   }
