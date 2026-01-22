@@ -83,12 +83,6 @@ minus this count gives us the total number of documents. */
 /** Total number of words parsed from all documents */
 #define FTS_TOTAL_WORD_COUNT		"total_word_count"
 
-/** Start of optimize of an FTS index */
-#define FTS_OPTIMIZE_START_TIME		"optimize_start_time"
-
-/** End of optimize for an FTS index */
-#define FTS_OPTIMIZE_END_TIME		"optimize_end_time"
-
 /** User specified stopword table name */
 #define	FTS_STOPWORD_TABLE_NAME		"stopword_table_name"
 
@@ -340,31 +334,6 @@ fts_config_set_index_value(
 					config table */
 	MY_ATTRIBUTE((nonnull, warn_unused_result));
 
-#ifdef FTS_OPTIMIZE_DEBUG
-/******************************************************************//**
-Get an ulint value from the config table.
-@return DB_SUCCESS or error code */
-dberr_t
-fts_config_get_index_ulint(
-/*=======================*/
-	trx_t*		trx,		/*!< in: transaction */
-	dict_index_t*	index,		/*!< in: FTS index */
-	const char*	name,		/*!< in: param name */
-	ulint*		int_value)	/*!< out: value */
-	MY_ATTRIBUTE((nonnull, warn_unused_result));
-#endif /* FTS_OPTIMIZE_DEBUG */
-
-/******************************************************************//**
-Set an ulint value int the config table.
-@return DB_SUCCESS or error code */
-dberr_t
-fts_config_set_index_ulint(
-/*=======================*/
-	trx_t*		trx,		/*!< in: transaction */
-	dict_index_t*	index,		/*!< in: FTS index */
-	const char*	name,		/*!< in: param name */
-	ulint		int_value)	/*!< in: value */
-	MY_ATTRIBUTE((nonnull, warn_unused_result));
 /******************************************************************//**
 Get an ulint value from the config table.
 @return DB_SUCCESS or error code */

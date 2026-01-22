@@ -77,14 +77,6 @@ ulong	fts_min_token_size;
 static time_t elapsed_time;
 static ulint n_nodes;
 
-#ifdef FTS_CACHE_SIZE_DEBUG
-/** The cache size permissible lower limit (1K) */
-static const ulint FTS_CACHE_SIZE_LOWER_LIMIT_IN_MB = 1;
-
-/** The cache size permissible upper limit (1G) */
-static const ulint FTS_CACHE_SIZE_UPPER_LIMIT_IN_MB = 1024;
-#endif
-
 /** Time to sleep after DEADLOCK error before retrying operation. */
 static const std::chrono::milliseconds FTS_DEADLOCK_RETRY_WAIT(100);
 
@@ -204,15 +196,6 @@ fts_words_free(
 /*===========*/
 	ib_rbt_t*	words)		/*!< in: rb tree of words */
 	MY_ATTRIBUTE((nonnull));
-#ifdef FTS_CACHE_SIZE_DEBUG
-/****************************************************************//**
-Read the max cache size parameter from the config table. */
-static
-void
-fts_update_max_cache_size(
-/*======================*/
-	fts_sync_t*	sync);		/*!< in: sync state */
-#endif
 
 /*********************************************************************//**
 This function fetches the document just inserted right before
@@ -896,37 +879,10 @@ fts_index_get_charset(
 /*==================*/
 	dict_index_t*		index)		/*!< in: FTS index */
 {
-	CHARSET_INFO*		charset = NULL;
-	dict_field_t*		field;
-	ulint			prtype;
+	dict_field_t* field = dict_index_get_nth_field(index, 0);
+	ulint prtype = field->col->prtype;
 
-	field = dict_index_get_nth_field(index, 0);
-	prtype = field->col->prtype;
-
-	charset = fts_get_charset(prtype);
-
-#ifdef FTS_DEBUG
-	/* Set up charset info for this index. Please note all
-	field of the FTS index should have the same charset */
-	for (i = 1; i < index->n_fields; i++) {
-		CHARSET_INFO*   fld_charset;
-
-		field = dict_index_get_nth_field(index, i);
-		prtype = field->col->prtype;
-
-		fld_charset = fts_get_charset(prtype);
-
-		/* All FTS columns should have the same charset */
-		if (charset) {
-			ut_a(charset == fld_charset);
-		} else {
-			charset = fld_charset;
-		}
-	}
-#endif
-
-	return(charset);
-
+	return fts_get_charset(prtype);
 }
 /****************************************************************//**
 Create an FTS index cache.
@@ -1093,37 +1049,6 @@ fts_get_index_cache(
 
 	return(NULL);
 }
-
-#ifdef FTS_DEBUG
-/*********************************************************************//**
-Search the index cache for a get_doc structure.
-@return the fts_get_doc_t item else NULL */
-static
-fts_get_doc_t*
-fts_get_index_get_doc(
-/*==================*/
-	fts_cache_t*		cache,		/*!< in: cache to search */
-	const dict_index_t*	index)		/*!< in: index to search for */
-{
-	ulint			i;
-
-	mysql_mutex_assert_owner(&cache->init_lock);
-
-	for (i = 0; i < ib_vector_size(cache->get_docs); ++i) {
-		fts_get_doc_t*	get_doc;
-
-		get_doc = static_cast<fts_get_doc_t*>(
-			ib_vector_get(cache->get_docs, i));
-
-		if (get_doc->index_cache->index == index) {
-
-			return(get_doc);
-		}
-	}
-
-	return(NULL);
-}
-#endif
 
 /**********************************************************************//**
 Find an existing word, or if not found, create one and return it.
@@ -2471,76 +2396,6 @@ fts_fetch_store_doc_id(
 	return(FALSE);
 }
 
-#ifdef FTS_CACHE_SIZE_DEBUG
-/******************************************************************//**
-Get the max cache size in bytes. If there is an error reading the
-value we simply print an error message here and return the default
-value to the caller.
-@return max cache size in bytes */
-static
-ulint
-fts_get_max_cache_size(
-/*===================*/
-	trx_t*		trx,			/*!< in: transaction */
-	fts_table_t*	fts_table)		/*!< in: table instance */
-{
-	dberr_t		error;
-	fts_string_t	value;
-	ulong		cache_size_in_mb;
-
-	/* Set to the default value. */
-	cache_size_in_mb = FTS_CACHE_SIZE_LOWER_LIMIT_IN_MB;
-
-	/* We set the length of value to the max bytes it can hold. This
-	information is used by the callback that reads the value. */
-	value.f_n_char = 0;
-	value.f_len = FTS_MAX_CONFIG_VALUE_LEN;
-	value.f_str = ut_malloc_nokey(value.f_len + 1);
-
-	error = fts_config_get_value(
-		trx, fts_table, FTS_MAX_CACHE_SIZE_IN_MB, &value);
-
-	if (UNIV_LIKELY(error == DB_SUCCESS)) {
-		value.f_str[value.f_len] = 0;
-		cache_size_in_mb = strtoul((char*) value.f_str, NULL, 10);
-
-		if (cache_size_in_mb > FTS_CACHE_SIZE_UPPER_LIMIT_IN_MB) {
-
-			ib::warn() << "FTS max cache size ("
-				<< cache_size_in_mb << ") out of range."
-				" Minimum value is "
-				<< FTS_CACHE_SIZE_LOWER_LIMIT_IN_MB
-				<< "MB and the maximum value is "
-				<< FTS_CACHE_SIZE_UPPER_LIMIT_IN_MB
-				<< "MB, setting cache size to upper limit";
-
-			cache_size_in_mb = FTS_CACHE_SIZE_UPPER_LIMIT_IN_MB;
-
-		} else if  (cache_size_in_mb
-			    < FTS_CACHE_SIZE_LOWER_LIMIT_IN_MB) {
-
-			ib::warn() << "FTS max cache size ("
-				<< cache_size_in_mb << ") out of range."
-				" Minimum value is "
-				<< FTS_CACHE_SIZE_LOWER_LIMIT_IN_MB
-				<< "MB and the maximum value is"
-				<< FTS_CACHE_SIZE_UPPER_LIMIT_IN_MB
-				<< "MB, setting cache size to lower limit";
-
-			cache_size_in_mb = FTS_CACHE_SIZE_LOWER_LIMIT_IN_MB;
-		}
-	} else {
-		ib::error() << "(" << error << ") reading max"
-			" cache config value from config table "
-			<< fts_table->table->name;
-	}
-
-	ut_free(value.f_str);
-
-	return(cache_size_in_mb * 1024 * 1024);
-}
-#endif
-
 /*********************************************************************//**
 Get the next available document id.
 @return DB_SUCCESS if OK */
@@ -3632,11 +3487,6 @@ fts_get_max_doc_id(
 	ut_ad(!index->is_instant());
 
 	dfield = dict_index_get_nth_field(index, 0);
-
-#if 0 /* This can fail when renaming a column to FTS_DOC_ID. */
-	ut_ad(Lex_ident_column(Lex_cstring_strlen(dfield->name)).
-		streq(FTS_DOC_ID));
-#endif
 
 	mtr.start();
 
@@ -4828,38 +4678,6 @@ fts_init_doc_id(
 	return(max_doc_id);
 }
 
-#ifdef FTS_MULT_INDEX
-/*********************************************************************//**
-Check if the index is in the affected set.
-@return TRUE if index is updated */
-static
-ibool
-fts_is_index_updated(
-/*=================*/
-	const ib_vector_t*	fts_indexes,	/*!< in: affected FTS indexes */
-	const fts_get_doc_t*	get_doc)	/*!< in: info for reading
-						document */
-{
-	ulint		i;
-	dict_index_t*	index = get_doc->index_cache->index;
-
-	for (i = 0; i < ib_vector_size(fts_indexes); ++i) {
-		const dict_index_t*	updated_fts_index;
-
-		updated_fts_index = static_cast<const dict_index_t*>(
-			ib_vector_getp_const(fts_indexes, i));
-
-		ut_a(updated_fts_index != NULL);
-
-		if (updated_fts_index == index) {
-			return(TRUE);
-		}
-	}
-
-	return(FALSE);
-}
-#endif
-
 /*********************************************************************//**
 Fetch COUNT(*) from specified table.
 @return the number of rows in the table */
@@ -4934,31 +4752,6 @@ fts_get_rows_count(
 
 	return(count);
 }
-
-#ifdef FTS_CACHE_SIZE_DEBUG
-/*********************************************************************//**
-Read the max cache size parameter from the config table. */
-static
-void
-fts_update_max_cache_size(
-/*======================*/
-	fts_sync_t*	sync)			/*!< in: sync state */
-{
-	trx_t*		trx;
-	fts_table_t	fts_table;
-
-	trx = trx_create();
-
-	FTS_INIT_FTS_TABLE(&fts_table, "CONFIG", FTS_COMMON_TABLE, sync->table);
-
-	/* The size returned is in bytes. */
-	sync->max_cache_size = fts_get_max_cache_size(trx, &fts_table);
-
-	fts_sql_commit(trx);
-
-	trx->free();
-}
-#endif /* FTS_CACHE_SIZE_DEBUG */
 
 /*********************************************************************//**
 Free the modified rows of a table. */

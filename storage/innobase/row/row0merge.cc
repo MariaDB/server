@@ -1917,10 +1917,6 @@ row_merge_read_clustered_index(
 
 	trx->op_info = "reading clustered index";
 
-#ifdef FTS_INTERNAL_DIAG_PRINT
-	DEBUG_FTS_SORT_PRINT("FTS_SORT: Start Create Index\n");
-#endif
-
 	/* Create and initialize memory for record buffers */
 
 	merge_buf = static_cast<row_merge_buf_t**>(
@@ -2964,9 +2960,6 @@ all_done:
 		mem_heap_free(conv_heap);
 	}
 
-#ifdef FTS_INTERNAL_DIAG_PRINT
-	DEBUG_FTS_SORT_PRINT("FTS_SORT: Complete Scan Table\n");
-#endif
 	if (UNIV_LIKELY_NULL(fts_parallel_sort_cond)) {
 wait_again:
                 /* Check if error occurs in child thread */
@@ -3007,9 +3000,6 @@ wait_again:
 		}
 	}
 
-#ifdef FTS_INTERNAL_DIAG_PRINT
-	DEBUG_FTS_SORT_PRINT("FTS_SORT: Complete Tokenization\n");
-#endif
 	for (ulint i = 0; i < n_index; i++) {
 		row_merge_buf_free(merge_buf[i]);
 	}
@@ -4820,9 +4810,6 @@ row_merge_build_indexes(
 					psort_info, 0);
 			}
 
-#ifdef FTS_INTERNAL_DIAG_PRINT
-			DEBUG_FTS_SORT_PRINT("FTS_SORT: Complete Insert\n");
-#endif
 		} else if (merge_files[k].fd != OS_FILE_CLOSED) {
 			char	buf[NAME_LEN + 1];
 			row_merge_dup_t	dup = {
