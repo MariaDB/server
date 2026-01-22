@@ -1330,3 +1330,12 @@ connection default;
 disconnect con1;
 set debug_sync='RESET';
 
+--echo #
+--echo # MDEV-36353: Server crashes with EXPLAIN/DESC FOR CONNECTION 
+--echo # instead of displaying an error.
+--echo #
+--error ER_SET_CONSTANTS_ONLY
+EXPLAIN FOR CONNECTION INTERVAL TRUE IN (SELECT 1) YEAR_MONTH + FALSE=TRUE NOT IN (SELECT 1);
+
+--error ER_SET_CONSTANTS_ONLY
+DESC FOR CONNECTION INTERVAL TRUE IN (SELECT 1) YEAR_MONTH + FALSE=TRUE NOT IN (SELECT 1);

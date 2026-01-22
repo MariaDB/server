@@ -14249,15 +14249,19 @@ explain_for_connection:
             SHOW EXPLAIN FOR command. It was introduced for compatibility
             with MySQL which implements EXPLAIN FOR CONNECTION command
           */
-          describe_command opt_format_json FOR_SYM CONNECTION_SYM expr
+          describe_command opt_format_json
           {
-            LEX *lex=Lex;
-            lex->wild=0;
+            LEX *lex= Lex;
+            lex->wild= 0;
             lex->ident= null_clex_str;
             if (Lex->main_select_push())
               MYSQL_YYABORT;
             lex->init_select();
             lex->current_select->parsing_place= SELECT_LIST;
+          }
+          FOR_SYM CONNECTION_SYM expr
+          {
+            LEX *lex= Lex;
             lex->create_info.init();
             Select->parsing_place= NO_MATTER;
             Lex->pop_select(); //main select
@@ -14265,7 +14269,7 @@ explain_for_connection:
             if (unlikely(prepare_schema_table(thd, Lex, 0,
                 Lex->explain_json ? SCH_EXPLAIN_JSON : SCH_EXPLAIN_TABULAR)))
               MYSQL_YYABORT;
-            add_value_to_list(thd, $5);
+            add_value_to_list(thd, $6);
           }
         ;
 
