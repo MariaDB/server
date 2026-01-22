@@ -14,7 +14,6 @@ TRUNCATE mysql.slow_log;
 SET long_query_time=0.01;
 CALL p1;
 SELECT sql_text FROM mysql.slow_log;;
-sql_text	SELECT SLEEP(0.1)
 sql_text	CALL p1
 SET long_query_time=default;
 DROP PROCEDURE p1;
@@ -30,7 +29,6 @@ TRUNCATE mysql.slow_log;
 SET long_query_time=0.01;
 CALL p1;
 SELECT sql_text FROM mysql.slow_log;;
-sql_text	SELECT SLEEP(0.1)
 sql_text	CALL p1
 SET long_query_time=default;
 DROP PROCEDURE p1;
@@ -48,7 +46,6 @@ TRUNCATE mysql.slow_log;
 SET long_query_time=0.01;
 CALL p1;
 SELECT sql_text FROM mysql.slow_log;;
-sql_text	SELECT SLEEP(0.1)
 sql_text	DEALLOCATE PREPARE stmt0
 sql_text	CALL p1
 SET long_query_time=default;
@@ -65,10 +62,29 @@ TRUNCATE mysql.slow_log;
 SET long_query_time=0.01;
 CALL p1;
 SELECT sql_text FROM mysql.slow_log;;
-sql_text	SELECT SLEEP(0.1)
 sql_text	CALL p1
 SET long_query_time=default;
 DROP PROCEDURE p1;
 TRUNCATE mysql.slow_log;
 SET log_slow_disabled_statements=default;
 SET global log_output=default;
+#
+# MDEV-38359 Assertion `!thd->free_list' failed in bool MYSQL_QUERY_LOG::write(THD *, time_t, const char *, size_t, ulonglong, ulonglong, bool, const char *, size_t)
+#
+SET GLOBAL slow_query_log=ON;
+CREATE PROCEDURE p1()
+BEGIN DECLARE c sys_refcursor;
+OPEN c FOR SELECT SLEEP(1);
+CLOSE c;
+END;
+$$
+connect  con1,localhost,root,,;
+connection con1;
+SET SESSION log_slow_verbosity='explain';
+SET log_slow_disabled_statements=admin;
+SET long_query_time=1;
+USE test;
+CALL p1();
+disconnect con1;
+connection default;
+DROP PROCEDURE p1;

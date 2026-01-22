@@ -1,5 +1,17 @@
 --source include/no_valgrind_without_big.inc
 
+#
+# Originally the patch for MDEV-33830 enabled slow log for
+# OPEN cursor statemenents. However the slow log code appeared
+# to be buggy:
+# - MDEV-38611 Procedure statements do not write Explain entries to the slow log
+# - MDEV-38614 Procedure statements write wrong Query_time into slow log
+# It was decided to postpone enabling slow log for OPEN until
+# these bugs are fixed.
+# Enabling slow log will be done under terms of:
+# MDEV-38612 Cursor OPEN statements do not write to the slow log
+#
+
 --echo #
 --echo # MDEV-33830 Support for cursors on prepared statements
 --echo #
@@ -87,3 +99,30 @@ TRUNCATE mysql.slow_log;
 SET log_slow_disabled_statements=default;
 
 SET global log_output=default;
+
+
+--echo #
+--echo # MDEV-38359 Assertion `!thd->free_list' failed in bool MYSQL_QUERY_LOG::write(THD *, time_t, const char *, size_t, ulonglong, ulonglong, bool, const char *, size_t)
+--echo #
+
+SET GLOBAL slow_query_log=ON;
+
+DELIMITER $$;
+CREATE PROCEDURE p1()
+  BEGIN DECLARE c sys_refcursor;
+  OPEN c FOR SELECT SLEEP(1);
+  CLOSE c;
+END;
+$$
+DELIMITER ;$$
+
+connect (con1,localhost,root,,);
+connection con1;
+SET SESSION log_slow_verbosity='explain';
+SET log_slow_disabled_statements=admin;
+SET long_query_time=1;
+USE test;
+CALL p1();
+disconnect con1;
+connection default;
+DROP PROCEDURE p1;

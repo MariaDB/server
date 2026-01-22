@@ -129,7 +129,6 @@ int mysql_open_cursor(THD *thd, select_result *result,
   }
 
 end:
-  log_slow_statement(thd);
   thd->set_query(query_backup);
   delete result_materialize;
   return rc;
