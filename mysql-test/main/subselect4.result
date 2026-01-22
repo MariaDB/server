@@ -3373,4 +3373,50 @@ CREATE TABLE t(c INT);
 SELECT (SELECT 0 GROUP BY c HAVING (SELECT c)) FROM t GROUP BY c;
 (SELECT 0 GROUP BY c HAVING (SELECT c))
 DROP TABLE t;
+#
+# MDEV-35168 subselects with outer references to derived tables may be incorrectly evaluated as constant
+#
+create table t1 (a int);
+insert into t1 (a) values (5);
+select 1 as one from
+(
+t1 as t2 left join
+(
+select 0 as c1
+from t1
+) as dt1
+on dt1.c1 = t2.a
+)
+where exists
+(
+select 1 from t1
+where dt1.c1 <> t1.a
+);
+one
+create view v1 as ( select 0 as c1 from t1 );
+select 1 as one from
+(
+t1 left join v1
+on v1.c1 = t1.a
+)
+where exists
+(
+select 1 from t1
+where v1.c1 <> t1.a
+);
+one
+with cte1 as ( select 0 as c1 from t1 )
+select 1 as one from
+(
+t1 left join cte1
+on cte1.c1 = t1.a
+)
+where exists
+(
+select 1 from t1
+where cte1.c1 <> t1.a
+);
+one
+drop view v1;
+drop table t1;
 # End of 10.11 tests

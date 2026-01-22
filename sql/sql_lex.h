@@ -1714,6 +1714,16 @@ public:
   TABLE_LIST *find_table(THD *thd,
                          const LEX_CSTRING *db_name,
                          const LEX_CSTRING *table_name);
+
+  st_select_lex *get_merged_into()
+  {
+    st_select_lex *ret= this;
+
+    while(ret->merged_into)
+      ret= ret->merged_into;
+
+    return ret;
+  }
 };
 typedef class st_select_lex SELECT_LEX;
 

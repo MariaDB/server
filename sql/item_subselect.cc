@@ -469,26 +469,6 @@ void Item_subselect::fix_after_pullout(st_select_lex *new_parent,
 }
 
 
-class Field_fixer: public Field_enumerator
-{
-public:
-  table_map used_tables; /* Collect used_tables here */
-  st_select_lex *new_parent; /* Select we're in */
-  void visit_field(Item_field *item) override
-  {
-    //for (TABLE_LIST *tbl= new_parent->leaf_tables; tbl; tbl= tbl->next_local)
-    //{
-    //  if (tbl->table == field->table)
-    //  {
-        used_tables|= item->field->table->map;
-    //    return;
-    //  }
-    //}
-    //used_tables |= OUTER_REF_TABLE_BIT;
-  }
-};
-
-
 /*
   Recalculate used_tables_cache 
 */
@@ -538,6 +518,14 @@ void Item_subselect::recalc_used_tables(st_select_lex *new_parent,
           fixer.used_tables= 0;
           fixer.new_parent= new_parent;
           upper->item->walk(&Item::enumerate_field_refs_processor, 0, &fixer);
+          /*
+            An reference (that can be null) might refer to a constant item
+            (that isn't and can't be null).
+            We need to update the table map to include tables that might be
+            null to avoid this subselect being marked as constant.
+            This information is in the Item_direct_view_ref wrapper.
+          */
+          upper->item->walk(&Item::enumerate_table_refs_processor, 0, &fixer);
           used_tables_cache |= fixer.used_tables;
           upper->item->walk(&Item::update_table_bitmaps_processor, FALSE, NULL);
 /*

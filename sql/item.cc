@@ -3274,6 +3274,21 @@ bool Item_field::enumerate_field_refs_processor(void *arg)
   return FALSE;
 }
 
+
+bool Item_direct_view_ref::enumerate_table_refs_processor(void *arg)
+{
+  Field_fixer *ff= (Field_fixer*)arg;
+  st_select_lex *cmp= ff->new_parent->get_merged_into();
+
+  // our table is resolved in the select of interest
+  if (null_ref_table &&
+      null_ref_table != NO_NULL_TABLE &&
+      null_ref_table->pos_in_table_list->select_lex == cmp)
+    ff->used_tables |= null_ref_table->map;
+  return FALSE;
+}
+
+
 bool Item_field::update_table_bitmaps_processor(void *arg)
 {
   update_table_bitmaps();

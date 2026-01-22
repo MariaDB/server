@@ -2303,6 +2303,7 @@ public:
   virtual bool update_table_bitmaps_processor(void *arg) { return 0; }
 
   virtual bool enumerate_field_refs_processor(void *arg) { return 0; }
+  virtual bool enumerate_table_refs_processor(void *arg) { return 0; }
   virtual bool mark_as_eliminated_processor(void *arg) { return 0; }
   virtual bool eliminate_subselect_processor(void *arg) { return 0; }
   virtual bool view_used_tables_processor(void *arg) { return 0; }
@@ -6342,6 +6343,7 @@ public:
       set_null_ref_table();
   }
 
+  bool enumerate_table_refs_processor(void *arg) override;
   bool fix_fields(THD *, Item **) override;
   bool eq(const Item *item, const Eq_config &config) const override;
   Item *get_tmp_table_item(THD *thd) override
@@ -8350,5 +8352,25 @@ inline void TABLE::use_all_stored_columns()
     for (; *vf; vf++)
       bitmap_clear_bit(read_set, (*vf)->field_index);
 }
+
+
+class Field_fixer: public Field_enumerator
+{
+public:
+  table_map used_tables; /* Collect used_tables here */
+  st_select_lex *new_parent; /* Select we're in */
+  void visit_field(Item_field *item) override
+  {
+    //for (TABLE_LIST *tbl= new_parent->leaf_tables; tbl; tbl= tbl->next_local)
+    //{
+    //  if (tbl->table == field->table)
+    //  {
+        used_tables|= item->field->table->map;
+    //    return;
+    //  }
+    //}
+    //used_tables |= OUTER_REF_TABLE_BIT;
+  }
+};
 
 #endif /* SQL_ITEM_INCLUDED */
