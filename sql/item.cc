@@ -3275,6 +3275,7 @@ bool Item_field::enumerate_field_refs_processor(void *arg)
   return FALSE;
 }
 
+
 bool Item_field::update_table_bitmaps_processor(void *arg)
 {
   update_table_bitmaps();

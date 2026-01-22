@@ -523,6 +523,20 @@ public:
 };
 
 
+bool Item_direct_view_ref::enumerate_table_refs_processor(void *arg)
+{
+  Field_fixer *ff= (Field_fixer*)arg;
+  st_select_lex *cmp= ff->new_parent->get_merged_into();
+
+  // our table is resolved in the select of interest
+  if (null_ref_table &&
+      null_ref_table != NO_NULL_TABLE &&
+      null_ref_table->pos_in_table_list->select_lex == cmp)
+    ff->used_tables |= null_ref_table->map;
+  return FALSE;
+}
+
+
 /*
   Recalculate used_tables_cache 
 */
@@ -572,6 +586,14 @@ void Item_subselect::recalc_used_tables(st_select_lex *new_parent,
           fixer.used_tables= 0;
           fixer.new_parent= new_parent;
           upper->item->walk(&Item::enumerate_field_refs_processor, 0, &fixer);
+          /*
+            An reference (that can be null) might refer to a constant item
+            (that isn't and can't be null).
+            We need to update the table map to include tables that might be
+            null to avoid this subselect being marked as constant.
+            This information is in the Item_direct_view_ref wrapper.
+          */
+          upper->item->walk(&Item::enumerate_table_refs_processor, 0, &fixer);
           used_tables_cache |= fixer.used_tables;
           upper->item->walk(&Item::update_table_bitmaps_processor, FALSE, NULL);
 /*

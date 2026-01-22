@@ -2306,6 +2306,7 @@ public:
   virtual bool update_table_bitmaps_processor(void *arg) { return 0; }
 
   virtual bool enumerate_field_refs_processor(void *arg) { return 0; }
+  virtual bool enumerate_table_refs_processor(void *arg) { return 0; }
   virtual bool mark_as_eliminated_processor(void *arg) { return 0; }
   virtual bool unmark_as_eliminated_processor(void *arg) { return 0; }
   virtual bool eliminate_subselect_processor(void *arg) { return 0; }
@@ -6464,6 +6465,7 @@ public:
       set_null_ref_table();
   }
 
+  bool enumerate_table_refs_processor(void *arg) override;
   bool fix_fields(THD *, Item **) override;
   bool eq(const Item *item, const Eq_config &config) const override;
   Item *get_tmp_table_item(THD *thd) override

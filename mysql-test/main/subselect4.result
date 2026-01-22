@@ -3414,4 +3414,73 @@ t1	CREATE TABLE `t1` (
   `c2` varchar(3) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t0, t1;
+#
+# MDEV-35168 subselects with outer references to derived tables may be incorrectly evaluated as constant
+#
+create table t1 (a int);
+insert into t1 (a) values (5);
+select 1 as one from
+(
+t1 as t2 left join
+(
+select 0 as c1
+from t1
+) as dt1
+on dt1.c1 = t2.a
+)
+where exists
+(
+select 1 from t1
+where dt1.c1 <> t1.a
+);
+one
+create view v1 as ( select 0 as c1 from t1 );
+select 1 as one from
+(
+t1 left join v1
+on v1.c1 = t1.a
+)
+where exists
+(
+select 1 from t1
+where v1.c1 <> t1.a
+);
+one
+with cte1 as ( select 0 as c1 from t1 )
+select 1 as one from
+(
+t1 left join cte1
+on cte1.c1 = t1.a
+)
+where exists
+(
+select 1 from t1
+where cte1.c1 <> t1.a
+);
+one
+insert into t1 (a) values (0);
+select * from
+(
+select t2.a as a,
+exists ( select 1 from t1 where dt1.c1 <> t1.a ) as e
+from t1 as t2 left join ( select 0 as c1 from t1 ) as dt1
+on dt1.c1 = t2.a
+) as dt2;
+a	e
+0	1
+0	1
+5	0
+create view v2 as
+select t2.a as a,
+exists ( select 1 from t1 where v1.c1 <> t1.a ) as e
+from t1 as t2 left join v1
+on v1.c1 = t2.a;
+select * from v2;
+a	e
+0	1
+0	1
+5	0
+drop view v2;
+drop view v1;
+drop table t1;
 # End of 10.11 tests

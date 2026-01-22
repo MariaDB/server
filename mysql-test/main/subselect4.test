@@ -2710,5 +2710,75 @@ CREATE TABLE t1 AS
 SHOW CREATE TABLE t1;
 DROP TABLE t0, t1;
 
+--echo #
+--echo # MDEV-35168 subselects with outer references to derived tables may be incorrectly evaluated as constant
+--echo #
+
+create table t1 (a int);
+insert into t1 (a) values (5);
+
+select 1 as one from
+  (
+    t1 as t2 left join
+    (
+      select 0 as c1
+        from t1
+    ) as dt1
+      on dt1.c1 = t2.a
+  )
+  where exists
+  (
+    select 1 from t1
+      where dt1.c1 <> t1.a
+  );
+
+create view v1 as ( select 0 as c1 from t1 );
+
+select 1 as one from
+  (
+    t1 left join v1
+      on v1.c1 = t1.a
+  )
+  where exists
+  (
+    select 1 from t1
+      where v1.c1 <> t1.a
+  );
+
+with cte1 as ( select 0 as c1 from t1 )
+select 1 as one from
+  (
+    t1 left join cte1
+      on cte1.c1 = t1.a
+  )
+  where exists
+  (
+    select 1 from t1
+      where cte1.c1 <> t1.a
+  );
+
+# the select holding the outer reference is merged into another select
+
+insert into t1 (a) values (0);
+
+select * from
+(
+  select t2.a as a,
+         exists ( select 1 from t1 where dt1.c1 <> t1.a ) as e
+    from t1 as t2 left join ( select 0 as c1 from t1 ) as dt1
+      on dt1.c1 = t2.a
+) as dt2;
+
+create view v2 as
+  select t2.a as a,
+         exists ( select 1 from t1 where v1.c1 <> t1.a ) as e
+    from t1 as t2 left join v1
+      on v1.c1 = t2.a;
+
+select * from v2;
+
+drop view v2;
+drop view v1;
+drop table t1;
 
 --echo # End of 10.11 tests
