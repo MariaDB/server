@@ -5592,4 +5592,18 @@ EXECUTE stmt USING 700, 900;
 DEALLOCATE PREPARE stmt;
 DROP TABLE t1;
 
+--echo #
+--echo # MDEV-38620: Server crashes in setup_returning_fields upon 2nd
+--echo # execution of multi-table-styled DELETE from a view
+--echo #
+
+CREATE TABLE t (a INT);
+CREATE VIEW v AS SELECT * FROM t;
+PREPARE stmt FROM "DELETE v FROM v";
+EXECUTE stmt;
+EXECUTE stmt;
+ 
+DROP VIEW v;
+DROP TABLE t;
+
 --echo # End of 11.4 tests

@@ -13730,6 +13730,7 @@ opt_returning:
 
             thd->lex->current_select->parsing_place= IN_RETURNING;
             thd->lex->push_context(&thd->lex->returning()->context);
+            thd->lex->has_returning_list= true;
           }
           select_item_list
           {

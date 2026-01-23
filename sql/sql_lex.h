@@ -3667,6 +3667,9 @@ public:
     Activates enforcement of the LIMIT ROWS EXAMINED clause, if present
     in the query.
   */
+
+  bool has_returning_list;
+
   void set_limit_rows_examined()
   {
     if (limit_rows_examined)
@@ -4946,7 +4949,7 @@ public:
   SELECT_LEX *returning()
   { return &builtin_select; }
   bool has_returning()
-  { return !builtin_select.item_list.is_empty(); }
+  { return has_returning_list; }
 
 private:
   bool stmt_create_routine_start(const DDL_options_st &options)

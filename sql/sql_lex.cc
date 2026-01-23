@@ -1337,6 +1337,8 @@ void LEX::start(THD *thd_arg)
 
   table_count_update= 0;
 
+  has_returning_list= false;
+
   memset(&trg_chistics, 0, sizeof(trg_chistics));
   DBUG_VOID_RETURN;
 }

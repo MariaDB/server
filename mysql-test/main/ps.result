@@ -6138,4 +6138,15 @@ a	?	?
 1	700	900
 DEALLOCATE PREPARE stmt;
 DROP TABLE t1;
+#
+# MDEV-38620: Server crashes in setup_returning_fields upon 2nd
+# execution of multi-table-styled DELETE from a view
+#
+CREATE TABLE t (a INT);
+CREATE VIEW v AS SELECT * FROM t;
+PREPARE stmt FROM "DELETE v FROM v";
+EXECUTE stmt;
+EXECUTE stmt;
+DROP VIEW v;
+DROP TABLE t;
 # End of 11.4 tests
