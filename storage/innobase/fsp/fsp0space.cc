@@ -210,7 +210,7 @@ dberr_t Tablespace::add_datafile(const char *filepath)
 
 	/* Now add a new Datafile and set the filepath
 	using the m_path created above. */
-	m_files.push_back(Datafile(m_flags, FIL_IBD_FILE_INITIAL_SIZE, 0));
+	m_files.emplace_back(m_flags, FIL_IBD_FILE_INITIAL_SIZE, 0);
 	m_files.back().make_filepath(m_path, {basename, strlen(basename) - 4},
 				     IBD);
 
