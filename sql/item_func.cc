@@ -783,36 +783,21 @@ void Item_udf_func::fix_num_length_and_dec()
 #endif
 
 
-namespace {
-
-void push_divide_by_zero_warning(THD *thd)
-{
-  push_warning(thd, Sql_condition::WARN_LEVEL_WARN, ER_DIVISION_BY_ZERO,
-               ER_THD(thd, ER_DIVISION_BY_ZERO));
-}
-
-void push_invalid_log_argument_warning(THD *thd)
-{
-  push_warning(thd, Sql_condition::WARN_LEVEL_WARN,
-               ER_INVALID_ARGUMENT_FOR_LOGARITHM,
-               ER_THD(thd, ER_INVALID_ARGUMENT_FOR_LOGARITHM));
-}
-
-} // namespace
-
 void Item_func::signal_divide_by_null()
 {
   THD *thd= current_thd;
   if (thd->variables.sql_mode & MODE_ERROR_FOR_DIVISION_BY_ZERO)
-    push_divide_by_zero_warning(thd);
+    push_warning(thd, Sql_condition::WARN_LEVEL_WARN, ER_DIVISION_BY_ZERO,
+                 ER_THD(thd, ER_DIVISION_BY_ZERO));
   null_value= 1;
 }
 
-void Item_func::signal_invalid_log_argument()
+void Item_func::signal_log_domain_error(uint sql_errno)
 {
   THD *thd= current_thd;
   if (thd->variables.sql_mode & MODE_ERROR_FOR_DIVISION_BY_ZERO)
-    push_invalid_log_argument_warning(thd);
+    push_warning(thd, Sql_condition::WARN_LEVEL_WARN, sql_errno,
+                 ER_THD(thd, sql_errno));
   null_value= 1;
 }
 
@@ -2045,7 +2030,7 @@ double Item_func_ln::val_real()
     return 0.0;
   if (value <= 0.0)
   {
-    signal_invalid_log_argument();
+    signal_log_domain_error(ER_INVALID_ARGUMENT_FOR_LN);
     return 0.0;
   }
   return log(value);
@@ -2060,27 +2045,32 @@ double Item_func_ln::val_real()
 double Item_func_log::val_real()
 {
   DBUG_ASSERT(fixed());
-  double value= args[0]->val_real();
+  double base= args[0]->val_real();
   if ((null_value= args[0]->null_value))
     return 0.0;
-  if (value <= 0.0)
-  {
-    signal_invalid_log_argument();
-    return 0.0;
-  }
   if (arg_count == 2)
   {
-    double value2= args[1]->val_real();
+    double value= args[1]->val_real();
     if ((null_value= args[1]->null_value))
       return 0.0;
-    if (value2 <= 0.0 || value == 1.0)
+    if (base <= 0.0 || base == 1.0)
     {
-      signal_invalid_log_argument();
+      signal_log_domain_error(ER_INVALID_BASE_FOR_LOG);
       return 0.0;
     }
-    return log(value2) / log(value);
+    if (value <= 0.0)
+    {
+      signal_log_domain_error(ER_INVALID_ARGUMENT_FOR_LOG);
+      return 0.0;
+    }
+    return log(value) / log(base);
   }
-  return log(value);
+  if (base <= 0.0)
+  {
+    signal_log_domain_error(ER_INVALID_ARGUMENT_FOR_LOG);
+    return 0.0;
+  }
+  return log(base);
 }
 
 double Item_func_log2::val_real()
@@ -2092,7 +2082,7 @@ double Item_func_log2::val_real()
     return 0.0;
   if (value <= 0.0)
   {
-    signal_invalid_log_argument();
+    signal_log_domain_error(ER_INVALID_ARGUMENT_FOR_LOG2);
     return 0.0;
   }
   return log(value) / M_LN2;
@@ -2106,7 +2096,7 @@ double Item_func_log10::val_real()
     return 0.0;
   if (value <= 0.0)
   {
-    signal_invalid_log_argument();
+    signal_log_domain_error(ER_INVALID_ARGUMENT_FOR_LOG10);
     return 0.0;
   }
   return log10(value);

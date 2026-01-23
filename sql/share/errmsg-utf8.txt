@@ -12388,3 +12388,13 @@ ER_SLAVE_INCOMPATIBLE_TABLE_DEF
         eng "Table structure for binlog event is not compatible with the table definition on this slave: %s"
 ER_UNSUPPORTED_DATA_TYPE_ATTRIBUTE
         eng "Data type '%-.64s' doesn't support %s attribute."
+ER_INVALID_ARGUMENT_FOR_LN 2201E
+        eng "Passing non-positive argument to ln() makes the function's result undefined"
+ER_INVALID_ARGUMENT_FOR_LOG 2201E
+        eng "Passing non-positive argument to log() makes the function's result undefined"
+ER_INVALID_BASE_FOR_LOG 2201E
+        eng "Passing non-positive or equal-to-1 base to log() makes the function's result undefined"
+ER_INVALID_ARGUMENT_FOR_LOG2 2201E
+        eng "Passing non-positive argument to log2() makes the function's result undefined"
+ER_INVALID_ARGUMENT_FOR_LOG10 2201E
+        eng "Passing non-positive argument to log10() makes the function's result undefined"

@@ -1,8 +1,8 @@
 --echo #
 --echo # MDEV-37939: Use correct error for invalid logarithm arguments
 --echo #
---echo # LOG/LN/LOG2/LOG10 now emit ER_INVALID_ARGUMENT_FOR_LOGARITHM (3020)
---echo # instead of ER_DIVISION_BY_ZERO (1365), since these functions do not
+--echo # LOG/LN/LOG2/LOG10 now emit function-specific domain warnings
+--echo # instead of ER_DIVISION_BY_ZERO, since these functions do not
 --echo # perform division.
 --echo #
 
@@ -38,7 +38,7 @@ SHOW WARNINGS;
 SET SESSION sql_mode='ERROR_FOR_DIVISION_BY_ZERO';
 
 --echo #
---echo # LOG family should report ER_INVALID_ARGUMENT_FOR_LOGARITHM (3020)
+--echo # LOG family should report function-specific domain warnings
 --echo #
 SELECT LOG(-1);
 SHOW WARNINGS;
