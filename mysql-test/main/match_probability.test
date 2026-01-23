@@ -1,0 +1,113 @@
+--source include/have_sequence.inc
+
+--echo # Setup: Two tables with skewed foreign key distribution
+CREATE TABLE t_ndv100 (a INT);
+
+CREATE TABLE t_ndv3 (a INT, b VARCHAR(50), KEY idx_a (a));
+
+--echo # All values in t_ndv100.a are different (100 distinct values)
+INSERT INTO t_ndv100 (a) SELECT seq FROM seq_1_to_100;
+
+--echo # There are only 3 distinct values in t_ndv3.a
+INSERT INTO t_ndv3 (a, b) SELECT seq/100, 'def' FROM seq_1_to_300;
+
+set optimizer_trace=1;
+
+--echo # Inefficient plan until EITS is collected (full scan of t_ndv3)
+EXPLAIN SELECT t_ndv100.a, t_ndv3.b
+FROM t_ndv100
+STRAIGHT_JOIN t_ndv3 ON t_ndv100.a = t_ndv3.a;
+
+--echo # Collect statistics only for the driving table (t_ndv100)
+ANALYZE TABLE t_ndv100 PERSISTENT FOR ALL;
+
+--echo # It is not enough until there are statistics for the inner table (t_ndv3)
+EXPLAIN SELECT t_ndv100.a, t_ndv3.b
+FROM t_ndv100
+STRAIGHT_JOIN t_ndv3 ON t_ndv100.a = t_ndv3.a;
+
+ANALYZE TABLE t_ndv3 PERSISTENT FOR ALL;
+
+--echo # After EITS is collected for both tables, the plan is efficient
+--echo # (index scan of t_ndv3). "rows" in the output are close to actual "r_rows"
+ANALYZE SELECT t_ndv100.a, t_ndv3.b
+FROM t_ndv100
+STRAIGHT_JOIN t_ndv3 ON t_ndv100.a = t_ndv3.a;
+
+--echo # Optimization must be reflected in the trace
+SELECT json_detailed(json_extract(trace, '$**.match_probability',
+                                         '$**.rows_before_adjustment'))
+FROM information_schema.optimizer_trace;
+
+--echo # Match probability is not applicable because the left part of the
+--echo # join condition is not a field but an expression (t_ndv100.a + 10). See the
+--echo # difference between "rows" and "r_rows"
+ANALYZE SELECT t_ndv100.a, t_ndv3.b
+FROM t_ndv100
+STRAIGHT_JOIN t_ndv3 ON t_ndv100.a + 10 = t_ndv3.a;
+
+--echo # Must be no records in the trace
+SELECT json_detailed(json_extract(trace, '$**.match_probability',
+                                         '$**.rows_before_adjustment'))
+FROM information_schema.optimizer_trace;
+
+--echo # If all values are NULL, match probability is not applicable
+CREATE TABLE t_nulls (a INT, b VARCHAR(50), KEY idx_a (a));
+
+INSERT INTO t_nulls (a, b) SELECT NULL, 'def' FROM seq_1_to_300;
+
+ANALYZE TABLE t_nulls PERSISTENT FOR ALL;
+
+EXPLAIN SELECT t_ndv100.a, t_nulls.b
+FROM t_ndv100
+STRAIGHT_JOIN t_nulls ON t_ndv100.a = t_nulls.a;
+
+SELECT json_detailed(json_extract(trace, '$**.match_probability',
+                                         '$**.rows_before_adjustment'))
+FROM information_schema.optimizer_trace;
+
+--echo #------------------------------
+--echo # Test multi-part index
+--echo #------------------------------
+CREATE TABLE t_ndv30 (a INT, b INT, c VARCHAR(50), KEY idx_ab (a, b));
+
+INSERT INTO t_ndv30 (a, b, c) SELECT seq/10, seq/10, 'def' FROM seq_1_to_300;
+
+ANALYZE TABLE t_ndv30 PERSISTENT FOR ALL;
+
+--echo # If more than one key part is used, match probability is not applicable.
+--echo # See the mismatch between "rows" and "r_rows" in ANALYZE output
+ANALYZE SELECT t_ndv100.a, t_ndv30.b
+FROM t_ndv100
+STRAIGHT_JOIN t_ndv30 ON t_ndv100.a = t_ndv30.a 
+  AND t_ndv100.a = t_ndv30.b;
+
+--echo # Must be no records in the trace
+SELECT json_detailed(json_extract(trace, '$**.match_probability',
+                                         '$**.rows_before_adjustment'))
+FROM information_schema.optimizer_trace;
+
+--echo # Only first key part of `idx_ab` is used, match probability is applicable.
+--echo # "rows" is now much closer to actual "r_rows".
+ANALYZE SELECT t_ndv100.a, t_ndv30.b
+FROM t_ndv100
+STRAIGHT_JOIN t_ndv30 ON t_ndv100.a = t_ndv30.a;
+
+--echo # Must be reflected in the trace
+SELECT json_detailed(json_extract(trace, '$**.match_probability',
+                                         '$**.rows_before_adjustment'))
+FROM information_schema.optimizer_trace;
+
+--echo # Three tables with equality propagation.
+--echo # min_driving_ndv = min(NDV(t_ndv30.a), NDV(t_ndv100.a)) = min(30, 100) = 30
+ANALYZE SELECT t_ndv100.a, t_ndv3.b
+FROM t_ndv30
+STRAIGHT_JOIN t_ndv100 ON t_ndv30.a = t_ndv100.a
+STRAIGHT_JOIN t_ndv3 ON t_ndv100.a = t_ndv3.a;
+
+--echo # Must be reflected in the trace (match_prob ~= 0.1)
+SELECT json_detailed(json_extract(trace, '$**.match_probability',
+                                         '$**.rows_before_adjustment'))
+FROM information_schema.optimizer_trace;
+
+DROP TABLE t_ndv100, t_ndv3, t_ndv30, t_nulls;
