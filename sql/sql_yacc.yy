@@ -2873,6 +2873,22 @@ server_option:
           }
         | PORT_SYM ulong_num
           {
+            /*
+              We especially don't want this to happen:
+
+              The value of $2 is ULONG_MAX, causing
+              server_options.port to be -1, which means "default
+              port".
+
+              Because we are doing a check here, we may as well check
+              against the SQL data type in one go rather than just the
+              C++ type here and SQL type later in sql_servers.cc.
+            */
+            if ($2 > INT32_MAX)
+            {
+              my_error(ER_DATA_OUT_OF_RANGE, myf(0), "port", "INT");
+              MYSQL_YYABORT;
+            }
             Lex->server_options.port= $2;
           }
         ;
