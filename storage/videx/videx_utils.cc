@@ -259,6 +259,7 @@ const char *get_field_name_or_expression(const Field *field)
   @param[in]  key_part     Index components description
   @param[in]  key          Key tuple
 */
+constexpr const char hex_digits[]= "0123456789abcdef";
 
 void videx_print_key_value(String *out, const KEY_PART_INFO *key_part,
                            const uchar *uchar_key)
@@ -315,8 +316,8 @@ void videx_print_key_value(String *out, const KEY_PART_INFO *key_part,
     out->append(STRING_WITH_LEN("0x"));
     for (uint i= 0; i < store_length; i++)
     {
-      out->append(_dig_vec_lower[*(uchar_key + i) >> 4]);
-      out->append(_dig_vec_lower[*(uchar_key + i) & 0x0F]);
+      out->append(hex_digits[*(uchar_key + i) >> 4]);
+      out->append(hex_digits[*(uchar_key + i) & 0x0F]);
     }
     return;
   }

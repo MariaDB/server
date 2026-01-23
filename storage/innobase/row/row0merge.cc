@@ -4948,12 +4948,6 @@ row_merge_build_indexes(
 			trx->error_key_num = key_numbers[i];
 			goto func_exit;
 		}
-
-		if (indexes[i]->type & DICT_FTS
-		    && UNIV_UNLIKELY(fts_enable_diag_print)) {
-			ib::info() << "Finished building full-text index "
-				<< indexes[i]->name;
-		}
 	}
 
 func_exit:

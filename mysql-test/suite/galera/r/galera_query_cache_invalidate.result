@@ -113,6 +113,7 @@ Warnings:
 Note	4190	RESET SLAVE is implicitly changing the value of 'Using_Gtid' from 'Current_Pos' to 'Slave_Pos'
 connection node_1;
 SET SESSION WSREP_ON=OFF;
+include/kill_binlog_dump_threads.inc
 RESET MASTER;
 SET SESSION WSREP_ON=ON;
 disconnect node_2;

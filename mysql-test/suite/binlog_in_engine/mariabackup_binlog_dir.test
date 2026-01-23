@@ -1,0 +1,31 @@
+--source include/not_embedded.inc
+--source include/have_innodb_binlog.inc
+
+--source include/reset_master.inc
+
+--echo #
+--echo # MDEV-38432: Issues with mariabackup's binlog-directory option
+--echo #
+
+create table t (a int) engine=InnoDB;
+flush binary logs;
+insert into t values (1);
+flush binary logs;
+
+--let $binlog_name= binlog-000002.ibb
+--let $binlog_size= 262144
+--source include/wait_for_engine_binlog.inc
+ 
+--exec $XTRABACKUP --backup --target-dir=$MYSQL_TMP_DIR/mbackup --socket=$MASTER_MYSOCK --user=root --binlog-directory=backup_binlogs > $MYSQL_TMP_DIR/mbackup.log 2>&1
+--exec $XTRABACKUP --prepare --target-dir=$MYSQL_TMP_DIR/mbackup > $MYSQL_TMP_DIR/mprepare.log 2>&1
+--exec $XTRABACKUP --copy-back --target-dir=$MYSQL_TMP_DIR/mbackup --binlog-directory=binlogs --datadir=$MYSQL_TMP_DIR/mcopyback > $MYSQL_TMP_DIR/mcopyback.log 2>&1
+# The bug was a missing slash, so the binlogs would be in mcopybackbinlogs/
+--list_files $MYSQL_TMP_DIR/mcopyback/binlogs/ *
+
+drop table t;
+
+--remove_file $MYSQL_TMP_DIR/mbackup.log
+--remove_file $MYSQL_TMP_DIR/mprepare.log
+--remove_file $MYSQL_TMP_DIR/mcopyback.log
+--rmdir $MYSQL_TMP_DIR/mbackup
+--rmdir $MYSQL_TMP_DIR/mcopyback

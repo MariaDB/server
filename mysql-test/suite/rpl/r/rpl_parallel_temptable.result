@@ -7,7 +7,9 @@ SET GLOBAL slave_parallel_threads=5;
 include/start_slave.inc
 connection server_1;
 CREATE TABLE t1 (a INT PRIMARY KEY, b VARCHAR(100) CHARACTER SET utf8);
+include/save_master_gtid.inc
 connection server_2;
+include/sync_with_master_gtid.inc
 include/stop_slave.inc
 connection server_1;
 SET gtid_domain_id= 1;
@@ -69,8 +71,10 @@ connection default;
 connection default;
 connection server_1;
 INSERT INTO t1 VALUES (0, 1);
+include/save_master_gtid.inc
 connection server_2;
 include/start_slave.inc
+include/sync_with_master_gtid.inc
 SELECT * FROM t1 WHERE a <= 20 ORDER BY a;
 a	b
 0	1
@@ -208,14 +212,18 @@ CREATE TEMPORARY TABLE t5 (a int) ENGINE=Aria;
 CREATE TEMPORARY TABLE t6 (a int) ENGINE=Heap;
 INSERT INTO t5 VALUES (1);
 INSERT INTO t6 VALUES (2);
+include/save_master_gtid.inc
 connection server_2;
+include/sync_with_master_gtid.inc
 include/stop_slave.inc
 connection server_1;
 INSERT INTO t1 SELECT a+40, 5 FROM t5;
 INSERT INTO t1 SELECT a+40, 6 FROM t6;
 DROP TABLE t5, t6;
+include/save_master_gtid.inc
 connection server_2;
 include/start_slave.inc
+include/sync_with_master_gtid.inc
 SELECT * FROM t1 WHERE a>=40 ORDER BY a;
 a	b
 41	5

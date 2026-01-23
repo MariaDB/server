@@ -846,19 +846,6 @@ loop:
 
 		num_doc_processed++;
 
-		if (UNIV_UNLIKELY(fts_enable_diag_print)
-		    && num_doc_processed % 10000 == 1) {
-			ib::info() << "Number of documents processed: "
-				<< num_doc_processed;
-#ifdef FTS_INTERNAL_DIAG_PRINT
-			for (i = 0; i < FTS_NUM_AUX_INDEX; i++) {
-				ib::info() << "ID " << psort_info->psort_id
-					<< ", partition " << i << ", word "
-					<< mycount[i];
-			}
-#endif
-		}
-
 		mem_heap_empty(blob_heap);
 
 		row_merge_fts_get_next_doc_item(psort_info, &doc_item);
@@ -999,10 +986,6 @@ exit:
 		}
 	}
 
-	if (UNIV_UNLIKELY(fts_enable_diag_print)) {
-		DEBUG_FTS_SORT_PRINT("  InnoDB_FTS: start merge sort\n");
-	}
-
 	for (i = 0; i < FTS_NUM_AUX_INDEX; i++) {
 		if (!merge_file[i]->offset) {
 			continue;
@@ -1029,9 +1012,6 @@ exit:
 	}
 
 func_exit:
-	if (UNIV_UNLIKELY(fts_enable_diag_print)) {
-		DEBUG_FTS_SORT_PRINT("  InnoDB_FTS: complete merge sort\n");
-	}
 
 	mem_heap_free(blob_heap);
 
@@ -1540,12 +1520,10 @@ row_fts_merge_insert(
 	byte**			block;
 	byte**			crypt_block;
 	const mrec_t**		mrec;
-	ulint			count = 0;
 	int*			sel_tree;
 	ulint			height;
 	ulint			start;
 	fts_psort_insert_t	ins_ctx;
-	uint64_t		count_diag = 0;
 	fts_table_t		fts_table;
 	char			aux_table_name[MAX_FULL_NAME_LEN];
 	dict_table_t*		aux_table;
@@ -1604,13 +1582,6 @@ row_fts_merge_insert(
 
 		buf[i] = static_cast<mrec_buf_t*>(
 			mem_heap_alloc(heap, sizeof *buf[i]));
-
-		count_diag += psort_info[i].merge_file[id]->n_rec;
-	}
-
-	if (UNIV_UNLIKELY(fts_enable_diag_print)) {
-		ib::info() << "InnoDB_FTS: to insert " << count_diag
-			<< " records";
 	}
 
 	/* Initialize related variables if creating FTS indexes */
@@ -1754,8 +1725,6 @@ row_fts_merge_insert(
 						offsets, index);
 		}
 
-		count++;
-
 		mem_heap_empty(tuple_heap);
 	}
 
@@ -1774,10 +1743,6 @@ exit:
 	trx->free();
 
 	mem_heap_free(heap);
-
-	if (UNIV_UNLIKELY(fts_enable_diag_print)) {
-		ib::info() << "InnoDB_FTS: inserted " << count << " records";
-	}
 
 	return(error);
 }

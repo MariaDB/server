@@ -3957,8 +3957,6 @@ fts_sync_write_words(
 	bool			unlock_cache)
 {
 	fts_table_t	fts_table;
-	ulint		n_nodes = 0;
-	ulint		n_words = 0;
 	const ib_rbt_node_t* rbt_node;
 	dberr_t		error = DB_SUCCESS;
 	ibool		print_error = FALSE;
@@ -3966,8 +3964,6 @@ fts_sync_write_words(
 
 	FTS_INIT_INDEX_TABLE(
 		&fts_table, NULL, FTS_INDEX_TABLE, index_cache->index);
-
-	n_words = rbt_size(index_cache->words);
 
 	/* We iterate over the entire tree, even if there is an error,
 	since we want to free the memory used during caching. */
@@ -4042,11 +4038,6 @@ fts_sync_write_words(
 		}
 	}
 
-	if (UNIV_UNLIKELY(fts_enable_diag_print)) {
-		printf("Avg number of nodes: %lf\n",
-		       (double) n_nodes / (double) (n_words > 1 ? n_words : 1));
-	}
-
 	return(error);
 }
 
@@ -4058,22 +4049,8 @@ fts_sync_begin(
 /*===========*/
 	fts_sync_t*	sync)			/*!< in: sync state */
 {
-	fts_cache_t*	cache = sync->table->fts->cache;
-
-	n_nodes = 0;
-	elapsed_time = 0;
-
-	sync->start_time = time(NULL);
-
 	sync->trx = trx_create();
 	trx_start_internal(sync->trx);
-
-	if (UNIV_UNLIKELY(fts_enable_diag_print)) {
-		ib::info() << "FTS SYNC for table " << sync->table->name
-			<< ", deleted count: "
-			<< ib_vector_size(cache->deleted_doc_ids)
-			<< " size: " << ib::bytes_iec{cache->total_size};
-	}
 }
 
 /*********************************************************************//**
@@ -4090,10 +4067,6 @@ fts_sync_index(
 	trx_t*		trx = sync->trx;
 
 	trx->op_info = "doing SYNC index";
-
-	if (UNIV_UNLIKELY(fts_enable_diag_print)) {
-		ib::info() << "SYNC words: " << rbt_size(index_cache->words);
-	}
 
 	ut_ad(rbt_validate(index_cache->words));
 
@@ -4195,16 +4168,6 @@ fts_sync_commit(
 		fts_sql_rollback(trx);
 		ib::error() << "(" << error << ") during SYNC of "
 			"table " << sync->table->name;
-	}
-
-	if (UNIV_UNLIKELY(fts_enable_diag_print) && elapsed_time) {
-		ib::info() << "SYNC for table " << sync->table->name
-			<< ": SYNC time: "
-			<< (time(NULL) - sync->start_time)
-			<< " secs: elapsed "
-			<< static_cast<double>(n_nodes)
-			/ static_cast<double>(elapsed_time)
-			<< " ins/sec";
 	}
 
 	/* Avoid assertion in trx_t::free(). */

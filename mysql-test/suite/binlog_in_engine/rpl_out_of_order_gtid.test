@@ -1,0 +1,66 @@
+--source include/have_debug.inc
+--source include/have_debug_sync.inc
+--source include/have_binlog_format_row.inc
+--source include/master-slave.inc
+--source include/have_innodb_binlog.inc
+
+--connection slave
+--source include/stop_slave.inc
+SET @old_parallel= @@GLOBAL.slave_parallel_threads;
+SET GLOBAL slave_parallel_threads= 4;
+SET @old_strict= @@GLOBAL.gtid_strict_mode;
+SET GLOBAL gtid_strict_mode= 1;
+SET @old_dbug= @@GLOBAL.debug_dbug;
+SET GLOBAL debug_dbug= '+d,pause_before_write_gtid_0_x_100';
+--source include/start_slave.inc
+
+--connection master
+CREATE TABLE t1 (a INT PRIMARY KEY, b INT) ENGINE=InnoDB;
+
+# Deliberately introduce out-of-order GTID sequence numbers on the slave.
+# There was a bug in the error handling on the slave, it did not release
+# LOCK_log, causing assertion in debug and hang in release build.
+# The ALTER TABLE gets GTID sequence number 100 to trigger the dbug injection
+# above on the slave so we can provoke the error in the right place where
+# the bug was (otherwise, the out-of-order error gets caught in a different
+# place, while applying the GTID event).
+
+INSERT INTO t1 VALUES (1, 7);
+INSERT INTO t1 VALUES (2, 3);
+INSERT INTO t1 VALUES (3, 4);
+SET SESSION gtid_seq_no= 100;
+ALTER TABLE t1 ORDER BY b;
+SET SESSION gtid_seq_no= 102;
+INSERT INTO t1 VALUES (5, 0);
+--source include/save_master_gtid.inc
+
+--connection slave
+
+SET debug_sync= 'now wait_for before_write_gtid_event';
+# Here inject the out-of-order GTID on the slave.
+SET SESSION gtid_seq_no= 101;
+CREATE TABLE t2_slave (a INT PRIMARY KEY);
+SET debug_sync= 'now SIGNAL cont';
+--let $slave_sql_errno= 1950
+--source include/wait_for_slave_sql_error.inc
+SET debug_sync= 'RESET';
+SET GLOBAL debug_dbug= @old_dbug;
+
+SET GLOBAL gtid_strict_mode= 0;
+START SLAVE sql_thread;
+--source include/sync_with_master_gtid.inc
+
+# Clean up.
+--connection slave
+--source include/stop_slave.inc
+DROP TABLE t2_slave;
+SET GLOBAL gtid_strict_mode= @old_strict;
+CALL mtr.add_suppression('Slave: ORDER BY ignored');
+CALL mtr.add_suppression('Slave: An attempt was made to binlog GTID .* which would create an out-of-order sequence number with existing GTID');
+CALL mtr.add_suppression('Slave: Error writing file .*"Unknown error 1950"');
+SET GLOBAL slave_parallel_threads= @old_parallel;
+--source include/start_slave.inc
+
+--connection master
+DROP TABLE t1;
+--source include/rpl_end.inc

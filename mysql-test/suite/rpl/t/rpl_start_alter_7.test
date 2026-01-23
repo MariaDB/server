@@ -105,10 +105,12 @@ SET GLOBAL gtid_slave_pos= '';
 --connection server_1
 --eval set global binlog_alter_two_phase=$binlog_alter_two_phase;
 set global gtid_domain_id= 0;
+--source include/kill_binlog_dump_threads.inc
 reset master;
 --connection server_2
 set global gtid_domain_id= 0;
 --eval set global binlog_alter_two_phase=$binlog_alter_two_phase
+--source include/kill_binlog_dump_threads.inc
 reset master;
 
 --disconnect server_1
