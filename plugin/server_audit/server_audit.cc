@@ -552,6 +552,13 @@ static int user_coll_fill(struct user_coll *c, char *users,
     if (!*users)
       return 0;
 
+    /* Skip consecutive commas (empty tokens) to prevent inserting empty entries */
+    if (*users == ',')
+    {
+      users++;
+      continue;
+    }
+
     (void) getkey_user(users, &cmp_length, FALSE);
     if (cmp_c)
     {

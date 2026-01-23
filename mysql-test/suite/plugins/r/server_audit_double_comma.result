@@ -1,0 +1,75 @@
+#
+# Test for double comma handling in SERVER_AUDIT_INCL_USERS
+# Bug: Double commas (e.g., 'user1,,user2') cause all users to be logged
+# Expected: Only user1 and user2 should be logged
+#
+CREATE USER 'audit_user1'@'localhost' IDENTIFIED BY 'password1';
+CREATE USER 'audit_user2'@'localhost' IDENTIFIED BY 'password2';
+CREATE USER 'audit_user3'@'localhost' IDENTIFIED BY 'password3';
+GRANT ALL ON *.* TO 'audit_user1'@'localhost';
+GRANT ALL ON *.* TO 'audit_user2'@'localhost';
+GRANT ALL ON *.* TO 'audit_user3'@'localhost';
+#
+# Install the audit plugin
+#
+INSTALL PLUGIN server_audit SONAME 'server_audit';
+#
+# Set up audit log file
+#
+#
+# Configure audit with double comma in incl_users
+#
+SET GLOBAL server_audit_logging = OFF;
+SET GLOBAL server_audit_events = 'QUERY';
+SET GLOBAL server_audit_file_path = 'server_audit_double_comma.log';
+SET GLOBAL server_audit_output_type = 'FILE';
+SET GLOBAL server_audit_incl_users = 'audit_user1,,audit_user2';
+SET GLOBAL server_audit_logging = ON;
+#
+# Connect as user1 - should be logged
+#
+connect  conn1, localhost, audit_user1, password1,;
+SELECT 'query_from_user1';
+query_from_user1
+query_from_user1
+disconnect conn1;
+#
+# Connect as user2 - should be logged
+#
+connect  conn2, localhost, audit_user2, password2,;
+SELECT 'query_from_user2';
+query_from_user2
+query_from_user2
+disconnect conn2;
+#
+# Connect as user3 - should NOT be logged (not in incl_users)
+#
+connect  conn3, localhost, audit_user3, password3,;
+SELECT 'query_from_user3_NOT_in_list';
+query_from_user3_NOT_in_list
+query_from_user3_NOT_in_list
+disconnect conn3;
+connection default;
+#
+# Cleanup
+#
+SET GLOBAL server_audit_logging = OFF;
+UNINSTALL PLUGIN server_audit;
+Warnings:
+Warning	1620	Plugin is busy and will be uninstalled on shutdown
+DROP USER 'audit_user1'@'localhost';
+DROP USER 'audit_user2'@'localhost';
+DROP USER 'audit_user3'@'localhost';
+#
+# Verify audit log - user3 queries should NOT appear
+#
+# The audit log should contain queries from user1 and user2 only
+# If the bug exists, user3 queries will also appear (all users logged)
+TIME,HOSTNAME,root,localhost,CONNECTION_ID,QUERY_ID,QUERY,test,'SET GLOBAL server_audit_logging = ON',0
+TIME,HOSTNAME,audit_user1,localhost,CONNECTION_ID,QUERY_ID,QUERY,test,'SELECT \'query_from_user1\'',0
+TIME,HOSTNAME,audit_user2,localhost,CONNECTION_ID,QUERY_ID,QUERY,test,'SELECT \'query_from_user2\'',0
+TIME,HOSTNAME,root,localhost,CONNECTION_ID,QUERY_ID,QUERY,test,'SET GLOBAL server_audit_logging = OFF',0
+#
+# Remove the temporary audit log
+#
+# Test completed - double comma handling verified
