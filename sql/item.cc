@@ -6481,6 +6481,23 @@ bool Item_field::fix_fields(THD *thd, Item **reference)
   if (!field)					// If field is not checked
   {
     TABLE_LIST *table_list;
+
+    /* Handle INSERT ... VALUES (...) AS alias ON DUPLICATE KEY UPDATE */
+    if (table_name.str &&
+        table_name.streq(thd->lex->insert_values_alias))
+    {
+      DBUG_ASSERT(thd->lex->duplicates == DUP_UPDATE);
+      Item_field *field_ref= new (thd->mem_root)
+        Item_field(thd, context, db_name, Lex_cstring_strlen(NULL), field_name);
+      if (!field_ref)
+        return TRUE;
+      Item_insert_value *ins_val= new (thd->mem_root)
+        Item_insert_value(thd, context, field_ref);
+      if (!ins_val)
+        return TRUE;
+      thd->change_item_tree(reference, ins_val);
+      return ins_val->fix_fields(thd, reference);
+    }
     /*
       In case of view, find_field_in_tables() write pointer to view field
       expression to 'reference', i.e. it substitute that expression instead
