@@ -245,19 +245,16 @@ public:
     if (new_size <= current_size)
       return;
     size_t new_capacity = new_size - 1;
-    std::vector<T> new_buffer(new_capacity);
-    /* Figure out faster way to copy*/
-    size_t i = 0;
-    while (!empty())
+    size_t const old_size = m_buffer.size();
+    m_buffer.resize(new_capacity);
+    if (m_head < m_tail) 
     {
-      T& ele = front();
-      pop();
-      new_buffer[i++] = ele;
-    }
-    m_buffer = new_buffer;
+      for (size_t i = new_capacity - 1, j = old_size - 1; m_tail <= j; --i, --j)
+        std::swap(m_buffer[i], m_buffer[j]);
+      m_tail = m_tail + (m_buffer.size() - old_size);
+    }    
     m_capacity = new_capacity;
-    m_tail = 0;
-    m_head = current_size;
+    assert(size() == current_size);
   }
   void push(T ele)
   {
