@@ -731,15 +731,15 @@ create table tmp as select * from t1 where c1 in (select a.c2 from t1 a where a.
 explain select * from t1 where c1 in (select a.c2 from t1 a where a.c2 = t1.c3) limit 1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	32	Using where
-1	PRIMARY	a	ref	t1_c2	t1_c2	5	test.t1.c1	5	Using index; FirstMatch(t1)
+1	PRIMARY	a	ref	t1_c2	t1_c2	5	test.t1.c1	4	Using index; FirstMatch(t1)
 explain delete from t1 where c1 in (select a.c2 from t1 a where a.c2 = t1.c3) limit 1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	32	Using where
-1	PRIMARY	a	ref	t1_c2	t1_c2	5	test.t1.c1	5	Using index; FirstMatch(t1)
+1	PRIMARY	a	ref	t1_c2	t1_c2	5	test.t1.c1	4	Using index; FirstMatch(t1)
 analyze delete from t1 where c1 in (select a.c2 from t1 a where a.c2 = t1.c3) limit 1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	32	32.00	100.00	12.50	Using where
-1	PRIMARY	a	ref	t1_c2	t1_c2	5	test.t1.c1	5	0.25	18.75	100.00	Using index; FirstMatch(t1)
+1	PRIMARY	a	ref	t1_c2	t1_c2	5	test.t1.c1	4	0.25	25.00	100.00	Using index; FirstMatch(t1)
 select * from t1;
 c1	c2	c3
 1	2	2
@@ -2709,15 +2709,15 @@ create table tmp as select * from t1 where c1 in (select a.c2 from t1 a where a.
 explain select * from t1 where c1 in (select a.c2 from t1 a where a.c2 = t1.c3) limit 1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	32	Using where
-1	PRIMARY	a	ref	t1_c2	t1_c2	5	test.t1.c1	5	Using index; FirstMatch(t1)
+1	PRIMARY	a	ref	t1_c2	t1_c2	5	test.t1.c1	4	Using index; FirstMatch(t1)
 explain delete from t1 where c1 in (select a.c2 from t1 a where a.c2 = t1.c3) limit 1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	32	Using where
-1	PRIMARY	a	ref	t1_c2	t1_c2	5	test.t1.c1	5	Using index; FirstMatch(t1)
+1	PRIMARY	a	ref	t1_c2	t1_c2	5	test.t1.c1	4	Using index; FirstMatch(t1)
 analyze delete from t1 where c1 in (select a.c2 from t1 a where a.c2 = t1.c3) limit 1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	32	27.00	100.00	14.81	Using where
-1	PRIMARY	a	ref	t1_c2	t1_c2	5	test.t1.c1	5	0.25	18.75	100.00	Using index; FirstMatch(t1)
+1	PRIMARY	a	ref	t1_c2	t1_c2	5	test.t1.c1	4	0.25	25.00	100.00	Using index; FirstMatch(t1)
 select * from t1;
 c1	c2	c3
 1	2	2
@@ -2762,7 +2762,7 @@ explain select * from t1 where c1 in (select a.c2 from t1 a where a.c3 = t1.c3)
 order by c3 desc limit 1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	32	Using where; Using filesort
-1	PRIMARY	a	ref	t1_c2	t1_c2	5	test.t1.c1	5	Using where; FirstMatch(t1)
+1	PRIMARY	a	ref	t1_c2	t1_c2	5	test.t1.c1	4	Using where; FirstMatch(t1)
 explain delete from t1 where c1 in (select a.c2 from t1 a where a.c3 = t1.c3)
 order by c3 desc limit 1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
@@ -5114,15 +5114,15 @@ create table tmp as select * from t1 where c1 in (select a.c2 from t1 a where a.
 explain select * from t1 where c1 in (select a.c2 from t1 a where a.c2 = t1.c3) limit 1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	32	Using where
-1	PRIMARY	a	ref	t1_c2	t1_c2	5	test.t1.c1	5	Using index; FirstMatch(t1)
+1	PRIMARY	a	ref	t1_c2	t1_c2	5	test.t1.c1	4	Using index; FirstMatch(t1)
 explain delete from t1 where c1 in (select a.c2 from t1 a where a.c2 = t1.c3) limit 1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	32	Using where
-1	PRIMARY	a	ref	t1_c2	t1_c2	5	test.t1.c1	5	Using index; FirstMatch(t1)
+1	PRIMARY	a	ref	t1_c2	t1_c2	5	test.t1.c1	4	Using index; FirstMatch(t1)
 analyze delete from t1 where c1 in (select a.c2 from t1 a where a.c2 = t1.c3) limit 1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	32	29.00	100.00	13.79	Using where
-1	PRIMARY	a	ref	t1_c2	t1_c2	5	test.t1.c1	5	0.25	18.75	100.00	Using index; FirstMatch(t1)
+1	PRIMARY	a	ref	t1_c2	t1_c2	5	test.t1.c1	4	0.25	25.00	100.00	Using index; FirstMatch(t1)
 select * from t1;
 c1	c2	c3
 1	2	2

@@ -705,5 +705,7 @@ void print_keyuse_array_for_trace(THD *thd, DYNAMIC_ARRAY *keyuse_array)
            .field->field_name.str)).
       add("equals",keyuse->val).
       add("null_rejecting",keyuse->null_rejecting);
+    if (keyuse->num_distinct_values > 0)
+      keyuse_elem.add("num_distinct_values", keyuse->num_distinct_values);
   }
 }
