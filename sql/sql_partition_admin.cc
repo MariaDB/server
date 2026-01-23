@@ -716,6 +716,14 @@ bool Sql_cmd_alter_table_exchange_partition::
 
   DEBUG_SYNC(thd, "swap_partition_before_rename");
 
+  {
+    MDL_request mdl_request;
+    MDL_REQUEST_INIT(&mdl_request, MDL_key::TABLE,
+                     table_list->next_local->db.str,
+                     temp_name, MDL_EXCLUSIVE, MDL_TRANSACTION);
+    thd->mdl_context.acquire_lock(&mdl_request, 0);
+  }
+
   if (unlikely(exchange_name_with_ddl_log(thd, swap_file_name, part_file_name,
                                           temp_file_name, table_hton)))
     goto err;

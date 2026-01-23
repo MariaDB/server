@@ -2621,6 +2621,11 @@ row_rename_table_for_mysql(
 		}
 	}
 
+	ut_ad(!purge_sys.enabled()
+	      || innodb_has_mdl(trx->mysql_thd, table->name.m_name));
+	ut_ad(!purge_sys.enabled()
+	      || innodb_has_mdl(trx->mysql_thd, new_name));
+
 	err = trx_undo_report_rename(trx, table);
 
 	if (err != DB_SUCCESS) {

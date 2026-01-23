@@ -119,6 +119,7 @@ this program; if not, write to the Free Software Foundation, Inc.,
 #include <limits>
 #include <myisamchk.h>                          // TT_FOR_UPGRADE
 #include "sql_type_vector.h"
+#include <mysql/service_thd_mdl.h>
 
 #define thd_get_query_id(thd) uint64_t((thd)->query_id)
 #define thd_in_lock_tables(thd) (thd)->in_lock_tables
@@ -13468,6 +13469,55 @@ static bool delete_table_check_foreigns(const dict_table_t &table,
   return false;
 }
 
+/** Check if the current thread has appropriate MDL for a table.
+This function is used to verify MDL ownership before performing
+table operations like DROP TABLE or RENAME TABLE to ensure
+proper locking protocol.
+@param[in] thd         MySQL thread handle
+@param[in] table_name  Full table name to check MDL ownership for
+@return true if MDL check should pass, false otherwise
+
+The function returns true for:
+  Table name contains "sql-ib" (internal temporary tables)
+  Table is an FTS auxiliary table (FTS_<TABLE_ID>_<SUFFIX> format)
+    - Purge system is being stopped when we're making any DDL changes
+	to fulltext table.
+  Thread holds MDL_EXCLUSIVE lock on the base table name
+  Table name represents a partition
+    - InnoDB takes MDL on base table name when it deals
+	with one of the partitions of the table. But adding
+	new partition doesn't take MDL on base table. That's
+	why we're making exception for partition table
+@return FALSE when:
+  Thread does not hold appropriate MDL lock on the table */
+bool innodb_has_mdl(THD *thd, const char *table_name)
+{
+  char db_buf[NAME_LEN + 1];
+  char tbl_buf[NAME_LEN + 1];
+  size_t tbl_len, db_len;
+
+  dict_table_t::parse_tbl_name(
+    table_name_t(const_cast<char*>(table_name)),
+    db_buf, tbl_buf, &db_len, &tbl_len);
+
+  if (strstr(tbl_buf, "sql-ib"))
+    return true;
+
+  /* Check if this is an FTS auxiliary table */
+  table_id_t table_id;
+  index_id_t index_id;
+  if (fts_check_aux_table(table_name, &table_id, &index_id))
+    return true;
+
+  MDL_key key;
+  key.mdl_key_init(MDL_key::TABLE, db_buf, tbl_buf);
+  if (thd->mdl_context.is_lock_owner(MDL_key::TABLE, db_buf, tbl_buf,
+		             MDL_EXCLUSIVE))
+    return true;
+  return dict_is_partition(table_name);
+}
+
+
 /** DROP TABLE (possibly as part of DROP DATABASE, CREATE/ALTER TABLE)
 @param name   table name
 @return error number */
@@ -13716,6 +13766,8 @@ err_exit:
   if (err != DB_SUCCESS)
     goto err_exit;
 
+  ut_ad(!purge_sys.enabled() ||
+        innodb_has_mdl(trx->mysql_thd, table->name.m_name));
   err= trx->drop_table(*table);
   if (err != DB_SUCCESS)
     goto err_exit;
@@ -20356,8 +20408,14 @@ static TABLE* innodb_find_table_for_vc(THD* thd, dict_table_t* table)
 	char	tbl_buf[NAME_LEN + 1];
 	ulint	db_buf_len, tbl_buf_len;
 
-	if (!table->parse_name(db_buf, tbl_buf, &db_buf_len, &tbl_buf_len)) {
+	dberr_t err= table->parse_name(
+		db_buf, tbl_buf, &db_buf_len, &tbl_buf_len);
+	if (err == DB_SUCCESS_LOCKED_REC) {
 		return NULL;
+	}
+
+	if (err == DB_CORRUPTION) {
+		return nullptr;
 	}
 
 	if (bg_thread) {

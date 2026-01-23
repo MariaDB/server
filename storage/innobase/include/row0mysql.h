@@ -830,6 +830,29 @@ void
 innobase_rename_vc_templ(
 	dict_table_t*	table);
 
+	/** Check if the current thread has appropriate MDL for a table.
+This function is used to verify MDL ownership before performing
+table operations like DROP TABLE or RENAME TABLE to ensure
+proper locking protocol.
+@param[in] thd         MySQL thread handle
+@param[in] table_name  Full table name to check MDL ownership for
+@return true if MDL check should pass, false otherwise
+
+Function returns true for:
+  Table name contains "sql-ib" (internal temporary tables)
+  Table is an FTS auxiliary table (FTS_<TABLE_ID>_<SUFFIX> format)
+    - Purge system is being stopped when we're making any DDL changes
+	to fulltext table.
+  Thread holds MDL_EXCLUSIVE lock on the base table name
+  Table name represents a partition
+    - InnoDB takes MDL on base table name when it deals
+	with one of the partitions of the table. But adding
+	new partition doesn't take MDL on base table. That's
+	why we're making exception for partition table
+Function returns FALSE when:
+  Thread does not hold appropriate MDL lock on the table */
+bool innodb_has_mdl(THD *thd, const char *table_name);
+
 #define ROW_PREBUILT_FETCH_MAGIC_N	465765687
 
 #define ROW_MYSQL_WHOLE_ROW	0
