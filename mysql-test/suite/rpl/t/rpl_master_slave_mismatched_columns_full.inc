@@ -26,6 +26,7 @@
 #                      c.
 #    $null_col         Specifies a field for the MDL operation to nullify. One
 #                      of the existing NOT NULL columns, i.e. a, b, or c.
+#    $sys_versioned    If true, the table is created with system versioning.
 #
 #
 
@@ -33,6 +34,12 @@ if (!$engine_type)
 {
   # Use the default storage engine
   --let $engine_type=`SELECT @@default_storage_engine`
+}
+
+--let $sys_version_eval=
+if ($sys_versioned)
+{
+  --let $sys_version_eval=with system versioning
 }
 
 --connection server_2
@@ -45,7 +52,7 @@ eval create table t1(
   a int,
   b $source_type,
   c int
-) engine=$engine_type;
+) engine=$engine_type $sys_version_eval;
 --source include/save_master_gtid.inc
 
 --connection server_3
@@ -89,6 +96,7 @@ if ($drop_col_2)
 
 connection server_1;
 --let $master_pk= 1
+--let $master_a_pre= 999
 --let $master_a= 1000
 if (`SELECT strcmp("$null_col","a")=0`)
 {
@@ -104,7 +112,8 @@ if (`SELECT strcmp("$null_col","c")=0`)
 {
   --let $master_c= NULL
 }
-eval INSERT INTO t1 (pk, a, b, c) VALUES($master_pk, $master_a, $master_b, $master_c);
+eval INSERT INTO t1 (pk, a, b, c) VALUES($master_pk, $master_a_pre, $master_b, $master_c);
+eval UPDATE t1 set a = $master_a WHERE pk = $master_pk;
 --source include/save_master_gtid.inc
 
 --connection server_3

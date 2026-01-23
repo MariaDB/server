@@ -1069,7 +1069,6 @@ bool RPL_TABLE_LIST::give_compatibility_error(rpl_group_info *rgi, uint col)
             error_level, ER_SLAVE_INCOMPATIBLE_TABLE_DEF, rgi->gtid_info(),
             ER_THD(rgi->thd, ER_SLAVE_INCOMPATIBLE_TABLE_DEF), error_msg);
       }
-    m_tabledef.master_column_name[col]= NULL;
     break;
   case SLAVE_FIELD_NR_MISSING:
   {

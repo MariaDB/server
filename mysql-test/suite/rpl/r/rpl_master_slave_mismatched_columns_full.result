@@ -23,7 +23,7 @@ pk int not null primary key,
 a int,
 b BLOB,
 c int
-) engine=MyISAM;
+) engine=MyISAM ;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -35,7 +35,8 @@ include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 connection server_1;
-INSERT INTO t1 (pk, a, b, c) VALUES(1, 1000, 'aaa', 2000);
+INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', 2000);
+UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -64,7 +65,7 @@ pk int not null primary key,
 a int,
 b BLOB,
 c int
-) engine=MyISAM;
+) engine=MyISAM ;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -76,7 +77,8 @@ include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 connection server_1;
-INSERT INTO t1 (pk, a, b, c) VALUES(1, 1000, 'aaa', 2000);
+INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', 2000);
+UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -105,7 +107,7 @@ pk int not null primary key,
 a int,
 b BLOB,
 c int
-) engine=MyISAM;
+) engine=MyISAM ;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -117,7 +119,8 @@ include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 connection server_1;
-INSERT INTO t1 (pk, a, b, c) VALUES(1, 1000, 'aaa', 2000);
+INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', 2000);
+UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -147,7 +150,7 @@ pk int not null primary key,
 a int,
 b BLOB,
 c int
-) engine=MyISAM;
+) engine=MyISAM ;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -159,7 +162,8 @@ include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 connection server_1;
-INSERT INTO t1 (pk, a, b, c) VALUES(1, 1000, 'aaa', 2000);
+INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', 2000);
+UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -189,7 +193,7 @@ pk int not null primary key,
 a int,
 b BLOB,
 c int
-) engine=MyISAM;
+) engine=MyISAM ;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -201,7 +205,8 @@ include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 connection server_1;
-INSERT INTO t1 (pk, a, b, c) VALUES(1, 1000, 'aaa', 2000);
+INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', 2000);
+UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -231,7 +236,7 @@ pk int not null primary key,
 a int,
 b BLOB,
 c int
-) engine=MyISAM;
+) engine=MyISAM ;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -243,7 +248,8 @@ include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 connection server_1;
-INSERT INTO t1 (pk, a, b, c) VALUES(1, 1000, 'aaa', 2000);
+INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', 2000);
+UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -273,7 +279,7 @@ pk int not null primary key,
 a int,
 b BLOB,
 c int
-) engine=MyISAM;
+) engine=MyISAM ;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -285,7 +291,8 @@ include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 connection server_1;
-INSERT INTO t1 (pk, a, b, c) VALUES(1, 1000, 'aaa', 2000);
+INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', 2000);
+UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -315,7 +322,7 @@ pk int not null primary key,
 a int,
 b BLOB,
 c int
-) engine=MyISAM;
+) engine=MyISAM ;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -328,7 +335,8 @@ include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 connection server_1;
-INSERT INTO t1 (pk, a, b, c) VALUES(1, 1000, 'aaa', 2000);
+INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', 2000);
+UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -361,7 +369,7 @@ pk int not null primary key,
 a int,
 b TINYBLOB,
 c int
-) engine=MyISAM;
+) engine=MyISAM ;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -373,7 +381,8 @@ include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 connection server_1;
-INSERT INTO t1 (pk, a, b, c) VALUES(1, 1000, 'aaa', 2000);
+INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', 2000);
+UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -402,7 +411,7 @@ pk int not null primary key,
 a int,
 b TINYBLOB,
 c int
-) engine=MyISAM;
+) engine=MyISAM ;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -414,7 +423,8 @@ include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 connection server_1;
-INSERT INTO t1 (pk, a, b, c) VALUES(1, 1000, 'aaa', 2000);
+INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', 2000);
+UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -443,7 +453,7 @@ pk int not null primary key,
 a int,
 b TINYBLOB,
 c int
-) engine=MyISAM;
+) engine=MyISAM ;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -455,7 +465,8 @@ include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 connection server_1;
-INSERT INTO t1 (pk, a, b, c) VALUES(1, 1000, 'aaa', 2000);
+INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', 2000);
+UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -485,7 +496,7 @@ pk int not null primary key,
 a int,
 b TINYBLOB,
 c int
-) engine=MyISAM;
+) engine=MyISAM ;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -497,7 +508,8 @@ include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 connection server_1;
-INSERT INTO t1 (pk, a, b, c) VALUES(1, 1000, 'aaa', 2000);
+INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', 2000);
+UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -527,7 +539,7 @@ pk int not null primary key,
 a int,
 b TINYBLOB,
 c int
-) engine=MyISAM;
+) engine=MyISAM ;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -539,7 +551,8 @@ include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 connection server_1;
-INSERT INTO t1 (pk, a, b, c) VALUES(1, 1000, 'aaa', 2000);
+INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', 2000);
+UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -569,7 +582,7 @@ pk int not null primary key,
 a int,
 b TINYBLOB,
 c int
-) engine=MyISAM;
+) engine=MyISAM ;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -581,7 +594,8 @@ include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 connection server_1;
-INSERT INTO t1 (pk, a, b, c) VALUES(1, 1000, 'aaa', 2000);
+INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', 2000);
+UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -611,7 +625,7 @@ pk int not null primary key,
 a int,
 b TINYBLOB,
 c int
-) engine=MyISAM;
+) engine=MyISAM ;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -623,7 +637,8 @@ include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 connection server_1;
-INSERT INTO t1 (pk, a, b, c) VALUES(1, 1000, 'aaa', 2000);
+INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', 2000);
+UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -653,7 +668,7 @@ pk int not null primary key,
 a int,
 b TINYBLOB,
 c int
-) engine=MyISAM;
+) engine=MyISAM ;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -666,7 +681,8 @@ include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 connection server_1;
-INSERT INTO t1 (pk, a, b, c) VALUES(1, 1000, 'aaa', 2000);
+INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', 2000);
+UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -711,7 +727,7 @@ pk int not null primary key,
 a int,
 b BLOB,
 c int
-) engine=MyISAM;
+) engine=MyISAM ;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -723,7 +739,8 @@ include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 connection server_1;
-INSERT INTO t1 (pk, a, b, c) VALUES(1, NULL, 'aaa', 2000);
+INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', 2000);
+UPDATE t1 set a = NULL WHERE pk = 1;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -752,7 +769,7 @@ pk int not null primary key,
 a int,
 b BLOB,
 c int
-) engine=MyISAM;
+) engine=MyISAM ;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -764,7 +781,8 @@ include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 connection server_1;
-INSERT INTO t1 (pk, a, b, c) VALUES(1, NULL, 'aaa', 2000);
+INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', 2000);
+UPDATE t1 set a = NULL WHERE pk = 1;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -793,7 +811,7 @@ pk int not null primary key,
 a int,
 b BLOB,
 c int
-) engine=MyISAM;
+) engine=MyISAM ;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -805,7 +823,8 @@ include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 connection server_1;
-INSERT INTO t1 (pk, a, b, c) VALUES(1, NULL, 'aaa', 2000);
+INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', 2000);
+UPDATE t1 set a = NULL WHERE pk = 1;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -835,7 +854,7 @@ pk int not null primary key,
 a int,
 b BLOB,
 c int
-) engine=MyISAM;
+) engine=MyISAM ;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -847,7 +866,8 @@ include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 connection server_1;
-INSERT INTO t1 (pk, a, b, c) VALUES(1, NULL, 'aaa', 2000);
+INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', 2000);
+UPDATE t1 set a = NULL WHERE pk = 1;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -877,7 +897,7 @@ pk int not null primary key,
 a int,
 b BLOB,
 c int
-) engine=MyISAM;
+) engine=MyISAM ;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -889,7 +909,8 @@ include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 connection server_1;
-INSERT INTO t1 (pk, a, b, c) VALUES(1, NULL, 'aaa', 2000);
+INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', 2000);
+UPDATE t1 set a = NULL WHERE pk = 1;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -919,7 +940,7 @@ pk int not null primary key,
 a int,
 b BLOB,
 c int
-) engine=MyISAM;
+) engine=MyISAM ;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -931,7 +952,8 @@ include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 connection server_1;
-INSERT INTO t1 (pk, a, b, c) VALUES(1, NULL, 'aaa', 2000);
+INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', 2000);
+UPDATE t1 set a = NULL WHERE pk = 1;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -961,7 +983,7 @@ pk int not null primary key,
 a int,
 b BLOB,
 c int
-) engine=MyISAM;
+) engine=MyISAM ;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -973,7 +995,8 @@ include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 connection server_1;
-INSERT INTO t1 (pk, a, b, c) VALUES(1, NULL, 'aaa', 2000);
+INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', 2000);
+UPDATE t1 set a = NULL WHERE pk = 1;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -1003,7 +1026,7 @@ pk int not null primary key,
 a int,
 b BLOB,
 c int
-) engine=MyISAM;
+) engine=MyISAM ;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -1016,7 +1039,8 @@ include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 connection server_1;
-INSERT INTO t1 (pk, a, b, c) VALUES(1, NULL, 'aaa', 2000);
+INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', 2000);
+UPDATE t1 set a = NULL WHERE pk = 1;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -1049,7 +1073,7 @@ pk int not null primary key,
 a int,
 b TINYBLOB,
 c int
-) engine=MyISAM;
+) engine=MyISAM ;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -1061,7 +1085,8 @@ include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 connection server_1;
-INSERT INTO t1 (pk, a, b, c) VALUES(1, NULL, 'aaa', 2000);
+INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', 2000);
+UPDATE t1 set a = NULL WHERE pk = 1;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -1090,7 +1115,7 @@ pk int not null primary key,
 a int,
 b TINYBLOB,
 c int
-) engine=MyISAM;
+) engine=MyISAM ;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -1102,7 +1127,8 @@ include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 connection server_1;
-INSERT INTO t1 (pk, a, b, c) VALUES(1, NULL, 'aaa', 2000);
+INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', 2000);
+UPDATE t1 set a = NULL WHERE pk = 1;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -1131,7 +1157,7 @@ pk int not null primary key,
 a int,
 b TINYBLOB,
 c int
-) engine=MyISAM;
+) engine=MyISAM ;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -1143,7 +1169,8 @@ include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 connection server_1;
-INSERT INTO t1 (pk, a, b, c) VALUES(1, NULL, 'aaa', 2000);
+INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', 2000);
+UPDATE t1 set a = NULL WHERE pk = 1;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -1173,7 +1200,7 @@ pk int not null primary key,
 a int,
 b TINYBLOB,
 c int
-) engine=MyISAM;
+) engine=MyISAM ;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -1185,7 +1212,8 @@ include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 connection server_1;
-INSERT INTO t1 (pk, a, b, c) VALUES(1, NULL, 'aaa', 2000);
+INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', 2000);
+UPDATE t1 set a = NULL WHERE pk = 1;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -1215,7 +1243,7 @@ pk int not null primary key,
 a int,
 b TINYBLOB,
 c int
-) engine=MyISAM;
+) engine=MyISAM ;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -1227,7 +1255,8 @@ include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 connection server_1;
-INSERT INTO t1 (pk, a, b, c) VALUES(1, NULL, 'aaa', 2000);
+INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', 2000);
+UPDATE t1 set a = NULL WHERE pk = 1;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -1257,7 +1286,7 @@ pk int not null primary key,
 a int,
 b TINYBLOB,
 c int
-) engine=MyISAM;
+) engine=MyISAM ;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -1269,7 +1298,8 @@ include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 connection server_1;
-INSERT INTO t1 (pk, a, b, c) VALUES(1, NULL, 'aaa', 2000);
+INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', 2000);
+UPDATE t1 set a = NULL WHERE pk = 1;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -1299,7 +1329,7 @@ pk int not null primary key,
 a int,
 b TINYBLOB,
 c int
-) engine=MyISAM;
+) engine=MyISAM ;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -1311,7 +1341,8 @@ include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 connection server_1;
-INSERT INTO t1 (pk, a, b, c) VALUES(1, NULL, 'aaa', 2000);
+INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', 2000);
+UPDATE t1 set a = NULL WHERE pk = 1;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -1341,7 +1372,7 @@ pk int not null primary key,
 a int,
 b TINYBLOB,
 c int
-) engine=MyISAM;
+) engine=MyISAM ;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -1354,7 +1385,8 @@ include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 connection server_1;
-INSERT INTO t1 (pk, a, b, c) VALUES(1, NULL, 'aaa', 2000);
+INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', 2000);
+UPDATE t1 set a = NULL WHERE pk = 1;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -1399,7 +1431,7 @@ pk int not null primary key,
 a int,
 b BLOB,
 c int
-) engine=MyISAM;
+) engine=MyISAM ;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -1411,7 +1443,8 @@ include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 connection server_1;
-INSERT INTO t1 (pk, a, b, c) VALUES(1, 1000, NULL, 2000);
+INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, NULL, 2000);
+UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -1440,7 +1473,7 @@ pk int not null primary key,
 a int,
 b BLOB,
 c int
-) engine=MyISAM;
+) engine=MyISAM ;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -1452,7 +1485,8 @@ include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 connection server_1;
-INSERT INTO t1 (pk, a, b, c) VALUES(1, 1000, NULL, 2000);
+INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, NULL, 2000);
+UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -1481,7 +1515,7 @@ pk int not null primary key,
 a int,
 b BLOB,
 c int
-) engine=MyISAM;
+) engine=MyISAM ;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -1493,7 +1527,8 @@ include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 connection server_1;
-INSERT INTO t1 (pk, a, b, c) VALUES(1, 1000, NULL, 2000);
+INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, NULL, 2000);
+UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -1523,7 +1558,7 @@ pk int not null primary key,
 a int,
 b BLOB,
 c int
-) engine=MyISAM;
+) engine=MyISAM ;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -1535,7 +1570,8 @@ include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 connection server_1;
-INSERT INTO t1 (pk, a, b, c) VALUES(1, 1000, NULL, 2000);
+INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, NULL, 2000);
+UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -1565,7 +1601,7 @@ pk int not null primary key,
 a int,
 b BLOB,
 c int
-) engine=MyISAM;
+) engine=MyISAM ;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -1577,7 +1613,8 @@ include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 connection server_1;
-INSERT INTO t1 (pk, a, b, c) VALUES(1, 1000, NULL, 2000);
+INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, NULL, 2000);
+UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -1607,7 +1644,7 @@ pk int not null primary key,
 a int,
 b BLOB,
 c int
-) engine=MyISAM;
+) engine=MyISAM ;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -1619,7 +1656,8 @@ include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 connection server_1;
-INSERT INTO t1 (pk, a, b, c) VALUES(1, 1000, NULL, 2000);
+INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, NULL, 2000);
+UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -1649,7 +1687,7 @@ pk int not null primary key,
 a int,
 b BLOB,
 c int
-) engine=MyISAM;
+) engine=MyISAM ;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -1661,7 +1699,8 @@ include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 connection server_1;
-INSERT INTO t1 (pk, a, b, c) VALUES(1, 1000, NULL, 2000);
+INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, NULL, 2000);
+UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -1691,7 +1730,7 @@ pk int not null primary key,
 a int,
 b BLOB,
 c int
-) engine=MyISAM;
+) engine=MyISAM ;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -1704,7 +1743,8 @@ include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 connection server_1;
-INSERT INTO t1 (pk, a, b, c) VALUES(1, 1000, NULL, 2000);
+INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, NULL, 2000);
+UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -1737,7 +1777,7 @@ pk int not null primary key,
 a int,
 b TINYBLOB,
 c int
-) engine=MyISAM;
+) engine=MyISAM ;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -1749,7 +1789,8 @@ include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 connection server_1;
-INSERT INTO t1 (pk, a, b, c) VALUES(1, 1000, NULL, 2000);
+INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, NULL, 2000);
+UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -1778,7 +1819,7 @@ pk int not null primary key,
 a int,
 b TINYBLOB,
 c int
-) engine=MyISAM;
+) engine=MyISAM ;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -1790,7 +1831,8 @@ include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 connection server_1;
-INSERT INTO t1 (pk, a, b, c) VALUES(1, 1000, NULL, 2000);
+INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, NULL, 2000);
+UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -1819,7 +1861,7 @@ pk int not null primary key,
 a int,
 b TINYBLOB,
 c int
-) engine=MyISAM;
+) engine=MyISAM ;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -1831,7 +1873,8 @@ include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 connection server_1;
-INSERT INTO t1 (pk, a, b, c) VALUES(1, 1000, NULL, 2000);
+INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, NULL, 2000);
+UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -1861,7 +1904,7 @@ pk int not null primary key,
 a int,
 b TINYBLOB,
 c int
-) engine=MyISAM;
+) engine=MyISAM ;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -1873,7 +1916,8 @@ include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 connection server_1;
-INSERT INTO t1 (pk, a, b, c) VALUES(1, 1000, NULL, 2000);
+INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, NULL, 2000);
+UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -1903,7 +1947,7 @@ pk int not null primary key,
 a int,
 b TINYBLOB,
 c int
-) engine=MyISAM;
+) engine=MyISAM ;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -1915,7 +1959,8 @@ include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 connection server_1;
-INSERT INTO t1 (pk, a, b, c) VALUES(1, 1000, NULL, 2000);
+INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, NULL, 2000);
+UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -1945,7 +1990,7 @@ pk int not null primary key,
 a int,
 b TINYBLOB,
 c int
-) engine=MyISAM;
+) engine=MyISAM ;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -1957,7 +2002,8 @@ include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 connection server_1;
-INSERT INTO t1 (pk, a, b, c) VALUES(1, 1000, NULL, 2000);
+INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, NULL, 2000);
+UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -1987,7 +2033,7 @@ pk int not null primary key,
 a int,
 b TINYBLOB,
 c int
-) engine=MyISAM;
+) engine=MyISAM ;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -1999,7 +2045,8 @@ include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 connection server_1;
-INSERT INTO t1 (pk, a, b, c) VALUES(1, 1000, NULL, 2000);
+INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, NULL, 2000);
+UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -2029,7 +2076,7 @@ pk int not null primary key,
 a int,
 b TINYBLOB,
 c int
-) engine=MyISAM;
+) engine=MyISAM ;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -2042,7 +2089,8 @@ include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 connection server_1;
-INSERT INTO t1 (pk, a, b, c) VALUES(1, 1000, NULL, 2000);
+INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, NULL, 2000);
+UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -2087,7 +2135,7 @@ pk int not null primary key,
 a int,
 b BLOB,
 c int
-) engine=MyISAM;
+) engine=MyISAM ;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -2099,7 +2147,8 @@ include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 connection server_1;
-INSERT INTO t1 (pk, a, b, c) VALUES(1, 1000, 'aaa', NULL);
+INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', NULL);
+UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -2128,7 +2177,7 @@ pk int not null primary key,
 a int,
 b BLOB,
 c int
-) engine=MyISAM;
+) engine=MyISAM ;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -2140,7 +2189,8 @@ include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 connection server_1;
-INSERT INTO t1 (pk, a, b, c) VALUES(1, 1000, 'aaa', NULL);
+INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', NULL);
+UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -2169,7 +2219,7 @@ pk int not null primary key,
 a int,
 b BLOB,
 c int
-) engine=MyISAM;
+) engine=MyISAM ;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -2181,7 +2231,8 @@ include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 connection server_1;
-INSERT INTO t1 (pk, a, b, c) VALUES(1, 1000, 'aaa', NULL);
+INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', NULL);
+UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -2211,7 +2262,7 @@ pk int not null primary key,
 a int,
 b BLOB,
 c int
-) engine=MyISAM;
+) engine=MyISAM ;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -2223,7 +2274,8 @@ include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 connection server_1;
-INSERT INTO t1 (pk, a, b, c) VALUES(1, 1000, 'aaa', NULL);
+INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', NULL);
+UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -2253,7 +2305,7 @@ pk int not null primary key,
 a int,
 b BLOB,
 c int
-) engine=MyISAM;
+) engine=MyISAM ;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -2265,7 +2317,8 @@ include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 connection server_1;
-INSERT INTO t1 (pk, a, b, c) VALUES(1, 1000, 'aaa', NULL);
+INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', NULL);
+UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -2295,7 +2348,7 @@ pk int not null primary key,
 a int,
 b BLOB,
 c int
-) engine=MyISAM;
+) engine=MyISAM ;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -2307,7 +2360,8 @@ include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 connection server_1;
-INSERT INTO t1 (pk, a, b, c) VALUES(1, 1000, 'aaa', NULL);
+INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', NULL);
+UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -2337,7 +2391,7 @@ pk int not null primary key,
 a int,
 b BLOB,
 c int
-) engine=MyISAM;
+) engine=MyISAM ;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -2349,7 +2403,8 @@ include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 connection server_1;
-INSERT INTO t1 (pk, a, b, c) VALUES(1, 1000, 'aaa', NULL);
+INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', NULL);
+UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -2379,7 +2434,7 @@ pk int not null primary key,
 a int,
 b BLOB,
 c int
-) engine=MyISAM;
+) engine=MyISAM ;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -2392,7 +2447,8 @@ include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 connection server_1;
-INSERT INTO t1 (pk, a, b, c) VALUES(1, 1000, 'aaa', NULL);
+INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', NULL);
+UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -2425,7 +2481,7 @@ pk int not null primary key,
 a int,
 b TINYBLOB,
 c int
-) engine=MyISAM;
+) engine=MyISAM ;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -2437,7 +2493,8 @@ include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 connection server_1;
-INSERT INTO t1 (pk, a, b, c) VALUES(1, 1000, 'aaa', NULL);
+INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', NULL);
+UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -2466,7 +2523,7 @@ pk int not null primary key,
 a int,
 b TINYBLOB,
 c int
-) engine=MyISAM;
+) engine=MyISAM ;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -2478,7 +2535,8 @@ include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 connection server_1;
-INSERT INTO t1 (pk, a, b, c) VALUES(1, 1000, 'aaa', NULL);
+INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', NULL);
+UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -2507,7 +2565,7 @@ pk int not null primary key,
 a int,
 b TINYBLOB,
 c int
-) engine=MyISAM;
+) engine=MyISAM ;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -2519,7 +2577,8 @@ include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 connection server_1;
-INSERT INTO t1 (pk, a, b, c) VALUES(1, 1000, 'aaa', NULL);
+INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', NULL);
+UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -2549,7 +2608,7 @@ pk int not null primary key,
 a int,
 b TINYBLOB,
 c int
-) engine=MyISAM;
+) engine=MyISAM ;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -2561,7 +2620,8 @@ include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 connection server_1;
-INSERT INTO t1 (pk, a, b, c) VALUES(1, 1000, 'aaa', NULL);
+INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', NULL);
+UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -2591,7 +2651,7 @@ pk int not null primary key,
 a int,
 b TINYBLOB,
 c int
-) engine=MyISAM;
+) engine=MyISAM ;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -2603,7 +2663,8 @@ include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 connection server_1;
-INSERT INTO t1 (pk, a, b, c) VALUES(1, 1000, 'aaa', NULL);
+INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', NULL);
+UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -2633,7 +2694,7 @@ pk int not null primary key,
 a int,
 b TINYBLOB,
 c int
-) engine=MyISAM;
+) engine=MyISAM ;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -2645,7 +2706,8 @@ include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 connection server_1;
-INSERT INTO t1 (pk, a, b, c) VALUES(1, 1000, 'aaa', NULL);
+INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', NULL);
+UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -2675,7 +2737,7 @@ pk int not null primary key,
 a int,
 b TINYBLOB,
 c int
-) engine=MyISAM;
+) engine=MyISAM ;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -2687,7 +2749,8 @@ include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 connection server_1;
-INSERT INTO t1 (pk, a, b, c) VALUES(1, 1000, 'aaa', NULL);
+INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', NULL);
+UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -2717,7 +2780,7 @@ pk int not null primary key,
 a int,
 b TINYBLOB,
 c int
-) engine=MyISAM;
+) engine=MyISAM ;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -2730,7 +2793,8 @@ include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 connection server_1;
-INSERT INTO t1 (pk, a, b, c) VALUES(1, 1000, 'aaa', NULL);
+INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', NULL);
+UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -2780,7 +2844,7 @@ pk int not null primary key,
 a int,
 b BLOB,
 c int
-) engine=MyISAM;
+) engine=MyISAM ;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -2792,7 +2856,8 @@ include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 connection server_1;
-INSERT INTO t1 (pk, a, b, c) VALUES(1, 1000, 'aaa', 2000);
+INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', 2000);
+UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -2821,7 +2886,7 @@ pk int not null primary key,
 a int,
 b BLOB,
 c int
-) engine=MyISAM;
+) engine=MyISAM ;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -2833,7 +2898,8 @@ include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 connection server_1;
-INSERT INTO t1 (pk, a, b, c) VALUES(1, 1000, 'aaa', 2000);
+INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', 2000);
+UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -2862,7 +2928,7 @@ pk int not null primary key,
 a int,
 b BLOB,
 c int
-) engine=MyISAM;
+) engine=MyISAM ;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -2874,7 +2940,8 @@ include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 connection server_1;
-INSERT INTO t1 (pk, a, b, c) VALUES(1, 1000, 'aaa', 2000);
+INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', 2000);
+UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -2904,7 +2971,7 @@ pk int not null primary key,
 a int,
 b BLOB,
 c int
-) engine=MyISAM;
+) engine=MyISAM ;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -2916,7 +2983,8 @@ include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 connection server_1;
-INSERT INTO t1 (pk, a, b, c) VALUES(1, 1000, 'aaa', 2000);
+INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', 2000);
+UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -2946,7 +3014,7 @@ pk int not null primary key,
 a int,
 b BLOB,
 c int
-) engine=MyISAM;
+) engine=MyISAM ;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -2958,7 +3026,8 @@ include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 connection server_1;
-INSERT INTO t1 (pk, a, b, c) VALUES(1, 1000, 'aaa', 2000);
+INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', 2000);
+UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -2988,7 +3057,7 @@ pk int not null primary key,
 a int,
 b BLOB,
 c int
-) engine=MyISAM;
+) engine=MyISAM ;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -3000,7 +3069,8 @@ include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 connection server_1;
-INSERT INTO t1 (pk, a, b, c) VALUES(1, 1000, 'aaa', 2000);
+INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', 2000);
+UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -3030,7 +3100,7 @@ pk int not null primary key,
 a int,
 b BLOB,
 c int
-) engine=MyISAM;
+) engine=MyISAM ;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -3042,7 +3112,8 @@ include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 connection server_1;
-INSERT INTO t1 (pk, a, b, c) VALUES(1, 1000, 'aaa', 2000);
+INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', 2000);
+UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -3072,7 +3143,7 @@ pk int not null primary key,
 a int,
 b BLOB,
 c int
-) engine=MyISAM;
+) engine=MyISAM ;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -3085,7 +3156,8 @@ include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 connection server_1;
-INSERT INTO t1 (pk, a, b, c) VALUES(1, 1000, 'aaa', 2000);
+INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', 2000);
+UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -3118,7 +3190,7 @@ pk int not null primary key,
 a int,
 b TINYBLOB,
 c int
-) engine=MyISAM;
+) engine=MyISAM ;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -3130,7 +3202,8 @@ include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 connection server_1;
-INSERT INTO t1 (pk, a, b, c) VALUES(1, 1000, 'aaa', 2000);
+INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', 2000);
+UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -3159,7 +3232,7 @@ pk int not null primary key,
 a int,
 b TINYBLOB,
 c int
-) engine=MyISAM;
+) engine=MyISAM ;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -3171,7 +3244,8 @@ include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 connection server_1;
-INSERT INTO t1 (pk, a, b, c) VALUES(1, 1000, 'aaa', 2000);
+INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', 2000);
+UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -3200,7 +3274,7 @@ pk int not null primary key,
 a int,
 b TINYBLOB,
 c int
-) engine=MyISAM;
+) engine=MyISAM ;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -3212,7 +3286,8 @@ include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 connection server_1;
-INSERT INTO t1 (pk, a, b, c) VALUES(1, 1000, 'aaa', 2000);
+INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', 2000);
+UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -3242,7 +3317,7 @@ pk int not null primary key,
 a int,
 b TINYBLOB,
 c int
-) engine=MyISAM;
+) engine=MyISAM ;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -3254,7 +3329,8 @@ include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 connection server_1;
-INSERT INTO t1 (pk, a, b, c) VALUES(1, 1000, 'aaa', 2000);
+INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', 2000);
+UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -3284,7 +3360,7 @@ pk int not null primary key,
 a int,
 b TINYBLOB,
 c int
-) engine=MyISAM;
+) engine=MyISAM ;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -3296,7 +3372,8 @@ include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 connection server_1;
-INSERT INTO t1 (pk, a, b, c) VALUES(1, 1000, 'aaa', 2000);
+INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', 2000);
+UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -3326,7 +3403,7 @@ pk int not null primary key,
 a int,
 b TINYBLOB,
 c int
-) engine=MyISAM;
+) engine=MyISAM ;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -3338,7 +3415,8 @@ include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 connection server_1;
-INSERT INTO t1 (pk, a, b, c) VALUES(1, 1000, 'aaa', 2000);
+INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', 2000);
+UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -3368,7 +3446,7 @@ pk int not null primary key,
 a int,
 b TINYBLOB,
 c int
-) engine=MyISAM;
+) engine=MyISAM ;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -3380,7 +3458,8 @@ include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 connection server_1;
-INSERT INTO t1 (pk, a, b, c) VALUES(1, 1000, 'aaa', 2000);
+INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', 2000);
+UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -3410,7 +3489,7 @@ pk int not null primary key,
 a int,
 b TINYBLOB,
 c int
-) engine=MyISAM;
+) engine=MyISAM ;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -3423,7 +3502,8 @@ include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 connection server_1;
-INSERT INTO t1 (pk, a, b, c) VALUES(1, 1000, 'aaa', 2000);
+INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', 2000);
+UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -3468,7 +3548,7 @@ pk int not null primary key,
 a int,
 b BLOB,
 c int
-) engine=MyISAM;
+) engine=MyISAM ;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -3480,7 +3560,8 @@ include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 connection server_1;
-INSERT INTO t1 (pk, a, b, c) VALUES(1, NULL, 'aaa', 2000);
+INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', 2000);
+UPDATE t1 set a = NULL WHERE pk = 1;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -3509,7 +3590,7 @@ pk int not null primary key,
 a int,
 b BLOB,
 c int
-) engine=MyISAM;
+) engine=MyISAM ;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -3521,7 +3602,8 @@ include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 connection server_1;
-INSERT INTO t1 (pk, a, b, c) VALUES(1, NULL, 'aaa', 2000);
+INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', 2000);
+UPDATE t1 set a = NULL WHERE pk = 1;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -3550,7 +3632,7 @@ pk int not null primary key,
 a int,
 b BLOB,
 c int
-) engine=MyISAM;
+) engine=MyISAM ;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -3562,7 +3644,8 @@ include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 connection server_1;
-INSERT INTO t1 (pk, a, b, c) VALUES(1, NULL, 'aaa', 2000);
+INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', 2000);
+UPDATE t1 set a = NULL WHERE pk = 1;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -3592,7 +3675,7 @@ pk int not null primary key,
 a int,
 b BLOB,
 c int
-) engine=MyISAM;
+) engine=MyISAM ;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -3604,7 +3687,8 @@ include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 connection server_1;
-INSERT INTO t1 (pk, a, b, c) VALUES(1, NULL, 'aaa', 2000);
+INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', 2000);
+UPDATE t1 set a = NULL WHERE pk = 1;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -3634,7 +3718,7 @@ pk int not null primary key,
 a int,
 b BLOB,
 c int
-) engine=MyISAM;
+) engine=MyISAM ;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -3646,7 +3730,8 @@ include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 connection server_1;
-INSERT INTO t1 (pk, a, b, c) VALUES(1, NULL, 'aaa', 2000);
+INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', 2000);
+UPDATE t1 set a = NULL WHERE pk = 1;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -3676,7 +3761,7 @@ pk int not null primary key,
 a int,
 b BLOB,
 c int
-) engine=MyISAM;
+) engine=MyISAM ;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -3688,7 +3773,8 @@ include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 connection server_1;
-INSERT INTO t1 (pk, a, b, c) VALUES(1, NULL, 'aaa', 2000);
+INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', 2000);
+UPDATE t1 set a = NULL WHERE pk = 1;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -3718,7 +3804,7 @@ pk int not null primary key,
 a int,
 b BLOB,
 c int
-) engine=MyISAM;
+) engine=MyISAM ;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -3730,7 +3816,8 @@ include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 connection server_1;
-INSERT INTO t1 (pk, a, b, c) VALUES(1, NULL, 'aaa', 2000);
+INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', 2000);
+UPDATE t1 set a = NULL WHERE pk = 1;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -3760,7 +3847,7 @@ pk int not null primary key,
 a int,
 b BLOB,
 c int
-) engine=MyISAM;
+) engine=MyISAM ;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -3773,7 +3860,8 @@ include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 connection server_1;
-INSERT INTO t1 (pk, a, b, c) VALUES(1, NULL, 'aaa', 2000);
+INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', 2000);
+UPDATE t1 set a = NULL WHERE pk = 1;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -3806,7 +3894,7 @@ pk int not null primary key,
 a int,
 b TINYBLOB,
 c int
-) engine=MyISAM;
+) engine=MyISAM ;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -3818,7 +3906,8 @@ include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 connection server_1;
-INSERT INTO t1 (pk, a, b, c) VALUES(1, NULL, 'aaa', 2000);
+INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', 2000);
+UPDATE t1 set a = NULL WHERE pk = 1;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -3847,7 +3936,7 @@ pk int not null primary key,
 a int,
 b TINYBLOB,
 c int
-) engine=MyISAM;
+) engine=MyISAM ;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -3859,7 +3948,8 @@ include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 connection server_1;
-INSERT INTO t1 (pk, a, b, c) VALUES(1, NULL, 'aaa', 2000);
+INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', 2000);
+UPDATE t1 set a = NULL WHERE pk = 1;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -3888,7 +3978,7 @@ pk int not null primary key,
 a int,
 b TINYBLOB,
 c int
-) engine=MyISAM;
+) engine=MyISAM ;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -3900,7 +3990,8 @@ include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 connection server_1;
-INSERT INTO t1 (pk, a, b, c) VALUES(1, NULL, 'aaa', 2000);
+INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', 2000);
+UPDATE t1 set a = NULL WHERE pk = 1;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -3930,7 +4021,7 @@ pk int not null primary key,
 a int,
 b TINYBLOB,
 c int
-) engine=MyISAM;
+) engine=MyISAM ;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -3942,7 +4033,8 @@ include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 connection server_1;
-INSERT INTO t1 (pk, a, b, c) VALUES(1, NULL, 'aaa', 2000);
+INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', 2000);
+UPDATE t1 set a = NULL WHERE pk = 1;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -3972,7 +4064,7 @@ pk int not null primary key,
 a int,
 b TINYBLOB,
 c int
-) engine=MyISAM;
+) engine=MyISAM ;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -3984,7 +4076,8 @@ include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 connection server_1;
-INSERT INTO t1 (pk, a, b, c) VALUES(1, NULL, 'aaa', 2000);
+INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', 2000);
+UPDATE t1 set a = NULL WHERE pk = 1;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -4014,7 +4107,7 @@ pk int not null primary key,
 a int,
 b TINYBLOB,
 c int
-) engine=MyISAM;
+) engine=MyISAM ;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -4026,7 +4119,8 @@ include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 connection server_1;
-INSERT INTO t1 (pk, a, b, c) VALUES(1, NULL, 'aaa', 2000);
+INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', 2000);
+UPDATE t1 set a = NULL WHERE pk = 1;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -4056,7 +4150,7 @@ pk int not null primary key,
 a int,
 b TINYBLOB,
 c int
-) engine=MyISAM;
+) engine=MyISAM ;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -4068,7 +4162,8 @@ include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 connection server_1;
-INSERT INTO t1 (pk, a, b, c) VALUES(1, NULL, 'aaa', 2000);
+INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', 2000);
+UPDATE t1 set a = NULL WHERE pk = 1;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -4098,7 +4193,7 @@ pk int not null primary key,
 a int,
 b TINYBLOB,
 c int
-) engine=MyISAM;
+) engine=MyISAM ;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -4111,7 +4206,8 @@ include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 connection server_1;
-INSERT INTO t1 (pk, a, b, c) VALUES(1, NULL, 'aaa', 2000);
+INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', 2000);
+UPDATE t1 set a = NULL WHERE pk = 1;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -4156,7 +4252,7 @@ pk int not null primary key,
 a int,
 b BLOB,
 c int
-) engine=MyISAM;
+) engine=MyISAM ;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -4168,7 +4264,8 @@ include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 connection server_1;
-INSERT INTO t1 (pk, a, b, c) VALUES(1, 1000, NULL, 2000);
+INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, NULL, 2000);
+UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -4197,7 +4294,7 @@ pk int not null primary key,
 a int,
 b BLOB,
 c int
-) engine=MyISAM;
+) engine=MyISAM ;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -4209,7 +4306,8 @@ include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 connection server_1;
-INSERT INTO t1 (pk, a, b, c) VALUES(1, 1000, NULL, 2000);
+INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, NULL, 2000);
+UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -4238,7 +4336,7 @@ pk int not null primary key,
 a int,
 b BLOB,
 c int
-) engine=MyISAM;
+) engine=MyISAM ;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -4250,7 +4348,8 @@ include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 connection server_1;
-INSERT INTO t1 (pk, a, b, c) VALUES(1, 1000, NULL, 2000);
+INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, NULL, 2000);
+UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -4280,7 +4379,7 @@ pk int not null primary key,
 a int,
 b BLOB,
 c int
-) engine=MyISAM;
+) engine=MyISAM ;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -4292,7 +4391,8 @@ include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 connection server_1;
-INSERT INTO t1 (pk, a, b, c) VALUES(1, 1000, NULL, 2000);
+INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, NULL, 2000);
+UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -4322,7 +4422,7 @@ pk int not null primary key,
 a int,
 b BLOB,
 c int
-) engine=MyISAM;
+) engine=MyISAM ;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -4334,7 +4434,8 @@ include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 connection server_1;
-INSERT INTO t1 (pk, a, b, c) VALUES(1, 1000, NULL, 2000);
+INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, NULL, 2000);
+UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -4364,7 +4465,7 @@ pk int not null primary key,
 a int,
 b BLOB,
 c int
-) engine=MyISAM;
+) engine=MyISAM ;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -4376,7 +4477,8 @@ include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 connection server_1;
-INSERT INTO t1 (pk, a, b, c) VALUES(1, 1000, NULL, 2000);
+INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, NULL, 2000);
+UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -4406,7 +4508,7 @@ pk int not null primary key,
 a int,
 b BLOB,
 c int
-) engine=MyISAM;
+) engine=MyISAM ;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -4418,7 +4520,8 @@ include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 connection server_1;
-INSERT INTO t1 (pk, a, b, c) VALUES(1, 1000, NULL, 2000);
+INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, NULL, 2000);
+UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -4448,7 +4551,7 @@ pk int not null primary key,
 a int,
 b BLOB,
 c int
-) engine=MyISAM;
+) engine=MyISAM ;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -4461,7 +4564,8 @@ include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 connection server_1;
-INSERT INTO t1 (pk, a, b, c) VALUES(1, 1000, NULL, 2000);
+INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, NULL, 2000);
+UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -4494,7 +4598,7 @@ pk int not null primary key,
 a int,
 b TINYBLOB,
 c int
-) engine=MyISAM;
+) engine=MyISAM ;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -4506,7 +4610,8 @@ include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 connection server_1;
-INSERT INTO t1 (pk, a, b, c) VALUES(1, 1000, NULL, 2000);
+INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, NULL, 2000);
+UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -4535,7 +4640,7 @@ pk int not null primary key,
 a int,
 b TINYBLOB,
 c int
-) engine=MyISAM;
+) engine=MyISAM ;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -4547,7 +4652,8 @@ include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 connection server_1;
-INSERT INTO t1 (pk, a, b, c) VALUES(1, 1000, NULL, 2000);
+INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, NULL, 2000);
+UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -4576,7 +4682,7 @@ pk int not null primary key,
 a int,
 b TINYBLOB,
 c int
-) engine=MyISAM;
+) engine=MyISAM ;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -4588,7 +4694,8 @@ include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 connection server_1;
-INSERT INTO t1 (pk, a, b, c) VALUES(1, 1000, NULL, 2000);
+INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, NULL, 2000);
+UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -4618,7 +4725,7 @@ pk int not null primary key,
 a int,
 b TINYBLOB,
 c int
-) engine=MyISAM;
+) engine=MyISAM ;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -4630,7 +4737,8 @@ include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 connection server_1;
-INSERT INTO t1 (pk, a, b, c) VALUES(1, 1000, NULL, 2000);
+INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, NULL, 2000);
+UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -4660,7 +4768,7 @@ pk int not null primary key,
 a int,
 b TINYBLOB,
 c int
-) engine=MyISAM;
+) engine=MyISAM ;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -4672,7 +4780,8 @@ include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 connection server_1;
-INSERT INTO t1 (pk, a, b, c) VALUES(1, 1000, NULL, 2000);
+INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, NULL, 2000);
+UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -4702,7 +4811,7 @@ pk int not null primary key,
 a int,
 b TINYBLOB,
 c int
-) engine=MyISAM;
+) engine=MyISAM ;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -4714,7 +4823,8 @@ include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 connection server_1;
-INSERT INTO t1 (pk, a, b, c) VALUES(1, 1000, NULL, 2000);
+INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, NULL, 2000);
+UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -4744,7 +4854,7 @@ pk int not null primary key,
 a int,
 b TINYBLOB,
 c int
-) engine=MyISAM;
+) engine=MyISAM ;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -4756,7 +4866,8 @@ include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 connection server_1;
-INSERT INTO t1 (pk, a, b, c) VALUES(1, 1000, NULL, 2000);
+INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, NULL, 2000);
+UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -4786,7 +4897,7 @@ pk int not null primary key,
 a int,
 b TINYBLOB,
 c int
-) engine=MyISAM;
+) engine=MyISAM ;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -4799,7 +4910,8 @@ include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 connection server_1;
-INSERT INTO t1 (pk, a, b, c) VALUES(1, 1000, NULL, 2000);
+INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, NULL, 2000);
+UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -4844,7 +4956,7 @@ pk int not null primary key,
 a int,
 b BLOB,
 c int
-) engine=MyISAM;
+) engine=MyISAM ;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -4856,7 +4968,8 @@ include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 connection server_1;
-INSERT INTO t1 (pk, a, b, c) VALUES(1, 1000, 'aaa', NULL);
+INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', NULL);
+UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -4885,7 +4998,7 @@ pk int not null primary key,
 a int,
 b BLOB,
 c int
-) engine=MyISAM;
+) engine=MyISAM ;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -4897,7 +5010,8 @@ include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 connection server_1;
-INSERT INTO t1 (pk, a, b, c) VALUES(1, 1000, 'aaa', NULL);
+INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', NULL);
+UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -4926,7 +5040,7 @@ pk int not null primary key,
 a int,
 b BLOB,
 c int
-) engine=MyISAM;
+) engine=MyISAM ;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -4938,7 +5052,8 @@ include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 connection server_1;
-INSERT INTO t1 (pk, a, b, c) VALUES(1, 1000, 'aaa', NULL);
+INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', NULL);
+UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -4968,7 +5083,7 @@ pk int not null primary key,
 a int,
 b BLOB,
 c int
-) engine=MyISAM;
+) engine=MyISAM ;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -4980,7 +5095,8 @@ include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 connection server_1;
-INSERT INTO t1 (pk, a, b, c) VALUES(1, 1000, 'aaa', NULL);
+INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', NULL);
+UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -5010,7 +5126,7 @@ pk int not null primary key,
 a int,
 b BLOB,
 c int
-) engine=MyISAM;
+) engine=MyISAM ;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -5022,7 +5138,8 @@ include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 connection server_1;
-INSERT INTO t1 (pk, a, b, c) VALUES(1, 1000, 'aaa', NULL);
+INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', NULL);
+UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -5052,7 +5169,7 @@ pk int not null primary key,
 a int,
 b BLOB,
 c int
-) engine=MyISAM;
+) engine=MyISAM ;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -5064,7 +5181,8 @@ include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 connection server_1;
-INSERT INTO t1 (pk, a, b, c) VALUES(1, 1000, 'aaa', NULL);
+INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', NULL);
+UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -5094,7 +5212,7 @@ pk int not null primary key,
 a int,
 b BLOB,
 c int
-) engine=MyISAM;
+) engine=MyISAM ;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -5106,7 +5224,8 @@ include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 connection server_1;
-INSERT INTO t1 (pk, a, b, c) VALUES(1, 1000, 'aaa', NULL);
+INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', NULL);
+UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -5136,7 +5255,7 @@ pk int not null primary key,
 a int,
 b BLOB,
 c int
-) engine=MyISAM;
+) engine=MyISAM ;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -5149,7 +5268,8 @@ include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 connection server_1;
-INSERT INTO t1 (pk, a, b, c) VALUES(1, 1000, 'aaa', NULL);
+INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', NULL);
+UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -5182,7 +5302,7 @@ pk int not null primary key,
 a int,
 b TINYBLOB,
 c int
-) engine=MyISAM;
+) engine=MyISAM ;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -5194,7 +5314,8 @@ include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 connection server_1;
-INSERT INTO t1 (pk, a, b, c) VALUES(1, 1000, 'aaa', NULL);
+INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', NULL);
+UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -5223,7 +5344,7 @@ pk int not null primary key,
 a int,
 b TINYBLOB,
 c int
-) engine=MyISAM;
+) engine=MyISAM ;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -5235,7 +5356,8 @@ include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 connection server_1;
-INSERT INTO t1 (pk, a, b, c) VALUES(1, 1000, 'aaa', NULL);
+INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', NULL);
+UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -5264,7 +5386,7 @@ pk int not null primary key,
 a int,
 b TINYBLOB,
 c int
-) engine=MyISAM;
+) engine=MyISAM ;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -5276,7 +5398,8 @@ include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 connection server_1;
-INSERT INTO t1 (pk, a, b, c) VALUES(1, 1000, 'aaa', NULL);
+INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', NULL);
+UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -5306,7 +5429,7 @@ pk int not null primary key,
 a int,
 b TINYBLOB,
 c int
-) engine=MyISAM;
+) engine=MyISAM ;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -5318,7 +5441,8 @@ include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 connection server_1;
-INSERT INTO t1 (pk, a, b, c) VALUES(1, 1000, 'aaa', NULL);
+INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', NULL);
+UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -5348,7 +5472,7 @@ pk int not null primary key,
 a int,
 b TINYBLOB,
 c int
-) engine=MyISAM;
+) engine=MyISAM ;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -5360,7 +5484,8 @@ include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 connection server_1;
-INSERT INTO t1 (pk, a, b, c) VALUES(1, 1000, 'aaa', NULL);
+INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', NULL);
+UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -5390,7 +5515,7 @@ pk int not null primary key,
 a int,
 b TINYBLOB,
 c int
-) engine=MyISAM;
+) engine=MyISAM ;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -5402,7 +5527,8 @@ include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 connection server_1;
-INSERT INTO t1 (pk, a, b, c) VALUES(1, 1000, 'aaa', NULL);
+INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', NULL);
+UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -5432,7 +5558,7 @@ pk int not null primary key,
 a int,
 b TINYBLOB,
 c int
-) engine=MyISAM;
+) engine=MyISAM ;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -5444,7 +5570,8 @@ include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 connection server_1;
-INSERT INTO t1 (pk, a, b, c) VALUES(1, 1000, 'aaa', NULL);
+INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', NULL);
+UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -5474,7 +5601,7 @@ pk int not null primary key,
 a int,
 b TINYBLOB,
 c int
-) engine=MyISAM;
+) engine=MyISAM ;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -5487,7 +5614,8 @@ include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 connection server_1;
-INSERT INTO t1 (pk, a, b, c) VALUES(1, 1000, 'aaa', NULL);
+INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', NULL);
+UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -5537,7 +5665,7 @@ pk int not null primary key,
 a int,
 b BLOB,
 c int
-) engine=MyISAM;
+) engine=MyISAM ;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -5549,7 +5677,8 @@ include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 connection server_1;
-INSERT INTO t1 (pk, a, b, c) VALUES(1, 1000, 'aaa', 2000);
+INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', 2000);
+UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -5578,7 +5707,7 @@ pk int not null primary key,
 a int,
 b BLOB,
 c int
-) engine=MyISAM;
+) engine=MyISAM ;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -5590,7 +5719,8 @@ include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 connection server_1;
-INSERT INTO t1 (pk, a, b, c) VALUES(1, 1000, 'aaa', 2000);
+INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', 2000);
+UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -5619,7 +5749,7 @@ pk int not null primary key,
 a int,
 b BLOB,
 c int
-) engine=MyISAM;
+) engine=MyISAM ;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -5631,7 +5761,8 @@ include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 connection server_1;
-INSERT INTO t1 (pk, a, b, c) VALUES(1, 1000, 'aaa', 2000);
+INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', 2000);
+UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -5661,7 +5792,7 @@ pk int not null primary key,
 a int,
 b BLOB,
 c int
-) engine=MyISAM;
+) engine=MyISAM ;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -5673,7 +5804,8 @@ include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 connection server_1;
-INSERT INTO t1 (pk, a, b, c) VALUES(1, 1000, 'aaa', 2000);
+INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', 2000);
+UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -5703,7 +5835,7 @@ pk int not null primary key,
 a int,
 b BLOB,
 c int
-) engine=MyISAM;
+) engine=MyISAM ;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -5715,7 +5847,8 @@ include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 connection server_1;
-INSERT INTO t1 (pk, a, b, c) VALUES(1, 1000, 'aaa', 2000);
+INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', 2000);
+UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -5745,7 +5878,7 @@ pk int not null primary key,
 a int,
 b BLOB,
 c int
-) engine=MyISAM;
+) engine=MyISAM ;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -5757,7 +5890,8 @@ include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 connection server_1;
-INSERT INTO t1 (pk, a, b, c) VALUES(1, 1000, 'aaa', 2000);
+INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', 2000);
+UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -5787,7 +5921,7 @@ pk int not null primary key,
 a int,
 b BLOB,
 c int
-) engine=MyISAM;
+) engine=MyISAM ;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -5799,7 +5933,8 @@ include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 connection server_1;
-INSERT INTO t1 (pk, a, b, c) VALUES(1, 1000, 'aaa', 2000);
+INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', 2000);
+UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -5829,7 +5964,7 @@ pk int not null primary key,
 a int,
 b BLOB,
 c int
-) engine=MyISAM;
+) engine=MyISAM ;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -5842,7 +5977,8 @@ include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 connection server_1;
-INSERT INTO t1 (pk, a, b, c) VALUES(1, 1000, 'aaa', 2000);
+INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', 2000);
+UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -5875,7 +6011,7 @@ pk int not null primary key,
 a int,
 b TINYBLOB,
 c int
-) engine=MyISAM;
+) engine=MyISAM ;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -5887,7 +6023,8 @@ include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 connection server_1;
-INSERT INTO t1 (pk, a, b, c) VALUES(1, 1000, 'aaa', 2000);
+INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', 2000);
+UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -5916,7 +6053,7 @@ pk int not null primary key,
 a int,
 b TINYBLOB,
 c int
-) engine=MyISAM;
+) engine=MyISAM ;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -5928,7 +6065,8 @@ include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 connection server_1;
-INSERT INTO t1 (pk, a, b, c) VALUES(1, 1000, 'aaa', 2000);
+INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', 2000);
+UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -5957,7 +6095,7 @@ pk int not null primary key,
 a int,
 b TINYBLOB,
 c int
-) engine=MyISAM;
+) engine=MyISAM ;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -5969,7 +6107,8 @@ include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 connection server_1;
-INSERT INTO t1 (pk, a, b, c) VALUES(1, 1000, 'aaa', 2000);
+INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', 2000);
+UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -5999,7 +6138,7 @@ pk int not null primary key,
 a int,
 b TINYBLOB,
 c int
-) engine=MyISAM;
+) engine=MyISAM ;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -6011,7 +6150,8 @@ include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 connection server_1;
-INSERT INTO t1 (pk, a, b, c) VALUES(1, 1000, 'aaa', 2000);
+INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', 2000);
+UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -6041,7 +6181,7 @@ pk int not null primary key,
 a int,
 b TINYBLOB,
 c int
-) engine=MyISAM;
+) engine=MyISAM ;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -6053,7 +6193,8 @@ include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 connection server_1;
-INSERT INTO t1 (pk, a, b, c) VALUES(1, 1000, 'aaa', 2000);
+INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', 2000);
+UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -6083,7 +6224,7 @@ pk int not null primary key,
 a int,
 b TINYBLOB,
 c int
-) engine=MyISAM;
+) engine=MyISAM ;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -6095,7 +6236,8 @@ include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 connection server_1;
-INSERT INTO t1 (pk, a, b, c) VALUES(1, 1000, 'aaa', 2000);
+INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', 2000);
+UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -6125,7 +6267,7 @@ pk int not null primary key,
 a int,
 b TINYBLOB,
 c int
-) engine=MyISAM;
+) engine=MyISAM ;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -6137,7 +6279,8 @@ include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 connection server_1;
-INSERT INTO t1 (pk, a, b, c) VALUES(1, 1000, 'aaa', 2000);
+INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', 2000);
+UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -6167,7 +6310,7 @@ pk int not null primary key,
 a int,
 b TINYBLOB,
 c int
-) engine=MyISAM;
+) engine=MyISAM ;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -6180,7 +6323,8 @@ include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 connection server_1;
-INSERT INTO t1 (pk, a, b, c) VALUES(1, 1000, 'aaa', 2000);
+INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', 2000);
+UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -6225,7 +6369,7 @@ pk int not null primary key,
 a int,
 b BLOB,
 c int
-) engine=MyISAM;
+) engine=MyISAM ;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -6237,7 +6381,8 @@ include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 connection server_1;
-INSERT INTO t1 (pk, a, b, c) VALUES(1, NULL, 'aaa', 2000);
+INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', 2000);
+UPDATE t1 set a = NULL WHERE pk = 1;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -6266,7 +6411,7 @@ pk int not null primary key,
 a int,
 b BLOB,
 c int
-) engine=MyISAM;
+) engine=MyISAM ;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -6278,7 +6423,8 @@ include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 connection server_1;
-INSERT INTO t1 (pk, a, b, c) VALUES(1, NULL, 'aaa', 2000);
+INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', 2000);
+UPDATE t1 set a = NULL WHERE pk = 1;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -6307,7 +6453,7 @@ pk int not null primary key,
 a int,
 b BLOB,
 c int
-) engine=MyISAM;
+) engine=MyISAM ;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -6319,7 +6465,8 @@ include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 connection server_1;
-INSERT INTO t1 (pk, a, b, c) VALUES(1, NULL, 'aaa', 2000);
+INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', 2000);
+UPDATE t1 set a = NULL WHERE pk = 1;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -6349,7 +6496,7 @@ pk int not null primary key,
 a int,
 b BLOB,
 c int
-) engine=MyISAM;
+) engine=MyISAM ;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -6361,7 +6508,8 @@ include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 connection server_1;
-INSERT INTO t1 (pk, a, b, c) VALUES(1, NULL, 'aaa', 2000);
+INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', 2000);
+UPDATE t1 set a = NULL WHERE pk = 1;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -6391,7 +6539,7 @@ pk int not null primary key,
 a int,
 b BLOB,
 c int
-) engine=MyISAM;
+) engine=MyISAM ;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -6403,7 +6551,8 @@ include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 connection server_1;
-INSERT INTO t1 (pk, a, b, c) VALUES(1, NULL, 'aaa', 2000);
+INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', 2000);
+UPDATE t1 set a = NULL WHERE pk = 1;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -6433,7 +6582,7 @@ pk int not null primary key,
 a int,
 b BLOB,
 c int
-) engine=MyISAM;
+) engine=MyISAM ;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -6445,7 +6594,8 @@ include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 connection server_1;
-INSERT INTO t1 (pk, a, b, c) VALUES(1, NULL, 'aaa', 2000);
+INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', 2000);
+UPDATE t1 set a = NULL WHERE pk = 1;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -6475,7 +6625,7 @@ pk int not null primary key,
 a int,
 b BLOB,
 c int
-) engine=MyISAM;
+) engine=MyISAM ;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -6487,7 +6637,8 @@ include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 connection server_1;
-INSERT INTO t1 (pk, a, b, c) VALUES(1, NULL, 'aaa', 2000);
+INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', 2000);
+UPDATE t1 set a = NULL WHERE pk = 1;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -6517,7 +6668,7 @@ pk int not null primary key,
 a int,
 b BLOB,
 c int
-) engine=MyISAM;
+) engine=MyISAM ;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -6530,7 +6681,8 @@ include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 connection server_1;
-INSERT INTO t1 (pk, a, b, c) VALUES(1, NULL, 'aaa', 2000);
+INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', 2000);
+UPDATE t1 set a = NULL WHERE pk = 1;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -6563,7 +6715,7 @@ pk int not null primary key,
 a int,
 b TINYBLOB,
 c int
-) engine=MyISAM;
+) engine=MyISAM ;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -6575,7 +6727,8 @@ include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 connection server_1;
-INSERT INTO t1 (pk, a, b, c) VALUES(1, NULL, 'aaa', 2000);
+INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', 2000);
+UPDATE t1 set a = NULL WHERE pk = 1;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -6604,7 +6757,7 @@ pk int not null primary key,
 a int,
 b TINYBLOB,
 c int
-) engine=MyISAM;
+) engine=MyISAM ;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -6616,7 +6769,8 @@ include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 connection server_1;
-INSERT INTO t1 (pk, a, b, c) VALUES(1, NULL, 'aaa', 2000);
+INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', 2000);
+UPDATE t1 set a = NULL WHERE pk = 1;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -6645,7 +6799,7 @@ pk int not null primary key,
 a int,
 b TINYBLOB,
 c int
-) engine=MyISAM;
+) engine=MyISAM ;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -6657,7 +6811,8 @@ include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 connection server_1;
-INSERT INTO t1 (pk, a, b, c) VALUES(1, NULL, 'aaa', 2000);
+INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', 2000);
+UPDATE t1 set a = NULL WHERE pk = 1;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -6687,7 +6842,7 @@ pk int not null primary key,
 a int,
 b TINYBLOB,
 c int
-) engine=MyISAM;
+) engine=MyISAM ;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -6699,7 +6854,8 @@ include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 connection server_1;
-INSERT INTO t1 (pk, a, b, c) VALUES(1, NULL, 'aaa', 2000);
+INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', 2000);
+UPDATE t1 set a = NULL WHERE pk = 1;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -6729,7 +6885,7 @@ pk int not null primary key,
 a int,
 b TINYBLOB,
 c int
-) engine=MyISAM;
+) engine=MyISAM ;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -6741,7 +6897,8 @@ include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 connection server_1;
-INSERT INTO t1 (pk, a, b, c) VALUES(1, NULL, 'aaa', 2000);
+INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', 2000);
+UPDATE t1 set a = NULL WHERE pk = 1;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -6771,7 +6928,7 @@ pk int not null primary key,
 a int,
 b TINYBLOB,
 c int
-) engine=MyISAM;
+) engine=MyISAM ;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -6783,7 +6940,8 @@ include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 connection server_1;
-INSERT INTO t1 (pk, a, b, c) VALUES(1, NULL, 'aaa', 2000);
+INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', 2000);
+UPDATE t1 set a = NULL WHERE pk = 1;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -6813,7 +6971,7 @@ pk int not null primary key,
 a int,
 b TINYBLOB,
 c int
-) engine=MyISAM;
+) engine=MyISAM ;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -6825,7 +6983,8 @@ include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 connection server_1;
-INSERT INTO t1 (pk, a, b, c) VALUES(1, NULL, 'aaa', 2000);
+INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', 2000);
+UPDATE t1 set a = NULL WHERE pk = 1;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -6855,7 +7014,7 @@ pk int not null primary key,
 a int,
 b TINYBLOB,
 c int
-) engine=MyISAM;
+) engine=MyISAM ;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -6868,7 +7027,8 @@ include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 connection server_1;
-INSERT INTO t1 (pk, a, b, c) VALUES(1, NULL, 'aaa', 2000);
+INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', 2000);
+UPDATE t1 set a = NULL WHERE pk = 1;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -6913,7 +7073,7 @@ pk int not null primary key,
 a int,
 b BLOB,
 c int
-) engine=MyISAM;
+) engine=MyISAM ;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -6925,7 +7085,8 @@ include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 connection server_1;
-INSERT INTO t1 (pk, a, b, c) VALUES(1, 1000, NULL, 2000);
+INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, NULL, 2000);
+UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -6954,7 +7115,7 @@ pk int not null primary key,
 a int,
 b BLOB,
 c int
-) engine=MyISAM;
+) engine=MyISAM ;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -6966,7 +7127,8 @@ include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 connection server_1;
-INSERT INTO t1 (pk, a, b, c) VALUES(1, 1000, NULL, 2000);
+INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, NULL, 2000);
+UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -6995,7 +7157,7 @@ pk int not null primary key,
 a int,
 b BLOB,
 c int
-) engine=MyISAM;
+) engine=MyISAM ;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -7007,7 +7169,8 @@ include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 connection server_1;
-INSERT INTO t1 (pk, a, b, c) VALUES(1, 1000, NULL, 2000);
+INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, NULL, 2000);
+UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -7037,7 +7200,7 @@ pk int not null primary key,
 a int,
 b BLOB,
 c int
-) engine=MyISAM;
+) engine=MyISAM ;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -7049,7 +7212,8 @@ include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 connection server_1;
-INSERT INTO t1 (pk, a, b, c) VALUES(1, 1000, NULL, 2000);
+INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, NULL, 2000);
+UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -7079,7 +7243,7 @@ pk int not null primary key,
 a int,
 b BLOB,
 c int
-) engine=MyISAM;
+) engine=MyISAM ;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -7091,7 +7255,8 @@ include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 connection server_1;
-INSERT INTO t1 (pk, a, b, c) VALUES(1, 1000, NULL, 2000);
+INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, NULL, 2000);
+UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -7121,7 +7286,7 @@ pk int not null primary key,
 a int,
 b BLOB,
 c int
-) engine=MyISAM;
+) engine=MyISAM ;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -7133,7 +7298,8 @@ include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 connection server_1;
-INSERT INTO t1 (pk, a, b, c) VALUES(1, 1000, NULL, 2000);
+INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, NULL, 2000);
+UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -7163,7 +7329,7 @@ pk int not null primary key,
 a int,
 b BLOB,
 c int
-) engine=MyISAM;
+) engine=MyISAM ;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -7175,7 +7341,8 @@ include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 connection server_1;
-INSERT INTO t1 (pk, a, b, c) VALUES(1, 1000, NULL, 2000);
+INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, NULL, 2000);
+UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -7205,7 +7372,7 @@ pk int not null primary key,
 a int,
 b BLOB,
 c int
-) engine=MyISAM;
+) engine=MyISAM ;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -7218,7 +7385,8 @@ include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 connection server_1;
-INSERT INTO t1 (pk, a, b, c) VALUES(1, 1000, NULL, 2000);
+INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, NULL, 2000);
+UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -7251,7 +7419,7 @@ pk int not null primary key,
 a int,
 b TINYBLOB,
 c int
-) engine=MyISAM;
+) engine=MyISAM ;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -7263,7 +7431,8 @@ include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 connection server_1;
-INSERT INTO t1 (pk, a, b, c) VALUES(1, 1000, NULL, 2000);
+INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, NULL, 2000);
+UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -7292,7 +7461,7 @@ pk int not null primary key,
 a int,
 b TINYBLOB,
 c int
-) engine=MyISAM;
+) engine=MyISAM ;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -7304,7 +7473,8 @@ include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 connection server_1;
-INSERT INTO t1 (pk, a, b, c) VALUES(1, 1000, NULL, 2000);
+INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, NULL, 2000);
+UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -7333,7 +7503,7 @@ pk int not null primary key,
 a int,
 b TINYBLOB,
 c int
-) engine=MyISAM;
+) engine=MyISAM ;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -7345,7 +7515,8 @@ include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 connection server_1;
-INSERT INTO t1 (pk, a, b, c) VALUES(1, 1000, NULL, 2000);
+INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, NULL, 2000);
+UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -7375,7 +7546,7 @@ pk int not null primary key,
 a int,
 b TINYBLOB,
 c int
-) engine=MyISAM;
+) engine=MyISAM ;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -7387,7 +7558,8 @@ include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 connection server_1;
-INSERT INTO t1 (pk, a, b, c) VALUES(1, 1000, NULL, 2000);
+INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, NULL, 2000);
+UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -7417,7 +7589,7 @@ pk int not null primary key,
 a int,
 b TINYBLOB,
 c int
-) engine=MyISAM;
+) engine=MyISAM ;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -7429,7 +7601,8 @@ include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 connection server_1;
-INSERT INTO t1 (pk, a, b, c) VALUES(1, 1000, NULL, 2000);
+INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, NULL, 2000);
+UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -7459,7 +7632,7 @@ pk int not null primary key,
 a int,
 b TINYBLOB,
 c int
-) engine=MyISAM;
+) engine=MyISAM ;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -7471,7 +7644,8 @@ include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 connection server_1;
-INSERT INTO t1 (pk, a, b, c) VALUES(1, 1000, NULL, 2000);
+INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, NULL, 2000);
+UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -7501,7 +7675,7 @@ pk int not null primary key,
 a int,
 b TINYBLOB,
 c int
-) engine=MyISAM;
+) engine=MyISAM ;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -7513,7 +7687,8 @@ include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 connection server_1;
-INSERT INTO t1 (pk, a, b, c) VALUES(1, 1000, NULL, 2000);
+INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, NULL, 2000);
+UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -7543,7 +7718,7 @@ pk int not null primary key,
 a int,
 b TINYBLOB,
 c int
-) engine=MyISAM;
+) engine=MyISAM ;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -7556,7 +7731,8 @@ include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 connection server_1;
-INSERT INTO t1 (pk, a, b, c) VALUES(1, 1000, NULL, 2000);
+INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, NULL, 2000);
+UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -7601,7 +7777,7 @@ pk int not null primary key,
 a int,
 b BLOB,
 c int
-) engine=MyISAM;
+) engine=MyISAM ;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -7613,7 +7789,8 @@ include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 connection server_1;
-INSERT INTO t1 (pk, a, b, c) VALUES(1, 1000, 'aaa', NULL);
+INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', NULL);
+UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -7642,7 +7819,7 @@ pk int not null primary key,
 a int,
 b BLOB,
 c int
-) engine=MyISAM;
+) engine=MyISAM ;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -7654,7 +7831,8 @@ include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 connection server_1;
-INSERT INTO t1 (pk, a, b, c) VALUES(1, 1000, 'aaa', NULL);
+INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', NULL);
+UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -7683,7 +7861,7 @@ pk int not null primary key,
 a int,
 b BLOB,
 c int
-) engine=MyISAM;
+) engine=MyISAM ;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -7695,7 +7873,8 @@ include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 connection server_1;
-INSERT INTO t1 (pk, a, b, c) VALUES(1, 1000, 'aaa', NULL);
+INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', NULL);
+UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -7725,7 +7904,7 @@ pk int not null primary key,
 a int,
 b BLOB,
 c int
-) engine=MyISAM;
+) engine=MyISAM ;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -7737,7 +7916,8 @@ include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 connection server_1;
-INSERT INTO t1 (pk, a, b, c) VALUES(1, 1000, 'aaa', NULL);
+INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', NULL);
+UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -7767,7 +7947,7 @@ pk int not null primary key,
 a int,
 b BLOB,
 c int
-) engine=MyISAM;
+) engine=MyISAM ;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -7779,7 +7959,8 @@ include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 connection server_1;
-INSERT INTO t1 (pk, a, b, c) VALUES(1, 1000, 'aaa', NULL);
+INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', NULL);
+UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -7809,7 +7990,7 @@ pk int not null primary key,
 a int,
 b BLOB,
 c int
-) engine=MyISAM;
+) engine=MyISAM ;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -7821,7 +8002,8 @@ include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 connection server_1;
-INSERT INTO t1 (pk, a, b, c) VALUES(1, 1000, 'aaa', NULL);
+INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', NULL);
+UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -7851,7 +8033,7 @@ pk int not null primary key,
 a int,
 b BLOB,
 c int
-) engine=MyISAM;
+) engine=MyISAM ;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -7863,7 +8045,8 @@ include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 connection server_1;
-INSERT INTO t1 (pk, a, b, c) VALUES(1, 1000, 'aaa', NULL);
+INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', NULL);
+UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -7893,7 +8076,7 @@ pk int not null primary key,
 a int,
 b BLOB,
 c int
-) engine=MyISAM;
+) engine=MyISAM ;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -7906,7 +8089,8 @@ include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 connection server_1;
-INSERT INTO t1 (pk, a, b, c) VALUES(1, 1000, 'aaa', NULL);
+INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', NULL);
+UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -7939,7 +8123,7 @@ pk int not null primary key,
 a int,
 b TINYBLOB,
 c int
-) engine=MyISAM;
+) engine=MyISAM ;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -7951,7 +8135,8 @@ include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 connection server_1;
-INSERT INTO t1 (pk, a, b, c) VALUES(1, 1000, 'aaa', NULL);
+INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', NULL);
+UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -7980,7 +8165,7 @@ pk int not null primary key,
 a int,
 b TINYBLOB,
 c int
-) engine=MyISAM;
+) engine=MyISAM ;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -7992,7 +8177,8 @@ include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 connection server_1;
-INSERT INTO t1 (pk, a, b, c) VALUES(1, 1000, 'aaa', NULL);
+INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', NULL);
+UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -8021,7 +8207,7 @@ pk int not null primary key,
 a int,
 b TINYBLOB,
 c int
-) engine=MyISAM;
+) engine=MyISAM ;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -8033,7 +8219,8 @@ include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 connection server_1;
-INSERT INTO t1 (pk, a, b, c) VALUES(1, 1000, 'aaa', NULL);
+INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', NULL);
+UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -8063,7 +8250,7 @@ pk int not null primary key,
 a int,
 b TINYBLOB,
 c int
-) engine=MyISAM;
+) engine=MyISAM ;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -8075,7 +8262,8 @@ include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 connection server_1;
-INSERT INTO t1 (pk, a, b, c) VALUES(1, 1000, 'aaa', NULL);
+INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', NULL);
+UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -8105,7 +8293,7 @@ pk int not null primary key,
 a int,
 b TINYBLOB,
 c int
-) engine=MyISAM;
+) engine=MyISAM ;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -8117,7 +8305,8 @@ include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 connection server_1;
-INSERT INTO t1 (pk, a, b, c) VALUES(1, 1000, 'aaa', NULL);
+INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', NULL);
+UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -8147,7 +8336,7 @@ pk int not null primary key,
 a int,
 b TINYBLOB,
 c int
-) engine=MyISAM;
+) engine=MyISAM ;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -8159,7 +8348,8 @@ include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 connection server_1;
-INSERT INTO t1 (pk, a, b, c) VALUES(1, 1000, 'aaa', NULL);
+INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', NULL);
+UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -8189,7 +8379,7 @@ pk int not null primary key,
 a int,
 b TINYBLOB,
 c int
-) engine=MyISAM;
+) engine=MyISAM ;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -8201,7 +8391,8 @@ include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 connection server_1;
-INSERT INTO t1 (pk, a, b, c) VALUES(1, 1000, 'aaa', NULL);
+INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', NULL);
+UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -8231,7 +8422,7 @@ pk int not null primary key,
 a int,
 b TINYBLOB,
 c int
-) engine=MyISAM;
+) engine=MyISAM ;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -8244,7 +8435,8 @@ include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 connection server_1;
-INSERT INTO t1 (pk, a, b, c) VALUES(1, 1000, 'aaa', NULL);
+INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', NULL);
+UPDATE t1 set a = 1000 WHERE pk = 1;
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -8272,6 +8464,52 @@ connection server_2;
 set global slave_type_conversions= @saved_slave_type_conversions;
 connection server_3;
 set global slave_type_conversions= @saved_slave_type_conversions;
+#
+# Test system versioned tables
+connection server_2;
+connection server_1;
+create table t1(
+pk int not null primary key,
+a int,
+b BLOB,
+c int
+) engine=innodb with system versioning;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+alter table t1 modify b BLOB;
+alter table t1 add column new_col int default 99 after a;
+alter table t1 drop column b;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+connection server_1;
+INSERT INTO t1 (pk, a, b, c) VALUES(1, 999, 'aaa', 2000);
+UPDATE t1 set a = 1000 WHERE pk = 1;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+# Ensure server_2 and server_3 are consistent with one another..
+include/diff_tables.inc [server_2:test.t1, server_3:test.t1]
+connection server_1;
+select * from t1;
+pk	a	b	c
+1	1000	aaa	2000
+connection server_2;
+select * from t1;
+pk	a	new_col	c
+1	1000	99	2000
+# Ensure server_2 state is correct (server_3 is proven to be
+#   consistent, so we don't validate its data)..
+# Column b was dropped, skipping its validation
+# ..done
+connection server_1;
+drop table t1;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
 #
 # ERROR_IF_MISSING_FIELD Error Checking
 #
