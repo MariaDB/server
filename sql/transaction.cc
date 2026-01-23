@@ -664,6 +664,20 @@ bool trans_savepoint(THD *thd, LEX_CSTRING name)
   if (thd->transaction->xid_state.check_has_uncommitted_xa())
     DBUG_RETURN(TRUE);
 
+  if (unlikely(thd->in_sub_stmt & SUB_STMT_TRIGGER) &&
+      opt_binlog_engine_hton)
+  {
+    /*
+      ToDo: Probably using savepoints in triggers should be disallowed
+      unconditionally. For now, we disallow it in the new binlog
+      implementation, which is not enabled by default, so that backwards
+      compatibility is of smaller concern.
+    */
+    my_error(ER_NOT_AVAILABLE_WITH_ENGINE_BINLOG, MYF(0),
+             "Using savepoints in triggers");
+    DBUG_RETURN(1);
+  }
+
   SAVEPOINT *newsv= savepoint_add(thd, name, &thd->transaction->savepoints,
                                   ha_release_savepoint);
 
@@ -716,10 +730,24 @@ bool trans_savepoint(THD *thd, LEX_CSTRING name)
 bool trans_rollback_to_savepoint(THD *thd, LEX_CSTRING name)
 {
   int res= FALSE;
-  SAVEPOINT *sv= *find_savepoint(thd, name);
+  SAVEPOINT *sv;
   DBUG_ENTER("trans_rollback_to_savepoint");
 
-  if (sv == NULL)
+  if (unlikely(thd->in_sub_stmt & SUB_STMT_TRIGGER) &&
+      opt_binlog_engine_hton)
+  {
+    /*
+      ToDo: Probably using savepoints in triggers should be disallowed
+      unconditionally. For now, we disallow it in the new binlog
+      implementation, which is not enabled by default, so that backwards
+      compatibility is of smaller concern.
+    */
+    my_error(ER_NOT_AVAILABLE_WITH_ENGINE_BINLOG, MYF(0),
+             "Using savepoints in triggers");
+    DBUG_RETURN(1);
+  }
+
+  if ((sv= *find_savepoint(thd, name)) == NULL)
   {
     my_error(ER_SP_DOES_NOT_EXIST, MYF(0), "SAVEPOINT", name.str);
     DBUG_RETURN(TRUE);
@@ -756,7 +784,8 @@ bool trans_rollback_to_savepoint(THD *thd, LEX_CSTRING name)
 
 /**
   Remove the named savepoint from the set of savepoints of
-  the current transaction.
+  the current transaction. Note that releasing a savepoint also releases
+  any savepoints set following the specified savepoint.
 
   @note No commit or rollback occurs. It is an error if the
         savepoint does not exist.
@@ -780,10 +809,22 @@ bool trans_release_savepoint(THD *thd, LEX_CSTRING name)
     DBUG_RETURN(TRUE);
   }
 
-  if (ha_release_savepoint(thd, sv))
-    res= TRUE;
+  SAVEPOINT *p= thd->transaction->savepoints;
+  while (p)
+  {
+    if (ha_release_savepoint(thd, p))
+      res= TRUE;
+    if (p == sv)
+    {
+      thd->transaction->savepoints= sv->prev;
+      DBUG_RETURN(MY_TEST(res));
+    }
+    p= p->prev;
+  }
 
-  thd->transaction->savepoints= sv->prev;
-
+  DBUG_ASSERT(0 /* Should not get here, would imply that the list of savepoints
+                   changed since find_savepoint() called at the start of this
+                   function. */);
+  thd->transaction->savepoints= NULL;;
   DBUG_RETURN(MY_TEST(res));
 }

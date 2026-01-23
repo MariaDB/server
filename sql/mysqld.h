@@ -104,7 +104,10 @@ void temp_pool_clear_bit(uint bit);
 uint temp_pool_set_next();
 
 extern bool opt_large_files;
-extern bool opt_update_log, opt_bin_log, opt_error_log, opt_bin_log_compress; 
+extern bool opt_update_log, opt_bin_log, opt_error_log, opt_bin_log_compress;
+extern char *opt_binlog_storage_engine;
+extern const char *opt_binlog_directory;
+extern handlerton *opt_binlog_engine_hton;
 extern uint opt_bin_log_compress_min_len;
 extern my_bool opt_log, opt_bootstrap;
 extern my_bool opt_backup_history_log;
@@ -318,6 +321,9 @@ extern const char *encryption_algorithm_names[];
 extern long opt_secure_timestamp;
 extern uint default_password_lifetime;
 extern my_bool disconnect_on_expired_password;
+#ifndef DBUG_OFF
+extern bool is_in_ddl_recovery;
+#endif
 
 enum secure_timestamp { SECTIME_NO, SECTIME_SUPER, SECTIME_REPL, SECTIME_YES };
 bool is_set_timestamp_forbidden(THD *thd);
@@ -327,7 +333,8 @@ extern PSI_mutex_key key_PAGE_lock, key_LOCK_sync, key_LOCK_active,
        key_LOCK_pool, key_LOCK_pending_checkpoint;
 #endif /* HAVE_MMAP */
 
-extern PSI_mutex_key key_BINLOG_LOCK_index, key_BINLOG_LOCK_xid_list,
+extern PSI_mutex_key key_BINLOG_LOCK_index, key_BINLOG_LOCK_binlog_use,
+  key_BINLOG_LOCK_xid_list,
   key_BINLOG_LOCK_binlog_background_thread,
   key_LOCK_binlog_end_pos,
   key_delayed_insert_mutex, key_hash_filo_lock, key_LOCK_active_mi,
@@ -374,7 +381,8 @@ extern PSI_rwlock_key key_rwlock_LOCK_grant, key_rwlock_LOCK_logger,
 extern PSI_cond_key key_PAGE_cond, key_COND_active, key_COND_pool;
 #endif /* HAVE_MMAP */
 
-extern PSI_cond_key key_BINLOG_COND_xid_list, key_BINLOG_update_cond,
+extern PSI_cond_key key_BINLOG_COND_binlog_use,
+  key_BINLOG_COND_xid_list, key_BINLOG_update_cond,
   key_BINLOG_COND_binlog_background_thread,
   key_BINLOG_COND_binlog_background_thread_end,
   key_COND_cache_status_changed, key_COND_manager,
@@ -704,6 +712,7 @@ extern PSI_stage_info stage_slave_background_process_request;
 extern PSI_stage_info stage_slave_background_wait_request;
 extern PSI_stage_info stage_waiting_for_deadlock_kill;
 extern PSI_stage_info stage_starting;
+extern PSI_stage_info stage_waiting_for_reset_master;
 #ifdef WITH_WSREP
 // Aditional Galera thread states
 extern PSI_stage_info stage_waiting_isolation;

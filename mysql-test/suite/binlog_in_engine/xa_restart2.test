@@ -1,0 +1,187 @@
+--source include/have_binlog_format_row.inc
+--source include/master-slave.inc
+--source include/have_innodb_binlog.inc
+
+--echo *** Test XA PREPARE preserved over server restart.
+CREATE TABLE t1(a INT NOT NULL, b INT NOT NULL, c LONGBLOB, PRIMARY KEY(a, b)) ENGINE=InnoDB;
+
+INSERT INTO t1 VALUES (0, 1, '');
+INSERT INTO t1 VALUES (0, 2, '');
+INSERT INTO t1 VALUES (0, 3, '');
+
+--connect con1,localhost,root,,
+XA BEGIN 'x1';
+INSERT INTO t1 VALUES (1, 1, '');
+
+--connect con2,localhost,root,,
+XA BEGIN 'x2';
+INSERT INTO t1 VALUES (2, 1, REPEAT('2', 100000));
+
+--connect con3,localhost,root,,
+XA BEGIN 'x3';
+INSERT INTO t1 VALUES (3, 1, '');
+
+--connection con1
+INSERT INTO t1 VALUES (1, 2, '');
+
+--connection con2
+INSERT INTO t1 VALUES (2, 2, REPEAT('2', 40000));
+
+--connection con3
+INSERT INTO t1 VALUES (3, 2, REPEAT('3', 50000));
+
+--connection con2
+INSERT INTO t1 VALUES (2, 3, REPEAT('2', 40000));
+
+--connection con3
+INSERT INTO t1 VALUES (3, 3, REPEAT('3', 100000));
+INSERT INTO t1 VALUES (3, 4, REPEAT('3', 100000));
+INSERT INTO t1 VALUES (3, 5, REPEAT('3', 100000));
+INSERT INTO t1 VALUES (3, 6, REPEAT('3', 100000));
+
+--connection con2
+INSERT INTO t1 VALUES (2, 4, REPEAT('2', 40000));
+
+--connection con1
+INSERT INTO t1 VALUES (1, 3, '');
+XA END 'x1';
+XA PREPARE 'x1';
+
+--connection con2
+XA END 'x2';
+XA PREPARE 'x2';
+
+--connection con3
+INSERT INTO t1 VALUES (3, 7, '');
+XA END 'x3';
+XA PREPARE 'x3';
+
+--connection slave
+--source include/stop_slave.inc
+
+--connection master
+--let $rpl_server_number= 1
+--source include/rpl_restart_server.inc
+
+--disconnect con1
+--disconnect con2
+--disconnect con3
+
+--connection slave
+--source include/start_slave.inc
+
+--connection master
+--sorted_result
+XA RECOVER;
+XA COMMIT 'x1';
+XA ROLLBACK 'x2';
+XA COMMIT 'x3';
+SELECT a, b, LENGTH(c) FROM t1 ORDER BY a,b;
+--source include/save_master_gtid.inc
+
+--connection slave
+--source include/sync_with_master_gtid.inc
+SELECT a, b, LENGTH(c) FROM t1 ORDER BY a,b;
+
+
+--echo *** Test purgability of binlogs containing XA oob after restart.
+--connection slave
+--source include/stop_slave.inc
+
+--connection master
+--source include/reset_master.inc
+
+--connect con1,localhost,root,,
+# Trx x4 in binlog 0 and 2.
+XA START 'x4';
+INSERT INTO t1 VALUES (4, 1, REPEAT('4', 40000));
+
+--connection master
+FLUSH BINARY LOGS;
+
+--connect con2,localhost,root,,
+# Trx x5 in binlog 1.
+XA START 'x5';
+INSERT INTO t1 VALUES (5, 1, REPEAT('5', 40000));
+XA END 'x5';
+XA PREPARE 'x5';
+
+--connection master
+FLUSH BINARY LOGS;
+
+--connect con3,localhost,root,,
+# Trx x6 in binlog 3.
+XA START 'x6';
+INSERT INTO t1 VALUES (6, 1, 'x6');
+XA END 'x6';
+XA PREPARE 'x6';
+
+--connection con1
+XA END 'x4';
+XA PREPARE 'x4';
+
+--connection master
+--source include/rpl_restart_server.inc
+
+--disconnect con1
+--disconnect con2
+--disconnect con3
+
+--connection slave
+SET GLOBAL gtid_slave_pos= '';
+--source include/start_slave.inc
+
+--connection master
+--sorted_result
+XA RECOVER;
+SET @old_min_slaves= @@GLOBAL.slave_connections_needed_for_purge;
+SET GLOBAL slave_connections_needed_for_purge= 1;
+
+# Purge is a bit tricky.
+# A slave reading file N will prevent purge of N.
+# And then any M<N that may be referenced from N (eg. because of active
+# prepared XA) also cannot be purged.
+# So to purge M containing XA, we first have to commit or rollback that XA,
+# then FLUSH BINARY LOGS so the active binlog has no references to M, then
+# wait for the slave to have read up to file N.
+
+# Cannot purge binlog 0 containing prepared x4, but can do so after commit.
+FLUSH BINARY LOGS;  # Now binlog 3 is the active.
+--error ER_LOG_IN_USE
+PURGE BINARY LOGS TO 'binlog-000001.ibb';
+XA COMMIT 'x4';
+--source include/save_master_gtid.inc
+--connection slave
+--source include/sync_with_master_gtid.inc
+--connection master
+PURGE BINARY LOGS TO 'binlog-000001.ibb';
+
+--error ER_LOG_IN_USE
+PURGE BINARY LOGS TO 'binlog-000002.ibb';
+XA ROLLBACK 'x5';
+--source include/save_master_gtid.inc
+--connection slave
+--source include/sync_with_master_gtid.inc
+--connection master
+PURGE BINARY LOGS TO 'binlog-000002.ibb';
+
+FLUSH BINARY LOGS;  # Now 4 is the active.
+--error ER_LOG_IN_USE
+PURGE BINARY LOGS TO 'binlog-000003.ibb';
+XA COMMIT 'x6';
+FLUSH BINARY LOGS;  # Now 5 is the active.
+INSERT INTO t1 VALUES (7, 1, '');
+--source include/save_master_gtid.inc
+--connection slave
+--source include/sync_with_master_gtid.inc
+--connection master
+PURGE BINARY LOGS TO 'binlog-000003.ibb';
+
+--source include/save_master_gtid.inc
+--connection slave
+--source include/sync_with_master_gtid.inc
+
+--connection master
+SET GLOBAL slave_connections_needed_for_purge= @old_min_slaves;
+DROP TABLE t1;
+--source include/rpl_end.inc

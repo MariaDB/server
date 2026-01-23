@@ -365,6 +365,11 @@ char server_uid[SERVER_UID_SIZE+1];   // server uid will be written here
 /* Global variables */
 
 bool opt_bin_log, opt_bin_log_used=0, opt_ignore_builtin_innodb= 0;
+static bool opt_bin_log_nonempty, opt_bin_log_path;
+char *opt_binlog_storage_engine= const_cast<char *>("");
+static plugin_ref opt_binlog_engine_plugin;
+const char *opt_binlog_directory;
+handlerton *opt_binlog_engine_hton;
 bool opt_bin_log_compress;
 uint opt_bin_log_compress_min_len;
 my_bool opt_log, debug_assert_if_crashed_table= 0, opt_help= 0;
@@ -766,6 +771,7 @@ mysql_rwlock_t LOCK_all_status_vars;
 mysql_prlock_t LOCK_system_variables_hash;
 mysql_cond_t COND_start_thread;
 pthread_t signal_thread;
+bool signal_thread_needs_join= false;
 pthread_attr_t connection_attrib;
 mysql_mutex_t LOCK_server_started;
 mysql_cond_t COND_server_started;
@@ -932,7 +938,8 @@ PSI_mutex_key key_PAGE_lock, key_LOCK_sync, key_LOCK_active, key_LOCK_pool,
   key_LOCK_pending_checkpoint;
 #endif /* HAVE_MMAP */
 
-PSI_mutex_key key_BINLOG_LOCK_index, key_BINLOG_LOCK_xid_list,
+PSI_mutex_key key_BINLOG_LOCK_index, key_BINLOG_LOCK_binlog_use,
+  key_BINLOG_LOCK_xid_list,
   key_BINLOG_LOCK_binlog_background_thread,
   key_LOCK_binlog_end_pos,
   key_delayed_insert_mutex, key_hash_filo_lock, key_LOCK_active_mi,
@@ -995,6 +1002,7 @@ static PSI_mutex_info all_server_mutexes[]=
 #endif /* HAVE_des */
 
   { &key_BINLOG_LOCK_index, "MYSQL_BIN_LOG::LOCK_index", 0},
+  { &key_BINLOG_LOCK_binlog_use, "MYSQL_BIN_LOG::LOCK_binlog_use", 0},
   { &key_BINLOG_LOCK_xid_list, "MYSQL_BIN_LOG::LOCK_xid_list", 0},
   { &key_BINLOG_LOCK_binlog_background_thread, "MYSQL_BIN_LOG::LOCK_binlog_background_thread", 0},
   { &key_LOCK_binlog_end_pos, "MYSQL_BIN_LOG::LOCK_binlog_end_pos", 0 },
@@ -1097,7 +1105,7 @@ static PSI_rwlock_info all_server_rwlocks[]=
 PSI_cond_key key_PAGE_cond, key_COND_active, key_COND_pool;
 #endif /* HAVE_MMAP */
 
-PSI_cond_key key_BINLOG_COND_xid_list,
+PSI_cond_key key_BINLOG_COND_binlog_use, key_BINLOG_COND_xid_list,
   key_BINLOG_COND_bin_log_updated, key_BINLOG_COND_relay_log_updated,
   key_BINLOG_COND_binlog_background_thread,
   key_BINLOG_COND_binlog_background_thread_end,
@@ -1134,6 +1142,7 @@ static PSI_cond_info all_server_conds[]=
   { &key_TC_LOG_MMAP_COND_queue_busy, "TC_LOG_MMAP::COND_queue_busy", 0},
 #endif /* HAVE_MMAP */
   { &key_BINLOG_COND_bin_log_updated, "MYSQL_BIN_LOG::COND_bin_log_updated", 0}, { &key_BINLOG_COND_relay_log_updated, "MYSQL_BIN_LOG::COND_relay_log_updated", 0},
+  { &key_BINLOG_COND_binlog_use, "MYSQL_BIN_LOG::COND_binlog_use", 0},
   { &key_BINLOG_COND_xid_list, "MYSQL_BIN_LOG::COND_xid_list", 0},
   { &key_BINLOG_COND_binlog_background_thread, "MYSQL_BIN_LOG::COND_binlog_background_thread", 0},
   { &key_BINLOG_COND_binlog_background_thread_end, "MYSQL_BIN_LOG::COND_binlog_background_thread_end", 0},
@@ -1492,6 +1501,7 @@ my_bool plugins_are_initialized= FALSE;
 
 #ifndef DBUG_OFF
 static const char* default_dbug_option;
+bool is_in_ddl_recovery= false;
 #endif
 #ifdef HAVE_LIBWRAP
 const char *libwrapName= NULL;
@@ -1984,6 +1994,8 @@ static void clean_up(bool print_message)
   injector::free_instance();
   mysql_bin_log.cleanup();
   Gtid_index_writer::gtid_index_cleanup();
+  if (opt_binlog_engine_plugin)
+    plugin_unlock(0, opt_binlog_engine_plugin);
 
   my_tz_free();
   my_dboptions_cache_free();
@@ -2116,7 +2128,11 @@ static void wait_for_signal_thread_to_end()
   {
     sql_print_warning("Signal handler thread did not exit in a timely manner. "
                       "Continuing to wait for it to stop..");
+  }
+  if (signal_thread_needs_join)
+  {
     pthread_join(signal_thread, NULL);
+    signal_thread_needs_join= false;
   }
 #endif
 }
@@ -3215,6 +3231,7 @@ static void start_signal_handler(void)
       error,errno);
     exit(1);
   }
+  signal_thread_needs_join= true;
   mysql_cond_wait(&COND_start_thread, &LOCK_start_thread);
   mysql_mutex_unlock(&LOCK_start_thread);
 
@@ -4861,9 +4878,40 @@ static int adjust_optimizer_costs(const LEX_CSTRING *, OPTIMIZER_COSTS *oc, TABL
   { option, OPT_REMOVED_OPTION, \
    0, 0, 0, 0, GET_STR, OPT_ARG, 0, 0, 0, 0, 0, 0 }
 
+
+static int
+create_dir_path_if_needed(const char *dir)
+{
+  MY_STAT stat_buf;
+  char buf[FN_REFLEN];
+  char *end= strmake(buf, dir, FN_REFLEN-1);
+  size_t len= dirname_length(buf);
+  if (len > 0 && end == buf + len)
+  {
+    /* Ends in trailing '/', strip it. */
+    buf[len-1]= '\0';
+    len= dirname_length(buf);
+  }
+  if (my_stat(dir, &stat_buf, MYF(0)))
+    return 0;  // Already exists
+  if (len > 1)
+  {
+    /* Create any parent directory as well. */
+    strmake(buf, dir, len);
+    if (create_dir_path_if_needed(buf))
+      return 1;
+  }
+  if(my_mkdir(dir, 0777, MYF(MY_WME)) && my_errno != EEXIST)
+    return 1;
+  return 0;
+}
+
+
 static int init_server_components()
 {
   DBUG_ENTER("init_server_components");
+  bool binlog_engine_used= false;
+
   /*
     We need to call each of these following functions to ensure that
     all things are initialized so that unireg_abort() doesn't fail
@@ -5036,32 +5084,62 @@ static int init_server_components()
 
   if (opt_bin_log)
   {
+    if (opt_binlog_storage_engine && *opt_binlog_storage_engine)
+      binlog_engine_used= true;
+
     /* Reports an error and aborts, if the --log-bin's path 
        is a directory.*/
     if (opt_bin_logname[0] && 
         opt_bin_logname[strlen(opt_bin_logname) - 1] == FN_LIBCHAR)
     {
       sql_print_error("Path '%s' is a directory name, please specify "
-                      "a file name for --log-bin option", opt_bin_logname);
+                      "a file name for --log-bin option, or use "
+                      "--binlog-directory", opt_bin_logname);
       unireg_abort(1);
     }
 
-    /* Reports an error and aborts, if the --log-bin-index's path 
-       is a directory.*/
-    if (opt_binlog_index_name && 
-        opt_binlog_index_name[strlen(opt_binlog_index_name) - 1] 
-        == FN_LIBCHAR)
+    if (!binlog_engine_used)
     {
-      sql_print_error("Path '%s' is a directory name, please specify "
-                      "a file name for --log-bin-index option",
-                      opt_binlog_index_name);
-      unireg_abort(1);
+      /* Reports an error and aborts, if the --log-bin-index's path 
+         is a directory.*/
+      if (opt_binlog_index_name && 
+          opt_binlog_index_name[strlen(opt_binlog_index_name) - 1] 
+          == FN_LIBCHAR)
+      {
+        sql_print_error("Path '%s' is a directory name, please specify "
+                        "a file name for --log-bin-index option",
+                        opt_binlog_index_name);
+        unireg_abort(1);
+      }
     }
 
-    char buf[FN_REFLEN];
+    char buf[FN_REFLEN], buf2[FN_REFLEN];
     const char *ln;
     ln= mysql_bin_log.generate_name(opt_bin_logname, "-bin", 1, buf);
-    if (!opt_bin_logname[0] && !opt_binlog_index_name)
+    /* Add in opt_binlog_directory, if given. */
+    if (opt_binlog_directory && opt_binlog_directory[0])
+    {
+      if (strlen(opt_binlog_directory) + 1 + strlen(ln) + 1 > FN_REFLEN)
+      {
+        sql_print_error("The combination of --binlog-directory path '%s' with "
+                        "filename '%s' from --log-bin results in a too long "
+                        "path", opt_binlog_directory, ln);
+        unireg_abort(1);
+      }
+      if (create_dir_path_if_needed(opt_binlog_directory))
+      {
+        sql_print_error("Failed to create the directory '%s' specified in "
+                        "--binlog-directory, error code: %d",
+                        opt_binlog_directory, my_errno);
+        unireg_abort(1);
+      }
+      const char *end= &buf2[FN_REFLEN-1];
+      char *p= strmake(buf2, opt_binlog_directory, FN_REFLEN - 2);
+      *p++= FN_LIBCHAR;
+      strmake(p, ln, end - p - 1);
+      ln= buf2;
+    }
+    if (!binlog_engine_used && !opt_bin_logname[0] && !opt_binlog_index_name)
     {
       /*
         User didn't give us info to name the binlog index file.
@@ -5080,6 +5158,8 @@ static int init_server_components()
     }
     if (ln == buf)
       opt_bin_logname= my_once_strdup(buf, MYF(MY_WME));
+    else if (ln == buf2)
+      opt_bin_logname= my_once_strdup(buf2, MYF(MY_WME));
   }
 
   /*
@@ -5112,6 +5192,12 @@ static int init_server_components()
 
   if (WSREP_ON && !wsrep_recovery && !opt_abort)
   {
+    if (binlog_engine_used)
+    {
+      sql_print_error("Galera cannot be used with the "
+                      "--binlog-storage-engine option");
+      unireg_abort(1);
+    }
     if (opt_bootstrap) // bootsrap option given - disable wsrep functionality
     {
       wsrep_provider_init(WSREP_NONE);
@@ -5144,7 +5230,7 @@ static int init_server_components()
   }
 #endif /* WITH_WSREP */
 
-  if (!opt_help && opt_bin_log)
+  if (!opt_help && !binlog_engine_used && opt_bin_log)
   {
     if (mysql_bin_log.open_index_file(opt_binlog_index_name, opt_bin_logname,
                                       TRUE))
@@ -5464,6 +5550,71 @@ static int init_server_components()
   if (init_gtid_pos_auto_engines())
     unireg_abort(1);
 
+  if (opt_binlog_directory && opt_binlog_directory[0] &&
+      opt_bin_log_path)
+  {
+    sql_print_error("Cannot specify a directory path for the binlog in "
+                    "--log-bin when --binlog-directory-path is also used");
+    unireg_abort(1);
+  }
+
+  if (binlog_engine_used)
+  {
+    LEX_CSTRING name= { opt_binlog_storage_engine, strlen(opt_binlog_storage_engine) };
+    opt_binlog_engine_plugin= ha_resolve_by_name(0, &name, false);
+    if (!opt_binlog_engine_plugin ||
+        !ha_storage_engine_is_enabled(opt_binlog_engine_hton=
+                                      plugin_hton(opt_binlog_engine_plugin)))
+    {
+      if (!opt_binlog_engine_plugin)
+        sql_print_error("Unknown/unsupported storage engine: %s",
+                        opt_binlog_storage_engine);
+      else
+        sql_print_error("Engine %s is not available for "
+                        "--binlog-storage-engine",
+                        opt_binlog_storage_engine);
+      unireg_abort(1);
+    }
+    if (!opt_binlog_engine_hton->binlog_write_direct ||
+        !opt_binlog_engine_hton->get_binlog_reader)
+    {
+      sql_print_error("Engine %s does not support --binlog-storage-engine",
+                      opt_binlog_storage_engine);
+      unireg_abort(1);
+    }
+
+    if (opt_bin_log_nonempty)
+    {
+      sql_print_error("Binlog name can not be set with --log-bin=NAME when "
+                      "--binlog-storage-engine is used. Use --log-bin "
+                      "(without argument) to enable the binlog, and use "
+                      "--binlog-directory to specify a separate directory "
+                      "for binlogs");
+      unireg_abort(1);
+    }
+#ifdef HAVE_REPLICATION
+    if (rpl_semi_sync_master_enabled)
+    {
+      sql_print_error("Semi-synchronous replication is not yet supported "
+                      "with --binlog-storage-engine");
+      unireg_abort(1);
+    }
+    if (rpl_status != RPL_AUTH_MASTER)
+    {
+      sql_print_error("The --init-rpl-role option is not available with "
+                      "--binlog-storage-engine");
+      unireg_abort(1);
+    }
+    if (encrypt_binlog)
+    {
+      sql_print_error("Binlog encryption is not available with "
+                      "--binlog-storage-engine. Using full-disk encryption on "
+                      "the operating system level is recommended instead");
+      unireg_abort(1);
+    }
+#endif
+  }
+
 #ifdef USE_ARIA_FOR_TMP_TABLES
   if (!ha_storage_engine_is_enabled(maria_hton) && !opt_bootstrap)
   {
@@ -5496,6 +5647,13 @@ static int init_server_components()
   start_handle_manager();
 #endif
 
+  /*
+    When binlog is stored in InnoDB, checksums are done on the page level, so
+    set the default for per-event checksums to OFF.
+  */
+  if (opt_binlog_engine_hton)
+    binlog_checksum_options= 0;
+
   tc_log= get_tc_log_implementation();
 
   if (tc_log->open(opt_bin_log ? opt_bin_logname : opt_tc_log_file))
@@ -5509,11 +5667,19 @@ static int init_server_components()
 
   if (opt_bin_log)
   {
-    int error;
     mysql_mutex_t *log_lock= mysql_bin_log.get_log_lock();
+    bool error;
     mysql_mutex_lock(log_lock);
-    error= mysql_bin_log.open(opt_bin_logname, 0, 0,
-                              WRITE_CACHE, max_binlog_size, 0, TRUE);
+    if (opt_binlog_engine_hton)
+    {
+      error= mysql_bin_log.open_engine(opt_binlog_engine_hton, max_binlog_size,
+                                       opt_binlog_directory);
+    }
+    else
+    {
+      error= mysql_bin_log.open(opt_bin_logname, 0, 0,
+                                WRITE_CACHE, max_binlog_size, 0, TRUE);
+    }
     mysql_mutex_unlock(log_lock);
     if (unlikely(error))
       unireg_abort(1);
@@ -5526,9 +5692,12 @@ static int init_server_components()
 
   if (opt_bin_log)
   {
-    if (binlog_space_limit)
-      mysql_bin_log.count_binlog_space_with_mutex();
-    mysql_bin_log.purge(1);
+    if (!opt_binlog_engine_hton)
+    {
+      if (binlog_space_limit)
+        mysql_bin_log.count_binlog_space_with_mutex();
+      mysql_bin_log.purge(1);
+    }
   }
   else
   {
@@ -5542,8 +5711,14 @@ static int init_server_components()
   }
 #endif
 
+#ifndef DBUG_OFF
+  is_in_ddl_recovery= true;
+#endif
   if (ddl_log_execute_recovery() > 0)
     unireg_abort(1);
+#ifndef DBUG_OFF
+  is_in_ddl_recovery= false;
+#endif
   ha_signal_ddl_recovery_done();
 
   if (opt_myisam_log)
@@ -6609,9 +6784,6 @@ struct my_option my_long_options[]=
    &debug_assert_on_not_freed_memory, 0, GET_BOOL, NO_ARG, 1, 0, 0, 0, 0,
    0},
 #endif /* DBUG_OFF */
-  /* default-storage-engine should have "MyISAM" as def_value. Instead
-     of initializing it here it is done in init_common_variables() due
-     to a compiler bug in Sun Studio compiler. */
   {"default-storage-engine", 0, "The default storage engine for new tables",
    &default_storage_engine, 0, 0, GET_STR, REQUIRED_ARG,
    0, 0, 0, 0, 0, 0 },
@@ -8216,6 +8388,9 @@ mysqld_get_one_option(const struct my_option *opt, const char *argument,
   case (int) OPT_BIN_LOG:
     opt_bin_log= MY_TEST(argument != disabled_my_option);
     opt_bin_log_used= 1;
+    opt_bin_log_nonempty= (argument && argument[0]);
+    opt_bin_log_path= argument &&
+      (strchr(argument, FN_LIBCHAR) || strchr(argument, FN_LIBCHAR2));
     break;
   case (int) OPT_LOG_BASENAME:
   {
@@ -9488,6 +9663,7 @@ PSI_stage_info stage_waiting_for_deadlock_kill= { 0, "Waiting for parallel repli
 PSI_stage_info stage_starting= { 0, "starting", 0};
 PSI_stage_info stage_waiting_for_flush= { 0, "Waiting for non trans tables to be flushed", 0};
 PSI_stage_info stage_waiting_for_ddl= { 0, "Waiting for DDLs", 0};
+PSI_stage_info stage_waiting_for_reset_master= { 0, "Waiting for a running RESET MASTER to complete", 0};
 
 #ifdef WITH_WSREP
 // Aditional Galera thread states
@@ -9717,7 +9893,8 @@ PSI_stage_info *all_server_stages[]=
   & stage_waiting_for_semi_sync_slave,
   & stage_reading_semi_sync_ack,
   & stage_waiting_for_deadlock_kill,
-  & stage_starting
+  & stage_starting,
+  & stage_waiting_for_reset_master
 #ifdef WITH_WSREP
   ,
   & stage_waiting_isolation,

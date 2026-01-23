@@ -43,6 +43,8 @@
 #include "sql_priv.h"
 #include "sql_basic_types.h"
 #include <atomic>
+#include "handler_binlog_reader.h"
+#include "mysqlbinlog-engine.h"
 #include "log_event.h"
 #include "compat56.h"
 #include "sql_common.h"
@@ -109,7 +111,7 @@ static const char *load_groups[]=
 { "mysqlbinlog", "mariadb-binlog", "client", "client-server", "client-mariadb",
   0 };
 
-static void error(const char *format, ...) ATTRIBUTE_FORMAT(printf, 1, 2);
+void error(const char *format, ...) ATTRIBUTE_FORMAT(printf, 1, 2);
 static void warning(const char *format, ...) ATTRIBUTE_FORMAT(printf, 1, 2);
 
 static bool one_database=0, one_table=0, to_last_remote_log= 0, disable_log_bin= 0;
@@ -201,6 +203,14 @@ enum Exit_status {
   /** No error occurred - end of file reached. */
   OK_EOF,
 };
+
+
+static enum Binlog_format {
+  ORIGINAL_BINLOG_FORMAT, INNODB_BINLOG_FORMAT
+} binlog_format= ORIGINAL_BINLOG_FORMAT;
+
+static handler_binlog_reader *engine_binlog_reader;
+
 
 /**
   Pointer to the last read Annotate_rows_log_event. Having read an
@@ -689,13 +699,15 @@ static bool print_base64(PRINT_EVENT_INFO *print_event_info, Log_event *ev)
 {
   /*
     These events must be printed in base64 format, if printed.
+    In the original binlog format (no --binlog-storage-engine),
     base64 format requires a FD event to be safe, so if no FD
     event has been printed, we give an error.  Except if user
     passed --short-form, because --short-form disables printing
     row events.
   */
 
-  if (!print_event_info->printed_fd_event && !short_form &&
+  if (binlog_format == ORIGINAL_BINLOG_FORMAT &&
+      !print_event_info->printed_fd_event && !short_form &&
       opt_base64_output_mode != BASE64_OUTPUT_DECODE_ROWS &&
       opt_base64_output_mode != BASE64_OUTPUT_NEVER)
   {
@@ -896,7 +908,7 @@ Exit_status process_event(PRINT_EVENT_INFO *print_event_info, Log_event *ev,
   /*
     Run time estimation of the output window configuration.
 
-    Do not validate GLLE information is start position is provided as a file
+    Do not validate GLLE information if start position is provided as a file
     offset.
   */
   if (ev_type == GTID_LIST_EVENT && ev->when)
@@ -1753,7 +1765,7 @@ static void error_or_warning(const char *format, va_list args, const char *msg)
   @param format Printf-style format string, followed by printf
   varargs.
 */
-static void error(const char *format,...)
+void error(const char *format,...)
 {
   va_list args;
   va_start(args, format);
@@ -1849,6 +1861,7 @@ static void cleanup()
     delete_dynamic(&binlog_events);
     delete_dynamic(&events_in_stmt);
   }
+  delete engine_binlog_reader;
   DBUG_VOID_RETURN;
 }
 
@@ -2525,6 +2538,7 @@ static Exit_status check_master_version()
   if (position_gtid_filter &&
       position_gtid_filter->get_num_start_gtids() > 0)
   {
+    to_last_remote_log= TRUE;
     char str_buf[256];
     String query_str(str_buf, sizeof(str_buf), system_charset_info);
     query_str.length(0);
@@ -2979,7 +2993,35 @@ static Exit_status check_header(IO_CACHE* file,
     error("Failed reading header; probably an empty file.");
     return ERROR_STOP;
   }
-  if (memcmp(header, BINLOG_MAGIC, sizeof(header)))
+  if (0 == memcmp(header, INNODB_BINLOG_MAGIC, sizeof(header)))
+  {
+    binlog_format= INNODB_BINLOG_FORMAT;
+    if (!engine_binlog_reader)
+    {
+      engine_binlog_reader= get_binlog_reader_innodb();
+      if (!engine_binlog_reader)
+      {
+        error("Out of memory setting up reader for InnoDB-implemented binlog.");
+        return ERROR_STOP;
+      }
+    }
+    /*
+      New engine-implemented binlog always does checksum verification on the
+      page level.
+    */
+    opt_verify_binlog_checksum= 0;
+    /*
+      New engine-implemented binlog does not contain format description
+      events.
+    */
+    goto end;
+  }
+  else if (header[0] == '\0' && !memcmp(header, header+1, sizeof(header)-1))
+  {
+    /* This is an empty InnoDB binlog file, pre-allocated but not yet used. */
+    return OK_EOF;
+  }
+  else if (memcmp(header, BINLOG_MAGIC, sizeof(header)))
   {
     error("File is not a binary log file.");
     return ERROR_STOP;
@@ -3089,6 +3131,7 @@ static Exit_status check_header(IO_CACHE* file,
         break;
     }
   }
+end:
   my_b_seek(file, pos);
   return OK_CONTINUE;
 }
@@ -3126,8 +3169,19 @@ static Exit_status dump_local_log_entries(PRINT_EVENT_INFO *print_event_info,
       my_close(fd, MYF(MY_WME));
       return ERROR_STOP;
     }
-    if ((retval= check_header(file, print_event_info, logname)) != OK_CONTINUE)
+    retval= check_header(file, print_event_info, logname);
+    if (retval != OK_CONTINUE)
+    {
+      if (retval == OK_EOF)
+      {
+        /*
+          Empty InnoDB-implemented binlog file. Just skip it (but still
+          continue with any following files user specified).
+        */
+        retval= OK_CONTINUE;
+      }
       goto end;
+    }
   }
   else
   {
@@ -3153,8 +3207,13 @@ static Exit_status dump_local_log_entries(PRINT_EVENT_INFO *print_event_info,
       error("Failed to init IO cache.");
       return ERROR_STOP;
     }
-    if ((retval= check_header(file, print_event_info, logname)) != OK_CONTINUE)
+    retval= check_header(file, print_event_info, logname);
+    if (retval != OK_CONTINUE)
+    {
+      if (retval == OK_EOF)
+        retval= OK_CONTINUE;
       goto end;
+    }
     if (start_position)
     {
       /* skip 'start_position' characters from stdin */
@@ -3183,15 +3242,56 @@ static Exit_status dump_local_log_entries(PRINT_EVENT_INFO *print_event_info,
     error("Failed reading from file.");
     goto err;
   }
+  if (binlog_format == INNODB_BINLOG_FORMAT)
+  {
+    if (open_engine_binlog(engine_binlog_reader, start_position, logname, file))
+      goto err;
+  }
   for (;;)
   {
     char llbuff[21];
     my_off_t old_off = my_b_tell(file);
     int read_error;
+    Log_event* ev;
 
-    Log_event* ev = Log_event::read_log_event(file, &read_error,
-                                              glob_description_event,
-                                              opt_verify_binlog_checksum);
+    if (binlog_format == INNODB_BINLOG_FORMAT)
+    {
+      String packet;
+      int res= engine_binlog_reader->read_log_event(&packet, 0, MAX_MAX_ALLOWED_PACKET);
+      if (res == LOG_READ_EOF)
+      {
+        ev= nullptr;
+        read_error= 0;
+      }
+      else if (res < 0)
+      {
+        ev= nullptr;
+        read_error= -1;
+      }
+      else
+      {
+        const char *errmsg= nullptr;
+        ev= Log_event::read_log_event((uchar *)packet.ptr(), packet.length(),
+                                      &errmsg, glob_description_event,
+                                      FALSE, FALSE);
+        if (!ev)
+        {
+          error("Error reading event: %s", errmsg);
+          read_error= -1;
+        }
+        else
+        {
+          ev->register_temp_buf((uchar *)packet.release(), true);
+          read_error= 0;
+        }
+      }
+    }
+    else
+    {
+      ev= Log_event::read_log_event(file, &read_error,
+                                    glob_description_event,
+                                    opt_verify_binlog_checksum);
+    }
     if (!ev)
     {
       /*
@@ -3217,6 +3317,7 @@ static Exit_status dump_local_log_entries(PRINT_EVENT_INFO *print_event_info,
       the size of the event, unless the event is encrypted.
     */
     DBUG_ASSERT(
+        binlog_format == INNODB_BINLOG_FORMAT ||
         ((ev->get_type_code() == UNKNOWN_EVENT &&
           ((Unknown_log_event *) ev)->what == Unknown_log_event::ENCRYPTED)) ||
         old_off + ev->data_written == my_b_tell(file));

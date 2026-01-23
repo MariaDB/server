@@ -1,0 +1,23 @@
+SET GLOBAL rpl_semi_sync_master_enabled= 1;
+ERROR HY000: Semi-synchronous replication is not yet supported with --binlog-storage-engine
+SELECT BINLOG_GTID_POS("binlog-000000.ibb", 4096);
+ERROR HY000: BINLOG_GTID_POS() is not available when --binlog-storage-engine is enabled
+CREATE TABLE t (a INT) ENGINE=InnoDB;
+CREATE TRIGGER tr AFTER INSERT ON t FOR EACH ROW BEGIN SAVEPOINT A; DELETE FROM non_existing; END $
+START TRANSACTION;
+INSERT INTO t VALUES (1), (3);
+ERROR HY000: Using savepoints in triggers is not available when --binlog-storage-engine is enabled
+COMMIT;
+SELECT * FROM t ORDER BY a;
+a
+DROP TRIGGER tr;
+CREATE TRIGGER tr AFTER INSERT ON t FOR EACH ROW BEGIN ROLLBACK TO SAVEPOINT B; DELETE FROM non_existing; END $
+START TRANSACTION;
+SAVEPOINT B;
+INSERT INTO t VALUES (11), (13);
+ERROR HY000: Using savepoints in triggers is not available when --binlog-storage-engine is enabled
+COMMIT;
+SELECT * FROM t ORDER BY a;
+a
+DROP TRIGGER tr;
+DROP TABLE t;

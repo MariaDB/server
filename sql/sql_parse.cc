@@ -4102,7 +4102,13 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
     WSREP_SYNC_WAIT(thd, WSREP_SYNC_WAIT_BEFORE_SHOW);
     if (check_global_access(thd, PRIV_STMT_SHOW_BINLOG_EVENTS))
       goto error;
+    if (mysql_bin_log.start_use_binlog(thd))
+    {
+      my_error(thd->killed_errno(), MYF(0));
+      goto error;
+    }
     res = mysql_show_binlog_events(thd);
+    mysql_bin_log.end_use_binlog(thd);
     break;
   }
 #endif

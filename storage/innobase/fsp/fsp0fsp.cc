@@ -1055,8 +1055,8 @@ fsp_alloc_from_free_frag(buf_block_t *header, buf_block_t *xdes, xdes_t *descr,
 @param[in]	offset		page number of the allocated page
 @param[in,out]	mtr		mini-transaction
 @return block, initialized */
-static buf_block_t* fsp_page_create(fil_space_t *space, uint32_t offset,
-                                    mtr_t *mtr) noexcept
+buf_block_t* fsp_page_create(fil_space_t *space, uint32_t offset,
+                             mtr_t *mtr) noexcept
 {
   buf_block_t *free_block= buf_LRU_get_free_block(have_no_mutex),
     *block= buf_page_create(space, offset, space->zip_size(), mtr, free_block);

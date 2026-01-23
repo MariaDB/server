@@ -830,6 +830,8 @@ public:
 					rollback. */
 	/** whether this is holding the prepare mutex */
 	bool		active_commit_ordered;
+	/** whether innobase_xa_prepare() was done. */
+	bool		active_prepare;
 	/*------------------------------*/
 	bool		flush_log_later;/* In 2PC, we hold the
 					prepare_commit mutex across

@@ -1,0 +1,70 @@
+include/reset_master.inc
+CREATE TABLE t1 (a INT PRIMARY KEY, b INT) ENGINE=InnoDB;
+CREATE TABLE t2 (a INT PRIMARY KEY, b INT) ENGINE=RocksDB;
+*** A simple multi-engine transaction.
+BEGIN;
+INSERT INTO t1 VALUES (1, 0);
+INSERT INTO t2 VALUES (1, 0);
+COMMIT;
+include/show_binlog_events.inc
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+binlog-000000.ibb	#	Gtid	#	#	BEGIN GTID #-#-#
+binlog-000000.ibb	#	Query	#	#	use `test`; INSERT INTO t1 VALUES (1, 0)
+binlog-000000.ibb	#	Annotate_rows	#	#	INSERT INTO t2 VALUES (1, 0)
+binlog-000000.ibb	#	Table_map	#	#	table_id: # (test.t2)
+binlog-000000.ibb	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
+binlog-000000.ibb	#	Xid	#	#	COMMIT /* XID */
+*** A couple multi-engine transactions where we crash in the middle.
+connect con1,localhost,root,,;
+BEGIN;
+INSERT INTO t2 VALUES (2, 0);
+INSERT INTO t2 VALUES (20, 1);
+INSERT INTO t2 VALUES (21, 2);
+SET debug_sync= 'ibb_after_commit_redo_log SIGNAL con1_rdy WAIT_FOR crash';
+/* a */ COMMIT;
+connection default;
+SET debug_sync= 'now WAIT_FOR con1_rdy';
+connect con2,localhost,root,,;
+BEGIN;
+INSERT INTO t1 VALUES (3, 0);
+INSERT INTO t2 VALUES (3, 0);
+SET debug_sync= 'ibb_after_group_commit_redo_log SIGNAL con2_rdy WAIT_FOR crash';
+/* b */ COMMIT;
+connection default;
+SET debug_sync= 'now WAIT_FOR con2_rdy';
+# restart
+disconnect con1;
+disconnect con2;
+connection default;
+include/show_binlog_events.inc
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+binlog-000000.ibb	#	Gtid	#	#	BEGIN GTID #-#-#
+binlog-000000.ibb	#	Annotate_rows	#	#	INSERT INTO t2 VALUES (2, 0)
+binlog-000000.ibb	#	Table_map	#	#	table_id: # (test.t2)
+binlog-000000.ibb	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
+binlog-000000.ibb	#	Annotate_rows	#	#	INSERT INTO t2 VALUES (20, 1)
+binlog-000000.ibb	#	Table_map	#	#	table_id: # (test.t2)
+binlog-000000.ibb	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
+binlog-000000.ibb	#	Annotate_rows	#	#	INSERT INTO t2 VALUES (21, 2)
+binlog-000000.ibb	#	Table_map	#	#	table_id: # (test.t2)
+binlog-000000.ibb	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
+binlog-000000.ibb	#	Xid	#	#	COMMIT /* XID */
+binlog-000000.ibb	#	Gtid	#	#	BEGIN GTID #-#-#
+binlog-000000.ibb	#	Query	#	#	use `test`; INSERT INTO t1 VALUES (3, 0)
+binlog-000000.ibb	#	Annotate_rows	#	#	INSERT INTO t2 VALUES (3, 0)
+binlog-000000.ibb	#	Table_map	#	#	table_id: # (test.t2)
+binlog-000000.ibb	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
+binlog-000000.ibb	#	Xid	#	#	COMMIT /* XID */
+binlog-000000.ibb	#	Format_desc	#	#	SERVER_VERSION, BINLOG_VERSION
+SELECT * FROM t1 ORDER BY a;
+a	b
+1	0
+3	0
+SELECT * FROM t2 ORDER BY a;
+a	b
+1	0
+2	0
+3	0
+20	1
+21	2
+DROP TABLE t1, t2;

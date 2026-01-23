@@ -1,0 +1,57 @@
+--source include/have_binlog_format_mixed.inc
+# For now, this has to come _after_ have_log_bin.inc (or
+# have_binlog_format_*.inc), to override --log-bin=master-bin with empty
+# --log-bin, as engine does not allow to set the binlog name.
+# Alternatively, maybe could have separate have_innodb_binlog_format_*.inc
+# files and only need to include the one.
+--source include/have_innodb_binlog.inc
+
+--source include/reset_master.inc
+
+SELECT @@GLOBAL.binlog_storage_engine;
+
+CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=InnoDB;
+--let $gtid_pos= `SELECT @@last_gtid`
+INSERT INTO t1 VALUES (1);
+BEGIN;
+INSERT INTO t1 VALUES (2);
+INSERT INTO t1 VALUES (3);
+COMMIT;
+SELECT * FROM t1 ORDER BY a;
+DROP TABLE t1;
+SELECT @@GLOBAL.binlog_checksum;
+
+# This output will depend on exact size of events, which might change over time.
+# If it changes, make the test abort after the SHOW MASTER STATUS, and check
+# that the reported new binlog position is correct, it should be the point
+# where the file starts containing only zero bytes.
+#
+# If this gets too annoying to do, we can replace this with something that
+# checks that the reported file and position is within some reasonable range
+# of the value left by current code.
+--replace_column 2 #
+SHOW MASTER STATUS;
+--let $binlog_file= binlog-000000.ibb
+--let $binlog_start= 0
+--source include/show_binlog_events.inc
+--let $binlog_file=
+--let $binlog_limit= 2, 3
+--source include/show_binlog_events.inc
+
+CREATE TABLE t2 (a INT PRIMARY KEY, b VARCHAR(2048)) ENGINE=InnoDB;
+
+SET SESSION binlog_format= ROW;
+--let num_trx= 1500
+--echo *** Do $num_trx transactions ...
+--disable_query_log
+--let $i= 0
+while ($i < $num_trx) {
+  eval INSERT INTO t2 VALUES ($i, REPEAT("x", 2048));
+  inc $i;
+}
+--enable_query_log
+SET SESSION binlog_format= MIXED;
+
+--exec $MYSQL_BINLOG --read-from-remote-server --user=root --host=127.0.0.1 --port=$MASTER_MYPORT master-bin.000001 --start-position=$gtid_pos > $MYSQLTEST_VARDIR/tmp/mysqlbinlog.txt
+
+DROP TABLE t2;

@@ -31,6 +31,9 @@ Created 11/26/1995 Heikki Tuuri
 #include "buf0buf.h"
 #include "small_vector.h"
 
+struct fsp_binlog_page_entry;
+
+
 /** Start a mini-transaction. */
 #define mtr_start(m)		(m)->start()
 
@@ -644,6 +647,10 @@ public:
   /** Note that log_sys.latch is no longer being held exclusively. */
   void flag_wr_unlock() noexcept { ut_ad(m_latch_ex); m_latch_ex= false; }
 
+  /* Binlog page release at mtr commit. */
+  fsp_binlog_page_entry *get_binlog_page() { return m_binlog_page; }
+  void set_binlog_page(fsp_binlog_page_entry *page) { m_binlog_page= page; }
+
 private:
   /** Handle any pages that were freed during the mini-transaction. */
   void process_freed_pages();
@@ -725,6 +732,16 @@ public:
   @param size  total size of the record
   @return the log record payload after the encoded length */
   static const byte *parse_length(const byte *l, uint32_t *size) noexcept;
+
+  /** Write binlog data
+  @param page_id   binlog file id and page number
+  @param offset    offset within the page
+  @param buf       data
+  @param size      size of data
+  @return */
+  void write_binlog(page_id_t page_id, uint16_t offset,
+                    const void *buf, size_t size) noexcept;
+
 private:
 
   /** Release all latches. */
@@ -800,4 +817,6 @@ private:
   fil_space_t *m_freed_space= nullptr;
   /** set of freed page ids */
   range_set *m_freed_pages= nullptr;
+  /** Latched binlog page to release at mtr commit*/
+  fsp_binlog_page_entry *m_binlog_page;
 };
