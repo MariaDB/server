@@ -711,6 +711,66 @@ static bool print_base64(PRINT_EVENT_INFO *print_event_info, Log_event *ev)
   return ev->print(result_file, print_event_info);
 }
 
+static bool print_partial_row_event(PRINT_EVENT_INFO *print_event_info, Log_event *ev)
+{
+  bool result= 0;
+  Partial_rows_log_event *prle= static_cast<Partial_rows_log_event *>(ev);
+  if (prle->seq_no == 1)
+  {
+    /*
+      First Partial_row_event in the group, we can get our Rows_log_event
+      header info here for filtering.
+    */
+    const uchar *rows_data_begin= prle->ev_buffer_base + prle->start_offset;
+    Log_event_type event_type= (Log_event_type)(uchar)rows_data_begin[EVENT_TYPE_OFFSET];
+    uint8 const post_header_len= glob_description_event->post_header_len[event_type-1];
+    const uchar *table_id_ptr= rows_data_begin +
+                               print_event_info->common_header_len +
+                               RW_MAPID_OFFSET;
+
+    ulonglong table_id;
+    if (post_header_len == 6)
+      table_id= uint4korr(table_id_ptr);
+    else
+      table_id= (ulonglong) uint6korr(table_id_ptr);
+
+    /*
+      Cache the flags of the Rows_log_event to use it for the last
+      Partial_rows_log_event in the group
+    */
+    uint32 rows_ev_flags=
+        uint2korr(rows_data_begin + print_event_info->common_header_len +
+                  post_header_len + RW_MAPID_OFFSET + RW_FLAGS_OFFSET);
+    print_event_info->partial_rows_rows_ev_flags= rows_ev_flags;
+
+    if (print_event_info->m_table_map_ignored.get_table(table_id))
+      print_event_info->deactivate_current_partial_rows_ev_group();
+  }
+
+  if (print_event_info->is_partial_rows_ev_group_active())
+    result= prle->print(result_file, print_event_info);
+
+  /* Last fragment */
+  if (prle->seq_no == prle->total_fragments)
+  {
+    /*
+      If this is the last Partial_rows_log_event in the group and the
+      underlying Rows_log_event is the last in the transaction, then it is safe
+      to clear the table_maps because they won't be used again.
+    */
+    if (print_event_info->partial_rows_rows_ev_flags &
+        Rows_log_event::STMT_END_F)
+      print_event_info->m_table_map_ignored.clear_tables();
+
+    /*
+      Active the next Partial_rows_log_event group as default
+    */
+    print_event_info->activate_current_partial_rows_ev_group();
+  }
+
+  return result;
+}
+
 
 static bool print_row_event(PRINT_EVENT_INFO *print_event_info, Log_event *ev,
                             ulonglong table_id, bool is_stmt_end)
@@ -754,6 +814,10 @@ static bool print_row_event(PRINT_EVENT_INFO *print_event_info, Log_event *ev,
     /*
       Now is safe to clear ignored map (clear_tables will also
       delete original table map events stored in the map).
+
+      Note print_event_info->m_table_map is not cleared here because it is used
+      when printing the number of events in the Rows_log_event. Instead, this
+      map is cleared when a new transaction is started.
     */
     if (print_event_info->m_table_map_ignored.count() > 0)
       print_event_info->m_table_map_ignored.clear_tables();
@@ -974,7 +1038,6 @@ Exit_status process_event(PRINT_EVENT_INFO *print_event_info, Log_event *ev,
       Partial_rows_log_event printing.
     */
     print_event_info->m_table_map.clear_tables();
-    print_event_info->m_table_map_ignored.clear_tables();
 
     /*
       Where we always ensure the initial binlog state is valid, we only
@@ -1374,6 +1437,12 @@ Exit_status process_event(PRINT_EVENT_INFO *print_event_info, Log_event *ev,
         print_event_info->found_row_event= 0;
       else if (opt_flashback)
         destroy_evt= FALSE;
+      break;
+    }
+    case PARTIAL_ROW_DATA_EVENT:
+    {
+      if (print_partial_row_event(print_event_info, ev))
+        goto err;
       break;
     }
     case START_ENCRYPTION_EVENT:

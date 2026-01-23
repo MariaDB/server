@@ -17,7 +17,8 @@
 #     e) Update_rows_compressed
 #     f) Delete_rows_compressed
 #   2: A transaction with multiple Rows_log_events can be replicated
-#
+#   3: Mysqlbinlog --database and --table filters work on
+#      Partial_rows_log_events
 #
 #   Note this test users MTR variables to save old variables rather than user
 # variables because binlog_row_event_fragment_threshold is reset dynamically,
@@ -85,13 +86,11 @@ set @@global.net_buffer_length= 1024;
 --source include/start_slave.inc
 
 
-
 --echo #
 --echo #
 --echo # Test cases 1a-1c) Regular row events that surpass
 --echo # binlog_row_event_fragment_threshold should be fragmented
 --source rpl_fragment_row_event.inc
-
 
 --echo #
 --echo #
@@ -117,7 +116,6 @@ set @@global.log_bin_compress= 1;
 --eval set @@global.log_bin_compress= $old_s3_compress
 
 
-
 --echo #
 --echo #
 --echo # Test Case 2) A transaction with multiple Rows_log_events can be
@@ -132,6 +130,93 @@ set @@global.log_bin_compress= 1;
 --let $test_show_binlog_events=
 --let $test_update= 1
 --let $test_delete= 1
+
+
+--echo #
+--echo #
+--echo # Test Case 3) Mysqlbinlog --database and --table filters work on
+--echo # Partial_rows_log_events
+--connection server_1
+create table t1 (a int primary key, b longtext, c int) engine=innodb;
+create table t2 (a int primary key, b longtext, c int) engine=innodb;
+
+--echo # Transaction 1, Partial_rows_log_event counts for t1: 3, t2: 4
+BEGIN;
+insert into t1 values (1, repeat('b', 1024*2), 0);
+insert into t2 values (2, repeat('c', 1024*3), 0);
+COMMIT;
+
+--echo # Transaction 2, Partial_rows_log_event counts for t1: 5
+update t1 set c=1 where a=1;
+
+--let $mysqld_datadir=`select @@datadir`
+--let $binlog_filename= query_get_value(SHOW MASTER STATUS, File, 1)
+--let $binlog_file_param= $mysqld_datadir/$binlog_filename
+--let $binlog_analysis_file= $MYSQLTEST_VARDIR/binlog_filtering_frags.out
+flush logs;
+
+--echo #
+--echo # 3a) A database filter configured to allow both transaction's database
+--echo # should show all Partial_rows_log_events
+--echo # MYSQL_BINLOG binlog_file_param --result-file=binlog_analysis_file --base64-output=never --database=test
+--exec $MYSQL_BINLOG $binlog_file_param --result-file=$binlog_analysis_file --base64-output=never --database=test
+--let SEARCH_PATTERN= Partial_rows \([0-9]+ / [0-9]+\)
+--let SEARCH_FILE= $binlog_analysis_file
+--let SEARCH_OUTPUT= count
+--source include/search_pattern_in_file.inc
+--let SEARCH_OUTPUT= matches
+--source include/search_pattern_in_file.inc
+
+--echo #
+--echo # 3b) A database filter configured to disallow both transaction's
+--echo # database should not show any Partial_rows_log_events
+--echo # MYSQL_BINLOG binlog_file_param --result-file=binlog_analysis_file --base64-output=never --database=nonexistent
+--exec $MYSQL_BINLOG $binlog_file_param --result-file=$binlog_analysis_file --base64-output=never --database=nonexistent
+--let SEARCH_PATTERN= Partial_rows \([0-9]+ / [0-9]+\)
+--let SEARCH_FILE= $binlog_analysis_file
+--let SEARCH_OUTPUT= count
+--source include/search_pattern_in_file.inc
+--let SEARCH_OUTPUT= matches
+--source include/search_pattern_in_file.inc
+
+--echo #
+--echo # 3c) A table filter configured to allow only t1's should only show the
+--echo # respective Partial_rows_log_events for t1
+--echo # MYSQL_BINLOG binlog_file_param --result-file=binlog_analysis_file --base64-output=never --table=t1
+--exec $MYSQL_BINLOG $binlog_file_param --result-file=$binlog_analysis_file --base64-output=never --table=t1
+--let SEARCH_PATTERN= Partial_rows \([0-9]+ / [0-9]+\)
+--let SEARCH_FILE= $binlog_analysis_file
+--let SEARCH_OUTPUT= count
+--source include/search_pattern_in_file.inc
+--let SEARCH_OUTPUT= matches
+--source include/search_pattern_in_file.inc
+
+--echo #
+--echo # 3d) A table filter configured to allow only t2's should only show the
+--echo # respective Partial_rows_log_events for t2
+--echo # table should not show any Partial_rows_log_events
+--echo # MYSQL_BINLOG binlog_file_param --result-file=binlog_analysis_file --base64-output=never --table=t2
+--exec $MYSQL_BINLOG $binlog_file_param --result-file=$binlog_analysis_file --base64-output=never --table=t2
+--let SEARCH_PATTERN= Partial_rows \([0-9]+ / [0-9]+\)
+--let SEARCH_FILE= $binlog_analysis_file
+--let SEARCH_OUTPUT= count
+--source include/search_pattern_in_file.inc
+--let SEARCH_OUTPUT= matches
+--source include/search_pattern_in_file.inc
+
+--echo #
+--echo # 3e) A database filter configured to disallow both transaction's
+--echo # tables should not show any Partial_rows_log_events
+--echo # MYSQL_BINLOG binlog_file_param --result-file=binlog_analysis_file --base64-output=never --table=nonexistent
+--exec $MYSQL_BINLOG $binlog_file_param --result-file=$binlog_analysis_file --base64-output=never --table=nonexistent
+--let SEARCH_PATTERN= Partial_rows \([0-9]+ / [0-9]+\)
+--let SEARCH_FILE= $binlog_analysis_file
+--let SEARCH_OUTPUT= count
+--source include/search_pattern_in_file.inc
+--let SEARCH_OUTPUT= matches
+--source include/search_pattern_in_file.inc
+
+drop table t1, t2;
 
 
 --echo #

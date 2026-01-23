@@ -3855,6 +3855,8 @@ st_print_event_info::st_print_event_info()
   base64_output_mode=BASE64_OUTPUT_UNSPEC;
   m_is_event_group_active= TRUE;
   m_is_event_group_filtering_enabled= FALSE;
+  m_is_partial_rows_ev_group_active= TRUE;
+  partial_rows_rows_ev_flags= 0;
   open_cached_file(&head_cache, NULL, NULL, 0, flags);
   open_cached_file(&body_cache, NULL, NULL, 0, flags);
   open_cached_file(&tail_cache, NULL, NULL, 0, flags);
