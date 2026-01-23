@@ -348,9 +348,9 @@ int mrn_parse_table_param(MRN_SHARE *share, TABLE *table)
     &part_elem, &sub_elem);
 #endif
 #ifdef WITH_PARTITION_STORAGE_ENGINE
-  for (i = 4; i > 0; i--)
+  for (i = 3; i > 0; i--)
 #else
-  for (i = 2; i > 0; i--)
+  for (i = 1; i > 0; i--)
 #endif
   {
     const char *params_string_value = NULL;
@@ -358,7 +358,7 @@ int mrn_parse_table_param(MRN_SHARE *share, TABLE *table)
     switch (i)
     {
 #ifdef WITH_PARTITION_STORAGE_ENGINE
-      case 4:
+      case 3:
         if (!sub_elem || !sub_elem->part_comment)
           continue;
         DBUG_PRINT("info", ("mroonga create sub comment string"));
@@ -367,7 +367,7 @@ int mrn_parse_table_param(MRN_SHARE *share, TABLE *table)
         DBUG_PRINT("info",
                    ("mroonga sub comment string=%s", params_string_value));
         break;
-      case 3:
+      case 2:
         if (!part_elem || !part_elem->part_comment)
           continue;
         DBUG_PRINT("info", ("mroonga create part comment string"));
@@ -377,7 +377,7 @@ int mrn_parse_table_param(MRN_SHARE *share, TABLE *table)
                    ("mroonga part comment string=%s", params_string_value));
         break;
 #endif
-      case 2:
+      default:
         if (LEX_STRING_IS_EMPTY(table->s->comment))
           continue;
         DBUG_PRINT("info", ("mroonga create comment string"));
@@ -386,18 +386,6 @@ int mrn_parse_table_param(MRN_SHARE *share, TABLE *table)
         DBUG_PRINT("info",
                    ("mroonga comment string=%.*s",
                     params_string_length, params_string_value));
-        break;
-      default:
-#ifdef MDEV_37815_DISABLED_BECAUSE_NO_TESTS
-        if (LEX_STRING_IS_EMPTY(table->s->connect_string))
-          continue;
-        DBUG_PRINT("info", ("mroonga create connect_string string"));
-        params_string_value = table->s->connect_string.str;
-        params_string_length = table->s->connect_string.length;
-        DBUG_PRINT("info",
-                   ("mroonga connect_string=%.*s",
-                    params_string_length, params_string_value));
-#endif
         break;
     }
 
@@ -1141,7 +1129,6 @@ st_mrn_slot_data *mrn_get_slot_data(THD *thd, bool can_create)
     slot_data->first_wrap_hton = NULL;
     slot_data->alter_create_info = NULL;
     slot_data->disable_keys_create_info = NULL;
-    slot_data->alter_connect_string = NULL;
     slot_data->alter_comment = NULL;
     thd_set_ha_data(thd, mrn_hton_ptr, slot_data);
     {
@@ -1174,10 +1161,6 @@ void mrn_clear_slot_data(THD *thd)
     }
     slot_data->alter_create_info = NULL;
     slot_data->disable_keys_create_info = NULL;
-    if (slot_data->alter_connect_string) {
-      my_free(slot_data->alter_connect_string);
-      slot_data->alter_connect_string = NULL;
-    }
     if (slot_data->alter_comment) {
       my_free(slot_data->alter_comment);
       slot_data->alter_comment = NULL;

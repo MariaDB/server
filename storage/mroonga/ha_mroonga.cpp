@@ -2986,17 +2986,11 @@ int ha_mroonga::create_share_for_create() const
   memset(&share_for_create, 0, sizeof(MRN_SHARE));
   if (table_share) {
     table_share_for_create.comment = table_share->comment;
-#ifdef MDEV_37815_DISABLED_BECAUSE_NO_TESTS
-    table_share_for_create.connect_string = table_share->connect_string;
-#endif
   } else {
 #ifdef MRN_HANDLER_HAVE_CHECK_IF_SUPPORTED_INPLACE_ALTER
     if (thd_sql_command(ha_thd()) != SQLCOM_CREATE_INDEX) {
 #endif
       table_share_for_create.comment = create_info->comment;
-#ifdef MDEV_37815_DISABLED_BECAUSE_NO_TESTS
-      table_share_for_create.connect_string = create_info->connect_string;
-#endif
 #ifdef MRN_HANDLER_HAVE_CHECK_IF_SUPPORTED_INPLACE_ALTER
     }
 #endif
@@ -3005,17 +2999,6 @@ int ha_mroonga::create_share_for_create() const
       st_mrn_slot_data *slot_data = mrn_get_slot_data(thd, false);
       if (slot_data && slot_data->alter_create_info) {
         create_info = slot_data->alter_create_info;
-#ifdef MDEV_37815_DISABLED_BECAUSE_NO_TESTS
-        if (slot_data->alter_connect_string) {
-          table_share_for_create.connect_string.str =
-            slot_data->alter_connect_string;
-          table_share_for_create.connect_string.length =
-            strlen(slot_data->alter_connect_string);
-        } else {
-          table_share_for_create.connect_string.str = NULL;
-          table_share_for_create.connect_string.length = 0;
-        }
-#endif
         if (slot_data->alter_comment) {
           table_share_for_create.comment.str =
             slot_data->alter_comment;
@@ -13232,13 +13215,6 @@ void ha_mroonga::storage_update_create_info(HA_CREATE_INFO* create_info)
 void ha_mroonga::update_create_info(HA_CREATE_INFO* create_info)
 {
   MRN_DBUG_ENTER_METHOD();
-#ifdef MDEV_37815_DISABLED_BECAUSE_NO_TESTS
-  if (!create_info->connect_string.str)
-  {
-    create_info->connect_string.str = table->s->connect_string.str;
-    create_info->connect_string.length = table->s->connect_string.length;
-  }
-#endif
   if (share->wrapper_mode)
     wrapper_update_create_info(create_info);
   else
@@ -13246,18 +13222,6 @@ void ha_mroonga::update_create_info(HA_CREATE_INFO* create_info)
   st_mrn_slot_data *slot_data = mrn_get_slot_data(ha_thd(), true);
   if (slot_data) {
     slot_data->alter_create_info = create_info;
-    if (slot_data->alter_connect_string) {
-      my_free(slot_data->alter_connect_string);
-      slot_data->alter_connect_string = NULL;
-    }
-#ifdef MDEV_37815_DISABLED_BECAUSE_NO_TESTS
-    if (create_info->connect_string.str) {
-      slot_data->alter_connect_string =
-        mrn_my_strndup(create_info->connect_string.str,
-                       create_info->connect_string.length,
-                       MYF(MY_WME));
-    }
-#endif
     if (slot_data->alter_comment) {
       my_free(slot_data->alter_comment);
       slot_data->alter_comment = NULL;
@@ -14411,9 +14375,6 @@ bool ha_mroonga::check_if_incompatible_data(
   bool res;
   if (
     create_info->comment.str != table_share->comment.str
-#ifdef MDEV_37815_DISABLED_BECAUSE_NO_TESTS
-    || create_info->connect_string.str != table_share->connect_string.str
-#endif
   ) {
     DBUG_RETURN(COMPATIBLE_DATA_NO);
   }
