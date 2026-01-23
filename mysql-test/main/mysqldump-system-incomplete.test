@@ -1,0 +1,11 @@
+--source include/not_embedded.inc
+
+--echo #
+--echo # MDEV-38642 Missing Null terminator in the definition of mysqldump's
+--echo #  --system typelib
+--echo #
+
+--echo # Should not crash
+--exec $MYSQL_DUMP --system=user > /dev/null
+
+--echo # End of 10.6 tests
