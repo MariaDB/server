@@ -46,6 +46,19 @@
 
 --source rpl_master_slave_mismatched_columns_full_img.inc
 
+--echo #
+--echo # Test system versioned tables
+--let $source_type= BLOB
+--let $target_type= BLOB
+--let $source_value= 'aaa'
+--let $target_value= 'aaa'
+--let $can_convert= 1
+--let $engine_type= innodb
+--let $add_col= 1
+--let $add_col_loc= middle
+--let $drop_col= b
+--let $sys_versioned= 1
+--source rpl_master_slave_mismatched_columns_full.inc
 
 --echo #
 --echo # ERROR_IF_MISSING_FIELD Error Checking

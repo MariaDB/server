@@ -4,17 +4,20 @@
 gtid_domain_id=0
 server_id=1
 binlog_row_metadata=FULL
+system_versioning_alter_history=KEEP
 
 [mysqld.2]
 gtid_domain_id=1
 server_id=2
 binlog_row_metadata=FULL
+system_versioning_alter_history=KEEP
 log_slave_updates
 
 [mysqld.3]
 gtid_domain_id=2
 server_id=3
 binlog_row_metadata=FULL
+system_versioning_alter_history=KEEP
 log_slave_updates
 
 [ENV]
