@@ -3008,7 +3008,7 @@ void show_master_info_get_fields(THD *thd, List<Item> *field_list,
                         mem_root);
   field_list->push_back(new (mem_root)
                         Item_return_int(thd, "Skip_Counter", 10,
-                                        MYSQL_TYPE_LONG),
+                                        MYSQL_TYPE_LONGLONG),
                         mem_root);
   field_list->push_back(new (mem_root)
                         Item_return_int(thd, "Exec_Master_Log_Pos", 10,
@@ -3276,7 +3276,7 @@ static bool send_show_master_info_data(THD *thd, Master_info *mi, bool full,
     protocol->store(mi->rli.last_error().number);
     protocol->store_string_or_null(mi->rli.last_error().message,
                                    &my_charset_bin);
-    protocol->store((uint32) mi->rli.slave_skip_counter);
+    protocol->store(mi->get_slave_skip_counter());
     protocol->store((ulonglong) mi->rli.group_master_log_pos);
     protocol->store((ulonglong) mi->rli.log_space_total);
 
@@ -4546,7 +4546,21 @@ static int exec_relay_log_event(THD* thd, Relay_log_info* rli,
           is able to handle skipping until the end of the event group.
         */
         if (!res)
+        {
           rli->slave_skip_counter= 1;
+          DBUG_EXECUTE_IF("pause_sql_thread_on_gtid_ignore_duplicates",
+            /*
+              Temporarily unlock the mutex so SHOW SLAVE STATUS can run.
+              Note the system variable `@@sql_slave_skip_counter`
+              does not wait for this mutex.
+            */
+            mysql_mutex_unlock(&rli->data_lock);
+              DBUG_ASSERT(!debug_sync_set_action(thd, STRING_WITH_LEN(
+                "now SIGNAL paused_on_event WAIT_FOR sql_thread_continue"
+              )));
+            mysql_mutex_lock(&rli->data_lock);
+          );
+        }
       }
     }
 

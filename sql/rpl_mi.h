@@ -212,7 +212,7 @@ class Master_info : public Slave_reporting_capability
 
   ulonglong get_slave_skip_counter()
   {
-    return rli.slave_skip_counter;
+    return using_gtid ? 0 : rli.slave_skip_counter;
   }
 
   ulonglong get_max_relay_log_size()

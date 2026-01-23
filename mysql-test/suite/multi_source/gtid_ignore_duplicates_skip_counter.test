@@ -1,0 +1,67 @@
+# MDEV-38636 `@@sql_slave_skip_counter` increases to 1
+# when skipping events by `@@gtid_ignore_duplicates`
+
+--source include/have_debug_sync.inc
+--source include/have_binlog_format_mixed.inc # format-agnostic
+
+--let $rpl_topology= 1->2->3
+--let $rpl_skip_start_slave= 1
+--source include/rpl_init.inc
+
+
+CREATE TABLE t (a INT);
+DROP TABLE t;
+--source include/save_master_pos.inc
+
+--connection server_3
+SET @save_dbug= @@GLOBAL.debug_dbug;
+--let $status_items= Skip_Counter
+
+SET @save_gtid_ignore_duplicates= @@GLOBAL.gtid_ignore_duplicates;
+SET @@GLOBAL.gtid_ignore_duplicates= ON;
+
+--replace_result $SERVER_MYPORT_1 SERVER_MYPORT_1
+eval CHANGE MASTER 'shortcut' TO
+  master_host='127.0.0.1', master_port=$SERVER_MYPORT_1, master_user='root';
+SET @@SESSION.default_master_connection= 'shortcut';
+START SLAVE IO_THREAD;
+--source include/sync_io_with_master.inc
+
+SET @@SESSION.default_master_connection= '';
+START SLAVE;
+--connection server_2
+START SLAVE;
+--source include/sync_with_master.inc
+--sync_slave_with_master server_3
+SET @@SESSION.default_master_connection= 'shortcut';
+
+
+SELECT @@sql_slave_skip_counter AS 'Before';
+--source include/show_slave_status.inc
+
+SET @@GLOBAL.debug_dbug= '+d,pause_sql_thread_on_gtid_ignore_duplicates';
+START SLAVE SQL_THREAD;
+SET @@SESSION.debug_sync='now WAIT_FOR paused_on_event';
+
+SELECT @@sql_slave_skip_counter AS 'During';
+--source include/show_slave_status.inc
+
+SET @@GLOBAL.debug_dbug= @save_dbug;
+SET @@SESSION.debug_sync='now SIGNAL sql_thread_continue';
+--source include/sync_with_master.inc
+
+SELECT @@sql_slave_skip_counter AS 'After';
+--source include/show_slave_status.inc
+
+
+--echo # Cleanup
+--source include/stop_slave.inc
+SET @@SESSION.default_master_connection= '';
+
+--source include/stop_slave.inc
+RESET SLAVE 'shortcut' ALL;
+SET @@SESSION.debug_sync='RESET';
+SET @@GLOBAL.gtid_ignore_duplicates= @save_gtid_ignore_duplicates;
+
+--let $rpl_only_running_threads= 1
+--source include/rpl_end.inc
