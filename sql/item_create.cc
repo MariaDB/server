@@ -6360,6 +6360,30 @@ protected:
 };
 Create_func_vec_distance_dot_product Create_func_vec_distance_dot_product::s_singleton;
 
+class Create_func_vec_normalize: public Create_func_arg1
+{
+public:
+  Item *create_1_arg(THD *thd, Item *arg1) override
+  { return new (thd->mem_root) Item_func_vec_normalize(thd, arg1); }
+  static Create_func_vec_normalize s_singleton;
+protected:
+  Create_func_vec_normalize() = default;
+  virtual ~Create_func_vec_normalize() = default;
+};
+Create_func_vec_normalize Create_func_vec_normalize::s_singleton;
+
+class Create_func_vec_dimensions: public Create_func_arg1
+{
+public:
+  Item *create_1_arg(THD *thd, Item *arg1) override
+  { return new (thd->mem_root) Item_func_vec_dimensions(thd, arg1); }
+  static Create_func_vec_dimensions s_singleton;
+protected:
+  Create_func_vec_dimensions() = default;
+  virtual ~Create_func_vec_dimensions() = default;
+};
+Create_func_vec_dimensions Create_func_vec_dimensions::s_singleton;
+
 class Create_func_vec_distance: public Create_func_arg2
 {
 public:
@@ -6641,6 +6665,9 @@ const Native_func_registry func_array[] =
   { { STRING_WITH_LEN("UUID_SHORT") }, BUILDER(Create_func_uuid_short)},
   { { STRING_WITH_LEN("VEC_DISTANCE_EUCLIDEAN") }, BUILDER(Create_func_vec_distance_euclidean)},
   { { STRING_WITH_LEN("VEC_DISTANCE_COSINE") }, BUILDER(Create_func_vec_distance_cosine)},
+  { { STRING_WITH_LEN("VEC_DISTANCE_DOT_PRODUCT") }, BUILDER(Create_func_vec_distance_dot_product)},
+  { { STRING_WITH_LEN("VEC_DIMENSIONS") }, BUILDER(Create_func_vec_dimensions)},
+  { { STRING_WITH_LEN("VEC_NORMALIZE") }, BUILDER(Create_func_vec_normalize)},
   { { STRING_WITH_LEN("VEC_DISTANCE") }, BUILDER(Create_func_vec_distance)},
   { { STRING_WITH_LEN("VEC_FROMTEXT") }, BUILDER(Create_func_vec_fromtext)},
   { { STRING_WITH_LEN("VEC_TOTEXT") }, BUILDER(Create_func_vec_totext)},

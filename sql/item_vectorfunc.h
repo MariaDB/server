@@ -111,4 +111,48 @@ public:
     Item_str_func::cleanup();
   }
 };
+
+class Item_func_vec_normalize: public Item_str_func
+{
+  bool check_arguments() const override
+  {
+    return check_argument_types_or_binary(NULL, 0, arg_count);
+  }
+public:
+  Item_func_vec_normalize(THD *thd, Item *a) : Item_str_func(thd, a) {}
+  bool fix_length_and_dec(THD *thd) override;
+  String *val_str(String *buf) override;
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING name= { STRING_WITH_LEN("VEC_Normalize") };
+    return name;
+  }
+  Item *do_get_copy(THD *thd) const override
+  { return get_item_copy<Item_func_vec_normalize>(thd, this); }
+};
+
+
+class Item_func_vec_dimensions: public Item_long_func
+{
+  bool check_arguments() const override
+  {
+    return check_argument_types_or_binary(NULL, 0, arg_count);
+  }
+public:
+  Item_func_vec_dimensions(THD *thd, Item *a) : Item_long_func(thd, a) {}
+  bool fix_length_and_dec(THD *thd) override
+  {
+    set_maybe_null();
+    max_length= 10;
+    return false;
+  }
+  longlong val_int() override;
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING name= { STRING_WITH_LEN("VEC_Dimensions") };
+    return name;
+  }
+  Item *do_get_copy(THD *thd) const override
+  { return get_item_copy<Item_func_vec_dimensions>(thd, this); }
+};
 #endif

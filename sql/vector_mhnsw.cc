@@ -1776,6 +1776,7 @@ Item_func_vec_distance::distance_kind mhnsw_uses_distance(const TABLE *table, KE
 ha_create_table_option mhnsw_index_options[]=
 {
   HA_IOPTION_SYSVAR("m", M, default_m),
+  HA_IOPTION_SYSVAR("ef_construction", ef_construction, default_ef_construction),
   HA_IOPTION_SYSVAR("distance", metric, default_distance),
   HA_IOPTION_END
 };

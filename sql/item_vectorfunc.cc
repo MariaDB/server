@@ -287,3 +287,76 @@ error:
   null_value= true;
   return nullptr;
 }
+
+bool Item_func_vec_normalize::fix_length_and_dec(THD *thd)
+{
+  decimals= 0;
+  fix_length_and_charset(args[0]->max_length, &my_charset_bin);
+  set_maybe_null();
+  return false;
+}
+
+String *Item_func_vec_normalize::val_str(String *buf)
+{
+  String *r1= args[0]->val_str(buf);
+  if ((null_value= args[0]->null_value))
+    return nullptr;
+
+  if (r1->length() % sizeof(float) || r1->length() == 0)
+  {
+    null_value= true;
+    return nullptr;
+  }
+
+  size_t n= r1->length() / sizeof(float);
+  float *v= (float *)r1->ptr();
+
+  // Compute magnitude
+  double mag= 0;
+  for (size_t i= 0; i < n; i++)
+  {
+    float f= get_float(v + i);
+    mag+= (double)f * f;
+  }
+  mag= sqrt(mag);
+
+  if (mag == 0.0)
+  {
+    null_value= true;
+    return nullptr;
+  }
+
+  // Normalize in place (need writable copy)
+  if (buf == r1)
+    buf->reserve(r1->length());
+  else
+  {
+    buf->length(0);
+    buf->set_charset(&my_charset_bin);
+    buf->append(*r1);
+  }
+
+  float *out= (float *)buf->ptr();
+  for (size_t i= 0; i < n; i++)
+  {
+    float f= (float)(get_float(v + i) / mag);
+    float4store((char*)(out + i), f);
+  }
+
+  return buf;
+}
+
+longlong Item_func_vec_dimensions::val_int()
+{
+  String *r1= args[0]->val_str(&str_value);
+  if ((null_value= args[0]->null_value))
+    return 0;
+
+  if (r1->length() % sizeof(float))
+  {
+    null_value= true;
+    return 0;
+  }
+
+  return (longlong)(r1->length() / sizeof(float));
+}
