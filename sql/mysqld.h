@@ -122,6 +122,7 @@ extern MYSQL_PLUGIN_IMPORT bool volatile abort_loop;
 extern my_bool opt_safe_user_create;
 extern my_bool opt_local_infile, opt_myisam_use_mmap;
 extern my_bool opt_slave_compressed_protocol, use_temp_pool;
+extern my_bool opt_silent_startup;
 extern ulong slave_exec_mode_options, slave_ddl_exec_mode_options;
 extern ulong slave_retried_transactions;
 extern ulong transactions_multi_engine;

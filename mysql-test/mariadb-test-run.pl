@@ -1544,7 +1544,7 @@ sub command_line_setup {
     $opt_vardir= $default_vardir;
   }
 
-  # We make the path absolute, as the server will do a chdir() before usage
+  # We make the path asbolute, as the server will do a chdir() before usage
   unless ( $opt_vardir =~ m,^/, or
            (IS_WINDOWS and $opt_vardir =~ m,^[a-z]:[/\\],i) )
   {
@@ -2283,6 +2283,14 @@ sub environment_setup {
     mtr_exe_exists("$bindir/extra$multiconfig/my_print_defaults",
 		   "$path_client_bindir/my_print_defaults");
   $ENV{'MYSQL_MY_PRINT_DEFAULTS'}= native_path($exe_my_print_defaults);
+
+  # ----------------------------------------------------
+  # mariadb-migrate-config-file
+  # ----------------------------------------------------
+  my $exe_mariadb_migrate_config_file=
+    mtr_exe_exists("$bindir/extra$multiconfig/mariadb-migrate-config-file",
+		   "$path_client_bindir/mariadb-migrate-config-file");
+  $ENV{'MARIADB_MIGRATE_CONFIG_FILE'}= native_path($exe_mariadb_migrate_config_file);
 
   # ----------------------------------------------------
   # myisam tools

@@ -635,6 +635,7 @@ IF(NOT WITHOUT_SERVER)
    mariadb-conv
    mariadb-dump
    mariadb-import
+   mariadb-migrate-config-file
    mariadb-plugin
    mariadb-show
    mariadb-slap

@@ -1343,7 +1343,8 @@ The following specify which files/extra groups are read (specified before remain
  the transaction)
  --show-slave-auth-info 
  Show user and password in SHOW SLAVE HOSTS on this master
- --silent-startup    Don't print [Note] to the error log during startup
+ --silent-startup    Don't print [Note] or failed plugin_loads to the error
+ log during startup
  --skip-grant-tables Start without grant tables. This gives all users FULL
  ACCESS to all tables
  --skip-host-cache   Don't cache host names

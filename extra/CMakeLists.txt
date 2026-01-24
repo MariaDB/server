@@ -13,7 +13,7 @@
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1335 USA
 
-INCLUDE_DIRECTORIES(${CMAKE_SOURCE_DIR}/include ${ZLIB_INCLUDE_DIRS})
+INCLUDE_DIRECTORIES(${CMAKE_SOURCE_DIR}/include ${ZLIB_INCLUDE_DIRS} ${PCRE_INCLUDE_DIRS})
 
 # Default install component for the files is Server here
 SET(MYSQL_INSTALL_COMPONENT Server)
@@ -45,6 +45,27 @@ ADD_CUSTOM_TARGET(GenError
                   ALL
                   DEPENDS
                   ${CMAKE_BINARY_DIR}/include/mysqld_error.h.tmp)
+
+
+IF(NOT CMAKE_CROSSCOMPILING OR DEFINED CMAKE_CROSSCOMPILING_EMULATOR)
+  ADD_EXECUTABLE(generate_option_list generate_option_list.cc)
+  TARGET_LINK_LIBRARIES(generate_option_list mysys pcre2-8)
+  IF(TARGET pcre2)
+    ADD_DEPENDENCIES(generate_option_list pcre2)
+  ENDIF()
+ENDIF()
+
+ADD_CUSTOM_COMMAND(OUTPUT ${CMAKE_BINARY_DIR}/include/mariadbd_options.h
+  COMMAND generate_option_list
+  "$<TARGET_FILE:mariadbd>"
+  ${CMAKE_BINARY_DIR}/include/mariadbd_options.h
+  DEPENDS generate_option_list mariadbd)
+
+MYSQL_ADD_EXECUTABLE(mariadb-migrate-config-file
+  mariadb_migrate_config_file.c
+  ${CMAKE_BINARY_DIR}/include/mariadbd_options.h
+  COMPONENT Client)
+TARGET_LINK_LIBRARIES(mariadb-migrate-config-file mysys)
 
 MYSQL_ADD_EXECUTABLE(my_print_defaults my_print_defaults.c COMPONENT Client)
 TARGET_LINK_LIBRARIES(my_print_defaults  mysys)

@@ -208,7 +208,7 @@ static int my_search_option_files(const char *conf_file,
       goto err;
     }
   }
-  else if (dirname_length(conf_file))
+  else if (dirname_length(conf_file) || !default_directories)
   {
     if ((error= search_default_file(ctx, NullS, conf_file)) < 0)
       goto err;
@@ -401,6 +401,8 @@ int load_defaults(const char *conf_file, const char **groups,
      
      - 1 is returned if the given conf_file didn't exist. In this case, the
      value pointed to by default_directories is undefined.
+     - 4 is returned --print-defaults was used. The caller should just do exit(0)
+      in this ase
 */
 
 

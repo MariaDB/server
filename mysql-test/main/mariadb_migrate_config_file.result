@@ -1,0 +1,429 @@
+#
+# Testing --edit=remove and !include
+#
+[mysqld]
+invalid=true
+alter_algorithm=invalid
+key_buffer_size=20M
+"!include tmp2.cnf
+[mysqld]
+default_regex_flags=invalid
+3 issue/issues changed
+[mysqld]
+key_buffer_size=20M
+#
+# Testing --edit=comment
+#
+[mysqld]
+port=38
+invalid=true
+alter_algorithm=invalid
+plugin_load_add=audit_log
+3 issue/issues changed
+[mysqld]
+port=38
+#invalid=true
+#alter_algorithm=invalid
+#plugin_load_add=audit_log
+#
+# Testing --edit=inline --from=mariadb
+#
+[mysqld]
+invalid=true
+invalid_option
+
+[mariadbd]
+alter_algorithm=invalid
+
+[other]
+a=b
+
+[mariadbd]
+port=30
+alter_algorithm=impossible
+
+[other]
+c=d
+
+[mariadbd]
+port=32
+alter_algorithm=impossible2
+port=33
+
+[mysqld]
+key_buffer_size=20M
+8 issue/issues changed
+[mysqld-5.7]
+invalid=true
+invalid_option
+
+[mariadbd]
+
+[options-not-recognized-by-mariadbd]
+alter_algorithm=invalid
+
+[other]
+a=b
+
+[mariadbd]
+port=30
+
+[options-not-recognized-by-mariadbd]
+alter_algorithm=impossible
+
+[other]
+c=d
+
+[mariadbd]
+port=32
+
+[options-not-recognized-by-mariadbd]
+alter_algorithm=impossible2
+
+[mariadbd]
+port=33
+key_buffer_size=20M
+#key-buffer-size=64K   # Recommended value if no MyISAM tables
+
+[mysqld-5.7]
+key_buffer_size=20M
+#
+# Testing --edit=last --from=mariadb
+#
+[mysqld]
+invalid=true
+invalid_option
+
+[mariadbd]
+alter_algorithm=invalid
+
+[other]
+a=b
+
+[mariadbd]
+port=30
+alter_algorithm=impossible
+
+[other]
+c=d
+
+[mariadbd]
+port=32
+alter_algorithm=impossible2
+port=33
+
+[mysqld]
+key_buffer_size=20M
+8 issue/issues changed
+
+[mariadbd]
+
+[other]
+a=b
+
+[mariadbd]
+port=30
+
+[other]
+c=d
+
+[mariadbd]
+port=32
+port=33
+key_buffer_size=20M
+#key-buffer-size=64K   # Recommended value if no MyISAM tables
+
+[mysqld-5.7]
+invalid=true
+invalid_option
+key_buffer_size=20M
+
+[options-not-recognized-by-mariadbd]
+alter_algorithm=invalid
+alter_algorithm=impossible
+alter_algorithm=impossible2
+#
+# Testing --edit=last --from=mysql
+#
+[mysqld]
+invalid=true
+invalid_option
+
+[mariadbd]
+alter_algorithm=invalid
+
+[other]
+a=b
+
+[mariadbd]
+port=30
+alter_algorithm=impossible
+
+[other]
+c=d
+
+[mariadbd]
+port=32
+alter_algorithm=impossible2
+port=33
+
+[mysqld]
+key_buffer_size=20M
+5 issue/issues changed
+
+[mariadbd]
+alter_algorithm=invalid
+
+[other]
+a=b
+
+[mariadbd]
+port=30
+alter_algorithm=impossible
+
+[other]
+c=d
+
+[mariadbd]
+port=32
+alter_algorithm=impossible2
+port=33
+key_buffer_size=20M
+#key-buffer-size=64K   # Recommended value if no MyISAM tables
+
+[mysqld-5.7]
+invalid=true
+invalid_option
+key_buffer_size=20M
+#
+# Testing mariadbd section additions
+#
+[mariadbd]
+invalid1=true
+join_buffer_size=5K
+invalid2=true
+
+[mysqld]
+key_buffer_size=20M
+alter_algorithm=invalid
+6 issue/issues changed
+[mariadbd]
+join_buffer_size=5K
+key_buffer_size=20M
+#key-buffer-size=64K   # Recommended value if no MyISAM tables
+
+[unknown]
+key_buffer_size=20M
+alter_algorithm=invalid
+
+[options-not-recognized-by-mariadbd]
+invalid1=true
+invalid2=true
+#
+# Testing key_buffer_size in mariadbd section
+#
+No issues found
+[mariadbd]
+key_buffer_size=20M
+#
+# Testing --no-myisam --edit=last
+#
+[mysqld]
+key_buffer_size=20M
+3 issue/issues changed
+[mariadbd]
+key_buffer_size=64K    # Recommended value if no MyISAM tables
+aria_pagecache_buffer_size=20M
+
+[mysqld-5.7]
+key_buffer_size=20M
+#
+# Testing --add-skip-start-slave
+#
+[mysqld]
+default_week_format=1
+1 issue/issues changed
+[mysqld]
+default_week_format=1
+
+[mariadbd]
+skip_slave_start
+#
+# Testing --add-skip-slave-start with skip_start_slave already present
+#
+No issues found
+[mariadbd]
+skip_slave_start
+#
+# Testing --fix-all
+#
+[mysqld]
+innodb_data_file_path=/var/mysql/test2
+key_buffer_size=20M
+4 issue/issues changed
+[mysqld]
+innodb_data_file_path=/var/mysql/test2
+
+[mariadbd]
+key_buffer_size=64K    # Recommended value if no MyISAM tables
+aria_pagecache_buffer_size=20M
+skip_slave_start
+
+[mysqld-5.7]
+key_buffer_size=20M
+#
+# Testing --fix-all --update-paths
+#
+[mysqld]
+innodb_data_file_path=/var/mysql/test2
+key_buffer_size=20M
+6 issue/issues changed
+[mariadbd]
+innodb_data_file_path=/var/mariadb/test2
+key_buffer_size=64K    # Recommended value if no MyISAM tables
+aria_pagecache_buffer_size=20M
+skip_slave_start
+
+[mysqld-5.7]
+innodb_data_file_path=/var/mysql/test2
+key_buffer_size=20M
+#
+# Testing path copying, without error-group and silent
+#
+[mysqld]
+innodb_data_file_path=/var/mysql/test
+port=38
+dummy=/var/mysql/test
+log-error=/var/mysql/test2
+
+[mysqld-8.0]
+port=39
+dummy2=2
+innodb_data_file_path=/var/mysql/test2
+# Changed file
+[mysqld]
+port=38
+
+[mysqld-8.0]
+port=39
+dummy2=2
+innodb_data_file_path=/var/mysql/test2
+
+[mariadbd]
+innodb_data_file_path=/var/mariadb/test
+log-error=/var/mariadb/test2
+port=39
+innodb_data_file_path=/var/mariadb/test2
+
+[mysqld-5.7]
+innodb_data_file_path=/var/mysql/test
+dummy=/var/mysql/test
+log-error=/var/mysql/test2
+#
+# Testing path changing and different generated sections
+#
+[mysqld]
+log-error       = /var/log/mysql/mysqld.log
+dummy=1;
+default-storage-engine=innodb
+
+[server]
+dummy=2;
+socket=dummy;
+
+[mysqld-8.0]
+default-storage-engine=misam
+port=36
+qqq= hello
+
+[mysqld]
+innodb_data_file_path=/var/mysql/test
+port=38
+dummy=/var/mysql/test
+log-error=/var/mysql/test2
+
+[mysqld-8.0]
+port=39
+dummy2=2
+innodb_data_file_path=/var/mysql/test2
+# Output from --print --edit=last --update-paths
+### File [name hidden]
+[mysqld]
+default-storage-engine=innodb
+
+[server]
+socket=dummy;
+
+[mysqld-8.0]
+default-storage-engine=misam
+port=36
+qqq= hello
+
+[mysqld]
+port=38
+
+[mysqld-8.0]
+port=39
+dummy2=2
+innodb_data_file_path=/var/mysql/test2
+
+[mariadbd]
+log-error       = /var/log/mariadb/mysqld.log
+default-storage-engine=misam
+port=36
+innodb_data_file_path=/var/mariadb/test
+log-error=/var/mariadb/test2
+port=39
+innodb_data_file_path=/var/mariadb/test2
+
+[mysqld-5.7]
+log-error       = /var/log/mysql/mysqld.log
+dummy=1;
+dummy=2;
+innodb_data_file_path=/var/mysql/test
+dummy=/var/mysql/test
+log-error=/var/mysql/test2
+
+#
+# Test that second update of file with 'tail' will no do anything
+#
+13 issue/issues changed
+No issues found
+No issues found
+"Next command should not change anything"
+No issues found
+[mysqld]
+default-storage-engine=innodb
+
+[server]
+socket=dummy;
+
+[mysqld-8.0]
+default-storage-engine=misam
+port=36
+qqq= hello
+
+[mysqld]
+port=38
+
+[mysqld-8.0]
+port=39
+dummy2=2
+innodb_data_file_path=/var/mysql/test2
+
+[mariadbd]
+log-error       = /var/log/mariadb/mysqld.log
+default-storage-engine=misam
+port=36
+innodb_data_file_path=/var/mariadb/test
+log-error=/var/mariadb/test2
+port=39
+innodb_data_file_path=/var/mariadb/test2
+
+[mysqld-5.7]
+log-error       = /var/log/mysql/mysqld.log
+dummy=1;
+dummy=2;
+innodb_data_file_path=/var/mysql/test
+dummy=/var/mysql/test
+log-error=/var/mysql/test2
