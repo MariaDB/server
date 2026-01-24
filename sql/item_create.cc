@@ -6347,6 +6347,19 @@ protected:
 
 Create_func_vec_distance_cosine Create_func_vec_distance_cosine::s_singleton;
 
+class Create_func_vec_distance_dot_product: public Create_func_arg2
+{
+public:
+  Item *create_2_arg(THD *thd, Item *arg1, Item *arg2) override
+  { return new (thd->mem_root)
+      Item_func_vec_distance(thd, arg1, arg2, Item_func_vec_distance::DOT_PRODUCT); }
+  static Create_func_vec_distance_dot_product s_singleton;
+protected:
+  Create_func_vec_distance_dot_product() = default;
+  virtual ~Create_func_vec_distance_dot_product() = default;
+};
+Create_func_vec_distance_dot_product Create_func_vec_distance_dot_product::s_singleton;
+
 class Create_func_vec_distance: public Create_func_arg2
 {
 public:

@@ -48,6 +48,14 @@ static double calc_distance_cosine(float *v1, float *v2, size_t v_len)
   return 1 - dotp/sqrt(abs1*abs2);
 }
 
+static double calc_distance_dot_product(float *v1, float *v2, size_t v_len)
+{
+  double dotp= 0;
+  for (size_t i= 0; i < v_len; i++, v1++, v2++)
+    dotp+= (double)get_float(v1) * get_float(v2);
+  return -dotp;  // negative so that ORDER BY ASC = highest similarity
+}
+
 Item_func_vec_distance::Item_func_vec_distance(THD *thd, Item *a, Item *b,
                                                distance_kind kind)
  :Item_real_func(thd, a, b), kind(kind)
@@ -58,7 +66,8 @@ bool Item_func_vec_distance::fix_length_and_dec(THD *thd)
 {
   switch (kind) {
   case EUCLIDEAN: calc_distance= calc_distance_euclidean; break;
-  case COSINE:    calc_distance= calc_distance_cosine; break;
+  case COSINE:      calc_distance= calc_distance_cosine; break;
+  case DOT_PRODUCT: calc_distance= calc_distance_dot_product; break;
   case AUTO:
     for (uint i=0; i < 2; i++)
       if (auto *item= dynamic_cast<Item_field*>(args[i]->real_item()))
