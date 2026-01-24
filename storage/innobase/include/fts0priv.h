@@ -376,7 +376,7 @@ fts_find_index_cache(
 			index)		/*!< in: index to search for */
 	MY_ATTRIBUTE((nonnull, warn_unused_result));
 /******************************************************************//**
-Write the table id to the given buffer (including final NUL). Buffer must be
+Write the table id to the given buffer (including override final NUL). Buffer must be
 at least FTS_AUX_MIN_TABLE_ID_LENGTH bytes long.
 @return number of bytes written */
 UNIV_INLINE
