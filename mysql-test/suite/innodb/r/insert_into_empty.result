@@ -596,4 +596,17 @@ SELECT * FROM t1;
 f1
 1
 DROP TABLE t1;
+#
+#  MDEV-36787  Error 153: No savepoint with that name
+#       upon ROLLBACK TO SAVEPOINT, assertion failure
+#
+CREATE TABLE t1(a INT) ENGINE=InnoDB;
+START TRANSACTION;
+SELECT * FROM t1;
+a
+SAVEPOINT A;
+CREATE TEMPORARY TABLE tmp (a TINYINT) ENGINE=InnoDB AS SELECT 256 AS a;
+ERROR 22003: Out of range value for column 'a' at row 1
+ROLLBACK TO SAVEPOINT A;
+DROP TABLE t1;
 # End of 10.11 tests
