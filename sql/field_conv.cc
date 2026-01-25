@@ -173,7 +173,7 @@ int convert_null_to_field_value_or_error(Field *field, uint err)
   }
 
   MY_BITMAP *old_map= dbug_tmp_use_all_columns(field->table, &field->table->write_set);
-  field->reset(); // Note: we ignore any potential failure of reset() here.
+  field->make_empty_rec_reset();
   dbug_tmp_restore_column_map(&field->table->write_set, old_map);
 
   if (field == field->table->next_number_field)
