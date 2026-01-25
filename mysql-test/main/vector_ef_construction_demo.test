@@ -1,0 +1,123 @@
+--echo #
+--echo # Quick Demo: ef_construction impact on HNSW recall
+--echo #
+--echo # This is a simplified demo showing why ef_construction matters.
+--echo # For full benchmarks, see vector_ef_construction_benchmark.test
+--echo #
+
+--disable_warnings
+drop table if exists t_ef10;
+drop table if exists t_ef100;
+drop table if exists t_ef200;
+--enable_warnings
+
+--echo # ========================================================================
+--echo # Create 3 tables with identical data but different ef_construction
+--echo # ========================================================================
+
+--echo # Table with ef_construction=10 (current hardcoded value)
+create table t_ef10 (
+  id int auto_increment primary key,
+  v vector(8) not null,
+  vector index (v) m=8 ef_construction=10
+);
+
+--echo # Table with ef_construction=100
+create table t_ef100 (
+  id int auto_increment primary key,
+  v vector(8) not null,
+  vector index (v) m=8 ef_construction=100
+);
+
+--echo # Table with ef_construction=200
+create table t_ef200 (
+  id int auto_increment primary key,
+  v vector(8) not null,
+  vector index (v) m=8 ef_construction=200
+);
+
+--echo # ========================================================================
+--echo # Insert 500 vectors with a known pattern
+--echo # ========================================================================
+
+--echo # Insert vectors in a grid pattern for reproducible results
+delimiter //;
+create procedure insert_vectors()
+begin
+  declare i int default 0;
+  declare v1, v2, v3, v4, v5, v6, v7, v8 float;
+  declare vec_text text;
+
+  while i < 500 do
+    -- Create vectors with some structure (not random)
+    set v1 = sin(i * 0.1);
+    set v2 = cos(i * 0.1);
+    set v3 = sin(i * 0.2);
+    set v4 = cos(i * 0.2);
+    set v5 = sin(i * 0.3);
+    set v6 = cos(i * 0.3);
+    set v7 = sin(i * 0.4);
+    set v8 = cos(i * 0.4);
+
+    set vec_text = concat('[', v1, ',', v2, ',', v3, ',', v4, ',', v5, ',', v6, ',', v7, ',', v8, ']');
+
+    insert into t_ef10 (v) values (vec_fromtext(vec_text));
+    insert into t_ef100 (v) values (vec_fromtext(vec_text));
+    insert into t_ef200 (v) values (vec_fromtext(vec_text));
+
+    set i = i + 1;
+  end while;
+end//
+delimiter ;//
+
+call insert_vectors();
+
+select count(*) as vectors_per_table from t_ef10;
+
+--echo # ========================================================================
+--echo # Test: Find 10 nearest neighbors for a query vector
+--echo # ========================================================================
+
+--echo # Query vector: [0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5]
+set @query = vec_fromtext('[0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5]');
+
+--echo # Results from ef_construction=10:
+--replace_regex /(-?\d+\.\d{4})\d*/\1/
+select id, vec_distance_euclidean(v, @query) as dist
+from t_ef10
+order by dist limit 10;
+
+--echo # Results from ef_construction=100:
+--replace_regex /(-?\d+\.\d{4})\d*/\1/
+select id, vec_distance_euclidean(v, @query) as dist
+from t_ef100
+order by dist limit 10;
+
+--echo # Results from ef_construction=200:
+--replace_regex /(-?\d+\.\d{4})\d*/\1/
+select id, vec_distance_euclidean(v, @query) as dist
+from t_ef200
+order by dist limit 10;
+
+--echo #
+--echo # Expected observation:
+--echo # - ef_construction=10 may miss some true nearest neighbors
+--echo # - ef_construction=100 and 200 should find the same/similar results
+--echo # - Higher ef_construction = more accurate graph = better recall
+--echo #
+
+--echo # ========================================================================
+--echo # Show index properties
+--echo # ========================================================================
+
+show create table t_ef10;
+show create table t_ef100;
+show create table t_ef200;
+
+--echo # Cleanup
+drop procedure insert_vectors;
+drop table t_ef10;
+drop table t_ef100;
+drop table t_ef200;
+
+--echo # End of demo

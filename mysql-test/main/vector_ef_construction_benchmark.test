@@ -1,0 +1,355 @@
+--echo #
+--echo # Benchmark: Impact of ef_construction on HNSW index quality
+--echo #
+--echo # This benchmark demonstrates why configurable ef_construction is needed.
+--echo # Lower ef_construction = faster build, lower recall
+--echo # Higher ef_construction = slower build, higher recall
+--echo #
+
+--echo # ========================================================================
+--echo # Setup: Create ground truth table with 10000 random vectors (128 dims)
+--echo # ========================================================================
+
+--disable_warnings
+drop table if exists vectors_base;
+drop table if exists vectors_ef10;
+drop table if exists vectors_ef100;
+drop table if exists vectors_ef200;
+drop table if exists queries;
+drop table if exists ground_truth;
+--enable_warnings
+
+--echo # Create base table with vectors (no index, for ground truth)
+create table vectors_base (
+  id int auto_increment primary key,
+  v vector(128) not null
+);
+
+--echo # Generate 10000 random vectors
+delimiter //;
+create procedure generate_vectors(n int)
+begin
+  declare i int default 0;
+  declare vec_text text;
+  declare j int;
+
+  while i < n do
+    set vec_text = '[';
+    set j = 0;
+    while j < 128 do
+      set vec_text = concat(vec_text, round(rand() * 2 - 1, 6));
+      if j < 127 then
+        set vec_text = concat(vec_text, ',');
+      end if;
+      set j = j + 1;
+    end while;
+    set vec_text = concat(vec_text, ']');
+
+    insert into vectors_base (v) values (vec_fromtext(vec_text));
+    set i = i + 1;
+  end while;
+end//
+delimiter ;//
+
+--echo # Generating 10000 vectors (this may take a few minutes)...
+call generate_vectors(10000);
+select count(*) as total_vectors from vectors_base;
+
+--echo # Create query vectors table
+create table queries (
+  id int auto_increment primary key,
+  v vector(128) not null
+);
+
+--echo # Generate 100 query vectors
+delimiter //;
+create procedure generate_queries(n int)
+begin
+  declare i int default 0;
+  declare vec_text text;
+  declare j int;
+
+  while i < n do
+    set vec_text = '[';
+    set j = 0;
+    while j < 128 do
+      set vec_text = concat(vec_text, round(rand() * 2 - 1, 6));
+      if j < 127 then
+        set vec_text = concat(vec_text, ',');
+      end if;
+      set j = j + 1;
+    end while;
+    set vec_text = concat(vec_text, ']');
+
+    insert into queries (v) values (vec_fromtext(vec_text));
+    set i = i + 1;
+  end while;
+end//
+delimiter ;//
+
+call generate_queries(100);
+select count(*) as total_queries from queries;
+
+--echo # ========================================================================
+--echo # Compute ground truth (exact k-NN using brute force)
+--echo # ========================================================================
+
+--echo # For each query, find the true 10 nearest neighbors (brute force)
+create table ground_truth (
+  query_id int,
+  neighbor_id int,
+  neighbor_rank int,
+  distance float,
+  primary key (query_id, neighbor_rank)
+);
+
+--echo # Computing ground truth for 100 queries x 10000 vectors...
+--echo # (This uses exact computation without any index)
+
+delimiter //;
+create procedure compute_ground_truth()
+begin
+  declare q_id int;
+  declare q_vec vector(128);
+  declare done int default 0;
+  declare cur cursor for select id, v from queries;
+  declare continue handler for not found set done = 1;
+
+  open cur;
+  read_loop: loop
+    fetch cur into q_id, q_vec;
+    if done then
+      leave read_loop;
+    end if;
+
+    -- Insert top 10 nearest neighbors for this query
+    insert into ground_truth (query_id, neighbor_id, neighbor_rank, distance)
+    select q_id, id, @rank := @rank + 1, vec_distance_euclidean(v, q_vec)
+    from vectors_base, (select @rank := 0) r
+    order by vec_distance_euclidean(v, q_vec)
+    limit 10;
+  end loop;
+  close cur;
+end//
+delimiter ;//
+
+call compute_ground_truth();
+select count(*) as ground_truth_pairs from ground_truth;
+
+--echo # ========================================================================
+--echo # Test 1: ef_construction = 10 (current default, very low)
+--echo # ========================================================================
+
+--echo # Building index with ef_construction=10...
+set @start_time = now(6);
+
+create table vectors_ef10 (
+  id int auto_increment primary key,
+  v vector(128) not null,
+  vector index (v) m=16 ef_construction=10
+);
+
+insert into vectors_ef10 (id, v) select id, v from vectors_base;
+
+set @build_time_ef10 = timestampdiff(microsecond, @start_time, now(6)) / 1000000;
+select @build_time_ef10 as build_time_seconds_ef10;
+
+--echo # Measuring recall@10 for ef_construction=10...
+set @hits_ef10 = 0;
+set @total_ef10 = 0;
+
+delimiter //;
+create procedure measure_recall_ef10()
+begin
+  declare q_id int;
+  declare q_vec vector(128);
+  declare done int default 0;
+  declare cur cursor for select id, v from queries;
+  declare continue handler for not found set done = 1;
+
+  open cur;
+  read_loop: loop
+    fetch cur into q_id, q_vec;
+    if done then
+      leave read_loop;
+    end if;
+
+    -- Count how many of the ANN results are in the true top 10
+    set @hits_ef10 = @hits_ef10 + (
+      select count(*)
+      from (
+        select id from vectors_ef10
+        order by vec_distance_euclidean(v, q_vec) limit 10
+      ) ann
+      where ann.id in (
+        select neighbor_id from ground_truth where query_id = q_id
+      )
+    );
+    set @total_ef10 = @total_ef10 + 10;
+  end loop;
+  close cur;
+end//
+delimiter ;//
+
+call measure_recall_ef10();
+select @hits_ef10 / @total_ef10 * 100 as recall_at_10_percent_ef10;
+
+--echo # ========================================================================
+--echo # Test 2: ef_construction = 100 (reasonable default)
+--echo # ========================================================================
+
+--echo # Building index with ef_construction=100...
+set @start_time = now(6);
+
+create table vectors_ef100 (
+  id int auto_increment primary key,
+  v vector(128) not null,
+  vector index (v) m=16 ef_construction=100
+);
+
+insert into vectors_ef100 (id, v) select id, v from vectors_base;
+
+set @build_time_ef100 = timestampdiff(microsecond, @start_time, now(6)) / 1000000;
+select @build_time_ef100 as build_time_seconds_ef100;
+
+--echo # Measuring recall@10 for ef_construction=100...
+set @hits_ef100 = 0;
+set @total_ef100 = 0;
+
+delimiter //;
+create procedure measure_recall_ef100()
+begin
+  declare q_id int;
+  declare q_vec vector(128);
+  declare done int default 0;
+  declare cur cursor for select id, v from queries;
+  declare continue handler for not found set done = 1;
+
+  open cur;
+  read_loop: loop
+    fetch cur into q_id, q_vec;
+    if done then
+      leave read_loop;
+    end if;
+
+    set @hits_ef100 = @hits_ef100 + (
+      select count(*)
+      from (
+        select id from vectors_ef100
+        order by vec_distance_euclidean(v, q_vec) limit 10
+      ) ann
+      where ann.id in (
+        select neighbor_id from ground_truth where query_id = q_id
+      )
+    );
+    set @total_ef100 = @total_ef100 + 10;
+  end loop;
+  close cur;
+end//
+delimiter ;//
+
+call measure_recall_ef100();
+select @hits_ef100 / @total_ef100 * 100 as recall_at_10_percent_ef100;
+
+--echo # ========================================================================
+--echo # Test 3: ef_construction = 200 (high quality)
+--echo # ========================================================================
+
+--echo # Building index with ef_construction=200...
+set @start_time = now(6);
+
+create table vectors_ef200 (
+  id int auto_increment primary key,
+  v vector(128) not null,
+  vector index (v) m=16 ef_construction=200
+);
+
+insert into vectors_ef200 (id, v) select id, v from vectors_base;
+
+set @build_time_ef200 = timestampdiff(microsecond, @start_time, now(6)) / 1000000;
+select @build_time_ef200 as build_time_seconds_ef200;
+
+--echo # Measuring recall@10 for ef_construction=200...
+set @hits_ef200 = 0;
+set @total_ef200 = 0;
+
+delimiter //;
+create procedure measure_recall_ef200()
+begin
+  declare q_id int;
+  declare q_vec vector(128);
+  declare done int default 0;
+  declare cur cursor for select id, v from queries;
+  declare continue handler for not found set done = 1;
+
+  open cur;
+  read_loop: loop
+    fetch cur into q_id, q_vec;
+    if done then
+      leave read_loop;
+    end if;
+
+    set @hits_ef200 = @hits_ef200 + (
+      select count(*)
+      from (
+        select id from vectors_ef200
+        order by vec_distance_euclidean(v, q_vec) limit 10
+      ) ann
+      where ann.id in (
+        select neighbor_id from ground_truth where query_id = q_id
+      )
+    );
+    set @total_ef200 = @total_ef200 + 10;
+  end loop;
+  close cur;
+end//
+delimiter ;//
+
+call measure_recall_ef200();
+select @hits_ef200 / @total_ef200 * 100 as recall_at_10_percent_ef200;
+
+--echo # ========================================================================
+--echo # Summary
+--echo # ========================================================================
+
+--echo #
+--echo # Results Summary:
+--echo #
+select
+  'ef_construction=10' as config,
+  @build_time_ef10 as build_time_sec,
+  round(@hits_ef10 / @total_ef10 * 100, 2) as recall_at_10_percent
+union all
+select
+  'ef_construction=100' as config,
+  @build_time_ef100 as build_time_sec,
+  round(@hits_ef100 / @total_ef100 * 100, 2) as recall_at_10_percent
+union all
+select
+  'ef_construction=200' as config,
+  @build_time_ef200 as build_time_sec,
+  round(@hits_ef200 / @total_ef200 * 100, 2) as recall_at_10_percent;
+
+--echo #
+--echo # Conclusion:
+--echo # - ef_construction=10 is too low for production use (expected recall ~70-80%)
+--echo # - ef_construction=100 provides good balance (expected recall ~95%)
+--echo # - ef_construction=200 provides excellent recall (expected recall ~99%)
+--echo # - Users should be able to choose based on their accuracy requirements
+--echo #
+
+--echo # Cleanup
+drop procedure generate_vectors;
+drop procedure generate_queries;
+drop procedure compute_ground_truth;
+drop procedure measure_recall_ef10;
+drop procedure measure_recall_ef100;
+drop procedure measure_recall_ef200;
+drop table vectors_base;
+drop table vectors_ef10;
+drop table vectors_ef100;
+drop table vectors_ef200;
+drop table queries;
+drop table ground_truth;
+
+--echo # End of benchmark
