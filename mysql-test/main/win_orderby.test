@@ -85,3 +85,70 @@ DROP TABLE t1;
 --echo #
 --echo # End of 10.3 tests
 --echo #
+
+--echo #
+--echo # MDEV-32317 ref_ptrs exhaust on multiple ORDER by func from winfunc
+--echo #
+# Primitive tests, just know how reserve/occupation works
+# 2 elements
+select row_number() over () x;
+select row_number() over (order by 1) x;
+select row_number() over (order by 1, 1) x;
+select row_number() over (partition by 1) x;
+select row_number() over (partition by 1, 1) x;
+select row_number() over (partition by 1 order by 1) x;
+# 3 elements
+select row_number() over (partition by 1, 2) x;
+select row_number() over (partition by 1, 2 order by 1, 1) x;
+# 1 element
+select row_number() over () x order by x;
+select row_number() over () order by 1;
+# 2 elements
+select row_number() over (order by 1) order by 1;
+select row_number() over (order by 1, 1) order by 1;
+select row_number() over (order by 1) order by 1, 1;
+select row_number() over (order by 1, 1) order by 1, 1;
+# 3 elements
+select row_number() over (partition by 1, 2 order by 1, 1) order by 1;
+select row_number() over (partition by 1, 2 order by 1, 1) order by 1, 1;
+# 1 element
+select nullif(1, 0) order by 1;
+select nullif(1, 0) order by 1, 1;
+
+# Now interesting, winfunc inside func
+# 7 elements (reserves 11)
+select nullif(avg(1) over (), 0) order by 1;
+# 8 elements (reserves 12)
+select nullif(avg(1) over (order by 1), 0) order by 1;
+# 8 elements (reserves 13)
+select nullif(avg(1) over (order by 1, 1), 0) order by 1;
+# 8 elements (reserves 12)
+select nullif(avg(1) over (partition by 1), 0) order by 1;
+# 9 elements (reserves 13)
+select nullif(avg(1) over (partition by 1, 2), 0) order by 1;
+# 11 elements (reserves 15)
+select nullif(avg(1) over (), 0) order by 1, 1;
+# 13 elements (reserves 17)
+select nullif(avg(1) over (partition by 1, 2), 0) order by 1, 1;
+# 17 elements (reserves 21)
+select nullif(avg(1) over (partition by 1, 2), 0) order by 1, 1, 1;
+# 24 elements (reserves 36)
+select nullif(avg(1) over (partition by 1, 2), avg(1) over ()) order by 1, 1, 1;
+
+# Extinguishing tests, let's break the code
+# 17 elements (reserves 25)
+select avg ( 'x' ) over ( ) x where ( 1 , 1 , ( 1 , null ) ) in ( ( 1 , 1 , ( 1 , 1 ) ) ) order by x between 25 and ( ( x = x ) / x ) or x = x = avg ( null ) or x = 94 ;
+# 14 elements (reserves 20)
+select row_number() over () x order by x between 1 and (( x = x ) / x) or x = x = 1  ;
+# 16 elements (reserves 20)
+select nullif(avg(1) over (order by 1), 0) order by 1, 1, 1;
+# 41 elements (reserves 72)
+select nullif(avg(1) over (order by 1, 1, 1, 1, 1, 1, 1), avg(2) over (order by 1, 1, 1, 1, 1, 1, 1)) order by 1, 1, 1, 1, 1, 1;
+# 50 elements (reserves 92)
+select nullif(avg(1) over (partition by -1,1,0,2,3,4,5,6,7,8 order by 1, 1, 1, 1, 1, 1, 1), avg(2) over (partition by -1,1,0,2,3,4,5,6,7,8 order by 1, 1, 1, 1, 1, 1, 1)) order by 1, 1, 1, 1, 1, 1;
+# 63 elements (reserves 124)
+select nullif(avg(1) over (partition by -1,1,0,2,3,4,5,6,7,8 order by 1, 1, 1, 1, 1, 1, 1), avg(2) over (partition by -1,1,0,2,3,4,5,6,7,8 order by 1, 1, 1, 1, 1, 1, 1)) x order by 1, 1, 1, 1, 1, 1, x between 1 and (( x = x ) / x) or x = x = 1  ;
+
+--echo #
+--echo # End of 10.11 tests
+--echo #
